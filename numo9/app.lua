@@ -2,6 +2,7 @@ local ffi = require 'ffi'
 local template = require 'template'
 local string = require 'ext.string'
 local table = require 'ext.table'
+local getTime = require 'ext.timer'.getTime
 local Image = require 'image'
 local sdl = require 'sdl'
 local clnumber = require 'cl.obj.number'
@@ -25,6 +26,12 @@ local spritesPerSheet = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.
 local App = require 'glapp.view'.apply(GLApp):subclass()
 
 App.title = 'NuMo9'
+
+App.paletteSize = paletteSize
+App.frameBufferSize = frameBufferSize
+App.spriteSheetSize = spriteSheetSize
+App.spriteSize = spriteSize
+App.spritesPerSheet = spritesPerSheet
 
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
@@ -64,6 +71,7 @@ function App:initGL()
 		pcall = pcall,
 		xpcall = xpcall,
 		load = load,
+		clear = function(...) return self:clearScreen(...) end,
 		print = function(...) return self:print(...) end,
 		write = function(...) return self:write(...) end,
 	}
@@ -227,7 +235,7 @@ void main() {
 			},
 		},
 		texs = {
-			self.screenTex,
+			self.spriteTex,
 			self.palTex,
 		},
 		geometry = self.quadGeom,
@@ -254,9 +262,9 @@ void main() {
 ]],
 			fragmentCode = [[
 out vec4 fragColor;
-uniform float index;
+uniform float colorIndex;
 void main() {
-	fragColor = vec4(index, 0., 0., 1.);
+	fragColor = vec4(colorIndex, 0., 0., 1.);
 }
 ]],
 		},
@@ -264,9 +272,8 @@ void main() {
 		-- reset every frame
 		uniforms = {
 			mvProjMat = self.view.mvProjMat.ptr,
-			index = 0,
+			colorIndex = 0,
 			box = {0, 0, 8, 8},
-			tcbox = {0, 0, 1, 1},
 		},
 	}
 
@@ -331,6 +338,12 @@ end
 function App:update()
 	App.super.update(self)
 
+	gl.glViewport(0, 0, self.width, self.height)
+	gl.glClearColor(.1, .2, .3, 1.)
+	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+
+	self.editor:update(getTime())
+
 -- [[ redo ortho projection matrix
 -- every frame ... not necessary if the screen is static
 -- but mebbe I want mode7 or something idk
@@ -394,7 +407,7 @@ function App:offsetCursor(dx, dy)
 	end
 end
 
-function App:drawSolidRect(x,y,w,h,color)
+function App:drawSolidRect(x,y,w,h,colorIndex)
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -407,21 +420,16 @@ function App:drawSolidRect(x,y,w,h,color)
 
 	local sceneObj = self.quadSolidObj
 	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-
-	sceneObj.uniforms.index = index
-	settable(sceneObj.uniforms.box, 
-		x,
-		y,
-		spriteSize.x,
-		spriteSize.y
-	)
+	sceneObj.uniforms.colorIndex = colorIndex
+	settable(sceneObj.uniforms.box, x, y, w, h)
 	sceneObj:draw()
 	fb:unbind()
 end
 
-function App:clearScreen(color)
+function App:clearScreen(colorIndex)
+	colorIndex = colorIndex or 0
 	local fb = self.fb
-	self:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, color)
+	self:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, colorIndex)
 end
 
 --[[
@@ -440,8 +448,6 @@ function App:drawSprite(x,y,spriteIndex,palHiNibble)
 	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 
 	local sceneObj = self.quad4bppObj
-	sceneObj.texs[1] = self.spriteTex
-	sceneObj.texs[2] = self.palTex
 	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
@@ -497,6 +503,7 @@ function App:addCharToScreen(ch)
 		self:drawChar((' '):byte())
 		self:offsetCursor(-spriteSize.x, 0)
 	elseif ch == 10 or ch == 13 then
+		self:drawChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
 		self.cursorPos.x = 0
 		self.cursorPos.y = self.cursorPos.y + spriteSize.y
 	else
@@ -522,11 +529,11 @@ function App:print(...)
 end
 
 function App:addCharToCmd(ch)
-	if ch == 8
-	and #self.cmdbuf > 0
-	then
-		self.cmdbuf = self.cmdbuf:sub(1,-2)
-		self:addCharToScreen(ch)
+	if ch == 8 then
+		if #self.cmdbuf > 0 then
+			self.cmdbuf = self.cmdbuf:sub(1,-2)
+			self:addCharToScreen(ch)
+		end
 	else
 		self.cmdbuf = self.cmdbuf .. string.char(ch)
 		self:addCharToScreen(ch)

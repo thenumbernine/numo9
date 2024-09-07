@@ -18,7 +18,14 @@ function Editor:init(args)
 end
 
 -- runs at 60hz
-function Editor:update()
+function Editor:update(t)
+	local app = self.app
+	if t % 1 < .5 then
+		app:drawSolidRect(app.cursorPos.x, app.cursorPos.y, app.spriteSize.x, app.spriteSize.y, 15)
+	else
+		-- else TODO draw the character in the buffer at this location
+		app:drawSolidRect(app.cursorPos.x, app.cursorPos.y, app.spriteSize.x, app.spriteSize.y, 0)
+	end
 end
 
 local shiftFor = {
