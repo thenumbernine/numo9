@@ -45,7 +45,7 @@ local spriteSize = vec2i(8, 8)
 local spritesPerSheet = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
 local spritesPerFrameBuffer = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 
-local App = require 'glapp.view'.apply(GLApp):subclass()
+local App = GLApp:subclass()
 
 App.title = 'NuMo9'
 App.width = 720
@@ -92,6 +92,15 @@ local updateFreq = 60
 local defaultFilename = 'last.n9'
 
 function App:initGL()
+
+	local View = require 'glapp.view'
+	self.view = View()
+	self.view.ortho = true
+	self.view.orthoSize = 1
+
+	self.blitScreenView = View()
+	self.blitScreenView.ortho = true
+	self.blitScreenView.orthoSize = 1
 
 	-- TODO delta updates
 	self.startTime = getTime()
@@ -283,7 +292,7 @@ void main() {
 		geometry = self.quadGeom,
 		-- reset every frame
 		uniforms = {
-			mvProjMat = self.view.mvProjMat.ptr,
+			mvProjMat = self.blitScreenView.mvProjMat.ptr,
 		},
 	}
 
@@ -297,25 +306,11 @@ out vec2 tcv;
 uniform vec4 box;	//x,y,w,h
 uniform vec4 tcbox;	//x,y,w,h
 
-// ok this is me getting lazy
-// this should be a mvProjMat / transformation / "mode7" effect
-// but bleh
-uniform float rotation;
-
 uniform mat4 mvProjMat;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
-	
-	// rotate before transform, or after?
-	// TODO get rid of 'rotation' and just use "mode7"
-	vec2 cis = vec2(cos(rotation), sin(rotation));
-	rvtx = vec2(
-		rvtx.x * cis.x - rvtx.y * cis.y,
-		rvtx.x * cis.y + rvtx.y * cis.x
-	);
-
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
 }
 ]],
@@ -375,7 +370,6 @@ void main() {
 				paletteSize = paletteSize,
 			}),
 			uniforms = {
-				rotation = 0,
 				spriteTex = 0,
 				paletteIndex = 0,
 				spriteBit = 0,
@@ -403,18 +397,8 @@ void main() {
 in vec2 vertex;
 uniform vec4 box;	//x,y,w,h
 uniform mat4 mvProjMat;
-uniform float rotation;	//TODO get rid of this
 void main() {
 	vec2 rvtx = box.xy + vertex * box.zw;
-	
-	// rotate before transform, or after?
-	// TODO get rid of 'rotation' and just use "mode7"
-	vec2 cis = vec2(cos(rotation), sin(rotation));
-	rvtx = vec2(
-		rvtx.x * cis.x - rvtx.y * cis.y,
-		rvtx.x * cis.y + rvtx.y * cis.x
-	);
-
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
 }
 ]],
@@ -444,10 +428,6 @@ void main() {
 		print(debug.traceback())
 	end
 	fb:unbind()
-
-	local view = self.view
-	view.ortho = true
-	view.orthoSize = 1
 
 	self.editCode = EditCode{app=self}
 	self.con = Console{app=self}
@@ -521,7 +501,7 @@ function App:update()
 -- [[ redo ortho projection matrix
 -- every frame ... not necessary if the screen is static
 -- but mebbe I want mode7 or something idk
-	local view = self.view
+	local view = self.blitScreenView
 --	view:setup(self.width / self.height)
 	local orthoSize = view.orthoSize
 	local wx, wy = self.width, self.height
@@ -562,10 +542,8 @@ function App:drawSolidRect(
 	y,
 	w,
 	h,
-	colorIndex,
-	rotation	-- TODO get rid of this
+	colorIndex
 )
-	rotation = rotation or 0
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -580,7 +558,6 @@ function App:drawSolidRect(
 	local uniforms = sceneObj.uniforms
 	uniforms.mvProjMat = view.mvProjMat.ptr
 	uniforms.colorIndex = colorIndex
-	uniforms.rotation = rotation
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
 	fb:unbind()
@@ -602,12 +579,10 @@ function App:drawSprite(
 	y,
 	spriteIndex,
 	paletteIndex,
-	transparentIndex,
-	rotation	-- because why not
+	transparentIndex
 )
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
-	rotation = rotation	or 0
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -624,7 +599,6 @@ function App:drawSprite(
 	uniforms.mvProjMat = view.mvProjMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
-	uniforms.rotation = rotation
 	
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	local tx = spriteIndex % spritesPerSheet.x
