@@ -11,7 +11,7 @@ local Console = class()
 
 function Console:init(args)
 	self.app = assert(args.app)
-	
+
 	self:reset()
 end
 
@@ -22,7 +22,7 @@ function Console:reset()
 	self.cmdHistory = table()
 	self.cmdHistoryIndex = nil
 	self.cursorPos = vec2i(0, 0)
-	
+
 	-- right now cursorPaletteIndex just adds
 	-- meanwhile the font texture is indexed 0's and 15's
 	-- so whatever you set cursorPaletteIndex to, that value is background and that value plus 15 is foreground
@@ -32,7 +32,7 @@ function Console:reset()
 	-- clear the screen every time, or save the screen every time?
 	app:clearScreen()
 	self:print(app.title)
-	
+
 	for i=0,15 do
 		self.cursorPaletteIndex = i	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
 		self:print'hello world'
@@ -53,7 +53,7 @@ function Console:runCmdBuf()
 
 	local success, msg = self.app:runCmd(cmd)
 	if not success then
-print(msg)		
+print(msg)
 		self:print(tostring(msg))
 	end
 
@@ -67,7 +67,7 @@ function Console:offsetCursor(dx, dy)
 	local fb = self.fb
 	self.cursorPos.x = self.cursorPos.x + dx
 	self.cursorPos.y = self.cursorPos.y + dy
-	
+
 	while self.cursorPos.x < 0 do
 		self.cursorPos.x = self.cursorPos.x + app.frameBufferSize.x
 		self.cursorPos.y = self.cursorPos.y - app.spriteSize.y
@@ -134,7 +134,7 @@ function Console:selectHistory(dx)
 	self.cmdHistoryIndex = (((self.cmdHistoryIndex or n+1) + dx - 1) % n) + 1
 	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
 	self.cursorPos.x = 0
-	
+
 	self:write(self.prompt)
 	self:write(self.cmdbuf)
 end
@@ -156,8 +156,8 @@ function Console:update()
 	local app = self.app
 
 	-- TODO start to bypass the internal console prompt
-	
-	--[[ TODO draw 
+
+	--[[ TODO draw
 	self.cursorPos:set(0,0)
 	app:write'CSMAB code editor'
 	--]]
@@ -176,7 +176,7 @@ end
 -- this all involves *another* set of key remappings which seems tedious ...
 function Console:event(e)
 	local app = self.app
-	if e[0].type == sdl.SDL_KEYDOWN 
+	if e[0].type == sdl.SDL_KEYDOWN
 	or e[0].type == sdl.SDL_KEYUP
 	then
 		-- TODO store the press state of all as bitflags in 'ram' somewhere
@@ -191,12 +191,12 @@ function Console:event(e)
 			local shift = bit.band(mod, sdl.SDLK_LSHIFT) ~= 0
 			local charsym = app:getKeySymForShift(sym, shift)
 			if charsym then
-				self:addCharToCmd(charsym)	
+				self:addCharToCmd(charsym)
 			elseif sym == sdl.SDLK_RETURN then
 				self:runCmdBuf()
 			elseif sym == sdl.SDLK_UP then
 				self:selectHistory(-1)
-			elseif sym == sdl.SDLK_DOWN then 
+			elseif sym == sdl.SDLK_DOWN then
 				self:selectHistory(1)
 			-- TODO left right to move the cursor
 			end

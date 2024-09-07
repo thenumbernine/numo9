@@ -56,7 +56,7 @@ App.frameBufferSize = frameBufferSize
 App.spriteSheetSize = spriteSheetSize
 App.spriteSize = spriteSize
 App.spritesPerSheet = spritesPerSheet
-App.spritesPerFrameBuffer = spritesPerFrameBuffer 
+App.spritesPerFrameBuffer = spritesPerFrameBuffer
 
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
@@ -97,6 +97,7 @@ function App:initGL()
 	self.view = View()
 	self.view.ortho = true
 	self.view.orthoSize = 1
+	self:resetView()
 
 	self.blitScreenView = View()
 	self.blitScreenView.ortho = true
@@ -120,15 +121,19 @@ function App:initGL()
 		run = function(...) return self:runCode(...) end,
 		save = function(...) return self:save(...) end,
 		load = function(...) return self:load(...) end,
+		quit = function(...) self:requestExit() end,
 		-- other stuff
-		cos = math.cos,
-		sin = math.sin,
-		time = function() 
+		time = function()
 			-- TODO fixed-framerate and internal app clock
 			-- until then ...
 			return math.floor((getTime() - self.startTime) * updateFreq) / updateFreq
 		end,
-		-- graphics	
+
+		-- math
+		cos = math.cos,
+		sin = math.sin,
+
+		-- graphics
 		clear = function(...) return self:clearScreen(...) end,
 
 		-- pico has ...
@@ -148,13 +153,29 @@ function App:initGL()
 		end,
 		sprite = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
 		text = function(...) return self:drawTextFgBg(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
-		
+
 		-- TODO don't do this
 		app = self,
 	}, {
 		-- TODO don't __index=_G and sandbox it instead
 		__index = _G,
 	})
+
+	-- me cheating and exposing opengl matrix functions:
+	-- mvmatident mvmattrans mvmatrot mvmatscale mvmatortho mvmatfrustum mvmatlookat
+	-- projmatident projmattrans projmatrot projmatscale projmatortho projmatfrustum projmatlookat
+	local view = self.view
+	for _,name in ipairs{'mv', 'proj'} do
+		local mat = view[name..'Mat']
+		-- matrix math because i'm cheating
+		self.env[name..'matident'] = function(...) mat:setIdent(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env[name..'mattrans'] = function(...) mat:applyTranslate(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env[name..'matrot'] = function(...) mat:applyRotate(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env[name..'matscale'] = function(...) mat:applyScale(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env[name..'matortho'] = function(...) mat:applyOrtho(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env[name..'matfrustum'] = function(...) mat:applyFrustum(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env[name..'matlookat'] = function(...) mat:applyLookAt(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+	end
 
 	self.fb = GLFBO{
 		width = frameBufferSize.x,
@@ -168,7 +189,7 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
-	
+
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
 		image = Image(paletteSize, 1, 1, 'unsigned short',
@@ -322,7 +343,7 @@ out uvec4 fragColor;
 //You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
 //Or you can set it to low numbers and use it to offset the palette.
 //Should this be high bits? or just an offset to OR? or to add?
-uniform uint paletteIndex;	
+uniform uint paletteIndex;
 
 // Reads 4 bits from wherever shift location you provide.
 uniform usampler2D spriteTex;
@@ -349,7 +370,7 @@ void main() {
 	// TODO provide a shift uniform for picking lo vs hi nibble
 	// only use the lower 4 bits ...
 	uint colorIndex = (texture(spriteTex, tcv).r >> spriteBit) & spriteMask;
-	
+
 	// TODO HERE MAYBE
 	// lookup the colorIndex in the palette to determine the alpha channel
 	// but really, why an extra tex read here?
@@ -357,11 +378,11 @@ void main() {
 	// then I get to use all my colors
 	if (colorIndex == transparentIndex) discard;
 
-	//colorIndex should hold 
+	//colorIndex should hold
 	colorIndex += paletteIndex;
 	colorIndex &= 0XFFu;
 
-	
+
 	// write the 8bpp colorIndex to the screen, use tex to draw it
 	fragColor = uvec4(colorIndex, 0, 0, 0xFFu);
 }
@@ -440,23 +461,23 @@ void main() {
 	end
 end
 
--- [[ also in sand-attack ... hmmmm ... 
+-- [[ also in sand-attack ... hmmmm ...
 -- consider putting somewhere common, maybe in gl.tex2d ?
 -- maybe just save .image in gltex2d?
 function App:makeTexFromImage(args)
-glreport'here'	
+glreport'here'
 	local image = assert(args.image)
 	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
 	local tex = GLTex2D{
 		-- rect would be nice
-		-- but how come wrap doesn't work with texture_rect? 
+		-- but how come wrap doesn't work with texture_rect?
 		-- how hard is it to implement a modulo operator?
 		-- or another question, which is slower, integer modulo or float conversion in glsl?
 		--target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = args.internalFormat or gl.GL_RGBA,
 		format = args.format or gl.GL_RGBA,
 		type = args.type or gl.GL_UNSIGNED_BYTE,
-		
+
 		width = tonumber(image.width),
 		height = tonumber(image.height),
 		wrap = args.wrap or {
@@ -469,7 +490,7 @@ glreport'here'
 	}:unbind()
 	-- TODO move this store command to gl.tex2d ctor if .image is used?
 	tex.image = image
-glreport'here'	
+glreport'here'
 	return tex
 end
 
@@ -531,7 +552,7 @@ function App:update()
 	local sceneObj = self.quad8bppToRGBObj
 	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 --]]
-	
+
 	gl.glViewport(0, 0, self.width, self.height)
 
 	sceneObj:draw()
@@ -549,14 +570,9 @@ function App:drawSolidRect(
 	fb:bind()
 	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
 
-	local view = self.view
-	view.projMat:setOrtho(0, frameBufferSize.x, 0, frameBufferSize.y, -1, 1)
-	view.mvMat:setIdent()
-	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
-
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
-	uniforms.mvProjMat = view.mvProjMat.ptr
+	uniforms.mvProjMat = self.view.mvProjMat.ptr
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
@@ -588,22 +604,17 @@ function App:drawSprite(
 	fb:bind()
 	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
 
-	local view = self.view
-	view.projMat:setOrtho(0, frameBufferSize.x, 0, frameBufferSize.y, -1, 1)
-	view.mvMat:setIdent()
-	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
-
 	local sceneObj = self.quad4bppObj
 	local uniforms = sceneObj.uniforms
-	
-	uniforms.mvProjMat = view.mvProjMat.ptr
+
+	uniforms.mvProjMat = self.view.mvProjMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
-	
+
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	local tx = spriteIndex % spritesPerSheet.x
 	local ty = (spriteIndex - tx) / spritesPerSheet.x
-	settable(uniforms.tcbox, 
+	settable(uniforms.tcbox,
 		tx / tonumber(spritesPerSheet.x),
 		ty / tonumber(spritesPerSheet.y),
 		1 / tonumber(spritesPerSheet.x),
@@ -637,7 +648,7 @@ function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
 		x = x + spriteSize.x
 	end
 
-	self:drawText(x0, y, text, 
+	self:drawText(x0, y, text,
 		-- font color is 0 = background, 15 = foreground
 		-- so shift this by 15 so the font tex contents shift it back
 		-- TODO if compression is a thing then store 8 letters per 8x8 sprite
@@ -678,7 +689,18 @@ function App:runCmd(cmd)
 	return xpcall(f, errorHandler)
 end
 
+function App:resetView()
+	-- initialize our projection to framebuffer size
+	-- do this every time we run a new rom
+	local view = self.view
+	view.projMat:setOrtho(0, frameBufferSize.x, 0, frameBufferSize.y, -1, 1)
+	view.mvMat:setIdent()
+	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+end
+
 function App:runCode()
+	self:resetView()
+
 	-- TODO setfenv instead?
 	local env = setmetatable({}, {
 		__index = self.env,

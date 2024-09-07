@@ -50,7 +50,7 @@ end
 local slashRByte = ('\r'):byte()
 local newlineByte = ('\n'):byte()
 function EditCode:refreshNewlines()
---print(require 'ext.string'.hexdump(self.text))	
+--print(require 'ext.string'.hexdump(self.text))
 	-- refresh newlines
 	self.newlines = table()
 	self.newlines:insert(0)
@@ -106,7 +106,7 @@ function EditCode:update()
 		)
 		y = y + 1
 	end
-	
+
 	if getTime() % 1 < .5 then
 		app:drawSolidRect(
 			self.cursorCol * app.spriteSize.x,
@@ -147,18 +147,18 @@ local function prevNewline(s, i)
 	end
 	return 1
 end
-				
+
 function EditCode:countRowCols(row)
 	--return self.newlines[row+1] - self.newlines[row] + 1
 	local linetext = self.text:sub(self.newlines[row], self.newlines[row+1])
 	-- TODO enumerate chars, upon tab round up to tab indent
 	--linetext = linetext:gsub('\t', (' '):rep(indentSize))
 	return #linetext
-end	
+end
 
 function EditCode:event(e)
 	local app = self.app
-	if e[0].type == sdl.SDL_KEYDOWN 
+	if e[0].type == sdl.SDL_KEYDOWN
 	or e[0].type == sdl.SDL_KEYUP
 	then
 		-- TODO store the press state of all as bitflags in 'ram' somewhere
@@ -173,26 +173,26 @@ function EditCode:event(e)
 			local shift = bit.band(mod, sdl.SDLK_LSHIFT) ~= 0
 			local charsym = app:getKeySymForShift(sym, shift)
 			if charsym then
-				self:addCharToText(charsym)	
+				self:addCharToText(charsym)
 			elseif sym == sdl.SDLK_RETURN then
-				self:addCharToText(sym)	
+				self:addCharToText(sym)
 			elseif sym == sdl.SDLK_TAB then
 				-- TODO add tab and do indent up there,
 				-- until then ...
 				self:addCharToText(32)
-			elseif sym == sdl.SDLK_UP 
+			elseif sym == sdl.SDLK_UP
 			or sym == sdl.SDLK_DOWN
 			then
 				local dy = sym == sdl.SDLK_UP and -1 or 1
 				self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
-				
+
 				local currentLineCols = self:countRowCols(self.cursorRow)
 				self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
-				
+
 				self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
-				
+
 				self:refreshCursorColRowForLoc()	-- just in case?
-			elseif sym == sdl.SDLK_LEFT 
+			elseif sym == sdl.SDLK_LEFT
 			or sym == sdl.SDLK_RIGHT
 			then
 				local dx = sym == sdl.SDLK_LEFT and -1 or 1
