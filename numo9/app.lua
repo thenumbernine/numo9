@@ -28,7 +28,7 @@ local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 
 local Console = require 'numo9.console'
-local EditCode = require 'numo9.editor'
+local EditCode = require 'numo9.editcode'
 
 
 local paletteSize = 256
@@ -36,6 +36,7 @@ local frameBufferSize = vec2i(256, 256)
 local spriteSheetSize = vec2i(256, 256)
 local spriteSize = vec2i(8, 8)
 local spritesPerSheet = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
+local spritesPerFrameBuffer = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 
 local App = require 'glapp.view'.apply(GLApp):subclass()
 
@@ -48,6 +49,7 @@ App.frameBufferSize = frameBufferSize
 App.spriteSheetSize = spriteSheetSize
 App.spriteSize = spriteSize
 App.spritesPerSheet = spritesPerSheet
+App.spritesPerFrameBuffer = spritesPerFrameBuffer 
 
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
@@ -103,10 +105,10 @@ function App:initGL()
 	}:unbind()
 
 	self.spriteTex = self:makeTexFromImage{
-		-- ok so this is rgba ...
+		-- this file is rgba, so split off just one channel from it:
 		image = Image'font.png':split(),
-		internalFormat = gl.GL_R8,
-		format = gl.GL_RED,
+		internalFormat = gl.GL_R8UI,
+		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
 	
@@ -140,7 +142,7 @@ function App:initGL()
 		}:mapi(rgb888revto5551):rep(16)
 		--]]
 		),
-		internalFormat = gl.GL_RGBA,
+		internalFormat = gl.GL_RGB5_A1,
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
 	}
@@ -155,8 +157,8 @@ function App:initGL()
 			end
 			--]]
 		),
-		internalFormat = gl.GL_R8,
-		format = gl.GL_RED,
+		internalFormat = gl.GL_R8UI,
+		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
 --print('screenTex\n'..imageToHex(self.screenTex.image))
@@ -192,19 +194,20 @@ void main() {
 ]],
 			fragmentCode = template([[
 in vec2 tcv;
-out vec4 fragColor;
-uniform sampler2D indexTex;
-uniform sampler2D palTex;
+out uvec4 fragColor;
+uniform usampler2D screenTex;
+uniform usampler2D palTex;
 void main() {
-	float index = texture(indexTex, tcv).r;
-	fragColor = texture(palTex, vec2((index * <?=clnumber(paletteSize-1)?> + .5) / <?=clnumber(paletteSize)?>, .5));
+	uint index = texture(screenTex, tcv).r;
+	float indexf = float(index) / 255.;
+	fragColor = texture(palTex, vec2((indexf * <?=clnumber(paletteSize-1)?> + .5) / <?=clnumber(paletteSize)?>, .5));
 }
 ]], 		{
 				clnumber = clnumber,
 				paletteSize = paletteSize,
 			}),
 			uniforms = {
-				indexTex = 0,
+				screenTex = 0,
 				palTex = 1,
 			},
 		},
@@ -237,30 +240,51 @@ void main() {
 ]],
 			fragmentCode = template([[
 in vec2 tcv;
-out vec4 fragColor;
-uniform float paletteIndex;	//should this be high bits? or just an offset to add?
-uniform sampler2D indexTex;
-uniform sampler2D palTex;
+out uvec4 fragColor;
+
+//For now this is an integer added to the 0-15 4-bits of the sprite tex.
+//You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
+//Or you can set it to low numbers and use it to offset the palette.
+//Should this be high bits? or just an offset to OR? or to add?
+uniform uint paletteIndex;	
+
+// Reads 4 bits from wherever shift location you provide.
+uniform usampler2D spriteTex;
+
+// Specifies which bit to read from at the sprite.
+//  0 = read sprite low nibble.
+//  4 = read sprite high nibble.
+//  other = ???
+uniform uint spriteBit;
+
 void main() {
-	// TODO integer lookup ...
-	float index = texture(indexTex, tcv).r;
-	index += paletteIndex;
-	// just write the 8bpp index to the screen, use tex to draw it
-	fragColor = vec4(index, 0., 0., 1.);
+	// TODO provide a shift uniform for picking lo vs hi nibble
+	// only use the lower 4 bits ...
+	uint colorIndex = (texture(spriteTex, tcv).r >> spriteBit) & 0xFu;
+	//colorIndex should hold 
+	colorIndex += paletteIndex;
+	colorIndex &= 0XFFu;
+	// write the 8bpp colorIndex to the screen, use tex to draw it
+	fragColor = uvec4(
+		colorIndex,
+		0,
+		0,
+		0xFFu
+	);
+
 }
 ]], 		{
 				clnumber = clnumber,
 				paletteSize = paletteSize,
 			}),
 			uniforms = {
-				indexTex = 0,
-				palTex = 1,
+				spriteTex = 0,
 				paletteIndex = 0,
+				spriteBit = 0,
 			},
 		},
 		texs = {
 			self.spriteTex,
-			self.palTex,
 		},
 		geometry = self.quadGeom,
 		-- reset every frame
@@ -315,9 +339,10 @@ void main() {
 	view.ortho = true
 	view.orthoSize = 1
 
-	-- TODO turn this into a console or rom or whatever
 	self.editCode = EditCode{app=self}
 	self.con = Console{app=self}
+	--self.runFocus = self.con
+	self.runFocus = self.editCode
 end
 
 -- [[ also in sand-attack ... hmmmm ... 
@@ -328,6 +353,11 @@ glreport'here'
 	local image = assert(args.image)
 	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
 	local tex = GLTex2D{
+		-- rect would be nice
+		-- but how come wrap doesn't work with texture_rect? 
+		-- how hard is it to implement a modulo operator?
+		-- or another question, which is slower, integer modulo or float conversion in glsl?
+		--target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = args.internalFormat or gl.GL_RGBA,
 		format = args.format or gl.GL_RGBA,
 		type = args.type or gl.GL_UNSIGNED_BYTE,
@@ -363,8 +393,9 @@ function App:update()
 	gl.glClearColor(.1, .2, .3, 1.)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-	self.runFocus = self.runFocus or self.con
-	self.runFocus:update(getTime())
+	if self.runFocus.update then
+		self.runFocus:update(getTime())
+	end
 
 -- [[ redo ortho projection matrix
 -- every frame ... not necessary if the screen is static
@@ -450,7 +481,7 @@ function App:drawSprite(x, y, spriteIndex, paletteIndex)
 	local uniforms = sceneObj.uniforms
 	
 	uniforms.mvProjMat = view.mvProjMat.ptr
-	uniforms.paletteIndex = paletteIndex / paletteSize	-- user has to specify high-bits
+	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	local tx = spriteIndex % spritesPerSheet.x
@@ -466,6 +497,18 @@ function App:drawSprite(x, y, spriteIndex, paletteIndex)
 	fb:unbind()
 end
 
+function App:drawChar(...)
+	-- always the same? TODO think out sprite tables builtin vs customizable
+	return self:drawSprite(...)
+end
+
+function App:drawText(x, y, text, colorIndex)
+	for i=1,#text do
+		self:drawChar(x, y, text:byte(i), colorIndex)
+		x = x + spriteSize.x
+	end
+end
+
 -- system() function
 function App:runCmd(cmd)
 	local f, msg = load(cmd, nil, 't', self.env)
@@ -479,8 +522,54 @@ function App:runCmd(cmd)
 end
 
 function App:event(e)
-	self.runFocus = self.runFocus or self.con
-	self.runFocus:event(e)
+	if self.runFocus.event then
+		self.runFocus:event(e)
+	end
+end
+
+-- used by event-handling
+local shiftFor = {
+	-- letters handled separate
+	[('`'):byte()] = ('~'):byte(),
+	[('1'):byte()] = ('!'):byte(),
+	[('2'):byte()] = ('@'):byte(),
+	[('3'):byte()] = ('#'):byte(),
+	[('4'):byte()] = ('$'):byte(),
+	[('5'):byte()] = ('%'):byte(),
+	[('6'):byte()] = ('^'):byte(),
+	[('7'):byte()] = ('&'):byte(),
+	[('8'):byte()] = ('*'):byte(),
+	[('9'):byte()] = ('('):byte(),
+	[('0'):byte()] = (')'):byte(),
+	[('-'):byte()] = ('_'):byte(),
+	[('='):byte()] = ('+'):byte(),
+	[('['):byte()] = ('{'):byte(),
+	[(']'):byte()] = ('}'):byte(),
+	[('\\'):byte()] = ('|'):byte(),
+	[(';'):byte()] = (':'):byte(),
+	[("'"):byte()] = ('"'):byte(),
+	[(','):byte()] = (','):byte(),
+	[('<'):byte()] = ('>'):byte(),
+	[('/'):byte()] = ('?'):byte(),
+}
+function App:getKeySymForShift(sym, shift)
+	if sym >= sdl.SDLK_a and sym <= sdl.SDLK_z then
+		if shift then
+			sym = sym - 32
+		end
+		return sym
+	-- add with non-standard shift capitalizing
+	elseif sym == sdl.SDLK_SPACE
+	or sym == sdl.SDLK_BACKSPACE 	-- ???
+	then
+		return sym
+	else
+		local shiftSym = shiftFor[sym]
+		if shiftSym then
+			return shift and shiftSym or sym
+		end
+	end
+	-- return nil = not a char-producing key
 end
 
 return App

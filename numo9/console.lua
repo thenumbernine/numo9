@@ -9,19 +9,35 @@ local vec2i = require 'vec-ffi.vec2i'
 local Console = class()
 
 function Console:init(args)
-	local app = assert(args.app)
-	self.app = app
+	self.app = assert(args.app)
+	
+	self:reset()
+end
+
+function Console:reset()
+	local app = self.app
 	self.cmdbuf = ''
 
 	self.cmdHistory = table()
 	self.cmdHistoryIndex = nil
 	self.cursorPos = vec2i(0, 0)
+	
+	-- right now cursorPaletteIndex just adds
+	-- meanwhile the font texture is indexed 0's and 15's
+	-- so whatever you set cursorPaletteIndex to, that value is background and that value plus 15 is foreground
 	self.cursorPaletteIndex = 0
 
 	-- TODO 'getFocus' or TODO always reload?
 	-- clear the screen every time, or save the screen every time?
 	app:clearScreen()
 	self:print(app.title)
+	
+	for i=0,15 do
+		self.cursorPaletteIndex = i
+		self:print'hello world'
+	end
+	self.cursorPaletteIndex = 0
+
 	self.prompt = '> '
 	self:write(self.prompt)
 end
@@ -151,36 +167,12 @@ function Console:update(t)
 	end
 end
 
-local shiftFor = {
-	-- letters handled separate
-	[('`'):byte()] = ('~'):byte(),
-	[('1'):byte()] = ('!'):byte(),
-	[('2'):byte()] = ('@'):byte(),
-	[('3'):byte()] = ('#'):byte(),
-	[('4'):byte()] = ('$'):byte(),
-	[('5'):byte()] = ('%'):byte(),
-	[('6'):byte()] = ('^'):byte(),
-	[('7'):byte()] = ('&'):byte(),
-	[('8'):byte()] = ('*'):byte(),
-	[('9'):byte()] = ('('):byte(),
-	[('0'):byte()] = (')'):byte(),
-	[('-'):byte()] = ('_'):byte(),
-	[('='):byte()] = ('+'):byte(),
-	[('['):byte()] = ('{'):byte(),
-	[(']'):byte()] = ('}'):byte(),
-	[('\\'):byte()] = ('|'):byte(),
-	[(';'):byte()] = (':'):byte(),
-	[("'"):byte()] = ('"'):byte(),
-	[(','):byte()] = (','):byte(),
-	[('<'):byte()] = ('>'):byte(),
-	[('/'):byte()] = ('?'):byte(),
-}
-
 -- TODO shift behavior should go somewhere that both editor and console can get to it
 -- TODO if 'editor' is a console then how to handle events in limited memory ...
 -- keydown = xor test of key bits ... if i'm using a bitvector for the keyboard state ...
 -- this all involves *another* set of key remappings which seems tedious ...
 function Console:event(e)
+	local app = self.app
 	if e[0].type == sdl.SDL_KEYDOWN 
 	or e[0].type == sdl.SDL_KEYUP
 	then
@@ -194,33 +186,9 @@ function Console:event(e)
 		local mod = keysym.mod
 		if press then
 			local shift = bit.band(mod, sdl.SDLK_LSHIFT) ~= 0
-			if sym >= sdl.SDLK_a and sym <= sdl.SDLK_z then
-				if shift then
-					sym = sym - 32
-				end
-				self:addCharToCmd(sym)
-			-- add with non-standard shift capitalizing
-			elseif sym >= sdl.SDLK_0 and sym <= sdl.SDLK_9
-			or sym == sdl.SDLK_BACKQUOTE
-			or sym == sdl.SDLK_MINUS
-			or sym == sdl.SDLK_EQUALS
-			or sym == sdl.SDLK_LEFTBRACKET
-			or sym == sdl.SDLK_RIGHTBRACKET
-			or sym == sdl.SDLK_BACKSLASH
-			or sym == sdl.SDLK_QUOTE
-			or sym == sdl.SDLK_SEMICOLON
-			or sym == sdl.SDLK_COMMA
-			or sym == sdl.SDLK_PERIOD
-			or sym == sdl.SDLK_SLASH
-			then
-				if shift then 
-					sym = assert(shiftFor[sym])
-				end
-				self:addCharToCmd(sym)
-			elseif sym == sdl.SDLK_SPACE
-			or sym == sdl.SDLK_BACKSPACE 
-			then
-				self:addCharToCmd(sym)
+			local charsym = app:getKeySymForShift(sym, shift)
+			if charsym then
+				self:addCharToCmd(charsym)	
 			elseif sym == sdl.SDLK_RETURN then
 				self:runCmdBuf()
 			elseif sym == sdl.SDLK_UP then
@@ -228,6 +196,8 @@ function Console:event(e)
 			elseif sym == sdl.SDLK_DOWN then 
 				self:selectHistory(1)
 			-- TODO left right to move the cursor
+			elseif sym == sdl.SDLK_ESCAPE then
+				app.runFocus = app.editCode
 			end
 		end
 	end
