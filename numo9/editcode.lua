@@ -3,6 +3,7 @@ This will be the code editor
 --]]
 local sdl = require 'sdl'
 local table = require 'ext.table'
+local string = require 'ext.string'
 local range = require 'ext.range'
 local math = require 'ext.math'
 local class = require 'ext.class'
@@ -18,7 +19,6 @@ function EditCode:init(args)
 print'hi'
 do return end
 ]]
-print(self.text:byte(1,#self.text))
 	self:refreshNewlines()
 
 	-- starting point of where to render text, preferrably at a newline or beginning
@@ -31,6 +31,7 @@ end
 local slashRByte = ('\r'):byte()
 local newlineByte = ('\n'):byte()
 function EditCode:refreshNewlines()
+print(string.hexdump(self.text))	
 	-- refresh newlines
 	self.newlines = table()
 	self.newlines:insert(0)
@@ -50,18 +51,17 @@ end
 end
 
 function EditCode:refreshCursorColRowForLoc()
-	local sofar = self.text:sub(1,self.cursorLoc)
-	local lastline = sofar:match('[^\n]*$') or ''
-	-- if cursorCol reaches the end of the line, it'll be at the \n char
-	-- at that point we want to draw it at the line end, not on the next line
-	self.cursorRow = select(2,sofar:gsub('\n', ''))+1
-	self.cursorCol = #lastline
-	--[[
-	if self.cursorCol == 0 then
-		self.cursorRow = self.cursorRow - 1
-		self.cursorCol = self.newlines[self.cursorRow+1]
+	self.cursorRow = nil
+	for i=1,#self.newlines-1 do
+		local start = self.newlines[i]+1
+		local finish = self.newlines[i+1]
+		if start <= self.cursorLoc and self.cursorLoc <= finish then
+			self.cursorRow = i
+			break
+		end
 	end
-	--]]
+	assert(self.cursorRow)
+	self.cursorCol = self.cursorLoc - self.newlines[self.cursorRow]
 end
 
 function EditCode:update(t)
@@ -138,23 +138,25 @@ function EditCode:event(e)
 			local charsym = app:getKeySymForShift(sym, shift)
 			if charsym then
 				self:addCharToText(charsym)	
-			elseif sym == sdl.SDLK_RETURN then
+			elseif sym == sdl.SDLK_RETURN 
+			or sym == sdl.SDLK_TAB
+			then
 				self:addCharToText(sym)	
 			elseif sym == sdl.SDLK_UP 
 			or sym == sdl.SDLK_DOWN
 			then
 				local dy = sym == sdl.SDLK_UP and -1 or 1
 				self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
-				self.cursorCol = math.clamp(self.cursorCol, 1, self.newlines[self.cursorRow+1])
+				local currentLineLen = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow] + 1
+				self.cursorCol = math.clamp(self.cursorCol, 1, currentLineLen)
 				self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
 				self:refreshCursorColRowForLoc()	-- just in case?
 			elseif sym == sdl.SDLK_LEFT 
 			or sym == sdl.SDLK_RIGHT
 			then
 				local dx = sym == sdl.SDLK_LEFT and -1 or 1
-				self.cursorCol = math.clamp(self.cursorCol + dx, 1, self.newlines[self.cursorRow+1])
-				self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
-				self:refreshCursorColRowForLoc()	-- just in case?
+				self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
+				self:refreshCursorColRowForLoc()
 			elseif sym == sdl.SDLK_ESCAPE then
 				app.runFocus = app.con
 				app.con:reset()	-- or save the screen

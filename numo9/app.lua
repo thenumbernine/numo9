@@ -92,6 +92,7 @@ function App:initGL()
 		clear = function(...) return self:clearScreen(...) end,
 		print = function(...) return self.con:print(...) end,
 		write = function(...) return self.con:write(...) end,
+		run = function(...) self:runCmd(self.editCode.text) end,
 		-- TODO don't do this either
 		app = self,
 	}, {
