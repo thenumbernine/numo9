@@ -1,8 +1,20 @@
+--[[
+Here's all the common functions
+I think I'll separate out the builtin states:
+	console
+	code editor
+	sprite editor
+	map editor
+	sfx editor
+	music editor
+	run
+--]]
 local ffi = require 'ffi'
 local template = require 'template'
 local string = require 'ext.string'
 local table = require 'ext.table'
 local getTime = require 'ext.timer'.getTime
+local vec2i = require 'vec-ffi.vec2i'
 local Image = require 'image'
 local sdl = require 'sdl'
 local clnumber = require 'cl.obj.number'
@@ -14,8 +26,10 @@ local GLFBO = require 'gl.fbo'
 local GLGeometry = require 'gl.geometry'
 local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
-local vec2i = require 'vec-ffi.vec2i'
-local Editor = require 'numo9.editor'
+
+local Console = require 'numo9.console'
+local EditCode = require 'numo9.editor'
+
 
 local paletteSize = 256
 local frameBufferSize = vec2i(256, 256)
@@ -26,6 +40,8 @@ local spritesPerSheet = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.
 local App = require 'glapp.view'.apply(GLApp):subclass()
 
 App.title = 'NuMo9'
+App.width = 720
+App.height = 512
 
 App.paletteSize = paletteSize
 App.frameBufferSize = frameBufferSize
@@ -72,8 +88,8 @@ function App:initGL()
 		xpcall = xpcall,
 		load = load,
 		clear = function(...) return self:clearScreen(...) end,
-		print = function(...) return self:print(...) end,
-		write = function(...) return self:write(...) end,
+		print = function(...) return self.con:print(...) end,
+		write = function(...) return self.con:write(...) end,
 		-- TODO don't do this either
 		app = self,
 	}, {
@@ -299,19 +315,9 @@ void main() {
 	view.ortho = true
 	view.orthoSize = 1
 
-	-- virtual console stuff
-	self.cmdHistory = table()
-	self.cmdHistoryIndex = nil
-	self.cursorPos = vec2i(0, 0)
-	self.cmdbuf = ''
-	self.cursorPaletteIndex = 0
-
 	-- TODO turn this into a console or rom or whatever
-	self.editor = Editor{app=self}
-	self:clearScreen()
-	self:print(self.title)
-	self.prompt = '> '
-	self:write(self.prompt)
+	self.editCode = EditCode{app=self}
+	self.con = Console{app=self}
 end
 
 -- [[ also in sand-attack ... hmmmm ... 
@@ -357,7 +363,8 @@ function App:update()
 	gl.glClearColor(.1, .2, .3, 1.)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-	self.editor:update(getTime())
+	self.runFocus = self.runFocus or self.con
+	self.runFocus:update(getTime())
 
 -- [[ redo ortho projection matrix
 -- every frame ... not necessary if the screen is static
@@ -396,30 +403,6 @@ function App:update()
 	gl.glViewport(0, 0, self.width, self.height)
 
 	sceneObj:draw()
-end
-
--- should cursor be a 'app' property or an 'editor' property?
--- should the low-level os be 'editor' or its own thing?
-function App:offsetCursor(dx, dy)
-	local fb = self.fb
-	self.cursorPos.x = self.cursorPos.x + dx
-	self.cursorPos.y = self.cursorPos.y + dy
-	
-	while self.cursorPos.x < 0 do
-		self.cursorPos.x = self.cursorPos.x + frameBufferSize.x
-		self.cursorPos.y = self.cursorPos.y - spriteSize.y
-	end
-	while self.cursorPos.x >= frameBufferSize.x do
-		self.cursorPos.x = self.cursorPos.x - frameBufferSize.x
-		self.cursorPos.y = self.cursorPos.y + spriteSize.y
-	end
-
-	while self.cursorPos.y < 0 do
-		self.cursorPos.y = self.cursorPos.y + frameBufferSize.y
-	end
-	while self.cursorPos.y >= frameBufferSize.y do
-		self.cursorPos.y = self.cursorPos.y - frameBufferSize.y
-	end
 end
 
 function App:drawSolidRect(x, y, w, h, colorIndex)
@@ -483,96 +466,21 @@ function App:drawSprite(x, y, spriteIndex, paletteIndex)
 	fb:unbind()
 end
 
-function App:drawChar(ch)
-	self:drawSprite(
-		self.cursorPos.x,
-		self.cursorPos.y,
-		ch,
-		self.cursorPaletteIndex
-	)
-	self:offsetCursor(spriteSize.x, 0)
-end
-
-function App:runCmd()
-	local cmd = self.cmdbuf
-	self.cmdHistory:insert(cmd)
-	self.cmdHistoryIndex = nil
-	self.cmdbuf = ''
-	self:write'\n'
-	
+-- system() function
+function App:runCmd(cmd)
 	local f, msg = load(cmd, nil, 't', self.env)
 	if not f then
-		self:print(tostring(msg))
+		return f, msg
 	else
-		local success, err = xpcall(f, function(err)
+		return xpcall(f, function(err)
 			return err..'\n'..debug.traceback()
 		end) 
-		if not success then
-			self:print(err)
-		end
-	end
-	self:write(self.prompt)
-end
-
-function App:addCharToScreen(ch)
-	if ch == 8 then
-		self:drawChar((' '):byte())	-- in case the cursor is there
-		self:offsetCursor(-2*spriteSize.x, 0)
-		self:drawChar((' '):byte())	-- clear the prev char as well
-		self:offsetCursor(-spriteSize.x, 0)
-	elseif ch == 10 or ch == 13 then
-		self:drawChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
-		self.cursorPos.x = 0
-		self.cursorPos.y = self.cursorPos.y + spriteSize.y
-	else
-		self:drawChar(ch)
-	end
-end
-
-function App:write(...)
-	for j=1,select('#', ...) do
-		local s = tostring(select(j, ...))
-		for i=1,#s do
-			self:addCharToScreen(s:byte(i,i))
-		end
-	end
-end
-
-function App:print(...)
-	for i=1,select('#', ...) do
-		if i > 1 then self:write'\t' end
-		self:write(tostring(select(i, ...)))
-	end
-	self:write'\n'
-end
-
-function App:selectHistory(dx)
-	local n = #self.cmdHistory
-	self.cmdHistoryIndex = (((self.cmdHistoryIndex or n+1) + dx - 1) % n) + 1
-	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
-	self.cursorPos.x = 0
-	
-	self:write(self.prompt)
-	self:write(self.cmdbuf)
-end
-
-function App:addCharToCmd(ch)
-	if ch == 8 then
-		if #self.cmdbuf > 0 then
-			self.cmdbuf = self.cmdbuf:sub(1,-2)
-			self:addCharToScreen(ch)
-		end
-	else
-		self.cmdbuf = self.cmdbuf .. string.char(ch)
-		self:addCharToScreen(ch)
 	end
 end
 
 function App:event(e)
-	local editor = self.editor
-	if editor.active then
-		return editor:event(e)
-	end
+	self.runFocus = self.runFocus or self.con
+	self.runFocus:event(e)
 end
 
 return App
