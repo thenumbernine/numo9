@@ -12,14 +12,20 @@ function Editor:init(args)
 
 	-- TODO when you initialize the editor ...
 	self.active = true
-	app:clearScreen()
-	app:print(app.title)
-	app:write'> '
 end
 
--- runs at 60hz
+-- TODO run at 60hz
 function Editor:update(t)
 	local app = self.app
+
+	-- TODO start to bypass the internal console prompt
+	-- TODO all these as builtin states ... console, edit-code, edit-sprites, edit-map, edit-sfx, edit-music, run
+	
+	--[[ TODO draw 
+	app.cursorPos:set(0,0)
+	app:write'CSMAB code editor'
+	--]]
+
 	if t % 1 < .5 then
 		app:drawSolidRect(app.cursorPos.x, app.cursorPos.y, app.spriteSize.x, app.spriteSize.y, 15)
 	else
@@ -102,10 +108,14 @@ function Editor:event(e)
 				app:addCharToCmd(sym)
 			elseif sym == sdl.SDLK_RETURN then
 				app:runCmd()
+			elseif sym == sdl.SDLK_UP then
+				app:selectHistory(-1)
+			elseif sym == sdl.SDLK_DOWN then 
+				app:selectHistory(1)
+			-- TODO left right to move the cursor
 			end
 		end
 	end
-
 end
 
 return Editor

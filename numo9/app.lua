@@ -62,8 +62,8 @@ function rgb888revto5551(rgba)
 end
 
 function App:initGL()
-	
-	self.env = {
+
+	self.env = setmetatable({
 		pairs = pairs,
 		ipairs = ipairs,
 		error = error,
@@ -74,7 +74,12 @@ function App:initGL()
 		clear = function(...) return self:clearScreen(...) end,
 		print = function(...) return self:print(...) end,
 		write = function(...) return self:write(...) end,
-	}
+		-- TODO don't do this either
+		app = self,
+	}, {
+		-- TODO don't __index=_G and sandbox it instead
+		__index = _G,
+	})
 
 	self.fb = GLFBO{
 		width = frameBufferSize.x,
@@ -217,11 +222,13 @@ void main() {
 			fragmentCode = template([[
 in vec2 tcv;
 out vec4 fragColor;
+uniform float paletteIndex;	//should this be high bits? or just an offset to add?
 uniform sampler2D indexTex;
 uniform sampler2D palTex;
 void main() {
 	// TODO integer lookup ...
 	float index = texture(indexTex, tcv).r;
+	index += paletteIndex;
 	// just write the 8bpp index to the screen, use tex to draw it
 	fragColor = vec4(index, 0., 0., 1.);
 }
@@ -232,6 +239,7 @@ void main() {
 			uniforms = {
 				indexTex = 0,
 				palTex = 1,
+				paletteIndex = 0,
 			},
 		},
 		texs = {
@@ -292,11 +300,18 @@ void main() {
 	view.orthoSize = 1
 
 	-- virtual console stuff
+	self.cmdHistory = table()
+	self.cmdHistoryIndex = nil
 	self.cursorPos = vec2i(0, 0)
 	self.cmdbuf = ''
+	self.cursorPaletteIndex = 0
 
 	-- TODO turn this into a console or rom or whatever
 	self.editor = Editor{app=self}
+	self:clearScreen()
+	self:print(self.title)
+	self.prompt = '> '
+	self:write(self.prompt)
 end
 
 -- [[ also in sand-attack ... hmmmm ... 
@@ -314,8 +329,8 @@ glreport'here'
 		width = tonumber(image.width),
 		height = tonumber(image.height),
 		wrap = args.wrap or {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_REPEAT,
+			t = gl.GL_REPEAT,
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		magFilter = args.magFilter or gl.GL_NEAREST,
@@ -407,7 +422,7 @@ function App:offsetCursor(dx, dy)
 	end
 end
 
-function App:drawSolidRect(x,y,w,h,colorIndex)
+function App:drawSolidRect(x, y, w, h, colorIndex)
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -434,9 +449,10 @@ end
 
 --[[
 index = 5 bits x , 5 bits y
-palHiNibble = high 4 bits of the palette
+paletteIndex = byte value ... high 4 bits holds the palette index ... add this to the color (or should I or- it?)
 --]]
-function App:drawSprite(x,y,spriteIndex,palHiNibble)
+function App:drawSprite(x, y, spriteIndex, paletteIndex)
+	paletteIndex = paletteIndex or 0
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -448,23 +464,21 @@ function App:drawSprite(x,y,spriteIndex,palHiNibble)
 	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 
 	local sceneObj = self.quad4bppObj
-	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+	local uniforms = sceneObj.uniforms
+	
+	uniforms.mvProjMat = view.mvProjMat.ptr
+	uniforms.paletteIndex = paletteIndex / paletteSize	-- user has to specify high-bits
 
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	local tx = spriteIndex % spritesPerSheet.x
 	local ty = (spriteIndex - tx) / spritesPerSheet.x
-	settable(sceneObj.uniforms.tcbox, 
+	settable(uniforms.tcbox, 
 		tx / tonumber(spritesPerSheet.x),
 		ty / tonumber(spritesPerSheet.y),
 		1 / tonumber(spritesPerSheet.x),
 		1 / tonumber(spritesPerSheet.y)
 	)
-	settable(sceneObj.uniforms.box, 
-		x,
-		y,
-		spriteSize.x,
-		spriteSize.y
-	)
+	settable(uniforms.box, x, y, spriteSize.x, spriteSize.y)
 	sceneObj:draw()
 	fb:unbind()
 end
@@ -473,13 +487,16 @@ function App:drawChar(ch)
 	self:drawSprite(
 		self.cursorPos.x,
 		self.cursorPos.y,
-		ch
+		ch,
+		self.cursorPaletteIndex
 	)
 	self:offsetCursor(spriteSize.x, 0)
 end
 
 function App:runCmd()
 	local cmd = self.cmdbuf
+	self.cmdHistory:insert(cmd)
+	self.cmdHistoryIndex = nil
 	self.cmdbuf = ''
 	self:write'\n'
 	
@@ -487,20 +504,21 @@ function App:runCmd()
 	if not f then
 		self:print(tostring(msg))
 	else
-		local err
-		if not xpcall(f, function(err_)
-			err = err_..'\n'..debug.traceback()
-		end) then
+		local success, err = xpcall(f, function(err)
+			return err..'\n'..debug.traceback()
+		end) 
+		if not success then
 			self:print(err)
 		end
 	end
-	self:write'> '
+	self:write(self.prompt)
 end
 
 function App:addCharToScreen(ch)
 	if ch == 8 then
-		self:offsetCursor(-spriteSize.x, 0)
-		self:drawChar((' '):byte())
+		self:drawChar((' '):byte())	-- in case the cursor is there
+		self:offsetCursor(-2*spriteSize.x, 0)
+		self:drawChar((' '):byte())	-- clear the prev char as well
 		self:offsetCursor(-spriteSize.x, 0)
 	elseif ch == 10 or ch == 13 then
 		self:drawChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
@@ -526,6 +544,16 @@ function App:print(...)
 		self:write(tostring(select(i, ...)))
 	end
 	self:write'\n'
+end
+
+function App:selectHistory(dx)
+	local n = #self.cmdHistory
+	self.cmdHistoryIndex = (((self.cmdHistoryIndex or n+1) + dx - 1) % n) + 1
+	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
+	self.cursorPos.x = 0
+	
+	self:write(self.prompt)
+	self:write(self.cmdbuf)
 end
 
 function App:addCharToCmd(ch)
