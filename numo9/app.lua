@@ -549,8 +549,8 @@ local shiftFor = {
 	[('\\'):byte()] = ('|'):byte(),
 	[(';'):byte()] = (':'):byte(),
 	[("'"):byte()] = ('"'):byte(),
-	[(','):byte()] = (','):byte(),
-	[('<'):byte()] = ('>'):byte(),
+	[(','):byte()] = ('<'):byte(),
+	[('.'):byte()] = ('>'):byte(),
 	[('/'):byte()] = ('?'):byte(),
 }
 function App:getKeySymForShift(sym, shift)

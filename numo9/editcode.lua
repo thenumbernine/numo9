@@ -102,7 +102,7 @@ end
 function EditCode:addCharToText(ch)
 	if ch == slashRByte then ch = newlineByte end	-- store \n's instead of \r's
 	if ch == 8 then
-		self.text = self.text:sub(1, self.cursorLoc-1) .. self.text:sub(self.cursorLoc+1)
+		self.text = self.text:sub(1, self.cursorLoc - 2) .. self.text:sub(self.cursorLoc)
 		self.cursorLoc = math.max(1, self.cursorLoc - 1)
 	else
 		self.text = self.text:sub(1, self.cursorLoc-1) .. string.char(ch) .. self.text:sub(self.cursorLoc)
