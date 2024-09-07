@@ -18,6 +18,7 @@ function EditCode:init(args)
 print'hi'
 do return end
 ]]
+print(self.text:byte(1,#self.text))
 	self:refreshNewlines()
 
 	-- starting point of where to render text, preferrably at a newline or beginning
@@ -33,7 +34,7 @@ function EditCode:refreshNewlines()
 	-- refresh newlines
 	self.newlines = table()
 	self.newlines:insert(0)
-	for i=2,#self.text do
+	for i=1,#self.text do
 		if self.text:byte(i) == newlineByte then
 			self.newlines:insert(i)
 		end
@@ -51,8 +52,16 @@ end
 function EditCode:refreshCursorColRowForLoc()
 	local sofar = self.text:sub(1,self.cursorLoc)
 	local lastline = sofar:match('[^\n]*$') or ''
+	-- if cursorCol reaches the end of the line, it'll be at the \n char
+	-- at that point we want to draw it at the line end, not on the next line
 	self.cursorRow = select(2,sofar:gsub('\n', ''))+1
 	self.cursorCol = #lastline
+	--[[
+	if self.cursorCol == 0 then
+		self.cursorRow = self.cursorRow - 1
+		self.cursorCol = self.newlines[self.cursorRow+1]
+	end
+	--]]
 end
 
 function EditCode:update(t)
@@ -81,6 +90,13 @@ function EditCode:update(t)
 			app.spriteSize.y,
 			15)
 	end
+
+	app:drawText(
+		0,
+		app.frameBufferSize.y - app.spriteSize.y,
+		'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol,
+		1
+	)
 end
 
 function EditCode:addCharToText(ch)
@@ -92,8 +108,8 @@ function EditCode:addCharToText(ch)
 		self.text = self.text:sub(1, self.cursorLoc-1) .. string.char(ch) .. self.text:sub(self.cursorLoc)
 		self.cursorLoc = math.min(#self.text+1, self.cursorLoc + 1)
 	end
-	self:refreshCursorColRowForLoc()
 	self:refreshNewlines()
+	self:refreshCursorColRowForLoc()
 end
 
 local function prevNewline(s, i)
