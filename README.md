@@ -21,3 +21,5 @@ Sprite Sheets / VRAM is
 )
 
 Not sure how I will do blending or masking just yet.
+
+Font is from [Liko-12](https://liko-12.github.io/)

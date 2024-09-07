@@ -1,20 +1,40 @@
 local ffi = require 'ffi'
+local template = require 'template'
 local string = require 'ext.string'
 local table = require 'ext.table'
 local Image = require 'image'
 local sdl = require 'sdl'
+local clnumber = require 'cl.obj.number'
 local gl = require 'gl'
 local glreport = require 'gl.report'
 local GLApp = require 'glapp'
 local GLTex2D = require 'gl.tex2d'
 local GLFBO = require 'gl.fbo'
+local GLGeometry = require 'gl.geometry'
 local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 local vec2i = require 'vec-ffi.vec2i'
+local Editor = require 'numo9.editor'
+
+local paletteSize = 256
+local frameBufferSize = vec2i(256, 256)
+local spriteSheetSize = vec2i(256, 256)
+local spriteSize = vec2i(8, 8)
+local spritesPerSheet = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
 
 local App = require 'glapp.view'.apply(GLApp):subclass()
 
 App.title = 'NuMo9'
+
+local function settableindex(t, i, ...)
+	if select('#', ...) == 0 then return end
+	t[i] = ...
+	settableindex(t, i+1, select(2, ...))
+end
+
+local function settable(t, ...)
+	settableindex(t, 1, ...)
+end
 
 local function imageToHex(image)
 	return string.hexdump(ffi.string(image.buffer, image.width * image.height * ffi.sizeof(image.format)))
@@ -35,20 +55,35 @@ function rgb888revto5551(rgba)
 end
 
 function App:initGL()
+	
+	self.env = {
+		pairs = pairs,
+		ipairs = ipairs,
+		error = error,
+		select = select,
+		pcall = pcall,
+		xpcall = xpcall,
+		load = load,
+		print = function(...) return self:print(...) end,
+		write = function(...) return self:write(...) end,
+	}
 
 	self.fb = GLFBO{
-		width = 256,
-		height = 256,
+		width = frameBufferSize.x,
+		height = frameBufferSize.y,
 	}:unbind()
 
 	self.spriteTex = self:makeTexFromImage{
 		-- ok so this is rgba ...
-		image = Image'font.png',
+		image = Image'font.png':split(),
+		internalFormat = gl.GL_R8,
+		format = gl.GL_RED,
+		type = gl.GL_UNSIGNED_BYTE,
 	}
 	
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
-		image = Image(256, 1, 1, 'unsigned short',
+		image = Image(paletteSize, 1, 1, 'unsigned short',
 		--[[ garbage colors
 		function(i)
 			return math.floor(math.random() * 0xffff)
@@ -78,13 +113,13 @@ function App:initGL()
 		),
 		internalFormat = gl.GL_RGBA,
 		format = gl.GL_RGBA,
-		type = gl.GL_UNSIGNED_SHORT_5_5_5_1,
+		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
 	}
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	-- screen is 256 x 256 x 8bpp
 	self.screenTex = self:makeTexFromImage{
-		image = Image(self.fb.width, self.fb.height, 1, 'unsigned char',
+		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned char',
 			-- [[ init to garbage pixels
 			function(i,j)
 				return math.floor(math.random() * 0xff)
@@ -97,44 +132,8 @@ function App:initGL()
 	}
 --print('screenTex\n'..imageToHex(self.screenTex.image))
 
-	self.drawShader = GLProgram{
-		version = '410',
-		precision = 'best',
-		vertexCode = [[
-in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-uniform vec4 tcbox;	//x,y,w,h
-void main() {
-	//tcv = vertex;
-	tcv = tcbox.xy + vertex * tcbox.zw;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
-		fragmentCode = [[
-in vec2 tcv;
-out vec4 fragColor;
-uniform sampler2D indexTex;
-uniform sampler2D palTex;
-void main() {
-	// TODO integer lookup ...
-	float index = texture(indexTex, tcv).r;
-	fragColor = texture(palTex, vec2((index * 255. + .5) / 256., .5));
-//	fragColor = vec4(tcv, .5, 1.);
-}
-]],
-		uniforms = {
-			indexTex = 0,
-			palTex = 1,
-		},
-	}:useNone()
-
-	self.quadObj = GLSceneObject{
-		program = self.drawShader,
-		texs = {
-			self.screenTex,
-			self.palTex,
-		},
+	self.quadGeom = GLGeometry{
+		mode = gl.GL_TRIANGLE_STRIP,
 		vertexes = {
 			data = {
 				0, 0,
@@ -144,14 +143,142 @@ void main() {
 			},
 			dim = 2,
 		},
-		geometry = {
-			mode = gl.GL_TRIANGLE_STRIP,
+	}
+
+	local glslVersion = '410'
+
+	-- used for drawing our 8bpp framebuffer to the screen
+	self.quad8bppToRGBObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+			fragmentCode = template([[
+in vec2 tcv;
+out vec4 fragColor;
+uniform sampler2D indexTex;
+uniform sampler2D palTex;
+void main() {
+	float index = texture(indexTex, tcv).r;
+	fragColor = texture(palTex, vec2((index * <?=clnumber(paletteSize-1)?> + .5) / <?=clnumber(paletteSize)?>, .5));
+}
+]], 		{
+				clnumber = clnumber,
+				paletteSize = paletteSize,
+			}),
+			uniforms = {
+				indexTex = 0,
+				palTex = 1,
+			},
 		},
+		texs = {
+			self.screenTex,
+			self.palTex,
+		},
+		geometry = self.quadGeom,
 		-- reset every frame
 		uniforms = {
 			mvProjMat = self.view.mvProjMat.ptr,
 		},
 	}
+
+	self.quad4bppObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+in vec2 vertex;
+out vec2 tcv;
+uniform vec4 box;	//x,y,w,h
+uniform vec4 tcbox;	//x,y,w,h
+uniform mat4 mvProjMat;
+void main() {
+	tcv = tcbox.xy + vertex * tcbox.zw;
+	vec2 rvtx = box.xy + vertex * box.zw;
+	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+}
+]],
+			fragmentCode = template([[
+in vec2 tcv;
+out vec4 fragColor;
+uniform sampler2D indexTex;
+uniform sampler2D palTex;
+void main() {
+	// TODO integer lookup ...
+	float index = texture(indexTex, tcv).r;
+	// just write the 8bpp index to the screen, use tex to draw it
+	fragColor = vec4(index, 0., 0., 1.);
+}
+]], 		{
+				clnumber = clnumber,
+				paletteSize = paletteSize,
+			}),
+			uniforms = {
+				indexTex = 0,
+				palTex = 1,
+			},
+		},
+		texs = {
+			self.screenTex,
+			self.palTex,
+		},
+		geometry = self.quadGeom,
+		-- reset every frame
+		uniforms = {
+			mvProjMat = self.view.mvProjMat.ptr,
+			box = {0, 0, 8, 8},
+			tcbox = {0, 0, 1, 1},
+		},
+	}
+
+	self.quadSolidObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+in vec2 vertex;
+uniform vec4 box;	//x,y,w,h
+uniform mat4 mvProjMat;
+void main() {
+	vec2 rvtx = box.xy + vertex * box.zw;
+	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+}
+]],
+			fragmentCode = [[
+out vec4 fragColor;
+uniform float index;
+void main() {
+	fragColor = vec4(index, 0., 0., 1.);
+}
+]],
+		},
+		geometry = self.quadGeom,
+		-- reset every frame
+		uniforms = {
+			mvProjMat = self.view.mvProjMat.ptr,
+			index = 0,
+			box = {0, 0, 8, 8},
+			tcbox = {0, 0, 1, 1},
+		},
+	}
+
+	local fb = self.fb
+	fb:bind()
+	fb:setColorAttachmentTex2D(self.screenTex.id)
+	local res,err = fb.check()
+	if not res then
+		print(err)
+		print(debug.traceback())
+	end
+	fb:unbind()
 
 	local view = self.view
 	view.ortho = true
@@ -159,11 +286,10 @@ void main() {
 
 	-- virtual console stuff
 	self.cursorPos = vec2i(0, 0)
-	self.cursorSize = vec2i(8, 8)
 	self.cmdbuf = ''
 
-	self:print(self.title)
-	self:write'> '
+	-- TODO turn this into a console or rom or whatever
+	self.editor = Editor{app=self}
 end
 
 -- [[ also in sand-attack ... hmmmm ... 
@@ -172,6 +298,7 @@ end
 function App:makeTexFromImage(args)
 glreport'here'	
 	local image = assert(args.image)
+	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
 	local tex = GLTex2D{
 		internalFormat = args.internalFormat or gl.GL_RGBA,
 		format = args.format or gl.GL_RGBA,
@@ -234,76 +361,115 @@ function App:update()
 	end
 	view.mvMat:setIdent()
 	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
-	self.quadObj.uniforms.mvProjMat = view.mvProjMat.ptr
+	local sceneObj = self.quad8bppToRGBObj
+	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 --]]
 	
 	gl.glViewport(0, 0, self.width, self.height)
 
-	self.quadObj.texs[1] = self.screenTex
-	self.quadObj.uniforms.tcbox = {0, 0, 1, 1}
-	self.quadObj:draw()
+	sceneObj:draw()
 end
 
+-- should cursor be a 'app' property or an 'editor' property?
+-- should the low-level os be 'editor' or its own thing?
 function App:offsetCursor(dx, dy)
 	local fb = self.fb
 	self.cursorPos.x = self.cursorPos.x + dx
 	self.cursorPos.y = self.cursorPos.y + dy
 	
 	while self.cursorPos.x < 0 do
-		self.cursorPos.x = self.cursorPos.x + fb.width
-		self.cursorPos.y = self.cursorPos.y - self.cursorSize.y
+		self.cursorPos.x = self.cursorPos.x + frameBufferSize.x
+		self.cursorPos.y = self.cursorPos.y - spriteSize.y
 	end
-	while self.cursorPos.x >= fb.width do
-		self.cursorPos.x = self.cursorPos.x - fb.width
-		self.cursorPos.y = self.cursorPos.y + self.cursorSize.y
+	while self.cursorPos.x >= frameBufferSize.x do
+		self.cursorPos.x = self.cursorPos.x - frameBufferSize.x
+		self.cursorPos.y = self.cursorPos.y + spriteSize.y
 	end
 
 	while self.cursorPos.y < 0 do
-		self.cursorPos.y = self.cursorPos.y + fb.height
+		self.cursorPos.y = self.cursorPos.y + frameBufferSize.y
 	end
-	while self.cursorPos.y >= fb.height do
-		self.cursorPos.y = self.cursorPos.y - fb.height
+	while self.cursorPos.y >= frameBufferSize.y do
+		self.cursorPos.y = self.cursorPos.y - frameBufferSize.y
 	end
 end
 
-function App:drawChar(ch)
+function App:drawSolidRect(x,y,w,h,color)
+	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
-	fb:setColorAttachmentTex2D(self.screenTex.id)
-	
-	local res,err = fb.check()
-	if not res then
-		print(err)
-		print(debug.traceback())
-	end
-
-	gl.glViewport(0, 0, fb.width, fb.height)
+	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
 
 	local view = self.view
-	view.projMat:setOrtho(0, fb.width, 0, fb.height, -1, 1)
-	view.mvMat
-		:setIdent()
-		:applyTranslate(self.cursorPos.x, self.cursorPos.y)
-		:applyScale(self.cursorSize.x, self.cursorSize.y)
+	view.projMat:setOrtho(0, frameBufferSize.x, 0, frameBufferSize.y, -1, 1)
+	view.mvMat:setIdent()
 	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
-	
-	self.quadObj.texs[1] = self.spriteTex
-	self.quadObj.texs[2] = self.palTex
-	self.quadObj.uniforms.mvProjMat = view.mvProjMat.ptr
+
+	local sceneObj = self.quadSolidObj
+	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+
+	sceneObj.uniforms.index = index
+	settable(sceneObj.uniforms.box, 
+		x,
+		y,
+		spriteSize.x,
+		spriteSize.y
+	)
+	sceneObj:draw()
+	fb:unbind()
+end
+
+function App:clearScreen(color)
+	local fb = self.fb
+	self:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, color)
+end
+
+--[[
+index = 5 bits x , 5 bits y
+palHiNibble = high 4 bits of the palette
+--]]
+function App:drawSprite(x,y,spriteIndex,palHiNibble)
+	-- TODO move a lot of this outside into the update loop start/stop
+	local fb = self.fb
+	fb:bind()
+	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+
+	local view = self.view
+	view.projMat:setOrtho(0, frameBufferSize.x, 0, frameBufferSize.y, -1, 1)
+	view.mvMat:setIdent()
+	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+
+	local sceneObj = self.quad4bppObj
+	sceneObj.texs[1] = self.spriteTex
+	sceneObj.texs[2] = self.palTex
+	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
-	local tx = ch % 32
-	local ty = (ch - tx) / 32
-	self.quadObj.uniforms.tcbox = {
-		tx / 32,
-		ty / 32,
-		1 / 32,
-		1 / 32
-	}
-	self.quadObj:draw()
+	local tx = spriteIndex % spritesPerSheet.x
+	local ty = (spriteIndex - tx) / spritesPerSheet.x
+	settable(sceneObj.uniforms.tcbox, 
+		tx / tonumber(spritesPerSheet.x),
+		ty / tonumber(spritesPerSheet.y),
+		1 / tonumber(spritesPerSheet.x),
+		1 / tonumber(spritesPerSheet.y)
+	)
+	settable(sceneObj.uniforms.box, 
+		x,
+		y,
+		spriteSize.x,
+		spriteSize.y
+	)
+	sceneObj:draw()
 	fb:unbind()
+end
 
-	self:offsetCursor(self.cursorSize.x, 0)
+function App:drawChar(ch)
+	self:drawSprite(
+		self.cursorPos.x,
+		self.cursorPos.y,
+		ch
+	)
+	self:offsetCursor(spriteSize.x, 0)
 end
 
 function App:runCmd()
@@ -311,13 +477,7 @@ function App:runCmd()
 	self.cmdbuf = ''
 	self:write'\n'
 	
-	local env = {
-		print = function(...) return self:print(...) end,
-		io = {
-			write = function(...) return self:write(...) end,
-		},
-	}
-	local f, msg = load(cmd, nil, 't', env)
+	local f, msg = load(cmd, nil, 't', self.env)
 	if not f then
 		self:print(tostring(msg))
 	else
@@ -333,12 +493,12 @@ end
 
 function App:addCharToScreen(ch)
 	if ch == 8 then
-		self:offsetCursor(-self.cursorSize.x, 0)
+		self:offsetCursor(-spriteSize.x, 0)
 		self:drawChar((' '):byte())
-		self:offsetCursor(-self.cursorSize.x, 0)
+		self:offsetCursor(-spriteSize.x, 0)
 	elseif ch == 10 or ch == 13 then
 		self.cursorPos.x = 0
-		self.cursorPos.y = self.cursorPos.y + self.cursorSize.y
+		self.cursorPos.y = self.cursorPos.y + spriteSize.y
 	else
 		self:drawChar(ch)
 	end
@@ -356,13 +516,12 @@ end
 function App:print(...)
 	for i=1,select('#', ...) do
 		if i > 1 then self:write'\t' end
-		self:write(tostring(select(1, ...)))
+		self:write(tostring(select(i, ...)))
 	end
 	self:write'\n'
 end
 
 function App:addCharToCmd(ch)
-print(self.cmdbuf, ch)	
 	if ch == 8
 	and #self.cmdbuf > 0
 	then
@@ -374,41 +533,10 @@ print(self.cmdbuf, ch)
 	end
 end
 
-local _abyte = ('a'):byte()
 function App:event(e)
-	if e[0].type == sdl.SDL_KEYDOWN 
-	or e[0].type == sdl.SDL_KEYUP
-	then
-		local press = e[0].type == sdl.SDL_KEYDOWN
-		local keysym = e[0].key.keysym
-		local sym = keysym.sym
-		local mod = keysym.mod
-		if press then
-			if sym >= sdl.SDLK_a and sym <= sdl.SDLK_z 
-			or sym >= sdl.SDLK_0 and sym <= sdl.SDLK_9
-			or sym == sdl.SDLK_BACKQUOTE
-			or sym == sdl.SDLK_MINUS
-			or sym == sdl.SDLK_EQUALS
-			or sym == sdl.SDLK_LEFTBRACKET
-			or sym == sdl.SDLK_RIGHTBRACKET
-			or sym == sdl.SDLK_BACKSLASH
-			or sym == sdl.SDLK_QUOTE
-			or sym == sdl.SDLK_SEMICOLON
-			or sym == sdl.SDLK_COMMA
-			or sym == sdl.SDLK_PERIOD
-			or sym == sdl.SDLK_SLASH
-			or sym == sdl.SDLK_SPACE
-			then
-				if bit.band(mod, sdl.SDLK_LSHIFT) ~= 0 then
-					sym = sym - 32
-				end
-				self:addCharToCmd(sym)
-			elseif sym == sdl.SDLK_BACKSPACE then
-				self:addCharToCmd(sym)
-			elseif sym == sdl.SDLK_RETURN then
-				self:runCmd()
-			end
-		end
+	local editor = self.editor
+	if editor.active then
+		return editor:event(e)
 	end
 end
 
