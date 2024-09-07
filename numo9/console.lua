@@ -34,10 +34,11 @@ function Console:reset()
 	self:print(app.title)
 	
 	for i=0,15 do
-		self.cursorPaletteIndex = i
+		self.cursorPaletteIndex = i	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
 		self:print'hello world'
 	end
-	self.cursorPaletteIndex = 0
+	--self.cursorPaletteIndex = 0			-- 0 = bg, 15 = fg
+	self.cursorPaletteIndex = 0xfd		-- 0xfd = bg, 12 = fg
 
 	self.prompt = '> '
 	self:write(self.prompt)
@@ -86,7 +87,7 @@ end
 
 function Console:drawChar(ch)
 	local app = self.app
-	app:drawSprite(
+	app:drawChar(
 		self.cursorPos.x,
 		self.cursorPos.y,
 		ch,

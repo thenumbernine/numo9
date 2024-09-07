@@ -20,7 +20,19 @@ function EditCode:init(args)
 print'Hello NuMo9'
 
 function draw()
-	rect(0, 0, 256, 256, math.floor(5 * time()))
+	local x = 128
+	local y = 128
+	local t = time()
+	local cx = cos(t)
+	local cy = sin(t)
+	local r = 50
+	rect(
+		x - r * cx,
+		y - r * cy,
+		x + r * cx,
+		y + r * cy,
+		math.floor(5 * time())
+	)
 end
 
 do return 42 end
@@ -76,17 +88,21 @@ end
 function EditCode:update()
 	local app = self.app
 	app:clearScreen()
-	app:drawText(0,0,'CESM code editor', 1)
+
+	local titlebar = 'CESM code editor'
+	titlebar = titlebar .. (' '):rep(app.spritesPerFrameBuffer.x - #titlebar)
+	app:drawTextFgBg(0, 0, titlebar, 12, 1)
 
 	for y=1,app.spritesPerFrameBuffer.y-2 do
 		if y >= #self.newlines then break end
 		local i = self.newlines[y]+1
 		local j = self.newlines[y+1]
-		app:drawText(
+		app:drawTextFgBg(
 			app.spriteSize.x,
 			y * app.spriteSize.y,
 			self.text:sub(i, j-1),
-			0
+			12,
+			8
 		)
 		y = y + 1
 	end
@@ -97,13 +113,16 @@ function EditCode:update()
 			self.cursorRow * app.spriteSize.y,
 			app.spriteSize.x,
 			app.spriteSize.y,
-			15)
+			12)
 	end
 
-	app:drawText(
+	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
+	footer = footer .. (' '):rep(app.spritesPerFrameBuffer.x - #footer)
+	app:drawTextFgBg(
 		0,
 		app.frameBufferSize.y - app.spriteSize.y,
-		'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol,
+		footer,
+		12,
 		1
 	)
 end

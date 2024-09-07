@@ -72,6 +72,8 @@ local function imageToHex(image)
 	return string.hexdump(ffi.string(image.buffer, image.width * image.height * ffi.sizeof(image.format)))
 end
 
+-- when I say 'reverse' i mean reversed order of bitfields
+-- when opengl says 'reverse' it means reversed order of reading hex numbers or something stupid
 function rgb888revto5551(rgba)
 	local r = bit.band(bit.rshift(rgba, 16), 0xff)
 	local g = bit.band(bit.rshift(rgba, 8), 0xff)
@@ -80,13 +82,19 @@ function rgb888revto5551(rgba)
 		bit.rshift(r, 3),
 		bit.lshift(bit.rshift(g, 3), 5),
 		bit.lshift(bit.rshift(b, 3), 10),
-		bit.lshift(1, 15)
+		bit.lshift(1, 15)	-- hmm always on?  used only for blitting screen?  why not just do 565 or something?  why even have a restriction at all, why not just 888?
 	)
 	assert(abgr >= 0 and abgr <= 0xffff, ('%x'):format(abgr))
 	return abgr
 end
 
+local updateFreq = 60
+local defaultFilename = 'last.n9'
+
 function App:initGL()
+
+	-- TODO delta updates
+	self.startTime = getTime()
 
 	self.env = setmetatable({
 		-- lua
@@ -104,7 +112,13 @@ function App:initGL()
 		save = function(...) return self:save(...) end,
 		load = function(...) return self:load(...) end,
 		-- other stuff
-		time = function() return getTime() end,	-- TODO replace with fixed-framerate timer, or better yet, frame counter @ specific hz
+		cos = math.cos,
+		sin = math.sin,
+		time = function() 
+			-- TODO fixed-framerate and internal app clock
+			-- until then ...
+			return math.floor((getTime() - self.startTime) * updateFreq) / updateFreq
+		end,
 		-- graphics	
 		clear = function(...) return self:clearScreen(...) end,
 
@@ -120,8 +134,11 @@ function App:initGL()
 		--  print = print text at cursor
 		--  cursor = set cursor pos
 		--  color = set draw color
-		rect = function(...) return self:drawSolidRect(...) end,	-- (x, y, w, h, colorIndex)
+		rect = function(x1,y1,x2,y2, ...)
+			return self:drawSolidRect(x1, y1, x2 - x1, y2 - y1, ...)
+		end,
 		sprite = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
+		text = function(...) return self:drawTextFgBg(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
 		
 		-- TODO don't do this
 		app = self,
@@ -152,8 +169,25 @@ function App:initGL()
 		end
 		--]]
 		-- [[ builtin palette
-		-- https://en.wikipedia.org/wiki/List_of_software_palettes
 		table{
+			-- tic80
+			0x000000,
+			0x562b5a,
+			0xa44654,
+			0xe08260,
+			0xf7ce82,
+			0xb7ed80,
+			0x60b46c,
+			0x3b7078,
+			0x2b376b,
+			0x415fc2,
+			0x5ca5ef,
+			0x93ecf5,
+			0xf4f4f4,
+			0x99afc0,
+			0x5a6c84,
+			0x343c55,
+			-- https://en.wikipedia.org/wiki/List_of_software_palettes
 			0x000000,
 			0x75140c,
 			0x377d22,
@@ -170,7 +204,7 @@ function App:initGL()
 			0xe63bf3,
 			0x71f7f9,
 			0xfafafa,
-		}:mapi(rgb888revto5551):rep(16)
+		}:mapi(rgb888revto5551):rep(8)
 		--]]
 		),
 		internalFormat = gl.GL_RGB5_A1,
@@ -262,10 +296,26 @@ in vec2 vertex;
 out vec2 tcv;
 uniform vec4 box;	//x,y,w,h
 uniform vec4 tcbox;	//x,y,w,h
+
+// ok this is me getting lazy
+// this should be a mvProjMat / transformation / "mode7" effect
+// but bleh
+uniform float rotation;
+
 uniform mat4 mvProjMat;
+
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
+	
+	// rotate before transform, or after?
+	// TODO get rid of 'rotation' and just use "mode7"
+	vec2 cis = vec2(cos(rotation), sin(rotation));
+	rvtx = vec2(
+		rvtx.x * cis.x - rvtx.y * cis.y,
+		rvtx.x * cis.y + rvtx.y * cis.x
+	);
+
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
 }
 ]],
@@ -296,26 +346,41 @@ uniform uint spriteBit;
 //  0xFFu = 8bpp
 uniform uint spriteMask;
 
+// Specifies which colorIndex (post sprite bit shift & mask) to use as transparency.
+// If you want fully opaque then just choose an oob color index.
+uniform uint transparentIndex;
+
 void main() {
 	// TODO provide a shift uniform for picking lo vs hi nibble
 	// only use the lower 4 bits ...
 	uint colorIndex = (texture(spriteTex, tcv).r >> spriteBit) & spriteMask;
+	
+	// TODO HERE MAYBE
+	// lookup the colorIndex in the palette to determine the alpha channel
+	// but really, why an extra tex read here?
+	// how about instead I do the TIC-80 way and just specify which index per-sprite is transparent?
+	// then I get to use all my colors
+	if (colorIndex == transparentIndex) discard;
+
 	//colorIndex should hold 
 	colorIndex += paletteIndex;
 	colorIndex &= 0XFFu;
+
+	
 	// write the 8bpp colorIndex to the screen, use tex to draw it
 	fragColor = uvec4(colorIndex, 0, 0, 0xFFu);
-
 }
 ]], 		{
 				clnumber = clnumber,
 				paletteSize = paletteSize,
 			}),
 			uniforms = {
+				rotation = 0,
 				spriteTex = 0,
 				paletteIndex = 0,
 				spriteBit = 0,
 				spriteMask = 0x0F,
+				transparentIndex = -1,
 			},
 		},
 		texs = {
@@ -338,8 +403,18 @@ void main() {
 in vec2 vertex;
 uniform vec4 box;	//x,y,w,h
 uniform mat4 mvProjMat;
+uniform float rotation;	//TODO get rid of this
 void main() {
 	vec2 rvtx = box.xy + vertex * box.zw;
+	
+	// rotate before transform, or after?
+	// TODO get rid of 'rotation' and just use "mode7"
+	vec2 cis = vec2(cos(rotation), sin(rotation));
+	rvtx = vec2(
+		rvtx.x * cis.x - rvtx.y * cis.y,
+		rvtx.x * cis.y + rvtx.y * cis.x
+	);
+
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
 }
 ]],
@@ -378,6 +453,11 @@ void main() {
 	self.con = Console{app=self}
 	--self.runFocus = self.con
 	self.runFocus = self.editCode
+
+	if path(defaultFilename):exists() then
+		self:load(defaultFilename)
+		self:runCode()
+	end
 end
 
 -- [[ also in sand-attack ... hmmmm ... 
@@ -477,7 +557,15 @@ function App:update()
 	sceneObj:draw()
 end
 
-function App:drawSolidRect(x, y, w, h, colorIndex)
+function App:drawSolidRect(
+	x,
+	y,
+	w,
+	h,
+	colorIndex,
+	rotation	-- TODO get rid of this
+)
+	rotation = rotation or 0
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -492,6 +580,7 @@ function App:drawSolidRect(x, y, w, h, colorIndex)
 	local uniforms = sceneObj.uniforms
 	uniforms.mvProjMat = view.mvProjMat.ptr
 	uniforms.colorIndex = colorIndex
+	uniforms.rotation = rotation
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
 	fb:unbind()
@@ -503,10 +592,22 @@ end
 
 --[[
 index = 5 bits x , 5 bits y
-paletteIndex = byte value ... high 4 bits holds the palette index ... add this to the color (or should I or- it?)
+paletteIndex = byte value with high 4 bits that holds which palette to use
+			... this is added to the sprite color index so really it's a palette shift.
+			(should I OR it?)
+transparentIndex = which color index in the sprite to use as transparency.  default -1 = none
 --]]
-function App:drawSprite(x, y, spriteIndex, paletteIndex)
+function App:drawSprite(
+	x,
+	y,
+	spriteIndex,
+	paletteIndex,
+	transparentIndex,
+	rotation	-- because why not
+)
 	paletteIndex = paletteIndex or 0
+	transparentIndex = transparentIndex or -1
+	rotation = rotation	or 0
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -522,7 +623,9 @@ function App:drawSprite(x, y, spriteIndex, paletteIndex)
 	
 	uniforms.mvProjMat = view.mvProjMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
-
+	uniforms.transparentIndex = transparentIndex
+	uniforms.rotation = rotation
+	
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	local tx = spriteIndex % spritesPerSheet.x
 	local ty = (spriteIndex - tx) / spritesPerSheet.x
@@ -537,19 +640,41 @@ function App:drawSprite(x, y, spriteIndex, paletteIndex)
 	fb:unbind()
 end
 
+-- always the same? TODO think out sprite tables builtin vs customizable
 function App:drawChar(...)
-	-- always the same? TODO think out sprite tables builtin vs customizable
 	return self:drawSprite(...)
 end
 
-function App:drawText(x, y, text, colorIndex)
+-- draw transparent-background text
+function App:drawText(x, y, text, ...)
 	for i=1,#text do
-		self:drawChar(x, y, text:byte(i), colorIndex)
+		self:drawChar(x, y, text:byte(i), ...)
 		x = x + spriteSize.x
 	end
 end
 
-local defaultFilename = 'last.n9'
+-- draw a solid background color, then draw the text transparent
+function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
+	fgColorIndex = fgColorIndex or 15
+	bgColorIndex = bgColorIndex or 0
+	local x0 = x
+	for i=1,#text do
+		self:drawSolidRect(x, y, spriteSize.x, spriteSize.y, bgColorIndex, ...)
+		x = x + spriteSize.x
+	end
+
+	self:drawText(x0, y, text, 
+		-- font color is 0 = background, 15 = foreground
+		-- so shift this by 15 so the font tex contents shift it back
+		-- TODO if compression is a thing then store 8 letters per 8x8 sprite
+		-- 		heck why not store 2 letters per left and right half as well?  that's half the alphaet in a single 8x8 sprite black.
+		fgColorIndex - 15,
+		-- 0 = black is transparent
+		0,
+		-- fwd rest of args
+		...
+	)
+end
 
 function App:save(filename)
 	path(filename or defaultFilename):write(tolua{
