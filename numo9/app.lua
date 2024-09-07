@@ -11,9 +11,13 @@ I think I'll separate out the builtin states:
 --]]
 local ffi = require 'ffi'
 local template = require 'template'
+local assertindex = require 'ext.assert'.index
 local string = require 'ext.string'
 local table = require 'ext.table'
+local path = require 'ext.path'
 local getTime = require 'ext.timer'.getTime
+local tolua = require 'ext.tolua'
+local fromlua = require 'ext.fromlua'
 local vec2i = require 'vec-ffi.vec2i'
 local Image = require 'image'
 local sdl = require 'sdl'
@@ -30,6 +34,9 @@ local GLSceneObject = require 'gl.sceneobject'
 local Console = require 'numo9.console'
 local EditCode = require 'numo9.editcode'
 
+local function errorHandler(err)
+	return err..'\n'..debug.traceback()
+end
 
 local paletteSize = 256
 local frameBufferSize = vec2i(256, 256)
@@ -82,6 +89,7 @@ end
 function App:initGL()
 
 	self.env = setmetatable({
+		-- lua
 		pairs = pairs,
 		ipairs = ipairs,
 		error = error,
@@ -89,11 +97,33 @@ function App:initGL()
 		pcall = pcall,
 		xpcall = xpcall,
 		load = load,
-		clear = function(...) return self:clearScreen(...) end,
+		-- console API (TODO make console commands separate of the Lua API ...)
 		print = function(...) return self.con:print(...) end,
 		write = function(...) return self.con:write(...) end,
-		run = function(...) self:runCmd(self.editCode.text) end,
-		-- TODO don't do this either
+		run = function(...) return self:runCode(...) end,
+		save = function(...) return self:save(...) end,
+		load = function(...) return self:load(...) end,
+		-- other stuff
+		time = function() return getTime() end,	-- TODO replace with fixed-framerate timer, or better yet, frame counter @ specific hz
+		-- graphics	
+		clear = function(...) return self:clearScreen(...) end,
+
+		-- pico has ...
+		--  circ / circfill / oval / ovalfill
+		--  line
+		--  rect / rectfill
+		--  pal / palt
+		--  spr / sspr = draw sprite at pixel x y, number of sprites wide and high, flip on either x and y axis ... sspr = same but stretched
+		--  fillp = fill pattern for all the draw-fill operations
+		--  mget / mset / map = draw map / manipulate map
+		--  camera = mode7 graphics, translate the camera
+		--  print = print text at cursor
+		--  cursor = set cursor pos
+		--  color = set draw color
+		rect = function(...) return self:drawSolidRect(...) end,	-- (x, y, w, h, colorIndex)
+		sprite = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
+		
+		-- TODO don't do this
 		app = self,
 	}, {
 		-- TODO don't __index=_G and sandbox it instead
@@ -258,20 +288,23 @@ uniform usampler2D spriteTex;
 //  other = ???
 uniform uint spriteBit;
 
+// specifies the mask after shifting the sprite bit
+//  0x01u = 1bpp
+//  0x03u = 2bpp
+//  0x07u = 3bpp
+//  0x0Fu = 4bpp
+//  0xFFu = 8bpp
+uniform uint spriteMask;
+
 void main() {
 	// TODO provide a shift uniform for picking lo vs hi nibble
 	// only use the lower 4 bits ...
-	uint colorIndex = (texture(spriteTex, tcv).r >> spriteBit) & 0xFu;
+	uint colorIndex = (texture(spriteTex, tcv).r >> spriteBit) & spriteMask;
 	//colorIndex should hold 
 	colorIndex += paletteIndex;
 	colorIndex &= 0XFFu;
 	// write the 8bpp colorIndex to the screen, use tex to draw it
-	fragColor = uvec4(
-		colorIndex,
-		0,
-		0,
-		0xFFu
-	);
+	fragColor = uvec4(colorIndex, 0, 0, 0xFFu);
 
 }
 ]], 		{
@@ -282,6 +315,7 @@ void main() {
 				spriteTex = 0,
 				paletteIndex = 0,
 				spriteBit = 0,
+				spriteMask = 0x0F,
 			},
 		},
 		texs = {
@@ -310,10 +344,10 @@ void main() {
 }
 ]],
 			fragmentCode = [[
-out vec4 fragColor;
-uniform float colorIndex;
+out uvec4 fragColor;
+uniform uint colorIndex;
 void main() {
-	fragColor = vec4(colorIndex, 0., 0., 1.);
+	fragColor = uvec4(colorIndex & 0xFFu, 0, 0, 0xFFu);
 }
 ]],
 		},
@@ -394,8 +428,14 @@ function App:update()
 	gl.glClearColor(.1, .2, .3, 1.)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-	if self.runFocus.update then
-		self.runFocus:update(getTime())
+	local runFocus = self.runFocus
+	if runFocus.update then
+		runFocus:update()
+	end
+
+	-- TODO here run this only 60 fps
+	if runFocus.draw then
+		runFocus:draw()
 	end
 
 -- [[ redo ortho projection matrix
@@ -449,17 +489,16 @@ function App:drawSolidRect(x, y, w, h, colorIndex)
 	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 
 	local sceneObj = self.quadSolidObj
-	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-	sceneObj.uniforms.colorIndex = colorIndex
-	settable(sceneObj.uniforms.box, x, y, w, h)
+	local uniforms = sceneObj.uniforms
+	uniforms.mvProjMat = view.mvProjMat.ptr
+	uniforms.colorIndex = colorIndex
+	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
 	fb:unbind()
 end
 
 function App:clearScreen(colorIndex)
-	colorIndex = colorIndex or 0
-	local fb = self.fb
-	self:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, colorIndex)
+	self:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, colorIndex or 0)
 end
 
 --[[
@@ -510,19 +549,81 @@ function App:drawText(x, y, text, colorIndex)
 	end
 end
 
+local defaultFilename = 'last.n9'
+
+function App:save(filename)
+	path(filename or defaultFilename):write(tolua{
+		code = self.editCode.text,
+		-- TODO sprites
+		-- TODO music
+	})
+end
+
+function App:load(filename)
+	local src = assert(fromlua(
+		(assert(path(filename or defaultFilename):read()))
+	))
+	self.editCode:setText(assertindex(src, 'code'))
+end
+
+-- returns the function to run the code
+function App:loadCmd(cmd, env)
+	return load(cmd, nil, 't', env or self.env)
+end
+
 -- system() function
+-- TODO fork this between console functions and between running "rom" code
 function App:runCmd(cmd)
-	local f, msg = load(cmd, nil, 't', self.env)
+	local f, msg = self:loadCmd(cmd)
+	if not f then return f, msg end
+	return xpcall(f, errorHandler)
+end
+
+function App:runCode()
+	-- TODO setfenv instead?
+	local env = setmetatable({}, {
+		__index = self.env,
+	})
+	local f, msg = self:loadCmd(self.editCode.text, env)
 	if not f then
-		return f, msg
-	else
-		return xpcall(f, function(err)
-			return err..'\n'..debug.traceback()
-		end) 
+		print(msg)
+		return
+	end
+	-- TODO setfenv to make sure our function writes globals to its own place
+	local result, msg = xpcall(f, errorHandler)
+	print'ran code'
+	print('draw', env.draw)
+	print('update', env.update)
+
+	if env.draw or env.update then
+		self.runFocus = env
 	end
 end
 
 function App:event(e)
+	-- alwyays be able to break with escape ...
+	if e[0].type == sdl.SDL_KEYDOWN
+	and e[0].key.keysym.sym == sdl.SDLK_ESCAPE
+	then
+		-- game -> escape -> console
+		-- console -> escape -> editor
+		-- editor -> escape -> console
+		-- ... how to cycle back to the game without resetting it?
+		-- ... can you not issue commands while the game is loaded without resetting the game?
+		if self.runFocus == self.con then
+			self.runFocus = self.editCode
+		elseif self.runFocus == self.editCode then
+			self.runFocus = self.con
+		else
+			-- assume it's a game
+			self.runFocus = self.con
+		end
+		-- TODO re-init the con?  clear? special per runFocus?
+		if self.runFocus == self.con then
+			self.con:reset()
+		end
+	end
+
 	if self.runFocus.event then
 		self.runFocus:event(e)
 	end

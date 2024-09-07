@@ -3,10 +3,10 @@ This will be the code editor
 --]]
 local sdl = require 'sdl'
 local table = require 'ext.table'
-local string = require 'ext.string'
 local range = require 'ext.range'
 local math = require 'ext.math'
 local class = require 'ext.class'
+local getTime = require 'ext.timer'.getTime
 
 -- TODO make the editor a rom itself
 -- TODO make roms that hold all the necessary stuff
@@ -15,23 +15,30 @@ local EditCode = class()
 
 function EditCode:init(args)
 	self.app = assert(args.app)
-	self.text = [[
-print'hi'
-do return end
-]]
-	self:refreshNewlines()
+	self.cursorLoc = 1
+	self:setText[[
+print'Hello NuMo9'
 
-	-- starting point of where to render text, preferrably at a newline or beginning
-	self.start = 1
-	self.cursorLoc = 1	-- TODO cursor xy? or just index offset?
-	self.cursorCol = 1
-	self.cursorRow = 1
+function draw()
+	rect(0, 0, 256, 256, math.floor(5 * time()))
+end
+
+do return 42 end
+]]
+end
+
+function EditCode:setText(text)
+	self.text = text
+		:gsub('\t', ' ')	--TODO add tab support
+	self.cursorLoc = math.clamp(self.cursorLoc, 1, #self.text+1)
+	self:refreshNewlines()
+	self:refreshCursorColRowForLoc()
 end
 
 local slashRByte = ('\r'):byte()
 local newlineByte = ('\n'):byte()
 function EditCode:refreshNewlines()
-print(string.hexdump(self.text))	
+--print(require 'ext.string'.hexdump(self.text))	
 	-- refresh newlines
 	self.newlines = table()
 	self.newlines:insert(0)
@@ -41,6 +48,7 @@ print(string.hexdump(self.text))
 		end
 	end
 	self.newlines:insert(#self.text+1)
+--[[
 print('newlines', require 'ext.tolua'(self.newlines))
 print('lines by newlines')
 for i=1,#self.newlines-1 do
@@ -48,6 +56,7 @@ for i=1,#self.newlines-1 do
 	local finish = self.newlines[i+1]
 	print(start, finish, self.text:sub(start, finish-1))
 end
+--]]
 end
 
 function EditCode:refreshCursorColRowForLoc()
@@ -64,7 +73,7 @@ function EditCode:refreshCursorColRowForLoc()
 	self.cursorCol = self.cursorLoc - self.newlines[self.cursorRow]
 end
 
-function EditCode:update(t)
+function EditCode:update()
 	local app = self.app
 	app:clearScreen()
 	app:drawText(0,0,'CESM code editor', 1)
@@ -82,7 +91,7 @@ function EditCode:update(t)
 		y = y + 1
 	end
 	
-	if t % 1 < .5 then
+	if getTime() % 1 < .5 then
 		app:drawSolidRect(
 			self.cursorCol * app.spriteSize.x,
 			self.cursorRow * app.spriteSize.y,
@@ -119,6 +128,14 @@ local function prevNewline(s, i)
 	end
 	return 1
 end
+				
+function EditCode:countRowCols(row)
+	--return self.newlines[row+1] - self.newlines[row] + 1
+	local linetext = self.text:sub(self.newlines[row], self.newlines[row+1])
+	-- TODO enumerate chars, upon tab round up to tab indent
+	--linetext = linetext:gsub('\t', (' '):rep(indentSize))
+	return #linetext
+end	
 
 function EditCode:event(e)
 	local app = self.app
@@ -138,18 +155,23 @@ function EditCode:event(e)
 			local charsym = app:getKeySymForShift(sym, shift)
 			if charsym then
 				self:addCharToText(charsym)	
-			elseif sym == sdl.SDLK_RETURN 
-			or sym == sdl.SDLK_TAB
-			then
+			elseif sym == sdl.SDLK_RETURN then
 				self:addCharToText(sym)	
+			elseif sym == sdl.SDLK_TAB then
+				-- TODO add tab and do indent up there,
+				-- until then ...
+				self:addCharToText(32)
 			elseif sym == sdl.SDLK_UP 
 			or sym == sdl.SDLK_DOWN
 			then
 				local dy = sym == sdl.SDLK_UP and -1 or 1
 				self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
-				local currentLineLen = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow] + 1
-				self.cursorCol = math.clamp(self.cursorCol, 1, currentLineLen)
+				
+				local currentLineCols = self:countRowCols(self.cursorRow)
+				self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
+				
 				self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
+				
 				self:refreshCursorColRowForLoc()	-- just in case?
 			elseif sym == sdl.SDLK_LEFT 
 			or sym == sdl.SDLK_RIGHT
@@ -157,9 +179,6 @@ function EditCode:event(e)
 				local dx = sym == sdl.SDLK_LEFT and -1 or 1
 				self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
 				self:refreshCursorColRowForLoc()
-			elseif sym == sdl.SDLK_ESCAPE then
-				app.runFocus = app.con
-				app.con:reset()	-- or save the screen
 			end
 		end
 	end

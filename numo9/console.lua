@@ -4,6 +4,7 @@ Here's where the stuff that handles the prompt and running commands goes
 local sdl = require 'sdl'
 local class = require 'ext.class'
 local table = require 'ext.table'
+local getTime = require 'ext.timer'.getTime
 local vec2i = require 'vec-ffi.vec2i'
 
 local Console = class()
@@ -51,6 +52,7 @@ function Console:runCmdBuf()
 
 	local success, msg = self.app:runCmd(cmd)
 	if not success then
+print(msg)		
 		self:print(tostring(msg))
 	end
 
@@ -149,7 +151,7 @@ function Console:addCharToCmd(ch)
 end
 
 -- TODO run at 60hz
-function Console:update(t)
+function Console:update()
 	local app = self.app
 
 	-- TODO start to bypass the internal console prompt
@@ -159,7 +161,7 @@ function Console:update(t)
 	app:write'CSMAB code editor'
 	--]]
 
-	if t % 1 < .5 then
+	if getTime() % 1 < .5 then
 		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, app.spriteSize.x, app.spriteSize.y, 15)
 	else
 		-- else TODO draw the character in the buffer at this location
@@ -196,8 +198,6 @@ function Console:event(e)
 			elseif sym == sdl.SDLK_DOWN then 
 				self:selectHistory(1)
 			-- TODO left right to move the cursor
-			elseif sym == sdl.SDLK_ESCAPE then
-				app.runFocus = app.editCode
 			end
 		end
 	end
