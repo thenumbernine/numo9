@@ -7,6 +7,15 @@ local table = require 'ext.table'
 local getTime = require 'ext.timer'.getTime
 local vec2i = require 'vec-ffi.vec2i'
 
+local App = require 'numo9.app'
+local paletteSize = App.paletteSize
+local frameBufferSize = App.frameBufferSize
+local spriteSheetSize = App.spriteSheetSize
+local spriteSize = App.spriteSize
+local spritesPerSheet = App.spritesPerSheet
+local spritesPerFrameBuffer = App.spritesPerFrameBuffer
+
+
 local Console = class()
 
 function Console:init(args)
@@ -23,10 +32,11 @@ function Console:reset()
 	self.cmdHistoryIndex = nil
 	self.cursorPos = vec2i(0, 0)
 
-	-- right now cursorPaletteIndex just adds
+	-- right now fgColor just adds
 	-- meanwhile the font texture is indexed 0's and 15's
-	-- so whatever you set cursorPaletteIndex to, that value is background and that value plus 15 is foreground
-	self.cursorPaletteIndex = 0
+	-- so whatever you set fgColor to, that value is background and that value plus 15 is foreground
+	self.fgColor = 15
+	self.bgColor = 0
 
 	-- TODO 'getFocus' or TODO always reload?
 	-- clear the screen every time, or save the screen every time?
@@ -34,11 +44,13 @@ function Console:reset()
 	self:print(app.title)
 
 	for i=0,15 do
-		self.cursorPaletteIndex = i	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
+		self.fgColor = i	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
+		self.bgColor = i+1
 		self:print'hello world'
 	end
-	--self.cursorPaletteIndex = 0			-- 0 = bg, 15 = fg
-	self.cursorPaletteIndex = 0xfd		-- 0xfd = bg, 12 = fg
+	--self.fgColor = 14			-- 14 = bg, 15 = fg
+	self.fgColor = 11			-- 11 = bg, 12 = fg
+	self.bgColor = 0
 
 	self.prompt = '> '
 	self:write(self.prompt)
@@ -69,46 +81,47 @@ function Console:offsetCursor(dx, dy)
 	self.cursorPos.y = self.cursorPos.y + dy
 
 	while self.cursorPos.x < 0 do
-		self.cursorPos.x = self.cursorPos.x + app.frameBufferSize.x
-		self.cursorPos.y = self.cursorPos.y - app.spriteSize.y
+		self.cursorPos.x = self.cursorPos.x + frameBufferSize.x
+		self.cursorPos.y = self.cursorPos.y - spriteSize.y
 	end
-	while self.cursorPos.x >= app.frameBufferSize.x do
-		self.cursorPos.x = self.cursorPos.x - app.frameBufferSize.x
-		self.cursorPos.y = self.cursorPos.y + app.spriteSize.y
+	while self.cursorPos.x >= frameBufferSize.x do
+		self.cursorPos.x = self.cursorPos.x - frameBufferSize.x
+		self.cursorPos.y = self.cursorPos.y + spriteSize.y
 	end
 
 	while self.cursorPos.y < 0 do
-		self.cursorPos.y = self.cursorPos.y + app.frameBufferSize.y
+		self.cursorPos.y = self.cursorPos.y + frameBufferSize.y
 	end
-	while self.cursorPos.y >= app.frameBufferSize.y do
-		self.cursorPos.y = self.cursorPos.y - app.frameBufferSize.y
+	while self.cursorPos.y >= frameBufferSize.y do
+		self.cursorPos.y = self.cursorPos.y - frameBufferSize.y
 	end
 end
 
-function Console:drawChar(ch)
+function Console:addChar(ch)
 	local app = self.app
-	app:drawChar(
+	app:drawTextFgBg(
 		self.cursorPos.x,
 		self.cursorPos.y,
-		ch,
-		self.cursorPaletteIndex
+		string.char(ch),
+		self.fgColor,
+		self.bgColor
 	)
-	self:offsetCursor(app.spriteSize.x, 0)
+	self:offsetCursor(spriteSize.x, 0)
 end
 
 function Console:addCharToScreen(ch)
 	local app = self.app
 	if ch == 8 then
-		self:drawChar((' '):byte())	-- in case the cursor is there
-		self:offsetCursor(-2*app.spriteSize.x, 0)
-		self:drawChar((' '):byte())	-- clear the prev char as well
-		self:offsetCursor(-app.spriteSize.x, 0)
+		self:addChar((' '):byte())	-- in case the cursor is there
+		self:offsetCursor(-2*spriteSize.x, 0)
+		self:addChar((' '):byte())	-- clear the prev char as well
+		self:offsetCursor(-spriteSize.x, 0)
 	elseif ch == 10 or ch == 13 then
-		self:drawChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
+		self:addChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
 		self.cursorPos.x = 0
-		self.cursorPos.y = self.cursorPos.y + app.spriteSize.y
+		self.cursorPos.y = self.cursorPos.y + spriteSize.y
 	else
-		self:drawChar(ch)
+		self:addChar(ch)
 	end
 end
 
@@ -163,10 +176,10 @@ function Console:update()
 	--]]
 
 	if getTime() % 1 < .5 then
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, app.spriteSize.x, app.spriteSize.y, 15)
+		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, spriteSize.x, spriteSize.y, 15)
 	else
 		-- else TODO draw the character in the buffer at this location
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, app.spriteSize.x, app.spriteSize.y, 0)
+		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, spriteSize.x, spriteSize.y, 0)
 	end
 end
 

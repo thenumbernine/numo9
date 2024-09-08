@@ -31,9 +31,6 @@ local GLGeometry = require 'gl.geometry'
 local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 
-local Console = require 'numo9.console'
-local EditCode = require 'numo9.editcode'
-
 local function errorHandler(err)
 	return err..'\n'..debug.traceback()
 end
@@ -139,7 +136,7 @@ function App:initGL()
 		-- pico has ...
 		--  circ / circfill / oval / ovalfill
 		--  line
-		--  rect / rectfill
+		--  rect / rectfill ... tik80 has rectb / rect ... think I'll use that
 		--  pal / palt
 		--  spr / sspr = draw sprite at pixel x y, number of sprites wide and high, flip on either x and y axis ... sspr = same but stretched
 		--  fillp = fill pattern for all the draw-fill operations
@@ -149,7 +146,10 @@ function App:initGL()
 		--  cursor = set cursor pos
 		--  color = set draw color
 		rect = function(x1,y1,x2,y2, ...)
-			return self:drawSolidRect(x1, y1, x2 - x1, y2 - y1, ...)
+			return self:drawSolidRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1, ...)
+		end,
+		rectb = function(x1,y1,x2,y2, ...)
+			return self:drawBorderRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1, ...)
 		end,
 		sprite = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
 		text = function(...) return self:drawTextFgBg(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
@@ -182,9 +182,10 @@ function App:initGL()
 		height = frameBufferSize.y,
 	}:unbind()
 
+
 	self.spriteTex = self:makeTexFromImage{
 		-- this file is rgba, so split off just one channel from it:
-		image = Image'font.png':split(),
+		image = Image'font-indexed.png',
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -393,9 +394,9 @@ void main() {
 			uniforms = {
 				spriteTex = 0,
 				paletteIndex = 0,
+				transparentIndex = -1,
 				spriteBit = 0,
 				spriteMask = 0x0F,
-				transparentIndex = -1,
 			},
 		},
 		texs = {
@@ -450,8 +451,12 @@ void main() {
 	end
 	fb:unbind()
 
+	local EditCode = require 'numo9.editcode'
 	self.editCode = EditCode{app=self}
+	
+	local Console = require 'numo9.console'
 	self.con = Console{app=self}
+	
 	--self.runFocus = self.con
 	self.runFocus = self.editCode
 
@@ -459,6 +464,10 @@ void main() {
 		self:load(defaultFilename)
 		self:runCode()
 	end
+
+	self.screenMousePos = vec2i()	-- host coordinates
+	self.mousePos = vec2i()			-- frambuffer coordinates
+	self.mouseButtons = 0
 end
 
 -- [[ also in sand-attack ... hmmmm ...
@@ -505,9 +514,25 @@ end
 function App:update()
 	App.super.update(self)
 
-	gl.glViewport(0, 0, self.width, self.height)
-	gl.glClearColor(.1, .2, .3, 1.)
-	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+	do
+		self.lastMouseButtons = self.mouseButtons
+		self.mouseButtons = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
+		local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
+--DEBUG:print('screen pos', self.screenMousePos:unpack())
+--DEBUG:print('ortho', 	x1, x2, y1, y2, z1, z2)
+		local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
+		local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
+--DEBUG:print('mouserfrac', x, y)		
+		x = x1 * (1 - x) + x2 * x
+		y = y1 * (1 - y) + y2 * y
+--DEBUG:print('mouse in ortho [-1,1] space', x, y)
+		x = x * .5 + .5
+		y = y * .5 + .5
+--DEBUG:print('mouse in ortho [0,1] space', x, y)
+		self.mousePos.x = x * tonumber(frameBufferSize.x)
+		self.mousePos.y = y * tonumber(frameBufferSize.y)
+--DEBUG:print('mouse in fb space', self.mousePos:unpack())
+	end
 
 	local runFocus = self.runFocus
 	if runFocus.update then
@@ -518,6 +543,11 @@ function App:update()
 	if runFocus.draw then
 		runFocus:draw()
 	end
+
+
+	gl.glViewport(0, 0, self.width, self.height)
+	gl.glClearColor(.1, .2, .3, 1.)
+	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
 -- [[ redo ortho projection matrix
 -- every frame ... not necessary if the screen is static
@@ -553,18 +583,10 @@ function App:update()
 	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 --]]
 
-	gl.glViewport(0, 0, self.width, self.height)
-
 	sceneObj:draw()
 end
 
-function App:drawSolidRect(
-	x,
-	y,
-	w,
-	h,
-	colorIndex
-)
+function App:drawSolidRect(x, y, w, h, colorIndex)
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -579,26 +601,65 @@ function App:drawSolidRect(
 	fb:unbind()
 end
 
+function App:drawBorderRect(x, y, w, h, colorIndex)
+	-- I could do another shader for this, and discard in the middle
+	-- or just draw 4 thin sides ...
+	local fb = self.fb
+	fb:bind()
+	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+
+	local sceneObj = self.quadSolidObj
+	local uniforms = sceneObj.uniforms
+	uniforms.mvProjMat = self.view.mvProjMat.ptr
+	uniforms.colorIndex = colorIndex
+	
+	settable(uniforms.box, x, y, w, 1)
+	sceneObj:draw()
+	settable(uniforms.box, x, y, 1, h)
+	sceneObj:draw()
+	settable(uniforms.box, x, y+h-1, w, 1)
+	sceneObj:draw()
+	settable(uniforms.box, x+w-1, y, 1, h)
+	sceneObj:draw()
+	
+	fb:unbind()
+end
+
 function App:clearScreen(colorIndex)
 	self:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, colorIndex or 0)
 end
 
 --[[
-index = 5 bits x , 5 bits y
-paletteIndex = byte value with high 4 bits that holds which palette to use
-			... this is added to the sprite color index so really it's a palette shift.
-			(should I OR it?)
+spriteIndex = 
+	bits 0..4 = x coordinate in sprite sheet
+	bits 5..9 = y coordinate in sprite sheet
+sw = width in sprites
+sh = height in sprites
+paletteIndex = 
+	byte value with high 4 bits that holds which palette to use
+	... this is added to the sprite color index so really it's a palette shift.
+	(should I OR it?)
 transparentIndex = which color index in the sprite to use as transparency.  default -1 = none
+spriteBit = index of bit (0-based) to use, default is zero
+spriteMask = mask of number of bits to use, default is 0xF <=> 4bpp
 --]]
 function App:drawSprite(
 	x,
 	y,
 	spriteIndex,
+	sw,
+	sh,
 	paletteIndex,
-	transparentIndex
+	transparentIndex,
+	spriteBit,
+	spriteMask
 )
+	sw = sw or 1
+	sh = sh or 1
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
+	spriteBit = spriteBit or 0
+	spriteMask = spriteMask or 0xF
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -610,6 +671,8 @@ function App:drawSprite(
 	uniforms.mvProjMat = self.view.mvProjMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
+	uniforms.spriteBit = spriteBit
+	uniforms.spriteMask = spriteMask
 
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	local tx = spriteIndex % spritesPerSheet.x
@@ -617,43 +680,41 @@ function App:drawSprite(
 	settable(uniforms.tcbox,
 		tx / tonumber(spritesPerSheet.x),
 		ty / tonumber(spritesPerSheet.y),
-		1 / tonumber(spritesPerSheet.x),
-		1 / tonumber(spritesPerSheet.y)
+		sw / tonumber(spritesPerSheet.x),
+		sh / tonumber(spritesPerSheet.y)
 	)
-	settable(uniforms.box, x, y, spriteSize.x, spriteSize.y)
+	settable(uniforms.box, x, y, sw * spriteSize.x, sh * spriteSize.y)
 	sceneObj:draw()
 	fb:unbind()
-end
-
--- always the same? TODO think out sprite tables builtin vs customizable
-function App:drawChar(...)
-	return self:drawSprite(...)
 end
 
 -- draw transparent-background text
 function App:drawText(x, y, text, ...)
 	for i=1,#text do
-		self:drawChar(x, y, text:byte(i), ...)
+		self:drawSprite(x, y, text:byte(i), 1, 1, ...)
 		x = x + spriteSize.x
 	end
 end
 
 -- draw a solid background color, then draw the text transparent
+-- specify an oob bgColorIndex to draw with transparent background
 function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
-	fgColorIndex = fgColorIndex or 15
+	fgColorIndex = fgColorIndex or 13
 	bgColorIndex = bgColorIndex or 0
 	local x0 = x
-	for i=1,#text do
-		self:drawSolidRect(x, y, spriteSize.x, spriteSize.y, bgColorIndex, ...)
-		x = x + spriteSize.x
+	if bgColorIndex >= 0 and bgColorIndex < 255 then
+		for i=1,#text do
+			self:drawSolidRect(x, y, spriteSize.x, spriteSize.y, bgColorIndex, ...)
+			x = x + spriteSize.x
+		end
 	end
 
 	self:drawText(x0, y, text,
-		-- font color is 0 = background, 15 = foreground
-		-- so shift this by 15 so the font tex contents shift it back
+		-- font color is 0 = background, 1 = foreground
+		-- so shift this by 1 so the font tex contents shift it back
 		-- TODO if compression is a thing then store 8 letters per 8x8 sprite
 		-- 		heck why not store 2 letters per left and right half as well?  that's half the alphaet in a single 8x8 sprite black.
-		fgColorIndex - 15,
+		fgColorIndex - 1,
 		-- 0 = black is transparent
 		0,
 		-- fwd rest of args
