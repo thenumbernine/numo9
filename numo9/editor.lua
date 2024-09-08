@@ -77,8 +77,8 @@ do return 42 end
 	self.log2PalBits = 2	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 
+	self.penSize = 1 		-- size 1 thru 5 or so
 	-- TODO still:
-	self.penSize = 1 -- TODO size 1 thru 5 or so
 	self.spriteEditTool = 1 -- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 end
 
@@ -130,26 +130,31 @@ end
 
 local selBorderColors = {13,12}
 
-function Editor:guiButton(x, y, str, isset, cb)
+function Editor:guiButton(x, y, str, isset, cb, tooltip)
 	local app = self.app
 	app:drawTextFgBg(x, y, str,
 		isset and 13 or 10,
 		isset and 4 or 2
 	)
-	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
-	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
-	local leftButtonPress = leftButtonDown and not leftButtonLastDown
+	
 	local mouseX, mouseY = app.mousePos:unpack()
-
-	if leftButtonPress
-	and mouseX >= x and mouseX < x + spriteSize.x
+	if mouseX >= x and mouseX < x + spriteSize.x
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
-		return true
+		if tooltip then
+			app:drawTextFgBg(mouseX - 12, mouseY - 12, tooltip, 12, 6)
+		end
+		
+		local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
+		local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+		local leftButtonPress = leftButtonDown and not leftButtonLastDown
+		if leftButtonPress then
+			return true
+		end
 	end
 end
 
-function Editor:guiSpinner(x, y, cb)
+function Editor:guiSpinner(x, y, cb, tooltip)
 	local app = self.app
 
 	-- TODO this in one spot, mabye with glapp.mouse ...
@@ -173,6 +178,14 @@ function Editor:guiSpinner(x, y, cb)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		cb(1)
+	end
+
+	if mouseX >= x - spriteSize.x and mouseX < x + spriteSize.x
+	and mouseY >= y and mouseY < y + spriteSize.y
+	then
+		if tooltip then
+			app:drawTextFgBg(mouseX - 12, mouseY - 12, tooltip, 12, 6)
+		end
 	end
 end
 
@@ -279,7 +292,7 @@ function Editor:update()
 		)
 		self:guiSpinner(128+16+24, 20, function(dx)
 			self.spriteBit = math.clamp(self.spriteBit + dx, 0, 7)
-		end)
+		end, 'bit='..self.spriteBit)
 
 		-- choose spriteMask
 		app:drawTextFgBg(
@@ -293,7 +306,7 @@ function Editor:update()
 			-- should I not let this exceed 8 - spriteBit ?
 			-- or should I wrap around bits and be really unnecessarily clever?
 			self.spriteBitDepth = math.clamp(self.spriteBitDepth + dx, 1, 8)
-		end)
+		end, 'bpp='..self.spriteBitDepth)
 
 		local x = 126
 		local y = 32
@@ -396,18 +409,10 @@ function Editor:update()
 				local tx, ty = fbToSpriteCoord(mouseX, mouseY)
 				tx = math.floor(tx)
 				ty = math.floor(ty)
+--DEBUG:print('texel index', tx, ty)
 				-- TODO HERE draw a pixel to the sprite sheet ...
 				-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
 				-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
---DEBUG:print('texel index', tx, ty)
-				assert(0 <= tx and tx < spriteSheetSize.x)
-				assert(0 <= ty and ty < spriteSheetSize.y)
-				local texelIndex = tx + spriteSheetSize.x * ty
-				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-				-- TODO since shift is shift, should I be subtracing it here?
-				-- or should I just be AND'ing it?
-				-- let's subtract it
-				local texPtr = app.spriteTex.image.buffer + texelIndex
 --DEBUG:print('color index was', texPtr[0])
 --DEBUG:print('paletteSelIndex', self.paletteSelIndex)
 --DEBUG:print('paletteOffset', self.paletteOffset)
@@ -416,37 +421,68 @@ function Editor:update()
 					self.spriteBit
 				)
 				if self.spriteDrawMode == 'dropper' then
-					self.paletteSelIndex = bit.band(
-						0xff,
-						self.paletteOffset
-						+ bit.rshift(
-							bit.band(mask, texPtr[0]),
-							self.spriteBit
-						)
-					)
-				else
-					texPtr[0] = bit.bor(
-						bit.band(
-							bit.bnot(mask),
-							texPtr[0]
-						),
-						bit.band(
-							mask,
-							bit.lshift(
-								self.paletteSelIndex - self.paletteOffset,
+					if 0 <= tx and tx < spriteSheetSize.x
+					and 0 <= ty and ty < spriteSheetSize.y
+					then
+						-- TODO since shift is shift, should I be subtracing it here?
+						-- or should I just be AND'ing it?
+						-- let's subtract it
+						local texelIndex = tx + spriteSheetSize.x * ty
+						assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+						local texPtr = app.spriteTex.image.buffer + texelIndex
+						self.paletteSelIndex = bit.band(
+							0xff,
+							self.paletteOffset
+							+ bit.rshift(
+								bit.band(mask, texPtr[0]),
 								self.spriteBit
 							)
 						)
-					)
-				end
+					end
+				elseif self.spriteDrawMode == 'draw' then
+--DEBUG:print('drawing at')					
+					local tx0 = tx - math.floor(self.penSize / 2)
+					local ty0 = ty - math.floor(self.penSize / 2)
+					assert(app.spriteTex.image.buffer == app.spriteTex.data)
+					local spriteTex = app.spriteTex
+					spriteTex:bind()
+					for dy=0,self.penSize-1 do
+						local ty = ty0 + dy
+						for dx=0,self.penSize-1 do
+							local tx = tx0 + dx
+							if 0 <= tx and tx < spriteSheetSize.x
+							and 0 <= ty and ty < spriteSheetSize.y
+							then
+--DEBUG:print('really drawing at', tx, ty)								
+								local texelIndex = tx + spriteSheetSize.x * ty
+								assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+								local texPtr = app.spriteTex.image.buffer + texelIndex
+								texPtr[0] = bit.bor(
+									bit.band(
+										bit.bnot(mask),
+										texPtr[0]
+									),
+									bit.band(
+										mask,
+										bit.lshift(
+											self.paletteSelIndex - self.paletteOffset,
+											self.spriteBit
+										)
+									)
+								)
+								spriteTex:subimage{
+									xoffset = tx,
+									yoffset = ty,
+									width = 1,
+									height = 1,
+									data = texPtr,
+								}
+							end
+						end
+					end
 --DEBUG:print('color index is now', texPtr[0])
-				assert(app.spriteTex.image.buffer == app.spriteTex.data)
-				app.spriteTex
-					:bind()
-					--:subimage()
-					:subimage{xoffset=tx, yoffset=ty, width=1, height=1, data=texPtr}
-					--:subimage{xoffset=self.spriteSelPos.x * spriteSize.x, yoffset=self.spriteSelPos.y * spriteSize.y, width=self.spriteSelSize.x * spriteSize.x, height=self.spriteSelSize.y * spriteSize.y}
-					:unbind()
+					spriteTex:unbind()
+				end
 			end
 		elseif self.spriteDrawMode == 'pan' then
 			if leftButtonPress then
@@ -483,8 +519,11 @@ function Editor:update()
 			'pan',
 		} do
 			if self:guiButton(
-				x, y, spriteDrawMode:sub(1,1):upper(),
-				self.spriteDrawMode == spriteDrawMode
+				x,
+				y,
+				spriteDrawMode:sub(1,1):upper(),
+				self.spriteDrawMode == spriteDrawMode,
+				spriteDrawMode
 			) then
 				self.spriteDrawMode = spriteDrawMode
 			end
@@ -565,12 +604,18 @@ function Editor:update()
 		-- adjust palette size
 		self:guiSpinner(16, 200, function(dx)
 			self.log2PalBits = math.clamp(self.log2PalBits + dx, 0, 3)
-		end)
+		end, 'pal bpp='..bit.lshift(1,self.log2PalBits))
 
 		-- adjust palette offset
 		self:guiSpinner(16+24, 200, function(dx)
 			self.paletteOffset = bit.band(0xff, self.paletteOffset + dx)
-		end)
+		end, 'pal ofs='..self.paletteOffset)
+
+		-- adjust pen size
+		self:guiSpinner(16+48, 200, function(dx)
+			self.penSize = math.clamp(self.penSize + dx, 1, 5)
+print('penSize', self.penSize)
+		end, 'pen size='..self.penSize)
 
 		-- edit palette entries
 
