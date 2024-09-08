@@ -482,7 +482,7 @@ void main() {
 
 	self.screenMousePos = vec2i()	-- host coordinates
 	self.mousePos = vec2i()			-- frambuffer coordinates
-	self.lastMousePos = vec2i()		-- ... position last frame 
+	self.lastMousePos = vec2i()		-- ... position last frame
 	self.mouseButtons = 0
 end
 
@@ -532,7 +532,7 @@ function App:update()
 
 	-- TODO this only once per tick (60fps or so)
 	do
-		self.lastMousePos:set(self.mousePos:unpack()) 
+		self.lastMousePos:set(self.mousePos:unpack())
 		self.lastMouseButtons = self.mouseButtons
 		self.mouseButtons = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
 		local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)

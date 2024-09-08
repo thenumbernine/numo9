@@ -63,23 +63,27 @@ do return 42 end
 	-- sprite edit mode
 	self.spriteSelPos = vec2i()	-- TODO make this texel based, not sprite based (x8 less resolution)
 	self.spriteSelSize = vec2i(1,1)
-	self.spriteSelOffset = vec2i()	-- holds the panning offset from the sprite location
+	self.spritesheetPanOffset = vec2i()
+	self.spritesheetPanDownPos = vec2i()
+	self.spritesheetPanPressed = false
+	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
 	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
 
 	-- TODO this in app and let it be queried?
 	self.lastMouseDown = vec2i()
-	
+
 	self.spriteBit = 0	-- which bitplane to start at: 0-7
 	self.spriteBitDepth = 8	-- how many bits to edit at once: 1-8
+	self.spritesheetEditMode = 'select'
+
 	self.spriteDrawMode = 'draw'
 	self.paletteSelIndex = 0	-- which color we are painting
 	self.log2PalBits = 2	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 
 	self.penSize = 1 		-- size 1 thru 5 or so
-	-- TODO still:
-	self.spriteEditTool = 1 -- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
+	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 end
 
 function Editor:setText(text)
@@ -136,7 +140,7 @@ function Editor:guiButton(x, y, str, isset, cb, tooltip)
 		isset and 13 or 10,
 		isset and 4 or 2
 	)
-	
+
 	local mouseX, mouseY = app.mousePos:unpack()
 	if mouseX >= x and mouseX < x + spriteSize.x
 	and mouseY >= y and mouseY < y + spriteSize.y
@@ -144,7 +148,7 @@ function Editor:guiButton(x, y, str, isset, cb, tooltip)
 		if tooltip then
 			app:drawTextFgBg(mouseX - 12, mouseY - 12, tooltip, 12, 6)
 		end
-		
+
 		local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
 		local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
 		local leftButtonPress = leftButtonDown and not leftButtonLastDown
@@ -308,6 +312,25 @@ function Editor:update()
 			self.spriteBitDepth = math.clamp(self.spriteBitDepth + dx, 1, 8)
 		end, 'bpp='..self.spriteBitDepth)
 
+		-- spritesheet pan vs select
+		local x = 128+16+24+32+24
+		local y = 12
+		for _,name in ipairs{
+			'select',
+			'pan',
+		} do
+			if self:guiButton(
+				x,
+				y,
+				name:sub(1,1):upper(),
+				self.spritesheetEditMode == name,
+				name
+			) then
+				self.spritesheetEditMode = name
+			end
+			x = x + 8
+		end
+
 		local x = 126
 		local y = 32
 		local sw = spritesPerSheet.x / 2	-- only draw a quarter worth since it's the same size as the screen
@@ -321,36 +344,69 @@ function Editor:update()
 			h + 2,
 			13
 		)
-		app:drawSprite(
+		app:drawQuad(
 			x,		-- x
 			y,		-- y
-			0,		-- index
-			sw,		-- sw
-			sh,		-- sh
+			w,		-- w
+			h,		-- h
+			tonumber(self.spritesheetPanOffset.x) / tonumber(spriteSheetSize.x),		-- tx
+			tonumber(self.spritesheetPanOffset.y) / tonumber(spriteSheetSize.y),		-- ty
+			tonumber(w) / tonumber(spriteSheetSize.x),							-- tw
+			tonumber(h) / tonumber(spriteSheetSize.y),							-- th
 			0,		-- paletteShift
 			-1,		-- transparentIndex
 			0,		-- spriteBit
 			0xFF	-- spriteMask
 		)
+		local function fbToSpritesheetCoord(cx, cy)
+			return
+				(cx - x + self.spritesheetPanOffset.x) / spriteSize.x,
+				(cy - y + self.spritesheetPanOffset.y) / spriteSize.y
+		end
 		if x <= mouseX and mouseX < x+w
 		and y <= mouseY and mouseY <= y+h
 		then
-			if leftButtonPress then
-				self.spriteSelPos.x = (mouseX - x) / spriteSize.x
-				self.spriteSelPos.y = (mouseY - y) / spriteSize.y
-				self.spriteSelSize:set(1,1)
-				self.spriteSelOffset:set(0,0)
-			elseif leftButtonDown then
-				self.spriteSelSize.x = math.ceil((math.abs(mouseX - self.lastMouseDown.x) + 1) / spriteSize.x)
-				self.spriteSelSize.y = math.ceil((math.abs(mouseY - self.lastMouseDown.y) + 1) / spriteSize.y)
+			if self.spritesheetEditMode == 'select' then
+				if leftButtonPress then
+					self.spriteSelPos:set(fbToSpritesheetCoord(mouseX, mouseY))
+					self.spriteSelSize:set(1,1)
+					self.spritePanOffset:set(0,0)
+				elseif leftButtonDown then
+					self.spriteSelSize.x = math.ceil((math.abs(mouseX - self.lastMouseDown.x) + 1) / spriteSize.x)
+					self.spriteSelSize.y = math.ceil((math.abs(mouseY - self.lastMouseDown.y) + 1) / spriteSize.y)
+				end
+			elseif self.spritesheetEditMode == 'pan' then
+				if leftButtonPress then
+					if mouseX >= x and mouseX < x + w
+					and mouseY >= y and mouseY < y + h
+					then
+						self.spritesheetPanDownPos:set(mouseX, mouseY)
+						self.spritesheetPanPressed = true
+					end
+				elseif leftButtonDown then
+					if self.spritesheetPanPressed then
+						local tx1, ty1 = fbToSpritesheetCoord(mouseX, mouseY)
+						local tx0, ty0 = fbToSpritesheetCoord(self.spritesheetPanDownPos:unpack())
+						-- convert mouse framebuffer pixel movement to sprite texel movement
+						local tx = math.round(tx1 - tx0)
+						local ty = math.round(ty1 - ty0)
+						if tx ~= 0 or ty ~= 0 then
+							self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - tx
+							self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - ty
+							self.spritesheetPanDownPos:set(mouseX, mouseY)
+						end
+					end
+				else
+					self.spritesheetPanPressed = false
+				end
 			end
 		end
 
 		-- sprite sel rect (1x1 ... 8x8)
 		-- ... also show the offset ... is that a good idea?
 		app:drawBorderRect(
-			x + self.spriteSelPos.x * spriteSize.x + self.spriteSelOffset.x,
-			y + self.spriteSelPos.y * spriteSize.y + self.spriteSelOffset.y,
+			x + self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x - self.spritesheetPanOffset.x,
+			y + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y - self.spritesheetPanOffset.y,
 			spriteSize.x * self.spriteSelSize.x,
 			spriteSize.y * self.spriteSelSize.y,
 			13
@@ -370,20 +426,15 @@ function Editor:update()
 		local y = 24
 		local w = 64
 		local h = 64
-		app:drawBorderRect(
-			x-1,
-			y-1,
-			w+2,
-			h+2,
-			13
-		)
+		app:drawBorderRect(x-1, y-1, w+2, h+2, 13)
+		app:drawSolidRect(x, y, w, h, 5)
 		app:drawQuad(
 			x,
 			y,
 			w,
 			h,
-			tonumber(self.spriteSelPos.x * spriteSize.x + self.spriteSelOffset.x) / tonumber(spriteSheetSize.x),  
-			tonumber(self.spriteSelPos.y * spriteSize.y + self.spriteSelOffset.y) / tonumber(spriteSheetSize.y),
+			tonumber(self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x) / tonumber(spriteSheetSize.x),
+			tonumber(self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y) / tonumber(spriteSheetSize.y),
 			tonumber(self.spriteSelSize.x * spriteSize.x) / tonumber(spriteSheetSize.x),
 			tonumber(self.spriteSelSize.y * spriteSize.y) / tonumber(spriteSheetSize.y),
 			0,										-- paletteIndex
@@ -391,14 +442,14 @@ function Editor:update()
 			self.spriteBit,							-- spriteBit
 			bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 		)
-	
+
 		-- convert x y in framebuffer space to x y in sprite window space
 		local function fbToSpriteCoord(cx, cy)
-			return 
-				(cx - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x) + self.spriteSelPos.x * spriteSize.x + self.spriteSelOffset.x,
-				(cy - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y) + self.spriteSelPos.y * spriteSize.y + self.spriteSelOffset.y
+			return
+				(cx - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x) + self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x,
+				(cy - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y) + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y
 		end
-		if self.spriteDrawMode == 'draw' 
+		if self.spriteDrawMode == 'draw'
 		or self.spriteDrawMode == 'dropper'
 		then
 			if leftButtonDown
@@ -440,7 +491,7 @@ function Editor:update()
 						)
 					end
 				elseif self.spriteDrawMode == 'draw' then
---DEBUG:print('drawing at')					
+--DEBUG:print('drawing at')
 					local tx0 = tx - math.floor(self.penSize / 2)
 					local ty0 = ty - math.floor(self.penSize / 2)
 					assert(app.spriteTex.image.buffer == app.spriteTex.data)
@@ -453,7 +504,7 @@ function Editor:update()
 							if 0 <= tx and tx < spriteSheetSize.x
 							and 0 <= ty and ty < spriteSheetSize.y
 							then
---DEBUG:print('really drawing at', tx, ty)								
+--DEBUG:print('really drawing at', tx, ty)
 								local texelIndex = tx + spriteSheetSize.x * ty
 								assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
 								local texPtr = app.spriteTex.image.buffer + texelIndex
@@ -496,12 +547,12 @@ function Editor:update()
 				if self.spritePanPressed then
 					local tx1, ty1 = fbToSpriteCoord(mouseX, mouseY)
 					local tx0, ty0 = fbToSpriteCoord(self.spritePanDownPos:unpack())
-					-- convert mouse framebuffer pixel movement to sprite texel movement		
+					-- convert mouse framebuffer pixel movement to sprite texel movement
 					local tx = math.round(tx1 - tx0)
 					local ty = math.round(ty1 - ty0)
 					if tx ~= 0 or ty ~= 0 then
-						self.spriteSelOffset.x = self.spriteSelOffset.x - tx
-						self.spriteSelOffset.y = self.spriteSelOffset.y - ty
+						self.spritePanOffset.x = self.spritePanOffset.x - tx
+						self.spritePanOffset.y = self.spritePanOffset.y - ty
 						self.spritePanDownPos:set(mouseX, mouseY)
 					end
 				end
@@ -513,7 +564,7 @@ function Editor:update()
 		-- sprite edit method
 		local x = 32
 		local y = 96
-		for _,spriteDrawMode in ipairs{
+		for _,name in ipairs{
 			'draw',
 			'dropper',
 			'pan',
@@ -521,18 +572,16 @@ function Editor:update()
 			if self:guiButton(
 				x,
 				y,
-				spriteDrawMode:sub(1,1):upper(),
-				self.spriteDrawMode == spriteDrawMode,
-				spriteDrawMode
+				name:sub(1,1):upper(),
+				self.spriteDrawMode == name,
+				name
 			) then
-				self.spriteDrawMode = spriteDrawMode
+				self.spriteDrawMode = name
 			end
 			x = x + 8
 		end
 
-
 		-- select palette color to draw
-
 		app:drawTextFgBg(
 			16,
 			112,

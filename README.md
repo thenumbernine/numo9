@@ -17,9 +17,9 @@ Sprites can be anywhere from 1bpp to 8bpp.
 When drawing a sprite, it shifts the texel color index with a palette offset that you can specify via API.
 This allows you to access all 256 colors with sprites of <8bpp.
 
-Sprite Sheets / VRAM is 
+Sprite Sheets / VRAM is
 ... 256x256x8bpp for the sprite sheet (
-	8x8x8bpp sprites, 
+	8x8x8bpp sprites,
 	so 5 bits for the x and 5 bits for the y sprite lookup
 	... should I also provide a tilemap shift like I do a palette shift?
 )
