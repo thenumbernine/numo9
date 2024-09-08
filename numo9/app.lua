@@ -12,6 +12,7 @@ I think I'll separate out the builtin states:
 local ffi = require 'ffi'
 local template = require 'template'
 local assertindex = require 'ext.assert'.index
+local asserteq = require 'ext.assert'.eq
 local string = require 'ext.string'
 local table = require 'ext.table'
 local path = require 'ext.path'
@@ -185,11 +186,15 @@ function App:initGL()
 
 	self.spriteTex = self:makeTexFromImage{
 		-- this file is rgba, so split off just one channel from it:
-		image = Image'font-indexed.png',
+		image = Image'font.png',
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
+asserteq(self.spriteTex.image.width, spriteSheetSize.x)
+asserteq(self.spriteTex.image.height, spriteSheetSize.y)
+asserteq(self.spriteTex.width, spriteSheetSize.x)
+asserteq(self.spriteTex.height, spriteSheetSize.y)
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
@@ -235,7 +240,24 @@ function App:initGL()
 			0xe63bf3,
 			0x71f7f9,
 			0xfafafa,
-		}:mapi(rgb888revto5551):rep(8)
+			-- ega palette: https://moddingwiki.shikadi.net/wiki/EGA_Palette
+			0x000000,
+			0x0000AA,
+			0x00AA00,
+			0x00AAAA,
+			0xAA0000,
+			0xAA00AA,
+			0xAA5500,
+			0xAAAAAA,
+			0x555555,
+			0x5555FF,
+			0x55FF55,
+			0x55FFFF,
+			0xFF5555,
+			0xFF55FF,
+			0xFFFF55,
+			0xFFFFFF,
+		}:mapi(rgb888revto5551):rep(6)
 		--]]
 		),
 		internalFormat = gl.GL_RGB5_A1,
@@ -633,7 +655,7 @@ end
 spriteIndex = 
 	bits 0..4 = x coordinate in sprite sheet
 	bits 5..9 = y coordinate in sprite sheet
-sw = width in sprites
+spritesWide = width in sprites
 sh = height in sprites
 paletteIndex = 
 	byte value with high 4 bits that holds which palette to use
@@ -642,24 +664,30 @@ paletteIndex =
 transparentIndex = which color index in the sprite to use as transparency.  default -1 = none
 spriteBit = index of bit (0-based) to use, default is zero
 spriteMask = mask of number of bits to use, default is 0xF <=> 4bpp
+scaleX = how much to scale the drawn width, default is 1
+scaleY = how much to scale the drawn height, default is 1
 --]]
 function App:drawSprite(
 	x,
 	y,
 	spriteIndex,
-	sw,
-	sh,
+	spritesWide,
+	spritesHigh,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
-	spriteMask
+	spriteMask,
+	scaleX,
+	scaleY
 )
-	sw = sw or 1
-	sh = sh or 1
+	spritesWide = spritesWide or 1
+	spritesHigh = spritesHigh or 1
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xF
+	scaleX = scaleX or 1
+	scaleY = scaleY or 1
 	-- TODO move a lot of this outside into the update loop start/stop
 	local fb = self.fb
 	fb:bind()
@@ -680,10 +708,15 @@ function App:drawSprite(
 	settable(uniforms.tcbox,
 		tx / tonumber(spritesPerSheet.x),
 		ty / tonumber(spritesPerSheet.y),
-		sw / tonumber(spritesPerSheet.x),
-		sh / tonumber(spritesPerSheet.y)
+		spritesWide / tonumber(spritesPerSheet.x),
+		spritesHigh / tonumber(spritesPerSheet.y)
 	)
-	settable(uniforms.box, x, y, sw * spriteSize.x, sh * spriteSize.y)
+	settable(uniforms.box,
+		x,
+		y,
+		spritesWide * spriteSize.x * scaleX,
+		spritesHigh * spriteSize.y * scaleY
+	)
 	sceneObj:draw()
 	fb:unbind()
 end

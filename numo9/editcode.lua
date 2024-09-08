@@ -7,6 +7,7 @@ local range = require 'ext.range'
 local math = require 'ext.math'
 local class = require 'ext.class'
 local getTime = require 'ext.timer'.getTime
+local vec2i = require 'vec-ffi.vec2i'
 
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
@@ -57,6 +58,16 @@ end
 
 do return 42 end
 ]]
+
+	-- sprite edit mode
+	self.spriteSelPos = vec2i()
+	self.spriteSelSize = vec2i()
+	self.lastMouseDown = vec2i()
+	self.spriteBit = 0	-- which bitplane to start at: 0-7
+	self.spriteBitDepth = 8	-- how many bits to edit at once: 1-8
+	self.paletteSelIndex = 0	-- which color we are painting
+	self.log2PalBits = 3	-- showing an 1<<3 == 8bpp image
+	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 end
 
 function EditCode:setText(text)
@@ -106,13 +117,22 @@ function EditCode:refreshCursorColRowForLoc()
 end
 
 function EditCode:update()
+end
+
+local selBorderColors = {13,12}
+
+function EditCode:draw()
 	local app = self.app
-	if bit.band(app.mouseButtons, 1) == 1
-	and bit.band(app.lastMouseButtons, 1) == 0
-	then
-		local x, y = app.mousePos:unpack()
-		local bx = math.floor(x / spriteSize.x) + 1
-		local by = math.floor(y / spriteSize.y)
+
+	-- handle input in the draw because i'm too lazy to move all the data outside it and share it between two functions
+	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
+	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+	local leftButtonPress = leftButtonDown and not leftButtonLastDown 
+	local mouseX, mouseY = app.mousePos:unpack()
+	if leftButtonPress then
+		self.lastMouseDown:set(mouseX, mouseY)
+		local bx = math.floor(mouseX / spriteSize.x) + 1
+		local by = math.floor(mouseY / spriteSize.y)
 		if by == 0
 		and bx >= 1
 		and bx <= #editModes
@@ -120,10 +140,8 @@ function EditCode:update()
 			self.editMode = bx
 		end
 	end
-end
 
-function EditCode:draw()
-	local app = self.app
+
 	app:clearScreen()
 
 	for i,editMode in ipairs(editModes) do
@@ -188,17 +206,249 @@ function EditCode:draw()
 			1
 		)
 	elseif editModes[self.editMode] == 'sprites' then
-		app:drawSprite(
-			130,	-- x
-			32,		-- y
-			0,		-- index
-			spritesPerSheet.x,	-- sw
-			spritesPerSheet.y,	-- sh
-			0,					-- paletteShift
-			-1,					-- transparentIndex
-			0,					-- spriteBit
-			0xFF				-- spriteMask
+		local x = 126
+		local y = 12
+		local sw = spritesPerSheet.x / 2	-- only draw a quarter worth since it's the same size as the screen
+		local sh = spritesPerSheet.y / 2
+		local w = sw * spriteSize.x
+        local h = sh * spriteSize.y
+		app:drawBorderRect(
+			x-1,
+			y-1,
+			w + 2,
+			h + 2,
+			13
 		)
+		app:drawSprite(
+			x,		-- x
+			y,		-- y
+			0,		-- index
+			sw,		-- sw
+			sh,		-- sh
+			0,		-- paletteShift
+			-1,		-- transparentIndex
+			0,		-- spriteBit
+			0xFF	-- spriteMask
+		)
+		if x <= mouseX and mouseX < x+w
+		and y <= mouseY and mouseY <= y+h
+		then
+			if leftButtonPress then
+				self.spriteSelPos.x = (mouseX - x) / spriteSize.x
+				self.spriteSelPos.y = (mouseY - y) / spriteSize.y
+				self.spriteSelSize:set(1,1)
+			elseif leftButtonDown then
+				self.spriteSelSize.x = math.ceil((math.abs(mouseX - self.lastMouseDown.x) + 1) / spriteSize.x)
+				self.spriteSelSize.y = math.ceil((math.abs(mouseY - self.lastMouseDown.y) + 1) / spriteSize.y)
+			end
+		end
+		
+		-- sprite sel rect (1x1 ... 8x8)
+		app:drawBorderRect(
+			x + self.spriteSelPos.x * spriteSize.x,
+			y + self.spriteSelPos.y * spriteSize.y,
+			spriteSize.x * self.spriteSelSize.x,
+			spriteSize.y * self.spriteSelSize.y,
+			13
+		)
+		
+		-- sprite edit area
+		local x = 2
+		local y = 12
+		app:drawTextFgBg(
+			x + 32,
+			y,
+			'#'..(self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y),
+			13,
+			-1
+		)
+
+		local y = 24
+		local w = 64
+		local h = 64
+		app:drawBorderRect(
+			x-1,
+			y-1,
+			w+2,
+			h+2,
+			13
+		)
+		app:drawSprite(
+			x,
+			y,
+			self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y,
+			self.spriteSelSize.x,	-- spritesWide
+			self.spriteSelSize.y,	-- spritesHigh
+			0,						-- paletteIndex
+			-1,						-- transparentIndex
+			self.spriteBit,			-- spriteBit
+			bit.lshift(1, self.spriteBitDepth)-1,	-- spriteMask
+			w / tonumber(self.spriteSelSize.x * spriteSize.x),	-- scaleX
+			h / tonumber(self.spriteSelSize.y * spriteSize.y)	-- scaleY
+		)
+		if leftButtonDown
+		and mouseX >= x and mouseX < x + w
+		and mouseY >= y and mouseY < y + h
+		then
+print('drawing on the picture')			
+			local bx = (mouseX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x)
+			local by = (mouseY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y)
+print('drawing at local texel', bx, by)	
+			-- TODO HERE draw a pixel to the sprite sheet ...
+			-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
+			-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
+			local tx = bx + self.spriteSelPos.x * spriteSize.x
+			local ty = by + self.spriteSelPos.y * spriteSize.y
+			local texelIndex = tx + spriteSheetSize.x * ty
+			assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+			-- TODO since shift is shift, should I be subtracing it here?
+			-- or should I just be AND'ing it?
+			-- let's subtract it
+			local texPtr = app.spriteTex.image.buffer + texelIndex
+print('color index was', texPtr[0])	
+print('paletteSelIndex', self.paletteSelIndex)
+print('paletteOffset', self.paletteOffset)
+-- [[ just get it working
+			texPtr[0] = bit.band(0xff, self.paletteSelIndex - self.paletteOffset)
+--]]
+--[[ proper masking			
+			local mask = bit.lshift(
+				bit.lshift(1, self.spriteBitDepth) - 1,
+				self.spriteBit
+			)
+			texPtr[0] = bit.bor(
+				bit.band(
+					bit.bnot(mask),
+					texPtr[0]
+				),
+				bit.band(
+					mask,
+					bit.lshift(
+						self.paletteSelIndex - self.paletteOffset,
+						self.spriteBit
+					)
+				)
+			)
+--]]
+print('color index is now', texPtr[0])
+assert(app.spriteTex.image.buffer == app.spriteTex.data)			
+			app.spriteTex
+				:bind()
+				:subimage{xoffset=x, yoffset=y, width=1, height=1}
+				:unbind()
+		end
+		
+		-- choose spriteBit
+		-- choose spriteMask
+		
+		-- select palette color to draw
+		-- TODO how to draw all colors
+		-- or how many to draw ...
+		local y = 128
+		app:drawBorderRect(
+			x-1,
+			y-1,
+			w+2,
+			h+2,
+			13
+		)
+		
+		-- log2PalBits == 3 <=> palBits == 8 <=> showing 1<<8 = 256 colors <=> showing 16 x 16 colors
+		-- log2PalBits == 2 <=> palBits == 4 <=> showing 1<<4 = 16 colors <=> showing 4 x 4 colors
+		-- log2PalBits == 1 <=> palBits == 2 <=> showing 1<<2 = 4 colors <=> showing 2 x 2 colors
+		-- log2PalBits == 0 <=> palBits == 1 <=> showing 1<<1 = 2 colors <=> showing 2 x 1 colors
+		-- means showing 1 << 8 = 256 palettes, means showing 1 << 4 = 16 per width and height
+		local palCount = bit.lshift(1, bit.lshift(1, self.log2PalBits))
+		local palBlockWidth = math.sqrt(palCount)
+		local palBlockHeight = math.ceil(palCount / palBlockWidth)
+		local bw = w / palBlockWidth
+		local bh = h / palBlockHeight
+		for j=0,palBlockHeight-1 do
+			for i=0,palBlockWidth-1 do
+				local paletteIndex = bit.band(0xff, self.paletteOffset + i + palBlockWidth * j)
+				local rx = x + bw * i
+				local ry = y + bh * j
+				app:drawSolidRect(
+					rx,
+					ry,
+					bw,
+					bh,
+					paletteIndex
+				)
+				if leftButtonPress 
+				and mouseX >= rx and mouseX < rx + bw
+				and mouseY >= ry and mouseY < ry + bh
+				then
+					self.paletteSelIndex = paletteIndex
+				end
+			end
+		end
+		for j=0,palBlockHeight-1 do
+			for i=0,palBlockWidth-1 do
+				local paletteIndex = bit.band(0xff, self.paletteOffset + i + palBlockWidth * j)
+				local rx = x + bw * i
+				local ry = y + bh * j
+				if self.paletteSelIndex == paletteIndex then
+					for k,selBorderColor in ipairs(selBorderColors) do
+						app:drawBorderRect(
+							rx-k,
+							ry-k,
+							bw+2*k,
+							bh+2*k,
+							selBorderColor
+						)			
+					end
+				end
+			end
+		end
+
+		-- adjust palette size
+
+		local x = 28
+		local y = 200
+		app:drawTextFgBg(x, y, '<', 13, 0)
+		if leftButtonPress 
+		and mouseX >= x and mouseX < x + spriteSize.x
+		and mouseY >= y and mouseY < y + spriteSize.y
+		then
+			self.log2PalBits = math.max(0, self.log2PalBits - 1)
+		end
+
+		x = x + spriteSize.x
+		app:drawTextFgBg(x, y, '>', 13, 0)
+		if leftButtonPress 
+		and mouseX >= x and mouseX < x + spriteSize.x
+		and mouseY >= y and mouseY < y + spriteSize.y
+		then
+			self.log2PalBits = math.min(3, self.log2PalBits + 1)
+		end
+
+		-- adjust palette offset
+
+		local x = 28+24
+		local y = 200
+		app:drawTextFgBg(x, y, '<', 13, 0)
+		if leftButtonPress 
+		and mouseX >= x and mouseX < x + spriteSize.x
+		and mouseY >= y and mouseY < y + spriteSize.y
+		then
+			self.paletteOffset = bit.band(0xff, self.paletteOffset - 1)
+		end
+
+		x = x + spriteSize.x
+		app:drawTextFgBg(x, y, '>', 13, 0)
+		if leftButtonPress 
+		and mouseX >= x and mouseX < x + spriteSize.x
+		and mouseY >= y and mouseY < y + spriteSize.y
+		then
+			self.paletteOffset = bit.band(0xff, self.paletteOffset + 1)
+		end
+
+
+
+		-- edit palette entries
+		-- flags ... ???
+		-- 
 	end
 end
 
