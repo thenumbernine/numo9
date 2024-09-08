@@ -87,7 +87,8 @@ function rgb888revto5551(rgba)
 end
 
 local updateFreq = 60
-local defaultFilename = 'last.n9'
+local defaultInitFilename = 'hello.n9'	-- load this on startup
+local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
 function App:initGL()
 
@@ -105,14 +106,6 @@ function App:initGL()
 	self.startTime = getTime()
 
 	self.env = setmetatable({
-		-- lua
-		pairs = pairs,
-		ipairs = ipairs,
-		error = error,
-		select = select,
-		pcall = pcall,
-		xpcall = xpcall,
-		load = load,
 		-- console API (TODO make console commands separate of the Lua API ...)
 		print = function(...) return self.con:print(...) end,
 		write = function(...) return self.con:write(...) end,
@@ -482,13 +475,14 @@ void main() {
 	--self.runFocus = self.con
 	self.runFocus = self.ed
 
-	if path(defaultFilename):exists() then
-		self:load(defaultFilename)
+	if path(defaultInitFilename):exists() then
+		self:load(defaultInitFilename)
 		self:runCode()
 	end
 
 	self.screenMousePos = vec2i()	-- host coordinates
 	self.mousePos = vec2i()			-- frambuffer coordinates
+	self.lastMousePos = vec2i()		-- ... position last frame 
 	self.mouseButtons = 0
 end
 
@@ -536,7 +530,9 @@ end
 function App:update()
 	App.super.update(self)
 
+	-- TODO this only once per tick (60fps or so)
 	do
+		self.lastMousePos:set(self.mousePos:unpack()) 
 		self.lastMouseButtons = self.mouseButtons
 		self.mouseButtons = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
 		local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
@@ -556,16 +552,11 @@ function App:update()
 --DEBUG:print('mouse in fb space', self.mousePos:unpack())
 	end
 
+	-- TODO here run this only 60 fps
 	local runFocus = self.runFocus
 	if runFocus.update then
 		runFocus:update()
 	end
-
-	-- TODO here run this only 60 fps
-	if runFocus.draw then
-		runFocus:draw()
-	end
-
 
 	gl.glViewport(0, 0, self.width, self.height)
 	gl.glClearColor(.1, .2, .3, 1.)
@@ -649,6 +640,49 @@ end
 
 function App:clearScreen(colorIndex)
 	self:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, colorIndex or 0)
+end
+
+--[[
+'lower level' functionality than 'drawSprite'
+args:
+	x y w h = quad rectangle on screen
+	tx ty tw th = texcoord rectangle
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
+--]]
+function App:drawQuad(
+	x, y, w, h,	-- quad box
+	tx, ty, tw, th,	-- texcoord bbox
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
+)
+	paletteIndex = paletteIndex or 0
+	transparentIndex = transparentIndex or -1
+	spriteBit = spriteBit or 0
+	spriteMask = spriteMask or 0xF
+	-- TODO move a lot of this outside into the update loop start/stop
+	local fb = self.fb
+	fb:bind()
+	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+
+	local sceneObj = self.quad4bppObj
+	local uniforms = sceneObj.uniforms
+
+	uniforms.mvProjMat = self.view.mvProjMat.ptr
+	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
+	uniforms.transparentIndex = transparentIndex
+	uniforms.spriteBit = spriteBit
+	uniforms.spriteMask = spriteMask
+
+	settable(uniforms.tcbox, tx, ty, tw, th)
+	settable(uniforms.box, x, y, w, h)
+	sceneObj:draw()
+	fb:unbind()
+
 end
 
 --[[
@@ -756,7 +790,7 @@ function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
 end
 
 function App:save(filename)
-	path(filename or defaultFilename):write(tolua{
+	path(filename or defaultSaveFilename):write(tolua{
 		code = self.ed.text,
 		-- TODO sprites
 		-- TODO music
@@ -765,7 +799,7 @@ end
 
 function App:load(filename)
 	local src = assert(fromlua(
-		(assert(path(filename or defaultFilename):read()))
+		(assert(path(filename or defaultSaveFilename):read()))
 	))
 	self.ed:setText(assertindex(src, 'code'))
 end

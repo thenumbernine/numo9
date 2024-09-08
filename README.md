@@ -31,7 +31,6 @@ Sprite Sheets / VRAM is
 	then use the tilemap shift to access dif parts?
 )
 
-
 Font is from [Liko-12](https://liko-12.github.io/)
 
 Total raw memory ...
@@ -40,3 +39,30 @@ tilemap = 256x256x8 = 64k
 code = ???
 music = ???
 sound = ???
+
+
+# API so far ...
+
+- `print(...)` = print to console ... not print to screen ... gotta fix that
+- `write(...)` = print to console without newline
+- `run()` = run loaded cartridge
+- `save([filename])` = save cartridge
+- `load([filename])` = save cartridge
+- `quit()` = shorthand for `os.exit()`
+- `time()` = soon to be cartridge run time, currently poor mans implementation
+
+## graphics
+
+- `clear([color])` = clear screen
+- `rect(x1, y1, x2, y2, [color])` = draw solid rectangle
+- `rectb(x1, y1, x2, y2, [color])` = draw rectangle border
+- `sprite( ... )` = draw sprite
+- `text( ... )` = draw text
+
+## math
+- `cos(theta)` = shorthand for `math.cos(theta)`	... maybe I won't do shorthand functions like pico-8 ... tic-80 gets by without them.
+- `sin(theta)` = shorthand for `math.sin(theta)`
+
+# Inspiration for this:
+- https://www.pico-8.com/
+- https://tic80.com/

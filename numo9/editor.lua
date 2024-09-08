@@ -61,10 +61,17 @@ do return 42 end
 
 	-- sprite edit mode
 	self.spriteSelPos = vec2i()	-- TODO make this texel based, not sprite based (x8 less resolution)
-	self.spriteSelSize = vec2i()
+	self.spriteSelSize = vec2i(1,1)
+	self.spriteSelOffset = vec2i()	-- holds the panning offset from the sprite location
+	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
+	self.spritePanPressed = false
+
+	-- TODO this in app and let it be queried?
 	self.lastMouseDown = vec2i()
+	
 	self.spriteBit = 0	-- which bitplane to start at: 0-7
 	self.spriteBitDepth = 8	-- how many bits to edit at once: 1-8
+	self.spriteDrawMode = 'draw'
 	self.paletteSelIndex = 0	-- which color we are painting
 	self.log2PalBits = 2	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
@@ -120,12 +127,28 @@ function Editor:refreshCursorColRowForLoc()
 	self.cursorCol = self.cursorLoc - self.newlines[self.cursorRow]
 end
 
-function Editor:update()
-end
-
 local selBorderColors = {13,12}
 
-function Editor:drawSpinner(x, y, cb)
+function Editor:guiButton(x, y, str, isset, cb)
+	local app = self.app
+	app:drawTextFgBg(x, y, str,
+		isset and 13 or 10,
+		isset and 4 or 2
+	)
+	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
+	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+	local leftButtonPress = leftButtonDown and not leftButtonLastDown
+	local mouseX, mouseY = app.mousePos:unpack()
+
+	if leftButtonPress
+	and mouseX >= x and mouseX < x + spriteSize.x
+	and mouseY >= y and mouseY < y + spriteSize.y
+	then
+		return true
+	end
+end
+
+function Editor:guiSpinner(x, y, cb)
 	local app = self.app
 
 	-- TODO this in one spot, mabye with glapp.mouse ...
@@ -152,7 +175,7 @@ function Editor:drawSpinner(x, y, cb)
 	end
 end
 
-function Editor:draw()
+function Editor:update()
 	local app = self.app
 
 	-- handle input in the draw because i'm too lazy to move all the data outside it and share it between two functions
@@ -160,6 +183,7 @@ function Editor:draw()
 	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local mouseX, mouseY = app.mousePos:unpack()
+	local mouseLastX, mouseLastY = app.lastMousePos:unpack()
 	if leftButtonPress then
 		self.lastMouseDown:set(mouseX, mouseY)
 		local bx = math.floor(mouseX / spriteSize.x) + 1
@@ -238,6 +262,7 @@ function Editor:draw()
 		)
 	elseif editModes[self.editMode] == 'sprites' then
 
+		-- choose spriteBit
 		app:drawTextFgBg(
 			128+16+24,
 			12,
@@ -245,11 +270,11 @@ function Editor:draw()
 			13,
 			-1
 		)
-
-		self:drawSpinner(128+16+24, 20, function(dx)
+		self:guiSpinner(128+16+24, 20, function(dx)
 			self.spriteBit = math.clamp(self.spriteBit + dx, 0, 7)
 		end)
 
+		-- choose spriteMask
 		app:drawTextFgBg(
 			128+16+24+32,
 			12,
@@ -257,8 +282,7 @@ function Editor:draw()
 			13,
 			-1
 		)
-
-		self:drawSpinner(128+16+24+32, 20, function(dx)
+		self:guiSpinner(128+16+24+32, 20, function(dx)
 			-- should I not let this exceed 8 - spriteBit ?
 			-- or should I wrap around bits and be really unnecessarily clever?
 			self.spriteBitDepth = math.clamp(self.spriteBitDepth + dx, 1, 8)
@@ -295,6 +319,7 @@ function Editor:draw()
 				self.spriteSelPos.x = (mouseX - x) / spriteSize.x
 				self.spriteSelPos.y = (mouseY - y) / spriteSize.y
 				self.spriteSelSize:set(1,1)
+				self.spriteSelOffset:set(0,0)
 			elseif leftButtonDown then
 				self.spriteSelSize.x = math.ceil((math.abs(mouseX - self.lastMouseDown.x) + 1) / spriteSize.x)
 				self.spriteSelSize.y = math.ceil((math.abs(mouseY - self.lastMouseDown.y) + 1) / spriteSize.y)
@@ -302,9 +327,10 @@ function Editor:draw()
 		end
 
 		-- sprite sel rect (1x1 ... 8x8)
+		-- ... also show the offset ... is that a good idea?
 		app:drawBorderRect(
-			x + self.spriteSelPos.x * spriteSize.x,
-			y + self.spriteSelPos.y * spriteSize.y,
+			x + self.spriteSelPos.x * spriteSize.x + self.spriteSelOffset.x,
+			y + self.spriteSelPos.y * spriteSize.y + self.spriteSelOffset.y,
 			spriteSize.x * self.spriteSelSize.x,
 			spriteSize.y * self.spriteSelSize.y,
 			13
@@ -331,78 +357,119 @@ function Editor:draw()
 			h+2,
 			13
 		)
-		app:drawSprite(
+		app:drawQuad(
 			x,
 			y,
-			self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y,
-			self.spriteSelSize.x,	-- spritesWide
-			self.spriteSelSize.y,	-- spritesHigh
-			0,						-- paletteIndex
-			-1,						-- transparentIndex
-			self.spriteBit,			-- spriteBit
-			bit.lshift(1, self.spriteBitDepth)-1,	-- spriteMask
-			w / tonumber(self.spriteSelSize.x * spriteSize.x),	-- scaleX
-			h / tonumber(self.spriteSelSize.y * spriteSize.y)	-- scaleY
+			w,
+			h,
+			tonumber(self.spriteSelPos.x * spriteSize.x + self.spriteSelOffset.x) / tonumber(spriteSheetSize.x),  
+			tonumber(self.spriteSelPos.y * spriteSize.y + self.spriteSelOffset.y) / tonumber(spriteSheetSize.y),
+			tonumber(self.spriteSelSize.x * spriteSize.x) / tonumber(spriteSheetSize.x),
+			tonumber(self.spriteSelSize.y * spriteSize.y) / tonumber(spriteSheetSize.y),
+			0,										-- paletteIndex
+			-1,										-- transparentIndex
+			self.spriteBit,							-- spriteBit
+			bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 		)
-		if leftButtonDown
-		and mouseX >= x and mouseX < x + w
-		and mouseY >= y and mouseY < y + h
-		then
---DEBUG:print('drawing on the picture')
-			local bx = math.floor((mouseX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x))
-			local by = math.floor((mouseY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y))
---DEBUG:print('drawing at local texel', bx, by)
-			-- TODO HERE draw a pixel to the sprite sheet ...
-			-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
-			-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
-			local tx = bx + self.spriteSelPos.x * spriteSize.x
-			local ty = by + self.spriteSelPos.y * spriteSize.y
---DEBUG:print('texel index', tx, ty)
-			assert(0 <= tx and tx < spriteSheetSize.x)
-			assert(0 <= ty and ty < spriteSheetSize.y)
-			local texelIndex = tx + spriteSheetSize.x * ty
-			assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-			-- TODO since shift is shift, should I be subtracing it here?
-			-- or should I just be AND'ing it?
-			-- let's subtract it
-			local texPtr = app.spriteTex.image.buffer + texelIndex
---DEBUG:print('color index was', texPtr[0])
---DEBUG:print('paletteSelIndex', self.paletteSelIndex)
---DEBUG:print('paletteOffset', self.paletteOffset)
---[[ just get it working
-			texPtr[0] = bit.band(0xff, self.paletteSelIndex - self.paletteOffset)
---]]
--- [[ proper masking
-			local mask = bit.lshift(
-				bit.lshift(1, self.spriteBitDepth) - 1,
-				self.spriteBit
-			)
-			texPtr[0] = bit.bor(
-				bit.band(
-					bit.bnot(mask),
-					texPtr[0]
-				),
-				bit.band(
-					mask,
-					bit.lshift(
-						self.paletteSelIndex - self.paletteOffset,
-						self.spriteBit
+		
+		if self.spriteDrawMode == 'draw' then
+			if leftButtonDown
+			and mouseX >= x and mouseX < x + w
+			and mouseY >= y and mouseY < y + h
+			then
+	--DEBUG:print('drawing on the picture')
+				local bx = math.floor((mouseX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x))
+				local by = math.floor((mouseY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y))
+	--DEBUG:print('drawing at local texel', bx, by)
+				-- TODO HERE draw a pixel to the sprite sheet ...
+				-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
+				-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
+				local tx = bx + self.spriteSelPos.x * spriteSize.x
+				local ty = by + self.spriteSelPos.y * spriteSize.y
+	--DEBUG:print('texel index', tx, ty)
+				assert(0 <= tx and tx < spriteSheetSize.x)
+				assert(0 <= ty and ty < spriteSheetSize.y)
+				local texelIndex = tx + spriteSheetSize.x * ty
+				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+				-- TODO since shift is shift, should I be subtracing it here?
+				-- or should I just be AND'ing it?
+				-- let's subtract it
+				local texPtr = app.spriteTex.image.buffer + texelIndex
+	--DEBUG:print('color index was', texPtr[0])
+	--DEBUG:print('paletteSelIndex', self.paletteSelIndex)
+	--DEBUG:print('paletteOffset', self.paletteOffset)
+	--[[ just get it working
+				texPtr[0] = bit.band(0xff, self.paletteSelIndex - self.paletteOffset)
+	--]]
+	-- [[ proper masking
+				local mask = bit.lshift(
+					bit.lshift(1, self.spriteBitDepth) - 1,
+					self.spriteBit
+				)
+				texPtr[0] = bit.bor(
+					bit.band(
+						bit.bnot(mask),
+						texPtr[0]
+					),
+					bit.band(
+						mask,
+						bit.lshift(
+							self.paletteSelIndex - self.paletteOffset,
+							self.spriteBit
+						)
 					)
 				)
-			)
---]]
---DEBUG:print('color index is now', texPtr[0])
-			assert(app.spriteTex.image.buffer == app.spriteTex.data)
-			app.spriteTex
-				:bind()
-				--:subimage()
-				:subimage{xoffset=tx, yoffset=ty, width=1, height=1, data=texPtr}
-				--:subimage{xoffset=self.spriteSelPos.x * spriteSize.x, yoffset=self.spriteSelPos.y * spriteSize.y, width=self.spriteSelSize.x * spriteSize.x, height=self.spriteSelSize.y * spriteSize.y}
-				:unbind()
+	--]]
+	--DEBUG:print('color index is now', texPtr[0])
+				assert(app.spriteTex.image.buffer == app.spriteTex.data)
+				app.spriteTex
+					:bind()
+					--:subimage()
+					:subimage{xoffset=tx, yoffset=ty, width=1, height=1, data=texPtr}
+					--:subimage{xoffset=self.spriteSelPos.x * spriteSize.x, yoffset=self.spriteSelPos.y * spriteSize.y, width=self.spriteSelSize.x * spriteSize.x, height=self.spriteSelSize.y * spriteSize.y}
+					:unbind()
+			end
+		elseif self.spriteDrawMode == 'pan' then
+			if leftButtonPress then
+				if mouseX >= x and mouseX < x + w
+				and mouseY >= y and mouseY < y + h
+				then
+					self.spritePanDownPos:set(mouseX, mouseY)
+					self.spritePanPressed = true
+				end
+			elseif leftButtonDown then
+				if self.spritePanPressed then
+					-- convert mouse framebuffer pixel movement to sprite texel movement		
+					local bx = math.round((mouseX - self.spritePanDownPos.x) / w * tonumber(self.spriteSelSize.x * spriteSize.x))
+					local by = math.round((mouseY - self.spritePanDownPos.y) / h * tonumber(self.spriteSelSize.y * spriteSize.y))
+					if bx ~= 0 or by ~= 0 then
+						self.spriteSelOffset.x = self.spriteSelOffset.x - bx
+						self.spriteSelOffset.y = self.spriteSelOffset.y - by
+						self.spritePanDownPos:set(mouseX, mouseY)
+					end
+				end
+			else
+				self.spritePanPressed = false
+			end
 		end
 
-		-- choose spriteBit
-		-- choose spriteMask
+		-- sprite edit method
+		local x = 32
+		local y = 96
+		for _,spriteDrawMode in ipairs{
+			'draw',
+			'pan',
+		} do
+			if self:guiButton(
+				x, y, spriteDrawMode:sub(1,1):upper(),
+				self.spriteDrawMode == spriteDrawMode
+			) then
+				self.spriteDrawMode = spriteDrawMode
+			end
+			x = x + 8
+		end
+
+
 
 		-- select palette color to draw
 
@@ -475,12 +542,12 @@ function Editor:draw()
 		end
 
 		-- adjust palette size
-		self:drawSpinner(16, 200, function(dx)
+		self:guiSpinner(16, 200, function(dx)
 			self.log2PalBits = math.clamp(self.log2PalBits + dx, 0, 3)
 		end)
 
 		-- adjust palette offset
-		self:drawSpinner(16+24, 200, function(dx)
+		self:guiSpinner(16+24, 200, function(dx)
 			self.paletteOffset = bit.band(0xff, self.paletteOffset + dx)
 		end)
 
