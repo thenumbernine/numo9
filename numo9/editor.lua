@@ -37,6 +37,7 @@ function Editor:init(args)
 
 	-- text cursor loc
 	self.cursorLoc = 1
+	self.editLineOffset = 0
 	self:setText[[
 print'Hello NuMo9'
 
@@ -220,6 +221,7 @@ function Editor:update()
 	)
 
 	if editModes[self.editMode] == 'code' then
+
 		app:drawSolidRect(
 			spriteSize.x,
 			spriteSize.y,
@@ -230,8 +232,8 @@ function Editor:update()
 
 		for y=1,spritesPerFrameBuffer.y-2 do
 			if y >= #self.newlines then break end
-			local i = self.newlines[y]+1
-			local j = self.newlines[y+1]
+			local i = self.newlines[y + self.editLineOffset] + 1
+			local j = self.newlines[y + self.editLineOffset + 1]
 			app:drawTextFgBg(
 				spriteSize.x,
 				y * spriteSize.y,
@@ -239,13 +241,18 @@ function Editor:update()
 				12,
 				-1
 			)
-			y = y + 1
+		end
+
+		if self.cursorRow < self.editLineOffset+1 then
+			self.editLineOffset = math.max(0, self.cursorRow-1)
+		elseif self.cursorRow - (spritesPerFrameBuffer.y-2) > self.editLineOffset then
+			self.editLineOffset = math.max(0, self.cursorRow - (spritesPerFrameBuffer.y-2))
 		end
 
 		if getTime() % 1 < .5 then
 			app:drawSolidRect(
 				self.cursorCol * spriteSize.x,
-				self.cursorRow * spriteSize.y,
+				(self.cursorRow - self.editLineOffset) * spriteSize.y,
 				spriteSize.x,
 				spriteSize.y,
 				12)
@@ -385,14 +392,14 @@ function Editor:update()
 			and mouseX >= x and mouseX < x + w
 			and mouseY >= y and mouseY < y + h
 			then
-	--DEBUG:print('drawing on the picture')
+--DEBUG:print('drawing on the picture')
 				local tx, ty = fbToSpriteCoord(mouseX, mouseY)
 				tx = math.floor(tx)
 				ty = math.floor(ty)
 				-- TODO HERE draw a pixel to the sprite sheet ...
 				-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
 				-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
-	--DEBUG:print('texel index', tx, ty)
+--DEBUG:print('texel index', tx, ty)
 				assert(0 <= tx and tx < spriteSheetSize.x)
 				assert(0 <= ty and ty < spriteSheetSize.y)
 				local texelIndex = tx + spriteSheetSize.x * ty
@@ -401,9 +408,9 @@ function Editor:update()
 				-- or should I just be AND'ing it?
 				-- let's subtract it
 				local texPtr = app.spriteTex.image.buffer + texelIndex
-	--DEBUG:print('color index was', texPtr[0])
-	--DEBUG:print('paletteSelIndex', self.paletteSelIndex)
-	--DEBUG:print('paletteOffset', self.paletteOffset)
+--DEBUG:print('color index was', texPtr[0])
+--DEBUG:print('paletteSelIndex', self.paletteSelIndex)
+--DEBUG:print('paletteOffset', self.paletteOffset)
 				local mask = bit.lshift(
 					bit.lshift(1, self.spriteBitDepth) - 1,
 					self.spriteBit
@@ -432,7 +439,7 @@ function Editor:update()
 						)
 					)
 				end
-	--DEBUG:print('color index is now', texPtr[0])
+--DEBUG:print('color index is now', texPtr[0])
 				assert(app.spriteTex.image.buffer == app.spriteTex.data)
 				app.spriteTex
 					:bind()
