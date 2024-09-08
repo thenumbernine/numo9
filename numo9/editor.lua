@@ -371,21 +371,27 @@ function Editor:update()
 			self.spriteBit,							-- spriteBit
 			bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 		)
-		
-		if self.spriteDrawMode == 'draw' then
+	
+		-- convert x y in framebuffer space to x y in sprite window space
+		local function fbToSpriteCoord(cx, cy)
+			return 
+				(cx - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x) + self.spriteSelPos.x * spriteSize.x + self.spriteSelOffset.x,
+				(cy - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y) + self.spriteSelPos.y * spriteSize.y + self.spriteSelOffset.y
+		end
+		if self.spriteDrawMode == 'draw' 
+		or self.spriteDrawMode == 'dropper'
+		then
 			if leftButtonDown
 			and mouseX >= x and mouseX < x + w
 			and mouseY >= y and mouseY < y + h
 			then
 	--DEBUG:print('drawing on the picture')
-				local bx = math.floor((mouseX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x))
-				local by = math.floor((mouseY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y))
-	--DEBUG:print('drawing at local texel', bx, by)
+				local tx, ty = fbToSpriteCoord(mouseX, mouseY)
+				tx = math.floor(tx)
+				ty = math.floor(ty)
 				-- TODO HERE draw a pixel to the sprite sheet ...
 				-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
 				-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
-				local tx = bx + self.spriteSelPos.x * spriteSize.x
-				local ty = by + self.spriteSelPos.y * spriteSize.y
 	--DEBUG:print('texel index', tx, ty)
 				assert(0 <= tx and tx < spriteSheetSize.x)
 				assert(0 <= ty and ty < spriteSheetSize.y)
@@ -398,28 +404,34 @@ function Editor:update()
 	--DEBUG:print('color index was', texPtr[0])
 	--DEBUG:print('paletteSelIndex', self.paletteSelIndex)
 	--DEBUG:print('paletteOffset', self.paletteOffset)
-	--[[ just get it working
-				texPtr[0] = bit.band(0xff, self.paletteSelIndex - self.paletteOffset)
-	--]]
-	-- [[ proper masking
 				local mask = bit.lshift(
 					bit.lshift(1, self.spriteBitDepth) - 1,
 					self.spriteBit
 				)
-				texPtr[0] = bit.bor(
-					bit.band(
-						bit.bnot(mask),
-						texPtr[0]
-					),
-					bit.band(
-						mask,
-						bit.lshift(
-							self.paletteSelIndex - self.paletteOffset,
+				if self.spriteDrawMode == 'dropper' then
+					self.paletteSelIndex = bit.band(
+						0xff,
+						self.paletteOffset
+						+ bit.rshift(
+							bit.band(mask, texPtr[0]),
 							self.spriteBit
 						)
 					)
-				)
-	--]]
+				else
+					texPtr[0] = bit.bor(
+						bit.band(
+							bit.bnot(mask),
+							texPtr[0]
+						),
+						bit.band(
+							mask,
+							bit.lshift(
+								self.paletteSelIndex - self.paletteOffset,
+								self.spriteBit
+							)
+						)
+					)
+				end
 	--DEBUG:print('color index is now', texPtr[0])
 				assert(app.spriteTex.image.buffer == app.spriteTex.data)
 				app.spriteTex
@@ -439,12 +451,14 @@ function Editor:update()
 				end
 			elseif leftButtonDown then
 				if self.spritePanPressed then
+					local tx1, ty1 = fbToSpriteCoord(mouseX, mouseY)
+					local tx0, ty0 = fbToSpriteCoord(self.spritePanDownPos:unpack())
 					-- convert mouse framebuffer pixel movement to sprite texel movement		
-					local bx = math.round((mouseX - self.spritePanDownPos.x) / w * tonumber(self.spriteSelSize.x * spriteSize.x))
-					local by = math.round((mouseY - self.spritePanDownPos.y) / h * tonumber(self.spriteSelSize.y * spriteSize.y))
-					if bx ~= 0 or by ~= 0 then
-						self.spriteSelOffset.x = self.spriteSelOffset.x - bx
-						self.spriteSelOffset.y = self.spriteSelOffset.y - by
+					local tx = math.round(tx1 - tx0)
+					local ty = math.round(ty1 - ty0)
+					if tx ~= 0 or ty ~= 0 then
+						self.spriteSelOffset.x = self.spriteSelOffset.x - tx
+						self.spriteSelOffset.y = self.spriteSelOffset.y - ty
 						self.spritePanDownPos:set(mouseX, mouseY)
 					end
 				end
@@ -458,6 +472,7 @@ function Editor:update()
 		local y = 96
 		for _,spriteDrawMode in ipairs{
 			'draw',
+			'dropper',
 			'pan',
 		} do
 			if self:guiButton(
@@ -468,7 +483,6 @@ function Editor:update()
 			end
 			x = x + 8
 		end
-
 
 
 		-- select palette color to draw
