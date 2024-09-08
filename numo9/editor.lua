@@ -28,11 +28,11 @@ local editModes = {
 	'music',
 }
 
-local EditCode = class()
+local Editor = class()
 
-function EditCode:init(args)
+function Editor:init(args)
 	self.app = assert(args.app)
-	
+
 	self.editMode = 1
 
 	-- text cursor loc
@@ -60,17 +60,21 @@ do return 42 end
 ]]
 
 	-- sprite edit mode
-	self.spriteSelPos = vec2i()
+	self.spriteSelPos = vec2i()	-- TODO make this texel based, not sprite based (x8 less resolution)
 	self.spriteSelSize = vec2i()
 	self.lastMouseDown = vec2i()
 	self.spriteBit = 0	-- which bitplane to start at: 0-7
 	self.spriteBitDepth = 8	-- how many bits to edit at once: 1-8
 	self.paletteSelIndex = 0	-- which color we are painting
-	self.log2PalBits = 3	-- showing an 1<<3 == 8bpp image
+	self.log2PalBits = 2	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
+
+	-- TODO still:
+	self.penSize = 1 -- TODO size 1 thru 5 or so
+	self.spriteEditTool = 1 -- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 end
 
-function EditCode:setText(text)
+function Editor:setText(text)
 	self.text = text
 		:gsub('\t', ' ')	--TODO add tab support
 	self.cursorLoc = math.clamp(self.cursorLoc, 1, #self.text+1)
@@ -80,7 +84,7 @@ end
 
 local slashRByte = ('\r'):byte()
 local newlineByte = ('\n'):byte()
-function EditCode:refreshNewlines()
+function Editor:refreshNewlines()
 --print(require 'ext.string'.hexdump(self.text))
 	-- refresh newlines
 	self.newlines = table()
@@ -102,7 +106,7 @@ end
 --]]
 end
 
-function EditCode:refreshCursorColRowForLoc()
+function Editor:refreshCursorColRowForLoc()
 	self.cursorRow = nil
 	for i=1,#self.newlines-1 do
 		local start = self.newlines[i]+1
@@ -116,18 +120,45 @@ function EditCode:refreshCursorColRowForLoc()
 	self.cursorCol = self.cursorLoc - self.newlines[self.cursorRow]
 end
 
-function EditCode:update()
+function Editor:update()
 end
 
 local selBorderColors = {13,12}
 
-function EditCode:draw()
+function Editor:drawSpinner(x, y, cb)
+	local app = self.app
+
+	-- TODO this in one spot, mabye with glapp.mouse ...
+	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
+	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+	local leftButtonPress = leftButtonDown and not leftButtonLastDown
+	local mouseX, mouseY = app.mousePos:unpack()
+
+	app:drawTextFgBg(x, y, '<', 13, 0)
+	if leftButtonPress
+	and mouseX >= x and mouseX < x + spriteSize.x
+	and mouseY >= y and mouseY < y + spriteSize.y
+	then
+		cb(-1)
+	end
+
+	x = x + spriteSize.x
+	app:drawTextFgBg(x, y, '>', 13, 0)
+	if leftButtonPress
+	and mouseX >= x and mouseX < x + spriteSize.x
+	and mouseY >= y and mouseY < y + spriteSize.y
+	then
+		cb(1)
+	end
+end
+
+function Editor:draw()
 	local app = self.app
 
 	-- handle input in the draw because i'm too lazy to move all the data outside it and share it between two functions
 	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
 	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
-	local leftButtonPress = leftButtonDown and not leftButtonLastDown 
+	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local mouseX, mouseY = app.mousePos:unpack()
 	if leftButtonPress then
 		self.lastMouseDown:set(mouseX, mouseY)
@@ -163,7 +194,7 @@ function EditCode:draw()
 		12,
 		8
 	)
-	
+
 	if editModes[self.editMode] == 'code' then
 		app:drawSolidRect(
 			spriteSize.x,
@@ -206,8 +237,35 @@ function EditCode:draw()
 			1
 		)
 	elseif editModes[self.editMode] == 'sprites' then
+
+		app:drawTextFgBg(
+			128+16+24,
+			12,
+			'#'..self.spriteBit,
+			13,
+			-1
+		)
+
+		self:drawSpinner(128+16+24, 20, function(dx)
+			self.spriteBit = math.clamp(self.spriteBit + dx, 0, 7)
+		end)
+
+		app:drawTextFgBg(
+			128+16+24+32,
+			12,
+			'#'..self.spriteBitDepth,
+			13,
+			-1
+		)
+
+		self:drawSpinner(128+16+24+32, 20, function(dx)
+			-- should I not let this exceed 8 - spriteBit ?
+			-- or should I wrap around bits and be really unnecessarily clever?
+			self.spriteBitDepth = math.clamp(self.spriteBitDepth + dx, 1, 8)
+		end)
+
 		local x = 126
-		local y = 12
+		local y = 32
 		local sw = spritesPerSheet.x / 2	-- only draw a quarter worth since it's the same size as the screen
 		local sh = spritesPerSheet.y / 2
 		local w = sw * spriteSize.x
@@ -242,7 +300,7 @@ function EditCode:draw()
 				self.spriteSelSize.y = math.ceil((math.abs(mouseY - self.lastMouseDown.y) + 1) / spriteSize.y)
 			end
 		end
-		
+
 		-- sprite sel rect (1x1 ... 8x8)
 		app:drawBorderRect(
 			x + self.spriteSelPos.x * spriteSize.x,
@@ -251,7 +309,7 @@ function EditCode:draw()
 			spriteSize.y * self.spriteSelSize.y,
 			13
 		)
-		
+
 		-- sprite edit area
 		local x = 2
 		local y = 12
@@ -290,10 +348,10 @@ function EditCode:draw()
 		and mouseX >= x and mouseX < x + w
 		and mouseY >= y and mouseY < y + h
 		then
---DEBUG:print('drawing on the picture')			
+--DEBUG:print('drawing on the picture')
 			local bx = math.floor((mouseX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x))
 			local by = math.floor((mouseY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y))
---DEBUG:print('drawing at local texel', bx, by)	
+--DEBUG:print('drawing at local texel', bx, by)
 			-- TODO HERE draw a pixel to the sprite sheet ...
 			-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
 			-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
@@ -308,13 +366,13 @@ function EditCode:draw()
 			-- or should I just be AND'ing it?
 			-- let's subtract it
 			local texPtr = app.spriteTex.image.buffer + texelIndex
---DEBUG:print('color index was', texPtr[0])	
+--DEBUG:print('color index was', texPtr[0])
 --DEBUG:print('paletteSelIndex', self.paletteSelIndex)
 --DEBUG:print('paletteOffset', self.paletteOffset)
--- [[ just get it working
+--[[ just get it working
 			texPtr[0] = bit.band(0xff, self.paletteSelIndex - self.paletteOffset)
 --]]
---[[ proper masking			
+-- [[ proper masking
 			local mask = bit.lshift(
 				bit.lshift(1, self.spriteBitDepth) - 1,
 				self.spriteBit
@@ -334,7 +392,7 @@ function EditCode:draw()
 			)
 --]]
 --DEBUG:print('color index is now', texPtr[0])
-			assert(app.spriteTex.image.buffer == app.spriteTex.data)			
+			assert(app.spriteTex.image.buffer == app.spriteTex.data)
 			app.spriteTex
 				:bind()
 				--:subimage()
@@ -342,11 +400,20 @@ function EditCode:draw()
 				--:subimage{xoffset=self.spriteSelPos.x * spriteSize.x, yoffset=self.spriteSelPos.y * spriteSize.y, width=self.spriteSelSize.x * spriteSize.x, height=self.spriteSelSize.y * spriteSize.y}
 				:unbind()
 		end
-		
+
 		-- choose spriteBit
 		-- choose spriteMask
-		
+
 		-- select palette color to draw
+
+		app:drawTextFgBg(
+			16,
+			112,
+			'#'..self.paletteSelIndex,
+			13,
+			-1
+		)
+
 		-- TODO how to draw all colors
 		-- or how many to draw ...
 		local y = 128
@@ -357,7 +424,7 @@ function EditCode:draw()
 			h+2,
 			13
 		)
-		
+
 		-- log2PalBits == 3 <=> palBits == 8 <=> showing 1<<8 = 256 colors <=> showing 16 x 16 colors
 		-- log2PalBits == 2 <=> palBits == 4 <=> showing 1<<4 = 16 colors <=> showing 4 x 4 colors
 		-- log2PalBits == 1 <=> palBits == 2 <=> showing 1<<2 = 4 colors <=> showing 2 x 2 colors
@@ -380,7 +447,7 @@ function EditCode:draw()
 					bh,
 					paletteIndex
 				)
-				if leftButtonPress 
+				if leftButtonPress
 				and mouseX >= rx and mouseX < rx + bw
 				and mouseY >= ry and mouseY < ry + bh
 				then
@@ -401,63 +468,29 @@ function EditCode:draw()
 							bw+2*k,
 							bh+2*k,
 							selBorderColor
-						)			
+						)
 					end
 				end
 			end
 		end
 
 		-- adjust palette size
-
-		local x = 28
-		local y = 200
-		app:drawTextFgBg(x, y, '<', 13, 0)
-		if leftButtonPress 
-		and mouseX >= x and mouseX < x + spriteSize.x
-		and mouseY >= y and mouseY < y + spriteSize.y
-		then
-			self.log2PalBits = math.max(0, self.log2PalBits - 1)
-		end
-
-		x = x + spriteSize.x
-		app:drawTextFgBg(x, y, '>', 13, 0)
-		if leftButtonPress 
-		and mouseX >= x and mouseX < x + spriteSize.x
-		and mouseY >= y and mouseY < y + spriteSize.y
-		then
-			self.log2PalBits = math.min(3, self.log2PalBits + 1)
-		end
+		self:drawSpinner(16, 200, function(dx)
+			self.log2PalBits = math.clamp(self.log2PalBits + dx, 0, 3)
+		end)
 
 		-- adjust palette offset
-
-		local x = 28+24
-		local y = 200
-		app:drawTextFgBg(x, y, '<', 13, 0)
-		if leftButtonPress 
-		and mouseX >= x and mouseX < x + spriteSize.x
-		and mouseY >= y and mouseY < y + spriteSize.y
-		then
-			self.paletteOffset = bit.band(0xff, self.paletteOffset - 1)
-		end
-
-		x = x + spriteSize.x
-		app:drawTextFgBg(x, y, '>', 13, 0)
-		if leftButtonPress 
-		and mouseX >= x and mouseX < x + spriteSize.x
-		and mouseY >= y and mouseY < y + spriteSize.y
-		then
-			self.paletteOffset = bit.band(0xff, self.paletteOffset + 1)
-		end
-
-
+		self:drawSpinner(16+24, 200, function(dx)
+			self.paletteOffset = bit.band(0xff, self.paletteOffset + dx)
+		end)
 
 		-- edit palette entries
+
 		-- flags ... ???
-		-- 
 	end
 end
 
-function EditCode:addCharToText(ch)
+function Editor:addCharToText(ch)
 	if ch == slashRByte then ch = newlineByte end	-- store \n's instead of \r's
 	if ch == 8 then
 		self.text = self.text:sub(1, self.cursorLoc - 2) .. self.text:sub(self.cursorLoc)
@@ -478,7 +511,7 @@ local function prevNewline(s, i)
 	return 1
 end
 
-function EditCode:countRowCols(row)
+function Editor:countRowCols(row)
 	--return self.newlines[row+1] - self.newlines[row] + 1
 	local linetext = self.text:sub(self.newlines[row], self.newlines[row+1])
 	-- TODO enumerate chars, upon tab round up to tab indent
@@ -486,7 +519,7 @@ function EditCode:countRowCols(row)
 	return #linetext
 end
 
-function EditCode:event(e)
+function Editor:event(e)
 	local app = self.app
 	if editModes[self.editMode] == 'code' then
 		if e[0].type == sdl.SDL_KEYDOWN
@@ -535,4 +568,4 @@ function EditCode:event(e)
 	end
 end
 
-return EditCode
+return Editor

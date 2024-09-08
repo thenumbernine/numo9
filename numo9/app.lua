@@ -473,14 +473,14 @@ void main() {
 	end
 	fb:unbind()
 
-	local EditCode = require 'numo9.editcode'
-	self.editCode = EditCode{app=self}
-	
+	local Editor = require 'numo9.editor'
+	self.ed = Editor{app=self}
+
 	local Console = require 'numo9.console'
 	self.con = Console{app=self}
-	
+
 	--self.runFocus = self.con
-	self.runFocus = self.editCode
+	self.runFocus = self.ed
 
 	if path(defaultFilename):exists() then
 		self:load(defaultFilename)
@@ -544,7 +544,7 @@ function App:update()
 --DEBUG:print('ortho', 	x1, x2, y1, y2, z1, z2)
 		local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
 		local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
---DEBUG:print('mouserfrac', x, y)		
+--DEBUG:print('mouserfrac', x, y)
 		x = x1 * (1 - x) + x2 * x
 		y = y1 * (1 - y) + y2 * y
 --DEBUG:print('mouse in ortho [-1,1] space', x, y)
@@ -634,7 +634,7 @@ function App:drawBorderRect(x, y, w, h, colorIndex)
 	local uniforms = sceneObj.uniforms
 	uniforms.mvProjMat = self.view.mvProjMat.ptr
 	uniforms.colorIndex = colorIndex
-	
+
 	settable(uniforms.box, x, y, w, 1)
 	sceneObj:draw()
 	settable(uniforms.box, x, y, 1, h)
@@ -643,7 +643,7 @@ function App:drawBorderRect(x, y, w, h, colorIndex)
 	sceneObj:draw()
 	settable(uniforms.box, x+w-1, y, 1, h)
 	sceneObj:draw()
-	
+
 	fb:unbind()
 end
 
@@ -652,12 +652,12 @@ function App:clearScreen(colorIndex)
 end
 
 --[[
-spriteIndex = 
+spriteIndex =
 	bits 0..4 = x coordinate in sprite sheet
 	bits 5..9 = y coordinate in sprite sheet
 spritesWide = width in sprites
 sh = height in sprites
-paletteIndex = 
+paletteIndex =
 	byte value with high 4 bits that holds which palette to use
 	... this is added to the sprite color index so really it's a palette shift.
 	(should I OR it?)
@@ -757,7 +757,7 @@ end
 
 function App:save(filename)
 	path(filename or defaultFilename):write(tolua{
-		code = self.editCode.text,
+		code = self.ed.text,
 		-- TODO sprites
 		-- TODO music
 	})
@@ -767,7 +767,7 @@ function App:load(filename)
 	local src = assert(fromlua(
 		(assert(path(filename or defaultFilename):read()))
 	))
-	self.editCode:setText(assertindex(src, 'code'))
+	self.ed:setText(assertindex(src, 'code'))
 end
 
 -- returns the function to run the code
@@ -799,16 +799,13 @@ function App:runCode()
 	local env = setmetatable({}, {
 		__index = self.env,
 	})
-	local f, msg = self:loadCmd(self.editCode.text, env)
+	local f, msg = self:loadCmd(self.ed.text, env)
 	if not f then
 		print(msg)
 		return
 	end
 	-- TODO setfenv to make sure our function writes globals to its own place
 	local result, msg = xpcall(f, errorHandler)
-	print'ran code'
-	print('draw', env.draw)
-	print('update', env.update)
 
 	if env.draw or env.update then
 		self.runFocus = env
@@ -826,8 +823,8 @@ function App:event(e)
 		-- ... how to cycle back to the game without resetting it?
 		-- ... can you not issue commands while the game is loaded without resetting the game?
 		if self.runFocus == self.con then
-			self.runFocus = self.editCode
-		elseif self.runFocus == self.editCode then
+			self.runFocus = self.ed
+		elseif self.runFocus == self.ed then
 			self.runFocus = self.con
 		else
 			-- assume it's a game
