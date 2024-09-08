@@ -183,7 +183,6 @@ function App:initGL()
 		height = frameBufferSize.y,
 	}:unbind()
 
-
 	self.spriteTex = self:makeTexFromImage{
 		-- this file is rgba, so split off just one channel from it:
 		image = Image'font.png',
@@ -191,6 +190,7 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
+asserteq(self.spriteTex.image.channels, 1)
 asserteq(self.spriteTex.image.width, spriteSheetSize.x)
 asserteq(self.spriteTex.image.height, spriteSheetSize.y)
 asserteq(self.spriteTex.width, spriteSheetSize.x)

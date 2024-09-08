@@ -290,24 +290,27 @@ function EditCode:draw()
 		and mouseX >= x and mouseX < x + w
 		and mouseY >= y and mouseY < y + h
 		then
-print('drawing on the picture')			
-			local bx = (mouseX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x)
-			local by = (mouseY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y)
-print('drawing at local texel', bx, by)	
+--DEBUG:print('drawing on the picture')			
+			local bx = math.floor((mouseX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x))
+			local by = math.floor((mouseY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y))
+--DEBUG:print('drawing at local texel', bx, by)	
 			-- TODO HERE draw a pixel to the sprite sheet ...
 			-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
 			-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
 			local tx = bx + self.spriteSelPos.x * spriteSize.x
 			local ty = by + self.spriteSelPos.y * spriteSize.y
+--DEBUG:print('texel index', tx, ty)
+			assert(0 <= tx and tx < spriteSheetSize.x)
+			assert(0 <= ty and ty < spriteSheetSize.y)
 			local texelIndex = tx + spriteSheetSize.x * ty
 			assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
 			-- TODO since shift is shift, should I be subtracing it here?
 			-- or should I just be AND'ing it?
 			-- let's subtract it
 			local texPtr = app.spriteTex.image.buffer + texelIndex
-print('color index was', texPtr[0])	
-print('paletteSelIndex', self.paletteSelIndex)
-print('paletteOffset', self.paletteOffset)
+--DEBUG:print('color index was', texPtr[0])	
+--DEBUG:print('paletteSelIndex', self.paletteSelIndex)
+--DEBUG:print('paletteOffset', self.paletteOffset)
 -- [[ just get it working
 			texPtr[0] = bit.band(0xff, self.paletteSelIndex - self.paletteOffset)
 --]]
@@ -330,11 +333,13 @@ print('paletteOffset', self.paletteOffset)
 				)
 			)
 --]]
-print('color index is now', texPtr[0])
-assert(app.spriteTex.image.buffer == app.spriteTex.data)			
+--DEBUG:print('color index is now', texPtr[0])
+			assert(app.spriteTex.image.buffer == app.spriteTex.data)			
 			app.spriteTex
 				:bind()
-				:subimage{xoffset=x, yoffset=y, width=1, height=1}
+				--:subimage()
+				:subimage{xoffset=tx, yoffset=ty, width=1, height=1, data=texPtr}
+				--:subimage{xoffset=self.spriteSelPos.x * spriteSize.x, yoffset=self.spriteSelPos.y * spriteSize.y, width=self.spriteSelSize.x * spriteSize.x, height=self.spriteSelSize.y * spriteSize.y}
 				:unbind()
 		end
 		
