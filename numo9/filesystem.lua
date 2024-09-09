@@ -1,3 +1,4 @@
+local path = require 'ext.path'
 local table = require 'ext.table'
 local class = require 'ext.class'
 local string = require 'ext.string'
@@ -11,7 +12,9 @@ function File:init(args)
 	self.fs = assertindex(args, 'fs')
 	self.name = asserttype(assertindex(args, 'name'), 'string')
 	assert(self.name ~= '.' and self.name ~= '..', "you picked a bad name")
+	-- dirs and data aren't exclusive in my filesystem...
 	self.isdir = args.isdir
+	self.data = args.data
 	self.chs = {}	-- everyone gets a chs[..] = parent
 	self.chs['.'] = self
 	if args.root then
@@ -62,16 +65,11 @@ function FileSystem:ls()
 	app.con:print()
 end
 
-function FileSystem:cd(dir)
-	local app = self.app
-	if not dir then
-		self.cwd = self.root
-		return
-	end
+function FileSystem:get(dir)
 	local parts = string.split(dir, '/')
-	local newcwd = self.cwd
+	local f = self.cwd
 	if parts[1] == '' then	-- initial / ...
-		newcwd = self.root
+		f = self.root
 		parts:remove(1)
 	end
 	for _,part in ipairs(parts) do
@@ -79,13 +77,23 @@ function FileSystem:cd(dir)
 		if not nextd then
 			return nil, "dir not found"
 		end
-		if not nextd.isdir then
-			return nil, tostring(part).." is not a dir"
-		end
-		newcwd = nextd
+		f = nextd
 	end
-	self.cwd = newcwd
-	assert(self.cwd.isdir)
+	return f
+end
+
+function FileSystem:cd(dir)
+	local app = self.app
+	-- should `cd` alone print cwd or goto root?
+	-- tic80's logic is that the prompt shows cwd already - sounds good
+	if not dir then
+		self.cwd = self.root
+		return
+	end
+	local f, msg = self:get(dir)
+	if not f then return nil, msg end
+	if not f.isdir then return nil, dir.." is not a dir" end
+	self.cwd = f
 end
 
 function FileSystem:mkdir(name)
@@ -94,12 +102,30 @@ function FileSystem:mkdir(name)
 		app.con:print(' ... already exists')
 		return
 	end
-	self.cwd:add(File{
-		fs = self,
+	self:add{
 		name = assert(name),
 		isdir = true,
-		parent = self.cwd,
-	})
+	}
+end
+
+-- args forwarded to File ctor
+--  except that .fs and .parent are added
+function FileSystem:add(args)
+	args.fs = self
+	args.parent = self.cwd
+	local f = File(args)
+	self.cwd:add(f)
+	return f
+end
+
+-- TODO specify src path, maybe dest path too idk
+function FileSystem:addFromHost(fn)
+	local d, msg = path(fn):read()
+	if not d then return nil, msg end
+	return self:add{
+		name = fn,
+		data = d,
+	}
 end
 
 return FileSystem

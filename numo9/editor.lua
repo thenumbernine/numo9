@@ -18,9 +18,11 @@ local editModes = {
 	'fx',
 	'music',
 }
+
 local editFieldForMode = {
 	code = 'editCode',
 	sprites = 'editSprites',
+	tilemap = 'editTilemap',
 }
 
 
@@ -28,6 +30,7 @@ local Editor = class()
 
 function Editor:init(args)
 	self.app = assert(args.app)
+	self.tilemapEditor = args.tilemapEditor
 end
 
 function Editor:guiButton(x, y, str, isset, tooltip)

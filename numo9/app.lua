@@ -87,7 +87,7 @@ function rgb888revto5551(rgba)
 end
 
 local updateFreq = 60
-local defaultInitFilename = 'hello.n9'	-- load this on startup
+local defaultInitFilename = 'hello.n9'	-- load this into filesystem, and from filesystem into RAM on startup
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
 function App:initGL()
@@ -600,6 +600,7 @@ void main() {
 
 	local EditSprites = require 'numo9.editsprites'
 	self.editSprites = EditSprites{app=self}
+	self.editTilemap = EditSprites{app=self, tilemapEditor=true}
 
 	local Console = require 'numo9.console'
 	self.con = Console{app=self}
@@ -608,6 +609,7 @@ void main() {
 	self.runFocus = self.editCode
 
 	if path(defaultInitFilename):exists() then
+		self.fs:addFromHost(defaultInitFilename)
 		self:load(defaultInitFilename)
 		self:runCode()
 	end
@@ -988,7 +990,14 @@ function App:save(filename)
 		-- TODO music
 	}
 	if not s then return nil, basemsg..(msg or '') end
-	local success = path(filename):write(s)
+	-- [[ do I bother implement fs:open'w' ?
+	local f, msg = self.fs:create(filename)
+	if not f then return nil, basemsg..' fs:create failed: '..msg end
+	f.data = s
+	--]]
+	-- [[ while we're here, also save to filesystem
+	assert(path(filename):write(s))
+	--]]
 	if not success then return nil, basemsg..': write failed' end
 	return true
 end
@@ -996,14 +1005,17 @@ end
 function App:load(filename)
 	filename = filename or defaultSaveFilename
 	local basemsg = 'failed to load file '..tostring(filename)
-	local p
+	local f
 	for _,suffix in ipairs{'', '.n9'} do
-		p = path(filename)
-		if p:exists() then break end
-		p = nil
+		f = self.fs:get(filename)
+		if f then break end
+		f = nil
 	end
-	if not p then return nil, basemsg..': failed to find file' end
-	local d, msg = p:read()
+	if not f then return nil, basemsg..': failed to find file' end
+	-- [[ do I bother implement fs:open'r' ?
+	local d = f.data
+	local msg = not d and 'is not a file' or nil
+	--]]
 	if not d then return nil, basemsg..(msg or '') end
 	local src, msg = fromlua(d)
 	if not src then return nil, basemsg..(msg or '') end
