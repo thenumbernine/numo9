@@ -1,12 +1,7 @@
 --[[
 This will be the code editor
 --]]
-local sdl = require 'sdl'
-local table = require 'ext.table'
-local range = require 'ext.range'
 local math = require 'ext.math'
-local class = require 'ext.class'
-local getTime = require 'ext.timer'.getTime
 local vec2i = require 'vec-ffi.vec2i'
 
 local App = require 'numo9.app'
@@ -16,6 +11,8 @@ local spriteSheetSize = App.spriteSheetSize
 local spriteSize = App.spriteSize
 local spritesPerSheet = App.spritesPerSheet
 local spritesPerFrameBuffer = App.spritesPerFrameBuffer
+local tilemapSize = App.tilemapSize
+local tilemapSizeInSprites = App.tilemapSizeInSprites
 
 
 local EditSprites = require 'numo9.editor':subclass()

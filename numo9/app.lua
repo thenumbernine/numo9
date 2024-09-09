@@ -37,11 +37,14 @@ local function errorHandler(err)
 end
 
 local paletteSize = 256
-local frameBufferSize = vec2i(256, 256)
-local spriteSheetSize = vec2i(256, 256)
 local spriteSize = vec2i(8, 8)
-local spritesPerSheet = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
+local frameBufferSize = vec2i(256, 256)
 local spritesPerFrameBuffer = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
+local spriteSheetSize = vec2i(256, 256)
+local spritesPerSheet = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
+local tilemapSize = vec2i(2048, 2048)
+local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
+
 
 local App = GLApp:subclass()
 
@@ -50,11 +53,13 @@ App.width = 720
 App.height = 512
 
 App.paletteSize = paletteSize
-App.frameBufferSize = frameBufferSize
-App.spriteSheetSize = spriteSheetSize
 App.spriteSize = spriteSize
-App.spritesPerSheet = spritesPerSheet
+App.frameBufferSize = frameBufferSize
 App.spritesPerFrameBuffer = spritesPerFrameBuffer
+App.spriteSheetSize = spriteSheetSize
+App.spritesPerSheet = spritesPerSheet
+App.tilemapSize = tilemapSize
+App.tilemapSizeInSprites = tilemapSizeInSprites
 
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
@@ -246,6 +251,22 @@ function App:initGL()
 		type = gl.GL_UNSIGNED_BYTE,
 	}
 
+	--[[
+	16bpp ...
+	- 10 bits of lookup into spriteTex
+	- 4 bits high palette nibble
+	- 1 bit hflip
+	- 1 bit vflip
+	- .... 2 bits rotate ... ? nah
+	- .... 8 bits palette offset ... ? nah
+	--]]
+	self.mapTex = self:makeTexFromImage{
+		image = Image(tilemapSize.x, tilemapSize.y, 1, 'unsigned short'),
+		internalFormat = gl.GL_R16UI,
+		format = gl.GL_RED_INTEGER,
+		type = gl.GL_UNSIGNED_SHORT,
+	}
+
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
 		image = Image(paletteSize, 1, 1, 'unsigned short',
@@ -317,7 +338,7 @@ function App:initGL()
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	-- screen is 256 x 256 x 8bpp
-	self.screenTex = self:makeTexFromImage{
+	self.fbTex = self:makeTexFromImage{
 		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned char',
 			-- [[ init to garbage pixels
 			function(i,j)
@@ -329,7 +350,7 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
---print('screenTex\n'..imageToHex(self.screenTex.image))
+--print('fbTex\n'..imageToHex(self.fbTex.image))
 
 	self.quadGeom = GLGeometry{
 		mode = gl.GL_TRIANGLE_STRIP,
@@ -393,10 +414,10 @@ void main() {
 			fragmentCode = template([[
 in vec2 tcv;
 out uvec4 fragColor;
-uniform usampler2D screenTex;
+uniform usampler2D fbTex;
 uniform usampler2D palTex;
 void main() {
-	uint index = texture(screenTex, tcv).r;
+	uint index = texture(fbTex, tcv).r;
 	float indexf = float(index) / 255.;
 	fragColor = texture(palTex, vec2((indexf * <?=clnumber(paletteSize-1)?> + .5) / <?=clnumber(paletteSize)?>, .5));
 }
@@ -405,12 +426,12 @@ void main() {
 				paletteSize = paletteSize,
 			}),
 			uniforms = {
-				screenTex = 0,
+				fbTex = 0,
 				palTex = 1,
 			},
 		},
 		texs = {
-			self.screenTex,
+			self.fbTex,
 			self.palTex,
 		},
 		geometry = self.quadGeom,
@@ -587,7 +608,7 @@ void main() {
 
 	local fb = self.fb
 	fb:bind()
-	fb:setColorAttachmentTex2D(self.screenTex.id)
+	fb:setColorAttachmentTex2D(self.fbTex.id)
 	local res,err = fb.check()
 	if not res then
 		print(err)
@@ -605,7 +626,9 @@ void main() {
 
 	local EditSprites = require 'numo9.editsprites'
 	self.editSprites = EditSprites{app=self}
-	self.editTilemap = EditSprites{app=self, tilemapEditor=true}
+	
+	local EditTilemap = require 'numo9.edittilemap'
+	self.editTilemap = EditTilemap{app=self}
 
 	local Console = require 'numo9.console'
 	self.con = Console{app=self}
@@ -908,41 +931,39 @@ end
 function App:drawMap(
 	x,
 	y,
-	mapIndex,
+	tileIndex,
 	tilesWide,
-	tilesHigh
+	tilesHigh,
+	mapIndexOffset
 )
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
+	mapIndexOffset = mapIndexOffset or 0
 
 	local fb = self.fb
 	fb:bind()
 	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
 
-	local sceneObj = self.quad4bppObj
+	local sceneObj = self.quadMapObj
 	local uniforms = sceneObj.uniforms
-	sceneObj.texs[1] = self.spriteTex
+	sceneObj.texs[1] = self.mapTex
 
 	uniforms.mvProjMat = self.view.mvProjMat.ptr
-	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
-	uniforms.transparentIndex = transparentIndex
-	uniforms.spriteBit = spriteBit
-	uniforms.spriteMask = spriteMask
+	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
-	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
-	local tx = spriteIndex % spritesPerSheet.x
-	local ty = (spriteIndex - tx) / spritesPerSheet.x
+	local tx = tileIndex % tilemapSizeInSprites.x
+	local ty = (tileIndex - tx) / tilemapSizeInSprites.x
 	settable(uniforms.tcbox,
-		tx / tonumber(spritesPerSheet.x),
-		ty / tonumber(spritesPerSheet.y),
-		spritesWide / tonumber(spritesPerSheet.x),
-		spritesHigh / tonumber(spritesPerSheet.y)
+		tx / tonumber(tilemapSizeInSprites.x),
+		ty / tonumber(tilemapSizeInSprites.y),
+		tilesWide / tonumber(tilemapSizeInSprites.x),
+		tilesHigh / tonumber(tilemapSizeInSprites.y)
 	)
 	settable(uniforms.box,
 		x,
 		y,
-		spritesWide * spriteSize.x * scaleX,
-		spritesHigh * spriteSize.y * scaleY
+		tilesWide * spriteSize.x,
+		tilesHigh * spriteSize.y
 	)
 	sceneObj:draw()
 	fb:unbind()
@@ -973,7 +994,7 @@ function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
 		end
 	end
 
-	self:drawText(x0, y, text,
+	self:drawText(x0+1, y+1, text,
 		-- font color is 0 = background, 1 = foreground
 		-- so shift this by 1 so the font tex contents shift it back
 		-- TODO if compression is a thing then store 8 letters per 8x8 sprite

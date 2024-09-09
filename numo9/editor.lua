@@ -2,11 +2,13 @@ local class = require 'ext.class'
 
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
-local frameBufferSize = App.frameBufferSize
-local spriteSheetSize = App.spriteSheetSize
 local spriteSize = App.spriteSize
-local spritesPerSheet = App.spritesPerSheet
+local frameBufferSize = App.frameBufferSize
 local spritesPerFrameBuffer = App.spritesPerFrameBuffer
+local spriteSheetSize = App.spriteSheetSize
+local spritesPerSheet = App.spritesPerSheet
+local tilemapSize = App.tilemapSize
+local tilemapSizeInSprites = App.tilemapSizeInSprites
 
 -- TODO make the editor a rom itself
 -- TODO make roms that hold all the necessary stuff
