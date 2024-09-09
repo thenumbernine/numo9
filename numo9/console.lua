@@ -69,6 +69,7 @@ function Console:runCmdBuf()
 	-- TODO ... runCmd return nil vs error ...
 
 	local success, msg = pcall(function() return app:runCmd(cmd) end)
+--DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
 	-- if fails try wrapping arg2..N with quotes ...
 	-- TODO this or 'return ' first?
 	-- this one si good for console ...
@@ -80,22 +81,23 @@ function Console:runCmdBuf()
 			parts:sub(2):mapi(function(s) return (tolua(s)) end)
 		):concat' '
 		success, msg = pcall(function() return app:runCmd(cmd) end)
+--DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
 	end
 	-- if fail then try appending a '()'
 	-- do this before prepending 'return ' so we don't return a function before we call it
 	if not success then
 		cmd = cmd .. '()'
 		success, msg = pcall(function() return app:runCmd(cmd) end)
-print(success, msg)
+--DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
 	end
 	-- if fail then try prepending a 'return' ...
 	if not success then
 		cmd = 'return '..cmd
 		success, msg = pcall(function() return app:runCmd(cmd) end)
-print(success, msg)
+--DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
 	end
 	if not success then
-print(msg)
+--DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
 		self:print(tostring(msg))
 	end
 

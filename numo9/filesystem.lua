@@ -24,9 +24,12 @@ function File:init(args)
 	end
 end
 
-function File:add(node)
+function File:add(node, overwrite)
 	assert(self.isdir)
 	-- TODO assert only 'file' nodes get children ... but meh why bother
+	if self.chs[node.name] and not overwrite then
+		return nil, 'already exists'
+	end
 	self.chs[node.name] = node
 	node.chs['..'] = self
 end
@@ -65,8 +68,8 @@ function FileSystem:ls()
 	app.con:print()
 end
 
-function FileSystem:get(dir)
-	local parts = string.split(dir, '/')
+function FileSystem:get(pathToFile)
+	local parts = string.split(pathToFile, '/')
 	local f = self.cwd
 	if parts[1] == '' then	-- initial / ...
 		f = self.root
@@ -75,11 +78,27 @@ function FileSystem:get(dir)
 	for _,part in ipairs(parts) do
 		local nextd = self.cwd.chs[part]
 		if not nextd then
-			return nil, "dir not found"
+			return nil, tostring(part).." not found"
 		end
 		f = nextd
 	end
 	return f
+end
+
+function FileSystem:create(pathToFile, typeIsDir)
+	asserttype(pathToFile, 'string')
+--DEBUG:print('pathToFile', pathToFile)
+	local parts = string.split(pathToFile, '/')
+--DEBUG:print('parts', require 'ext.tolua'(parts))
+	local name = parts:remove()
+	local dir, msg = self:get(parts:concat'/')
+	if not dir.isdir then return nil, tostring(pathToFile)..' no such dir' end
+--DEBUG:print('at', dir:path(), 'adding', name)	
+	return self:add({
+		isdir = not not typeIsDir or nil,
+		name = name,
+		parent = dir,
+	}, true)
 end
 
 function FileSystem:cd(dir)
@@ -97,35 +116,30 @@ function FileSystem:cd(dir)
 end
 
 function FileSystem:mkdir(name)
+--DEBUG:print('mkdir', name)	
 	local app = self.app
-	if self.cwd.chs[name] then
-		app.con:print(' ... already exists')
-		return
-	end
-	self:add{
-		name = assert(name),
-		isdir = true,
-	}
+	local f, msg = self:create(name, true)
+	if not f then return nil, msg end
 end
 
 -- args forwarded to File ctor
 --  except that .fs and .parent are added
-function FileSystem:add(args)
+function FileSystem:add(args, ...)
 	args.fs = self
-	args.parent = self.cwd
+	args.parent = args.parent or self.cwd
 	local f = File(args)
-	self.cwd:add(f)
+	self.cwd:add(f, ...)
 	return f
 end
 
 -- TODO specify src path, maybe dest path too idk
-function FileSystem:addFromHost(fn)
+function FileSystem:addFromHost(fn, ...)
 	local d, msg = path(fn):read()
 	if not d then return nil, msg end
-	return self:add{
-		name = fn,
-		data = d,
-	}
+	local f, msg = self:create(fn)
+	if not f then return nil, msg end
+	f.data = d
+	return f
 end
 
 return FileSystem

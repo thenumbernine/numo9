@@ -130,7 +130,12 @@ function App:initGL()
 		sin = math.sin,
 
 		-- graphics
-		clear = function(...) return self:clearScreen(...) end,
+		cls = function(...)
+			local con = self.con
+			con.cursorPos:set(0, 0)
+			con:write(self.fs.cwd:path()..con.prompt)
+			self:clearScreen(...)
+		end,
 
 		-- pico has ...
 		--  circ / circfill / oval / ovalfill
@@ -982,6 +987,9 @@ function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
 end
 
 function App:save(filename)
+	if not select(2, path(filename):getext()) then
+		filename = path(filename):setext'n9'.path
+	end
 	filename = filename or defaultSaveFilename
 	local basemsg = 'failed to save file '..tostring(filename)
 	local s, msg = tolua{
