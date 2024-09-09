@@ -33,7 +33,7 @@ local Editor = class()
 function Editor:init(args)
 	self.app = assert(args.app)
 
-	self.editMode = 1
+	self.editMode = 'code'
 
 	-- text cursor loc
 	self.cursorLoc = 1
@@ -97,7 +97,6 @@ end
 local slashRByte = ('\r'):byte()
 local newlineByte = ('\n'):byte()
 function Editor:refreshNewlines()
---print(require 'ext.string'.hexdump(self.text))
 	-- refresh newlines
 	self.newlines = table()
 	self.newlines:insert(0)
@@ -107,15 +106,6 @@ function Editor:refreshNewlines()
 		end
 	end
 	self.newlines:insert(#self.text+1)
---[[
-print('newlines', require 'ext.tolua'(self.newlines))
-print('lines by newlines')
-for i=1,#self.newlines-1 do
-	local start = self.newlines[i]+1
-	local finish = self.newlines[i+1]
-	print(start, finish, self.text:sub(start, finish-1))
-end
---]]
 end
 
 function Editor:refreshCursorColRowForLoc()
@@ -134,11 +124,13 @@ end
 
 local selBorderColors = {13,12}
 
-function Editor:guiButton(x, y, str, isset, cb, tooltip)
+function Editor:guiButton(x, y, str, isset, tooltip)
 	local app = self.app
 	app:drawTextFgBg(x, y, str,
 		isset and 13 or 10,
 		isset and 4 or 2
+		--isset and 15 or 4,
+		--isset and 7 or 8
 	)
 
 	local mouseX, mouseY = app.mousePos:unpack()
@@ -219,30 +211,13 @@ function Editor:update()
 	local mouseLastX, mouseLastY = app.lastMousePos:unpack()
 	if leftButtonPress then
 		self.lastMouseDown:set(mouseX, mouseY)
-		local bx = math.floor(mouseX / spriteSize.x) + 1
-		local by = math.floor(mouseY / spriteSize.y)
-		if by == 0
-		and bx >= 1
-		and bx <= #editModes
-		then
-			self.editMode = bx
-		end
 	end
-
 
 	app:clearScreen()
 
-	for i,editMode in ipairs(editModes) do
-		app:drawTextFgBg(
-			(i-1) * spriteSize.x,
-			0,
-			editMode:sub(1,1):upper(),
-			i == editMode and 15 or 4,
-			i == self.editMode and 7 or 8
-		)
-	end
+	self:guiRadio(0, 0, editModes, self.editMode, function(x) self.editMode = x end)
 
-	local titlebar = '  '..editModes[self.editMode]
+	local titlebar = '  '..self.editMode
 	titlebar = titlebar .. (' '):rep(spritesPerFrameBuffer.x - #titlebar)
 	app:drawTextFgBg(
 		#editModes*spriteSize.x,
@@ -252,7 +227,7 @@ function Editor:update()
 		8
 	)
 
-	if editModes[self.editMode] == 'code' then
+	if self.editMode == 'code' then
 
 		app:drawSolidRect(
 			spriteSize.x,
@@ -299,7 +274,8 @@ function Editor:update()
 			12,
 			1
 		)
-	elseif editModes[self.editMode] == 'sprites' then
+	
+	elseif self.editMode == 'sprites' then
 
 		-- choose spriteBit
 		app:drawTextFgBg(
@@ -454,17 +430,12 @@ function Editor:update()
 			and mouseX >= x and mouseX < x + w
 			and mouseY >= y and mouseY < y + h
 			then
---DEBUG:print('drawing on the picture')
 				local tx, ty = fbToSpriteCoord(mouseX, mouseY)
 				tx = math.floor(tx)
 				ty = math.floor(ty)
---DEBUG:print('texel index', tx, ty)
 				-- TODO HERE draw a pixel to the sprite sheet ...
 				-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
 				-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
---DEBUG:print('color index was', texPtr[0])
---DEBUG:print('paletteSelIndex', self.paletteSelIndex)
---DEBUG:print('paletteOffset', self.paletteOffset)
 				local mask = bit.lshift(
 					bit.lshift(1, self.spriteBitDepth) - 1,
 					self.spriteBit
@@ -489,7 +460,6 @@ function Editor:update()
 						)
 					end
 				elseif self.spriteDrawMode == 'draw' then
---DEBUG:print('drawing at')
 					local tx0 = tx - math.floor(self.penSize / 2)
 					local ty0 = ty - math.floor(self.penSize / 2)
 					assert(app.spriteTex.image.buffer == app.spriteTex.data)
@@ -502,7 +472,6 @@ function Editor:update()
 							if 0 <= tx and tx < spriteSheetSize.x
 							and 0 <= ty and ty < spriteSheetSize.y
 							then
---DEBUG:print('really drawing at', tx, ty)
 								local texelIndex = tx + spriteSheetSize.x * ty
 								assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
 								local texPtr = app.spriteTex.image.buffer + texelIndex
@@ -529,7 +498,6 @@ function Editor:update()
 							end
 						end
 					end
---DEBUG:print('color index is now', texPtr[0])
 					spriteTex:unbind()
 				end
 			end
@@ -648,12 +616,15 @@ function Editor:update()
 		-- adjust pen size
 		self:guiSpinner(16+48, 200, function(dx)
 			self.penSize = math.clamp(self.penSize + dx, 1, 5)
-print('penSize', self.penSize)
 		end, 'pen size='..self.penSize)
 
 		-- edit palette entries
 
 		-- flags ... ???
+	
+	elseif self.editMode == 'tilemap' then
+		
+		-- draw the tilemap ...
 	end
 end
 
@@ -688,7 +659,7 @@ end
 
 function Editor:event(e)
 	local app = self.app
-	if editModes[self.editMode] == 'code' then
+	if self.editMode == 'code' then
 		if e[0].type == sdl.SDL_KEYDOWN
 		or e[0].type == sdl.SDL_KEYUP
 		then

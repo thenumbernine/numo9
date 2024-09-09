@@ -289,6 +289,36 @@ asserteq(self.spriteTex.height, spriteSheetSize.y)
 
 	local glslVersion = '410'
 
+	self.quadSolidObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+in vec2 vertex;
+uniform vec4 box;	//x,y,w,h
+uniform mat4 mvProjMat;
+void main() {
+	vec2 rvtx = box.xy + vertex * box.zw;
+	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+}
+]],
+			fragmentCode = [[
+out uvec4 fragColor;
+uniform uint colorIndex;
+void main() {
+	fragColor = uvec4(colorIndex & 0xFFu, 0, 0, 0xFFu);
+}
+]],
+		},
+		geometry = self.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvProjMat = self.view.mvProjMat.ptr,
+			colorIndex = 0,
+			box = {0, 0, 8, 8},
+		},
+	}
+
 	-- used for drawing our 8bpp framebuffer to the screen
 	self.quad8bppToRGBObj = GLSceneObject{
 		program = {
@@ -327,7 +357,7 @@ void main() {
 			self.palTex,
 		},
 		geometry = self.quadGeom,
-		-- reset every frame
+		-- glUniform()'d every frame
 		uniforms = {
 			mvProjMat = self.blitScreenView.mvProjMat.ptr,
 		},
@@ -398,7 +428,6 @@ void main() {
 	colorIndex += paletteIndex;
 	colorIndex &= 0XFFu;
 
-
 	// write the 8bpp colorIndex to the screen, use tex to draw it
 	fragColor = uvec4(colorIndex, 0, 0, 0xFFu);
 }
@@ -418,7 +447,7 @@ void main() {
 			self.spriteTex,
 		},
 		geometry = self.quadGeom,
-		-- reset every frame
+		-- glUniform()'d every frame
 		uniforms = {
 			mvProjMat = self.view.mvProjMat.ptr,
 			box = {0, 0, 8, 8},
@@ -426,33 +455,76 @@ void main() {
 		},
 	}
 
-	self.quadSolidObj = GLSceneObject{
+	self.quadMapObj = GLSceneObject{
 		program = {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
 in vec2 vertex;
-uniform vec4 box;	//x,y,w,h
+out vec2 tcv;
+uniform vec4 box;		//x y w h
+uniform vec4 tcbox;		//tx ty tw th
 uniform mat4 mvProjMat;
 void main() {
+	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
 }
 ]],
-			fragmentCode = [[
+			fragmentCode = template([[
+in vec2 tcv;
 out uvec4 fragColor;
-uniform uint colorIndex;
+
+// tilemap texture
+uniform usampler2D mapTex;
+uniform uint mapIndexOffset;
+
+uniform usampler2D spriteTex;
+
 void main() {
-	fragColor = uvec4(colorIndex & 0xFFu, 0, 0, 0xFFu);
+	// lookup the map texel at the texcoord
+	// This will give us 8 bits
+	// But our sprite sheet is 256 x 256 pixels = 32 x 32 sprites, so we have 10 bits ...
+	// So we need to specify the upper 2 bits ..
+	uint mapIndex = texture(mapTex, tcv).r;
+	mapIndex += mapIndexOffset;
+	
+	const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
+	const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
+
+	vec2 tcInSpriteTexes = vec2(
+		tcv.x * spriteSheetSizeX,
+		tcv.y * spriteSheetSizeY
+	);
+	vec2 spriteTC = tcInSpriteTexes - floor(tcInSpriteTexes);
+
+	// get the texcoord to look up our sprite ...
+	vec2 mapTC = vec2(
+		(float(mapIndex & 0xFFu) + spriteTC.x) / spriteSheetSizeX,
+		(float((mapIndex >> 8) & 0xFFu) + spriteTC.y) / spriteSheetSizeY
+	);
+	
+	// then use the vertex fractional part for the lookup of the sprite
+
+	fragColor = texture(spriteTex, mapTC);
 }
-]],
+]],			{
+				clnumber = clnumber,
+				spriteSheetSize = spriteSheetSize,
+			}),
+			uniforms = {
+				spriteTex = 0,
+				mapTex = 1,
+				mapIndexOffset = 0,
+			},
 		},
+		texs = {self.spriteTex, self.mapTex},
 		geometry = self.quadGeom,
-		-- reset every frame
+		-- glUniform()'d every frame
 		uniforms = {
 			mvProjMat = self.view.mvProjMat.ptr,
-			colorIndex = 0,
 			box = {0, 0, 8, 8},
+			tcbox = {0, 0, 1, 1},
 		},
 	}
 
