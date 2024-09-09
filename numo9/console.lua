@@ -71,11 +71,13 @@ function Console:runCmdBuf()
 	if not success then
 		cmd = 'return '..cmd
 		success, msg = pcall(function() return app:runCmd(cmd) end)
+print(success, msg)	
 	end
 	-- if fail then try appending a '()'
 	if not success then
 		cmd = cmd .. '()'
 		success, msg = pcall(function() return app:runCmd(cmd) end)
+print(success, msg)	
 	end
 	if not success then
 print(msg)
