@@ -548,14 +548,19 @@ void main() {
 	end
 	fb:unbind()
 
-	local Editor = require 'numo9.editor'
-	self.ed = Editor{app=self}
+	self.editMode = 'code'	-- matches up with Editor's editMode's
+
+	local EditCode = require 'numo9.editcode'
+	self.editCode = EditCode{app=self}
+	
+	local EditSprites = require 'numo9.editsprites'
+	self.editSprites = EditSprites{app=self} 
 
 	local Console = require 'numo9.console'
 	self.con = Console{app=self}
 
 	--self.runFocus = self.con
-	self.runFocus = self.ed
+	self.runFocus = self.editCode
 
 	if path(defaultInitFilename):exists() then
 		self:load(defaultInitFilename)
@@ -565,6 +570,7 @@ void main() {
 	self.screenMousePos = vec2i()	-- host coordinates
 	self.mousePos = vec2i()			-- frambuffer coordinates
 	self.lastMousePos = vec2i()		-- ... position last frame
+	self.lastMouseDown = vec2i()
 	self.mouseButtons = 0
 end
 
@@ -632,11 +638,18 @@ function App:update()
 		self.mousePos.x = x * tonumber(frameBufferSize.x)
 		self.mousePos.y = y * tonumber(frameBufferSize.y)
 --DEBUG:print('mouse in fb space', self.mousePos:unpack())
+	
+		local leftButtonLastDown = bit.band(self.lastMouseButtons, 1) == 1
+		local leftButtonDown = bit.band(self.mouseButtons, 1) == 1
+		local leftButtonPress = leftButtonDown and not leftButtonLastDown
+		if leftButtonPress then
+			self.lastMouseDown:set(self.mousePos:unpack())
+		end
 	end
 
 	-- TODO here run this only 60 fps
 	local runFocus = self.runFocus
-	if runFocus.update then
+	if runFocus and runFocus.update then
 		runFocus:update()
 	end
 
@@ -747,7 +760,7 @@ function App:drawQuad(
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xF
-	-- TODO move a lot of this outside into the update loop start/stop
+
 	local fb = self.fb
 	fb:bind()
 	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
@@ -766,7 +779,6 @@ function App:drawQuad(
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
 	fb:unbind()
-
 end
 
 --[[
@@ -806,7 +818,52 @@ function App:drawSprite(
 	spriteMask = spriteMask or 0xF
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
+
 	-- TODO move a lot of this outside into the update loop start/stop
+	-- but I tried that and turns out it isn't such a good idea
+	local fb = self.fb
+	fb:bind()
+	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+
+	local sceneObj = self.quad4bppObj
+	local uniforms = sceneObj.uniforms
+	sceneObj.texs[1] = self.spriteTex
+
+	uniforms.mvProjMat = self.view.mvProjMat.ptr
+	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
+	uniforms.transparentIndex = transparentIndex
+	uniforms.spriteBit = spriteBit
+	uniforms.spriteMask = spriteMask
+
+	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
+	local tx = spriteIndex % spritesPerSheet.x
+	local ty = (spriteIndex - tx) / spritesPerSheet.x
+	settable(uniforms.tcbox,
+		tx / tonumber(spritesPerSheet.x),
+		ty / tonumber(spritesPerSheet.y),
+		spritesWide / tonumber(spritesPerSheet.x),
+		spritesHigh / tonumber(spritesPerSheet.y)
+	)
+	settable(uniforms.box,
+		x,
+		y,
+		spritesWide * spriteSize.x * scaleX,
+		spritesHigh * spriteSize.y * scaleY
+	)
+	sceneObj:draw()
+	fb:unbind()
+end
+
+function App:drawMap(
+	x,
+	y,
+	mapIndex,
+	tilesWide,
+	tilesHigh
+)
+	tilesWide = tilesWide or 1
+	tilesHigh = tilesHigh or 1
+
 	local fb = self.fb
 	fb:bind()
 	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
@@ -876,7 +933,7 @@ end
 
 function App:save(filename)
 	path(filename or defaultSaveFilename):write(tolua{
-		code = self.ed.text,
+		code = self.editCode.text,
 		-- TODO sprites
 		-- TODO music
 	})
@@ -886,7 +943,7 @@ function App:load(filename)
 	local src = assert(fromlua(
 		(assert(path(filename or defaultSaveFilename):read()))
 	))
-	self.ed:setText(assertindex(src, 'code'))
+	self.editCode:setText(assertindex(src, 'code'))
 end
 
 -- returns the function to run the code
@@ -918,7 +975,7 @@ function App:runCode()
 	local env = setmetatable({}, {
 		__index = self.env,
 	})
-	local f, msg = self:loadCmd(self.ed.text, env)
+	local f, msg = self:loadCmd(self.editCode.text, env)
 	if not f then
 		print(msg)
 		return
@@ -932,6 +989,7 @@ function App:runCode()
 end
 
 function App:event(e)
+	local Editor = require 'numo9.editor'
 	-- alwyays be able to break with escape ...
 	if e[0].type == sdl.SDL_KEYDOWN
 	and e[0].key.keysym.sym == sdl.SDLK_ESCAPE
@@ -942,8 +1000,8 @@ function App:event(e)
 		-- ... how to cycle back to the game without resetting it?
 		-- ... can you not issue commands while the game is loaded without resetting the game?
 		if self.runFocus == self.con then
-			self.runFocus = self.ed
-		elseif self.runFocus == self.ed then
+			self.runFocus = self.editCode
+		elseif Editor:isa(self.runFocus) then
 			self.runFocus = self.con
 		else
 			-- assume it's a game
@@ -955,8 +1013,9 @@ function App:event(e)
 		end
 	end
 
-	if self.runFocus.event then
-		self.runFocus:event(e)
+	local runFocus = self.runFocus
+	if runFocus and runFocus.event then
+		runFocus:event(e)
 	end
 end
 
