@@ -540,7 +540,7 @@ void main() {
 	// So we need to specify the upper 2 bits ..
 	uint mapIndex = texture(mapTex, tcv).r;
 	mapIndex += mapIndexOffset;
-	
+
  	const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 	const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 
@@ -555,7 +555,7 @@ void main() {
 		(float(mapIndex & 0xFFu) + spriteTC.x) / spriteSheetSizeX,
 		(float((mapIndex >> 8) & 0xFFu) + spriteTC.y) / spriteSheetSizeY
 	);
-	
+
 	// then use the vertex fractional part for the lookup of the sprite
 
 	fragColor = texture(tileTex, mapTC);
@@ -597,9 +597,9 @@ void main() {
 
 	local EditCode = require 'numo9.editcode'
 	self.editCode = EditCode{app=self}
-	
+
 	local EditSprites = require 'numo9.editsprites'
-	self.editSprites = EditSprites{app=self} 
+	self.editSprites = EditSprites{app=self}
 
 	local Console = require 'numo9.console'
 	self.con = Console{app=self}
@@ -683,7 +683,6 @@ function App:update()
 		self.mousePos.x = x * tonumber(frameBufferSize.x)
 		self.mousePos.y = y * tonumber(frameBufferSize.y)
 --DEBUG:print('mouse in fb space', self.mousePos:unpack())
-	
 		local leftButtonLastDown = bit.band(self.lastMouseButtons, 1) == 1
 		local leftButtonDown = bit.band(self.mouseButtons, 1) == 1
 		local leftButtonPress = leftButtonDown and not leftButtonLastDown

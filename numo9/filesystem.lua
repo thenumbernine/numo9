@@ -22,8 +22,10 @@ function File:init(args)
 end
 
 function File:add(node)
+	assert(self.isdir)
 	-- TODO assert only 'file' nodes get children ... but meh why bother
 	self.chs[node.name] = node
+	node.chs['..'] = self
 end
 
 function File:path()
@@ -40,7 +42,12 @@ local FileSystem = class()
 
 function FileSystem:init(args)
 	self.app = assert(args.app)
-	local root = File{fs=self, name='', dir=true, root=true}
+	local root = File{
+		fs = self,
+		name = '',
+		isdir = true,
+		root = true,
+	}
 	self.root = root
 	self.cwd = root
 	root.parent = root
@@ -48,12 +55,11 @@ end
 
 function FileSystem:ls()
 	local app = self.app
-	for _,f in pairs(self.cwd.chs) do
-		local name = f.name
+	for name,f in pairs(self.cwd.chs) do
 		if f.isdir then name = '['..name..']' end
 		app.con:print('  '..name)
 	end
-	app.con:print''
+	app.con:print()
 end
 
 function FileSystem:cd(dir)
@@ -64,7 +70,7 @@ function FileSystem:cd(dir)
 	end
 	local parts = string.split(dir, '/')
 	local newcwd = self.cwd
-	if parts[1] == '' then	-- initial / ... 
+	if parts[1] == '' then	-- initial / ...
 		newcwd = self.root
 		parts:remove(1)
 	end
@@ -79,6 +85,7 @@ function FileSystem:cd(dir)
 		newcwd = nextd
 	end
 	self.cwd = newcwd
+	assert(self.cwd.isdir)
 end
 
 function FileSystem:mkdir(name)
@@ -95,4 +102,4 @@ function FileSystem:mkdir(name)
 	})
 end
 
-return FileSystem 
+return FileSystem

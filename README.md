@@ -14,13 +14,15 @@ But it also means your sprites no longer store their own transparency info -- th
 Not sure how I will do blending or masking just yet.
 
 Sprites are 8x8.
+
+SNES: 
 Sprites can be anywhere from 1bpp to 8bpp.
 When drawing a sprite, you can specify the bitplane and bpp that you want to use.
 You can provide an arithmetic palette offset.  This allows you to access all 256 colors with sprites of <8bpp.
 
 Sprite Sheets / VRAM.
 ... I'm going to do 256x256x8bpp for the sprite sheet.
-Size will be 
+Size will be
 That will be 32x32 of 8x8x8bpp sprites,
 so 5 bits for the x and 5 bits for the y sprite lookup.
 ... and then duplicate it to another separate 256x256x8bpp for the tiles.
