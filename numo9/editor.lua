@@ -193,6 +193,21 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	end
 end
 
+function Editor:guiRadio(x, y, options, selected, cb)
+	for _,name in ipairs(options) do
+		if self:guiButton(
+			x,
+			y,
+			name:sub(1,1):upper(),
+			selected == name,
+			name
+		) then
+			cb(name)
+		end
+		x = x + 8
+	end
+end
+
 function Editor:update()
 	local app = self.app
 
@@ -313,23 +328,9 @@ function Editor:update()
 		end, 'bpp='..self.spriteBitDepth)
 
 		-- spritesheet pan vs select
-		local x = 128+16+24+32+24
-		local y = 12
-		for _,name in ipairs{
-			'select',
-			'pan',
-		} do
-			if self:guiButton(
-				x,
-				y,
-				name:sub(1,1):upper(),
-				self.spritesheetEditMode == name,
-				name
-			) then
-				self.spritesheetEditMode = name
-			end
-			x = x + 8
-		end
+		self:guiRadio(224, 12, {'select', 'pan'}, self.spritesheetEditMode, function(result)
+			self.spritesheetEditMode = result
+		end)
 
 		local x = 126
 		local y = 32
@@ -385,11 +386,8 @@ function Editor:update()
 					end
 				elseif leftButtonDown then
 					if self.spritesheetPanPressed then
-						local tx1, ty1 = fbToSpritesheetCoord(mouseX, mouseY)
-						local tx0, ty0 = fbToSpritesheetCoord(self.spritesheetPanDownPos:unpack())
-						-- convert mouse framebuffer pixel movement to sprite texel movement
-						local tx = math.round(tx1 - tx0)
-						local ty = math.round(ty1 - ty0)
+						local tx = math.round(mouseX - self.spritesheetPanDownPos.x)
+						local ty = math.round(mouseY - self.spritesheetPanDownPos.y)
 						if tx ~= 0 or ty ~= 0 then
 							self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - tx
 							self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - ty
@@ -564,22 +562,9 @@ function Editor:update()
 		-- sprite edit method
 		local x = 32
 		local y = 96
-		for _,name in ipairs{
-			'draw',
-			'dropper',
-			'pan',
-		} do
-			if self:guiButton(
-				x,
-				y,
-				name:sub(1,1):upper(),
-				self.spriteDrawMode == name,
-				name
-			) then
-				self.spriteDrawMode = name
-			end
-			x = x + 8
-		end
+		self:guiRadio(x, y, {'draw', 'dropper', 'pan'}, self.spriteDrawMode, function(result)
+			self.spriteDrawMode = result
+		end)
 
 		-- select palette color to draw
 		app:drawTextFgBg(

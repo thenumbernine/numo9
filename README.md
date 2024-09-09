@@ -1,9 +1,10 @@
 # Fantasy Console
 
-Screen is 256x256x8bpp. I'm a SNES fan.
+Screen is 256x256x8bpp.
 
-Screen 8bpp color index is lookup into a 256 color palette.
+Screen framebuffer 8bpp color index is lookup into a 256 color palette.
 Palettes are 16 sets of 16 colors stored in 5551 RGBA format.
+I might change the screen framebuffer to RGB so that I can support blending.
 
 Thinking about it, if the palette is solely used for the screen blit then I don't need to use the palette alpha channel.
 And if I use the palette alpha then that's the only reason I would need the palette alpha when drawing to the screen.
