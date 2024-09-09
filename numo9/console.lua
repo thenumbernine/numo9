@@ -53,23 +53,36 @@ function Console:reset()
 	self.bgColor = 0
 
 	self.prompt = '> '
-	self:write(self.prompt)
+	self:write(app.fs.cwd:path()..self.prompt)
 end
 
 function Console:runCmdBuf()
+	local app = self.app
 	local cmd = self.cmdbuf
 	self.cmdHistory:insert(cmd)
 	self.cmdHistoryIndex = nil
 	self.cmdbuf = ''
 	self:write'\n'
 
-	local success, msg = self.app:runCmd(cmd)
+	-- TODO ... runCmd return nil vs error ...
+
+	local success, msg = pcall(function() return app:runCmd(cmd) end)
+	-- if fail then try prepending a 'return' ...
+	if not success then
+		cmd = 'return '..cmd
+		success, msg = pcall(function() return app:runCmd(cmd) end)
+	end
+	-- if fail then try appending a '()'
+	if not success then
+		cmd = cmd .. '()'
+		success, msg = pcall(function() return app:runCmd(cmd) end)
+	end
 	if not success then
 print(msg)
 		self:print(tostring(msg))
 	end
 
-	self:write(self.prompt)
+	self:write(app.fs.cwd:path()..self.prompt)
 end
 
 -- should cursor be a 'app' property or an 'editor' property?
@@ -148,7 +161,7 @@ function Console:selectHistory(dx)
 	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
 	self.cursorPos.x = 0
 
-	self:write(self.prompt)
+	self:write(app.fs.cwd:path()..self.prompt)
 	self:write(self.cmdbuf)
 end
 

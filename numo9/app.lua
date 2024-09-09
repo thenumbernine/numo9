@@ -106,7 +106,12 @@ function App:initGL()
 	self.startTime = getTime()
 
 	self.env = setmetatable({
-		-- console API (TODO make console commands separate of the Lua API ...)
+		-- filesystem functions ...
+		ls = function(...) return self.fs:ls(...) end,
+		dir = function(...) return self.fs:ls(...) end,
+		cd = function(...) return self.fs:cd(...) end,
+		mkdir = function(...) return self.fs:mkdir(...) end,
+		-- console API (TODO make console commands separate of the Lua API ... or not ...)
 		print = function(...) return self.con:print(...) end,
 		write = function(...) return self.con:write(...) end,
 		run = function(...) return self:runCode(...) end,
@@ -186,9 +191,6 @@ function App:initGL()
 	do
 		local spriteImg = self.spriteTex.image
 		local fontImg = Image'font.png'
-		--[[
-		local letterImg = Image(8, 8, 1, 'unsigned char')
-		--]]
 		local srcx, srcy = 0, 0
 		local dstx, dsty = 0, 0
 		local function inc2d(x, y, w, h)
@@ -200,15 +202,6 @@ function App:initGL()
 		end
 		for i=0,255 do
 			local b = bit.band(i, 7)
-			--[[
-			if b then
-				letterImg:clear()
-			end
-			letterImg = letterImg + fontImg:copy{
-				x=srcx, y=srcy, width=8, height=8,
-			} * bit.lshift(1, b)
-			--]]
-			-- [[ try manually
 			local mask = bit.bnot(bit.lshift(1, b))
 			for by=0,7 do
 				for bx=0,7 do
@@ -222,29 +215,15 @@ function App:initGL()
 						+ spriteImg.width * (
 							dsty + by
 						)
-					--[[ write 1 bit every byte for old behavior
-					dstp[0] = srcp[0]
-					--]]
-					-- [[
 					dstp[0] = bit.bor(
 						bit.band(mask, dstp[0]),
 						bit.lshift(srcp[0], b)
 					)
-					--]]
 				end
 			end
-			--]]
 			srcx, srcy = inc2d(srcx, srcy, fontImg.width, fontImg.height)
 			if not srcx then break end
 			if b == 7 then
-			--do	-- inc every letter for old behavior
-				--[[
-				spriteImg:pasteInto{
-					image = letterImg,
-					x = dstx,
-					y = dsty,
-				}
-				--]]
 				dstx, dsty = inc2d(dstx, dsty, spriteImg.width, spriteImg.height)
 				if not dstx then break end
 			end
@@ -610,6 +589,9 @@ void main() {
 		print(debug.traceback())
 	end
 	fb:unbind()
+
+	FileSystem = require 'numo9.filesystem'
+	self.fs = FileSystem{app=self}
 
 	self.editMode = 'code'	-- matches up with Editor's editMode's
 
@@ -1038,9 +1020,15 @@ end
 -- system() function
 -- TODO fork this between console functions and between running "rom" code
 function App:runCmd(cmd)
+	-- TODO when to error vs when to return nil ...
+	--[[ suppress always
 	local f, msg = self:loadCmd(cmd)
 	if not f then return f, msg end
 	return xpcall(f, errorHandler)
+	--]]
+	-- [[ error always
+	return assert(self:loadCmd(cmd))()
+	--]]
 end
 
 function App:resetView()
