@@ -177,17 +177,27 @@ function App:initGL()
 	}:unbind()
 
 	self.spriteTex = self:makeTexFromImage{
-		-- this file is rgba, so split off just one channel from it:
-		image = Image'font.png',
+		image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
-asserteq(self.spriteTex.image.channels, 1)
-asserteq(self.spriteTex.image.width, spriteSheetSize.x)
-asserteq(self.spriteTex.image.height, spriteSheetSize.y)
-asserteq(self.spriteTex.width, spriteSheetSize.x)
-asserteq(self.spriteTex.height, spriteSheetSize.y)
+	self.spriteTex.image:pasteInto{
+		image = Image'font.png',
+		x = 0,
+		y = 0,
+	}
+	self.spriteTex
+		:bind()
+		:subimage()
+		:unbind()
+
+	self.tileTex = self:makeTexFromImage{
+		image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'),
+		internalFormat = gl.GL_R8UI,
+		format = gl.GL_RED_INTEGER,
+		type = gl.GL_UNSIGNED_BYTE,
+	}
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
@@ -479,7 +489,7 @@ out uvec4 fragColor;
 uniform usampler2D mapTex;
 uniform uint mapIndexOffset;
 
-uniform usampler2D spriteTex;
+uniform usampler2D tileTex;
 
 void main() {
 	// lookup the map texel at the texcoord
@@ -489,7 +499,7 @@ void main() {
 	uint mapIndex = texture(mapTex, tcv).r;
 	mapIndex += mapIndexOffset;
 	
-	const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
+ 	const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 	const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 
 	vec2 tcInSpriteTexes = vec2(
@@ -506,19 +516,19 @@ void main() {
 	
 	// then use the vertex fractional part for the lookup of the sprite
 
-	fragColor = texture(spriteTex, mapTC);
+	fragColor = texture(tileTex, mapTC);
 }
 ]],			{
 				clnumber = clnumber,
 				spriteSheetSize = spriteSheetSize,
 			}),
 			uniforms = {
-				spriteTex = 0,
-				mapTex = 1,
+				mapTex = 0,
+				tileTex = 1,
 				mapIndexOffset = 0,
 			},
 		},
-		texs = {self.spriteTex, self.mapTex},
+		texs = {self.mapTex, self.tileTex},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
@@ -727,6 +737,7 @@ args:
 function App:drawQuad(
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox
+	tex,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
@@ -743,6 +754,7 @@ function App:drawQuad(
 
 	local sceneObj = self.quad4bppObj
 	local uniforms = sceneObj.uniforms
+	sceneObj.texs[1] = tex
 
 	uniforms.mvProjMat = self.view.mvProjMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
@@ -801,6 +813,7 @@ function App:drawSprite(
 
 	local sceneObj = self.quad4bppObj
 	local uniforms = sceneObj.uniforms
+	sceneObj.texs[1] = self.spriteTex
 
 	uniforms.mvProjMat = self.view.mvProjMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits

@@ -66,6 +66,7 @@ do return 42 end
 	self.spritesheetPanOffset = vec2i()
 	self.spritesheetPanDownPos = vec2i()
 	self.spritesheetPanPressed = false
+	self.texField = 'spriteTex'
 	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
 	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
@@ -304,9 +305,16 @@ function Editor:update()
 		end, 'bpp='..self.spriteBitDepth)
 
 		-- spritesheet pan vs select
-		self:guiRadio(224, 12, {'select', 'pan'}, self.spritesheetEditMode, function(result)
-			self.spritesheetEditMode = result
-		end)
+		self:guiRadio(224, 12, {'select', 'pan'}, self.spritesheetEditMode,
+			function(result)
+				self.spritesheetEditMode = result
+			end)
+
+		self:guiRadio(128, 12, {'spriteTex', 'tileTex'}, self.texField,
+			function(result)
+				self.texField = result
+			end)
+		local currentTex = app[self.texField]
 
 		local x = 126
 		local y = 32
@@ -330,6 +338,7 @@ function Editor:update()
 			tonumber(self.spritesheetPanOffset.y) / tonumber(spriteSheetSize.y),		-- ty
 			tonumber(w) / tonumber(spriteSheetSize.x),							-- tw
 			tonumber(h) / tonumber(spriteSheetSize.y),							-- th
+			currentTex,
 			0,		-- paletteShift
 			-1,		-- transparentIndex
 			0,		-- spriteBit
@@ -411,6 +420,7 @@ function Editor:update()
 			tonumber(self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y) / tonumber(spriteSheetSize.y),
 			tonumber(self.spriteSelSize.x * spriteSize.x) / tonumber(spriteSheetSize.x),
 			tonumber(self.spriteSelSize.y * spriteSize.y) / tonumber(spriteSheetSize.y),
+			currentTex,
 			0,										-- paletteIndex
 			-1,										-- transparentIndex
 			self.spriteBit,							-- spriteBit
@@ -449,7 +459,7 @@ function Editor:update()
 						-- let's subtract it
 						local texelIndex = tx + spriteSheetSize.x * ty
 						assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-						local texPtr = app.spriteTex.image.buffer + texelIndex
+						local texPtr = currentTex.image.buffer + texelIndex
 						self.paletteSelIndex = bit.band(
 							0xff,
 							self.paletteOffset
@@ -462,9 +472,8 @@ function Editor:update()
 				elseif self.spriteDrawMode == 'draw' then
 					local tx0 = tx - math.floor(self.penSize / 2)
 					local ty0 = ty - math.floor(self.penSize / 2)
-					assert(app.spriteTex.image.buffer == app.spriteTex.data)
-					local spriteTex = app.spriteTex
-					spriteTex:bind()
+					assert(currentTex.image.buffer == currentTex.data)
+					currentTex:bind()
 					for dy=0,self.penSize-1 do
 						local ty = ty0 + dy
 						for dx=0,self.penSize-1 do
@@ -474,7 +483,7 @@ function Editor:update()
 							then
 								local texelIndex = tx + spriteSheetSize.x * ty
 								assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-								local texPtr = app.spriteTex.image.buffer + texelIndex
+								local texPtr = currentTex.image.buffer + texelIndex
 								texPtr[0] = bit.bor(
 									bit.band(
 										bit.bnot(mask),
@@ -488,7 +497,7 @@ function Editor:update()
 										)
 									)
 								)
-								spriteTex:subimage{
+								currentTex:subimage{
 									xoffset = tx,
 									yoffset = ty,
 									width = 1,
@@ -498,7 +507,7 @@ function Editor:update()
 							end
 						end
 					end
-					spriteTex:unbind()
+					currentTex:unbind()
 				end
 			end
 		elseif self.spriteDrawMode == 'pan' then
