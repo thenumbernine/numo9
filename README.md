@@ -15,21 +15,31 @@ Not sure how I will do blending or masking just yet.
 
 Sprites are 8x8.
 Sprites can be anywhere from 1bpp to 8bpp.
-When drawing a sprite, it shifts the texel color index with a palette offset that you can specify via API.
-This allows you to access all 256 colors with sprites of <8bpp.
+When drawing a sprite, you can specify the bitplane and bpp that you want to use.
+You can provide an arithmetic palette offset.  This allows you to access all 256 colors with sprites of <8bpp.
 
-Sprite Sheets / VRAM is
-... 256x256x8bpp for the sprite sheet (
-	8x8x8bpp sprites,
-	so 5 bits for the x and 5 bits for the y sprite lookup
-	... should I also provide a tilemap shift like I do a palette shift?
-)
-... snes used 128x128 for vram right?  how did it do that ... 4 layers or something?
+Sprite Sheets / VRAM.
+... I'm going to do 256x256x8bpp for the sprite sheet.
+Size will be 
+That will be 32x32 of 8x8x8bpp sprites,
+so 5 bits for the x and 5 bits for the y sprite lookup.
+... and then duplicate it to another separate 256x256x8bpp for the tiles.
 
+Tilemaps:
+- [SNES hardware](https://snes.nesdev.org/wiki/Tilemaps): 32x32 tiles, each entry 16bpp specifying the spritesheet index (10 bits), palette (3 bits), priority (1 bit), hflip (1 bit), vflip (1 bit)
+- I could do the same and merge the priority and palette to give it 4 bits and therefore provide the upper 4 bits on the spritesheet...
+- What all can we cram into a tilemap?
+	- h flip (1 bit)
+	- v flip (1 bit)
+	- integer rotation (2 bits)
+	- palette high bits / offset (up to 8 bits for 8bpp)
+	- spritesheet index (2N bits for 2^N x 2^N spritesheet)
+Mine ...
 ... 256x256x8bpp for the tilemap (
-	implicit lookup into the sprite table?
-	4bits per x and 4 bits per y?
 	then use the tilemap shift to access dif parts?
+
+	... or should I use 16bpp so I can access all 10bpp of 32x32 indexes into 256x256 of 8x8 sprites?
+	... or should I resize the sprite tex to accomodate to all bits?  256x8 = 2048, so I could make the sprite sheet 2048x2048x8bpp , with 8x8 sprites, so that a 16bpp tilemap can index into it ...
 )
 
 Font is from [Liko-12](https://liko-12.github.io/)

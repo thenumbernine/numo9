@@ -140,8 +140,8 @@ function EditSprites:update()
 				self.spriteSelSize:set(1,1)
 				self.spritePanOffset:set(0,0)
 			elseif leftButtonDown then
-				self.spriteSelSize.x = math.ceil((math.abs(mouseX - self.lastMouseDown.x) + 1) / spriteSize.x)
-				self.spriteSelSize.y = math.ceil((math.abs(mouseY - self.lastMouseDown.y) + 1) / spriteSize.y)
+				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.lastMouseDown.x) + 1) / spriteSize.x)
+				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.lastMouseDown.y) + 1) / spriteSize.y)
 			end
 		elseif self.spritesheetEditMode == 'pan' then
 			if leftButtonPress then

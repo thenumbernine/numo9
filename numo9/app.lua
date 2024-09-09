@@ -182,11 +182,74 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
-	self.spriteTex.image:pasteInto{
-		image = Image'font.png',
-		x = 0,
-		y = 0,
-	}
+	-- paste our font letters one bitplane at a time ...
+	do
+		local spriteImg = self.spriteTex.image
+		local fontImg = Image'font.png'
+		--[[
+		local letterImg = Image(8, 8, 1, 'unsigned char')
+		--]]
+		local srcx, srcy = 0, 0
+		local dstx, dsty = 0, 0
+		local function inc2d(x, y, w, h)
+			x = x + 8
+			if x < w then return x, y end
+			x = 0
+			y = y + 8
+			if y < h then return x, y end
+		end
+		for i=0,255 do
+			local b = bit.band(i, 7)
+			--[[
+			if b then
+				letterImg:clear()
+			end
+			letterImg = letterImg + fontImg:copy{
+				x=srcx, y=srcy, width=8, height=8,
+			} * bit.lshift(1, b)
+			--]]
+			-- [[ try manually
+			local mask = bit.bnot(bit.lshift(1, b))
+			for by=0,7 do
+				for bx=0,7 do
+					local srcp = fontImg.buffer
+						+ srcx + bx
+						+ fontImg.width * (
+							srcy + by
+						)
+					local dstp = spriteImg.buffer
+						+ dstx + bx
+						+ spriteImg.width * (
+							dsty + by
+						)
+					--[[ write 1 bit every byte for old behavior
+					dstp[0] = srcp[0]
+					--]]
+					-- [[
+					dstp[0] = bit.bor(
+						bit.band(mask, dstp[0]),
+						bit.lshift(srcp[0], b)
+					)
+					--]]
+				end
+			end
+			--]]
+			srcx, srcy = inc2d(srcx, srcy, fontImg.width, fontImg.height)
+			if not srcx then break end
+			if b == 7 then
+			--do	-- inc every letter for old behavior
+				--[[
+				spriteImg:pasteInto{
+					image = letterImg,
+					x = dstx,
+					y = dsty,
+				}
+				--]]
+				dstx, dsty = inc2d(dstx, dsty, spriteImg.width, spriteImg.height)
+				if not dstx then break end
+			end
+		end
+	end
 	self.spriteTex
 		:bind()
 		:subimage()
@@ -898,9 +961,12 @@ function App:drawMap(
 end
 
 -- draw transparent-background text
-function App:drawText(x, y, text, ...)
+function App:drawText(x, y, text, paletteIndex, transparentIndex, scaleX, scaleY)
 	for i=1,#text do
-		self:drawSprite(x, y, text:byte(i), 1, 1, ...)
+		local ch = text:byte(i)
+		local by = bit.rshift(ch, 3)	-- get the byte offset
+		local bi = bit.band(ch, 7)		-- get the bit offset
+		self:drawSprite(x, y, by, 1, 1, paletteIndex, transparentIndex, bi, 1, scaleX, scaleY)
 		x = x + spriteSize.x
 	end
 end
@@ -913,6 +979,7 @@ function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
 	local x0 = x
 	if bgColorIndex >= 0 and bgColorIndex < 255 then
 		for i=1,#text do
+			-- TODO the ... between drawSolidRect and drawSprite is not the same...
 			self:drawSolidRect(x, y, spriteSize.x, spriteSize.y, bgColorIndex, ...)
 			x = x + spriteSize.x
 		end
@@ -932,18 +999,35 @@ function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
 end
 
 function App:save(filename)
-	path(filename or defaultSaveFilename):write(tolua{
+	filename = filename or defaultSaveFilename
+	local basemsg = 'failed to save file '..tostring(filename)
+	local s, msg = tolua{
 		code = self.editCode.text,
 		-- TODO sprites
 		-- TODO music
-	})
+	}
+	if not s then return nil, basemsg..(msg or '') end
+	local success = path(filename):write(s)
+	if not success then return nil, basemsg..': write failed' end
+	return true
 end
 
 function App:load(filename)
-	local src = assert(fromlua(
-		(assert(path(filename or defaultSaveFilename):read()))
-	))
+	filename = filename or defaultSaveFilename
+	local basemsg = 'failed to load file '..tostring(filename)
+	local p
+	for _,suffix in ipairs{'', '.n9'} do
+		p = path(filename)
+		if p:exists() then break end
+		p = nil
+	end
+	if not p then return nil, basemsg..': failed to find file' end
+	local d, msg = p:read()
+	if not d then return nil, basemsg..(msg or '') end
+	local src, msg = fromlua(d)
+	if not src then return nil, basemsg..(msg or '') end
 	self.editCode:setText(assertindex(src, 'code'))
+	return true
 end
 
 -- returns the function to run the code
