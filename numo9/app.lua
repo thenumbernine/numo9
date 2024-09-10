@@ -1074,7 +1074,11 @@ function App:drawText1bpp(x, y, text, color, scaleX, scaleY)
 			by,                     -- spriteIndex
 			1,                      -- spritesWide
 			1,                      -- spritesHigh
-			color,           		-- paletteIndex ... 'color index offset' / 'palette high bits'
+			-- font color is 0 = background, 1 = foreground
+			-- so shift this by 1 so the font tex contents shift it back
+			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
+			-- 		heck why not store 2 letters per left and right half as well?  that's half the alphaet in a single 8x8 sprite black.
+			color-1,           		-- paletteIndex ... 'color index offset' / 'palette high bits'
 			0,				       	-- transparentIndex
 			bi,                     -- spriteBit
 			1,                      -- spriteMask
@@ -1110,11 +1114,7 @@ function App:drawText(x, y, text, fgColorIndex, bgColorIndex, ...)
 		x0+1,
 		y+1,
 		text,
-		-- font color is 0 = background, 1 = foreground
-		-- so shift this by 1 so the font tex contents shift it back
-		-- TODO if compression is a thing then store 8 letters per 8x8 sprite
-		-- 		heck why not store 2 letters per left and right half as well?  that's half the alphaet in a single 8x8 sprite black.
-		fgColorIndex - 1,
+		fgColorIndex,
 		-- fwd rest of args
 		...
 	)
