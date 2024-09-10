@@ -250,6 +250,17 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
+	for i=0,15 do
+		for j=0,15 do
+			self.tileTex.image.buffer[
+				i + self.tileTex.image.width * j
+			] = i + j
+		end
+	end
+	self.tileTex
+		:bind()
+		:subimage()
+		:unbind()
 
 	--[[
 	16bpp ...
@@ -266,6 +277,17 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
 	}
+	for i=0,1 do
+		for j=0,1 do
+			self.mapTex.image.buffer[
+				i + self.mapTex.image.width * j
+			] = i + 2 * j
+		end
+	end
+	self.mapTex
+		:bind()
+		:subimage()
+		:unbind()
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
@@ -339,16 +361,16 @@ function App:initGL()
 
 	-- screen is 256 x 256 x 8bpp
 	self.fbTex = self:makeTexFromImage{
-		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned char',
+		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned short',
 			-- [[ init to garbage pixels
 			function(i,j)
-				return math.floor(math.random() * 0xff)
+				return math.floor(math.random() * 0xffff)
 			end
 			--]]
 		),
-		internalFormat = gl.GL_R8UI,
-		format = gl.GL_RED_INTEGER,
-		type = gl.GL_UNSIGNED_BYTE,
+		internalFormat = gl.GL_RGB565,
+		format = gl.GL_RGB,
+		type = gl.GL_UNSIGNED_SHORT_5_6_5,
 	}
 --print('fbTex\n'..imageToHex(self.fbTex.image))
 
@@ -383,11 +405,19 @@ void main() {
 			fragmentCode = [[
 out uvec4 fragColor;
 uniform uint colorIndex;
+uniform usampler2D palTex;
 void main() {
-	fragColor = uvec4(colorIndex & 0xFFu, 0, 0, 0xFFu);
+	fragColor = texture(palTex, vec2(
+		(float(colorIndex) + .5) / 256.,
+		.5
+	));
 }
 ]],
+			uniforms = {
+				palTex = 0,
+			},
 		},
+		texs = {self.palTex},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
@@ -398,7 +428,7 @@ void main() {
 	}
 
 	-- used for drawing our 8bpp framebuffer to the screen
-	self.quad8bppToRGBObj = GLSceneObject{
+	self.blitScreenObj = GLSceneObject{
 		program = {
 			version = glslVersion,
 			precision = 'best',
@@ -411,29 +441,19 @@ void main() {
 	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
 }
 ]],
-			fragmentCode = template([[
+			fragmentCode = [[
 in vec2 tcv;
 out uvec4 fragColor;
 uniform usampler2D fbTex;
-uniform usampler2D palTex;
 void main() {
-	uint index = texture(fbTex, tcv).r;
-	float indexf = float(index) / 255.;
-	fragColor = texture(palTex, vec2((indexf * <?=clnumber(paletteSize-1)?> + .5) / <?=clnumber(paletteSize)?>, .5));
+	fragColor = texture(fbTex, tcv);
 }
-]], 		{
-				clnumber = clnumber,
-				paletteSize = paletteSize,
-			}),
+]],
 			uniforms = {
 				fbTex = 0,
-				palTex = 1,
 			},
 		},
-		texs = {
-			self.fbTex,
-			self.palTex,
-		},
+		texs = {self.fbTex},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
@@ -490,6 +510,8 @@ uniform uint spriteMask;
 // If you want fully opaque then just choose an oob color index.
 uniform uint transparentIndex;
 
+uniform usampler2D palTex;
+
 void main() {
 	// TODO provide a shift uniform for picking lo vs hi nibble
 	// only use the lower 4 bits ...
@@ -507,7 +529,10 @@ void main() {
 	colorIndex &= 0XFFu;
 
 	// write the 8bpp colorIndex to the screen, use tex to draw it
-	fragColor = uvec4(colorIndex, 0, 0, 0xFFu);
+	fragColor = texture(palTex, vec2(
+		(float(colorIndex) + .5) / 256.,
+		.5
+	));
 }
 ]], 		{
 				clnumber = clnumber,
@@ -515,6 +540,7 @@ void main() {
 			}),
 			uniforms = {
 				spriteTex = 0,
+				palTex = 1,
 				paletteIndex = 0,
 				transparentIndex = -1,
 				spriteBit = 0,
@@ -523,6 +549,7 @@ void main() {
 		},
 		texs = {
 			self.spriteTex,
+			self.palTex,
 		},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
@@ -559,6 +586,12 @@ uniform uint mapIndexOffset;
 
 uniform usampler2D tileTex;
 
+
+const float tilemapSizeX = <?=clnumber(tilemapSize.x)?>;
+const float tilemapSizeY = <?=clnumber(tilemapSize.y)?>;
+const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
+const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
+
 void main() {
 	// lookup the map texel at the texcoord
 	// This will give us 8 bits
@@ -567,37 +600,33 @@ void main() {
 	uint mapIndex = texture(mapTex, tcv).r;
 	mapIndex += mapIndexOffset;
 
- 	const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
-	const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
-
-	vec2 tcInSpriteTexels = vec2(
-		tcv.x * spriteSheetSizeX,
-		tcv.y * spriteSheetSizeY
+	// get the fractional part when interpolating across mapTex
+	vec2 spriteTcFrac = vec2(
+		tcv.x * tilemapSizeX,
+		tcv.y * tilemapSizeY
 	);
-	vec2 spriteTC = tcInSpriteTexels - floor(tcInSpriteTexels);
+	spriteTcFrac -= floor(spriteTcFrac);
 
 	// get the texcoord to look up our sprite ...
-	vec2 mapTC = vec2(
-		(float(mapIndex & 0xFFu) + spriteTC.x) / spriteSheetSizeX,
-		(float((mapIndex >> 8) & 0xFFu) + spriteTC.y) / spriteSheetSizeY
-	);
-
 	// then use the vertex fractional part for the lookup of the sprite
-
-	fragColor = texture(tileTex, mapTC);
-/*
-	fragColor = uvec4(
-		int(spriteTC.x * 256.),
-		int(spriteTC.y * 256.),
-		0x7Fu,
-		0xFFu
+	vec2 tileTC = vec2(
+		float( mapIndex       & 0xFFu),
+		float((mapIndex >> 8) & 0xFFu)
 	);
-*/
-//	fragColor = texture(tileTex, tcv * 65536.);
+	// tileTC is in [0, 255]^2 indexing into the tile tex
+	tileTC += spriteTcFrac;
+	// tileTC is in [0, 256)^2	... same as before but with tile fractional part
+	tileTC /= vec2(256., 256.);	// where 256 == tilemapSizeInSpritesX,
+	// tileTC is in [0, 1)^2	... normalized to texture() lookup function
+
+	//fragColor = texture(tileTex, tileTC);
+//fragColor = texture(tileTex, spriteTcFrac);
+fragColor = uvec4(mapIndex, 0, 0, 0xFFu);
 }
 ]],			{
 				clnumber = clnumber,
 				spriteSheetSize = spriteSheetSize,
+				tilemapSize = tilemapSize,
 			}),
 			uniforms = {
 				mapTex = 0,
@@ -635,7 +664,7 @@ void main() {
 
 	local EditSprites = require 'numo9.editsprites'
 	self.editSprites = EditSprites{app=self}
-	
+
 	local EditTilemap = require 'numo9.edittilemap'
 	self.editTilemap = EditTilemap{app=self}
 
@@ -762,7 +791,7 @@ function App:update()
 	end
 	view.mvMat:setIdent()
 	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
-	local sceneObj = self.quad8bppToRGBObj
+	local sceneObj = self.blitScreenObj
 	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 --]]
 
@@ -913,6 +942,7 @@ function App:drawSprite(
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	local tx = spriteIndex % spritesPerSheet.x
 	local ty = (spriteIndex - tx) / spritesPerSheet.x
+	-- TODO do I normalize it here or in the shader?
 	settable(uniforms.tcbox,
 		tx / tonumber(spritesPerSheet.x),
 		ty / tonumber(spritesPerSheet.y),

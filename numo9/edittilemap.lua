@@ -25,13 +25,13 @@ end
 
 function EditTilemap:update()
 	local app = self.app
-	
+
 	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
 	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local leftButtonRelease = not leftButtonDown and leftButtonLastDown
 	local mouseX, mouseY = app.mousePos:unpack()
-	
+
 	EditTilemap.super.update(self)
 
 	-- title controls
@@ -43,7 +43,7 @@ function EditTilemap:update()
 	if self:guiButton(x, 0, 'T', self.pickOpen, 'tile') then
 		self.pickOpen = not self.pickOpen
 	end
-	
+
 	local mapTex = app.mapTex
 
 	-- draw map
@@ -52,11 +52,11 @@ function EditTilemap:update()
 	local mapW = tilemapSizeInSprites.x
 	local mapH = tilemapSizeInSprites.y
 --print('map', require 'ext.string'.hexdump(require 'ffi'.string(mapTex.data, 16)))
-	
+
 	app:drawMap(
 		mapX,		-- pixel x
 		mapY,		-- pixel y
-		0,			-- tile index
+		0,			-- upper-left index in the tile tex
 		tilemapSizeInSprites.x,	-- tiles wide
 		tilemapSizeInSprites.y,	-- tiles high
 		0			-- map index offset / high page
@@ -120,7 +120,7 @@ function EditTilemap:update()
 				self.pickOpen = false
 			end
 		end
-		
+
 		app:drawBorderRect(
 			pickX + self.spriteSelPos.x * spriteSize.x * pickW / spriteSheetSize.x,
 			pickX + self.spriteSelPos.y * spriteSize.y * pickH / spriteSheetSize.y,
@@ -132,51 +132,53 @@ function EditTilemap:update()
 		-- TODO allow drawing while picking window is open, like tic80 does?
 		-- maybe ... then i should disable the auto-close-on-select ...
 		-- and I should also resize the pick tile area
-		
+
 		local tx = math.floor((mouseX - mapX) / mapW * tilemapSizeInSprites.x / spriteSize.x)
 		local ty = math.floor((mouseY - mapY) / mapH * tilemapSizeInSprites.y / spriteSize.y)
 
 		-- TODO pen size here
-	
-		if self.drawMode == 'dropper' then
-			if 0 <= tx and tx < tilemapSize.x
-			and 0 <= ty and ty < tilemapSize.y
-			then
-				local texelIndex = tx + tilemapSize.x * ty
-				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-				local ptr = mapTex.image.buffer + texelIndex
-				local tileSelIndex = ptr[0]
-				self.spriteSelPos.x = tileSelIndex % spritesPerSheet.x
-				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spritesPerSheet.x
-			end
-		elseif self.drawMode == 'draw' then
-			local tx0 = tx - math.floor(self.penSize / 2)
-			local ty0 = ty - math.floor(self.penSize / 2)
-			assert(mapTex.image.buffer == mapTex.data)
-			mapTex:bind()
-			for dy=0,self.penSize-1 do
-				local ty = ty0 + dy
-				for dx=0,self.penSize-1 do
-					local tx = tx0 + dx
-					if 0 <= tx and tx < tilemapSize.x
-					and 0 <= ty and ty < tilemapSize.y
-					then
-						local texelIndex = tx + tilemapSize.x * ty
-						assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-						local ptr = mapTex.image.buffer + texelIndex
-						local tileSelIndex = self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y
-						ptr[0] = tileSelIndex
-						mapTex:subimage{
-							xoffset = tx,
-							yoffset = ty,
-							width = 1,
-							height = 1,
-							data = ptr,
-						}
+		if leftButtonPress then
+			if self.drawMode == 'dropper' then
+				if 0 <= tx and tx < tilemapSize.x
+				and 0 <= ty and ty < tilemapSize.y
+				then
+					local texelIndex = tx + tilemapSize.x * ty
+					assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+					local ptr = mapTex.image.buffer + texelIndex
+					local tileSelIndex = ptr[0]
+					self.spriteSelPos.x = tileSelIndex % spritesPerSheet.x
+					self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spritesPerSheet.x
+				end
+			elseif self.drawMode == 'draw' then
+				local tx0 = tx - math.floor(self.penSize / 2)
+				local ty0 = ty - math.floor(self.penSize / 2)
+				assert(mapTex.image.buffer == mapTex.data)
+				mapTex:bind()
+				for dy=0,self.penSize-1 do
+					local ty = ty0 + dy
+					for dx=0,self.penSize-1 do
+						local tx = tx0 + dx
+						if 0 <= tx and tx < tilemapSize.x
+						and 0 <= ty and ty < tilemapSize.y
+						then
+							local texelIndex = tx + tilemapSize.x * ty
+							assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+							local ptr = mapTex.image.buffer + texelIndex
+							local tileSelIndex = self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y
+							ptr[0] = tileSelIndex
+print('...updating mapTex')
+							mapTex:subimage{
+								xoffset = tx,
+								yoffset = ty,
+								width = 1,
+								height = 1,
+								data = ptr,
+							}
+						end
 					end
 				end
+				mapTex:unbind()
 			end
-			mapTex:unbind()
 		end
 	end
 end

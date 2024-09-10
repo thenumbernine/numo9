@@ -1,22 +1,21 @@
 # Fantasy Console
 
-Screen is 256x256x8bpp.
+Screen framebuffer is 256x256x24bpp RGB.
 
 Screen framebuffer 8bpp color index is lookup into a 256 color palette.
-Palettes are 16 sets of 16 colors stored in 5551 RGBA format.
-I might change the screen framebuffer to RGB so that I can support blending.
+
+Sprites are 8x8 pixels.
+Sprite bpp can be anywhere from 1bpp to 8bpp.
+
+Palette is a set of 256 colors stored in 5551 RGBA format.
 
 Thinking about it, if the palette is solely used for the screen blit then I don't need to use the palette alpha channel.
 And if I use the palette alpha then that's the only reason I would need the palette alpha when drawing to the screen.
 So for now I'll ignore palette alpha and just use transparency by specifying a color per sprite.
 This means you get to use all your palettes in the final screen draw.
 But it also means your sprites no longer store their own transparency info -- that will have to be provided via the draw function.
-Not sure how I will do blending or masking just yet.
 
-Sprites are 8x8.
-
-SNES: 
-Sprites can be anywhere from 1bpp to 8bpp.
+SNES:
 When drawing a sprite, you can specify the bitplane and bpp that you want to use.
 You can provide an arithmetic palette offset.  This allows you to access all 256 colors with sprites of <8bpp.
 
