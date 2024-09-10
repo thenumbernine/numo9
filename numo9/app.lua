@@ -192,7 +192,7 @@ function App:initGL()
 	}:unbind()
 
 	self.spriteTex = self:makeTexFromImage{
-		image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'),
+		image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -245,7 +245,7 @@ function App:initGL()
 		:unbind()
 
 	self.tileTex = self:makeTexFromImage{
-		image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'),
+		image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -261,7 +261,7 @@ function App:initGL()
 	- .... 8 bits palette offset ... ? nah
 	--]]
 	self.mapTex = self:makeTexFromImage{
-		image = Image(tilemapSize.x, tilemapSize.y, 1, 'unsigned short'),
+		image = Image(tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
 		internalFormat = gl.GL_R16UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
@@ -570,11 +570,11 @@ void main() {
  	const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 	const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 
-	vec2 tcInSpriteTexes = vec2(
+	vec2 tcInSpriteTexels = vec2(
 		tcv.x * spriteSheetSizeX,
 		tcv.y * spriteSheetSizeY
 	);
-	vec2 spriteTC = tcInSpriteTexes - floor(tcInSpriteTexes);
+	vec2 spriteTC = tcInSpriteTexels - floor(tcInSpriteTexels);
 
 	// get the texcoord to look up our sprite ...
 	vec2 mapTC = vec2(
@@ -585,6 +585,15 @@ void main() {
 	// then use the vertex fractional part for the lookup of the sprite
 
 	fragColor = texture(tileTex, mapTC);
+/*
+	fragColor = uvec4(
+		int(spriteTC.x * 256.),
+		int(spriteTC.y * 256.),
+		0x7Fu,
+		0xFFu
+	);
+*/
+//	fragColor = texture(tileTex, tcv * 65536.);
 }
 ]],			{
 				clnumber = clnumber,
@@ -681,14 +690,6 @@ glreport'here'
 glreport'here'
 	return tex
 end
-
--- static method
-function App:makeTexWithBlankImage(size)
-	local img = Image(size.x, size.y, 4, 'unsigned char')
-	ffi.fill(img.buffer, 4 * size.x * size.y)
-	return self:makeTexFromImage(img)
-end
---]]
 
 function App:update()
 	App.super.update(self)

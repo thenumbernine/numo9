@@ -15,11 +15,12 @@ local EditTilemap = require 'numo9.editor':subclass()
 function EditTilemap:init(args)
 	EditTilemap.super.init(self, args)
 
-	-- TODO UI for this
 	self.drawGrid = true
 	self.pickOpen = false
 	self.spriteSelPos = vec2i()
 	self.spriteSelSize = vec2i(1,1)
+	self.drawMode = 'draw'	--TODO ui for this
+	self.penSize = 1
 end
 
 function EditTilemap:update()
@@ -42,18 +43,23 @@ function EditTilemap:update()
 	if self:guiButton(x, 0, 'T', self.pickOpen, 'tile') then
 		self.pickOpen = not self.pickOpen
 	end
+	
+	local mapTex = app.mapTex
 
 	-- draw map
 	local mapX = 0
 	local mapY = spriteSize.y
 	local mapW = tilemapSizeInSprites.x
 	local mapH = tilemapSizeInSprites.y
+--print('map', require 'ext.string'.hexdump(require 'ffi'.string(mapTex.data, 16)))
+	
 	app:drawMap(
 		mapX,		-- pixel x
 		mapY,		-- pixel y
-		0,		-- tile index
+		0,			-- tile index
 		tilemapSizeInSprites.x,	-- tiles wide
-		tilemapSizeInSprites.y	-- tiles high
+		tilemapSizeInSprites.y,	-- tiles high
+		0			-- map index offset / high page
 	)
 	if self.drawGrid then
 		for j=0,frameBufferSize.y-1,spriteSize.y do
@@ -127,8 +133,51 @@ function EditTilemap:update()
 		-- maybe ... then i should disable the auto-close-on-select ...
 		-- and I should also resize the pick tile area
 		
-		local tileX = math.floor((mouseX - mapX) / mapW * tilemapSizeInSprites.x / spriteSize.x)
-		local tileY = math.floor((mouseY - mapY) / mapH * tilemapSizeInSprites.y / spriteSize.y)
+		local tx = math.floor((mouseX - mapX) / mapW * tilemapSizeInSprites.x / spriteSize.x)
+		local ty = math.floor((mouseY - mapY) / mapH * tilemapSizeInSprites.y / spriteSize.y)
+
+		-- TODO pen size here
+	
+		if self.drawMode == 'dropper' then
+			if 0 <= tx and tx < tilemapSize.x
+			and 0 <= ty and ty < tilemapSize.y
+			then
+				local texelIndex = tx + tilemapSize.x * ty
+				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+				local ptr = mapTex.image.buffer + texelIndex
+				local tileSelIndex = ptr[0]
+				self.spriteSelPos.x = tileSelIndex % spritesPerSheet.x
+				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spritesPerSheet.x
+			end
+		elseif self.drawMode == 'draw' then
+			local tx0 = tx - math.floor(self.penSize / 2)
+			local ty0 = ty - math.floor(self.penSize / 2)
+			assert(mapTex.image.buffer == mapTex.data)
+			mapTex:bind()
+			for dy=0,self.penSize-1 do
+				local ty = ty0 + dy
+				for dx=0,self.penSize-1 do
+					local tx = tx0 + dx
+					if 0 <= tx and tx < tilemapSize.x
+					and 0 <= ty and ty < tilemapSize.y
+					then
+						local texelIndex = tx + tilemapSize.x * ty
+						assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+						local ptr = mapTex.image.buffer + texelIndex
+						local tileSelIndex = self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y
+						ptr[0] = tileSelIndex
+						mapTex:subimage{
+							xoffset = tx,
+							yoffset = ty,
+							width = 1,
+							height = 1,
+							data = ptr,
+						}
+					end
+				end
+			end
+			mapTex:unbind()
+		end
 	end
 end
 

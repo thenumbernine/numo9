@@ -26,6 +26,7 @@ function EditSprites:init(args)
 	self.spritesheetPanOffset = vec2i()
 	self.spritesheetPanDownPos = vec2i()
 	self.spritesheetPanPressed = false
+	
 	self.texField = 'spriteTex'
 	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
 	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
