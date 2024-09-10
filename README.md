@@ -131,7 +131,8 @@ IO
 - `cls([color])` = clear screen
 - `rect(x1, y1, x2, y2, [color])` = draw solid rectangle
 - `rectb(x1, y1, x2, y2, [color])` = draw rectangle border
-- `sprite( ... )` = draw sprite
+- `spr(...)` = draw sprite
+- `map(...)` = draw tilemap
 - `text( ... )` = draw text.  I should rename this to `print` for compat reasons.
 - `rect(...)`
 - `rectb(...)`

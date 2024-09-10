@@ -135,8 +135,9 @@ function App:initGL()
 			('$%x..$%x: '):format(self.ram.size, self.ram.size + size)
 			..(name or '???')
 		)
-		local ptr = self.ram.v
+		local ptr = self.ram:iend()
 		self.ram:resize(self.ram.size + size)
+		ffi.fill(ptr, size)
 		return ptr
 	end
 
@@ -182,6 +183,20 @@ function App:initGL()
 		save = function(...) return self:save(...) end,
 		load = function(...) return self:load(...) end,
 		quit = function(...) self:requestExit() end,
+
+		peek = function(addr)
+			assert(addr >= 0 and addr < self.ram.size)
+			return self.ram.v[addr]
+		end,
+		poke = function(addr, value)
+			assert(addr >= 0 and addr < self.ram.size)
+			
+			-- TODO dirty bits on screen memory?
+			-- or just update always?
+
+			self.ram.v[addr] = tonumber(value)
+		end,
+
 		-- other stuff
 		time = function()
 			-- TODO fixed-framerate and internal app clock
@@ -219,7 +234,8 @@ function App:initGL()
 		rectb = function(x1,y1,x2,y2, ...)
 			return self:drawBorderRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1, ...)
 		end,
-		sprite = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
+		spr = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
+		map = function(...) return self:drawMap(...) end,
 		text = function(...) return self:drawText(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
 
 		-- TODO don't do this
@@ -752,8 +768,11 @@ void main() {
 	-- keyboard init
 
 	-- TODO move to mem blob
+print('keyBufferSize', self.keyBufferSize)	
 	self.keyBuffer = requestRAM(self.keyBufferSize, 'keyBuffer')
+print(self.keyBuffer)	
 	self.lastKeyBuffer = requestRAM(self.keyBufferSize, 'lastKeyBuffer')
+print(self.lastKeyBuffer)	
 	
 	-- make sure our keycodes are in bounds
 	for sdlSym,keyCode in pairs(sdlSymToKeyCode) do
@@ -865,11 +884,17 @@ function App:update()
 		end
 	end
 
+	local fb = self.fb
+	fb:bind()
+	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+
 	-- TODO here run this only 60 fps
 	local runFocus = self.runFocus
 	if runFocus and runFocus.update then
 		runFocus:update()
 	end
+	
+	fb:unbind()
 
 	gl.glViewport(0, 0, self.width, self.height)
 	gl.glClearColor(.1, .2, .3, 1.)
@@ -917,27 +942,17 @@ function App:update()
 end
 
 function App:drawSolidRect(x, y, w, h, colorIndex)
-	-- TODO move a lot of this outside into the update loop start/stop
-	local fb = self.fb
-	fb:bind()
-	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
-
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 	uniforms.mvProjMat = self.view.mvProjMat.ptr
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
-	fb:unbind()
 end
 
 function App:drawBorderRect(x, y, w, h, colorIndex)
 	-- I could do another shader for this, and discard in the middle
 	-- or just draw 4 thin sides ...
-	local fb = self.fb
-	fb:bind()
-	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
-
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 	uniforms.mvProjMat = self.view.mvProjMat.ptr
@@ -951,8 +966,6 @@ function App:drawBorderRect(x, y, w, h, colorIndex)
 	sceneObj:draw()
 	settable(uniforms.box, x+w-1, y, 1, h)
 	sceneObj:draw()
-
-	fb:unbind()
 end
 
 function App:clearScreen(colorIndex)
@@ -983,10 +996,6 @@ function App:drawQuad(
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xF
 
-	local fb = self.fb
-	fb:bind()
-	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
-
 	local sceneObj = self.quad4bppObj
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = tex
@@ -1000,7 +1009,6 @@ function App:drawQuad(
 	settable(uniforms.tcbox, tx, ty, tw, th)
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
-	fb:unbind()
 end
 
 --[[
@@ -1041,12 +1049,6 @@ function App:drawSprite(
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
 
-	-- TODO move a lot of this outside into the update loop start/stop
-	-- but I tried that and turns out it isn't such a good idea
-	local fb = self.fb
-	fb:bind()
-	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
-
 	local sceneObj = self.quad4bppObj
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.spriteTex
@@ -1074,7 +1076,6 @@ function App:drawSprite(
 		spritesHigh * spriteSize.y * scaleY
 	)
 	sceneObj:draw()
-	fb:unbind()
 end
 
 function App:drawMap(
@@ -1088,10 +1089,6 @@ function App:drawMap(
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
 	mapIndexOffset = mapIndexOffset or 0
-
-	local fb = self.fb
-	fb:bind()
-	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
 
 	local sceneObj = self.quadMapObj
 	local uniforms = sceneObj.uniforms
@@ -1115,7 +1112,6 @@ function App:drawMap(
 		tilesHigh * spriteSize.y
 	)
 	sceneObj:draw()
-	fb:unbind()
 end
 
 -- draw transparent-background text
@@ -1320,7 +1316,13 @@ function App:event(e)
 			end
 			-- TODO re-init the con?  clear? special per runFocus?
 			if self.runFocus == self.con then
+				local fb = self.fb
+				fb:bind()
+				gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+				
 				self.con:reset()
+	
+				fb:unbind()
 			end
 		else
 			local keycode = sdlSymToKeyCode[sdlsym]
