@@ -65,11 +65,14 @@ sound = ???
 
 ## graphics
 
-- `clear([color])` = clear screen
+- `cls([color])` = clear screen
 - `rect(x1, y1, x2, y2, [color])` = draw solid rectangle
 - `rectb(x1, y1, x2, y2, [color])` = draw rectangle border
 - `sprite( ... )` = draw sprite
-- `text( ... )` = draw text
+- `text( ... )` = draw text.  I should rename this to `print` for compat reasons.
+- `rect(...)`
+- `rectb(...)`
+- `sprite(...)`
 
 ## math
 - `cos(theta)` = shorthand for `math.cos(theta)`	... maybe I won't do shorthand functions like pico-8 ... tic-80 gets by without them.

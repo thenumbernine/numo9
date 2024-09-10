@@ -132,13 +132,42 @@ function EditCode:update()
 		12,
 		1
 	)
-	--elseif self.editMode == 'tilemap' then
-		
-		-- draw the tilemap ...
-	--	app:drawQuad(
-	--	)
+	
+	-- handle input
 
-	--end
+	local shift = app:key'lshift' or app:key'rshift'
+	for keycode=0,#app.keyCodeNames-1 do
+		if app:keyp(keycode) then
+			local ch = app:getAsciiForKeyCode(keycode, shift)
+			if ch then
+				self:addCharToText(ch)
+			elseif keycode == app.keyCodeForName['return'] then
+				self:addCharToText(('\n'):byte())
+			elseif keycode == app.keyCodeForName.tab then
+				-- TODO add tab and do indent up there,
+				-- until then ...
+				self:addCharToText((' '):byte())
+			elseif keycode == app.keyCodeForName.up
+			or keycode == app.keyCodeForName.down
+			then
+				local dy = keycode == app.keyCodeForName.up and -1 or 1
+				self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
+
+				local currentLineCols = self:countRowCols(self.cursorRow)
+				self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
+
+				self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
+
+				self:refreshCursorColRowForLoc()	-- just in case?
+			elseif keycode == app.keyCodeForName.left
+			or keycode == app.keyCodeForName.right
+			then
+				local dx = keycode == app.keyCodeForName.left and -1 or 1
+				self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
+				self:refreshCursorColRowForLoc()
+			end
+		end
+	end
 end
 
 function EditCode:addCharToText(ch)
@@ -168,54 +197,6 @@ function EditCode:countRowCols(row)
 	-- TODO enumerate chars, upon tab round up to tab indent
 	--linetext = linetext:gsub('\t', (' '):rep(indentSize))
 	return #linetext
-end
-
-function EditCode:event(e)
-	local app = self.app
-		
-	if e[0].type == sdl.SDL_KEYDOWN
-	or e[0].type == sdl.SDL_KEYUP
-	then
-		-- TODO store the press state of all as bitflags in 'ram' somewhere
-		-- and let the 'cartridge' read/write it?
-		-- and move this code into the 'console' 'cartridge' do the following?
-
-		local press = e[0].type == sdl.SDL_KEYDOWN
-		local keysym = e[0].key.keysym
-		local sym = keysym.sym
-		local mod = keysym.mod
-		if press then
-			local shift = bit.band(mod, sdl.SDLK_LSHIFT) ~= 0
-			local charsym = app:getKeySymForShift(sym, shift)
-			if charsym then
-				self:addCharToText(charsym)
-			elseif sym == sdl.SDLK_RETURN then
-				self:addCharToText(sym)
-			elseif sym == sdl.SDLK_TAB then
-				-- TODO add tab and do indent up there,
-				-- until then ...
-				self:addCharToText(32)
-			elseif sym == sdl.SDLK_UP
-			or sym == sdl.SDLK_DOWN
-			then
-				local dy = sym == sdl.SDLK_UP and -1 or 1
-				self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
-
-				local currentLineCols = self:countRowCols(self.cursorRow)
-				self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
-
-				self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
-
-				self:refreshCursorColRowForLoc()	-- just in case?
-			elseif sym == sdl.SDLK_LEFT
-			or sym == sdl.SDLK_RIGHT
-			then
-				local dx = sym == sdl.SDLK_LEFT and -1 or 1
-				self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
-				self:refreshCursorColRowForLoc()
-			end
-		end
-	end
 end
 
 return EditCode

@@ -213,38 +213,21 @@ function Console:update()
 		-- else TODO draw the character in the buffer at this location
 		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, spriteSize.x, spriteSize.y, 0)
 	end
-end
 
--- TODO shift behavior should go somewhere that both editor and console can get to it
--- TODO if 'editor' is a console then how to handle events in limited memory ...
--- keydown = xor test of key bits ... if i'm using a bitvector for the keyboard state ...
--- this all involves *another* set of key remappings which seems tedious ...
-function Console:event(e)
-	local app = self.app
-	if e[0].type == sdl.SDL_KEYDOWN
-	or e[0].type == sdl.SDL_KEYUP
-	then
-		-- TODO store the press state of all as bitflags in 'ram' somewhere
-		-- and let the 'cartridge' read/write it?
-		-- and move this code into the 'console' 'cartridge' do the following?
-
-		local press = e[0].type == sdl.SDL_KEYDOWN
-		local keysym = e[0].key.keysym
-		local sym = keysym.sym
-		local mod = keysym.mod
-		if press then
-			local shift = bit.band(mod, sdl.SDLK_LSHIFT) ~= 0
-			local charsym = app:getKeySymForShift(sym, shift)
-			if charsym then
-				self:addCharToCmd(charsym)
-			elseif sym == sdl.SDLK_RETURN then
+	local shift = app:key'lshift' or app:key'rshift'
+	for keycode=0,#app.keyCodeNames-1 do
+		if app:keyp(keycode) then
+			local ch = app:getAsciiForKeyCode(keycode, shift)
+			if ch then
+				self:addCharToCmd(ch)
+			elseif keycode == app.keyCodeForName['return'] then
 				self:runCmdBuf()
-			elseif sym == sdl.SDLK_UP then
+			elseif keycode == app.keyCodeForName.up then
 				self:selectHistory(-1)
-			elseif sym == sdl.SDLK_DOWN then
+			elseif keycode == app.keyCodeForName.down then
 				self:selectHistory(1)
 			-- TODO left right to move the cursor
-			end
+			end		
 		end
 	end
 end
