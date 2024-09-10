@@ -32,6 +32,7 @@ local GLFBO = require 'gl.fbo'
 local GLGeometry = require 'gl.geometry'
 local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
+local vector = require 'ffi.cpp.vector-lua'
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName 
@@ -101,19 +102,55 @@ local defaultInitFilename = 'hello.n9'	-- load this into filesystem, and from fi
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
 function App:initGL()
+	
+	self.keyBufferSize = math.ceil(#keyCodeNames / 8)
 
-	local vector = require 'ffi.cpp.vector-lua'
 	self.ram = vector'uint8_t'
-	-- don't allow it to resize, since we returning pointers into it as we grow it
-	self.ram:capacity(2048)
-	os.exit()
+	self.ram:reserve(
+		spriteSheetSize.x * spriteSheetSize.y * 2	-- sprite sheet, 8bpp, x2 for tiles as well
+		+ tilemapSize.x * tilemapSize.y * 2			-- tilemap, 16bpp
+		+ paletteSize * 2							-- palette, 16bpp
+		+ self.keyBufferSize * 2					-- key press state
+	)
+	-- Don't allow it to resize, since we returning pointers into it as we grow it
+	-- Another TODO could be two passes: once for requesting, then alloc all at once, then get pointers
+	-- ... but meh.
+	function self.ram:resize(newsize)
+		self:reserve(newsize)
+		self.size = newsize
+	end
+	function self.ram:reserve(newcap)
+		if newcap <= self.capacity then return end
+		error(
+			"current capacity: "..self.capacity..'\n'
+			..'requested new capacity: '..newcap..'\n'
+			.."you have exceeded virtual ram limitation.  please specify more ram."
+		)
+	end
 
 	-- allocates physical ram
 	-- returns the current offset
-	local requestRAM(size)
-		local ptr = 
+	local function requestRAM(size, name)
+		print(
+			('$%x..$%x: '):format(self.ram.size, self.ram.size + size)
+			..(name or '???')
+		)
+		local ptr = self.ram.v
+		self.ram:resize(self.ram.size + size)
+		return ptr
 	end
 
+	local function makeImageInRAM(name, x, y, ch, type, ...)
+		local image = Image(x, y, ch, type, ...)
+		local size = x * y * ch * ffi.sizeof(type)
+		local newbuf = requestRAM(size, name)
+		if select('#', ...) > 0 then	-- if we specified a generator...
+			ffi.copy(newbuf, image.buffer, size)
+		end
+		image.buffer = newbuf 
+		return image
+	end
+	
 	local View = require 'glapp.view'
 	self.view = View()
 	self.view.ortho = true
@@ -213,11 +250,9 @@ function App:initGL()
 		height = frameBufferSize.y,
 	}:unbind()
 
-	local spriteImage = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 	-- redirect the image buffer to our virtual system ram
-	spriteImage.buffer = requestRAM(spriteSheetSize:volume())
 	self.spriteTex = self:makeTexFromImage{
-		image = spriteImage,
+		image = makeImageInRAM('sprites', spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -270,7 +305,7 @@ function App:initGL()
 		:unbind()
 
 	self.tileTex = self:makeTexFromImage{
-		image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+		image = makeImageInRAM('tiles', spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -297,7 +332,7 @@ function App:initGL()
 	- .... 8 bits palette offset ... ? nah
 	--]]
 	self.mapTex = self:makeTexFromImage{
-		image = Image(tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
+		image = makeImageInRAM('tilemap', tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
 		internalFormat = gl.GL_R16UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
@@ -316,7 +351,7 @@ function App:initGL()
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
-		image = Image(paletteSize, 1, 1, 'unsigned short',
+		image = makeImageInRAM('palette', paletteSize, 1, 1, 'unsigned short',
 		--[[ garbage colors
 		function(i)
 			return math.floor(math.random() * 0xffff)
@@ -384,7 +419,10 @@ function App:initGL()
 	}
 --print('palTex\n'..imageToHex(self.palTex.image))
 
-	-- screen is 256 x 256 x 8bpp
+	-- framebuffer is 256 x 256 x 16bpp
+	-- purely for hw emulation 
+	-- the internal API won't allow access
+	-- in fact, I won't even assign it virtual ram 
 	self.fbTex = self:makeTexFromImage{
 		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned short',
 			-- [[ init to garbage pixels
@@ -398,6 +436,7 @@ function App:initGL()
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
 	}
 --print('fbTex\n'..imageToHex(self.fbTex.image))
+
 
 	self.quadGeom = GLGeometry{
 		mode = gl.GL_TRIANGLE_STRIP,
@@ -713,11 +752,12 @@ void main() {
 	-- keyboard init
 
 	-- TODO move to mem blob
-	self.keyBuffer = ffi.new('uint8_t[?]', math.ceil(#keyCodeNames / 8))
-	self.lastKeyBuffer = ffi.new('uint8_t[?]', math.ceil(#keyCodeNames / 8))
+	self.keyBuffer = requestRAM(self.keyBufferSize, 'keyBuffer')
+	self.lastKeyBuffer = requestRAM(self.keyBufferSize, 'lastKeyBuffer')
+	
 	-- make sure our keycodes are in bounds
 	for sdlSym,keyCode in pairs(sdlSymToKeyCode) do
-		if not (keyCode >= 0 and math.floor(keyCode/8) < ffi.sizeof(self.keyBuffer)) then
+		if not (keyCode >= 0 and math.floor(keyCode/8) < self.keyBufferSize) then
 			error('got oob keyCode '..keyCode..' named '..(keyCodeNames[keyCode+1])..' for sdlSym '..sdlSym)
 		end
 	end
@@ -726,6 +766,8 @@ void main() {
 
 	FileSystem = require 'numo9.filesystem'
 	self.fs = FileSystem{app=self}
+
+	print('system dedicated '..('0x%x'):format(self.ram.size)..' of RAM')
 
 	-- editor init
 
@@ -871,7 +913,7 @@ function App:update()
 
 	-- copy last key buffer to key buffer here after update()
 	-- so that sdl event can populate changes to current key buffer while execution runs outside this callback 
-	ffi.copy(self.lastKeyBuffer, self.keyBuffer, ffi.sizeof(self.keyBuffer))
+	ffi.copy(self.lastKeyBuffer, self.keyBuffer, self.keyBufferSize)
 end
 
 function App:drawSolidRect(x, y, w, h, colorIndex)
@@ -1105,9 +1147,11 @@ end
 
 -- draw a solid background color, then draw the text transparent
 -- specify an oob bgColorIndex to draw with transparent background
-function App:drawText(x, y, text, fgColorIndex, bgColorIndex, ...)
+function App:drawText(x, y, text, fgColorIndex, bgColorIndex, scaleX, scaleY)
 	fgColorIndex = fgColorIndex or 13
 	bgColorIndex = bgColorIndex or 0
+	scaleX = scaleX or 1
+	scaleY = scaleY or 1
 	local x0 = x
 	if bgColorIndex >= 0 and bgColorIndex < 255 then
 		for i=1,#text do
@@ -1115,10 +1159,9 @@ function App:drawText(x, y, text, fgColorIndex, bgColorIndex, ...)
 			self:drawSolidRect(
 				x,
 				y,
-				spriteSize.x,
-				spriteSize.y,
-				bgColorIndex,
-				...
+				spriteSize.x * scaleX,
+				spriteSize.y * scaleY,
+				bgColorIndex
 			)
 			x = x + spriteSize.x
 		end
@@ -1129,8 +1172,8 @@ function App:drawText(x, y, text, fgColorIndex, bgColorIndex, ...)
 		y+1,
 		text,
 		fgColorIndex,
-		-- fwd rest of args
-		...
+		scaleX,
+		scaleY
 	)
 end
 
@@ -1230,7 +1273,7 @@ end
 function App:keyForBuffer(keycode, buffer)
 	local bi = bit.band(keycode, 7)
 	local by = bit.rshift(keycode, 3)
-	if by < 0 or by >= ffi.sizeof(buffer) then return end
+	if by < 0 or by >= self.keyBufferSize then return end
 	local keyFlag = bit.lshift(1, bi)
 	return bit.band(buffer[by], keyFlag) ~= 0
 end
@@ -1285,7 +1328,7 @@ function App:event(e)
 				local bi = bit.band(keycode, 7)
 				local by = bit.rshift(keycode, 3)
 				-- TODO turn this into raw mem like those other virt cons
-				assert(by >= 0 and by < ffi.sizeof(self.keyBuffer))
+				assert(by >= 0 and by < self.keyBufferSize)
 				local mask = bit.bnot(bit.lshift(1, bi))
 				self.keyBuffer[by] = bit.bor(
 					bit.band(mask, self.keyBuffer[by]),
