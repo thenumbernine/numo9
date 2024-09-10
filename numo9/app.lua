@@ -591,43 +591,51 @@ uniform usampler2D tileTex;
 
 uniform usampler2D palTex;
 
-const float tilemapSizeX = <?=clnumber(tilemapSize.x)?>;
-const float tilemapSizeY = <?=clnumber(tilemapSize.y)?>;
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
+const float spritesPerSheetX = <?=clnumber(spritesPerSheet.x)?>;
+const float spritesPerSheetY = <?=clnumber(spritesPerSheet.y)?>;
+const float tilemapSizeX = <?=clnumber(tilemapSize.x)?>;
+const float tilemapSizeY = <?=clnumber(tilemapSize.y)?>;
 
 void main() {
-	// lookup the map texel at the texcoord
-	// This will give us 8 bits
-	// But our sprite sheet is 256 x 256 pixels = 32 x 32 sprites, so we have 10 bits ...
-	// So we need to specify the upper 2 bits ..
-	uint mapIndex = texture(mapTex, tcv).r;
-	mapIndex += mapIndexOffset;
-
-	// get the fractional part when interpolating across mapTex
-	vec2 spriteTcFrac = vec2(
-		tcv.x * tilemapSizeX,
-		tcv.y * tilemapSizeY
+	// [0, tilemapSize)^2
+	uvec2 tci = uvec2(
+		uint(tcv.x * tilemapSizeX),
+		uint(tcv.y * tilemapSizeY)
 	);
-	spriteTcFrac -= floor(spriteTcFrac);
 
-	// get the texcoord to look up our sprite ...
-	// then use the vertex fractional part for the lookup of the sprite
-	vec2 tileTC = vec2(
-		float( mapIndex       & 0xFFu),
-		float((mapIndex >> 8) & 0xFFu)
+	// 8bpp per x and y coord to lookup the tile tex
+	// [0, spritesPerSheet)^2
+	uvec2 tileTC = uvec2(
+		(tci.x >> 3) & 0xFFu,
+		(tci.y >> 3) & 0xFFu
 	);
-	// tileTC is in [0, 255]^2 indexing into the tile tex
-	tileTC += spriteTcFrac;
-	// tileTC is in [0, 256)^2	... same as before but with tile fractional part
-	tileTC /= vec2(256., 256.);	// where 256 == tilemapSizeInSpritesX,
-	// tileTC is in [0, 1)^2	... normalized to texture() lookup function
+	
+	//mapTex is R16, so red channel should be 16bpp (right?)
+	// how come I don't trust that and think I'll need to switch this to RG8 ...
+	uint tileIndex = texture(mapTex, vec2(
+		(float(tileTC.x) + .5) / spritesPerSheetX,
+		(float(tileTC.y) + .5) / spritesPerSheetY
+	)).r;
 
-	//fragColor = texture(tileTex, tileTC);
-//fragColor = texture(tileTex, spriteTcFrac);
-//fragColor = uvec4(mapIndex, 0, 0, 0xFFu);
+	uvec2 asdfTC = uvec2(
+		tileIndex & 0x1Fu,
+		(tileIndex >> 5) & 0x1Fu
+	);
 
-	uint colorIndex = texture(tileTex, tileTC).r;
+	// [0, spriteSize)^2
+	uvec2 spriteTci = uvec2(
+		(tci.x & 7u) | (asdfTC.x << 3),
+		(tci.y & 7u) | (asdfTC.y << 3)
+	);
+	
+	// tileTex is R8 indexing into our palette ...
+	uint colorIndex = texture(tileTex, vec2(
+		float(spriteTci.x) / spriteSheetSizeX,
+		float(spriteTci.y) / spriteSheetSizeY
+	)).r;
+
 	fragColor = texture(palTex, vec2(
 		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
 		.5
@@ -637,6 +645,7 @@ void main() {
 				clnumber = clnumber,
 				paletteSize = paletteSize,
 				spriteSheetSize = spriteSheetSize,
+				spritesPerSheet = spritesPerSheet,
 				tilemapSize = tilemapSize,
 			}),
 			uniforms = {
@@ -646,7 +655,7 @@ void main() {
 				mapIndexOffset = 0,
 			},
 		},
-		texs = {self.mapTex, self.tileTex},
+		texs = {self.mapTex, self.tileTex, self.palTex},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {

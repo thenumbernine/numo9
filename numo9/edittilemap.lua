@@ -98,7 +98,7 @@ function EditTilemap:update()
 			0,
 			1,
 			1,
-			app.spriteTex,
+			app.tileTex,
 			0,
 			-1,
 			0,
