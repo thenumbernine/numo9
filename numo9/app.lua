@@ -38,6 +38,19 @@ local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
 local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode
 
+-- n = num args to pack
+-- also in image/luajit/image.lua
+local function packptr(n, ptr, value, ...)
+	if n <= 0 then return end
+	ptr[0] = value or 0
+	return packptr(n-1, ptr+1, ...)
+end
+
+local function unpackptr(n, p)
+	if n <= 0 then return end
+	return p[0], unpackptr(n-1, p+1)
+end
+
 local function errorHandler(err)
 	return err..'\n'..debug.traceback()
 end
@@ -109,6 +122,7 @@ function App:initGL()
 		spriteSheetSize.x * spriteSheetSize.y * 2	-- sprite sheet, 8bpp, x2 for tiles as well
 		+ tilemapSize.x * tilemapSize.y * 2			-- tilemap, 16bpp
 		+ paletteSize * 2							-- palette, 16bpp
+		+ 4											-- clip rect
 		+ self.keyBufferSize * 2					-- key press state
 	)
 	-- Don't allow it to resize, since we returning pointers into it as we grow it
@@ -208,24 +222,26 @@ function App:initGL()
 		sin = math.sin,
 
 		-- graphics
+		
 		cls = function(...)
 			local con = self.con
 			con.cursorPos:set(0, 0)
 			self:clearScreen(...)
 		end,
+		clip = function(...)
+			if select('#', ...) == 0 then
+				packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
+			else
+				-- assert num args is 4 ?
+				packptr(4, self.clipRect, ...)
+			end
+			gl.glViewport(
+				self.clipRect[0],
+				self.clipRect[1],
+				self.clipRect[2]+1,
+				self.clipRect[3]+1)
+		end,
 
-		-- pico has ...
-		--  circ / circfill / oval / ovalfill
-		--  line
-		--  rect / rectfill ... tik80 has rectb / rect ... think I'll use that
-		--  pal / palt
-		--  spr / sspr = draw sprite at pixel x y, number of sprites wide and high, flip on either x and y axis ... sspr = same but stretched
-		--  fillp = fill pattern for all the draw-fill operations
-		--  mget / mset / map = draw map / manipulate map
-		--  camera = mode7 graphics, translate the camera
-		--  print = print text at cursor
-		--  cursor = set cursor pos
-		--  color = set draw color
 		rect = function(x1,y1,x2,y2, ...)
 			return self:drawSolidRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1, ...)
 		end,
@@ -243,20 +259,19 @@ function App:initGL()
 		__index = _G,
 	})
 
-	-- me cheating and exposing opengl matrix functions:
-	-- mvmatident mvmattrans mvmatrot mvmatscale mvmatortho mvmatfrustum mvmatlookat
-	-- projmatident projmattrans projmatrot projmatscale projmatortho projmatfrustum projmatlookat
+	-- me cheating and exposing opengl modelview matrix functions:
+	-- matident mattrans matrot matscale matortho matfrustum matlookat
 	local view = self.view
-	for _,name in ipairs{'mv', 'proj'} do
-		local mat = view[name..'Mat']
+	do
+		local mat = view.mvMat
 		-- matrix math because i'm cheating
-		self.env[name..'matident'] = function(...) mat:setIdent(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env[name..'mattrans'] = function(...) mat:applyTranslate(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env[name..'matrot'] = function(...) mat:applyRotate(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env[name..'matscale'] = function(...) mat:applyScale(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env[name..'matortho'] = function(...) mat:applyOrtho(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env[name..'matfrustum'] = function(...) mat:applyFrustum(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env[name..'matlookat'] = function(...) mat:applyLookAt(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env.matident = function(...) mat:setIdent(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env.mattrans = function(...) mat:applyTranslate(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env.matrot = function(...) mat:applyRotate(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env.matscale = function(...) mat:applyScale(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env.matortho = function(...) mat:applyOrtho(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env.matfrustum = function(...) mat:applyFrustum(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
+		self.env.matlookat = function(...) mat:applyLookAt(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
 	end
 
 	self.fb = GLFBO{
@@ -271,6 +286,8 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
+	self.env.spriteMem = self.spriteTex.image.buffer
+
 	-- paste our font letters one bitplane at a time ...
 	do
 		local spriteImg = self.spriteTex.image
@@ -324,6 +341,8 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
+	self.env.tileMem = self.tileTex.image.buffer
+
 	for i=0,15 do
 		for j=0,15 do
 			self.tileTex.image.buffer[
@@ -351,6 +370,8 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
 	}
+	self.env.mapMem = self.mapTex.image.buffer
+
 	for i=0,1 do
 		for j=0,1 do
 			self.mapTex.image.buffer[
@@ -431,6 +452,7 @@ function App:initGL()
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
 	}
+	self.env.palMem = self.palTex.image.buffer
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	-- framebuffer is 256 x 256 x 16bpp
@@ -761,9 +783,13 @@ void main() {
 	end
 	fb:unbind()
 
+	-- 4 uint8 bytes ...
+	-- x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
+	self.clipRect = requestRAM(4, 'clipRect')
+	packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
+	
 	-- keyboard init
 
-	-- TODO move to mem blob
 	self.keyBuffer = requestRAM(self.keyBufferSize, 'keyBuffer')
 	self.lastKeyBuffer = requestRAM(self.keyBufferSize, 'lastKeyBuffer')
 
@@ -784,7 +810,7 @@ void main() {
 	-- editor init
 
 	self.editMode = 'code'	-- matches up with Editor's editMode's
-	
+
 	local EditCode = require 'numo9.editcode'
 	local EditSprites = require 'numo9.editsprites'
 	local EditTilemap = require 'numo9.edittilemap'
@@ -885,25 +911,48 @@ function App:update()
 
 	local fb = self.fb
 	fb:bind()
-	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+	gl.glViewport(
+		self.clipRect[0],
+		self.clipRect[1],
+		self.clipRect[2]+1,
+		self.clipRect[3]+1)
 
 	-- TODO here run this only 60 fps
 	local runFocus = self.runFocus
 	if runFocus and runFocus.update then
-		runFocus:update()
+		local success, msg = xpcall(function()
+			runFocus:update()
+		end, errorHandler)
+		if not success then
+			self.runFocus = self.con
+			self.con:print(msg)
+		end
 	end
 
 	fb:unbind()
+
+	-- update vram to gpu every frame?
+	-- or nah, how about I only do when dirty bit set?
+	self.spriteTex:bind()
+		:subimage()
+		:unbind()
+	self.tileTex:bind()
+		:subimage()
+		:unbind()
+	self.mapTex:bind()
+		:subimage()
+		:unbind()
+	self.palTex:bind()
+		:subimage()
+		:unbind()
 
 	gl.glViewport(0, 0, self.width, self.height)
 	gl.glClearColor(.1, .2, .3, 1.)
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
 -- [[ redo ortho projection matrix
--- every frame ... not necessary if the screen is static
--- but mebbe I want mode7 or something idk
+-- every frame for us to use a proper rectangle 
 	local view = self.blitScreenView
---	view:setup(self.width / self.height)
 	local orthoSize = view.orthoSize
 	local wx, wy = self.width, self.height
 	if wx > wy then

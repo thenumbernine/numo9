@@ -41,7 +41,7 @@ function Console:reset()
 	-- right now fgColor just adds
 	-- meanwhile the font texture is indexed 0's and 15's
 	-- so whatever you set fgColor to, that value is background and that value plus 15 is foreground
-	self.fgColor = 15
+	self.fgColor = 13
 	self.bgColor = 0
 
 	-- TODO 'getFocus' or TODO always reload?
@@ -71,8 +71,10 @@ function Console:runCmdBuf()
 	self:write'\n'
 
 	-- TODO ... runCmd return nil vs error ...
+	cmd = cmd:gsub('^=', 'return ')
 
 	local success, msg = pcall(function() return app:runCmd(cmd) end)
+--[[ seems nice but has no direction 
 --DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
 	-- if fails try wrapping arg2..N with quotes ...
 	-- TODO this or 'return ' first?
@@ -89,6 +91,7 @@ function Console:runCmdBuf()
 	end
 	-- if fail then try appending a '()'
 	-- do this before prepending 'return ' so we don't return a function before we call it
+	local cmdBeforePar = cmd
 	if not success then
 		cmd = cmd .. '()'
 		success, msg = pcall(function() return app:runCmd(cmd) end)
@@ -96,15 +99,15 @@ function Console:runCmdBuf()
 	end
 	-- if fail then try prepending a 'return' ...
 	if not success then
-		cmd = 'return '..cmd
+		cmd = 'return '..cmdBeforePar
 		success, msg = pcall(function() return app:runCmd(cmd) end)
 --DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
 	end
+--]]
 	if not success then
 --DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
 		self:print(tostring(msg))
 	end
-
 	self:write(app.fs.cwd:path()..self.prompt)
 end
 
@@ -184,7 +187,7 @@ function Console:selectHistory(dx)
 	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
 	self.cursorPos.x = 0
 
-	self:write(app.fs.cwd:path()..self.prompt)
+	self:write(self.app.fs.cwd:path()..self.prompt)
 	self:write(self.cmdbuf)
 end
 

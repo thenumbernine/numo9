@@ -71,20 +71,13 @@ What's a SNES-era emulator without mode7?  So I added some matrix math.  Really 
 
 So far the API has ...
 
-`mvmatident`,
-`mvmattrans`,
-`mvmatrot`,
-`mvmatscale`,
-`mvmatortho`,
-`mvmatfrustum`,
-`mvmatlookat`,
-`projmatident`,
-`projmattrans`,
-`projmatrot`,
-`projmatscale`,
-`projmatortho`,
-`projmatfrustum`,
-`projmatlookat`,
+`matident`,
+`mattrans`,
+`matrot`,
+`matscale`,
+`matortho`,
+`matfrustum`,
+`matlookat`,
 
 ... but I will probably remove the projection stuff.
 It's only there to simulate the `camera` function of Pico-8, but meh, you can inverse-transform yourself.
@@ -120,6 +113,7 @@ IO
 
 - `print(...)` = print to console ... not print to screen ... gotta fix that
 - `write(...)` = print to console without newline
+
 - `run()` = run loaded cartridge
 - `save([filename])` = save cartridge
 - `load([filename])` = save cartridge
@@ -128,14 +122,13 @@ IO
 
 ## graphics
 
-- `cls([color])` = clear screen
+- `cls([color])` = clear screen.
+- `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `rect(x1, y1, x2, y2, [color])` = draw solid rectangle
 - `rectb(x1, y1, x2, y2, [color])` = draw rectangle border
 - `spr(...)` = draw sprite
 - `map(...)` = draw tilemap
-- `text( ... )` = draw text.  I should rename this to `print` for compat reasons.
-- `rect(...)`
-- `rectb(...)`
+- `text(...)` = draw text.  I should rename this to `print` for compat reasons.
 - `sprite(...)`
 - `key(code)`
 
