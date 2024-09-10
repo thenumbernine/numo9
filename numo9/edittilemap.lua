@@ -36,13 +36,21 @@ function EditTilemap:update()
 
 	-- title controls
 	local x = 128
-	if self:guiButton(x, 0, 'G', self.drawGrid, 'grid') then
+	local y = 0
+	if self:guiButton(x, y, 'G', self.drawGrid, 'grid') then
 		self.drawGrid = not self.drawGrid
 	end
 	x = x + 8
-	if self:guiButton(x, 0, 'T', self.pickOpen, 'tile') then
+	if self:guiButton(x, y, 'T', self.pickOpen, 'tile') then
 		self.pickOpen = not self.pickOpen
 	end
+
+	-- sprite edit method
+	x = x + 16
+	self:guiRadio(x, y, {'draw', 'dropper', 'pan'}, self.drawMode, function(result)
+		self.drawMode = result
+	end)
+
 
 	local mapTex = app.mapTex
 
@@ -146,6 +154,7 @@ function EditTilemap:update()
 				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 				local ptr = mapTex.image.buffer + texelIndex
 				local tileSelIndex = ptr[0]
+print('...reading mapTex at', tx, ty, texelIndex, 'to', tileSelIndex)
 				self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
 				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
 			end
@@ -153,7 +162,7 @@ function EditTilemap:update()
 			if leftButtonDown
 			and 0 <= tx and tx < tilemapSize.x
 			and 0 <= ty and ty < tilemapSize.y
-			then		
+			then
 				local tx0 = tx - math.floor(self.penSize / 2)
 				local ty0 = ty - math.floor(self.penSize / 2)
 				assert(mapTex.image.buffer == mapTex.data)
@@ -170,7 +179,7 @@ function EditTilemap:update()
 							local ptr = mapTex.image.buffer + texelIndex
 							local tileSelIndex = self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y
 							ptr[0] = tileSelIndex
---DEBUG:print('...updating mapTex at', tx, ty, texelIndex, 'to', tileSelIndex)
+print('...updating mapTex at', tx, ty, texelIndex, 'to', tileSelIndex)
 							mapTex:subimage{
 								xoffset = tx,
 								yoffset = ty,

@@ -35,8 +35,8 @@ local GLSceneObject = require 'gl.sceneobject'
 local vector = require 'ffi.cpp.vector-lua'
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
-local keyCodeForName = require 'numo9.keys'.keyCodeForName 
-local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode 
+local keyCodeForName = require 'numo9.keys'.keyCodeForName
+local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode
 
 local function errorHandler(err)
 	return err..'\n'..debug.traceback()
@@ -98,11 +98,10 @@ function rgb888revto5551(rgba)
 end
 
 local updateFreq = 60
-local defaultInitFilename = 'hello.n9'	-- load this into filesystem, and from filesystem into RAM on startup
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
 function App:initGL()
-	
+
 	self.keyBufferSize = math.ceil(#keyCodeNames / 8)
 
 	self.ram = vector'uint8_t'
@@ -148,10 +147,10 @@ function App:initGL()
 		if select('#', ...) > 0 then	-- if we specified a generator...
 			ffi.copy(newbuf, image.buffer, size)
 		end
-		image.buffer = newbuf 
+		image.buffer = newbuf
 		return image
 	end
-	
+
 	local View = require 'glapp.view'
 	self.view = View()
 	self.view.ortho = true
@@ -175,10 +174,10 @@ function App:initGL()
 
 -- TODO just use drawText
 -- and then implement auto-scroll
--- none of this console buffering crap		
+-- none of this console buffering crap
 		print = function(...) return self.con:print(...) end,
 		write = function(...) return self.con:write(...) end,
-		
+
 		run = function(...) return self:runCode(...) end,
 		save = function(...) return self:save(...) end,
 		load = function(...) return self:load(...) end,
@@ -190,7 +189,7 @@ function App:initGL()
 		end,
 		poke = function(addr, value)
 			assert(addr >= 0 and addr < self.ram.size)
-			
+
 			-- TODO dirty bits on screen memory?
 			-- or just update always?
 
@@ -212,7 +211,6 @@ function App:initGL()
 		cls = function(...)
 			local con = self.con
 			con.cursorPos:set(0, 0)
-			con:write(self.fs.cwd:path()..con.prompt)
 			self:clearScreen(...)
 		end,
 
@@ -260,7 +258,7 @@ function App:initGL()
 		self.env[name..'matfrustum'] = function(...) mat:applyFrustum(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
 		self.env[name..'matlookat'] = function(...) mat:applyLookAt(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
 	end
-	
+
 	self.fb = GLFBO{
 		width = frameBufferSize.x,
 		height = frameBufferSize.y,
@@ -356,7 +354,7 @@ function App:initGL()
 	for i=0,1 do
 		for j=0,1 do
 			self.mapTex.image.buffer[
-				i + self.mapTex.image.width * j
+				i + tilemapSize.x * j
 			] = i + spriteSheetSizeInTiles.x * j
 		end
 	end
@@ -436,9 +434,9 @@ function App:initGL()
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	-- framebuffer is 256 x 256 x 16bpp
-	-- purely for hw emulation 
+	-- purely for hw emulation
 	-- the internal API won't allow access
-	-- in fact, I won't even assign it virtual ram 
+	-- in fact, I won't even assign it virtual ram
 	self.fbTex = self:makeTexFromImage{
 		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned short',
 			-- [[ init to garbage pixels
@@ -702,21 +700,19 @@ void main() {
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	uvec2 tileTexTC = uvec2(
-		tileIndex & 0x1Fu,					// bits 0..4
-		(tileIndex >> 5) & 0x1Fu			// bits 5..9
+		tileIndex & 0x1Fu,					// tilemap bits 0..4
+		(tileIndex >> 5) & 0x1Fu			// tilemap bits 5..9
 	);
-	uint palHi = (tileIndex >> 10) & 0xFu;	// bits 10..13
-
-	uvec2 tcs = tci;
-	if ((tileIndex & (1u<<14)) != 0) tcs.x = ~tcs.x;
-	if ((tileIndex & (1u<<15)) != 0) tcs.y = ~tcs.y;
+	uint palHi = (tileIndex >> 10) & 0xFu;	// tilemap bits 10..13
+	if ((tileIndex & (1u<<14)) != 0) tci.x = ~tci.x;	// tilemap bit 14
+	if ((tileIndex & (1u<<15)) != 0) tci.y = ~tci.y;	// tilemap bit 15
 
 	// [0, spriteSize)^2
 	tileTexTC = uvec2(
-		(tcs.x & 7u) | (tileTexTC.x << 3),
-		(tcs.y & 7u) | (tileTexTC.y << 3)
+		(tci.x & 7u) | (tileTexTC.x << 3),
+		(tci.y & 7u) | (tileTexTC.y << 3)
 	);
-	
+
 	// tileTex is R8 indexing into our palette ...
 	uint colorIndex = texture(tileTex, vec2(
 		float(tileTexTC.x) / spriteSheetSizeX,
@@ -724,7 +720,7 @@ void main() {
 	)).r;
 	colorIndex |= palHi << 4;
 
-//debug: 
+//debug:
 //colorIndex = tileIndex;
 
 	fragColor = texture(palTex, vec2(
@@ -768,12 +764,9 @@ void main() {
 	-- keyboard init
 
 	-- TODO move to mem blob
-print('keyBufferSize', self.keyBufferSize)	
 	self.keyBuffer = requestRAM(self.keyBufferSize, 'keyBuffer')
-print(self.keyBuffer)	
 	self.lastKeyBuffer = requestRAM(self.keyBufferSize, 'lastKeyBuffer')
-print(self.lastKeyBuffer)	
-	
+
 	-- make sure our keycodes are in bounds
 	for sdlSym,keyCode in pairs(sdlSymToKeyCode) do
 		if not (keyCode >= 0 and math.floor(keyCode/8) < self.keyBufferSize) then
@@ -791,25 +784,31 @@ print(self.lastKeyBuffer)
 	-- editor init
 
 	self.editMode = 'code'	-- matches up with Editor's editMode's
-
+	
 	local EditCode = require 'numo9.editcode'
-	self.editCode = EditCode{app=self}
-
 	local EditSprites = require 'numo9.editsprites'
-	self.editSprites = EditSprites{app=self}
-
 	local EditTilemap = require 'numo9.edittilemap'
-	self.editTilemap = EditTilemap{app=self}
-
 	local Console = require 'numo9.console'
-	self.con = Console{app=self}
 
-	--self.runFocus = self.con
-	self.runFocus = self.editCode
+	self:runInEmu(function()
+		self.editCode = EditCode{app=self}
+		self.editSprites = EditSprites{app=self}
+		self.editTilemap = EditTilemap{app=self}
+		self.con = Console{app=self}
+	end)
 
-	if path(defaultInitFilename):exists() then
-		self.fs:addFromHost(defaultInitFilename)
-		self:load(defaultInitFilename)
+	self.runFocus = self.con
+	--self.runFocus = self.editCode
+
+	-- TODO copy over a local filetree somewhere in the app ...
+	for fn in path:dir() do
+		if select(2, fn:getext()) == 'n9' then
+			self.fs:addFromHost(fn.path)
+		end
+	end
+	local initfn = 'hello.n9'
+	if self.fs:get(initfn) then
+		self:load(initfn)
 		self:runCode()
 	end
 
@@ -893,7 +892,7 @@ function App:update()
 	if runFocus and runFocus.update then
 		runFocus:update()
 	end
-	
+
 	fb:unbind()
 
 	gl.glViewport(0, 0, self.width, self.height)
@@ -937,7 +936,7 @@ function App:update()
 	sceneObj:draw()
 
 	-- copy last key buffer to key buffer here after update()
-	-- so that sdl event can populate changes to current key buffer while execution runs outside this callback 
+	-- so that sdl event can populate changes to current key buffer while execution runs outside this callback
 	ffi.copy(self.lastKeyBuffer, self.keyBuffer, self.keyBufferSize)
 end
 
@@ -1291,6 +1290,19 @@ function App:keyp(keycode)
 	and not self:keyForBuffer(keycode, self.lastKeyBuffer)
 end
 
+-- run but make sure the vm is set up
+-- esp the framebuffer
+function App:runInEmu(cb, ...)
+	-- TODO maybe not ...
+	local fb = self.fb
+	fb:bind()
+	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+
+	cb(...)
+
+	fb:unbind()
+end
+
 function App:event(e)
 	local Editor = require 'numo9.editor'
 	-- alwyays be able to break with escape ...
@@ -1316,13 +1328,9 @@ function App:event(e)
 			end
 			-- TODO re-init the con?  clear? special per runFocus?
 			if self.runFocus == self.con then
-				local fb = self.fb
-				fb:bind()
-				gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
-				
-				self.con:reset()
-	
-				fb:unbind()
+				self:runInEmu(function()
+					self.con:reset()
+				end)
 			end
 		else
 			local keycode = sdlSymToKeyCode[sdlsym]
