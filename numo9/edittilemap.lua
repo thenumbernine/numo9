@@ -137,19 +137,23 @@ function EditTilemap:update()
 		local ty = math.floor((mouseY - mapY) / mapH * tilemapSizeInSprites.y / spriteSize.y)
 
 		-- TODO pen size here
-		if leftButtonPress then
-			if self.drawMode == 'dropper' then
-				if 0 <= tx and tx < tilemapSize.x
-				and 0 <= ty and ty < tilemapSize.y
-				then
-					local texelIndex = tx + tilemapSize.x * ty
-					assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-					local ptr = mapTex.image.buffer + texelIndex
-					local tileSelIndex = ptr[0]
-					self.spriteSelPos.x = tileSelIndex % spritesPerSheet.x
-					self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spritesPerSheet.x
-				end
-			elseif self.drawMode == 'draw' then
+		if self.drawMode == 'dropper' then
+			if leftButtonPress
+			and 0 <= tx and tx < tilemapSize.x
+			and 0 <= ty and ty < tilemapSize.y
+			then
+				local texelIndex = tx + tilemapSize.x * ty
+				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+				local ptr = mapTex.image.buffer + texelIndex
+				local tileSelIndex = ptr[0]
+				self.spriteSelPos.x = tileSelIndex % spritesPerSheet.x
+				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spritesPerSheet.x
+			end
+		elseif self.drawMode == 'draw' then
+			if leftButtonDown
+			and 0 <= tx and tx < tilemapSize.x
+			and 0 <= ty and ty < tilemapSize.y
+			then		
 				local tx0 = tx - math.floor(self.penSize / 2)
 				local ty0 = ty - math.floor(self.penSize / 2)
 				assert(mapTex.image.buffer == mapTex.data)
@@ -166,7 +170,7 @@ function EditTilemap:update()
 							local ptr = mapTex.image.buffer + texelIndex
 							local tileSelIndex = self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y
 							ptr[0] = tileSelIndex
-print('...updating mapTex')
+--DEBUG:print('...updating mapTex at', tx, ty, texelIndex, 'to', tileSelIndex)
 							mapTex:subimage{
 								xoffset = tx,
 								yoffset = ty,

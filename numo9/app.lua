@@ -281,7 +281,7 @@ function App:initGL()
 		for j=0,1 do
 			self.mapTex.image.buffer[
 				i + self.mapTex.image.width * j
-			] = i + 2 * j
+			] = i + spritesPerSheet.x * j
 		end
 	end
 	self.mapTex
@@ -591,6 +591,8 @@ uniform usampler2D tileTex;
 
 uniform usampler2D palTex;
 
+const float spriteSizeX = <?=clnumber(spriteSize.x)?>;
+const float spriteSizeY = <?=clnumber(spriteSize.y)?>;
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 const float spritesPerSheetX = <?=clnumber(spritesPerSheet.x)?>;
@@ -599,42 +601,49 @@ const float tilemapSizeX = <?=clnumber(tilemapSize.x)?>;
 const float tilemapSizeY = <?=clnumber(tilemapSize.y)?>;
 
 void main() {
-	// [0, tilemapSize)^2
+	// convert from input normalized coordinates to tilemap texel coordinates
+	// [0, tilemapSize * spriteSize)^2
+	// this way we have all our bits for tilemap look up and for sprite texel lookup
 	uvec2 tci = uvec2(
-		uint(tcv.x * tilemapSizeX),
-		uint(tcv.y * tilemapSizeY)
+		uint(tcv.x * tilemapSizeX),	// * spriteSizeX
+		uint(tcv.y * tilemapSizeY)  // * spriteSizeY
 	);
 
-	// 8bpp per x and y coord to lookup the tile tex
-	// [0, spritesPerSheet)^2
+	// convert to map texel coordinate
+	// [0, tilemapSize)^2
 	uvec2 tileTC = uvec2(
 		(tci.x >> 3) & 0xFFu,
 		(tci.y >> 3) & 0xFFu
 	);
-	
+
+	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
 	uint tileIndex = texture(mapTex, vec2(
-		(float(tileTC.x) + .5) / spritesPerSheetX,
-		(float(tileTC.y) + .5) / spritesPerSheetY
+		(float(tileTC.x) + .5) / tilemapSizeX,
+		(float(tileTC.y) + .5) / tilemapSizeY
 	)).r;
 
-	uvec2 asdfTC = uvec2(
+	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
+	uvec2 tileTexTC = uvec2(
 		tileIndex & 0x1Fu,
 		(tileIndex >> 5) & 0x1Fu
 	);
 
 	// [0, spriteSize)^2
-	uvec2 spriteTci = uvec2(
-		(tci.x & 7u) | (asdfTC.x << 3),
-		(tci.y & 7u) | (asdfTC.y << 3)
+	tileTexTC = uvec2(
+		(tci.x & 7u) | (tileTexTC.x << 3),
+		(tci.y & 7u) | (tileTexTC.y << 3)
 	);
 	
 	// tileTex is R8 indexing into our palette ...
 	uint colorIndex = texture(tileTex, vec2(
-		float(spriteTci.x) / spriteSheetSizeX,
-		float(spriteTci.y) / spriteSheetSizeY
+		float(tileTexTC.x) / spriteSheetSizeX,
+		float(tileTexTC.y) / spriteSheetSizeY
 	)).r;
+
+//debug: 
+//colorIndex = tileIndex;
 
 	fragColor = texture(palTex, vec2(
 		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
@@ -644,6 +653,7 @@ void main() {
 ]],			{
 				clnumber = clnumber,
 				paletteSize = paletteSize,
+				spriteSize = spriteSize,
 				spriteSheetSize = spriteSheetSize,
 				spritesPerSheet = spritesPerSheet,
 				tilemapSize = tilemapSize,
