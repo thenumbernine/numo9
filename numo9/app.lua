@@ -402,17 +402,20 @@ void main() {
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
 }
 ]],
-			fragmentCode = [[
+			fragmentCode = template([[
 out uvec4 fragColor;
 uniform uint colorIndex;
 uniform usampler2D palTex;
 void main() {
 	fragColor = texture(palTex, vec2(
-		(float(colorIndex) + .5) / 256.,
+		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
 		.5
 	));
 }
-]],
+]],			{
+				clnumber = clnumber,
+				paletteSize = paletteSize,
+			}),
 			uniforms = {
 				palTex = 0,
 			},
@@ -530,7 +533,7 @@ void main() {
 
 	// write the 8bpp colorIndex to the screen, use tex to draw it
 	fragColor = texture(palTex, vec2(
-		(float(colorIndex) + .5) / 256.,
+		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
 		.5
 	));
 }
@@ -586,6 +589,7 @@ uniform uint mapIndexOffset;
 
 uniform usampler2D tileTex;
 
+uniform usampler2D palTex;
 
 const float tilemapSizeX = <?=clnumber(tilemapSize.x)?>;
 const float tilemapSizeY = <?=clnumber(tilemapSize.y)?>;
@@ -621,16 +625,24 @@ void main() {
 
 	//fragColor = texture(tileTex, tileTC);
 //fragColor = texture(tileTex, spriteTcFrac);
-fragColor = uvec4(mapIndex, 0, 0, 0xFFu);
+//fragColor = uvec4(mapIndex, 0, 0, 0xFFu);
+
+	uint colorIndex = texture(tileTex, tileTC).r;
+	fragColor = texture(palTex, vec2(
+		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
+		.5
+	));
 }
 ]],			{
 				clnumber = clnumber,
+				paletteSize = paletteSize,
 				spriteSheetSize = spriteSheetSize,
 				tilemapSize = tilemapSize,
 			}),
 			uniforms = {
 				mapTex = 0,
 				tileTex = 1,
+				palTex = 2,
 				mapIndexOffset = 0,
 			},
 		},
