@@ -33,6 +33,10 @@ local GLGeometry = require 'gl.geometry'
 local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 
+local keyCodeNames = require 'numo9.keys'.keyCodeNames
+local keyCodeForName = require 'numo9.keys'.keyCodeForName 
+local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode 
+
 local function errorHandler(err)
 	return err..'\n'..debug.traceback()
 end
@@ -686,8 +690,24 @@ void main() {
 	end
 	fb:unbind()
 
+	-- keyboard init
+
+	-- TODO move to mem blob
+	self.keyBuffer = ffi.new('uint8_t[?]', math.ceil(#keyCodeNames / 8))
+	self.lastKeyBuffer = ffi.new('uint8_t[?]', math.ceil(#keyCodeNames / 8))
+	-- make sure our keycodes are in bounds
+	for sdlSym,keyCode in pairs(sdlSymToKeyCode) do
+		if not (keyCode >= 0 and math.floor(keyCode/8) < ffi.sizeof(self.keyBuffer)) then
+			error('got oob keyCode '..keyCode..' named '..(keyCodeNames[keyCode+1])..' for sdlSym '..sdlSym)
+		end
+	end
+
+	-- filesystem init
+
 	FileSystem = require 'numo9.filesystem'
 	self.fs = FileSystem{app=self}
+
+	-- editor init
 
 	self.editMode = 'code'	-- matches up with Editor's editMode's
 
@@ -1167,173 +1187,6 @@ function App:runCode()
 	end
 end
 
--- key code list, 1-baesd, sequential
-App.keyCodeNames = table{
-	'a',
-	'b',
-	'c',
-	'd',
-	'e',
-	'f',
-	'g',
-	'h',
-	'i',
-	'j',
-	'k',
-	'l',
-	'm',
-	'n',
-	'o',
-	'p',
-	'q',
-	'r',
-	's',
-	't',
-	'u',
-	'v',
-	'w',
-	'x',
-	'y',
-	'z',	
-	'0',
-	'1',
-	'2',
-	'3',
-	'4',
-	'5',
-	'6',
-	'7',
-	'8',
-	'9',
-	'minus',			-- -
-	'equals',			-- =
-	'leftbracket',		-- [
-	'rightbracket',		-- ]
-	'backslash',		-- \
-	'semicolon',		-- ;
-	'quote',			-- '
-	'backquote',		-- `
-	'comma',			-- ,
-	'period',			-- .
-	'slash',			-- /
-	'space',
-	'tab',
-	'return',
-	'backspace',
-
-	'up',
-	'down',
-	'left',
-	'right',
-	'capslock',
-	'lctrl',
-	'rctrl',
-	'lshift',
-	'rshift',
-	'lalt',
-	'ralt',
-
-	-- not all have this
-	'lgui',
-	'rgui',
-
---[[
-	-- same with the menu button ...
-	-- extended keyboard
-	'delete',
-	'insert',
-	'pageup',
-	'pagedown',
-	'home',
-	'end',
-	
-	-- function keys too?
-
-	-- keypad too?
---]]
-}
-
--- TODO not a singleton plz
--- TODO move to mem blob
-App.keyBuffer = ffi.new('uint8_t[?]', math.ceil(#App.keyCodeNames / 8))
-App.lastKeyBuffer = ffi.new('uint8_t[?]', math.ceil(#App.keyCodeNames / 8))
-
--- map from the keycode name to its 0-based index
-App.keyCodeForName = App.keyCodeNames:mapi(function(name, indexPlusOne)
-	return indexPlusOne-1, name
-end):setmetatable(nil)
-
--- map from sdl keycode value to our keycode value
-App.sdlSymToKeyCode = App.keyCodeNames:mapi(function(name,indexPlusOne)
-	if #name > 1 then name = name:upper() end	-- weird SDLK_ naming convention
-	return indexPlusOne-1, sdl['SDLK_'..name]
-end):setmetatable(nil)
-
-App.keyCodeNameToAscii = {
-	a = ('a'):byte(),
-	b = ('b'):byte(),
-	c = ('c'):byte(),
-	d = ('d'):byte(),
-	e = ('e'):byte(),
-	f = ('f'):byte(),
-	g = ('g'):byte(),
-	h = ('h'):byte(),
-	i = ('i'):byte(),
-	j = ('j'):byte(),
-	k = ('k'):byte(),
-	l = ('l'):byte(),
-	m = ('m'):byte(),
-	n = ('n'):byte(),
-	o = ('o'):byte(),
-	p = ('p'):byte(),
-	q = ('q'):byte(),
-	r = ('r'):byte(),
-	s = ('s'):byte(),
-	t = ('t'):byte(),
-	u = ('u'):byte(),
-	v = ('v'):byte(),
-	w = ('w'):byte(),
-	x = ('x'):byte(),
-	y = ('y'):byte(),
-	z = ('z'):byte(),	
-	['0'] = ('0'):byte(),
-	['1'] = ('1'):byte(),
-	['2'] = ('2'):byte(),
-	['3'] = ('3'):byte(),
-	['4'] = ('4'):byte(),
-	['5'] = ('5'):byte(),
-	['6'] = ('6'):byte(),
-	['7'] = ('7'):byte(),
-	['8'] = ('8'):byte(),
-	['9'] = ('9'):byte(),
-	minus = ('-'):byte(),
-	equals = ('='):byte(),
-	leftbracket = ('['):byte(),
-	rightbracket = (']'):byte(),
-	backslash = ('\\'):byte(),
-	semicolon = (';'):byte(),
-	quote = ("'"):byte(),
-	backquote = ('`'):byte(),
-	comma = (','):byte(),
-	period = ('.'):byte(),
-	slash = ('/'):byte(),
-	space = (' '):byte(),
-	tab = ('\t'):byte(),
-	['return'] = ('\n'):byte(),
-	backspace = 8,
-}
-
-App.keyCodeToAscii = App.keyCodeNames:mapi(function(name, keyCodePlusOne)
-	return App.keyCodeNameToAscii[name], keyCodePlusOne-1
-end):setmetatable(nil)
-
--- assertion
-for sdlSym,keyCode in pairs(App.sdlSymToKeyCode) do
-	if not (keyCode >= 0 and math.floor(keyCode/8) < ffi.sizeof(App.keyBuffer)) then
-		print('got oob keyCode '..keyCode..' named '..(App.keyCodeNames[keyCode+1])..' for sdlSym '..sdlSym)
-	end
-end
-
 function App:keyForBuffer(keycode, buffer)
 	local bi = bit.band(keycode, 7)
 	local by = bit.rshift(keycode, 3)
@@ -1344,7 +1197,7 @@ end
 
 function App:key(keycode)
 	if type(keycode) == 'string' then
-		keycode = self.keyCodeForName[keycode]
+		keycode = keyCodeForName[keycode]
 	end
 	asserttype(keycode, 'number')
 	return self:keyForBuffer(keycode, self.keyBuffer)
@@ -1352,12 +1205,13 @@ end
 
 function App:keyp(keycode)
 	if type(keycode) == 'string' then
-		keycode = self.keyCodeForName[keycode]
+		keycode = keyCodeForName[keycode]
 	end
 	asserttype(keycode, 'number')
 	return self:keyForBuffer(keycode, self.keyBuffer)
 	and not self:keyForBuffer(keycode, self.lastKeyBuffer)
 end
+
 
 function App:event(e)
 	local Editor = require 'numo9.editor'
@@ -1365,9 +1219,10 @@ function App:event(e)
 	if e[0].type == sdl.SDL_KEYUP
 	or sdl.SDL_KEYDOWN
 	then
+		-- special handle the escape key
 		local down = e[0].type == sdl.SDL_KEYDOWN
-		local sym = e[0].key.keysym.sym
-		if down and sym == sdl.SDLK_ESCAPE then
+		local sdlsym = e[0].key.keysym.sym
+		if down and sdlsym == sdl.SDLK_ESCAPE then
 			-- game -> escape -> console
 			-- console -> escape -> editor
 			-- editor -> escape -> console
@@ -1386,7 +1241,7 @@ function App:event(e)
 				self.con:reset()
 			end
 		else
-			local keycode = self.sdlSymToKeyCode[sym]
+			local keycode = sdlSymToKeyCode[sdlsym]
 			if keycode then
 				local bi = bit.band(keycode, 7)
 				local by = bit.rshift(keycode, 3)
@@ -1400,61 +1255,6 @@ function App:event(e)
 			end
 		end
 	end
-end
-
-
--- maps sdlk to shifted ascii
-local shiftFor = {
-	-- letters handled separate
-	[('`'):byte()] = ('~'):byte(),
-	[('1'):byte()] = ('!'):byte(),
-	[('2'):byte()] = ('@'):byte(),
-	[('3'):byte()] = ('#'):byte(),
-	[('4'):byte()] = ('$'):byte(),
-	[('5'):byte()] = ('%'):byte(),
-	[('6'):byte()] = ('^'):byte(),
-	[('7'):byte()] = ('&'):byte(),
-	[('8'):byte()] = ('*'):byte(),
-	[('9'):byte()] = ('('):byte(),
-	[('0'):byte()] = (')'):byte(),
-	[('-'):byte()] = ('_'):byte(),
-	[('='):byte()] = ('+'):byte(),
-	[('['):byte()] = ('{'):byte(),
-	[(']'):byte()] = ('}'):byte(),
-	[('\\'):byte()] = ('|'):byte(),
-	[(';'):byte()] = (':'):byte(),
-	[("'"):byte()] = ('"'):byte(),
-	[(','):byte()] = ('<'):byte(),
-	[('.'):byte()] = ('>'):byte(),
-	[('/'):byte()] = ('?'):byte(),
-}
-
-function App:getAsciiForKeyCode(keyCode, shift)
-	local ascii = self.keyCodeToAscii[keyCode]
-	if ascii
-	and ascii >= ('a'):byte()
-	and ascii <= ('z'):byte()
-	then
-		if shift then
-			ascii = ascii - 32
-		end
-		return ascii
-	-- add with non-standard shift capitalizing
-	elseif ascii == 32 then
-		return 32
-	elseif ascii == 8 then 	-- ???
-		return 8
-	elseif ascii == 10 then 	-- ???
-		return 10
-	elseif ascii == ('\t'):byte() then
-		return ('\t'):byte()
-	elseif ascii then
-		local shiftAscii = shiftFor[ascii]
-		if shiftAscii then
-			return shift and shiftAscii or ascii
-		end
-	end
-	-- return nil = not a char-producing key
 end
 
 return App

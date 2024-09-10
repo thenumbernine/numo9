@@ -9,6 +9,10 @@ local tolua = require 'ext.tolua'
 local getTime = require 'ext.timer'.getTime
 local vec2i = require 'vec-ffi.vec2i'
 
+local keyCodeNames = require 'numo9.keys'.keyCodeNames
+local keyCodeForName = require 'numo9.keys'.keyCodeForName 
+local getAsciiForKeyCode = require 'numo9.keys'.getAsciiForKeyCode 
+
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
 local frameBufferSize = App.frameBufferSize
@@ -215,16 +219,16 @@ function Console:update()
 	end
 
 	local shift = app:key'lshift' or app:key'rshift'
-	for keycode=0,#app.keyCodeNames-1 do
+	for keycode=0,#keyCodeNames-1 do
 		if app:keyp(keycode) then
-			local ch = app:getAsciiForKeyCode(keycode, shift)
+			local ch = getAsciiForKeyCode(keycode, shift)
 			if ch then
 				self:addCharToCmd(ch)
-			elseif keycode == app.keyCodeForName['return'] then
+			elseif keycode == keyCodeForName['return'] then
 				self:runCmdBuf()
-			elseif keycode == app.keyCodeForName.up then
+			elseif keycode == keyCodeForName.up then
 				self:selectHistory(-1)
-			elseif keycode == app.keyCodeForName.down then
+			elseif keycode == keyCodeForName.down then
 				self:selectHistory(1)
 			-- TODO left right to move the cursor
 			end		

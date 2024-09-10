@@ -73,10 +73,28 @@ sound = ???
 - `rect(...)`
 - `rectb(...)`
 - `sprite(...)`
+- `key(code)`
+
+## input:
+- `keyp(code)` = Returns true if the key code was pressed. 
+	Code is either a name or number.
+	The number coincides with the console's internal scancode bit offset in internal buffer.
+
+	Key code numbers:
+|a=0             |b=1             |c=2             |d=3             |e=4             |f=5             |g=6             |h=7             |
+|i=8             |j=9             |k=10            |l=11            |m=12            |n=13            |o=14            |p=15            |
+|q=16            |r=17            |s=18            |t=19            |u=20            |v=21            |w=22            |x=23            |
+|y=24            |z=25            |0=26            |1=27            |2=28            |3=29            |4=30            |5=31            |
+|6=32            |7=33            |8=34            |9=35            |minus=36        |equals=37       |leftbracket=38  |rightbracket=39 |
+|backslash=40    |semicolon=41    |quote=42        |backquote=43    |comma=44        |period=45       |slash=46        |space=47        |
+|tab=48          |return=49       |backspace=50    |up=51           |down=52         |left=53         |right=54        |capslock=55     |
+|lctrl=56        |rctrl=57        |lshift=58       |rshift=59       |lalt=60         |ralt=61         |lgui=62         |rgui=63         |
+
 
 ## math
 - `cos(theta)` = shorthand for `math.cos(theta)`	... maybe I won't do shorthand functions like pico-8 ... tic-80 gets by without them.
 - `sin(theta)` = shorthand for `math.sin(theta)`
+
 
 # Inspiration for this:
 - https://www.pico-8.com/

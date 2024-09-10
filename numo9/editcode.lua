@@ -6,6 +6,10 @@ local table = require 'ext.table'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
 
+local keyCodeNames = require 'numo9.keys'.keyCodeNames
+local keyCodeForName = require 'numo9.keys'.keyCodeForName 
+local getAsciiForKeyCode = require 'numo9.keys'.getAsciiForKeyCode 
+
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
 local frameBufferSize = App.frameBufferSize
@@ -136,21 +140,21 @@ function EditCode:update()
 	-- handle input
 
 	local shift = app:key'lshift' or app:key'rshift'
-	for keycode=0,#app.keyCodeNames-1 do
+	for keycode=0,#keyCodeNames-1 do
 		if app:keyp(keycode) then
-			local ch = app:getAsciiForKeyCode(keycode, shift)
+			local ch = getAsciiForKeyCode(keycode, shift)
 			if ch then
 				self:addCharToText(ch)
-			elseif keycode == app.keyCodeForName['return'] then
+			elseif keycode == keyCodeForName['return'] then
 				self:addCharToText(('\n'):byte())
-			elseif keycode == app.keyCodeForName.tab then
+			elseif keycode == keyCodeForName.tab then
 				-- TODO add tab and do indent up there,
 				-- until then ...
 				self:addCharToText((' '):byte())
-			elseif keycode == app.keyCodeForName.up
-			or keycode == app.keyCodeForName.down
+			elseif keycode == keyCodeForName.up
+			or keycode == keyCodeForName.down
 			then
-				local dy = keycode == app.keyCodeForName.up and -1 or 1
+				local dy = keycode == keyCodeForName.up and -1 or 1
 				self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
 
 				local currentLineCols = self:countRowCols(self.cursorRow)
@@ -159,10 +163,10 @@ function EditCode:update()
 				self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
 
 				self:refreshCursorColRowForLoc()	-- just in case?
-			elseif keycode == app.keyCodeForName.left
-			or keycode == app.keyCodeForName.right
+			elseif keycode == keyCodeForName.left
+			or keycode == keyCodeForName.right
 			then
-				local dx = keycode == app.keyCodeForName.left and -1 or 1
+				local dx = keycode == keyCodeForName.left and -1 or 1
 				self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
 				self:refreshCursorColRowForLoc()
 			end
