@@ -47,7 +47,7 @@ local frameBufferSize = vec2i(256, 256)
 local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 local spriteSheetSize = vec2i(256, 256)
 local spriteSheetSizeInTiles = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
-local tilemapSize = vec2i(2048, 2048)
+local tilemapSize = vec2i(256, 256)
 local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
 
 
@@ -101,6 +101,18 @@ local defaultInitFilename = 'hello.n9'	-- load this into filesystem, and from fi
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
 function App:initGL()
+
+	local vector = require 'ffi.cpp.vector-lua'
+	self.ram = vector'uint8_t'
+	-- don't allow it to resize, since we returning pointers into it as we grow it
+	self.ram:capacity(2048)
+	os.exit()
+
+	-- allocates physical ram
+	-- returns the current offset
+	local requestRAM(size)
+		local ptr = 
+	end
 
 	local View = require 'glapp.view'
 	self.view = View()
@@ -195,14 +207,17 @@ function App:initGL()
 		self.env[name..'matfrustum'] = function(...) mat:applyFrustum(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
 		self.env[name..'matlookat'] = function(...) mat:applyLookAt(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
 	end
-
+	
 	self.fb = GLFBO{
 		width = frameBufferSize.x,
 		height = frameBufferSize.y,
 	}:unbind()
 
+	local spriteImage = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+	-- redirect the image buffer to our virtual system ram
+	spriteImage.buffer = requestRAM(spriteSheetSize:volume())
 	self.spriteTex = self:makeTexFromImage{
-		image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+		image = spriteImage,
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -602,22 +617,17 @@ uniform usampler2D tileTex;
 
 uniform usampler2D palTex;
 
-const float spriteSizeX = <?=clnumber(spriteSize.x)?>;
-const float spriteSizeY = <?=clnumber(spriteSize.y)?>;
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
-const float spritesPerSheetX = <?=clnumber(spriteSheetSizeInTiles.x)?>;
-const float spritesPerSheetY = <?=clnumber(spriteSheetSizeInTiles.y)?>;
 const float tilemapSizeX = <?=clnumber(tilemapSize.x)?>;
 const float tilemapSizeY = <?=clnumber(tilemapSize.y)?>;
 
 void main() {
 	// convert from input normalized coordinates to tilemap texel coordinates
-	// [0, tilemapSize * spriteSize)^2
-	// this way we have all our bits for tilemap look up and for sprite texel lookup
+	// [0, tilemapSize)^2
 	uvec2 tci = uvec2(
-		uint(tcv.x * tilemapSizeX),	// * spriteSizeX
-		uint(tcv.y * tilemapSizeY)  // * spriteSizeY
+		uint(tcv.x * tilemapSizeX),
+		uint(tcv.y * tilemapSizeY)
 	);
 
 	// convert to map texel coordinate
@@ -637,14 +647,19 @@ void main() {
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	uvec2 tileTexTC = uvec2(
-		tileIndex & 0x1Fu,
-		(tileIndex >> 5) & 0x1Fu
+		tileIndex & 0x1Fu,					// bits 0..4
+		(tileIndex >> 5) & 0x1Fu			// bits 5..9
 	);
+	uint palHi = (tileIndex >> 10) & 0xFu;	// bits 10..13
+
+	uvec2 tcs = tci;
+	if ((tileIndex & (1u<<14)) != 0) tcs.x = ~tcs.x;
+	if ((tileIndex & (1u<<15)) != 0) tcs.y = ~tcs.y;
 
 	// [0, spriteSize)^2
 	tileTexTC = uvec2(
-		(tci.x & 7u) | (tileTexTC.x << 3),
-		(tci.y & 7u) | (tileTexTC.y << 3)
+		(tcs.x & 7u) | (tileTexTC.x << 3),
+		(tcs.y & 7u) | (tileTexTC.y << 3)
 	);
 	
 	// tileTex is R8 indexing into our palette ...
@@ -652,6 +667,7 @@ void main() {
 		float(tileTexTC.x) / spriteSheetSizeX,
 		float(tileTexTC.y) / spriteSheetSizeY
 	)).r;
+	colorIndex |= palHi << 4;
 
 //debug: 
 //colorIndex = tileIndex;
@@ -664,9 +680,7 @@ void main() {
 ]],			{
 				clnumber = clnumber,
 				paletteSize = paletteSize,
-				spriteSize = spriteSize,
 				spriteSheetSize = spriteSheetSize,
-				spriteSheetSizeInTiles = spriteSheetSizeInTiles,
 				tilemapSize = tilemapSize,
 			}),
 			uniforms = {

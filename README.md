@@ -53,26 +53,17 @@ Sprite Sheets / VRAM.
 Size will be
 That will be 32x32 of 8x8x8bpp sprites,
 so 5 bits for the x and 5 bits for the y sprite lookup.
-... and then duplicate it to another separate 256x256x8bpp for the tiles.
+
+... and then duplicate it to another separate 256x256x8bpp for the tile memory.
 
 ### tilemap
 
-Tilemaps: 2048x2048x16bpp index into the tile table.
-Right now tilemaps only store the tile texture index, but maybe in the future I'll include bits for flipping, rotating, palette high bits or palette offset, etc...
-
-... ok so I over-indulged here ... if you want to reverse-compat your game to another virtual console then just don't use so much of it.
-I'm tempted to even go up to 8k x 8k and let implementations restrict what games can be played if the underlying hardware doesn't support it ... [source](https://stackoverflow.com/questions/75051122/what-is-typical-webgl-max-texture-size-in-2023).
-Or maybe I will reduce this back to SNES levels of 32x32x16bpp and then just let the editor handle the 2k x 2k or 8k x 8k textures and save/load that as "extended rom space" or something idk ...
-
-Maybe in the future i'll craft closer to ...
-- SNES hardware: 32x32 tiles, each entry 16bpp specifying the spritesheet index (10 bits), palette (3 bits), priority (1 bit), hflip (1 bit), vflip (1 bit)
-- I could do the same and merge the priority and palette to give it 4 bits and therefore provide the upper 4 bits on the spritesheet...
-- What all can we cram into a tilemap?
-	- h flip (1 bit)
-	- v flip (1 bit)
-	- integer rotation (2 bits)
-	- palette high bits / offset (up to 8 bits for 8bpp)
-	- spritesheet index (2N bits for 2^N x 2^N spritesheet)
+Tilemaps: 256x256x16bpp index into the tile table.
+Tilemap bits:
+- 10: lookup into the tile texture
+- 4: palette high 4 bits
+- 1: hflip
+- 1: vflip
 
 ### Mode7
 
@@ -107,7 +98,9 @@ Font is from [Liko-12](https://liko-12.github.io/)
 ROM ...
 sprites = 256x256x8 = 64k
 tiles = 256x256x8 = 64k
-tilemap = 2048x2048x16bpp = 8m ... maybe I'll cut this down to just 32x32 one screens worth and provide an API for saving/loading screens from mem ... 
+tilemap = 256x256x16bpp = 128k 
+	... maybe I'll cut this down to just 32x32 like SNES, i.e. two screens worth, and provide an API for saving/loading screens from mem ... 
+	... then it'd just be 2k instead of 128k ...
 code = ???
 music = ???
 sound = ???
