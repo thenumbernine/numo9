@@ -122,8 +122,13 @@ function App:initGL()
 		cd = function(...) return self.fs:cd(...) end,
 		mkdir = function(...) return self.fs:mkdir(...) end,
 		-- console API (TODO make console commands separate of the Lua API ... or not ...)
+
+-- TODO just use drawText
+-- and then implement auto-scroll
+-- none of this console buffering crap		
 		print = function(...) return self.con:print(...) end,
 		write = function(...) return self.con:write(...) end,
+		
 		run = function(...) return self:runCode(...) end,
 		save = function(...) return self:save(...) end,
 		load = function(...) return self:load(...) end,
@@ -166,7 +171,7 @@ function App:initGL()
 			return self:drawBorderRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1, ...)
 		end,
 		sprite = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
-		text = function(...) return self:drawTextFgBg(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
+		text = function(...) return self:drawText(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
 
 		-- TODO don't do this
 		app = self,
@@ -514,7 +519,8 @@ uniform uint spriteBit;
 //  0xFFu = 8bpp
 uniform uint spriteMask;
 
-// Specifies which colorIndex (post sprite bit shift & mask) to use as transparency.
+// Specifies which colorIndex to use as transparency.
+// This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
 // If you want fully opaque then just choose an oob color index.
 uniform uint transparentIndex;
 
@@ -1057,38 +1063,58 @@ function App:drawMap(
 end
 
 -- draw transparent-background text
-function App:drawText(x, y, text, paletteIndex, transparentIndex, scaleX, scaleY)
+function App:drawText1bpp(x, y, text, color, scaleX, scaleY)
 	for i=1,#text do
 		local ch = text:byte(i)
 		local by = bit.rshift(ch, 3)	-- get the byte offset
 		local bi = bit.band(ch, 7)		-- get the bit offset
-		self:drawSprite(x, y, by, 1, 1, paletteIndex, transparentIndex, bi, 1, scaleX, scaleY)
+		self:drawSprite(
+			x,						-- x
+			y,                      -- y
+			by,                     -- spriteIndex
+			1,                      -- spritesWide
+			1,                      -- spritesHigh
+			color,           		-- paletteIndex ... 'color index offset' / 'palette high bits'
+			0,				       	-- transparentIndex
+			bi,                     -- spriteBit
+			1,                      -- spriteMask
+			scaleX,                 -- scaleX
+			scaleY                  -- scaleY
+		)
 		x = x + spriteSize.x
 	end
 end
 
 -- draw a solid background color, then draw the text transparent
 -- specify an oob bgColorIndex to draw with transparent background
-function App:drawTextFgBg(x, y, text, fgColorIndex, bgColorIndex, ...)
+function App:drawText(x, y, text, fgColorIndex, bgColorIndex, ...)
 	fgColorIndex = fgColorIndex or 13
 	bgColorIndex = bgColorIndex or 0
 	local x0 = x
 	if bgColorIndex >= 0 and bgColorIndex < 255 then
 		for i=1,#text do
 			-- TODO the ... between drawSolidRect and drawSprite is not the same...
-			self:drawSolidRect(x, y, spriteSize.x, spriteSize.y, bgColorIndex, ...)
+			self:drawSolidRect(
+				x,
+				y,
+				spriteSize.x,
+				spriteSize.y,
+				bgColorIndex,
+				...
+			)
 			x = x + spriteSize.x
 		end
 	end
 
-	self:drawText(x0+1, y+1, text,
+	self:drawText1bpp(
+		x0+1,
+		y+1,
+		text,
 		-- font color is 0 = background, 1 = foreground
 		-- so shift this by 1 so the font tex contents shift it back
 		-- TODO if compression is a thing then store 8 letters per 8x8 sprite
 		-- 		heck why not store 2 letters per left and right half as well?  that's half the alphaet in a single 8x8 sprite black.
 		fgColorIndex - 1,
-		-- 0 = black is transparent
-		0,
 		-- fwd rest of args
 		...
 	)
@@ -1211,7 +1237,6 @@ function App:keyp(keycode)
 	return self:keyForBuffer(keycode, self.keyBuffer)
 	and not self:keyForBuffer(keycode, self.lastKeyBuffer)
 end
-
 
 function App:event(e)
 	local Editor = require 'numo9.editor'

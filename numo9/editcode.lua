@@ -103,7 +103,7 @@ function EditCode:update()
 		if y >= #self.newlines then break end
 		local i = self.newlines[y + self.editLineOffset] + 1
 		local j = self.newlines[y + self.editLineOffset + 1]
-		app:drawTextFgBg(
+		app:drawText(
 			spriteSize.x,
 			y * spriteSize.y,
 			self.text:sub(i, j-1),
@@ -129,7 +129,7 @@ function EditCode:update()
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
 	footer = footer .. (' '):rep(spritesPerFrameBuffer.x - #footer)
-	app:drawTextFgBg(
+	app:drawText(
 		0,
 		frameBufferSize.y - spriteSize.y,
 		footer,

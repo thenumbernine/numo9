@@ -59,7 +59,7 @@ function EditSprites:update()
 	EditSprites.super.update(self)
 	
 	-- choose spriteBit
-	app:drawTextFgBg(
+	app:drawText(
 		128+16+24,
 		12,
 		'#'..self.spriteBit,
@@ -71,7 +71,7 @@ function EditSprites:update()
 	end, 'bit='..self.spriteBit)
 
 	-- choose spriteMask
-	app:drawTextFgBg(
+	app:drawText(
 		128+16+24+32,
 		12,
 		'#'..self.spriteBitDepth,
@@ -178,7 +178,7 @@ function EditSprites:update()
 	-- sprite edit area
 	local x = 2
 	local y = 12
-	app:drawTextFgBg(
+	app:drawText(
 		x + 32,
 		y,
 		'#'..(self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y),
@@ -324,7 +324,7 @@ function EditSprites:update()
 	end)
 
 	-- select palette color to draw
-	app:drawTextFgBg(
+	app:drawText(
 		16,
 		112,
 		'#'..self.paletteSelIndex,

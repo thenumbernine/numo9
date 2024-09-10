@@ -1,8 +1,37 @@
 # Fantasy Console
 
-Screen framebuffer is 256x256x24bpp RGB.
+I thought I'd make a fantasy console with all the LuaJIT binding code and libraries I have laying around.
 
-Screen framebuffer 8bpp color index is lookup into a 256 color palette.
+## What's unique about this one?
+
+It's strictly LuaJIT.  No compiler required.
+
+# Hardware
+
+### framebuffer
+
+Screen framebuffer is 256x256x16bpp RGB.
+
+I was tempted to do color lookup, but all that lets you do is shift palette after-the-fact with written framebuffer contents.
+You can already shift the palette as you draw the sprites, so this is a bit redundant.
+And then I wanted to add the SNES blending effects.
+And here we are.
+
+If I really want to simulate hardware exactly then maybe I'll store a disting 8bpp output buffer in my virtual hardware's memory ...
+... and then on modern hardware / non-embedded I would draw this to *another* RGB buffer that goes on screen.
+
+Ok I already went back once on this.
+Originally it was an 8bpp buffer to support on-the-fly palette manipulation like NES allows.
+This also lets you peek and poke pixels into the framebuffer directly.
+But then I thought "I want SNES blending effects" ... and that can only be done with either a truecolor framebuffer or with a RGB framebuffer ...
+... how does the SNES solve this?  Turns out it just doesn't have a framebuffer, period.   Crazy, right?
+In its defense, you can always peek and poke the tilemap and tiles and have the same effect.
+So I'm on the fence, maybe I'll go back to an 8bpp framebuffer, or maybe I'll introduce multiple 8bpp framebuffers and simulate the blend-on-output of the SNES PPU myself,
+or maybe I'll do 8bpp fb and implement blending-as-dithering.
+or maybe I'll use a rgb-332 fb and do truecolor blending and still be 8bpp ...
+Idk.
+
+### sprites / tiles
 
 Sprites are 8x8 pixels.
 Sprite bpp can be anywhere from 1bpp to 8bpp.
@@ -26,8 +55,17 @@ That will be 32x32 of 8x8x8bpp sprites,
 so 5 bits for the x and 5 bits for the y sprite lookup.
 ... and then duplicate it to another separate 256x256x8bpp for the tiles.
 
-Tilemaps:
-- [SNES hardware](https://snes.nesdev.org/wiki/Tilemaps): 32x32 tiles, each entry 16bpp specifying the spritesheet index (10 bits), palette (3 bits), priority (1 bit), hflip (1 bit), vflip (1 bit)
+### tilemap
+
+Tilemaps: 2048x2048x16bpp index into the tile table.
+Right now tilemaps only store the tile texture index, but maybe in the future I'll include bits for flipping, rotating, palette high bits or palette offset, etc...
+
+... ok so I over-indulged here ... if you want to reverse-compat your game to another virtual console then just don't use so much of it.
+I'm tempted to even go up to 8k x 8k and let implementations restrict what games can be played if the underlying hardware doesn't support it ... [source](https://stackoverflow.com/questions/75051122/what-is-typical-webgl-max-texture-size-in-2023).
+Or maybe I will reduce this back to SNES levels of 32x32x16bpp and then just let the editor handle the 2k x 2k or 8k x 8k textures and save/load that as "extended rom space" or something idk ...
+
+Maybe in the future i'll craft closer to ...
+- SNES hardware: 32x32 tiles, each entry 16bpp specifying the spritesheet index (10 bits), palette (3 bits), priority (1 bit), hflip (1 bit), vflip (1 bit)
 - I could do the same and merge the priority and palette to give it 4 bits and therefore provide the upper 4 bits on the spritesheet...
 - What all can we cram into a tilemap?
 	- h flip (1 bit)
@@ -35,25 +73,57 @@ Tilemaps:
 	- integer rotation (2 bits)
 	- palette high bits / offset (up to 8 bits for 8bpp)
 	- spritesheet index (2N bits for 2^N x 2^N spritesheet)
-Mine ...
-... 256x256x8bpp for the tilemap (
-	then use the tilemap shift to access dif parts?
 
-	... or should I use 16bpp so I can access all 10bpp of 32x32 indexes into 256x256 of 8x8 sprites?
-	... or should I resize the sprite tex to accomodate to all bits?  256x8 = 2048, so I could make the sprite sheet 2048x2048x8bpp , with 8x8 sprites, so that a 16bpp tilemap can index into it ...
-)
+### Mode7
+
+What's a SNES-era emulator without mode7?  So I added some matrix math.  Really my API is just a direct copy from original OpenGL, without a matrix stack.
+
+So far the API has ...
+
+`mvmatident`,
+`mvmattrans`,
+`mvmatrot`,
+`mvmatscale`,
+`mvmatortho`,
+`mvmatfrustum`,
+`mvmatlookat`,
+`projmatident`,
+`projmattrans`,
+`projmatrot`,
+`projmatscale`,
+`projmatortho`,
+`projmatfrustum`,
+`projmatlookat`,
+
+... but I will probably remove the projection stuff.
+It's only there to simulate the `camera` function of Pico-8, but meh, you can inverse-transform yourself.
+
+### Font
 
 Font is from [Liko-12](https://liko-12.github.io/)
 
-Total raw memory ...
+### Memory Layout
+
+ROM ...
 sprites = 256x256x8 = 64k
-tilemap = 256x256x8 = 64k
+tiles = 256x256x8 = 64k
+tilemap = 2048x2048x16bpp = 8m ... maybe I'll cut this down to just 32x32 one screens worth and provide an API for saving/loading screens from mem ... 
 code = ???
 music = ???
 sound = ???
 
+RAM ...
+sprites ... same
+tiles ... same
+tilemap ... maybe I'll make this one only 32x32 ...
+code ...
+music ...
+sound ...
+IO
+	keyboard
+	mouse
 
-# API so far ...
+# API
 
 - `print(...)` = print to console ... not print to screen ... gotta fix that
 - `write(...)` = print to console without newline
@@ -99,3 +169,9 @@ sound = ???
 # Inspiration for this:
 - https://www.pico-8.com/
 - https://tic80.com/
+- https://pixelvision8.itch.io/
+- https://github.com/emmachase/Riko4
+
+# Some SNES hardware spec docs:
+- https://snes.nesdev.org/wiki/Tilemaps
+- https://www.raphnet.net/divers/retro_challenge_2019_03/qsnesdoc.html

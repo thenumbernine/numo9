@@ -37,7 +37,7 @@ end
 
 function Editor:guiButton(x, y, str, isset, tooltip)
 	local app = self.app
-	app:drawTextFgBg(x, y, str,
+	app:drawText(x, y, str,
 		isset and 13 or 10,
 		isset and 4 or 2
 		--isset and 15 or 4,
@@ -49,7 +49,7 @@ function Editor:guiButton(x, y, str, isset, tooltip)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
-			app:drawTextFgBg(mouseX - 12, mouseY - 12, tooltip, 12, 6)
+			app:drawText(mouseX - 12, mouseY - 12, tooltip, 12, 6)
 		end
 
 		local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
@@ -70,7 +70,7 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local mouseX, mouseY = app.mousePos:unpack()
 
-	app:drawTextFgBg(x, y, '<', 13, 0)
+	app:drawText(x, y, '<', 13, 0)
 	if leftButtonPress
 	and mouseX >= x and mouseX < x + spriteSize.x
 	and mouseY >= y and mouseY < y + spriteSize.y
@@ -79,7 +79,7 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	end
 
 	x = x + spriteSize.x
-	app:drawTextFgBg(x, y, '>', 13, 0)
+	app:drawText(x, y, '>', 13, 0)
 	if leftButtonPress
 	and mouseX >= x and mouseX < x + spriteSize.x
 	and mouseY >= y and mouseY < y + spriteSize.y
@@ -91,7 +91,7 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
-			app:drawTextFgBg(mouseX - 12, mouseY - 12, tooltip, 12, 6)
+			app:drawText(mouseX - 12, mouseY - 12, tooltip, 12, 6)
 		end
 	end
 end
@@ -129,7 +129,7 @@ function Editor:update()
 
 	local titlebar = '  '..app.editMode
 	titlebar = titlebar .. (' '):rep(spritesPerFrameBuffer.x - #titlebar)
-	app:drawTextFgBg(
+	app:drawText(
 		#editModes * spriteSize.x,
 		0,
 		titlebar,

@@ -135,7 +135,7 @@ end
 
 function Console:addChar(ch)
 	local app = self.app
-	app:drawTextFgBg(
+	app:drawText(
 		self.cursorPos.x,
 		self.cursorPos.y,
 		string.char(ch),
