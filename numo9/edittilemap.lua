@@ -4,9 +4,9 @@ local App = require 'numo9.app'
 local paletteSize = App.paletteSize
 local spriteSize = App.spriteSize
 local frameBufferSize = App.frameBufferSize
-local spritesPerFrameBuffer = App.spritesPerFrameBuffer
+local frameBufferSizeInTiles = App.frameBufferSizeInTiles
 local spriteSheetSize = App.spriteSheetSize
-local spritesPerSheet = App.spritesPerSheet
+local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
 local tilemapSize = App.tilemapSize
 local tilemapSizeInSprites = App.tilemapSizeInSprites
 
@@ -104,10 +104,10 @@ function EditTilemap:update()
 			0,
 			0xff
 		)
-		local spriteX = math.floor((mouseX - pickX) / pickW * spritesPerSheet.x)
-		local spriteY = math.floor((mouseY - pickY) / pickH * spritesPerSheet.y)
-		if spriteX >= 0 and spriteX < spritesPerSheet.x
-		and spriteY >= 0 and spriteY < spritesPerSheet.y
+		local spriteX = math.floor((mouseX - pickX) / pickW * spriteSheetSizeInTiles.x)
+		local spriteY = math.floor((mouseY - pickY) / pickH * spriteSheetSizeInTiles.y)
+		if spriteX >= 0 and spriteX < spriteSheetSizeInTiles.x
+		and spriteY >= 0 and spriteY < spriteSheetSizeInTiles.y
 		then
 			if leftButtonPress then
 				-- TODO rect select
@@ -146,8 +146,8 @@ function EditTilemap:update()
 				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 				local ptr = mapTex.image.buffer + texelIndex
 				local tileSelIndex = ptr[0]
-				self.spriteSelPos.x = tileSelIndex % spritesPerSheet.x
-				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spritesPerSheet.x
+				self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
+				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
 			end
 		elseif self.drawMode == 'draw' then
 			if leftButtonDown
@@ -168,7 +168,7 @@ function EditTilemap:update()
 							local texelIndex = tx + tilemapSize.x * ty
 							assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 							local ptr = mapTex.image.buffer + texelIndex
-							local tileSelIndex = self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y
+							local tileSelIndex = self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y
 							ptr[0] = tileSelIndex
 --DEBUG:print('...updating mapTex at', tx, ty, texelIndex, 'to', tileSelIndex)
 							mapTex:subimage{

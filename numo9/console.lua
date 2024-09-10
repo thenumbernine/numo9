@@ -18,8 +18,8 @@ local paletteSize = App.paletteSize
 local frameBufferSize = App.frameBufferSize
 local spriteSheetSize = App.spriteSheetSize
 local spriteSize = App.spriteSize
-local spritesPerSheet = App.spritesPerSheet
-local spritesPerFrameBuffer = App.spritesPerFrameBuffer
+local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
+local frameBufferSizeInTiles = App.frameBufferSizeInTiles
 
 
 local Console = class()

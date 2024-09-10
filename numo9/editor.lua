@@ -4,9 +4,9 @@ local App = require 'numo9.app'
 local paletteSize = App.paletteSize
 local spriteSize = App.spriteSize
 local frameBufferSize = App.frameBufferSize
-local spritesPerFrameBuffer = App.spritesPerFrameBuffer
+local frameBufferSizeInTiles = App.frameBufferSizeInTiles
 local spriteSheetSize = App.spriteSheetSize
-local spritesPerSheet = App.spritesPerSheet
+local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
 local tilemapSize = App.tilemapSize
 local tilemapSizeInSprites = App.tilemapSizeInSprites
 
@@ -128,7 +128,7 @@ function Editor:update()
 	)
 
 	local titlebar = '  '..app.editMode
-	titlebar = titlebar .. (' '):rep(spritesPerFrameBuffer.x - #titlebar)
+	titlebar = titlebar .. (' '):rep(frameBufferSizeInTiles.x - #titlebar)
 	app:drawText(
 		#editModes * spriteSize.x,
 		0,

@@ -15,8 +15,8 @@ local paletteSize = App.paletteSize
 local frameBufferSize = App.frameBufferSize
 local spriteSheetSize = App.spriteSheetSize
 local spriteSize = App.spriteSize
-local spritesPerSheet = App.spritesPerSheet
-local spritesPerFrameBuffer = App.spritesPerFrameBuffer
+local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
+local frameBufferSizeInTiles = App.frameBufferSizeInTiles
 
 
 local EditCode = require 'numo9.editor':subclass()
@@ -99,7 +99,7 @@ function EditCode:update()
 		8
 	)
 
-	for y=1,spritesPerFrameBuffer.y-2 do
+	for y=1,frameBufferSizeInTiles.y-2 do
 		if y >= #self.newlines then break end
 		local i = self.newlines[y + self.editLineOffset] + 1
 		local j = self.newlines[y + self.editLineOffset + 1]
@@ -114,8 +114,8 @@ function EditCode:update()
 
 	if self.cursorRow < self.editLineOffset+1 then
 		self.editLineOffset = math.max(0, self.cursorRow-1)
-	elseif self.cursorRow - (spritesPerFrameBuffer.y-2) > self.editLineOffset then
-		self.editLineOffset = math.max(0, self.cursorRow - (spritesPerFrameBuffer.y-2))
+	elseif self.cursorRow - (frameBufferSizeInTiles.y-2) > self.editLineOffset then
+		self.editLineOffset = math.max(0, self.cursorRow - (frameBufferSizeInTiles.y-2))
 	end
 
 	if getTime() % 1 < .5 then
@@ -128,7 +128,7 @@ function EditCode:update()
 	end
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
-	footer = footer .. (' '):rep(spritesPerFrameBuffer.x - #footer)
+	footer = footer .. (' '):rep(frameBufferSizeInTiles.x - #footer)
 	app:drawText(
 		0,
 		frameBufferSize.y - spriteSize.y,

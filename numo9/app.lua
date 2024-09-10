@@ -44,9 +44,9 @@ end
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
 local frameBufferSize = vec2i(256, 256)
-local spritesPerFrameBuffer = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
+local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 local spriteSheetSize = vec2i(256, 256)
-local spritesPerSheet = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
+local spriteSheetSizeInTiles = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
 local tilemapSize = vec2i(2048, 2048)
 local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
 
@@ -60,9 +60,9 @@ App.height = 512
 App.paletteSize = paletteSize
 App.spriteSize = spriteSize
 App.frameBufferSize = frameBufferSize
-App.spritesPerFrameBuffer = spritesPerFrameBuffer
+App.frameBufferSizeInTiles = frameBufferSizeInTiles
 App.spriteSheetSize = spriteSheetSize
-App.spritesPerSheet = spritesPerSheet
+App.spriteSheetSizeInTiles = spriteSheetSizeInTiles
 App.tilemapSize = tilemapSize
 App.tilemapSizeInSprites = tilemapSizeInSprites
 
@@ -291,7 +291,7 @@ function App:initGL()
 		for j=0,1 do
 			self.mapTex.image.buffer[
 				i + self.mapTex.image.width * j
-			] = i + spritesPerSheet.x * j
+			] = i + spriteSheetSizeInTiles.x * j
 		end
 	end
 	self.mapTex
@@ -606,8 +606,8 @@ const float spriteSizeX = <?=clnumber(spriteSize.x)?>;
 const float spriteSizeY = <?=clnumber(spriteSize.y)?>;
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
-const float spritesPerSheetX = <?=clnumber(spritesPerSheet.x)?>;
-const float spritesPerSheetY = <?=clnumber(spritesPerSheet.y)?>;
+const float spritesPerSheetX = <?=clnumber(spriteSheetSizeInTiles.x)?>;
+const float spritesPerSheetY = <?=clnumber(spriteSheetSizeInTiles.y)?>;
 const float tilemapSizeX = <?=clnumber(tilemapSize.x)?>;
 const float tilemapSizeY = <?=clnumber(tilemapSize.y)?>;
 
@@ -666,7 +666,7 @@ void main() {
 				paletteSize = paletteSize,
 				spriteSize = spriteSize,
 				spriteSheetSize = spriteSheetSize,
-				spritesPerSheet = spritesPerSheet,
+				spriteSheetSizeInTiles = spriteSheetSizeInTiles,
 				tilemapSize = tilemapSize,
 			}),
 			uniforms = {
@@ -1002,14 +1002,14 @@ function App:drawSprite(
 	uniforms.spriteMask = spriteMask
 
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
-	local tx = spriteIndex % spritesPerSheet.x
-	local ty = (spriteIndex - tx) / spritesPerSheet.x
+	local tx = spriteIndex % spriteSheetSizeInTiles.x
+	local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
 	-- TODO do I normalize it here or in the shader?
 	settable(uniforms.tcbox,
-		tx / tonumber(spritesPerSheet.x),
-		ty / tonumber(spritesPerSheet.y),
-		spritesWide / tonumber(spritesPerSheet.x),
-		spritesHigh / tonumber(spritesPerSheet.y)
+		tx / tonumber(spriteSheetSizeInTiles.x),
+		ty / tonumber(spriteSheetSizeInTiles.y),
+		spritesWide / tonumber(spriteSheetSizeInTiles.x),
+		spritesHigh / tonumber(spriteSheetSizeInTiles.y)
 	)
 	settable(uniforms.box,
 		x,

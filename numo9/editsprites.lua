@@ -9,8 +9,8 @@ local paletteSize = App.paletteSize
 local frameBufferSize = App.frameBufferSize
 local spriteSheetSize = App.spriteSheetSize
 local spriteSize = App.spriteSize
-local spritesPerSheet = App.spritesPerSheet
-local spritesPerFrameBuffer = App.spritesPerFrameBuffer
+local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
+local frameBufferSizeInTiles = App.frameBufferSizeInTiles
 local tilemapSize = App.tilemapSize
 local tilemapSizeInSprites = App.tilemapSizeInSprites
 
@@ -98,8 +98,8 @@ function EditSprites:update()
 
 	local x = 126
 	local y = 32
-	local sw = spritesPerSheet.x / 2	-- only draw a quarter worth since it's the same size as the screen
-	local sh = spritesPerSheet.y / 2
+	local sw = spriteSheetSizeInTiles.x / 2	-- only draw a quarter worth since it's the same size as the screen
+	local sh = spriteSheetSizeInTiles.y / 2
 	local w = sw * spriteSize.x
 	local h = sh * spriteSize.y
 	app:drawBorderRect(
@@ -181,7 +181,7 @@ function EditSprites:update()
 	app:drawText(
 		x + 32,
 		y,
-		'#'..(self.spriteSelPos.x + spritesPerSheet.x * self.spriteSelPos.y),
+		'#'..(self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y),
 		13,
 		-1
 	)
