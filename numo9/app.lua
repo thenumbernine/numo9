@@ -60,6 +60,7 @@ end
 
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
+local frameBufferType = 'uint16_t'
 local frameBufferSize = vec2i(256, 256)
 local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 local spriteSheetSize = vec2i(256, 256)
@@ -107,6 +108,7 @@ local RAM = struct{
 			fields = table(
 				ROM.fields[2].type.fields
 			):append{
+				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
 				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ...
 				{name='keyBuffer', type='uint8_t['..keyBufferSize..']'},
@@ -571,16 +573,16 @@ print('package.loaded', package.loaded)
 	self.env.palMem = self.palTex.image.buffer
 --print('palTex\n'..imageToHex(self.palTex.image))
 
+	local fbMask = bit.lshift(1, ffi.sizeof(frameBufferType)) - 1
 	-- [=[ framebuffer is 256 x 256 x 16bpp
-	-- purely for hw emulation
-	-- like the NES/SNES/GBA days
-	-- the internal API won't allow access
-	-- in fact, I won't even assign it virtual rom
 	self.fbTex = self:makeTexFromImage{
-		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned short',
-			function(i,j)
-				return math.random(0, 0xffff)
-			end
+		image = makeImageAtPtr(
+			self.ram.framebuffer,
+			frameBufferSize.x,
+			frameBufferSize.y,
+			1,
+			asserteq(frameBufferType, 'uint16_t'),
+			function(i,j) return math.random(0, fbMask) end
 		),
 		internalFormat = gl.GL_RGB565,
 		format = gl.GL_RGB,
@@ -588,12 +590,14 @@ print('package.loaded', package.loaded)
 	}
 	--]=]
 	--[=[ framebuffer is 256 x 256 x 8bpp
-	-- so that I can justify storing it in memory
 	self.fbTex = self:makeTexFromImage{
-		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned char',
-			function(i,j)
-				return math.random(0, 0xff)
-			end
+		image = makeImageAtPtr(
+			self.ram.framebuffer,
+			frameBufferSize.x,
+			frameBufferSize.y,
+			1,
+			asserteq(frameBufferType, 'uint8_t'),
+			function(i,j) return math.random(0, fbMask) end
 		),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
@@ -616,7 +620,27 @@ print('package.loaded', package.loaded)
 		},
 	}
 
-	local glslVersion = '410'
+	-- desktop-GL versions ...
+	-- https://www.khronos.org/opengl/wiki/Core_Language_(GLSL)
+	--local glslVersion = '110'	-- gl 2.0
+	--local glslVersion = '120'	-- gl 2.1
+	--local glslVersion = '130'	-- gl 3.0
+	local glslVersion = '140'	-- gl 3.1	-- lowest working version on my osx before it complains that the version (too low) aren't supported ...
+	--local glslVersion = '150'	-- gl 3.2
+	--local glslVersion = '330'	-- gl 3.3
+	--local glslVersion = '400'	-- gl 4.0
+	--local glslVersion = '410'	-- gl 4.1
+	--local glslVersion = '420'	-- gl 4.2
+	--local glslVersion = '430'	-- gl 4.3
+	--local glslVersion = '440'	-- gl 4.4
+	--local glslVersion = '450'	-- gl 4.5
+	--local glslVersion = '460'	-- gl 4.6
+	
+	-- GLES versions ...	
+	--local glslVersion = '100 es'
+	--local glslVersion = '300 es'
+	--local glslVersion = '310 es'
+	--local glslVersion = '320 es'
 
 	-- used for drawing our 8bpp framebuffer to the screen
 	self.blitScreenObj = GLSceneObject{
@@ -910,8 +934,8 @@ void main() {
 		(tileIndex >> 5) & 0x1Fu			// tilemap bits 5..9
 	);
 	uint palHi = (tileIndex >> 10) & 0xFu;	// tilemap bits 10..13
-	if ((tileIndex & (1u<<14)) != 0) tci.x = ~tci.x;	// tilemap bit 14
-	if ((tileIndex & (1u<<15)) != 0) tci.y = ~tci.y;	// tilemap bit 15
+	if ((tileIndex & (1u<<14)) != 0u) tci.x = ~tci.x;	// tilemap bit 14
+	if ((tileIndex & (1u<<15)) != 0u) tci.y = ~tci.y;	// tilemap bit 15
 
 	// [0, spriteSize)^2
 	tileTexTC = uvec2(
