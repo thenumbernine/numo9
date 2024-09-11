@@ -14,6 +14,8 @@ local template = require 'template'
 local assertindex = require 'ext.assert'.index
 local asserttype = require 'ext.assert'.type
 local asserteq = require 'ext.assert'.eq
+local assertle = require 'ext.assert'.le
+local assertlt = require 'ext.assert'.lt
 local string = require 'ext.string'
 local table = require 'ext.table'
 local path = require 'ext.path'
@@ -63,6 +65,21 @@ local spriteSheetSize = vec2i(256, 256)
 local spriteSheetSizeInTiles = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
 local tilemapSize = vec2i(256, 256)
 local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
+local codeSize = 0x10000	-- tic80's size
+
+
+local romSize =		
+	spriteSheetSize.x * spriteSheetSize.y * 2	-- sprite sheet, 8bpp, x2 for tiles as well
+	+ tilemapSize.x * tilemapSize.y * 2			-- tilemap, 16bpp
+	+ paletteSize * 2							-- palette, 16bpp
+	+ codeSize									-- 
+
+
+local keyBufferSize = math.ceil(#keyCodeNames / 8)
+	
+local ramSize = 
+	4											-- clip rect
+	+ keyBufferSize * 2							-- key press state
 
 
 local App = GLApp:subclass()
@@ -79,6 +96,12 @@ App.spriteSheetSize = spriteSheetSize
 App.spriteSheetSizeInTiles = spriteSheetSizeInTiles
 App.tilemapSize = tilemapSize
 App.tilemapSizeInSprites = tilemapSizeInSprites
+App.codeSize = codeSize
+
+App.keyBufferSize = keyBufferSize 
+
+App.romSize = romSize
+App.ramSize = ramSize
 
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
@@ -115,41 +138,33 @@ local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't 
 
 function App:initGL()
 
-	self.keyBufferSize = math.ceil(#keyCodeNames / 8)
-
-	self.ram = vector'uint8_t'
-	self.ram:reserve(
-		spriteSheetSize.x * spriteSheetSize.y * 2	-- sprite sheet, 8bpp, x2 for tiles as well
-		+ tilemapSize.x * tilemapSize.y * 2			-- tilemap, 16bpp
-		+ paletteSize * 2							-- palette, 16bpp
-		+ 4											-- clip rect
-		+ self.keyBufferSize * 2					-- key press state
-	)
+	self.rom = vector'uint8_t'
+	self.rom:reserve(self.romSize + self.ramSize)
 	-- Don't allow it to resize, since we returning pointers into it as we grow it
 	-- Another TODO could be two passes: once for requesting, then alloc all at once, then get pointers
 	-- ... but meh.
-	function self.ram:resize(newsize)
+	function self.rom:resize(newsize)
 		self:reserve(newsize)
 		self.size = newsize
 	end
-	function self.ram:reserve(newcap)
+	function self.rom:reserve(newcap)
 		if newcap <= self.capacity then return end
 		error(
 			"current capacity: "..self.capacity..'\n'
 			..'requested new capacity: '..newcap..'\n'
-			.."you have exceeded virtual ram limitation.  please specify more ram."
+			.."you have exceeded virtual rom limitation.  please specify more rom."
 		)
 	end
 
-	-- allocates physical ram
+	-- allocates physical rom
 	-- returns the current offset
-	local function requestRAM(size, name)
+	local function requestMem(size, name)
 		print(
-			('$%x..$%x: '):format(self.ram.size, self.ram.size + size)
+			('$%x..$%x: '):format(self.rom.size, self.rom.size + size)
 			..(name or '???')
 		)
-		local ptr = self.ram:iend()
-		self.ram:resize(self.ram.size + size)
+		local ptr = self.rom:iend()
+		self.rom:resize(self.rom.size + size)
 		ffi.fill(ptr, size)
 		return ptr
 	end
@@ -157,7 +172,7 @@ function App:initGL()
 	local function makeImageInRAM(name, x, y, ch, type, ...)
 		local image = Image(x, y, ch, type, ...)
 		local size = x * y * ch * ffi.sizeof(type)
-		local newbuf = requestRAM(size, name)
+		local newbuf = requestMem(size, name)
 		if select('#', ...) > 0 then	-- if we specified a generator...
 			ffi.copy(newbuf, image.buffer, size)
 		end
@@ -198,16 +213,16 @@ function App:initGL()
 		quit = function(...) self:requestExit() end,
 
 		peek = function(addr)
-			assert(addr >= 0 and addr < self.ram.size)
-			return self.ram.v[addr]
+			assert(addr >= 0 and addr < self.rom.size)
+			return self.rom.v[addr]
 		end,
 		poke = function(addr, value)
-			assert(addr >= 0 and addr < self.ram.size)
+			assert(addr >= 0 and addr < self.rom.size)
 
 			-- TODO dirty bits on screen memory?
 			-- or just update always?
 
-			self.ram.v[addr] = tonumber(value)
+			self.rom.v[addr] = tonumber(value)
 		end,
 
 		-- other stuff
@@ -279,7 +294,7 @@ function App:initGL()
 		height = frameBufferSize.y,
 	}:unbind()
 
-	-- redirect the image buffer to our virtual system ram
+	-- redirect the image buffer to our virtual system rom
 	self.spriteTex = self:makeTexFromImage{
 		image = makeImageInRAM('sprites', spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
@@ -458,7 +473,7 @@ function App:initGL()
 	-- framebuffer is 256 x 256 x 16bpp
 	-- purely for hw emulation
 	-- the internal API won't allow access
-	-- in fact, I won't even assign it virtual ram
+	-- in fact, I won't even assign it virtual rom
 	self.fbTex = self:makeTexFromImage{
 		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned short',
 			-- [[ init to garbage pixels
@@ -783,15 +798,19 @@ void main() {
 	end
 	fb:unbind()
 
+	self.codeMem = requestMem(codeSize, 'code')	-- save here for :save() and :load() copying to/from lua strings
+	self.env.codeMem = codeMem
+	asserteq(self.rom.size, self.romSize)
+
 	-- 4 uint8 bytes ...
 	-- x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
-	self.clipRect = requestRAM(4, 'clipRect')
+	self.clipRect = requestMem(4, 'clipRect')
 	packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
 	
 	-- keyboard init
 
-	self.keyBuffer = requestRAM(self.keyBufferSize, 'keyBuffer')
-	self.lastKeyBuffer = requestRAM(self.keyBufferSize, 'lastKeyBuffer')
+	self.keyBuffer = requestMem(self.keyBufferSize, 'keyBuffer')
+	self.lastKeyBuffer = requestMem(self.keyBufferSize, 'lastKeyBuffer')
 
 	-- make sure our keycodes are in bounds
 	for sdlSym,keyCode in pairs(sdlSymToKeyCode) do
@@ -800,12 +819,16 @@ void main() {
 		end
 	end
 
+	asserteq(self.rom.size, self.romSize + self.ramSize)
+
+
+
 	-- filesystem init
 
 	FileSystem = require 'numo9.filesystem'
 	self.fs = FileSystem{app=self}
 
-	print('system dedicated '..('0x%x'):format(self.ram.size)..' of RAM')
+	print('system dedicated '..('0x%x'):format(self.rom.size)..' of RAM')
 
 	-- editor init
 
@@ -1220,28 +1243,48 @@ function App:drawText(x, y, text, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		scaleY
 	)
 end
+	
+local tmploc = '___tmp.png'
 
 function App:save(filename)
+
+	local n = #self.editCode.text
+	assertlt(n+1, codeSize)
+--print('saving code', self.editCode.text, 'size', n)	
+	ffi.copy(self.codeMem, self.editCode.text, n)
+	self.codeMem[n] = 0	-- null term
+
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
 	end
 	filename = filename or defaultSaveFilename
 	local basemsg = 'failed to save file '..tostring(filename)
-	local s, msg = tolua{
-		code = self.editCode.text,
-		-- TODO sprites
-		-- TODO music
-	}
-	if not s then return nil, basemsg..(msg or '') end
+
+	-- TODO xpcall?
+	local success, romImg = xpcall(function()
+		return require 'numo9.archive'.toCartImage(self.rom.v)
+	end, errorHandler)
+	if not success then return nil, basemsg..(romImg or '') end
+
+	-- [[ TODO image hardcodes this to 1) file io and 2) extension ... because a lot of the underlying image format apis do too ... fix me plz
+	romImg:save(tmploc)
+	local s, msg = path(tmploc):read()
+	if not s then return nil, basemsg..tostring(msg) end
+	--]]
+	
 	-- [[ do I bother implement fs:open'w' ?
 	local f, msg = self.fs:create(filename)
 	if not f then return nil, basemsg..' fs:create failed: '..msg end
 	f.data = s
 	--]]
+	
 	-- [[ while we're here, also save to filesystem
-	assert(path(filename):write(s))
+	local success2, msg = path(filename):write(s)
+	if not success2 then
+		print('warning: filesystem backup write to '..tostring(filename)..' failed')
+	end
 	--]]
-	if not success then return nil, basemsg..': write failed' end
+	
 	return true
 end
 
@@ -1260,9 +1303,19 @@ function App:load(filename)
 	local msg = not d and 'is not a file' or nil
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
-	local src, msg = fromlua(d)
-	if not src then return nil, basemsg..(msg or '') end
-	self.editCode:setText(assertindex(src, 'code'))
+	
+	-- [[ TODO image stuck reading and writing to disk, FIXME
+	local romImg = Image(tmploc)
+	asserteq(romImg.channels, 3)
+	assertle(self.romSize, romImg.width * romImg.height * romImg.channels)
+	ffi.copy(self.rom.v, romImg.buffer, self.romSize)
+	local code = ffi.string(self.codeMem, self.codeSize)	-- TODO max size on this ...
+	local i = code:find('\0', 1, true)
+	if i then code = code:sub(1, i-1) end
+--print('got code', code, 'len', #code)
+	--]]
+
+	self.editCode:setText(code)
 	return true
 end
 
@@ -1341,6 +1394,7 @@ end
 
 -- run but make sure the vm is set up
 -- esp the framebuffer
+-- TODO might get rid of this now that i just upload cpu->gpu the vram every frame
 function App:runInEmu(cb, ...)
 	-- TODO maybe not ...
 	local fb = self.fb
@@ -1354,14 +1408,19 @@ end
 
 function App:event(e)
 	local Editor = require 'numo9.editor'
-	-- alwyays be able to break with escape ...
 	if e[0].type == sdl.SDL_KEYUP
 	or sdl.SDL_KEYDOWN
 	then
-		-- special handle the escape key
 		local down = e[0].type == sdl.SDL_KEYDOWN
 		local sdlsym = e[0].key.keysym.sym
+		local uiMod
+		if ffi.os == 'OSX' then	-- have to be the weird ones
+			uiMod = bit.band(e[0].key.keysym.mod, sdl.KMOD_GUI) ~= 0
+		else
+			uiMod = bit.band(e[0].key.keysym.mod, sdl.KMOD_CTRL) ~= 0
+		end
 		if down and sdlsym == sdl.SDLK_ESCAPE then
+			-- special handle the escape key
 			-- game -> escape -> console
 			-- console -> escape -> editor
 			-- editor -> escape -> console
@@ -1381,6 +1440,11 @@ function App:event(e)
 					self.con:reset()
 				end)
 			end
+		elseif down and sdlsym == sdl.SDLK_c and uiMod then
+			-- copy selection
+		elseif down and sdlsym == sdl.SDLK_v and uiMod then
+			-- paste selection
+			-- hmm ... upon reading further on image clipboard cross platform support, maybe not.
 		else
 			local keycode = sdlSymToKeyCode[sdlsym]
 			if keycode then

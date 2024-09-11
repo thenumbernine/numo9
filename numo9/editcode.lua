@@ -30,20 +30,52 @@ function EditCode:init(args)
 	self:setText[[
 print'Hello NuMo9'
 
-function draw()
+local spriteMem = 0x00000
+local tileMem = 0x10000
+local mapMem = 0x20000
+
+-- fill our tiles with random garbage
+for j=0,255 do
+	for i=0,255 do
+		poke(tileMem + i + 256 * j, i+j)
+	end
+end
+
+function update()
+	-- fill our map with random tiles
+	for j=0,31 do
+		for i=0,31 do
+			poke(mapMem + 0+2*(i+256*j), math.random(0,255))
+			poke(mapMem + 1+2*(i+256*j), math.random(0,255))
+		end
+	end
+	map(0,0,0,32,32)
+
 	local x = 128
 	local y = 128
 	local t = time()
-	local cx = cos(t)
-	local cy = sin(t)
-	local r = 50
-	rect(
-		x - r * cx,
-		y - r * cy,
-		x + r * cx,
-		y + r * cy,
-		math.floor(5 * time())
+	local cx = math.cos(t)
+	local cy = math.sin(t)
+	local r = 50*math.cos(t/3)
+	local x1=x-r*cx
+	local x2=x+r*cx
+	local y1=y-r*cy
+	local y2=y+r*cy
+	rectb(x1,y1,x2,y2,
+		math.floor(50 * t)
 	)
+
+	matident()
+	mattrans(x2,y2)
+	matrot(t, 0, 0, 1)
+	text(
+		0, 0,        -- x y
+		'HelloWorld', -- str
+		13,-- fg
+		0, -- bg
+		1.5, 3 -- sx sy
+	)
+	matident()
 end
 
 do return 42 end
