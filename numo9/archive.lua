@@ -19,7 +19,7 @@ assertle(App.romSize, cartImageSize:volume())
 
 -- TODO image io is tied to file rw because
 -- so reading is from files now
-local tmploc = '___tmp.png'
+local tmploc = path'___tmp.png'
 
 --[[
 assumes 'rom' is ptr to the start of our ROM memory
@@ -31,16 +31,25 @@ local function toCartImage(rom)
 	ffi.copy(romImg.buffer, rom, App.romSize)
 
 	-- TODO image hardcodes this to 1) file io and 2) extension ... because a lot of the underlying image format apis do too ... fix me plz
-	assert(romImg:save(tmploc))
-	return assert(path(tmploc):read())
+
+	assert(not tmploc:exists())
+	assert(romImg:save(tmploc.path))
+	local data = assert(tmploc:read())
+	tmploc:remove()
+	assert(not tmploc:exists())
+	return data
 end
 
 --[[
 takes an Image
 --]]
 local function fromCartImage(imageFileData)
+	assert(not tmploc:exists())
 	assert(path(tmploc):write(imageFileData))
-	local romImg = Image(tmploc)
+	local romImg = Image(tmploc.path)
+	tmploc:remove()
+	assert(not tmploc:exists())
+
 	asserteq(romImg.channels, 3)
 	assertle(App.romSize, romImg.width * romImg.height * romImg.channels)
 	return ffi.string(romImg.buffer, App.romSize)

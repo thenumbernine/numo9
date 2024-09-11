@@ -68,16 +68,16 @@ local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y 
 local codeSize = 0x10000	-- tic80's size
 
 
-local romSize =		
+local romSize =
 	spriteSheetSize.x * spriteSheetSize.y * 2	-- sprite sheet, 8bpp, x2 for tiles as well
 	+ tilemapSize.x * tilemapSize.y * 2			-- tilemap, 16bpp
 	+ paletteSize * 2							-- palette, 16bpp
-	+ codeSize									-- 
+	+ codeSize									--
 
 
 local keyBufferSize = math.ceil(#keyCodeNames / 8)
-	
-local ramSize = 
+
+local ramSize =
 	4											-- clip rect
 	+ keyBufferSize * 2							-- key press state
 
@@ -98,7 +98,7 @@ App.tilemapSize = tilemapSize
 App.tilemapSizeInSprites = tilemapSizeInSprites
 App.codeSize = codeSize
 
-App.keyBufferSize = keyBufferSize 
+App.keyBufferSize = keyBufferSize
 
 App.romSize = romSize
 App.ramSize = ramSize
@@ -237,7 +237,7 @@ function App:initGL()
 		sin = math.sin,
 
 		-- graphics
-		
+
 		cls = function(...)
 			local con = self.con
 			con.cursorPos:set(0, 0)
@@ -806,7 +806,7 @@ void main() {
 	-- x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self.clipRect = requestMem(4, 'clipRect')
 	packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
-	
+
 	-- keyboard init
 
 	self.keyBuffer = requestMem(self.keyBufferSize, 'keyBuffer')
@@ -974,7 +974,7 @@ function App:update()
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
 -- [[ redo ortho projection matrix
--- every frame for us to use a proper rectangle 
+-- every frame for us to use a proper rectangle
 	local view = self.blitScreenView
 	local orthoSize = view.orthoSize
 	local wx, wy = self.width, self.height
@@ -1248,7 +1248,7 @@ function App:save(filename)
 
 	local n = #self.editCode.text
 	assertlt(n+1, codeSize)
---print('saving code', self.editCode.text, 'size', n)	
+--print('saving code', self.editCode.text, 'size', n)
 	ffi.copy(self.codeMem, self.editCode.text, n)
 	self.codeMem[n] = 0	-- null term
 
@@ -1259,24 +1259,24 @@ function App:save(filename)
 	local basemsg = 'failed to save file '..tostring(filename)
 
 	-- TODO xpcall?
-	local success, romImg = xpcall(function()
+	local success, s = xpcall(function()
 		return require 'numo9.archive'.toCartImage(self.rom.v)
 	end, errorHandler)
-	if not success then return nil, basemsg..(romImg or '') end
+	if not success then return nil, basemsg..(s or '') end
 
 	-- [[ do I bother implement fs:open'w' ?
 	local f, msg = self.fs:create(filename)
 	if not f then return nil, basemsg..' fs:create failed: '..msg end
 	f.data = s
 	--]]
-	
+
 	-- [[ while we're here, also save to filesystem
 	local success2, msg = path(filename):write(s)
 	if not success2 then
 		print('warning: filesystem backup write to '..tostring(filename)..' failed')
 	end
 	--]]
-	
+
 	return true
 end
 
@@ -1295,7 +1295,7 @@ function App:load(filename)
 	local msg = not d and 'is not a file' or nil
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
-	
+
 	-- [[ TODO image stuck reading and writing to disk, FIXME
 	local romStr = require 'numo9.archive'.fromCartImage(d)
 	ffi.copy(self.rom.v, romStr, self.romSize)
