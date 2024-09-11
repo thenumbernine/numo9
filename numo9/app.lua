@@ -1243,8 +1243,6 @@ function App:drawText(x, y, text, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		scaleY
 	)
 end
-	
-local tmploc = '___tmp.png'
 
 function App:save(filename)
 
@@ -1266,12 +1264,6 @@ function App:save(filename)
 	end, errorHandler)
 	if not success then return nil, basemsg..(romImg or '') end
 
-	-- [[ TODO image hardcodes this to 1) file io and 2) extension ... because a lot of the underlying image format apis do too ... fix me plz
-	romImg:save(tmploc)
-	local s, msg = path(tmploc):read()
-	if not s then return nil, basemsg..tostring(msg) end
-	--]]
-	
 	-- [[ do I bother implement fs:open'w' ?
 	local f, msg = self.fs:create(filename)
 	if not f then return nil, basemsg..' fs:create failed: '..msg end
@@ -1305,7 +1297,7 @@ function App:load(filename)
 	if not d then return nil, basemsg..(msg or '') end
 	
 	-- [[ TODO image stuck reading and writing to disk, FIXME
-	local romStr = require 'numo9.archive'.fromCartImageFile(tmploc)
+	local romStr = require 'numo9.archive'.fromCartImage(d)
 	ffi.copy(self.rom.v, romStr, self.romSize)
 	local code = ffi.string(self.codeMem, self.codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)

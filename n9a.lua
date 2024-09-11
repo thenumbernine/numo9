@@ -13,7 +13,7 @@ assert(cmd and fn, "expected: `n9a.lua cmd fn`")
 
 local p = path(fn)
 assert(p:exists(), tostring(fn).." doesn't exist")
-local basename, ext = p:getExt()
+local basename, ext = p:getext()
 asserteq(ext, 'n9')
 
 -- TODO ... this and requestMem and everything ... organize plz ...

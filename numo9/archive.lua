@@ -5,6 +5,7 @@ maybe this should accept the current loaded ROM ...
 local ffi = require 'ffi'
 local assertle = require 'ext.assert'.le
 local asserteq = require 'ext.assert'.eq
+local path = require 'ext.path'
 local vec3i = require 'vec-ffi.vec3i'
 local Image = require 'image'
 local App = require 'numo9.app'
@@ -16,20 +17,30 @@ local App = require 'numo9.app'
 local cartImageSize = vec3i(331, 331, 3)
 assertle(App.romSize, cartImageSize:volume())
 
+-- TODO image io is tied to file rw because
+-- so reading is from files now
+local tmploc = '___tmp.png'
+
 --[[
 assumes 'rom' is ptr to the start of our ROM memory
+creates an Image and returns it
 --]]
 local function toCartImage(rom)
 	local romSize = App.romSize
-	local dstImage = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'unsigned char'):clear()
-	ffi.copy(dstImage.buffer, rom, App.romSize)
-	return dstImage
+	local romImg = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'unsigned char'):clear()
+	ffi.copy(romImg.buffer, rom, App.romSize)
+
+	-- TODO image hardcodes this to 1) file io and 2) extension ... because a lot of the underlying image format apis do too ... fix me plz
+	assert(romImg:save(tmploc))
+	return assert(path(tmploc):read())
 end
 
--- TODO image io is tied to file rw because
--- so reading is from files now
-local function fromCartImageFile(fn)
-	local romImg = Image(fn)
+--[[
+takes an Image
+--]]
+local function fromCartImage(imageFileData)
+	assert(path(tmploc):write(imageFileData))
+	local romImg = Image(tmploc)
 	asserteq(romImg.channels, 3)
 	assertle(App.romSize, romImg.width * romImg.height * romImg.channels)
 	return ffi.string(romImg.buffer, App.romSize)
@@ -37,5 +48,5 @@ end
 
 return {
 	toCartImage = toCartImage,
-	fromCartImageFile = fromCartImageFile,
+	fromCartImage = fromCartImage,
 }
