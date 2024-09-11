@@ -60,7 +60,8 @@ end
 
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
-local frameBufferType = 'uint16_t'
+local frameBufferType = 'uint16_t'	-- rgb565
+--local frameBufferType = 'uint8_t'		-- rgb332
 local frameBufferSize = vec2i(256, 256)
 local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 local spriteSheetSize = vec2i(256, 256)
@@ -574,7 +575,7 @@ print('package.loaded', package.loaded)
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	local fbMask = bit.lshift(1, ffi.sizeof(frameBufferType)) - 1
-	-- [=[ framebuffer is 256 x 256 x 16bpp
+	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
 	self.fbTex = self:makeTexFromImage{
 		image = makeImageAtPtr(
 			self.ram.framebuffer,
@@ -589,7 +590,7 @@ print('package.loaded', package.loaded)
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
 	}
 	--]=]
-	--[=[ framebuffer is 256 x 256 x 8bpp
+	--[=[ framebuffer is 256 x 256 x 8bpp rgb332
 	self.fbTex = self:makeTexFromImage{
 		image = makeImageAtPtr(
 			self.ram.framebuffer,
@@ -656,15 +657,19 @@ void main() {
 	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
 }
 ]],
-			fragmentCode = [[
+			fragmentCode = template([[
 in vec2 tcv;
 out uvec4 fragColor;
 uniform usampler2DRect fbTex;
+
+const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+
 void main() {
 #if 1 // rgb565 just copy over
 	fragColor = texture(fbTex, ivec2(
-		int(tcv.x * 256.),
-		int(tcv.y * 256.)
+		int(tcv.x * frameBufferSizeX),
+		int(tcv.y * frameBufferSizeY)
 	));
 #endif
 #if 0 // rgb332 translate the 8bpp single-channel 
@@ -677,7 +682,10 @@ void main() {
 	);
 #endif
 }
-]],
+]],			{
+				clnumber = clnumber,
+				frameBufferSize = frameBufferSize,
+			}),
 			uniforms = {
 				fbTex = 0,
 			},
@@ -694,22 +702,26 @@ void main() {
 		program = {
 			version = glslVersion,
 			precision = 'best',
-			vertexCode = [[
+			vertexCode = template([[
 in vec2 vertex;
 uniform vec4 box;	//x,y,w,h
 uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-uniform vec2 frameBufferSize;
+const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(rvtx, 0., 1.);
-	gl_Position.xy /= frameBufferSize;
+	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
-]],
+]],			{
+				clnumber = clnumber,
+				frameBufferSize = frameBufferSize,
+			}),
 			fragmentCode = [[
 out uvec4 fragColor;
 uniform uint colorIndex;
@@ -732,7 +744,6 @@ void main() {
 ]],
 			uniforms = {
 				palTex = 0,
-				frameBufferSize = {frameBufferSize:unpack()},
 			},
 		},
 		texs = {self.palTex},
@@ -749,7 +760,7 @@ void main() {
 		program = {
 			version = glslVersion,
 			precision = 'best',
-			vertexCode = [[
+			vertexCode = template([[
 in vec2 vertex;
 out vec2 tcv;
 uniform vec4 box;	//x,y,w,h
@@ -757,17 +768,22 @@ uniform vec4 tcbox;	//x,y,w,h
 
 uniform mat4 mvMat;
 
-uniform vec2 frameBufferSize;
+const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(rvtx, 0., 1.);
-	gl_Position.xy /= frameBufferSize;
+	gl_Position.x /= frameBufferSizeX;
+	gl_Position.y /= frameBufferSizeY;
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
-]],
+]],			{
+				clnumber = clnumber,
+				frameBufferSize = frameBufferSize,
+			}),
 			fragmentCode = template([[
 in vec2 tcv;
 out uvec4 fragColor;
@@ -853,7 +869,6 @@ void main() {
 				transparentIndex = -1,
 				spriteBit = 0,
 				spriteMask = 0x0F,
-				frameBufferSize = {frameBufferSize:unpack()},
 			},
 		},
 		texs = {
@@ -873,24 +888,29 @@ void main() {
 		program = {
 			version = glslVersion,
 			precision = 'best',
-			vertexCode = [[
+			vertexCode = template([[
 in vec2 vertex;
 out vec2 tcv;
 uniform vec4 box;		//x y w h
 uniform vec4 tcbox;		//tx ty tw th
 uniform mat4 mvMat;
 
-uniform vec2 frameBufferSize;
+const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(rvtx, 0., 1.);
-	gl_Position.xy /= frameBufferSize;
+	gl_Position.x /= frameBufferSizeX;
+	gl_Position.y /= frameBufferSizeY;
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
-]],
+]],			{
+				clnumber = clnumber,
+				frameBufferSize = frameBufferSize,
+			}),
 			fragmentCode = template([[
 in vec2 tcv;
 out uvec4 fragColor;
@@ -975,7 +995,6 @@ void main() {
 				tileTex = 1,
 				palTex = 2,
 				mapIndexOffset = 0,
-				frameBufferSize = {frameBufferSize:unpack()},
 			},
 		},
 		texs = {self.mapTex, self.tileTex, self.palTex},
