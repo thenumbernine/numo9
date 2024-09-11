@@ -1,4 +1,6 @@
 #!/usr/bin/env luajit
+-- TODO cli here
+cmdline = {...}
 
 -- TODO gl setup here
 require 'gl'

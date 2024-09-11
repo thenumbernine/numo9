@@ -970,7 +970,7 @@ void main() {
 			self.fs:addFromHost(fn.path)
 		end
 	end
-	local initfn = 'hello.n9'
+	local initfn = cmdline[1] or 'hello.n9'
 	if self.fs:get(initfn) then
 		self:load(initfn)
 		self:runCode()
@@ -1016,73 +1016,120 @@ glreport'here'
 	return tex
 end
 
+-- fps vars
+local lastTime = getTime()
+local fpsFrames = 0
+local fpsSeconds = 0
+
+-- update interval vars
+local lastUpdateTime = getTime()	-- TODO resetme upon resuming from a pause state
+local updateInterval = 1 / 60
+local needUpdateCounter = 0
+
 function App:update()
 	App.super.update(self)
 
-	-- TODO this only once per tick (60fps or so)
-	do
-		self.lastMousePos:set(self.mousePos:unpack())
-		self.lastMouseButtons = self.mouseButtons
-		self.mouseButtons = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
-		local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
---DEBUG:print('screen pos', self.screenMousePos:unpack())
---DEBUG:print('ortho', 	x1, x2, y1, y2, z1, z2)
-		local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
-		local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
---DEBUG:print('mouserfrac', x, y)
-		x = x1 * (1 - x) + x2 * x
-		y = y1 * (1 - y) + y2 * y
---DEBUG:print('mouse in ortho [-1,1] space', x, y)
-		x = x * .5 + .5
-		y = y * .5 + .5
---DEBUG:print('mouse in ortho [0,1] space', x, y)
-		self.mousePos.x = x * tonumber(frameBufferSize.x)
-		self.mousePos.y = y * tonumber(frameBufferSize.y)
---DEBUG:print('mouse in fb space', self.mousePos:unpack())
-		local leftButtonLastDown = bit.band(self.lastMouseButtons, 1) == 1
-		local leftButtonDown = bit.band(self.mouseButtons, 1) == 1
-		local leftButtonPress = leftButtonDown and not leftButtonLastDown
-		if leftButtonPress then
-			self.lastMouseDown:set(self.mousePos:unpack())
-		end
+	-- [[ fps counter
+	local thisTime = getTime()
+	local deltaTime = thisTime - lastTime
+	fpsFrames = fpsFrames + 1
+	fpsSeconds = fpsSeconds + deltaTime
+	if fpsSeconds > 1 then
+		print('FPS: '..fpsFrames / fpsSeconds)
+		fpsFrames = 0
+		fpsSeconds = 0
+	end
+	lastTime = thisTime	-- TODO this at end of update in case someone else needs this var
+	--]]
+
+	if thisTime > lastUpdateTime + updateInterval then
+		-- [[ doing this means we need to reset lastUpdateTime when resuming from the app being paused
+		-- and indeed the in-console fps first readout is high (67), then drops back down to 60 consistently
+		lastUpdateTime = lastUpdateTime + updateInterval
+		--]]
+		--[[ doing this means we might lose fractions of time resolution during our updates
+		-- and indeed the in-console fps bounces between 59 and 60
+		lastUpdateTime = thisTime
+		--]]
+		-- TODO increment so that we can have frame drops to keep framerate
+		-- but I guess this can snowball or something idk
+		-- on my system I'm getting 2400 fps so I think this'll be no problem
+		needUpdateCounter = 1
 	end
 
-	local fb = self.fb
-	fb:bind()
-	gl.glViewport(
-		self.clipRect[0],
-		self.clipRect[1],
-		self.clipRect[2]+1,
-		self.clipRect[3]+1)
+	if needUpdateCounter > 0 then
+		-- TODO decrement to use framedrops
+		needUpdateCounter = 0
 
-	-- TODO here run this only 60 fps
-	local runFocus = self.runFocus
-	if runFocus and runFocus.update then
-		local success, msg = xpcall(function()
-			runFocus:update()
-		end, errorHandler)
-		if not success then
-			self.runFocus = self.con
-			self.con:print(msg)
+		-- update input between frames
+		do
+			self.lastMousePos:set(self.mousePos:unpack())
+			self.lastMouseButtons = self.mouseButtons
+			self.mouseButtons = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
+			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
+	--DEBUG:print('screen pos', self.screenMousePos:unpack())
+	--DEBUG:print('ortho', 	x1, x2, y1, y2, z1, z2)
+			local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
+			local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
+	--DEBUG:print('mouserfrac', x, y)
+			x = x1 * (1 - x) + x2 * x
+			y = y1 * (1 - y) + y2 * y
+	--DEBUG:print('mouse in ortho [-1,1] space', x, y)
+			x = x * .5 + .5
+			y = y * .5 + .5
+	--DEBUG:print('mouse in ortho [0,1] space', x, y)
+			self.mousePos.x = x * tonumber(frameBufferSize.x)
+			self.mousePos.y = y * tonumber(frameBufferSize.y)
+	--DEBUG:print('mouse in fb space', self.mousePos:unpack())
+			local leftButtonLastDown = bit.band(self.lastMouseButtons, 1) == 1
+			local leftButtonDown = bit.band(self.mouseButtons, 1) == 1
+			local leftButtonPress = leftButtonDown and not leftButtonLastDown
+			if leftButtonPress then
+				self.lastMouseDown:set(self.mousePos:unpack())
+			end
 		end
+
+		local fb = self.fb
+		fb:bind()
+		gl.glViewport(
+			self.clipRect[0],
+			self.clipRect[1],
+			self.clipRect[2]+1,
+			self.clipRect[3]+1)
+
+		-- TODO here run this only 60 fps
+		local runFocus = self.runFocus
+		if runFocus and runFocus.update then
+			local success, msg = xpcall(function()
+				runFocus:update()
+			end, errorHandler)
+			if not success then
+				self.runFocus = self.con
+				self.con:print(msg)
+			end
+		end
+
+		fb:unbind()
+
+		-- update vram to gpu every frame?
+		-- or nah, how about I only do when dirty bit set?
+		self.spriteTex:bind()
+			:subimage()
+			:unbind()
+		self.tileTex:bind()
+			:subimage()
+			:unbind()
+		self.mapTex:bind()
+			:subimage()
+			:unbind()
+		self.palTex:bind()
+			:subimage()
+			:unbind()
+
+		-- copy last key buffer to key buffer here after update()
+		-- so that sdl event can populate changes to current key buffer while execution runs outside this callback
+		ffi.copy(self.lastKeyBuffer, self.keyBuffer, self.keyBufferSize)
 	end
-
-	fb:unbind()
-
-	-- update vram to gpu every frame?
-	-- or nah, how about I only do when dirty bit set?
-	self.spriteTex:bind()
-		:subimage()
-		:unbind()
-	self.tileTex:bind()
-		:subimage()
-		:unbind()
-	self.mapTex:bind()
-		:subimage()
-		:unbind()
-	self.palTex:bind()
-		:subimage()
-		:unbind()
 
 	gl.glViewport(0, 0, self.width, self.height)
 	gl.glClearColor(.1, .2, .3, 1.)
@@ -1121,10 +1168,6 @@ function App:update()
 --]]
 
 	sceneObj:draw()
-
-	-- copy last key buffer to key buffer here after update()
-	-- so that sdl event can populate changes to current key buffer while execution runs outside this callback
-	ffi.copy(self.lastKeyBuffer, self.keyBuffer, self.keyBufferSize)
 end
 
 function App:drawSolidRect(x, y, w, h, colorIndex)
