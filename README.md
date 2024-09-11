@@ -8,28 +8,24 @@ It's strictly LuaJIT.  No compiler required.
 
 # Hardware
 
-### framebuffer
+### Framebuffer
 
 Screen framebuffer is 256x256x16bpp RGB.
 
-I was tempted to do color lookup, but all that lets you do is shift palette after-the-fact with written framebuffer contents.
-You can already shift the palette as you draw the sprites, so this is a bit redundant.
-And then I wanted to add the SNES blending effects.
-And here we are.
-
-If I really want to simulate hardware exactly then maybe I'll store a disting 8bpp output buffer in my virtual hardware's memory ...
-... and then on modern hardware / non-embedded I would draw this to *another* RGB buffer that goes on screen.
-
-Ok I already went back once on this.
 Originally it was an 8bpp buffer to support on-the-fly palette manipulation like NES allows.
 This also lets you peek and poke pixels into the framebuffer directly.
 But then I thought "I want SNES blending effects" ... and that can only be done with either a truecolor framebuffer or with a RGB framebuffer ...
-... how does the SNES solve this?  Turns out it just doesn't have a framebuffer, period.   Crazy, right?
-In its defense, you can always peek and poke the tilemap and tiles and have the same effect.
-So I'm on the fence, maybe I'll go back to an 8bpp framebuffer, or maybe I'll introduce multiple 8bpp framebuffers and simulate the blend-on-output of the SNES PPU myself,
-or maybe I'll do 8bpp fb and implement blending-as-dithering.
-or maybe I'll use a rgb-332 fb and do truecolor blending and still be 8bpp ...
-Idk.
+... how does the SNES solve this?  Turns out it just doesn't have a framebuffer, period.   They blend content as it is being sent directly to the output.  Crazy, right?
+In its defense, you can always peek and poke the tilemap and tilesheet and have the same effect.
+
+So the NES/SNES has no framebuffer.  What does this mean?  
+It means that all the fantasy console commands ... `pget, pset, line, rect, circ, oval` ... all would get thrown out the window.
+You can *only* draw to the screen with sprites or tiles.
+The SNES could replicate this by dedicating all of the sprite and tilemap to video output, and in that way you've got your framebuffer (Mario Paint)...
+But then what is left available for sprite rendering?
+
+The other fantasy consoles do set aside memory for a framebuffer.  But their output is usually only 4bpp.
+Maybe I should set aside framebuffer memory too?
 
 ### sprites / tiles
 

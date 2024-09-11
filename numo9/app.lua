@@ -180,12 +180,10 @@ function App:initGL()
 		return image
 	end
 
-	local View = require 'glapp.view'
-	self.view = View()
-	self.view.ortho = true
-	self.view.orthoSize = 1
-	self:resetView()
+	local matrix_ffi = require 'matrix.ffi'
+	self.mvMat = matrix_ffi({4,4}, 'float'):zeros():setIdent()
 
+	local View = require 'glapp.view'
 	self.blitScreenView = View()
 	self.blitScreenView.ortho = true
 	self.blitScreenView.orthoSize = 1
@@ -365,18 +363,14 @@ print('package.loaded', package.loaded)
 
 	-- me cheating and exposing opengl modelview matrix functions:
 	-- matident mattrans matrot matscale matortho matfrustum matlookat
-	local view = self.view
-	do
-		local mat = view.mvMat
-		-- matrix math because i'm cheating
-		self.env.matident = function(...) mat:setIdent(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env.mattrans = function(...) mat:applyTranslate(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env.matrot = function(...) mat:applyRotate(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env.matscale = function(...) mat:applyScale(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env.matortho = function(...) mat:applyOrtho(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env.matfrustum = function(...) mat:applyFrustum(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-		self.env.matlookat = function(...) mat:applyLookAt(...) view.mvProjMat:mul4x4(view.projMat, view.mvMat) end
-	end
+	-- matrix math because i'm cheating
+	self.env.matident = function(...) self.mvMat:setIdent(...) end
+	self.env.mattrans = function(...) self.mvMat:applyTranslate(...) end
+	self.env.matrot = function(...) self.mvMat:applyRotate(...) end
+	self.env.matscale = function(...) self.mvMat:applyScale(...) end
+	self.env.matortho = function(...) self.mvMat:applyOrtho(...) end
+	self.env.matfrustum = function(...) self.mvMat:applyFrustum(...) end
+	self.env.matlookat = function(...) self.mvMat:applyLookAt(...) end
 
 	self.fb = GLFBO{
 		width = frameBufferSize.x,
@@ -602,9 +596,16 @@ print('package.loaded', package.loaded)
 in vec2 vertex;
 uniform vec4 box;	//x,y,w,h
 uniform mat4 mvProjMat;
+
+//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
+uniform vec2 frameBufferSize;
+
 void main() {
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+	gl_Position.xy /= frameBufferSize;
+	gl_Position.xy *= 2.;
+	gl_Position.xy -= 1.;
 }
 ]],
 			fragmentCode = template([[
@@ -623,13 +624,14 @@ void main() {
 			}),
 			uniforms = {
 				palTex = 0,
+				frameBufferSize = {frameBufferSize:unpack()},
 			},
 		},
 		texs = {self.palTex},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
-			mvProjMat = self.view.mvProjMat.ptr,
+			mvProjMat = self.mvMat.ptr,
 			colorIndex = 0,
 			box = {0, 0, 8, 8},
 		},
@@ -681,10 +683,15 @@ uniform vec4 tcbox;	//x,y,w,h
 
 uniform mat4 mvProjMat;
 
+uniform vec2 frameBufferSize;
+
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+	gl_Position.xy /= frameBufferSize;
+	gl_Position.xy *= 2.;
+	gl_Position.xy -= 1.;
 }
 ]],
 			fragmentCode = template([[
@@ -754,6 +761,7 @@ void main() {
 				transparentIndex = -1,
 				spriteBit = 0,
 				spriteMask = 0x0F,
+				frameBufferSize = {frameBufferSize:unpack()},
 			},
 		},
 		texs = {
@@ -763,7 +771,7 @@ void main() {
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
-			mvProjMat = self.view.mvProjMat.ptr,
+			mvProjMat = self.mvMat.ptr,
 			box = {0, 0, 8, 8},
 			tcbox = {0, 0, 1, 1},
 		},
@@ -779,10 +787,16 @@ out vec2 tcv;
 uniform vec4 box;		//x y w h
 uniform vec4 tcbox;		//tx ty tw th
 uniform mat4 mvProjMat;
+
+uniform vec2 frameBufferSize;
+
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+	gl_Position.xy /= frameBufferSize;
+	gl_Position.xy *= 2.;
+	gl_Position.xy -= 1.;
 }
 ]],
 			fragmentCode = template([[
@@ -866,13 +880,14 @@ void main() {
 				tileTex = 1,
 				palTex = 2,
 				mapIndexOffset = 0,
+				frameBufferSize = {frameBufferSize:unpack()},
 			},
 		},
 		texs = {self.mapTex, self.tileTex, self.palTex},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
-			mvProjMat = self.view.mvProjMat.ptr,
+			mvProjMat = self.mvMat.ptr,
 			box = {0, 0, 8, 8},
 			tcbox = {0, 0, 1, 1},
 		},
@@ -1105,7 +1120,7 @@ end
 function App:drawSolidRect(x, y, w, h, colorIndex)
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
-	uniforms.mvProjMat = self.view.mvProjMat.ptr
+	uniforms.mvProjMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
@@ -1116,7 +1131,7 @@ function App:drawBorderRect(x, y, w, h, colorIndex)
 	-- or just draw 4 thin sides ...
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
-	uniforms.mvProjMat = self.view.mvProjMat.ptr
+	uniforms.mvProjMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
 
 	settable(uniforms.box, x, y, w, 1)
@@ -1161,7 +1176,7 @@ function App:drawQuad(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = tex
 
-	uniforms.mvProjMat = self.view.mvProjMat.ptr
+	uniforms.mvProjMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1214,7 +1229,7 @@ function App:drawSprite(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.spriteTex
 
-	uniforms.mvProjMat = self.view.mvProjMat.ptr
+	uniforms.mvProjMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1255,7 +1270,7 @@ function App:drawMap(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.mapTex
 
-	uniforms.mvProjMat = self.view.mvProjMat.ptr
+	uniforms.mvProjMat = self.mvMat.ptr
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
 	local tx = tileIndex % tilemapSizeInSprites.x
@@ -1426,10 +1441,7 @@ end
 function App:resetView()
 	-- initialize our projection to framebuffer size
 	-- do this every time we run a new rom
-	local view = self.view
-	view.projMat:setOrtho(0, frameBufferSize.x, 0, frameBufferSize.y, -1, 1)
-	view.mvMat:setIdent()
-	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+	self.mvMat:setIdent()
 end
 
 function App:runCode()
