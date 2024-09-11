@@ -213,16 +213,30 @@ function App:initGL()
 		quit = function(...) self:requestExit() end,
 
 		peek = function(addr)
-			assert(addr >= 0 and addr < self.rom.size)
+			if addr < 0 or addr >= self.rom.size then return end
 			return self.rom.v[addr]
 		end,
 		poke = function(addr, value)
-			assert(addr >= 0 and addr < self.rom.size)
-
-			-- TODO dirty bits on screen memory?
-			-- or just update always?
-
+			if addr < 0 or addr >= self.rom.size then return end
 			self.rom.v[addr] = tonumber(value)
+		end,
+
+		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
+		mget = function(x, y)
+			if x < 0 or x >= self.tilemapSize.x
+			or y < 0 or y >= self.tilemapSize.y
+			then
+				return
+			end
+			return ffi.cast('unsigned short*', mapMem)[x + self.tilemapSize.x * y]
+		end,
+		mset = function(x, y, value)
+			if x < 0 or x >= self.tilemapSize.x
+			or y < 0 or y >= self.tilemapSize.y
+			then
+				return
+			end
+			ffi.cast('unsigned short*', mapMem)[x + self.tilemapSize.x * y]	= value
 		end,
 
 		-- other stuff
@@ -273,6 +287,74 @@ function App:initGL()
 		-- TODO don't __index=_G and sandbox it instead
 		__index = _G,
 	})
+
+
+	-- modify let our env use special operators
+	-- this will modify the env's load xpcall etc
+	-- so let's try to do this without modifying _G or our global env
+	-- but also without exposing load() to the game api ... then again why not?
+	self.loadenv = setmetatable({
+		-- it is going to modify `package`, so lets give it a dummy copy
+		-- in fact TODO all this needs to be replaced for virtual filesystem stuff or not at all ...
+		package = {
+			searchpath = package.searchpath,
+			-- replace this or else langfix.env will modify the original require()
+			searchers = table(package.searchers or package.loaders):setmetatable(nil),
+			path = package.path,
+			cpath = package.cpath,
+			loaded = {},
+		},
+		require = function(...)
+			error"require not implemented"
+		end,
+	}, {__index = self.env})
+
+--[[
+print()
+print'before'
+print('xpcall', xpcall)
+print('require', require)
+print('load', load)
+print('dofile', dofile)
+print('loadfile', loadfile)
+print('loadstring', loadstring)
+print('package', package)
+print('package.searchpath', package.searchpath)
+print('package.searchers', package.searchers)
+for i,v in ipairs(package.searchers) do
+	print('package.searchers['..i..']', v)
+end
+print('package.path', package.path)
+print('package.cpath', package.cpath)
+print('package.loaded', package.loaded)
+--]]
+
+--[[ using langfix
+	local state = require 'langfix.env'(self.loadenv)
+--]]
+-- [[ not using it
+	self.loadenv.load = load
+--]]
+
+--[[ debugging side-effects of langfix / what I didn't properly setup in self.loadenv ...
+print()
+print'after'
+print('xpcall', xpcall)
+print('require', require)
+print('load', load)
+print('dofile', dofile)
+print('loadfile', loadfile)
+print('loadstring', loadstring)
+print('package', package)
+print('package.searchpath', package.searchpath)
+print('package.searchers', package.searchers)
+for i,v in ipairs(package.searchers) do
+	print('package.searchers['..i..']', v)
+end
+print('package.path', package.path)
+print('package.cpath', package.cpath)
+print('package.loaded', package.loaded)
+--]]
 
 	-- me cheating and exposing opengl modelview matrix functions:
 	-- matident mattrans matrot matscale matortho matfrustum matlookat
@@ -385,7 +467,8 @@ function App:initGL()
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
 	}
-	self.env.mapMem = self.mapTex.image.buffer
+	self.mapMem = self.mapTex.image.buffer
+	self.env.mapMem = self.mapMem
 
 	for i=0,1 do
 		for j=0,1 do
@@ -1283,13 +1366,15 @@ end
 function App:load(filename)
 	filename = filename or defaultSaveFilename
 	local basemsg = 'failed to load file '..tostring(filename)
+
 	local f
 	for _,suffix in ipairs{'', '.n9'} do
-		f = self.fs:get(filename)
+		f = self.fs:get(filename..suffix)
 		if f then break end
 		f = nil
 	end
 	if not f then return nil, basemsg..': failed to find file' end
+
 	-- [[ do I bother implement fs:open'r' ?
 	local d = f.data
 	local msg = not d and 'is not a file' or nil
@@ -1311,7 +1396,7 @@ end
 
 -- returns the function to run the code
 function App:loadCmd(cmd, env)
-	return load(cmd, nil, 't', env or self.env)
+	return self.loadenv.load(cmd, nil, 't', env or self.env)
 end
 
 -- system() function
@@ -1344,6 +1429,7 @@ function App:runCode()
 	local env = setmetatable({}, {
 		__index = self.env,
 	})
+
 	local f, msg = self:loadCmd(self.editCode.text, env)
 	if not f then
 		print(msg)
