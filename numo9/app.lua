@@ -108,6 +108,7 @@ local RAM = struct{
 				ROM.fields[2].type.fields
 			):append{
 				{name='clipRect', type='uint8_t[4]'},
+				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ...
 				{name='keyBuffer', type='uint8_t['..keyBufferSize..']'},
 				{name='lastKeyBuffer', type='uint8_t['..keyBufferSize..']'},
 			},
@@ -197,6 +198,7 @@ function App:initGL()
 
 	local matrix_ffi = require 'matrix.ffi'
 	self.mvMat = matrix_ffi({4,4}, 'float'):zeros():setIdent()
+	self.mvMat.ptr = self.ram.mvMat
 
 	local View = require 'glapp.view'
 	self.blitScreenView = View()
