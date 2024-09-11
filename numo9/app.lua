@@ -397,14 +397,9 @@ print('package.loaded', package.loaded)
 	-- redirect the image buffer to our virtual system rom
 	self.spriteTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
-		target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
-		wrap = { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
 	}
 	self.env.spriteMem = self.spriteTex.image.buffer
 
@@ -457,14 +452,9 @@ print('package.loaded', package.loaded)
 
 	self.tileTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
-		target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
-		wrap = { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
 	}
 	self.env.tileMem = self.tileTex.image.buffer
 
@@ -491,14 +481,9 @@ print('package.loaded', package.loaded)
 	--]]
 	self.mapTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
-		target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = gl.GL_R16UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
-		wrap = { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
 	}
 	self.mapMem = self.mapTex.image.buffer
 	self.env.mapMem = self.mapMem
@@ -597,14 +582,9 @@ print('package.loaded', package.loaded)
 				return math.random(0, 0xffff)
 			end
 		),
-		target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = gl.GL_RGB565,
 		format = gl.GL_RGB,
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
-		wrap = { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
 	}
 	--]=]
 	--[=[ framebuffer is 256 x 256 x 8bpp
@@ -706,15 +686,12 @@ void main() {
 	gl_Position.xy -= 1.;
 }
 ]],
-			fragmentCode = template([[
+			fragmentCode = [[
 out uvec4 fragColor;
 uniform uint colorIndex;
-uniform usampler2D palTex;
+uniform usampler2DRect palTex;
 void main() {
-	vec2 palTc =  vec2(
-		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
-		.5
-	);
+	ivec2 palTc = ivec2(colorIndex, 0);
 #if 1	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
@@ -728,10 +705,7 @@ void main() {
 	);
 #endif
 }
-]],			{
-				clnumber = clnumber,
-				paletteSize = paletteSize,
-			}),
+]],
 			uniforms = {
 				palTex = 0,
 				frameBufferSize = {frameBufferSize:unpack()},
@@ -802,7 +776,7 @@ uniform uint spriteMask;
 // If you want fully opaque then just choose an oob color index.
 uniform uint transparentIndex;
 
-uniform usampler2D palTex;
+uniform usampler2DRect palTex;
 
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
@@ -830,10 +804,7 @@ void main() {
 	colorIndex &= 0XFFu;
 
 	// write the 8bpp colorIndex to the screen, use tex to draw it
-	vec2 palTc = vec2(
-		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
-		.5
-	);
+	ivec2 palTc = ivec2(colorIndex, 0);
 #if 1	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
@@ -849,7 +820,6 @@ void main() {
 }
 ]], 		{
 				clnumber = clnumber,
-				paletteSize = paletteSize,
 				spriteSheetSize = spriteSheetSize,
 			}),
 			uniforms = {
@@ -907,7 +877,7 @@ uniform uint mapIndexOffset;
 
 uniform usampler2DRect tileTex;
 
-uniform usampler2D palTex;
+uniform usampler2DRect palTex;
 
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
@@ -956,10 +926,7 @@ void main() {
 //debug:
 //colorIndex = tileIndex;
 
-	vec2 palTc = vec2(
-		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
-		.5
-	);
+	ivec2 palTc = ivec2(colorIndex, 0);
 #if 1	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
@@ -976,7 +943,6 @@ void main() {
 }
 ]],			{
 				clnumber = clnumber,
-				paletteSize = paletteSize,
 				spriteSheetSize = spriteSheetSize,
 				tilemapSize = tilemapSize,
 			}),
@@ -1079,16 +1045,16 @@ glreport'here'
 	local image = assert(args.image)
 	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
 	local tex = GLTex2D{
-		target = args.target,
+		target = args.target or gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = args.internalFormat or gl.GL_RGBA,
 		format = args.format or gl.GL_RGBA,
 		type = args.type or gl.GL_UNSIGNED_BYTE,
 
 		width = tonumber(image.width),
 		height = tonumber(image.height),
-		wrap = args.wrap or {
-			s = gl.GL_REPEAT,
-			t = gl.GL_REPEAT,
+		wrap = args.wrap or { -- texture_rectangle doens't support repeat ...
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		magFilter = args.magFilter or gl.GL_NEAREST,
