@@ -2,8 +2,9 @@
 --[[
 n9a - achive/unarchive n9 files
 
-n9a x file.n9 = extract archive to file/
-n9a a file = pack directory to file.n9
+n9a x file.n9 = extract archive file.n9 to file/
+n9a a file.n9 = pack directory file/ to file.n9
+n9a r file.n9 = pack and run
 --]]
 local ffi = require 'ffi'
 local path = require 'ext.path'
@@ -93,86 +94,101 @@ print'saving palette...'
 	image:save(basename'pal.png'.path)
 
 print'saving code...'
-	local code = ffi.string(rom.code, ffi.sizeof(rom.code))	
+	local code = ffi.string(rom.code, ffi.sizeof(rom.code))
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
 	basename'code.lua':write(code)
 
-elseif cmd == 'a' then
+elseif cmd == 'a'
+or cmd == 'r' then
 
 	assert(basename:isdir())
 	local rom = ffi.new'ROM'
 
 print'loading sprite sheet...'
-	local image = Image(basename'sprite.png'.path)
-	asserteq(image.width, App.spriteSheetSize.x)
-	asserteq(image.height, App.spriteSheetSize.y)
-	asserteq(image.channels, 1)
-	assert(ffi.sizeof(image.format), 1)
-	ffi.copy(rom.spriteSheet, image.buffer, App.spriteSheetSize:volume())
+	if basename'sprite.png':exists() then
+		local image = assert(Image(basename'sprite.png'.path))
+		asserteq(image.width, App.spriteSheetSize.x)
+		asserteq(image.height, App.spriteSheetSize.y)
+		asserteq(image.channels, 1)
+		assert(ffi.sizeof(image.format), 1)
+		ffi.copy(rom.spriteSheet, image.buffer, App.spriteSheetSize:volume())
+	end
 
 print'loading tile sheet...'
-	local image = Image(basename'tiles.png'.path)
-	asserteq(image.width, App.spriteSheetSize.x)
-	asserteq(image.height, App.spriteSheetSize.y)
-	asserteq(image.channels, 1)
-	assert(ffi.sizeof(image.format), 1)
-	ffi.copy(rom.tileSheet, image.buffer, App.spriteSheetSize:volume())
+	if basename'tiles.png':exists() then
+		local image = assert(Image(basename'tiles.png'.path))
+		asserteq(image.width, App.spriteSheetSize.x)
+		asserteq(image.height, App.spriteSheetSize.y)
+		asserteq(image.channels, 1)
+		assert(ffi.sizeof(image.format), 1)
+		ffi.copy(rom.tileSheet, image.buffer, App.spriteSheetSize:volume())
+	end
 
 print'loading tile map...'
-	local image = Image(basename'tilemap.png'.path)
-	asserteq(image.width, App.tilemapSize.x)
-	asserteq(image.height, App.tilemapSize.y)
-	asserteq(image.channels, 3)
-	asserteq(ffi.sizeof(image.format), 1)
-	local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
-	local imagePtr = image.buffer
-	for y=0,App.tilemapSize.y-1 do
-		for x=0,App.tilemapSize.x-1 do
-			mapPtr[0] = imagePtr[0]
-			imagePtr = imagePtr + 1
-			mapPtr = mapPtr + 1
+	if basename'tilemap.png':exists() then
+		local image = assert(Image(basename'tilemap.png'.path))
+		asserteq(image.width, App.tilemapSize.x)
+		asserteq(image.height, App.tilemapSize.y)
+		asserteq(image.channels, 3)
+		asserteq(ffi.sizeof(image.format), 1)
+		local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
+		local imagePtr = image.buffer
+		for y=0,App.tilemapSize.y-1 do
+			for x=0,App.tilemapSize.x-1 do
+				mapPtr[0] = imagePtr[0]
+				imagePtr = imagePtr + 1
+				mapPtr = mapPtr + 1
 
-			mapPtr[0] = imagePtr[0]
-			imagePtr = imagePtr + 1
-			mapPtr = mapPtr + 1
+				mapPtr[0] = imagePtr[0]
+				imagePtr = imagePtr + 1
+				mapPtr = mapPtr + 1
 
-			imagePtr = imagePtr + 1
+				imagePtr = imagePtr + 1
+			end
 		end
+		image:save(basename'tilemap.png'.path)
 	end
-	image:save(basename'tilemap.png'.path)
 
 print'loading palette...'
-	local image = Image(basename'pal.png'.path)
-	asserteq(image.width, 16)
-	asserteq(image.height, 16)
-	asserteq(image.channels, 4)
-	asserteq(ffi.sizeof(image.format), 1)
-	local imagePtr = image.buffer
-	local palPtr = rom.palette -- uint16_t*
-	for y=0,15 do
-		for x=0,15 do
-			palPtr[0] = bit.bor(
-				bit.band(0x001f, bit.rshift(imagePtr[0], 3)),
-				bit.band(0x03e0, bit.lshift(imagePtr[1], 2)),
-				bit.band(0x7c00, bit.lshift(imagePtr[2], 7)),
-				imagePtr[3] == 0 and 0 or 0x8000
-			)
-			palPtr = palPtr + 1
-			imagePtr = imagePtr + 4
+	if basename'pal.png':exists() then
+		local image = assert(Image(basename'pal.png'.path))
+		asserteq(image.width, 16)
+		asserteq(image.height, 16)
+		asserteq(image.channels, 4)
+		asserteq(ffi.sizeof(image.format), 1)
+		local imagePtr = image.buffer
+		local palPtr = rom.palette -- uint16_t*
+		for y=0,15 do
+			for x=0,15 do
+				palPtr[0] = bit.bor(
+					bit.band(0x001f, bit.rshift(imagePtr[0], 3)),
+					bit.band(0x03e0, bit.lshift(imagePtr[1], 2)),
+					bit.band(0x7c00, bit.lshift(imagePtr[2], 7)),
+					imagePtr[3] == 0 and 0 or 0x8000
+				)
+				palPtr = palPtr + 1
+				imagePtr = imagePtr + 4
+			end
 		end
 	end
 
 print'loading code...'
-	local code = basename'code.lua':read()
-	local n = #code
-	assertlt(n+1, App.codeSize)
-	local codeMem = rom.code
-	ffi.copy(codeMem, code, n)
-	codeMem[n] = 0	-- null term
+	if basename'code.lua':exists() then
+		local code = assert(basename'code.lua':read())
+		local n = #code
+		assertlt(n+1, App.codeSize)
+		local codeMem = rom.code
+		ffi.copy(codeMem, code, n)
+		codeMem[n] = 0	-- null term
+	end
 
 print'saving cart...'
 	assert(path(fn):write(toCartImage(rom)))
+
+	if cmd == 'r' then
+		assert(os.execute('./run.lua "'..fn..'"'))
+	end
 else
 
 	error("unknown cmd "..tostring(cmd))

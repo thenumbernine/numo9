@@ -60,8 +60,8 @@ end
 
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
---local frameBufferType = 'uint16_t'	-- rgb565
-local frameBufferType = 'uint8_t'		-- rgb332
+local frameBufferType = 'uint16_t'	-- rgb565
+--local frameBufferType = 'uint8_t'		-- rgb332
 local frameBufferSize = vec2i(256, 256)
 local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 local spriteSheetSize = vec2i(256, 256)
@@ -102,8 +102,8 @@ local RAM = struct{
 		{type=struct{
 			anonymous = true,
 			packed = true,
-	
-			-- does C let you inherit classes?  anonymous fields with named types? 
+
+			-- does C let you inherit classes?  anonymous fields with named types?
 			-- they let you have named fields with anonymous (inline-defined) types ...
 			-- until then, just wedge in the fields here and assert their offsets match.
 			fields = table(
@@ -185,7 +185,7 @@ function App:initGL()
 
 	self.ram = ffi.new'RAM'
 	self.rom = ffi.cast('ROM*', self.ram.v)[0]
-	
+
 	print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
 
 	local function makeImageAtPtr(ptr, x, y, ch, type, ...)
@@ -239,6 +239,12 @@ function App:initGL()
 			self.ram.v[addr] = tonumber(value)
 		end,
 
+		key = function(...) return self:key(...) end,
+		keyp = function(...) return self:keyp(...) end,
+		btn = function(...) return self:btn(...) end,
+		btnp = function(...) return self:btnp(...) end,
+		mouse = function(...) return self:mouse(...) end,
+
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(x, y)
 			if x < 0 or x >= self.tilemapSize.x
@@ -289,12 +295,8 @@ function App:initGL()
 				self.clipRect[3]+1)
 		end,
 
-		rect = function(x1,y1,x2,y2, ...)
-			return self:drawSolidRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1, ...)
-		end,
-		rectb = function(x1,y1,x2,y2, ...)
-			return self:drawBorderRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1, ...)
-		end,
+		rect = function(...) return self:drawSolidRect(...) end,
+		rectb = function(...) return self:drawBorderRect(...) end,
 		spr = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
 		map = function(...) return self:drawMap(...) end,
 		text = function(...) return self:drawText(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
@@ -575,7 +577,7 @@ print('package.loaded', package.loaded)
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	local fbMask = bit.lshift(1, ffi.sizeof(frameBufferType)) - 1
-	--[=[ framebuffer is 256 x 256 x 16bpp rgb565
+	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
 	self.fbTex = self:makeTexFromImage{
 		image = makeImageAtPtr(
 			self.ram.framebuffer,
@@ -590,7 +592,7 @@ print('package.loaded', package.loaded)
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
 	}
 	--]=]
-	-- [=[ framebuffer is 256 x 256 x 8bpp rgb332
+	--[=[ framebuffer is 256 x 256 x 8bpp rgb332
 	self.fbTex = self:makeTexFromImage{
 		image = makeImageAtPtr(
 			self.ram.framebuffer,
@@ -636,8 +638,8 @@ print('package.loaded', package.loaded)
 	--local glslVersion = '440'	-- gl 4.4
 	--local glslVersion = '450'	-- gl 4.5
 	--local glslVersion = '460'	-- gl 4.6
-	
-	-- GLES versions ...	
+
+	-- GLES versions ...
 	--local glslVersion = '100 es'
 	--local glslVersion = '300 es'
 	--local glslVersion = '310 es'
@@ -670,18 +672,18 @@ void main() {
 		int(tcv.x * frameBufferSizeX),
 		int(tcv.y * frameBufferSizeY)
 	);
-#if 0 // rgb565 just copy over
+#if 1 // rgb565 just copy over
 	fragColor = texture(fbTex, fbTc);
 #endif
-#if 1 // rgb332 translate the 8bpp single-channel 
-	
+#if 0 // rgb332 translate the 8bpp single-channel
+
 	// how come this gives me [0,2^8) ?
 	// meanwhile ffragment output must be [0,2^32) ?
 	// does texture() output in 8bpp while fragments output in 32bpp?
 	// and how come I can say 'fragColor = texture()' above where the texture is rgb565 and it works fine?
 	// where exactly does the conversion/normalization take place? esp for render buffer(everyone writes about what fbos do depending on the fbo format...)
 	uint rgb332 = texture(fbTex, fbTc).r;
-	
+
 	uint r = rgb332 & 7u;			// 3 bits of red ...
 	uint g = (rgb332 >> 3) & 7u;	// 3 bits of green ...
 	uint b = (rgb332 >> 6) & 3u;	// 2 bits of blue ...
@@ -739,10 +741,10 @@ uniform uint colorIndex;
 uniform usampler2DRect palTex;
 void main() {
 	ivec2 palTc = ivec2(colorIndex, 0);
-#if 0	// rgb565
+#if 1	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
-#if 1	// rgb332
+#if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
@@ -766,7 +768,7 @@ void main() {
 			box = {0, 0, 8, 8},
 		},
 	}
-	
+
 	self.quadSpriteObj = GLSceneObject{
 		program = {
 			version = glslVersion,
@@ -856,10 +858,10 @@ void main() {
 
 	// write the 8bpp colorIndex to the screen, use tex to draw it
 	ivec2 palTc = ivec2(colorIndex, 0);
-#if 0	// rgb565
+#if 1	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
-#if 1	// rgb332
+#if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
@@ -982,10 +984,10 @@ void main() {
 //colorIndex = tileIndex;
 
 	ivec2 palTc = ivec2(colorIndex, 0);
-#if 0	// rgb565
+#if 1	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
-#if 1	// rgb332
+#if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
@@ -1648,6 +1650,42 @@ function App:keyp(keycode)
 	asserttype(keycode, 'number')
 	return self:keyForBuffer(keycode, self.keyBuffer)
 	and not self:keyForBuffer(keycode, self.lastKeyBuffer)
+end
+
+-- TODO make this configurable
+-- let's use tic80's standard for button codes
+-- but ofc I gotta tweak it to my own mapping
+-- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
+-- fun fact, SNES's keys in-order are:
+-- B Y Sel Start Up Down Left Right A X L R
+local keyForButton = {
+	-- player 1
+	[0] = keyCodeForName.up,		-- UP
+	[1] = keyCodeForName.down,		-- DOWN
+	[2] = keyCodeForName.left,		-- LEFT
+	[3] = keyCodeForName.right,		-- RIGHT
+	[4] = keyCodeForName.s,			-- A
+	[5] = keyCodeForName.x,			-- B
+	[6] = keyCodeForName.a,			-- X
+	[7] = keyCodeForName.z,			-- Y
+}
+
+function App:btn(buttonCode)
+	return self:key(keyForButton[buttonCode])
+end
+function App:btnp(buttonCode)
+	return self:keyp(keyForButton[buttonCode])
+end
+
+function App:mouse()
+	return
+		self.mousePos.x,
+		self.mousePos.y,
+		bit.band(self.mouseButtons, sdl.SDL_BUTTON_LMASK) ~= 0,
+		bit.band(self.mouseButtons, sdl.SDL_BUTTON_MMASK) ~= 0,
+		bit.band(self.mouseButtons, sdl.SDL_BUTTON_RMASK) ~= 0,
+		0,	-- TODO scrollX
+		0	-- TODO scrollY
 end
 
 -- run but make sure the vm is set up
