@@ -595,14 +595,14 @@ print('package.loaded', package.loaded)
 			vertexCode = [[
 in vec2 vertex;
 uniform vec4 box;	//x,y,w,h
-uniform mat4 mvProjMat;
+uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
 uniform vec2 frameBufferSize;
 
 void main() {
 	vec2 rvtx = box.xy + vertex * box.zw;
-	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+	gl_Position = mvMat * vec4(rvtx, 0., 1.);
 	gl_Position.xy /= frameBufferSize;
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
@@ -631,7 +631,7 @@ void main() {
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
-			mvProjMat = self.mvMat.ptr,
+			mvMat = self.mvMat.ptr,
 			colorIndex = 0,
 			box = {0, 0, 8, 8},
 		},
@@ -681,14 +681,14 @@ out vec2 tcv;
 uniform vec4 box;	//x,y,w,h
 uniform vec4 tcbox;	//x,y,w,h
 
-uniform mat4 mvProjMat;
+uniform mat4 mvMat;
 
 uniform vec2 frameBufferSize;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
-	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+	gl_Position = mvMat * vec4(rvtx, 0., 1.);
 	gl_Position.xy /= frameBufferSize;
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
@@ -771,7 +771,7 @@ void main() {
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
-			mvProjMat = self.mvMat.ptr,
+			mvMat = self.mvMat.ptr,
 			box = {0, 0, 8, 8},
 			tcbox = {0, 0, 1, 1},
 		},
@@ -786,14 +786,14 @@ in vec2 vertex;
 out vec2 tcv;
 uniform vec4 box;		//x y w h
 uniform vec4 tcbox;		//tx ty tw th
-uniform mat4 mvProjMat;
+uniform mat4 mvMat;
 
 uniform vec2 frameBufferSize;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
-	gl_Position = mvProjMat * vec4(rvtx, 0., 1.);
+	gl_Position = mvMat * vec4(rvtx, 0., 1.);
 	gl_Position.xy /= frameBufferSize;
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
@@ -887,7 +887,7 @@ void main() {
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
-			mvProjMat = self.mvMat.ptr,
+			mvMat = self.mvMat.ptr,
 			box = {0, 0, 8, 8},
 			tcbox = {0, 0, 1, 1},
 		},
@@ -1120,7 +1120,7 @@ end
 function App:drawSolidRect(x, y, w, h, colorIndex)
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
-	uniforms.mvProjMat = self.mvMat.ptr
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
@@ -1131,7 +1131,7 @@ function App:drawBorderRect(x, y, w, h, colorIndex)
 	-- or just draw 4 thin sides ...
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
-	uniforms.mvProjMat = self.mvMat.ptr
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
 
 	settable(uniforms.box, x, y, w, 1)
@@ -1176,7 +1176,7 @@ function App:drawQuad(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = tex
 
-	uniforms.mvProjMat = self.mvMat.ptr
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1229,7 +1229,7 @@ function App:drawSprite(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.spriteTex
 
-	uniforms.mvProjMat = self.mvMat.ptr
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1270,7 +1270,7 @@ function App:drawMap(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.mapTex
 
-	uniforms.mvProjMat = self.mvMat.ptr
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
 	local tx = tileIndex % tilemapSizeInSprites.x
