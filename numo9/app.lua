@@ -397,9 +397,14 @@ print('package.loaded', package.loaded)
 	-- redirect the image buffer to our virtual system rom
 	self.spriteTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+		target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
+		wrap = { -- texture_rectangle doens't support repeat ...
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
 	}
 	self.env.spriteMem = self.spriteTex.image.buffer
 
@@ -452,9 +457,14 @@ print('package.loaded', package.loaded)
 
 	self.tileTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+		target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
+		wrap = { -- texture_rectangle doens't support repeat ...
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
 	}
 	self.env.tileMem = self.tileTex.image.buffer
 
@@ -481,9 +491,14 @@ print('package.loaded', package.loaded)
 	--]]
 	self.mapTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
+		target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = gl.GL_R16UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
+		wrap = { -- texture_rectangle doens't support repeat ...
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
 	}
 	self.mapMem = self.mapTex.image.buffer
 	self.env.mapMem = self.mapMem
@@ -582,9 +597,14 @@ print('package.loaded', package.loaded)
 				return math.random(0, 0xffff)
 			end
 		),
+		target = gl.GL_TEXTURE_RECTANGLE,
 		internalFormat = gl.GL_RGB565,
 		format = gl.GL_RGB,
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
+		wrap = { -- texture_rectangle doens't support repeat ...
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
 	}
 	--]=]
 	--[=[ framebuffer is 256 x 256 x 8bpp
@@ -635,10 +655,13 @@ void main() {
 			fragmentCode = [[
 in vec2 tcv;
 out uvec4 fragColor;
-uniform usampler2D fbTex;
+uniform usampler2DRect fbTex;
 void main() {
 #if 1 // rgb565 just copy over
-	fragColor = texture(fbTex, tcv);
+	fragColor = texture(fbTex, ivec2(
+		int(tcv.x * 256.),
+		int(tcv.y * 256.)
+	));
 #endif
 #if 0 // rgb332 translate the 8bpp single-channel 
 	uint i = texture(fbTex, tcv).r;
@@ -758,7 +781,7 @@ out uvec4 fragColor;
 uniform uint paletteIndex;
 
 // Reads 4 bits from wherever shift location you provide.
-uniform usampler2D spriteTex;
+uniform usampler2DRect spriteTex;
 
 // Specifies which bit to read from at the sprite.
 //  0 = read sprite low nibble.
@@ -781,10 +804,19 @@ uniform uint transparentIndex;
 
 uniform usampler2D palTex;
 
+const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
+const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
+
 void main() {
 	// TODO provide a shift uniform for picking lo vs hi nibble
 	// only use the lower 4 bits ...
-	uint colorIndex = (texture(spriteTex, tcv).r >> spriteBit) & spriteMask;
+	uint colorIndex = (texture(
+		spriteTex,
+		ivec2(
+			tcv.x * spriteSheetSizeX,
+			tcv.y * spriteSheetSizeY
+		)
+	).r >> spriteBit) & spriteMask;
 
 	// TODO HERE MAYBE
 	// lookup the colorIndex in the palette to determine the alpha channel
@@ -818,6 +850,7 @@ void main() {
 ]], 		{
 				clnumber = clnumber,
 				paletteSize = paletteSize,
+				spriteSheetSize = spriteSheetSize,
 			}),
 			uniforms = {
 				spriteTex = 0,
@@ -869,10 +902,10 @@ in vec2 tcv;
 out uvec4 fragColor;
 
 // tilemap texture
-uniform usampler2D mapTex;
+uniform usampler2DRect mapTex;
 uniform uint mapIndexOffset;
 
-uniform usampler2D tileTex;
+uniform usampler2DRect tileTex;
 
 uniform usampler2D palTex;
 
@@ -899,10 +932,7 @@ void main() {
 	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	uint tileIndex = texture(mapTex, vec2(
-		(float(tileTC.x) + .5) / tilemapSizeX,
-		(float(tileTC.y) + .5) / tilemapSizeY
-	)).r;
+	uint tileIndex = texture(mapTex, tileTC).r;
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	uvec2 tileTexTC = uvec2(
@@ -920,10 +950,7 @@ void main() {
 	);
 
 	// tileTex is R8 indexing into our palette ...
-	uint colorIndex = texture(tileTex, vec2(
-		float(tileTexTC.x) / spriteSheetSizeX,
-		float(tileTexTC.y) / spriteSheetSizeY
-	)).r;
+	uint colorIndex = texture(tileTex, tileTexTC).r;
 	colorIndex |= palHi << 4;
 
 //debug:
@@ -973,7 +1000,7 @@ void main() {
 
 	local fb = self.fb
 	fb:bind()
-	fb:setColorAttachmentTex2D(self.fbTex.id)
+	fb:setColorAttachmentTex2D(self.fbTex.id, 0, self.fbTex.target)
 	local res,err = fb.check()
 	if not res then
 		print(err)
@@ -1052,11 +1079,7 @@ glreport'here'
 	local image = assert(args.image)
 	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
 	local tex = GLTex2D{
-		-- rect would be nice
-		-- but how come wrap doesn't work with texture_rect?
-		-- how hard is it to implement a modulo operator?
-		-- or another question, which is slower, integer modulo or float conversion in glsl?
-		--target = gl.GL_TEXTURE_RECTANGLE,
+		target = args.target,
 		internalFormat = args.internalFormat or gl.GL_RGBA,
 		format = args.format or gl.GL_RGBA,
 		type = args.type or gl.GL_UNSIGNED_BYTE,
