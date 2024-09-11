@@ -70,7 +70,7 @@ Tilemap bits:
 - 1: hflip
 - 1: vflip
 
-### Mode7
+### Mode7 j/k
 
 What's a SNES-era emulator without mode7?  So I added some matrix math.  Really my API is just a direct copy from original OpenGL, without a matrix stack.
 
@@ -113,6 +113,12 @@ sound ...
 IO
 	keyboard
 	mouse
+
+# Language
+
+Yeah it uses Lua as the underlying script.  That's the whole point of this - to do it in pure LuaJIT, no need to compile anything.
+__But LuaJIT doesn't support bitwise operators?__
+But with my [langfix](https://github.com/thenumbernine/langfix-lua) it does!  Built on top of my Lua parser in Lua, it modifies the grammar to incorporate lots of extra stuff.
 
 # API
 
