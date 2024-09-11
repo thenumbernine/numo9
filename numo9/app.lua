@@ -60,8 +60,8 @@ end
 
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
-local frameBufferType = 'uint16_t'	-- rgb565
---local frameBufferType = 'uint8_t'		-- rgb332
+--local frameBufferType = 'uint16_t'	-- rgb565
+local frameBufferType = 'uint8_t'		-- rgb332
 local frameBufferSize = vec2i(256, 256)
 local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 local spriteSheetSize = vec2i(256, 256)
@@ -575,7 +575,7 @@ print('package.loaded', package.loaded)
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	local fbMask = bit.lshift(1, ffi.sizeof(frameBufferType)) - 1
-	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
+	--[=[ framebuffer is 256 x 256 x 16bpp rgb565
 	self.fbTex = self:makeTexFromImage{
 		image = makeImageAtPtr(
 			self.ram.framebuffer,
@@ -590,7 +590,7 @@ print('package.loaded', package.loaded)
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
 	}
 	--]=]
-	--[=[ framebuffer is 256 x 256 x 8bpp rgb332
+	-- [=[ framebuffer is 256 x 256 x 8bpp rgb332
 	self.fbTex = self:makeTexFromImage{
 		image = makeImageAtPtr(
 			self.ram.framebuffer,
@@ -626,11 +626,11 @@ print('package.loaded', package.loaded)
 	--local glslVersion = '110'	-- gl 2.0
 	--local glslVersion = '120'	-- gl 2.1
 	--local glslVersion = '130'	-- gl 3.0
-	local glslVersion = '140'	-- gl 3.1	-- lowest working version on my osx before it complains that the version (too low) aren't supported ...
+	--local glslVersion = '140'	-- gl 3.1	-- lowest working version on my osx before it complains that the version (too low) aren't supported ...
 	--local glslVersion = '150'	-- gl 3.2
 	--local glslVersion = '330'	-- gl 3.3
 	--local glslVersion = '400'	-- gl 4.0
-	--local glslVersion = '410'	-- gl 4.1
+	local glslVersion = '410'	-- gl 4.1	-- highest working version on my osx before it complains ...
 	--local glslVersion = '420'	-- gl 4.2
 	--local glslVersion = '430'	-- gl 4.3
 	--local glslVersion = '440'	-- gl 4.4
@@ -666,19 +666,30 @@ const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
-#if 1 // rgb565 just copy over
-	fragColor = texture(fbTex, ivec2(
+	ivec2 fbTc = ivec2(
 		int(tcv.x * frameBufferSizeX),
 		int(tcv.y * frameBufferSizeY)
-	));
+	);
+#if 0 // rgb565 just copy over
+	fragColor = texture(fbTex, fbTc);
 #endif
-#if 0 // rgb332 translate the 8bpp single-channel 
-	uint i = texture(fbTex, tcv).r;
+#if 1 // rgb332 translate the 8bpp single-channel 
+	
+	// how come this gives me [0,2^8) ?
+	// meanwhile ffragment output must be [0,2^32) ?
+	// does texture() output in 8bpp while fragments output in 32bpp?
+	// and how come I can say 'fragColor = texture()' above where the texture is rgb565 and it works fine?
+	// where exactly does the conversion/normalization take place? esp for render buffer(everyone writes about what fbos do depending on the fbo format...)
+	uint rgb332 = texture(fbTex, fbTc).r;
+	
+	uint r = rgb332 & 7u;			// 3 bits of red ...
+	uint g = (rgb332 >> 3) & 7u;	// 3 bits of green ...
+	uint b = (rgb332 >> 6) & 3u;	// 2 bits of blue ...
 	fragColor = uvec4(
-		(i & 0x07u) << 5,
-		(i & 0x38u) << 2,
-		i & 0xC0u,
-		0xFFu
+		r << 29,
+		g << 29,
+		b << 30,
+		0xFFFFFFFFu
 	);
 #endif
 }
@@ -728,10 +739,10 @@ uniform uint colorIndex;
 uniform usampler2DRect palTex;
 void main() {
 	ivec2 palTc = ivec2(colorIndex, 0);
-#if 1	// rgb565
+#if 0	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
-#if 0	// rgb332
+#if 1	// rgb332
 	uvec4 color = texture(palTex, palTc);
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
@@ -845,10 +856,10 @@ void main() {
 
 	// write the 8bpp colorIndex to the screen, use tex to draw it
 	ivec2 palTc = ivec2(colorIndex, 0);
-#if 1	// rgb565
+#if 0	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
-#if 0	// rgb332
+#if 1	// rgb332
 	uvec4 color = texture(palTex, palTc);
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
@@ -971,10 +982,10 @@ void main() {
 //colorIndex = tileIndex;
 
 	ivec2 palTc = ivec2(colorIndex, 0);
-#if 1	// rgb565
+#if 0	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
-#if 0	// rgb332
+#if 1	// rgb332
 	uvec4 color = texture(palTex, palTc);
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
