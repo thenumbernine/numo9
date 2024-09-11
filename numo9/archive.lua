@@ -15,7 +15,7 @@ local App = require 'numo9.app'
 -- or should I save it in 3bpp?
 -- meh
 local cartImageSize = vec3i(331, 331, 3)
-assertle(App.romSize, cartImageSize:volume())
+assertle(ffi.sizeof'ROM', cartImageSize:volume())
 
 -- TODO image io is tied to file rw because
 -- so reading is from files now
@@ -26,9 +26,9 @@ assumes 'rom' is ptr to the start of our ROM memory
 creates an Image and returns it
 --]]
 local function toCartImage(rom)
-	local romSize = App.romSize
+	local romSize = ffi.sizeof'ROM'
 	local romImg = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'unsigned char'):clear()
-	ffi.copy(romImg.buffer, rom, App.romSize)
+	ffi.copy(romImg.buffer, rom, ffi.sizeof'ROM')
 
 	-- TODO image hardcodes this to 1) file io and 2) extension ... because a lot of the underlying image format apis do too ... fix me plz
 
@@ -51,8 +51,8 @@ local function fromCartImage(imageFileData)
 	assert(not tmploc:exists())
 
 	asserteq(romImg.channels, 3)
-	assertle(App.romSize, romImg.width * romImg.height * romImg.channels)
-	return ffi.string(romImg.buffer, App.romSize)
+	assertle(ffi.sizeof'ROM', romImg.width * romImg.height * romImg.channels)
+	return ffi.string(romImg.buffer, ffi.sizeof'ROM')
 end
 
 return {

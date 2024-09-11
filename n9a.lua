@@ -28,7 +28,7 @@ local tilemapOffset = 0x20000
 local paletteOffset = 0x40000
 local codeOffset = 0x40200
 local endOffset = codeOffset + App.codeSize
-asserteq(endOffset, App.romSize)
+asserteq(endOffset, ffi.sizeof'ROM')
 
 -- should probably use the same lib as numo9 uses for its compression/saving ...
 if cmd == 'x' then
@@ -39,7 +39,7 @@ if cmd == 'x' then
 
 print'loading cart...'
 	local romStr = fromCartImage((assert(p:read())))
-	assert(#romStr >= App.romSize)
+	assert(#romStr >= ffi.sizeof'ROM')
 	local romPtr = ffi.cast('char*', romStr)
 
 print'saving sprite sheet...'
@@ -101,7 +101,7 @@ print'saving code...'
 elseif cmd == 'a' then
 
 	assert(basename:isdir())
-	local romPtr = ffi.new('uint8_t[?]', App.romSize)
+	local romPtr = ffi.new('uint8_t[?]', ffi.sizeof'ROM')
 
 print'loading sprite sheet...'
 	local image = Image(basename'sprite.png'.path)

@@ -14,6 +14,7 @@ local template = require 'template'
 local assertindex = require 'ext.assert'.index
 local asserttype = require 'ext.assert'.type
 local asserteq = require 'ext.assert'.eq
+local assertne = require 'ext.assert'.ne
 local assertle = require 'ext.assert'.le
 local assertlt = require 'ext.assert'.lt
 local string = require 'ext.string'
@@ -67,19 +68,62 @@ local tilemapSize = vec2i(256, 256)
 local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
 local codeSize = 0x10000	-- tic80's size
 
-
-local romSize =
-	spriteSheetSize.x * spriteSheetSize.y * 2	-- sprite sheet, 8bpp, x2 for tiles as well
-	+ tilemapSize.x * tilemapSize.y * 2			-- tilemap, 16bpp
-	+ paletteSize * 2							-- palette, 16bpp
-	+ codeSize									--
-
-
 local keyBufferSize = math.ceil(#keyCodeNames / 8)
 
-local ramSize =
-	4											-- clip rect
-	+ keyBufferSize * 2							-- key press state
+local struct = require 'struct'
+local ROM = struct{
+	name = 'ROM',
+	union = true,
+	fields = {
+		{name='v', type='uint8_t[1]', no_iter=true},
+		{type=struct{
+			anonymous = true,
+			packed = true,
+			fields = {
+				{name='spriteSheet', type='uint8_t['..spriteSheetSize:volume()..']'},
+				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},
+				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},
+				{name='palette', type='uint16_t['..paletteSize..']'},
+				{name='code', type='uint8_t['..codeSize..']'},
+			},
+		}},
+	},
+}
+print(ROM.code)
+print('ROM size', ffi.sizeof(ROM))
+
+local RAM = struct{
+	name = 'RAM',
+	union = true,
+	fields = {
+		{name='v', type='uint8_t[1]', no_iter=true},
+		{type=struct{
+			anonymous = true,
+			packed = true,
+	
+			-- does C let you inherit classes?  anonymous fields with named types? 
+			-- they let you have named fields with anonymous (inline-defined) types ...
+			-- until then, just wedge in the fields here and assert their offsets match.
+			fields = table(
+				ROM.fields[2].type.fields
+			):append{
+				{name='clipRect', type='uint8_t[4]'},
+				{name='keyBuffer', type='uint8_t['..keyBufferSize..']'},
+				{name='lastKeyBuffer', type='uint8_t['..keyBufferSize..']'},
+			},
+		}},
+	},
+}
+print(RAM.code)
+print('RAM size', ffi.sizeof(RAM))
+
+for _,field in ipairs(ROM.fields[2].type.fields) do
+	assert(xpcall(function()
+		asserteq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
+	end, function(err)
+		return errorHandler('for field '..field.name..'\n')
+	end))
+end
 
 
 local App = GLApp:subclass()
@@ -99,9 +143,6 @@ App.tilemapSizeInSprites = tilemapSizeInSprites
 App.codeSize = codeSize
 
 App.keyBufferSize = keyBufferSize
-
-App.romSize = romSize
-App.ramSize = ramSize
 
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
@@ -138,45 +179,19 @@ local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't 
 
 function App:initGL()
 
-	self.rom = vector'uint8_t'
-	self.rom:reserve(self.romSize + self.ramSize)
-	-- Don't allow it to resize, since we returning pointers into it as we grow it
-	-- Another TODO could be two passes: once for requesting, then alloc all at once, then get pointers
-	-- ... but meh.
-	function self.rom:resize(newsize)
-		self:reserve(newsize)
-		self.size = newsize
-	end
-	function self.rom:reserve(newcap)
-		if newcap <= self.capacity then return end
-		error(
-			"current capacity: "..self.capacity..'\n'
-			..'requested new capacity: '..newcap..'\n'
-			.."you have exceeded virtual rom limitation.  please specify more rom."
-		)
-	end
+	self.ram = ffi.new'RAM'
+	self.rom = ffi.cast('ROM*', self.ram.v)[0]
+	
+	print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
 
-	-- allocates physical rom
-	-- returns the current offset
-	local function requestMem(size, name)
-		print(
-			('$%x..$%x: '):format(self.rom.size, self.rom.size + size)
-			..(name or '???')
-		)
-		local ptr = self.rom:iend()
-		self.rom:resize(self.rom.size + size)
-		ffi.fill(ptr, size)
-		return ptr
-	end
-
-	local function makeImageInRAM(name, x, y, ch, type, ...)
+	local function makeImageAtPtr(ptr, x, y, ch, type, ...)
+		assertne(ptr, nil)
 		local image = Image(x, y, ch, type, ...)
 		local size = x * y * ch * ffi.sizeof(type)
-		local newbuf = requestMem(size, name)
 		if select('#', ...) > 0 then	-- if we specified a generator...
-			ffi.copy(newbuf, image.buffer, size)
+			ffi.copy(ptr, image.buffer, size)
 		end
-		image.buffer = newbuf
+		image.buffer = ptr
 		return image
 	end
 
@@ -211,12 +226,12 @@ function App:initGL()
 		quit = function(...) self:requestExit() end,
 
 		peek = function(addr)
-			if addr < 0 or addr >= self.rom.size then return end
-			return self.rom.v[addr]
+			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+			return self.ram.v[addr]
 		end,
 		poke = function(addr, value)
-			if addr < 0 or addr >= self.rom.size then return end
-			self.rom.v[addr] = tonumber(value)
+			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+			self.ram.v[addr] = tonumber(value)
 		end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
@@ -379,7 +394,7 @@ print('package.loaded', package.loaded)
 
 	-- redirect the image buffer to our virtual system rom
 	self.spriteTex = self:makeTexFromImage{
-		image = makeImageInRAM('sprites', spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -434,7 +449,7 @@ print('package.loaded', package.loaded)
 		:unbind()
 
 	self.tileTex = self:makeTexFromImage{
-		image = makeImageInRAM('tiles', spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -463,7 +478,7 @@ print('package.loaded', package.loaded)
 	- .... 8 bits palette offset ... ? nah
 	--]]
 	self.mapTex = self:makeTexFromImage{
-		image = makeImageInRAM('tilemap', tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
+		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
 		internalFormat = gl.GL_R16UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
@@ -485,7 +500,7 @@ print('package.loaded', package.loaded)
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
-		image = makeImageInRAM('palette', paletteSize, 1, 1, 'unsigned short',
+		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'unsigned short',
 		--[[ garbage colors
 		function(i)
 			return math.floor(math.random() * 0xffff)
@@ -903,19 +918,18 @@ void main() {
 	end
 	fb:unbind()
 
-	self.codeMem = requestMem(codeSize, 'code')	-- save here for :save() and :load() copying to/from lua strings
-	self.env.codeMem = codeMem
-	asserteq(self.rom.size, self.romSize)
+	self.codeMem = self.ram.code
+	self.env.codeMem = self.ram.code
 
 	-- 4 uint8 bytes ...
 	-- x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
-	self.clipRect = requestMem(4, 'clipRect')
+	self.clipRect = self.ram.clipRect
 	packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
 
 	-- keyboard init
 
-	self.keyBuffer = requestMem(self.keyBufferSize, 'keyBuffer')
-	self.lastKeyBuffer = requestMem(self.keyBufferSize, 'lastKeyBuffer')
+	self.keyBuffer = self.ram.keyBuffer
+	self.lastKeyBuffer = self.ram.lastKeyBuffer
 
 	-- make sure our keycodes are in bounds
 	for sdlSym,keyCode in pairs(sdlSymToKeyCode) do
@@ -924,16 +938,10 @@ void main() {
 		end
 	end
 
-	asserteq(self.rom.size, self.romSize + self.ramSize)
-
-
-
 	-- filesystem init
 
 	FileSystem = require 'numo9.filesystem'
 	self.fs = FileSystem{app=self}
-
-	print('system dedicated '..('0x%x'):format(self.rom.size)..' of RAM')
 
 	-- editor init
 
@@ -1408,7 +1416,7 @@ function App:load(filename)
 
 	-- [[ TODO image stuck reading and writing to disk, FIXME
 	local romStr = require 'numo9.archive'.fromCartImage(d)
-	ffi.copy(self.rom.v, romStr, self.romSize)
+	ffi.copy(self.rom.v, romStr, ffi.sizeof'ROM')
 	local code = ffi.string(self.codeMem, self.codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
