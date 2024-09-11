@@ -1305,10 +1305,8 @@ function App:load(filename)
 	if not d then return nil, basemsg..(msg or '') end
 	
 	-- [[ TODO image stuck reading and writing to disk, FIXME
-	local romImg = Image(tmploc)
-	asserteq(romImg.channels, 3)
-	assertle(self.romSize, romImg.width * romImg.height * romImg.channels)
-	ffi.copy(self.rom.v, romImg.buffer, self.romSize)
+	local romStr = require 'numo9.archive'.fromCartImageFile(tmploc)
+	ffi.copy(self.rom.v, romStr, self.romSize)
 	local code = ffi.string(self.codeMem, self.codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
