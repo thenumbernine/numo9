@@ -307,7 +307,14 @@ function App:initGL()
 		require = function(...)
 			error"require not implemented"
 		end,
-	}, {__index = self.env})
+	}, {
+		--[[ don't do this, the game API self.env.load messes with our Lua load() override
+		__index = self.env,
+		--]]
+		-- [[
+		__index = _G,
+		--]]
+	})
 
 --[[
 print()
@@ -329,10 +336,10 @@ print('package.cpath', package.cpath)
 print('package.loaded', package.loaded)
 --]]
 
---[[ using langfix
+-- [[ using langfix
 	local state = require 'langfix.env'(self.loadenv)
 --]]
--- [[ not using it
+--[[ not using it
 	self.loadenv.load = load
 --]]
 
@@ -1368,12 +1375,15 @@ function App:load(filename)
 	local basemsg = 'failed to load file '..tostring(filename)
 
 	local f
+	local checked = table()
 	for _,suffix in ipairs{'', '.n9'} do
-		f = self.fs:get(filename..suffix)
+		local checkfn = filename..suffix
+		checked:insert(checkfn)
+		f = self.fs:get(checkfn)
 		if f then break end
 		f = nil
 	end
-	if not f then return nil, basemsg..': failed to find file' end
+	if not f then return nil, basemsg..': failed to find file.  checked '..checked:concat', ' end
 
 	-- [[ do I bother implement fs:open'r' ?
 	local d = f.data
@@ -1396,7 +1406,7 @@ end
 
 -- returns the function to run the code
 function App:loadCmd(cmd, env)
-	return self.loadenv.load(cmd, nil, 't', env or self.env)
+	return self.loadenv.loadstring(cmd, nil, 't', env or self.env)
 end
 
 -- system() function
