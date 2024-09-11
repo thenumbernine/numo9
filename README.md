@@ -61,15 +61,15 @@ that's how the old consoles worked, right?
 
 Tilemaps: 256x256x16bpp index into the tile table.
 Tilemap bits:
-- 10: lookup into the tile texture
+- 10: lookup into the tilesheet texture
 - 4: palette high 4 bits
 - 1: hflip
 - 1: vflip
 
 ### Mode7 j/k
 
-What's a SNES-era emulator without mode7?  So I added some matrix math.  Really my API is just a direct copy from original OpenGL, without a matrix stack.
-
+What's a SNES-era emulator without mode7?
+I'm using a 4x4 transform.
 So far the API has ...
 
 `matident`,
@@ -145,6 +145,9 @@ But with my [langfix](https://github.com/thenumbernine/langfix-lua) it does!  Bu
 	The number coincides with the console's internal scancode bit offset in internal buffer.
 
 	Key code numbers:
+
+|                |                |                |                |                |                |                |                |
+|----------------|----------------|----------------|----------------|----------------|----------------|----------------|----------------|
 |a=0             |b=1             |c=2             |d=3             |e=4             |f=5             |g=6             |h=7             |
 |i=8             |j=9             |k=10            |l=11            |m=12            |n=13            |o=14            |p=15            |
 |q=16            |r=17            |s=18            |t=19            |u=20            |v=21            |w=22            |x=23            |
@@ -166,6 +169,8 @@ But with my [langfix](https://github.com/thenumbernine/langfix-lua) it does!  Bu
 - https://pixelvision8.itch.io/
 - https://github.com/emmachase/Riko4
 
-# Some SNES hardware spec docs:
+# Some hardware spec docs:
+- https://8bitworkshop.com/blog/platforms/nintendo-nes.md.html
 - https://snes.nesdev.org/wiki/Tilemaps
 - https://www.raphnet.net/divers/retro_challenge_2019_03/qsnesdoc.html
+- https://www.coranac.com/tonc/text/hardware.htm

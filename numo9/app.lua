@@ -66,7 +66,7 @@ local spriteSheetSize = vec2i(256, 256)
 local spriteSheetSizeInTiles = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
 local tilemapSize = vec2i(256, 256)
 local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
-local codeSize = 0x10000	-- tic80's size
+local codeSize = 0x10000	-- tic80's size ... but with my langfix shorthands like pico8 has
 
 local keyBufferSize = math.ceil(#keyCodeNames / 8)
 
@@ -571,22 +571,35 @@ print('package.loaded', package.loaded)
 	self.env.palMem = self.palTex.image.buffer
 --print('palTex\n'..imageToHex(self.palTex.image))
 
-	-- framebuffer is 256 x 256 x 16bpp
+	-- [=[ framebuffer is 256 x 256 x 16bpp
 	-- purely for hw emulation
+	-- like the NES/SNES/GBA days
 	-- the internal API won't allow access
 	-- in fact, I won't even assign it virtual rom
 	self.fbTex = self:makeTexFromImage{
 		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned short',
-			-- [[ init to garbage pixels
 			function(i,j)
-				return math.floor(math.random() * 0xffff)
+				return math.random(0, 0xffff)
 			end
-			--]]
 		),
 		internalFormat = gl.GL_RGB565,
 		format = gl.GL_RGB,
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
 	}
+	--]=]
+	--[=[ framebuffer is 256 x 256 x 8bpp
+	-- so that I can justify storing it in memory
+	self.fbTex = self:makeTexFromImage{
+		image = Image(frameBufferSize.x, frameBufferSize.y, 1, 'unsigned char',
+			function(i,j)
+				return math.random(0, 0xff)
+			end
+		),
+		internalFormat = gl.GL_R8UI,
+		format = gl.GL_RED_INTEGER,
+		type = gl.GL_UNSIGNED_BYTE,
+	}
+	--]=]
 --print('fbTex\n'..imageToHex(self.fbTex.image))
 
 
@@ -604,6 +617,51 @@ print('package.loaded', package.loaded)
 	}
 
 	local glslVersion = '410'
+
+	-- used for drawing our 8bpp framebuffer to the screen
+	self.blitScreenObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+			fragmentCode = [[
+in vec2 tcv;
+out uvec4 fragColor;
+uniform usampler2D fbTex;
+void main() {
+#if 1 // rgb565 just copy over
+	fragColor = texture(fbTex, tcv);
+#endif
+#if 0 // rgb332 translate the 8bpp single-channel 
+	uint i = texture(fbTex, tcv).r;
+	fragColor = uvec4(
+		(i & 0x07u) << 5,
+		(i & 0x38u) << 2,
+		i & 0xC0u,
+		0xFFu
+	);
+#endif
+}
+]],
+			uniforms = {
+				fbTex = 0,
+			},
+		},
+		texs = {self.fbTex},
+		geometry = self.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvProjMat = self.blitScreenView.mvProjMat.ptr,
+		},
+	}
 
 	self.quadSolidObj = GLSceneObject{
 		program = {
@@ -630,10 +688,22 @@ out uvec4 fragColor;
 uniform uint colorIndex;
 uniform usampler2D palTex;
 void main() {
-	fragColor = texture(palTex, vec2(
+	vec2 palTc =  vec2(
 		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
 		.5
-	));
+	);
+#if 1	// rgb565
+	fragColor = texture(palTex, palTc);
+#endif
+#if 0	// rgb332
+	uvec4 color = texture(palTex, palTc);
+	fragColor = uvec4(
+		(color.r >> 5) & 0x07u
+		| (color.g >> 2) & 0x38u
+		| color.b & 0xC0u,
+		0, 0, 0xFFu
+	);
+#endif
 }
 ]],			{
 				clnumber = clnumber,
@@ -653,42 +723,8 @@ void main() {
 			box = {0, 0, 8, 8},
 		},
 	}
-
-	-- used for drawing our 8bpp framebuffer to the screen
-	self.blitScreenObj = GLSceneObject{
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = [[
-in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
-			fragmentCode = [[
-in vec2 tcv;
-out uvec4 fragColor;
-uniform usampler2D fbTex;
-void main() {
-	fragColor = texture(fbTex, tcv);
-}
-]],
-			uniforms = {
-				fbTex = 0,
-			},
-		},
-		texs = {self.fbTex},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = self.blitScreenView.mvProjMat.ptr,
-		},
-	}
-
-	self.quad4bppObj = GLSceneObject{
+	
+	self.quadSpriteObj = GLSceneObject{
 		program = {
 			version = glslVersion,
 			precision = 'best',
@@ -762,10 +798,22 @@ void main() {
 	colorIndex &= 0XFFu;
 
 	// write the 8bpp colorIndex to the screen, use tex to draw it
-	fragColor = texture(palTex, vec2(
+	vec2 palTc = vec2(
 		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
 		.5
-	));
+	);
+#if 1	// rgb565
+	fragColor = texture(palTex, palTc);
+#endif
+#if 0	// rgb332
+	uvec4 color = texture(palTex, palTc);
+	fragColor = uvec4(
+		(color.r >> 5) & 0x07u
+		| (color.g >> 2) & 0x38u
+		| color.b & 0xC0u,
+		0, 0, 0xFFu
+	);
+#endif
 }
 ]], 		{
 				clnumber = clnumber,
@@ -881,10 +929,23 @@ void main() {
 //debug:
 //colorIndex = tileIndex;
 
-	fragColor = texture(palTex, vec2(
+	vec2 palTc = vec2(
 		(float(colorIndex) + .5) / <?=clnumber(paletteSize)?>,
 		.5
-	));
+	);
+#if 1	// rgb565
+	fragColor = texture(palTex, palTc);
+#endif
+#if 0	// rgb332
+	uvec4 color = texture(palTex, palTc);
+	fragColor = uvec4(
+		(color.r >> 5) & 0x07u
+		| (color.g >> 2) & 0x38u
+		| color.b & 0xC0u,
+		0, 0, 0xFFu
+	);
+#endif
+
 }
 ]],			{
 				clnumber = clnumber,
@@ -1113,6 +1174,9 @@ function App:update()
 
 		-- update vram to gpu every frame?
 		-- or nah, how about I only do when dirty bit set?
+		-- so this copies CPU changes -> GPU changes
+		-- TODO nothing is copying the GPU back to CPU after we do our sprite renders ...
+		-- double TODO I don't have framebuffer memory
 		self.spriteTex:bind()
 			:subimage()
 			:unbind()
@@ -1225,7 +1289,7 @@ function App:drawQuad(
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xF
 
-	local sceneObj = self.quad4bppObj
+	local sceneObj = self.quadSpriteObj
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = tex
 
@@ -1278,7 +1342,7 @@ function App:drawSprite(
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
 
-	local sceneObj = self.quad4bppObj
+	local sceneObj = self.quadSpriteObj
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.spriteTex
 
