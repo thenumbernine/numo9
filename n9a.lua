@@ -40,24 +40,24 @@ if cmd == 'x' then
 print'loading cart...'
 	local romStr = fromCartImage((assert(p:read())))
 	assert(#romStr >= ffi.sizeof'ROM')
-	local romPtr = ffi.cast('char*', romStr)
+	local rom = ffi.cast('ROM*', ffi.cast('char*', romStr))[0]
 
 print'saving sprite sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
 	local image = Image(App.spriteSheetSize.x, App.spriteSheetSize.y, 1, 'unsigned char')
-	ffi.copy(image.buffer, romPtr + spriteOffset, App.spriteSheetSize:volume())
+	ffi.copy(image.buffer, rom.spriteSheet, ffi.sizeof(rom.spriteSheet))
 	image:save(basename'sprite.png'.path)
 
 print'saving tile sheet...'
 	-- tile tex: 256 x 256 x 8bpp ... TODO needs to be indexed
-	ffi.copy(image.buffer, romPtr + tileOffset, App.spriteSheetSize:volume())
+	ffi.copy(image.buffer, rom.tileSheet, ffi.sizeof(rom.tileSheet))
 	image:save(basename'tiles.png'.path)
 
 print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
 	local image = Image(App.tilemapSize.x, App.tilemapSize.x, 3, 'unsigned char')
-	local mapPtr = romPtr + tilemapOffset
+	local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
 	local imagePtr = image.buffer
 	for y=0,App.tilemapSize.y-1 do
 		for x=0,App.tilemapSize.x-1 do
@@ -79,7 +79,7 @@ print'saving palette...'
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
 	local image = Image(16, 16, 4, 'unsigned char')
 	local imagePtr = image.buffer
-	local palPtr = ffi.cast('unsigned short *', romPtr + paletteOffset)
+	local palPtr = rom.palette -- uint16_t*
 	for y=0,15 do
 		for x=0,15 do
 			imagePtr[0] = bit.lshift(bit.band(palPtr[0], 0x1F), 3)
@@ -93,7 +93,7 @@ print'saving palette...'
 	image:save(basename'pal.png'.path)
 
 print'saving code...'
-	local code = ffi.string(romPtr + codeOffset, App.codeSize)	-- TODO max size on this ...
+	local code = ffi.string(rom.code, ffi.sizeof(rom.code))	
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
 	basename'code.lua':write(code)
@@ -101,7 +101,7 @@ print'saving code...'
 elseif cmd == 'a' then
 
 	assert(basename:isdir())
-	local romPtr = ffi.new('uint8_t[?]', ffi.sizeof'ROM')
+	local rom = ffi.new'ROM'
 
 print'loading sprite sheet...'
 	local image = Image(basename'sprite.png'.path)
@@ -109,7 +109,7 @@ print'loading sprite sheet...'
 	asserteq(image.height, App.spriteSheetSize.y)
 	asserteq(image.channels, 1)
 	assert(ffi.sizeof(image.format), 1)
-	ffi.copy(romPtr + spriteOffset, image.buffer, App.spriteSheetSize:volume())
+	ffi.copy(rom.spriteSheet, image.buffer, App.spriteSheetSize:volume())
 
 print'loading tile sheet...'
 	local image = Image(basename'tiles.png'.path)
@@ -117,7 +117,7 @@ print'loading tile sheet...'
 	asserteq(image.height, App.spriteSheetSize.y)
 	asserteq(image.channels, 1)
 	assert(ffi.sizeof(image.format), 1)
-	ffi.copy(romPtr + tileOffset, image.buffer, App.spriteSheetSize:volume())
+	ffi.copy(rom.tileSheet, image.buffer, App.spriteSheetSize:volume())
 
 print'loading tile map...'
 	local image = Image(basename'tilemap.png'.path)
@@ -125,7 +125,7 @@ print'loading tile map...'
 	asserteq(image.height, App.tilemapSize.y)
 	asserteq(image.channels, 3)
 	asserteq(ffi.sizeof(image.format), 1)
-	local mapPtr = romPtr + tilemapOffset
+	local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
 	local imagePtr = image.buffer
 	for y=0,App.tilemapSize.y-1 do
 		for x=0,App.tilemapSize.x-1 do
@@ -149,7 +149,7 @@ print'loading palette...'
 	asserteq(image.channels, 4)
 	asserteq(ffi.sizeof(image.format), 1)
 	local imagePtr = image.buffer
-	local palPtr = ffi.cast('unsigned short *', romPtr + paletteOffset)
+	local palPtr = rom.palette -- uint16_t*
 	for y=0,15 do
 		for x=0,15 do
 			palPtr[0] = bit.bor(
@@ -167,12 +167,12 @@ print'loading code...'
 	local code = basename'code.lua':read()
 	local n = #code
 	assertlt(n+1, App.codeSize)
-	local codeMem = romPtr + codeOffset
+	local codeMem = rom.code
 	ffi.copy(codeMem, code, n)
 	codeMem[n] = 0	-- null term
 
 print'saving cart...'
-	assert(path(fn):write(toCartImage(romPtr)))
+	assert(path(fn):write(toCartImage(rom)))
 else
 
 	error("unknown cmd "..tostring(cmd))

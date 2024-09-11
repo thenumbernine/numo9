@@ -89,8 +89,8 @@ local ROM = struct{
 		}},
 	},
 }
-print(ROM.code)
-print('ROM size', ffi.sizeof(ROM))
+--DEBUG:print(ROM.code)
+--DEBUG:print('ROM size', ffi.sizeof(ROM))
 
 local RAM = struct{
 	name = 'RAM',
@@ -114,8 +114,8 @@ local RAM = struct{
 		}},
 	},
 }
-print(RAM.code)
-print('RAM size', ffi.sizeof(RAM))
+--DEBUG:print(RAM.code)
+--DEBUG:print('RAM size', ffi.sizeof(RAM))
 
 for _,field in ipairs(ROM.fields[2].type.fields) do
 	assert(xpcall(function()
