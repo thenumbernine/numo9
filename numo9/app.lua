@@ -70,7 +70,9 @@ local tilemapSize = vec2i(256, 256)
 local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
 local codeSize = 0x10000	-- tic80's size ... but with my langfix shorthands like pico8 has
 
-local keyBufferSize = math.ceil(#keyCodeNames / 8)
+local keyCount = #keyCodeNames
+-- number of bytes to represent all bits of the keypress buffer
+local keyPressFlagSize = math.ceil(keyCount / 8)
 
 local struct = require 'struct'
 local ROM = struct{
@@ -112,8 +114,19 @@ local RAM = struct{
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
 				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ...
-				{name='keyBuffer', type='uint8_t['..keyBufferSize..']'},
-				{name='lastKeyBuffer', type='uint8_t['..keyBufferSize..']'},
+				
+				-- bitflags of keyboard:
+				{name='keyPressFlags', type='uint8_t['..keyPressFlagSize..']'},
+				{name='lastKeyPressFlags', type='uint8_t['..keyPressFlagSize..']'},
+			
+				-- hold counter
+				-- this is such a waste of space, an old console would never do this itself, it'd make you do it ...
+				-- uint8 <=> 255 frames @ 60 fps = 4.25 seconds
+				-- uint16 <=> 65536 frames = 1092.25 seconds = 18.2 minutes
+				-- uint32 <=> 2147483647 frames = 35791394.1 seconds = 596523.2 minutes = 9942.1 hours = 414.3 days = 13.7 months = 1.1 years 
+				-- I guess I'll dedicate 16 bits per hold counter to every key ...
+				-- TODO mayyybbee ... just dedicate one to every button, and an extra one for keys that aren't buttons
+				{name='keyHoldCounter', type='uint16_t['..keyCount..']'},
 			},
 		}},
 	},
@@ -146,8 +159,6 @@ App.tilemapSize = tilemapSize
 App.tilemapSizeInSprites = tilemapSizeInSprites
 App.codeSize = codeSize
 
-App.keyBufferSize = keyBufferSize
-
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
 	t[i] = ...
@@ -160,22 +171,6 @@ end
 
 local function imageToHex(image)
 	return string.hexdump(ffi.string(image.buffer, image.width * image.height * ffi.sizeof(image.format)))
-end
-
--- when I say 'reverse' i mean reversed order of bitfields
--- when opengl says 'reverse' it means reversed order of reading hex numbers or something stupid
-function rgb888revto5551(rgba)
-	local r = bit.band(bit.rshift(rgba, 16), 0xff)
-	local g = bit.band(bit.rshift(rgba, 8), 0xff)
-	local b = bit.band(rgba, 0xff)
-	local abgr = bit.bor(
-		bit.rshift(r, 3),
-		bit.lshift(bit.rshift(g, 3), 5),
-		bit.lshift(bit.rshift(b, 3), 10),
-		bit.lshift(1, 15)	-- hmm always on?  used only for blitting screen?  why not just do 565 or something?  why even have a restriction at all, why not just 888?
-	)
-	assert(abgr >= 0 and abgr <= 0xffff, ('%x'):format(abgr))
-	return abgr
 end
 
 local updateFreq = 60
@@ -239,10 +234,13 @@ function App:initGL()
 			self.ram.v[addr] = tonumber(value)
 		end,
 
+		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
 		key = function(...) return self:key(...) end,
 		keyp = function(...) return self:keyp(...) end,
+		keyr = function(...) return self:keyr(...) end,
 		btn = function(...) return self:btn(...) end,
 		btnp = function(...) return self:btnp(...) end,
+		btnr = function(...) return self:btnr(...) end,
 		mouse = function(...) return self:mouse(...) end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
@@ -413,53 +411,6 @@ print('package.loaded', package.loaded)
 	}
 	self.env.spriteMem = self.spriteTex.image.buffer
 
-	-- paste our font letters one bitplane at a time ...
-	do
-		local spriteImg = self.spriteTex.image
-		local fontImg = Image'font.png'
-		local srcx, srcy = 0, 0
-		local dstx, dsty = 0, 0
-		local function inc2d(x, y, w, h)
-			x = x + 8
-			if x < w then return x, y end
-			x = 0
-			y = y + 8
-			if y < h then return x, y end
-		end
-		for i=0,255 do
-			local b = bit.band(i, 7)
-			local mask = bit.bnot(bit.lshift(1, b))
-			for by=0,7 do
-				for bx=0,7 do
-					local srcp = fontImg.buffer
-						+ srcx + bx
-						+ fontImg.width * (
-							srcy + by
-						)
-					local dstp = spriteImg.buffer
-						+ dstx + bx
-						+ spriteImg.width * (
-							dsty + by
-						)
-					dstp[0] = bit.bor(
-						bit.band(mask, dstp[0]),
-						bit.lshift(srcp[0], b)
-					)
-				end
-			end
-			srcx, srcy = inc2d(srcx, srcy, fontImg.width, fontImg.height)
-			if not srcx then break end
-			if b == 7 then
-				dstx, dsty = inc2d(dstx, dsty, spriteImg.width, spriteImg.height)
-				if not dstx then break end
-			end
-		end
-	end
-	self.spriteTex
-		:bind()
-		:subimage()
-		:unbind()
-
 	self.tileTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
@@ -512,68 +463,7 @@ print('package.loaded', package.loaded)
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
-		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'unsigned short',
-		--[[ garbage colors
-		function(i)
-			return math.floor(math.random() * 0xffff)
-		end
-		--]]
-		-- [[ builtin palette
-		table{
-			-- tic80
-			0x000000,
-			0x562b5a,
-			0xa44654,
-			0xe08260,
-			0xf7ce82,
-			0xb7ed80,
-			0x60b46c,
-			0x3b7078,
-			0x2b376b,
-			0x415fc2,
-			0x5ca5ef,
-			0x93ecf5,
-			0xf4f4f4,
-			0x99afc0,
-			0x5a6c84,
-			0x343c55,
-			-- https://en.wikipedia.org/wiki/List_of_software_palettes
-			0x000000,
-			0x75140c,
-			0x377d22,
-			0x807f26,
-			0x00097a,
-			0x75197c,
-			0x367e7f,
-			0xc0c0c0,
-			0x7f7f7f,
-			0xe73123,
-			0x74f84b,
-			0xfcfa53,
-			0x001ef2,
-			0xe63bf3,
-			0x71f7f9,
-			0xfafafa,
-			-- ega palette: https://moddingwiki.shikadi.net/wiki/EGA_Palette
-			0x000000,
-			0x0000AA,
-			0x00AA00,
-			0x00AAAA,
-			0xAA0000,
-			0xAA00AA,
-			0xAA5500,
-			0xAAAAAA,
-			0x555555,
-			0x5555FF,
-			0x55FF55,
-			0x55FFFF,
-			0xFF5555,
-			0xFF55FF,
-			0xFFFF55,
-			0xFFFFFF,
-		}:mapi(rgb888revto5551):rep(6)
-		--]]
-		),
+		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'unsigned short'),
 		internalFormat = gl.GL_RGB5_A1,
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
@@ -1051,13 +941,9 @@ void main() {
 	packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
 
 	-- keyboard init
-
-	self.keyBuffer = self.ram.keyBuffer
-	self.lastKeyBuffer = self.ram.lastKeyBuffer
-
 	-- make sure our keycodes are in bounds
 	for sdlSym,keyCode in pairs(sdlSymToKeyCode) do
-		if not (keyCode >= 0 and math.floor(keyCode/8) < self.keyBufferSize) then
+		if not (keyCode >= 0 and math.floor(keyCode/8) < keyPressFlagSize) then
 			error('got oob keyCode '..keyCode..' named '..(keyCodeNames[keyCode+1])..' for sdlSym '..sdlSym)
 		end
 	end
@@ -1092,17 +978,53 @@ void main() {
 			self.fs:addFromHost(fn.path)
 		end
 	end
+	
 	local initfn = cmdline[1] or 'hello.n9'
 	if self.fs:get(initfn) then
 		self:load(initfn)
+		
+
+		-- TODO font should be builtin ...
+		-- but I don't want to bind an extra texture ...
+		-- TODO maybe I should be doing this always?  
+		-- ok my problem is ... a zeroed palette means nothing shows
+		-- how do other fantasy consoles handle this?
+		-- pico8 and pyxel ... fixed colors no matter what
+		-- tic80 ... separate render for the console and editor ui, so if you zero the palette you still see the editor
+		-- ... ofc tic80's console is the complex one that support scrollback and history, not just scroll-vram-on-newline like the old apple2 and pico8 do
+		if cmdline[2] == 'resetGFX' then
+			-- reset the palette and re-insert the font ...
+			-- I don't want to do this normally so that the custom palette and font can be saved in the ROM
+			self:resetGFX()
+		end
+	
 		self:runCode()
+	else
+		self:resetGFX()
 	end
 
+	-- TODO put all this in RAM
 	self.screenMousePos = vec2i()	-- host coordinates
 	self.mousePos = vec2i()			-- frambuffer coordinates
 	self.lastMousePos = vec2i()		-- ... position last frame
 	self.lastMouseDown = vec2i()
 	self.mouseButtons = 0
+end
+
+-- this just re-inserts the font and default palette
+-- it doesn't 
+function App:resetGFX()
+	-- TODO dirty flags
+	require 'numo9.resetgfx'.resetFont(self.rom)
+	self.spriteTex
+		:bind()
+		:subimage()
+		:unbind()
+
+	require 'numo9.resetgfx'.resetPalette(self.rom)
+	self.palTex:bind()
+		:subimage()
+		:unbind()
 end
 
 -- [[ also in sand-attack ... hmmmm ...
@@ -1234,22 +1156,74 @@ function App:update()
 		-- so this copies CPU changes -> GPU changes
 		-- TODO nothing is copying the GPU back to CPU after we do our sprite renders ...
 		-- double TODO I don't have framebuffer memory
+	--[[
+	TODO ... upload framebuf, download framebuf after
+	that'll make sure graphics stays in synx
+	and then if I do that here (and every other quad:draw())
+	 then there's no longer a need to do that at the update loop
+	 unless someone poke()'s mem
+	 then I should introduce dirty bits
+	and I should be testing those dirty bits here to see if I need to upload here
+	... or just write my own rasterizer
+	or
+	dirty bits both directions
+	cpuDrawn = flag 'true' if someone touches fb vram
+	gpuDrawn = flag 'true' in any of these GL calls
+	... then in both cases ...
+		if someone poke()'s vram, test gpu dirty, if set then copy to cpu
+		if someone draw()'s here, test cpu dirty, if set then upload here
+	... though honestly, i'm getting 5k fps with and without my per-frame-gpu-uploads ...
+		I'm suspicious that doing a few extra GPU uploads here before and after sceneObj:draw()  might not make a difference...
+	--]]
+		-- TODO:
+		--if self.spriteSheetDirtyCPU then
 		self.spriteTex:bind()
 			:subimage()
 			:unbind()
+		--	self.spriteSheetDirtyCPU = false
+		--end
+		--if self.tileSheetDirtyCPU then
 		self.tileTex:bind()
 			:subimage()
 			:unbind()
+		--	self.tileSheetDirtyCPU = false
+		--end
+		--if self.tilemapDirtyCPU then
 		self.mapTex:bind()
 			:subimage()
 			:unbind()
+		--	self.tilemapDirtyCPU = false
+		--end
+		--if self.paletteDirtyCPU then
 		self.palTex:bind()
 			:subimage()
 			:unbind()
+		--	self.paletteDirtyCPU = false
+		--end
+
+		-- increment hold counters
+		-- TODO do this here or before update() ?
+		do
+			local holdptr = self.ram.keyHoldCounter
+			for keycode=0,keyCount-1 do
+				local bi = bit.band(keycode, 7)
+				local by = bit.rshift(keycode, 3)
+	--DEBUG:assert(by >= 0 and by < keyPressFlagSize)
+				local keyFlag = bit.lshift(1, bi)
+				local down = 0 ~= bit.band(self.ram.keyPressFlags[by], keyFlag) 
+				local lastDown = 0 ~= bit.band(self.ram.lastKeyPressFlags[by], keyFlag)
+				if down and lastDown then
+					holdptr[0] = holdptr[0] + 1
+				else
+					holdptr[0] = 0
+				end
+				holdptr = holdptr + 1
+			end
+		end
 
 		-- copy last key buffer to key buffer here after update()
 		-- so that sdl event can populate changes to current key buffer while execution runs outside this callback
-		ffi.copy(self.lastKeyBuffer, self.keyBuffer, self.keyBufferSize)
+		ffi.copy(self.ram.lastKeyPressFlags, self.ram.keyPressFlags, keyPressFlagSize)
 	end
 
 	gl.glViewport(0, 0, self.width, self.height)
@@ -1588,9 +1562,9 @@ function App:load(filename)
 	local code = ffi.string(self.codeMem, self.codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
-print'**** GOT CODE ****'
-print(require 'template.showcode'(code))
-print('**** CODE LEN ****', #code)
+--DEBUG:print'**** GOT CODE ****'
+--DEBUG:print(require 'template.showcode'(code))
+--DEBUG:print('**** CODE LEN ****', #code)
 	--]]
 
 	self.editCode:setText(code)
@@ -1652,7 +1626,7 @@ end
 function App:keyForBuffer(keycode, buffer)
 	local bi = bit.band(keycode, 7)
 	local by = bit.rshift(keycode, 3)
-	if by < 0 or by >= self.keyBufferSize then return end
+	if by < 0 or by >= keyPressFlagSize then return end
 	local keyFlag = bit.lshift(1, bi)
 	return bit.band(buffer[by], keyFlag) ~= 0
 end
@@ -1662,17 +1636,36 @@ function App:key(keycode)
 		keycode = keyCodeForName[keycode]
 	end
 	asserttype(keycode, 'number')
-	return self:keyForBuffer(keycode, self.keyBuffer)
+	return self:keyForBuffer(keycode, self.ram.keyPressFlags)
 end
 
-function App:keyp(keycode)
+-- tic80 has the option that no args = any button pressed ... 
+function App:keyp(keycode, hold, period)
 	if type(keycode) == 'string' then
 		keycode = keyCodeForName[keycode]
 	end
 	asserttype(keycode, 'number')
-	return self:keyForBuffer(keycode, self.keyBuffer)
-	and not self:keyForBuffer(keycode, self.lastKeyBuffer)
+	keycode = math.floor(keycode)	-- or cast int? which is faster?
+	if keycode < 0 or keycode >= keyCount then return end
+	if hold and period 
+	and self.ram.keyHoldCounter[keycode] >= hold
+	and not (period > 0 and self.ram.keyHoldCounter[keycode] % period > 0) then
+		return self:keyForBuffer(keycode, self.ram.keyPressFlags)
+	end
+	return self:keyForBuffer(keycode, self.ram.keyPressFlags)
+	and not self:keyForBuffer(keycode, self.ram.lastKeyPressFlags)
 end
+
+-- pyxel had this idea, pico8 and tic80 don't have it
+function App:keyr(keycode)
+	if type(keycode) == 'string' then
+		keycode = keyCodeForName[keycode]
+	end
+	asserttype(keycode, 'number')
+	return not self:keyForBuffer(keycode, self.ram.keyPressFlags)
+	and self:keyForBuffer(keycode, self.ram.lastKeyPressFlags)
+end
+
 
 -- TODO make this configurable
 -- let's use tic80's standard for button codes
@@ -1694,11 +1687,14 @@ local keyForButton = {
 	-- L R? start select?  or nah? or just one global menu button?
 }
 
-function App:btn(buttonCode)
-	return self:key(keyForButton[buttonCode])
+function App:btn(buttonCode, ...)
+	return self:key(keyForButton[buttonCode], ...)
 end
-function App:btnp(buttonCode)
-	return self:keyp(keyForButton[buttonCode])
+function App:btnp(buttonCode, ...)
+	return self:keyp(keyForButton[buttonCode], ...)
+end
+function App:btnr(buttonCode, ...)
+	return self:keyr(keyForButton[buttonCode], ...)
 end
 
 function App:mouse()
@@ -1771,10 +1767,10 @@ function App:event(e)
 				local bi = bit.band(keycode, 7)
 				local by = bit.rshift(keycode, 3)
 				-- TODO turn this into raw mem like those other virt cons
-				assert(by >= 0 and by < self.keyBufferSize)
+				assert(by >= 0 and by < keyPressFlagSize)
 				local mask = bit.bnot(bit.lshift(1, bi))
-				self.keyBuffer[by] = bit.bor(
-					bit.band(mask, self.keyBuffer[by]),
+				self.ram.keyPressFlags[by] = bit.bor(
+					bit.band(mask, self.ram.keyPressFlags[by]),
 					down and bit.lshift(1, bi) or 0
 				)
 			end

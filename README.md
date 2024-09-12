@@ -116,6 +116,13 @@ Yeah it uses Lua as the underlying script.  That's the whole point of this - to 
 __But LuaJIT doesn't support bitwise operators?__
 But with my [langfix](https://github.com/thenumbernine/langfix-lua) it does!  Built on top of my Lua parser in Lua, it modifies the grammar to incorporate lots of extra stuff.
 
+This adds to Lua(/JIT):
+- bit operators: `& | << >> >>>`
+- in-place operators: `..= += -= *= /= //= %= ^= &= |= ~~= <<= >>= >>>=`
+- lambdas: `[args] do stmts end` for typical multiple-statement functions, `[args] expr` for single-expression functions, but for the parser to distinguish lambdas in arg lists, now you have to wrap single-expression multiple-return-arguments in one `( )`, and that means Lua syntax dictates if you want to truncate the return to a single argument you must wrap it in `(( ))` 
+- safe-navigation: `a?.b, a?['b'], a?(), a?.b(), a?:b(), a.b?(), a?.b?(), a:b?(), a?:b?()`
+- ternary: `a ? b : c`, null-coalescence: `a ?? b` ... but between this and single-expression-lambdas there's a few edge-cases where the grammar needs extra wrapping parenthesis, so be careful with this, or just use the traditional `a and b or c`.
+
 # API
 
 - `print(...)` = print to console ... not print to screen ... gotta fix that
@@ -175,3 +182,11 @@ But with my [langfix](https://github.com/thenumbernine/langfix-lua) it does!  Bu
 - https://snes.nesdev.org/wiki/Tilemaps
 - https://www.raphnet.net/divers/retro_challenge_2019_03/qsnesdoc.html
 - https://www.coranac.com/tonc/text/hardware.htm
+
+# TODO
+- langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
+- sfx and music
+- image clipboard support
+- in-console menu system somehow ... everyone does this different I think
+- some demos to prove it is legit
+- Right now browser embedding is only done through luajit ffi emulation, which is currently slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.
