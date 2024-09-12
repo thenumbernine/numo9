@@ -301,11 +301,16 @@ function App:initGL()
 		map = function(...) return self:drawMap(...) end,
 		text = function(...) return self:drawText(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
 
-		-- TODO don't do this
+		-- TODO don't let the ROM see the App...
 		app = self,
+		bit = bit,
+		math = math,
+		table = table,
+		string = string,
+		_G = _G,
 	}, {
-		-- TODO don't __index=_G and sandbox it instead
-		__index = _G,
+		-- don't __index=_G and sandbox it instead
+		--__index = _G,
 	})
 
 
@@ -735,12 +740,16 @@ void main() {
 				clnumber = clnumber,
 				frameBufferSize = frameBufferSize,
 			}),
-			fragmentCode = [[
+			fragmentCode = template([[
 out uvec4 fragColor;
 uniform uint colorIndex;
 uniform usampler2DRect palTex;
 void main() {
-	ivec2 palTc = ivec2(colorIndex, 0);
+	ivec2 palTc = ivec2(
+<? assert(math.log(paletteSize, 2) % 1 == 0)
+?>		colorIndex & <?=('0x%Xu'):format(paletteSize-1)?>,
+		0
+	);
 #if 1	// rgb565
 	fragColor = texture(palTex, palTc);
 #endif
@@ -754,7 +763,10 @@ void main() {
 	);
 #endif
 }
-]],
+]],			{
+				clnumber = clnumber,
+				paletteSize = paletteSize,
+			}),
 			uniforms = {
 				palTex = 0,
 			},
@@ -1481,6 +1493,8 @@ end
 
 -- draw a solid background color, then draw the text transparent
 -- specify an oob bgColorIndex to draw with transparent background
+-- TODO API: drawText(string, x, y)
+-- and default x, y to the last cursor position
 function App:drawText(x, y, text, fgColorIndex, bgColorIndex, scaleX, scaleY)
 	fgColorIndex = fgColorIndex or 13
 	bgColorIndex = bgColorIndex or 0
@@ -1574,7 +1588,9 @@ function App:load(filename)
 	local code = ffi.string(self.codeMem, self.codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
---print('got code', code, 'len', #code)
+print'**** GOT CODE ****'
+print(require 'template.showcode'(code))
+print('**** CODE LEN ****', #code)
 	--]]
 
 	self.editCode:setText(code)
@@ -1621,8 +1637,14 @@ function App:runCode()
 	end
 	-- TODO setfenv to make sure our function writes globals to its own place
 	local result, msg = xpcall(f, errorHandler)
+	if not result then
+		print(msg)
+		return
+	end
 
-	if env.draw or env.update then
+print('RUNNING CODE')
+print('update:', env.update)
+	if env.update then
 		self.runFocus = env
 	end
 end
@@ -1668,6 +1690,8 @@ local keyForButton = {
 	[5] = keyCodeForName.x,			-- B
 	[6] = keyCodeForName.a,			-- X
 	[7] = keyCodeForName.z,			-- Y
+	-- TODO player 2 player 3 player 4 ...
+	-- L R? start select?  or nah? or just one global menu button?
 }
 
 function App:btn(buttonCode)

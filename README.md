@@ -53,9 +53,9 @@ so 5 bits for the x and 5 bits for the y sprite lookup.
 ... and then duplicate it to another separate 256x256x8bpp for the tile memory.
 
 TODO
-let the editor edit *multiple* sprite sheets
+Let the editor edit *multiple* sprite sheets
 ... but only allow one to be used at a time.
-that's how the old consoles worked, right?
+That's how the old consoles worked, right?
 
 ### tilemap
 
@@ -168,6 +168,7 @@ But with my [langfix](https://github.com/thenumbernine/langfix-lua) it does!  Bu
 - https://tic80.com/
 - https://pixelvision8.itch.io/
 - https://github.com/emmachase/Riko4
+- https://github.com/kitao/pyxel
 
 # Some hardware spec docs:
 - https://8bitworkshop.com/blog/platforms/nintendo-nes.md.html
