@@ -1531,7 +1531,8 @@ function App:drawText1bpp(x, y, text, color, scaleX, scaleY)
 		self:drawSprite(
 			x,						-- x
 			y,                      -- y
-			by,                     -- spriteIndex
+			spriteSheetSizeInTiles.x * (spriteSheetSizeInTiles.y-1)
+			+ by,                     -- spriteIndex is th last row
 			1,                      -- spritesWide
 			1,                      -- spritesHigh
 			-- font color is 0 = background, 1 = foreground

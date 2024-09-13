@@ -4,7 +4,12 @@ and put in that file the ROM and RAM struct defs
 and all the spritesheet / tilemap specs
 --]]
 local table = require 'ext.table'
+local assertlt = require 'ext.assert'.lt
 local Image = require 'image'
+
+local App = require 'numo9.app'
+local spriteSheetSize = App.spriteSheetSize
+local spriteSize = App.spriteSize
 
 -- when I say 'reverse' i mean reversed order of bitfields
 -- when opengl says 'reverse' it means reversed order of reading hex numbers or something stupid
@@ -30,7 +35,8 @@ local function resetFont(rom)
 	local spriteSheetPtr = rom.spriteSheet	-- uint8_t*
 	local fontImg = Image'font.png'
 	local srcx, srcy = 0, 0
-	local dstx, dsty = 0, 0
+	-- store on the last row
+	local dstx, dsty = 0, spriteSheetSize.y - spriteSize.y
 	local function inc2d(x, y, w, h)
 		x = x + 8
 		if x < w then return x, y end
@@ -41,6 +47,10 @@ local function resetFont(rom)
 	for i=0,255 do
 		local b = bit.band(i, 7)
 		local mask = bit.bnot(bit.lshift(1, b))
+		assertlt(srcx, fontImg.width)
+		assertlt(srcy, fontImg.height)
+		assertlt(dstx, spriteSheetSize.x)
+		assertlt(dsty, spriteSheetSize.y)
 		for by=0,7 do
 			for bx=0,7 do
 				local srcp = fontImg.buffer
@@ -59,6 +69,7 @@ local function resetFont(rom)
 				)
 			end
 		end
+print('copied letter from', srcx, srcy,'to', dstx, dsty)
 		srcx, srcy = inc2d(srcx, srcy, fontImg.width, fontImg.height)
 		if not srcx then break end
 		if b == 7 then
