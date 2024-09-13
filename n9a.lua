@@ -493,6 +493,13 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	code = spriteFlagCode..'\n'
 .. [[
 -- begin compat layer
+
+--looking for a faster floor function. ..
+--int=ffi.typeof'int'
+local inttype = ffi.typeof'int'
+int=[x]tonumber(inttype(x))
+
+fbMem=0x050200
 palMem=0x040000
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 defaultColor=6
@@ -552,7 +559,7 @@ setfenv(1, {
 
 	cls=cls,
 	clip=[x,y,w,h,rel]do
-		assert(not rel, 'TODO')
+--assert(not rel, 'TODO')
 		if not x then
 			clip(0,0,128,128)
 		else
@@ -566,8 +573,16 @@ setfenv(1, {
 			mattrans(-x,-y)
 		end
 	end,
+	pset=[x,y,col]do
+		col=col or defaultColor
+		-- TODO palette lookup
+		pokew(fbMem+((x|(y<<8))<<1),peekw(palMem+(col<<1)))
+	end,
 	rect=[x0,y0,x1,y1,col]rectb(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
 	rectfill=[x0,y0,x1,y1,col]rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	circ=[x,y,r,col]rectb(x-r,y-r,2*r+1,2*r+1,col), -- TODO 
+	circfill=[x,y,r,col]rect(x-r,y-r,2*r+1,2*r+1,col), -- TODO 
+	print=text,
 	line=[...]do
 		local x0,y0,x1,y1,col
 		local n=select('#',...)
@@ -594,11 +609,11 @@ setfenv(1, {
 			pokel(palMem+24,0xcdd0fea5)
 			pokel(palMem+28,0xd73fd5df)
 		elseif type(from)=='number' and type(to)=='number' then
-			assert(not pal, "TODO")
+--assert(not pal, "TODO")
 			pokew(palMem+2*to,peekw(palMem+32+2*from))
 		elseif type(from)=='table' then
 			pal=to
-			assert(not pal, "TODO")
+--assert(not pal, "TODO")
 			for from,to in pairs(from) do
 				pokew(palMem+2*to,peekw(palMem+32+2*from))
 			end
@@ -615,7 +630,7 @@ trace(from,to,pal)
 				pokel(addr,peekw(addr)|0x80008000)
 			end
 		else
-			assert(c >= 0 and c < 16)
+--assert(c >= 0 and c < 16)
 			local addr=palMem+2*c
 			if t~=false then
 				pokew(addr,peekw(addr)|0x8000)
@@ -638,21 +653,25 @@ trace(from,to,pal)
 		if pb then return btn(pb) end
 		error'here'
 	end,
-	btnp=[b, ...]btnp(assert(p8ton9btnmap[b]), ...),
+	btnp=[b, ...]btnp(
+--		assert(
+		p8ton9btnmap[b]
+--		)
+		, ...),
 
 	fget=[...]do
 		local i, f
 		local n=select('#',...)
 		if n==1 then
 			local i = ...
-			assert(i >= 0 and i < 256)
+--			assert(i >= 0 and i < 256)
 			return sprFlags[i+1]
 		elseif n==2 then
 			local i, f = ...
-			i = math.floor(i)	-- or byte cast? idk
-			f = math.floor(f)
-			assert(i >= 0 and i < 256)
-			assert(f >= 0 and f < 8)
+			i = int(i)
+			f = int(f)
+--			assert(i >= 0 and i < 256)
+--			assert(f >= 0 and f < 8)
 			return (1 & (sprFlags[i+1] >> f)) ~= 0
 		else
 			error'here'
@@ -661,12 +680,12 @@ trace(from,to,pal)
 	fset=[...]do
 		if select('#', ...) == 2 then
 			local n, val = ...
-			assert(n >= 0 and n < 256)
-			assert(val >= 0 and val < 256)
+--			assert(n >= 0 and n < 256)
+--			assert(val >= 0 and val < 256)
 			sprFlags[n+1] = val
 		elseif select('#', ...) == 3 then
 			local n, f, val = ...
-			assert(n >= 0 and n < 256)
+--			assert(n >= 0 and n < 256)
 			local flag = (1 << f)
 			local mask = ~flag
 			sprFlags[n+1] &= mask
@@ -687,10 +706,10 @@ trace(from,to,pal)
 	mset=[x,y,i]mset(x,y,(i&0xf)|((i&0xf0)<<1)),
 	map=[tileX,tileY,screenX,screenY,tileW,tileH,layers]do
 --trace('map', 	tileX,tileY,screenX,screenY,tileW,tileH,layers)
-		screenX=math.floor(screenX or 0)
-		screenY=math.floor(screenY or 0)
-		tileW=math.floor(tileW or 1)
-		tileH=math.floor(tileH or 1)
+		screenX=int(screenX or 0)
+		screenY=int(screenY or 0)
+		tileW=int(tileW or 1)
+		tileH=int(tileH or 1)
 		if layers then
 			-- manually hunt through the tilemap, 
 			-- get the tile,
@@ -702,7 +721,7 @@ trace(from,to,pal)
 					local j=tileY+dy
 					local tileIndex = mget(i,j)
 					tileIndex=(tileIndex&0xf)|((tileIndex>>1)&0xf0)
-					--assert(0 <= tileIndex and tileIndex < 256)
+--					assert(0 <= tileIndex and tileIndex < 256)
 					if sprFlags[tileIndex+1]&layers==layers then
 						map(i,j,1,1,screenX+(dx<<3),screenY+(dy<<3),0)
 					end
@@ -714,13 +733,13 @@ trace(from,to,pal)
 		end
 	end,
 	spr=[n,x,y,w,h,fx,fy]do
-		n = math.floor(n)
+		n = int(n)
 --trace('spr', n,x,y,w,h,fx,fy)
 		-- translate sprite index from 4bpp x 4bpp to 5bpp x 5bpp
-		assert(n >= 0 and n < 256)
+--		assert(n >= 0 and n < 256)
 		n=(n&0xf)|((n&0xf0)<<1)
-		w=math.floor(w or 1)
-		h=math.floor(h or 1)
+		w=int(w or 1)
+		h=int(h or 1)
 		local sx,sy = 1,1
 		if fx then
 			sx=-1
@@ -754,7 +773,7 @@ trace(from,to,pal)
 		_init()
 		update=[]do
 			if _update
-			and peek(0x070244)&1==1  -- run at 30fps 
+--			and peek(0x070244)&1==1  -- run at 30fps ... why does this look slow ...
 			-- skip the odd frames, because pico8 expects an _update() before a _draw()
 			then
 				_update()

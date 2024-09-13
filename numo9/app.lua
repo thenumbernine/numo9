@@ -348,13 +348,11 @@ function App:initGL()
 				-- assert num args is 4 ?
 				packptr(4, self.clipRect, ...)
 			end
-			--[[ TODO if you change clip rect then you must also chnage the projection
 			gl.glViewport(
 				self.clipRect[0],
 				self.clipRect[1],
 				self.clipRect[2]+1,
 				self.clipRect[3]+1)
-			--]]
 		end,
 
 		rect = function(...) return self:drawSolidRect(...) end,
@@ -683,17 +681,14 @@ void main() {
 			precision = 'best',
 			vertexCode = template([[
 in vec2 vertex;
-uniform vec4 box;	//x,y,w,h
+uniform vec4 box;	//x,y,w,h of the quad in modelspace
 uniform mat4 mvMat;
-
-//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
-
+uniform vec4 viewport;	//x,y,w,h of the viewport
 void main() {
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(rvtx, 0., 1.);
-	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
+	gl_Position.xy -= viewport.xy;
+	gl_Position.xy /= viewport.zw;
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
@@ -739,6 +734,7 @@ void main() {
 			mvMat = self.mvMat.ptr,
 			colorIndex = 0,
 			box = {0, 0, 8, 8},
+			viewport = {0, 0, 256, 256},
 		},
 	}
 
@@ -751,18 +747,14 @@ in vec2 vertex;
 out vec2 tcv;
 uniform vec4 box;	//x,y,w,h
 uniform vec4 tcbox;	//x,y,w,h
-
 uniform mat4 mvMat;
-
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
-
+uniform vec4 viewport;	//x,y,w,h of the viewport
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(rvtx, 0., 1.);
-	gl_Position.x /= frameBufferSizeX;
-	gl_Position.y /= frameBufferSizeY;
+	gl_Position.xy -= viewport.xy;
+	gl_Position.xy /= viewport.zw;
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
@@ -866,6 +858,7 @@ void main() {
 		-- glUniform()'d every frame
 		uniforms = {
 			mvMat = self.mvMat.ptr,
+			viewport = {0, 0, 256, 256},
 			box = {0, 0, 8, 8},
 			tcbox = {0, 0, 1, 1},
 		},
@@ -881,16 +874,13 @@ out vec2 tcv;
 uniform vec4 box;		//x y w h
 uniform vec4 tcbox;		//tx ty tw th
 uniform mat4 mvMat;
-
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
-
+uniform vec4 viewport;	//x,y,w,h of the viewport
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 rvtx = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(rvtx, 0., 1.);
-	gl_Position.x /= frameBufferSizeX;
-	gl_Position.y /= frameBufferSizeY;
+	gl_Position.xy -= viewport.xy;
+	gl_Position.xy /= viewport.zw;
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
@@ -990,6 +980,7 @@ void main() {
 		-- glUniform()'d every frame
 		uniforms = {
 			mvMat = self.mvMat.ptr,
+			viewport = {0, 0, 256, 256},
 			box = {0, 0, 8, 8},
 			tcbox = {0, 0, 1, 1},
 		},
@@ -1262,16 +1253,12 @@ function App:update()
 
 		local fb = self.fb
 		fb:bind()
-		--[[ TODO if you chagne the clip rect then you must also change the proejction
+		
 		gl.glViewport(
 			self.clipRect[0],
 			self.clipRect[1],
 			self.clipRect[2]+1,
 			self.clipRect[3]+1)
-		--]]
-		-- [[
-		gl.glViewport(0,0,frameBufferSize:unpack())
-		--]]
 
 		-- TODO here run this only 60 fps
 		local runFocus = self.runFocus
@@ -1409,8 +1396,13 @@ function App:drawSolidRect(x, y, w, h, colorIndex)
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 	uniforms.mvMat = self.mvMat.ptr
-	uniforms.colorIndex = colorIndex
+	settable(uniforms.viewport,
+		self.clipRect[0],
+		self.clipRect[1],
+		self.clipRect[2]+1,
+		self.clipRect[3]+1)
 	settable(uniforms.box, x, y, w, h)
+	uniforms.colorIndex = colorIndex
 	sceneObj:draw()
 end
 
@@ -1420,8 +1412,12 @@ function App:drawBorderRect(x, y, w, h, colorIndex)
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 	uniforms.mvMat = self.mvMat.ptr
+	settable(uniforms.viewport,
+		self.clipRect[0],
+		self.clipRect[1],
+		self.clipRect[2]+1,
+		self.clipRect[3]+1)
 	uniforms.colorIndex = colorIndex
-
 	settable(uniforms.box, x, y, w, 1)
 	sceneObj:draw()
 	settable(uniforms.box, x, y, 1, h)
@@ -1465,11 +1461,15 @@ function App:drawQuad(
 	sceneObj.texs[1] = tex
 
 	uniforms.mvMat = self.mvMat.ptr
+	settable(uniforms.viewport,
+		self.clipRect[0],
+		self.clipRect[1],
+		self.clipRect[2]+1,
+		self.clipRect[3]+1)
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
 	uniforms.spriteMask = spriteMask
-
 	settable(uniforms.tcbox, tx, ty, tw, th)
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
@@ -1518,6 +1518,11 @@ function App:drawSprite(
 	sceneObj.texs[1] = self.spriteTex
 
 	uniforms.mvMat = self.mvMat.ptr
+	settable(uniforms.viewport,
+		self.clipRect[0],
+		self.clipRect[1],
+		self.clipRect[2]+1,
+		self.clipRect[3]+1)
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1560,8 +1565,11 @@ function App:drawMap(
 	sceneObj.texs[1] = self.mapTex
 
 	uniforms.mvMat = self.mvMat.ptr
-	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
-
+	settable(uniforms.viewport,
+		self.clipRect[0],
+		self.clipRect[1],
+		self.clipRect[2]+1,
+		self.clipRect[3]+1)
 	settable(uniforms.tcbox,
 		tileX / tonumber(tilemapSizeInSprites.x),
 		tileY / tonumber(tilemapSizeInSprites.y),
@@ -1574,6 +1582,8 @@ function App:drawMap(
 		tilesWide * spriteSize.x,
 		tilesHigh * spriteSize.y
 	)
+	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
+
 	sceneObj:draw()
 end
 
