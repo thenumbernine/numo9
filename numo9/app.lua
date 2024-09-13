@@ -357,7 +357,7 @@ function App:initGL()
 
 		rect = function(...) return self:drawSolidRect(...) end,
 		rectb = function(...) return self:drawBorderRect(...) end,
-		spr = function(...) return self:drawSprite(...) end,		-- (x, y, spriteIndex, paletteIndex)
+		spr = function(...) return self:drawSprite(...) end,		-- (spriteIndex, x, y, paletteIndex)
 		map = function(...) return self:drawMap(...) end,
 		text = function(...) return self:drawText(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
 
@@ -1481,9 +1481,9 @@ scaleX = how much to scale the drawn width, default is 1
 scaleY = how much to scale the drawn height, default is 1
 --]]
 function App:drawSprite(
+	spriteIndex,
 	x,
 	y,
-	spriteIndex,
 	spritesWide,
 	spritesHigh,
 	paletteIndex,
@@ -1574,10 +1574,10 @@ function App:drawText1bpp(x, y, text, color, scaleX, scaleY)
 		local by = bit.rshift(ch, 3)	-- get the byte offset
 		local bi = bit.band(ch, 7)		-- get the bit offset
 		self:drawSprite(
-			x,						-- x
-			y,                      -- y
 			spriteSheetSizeInTiles.x * (spriteSheetSizeInTiles.y-1)
 			+ by,                     -- spriteIndex is th last row
+			x,						-- x
+			y,                      -- y
 			1,                      -- spritesWide
 			1,                      -- spritesHigh
 			-- font color is 0 = background, 1 = foreground
@@ -1723,7 +1723,10 @@ function App:runCmd(cmd)
 	return xpcall(f, errorHandler)
 	--]]
 	-- [[ error always
-	return assert(self:loadCmd(cmd))()
+	local result = table.pack(assert(self:loadCmd(cmd))())
+	print('RESULT', result:unpack())
+	assert(result:unpack())
+	return result:unpack()
 	--]]
 end
 
@@ -1747,12 +1750,12 @@ function App:runCode()
 		return
 	end
 	-- TODO setfenv to make sure our function writes globals to its own place
-	local result, msg = xpcall(f, errorHandler)
-	if not result then
-		print(msg)
+	local result = table.pack(xpcall(f, errorHandler))
+	if not result:remove(1) then
+		print(result:unpack())
 		return
 	end
-
+print('LOAD RESULT', result:unpack())
 print('RUNNING CODE')
 print('update:', env.update)
 	if env.update then
