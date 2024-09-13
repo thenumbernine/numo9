@@ -62,11 +62,12 @@ function EditTilemap:update()
 --print('map', require 'ext.string'.hexdump(require 'ffi'.string(mapTex.data, 16)))
 
 	app:drawMap(
-		mapX,		-- pixel x
-		mapY,		-- pixel y
 		0,			-- upper-left index in the tile tex
+		0,
 		tilemapSizeInSprites.x,	-- tiles wide
 		tilemapSizeInSprites.y,	-- tiles high
+		mapX,		-- pixel x
+		mapY,		-- pixel y
 		0			-- map index offset / high page
 	)
 	if self.drawGrid then

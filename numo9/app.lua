@@ -348,11 +348,13 @@ function App:initGL()
 				-- assert num args is 4 ?
 				packptr(4, self.clipRect, ...)
 			end
+			--[[ TODO if you change clip rect then you must also chnage the projection
 			gl.glViewport(
 				self.clipRect[0],
 				self.clipRect[1],
 				self.clipRect[2]+1,
 				self.clipRect[3]+1)
+			--]]
 		end,
 
 		rect = function(...) return self:drawSolidRect(...) end,
@@ -1256,11 +1258,16 @@ function App:update()
 
 		local fb = self.fb
 		fb:bind()
+		--[[ TODO if you chagne the clip rect then you must also change the proejction
 		gl.glViewport(
 			self.clipRect[0],
 			self.clipRect[1],
 			self.clipRect[2]+1,
 			self.clipRect[3]+1)
+		--]]
+		-- [[
+		gl.glViewport(0,0,frameBufferSize:unpack())
+		--]]
 
 		-- TODO here run this only 60 fps
 		local runFocus = self.runFocus
@@ -1447,7 +1454,7 @@ function App:drawQuad(
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
-	spriteMask = spriteMask or 0xF
+	spriteMask = spriteMask or 0xFF
 
 	local sceneObj = self.quadSpriteObj
 	local uniforms = sceneObj.uniforms
@@ -1469,7 +1476,7 @@ spriteIndex =
 	bits 0..4 = x coordinate in sprite sheet
 	bits 5..9 = y coordinate in sprite sheet
 spritesWide = width in sprites
-sh = height in sprites
+spritesHigh = height in sprites
 paletteIndex =
 	byte value with high 4 bits that holds which palette to use
 	... this is added to the sprite color index so really it's a palette shift.
@@ -1482,8 +1489,8 @@ scaleY = how much to scale the drawn height, default is 1
 --]]
 function App:drawSprite(
 	spriteIndex,
-	x,
-	y,
+	screenX,
+	screenY,
 	spritesWide,
 	spritesHigh,
 	paletteIndex,
@@ -1523,8 +1530,8 @@ function App:drawSprite(
 		spritesHigh / tonumber(spriteSheetSizeInTiles.y)
 	)
 	settable(uniforms.box,
-		x,
-		y,
+		screenX,
+		screenY,
 		spritesWide * spriteSize.x * scaleX,
 		spritesHigh * spriteSize.y * scaleY
 	)
@@ -1532,11 +1539,12 @@ function App:drawSprite(
 end
 
 function App:drawMap(
-	x,
-	y,
-	tileIndex,
+	tileX,
+	tileY,
 	tilesWide,
 	tilesHigh,
+	screenX,
+	screenY,
 	mapIndexOffset
 )
 	tilesWide = tilesWide or 1
@@ -1550,17 +1558,15 @@ function App:drawMap(
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
-	local tx = tileIndex % tilemapSizeInSprites.x
-	local ty = (tileIndex - tx) / tilemapSizeInSprites.x
 	settable(uniforms.tcbox,
-		tx / tonumber(tilemapSizeInSprites.x),
-		ty / tonumber(tilemapSizeInSprites.y),
+		tileX / tonumber(tilemapSizeInSprites.x),
+		tileY / tonumber(tilemapSizeInSprites.y),
 		tilesWide / tonumber(tilemapSizeInSprites.x),
 		tilesHigh / tonumber(tilemapSizeInSprites.y)
 	)
 	settable(uniforms.box,
-		x,
-		y,
+		screenX,
+		screenY,
 		tilesWide * spriteSize.x,
 		tilesHigh * spriteSize.y
 	)

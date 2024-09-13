@@ -533,7 +533,9 @@ setfenv(1, {
 			coroutine.yield(x)
 		end
 	end),
-	foreach=table.mapi,
+	foreach=[t,f]do
+		for _,o in ipairs(t) do f(o) end 
+	end,
 	tostr=tostring,
 	tonum=tonumber,
 	chr=string.char,
@@ -685,12 +687,31 @@ trace(from,to,pal)
 	mset=[x,y,i]mset(x,y,(i&0xf)|((i&0xf0)<<1)),
 	map=[tileX,tileY,screenX,screenY,tileW,tileH,layers]do
 --trace('map', 	tileX,tileY,screenX,screenY,tileW,tileH,layers)
-		screenX=screenX or 0
-		screenY=screenY or 0
-		tileW=tileW or 1
-		tileH=tileH or 1
-		--TODO layers = bitfield ... to only draw matching sprFlags ...
-		return map(screenX,screenY,tileX+32*tileY,0)
+		screenX=math.floor(screenX or 0)
+		screenY=math.floor(screenY or 0)
+		tileW=math.floor(tileW or 1)
+		tileH=math.floor(tileH or 1)
+		if layers then
+			-- manually hunt through the tilemap, 
+			-- get the tile,
+			-- get the sprFlags of the tile
+			-- if they intersect (all? any?) then draw this sprite
+			for dy=0,tileH-1 do
+				for dx=0,tileW-1 do
+					local i=tileX+dx
+					local j=tileY+dy
+					local tileIndex = mget(i,j)
+					tileIndex=(tileIndex&0xf)|((tileIndex>>1)&0xf0)
+					--assert(0 <= tileIndex and tileIndex < 256)
+					if sprFlags[tileIndex+1]&layers==layers then
+						map(i,j,1,1,screenX+(dx<<3),screenY+(dy<<3),0)
+					end
+				end
+			end
+		else
+			--TODO layers = bitfield ... to only draw matching sprFlags ...
+			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
+		end
 	end,
 	spr=[n,x,y,w,h,fx,fy]do
 		n = math.floor(n)
@@ -698,14 +719,24 @@ trace(from,to,pal)
 		-- translate sprite index from 4bpp x 4bpp to 5bpp x 5bpp
 		assert(n >= 0 and n < 256)
 		n=(n&0xf)|((n&0xf0)<<1)
-		w=w or 1
-		h=h or 1
-		spr(n,x,y,w,h,0,-1,0,0xff,fx and -1 or 1, fy and -1 or 1)
+		w=math.floor(w or 1)
+		h=math.floor(h or 1)
+		local sx,sy = 1,1
+		if fx then
+			sx=-1
+			x+=w*8
+		end
+		if fy then
+			sy=-1
+			y+=h*8
+		end
+		spr(n,x,y,w,h,0,-1,0,0xf,sx,sy)
 	end,
 	color=[c]do defaultColor=c or 6 end,
 
 	reset=[]nil,	-- reset palette, camera, clipping, fill-patterns ...
 	music=[]nil,
+	sfx=[]nil,
 	reload=[dst,src,len]do	-- copy from rom to ram
 		if not dst then
 			-- reload everything
@@ -719,18 +750,25 @@ trace(from,to,pal)
 
 	menuitem=[]nil,
 
-	__numo9_finished=[_init, _update, _draw]do
+	__numo9_finished=[_init, _update, _update60, _draw]do
 		_init()
 		update=[]do
-			_update()
-			_draw()
+			if _update
+			and peek(0x070244)&1==1  -- run at 30fps 
+			-- skip the odd frames, because pico8 expects an _update() before a _draw()
+			then
+				_update()
+			end
+			if _update60 then _update60() end
+			if _draw then _draw() end
 		end
 	end,
 })
--- end compat layer]] .. code
+-- end compat layer
+]] .. code
 -- if this one global seems like a bad idea, I can always just wrap the whole thing in a function , then setfenv on the function env, and then have the function return the _init and _update (to call and set)
 .. [[
-__numo9_finished(_init, _update, _draw)
+__numo9_finished(_init, _update, _update60, _draw)
 ]]
 
 	local codepath = basepath'code.lua'
