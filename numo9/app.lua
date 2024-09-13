@@ -1565,8 +1565,8 @@ function App:drawMap(
 		tilesHigh / tonumber(tilemapSizeInSprites.y)
 	)
 	settable(uniforms.box,
-		screenX,
-		screenY,
+		screenX or 0,
+		screenY or 0,
 		tilesWide * spriteSize.x,
 		tilesHigh * spriteSize.y
 	)
@@ -1731,7 +1731,7 @@ function App:runCmd(cmd)
 	-- [[ error always
 	local result = table.pack(assert(self:loadCmd(cmd))())
 	print('RESULT', result:unpack())
-	assert(result:unpack())
+	--assert(result:unpack())
 	return result:unpack()
 	--]]
 end
