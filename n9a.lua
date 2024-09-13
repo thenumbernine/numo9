@@ -579,14 +579,14 @@ setfenv(1, {
 	end,
 	pal=[from,to,pal]do
 		if not from then
-			pokew(palMem,   0xa8a38000)
-			pokew(palMem+4, 0xaa00a88f)
-			pokew(palMem+8, 0xa54b9955)
-			pokew(palMem+12,0xf7dfe318)
-			pokew(palMem+16,0x829fa41f)
-			pokew(palMem+20,0x9b8093bf)
-			pokew(palMem+24,0xcdd0fea5)
-			pokew(palMem+28,0xd73fd5df)
+			pokel(palMem,   0xa8a38000)
+			pokel(palMem+4, 0xaa00a88f)
+			pokel(palMem+8, 0xa54b9955)
+			pokel(palMem+12,0xf7dfe318)
+			pokel(palMem+16,0x829fa41f)
+			pokel(palMem+20,0x9b8093bf)
+			pokel(palMem+24,0xcdd0fea5)
+			pokel(palMem+28,0xd73fd5df)
 		elseif type(from)=='number' and type(to)=='number' then
 			assert(not pal, "TODO")
 			pokew(palMem+2*to,peekw(palMem+32+2*from))
@@ -606,7 +606,7 @@ trace(from,to,pal)
 		if not c then
 			for i=0,7 do
 				local addr=palMem+4*i
-				pokew(addr,peekw(addr)|0x80008000)
+				pokel(addr,peekw(addr)|0x80008000)
 			end
 		else
 			assert(c >= 0 and c < 16)
@@ -686,6 +686,9 @@ trace(from,to,pal)
 		return map(screenX,screenY,tileX+32*tileY,0)
 	end,
 	spr=[n,x,y,w,h,fx,fy]do
+		-- translate sprite index from 4bpp x 4bpp to 5bpp x 5bpp
+		assert(n >= 0 and n < 256)
+		n=(n&0xf)|((n%0xf0)<<1)
 		w=w or 1
 		h=h or 1
 		spr(n,x,y,w,h,0,-1,0,0xff,fx and -1 or 1, fy and -1 or 1)

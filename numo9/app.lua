@@ -827,6 +827,7 @@ void main() {
 	ivec2 palTc = ivec2(colorIndex, 0);
 #if 1	// rgb565
 	fragColor = texture(palTex, palTc);
+	if (fragColor.a == 0) discard;
 #endif
 #if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
@@ -953,6 +954,7 @@ void main() {
 	ivec2 palTc = ivec2(colorIndex, 0);
 #if 1	// rgb565
 	fragColor = texture(palTex, palTc);
+	if (fragColor.a == 0) discard;
 #endif
 #if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
@@ -1889,6 +1891,8 @@ function App:event(e)
 			-- TODO re-init the con?  clear? special per runFocus?
 			if self.runFocus == self.con then
 				self:runInEmu(function()
+					-- TODO put all this reset stuff in one place
+					packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
 					self.con:reset()
 				end)
 			end
