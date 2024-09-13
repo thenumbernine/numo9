@@ -20,7 +20,7 @@ local App = require 'numo9.app'
 local fromCartImage = require 'numo9.archive'.fromCartImage
 local toCartImage = require 'numo9.archive'.toCartImage
 
-local cmd, fn = ...
+local cmd, fn, extra = ...
 assert(cmd and fn, "expected: `n9a.lua cmd fn`")
 
 -- should probably use the same lib as numo9 uses for its compression/saving ...
@@ -189,6 +189,15 @@ or cmd == 'r' then
 		local codeMem = rom.code
 		ffi.copy(codeMem, code, n)
 		codeMem[n] = 0	-- null term
+	end
+
+	-- TODO organize this more
+	if extra == 'resetFont' then
+		print'resetting font...'
+		require 'numo9.resetgfx'.resetFont(rom)
+	end
+	if extra == 'resetPal' then
+		--require 'numo9.resetgfx'.resetPalette(rom)
 	end
 
 	print'saving cart...'
