@@ -7,8 +7,8 @@ local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
-local keyCodeForName = require 'numo9.keys'.keyCodeForName 
-local getAsciiForKeyCode = require 'numo9.keys'.getAsciiForKeyCode 
+local keyCodeForName = require 'numo9.keys'.keyCodeForName
+local getAsciiForKeyCode = require 'numo9.keys'.getAsciiForKeyCode
 
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
@@ -27,59 +27,7 @@ function EditCode:init(args)
 	-- text cursor loc
 	self.cursorLoc = 1
 	self.editLineOffset = 0
-	self:setText[[
-print'Hello NuMo9'
-
-local spriteMem = 0x00000
-local tileMem = 0x10000
-local mapMem = 0x20000
-
--- fill our tiles with random garbage
-for j=0,255 do
-	for i=0,255 do
-		poke(tileMem + i + 256 * j, i+j)
-	end
-end
-
-function update()
-	-- fill our map with random tiles
-	for j=0,31 do
-		for i=0,31 do
-			poke(mapMem + 0+2*(i+256*j), math.random(0,255))
-			poke(mapMem + 1+2*(i+256*j), math.random(0,255))
-		end
-	end
-	map(0,0,0,32,32)
-
-	local x = 128
-	local y = 128
-	local t = time()
-	local cx = math.cos(t)
-	local cy = math.sin(t)
-	local r = 50*math.cos(t/3)
-	local x1=x-r*cx
-	local x2=x+r*cx
-	local y1=y-r*cy
-	local y2=y+r*cy
-	rectb(x1,y1,x2,y2,
-		math.floor(50 * t)
-	)
-
-	matident()
-	mattrans(x2,y2)
-	matrot(t, 0, 0, 1)
-	text(
-		0, 0,        -- x y
-		'HelloWorld', -- str
-		13,-- fg
-		0, -- bg
-		1.5, 3 -- sx sy
-	)
-	matident()
-end
-
-do return 42 end
-]]
+	self:setText''
 end
 
 function EditCode:setText(text)
@@ -168,7 +116,7 @@ function EditCode:update()
 		12,
 		1
 	)
-	
+
 	-- handle input
 
 	local shift = app:key'lshift' or app:key'rshift'

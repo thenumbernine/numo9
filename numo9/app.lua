@@ -214,7 +214,7 @@ function App:initGL()
 	-- TODO delta updates
 	self.startTime = getTime()
 
-	self.env = setmetatable({
+	self.env = {
 		-- filesystem functions ...
 		ls = function(...) return self.fs:ls(...) end,
 		dir = function(...) return self.fs:ls(...) end,
@@ -323,12 +323,10 @@ function App:initGL()
 		assert = assert,
 		pairs = pairs,
 		ipairs = ipairs,
+		getfenv = getfenv,
 		setfenv = setfenv,
 		_G = _G,
-	}, {
-		-- don't __index=_G and sandbox it instead
-		--__index = _G,
-	})
+	}
 
 --[[ debugging - trace all calls
 local oldenv = self.env
@@ -457,7 +455,7 @@ print('package.loaded', package.loaded)
 		type = gl.GL_UNSIGNED_BYTE,
 	}
 	self.env.tileMem = self.tileTex.image.buffer
-
+--[[
 	for i=0,15 do
 		for j=0,15 do
 			self.tileTex.image.buffer[
@@ -469,6 +467,7 @@ print('package.loaded', package.loaded)
 		:bind()
 		:subimage()
 		:unbind()
+--]]
 
 	--[[
 	16bpp ...
@@ -487,7 +486,7 @@ print('package.loaded', package.loaded)
 	}
 	self.mapMem = self.mapTex.image.buffer
 	self.env.mapMem = self.mapMem
-
+--[[
 	for i=0,1 do
 		for j=0,1 do
 			self.mapTex.image.buffer[
@@ -499,7 +498,7 @@ print('package.loaded', package.loaded)
 		:bind()
 		:subimage()
 		:unbind()
-
+--]]
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'unsigned short'),
@@ -971,9 +970,6 @@ void main() {
 	end
 	fb:unbind()
 
-	self.codeMem = self.ram.code
-	self.env.codeMem = self.ram.code
-
 	-- 4 uint8 bytes ...
 	-- x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self.clipRect = self.ram.clipRect
@@ -1039,11 +1035,74 @@ void main() {
 
 		self:runCode()
 	else
+		-- TODO straighten out init ...
 print("didn't find initial file ... resetting gfx ...")
 		self:resetGFX()
 
-print('palette:', hexdump(self.rom.palette, ffi.sizeof(self.rom.palette)))
-print('spriteSheet:', hexdump(self.rom.spriteSheet, ffi.sizeof(self.rom.spriteSheet)))
+		self.editCode:setText[[
+print'Hello NuMo9'
+
+local spriteMem = 0x00000
+local tileMem = 0x10000
+local mapMem = 0x20000
+
+--[=[ fill our tiles with random garbage
+for j=0,255 do
+	for i=0,255 do
+		poke(tileMem + i + 256 * j, i+j)
+	end
+end
+--]=]
+function update()
+--[=[ fill our map with random tiles
+	for j=0,31 do
+		for i=0,31 do
+			poke(mapMem + 0+2*(i+256*j), math.random(0,255))
+			poke(mapMem + 1+2*(i+256*j), math.random(0,255))
+		end
+	end
+	map(0,0,0,32,32)
+--]=]
+
+	local x = 128
+	local y = 128
+	local t = time()
+	local cx = math.cos(t)
+	local cy = math.sin(t)
+	local r = 50*math.cos(t/3)
+	local x1=x-r*cx
+	local x2=x+r*cx
+	local y1=y-r*cy
+	local y2=y+r*cy
+	rectb(x1,y1,x2-x1+1,y2-y1+1,
+		math.floor(50 * t)
+	)
+
+	matident()
+	mattrans(x2,y2)
+	matrot(t, 0, 0, 1)
+	text(
+		0, 0,        -- x y
+		'HelloWorld', -- str
+		13,-- fg
+		0, -- bg
+		1.5, 3 -- sx sy
+	)
+	matident()
+end
+
+do return 42 end
+]]
+
+		ffi.fill(self.ram.code, ffi.sizeof(self.ram.code))
+		assert(#self.editCode.text < codeSize)
+		ffi.copy(self.ram.code, self.editCode.text)
+
+		self:runCode()
+
+		self:runInEmu(function()
+			self.con:reset()
+		end)
 	end
 
 	-- TODO put all this in RAM
@@ -1192,6 +1251,7 @@ function App:update()
 				self.con:print(msg)
 			end
 		else
+print('no runnable focus!')
 			self.runFocus = self.con
 		end
 
@@ -1550,8 +1610,8 @@ function App:save(filename)
 	local n = #self.editCode.text
 	assertlt(n+1, codeSize)
 --print('saving code', self.editCode.text, 'size', n)
-	ffi.copy(self.codeMem, self.editCode.text, n)
-	self.codeMem[n] = 0	-- null term
+	ffi.copy(self.ram.code, self.editCode.text, n)
+	self.ram.code[n] = 0	-- null term
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
@@ -1605,7 +1665,7 @@ function App:load(filename)
 	-- [[ TODO image stuck reading and writing to disk, FIXME
 	local romStr = require 'numo9.archive'.fromCartImage(d)
 	ffi.copy(self.rom.v, romStr, ffi.sizeof'ROM')
-	local code = ffi.string(self.codeMem, self.codeSize)	-- TODO max size on this ...
+	local code = ffi.string(self.ram.code, self.codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
 --DEBUG:print'**** GOT CODE ****'
