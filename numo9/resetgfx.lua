@@ -27,12 +27,11 @@ local function rgb888revto5551(rgb)
 	return abgr
 end
 
-local function resetFont(rom)
+local function resetFontOnSheet(spriteSheetPtr)
 	local spriteSheetSize = require 'numo9.app'.spriteSheetSize
 
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
-	local spriteSheetPtr = rom.spriteSheet	-- uint8_t*
 	local fontImg = Image'font.png'
 	local srcx, srcy = 0, 0
 	-- store on the last row
@@ -77,6 +76,9 @@ local function resetFont(rom)
 			if not dstx then break end
 		end
 	end
+end
+local function resetFont(rom)
+	return resetFontOnSheet(rom.spriteSheet)	-- uint8_t*
 end
 
 local function resetPalette(rom)
@@ -151,6 +153,7 @@ end
 
 return {
 	resetFont = resetFont,
+	resetFontOnSheet = resetFontOnSheet,
 	resetPalette = resetPalette,
 	rgb888revto5551 = rgb888revto5551,
 }

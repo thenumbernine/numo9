@@ -136,19 +136,27 @@ local RAM = struct{
 			fields = table(
 				ROM.fields[2].type.fields
 			):append{
+				-- graphics
+
+				-- I know, I know, old consoles didn't have a framebuffer
+				-- but how would we properly emulate our non-sprite graphics without one?
+				-- maybe I'll do rgb332+dithering to save space ...
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
 				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ...
+
+				-- timer
+				{name='updateCounter', type='uint32_t[1]'},
+
+				-- keyboard
 
 				-- bitflags of keyboard:
 				{name='keyPressFlags', type='uint8_t['..keyPressFlagSize..']'},
 				{name='lastKeyPressFlags', type='uint8_t['..keyPressFlagSize..']'},
 
 				-- hold counter
-				-- this is such a waste of space, an old console would never do this itself, it'd make you do it ...
-				-- uint8 <=> 255 frames @ 60 fps = 4.25 seconds
-				-- uint16 <=> 65536 frames = 1092.25 seconds = 18.2 minutes
-				-- uint32 <=> 2147483647 frames = 35791394.1 seconds = 596523.2 minutes = 9942.1 hours = 414.3 days = 13.7 months = 1.1 years
+				-- this is such a waste of space, an old console would never do this itself, it'd make you implement the behavior yourself.
+				-- on the old Apple 2 console they did this by keeping only a count for the current key, such that if you held on it it'd pause, then repeat, then if you switched keys there would be no pause-and-repeat ...
 				-- I guess I'll dedicate 16 bits per hold counter to every key ...
 				-- TODO mayyybbee ... just dedicate one to every button, and an extra one for keys that aren't buttons
 				{name='keyHoldCounter', type='uint16_t['..keyCount..']'},
@@ -156,16 +164,6 @@ local RAM = struct{
 		}},
 	},
 }
---DEBUG:print(RAM.code)
---DEBUG:print('RAM size', ffi.sizeof(RAM))
-
-for _,field in ipairs(ROM.fields[2].type.fields) do
-	assert(xpcall(function()
-		asserteq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
-	end, function(err)
-		return errorHandler('for field '..field.name..'\n')
-	end))
-end
 
 
 local App = GLApp:subclass()
@@ -184,13 +182,38 @@ App.tilemapSize = tilemapSize
 App.tilemapSizeInSprites = tilemapSizeInSprites
 App.codeSize = codeSize
 
-local updateFreq = 60
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
+
+-- fps vars
+local lastTime = getTime()
+local fpsFrames = 0
+local fpsSeconds = 0
+
+-- update interval vars
+local lastUpdateTime = getTime()	-- TODO resetme upon resuming from a pause state
+local updateInterval = 1 / 60
+local needUpdateCounter = 0
 
 function App:initGL()
 
 	self.ram = ffi.new'RAM'
-	self.rom = ffi.cast('ROM*', self.ram.v)[0]
+
+	--DEBUG:print(RAM.code)
+	--DEBUG:print('RAM size', ffi.sizeof(RAM))
+
+	for _,field in ipairs(ROM.fields[2].type.fields) do
+		assert(xpcall(function()
+			asserteq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
+		end, function(err)
+			return errorHandler('for field '..field.name..'\n')
+		end))
+	end
+	print'memory layout:'
+	for _,field in ipairs(RAM.fields[2].type.fields) do
+		local offset = ffi.offsetof('RAM', field.name)
+		local size = ffi.sizeof(self.ram[field.name])
+		print(('0x%06x - 0x%06x = '):format(offset, offset + size)..field.name)
+	end
 
 	print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
 
@@ -214,8 +237,16 @@ function App:initGL()
 	self.blitScreenView.ortho = true
 	self.blitScreenView.orthoSize = 1
 
-	-- TODO delta updates
-	self.startTime = getTime()
+	--[[
+	when will this loop?
+	uint8 <=> 255 frames @ 60 fps = 4.25 seconds
+	uint16 <=> 65536 frames = 1092.25 seconds = 18.2 minutes
+	uint24 <=> 279620.25 frames = 4660.3 seconds = 77.7 minutes = 1.3 hours
+	uint32 <=> 2147483647 frames = 35791394.1 seconds = 596523.2 minutes = 9942.1 hours = 414.3 days = 13.7 months = 1.1 years
+	... and does it even matter if it loops?  if people store 'timestamps' and subtract, 
+	then these time constraints (or half of them for signed) will give you the maximum delta-time capable of being stored.
+	--]]
+	self.ram.updateCounter[0] = 0
 
 	self.env = {
 		-- filesystem functions ...
@@ -276,12 +307,8 @@ function App:initGL()
 			self.ram.tilemap[x + self.tilemapSize.x * y] = value
 		end,
 
-		-- other stuff
-		time = function()
-			-- TODO fixed-framerate and internal app clock
-			-- until then ...
-			return math.floor((getTime() - self.startTime) * updateFreq) / updateFreq
-		end,
+		-- timer
+		time = function() return self.ram.updateCounter[0] * updateInterval end,
 
 		-- math
 		cos = math.cos,
@@ -1095,13 +1122,13 @@ end
 -- it doesn't
 function App:resetGFX()
 	-- TODO dirty flags
-	require 'numo9.resetgfx'.resetFont(self.rom)
+	require 'numo9.resetgfx'.resetFont(self.ram)
 	self.spriteTex
 		:bind()
 		:subimage()
 		:unbind()
 
-	require 'numo9.resetgfx'.resetPalette(self.rom)
+	require 'numo9.resetgfx'.resetPalette(self.ram)
 	self.palTex:bind()
 		:subimage()
 		:unbind()
@@ -1135,16 +1162,6 @@ glreport'here'
 glreport'here'
 	return tex
 end
-
--- fps vars
-local lastTime = getTime()
-local fpsFrames = 0
-local fpsSeconds = 0
-
--- update interval vars
-local lastUpdateTime = getTime()	-- TODO resetme upon resuming from a pause state
-local updateInterval = 1 / 60
-local needUpdateCounter = 0
 
 function App:update()
 	App.super.update(self)
@@ -1180,6 +1197,9 @@ function App:update()
 	if needUpdateCounter > 0 then
 		-- TODO decrement to use framedrops
 		needUpdateCounter = 0
+
+		-- game tick increment
+		self.ram.updateCounter[0] = self.ram.updateCounter[0] + 1
 
 		-- update input between frames
 		do
@@ -1600,7 +1620,7 @@ function App:save(filename)
 
 	-- TODO xpcall?
 	local success, s = xpcall(function()
-		return require 'numo9.archive'.toCartImage(self.rom.v)
+		return require 'numo9.archive'.toCartImage(self.ram.v)
 	end, errorHandler)
 	if not success then return nil, basemsg..(s or '') end
 
@@ -1643,7 +1663,7 @@ function App:load(filename)
 
 	-- [[ TODO image stuck reading and writing to disk, FIXME
 	local romStr = require 'numo9.archive'.fromCartImage(d)
-	ffi.copy(self.rom.v, romStr, ffi.sizeof'ROM')
+	ffi.copy(self.ram.v, romStr, ffi.sizeof'ROM')
 	local code = ffi.string(self.ram.code, self.codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end

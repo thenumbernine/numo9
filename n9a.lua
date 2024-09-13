@@ -257,8 +257,7 @@ elseif cmd == 'p8' then
 		return result
 	end
 
-	local codepath = basepath'code.lua'
-	assert(codepath:write(readToNextSection'__gfx__':concat'\n'))
+	local code = readToNextSection'__gfx__':concat'\n'
 
 	local function toImage(ls, _8bpp)
 		ls = ls:filter(function(line) return #line > 0 end)
@@ -303,6 +302,8 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	gfxImg = Image(256,256,1,'unsigned char')
 		:clear()
 		:pasteInto{image=gfxImg, x=0, y=0}
+	-- now that the font is the right size and bpp we can use our 'resetFont' function on it ..
+	require 'numo9.resetgfx'.resetFontOnSheet(gfxImg.buffer)
 	gfxImg:save(basepath'sprite.png'.path)
 
 	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
@@ -330,7 +331,6 @@ print('toImage', lastSection, 'width', width, 'height', height)
 				end):concat' '..'\n'
 			end):concat()
 			..'}\n'
-		..assert(codepath:read())
 --]]
 
 	-- map is 8bpp not 4pp
@@ -394,7 +394,95 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	}:rep(16))
 	palImg:save(basepath'pal.png'.path)
 
-	-- compat layer
+	--[[
+	now parse and re-emit the lua code to work around pico8's weird syntax
+	or nah, maybe I can just grep it out
+	https://pico-8.fandom.com/wiki/Lua#Conditional_statements
+		1) if-then or if-(no-then) has to be on the same line ... so I can restrict my searches a bit
+		2) same with 'while' 'do'
+		4) <<> with bit.rol
+		5) >>< with bit.ror (why not <>> to keep things symmetric?)
+		7) a \ b with math.floor(a / b) (Lua uses a//b)
+
+	and glue code
+		1) btn(b) b order doesn't match, and I don't yet support 'b'
+		2) sin/cos
+	--]]
+	-- [[ TODO try using patterns, but I think I need a legit regex library
+	code = string.split(code, '\n'):mapi(function(line, lineNo)
+		-- change // comments with -- comments
+		line = line:gsub('//', '--')
+
+		-- change not-equal != to ~=
+		line = line:gsub('!=', '~=')
+
+		-- change bitwise-xor ^^ with ~
+		line = line:gsub('^^', '~')
+
+		--btn(b) btnp(b): b can be a extended unicode:
+		-- Lua parser doesn't like this.
+		for k,v in pairs{
+			['⬆️'] = 0,
+			['⬇️'] = 1,
+			['⬅️'] = 2,
+			['➡️'] = 3,
+			['🅾️'] = 4,
+			['❎'] = 5,
+		} do
+			--[[ why isn't this working? lua doesn't like unicode in their patterns?
+			line = line:gsub('btn('..k..')', 'btn('..v..')')
+			line = line:gsub('btnp('..k..')', 'btnp('..v..')')
+			--]]
+			-- [[
+			for _,f in ipairs{'btn', 'btnp'} do
+				local find = f..'('..k -- ..')'
+				local repl = f..'('..v -- ..')'
+				for i=1,#line do
+					if line:sub(i,i+#find-1) == find then
+						line = line:sub(1,i-1)..repl..line:sub(i+#find)
+					end
+				end
+			end
+			--]]
+		end
+
+		-- change 'if (' without 'then' on same line (with parenthesis wrap) into 'if' with 'then'
+		for _,info in ipairs{
+			{'if', 'then'},
+			{'while', 'do'},
+		} do
+			local first, second = table.unpack(info)
+			local spaces, firstWithCond, rest = line:match('^(%s*)('..first..'%s*%b())(.*)$')
+			if firstWithCond and not rest:find(second) then
+				-- can't have comments or they'll mess up 'rest' ...
+				local stmt, comment = rest:match'^(.*)%-%-(.-)$'
+				stmt = stmt or rest
+				stmt = string.trim(stmt)
+
+				if stmt ~= ''
+				-- TODO this is a bad test, 'and' 'or' etc could trail and this would pick up on it
+				-- I should just subclass the Lua-parser and parse this ...
+				and stmt ~= 'and'
+				and stmt ~= 'or'
+				then
+					line = spaces..firstWithCond..' '..second..' '..stmt..' end'
+					if comment then
+						line = line .. ' -- ' .. comment
+					end
+				end
+			end
+		end
+
+		line = line:match'^(.-)%s*$' or line
+
+		return line
+	end):concat'\n'
+	--]]
+
+	--[[ now add our code compat layer
+		1) cos(x) => math.cos(x*2*math.pi)
+		2) sin(x) => math.sin(-x*2*math.pi)
+	--]]
 	code = spriteFlagCode..'\n'
 .. [[
 -- begin compat layer
@@ -533,44 +621,7 @@ setfenv(1, pico8env)
 __numo9_finished(_init, _update)
 ]]
 
-	--[[
-	now parse and re-emit the lua code to work around pico8's weird syntax
-	or nah, maybe I can just grep it out
-	https://pico-8.fandom.com/wiki/Lua#Conditional_statements
-		1) if-then or if-(no-then) has to be on the same line ... so I can restrict my searches a bit
-		2) same with 'while' 'do'
-		3) != replace with ~=
-		4) <<> with bit.rol
-		5) >>< with bit.ror (why not <>> to keep things symmetric?)
-		6) ^^ with bit.bxor (which Lua implements with ~)
-		7) a \ b with math.floor(a / b) (Lua uses a//b)
-		8) cos(x) => math.cos(x*2*math.pi)
-		9) sin(x) => math.sin(-x*2*math.pi)
-		10) btn(b) b can be a extended unicode:  ⬆️, ⬇️, ⬅️, ➡️, 🅾️ ❎
-		11) // comments with -- comments
-
-	and glue code
-		1) btn(b) b order doesn't match, and I don't yet support 'b'
-		2) sin/cos
-	--]]
-	local code = assert(codepath:read())
-	-- [[ TODO try using patterns, but I think I need a legit regex library
-	local lines = code:split'\n':mapi(function(l, lineNo)
-		-- hmm will this match 'if's on the start of the line?
-		local ifloc = line:match'^if[^0-9a-zA-Z_]' and 0 or line:find'[^0-9a-zA-Z_]if[^0-9a-zA-Z_]'
-		if ifloc then
-			ifloc = ifloc + 1
-			local thenloc = line:find'[^0-9a-zA-Z_]then[^0-9a-zA-Z_]'
-			if not thenloc then
-				-- TODO also requires the if-stmt expr to be wrapped in parenthesis ...
-				print('found if without then at line '..lineNo)
-			end
-		end
-		--local a, b, c =
-	end):concat'\n'
-	--]]
-
-	-- TODO now search and find all 'sin' and 'cos' function calls.  and fix them
+	local codepath = basepath'code.lua'
 	assert(codepath:write(code))
 else
 
