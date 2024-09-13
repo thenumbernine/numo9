@@ -361,22 +361,26 @@ function App:initGL()
 		rectb = function(...) return self:drawBorderRect(...) end,
 		spr = function(...) return self:drawSprite(...) end,		-- (spriteIndex, x, y, paletteIndex)
 		map = function(...) return self:drawMap(...) end,
-		text = function(...) return self:drawText(...) end,		-- (x, y, text, fgColorIndex, bgColorIndex)
+		text = function(...) return self:drawText(...) end,		-- (text, x, y, fgColorIndex, bgColorIndex)
 
-		-- TODO don't let the ROM see the App...
-		app = self,
 		bit = bit,
 		math = require 'ext.math',
 		table = require 'ext.table',
 		string = require 'ext.string',
 		coroutine = coroutine,	-- TODO need a threadmanager ...
 
+		tostring = tostring,
+		tonumber = tonumber,
 		select = select,
 		type = type,
 		error = error,
 		assert = assert,
 		pairs = pairs,
 		ipairs = ipairs,
+	
+		-- TODO don't let the ROM see the App...
+		app = self,
+		ffi = ffi,
 		getfenv = getfenv,
 		setfenv = setfenv,
 		_G = _G,
@@ -1113,8 +1117,8 @@ function update()
 	mattrans(x2,y2)
 	matrot(t, 0, 0, 1)
 	text(
-		0, 0,        -- x y
 		'HelloWorld', -- str
+		0, 0,        -- x y
 		13,-- fg
 		0, -- bg
 		1.5, 3 -- sx sy
@@ -1194,7 +1198,7 @@ function App:update()
 
 	local thisTime = getTime()
 	
-	--[[ fps counter
+	-- [[ fps counter
 	local deltaTime = thisTime - lastTime
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
@@ -1574,7 +1578,7 @@ function App:drawMap(
 end
 
 -- draw transparent-background text
-function App:drawText1bpp(x, y, text, color, scaleX, scaleY)
+function App:drawText1bpp(text, x, y, color, scaleX, scaleY)
 	for i=1,#text do
 		local ch = text:byte(i)
 		local by = bit.rshift(ch, 3)	-- get the byte offset
@@ -1603,9 +1607,8 @@ end
 
 -- draw a solid background color, then draw the text transparent
 -- specify an oob bgColorIndex to draw with transparent background
--- TODO API: drawText(string, x, y)
 -- and default x, y to the last cursor position
-function App:drawText(x, y, text, fgColorIndex, bgColorIndex, scaleX, scaleY)
+function App:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 	fgColorIndex = fgColorIndex or 13
 	bgColorIndex = bgColorIndex or 0
 	scaleX = scaleX or 1
@@ -1626,9 +1629,9 @@ function App:drawText(x, y, text, fgColorIndex, bgColorIndex, scaleX, scaleY)
 	end
 
 	self:drawText1bpp(
+		text,
 		x0+1,
 		y+1,
-		text,
 		fgColorIndex,
 		scaleX,
 		scaleY
@@ -1897,14 +1900,15 @@ function App:event(e)
 				-- assume it's a game
 				self.runFocus = self.con
 			end
-			-- TODO re-init the con?  clear? special per runFocus?
-			if self.runFocus == self.con then
-				self:runInEmu(function()
-					-- TODO put all this reset stuff in one place
-					packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
+			self:runInEmu(function()
+				-- TODO put all this reset stuff in one place
+				self.mvMat:setIdent()
+				packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
+				-- TODO re-init the con?  clear? special per runFocus?
+				if self.runFocus == self.con then
 					self.con:reset()
-				end)
-			end
+				end
+			end)
 		elseif down and sdlsym == sdl.SDLK_c and uiMod then
 			-- copy selection
 		elseif down and sdlsym == sdl.SDLK_v and uiMod then

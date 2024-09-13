@@ -84,9 +84,9 @@ function EditCode:update()
 		local i = self.newlines[y + self.editLineOffset] + 1
 		local j = self.newlines[y + self.editLineOffset + 1]
 		app:drawText(
+			self.text:sub(i, j-1),
 			spriteSize.x,
 			y * spriteSize.y,
-			self.text:sub(i, j-1),
 			12,
 			-1
 		)
@@ -110,9 +110,9 @@ function EditCode:update()
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
 	footer = footer .. (' '):rep(frameBufferSizeInTiles.x - #footer)
 	app:drawText(
+		footer,
 		0,
 		frameBufferSize.y - spriteSize.y,
-		footer,
 		12,
 		1
 	)

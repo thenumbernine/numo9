@@ -60,9 +60,9 @@ function EditSprites:update()
 	
 	-- choose spriteBit
 	app:drawText(
+		'#'..self.spriteBit,
 		128+16+24,
 		12,
-		'#'..self.spriteBit,
 		13,
 		-1
 	)
@@ -72,9 +72,9 @@ function EditSprites:update()
 
 	-- choose spriteMask
 	app:drawText(
+		'#'..self.spriteBitDepth,
 		128+16+24+32,
 		12,
-		'#'..self.spriteBitDepth,
 		13,
 		-1
 	)
@@ -179,9 +179,9 @@ function EditSprites:update()
 	local x = 2
 	local y = 12
 	app:drawText(
+		'#'..(self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y),
 		x + 32,
 		y,
-		'#'..(self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y),
 		13,
 		-1
 	)
@@ -325,9 +325,9 @@ function EditSprites:update()
 
 	-- select palette color to draw
 	app:drawText(
+		'#'..self.paletteSelIndex,
 		16,
 		112,
-		'#'..self.paletteSelIndex,
 		13,
 		-1
 	)
