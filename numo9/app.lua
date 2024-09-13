@@ -75,7 +75,10 @@ local function imageToHex(image)
 end
 
 
-
+-- TODO ypcall that is xpcall except ...
+-- ... 1) error strings don't have source/line in them (that goes in backtrace)
+-- ... 2) no error callback <-> default, which simply appends backtrace
+-- ... 3) new debug.traceback() that includes that error line as the top line.
 local function errorHandler(err)
 	return err..'\n'..debug.traceback()
 end
@@ -455,19 +458,6 @@ print('package.loaded', package.loaded)
 		type = gl.GL_UNSIGNED_BYTE,
 	}
 	self.env.tileMem = self.tileTex.image.buffer
---[[
-	for i=0,15 do
-		for j=0,15 do
-			self.tileTex.image.buffer[
-				i + self.tileTex.image.width * j
-			] = i + j
-		end
-	end
-	self.tileTex
-		:bind()
-		:subimage()
-		:unbind()
---]]
 
 	--[[
 	16bpp ...
@@ -486,19 +476,7 @@ print('package.loaded', package.loaded)
 	}
 	self.mapMem = self.mapTex.image.buffer
 	self.env.mapMem = self.mapMem
---[[
-	for i=0,1 do
-		for j=0,1 do
-			self.mapTex.image.buffer[
-				i + tilemapSize.x * j
-			] = i + spriteSheetSizeInTiles.x * j
-		end
-	end
-	self.mapTex
-		:bind()
-		:subimage()
-		:unbind()
---]]
+
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'unsigned short'),
