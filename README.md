@@ -18,7 +18,7 @@ But then I thought "I want SNES blending effects" ... and that can only be done 
 ... how does the SNES solve this?  Turns out it just doesn't have a framebuffer, period.   They blend content as it is being sent directly to the output.  Crazy, right?
 In its defense, you can always peek and poke the tilemap and tilesheet and have the same effect.
 
-So the NES/SNES has no framebuffer.  What does this mean?  
+So the NES/SNES has no framebuffer.  What does this mean?
 It means that all the fantasy console commands ... `pget, pset, line, rect, circ, oval` ... all would get thrown out the window.
 You can *only* draw to the screen with sprites or tiles.
 The SNES could replicate this by dedicating all of the sprite and tilemap to video output, and in that way you've got your framebuffer (Mario Paint)...
@@ -57,6 +57,11 @@ Let the editor edit *multiple* sprite sheets
 ... but only allow one to be used at a time.
 That's how the old consoles worked, right?
 
+Right now I'm putting the font at the end of the sprite table.  Idk why.  Maybe I'll move it into non-cartridge memory somewhere.  But I don't want to bind an extra texture.  So maybe I'll leave the font in the sprite table.
+Maybe I'll put it at the end.
+On that logic, I could also use the end of the sprite table for the palette, and cut down just one more texture bind...
+And then I could pack the font even more into 4x8 (or really I could do arbitrary rectangles) and then use the clip functionality or some nonexposed rendering functionality to draw fonts.
+
 ### tilemap
 
 Tilemaps: 256x256x16bpp index into the tile table.
@@ -92,8 +97,8 @@ Font is from [Liko-12](https://liko-12.github.io/)
 ROM ...
 sprites = 256x256x8 = 64k
 tiles = 256x256x8 = 64k
-tilemap = 256x256x16bpp = 128k 
-	... maybe I'll cut this down to just 32x32 like SNES, i.e. two screens worth, and provide an API for saving/loading screens from mem ... 
+tilemap = 256x256x16bpp = 128k
+	... maybe I'll cut this down to just 32x32 like SNES, i.e. two screens worth, and provide an API for saving/loading screens from mem ...
 	... then it'd just be 2k instead of 128k ...
 code = ???
 music = ???
@@ -119,7 +124,7 @@ But with my [langfix](https://github.com/thenumbernine/langfix-lua) it does!  Bu
 This adds to Lua(/JIT):
 - bit operators: `& | << >> >>>`
 - in-place operators: `..= += -= *= /= //= %= ^= &= |= ~~= <<= >>= >>>=`
-- lambdas: `[args] do stmts end` for typical multiple-statement functions, `[args] expr` for single-expression functions, but for the parser to distinguish lambdas in arg lists, now you have to wrap single-expression multiple-return-arguments in one `( )`, and that means Lua syntax dictates if you want to truncate the return to a single argument you must wrap it in `(( ))` 
+- lambdas: `[args] do stmts end` for typical multiple-statement functions, `[args] expr` for single-expression functions, but for the parser to distinguish lambdas in arg lists, now you have to wrap single-expression multiple-return-arguments in one `( )`, and that means Lua syntax dictates if you want to truncate the return to a single argument you must wrap it in `(( ))`
 - safe-navigation: `a?.b, a?['b'], a?(), a?.b(), a?:b(), a.b?(), a?.b?(), a:b?(), a?:b?()`
 - ternary: `a ? b : c`, null-coalescence: `a ?? b` ... but between this and single-expression-lambdas there's a few edge-cases where the grammar needs extra wrapping parenthesis, so be careful with this, or just use the traditional `a and b or c`.
 
@@ -147,7 +152,7 @@ This adds to Lua(/JIT):
 - `key(code)`
 
 ## input:
-- `keyp(code)` = Returns true if the key code was pressed. 
+- `keyp(code)` = Returns true if the key code was pressed.
 	Code is either a name or number.
 	The number coincides with the console's internal scancode bit offset in internal buffer.
 

@@ -114,16 +114,16 @@ local RAM = struct{
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
 				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ...
-				
+
 				-- bitflags of keyboard:
 				{name='keyPressFlags', type='uint8_t['..keyPressFlagSize..']'},
 				{name='lastKeyPressFlags', type='uint8_t['..keyPressFlagSize..']'},
-			
+
 				-- hold counter
 				-- this is such a waste of space, an old console would never do this itself, it'd make you do it ...
 				-- uint8 <=> 255 frames @ 60 fps = 4.25 seconds
 				-- uint16 <=> 65536 frames = 1092.25 seconds = 18.2 minutes
-				-- uint32 <=> 2147483647 frames = 35791394.1 seconds = 596523.2 minutes = 9942.1 hours = 414.3 days = 13.7 months = 1.1 years 
+				-- uint32 <=> 2147483647 frames = 35791394.1 seconds = 596523.2 minutes = 9942.1 hours = 414.3 days = 13.7 months = 1.1 years
 				-- I guess I'll dedicate 16 bits per hold counter to every key ...
 				-- TODO mayyybbee ... just dedicate one to every button, and an extra one for keys that aren't buttons
 				{name='keyHoldCounter', type='uint16_t['..keyCount..']'},
@@ -238,9 +238,12 @@ function App:initGL()
 		key = function(...) return self:key(...) end,
 		keyp = function(...) return self:keyp(...) end,
 		keyr = function(...) return self:keyr(...) end,
+
 		btn = function(...) return self:btn(...) end,
 		btnp = function(...) return self:btnp(...) end,
 		btnr = function(...) return self:btnr(...) end,
+
+		-- TODO merge mouse buttons with btpn as well so you get added fnctionality of press/release detection
 		mouse = function(...) return self:mouse(...) end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
@@ -978,15 +981,15 @@ void main() {
 			self.fs:addFromHost(fn.path)
 		end
 	end
-	
+
 	local initfn = cmdline[1] or 'hello.n9'
 	if self.fs:get(initfn) then
 		self:load(initfn)
-		
+
 
 		-- TODO font should be builtin ...
 		-- but I don't want to bind an extra texture ...
-		-- TODO maybe I should be doing this always?  
+		-- TODO maybe I should be doing this always?
 		-- ok my problem is ... a zeroed palette means nothing shows
 		-- how do other fantasy consoles handle this?
 		-- pico8 and pyxel ... fixed colors no matter what
@@ -997,7 +1000,7 @@ void main() {
 			-- I don't want to do this normally so that the custom palette and font can be saved in the ROM
 			self:resetGFX()
 		end
-	
+
 		self:runCode()
 	else
 		self:resetGFX()
@@ -1012,7 +1015,7 @@ void main() {
 end
 
 -- this just re-inserts the font and default palette
--- it doesn't 
+-- it doesn't
 function App:resetGFX()
 	-- TODO dirty flags
 	require 'numo9.resetgfx'.resetFont(self.rom)
@@ -1210,7 +1213,7 @@ function App:update()
 				local by = bit.rshift(keycode, 3)
 	--DEBUG:assert(by >= 0 and by < keyPressFlagSize)
 				local keyFlag = bit.lshift(1, bi)
-				local down = 0 ~= bit.band(self.ram.keyPressFlags[by], keyFlag) 
+				local down = 0 ~= bit.band(self.ram.keyPressFlags[by], keyFlag)
 				local lastDown = 0 ~= bit.band(self.ram.lastKeyPressFlags[by], keyFlag)
 				if down and lastDown then
 					holdptr[0] = holdptr[0] + 1
@@ -1639,7 +1642,7 @@ function App:key(keycode)
 	return self:keyForBuffer(keycode, self.ram.keyPressFlags)
 end
 
--- tic80 has the option that no args = any button pressed ... 
+-- tic80 has the option that no args = any button pressed ...
 function App:keyp(keycode, hold, period)
 	if type(keycode) == 'string' then
 		keycode = keyCodeForName[keycode]
@@ -1647,7 +1650,7 @@ function App:keyp(keycode, hold, period)
 	asserttype(keycode, 'number')
 	keycode = math.floor(keycode)	-- or cast int? which is faster?
 	if keycode < 0 or keycode >= keyCount then return end
-	if hold and period 
+	if hold and period
 	and self.ram.keyHoldCounter[keycode] >= hold
 	and not (period > 0 and self.ram.keyHoldCounter[keycode] % period > 0) then
 		return self:keyForBuffer(keycode, self.ram.keyPressFlags)
@@ -1687,6 +1690,7 @@ local keyForButton = {
 	-- L R? start select?  or nah? or just one global menu button?
 }
 
+-- TODO named support just like key() keyp() keyr()
 function App:btn(buttonCode, ...)
 	return self:key(keyForButton[buttonCode], ...)
 end

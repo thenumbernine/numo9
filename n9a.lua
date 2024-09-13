@@ -8,8 +8,13 @@ n9a r file.n9 = pack and run
 --]]
 local ffi = require 'ffi'
 local path = require 'ext.path'
+local table = require 'ext.table'
+local range = require 'ext.range'
+local string = require 'ext.string'
 local asserteq = require 'ext.assert'.eq
 local assertlt = require 'ext.assert'.lt
+local assertle = require 'ext.assert'.le
+local assertlen = require 'ext.assert'.len
 local Image = require 'image'
 local App = require 'numo9.app'
 local fromCartImage = require 'numo9.archive'.fromCartImage
@@ -18,46 +23,35 @@ local toCartImage = require 'numo9.archive'.toCartImage
 local cmd, fn = ...
 assert(cmd and fn, "expected: `n9a.lua cmd fn`")
 
-local n9path = path(fn)
-local basepath, ext = n9path:getext()
-asserteq(ext, 'n9')
-
-local binpath = n9path:setext'bin'
-
--- TODO ... this and requestMem and everything ... organize plz ...
-local spriteOffset = 0
-local tileOffset = 0x10000
-local tilemapOffset = 0x20000
-local paletteOffset = 0x40000
-local codeOffset = 0x40200
-local endOffset = codeOffset + App.codeSize
-asserteq(endOffset, ffi.sizeof'ROM')
-
 -- should probably use the same lib as numo9 uses for its compression/saving ...
 if cmd == 'x' then
+
+	local n9path = path(fn)
+	local basepath, ext = n9path:getext()
+	asserteq(ext, 'n9')
 
 	assert(n9path:exists(), tostring(fn).." doesn't exist")
 	basepath:mkdir()
 	assert(basepath:isdir())
 
-print'loading cart...'
+	print'loading cart...'
 	local romStr = fromCartImage((assert(n9path:read())))
 	assert(#romStr >= ffi.sizeof'ROM')
 	local rom = ffi.cast('ROM*', ffi.cast('char*', romStr))[0]
 
-print'saving sprite sheet...'
+	print'saving sprite sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
 	local image = Image(App.spriteSheetSize.x, App.spriteSheetSize.y, 1, 'unsigned char')
 	ffi.copy(image.buffer, rom.spriteSheet, ffi.sizeof(rom.spriteSheet))
 	image:save(basepath'sprite.png'.path)
 
-print'saving tile sheet...'
+	print'saving tile sheet...'
 	-- tile tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	ffi.copy(image.buffer, rom.tileSheet, ffi.sizeof(rom.tileSheet))
 	image:save(basepath'tiles.png'.path)
 
-print'saving tile map...'
+	print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
 	local image = Image(App.tilemapSize.x, App.tilemapSize.x, 3, 'unsigned char')
 	local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
@@ -78,7 +72,7 @@ print'saving tile map...'
 	end
 	image:save(basepath'tilemap.png'.path)
 
-print'saving palette...'
+	print'saving palette...'
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
 	local image = Image(16, 16, 4, 'unsigned char')
 	local imagePtr = image.buffer
@@ -95,19 +89,23 @@ print'saving palette...'
 	end
 	image:save(basepath'pal.png'.path)
 
-print'saving code...'
+	print'saving code...'
 	local code = ffi.string(rom.code, ffi.sizeof(rom.code))
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
-	basepath'code.lua':write(code)
+	assert(basepath'code.lua':write(code))
 
 elseif cmd == 'a'
 or cmd == 'r' then
 
+	local n9path = path(fn)
+	local basepath, ext = n9path:getext()
+	asserteq(ext, 'n9')
+
 	assert(basepath:isdir())
 	local rom = ffi.new'ROM'
 
-print'loading sprite sheet...'
+	print'loading sprite sheet...'
 	if basepath'sprite.png':exists() then
 		local image = assert(Image(basepath'sprite.png'.path))
 		asserteq(image.width, App.spriteSheetSize.x)
@@ -121,7 +119,7 @@ print'loading sprite sheet...'
 		require 'numo9.resetgfx'.resetFont(rom)
 	end
 
-print'loading tile sheet...'
+	print'loading tile sheet...'
 	if basepath'tiles.png':exists() then
 		local image = assert(Image(basepath'tiles.png'.path))
 		asserteq(image.width, App.spriteSheetSize.x)
@@ -131,7 +129,7 @@ print'loading tile sheet...'
 		ffi.copy(rom.tileSheet, image.buffer, App.spriteSheetSize:volume())
 	end
 
-print'loading tile map...'
+	print'loading tile map...'
 	if basepath'tilemap.png':exists() then
 		local image = assert(Image(basepath'tilemap.png'.path))
 		asserteq(image.width, App.tilemapSize.x)
@@ -156,7 +154,7 @@ print'loading tile map...'
 		image:save(basepath'tilemap.png'.path)
 	end
 
-print'loading palette...'
+	print'loading palette...'
 	if basepath'pal.png':exists() then
 		local image = assert(Image(basepath'pal.png'.path))
 		asserteq(image.width, 16)
@@ -183,7 +181,7 @@ print'loading palette...'
 		require 'numo9.resetgfx'.resetPalette(rom)
 	end
 
-print'loading code...'
+	print'loading code...'
 	if basepath'code.lua':exists() then
 		local code = assert(basepath'code.lua':read())
 		local n = #code
@@ -193,7 +191,7 @@ print'loading code...'
 		codeMem[n] = 0	-- null term
 	end
 
-print'saving cart...'
+	print'saving cart...'
 	assert(path(fn):write(toCartImage(rom)))
 
 	if cmd == 'r' then
@@ -202,19 +200,315 @@ print'saving cart...'
 
 elseif cmd == 'n9tobin' then
 
+	local n9path = path(fn)
+	local basepath, ext = n9path:getext()
+	asserteq(ext, 'n9')
+
+	local binpath = n9path:setext'bin'
 	assert(binpath:write(
 		(assert(fromCartImage((assert(n9path:read())))))
 	))
-	
+
 elseif cmd == 'binton9' then
 
+	local n9path = path(fn)
+	local basepath, ext = n9path:getext()
+	asserteq(ext, 'n9')
+
+	local binpath = n9path:setext'bin'
 	assert(path(fn):write(
 		(assert(toCartImage(binpath.path)))
 	))
 
+elseif cmd == 'p8' then
+
+	local p8path = path(fn)
+	-- TODO this above to make sure 'basepath' is always local?
+	-- or TODO here as well always put basepath in the input folder
+	local baseNameAndDir, ext = p8path:getext()
+	asserteq(ext, 'p8')
+	local basepath = select(2, baseNameAndDir:getdir())
+	basepath:mkdir()
+	assert(basepath:isdir())
+
+	local data = assert(p8path:read())
+	local lines = string.split(data,'\n')
+	assert(lines:remove(1):match('^'..string.patescape'pico-8 cartridge'))
+	assert(lines:remove(1):match'^version')
+	assert(lines:remove(1) == '__lua__')
+
+	local lastSection = '__lua__'
+	local nextSection
+	local function readToNextSection(name)
+		lastSection = nextSection
+		nextSection = name
+		local i = assert((lines:find(name))) 	-- or maybe not all sections are required? idk
+		local result = lines:sub(1, i-1)
+		lines = lines:sub(i+1)
+		return result
+	end
+
+	local codepath = basepath'code.lua'
+	assert(codepath:write(readToNextSection'__gfx__':concat'\n'))
+
+	local function toImage(ls, _8bpp)
+		ls = ls:filter(function(line) return #line > 0 end)
+		if #ls == 0 then
+			error("section got no lines: "..tostring(nextSection))
+		end
+		if _8bpp then
+			assert(#ls[1] % 2 == 0)
+		end
+		for i=2,#ls do asserteq(#ls[1], #ls[i]) end
+		local width = #ls[1]
+		if _8bpp then
+			width = bit.rshift(width, 1)
+		end
+		local height = #ls
+print('toImage', lastSection, 'width', width, 'height', height)
+--print(require 'ext.tolua'(ls))
+		local image = Image(width, height, 1, 'unsigned char'):clear()
+		-- for now output 4bpp -> 8bpp
+		for j=0,height-1 do
+			local srcrow = ls[j+1]
+			for i=0,width-1 do
+				local color
+				if _8bpp then
+					color = assert(tonumber(srcrow:sub(2*i+1,2*i+2), 16))
+					assert(0 <= color and color < 256)
+				else
+					color = assert(tonumber(srcrow:sub(i+1,i+1), 16))
+					assert(0 <= color and color < 16)
+				end
+				image.buffer[i + width * j] = color
+			end
+		end
+		return image
+	end
+
+	local gfxSrc = readToNextSection'__label__'
+	local gfxImg = toImage(gfxSrc)
+	asserteq(gfxImg.channels, 1)
+	asserteq(gfxImg.width, 128)
+	assertle(gfxImg.height, 128)  -- how come the jelpi.p8 cartridge I exported from pico-8-edu.com has only 127 rows of gfx?
+	gfxImg = Image(256,256,1,'unsigned char')
+		:clear()
+		:pasteInto{image=gfxImg, x=0, y=0}
+	gfxImg:save(basepath'sprite.png'.path)
+
+	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
+	gfxImg:save(basepath'tiles.png'.path)
+
+	local labelImg = toImage(readToNextSection'__gff__')
+	labelImg:save(basepath'label.png'.path)
+
+	-- TODO embed this somewhere in the ROM
+	-- how about as code?
+	-- how about something for mapping random resources to random locations in RAM?
+	local flagSrc = readToNextSection'__map__'
+--[[ save out flags?
+	local spriteFlagsImg = toImage(flagSrc)
+	spriteFlagsImg:save(basepath'spriteflags.png'.path)
+--]]
+-- [[ or nah, just embed them in the code ...
+	flagSrc = flagSrc:concat():gsub('%s', '')	-- only hex chars
+	assertlen(flagSrc, 512)
+	local spriteFlagCode = 'local __spriteFlags__ = {\n'
+			..range(0,15):mapi(function(j)
+				return '\t'..range(0,15):mapi(function(i)
+					local e = 2 * (i + 16 * j)
+					return '0x'..flagSrc:sub(e+1,e+2)..','
+				end):concat' '..'\n'
+			end):concat()
+			..'}\n'
+		..assert(codepath:read())
+--]]
+
+	-- map is 8bpp not 4pp
+	local mapSrc = readToNextSection'__sfx__'
+	local mapImg = toImage(mapSrc, true)
+	asserteq(mapImg.channels, 1)
+	asserteq(mapImg.width, 128)
+	assertle(mapImg.height, 64)
+	-- start as 8bpp
+	mapImg = Image(256,256,1,'unsigned char')
+		:clear()
+	-- paste our mapImg into it (to resize without resampling)
+		:pasteInto{image=mapImg, x=0, y=0}
+	-- now grow to 16bpp
+		:combine(
+			Image(256,256,1,'unsigned char'):clear(),
+			Image(256,256,1,'unsigned char'):clear()
+		)
+	asserteq(mapImg.channels, 3)
+	-- also map gets the last 32 rows of gfx
+	-- looks like they are interleaved by row, lo hi lo hi ..
+	do
+		for j=64,127 do
+			for i=0,127 do
+				local dstp = mapImg.buffer + i + mapImg.width * j
+				local srcp = gfxImg.buffer + i + gfxImg.width * bit.rshift(j, 1)
+				if bit.band(j, 1) == 0 then
+					dstp[0] = srcp[0]
+				else
+					dstp[0] = bit.bor(dstp[0], bit.lshift(srcp[0], 4))
+				end
+			end
+		end
+	end
+	mapImg:save(basepath'tilemap.png'.path)
+
+	local sfx = readToNextSection'__music__'
+	basepath'sfx.txt':write(sfx:concat'\n'..'\n')
+
+	local music = lines
+	basepath'music.txt':write(lines:concat'\n'..'\n')
+
+	local palImg = Image(16, 16, 4, 'unsigned char', table{
+	-- fill out the default pico8 palette
+		0x00, 0x00, 0x00, 0xff,
+		0x1D, 0x2B, 0x53, 0xff,
+		0x7E, 0x25, 0x53, 0xff,
+		0x00, 0x87, 0x51, 0xff,
+		0xAB, 0x52, 0x36, 0xff,
+		0x5F, 0x57, 0x4F, 0xff,
+		0xC2, 0xC3, 0xC7, 0xff,
+		0xFF, 0xF1, 0xE8, 0xff,
+		0xFF, 0x00, 0x4D, 0xff,
+		0xFF, 0xA3, 0x00, 0xff,
+		0xFF, 0xEC, 0x27, 0xff,
+		0x00, 0xE4, 0x36, 0xff,
+		0x29, 0xAD, 0xFF, 0xff,
+		0x83, 0x76, 0x9C, 0xff,
+		0xFF, 0x77, 0xA8, 0xff,
+		0xFF, 0xCC, 0xAA, 0xff,
+	}:rep(16))
+	palImg:save(basepath'pal.png'.path)
+
+	-- compat layer
+	code = spriteFlagCode..'\n'
+.. [[
+-- begin compat layer
+
+local function cos(x) return math.cos(x*2*math.pi) end
+local function sin(x) return -math.sin(x*2*math.pi) end
+
+local __n9_btn = btn
+-- TODO names for buttons
+local pico8_to_numo9_buttons = { [0]=2, 3, 0, 1, 7, 5}
+local function btn(...)
+	if select('#', ...) == 0 then
+		local result = 0
+		for i=0,5 do
+			result |= __n9btn(pico8_to_numo9_buttons[i]) and 1<<i or 0
+		end
+	end
+	local b, pl = ...
+	-- TODO if pl is not player-1 (0? idk?) then return
+	local pb = pico8_to_numo9_buttons[b]
+	if pb then return __n9_btn(bp) end
+end
+
+-- looks like pico8 uses arg-count to determine behavior
+local function fget(...)
+	local n, f
+	if select('#', ...) == 1 then
+		local n = ...
+		assert(n >= 0 and n < 256)
+		return __spriteFlags__[n+1]
+	elseif select('#', ...) == 2 then
+		local n, f = ...
+		assert(n >= 0 and n < 256)
+		assert(f >= 0 and f < 8)
+		return (1 & (__spriteFlags__[n+1] >> f)) ~= 0
+	else
+		error'here'
+	end
+end
+local function fset(...)
+	if select('#', ...) == 2 then
+		local n, val = ...
+		assert(n >= 0 and n < 256)
+		assert(val >= 0 and val < 256)
+		__spriteFlags__[n+1] = val
+	elseif select('#', ...) == 3 then
+		local n, f, val = ...
+		assert(n >= 0 and n < 256)
+		local flag = (1 << f)
+		local mask = ~flag
+		__spriteFlags__[n+1] &= mask
+		if val == true then
+			__spriteFlags__[n+1] |= flag
+		elseif val == false then
+		else
+			error'here'
+		end
+	else
+		error'here'
+	end
+end
+
+-- end compat layer
+
+]] .. code
+
+	--[[
+	now parse and re-emit the lua code to work around pico8's weird syntax
+	or nah, maybe I can just grep it out
+	https://pico-8.fandom.com/wiki/Lua#Conditional_statements
+		1) if-then or if-(no-then) has to be on the same line ... so I can restrict my searches a bit
+		2) same with 'while' 'do'
+		3) != replace with ~=
+		4) <<> with bit.rol
+		5) >>< with bit.ror (why not <>> to keep things symmetric?)
+		6) ^^ with bit.bxor (which Lua implements with ~)
+		7) a \ b with math.floor(a / b) (Lua uses a//b)
+		8) cos(x) => math.cos(x*2*math.pi)
+		9) sin(x) => math.sin(-x*2*math.pi)
+		10) btn(b) b can be a extended unicode:  ⬆️, ⬇️, ⬅️, ➡️, 🅾️ ❎
+		11) // comments with -- comments
+
+	and glue code
+		1) btn(b) b order doesn't match, and I don't yet support 'b'
+		2) sin/cos
+	--]]
+	local code = assert(codepath:read())
+	-- [[ TODO try using patterns, but I think I need a legit regex library
+	local lines = code:split'\n':mapi(function(l)
+		-- hmm will this match 'if's on the start of the line?
+		local ifloc = line:match'^if[^0-9a-zA-Z_]' and 0 or line:find'[^0-9a-zA-Z_]if[^0-9a-zA-Z_]'
+		if ifloc then
+			ifloc = ifloc + 1
+			local thenloc = line:find'[^0-9a-zA-Z_]then[^0-9a-zA-Z_]'
+			if not thenloc then
+				-- TODO also requires the if-stmt expr to be wrapped in parenthesis ...
+			end
+		end
+		--local a, b, c =
+	end):concat'\n'
+	--]]
+	do
+		local ifloc = 0
+		while ifloc <= #code do
+			ifloc = code:find('[^0-9a-zA-Z_]if[^0-9a-zA-Z_]', ifloc+1)
+			if not ifloc then break end
+			local thenloc = code:find('[^0-9a-zA-Z_]then[^0-9a-zA-Z_]', ifloc+1)
+			local returnloc = code:find('[^0-9a-zA-Z_]return[^0-9a-zA-Z_]', ifloc+1)
+			if returnloc < thenloc then
+				local sofar = code:sub(1,ifloc)
+				local lastline = sofar:match('[^\n]*$') or ''
+				local row = select(2,sofar:gsub('\n', ''))+1
+				local col = #lastline:gsub('\t', '    ')+1
+				print('found `if` `return` without `then` at line', row,'col',col)
+			end
+		end
+	end
+	-- TODO now search and find all 'sin' and 'cos' function calls.  and fix them
+	assert(codepath:write(code))
 else
 
 	error("unknown cmd "..tostring(cmd))
 
 end
+
 print'done'

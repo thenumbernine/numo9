@@ -8,7 +8,7 @@ local Image = require 'image'
 
 -- when I say 'reverse' i mean reversed order of bitfields
 -- when opengl says 'reverse' it means reversed order of reading hex numbers or something stupid
-function rgb888revto5551(rgba)
+local function rgb888revto5551(rgba)
 	local r = bit.band(bit.rshift(rgba, 16), 0xff)
 	local g = bit.band(bit.rshift(rgba, 8), 0xff)
 	local b = bit.band(rgba, 0xff)
@@ -24,7 +24,7 @@ end
 
 local function resetFont(rom)
 	local spriteSheetSize = require 'numo9.app'.spriteSheetSize
-	
+
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
 	local spriteSheetPtr = rom.spriteSheet	-- uint8_t*
@@ -141,4 +141,5 @@ end
 return {
 	resetFont = resetFont,
 	resetPalette = resetPalette,
+	rgb888revto5551 = rgb888revto5551,
 }
