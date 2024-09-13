@@ -54,6 +54,28 @@ local function unpackptr(n, p)
 	return p[0], unpackptr(n-1, p+1)
 end
 
+-- TODO use either settable or packptr ... ?
+
+local function settableindex(t, i, ...)
+	if select('#', ...) == 0 then return end
+	t[i] = ...
+	settableindex(t, i+1, select(2, ...))
+end
+
+local function settable(t, ...)
+	settableindex(t, 1, ...)
+end
+
+local function hexdump(ptr, len)
+	return string.hexdump(ffi.string(ptr, len))
+end
+
+local function imageToHex(image)
+	return string.hexdump(ffi.string(image.buffer, image.width * image.height * ffi.sizeof(image.format)))
+end
+
+
+
 local function errorHandler(err)
 	return err..'\n'..debug.traceback()
 end
@@ -159,20 +181,6 @@ App.tilemapSize = tilemapSize
 App.tilemapSizeInSprites = tilemapSizeInSprites
 App.codeSize = codeSize
 
-local function settableindex(t, i, ...)
-	if select('#', ...) == 0 then return end
-	t[i] = ...
-	settableindex(t, i+1, select(2, ...))
-end
-
-local function settable(t, ...)
-	settableindex(t, 1, ...)
-end
-
-local function imageToHex(image)
-	return string.hexdump(ffi.string(image.buffer, image.width * image.height * ffi.sizeof(image.format)))
-end
-
 local updateFreq = 60
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
@@ -218,7 +226,8 @@ function App:initGL()
 -- and then implement auto-scroll
 -- none of this console buffering crap
 		print = function(...) return self.con:print(...) end,
-		write = function(...) return self.con:write(...) end,
+		--write = function(...) return self.con:write(...) end,
+		trace = _G.print,
 
 		run = function(...) return self:runCode(...) end,
 		save = function(...) return self:save(...) end,
@@ -253,7 +262,7 @@ function App:initGL()
 			then
 				return
 			end
-			return ffi.cast('unsigned short*', mapMem)[x + self.tilemapSize.x * y]
+			return self.ram.tilemap[x + self.tilemapSize.x * y]
 		end,
 		mset = function(x, y, value)
 			if x < 0 or x >= self.tilemapSize.x
@@ -261,7 +270,7 @@ function App:initGL()
 			then
 				return
 			end
-			ffi.cast('unsigned short*', mapMem)[x + self.tilemapSize.x * y]	= value
+			self.ram.tilemap[x + self.tilemapSize.x * y] = value
 		end,
 
 		-- other stuff
@@ -308,11 +317,38 @@ function App:initGL()
 		math = math,
 		table = table,
 		string = string,
+		coroutine = coroutine,	-- TODO need a threadmanager ...
+		
+		select = select,
+		assert = assert,
+		pairs = pairs,
+		ipairs = ipairs,
+		setfenv = setfenv,
 		_G = _G,
 	}, {
 		-- don't __index=_G and sandbox it instead
 		--__index = _G,
 	})
+
+--[[ debugging - trace all calls
+local oldenv = self.env
+self.env = setmetatable({
+}, {
+	__index = function(t,k)
+		--print('get env.'..k..'()')
+		local v = oldenv[k]
+		if type(v) == 'function' then
+			-- return *another* trace wrapper
+			return function(...)
+				print('call env.'..k..'('..table{...}:mapi(tostring):concat', '..')')
+				return v(...)
+			end
+		else
+			return v
+		end
+	end,
+})
+--]]
 
 
 	-- modify let our env use special operators
@@ -1003,15 +1039,19 @@ void main() {
 
 		self:runCode()
 	else
+print("didn't find initial file ... resetting gfx ...")		
 		self:resetGFX()
+	
+print('palette:', hexdump(self.rom.palette, ffi.sizeof(self.rom.palette)))
+print('spriteSheet:', hexdump(self.rom.spriteSheet, ffi.sizeof(self.rom.spriteSheet)))
 	end
 
 	-- TODO put all this in RAM
 	self.screenMousePos = vec2i()	-- host coordinates
-	self.mousePos = vec2i()			-- frambuffer coordinates
-	self.lastMousePos = vec2i()		-- ... position last frame
-	self.lastMouseDown = vec2i()
-	self.mouseButtons = 0
+	self.mousePos = vec2i()			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
+	self.lastMousePos = vec2i()		-- ... " " last frame
+	self.lastMousePressPos = vec2i()	-- " " at last mouse press
+	self.mouseButtons = 0			-- mouse button flags.  using SDL atm so flags 0 1 2 = left middle right
 end
 
 -- this just re-inserts the font and default palette
@@ -1128,7 +1168,7 @@ function App:update()
 			local leftButtonDown = bit.band(self.mouseButtons, 1) == 1
 			local leftButtonPress = leftButtonDown and not leftButtonLastDown
 			if leftButtonPress then
-				self.lastMouseDown:set(self.mousePos:unpack())
+				self.lastMousePressPos:set(self.mousePos:unpack())
 			end
 		end
 
@@ -1148,8 +1188,11 @@ function App:update()
 			end, errorHandler)
 			if not success then
 				self.runFocus = self.con
+				print(msg)
 				self.con:print(msg)
 			end
+		else
+			self.runFocus = self.con
 		end
 
 		fb:unbind()
@@ -1569,7 +1612,7 @@ function App:load(filename)
 --DEBUG:print(require 'template.showcode'(code))
 --DEBUG:print('**** CODE LEN ****', #code)
 	--]]
-
+print('code is', #code, 'bytes')
 	self.editCode:setText(code)
 	return true
 end

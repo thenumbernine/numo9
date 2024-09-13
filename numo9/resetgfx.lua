@@ -8,17 +8,17 @@ local Image = require 'image'
 
 -- when I say 'reverse' i mean reversed order of bitfields
 -- when opengl says 'reverse' it means reversed order of reading hex numbers or something stupid
-local function rgb888revto5551(rgba)
-	local r = bit.band(bit.rshift(rgba, 16), 0xff)
-	local g = bit.band(bit.rshift(rgba, 8), 0xff)
-	local b = bit.band(rgba, 0xff)
+local function rgb888revto5551(rgb)
+	local r = bit.band(bit.rshift(rgb, 16), 0xff)
+	local g = bit.band(bit.rshift(rgb, 8), 0xff)
+	local b = bit.band(rgb, 0xff)
 	local abgr = bit.bor(
 		bit.rshift(r, 3),
 		bit.lshift(bit.rshift(g, 3), 5),
 		bit.lshift(bit.rshift(b, 3), 10),
 		bit.lshift(1, 15)	-- hmm always on?  used only for blitting screen?  why not just do 565 or something?  why even have a restriction at all, why not just 888?
 	)
-	assert(abgr >= 0 and abgr <= 0xffff, ('%x'):format(abgr))
+--DEBUG:assert(abgr >= 0 and abgr <= 0xffff, ('%x'):format(abgr))
 	return abgr
 end
 

@@ -122,8 +122,8 @@ function EditTilemap:update()
 				self.spriteSelPos:set(spriteX, spriteY)
 				self.spriteSelSize:set(1, 1)
 			elseif leftButtonDown then
-				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.lastMouseDown.x) + 1) / spriteSize.x)
-				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.lastMouseDown.y) + 1) / spriteSize.y)
+				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.lastMousePressPos.x) + 1) / spriteSize.x)
+				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.lastMousePressPos.y) + 1) / spriteSize.y)
 			elseif leftButtonRelease then
 				self.pickOpen = false
 			end

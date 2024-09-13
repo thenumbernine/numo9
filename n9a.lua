@@ -389,28 +389,65 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	code = spriteFlagCode..'\n'
 .. [[
 -- begin compat layer
+-- TODO setfenv somewhere to prevent pico8 code from seeing outside its universe
 
-local function cos(x) return math.cos(x*2*math.pi) end
-local function sin(x) return -math.sin(x*2*math.pi) end
+band=bit.band
+bor=bit.bor
+bxor=bit.bxor
+bnot=bit.bnot
+shl=bit.lshift
+shr=bit.rshift
+lshr=bit.arshift
+rotl=bit.rol
+rotr=bit.ror
+min=math.min
+max=math.max
+flr=math.floor
+ceil=math.ceil
+cos=[x]math.cos(x*2*math.pi)
+sin=[x]-math.sin(x*2*math.pi)
+atan2=[x,y]math.atan2(-y,x)/(2*math.pi)
+sqrt=math.sqrt
+abs=math.abs
+sgn=[x]x<0 and -1 or 1
+rnd=[x]math.random(0,x)
+srand=math.randomseed
+add=table.insert
+del=table.removeObject
+deli=table.remove
+pairs=pairs
+all=ipairs
+foreach=table.mapi
+tostr=tostring
+tonum=tonumber
+chr=string.char
+ord=string.byte
+sub=string.sub
+split=string.split
+yield=coroutine.yield
+cocreate=coroutine.create
+coresume=coroutine.resume
+costatus=coroutine.status
 
-local __n9_btn = btn
--- TODO names for buttons
-local pico8_to_numo9_buttons = { [0]=2, 3, 0, 1, 7, 5}
-local function btn(...)
+__numo9__btn=btn
+local pico8_to_numo9_buttons = {[0]=2,3,0,1,7,5}
+btn=[...]do
 	if select('#', ...) == 0 then
 		local result = 0
 		for i=0,5 do
 			result |= __n9btn(pico8_to_numo9_buttons[i]) and 1<<i or 0
 		end
+		return result
 	end
 	local b, pl = ...
 	-- TODO if pl is not player-1 (0? idk?) then return
 	local pb = pico8_to_numo9_buttons[b]
-	if pb then return __n9_btn(bp) end
+	if pb then return __numo9__btn(bp) end
+	error'here'
 end
 
 -- looks like pico8 uses arg-count to determine behavior
-local function fget(...)
+fget=[...]do
 	local n, f
 	if select('#', ...) == 1 then
 		local n = ...
@@ -425,7 +462,7 @@ local function fget(...)
 		error'here'
 	end
 end
-local function fset(...)
+fset=[...]do
 	if select('#', ...) == 2 then
 		local n, val = ...
 		assert(n >= 0 and n < 256)
@@ -448,9 +485,34 @@ local function fset(...)
 	end
 end
 
+-- TODO
+music=[]nil
+reset=[]nil	-- reset palette, camera, clipping, fill-patterns ...
+reload=[dst,src,len]do	-- copy from rom to ram
+	if not dst then
+		-- reload everything
+	else
+	end
+end
+memcpy=[dst,src,len]do
+	-- copy from ram to ram
+	-- in jelpi this is only used for copying the current level over the first level's area
+end
+
+-- update glue code ... me redirecting `_update` to `update` without overwriting any other global `update`'s
+__numo9__setUpdate=[value]do
+	update=value
+end
+-- now encapsulate any `update` variables that were previously set - keeping them from messing with the numo9 `update` function
+local update
+
 -- end compat layer
 
 ]] .. code
+.. [[
+_init()
+__numo9__setUpdate(_update)
+]]
 
 	--[[
 	now parse and re-emit the lua code to work around pico8's weird syntax
@@ -474,7 +536,7 @@ end
 	--]]
 	local code = assert(codepath:read())
 	-- [[ TODO try using patterns, but I think I need a legit regex library
-	local lines = code:split'\n':mapi(function(l)
+	local lines = code:split'\n':mapi(function(l, lineNo)
 		-- hmm will this match 'if's on the start of the line?
 		local ifloc = line:match'^if[^0-9a-zA-Z_]' and 0 or line:find'[^0-9a-zA-Z_]if[^0-9a-zA-Z_]'
 		if ifloc then
@@ -482,27 +544,13 @@ end
 			local thenloc = line:find'[^0-9a-zA-Z_]then[^0-9a-zA-Z_]'
 			if not thenloc then
 				-- TODO also requires the if-stmt expr to be wrapped in parenthesis ...
+				print('found if without then at line '..lineNo)
 			end
 		end
 		--local a, b, c =
 	end):concat'\n'
 	--]]
-	do
-		local ifloc = 0
-		while ifloc <= #code do
-			ifloc = code:find('[^0-9a-zA-Z_]if[^0-9a-zA-Z_]', ifloc+1)
-			if not ifloc then break end
-			local thenloc = code:find('[^0-9a-zA-Z_]then[^0-9a-zA-Z_]', ifloc+1)
-			local returnloc = code:find('[^0-9a-zA-Z_]return[^0-9a-zA-Z_]', ifloc+1)
-			if returnloc < thenloc then
-				local sofar = code:sub(1,ifloc)
-				local lastline = sofar:match('[^\n]*$') or ''
-				local row = select(2,sofar:gsub('\n', ''))+1
-				local col = #lastline:gsub('\t', '    ')+1
-				print('found `if` `return` without `then` at line', row,'col',col)
-			end
-		end
-	end
+	
 	-- TODO now search and find all 'sin' and 'cos' function calls.  and fix them
 	assert(codepath:write(code))
 else
