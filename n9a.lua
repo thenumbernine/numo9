@@ -345,11 +345,22 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	-- paste our mapImg into it (to resize without resampling)
 		:pasteInto{image=mapImg, x=0, y=0}
 	-- now grow to 16bpp
-		:combine(
-			Image(256,256,1,'unsigned char'):clear(),
-			Image(256,256,1,'unsigned char'):clear()
-		)
-	asserteq(mapImg.channels, 3)
+		:combine(Image(256,256,1,'unsigned char'):clear())
+	-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
+	do
+		local p = ffi.cast('uint16_t*', mapImg.buffer)
+		for j=0,mapImg.height-1 do
+			for i=0,mapImg.width-1 do
+				p[0] = bit.bor(
+					bit.band(0x0f, p[0]),
+					bit.lshift(bit.band(0xf0, p[0]), 1)
+				)
+				p=p+1
+			end
+		end
+	end
+	-- now grow to 24bpp
+	mapImg = mapImg:combine(Image(256,256,1,'unsigned char'):clear())
 	-- also map gets the last 32 rows of gfx
 	-- looks like they are interleaved by row, lo hi lo hi ..
 	do
@@ -403,10 +414,6 @@ print('toImage', lastSection, 'width', width, 'height', height)
 		4) <<> with bit.rol
 		5) >>< with bit.ror (why not <>> to keep things symmetric?)
 		7) a \ b with math.floor(a / b) (Lua uses a//b)
-
-	and glue code
-		1) btn(b) b order doesn't match, and I don't yet support 'b'
-		2) sin/cos
 	--]]
 	-- [[ TODO try using patterns, but I think I need a legit regex library
 	code = string.split(code, '\n'):mapi(function(line, lineNo)
@@ -429,7 +436,7 @@ print('toImage', lastSection, 'width', width, 'height', height)
 			['🅾️'] = 4,
 			['❎'] = 5,
 		} do
-			--[[ why isn't this working? lua doesn't like unicode in their patterns?
+			--[[ why isn't this working? Lua doesn't like unicode in their patterns?
 			line = line:gsub('btn('..k..')', 'btn('..v..')')
 			line = line:gsub('btnp('..k..')', 'btnp('..v..')')
 			--]]
@@ -486,75 +493,11 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	code = spriteFlagCode..'\n'
 .. [[
 -- begin compat layer
-
-__numo9__btn=btn
-__numo9__btnp=btnp
-__numo9__fromPico8BtnMap={[0]=2,3,0,1,7,5}
-btn=[...]do
-	if select('#', ...) == 0 then
-		local result = 0
-		for i=0,5 do
-			result |= __n9btn(__numo9__fromPico8BtnMap[i]) and 1<<i or 0
-		end
-		return result
-	end
-	local b, pl = ...
-	-- TODO if pl is not player-1 (0? idk?) then return
-	local pb = __numo9__fromPico8BtnMap[b]
-	if pb then return __numo9__btn(bp) end
-	error'here'
-end
-btnp=[b, ...]do
-	return __numo9__btnp(__numo9__fromPico8BtnMap[b], ...)
-end
-
-fget=[...]do
-	local n, f
-	if select('#', ...) == 1 then
-		local n = ...
-		assert(n >= 0 and n < 256)
-		return __spriteFlags__[n+1]
-	elseif select('#', ...) == 2 then
-		local n, f = ...
-		assert(n >= 0 and n < 256)
-		assert(f >= 0 and f < 8)
-		return (1 & (__spriteFlags__[n+1] >> f)) ~= 0
-	else
-		error'here'
-	end
-end
-fset=[...]do
-	if select('#', ...) == 2 then
-		local n, val = ...
-		assert(n >= 0 and n < 256)
-		assert(val >= 0 and val < 256)
-		__spriteFlags__[n+1] = val
-	elseif select('#', ...) == 3 then
-		local n, f, val = ...
-		assert(n >= 0 and n < 256)
-		local flag = (1 << f)
-		local mask = ~flag
-		__spriteFlags__[n+1] &= mask
-		if val == true then
-			__spriteFlags__[n+1] |= flag
-		elseif val == false then
-		else
-			error'here'
-		end
-	else
-		error'here'
-	end
-end
-
-pico8env={
-	trace=trace,
-	cls=cls,
-	btn=btn,
-	btnp=btnp,
-	fget=fget,
-	fset=fset,
-	mget=mget,
-	mset=mset,
+palMem=0x040000
+p8ton9btnmap={[0]=2,3,0,1,7,5}
+defaultColor=6
+setfenv(1, {
+	printh=trace,
 	assert=assert,
 	band=bit.band,
 	bor=bit.bor,
@@ -567,6 +510,7 @@ pico8env={
 	rotr=bit.ror,
 	min=math.min,
 	max=math.max,
+	mid=[a,b,c]table{a,b,c}:sort()[2],
 	flr=math.floor,
 	ceil=math.ceil,
 	cos=[x]math.cos(x*2*math.pi),
@@ -580,8 +524,15 @@ pico8env={
 	add=table.insert,
 	del=table.removeObject,
 	deli=table.remove,
-	pairs=pairs,
-	all=ipairs,
+	pairs=[t]do
+		if t==nil then return coroutine.wrap([]nil) end
+		return pairs(t)
+	end,
+	all=[t]coroutine.wrap([]do
+		for _,x in ipairs(t) do
+			coroutine.yield(x)
+		end
+	end),
 	foreach=table.mapi,
 	tostr=tostring,
 	tonum=tonumber,
@@ -593,6 +544,153 @@ pico8env={
 	cocreate=coroutine.create,
 	coresume=coroutine.resume,
 	costatus=coroutine.status,
+
+	t=time,
+	time=time,
+
+	cls=cls,
+	clip=[x,y,w,h,rel]do
+		assert(not rel, 'TODO')
+		return clip(x,y,w,h)
+	end,
+	camera=[x,y]do
+		if not x then
+			matident()
+		else
+			mattrans(-x,-y)
+		end
+	end,
+	rect=[x0,y0,x1,y1,col]rectb(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	rectfill=[x0,y0,x1,y1,col]rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	line=[...]do
+		local x0,y0,x1,y1,col
+		local n=select('#',...)
+		if n==2 then
+			x0,y0=...
+		elseif n==3 then
+			x0,y0,col=...
+		elseif n==4 then
+			x0,y0,x1,y1=...
+		elseif n==5 then
+			x0,y0,x1,y1,col=...
+		end
+		col=col or defaultColor
+		--TODO line
+	end,
+	pal=[from,to,pal]do
+		if not from then
+			pokew(palMem,   0xa8a38000)
+			pokew(palMem+4, 0xaa00a88f)
+			pokew(palMem+8, 0xa54b9955)
+			pokew(palMem+12,0xf7dfe318)
+			pokew(palMem+16,0x829fa41f)
+			pokew(palMem+20,0x9b8093bf)
+			pokew(palMem+24,0xcdd0fea5)
+			pokew(palMem+28,0xd73fd5df)
+		elseif type(from)=='number' and type(to)=='number' then
+			assert(not pal, "TODO")
+			pokew(palMem+2*to,peekw(palMem+32+2*from))
+		elseif type(from)=='table' then
+			pal=to
+			assert(not pal, "TODO")
+			for from,to in pairs(from) do
+				pokew(palMem+2*to,peekw(palMem+32+2*from))
+			end
+		else
+trace(type(from),type(to),type(pal))
+trace(from,to,pal)
+			error'IDK'
+		end
+	end,
+	palt=[c,t]do
+		if not c then
+			for i=0,7 do
+				local addr=palMem+4*i
+				pokew(addr,peekw(addr)|0x80008000)
+			end
+		else
+			assert(c >= 0 and c < 16)
+			local addr=palMem+2*c
+			if t~=false then
+				pokew(addr,peekw(addr)|0x8000)
+			else
+				pokew(addr,peekw(addr)&0x7fff)
+			end
+		end
+	end,
+	btn=[...]do
+		if select('#', ...) == 0 then
+			local result = 0
+			for i=0,5 do
+				result |= btn(p8ton9btnmap[i]) and 1<<i or 0
+			end
+			return result
+		end
+		local b, pl = ...
+		-- TODO if pl is not player-1 (0? idk?) then return
+		local pb = p8ton9btnmap[b]
+		if pb then return btn(pb) end
+		error'here'
+	end,
+	btnp=[b, ...]btnp(assert(p8ton9btnmap[b]), ...),
+
+	fget=[...]do
+		local i, f
+		local n=select('#',...)
+		if n==1 then
+			local i = ...
+			assert(i >= 0 and i < 256)
+			return __spriteFlags__[i+1]
+		elseif n==2 then
+			local i, f = ...
+			assert(i >= 0 and i < 256)
+			assert(f >= 0 and f < 8)
+			return (1 & (__spriteFlags__[i+1] >> f)) ~= 0
+		else
+			error'here'
+		end
+	end,
+	fset=[...]do
+		if select('#', ...) == 2 then
+			local n, val = ...
+			assert(n >= 0 and n < 256)
+			assert(val >= 0 and val < 256)
+			__spriteFlags__[n+1] = val
+		elseif select('#', ...) == 3 then
+			local n, f, val = ...
+			assert(n >= 0 and n < 256)
+			local flag = (1 << f)
+			local mask = ~flag
+			__spriteFlags__[n+1] &= mask
+			if val == true then
+				__spriteFlags__[n+1] |= flag
+			elseif val == false then
+			else
+				error'here'
+			end
+		else
+			error'here'
+		end
+	end,
+	mget=[x,y]do
+		local i=mget(x,y)
+		return (i&0xf)|((i>>1)&0xf0)
+	end,
+	mset=[x,y,i]mset(x,y,(i&0xf)|((i%0xf0)<<1)),
+	map=[tileX,tileY,screenX,screenY,tileW,tileH,layers]do
+		screenX=screenX or 0
+		screenY=screenY or 0
+		tileW=tileW or 1
+		tileH=tileH or 1
+		--TODO layers = bitfield ... to only draw matching spriteFlags ...
+		return map(screenX,screenY,tileX+32*tileY,0)
+	end,
+	spr=[n,x,y,w,h,fx,fy]do
+		w=w or 1
+		h=h or 1
+		spr(n,x,y,w,h,0,-1,0,0xff,fx and -1 or 1, fy and -1 or 1)
+	end,
+	color=[c]do defaultColor=c or 6 end,
 
 	reset=[]nil,	-- reset palette, camera, clipping, fill-patterns ...
 	music=[]nil,
@@ -607,18 +705,21 @@ pico8env={
 		-- in jelpi this is only used for copying the current level over the first level's area
 	end,
 
-	__numo9_finished=[_init, _update]do
+	menuitem=[]nil,
+
+	__numo9_finished=[_init, _update, _draw]do
 		_init()
-		update = _update
+		update=[]do
+			_update()
+			_draw()
+		end
 	end,
-}
-setfenv(1, pico8env)
-
+})
 -- end compat layer
-
 ]] .. code
+-- if this one global seems like a bad idea, I can always just wrap the whole thing in a function , then setfenv on the function env, and then have the function return the _init and _update (to call and set)
 .. [[
-__numo9_finished(_init, _update)
+__numo9_finished(_init, _update, _draw)
 ]]
 
 	local codepath = basepath'code.lua'

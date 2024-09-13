@@ -243,7 +243,7 @@ function App:initGL()
 	uint16 <=> 65536 frames = 1092.25 seconds = 18.2 minutes
 	uint24 <=> 279620.25 frames = 4660.3 seconds = 77.7 minutes = 1.3 hours
 	uint32 <=> 2147483647 frames = 35791394.1 seconds = 596523.2 minutes = 9942.1 hours = 414.3 days = 13.7 months = 1.1 years
-	... and does it even matter if it loops?  if people store 'timestamps' and subtract, 
+	... and does it even matter if it loops?  if people store 'timestamps' and subtract,
 	then these time constraints (or half of them for signed) will give you the maximum delta-time capable of being stored.
 	--]]
 	self.ram.updateCounter[0] = 0
@@ -276,6 +276,26 @@ function App:initGL()
 			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
 			self.ram.v[addr] = tonumber(value)
 		end,
+		-- pico8 has poke2 as word, poke4 as dword
+		-- tic80 has poke2 as 2bits, poke4 as 4bits
+		-- I will leave bit operations up to the user, but for ambiguity rename my word and dword into pokew and pokel
+		-- signed or unsigned?
+		peekw = function(addr)
+			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+			return ffi.cast('uint16_t*', self.ram.v + addr)[0]
+		end,
+		pokew = function(addr, value)
+			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+			ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
+		end,
+		peekl = function(addr)
+			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+			return ffi.cast('uint32_t*', self.ram.v + addr)[0]
+		end,
+		pokel = function(addr, value)
+			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+			ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
+		end,
 
 		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
 		key = function(...) return self:key(...) end,
@@ -291,20 +311,20 @@ function App:initGL()
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(x, y)
-			if x < 0 or x >= self.tilemapSize.x
-			or y < 0 or y >= self.tilemapSize.y
+			if x >= 0 and x < self.tilemapSize.x
+			and y >= 0 and y < self.tilemapSize.y
 			then
-				return
+				return self.ram.tilemap[x + self.tilemapSize.x * y]
 			end
-			return self.ram.tilemap[x + self.tilemapSize.x * y]
+			-- TODO return default oob value
+			return 0
 		end,
 		mset = function(x, y, value)
-			if x < 0 or x >= self.tilemapSize.x
-			or y < 0 or y >= self.tilemapSize.y
+			if x >= 0 and x < self.tilemapSize.x
+			and y >= 0 and y < self.tilemapSize.y
 			then
-				return
+				self.ram.tilemap[x + self.tilemapSize.x * y] = value
 			end
-			self.ram.tilemap[x + self.tilemapSize.x * y] = value
 		end,
 
 		-- timer
@@ -344,12 +364,14 @@ function App:initGL()
 		-- TODO don't let the ROM see the App...
 		app = self,
 		bit = bit,
-		math = math,
-		table = table,
-		string = string,
+		math = require 'ext.math',
+		table = require 'ext.table',
+		string = require 'ext.string',
 		coroutine = coroutine,	-- TODO need a threadmanager ...
 
 		select = select,
+		type = type,
+		error = error,
 		assert = assert,
 		pairs = pairs,
 		ipairs = ipairs,
@@ -1166,8 +1188,9 @@ end
 function App:update()
 	App.super.update(self)
 
-	-- [[ fps counter
 	local thisTime = getTime()
+	
+	--[[ fps counter
 	local deltaTime = thisTime - lastTime
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
@@ -1673,18 +1696,25 @@ function App:load(filename)
 	--]]
 print('code is', #code, 'bytes')
 	self.editCode:setText(code)
+	self.cartridgeName = filename	-- TODO display this somewhere
+
 	return true
 end
 
 -- returns the function to run the code
-function App:loadCmd(cmd, env)
-	return self.loadenv.loadstring(cmd, nil, 't', env or self.env)
+function App:loadCmd(cmd, env, source)
+	-- Lua is wrapping [string "  "] around my source always ...
+	return self.loadenv.load(cmd, source, 't', env or self.env)
 end
 
 -- system() function
 -- TODO fork this between console functions and between running "rom" code
 function App:runCmd(cmd)
-	-- TODO when to error vs when to return nil ...
+	-- TODO backup original state of 'cartridge' for reset() / reload() functions
+	-- or how about keeping separate 'ROM' and 'RAM' space?  how should the ROM be accessible? with a 0xC00000 (SNES)?
+	-- and then 'save' would save the ROM to disk, and run() and reset() would copy the ROM to RAM
+	-- and the editor would edit the ROM ... 
+
 	--[[ suppress always
 	local f, msg = self:loadCmd(cmd)
 	if not f then return f, msg end
@@ -1709,7 +1739,7 @@ function App:runCode()
 		__index = self.env,
 	})
 
-	local f, msg = self:loadCmd(self.editCode.text, env)
+	local f, msg = self:loadCmd(self.editCode.text, env, self.cartridgeName)
 	if not f then
 		print(msg)
 		return
@@ -1738,7 +1768,7 @@ end
 
 function App:key(keycode)
 	if type(keycode) == 'string' then
-		keycode = keyCodeForName[keycode]
+		keycode = assertindex(keyCodeForName, keycode, 'keyCodeForName')
 	end
 	asserttype(keycode, 'number')
 	return self:keyForBuffer(keycode, self.ram.keyPressFlags)

@@ -154,7 +154,7 @@ function EditTilemap:update()
 				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 				local ptr = mapTex.image.buffer + texelIndex
 				local tileSelIndex = ptr[0]
-print('...reading mapTex at', tx, ty, texelIndex, 'to', tileSelIndex)
+print('...reading mapTex at '..tx..', '..ty..' (index='..texelIndex..') as '..('$%04x'):format(tileSelIndex))
 				self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
 				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
 			end
@@ -179,7 +179,7 @@ print('...reading mapTex at', tx, ty, texelIndex, 'to', tileSelIndex)
 							local ptr = mapTex.image.buffer + texelIndex
 							local tileSelIndex = self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y
 							ptr[0] = tileSelIndex
-print('...updating mapTex at', tx, ty, texelIndex, 'to', tileSelIndex)
+print('...writing mapTex at '..tx..', '..ty..'( index='..texelIndex..') as '..('$%04x'):format(tileSelIndex))
 							mapTex:subimage{
 								xoffset = tx,
 								yoffset = ty,
