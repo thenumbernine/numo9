@@ -386,7 +386,7 @@ print('toImage', lastSection, 'width', width, 'height', height)
 
 	local palImg = Image(16, 16, 4, 'unsigned char', table{
 	-- fill out the default pico8 palette
-		0x00, 0x00, 0x00, 0xff,
+		0x00, 0x00, 0x00, 0x00,
 		0x1D, 0x2B, 0x53, 0xff,
 		0x7E, 0x25, 0x53, 0xff,
 		0x00, 0x87, 0x51, 0xff,
@@ -491,7 +491,7 @@ print('toImage', lastSection, 'width', width, 'height', height)
 		2) sin(x) => math.sin(-x*2*math.pi)
 	--]]
 	code = spriteFlagCode..'\n'
-.. [[
+.. [=[
 -- begin compat layer
 
 --looking for a faster floor function. ..
@@ -503,6 +503,7 @@ fbMem=0x050200
 palMem=0x040000
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 defaultColor=6
+camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
 setfenv(1, {
 	printh=trace,
 	assert=assert,
@@ -517,7 +518,37 @@ setfenv(1, {
 	rotr=bit.ror,
 	min=math.min,
 	max=math.max,
-	mid=[a,b,c]table{a,b,c}:sort()[2],
+	mid=[a,b,c]do
+		--[[ less code ... but maybe more operations ...
+		if b < a then a,b=b,a end
+		if c < b then
+			b,c=c,b
+			if b<a then
+				a,b=b,a
+			end
+		end
+		return b
+		--]]
+		-- [[
+		if a <= b then		-- a <= b
+			if b <= c then	-- a <= b <= c
+				return b
+			else			-- a <= b, c < b
+				return a <= c 
+					and c 	-- a <= c < b
+					or a	-- c < a <= b
+			end
+		else				-- b < a
+			if a <= c then	-- b < a <= c
+				return a
+			else			-- b < a, c < a
+				return b <= c
+					and c	-- b <= c < a
+					or b	-- c < b < a
+			end
+		end
+		--]]
+	end,
 	flr=math.floor,
 	ceil=math.ceil,
 	cos=[x]math.cos(x*2*math.pi),
@@ -557,6 +588,7 @@ setfenv(1, {
 	t=time,
 	time=time,
 
+	flip=[]nil,
 	cls=cls,
 	clip=[x,y,w,h,rel]do
 --assert(not rel, 'TODO')
@@ -569,8 +601,10 @@ setfenv(1, {
 	camera=[x,y]do
 		if not x then
 			matident()
+			camx,camy=0,0
 		else
 			mattrans(-x,-y)
+			camx,camy=x,y
 		end
 	end,
 	pset=[x,y,col]do
@@ -600,7 +634,7 @@ setfenv(1, {
 	end,
 	pal=[from,to,pal]do
 		if not from then
-			pokel(palMem,   0xa8a38000)
+			pokel(palMem,   0xa8a30000)
 			pokel(palMem+4, 0xaa00a88f)
 			pokel(palMem+8, 0xa54b9955)
 			pokel(palMem+12,0xf7dfe318)
@@ -618,17 +652,19 @@ setfenv(1, {
 				pokew(palMem+2*to,peekw(palMem+32+2*from))
 			end
 		else
+trace'pal idk'
 trace(type(from),type(to),type(pal))
 trace(from,to,pal)
-			error'IDK'
+			-- I think these just return?
 		end
 	end,
 	palt=[c,t]do
 		if not c then
 			for i=0,7 do
 				local addr=palMem+4*i
-				pokel(addr,peekw(addr)|0x80008000)
+				pokel(addr,peekl(addr)|0x80008000)
 			end
+			pokew(addr,peekw(addr)&0x7fff)
 		else
 --assert(c >= 0 and c < 16)
 			local addr=palMem+2*c
@@ -668,8 +704,8 @@ trace(from,to,pal)
 			return sprFlags[i+1]
 		elseif n==2 then
 			local i, f = ...
-			i = int(i)
-			f = int(f)
+			i = math.floor(i)
+			f = math.floor(f)
 --			assert(i >= 0 and i < 256)
 --			assert(f >= 0 and f < 8)
 			return (1 & (sprFlags[i+1] >> f)) ~= 0
@@ -706,40 +742,103 @@ trace(from,to,pal)
 	mset=[x,y,i]mset(x,y,(i&0xf)|((i&0xf0)<<1)),
 	map=[tileX,tileY,screenX,screenY,tileW,tileH,layers]do
 --trace('map', 	tileX,tileY,screenX,screenY,tileW,tileH,layers)
-		screenX=int(screenX or 0)
-		screenY=int(screenY or 0)
-		tileW=int(tileW or 1)
-		tileH=int(tileH or 1)
-		if layers then
-			-- manually hunt through the tilemap, 
-			-- get the tile,
-			-- get the sprFlags of the tile
-			-- if they intersect (all? any?) then draw this sprite
-			for dy=0,tileH-1 do
-				for dx=0,tileW-1 do
-					local i=tileX+dx
-					local j=tileY+dy
-					local tileIndex = mget(i,j)
-					tileIndex=(tileIndex&0xf)|((tileIndex>>1)&0xf0)
---					assert(0 <= tileIndex and tileIndex < 256)
-					if sprFlags[tileIndex+1]&layers==layers then
-						map(i,j,1,1,screenX+(dx<<3),screenY+(dy<<3),0)
-					end
-				end
-			end
-		else
+		tileX=math.floor(tileX)
+		tileY=math.floor(tileY)
+--assert(tileX >= 0 and tileX < 32 and tileY >= 0 and tileY < 32, "failed for tile pos "..tileX..", "..tileY)
+		tileW=math.floor(tileW or 1)
+		tileH=math.floor(tileH or 1)
+		screenX=math.floor(screenX or 0)
+		screenY=math.floor(screenY or 0)
+	
+--[[		
+		if tileX<0 then
+			tileW -= (-tileX)>>3
+			tileX = 0
+		end
+		if tileY<0 then
+			tileH -= (-tileY)>>3
+			tileY = 0
+		end
+		if tileW<=0 then return end
+		if tileH<=0 then return end
+		if tileW>15 then tileW=15 end
+		if tileH>15 then tileH=15 end
+--]]
+
+		if not layers then
 			--TODO layers = bitfield ... to only draw matching sprFlags ...
 			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
 		end
+
+		-- manually hunt through the tilemap, 
+		-- get the tile,
+		-- get the sprFlags of the tile
+		-- if they intersect (all? any?) then draw this sprite
+		-- this drops the fps from 5000 down to 30 ... smh
+		-- then I add some bounds testing and it goes back up to 3000
+		local camScreenX=screenX-camx
+		local camScreenY=screenY-camy
+		if camScreenX > 256
+		or camScreenY > 256
+		or camScreenX + 256 <= 0
+		or camScreenY + 256 <= 0
+		then return end
+
+		if camScreenX+8<0 then
+			local shift = (-8-camScreenX)>>3
+assert(shift>=0)			
+			screenX+=shift<<3
+			camScreenX+=shift<<3
+			tileX+=shift
+			tileW-=shift
+		end
+		if camScreenY+8<0 then
+			local shift = (-8-camScreenY)>>3
+assert(shift>=0)			
+			screenY+=shift<<3
+			camScreenY+=shift<<3
+			tileY+=shift
+			tileH-=shift
+		end
+--		if tileX<=0 or tileY<=0 then return end
+
+		if camScreenX+(tileW<<3) > 256 then
+			local shift = (camScreenX+(tileW<<3) - 256)>>3
+assert(shift>=0)			
+			tileW-=shift
+		end
+		if camScreenY+(tileH<<3) > 256 then
+			local shift = (camScreenY+(tileH<<3) - 256)>>3
+assert(shift>=0)			
+			tileH-=shift
+		end
+		if tileW>15 then tileW=15 end
+		if tileH>15 then tileH=15 end
+--		if tileW<=0 or tileH<=0 then return end
+			
+		local ssy=screenY
+		for j=tileY,tileY+tileH-1 do
+			local ssx=screenX
+			for i=tileX,tileX+tileW-1 do
+				local tileIndex = mget(i,j)
+				tileIndex=(tileIndex&0xf)|((tileIndex>>1)&0xf0)
+--					assert(0 <= tileIndex and tileIndex < 256)
+				if sprFlags[tileIndex+1]&layers==layers then
+					map(i,j,1,1,ssx,ssy,0)
+				end
+				ssx+=8
+			end
+			ssy+=8
+		end
 	end,
 	spr=[n,x,y,w,h,fx,fy]do
-		n = int(n)
+		n = math.floor(n)
 --trace('spr', n,x,y,w,h,fx,fy)
 		-- translate sprite index from 4bpp x 4bpp to 5bpp x 5bpp
 --		assert(n >= 0 and n < 256)
 		n=(n&0xf)|((n&0xf0)<<1)
-		w=int(w or 1)
-		h=int(h or 1)
+		w=math.floor(w or 1)
+		h=math.floor(h or 1)
 		local sx,sy = 1,1
 		if fx then
 			sx=-1
@@ -784,7 +883,7 @@ trace(from,to,pal)
 	end,
 })
 -- end compat layer
-]] .. code
+]=] .. code
 -- if this one global seems like a bad idea, I can always just wrap the whole thing in a function , then setfenv on the function env, and then have the function return the _init and _update (to call and set)
 .. [[
 __numo9_finished(_init, _update, _update60, _draw)
