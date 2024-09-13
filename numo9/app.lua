@@ -318,7 +318,7 @@ function App:initGL()
 		table = table,
 		string = string,
 		coroutine = coroutine,	-- TODO need a threadmanager ...
-		
+
 		select = select,
 		assert = assert,
 		pairs = pairs,
@@ -1039,9 +1039,9 @@ void main() {
 
 		self:runCode()
 	else
-print("didn't find initial file ... resetting gfx ...")		
+print("didn't find initial file ... resetting gfx ...")
 		self:resetGFX()
-	
+
 print('palette:', hexdump(self.rom.palette, ffi.sizeof(self.rom.palette)))
 print('spriteSheet:', hexdump(self.rom.spriteSheet, ffi.sizeof(self.rom.spriteSheet)))
 	end

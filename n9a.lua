@@ -389,64 +389,28 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	code = spriteFlagCode..'\n'
 .. [[
 -- begin compat layer
--- TODO setfenv somewhere to prevent pico8 code from seeing outside its universe
-
-band=bit.band
-bor=bit.bor
-bxor=bit.bxor
-bnot=bit.bnot
-shl=bit.lshift
-shr=bit.rshift
-lshr=bit.arshift
-rotl=bit.rol
-rotr=bit.ror
-min=math.min
-max=math.max
-flr=math.floor
-ceil=math.ceil
-cos=[x]math.cos(x*2*math.pi)
-sin=[x]-math.sin(x*2*math.pi)
-atan2=[x,y]math.atan2(-y,x)/(2*math.pi)
-sqrt=math.sqrt
-abs=math.abs
-sgn=[x]x<0 and -1 or 1
-rnd=[x]math.random(0,x)
-srand=math.randomseed
-add=table.insert
-del=table.removeObject
-deli=table.remove
-pairs=pairs
-all=ipairs
-foreach=table.mapi
-tostr=tostring
-tonum=tonumber
-chr=string.char
-ord=string.byte
-sub=string.sub
-split=string.split
-yield=coroutine.yield
-cocreate=coroutine.create
-coresume=coroutine.resume
-costatus=coroutine.status
 
 __numo9__btn=btn
-local pico8_to_numo9_buttons = {[0]=2,3,0,1,7,5}
+__numo9__btnp=btnp
+__numo9__fromPico8BtnMap={[0]=2,3,0,1,7,5}
 btn=[...]do
 	if select('#', ...) == 0 then
 		local result = 0
 		for i=0,5 do
-			result |= __n9btn(pico8_to_numo9_buttons[i]) and 1<<i or 0
+			result |= __n9btn(__numo9__fromPico8BtnMap[i]) and 1<<i or 0
 		end
 		return result
 	end
 	local b, pl = ...
 	-- TODO if pl is not player-1 (0? idk?) then return
-	local pb = pico8_to_numo9_buttons[b]
+	local pb = __numo9__fromPico8BtnMap[b]
 	if pb then return __numo9__btn(bp) end
 	error'here'
 end
+btnp=[b, ...]do
+	return __numo9__btnp(__numo9__fromPico8BtnMap[b], ...)
+end
 
--- looks like pico8 uses arg-count to determine behavior
 fget=[...]do
 	local n, f
 	if select('#', ...) == 1 then
@@ -485,33 +449,79 @@ fset=[...]do
 	end
 end
 
--- TODO
-music=[]nil
-reset=[]nil	-- reset palette, camera, clipping, fill-patterns ...
-reload=[dst,src,len]do	-- copy from rom to ram
-	if not dst then
-		-- reload everything
-	else
-	end
-end
-memcpy=[dst,src,len]do
-	-- copy from ram to ram
-	-- in jelpi this is only used for copying the current level over the first level's area
-end
+pico8env={
+	trace=trace,
+	cls=cls,
+	btn=btn,
+	btnp=btnp,
+	fget=fget,
+	fset=fset,
+	mget=mget,
+	mset=mset,
+	assert=assert,
+	band=bit.band,
+	bor=bit.bor,
+	bxor=bit.bxor,
+	bnot=bit.bnot,
+	shl=bit.lshift,
+	shr=bit.rshift,
+	lshr=bit.arshift,
+	rotl=bit.rol,
+	rotr=bit.ror,
+	min=math.min,
+	max=math.max,
+	flr=math.floor,
+	ceil=math.ceil,
+	cos=[x]math.cos(x*2*math.pi),
+	sin=[x]-math.sin(x*2*math.pi),
+	atan2=[x,y]math.atan2(-y,x)/(2*math.pi),
+	sqrt=math.sqrt,
+	abs=math.abs,
+	sgn=[x]x<0 and -1 or 1,
+	rnd=[x]math.random(0,x),
+	srand=math.randomseed,
+	add=table.insert,
+	del=table.removeObject,
+	deli=table.remove,
+	pairs=pairs,
+	all=ipairs,
+	foreach=table.mapi,
+	tostr=tostring,
+	tonum=tonumber,
+	chr=string.char,
+	ord=string.byte,
+	sub=string.sub,
+	split=string.split,
+	yield=coroutine.yield,
+	cocreate=coroutine.create,
+	coresume=coroutine.resume,
+	costatus=coroutine.status,
 
--- update glue code ... me redirecting `_update` to `update` without overwriting any other global `update`'s
-__numo9__setUpdate=[value]do
-	update=value
-end
--- now encapsulate any `update` variables that were previously set - keeping them from messing with the numo9 `update` function
-local update
+	reset=[]nil,	-- reset palette, camera, clipping, fill-patterns ...
+	music=[]nil,
+	reload=[dst,src,len]do	-- copy from rom to ram
+		if not dst then
+			-- reload everything
+		else
+		end
+	end,
+	memcpy=[dst,src,len]do
+		-- copy from ram to ram
+		-- in jelpi this is only used for copying the current level over the first level's area
+	end,
+
+	__numo9_finished=[_init, _update]do
+		_init()
+		update = _update
+	end,
+}
+setfenv(1, pico8env)
 
 -- end compat layer
 
 ]] .. code
 .. [[
-_init()
-__numo9__setUpdate(_update)
+__numo9_finished(_init, _update)
 ]]
 
 	--[[
@@ -550,7 +560,7 @@ __numo9__setUpdate(_update)
 		--local a, b, c =
 	end):concat'\n'
 	--]]
-	
+
 	-- TODO now search and find all 'sin' and 'cos' function calls.  and fix them
 	assert(codepath:write(code))
 else
