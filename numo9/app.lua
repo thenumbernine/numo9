@@ -41,6 +41,11 @@ local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
 local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode
 
+-- I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...
+-- glsl unsigned int fragment colors and samplers really doesn't do anything predictable...
+local fragColorUseFloat = false
+--local fragColorUseFloat = true
+
 -- n = num args to pack
 -- also in image/luajit/image.lua
 local function packptr(n, ptr, value, ...)
@@ -195,6 +200,11 @@ local updateInterval = 1 / 60
 local needUpdateCounter = 0
 
 function App:initGL()
+
+--[[ boy does enabling blend make me regret using uvec4 as a fragment color output
+gl.glEnable(gl.GL_BLEND)
+gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
+--]]
 
 	self.ram = ffi.new'RAM'
 
@@ -545,31 +555,33 @@ print('package.loaded', package.loaded)
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	local fbMask = bit.lshift(1, ffi.sizeof(frameBufferType)) - 1
+	local fbImage = makeImageAtPtr(
+		self.ram.framebuffer,
+		frameBufferSize.x,
+		frameBufferSize.y,
+		1,
+		frameBufferType,
+		function(i,j) return math.random(0, fbMask) end
+	)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
 	self.fbTex = self:makeTexFromImage{
-		image = makeImageAtPtr(
-			self.ram.framebuffer,
-			frameBufferSize.x,
-			frameBufferSize.y,
-			1,
-			asserteq(frameBufferType, 'uint16_t'),
-			function(i,j) return math.random(0, fbMask) end
-		),
+		image = fbImage,
 		internalFormat = gl.GL_RGB565,
 		format = gl.GL_RGB,
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
 	}
 	--]=]
+	--[=[ framebuffer is 256 x 256 x 16bpp rgba4444
+	self.fbTex = self:makeTexFromImage{
+		image = fbImage,
+		internalFormat = gl.GL_RGBA4,
+		format = gl.GL_RGBA,
+		type = gl.GL_UNSIGNED_SHORT_4_4_4_4,
+	}
+	--]=]
 	--[=[ framebuffer is 256 x 256 x 8bpp rgb332
 	self.fbTex = self:makeTexFromImage{
-		image = makeImageAtPtr(
-			self.ram.framebuffer,
-			frameBufferSize.x,
-			frameBufferSize.y,
-			1,
-			asserteq(frameBufferType, 'uint8_t'),
-			function(i,j) return math.random(0, fbMask) end
-		),
+		image = fbImage,
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -619,7 +631,7 @@ print('package.loaded', package.loaded)
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
-in vec2 vertex;
+layout(location=0) in vec2 vertex;
 out vec2 tcv;
 uniform mat4 mvProjMat;
 void main() {
@@ -629,7 +641,11 @@ void main() {
 ]],
 			fragmentCode = template([[
 in vec2 tcv;
-out uvec4 fragColor;
+<? if fragColorUseFloat then ?>
+layout(location=0) out vec4 fragColor;
+<? else ?>
+layout(location=0) out uvec4 fragColor;
+<? end ?>
 uniform usampler2DRect fbTex;
 
 const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
@@ -641,7 +657,15 @@ void main() {
 		int(tcv.y * frameBufferSizeY)
 	);
 #if 1 // rgb565 just copy over
+<? if fragColorUseFloat then ?>
+#if 1	// how many bits does uvec4 get from texture() ?	
+	fragColor = texture(fbTex, fbTc) / float((1u<<31)-1u);
+#else	// or does gl just magically know the conversion?
 	fragColor = texture(fbTex, fbTc);
+#endif
+<? else ?>
+	fragColor = texture(fbTex, fbTc);
+<? end ?>
 #endif
 #if 0 // rgb332 translate the 8bpp single-channel
 
@@ -664,6 +688,7 @@ void main() {
 #endif
 }
 ]],			{
+				fragColorUseFloat = fragColorUseFloat,
 				clnumber = clnumber,
 				frameBufferSize = frameBufferSize,
 			}),
@@ -684,7 +709,7 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = template([[
-in vec2 vertex;
+layout(location=0) in vec2 vertex;
 uniform vec4 box;	//x,y,w,h
 uniform mat4 mvMat;
 
@@ -704,7 +729,12 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
-out uvec4 fragColor;
+<? if fragColorUseFloat then ?>
+layout(location=0) out vec4 fragColor;
+<? else ?>
+layout(location=0) out uvec4 fragColor;
+<? end ?>
+
 uniform uint colorIndex;
 uniform usampler2DRect palTex;
 void main() {
@@ -714,10 +744,16 @@ void main() {
 		0
 	);
 #if 1	// rgb565
+<? if fragColorUseFloat then ?>
+	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
+<? else ?>	
 	fragColor = texture(palTex, palTc);
+<? end ?>
+	if (fragColor.a == 0) discard;
 #endif
 #if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
+	if (color.a == 0) discard;
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
 		| (color.g >> 2) & 0x38u
@@ -729,6 +765,7 @@ void main() {
 ]],			{
 				clnumber = clnumber,
 				paletteSize = paletteSize,
+				fragColorUseFloat = fragColorUseFloat,
 			}),
 			uniforms = {
 				palTex = 0,
@@ -774,7 +811,12 @@ void main() {
 			}),
 			fragmentCode = template([[
 in vec2 tcv;
-out uvec4 fragColor;
+
+<? if fragColorUseFloat then ?>
+layout(location=0) out vec4 fragColor;
+<? else ?>
+layout(location=0) out uvec4 fragColor;
+<? end ?>
 
 //For now this is an integer added to the 0-15 4-bits of the sprite tex.
 //You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
@@ -834,11 +876,16 @@ void main() {
 	// write the 8bpp colorIndex to the screen, use tex to draw it
 	ivec2 palTc = ivec2(colorIndex, 0);
 #if 1	// rgb565
+<? if fragColorUseFloat then ?>
+	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
+<? else ?>	
 	fragColor = texture(palTex, palTc);
+<? end ?>
 	if (fragColor.a == 0) discard;
 #endif
 #if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
+	if (color.a == 0) discard;
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
 		| (color.g >> 2) & 0x38u
@@ -850,6 +897,7 @@ void main() {
 ]], 		{
 				clnumber = clnumber,
 				spriteSheetSize = spriteSheetSize,
+				fragColorUseFloat = fragColorUseFloat,
 			}),
 			uniforms = {
 				spriteTex = 0,
@@ -902,7 +950,11 @@ void main() {
 			}),
 			fragmentCode = template([[
 in vec2 tcv;
-out uvec4 fragColor;
+<? if fragColorUseFloat then ?>
+layout(location=0) out vec4 fragColor;
+<? else ?>
+layout(location=0) out uvec4 fragColor;
+<? end ?>
 
 // tilemap texture
 uniform usampler2DRect mapTex;
@@ -961,11 +1013,16 @@ void main() {
 
 	ivec2 palTc = ivec2(colorIndex, 0);
 #if 1	// rgb565
+<? if fragColorUseFloat then ?>
+	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
+<? else ?>	
 	fragColor = texture(palTex, palTc);
+<? end ?>
 	if (fragColor.a == 0) discard;
 #endif
 #if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
+	if (color.a == 0) discard;
 	fragColor = uvec4(
 		(color.r >> 5) & 0x07u
 		| (color.g >> 2) & 0x38u
@@ -973,12 +1030,12 @@ void main() {
 		0, 0, 0xFFu
 	);
 #endif
-
 }
 ]],			{
 				clnumber = clnumber,
 				spriteSheetSize = spriteSheetSize,
 				tilemapSize = tilemapSize,
+				fragColorUseFloat = fragColorUseFloat,
 			}),
 			uniforms = {
 				mapTex = 0,
