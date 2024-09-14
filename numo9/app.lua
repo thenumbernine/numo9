@@ -1261,6 +1261,7 @@ function App:update()
 		local fb = self.fb
 		fb:bind()
 		gl.glViewport(0,0,frameBufferSize:unpack())
+		gl.glEnable(gl.GL_SCISSOR_TEST)
 		gl.glScissor(
 			self.clipRect[0],
 			self.clipRect[1],
@@ -1283,6 +1284,7 @@ print('no runnable focus!')
 			self.runFocus = self.con
 		end
 
+		gl.glDisable(gl.GL_SCISSOR_TEST)
 		fb:unbind()
 
 		-- update vram to gpu every frame?
@@ -1603,6 +1605,8 @@ end
 -- specify an oob bgColorIndex to draw with transparent background
 -- and default x, y to the last cursor position
 function App:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+	x = x or 0
+	y = y or 0
 	fgColorIndex = fgColorIndex or 13
 	bgColorIndex = bgColorIndex or 0
 	scaleX = scaleX or 1

@@ -486,10 +486,7 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	end):concat'\n'
 	--]]
 
-	--[[ now add our code compat layer
-		1) cos(x) => math.cos(x*2*math.pi)
-		2) sin(x) => math.sin(-x*2*math.pi)
-	--]]
+	-- now add our code compat layer
 	code = spriteFlagCode..'\n'
 .. [=[
 -- begin compat layer
@@ -534,7 +531,7 @@ setfenv(1, {
 			if b <= c then	-- a <= b <= c
 				return b
 			else			-- a <= b, c < b
-				return a <= c 
+				return a <= c
 					and c 	-- a <= c < b
 					or a	-- c < a <= b
 			end
@@ -572,7 +569,7 @@ setfenv(1, {
 		end
 	end),
 	foreach=[t,f]do
-		for _,o in ipairs(t) do f(o) end 
+		for _,o in ipairs(t) do f(o) end
 	end,
 	tostr=tostring,
 	tonum=tonumber,
@@ -603,6 +600,7 @@ setfenv(1, {
 			matident()
 			camx,camy=0,0
 		else
+			matident()
 			mattrans(-x,-y)
 			camx,camy=x,y
 		end
@@ -614,8 +612,8 @@ setfenv(1, {
 	end,
 	rect=[x0,y0,x1,y1,col]rectb(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
 	rectfill=[x0,y0,x1,y1,col]rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
-	circ=[x,y,r,col]rectb(x-r,y-r,2*r+1,2*r+1,col), -- TODO 
-	circfill=[x,y,r,col]rect(x-r,y-r,2*r+1,2*r+1,col), -- TODO 
+	circ=[x,y,r,col]rectb(x-r,y-r,2*r+1,2*r+1,col), -- TODO
+	circfill=[x,y,r,col]rect(x-r,y-r,2*r+1,2*r+1,col), -- TODO
 	print=text,
 	line=[...]do
 		local x0,y0,x1,y1,col
@@ -700,33 +698,40 @@ trace(from,to,pal)
 		local n=select('#',...)
 		if n==1 then
 			local i = ...
---			assert(i >= 0 and i < 256)
+			i = math.floor(i)
+			assert(i>=0 and i<256)
 			return sprFlags[i+1]
 		elseif n==2 then
-			local i, f = ...
+			local i,f = ...
 			i = math.floor(i)
 			f = math.floor(f)
---			assert(i >= 0 and i < 256)
---			assert(f >= 0 and f < 8)
+			assert(i>=0 and i<256)
+			assert(f>=0 and f<8)
 			return (1 & (sprFlags[i+1] >> f)) ~= 0
 		else
 			error'here'
 		end
 	end,
 	fset=[...]do
-		if select('#', ...) == 2 then
-			local n, val = ...
---			assert(n >= 0 and n < 256)
---			assert(val >= 0 and val < 256)
-			sprFlags[n+1] = val
-		elseif select('#', ...) == 3 then
-			local n, f, val = ...
---			assert(n >= 0 and n < 256)
-			local flag = (1 << f)
+		local n=select('#',...)
+		if n==2 then
+			local i,val = ...
+			i = math.floor(i)
+			val = math.floor(val)
+			assert(i>=0 and i<256)
+			assert(val>=0 and val<256)
+			sprFlags[i+1] = val
+		elseif n==3 then
+			local i,f,val = ...
+			i = math.floor(i)
+			f = math.floor(f)
+			val = math.floor(val)
+			assert(i>=0 and i<256)
+			local flag = 1<<f
 			local mask = ~flag
-			sprFlags[n+1] &= mask
-			if val == true then
-				sprFlags[n+1] |= flag
+			sprFlags[i+1] &= mask
+			if val==true then
+				sprFlags[i+1] |= flag
 			elseif val == false then
 			else
 				error'here'
@@ -749,44 +754,30 @@ trace(from,to,pal)
 		tileH=math.floor(tileH or 1)
 		screenX=math.floor(screenX or 0)
 		screenY=math.floor(screenY or 0)
-	
---[[		
-		if tileX<0 then
-			tileW -= (-tileX)>>3
-			tileX = 0
-		end
-		if tileY<0 then
-			tileH -= (-tileY)>>3
-			tileY = 0
-		end
-		if tileW<=0 then return end
-		if tileH<=0 then return end
-		if tileW>15 then tileW=15 end
-		if tileH>15 then tileH=15 end
---]]
 
 		if not layers then
 			--TODO layers = bitfield ... to only draw matching sprFlags ...
 			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
 		end
 
-		-- manually hunt through the tilemap, 
+		-- manually do some clipping to my tile hunting bounds
+		-- this improves fps by 100x or so
+		-- idk if I should bother have a typical map() call do this bounds testing because it's all handled in hardware anyways
+
+		-- manually hunt through the tilemap,
 		-- get the tile,
 		-- get the sprFlags of the tile
 		-- if they intersect (all? any?) then draw this sprite
 		-- this drops the fps from 5000 down to 30 ... smh
 		-- then I add some bounds testing and it goes back up to 3000
-		local camScreenX=screenX-camx
-		local camScreenY=screenY-camy
-		if camScreenX > 256
-		or camScreenY > 256
-		or camScreenX + 256 <= 0
-		or camScreenY + 256 <= 0
-		then return end
 
+		local camScreenX=math.floor(screenX-camx)
+		local camScreenY=math.floor(screenY-camy)
+
+		-- [[
 		if camScreenX+8<0 then
 			local shift = (-8-camScreenX)>>3
-assert(shift>=0)			
+assert(shift>=0)
 			screenX+=shift<<3
 			camScreenX+=shift<<3
 			tileX+=shift
@@ -794,35 +785,63 @@ assert(shift>=0)
 		end
 		if camScreenY+8<0 then
 			local shift = (-8-camScreenY)>>3
-assert(shift>=0)			
+assert(shift>=0)
 			screenY+=shift<<3
 			camScreenY+=shift<<3
 			tileY+=shift
 			tileH-=shift
 		end
---		if tileX<=0 or tileY<=0 then return end
+		--]]
 
-		if camScreenX+(tileW<<3) > 256 then
-			local shift = (camScreenX+(tileW<<3) - 256)>>3
-assert(shift>=0)			
+		-- [[
+		if camScreenX+(tileW<<3) > 128 then
+			local shift = (camScreenX+(tileW<<3) - 128)>>3
+assert(shift>=0)
 			tileW-=shift
 		end
-		if camScreenY+(tileH<<3) > 256 then
-			local shift = (camScreenY+(tileH<<3) - 256)>>3
-assert(shift>=0)			
+		if camScreenY+(tileH<<3) > 128 then
+			local shift = (camScreenY+(tileH<<3) - 128)>>3
+assert(shift>=0)
 			tileH-=shift
 		end
-		if tileW>15 then tileW=15 end
-		if tileH>15 then tileH=15 end
---		if tileW<=0 or tileH<=0 then return end
-			
+		--]]
+		-- [[
+		if tileX<0 then
+			local shift=-tileX
+			tileX=0
+			tileW-=shift
+			screenX+=shift>>3
+		end
+		if tileY<0 then
+			local shift=-tileY
+			tileY=0
+			tileH-=shift
+			screenY-=shift>>3
+		end
+		--]]
+		-- [[
+		if tileW<=0 or tileH<=0 then return end
+		if tileW>127-tileX then tileW=127-tileX end
+		if tileH>127-tileY then tileH=127-tileY end
+		--]]
+
+		-- [[
+		if camScreenX>128
+		or camScreenY>128
+		or camScreenX+tileW*8+128 <= 0
+		or camScreenY+tileH*8+128 <= 0
+		then
+			return
+		end
+		--]]
+
+
 		local ssy=screenY
 		for j=tileY,tileY+tileH-1 do
 			local ssx=screenX
 			for i=tileX,tileX+tileW-1 do
 				local tileIndex = mget(i,j)
 				tileIndex=(tileIndex&0xf)|((tileIndex>>1)&0xf0)
---					assert(0 <= tileIndex and tileIndex < 256)
 				if sprFlags[tileIndex+1]&layers==layers then
 					map(i,j,1,1,ssx,ssy,0)
 				end
@@ -872,7 +891,7 @@ assert(shift>=0)
 		_init()
 		update=[]do
 			if _update
---			and peek(0x070244)&1==1  -- run at 30fps ... why does this look slow ...
+			and peek(0x070244)&1==1  -- run at 30fps ... why does this look slow ...
 			-- skip the odd frames, because pico8 expects an _update() before a _draw()
 			then
 				_update()
