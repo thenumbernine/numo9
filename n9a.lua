@@ -515,36 +515,12 @@ setfenv(1, {
 	min=math.min,
 	max=math.max,
 	mid=[a,b,c]do
-		-- [[ less code ... but maybe more operations ...
 		if b<a then a,b=b,a end
 		if c<b then
 			b,c=c,b
 			if b<a then a,b=b,a end
 		end
 		return b
-		--]]
-		--[[
-		if a<=b then		-- a <= b
-			if b<=c then	-- a <= b <= c
-				return b
-			else			-- a <= b, c < b
-				return a <= c
-					and c 	-- a <= c < b
-					or a	-- c < a <= b
-			end
-		else				-- b < a
-			if a<=c then	-- b < a <= c
-				return a
-			else			-- b < a, c < a
-				return b <= c
-					and c	-- b <= c < a
-					or b	-- c < b < a
-			end
-		end
-		--]]
-		--[[
-		return table{a,b,c}:sort()[2]
-		--]]
 	end,
 	flr=math.floor,
 	ceil=math.ceil,
@@ -554,7 +530,7 @@ setfenv(1, {
 	sqrt=math.sqrt,
 	abs=math.abs,
 	sgn=[x]x<0 and -1 or 1,
-	rnd=[x]math.random(0,math.floor(x)-1),
+	rnd=[x]x*math.random(),
 	srand=math.randomseed,
 	add=table.insert,
 	del=table.removeObject,
@@ -653,6 +629,17 @@ assert(not rel, 'TODO')
 	end,
 	pal=[from,to,pal]do
 		if not from then
+			--[[ preserve transparency
+			pokel(palMem,   0x28a30000|(peekl(palMem   )&0x80008000))
+			pokel(palMem+4, 0x2a00288f|(peekl(palMem+4 )&0x80008000))
+			pokel(palMem+8, 0x254b1955|(peekl(palMem+8 )&0x80008000))
+			pokel(palMem+12,0x77df6318|(peekl(palMem+12)&0x80008000))
+			pokel(palMem+16,0x029f241f|(peekl(palMem+16)&0x80008000))
+			pokel(palMem+20,0x1b8013bf|(peekl(palMem+20)&0x80008000))
+			pokel(palMem+24,0x4dd07ea5|(peekl(palMem+24)&0x80008000))
+			pokel(palMem+28,0x573f55df|(peekl(palMem+28)&0x80008000))
+			--]]
+			-- [[ reset transparency too
 			pokel(palMem,   0xa8a30000)
 			pokel(palMem+4, 0xaa00a88f)
 			pokel(palMem+8, 0xa54b9955)
@@ -661,21 +648,32 @@ assert(not rel, 'TODO')
 			pokel(palMem+20,0x9b8093bf)
 			pokel(palMem+24,0xcdd0fea5)
 			pokel(palMem+28,0xd73fd5df)
+			--]]
 		elseif type(from)=='number' and type(to)=='number' then
-assert(not pal, "TODO pal(from,to,pal)")
+if pal then trace"TODO pal(from,to,pal)" end
 			from=math.floor(from)
 			to=math.floor(to)
 			if from>=0 and from<16 and to>=0 and to<16 then
+				--[[ preserve transaprency?
+				pokew(palMem+2*to,(peekw(palMem+32+2*from)&0x7fff)|(peekw(palMem+2*from)&0x8000))
+				--]]
+				-- [[
 				pokew(palMem+2*to,peekw(palMem+32+2*from))
+				--]]
 			end
 		elseif type(from)=='table' then
 			pal=to
-assert(not pal, "TODO pal(map,pal)")
+if pal then trace"TODO pal(map,pal)" end
 			for from,to in pairs(from) do
 				from=math.floor(from)
 				to=math.floor(to)
 				if from>=0 and from<16 and to>=0 and to<16 then
+					--[[ preserve transparency?
+					pokew(palMem+2*to,(peekw(palMem+32+2*from)&0x7fff)|(peekw(palMem+2*from)&0x8000))
+					--]]
+					-- [[
 					pokew(palMem+2*to,peekw(palMem+32+2*from))
+					--]]
 				end
 			end
 		else
@@ -685,7 +683,8 @@ trace(from,to,pal)
 			-- I think these just return?
 		end
 	end,
-	palt=[c,t]do
+	palt=[...]do
+		local c,t=...
 		if not c then
 			for i=0,7 do
 				local addr=palMem+4*i
@@ -778,7 +777,10 @@ assert(i>=0 and i<256)
 		local i=mget(x,y)
 		return (i&0xf)|((i>>1)&0xf0)
 	end,
-	mset=[x,y,i]mset(x,y,(i&0xf)|((i&0xf0)<<1)),
+	mset=[x,y,i]do
+		i=math.floor(i)
+		mset(x,y,(i&0xf)|((i&0xf0)<<1))
+	end,
 	map=[tileX,tileY,screenX,screenY,tileW,tileH,layers]do
 --trace('map', 	tileX,tileY,screenX,screenY,tileW,tileH,layers)
 		tileX=math.floor(tileX)
@@ -869,13 +871,15 @@ assert(shift>=0)
 		--]]
 
 		local ssy=screenY
-		for j=tileY,tileY+tileH-1 do
+		for ty=tileY,tileY+tileH-1 do
 			local ssx=screenX
-			for i=tileX,tileX+tileW-1 do
-				local tileIndex = mget(i,j)
-				tileIndex=(tileIndex&0xf)|((tileIndex>>1)&0xf0)
-				if sprFlags[tileIndex+1]&layers==layers then
-					map(i,j,1,1,ssx,ssy,0)
+			for tx=tileX,tileX+tileW-1 do
+				local i=mget(tx,ty)
+				if i>0 then	-- 0 == 0 means don't draw
+					i=(i&0xf)|((i>>1)&0xf0)
+					if sprFlags[i+1]&layers==layers then
+						map(tx,ty,1,1,ssx,ssy,0)
+					end
 				end
 				ssx+=8
 			end

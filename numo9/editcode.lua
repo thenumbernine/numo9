@@ -80,7 +80,7 @@ function EditCode:update()
 	)
 
 	for y=1,frameBufferSizeInTiles.y-2 do
-		if y >= #self.newlines then break end
+		if y >= #self.newlines-1 then break end
 		local i = self.newlines[y + self.editLineOffset] + 1
 		local j = self.newlines[y + self.editLineOffset + 1]
 		app:drawText(
@@ -121,7 +121,7 @@ function EditCode:update()
 
 	local shift = app:key'lshift' or app:key'rshift'
 	for keycode=0,#keyCodeNames-1 do
-		if app:keyp(keycode) then
+		if app:keyp(keycode,30,5) then
 			local ch = getAsciiForKeyCode(keycode, shift)
 			if ch then
 				self:addCharToText(ch)

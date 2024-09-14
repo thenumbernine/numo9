@@ -223,7 +223,7 @@ function Console:update()
 
 	local shift = app:key'lshift' or app:key'rshift'
 	for keycode=0,#keyCodeNames-1 do
-		if app:keyp(keycode) then
+		if app:keyp(keycode,30,5) then
 			local ch = getAsciiForKeyCode(keycode, shift)
 			if ch then
 				self:addCharToCmd(ch)
