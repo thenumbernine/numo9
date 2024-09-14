@@ -515,7 +515,7 @@ setfenv(1, {
 	min=math.min,
 	max=math.max,
 	mid=[a,b,c]do
-		--[[ less code ... but maybe more operations ...
+		-- [[ less code ... but maybe more operations ...
 		if b < a then a,b=b,a end
 		if c < b then
 			b,c=c,b
@@ -525,9 +525,9 @@ setfenv(1, {
 		end
 		return b
 		--]]
-		-- [[
-		if a <= b then		-- a <= b
-			if b <= c then	-- a <= b <= c
+		--[[
+		if a<=b then		-- a <= b
+			if b<=c then	-- a <= b <= c
 				return b
 			else			-- a <= b, c < b
 				return a <= c
@@ -535,7 +535,7 @@ setfenv(1, {
 					or a	-- c < a <= b
 			end
 		else				-- b < a
-			if a <= c then	-- b < a <= c
+			if a<=c then	-- b < a <= c
 				return a
 			else			-- b < a, c < a
 				return b <= c
@@ -591,6 +591,16 @@ assert(not rel, 'TODO')
 		if not x then
 			clip(0,0,255,255)
 		else
+			if x<0 then
+				w+=x
+				x=0
+			end
+			if y<0 then
+				h+=y
+				y=0
+			end
+			w=math.min(w,128)
+			h=math.min(h,128)
 			clip(2*x,2*y,2*w-1,2*h-1)
 		end
 	end,
@@ -613,7 +623,14 @@ assert(not rel, 'TODO')
 	rectfill=[x0,y0,x1,y1,col]rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
 	circ=[x,y,r,col]rectb(x-r,y-r,2*r+1,2*r+1,col), -- TODO
 	circfill=[x,y,r,col]rect(x-r,y-r,2*r+1,2*r+1,col), -- TODO
-	print=text,
+	print=[s,x,y,...]do
+		if x then
+			text(s,x/2,y/2,...)
+		else
+			-- TODO need console location ...
+			text(s)
+		end
+	end,
 	line=[...]do
 		local x0,y0,x1,y1,col
 		local n=select('#',...)
@@ -640,11 +657,11 @@ assert(not rel, 'TODO')
 			pokel(palMem+24,0xcdd0fea5)
 			pokel(palMem+28,0xd73fd5df)
 		elseif type(from)=='number' and type(to)=='number' then
-assert(not pal, "TODO")
+assert(not pal, "TODO pal(from,to,pal)")
 			pokew(palMem+2*to,peekw(palMem+32+2*from))
 		elseif type(from)=='table' then
 			pal=to
-assert(not pal, "TODO")
+assert(not pal, "TODO pal(map,pal)")
 			for from,to in pairs(from) do
 				pokew(palMem+2*to,peekw(palMem+32+2*from))
 			end
@@ -882,10 +899,10 @@ assert(shift>=0)
 
 	__numo9_finished=[_init, _update, _update60, _draw]do
 		_init()
+		_update()	-- pico8 needs a draw before any updates
 		update=[]do
 			if _update
-			and peek(0x070244)&1==1  -- run at 30fps ... why does this look slow ...
-			-- skip the odd frames, because pico8 expects an _update() before a _draw()
+			and peek(0x070244)&1==0  -- run at 30fps
 			then
 				_update()
 			end

@@ -311,6 +311,8 @@ function App:initGL()
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(x, y)
+			x = math.floor(x)
+			y = math.floor(y)
 			if x >= 0 and x < self.tilemapSize.x
 			and y >= 0 and y < self.tilemapSize.y
 			then
@@ -320,6 +322,8 @@ function App:initGL()
 			return 0
 		end,
 		mset = function(x, y, value)
+			x = math.floor(x)
+			y = math.floor(y)
 			if x >= 0 and x < self.tilemapSize.x
 			and y >= 0 and y < self.tilemapSize.y
 			then
@@ -375,7 +379,7 @@ function App:initGL()
 		assert = assert,
 		pairs = pairs,
 		ipairs = ipairs,
-	
+
 		-- TODO don't let the ROM see the App...
 		app = self,
 		ffi = ffi,
@@ -1195,7 +1199,7 @@ function App:update()
 	App.super.update(self)
 
 	local thisTime = getTime()
-	
+
 	-- [[ fps counter
 	local deltaTime = thisTime - lastTime
 	fpsFrames = fpsFrames + 1
@@ -1722,7 +1726,7 @@ function App:runCmd(cmd)
 	-- TODO backup original state of 'cartridge' for reset() / reload() functions
 	-- or how about keeping separate 'ROM' and 'RAM' space?  how should the ROM be accessible? with a 0xC00000 (SNES)?
 	-- and then 'save' would save the ROM to disk, and run() and reset() would copy the ROM to RAM
-	-- and the editor would edit the ROM ... 
+	-- and the editor would edit the ROM ...
 
 	--[[ suppress always
 	local f, msg = self:loadCmd(cmd)
