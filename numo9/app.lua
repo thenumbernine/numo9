@@ -369,8 +369,20 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 				self.clipRect[3]+1)
 		end,
 
-		rect = function(...) return self:drawSolidRect(...) end,
-		rectb = function(...) return self:drawBorderRect(...) end,
+		rect = function(x, y, w, h, colorIndex)
+			return self:drawSolidRect(x, y, w, h, colorIndex, false, false)
+		end,
+		rectb = function(x, y, w, h, colorIndex)
+			return self:drawSolidRect(x, y, w, h, colorIndex, true, false)
+		end,
+		-- choosing tic80's api naming here.  but the rect api: width/height, not radA/radB
+		elli = function(x, y, w, h, colorIndex)
+			return self:drawSolidRect(x, y, w, h, colorIndex, false, true)
+		end,
+		ellib = function(x, y, w, h, colorIndex)
+			return self:drawSolidRect(x, y, w, h, colorIndex, true, true)
+		end,
+
 		spr = function(...) return self:drawSprite(...) end,		-- (spriteIndex, x, y, paletteIndex)
 		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
 		quad = function(x,y,w,h,tx,ty,tw,th,pal,transparent,spriteBit,spriteMask)
@@ -714,6 +726,7 @@ void main() {
 			precision = 'best',
 			vertexCode = template([[
 layout(location=0) in vec2 vertex;
+out vec2 pcv;	// unnecessary except for the sake of 'round' ...
 uniform vec4 box;	//x,y,w,h
 uniform mat4 mvMat;
 
@@ -722,8 +735,8 @@ const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
-	vec2 rvtx = box.xy + vertex * box.zw;
-	gl_Position = mvMat * vec4(rvtx, 0., 1.);
+	pcv = box.xy + vertex * box.zw;
+	gl_Position = mvMat * vec4(pcv, 0., 1.);
 	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
@@ -733,6 +746,11 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
+// framebuffer pixel coordinates
+in vec2 pcv;
+
+uniform vec4 box;	//x,y,w,h
+
 <? if fragColorUseFloat then ?>
 layout(location=0) out vec4 fragColor;
 <? else ?>
@@ -741,7 +759,46 @@ layout(location=0) out uvec4 fragColor;
 
 uniform uint colorIndex;
 uniform usampler2DRect palTex;
+uniform bool borderOnly;
+uniform bool round;
+
+float sqr(float x) { return x * x; }
+
 void main() {
+	if (round) {
+		// TODO midpoint-circle / Bresenham algorithm, like Tic80 uses:
+		// figure out which 8th of the circle you're in
+		// then compute deltas based on if |dy| / |dx|
+		// (x/a)^2 + (y/b)^2 = 1
+		// x/a = √(1 - (y/b)^2)
+		// x = a√(1 - (y/b)^2)
+		// y = b√(1 - (x/a)^2)
+		vec2 radius = .5 * box.zw;
+		vec2 center = box.xy + radius;
+		vec2 delta = pcv - center;
+		vec2 absDelta = abs(delta);
+		if (absDelta.x / radius.x < absDelta.y / radius.y) {
+			// top/bottom quadrant
+			float by = radius.y * sqrt(1. - sqr(delta.x / radius.x));
+			if (delta.y > by || delta.y < -by) discard;
+			if (borderOnly && delta.y < by-1. && delta.y > -by+1.) discard;
+		} else {
+			// left/right quadrant
+			float bx = radius.x * sqrt(1. - sqr(delta.y / radius.y));
+			if (delta.x > bx || delta.x < -bx) discard;
+			if (borderOnly && delta.x < bx-1. && delta.x > -bx+1.) discard;
+		}
+	} else {
+		if (borderOnly) {
+			if (pcv.x > box.x+1.
+				&& pcv.x < box.x+box.z-1.
+				&& pcv.y > box.y+1.
+				&& pcv.y < box.y+box.w-1.
+			) discard;
+		}
+		// else default solid rect
+	}
+
 	ivec2 palTc = ivec2(
 <? assert(math.log(paletteSize, 2) % 1 == 0)
 ?>		colorIndex & <?=('0x%Xu'):format(paletteSize-1)?>,
@@ -753,7 +810,11 @@ void main() {
 <? else ?>
 	fragColor = texture(palTex, palTc);
 <? end ?>
-	if (fragColor.a == 0) discard;
+
+	// TODO THIS? or should we just rely on the transparentIndex==0 for that? or both?
+	//for draw-solid it's not so useful because we can already specify the color and the transparency alpha here
+	// so there's no point in having an alpha-by-color since it will be all-solid or all-transparent.
+	//if (fragColor.a == 0) discard;
 #endif
 #if 0	// rgb332
 	uvec4 color = texture(palTex, palTc);
@@ -770,6 +831,8 @@ void main() {
 				clnumber = clnumber,
 				paletteSize = paletteSize,
 				fragColorUseFloat = fragColorUseFloat,
+				borderOnly = false,
+				round = false,
 			}),
 			uniforms = {
 				palTex = 0,
@@ -802,8 +865,8 @@ const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
-	vec2 rvtx = box.xy + vertex * box.zw;
-	gl_Position = mvMat * vec4(rvtx, 0., 1.);
+	vec2 pc = box.xy + vertex * box.zw;
+	gl_Position = mvMat * vec4(pc, 0., 1.);
 	gl_Position.x /= frameBufferSizeX;
 	gl_Position.y /= frameBufferSizeY;
 	gl_Position.xy *= 2.;
@@ -941,8 +1004,8 @@ const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
-	vec2 rvtx = box.xy + vertex * box.zw;
-	gl_Position = mvMat * vec4(rvtx, 0., 1.);
+	vec2 pc = box.xy + vertex * box.zw;
+	gl_Position = mvMat * vec4(pc, 0., 1.);
 	gl_Position.x /= frameBufferSizeX;
 	gl_Position.y /= frameBufferSizeY;
 	gl_Position.xy *= 2.;
@@ -1466,31 +1529,35 @@ print('no runnable focus!')
 	sceneObj:draw()
 end
 
-function App:drawSolidRect(x, y, w, h, colorIndex)
+function App:drawSolidRect(
+	x,
+	y,
+	w,
+	h,
+	colorIndex,
+	borderOnly,
+	round
+)
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
+	uniforms.borderOnly = borderOnly or false
+	uniforms.round = round or false
+	if w < 0 then x,w = x+w,-w end
+	if h < 0 then y,h = y+h,-h end
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
 end
-
-function App:drawBorderRect(x, y, w, h, colorIndex)
-	-- I could do another shader for this, and discard in the middle
-	-- or just draw 4 thin sides ...
-	local sceneObj = self.quadSolidObj
-	local uniforms = sceneObj.uniforms
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.colorIndex = colorIndex
-
-	settable(uniforms.box, x, y, w, 1)
-	sceneObj:draw()
-	settable(uniforms.box, x, y, 1, h)
-	sceneObj:draw()
-	settable(uniforms.box, x, y+h-1, w, 1)
-	sceneObj:draw()
-	settable(uniforms.box, x+w-1, y, 1, h)
-	sceneObj:draw()
+function App:drawBorderRect(
+	x,
+	y,
+	w,
+	h,
+	colorIndex,
+	...	-- round
+)
+	return self:drawSolidRect(x,y,w,h,colorIndex,true,...)
 end
 
 function App:clearScreen(colorIndex)

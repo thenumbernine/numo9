@@ -229,7 +229,7 @@ elseif cmd == 'binton9' then
 		(assert(toCartImage(binpath.path)))
 	))
 
-elseif cmd == 'p8' then
+elseif cmd == 'p8' or cmd == 'p8r' then
 
 	--[[
 	pico8 conversion needs ...
@@ -449,7 +449,7 @@ print('toImage', name, 'width', width, 'height', height)
 		line = line:gsub('^^', '~')
 
 		-- change `?[arglist]` to `print([arglist])`
-		line = line:gsub('^(%s*)%?(.-)%s*$', '%1print(%2)')
+		line = line:gsub('^(.*)%?([%S].-)%s*$', '%1print(%2)')
 		-- https://www.lexaloffle.com/dl/docs/pico-8_manual.html#PRINT
 		-- "Shortcut: written on a single line, ? can be used to call print without brackets:"
 		-- then how come I see it inside single-line if-statement blocks ...
@@ -462,10 +462,10 @@ print('toImage', name, 'width', width, 'height', height)
 		--btn(b) btnp(b): b can be a extended unicode:
 		-- Lua parser doesn't like this.
 		for k,v in pairs{
-			['⬆️'] = 0,
-			['⬇️'] = 1,
-			['⬅️'] = 2,
-			['➡️'] = 3,
+			['⬅️'] = 0,
+			['➡️'] = 1,
+			['⬆️'] = 2,
+			['⬇️'] = 3,
 			['🅾️'] = 4,
 			['❎'] = 5,
 		} do
@@ -725,10 +725,14 @@ setfenv(1, {
 		-- TODO palette lookup
 		pokew(fbMem+((x|(y<<8))<<1),peekw(palMem+(col<<1)))
 	end,
-	rect=[x0,y0,x1,y1,col]nil, --rectb(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
-	rectfill=[x0,y0,x1,y1,col]nil, --rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
-	circ=[x,y,r,col]nil, --rectb(x-r,y-r,2*r+1,2*r+1,col), -- TODO
-	circfill=[x,y,r,col]nil, --rect(x-r,y-r,2*r+1,2*r+1,col), -- TODO
+	rect=[x0,y0,x1,y1,col]rectb(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	rectfill=[x0,y0,x1,y1,col]rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	circ=[x,y,r,col]ellib(x-r,y-r,2*r+1,2*r+1,col),
+	circfill=[x,y,r,col]elli(x-r,y-r,2*r+1,2*r+1,col),
+	circ=[x,y,r,col]ellib(x-r,y-r,2*r+1,2*r+1,col),
+	circfill=[x,y,r,col]elli(x-r,y-r,2*r+1,2*r+1,col),
+	oval=[x0,y0,x1,y1,col]elli(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	ovalb=[x0,y0,x1,y1,col]ellib(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
 	line=[...]do
 		local x0,y0,x1,y1,col
 		local n=select('#',...)
@@ -1025,6 +1029,11 @@ __numo9_finished(_init, _update, _update60, _draw)
 ]]
 
 	assert(basepath'code.lua':write(code))
+
+	if cmd == 'p8r' then
+		assert(os.execute('./n9a.lua r "'..basepath:setext'n9'..'"'))
+	end
+
 else
 
 	error("unknown cmd "..tostring(cmd))
