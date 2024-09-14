@@ -490,17 +490,16 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	code = spriteFlagCode..'\n'
 .. [=[
 -- begin compat layer
-
---looking for a faster floor function. ..
---int=ffi.typeof'int'
-local inttype = ffi.typeof'int'
-int=[x]tonumber(inttype(x))
-
 fbMem=0x050200
 palMem=0x040000
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 defaultColor=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
+resetmat=[]do
+	matident()
+	matscale(2,2)
+end
+resetmat()
 setfenv(1, {
 	printh=trace,
 	assert=assert,
@@ -588,19 +587,19 @@ setfenv(1, {
 	flip=[]nil,
 	cls=cls,
 	clip=[x,y,w,h,rel]do
---assert(not rel, 'TODO')
+assert(not rel, 'TODO')
 		if not x then
-			clip(0,0,128,128)
+			clip(0,0,255,255)
 		else
-			clip(x,y,w,h)
+			clip(2*x,2*y,2*w-1,2*h-1)
 		end
 	end,
 	camera=[x,y]do
 		if not x then
-			matident()
+			resetmat()
 			camx,camy=0,0
 		else
-			matident()
+			resetmat()
 			mattrans(-x,-y)
 			camx,camy=x,y
 		end
@@ -641,11 +640,11 @@ setfenv(1, {
 			pokel(palMem+24,0xcdd0fea5)
 			pokel(palMem+28,0xd73fd5df)
 		elseif type(from)=='number' and type(to)=='number' then
---assert(not pal, "TODO")
+assert(not pal, "TODO")
 			pokew(palMem+2*to,peekw(palMem+32+2*from))
 		elseif type(from)=='table' then
 			pal=to
---assert(not pal, "TODO")
+assert(not pal, "TODO")
 			for from,to in pairs(from) do
 				pokew(palMem+2*to,peekw(palMem+32+2*from))
 			end
@@ -664,7 +663,7 @@ trace(from,to,pal)
 			end
 			pokew(addr,peekw(addr)&0x7fff)
 		else
---assert(c >= 0 and c < 16)
+assert(c >= 0 and c < 16)
 			local addr=palMem+2*c
 			if t~=false then
 				pokew(addr,peekw(addr)|0x8000)
@@ -687,26 +686,21 @@ trace(from,to,pal)
 		if pb then return btn(pb) end
 		error'here'
 	end,
-	btnp=[b, ...]btnp(
---		assert(
-		p8ton9btnmap[b]
---		)
-		, ...),
-
+	btnp=[b, ...]btnp(assert(p8ton9btnmap[b]), ...),
 	fget=[...]do
 		local i, f
 		local n=select('#',...)
 		if n==1 then
 			local i = ...
 			i = math.floor(i)
-			assert(i>=0 and i<256)
+assert(i>=0 and i<256)
 			return sprFlags[i+1]
 		elseif n==2 then
 			local i,f = ...
 			i = math.floor(i)
 			f = math.floor(f)
-			assert(i>=0 and i<256)
-			assert(f>=0 and f<8)
+assert(i>=0 and i<256)
+assert(f>=0 and f<8)
 			return (1 & (sprFlags[i+1] >> f)) ~= 0
 		else
 			error'here'
@@ -718,15 +712,15 @@ trace(from,to,pal)
 			local i,val = ...
 			i = math.floor(i)
 			val = math.floor(val)
-			assert(i>=0 and i<256)
-			assert(val>=0 and val<256)
+assert(i>=0 and i<256)
+assert(val>=0 and val<256)
 			sprFlags[i+1] = val
 		elseif n==3 then
 			local i,f,val = ...
 			i = math.floor(i)
 			f = math.floor(f)
 			val = math.floor(val)
-			assert(i>=0 and i<256)
+assert(i>=0 and i<256)
 			local flag = 1<<f
 			local mask = ~flag
 			sprFlags[i+1] &= mask
@@ -749,7 +743,6 @@ trace(from,to,pal)
 --trace('map', 	tileX,tileY,screenX,screenY,tileW,tileH,layers)
 		tileX=math.floor(tileX)
 		tileY=math.floor(tileY)
---assert(tileX >= 0 and tileX < 32 and tileY >= 0 and tileY < 32, "failed for tile pos "..tileX..", "..tileY)
 		tileW=math.floor(tileW or 1)
 		tileH=math.floor(tileH or 1)
 		screenX=math.floor(screenX or 0)
