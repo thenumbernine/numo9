@@ -372,6 +372,10 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		rect = function(...) return self:drawSolidRect(...) end,
 		rectb = function(...) return self:drawBorderRect(...) end,
 		spr = function(...) return self:drawSprite(...) end,		-- (spriteIndex, x, y, paletteIndex)
+		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
+		quad = function(x,y,w,h,tx,ty,tw,th,pal,transparent,spriteBit,spriteMask)
+			return self:drawQuad(x,y,w,h,tx,ty,tw,th,self.spriteTex,pal,transparent,spriteBit,spriteMask)
+		end,
 		map = function(...) return self:drawMap(...) end,
 		text = function(...) return self:drawText(...) end,		-- (text, x, y, fgColorIndex, bgColorIndex)
 
@@ -658,7 +662,7 @@ void main() {
 	);
 #if 1 // rgb565 just copy over
 <? if fragColorUseFloat then ?>
-#if 1	// how many bits does uvec4 get from texture() ?	
+#if 1	// how many bits does uvec4 get from texture() ?
 	fragColor = texture(fbTex, fbTc) / float((1u<<31)-1u);
 #else	// or does gl just magically know the conversion?
 	fragColor = texture(fbTex, fbTc);
@@ -746,7 +750,7 @@ void main() {
 #if 1	// rgb565
 <? if fragColorUseFloat then ?>
 	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
-<? else ?>	
+<? else ?>
 	fragColor = texture(palTex, palTc);
 <? end ?>
 	if (fragColor.a == 0) discard;
@@ -878,7 +882,7 @@ void main() {
 #if 1	// rgb565
 <? if fragColorUseFloat then ?>
 	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
-<? else ?>	
+<? else ?>
 	fragColor = texture(palTex, palTc);
 <? end ?>
 	if (fragColor.a == 0) discard;
@@ -1015,7 +1019,7 @@ void main() {
 #if 1	// rgb565
 <? if fragColorUseFloat then ?>
 	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
-<? else ?>	
+<? else ?>
 	fragColor = texture(palTex, palTc);
 <? end ?>
 	if (fragColor.a == 0) discard;

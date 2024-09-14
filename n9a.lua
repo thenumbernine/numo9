@@ -258,22 +258,33 @@ elseif cmd == 'p8' then
 	local lines = string.split(data,'\n')
 	assert(lines:remove(1):match('^'..string.patescape'pico-8 cartridge'))
 	assert(lines:remove(1):match'^version')
-	assert(lines:remove(1) == '__lua__')
 
-	local lastSection = '__lua__'
-	local nextSection
-	local function readToNextSection(name)
-		lastSection = nextSection
-		nextSection = name
-		local i = assert((lines:find(name))) 	-- or maybe not all sections are required? idk
-		local result = lines:sub(1, i-1)
-		lines = lines:sub(i+1)
-		return result
+	-- sections...
+	local sectionLine = {}
+	for _,name in ipairs{'lua', 'gfx','label','gff','map','sfx','music'} do
+		sectionLine[name] = lines:find('__'..name..'__')
+	end
+	-- indexed by numbers
+	local sortedKeys = table.keys(sectionLine):sort(function(a,b)
+		return sectionLine[a] < sectionLine[b]
+	end)
+	-- indexed by nubmers, matches up with sortedKeys
+	local sortedLines = sortedKeys:mapi(function(key) return sectionLine[key] end)
+	local sections = {}
+
+	assert(sortedLines[1] == 1)	-- make sure we start on line 1...
+	for i,key in ipairs(sortedKeys) do
+		local startLine = sortedLines[i]+1
+		local endLine = sortedLines[i+1] or #lines+1	-- exclusive
+		local sublines = lines:sub(startLine, endLine-1)
+		asserteq(#sublines, endLine-startLine)
+		print('section '..key..' lines '..startLine..' - '..endLine..' = '..(endLine-startLine)..' lines')
+		sections[key] = sublines
 	end
 
-	local code = readToNextSection'__gfx__':concat'\n'
+	local code = sections.lua:concat'\n'..'\n'
 
-	local function toImage(ls, _8bpp)
+	local function toImage(ls, _8bpp, name)
 		ls = ls:filter(function(line) return #line > 0 end)
 		if #ls == 0 then
 			error("section got no lines: "..tostring(nextSection))
@@ -287,7 +298,7 @@ elseif cmd == 'p8' then
 			width = bit.rshift(width, 1)
 		end
 		local height = #ls
-print('toImage', lastSection, 'width', width, 'height', height)
+print('toImage', name, 'width', width, 'height', height)
 --print(require 'ext.tolua'(ls))
 		local image = Image(width, height, 1, 'unsigned char'):clear()
 		-- for now output 4bpp -> 8bpp
@@ -308,8 +319,7 @@ print('toImage', lastSection, 'width', width, 'height', height)
 		return image
 	end
 
-	local gfxSrc = readToNextSection'__label__'
-	local gfxImg = toImage(gfxSrc)
+	local gfxImg = toImage(sections.gfx, false, 'gfx')
 	asserteq(gfxImg.channels, 1)
 	asserteq(gfxImg.width, 128)
 	assertle(gfxImg.height, 128)  -- how come the jelpi.p8 cartridge I exported from pico-8-edu.com has only 127 rows of gfx?
@@ -323,79 +333,82 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
 	gfxImg:save(basepath'tiles.png'.path)
 
-	local labelImg = toImage(readToNextSection'__gff__')
-	labelImg:save(basepath'label.png'.path)
+	if sections.label then
+		local labelImg = toImage(sections.label, false, 'label')
+		labelImg:save(basepath'label.png'.path)
+	end
 
 	-- TODO embed this somewhere in the ROM
 	-- how about as code?
 	-- how about something for mapping random resources to random locations in RAM?
-	local flagSrc = readToNextSection'__map__'
+	local flagSrc = sections.gff
 --[[ save out flags?
-	local spriteFlagsImg = toImage(flagSrc)
+	local spriteFlagsImg = toImage(flagSrc, false, 'gff')
 	spriteFlagsImg:save(basepath'spriteflags.png'.path)
 --]]
 -- [[ or nah, just embed them in the code ...
 	flagSrc = flagSrc:concat():gsub('%s', '')	-- only hex chars
 	assertlen(flagSrc, 512)
-	local spriteFlagCode = 'local sprFlags = {\n'
+	local spriteFlagCode = 'sprFlags={\n'
 			..range(0,15):mapi(function(j)
-				return '\t'..range(0,15):mapi(function(i)
+				return range(0,15):mapi(function(i)
 					local e = 2 * (i + 16 * j)
 					return '0x'..flagSrc:sub(e+1,e+2)..','
-				end):concat' '..'\n'
+				end):concat''..'\n'
 			end):concat()
 			..'}\n'
 --]]
 
 	-- map is 8bpp not 4pp
-	local mapSrc = readToNextSection'__sfx__'
-	local mapImg = toImage(mapSrc, true)
-	asserteq(mapImg.channels, 1)
-	asserteq(mapImg.width, 128)
-	assertle(mapImg.height, 64)
-	-- start as 8bpp
-	mapImg = Image(256,256,1,'unsigned char')
-		:clear()
-	-- paste our mapImg into it (to resize without resampling)
-		:pasteInto{image=mapImg, x=0, y=0}
-	-- now grow to 16bpp
-		:combine(Image(256,256,1,'unsigned char'):clear())
-	-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
-	do
-		local p = ffi.cast('uint16_t*', mapImg.buffer)
-		for j=0,mapImg.height-1 do
-			for i=0,mapImg.width-1 do
-				p[0] = bit.bor(
-					bit.band(0x0f, p[0]),
-					bit.lshift(bit.band(0xf0, p[0]), 1)
-				)
-				p=p+1
-			end
-		end
-	end
-	-- now grow to 24bpp
-	mapImg = mapImg:combine(Image(256,256,1,'unsigned char'):clear())
-	-- also map gets the last 32 rows of gfx
-	-- looks like they are interleaved by row, lo hi lo hi ..
-	do
-		for j=64,127 do
-			for i=0,127 do
-				local dstp = mapImg.buffer + i + mapImg.width * j
-				local srcp = gfxImg.buffer + i + gfxImg.width * bit.rshift(j, 1)
-				if bit.band(j, 1) == 0 then
-					dstp[0] = srcp[0]
-				else
-					dstp[0] = bit.bor(dstp[0], bit.lshift(srcp[0], 4))
+	if sections.map then
+		local mapImg = toImage(sections.map, true, 'map')
+		asserteq(mapImg.channels, 1)
+		asserteq(mapImg.width, 128)
+		assertle(mapImg.height, 64)
+		-- start as 8bpp
+		mapImg = Image(256,256,1,'unsigned char')
+			:clear()
+		-- paste our mapImg into it (to resize without resampling)
+			:pasteInto{image=mapImg, x=0, y=0}
+		-- now grow to 16bpp
+			:combine(Image(256,256,1,'unsigned char'):clear())
+		-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
+		do
+			local p = ffi.cast('uint16_t*', mapImg.buffer)
+			for j=0,mapImg.height-1 do
+				for i=0,mapImg.width-1 do
+					p[0] = bit.bor(
+						bit.band(0x0f, p[0]),
+						bit.lshift(bit.band(0xf0, p[0]), 1)
+					)
+					p=p+1
 				end
 			end
 		end
+		-- now grow to 24bpp
+		mapImg = mapImg:combine(Image(256,256,1,'unsigned char'):clear())
+		-- also map gets the last 32 rows of gfx
+		-- looks like they are interleaved by row, lo hi lo hi ..
+		do
+			for j=64,127 do
+				for i=0,127 do
+					local dstp = mapImg.buffer + i + mapImg.width * j
+					local srcp = gfxImg.buffer + i + gfxImg.width * bit.rshift(j, 1)
+					if bit.band(j, 1) == 0 then
+						dstp[0] = srcp[0]
+					else
+						dstp[0] = bit.bor(dstp[0], bit.lshift(srcp[0], 4))
+					end
+				end
+			end
+		end
+		mapImg:save(basepath'tilemap.png'.path)
 	end
-	mapImg:save(basepath'tilemap.png'.path)
 
-	local sfx = readToNextSection'__music__'
+	local sfx = sections.sfx
 	basepath'sfx.txt':write(sfx:concat'\n'..'\n')
 
-	local music = lines
+	local music = sections.music
 	basepath'music.txt':write(lines:concat'\n'..'\n')
 
 	local palImg = Image(16, 16, 4, 'unsigned char', table{
@@ -423,11 +436,6 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	now parse and re-emit the lua code to work around pico8's weird syntax
 	or nah, maybe I can just grep it out
 	https://pico-8.fandom.com/wiki/Lua#Conditional_statements
-		1) if-then or if-(no-then) has to be on the same line ... so I can restrict my searches a bit
-		2) same with 'while' 'do'
-		4) <<> with bit.rol
-		5) >>< with bit.ror (why not <>> to keep things symmetric?)
-		7) a \ b with math.floor(a / b) (Lua uses a//b)
 	--]]
 	-- [[ TODO try using patterns, but I think I need a legit regex library
 	code = string.split(code, '\n'):mapi(function(line, lineNo)
@@ -439,6 +447,17 @@ print('toImage', lastSection, 'width', width, 'height', height)
 
 		-- change bitwise-xor ^^ with ~
 		line = line:gsub('^^', '~')
+
+		-- change `?[arglist]` to `print([arglist])`
+		line = line:gsub('^(%s*)%?(.-)%s*$', '%1print(%2)')
+		-- https://www.lexaloffle.com/dl/docs/pico-8_manual.html#PRINT
+		-- "Shortcut: written on a single line, ? can be used to call print without brackets:"
+		-- then how come I see it inside single-line if-statement blocks ...
+
+		-- pico8 uses some "control codes" ... but it created its own control-codes for its own string-processing soo ....
+		-- TODO handle them later ... for now I'm just going to filter them out so the parser works.
+		line = line:gsub('\\^', 'ctrl-carat')
+		line = line:gsub('\\#', 'esc-hash')
 
 		--btn(b) btnp(b): b can be a extended unicode:
 		-- Lua parser doesn't like this.
@@ -494,6 +513,14 @@ print('toImage', lastSection, 'width', width, 'height', height)
 			end
 		end
 
+		--[[
+		still TODO
+		*) <<> with bit.rol
+		*) >>< with bit.ror (why not <>> to keep things symmetric?)
+		*) a \ b with math.floor(a / b) .  Lua uses a//b.  I don't want to replace all \ with // because escape codes in strings.
+		*) shorthand print: ? @ , raw memory writes, etc
+		*) special control codes in strings
+		--]]
 		line = line:match'^(.-)%s*$' or line
 
 		return line
@@ -506,25 +533,26 @@ print('toImage', lastSection, 'width', width, 'height', height)
 -- begin compat layer
 fbMem=0x050200
 palMem=0x040000
+updateCounterMem=0x070244
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 defaultColor=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
+textx,texty=0,0
 resetmat=[]do
 	matident()
 	matscale(2,2)
 end
 resetmat()
-__pico8__camera=[x,y]do
+p8_camera=[x,y]do
+	resetmat()
 	if not x then
-		resetmat()
 		camx,camy=0,0
 	else
-		resetmat()
 		mattrans(-x,-y)
 		camx,camy=x,y
 	end
 end
-__pico8__clip=[x,y,w,h,rel]do
+p8_clip=[x,y,w,h,rel]do
 assert(not rel, 'TODO')
 	if not x then
 		clip(0,0,255,255)
@@ -544,8 +572,8 @@ assert(not rel, 'TODO')
 		clip(2*x,2*y,2*w-1,2*h-1)
 	end
 end
-__pico8__fillp=[p]nil
-__pico8__pal=[from,to,pal]do
+p8_fillp=[p]nil
+p8_pal=[from,to,pal]do
 	if not from then
 		--[[ preserve transparency
 		pokel(palMem,   0x28a30000|(peekl(palMem   )&0x80008000))
@@ -601,14 +629,14 @@ trace(from,to,pal)
 		-- I think these just return?
 	end
 end
-__pico8__palt=[...]do
+p8_palt=[...]do
 	local c,t=...
 	if not c then
 		for i=0,7 do
-			local addr=palMem+4*i
+			local addr=palMem+(i<<2)
 			pokel(addr,peekl(addr)|0x80008000)
 		end
-		pokew(addr,peekw(addr)&0x7fff)
+		pokew(palMem,peekw(palMem)&0x7fff)
 	else
 		c=math.floor(c)
 assert(c >= 0 and c < 16)
@@ -650,7 +678,12 @@ setfenv(1, {
 	sqrt=math.sqrt,
 	abs=math.abs,
 	sgn=[x]x<0 and -1 or 1,
-	rnd=[x]x*math.random(),
+	rnd=[x]do
+		if type(x)=='table' then
+			return table.pickRandom(x)
+		end
+		return (x or 1)*math.random()
+	end,
 	srand=math.randomseed,
 	add=table.insert,
 	del=table.removeObject,
@@ -683,8 +716,8 @@ setfenv(1, {
 
 	flip=[]nil,
 	cls=cls,
-	clip=__pico8__clip,
-	camera=__pico8__camera,
+	clip=p8_clip,
+	camera=p8_camera,
 	pset=[x,y,col]do
 		col=math.floor(col or defaultColor)
 		x=math.floor(x)
@@ -701,8 +734,10 @@ setfenv(1, {
 		local n=select('#',...)
 		if n==2 then
 			x0,y0=...
+			error'line TODO'
 		elseif n==3 then
 			x0,y0,col=...
+			error'line TODO'
 		elseif n==4 then
 			x0,y0,x1,y1=...
 		elseif n==5 then
@@ -711,34 +746,47 @@ setfenv(1, {
 		col=col or defaultColor
 		--TODO line
 	end,
-	print=[s,x,y,...]do
-		if x then
-			text(s,x/2,y/2,...)
+	print=[...]do
+		local n=select('#',...)
+		local s,x,y,c
+		if n==1 or n==2 then
+			s,c=...
+			x,y=textx,texty
+		elseif n==3 or n==4 then
+			s,x,y,c=...
 		else
-			-- TODO need console location ...
-			text(s)
+			trace'print IDK'
 		end
+		if s:sub(-1)=='\0' then
+			s=s:sub(1,-2)
+		else
+			textx=0
+			texty=math.max(y+8,122)
+		end
+		c=c or defaultColor
+		text(s,x/2,y/2,c or defaultColor)
+		return #s*8
 	end,
-	pal=__pico8__pal,
-	palt=__pico8__palt,
+	pal=p8_pal,
+	palt=p8_palt,
 	btn=[...]do
 		if select('#', ...) == 0 then
-			local result = 0
+			local result=0
 			for i=0,5 do
 				result |= btn(p8ton9btnmap[i]) and 1<<i or 0
 			end
 			return result
 		end
-		local b, pl = ...
+		local b,pl=...
 		b=math.floor(b)
-		pl=math.floor(pl)
 		-- TODO if pl is not player-1 (0? idk?) then return
-		local pb = p8ton9btnmap[b]
+		--if pl then pl=math.floor(pl) end
+		local pb=p8ton9btnmap[b]
 		if pb then return btn(pb) end
 		error'here'
 	end,
 	btnp=[b, ...]do
-		local pb = p8ton9btnmap[b]
+		local pb=p8ton9btnmap[b]
 		if not pb then return end
 		return btnp(pb, ...)
 	end,
@@ -746,14 +794,14 @@ setfenv(1, {
 		local i, f
 		local n=select('#',...)
 		if n==1 then
-			local i = ...
-			i = math.floor(i)
+			local i=...
+			i=math.floor(i)
 assert(i>=0 and i<256)
 			return sprFlags[i+1]
 		elseif n==2 then
-			local i,f = ...
-			i = math.floor(i)
-			f = math.floor(f)
+			local i,f=...
+			i=math.floor(i)
+			f=math.floor(f)
 assert(i>=0 and i<256)
 assert(f>=0 and f<8)
 			return (1 & (sprFlags[i+1] >> f)) ~= 0
@@ -764,20 +812,20 @@ assert(f>=0 and f<8)
 	fset=[...]do
 		local n=select('#',...)
 		if n==2 then
-			local i,val = ...
-			i = math.floor(i)
-			val = math.floor(val)
+			local i,val=...
+			i=math.floor(i)
+			val=math.floor(val)
 assert(i>=0 and i<256)
 assert(val>=0 and val<256)
-			sprFlags[i+1] = val
+			sprFlags[i+1]=val
 		elseif n==3 then
-			local i,f,val = ...
-			i = math.floor(i)
-			f = math.floor(f)
-			val = math.floor(val)
+			local i,f,val=...
+			i=math.floor(i)
+			f=math.floor(f)
+			val=math.floor(val)
 assert(i>=0 and i<256)
-			local flag = 1<<f
-			local mask = ~flag
+			local flag=1<<f
+			local mask=~flag
 			sprFlags[i+1] &= mask
 			if val==true then
 				sprFlags[i+1] |= flag
@@ -809,9 +857,8 @@ assert(i>=0 and i<256)
 		screenX=math.floor(screenX or 0)
 		screenY=math.floor(screenY or 0)
 
---[=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
+-- [=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
 		if not layers then
-			--TODO layers = bitfield ... to only draw matching sprFlags ...
 			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
 		end
 --]=]
@@ -832,7 +879,7 @@ assert(i>=0 and i<256)
 
 		-- [[
 		if camScreenX+8<0 then
-			local shift = (-8-camScreenX)>>3
+			local shift=(-8-camScreenX)>>3
 assert(shift>=0)
 			screenX+=shift<<3
 			camScreenX+=shift<<3
@@ -840,7 +887,7 @@ assert(shift>=0)
 			tileW-=shift
 		end
 		if camScreenY+8<0 then
-			local shift = (-8-camScreenY)>>3
+			local shift=(-8-camScreenY)>>3
 assert(shift>=0)
 			screenY+=shift<<3
 			camScreenY+=shift<<3
@@ -851,12 +898,12 @@ assert(shift>=0)
 
 		-- [[
 		if camScreenX+(tileW<<3) > 128 then
-			local shift = (camScreenX+(tileW<<3) - 128)>>3
+			local shift=(camScreenX+(tileW<<3) - 128)>>3
 assert(shift>=0)
 			tileW-=shift
 		end
 		if camScreenY+(tileH<<3) > 128 then
-			local shift = (camScreenY+(tileH<<3) - 128)>>3
+			local shift=(camScreenY+(tileH<<3) - 128)>>3
 assert(shift>=0)
 			tileH-=shift
 		end
@@ -896,7 +943,7 @@ assert(shift>=0)
 			local ssx=screenX
 			for tx=tileX,tileX+tileW-1 do
 				local i=mget(tx,ty)
-				if i>0 then	-- 0 == 0 means don't draw
+				if i>0 then
 					i=(i&0xf)|((i>>1)&0xf0)
 					if not layers
 					or sprFlags[i+1]&layers==layers
@@ -909,49 +956,59 @@ assert(shift>=0)
 			ssy+=8
 		end
 	end,
-	spr=[n,x,y,w,h,fx,fy]do
-		n = math.floor(n)
---trace('spr', table.keys(sprites):sort():concat', ')--,x,y,w,h,fx,fy)
-		-- translate sprite index from 4bpp x 4bpp to 5bpp x 5bpp
---		assert(n >= 0 and n < 256)
+	spr=[n,x,y,w,h,flipX,flipY]do
+		n=math.floor(n)
+		assert(n >= 0 and n < 256)
 		n=(n&0xf)|((n&0xf0)<<1)
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
-		local sx,sy=1,1
-		if fx then sx=-1 x+=w*8 end
-		if fy then sy=-1 y+=h*8 end
-		spr(n,x,y,w,h,0,-1,0,0xf,sx,sy)
+		local scaleX,scaleY=1,1
+		if flipX then scaleX=-1 x+=w*8 end
+		if flipY then scaleY=-1 y+=h*8 end
+		spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
+	end,
+	sspr=[sheetX,sheetY,sheetW,sheetH,destX,destY,destW,destH,flipX,flipY]do
+		destW = destW or sheetW
+		destH = destH or sheetH
+		quad(destX,destY,destW,destH,
+			sheetX/256, sheetY/256,
+			sheetW/256, sheetH/256,
+			0,-1,0,0xf)
 	end,
 	color=[c]do defaultColor=math.floor(c or 6) end,
 
-	fillp=__pico8__fillp,
+	fillp=p8_fillp,
 	reset=[]do
-		__pico8__camera()
-		__pico8__clip()
-		__pico8__pal()
-		__pico8__fillp(0)
+		p8_camera()
+		p8_clip()
+		p8_pal()
+		p8_fillp(0)
 	end,
-	music=[]nil,
-	sfx=[]nil,
+	music=[]nil,	-- TODO
+	sfx=[]nil,		-- TODO
 	reload=[dst,src,len]do	-- copy from rom to ram
+		trace'TODO reload'
 		if not dst then
 			-- reload everything ... from 'disk' ?  from a separate storage location ... ?
 		else
 		end
 	end,
 	memcpy=[dst,src,len]do
+		trace'TODO memcpy'
 		-- copy from ram to ram
 		-- in jelpi this is only used for copying the current level over the first level's area
 	end,
 
-	menuitem=[]nil,
+	menuitem=[]trace'TODO menuitem',
 
 	__numo9_finished=[_init, _update, _update60, _draw]do
 		_init()
-		_update()	-- pico8 needs a draw before any updates
+		-- pico8 needs a draw before any updates
+		if _update then _update() end
+		if _update60 then _update60() end
 		update=[]do
 			if _update
-			and peek(0x070244)&1==0  -- run at 30fps
+			and peek(updateCounterMem)&1==0  -- run at 30fps
 			then
 				_update()
 			end

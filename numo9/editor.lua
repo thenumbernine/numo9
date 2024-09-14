@@ -37,7 +37,11 @@ end
 
 function Editor:guiButton(x, y, str, isset, tooltip)
 	local app = self.app
-	app:drawText(str, x, y, 
+
+	-- TODO it's tempting to draw the editor directly to RGB, not using the fantasy-console's rendering ...
+	-- ... that means builtin font as well ...
+	-- yeah it's not a console for sure.
+	app:drawText(str, x, y,
 		isset and 13 or 10,
 		isset and 4 or 2
 		--isset and 15 or 4,
@@ -115,7 +119,7 @@ function Editor:update()
 	local app = self.app
 
 	app:clearScreen()
-	
+
 	self:guiRadio(
 		0,
 		0,
