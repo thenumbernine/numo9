@@ -1524,6 +1524,7 @@ function App:drawSprite(
 	uniforms.spriteMask = spriteMask
 
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
+	spriteIndex = math.floor(spriteIndex)
 	local tx = spriteIndex % spriteSheetSizeInTiles.x
 	local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
 	-- TODO do I normalize it here or in the shader?

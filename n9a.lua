@@ -516,12 +516,10 @@ setfenv(1, {
 	max=math.max,
 	mid=[a,b,c]do
 		-- [[ less code ... but maybe more operations ...
-		if b < a then a,b=b,a end
-		if c < b then
+		if b<a then a,b=b,a end
+		if c<b then
 			b,c=c,b
-			if b<a then
-				a,b=b,a
-			end
+			if b<a then a,b=b,a end
 		end
 		return b
 		--]]
@@ -544,6 +542,9 @@ setfenv(1, {
 			end
 		end
 		--]]
+		--[[
+		return table{a,b,c}:sort()[2]
+		--]]
 	end,
 	flr=math.floor,
 	ceil=math.ceil,
@@ -553,7 +554,7 @@ setfenv(1, {
 	sqrt=math.sqrt,
 	abs=math.abs,
 	sgn=[x]x<0 and -1 or 1,
-	rnd=[x]math.random(0,x),
+	rnd=[x]math.random(0,math.floor(x)-1),
 	srand=math.randomseed,
 	add=table.insert,
 	del=table.removeObject,
@@ -591,6 +592,8 @@ assert(not rel, 'TODO')
 		if not x then
 			clip(0,0,255,255)
 		else
+			x=math.floor(x)
+			y=math.floor(y)
 			if x<0 then
 				w+=x
 				x=0
@@ -599,8 +602,8 @@ assert(not rel, 'TODO')
 				h+=y
 				y=0
 			end
-			w=math.min(w,128)
-			h=math.min(h,128)
+			w=math.min(math.floor(w),128)
+			h=math.min(math.floor(h),128)
 			clip(2*x,2*y,2*w-1,2*h-1)
 		end
 	end,
@@ -615,22 +618,16 @@ assert(not rel, 'TODO')
 		end
 	end,
 	pset=[x,y,col]do
-		col=col or defaultColor
+		col=math.floor(col or defaultColor)
+		x=math.floor(x)
+		y=math.floor(y)
 		-- TODO palette lookup
 		pokew(fbMem+((x|(y<<8))<<1),peekw(palMem+(col<<1)))
 	end,
-	rect=[x0,y0,x1,y1,col]rectb(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
-	rectfill=[x0,y0,x1,y1,col]rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
-	circ=[x,y,r,col]rectb(x-r,y-r,2*r+1,2*r+1,col), -- TODO
-	circfill=[x,y,r,col]rect(x-r,y-r,2*r+1,2*r+1,col), -- TODO
-	print=[s,x,y,...]do
-		if x then
-			text(s,x/2,y/2,...)
-		else
-			-- TODO need console location ...
-			text(s)
-		end
-	end,
+	rect=[x0,y0,x1,y1,col]nil, --rectb(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	rectfill=[x0,y0,x1,y1,col]nil, --rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	circ=[x,y,r,col]nil, --rectb(x-r,y-r,2*r+1,2*r+1,col), -- TODO
+	circfill=[x,y,r,col]nil, --rect(x-r,y-r,2*r+1,2*r+1,col), -- TODO
 	line=[...]do
 		local x0,y0,x1,y1,col
 		local n=select('#',...)
@@ -646,6 +643,14 @@ assert(not rel, 'TODO')
 		col=col or defaultColor
 		--TODO line
 	end,
+	print=[s,x,y,...]do
+		if x then
+			text(s,x/2,y/2,...)
+		else
+			-- TODO need console location ...
+			text(s)
+		end
+	end,
 	pal=[from,to,pal]do
 		if not from then
 			pokel(palMem,   0xa8a30000)
@@ -658,12 +663,20 @@ assert(not rel, 'TODO')
 			pokel(palMem+28,0xd73fd5df)
 		elseif type(from)=='number' and type(to)=='number' then
 assert(not pal, "TODO pal(from,to,pal)")
-			pokew(palMem+2*to,peekw(palMem+32+2*from))
+			from=math.floor(from)
+			to=math.floor(to)
+			if from>=0 and from<16 and to>=0 and to<16 then
+				pokew(palMem+2*to,peekw(palMem+32+2*from))
+			end
 		elseif type(from)=='table' then
 			pal=to
 assert(not pal, "TODO pal(map,pal)")
 			for from,to in pairs(from) do
-				pokew(palMem+2*to,peekw(palMem+32+2*from))
+				from=math.floor(from)
+				to=math.floor(to)
+				if from>=0 and from<16 and to>=0 and to<16 then
+					pokew(palMem+2*to,peekw(palMem+32+2*from))
+				end
 			end
 		else
 trace'pal idk'
@@ -680,6 +693,7 @@ trace(from,to,pal)
 			end
 			pokew(addr,peekw(addr)&0x7fff)
 		else
+			c=math.floor(c)
 assert(c >= 0 and c < 16)
 			local addr=palMem+2*c
 			if t~=false then
@@ -698,12 +712,18 @@ assert(c >= 0 and c < 16)
 			return result
 		end
 		local b, pl = ...
+		b=math.floor(b)
+		pl=math.floor(pl)
 		-- TODO if pl is not player-1 (0? idk?) then return
 		local pb = p8ton9btnmap[b]
 		if pb then return btn(pb) end
 		error'here'
 	end,
-	btnp=[b, ...]btnp(assert(p8ton9btnmap[b]), ...),
+	btnp=[b, ...]do
+		local pb = p8ton9btnmap[b]
+		if not pb then return end
+		return btnp(pb, ...)
+	end,
 	fget=[...]do
 		local i, f
 		local n=select('#',...)
@@ -752,6 +772,9 @@ assert(i>=0 and i<256)
 		end
 	end,
 	mget=[x,y]do
+		x=math.floor(x)
+		y=math.floor(y)
+		if x<0 or y<0 or x>=128 or y>=128 then return 0 end
 		local i=mget(x,y)
 		return (i&0xf)|((i>>1)&0xf0)
 	end,
@@ -845,7 +868,6 @@ assert(shift>=0)
 		end
 		--]]
 
-
 		local ssy=screenY
 		for j=tileY,tileY+tileH-1 do
 			local ssx=screenX
@@ -862,31 +884,25 @@ assert(shift>=0)
 	end,
 	spr=[n,x,y,w,h,fx,fy]do
 		n = math.floor(n)
---trace('spr', n,x,y,w,h,fx,fy)
+--trace('spr', table.keys(sprites):sort():concat', ')--,x,y,w,h,fx,fy)
 		-- translate sprite index from 4bpp x 4bpp to 5bpp x 5bpp
 --		assert(n >= 0 and n < 256)
 		n=(n&0xf)|((n&0xf0)<<1)
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
-		local sx,sy = 1,1
-		if fx then
-			sx=-1
-			x+=w*8
-		end
-		if fy then
-			sy=-1
-			y+=h*8
-		end
+		local sx,sy=1,1
+		if fx then sx=-1 x+=w*8 end
+		if fy then sy=-1 y+=h*8 end
 		spr(n,x,y,w,h,0,-1,0,0xf,sx,sy)
 	end,
-	color=[c]do defaultColor=c or 6 end,
+	color=[c]do defaultColor=math.floor(c or 6) end,
 
 	reset=[]nil,	-- reset palette, camera, clipping, fill-patterns ...
 	music=[]nil,
 	sfx=[]nil,
 	reload=[dst,src,len]do	-- copy from rom to ram
 		if not dst then
-			-- reload everything
+			-- reload everything ... from 'disk' ?  from a separate storage location ... ?
 		else
 		end
 	end,
