@@ -13,15 +13,16 @@ local spriteSize = App.spriteSize
 
 -- when I say 'reverse' i mean reversed order of bitfields
 -- when opengl says 'reverse' it means reversed order of reading hex numbers or something stupid
-local function rgb888revto5551(rgb)
-	local r = bit.band(bit.rshift(rgb, 16), 0xff)
-	local g = bit.band(bit.rshift(rgb, 8), 0xff)
-	local b = bit.band(rgb, 0xff)
+local function argb8888revto5551(rgba)
+	local a = bit.band(bit.rshift(rgba, 24), 0xff)
+	local r = bit.band(bit.rshift(rgba, 16), 0xff)
+	local g = bit.band(bit.rshift(rgba, 8), 0xff)
+	local b = bit.band(rgba, 0xff)
 	local abgr = bit.bor(
 		bit.rshift(r, 3),
 		bit.lshift(bit.rshift(g, 3), 5),
 		bit.lshift(bit.rshift(b, 3), 10),
-		bit.lshift(1, 15)	-- hmm always on?  used only for blitting screen?  why not just do 565 or something?  why even have a restriction at all, why not just 888?
+		bit.lshift(a>0 and 1 or 0, 15)
 	)
 --DEBUG:assert(abgr >= 0 and abgr <= 0xffff, ('%x'):format(abgr))
 	return abgr
@@ -92,57 +93,57 @@ local function resetPalette(rom)
 		-- [[ builtin palette
 		table{
 			-- tic80
-			0x000000,
-			0x562b5a,
-			0xa44654,
-			0xe08260,
-			0xf7ce82,
-			0xb7ed80,
-			0x60b46c,
-			0x3b7078,
-			0x2b376b,
-			0x415fc2,
-			0x5ca5ef,
-			0x93ecf5,
-			0xf4f4f4,
-			0x99afc0,
-			0x5a6c84,
-			0x343c55,
+			0x00000000,
+			0xff562b5a,
+			0xffa44654,
+			0xffe08260,
+			0xfff7ce82,
+			0xffb7ed80,
+			0xff60b46c,
+			0xff3b7078,
+			0xff2b376b,
+			0xff415fc2,
+			0xff5ca5ef,
+			0xff93ecf5,
+			0xfff4f4f4,
+			0xff99afc0,
+			0xff5a6c84,
+			0xff343c55,
 			-- https://en.wikipedia.org/wiki/List_of_software_palettes
-			0x000000,
-			0x75140c,
-			0x377d22,
-			0x807f26,
-			0x00097a,
-			0x75197c,
-			0x367e7f,
-			0xc0c0c0,
-			0x7f7f7f,
-			0xe73123,
-			0x74f84b,
-			0xfcfa53,
-			0x001ef2,
-			0xe63bf3,
-			0x71f7f9,
-			0xfafafa,
+			0x00000000,
+			0xff75140c,
+			0xff377d22,
+			0xff807f26,
+			0xff00097a,
+			0xff75197c,
+			0xff367e7f,
+			0xffc0c0c0,
+			0xff7f7f7f,
+			0xffe73123,
+			0xff74f84b,
+			0xfffcfa53,
+			0xff001ef2,
+			0xffe63bf3,
+			0xff71f7f9,
+			0xfffafafa,
 			-- ega palette: https://moddingwiki.shikadi.net/wiki/EGA_Palette
-			0x000000,
-			0x0000AA,
-			0x00AA00,
-			0x00AAAA,
-			0xAA0000,
-			0xAA00AA,
-			0xAA5500,
-			0xAAAAAA,
-			0x555555,
-			0x5555FF,
-			0x55FF55,
-			0x55FFFF,
-			0xFF5555,
-			0xFF55FF,
-			0xFFFF55,
-			0xFFFFFF,
-		}:mapi(rgb888revto5551)
+			0x00000000,
+			0xff0000AA,
+			0xff00AA00,
+			0xff00AAAA,
+			0xffAA0000,
+			0xffAA00AA,
+			0xffAA5500,
+			0xffAAAAAA,
+			0xff555555,
+			0xff5555FF,
+			0xff55FF55,
+			0xff55FFFF,
+			0xffFF5555,
+			0xffFF55FF,
+			0xffFFFF55,
+			0xffFFFFFF,
+		}:mapi(argb8888revto5551)
 		--]]
 		:sub(1, 256)	-- make sure we don't iterate across too many colors and ptr goes oob ...
 	) do
@@ -155,5 +156,4 @@ return {
 	resetFont = resetFont,
 	resetFontOnSheet = resetFontOnSheet,
 	resetPalette = resetPalette,
-	rgb888revto5551 = rgb888revto5551,
 }

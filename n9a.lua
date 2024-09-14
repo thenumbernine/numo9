@@ -231,6 +231,20 @@ elseif cmd == 'binton9' then
 
 elseif cmd == 'p8' then
 
+	--[[
+	pico8 conversion needs ...
+	- palette stuff isn't 100%, esp transparency.
+		pico8 expects an indexed-color framebuffer.
+		I went with no-framebuffer / simulated-rgba-for-blending-output framebuffer, which means no indexed colors,
+		which means no changing paletted colors after-the-fact.
+		I could recreate a framebuffer with the extra tilemap, and then implement my own map and spr functions in the pico glue code...
+	- memcpy and reload rely on two copies of the ROM being addressable:
+		one as RW and one as RO mem.  I haven't got this just yet, I only have the one copy in RAM accessible at a time apart from my load() function.
+	- audio anything
+	- players > 1
+	- menu system
+	--]]
+
 	local p8path = path(fn)
 	-- TODO this above to make sure 'basepath' is always local?
 	-- or TODO here as well always put basepath in the input folder
@@ -486,9 +500,9 @@ print('toImage', lastSection, 'width', width, 'height', height)
 	end):concat'\n'
 	--]]
 
-	-- now add our code compat layer
+	-- now add our glue between APIs ...
 	code = spriteFlagCode..'\n'
-.. [=[
+.. [==[
 -- begin compat layer
 fbMem=0x050200
 palMem=0x040000
@@ -500,6 +514,112 @@ resetmat=[]do
 	matscale(2,2)
 end
 resetmat()
+__pico8__camera=[x,y]do
+	if not x then
+		resetmat()
+		camx,camy=0,0
+	else
+		resetmat()
+		mattrans(-x,-y)
+		camx,camy=x,y
+	end
+end
+__pico8__clip=[x,y,w,h,rel]do
+assert(not rel, 'TODO')
+	if not x then
+		clip(0,0,255,255)
+	else
+		x=math.floor(x)
+		y=math.floor(y)
+		if x<0 then
+			w+=x
+			x=0
+		end
+		if y<0 then
+			h+=y
+			y=0
+		end
+		w=math.min(math.floor(w),128)
+		h=math.min(math.floor(h),128)
+		clip(2*x,2*y,2*w-1,2*h-1)
+	end
+end
+__pico8__fillp=[p]nil
+__pico8__pal=[from,to,pal]do
+	if not from then
+		--[[ preserve transparency
+		pokel(palMem,   0x28a30000|(peekl(palMem   )&0x80008000))
+		pokel(palMem+4, 0x2a00288f|(peekl(palMem+4 )&0x80008000))
+		pokel(palMem+8, 0x254b1955|(peekl(palMem+8 )&0x80008000))
+		pokel(palMem+12,0x77df6318|(peekl(palMem+12)&0x80008000))
+		pokel(palMem+16,0x029f241f|(peekl(palMem+16)&0x80008000))
+		pokel(palMem+20,0x1b8013bf|(peekl(palMem+20)&0x80008000))
+		pokel(palMem+24,0x4dd07ea5|(peekl(palMem+24)&0x80008000))
+		pokel(palMem+28,0x573f55df|(peekl(palMem+28)&0x80008000))
+		--]]
+		-- [[ reset transparency too
+		pokel(palMem,   0xa8a30000)
+		pokel(palMem+4, 0xaa00a88f)
+		pokel(palMem+8, 0xa54b9955)
+		pokel(palMem+12,0xf7dfe318)
+		pokel(palMem+16,0x829fa41f)
+		pokel(palMem+20,0x9b8093bf)
+		pokel(palMem+24,0xcdd0fea5)
+		pokel(palMem+28,0xd73fd5df)
+		--]]
+	elseif type(from)=='number' and type(to)=='number' then
+if pal then trace"TODO pal(from,to,pal)" end
+		from=math.floor(from)
+		to=math.floor(to)
+		if from>=0 and from<16 and to>=0 and to<16 then
+			--[[ preserve transaprency?
+			pokew(palMem+2*to,(peekw(palMem+32+2*from)&0x7fff)|(peekw(palMem+2*from)&0x8000))
+			--]]
+			-- [[
+			pokew(palMem+2*to,peekw(palMem+32+2*from))
+			--]]
+		end
+	elseif type(from)=='table' then
+		pal=to
+if pal then trace"TODO pal(map,pal)" end
+		for from,to in pairs(from) do
+			from=math.floor(from)
+			to=math.floor(to)
+			if from>=0 and from<16 and to>=0 and to<16 then
+				--[[ preserve transparency?
+				pokew(palMem+2*to,(peekw(palMem+32+2*from)&0x7fff)|(peekw(palMem+2*from)&0x8000))
+				--]]
+				-- [[
+				pokew(palMem+2*to,peekw(palMem+32+2*from))
+				--]]
+			end
+		end
+	else
+trace'pal idk'
+trace(type(from),type(to),type(pal))
+trace(from,to,pal)
+		-- I think these just return?
+	end
+end
+__pico8__palt=[...]do
+	local c,t=...
+	if not c then
+		for i=0,7 do
+			local addr=palMem+4*i
+			pokel(addr,peekl(addr)|0x80008000)
+		end
+		pokew(addr,peekw(addr)&0x7fff)
+	else
+		c=math.floor(c)
+assert(c >= 0 and c < 16)
+		local addr=palMem+2*c
+		if t~=false then
+			pokew(addr,peekw(addr)&0x7fff)
+		else
+			pokew(addr,peekw(addr)|0x8000)
+		end
+	end
+end
 setfenv(1, {
 	printh=trace,
 	assert=assert,
@@ -563,36 +683,8 @@ setfenv(1, {
 
 	flip=[]nil,
 	cls=cls,
-	clip=[x,y,w,h,rel]do
-assert(not rel, 'TODO')
-		if not x then
-			clip(0,0,255,255)
-		else
-			x=math.floor(x)
-			y=math.floor(y)
-			if x<0 then
-				w+=x
-				x=0
-			end
-			if y<0 then
-				h+=y
-				y=0
-			end
-			w=math.min(math.floor(w),128)
-			h=math.min(math.floor(h),128)
-			clip(2*x,2*y,2*w-1,2*h-1)
-		end
-	end,
-	camera=[x,y]do
-		if not x then
-			resetmat()
-			camx,camy=0,0
-		else
-			resetmat()
-			mattrans(-x,-y)
-			camx,camy=x,y
-		end
-	end,
+	clip=__pico8__clip,
+	camera=__pico8__camera,
 	pset=[x,y,col]do
 		col=math.floor(col or defaultColor)
 		x=math.floor(x)
@@ -627,81 +719,8 @@ assert(not rel, 'TODO')
 			text(s)
 		end
 	end,
-	pal=[from,to,pal]do
-		if not from then
-			--[[ preserve transparency
-			pokel(palMem,   0x28a30000|(peekl(palMem   )&0x80008000))
-			pokel(palMem+4, 0x2a00288f|(peekl(palMem+4 )&0x80008000))
-			pokel(palMem+8, 0x254b1955|(peekl(palMem+8 )&0x80008000))
-			pokel(palMem+12,0x77df6318|(peekl(palMem+12)&0x80008000))
-			pokel(palMem+16,0x029f241f|(peekl(palMem+16)&0x80008000))
-			pokel(palMem+20,0x1b8013bf|(peekl(palMem+20)&0x80008000))
-			pokel(palMem+24,0x4dd07ea5|(peekl(palMem+24)&0x80008000))
-			pokel(palMem+28,0x573f55df|(peekl(palMem+28)&0x80008000))
-			--]]
-			-- [[ reset transparency too
-			pokel(palMem,   0xa8a30000)
-			pokel(palMem+4, 0xaa00a88f)
-			pokel(palMem+8, 0xa54b9955)
-			pokel(palMem+12,0xf7dfe318)
-			pokel(palMem+16,0x829fa41f)
-			pokel(palMem+20,0x9b8093bf)
-			pokel(palMem+24,0xcdd0fea5)
-			pokel(palMem+28,0xd73fd5df)
-			--]]
-		elseif type(from)=='number' and type(to)=='number' then
-if pal then trace"TODO pal(from,to,pal)" end
-			from=math.floor(from)
-			to=math.floor(to)
-			if from>=0 and from<16 and to>=0 and to<16 then
-				--[[ preserve transaprency?
-				pokew(palMem+2*to,(peekw(palMem+32+2*from)&0x7fff)|(peekw(palMem+2*from)&0x8000))
-				--]]
-				-- [[
-				pokew(palMem+2*to,peekw(palMem+32+2*from))
-				--]]
-			end
-		elseif type(from)=='table' then
-			pal=to
-if pal then trace"TODO pal(map,pal)" end
-			for from,to in pairs(from) do
-				from=math.floor(from)
-				to=math.floor(to)
-				if from>=0 and from<16 and to>=0 and to<16 then
-					--[[ preserve transparency?
-					pokew(palMem+2*to,(peekw(palMem+32+2*from)&0x7fff)|(peekw(palMem+2*from)&0x8000))
-					--]]
-					-- [[
-					pokew(palMem+2*to,peekw(palMem+32+2*from))
-					--]]
-				end
-			end
-		else
-trace'pal idk'
-trace(type(from),type(to),type(pal))
-trace(from,to,pal)
-			-- I think these just return?
-		end
-	end,
-	palt=[...]do
-		local c,t=...
-		if not c then
-			for i=0,7 do
-				local addr=palMem+4*i
-				pokel(addr,peekl(addr)|0x80008000)
-			end
-			pokew(addr,peekw(addr)&0x7fff)
-		else
-			c=math.floor(c)
-assert(c >= 0 and c < 16)
-			local addr=palMem+2*c
-			if t~=false then
-				pokew(addr,peekw(addr)|0x8000)
-			else
-				pokew(addr,peekw(addr)&0x7fff)
-			end
-		end
-	end,
+	pal=__pico8__pal,
+	palt=__pico8__palt,
 	btn=[...]do
 		if select('#', ...) == 0 then
 			local result = 0
@@ -790,10 +809,12 @@ assert(i>=0 and i<256)
 		screenX=math.floor(screenX or 0)
 		screenY=math.floor(screenY or 0)
 
+--[=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
 		if not layers then
 			--TODO layers = bitfield ... to only draw matching sprFlags ...
 			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
 		end
+--]=]
 
 		-- manually do some clipping to my tile hunting bounds
 		-- this improves fps by 100x or so
@@ -877,7 +898,9 @@ assert(shift>=0)
 				local i=mget(tx,ty)
 				if i>0 then	-- 0 == 0 means don't draw
 					i=(i&0xf)|((i>>1)&0xf0)
-					if sprFlags[i+1]&layers==layers then
+					if not layers
+					or sprFlags[i+1]&layers==layers
+					then
 						map(tx,ty,1,1,ssx,ssy,0)
 					end
 				end
@@ -901,7 +924,13 @@ assert(shift>=0)
 	end,
 	color=[c]do defaultColor=math.floor(c or 6) end,
 
-	reset=[]nil,	-- reset palette, camera, clipping, fill-patterns ...
+	fillp=__pico8__fillp,
+	reset=[]do
+		__pico8__camera()
+		__pico8__clip()
+		__pico8__pal()
+		__pico8__fillp(0)
+	end,
 	music=[]nil,
 	sfx=[]nil,
 	reload=[dst,src,len]do	-- copy from rom to ram
@@ -932,14 +961,13 @@ assert(shift>=0)
 	end,
 })
 -- end compat layer
-]=] .. code
+]==] .. code
 -- if this one global seems like a bad idea, I can always just wrap the whole thing in a function , then setfenv on the function env, and then have the function return the _init and _update (to call and set)
 .. [[
 __numo9_finished(_init, _update, _update60, _draw)
 ]]
 
-	local codepath = basepath'code.lua'
-	assert(codepath:write(code))
+	assert(basepath'code.lua':write(code))
 else
 
 	error("unknown cmd "..tostring(cmd))
