@@ -507,7 +507,9 @@ assert(shift>=0)
 	color=[c]do defaultColor=math.floor(c or 6) end,
 	fillp=p8_fillp,
 	run=run,
+	-- does reset() reset the game as well? or just the cam clip pal fillp state?
 	reset=[]do
+trace'reset'
 		p8_camera()
 		p8_clip()
 		p8_pal()
@@ -517,12 +519,22 @@ assert(shift>=0)
 	music=[]nil,	-- TODO
 	sfx=[]nil,		-- TODO
 
-	reload=[dst,src,len]nil,	-- TODO ... copy ROM to RAM
-	memcpy=[dst,src,len]nil,	-- TODO ... copy RAM to RAM
-	memset=[dst,src,len]nil,	-- TODO ... fill RAM
-	peek=[addr]0,				-- TODO peek
-	poke=[addr,value]nil,		-- TODO poke
-
+	reload=[dst,src,len]do
+trace'TODO reload'
+	end,
+	memcpy=[dst,src,len]do
+trace'TODO memcpy'
+	end,
+	memset=[dst,src,len]do
+trace'TODO memset'
+	end,
+	peek=[addr]do
+trace'TODO peek'
+	end,
+	poke=[addr,value]do
+trace'TODO poke'
+	end,
+	-- persistent data:
 	cartdata=[]nil,
 	dget=[]nil,
 	dset=[]nil,

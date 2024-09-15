@@ -26,6 +26,7 @@ local getTime = require 'ext.timer'.getTime
 local tolua = require 'ext.tolua'
 local fromlua = require 'ext.fromlua'
 local vec2i = require 'vec-ffi.vec2i'
+local matrix_ffi = require 'matrix.ffi'
 local Image = require 'image'
 local sdl = require 'sdl'
 local clnumber = require 'cl.obj.number'
@@ -263,7 +264,6 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		return image
 	end
 
-	local matrix_ffi = require 'matrix.ffi'
 	self.mvMat = matrix_ffi({4,4}, 'float'):zeros():setIdent()
 	self.mvMat.ptr = self.ram.mvMat
 
@@ -820,6 +820,7 @@ void main() {
 			}),
 			uniforms = {
 				palTex = 0,
+				--mvMat = self.mvMat.ptr,
 			},
 		},
 		texs = {self.palTex},
@@ -947,6 +948,7 @@ void main() {
 				palTex = 0,
 				borderOnly = false,
 				round = false,
+				--mvMat = self.mvMat.ptr,
 			},
 		},
 		texs = {self.palTex},
@@ -1084,6 +1086,7 @@ void main() {
 				transparentIndex = -1,
 				spriteBit = 0,
 				spriteMask = 0x0F,
+				--mvMat = self.mvMat.ptr,
 			},
 		},
 		texs = {
@@ -1220,6 +1223,7 @@ void main() {
 				tileTex = 1,
 				palTex = 2,
 				mapIndexOffset = 0,
+				--mvMat = self.mvMat.ptr,
 			},
 		},
 		texs = {self.mapTex, self.tileTex, self.palTex},
@@ -1726,7 +1730,6 @@ function App:drawSolidRect(
 	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
-	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = math.floor(colorIndex)
 	uniforms.borderOnly = borderOnly or false
 	uniforms.round = round or false
@@ -1751,18 +1754,17 @@ function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	local sceneObj = self.lineSolidObj
 	local uniforms = sceneObj.uniforms
-	uniforms.mvMat = self.mvMat.ptr
+
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.line, x1,y1,x2,y2)
+
 	sceneObj:draw()
 end
 
-local clipRectCopy = ffi.new'uint8_t[4]'
-local mvMatCopy = ffi.new'float[16]'
+local ident4x4 = matrix_ffi({4,4}, 'float'):zeros():setIdent()
 function App:clearScreen(colorIndex)
-	ffi.copy(clipRectCopy, self.ram.clipRect, ffi.sizeof(clipRectCopy))
-	ffi.copy(mvMatCopy, self.ram.mvMat, ffi.sizeof(mvMatCopy))
-	gl.glScissor(0,0,256,256)
+	self.quadSolidObj.uniforms.mvMat = ident4x4.ptr
+	gl.glDisable(gl.GL_SCISSOR_TEST)
 	self.mvMat:setIdent()
 	self:drawSolidRect(
 		0,
@@ -1770,8 +1772,8 @@ function App:clearScreen(colorIndex)
 		frameBufferSize.x,
 		frameBufferSize.y,
 		colorIndex or 0)
-	ffi.copy(self.ram.clipRect, clipRectCopy, ffi.sizeof(clipRectCopy))
-	ffi.copy(mvMatCopy, self.ram.mvMat, ffi.sizeof(mvMatCopy))
+	gl.glEnable(gl.GL_SCISSOR_TEST)
+	self.quadSolidObj.uniforms.mvMat = self.ram.mvMat
 end
 
 --[[
@@ -1804,7 +1806,6 @@ function App:drawQuad(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = tex
 
-	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1859,7 +1860,6 @@ function App:drawSprite(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.spriteTex
 
-	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1905,7 +1905,6 @@ function App:drawMap(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.mapTex
 
-	uniforms.mvMat = self.mvMat.ptr
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
 	settable(uniforms.tcbox,
