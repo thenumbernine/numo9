@@ -2,9 +2,22 @@
 
 I thought I'd make a fantasy console with all the LuaJIT binding code and libraries I have laying around.
 
+Fantasy consoles are a fantasy because of a few things:
+- Framebuffer.  Old Apple 2's and terminal computers had them.  Old consoles like NES/SNES didn't.  It's a waste of resources.  Just draw your sprites directly to the screen.
+	Want truecolor blending like SNES had?  Where are you going to store those RGB channels? Especially when those specs are beyond the scope of the current hardware, which only holds indexed palettes.
+- Spritesheets.  These are supposed to be linear in memory: Each 32 bytes is a new sprite.  But what do we have here? Sprites are stored row-by-row for the *entire spritesheet*.  Imagine all the paging. That'd be unheard of back in the old days.
+	The `sspr()` function for mid-sprite/overlapping-sprite texel access would not be there.  In its place you would have to fill out the tilemap yourself, or use some other video mode to draw collections of sequential tiles.
+- Memory.
+	In pico8 there's functionality for reading and *writing* to the ROM.
+	In the console days,  your address space was RAM and ROM - there was no need to copy the entire ROM into the RAM because you could already address it - but if you really wanted to, yes you could, and the you have duplicated memory, which is once again a luxory.
+	Or maybe these are supposed to represent IO functions of reading and writing to disks.  Ever done that on a system in the 80s?  Be prepared to wait a few minutes.  So hats off to tic80 for restricting cartridge access functions to just `reset()`, which reloads the whole thing, as this would be a practical API on such a system back in the old days.  Sure you can insert disk 2 to continue your quest, but not without a loading screen.
+	In the 80s terminal computers you'd have RAM and IO-filesystem, which is slow.  You need load screens.
+	In the 80s consoles you'd have RAM and ROM, which is fast, but ... it's ROM, you can't write to it, no `cstore()` function.
+	In pico8 you have RAM, ROM, and IO-filesystem.  This is an over-indulgance of the 80s PC/console era.
+
 ## What's unique about this one?
 
-It's strictly LuaJIT.  No compiler required.
+It's strictly LuaJIT.  No compiling required.
 
 # Hardware
 
@@ -56,6 +69,9 @@ TODO
 Let the editor edit *multiple* sprite sheets
 ... but only allow one to be used at a time.
 That's how the old consoles worked, right?
+
+double TODO
+redo the sprite sheet renderer to store / retrieve memory sequentially.  None of this scanline-per-all-sprites-stored-together.
 
 Right now I'm putting the font at the end of the sprite table.  Idk why.  Maybe I'll move it into non-cartridge memory somewhere.  But I don't want to bind an extra texture.  So maybe I'll leave the font in the sprite table.
 Maybe I'll put it at the end.

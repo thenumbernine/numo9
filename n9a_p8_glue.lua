@@ -489,6 +489,16 @@ assert(shift>=0)
 	sspr=[sheetX,sheetY,sheetW,sheetH,destX,destY,destW,destH,flipX,flipY]do
 		destW = destW or sheetW
 		destH = destH or sheetH
+		if flipX then
+--			destX+=sheetW	-- shouldn't be done -- causes skipping of sprites
+			sheetX+=sheetW	-- I can't tell if it's wrong or not
+			sheetW=-sheetW
+		end
+		if flipY then
+--			destY+=sheetH
+			sheetY+=sheetH
+			sheetH=-sheetH
+		end
 		quad(destX,destY,destW,destH,
 			sheetX/256, sheetY/256,
 			sheetW/256, sheetH/256,
@@ -505,7 +515,7 @@ assert(shift>=0)
 
 	music=[]nil,	-- TODO
 	sfx=[]nil,		-- TODO
-	
+
 	reload=[dst,src,len]nil,	-- TODO ... copy ROM to RAM
 	memcpy=[dst,src,len]nil,	-- TODO ... copy RAM to RAM
 	memset=[dst,src,len]nil,	-- TODO ... fill RAM
