@@ -5,6 +5,7 @@ I thought I'd make a fantasy console with all the LuaJIT binding code and librar
 Fantasy consoles are a fantasy because of a few things:
 - Framebuffer.  Old Apple 2's and terminal computers had them.  Old consoles like NES/SNES didn't.  It's a waste of resources.  Just draw your sprites directly to the screen.
 	Want truecolor blending like SNES had?  Where are you going to store those RGB channels? Especially when those specs are beyond the scope of the current hardware, which only holds indexed palettes.
+	Want to draw points, lines, rectangles, circles to the screen?  On a Super NES with Mario Paint?  Get ready to use all your tilemap to point to your spritesheet to store your improv framebuffer, because the system doesn't have a dedicated one.
 - Spritesheets.  These are supposed to be linear in memory: Each 32 bytes is a new sprite.  But what do we have here? Sprites are stored row-by-row for the *entire spritesheet*.  Imagine all the paging. That'd be unheard of back in the old days.
 	The `sspr()` function for mid-sprite/overlapping-sprite texel access would not be there.  In its place you would have to fill out the tilemap yourself, or use some other video mode to draw collections of sequential tiles.
 - Memory.
@@ -185,11 +186,19 @@ This adds to Lua(/JIT):
 |tab=48          |return=49       |backspace=50    |up=51           |down=52         |left=53         |right=54        |capslock=55     |
 |lctrl=56        |rctrl=57        |lshift=58       |rshift=59       |lalt=60         |ralt=61         |lgui=62         |rgui=63         |
 
-
 ## math
 - `cos(theta)` = shorthand for `math.cos(theta)`	... maybe I won't do shorthand functions like pico-8 ... tic-80 gets by without them.
 - `sin(theta)` = shorthand for `math.sin(theta)`
 
+# Cartridge IO
+
+All my cartridge files are in `.png`. format, just like everyone else is doing I guess.  I don't have a text format yet, sorry, but the `n9a.lua` script does convert between png and an unpacked folder of all its content.
+
+# Compatability
+
+- I've made a 90% functioning conversion from `.p8` to `.n9` cartridges.
+	There's still some things I don't know if I want to expose support of, like an indexed framebuffer that lets you modify screen palette colors after drawing them (what kind of hardware ever did this?).
+	Soon I'll start on `.tic` support as well.
 
 # Inspiration for this:
 - https://www.pico-8.com/

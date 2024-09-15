@@ -141,7 +141,7 @@ local RAM = struct{
 				-- maybe I'll do rgb332+dithering to save space ...
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
-				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ...
+				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ... lol the rom api ittself doesn't even have access to floats ...
 
 				-- timer
 				{name='updateCounter', type='uint32_t[1]'},
@@ -922,22 +922,21 @@ void main() {
 <? else ?>
 	fragColor = texture(palTex, palTc);
 <? end ?>
+#endif
+#if 0	// rgb332
+	uvec4 color = texture(palTex, palTc);
+	fragColor = uvec4(
+		(color.r >> 5) & 0x07u
+		| (color.g >> 2) & 0x38u
+		| color.b & 0xC0u,
+		0, 0, color.a==0 ? 0 : 0xFFu
+	);
+#endif
 
 	// TODO THIS? or should we just rely on the transparentIndex==0 for that? or both?
 	//for draw-solid it's not so useful because we can already specify the color and the transparency alpha here
 	// so there's no point in having an alpha-by-color since it will be all-solid or all-transparent.
 	//if (fragColor.a == 0) discard;
-#endif
-#if 0	// rgb332
-	uvec4 color = texture(palTex, palTc);
-	if (color.a == 0) discard;
-	fragColor = uvec4(
-		(color.r >> 5) & 0x07u
-		| (color.g >> 2) & 0x38u
-		| color.b & 0xC0u,
-		0, 0, 0xFFu
-	);
-#endif
 }
 ]],			{
 				clnumber = clnumber,
@@ -1728,7 +1727,7 @@ function App:drawSolidRect(
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 	uniforms.mvMat = self.mvMat.ptr
-	uniforms.colorIndex = colorIndex
+	uniforms.colorIndex = math.floor(colorIndex)
 	uniforms.borderOnly = borderOnly or false
 	uniforms.round = round or false
 	if w < 0 then x,w = x+w,-w end
@@ -1758,8 +1757,21 @@ function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	sceneObj:draw()
 end
 
+local clipRectCopy = ffi.new'uint8_t[4]'
+local mvMatCopy = ffi.new'float[16]'
 function App:clearScreen(colorIndex)
-	self:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, colorIndex or 0)
+	ffi.copy(clipRectCopy, self.ram.clipRect, ffi.sizeof(clipRectCopy))
+	ffi.copy(mvMatCopy, self.ram.mvMat, ffi.sizeof(mvMatCopy))
+	gl.glScissor(0,0,256,256)
+	self.mvMat:setIdent()
+	self:drawSolidRect(
+		0,
+		0,
+		frameBufferSize.x,
+		frameBufferSize.y,
+		colorIndex or 0)
+	ffi.copy(self.ram.clipRect, clipRectCopy, ffi.sizeof(clipRectCopy))
+	ffi.copy(mvMatCopy, self.ram.mvMat, ffi.sizeof(mvMatCopy))
 end
 
 --[[

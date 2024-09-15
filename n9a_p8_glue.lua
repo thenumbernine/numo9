@@ -506,6 +506,7 @@ assert(shift>=0)
 	end,
 	color=[c]do defaultColor=math.floor(c or 6) end,
 	fillp=p8_fillp,
+	run=run,
 	reset=[]do
 		p8_camera()
 		p8_clip()
