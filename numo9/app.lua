@@ -357,6 +357,7 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 			and y >= 0 and y < self.tilemapSize.y
 			then
 				self.ram.tilemap[x + self.tilemapSize.x * y] = value
+				self.mapTex.dirtyCPU = true
 			end
 		end,
 
@@ -1550,7 +1551,8 @@ print('no runnable focus!')
 	... though honestly, i'm getting 5k fps with and without my per-frame-gpu-uploads ...
 		I'm suspicious that doing a few extra GPU uploads here before and after sceneObj:draw()  might not make a difference...
 	--]]
-		-- TODO:
+		--[=[
+		-- TODO if any's dirtyCPU is set then subimage it
 		--if self.spriteSheetDirtyCPU then
 		self.spriteTex:bind()
 			:subimage()
@@ -1563,12 +1565,7 @@ print('no runnable focus!')
 			:unbind()
 		--	self.tileSheetDirtyCPU = false
 		--end
-		--if self.tilemapDirtyCPU then
-		self.mapTex:bind()
-			:subimage()
-			:unbind()
-		--	self.tilemapDirtyCPU = false
-		--end
+		--]=]
 
 		-- increment hold counters
 		-- TODO do this here or before update() ?
@@ -1697,13 +1694,25 @@ function App:pokel(addr, value)
 end
 
 function App:checkPalDirtyCPU()
-	if not self.palTex.dirtyCPU then return end
-	self.fb:unbind()
-	self.palTex:bind()
-		:subimage()
-		:unbind()
-	self.fb:bind()
-	self.palTex.dirtyCPU = false
+	if self.palTex.dirtyCPU then
+		-- since the call is within the update render-to-fbTex section ...
+		self.fb:unbind()
+		self.palTex:bind()
+			:subimage()
+			:unbind()
+		self.fb:bind()
+		self.palTex.dirtyCPU = false
+	end
+end
+function App:checkMapDirtyCPU()
+	if self.mapTex.dirtyCPU then
+		self.fb:unbind()
+		self.mapTex:bind()
+			:subimage()
+			:unbind()
+		self.fb:bind()
+		self.mapTex.dirtyCPU = false
+	end
 end
 
 function App:drawSolidRect(
@@ -1874,6 +1883,7 @@ function App:drawMap(
 	mapIndexOffset
 )
 	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
+	self:checkMapDirtyCPU()
 
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
@@ -2045,6 +2055,21 @@ function App:resetROM()
 print('code is', #code, 'bytes')
 	self.editCode:setText(code)
 	self.cartridgeName = filename	-- TODO display this somewhere
+
+	-- TODO more dirty flags
+	self.spriteTex:bind()
+		:subimage()
+		:unbind()
+	self.tileTex:bind()
+		:subimage()
+		:unbind()
+	self.mapTex:bind()
+		:subimage()
+		:unbind()
+	self.palTex:bind()
+		:subimage()
+		:unbind()
+	self.palTex.dirtyCPU = false
 
 	return true
 end

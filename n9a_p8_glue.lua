@@ -298,7 +298,7 @@ setfenv(1, {
 			texty=math.max(y+8,122)
 		end
 		c=c or defaultColor
-		text(s,x/2,y/2,c or defaultColor)
+		text(s,x,y,c or defaultColor)
 		return #s*8
 	end,
 	pal=p8_pal,
@@ -324,6 +324,10 @@ setfenv(1, {
 		if not pb then return end
 		return btnp(pb, ...)
 	end,
+	-- TODO this but in a section of RAM where I copy the sprite-flags
+	-- TODO shouldn't all script variables be located in RAM
+	-- TODO TODO am I turning this into an emulator?
+	-- TODO TODO TODO can I implement Lua in SNES?
 	fget=[...]do
 		local i, f
 		local n=select('#',...)
