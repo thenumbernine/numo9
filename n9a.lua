@@ -261,16 +261,26 @@ elseif cmd == 'p8' or cmd == 'p8r' then
 
 	-- sections...
 	local sectionLine = {}
+	--[[ search for preselected section labels
 	for _,name in ipairs{'lua', 'gfx','label','gff','map','sfx','music'} do
 		sectionLine[name] = lines:find('__'..name..'__')
 	end
-	-- indexed by numbers
+	--]]
+	-- [[ assume any __xxx__ line is a section label
+	for i,line in ipairs(lines) do
+		local name = line:match'^__(.*)__$'
+		if name then
+			sectionLine[name] = i
+		end
+	end
+	--]]
+	-- in-order array of section names
 	local sortedKeys = table.keys(sectionLine):sort(function(a,b)
 		return sectionLine[a] < sectionLine[b]
 	end)
-	-- indexed by nubmers, matches up with sortedKeys
+	-- in-order array of section line numbers
 	local sortedLines = sortedKeys:mapi(function(key) return sectionLine[key] end)
-	local sections = {}
+	local sections = {} -- holds the lines per section
 
 	assert(sortedLines[1] == 1)	-- make sure we start on line 1...
 	for i,key in ipairs(sortedKeys) do
@@ -281,8 +291,14 @@ elseif cmd == 'p8' or cmd == 'p8r' then
 		print('section '..key..' lines '..startLine..' - '..endLine..' = '..(endLine-startLine)..' lines')
 		sections[key] = sublines
 	end
+	local function move(t, k)
+		local v = t[k]
+		t[k] = nil
+		return v
+	end
 
-	local code = sections.lua:concat'\n'..'\n'
+	local code = move(sections, 'lua'):concat'\n'..'\n'
+
 
 	local function toImage(ls, _8bpp, name)
 		ls = ls:filter(function(line) return #line > 0 end)
@@ -319,7 +335,7 @@ print('toImage', name, 'width', width, 'height', height)
 		return image
 	end
 
-	local gfxImg = toImage(sections.gfx, false, 'gfx')
+	local gfxImg = toImage(move(sections, 'gfx'), false, 'gfx')
 	asserteq(gfxImg.channels, 1)
 	asserteq(gfxImg.width, 128)
 	assertle(gfxImg.height, 128)  -- how come the jelpi.p8 cartridge I exported from pico-8-edu.com has only 127 rows of gfx?
@@ -333,15 +349,16 @@ print('toImage', name, 'width', width, 'height', height)
 	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
 	gfxImg:save(basepath'tiles.png'.path)
 
-	if sections.label then
-		local labelImg = toImage(sections.label, false, 'label')
+	local labelSrc = move(sections, 'label')
+	if labelSrc then
+		local labelImg = toImage(labelSrc, false, 'label')
 		labelImg:save(basepath'label.png'.path)
 	end
 
 	-- TODO embed this somewhere in the ROM
 	-- how about as code?
 	-- how about something for mapping random resources to random locations in RAM?
-	local flagSrc = sections.gff
+	local flagSrc = move(sections, 'gff')
 	local spriteFlagCode
 	if flagSrc then
 --[[ save out flags?
@@ -363,8 +380,9 @@ print('toImage', name, 'width', width, 'height', height)
 --]]
 
 	-- map is 8bpp not 4pp
-	if sections.map then
-		local mapImg = toImage(sections.map, true, 'map')
+	local mapSrc = move(sections, 'map')
+	if mapSrc then
+		local mapImg = toImage(mapSrc, true, 'map')
 		asserteq(mapImg.channels, 1)
 		asserteq(mapImg.width, 128)
 		assertle(mapImg.height, 64)
@@ -408,11 +426,11 @@ print('toImage', name, 'width', width, 'height', height)
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
-	local sfx = sections.sfx
-	basepath'sfx.txt':write(sfx:concat'\n'..'\n')
+	local sfxSrc = move(sections, 'sfx')
+	basepath'sfx.txt':write(sfxSrc:concat'\n'..'\n')
 
-	local music = sections.music
-	basepath'music.txt':write(lines:concat'\n'..'\n')
+	local musicSrc = move(sections, 'music')
+	basepath'music.txt':write(musicSrc:concat'\n'..'\n')
 
 	local palImg = Image(16, 16, 4, 'unsigned char', table{
 	-- fill out the default pico8 palette
@@ -552,6 +570,9 @@ print('toImage', name, 'width', width, 'height', height)
 		assert(os.execute('./n9a.lua r "'..basepath:setext'n9'..'"'))
 	end
 
+	if next(sections) then
+		error("unhandled sections: "..table.keys(sections):sort():concat', ')
+	end
 else
 
 	error("unknown cmd "..tostring(cmd))

@@ -1,6 +1,6 @@
 -- begin compat layer
 p8ton9btnmap={[0]=2,3,0,1,7,5}
-defaultColor=6
+p8color=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
 textx,texty=0,0
 lastlinex,lastlieny=0,0
@@ -25,14 +25,8 @@ assert(not rel, 'TODO')
 	else
 		x=math.floor(x)
 		y=math.floor(y)
-		if x<0 then
-			w+=x
-			x=0
-		end
-		if y<0 then
-			h+=y
-			y=0
-		end
+		if x<0 then w+=x x=0 end
+		if y<0 then h+=y y=0 end
 		w=math.min(math.floor(w),128)
 		h=math.min(math.floor(h),128)
 		clip(2*x,2*y,2*w-1,2*h-1)
@@ -197,54 +191,54 @@ setfenv(1, {
 	pset=[x,y,col]do
 		x=math.floor(x)
 		y=math.floor(y)
-		col=math.floor(col or defaultColor)
+		col=math.floor(col or p8color)
 		pokew(fbMem+((x|(y<<8))<<1),peekw(palMem+(col<<1)))
 	end,
 	rect=[x0,y0,x1,y1,col]do
-		col=col or defaultColor	-- TODO `or=` operator for logical-inplace-or?
+		col=col or p8color	-- TODO `or=` operator for logical-inplace-or?
 		rectb(x0,y0,x1-x0+1,y1-y0+1,col)
 	end,
 	rectfill=[x0,y0,x1,y1,col]do
-		col=col or defaultColor
+		col=col or p8color
 		rect(x0,y0,x1-x0+1,y1-y0+1,col)
 	end,
 	circ=[x,y,r,col]do
-		col=col or defaultColor
+		col=col or p8color
 		ellib(x-r,y-r,2*r+1,2*r+1,col)
 	end,
 	circfill=[x,y,r,col]do
-		col=col or defaultColor
+		col=col or p8color
 		elli(x-r,y-r,2*r+1,2*r+1,col)
 	end,
 	circ=[x,y,r,col]do
-		col=col or defaultColor
+		col=col or p8color
 		ellib(x-r,y-r,2*r+1,2*r+1,col)
 	end,
 	circfill=[x,y,r,col]do
-		col=col or defaultColor
+		col=col or p8color
 		elli(x-r,y-r,2*r+1,2*r+1,col)
 	end,
 	oval=[x0,y0,x1,y1,col]do
-		col=col or defaultColor
+		col=col or p8color
 		elli(x0,y0,x1-x0+1,y1-y0+1,col)
 	end,
 	ovalb=[x0,y0,x1,y1,col]do
-		col=col or defaultColor
+		col=col or p8color
 		ellib(x0,y0,x1-x0+1,y1-y0+1,col)
 	end,
 	line=[...]do
-		local x0,y0,col,x1,y1=lastlinex,lastliney,defaultColor
+		local x0,y0,col,x1,y1=lastlinex,lastliney,p8color
 		local n=select('#',...)
 		if n==2 then
 			x1,y1=...
 		elseif n==3 then
 			x1,y1,col=...
-			col=col or defaultColor
+			col=col or p8color
 		elseif n==4 then
 			x0,y0,x1,y1=...
 		elseif n==5 then
 			x0,y0,x1,y1,col=...
-			col=col or defaultColor
+			col=col or p8color
 		end
 		assert(type(x0)=='number')
 		assert(type(y0)=='number')
@@ -277,8 +271,8 @@ setfenv(1, {
 			textx=0
 			texty=math.max(y+8,122)
 		end
-		c=c or defaultColor
-		text(s,x,y,c or defaultColor)
+		c=c or p8color
+		text(s,x,y,c or p8color)
 		return #s*8
 	end,
 	pal=p8_pal,
@@ -504,8 +498,11 @@ assert(shift>=0)
 			sheetW/256, sheetH/256,
 			0,-1,0,0xf)
 	end,
-	color=[c]do defaultColor=math.floor(c or 6) end,
+	color=[c]do p8color=math.floor(c or 6) end,
 	fillp=p8_fillp,
+
+	menuitem=[]trace'TODO menuitem',
+
 	run=run,
 	-- does reset() reset the game as well? or just the cam clip pal fillp state?
 	reset=[]do
@@ -539,8 +536,6 @@ trace'TODO poke'
 	dget=[]nil,
 	dset=[]nil,
 	serial=[]nil,
-
-	menuitem=[]trace'TODO menuitem',
 
 	__numo9_finished=[_init, _update, _update60, _draw]do
 		_init()

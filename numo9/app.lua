@@ -1730,12 +1730,15 @@ function App:drawSolidRect(
 	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
+	
+	uniforms.mvMat = self.ram.mvMat
 	uniforms.colorIndex = math.floor(colorIndex)
 	uniforms.borderOnly = borderOnly or false
 	uniforms.round = round or false
 	if w < 0 then x,w = x+w,-w end
 	if h < 0 then y,h = y+h,-h end
 	settable(uniforms.box, x, y, w, h)
+	
 	sceneObj:draw()
 end
 -- TODO get rid of this function
@@ -1755,16 +1758,18 @@ function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	local sceneObj = self.lineSolidObj
 	local uniforms = sceneObj.uniforms
 
+	uniforms.mvMat = self.ram.mvMat
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.line, x1,y1,x2,y2)
 
 	sceneObj:draw()
 end
 
-local ident4x4 = matrix_ffi({4,4}, 'float'):zeros():setIdent()
+local mvMatCopy = ffi.new('float[16]')
 function App:clearScreen(colorIndex)
-	self.quadSolidObj.uniforms.mvMat = ident4x4.ptr
+--	self.quadSolidObj.uniforms.mvMat = ident4x4.ptr
 	gl.glDisable(gl.GL_SCISSOR_TEST)
+	ffi.copy(mvMatCopy, self.ram.mvMat, ffi.sizeof(mvMatCopy))
 	self.mvMat:setIdent()
 	self:drawSolidRect(
 		0,
@@ -1773,7 +1778,8 @@ function App:clearScreen(colorIndex)
 		frameBufferSize.y,
 		colorIndex or 0)
 	gl.glEnable(gl.GL_SCISSOR_TEST)
-	self.quadSolidObj.uniforms.mvMat = self.ram.mvMat
+	ffi.copy(self.ram.mvMat, mvMatCopy, ffi.sizeof(mvMatCopy))
+--	self.quadSolidObj.uniforms.mvMat = self.ram.mvMat
 end
 
 --[[
@@ -1806,13 +1812,14 @@ function App:drawQuad(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = tex
 
+	uniforms.mvMat = self.ram.mvMat
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
 	uniforms.spriteMask = spriteMask
-
 	settable(uniforms.tcbox, tx, ty, tw, th)
 	settable(uniforms.box, x, y, w, h)
+	
 	sceneObj:draw()
 end
 
@@ -1860,6 +1867,7 @@ function App:drawSprite(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.spriteTex
 
+	uniforms.mvMat = self.ram.mvMat
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1905,6 +1913,7 @@ function App:drawMap(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.mapTex
 
+	uniforms.mvMat = self.ram.mvMat
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
 	settable(uniforms.tcbox,
