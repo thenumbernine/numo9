@@ -73,7 +73,7 @@ function Console:runCmdBuf()
 	-- TODO ... runCmd return nil vs error ...
 	cmd = cmd:gsub('^=', 'return ')
 
-	local success, msg = pcall(function() return app:runCmd(cmd) end)
+	local success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
 --[[ seems nice but has no direction 
 --DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
 	-- if fails try wrapping arg2..N with quotes ...
@@ -86,7 +86,7 @@ function Console:runCmdBuf()
 		}:append(
 			parts:sub(2):mapi(function(s) return (tolua(s)) end)
 		):concat' '
-		success, msg = pcall(function() return app:runCmd(cmd) end)
+		success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
 --DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
 	end
 	-- if fail then try appending a '()'
@@ -94,13 +94,13 @@ function Console:runCmdBuf()
 	local cmdBeforePar = cmd
 	if not success then
 		cmd = cmd .. '()'
-		success, msg = pcall(function() return app:runCmd(cmd) end)
+		success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
 --DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
 	end
 	-- if fail then try prepending a 'return' ...
 	if not success then
 		cmd = 'return '..cmdBeforePar
-		success, msg = pcall(function() return app:runCmd(cmd) end)
+		success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
 --DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
 	end
 --]]

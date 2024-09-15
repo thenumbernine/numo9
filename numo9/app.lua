@@ -13,6 +13,7 @@ local ffi = require 'ffi'
 local template = require 'template'
 local assertindex = require 'ext.assert'.index
 local asserttype = require 'ext.assert'.type
+local assertlen = require 'ext.assert'.len
 local asserteq = require 'ext.assert'.eq
 local assertne = require 'ext.assert'.ne
 local assertle = require 'ext.assert'.le
@@ -77,15 +78,6 @@ end
 
 local function imageToHex(image)
 	return string.hexdump(ffi.string(image.buffer, image.width * image.height * ffi.sizeof(image.format)))
-end
-
-
--- TODO ypcall that is xpcall except ...
--- ... 1) error strings don't have source/line in them (that goes in backtrace)
--- ... 2) no error callback <-> default, which simply appends backtrace
--- ... 3) new debug.traceback() that includes that error line as the top line.
-local function errorHandler(err)
-	return err..'\n'..debug.traceback()
 end
 
 local paletteSize = 256
@@ -199,6 +191,17 @@ local lastUpdateTime = getTime()	-- TODO resetme upon resuming from a pause stat
 local updateInterval = 1 / 60
 local needUpdateCounter = 0
 
+-- TODO ypcall that is xpcall except ...
+-- ... 1) error strings don't have source/line in them (that goes in backtrace)
+-- ... 2) no error callback <-> default, which simply appends backtrace
+-- ... 3) new debug.traceback() that includes that error line as the top line.
+local function errorHandler(err)
+	return err..'\n'..debug.traceback()
+end
+App.errorHandler = errorHandler
+
+
+
 function App:initGL()
 
 --[[ boy does enabling blend make me regret using uvec4 as a fragment color output
@@ -207,6 +210,18 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 --]]
 
 	self.ram = ffi.new'RAM'
+
+	-- tic80 has a reset() function for resetting RAM data to original cartridge data
+	-- pico8 has a reset function that seems to do something different: reset the color and console state
+	-- but pico8 does support a reload() function for copying data from cartridge to RAM ... if you specify range of the whole ROM memory then it's the same (right?)
+	-- but pico8 also supports cstore(), i.e. writing to sections of a cartridge while the code is running ... now we're approaching fantasy land where you can store disk quickly - didn't happen on old Apple2's ... or in the NES case where reading was quick, the ROM was just that so there was no point to allow writing and therefore no point to address both the ROM and the ROM's copy in RAM ...
+	-- with all that said, 'cartridge' here will be inaccessble by my api except a reset() function
+	self.cartridge = ffi.new'ROM'
+	-- TODO maybe ... keeping separate 'ROM' and 'RAM' space?  how should the ROM be accessible? with a 0xC00000 (SNES)?
+	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
+	-- and the editor would edit the ROM ...
+
+
 
 	--DEBUG:print(RAM.code)
 	--DEBUG:print('RAM size', ffi.sizeof(RAM))
@@ -276,6 +291,7 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		run = function(...) return self:runCode(...) end,
 		save = function(...) return self:save(...) end,
 		load = function(...) return self:load(...) end,
+		reset = function(...) return self:resetROM(...) end,
 		quit = function(...) self:requestExit() end,
 
 		peek = function(addr)
@@ -369,6 +385,7 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 				self.clipRect[3]+1)
 		end,
 
+		-- TODO tempting to just expose flags for ellipse & border to the 'cartridge' api itself ...
 		rect = function(x, y, w, h, colorIndex)
 			return self:drawSolidRect(x, y, w, h, colorIndex, false, false)
 		end,
@@ -382,6 +399,8 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		ellib = function(x, y, w, h, colorIndex)
 			return self:drawSolidRect(x, y, w, h, colorIndex, true, true)
 		end,
+
+		line = function(...) return self:drawSolidLine(...) end,
 
 		spr = function(...) return self:drawSprite(...) end,		-- (spriteIndex, x, y, paletteIndex)
 		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
@@ -720,6 +739,96 @@ void main() {
 		},
 	}
 
+	self.lineSolidObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = template([[
+layout(location=0) in vec2 vertex;
+uniform vec4 line;	//x1,y1,x2,y2
+uniform mat4 mvMat;
+
+//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
+const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+
+const float lineThickness = 1.;
+
+void main() {
+	vec2 delta = line.zw - line.xy;
+	vec2 pc = line.xy
+		+ delta * vertex.x
+		+ normalize(vec2(-delta.y, delta.x)) * (vertex.y - .5) * lineThickness;
+	gl_Position = mvMat * vec4(pc, 0., 1.);
+	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
+	gl_Position.xy *= 2.;
+	gl_Position.xy -= 1.;
+}
+]],			{
+				clnumber = clnumber,
+				frameBufferSize = frameBufferSize,
+			}),
+			fragmentCode = template([[
+<? if fragColorUseFloat then ?>
+layout(location=0) out vec4 fragColor;
+<? else ?>
+layout(location=0) out uvec4 fragColor;
+<? end ?>
+
+uniform uint colorIndex;
+uniform usampler2DRect palTex;
+
+float sqr(float x) { return x * x; }
+
+void main() {
+	ivec2 palTc = ivec2(
+<? assert(math.log(paletteSize, 2) % 1 == 0)
+?>		colorIndex & <?=('0x%Xu'):format(paletteSize-1)?>,
+		0
+	);
+#if 1	// rgb565
+<? if fragColorUseFloat then ?>
+	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
+<? else ?>
+	fragColor = texture(palTex, palTc);
+<? end ?>
+
+	// TODO THIS? or should we just rely on the transparentIndex==0 for that? or both?
+	//for draw-solid it's not so useful because we can already specify the color and the transparency alpha here
+	// so there's no point in having an alpha-by-color since it will be all-solid or all-transparent.
+	//if (fragColor.a == 0) discard;
+#endif
+#if 0	// rgb332
+	uvec4 color = texture(palTex, palTc);
+	if (color.a == 0) discard;
+	fragColor = uvec4(
+		(color.r >> 5) & 0x07u
+		| (color.g >> 2) & 0x38u
+		| color.b & 0xC0u,
+		0, 0, 0xFFu
+	);
+#endif
+}
+]],			{
+				clnumber = clnumber,
+				paletteSize = paletteSize,
+				fragColorUseFloat = fragColorUseFloat,
+			}),
+			uniforms = {
+				palTex = 0,
+			},
+		},
+		texs = {self.palTex},
+		geometry = self.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvMat = self.mvMat.ptr,
+			colorIndex = 0,
+			line = {0, 0, 8, 8},
+		},
+	}
+
+
 	self.quadSolidObj = GLSceneObject{
 		program = {
 			version = glslVersion,
@@ -766,8 +875,8 @@ float sqr(float x) { return x * x; }
 
 void main() {
 	if (round) {
-		// TODO midpoint-circle / Bresenham algorithm, like Tic80 uses:
-		// figure out which 8th of the circle you're in
+		// midpoint-circle / Bresenham algorithm, like Tic80 uses:
+		// figure out which octant of the circle you're in
 		// then compute deltas based on if |dy| / |dx|
 		// (x/a)^2 + (y/b)^2 = 1
 		// x/a = √(1 - (y/b)^2)
@@ -776,8 +885,7 @@ void main() {
 		vec2 radius = .5 * box.zw;
 		vec2 center = box.xy + radius;
 		vec2 delta = pcv - center;
-		vec2 absDelta = abs(delta);
-		if (absDelta.x / radius.x < absDelta.y / radius.y) {
+		if (box.w < box.z) {	// TODO consider the mvMat transform ...
 			// top/bottom quadrant
 			float by = radius.y * sqrt(1. - sqr(delta.x / radius.x));
 			if (delta.y > by || delta.y < -by) discard;
@@ -831,11 +939,11 @@ void main() {
 				clnumber = clnumber,
 				paletteSize = paletteSize,
 				fragColorUseFloat = fragColorUseFloat,
-				borderOnly = false,
-				round = false,
 			}),
 			uniforms = {
 				palTex = 0,
+				borderOnly = false,
+				round = false,
 			},
 		},
 		texs = {self.palTex},
@@ -1549,6 +1657,7 @@ function App:drawSolidRect(
 	settable(uniforms.box, x, y, w, h)
 	sceneObj:draw()
 end
+-- TODO get rid of this function
 function App:drawBorderRect(
 	x,
 	y,
@@ -1558,6 +1667,15 @@ function App:drawBorderRect(
 	...	-- round
 )
 	return self:drawSolidRect(x,y,w,h,colorIndex,true,...)
+end
+
+function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
+	local sceneObj = self.lineSolidObj
+	local uniforms = sceneObj.uniforms
+	uniforms.mvMat = self.mvMat.ptr
+	uniforms.colorIndex = colorIndex
+	settable(uniforms.line, x1,y1,x2,y2)
+	sceneObj:draw()
 end
 
 function App:clearScreen(colorIndex)
@@ -1828,7 +1946,18 @@ function App:load(filename)
 
 	-- [[ TODO image stuck reading and writing to disk, FIXME
 	local romStr = require 'numo9.archive'.fromCartImage(d)
-	ffi.copy(self.ram.v, romStr, ffi.sizeof'ROM')
+	assertlen(romStr, ffi.sizeof'ROM')
+	ffi.copy(self.cartridge.v, romStr, ffi.sizeof'ROM')
+	self:resetROM()
+end
+
+--[[
+This resets *everything* from the last loaded cartridge ROM into RAM
+Equivalent of loading the previous ROM again.
+That means code too - save your changes!
+--]]
+function App:resetROM()
+	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
 	local code = ffi.string(self.ram.code, self.codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
@@ -1852,11 +1981,6 @@ end
 -- system() function
 -- TODO fork this between console functions and between running "rom" code
 function App:runCmd(cmd)
-	-- TODO backup original state of 'cartridge' for reset() / reload() functions
-	-- or how about keeping separate 'ROM' and 'RAM' space?  how should the ROM be accessible? with a 0xC00000 (SNES)?
-	-- and then 'save' would save the ROM to disk, and run() and reset() would copy the ROM to RAM
-	-- and the editor would edit the ROM ...
-
 	--[[ suppress always
 	local f, msg = self:loadCmd(cmd)
 	if not f then return f, msg end
@@ -1876,6 +2000,8 @@ function App:resetView()
 	self.mvMat:setIdent()
 end
 
+-- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
+-- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runCode()
 	self:resetView()
 

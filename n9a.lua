@@ -538,6 +538,7 @@ p8ton9btnmap={[0]=2,3,0,1,7,5}
 defaultColor=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
 textx,texty=0,0
+lastlinex,lastlieny=0,0
 resetmat=[]do
 	matident()
 	matscale(2,2)
@@ -595,7 +596,9 @@ p8_pal=[from,to,pal]do
 		pokel(palMem+24,0xcdd0fea5)
 		pokel(palMem+28,0xd73fd5df)
 		--]]
-	elseif type(from)=='number' and type(to)=='number' then
+	elseif type(from)=='number' then
+		-- sometimes 'to' is nil ... default to zero?
+		to=tonumber(to) or 0
 if pal then trace"TODO pal(from,to,pal)" end
 		from=math.floor(from)
 		to=math.floor(to)
@@ -629,23 +632,31 @@ trace(from,to,pal)
 		-- I think these just return?
 	end
 end
-p8_palt=[...]do
-	local c,t=...
-	if not c then
-		for i=0,7 do
-			local addr=palMem+(i<<2)
-			pokel(addr,peekl(addr)|0x80008000)
-		end
-		pokew(palMem,peekw(palMem)&0x7fff)
-	else
-		c=math.floor(c)
+p8_getTransparency=[c,t]do
+	c=math.floor(c)
 assert(c >= 0 and c < 16)
-		local addr=palMem+2*c
-		if t~=false then
-			pokew(addr,peekw(addr)&0x7fff)
-		else
-			pokew(addr,peekw(addr)|0x8000)
+	return peekw(palMem+(c<<1))&0x8000~=0
+end
+p8_setTransparency=[c,t]do
+	c=math.floor(c)
+assert(c >= 0 and c < 16)
+	local addr=palMem+(c<<1)
+assert(type(t)=='boolean')
+	if t~=false then	-- true <-> transparent <-> clear alpha
+		pokew(addr,peekw(addr)&0x7fff)
+	else	-- false <-> opaque <-> set alpha
+		pokew(addr,peekw(addr)|0x8000)
+	end
+end
+p8_palt=[...]do
+	local n=select('#',...)
+	if n<=1 then
+		local ts=math.floor(... or 0x0001)	-- bitfield of transparencies in reverse-order
+		for c=0,15 do
+			p8_setTransparency(c,ts&(1<<c)~=0)
 		end
+	elseif n==2 then
+		p8_setTransparency(...)
 	end
 end
 setfenv(1, {
@@ -719,36 +730,68 @@ setfenv(1, {
 	clip=p8_clip,
 	camera=p8_camera,
 	pset=[x,y,col]do
-		col=math.floor(col or defaultColor)
 		x=math.floor(x)
 		y=math.floor(y)
-		-- TODO palette lookup
+		col=math.floor(col or defaultColor)
 		pokew(fbMem+((x|(y<<8))<<1),peekw(palMem+(col<<1)))
 	end,
-	rect=[x0,y0,x1,y1,col]rectb(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
-	rectfill=[x0,y0,x1,y1,col]rect(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
-	circ=[x,y,r,col]ellib(x-r,y-r,2*r+1,2*r+1,col),
-	circfill=[x,y,r,col]elli(x-r,y-r,2*r+1,2*r+1,col),
-	circ=[x,y,r,col]ellib(x-r,y-r,2*r+1,2*r+1,col),
-	circfill=[x,y,r,col]elli(x-r,y-r,2*r+1,2*r+1,col),
-	oval=[x0,y0,x1,y1,col]elli(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
-	ovalb=[x0,y0,x1,y1,col]ellib(x0,y0,x1-x0+1,y1-y0+1,col or defaultColor),
+	rect=[x0,y0,x1,y1,col]do
+		col=col or defaultColor	-- TODO `or=` operator for logical-inplace-or?
+		rectb(x0,y0,x1-x0+1,y1-y0+1,col)
+	end,
+	rectfill=[x0,y0,x1,y1,col]do
+		col=col or defaultColor
+		rect(x0,y0,x1-x0+1,y1-y0+1,col)
+	end,
+	circ=[x,y,r,col]do
+		col=col or defaultColor
+		ellib(x-r,y-r,2*r+1,2*r+1,col)
+	end,
+	circfill=[x,y,r,col]do
+		col=col or defaultColor
+		elli(x-r,y-r,2*r+1,2*r+1,col)
+	end,
+	circ=[x,y,r,col]do
+		col=col or defaultColor
+		ellib(x-r,y-r,2*r+1,2*r+1,col)
+	end,
+	circfill=[x,y,r,col]do
+		col=col or defaultColor
+		elli(x-r,y-r,2*r+1,2*r+1,col)
+	end,
+	oval=[x0,y0,x1,y1,col]do
+		col=col or defaultColor
+		elli(x0,y0,x1-x0+1,y1-y0+1,col)
+	end,
+	ovalb=[x0,y0,x1,y1,col]do
+		col=col or defaultColor
+		ellib(x0,y0,x1-x0+1,y1-y0+1,col)
+	end,
 	line=[...]do
-		local x0,y0,x1,y1,col
+		local x0,y0,col,x1,y1=lastlinex,lastliney,defaultColor
 		local n=select('#',...)
 		if n==2 then
-			x0,y0=...
-			error'line TODO'
+			x1,y1=...
 		elseif n==3 then
-			x0,y0,col=...
-			error'line TODO'
+			x1,y1,col=...
+			col=col or defaultColor
 		elseif n==4 then
 			x0,y0,x1,y1=...
 		elseif n==5 then
 			x0,y0,x1,y1,col=...
+			col=col or defaultColor
 		end
-		col=col or defaultColor
-		--TODO line
+		assert(type(x0)=='number')
+		assert(type(y0)=='number')
+		assert(type(x1)=='number')
+		assert(type(y1)=='number')
+		x0=math.floor(x0)
+		y0=math.floor(y0)
+		x1=math.floor(x1)
+		y1=math.floor(y1)
+		col=math.floor(col)
+		line(x0,y0,x1,y1,col)
+		lastlinex,lastliney=x1,y1
 	end,
 	print=[...]do
 		local n=select('#',...)
