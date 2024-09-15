@@ -1396,9 +1396,7 @@ function App:resetGFX()
 
 	--self.palTex:prepForCPU()
 	require 'numo9.resetgfx'.resetPalette(self.ram)
-	self.palTex:bind()
-		:subimage()
-		:unbind()
+	self.palTex.dirtyCPU = true
 end
 
 
@@ -1429,31 +1427,6 @@ glreport'here'
 	tex.image = image
 glreport'here'
 
-	--[[ TODO immediate subimage on the subset of the individual bytes of memory written might be faster ...
-	-- for writing between cpu and gpu ... dirty bits etc
-	function tex:prepForCPU()
-		if self.dirtyGPU then
-			assert(not self.dirtyCPU)	-- one at a time ... always call the prep functions before writing to prevent this state
-			-- TODO copy GPU to CPU here
-			self.dirtyGPU = false
-		end
-		-- expect us to dirty the CPU next ...
-		self.dirtyCPU = true
-	end
-
-	function tex:prepForGPU()
-		if self.dirtyCPU then
-			assert(not self.dirtyGPU)	-- one at a time ... always call the prep functions before writing to prevent this state
-			-- TODO copy CPU to GPU here
-			self:bind()
-				:subimage()
-				:unbind()
-			self.dirtyCPU = false
-		end
-		-- expect us to dirty the GPU next ...
-		self.dirtyGPU = true
-	end
-	--]]
 	return tex
 end
 
@@ -1596,12 +1569,6 @@ print('no runnable focus!')
 			:unbind()
 		--	self.tilemapDirtyCPU = false
 		--end
-		--if self.paletteDirtyCPU then
-		self.palTex:bind()
-			:subimage()
-			:unbind()
-		--	self.paletteDirtyCPU = false
-		--end
 
 		-- increment hold counters
 		-- TODO do this here or before update() ?
@@ -1693,26 +1660,7 @@ print'dirtying tilemap'
 	if addr >= paletteAddr
 	and addr < paletteAddr + paletteInBytes
 	then
---[=[
-		-- it's probably not dirty cuz i have no code in here that modifies the palette ... except the editor
-		-- so just upload it to the GPU
-		local palIndex = bit.rshift(addr-paletteAddr,1)
-		self.palTex
-			:bind()
-			:subimage{
--- [[
-				x=palIndex,
-				y=0,
-				width=1,
-				height=1,
-				data=self.ram.palette + bit.lshift(palIndex,1),
---]]
-			}
-			:unbind()
---]=]
--- [=[
 		self.palTex.dirtyCPU = true
---]=]
 	end
 	-- if we poked the code
 	-- if we poked the framebuffer
@@ -1727,26 +1675,7 @@ function App:pokew(addr, value)
 	if addr >= paletteAddr-1
 	and addr < paletteAddr + paletteInBytes
 	then
---[=[
-		-- it's probably not dirty cuz i have no code in here that modifies the palette ... except the editor
-		-- so just upload it to the GPU
-		local palIndex = math.clamp(math.floor((addr-paletteAddr)/2),0,254)
-		self.palTex
-			:bind()
-			:subimage{
--- [[
-				x=palIndex,
-				y=0,
-				width=math.min(256-palIndex,2),	-- at most two can hit two palette entries at a time if someone writes to an odd address
-				height=1,
-				data=self.ram.palette + bit.lshift(palIndex,1),
---]]
-			}
-			:unbind()
---]=]
--- [=[
 		self.palTex.dirtyCPU = true
---]=]
 	end
 	-- if we poked the code
 	-- if we poked the framebuffer
@@ -1761,26 +1690,7 @@ function App:pokel(addr, value)
 	if addr >= paletteAddr-3
 	and addr < paletteAddr + paletteInBytes
 	then
---[=[
-		-- it's probably not dirty cuz i have no code in here that modifies the palette ... except the editor
-		-- so just upload it to the GPU
-		local palIndex = math.clamp(math.floor((addr - paletteAddr)/2), 0, 253)
-		self.palTex
-			:bind()
-			:subimage{
--- [[
-				x=palIndex,
-				y=0,
-				width=math.min(256-palIndex,3),	-- at most 3 entries hit on odd addr writes
-				height=1,
-				data=self.ram.palette + bit.lshift(palIndex,1),
---]]
-			}
-			:unbind()
---]=]
--- [=[
 		self.palTex.dirtyCPU = true
---]=]
 	end
 	-- if we poked the code
 	-- if we poked the framebuffer

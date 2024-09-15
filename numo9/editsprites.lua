@@ -413,14 +413,17 @@ function EditSprites:update()
 	app:drawText(('R=%02X'):format(bit.band(colorptr[0],0x1f)), 16, 224, 13, -1)
 	self:guiSpinner(16+32, 224, function(dx)
 		colorptr[0] = bit.bor(bit.band(colorptr[0]+dx,0x1f),bit.band(colorptr[0],bit.bnot(0x1f)))
+		app.palTex.dirtyCPU = true
 	end)
 	app:drawText(('G=%02X'):format(bit.band(bit.rshift(colorptr[0],5),0x1f)), 16, 224+8, 13, -1)
 	self:guiSpinner(16+32, 224+8, function(dx)
 		colorptr[0] = bit.bor(bit.band((colorptr[0]+bit.lshift(dx,5)),0x3e0),bit.band(colorptr[0],bit.bnot(0x3e0)))
+		app.palTex.dirtyCPU = true
 	end)
 	app:drawText(('B=%02X'):format(bit.band(bit.rshift(colorptr[0],10),0x1f)), 16, 224+16, 13, -1)
 	self:guiSpinner(16+32, 224+16, function(dx)
 		colorptr[0] = bit.bor(bit.band((colorptr[0]+bit.lshift(dx,10)),0x7c00),bit.band(colorptr[0],bit.bnot(0x7c00)))
+		app.palTex.dirtyCPU = true
 	end)
 	local alpha = bit.band(colorptr[0],0x8000)~=0
 	if self:guiButton(16,224+24,'A', alpha) then
@@ -429,6 +432,7 @@ function EditSprites:update()
 		else	-- otherwise set it
 			colorptr[0] = bit.bor(colorptr[0], 0x8000)
 		end
+		app.palTex.dirtyCPU = true
 	end
 	app:drawText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
 

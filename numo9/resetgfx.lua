@@ -82,6 +82,8 @@ local function resetFont(rom)
 	return resetFontOnSheet(rom.spriteSheet)	-- uint8_t*
 end
 
+-- TODO every time App calls this, make sure its palTex.dirtyCPU flag is set
+-- it would be here but this is sometimes called by n9a as well
 local function resetPalette(rom)
 	local ptr = rom.palette	-- uint16_t*
 	for i,c in ipairs(
