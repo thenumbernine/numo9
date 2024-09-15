@@ -59,7 +59,7 @@ function EditSprites:update()
 	EditSprites.super.update(self)
 	
 	-- choose spriteBit
-	app:drawText(
+	self:drawText(
 		'#'..self.spriteBit,
 		128+16+24,
 		12,
@@ -71,7 +71,7 @@ function EditSprites:update()
 	end, 'bit='..self.spriteBit)
 
 	-- choose spriteMask
-	app:drawText(
+	self:drawText(
 		'#'..self.spriteBitDepth,
 		128+16+24+32,
 		12,
@@ -178,7 +178,7 @@ function EditSprites:update()
 	-- sprite edit area
 	local x = 2
 	local y = 12
-	app:drawText(
+	self:drawText(
 		'#'..(self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y),
 		x + 32,
 		y,
@@ -324,7 +324,7 @@ function EditSprites:update()
 	end)
 
 	-- select palette color to draw
-	app:drawText(
+	self:drawText(
 		'#'..self.paletteSelIndex,
 		16,
 		112,
@@ -409,18 +409,18 @@ function EditSprites:update()
 
 	-- edit palette entries
 	local colorptr = app.ram.palette + self.paletteSelIndex
-	app:drawText(('C=%04X'):format(colorptr[0]), 16, 216, 13, -1)
-	app:drawText(('R=%02X'):format(bit.band(colorptr[0],0x1f)), 16, 224, 13, -1)
+	self:drawText(('C=%04X'):format(colorptr[0]), 16, 216, 13, -1)
+	self:drawText(('R=%02X'):format(bit.band(colorptr[0],0x1f)), 16, 224, 13, -1)
 	self:guiSpinner(16+32, 224, function(dx)
 		colorptr[0] = bit.bor(bit.band(colorptr[0]+dx,0x1f),bit.band(colorptr[0],bit.bnot(0x1f)))
 		app.palTex.dirtyCPU = true
 	end)
-	app:drawText(('G=%02X'):format(bit.band(bit.rshift(colorptr[0],5),0x1f)), 16, 224+8, 13, -1)
+	self:drawText(('G=%02X'):format(bit.band(bit.rshift(colorptr[0],5),0x1f)), 16, 224+8, 13, -1)
 	self:guiSpinner(16+32, 224+8, function(dx)
 		colorptr[0] = bit.bor(bit.band((colorptr[0]+bit.lshift(dx,5)),0x3e0),bit.band(colorptr[0],bit.bnot(0x3e0)))
 		app.palTex.dirtyCPU = true
 	end)
-	app:drawText(('B=%02X'):format(bit.band(bit.rshift(colorptr[0],10),0x1f)), 16, 224+16, 13, -1)
+	self:drawText(('B=%02X'):format(bit.band(bit.rshift(colorptr[0],10),0x1f)), 16, 224+16, 13, -1)
 	self:guiSpinner(16+32, 224+16, function(dx)
 		colorptr[0] = bit.bor(bit.band((colorptr[0]+bit.lshift(dx,10)),0x7c00),bit.band(colorptr[0],bit.bnot(0x7c00)))
 		app.palTex.dirtyCPU = true
@@ -434,7 +434,7 @@ function EditSprites:update()
 		end
 		app.palTex.dirtyCPU = true
 	end
-	app:drawText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
+	self:drawText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
 
 	-- flags ... ???
 

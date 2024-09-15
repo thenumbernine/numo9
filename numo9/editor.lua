@@ -41,7 +41,7 @@ function Editor:guiButton(x, y, str, isset, tooltip)
 	-- TODO it's tempting to draw the editor directly to RGB, not using the fantasy-console's rendering ...
 	-- ... that means builtin font as well ...
 	-- yeah it's not a console for sure.
-	app:drawText(str, x, y,
+	self:drawText(str, x, y,
 		isset and 13 or 10,
 		isset and 4 or 2
 		--isset and 15 or 4,
@@ -53,7 +53,7 @@ function Editor:guiButton(x, y, str, isset, tooltip)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
-			app:drawText(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+			self:drawText(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 		end
 
 		local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
@@ -74,7 +74,7 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local mouseX, mouseY = app.mousePos:unpack()
 
-	app:drawText('<', x, y, 13, 0)
+	self:drawText('<', x, y, 13, 0)
 	if leftButtonPress
 	and mouseX >= x and mouseX < x + spriteSize.x
 	and mouseY >= y and mouseY < y + spriteSize.y
@@ -83,7 +83,7 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	end
 
 	x = x + spriteSize.x
-	app:drawText('>', x, y, 13, 0)
+	self:drawText('>', x, y, 13, 0)
 	if leftButtonPress
 	and mouseX >= x and mouseX < x + spriteSize.x
 	and mouseY >= y and mouseY < y + spriteSize.y
@@ -95,7 +95,7 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
-			app:drawText(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+			self:drawText(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 		end
 	end
 end
@@ -133,13 +133,28 @@ function Editor:update()
 
 	local titlebar = '  '..app.editMode
 	titlebar = titlebar .. (' '):rep(frameBufferSizeInTiles.x - #titlebar)
-	app:drawText(
+	self:drawText(
 		titlebar,
 		#editModes * spriteSize.x,
 		0,
 		12,
 		8
 	)
+end
+
+-- put editor palette in the last entry
+-- so that people dont touch it
+-- but still make sure they can use it
+-- cuz honestly I'm aiming to turn the editor into a ROM itself and stash it in console 'memory'
+function Editor:color(i)
+	return bit.bor(bit.band(i,0xf),0xf0)
+end
+
+function Editor:drawText(s,x,y,fg,bg)
+	return self.app:drawText(
+		s,x,y,
+		self:color(fg),
+		self:color(bg))
 end
 
 return Editor

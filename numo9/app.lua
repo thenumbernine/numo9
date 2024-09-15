@@ -93,6 +93,8 @@ local spriteSheetSizeInTiles = vec2i(spriteSheetSize.x / spriteSize.x, spriteShe
 local tilemapSize = vec2i(256, 256)
 local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
 local codeSize = 0x10000	-- tic80's size ... but with my langfix shorthands like pico8 has
+--local fontWidth = spriteSize.x
+local fontWidth = 5
 
 local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
@@ -180,6 +182,7 @@ App.spriteSheetSizeInTiles = spriteSheetSizeInTiles
 App.tilemapSize = tilemapSize
 App.tilemapSizeInSprites = tilemapSizeInSprites
 App.codeSize = codeSize
+App.fontWidth = fontWidth
 
 local spriteSheetAddr = ffi.offsetof('ROM', 'spriteSheet')
 local spriteSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].spriteSheet[0])
@@ -1930,9 +1933,6 @@ function App:drawMap(
 	)
 	sceneObj:draw()
 end
-
---local fontWidth = spriteSize.x
-local fontWidth = 5
 
 -- draw transparent-background text
 function App:drawText1bpp(text, x, y, color, scaleX, scaleY)

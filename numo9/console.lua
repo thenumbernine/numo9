@@ -41,8 +41,8 @@ function Console:reset()
 	-- right now fgColor just adds
 	-- meanwhile the font texture is indexed 0's and 15's
 	-- so whatever you set fgColor to, that value is background and that value plus 15 is foreground
-	self.fgColor = 13
-	self.bgColor = 0
+	self.fgColor = 0xfd
+	self.bgColor = 0xf0
 
 	-- TODO 'getFocus' or TODO always reload?
 	-- clear the screen every time, or save the screen every time?
@@ -50,13 +50,13 @@ function Console:reset()
 	self:print(app.title)
 
 	for i=0,15 do
-		self.fgColor = i	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
-		self.bgColor = i+1
+		self.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
+		self.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
 		self:print'hello world'
 	end
-	--self.fgColor = 14			-- 14 = bg, 15 = fg
-	self.fgColor = 11			-- 11 = bg, 12 = fg
-	self.bgColor = 0
+	--self.fgColor = 0xfe		-- 14 = bg, 15 = fg
+	self.fgColor = 0xfb			-- 11 = bg, 12 = fg
+	self.bgColor = 0xf0
 
 	self.prompt = '> '
 	self:write(app.fs.cwd:path()..self.prompt)
@@ -145,7 +145,7 @@ function Console:addChar(ch)
 		self.fgColor,
 		self.bgColor
 	)
-	self:offsetCursor(spriteSize.x, 0)
+	self:offsetCursor(App.fontWidth, 0)
 end
 
 function Console:addCharToScreen(ch)

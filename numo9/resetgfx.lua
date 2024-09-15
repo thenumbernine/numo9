@@ -146,8 +146,29 @@ local function resetPalette(rom)
 			0xffFFFF55,
 			0xffFFFFFF,
 		}:mapi(argb8888revto5551)
+		
 		--]]
-		:sub(1, 256)	-- make sure we don't iterate across too many colors and ptr goes oob ...
+		:rep(16)	-- make sure it fills 0-255
+		:sub(1, 240)	-- make sure we don't iterate across too many colors and ptr goes oob ...
+		:append(table{
+			-- editor palette
+			0x00000000,
+			0xff562b5a,
+			0xffa44654,
+			0xffe08260,
+			0xfff7ce82,
+			0xffb7ed80,
+			0xff60b46c,
+			0xff3b7078,
+			0xff2b376b,
+			0xff415fc2,
+			0xff5ca5ef,
+			0xff93ecf5,
+			0xfff4f4f4,
+			0xff99afc0,
+			0xff5a6c84,
+			0xff343c55,
+		}:mapi(argb8888revto5551))
 	) do
 		ptr[0] = c
 		ptr = ptr + 1
