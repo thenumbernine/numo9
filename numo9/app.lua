@@ -1911,6 +1911,9 @@ function App:drawMap(
 	sceneObj:draw()
 end
 
+--local fontWidth = spriteSize.x
+local fontWidth = 5
+
 -- draw transparent-background text
 function App:drawText1bpp(text, x, y, color, scaleX, scaleY)
 	for i=1,#text do
@@ -1935,7 +1938,8 @@ function App:drawText1bpp(text, x, y, color, scaleX, scaleY)
 			scaleX,                 -- scaleX
 			scaleY                  -- scaleY
 		)
-		x = x + spriteSize.x
+		-- TODO font widths per char?
+		x = x + fontWidth
 	end
 end
 
@@ -1956,11 +1960,11 @@ function App:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 			self:drawSolidRect(
 				x,
 				y,
-				spriteSize.x * scaleX,
-				spriteSize.y * scaleY,
+				scaleX * fontWidth, --spriteSize.x,
+				scaleY * spriteSize.y,
 				bgColorIndex
 			)
-			x = x + spriteSize.x
+			x = x + fontWidth
 		end
 	end
 
@@ -2066,6 +2070,7 @@ print('code is', #code, 'bytes')
 	self.mapTex:bind()
 		:subimage()
 		:unbind()
+	self.mapTex.dirtyCPU = false
 	self.palTex:bind()
 		:subimage()
 		:unbind()

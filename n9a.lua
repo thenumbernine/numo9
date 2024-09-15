@@ -342,14 +342,16 @@ print('toImage', name, 'width', width, 'height', height)
 	-- how about as code?
 	-- how about something for mapping random resources to random locations in RAM?
 	local flagSrc = sections.gff
+	local spriteFlagCode
+	if flagSrc then
 --[[ save out flags?
-	local spriteFlagsImg = toImage(flagSrc, false, 'gff')
-	spriteFlagsImg:save(basepath'spriteflags.png'.path)
+		local spriteFlagsImg = toImage(flagSrc, false, 'gff')
+		spriteFlagsImg:save(basepath'spriteflags.png'.path)
 --]]
 -- [[ or nah, just embed them in the code ...
-	flagSrc = flagSrc:concat():gsub('%s', '')	-- only hex chars
-	assertlen(flagSrc, 512)
-	local spriteFlagCode = 'sprFlags={\n'
+		flagSrc = flagSrc:concat():gsub('%s', '')	-- only hex chars
+		assertlen(flagSrc, 512)
+		spriteFlagCode = 'sprFlags={\n'
 			..range(0,15):mapi(function(j)
 				return range(0,15):mapi(function(i)
 					local e = 2 * (i + 16 * j)
@@ -357,6 +359,7 @@ print('toImage', name, 'width', width, 'height', height)
 				end):concat''..'\n'
 			end):concat()
 			..'}\n'
+	end
 --]]
 
 	-- map is 8bpp not 4pp
@@ -530,6 +533,7 @@ print('toImage', name, 'width', width, 'height', height)
 	-- now add our glue between APIs ...
 	code = table{
 		spriteFlagCode,
+	}:append{
 		'-- begin compat layer',
 		-- some glue code needs this, might as well generate it dynamically here:
 		('updateCounterMem=0x%06x'):format(ffi.offsetof('RAM', 'updateCounter')),
