@@ -20,6 +20,7 @@ local assertle = require 'ext.assert'.le
 local assertlt = require 'ext.assert'.lt
 local string = require 'ext.string'
 local table = require 'ext.table'
+local math = require 'ext.math'
 local path = require 'ext.path'
 local getTime = require 'ext.timer'.getTime
 local tolua = require 'ext.tolua'
@@ -179,6 +180,15 @@ App.tilemapSize = tilemapSize
 App.tilemapSizeInSprites = tilemapSizeInSprites
 App.codeSize = codeSize
 
+local spriteSheetAddr = ffi.offsetof('ROM', 'spriteSheet')
+local spriteSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].spriteSheet[0])
+local tileSheetAddr = ffi.offsetof('ROM', 'tileSheet')
+local tileSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].tileSheet[0])
+local tilemapAddr = ffi.offsetof('ROM', 'tilemap')
+local tilemapInBytes = tilemapSize:volume() * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].tilemap[0])
+local paletteAddr = ffi.offsetof('ROM', 'palette')
+local paletteInBytes = paletteSize * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].palette[0])
+
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
 -- fps vars
@@ -273,6 +283,8 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 	--]]
 	self.ram.updateCounter[0] = 0
 
+	-- TODO soooo tempting to treat 'app' as a global
+	-- It would cut down on *all* these glue functions
 	self.env = {
 		-- filesystem functions ...
 		ls = function(...) return self.fs:ls(...) end,
@@ -294,34 +306,25 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		reset = function(...) return self:resetROM(...) end,
 		quit = function(...) self:requestExit() end,
 
-		peek = function(addr)
-			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
-			return self.ram.v[addr]
-		end,
-		poke = function(addr, value)
-			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
-			self.ram.v[addr] = tonumber(value)
-		end,
 		-- pico8 has poke2 as word, poke4 as dword
 		-- tic80 has poke2 as 2bits, poke4 as 4bits
 		-- I will leave bit operations up to the user, but for ambiguity rename my word and dword into pokew and pokel
 		-- signed or unsigned?
-		peekw = function(addr)
+		peek = function(addr)
 			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+			return self.ram.v[addr]
+		end,
+		peekw = function(addr)
+			if addr < 0 or addr >= ffi.sizeof(self.ram)-1 then return end
 			return ffi.cast('uint16_t*', self.ram.v + addr)[0]
 		end,
-		pokew = function(addr, value)
-			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
-			ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
-		end,
 		peekl = function(addr)
-			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+			if addr < 0 or addr >= ffi.sizeof(self.ram)-3 then return end
 			return ffi.cast('uint32_t*', self.ram.v + addr)[0]
 		end,
-		pokel = function(addr, value)
-			if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
-			ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
-		end,
+		poke = function(addr, value) return self:poke(addr, value) end,
+		pokew = function(addr, value) return self:pokew(addr, value) end,
+		pokel = function(addr, value) return self:pokel(addr, value) end,
 
 		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
 		key = function(...) return self:key(...) end,
@@ -1385,18 +1388,19 @@ end
 -- this just re-inserts the font and default palette
 -- it doesn't
 function App:resetGFX()
-	-- TODO dirty flags
+	--self.spriteTex:prepForCPU()
 	require 'numo9.resetgfx'.resetFont(self.ram)
-	self.spriteTex
-		:bind()
+	self.spriteTex:bind()
 		:subimage()
 		:unbind()
 
+	--self.palTex:prepForCPU()
 	require 'numo9.resetgfx'.resetPalette(self.ram)
 	self.palTex:bind()
 		:subimage()
 		:unbind()
 end
+
 
 -- [[ also in sand-attack ... hmmmm ...
 -- consider putting somewhere common, maybe in gl.tex2d ?
@@ -1424,6 +1428,32 @@ glreport'here'
 	-- TODO move this store command to gl.tex2d ctor if .image is used?
 	tex.image = image
 glreport'here'
+
+	--[[ TODO immediate subimage on the subset of the individual bytes of memory written might be faster ...
+	-- for writing between cpu and gpu ... dirty bits etc
+	function tex:prepForCPU()
+		if self.dirtyGPU then
+			assert(not self.dirtyCPU)	-- one at a time ... always call the prep functions before writing to prevent this state
+			-- TODO copy GPU to CPU here
+			self.dirtyGPU = false
+		end
+		-- expect us to dirty the CPU next ...
+		self.dirtyCPU = true
+	end
+
+	function tex:prepForGPU()
+		if self.dirtyCPU then
+			assert(not self.dirtyGPU)	-- one at a time ... always call the prep functions before writing to prevent this state
+			-- TODO copy CPU to GPU here
+			self:bind()
+				:subimage()
+				:unbind()
+			self.dirtyCPU = false
+		end
+		-- expect us to dirty the GPU next ...
+		self.dirtyGPU = true
+	end
+	--]]
 	return tex
 end
 
@@ -1637,6 +1667,135 @@ print('no runnable focus!')
 	sceneObj:draw()
 end
 
+function App:poke(addr, value)
+	--addr = math.floor(addr) -- TODO just never pass floats in here or its your own fault
+	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+	self.ram.v[addr] = tonumber(value)
+	-- TODO none of the others happen period, only the palette texture
+	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
+	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
+	if addr >= spriteSheetAddr and addr < spriteSheetInBytes then
+print'dirtying spritesheet'
+	end
+	-- if we poked the tilesheet
+	if addr >= tileSheetAddr and addr < tileSheetInBytes then
+print'dirtying tilesheet'
+	end
+	-- if we poked the tilemap
+	if addr >= tilemapAddr and addr < tilemapInBytes then
+print'dirtying tilemap'
+	end
+	-- a few options with dirtying palette entries
+	-- 1) consolidate calls, so write this separately in pokew and pokel
+	-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
+	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
+	-- if we poked palette
+	if addr >= paletteAddr
+	and addr < paletteAddr + paletteInBytes
+	then
+--[=[
+		-- it's probably not dirty cuz i have no code in here that modifies the palette ... except the editor
+		-- so just upload it to the GPU
+		local palIndex = bit.rshift(addr-paletteAddr,1)
+		self.palTex
+			:bind()
+			:subimage{
+-- [[
+				x=palIndex,
+				y=0,
+				width=1,
+				height=1,
+				data=self.ram.palette + bit.lshift(palIndex,1),
+--]]
+			}
+			:unbind()
+--]=]
+-- [=[
+		self.palTex.dirtyCPU = true
+--]=]
+	end
+	-- if we poked the code
+	-- if we poked the framebuffer
+end
+function App:pokew(addr, value)
+	if addr < 0 or addr >= ffi.sizeof(self.ram)-1 then return end
+	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
+	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
+	-- if we poked the tilesheet
+	-- if we poked the tilemap
+	-- if we poked palette
+	if addr >= paletteAddr-1
+	and addr < paletteAddr + paletteInBytes
+	then
+--[=[
+		-- it's probably not dirty cuz i have no code in here that modifies the palette ... except the editor
+		-- so just upload it to the GPU
+		local palIndex = math.clamp(math.floor((addr-paletteAddr)/2),0,254)
+		self.palTex
+			:bind()
+			:subimage{
+-- [[
+				x=palIndex,
+				y=0,
+				width=math.min(256-palIndex,2),	-- at most two can hit two palette entries at a time if someone writes to an odd address
+				height=1,
+				data=self.ram.palette + bit.lshift(palIndex,1),
+--]]
+			}
+			:unbind()
+--]=]
+-- [=[
+		self.palTex.dirtyCPU = true
+--]=]
+	end
+	-- if we poked the code
+	-- if we poked the framebuffer
+end
+function App:pokel(addr, value)
+	if addr < 0 or addr >= ffi.sizeof(self.ram)-3 then return end
+	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
+	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
+	-- if we poked the tilesheet
+	-- if we poked the tilemap
+	-- if we poked palette
+	if addr >= paletteAddr-3
+	and addr < paletteAddr + paletteInBytes
+	then
+--[=[
+		-- it's probably not dirty cuz i have no code in here that modifies the palette ... except the editor
+		-- so just upload it to the GPU
+		local palIndex = math.clamp(math.floor((addr - paletteAddr)/2), 0, 253)
+		self.palTex
+			:bind()
+			:subimage{
+-- [[
+				x=palIndex,
+				y=0,
+				width=math.min(256-palIndex,3),	-- at most 3 entries hit on odd addr writes
+				height=1,
+				data=self.ram.palette + bit.lshift(palIndex,1),
+--]]
+			}
+			:unbind()
+--]=]
+-- [=[
+		self.palTex.dirtyCPU = true
+--]=]
+	end
+	-- if we poked the code
+	-- if we poked the framebuffer
+end
+
+function App:checkPalDirtyCPU()
+	if not self.palTex.dirtyCPU then return end
+	self.fb:unbind()
+	self.palTex:bind()
+		:subimage()
+		:unbind()
+	self.fb:bind()
+	self.palTex.dirtyCPU = false
+end
+
 function App:drawSolidRect(
 	x,
 	y,
@@ -1646,6 +1805,7 @@ function App:drawSolidRect(
 	borderOnly,
 	round
 )
+	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 	uniforms.mvMat = self.mvMat.ptr
@@ -1670,6 +1830,7 @@ function App:drawBorderRect(
 end
 
 function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
+	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	local sceneObj = self.lineSolidObj
 	local uniforms = sceneObj.uniforms
 	uniforms.mvMat = self.mvMat.ptr
@@ -1701,6 +1862,8 @@ function App:drawQuad(
 	spriteBit,
 	spriteMask
 )
+	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
+
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
@@ -1750,6 +1913,8 @@ function App:drawSprite(
 	scaleX,
 	scaleY
 )
+	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
+
 	spritesWide = spritesWide or 1
 	spritesHigh = spritesHigh or 1
 	paletteIndex = paletteIndex or 0
@@ -1798,6 +1963,8 @@ function App:drawMap(
 	screenY,
 	mapIndexOffset
 )
+	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
+
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
 	mapIndexOffset = mapIndexOffset or 0

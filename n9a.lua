@@ -531,6 +531,10 @@ print('toImage', name, 'width', width, 'height', height)
 	code = table{
 		spriteFlagCode,
 		'-- begin compat layer',
+		-- some glue code needs this, might as well generate it dynamically here:
+		('updateCounterMem=0x%06x'):format(ffi.offsetof('RAM', 'updateCounter')),
+		('palMem=0x%06x'):format(ffi.offsetof('RAM', 'palette')),
+		('fbMem=0x%06x'):format(ffi.offsetof('RAM', 'framebuffer')),
 		assert(path'n9a_p8_glue.lua':read()),
 		'-- end compat layer',
 		code,
