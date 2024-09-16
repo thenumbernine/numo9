@@ -432,7 +432,7 @@ print('toImage', name, 'width', width, 'height', height)
 	local musicSrc = move(sections, 'music')
 	basepath'music.txt':write(musicSrc:concat'\n'..'\n')
 
-	local palImg = Image(16, 16, 4, 'unsigned char', 
+	local palImg = Image(16, 16, 4, 'unsigned char',
 		-- fill out the default pico8 palette
 		table{
 			0x00, 0x00, 0x00, 0x00,
@@ -455,22 +455,22 @@ print('toImage', name, 'width', width, 'height', height)
 		-- but then add the system palette at the end for the editor, so pico8's games don't mess with the editor's palette
 		-- yes you can do that in numo9, i'm tryin to make it more like a real emulator where nothing is sacred
 		:append{
-			0x00, 0x00, 0x00, 0x00, 
-			0x00, 0x00, 0xAA, 0xFF, 
-			0x00, 0xAA, 0x00, 0xFF, 
-			0x00, 0xAA, 0xAA, 0xFF, 
-			0xAA, 0x00, 0x00, 0xFF, 
-			0xAA, 0x00, 0xAA, 0xFF, 
-			0xAA, 0x55, 0x00, 0xFF, 
-			0xAA, 0xAA, 0xAA, 0xFF, 
-			0x55, 0x55, 0x55, 0xFF, 
-			0x55, 0x55, 0xFF, 0xFF, 
-			0x55, 0xFF, 0x55, 0xFF, 
-			0x55, 0xFF, 0xFF, 0xFF, 
-			0xFF, 0x55, 0x55, 0xFF, 
-			0xFF, 0x55, 0xFF, 0xFF, 
-			0xFF, 0xFF, 0x55, 0xFF, 
-			0xFF, 0xFF, 0xFF, 0xFF, 
+			0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0xAA, 0xFF,
+			0x00, 0xAA, 0x00, 0xFF,
+			0x00, 0xAA, 0xAA, 0xFF,
+			0xAA, 0x00, 0x00, 0xFF,
+			0xAA, 0x00, 0xAA, 0xFF,
+			0xAA, 0x55, 0x00, 0xFF,
+			0xAA, 0xAA, 0xAA, 0xFF,
+			0x55, 0x55, 0x55, 0xFF,
+			0x55, 0x55, 0xFF, 0xFF,
+			0x55, 0xFF, 0x55, 0xFF,
+			0x55, 0xFF, 0xFF, 0xFF,
+			0xFF, 0x55, 0x55, 0xFF,
+			0xFF, 0x55, 0xFF, 0xFF,
+			0xFF, 0xFF, 0x55, 0xFF,
+			0xFF, 0xFF, 0xFF, 0xFF,
 		}
 	)
 	palImg:save(basepath'pal.png'.path)
@@ -570,15 +570,17 @@ print('toImage', name, 'width', width, 'height', height)
 	end):concat'\n'
 	--]]
 
+	local LuaFixedParser = require 'langfix.parser'
 	local function minify(code)
-		-- save some space ... TODO by running it through the langfix parser
-		--[[ TODO that means adding another output for the LuaFixedParser to emit LuaFixedParser code (right now it only emits Lua code ...) 
+		--[[ glue the code as-is
+		return code
+		--]]
+		-- [[ save some space by running it through the langfix parser
 		local parser = LuaFixedParser()
 		parser:setData(code)
 		local tree = parser.tree
 		return tree:toLuaFixed()
 		--]]
-		return code 
 	end
 
 	-- now add our glue between APIs ...
@@ -592,12 +594,13 @@ print('toImage', name, 'width', width, 'height', height)
 		('mapMem=0x%06x'):format(ffi.offsetof('RAM', 'tilemap')),
 		('palMem=0x%06x'):format(ffi.offsetof('RAM', 'palette')),
 		('fbMem=0x%06x'):format(ffi.offsetof('RAM', 'framebuffer')),
-		minify(assert(path'n9a_p8_glue.lua':read())),
+		assert(path'n9a_p8_glue.lua':read()),
 		'-- end compat layer',
 		code,
 		-- if this one global seems like a bad idea, I can always just wrap the whole thing in a function , then setfenv on the function env, and then have the function return the _init and _update (to call and set)
 		'__numo9_finished(_init, _update, _update60, _draw)'
 	}:concat'\n'..'\n'
+	code = minify(code)
 
 	assert(basepath'code.lua':write(code))
 
