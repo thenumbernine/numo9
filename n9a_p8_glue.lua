@@ -575,7 +575,7 @@ trace'TODO cstore'
 
 	-- persistent data:
 	cartdata=[]nil,
-	dget=[]nil,
+	dget=[]0,
 	dset=[]nil,
 	serial=[]nil,
 

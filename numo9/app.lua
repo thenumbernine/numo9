@@ -1481,20 +1481,14 @@ function App:update()
 			self.lastMouseButtons = self.mouseButtons
 			self.mouseButtons = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
-	--DEBUG:print('screen pos', self.screenMousePos:unpack())
-	--DEBUG:print('ortho', 	x1, x2, y1, y2, z1, z2)
 			local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
 			local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
-	--DEBUG:print('mouserfrac', x, y)
 			x = x1 * (1 - x) + x2 * x
 			y = y1 * (1 - y) + y2 * y
-	--DEBUG:print('mouse in ortho [-1,1] space', x, y)
 			x = x * .5 + .5
 			y = y * .5 + .5
-	--DEBUG:print('mouse in ortho [0,1] space', x, y)
 			self.mousePos.x = x * tonumber(frameBufferSize.x)
 			self.mousePos.y = y * tonumber(frameBufferSize.y)
-	--DEBUG:print('mouse in fb space', self.mousePos:unpack())
 			local leftButtonLastDown = bit.band(self.lastMouseButtons, 1) == 1
 			local leftButtonDown = bit.band(self.mouseButtons, 1) == 1
 			local leftButtonPress = leftButtonDown and not leftButtonLastDown
