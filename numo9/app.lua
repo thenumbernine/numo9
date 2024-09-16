@@ -1383,13 +1383,15 @@ function App:resetGFX()
 	self.spriteTex:bind()
 		:subimage()
 		:unbind()
+	self.spriteTex.dirtyCPU = false
 	ffi.copy(self.cartridge.spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
-	
+
 	--self.palTex:prepForCPU()
 	require 'numo9.resetgfx'.resetPalette(self.ram)
 	self.palTex:bind()
 		:subimage()
 		:unbind()
+	self.palTex.dirtyCPU = false
 	ffi.copy(self.cartridge.palette, self.ram.palette, paletteInBytes)
 end
 
@@ -1627,62 +1629,68 @@ end
 
 function App:peek(addr)
 	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
-	
+
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
-	if addr >= framebufferAddr 
-	and addr < framebufferAddr+framebufferInBytes 
-	and self.fbTex.dirtyGPU then
+	if addr >= framebufferAddr
+	and addr < framebufferAddr+framebufferInBytes
+	and self.fbTex.dirtyGPU
+	then
 		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
-	
+
 	return self.ram.v[addr]
 end
 function App:peekw(addr)
 	if addr < 0 or addr >= ffi.sizeof(self.ram)-1 then return end
-	
+
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
-	if addr >= framebufferAddr-1 
-	and addr < framebufferAddr+framebufferInBytes 
-	and self.fbTex.dirtyGPU then
+	if addr >= framebufferAddr-1
+	and addr < framebufferAddr+framebufferInBytes
+	and self.fbTex.dirtyGPU
+	then
 		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
-	
+
 	return ffi.cast('uint16_t*', self.ram.v + addr)[0]
 end
 function App:peekl(addr)
 	if addr < 0 or addr >= ffi.sizeof(self.ram)-3 then return end
-	
+
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if addr >= framebufferAddr-3
-	and addr < framebufferAddr+framebufferInBytes 
-	and self.fbTex.dirtyGPU then
+	and addr < framebufferAddr+framebufferInBytes
+	and self.fbTex.dirtyGPU
+	then
 		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
-	
+
 	return ffi.cast('uint32_t*', self.ram.v + addr)[0]
 end
 
 function App:poke(addr, value)
 	--addr = math.floor(addr) -- TODO just never pass floats in here or its your own fault
 	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
-	
+
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if addr >= framebufferAddr
 	and addr < framebufferInBytes
-	and self.fbTex.dirtyGPU then
+	and self.fbTex.dirtyGPU
+	then
+		assert(not self.fbTex.dirtyCPU)
 		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
 	end
-	
+
 	self.ram.v[addr] = tonumber(value)
+
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
 	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
@@ -1694,8 +1702,10 @@ print'dirtying spritesheet'
 print'dirtying tilesheet'
 	end
 	-- if we poked the tilemap
-	if addr >= tilemapAddr and addr < tilemapInBytes then
-print'dirtying tilemap'
+	if addr >= tilemapAddr
+	and addr < tilemapAddr + tilemapInBytes
+	then
+		self.mapTex.dirtyCPU = true
 	end
 	-- a few options with dirtying palette entries
 	-- 1) consolidate calls, so write this separately in pokew and pokel
@@ -1710,29 +1720,36 @@ print'dirtying tilemap'
 	-- if we poked the code
 	-- if we poked the framebuffer
 	if addr >= framebufferAddr
-	and addr < framebufferInBytes
+	and addr < framebufferAddr + framebufferInBytes
 	then
 		self.fbTex.dirtyCPU = false
 	end
 end
 function App:pokew(addr, value)
 	if addr < 0 or addr >= ffi.sizeof(self.ram)-1 then return end
-	
+
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if addr >= framebufferAddr-1
 	and addr < framebufferInBytes
-	and self.fbTex.dirtyGPU then
+	and self.fbTex.dirtyGPU
+	then
+		assert(not self.fbTex.dirtyCPU)
 		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
 	end
-	
+
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
-	
+
 	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
 	-- if we poked the tilesheet
 	-- if we poked the tilemap
+	if addr >= tilemapAddr-1
+	and addr < tilemapAddr + tilemapInBytes
+	then
+		self.mapTex.dirtyCPU = true
+	end
 	-- if we poked palette
 	if addr >= paletteAddr-1
 	and addr < paletteAddr + paletteInBytes
@@ -1741,25 +1758,37 @@ function App:pokew(addr, value)
 	end
 	-- if we poked the code
 	-- if we poked the framebuffer
+	if addr >= framebufferAddr-1
+	and addr < framebufferInBytes + framebufferInBytes
+	then
+		self.fbTex.dirtyCPU = false
+	end
 end
 function App:pokel(addr, value)
 	if addr < 0 or addr >= ffi.sizeof(self.ram)-3 then return end
-	
+
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if addr >= framebufferAddr-3
 	and addr < framebufferInBytes
-	and self.fbTex.dirtyGPU then
+	and self.fbTex.dirtyGPU
+	then
+		assert(not self.fbTex.dirtyCPU)
 		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
 	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
-	
+
 	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
 	-- if we poked the tilesheet
 	-- if we poked the tilemap
+	if addr >= tilemapAddr-3
+	and addr < tilemapAddr + tilemapInBytes
+	then
+		self.mapTex.dirtyCPU = true
+	end
 	-- if we poked palette
 	if addr >= paletteAddr-3
 	and addr < paletteAddr + paletteInBytes
@@ -1768,10 +1797,16 @@ function App:pokel(addr, value)
 	end
 	-- if we poked the code
 	-- if we poked the framebuffer
+	if addr >= framebufferAddr-3
+	and addr < framebufferAddr + framebufferInBytes
+	then
+		self.fbTex.dirtyCPU = false
+	end
 end
 
 function App:checkPalDirtyCPU()
 	if self.palTex.dirtyCPU then
+		assert(not self.palTex.dirtyGPU)
 		-- since the call is within the update render-to-fbTex section ...
 		self.fb:unbind()
 		self.palTex:bind()
@@ -1783,6 +1818,7 @@ function App:checkPalDirtyCPU()
 end
 function App:checkMapDirtyCPU()
 	if self.mapTex.dirtyCPU then
+		assert(not self.mapTex.dirtyGPU)
 		self.fb:unbind()
 		self.mapTex:bind()
 			:subimage()
@@ -1793,6 +1829,7 @@ function App:checkMapDirtyCPU()
 end
 function App:checkFramebufferDirtyCPU()
 	if self.fbTex.dirtyCPU then
+		assert(not self.fbTex.dirtyGPU)
 		-- assume the framebuffer is already bound ...
 		self.fb:unbind()
 		self.fbTex:bind()
@@ -1814,10 +1851,10 @@ function App:drawSolidRect(
 )
 	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	self:checkFramebufferDirtyCPU()
-	
+
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
-	
+
 	uniforms.mvMat = self.ram.mvMat
 	uniforms.colorIndex = math.floor(colorIndex)
 	uniforms.borderOnly = borderOnly or false
@@ -1825,7 +1862,7 @@ function App:drawSolidRect(
 	if w < 0 then x,w = x+w,-w end
 	if h < 0 then y,h = y+h,-h end
 	settable(uniforms.box, x, y, w, h)
-	
+
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 end
@@ -1844,7 +1881,7 @@ end
 function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	self:checkFramebufferDirtyCPU()
-	
+
 	local sceneObj = self.lineSolidObj
 	local uniforms = sceneObj.uniforms
 
@@ -1911,7 +1948,7 @@ function App:drawQuad(
 	uniforms.spriteMask = spriteMask
 	settable(uniforms.tcbox, tx, ty, tw, th)
 	settable(uniforms.box, x, y, w, h)
-	
+
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 end
@@ -2221,7 +2258,7 @@ end
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
 	self:resetView()
-	
+
 	-- TODO straighten this out
 	-- how about an runFocus gain and lose focus function
 	--  then for editcode, gainfucos copies the code from cart to .text
@@ -2229,10 +2266,10 @@ function App:runROM()
 	ffi.fill(self.cartridge.code, ffi.sizeof(self.cartridge.code))
 	ffi.copy(self.cartridge.code, self.editCode.text:sub(1,codeSize-1))
 	if self.cartridge.code[0] == 0 then return end
-	
-	-- this will reset text also, 
+
+	-- this will reset text also,
 	-- so make sure your editor text has been copied into .cartridge before :runROM()
-	self:resetROM()	
+	self:resetROM()
 
 	-- TODO setfenv instead?
 	local env = setmetatable({}, {

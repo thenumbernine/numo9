@@ -229,7 +229,7 @@ elseif cmd == 'binton9' then
 		(assert(toCartImage(binpath.path)))
 	))
 
-elseif cmd == 'p8' or cmd == 'p8r' then
+elseif cmd == 'p8' or cmd == 'p8run' then
 
 	--[[
 	pico8 conversion needs ...
@@ -589,7 +589,7 @@ print('toImage', name, 'width', width, 'height', height)
 
 	assert(basepath'code.lua':write(code))
 
-	if cmd == 'p8r' then
+	if cmd == 'p8run' then
 		assert(os.execute('./n9a.lua r "'..basepath:setext'n9'..'"'))
 	end
 
