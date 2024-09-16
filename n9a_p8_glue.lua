@@ -1,7 +1,6 @@
--- begin compat layer
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 p8color=6
-camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
+camx,camy=0,0
 textx,texty=0,0
 lastlinex,lastlieny=0,0
 resetmat=[]do
@@ -35,17 +34,6 @@ end
 p8_fillp=[p]nil
 p8_pal=[from,to,pal]do
 	if not from then
-		--[[ preserve transparency
-		pokel(palMem,   0x28a30000|(peekl(palMem   )&0x80008000))
-		pokel(palMem+4, 0x2a00288f|(peekl(palMem+4 )&0x80008000))
-		pokel(palMem+8, 0x254b1955|(peekl(palMem+8 )&0x80008000))
-		pokel(palMem+12,0x77df6318|(peekl(palMem+12)&0x80008000))
-		pokel(palMem+16,0x029f241f|(peekl(palMem+16)&0x80008000))
-		pokel(palMem+20,0x1b8013bf|(peekl(palMem+20)&0x80008000))
-		pokel(palMem+24,0x4dd07ea5|(peekl(palMem+24)&0x80008000))
-		pokel(palMem+28,0x573f55df|(peekl(palMem+28)&0x80008000))
-		--]]
-		-- [[ reset transparency too
 		pokel(palMem,   0xa8a30000)
 		pokel(palMem+4, 0xaa00a88f)
 		pokel(palMem+8, 0xa54b9955)
@@ -54,20 +42,13 @@ p8_pal=[from,to,pal]do
 		pokel(palMem+20,0x9b8093bf)
 		pokel(palMem+24,0xcdd0fea5)
 		pokel(palMem+28,0xd73fd5df)
-		--]]
 	elseif type(from)=='number' then
-		-- sometimes 'to' is nil ... default to zero?
 		to=tonumber(to) or 0
 if pal then trace"TODO pal(from,to,pal)" end
 		from=math.floor(from)
 		to=math.floor(to)
 		if from>=0 and from<16 and to>=0 and to<16 then
-			--[[ preserve transparency?
-			pokew(palMem+(to<<1),(peekw(palMem+32+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
-			--]]
-			-- [[
 			pokew(palMem+(to<<1),peekw(palMem+32+(from<<1)))
-			--]]
 		end
 	elseif type(from)=='table' then
 		pal=to
@@ -76,46 +57,70 @@ if pal then trace"TODO pal(map,pal)" end
 			from=math.floor(from)
 			to=math.floor(to)
 			if from>=0 and from<16 and to>=0 and to<16 then
-				--[[ preserve transparency?
-				pokew(palMem+(to<<1),(peekw(palMem+32+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
-				--]]
-				-- [[
 				pokew(palMem+(to<<1),peekw(palMem+32+(from<<1)))
-				--]]
 			end
 		end
 	else
 trace'pal idk'
 trace(type(from),type(to),type(pal))
 trace(from,to,pal)
-		-- I think these just return?
 	end
 end
-p8_getTransparency=[c,t]do
+p8_getpalt=[c,t]do
 	c=math.floor(c)
 assert(c >= 0 and c < 16)
 	return peekw(palMem+(c<<1))&0x8000~=0
 end
-p8_setTransparency=[c,t]do
+p8_setpalt=[c,t]do
 	c=math.floor(c)
 assert(c >= 0 and c < 16)
 	local addr=palMem+(c<<1)
 assert(type(t)=='boolean')
-	if t~=false then	-- true <-> transparent <-> clear alpha
+	if t~=false then
 		pokew(addr,peekw(addr)&0x7fff)
-	else	-- false <-> opaque <-> set alpha
+	else
 		pokew(addr,peekw(addr)|0x8000)
 	end
 end
 p8_palt=[...]do
 	local n=select('#',...)
 	if n<=1 then
-		local ts=math.floor(... or 0x0001)	-- bitfield of transparencies in reverse-order
+		local ts=math.floor(... or 0x0001)
 		for c=0,15 do
-			p8_setTransparency(c,ts&(1<<c)~=0)
+			p8_setpalt(c,ts&(1<<c)~=0)
 		end
 	elseif n==2 then
-		p8_setTransparency(...)
+		p8_setpalt(...)
+	end
+end
+p8peek=[addr]do
+	if addr>=0 and addr<0x2000 then
+		addr=((addr<<1)&0x003e)|((addr<<2)&0x3f00)
+		return (peek(gfxMem+addr)&0xf0)|((peek(gfxMem+addr+1)&0xf0)<<4)
+	--[[ fbo is 16bpp, that means we can't know the pal that wrote it
+	elseif addr>=0x6000 and addr<0x8000 then
+		addr-=0x6000
+		addr=(((addr<<1)&0x003e)|((addr<<2)&0x3f00))
+		return (peek(fbMem+addr)&0xf0)|((peek(gfxMem+addr+1)&0xf0)<<4)
+	--]]
+	elseif addr>=0x2000 and addr<0x3000 then
+		local value = peekw(mapMem+((addr-0x2000)<<1))
+		return (value&0x0f)|((value>>1)&0xf0)
+	end
+trace(('TODO peek $%x'):format(addr))
+	return 0
+end
+p8poke=[addr,value]do
+	if addr>=0x2000 and addr<0x3000 then
+		pokew(mapMem+((addr-0x2000)<<1),(value&0xf)|((value<<1)&0x1e0))
+	--[[
+	elseif addr>=0x6000 and addr<0x8000 then
+		addr-=0x6000
+		addr=(((addr<<1)&0x003e)|((addr<<2)&0x3f00))
+		return (peek(gfxMem+addr)&0xf0)|((peek(gfxMem+addr+1)&0xf0)<<4)
+	--]]
+	else
+trace(('TODO poke $%x $%x'):format(addr, value))
 	end
 end
 setfenv(1, {
@@ -195,7 +200,7 @@ setfenv(1, {
 		pokew(fbMem+((x|(y<<8))<<1),peekw(palMem+(col<<1)))
 	end,
 	rect=[x0,y0,x1,y1,col]do
-		col=col or p8color	-- TODO `or=` operator for logical-inplace-or?
+		col=col or p8color
 		rectb(x0,y0,x1-x0+1,y1-y0+1,col)
 	end,
 	rectfill=[x0,y0,x1,y1,col]do
@@ -287,8 +292,7 @@ setfenv(1, {
 		end
 		local b,pl=...
 		b=math.floor(b)
-		-- TODO if pl is not player-1 (0? idk?) then return
-		--if pl then pl=math.floor(pl) end
+		if pl then pl=math.floor(pl) end
 		local pb=p8ton9btnmap[b]
 		if pb then return btn(pb) end
 		error'here'
@@ -298,10 +302,6 @@ setfenv(1, {
 		if not pb then return end
 		return btnp(pb, ...)
 	end,
-	-- TODO this but in a section of RAM where I copy the sprite-flags
-	-- TODO shouldn't all script variables be located in RAM
-	-- TODO TODO am I turning this into an emulator?
-	-- TODO TODO TODO can I implement Lua in SNES?
 	fget=[...]do
 		local i, f
 		local n=select('#',...)
@@ -349,7 +349,6 @@ assert(i>=0 and i<256)
 			error'here'
 		end
 	end,
-	-- TODO sget/sset and spriteTex.dirtyCPU
 	mget=[x,y]do
 		x=math.floor(x)
 		y=math.floor(y)
@@ -362,7 +361,6 @@ assert(i>=0 and i<256)
 		mset(x,y,(i&0xf)|((i&0xf0)<<1))
 	end,
 	map=[tileX,tileY,screenX,screenY,tileW,tileH,layers]do
---trace('map', 	tileX,tileY,screenX,screenY,tileW,tileH,layers)
 		tileX=math.floor(tileX)
 		tileY=math.floor(tileY)
 		tileW=math.floor(tileW or 1)
@@ -370,27 +368,13 @@ assert(i>=0 and i<256)
 		screenX=math.floor(screenX or 0)
 		screenY=math.floor(screenY or 0)
 
--- [=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
 		if not layers then
 			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
 		end
---]=]
-
-		-- manually do some clipping to my tile hunting bounds
-		-- this improves fps by 100x or so
-		-- idk if I should bother have a typical map() call do this bounds testing because it's all handled in hardware anyways
-
-		-- manually hunt through the tilemap,
-		-- get the tile,
-		-- get the sprFlags of the tile
-		-- if they intersect (all? any?) then draw this sprite
-		-- this drops the fps from 5000 down to 30 ... smh
-		-- then I add some bounds testing and it goes back up to 3000
 
 		local camScreenX=math.floor(screenX-camx)
 		local camScreenY=math.floor(screenY-camy)
 
-		-- [[
 		if camScreenX+8<0 then
 			local shift=(-8-camScreenX)>>3
 assert(shift>=0)
@@ -407,9 +391,7 @@ assert(shift>=0)
 			tileY+=shift
 			tileH-=shift
 		end
-		--]]
 
-		-- [[
 		if camScreenX+(tileW<<3) > 128 then
 			local shift=(camScreenX+(tileW<<3) - 128)>>3
 assert(shift>=0)
@@ -420,8 +402,7 @@ assert(shift>=0)
 assert(shift>=0)
 			tileH-=shift
 		end
-		--]]
-		-- [[
+
 		if tileX<0 then
 			local shift=-tileX
 			tileX=0
@@ -434,14 +415,10 @@ assert(shift>=0)
 			tileH-=shift
 			screenY-=shift>>3
 		end
-		--]]
-		-- [[
 		if tileW<=0 or tileH<=0 then return end
 		if tileW>127-tileX then tileW=127-tileX end
 		if tileH>127-tileY then tileH=127-tileY end
-		--]]
 
-		-- [[
 		if camScreenX>128
 		or camScreenY>128
 		or camScreenX+tileW*8+128 <= 0
@@ -449,7 +426,6 @@ assert(shift>=0)
 		then
 			return
 		end
-		--]]
 
 		local ssy=screenY
 		for ty=tileY,tileY+tileH-1 do
@@ -484,8 +460,8 @@ assert(shift>=0)
 		destW = destW or sheetW
 		destH = destH or sheetH
 		if flipX then
---			destX+=sheetW	-- shouldn't be done -- causes skipping of sprites
-			sheetX+=sheetW	-- I can't tell if it's wrong or not
+--			destX+=sheetW
+			sheetX+=sheetW
 			sheetW=-sheetW
 		end
 		if flipY then
@@ -504,64 +480,27 @@ assert(shift>=0)
 	menuitem=[]trace'TODO menuitem',
 
 	run=run,
-	-- does reset() reset the game as well? or just the cam clip pal fillp state?
 	reset=[]do
-trace'reset'
 		p8_camera()
 		p8_clip()
 		p8_pal()
 		p8_fillp(0)
 	end,
 
-	music=[]nil,	-- TODO
-	sfx=[]nil,		-- TODO
+	music=[]nil,
+	sfx=[]nil,
 
 	reload=[dst,src,len]do
 trace'TODO reload'
 	end,
-	memcpy=[dst,src,len]do
-trace(('TODO memcpy $%x $%x $%x'):format(dst,src,len))
+	cstore=[dst,src,len]do
+trace'TODO cstore'
 	end,
-	memset=[dst,val,len]do
-trace(('TODO memset $%x $%x $%x'):format(dst,val,len))
-	end,
-	peek=[addr]do
-		if addr>=0 and addr<0x2000 then
---[[
-pico8 memory from 0..0x1000 is spritesheet 128x64
-from 0x1000..0x2000 is shared spritesheet/tilemap 128x64
-so the spritesheet gets 128x128 contiguous memory
-pico8 x 0..128 = addrs 0..63 / bits 0..5 = numo9 addrs be 0..127 (bits 1..6) for me, i'm reading two peeks into its one.
-pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
+	memcpy=[dst,src,len]do for i=0,len-1 do p8poke(dst+i,p8peek(src+i)) end end,
+	memset=[dst,val,len]do for i=0,len-1 do p8poke(dst+i,val) end end,
+	peek=p8peek,
+	poke=p8poke,
 
-pico8 ram[0]	= vram[1,0]:[0,0]		<=> numo9 vram[1,0]:[0,0]		= ram[1]:ram[0]
-pico8 ram[1]	= vram[3,0]:[2,0]		<=> numo9 vram[2,0]:[3,0]		= ram[3]:ram[2]
-pico8 ram[63]	= vram[127,0]:[126,0]	<=> numo9 vram[127,0]:[126,0]	= ram[127]:ram[126]
-
-pico8 ram[64]	= vram[1,1]:[0,1]		<=> numo9 vram[1,1]:[0,1]		= ram[257]:ram[256]
---]]
-			addr=((addr<<1)&0x003e)		-- shift bits 0..5 << 1
-				|((addr<<2)&0x3f00)		-- shift bits 6..12 << 2
-			return (peek(gfxMem+addr)&0xf0)
-				|((peek(gfxMem+addr+1)&0xf0)<<4)
-		elseif addr>=0x6000 and addr<0x8000 then
---[[
-pico8 memory from $6000 to $8000 is the 4bpp screen
---]]
-			addr-=0x6000
-			addr=((addr<<1)&0x003e)		-- shift bits 0..5 << 1
-				|((addr<<2)&0x3f00)		-- shift bits 6..12 << 2
-			addr+=0x6000
-			return (peek(gfxMem+addr)&0xf0)
-				|((peek(gfxMem+addr+1)&0xf0)<<4)
-		end
-trace(('TODO peek $%x'):format(addr))
-		return 0
-	end,
-	poke=[addr,value]do
-trace(('TODO poke $%x $%x'):format(addr, value))
-	end,
-	-- persistent data:
 	cartdata=[]nil,
 	dget=[]nil,
 	dset=[]nil,
@@ -569,12 +508,11 @@ trace(('TODO poke $%x $%x'):format(addr, value))
 
 	__numo9_finished=[_init, _update, _update60, _draw]do
 		_init()
-		-- pico8 needs a draw before any updates
 		if _update then _update() end
 		if _update60 then _update60() end
 		update=[]do
 			if _update
-			and peek(updateCounterMem)&1==0  -- run at 30fps
+			and peek(updateCounterMem)&1==0
 			then
 				_update()
 			end

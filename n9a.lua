@@ -570,6 +570,13 @@ print('toImage', name, 'width', width, 'height', height)
 	end):concat'\n'
 	--]]
 
+	local function minify(code)
+		-- save some space ... TODO by running it through the langfix parser
+		-- TODO that means moving langfix parser into the open ...
+		-- return tostring(require 'parser'.parse(code))
+		return code 
+	end
+
 	-- now add our glue between APIs ...
 	code = table{
 		spriteFlagCode,
@@ -578,9 +585,10 @@ print('toImage', name, 'width', width, 'height', height)
 		-- some glue code needs this, might as well generate it dynamically here:
 		('updateCounterMem=0x%06x'):format(ffi.offsetof('RAM', 'updateCounter')),
 		('gfxMem=0x%06x'):format(ffi.offsetof('RAM', 'spriteSheet')),
+		('mapMem=0x%06x'):format(ffi.offsetof('RAM', 'tilemap')),
 		('palMem=0x%06x'):format(ffi.offsetof('RAM', 'palette')),
 		('fbMem=0x%06x'):format(ffi.offsetof('RAM', 'framebuffer')),
-		assert(path'n9a_p8_glue.lua':read()),
+		minify(assert(path'n9a_p8_glue.lua':read())),
 		'-- end compat layer',
 		code,
 		-- if this one global seems like a bad idea, I can always just wrap the whole thing in a function , then setfenv on the function env, and then have the function return the _init and _update (to call and set)
