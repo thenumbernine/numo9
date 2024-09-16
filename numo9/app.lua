@@ -2460,12 +2460,6 @@ function App:event(e)
 	then
 		local down = e[0].type == sdl.SDL_KEYDOWN
 		local sdlsym = e[0].key.keysym.sym
-		local uiMod
-		if ffi.os == 'OSX' then	-- have to be the weird ones
-			uiMod = bit.band(e[0].key.keysym.mod, sdl.KMOD_GUI) ~= 0
-		else
-			uiMod = bit.band(e[0].key.keysym.mod, sdl.KMOD_CTRL) ~= 0
-		end
 		if down and sdlsym == sdl.SDLK_ESCAPE then
 			-- special handle the escape key
 			-- game -> escape -> console
@@ -2488,11 +2482,6 @@ function App:event(e)
 					self.con:reset()
 				end
 			end)
-		elseif down and sdlsym == sdl.SDLK_c and uiMod then
-			-- copy selection
-		elseif down and sdlsym == sdl.SDLK_v and uiMod then
-			-- paste selection
-			-- hmm ... upon reading further on image clipboard cross platform support, maybe not.
 		else
 			local keycode = sdlSymToKeyCode[sdlsym]
 			if keycode then

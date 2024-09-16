@@ -1,10 +1,12 @@
 --[[
 This will be the code editor
 --]]
+local ffi = require 'ffi'
 local sdl = require 'sdl'
 local table = require 'ext.table'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
+local clip = require 'clip'	-- clipboard support
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
@@ -192,8 +194,6 @@ function EditCode:update()
 
 	-- handle mouse
 
-	local shift = app:key'lshift' or app:key'rshift'
-
 	-- find cursor - do this before we start selection
 	if leftButtonDown
 	then
@@ -210,9 +210,7 @@ function EditCode:update()
 		end
 	end
 
-	if leftButtonPress
-	--or shift	-- TODO shift+keys = keyboard selection
-	then
+	if leftButtonPress then
 		self.selctDownLoc = nil
 		self.selectCurLoc = nil
 		self.selectStart = nil
@@ -230,10 +228,39 @@ function EditCode:update()
 
 	-- handle keyboard
 
+	local shift = app:key'lshift' or app:key'rshift'
+	local uikey
+	if ffi.os == 'OSX' then
+		uikey = app:key'lgui' or app:key'rgui'
+	else
+		uikey = app:key'lctrl' or app:key'rctrl'
+	end
 	for keycode=0,#keyCodeNames-1 do
 		if app:keyp(keycode,30,5) then
 			local ch = getAsciiForKeyCode(keycode, shift)
-			if ch then
+
+			if uikey and keycode == keyCodeForName.x then	-- cut
+				if self.selectStart then
+					local sel = self.text:sub(self.selectStart, self.selectEnd-1)
+					clip.text(sel)
+					self:deleteSelection()
+					self:refreshNewlines()
+					self:refreshCursorColRowForLoc()
+				end
+			elseif uikey and keycode == keyCodeForName.c then -- copy
+				if self.selectStart then
+					local sel = self.text:sub(self.selectStart, self.selectEnd-1)
+					clip.text(sel)
+				end
+			elseif uikey and keycode == keyCodeForName.v then -- paste
+				self:deleteSelection()
+				local paste = clip.text()
+				if paste then
+					self.text = self.text:sub(1, self.cursorLoc-1)..paste..self.text:sub(self.cursorLoc)
+				end
+				self:refreshNewlines()
+				self:refreshCursorColRowForLoc()
+			elseif ch then
 				self:addCharToText(ch)
 			elseif keycode == keyCodeForName['return'] then
 				self:addCharToText(('\n'):byte())
@@ -264,19 +291,26 @@ function EditCode:update()
 	end
 end
 
+-- be sure to call self:refreshNewlines() and self:refreshCursorColRowForLoc() afterwards...
+function EditCode:deleteSelection()
+	if not self.selectStart then return end
+
+	self.text = self.text:sub(1, self.selectStart-1)..self.text:sub(self.selectEnd)
+	if self.cursorLoc >= self.selectStart and self.cursorLoc < self.selectEnd then
+		self.cursorLoc = self.selectStart
+	elseif self.cursorLoc >= self.selectEnd then
+		self.cursorLoc = self.cursorLoc - (self.selectEnd - self.selectStart)
+	end
+	self.selectStart = nil
+	self.selectEnd = nil
+	self.selectDownLoc = nil
+	self.selectCurLoc = nil
+end
+
 function EditCode:addCharToText(ch)
 	-- if we have selection then delete it
 	if self.selectStart then
-		self.text = self.text:sub(1, self.selectStart-1)..self.text:sub(self.selectEnd)
-		if self.cursorLoc >= self.selectStart and self.cursorLoc < self.selectEnd then
-			self.cursorLoc = self.selectStart
-		elseif self.cursorLoc >= self.selectEnd then
-			self.cursorLoc = self.cursorLoc - (self.selectEnd - self.selectStart)
-		end
-		self.selectStart = nil
-		self.selectEnd = nil
-		self.selectDownLoc = nil
-		self.selectCurLoc = nil
+		self:deleteSelection()
 
 		-- and if we're pressing backspace on selection then quit while you're ahead
 		if ch == 8 then ch = nil end

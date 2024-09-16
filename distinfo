@@ -39,6 +39,7 @@ files = {
 		'parser',	-- needed by langfix
 		'matrix',
 		'sdl',
+		'clip',
 	},
 }
 
@@ -47,13 +48,16 @@ luajitLibs = {
 	win = {
 		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
 		'SDL2',
+		'clip',
 	},
 	linux = {
 		'png',			-- /usr/lib/x86_64-linux-gnu/libpng16.so.16.39.0
 		'SDL2',			-- /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.2600.3
+		'clip',
 	},
 	osx = {
 		'png',
 		'SDL2',
+		'clip',
 	},
 }
