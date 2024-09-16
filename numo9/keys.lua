@@ -85,8 +85,9 @@ local keyCodeNames = table{
 	
 	-- function keys too?
 
-	-- keypad too?
 --]]
+	-- keypad too?
+	-- NOTICE these would be virtual, and wouldn't map to the SDLK_whatever like everything above this line does
 }
 
 --[[ print out the table for the readme

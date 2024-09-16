@@ -2390,7 +2390,7 @@ end
 -- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
 -- fun fact, SNES's keys in-order are:
 -- B Y Sel Start Up Down Left Right A X L R
-local keyForButton = {
+local keyCodeForButtonIndex = {
 	-- player 1
 	[0] = keyCodeForName.up,		-- UP
 	[1] = keyCodeForName.down,		-- DOWN
@@ -2403,16 +2403,20 @@ local keyForButton = {
 	-- TODO player 2 player 3 player 4 ...
 	-- L R? start select?  or nah? or just one global menu button?
 }
+local buttonIndexForKeyCode = table.map(keyCodeForButtonIndex, function(keyCode, buttonIndex)
+	return buttonIndex, keyCode
+end):setmetatable(nil)
 
 -- TODO named support just like key() keyp() keyr()
+-- double TODO - just use key/p/r, and just use extra flags
 function App:btn(buttonCode, ...)
-	return self:key(keyForButton[buttonCode], ...)
+	return self:key(keyCodeForButtonIndex[buttonCode], ...)
 end
 function App:btnp(buttonCode, ...)
-	return self:keyp(keyForButton[buttonCode], ...)
+	return self:keyp(keyCodeForButtonIndex[buttonCode], ...)
 end
 function App:btnr(buttonCode, ...)
-	return self:keyr(keyForButton[buttonCode], ...)
+	return self:keyr(keyCodeForButtonIndex[buttonCode], ...)
 end
 
 function App:mouse()
@@ -2502,6 +2506,14 @@ function App:event(e)
 					down and bit.lshift(1, bi) or 0
 				)
 			end
+
+			--[[
+			-- Keys can have multiple bindings - both to keys and to joypad buttons
+			-- TODO also handle them in other events like SDL_BUTTONDOWN
+			local buttonCode = buttonForKeyCode[keycode]
+			if buttonCode then
+			end
+			--]]
 		end
 	end
 end

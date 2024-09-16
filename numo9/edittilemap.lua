@@ -26,6 +26,7 @@ end
 function EditTilemap:update()
 	local app = self.app
 
+	-- TODO really merge mouse and virtual-joystick with the keyboard and key/p/r api
 	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
 	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown

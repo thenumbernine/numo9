@@ -26,6 +26,8 @@ function EditCode:init(args)
 
 	-- text cursor loc
 	self.cursorLoc = 1
+	--self.selectStart = 0
+	--self.selectEnd = 0
 	self.editLineOffset = 0
 	self:setText''
 end
@@ -69,6 +71,13 @@ end
 function EditCode:update()
 	local app = self.app
 
+	-- TODO really merge mouse and virtual-joystick with the keyboard and key/p/r api
+	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
+	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+	local leftButtonPress = leftButtonDown and not leftButtonLastDown
+	local leftButtonRelease = not leftButtonDown and leftButtonLastDown
+	local mouseX, mouseY = app.mousePos:unpack()
+
 	EditCode.super.update(self)
 
 	-- ui controls
@@ -79,9 +88,10 @@ function EditCode:update()
 
 	-- clear the background
 
+	local textareaY = spriteSize.y
 	app:drawSolidRect(
 		0,
-		spriteSize.y,
+		textareaY,
 		frameBufferSize.x,
 		frameBufferSize.y - 2 * spriteSize.y,
 		self:color(8)
@@ -89,10 +99,13 @@ function EditCode:update()
 
 	-- add text
 
-	local textareaX = 0
+	local textareaX = 0	-- offset into textarea where we start drawing text
 	if self.useLineNumbers then
 		for y=1,frameBufferSizeInTiles.y-2 do
-			if y >= #self.newlines-1 then break end
+			if y + self.editLineOffset < 1
+			or y + self.editLineOffset >= #self.newlines-1
+			then break end
+
 			local i = self.newlines[y + self.editLineOffset] + 1
 			local j = self.newlines[y + self.editLineOffset + 1]
 			textareaX = math.max(textareaX, self:drawText(
@@ -106,7 +119,10 @@ function EditCode:update()
 		textareaX = textareaX + 2
 	end
 	for y=1,frameBufferSizeInTiles.y-2 do
-		if y >= #self.newlines-1 then break end
+		if y + self.editLineOffset < 1
+		or y + self.editLineOffset >= #self.newlines-1
+		then break end
+
 		local i = self.newlines[y + self.editLineOffset] + 1
 		local j = self.newlines[y + self.editLineOffset + 1]
 		self:drawText(
@@ -147,9 +163,35 @@ function EditCode:update()
 		self:color(1)
 	)
 
-	-- handle input
+	-- handle mouse
 
 	local shift = app:key'lshift' or app:key'rshift'
+
+	if leftButtonDown
+	then
+		-- find cursor
+		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1+self.editLineOffset
+		if y + self.editLineOffset >= 1
+		and y + self.editLineOffset < #self.newlines-1
+		then
+			local i = self.newlines[y + self.editLineOffset] + 1
+			local j = self.newlines[y + self.editLineOffset + 1]
+			local x = math.floor((mouseX-textareaX)/fontWidth) + i
+			x = math.clamp(x, i,j)	-- TODO add scrolling left/right, and consider the offset here
+			self.cursorLoc = x
+			self:refreshCursorColRowForLoc()	-- just in case?
+		end
+	end
+
+	if leftButtonPress
+	--or shift	-- TODO
+	then
+		self.selectStart = self.cursorLoc
+	end
+
+
+	-- handle keyboard
+
 	for keycode=0,#keyCodeNames-1 do
 		if app:keyp(keycode,30,5) then
 			local ch = getAsciiForKeyCode(keycode, shift)
