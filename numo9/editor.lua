@@ -174,16 +174,7 @@ and assume whatever's in .cartridge is stale.
 --]]
 function Editor:gainFocus()
 	local app = self.app
---[[
-print('gaining focus')
-print('editCode text')
-print(require 'template.showcode'(app.editCode.text))
-print('cartridge text')
-print(require 'template.showcode'(ffi.string(app.cartridge.code)))
-print('ram text')
-print(require 'template.showcode'(ffi.string(app.ram.code)))
---]]
-
+	
 	-- copy cartridge everything into RAM (where it'll be edited & the engine can live-update the edits)
 	ffi.copy(app.ram, app.cartridge, ffi.sizeof'ROM')
 	
