@@ -560,7 +560,6 @@ print('package.loaded', package.loaded)
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
-	self.env.spriteMem = self.spriteTex.image.buffer
 
 	self.tileTex = self:makeTexFromImage{
 		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
@@ -568,7 +567,6 @@ print('package.loaded', package.loaded)
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
 	}
-	self.env.tileMem = self.tileTex.image.buffer
 
 	--[[
 	16bpp ...
@@ -586,7 +584,6 @@ print('package.loaded', package.loaded)
 		type = gl.GL_UNSIGNED_SHORT,
 	}
 	self.mapMem = self.mapTex.image.buffer
-	self.env.mapMem = self.mapMem
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = self:makeTexFromImage{
@@ -595,7 +592,6 @@ print('package.loaded', package.loaded)
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
 	}
-	self.env.palMem = self.palTex.image.buffer
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	local fbMask = bit.lshift(1, ffi.sizeof(frameBufferType)) - 1
@@ -1389,6 +1385,7 @@ end
 function App:resetGFX()
 	--self.spriteTex:prepForCPU()
 	require 'numo9.resetgfx'.resetFont(self.ram)
+	-- TODO maybe, just set 'dirtyGPU' and track that or something ...
 	self.spriteTex:bind()
 		:subimage()
 		:unbind()
@@ -1430,6 +1427,11 @@ glreport'here'
 	}:unbind()
 	-- TODO move this store command to gl.tex2d ctor if .image is used?
 	tex.image = image
+
+	-- TODO gonna subclass this soon ...
+	local app = self
+	function tex:checkDirtyCPU()
+	end
 glreport'here'
 
 	return tex
@@ -1557,22 +1559,6 @@ print('no runnable focus!')
 	... though honestly, i'm getting 5k fps with and without my per-frame-gpu-uploads ...
 		I'm suspicious that doing a few extra GPU uploads here before and after sceneObj:draw()  might not make a difference...
 	--]]
-		--[=[
-		-- TODO if any's dirtyCPU is set then subimage it
-		--if self.spriteSheetDirtyCPU then
-		self.spriteTex:bind()
-			:subimage()
-			:unbind()
-		--	self.spriteSheetDirtyCPU = false
-		--end
-		--if self.tileSheetDirtyCPU then
-		self.tileTex:bind()
-			:subimage()
-			:unbind()
-		--	self.tileSheetDirtyCPU = false
-		--end
-		--]=]
-
 		-- increment hold counters
 		-- TODO do this here or before update() ?
 		do
@@ -1691,7 +1677,7 @@ function App:poke(addr, value)
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if addr >= framebufferAddr
-	and addr < framebufferInBytes
+	and addr < framebufferAddr + framebufferInBytes
 	and self.fbTex.dirtyGPU
 	then
 		assert(not self.fbTex.dirtyCPU)
@@ -1705,12 +1691,16 @@ function App:poke(addr, value)
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
 	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
-	if addr >= spriteSheetAddr and addr < spriteSheetInBytes then
-print'dirtying spritesheet'
+	if addr >= spriteSheetAddr
+	and addr < spriteSheetAddr + spriteSheetInBytes
+	then
+		self.spriteTex.dirtyCPU = true
 	end
 	-- if we poked the tilesheet
-	if addr >= tileSheetAddr and addr < tileSheetInBytes then
-print'dirtying tilesheet'
+	if addr >= tileSheetAddr
+	and addr < tileSheetAddr + tileSheetInBytes
+	then
+		self.tileTex.dirtyCPU = true
 	end
 	-- if we poked the tilemap
 	if addr >= tilemapAddr
@@ -1742,7 +1732,7 @@ function App:pokew(addr, value)
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if addr >= framebufferAddr-1
-	and addr < framebufferInBytes
+	and addr < framebufferAddr + framebufferInBytes
 	and self.fbTex.dirtyGPU
 	then
 		assert(not self.fbTex.dirtyCPU)
@@ -1754,7 +1744,17 @@ function App:pokew(addr, value)
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
 
 	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
+	if addr >= spriteSheetAddr-1
+	and addr < spriteSheetAddr + spriteSheetInBytes
+	then
+		self.spriteTex.dirtyCPU = true
+	end
 	-- if we poked the tilesheet
+	if addr >= tileSheetAddr-1
+	and addr < tileSheetAddr + tileSheetInBytes
+	then
+		self.tileTex.dirtyCPU = true
+	end
 	-- if we poked the tilemap
 	if addr >= tilemapAddr-1
 	and addr < tilemapAddr + tilemapInBytes
@@ -1770,7 +1770,7 @@ function App:pokew(addr, value)
 	-- if we poked the code
 	-- if we poked the framebuffer
 	if addr >= framebufferAddr-1
-	and addr < framebufferInBytes + framebufferInBytes
+	and addr < framebufferAddr + framebufferInBytes + framebufferInBytes
 	then
 		self.fbTex.dirtyCPU = false
 	end
@@ -1781,7 +1781,7 @@ function App:pokel(addr, value)
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if addr >= framebufferAddr-3
-	and addr < framebufferInBytes
+	and addr < framebufferAddr + framebufferInBytes
 	and self.fbTex.dirtyGPU
 	then
 		assert(not self.fbTex.dirtyCPU)
@@ -1793,7 +1793,17 @@ function App:pokel(addr, value)
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
 
 	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
+	if addr >= spriteSheetAddr-3
+	and addr < spriteSheetAddr + spriteSheetInBytes
+	then
+		self.spriteTex.dirtyCPU = true
+	end
 	-- if we poked the tilesheet
+	if addr >= tileSheetAddr-3
+	and addr < tileSheetAddr + tileSheetInBytes
+	then
+		self.tileTex.dirtyCPU = true
+	end
 	-- if we poked the tilemap
 	if addr >= tilemapAddr-3
 	and addr < tilemapAddr + tilemapInBytes
@@ -1815,6 +1825,29 @@ function App:pokel(addr, value)
 	end
 end
 
+-- assumes it is being called from within the render loop
+function App:checkSpriteDirtyCPU()
+	if self.spriteTex.dirtyCPU then
+		assert(not self.spriteTex.dirtyGPU)
+		self.fb:unbind()
+		self.spriteTex:bind()
+			:subimage()
+			:unbind()
+		self.fb:bind()
+		self.spriteTex.dirtyCPU = false
+	end
+end
+function App:checkTilesDirtyCPU()
+	if self.tileTex.dirtyCPU then
+		assert(not self.tileTex.dirtyGPU)
+		self.fb:unbind()
+		self.tileTex:bind()
+			:subimage()
+			:unbind()
+		self.fb:bind()
+		self.tileTex.dirtyCPU = false
+	end
+end
 function App:checkPalDirtyCPU()
 	if self.palTex.dirtyCPU then
 		assert(not self.palTex.dirtyGPU)
@@ -1940,6 +1973,7 @@ function App:drawQuad(
 	spriteBit,
 	spriteMask
 )
+	self:checkSpriteDirtyCPU()
 	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	self:checkFramebufferDirtyCPU()
 
@@ -1993,8 +2027,9 @@ function App:drawSprite(
 	scaleX,
 	scaleY
 )
-	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
-	self:checkFramebufferDirtyCPU()
+	self:checkSpriteDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
+	self:checkPalDirtyCPU() 			-- before any GPU op that uses palette, make sure we have the most update copy
+	self:checkFramebufferDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 
 	spritesWide = spritesWide or 1
 	spritesHigh = spritesHigh or 1
@@ -2045,6 +2080,7 @@ function App:drawMap(
 	screenY,
 	mapIndexOffset
 )
+	self:checkTilesDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
 	self:checkMapDirtyCPU()
 	self:checkFramebufferDirtyCPU()
@@ -2235,13 +2271,18 @@ function App:resetROM()
 	self.spriteTex:bind()
 		:subimage()
 		:unbind()
+	self.spriteTex.dirtyCPU = false
+
 	self.tileTex:bind()
 		:subimage()
 		:unbind()
+	self.tileTex.dirtyCPU = false
+
 	self.mapTex:bind()
 		:subimage()
 		:unbind()
 	self.mapTex.dirtyCPU = false
+
 	self.palTex:bind()
 		:subimage()
 		:unbind()
