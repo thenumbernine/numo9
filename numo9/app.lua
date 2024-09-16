@@ -1430,7 +1430,17 @@ glreport'here'
 
 	-- TODO gonna subclass this soon ...
 	local app = self
+	-- assumes it is being called from within the render loop
 	function tex:checkDirtyCPU()
+		if not app.spriteTex.dirtyCPU then return end
+		assert(not self.dirtyGPU)
+		local fb = app.fb
+		app.fb:unbind()
+		self:bind()
+			:subimage()
+			:unbind()
+		app.fb:bind()
+		self.dirtyCPU = false
 	end
 glreport'here'
 
@@ -1825,65 +1835,6 @@ function App:pokel(addr, value)
 	end
 end
 
--- assumes it is being called from within the render loop
-function App:checkSpriteDirtyCPU()
-	if self.spriteTex.dirtyCPU then
-		assert(not self.spriteTex.dirtyGPU)
-		self.fb:unbind()
-		self.spriteTex:bind()
-			:subimage()
-			:unbind()
-		self.fb:bind()
-		self.spriteTex.dirtyCPU = false
-	end
-end
-function App:checkTilesDirtyCPU()
-	if self.tileTex.dirtyCPU then
-		assert(not self.tileTex.dirtyGPU)
-		self.fb:unbind()
-		self.tileTex:bind()
-			:subimage()
-			:unbind()
-		self.fb:bind()
-		self.tileTex.dirtyCPU = false
-	end
-end
-function App:checkPalDirtyCPU()
-	if self.palTex.dirtyCPU then
-		assert(not self.palTex.dirtyGPU)
-		-- since the call is within the update render-to-fbTex section ...
-		self.fb:unbind()
-		self.palTex:bind()
-			:subimage()
-			:unbind()
-		self.fb:bind()
-		self.palTex.dirtyCPU = false
-	end
-end
-function App:checkMapDirtyCPU()
-	if self.mapTex.dirtyCPU then
-		assert(not self.mapTex.dirtyGPU)
-		self.fb:unbind()
-		self.mapTex:bind()
-			:subimage()
-			:unbind()
-		self.fb:bind()
-		self.mapTex.dirtyCPU = false
-	end
-end
-function App:checkFramebufferDirtyCPU()
-	if self.fbTex.dirtyCPU then
-		assert(not self.fbTex.dirtyGPU)
-		-- assume the framebuffer is already bound ...
-		self.fb:unbind()
-		self.fbTex:bind()
-			:subimage()
-			:unbind()
-		self.fb:bind()
-		self.fbTex.dirtyCPU = false
-	end
-end
-
 function App:drawSolidRect(
 	x,
 	y,
@@ -1893,8 +1844,8 @@ function App:drawSolidRect(
 	borderOnly,
 	round
 )
-	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
-	self:checkFramebufferDirtyCPU()
+	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.fbTex:checkDirtyCPU()
 
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
@@ -1923,8 +1874,8 @@ function App:drawBorderRect(
 end
 
 function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
-	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
-	self:checkFramebufferDirtyCPU()
+	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.fbTex:checkDirtyCPU()
 
 	local sceneObj = self.lineSolidObj
 	local uniforms = sceneObj.uniforms
@@ -1973,9 +1924,9 @@ function App:drawQuad(
 	spriteBit,
 	spriteMask
 )
-	self:checkSpriteDirtyCPU()
-	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
-	self:checkFramebufferDirtyCPU()
+	self.spriteTex:checkDirtyCPU()
+	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.fbTex:checkDirtyCPU()
 
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
@@ -2027,9 +1978,9 @@ function App:drawSprite(
 	scaleX,
 	scaleY
 )
-	self:checkSpriteDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
-	self:checkPalDirtyCPU() 			-- before any GPU op that uses palette, make sure we have the most update copy
-	self:checkFramebufferDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	self.spriteTex:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
+	self.palTex:checkDirtyCPU() 			-- before any GPU op that uses palette, make sure we have the most update copy
+	self.fbTex:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 
 	spritesWide = spritesWide or 1
 	spritesHigh = spritesHigh or 1
@@ -2080,10 +2031,10 @@ function App:drawMap(
 	screenY,
 	mapIndexOffset
 )
-	self:checkTilesDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
-	self:checkPalDirtyCPU() -- before any GPU op that uses palette...
-	self:checkMapDirtyCPU()
-	self:checkFramebufferDirtyCPU()
+	self.tileTex:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
+	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.mapTex:checkDirtyCPU()
+	self.fbTex:checkDirtyCPU()
 
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
