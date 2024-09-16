@@ -10,8 +10,8 @@ local getTime = require 'ext.timer'.getTime
 local vec2i = require 'vec-ffi.vec2i'
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
-local keyCodeForName = require 'numo9.keys'.keyCodeForName 
-local getAsciiForKeyCode = require 'numo9.keys'.getAsciiForKeyCode 
+local keyCodeForName = require 'numo9.keys'.keyCodeForName
+local getAsciiForKeyCode = require 'numo9.keys'.getAsciiForKeyCode
 
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
@@ -66,7 +66,7 @@ function Console:reset()
 	self.bgColor = 0xf0
 
 	self.prompt = '> '
-	self:write(app.fs.cwd:path()..self.prompt)
+	self:writePrompt()
 end
 
 function Console:runCmdBuf()
@@ -81,8 +81,8 @@ function Console:runCmdBuf()
 	cmd = cmd:gsub('^=', 'return ')
 
 	local success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
---[[ seems nice but has no direction 
---DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
+--[[ seems nice but has no direction
+--DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
 	-- if fails try wrapping arg2..N with quotes ...
 	-- TODO this or 'return ' first?
 	-- this one si good for console ...
@@ -94,7 +94,7 @@ function Console:runCmdBuf()
 			parts:sub(2):mapi(function(s) return (tolua(s)) end)
 		):concat' '
 		success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
---DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
+--DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
 	end
 	-- if fail then try appending a '()'
 	-- do this before prepending 'return ' so we don't return a function before we call it
@@ -112,10 +112,10 @@ function Console:runCmdBuf()
 	end
 --]]
 	if not success then
---DEBUG:print('runCmdBuf', cmd, 'got', success, msg)	
+--DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
 		self:print(tostring(msg))
 	end
-	self:write(app.fs.cwd:path()..self.prompt)
+	self:writePrompt()
 end
 
 -- should cursor be a 'app' property or an 'editor' property?
@@ -194,7 +194,7 @@ function Console:selectHistory(dx)
 	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
 	self.cursorPos.x = 0
 
-	self:write(self.app.fs.cwd:path()..self.prompt)
+	self:writePrompt()
 	self:write(self.cmdbuf)
 end
 
@@ -240,9 +240,18 @@ function Console:update()
 			elseif keycode == keyCodeForName.down then
 				self:selectHistory(1)
 			-- TODO left right to move the cursor
-			end		
+			end
 		end
 	end
+end
+
+function Console:writePrompt()
+	self:write(self.app.fs.cwd:path()..self.prompt)
+end
+
+function Console:gainFocus()
+	-- print the prompt
+	self:writePrompt()
 end
 
 return Console

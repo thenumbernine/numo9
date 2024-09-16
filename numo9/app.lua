@@ -147,7 +147,8 @@ local RAM = struct{
 				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ... lol the rom api ittself doesn't even have access to floats ...
 
 				-- timer
-				{name='updateCounter', type='uint32_t[1]'},
+				{name='updateCounter', type='uint32_t[1]'},	-- how many updates() overall, i.e. system clock
+				{name='romUpdateCounter', type='uint32_t[1]'},	-- how many updates() for the current ROM.  reset upon run()
 
 				-- keyboard
 
@@ -287,6 +288,7 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 	then these time constraints (or half of them for signed) will give you the maximum delta-time capable of being stored.
 	--]]
 	self.ram.updateCounter[0] = 0
+	self.ram.romUpdateCounter[0] = 0
 
 	-- TODO soooo tempting to treat 'app' as a global
 	-- It would cut down on *all* these glue functions
@@ -359,7 +361,9 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		end,
 
 		-- timer
-		time = function() return self.ram.updateCounter[0] * updateInterval end,
+		time = function()
+			return self.ram.romUpdateCounter[0] * updateInterval
+		end,
 
 		-- math
 		cos = math.cos,
@@ -1467,8 +1471,9 @@ function App:update()
 		-- TODO decrement to use framedrops
 		needUpdateCounter = 0
 
-		-- game tick increment
+		-- system update refresh timer
 		self.ram.updateCounter[0] = self.ram.updateCounter[0] + 1
+		self.ram.romUpdateCounter[0] = self.ram.romUpdateCounter[0] + 1
 
 		-- update input between frames
 		do
@@ -2283,6 +2288,8 @@ end
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
+	self.ram.romUpdateCounter[0] = 0
+
 	-- force editor to save changes to .cartridge and .ram
 	self:setFocus(self.con)
 
@@ -2333,6 +2340,10 @@ end
 
 function App:stop()
 	self:setFocus(self.con)
+
+	-- this is fine right? nobody is calling stop() from the main thread right?
+	-- I can assert that, but then it's an error, just like yield()'ing from main thread is an error so ...
+	coroutine.yield()
 end
 
 function App:keyForBuffer(keycode, buffer)
