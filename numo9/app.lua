@@ -2138,7 +2138,7 @@ function App:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		fgColorIndex,
 		scaleX,
 		scaleY
-	)
+	) - x0
 end
 
 -- save from cartridge to filesystem

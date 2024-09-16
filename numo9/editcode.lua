@@ -26,8 +26,8 @@ function EditCode:init(args)
 
 	-- text cursor loc
 	self.cursorLoc = 1
-	--self.selectStart = 0
-	--self.selectEnd = 0
+	--self.selectDownLoc = 0
+	--self.selectCurLoc = 0
 	self.editLineOffset = 0
 	self:setText''
 end
@@ -97,10 +97,11 @@ function EditCode:update()
 		self:color(8)
 	)
 
-	-- add text
+	-- draw text
 
 	local textareaX = 0	-- offset into textarea where we start drawing text
 	if self.useLineNumbers then
+		-- determine line number width while we draw line numbers
 		for y=1,frameBufferSizeInTiles.y-2 do
 			if y + self.editLineOffset < 1
 			or y + self.editLineOffset >= #self.newlines-1
@@ -108,11 +109,11 @@ function EditCode:update()
 
 			local i = self.newlines[y + self.editLineOffset] + 1
 			local j = self.newlines[y + self.editLineOffset + 1]
-			textareaX = math.max(textareaX, self:drawText(
+			textareaX = math.max(textareaX, app:drawText(
 				tostring(y + self.editLineOffset),
 				0,
 				y * spriteSize.y,
-				self:color(12),
+				0xfc,
 				-1
 			))
 		end
@@ -125,13 +126,39 @@ function EditCode:update()
 
 		local i = self.newlines[y + self.editLineOffset] + 1
 		local j = self.newlines[y + self.editLineOffset + 1]
-		self:drawText(
-			self.text:sub(i, j-1),
-			textareaX,
-			y * spriteSize.y,
-			self:color(12),
-			-1
-		)
+
+		local lineX = textareaX
+		local lineY = y * spriteSize.y
+		local selLineStart = math.clamp(self.selectStart and self.selectStart or (#self.text+1), i, j)
+		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (#self.text+1), i, j)
+
+		if selLineStart-1 >= i then
+			lineX = lineX + app:drawText(
+				self.text:sub(i, selLineStart-1),
+				lineX,
+				lineY,
+				0xfc,
+				-1
+			)
+		end
+		if selLineEnd-1 >= selLineStart then
+			lineX = lineX + app:drawText(
+				self.text:sub(selLineStart,selLineEnd-1),
+				lineX,
+				lineY,
+				0,
+				0xfc
+			)
+		end
+		if j-1 >= selLineEnd then
+			lineX = lineX + app:drawText(
+				self.text:sub(selLineEnd, j-1),
+				lineX,
+				lineY,
+				0xfc,
+				-1
+			)
+		end
 	end
 
 	if self.cursorRow < self.editLineOffset+1 then
@@ -155,21 +182,21 @@ function EditCode:update()
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
 	footer = footer .. (' '):rep(frameBufferSizeInTiles.x - #footer)
-	self:drawText(
+	app:drawText(
 		footer,
 		0,
 		frameBufferSize.y - spriteSize.y,
-		self:color(12),
-		self:color(1)
+		0xfc,
+		0xf1
 	)
 
 	-- handle mouse
 
 	local shift = app:key'lshift' or app:key'rshift'
 
+	-- find cursor - do this before we start selection
 	if leftButtonDown
 	then
-		-- find cursor
 		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1+self.editLineOffset
 		if y + self.editLineOffset >= 1
 		and y + self.editLineOffset < #self.newlines-1
@@ -184,11 +211,22 @@ function EditCode:update()
 	end
 
 	if leftButtonPress
-	--or shift	-- TODO
+	--or shift	-- TODO shift+keys = keyboard selection
 	then
-		self.selectStart = self.cursorLoc
-	end
+		self.selctDownLoc = nil
+		self.selectCurLoc = nil
+		self.selectStart = nil
+		self.selectEnd = nil
 
+		self.selectDownLoc = self.cursorLoc
+	end
+	if leftButtonDown then
+		if self.selectDownLoc then
+			self.selectCurLoc = self.cursorLoc
+			self.selectStart = math.min(self.selectDownLoc, self.selectCurLoc)
+			self.selectEnd = math.max(self.selectDownLoc, self.selectCurLoc)
+		end
+	end
 
 	-- handle keyboard
 
@@ -227,14 +265,34 @@ function EditCode:update()
 end
 
 function EditCode:addCharToText(ch)
-	if ch == slashRByte then ch = newlineByte end	-- store \n's instead of \r's
+	-- if we have selection then delete it
+	if self.selectStart then
+		self.text = self.text:sub(1, self.selectStart-1)..self.text:sub(self.selectEnd)
+		if self.cursorLoc >= self.selectStart and self.cursorLoc < self.selectEnd then
+			self.cursorLoc = self.selectStart
+		elseif self.cursorLoc >= self.selectEnd then
+			self.cursorLoc = self.cursorLoc - (self.selectEnd - self.selectStart)
+		end
+		self.selectStart = nil
+		self.selectEnd = nil
+		self.selectDownLoc = nil
+		self.selectCurLoc = nil
+
+		-- and if we're pressing backspace on selection then quit while you're ahead
+		if ch == 8 then ch = nil end
+	end
+
+	if ch == slashRByte then
+		ch = newlineByte	-- store \n's instead of \r's
+	end
 	if ch == 8 then
 		self.text = self.text:sub(1, self.cursorLoc - 2) .. self.text:sub(self.cursorLoc)
 		self.cursorLoc = math.max(1, self.cursorLoc - 1)
-	else
+	elseif ch then
 		self.text = self.text:sub(1, self.cursorLoc-1) .. string.char(ch) .. self.text:sub(self.cursorLoc)
 		self.cursorLoc = math.min(#self.text+1, self.cursorLoc + 1)
 	end
+
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
 end
