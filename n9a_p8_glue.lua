@@ -480,6 +480,7 @@ assert(shift>=0)
 	menuitem=[]trace'TODO menuitem',
 
 	run=run,
+	stop=stop,
 	reset=[]do
 		p8_camera()
 		p8_clip()

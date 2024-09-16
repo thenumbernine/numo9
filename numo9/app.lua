@@ -306,6 +306,7 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		trace = _G.print,
 
 		run = function(...) return self:runROM(...) end,
+		stop = function(...) return self:stop(...) end,
 		save = function(...) return self:save(...) end,
 		load = function(...) return self:load(...) end,
 		reset = function(...) return self:resetROM(...) end,
@@ -1276,8 +1277,8 @@ void main() {
 		self.con = Console{app=self}
 	end)
 
-	self.runFocus = self.con
-	--self.runFocus = self.editCode
+	self:setFocus(self.con)
+	--self:setFocus(self.editCode)
 
 	-- TODO copy over a local filetree somewhere in the app ...
 	for fn in path:dir() do
@@ -1495,6 +1496,7 @@ function App:update()
 
 		local fb = self.fb
 		fb:bind()
+		self.inUpdateCallback = true	-- tell 'runInEmu' not to set up the fb:bind() to do gfx stuff
 		gl.glViewport(0,0,frameBufferSize:unpack())
 		gl.glEnable(gl.GL_SCISSOR_TEST)
 		gl.glScissor(
@@ -1506,20 +1508,25 @@ function App:update()
 		-- TODO here run this only 60 fps
 		local runFocus = self.runFocus
 		if runFocus and runFocus.update then
-			local success, msg = xpcall(function()
-				runFocus:update()
-			end, errorHandler)
+			local success, msg = xpcall(
+				runFocus.update,
+				errorHandler,
+				runFocus	-- 1st arg <-> save us one extra lambda
+			)
 			if not success then
-				self.runFocus = self.con
 				print(msg)
+				self:setFocus(self.con)
+				-- TODO these errors are a good argument for scrollback console buffers
+				-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
 				self.con:print(msg)
 			end
 		else
 print('no runnable focus!')
-			self.runFocus = self.con
+			self:setFocus(self.con)
 		end
 
 		gl.glDisable(gl.GL_SCISSOR_TEST)
+		self.inUpdateCallback = false
 		fb:unbind()
 
 		-- update vram to gpu every frame?
@@ -2129,6 +2136,7 @@ function App:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 	)
 end
 
+-- save from cartridge to filesystem
 function App:save(filename)
 
 	local n = #self.editCode.text
@@ -2144,10 +2152,15 @@ function App:save(filename)
 	local basemsg = 'failed to save file '..tostring(filename)
 
 	-- TODO xpcall?
-	local success, s = xpcall(function()
-		return require 'numo9.archive'.toCartImage(self.ram.v)
-	end, errorHandler)
-	if not success then return nil, basemsg..(s or '') end
+	local toCartImage = require 'numo9.archive'.toCartImage
+	local success, s = xpcall(
+		toCartImage,
+		errorHandler,
+		self.ram.v
+	)
+	if not success then
+		return nil, basemsg..(s or '')
+	end
 
 	-- [[ do I bother implement fs:open'w' ?
 	local f, msg = self.fs:create(filename)
@@ -2165,6 +2178,15 @@ function App:save(filename)
 	return true
 end
 
+--[[
+Load from filesystem to cartridge
+then call resetROM which loads
+TODO maybe ... have the editor modify the cartridge copy as well
+(this means it wouldn't live-update palettes and sprites, since they are gathered from RAM 
+	... unless I constantly copy changes across as the user edits ... maybe that's best ...)
+(or it would mean upon entering editor to copy the cartridge back into RAM, then edit as usual (live updates on palette and sprites)
+	and then when done editing, copy back from RAM to cartridge)
+--]]
 function App:load(filename)
 	filename = filename or defaultSaveFilename
 	local basemsg = 'failed to load file '..tostring(filename)
@@ -2187,23 +2209,21 @@ function App:load(filename)
 	if not d then return nil, basemsg..(msg or '') end
 
 	-- [[ TODO image stuck reading and writing to disk, FIXME
-	local romStr = require 'numo9.archive'.fromCartImage(d)
+	local fromCartImage = require 'numo9.archive'.fromCartImage
+	local romStr = fromCartImage(d)
 	assertlen(romStr, ffi.sizeof'ROM')
 	ffi.copy(self.cartridge.v, romStr, ffi.sizeof'ROM')
 	self:resetROM()
 end
 
 --[[
-This resets *everything* from the last loaded cartridge ROM into RAM
+This resets everything from the last loaded .cartridge ROM into .ram
 Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
-	local code = ffi.string(self.ram.code, self.codeSize)	-- TODO max size on this ...
-	local i = code:find('\0', 1, true)
-	if i then code = code:sub(1, i-1) end
-	self.editCode:setText(code)
+	
 	self.cartridgeName = filename	-- TODO display this somewhere
 
 	-- TODO more dirty flags
@@ -2257,18 +2277,10 @@ end
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
+	-- force editor to save changes to .cartridge and .ram
+	self:setFocus(self.con)
+
 	self:resetView()
-
-	-- TODO straighten this out
-	-- how about an runFocus gain and lose focus function
-	--  then for editcode, gainfucos copies the code from cart to .text
-	--  and then let 'cartridge' have the definitive loaded content (not the virtual filesystem ... not the RAM ... how many copies of everything are we going to have?)
-	ffi.fill(self.cartridge.code, ffi.sizeof(self.cartridge.code))
-	ffi.copy(self.cartridge.code, self.editCode.text:sub(1,codeSize-1))
-	if self.cartridge.code[0] == 0 then return end
-
-	-- this will reset text also,
-	-- so make sure your editor text has been copied into .cartridge before :runROM()
 	self:resetROM()
 
 	-- TODO setfenv instead?
@@ -2299,8 +2311,23 @@ print('LOAD RESULT', result:unpack())
 print('RUNNING CODE')
 print('update:', env.update)
 	if env.update then
-		self.runFocus = env
+		self:setFocus(env)
 	end
+end
+
+-- set the focus of whats running ... between the cartridge, the console, or the emulator
+function App:setFocus(focus)
+	if self.runFocus then
+		if self.runFocus.loseFocus then self.runFocus:loseFocus() end
+	end
+	self.runFocus = focus or assert(self.con, "how did you lose the console?")
+	if self.runFocus then
+		if self.runFocus.gainFocus then self.runFocus:gainFocus() end
+	end
+end
+
+function App:stop()
+	self:setFocus(self.con)
 end
 
 function App:keyForBuffer(keycode, buffer)
@@ -2393,19 +2420,23 @@ end
 -- esp the framebuffer
 -- TODO might get rid of this now that i just upload cpu->gpu the vram every frame
 function App:runInEmu(cb, ...)
-	-- TODO maybe not ...
-	local fb = self.fb
-	fb:bind()
-	gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
-	gl.glScissor(
-		self.clipRect[0],
-		self.clipRect[1],
-		self.clipRect[2]+1,
-		self.clipRect[3]+1)
+	if not self.inUpdateCallback then
+		self.fb:bind()
+		gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
+		gl.glScissor(
+			self.clipRect[0],
+			self.clipRect[1],
+			self.clipRect[2]+1,
+			self.clipRect[3]+1)
+	end
+	-- TODO if we're in the update callback then maybe we'd want to push/pop the viewport and scissors?
+	-- meh I'll leave that up to the callback 
 
 	cb(...)
 
-	fb:unbind()
+	if not self.inUpdateCallback then
+		self.fb:unbind()
+	end
 end
 
 function App:event(e)
@@ -2429,12 +2460,12 @@ function App:event(e)
 			-- ... how to cycle back to the game without resetting it?
 			-- ... can you not issue commands while the game is loaded without resetting the game?
 			if self.runFocus == self.con then
-				self.runFocus = self.editCode
+				self:setFocus(self.editCode)
 			elseif Editor:isa(self.runFocus) then
-				self.runFocus = self.con
+				self:setFocus(self.con)
 			else
 				-- assume it's a game
-				self.runFocus = self.con
+				self:setFocus(self.con)
 			end
 			self:runInEmu(function()
 				self:resetView()

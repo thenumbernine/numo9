@@ -1,3 +1,4 @@
+local ffi = require 'ffi'
 local class = require 'ext.class'
 
 local App = require 'numo9.app'
@@ -127,7 +128,7 @@ function Editor:update()
 		app.editMode,
 		function(x)
 			app.editMode = x
-			app.runFocus = app[editFieldForMode[x] or '']
+			app:setFocus(app[editFieldForMode[x] or ''])
 		end
 	)
 
@@ -155,6 +156,53 @@ function Editor:drawText(s,x,y,fg,bg)
 		s,x,y,
 		self:color(fg),
 		self:color(bg))
+end
+
+--[[
+Editing will go on in RAM, for live cpu/gpu sprite/palette update's sake
+but it'll always reflect the cartridge state
+
+When the user sets the editCode to focus,
+copy from the app.cartridge.code to the editor,
+so we can use Lua string functinoality.
+
+While playing, assume .cartridge has the baseline content of the game,
+and assume whatever's in .ram is dirty.
+
+But while editing, assume .ram has the baseline content of the game,
+and assume whatever's in .cartridge is stale.
+--]]
+function Editor:gainFocus()
+	local app = self.app
+--[[
+print('gaining focus')
+print('editCode text')
+print(require 'template.showcode'(app.editCode.text))
+print('cartridge text')
+print(require 'template.showcode'(ffi.string(app.cartridge.code)))
+print('ram text')
+print(require 'template.showcode'(ffi.string(app.ram.code)))
+--]]
+
+	-- copy cartridge everything into RAM (where it'll be edited & the engine can live-update the edits)
+	ffi.copy(app.ram, app.cartridge, ffi.sizeof'ROM')
+	
+	-- copy cartridge code to editCode (where we can use Lua string functionality)
+	local code = ffi.string(app.cartridge.code, app.codeSize)	-- TODO max size on this ...
+	local i = code:find('\0', 1, true)
+	if i then code = code:sub(1, i-1) end
+	app.editCode:setText(code)
+end
+
+function Editor:loseFocus()
+	local app = self.app
+
+	-- sync with RAM as well for when we run stuff ... tho calling run() or reset() should do this copy ROM->RAM for us
+	ffi.copy(app.cartridge, app.ram, ffi.sizeof'ROM')
+	
+	-- sync us back from editor to cartridge so everyone else sees the console code where it belongs
+	ffi.fill(app.cartridge.code, ffi.sizeof(app.cartridge.code))
+	ffi.copy(app.cartridge.code, app.editCode.text:sub(1,app.codeSize-1))
 end
 
 return Editor
