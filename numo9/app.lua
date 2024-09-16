@@ -367,6 +367,10 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 
 		-- graphics
 
+		-- fun fact, if the API calls cls() it clears with color zero
+		-- but color zero is a game color, not an editor color, that'd be color 240
+		-- but at the moment the console is routed to directly call the API,
+		-- so if you type "cls" at the console then you could get a screen full of some nonsense color
 		cls = function(...)
 			local con = self.con
 			con.cursorPos:set(0, 0)
@@ -1507,18 +1511,19 @@ function App:update()
 
 		-- TODO here run this only 60 fps
 		local runFocus = self.runFocus
-		if runFocus and runFocus.update then
-			local success, msg = xpcall(
-				runFocus.update,
-				errorHandler,
-				runFocus	-- 1st arg <-> save us one extra lambda
-			)
-			if not success then
-				print(msg)
+		if runFocus and runFocus.thread then
+			if coroutine.status(runFocus.thread) == 'dead' then
+print('dead thread - switching to con')
 				self:setFocus(self.con)
-				-- TODO these errors are a good argument for scrollback console buffers
-				-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
-				self.con:print(msg)
+			else
+				local success, msg = coroutine.resume(runFocus.thread)
+				if not success then
+					print(msg)
+					self:setFocus(self.con)
+					self.con:print(msg)
+					-- TODO these errors are a good argument for scrollback console buffers
+					-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
+				end
 			end
 		else
 print('no runnable focus!')
@@ -2099,6 +2104,7 @@ function App:drawText1bpp(text, x, y, color, scaleX, scaleY)
 		-- TODO font widths per char?
 		x = x + fontWidth
 	end
+	return x
 end
 
 -- draw a solid background color, then draw the text transparent
@@ -2126,7 +2132,7 @@ function App:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end
 	end
 
-	self:drawText1bpp(
+	return self:drawText1bpp(
 		text,
 		x0+1,
 		y+1,
@@ -2182,7 +2188,7 @@ end
 Load from filesystem to cartridge
 then call resetROM which loads
 TODO maybe ... have the editor modify the cartridge copy as well
-(this means it wouldn't live-update palettes and sprites, since they are gathered from RAM 
+(this means it wouldn't live-update palettes and sprites, since they are gathered from RAM
 	... unless I constantly copy changes across as the user edits ... maybe that's best ...)
 (or it would mean upon entering editor to copy the cartridge back into RAM, then edit as usual (live updates on palette and sprites)
 	and then when done editing, copy back from RAM to cartridge)
@@ -2223,7 +2229,7 @@ That means code too - save your changes!
 --]]
 function App:resetROM()
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
-	
+
 	self.cartridgeName = filename	-- TODO display this somewhere
 
 	-- TODO more dirty flags
@@ -2296,23 +2302,22 @@ function App:runROM()
 --DEBUG:print('**** CODE LEN ****', #code)
 print('code is', #code, 'bytes')
 
-	local f, msg = self:loadCmd(code, env, self.cartridgeName)
-	if not f then
-		print(msg)
-		return
-	end
-	-- TODO setfenv to make sure our function writes globals to its own place
-	local result = table.pack(xpcall(f, errorHandler))
-	if not result:remove(1) then
-		print(result:unpack())
-		return
-	end
+	-- TODO also put the load() in here so it runs in our virtual console update loop
+	env.thread = coroutine.create(function()
+		local result = table.pack(assert(self:loadCmd(code, env, self.cartridgeName))())
+
 print('LOAD RESULT', result:unpack())
 print('RUNNING CODE')
 print('update:', env.update)
-	if env.update then
-		self:setFocus(env)
-	end
+
+		if not env.update then return end
+		while true do
+			coroutine.yield()
+			env.update()
+		end
+	end)
+
+	self:setFocus(env)
 end
 
 -- set the focus of whats running ... between the cartridge, the console, or the emulator
@@ -2430,7 +2435,7 @@ function App:runInEmu(cb, ...)
 			self.clipRect[3]+1)
 	end
 	-- TODO if we're in the update callback then maybe we'd want to push/pop the viewport and scissors?
-	-- meh I'll leave that up to the callback 
+	-- meh I'll leave that up to the callback
 
 	cb(...)
 

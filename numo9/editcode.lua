@@ -71,21 +71,47 @@ function EditCode:update()
 
 	EditCode.super.update(self)
 
+	-- ui controls
+
+	if self:guiButton(120, 0, 'N', self.useLineNumbers) then
+		self.useLineNumbers = not self.useLineNumbers
+	end
+
+	-- clear the background
+
 	app:drawSolidRect(
-		fontWidth,
+		0,
 		spriteSize.y,
-		frameBufferSize.x - fontWidth,
+		frameBufferSize.x,
 		frameBufferSize.y - 2 * spriteSize.y,
 		self:color(8)
 	)
 
+	-- add text
+
+	local textareaX = 0
+	if self.useLineNumbers then
+		for y=1,frameBufferSizeInTiles.y-2 do
+			if y >= #self.newlines-1 then break end
+			local i = self.newlines[y + self.editLineOffset] + 1
+			local j = self.newlines[y + self.editLineOffset + 1]
+			textareaX = math.max(textareaX, self:drawText(
+				tostring(y + self.editLineOffset),
+				0,
+				y * spriteSize.y,
+				self:color(12),
+				-1
+			))
+		end
+		textareaX = textareaX + 2
+	end
 	for y=1,frameBufferSizeInTiles.y-2 do
 		if y >= #self.newlines-1 then break end
 		local i = self.newlines[y + self.editLineOffset] + 1
 		local j = self.newlines[y + self.editLineOffset + 1]
 		self:drawText(
 			self.text:sub(i, j-1),
-			fontWidth,
+			textareaX,
 			y * spriteSize.y,
 			self:color(12),
 			-1
@@ -98,14 +124,18 @@ function EditCode:update()
 		self.editLineOffset = math.max(0, self.cursorRow - (frameBufferSizeInTiles.y-2))
 	end
 
+	-- cursor
+
 	if getTime() % 1 < .5 then
 		app:drawSolidRect(
-			self.cursorCol * fontWidth,
+			textareaX + (self.cursorCol-1) * fontWidth,
 			(self.cursorRow - self.editLineOffset) * spriteSize.y,
 			fontWidth,
 			spriteSize.y,
 			self:color(12))
 	end
+
+	-- footer
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
 	footer = footer .. (' '):rep(frameBufferSizeInTiles.x - #footer)

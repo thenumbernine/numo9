@@ -29,6 +29,12 @@ function Console:init(args)
 	self.app = assert(args.app)
 
 	self:reset()
+	self.thread = coroutine.create(function()
+		while true do
+			coroutine.yield()
+			self:update()
+		end
+	end)
 end
 
 function Console:reset()
