@@ -1,0 +1,59 @@
+name = 'numo9'
+luaDistVer = 'luajit'	-- luajit-openresty-2.1.0
+luaArgs = {'run.lua'}
+
+files = {
+	-- cwd files/dirs go here
+	['.'] = {
+		'README.md',
+		'n9a.lua',
+		'n9a_p8_glue.lua',
+		'n9a_p8_glue_with_comments.lua',
+		'run.lua',
+		'font.png',
+		'hello.n9',
+		'numo9/app.lua',
+		'numo9/archive.lua',
+		'numo9/console.lua',
+		'numo9/editcode.lua',
+		'numo9/editor.lua',
+		'numo9/editsprites.lua',
+		'numo9/edittilemap.lua',
+		'numo9/filesystem.lua',
+		'numo9/keys.lua',
+		'numo9/resetgfx.lua',
+	},
+	-- other paths go here
+	['..'] = table{
+		'cl',		-- only for cl.obj.number ... todo move it somewhere else ... or just copy it into gl ...
+		'template',
+		'ext',
+		'lfs_ffi',	-- needed by ext
+		'ffi',
+		'struct',
+		'vec-ffi',
+		'image',
+		'gl',
+		'glapp',
+		'langfix',
+		'parser',	-- needed by langfix
+		'matrix',
+		'sdl',
+	},
+}
+
+-- binary libs needed for luajit
+luajitLibs = {
+	win = {
+		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
+		'SDL2',
+	},
+	linux = {
+		'png',			-- /usr/lib/x86_64-linux-gnu/libpng16.so.16.39.0
+		'SDL2',			-- /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.2600.3
+	},
+	osx = {
+		'png',
+		'SDL2',
+	},
+}
