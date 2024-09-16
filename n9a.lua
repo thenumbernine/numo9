@@ -572,8 +572,12 @@ print('toImage', name, 'width', width, 'height', height)
 
 	local function minify(code)
 		-- save some space ... TODO by running it through the langfix parser
-		-- TODO that means moving langfix parser into the open ...
-		-- return tostring(require 'parser'.parse(code))
+		--[[ TODO that means adding another output for the LuaFixedParser to emit LuaFixedParser code (right now it only emits Lua code ...) 
+		local parser = LuaFixedParser()
+		parser:setData(code)
+		local tree = parser.tree
+		return tree:toLuaFixed()
+		--]]
 		return code 
 	end
 
