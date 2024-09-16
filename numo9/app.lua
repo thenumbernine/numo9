@@ -1643,7 +1643,7 @@ function App:peek(addr)
 	and addr < framebufferAddr+framebufferInBytes
 	and self.fbTex.dirtyGPU
 	then
-		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
+		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
 
@@ -1658,7 +1658,7 @@ function App:peekw(addr)
 	and addr < framebufferAddr+framebufferInBytes
 	and self.fbTex.dirtyGPU
 	then
-		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
+		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
 
@@ -1673,7 +1673,7 @@ function App:peekl(addr)
 	and addr < framebufferAddr+framebufferInBytes
 	and self.fbTex.dirtyGPU
 	then
-		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
+		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
 
@@ -1691,7 +1691,7 @@ function App:poke(addr, value)
 	and self.fbTex.dirtyGPU
 	then
 		assert(not self.fbTex.dirtyCPU)
-		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
+		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
 	end
@@ -1746,7 +1746,7 @@ function App:pokew(addr, value)
 	and self.fbTex.dirtyGPU
 	then
 		assert(not self.fbTex.dirtyCPU)
-		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
+		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
 	end
@@ -1780,7 +1780,7 @@ function App:pokew(addr, value)
 	-- if we poked the code
 	-- if we poked the framebuffer
 	if addr >= framebufferAddr-1
-	and addr < framebufferAddr + framebufferInBytes + framebufferInBytes
+	and addr < framebufferAddr + framebufferInBytes
 	then
 		self.fbTex.dirtyCPU = false
 	end
@@ -1795,7 +1795,7 @@ function App:pokel(addr, value)
 	and self.fbTex.dirtyGPU
 	then
 		assert(not self.fbTex.dirtyCPU)
-		gl.glReadPixels(0, 0, framebufferSize.x, framebufferSize.y, self.fbTex.image.buffer)
+		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
 	end
