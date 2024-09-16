@@ -520,16 +520,46 @@ trace'reset'
 trace'TODO reload'
 	end,
 	memcpy=[dst,src,len]do
-trace'TODO memcpy'
+trace(('TODO memcpy $%x $%x $%x'):format(dst,src,len))
 	end,
-	memset=[dst,src,len]do
-trace'TODO memset'
+	memset=[dst,val,len]do
+trace(('TODO memset $%x $%x $%x'):format(dst,val,len))
 	end,
 	peek=[addr]do
-trace'TODO peek'
+		if addr>=0 and addr<0x2000 then
+--[[
+pico8 memory from 0..0x1000 is spritesheet 128x64
+from 0x1000..0x2000 is shared spritesheet/tilemap 128x64
+so the spritesheet gets 128x128 contiguous memory
+pico8 x 0..128 = addrs 0..63 / bits 0..5 = numo9 addrs be 0..127 (bits 1..6) for me, i'm reading two peeks into its one.
+pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
+
+pico8 ram[0]	= vram[1,0]:[0,0]		<=> numo9 vram[1,0]:[0,0]		= ram[1]:ram[0]
+pico8 ram[1]	= vram[3,0]:[2,0]		<=> numo9 vram[2,0]:[3,0]		= ram[3]:ram[2]
+pico8 ram[63]	= vram[127,0]:[126,0]	<=> numo9 vram[127,0]:[126,0]	= ram[127]:ram[126]
+
+pico8 ram[64]	= vram[1,1]:[0,1]		<=> numo9 vram[1,1]:[0,1]		= ram[257]:ram[256]
+--]]
+			addr=((addr<<1)&0x003e)		-- shift bits 0..5 << 1
+				|((addr<<2)&0x3f00)		-- shift bits 6..12 << 2
+			return (peek(gfxMem+addr)&0xf0)
+				|((peek(gfxMem+addr+1)&0xf0)<<4)
+		elseif addr>=0x6000 and addr<0x8000 then
+--[[
+pico8 memory from $6000 to $8000 is the 4bpp screen
+--]]
+			addr-=0x6000
+			addr=((addr<<1)&0x003e)		-- shift bits 0..5 << 1
+				|((addr<<2)&0x3f00)		-- shift bits 6..12 << 2
+			addr+=0x6000
+			return (peek(gfxMem+addr)&0xf0)
+				|((peek(gfxMem+addr+1)&0xf0)<<4)
+		end
+trace(('TODO peek $%x'):format(addr))
+		return 0
 	end,
 	poke=[addr,value]do
-trace'TODO poke'
+trace(('TODO poke $%x $%x'):format(addr, value))
 	end,
 	-- persistent data:
 	cartdata=[]nil,

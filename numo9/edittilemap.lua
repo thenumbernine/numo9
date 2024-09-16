@@ -73,7 +73,7 @@ function EditTilemap:update()
 	if self.drawGrid then
 		for j=0,frameBufferSize.y-1,spriteSize.y do
 			for i=0,frameBufferSize.x-1,spriteSize.x do
-				app:drawBorderRect(i, j, spriteSize.x+1, spriteSize.y+1, 1)
+				app:drawBorderRect(i, j, spriteSize.x+1, spriteSize.y+1, self:color(1))
 			end
 		end
 	end
@@ -88,13 +88,13 @@ function EditTilemap:update()
 			pickY-1,
 			pickW+2,
 			pickH+2,
-			10)
+			self:color(10))
 		app:drawSolidRect(
 			pickX,
 			pickY,
 			pickW,
 			pickH,
-			0
+			self:color(0)
 		)
 		app:drawQuad(
 			pickX,
@@ -135,7 +135,7 @@ function EditTilemap:update()
 			pickX + self.spriteSelPos.y * spriteSize.y * pickH / spriteSheetSize.y,
 			spriteSize.x * self.spriteSelSize.x * pickW / spriteSheetSize.x,
 			spriteSize.y * self.spriteSelSize.y * pickH / spriteSheetSize.y,
-			13
+			self:color(13)
 		)
 	else
 		-- TODO allow drawing while picking window is open, like tic80 does?

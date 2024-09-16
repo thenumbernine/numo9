@@ -17,7 +17,7 @@ local spriteSheetSize = App.spriteSheetSize
 local spriteSize = App.spriteSize
 local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
 local frameBufferSizeInTiles = App.frameBufferSizeInTiles
-
+local fontWidth = App.fontWidth
 
 local EditCode = require 'numo9.editor':subclass()
 
@@ -72,11 +72,11 @@ function EditCode:update()
 	EditCode.super.update(self)
 
 	app:drawSolidRect(
-		spriteSize.x,
+		fontWidth,
 		spriteSize.y,
-		frameBufferSize.x - spriteSize.x,
+		frameBufferSize.x - fontWidth,
 		frameBufferSize.y - 2 * spriteSize.y,
-		8
+		self:color(8)
 	)
 
 	for y=1,frameBufferSizeInTiles.y-2 do
@@ -85,9 +85,9 @@ function EditCode:update()
 		local j = self.newlines[y + self.editLineOffset + 1]
 		self:drawText(
 			self.text:sub(i, j-1),
-			spriteSize.x,
+			fontWidth,
 			y * spriteSize.y,
-			12,
+			self:color(12),
 			-1
 		)
 	end
@@ -100,11 +100,11 @@ function EditCode:update()
 
 	if getTime() % 1 < .5 then
 		app:drawSolidRect(
-			self.cursorCol * spriteSize.x,
+			self.cursorCol * fontWidth,
 			(self.cursorRow - self.editLineOffset) * spriteSize.y,
-			spriteSize.x,
+			fontWidth,
 			spriteSize.y,
-			12)
+			self:color(12))
 	end
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
@@ -113,8 +113,8 @@ function EditCode:update()
 		footer,
 		0,
 		frameBufferSize.y - spriteSize.y,
-		12,
-		1
+		self:color(12),
+		self:color(1)
 	)
 
 	-- handle input

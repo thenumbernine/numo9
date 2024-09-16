@@ -118,7 +118,7 @@ end
 function Editor:update()
 	local app = self.app
 
-	app:clearScreen()
+	app:clearScreen(0xf0)
 
 	self:guiRadio(
 		0,

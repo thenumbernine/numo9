@@ -577,6 +577,7 @@ print('toImage', name, 'width', width, 'height', height)
 		'-- begin compat layer',
 		-- some glue code needs this, might as well generate it dynamically here:
 		('updateCounterMem=0x%06x'):format(ffi.offsetof('RAM', 'updateCounter')),
+		('gfxMem=0x%06x'):format(ffi.offsetof('RAM', 'spriteSheet')),
 		('palMem=0x%06x'):format(ffi.offsetof('RAM', 'palette')),
 		('fbMem=0x%06x'):format(ffi.offsetof('RAM', 'framebuffer')),
 		assert(path'n9a_p8_glue.lua':read()),

@@ -20,6 +20,12 @@ Fantasy consoles are a fantasy because of a few things:
 
 It's strictly LuaJIT.  No compiling required.
 
+## Build Instructions.
+
+Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.  If you don't trust them you can rebuild and re-run your own LuaJIT.  All the code is readable and modifyable for your convenience.
+
+There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
+
 # Hardware
 
 ### Framebuffer
@@ -104,6 +110,15 @@ So far the API has ...
 
 ... but I will probably remove the projection stuff.
 It's only there to simulate the `camera` function of Pico-8, but meh, you can inverse-transform yourself.
+
+### Palette
+
+Palette is stored in memory as 256 entries of rgba5551.
+Sprite rendering lets you specify the bit shift and bit count, and the offset into the palette.
+You can use this for 4bpp drawing with an offset into the upper 4bpp of the palette, or for any other palette effects you would like.
+You can also peek/poke the palette memory directly and it should update-on-the-fly.
+
+The last 16 colors of the palette are used by the system console and editor.  You are still free to modify these.
 
 ### Font
 
@@ -192,7 +207,7 @@ This adds to Lua(/JIT):
 
 # Cartridge IO
 
-All my cartridge files are in `.png`. format, just like everyone else is doing I guess.  I don't have a text format yet, sorry, but the `n9a.lua` script does convert between png and an unpacked folder of all its content.
+All my cartridge files are in `.png`. format.  To pack and unpack them use the `n9a.lua` script.
 
 # Compatability
 

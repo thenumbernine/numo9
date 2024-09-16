@@ -45,7 +45,7 @@ function EditSprites:init(args)
 	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 end
 
-local selBorderColors = {13,12}
+local selBorderColors = {0xfd,0xfc}
 
 function EditSprites:update()
 	local app = self.app
@@ -107,7 +107,7 @@ function EditSprites:update()
 		y-1,
 		w + 2,
 		h + 2,
-		13
+		self:color(13)
 	)
 	app:drawQuad(
 		x,		-- x
@@ -172,7 +172,7 @@ function EditSprites:update()
 		y + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y - self.spritesheetPanOffset.y,
 		spriteSize.x * self.spriteSelSize.x,
 		spriteSize.y * self.spriteSelSize.y,
-		13
+		self:color(13)
 	)
 
 	-- sprite edit area
@@ -182,15 +182,15 @@ function EditSprites:update()
 		'#'..(self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y),
 		x + 32,
 		y,
-		13,
+		self:color(13),
 		-1
 	)
 
 	local y = 24
 	local w = 64
 	local h = 64
-	app:drawBorderRect(x-1, y-1, w+2, h+2, 13)
-	app:drawSolidRect(x, y, w, h, 5)
+	app:drawBorderRect(x-1, y-1, w+2, h+2, self:color(13))
+	app:drawSolidRect(x, y, w, h, self:color(5))
 	app:drawQuad(
 		x,
 		y,
@@ -340,7 +340,7 @@ function EditSprites:update()
 		y-1,
 		w+2,
 		h+2,
-		13
+		self:color(13)
 	)
 
 	-- log2PalBits == 3 <=> palBits == 8 <=> showing 1<<8 = 256 colors <=> showing 16 x 16 colors

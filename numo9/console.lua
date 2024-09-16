@@ -20,6 +20,7 @@ local spriteSheetSize = App.spriteSheetSize
 local spriteSize = App.spriteSize
 local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
 local frameBufferSizeInTiles = App.frameBufferSizeInTiles
+local fontWidth = App.fontWidth
 
 
 local Console = class()
@@ -46,7 +47,7 @@ function Console:reset()
 
 	-- TODO 'getFocus' or TODO always reload?
 	-- clear the screen every time, or save the screen every time?
-	app:clearScreen()
+	app:clearScreen(0xf0)
 	self:print(app.title)
 
 	for i=0,15 do
@@ -152,9 +153,9 @@ function Console:addCharToScreen(ch)
 	local app = self.app
 	if ch == 8 then
 		self:addChar((' '):byte())	-- in case the cursor is there
-		self:offsetCursor(-2*spriteSize.x, 0)
+		self:offsetCursor(-2*fontWidth, 0)
 		self:addChar((' '):byte())	-- clear the prev char as well
-		self:offsetCursor(-spriteSize.x, 0)
+		self:offsetCursor(-fontWidth, 0)
 	elseif ch == 10 or ch == 13 then
 		self:addChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
 		self.cursorPos.x = 0
@@ -203,7 +204,6 @@ function Console:addCharToCmd(ch)
 	end
 end
 
--- TODO run at 60hz
 function Console:update()
 	local app = self.app
 
@@ -215,10 +215,10 @@ function Console:update()
 	--]]
 
 	if getTime() % 1 < .5 then
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, spriteSize.x, spriteSize.y, 15)
+		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, fontWidth, spriteSize.y, 0xff)
 	else
 		-- else TODO draw the character in the buffer at this location
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, spriteSize.x, spriteSize.y, 0)
+		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, fontWidth, spriteSize.y, 0xf0)
 	end
 
 	local shift = app:key'lshift' or app:key'rshift'
