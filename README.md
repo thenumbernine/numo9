@@ -212,8 +212,9 @@ All my cartridge files are in `.png`. format.  To pack and unpack them use the `
 # Compatability
 
 - I've made a 90% functioning conversion from `.p8` to `.n9` cartridges.
-	There's still some things I don't know if I want to expose support of, like an indexed framebuffer that lets you modify screen palette colors after drawing them (what kind of console hardware ever did this?).
-	Soon I'll start on `.tic` support as well.
+- There's still some things I don't know if I want to expose support of, like an indexed framebuffer that lets you modify screen palette colors after drawing them (what kind of console hardware ever did this?).
+	- Maybe I'll change my current RGB565 framebuffer to a various-mode framebuffer, including an 8-bit indexed framebuffer ... man I hate the thought of it ...
+- Soon I'll start on `.tic` support as well.
 
 # Inspiration for this:
 - https://www.pico-8.com/

@@ -88,21 +88,21 @@ function EditCode:update()
 		self.useLineNumbers = not self.useLineNumbers
 	end
 
-	-- clear the background
+	-- draw text
+	local textareaX = 0	-- offset into textarea where we start drawing text
 
 	local textareaY = spriteSize.y
-	app:drawSolidRect(
-		0,
-		textareaY,
-		frameBufferSize.x,
-		frameBufferSize.y - 2 * spriteSize.y,
-		self:color(8)
-	)
 
-	-- draw text
-
-	local textareaX = 0	-- offset into textarea where we start drawing text
 	if self.useLineNumbers then
+		-- clear the background incl line numbers
+		app:drawSolidRect(
+			0,
+			textareaY,
+			frameBufferSize.x,
+			frameBufferSize.y - 2 * spriteSize.y,
+			0xf9
+		)
+	
 		-- determine line number width while we draw line numbers
 		for y=1,frameBufferSizeInTiles.y-2 do
 			if y + self.editLineOffset < 1
@@ -121,6 +121,16 @@ function EditCode:update()
 		end
 		textareaX = textareaX + 2
 	end
+
+	-- 2nd text background apart from the line numbers
+	app:drawSolidRect(
+		textareaX,
+		textareaY,
+		frameBufferSize.x,
+		frameBufferSize.y - 2 * spriteSize.y,
+		0xf8
+	)
+	
 	for y=1,frameBufferSizeInTiles.y-2 do
 		if y + self.editLineOffset < 1
 		or y + self.editLineOffset >= #self.newlines-1
