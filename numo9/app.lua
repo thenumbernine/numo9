@@ -40,6 +40,7 @@ local GLGeometry = require 'gl.geometry'
 local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 local vector = require 'ffi.cpp.vector-lua'
+local struct = require 'struct'
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
@@ -101,7 +102,6 @@ local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
 local keyPressFlagSize = math.ceil(keyCount / 8)
 
-local struct = require 'struct'
 local ROM = struct{
 	name = 'ROM',
 	union = true,

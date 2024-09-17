@@ -30,7 +30,8 @@ function EditCode:init(args)
 	self.cursorLoc = 1
 	--self.selectDownLoc = 0
 	--self.selectCurLoc = 0
-	self.editLineOffset = 0
+	self.scrollX = 0
+	self.scrollY = 0
 	self:setText''
 end
 
@@ -90,29 +91,30 @@ function EditCode:update()
 
 	-- draw text
 	local textareaX = 0	-- offset into textarea where we start drawing text
-
 	local textareaY = spriteSize.y
+	local textareaWidth = frameBufferSize.x
+	local textareaHeight = frameBufferSize.y - 2*spriteSize.y
 
 	if self.useLineNumbers then
 		-- clear the background incl line numbers
 		app:drawSolidRect(
-			0,
+			textareaX,
 			textareaY,
-			frameBufferSize.x,
-			frameBufferSize.y - 2 * spriteSize.y,
+			textareaWidth,
+			textareaHeight,
 			0xf9
 		)
 
 		-- determine line number width while we draw line numbers
 		for y=1,frameBufferSizeInTiles.y-2 do
-			if y + self.editLineOffset < 1
-			or y + self.editLineOffset >= #self.newlines
+			if y + self.scrollY < 1
+			or y + self.scrollY >= #self.newlines
 			then break end
 
-			local i = self.newlines[y + self.editLineOffset] + 1
-			local j = self.newlines[y + self.editLineOffset + 1]
+			local i = self.newlines[y + self.scrollY] + 1
+			local j = self.newlines[y + self.scrollY + 1]
 			textareaX = math.max(textareaX, app:drawText(
-				tostring(y + self.editLineOffset),
+				tostring(y + self.scrollY),
 				0,
 				y * spriteSize.y,
 				0xfc,
@@ -121,25 +123,27 @@ function EditCode:update()
 		end
 		textareaX = textareaX + 2
 	end
+	textareaWidth = textareaWidth - textareaX
 
 	-- 2nd text background apart from the line numbers
 	app:drawSolidRect(
 		textareaX,
 		textareaY,
-		frameBufferSize.x,
-		frameBufferSize.y - 2 * spriteSize.y,
+		textareaWidth,
+		textareaHeight,
 		0xf8
 	)
 
 	for y=1,frameBufferSizeInTiles.y-2 do
-		if y + self.editLineOffset < 1
-		or y + self.editLineOffset >= #self.newlines
+		if y + self.scrollY < 1
+		or y + self.scrollY >= #self.newlines
 		then break end
 
-		local i = self.newlines[y + self.editLineOffset] + 1
-		local j = self.newlines[y + self.editLineOffset + 1]
+		local i = self.newlines[y + self.scrollY] + 1
+		local j = self.newlines[y + self.scrollY + 1]
 
-		local lineX = textareaX
+		-- TODO use scissors and TODO use the mv transform
+		local lineX = textareaX - self.scrollX * fontWidth
 		local lineY = y * spriteSize.y
 		local selLineStart = math.clamp(self.selectStart and self.selectStart or (#self.text+1), i, j)
 		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (#self.text+1), i, j)
@@ -173,21 +177,29 @@ function EditCode:update()
 		end
 	end
 
-	if self.cursorRow < self.editLineOffset+1 then
-		self.editLineOffset = math.max(0, self.cursorRow-1)
-	elseif self.cursorRow - (frameBufferSizeInTiles.y-2) > self.editLineOffset then
-		self.editLineOffset = math.max(0, self.cursorRow - (frameBufferSizeInTiles.y-2))
+	-- if you want variable font width then TODO store cursor x and y pixel as well as row and col
+	if self.cursorRow < self.scrollY+1 then
+		self.scrollY = math.max(0, self.cursorRow-1)
+	elseif self.cursorRow - (frameBufferSizeInTiles.y-2) > self.scrollY then
+		self.scrollY = math.max(0, self.cursorRow - (frameBufferSizeInTiles.y-2))
+	end
+	local textAreaWidthInLetters = math.ceil(textareaWidth / fontWidth)
+	if self.cursorCol < self.scrollX+1 then
+		self.scrollX = math.max(0, self.cursorCol-1)
+	elseif self.cursorCol - textAreaWidthInLetters > self.scrollX then
+		self.scrollX = math.max(0, self.cursorCol - textAreaWidthInLetters)
 	end
 
 	-- cursor
 
 	if getTime() % 1 < .5 then
 		app:drawSolidRect(
-			textareaX + (self.cursorCol-1) * fontWidth,
-			(self.cursorRow - self.editLineOffset) * spriteSize.y,
+			textareaX + (self.cursorCol-1 - self.scrollX) * fontWidth,
+			(self.cursorRow - self.scrollY) * spriteSize.y,
 			fontWidth,
 			spriteSize.y,
-			self:color(12))
+			self:color(12)
+		)
 	end
 
 	-- footer
@@ -197,7 +209,7 @@ function EditCode:update()
 	app:drawText(
 		footer,
 		0,
-		frameBufferSize.y - spriteSize.y,
+		textareaY + textareaHeight,
 		0xfc,
 		0xf1
 	)
@@ -209,12 +221,12 @@ function EditCode:update()
 	then
 		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1
 		if y >= 1	-- no clicks on top row
-		and y + self.editLineOffset >= 1
-		and y + self.editLineOffset < #self.newlines-1
+		and y + self.scrollY >= 1
+		and y + self.scrollY < #self.newlines-1
 		then
-			local i = self.newlines[y + self.editLineOffset] + 1
-			local j = self.newlines[y + self.editLineOffset + 1]
-			local x = math.floor((mouseX-textareaX)/fontWidth) + i
+			local i = self.newlines[y + self.scrollY] + 1
+			local j = self.newlines[y + self.scrollY + 1]
+			local x = math.floor((mouseX - textareaX - self.scrollX) / fontWidth) + i
 			x = math.clamp(x, i,j)	-- TODO add scrolling left/right, and consider the offset here
 			self.cursorLoc = x
 			self:refreshCursorColRowForLoc()	-- just in case?
@@ -224,8 +236,8 @@ function EditCode:update()
 	if leftButtonPress then
 		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1
 		if y >= 1	-- no clicks on top row
-		and y + self.editLineOffset >= 1
-		and y + self.editLineOffset < #self.newlines-1
+		and y + self.scrollY >= 1
+		and y + self.scrollY < #self.newlines-1
 		then
 			self.selctDownLoc = nil
 			self.selectCurLoc = nil

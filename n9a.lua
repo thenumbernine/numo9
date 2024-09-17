@@ -498,7 +498,9 @@ print('toImage', name, 'width', width, 'height', height)
 		-- then how come I see it inside single-line if-statement blocks ...
 
 		-- pico8 uses some "control codes" ... but it created its own control-codes for its own string-processing soo ....
-		-- TODO handle them later ... for now I'm just going to filter them out so the parser works.
+		-- TODO modify parser here, parse , and regenerate (minify does this already)
+		-- and replace these codes with a lua escape code of some kind
+		-- ... for now I'm just going to filter them out so the parser works.
 		line = line:gsub('\\^', 'ctrl-carat')
 		line = line:gsub('\\#', 'esc-hash')
 

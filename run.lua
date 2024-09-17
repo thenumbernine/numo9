@@ -1,6 +1,7 @@
 #!/usr/bin/env luajit
+
 -- TODO cli here
-cmdline = {...}
+cmdline = {...}	-- global for later
 
 -- TODO gl setup here
 require 'gl'
