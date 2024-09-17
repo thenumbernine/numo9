@@ -102,7 +102,7 @@ function EditCode:update()
 			frameBufferSize.y - 2 * spriteSize.y,
 			0xf9
 		)
-	
+
 		-- determine line number width while we draw line numbers
 		for y=1,frameBufferSizeInTiles.y-2 do
 			if y + self.editLineOffset < 1
@@ -130,7 +130,7 @@ function EditCode:update()
 		frameBufferSize.y - 2 * spriteSize.y,
 		0xf8
 	)
-	
+
 	for y=1,frameBufferSizeInTiles.y-2 do
 		if y + self.editLineOffset < 1
 		or y + self.editLineOffset >= #self.newlines-1
@@ -245,6 +245,7 @@ function EditCode:update()
 
 	-- handle keyboard
 
+	-- TODO shift+arrows to select text
 	local shift = app:key'lshift' or app:key'rshift'
 	local uikey
 	if ffi.os == 'OSX' then
@@ -252,57 +253,59 @@ function EditCode:update()
 	else
 		uikey = app:key'lctrl' or app:key'rctrl'
 	end
-	for keycode=0,#keyCodeNames-1 do
-		if app:keyp(keycode,30,5) then
-			local ch = getAsciiForKeyCode(keycode, shift)
 
-			if uikey and keycode == keyCodeForName.x then	-- cut
-				if self.selectStart then
-					local sel = self.text:sub(self.selectStart, self.selectEnd-1)
-					clip.text(sel)
-					self:deleteSelection()
-					self:refreshNewlines()
-					self:refreshCursorColRowForLoc()
-				end
-			elseif uikey and keycode == keyCodeForName.c then -- copy
-				if self.selectStart then
-					local sel = self.text:sub(self.selectStart, self.selectEnd-1)
-					clip.text(sel)
-				end
-			elseif uikey and keycode == keyCodeForName.v then -- paste
+	if uikey and (app:keyp'x' or app:keyp'c') then -- cut/copy
+		if self.selectStart then
+			local sel = self.text:sub(self.selectStart, self.selectEnd-1)
+			if not clip.text(sel) then
+				print'failed to copy text'
+			end
+
+			if app:keyp'x' then -- cut only
 				self:deleteSelection()
-				local paste = clip.text()
-				if paste then
-					self.text = self.text:sub(1, self.cursorLoc-1)..paste..self.text:sub(self.cursorLoc)
-				end
 				self:refreshNewlines()
 				self:refreshCursorColRowForLoc()
-			elseif ch then
-				self:addCharToText(ch)
-			elseif keycode == keyCodeForName['return'] then
-				self:addCharToText(('\n'):byte())
-			elseif keycode == keyCodeForName.tab then
-				-- TODO add tab and do indent up there,
-				-- until then ...
-				self:addCharToText((' '):byte())
-			elseif keycode == keyCodeForName.up
-			or keycode == keyCodeForName.down
-			then
-				local dy = keycode == keyCodeForName.up and -1 or 1
-				self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
+			end
+		end
+	elseif uikey and app:keyp'v' then -- paste
+		self:deleteSelection()
+		local paste = clip.text()
+		if paste then
+			self.text = self.text:sub(1, self.cursorLoc-1)..paste..self.text:sub(self.cursorLoc)
+		end
+		self:refreshNewlines()
+		self:refreshCursorColRowForLoc()
+	else
+		for keycode=0,#keyCodeNames-1 do
+			if app:keyp(keycode,30,5) then
+				local ch = getAsciiForKeyCode(keycode, shift)
+				if ch then
+					self:addCharToText(ch)
+				elseif keycode == keyCodeForName['return'] then
+					self:addCharToText(('\n'):byte())
+				elseif keycode == keyCodeForName.tab then
+					-- TODO add tab and do indent up there,
+					-- until then ...
+					self:addCharToText((' '):byte())
+				elseif keycode == keyCodeForName.up
+				or keycode == keyCodeForName.down
+				then
+					local dy = keycode == keyCodeForName.up and -1 or 1
+					self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
 
-				local currentLineCols = self:countRowCols(self.cursorRow)
-				self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
+					local currentLineCols = self:countRowCols(self.cursorRow)
+					self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
 
-				self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
+					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
 
-				self:refreshCursorColRowForLoc()	-- just in case?
-			elseif keycode == keyCodeForName.left
-			or keycode == keyCodeForName.right
-			then
-				local dx = keycode == keyCodeForName.left and -1 or 1
-				self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
-				self:refreshCursorColRowForLoc()
+					self:refreshCursorColRowForLoc()	-- just in case?
+				elseif keycode == keyCodeForName.left
+				or keycode == keyCodeForName.right
+				then
+					local dx = keycode == keyCodeForName.left and -1 or 1
+					self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
+					self:refreshCursorColRowForLoc()
+				end
 			end
 		end
 	end

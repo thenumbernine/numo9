@@ -1,8 +1,11 @@
 --[[
 This will be the code editor
 --]]
+local ffi = require 'ffi'
 local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
+local clip = require 'clip'	-- clipboard support
+local Image = require 'image'
 
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
@@ -26,7 +29,7 @@ function EditSprites:init(args)
 	self.spritesheetPanOffset = vec2i()
 	self.spritesheetPanDownPos = vec2i()
 	self.spritesheetPanPressed = false
-	
+
 	self.texField = 'spriteTex'
 	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
 	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
@@ -57,7 +60,7 @@ function EditSprites:update()
 	local mouseX, mouseY = app.mousePos:unpack()
 
 	EditSprites.super.update(self)
-	
+
 	-- choose spriteBit
 	self:drawText(
 		'#'..self.spriteBit,
@@ -438,7 +441,50 @@ function EditSprites:update()
 
 	-- flags ... ???
 
+	-- handle input
 
+	local uikey
+	if ffi.os == 'OSX' then
+		uikey = app:key'lgui' or app:key'rgui'
+	else
+		uikey = app:key'lctrl' or app:key'rctrl'
+	end
+	if uikey then
+		local x = self.spriteSelPos.x * spriteSize.x
+		local y = self.spriteSelPos.y * spriteSize.y
+		local width = spriteSize.x * self.spriteSelSize.x
+		local height = spriteSize.y * self.spriteSelSize.y
+		if app:keyp'x' or app:keyp'c' then
+			-- copy the selected region in the sprite/tile sheet
+			-- TODO copy the current-edit region? wait it's the same region ...
+			-- TODO if there is such a spriteTex.dirtyGPU then flush GPU changes here ... but there's not cuz I never write to it with the GPU ...
+			assert(not currentTex.dirtyGPU)
+			assert(x >= 0 and y >= 0 and x + width <= currentTex.image.width and y + height <= currentTex.image.height)
+			local image = currentTex.image:copy{x=x, y=y, width=width, height=height}
+			if not clip.image(image) then
+				print'failed to copy image'
+			end
+			if app:keyp'x' then
+				-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
+				currentTex.dirtyCPU = true
+				assert(currentTex.channels == 1)
+				for j=y,y+height-1 do
+					for i=x,x+width-1 do
+						currentTex.image.buffer[i + currentTex.width * j] = self.paletteOffset
+					end
+				end
+			end
+		elseif app:keyp'v' then
+			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
+			assert(not currentTex.dirtyGPU)
+			local image = clip.image()
+			if image then
+				print'pasting image'
+				currentTex.image:pasteInto{x=x, y=y, image=image}
+				currentTex.dirtyCPU = true
+			end
+		end
+	end
 end
 
 return EditSprites
