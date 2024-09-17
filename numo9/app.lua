@@ -1282,14 +1282,12 @@ void main() {
 	local Console = require 'numo9.console'
 
 	self:runInEmu(function()
+		self:resetView()	-- reset mat and clip
 		self.editCode = EditCode{app=self}
 		self.editSprites = EditSprites{app=self}
 		self.editTilemap = EditTilemap{app=self}
 		self.con = Console{app=self}
 	end)
-
-	self:setFocus(self.con)
-	--self:setFocus(self.editCode)
 
 	-- TODO copy over a local filetree somewhere in the app ...
 	for fn in path:dir() do
@@ -1298,88 +1296,37 @@ void main() {
 		end
 	end
 
-	local initfn = cmdline[1] or 'hello.n9'
-	if self.fs:get(initfn) then
-		-- TODO wrap this in an env thread just like loadROM does?
-		-- TODO just call loadROM ?
-		local success, msg = self:load(initfn)
-
-		if success then
-
-			-- TODO font should be builtin ...
-			-- but I don't want to bind an extra texture ...
-			-- TODO maybe I should be doing this always?
-			-- ok my problem is ... a zeroed palette means nothing shows
-			-- how do other fantasy consoles handle this?
-			-- pico8 and pyxel ... fixed colors no matter what
-			-- tic80 ... separate render for the console and editor ui, so if you zero the palette you still see the editor
-			-- ... ofc tic80's console is the complex one that support scrollback and history, not just scroll-vram-on-newline like the old apple2 and pico8 do
-			if cmdline[2] == 'resetGFX' then
-				-- reset the palette and re-insert the font ...
-				-- I don't want to do this normally so that the custom palette and font can be saved in the ROM
-				self:resetGFX()
-			end
-
-			self:runROM()
-		else
-			--self:runInEmu(function()
-				if msg then print(msg) end
-				self.con:print(msg)
-				self:resetGFX()
-			--end)
-		end
-	else
---[=[
-		self.editCode:setText[[
-function update()
-	local x = 128
-	local y = 128
-	local t = time()
-	local cx = math.cos(t)
-	local cy = math.sin(t)
-	local r = 50*math.cos(t/3)
-	local x1=x-r*cx
-	local x2=x+r*cx
-	local y1=y-r*cy
-	local y2=y+r*cy
-	rectb(x1,y1,x2-x1+1,y2-y1+1,math.floor(50*t))
-
-	matident()
-	mattrans(x2,y2)
-	matrot(t, 0, 0, 1)
-	text(
-		'HelloWorld', -- str
-		0, 0,        -- x y
-		13,-- fg
-		0, -- bg
-		1.5, 3 -- sx sy
-	)
-	matident()
-end
-]]
---]=]
-		-- why do I have to do this first, even with nothing in it?
-		self:runROM()
-
-		--self:runInEmu(function()
-			self:resetGFX()		-- needed to initialize UI colors
-			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
-			for i=0,15 do
-				self.con.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
-				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
-				self.con:print'hello world'
-			end
-			self.con.fgColor = 0xfc			-- 11 = bg, 12 = fg
-			self.con.bgColor = 0xf0
-		--end)
-	end
-
 	-- TODO put all this in RAM
 	self.screenMousePos = vec2i()	-- host coordinates
 	self.mousePos = vec2i()			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
 	self.lastMousePos = vec2i()		-- ... " " last frame
 	self.lastMousePressPos = vec2i()	-- " " at last mouse press
 	self.mouseButtons = 0			-- mouse button flags.  using SDL atm so flags 0 1 2 = left middle right
+
+	self:setFocus{
+		thread = coroutine.create(function()
+			self:resetGFX()		-- needed to initialize UI colors
+			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
+			for i=1,30 do
+				coroutine.yield()
+			end
+			for i=0,15 do
+				self.con.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
+				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
+				self.con:print'hello world'
+
+				for i=1,5 do
+					coroutine.yield()
+				end
+			end
+			self.con.fgColor = 0xfc			-- 11 = bg, 12 = fg
+			self.con.bgColor = 0xf0
+
+			self.con:print('loading', cmdline[1] or 'hello.n9')
+			self:load(cmdline[1] or 'hello.n9')
+			self:runROM()
+		end),
+	}
 end
 
 -- this re-inserts the font and default palette
@@ -1405,7 +1352,9 @@ function App:resetGFX()
 	-- TODO maybe, just set 'dirtyGPU' and track that or something ...
 --]]
 -- [[
+	assert(not self.spriteTex.dirtyGPU)
 	self.spriteTex.dirtyCPU = true
+	assert(not self.palTex.dirtyGPU)
 	self.palTex.dirtyCPU = true
 --]]
 end
@@ -1541,6 +1490,7 @@ print('dead thread - switching to con')
 				local success, msg = coroutine.resume(runFocus.thread)
 				if not success then
 					print(msg)
+					self.con:resetThread()
 					self:setFocus(self.con)
 					self.con:print(msg)
 					-- TODO these errors are a good argument for scrollback console buffers
@@ -2220,12 +2170,7 @@ end
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
-	self.ram.romUpdateCounter[0] = 0
-
-	-- force editor to save changes to .cartridge and .ram
 	self:setFocus(self.con)
-
-	self:resetView()
 	self:resetROM()
 
 	-- TODO setfenv instead?
@@ -2243,6 +2188,9 @@ print('code is', #code, 'bytes')
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
+		self.ram.romUpdateCounter[0] = 0
+		self:resetView()
+
 		local result = table.pack(assert(self:loadCmd(code, env, self.cartridgeName))())
 
 print('LOAD RESULT', result:unpack())

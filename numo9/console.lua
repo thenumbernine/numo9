@@ -29,15 +29,10 @@ function Console:init(args)
 	self.app = assert(args.app)
 
 	self:reset()
-	self.thread = coroutine.create(function()
-		while true do
-			coroutine.yield()
-			self:update()
-		end
-	end)
+	self:resetThread()
 end
 
--- TODO what's this function do anyways?
+-- reset console state ...
 function Console:reset()
 	local app = self.app
 	self.cmdbuf = ''
@@ -57,7 +52,7 @@ function Console:reset()
 	-- clear the screen every time, or save the screen every time?
 	app:clearScreen(0xf0)
 
-	self:print'NuMo-9'
+	self:print'NuMo-9 ver. 0.1-alpha'
 	self:print'https://github.com/thenumbernine/numo9'
 
 	--self.fgColor = 0xfe		-- 14 = bg, 15 = fg
@@ -66,6 +61,15 @@ function Console:reset()
 
 	-- flag 'needsPrompt' then write the prompt in update if it's needed
 	self.needsPrompt = true
+end
+
+function Console:resetThread()
+	self.thread = coroutine.create(function()
+		while true do
+			coroutine.yield()
+			self:update()
+		end
+	end)
 end
 
 function Console:runCmdBuf()
@@ -215,6 +219,7 @@ function Console:update()
 end
 
 function Console:writePrompt()
+	--self:resetThread() -- nope
 	self:write(self.app.fs.cwd:path()..self.prompt)
 end
 
