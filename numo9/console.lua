@@ -37,9 +37,11 @@ function Console:init(args)
 	end)
 end
 
+-- TODO what's this function do anyways?
 function Console:reset()
 	local app = self.app
 	self.cmdbuf = ''
+	self.prompt = '> '
 
 	self.cmdHistory = table()
 	self.cmdHistoryIndex = nil
@@ -54,19 +56,16 @@ function Console:reset()
 	-- TODO 'getFocus' or TODO always reload?
 	-- clear the screen every time, or save the screen every time?
 	app:clearScreen(0xf0)
-	self:print(app.title)
 
-	for i=0,15 do
-		self.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
-		self.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
-		self:print'hello world'
-	end
+	self:print'NuMo-9'
+	self:print'https://github.com/thenumbernine/numo9'
+
 	--self.fgColor = 0xfe		-- 14 = bg, 15 = fg
-	self.fgColor = 0xfb			-- 11 = bg, 12 = fg
+	self.fgColor = 0xfc			-- 11 = bg, 12 = fg
 	self.bgColor = 0xf0
 
-	self.prompt = '> '
-	self:writePrompt()
+	-- flag 'needsPrompt' then write the prompt in update if it's needed
+	self.needsPrompt = true
 end
 
 function Console:runCmdBuf()
@@ -77,45 +76,10 @@ function Console:runCmdBuf()
 	self.cmdbuf = ''
 	self:write'\n'
 
-	-- TODO ... runCmd return nil vs error ...
 	cmd = cmd:gsub('^=', 'return ')
 
-	local success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
---[[ seems nice but has no direction
---DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
-	-- if fails try wrapping arg2..N with quotes ...
-	-- TODO this or 'return ' first?
-	-- this one si good for console ...
-	if not success then
-		local parts = string.split(cmd, '%s+')
-		cmd = table{
-			parts[1],
-		}:append(
-			parts:sub(2):mapi(function(s) return (tolua(s)) end)
-		):concat' '
-		success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
---DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
-	end
-	-- if fail then try appending a '()'
-	-- do this before prepending 'return ' so we don't return a function before we call it
-	local cmdBeforePar = cmd
-	if not success then
-		cmd = cmd .. '()'
-		success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
---DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
-	end
-	-- if fail then try prepending a 'return' ...
-	if not success then
-		cmd = 'return '..cmdBeforePar
-		success, msg = xpcall(function() return app:runCmd(cmd) end, App.errorHandler)
---DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
-	end
---]]
-	if not success then
---DEBUG:print('runCmdBuf', cmd, 'got', success, msg)
-		self:print(tostring(msg))
-	end
-	self:writePrompt()
+	app:runCmd(cmd)
+	self.needsPrompt = true
 end
 
 -- should cursor be a 'app' property or an 'editor' property?
@@ -215,6 +179,11 @@ function Console:update()
 
 	-- TODO start to bypass the internal console prompt
 
+	if self.needsPrompt then
+		self:writePrompt()
+		self.needsPrompt = false
+	end
+
 	--[[ TODO draw
 	self.cursorPos:set(0,0)
 	app:write'CSMAB code editor'
@@ -251,7 +220,7 @@ end
 
 function Console:gainFocus()
 	-- print the prompt
-	self:writePrompt()
+	self.needsPrompt = true
 end
 
 return Console

@@ -1300,54 +1300,38 @@ void main() {
 
 	local initfn = cmdline[1] or 'hello.n9'
 	if self.fs:get(initfn) then
-		self:load(initfn)
+		-- TODO wrap this in an env thread just like loadROM does?
+		-- TODO just call loadROM ?
+		local success, msg = self:load(initfn)
 
+		if success then
 
-		-- TODO font should be builtin ...
-		-- but I don't want to bind an extra texture ...
-		-- TODO maybe I should be doing this always?
-		-- ok my problem is ... a zeroed palette means nothing shows
-		-- how do other fantasy consoles handle this?
-		-- pico8 and pyxel ... fixed colors no matter what
-		-- tic80 ... separate render for the console and editor ui, so if you zero the palette you still see the editor
-		-- ... ofc tic80's console is the complex one that support scrollback and history, not just scroll-vram-on-newline like the old apple2 and pico8 do
-		if cmdline[2] == 'resetGFX' then
-			-- reset the palette and re-insert the font ...
-			-- I don't want to do this normally so that the custom palette and font can be saved in the ROM
-			self:resetGFX()
+			-- TODO font should be builtin ...
+			-- but I don't want to bind an extra texture ...
+			-- TODO maybe I should be doing this always?
+			-- ok my problem is ... a zeroed palette means nothing shows
+			-- how do other fantasy consoles handle this?
+			-- pico8 and pyxel ... fixed colors no matter what
+			-- tic80 ... separate render for the console and editor ui, so if you zero the palette you still see the editor
+			-- ... ofc tic80's console is the complex one that support scrollback and history, not just scroll-vram-on-newline like the old apple2 and pico8 do
+			if cmdline[2] == 'resetGFX' then
+				-- reset the palette and re-insert the font ...
+				-- I don't want to do this normally so that the custom palette and font can be saved in the ROM
+				self:resetGFX()
+			end
+
+			self:runROM()
+		else
+			--self:runInEmu(function()
+				if msg then print(msg) end
+				self.con:print(msg)
+				self:resetGFX()
+			--end)
 		end
-
-		self:runROM()
 	else
-		-- TODO straighten out init ...
-print("didn't find initial file ... resetting gfx ...")
-		self:resetGFX()
-
+--[=[
 		self.editCode:setText[[
-print'Hello NuMo9'
-
-local spriteMem = 0x00000
-local tileMem = 0x10000
-local mapMem = 0x20000
-
---[=[ fill our tiles with random garbage
-for j=0,255 do
-	for i=0,255 do
-		poke(tileMem + i + 256 * j, i+j)
-	end
-end
---]=]
 function update()
---[=[ fill our map with random tiles
-	for j=0,31 do
-		for i=0,31 do
-			poke(mapMem + 0+2*(i+256*j), math.random(0,255))
-			poke(mapMem + 1+2*(i+256*j), math.random(0,255))
-		end
-	end
-	map(0,0,0,32,32)
---]=]
-
 	local x = 128
 	local y = 128
 	local t = time()
@@ -1373,10 +1357,21 @@ function update()
 	matident()
 end
 ]]
-		self:runInEmu(function()
-			self.con:reset()
-		end)
+--]=]
+		-- why do I have to do this first, even with nothing in it?
 		self:runROM()
+
+		--self:runInEmu(function()
+			self:resetGFX()		-- needed to initialize UI colors
+			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
+			for i=0,15 do
+				self.con.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
+				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
+				self.con:print'hello world'
+			end
+			self.con.fgColor = 0xfc			-- 11 = bg, 12 = fg
+			self.con.bgColor = 0xf0
+		--end)
 	end
 
 	-- TODO put all this in RAM
@@ -1392,20 +1387,27 @@ end
 function App:resetGFX()
 	--self.spriteTex:prepForCPU()
 	require 'numo9.resetgfx'.resetFont(self.ram)
-	-- TODO maybe, just set 'dirtyGPU' and track that or something ...
-	self.spriteTex:bind()
-		:subimage()
-		:unbind()
-	self.spriteTex.dirtyCPU = false
 	ffi.copy(self.cartridge.spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
 
 	--self.palTex:prepForCPU()
 	require 'numo9.resetgfx'.resetPalette(self.ram)
+	ffi.copy(self.cartridge.palette, self.ram.palette, paletteInBytes)
+--[[
+	self.spriteTex:bind()
+		:subimage()
+		:unbind()
+	self.spriteTex.dirtyCPU = false
+
 	self.palTex:bind()
 		:subimage()
 		:unbind()
 	self.palTex.dirtyCPU = false
-	ffi.copy(self.cartridge.palette, self.ram.palette, paletteInBytes)
+	-- TODO maybe, just set 'dirtyGPU' and track that or something ...
+--]]
+-- [[
+	self.spriteTex.dirtyCPU = true
+	self.palTex.dirtyCPU = true
+--]]
 end
 
 
@@ -2149,6 +2151,7 @@ function App:load(filename)
 	assertlen(romStr, ffi.sizeof'ROM')
 	ffi.copy(self.cartridge.v, romStr, ffi.sizeof'ROM')
 	self:resetROM()
+	return true
 end
 
 --[[

@@ -66,7 +66,7 @@ function EditCode:refreshCursorColRowForLoc()
 			break
 		end
 	end
-	assert(self.cursorRow)
+	self.cursorRow = self.cursorRow or 1
 	self.cursorCol = self.cursorLoc - self.newlines[self.cursorRow]
 end
 
@@ -106,7 +106,7 @@ function EditCode:update()
 		-- determine line number width while we draw line numbers
 		for y=1,frameBufferSizeInTiles.y-2 do
 			if y + self.editLineOffset < 1
-			or y + self.editLineOffset >= #self.newlines-1
+			or y + self.editLineOffset >= #self.newlines
 			then break end
 
 			local i = self.newlines[y + self.editLineOffset] + 1
@@ -133,7 +133,7 @@ function EditCode:update()
 
 	for y=1,frameBufferSizeInTiles.y-2 do
 		if y + self.editLineOffset < 1
-		or y + self.editLineOffset >= #self.newlines-1
+		or y + self.editLineOffset >= #self.newlines
 		then break end
 
 		local i = self.newlines[y + self.editLineOffset] + 1
@@ -291,7 +291,8 @@ function EditCode:update()
 				or keycode == keyCodeForName.down
 				then
 					local dy = keycode == keyCodeForName.up and -1 or 1
-					self.cursorRow = math.clamp(self.cursorRow + dy, 1, #self.newlines-2)
+					-- math.clamp does it in the other order ...
+					self.cursorRow = math.max(math.min(self.cursorRow + dy, #self.newlines-2), 1)
 
 					local currentLineCols = self:countRowCols(self.cursorRow)
 					self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
@@ -362,6 +363,7 @@ local function prevNewline(s, i)
 end
 
 function EditCode:countRowCols(row)
+	if row < 1 or row >= #self.newlines then return 0 end
 	--return self.newlines[row+1] - self.newlines[row] + 1
 	local linetext = self.text:sub(self.newlines[row], self.newlines[row+1])
 	-- TODO enumerate chars, upon tab round up to tab indent
