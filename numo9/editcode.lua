@@ -207,7 +207,7 @@ function EditCode:update()
 	-- find cursor - do this before we start selection
 	if leftButtonDown
 	then
-		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1+self.editLineOffset
+		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1
 		if y + self.editLineOffset >= 1
 		and y + self.editLineOffset < #self.newlines-1
 		then
