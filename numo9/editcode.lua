@@ -266,7 +266,11 @@ function EditCode:update()
 		uikey = app:key'lctrl' or app:key'rctrl'
 	end
 
-	if uikey and (app:keyp'x' or app:keyp'c') then -- cut/copy
+	if uikey and app:keyp'a' then
+		-- select all
+		self.selectStart = 1
+		self.selectEnd = #self.text
+	elseif uikey and (app:keyp'x' or app:keyp'c') then -- cut/copy
 		if self.selectStart then
 			local sel = self.text:sub(self.selectStart, self.selectEnd-1)
 			if not clip.text(sel) then
@@ -284,6 +288,7 @@ function EditCode:update()
 		local paste = clip.text()
 		if paste then
 			self.text = self.text:sub(1, self.cursorLoc-1)..paste..self.text:sub(self.cursorLoc)
+			self.cursorLoc = self.cursorLoc + #paste
 		end
 		self:refreshNewlines()
 		self:refreshCursorColRowForLoc()
