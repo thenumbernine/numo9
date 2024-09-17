@@ -208,7 +208,8 @@ function EditCode:update()
 	if leftButtonDown
 	then
 		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1
-		if y + self.editLineOffset >= 1
+		if y >= 1	-- no clicks on top row
+		and y + self.editLineOffset >= 1
 		and y + self.editLineOffset < #self.newlines-1
 		then
 			local i = self.newlines[y + self.editLineOffset] + 1
@@ -221,12 +222,18 @@ function EditCode:update()
 	end
 
 	if leftButtonPress then
-		self.selctDownLoc = nil
-		self.selectCurLoc = nil
-		self.selectStart = nil
-		self.selectEnd = nil
+		local y = math.floor((mouseY-textareaY)/spriteSize.y)+1
+		if y >= 1	-- no clicks on top row
+		and y + self.editLineOffset >= 1
+		and y + self.editLineOffset < #self.newlines-1
+		then
+			self.selctDownLoc = nil
+			self.selectCurLoc = nil
+			self.selectStart = nil
+			self.selectEnd = nil
 
-		self.selectDownLoc = self.cursorLoc
+			self.selectDownLoc = self.cursorLoc
+		end
 	end
 	if leftButtonDown then
 		if self.selectDownLoc then
@@ -319,7 +326,9 @@ end
 
 function EditCode:addCharToText(ch)
 	-- if we have selection then delete it
-	if self.selectStart then
+	if self.selectStart
+	and self.selectEnd > self.selectStart -- end is exclusive, so this is an empty selection
+	then
 		self:deleteSelection()
 
 		-- and if we're pressing backspace on selection then quit while you're ahead
