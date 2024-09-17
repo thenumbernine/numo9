@@ -1559,7 +1559,13 @@ print('no runnable focus!')
 
 		-- do this every frame or only on updates?
 		-- how about no more than twice after an update (to please the double-buffers)
-		needDrawCounter = 2
+		-- TODO don't do it unless we've changed the framebuffer since the last draw
+		-- 	so any time fbTex is modified (wherever dirtyCPU/GPU is set/cleared), also set a changedSinceDraw=true flag
+		-- then here test for that flag and only re-increment 'needDraw' if it's set
+		if self.fbTex.changedSinceDraw then
+			self.fbTex.changedSinceDraw = false
+			needDrawCounter = 2
+		end
 	end
 
 	if needDrawCounter > 0 then
@@ -1652,6 +1658,7 @@ function App:poke(addr, value)
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
+		self.fbTex.changedSinceDraw = true
 	end
 
 	self.ram.v[addr] = tonumber(value)
@@ -1688,6 +1695,7 @@ function App:pokew(addr, value)
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
+		self.fbTex.changedSinceDraw = true
 	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
@@ -1718,6 +1726,7 @@ function App:pokel(addr, value)
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 		self.fbTex.dirtyCPU = true
+		self.fbTex.changedSinceDraw = true
 	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
@@ -1765,6 +1774,7 @@ function App:drawSolidRect(
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
 end
 -- TODO get rid of this function
 function App:drawBorderRect(
@@ -1791,6 +1801,7 @@ function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
 end
 
 local mvMatCopy = ffi.new('float[16]')
@@ -1852,6 +1863,7 @@ function App:drawQuad(
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
 end
 
 --[[
@@ -1925,6 +1937,7 @@ function App:drawSprite(
 	)
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
 end
 
 -- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
@@ -1967,6 +1980,7 @@ function App:drawMap(
 	)
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
 end
 
 -- draw transparent-background text
