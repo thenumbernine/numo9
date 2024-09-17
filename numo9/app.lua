@@ -218,6 +218,7 @@ local fpsSeconds = 0
 -- update interval vars
 local lastUpdateTime = getTime()	-- TODO resetme upon resuming from a pause state
 local updateInterval = 1 / 60
+local needDrawCounter = 0
 local needUpdateCounter = 0
 
 -- TODO ypcall that is xpcall except ...
@@ -1555,46 +1556,54 @@ print('no runnable focus!')
 		-- copy last key buffer to key buffer here after update()
 		-- so that sdl event can populate changes to current key buffer while execution runs outside this callback
 		ffi.copy(self.ram.lastKeyPressFlags, self.ram.keyPressFlags, keyPressFlagSize)
+
+		-- do this every frame or only on updates?
+		-- how about no more than twice after an update (to please the double-buffers)
+		needDrawCounter = 2
 	end
 
-	gl.glViewport(0, 0, self.width, self.height)
-	gl.glClearColor(.1, .2, .3, 1.)
-	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+	if needDrawCounter > 0 then
+		needDrawCounter = needDrawCounter - 1
 
--- [[ redo ortho projection matrix
--- every frame for us to use a proper rectangle
-	local view = self.blitScreenView
-	local orthoSize = view.orthoSize
-	local wx, wy = self.width, self.height
-	if wx > wy then
-		local rx = wx / wy
-		view.projMat:setOrtho(
-			-orthoSize * (rx - 1) / 2,
-			orthoSize * (((rx - 1) / 2) + 1),
-			orthoSize,
-			0,
-			-1,
-			1
-		)
-	else
-		local ry = wy / wx
-		view.projMat:setOrtho(
-			0,
-			orthoSize,
-			orthoSize * (((ry - 1) / 2) + 1),
-			-orthoSize * (ry - 1) / 2,
-			-1,
-			1
-		)
+		gl.glViewport(0, 0, self.width, self.height)
+		gl.glClearColor(.1, .2, .3, 1.)
+		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+
+	-- [[ redo ortho projection matrix
+	-- every frame for us to use a proper rectangle
+		local view = self.blitScreenView
+		local orthoSize = view.orthoSize
+		local wx, wy = self.width, self.height
+		if wx > wy then
+			local rx = wx / wy
+			view.projMat:setOrtho(
+				-orthoSize * (rx - 1) / 2,
+				orthoSize * (((rx - 1) / 2) + 1),
+				orthoSize,
+				0,
+				-1,
+				1
+			)
+		else
+			local ry = wy / wx
+			view.projMat:setOrtho(
+				0,
+				orthoSize,
+				orthoSize * (((ry - 1) / 2) + 1),
+				-orthoSize * (ry - 1) / 2,
+				-1,
+				1
+			)
+		end
+		view.mvMat:setIdent()
+		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+		local sceneObj = self.blitScreenObj
+		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+	--]]
+
+		-- draw from framebuffer to screen
+		sceneObj:draw()
 	end
-	view.mvMat:setIdent()
-	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
-	local sceneObj = self.blitScreenObj
-	sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
---]]
-
-	-- draw from framebuffer to screen
-	sceneObj:draw()
 end
 
 function App:peek(addr)
