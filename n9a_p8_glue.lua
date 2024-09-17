@@ -407,6 +407,8 @@ assert(i>=0 and i<256)
 		return (i&0xf)|((i>>1)&0xf0)
 	end,
 	mset=[x,y,i]do
+		x=math.floor(x)
+		y=math.floor(y)
 		i=math.floor(i)
 		mset(x,y,(i&0xf)|((i&0xf0)<<1))
 	end,

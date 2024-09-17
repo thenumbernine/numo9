@@ -15,6 +15,8 @@ Fantasy consoles are a fantasy because of a few things:
 	In the 80s terminal computers you'd have RAM and IO-filesystem, which is slow.  You need load screens.
 	In the 80s consoles you'd have RAM and ROM, which is fast, but ... it's ROM, you can't write to it, no `cstore()` function.
 	In pico8 you have RAM, ROM, and IO-filesystem.  This is an over-indulgance of the 80s PC/console era.
+- Memory and Code:
+	I think in every one of these fantasy consoles, they have fake-fantasy-console RAM, even with some addressible by you the user, and then they have mystery untouchable script RAM which really bypasses the whole console app and is limited by your computer's RAM.
 
 ## What's unique about this one?
 
@@ -46,6 +48,13 @@ But then what is left available for sprite rendering?
 
 The other fantasy consoles do set aside memory for a framebuffer.  But their output is usually only 4bpp.
 Maybe I should set aside framebuffer memory too?
+
+I'm doing it all in GLES3, so hopefully it can be ported to web.  I know, I know, everyone who writes theirs in C/C++ can Emscripten it into Webasm.  And everyone who writes theirs in pure-Lua/LÖVE can use an emscripten'd Lua to run it in browser.  But for some funny reasons, LuaJIT has almost never been ported to browser (apart from [here](https://webvm.io) ).
+I've wrote a very sorry Lua-meets-JS shim implementation of the LuaJIT FFI library which can run small demos ([here](https://github.com/thenumbernine/glapp-js)), but the FFI layer is sooo slooow it can't handle this yet, so I'll keep poking around at LuaJIT-in-browser-meets-GLES`<->`WebGL options out there...
+
+The output is currently a RGB565 framebuffer, which makes it even higher color depth than the RGBA5551 palette.
+I'm slowly working to downgrade this to RGB332 + auto-dithering.  Maybe I'll upgrade the palette to RGB888 like other fantasy consoles do, but meh, I'm targetting SNES hardware, so maybe I'll leave it at RGBA5551.
+I might add in different display modes, including an 8bpp/4bpp indexed color output, so that I can properly interpret `pget/pset` functions in pico8/tic80 cartridges.
 
 ### sprites / tiles
 
@@ -127,25 +136,25 @@ Font is from [Liko-12](https://liko-12.github.io/)
 ### Memory Layout
 
 ROM ...
-sprites = 256x256x8 = 64k
-tiles = 256x256x8 = 64k
-tilemap = 256x256x16bpp = 128k
-	... maybe I'll cut this down to just 32x32 like SNES, i.e. two screens worth, and provide an API for saving/loading screens from mem ...
-	... then it'd just be 2k instead of 128k ...
-code = ???
-music = ???
-sound = ???
+- sprites = 256x256x8 = 64k
+- tiles = 256x256x8 = 64k
+- tilemap = 256x256x16bpp = 128k
+	- 	... maybe I'll cut this down to just 32x32 like SNES, i.e. two screens worth, and provide an API for saving/loading screens from mem ...
+	- 	... then it'd just be 2k instead of 128k ...
+- code = ???
+- music = ???
+- sound = ???
 
 RAM ...
-sprites ... same
-tiles ... same
-tilemap ... maybe I'll make this one only 32x32 ...
-code ...
-music ...
-sound ...
-IO
-	keyboard
-	mouse
+- sprites ... same
+- tiles ... same
+- tilemap ... maybe I'll make this one only 32x32 ...
+- code ...
+- music ...
+- sound ...
+- IO
+	- keyboard
+	- mouse
 
 # Language
 
@@ -162,29 +171,49 @@ This adds to Lua(/JIT):
 
 # API
 
-- `print(...)` = print to console ... not print to screen ... gotta fix that
-- `write(...)` = print to console without newline
+## virtual-filesystem commands:
+
+- `ls()` = list directory
+- `dir()` = same
+- `cd()` = change directory
+- `mkdir()` = make directory 
+
+## system:
+
+- `print(...)` = print to screen
+- `trace(...)` = print to host OS terminal
 
 - `run()` = run loaded cartridge
-- `save([filename])` = save cartridge
-- `load([filename])` = save cartridge
-- `quit()` = shorthand for `os.exit()`
+- `stop()` = stop all execution and drop into console mode
+
+- `save([filename])` = save cartridge to virtual-filesystem and host-filesystem
+- `load([filename])` = load cartridge
+- `reset()` = reload cartridge to its initial state.
+- `quit()` = quit the entire application outright to host OS.
+
 - `time()` = soon to be cartridge run time, currently poor mans implementation
+
+## memory
+
+- `peek, peekw, peekl, poke, pokew, pokel` = read/write memory 1, 2, or 4 bytes at a time.
+- `mget, mset` = read/write uint16's from/to the tilemap.  
 
 ## graphics
 
 - `cls([color])` = clear screen.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
-- `rect(x1, y1, x2, y2, [color])` = draw solid rectangle
-- `rectb(x1, y1, x2, y2, [color])` = draw rectangle border
-- `spr(...)` = draw sprite
-- `map(...)` = draw tilemap
-- `text(...)` = draw text.  I should rename this to `print` for compat reasons.
-- `sprite(...)`
-- `key(code)`
+- `rect(x, y, w, h, [color])` = draw solid rectangle
+- `rectb(x, y, w, h, [color])` = draw rectangle border
+- `elli/ellib` = draw solid/border ellipse/circle.
+- `line(x1,y1,x2,y2,[color])` = draw line.
+- `spr(spriteIndex,screenX,screenY,spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY)` = draw sprite
+- `quad(x,y,w,h,tx,ty,tw,th,pal,transparent,spriteBit,spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
+- `map(tileX,tileY,tilesWide,tilesHigh,screenX,screenY,mapIndexOffset)` = draw the tilemap.
+- `text(str,x,y)` = draw text.  I should rename this to `print` for compat reasons.
 
 ## input:
-- `keyp(code)` = Returns true if the key code was pressed.
+
+- `key(code) keyp(code) keyr(code)` = Returns true if the key code was pressed.
 	Code is either a name or number.
 	The number coincides with the console's internal scancode bit offset in internal buffer.
 
@@ -201,9 +230,34 @@ This adds to Lua(/JIT):
 |tab=48          |return=49       |backspace=50    |up=51           |down=52         |left=53         |right=54        |capslock=55     |
 |lctrl=56        |rctrl=57        |lshift=58       |rshift=59       |lalt=60         |ralt=61         |lgui=62         |rgui=63         |
 
+- `btn, btnp, btnr` = same for emulated-joypad-buttons-on-keyboard
+- `mouse()` = get the current mouse state.
+
 ## math
 - `cos(theta)` = shorthand for `math.cos(theta)`	... maybe I won't do shorthand functions like pico-8 ... tic-80 gets by without them.
 - `sin(theta)` = shorthand for `math.sin(theta)`
+
+## other globals, maybe I'll take some out eventually:
+
+- `tostring`
+- `tonumber`
+- `select`
+- `type`
+- `error`
+- `assert`
+- `pairs`
+- `ipairs`
+- `ffi` = the luajit ffi library
+- `getfenv`
+- `setfenv`
+- tables:
+	- `bit` = luajit's bit library
+	- `math` = luajit's math library
+	- `table` = my lua-ext table library
+	- `string` = my lua-ext string library
+	- `coroutine` = my lua-ext coroutine library
+	- `app` = the NuMo9 app itself.  Probably going away soon.
+	- `_G` = the NuMo9 global.  Probably going away soon.
 
 # Cartridge IO
 

@@ -319,6 +319,11 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		reset = function(...) return self:resetROM(...) end,
 		quit = function(...) self:requestExit() end,
 
+		-- timer
+		time = function()
+			return self.ram.romUpdateCounter[0] * updateInterval
+		end,
+
 		-- pico8 has poke2 as word, poke4 as dword
 		-- tic80 has poke2 as 2bits, poke4 as 4bits
 		-- I will leave bit operations up to the user, but for ambiguity rename my word and dword into pokew and pokel
@@ -329,18 +334,6 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		poke = function(addr, value) return self:poke(addr, value) end,
 		pokew = function(addr, value) return self:pokew(addr, value) end,
 		pokel = function(addr, value) return self:pokel(addr, value) end,
-
-		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
-		key = function(...) return self:key(...) end,
-		keyp = function(...) return self:keyp(...) end,
-		keyr = function(...) return self:keyr(...) end,
-
-		btn = function(...) return self:btn(...) end,
-		btnp = function(...) return self:btnp(...) end,
-		btnr = function(...) return self:btnr(...) end,
-
-		-- TODO merge mouse buttons with btpn as well so you get added fnctionality of press/release detection
-		mouse = function(...) return self:mouse(...) end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(x, y)
@@ -365,21 +358,13 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 			end
 		end,
 
-		-- timer
-		time = function()
-			return self.ram.romUpdateCounter[0] * updateInterval
-		end,
-
-		-- math
-		cos = math.cos,
-		sin = math.sin,
-
 		-- graphics
 
 		-- fun fact, if the API calls cls() it clears with color zero
 		-- but color zero is a game color, not an editor color, that'd be color 240
 		-- but at the moment the console is routed to directly call the API,
 		-- so if you type "cls" at the console then you could get a screen full of some nonsense color
+		flip = coroutine.yield,	-- simple as
 		cls = function(...)
 			local con = self.con
 			con.cursorPos:set(0, 0)
@@ -423,6 +408,23 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		end,
 		map = function(...) return self:drawMap(...) end,
 		text = function(...) return self:drawText(...) end,		-- (text, x, y, fgColorIndex, bgColorIndex)
+
+
+		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
+		key = function(...) return self:key(...) end,
+		keyp = function(...) return self:keyp(...) end,
+		keyr = function(...) return self:keyr(...) end,
+
+		btn = function(...) return self:btn(...) end,
+		btnp = function(...) return self:btnp(...) end,
+		btnr = function(...) return self:btnr(...) end,
+
+		-- TODO merge mouse buttons with btpn as well so you get added fnctionality of press/release detection
+		mouse = function(...) return self:mouse(...) end,
+
+		-- math
+		cos = math.cos,
+		sin = math.sin,
 
 		bit = bit,
 		math = require 'ext.math',
@@ -1962,6 +1964,7 @@ function App:drawSprite(
 	self.fbTex.dirtyGPU = true
 end
 
+-- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
 function App:drawMap(
 	tileX,
 	tileY,
