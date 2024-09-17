@@ -40,11 +40,9 @@ function Console:reset()
 
 	self.cmdHistory = table()
 	self.cmdHistoryIndex = nil
-	self.cursorPos = vec2i(0, 0)
 
-	-- right now fgColor just adds
-	-- meanwhile the font texture is indexed 0's and 15's
-	-- so whatever you set fgColor to, that value is background and that value plus 15 is foreground
+	-- TODO move these to RAM
+	self.cursorPos = vec2i(0, 0)
 	self.fgColor = 0xfd
 	self.bgColor = 0xf0
 
@@ -54,11 +52,9 @@ function Console:reset()
 
 	self:coolPrint'NuMo-9 ver. 0.1-alpha'
 	self:coolPrint'https://github.com/thenumbernine/numo9 (c) 2024'
+	self:coolPrint'...OpenResty LuaJIT'
+	self:coolPrint('...'..frameBufferSize.x..'x'..frameBufferSize.y..'x8bpp framebuffer')
 	--self:print"type help() for help" -- not really
-
-	--self.fgColor = 0xfe		-- 14 = bg, 15 = fg
-	self.fgColor = 0xfc			-- 11 = bg, 12 = fg
-	self.bgColor = 0xf0
 
 	-- flag 'needsPrompt' then write the prompt in update if it's needed
 	self.needsPrompt = true
@@ -159,11 +155,12 @@ end
 
 -- because everyone else is doing it
 function Console:coolPrint(...)
-	self.fgColor = 0xf2
+	self.fgColor = 0xf9
 	--self.bgColor = 0xf1
+	local ofs = 9
 	local function inc(d)
-		self.fgColor = bit.bor((self.fgColor-1+d)%14+1,0xf0)
-		--self.bgColor = bit.bor((self.bgColor-1+d)%14+1,0xf0)
+		self.fgColor = bit.bor((self.fgColor-ofs+d)%4+ofs,0xf0)
+		--self.bgColor = bit.bor((self.bgColor-ofs+d)%3+ofs,0xf0)
 	end
 	inc(bit.rshift(self.cursorPos.x,3)+bit.rshift(self.cursorPos.y,3))
 	local function addChar(ch)
@@ -171,7 +168,7 @@ function Console:coolPrint(...)
 		inc(1)
 	end
 	for i=1,select('#', ...) do
-		if i > 1 then 
+		if i > 1 then
 			addChar(('\t'):byte())
 		end
 		local s = tostring(select(i, ...))

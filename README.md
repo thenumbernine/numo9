@@ -268,6 +268,7 @@ All my cartridge files are in `.png`. format.  To pack and unpack them use the `
 # Compatability
 
 - I've made a 90% functioning conversion from `.p8` to `.n9` cartridges.
+- I just put the 'sprite flags' into a giant Lua table.  NuMo9 doesn't support sprite flags.
 - There's still some things I don't know if I want to expose support of, like an indexed framebuffer that lets you modify screen palette colors after drawing them (what kind of console hardware ever did this?).
 	- Maybe I'll change my current RGB565 framebuffer to a various-mode framebuffer, including an 8-bit indexed framebuffer ... man I hate the thought of it ...
 - Soon I'll start on `.tic` support as well.
@@ -288,7 +289,7 @@ All my cartridge files are in `.png`. format.  To pack and unpack them use the `
 # TODO
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 - sfx and music
-- image clipboard support
+- Image clipboard support.  Before I was working on: https://github.com/thenumbernine/convert-to-8x8x4bpp .  I'm going to merge this project into the NuMo9 editor.  Automatic tile and palette quantization.
 - in-console menu system somehow ... everyone does this different I think
-- some demos to prove it is legit
+- Some demos to prove it is legit
 - Right now browser embedding is only done through luajit ffi emulation, which is currently slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.
