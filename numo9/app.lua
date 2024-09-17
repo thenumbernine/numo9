@@ -25,6 +25,7 @@ local path = require 'ext.path'
 local getTime = require 'ext.timer'.getTime
 local tolua = require 'ext.tolua'
 local fromlua = require 'ext.fromlua'
+local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 local matrix_ffi = require 'matrix.ffi'
 local Image = require 'image'
@@ -162,6 +163,12 @@ local RAM = struct{
 				-- I guess I'll dedicate 16 bits per hold counter to every key ...
 				-- TODO mayyybbee ... just dedicate one to every button, and an extra one for keys that aren't buttons
 				{name='keyHoldCounter', type='uint16_t['..keyCount..']'},
+				
+				{name='mousePos', type='vec2s_t'},			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
+				{name='lastMousePos', type='vec2s_t'},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
+				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
+				{name='lastMouseButtons', type='uint8_t[1]'},	-- same question...
+				{name='mouseButtons', type='uint8_t[1]'},	-- mouse button flags.  using SDL atm so flags 0 1 2 = left middle right
 			},
 		}},
 	},
@@ -275,6 +282,7 @@ gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
 		return image
 	end
 
+	-- TODO use fixed-precision here ... or ... expose floating-precision poke/peeks?
 	self.mvMat = matrix_ffi({4,4}, 'float'):zeros():setIdent()
 	self.mvMat.ptr = self.ram.mvMat
 
@@ -1271,6 +1279,12 @@ void main() {
 
 	FileSystem = require 'numo9.filesystem'
 	self.fs = FileSystem{app=self}
+	-- copy over a local filetree somewhere in the app ...
+	for fn in path:dir() do
+		if select(2, fn:getext()) == 'n9' then
+			self.fs:addFromHost(fn.path)
+		end
+	end
 
 	-- editor init
 
@@ -1289,19 +1303,7 @@ void main() {
 		self.con = Console{app=self}
 	end)
 
-	-- TODO copy over a local filetree somewhere in the app ...
-	for fn in path:dir() do
-		if select(2, fn:getext()) == 'n9' then
-			self.fs:addFromHost(fn.path)
-		end
-	end
-
-	-- TODO put all this in RAM
-	self.screenMousePos = vec2i()	-- host coordinates
-	self.mousePos = vec2i()			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
-	self.lastMousePos = vec2i()		-- ... " " last frame
-	self.lastMousePressPos = vec2i()	-- " " at last mouse press
-	self.mouseButtons = 0			-- mouse button flags.  using SDL atm so flags 0 1 2 = left middle right
+	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
 
 	self:setFocus{
 		thread = coroutine.create(function()
@@ -1449,9 +1451,9 @@ function App:update()
 
 		-- update input between frames
 		do
-			self.lastMousePos:set(self.mousePos:unpack())
-			self.lastMouseButtons = self.mouseButtons
-			self.mouseButtons = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
+			self.ram.lastMousePos:set(self.ram.mousePos:unpack())
+			self.ram.lastMouseButtons[0] = self.ram.mouseButtons[0]
+			self.ram.mouseButtons[0] = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
 			local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
 			local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
@@ -1459,13 +1461,13 @@ function App:update()
 			y = y1 * (1 - y) + y2 * y
 			x = x * .5 + .5
 			y = y * .5 + .5
-			self.mousePos.x = x * tonumber(frameBufferSize.x)
-			self.mousePos.y = y * tonumber(frameBufferSize.y)
-			local leftButtonLastDown = bit.band(self.lastMouseButtons, 1) == 1
-			local leftButtonDown = bit.band(self.mouseButtons, 1) == 1
+			self.ram.mousePos.x = x * tonumber(frameBufferSize.x)
+			self.ram.mousePos.y = y * tonumber(frameBufferSize.y)
+			local leftButtonLastDown = bit.band(self.ram.lastMouseButtons[0], 1) == 1
+			local leftButtonDown = bit.band(self.ram.mouseButtons[0], 1) == 1
 			local leftButtonPress = leftButtonDown and not leftButtonLastDown
 			if leftButtonPress then
-				self.lastMousePressPos:set(self.mousePos:unpack())
+				self.ram.lastMousePressPos:set(self.ram.mousePos:unpack())
 			end
 		end
 
@@ -2307,11 +2309,11 @@ end
 
 function App:mouse()
 	return
-		self.mousePos.x,
-		self.mousePos.y,
-		bit.band(self.mouseButtons, sdl.SDL_BUTTON_LMASK) ~= 0,
-		bit.band(self.mouseButtons, sdl.SDL_BUTTON_MMASK) ~= 0,
-		bit.band(self.mouseButtons, sdl.SDL_BUTTON_RMASK) ~= 0,
+		self.ram.mousePos.x,
+		self.ram.mousePos.y,
+		bit.band(self.ram.mouseButtons[0], sdl.SDL_BUTTON_LMASK) ~= 0,
+		bit.band(self.ram.mouseButtons[0], sdl.SDL_BUTTON_MMASK) ~= 0,
+		bit.band(self.ram.mouseButtons[0], sdl.SDL_BUTTON_RMASK) ~= 0,
 		0,	-- TODO scrollX
 		0	-- TODO scrollY
 end

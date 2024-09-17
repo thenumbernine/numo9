@@ -56,7 +56,7 @@ function Editor:guiButton(x, y, str, isset, tooltip)
 		--isset and 7 or 8
 	)
 
-	local mouseX, mouseY = app.mousePos:unpack()
+	local mouseX, mouseY = app.ram.mousePos:unpack()
 	if mouseX >= x and mouseX < x + spriteSize.x
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
@@ -64,8 +64,8 @@ function Editor:guiButton(x, y, str, isset, tooltip)
 			self:drawText(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 		end
 
-		local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
-		local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+		local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
+		local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
 		local leftButtonPress = leftButtonDown and not leftButtonLastDown
 		if leftButtonPress then
 			return true
@@ -77,10 +77,10 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	local app = self.app
 
 	-- TODO this in one spot, mabye with glapp.mouse ...
-	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
-	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+	local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
+	local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
-	local mouseX, mouseY = app.mousePos:unpack()
+	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	self:drawText('<', x, y, 13, 0)
 	if leftButtonPress

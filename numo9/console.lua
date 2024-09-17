@@ -52,8 +52,9 @@ function Console:reset()
 	-- clear the screen every time, or save the screen every time?
 	app:clearScreen(0xf0)
 
-	self:print'NuMo-9 ver. 0.1-alpha'
-	self:print'https://github.com/thenumbernine/numo9'
+	self:coolPrint'NuMo-9 ver. 0.1-alpha'
+	self:coolPrint'https://github.com/thenumbernine/numo9 (c) 2024'
+	--self:print"type help() for help" -- not really
 
 	--self.fgColor = 0xfe		-- 14 = bg, 15 = fg
 	self.fgColor = 0xfc			-- 11 = bg, 12 = fg
@@ -154,6 +155,33 @@ function Console:print(...)
 		self:write(tostring(select(i, ...)))
 	end
 	self:write'\n'
+end
+
+-- because everyone else is doing it
+function Console:coolPrint(...)
+	self.fgColor = 0xf2
+	--self.bgColor = 0xf1
+	local function inc(d)
+		self.fgColor = bit.bor((self.fgColor-1+d)%14+1,0xf0)
+		--self.bgColor = bit.bor((self.bgColor-1+d)%14+1,0xf0)
+	end
+	inc(bit.rshift(self.cursorPos.x,3)+bit.rshift(self.cursorPos.y,3))
+	local function addChar(ch)
+		self:addCharToScreen(ch)
+		inc(1)
+	end
+	for i=1,select('#', ...) do
+		if i > 1 then 
+			addChar(('\t'):byte())
+		end
+		local s = tostring(select(i, ...))
+		for j=1,#s do
+			addChar(s:byte(j,j))
+		end
+	end
+	addChar(('\n'):byte())
+	self.fgColor = 0xfc
+	self.bgColor = 0xf0
 end
 
 function Console:selectHistory(dx)

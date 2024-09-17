@@ -54,10 +54,10 @@ function EditSprites:update()
 	local app = self.app
 
 	-- handle input in the draw because i'm too lazy to move all the data outside it and share it between two functions
-	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
-	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+	local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
+	local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
-	local mouseX, mouseY = app.mousePos:unpack()
+	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	EditSprites.super.update(self)
 
@@ -141,8 +141,8 @@ function EditSprites:update()
 				self.spriteSelSize:set(1,1)
 				self.spritePanOffset:set(0,0)
 			elseif leftButtonDown then
-				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.lastMousePressPos.x) + 1) / spriteSize.x)
-				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.lastMousePressPos.y) + 1) / spriteSize.y)
+				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
+				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
 			end
 		elseif self.spritesheetEditMode == 'pan' then
 			if leftButtonPress then

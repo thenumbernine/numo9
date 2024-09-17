@@ -27,11 +27,11 @@ function EditTilemap:update()
 	local app = self.app
 
 	-- TODO really merge mouse and virtual-joystick with the keyboard and key/p/r api
-	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
-	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+	local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
+	local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local leftButtonRelease = not leftButtonDown and leftButtonLastDown
-	local mouseX, mouseY = app.mousePos:unpack()
+	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	EditTilemap.super.update(self)
 
@@ -124,8 +124,8 @@ function EditTilemap:update()
 				self.spriteSelPos:set(spriteX, spriteY)
 				self.spriteSelSize:set(1, 1)
 			elseif leftButtonDown then
-				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.lastMousePressPos.x) + 1) / spriteSize.x)
-				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.lastMousePressPos.y) + 1) / spriteSize.y)
+				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
+				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
 			elseif leftButtonRelease then
 				self.pickOpen = false
 			end

@@ -74,11 +74,11 @@ function EditCode:update()
 	local app = self.app
 
 	-- TODO really merge mouse and virtual-joystick with the keyboard and key/p/r api
-	local leftButtonLastDown = bit.band(app.lastMouseButtons, 1) == 1
-	local leftButtonDown = bit.band(app.mouseButtons, 1) == 1
+	local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
+	local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local leftButtonRelease = not leftButtonDown and leftButtonLastDown
-	local mouseX, mouseY = app.mousePos:unpack()
+	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	EditCode.super.update(self)
 
