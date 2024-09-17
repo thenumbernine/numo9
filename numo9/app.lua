@@ -187,14 +187,19 @@ App.fontWidth = fontWidth
 
 local spriteSheetAddr = ffi.offsetof('ROM', 'spriteSheet')
 local spriteSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].spriteSheet[0])
+local spriteSheetAddrEnd = spriteSheetAddr + spriteSheetInBytes
 local tileSheetAddr = ffi.offsetof('ROM', 'tileSheet')
 local tileSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].tileSheet[0])
+local tileSheetAddrEnd = tileSheetAddr + tileSheetInBytes
 local tilemapAddr = ffi.offsetof('ROM', 'tilemap')
 local tilemapInBytes = tilemapSize:volume() * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].tilemap[0])
+local tilemapAddrEnd = tilemapAddr + tilemapInBytes
 local paletteAddr = ffi.offsetof('ROM', 'palette')
 local paletteInBytes = paletteSize * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].palette[0])
+local paletteAddrEnd = paletteAddr + paletteInBytes
 local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
 local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
+local framebufferAddrEnd = framebufferAddr + framebufferInBytes
 
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
@@ -1641,10 +1646,7 @@ function App:peek(addr)
 
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
-	if addr >= framebufferAddr
-	and addr < framebufferAddr + framebufferInBytes
-	and self.fbTex.dirtyGPU
-	then
+	if self.fbTex.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
@@ -1652,14 +1654,10 @@ function App:peek(addr)
 	return self.ram.v[addr]
 end
 function App:peekw(addr)
-	if addr < 0 or addr >= ffi.sizeof(self.ram)-1 then return end
+	local addrend = addr+1
+	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	-- if we're writing to a dirty area then flush it to cpu
-	-- assume the GL framebuffer is bound to the fbTex
-	if addr >= framebufferAddr-1
-	and addr < framebufferAddr+framebufferInBytes
-	and self.fbTex.dirtyGPU
-	then
+	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddr+framebufferInBytes then
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
@@ -1667,14 +1665,10 @@ function App:peekw(addr)
 	return ffi.cast('uint16_t*', self.ram.v + addr)[0]
 end
 function App:peekl(addr)
-	if addr < 0 or addr >= ffi.sizeof(self.ram)-3 then return end
+	local addrend = addr+3
+	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	-- if we're writing to a dirty area then flush it to cpu
-	-- assume the GL framebuffer is bound to the fbTex
-	if addr >= framebufferAddr-3
-	and addr < framebufferAddr+framebufferInBytes
-	and self.fbTex.dirtyGPU
-	then
+	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddr+framebufferInBytes then
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
 	end
@@ -1688,10 +1682,7 @@ function App:poke(addr, value)
 
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
-	if addr >= framebufferAddr
-	and addr < framebufferAddr + framebufferInBytes
-	and self.fbTex.dirtyGPU
-	then
+	if self.fbTex.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
 		assert(not self.fbTex.dirtyCPU)
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
@@ -1702,51 +1693,32 @@ function App:poke(addr, value)
 
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
-	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
-	if addr >= spriteSheetAddr
-	and addr < spriteSheetAddr + spriteSheetInBytes
-	then
+	if addr >= spriteSheetAddr and addr < spriteSheetAddrEnd then
 		self.spriteTex.dirtyCPU = true
 	end
-	-- if we poked the tilesheet
-	if addr >= tileSheetAddr
-	and addr < tileSheetAddr + tileSheetInBytes
-	then
+	if addr >= tileSheetAddr and addr < tileSheetAddrEnd then
 		self.tileTex.dirtyCPU = true
 	end
-	-- if we poked the tilemap
-	if addr >= tilemapAddr
-	and addr < tilemapAddr + tilemapInBytes
-	then
+	if addr >= tilemapAddr and addr < tilemapAddrEnd then
 		self.mapTex.dirtyCPU = true
 	end
 	-- a few options with dirtying palette entries
 	-- 1) consolidate calls, so write this separately in pokew and pokel
 	-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
 	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
-	-- if we poked palette
-	if addr >= paletteAddr
-	and addr < paletteAddr + paletteInBytes
-	then
+	if addr >= paletteAddr and addr < paletteAddrEnd then
 		self.palTex.dirtyCPU = true
 	end
-	-- if we poked the code
-	-- if we poked the framebuffer
-	if addr >= framebufferAddr
-	and addr < framebufferAddr + framebufferInBytes
-	then
+	-- TODO if we poked the code
+	if addr >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex.dirtyCPU = false
 	end
 end
 function App:pokew(addr, value)
-	if addr < 0 or addr >= ffi.sizeof(self.ram)-1 then return end
+	local addrend = addr+1
+	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	-- if we're writing to a dirty area then flush it to cpu
-	-- assume the GL framebuffer is bound to the fbTex
-	if addr >= framebufferAddr-1
-	and addr < framebufferAddr + framebufferInBytes
-	and self.fbTex.dirtyGPU
-	then
+	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		assert(not self.fbTex.dirtyCPU)
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
@@ -1755,47 +1727,28 @@ function App:pokew(addr, value)
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
 
-	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
-	if addr >= spriteSheetAddr-1
-	and addr < spriteSheetAddr + spriteSheetInBytes
-	then
+	if addrend >= spriteSheetAddr and addr < spriteSheetAddrEnd then
 		self.spriteTex.dirtyCPU = true
 	end
-	-- if we poked the tilesheet
-	if addr >= tileSheetAddr-1
-	and addr < tileSheetAddr + tileSheetInBytes
-	then
+	if addrend >= tileSheetAddr and addr < tileSheetAddrEnd then
 		self.tileTex.dirtyCPU = true
 	end
-	-- if we poked the tilemap
-	if addr >= tilemapAddr-1
-	and addr < tilemapAddr + tilemapInBytes
-	then
+	if addrend >= tilemapAddr and addr < tilemapAddrEnd then
 		self.mapTex.dirtyCPU = true
 	end
-	-- if we poked palette
-	if addr >= paletteAddr-1
-	and addr < paletteAddr + paletteInBytes
-	then
+	if addrend >= paletteAddr and addr < paletteAddrEnd then
 		self.palTex.dirtyCPU = true
 	end
-	-- if we poked the code
-	-- if we poked the framebuffer
-	if addr >= framebufferAddr-1
-	and addr < framebufferAddr + framebufferInBytes
-	then
+	-- TODO if we poked the code
+	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex.dirtyCPU = false
 	end
 end
 function App:pokel(addr, value)
-	if addr < 0 or addr >= ffi.sizeof(self.ram)-3 then return end
+	local addrend = addr+3
+	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	-- if we're writing to a dirty area then flush it to cpu
-	-- assume the GL framebuffer is bound to the fbTex
-	if addr >= framebufferAddr-3
-	and addr < framebufferAddr + framebufferInBytes
-	and self.fbTex.dirtyGPU
-	then
+	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		assert(not self.fbTex.dirtyCPU)
 		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
 		self.fbTex.dirtyGPU = false
@@ -1804,35 +1757,20 @@ function App:pokel(addr, value)
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
 
-	-- if we poked the spritesheet then ... make sure it's not dirty so we don't overwrite a change ...
-	if addr >= spriteSheetAddr-3
-	and addr < spriteSheetAddr + spriteSheetInBytes
-	then
+	if addrend >= spriteSheetAddr and addr < spriteSheetAddrEnd then
 		self.spriteTex.dirtyCPU = true
 	end
-	-- if we poked the tilesheet
-	if addr >= tileSheetAddr-3
-	and addr < tileSheetAddr + tileSheetInBytes
-	then
+	if addrend >= tileSheetAddr and addr < tileSheetAddrEnd then
 		self.tileTex.dirtyCPU = true
 	end
-	-- if we poked the tilemap
-	if addr >= tilemapAddr-3
-	and addr < tilemapAddr + tilemapInBytes
-	then
+	if addrend >= tilemapAddr and addr < tilemapAddrEnd then
 		self.mapTex.dirtyCPU = true
 	end
-	-- if we poked palette
-	if addr >= paletteAddr-3
-	and addr < paletteAddr + paletteInBytes
-	then
+	if addrend >= paletteAddr and addr < paletteAddrEnd then
 		self.palTex.dirtyCPU = true
 	end
-	-- if we poked the code
-	-- if we poked the framebuffer
-	if addr >= framebufferAddr-3
-	and addr < framebufferAddr + framebufferInBytes
-	then
+	-- TODO if we poked the code
+	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex.dirtyCPU = false
 	end
 end
