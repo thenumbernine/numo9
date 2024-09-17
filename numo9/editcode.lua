@@ -239,19 +239,12 @@ function EditCode:update()
 		and y + self.scrollY >= 1
 		and y + self.scrollY < #self.newlines-1
 		then
-			self.selctDownLoc = nil
-			self.selectCurLoc = nil
-			self.selectStart = nil
-			self.selectEnd = nil
-
-			self.selectDownLoc = self.cursorLoc
+			self:startSelect()
 		end
 	end
 	if leftButtonDown then
 		if self.selectDownLoc then
-			self.selectCurLoc = self.cursorLoc
-			self.selectStart = math.min(self.selectDownLoc, self.selectCurLoc)
-			self.selectEnd = math.max(self.selectDownLoc, self.selectCurLoc)
+			self:growSelect()
 		end
 	end
 
@@ -307,6 +300,13 @@ function EditCode:update()
 				elseif keycode == keyCodeForName.up
 				or keycode == keyCodeForName.down
 				then
+					if shift then
+						if not self.selectDownLoc then	-- how will mouse drag + kbd shift+move work together?
+							self:startSelect()
+						end
+					else
+						self:clearSelect()
+					end
 					local dy = keycode == keyCodeForName.up and -1 or 1
 					-- math.clamp does it in the other order ...
 					self.cursorRow = math.max(math.min(self.cursorRow + dy, #self.newlines-2), 1)
@@ -317,16 +317,46 @@ function EditCode:update()
 					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
 
 					self:refreshCursorColRowForLoc()	-- just in case?
+				
+					if shift and self.selectDownLoc then
+						self:growSelect()
+					end
 				elseif keycode == keyCodeForName.left
 				or keycode == keyCodeForName.right
 				then
+					if shift then
+						if not self.selectDownLoc then	-- how will mouse drag + kbd shift+move work together?
+							self:startSelect()
+						end
+					else
+						self:clearSelect()
+					end
 					local dx = keycode == keyCodeForName.left and -1 or 1
 					self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
 					self:refreshCursorColRowForLoc()
+					if shift and self.selectDownLoc then
+						self:growSelect()
+					end
 				end
 			end
 		end
 	end
+end
+
+function EditCode:clearSelect()
+	self.selectStart = nil
+	self.selectEnd = nil
+	self.selectDownLoc = nil
+	self.selectCurLoc = nil
+end
+function EditCode:startSelect()
+	self:clearSelect()
+	self.selectDownLoc = self.cursorLoc
+end
+function EditCode:growSelect()
+	self.selectCurLoc = self.cursorLoc
+	self.selectStart = math.min(self.selectDownLoc, self.selectCurLoc)
+	self.selectEnd = math.max(self.selectDownLoc, self.selectCurLoc)
 end
 
 -- be sure to call self:refreshNewlines() and self:refreshCursorColRowForLoc() afterwards...
@@ -339,10 +369,7 @@ function EditCode:deleteSelection()
 	elseif self.cursorLoc >= self.selectEnd then
 		self.cursorLoc = self.cursorLoc - (self.selectEnd - self.selectStart)
 	end
-	self.selectStart = nil
-	self.selectEnd = nil
-	self.selectDownLoc = nil
-	self.selectCurLoc = nil
+	self:clearSelect()
 end
 
 function EditCode:addCharToText(ch)
