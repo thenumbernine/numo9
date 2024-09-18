@@ -1422,13 +1422,15 @@ function App:update()
 
 	local thisTime = getTime()
 
-	-- [[ fps counter
+	--[[ fps counter ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
+	-- TODO only redraw the editor when the cursor blinks or a UI overlay changes ... that should reduce our draws
 	local deltaTime = thisTime - lastTime
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
-		print('FPS: '..fpsFrames / fpsSeconds
-			..' draws '..drawsPerSecond
+		print(
+			--'FPS: '..fpsFrames / fpsSeconds	this will show you how fast a busy loop runs
+			'draws/second '..drawsPerSecond	-- TODO make this single-buffered
 		)
 		drawsPerSecond = 0
 		fpsFrames = 0

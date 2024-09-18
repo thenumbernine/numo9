@@ -27,7 +27,7 @@ function EditCode:init(args)
 	EditCode.super.init(self, args)
 
 	-- text cursor loc
-	self.cursorLoc = 1
+	self.cursorLoc = 0	-- 0-based index of our cursor
 	--self.selectDownLoc = 0
 	--self.selectCurLoc = 0
 	self.scrollX = 0
@@ -39,7 +39,7 @@ end
 function EditCode:setText(text)
 	self.text = text
 --		:gsub('\t', ' ')	--TODO add tab support
-	self.cursorLoc = math.clamp(self.cursorLoc, 1, #self.text+1)
+	self.cursorLoc = math.clamp(self.cursorLoc, 0, #self.text)
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
 end
@@ -49,27 +49,33 @@ local newlineByte = ('\n'):byte()
 function EditCode:refreshNewlines()
 	-- refresh newlines
 	self.newlines = table()
-	self.newlines:insert(0)
+	self.newlines:insert(0)	-- newline is [inclusive, exclusive) the range of 0-based indexes of the text per line
 	for i=1,#self.text do
 		if self.text:byte(i) == newlineByte then
 			self.newlines:insert(i)
 		end
 	end
-	self.newlines:insert(#self.text+1)
+	self.newlines:insert(#self.text+1)	-- len+1 so that len is a valid range on the last line
 end
 
 function EditCode:refreshCursorColRowForLoc()
 	self.cursorRow = nil
 	for i=1,#self.newlines-1 do
-		local start = self.newlines[i]+1
+		local start = self.newlines[i]
 		local finish = self.newlines[i+1]
-		if start <= self.cursorLoc and self.cursorLoc <= finish then
+		if start <= self.cursorLoc and self.cursorLoc < finish then
 			self.cursorRow = i
 			break
 		end
 	end
-	self.cursorRow = self.cursorRow or 1
-	self.cursorCol = self.cursorLoc - self.newlines[self.cursorRow]
+	self.cursorRow = self.cursorRow or 1								-- 1-based, also norm for UIs, also convenient with Lua 1-based indexing ... 
+	self.cursorCol = self.cursorLoc+1 - self.newlines[self.cursorRow]	-- 1-based  like all UI show it as
+print()
+for i=1,#self.newlines-1 do
+	print('line '..i..' start '..self.newlines[i]..' finish '..self.newlines[i+1])
+end
+print()
+
 end
 
 function EditCode:update()
@@ -206,14 +212,11 @@ function EditCode:update()
 	-- footer
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
-	footer = footer .. (' '):rep(frameBufferSizeInTiles.x - #footer)
-	app:drawText(
-		footer,
-		0,
-		textareaY + textareaHeight,
-		0xfc,
-		0xf1
-	)
+	app:drawText(footer, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
+
+	footer = self.cursorLoc..'/'..#self.text
+	local width = app:drawText(footer, 0, frameBufferSize.y, 0, 0)
+	app:drawText(footer, frameBufferSize.x-width, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
 
 	-- handle mouse
 
@@ -229,7 +232,7 @@ function EditCode:update()
 			local j = self.newlines[y + self.scrollY + 1]
 			local x = math.floor((mouseX - textareaX - self.scrollX) / fontWidth) + i
 			x = math.clamp(x, i,j)	-- TODO add scrolling left/right, and consider the offset here
-			self.cursorLoc = x
+			self.cursorLoc = x-1
 			self:refreshCursorColRowForLoc()	-- just in case?
 		end
 	end
@@ -263,7 +266,7 @@ function EditCode:update()
 	if uikey and app:keyp'a' then
 		-- select all
 		self.selectStart = 1
-		self.selectEnd = #self.text
+		self.selectEnd = #self.text+1	-- how did i end up using an exclusive, 1-based range ... smh
 	elseif uikey and (app:keyp'x' or app:keyp'c') then -- cut/copy
 		if self.selectStart then
 			local sel = self.text:sub(self.selectStart, self.selectEnd-1)
@@ -281,7 +284,7 @@ function EditCode:update()
 		self:deleteSelection()
 		local paste = clip.text()
 		if paste then
-			self.text = self.text:sub(1, self.cursorLoc-1)..paste..self.text:sub(self.cursorLoc)
+			self.text = self.text:sub(1, self.cursorLoc)..paste..self.text:sub(self.cursorLoc+1)
 			self.cursorLoc = self.cursorLoc + #paste
 		end
 		self:refreshNewlines()
@@ -310,12 +313,16 @@ function EditCode:update()
 					end
 					local dy = keycode == keyCodeForName.up and -1 or 1
 					-- math.clamp does it in the other order ...
-					self.cursorRow = math.max(math.min(self.cursorRow + dy, #self.newlines-2), 1)
+					self.cursorRow + dy
+					if self.cursorRow < 1 or self.cursorRow > #self.newlines-1 then
+						self.cursorCol = 1
+						self.cursorRow = math.clamp(self.cursorRow, 1, #self.newlines-1)
+					else
+						local currentLineCols = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
+						self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
+					end
 
-					local currentLineCols = self:countRowCols(self.cursorRow)
-					self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
-
-					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
+					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
 
 					self:refreshCursorColRowForLoc()	-- just in case?
 
@@ -333,7 +340,8 @@ function EditCode:update()
 						self:clearSelect()
 					end
 					local dx = keycode == keyCodeForName.left and -1 or 1
-					self.cursorLoc = math.clamp(self.cursorLoc + dx, 1, #self.text+1)
+					-- clamp uses min then max, but i'm finding more and more a reason to do max then min
+					self.cursorLoc = math.min(math.max(self.cursorLoc + dx, 0), #self.text)
 					self:refreshCursorColRowForLoc()
 					if shift and self.selectDownLoc then
 						self:growSelect()
@@ -352,10 +360,10 @@ function EditCode:clearSelect()
 end
 function EditCode:startSelect()
 	self:clearSelect()
-	self.selectDownLoc = self.cursorLoc
+	self.selectDownLoc = self.cursorLoc+1
 end
 function EditCode:growSelect()
-	self.selectCurLoc = self.cursorLoc
+	self.selectCurLoc = self.cursorLoc+1
 	self.selectStart = math.min(self.selectDownLoc, self.selectCurLoc)
 	self.selectEnd = math.max(self.selectDownLoc, self.selectCurLoc)
 end
@@ -365,9 +373,9 @@ function EditCode:deleteSelection()
 	if not self.selectStart then return end
 
 	self.text = self.text:sub(1, self.selectStart-1)..self.text:sub(self.selectEnd)
-	if self.cursorLoc >= self.selectStart and self.cursorLoc < self.selectEnd then
-		self.cursorLoc = self.selectStart
-	elseif self.cursorLoc >= self.selectEnd then
+	if self.cursorLoc+1 >= self.selectStart and self.cursorLoc+1 < self.selectEnd then
+		self.cursorLoc = self.selectStart-1
+	elseif self.cursorLoc+1 >= self.selectEnd then
 		self.cursorLoc = self.cursorLoc - (self.selectEnd - self.selectStart)
 	end
 	self:clearSelect()
@@ -388,11 +396,11 @@ function EditCode:addCharToText(ch)
 		ch = newlineByte	-- store \n's instead of \r's
 	end
 	if ch == 8 then
-		self.text = self.text:sub(1, self.cursorLoc - 2) .. self.text:sub(self.cursorLoc)
-		self.cursorLoc = math.max(1, self.cursorLoc - 1)
+		self.text = self.text:sub(1, self.cursorLoc - 1) .. self.text:sub(self.cursorLoc+1)
+		self.cursorLoc = math.max(0, self.cursorLoc - 1)
 	elseif ch then
-		self.text = self.text:sub(1, self.cursorLoc-1) .. string.char(ch) .. self.text:sub(self.cursorLoc)
-		self.cursorLoc = math.min(#self.text+1, self.cursorLoc + 1)
+		self.text = self.text:sub(1, self.cursorLoc) .. string.char(ch) .. self.text:sub(self.cursorLoc+1)
+		self.cursorLoc = math.min(#self.text, self.cursorLoc + 1)
 	end
 
 	self:refreshNewlines()
@@ -405,15 +413,6 @@ local function prevNewline(s, i)
 		if s:sub(i,i) == '\n' then return i end
 	end
 	return 1
-end
-
-function EditCode:countRowCols(row)
-	if row < 1 or row >= #self.newlines then return 0 end
-	--return self.newlines[row+1] - self.newlines[row] + 1
-	local linetext = self.text:sub(self.newlines[row], self.newlines[row+1])
-	-- TODO enumerate chars, upon tab round up to tab indent
-	--linetext = linetext:gsub('\t', (' '):rep(indentSize))
-	return #linetext
 end
 
 return EditCode
