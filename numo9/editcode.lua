@@ -38,7 +38,7 @@ end
 
 function EditCode:setText(text)
 	self.text = text
-		:gsub('\t', ' ')	--TODO add tab support
+--		:gsub('\t', ' ')	--TODO add tab support
 	self.cursorLoc = math.clamp(self.cursorLoc, 1, #self.text+1)
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()

@@ -214,6 +214,7 @@ local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't 
 local lastTime = getTime()
 local fpsFrames = 0
 local fpsSeconds = 0
+local drawsPerSecond = 0
 
 -- update interval vars
 local lastUpdateTime = getTime()	-- TODO resetme upon resuming from a pause state
@@ -244,7 +245,7 @@ end
 function App:postUpdate() end
 
 function App:initGL()
-	--[[
+	--[[ getting single-buffer to work
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
 
@@ -1426,7 +1427,10 @@ function App:update()
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
-		print('FPS: '..fpsFrames / fpsSeconds)
+		print('FPS: '..fpsFrames / fpsSeconds
+			..' draws '..drawsPerSecond
+		)
+		drawsPerSecond = 0
 		fpsFrames = 0
 		fpsSeconds = 0
 	end
@@ -1577,6 +1581,7 @@ print('no runnable focus!')
 
 	if needDrawCounter > 0 then
 		needDrawCounter = needDrawCounter - 1
+		drawsPerSecond = drawsPerSecond + 1
 
 		gl.glViewport(0, 0, self.width, self.height)
 		gl.glClearColor(.1, .2, .3, 1.)
