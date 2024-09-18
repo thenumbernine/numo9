@@ -68,14 +68,8 @@ function EditCode:refreshCursorColRowForLoc()
 			break
 		end
 	end
-	self.cursorRow = self.cursorRow or 1								-- 1-based, also norm for UIs, also convenient with Lua 1-based indexing ... 
+	self.cursorRow = self.cursorRow or 1								-- 1-based, also norm for UIs, also convenient with Lua 1-based indexing ...
 	self.cursorCol = self.cursorLoc+1 - self.newlines[self.cursorRow]	-- 1-based  like all UI show it as
-print()
-for i=1,#self.newlines-1 do
-	print('line '..i..' start '..self.newlines[i]..' finish '..self.newlines[i+1])
-end
-print()
-
 end
 
 function EditCode:update()
@@ -303,37 +297,10 @@ function EditCode:update()
 					self:addCharToText((' '):byte())
 				elseif keycode == keyCodeForName.up
 				or keycode == keyCodeForName.down
-				then
-					if shift then
-						if not self.selectDownLoc then	-- how will mouse drag + kbd shift+move work together?
-							self:startSelect()
-						end
-					else
-						self:clearSelect()
-					end
-					local dy = keycode == keyCodeForName.up and -1 or 1
-					-- math.clamp does it in the other order ...
-					self.cursorRow = self.cursorRow + dy
-					if self.cursorRow < 1 then
-						self.cursorRow = 1
-						self.cursorCol = 1
-					elseif self.cursorRow > #self.newlines-1 then
-						self.cursorRow = #self.newlines-1
-						self.cursorCol = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
-					else
-						local currentLineCols = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
-						self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
-					end
-
-					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
-
-					self:refreshCursorColRowForLoc()	-- just in case?
-
-					if shift and self.selectDownLoc then
-						self:growSelect()
-					end
-				elseif keycode == keyCodeForName.left
+				or keycode == keyCodeForName.left
 				or keycode == keyCodeForName.right
+				or keycode == keyCodeForName.pageup
+				or keycode == keyCodeForName.pagedown
 				then
 					if shift then
 						if not self.selectDownLoc then	-- how will mouse drag + kbd shift+move work together?
@@ -342,17 +309,57 @@ function EditCode:update()
 					else
 						self:clearSelect()
 					end
-					local dx = keycode == keyCodeForName.left and -1 or 1
-					-- clamp uses min then max, but i'm finding more and more a reason to do max then min
-					self.cursorLoc = math.min(math.max(self.cursorLoc + dx, 0), #self.text)
-					self:refreshCursorColRowForLoc()
+					local dx =
+					self:moveCursor(
+						({
+							[keyCodeForName.left] = -1,
+							[keyCodeForName.right] = 1,
+						})[keycode] or 0, --dx,
+						({
+							[keyCodeForName.up] = -1,
+							[keyCodeForName.down] = 1,
+							[keyCodeForName.pageup] = -30,
+							[keyCodeForName.pagedown] = 30,
+						})[keycode] or 0	--dy
+					)
 					if shift and self.selectDownLoc then
 						self:growSelect()
 					end
+				elseif keycode == keyCodeForName.home then
+					self.cursorCol = 1
+					-- TODO refresh cursorLoc from cursorRow/cursorCol
+					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
+					self:refreshCursorColRowForLoc()
+				elseif keycode == keyCodeForName['end'] then
+					self.cursorCol = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
+					-- TODO refresh cursorLoc from cursorRow/cursorCol
+					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
+					self:refreshCursorColRowForLoc()
 				end
 			end
 		end
 	end
+end
+
+function EditCode:moveCursor(dx, dy)
+	-- advance row ...
+	self.cursorRow = self.cursorRow + dy
+	if self.cursorRow < 1 then
+		self.cursorRow = 1
+		self.cursorCol = 1
+	elseif self.cursorRow > #self.newlines-1 then
+		self.cursorRow = #self.newlines-1
+		self.cursorCol = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
+	else
+		local currentLineCols = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
+		self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
+	end
+	self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
+
+	-- advance col left/right without bounds so we can use left/right to wrap lines
+	self.cursorLoc = math.clamp(self.cursorLoc + dx, 0, #self.text)
+
+	self:refreshCursorColRowForLoc()	-- in case we did wrap lines
 end
 
 function EditCode:clearSelect()

@@ -30,7 +30,7 @@ local keyCodeNames = table{
 	'w',
 	'x',
 	'y',
-	'z',	
+	'z',
 	'0',
 	'1',
 	'2',
@@ -68,25 +68,18 @@ local keyCodeNames = table{
 	'rshift',
 	'lalt',
 	'ralt',
-
-	-- not all have this
 	'lgui',
 	'rgui',
 
---[[
-	-- same with the menu button ...
-	-- extended keyboard
 	'delete',
 	'insert',
 	'pageup',
 	'pagedown',
 	'home',
 	'end',
-	
-	-- function keys too?
 
---]]
-	-- keypad too?
+	-- TODO keypad too?
+
 	-- NOTICE these would be virtual, and wouldn't map to the SDLK_whatever like everything above this line does
 }
 
@@ -136,7 +129,7 @@ local keyCodeNameToAscii = {
 	w = ('w'):byte(),
 	x = ('x'):byte(),
 	y = ('y'):byte(),
-	z = ('z'):byte(),	
+	z = ('z'):byte(),
 	['0'] = ('0'):byte(),
 	['1'] = ('1'):byte(),
 	['2'] = ('2'):byte(),
