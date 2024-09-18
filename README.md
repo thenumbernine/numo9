@@ -210,9 +210,19 @@ This adds to Lua(/JIT):
 - `rectb(x, y, w, h, [color])` = draw rectangle border
 - `elli/ellib` = draw solid/border ellipse/circle.
 - `line(x1,y1,x2,y2,[color])` = draw line.
-- `spr(spriteIndex,screenX,screenY,spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY)` = draw sprite
+- `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY])` = draw sprite
+	- spriteIndex = which sprite to draw
+	- screenX, screenY = pixel location of upper-left corner of the sprite
+	- spritesWide, spritesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
+	- paletteIndex = a value to offset the colors by.  this can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
+	- transparentIndex = an optional color to specify as transparent.  default is -1 to disable this.
+	- spriteBit = which bitplane to draw.  default is start at bitplane 0.
+	- spriteMask = mask of which bits to use.  default is 0xFF, in binary 1111:1111, which uses all 8 bitplanes.
+		- the resulting color index drawn is `(incomingTexelIndex >> spriteBit) & spriteMask + paletteIndex`
+	- scaleX, scaleY = on-screen scaling.
 - `quad(x,y,w,h,tx,ty,tw,th,pal,transparent,spriteBit,spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
 - `map(tileX,tileY,tilesWide,tilesHigh,screenX,screenY,mapIndexOffset,draw16x16Sprites)` = draw the tilemap. mapIndexOffset = global offset to shift all map indexes. draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
+	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 - `text(str,x,y)` = draw text.  I should rename this to `print` for compat reasons.
 
 ## input:
