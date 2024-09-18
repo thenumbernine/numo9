@@ -231,13 +231,27 @@ end
 App.errorHandler = errorHandler
 
 
+--[[ how come I can't disable double-buffering?
+local sdlAssertZero = require 'sdl.assert'.zero
+function App:sdlGLSetAttributes()
+	App.super.sdlGLSetAttributes(self)
+	-- no need for double-buffering if we're framebuffering
+	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 0))
+end
+--]]
+
+-- don't gl swap every frame - only do after draws
+function App:postUpdate() end
 
 function App:initGL()
+	--[[
+	gl.glDrawBuffer(gl.GL_BACK)
+	--]]
 
---[[ boy does enabling blend make me regret using uvec4 as a fragment color output
-gl.glEnable(gl.GL_BLEND)
-gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
---]]
+	--[[ boy does enabling blend make me regret using uvec4 as a fragment color output
+	gl.glEnable(gl.GL_BLEND)
+	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
+	--]]
 
 	self.ram = ffi.new'RAM'
 
@@ -1602,6 +1616,9 @@ print('no runnable focus!')
 
 		-- draw from framebuffer to screen
 		sceneObj:draw()
+		-- [[ and swap ... or just don't use backbuffer at all ...
+		sdl.SDL_GL_SwapWindow(self.window)
+		--]]
 	end
 end
 
