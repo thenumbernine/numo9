@@ -313,10 +313,13 @@ function EditCode:update()
 					end
 					local dy = keycode == keyCodeForName.up and -1 or 1
 					-- math.clamp does it in the other order ...
-					self.cursorRow + dy
-					if self.cursorRow < 1 or self.cursorRow > #self.newlines-1 then
+					self.cursorRow = self.cursorRow + dy
+					if self.cursorRow < 1 then
+						self.cursorRow = 1
 						self.cursorCol = 1
-						self.cursorRow = math.clamp(self.cursorRow, 1, #self.newlines-1)
+					elseif self.cursorRow > #self.newlines-1 then
+						self.cursorRow = #self.newlines-1
+						self.cursorCol = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
 					else
 						local currentLineCols = self.newlines[self.cursorRow+1] - self.newlines[self.cursorRow]
 						self.cursorCol = math.clamp(self.cursorCol, 1, currentLineCols)
