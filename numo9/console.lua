@@ -76,11 +76,11 @@ function Console:runCmdBuf()
 	self.cmdHistoryIndex = nil
 	self.cmdbuf = ''
 	self:write'\n'
-
-	cmd = cmd:gsub('^=', 'return ')
-
-	app:runCmd(cmd)
 	self.needsPrompt = true
+
+	-- TODO merge this with App:runCmd?
+	cmd = cmd:gsub('^=', 'return ')
+	app:runCmd(cmd)
 end
 
 -- should cursor be a 'app' property or an 'editor' property?

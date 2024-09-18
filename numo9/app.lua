@@ -1117,7 +1117,7 @@ void main() {
 				paletteIndex = 0,
 				transparentIndex = -1,
 				spriteBit = 0,
-				spriteMask = 0x0F,
+				spriteMask = 0xFF,
 				--mvMat = self.mvMat.ptr,
 			},
 		},
@@ -1922,7 +1922,7 @@ function App:drawSprite(
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
-	spriteMask = spriteMask or 0xF
+	spriteMask = spriteMask or 0xFF
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
 
@@ -2146,6 +2146,8 @@ function App:load(filename)
 	local romStr = fromCartImage(d)
 	assertlen(romStr, ffi.sizeof'ROM')
 	ffi.copy(self.cartridge.v, romStr, ffi.sizeof'ROM')
+
+	self.cartridgeName = filename	-- TODO display this somewhere
 	self:resetROM()
 	return true
 end
@@ -2157,8 +2159,6 @@ That means code too - save your changes!
 --]]
 function App:resetROM()
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
-
-	self.cartridgeName = filename	-- TODO display this somewhere
 
 	-- TODO more dirty flags
 	self.spriteTex:bind()
@@ -2199,7 +2199,7 @@ function App:runCmd(cmd)
 	return xpcall(f, errorHandler)
 	--]]
 	-- [[ error always
-	local result = table.pack(assert(self:loadCmd(cmd))())
+	local result = table.pack(assert(self:loadCmd(cmd, self.env, 'con'))())
 	print('RESULT', result:unpack())
 	--assert(result:unpack())
 	return result:unpack()
@@ -2237,7 +2237,9 @@ print('code is', #code, 'bytes')
 		self.ram.romUpdateCounter[0] = 0
 		self:resetView()
 
-		local result = table.pack(assert(self:loadCmd(code, env, self.cartridgeName))())
+		-- here, if the assert fails then it's an (ugly) parse error, and you can just pcall / pick out the offender
+		local f = assert(self:loadCmd(code, env, self.cartridgeName))
+		local result = table.pack(f())
 
 print('LOAD RESULT', result:unpack())
 print('RUNNING CODE')
