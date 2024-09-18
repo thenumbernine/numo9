@@ -2,6 +2,7 @@
 TODO maybe move this into a numo9/rom.lua file
 and put in that file the ROM and RAM struct defs
 and all the spritesheet / tilemap specs
+Or rename this to gfx.lua and put more GL stuff in it?
 --]]
 local table = require 'ext.table'
 local assertlt = require 'ext.assert'.lt
@@ -11,6 +12,37 @@ local App = require 'numo9.app'
 local spriteSheetSize = App.spriteSheetSize
 local spriteSize = App.spriteSize
 
+-- r,g,b,a is 8bpp
+-- result is 5551 16bpp
+local function rgba8888_4ch_to_5551(r,g,b,a)
+--[[	
+	return bit.bor(
+		bit.rshift(r, 3),
+		bit.lshift(bit.rshift(g, 3), 5),
+		bit.lshift(bit.rshift(b, 3), 10),
+		bit.lshift(a>0 and 1 or 0, 15)
+	)
+--]]
+-- [[
+	return bit.bor(
+		bit.band(0x001f, bit.rshift(r, 3)),
+		bit.band(0x03e0, bit.lshift(g, 2)),
+		bit.band(0x7c00, bit.lshift(b, 7)),
+		a == 0 and 0 or 0x8000
+	)
+--]]
+end
+
+-- rgba5551 is 16bpp 
+-- result is r,g,b,a 8bpp
+local function rgba5551_to_rgba8888_4ch(rgba5551)
+	return
+		bit.lshift(bit.band(rgba5551, 0x1F), 3),
+		bit.lshift(bit.band(bit.rshift(rgba5551, 5), 0x1F), 3),
+		bit.lshift(bit.band(bit.rshift(rgba5551, 10), 0x1F), 3),
+		bit.band(1, bit.rshift(rgba5551, 15)) == 0 and 0 or 0xff
+end
+
 -- when I say 'reverse' i mean reversed order of bitfields
 -- when opengl says 'reverse' it means reversed order of reading hex numbers or something stupid
 local function argb8888revto5551(rgba)
@@ -18,14 +50,8 @@ local function argb8888revto5551(rgba)
 	local r = bit.band(bit.rshift(rgba, 16), 0xff)
 	local g = bit.band(bit.rshift(rgba, 8), 0xff)
 	local b = bit.band(rgba, 0xff)
-	local abgr = bit.bor(
-		bit.rshift(r, 3),
-		bit.lshift(bit.rshift(g, 3), 5),
-		bit.lshift(bit.rshift(b, 3), 10),
-		bit.lshift(a>0 and 1 or 0, 15)
-	)
+	return rgba8888_4ch_to_5551(r,g,b,a)
 --DEBUG:assert(abgr >= 0 and abgr <= 0xffff, ('%x'):format(abgr))
-	return abgr
 end
 
 local function resetFontOnSheet(spriteSheetPtr)
@@ -176,6 +202,9 @@ local function resetPalette(rom)
 end
 
 return {
+	argb8888revto5551 = argb8888revto5551,
+	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
+	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
 	resetFont = resetFont,
 	resetFontOnSheet = resetFontOnSheet,
 	resetPalette = resetPalette,

@@ -17,6 +17,8 @@ local assertle = require 'ext.assert'.le
 local assertlen = require 'ext.assert'.len
 local Image = require 'image'
 local App = require 'numo9.app'
+local rgba5551_to_rgba8888_4ch = require 'numo9.resetgfx'.rgba5551_to_rgba8888_4ch 
+local rgba8888_4ch_to_5551 = require 'numo9.resetgfx'.rgba8888_4ch_to_5551
 local fromCartImage = require 'numo9.archive'.fromCartImage
 local toCartImage = require 'numo9.archive'.toCartImage
 
@@ -79,10 +81,8 @@ if cmd == 'x' then
 	local palPtr = rom.palette -- uint16_t*
 	for y=0,15 do
 		for x=0,15 do
-			imagePtr[0] = bit.lshift(bit.band(palPtr[0], 0x1F), 3)
-			imagePtr[1] = bit.lshift(bit.band(bit.rshift(palPtr[0], 5), 0x1F), 3)
-			imagePtr[2] = bit.lshift(bit.band(bit.rshift(palPtr[0], 10), 0x1F), 3)
-			imagePtr[3] = bit.band(1, bit.rshift(palPtr[0], 15)) == 0 and 0 or 0xff
+			-- TODO packptr in numo9/app.lua
+			imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = rgba5551_to_rgba8888_4ch(palPtr[0])
 			palPtr = palPtr + 1
 			imagePtr = imagePtr + 4
 		end
@@ -165,11 +165,11 @@ or cmd == 'r' then
 		local palPtr = rom.palette -- uint16_t*
 		for y=0,15 do
 			for x=0,15 do
-				palPtr[0] = bit.bor(
-					bit.band(0x001f, bit.rshift(imagePtr[0], 3)),
-					bit.band(0x03e0, bit.lshift(imagePtr[1], 2)),
-					bit.band(0x7c00, bit.lshift(imagePtr[2], 7)),
-					imagePtr[3] == 0 and 0 or 0x8000
+				palPtr[0] = rgba8888_4ch_to_5551(
+					imagePtr[0],
+					imagePtr[1],
+					imagePtr[2],
+					imagePtr[3]
 				)
 				palPtr = palPtr + 1
 				imagePtr = imagePtr + 4

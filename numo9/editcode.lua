@@ -317,7 +317,7 @@ function EditCode:update()
 					self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol
 
 					self:refreshCursorColRowForLoc()	-- just in case?
-				
+
 					if shift and self.selectDownLoc then
 						self:growSelect()
 					end

@@ -1318,7 +1318,7 @@ void main() {
 				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
 				self.con:print'hello world'
 
-				for i=1,5 do
+				for i=1,3 do
 					coroutine.yield()
 				end
 			end
@@ -1493,6 +1493,7 @@ print('dead thread - switching to con')
 				local success, msg = coroutine.resume(runFocus.thread)
 				if not success then
 					print(msg)
+					print(debug.traceback(runFocus.thread))
 					self.con:resetThread()
 					self:setFocus(self.con)
 					self.con:print(msg)

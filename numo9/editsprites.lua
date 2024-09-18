@@ -2,11 +2,17 @@
 This will be the code editor
 --]]
 local ffi = require 'ffi'
+local asserteq = require 'ext.assert'.eq
+local assertle = require 'ext.assert'.le
 local math = require 'ext.math'
+local table = require 'ext.table'
 local vec2i = require 'vec-ffi.vec2i'
 local clip = require 'clip'	-- clipboard support
 local Image = require 'image'
+local Quantize = require 'image.quantize_mediancut'
 
+local rgba8888_4ch_to_5551 = require 'numo9.resetgfx'.rgba8888_4ch_to_5551	-- TODO move this
+local rgba5551_to_rgba8888_4ch = require 'numo9.resetgfx'.rgba5551_to_rgba8888_4ch
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
 local frameBufferSize = App.frameBufferSize
@@ -461,9 +467,21 @@ function EditSprites:update()
 			assert(not currentTex.dirtyGPU)
 			assert(x >= 0 and y >= 0 and x + width <= currentTex.image.width and y + height <= currentTex.image.height)
 			local image = currentTex.image:copy{x=x, y=y, width=width, height=height}
-			if not clip.image(image) then
-				print'failed to copy image'
+			if image.channels == 1 then
+print'BAKING PALETTE'
+				-- TODO move palette functionality inot Image
+				-- TODO offset palette by current bits / shift?
+				local rgba = Image(image.width, image.height, 4, 'unsigned char')
+				local srcp = image.buffer
+				local dstp = rgba.buffer
+				for i=0,image.width*image.height-1 do
+					dstp[0],dstp[1],dstp[2],dstp[3] = rgba5551_to_rgba8888_4ch(app.ram.palette[srcp[0]])
+					dstp = dstp + 4
+					srcp = srcp + 1
+				end
+				image = rgba	-- current clipboard restrictions ... only 32bpp
 			end
+			clip.image(image)
 			if app:keyp'x' then
 				-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
 				currentTex.dirtyCPU = true
@@ -479,6 +497,80 @@ function EditSprites:update()
 			assert(not currentTex.dirtyGPU)
 			local image = clip.image()
 			if image then
+				--[[
+				image paste options:
+				- constrain to selection vs spill over (same with drawing pen)
+				- blit to selection vs keeping 1:1 with original
+				- quantize palette ...
+					- use current palette
+						- option to preserve pasted image original indexes vs remap them
+					- or create new palette from pasted image
+						- option to preserve spritesheet original indexes vs remap them
+					- or create new palette from current and pasted image
+					- preserve UI colors (240) or change them as well (256)?
+					- target bitness?  just use spriteFlags?
+					- target palette offset?  just use paletteOffset?
+				- quantize tiles? only relevant for whatever the tilemap is pointing into ...
+					- use 'convert-to-8x8x4pp's trick there ...
+				--]]
+				if image.channels ~= 1 then
+					print'quantizing image...'
+					assert(image.channels >= 3)	-- NOTICE it's only RGB right now ... not even alpha
+					image = image:rgb()
+					asserteq(image.channels, 3, "image channels")
+					-- TODO use the # sprite bits being used,
+					--  or use the # of palette colors being used?
+					-- ... why separate the two anyways?
+					--local targetNumColors = bit.lshift(1, self.spriteBitDepth)
+					local targetNumColors = bit.lshift(1, bit.lshift(1, self.log2PalBits))
+					targetNumColors = math.min(targetNumColors, 240)	-- preserve the UI colors. TODO make this an option ...
+					print('target num colors', targetNumColors)
+					local hist
+					image, hist = Quantize.reduceColorsMedianCut{
+						image = image,
+						targetSize = targetNumColors,
+					}
+					asserteq(image.channels, 3, "image channels")
+					-- I could use image.quantize_mediancut.applyColorMap but it doesn't use palette'd image (cuz my image library didn't support it at the time)
+					-- soo .. I'll implement indexed-apply here (TODO move this into image.quantize_mediancut, and TOOD change convert-to-8x84bpp to use paletted images)
+					local colors = table.keys(hist)
+					print('num colors', #colors)
+					assertle(#colors, 256, "resulting number of quantized colors")
+					local indexForColor = colors:mapi(function(color,i)	-- 0-based index
+						return i-1, color
+					end)
+					-- override colors here ...
+					local image1ch = Image(image.width, image.height, 1, 'unsigned char')
+					local srcp = image.buffer
+					local dstp = image1ch.buffer
+					for i=0,image.width*image.height-1 do
+						-- TODO unpackptr here
+						local key = string.char(srcp[0], srcp[1], srcp[2])
+						local dstIndex = indexForColor[key]
+						if not dstIndex then
+							print("no index for color "..Quantize.bintohex(key))
+							print('possible colors: '..require 'ext.tolua'(colors))
+							error'here'
+						end
+						dstp[0] = bit.band(0xff, dstIndex + self.paletteOffset)
+						dstp = dstp + 1
+						srcp = srcp + image.channels
+					end
+					-- TODO proper would be to set image1ch.palette here but meh I'm just copying it on the next line anyways ...
+					image = image1ch
+					asserteq(image.channels, 1, "image.channels")
+					local colorptr = app.ram.palette
+					for i,color in ipairs(colors) do
+						colorptr[bit.band(0xff, i-1 + self.paletteOffset)] = rgba8888_4ch_to_5551(
+							color:byte(1),
+							color:byte(2),
+							color:byte(3),
+							0xff
+						)
+					end
+					app.palTex.dirtyCPU = true
+				end
+				asserteq(image.channels, 1, "image.channels")
 				print'pasting image'
 				currentTex.image:pasteInto{x=x, y=y, image=image}
 				currentTex.dirtyCPU = true
