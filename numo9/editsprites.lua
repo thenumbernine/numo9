@@ -50,6 +50,7 @@ function EditSprites:init(args)
 	self.log2PalBits = 2	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 
+	self.pastePreservePalette = true
 	self.penSize = 1 		-- size 1 thru 5 or so
 	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 end
@@ -374,11 +375,17 @@ function EditSprites:update()
 				bh,
 				paletteIndex
 			)
-			if leftButtonPress
-			and mouseX >= rx and mouseX < rx + bw
+			if mouseX >= rx and mouseX < rx + bw
 			and mouseY >= ry and mouseY < ry + bh
 			then
-				self.paletteSelIndex = paletteIndex
+				if leftButtonPress then
+					self.paletteSelIndex = paletteIndex
+					self.paletteSelDown = paletteIndex
+				elseif leftButtonDown then
+					local move = paletteIndex - self.paletteSelDown
+					self.paletteOffset = bit.band(0xff, self.paletteOffset - move)
+					self.paletteSelDown = bit.band(0xff, paletteIndex - move)
+				end
 			end
 		end
 	end
@@ -445,6 +452,11 @@ function EditSprites:update()
 	end
 	self:drawText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
 
+	if self:guiButton(128-16, 32, 'P', self.pastePreservePalette, 'Paste Keeps Pal='..tostring(self.pastePreservePalette)) then
+		self.pastePreservePalette = not self.pastePreservePalette
+	end
+	-- TODO button for cut copy and paste as well
+
 	-- flags ... ???
 
 	-- handle input
@@ -485,7 +497,7 @@ print'BAKING PALETTE'
 			if app:keyp'x' then
 				-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
 				currentTex.dirtyCPU = true
-				assert(currentTex.channels == 1)
+				asserteq(currentTex.image.channels, 1)
 				for j=y,y+height-1 do
 					for i=x,x+width-1 do
 						currentTex.image.buffer[i + currentTex.width * j] = self.paletteOffset
@@ -525,50 +537,77 @@ print'BAKING PALETTE'
 					local targetNumColors = bit.lshift(1, bit.lshift(1, self.log2PalBits))
 					targetNumColors = math.min(targetNumColors, 240)	-- preserve the UI colors. TODO make this an option ...
 					print('target num colors', targetNumColors)
-					local hist
-					image, hist = Quantize.reduceColorsMedianCut{
-						image = image,
-						targetSize = targetNumColors,
-					}
-					asserteq(image.channels, 3, "image channels")
-					-- I could use image.quantize_mediancut.applyColorMap but it doesn't use palette'd image (cuz my image library didn't support it at the time)
-					-- soo .. I'll implement indexed-apply here (TODO move this into image.quantize_mediancut, and TOOD change convert-to-8x84bpp to use paletted images)
-					local colors = table.keys(hist)
-					print('num colors', #colors)
-					assertle(#colors, 256, "resulting number of quantized colors")
-					local indexForColor = colors:mapi(function(color,i)	-- 0-based index
-						return i-1, color
-					end)
-					-- override colors here ...
-					local image1ch = Image(image.width, image.height, 1, 'unsigned char')
-					local srcp = image.buffer
-					local dstp = image1ch.buffer
-					for i=0,image.width*image.height-1 do
-						-- TODO unpackptr here
-						local key = string.char(srcp[0], srcp[1], srcp[2])
-						local dstIndex = indexForColor[key]
-						if not dstIndex then
-							print("no index for color "..Quantize.bintohex(key))
-							print('possible colors: '..require 'ext.tolua'(colors))
-							error'here'
+
+					if self.pastePreservePalette then
+						local image1ch = Image(image.width, image.height, 1, 'unsigned char')
+						local srcp = image.buffer
+						local dstp = image1ch.buffer
+						for i=0,image.width*image.height-1 do
+							-- slow way - just test every color against every color
+							-- TODO build a mapping and then use 'applyColorMap' to go quicker
+							local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
+							local bestIndex = bit.band(0xff, self.paletteOffset)
+							local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(app.ram.palette[bestIndex])
+							local bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
+							for j=1,targetNumColors-1 do
+								local colorIndex = bit.band(0xff, j + self.paletteOffset)
+								local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(app.ram.palette[colorIndex])
+								local distSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
+								if distSq < bestDistSq then
+									bestDistSq = distSq
+									bestIndex = colorIndex
+								end
+							end
+							dstp[0] = bestIndex
+							dstp = dstp + 1
+							srcp = srcp + image.channels
 						end
-						dstp[0] = bit.band(0xff, dstIndex + self.paletteOffset)
-						dstp = dstp + 1
-						srcp = srcp + image.channels
+						image = image1ch
+					else
+						local hist
+						image, hist = Quantize.reduceColorsMedianCut{
+							image = image,
+							targetSize = targetNumColors,
+						}
+						asserteq(image.channels, 3, "image channels")
+						-- I could use image.quantize_mediancut.applyColorMap but it doesn't use palette'd image (cuz my image library didn't support it at the time)
+						-- soo .. I'll implement indexed-apply here (TODO move this into image.quantize_mediancut, and TOOD change convert-to-8x84bpp to use paletted images)
+						local colors = table.keys(hist):sort()
+						print('num colors', #colors)
+						assertle(#colors, 256, "resulting number of quantized colors")
+						local indexForColor = colors:mapi(function(color,i)	-- 0-based index
+							return i-1, color
+						end)
+						-- override colors here ...
+						local image1ch = Image(image.width, image.height, 1, 'unsigned char')
+						local srcp = image.buffer
+						local dstp = image1ch.buffer
+						for i=0,image.width*image.height-1 do
+							-- TODO unpackptr here
+							local key = string.char(srcp[0], srcp[1], srcp[2])
+							local dstIndex = indexForColor[key]
+							if not dstIndex then
+								print("no index for color "..Quantize.bintohex(key))
+								print('possible colors: '..require 'ext.tolua'(colors))
+								error'here'
+							end
+							dstp[0] = bit.band(0xff, dstIndex + self.paletteOffset)
+							dstp = dstp + 1
+							srcp = srcp + image.channels
+						end
+						-- TODO proper would be to set image1ch.palette here but meh I'm just copying it on the next line anyways ...
+						image = image1ch
+						asserteq(image.channels, 1, "image.channels")
+						for i,color in ipairs(colors) do
+							app.ram.palette[bit.band(0xff, i-1 + self.paletteOffset)] = rgba8888_4ch_to_5551(
+								color:byte(1),
+								color:byte(2),
+								color:byte(3),
+								0xff
+							)
+						end
+						app.palTex.dirtyCPU = true
 					end
-					-- TODO proper would be to set image1ch.palette here but meh I'm just copying it on the next line anyways ...
-					image = image1ch
-					asserteq(image.channels, 1, "image.channels")
-					local colorptr = app.ram.palette
-					for i,color in ipairs(colors) do
-						colorptr[bit.band(0xff, i-1 + self.paletteOffset)] = rgba8888_4ch_to_5551(
-							color:byte(1),
-							color:byte(2),
-							color:byte(3),
-							0xff
-						)
-					end
-					app.palTex.dirtyCPU = true
 				end
 				asserteq(image.channels, 1, "image.channels")
 				print'pasting image'

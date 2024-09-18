@@ -1157,29 +1157,29 @@ layout(location=0) out uvec4 fragColor;
 // tilemap texture
 uniform usampler2DRect mapTex;
 uniform uint mapIndexOffset;
-
+uniform int draw16Sprites;	 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
 uniform usampler2DRect tileTex;
 
 uniform usampler2DRect palTex;
 
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
-const float tilemapSizeX = <?=clnumber(tilemapSize.x)?>;
-const float tilemapSizeY = <?=clnumber(tilemapSize.y)?>;
+const uint tilemapSizeX = <?=tilemapSize.x?>;
+const uint tilemapSizeY = <?=tilemapSize.y?>;
 
 void main() {
 	// convert from input normalized coordinates to tilemap texel coordinates
 	// [0, tilemapSize)^2
 	uvec2 tci = uvec2(
-		uint(tcv.x * tilemapSizeX),
-		uint(tcv.y * tilemapSizeY)
+		uint(tcv.x * float(tilemapSizeX << draw16Sprites)),
+		uint(tcv.y * float(tilemapSizeY << draw16Sprites))
 	);
 
 	// convert to map texel coordinate
 	// [0, tilemapSize)^2
 	uvec2 tileTC = uvec2(
-		(tci.x >> 3) & 0xFFu,
-		(tci.y >> 3) & 0xFFu
+		(tci.x >> (3 + draw16Sprites)) & 0xFFu,
+		(tci.y >> (3 + draw16Sprites)) & 0xFFu
 	);
 
 	//read the tileIndex in mapTex at tileTC
@@ -1196,10 +1196,11 @@ void main() {
 	if ((tileIndex & (1u<<14)) != 0u) tci.x = ~tci.x;	// tilemap bit 14
 	if ((tileIndex & (1u<<15)) != 0u) tci.y = ~tci.y;	// tilemap bit 15
 
+	uint mask = (1u << (3 + draw16Sprites)) - 1u;
 	// [0, spriteSize)^2
 	tileTexTC = uvec2(
-		(tci.x & 7u) | (tileTexTC.x << 3),
-		(tci.y & 7u) | (tileTexTC.y << 3)
+		(tci.x & mask) | (tileTexTC.x << (3)),
+		(tci.y & mask) | (tileTexTC.y << (3))
 	);
 
 	// tileTex is R8 indexing into our palette ...
@@ -1342,24 +1343,11 @@ function App:resetGFX()
 	--self.palTex:prepForCPU()
 	require 'numo9.resetgfx'.resetPalette(self.ram)
 	ffi.copy(self.cartridge.palette, self.ram.palette, paletteInBytes)
---[[
-	self.spriteTex:bind()
-		:subimage()
-		:unbind()
-	self.spriteTex.dirtyCPU = false
 
-	self.palTex:bind()
-		:subimage()
-		:unbind()
-	self.palTex.dirtyCPU = false
-	-- TODO maybe, just set 'dirtyGPU' and track that or something ...
---]]
--- [[
 	assert(not self.spriteTex.dirtyGPU)
 	self.spriteTex.dirtyCPU = true
 	assert(not self.palTex.dirtyGPU)
 	self.palTex.dirtyCPU = true
---]]
 end
 
 
@@ -1408,6 +1396,10 @@ glreport'here'
 glreport'here'
 
 	return tex
+end
+
+function App:resize()
+	needDrawCounter = 2
 end
 
 function App:update()
@@ -1841,7 +1833,8 @@ function App:drawQuad(
 	spriteBit,
 	spriteMask
 )
-	self.spriteTex:checkDirtyCPU()
+	self.spriteTex:checkDirtyCPU()		-- \_ we don't know which it is so ...
+	self.tileTex:checkDirtyCPU()		-- /
 	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.fbTex:checkDirtyCPU()
 
@@ -1943,13 +1936,14 @@ end
 
 -- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
 function App:drawMap(
-	tileX,
-	tileY,
-	tilesWide,
-	tilesHigh,
-	screenX,
-	screenY,
-	mapIndexOffset
+	tileX,			-- \_ upper-left position in the tilemap
+	tileY,			-- /  
+	tilesWide,		-- \_ how many tiles wide & high to draw
+	tilesHigh,		-- /
+	screenX,		-- \_ where in the screen to draw
+	screenY,		-- /
+	mapIndexOffset,	-- general shift to apply to all read map indexes in the tilemap
+	draw16Sprites	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
 )
 	self.tileTex:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
@@ -1973,11 +1967,13 @@ function App:drawMap(
 		tilesWide / tonumber(tilemapSizeInSprites.x),
 		tilesHigh / tonumber(tilemapSizeInSprites.y)
 	)
+	local draw16As0or1 = draw16Sprites and 1 or 0
+	uniforms.draw16Sprites = draw16As0or1
 	settable(uniforms.box,
 		screenX or 0,
 		screenY or 0,
-		tilesWide * spriteSize.x,
-		tilesHigh * spriteSize.y
+		tilesWide * bit.lshift(spriteSize.x, draw16As0or1),
+		tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
 	)
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true

@@ -501,8 +501,8 @@ print('toImage', name, 'width', width, 'height', height)
 		-- TODO modify parser here, parse , and regenerate (minify does this already)
 		-- and replace these codes with a lua escape code of some kind
 		-- ... for now I'm just going to filter them out so the parser works.
-		line = line:gsub('\\^', 'ctrl-carat')
-		line = line:gsub('\\#', 'esc-hash')
+		line = line:gsub('\\^', '')--ctrl-carat')
+		line = line:gsub('\\#', '')--esc-hash')
 
 		--btn(b) btnp(b): b can be a extended unicode:
 		-- Lua parser doesn't like this.

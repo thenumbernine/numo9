@@ -32,6 +32,7 @@ function EditCode:init(args)
 	--self.selectCurLoc = 0
 	self.scrollX = 0
 	self.scrollY = 0
+	self.useLineNumbers = true
 	self:setText''
 end
 

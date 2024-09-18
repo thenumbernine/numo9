@@ -1,3 +1,4 @@
+local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
 
 local App = require 'numo9.app'
@@ -19,6 +20,7 @@ function EditTilemap:init(args)
 	self.pickOpen = false
 	self.spriteSelPos = vec2i()
 	self.spriteSelSize = vec2i(1,1)
+	self.draw16Sprites = false
 	self.drawMode = 'draw'	--TODO ui for this
 	self.penSize = 1
 end
@@ -32,6 +34,8 @@ function EditTilemap:update()
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local leftButtonRelease = not leftButtonDown and leftButtonLastDown
 	local mouseX, mouseY = app.ram.mousePos:unpack()
+	
+	local shift = app:key'lshift' or app:key'rshift'
 
 	EditTilemap.super.update(self)
 
@@ -44,6 +48,10 @@ function EditTilemap:update()
 	x = x + 8
 	if self:guiButton(x, y, 'T', self.pickOpen, 'tile') then
 		self.pickOpen = not self.pickOpen
+	end
+	x = x + 8
+	if self:guiButton(x, y, 'X', self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
+		self.draw16Sprites = not self.draw16Sprites
 	end
 
 	-- sprite edit method
@@ -69,13 +77,16 @@ function EditTilemap:update()
 		tilemapSizeInSprites.y,	-- tiles high
 		mapX,		-- pixel x
 		mapY,		-- pixel y
-		0			-- map index offset / high page
+		0,			-- map index offset / high page
+		self.draw16Sprites	-- draw 16x16 vs 8x8
 	)
 	if self.drawGrid then
-		for j=0,frameBufferSize.y-1,spriteSize.y do
-			for i=0,frameBufferSize.x-1,spriteSize.x do
-				app:drawBorderRect(i, j, spriteSize.x+1, spriteSize.y+1, self:color(1))
-			end
+		local step = self.draw16Sprites and 16 or 8
+		for i=0,frameBufferSize.x-1,step do
+			app:drawSolidLine(i, spriteSize.y, i, frameBufferSize.y-spriteSize.y, self:color(1))
+		end
+		for j=spriteSize.y,frameBufferSize.y-spriteSize.y-1,step do
+			app:drawSolidLine(0, j, frameBufferSize.x, j, self:color(1))
 		end
 	end
 
@@ -143,11 +154,14 @@ function EditTilemap:update()
 		-- maybe ... then i should disable the auto-close-on-select ...
 		-- and I should also resize the pick tile area
 
-		local tx = math.floor((mouseX - mapX) / mapW * tilemapSizeInSprites.x / spriteSize.x)
-		local ty = math.floor((mouseY - mapY) / mapH * tilemapSizeInSprites.y / spriteSize.y)
+		local draw16As0or1 = self.draw16Sprites and 1 or 0
+		local tx = math.floor((mouseX - mapX) / mapW * tilemapSizeInSprites.x / bit.lshift(spriteSize.x, draw16As0or1))
+		local ty = math.floor((mouseY - mapY) / mapH * tilemapSizeInSprites.y / bit.lshift(spriteSize.y, draw16As0or1))
 
 		-- TODO pen size here
-		if self.drawMode == 'dropper' then
+		if self.drawMode == 'dropper' 
+		or (self.drawMode == 'draw' and shift)
+		then
 			if leftButtonPress
 			and 0 <= tx and tx < tilemapSize.x
 			and 0 <= ty and ty < tilemapSize.y
@@ -156,7 +170,6 @@ function EditTilemap:update()
 				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 				local ptr = mapTex.image.buffer + texelIndex
 				local tileSelIndex = ptr[0]
-print('...reading mapTex at '..tx..', '..ty..' (index='..texelIndex..') as '..('$%04x'):format(tileSelIndex))
 				self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
 				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
 			end
@@ -165,13 +178,13 @@ print('...reading mapTex at '..tx..', '..ty..' (index='..texelIndex..') as '..('
 			and 0 <= tx and tx < tilemapSize.x
 			and 0 <= ty and ty < tilemapSize.y
 			then
-				local tx0 = tx - math.floor(self.penSize / 2)
-				local ty0 = ty - math.floor(self.penSize / 2)
+				local tx0 = tx -- - math.floor(self.penSize / 2)
+				local ty0 = ty -- - math.floor(self.penSize / 2)
 				assert(mapTex.image.buffer == mapTex.data)
 				mapTex:bind()
-				for dy=0,self.penSize-1 do
+				for dy=0,self.spriteSelSize.y-1 do -- self.penSize-1 do
 					local ty = ty0 + dy
-					for dx=0,self.penSize-1 do
+					for dx=0,self.spriteSelSize.x-1 do -- self.penSize-1 do
 						local tx = tx0 + dx
 						if 0 <= tx and tx < tilemapSize.x
 						and 0 <= ty and ty < tilemapSize.y
@@ -179,16 +192,10 @@ print('...reading mapTex at '..tx..', '..ty..' (index='..texelIndex..') as '..('
 							local texelIndex = tx + tilemapSize.x * ty
 							assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 							local ptr = mapTex.image.buffer + texelIndex
-							local tileSelIndex = self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y
+							local tileSelIndex = self.spriteSelPos.x + dx 
+								+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy)
 							ptr[0] = tileSelIndex
-print('...writing mapTex at '..tx..', '..ty..'( index='..texelIndex..') as '..('$%04x'):format(tileSelIndex))
-							mapTex:subimage{
-								xoffset = tx,
-								yoffset = ty,
-								width = 1,
-								height = 1,
-								data = ptr,
-							}
+							app.mapTex.dirtyCPU = true
 						end
 					end
 				end

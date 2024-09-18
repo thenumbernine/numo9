@@ -105,6 +105,8 @@ Tilemap bits:
 - 1: hflip
 - 1: vflip
 
+Tilemap rendering has your typical rendering of 8x8 sprites, but also (SNES) an option for 16x16 rendering, which pulls in the sprites to the right, down, and down-and-right.
+
 ### Mode7 j/k
 
 What's a SNES-era emulator without mode7?
@@ -210,7 +212,7 @@ This adds to Lua(/JIT):
 - `line(x1,y1,x2,y2,[color])` = draw line.
 - `spr(spriteIndex,screenX,screenY,spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY)` = draw sprite
 - `quad(x,y,w,h,tx,ty,tw,th,pal,transparent,spriteBit,spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
-- `map(tileX,tileY,tilesWide,tilesHigh,screenX,screenY,mapIndexOffset)` = draw the tilemap.
+- `map(tileX,tileY,tilesWide,tilesHigh,screenX,screenY,mapIndexOffset,draw16x16Sprites)` = draw the tilemap. mapIndexOffset = global offset to shift all map indexes. draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 - `text(str,x,y)` = draw text.  I should rename this to `print` for compat reasons.
 
 ## input:

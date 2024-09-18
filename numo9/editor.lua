@@ -1,4 +1,5 @@
 local ffi = require 'ffi'
+local math = require 'ext.math'
 local class = require 'ext.class'
 
 local App = require 'numo9.app'
@@ -61,7 +62,7 @@ function Editor:guiButton(x, y, str, isset, tooltip)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
-			self:drawText(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+			self:drawTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 		end
 
 		local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
@@ -103,9 +104,15 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
-			self:drawText(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+			self:drawTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 		end
 	end
+end
+
+function Editor:drawTooltip(s, x, y, fg, bg)
+	x = math.clamp(x, 8, frameBufferSize.x-8)
+	y = math.clamp(y, 8, frameBufferSize.y-8)
+	return self:drawText(s, x, y, fg, bg)
 end
 
 function Editor:guiRadio(x, y, options, selected, cb)
