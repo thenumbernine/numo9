@@ -21,7 +21,7 @@ files = {
 		'numo9/edittilemap.lua',
 		'numo9/filesystem.lua',
 		'numo9/keys.lua',
-		'numo9/resetgfx.lua',
+		'numo9/draw.lua',
 	},
 	-- other paths go here
 	['..'] = table{
