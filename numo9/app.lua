@@ -2157,28 +2157,39 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
+	--[[
+	self.spriteTex:checkDirtyGPU()
+	self.tileTex:checkDirtyGPU()
+	self.mapTex:checkDirtyGPU()
+	self.palTex:checkDirtyGPU()
+	self.fbTex:checkDirtyGPU()
+	--]]
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
-
-	-- TODO more dirty flags
+	-- [[ TODO more dirty flags
 	self.spriteTex:bind()
 		:subimage()
 		:unbind()
 	self.spriteTex.dirtyCPU = false
-
 	self.tileTex:bind()
 		:subimage()
 		:unbind()
 	self.tileTex.dirtyCPU = false
-
 	self.mapTex:bind()
 		:subimage()
 		:unbind()
 	self.mapTex.dirtyCPU = false
-
 	self.palTex:bind()
 		:subimage()
 		:unbind()
 	self.palTex.dirtyCPU = false
+	--]]
+	--[[
+	self.spriteTex.dirtyCPU = true
+	self.tileTex.dirtyCPU = true
+	self.mapTex.dirtyCPU = true
+	self.palTex.dirtyCPU = true
+	self.fbTex.dirtyCPU = true
+	--]]
 
 	return true
 end
