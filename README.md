@@ -67,10 +67,6 @@ There are a few matrix functions that you can use to manipulate the render state
 I'm storing these values in RAM, however there's no good way to modify them just yet.
 I'm tempted to use 8.8 fixed precision just like the SNES did ...
 
-### Font
-
-Font is from [Liko-12](https://liko-12.github.io/)
-
 ### Memory Layout
 
 ```
