@@ -11,7 +11,9 @@ local assertlt = require 'ext.assert'.lt
 local assertne = require 'ext.assert'.ne
 local Image = require 'image'
 local gl = require 'gl'
+local glreport = require 'gl.report'
 local GLFBO = require 'gl.fbo'
+local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local clnumber = require 'cl.obj.number'
@@ -26,6 +28,16 @@ local spriteSheetSize = App.spriteSheetSize
 local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
 local tilemapSize = App.tilemapSize
 local tilemapSizeInSprites = App.tilemapSizeInSprites
+
+-- I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...
+-- glsl unsigned int fragment colors and samplers really doesn't do anything predictable...
+local fragColorUseFloat = false
+--local fragColorUseFloat = true
+
+-- maybe I'll just convert everything back to float texcoords because it looks more trash than retro, the perf is nearly the same, and I'll bet nobody cares whether or not I'm using ints or floats in the shader.
+--local useTextureRect = true
+local useTextureRect = false
+
 
 -- r,g,b,a is 8bpp
 -- result is 5551 16bpp
@@ -205,6 +217,62 @@ local function resetPalette(rom)
 	end
 end
 
+-- [[ also in sand-attack ... hmmmm ...
+-- consider putting somewhere common, maybe in gl.tex2d ?
+-- maybe just save .image in gltex2d?
+function makeTexFromImage(app, args)
+glreport'here'
+	local image = assert(args.image)
+	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
+	local tex = GLTex2D{
+		target = args.target or (
+			useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil	-- nil defaults to TEXTURE_2D
+		),
+		internalFormat = args.internalFormat or gl.GL_RGBA,
+		format = args.format or gl.GL_RGBA,
+		type = args.type or gl.GL_UNSIGNED_BYTE,
+
+		width = tonumber(image.width),
+		height = tonumber(image.height),
+		wrap = args.wrap or { -- texture_rectangle doens't support repeat ...
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
+		minFilter = args.minFilter or gl.GL_NEAREST,
+		magFilter = args.magFilter or gl.GL_NEAREST,
+		data = image.buffer,	-- stored
+	}:unbind()
+	-- TODO move this store command to gl.tex2d ctor if .image is used?
+	tex.image = image
+
+	-- TODO gonna subclass this soon ...
+	-- assumes it is being called from within the render loop
+	function tex:checkDirtyCPU()
+		if not self.dirtyCPU then return end
+		-- we should never get in a state where both CPU and GPU are dirty
+		-- if someone is about to write to one then it shoudl test the other and flush it if it's dirty, then set the one
+		assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
+		local fb = app.fb
+		app.fb:unbind()
+		self:bind()
+			:subimage()
+			:unbind()
+		app.fb:bind()
+		self.dirtyCPU = false
+	end
+	function tex:checkDirtyGPU()
+		if not self.dirtyGPU then return end
+		assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
+		gl.glReadPixels(0, 0, self.width, self.height, self.format, self.type, self.image.buffer)
+		self.dirtyGPU = false
+	end
+glreport'here'
+
+	return tex
+end
+
+
+
 -- 'self' == app
 local function initDraw(self)
 	self.fb = GLFBO{
@@ -224,19 +292,19 @@ local function initDraw(self)
 	end
 
 	-- redirect the image buffer to our virtual system rom
-	self.spriteTex = self:makeTexFromImage{
+	self.spriteTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
-	}
+	})
 
-	self.tileTex = self:makeTexFromImage{
+	self.tileTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
-	}
+	})
 
 	--[[
 	16bpp ...
@@ -247,21 +315,21 @@ local function initDraw(self)
 	- .... 2 bits rotate ... ? nah
 	- .... 8 bits palette offset ... ? nah
 	--]]
-	self.mapTex = self:makeTexFromImage{
+	self.mapTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
 		internalFormat = gl.GL_R16UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_SHORT,
-	}
+	})
 	self.mapMem = self.mapTex.image.buffer
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
-	self.palTex = self:makeTexFromImage{
+	self.palTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'unsigned short'),
 		internalFormat = gl.GL_RGB5_A1,
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
-	}
+	})
 --print('palTex\n'..imageToHex(self.palTex.image))
 
 	local fbMask = bit.lshift(1, ffi.sizeof(frameBufferType)) - 1
@@ -274,28 +342,28 @@ local function initDraw(self)
 		function(i,j) return math.random(0, fbMask) end
 	)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
-	self.fbTex = self:makeTexFromImage{
+	self.fbTex = makeTexFromImage(self, {
 		image = fbImage,
 		internalFormat = gl.GL_RGB565,
 		format = gl.GL_RGB,
 		type = gl.GL_UNSIGNED_SHORT_5_6_5,
-	}
+	})
 	--]=]
 	--[=[ framebuffer is 256 x 256 x 16bpp rgba4444
-	self.fbTex = self:makeTexFromImage{
+	self.fbTex = makeTexFromImage(self, {
 		image = fbImage,
 		internalFormat = gl.GL_RGBA4,
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_4_4_4_4,
-	}
+	})
 	--]=]
 	--[=[ framebuffer is 256 x 256 x 8bpp rgb332
-	self.fbTex = self:makeTexFromImage{
+	self.fbTex = makeTexFromImage(self, {
 		image = fbImage,
 		internalFormat = gl.GL_R8UI,
 		format = gl.GL_RED_INTEGER,
 		type = gl.GL_UNSIGNED_BYTE,
-	}
+	})
 	--]=]
 --print('fbTex\n'..imageToHex(self.fbTex.image))
 
@@ -1005,6 +1073,17 @@ void main() {
 	end
 	fb:unbind()
 
+	-- for the editor
+
+	-- a checkboard pattern for transparencies
+	self.checkerTex = GLTex2D{
+		type = gl.GL_UNSIGNED_BYTE,
+		format = gl.GL_RGB,
+		internalFormat = gl.GL_RGB,
+		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_NEAREST,
+		image = Image(2,2,3,'unsigned char', {0xf0,0xf0,0xf0,0xfc,0xfc,0xfc,0xfc,0xfc,0xfc,0xf0,0xf0,0xf0}),
+	}:unbind()
 end
 
 return {
