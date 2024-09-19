@@ -138,9 +138,36 @@ function EditSprites:update()
 			(cx - x + self.spritesheetPanOffset.x) / spriteSize.x,
 			(cy - y + self.spritesheetPanOffset.y) / spriteSize.y
 	end
+
+	local spritesheetPanHandled
+	local function spritesheetPan(press)
+		spritesheetPanHandled = true
+		if press then
+			if mouseX >= x and mouseX < x + w
+			and mouseY >= y and mouseY < y + h
+			then
+				self.spritesheetPanDownPos:set(mouseX, mouseY)
+				self.spritesheetPanPressed = true
+			end
+		else
+			if self.spritesheetPanPressed then
+				local tx = math.round(mouseX - self.spritesheetPanDownPos.x)
+				local ty = math.round(mouseY - self.spritesheetPanDownPos.y)
+				if tx ~= 0 or ty ~= 0 then
+					self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - tx
+					self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - ty
+					self.spritesheetPanDownPos:set(mouseX, mouseY)
+				end
+			end
+		end
+	end
+
 	if x <= mouseX and mouseX < x+w
 	and y <= mouseY and mouseY <= y+h
 	then
+		if app:key'space' then
+			spritesheetPan(app:keyp'space')
+		end
 		if self.spritesheetEditMode == 'select' then
 			if leftButtonPress then
 				self.spriteSelPos:set(fbToSpritesheetCoord(mouseX, mouseY))
@@ -150,29 +177,17 @@ function EditSprites:update()
 				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
 				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
 			end
-		elseif self.spritesheetEditMode == 'pan' then
-			if leftButtonPress then
-				if mouseX >= x and mouseX < x + w
-				and mouseY >= y and mouseY < y + h
-				then
-					self.spritesheetPanDownPos:set(mouseX, mouseY)
-					self.spritesheetPanPressed = true
-				end
-			elseif leftButtonDown then
-				if self.spritesheetPanPressed then
-					local tx = math.round(mouseX - self.spritesheetPanDownPos.x)
-					local ty = math.round(mouseY - self.spritesheetPanDownPos.y)
-					if tx ~= 0 or ty ~= 0 then
-						self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - tx
-						self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - ty
-						self.spritesheetPanDownPos:set(mouseX, mouseY)
-					end
-				end
-			else
-				self.spritesheetPanPressed = false
+		elseif self.spritesheetEditMode == 'pan'  then
+			if leftButtonDown then
+				spritesheetPan(leftButtonPress)
 			end
 		end
 	end
+
+	if not spritesheetPanHandled then
+		self.spritesheetPanPressed = false
+	end
+
 
 	gl.glScissor(x, y, w, h)
 	-- sprite sel rect (1x1 ... 8x8)
@@ -225,6 +240,33 @@ function EditSprites:update()
 			(cx - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x) + self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x,
 			(cy - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y) + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y
 	end
+
+	local spritePanHandled
+	local function spritePan(press)
+		spritePanHandled = true
+		if press then
+			if mouseX >= x and mouseX < x + w
+			and mouseY >= y and mouseY < y + h
+			then
+				self.spritePanDownPos:set(mouseX, mouseY)
+				self.spritePanPressed = true
+			end
+		else
+			if self.spritePanPressed then
+				local tx1, ty1 = fbToSpriteCoord(mouseX, mouseY)
+				local tx0, ty0 = fbToSpriteCoord(self.spritePanDownPos:unpack())
+				-- convert mouse framebuffer pixel movement to sprite texel movement
+				local tx = math.round(tx1 - tx0)
+				local ty = math.round(ty1 - ty0)
+				if tx ~= 0 or ty ~= 0 then
+					self.spritePanOffset.x = self.spritePanOffset.x - tx
+					self.spritePanOffset.y = self.spritePanOffset.y - ty
+					self.spritePanDownPos:set(mouseX, mouseY)
+				end
+			end
+		end
+	end
+
 	if self.spriteDrawMode == 'draw'
 	or self.spriteDrawMode == 'dropper'
 	then
@@ -304,30 +346,23 @@ function EditSprites:update()
 				currentTex:unbind()
 			end
 		end
-	elseif self.spriteDrawMode == 'pan' then
-		if leftButtonPress then
-			if mouseX >= x and mouseX < x + w
-			and mouseY >= y and mouseY < y + h
-			then
-				self.spritePanDownPos:set(mouseX, mouseY)
-				self.spritePanPressed = true
-			end
-		elseif leftButtonDown then
-			if self.spritePanPressed then
-				local tx1, ty1 = fbToSpriteCoord(mouseX, mouseY)
-				local tx0, ty0 = fbToSpriteCoord(self.spritePanDownPos:unpack())
-				-- convert mouse framebuffer pixel movement to sprite texel movement
-				local tx = math.round(tx1 - tx0)
-				local ty = math.round(ty1 - ty0)
-				if tx ~= 0 or ty ~= 0 then
-					self.spritePanOffset.x = self.spritePanOffset.x - tx
-					self.spritePanOffset.y = self.spritePanOffset.y - ty
-					self.spritePanDownPos:set(mouseX, mouseY)
-				end
-			end
-		else
-			self.spritePanPressed = false
+	end
+
+	if mouseX >= x and mouseX < x + w
+	and mouseY >= y and mouseY < y + h
+	then
+		if app:key'space' then
+			spritePan(app:keyp'space')
 		end
+		if self.spriteDrawMode == 'pan' then
+			if leftButtonDown then
+				spritePan(leftButtonPress)
+			end
+		end
+	end
+
+	if not spritePanHandled then
+		self.spritePanPressed = false
 	end
 
 	-- sprite edit method

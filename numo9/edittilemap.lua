@@ -175,6 +175,36 @@ function EditTilemap:update()
 		end
 		local tx, ty = fbToTileCoord(mouseX, mouseY)
 
+		local tilemapPanHandled
+		local function tilemapPan(press)
+			tilemapPanHandled = true
+			if press then
+				if mouseX >= mapX and mouseX < mapX + mapWidth
+				and mouseY >= mapY and mouseY < mapY + mapHeight
+				then
+					self.tilePanDownPos:set(mouseX, mouseY)
+					self.tilePanPressed = true
+				end
+			else
+				if self.tilePanPressed then
+					local tx1, ty1 = fbToTileCoord(mouseX, mouseY)
+					local tx0, ty0 = fbToTileCoord(self.tilePanDownPos:unpack())
+					-- convert mouse framebuffer pixel movement to sprite texel movement
+					local tx = math.round(tx1 - tx0)
+					local ty = math.round(ty1 - ty0)
+					if tx ~= 0 or ty ~= 0 then
+						self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx
+						self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty
+						self.tilePanDownPos:set(mouseX, mouseY)
+					end
+				end
+			end
+		end
+
+		if app:key'space' then
+			tilemapPan(app:keyp'space')
+		end
+
 		-- TODO pen size here
 		if self.drawMode == 'dropper'
 		or (self.drawMode == 'draw' and shift)
@@ -223,29 +253,13 @@ function EditTilemap:update()
 				mapTex:unbind()
 			end
 		elseif self.drawMode == 'pan' then
-			if leftButtonPress then
-				if mouseX >= mapX and mouseX < mapX + mapWidth
-				and mouseY >= mapY and mouseY < mapY + mapHeight
-				then
-					self.tilePanDownPos:set(mouseX, mouseY)
-					self.tilePanPressed = true
-				end
-			elseif leftButtonDown then
-				if self.tilePanPressed then
-					local tx1, ty1 = fbToTileCoord(mouseX, mouseY)
-					local tx0, ty0 = fbToTileCoord(self.tilePanDownPos:unpack())
-					-- convert mouse framebuffer pixel movement to sprite texel movement
-					local tx = math.round(tx1 - tx0)
-					local ty = math.round(ty1 - ty0)
-					if tx ~= 0 or ty ~= 0 then
-						self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx
-						self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty
-						self.tilePanDownPos:set(mouseX, mouseY)
-					end
-				end
-			else
-				self.tilePanPressed = false
+			if leftButtonDown then
+				tilemapPan(leftButtonPress)
 			end
+		end
+
+		if not tilemapPanHandled then
+			self.tilePanPressed = false
 		end
 	end
 end
