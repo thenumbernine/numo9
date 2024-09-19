@@ -65,6 +65,8 @@ function EditSprites:update()
 	local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local mouseX, mouseY = app.ram.mousePos:unpack()
+	
+	local shift = app:key'lshift' or app:key'rshift'
 
 	EditSprites.super.update(self)
 
@@ -240,7 +242,9 @@ function EditSprites:update()
 				bit.lshift(1, self.spriteBitDepth) - 1,
 				self.spriteBit
 			)
-			if self.spriteDrawMode == 'dropper' then
+			if self.spriteDrawMode == 'dropper' 
+			or (self.spriteDrawMode == 'draw' and shift)
+			then
 				if 0 <= tx and tx < spriteSheetSize.x
 				and 0 <= ty and ty < spriteSheetSize.y
 				then

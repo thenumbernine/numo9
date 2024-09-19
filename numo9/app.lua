@@ -542,7 +542,9 @@ print('package.loaded', package.loaded)
 --]]
 
 -- [[ using langfix
-	local state = require 'langfix.env'(self.loadenv)
+	self.langfixState = require 'langfix.env'(self.loadenv)
+--asserteq(self.loadenv.langfix, self.langfixState)
+	self.env.langfix = self.loadenv.langfix	-- so langfix can do its internal calls
 --]]
 --[[ not using it
 	self.loadenv.load = load
@@ -2199,7 +2201,8 @@ function App:runCmd(cmd)
 	local result = table.pack(assert(self:loadCmd(
 		cmd,
 		-- TODO if there's a cartridge loaded then why not use its env, for debugging eh?
-		self.cartridgeEnv or self.env,
+		--self.cartridgeEnv or -- would be nice but cartridgeEnv doesn't have langfix, i.e. self.env
+		self.env,
 		'con'
 	))())
 	print('RESULT', result:unpack())
