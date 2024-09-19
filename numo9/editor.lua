@@ -202,8 +202,20 @@ function Editor:gainFocus()
 		end
 	end
 
-	-- copy cartridge everything into RAM (where it'll be edited & the engine can live-update the edits)
+	app.spriteTex:checkDirtyGPU()
+	app.tileTex:checkDirtyGPU()
+	app.mapTex:checkDirtyGPU()
+	app.palTex:checkDirtyGPU()
+	app.fbTex:checkDirtyGPU()
+	-- copy everything from cartridge to RAM (where it'll be edited & the engine can live-update the edits)
 	ffi.copy(app.ram, app.cartridge, ffi.sizeof'ROM')
+	-- set all dirty flags too
+	app.spriteTex.dirtyCPU = true
+	app.tileTex.dirtyCPU = true
+	app.mapTex.dirtyCPU = true
+	app.palTex.dirtyCPU = true
+	app.fbTex.dirtyCPU = true
+	app.fbTex.changedSinceDraw = true
 
 	-- copy cartridge code to editCode (where we can use Lua string functionality)
 	local code = ffi.string(app.cartridge.code, app.codeSize)	-- TODO max size on this ...
