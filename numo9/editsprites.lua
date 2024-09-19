@@ -2,6 +2,7 @@
 This will be the code editor
 --]]
 local ffi = require 'ffi'
+local gl = require 'gl'
 local asserteq = require 'ext.assert'.eq
 local assertle = require 'ext.assert'.le
 local math = require 'ext.math'
@@ -115,15 +116,7 @@ function EditSprites:update()
 	local w = sw * spriteSize.x
 	local h = sh * spriteSize.y
 	-- draw some pattern under the spritesheet so you can tell what's transparent
-	for i=0,w/2 do
-		local xi = x + i*2
-		for j=0,h/2 do
-			local yj = y + j*2
-			app:drawSolidRect(xi, yj, 2,2,
-				bit.band(bit.bxor(i,j),1)==0 and 0xff or 0xf0
-			)
-		end
-	end
+	app:drawQuad(x,y,w,h,0,0,w/4,h/4,app.checkerTex,0,-1,0,0xFF)
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 	app:drawQuad(
 		x,		-- x
@@ -181,6 +174,7 @@ function EditSprites:update()
 		end
 	end
 
+	gl.glScissor(x, y, w, h)
 	-- sprite sel rect (1x1 ... 8x8)
 	-- ... also show the offset ... is that a good idea?
 	app:drawBorderRect(
@@ -190,6 +184,7 @@ function EditSprites:update()
 		spriteSize.y * self.spriteSelSize.y,
 		0xfd
 	)
+	gl.glScissor(0, 0, frameBufferSize:unpack())
 
 	-- sprite edit area
 	local x = 2
@@ -206,15 +201,7 @@ function EditSprites:update()
 	local w = 64
 	local h = 64
 	-- draw some pattern under the spritesheet so you can tell what's transparent
-	for i=0,w/2 do
-		local xi = x + i*2
-		for j=0,h/2 do
-			local yj = y + j*2
-			app:drawSolidRect(xi, yj, 2,2,
-				bit.band(bit.bxor(i,j),1)==0 and 0xff or 0xf0
-			)
-		end
-	end
+	app:drawQuad(x,y,w,h,0,0,w/4,h/4,app.checkerTex,0,-1,0,0xFF)
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 	app:drawQuad(
 		x,

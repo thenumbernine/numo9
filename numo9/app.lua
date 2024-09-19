@@ -27,22 +27,12 @@ local matrix_ffi = require 'matrix.ffi'
 local struct = require 'struct'
 local sdl = require 'sdl'
 local gl = require 'gl'
-local glreport = require 'gl.report'
 local GLApp = require 'glapp'
 local GLTex2D = require 'gl.tex2d'
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
 local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode
-
--- I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...
--- glsl unsigned int fragment colors and samplers really doesn't do anything predictable...
-local fragColorUseFloat = false
---local fragColorUseFloat = true
-
--- maybe I'll just convert everything back to float texcoords because it looks more trash than retro, the perf is nearly the same, and I'll bet nobody cares whether or not I'm using ints or floats in the shader.
---local useTextureRect = true
-local useTextureRect = false
 
 -- n = num args to pack
 -- also in image/luajit/image.lua
@@ -650,62 +640,6 @@ function App:resetGFX()
 	self.spriteTex.dirtyCPU = true
 	assert(not self.palTex.dirtyGPU)
 	self.palTex.dirtyCPU = true
-end
-
-
--- [[ also in sand-attack ... hmmmm ...
--- consider putting somewhere common, maybe in gl.tex2d ?
--- maybe just save .image in gltex2d?
-function App:makeTexFromImage(args)
-glreport'here'
-	local image = assert(args.image)
-	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
-	local tex = GLTex2D{
-		target = args.target or (
-			useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil	-- nil defaults to TEXTURE_2D
-		),
-		internalFormat = args.internalFormat or gl.GL_RGBA,
-		format = args.format or gl.GL_RGBA,
-		type = args.type or gl.GL_UNSIGNED_BYTE,
-
-		width = tonumber(image.width),
-		height = tonumber(image.height),
-		wrap = args.wrap or { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
-		minFilter = args.minFilter or gl.GL_NEAREST,
-		magFilter = args.magFilter or gl.GL_NEAREST,
-		data = image.buffer,	-- stored
-	}:unbind()
-	-- TODO move this store command to gl.tex2d ctor if .image is used?
-	tex.image = image
-
-	-- TODO gonna subclass this soon ...
-	local app = self
-	-- assumes it is being called from within the render loop
-	function tex:checkDirtyCPU()
-		if not self.dirtyCPU then return end
-		-- we should never get in a state where both CPU and GPU are dirty
-		-- if someone is about to write to one then it shoudl test the other and flush it if it's dirty, then set the one
-		assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
-		local fb = app.fb
-		app.fb:unbind()
-		self:bind()
-			:subimage()
-			:unbind()
-		app.fb:bind()
-		self.dirtyCPU = false
-	end
-	function tex:checkDirtyGPU()
-		if not self.dirtyGPU then return end
-		assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
-		gl.glReadPixels(0, 0, self.width, self.height, self.format, self.type, self.image.buffer)
-		self.dirtyGPU = false
-	end
-glreport'here'
-
-	return tex
 end
 
 function App:resize()
