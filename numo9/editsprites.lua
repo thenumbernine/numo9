@@ -11,8 +11,8 @@ local clip = require 'clip'	-- clipboard support
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
 
-local rgba8888_4ch_to_5551 = require 'numo9.resetgfx'.rgba8888_4ch_to_5551	-- TODO move this
-local rgba5551_to_rgba8888_4ch = require 'numo9.resetgfx'.rgba5551_to_rgba8888_4ch
+local rgba8888_4ch_to_5551 = require 'numo9.draw'.rgba8888_4ch_to_5551	-- TODO move this
+local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch
 local App = require 'numo9.app'
 local paletteSize = App.paletteSize
 local frameBufferSize = App.frameBufferSize
@@ -121,6 +121,8 @@ function EditSprites:update()
 		h + 2,
 		self:color(13)
 	)
+	-- draw some pattern under the spritesheet so you can tell what's transparent
+
 	app:drawQuad(
 		x,		-- x
 		y,		-- y
