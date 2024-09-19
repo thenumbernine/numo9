@@ -163,7 +163,7 @@ local RAM = struct{
 				-- I guess I'll dedicate 16 bits per hold counter to every key ...
 				-- TODO mayyybbee ... just dedicate one to every button, and an extra one for keys that aren't buttons
 				{name='keyHoldCounter', type='uint16_t['..keyCount..']'},
-				
+
 				{name='mousePos', type='vec2s_t'},			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
 				{name='lastMousePos', type='vec2s_t'},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
 				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
@@ -1399,7 +1399,7 @@ glreport'here'
 		if not self.dirtyCPU then return end
 		-- we should never get in a state where both CPU and GPU are dirty
 		-- if someone is about to write to one then it shoudl test the other and flush it if it's dirty, then set the one
-		assert(not self.dirtyGPU)
+		assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
 		local fb = app.fb
 		app.fb:unbind()
 		self:bind()
@@ -1407,6 +1407,12 @@ glreport'here'
 			:unbind()
 		app.fb:bind()
 		self.dirtyCPU = false
+	end
+	function tex:checkDirtyGPU()
+		if not self.dirtyGPU then return end
+		assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
+		gl.glReadPixels(0, 0, self.width, self.height, self.format, self.type, self.image.buffer)
+		self.dirtyGPU = false
 	end
 glreport'here'
 
@@ -1635,8 +1641,7 @@ function App:peek(addr)
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if self.fbTex.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
-		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
-		self.fbTex.dirtyGPU = false
+		self.fbTex:checkDirtyGPU()
 	end
 
 	return self.ram.v[addr]
@@ -1646,8 +1651,7 @@ function App:peekw(addr)
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
 	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddr+framebufferInBytes then
-		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
-		self.fbTex.dirtyGPU = false
+		self.fbTex:checkDirtyGPU()
 	end
 
 	return ffi.cast('uint16_t*', self.ram.v + addr)[0]
@@ -1657,8 +1661,7 @@ function App:peekl(addr)
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
 	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddr+framebufferInBytes then
-		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
-		self.fbTex.dirtyGPU = false
+		self.fbTex:checkDirtyGPU()
 	end
 
 	return ffi.cast('uint32_t*', self.ram.v + addr)[0]
@@ -1671,9 +1674,7 @@ function App:poke(addr, value)
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the fbTex
 	if self.fbTex.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
-		assert(not self.fbTex.dirtyCPU)
-		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
-		self.fbTex.dirtyGPU = false
+		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
 		self.fbTex.changedSinceDraw = true
 	end
@@ -1708,9 +1709,7 @@ function App:pokew(addr, value)
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
 	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
-		assert(not self.fbTex.dirtyCPU)
-		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
-		self.fbTex.dirtyGPU = false
+		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
 		self.fbTex.changedSinceDraw = true
 	end
@@ -1739,9 +1738,7 @@ function App:pokel(addr, value)
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
 	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
-		assert(not self.fbTex.dirtyCPU)
-		gl.glReadPixels(0, 0, frameBufferSize.x, frameBufferSize.y, self.fbTex.format, self.fbTex.type, self.fbTex.image.buffer)
-		self.fbTex.dirtyGPU = false
+		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
 		self.fbTex.changedSinceDraw = true
 	end
@@ -1961,7 +1958,7 @@ end
 -- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
 function App:drawMap(
 	tileX,			-- \_ upper-left position in the tilemap
-	tileY,			-- /  
+	tileY,			-- /
 	tilesWide,		-- \_ how many tiles wide & high to draw
 	tilesHigh,		-- /
 	screenX,		-- \_ where in the screen to draw
@@ -2199,7 +2196,12 @@ function App:runCmd(cmd)
 	return xpcall(f, errorHandler)
 	--]]
 	-- [[ error always
-	local result = table.pack(assert(self:loadCmd(cmd, self.env, 'con'))())
+	local result = table.pack(assert(self:loadCmd(
+		cmd,
+		-- TODO if there's a cartridge loaded then why not use its env, for debugging eh?
+		self.cartridgeEnv or self.env,
+		'con'
+	))())
 	print('RESULT', result:unpack())
 	--assert(result:unpack())
 	return result:unpack()
@@ -2251,6 +2253,9 @@ print('update:', env.update)
 			env.update()
 		end
 	end)
+
+	-- save the cartridge's last-env for console support until next ... idk what function should clear the console env?
+	self.cartridgeEnv = env
 
 	self:setFocus(env)
 end

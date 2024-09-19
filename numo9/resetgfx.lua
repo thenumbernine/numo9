@@ -15,22 +15,12 @@ local spriteSize = App.spriteSize
 -- r,g,b,a is 8bpp
 -- result is 5551 16bpp
 local function rgba8888_4ch_to_5551(r,g,b,a)
---[[	
-	return bit.bor(
-		bit.rshift(r, 3),
-		bit.lshift(bit.rshift(g, 3), 5),
-		bit.lshift(bit.rshift(b, 3), 10),
-		bit.lshift(a>0 and 1 or 0, 15)
-	)
---]]
--- [[
 	return bit.bor(
 		bit.band(0x001f, bit.rshift(r, 3)),
 		bit.band(0x03e0, bit.lshift(g, 2)),
 		bit.band(0x7c00, bit.lshift(b, 7)),
 		a == 0 and 0 or 0x8000
 	)
---]]
 end
 
 -- rgba5551 is 16bpp 
@@ -51,7 +41,6 @@ local function argb8888revto5551(rgba)
 	local g = bit.band(bit.rshift(rgba, 8), 0xff)
 	local b = bit.band(rgba, 0xff)
 	return rgba8888_4ch_to_5551(r,g,b,a)
---DEBUG:assert(abgr >= 0 and abgr <= 0xffff, ('%x'):format(abgr))
 end
 
 local function resetFontOnSheet(spriteSheetPtr)
