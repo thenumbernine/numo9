@@ -105,7 +105,11 @@ Tilemap bits:
 - 1: hflip
 - 1: vflip
 
-Tilemap rendering has your typical rendering of 8x8 sprites, but also (SNES) an option for 16x16 rendering, which pulls in the sprites to the right, down, and down-and-right.
+Tilemap rendering has your typical rendering of 8x8 sprites ...
+but also (SNES) an option for 16x16 rendering, which pulls in the sprites to the right, down, and down-and-right.
+How come none of the other fantasy consoles I'm looking at allow 16x16 tilemapping?
+No wonder all the games are using 8x8 sprites.
+I've read a lot of comments requesting a Fantasy Console reminsicent of the SNES era ...but honestly what era is everyone targeting?
 
 ### Mode7 j/k
 
