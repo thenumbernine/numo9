@@ -114,15 +114,17 @@ function EditSprites:update()
 	local sh = spriteSheetSizeInTiles.y / 2
 	local w = sw * spriteSize.x
 	local h = sh * spriteSize.y
-	app:drawBorderRect(
-		x-1,
-		y-1,
-		w + 2,
-		h + 2,
-		self:color(13)
-	)
 	-- draw some pattern under the spritesheet so you can tell what's transparent
-
+	for i=0,w/2 do
+		local xi = x + i*2
+		for j=0,h/2 do
+			local yj = y + j*2
+			app:drawSolidRect(xi, yj, 2,2,
+				bit.band(bit.bxor(i,j),1)==0 and 0xff or 0xf0
+			)
+		end
+	end
+	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 	app:drawQuad(
 		x,		-- x
 		y,		-- y
@@ -186,7 +188,7 @@ function EditSprites:update()
 		y + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y - self.spritesheetPanOffset.y,
 		spriteSize.x * self.spriteSelSize.x,
 		spriteSize.y * self.spriteSelSize.y,
-		self:color(13)
+		0xfd
 	)
 
 	-- sprite edit area
@@ -196,15 +198,24 @@ function EditSprites:update()
 		'#'..(self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y),
 		x + 32,
 		y,
-		self:color(13),
+		0xfd,
 		-1
 	)
 
 	local y = 24
 	local w = 64
 	local h = 64
-	app:drawBorderRect(x-1, y-1, w+2, h+2, self:color(13))
-	app:drawSolidRect(x, y, w, h, self:color(5))
+	-- draw some pattern under the spritesheet so you can tell what's transparent
+	for i=0,w/2 do
+		local xi = x + i*2
+		for j=0,h/2 do
+			local yj = y + j*2
+			app:drawSolidRect(xi, yj, 2,2,
+				bit.band(bit.bxor(i,j),1)==0 and 0xff or 0xf0
+			)
+		end
+	end
+	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 	app:drawQuad(
 		x,
 		y,
@@ -356,7 +367,7 @@ function EditSprites:update()
 		y-1,
 		w+2,
 		h+2,
-		self:color(13)
+		0xfd
 	)
 
 	-- log2PalBits == 3 <=> palBits == 8 <=> showing 1<<8 = 256 colors <=> showing 16 x 16 colors
