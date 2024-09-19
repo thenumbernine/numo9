@@ -419,10 +419,6 @@ function App:initGL()
 		-- TODO merge mouse buttons with btpn as well so you get added fnctionality of press/release detection
 		mouse = function(...) return self:mouse(...) end,
 
-		-- math
-		cos = math.cos,
-		sin = math.sin,
-
 		bit = bit,
 		math = require 'ext.math',
 		table = require 'ext.table',

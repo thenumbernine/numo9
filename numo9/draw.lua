@@ -1005,10 +1005,8 @@ void main() {
 		float(tileTexTC.y) / spriteSheetSizeY
 	)).r;
 <? end ?>
-	colorIndex |= palHi << 4;
-
-//debug:
-//colorIndex = tileIndex;
+	colorIndex += palHi << 4;
+	colorIndex &= 0xFFu;
 
 <? if useTextureRect then ?>
 	ivec2 palTc = ivec2(colorIndex, 0);
