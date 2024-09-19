@@ -22,7 +22,11 @@ function EditTilemap:init(args)
 	self.spriteSelSize = vec2i(1,1)
 	self.draw16Sprites = false
 	self.drawMode = 'draw'	--TODO ui for this
+	self.gridSpacing = 1
 	self.penSize = 1
+	self.tilePanDownPos = vec2i()
+	self.tilemapPanOffset = vec2i()
+	self.tilePanPressed = false
 end
 
 function EditTilemap:update()
@@ -34,14 +38,20 @@ function EditTilemap:update()
 	local leftButtonPress = leftButtonDown and not leftButtonLastDown
 	local leftButtonRelease = not leftButtonDown and leftButtonLastDown
 	local mouseX, mouseY = app.ram.mousePos:unpack()
-	
+
 	local shift = app:key'lshift' or app:key'rshift'
 
 	EditTilemap.super.update(self)
 
 	-- title controls
-	local x = 128
+	local x = 104
 	local y = 0
+
+	self:guiSpinner(x, y, function(dx)
+		self.gridSpacing = math.clamp(self.gridSpacing + dx, 1, 256)
+	end, 'grid='..self.gridSpacing)
+	x = x + 24
+
 	if self:guiButton(x, y, 'G', self.drawGrid, 'grid') then
 		self.drawGrid = not self.drawGrid
 	end
@@ -66,13 +76,15 @@ function EditTilemap:update()
 	-- draw map
 	local mapX = 0
 	local mapY = spriteSize.y
-	local mapW = tilemapSizeInSprites.x
-	local mapH = tilemapSizeInSprites.y
+	local mapWidthInTiles = tilemapSizeInSprites.x
+	local mapHeightInTiles = tilemapSizeInSprites.y-2
+	local mapWidth = bit.lshift(mapWidthInTiles, self.draw16Sprites and 4 or 3)
+	local mapHeight = bit.lshift(mapWidthInTiles, self.draw16Sprites and 4 or 3)
 --print('map', require 'ext.string'.hexdump(require 'ffi'.string(mapTex.data, 16)))
 
 	app:drawMap(
-		0,			-- upper-left index in the tile tex
-		0,
+		self.tilemapPanOffset.x,	-- upper-left index in the tile tex
+		self.tilemapPanOffset.y,
 		tilemapSizeInSprites.x,	-- tiles wide
 		tilemapSizeInSprites.y,	-- tiles high
 		mapX,		-- pixel x
@@ -81,7 +93,7 @@ function EditTilemap:update()
 		self.draw16Sprites	-- draw 16x16 vs 8x8
 	)
 	if self.drawGrid then
-		local step = self.draw16Sprites and 16 or 8
+		local step = bit.lshift(self.gridSpacing, self.draw16Sprites and 4 or 3)
 		for i=0,frameBufferSize.x-1,step do
 			app:drawSolidLine(i, spriteSize.y, i, frameBufferSize.y-spriteSize.y, self:color(1))
 		end
@@ -155,14 +167,21 @@ function EditTilemap:update()
 		-- and I should also resize the pick tile area
 
 		local draw16As0or1 = self.draw16Sprites and 1 or 0
-		local tx = math.floor((mouseX - mapX) / mapW * tilemapSizeInSprites.x / bit.lshift(spriteSize.x, draw16As0or1))
-		local ty = math.floor((mouseY - mapY) / mapH * tilemapSizeInSprites.y / bit.lshift(spriteSize.y, draw16As0or1))
+
+		local function fbToTileCoord(cx, cy)
+			return
+				math.floor((cx - mapX) / bit.lshift(spriteSize.x, draw16As0or1)) + self.tilemapPanOffset.x,
+				math.floor((cy - mapY) / bit.lshift(spriteSize.y, draw16As0or1)) + self.tilemapPanOffset.y
+		end
+		local tx, ty = fbToTileCoord(mouseX, mouseY)
 
 		-- TODO pen size here
-		if self.drawMode == 'dropper' 
+		if self.drawMode == 'dropper'
 		or (self.drawMode == 'draw' and shift)
 		then
 			if leftButtonPress
+			and mouseX >= mapX and mouseX < mapX + mapWidth
+			and mouseY >= mapY and mouseY < mapY + mapHeight
 			and 0 <= tx and tx < tilemapSize.x
 			and 0 <= ty and ty < tilemapSize.y
 			then
@@ -175,6 +194,8 @@ function EditTilemap:update()
 			end
 		elseif self.drawMode == 'draw' then
 			if leftButtonDown
+			and mouseX >= mapX and mouseX < mapX + mapWidth
+			and mouseY >= mapY and mouseY < mapY + mapHeight
 			and 0 <= tx and tx < tilemapSize.x
 			and 0 <= ty and ty < tilemapSize.y
 			then
@@ -192,7 +213,7 @@ function EditTilemap:update()
 							local texelIndex = tx + tilemapSize.x * ty
 							assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 							local ptr = mapTex.image.buffer + texelIndex
-							local tileSelIndex = self.spriteSelPos.x + dx 
+							local tileSelIndex = self.spriteSelPos.x + dx
 								+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy)
 							ptr[0] = tileSelIndex
 							app.mapTex.dirtyCPU = true
@@ -200,6 +221,30 @@ function EditTilemap:update()
 					end
 				end
 				mapTex:unbind()
+			end
+		elseif self.drawMode == 'pan' then
+			if leftButtonPress then
+				if mouseX >= mapX and mouseX < mapX + mapWidth
+				and mouseY >= mapY and mouseY < mapY + mapHeight
+				then
+					self.tilePanDownPos:set(mouseX, mouseY)
+					self.tilePanPressed = true
+				end
+			elseif leftButtonDown then
+				if self.tilePanPressed then
+					local tx1, ty1 = fbToTileCoord(mouseX, mouseY)
+					local tx0, ty0 = fbToTileCoord(self.tilePanDownPos:unpack())
+					-- convert mouse framebuffer pixel movement to sprite texel movement
+					local tx = math.round(tx1 - tx0)
+					local ty = math.round(ty1 - ty0)
+					if tx ~= 0 or ty ~= 0 then
+						self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx
+						self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty
+						self.tilePanDownPos:set(mouseX, mouseY)
+					end
+				end
+			else
+				self.tilePanPressed = false
 			end
 		end
 	end
