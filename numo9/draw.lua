@@ -613,7 +613,9 @@ void main() {
 	-- set them up as our app fields to use upon setVideoMode
 	for _,info in ipairs{
 		{name='RGB', colorOutput=colorIndexToFrag},
-		{name='Index', colorOutput=[[
+		{name='Index', colorOutput=
+colorIndexToFrag
+..[[
 	fragColor.r = colorIndex;
 	fragColor.g = 0;
 	fragColor.b = 0;
@@ -1000,8 +1002,8 @@ void main() {
 		}
 	end
 
-	self:setVideoMode(0)
-	--self:setVideoMode(1)
+	--self:setVideoMode(0)	-- RGB565 output
+	self:setVideoMode(1)	-- 8bit indexed output
 
 	-- for the editor
 
