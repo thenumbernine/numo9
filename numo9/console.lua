@@ -13,14 +13,13 @@ local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
 local getAsciiForKeyCode = require 'numo9.keys'.getAsciiForKeyCode
 
-local App = require 'numo9.app'
-local paletteSize = App.paletteSize
-local frameBufferSize = App.frameBufferSize
-local spriteSheetSize = App.spriteSheetSize
-local spriteSize = App.spriteSize
-local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
-local frameBufferSizeInTiles = App.frameBufferSizeInTiles
-local fontWidth = App.fontWidth
+local paletteSize = require 'numo9.rom'.paletteSize
+local frameBufferSize = require 'numo9.rom'.frameBufferSize
+local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
+local spriteSize = require 'numo9.rom'.spriteSize
+local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
+local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
+local fontWidth = require 'numo9.rom'.fontWidth
 
 
 local Console = class()
@@ -117,7 +116,7 @@ function Console:addChar(ch)
 		self.fgColor,
 		self.bgColor
 	)
-	self:offsetCursor(App.fontWidth, 0)
+	self:offsetCursor(fontWidth, 0)
 end
 
 function Console:addCharToScreen(ch)

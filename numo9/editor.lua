@@ -2,15 +2,15 @@ local ffi = require 'ffi'
 local math = require 'ext.math'
 local class = require 'ext.class'
 
-local App = require 'numo9.app'
-local paletteSize = App.paletteSize
-local spriteSize = App.spriteSize
-local frameBufferSize = App.frameBufferSize
-local frameBufferSizeInTiles = App.frameBufferSizeInTiles
-local spriteSheetSize = App.spriteSheetSize
-local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
-local tilemapSize = App.tilemapSize
-local tilemapSizeInSprites = App.tilemapSizeInSprites
+local paletteSize = require 'numo9.rom'.paletteSize
+local spriteSize = require 'numo9.rom'.spriteSize
+local frameBufferSize = require 'numo9.rom'.frameBufferSize
+local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
+local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
+local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
+local tilemapSize = require 'numo9.rom'.tilemapSize
+local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
+local codeSize = require 'numo9.rom'.codeSize
 
 -- TODO make the editor a rom itself
 -- TODO make roms that hold all the necessary stuff
@@ -213,7 +213,7 @@ function Editor:gainFocus()
 	app.fbTex.changedSinceDraw = true
 
 	-- copy cartridge code to editCode (where we can use Lua string functionality)
-	local code = ffi.string(app.cartridge.code, app.codeSize)	-- TODO max size on this ...
+	local code = ffi.string(app.cartridge.code, codeSize)	-- TODO max size on this ...
 	local i = code:find('\0', 1, true)
 	if i then code = code:sub(1, i-1) end
 	app.editCode:setText(code)
@@ -227,7 +227,7 @@ function Editor:loseFocus()
 
 	-- sync us back from editor to cartridge so everyone else sees the console code where it belongs
 	ffi.fill(app.cartridge.code, ffi.sizeof(app.cartridge.code))
-	ffi.copy(app.cartridge.code, app.editCode.text:sub(1,app.codeSize-1))
+	ffi.copy(app.cartridge.code, app.editCode.text:sub(1,codeSize-1))
 end
 
 return Editor
