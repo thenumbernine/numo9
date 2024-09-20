@@ -86,6 +86,33 @@ local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
 local keyPressFlagSize = math.ceil(keyCount / 8)
 
+-- [[ use fixed point 16:16
+local mvMatType = 'int32_t'
+local mvMatScale = 65536
+--]]
+--[[ use fixed point 24:8
+local mvMatType = 'int32_t'
+local mvMatScale = 256
+--]]
+--[[ use fixed point 12:4 -- works
+local mvMatType = 'int16_t'
+local mvMatScale = 16
+--]]
+--[[ use fixed point 10:6 -- works
+local mvMatType = 'int16_t'
+local mvMatScale = 64
+--]]
+--[[ use fixed point 9:7 -- works
+local mvMatType = 'int16_t'
+local mvMatScale = 128
+--]]
+--[[ use fixed point 8:8 like the old SNES Mode7 ... NOT WORKING
+local mvMatType = 'int16_t'
+local mvMatScale = 256
+--]]
+
+
+
 local ROM = struct{
 	name = 'ROM',
 	union = true,
@@ -130,7 +157,7 @@ local RAM = struct{
 				-- maybe I'll say rgb565 is maximum but if the user chooses they can change modes to rgb332, indexed, heck why not 4bit or 2bit ...
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
-				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ... lol the rom api ittself doesn't even have access to floats ...
+				{name='mvMat', type=mvMatType..'[16]'},
 
 				-- timer
 				{name='updateCounter', type='uint32_t[1]'},	-- how many updates() overall, i.e. system clock
@@ -271,9 +298,17 @@ function App:initGL()
 
 	print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
 
-	-- TODO use fixed-precision here ... or ... expose floating-precision poke/peeks?
+	--[[
+	TODO use fixed-precision here ... or ... expose floating-precision poke/peeks? nahhh
+	fixed precision 8.8 like SNES Mode7 uses?
+	whatever it is, how to get it to work with my matrix_ffi library?  I could ...
+	*) use float, and convert (might have weird precision issues in some places .. then again, double I'm convinced it's safe)
+	*) make my own ffi.cdef struct with a custom mul ... use it for fixed-precision ...
+	*) use int and shift bits after the fact ... no conversion errors ...
+	float conversion one sounds best ...
+	--]]
 	self.mvMat = matrix_ffi({4,4}, 'float'):zeros():setIdent()
-	self.mvMat.ptr = self.ram.mvMat
+	self:mvMatToRAM()
 
 	local View = require 'glapp.view'
 	self.blitScreenView = View()
@@ -542,13 +577,41 @@ print('package.loaded', package.loaded)
 	-- me cheating and exposing opengl modelview matrix functions:
 	-- matident mattrans matrot matscale matortho matfrustum matlookat
 	-- matrix math because i'm cheating
-	self.env.matident = function(...) self.mvMat:setIdent(...) end
-	self.env.mattrans = function(...) self.mvMat:applyTranslate(...) end
-	self.env.matrot = function(...) self.mvMat:applyRotate(...) end
-	self.env.matscale = function(...) self.mvMat:applyScale(...) end
-	self.env.matortho = function(...) self.mvMat:applyOrtho(...) end
-	self.env.matfrustum = function(...) self.mvMat:applyFrustum(...) end
-	self.env.matlookat = function(...) self.mvMat:applyLookAt(...) end
+	self.env.matident = function(...)
+		self:mvMatFromRAM()
+		self.mvMat:setIdent(...)
+		self:mvMatToRAM()
+	end
+	self.env.mattrans = function(...)
+		self:mvMatFromRAM()
+		self.mvMat:applyTranslate(...)
+		self:mvMatToRAM()
+	end
+	self.env.matrot = function(...)
+		self:mvMatFromRAM()
+		self.mvMat:applyRotate(...)
+		self:mvMatToRAM()
+	end
+	self.env.matscale = function(...)
+		self:mvMatFromRAM()
+		self.mvMat:applyScale(...)
+		self:mvMatToRAM()
+	end
+	self.env.matortho = function(...)
+		self:mvMatFromRAM()
+		self.mvMat:applyOrtho(...)
+		self:mvMatToRAM()
+	end
+	self.env.matfrustum = function(...)
+		self:mvMatFromRAM()
+		self.mvMat:applyFrustum(...)
+		self:mvMatToRAM()
+	end
+	self.env.matlookat = function(...)
+		self:mvMatFromRAM()
+		self.mvMat:applyLookAt(...)
+		self:mvMatToRAM()
+	end
 
 	require 'numo9.draw'.initDraw(self)
 
@@ -619,6 +682,17 @@ print('package.loaded', package.loaded)
 			self:runROM()
 		end),
 	}
+end
+
+function App:mvMatToRAM()
+	for i=0,15 do
+		self.ram.mvMat[i] = self.mvMat.ptr[i] * mvMatScale
+	end
+end
+function App:mvMatFromRAM()
+	for i=0,15 do
+		self.mvMat.ptr[i] = self.ram.mvMat[i] / mvMatScale
+	end
 end
 
 -- this re-inserts the font and default palette
@@ -996,7 +1070,7 @@ function App:drawSolidRect(
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 
-	uniforms.mvMat = self.ram.mvMat
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = math.floor(colorIndex)
 	uniforms.borderOnly = borderOnly or false
 	uniforms.round = round or false
@@ -1027,7 +1101,7 @@ function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	local sceneObj = self.lineSolidObj
 	local uniforms = sceneObj.uniforms
 
-	uniforms.mvMat = self.ram.mvMat
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.line, x1,y1,x2,y2)
 
@@ -1040,7 +1114,7 @@ local mvMatCopy = ffi.new('float[16]')
 function App:clearScreen(colorIndex)
 --	self.quadSolidObj.uniforms.mvMat = ident4x4.ptr
 	gl.glDisable(gl.GL_SCISSOR_TEST)
-	ffi.copy(mvMatCopy, self.ram.mvMat, ffi.sizeof(mvMatCopy))
+	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
 	self.mvMat:setIdent()
 	self:drawSolidRect(
 		0,
@@ -1049,8 +1123,8 @@ function App:clearScreen(colorIndex)
 		frameBufferSize.y,
 		colorIndex or 0)
 	gl.glEnable(gl.GL_SCISSOR_TEST)
-	ffi.copy(self.ram.mvMat, mvMatCopy, ffi.sizeof(mvMatCopy))
---	self.quadSolidObj.uniforms.mvMat = self.ram.mvMat
+	ffi.copy(self.mvMat.ptr, mvMatCopy, ffi.sizeof(mvMatCopy))
+--	self.quadSolidObj.uniforms.mvMat = self.mvMat.ptr
 end
 
 --[[
@@ -1086,7 +1160,7 @@ function App:drawQuad(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = tex
 
-	uniforms.mvMat = self.ram.mvMat
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1145,7 +1219,7 @@ function App:drawSprite(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.spriteTex
 
-	uniforms.mvMat = self.ram.mvMat
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
@@ -1197,7 +1271,7 @@ function App:drawMap(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.mapTex
 
-	uniforms.mvMat = self.ram.mvMat
+	uniforms.mvMat = self.mvMat.ptr
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
 	settable(uniforms.tcbox,
