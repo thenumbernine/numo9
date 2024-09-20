@@ -29,14 +29,25 @@ local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
 local tilemapSize = App.tilemapSize
 local tilemapSizeInSprites = App.tilemapSizeInSprites
 
+
 -- I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...
 -- glsl unsigned int fragment colors and samplers really doesn't do anything predictable...
-local fragColorUseFloat = false
---local fragColorUseFloat = true
+local fragType = 'uvec4'
+--local fragType = 'vec4'	-- not working
 
--- maybe I'll just convert everything back to float texcoords because it looks more trash than retro, the perf is nearly the same, and I'll bet nobody cares whether or not I'm using ints or floats in the shader.
---local useTextureRect = true
+-- on = read usampler, off = read sampler
+--local useTextureInt = false	-- not working
+local useTextureInt = true
+
+-- uses integer coordinates in shader.  you'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
 local useTextureRect = false
+--local useTextureRect = true
+
+--local texelType = (useTextureInt and 'u' or '')..'vec4'
+
+local samplerType = (useTextureInt and 'u' or '')
+	.. 'sampler2D'
+	.. (useTextureRect and 'Rect' or '')
 
 
 -- r,g,b,a is 8bpp
@@ -403,6 +414,61 @@ local function initDraw(self)
 	--local glslVersion = '310 es'
 	--local glslVersion = '320 es'
 
+	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
+	local colorIndexToFrag = table{
+		useTextureRect
+		and [[
+	ivec2 palTc = ivec2(colorIndex & ]]..('0x%Xu'):format(paletteSize-1)..[[, 0);
+]]
+		or [[
+	vec2 palTc = vec2((float(colorIndex)+.5)/]]..clnumber(paletteSize)..[[, .5);
+]],
+		fragType == 'vec4'
+		and [[
+	fragColor = ]]..fragType..[[(texture(palTex, palTc));	// / float((1u<<31)-1u);
+]]
+		or [[
+	fragColor = ]]..fragType..[[(texture(palTex, palTc));
+#if 0	// rgb332
+	uvec4 color = texture(palTex, palTc);
+	// TODO only for non-solid, discard if alpha is not set
+	fragColor = uvec4(
+		(color.r >> 5) & 0x07u
+		| (color.g >> 2) & 0x38u
+		| color.b & 0xC0u,
+		0, 0, 0xFFu
+	);
+#endif
+]],
+	}:concat'\n'..'\n'
+
+	local function readTexUint(code, scale)
+		if not useTextureInt then
+			code = 'uint('..code..' * '..clnumber(scale or
+				-- why doesn't this make a difference?
+				--bit.lshift(1,32)-1
+				--256
+				1
+				--]]
+				)..')'
+		end
+		return code
+	end
+
+	local function texCoordRectFromFloatVec(code, size)
+		if useTextureRect then
+			code = 'ivec2('..code..' * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
+		end
+		return code
+	end
+
+	local function texCoordRectFromIntVec(code, size)
+		if not useTextureRect then
+			code = 'vec2('..code..') / vec2('..clnumber(size.x)..', '..clnumber(size.y)..')'
+		end
+		return code
+	end
+
 	-- used for drawing our 8bpp framebuffer to the screen
 	self.blitScreenObj = GLSceneObject{
 		program = {
@@ -420,37 +486,24 @@ void main() {
 			fragmentCode = template([[
 in vec2 tcv;
 
-<? if fragColorUseFloat then ?>
-layout(location=0) out vec4 fragColor;
-<? else ?>
-layout(location=0) out uvec4 fragColor;
-<? end ?>
+layout(location=0) out <?=fragType?> fragColor;
 
-<? if useTextureRect then ?>
-uniform usampler2DRect fbTex;
-<? else ?>
-uniform usampler2D fbTex;
-<? end ?>
+uniform <?=samplerType?> fbTex;
 
 const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
-<? if useTextureRect then ?>
-	ivec2 fbTc = ivec2(
-		int(tcv.x * frameBufferSizeX),
-		int(tcv.y * frameBufferSizeY)
-	);
 #if 1 // rgb565 just copy over
 
-<? if fragColorUseFloat then ?>
+<? if fragType == 'vec4' then ?>
 #if 1	// how many bits does uvec4 get from texture() ?
-	fragColor = texture(fbTex, fbTc) / float((1u<<31)-1u);
+	fragColor = <?=fragType?>(texture(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[) / float((1u<<31)-1u));
 #else	// or does gl just magically know the conversion?
-	fragColor = texture(fbTex, fbTc);
+	fragColor = <?=fragType?>(texture(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
 #endif
 <? else ?>
-	fragColor = texture(fbTex, fbTc);
+	fragColor = <?=fragType?>(texture(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
 <? end ?>
 
 #endif
@@ -461,7 +514,7 @@ void main() {
 	// does texture() output in 8bpp while fragments output in 32bpp?
 	// and how come I can say 'fragColor = texture()' above where the texture is rgb565 and it works fine?
 	// where exactly does the conversion/normalization take place? esp for render buffer(everyone writes about what fbos do depending on the fbo format...)
-	uint rgb332 = texture(fbTex, fbTc).r;
+	uint rgb332 = <?=fragType?>(texture(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[).r);
 
 	uint r = rgb332 & 7u;			// 3 bits of red ...
 	uint g = (rgb332 >> 3) & 7u;	// 3 bits of green ...
@@ -473,15 +526,11 @@ void main() {
 		0xFFFFFFFFu
 	);
 #endif
-<? else -- useTextureRect
-?>
-	fragColor = texture(fbTex, tcv);
-<? end -- useTextureRect
-?>
 }
 ]],			{
-				fragColorUseFloat = fragColorUseFloat,
+				samplerType = samplerType,
 				useTextureRect = useTextureRect,
+				fragType = fragType,
 				clnumber = clnumber,
 				frameBufferSize = frameBufferSize,
 			}),
@@ -527,61 +576,17 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
-<? if fragColorUseFloat then ?>
-layout(location=0) out vec4 fragColor;
-<? else ?>
-layout(location=0) out uvec4 fragColor;
-<? end ?>
+layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
-<? if useTextureRect then ?>
-uniform usampler2DRect palTex;
-<? else ?>
-uniform usampler2D palTex;
-<? end ?>
-<? assert(math.log(paletteSize, 2) % 1 == 0) ?>
-
-float sqr(float x) { return x * x; }
+uniform <?=samplerType?> palTex;
 
 void main() {
-<? if useTextureRect then ?>
-	ivec2 palTc = ivec2(
-		colorIndex & <?=('0x%Xu'):format(paletteSize-1)?>,
-		0
-	);
-#if 1	// rgb565
-<? if fragColorUseFloat then ?>
-	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
-<? else ?>
-	fragColor = texture(palTex, palTc);
-<? end ?>
-
-	// TODO THIS? or should we just rely on the transparentIndex==0 for that? or both?
-	//for draw-solid it's not so useful because we can already specify the color and the transparency alpha here
-	// so there's no point in having an alpha-by-color since it will be all-solid or all-transparent.
-	//if (fragColor.a == 0) discard;
-#endif
-#if 0	// rgb332
-	uvec4 color = texture(palTex, palTc);
-	if (color.a == 0) discard;
-	fragColor = uvec4(
-		(color.r >> 5) & 0x07u
-		| (color.g >> 2) & 0x38u
-		| color.b & 0xC0u,
-		0, 0, 0xFFu
-	);
-#endif
-<? else -- useTextureRect
-?>
-	fragColor = texture(palTex, vec2((float(colorIndex)+.5)/<?=clnumber(paletteSize)?>, .5));
-<? end -- useTextureRect
-?>
+]]..colorIndexToFrag..[[
 }
 ]],			{
-				fragColorUseFloat = fragColorUseFloat,
-				useTextureRect = useTextureRect,
-				clnumber = clnumber,
-				paletteSize = paletteSize,
+				fragType = fragType,
+				samplerType = samplerType,
 			}),
 			uniforms = {
 				palTex = 0,
@@ -597,6 +602,7 @@ void main() {
 			line = {0, 0, 8, 8},
 		},
 	}
+	assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
 
 
 	self.quadSolidObj = GLSceneObject{
@@ -630,22 +636,14 @@ in vec2 pcv;
 
 uniform vec4 box;	//x,y,w,h
 
-<? if fragColorUseFloat then ?>
-layout(location=0) out vec4 fragColor;
-<? else ?>
-layout(location=0) out uvec4 fragColor;
-<? end ?>
+layout(location=0) out <?=fragType?> fragColor;
 
 uniform bool borderOnly;
 uniform bool round;
 
 uniform uint colorIndex;
 
-<? if useTextureRect then ?>
-uniform usampler2DRect palTex;
-<? else ?>
-uniform usampler2D palTex;
-<? end ?>
+uniform <?=samplerType?> palTex;
 
 float sqr(float x) { return x * x; }
 
@@ -682,44 +680,11 @@ void main() {
 		}
 		// else default solid rect
 	}
-
-<? if useTextureRect then ?>
-	ivec2 palTc = ivec2(
-<? assert(math.log(paletteSize, 2) % 1 == 0)
-?>		colorIndex & <?=('0x%Xu'):format(paletteSize-1)?>,
-		0
-	);
-#if 1	// rgb565
-<? if fragColorUseFloat then ?>
-	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
-<? else ?>
-	fragColor = texture(palTex, palTc);
-<? end ?>
-#endif
-#if 0	// rgb332
-	uvec4 color = texture(palTex, palTc);
-	fragColor = uvec4(
-		(color.r >> 5) & 0x07u
-		| (color.g >> 2) & 0x38u
-		| color.b & 0xC0u,
-		0, 0, color.a==0 ? 0 : 0xFFu
-	);
-#endif
-<? else -- useTextureRect
-?>
-	fragColor = texture(palTex, vec2((float(colorIndex)+.5)/<?=clnumber(paletteSize)?>, .5));
-<? end -- useTextureRect
-?>
-	// TODO THIS? or should we just rely on the transparentIndex==0 for that? or both?
-	//for draw-solid it's not so useful because we can already specify the color and the transparency alpha here
-	// so there's no point in having an alpha-by-color since it will be all-solid or all-transparent.
-	//if (fragColor.a == 0) discard;
+]]..colorIndexToFrag..[[
 }
 ]],			{
-				fragColorUseFloat = fragColorUseFloat,
-				useTextureRect = useTextureRect,
-				clnumber = clnumber,
-				paletteSize = paletteSize,
+				fragType = fragType,
+				samplerType = samplerType,
 			}),
 			uniforms = {
 				palTex = 0,
@@ -769,11 +734,7 @@ void main() {
 			fragmentCode = template([[
 in vec2 tcv;
 
-<? if fragColorUseFloat then ?>
-layout(location=0) out vec4 fragColor;
-<? else ?>
-layout(location=0) out uvec4 fragColor;
-<? end ?>
+layout(location=0) out <?=fragType?> fragColor;
 
 //For now this is an integer added to the 0-15 4-bits of the sprite tex.
 //You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
@@ -782,11 +743,7 @@ layout(location=0) out uvec4 fragColor;
 uniform uint paletteIndex;
 
 // Reads 4 bits from wherever shift location you provide.
-<? if useTextureRect then ?>
-uniform usampler2DRect spriteTex;
-<? else ?>
-uniform usampler2D spriteTex;
-<? end ?>
+uniform <?=samplerType?> spriteTex;
 
 // Specifies which bit to read from at the sprite.
 //  0 = read sprite low nibble.
@@ -807,75 +764,31 @@ uniform uint spriteMask;
 // If you want fully opaque then just choose an oob color index.
 uniform uint transparentIndex;
 
-<? if useTextureRect then ?>
-uniform usampler2DRect palTex;
-<? else ?>
-uniform usampler2D palTex;
-<? end ?>
+uniform <?=samplerType?> palTex;
 
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 
 void main() {
-	// TODO provide a shift uniform for picking lo vs hi nibble
-	// only use the lower 4 bits ...
-<? if useTextureRect then ?>
-	uint colorIndex = (texture(
-		spriteTex,
-		ivec2(
-			tcv.x * spriteSheetSizeX,
-			tcv.y * spriteSheetSizeY
-		)
-	).r >> spriteBit) & spriteMask;
-<? else ?>
-	uint colorIndex = (texture(spriteTex, tcv).r >> spriteBit) & spriteMask;
-<? end ?>
-
-	// TODO HERE MAYBE
-	// lookup the colorIndex in the palette to determine the alpha channel
-	// but really, why an extra tex read here?
-	// how about instead I do the TIC-80 way and just specify which index per-sprite is transparent?
-	// then I get to use all my colors
+	uint colorIndex = (]]
+		..readTexUint('texture(spriteTex, '..texCoordRectFromFloatVec('tcv', spriteSheetSize)..').r')
+		..[[ >> spriteBit) & spriteMask;
 	if (colorIndex == transparentIndex) discard;
 
 	//colorIndex should hold
 	colorIndex += paletteIndex;
 	colorIndex &= 0XFFu;
 
-<? if useTextureRect then ?>
-	// write the 8bpp colorIndex to the screen, use tex to draw it
-	ivec2 palTc = ivec2(colorIndex, 0);
-#if 1	// rgb565
-<? if fragColorUseFloat then ?>
-	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
-<? else ?>
-	fragColor = texture(palTex, palTc);
-<? end ?>
-	if (fragColor.a == 0) discard;
-#endif
-#if 0	// rgb332
-	uvec4 color = texture(palTex, palTc);
-	if (color.a == 0) discard;
-	fragColor = uvec4(
-		(color.r >> 5) & 0x07u
-		| (color.g >> 2) & 0x38u
-		| color.b & 0xC0u,
-		0, 0, 0xFFu
-	);
-#endif
-<? else -- useTextureRect
-?>
-	fragColor = texture(palTex, vec2((float(colorIndex)+.5)/<?=clnumber(paletteSize)?>, .5));
+]]..colorIndexToFrag..[[
+
 	if (fragColor.a == 0.) discard;
-<? end -- useTextureRect
-?>
 }
 ]], 		{
-				fragColorUseFloat = fragColorUseFloat,
+				fragType = fragType,
 				useTextureRect = useTextureRect,
+				samplerType = samplerType,
 				clnumber = clnumber,
 				spriteSheetSize = spriteSheetSize,
-				paletteSize = paletteSize,
 			}),
 			uniforms = {
 				spriteTex = 0,
@@ -929,24 +842,14 @@ void main() {
 			}),
 			fragmentCode = template([[
 in vec2 tcv;
-<? if fragColorUseFloat then ?>
-layout(location=0) out vec4 fragColor;
-<? else ?>
-layout(location=0) out uvec4 fragColor;
-<? end ?>
+layout(location=0) out <?=fragType?> fragColor;
 
 // tilemap texture
 uniform uint mapIndexOffset;
 uniform int draw16Sprites;	 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
-<? if useTextureRect then ?>
-uniform usampler2DRect mapTex;
-uniform usampler2DRect tileTex;
-uniform usampler2DRect palTex;
-<? else ?>
-uniform usampler2D mapTex;
-uniform usampler2D tileTex;
-uniform usampler2D palTex;
-<? end ?>
+uniform <?=samplerType?> mapTex;
+uniform <?=samplerType?> tileTex;
+uniform <?=samplerType?> palTex;
 
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
@@ -971,14 +874,8 @@ void main() {
 	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-<? if useTextureRect then ?>
-	uint tileIndex = texture(mapTex, tileTC).r;
-<? else ?>
-	uint tileIndex = texture(mapTex, vec2(
-		float(tileTC.x) / float(tilemapSizeX),
-		float(tileTC.y) / float(tilemapSizeY)
-	)).r;
-<? end ?>
+	uint tileIndex = ]]
+		..readTexUint('texture(mapTex, '..texCoordRectFromIntVec('tileTC', tilemapSize)..').r', 65536)..[[;
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	uvec2 tileTexTC = uvec2(
@@ -997,51 +894,21 @@ void main() {
 	);
 
 	// tileTex is R8 indexing into our palette ...
-<? if useTextureRect then ?>
-	uint colorIndex = texture(tileTex, tileTexTC).r;
-<? else ?>
-	uint colorIndex = texture(tileTex, vec2(
-		float(tileTexTC.x) / spriteSheetSizeX,
-		float(tileTexTC.y) / spriteSheetSizeY
-	)).r;
-<? end ?>
+	uint colorIndex = ]]
+		..readTexUint('texture(tileTex, '..texCoordRectFromIntVec('tileTexTC', spriteSheetSize)..').r')..[[;
 	colorIndex += palHi << 4;
 	colorIndex &= 0xFFu;
 
-<? if useTextureRect then ?>
-	ivec2 palTc = ivec2(colorIndex, 0);
-#if 1	// rgb565
-<? if fragColorUseFloat then ?>
-	fragColor = texture(palTex, palTc) / float((1u<<31)-1u);
-<? else ?>
-	fragColor = texture(palTex, palTc);
-<? end ?>
-	if (fragColor.a == 0) discard;
-#endif
-#if 0	// rgb332
-	uvec4 color = texture(palTex, palTc);
-	if (color.a == 0) discard;
-	fragColor = uvec4(
-		(color.r >> 5) & 0x07u
-		| (color.g >> 2) & 0x38u
-		| color.b & 0xC0u,
-		0, 0, 0xFFu
-	);
-#endif
-<? else -- useTextureRect
-?>
-	fragColor = texture(palTex, vec2((float(colorIndex)+.5)/<?=clnumber(paletteSize)?>, .5));
+]]..colorIndexToFrag..[[
 	if (fragColor.a == 0.) discard;
-<? end -- useTextureRect
-?>
 }
 ]],			{
-				fragColorUseFloat = fragColorUseFloat,
+				fragType = fragType,
 				useTextureRect = useTextureRect,
+				samplerType = samplerType,
 				clnumber = clnumber,
 				spriteSheetSize = spriteSheetSize,
 				tilemapSize = tilemapSize,
-				paletteSize = paletteSize,
 			}),
 			uniforms = {
 				mapTex = 0,
