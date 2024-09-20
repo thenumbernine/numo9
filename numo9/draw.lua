@@ -281,8 +281,9 @@ glreport'here'
 end
 
 
--- this just holds a bunch of stuff that App will dump into itself
--- so its member functions' "self"s are just 'App'
+-- This just holds a bunch of stuff that App will dump into itself
+-- so its member functions' "self"s are just 'App'.
+-- I'd call it 'App' but that might be confusing because it's not really App.
 local AppDraw = {}
 
 -- 'self' == app
@@ -608,11 +609,21 @@ void main() {
 		},
 	}
 
-	self.lineSolidObj = GLSceneObject{
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = template([[
+	-- make output shaders per-video-mode
+	-- set them up as our app fields to use upon setVideoMode
+	for _,info in ipairs{
+		{name='RGB', colorOutput=colorIndexToFrag},
+		{name='Index', colorOutput=[[
+	fragColor.r = colorIndex;
+	fragColor.g = 0;
+	fragColor.b = 0;
+]]},
+	} do
+		self['lineSolid'..info.name..'Obj'] = GLSceneObject{
+			program = {
+				version = glslVersion,
+				precision = 'best',
+				vertexCode = template([[
 layout(location=0) in vec2 vertex;
 uniform vec4 line;	//x1,y1,x2,y2
 uniform mat4 mvMat;
@@ -633,45 +644,44 @@ void main() {
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
-]],			{
-				clnumber = clnumber,
-				frameBufferSize = frameBufferSize,
-			}),
-			fragmentCode = template([[
+]],				{
+					clnumber = clnumber,
+					frameBufferSize = frameBufferSize,
+				}),
+				fragmentCode = template([[
 layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
 uniform <?=samplerType?> palTex;
 
 void main() {
-]]..colorIndexToFrag..[[
+]]..info.colorOutput..[[
 }
-]],			{
-				fragType = fragType,
-				samplerType = samplerType,
-			}),
-			uniforms = {
-				palTex = 0,
-				--mvMat = self.mvMat.ptr,
+]],				{
+					fragType = fragType,
+					samplerType = samplerType,
+				}),
+				uniforms = {
+					palTex = 0,
+					--mvMat = self.mvMat.ptr,
+				},
 			},
-		},
-		texs = {self.palTex},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvMat = self.mvMat.ptr,
-			colorIndex = 0,
-			line = {0, 0, 8, 8},
-		},
-	}
-	assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
+			texs = {self.palTex},
+			geometry = self.quadGeom,
+			-- glUniform()'d every frame
+			uniforms = {
+				mvMat = self.mvMat.ptr,
+				colorIndex = 0,
+				line = {0, 0, 8, 8},
+			},
+		}
+		assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
 
-
-	self.quadSolidObj = GLSceneObject{
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = template([[
+		self['quadSolid'..info.name..'Obj'] = GLSceneObject{
+			program = {
+				version = glslVersion,
+				precision = 'best',
+				vertexCode = template([[
 layout(location=0) in vec2 vertex;
 out vec2 pcv;	// unnecessary except for the sake of 'round' ...
 uniform vec4 box;	//x,y,w,h
@@ -688,11 +698,11 @@ void main() {
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
-]],			{
-				clnumber = clnumber,
-				frameBufferSize = frameBufferSize,
-			}),
-			fragmentCode = template([[
+]],				{
+					clnumber = clnumber,
+					frameBufferSize = frameBufferSize,
+				}),
+				fragmentCode = template([[
 // framebuffer pixel coordinates
 in vec2 pcv;
 
@@ -742,34 +752,34 @@ void main() {
 		}
 		// else default solid rect
 	}
-]]..colorIndexToFrag..[[
+]]..info.colorOutput..[[
 }
-]],			{
-				fragType = fragType,
-				samplerType = samplerType,
-			}),
-			uniforms = {
-				palTex = 0,
-				borderOnly = false,
-				round = false,
-				--mvMat = self.mvMat.ptr,
+]],				{
+					fragType = fragType,
+					samplerType = samplerType,
+				}),
+				uniforms = {
+					palTex = 0,
+					borderOnly = false,
+					round = false,
+					--mvMat = self.mvMat.ptr,
+				},
 			},
-		},
-		texs = {self.palTex},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvMat = self.mvMat.ptr,
-			colorIndex = 0,
-			box = {0, 0, 8, 8},
-		},
-	}
+			texs = {self.palTex},
+			geometry = self.quadGeom,
+			-- glUniform()'d every frame
+			uniforms = {
+				mvMat = self.mvMat.ptr,
+				colorIndex = 0,
+				box = {0, 0, 8, 8},
+			},
+		}
 
-	self.quadSpriteObj = GLSceneObject{
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = template([[
+		self['quadSprite'..info.name..'Obj'] = GLSceneObject{
+			program = {
+				version = glslVersion,
+				precision = 'best',
+				vertexCode = template([[
 in vec2 vertex;
 out vec2 tcv;
 uniform vec4 box;	//x,y,w,h
@@ -789,11 +799,11 @@ void main() {
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
-]],			{
-				clnumber = clnumber,
-				frameBufferSize = frameBufferSize,
-			}),
-			fragmentCode = template([[
+]],				{
+					clnumber = clnumber,
+					frameBufferSize = frameBufferSize,
+				}),
+				fragmentCode = template([[
 in vec2 tcv;
 
 layout(location=0) out <?=fragType?> fragColor;
@@ -841,45 +851,44 @@ void main() {
 	colorIndex += paletteIndex;
 	colorIndex &= 0XFFu;
 
-]]..colorIndexToFrag..[[
-
+]]..info.colorOutput..[[
 	if (fragColor.a == 0.) discard;
 }
-]], 		{
-				fragType = fragType,
-				useTextureRect = useTextureRect,
-				samplerType = samplerType,
-				clnumber = clnumber,
-				spriteSheetSize = spriteSheetSize,
-			}),
-			uniforms = {
-				spriteTex = 0,
-				palTex = 1,
-				paletteIndex = 0,
-				transparentIndex = -1,
-				spriteBit = 0,
-				spriteMask = 0xFF,
-				--mvMat = self.mvMat.ptr,
+]], 			{
+					fragType = fragType,
+					useTextureRect = useTextureRect,
+					samplerType = samplerType,
+					clnumber = clnumber,
+					spriteSheetSize = spriteSheetSize,
+				}),
+				uniforms = {
+					spriteTex = 0,
+					palTex = 1,
+					paletteIndex = 0,
+					transparentIndex = -1,
+					spriteBit = 0,
+					spriteMask = 0xFF,
+					--mvMat = self.mvMat.ptr,
+				},
 			},
-		},
-		texs = {
-			self.spriteTex,
-			self.palTex,
-		},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvMat = self.mvMat.ptr,
-			box = {0, 0, 8, 8},
-			tcbox = {0, 0, 1, 1},
-		},
-	}
+			texs = {
+				self.spriteTex,
+				self.palTex,
+			},
+			geometry = self.quadGeom,
+			-- glUniform()'d every frame
+			uniforms = {
+				mvMat = self.mvMat.ptr,
+				box = {0, 0, 8, 8},
+				tcbox = {0, 0, 1, 1},
+			},
+		}
 
-	self.quadMapObj = GLSceneObject{
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = template([[
+		self['quadMap'..info.name..'Obj'] = GLSceneObject{
+			program = {
+				version = glslVersion,
+				precision = 'best',
+				vertexCode = template([[
 in vec2 vertex;
 out vec2 tcv;
 uniform vec4 box;		//x y w h
@@ -898,11 +907,11 @@ void main() {
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
 }
-]],			{
-				clnumber = clnumber,
-				frameBufferSize = frameBufferSize,
-			}),
-			fragmentCode = template([[
+]],				{
+					clnumber = clnumber,
+					frameBufferSize = frameBufferSize,
+				}),
+				fragmentCode = template([[
 in vec2 tcv;
 layout(location=0) out <?=fragType?> fragColor;
 
@@ -961,35 +970,36 @@ void main() {
 	colorIndex += palHi << 4;
 	colorIndex &= 0xFFu;
 
-]]..colorIndexToFrag..[[
+]]..info.colorOutput..[[
 	if (fragColor.a == 0.) discard;
 }
-]],			{
-				fragType = fragType,
-				useTextureRect = useTextureRect,
-				samplerType = samplerType,
-				clnumber = clnumber,
-				spriteSheetSize = spriteSheetSize,
-				tilemapSize = tilemapSize,
-			}),
-			uniforms = {
-				mapTex = 0,
-				tileTex = 1,
-				palTex = 2,
-				mapIndexOffset = 0,
-				--mvMat = self.mvMat.ptr,
+]],				{
+					fragType = fragType,
+					useTextureRect = useTextureRect,
+					samplerType = samplerType,
+					clnumber = clnumber,
+					spriteSheetSize = spriteSheetSize,
+					tilemapSize = tilemapSize,
+				}),
+				uniforms = {
+					mapTex = 0,
+					tileTex = 1,
+					palTex = 2,
+					mapIndexOffset = 0,
+					--mvMat = self.mvMat.ptr,
+				},
 			},
-		},
-		texs = {self.mapTex, self.tileTex, self.palTex},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvMat = self.mvMat.ptr,
-			box = {0, 0, 8, 8},
-			tcbox = {0, 0, 1, 1},
-		},
-	}
-	
+			texs = {self.mapTex, self.tileTex, self.palTex},
+			geometry = self.quadGeom,
+			-- glUniform()'d every frame
+			uniforms = {
+				mvMat = self.mvMat.ptr,
+				box = {0, 0, 8, 8},
+				tcbox = {0, 0, 1, 1},
+			},
+		}
+	end
+
 	self:setVideoMode(0)
 
 	local fb = self.fb
@@ -1023,6 +1033,35 @@ void main() {
 		}),
 		--]]
 	}:unbind()
+end
+
+--[[
+each video mode should uniquely ...
+- pick the framebufferTex
+- pick the blit SceneObj
+- pick / setup flags for each other shader (since RGB modes need RGB output, indexed modes need indexed output ...)
+--]]
+function AppDraw:setVideoMode(mode)
+	if mode == 0 then
+		self.fbTex = self.fbRGB565Tex
+		self.blitScreenObj = self.blitScreenRGBObj
+		self.lineSolidObj = self.lineSolidRGBObj
+		self.quadSolidObj = self.quadSolidRGBObj
+		self.quadSpriteObj = self.quadSpriteRGBObj
+		self.quadMapObj = self.quadMapRGBObj
+	elseif mode == 1 then
+		self.fbTex = self.fbIndexTex
+		self.blitScreenObj = self.blitScreenIndexObj
+		self.lineSolidObj = self.lineSolidIndexObj
+		self.quadSolidObj = self.quadSolidIndexObj
+		self.quadSpriteObj = self.quadSpriteIndexObj
+		self.quadMapObj = self.quadMapIndexObj
+		-- TODO and we need to change each shaders output from 565 RGB to Indexed also ...
+		-- ... we have to defer the palette baking 
+	else
+		error("unknown video mode "..tostring(mode))
+	end
+	self.blitScreenObj.texs[1] = self.fbTex
 end
 
 return {

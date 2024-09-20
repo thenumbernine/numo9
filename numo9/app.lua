@@ -818,21 +818,6 @@ print('no runnable focus!')
 	end
 end
 
-function App:setVideoMode(mode)
-	if mode == 0 then
-		self.fbTex = self.fbRGB565Tex
-		self.blitScreenObj = self.blitScreenRGBObj
-	elseif mode == 1 then
-		self.fbTex = self.fbIndexTex
-		self.blitScreenObj = self.blitScreenIndexObj
-		-- TODO and we need to change each shaders output from 565 RGB to Indexed also ...
-		-- ... we have to defer the palette baking 
-	else
-		error("unknown video mode "..tostring(mode))
-	end
-	self.blitScreenObj.texs[1] = self.fbTex
-end
-
 function App:peek(addr)
 	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
 
