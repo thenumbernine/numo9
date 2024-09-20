@@ -2,6 +2,7 @@
 local ffi = require 'ffi'
 local sdl = require 'sdl'
 local table = require 'ext.table'
+local asserteq = require 'ext.assert'.eq
 
 -- key code list, 1-baesd, sequential
 local keyCodeNames = table{
@@ -81,14 +82,18 @@ local keyCodeNames = table{
 -- keypad too...
 -- NOTICE these would be virtual, and wouldn't map to the SDLK_whatever like everything above this line does
 -- so let's keep track of the keyboard ending ...
-local lastKeyboardKey = #keyCodeNames
-print('lastKeyboardKey', lastKeyboardKey)
+local lastKeyboardKeyCode = #keyCodeNames
+print('lastKeyboardKeyCode', lastKeyboardKeyCode)
 -- TODO instead of doing this, do handlers like in gamepad/sand-attack
 keyCodeNames:append{
 	'padding0',
 	'padding1',
-	'padding2',
+}
+asserteq(#keyCodeNames % 8, 0)
 
+local firstJoypadKeyCode = #keyCodeNames
+
+keyCodeNames:append{
 	-- joypad 0 thru 3
 	-- buttons: up down left right a b x y
 	'jp0_up',
@@ -139,6 +144,7 @@ for keyCodePlusOne,name in ipairs(keyCodeNames) do
 	io.write('|'..title..(' '):rep(colsize-#title))
 	if keyCodePlusOne % 8 == 0 then print'|' end
 end
+if #keyCodeNames % 8 ~= 0 then print() end
 --]]
 
 -- map from the keycode name to its 0-based index
@@ -156,7 +162,7 @@ local sdlSymToKeyCode = keyCodeNames:mapi(function(name, indexPlusOne)
 local sdlSymToKeyCode = {}
 for indexPlusOne, name in ipairs(keyCodeNames) do
 --]]
-	--if indexPlusOne > lastKeyboardKey then return end
+	--if indexPlusOne > lastKeyboardKeyCode then return end
 	if #name > 1 then name = name:upper() end	-- weird SDLK_ naming convention
 	local sdlkey = 'SDLK_'..name
 	--local sdlsym = sdl[sdlkey]
@@ -293,4 +299,5 @@ return {
 	keyCodeForName = keyCodeForName,
 	sdlSymToKeyCode = sdlSymToKeyCode,
 	getAsciiForKeyCode = getAsciiForKeyCode,
+	firstJoypadKeyCode = firstJoypadKeyCode,
 }
