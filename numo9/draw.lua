@@ -414,6 +414,33 @@ local function initDraw(self)
 	--local glslVersion = '310 es'
 	--local glslVersion = '320 es'
 
+	local function readTexUint(code, scale)
+		if not useTextureInt then
+			code = 'uint('..code..' * '..clnumber(scale or
+				-- why doesn't this make a difference?
+				--bit.lshift(1,32)-1
+				--256
+				1
+				--]]
+				)..')'
+		end
+		return code
+	end
+
+	local function texCoordRectFromFloatVec(code, size)
+		if useTextureRect then
+			code = 'ivec2(('..code..') * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
+		end
+		return code
+	end
+
+	local function texCoordRectFromIntVec(code, size)
+		if not useTextureRect then
+			code = 'vec2(('..code..') + .5) / vec2('..clnumber(size.x)..', '..clnumber(size.y)..')'
+		end
+		return code
+	end
+
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	local colorIndexToFrag = table{
 		useTextureRect
@@ -441,33 +468,6 @@ local function initDraw(self)
 #endif
 ]],
 	}:concat'\n'..'\n'
-
-	local function readTexUint(code, scale)
-		if not useTextureInt then
-			code = 'uint('..code..' * '..clnumber(scale or
-				-- why doesn't this make a difference?
-				--bit.lshift(1,32)-1
-				--256
-				1
-				--]]
-				)..')'
-		end
-		return code
-	end
-
-	local function texCoordRectFromFloatVec(code, size)
-		if useTextureRect then
-			code = 'ivec2('..code..' * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
-		end
-		return code
-	end
-
-	local function texCoordRectFromIntVec(code, size)
-		if not useTextureRect then
-			code = 'vec2('..code..') / vec2('..clnumber(size.x)..', '..clnumber(size.y)..')'
-		end
-		return code
-	end
 
 	-- used for drawing our 8bpp framebuffer to the screen
 	self.blitScreenObj = GLSceneObject{

@@ -77,11 +77,60 @@ local keyCodeNames = table{
 	'pagedown',
 	'home',
 	'end',
-
-	-- TODO keypad too?
-
-	-- NOTICE these would be virtual, and wouldn't map to the SDLK_whatever like everything above this line does
 }
+-- keypad too...
+-- NOTICE these would be virtual, and wouldn't map to the SDLK_whatever like everything above this line does
+-- so let's keep track of the keyboard ending ...
+local lastKeyboardKey = #keyCodeNames
+print('lastKeyboardKey', lastKeyboardKey)
+-- TODO instead of doing this, do handlers like in gamepad/sand-attack
+keyCodeNames:append{
+	'padding0',
+	'padding1',
+	'padding2',
+
+	-- joypad 0 thru 3
+	-- buttons: up down left right a b x y
+	'jp0_up',
+	'jp0_down',
+	'jp0_left',
+	'jp0_right',
+	'jp0_a',
+	'jp0_b',
+	'jp0_x',
+	'jp0_y',
+	'jp1_up',
+	'jp1_down',
+	'jp1_left',
+	'jp1_right',
+	'jp1_a',
+	'jp1_b',
+	'jp1_x',
+	'jp1_y',
+	'jp2_up',
+	'jp2_down',
+	'jp2_left',
+	'jp2_right',
+	'jp2_a',
+	'jp2_b',
+	'jp2_x',
+	'jp2_y',
+	'jp3_up',
+	'jp3_down',
+	'jp3_left',
+	'jp3_right',
+	'jp3_a',
+	'jp3_b',
+	'jp3_x',
+	'jp3_y',
+
+	'mouse_left',
+	'mouse_middle',
+	'mouse_right',
+}
+
+--DEBUG:print'keyCodeNames'
+--DEBUG:print(require'ext.tolua'(keyCodeNames))
 
 --[[ print out the table for the readme
 local colsize = 4 + keyCodeNames:mapi(function(name) return #name end):sup()
@@ -96,12 +145,37 @@ end
 local keyCodeForName = keyCodeNames:mapi(function(name, indexPlusOne)
 	return indexPlusOne-1, name
 end):setmetatable(nil)
+--DEBUG:print'keyCodeForName'
+--DEBUG:print(require'ext.tolua'(keyCodeForName))
 
 -- map from sdl keycode value to our keycode value
-local sdlSymToKeyCode = keyCodeNames:mapi(function(name,indexPlusOne)
+--[[ not working
+local sdlSymToKeyCode = keyCodeNames:mapi(function(name, indexPlusOne)
+--]]
+-- [[
+local sdlSymToKeyCode = {}
+for indexPlusOne, name in ipairs(keyCodeNames) do
+--]]
+	--if indexPlusOne > lastKeyboardKey then return end
 	if #name > 1 then name = name:upper() end	-- weird SDLK_ naming convention
-	return indexPlusOne-1, sdl['SDLK_'..name]
+	local sdlkey = 'SDLK_'..name
+	--local sdlsym = sdl[sdlkey]
+	local sdlsym = require 'ext.op'.safeindex(sdl, sdlkey)
+	if not sdlsym then
+--DEBUG:print('...failed to get sdlsym for '..sdlkey)
+	else
+--DEBUG:print('mapping from sdlsym '..sdlsym..' to index '..(indexPlusOne-1)..' for name '..name)
+--[[ not working
+		return indexPlusOne-1, tonumber(sdlsym)
 end):setmetatable(nil)
+--]]
+-- [[
+		sdlSymToKeyCode[tonumber(sdlsym)] = indexPlusOne-1
+	end
+end
+--]]
+--DEBUG:print'sdlSymToKeyCode'
+--DEBUG:print(require'ext.tolua'(sdlSymToKeyCode))
 
 local keyCodeNameToAscii = {
 	a = ('a'):byte(),

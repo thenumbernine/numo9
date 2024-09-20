@@ -173,20 +173,25 @@ This adds to Lua(/JIT):
 
 	Key code numbers:
 
-|                |                |                |                |                |                |                |                |
-|----------------|----------------|----------------|----------------|----------------|----------------|----------------|----------------|
-|a=0             |b=1             |c=2             |d=3             |e=4             |f=5             |g=6             |h=7             |
-|i=8             |j=9             |k=10            |l=11            |m=12            |n=13            |o=14            |p=15            |
-|q=16            |r=17            |s=18            |t=19            |u=20            |v=21            |w=22            |x=23            |
-|y=24            |z=25            |0=26            |1=27            |2=28            |3=29            |4=30            |5=31            |
-|6=32            |7=33            |8=34            |9=35            |minus=36        |equals=37       |leftbracket=38  |rightbracket=39 |
-|backslash=40    |semicolon=41    |quote=42        |backquote=43    |comma=44        |period=45       |slash=46        |space=47        |
-|tab=48          |return=49       |backspace=50    |up=51           |down=52         |left=53         |right=54        |capslock=55     |
-|lctrl=56        |rctrl=57        |lshift=58       |rshift=59       |lalt=60         |ralt=61         |lgui=62         |rgui=63         |
-|delete=64       |insert=65       |pageup=66       |pagedown=67     |home=68         |end=69          |                |                |
+|                  |                  |                  |                  |                  |                  |                  |                  |
+|------------------|------------------|------------------|------------------|------------------|------------------|------------------|------------------|
+|`a=0             `|`b=1             `|`c=2             `|`d=3             `|`e=4             `|`f=5             `|`g=6             `|`h=7             `|
+|`i=8             `|`j=9             `|`k=10            `|`l=11            `|`m=12            `|`n=13            `|`o=14            `|`p=15            `|
+|`q=16            `|`r=17            `|`s=18            `|`t=19            `|`u=20            `|`v=21            `|`w=22            `|`x=23            `|
+|`y=24            `|`z=25            `|`0=26            `|`1=27            `|`2=28            `|`3=29            `|`4=30            `|`5=31            `|
+|`6=32            `|`7=33            `|`8=34            `|`9=35            `|`minus=36        `|`equals=37       `|`leftbracket=38  `|`rightbracket=39 `|
+|`backslash=40    `|`semicolon=41    `|`quote=42        `|`backquote=43    `|`comma=44        `|`period=45       `|`slash=46        `|`space=47        `|
+|`tab=48          `|`return=49       `|`backspace=50    `|`up=51           `|`down=52         `|`left=53         `|`right=54        `|`capslock=55     `|
+|`lctrl=56        `|`rctrl=57        `|`lshift=58       `|`rshift=59       `|`lalt=60         `|`ralt=61         `|`lgui=62         `|`rgui=63         `|
+|`delete=64       `|`insert=65       `|`pageup=66       `|`pagedown=67     `|`home=68         `|`end=69          `|`padding0=70     `|`padding1=71     `|
+|`jp0_up=72       `|`jp0_down=73     `|`jp0_left=74     `|`jp0_right=75    `|`jp0_a=76        `|`jp0_b=77        `|`jp0_x=78        `|`jp0_y=79        `|
+|`jp1_up=80       `|`jp1_down=81     `|`jp1_left=82     `|`jp1_right=83    `|`jp1_a=84        `|`jp1_b=85        `|`jp1_x=86        `|`jp1_y=87        `|
+|`jp2_up=88       `|`jp2_down=89     `|`jp2_left=90     `|`jp2_right=91    `|`jp2_a=92        `|`jp2_b=93        `|`jp2_x=94        `|`jp2_y=95        `|
+|`jp3_up=96       `|`jp3_down=97     `|`jp3_left=98     `|`jp3_right=99    `|`jp3_a=100       `|`jp3_b=101       `|`jp3_x=102       `|`jp3_y=103       `|
+|`mouse_left=104  `|`mouse_middle=105`|`mouse_right=106 `|`                `|`                `|`                `|`                `|`                `|
 
 - `btn, btnp, btnr` = same for emulated-joypad-buttons-on-keyboard
-- `mouse()` = get the current mouse state.
+- `mouseX, mouseY, scrollX, scrollY = mouse()` = get the current mouse state.  mouse x,y are in framebuffer coordinates.  scroll is zero for now.
 
 ## other globals, maybe I'll take some out eventually:
 

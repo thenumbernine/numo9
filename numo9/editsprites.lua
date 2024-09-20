@@ -61,10 +61,9 @@ local selBorderColors = {0xfd,0xfc}
 function EditSprites:update()
 	local app = self.app
 
-	-- handle input in the draw because i'm too lazy to move all the data outside it and share it between two functions
-	local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
-	local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
-	local leftButtonPress = leftButtonDown and not leftButtonLastDown
+	local leftButtonDown = app:key'mouse_left'
+	local leftButtonPress = app:keyp'mouse_left'
+	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local shift = app:key'lshift' or app:key'rshift'
