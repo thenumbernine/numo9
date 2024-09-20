@@ -1001,16 +1001,7 @@ void main() {
 	end
 
 	self:setVideoMode(0)
-
-	local fb = self.fb
-	fb:bind()
-	fb:setColorAttachmentTex2D(self.fbTex.id, 0, self.fbTex.target)
-	local res,err = fb.check()
-	if not res then
-		print(err)
-		print(debug.traceback())
-	end
-	fb:unbind()
+	--self:setVideoMode(1)
 
 	-- for the editor
 
@@ -1040,6 +1031,8 @@ each video mode should uniquely ...
 - pick the framebufferTex
 - pick the blit SceneObj
 - pick / setup flags for each other shader (since RGB modes need RGB output, indexed modes need indexed output ...)
+
+TODO should I require this to runInEmu and expect fb to be bound?
 --]]
 function AppDraw:setVideoMode(mode)
 	if mode == 0 then
@@ -1062,6 +1055,16 @@ function AppDraw:setVideoMode(mode)
 		error("unknown video mode "..tostring(mode))
 	end
 	self.blitScreenObj.texs[1] = self.fbTex
+
+	local fb = self.fb
+	fb:bind()
+	fb:setColorAttachmentTex2D(self.fbTex.id, 0, self.fbTex.target)
+	local res,err = fb.check()
+	if not res then
+		print(err)
+		print(debug.traceback())
+	end
+	fb:unbind()
 end
 
 return {

@@ -262,10 +262,10 @@ function App:initGL()
 		mget = function(x, y)
 			x = math.floor(x)
 			y = math.floor(y)
-			if x >= 0 and x < self.tilemapSize.x
-			and y >= 0 and y < self.tilemapSize.y
+			if x >= 0 and x < tilemapSize.x
+			and y >= 0 and y < tilemapSize.y
 			then
-				return self.ram.tilemap[x + self.tilemapSize.x * y]
+				return self.ram.tilemap[x + tilemapSize.x * y]
 			end
 			-- TODO return default oob value
 			return 0
@@ -273,10 +273,10 @@ function App:initGL()
 		mset = function(x, y, value)
 			x = math.floor(x)
 			y = math.floor(y)
-			if x >= 0 and x < self.tilemapSize.x
-			and y >= 0 and y < self.tilemapSize.y
+			if x >= 0 and x < tilemapSize.x
+			and y >= 0 and y < tilemapSize.y
 			then
-				self.ram.tilemap[x + self.tilemapSize.x * y] = value
+				self.ram.tilemap[x + tilemapSize.x * y] = value
 				self.mapTex.dirtyCPU = true
 			end
 		end,
