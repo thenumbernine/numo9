@@ -17,10 +17,14 @@ local assertle = require 'ext.assert'.le
 local assertlen = require 'ext.assert'.len
 local Image = require 'image'
 local App = require 'numo9.app'
-local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch 
+local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = require 'numo9.draw'.rgba8888_4ch_to_5551
 local fromCartImage = require 'numo9.archive'.fromCartImage
 local toCartImage = require 'numo9.archive'.toCartImage
+
+local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
+local tilemapSize = require 'numo9.rom'.tilemapSize
+local codeSize = require 'numo9.rom'.codeSize
 
 local cmd, fn, extra = ...
 assert(cmd and fn, "expected: `n9a.lua cmd fn`")
@@ -44,7 +48,7 @@ if cmd == 'x' then
 	print'saving sprite sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
-	local image = Image(App.spriteSheetSize.x, App.spriteSheetSize.y, 1, 'unsigned char')
+	local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char')
 	ffi.copy(image.buffer, rom.spriteSheet, ffi.sizeof(rom.spriteSheet))
 	image:save(basepath'sprite.png'.path)
 
@@ -55,11 +59,11 @@ if cmd == 'x' then
 
 	print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
-	local image = Image(App.tilemapSize.x, App.tilemapSize.x, 3, 'unsigned char')
+	local image = Image(tilemapSize.x, tilemapSize.x, 3, 'unsigned char')
 	local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
 	local imagePtr = image.buffer
-	for y=0,App.tilemapSize.y-1 do
-		for x=0,App.tilemapSize.x-1 do
+	for y=0,tilemapSize.y-1 do
+		for x=0,tilemapSize.x-1 do
 			imagePtr[0] = mapPtr[0]
 			imagePtr = imagePtr + 1
 			mapPtr = mapPtr + 1
@@ -108,11 +112,11 @@ or cmd == 'r' then
 	print'loading sprite sheet...'
 	if basepath'sprite.png':exists() then
 		local image = assert(Image(basepath'sprite.png'.path))
-		asserteq(image.width, App.spriteSheetSize.x)
-		asserteq(image.height, App.spriteSheetSize.y)
+		asserteq(image.width, spriteSheetSize.x)
+		asserteq(image.height, spriteSheetSize.y)
 		asserteq(image.channels, 1)
 		assert(ffi.sizeof(image.format), 1)
-		ffi.copy(rom.spriteSheet, image.buffer, App.spriteSheetSize:volume())
+		ffi.copy(rom.spriteSheet, image.buffer, spriteSheetSize:volume())
 	else
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if sprite doesn't exist then load the default
@@ -122,24 +126,24 @@ or cmd == 'r' then
 	print'loading tile sheet...'
 	if basepath'tiles.png':exists() then
 		local image = assert(Image(basepath'tiles.png'.path))
-		asserteq(image.width, App.spriteSheetSize.x)
-		asserteq(image.height, App.spriteSheetSize.y)
+		asserteq(image.width, spriteSheetSize.x)
+		asserteq(image.height, spriteSheetSize.y)
 		asserteq(image.channels, 1)
 		assert(ffi.sizeof(image.format), 1)
-		ffi.copy(rom.tileSheet, image.buffer, App.spriteSheetSize:volume())
+		ffi.copy(rom.tileSheet, image.buffer, spriteSheetSize:volume())
 	end
 
 	print'loading tile map...'
 	if basepath'tilemap.png':exists() then
 		local image = assert(Image(basepath'tilemap.png'.path))
-		asserteq(image.width, App.tilemapSize.x)
-		asserteq(image.height, App.tilemapSize.y)
+		asserteq(image.width, tilemapSize.x)
+		asserteq(image.height, tilemapSize.y)
 		asserteq(image.channels, 3)
 		asserteq(ffi.sizeof(image.format), 1)
 		local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
 		local imagePtr = image.buffer
-		for y=0,App.tilemapSize.y-1 do
-			for x=0,App.tilemapSize.x-1 do
+		for y=0,tilemapSize.y-1 do
+			for x=0,tilemapSize.x-1 do
 				mapPtr[0] = imagePtr[0]
 				imagePtr = imagePtr + 1
 				mapPtr = mapPtr + 1
@@ -185,7 +189,7 @@ or cmd == 'r' then
 	if basepath'code.lua':exists() then
 		local code = assert(basepath'code.lua':read())
 		local n = #code
-		assertlt(n+1, App.codeSize)
+		assertlt(n+1, codeSize)
 		local codeMem = rom.code
 		ffi.copy(codeMem, code, n)
 		codeMem[n] = 0	-- null term

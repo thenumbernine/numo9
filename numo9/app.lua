@@ -42,8 +42,9 @@ local tilemapSize = require 'numo9.rom'.tilemapSize
 local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
 local mvMatScale = require 'numo9.rom'.mvMatScale
 local keyPressFlagSize = require 'numo9.rom'.keyPressFlagSize
-local keyCount = require 'numo9.rom'.keyCount 
-local fontWidth = require 'numo9.rom'.fontWidth 
+local keyCount = require 'numo9.rom'.keyCount
+local fontWidth = require 'numo9.rom'.fontWidth
+local codeSize = require 'numo9.rom'.codeSize
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
