@@ -33,6 +33,7 @@ local GLTex2D = require 'gl.tex2d'
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
 local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode
+local firstJoypadKeyCode = require 'numo9.keys'.firstJoypadKeyCode
 
 -- n = num args to pack
 -- also in image/luajit/image.lua
@@ -1692,6 +1693,20 @@ function App:event(e)
 				bit.band(mask, self.ram.keyPressFlags[by]),
 				down and flag or 0
 			)
+
+			local buttonCode = buttonIndexForKeyCode[keycode]
+			-- gets us the 0-based keys
+			if buttonCode then
+				local keycode = buttonCode + firstJoypadKeyCode
+				local bi = bit.band(keycode, 7)
+				local by = bit.rshift(keycode, 3)
+				local flag = bit.lshift(1, bi)
+				local mask = bit.bnot(flag)
+				self.ram.keyPressFlags[by] = bit.bor(
+					bit.band(mask, self.ram.keyPressFlags[by]),
+					down and flag or 0
+				)
+			end
 		end
 	end
 end
