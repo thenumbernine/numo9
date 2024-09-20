@@ -343,30 +343,42 @@ local function initDraw(self)
 	})
 --print('palTex\n'..imageToHex(self.palTex.image))
 
-	local fbMask = bit.lshift(1, ffi.sizeof(frameBufferType)) - 1
-	local fbImage = makeImageAtPtr(
-		self.ram.framebuffer,
-		frameBufferSize.x,
-		frameBufferSize.y,
-		1,
-		frameBufferType,
-		function(i,j) return math.random(0, fbMask) end
-	)
+	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), -1)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
-	self.fbTex = makeTexFromImage(self, {
-		image = fbImage,
-		internalFormat = gl.GL_RGB565,
-		format = gl.GL_RGB,
-		type = gl.GL_UNSIGNED_SHORT_5_6_5,
-	})
+	do
+		local ctype = 'uint16_t'
+		local fbRGB565Image = makeImageAtPtr(
+			self.ram.framebuffer,
+			frameBufferSize.x,
+			frameBufferSize.y,
+			1,
+			ctype
+		)
+		self.fbRGB565Tex = makeTexFromImage(self, {
+			image = fbRGB565Image,
+			internalFormat = gl.GL_RGB565,
+			format = gl.GL_RGB,
+			type = gl.GL_UNSIGNED_SHORT_5_6_5,
+		})
+	end
 	--]=]
-	--[=[ framebuffer is 256 x 256 x 16bpp rgba4444
-	self.fbTex = makeTexFromImage(self, {
-		image = fbImage,
-		internalFormat = gl.GL_RGBA4,
-		format = gl.GL_RGBA,
-		type = gl.GL_UNSIGNED_SHORT_4_4_4_4,
-	})
+	-- [=[ framebuffer is 256 x 256 x 8bpp indexed
+	do
+		local ctype = 'uint8_t'
+		local fbIndexImage = makeImageAtPtr(
+			self.ram.framebuffer,
+			frameBufferSize.x,
+			frameBufferSize.y,
+			1,
+			ctype
+		)
+		self.fbIndexTex = makeTexFromImage(self, {
+			image = fbIndexImage,
+			internalFormat = gl.GL_R8UI,
+			format = gl.GL_RED_INTEGER,
+			type = gl.GL_UNSIGNED_BYTE,
+		})
+	end
 	--]=]
 	--[=[ framebuffer is 256 x 256 x 8bpp rgb332
 	self.fbTex = makeTexFromImage(self, {
@@ -376,8 +388,6 @@ local function initDraw(self)
 		type = gl.GL_UNSIGNED_BYTE,
 	})
 	--]=]
---print('fbTex\n'..imageToHex(self.fbTex.image))
-
 
 	self.quadGeom = GLGeometry{
 		mode = gl.GL_TRIANGLE_STRIP,
@@ -469,8 +479,8 @@ local function initDraw(self)
 ]],
 	}:concat'\n'..'\n'
 
-	-- used for drawing our 8bpp framebuffer to the screen
-	self.blitScreenObj = GLSceneObject{
+	-- used for drawing our 16bpp framebuffer to the screen
+	self.blitScreenRGBObj = GLSceneObject{
 		program = {
 			version = glslVersion,
 			precision = 'best',
@@ -539,6 +549,57 @@ void main() {
 			},
 		},
 		texs = {self.fbTex},
+		geometry = self.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvProjMat = self.blitScreenView.mvProjMat.ptr,
+		},
+	}
+	
+	-- used for drawing our 8bpp indexed framebuffer to the screen
+	self.blitScreenIndexObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+			fragmentCode = template([[
+in vec2 tcv;
+
+layout(location=0) out <?=fragType?> fragColor;
+
+uniform <?=samplerType?> fbTex;
+uniform <?=samplerType?> palTex;
+
+const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+
+void main() {
+	uint colorIndex = ]]
+		..readTexUint('texture(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')
+		..[[;
+]]..colorIndexToFrag..[[
+}
+]],			{
+				samplerType = samplerType,
+				useTextureRect = useTextureRect,
+				fragType = fragType,
+				clnumber = clnumber,
+				frameBufferSize = frameBufferSize,
+			}),
+			uniforms = {
+				fbTex = 0,
+				palTex = 1,
+			},
+		},
+		texs = {self.fbTex, self.palTex},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
@@ -927,6 +988,8 @@ void main() {
 			tcbox = {0, 0, 1, 1},
 		},
 	}
+	
+	self:setVideoMode(0)
 
 	local fb = self.fb
 	fb:bind()
