@@ -1,15 +1,14 @@
 local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
 
-local App = require 'numo9.app'
-local paletteSize = App.paletteSize
-local spriteSize = App.spriteSize
-local frameBufferSize = App.frameBufferSize
-local frameBufferSizeInTiles = App.frameBufferSizeInTiles
-local spriteSheetSize = App.spriteSheetSize
-local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
-local tilemapSize = App.tilemapSize
-local tilemapSizeInSprites = App.tilemapSizeInSprites
+local paletteSize = require 'numo9.rom'.paletteSize
+local spriteSize = require 'numo9.rom'.spriteSize
+local frameBufferSize = require 'numo9.rom'.frameBufferSize
+local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
+local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
+local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
+local tilemapSize = require 'numo9.rom'.tilemapSize
+local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
 
 local EditTilemap = require 'numo9.editor':subclass()
 

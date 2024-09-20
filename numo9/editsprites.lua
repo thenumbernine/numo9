@@ -14,15 +14,15 @@ local Quantize = require 'image.quantize_mediancut'
 
 local rgba8888_4ch_to_5551 = require 'numo9.draw'.rgba8888_4ch_to_5551	-- TODO move this
 local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch
-local App = require 'numo9.app'
-local paletteSize = App.paletteSize
-local frameBufferSize = App.frameBufferSize
-local spriteSheetSize = App.spriteSheetSize
-local spriteSize = App.spriteSize
-local spriteSheetSizeInTiles = App.spriteSheetSizeInTiles
-local frameBufferSizeInTiles = App.frameBufferSizeInTiles
-local tilemapSize = App.tilemapSize
-local tilemapSizeInSprites = App.tilemapSizeInSprites
+
+local paletteSize = require 'numo9.rom'.paletteSize
+local frameBufferSize = require 'numo9.rom'.frameBufferSize
+local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
+local spriteSize = require 'numo9.rom'.spriteSize
+local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
+local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
+local tilemapSize = require 'numo9.rom'.tilemapSize
+local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
 
 
 local EditSprites = require 'numo9.editor':subclass()
