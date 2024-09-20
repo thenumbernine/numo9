@@ -221,6 +221,8 @@ When you paste an image, it will quantize colors to the current palette bitness,
 
 Tilemap page.  Click the 'T' to drop down the tilemap for selecting tiles.  Click the 'X' to toggle 8x8 vs 16x16 tiles.
 
+Hold spacebar and move mouse to pan over any image window.
+
 SFX page is WIP
 
 Music page is WIP
