@@ -114,9 +114,23 @@ function EditSprites:update()
 	local sh = spriteSheetSizeInTiles.y / 2
 	local w = sw * spriteSize.x
 	local h = sh * spriteSize.y
+
+	local function spritesheetCoordToFb(ssX, ssY)
+		return 
+			ssX * spriteSize.x - self.spritesheetPanOffset.x + x,
+			ssY * spriteSize.y - self.spritesheetPanOffset.y + y
+	end
 	-- draw some pattern under the spritesheet so you can tell what's transparent
-	app:drawQuad(x,y,w,h,0,0,w/4,h/4,app.checkerTex,0,-1,0,0xFF)
-	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
+	gl.glScissor(x,y,w,h)
+	do
+		-- this is the framebuffer coord bounds of the spritesheet.
+		local x1, y1 = spritesheetCoordToFb(0, 0)
+		local x2, y2 = spritesheetCoordToFb(spriteSheetSizeInTiles:unpack())
+		app:drawQuad(x1,y1,x2-x1,y2-y1,0,0,w/4,h/4,app.checkerTex,0,-1,0,0xFF)
+		-- clamp it to the viewport of the spritesheet to get the rendered region
+		-- then you can scissor-test this to get rid of the horrible texture stretching at borders from clamp_to_edge ...
+		gl.glScissor(x1,y1,x2-x1,y2-y1)
+	end
 	app:drawQuad(
 		x,		-- x
 		y,		-- y
@@ -132,10 +146,12 @@ function EditSprites:update()
 		0,		-- spriteBit
 		0xFF	-- spriteMask
 	)
-	local function fbToSpritesheetCoord(cx, cy)
+	gl.glScissor(0,0,frameBufferSize:unpack())	
+	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
+	local function fbToSpritesheetCoord(fbX, fbY)
 		return
-			(cx - x + self.spritesheetPanOffset.x) / spriteSize.x,
-			(cy - y + self.spritesheetPanOffset.y) / spriteSize.y
+			(fbX - x + self.spritesheetPanOffset.x) / spriteSize.x,
+			(fbY - y + self.spritesheetPanOffset.y) / spriteSize.y
 	end
 
 	local spritesheetPanHandled
@@ -214,9 +230,19 @@ function EditSprites:update()
 	local y = 24
 	local w = 64
 	local h = 64
-	-- draw some pattern under the spritesheet so you can tell what's transparent
-	app:drawQuad(x,y,w,h,0,0,w/4,h/4,app.checkerTex,0,-1,0,0xFF)
-	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
+	-- draw some pattern under the sprite so you can tell what's transparent
+	gl.glScissor(x,y,w,h)
+	local function spriteCoordToFb(sX, sY)
+		return 
+			(sX - self.spriteSelPos.x * spriteSize.x - self.spritePanOffset.x) / tonumber(self.spriteSelSize.x * spriteSize.x) * w + x,
+			(sY - self.spriteSelPos.y * spriteSize.y - self.spritePanOffset.y) / tonumber(self.spriteSelSize.y * spriteSize.y) * h + y
+	end
+	do
+		local x1, y1 = spriteCoordToFb(0, 0)
+		local x2, y2 = spriteCoordToFb(spriteSheetSize:unpack())
+		app:drawQuad(x1,y1,x2-x1,y2-y1,0,0,w*4,h*4,app.checkerTex,0,-1,0,0xFF)
+		gl.glScissor(x1,y1,x2-x1,y2-y1)
+	end
 	app:drawQuad(
 		x,
 		y,
@@ -232,12 +258,14 @@ function EditSprites:update()
 		self.spriteBit,							-- spriteBit
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
+	gl.glScissor(0,0,frameBufferSize:unpack())	
+	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 
 	-- convert x y in framebuffer space to x y in sprite window space
-	local function fbToSpriteCoord(cx, cy)
+	local function fbToSpriteCoord(fbX, fbY)
 		return
-			(cx - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x) + self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x,
-			(cy - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y) + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y
+			(fbX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x) + self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x,
+			(fbY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y) + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y
 	end
 
 	local spritePanHandled
