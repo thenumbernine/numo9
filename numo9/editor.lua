@@ -64,11 +64,7 @@ function Editor:guiButton(x, y, str, isset, tooltip)
 		if tooltip then
 			self:drawTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 		end
-
-		local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
-		local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
-		local leftButtonPress = leftButtonDown and not leftButtonLastDown
-		if leftButtonPress then
+		if app:keyp'mouse_left' then
 			return true
 		end
 	end
@@ -77,10 +73,9 @@ end
 function Editor:guiSpinner(x, y, cb, tooltip)
 	local app = self.app
 
-	-- TODO this in one spot, mabye with glapp.mouse ...
-	local leftButtonLastDown = bit.band(app.ram.lastMouseButtons[0], 1) == 1
-	local leftButtonDown = bit.band(app.ram.mouseButtons[0], 1) == 1
-	local leftButtonPress = leftButtonDown and not leftButtonLastDown
+	local leftButtonDown = app:key'mouse_left'
+	local leftButtonPress = app:keyp'mouse_left'
+	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	self:drawText('<', x, y, 13, 0)

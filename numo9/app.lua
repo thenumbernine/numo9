@@ -70,7 +70,7 @@ end
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
 local frameBufferType = 'uint16_t'	-- rgb565
---local frameBufferType = 'uint8_t'		-- rgb332
+--local frameBufferType = 'uint8_t'		-- rgb332 or indexed
 local frameBufferSize = vec2i(256, 256)
 local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 local spriteSheetSize = vec2i(256, 256)
@@ -126,6 +126,7 @@ local RAM = struct{
 				-- I know, I know, old consoles didn't have a framebuffer
 				-- but how would we properly emulate our non-sprite graphics without one?
 				-- maybe I'll do rgb332+dithering to save space ...
+				-- maybe I'll say rgb565 is maximum but if the user chooses they can change modes to rgb332, indexed, heck why not 4bit or 2bit ...
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
 				{name='mvMat', type='float[16]'},	-- tempting to do float16 ... or fixed16 ... lol the rom api ittself doesn't even have access to floats ...
@@ -150,8 +151,6 @@ local RAM = struct{
 				{name='mousePos', type='vec2s_t'},			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
 				{name='lastMousePos', type='vec2s_t'},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
 				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
-				{name='lastMouseButtons', type='uint8_t[1]'},	-- same question...
-				{name='mouseButtons', type='uint8_t[1]'},	-- mouse button flags.  using SDL atm so flags 0 1 2 = left middle right
 			},
 		}},
 	},
@@ -690,8 +689,7 @@ function App:update()
 		-- update input between frames
 		do
 			self.ram.lastMousePos:set(self.ram.mousePos:unpack())
-			self.ram.lastMouseButtons[0] = self.ram.mouseButtons[0]
-			self.ram.mouseButtons[0] = sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
+			sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
 			local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
 			local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
@@ -701,10 +699,7 @@ function App:update()
 			y = y * .5 + .5
 			self.ram.mousePos.x = x * tonumber(frameBufferSize.x)
 			self.ram.mousePos.y = y * tonumber(frameBufferSize.y)
-			local leftButtonLastDown = bit.band(self.ram.lastMouseButtons[0], 1) == 1
-			local leftButtonDown = bit.band(self.ram.mouseButtons[0], 1) == 1
-			local leftButtonPress = leftButtonDown and not leftButtonLastDown
-			if leftButtonPress then
+			if self:keyp'mouse_left' then
 				self.ram.lastMousePressPos:set(self.ram.mousePos:unpack())
 			end
 		end
@@ -794,6 +789,9 @@ print('no runnable focus!')
 		-- copy last key buffer to key buffer here after update()
 		-- so that sdl event can populate changes to current key buffer while execution runs outside this callback
 		ffi.copy(self.ram.lastKeyPressFlags, self.ram.keyPressFlags, keyPressFlagSize)
+
+--print('press flags', (ffi.string(self.ram.lastKeyPressFlags, keyPressFlagSize):gsub('.', function(ch) return ('%02x'):format(ch:byte()) end)))
+--print('mouse_left', self:key'mouse_left')
 
 		-- do this every frame or only on updates?
 		-- how about no more than twice after an update (to please the double-buffers)
@@ -1224,8 +1222,8 @@ end
 function App:drawText1bpp(text, x, y, color, scaleX, scaleY)
 	for i=1,#text do
 		local ch = text:byte(i)
-		local by = bit.rshift(ch, 3)	-- get the byte offset
 		local bi = bit.band(ch, 7)		-- get the bit offset
+		local by = bit.rshift(ch, 3)	-- get the byte offset
 		self:drawSprite(
 			spriteSheetSizeInTiles.x * (spriteSheetSizeInTiles.y-1)
 			+ by,                     -- spriteIndex is th last row
@@ -1593,9 +1591,6 @@ function App:mouse()
 	return
 		self.ram.mousePos.x,
 		self.ram.mousePos.y,
-		bit.band(self.ram.mouseButtons[0], sdl.SDL_BUTTON_LMASK) ~= 0,
-		bit.band(self.ram.mouseButtons[0], sdl.SDL_BUTTON_MMASK) ~= 0,
-		bit.band(self.ram.mouseButtons[0], sdl.SDL_BUTTON_RMASK) ~= 0,
 		0,	-- TODO scrollX
 		0	-- TODO scrollY
 end
@@ -1626,11 +1621,13 @@ end
 function App:event(e)
 	local Editor = require 'numo9.editor'
 	if e[0].type == sdl.SDL_KEYUP
-	or sdl.SDL_KEYDOWN
+	or e[0].type == sdl.SDL_KEYDOWN
 	then
 		local down = e[0].type == sdl.SDL_KEYDOWN
 		local sdlsym = e[0].key.keysym.sym
-		if down and sdlsym == sdl.SDLK_ESCAPE then
+		if down
+		and sdlsym == sdl.SDLK_ESCAPE
+		then
 			-- special handle the escape key
 			-- game -> escape -> console
 			-- console -> escape -> editor
@@ -1658,11 +1655,11 @@ function App:event(e)
 				local bi = bit.band(keycode, 7)
 				local by = bit.rshift(keycode, 3)
 				-- TODO turn this into raw mem like those other virt cons
-				assert(by >= 0 and by < keyPressFlagSize)
-				local mask = bit.bnot(bit.lshift(1, bi))
+				local flag = bit.lshift(1, bi)
+				local mask = bit.bnot(flag)
 				self.ram.keyPressFlags[by] = bit.bor(
 					bit.band(mask, self.ram.keyPressFlags[by]),
-					down and bit.lshift(1, bi) or 0
+					down and flag or 0
 				)
 			end
 
@@ -1673,6 +1670,28 @@ function App:event(e)
 			if buttonCode then
 			end
 			--]]
+		end
+	elseif e[0].type == sdl.SDL_MOUSEBUTTONDOWN
+	or e[0].type == sdl.SDL_MOUSEBUTTONUP
+	then
+		local down = e[0].type == sdl.SDL_MOUSEBUTTONDOWN
+		local keycode
+		if e[0].button.button == sdl.SDL_BUTTON_LEFT then
+			keycode = keyCodeForName.mouse_left
+		elseif e[0].button.button == sdl.SDL_BUTTON_MIDDLE then
+			keycode = keyCodeForName.mouse_middle
+		elseif e[0].button.button == sdl.SDL_BUTTON_RIGHT then
+			keycode = keyCodeForName.mouse_right
+		end
+		if keycode then
+			local bi = bit.band(keycode, 7)
+			local by = bit.rshift(keycode, 3)
+			local flag = bit.lshift(1, bi)
+			local mask = bit.bnot(flag)
+			self.ram.keyPressFlags[by] = bit.bor(
+				bit.band(mask, self.ram.keyPressFlags[by]),
+				down and flag or 0
+			)
 		end
 	end
 end
