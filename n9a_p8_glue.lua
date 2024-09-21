@@ -135,6 +135,13 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 		return (value&0xf)|((value&0xf00)>>4)
 --pico8 memory from $6000 to $8000 is the 4bpp screen
 -- I've got 'video mode 1' which is 8bpp indexed, so I can use mine for picso ...
+	elseif addr>=0x2000 and addr<0x3000 then
+		addr-=0x2000
+		local x = addr & 0x7f
+		local y = (addr >> 7) & 0x1f
+		addr = (x << 1) | (y << 9)
+		local value = peekw(mapMem+addr)
+		return (value&0x0f)|((value>>1)&0xf0)
 	elseif addr>=0x6000 and addr<0x8000 then
 		addr-=0x6000
 		local x = (addr & 0x3f) << 1		-- lo 6 bits = x coord, to be shifted << 1
@@ -142,9 +149,6 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 		addr = x | yhi
 		local value = peekw(fbMem+addr)
 		return (value&0x0f)|((value&0x0f00)>>4)
-	elseif addr>=0x2000 and addr<0x3000 then
-		local value = peekw(mapMem+((addr-0x2000)<<1))
-		return (value&0x0f)|((value>>1)&0xf0)
 	end
 trace(('TODO peek $%x'):format(addr))
 	return 0
@@ -156,7 +160,11 @@ p8poke=[addr,value]do
 		addr = x | yhi
 		pokew(gfxMem+addr, (value&0xf)|((value&0xf0)<<4))
 	elseif addr>=0x2000 and addr<0x3000 then
-		pokew(mapMem+((addr-0x2000)<<1),(value&0xf)|((value<<1)&0x1e0))
+		addr-=0x2000
+		local x = addr & 0x7f			-- 7 bits x
+		local y = (addr >> 7) & 0x1f	-- 5 bits y
+		addr = (x << 1) | (y << 9)
+		pokew(mapMem+addr,(value&0xf)|((value&0xf0)<<1))
 	elseif addr>=0x6000 and addr<0x8000 then
 		-- only valid for 8bpp-indexed video mode
 		addr-=0x6000
