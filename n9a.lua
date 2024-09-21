@@ -584,10 +584,17 @@ assertlen(
 		return code
 		--]]
 		-- [[ save some space by running it through the langfix parser
-		local parser = LuaFixedParser()
-		parser:setData(code)
-		local tree = parser.tree
-		return tree:toLuaFixed()
+		local result
+		assert(xpcall(function()
+			local parser = LuaFixedParser()
+			parser:setData(code)
+			local tree = parser.tree
+			result = tree:toLuaFixed()
+		end, function(err)
+			return require 'template.showcode'(code)..'\n'
+					..err..'\n'..debug.traceback()
+		end))
+		return result
 		--]]
 	end
 
