@@ -1,4 +1,5 @@
 -- begin compat layer
+app:setVideoMode(1)	-- set to indexed framebuffer ... TODO make this a poke()
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 p8color=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
@@ -137,16 +138,15 @@ pico8 ram[64]	= vram[1,1]:[0,1]		<=> numo9 vram[1,1]:[0,1]		= ram[257]:ram[256]
 			|((addr<<2)&0x3f00)		-- shift bits 6..12 << 2
 		return (peek(gfxMem+addr)&0xf0)
 			|((peek(gfxMem+addr+1)&0xf0)<<4)
---[[ fbo is 16bpp, that means we can't know the pal that wrote it
 --pico8 memory from $6000 to $8000 is the 4bpp screen
---but mind you my framebuffer is 16bpp while pico8 is just 4bpp sooo ... reading from it won't do much good ...
+-- I've got 'video mode 1' which is 8bpp indexed, so I can use mine for picso ...
 	elseif addr>=0x6000 and addr<0x8000 then
 		addr-=0x6000
-		addr=((addr<<1)&0x003e)		-- shift bits 0..5 << 1
-			|((addr<<2)&0x3f00)		-- shift bits 6..12 << 2
-		return (peek(fbMem+addr)&0xf0)
-			|((peek(fbMem+addr+1)&0xf0)<<4)
---]]
+		local x = (addr & 0x3f) << 1
+		local y = (addr >> 6) & 0x7f
+		addr = x | (y << 8)
+		return (peek(fbMem+addr)&0x0f)
+			|((peek(fbMem+addr+1)&0x0f)<<4)
 	elseif addr>=0x2000 and addr<0x3000 then
 		local value = peekw(mapMem+((addr-0x2000)<<1))
 		return (value&0x0f)|((value>>1)&0xf0)
@@ -157,12 +157,14 @@ end
 p8poke=[addr,value]do
 	if addr>=0x2000 and addr<0x3000 then
 		pokew(mapMem+((addr-0x2000)<<1),(value&0xf)|((value<<1)&0x1e0))
-	--[[
 	elseif addr>=0x6000 and addr<0x8000 then
+		-- only valid for 8bpp-indexed video mode
 		addr-=0x6000
-		addr=(((addr<<1)&0x003e)|((addr<<2)&0x3f00))
-		return (peek(gfxMem+addr)&0xf0)|((peek(gfxMem+addr+1)&0xf0)<<4)
-	--]]
+		local x = (addr & 0x3f) << 1
+		local y = (addr >> 6) & 0x7f
+		addr = x | (y << 8)
+		poke(fbMem+addr, value&0xf)
+		poke(fbMem+addr+1, (value&0xf0)>>4)
 	else
 trace(('TODO poke $%x $%x'):format(addr, value))
 	end
