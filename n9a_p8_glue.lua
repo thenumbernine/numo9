@@ -127,26 +127,21 @@ from 0x1000..0x2000 is shared spritesheet/tilemap 128x64
 so the spritesheet gets 128x128 contiguous memory
 pico8 x 0..128 = addrs 0..63 / bits 0..5 = numo9 addrs be 0..127 (bits 1..6) for me, i'm reading two peeks into its one.
 pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
-
-pico8 ram[0]	= vram[1,0]:[0,0]		<=> numo9 vram[1,0]:[0,0]		= ram[1]:ram[0]
-pico8 ram[1]	= vram[3,0]:[2,0]		<=> numo9 vram[2,0]:[3,0]		= ram[3]:ram[2]
-pico8 ram[63]	= vram[127,0]:[126,0]	<=> numo9 vram[127,0]:[126,0]	= ram[127]:ram[126]
-
-pico8 ram[64]	= vram[1,1]:[0,1]		<=> numo9 vram[1,1]:[0,1]		= ram[257]:ram[256]
 --]]
-		addr=((addr<<1)&0x003e)		-- shift bits 0..5 << 1
-			|((addr<<2)&0x3f00)		-- shift bits 6..12 << 2
-		return (peek(gfxMem+addr)&0xf0)
-			|((peek(gfxMem+addr+1)&0xf0)<<4)
+		local x = (addr & 0x3f) << 1
+		local yhi = (addr & 0x1fc0) << 2
+		addr = x | yhi
+		local value = peekw(gfxMem+addr)
+		return (value&0xf)|((value&0xf00)>>4)
 --pico8 memory from $6000 to $8000 is the 4bpp screen
 -- I've got 'video mode 1' which is 8bpp indexed, so I can use mine for picso ...
 	elseif addr>=0x6000 and addr<0x8000 then
 		addr-=0x6000
-		local x = (addr & 0x3f) << 1
-		local y = (addr >> 6) & 0x7f
-		addr = x | (y << 8)
-		return (peek(fbMem+addr)&0x0f)
-			|((peek(fbMem+addr+1)&0x0f)<<4)
+		local x = (addr & 0x3f) << 1		-- lo 6 bits = x coord, to be shifted << 1
+		local yhi = (addr & 0x1fc0) << 2	-- next 7 bits = y coord, to be shifted << 8
+		addr = x | yhi
+		local value = peekw(fbMem+addr)
+		return (value&0x0f)|((value&0x0f00)>>4)
 	elseif addr>=0x2000 and addr<0x3000 then
 		local value = peekw(mapMem+((addr-0x2000)<<1))
 		return (value&0x0f)|((value>>1)&0xf0)
@@ -155,16 +150,20 @@ trace(('TODO peek $%x'):format(addr))
 	return 0
 end
 p8poke=[addr,value]do
-	if addr>=0x2000 and addr<0x3000 then
+	if addr >= 0 and addr < 0x2000 then
+		local x = (addr & 0x3f) << 1		-- x coord
+		local yhi = (addr & 0x1fc0) << 2	-- y coord << 8
+		addr = x | yhi
+		pokew(gfxMem+addr, (value&0xf)|((value&0xf0)<<4))
+	elseif addr>=0x2000 and addr<0x3000 then
 		pokew(mapMem+((addr-0x2000)<<1),(value&0xf)|((value<<1)&0x1e0))
 	elseif addr>=0x6000 and addr<0x8000 then
 		-- only valid for 8bpp-indexed video mode
 		addr-=0x6000
-		local x = (addr & 0x3f) << 1
-		local y = (addr >> 6) & 0x7f
-		addr = x | (y << 8)
-		poke(fbMem+addr, value&0xf)
-		poke(fbMem+addr+1, (value&0xf0)>>4)
+		local x = (addr & 0x3f) << 1		-- x coord
+		local yhi = (addr & 0x1fc0) << 2	-- y coord << 8
+		addr = x | yhi
+		pokew(fbMem+addr, (value&0xf)|((value&0xf0)<<4))
 	else
 trace(('TODO poke $%x $%x'):format(addr, value))
 	end
