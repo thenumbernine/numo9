@@ -34,6 +34,13 @@ assert(not rel, 'TODO')
 	end
 end
 p8_fillp=[p]nil
+--[[
+pico8 has palette-0 for modifying sprites that are drawn and palette-1 for modifying colors on screen already ...
+so how about I ... ... I guess when I draw colors then I ... 
+wait is pico8 actually changing the index itself as it draws it out with palette-0?  and not just changing the associated palette values?
+and only afterwards with palette-1 it does change the palette's rgb?
+hmm weird.
+--]]
 p8_pal=[from,to,pal]do
 	if not from then
 		--[[ preserve transparency
