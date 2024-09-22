@@ -144,13 +144,31 @@ function RemoteServerConn:init(args)
 	asserttype(args, 'table')
 	self.app = assertindex(args, 'app')
 	self.server = assertindex(args, 'server')
-	self.client = assertindex(args, 'client')
+	self.socket = assertindex(args, 'socket')
 	self.playerInfos = assertindex(args, 'playerInfos')
 	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
 end
 
 function RemoteServerConn:isActive()
 	return coroutine.status(self.thread) ~= 'dead'
+end
+
+function RemoteServerConn:loop()
+	while self.socket
+	and self.socket:getsockname()
+	do
+		local reason
+		data, reason = receive(self.socket)
+		if not data then
+			if reason ~= 'timeout' then
+				print('client remote connection failed: '..tostring(reason))
+				return false
+				-- TODO - die and go back to connection screen ... wherever that will be
+			end
+		else
+			print('server got data', data, reason)
+		end
+	end
 end
 
 
@@ -192,7 +210,7 @@ function Server:update()
 	-- listen for new connections
 	local client = self.socket:accept()
 	if client then
-		local thread = app.threads:add(self.connectRemoteCoroutine, self, client)
+		local thread = app.threads:add(self.remoteClientCoroutine, self, client)
 	end
 
 	-- now handle connections
@@ -216,9 +234,9 @@ function Server:update()
 end
 
 -- create a remote connection
-function Server:connectRemoteCoroutine(client)
+function Server:remoteClientCoroutine(client)
 	local app = assert(self.app)
-	print('Server got connection -- starting new connectRemoteCoroutine')
+	print('Server got connection -- starting new remoteClientCoroutine')
 
 	client:setoption('keepalive', true)
 	client:settimeout(0, 'b')	-- for the benefit of coroutines ...
@@ -254,7 +272,7 @@ print'creating server remote client conn...'
 	local serverConn = RemoteServerConn{
 		app = app,
 		server = self,
-		client = client,
+		socket = client,
 		playerInfos = playerInfos,
 		thread = coroutine.running(),
 	}
@@ -270,10 +288,14 @@ print'sending initial RAM state...'
 		..ffi.string(ffi.cast('char*', app.ram.palette), paletteInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
 	local initMsgLen = #initMsg	
-	asserteq(send(serverConn.client, initMsg), initMsgLen, "init msg")
+	asserteq(send(serverConn.socket, initMsg), initMsgLen, "init msg")
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
-	
-	return serverConn
+
+print'entering server listen loop...'
+	-- TODO here go into a busy loop and wait for client messages
+	-- TODO move all this function itno serverConn:loop() 
+	-- or into its ctor ...
+	serverConn:loop()
 end
 
 
@@ -339,9 +361,19 @@ print'sending player info'
 		end
 		assert(send(sock, msg:concat' '..'\n'))
 
+print'waiting for initial ram state...'
 		-- now expect the initial server state
 		local initMsgSize = spriteSheetInBytes + tileSheetInBytes + tilemapInBytes + paletteInBytes + framebufferInBytes
+		
+		--[[
 		local serverState = receive(sock, initMsgSize, 10)
+		--]]
+		-- [[
+		local result = table.pack(receive(sock, initMsgSize, 10))
+print('...got', result:unpack())
+		local serverState = result:unpack()
+		--]]
+		
 		assertlen(serverState, initMsgSize)
 		-- and decode it
 		local ptr = ffi.cast('char*', serverState)
@@ -359,27 +391,22 @@ print'sending player info'
 		app.palTex.dirtyCPU = true		-- paletteTex
 		app.fbTex.dirtyCPU = true		-- framebufferTex
 
-
 		self.connecting = nil
 		self.connected = true
 
+print'calling back to .success()'
 		-- TODO - onfailure?  and a pcall please ... one the coroutines won't mind ...
 		if args.success then args.success() end
 	
-
 		-- now start the busy loop of listening for new messages
 
-		coroutine.yield()
-		
-		--local parser = WordParser()
-		local result = {}
-		
-		while self.socket
-		and self.socket:getsockname()
+print'entering client listen loop...'
+		while sock
+		and sock:getsockname()
 		do
-::repeatForNow::		
 			local reason
-			data, reason = receive(self.socket)
+			data, reason = receive(sock)
+--DEBUG:print('client got', data, reason)
 			if not data then
 				if reason ~= 'timeout' then
 					print('client remote connection failed: '..tostring(reason))
@@ -387,71 +414,7 @@ print'sending player info'
 					-- TODO - die and go back to connection screen ... wherever that will be
 				end
 			else
-
-				print('got data', data, reason)
-				goto repeatForNow
-				-- parse the data
-		
---[[ clientlisten loop fps counter
-				local clientlistenStart = sdl.SDL_GetTicks() / 1000
---]]	
-				repeat
-					
-					parser:setstr(data)
-
-					if #data > 0 then
-						local cmd = parser:next()
-						local m
-						if cmd:sub(1,1) == '<' then		-- < means response.  > means request, means we'd have to reply ...
-							self.remoteQuery:processResponse(cmd, parser)
-						else
-						
-							-- requesting a response
-							if cmd:sub(1,1) == '>' then
-								m = cmd:sub(2)
-								cmd = parser:next()
-							end
-						
-							if cmd == 'server' then
-								local cmd = parser:next()
-								
-								netReceiveObj(parser, cmd, self.server)
-
-							elseif cmd then
-								
-								-- TODO this all parallels serverconn except ...
-								-- * no waitFor() calls
-								local call = netcom.serverToClientCalls[cmd]
-								if call then
-									local name = cmd
-									local args = netcom:decode(parser, self, name, call.args)
-									if call.useDone then
-										args[#args + 1] = function(...)
-											local ret = {...}
-											if m then
-												--waitFor(self, 'hasSentUpdate')
-												local response = netcom:encode(self, name, call.returnArgs, ret)
-												assert(send(self.socket, '<'..m..' '..response..'\n'))
-											end									
-										end
-										call.func(self, unpack(args, 1, #call.args + 1))
-									else
-										local ret = {call.func(self, unpack(args, 1, #call.args))}
-										if m then	-- looking for a response...
-											--waitFor(self, 'hasSentUpdate')
-											local response = netcom:encode(self, name, call.returnArgs, ret)
-											assert(send(self.socket, '<'..m..' '..response..'\n'))
-										end
-									end
-								else
-									print("ClientConn listen got unknown command "..tostring(cmd).." of data "..data)
-								end
-							end
-						end
-					end
-					-- read as much as we want at once
-					data = self.socket:receive('*l')
-				until not data
+				print('client got data', data, reason)
 				
 --[[ clientlisten loop fps counter
 				local clientlistenEnd = sdl.SDL_GetTicks() / 1000
