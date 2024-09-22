@@ -1,8 +1,16 @@
-local receiveBlocking = require 'netrefl.receiveblocking'
+require 'ext.gc'	-- make sure luajit can __gc lua-tables
+local ffi = require 'ffi'
 
 local socket = require 'socket'
 local class = require 'ext.class'
 local table = require 'ext.table'
+local string = require 'ext.string'
+local asserteq = require 'ext.assert'.eq
+local assertindex = require 'ext.assert'.index
+local asserttype = require 'ext.assert'.type
+local assertlen = require 'ext.assert'.len
+local assertne = require 'ext.assert'.ne
+local getTime = require 'ext.timer'.getTime
 
 local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
 local spriteSheetInBytes = require 'numo9.rom'.spriteSheetInBytes
@@ -19,6 +27,131 @@ local paletteAddrEnd = require 'numo9.rom'.paletteAddrEnd
 local framebufferAddr = require 'numo9.rom'.framebufferAddr
 local framebufferInBytes = require 'numo9.rom'.framebufferInBytes
 local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
+
+
+-- TOOD how about a net-string?
+-- pascal-string-encoded: length then data
+-- 7 bits = single-byte length
+-- 8th bit set <-> 14 bits = single-byte length
+-- repeat for as long as needed
+-- is this the same as old id quake network encoding?
+-- is this the same as unicode encoding?
+-- until then ...
+local netescape = require 'netrefl.netfield'.netescape
+local netunescape = require 'netrefl.netfield'.netunescape
+
+--[[ TODO replace \n-term luasocket strings with pascal-strings ... 
+local function netuintsend(conn, x)
+	
+end
+local function netuintrecv(conn)
+end
+
+local function netstrsend(conn, s)
+	local len = #s
+	netuintsend(conn, len)
+end
+local function netstrrecv(conn)
+end
+--]]
+
+
+-- send and make sure you send everything, and error upon fail
+function send(conn, data)
+--DEBUG:print(conn, '<<', data)
+	local i = 1
+	while true do
+		-- conn:send() successful response will be numberBytesSent, nil, nil, time
+		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
+--DEBUG:print(conn, ' sending from '..i)
+		local successlen, reason, faillen, time = conn:send(data, i)
+--DEBUG:print(conn, '...', successlen, reason, faillen, time)
+--DEBUG:print(conn, '...getstats()', conn:getstats())
+		if successlen ~= nil then
+			assertne(reason, 'wantwrite', 'socket.send failed')	-- will wantwrite get set only if res[1] is nil?
+--DEBUG:print(conn, '...done sending')
+			return successlen, reason, faillen, time
+		end
+		assertne(reason, 'wantwrite', 'socket.send failed')
+		--socket.select({conn}, nil)	-- not good?
+		-- try again
+		i = i + faillen
+		
+		-- don't busy wait
+		coroutine.yield()
+	end
+end
+
+--[[
+TODO what to do
+- keep reading/writing line by line (bad for realtime)
+- r/w byte-by-byte (more calls, could luajit handle the performance?)
+- have receive() always return every line
+--]]
+
+-- have the caller wait while we recieve a message
+function receive(conn, amount, waitduration)
+	local endtime = getTime() + (waitduration or math.huge)
+	local data
+	repeat
+		local reason
+		-- [[
+		data, reason = conn:receive(amount or '*l')
+		--]]
+		--[[
+		local results = table.pack(conn:receive(amount or '*l'))
+print('got', results:unpack())
+		data, reason = results:unpack()
+		--]]
+--DEBUG:print('data len', type(data)=='string' and #data or nil)
+		if not data then
+			if reason == 'wantread' then
+--DEBUG:print('got wantread, calling select...')
+				socket.select(nil, {conn})
+--DEBUG:print('...done calling select')
+			else
+				if reason ~= 'timeout' then
+					return nil, reason		-- error() ?
+				end
+				-- else continue
+				if getTime() > endtime then
+					return nil, 'timeout'
+				end
+			end
+		end
+		coroutine.yield()
+	until data ~= nil
+
+	return data
+end
+
+function mustReceive(...)
+	local recv, reason = receive(...)
+	if not recv then error("Server waiting for handshake receive failed with error "..tostring(reason)) end
+	return recv
+end
+
+
+
+local handshakeClientSends = 'litagano'
+local handshakeServerSends = 'motscoud'
+
+
+local RemoteServerConn = class()
+
+function RemoteServerConn:init(args)
+	-- combine all these assert index & type and you might as well have a strongly-typed language ...
+	asserttype(args, 'table')
+	self.app = assertindex(args, 'app')
+	self.server = assertindex(args, 'server')
+	self.client = assertindex(args, 'client')
+	self.playerInfos = assertindex(args, 'playerInfos')
+	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
+end
+
+function RemoteServerConn:isActive()
+	return coroutine.status(self.thread) ~= 'dead'
+end
 
 
 local Server = class()
@@ -42,7 +175,16 @@ function Server:init(app)
 	con:print('...init listening on ', tostring(self.socketaddr)..':'..tostring(self.socketport))
 
 	self.socket:settimeout(0, 'b')
+	self.socket:setoption('keepalive', true)
 end
+
+function Server:close()
+	if self.socket then
+		self.socket:close()
+		self.socket = nil
+	end
+end
+Server.__gc = Server.close
 
 function Server:update()
 	local app = self.app
@@ -76,41 +218,60 @@ end
 -- create a remote connection
 function Server:connectRemoteCoroutine(client)
 	local app = assert(self.app)
-	print('got a connection')
-	
-	local recv, reason = receiveBlocking(client, 10)
+	print('Server got connection -- starting new connectRemoteCoroutine')
+
+	client:setoption('keepalive', true)
+	client:settimeout(0, 'b')	-- for the benefit of coroutines ...
+
+print'waiting for client handshake'
+-- TODO stuck here ...
+	local recv, reason = receive(client, nil, 10)
+
+print('got', recv, reason)	
 	if not recv then error("Server waiting for handshake receive failed with error "..tostring(reason)) end
-	local expect = 'litagano'
-	assert(recv == expect, "handshake failed.  expected "..expect..' but got '..tostring(recv))
-	client:send('motscoud\n')
+	
+	asserteq(recv, handshakeClientSends, "handshake failed")
+print'sending server handshake'	
+	send(client, handshakeServerSends..'\n')
 
 	--[[
 	protocol ...
 	--]]
-	local cmd = receiveBlocking(client, 10)
+print'waiting for player info'
+	local cmd = receive(client, nil, 10)
 	if not cmd then error("expected player names...") end
 	local parts = string.split(cmd, ' ')
-	assert(parts:remove(1) == 'playernames', "expected 'playernames' to come first")
+	asserteq(parts:remove(1), 'playernames', "expected 'playernames' to come first")
+print('got player info', cmd)
+
 	local playerInfos = table()
 	while #parts > 0 do
-		local name = parts:remove(1)
+		local name = netunescape(parts:remove(1))
 		playerInfos:insert{name=name}
 	end
 
-	local serverConn = RemoteServerConn(self, client)
+print'creating server remote client conn...'
+	local serverConn = RemoteServerConn{
+		app = app,
+		server = self,
+		client = client,
+		playerInfos = playerInfos,
+		thread = coroutine.running(),
+	}
+	self.serverConns:insert(serverConn)
+-- TODO HERE record the current moment in the server's delta playback buffer and store it in the serverConn
 
+print'sending initial RAM state...'
 	-- now send back current state of the game ...
 	local initMsg = 
 		  ffi.string(ffi.cast('char*', app.ram.spriteSheet), spriteSheetInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.tileSheet), tileSheetInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.tilemap), tileMapInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.tilemap), tilemapInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.palette), paletteInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
-	
-	serverConn:send(initMsg)
+	local initMsgLen = #initMsg	
+	asserteq(send(serverConn.client, initMsg), initMsgLen, "init msg")
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
-
-	self.serverConns:insert(serverConn)
 	
 	return serverConn
 end
@@ -118,13 +279,6 @@ end
 
 
 local ClientConn = class()
-
-function ClientConn:init(app)
-	self.app = assert(app)
-
-	-- TODO HERE update initial changes from the server
-	-- reflect me with the server plz
-end
 
 --[[ clientlisten loop fps counter
 local clientlistenTotalTime = 0
@@ -140,20 +294,27 @@ args:
 	success
 	playernames
 --]]
-function ClientConn:connect(args)	
-	assert(args.playerInfos)
-	local app = assert(self.app)
+function ClientConn:init(args)
+	local app = assertindex(args, 'app')
+	self.app = app
+	local con = app.con
+	assertindex(args, 'playerInfos')
 	
-	print('ClientConn connecting to addr',args.addr,'port',args.port)
+	con:print('ClientConn connecting to addr',args.addr,'port',args.port)
 	local sock, reason = socket.connect(args.addr, args.port)
 	if not sock then
 		print('failed to connect: '..tostring(reason))
 		return false, reason
 	end
+print'client connected'	
 	self.socket = sock
+	
 	sock:settimeout(0, 'b')
+	sock:setoption('keepalive', true)
 	self.connecting = true
 
+
+print'starting connection thread'
 	-- handshaking ...	
 	-- TODO should this be a runFocus.thread that only updates when it's in focus?
 	-- or should it be a threads entry that is updated always?
@@ -161,38 +322,42 @@ function ClientConn:connect(args)
 	self.thread = coroutine.create(function()
 		coroutine.yield()
 
-		sock:send('litagano\n')
+print'sending client handshake to server'
+		assert(send(sock, handshakeClientSends..'\n'))
 
-		local expect = 'motscoud'
-		local recv = receiveBlocking(sock, 10)
+print'waiting for server handshake'
+		local recv, reason = receive(sock, nil, 10)
+print('got', recv, reason)		
 		if not recv then error("ClientConn waiting for handshake failed with error "..tostring(reason)) end
-		assert(recv == expect, "ClientConn handshake failed.  expected "..expect..' but got '..tostring(recv))
-		
+		asserteq(recv, handshakeServerSends, "ClientConn handshake failed")
+
+print'sending player info'
 		-- now send player names
 		local msg = table{'playernames'}
 		for _,playerInfo in ipairs(args.playerInfos) do
 			msg:insert(netescape(playerInfo.name))
 		end
-		sock:send(msg:concat(' ')..'\n')
+		assert(send(sock, msg:concat' '..'\n'))
 
 		-- now expect the initial server state
-		local serverState = receiveBlocking(sock, 10)
-		assertlen(serverState, spriteSheetInBytes+tileSheetInBytes+tileMapInBytes+paletteInBytes+framebufferInBytes)
+		local initMsgSize = spriteSheetInBytes + tileSheetInBytes + tilemapInBytes + paletteInBytes + framebufferInBytes
+		local serverState = receive(sock, initMsgSize, 10)
+		assertlen(serverState, initMsgSize)
 		-- and decode it
 		local ptr = ffi.cast('char*', serverState)
 		app.fbTex:checkDirtyGPU()
 		-- flush GPU
 		ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
 		ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
-		ffi.copy(app.rom.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
+		ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
 		ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
-		ffi.copy(app.rom.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
+		ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
 		-- set all dirty as well
-		app.spriteSheetTex.dirtyCPU = true
-		app.tileSheetTex.dirtyCPU = true
+		app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
+		app.tileTex.dirtyCPU = true		-- tileSheetTex
 		app.mapTex.dirtyCPU = true
-		app.paletteTex.dirtyCPU = true
-		app.fbTex.dirtyCPU = true
+		app.palTex.dirtyCPU = true		-- paletteTex
+		app.fbTex.dirtyCPU = true		-- framebufferTex
 
 
 		self.connecting = nil
@@ -214,7 +379,7 @@ function ClientConn:connect(args)
 		do
 ::repeatForNow::		
 			local reason
-			data, reason = receiveBlocking(self.socket)
+			data, reason = receive(self.socket)
 			if not data then
 				if reason ~= 'timeout' then
 					print('client remote connection failed: '..tostring(reason))
@@ -266,7 +431,7 @@ function ClientConn:connect(args)
 											if m then
 												--waitFor(self, 'hasSentUpdate')
 												local response = netcom:encode(self, name, call.returnArgs, ret)
-												self.socket:send('<'..m..' '..response..'\n')
+												assert(send(self.socket, '<'..m..' '..response..'\n'))
 											end									
 										end
 										call.func(self, unpack(args, 1, #call.args + 1))
@@ -275,7 +440,7 @@ function ClientConn:connect(args)
 										if m then	-- looking for a response...
 											--waitFor(self, 'hasSentUpdate')
 											local response = netcom:encode(self, name, call.returnArgs, ret)
-											self.socket:send('<'..m..' '..response..'\n')
+											assert(send(self.socket, '<'..m..' '..response..'\n'))
 										end
 									end
 								else
@@ -306,6 +471,15 @@ function ClientConn:connect(args)
 	end)
 end
 
+function ClientConn:close()
+	if self.socket then
+		self.socket:close()
+		self.socket = nil
+	end
+end
+ClientConn.__gc = ClientConn.close
+
 return {
 	Server = Server,
+	ClientConn = ClientConn,
 }

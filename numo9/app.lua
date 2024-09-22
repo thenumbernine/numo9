@@ -629,28 +629,46 @@ end
 
 local Server = require 'numo9.net'.Server
 local ClientConn = require 'numo9.net'.ClientConn
+
+-- stop all client and server stuff from going on
+function App:disconnect()
+	if self.server then
+		self.con:print('already listening ... listening again')
+		self.server:close()
+		self.server = nil
+	end
+	if self.remoteClient then
+		self.con:print('already connected ... disconnecting')
+		self.remoteClient:close()
+		self.remoteClient = nil
+	end
+end
+
+App.playerInfos = {	-- TODO put this in a config file
+	{name='a'},
+	{name='b'},
+	{name='c'},
+	{name='d'},
+}
+
 -- server listen
 function App:listen()
-	if self.server then
-		-- TODO make sure to close socket or expect a 'port already in use' error
-	end
+	self:disconnect()
 
 	-- listens upon init
 	self.server = Server(self)
 end
 
-App.playerNames = {'a', 'b', 'c', 'd'}	-- TODO config file
-
 -- client connect
 function App:connect(addr, port)
-	-- TODO defaults on 'connect'?  store it in config as well?
+	self:disconnect()
 
 	-- clear set run focus before connecting so the connection's initial update of the framebuffer etc wont get dirtied by a loseFocus() from the last runFocus
 	self:setFocus{}
 
-	self.remoteClient = ClientConn(self)
-	self.remoteClient:connect{
-		playerNames = self.playerNames,
+	self.remoteClient = ClientConn{
+		app = self,
+		playerInfos = self.playerInfos,
 		addr = assert(addr, "expected addr"),
 		port = port or Server.listenPort,
 		fail = function(...)
@@ -676,11 +694,12 @@ function App:update()
 	-- - listen for new connections
 	-- - if remoteClient is active (we're connected to a server) then update it
 	if self.server then
+		-- listen for new connections
 		self.server:update()
 	end
-	if self.remoteClient then
-		self.remoteClient:update()
-	end
+
+	-- update threadpool, be it clients or servers
+	self.threads:update()
 
 	local thisTime = getTime()
 
