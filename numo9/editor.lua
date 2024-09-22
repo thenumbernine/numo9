@@ -19,7 +19,7 @@ local editModes = {
 	'code',
 	'sprites',
 	'tilemap',
-	'fx',
+	'sfx',
 	'music',
 }
 
@@ -27,6 +27,8 @@ local editFieldForMode = {
 	code = 'editCode',
 	sprites = 'editSprites',
 	tilemap = 'editTilemap',
+	sfx = 'editSFX',
+	music = 'editMusic',
 }
 
 
@@ -121,7 +123,7 @@ function Editor:guiRadio(x, y, options, selected, cb)
 		) then
 			cb(name)
 		end
-		x = x + 8
+		x = x + 6
 	end
 end
 
@@ -129,7 +131,6 @@ function Editor:update()
 	local app = self.app
 
 	app:clearScreen(0xf0)
-
 	app:drawSolidRect(
 		0, 0,	-- x,y,
 		frameBufferSize.x, spriteSize.y,	-- w, h,
@@ -150,7 +151,7 @@ function Editor:update()
 	local titlebar = '  '..app.editMode
 	self:drawText(
 		titlebar,
-		#editModes * spriteSize.x,
+		#editModes*6,
 		0,
 		12,
 		-1

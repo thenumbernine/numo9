@@ -67,6 +67,11 @@ There are a few matrix functions that you can use to manipulate the render state
 I'm storing these values in RAM, however there's no good way to modify them just yet.
 I'm tempted to use 8.8 fixed precision just like the SNES did ...
 
+### Audio
+
+I might undercut SNES quality when it comes to audio.
+Not only am I not much of a retro audio programmer, but the SNES happened to be an exceptional audio hardware console of its time.
+
 ### Memory Layout
 
 ```
@@ -279,8 +284,13 @@ Pico8 Compatability is at 90%
 - https://snes.nesdev.org/wiki/Tilemaps
 - https://www.raphnet.net/divers/retro_challenge_2019_03/qsnesdoc.html
 - https://www.coranac.com/tonc/text/hardware.htm
+- https://bumbershootsoft.wordpress.com/2023/11/18/snes-digital-audio-playback/
+- https://snes.nesdev.org/wiki/BRR_samples
+- https://snes.nesdev.org/wiki/DSP_envelopes
 
 # TODO
 - sfx and music
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.
+- multiplayer
+- decouple editor from the fantasy-hardware so that multiplayer clients can play the game unhindered while the server edits it.

@@ -28,6 +28,7 @@ local sdl = require 'sdl'
 local gl = require 'gl'
 local GLApp = require 'glapp'
 local GLTex2D = require 'gl.tex2d'
+local ThreadManager = require 'threadmanager'
 
 local ROM = require 'numo9.rom'.ROM	-- define RAM, ROM, etc
 local RAM = require 'numo9.rom'.RAM
@@ -91,21 +92,21 @@ App.title = 'NuMo9'
 App.width = 720
 App.height = 512
 
-local spriteSheetAddr = ffi.offsetof('ROM', 'spriteSheet')
-local spriteSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].spriteSheet[0])
-local spriteSheetAddrEnd = spriteSheetAddr + spriteSheetInBytes
-local tileSheetAddr = ffi.offsetof('ROM', 'tileSheet')
-local tileSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].tileSheet[0])
-local tileSheetAddrEnd = tileSheetAddr + tileSheetInBytes
-local tilemapAddr = ffi.offsetof('ROM', 'tilemap')
-local tilemapInBytes = tilemapSize:volume() * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].tilemap[0])
-local tilemapAddrEnd = tilemapAddr + tilemapInBytes
-local paletteAddr = ffi.offsetof('ROM', 'palette')
-local paletteInBytes = paletteSize * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].palette[0])
-local paletteAddrEnd = paletteAddr + paletteInBytes
-local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
-local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
-local framebufferAddrEnd = framebufferAddr + framebufferInBytes
+local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
+local spriteSheetInBytes = require 'numo9.rom'.spriteSheetInBytes
+local spriteSheetAddrEnd = require 'numo9.rom'.spriteSheetAddrEnd
+local tileSheetAddr = require 'numo9.rom'.tileSheetAddr
+local tileSheetInBytes = require 'numo9.rom'.tileSheetInBytes
+local tileSheetAddrEnd = require 'numo9.rom'.tileSheetAddrEnd
+local tilemapAddr = require 'numo9.rom'.tilemapAddr
+local tilemapInBytes = require 'numo9.rom'.tilemapInBytes
+local tilemapAddrEnd = require 'numo9.rom'.tilemapAddrEnd
+local paletteAddr = require 'numo9.rom'.paletteAddr
+local paletteInBytes = require 'numo9.rom'.paletteInBytes
+local paletteAddrEnd = require 'numo9.rom'.paletteAddrEnd
+local framebufferAddr = require 'numo9.rom'.framebufferAddr
+local framebufferInBytes = require 'numo9.rom'.framebufferInBytes
+local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
 
 for k,v in pairs(require 'numo9.draw'.AppDraw) do
 	App[k] = v
@@ -148,6 +149,7 @@ end
 function App:postUpdate() end
 
 function App:initGL()
+
 	--[[ getting single-buffer to work
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
@@ -242,6 +244,9 @@ function App:initGL()
 		load = function(...) return self:load(...) end,
 		reset = function(...) return self:resetROM(...) end,
 		quit = function(...) self:requestExit() end,
+
+		listen = function(...) return self:listen(...) end,
+		connect = function(...) return self:connect(...) end,
 
 		-- timer
 		time = function()
@@ -538,6 +543,8 @@ print('package.loaded', package.loaded)
 	local EditCode = require 'numo9.editcode'
 	local EditSprites = require 'numo9.editsprites'
 	local EditTilemap = require 'numo9.edittilemap'
+	local EditSFX = require 'numo9.editsfx'
+	local EditMusic = require 'numo9.editmusic'
 	local Console = require 'numo9.console'
 
 	self:runInEmu(function()
@@ -545,10 +552,15 @@ print('package.loaded', package.loaded)
 		self.editCode = EditCode{app=self}
 		self.editSprites = EditSprites{app=self}
 		self.editTilemap = EditTilemap{app=self}
+		self.editSFX = EditSFX{app=self}
+		self.editMusic = EditMusic{app=self}
 		self.con = Console{app=self}
 	end)
 
 	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
+		
+	-- TODO use this for setFocus as well, so you don't have to call resume so often?
+	self.threads = ThreadManager()
 
 	self:setFocus{
 		thread = coroutine.create(function()
@@ -569,13 +581,19 @@ print('package.loaded', package.loaded)
 			self.con.fgColor = 0xfc			-- 11 = bg, 12 = fg
 			self.con.bgColor = 0xf0
 
-			self.con:print('loading', cmdline[1] or 'hello.n9')
-			self:load(cmdline[1] or 'hello.n9')
-			self:runROM()
+			if cmdline.initCmd then
+				self:runCmd(cmdline.initCmd)
+			end
+
+			if cmdline[1] then
+				self:load(cmdline[1])
+				self:runROM()
+			end
 		end),
 	}
 end
 
+-- convert to/from our fixed-point storage in RAM and the float matrix that the matrix library uses
 function App:mvMatToRAM()
 	for i=0,15 do
 		self.ram.mvMat[i] = self.mvMat.ptr[i] * mvMatScale
@@ -608,8 +626,61 @@ function App:resize()
 	needDrawCounter = 2
 end
 
+
+local Server = require 'numo9.net'.Server
+local ClientConn = require 'numo9.net'.ClientConn
+-- server listen
+function App:listen()
+	if self.server then
+		-- TODO make sure to close socket or expect a 'port already in use' error
+	end
+
+	-- listens upon init
+	self.server = Server(self)
+end
+
+App.playerNames = {'a', 'b', 'c', 'd'}	-- TODO config file
+
+-- client connect
+function App:connect(addr, port)
+	-- TODO defaults on 'connect'?  store it in config as well?
+
+	-- clear set run focus before connecting so the connection's initial update of the framebuffer etc wont get dirtied by a loseFocus() from the last runFocus
+	self:setFocus{}
+
+	self.remoteClient = ClientConn(self)
+	self.remoteClient:connect{
+		playerNames = self.playerNames,
+		addr = assert(addr, "expected addr"),
+		port = port or Server.listenPort,
+		fail = function(...)
+			print('connect fail', ...)
+		end,
+		success = function(...)
+			print('connect success', ...)
+		end,
+	}
+	
+	-- and now that we've hopefully recieved the initial RAM state ...
+	-- ... set the focus to the remoteClient so that its thread can handle net updates (and con won't)
+	-- TODO what happens if a remote client pushes escape to exit to its own console?  the game will go out of sync ...
+	-- how about (for now) ESC = kill connection ... sounds dramatic ... but meh?
+	self:setFocus(self.remoteClient)
+end
+
 function App:update()
 	App.super.update(self)
+
+	-- TODO if server is running then update it
+	-- - send deltas to current connections
+	-- - listen for new connections
+	-- - if remoteClient is active (we're connected to a server) then update it
+	if self.server then
+		self.server:update()
+	end
+	if self.remoteClient then
+		self.remoteClient:update()
+	end
 
 	local thisTime = getTime()
 
@@ -868,6 +939,7 @@ function App:poke(addr, value)
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
 	if addr >= spriteSheetAddr and addr < spriteSheetAddrEnd then
+		-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
 		self.spriteTex.dirtyCPU = true
 	end
 	if addr >= tileSheetAddr and addr < tileSheetAddrEnd then
@@ -1303,6 +1375,7 @@ TODO maybe ... have the editor modify the cartridge copy as well
 --]]
 function App:load(filename)
 	filename = filename or defaultSaveFilename
+	self.con:print('loading', filename)
 	local basemsg = 'failed to load file '..tostring(filename)
 
 	local f
@@ -1339,7 +1412,7 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
-	--[[
+	--[[ update later ...
 	self.spriteTex:checkDirtyGPU()
 	self.tileTex:checkDirtyGPU()
 	self.mapTex:checkDirtyGPU()
@@ -1347,7 +1420,7 @@ function App:resetROM()
 	self.fbTex:checkDirtyGPU()
 	--]]
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
-	-- [[ TODO more dirty flags
+	-- [[ update now ...
 	self.spriteTex:bind()
 		:subimage()
 		:unbind()
@@ -1365,7 +1438,7 @@ function App:resetROM()
 		:unbind()
 	self.palTex.dirtyCPU = false
 	--]]
-	--[[
+	--[[ update later ...
 	self.spriteTex.dirtyCPU = true
 	self.tileTex.dirtyCPU = true
 	self.mapTex.dirtyCPU = true
@@ -1398,7 +1471,12 @@ function App:runCmd(cmd)
 		self.env,
 		'con'
 	))())
-	print('RESULT', result:unpack())
+	-- print without newline ...
+	for i=1,result.n do
+		if i>1 then self.con:write'\t' end
+		self.con:write(tostring(result[i]))
+	end
+	print(result:unpack())
 	--assert(result:unpack())
 	return result:unpack()
 	--]]

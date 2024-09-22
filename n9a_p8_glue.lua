@@ -71,10 +71,10 @@ if pal then trace"TODO pal(from,to,pal)" end
 		to=math.floor(to)
 		if from>=0 and from<16 and to>=0 and to<16 then
 			--[[ preserve transparency?
-			pokew(palMem+(to<<1),(peekw(palMem+32+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
+			pokew(palMem+(to<<1),(peekw(palMem+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
 			--]]
 			-- [[
-			pokew(palMem+(to<<1),peekw(palMem+32+(from<<1)))
+			pokew(palMem+(to<<1),peekw(palMem+(from<<1)))
 			--]]
 		end
 	elseif type(from)=='table' then
@@ -85,10 +85,10 @@ if pal then trace"TODO pal(map,pal)" end
 			to=math.floor(to)
 			if from>=0 and from<16 and to>=0 and to<16 then
 				--[[ preserve transparency?
-				pokew(palMem+(to<<1),(peekw(palMem+32+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
+				pokew(palMem+(to<<1),(peekw(palMem+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
 				--]]
 				-- [[
-				pokew(palMem+(to<<1),peekw(palMem+32+(from<<1)))
+				pokew(palMem+(to<<1),peekw(palMem+(from<<1)))
 				--]]
 			end
 		end

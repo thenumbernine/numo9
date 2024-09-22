@@ -126,6 +126,22 @@ local RAM = struct{
 	},
 }
 
+local spriteSheetAddr = ffi.offsetof('ROM', 'spriteSheet')
+local spriteSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].spriteSheet[0])
+local spriteSheetAddrEnd = spriteSheetAddr + spriteSheetInBytes
+local tileSheetAddr = ffi.offsetof('ROM', 'tileSheet')
+local tileSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].tileSheet[0])
+local tileSheetAddrEnd = tileSheetAddr + tileSheetInBytes
+local tilemapAddr = ffi.offsetof('ROM', 'tilemap')
+local tilemapInBytes = tilemapSize:volume() * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].tilemap[0])
+local tilemapAddrEnd = tilemapAddr + tilemapInBytes
+local paletteAddr = ffi.offsetof('ROM', 'palette')
+local paletteInBytes = paletteSize * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].palette[0])
+local paletteAddrEnd = paletteAddr + paletteInBytes
+local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
+local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
+local framebufferAddrEnd = framebufferAddr + framebufferInBytes
+
 
 return {
 	paletteSize = paletteSize,
@@ -144,4 +160,20 @@ return {
 	keyCount = keyCount,
 	ROM = ROM,
 	RAM = RAM,
+
+	spriteSheetAddr = spriteSheetAddr,
+	spriteSheetInBytes = spriteSheetInBytes,
+	spriteSheetAddrEnd = spriteSheetAddrEnd,
+	tileSheetAddr = tileSheetAddr,
+	tileSheetInBytes = tileSheetInBytes,
+	tileSheetAddrEnd = tileSheetAddrEnd,
+	tilemapAddr = tilemapAddr,
+	tilemapInBytes = tilemapInBytes,
+	tilemapAddrEnd = tilemapAddrEnd,
+	paletteAddr = paletteAddr,
+	paletteInBytes = paletteInBytes,
+	paletteAddrEnd = paletteAddrEnd,
+	framebufferAddr = framebufferAddr,
+	framebufferInBytes = framebufferInBytes,
+	framebufferAddrEnd = framebufferAddrEnd,
 }
