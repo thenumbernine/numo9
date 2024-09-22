@@ -145,6 +145,9 @@ function Console:write(...)
 end
 
 function Console:print(...)
+	-- double it to the app terminal
+	print(...)
+
 	for i=1,select('#', ...) do
 		if i > 1 then self:write'\t' end
 		self:write(tostring(select(i, ...)))
