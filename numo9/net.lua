@@ -252,11 +252,69 @@ function Server:init(app)
 	
 what all do we want to store?
 in terms of App functions, not API functions ...
-peek & poke to important memory ... oh yeah, including clip rect and matrix ...
+peek & poke to all the memory regions that we've sync'd upon init ...
 
+print
+... and 
+TODO console cursor location ... if we're exposing print() then we should also put the cursor position in RAM and sync it between client and server too
+
+mset x:uint8 y:uint8 value:uint16
+cls
+cls colorIndex:uint8
+clip
+clip x:uint8 y:uint8 w:uint8 h:uint8
+matident
+mattrans x:double y:double z:double
+matrot theta:double x:double y:double z:double
+matscale x:double y:double z:double
+matortho l:double r:double t:double b:double n:double f:double
+matfrustum l:double r:double t:double b:double n:double f:double
+matlookat ... double[9]
+rect, rectb, elli, ellib <-> drawSolidQuad
+line <-> drawSolidLine
+spr <-> drawSprite
+quad <-> drawQuad
+map <-> drawMap
+text <-> drawText
 	--]]
-	self.cmdhistory = table()
+	local vector = require 'ffi.cpp.vector-lua'
+	
+
+	--[[
+	how much info to reproduce the last few seconds?
+	lets say avg cmd is 8 args ...
+	x double is 8 bytes 
+	x 60 fps
+	x 10 seconds
+	= 38400 bytes, not so bad
+	--]]
+	self.cmdHistory = vector('double', 4800)
+	self.cmdHistoryIndex = 0	-- round-robin
 end
+
+local netcmds = {
+	cls = 0,
+	clip = 1,
+	rect = 2,
+	rectb = 3,
+	elli = 4,
+	ellib = 5,
+	line = 6,
+	spr = 7,
+	quad = 8,
+}
+
+function Server:addCmd(...)
+	for i=1,select('#', ...) do
+		self.cmdHistory.v[self.cmdHistoryIndex] = select(i, ...)
+		self.cmdHistoryIndex = self.cmdHistoryIndex + 1
+		if self.cmdHistoryIndex > self.cmdHistory.size then
+			print'server buffer full!'
+		end
+		self.cmdHistoryIndex = self.cmdHistoryIndex % self.cmdHistory.size
+	end
+end
+
 
 function Server:close()
 	if self.socket then
@@ -581,4 +639,5 @@ ClientConn.__gc = ClientConn.close
 return {
 	Server = Server,
 	ClientConn = ClientConn,
+	netcmds = netcmds,
 }
