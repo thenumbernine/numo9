@@ -262,15 +262,20 @@ glreport'here'
 		-- if someone is about to write to one then it shoudl test the other and flush it if it's dirty, then set the one
 		assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
 		local fb = app.fb
-		app.fb:unbind()
+		if app.inUpdateCallback then
+			app.fb:unbind()
+		end
 		self:bind()
 			:subimage()
 			:unbind()
-		app.fb:bind()
+		if app.inUpdateCallback then
+			app.fb:bind()
+		end
 		self.dirtyCPU = false
 	end
 	function tex:checkDirtyGPU()
 		if not self.dirtyGPU then return end
+print'GPU->CPU'
 		assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
 		gl.glReadPixels(0, 0, self.width, self.height, self.format, self.type, self.image.buffer)
 		self.dirtyGPU = false
@@ -557,7 +562,7 @@ void main() {
 			mvProjMat = self.blitScreenView.mvProjMat.ptr,
 		},
 	}
-	
+
 	-- used for drawing our 8bpp indexed framebuffer to the screen
 	self.blitScreenIndexObj = GLSceneObject{
 		program = {
@@ -1019,10 +1024,10 @@ void main() {
 		--]]
 		-- [[ gradient
 		image = Image(4,4,3,'unsigned char', {
-			0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 0xff,0xff,0xff, 
-			0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 0xff,0xff,0xff, 0xf0,0xf0,0xf0, 
-			0xfe,0xfe,0xfe, 0xff,0xff,0xff, 0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 
-			0xff,0xff,0xff, 0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 
+			0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 0xff,0xff,0xff,
+			0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 0xff,0xff,0xff, 0xf0,0xf0,0xf0,
+			0xfe,0xfe,0xfe, 0xff,0xff,0xff, 0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd,
+			0xff,0xff,0xff, 0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe,
 		}),
 		--]]
 	}:unbind()
@@ -1052,7 +1057,7 @@ function AppDraw:setVideoMode(mode)
 		self.quadSpriteObj = self.quadSpriteIndexObj
 		self.quadMapObj = self.quadMapIndexObj
 		-- TODO and we need to change each shaders output from 565 RGB to Indexed also ...
-		-- ... we have to defer the palette baking 
+		-- ... we have to defer the palette baking
 	else
 		error("unknown video mode "..tostring(mode))
 	end

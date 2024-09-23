@@ -558,7 +558,7 @@ print('package.loaded', package.loaded)
 	end)
 
 	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
-		
+
 	-- TODO use this for setFocus as well, so you don't have to call resume so often?
 	self.threads = ThreadManager()
 
@@ -678,7 +678,7 @@ function App:connect(addr, port)
 			print('connect success', ...)
 		end,
 	}
-	
+
 	-- and now that we've hopefully recieved the initial RAM state ...
 	-- ... set the focus to the remoteClient so that its thread can handle net updates (and con won't)
 	-- TODO what happens if a remote client pushes escape to exit to its own console?  the game will go out of sync ...
@@ -760,6 +760,9 @@ function App:update()
 				self.ram.lastMousePressPos:set(self.ram.mousePos:unpack())
 			end
 		end
+
+		-- flush any cpu changes to gpu before drawing
+		self.fbTex:checkDirtyCPU()
 
 		local fb = self.fb
 		fb:bind()
