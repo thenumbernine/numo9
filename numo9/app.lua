@@ -544,7 +544,7 @@ function App:initGL()
 				local cmd = self.server:getNextCmd().matscale
 				cmd.type = netcmds.matscale
 				cmd.x, cmd.y, cmd.z = x, y, z
-			end	
+			end
 			self:mvMatFromRAM()
 			self.mvMat:applyScale(x, y, z)
 			self:mvMatToRAM()
@@ -566,7 +566,7 @@ function App:initGL()
 				local cmd = self.server:getNextCmd().matfrustum
 				cmd.type = netcmds.matfrustum
 				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
-			end		
+			end
 			self:mvMatFromRAM()
 			self.mvMat:applyFrustum(l, r, t, b, n, f)
 			self:mvMatToRAM()
@@ -902,16 +902,7 @@ end
 function App:update()
 	App.super.update(self)
 
-	-- TODO if server is running then update it
-	-- - send deltas to current connections
-	-- - listen for new connections
-	-- - if remoteClient is active (we're connected to a server) then update it
-	if self.server then
-		-- listen for new connections
-		self.server:update()
-	end
-
-	-- update threadpool, be it clients or servers
+	-- update threadpool, clients or servers
 	self.threads:update()
 
 	local thisTime = getTime()
