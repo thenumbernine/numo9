@@ -13,6 +13,7 @@ local asserttype = require 'ext.assert'.type
 local assertlen = require 'ext.assert'.len
 local assertne = require 'ext.assert'.ne
 local getTime = require 'ext.timer'.getTime
+local vector = require 'ffi.cpp.vector-lua'
 
 local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
 local spriteSheetInBytes = require 'numo9.rom'.spriteSheetInBytes
@@ -122,7 +123,7 @@ TODO what to do
 
 -- have the caller wait while we recieve a message
 function receive(conn, amount, waitduration)
---print('receive waiting for', amount)
+--if amount then print('receive waiting for', amount) end
 	local endtime = getTime() + (waitduration or math.huge)
 	local data
 	local isnumber = type(amount) == 'number'
@@ -134,13 +135,14 @@ function receive(conn, amount, waitduration)
 		data, reason = conn:receive(amount or '*l')
 		--]]
 		-- [[
-		local results = table.pack(conn:receive(isnumber and math.max(bytesleft, maxPacketSize) or '*l'))
+		local results = table.pack(conn:receive(
+			isnumber and math.min(bytesleft, maxPacketSize) or '*l'
+		))
 --DEBUG:print('got', results:unpack())
 		data, reason = results:unpack()
 		if data and #data > 0 then
-print('got', #data, 'bytes')
+--print('got', #data, 'bytes')
 			if isnumber then
-
 				sofar = (sofar or '') .. data
 				bytesleft = bytesleft - #data
 				data = nil
@@ -149,15 +151,14 @@ print('got', #data, 'bytes')
 					break
 				end
 				if bytesleft < 0 then error("how did we get here?") end
-print('...got packet of partial message')
+--print('...got packet of partial message')
 			else
 				-- no upper bound -- assume it's a line term
 				break
 			end
-		end
+		else
 		--]]
 --DEBUG:print('data len', type(data)=='string' and #data or nil)
-		if not data then
 			if reason == 'wantread' then
 --DEBUG:print('got wantread, calling select...')
 				socket.select(nil, {conn})
@@ -436,8 +437,6 @@ quad <-> drawQuad
 map <-> drawMap
 text <-> drawText
 	--]]
-	local vector = require 'ffi.cpp.vector-lua'
-
 
 	--[[
 	how much info to reproduce the last few seconds?
@@ -449,6 +448,8 @@ text <-> drawText
 	--]]
 	self.cmdHistory = vector('Numo9Cmd', 60000)
 	self.cmdHistoryIndex = 0	-- round-robin
+
+	app.threads:add(self.updateCoroutine, self)
 end
 
 function Server:getNextCmd()
@@ -470,51 +471,57 @@ function Server:close()
 end
 Server.__gc = Server.close
 
-function Server:update()
+function Server:updateCoroutine()
 	local app = self.app
 
-	-- listen for new connections
-	local client = self.socket:accept()
-	if client then
-		app.threads:add(self.remoteClientCoroutine, self, client)
-	end
+	while self.socket
+	and self.socket:getsockname()
+	do
+		coroutine.yield()
 
-	-- now handle connections
-	for i=#self.serverConns,1,-1 do
-		local serverConn = self.serverConns[i]
-		if not serverConn:isActive() then
-			self.serverConns:remove(i)
-		else
-			--[[
-			send deltas to players
-			that means server keeps a buffer of deltas that's so long
-			and a head for each connected client of where in the buffer it is at
-			and every update() here, the client sends out the new updates
-			TODO what to send to the players ...
-			- poke()s into our selective audio/video locations in memory
-			- spr()s and map()s drawn since the last update
-			- sfx() and musics() played since the last update
-			--]]
---asserttype(serverConn.cmdHistoryIndex, 'number')
-			while serverConn.cmdHistoryIndex ~= self.cmdHistoryIndex do
---print('self.cmdHistory.v', self.cmdHistory.v)
---print('serverConn.cmdHistoryIndex', serverConn.cmdHistoryIndex)
-				local cmd = self.cmdHistory.v + serverConn.cmdHistoryIndex
-				-- send cmd to conn
-				send(serverConn.socket, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
-				-- TODO is there a way to send without string-ifying it?
-				-- TODO maybe just use sock instead of luasocket ...
-				-- inc buf
-				serverConn.cmdHistoryIndex = (serverConn.cmdHistoryIndex + 1) % self.cmdHistory.size
+		-- listen for new connections
+		local client = self.socket:accept()
+		if client then
+			app.threads:add(self.connectRemoteCoroutine, self, client)
+		end
+
+		-- now handle connections
+		for i=#self.serverConns,1,-1 do
+			local serverConn = self.serverConns[i]
+			if not serverConn:isActive() then
+				self.serverConns:remove(i)
+			else
+				--[[
+				send deltas to players
+				that means server keeps a buffer of deltas that's so long
+				and a head for each connected client of where in the buffer it is at
+				and every update() here, the client sends out the new updates
+				TODO what to send to the players ...
+				- poke()s into our selective audio/video locations in memory
+				- spr()s and map()s drawn since the last update
+				- sfx() and musics() played since the last update
+				--]]
+	--asserttype(serverConn.cmdHistoryIndex, 'number')
+				while serverConn.cmdHistoryIndex ~= self.cmdHistoryIndex do
+	--print('self.cmdHistory.v', self.cmdHistory.v)
+	--print('serverConn.cmdHistoryIndex', serverConn.cmdHistoryIndex)
+					local cmd = self.cmdHistory.v + serverConn.cmdHistoryIndex
+					-- send cmd to conn
+					send(serverConn.socket, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
+					-- TODO is there a way to send without string-ifying it?
+					-- TODO maybe just use sock instead of luasocket ...
+					-- inc buf
+					serverConn.cmdHistoryIndex = (serverConn.cmdHistoryIndex + 1) % self.cmdHistory.size
+				end
 			end
 		end
 	end
 end
 
 -- create a remote connection
-function Server:remoteClientCoroutine(sock)
+function Server:connectRemoteCoroutine(sock)
 	local app = assert(self.app)
-	print('Server got connection -- starting new remoteClientCoroutine')
+	print('Server got connection -- starting new connectRemoteCoroutine')
 
 	sock:setoption('keepalive', true)
 	sock:settimeout(0, 'b')	-- for the benefit of coroutines ...
@@ -692,6 +699,7 @@ print'sending player info'
 	end
 	assert(send(sock, msg:concat' '..'\n'))
 
+-- TODO HOW COME IT SOMETIMES HANGS HERE
 print'waiting for initial RAM state...'
 	-- now expect the initial server state
 
@@ -761,7 +769,7 @@ print'entering client listen loop...'
 		coroutine.yield()
 --print'LISTENING...'
 		local reason
-		data, reason = receive(sock, nil, 0)
+		data, reason = receive(sock, ffi.sizeof'Numo9Cmd', 0)
 --print('client got', data, reason)
 		if not data then
 			if reason ~= 'timeout' then
@@ -770,82 +778,76 @@ print'entering client listen loop...'
 				-- TODO - die and go back to connection screen ... wherever that will be
 			end
 		else
-print('client got data', data, reason)
+--print('client got data', data, reason)
 			assertlen(data, ffi.sizeof'Numo9Cmd')
 			ffi.copy(cmd, data, ffi.sizeof'Numo9Cmd')
-			if cmd.base.type == netcmds.clearScreen then
-				app:clearScreen(cmd.clearScreen.colorIndex)
-			elseif cmd.base.type == netcmds.clipRect then
-				app:setClipRect(cmd.clipRect.x, cmd.clipRect.y, cmd.clipRect.w, cmd.clipRect.h)
-			elseif cmd.base.type == netcmds.solidRect then
-				app:drawSolidRect(cmd.solidRect.x, cmd.solidRect.y, cmd.solidRect.w, cmd.solidRect.h, cmd.solidRect.colorIndex, cmd.solidRect.borderOnly, cmd.solidRect.round)
-			elseif cmd.base.type == netcmds.solidLine then
-				app:drawSolidLine(cmd.solidLine.x1, cmd.solidLine.y1, cmd.solidLine.x2, cmd.solidLine.y2, cmd.solidLine.colorIndex)
-			elseif cmd.base.type == netcmds.quad then
+			local base = cmd[0].base
+			if base.type == netcmds.clearScreen then
+				local c = cmd[0].clearScreen
+				app:clearScreen(c .colorIndex)
+			elseif base.type == netcmds.clipRect then
+				local c = cmd[0].clipRect
+				app:setClipRect(c.x, c.y, c.w, c.h)
+			elseif base.type == netcmds.solidRect then
+				local c = cmd[0].solidRect
+				app:drawSolidRect(c.x, c.y, c.w, c.h, c.colorIndex, c.borderOnly, c.round)
+			elseif base.type == netcmds.solidLine then
+				local c = cmd[0].solidLine
+				app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex)
+			elseif base.type == netcmds.quad then
+				local c = cmd[0].quad
 				app:drawQuad(
-					cmd.quad.x, cmd.quad.y, cmd.quad.w, cmd.quad.h,
-					cmd.quad.tx, cmd.quad.ty, cmd.quad.tw, cmd.quad.th,
-					cmd.quad.paletteIndex, cmd.quad.transparentIndex,
-					cmd.quad.spriteBit, cmd.quad.spriteMask)
-			elseif cmd.base.type == netcmds.map then
+					c.x, c.y, c.w, c.h,
+					c.tx, c.ty, c.tw, c.th,
+					app.spriteTex,
+					c.paletteIndex, c.transparentIndex,
+					c.spriteBit, c.spriteMask)
+			elseif base.type == netcmds.map then
+				local c = cmd[0].map
 				app:drawMap(
-					cmd.map.tileX, cmd.map.tileY, cmd.map.tilesWide, cmd.map.tilesHigh,
-					cmd.map.screenX, cmd.map.screenY,
-					cmd.map.mapIndexOffset,
-					cmd.map.draw16Sprites)
-			elseif cmd.base.type == netcmds.text then
+					c.tileX, c.tileY, c.tilesWide, c.tilesHigh,
+					c.screenX, c.screenY,
+					c.mapIndexOffset,
+					c.draw16Sprites)
+			elseif base.type == netcmds.text then
+				local c = cmd[0].text
 				app:drawText(
-					ffi.string(cmd.text.text, math.min(ffi.sizeof(cmd.text.text), ffi.C.strlen(cmd.text.text))),
-					cmd.text.x, cmd.text.y,
-					cmd.text.fgColorIndex, cmd.text.bgColorIndex)
-			elseif cmd.base.type == netcmds.matident then
+					ffi.string(c.text, math.min(ffi.sizeof(c.text), tonumber(ffi.C.strlen(c.text)))),
+					c.x, c.y,
+					c.fgColorIndex, c.bgColorIndex)
+			elseif base.type == netcmds.matident then
 				app:mvMatFromRAM()
 				app.mvMat:setIdent()
 				app:mvMatToRAM()
-			elseif cmd.base.type == netcmds.mattrans then
+			elseif base.type == netcmds.mattrans then
+				local c = cmd[0].mattrans
 				app:mvMatFromRAM()
-				app.mvMat:applyTranslate(cmd.mattrans.x, cmd.mattrans.y, cmd.mattrans.z)
+				app.mvMat:applyTranslate(c.x, c.y, c.z)
 				app:mvMatToRAM()
-			elseif cmd.base.type == netcmds.matrot then
+			elseif base.type == netcmds.matrot then
+				local c = cmd[0].matrot
 				app:mvMatFromRAM()
-				app.mvMat:applyRotate(cmd.matrot.theta, cmd.matrot.x, cmd.matrot.y, cmd.matrot.z)
+				app.mvMat:applyRotate(c.theta, c.x, c.y, c.z)
 				app:mvMatToRAM()
-			elseif cmd.base.type == netcmds.matscale then
+			elseif base.type == netcmds.matscale then
+				local c = cmd[0].matscale
 				app:mvMatFromRAM()
-				app.mvMat:applyScale(cmd.matscale.x, cmd.matscale.y, cmd.matscale.z)
+				app.mvMat:applyScale(c.x, c.y, c.z)
 				app:mvMatToRAM()
-			elseif cmd.base.type == netcmds.matortho then
+			elseif base.type == netcmds.matortho then
+				local c = cmd[0].matortho
 				app:mvMatFromRAM()
-				app.mvMat:applyOrtho(
-					cmd.matortho.l,
-					cmd.matortho.r,
-					cmd.matortho.t,
-					cmd.matortho.b,
-					cmd.matortho.n,
-					cmd.matortho.f)
+				app.mvMat:applyOrtho(c.l, c.r, c.t, c.b, c.n, c.f)
 				app:mvMatToRAM()
-			elseif cmd.base.type == netcmds.matfrustum then
+			elseif base.type == netcmds.matfrustum then
+				local c = cmd[0].matfrustum
 				app:mvMatFromRAM()
-				app.mvMat:applyFrustum(
-					cmd.matfrustum.l,
-					cmd.matfrustum.r,
-					cmd.matfrustum.t,
-					cmd.matfrustum.b,
-					cmd.matfrustum.n,
-					cmd.matfrustum.f)
+				app.mvMat:applyFrustum(c.l, c.r, c.t, c.b, c.n, c.f)
 				app:mvMatToRAM()
-			elseif cmd.base.type == netcmds.matlookat then
+			elseif base.type == netcmds.matlookat then
+				local c = cmd[0].matlookat
 				app:mvMatFromRAM()
-				app.mvMat:applyLookAt(
-					cmd.matlookat.ex,
-					cmd.matlookat.ey,
-					cmd.matlookat.ez,
-					cmd.matlookat.cx,
-					cmd.matlookat.cy,
-					cmd.matlookat.cz,
-					cmd.matlookat.upx,
-					cmd.matlookat.upy,
-					cmd.matlookat.upz)
+				app.mvMat:applyLookAt(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
 				app:mvMatToRAM()
 			end
 
