@@ -243,8 +243,16 @@ function App:initGL()
 		run = function(...) return self:runROM(...) end,
 		stop = function(...) return self:stop(...) end,
 		save = function(...) return self:save(...) end,
-		load = function(...) return self:load(...) end,
-		reset = function(...) return self:resetROM(...) end,
+		load = function(...)
+			if self.server then
+			end
+			return self:load(...)
+		end,
+		reset = function(...)
+			if self.server then
+			end
+			return self:resetROM(...)
+		end,
 		quit = function(...) self:requestExit() end,
 
 		listen = function(...) return self:listen(...) end,
@@ -300,8 +308,8 @@ function App:initGL()
 		cls = function(colorIndex)
 			colorIndex = colorIndex or 0
 			if self.server then
-				local cmd = self.server:getNextCmd()
-				cmd.type = netcmds.cls
+				local cmd = self.server:getNextCmd().clearScreen
+				cmd.type = netcmds.clearScreen
 				cmd.colorIndex = colorIndex
 			end
 			-- TODO store cursorPos here in App, in RAM even, and send it between net commands
@@ -318,8 +326,8 @@ function App:initGL()
 				x, y, w, h = ...
 			end
 			if self.server then
-				local cmd = self.server:getNextCmd()
-				cmd.type = netcmds.clip
+				local cmd = self.server:getNextCmd().clipRect
+				cmd.type = netcmds.clipRect
 				cmd.x = x
 				cmd.y = y
 				cmd.w = w
@@ -331,7 +339,7 @@ function App:initGL()
 		-- TODO tempting to just expose flags for ellipse & border to the 'cartridge' api itself ...
 		rect = function(x, y, w, h, colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd()
+				local cmd = self.server:getNextCmd().solidRect
 				cmd.type = netcmds.solidRect
 				cmd.x = x
 				cmd.y = y
@@ -345,7 +353,7 @@ function App:initGL()
 		end,
 		rectb = function(x, y, w, h, colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd()
+				local cmd = self.server:getNextCmd().solidRect
 				cmd.type = netcmds.solidRect
 				cmd.x = x
 				cmd.y = y
@@ -360,7 +368,7 @@ function App:initGL()
 		-- choosing tic80's api naming here.  but the rect api: width/height, not radA/radB
 		elli = function(x, y, w, h, colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd()
+				local cmd = self.server:getNextCmd().solidRect
 				cmd.type = netcmds.solidRect
 				cmd.x = x
 				cmd.y = y
@@ -374,7 +382,7 @@ function App:initGL()
 		end,
 		ellib = function(x, y, w, h, colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd()
+				local cmd = self.server:getNextCmd().solidRect
 				cmd.type = netcmds.solidRect
 				cmd.x = x
 				cmd.y = y
@@ -389,7 +397,7 @@ function App:initGL()
 
 		line = function(x1,y1,x2,y2,colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd()
+				local cmd = self.server:getNextCmd().solidLine
 				cmd.type = netcmds.solidLine
 				cmd.x1 = x1
 				cmd.y1 = y1
@@ -414,7 +422,12 @@ function App:initGL()
 				local tx = spriteIndex % spriteSheetSizeInTiles.x
 				local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
 
-				local cmd = self.server:getNextCmd()
+				paletteIndex = paletteIndex or 0
+				transparentIndex = transparentIndex or -1
+				spriteBit = spriteBit or 0
+				spriteMask = spriteMask or 0xFF
+
+				local cmd = self.server:getNextCmd().quad
 				cmd.type = netcmds.quad
 				cmd.x = screenX
 				cmd.y = screenY
@@ -435,7 +448,12 @@ function App:initGL()
 		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
 		quad = function(x, y, w, h, tx, ty, tw, th, paletteIndex, transparentIndex, spriteBit, spriteMask)
 			if self.server then
-				local cmd = self.server:getNextCmd()
+				paletteIndex = paletteIndex or 0
+				transparentIndex = transparentIndex or -1
+				spriteBit = spriteBit or 0
+				spriteMask = spriteMask or 0xFF
+
+				local cmd = self.server:getNextCmd().quad
 				cmd.type = netcmds.quad
 				cmd.x, cmd.y, cmd.w, cmd.h = x, y, w, h
 				cmd.tx, cmd.ty, cmd.tw, cmd.th = tx, ty, tw, th
@@ -451,7 +469,7 @@ function App:initGL()
 				tilesWide = tilesWide or 1
 				tilesHigh = tilesHigh or 1
 				mapIndexOffset = mapIndexOffset or 0
-				local cmd = self.server:getNextCmd()
+				local cmd = self.server:getNextCmd().map
 				cmd.type = netcmds.map
 				cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh = tileX, tileY, tilesWide, tilesHigh
 				cmd.screenX, cmd.screenY = screenX, screenY
@@ -462,7 +480,14 @@ function App:initGL()
 		end,
 		text = function(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 			if self.server then
-				local cmd = self.server:getNextCmd()
+				x = x or 0
+				y = y or 0
+				fgColorIndex = fgColorIndex or 13
+				bgColorIndex = bgColorIndex or 0
+				scaleX = scaleX or 1
+				scaleY = scaleY or 1
+
+				local cmd = self.server:getNextCmd().text
 				cmd.type = netcmds.text
 				cmd.x, cmd.y = x, y
 				cmd.fgColorIndex = fgColorIndex
@@ -472,6 +497,90 @@ function App:initGL()
 			end
 			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
+
+		-- me cheating and exposing opengl modelview matrix functions:
+		-- matident mattrans matrot matscale matortho matfrustum matlookat
+		-- matrix math because i'm cheating
+		matident = function()
+			if self.server then
+				local cmd = self.server:getNextCmd().matident
+				cmd.type = netcmds.matident
+			end
+			self:mvMatFromRAM()
+			self.mvMat:setIdent()
+			self:mvMatToRAM()
+		end,
+		mattrans = function(x, y, z)
+			x = x or 0
+			y = y or 0
+			z = z or 0
+			if self.server then
+				local cmd = self.server:getNextCmd().mattrans
+				cmd.type = netcmds.mattrans
+				cmd.x, cmd.y, cmd.z = x, y, z
+			end
+			self:mvMatFromRAM()
+			self.mvMat:applyTranslate(x, y, z)
+			self:mvMatToRAM()
+		end,
+		matrot = function(theta, x, y, z)
+			x = x or 0
+			y = y or 0
+			z = z or 1
+			if self.server then
+				local cmd = self.server:getNextCmd().matrot
+				cmd.type = netcmds.matrot
+				cmd.theta, cmd.x, cmd.y, cmd.z = theta, x, y, z
+			end
+			self:mvMatFromRAM()
+			self.mvMat:applyRotate(theta, x, y, z)
+			self:mvMatToRAM()
+		end,
+		matscale = function(x, y, z)
+			x = x or 1
+			y = y or 1
+			z = z or 1
+			if self.server then
+				local cmd = self.server:getNextCmd().matscale
+				cmd.type = netcmds.matscale
+				cmd.x, cmd.y, cmd.z = x, y, z
+			end	
+			self:mvMatFromRAM()
+			self.mvMat:applyScale(x, y, z)
+			self:mvMatToRAM()
+		end,
+		matortho = function(l, r, t, b, n, f)
+			n = n or -1000
+			f = f or 1000
+			if self.server then
+				local cmd = self.server:getNextCmd().matortho
+				cmd.type = netcmds.matortho
+				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
+			end
+			self:mvMatFromRAM()
+			self.mvMat:applyOrtho(l, r, t, b, n, f)
+			self:mvMatToRAM()
+		end,
+		matfrustum = function(l, r, t, b, n, f)
+			if self.server then
+				local cmd = self.server:getNextCmd().matfrustum
+				cmd.type = netcmds.matfrustum
+				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
+			end		
+			self:mvMatFromRAM()
+			self.mvMat:applyFrustum(l, r, t, b, n, f)
+			self:mvMatToRAM()
+		end,
+		matlookat = function(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+			if self.server then
+				local cmd = self.server:getNextCmd().matlookat
+				cmd.type = netcmds.matlookat
+				cmd.ex, cmd.ey, cmd.ez, cmd.cx, cmd.cy, cmd.cz, cmd.upx, cmd.upy, cmd.upz = ex, ey, ez, cx, cy, cz, upx, upy, upz
+			end
+			self:mvMatFromRAM()
+			self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+			self:mvMatToRAM()
+		end,
 
 		-- this just falls back to glapp saving the OpenGL draw buffer
 		screenshot = function() return self:screenshotToFile'ss.png' end,
@@ -608,44 +717,6 @@ print('package.cpath', package.cpath)
 print('package.loaded', package.loaded)
 --]]
 
-	-- me cheating and exposing opengl modelview matrix functions:
-	-- matident mattrans matrot matscale matortho matfrustum matlookat
-	-- matrix math because i'm cheating
-	self.env.matident = function(...)
-		self:mvMatFromRAM()
-		self.mvMat:setIdent(...)
-		self:mvMatToRAM()
-	end
-	self.env.mattrans = function(...)
-		self:mvMatFromRAM()
-		self.mvMat:applyTranslate(...)
-		self:mvMatToRAM()
-	end
-	self.env.matrot = function(...)
-		self:mvMatFromRAM()
-		self.mvMat:applyRotate(...)
-		self:mvMatToRAM()
-	end
-	self.env.matscale = function(...)
-		self:mvMatFromRAM()
-		self.mvMat:applyScale(...)
-		self:mvMatToRAM()
-	end
-	self.env.matortho = function(...)
-		self:mvMatFromRAM()
-		self.mvMat:applyOrtho(...)
-		self:mvMatToRAM()
-	end
-	self.env.matfrustum = function(...)
-		self:mvMatFromRAM()
-		self.mvMat:applyFrustum(...)
-		self:mvMatToRAM()
-	end
-	self.env.matlookat = function(...)
-		self:mvMatFromRAM()
-		self.mvMat:applyLookAt(...)
-		self:mvMatToRAM()
-	end
 
 	self:initDraw()
 
@@ -1282,7 +1353,9 @@ function App:drawQuad(
 	spriteBit,
 	spriteMask
 )
-	tex:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
+	if tex.checkDirtyCPU then	-- some editor textures are separate of the 'hardware' and don't possess this
+		tex:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
+	end
 	self.palTex:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	self.fbTex:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 
