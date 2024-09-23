@@ -1,6 +1,8 @@
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
 
+require 'ffi.req' 'c.string'	-- strlen
+
 local socket = require 'socket'
 local class = require 'ext.class'
 local table = require 'ext.table'
@@ -35,10 +37,10 @@ local mvMatInBytes = require 'numo9.rom'.mvMatInBytes
 local mvMatAddrEnd = require 'numo9.rom'.mvMatAddrEnd
 
 
-local initMsgSize = spriteSheetInBytes 
-	+ tileSheetInBytes 
-	+ tilemapInBytes 
-	+ paletteInBytes 
+local initMsgSize = spriteSheetInBytes
+	+ tileSheetInBytes
+	+ tilemapInBytes
+	+ paletteInBytes
 	+ framebufferInBytes
 	+ clipRectInBytes
 	+ mvMatInBytes
@@ -137,16 +139,17 @@ function receive(conn, amount, waitduration)
 		data, reason = results:unpack()
 		if data and #data > 0 then
 print('got', #data, 'bytes')
-			if isnumber then 
-				
+			if isnumber then
+
 				sofar = (sofar or '') .. data
 				bytesleft = bytesleft - #data
 				data = nil
-				if bytesleft == 0 then 
+				if bytesleft == 0 then
 					data = sofar
 					break
 				end
 				if bytesleft < 0 then error("how did we get here?") end
+print('...got packet of partial message')
 			else
 				-- no upper bound -- assume it's a line term
 				break
@@ -182,6 +185,91 @@ function mustReceive(...)
 end
 
 
+-- mayb I'll do like SDL does ...
+local netcmdNames = table{
+	'cls',
+	'clip',
+	'solidRect',
+	'solidLine',
+	'quad',
+	'map',
+	'text',
+}
+local netcmds = netcmdNames:mapi(function(name, index) return index, name end):setmetatable(nil)
+
+ffi.cdef[[
+typedef struct Numo9Cmd_base {
+	int type;
+} Numo9Cmd_base;
+
+typedef struct Numo9Cmd_cls {
+	int type;
+	uint8_t colorIndex;
+} Numo9Cmd_cls;
+
+typedef struct Numo9Cmd_clip {
+	int type;
+	uint8_t x, y, w, h;
+} Numo9Cmd_clip;
+
+typedef struct Numo9Cmd_solidRect {
+	int type;
+	float x, y, w, h;
+	uint8_t colorIndex;
+	bool borderOnly;
+	bool round;
+} Numo9Cmd_solidRect;
+
+typedef struct Numo9Cmd_solidLine {
+	int type;
+	float x1, y1, x2, y2;
+	uint8_t colorIndex;
+} Numo9Cmd_solidLine;
+
+typedef struct Numo9Cmd_quad {
+	int type;
+	float x, y, w, h;
+	float tx, ty, tw, th;
+	uint8_t paletteIndex;
+	int16_t transparentIndex;
+	uint8_t spriteBit;			// just needs 3 bits ...
+	uint8_t spriteMask;			// the shader accepts 8 bits, but usually all 1s, so ... I could do this in 3 bits too ...
+} Numo9Cmd_quad;
+
+typedef struct Numo9Cmd_map {
+	int type;
+	float tileX, tileY;
+	float tilesWide, tilesHigh;
+	float screenX, screenY;
+	int mapIndexOffset;
+	bool draw16Sprites;
+} Numo9Cmd_map;
+
+typedef struct Numo9Cmd_text {
+	int type;
+	float x, y;
+	int16_t fgColorIndex, bgColorIndex;
+	float scaleX, scaleY;
+	char text[20];
+} Numo9Cmd_text;	// TODO if text is larger than this then issue multiple commands or something
+
+typedef union Numo9Cmd {
+	Numo9Cmd_base base;
+	Numo9Cmd_cls clearScreen;
+	Numo9Cmd_clip clip;
+	Numo9Cmd_solidRect solidRect;
+	Numo9Cmd_solidLine solidLine;
+	Numo9Cmd_quad quad;
+	Numo9Cmd_map map;
+} Numo9Cmd;
+]]
+
+--[[
+for _,name in ipairs(netcmdNames) do
+	local ctype = 'Numo9Cmd_'..name
+	print('netcmd', name, ctype, ffi.sizeof(ctype))
+end
+--]]
 
 local handshakeClientSends = 'litagano'
 local handshakeServerSends = 'motscoud'
@@ -197,6 +285,7 @@ function RemoteServerConn:init(args)
 	self.socket = assertindex(args, 'socket')
 	self.playerInfos = assertindex(args, 'playerInfos')
 	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
+	self.cmdHistoryIndex  = asserttype(assertindex(args, 'cmdHistoryIndex'), 'number')
 end
 
 function RemoteServerConn:isActive()
@@ -249,13 +338,13 @@ function Server:init(app)
 	ok now I need to store a list of any commands that modify the audio/visual state
 	directory or indirectly (fb writes, gpu writes, mem pokes to spritesheet, to map, etc)
 	and how to store this efficiently ...
-	
+
 what all do we want to store?
 in terms of App functions, not API functions ...
 peek & poke to all the memory regions that we've sync'd upon init ...
 
 print
-... and 
+... and
 TODO console cursor location ... if we're exposing print() then we should also put the cursor position in RAM and sync it between client and server too
 
 mset x:uint8 y:uint8 value:uint16
@@ -278,41 +367,29 @@ map <-> drawMap
 text <-> drawText
 	--]]
 	local vector = require 'ffi.cpp.vector-lua'
-	
+
 
 	--[[
 	how much info to reproduce the last few seconds?
-	lets say avg cmd is 8 args ...
-	x double is 8 bytes 
+	lets say
 	x 60 fps
 	x 10 seconds
-	= 38400 bytes, not so bad
+	x cmds per second ... 10? 20? 100?
+	x bytes per cmd (44 atm)
 	--]]
-	self.cmdHistory = vector('double', 4800)
+	self.cmdHistory = vector('Numo9Cmd', 60000)
 	self.cmdHistoryIndex = 0	-- round-robin
 end
 
-local netcmds = {
-	cls = 0,
-	clip = 1,
-	rect = 2,
-	rectb = 3,
-	elli = 4,
-	ellib = 5,
-	line = 6,
-	spr = 7,
-	quad = 8,
-}
-
-function Server:addCmd(...)
-	for i=1,select('#', ...) do
-		self.cmdHistory.v[self.cmdHistoryIndex] = select(i, ...)
-		self.cmdHistoryIndex = self.cmdHistoryIndex + 1
-		if self.cmdHistoryIndex > self.cmdHistory.size then
-			print'server buffer full!'
-		end
-		self.cmdHistoryIndex = self.cmdHistoryIndex % self.cmdHistory.size
+function Server:getNextCmd()
+print('Server:getNextCmd')
+	local cmd = self.cmdHistory.v + self.cmdHistoryIndex
+	self.cmdHistoryIndex = self.cmdHistoryIndex + 1
+	if self.cmdHistoryIndex > self.cmdHistory.size then
+		print'server buffer overflowing -- looping'	-- give me an idea how often this happens ... hopefully not too frequent
 	end
+	self.cmdHistoryIndex = self.cmdHistoryIndex % self.cmdHistory.size
+	return cmd
 end
 
 
@@ -330,7 +407,7 @@ function Server:update()
 	-- listen for new connections
 	local client = self.socket:accept()
 	if client then
-		local thread = app.threads:add(self.remoteClientCoroutine, self, client)
+		app.threads:add(self.remoteClientCoroutine, self, client)
 	end
 
 	-- now handle connections
@@ -349,6 +426,18 @@ function Server:update()
 			- spr()s and map()s drawn since the last update
 			- sfx() and musics() played since the last update
 			--]]
+asserttype(serverConn.cmdHistoryIndex, 'number')
+			while serverConn.cmdHistoryIndex ~= self.cmdHistoryIndex do
+print('self.cmdHistory.v', self.cmdHistory.v)
+print('serverConn.cmdHistoryIndex', serverConn.cmdHistoryIndex)
+				local cmd = self.cmdHistory.v + serverConn.cmdHistoryIndex
+				-- send cmd to conn
+				send(serverConn.sock, ffi.string(cmd))
+				-- TODO is there a way to send without string-ifying it?
+				-- TODO maybe just use sock instead of luasocket ...
+				-- inc buf
+				serverConn.cmdHistoryIndex = (serverConn.cmdHistoryIndex + 1) % self.cmdHistory.size
+			end
 		end
 	end
 end
@@ -395,6 +484,7 @@ print'creating server remote client conn...'
 		socket = sock,
 		playerInfos = playerInfos,
 		thread = coroutine.running(),
+		cmdHistoryIndex = asserttype(self.cmdHistoryIndex, 'number'),
 	}
 	self.serverConns:insert(serverConn)
 -- TODO HERE record the current moment in the server's delta playback buffer and store it in the serverConn
@@ -456,9 +546,6 @@ initMsg = ffi.string(arr, initMsgSize)
 	asserteq(send(sock, initMsg), initMsgSize, "init msg")
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
 
--- does luasocket need a \n to send anything?
-	send(sock, '\n')
-
 print'entering server listen loop...'
 	-- TODO here go into a busy loop and wait for client messages
 	-- TODO move all this function itno serverConn:loop()
@@ -503,129 +590,163 @@ print'client connected'
 	sock:setoption('keepalive', true)
 	self.connecting = true
 
-
 print'starting connection thread'
 	-- handshaking ...
 	-- TODO should this be a runFocus.thread that only updates when it's in focus?
 	-- or should it be a threads entry that is updated always?
 	-- or why am I even distinguishing? why not merge runFocus into threads?
-	self.thread = coroutine.create(function()
-		coroutine.yield()
+	self.thread = coroutine.create(ClientConn.listenCoroutine)
+	coroutine.resume(self.thread, self, args)	-- pass it its initial args ...
+print'ClientConn:init done'
+end
+
+function ClientConn:listenCoroutine(args)
+	local app = self.app
+	local sock = self.socket
+
+	coroutine.yield()
 
 print'sending client handshake to server'
-		assert(send(sock, handshakeClientSends..'\n'))
+	assert(send(sock, handshakeClientSends..'\n'))
 
 print'waiting for server handshake'
-		local recv, reason = receive(sock, nil, 10)
+	local recv, reason = receive(sock, nil, 10)
 print('got', recv, reason)
-		if not recv then error("ClientConn waiting for handshake failed with error "..tostring(reason)) end
-		asserteq(recv, handshakeServerSends, "ClientConn handshake failed")
+	if not recv then error("ClientConn waiting for handshake failed with error "..tostring(reason)) end
+	asserteq(recv, handshakeServerSends, "ClientConn handshake failed")
 
 print'sending player info'
-		-- now send player names
-		local msg = table{'playernames'}
-		for _,playerInfo in ipairs(args.playerInfos) do
-			msg:insert(netescape(playerInfo.name))
-		end
-		assert(send(sock, msg:concat' '..'\n'))
+	-- now send player names
+	local msg = table{'playernames'}
+	for _,playerInfo in ipairs(args.playerInfos) do
+		msg:insert(netescape(playerInfo.name))
+	end
+	assert(send(sock, msg:concat' '..'\n'))
 
 print'waiting for initial RAM state...'
-		-- now expect the initial server state
+	-- now expect the initial server state
 
-		-- [[
-		local initMsg = assert(receive(sock, initMsgSize, 10))
-		--]]
-		--[[
-		local result = table.pack(receive(sock, initMsgSize, 10))
+	-- [[
+	local initMsg = assert(receive(sock, initMsgSize, 10))
+	--]]
+	--[[
+	local result = table.pack(receive(sock, initMsgSize, 10))
 print('...got', result:unpack())
-		local initMsg = result:unpack()
-		--]]
+	local initMsg = result:unpack()
+	--]]
 --print(string.hexdump(initMsg))
 
-		assertlen(initMsg, initMsgSize)
-		-- and decode it
-		local ptr = ffi.cast('uint8_t*', ffi.cast('char*', initMsg))
+	assertlen(initMsg, initMsgSize)
+	-- and decode it
+	local ptr = ffi.cast('uint8_t*', ffi.cast('char*', initMsg))
 
 --[[ debugging ... yeah it does instnatly upadte
 for i=0,initMsgSize-1 do
-	ptr[i] = math.random(0,255)
+ptr[i] = math.random(0,255)
 end
 --]]
 
-		-- make sure gpu changes are in cpu as well
-		app.fbTex:checkDirtyGPU()
-		
-		-- flush GPU
-		ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
-		ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
-		ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
-		ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
-		ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
-		ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)	ptr=ptr+clipRectInBytes
-		ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)	ptr=ptr+mvMatInBytes
-		-- set all dirty as well
-		app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
-		app.tileTex.dirtyCPU = true		-- tileSheetTex
-		app.mapTex.dirtyCPU = true
-		app.palTex.dirtyCPU = true		-- paletteTex
-		app.fbTex.dirtyCPU = true		-- framebufferTex
-		app.fbTex.changedSinceDraw = true
+	-- make sure gpu changes are in cpu as well
+	app.fbTex:checkDirtyGPU()
 
-		app:mvMatFromRAM()
+	-- flush GPU
+	ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
+	ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
+	ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
+	ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
+	ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
+	ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)	ptr=ptr+clipRectInBytes
+	ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)	ptr=ptr+mvMatInBytes
+	-- set all dirty as well
+	app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
+	app.tileTex.dirtyCPU = true		-- tileSheetTex
+	app.mapTex.dirtyCPU = true
+	app.palTex.dirtyCPU = true		-- paletteTex
+	app.fbTex.dirtyCPU = true		-- framebufferTex
+	app.fbTex.changedSinceDraw = true
 
-		--[[ this should be happenign every frame regardless...
-		app.spriteTex:checkDirtyCPU()
-		app.tileTex:checkDirtyCPU()
-		app.mapTex:checkDirtyCPU()
-		app.palTex:checkDirtyCPU()
-		app.fbTex:checkDirtyCPU()
-		--]]
+	app:mvMatFromRAM()
 
-		self.connecting = nil
-		self.connected = true
+	--[[ this should be happenign every frame regardless...
+	app.spriteTex:checkDirtyCPU()
+	app.tileTex:checkDirtyCPU()
+	app.mapTex:checkDirtyCPU()
+	app.palTex:checkDirtyCPU()
+	app.fbTex:checkDirtyCPU()
+	--]]
+
+	self.connecting = nil
+	self.connected = true
 
 print'calling back to .success()'
-		-- TODO - onfailure?  and a pcall please ... one the coroutines won't mind ...
-		if args.success then args.success() end
+	-- TODO - onfailure?  and a pcall please ... one the coroutines won't mind ...
+	if args.success then args.success() end
 
-		-- now start the busy loop of listening for new messages
+	-- now start the busy loop of listening for new messages
 
+	local cmd = ffi.new'Numo9Cmd[1]'
 print'entering client listen loop...'
-		while sock
-		and sock:getsockname()
-		do
-coroutine.yield()
---print'LISTENING...'-- TODO NO ONE IS RESUMING THIS			
-			local reason
-			data, reason = receive(sock, nil, 0)
+	while sock
+	and sock:getsockname()
+	do
+		coroutine.yield()
+--print'LISTENING...'
+		local reason
+		data, reason = receive(sock, nil, 0)
 --print('client got', data, reason)
-			if not data then
-				if reason ~= 'timeout' then
-					print('client remote connection failed: '..tostring(reason))
-					return false
-					-- TODO - die and go back to connection screen ... wherever that will be
-				end
-			else
---print('client got data', data, reason)
+		if not data then
+			if reason ~= 'timeout' then
+				print('client remote connection failed: '..tostring(reason))
+				return false
+				-- TODO - die and go back to connection screen ... wherever that will be
+			end
+		else
+print('client got data', data, reason)
+			assertlen(data, ffi.sizeof'Numo9Cmd')
+			ffi.copy(cmd, data, ffi.sizeof'Numo9Cmd')
+			if cmd.type == netcmds.cls then
+				app:clearScreen(cmd.colorIndex)
+			elseif cmd.type == netcmds.clip then
+				app:setClipRect(cmd.x, cmd.y, cmd.w, cmd.h)
+			elseif cmd.type == netcmds.solidRect then
+				app:drawSolidRect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.colorIndex, cmd.borderOnly, cmd.round)
+			elseif cmd.type == netcmds.solidLine then
+				app:drawSolidLine(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.colorIndex)
+			elseif cmd.type == netcmds.quad then
+				app:drawQuad(
+					cmd.x, cmd.y, cmd.w, cmd.h,
+					cmd.tx, cmd.ty, cmd.tw, cmd.th,
+					cmd.paletteIndex, cmd.transparentIndex,
+					cmd.spriteBit, cmd.spriteMask)
+			elseif cmd.type == netcmds.map then
+				app:drawMap(
+					cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh,
+					cmd.screenX, cmd.screenY,
+					cmd.mapIndexOffset,
+					cmd.draw16Sprites)
+			elseif cmd.type == netcmds.text then
+				app:drawText(
+					ffi.string(cmd.text, math.min(ffi.sizeof(cmd.text), ffi.C.strlen(cmd.text))),
+					cmd.x, cmd.y,
+					cmd.fgColorIndex, cmd.bgColorIndex)
+			end
 
 --[[ clientlisten loop fps counter
-				local clientlistenEnd = sdl.SDL_GetTicks() / 1000
-				clientlistenTotalTime = clientlistenTotalTime + clientlistenEnd - clientlistenStart
-				clientlistenTotalFrames = clientlistenTotalFrames + 1
-				local thissec = math.floor(clientlistenEnd)
-				if thissec ~= clientlistenReportSecond and clientlistenTotalTime > 0 then
-					print('clientlistening at '..(clientlistenTotalFrames/clientlistenTotalTime)..' fps')
-					clientlistenReportSecond = thissec
-					clientlistenTotalTime = 0
-					clientlistenTotalFrames = 0
-				end
+			local clientlistenEnd = sdl.SDL_GetTicks() / 1000
+			clientlistenTotalTime = clientlistenTotalTime + clientlistenEnd - clientlistenStart
+			clientlistenTotalFrames = clientlistenTotalFrames + 1
+			local thissec = math.floor(clientlistenEnd)
+			if thissec ~= clientlistenReportSecond and clientlistenTotalTime > 0 then
+				print('clientlistening at '..(clientlistenTotalFrames/clientlistenTotalTime)..' fps')
+				clientlistenReportSecond = thissec
+				clientlistenTotalTime = 0
+				clientlistenTotalFrames = 0
+			end
 --]]
 
-			end
 		end
+	end
 print'client listen done'
-	end)
-print'ClientConn:init done'
 end
 
 function ClientConn:close()

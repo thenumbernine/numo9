@@ -83,7 +83,7 @@ local keyCodeNames = table{
 -- NOTICE these would be virtual, and wouldn't map to the SDLK_whatever like everything above this line does
 -- so let's keep track of the keyboard ending ...
 local lastKeyboardKeyCode = #keyCodeNames
-print('lastKeyboardKeyCode', lastKeyboardKeyCode)
+--print('lastKeyboardKeyCode', lastKeyboardKeyCode)
 -- TODO instead of doing this, do handlers like in gamepad/sand-attack
 keyCodeNames:append{
 	'padding0',
