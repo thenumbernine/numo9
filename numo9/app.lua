@@ -52,6 +52,8 @@ local keyCodeForName = require 'numo9.keys'.keyCodeForName
 local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode
 local firstJoypadKeyCode = require 'numo9.keys'.firstJoypadKeyCode
 
+local netcmds = require 'numo9.net'.netcmds
+
 -- n = num args to pack
 -- also in image/luajit/image.lua
 local function packptr(n, ptr, value, ...)
@@ -295,16 +297,27 @@ function App:initGL()
 		-- but at the moment the console is routed to directly call the API,
 		-- so if you type "cls" at the console then you could get a screen full of some nonsense color
 		flip = coroutine.yield,	-- simple as
-		cls = function(...)
+		cls = function(colorIndex)
+			colorIndex = colorIndex or 0
+			if self.server then
+				self.server:addCmd(netcmds.cls, colorIndex)
+			end
+			-- TODO store cursorPos here in App, in RAM even, and send it between net commands
 			local con = self.con
 			con.cursorPos:set(0, 0)
-			self:clearScreen(...)
+			self:clearScreen(colorIndex)
 		end,
 		clip = function(...)
 			if select('#', ...) == 0 then
+				if self.server then
+					self.server:addCmd(netcmds.clip, 0, 0, 0xff, 0xff)
+				end
 				packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
 			else
-				-- assert num args is 4 ?
+				asserteq(select('#', ...), 4)
+				if self.server then
+					self.server:addCmd(netcmds.clip, ...)
+				end
 				packptr(4, self.clipRect, ...)
 			end
 			gl.glScissor(
@@ -316,31 +329,67 @@ function App:initGL()
 
 		-- TODO tempting to just expose flags for ellipse & border to the 'cartridge' api itself ...
 		rect = function(x, y, w, h, colorIndex)
+			if self.server then
+				self.server:addCmd(netcmds.rect, x, y, w, h, colorIndex)
+			end
 			return self:drawSolidRect(x, y, w, h, colorIndex, false, false)
 		end,
 		rectb = function(x, y, w, h, colorIndex)
+			if self.server then
+				self.server:addCmd(netcmds.rectb, x, y, w, h, colorIndex)
+			end
 			return self:drawSolidRect(x, y, w, h, colorIndex, true, false)
 		end,
 		-- choosing tic80's api naming here.  but the rect api: width/height, not radA/radB
 		elli = function(x, y, w, h, colorIndex)
+			if self.server then
+				self.server:addCmd(netcmds.elli, x, y, w, h, colorIndex)
+			end
 			return self:drawSolidRect(x, y, w, h, colorIndex, false, true)
 		end,
 		ellib = function(x, y, w, h, colorIndex)
+			if self.server then
+				self.server:addCmd(netcmds.ellib, x, y, w, h, colorIndex)
+			end
 			return self:drawSolidRect(x, y, w, h, colorIndex, true, true)
 		end,
 
-		line = function(...) return self:drawSolidLine(...) end,
-
-		spr = function(...) return self:drawSprite(...) end,		-- (spriteIndex, x, y, paletteIndex)
-		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
-		quad = function(x,y,w,h,tx,ty,tw,th,pal,transparent,spriteBit,spriteMask)
-			return self:drawQuad(x,y,w,h,tx,ty,tw,th,self.spriteTex,pal,transparent,spriteBit,spriteMask)
+		line = function(x1,y1,x2,y2,colorIndex) 
+			if self.server then
+				self.server:addCmd(netcmds.line, x1, y1, x2, y2, colorIndex)
+			end
+			return self:drawSolidLine(x1,y1,x2,y2,colorIndex)
 		end,
-		map = function(...) return self:drawMap(...) end,
-		text = function(...) return self:drawText(...) end,		-- (text, x, y, fgColorIndex, bgColorIndex)
 
+		spr = function(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
+			if self.server then
+				self.server:addCmd(netcmds.spr, spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
+			end
+			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY) 
+		end,
+		
+		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
+		quad = function(x, y, w, h, tx, ty, tw, th, pal, transparent, spriteBit, spriteMask)
+			if self.server then
+				self.server:addCmd(netcmds.quad, x, y, w, h, tx, ty, tw, th, pal, transparent, spriteBit, spriteMask)
+			end
+			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteTex, pal, transparent, spriteBit, spriteMask)
+		end,
+		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
+			if self.server then
+				self.server:addCmd(netcmds.map, tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
+			end
+			return self:drawMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
+		end,
+		text = function(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+			if self.server then
+				self.server:addCmd(netcmds.text, text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+			end
+			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
+
+		-- this just falls back to glapp saving the OpenGL draw buffer
 		screenshot = function() return self:screenshotToFile'ss.png' end,
-
 
 		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
 		key = function(...) return self:key(...) end,
