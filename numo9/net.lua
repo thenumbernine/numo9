@@ -27,8 +27,21 @@ local paletteAddrEnd = require 'numo9.rom'.paletteAddrEnd
 local framebufferAddr = require 'numo9.rom'.framebufferAddr
 local framebufferInBytes = require 'numo9.rom'.framebufferInBytes
 local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
+local clipRectAddr = require 'numo9.rom'.clipRectAddr
+local clipRectInBytes = require 'numo9.rom'.clipRectInBytes
+local clipRectAddrEnd = require 'numo9.rom'.clipRectAddrEnd
+local mvMatAddr = require 'numo9.rom'.mvMatAddr
+local mvMatInBytes = require 'numo9.rom'.mvMatInBytes
+local mvMatAddrEnd = require 'numo9.rom'.mvMatAddrEnd
 
-local initMsgSize = spriteSheetInBytes + tileSheetInBytes + tilemapInBytes + paletteInBytes + framebufferInBytes
+
+local initMsgSize = spriteSheetInBytes 
+	+ tileSheetInBytes 
+	+ tilemapInBytes 
+	+ paletteInBytes 
+	+ framebufferInBytes
+	+ clipRectInBytes
+	+ mvMatInBytes
 
 -- TOOD how about a net-string?
 -- pascal-string-encoded: length then data
@@ -231,6 +244,18 @@ function Server:init(app)
 
 	self.socket:settimeout(0, 'b')
 	self.socket:setoption('keepalive', true)
+
+	--[[
+	ok now I need to store a list of any commands that modify the audio/visual state
+	directory or indirectly (fb writes, gpu writes, mem pokes to spritesheet, to map, etc)
+	and how to store this efficiently ...
+	
+what all do we want to store?
+in terms of App functions, not API functions ...
+peek & poke to important memory ... oh yeah, including clip rect and matrix ...
+
+	--]]
+	self.cmdhistory = table()
 end
 
 function Server:close()
@@ -324,8 +349,9 @@ print'sending initial RAM state...'
 	app.mapTex:checkDirtyGPU()
 	app.palTex:checkDirtyGPU()
 	app.fbTex:checkDirtyGPU()
+	app:mvMatToRAM()
 	--]]
--- [[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc?
+--[[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc?
 local ptr = ffi.cast('uint8_t*', app.ram.framebuffer)
 for i=0,256*256*2-1 do
 	ptr[i] = math.random(0,255)
@@ -355,6 +381,8 @@ image:save'fb.png' -- bad
 		..ffi.string(ffi.cast('char*', app.ram.tilemap), tilemapInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.palette), paletteInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
 
 --[[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc?
 local arr = ffi.new('char[?]', initMsgSize)
@@ -475,6 +503,8 @@ end
 		ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
 		ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
 		ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
+		ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)	ptr=ptr+clipRectInBytes
+		ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)	ptr=ptr+mvMatInBytes
 		-- set all dirty as well
 		app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
 		app.tileTex.dirtyCPU = true		-- tileSheetTex
@@ -482,6 +512,8 @@ end
 		app.palTex.dirtyCPU = true		-- paletteTex
 		app.fbTex.dirtyCPU = true		-- framebufferTex
 		app.fbTex.changedSinceDraw = true
+
+		app:mvMatFromRAM()
 
 		--[[ this should be happenign every frame regardless...
 		app.spriteTex:checkDirtyCPU()

@@ -247,6 +247,7 @@ function App:initGL()
 
 		listen = function(...) return self:listen(...) end,
 		connect = function(...) return self:connect(...) end,
+		disconnect = function(...) return self:disconnect(...) end,
 
 		-- timer
 		time = function()

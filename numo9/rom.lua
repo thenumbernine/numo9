@@ -141,7 +141,12 @@ local paletteAddrEnd = paletteAddr + paletteInBytes
 local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
 local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
 local framebufferAddrEnd = framebufferAddr + framebufferInBytes
-
+local clipRectAddr = ffi.offsetof('RAM', 'clipRect')
+local clipRectInBytes = ffi.sizeof'uint8_t' * 4
+local clipRectAddrEnd = clipRectAddr + clipRectInBytes 
+local mvMatAddr = ffi.offsetof('RAM', 'mvMat')
+local mvMatInBytes = ffi.sizeof(mvMatType) * 16
+local mvMatAddrEnd = mvMatAddr + mvMatInBytes 
 
 return {
 	paletteSize = paletteSize,
@@ -176,4 +181,10 @@ return {
 	framebufferAddr = framebufferAddr,
 	framebufferInBytes = framebufferInBytes,
 	framebufferAddrEnd = framebufferAddrEnd,
+	clipRectAddr = clipRectAddr,
+	clipRectInBytes = clipRectInBytes,
+	clipRectAddrEnd = clipRectAddrEnd,
+	mvMatAddr = mvMatAddr,
+	mvMatInBytes = mvMatInBytes,
+	mvMatAddrEnd = mvMatAddrEnd,
 }
