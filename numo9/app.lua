@@ -300,7 +300,9 @@ function App:initGL()
 		cls = function(colorIndex)
 			colorIndex = colorIndex or 0
 			if self.server then
-				self.server:addCmd(netcmds.cls, colorIndex)
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.cls
+				cmd.colorIndex = colorIndex
 			end
 			-- TODO store cursorPos here in App, in RAM even, and send it between net commands
 			local con = self.con
@@ -308,82 +310,165 @@ function App:initGL()
 			self:clearScreen(colorIndex)
 		end,
 		clip = function(...)
+			local x, y, w, h
 			if select('#', ...) == 0 then
-				if self.server then
-					self.server:addCmd(netcmds.clip, 0, 0, 0xff, 0xff)
-				end
-				packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
+				x, y, w, h = 0, 0, 0xff, 0xff
 			else
 				asserteq(select('#', ...), 4)
-				if self.server then
-					self.server:addCmd(netcmds.clip, ...)
-				end
-				packptr(4, self.clipRect, ...)
+				x, y, w, h = ...
 			end
-			gl.glScissor(
-				self.clipRect[0],
-				self.clipRect[1],
-				self.clipRect[2]+1,
-				self.clipRect[3]+1)
+			if self.server then
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.clip
+				cmd.x = x
+				cmd.y = y
+				cmd.w = w
+				cmd.h = h
+			end
+			self:setClipRect(x, y, w, h)
 		end,
 
 		-- TODO tempting to just expose flags for ellipse & border to the 'cartridge' api itself ...
 		rect = function(x, y, w, h, colorIndex)
 			if self.server then
-				self.server:addCmd(netcmds.rect, x, y, w, h, colorIndex)
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.solidRect
+				cmd.x = x
+				cmd.y = y
+				cmd.w = w
+				cmd.h = h
+				cmd.colorIndex = colorIndex
+				cmd.borderOnly = false
+				cmd.round = false
 			end
 			return self:drawSolidRect(x, y, w, h, colorIndex, false, false)
 		end,
 		rectb = function(x, y, w, h, colorIndex)
 			if self.server then
-				self.server:addCmd(netcmds.rectb, x, y, w, h, colorIndex)
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.solidRect
+				cmd.x = x
+				cmd.y = y
+				cmd.w = w
+				cmd.h = h
+				cmd.colorIndex = colorIndex
+				cmd.borderOnly = true
+				cmd.round = false
 			end
 			return self:drawSolidRect(x, y, w, h, colorIndex, true, false)
 		end,
 		-- choosing tic80's api naming here.  but the rect api: width/height, not radA/radB
 		elli = function(x, y, w, h, colorIndex)
 			if self.server then
-				self.server:addCmd(netcmds.elli, x, y, w, h, colorIndex)
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.solidRect
+				cmd.x = x
+				cmd.y = y
+				cmd.w = w
+				cmd.h = h
+				cmd.colorIndex = colorIndex
+				cmd.borderOnly = false
+				cmd.round = true
 			end
 			return self:drawSolidRect(x, y, w, h, colorIndex, false, true)
 		end,
 		ellib = function(x, y, w, h, colorIndex)
 			if self.server then
-				self.server:addCmd(netcmds.ellib, x, y, w, h, colorIndex)
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.solidRect
+				cmd.x = x
+				cmd.y = y
+				cmd.w = w
+				cmd.h = h
+				cmd.colorIndex = colorIndex
+				cmd.borderOnly = true
+				cmd.round = true
 			end
 			return self:drawSolidRect(x, y, w, h, colorIndex, true, true)
 		end,
 
-		line = function(x1,y1,x2,y2,colorIndex) 
+		line = function(x1,y1,x2,y2,colorIndex)
 			if self.server then
-				self.server:addCmd(netcmds.line, x1, y1, x2, y2, colorIndex)
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.solidLine
+				cmd.x1 = x1
+				cmd.y1 = y1
+				cmd.x2 = x2
+				cmd.y2 = y2
+				cmd.colorIndex = colorIndex
 			end
 			return self:drawSolidLine(x1,y1,x2,y2,colorIndex)
 		end,
 
 		spr = function(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
 			if self.server then
-				self.server:addCmd(netcmds.spr, spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
+				-- TODO I'm calculating default values twice ...
+				-- TODO move the server netcmd stuff into a separate intermediate function
+				-- TODO same with all the drawSolidRect stuff
+				spritesWide = spritesWide or 1
+				spritesHigh = spritesHigh or 1
+				scaleX = scaleX or 1
+				scaleY = scaleY or 1
+				-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
+				spriteIndex = math.floor(spriteIndex)
+				local tx = spriteIndex % spriteSheetSizeInTiles.x
+				local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
+
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.quad
+				cmd.x = screenX
+				cmd.y = screenY
+				cmd.w = spritesWide * spriteSize.x * scaleX
+				cmd.h = spritesHigh * spriteSize.y * scaleY
+				cmd.tx = tx / tonumber(spriteSheetSizeInTiles.x)
+				cmd.ty = ty / tonumber(spriteSheetSizeInTiles.y)
+				cmd.tw = spritesWide / tonumber(spriteSheetSizeInTiles.x)
+				cmd.th = spritesHigh / tonumber(spriteSheetSizeInTiles.y)
+				cmd.paletteIndex = paletteIndex
+				cmd.transparentIndex = transparentIndex
+				cmd.spriteBit = spriteBit
+				cmd.spriteMask = spriteMask
 			end
-			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY) 
+			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
 		end,
-		
+
 		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
-		quad = function(x, y, w, h, tx, ty, tw, th, pal, transparent, spriteBit, spriteMask)
+		quad = function(x, y, w, h, tx, ty, tw, th, paletteIndex, transparentIndex, spriteBit, spriteMask)
 			if self.server then
-				self.server:addCmd(netcmds.quad, x, y, w, h, tx, ty, tw, th, pal, transparent, spriteBit, spriteMask)
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.quad
+				cmd.x, cmd.y, cmd.w, cmd.h = x, y, w, h
+				cmd.tx, cmd.ty, cmd.tw, cmd.th = tx, ty, tw, th
+				cmd.paletteIndex = paletteIndex
+				cmd.transparentIndex = transparentIndex
+				cmd.spriteBit = spriteBit
+				cmd.spriteMask = spriteMask
 			end
-			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteTex, pal, transparent, spriteBit, spriteMask)
+			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteTex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
 		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
 			if self.server then
-				self.server:addCmd(netcmds.map, tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
+				tilesWide = tilesWide or 1
+				tilesHigh = tilesHigh or 1
+				mapIndexOffset = mapIndexOffset or 0
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.map
+				cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh = tileX, tileY, tilesWide, tilesHigh
+				cmd.screenX, cmd.screenY = screenX, screenY
+				cmd.mapIndexOffset = mapIndexOffset
+				cmd.draw16Sprites = draw16Sprites
 			end
 			return self:drawMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
 		end,
 		text = function(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 			if self.server then
-				self.server:addCmd(netcmds.text, text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+				local cmd = self.server:getNextCmd()
+				cmd.type = netcmds.text
+				cmd.x, cmd.y = x, y
+				cmd.fgColorIndex = fgColorIndex
+				cmd.bgColorIndex = bgColorIndex
+				cmd.scaleX, cmd.scaleY = scaleX, scaleY
+				ffi.copy(cmd.text, text, math.min(#text+1, ffi.sizeof(cmd.text)))
 			end
 			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
@@ -716,7 +801,7 @@ function App:connect(addr, port)
 	self:disconnect()
 
 	-- clear set run focus before connecting so the connection's initial update of the framebuffer etc wont get dirtied by a loseFocus() from the last runFocus
-print('setFocus empty')	
+print('setFocus empty')
 	self:setFocus{}
 
 	self.remoteClient = ClientConn{
@@ -736,7 +821,7 @@ print('setFocus empty')
 	-- ... set the focus to the remoteClient so that its thread can handle net updates (and con won't)
 	-- TODO what happens if a remote client pushes escape to exit to its own console?  the game will go out of sync ...
 	-- how about (for now) ESC = kill connection ... sounds dramatic ... but meh?
-print('app:setFocus(remoteClient)')	
+print('app:setFocus(remoteClient)')
 	self:setFocus(self.remoteClient)
 assert(self.runFocus == self.remoteClient)
 assert(self.runFocus.thread)
@@ -767,8 +852,8 @@ function App:update()
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
 		print(
-			--'FPS: '..fpsFrames / fpsSeconds	this will show you how fast a busy loop runs
-			'draws/second '..drawsPerSecond	-- TODO make this single-buffered
+			'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs
+			..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
 		)
 		drawsPerSecond = 0
 		fpsFrames = 0
@@ -1169,6 +1254,15 @@ function App:clearScreen(colorIndex)
 --	self.quadSolidObj.uniforms.mvMat = self.mvMat.ptr
 end
 
+function App:setClipRect(x, y, w, h)
+	packptr(4, self.clipRect, x, y, w, h)
+	gl.glScissor(
+		self.clipRect[0],
+		self.clipRect[1],
+		self.clipRect[2]+1,
+		self.clipRect[3]+1)
+end
+
 --[[
 'lower level' functionality than 'drawSprite'
 args:
@@ -1188,10 +1282,9 @@ function App:drawQuad(
 	spriteBit,
 	spriteMask
 )
-	self.spriteTex:checkDirtyCPU()		-- \_ we don't know which it is so ...
-	self.tileTex:checkDirtyCPU()		-- /
-	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
-	self.fbTex:checkDirtyCPU()
+	tex:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
+	self.palTex:checkDirtyCPU() 	-- before any GPU op that uses palette...
+	self.fbTex:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
@@ -1244,49 +1337,31 @@ function App:drawSprite(
 	scaleX,
 	scaleY
 )
-	self.spriteTex:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
-	self.palTex:checkDirtyCPU() 			-- before any GPU op that uses palette, make sure we have the most update copy
-	self.fbTex:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
-
 	spritesWide = spritesWide or 1
 	spritesHigh = spritesHigh or 1
-	paletteIndex = paletteIndex or 0
-	transparentIndex = transparentIndex or -1
-	spriteBit = spriteBit or 0
-	spriteMask = spriteMask or 0xFF
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
-
-	local sceneObj = self.quadSpriteObj
-	local uniforms = sceneObj.uniforms
-	sceneObj.texs[1] = self.spriteTex
-
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
-	uniforms.transparentIndex = transparentIndex
-	uniforms.spriteBit = spriteBit
-	uniforms.spriteMask = spriteMask
-
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	spriteIndex = math.floor(spriteIndex)
 	local tx = spriteIndex % spriteSheetSizeInTiles.x
 	local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
-	-- TODO do I normalize it here or in the shader?
-	settable(uniforms.tcbox,
-		tx / tonumber(spriteSheetSizeInTiles.x),
-		ty / tonumber(spriteSheetSizeInTiles.y),
-		spritesWide / tonumber(spriteSheetSizeInTiles.x),
-		spritesHigh / tonumber(spriteSheetSizeInTiles.y)
-	)
-	settable(uniforms.box,
+	self:drawQuad(
+		-- x y w h
 		screenX,
 		screenY,
 		spritesWide * spriteSize.x * scaleX,
-		spritesHigh * spriteSize.y * scaleY
+		spritesHigh * spriteSize.y * scaleY,
+		-- tx ty tw th
+		tx / tonumber(spriteSheetSizeInTiles.x),
+		ty / tonumber(spriteSheetSizeInTiles.y),
+		spritesWide / tonumber(spriteSheetSizeInTiles.x),
+		spritesHigh / tonumber(spriteSheetSizeInTiles.y),
+		self.spriteTex,	-- tex
+		paletteIndex,
+		transparentIndex,
+		spriteBit,
+		spriteMask
 	)
-	sceneObj:draw()
-	self.fbTex.dirtyGPU = true
-	self.fbTex.changedSinceDraw = true
 end
 
 -- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
