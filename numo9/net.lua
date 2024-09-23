@@ -187,13 +187,22 @@ end
 
 -- mayb I'll do like SDL does ...
 local netcmdNames = table{
-	'cls',
+	'clearScreen',
 	'clip',
 	'solidRect',
 	'solidLine',
 	'quad',
 	'map',
 	'text',
+	'matident',
+	'mattrans',
+	'matrot',
+	'matscale',
+	'matortho',
+	'matfrustum',
+	'matlookat',
+	'reset',
+	'load',
 }
 local netcmds = netcmdNames:mapi(function(name, index) return index, name end):setmetatable(nil)
 
@@ -202,15 +211,15 @@ typedef struct Numo9Cmd_base {
 	int type;
 } Numo9Cmd_base;
 
-typedef struct Numo9Cmd_cls {
+typedef struct Numo9Cmd_clearScreen {
 	int type;
 	uint8_t colorIndex;
-} Numo9Cmd_cls;
+} Numo9Cmd_clearScreen;
 
-typedef struct Numo9Cmd_clip {
+typedef struct Numo9Cmd_clipRect {
 	int type;
 	uint8_t x, y, w, h;
-} Numo9Cmd_clip;
+} Numo9Cmd_clipRect;
 
 typedef struct Numo9Cmd_solidRect {
 	int type;
@@ -251,16 +260,77 @@ typedef struct Numo9Cmd_text {
 	int16_t fgColorIndex, bgColorIndex;
 	float scaleX, scaleY;
 	char text[20];
+	// TODO how about an extra pointer to another table or something for strings, overlap functionality with load requests
 } Numo9Cmd_text;	// TODO if text is larger than this then issue multiple commands or something
+
+typedef struct Numo9Cmd_matident {
+	int type;
+} Numo9Cmd_matident;
+
+typedef struct Numo9Cmd_mattrans {
+	int type;
+	float x, y, z;
+} Numo9Cmd_mattrans;
+
+typedef struct Numo9Cmd_matrot {
+	int type;
+	float theta, x, y, z;
+} Numo9Cmd_matrot;
+
+typedef struct Numo9Cmd_matscale {
+	int type;
+	float x, y, z;
+} Numo9Cmd_matscale;
+
+typedef struct Numo9Cmd_matortho {
+	int type;
+	float l, r, t, b, n, f;
+} Numo9Cmd_matortho;
+
+typedef struct Numo9Cmd_matfrustum {
+	int type;
+	float l, r, t, b, n, f;
+} Numo9Cmd_matfrustum;
+
+typedef struct Numo9Cmd_matlookat {
+	int type;
+	float ex,ey,ez,cx,cy,cz,upx,upy,upz;
+} Numo9Cmd_matlookat;
+
+typedef struct Numo9Cmd_reset {
+	int type;
+} Numo9Cmd_reset;
+
+typedef struct Numo9Cmd_load {
+	int type;
+	/*
+	when a load cmd is queued, also store the load data to send over the wire ...
+	... TODO how to GC this ...
+	*/
+	int loadQueueIndex;
+} Numo9Cmd_load;
 
 typedef union Numo9Cmd {
 	Numo9Cmd_base base;
-	Numo9Cmd_cls clearScreen;
-	Numo9Cmd_clip clip;
+	Numo9Cmd_clearScreen clearScreen;
+	Numo9Cmd_clipRect clipRect;
 	Numo9Cmd_solidRect solidRect;
 	Numo9Cmd_solidLine solidLine;
 	Numo9Cmd_quad quad;
 	Numo9Cmd_map map;
+	Numo9Cmd_text text;
+	Numo9Cmd_load load;
+	Numo9Cmd_reset reset;
+	Numo9Cmd_load load;
+	Numo9Cmd_matident matident;
+	Numo9Cmd_mattrans mattrans;
+	Numo9Cmd_matrot matrot;
+	Numo9Cmd_matscale matscale;
+	Numo9Cmd_matortho matortho;
+	Numo9Cmd_matfrustum matfrustum;
+	Numo9Cmd_matlookat matlookat;
+	Numo9Cmd_reset reset;
+	Numo9Cmd_load load;
 } Numo9Cmd;
 ]]
 
@@ -382,7 +452,6 @@ text <-> drawText
 end
 
 function Server:getNextCmd()
-print('Server:getNextCmd')
 	local cmd = self.cmdHistory.v + self.cmdHistoryIndex
 	self.cmdHistoryIndex = self.cmdHistoryIndex + 1
 	if self.cmdHistoryIndex > self.cmdHistory.size then
@@ -426,13 +495,13 @@ function Server:update()
 			- spr()s and map()s drawn since the last update
 			- sfx() and musics() played since the last update
 			--]]
-asserttype(serverConn.cmdHistoryIndex, 'number')
+--asserttype(serverConn.cmdHistoryIndex, 'number')
 			while serverConn.cmdHistoryIndex ~= self.cmdHistoryIndex do
-print('self.cmdHistory.v', self.cmdHistory.v)
-print('serverConn.cmdHistoryIndex', serverConn.cmdHistoryIndex)
+--print('self.cmdHistory.v', self.cmdHistory.v)
+--print('serverConn.cmdHistoryIndex', serverConn.cmdHistoryIndex)
 				local cmd = self.cmdHistory.v + serverConn.cmdHistoryIndex
 				-- send cmd to conn
-				send(serverConn.sock, ffi.string(cmd))
+				send(serverConn.socket, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
 				-- TODO is there a way to send without string-ifying it?
 				-- TODO maybe just use sock instead of luasocket ...
 				-- inc buf
@@ -667,7 +736,7 @@ end
 
 	app:mvMatFromRAM()
 
-	--[[ this should be happenign every frame regardless...
+	-- [[ this should be happenign every frame regardless...
 	app.spriteTex:checkDirtyCPU()
 	app.tileTex:checkDirtyCPU()
 	app.mapTex:checkDirtyCPU()
@@ -704,31 +773,80 @@ print'entering client listen loop...'
 print('client got data', data, reason)
 			assertlen(data, ffi.sizeof'Numo9Cmd')
 			ffi.copy(cmd, data, ffi.sizeof'Numo9Cmd')
-			if cmd.type == netcmds.cls then
-				app:clearScreen(cmd.colorIndex)
-			elseif cmd.type == netcmds.clip then
-				app:setClipRect(cmd.x, cmd.y, cmd.w, cmd.h)
-			elseif cmd.type == netcmds.solidRect then
-				app:drawSolidRect(cmd.x, cmd.y, cmd.w, cmd.h, cmd.colorIndex, cmd.borderOnly, cmd.round)
-			elseif cmd.type == netcmds.solidLine then
-				app:drawSolidLine(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.colorIndex)
-			elseif cmd.type == netcmds.quad then
+			if cmd.base.type == netcmds.clearScreen then
+				app:clearScreen(cmd.clearScreen.colorIndex)
+			elseif cmd.base.type == netcmds.clipRect then
+				app:setClipRect(cmd.clipRect.x, cmd.clipRect.y, cmd.clipRect.w, cmd.clipRect.h)
+			elseif cmd.base.type == netcmds.solidRect then
+				app:drawSolidRect(cmd.solidRect.x, cmd.solidRect.y, cmd.solidRect.w, cmd.solidRect.h, cmd.solidRect.colorIndex, cmd.solidRect.borderOnly, cmd.solidRect.round)
+			elseif cmd.base.type == netcmds.solidLine then
+				app:drawSolidLine(cmd.solidLine.x1, cmd.solidLine.y1, cmd.solidLine.x2, cmd.solidLine.y2, cmd.solidLine.colorIndex)
+			elseif cmd.base.type == netcmds.quad then
 				app:drawQuad(
-					cmd.x, cmd.y, cmd.w, cmd.h,
-					cmd.tx, cmd.ty, cmd.tw, cmd.th,
-					cmd.paletteIndex, cmd.transparentIndex,
-					cmd.spriteBit, cmd.spriteMask)
-			elseif cmd.type == netcmds.map then
+					cmd.quad.x, cmd.quad.y, cmd.quad.w, cmd.quad.h,
+					cmd.quad.tx, cmd.quad.ty, cmd.quad.tw, cmd.quad.th,
+					cmd.quad.paletteIndex, cmd.quad.transparentIndex,
+					cmd.quad.spriteBit, cmd.quad.spriteMask)
+			elseif cmd.base.type == netcmds.map then
 				app:drawMap(
-					cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh,
-					cmd.screenX, cmd.screenY,
-					cmd.mapIndexOffset,
-					cmd.draw16Sprites)
-			elseif cmd.type == netcmds.text then
+					cmd.map.tileX, cmd.map.tileY, cmd.map.tilesWide, cmd.map.tilesHigh,
+					cmd.map.screenX, cmd.map.screenY,
+					cmd.map.mapIndexOffset,
+					cmd.map.draw16Sprites)
+			elseif cmd.base.type == netcmds.text then
 				app:drawText(
-					ffi.string(cmd.text, math.min(ffi.sizeof(cmd.text), ffi.C.strlen(cmd.text))),
-					cmd.x, cmd.y,
-					cmd.fgColorIndex, cmd.bgColorIndex)
+					ffi.string(cmd.text.text, math.min(ffi.sizeof(cmd.text.text), ffi.C.strlen(cmd.text.text))),
+					cmd.text.x, cmd.text.y,
+					cmd.text.fgColorIndex, cmd.text.bgColorIndex)
+			elseif cmd.base.type == netcmds.matident then
+				app:mvMatFromRAM()
+				app.mvMat:setIdent()
+				app:mvMatToRAM()
+			elseif cmd.base.type == netcmds.mattrans then
+				app:mvMatFromRAM()
+				app.mvMat:applyTranslate(cmd.mattrans.x, cmd.mattrans.y, cmd.mattrans.z)
+				app:mvMatToRAM()
+			elseif cmd.base.type == netcmds.matrot then
+				app:mvMatFromRAM()
+				app.mvMat:applyRotate(cmd.matrot.theta, cmd.matrot.x, cmd.matrot.y, cmd.matrot.z)
+				app:mvMatToRAM()
+			elseif cmd.base.type == netcmds.matscale then
+				app:mvMatFromRAM()
+				app.mvMat:applyScale(cmd.matscale.x, cmd.matscale.y, cmd.matscale.z)
+				app:mvMatToRAM()
+			elseif cmd.base.type == netcmds.matortho then
+				app:mvMatFromRAM()
+				app.mvMat:applyOrtho(
+					cmd.matortho.l,
+					cmd.matortho.r,
+					cmd.matortho.t,
+					cmd.matortho.b,
+					cmd.matortho.n,
+					cmd.matortho.f)
+				app:mvMatToRAM()
+			elseif cmd.base.type == netcmds.matfrustum then
+				app:mvMatFromRAM()
+				app.mvMat:applyFrustum(
+					cmd.matfrustum.l,
+					cmd.matfrustum.r,
+					cmd.matfrustum.t,
+					cmd.matfrustum.b,
+					cmd.matfrustum.n,
+					cmd.matfrustum.f)
+				app:mvMatToRAM()
+			elseif cmd.base.type == netcmds.matlookat then
+				app:mvMatFromRAM()
+				app.mvMat:applyLookAt(
+					cmd.matlookat.ex,
+					cmd.matlookat.ey,
+					cmd.matlookat.ez,
+					cmd.matlookat.cx,
+					cmd.matlookat.cy,
+					cmd.matlookat.cz,
+					cmd.matlookat.upx,
+					cmd.matlookat.upy,
+					cmd.matlookat.upz)
+				app:mvMatToRAM()
 			end
 
 --[[ clientlisten loop fps counter
