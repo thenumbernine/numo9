@@ -306,7 +306,12 @@ glreport'here'
 			fb:bind()
 		end
 		self.dirtyCPU = false
+		app.fbTex.changedSinceDraw = true
 	end
+	
+	-- TODO is this only applicable for fbTex?
+	-- if anything else has a dirty GPU ... it'd have to be because the framebuffer was rendering to it
+	-- and right now, the fb is only outputting to fbTex ...
 	function tex:checkDirtyGPU()
 		if not self.dirtyGPU then return end
 		assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")

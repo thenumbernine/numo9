@@ -962,7 +962,6 @@ function App:poke(addr, value)
 	if self.fbTex.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
-		self.fbTex.changedSinceDraw = true
 	end
 
 	self.ram.v[addr] = tonumber(value)
@@ -998,7 +997,6 @@ function App:pokew(addr, value)
 	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
-		self.fbTex.changedSinceDraw = true
 	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
@@ -1027,7 +1025,6 @@ function App:pokel(addr, value)
 	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
-		self.fbTex.changedSinceDraw = true
 	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)

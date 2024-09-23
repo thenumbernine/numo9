@@ -483,8 +483,7 @@ end
 		app.fbTex.dirtyCPU = true		-- framebufferTex
 		app.fbTex.changedSinceDraw = true
 
-		-- [[ TODO if i don't run this now then why doesn't it happen at all?
-		-- this should be happenign every frame regardless...
+		--[[ this should be happenign every frame regardless...
 		app.spriteTex:checkDirtyCPU()
 		app.tileTex:checkDirtyCPU()
 		app.mapTex:checkDirtyCPU()
