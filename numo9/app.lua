@@ -666,6 +666,7 @@ function App:connect(addr, port)
 	self:disconnect()
 
 	-- clear set run focus before connecting so the connection's initial update of the framebuffer etc wont get dirtied by a loseFocus() from the last runFocus
+print('setFocus empty')	
 	self:setFocus{}
 
 	self.remoteClient = ClientConn{
@@ -685,7 +686,11 @@ function App:connect(addr, port)
 	-- ... set the focus to the remoteClient so that its thread can handle net updates (and con won't)
 	-- TODO what happens if a remote client pushes escape to exit to its own console?  the game will go out of sync ...
 	-- how about (for now) ESC = kill connection ... sounds dramatic ... but meh?
+print('app:setFocus(remoteClient)')	
 	self:setFocus(self.remoteClient)
+assert(self.runFocus == self.remoteClient)
+assert(self.runFocus.thread)
+assert(coroutine.status(self.runFocus.thread) ~= 'dead')
 end
 
 function App:update()
@@ -801,9 +806,6 @@ print('no runnable focus!')
 		end
 
 		gl.glDisable(gl.GL_SCISSOR_TEST)
-		-- make sure cpu has framebuffer changes
-		--self.fbTex:checkDirtyGPU()
-
 		self.inUpdateCallback = false
 		fb:unbind()
 

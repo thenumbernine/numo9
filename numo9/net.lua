@@ -57,20 +57,21 @@ end
 --]]
 
 
+-- https://stackoverflow.com/questions/2613734/maximum-packet-size-for-a-tcp-connection
+local maxPacketSize = 1024
+
 -- send and make sure you send everything, and error upon fail
 function send(conn, data)
 --print('send', conn, '<<', data)
-	local i = 0
+	local i = 1
 	local n = #data
-	-- https://stackoverflow.com/questions/2613734/maximum-packet-size-for-a-tcp-connection
-	local maxsize = 1024
 	while true do
 		-- conn:send() successful response will be numberBytesSent, nil, nil, time
 		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
 --print('send', conn, ' sending from '..i)
-		local j = math.min(n, i + maxsize-1)
+		local j = math.min(n, i + maxPacketSize-1)
 		-- If successful, the method returns the index of the last byte within [i, j] that has been sent. Notice that, if i is 1 or absent, this is effectively the total number of bytes sent. In
-		local successlen, reason, sentsofar, time = conn:send(data, i+1, j)
+		local successlen, reason, sentsofar, time = conn:send(data, i, j)
 --print('send', conn, '...', successlen, reason, sentsofar, time)
 --print('send', conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
@@ -109,18 +110,34 @@ function receive(conn, amount, waitduration)
 --print('receive waiting for', amount)
 	local endtime = getTime() + (waitduration or math.huge)
 	local data
+	local isnumber = type(amount) == 'number'
+	local bytesleft = isnumber and amount or nil
+	local sofar
 	repeat
 		local reason
 		--[[
 		data, reason = conn:receive(amount or '*l')
 		--]]
 		-- [[
-		local results = table.pack(conn:receive(amount or '*l'))
+		local results = table.pack(conn:receive(isnumber and math.max(bytesleft, maxPacketSize) or '*l'))
 --DEBUG:print('got', results:unpack())
 		data, reason = results:unpack()
-		if data then
---print('got', #data, 'bytes')
-			if type(amount) == 'number' then assertlen(data, amount) end
+		if data and #data > 0 then
+print('got', #data, 'bytes')
+			if isnumber then 
+				
+				sofar = (sofar or '') .. data
+				bytesleft = bytesleft - #data
+				data = nil
+				if bytesleft == 0 then 
+					data = sofar
+					break
+				end
+				if bytesleft < 0 then error("how did we get here?") end
+			else
+				-- no upper bound -- assume it's a line term
+				break
+			end
 		end
 		--]]
 --DEBUG:print('data len', type(data)=='string' and #data or nil)
@@ -140,7 +157,7 @@ function receive(conn, amount, waitduration)
 			end
 		end
 		coroutine.yield()
-	until data ~= nil
+	until false
 
 	return data
 end
@@ -308,7 +325,14 @@ print'sending initial RAM state...'
 	app.palTex:checkDirtyGPU()
 	app.fbTex:checkDirtyGPU()
 	--]]
-	-- [[ screenshot works.  framebuffer works. (in 16bpp rgb565 at least)
+-- [[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc?
+local ptr = ffi.cast('uint8_t*', app.ram.framebuffer)
+for i=0,256*256*2-1 do
+	ptr[i] = math.random(0,255)
+end
+app.fbTex.dirtyCPU = true
+--]]
+	--[[ screenshot works.  framebuffer works. (in 16bpp rgb565 at least)
 app:screenshotToFile'ss.png'
 local Image = require 'image'
 local image = Image(256, 256, 3, 'uint8_t'):clear()
@@ -434,7 +458,7 @@ print('...got', result:unpack())
 
 		assertlen(initMsg, initMsgSize)
 		-- and decode it
-		local ptr = ffi.cast('uint8_t*', initMsg)
+		local ptr = ffi.cast('uint8_t*', ffi.cast('char*', initMsg))
 
 --[[ debugging ... yeah it does instnatly upadte
 for i=0,initMsgSize-1 do
@@ -444,6 +468,7 @@ end
 
 		-- make sure gpu changes are in cpu as well
 		app.fbTex:checkDirtyGPU()
+		
 		-- flush GPU
 		ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
 		ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
@@ -459,6 +484,7 @@ end
 		app.fbTex.changedSinceDraw = true
 
 		-- [[ TODO if i don't run this now then why doesn't it happen at all?
+		-- this should be happenign every frame regardless...
 		app.spriteTex:checkDirtyCPU()
 		app.tileTex:checkDirtyCPU()
 		app.mapTex:checkDirtyCPU()
@@ -479,9 +505,11 @@ print'entering client listen loop...'
 		while sock
 		and sock:getsockname()
 		do
+coroutine.yield()
+--print'LISTENING...'-- TODO NO ONE IS RESUMING THIS			
 			local reason
-			data, reason = receive(sock, 0)
---DEBUG:print('client got', data, reason)
+			data, reason = receive(sock, nil, 0)
+--print('client got', data, reason)
 			if not data then
 				if reason ~= 'timeout' then
 					print('client remote connection failed: '..tostring(reason))
@@ -506,7 +534,9 @@ print'entering client listen loop...'
 
 			end
 		end
+print'client listen done'
 	end)
+print'ClientConn:init done'
 end
 
 function ClientConn:close()

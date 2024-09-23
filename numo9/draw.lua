@@ -63,7 +63,7 @@ end
 -- rgba5551 is 16bpp
 -- result is r,g,b,a 8bpp
 local function rgba5551_to_rgba8888_4ch(rgba5551)
-	-- TODO rounding ... for 5 bits into 8 bits, OR with the upper 3 bits again shifted down 5 bits ... so its a repeated-decimal
+	-- rounding ... for 5 bits into 8 bits, OR with the upper 3 bits again shifted down 5 bits ... so its a repeated-decimal
 	local r = bit.band(rgba5551, 0x1F)
 	local g = bit.band(rgba5551, 0x3E0)
 	local b = bit.band(rgba5551, 0x7C00)
