@@ -28,6 +28,7 @@ local framebufferAddr = require 'numo9.rom'.framebufferAddr
 local framebufferInBytes = require 'numo9.rom'.framebufferInBytes
 local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
 
+local initMsgSize = spriteSheetInBytes + tileSheetInBytes + tilemapInBytes + paletteInBytes + framebufferInBytes
 
 -- TOOD how about a net-string?
 -- pascal-string-encoded: length then data
@@ -40,9 +41,9 @@ local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
 local netescape = require 'netrefl.netfield'.netescape
 local netunescape = require 'netrefl.netfield'.netunescape
 
---[[ TODO replace \n-term luasocket strings with pascal-strings ... 
+--[[ TODO replace \n-term luasocket strings with pascal-strings ...
 local function netuintsend(conn, x)
-	
+
 end
 local function netuintrecv(conn)
 end
@@ -58,25 +59,38 @@ end
 
 -- send and make sure you send everything, and error upon fail
 function send(conn, data)
---DEBUG:print(conn, '<<', data)
-	local i = 1
+--print('send', conn, '<<', data)
+	local i = 0
+	local n = #data
+	-- https://stackoverflow.com/questions/2613734/maximum-packet-size-for-a-tcp-connection
+	local maxsize = 1024
 	while true do
 		-- conn:send() successful response will be numberBytesSent, nil, nil, time
 		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
---DEBUG:print(conn, ' sending from '..i)
-		local successlen, reason, faillen, time = conn:send(data, i)
---DEBUG:print(conn, '...', successlen, reason, faillen, time)
---DEBUG:print(conn, '...getstats()', conn:getstats())
+--print('send', conn, ' sending from '..i)
+		local j = math.min(n, i + maxsize)
+		-- If successful, the method returns the index of the last byte within [i, j] that has been sent. Notice that, if i is 1 or absent, this is effectively the total number of bytes sent. In
+		local successlen, reason, sentsofar, time = conn:send(data, i+1, j)
+--print('send', conn, '...', successlen, reason, sentsofar, time)
+--print('send', conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
 			assertne(reason, 'wantwrite', 'socket.send failed')	-- will wantwrite get set only if res[1] is nil?
---DEBUG:print(conn, '...done sending')
-			return successlen, reason, faillen, time
+--print('send', conn, '...done sending')
+			i = successlen
+			if i == n then
+				return successlen, reason, sentsofar, time
+			end
+			if i > n then
+				error("how did we send more bytes than we had?")
+			end
+		else
+			-- In case of error, the method returns nil, followed by an error message, followed by the index of the last byte within [i, j] that has been sent.
+			assertne(reason, 'wantwrite', 'socket.send failed')
+			--socket.select({conn}, nil)	-- not good?
+			-- try again
+			i = sentsofar
 		end
-		assertne(reason, 'wantwrite', 'socket.send failed')
-		--socket.select({conn}, nil)	-- not good?
-		-- try again
-		i = i + faillen
-		
+
 		-- don't busy wait
 		coroutine.yield()
 	end
@@ -91,17 +105,22 @@ TODO what to do
 
 -- have the caller wait while we recieve a message
 function receive(conn, amount, waitduration)
+--print('receive waiting for', amount)
 	local endtime = getTime() + (waitduration or math.huge)
 	local data
 	repeat
 		local reason
-		-- [[
+		--[[
 		data, reason = conn:receive(amount or '*l')
 		--]]
-		--[[
+		-- [[
 		local results = table.pack(conn:receive(amount or '*l'))
-print('got', results:unpack())
+--DEBUG:print('got', results:unpack())
 		data, reason = results:unpack()
+		if data then
+--print('got', #data, 'bytes')
+			if type(amount) == 'number' then assertlen(data, amount) end
+		end
 		--]]
 --DEBUG:print('data len', type(data)=='string' and #data or nil)
 		if not data then
@@ -206,7 +225,7 @@ Server.__gc = Server.close
 
 function Server:update()
 	local app = self.app
-	
+
 	-- listen for new connections
 	local client = self.socket:accept()
 	if client then
@@ -234,29 +253,29 @@ function Server:update()
 end
 
 -- create a remote connection
-function Server:remoteClientCoroutine(client)
+function Server:remoteClientCoroutine(sock)
 	local app = assert(self.app)
 	print('Server got connection -- starting new remoteClientCoroutine')
 
-	client:setoption('keepalive', true)
-	client:settimeout(0, 'b')	-- for the benefit of coroutines ...
+	sock:setoption('keepalive', true)
+	sock:settimeout(0, 'b')	-- for the benefit of coroutines ...
 
 print'waiting for client handshake'
 -- TODO stuck here ...
-	local recv, reason = receive(client, nil, 10)
+	local recv, reason = receive(sock, nil, 10)
 
-print('got', recv, reason)	
+print('got', recv, reason)
 	if not recv then error("Server waiting for handshake receive failed with error "..tostring(reason)) end
-	
+
 	asserteq(recv, handshakeClientSends, "handshake failed")
-print'sending server handshake'	
-	send(client, handshakeServerSends..'\n')
+print'sending server handshake'
+	send(sock, handshakeServerSends..'\n')
 
 	--[[
 	protocol ...
 	--]]
 print'waiting for player info'
-	local cmd = receive(client, nil, 10)
+	local cmd = receive(sock, nil, 10)
 	if not cmd then error("expected player names...") end
 	local parts = string.split(cmd, ' ')
 	asserteq(parts:remove(1), 'playernames', "expected 'playernames' to come first")
@@ -272,7 +291,7 @@ print'creating server remote client conn...'
 	local serverConn = RemoteServerConn{
 		app = app,
 		server = self,
-		socket = client,
+		socket = sock,
 		playerInfos = playerInfos,
 		thread = coroutine.running(),
 	}
@@ -280,20 +299,40 @@ print'creating server remote client conn...'
 -- TODO HERE record the current moment in the server's delta playback buffer and store it in the serverConn
 
 print'sending initial RAM state...'
-	-- now send back current state of the game ...
-	local initMsg = 
+	-- make sure changes in gpu are syncd with cpu...
+	app.spriteTex:checkDirtyGPU()
+	app.tileTex:checkDirtyGPU()
+	app.mapTex:checkDirtyGPU()
+	app.palTex:checkDirtyGPU()
+	app.fbTex:checkDirtyGPU()
+	-- send back current state of the game ...
+	local initMsg =
 		  ffi.string(ffi.cast('char*', app.ram.spriteSheet), spriteSheetInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.tileSheet), tileSheetInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.tilemap), tilemapInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.palette), paletteInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
-	local initMsgLen = #initMsg	
-	asserteq(send(serverConn.socket, initMsg), initMsgLen, "init msg")
+
+--[[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc? 
+local arr = ffi.new('char[?]', initMsgSize)
+local ptr = ffi.cast('uint8_t*', arr)
+for i=0,initMsgSize-1 do
+	ptr[i] = math.random(0,255)
+end
+initMsg = ffi.string(arr, initMsgSize)
+--]]
+
+--print(string.hexdump(initMsg))
+	assertlen(initMsg, initMsgSize)
+	asserteq(send(sock, initMsg), initMsgSize, "init msg")
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
+
+-- does luasocket need a \n to send anything?
+	send(sock, '\n')
 
 print'entering server listen loop...'
 	-- TODO here go into a busy loop and wait for client messages
-	-- TODO move all this function itno serverConn:loop() 
+	-- TODO move all this function itno serverConn:loop()
 	-- or into its ctor ...
 	serverConn:loop()
 end
@@ -321,23 +360,23 @@ function ClientConn:init(args)
 	self.app = app
 	local con = app.con
 	assertindex(args, 'playerInfos')
-	
+
 	con:print('ClientConn connecting to addr',args.addr,'port',args.port)
 	local sock, reason = socket.connect(args.addr, args.port)
 	if not sock then
 		print('failed to connect: '..tostring(reason))
 		return false, reason
 	end
-print'client connected'	
+print'client connected'
 	self.socket = sock
-	
+
 	sock:settimeout(0, 'b')
 	sock:setoption('keepalive', true)
 	self.connecting = true
 
 
 print'starting connection thread'
-	-- handshaking ...	
+	-- handshaking ...
 	-- TODO should this be a runFocus.thread that only updates when it's in focus?
 	-- or should it be a threads entry that is updated always?
 	-- or why am I even distinguishing? why not merge runFocus into threads?
@@ -349,7 +388,7 @@ print'sending client handshake to server'
 
 print'waiting for server handshake'
 		local recv, reason = receive(sock, nil, 10)
-print('got', recv, reason)		
+print('got', recv, reason)
 		if not recv then error("ClientConn waiting for handshake failed with error "..tostring(reason)) end
 		asserteq(recv, handshakeServerSends, "ClientConn handshake failed")
 
@@ -361,22 +400,30 @@ print'sending player info'
 		end
 		assert(send(sock, msg:concat' '..'\n'))
 
-print'waiting for initial ram state...'
+print'waiting for initial RAM state...'
 		-- now expect the initial server state
-		local initMsgSize = spriteSheetInBytes + tileSheetInBytes + tilemapInBytes + paletteInBytes + framebufferInBytes
-		
-		--[[
-		local serverState = receive(sock, initMsgSize, 10)
-		--]]
+
 		-- [[
+		local initMsg = assert(receive(sock, initMsgSize, 10))
+		--]]
+		--[[
 		local result = table.pack(receive(sock, initMsgSize, 10))
 print('...got', result:unpack())
-		local serverState = result:unpack()
+		local initMsg = result:unpack()
 		--]]
-		
-		assertlen(serverState, initMsgSize)
+--print(string.hexdump(initMsg))
+
+		assertlen(initMsg, initMsgSize)
 		-- and decode it
-		local ptr = ffi.cast('char*', serverState)
+		local ptr = ffi.cast('uint8_t*', initMsg)
+
+--[[ debugging ... yeah it does instnatly upadte
+for i=0,initMsgSize-1 do
+	ptr[i] = math.random(0,255)
+end
+--]]
+
+		-- make sure gpu changes are in cpu as well
 		app.fbTex:checkDirtyGPU()
 		-- flush GPU
 		ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
@@ -390,6 +437,15 @@ print('...got', result:unpack())
 		app.mapTex.dirtyCPU = true
 		app.palTex.dirtyCPU = true		-- paletteTex
 		app.fbTex.dirtyCPU = true		-- framebufferTex
+		app.fbTex.changedSinceDraw = true
+
+		-- [[ TODO if i don't run this now then why doesn't it happen at all?
+		app.spriteTex:checkDirtyCPU()
+		app.tileTex:checkDirtyCPU()
+		app.mapTex:checkDirtyCPU()
+		app.palTex:checkDirtyCPU()
+		app.fbTex:checkDirtyCPU()
+		--]]
 
 		self.connecting = nil
 		self.connected = true
@@ -397,7 +453,7 @@ print('...got', result:unpack())
 print'calling back to .success()'
 		-- TODO - onfailure?  and a pcall please ... one the coroutines won't mind ...
 		if args.success then args.success() end
-	
+
 		-- now start the busy loop of listening for new messages
 
 print'entering client listen loop...'
@@ -405,7 +461,7 @@ print'entering client listen loop...'
 		and sock:getsockname()
 		do
 			local reason
-			data, reason = receive(sock)
+			data, reason = receive(sock, 0)
 --DEBUG:print('client got', data, reason)
 			if not data then
 				if reason ~= 'timeout' then
@@ -414,8 +470,8 @@ print'entering client listen loop...'
 					-- TODO - die and go back to connection screen ... wherever that will be
 				end
 			else
-				print('client got data', data, reason)
-				
+--print('client got data', data, reason)
+
 --[[ clientlisten loop fps counter
 				local clientlistenEnd = sdl.SDL_GetTicks() / 1000
 				clientlistenTotalTime = clientlistenTotalTime + clientlistenEnd - clientlistenStart
@@ -428,7 +484,7 @@ print'entering client listen loop...'
 					clientlistenTotalFrames = 0
 				end
 --]]
-				
+
 			end
 		end
 	end)

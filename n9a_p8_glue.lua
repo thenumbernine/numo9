@@ -36,7 +36,7 @@ end
 p8_fillp=[p]nil
 --[[
 pico8 has palette-0 for modifying sprites that are drawn and palette-1 for modifying colors on screen already ...
-so how about I ... ... I guess when I draw colors then I ... 
+so how about I ... ... I guess when I draw colors then I ...
 wait is pico8 actually changing the index itself as it draws it out with palette-0?  and not just changing the associated palette values?
 and only afterwards with palette-1 it does change the palette's rgb?
 hmm weird.
@@ -74,7 +74,7 @@ if pal then trace"TODO pal(from,to,pal)" end
 			pokew(palMem+(to<<1),(peekw(palMem+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
 			--]]
 			-- [[
-			pokew(palMem+(to<<1),peekw(palMem+(from<<1)))
+			pokew(palMem+(to<<1),peekw(palMem+32+(from<<1)))
 			--]]
 		end
 	elseif type(from)=='table' then
@@ -88,7 +88,7 @@ if pal then trace"TODO pal(map,pal)" end
 				pokew(palMem+(to<<1),(peekw(palMem+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
 				--]]
 				-- [[
-				pokew(palMem+(to<<1),peekw(palMem+(from<<1)))
+				pokew(palMem+(to<<1),peekw(palMem+32+(from<<1)))
 				--]]
 			end
 		end
