@@ -338,6 +338,8 @@ function App:initGL()
 		map = function(...) return self:drawMap(...) end,
 		text = function(...) return self:drawText(...) end,		-- (text, x, y, fgColorIndex, bgColorIndex)
 
+		screenshot = function() return self:screenshotToFile'ss.png' end,
+
 
 		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
 		key = function(...) return self:key(...) end,
@@ -761,7 +763,7 @@ function App:update()
 			end
 		end
 
-		-- flush any cpu changes to gpu before drawing
+		-- flush any cpu changes to gpu before updating
 		self.fbTex:checkDirtyCPU()
 
 		local fb = self.fb
@@ -799,6 +801,9 @@ print('no runnable focus!')
 		end
 
 		gl.glDisable(gl.GL_SCISSOR_TEST)
+		-- make sure cpu has framebuffer changes
+		--self.fbTex:checkDirtyGPU()
+
 		self.inUpdateCallback = false
 		fb:unbind()
 
@@ -807,6 +812,8 @@ print('no runnable focus!')
 		-- so this copies CPU changes -> GPU changes
 		-- TODO nothing is copying the GPU back to CPU after we do our sprite renders ...
 		-- double TODO I don't have framebuffer memory
+
+
 	--[[
 	TODO ... upload framebuf, download framebuf after
 	that'll make sure graphics stays in synx

@@ -63,11 +63,45 @@ end
 -- rgba5551 is 16bpp
 -- result is r,g,b,a 8bpp
 local function rgba5551_to_rgba8888_4ch(rgba5551)
+	-- TODO rounding ... for 5 bits into 8 bits, OR with the upper 3 bits again shifted down 5 bits ... so its a repeated-decimal
+	local r = bit.band(rgba5551, 0x1F)
+	local g = bit.band(rgba5551, 0x3E0)
+	local b = bit.band(rgba5551, 0x7C00)
 	return
-		bit.lshift(bit.band(rgba5551, 0x1F), 3),
-		bit.lshift(bit.band(bit.rshift(rgba5551, 5), 0x1F), 3),
-		bit.lshift(bit.band(bit.rshift(rgba5551, 10), 0x1F), 3),
-		bit.band(1, bit.rshift(rgba5551, 15)) == 0 and 0 or 0xff
+		bit.bor(
+			bit.lshift(r, 3),	-- shift bit 4 to bit 7
+			bit.rshift(r, 2)	-- shift bit 4 to bit 2
+		),
+		bit.bor(
+			bit.rshift(g, 2),	-- shift bit 9 to bit 7
+			bit.rshift(g, 7)	-- shift bit 9 to bit 2
+		),
+		bit.bor(
+			bit.rshift(b, 7),	-- shift bit 14 to bit 7
+			bit.rshift(b, 12)	-- shift bit 14 to bit 2
+		),
+		bit.band(rgba5551, 0x8000) == 0 and 0 or 0xff
+end
+
+-- rgb565 is 16bpp
+-- result is r,g,b 8bpp
+local function rgb565rev_to_rgba888_3ch(rgb565)
+	local b = bit.band(rgb565, 0x1F)
+	local g = bit.band(rgb565, 0x7E0)
+	local r = bit.band(rgb565, 0xF800)
+	return
+		bit.bor(
+			bit.rshift(r, 8),		-- shift bit 15 to bit 7
+			bit.rshift(r, 13)		-- shift bit 15 to bit 2
+		),
+		bit.bor(
+			bit.rshift(g, 3),		-- shift bit 10 to bit 7
+			bit.rshift(g, 9)		-- shift bit 10 to bit 1
+		),
+		bit.bor(
+			bit.lshift(b, 3),		-- shift bit 4 to bit 7
+			bit.rshift(b, 2)		-- shift bit 4 to bit 2
+		)
 end
 
 -- when I say 'reverse' i mean reversed order of bitfields
@@ -263,21 +297,28 @@ glreport'here'
 		assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
 		local fb = app.fb
 		if app.inUpdateCallback then
-			app.fb:unbind()
+			fb:unbind()
 		end
 		self:bind()
 			:subimage()
 			:unbind()
 		if app.inUpdateCallback then
-			app.fb:bind()
+			fb:bind()
 		end
 		self.dirtyCPU = false
 	end
 	function tex:checkDirtyGPU()
 		if not self.dirtyGPU then return end
-print'GPU->CPU'
 		assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
+		-- assert that fb is bound to fbTex ...
+		local fb = app.fb
+		if not app.inUpdateCallback then
+			fb:bind()
+		end
 		gl.glReadPixels(0, 0, self.width, self.height, self.format, self.type, self.image.buffer)
+		if not app.inUpdateCallback then
+			fb:unbind()
+		end
 		self.dirtyGPU = false
 	end
 glreport'here'
@@ -1007,8 +1048,8 @@ void main() {
 		}
 	end
 
-	--self:setVideoMode(0)	-- RGB565 output
-	self:setVideoMode(1)	-- 8bit indexed output
+	self:setVideoMode(0)	-- RGB565 output
+	--self:setVideoMode(1)	-- 8bit indexed output
 
 	-- for the editor
 
@@ -1077,6 +1118,7 @@ end
 return {
 	argb8888revto5551 = argb8888revto5551,
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
+	rgb565rev_to_rgba888_3ch = rgb565rev_to_rgba888_3ch,
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
 	resetFont = resetFont,
 	resetFontOnSheet = resetFontOnSheet,

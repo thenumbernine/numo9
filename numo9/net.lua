@@ -68,7 +68,7 @@ function send(conn, data)
 		-- conn:send() successful response will be numberBytesSent, nil, nil, time
 		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
 --print('send', conn, ' sending from '..i)
-		local j = math.min(n, i + maxsize)
+		local j = math.min(n, i + maxsize-1)
 		-- If successful, the method returns the index of the last byte within [i, j] that has been sent. Notice that, if i is 1 or absent, this is effectively the total number of bytes sent. In
 		local successlen, reason, sentsofar, time = conn:send(data, i+1, j)
 --print('send', conn, '...', successlen, reason, sentsofar, time)
@@ -83,12 +83,13 @@ function send(conn, data)
 			if i > n then
 				error("how did we send more bytes than we had?")
 			end
+			i = i + 1
 		else
 			-- In case of error, the method returns nil, followed by an error message, followed by the index of the last byte within [i, j] that has been sent.
 			assertne(reason, 'wantwrite', 'socket.send failed')
 			--socket.select({conn}, nil)	-- not good?
 			-- try again
-			i = sentsofar
+			i = sentsofar + 1
 		end
 
 		-- don't busy wait
@@ -299,12 +300,30 @@ print'creating server remote client conn...'
 -- TODO HERE record the current moment in the server's delta playback buffer and store it in the serverConn
 
 print'sending initial RAM state...'
-	-- make sure changes in gpu are syncd with cpu...
+
+	-- [[ make sure changes in gpu are syncd with cpu...
 	app.spriteTex:checkDirtyGPU()
 	app.tileTex:checkDirtyGPU()
 	app.mapTex:checkDirtyGPU()
 	app.palTex:checkDirtyGPU()
 	app.fbTex:checkDirtyGPU()
+	--]]
+	-- [[ screenshot works.  framebuffer works. (in 16bpp rgb565 at least)
+app:screenshotToFile'ss.png'
+local Image = require 'image'
+local image = Image(256, 256, 3, 'uint8_t'):clear()
+for j=0,255 do
+	for i=0,255 do
+		local r,g,b = require 'numo9.draw'.rgb565rev_to_rgba888_3ch(
+			ffi.cast('uint16_t*', app.ram.framebuffer)[i + 256 * j]
+		)
+		image.buffer[0 + 3 * (i + 256 * j)] = r
+		image.buffer[1 + 3 * (i + 256 * j)] = g
+		image.buffer[2 + 3 * (i + 256 * j)] = b
+	end
+end
+image:save'fb.png' -- bad
+--]]
 	-- send back current state of the game ...
 	local initMsg =
 		  ffi.string(ffi.cast('char*', app.ram.spriteSheet), spriteSheetInBytes)
@@ -313,7 +332,7 @@ print'sending initial RAM state...'
 		..ffi.string(ffi.cast('char*', app.ram.palette), paletteInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
 
---[[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc? 
+--[[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc?
 local arr = ffi.new('char[?]', initMsgSize)
 local ptr = ffi.cast('uint8_t*', arr)
 for i=0,initMsgSize-1 do
