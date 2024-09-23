@@ -188,6 +188,7 @@ end
 
 -- mayb I'll do like SDL does ...
 local netcmdNames = table{
+	'refresh',
 	'clearScreen',
 	'clip',
 	'solidRect',
@@ -208,6 +209,10 @@ local netcmdNames = table{
 local netcmds = netcmdNames:mapi(function(name, index) return index, name end):setmetatable(nil)
 
 ffi.cdef[[
+typedef struct Numo9Cmd_refresh {
+	int type;
+} Numo9Cmd_refresh;
+
 typedef struct Numo9Cmd_base {
 	int type;
 } Numo9Cmd_base;
@@ -356,7 +361,7 @@ function RemoteServerConn:init(args)
 	self.socket = assertindex(args, 'socket')
 	self.playerInfos = assertindex(args, 'playerInfos')
 	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
-	self.cmdHistoryIndex  = asserttype(assertindex(args, 'cmdHistoryIndex'), 'number')
+	self.cmdBufferIndex  = asserttype(assertindex(args, 'cmdBufferIndex'), 'number')
 end
 
 function RemoteServerConn:isActive()
@@ -446,19 +451,19 @@ text <-> drawText
 	x cmds per second ... 10? 20? 100?
 	x bytes per cmd (44 atm)
 	--]]
-	self.cmdHistory = vector('Numo9Cmd', 60000)
-	self.cmdHistoryIndex = 0	-- round-robin
+	self.cmdBuffer = vector('Numo9Cmd', 60000)
+	self.cmdBufferIndex = 0	-- round-robin
 
 	app.threads:add(self.updateCoroutine, self)
 end
 
 function Server:getNextCmd()
-	local cmd = self.cmdHistory.v + self.cmdHistoryIndex
-	self.cmdHistoryIndex = self.cmdHistoryIndex + 1
-	if self.cmdHistoryIndex > self.cmdHistory.size then
+	local cmd = self.cmdBuffer.v + self.cmdBufferIndex
+	self.cmdBufferIndex = self.cmdBufferIndex + 1
+	if self.cmdBufferIndex > self.cmdBuffer.size then
 		print'server buffer overflowing -- looping'	-- give me an idea how often this happens ... hopefully not too frequent
 	end
-	self.cmdHistoryIndex = self.cmdHistoryIndex % self.cmdHistory.size
+	self.cmdBufferIndex = self.cmdBufferIndex % self.cmdBuffer.size
 	return cmd
 end
 
@@ -501,17 +506,17 @@ function Server:updateCoroutine()
 				- spr()s and map()s drawn since the last update
 				- sfx() and musics() played since the last update
 				--]]
-	--asserttype(serverConn.cmdHistoryIndex, 'number')
-				while serverConn.cmdHistoryIndex ~= self.cmdHistoryIndex do
-	--print('self.cmdHistory.v', self.cmdHistory.v)
-	--print('serverConn.cmdHistoryIndex', serverConn.cmdHistoryIndex)
-					local cmd = self.cmdHistory.v + serverConn.cmdHistoryIndex
+	--asserttype(serverConn.cmdBufferIndex, 'number')
+				while serverConn.cmdBufferIndex ~= self.cmdBufferIndex do
+	--print('self.cmdBuffer.v', self.cmdBuffer.v)
+	--print('serverConn.cmdBufferIndex', serverConn.cmdBufferIndex)
+					local cmd = self.cmdBuffer.v + serverConn.cmdBufferIndex
 					-- send cmd to conn
 					send(serverConn.socket, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
 					-- TODO is there a way to send without string-ifying it?
 					-- TODO maybe just use sock instead of luasocket ...
 					-- inc buf
-					serverConn.cmdHistoryIndex = (serverConn.cmdHistoryIndex + 1) % self.cmdHistory.size
+					serverConn.cmdBufferIndex = (serverConn.cmdBufferIndex + 1) % self.cmdBuffer.size
 				end
 			end
 		end
@@ -560,7 +565,7 @@ print'creating server remote client conn...'
 		socket = sock,
 		playerInfos = playerInfos,
 		thread = coroutine.running(),
-		cmdHistoryIndex = asserttype(self.cmdHistoryIndex, 'number'),
+		cmdBufferIndex = asserttype(self.cmdBufferIndex, 'number'),
 	}
 	self.serverConns:insert(serverConn)
 -- TODO HERE record the current moment in the server's delta playback buffer and store it in the serverConn
@@ -652,6 +657,11 @@ function ClientConn:init(args)
 	self.app = app
 	local con = app.con
 	assertindex(args, 'playerInfos')
+
+	self.cmdBuffer = vector('Numo9Cmd', 60000)	-- round-robin
+	self.cmdBufferWriteIndex = 0		-- write location for incoming cmds
+	self.cmdBufferLastRefreshIndex = 0	-- last refresh cmd written
+	self.cmdBufferReadIndex = 0			-- last interpreted cmd
 
 	con:print('ClientConn connecting to addr',args.addr,'port',args.port)
 	local sock, reason = socket.connect(args.addr, args.port)
@@ -761,7 +771,6 @@ print'calling back to .success()'
 
 	-- now start the busy loop of listening for new messages
 
-	local cmd = ffi.new'Numo9Cmd[1]'
 print'entering client listen loop...'
 	while sock
 	and sock:getsockname()
@@ -780,9 +789,29 @@ print'entering client listen loop...'
 		else
 --print('client got data', data, reason)
 			assertlen(data, ffi.sizeof'Numo9Cmd')
+			
+			-- TODO for vsync's sake ..
+			-- buffer commands on the client's side as well
+			-- and only execute them once we get an end-of-frame command
+			local cmd = self.cmdBuffer.v + self.cmdBufferWriteIndex
+			if cmd[0].base.type == netcmds.refresh then
+				self.cmdBufferLastRefreshIndex = self.cmdBufferWriteIndex
+			end
+			self.cmdBufferWriteIndex = (self.cmdBufferWriteIndex + 1) % self.cmdBuffer.size
+			if self.cmdBufferWriteIndex == self.cmdBufferReadIndex then
+				print('DANGER! cmd buffer overflow!')
+			end
 			ffi.copy(cmd, data, ffi.sizeof'Numo9Cmd')
+		end
+
+		while self.cmdBufferReadIndex ~= self.cmdBufferLastRefreshIndex do
+			local cmd = self.cmdBuffer.v + self.cmdBufferReadIndex
+			self.cmdBufferReadIndex = (self.cmdBufferReadIndex + 1) % self.cmdBuffer.size
 			local base = cmd[0].base
-			if base.type == netcmds.clearScreen then
+			if base.type == netcmds.refresh then
+				-- stop handling commands <-> refresh the screen
+				break
+			elseif base.type == netcmds.clearScreen then
 				local c = cmd[0].clearScreen
 				app:clearScreen(c .colorIndex)
 			elseif base.type == netcmds.clipRect then
@@ -850,21 +879,21 @@ print'entering client listen loop...'
 				app.mvMat:applyLookAt(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
 				app:mvMatToRAM()
 			end
+		end
 
 --[[ clientlisten loop fps counter
-			local clientlistenEnd = sdl.SDL_GetTicks() / 1000
-			clientlistenTotalTime = clientlistenTotalTime + clientlistenEnd - clientlistenStart
-			clientlistenTotalFrames = clientlistenTotalFrames + 1
-			local thissec = math.floor(clientlistenEnd)
-			if thissec ~= clientlistenReportSecond and clientlistenTotalTime > 0 then
-				print('clientlistening at '..(clientlistenTotalFrames/clientlistenTotalTime)..' fps')
-				clientlistenReportSecond = thissec
-				clientlistenTotalTime = 0
-				clientlistenTotalFrames = 0
-			end
+		local clientlistenEnd = sdl.SDL_GetTicks() / 1000
+		clientlistenTotalTime = clientlistenTotalTime + clientlistenEnd - clientlistenStart
+		clientlistenTotalFrames = clientlistenTotalFrames + 1
+		local thissec = math.floor(clientlistenEnd)
+		if thissec ~= clientlistenReportSecond and clientlistenTotalTime > 0 then
+			print('clientlistening at '..(clientlistenTotalFrames/clientlistenTotalTime)..' fps')
+			clientlistenReportSecond = thissec
+			clientlistenTotalTime = 0
+			clientlistenTotalFrames = 0
+		end
 --]]
 
-		end
 	end
 print'client listen done'
 end
