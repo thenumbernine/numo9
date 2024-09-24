@@ -829,17 +829,13 @@ print('package.loaded', package.loaded)
 		thread = coroutine.create(function()
 			self:resetGFX()		-- needed to initialize UI colors
 			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
-			for i=1,30 do
-				coroutine.yield()
-			end
+			--for i=1,30 do coroutine.yield() end
 			for i=0,15 do
 				self.con.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
 				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
 				self.con:print'hello world'
 
-				for i=1,3 do
-					coroutine.yield()
-				end
+				--for i=1,3 do coroutine.yield() end
 			end
 			self.con.fgColor = 0xfc			-- 11 = bg, 12 = fg
 			self.con.bgColor = 0xf0

@@ -781,7 +781,7 @@ print'sending initial RAM state...'
 	serverConn.toSend:insert(ramState)
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
 
-require'ext.path''server_init.txt':write(string.hexdump(ramState))
+--require'ext.path''server_init.txt':write(string.hexdump(ramState))
 end
 
 
@@ -921,7 +921,7 @@ print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 				--print(string.hexdump(ramState))
 
 					assertlen(ramState, ramStateSize)
-require'ext.path''client_init.txt':write(string.hexdump(ramState))
+--require'ext.path''client_init.txt':write(string.hexdump(ramState))
 					-- and decode it
 					local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))
 
