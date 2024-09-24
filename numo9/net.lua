@@ -74,11 +74,13 @@ end
 
 
 -- https://stackoverflow.com/questions/2613734/maximum-packet-size-for-a-tcp-connection
-local maxPacketSize = 1024
+--local maxPacketSize = 1024	-- when sending the RAM over, small packets kill us ... starting to not trust luasocket ...
+local maxPacketSize = 65500
 
 -- send and make sure you send everything, and error upon fail
 function send(conn, data)
 --print('send', conn, '<<', data)
+--local calls = 0
 	local i = 1
 	local n = #data
 	while true do
@@ -88,13 +90,15 @@ function send(conn, data)
 		local j = math.min(n, i + maxPacketSize-1)
 		-- If successful, the method returns the index of the last byte within [i, j] that has been sent. Notice that, if i is 1 or absent, this is effectively the total number of bytes sent. In
 		local successlen, reason, sentsofar, time = conn:send(data, i, j)
---print('send', conn, '...', successlen, reason, sentsofar, time)
+--calls = calls + 1
+print('send', conn, '...', successlen, reason, sentsofar, time)
 --print('send', conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
 			assertne(reason, 'wantwrite', 'socket.send failed')	-- will wantwrite get set only if res[1] is nil?
 --print('send', conn, '...done sending')
 			i = successlen
 			if i == n then
+--print('send took', calls,'calls')
 				return successlen, reason, sentsofar, time
 			end
 			if i > n then
@@ -119,6 +123,10 @@ TODO what to do
 - keep reading/writing line by line (bad for realtime)
 - r/w byte-by-byte (more calls, could luajit handle the performance?)
 - have receive() always return every line
+
+https://www.lua.org/pil/9.4.html
+I thought it was stalling on receiving the initial RAM state
+but maybe it's just slow? why would it be so slow to send half a MB through a loopback connection?
 --]]
 
 -- have the caller wait while we recieve a message
@@ -131,8 +139,9 @@ function receive(conn, amount, waitduration)
 	local sofar
 	repeat
 		local reason
-		--[[
-		data, reason = conn:receive(amount or '*l')
+		--[[ TODO why does this stall ....
+		data, reason = conn:receive(isnumber and amount or '*l')
+		if not data then
 		--]]
 		-- [[
 		local results = table.pack(conn:receive(
@@ -318,6 +327,7 @@ typedef struct Numo9Cmd_load {
 
 typedef union Numo9Cmd {
 	Numo9Cmd_base base;
+	Numo9Cmd_refresh refresh;
 	Numo9Cmd_clearScreen clearScreen;
 	Numo9Cmd_clipRect clipRect;
 	Numo9Cmd_solidRect solidRect;
@@ -361,7 +371,7 @@ function RemoteServerConn:init(args)
 	self.socket = assertindex(args, 'socket')
 	self.playerInfos = assertindex(args, 'playerInfos')
 	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
-	self.cmdBufferIndex  = asserttype(assertindex(args, 'cmdBufferIndex'), 'number')
+	self.cmdBufferSendIndex  = asserttype(assertindex(args, 'cmdBufferSendIndex'), 'number')
 end
 
 function RemoteServerConn:isActive()
@@ -403,12 +413,14 @@ function Server:init(app)
 
 	self.serverConns = table()
 	-- TODO make net device configurable too?
-	self.socket = assert(socket.bind(listenAddr, listenPort))
-	self.socketaddr, self.socketport = self.socket:getsockname()
+	local sock = assert(socket.bind(listenAddr, listenPort))
+	self.socket = sock
+	self.socketaddr, self.socketport = sock:getsockname()
 	con:print('...init listening on ', tostring(self.socketaddr)..':'..tostring(self.socketport))
 
-	self.socket:settimeout(0, 'b')
-	self.socket:setoption('keepalive', true)
+	sock:setoption('keepalive', true)
+	sock:setoption('tcp-nodelay', true)
+	sock:settimeout(0, 'b')
 
 	--[[
 	ok now I need to store a list of any commands that modify the audio/visual state
@@ -454,14 +466,26 @@ text <-> drawText
 	self.cmdBuffer = vector('Numo9Cmd', 60000)
 	self.cmdBufferIndex = 0	-- round-robin
 
+	-- keep a refresh command on top
+	self:cmdGetTop().refresh.type = netcmds.refresh
+
 	app.threads:add(self.updateCoroutine, self)
+	app.threads:add(self.newConnListenCoroutine, self)
 end
 
-function Server:getNextCmd()
+-- TODO what if we've never got a write yet? how to handle that situation ...
+-- easy way is to just always push a refresh message onto the queue upon creation ...
+function Server:cmdGetTop()
+	return self.cmdBuffer.v + (self.cmdBufferIndex - 1) % self.cmdBuffer.size
+end
+
+function Server:pushCmd()
 	local cmd = self.cmdBuffer.v + self.cmdBufferIndex
 	self.cmdBufferIndex = self.cmdBufferIndex + 1
-	if self.cmdBufferIndex > self.cmdBuffer.size then
-		print'server buffer overflowing -- looping'	-- give me an idea how often this happens ... hopefully not too frequent
+	for i,serverConn in ipairs(self.serverConns) do
+		if self.cmdBufferIndex == serverConn.cmdBufferSendIndex then
+			print('WARNING - looks like serverConn '..i..' is getting overrun')
+		end
 	end
 	self.cmdBufferIndex = self.cmdBufferIndex % self.cmdBuffer.size
 	return cmd
@@ -476,24 +500,40 @@ function Server:close()
 end
 Server.__gc = Server.close
 
-function Server:updateCoroutine()
+-- I had this on the same loop as updateCoroutine, but something was stalling all updates, ... couldn't guess what it was ...
+function Server:newConnListenCoroutine()
 	local app = self.app
+	local sock = self.socket
 
-	while self.socket
-	and self.socket:getsockname()
+	while sock
+	and sock:getsockname()
 	do
 		coroutine.yield()
 
 		-- listen for new connections
-		local client = self.socket:accept()
+		local client = sock:accept()
 		if client then
 			app.threads:add(self.connectRemoteCoroutine, self, client)
 		end
+	end
+end
 
+Server.updateConnCount = 0	-- keep track of how often we are updating the conns ... so i know if they get stuck , maybe when recieivng a client or osmething idk
+function Server:updateCoroutine()
+	local app = self.app
+	local sock = self.socket
+
+	while sock
+	and sock:getsockname()
+	do
+		coroutine.yield()
+
+self.updateConnCount = self.updateConnCount + 1
 		-- now handle connections
 		for i=#self.serverConns,1,-1 do
 			local serverConn = self.serverConns[i]
 			if not serverConn:isActive() then
+print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
 				self.serverConns:remove(i)
 			else
 				--[[
@@ -506,17 +546,19 @@ function Server:updateCoroutine()
 				- spr()s and map()s drawn since the last update
 				- sfx() and musics() played since the last update
 				--]]
-	--asserttype(serverConn.cmdBufferIndex, 'number')
-				while serverConn.cmdBufferIndex ~= self.cmdBufferIndex do
-	--print('self.cmdBuffer.v', self.cmdBuffer.v)
-	--print('serverConn.cmdBufferIndex', serverConn.cmdBufferIndex)
-					local cmd = self.cmdBuffer.v + serverConn.cmdBufferIndex
+--asserttype(serverConn.cmdBufferIndex, 'number')
+print("server.cmdBufferIndex "..self.cmdBufferIndex.." serverConn.cmdBufferSendIndex "..serverConn.cmdBufferSendIndex)
+				while serverConn.cmdBufferSendIndex ~= self.cmdBufferIndex do
+--print('self.cmdBuffer.v', self.cmdBuffer.v)
+--print('serverConn.cmdBufferSendIndex', serverConn.cmdBufferSendIndex)
+					local cmd = self.cmdBuffer.v + serverConn.cmdBufferSendIndex
 					-- send cmd to conn
-					send(serverConn.socket, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
+					-- TODO WHY DOES THIS STALL???!?!?!??!?!
+					send(sock, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
 					-- TODO is there a way to send without string-ifying it?
 					-- TODO maybe just use sock instead of luasocket ...
 					-- inc buf
-					serverConn.cmdBufferIndex = (serverConn.cmdBufferIndex + 1) % self.cmdBuffer.size
+					serverConn.cmdBufferSendIndex = (serverConn.cmdBufferSendIndex + 1) % self.cmdBuffer.size
 				end
 			end
 		end
@@ -529,6 +571,7 @@ function Server:connectRemoteCoroutine(sock)
 	print('Server got connection -- starting new connectRemoteCoroutine')
 
 	sock:setoption('keepalive', true)
+	sock:setoption('tcp-nodelay', true)
 	sock:settimeout(0, 'b')	-- for the benefit of coroutines ...
 
 print'waiting for client handshake'
@@ -565,7 +608,7 @@ print'creating server remote client conn...'
 		socket = sock,
 		playerInfos = playerInfos,
 		thread = coroutine.running(),
-		cmdBufferIndex = asserttype(self.cmdBufferIndex, 'number'),
+		cmdBufferSendIndex = asserttype(self.cmdBufferIndex, 'number'),
 	}
 	self.serverConns:insert(serverConn)
 -- TODO HERE record the current moment in the server's delta playback buffer and store it in the serverConn
@@ -627,6 +670,8 @@ initMsg = ffi.string(arr, initMsgSize)
 	asserteq(send(sock, initMsg), initMsgSize, "init msg")
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
 
+require'ext.path''server_init.txt':write(string.hexdump(initMsg))
+
 print'entering server listen loop...'
 	-- TODO here go into a busy loop and wait for client messages
 	-- TODO move all this function itno serverConn:loop()
@@ -672,8 +717,9 @@ function ClientConn:init(args)
 print'client connected'
 	self.socket = sock
 
-	sock:settimeout(0, 'b')
 	sock:setoption('keepalive', true)
+	sock:setoption('tcp-nodelay', true)
+	sock:settimeout(0, 'b')
 	self.connecting = true
 
 print'starting connection thread'
@@ -724,6 +770,7 @@ print('...got', result:unpack())
 --print(string.hexdump(initMsg))
 
 	assertlen(initMsg, initMsgSize)
+require'ext.path''client_init.txt':write(string.hexdump(initMsg))
 	-- and decode it
 	local ptr = ffi.cast('uint8_t*', ffi.cast('char*', initMsg))
 
@@ -789,11 +836,13 @@ print'entering client listen loop...'
 		else
 --print('client got data', data, reason)
 			assertlen(data, ffi.sizeof'Numo9Cmd')
-			
+
 			-- TODO for vsync's sake ..
 			-- buffer commands on the client's side as well
 			-- and only execute them once we get an end-of-frame command
 			local cmd = self.cmdBuffer.v + self.cmdBufferWriteIndex
+			ffi.copy(cmd, data, ffi.sizeof'Numo9Cmd')
+--print('client got msg', cmd[0].base.type, netcmdNames[cmd[0].base.type])
 			if cmd[0].base.type == netcmds.refresh then
 				self.cmdBufferLastRefreshIndex = self.cmdBufferWriteIndex
 			end
@@ -801,7 +850,6 @@ print'entering client listen loop...'
 			if self.cmdBufferWriteIndex == self.cmdBufferReadIndex then
 				print('DANGER! cmd buffer overflow!')
 			end
-			ffi.copy(cmd, data, ffi.sizeof'Numo9Cmd')
 		end
 
 		while self.cmdBufferReadIndex ~= self.cmdBufferLastRefreshIndex do
