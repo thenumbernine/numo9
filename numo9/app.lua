@@ -913,25 +913,41 @@ function App:update()
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
-		print(
-			--'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs
-			--..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
-			self.server
-			and (
-				(
-					self.server.serverConns[1]
-						and 'server cmdbuf write index: '..self.server.cmdBufferIndex
-							..' send index: '..self.server.serverConns[1].cmdBufferSendIndex
-						or ''
-				)..' conn updates: '..self.server.updateConnCount
-			)
-			or (self.remoteClient
-			and 'client cmdbuf write index: '..self.remoteClient.cmdBufferWriteIndex
+		--print(
+		--	'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs
+		--	..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
+		--)
+		if self.server then
+			--[[
+docs say:
+	master:getstats()
+	client:getstats()
+	server:getstats()
+but error says:
+	self.server.socket	tcp{server}: 0x119b958e8
+	./numo9/app.lua:923: calling 'getstats' on bad self (tcp{client} expected)
+... does this mean :getstats() does not work on tcp server sockets?
+			if self.server.socket then
+print('self.server.socket', self.server.socket)
+				io.write('server sock '..require'ext.tolua'(self.server.socket:getstats())..' ')
+			end
+			--]]
+			io.write('cmdbuf write index: '..self.server.cmdBufferIndex..' ')
+			if self.server.serverConns[1] then
+				io.write('serverconn stats '..require'ext.tolua'{self.server.serverConns[1].socket:getstats()}..' ')
+				io.write('send index: '..self.server.serverConns[1].cmdBufferSendIndex..' ')
+			end
+			io.write('conn updates: '..self.server.updateConnCount..' ')
+			self.server.updateConnCount = 0
+		end
+		if self.remoteClient then
+			io.write('client cmdbuf write index: '..self.remoteClient.cmdBufferWriteIndex
 				..' refresh index: '..self.remoteClient.cmdBufferLastRefreshIndex
 				..' read index: '..self.remoteClient.cmdBufferReadIndex
 			)
-		)
-		if self.server then self.server.updateConnCount = 0 end
+		end
+		print()
+
 		drawsPerSecond = 0
 		fpsFrames = 0
 		fpsSeconds = 0
