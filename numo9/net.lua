@@ -16,7 +16,11 @@ local ffi = require 'ffi'
 
 require 'ffi.req' 'c.string'	-- strlen
 
-local socket = require 'socket'
+local success, socket = pcall(require, 'socket')
+if not success then
+	print"WARNING - couldn't load socket"
+end
+
 local class = require 'ext.class'
 local table = require 'ext.table'
 local string = require 'ext.string'
