@@ -265,6 +265,18 @@ setfenv(1, {
 		y=math.floor(y)
 		return x<0 or x>=128 or y<0 or y>128 and 0 or peek(fbMem+((x|(y<<8))))
 	end,
+	sset=[x,y,col]do
+		x=math.floor(x)
+		y=math.floor(y)
+		if x<0 or x>=128 or y<0 or y >= 128 then return end
+		col=math.floor(col or p8color)
+		poke(gfxMem+((x|(y<<8))),col)
+	end,
+	sget=[x,y]do
+		x=math.floor(x)
+		y=math.floor(y)
+		return x<0 or x>=128 or y<0 or y>128 and 0 or peek(gfxMem+((x|(y<<8))))
+	end,
 	rect=[x0,y0,x1,y1,col]do
 		col=col or p8color	-- TODO `or=` operator for logical-inplace-or?
 		rectb(x0,y0,x1-x0+1,y1-y0+1,col)
@@ -420,7 +432,6 @@ assert(i>=0 and i<256)
 			error'here'
 		end
 	end,
-	-- TODO sget/sset and spriteTex.dirtyCPU
 	mget=[x,y]do
 		x=math.floor(x)
 		y=math.floor(y)
