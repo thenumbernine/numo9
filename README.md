@@ -279,7 +279,7 @@ Pico8 Compatability is at 95%
 - certain machine-specific peeks and pokes don't work
 - palette functions are still buggy
 
-# Inspiration for this:
+# Other Fantasy Consoles / Inspiration for this:
 - https://www.pico-8.com/
 - https://tic80.com/
 - https://pixelvision8.itch.io/
@@ -300,14 +300,19 @@ Pico8 Compatability is at 95%
 - input
 	- joystick support
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
-- langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 - multiplayer
 	- initial cl/sv communication works
 	- needs all commands to be emulated
 	- needs proper observer/lobby/hotseats
+- editor:
+	- copy/paste on the tilemap.
+		- copy/paste tilemap entries themselves
+		- paste sprites into the tilemap, then automatically quantize their sprites and palettes.. Just need to copy most of this from my `convert-to-8x8x4bpp` repo.
 	- decouple editor from the fantasy-hardware so that multiplayer clients can play the game unhindered while the server edits it.
 	- decouple the console from the fantasy-hardware too (cheating I know, but pretty sure some like TIC-80 do this), and then set aside the framebuffer for streaming to clients, while the server can issue commands / edit content...
+	- route all editor-editing-commands through the game-API so that you get realtime updates for free , and so the server can DM for the games.
+- graphics:
+	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
+	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
+- langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.
-- copy/paste on the tilemap.
-	- copy/paste tilemap entries themselves
-	- paste sprites into the tilemap, then automatically quantize their sprites and palettes.. Just need to copy most of this from my `convert-to-8x8x4bpp` repo.

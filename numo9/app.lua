@@ -259,6 +259,11 @@ function App:initGL()
 		end,
 		reset = function(...)
 			local result = table.pack(self:resetROM(...))
+			
+			-- TODO this or can I get by 
+			-- 1) backing up the client's cartridge state upon load() then ...
+			-- 2) ... upon client reset() just copy that over?
+			-- fwiw the initial sendRAM doesn't include the cartridge state, just the RAM state ...
 			if self.server then
 				for _,serverConn in ipairs(self.server.serverConns) do
 					self.server:sendRAM(serverConn)
@@ -284,9 +289,36 @@ function App:initGL()
 		peek = function(addr) return self:peek(addr) end,
 		peekw = function(addr) return self:peekw(addr) end,
 		peekl = function(addr) return self:peekl(addr) end,
-		poke = function(addr, value) return self:poke(addr, value) end,
-		pokew = function(addr, value) return self:pokew(addr, value) end,
-		pokel = function(addr, value) return self:pokel(addr, value) end,
+		poke = function(addr, value)
+			if self.server then
+				local cmd = self.server:pushCmd().poke
+				cmd.type = netcmds.poke
+				cmd.addr = addr
+				cmd.value = value
+				cmd.size = 1
+			end
+			return self:poke(addr, value)
+		end,
+		pokew = function(addr, value)
+			if self.server then
+				local cmd = self.server:pushCmd().poke
+				cmd.type = netcmds.poke
+				cmd.addr = addr
+				cmd.value = value
+				cmd.size = 2
+			end
+			return self:pokew(addr, value)
+		end,
+		pokel = function(addr, value)
+			if self.server then
+				local cmd = self.server:pushCmd().poke
+				cmd.type = netcmds.poke
+				cmd.addr = addr
+				cmd.value = value
+				cmd.size = 4
+			end		
+			return self:pokel(addr, value)
+		end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(x, y)
@@ -306,7 +338,17 @@ function App:initGL()
 			if x >= 0 and x < tilemapSize.x
 			and y >= 0 and y < tilemapSize.y
 			then
-				self.ram.tilemap[x + tilemapSize.x * y] = value
+				local index = x + tilemapSize.x * y
+				-- use poke over netplay, cuz i'm lazy.
+				-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
+				if self.server then
+					local cmd = self.server:pushCmd().poke
+					cmd.type = netcmds.poke
+					cmd.addr = tilemapAddr + bit.lshift(index, 1)
+					cmd.value = value
+					cmd.size = 2
+				end
+				self.ram.tilemap[index] = value
 				self.mapTex.dirtyCPU = true
 			end
 		end,
