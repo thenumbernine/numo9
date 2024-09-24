@@ -244,14 +244,38 @@ function App:initGL()
 		stop = function(...) return self:stop(...) end,
 		save = function(...) return self:save(...) end,
 		load = function(...)
+			local result = table.pack(self:load(...))
 			if self.server then
+				--[[
+				-- TODO somehow associate with this reset-cmd the new RAM state
+				-- so when the client goes to grab it, it gets this
+				local cmd = self.server:pushCmd().load
+				cmd.type = netcmds.load
+				--]]
+				-- [[
+				for _,serverConn in ipairs(self.server.serverConns) do
+					self.server:sendRAM(serverConn)
+				end
+				--]]
 			end
-			return self:load(...)
+			return result:unpack()
 		end,
 		reset = function(...)
+			local result = table.pack(self:resetROM(...))
 			if self.server then
+				--[[
+				-- TODO somehow associate with this reset-cmd the new RAM state
+				-- so when the client goes to grab it, it gets this
+				local cmd = self.server:pushCmd().load
+				cmd.type = netcmds.load
+				--]]
+				-- [[
+				for _,serverConn in ipairs(self.server.serverConns) do
+					self.server:sendRAM(serverConn)
+				end
+				--]]
 			end
-			return self:resetROM(...)
+			return result:unpack()
 		end,
 		quit = function(...) self:requestExit() end,
 
@@ -932,14 +956,16 @@ print('self.server.socket', self.server.socket)
 				io.write('server sock '..require'ext.tolua'(self.server.socket:getstats())..' ')
 			end
 			--]]
-			print(
-				string.hexdump(
-					ffi.string(
-						ffi.cast('char*', self.server.cmdBuffer.v),
-						self.server.cmdBufferIndex * ffi.sizeof'Numo9Cmd'
-					), nil, 2
-				)
-			)
+--[[ show server's last render state:
+print(
+	string.hexdump(
+		ffi.string(
+			ffi.cast('char*', self.server.cmdBuffer.v),
+			self.server.cmdBufferIndex * ffi.sizeof'Numo9Cmd'
+		), nil, 2
+	)
+)
+--]]
 			io.write('cmds/frame='..self.server.cmdBufferIndex..' ')
 			io.write(' deltas/sec='..tostring(self.server.numDeltasSentPerSec)..' ')
 self.server.numDeltasSentPerSec = 0
