@@ -401,24 +401,19 @@ local Numo9Cmd_matlookat = struct{
 	},
 }
 
-local Numo9Cmd_reset = struct{
-	name = 'Numo9Cmd_reset',
-	--packed = true,
-	fields = {
-		{name='type', type='uint8_t'},
-	},
-}
-
+--[[ if I'm just sending deltas of cmds across a frame then there's no need for this
+-- but if I go back to streaming out all cmds then maybe I'll need it again
 local Numo9Cmd_load = struct{
 	name = 'Numo9Cmd_load',
 	--packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-	--when a load cmd is queued, also store the load data to send over the wire ...
-	--... TODO how to GC this ...
-		{name='loadQueueIndex', type='int'},
+		--when a load cmd is queued, also store the load data to send over the wire ...
+		--... TODO how to GC this ...
+		--{name='loadQueueIndex', type='int'},
 	},
 }
+--]]
 
 -- mayb I'll do like SDL does ...
 local netCmdStructs = table{
@@ -438,8 +433,7 @@ local netCmdStructs = table{
 	Numo9Cmd_matortho,
 	Numo9Cmd_matfrustum,
 	Numo9Cmd_matlookat,
-	Numo9Cmd_reset,
-	Numo9Cmd_load,
+	--Numo9Cmd_load,
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
 	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))
@@ -656,7 +650,7 @@ self.updateConnCount = self.updateConnCount + 1
 			if not serverConn:isActive() then
 print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
 				self.serverConns:remove(i)
-			elseif serverConn.connected then
+			elseif not serverConn.downloadingRAM then
 				self.sendBuf:resize(0)
 				if serverConn.cmdBuffer.size ~= self.cmdBuffer.size then
 					self.sendBuf:emplace_back()[0] = 0
@@ -683,14 +677,16 @@ print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
 					clp=clp+1
 				end
 				if self.sendBuf.size > 0 then
-assert(self.sendBuf.size % 2 == 0)					
+assert(self.sendBuf.size % 2 == 0)
 					local data = ffi.string(
 						ffi.cast('char*', self.sendBuf.v),
 						2*self.sendBuf.size
 					)
+--[[
 print('SENDING COMPRESSED FRAME', 2*self.sendBuf.size)
 print(require'ext.string'.hexdump(data, nil, 2))
 print('DONE WITH COMPRESSED FRAME')
+--]]
 					send(serverConn.socket, data)
 self.numDeltasSentPerSec = self.numDeltasSentPerSec + 1
 				else
@@ -748,9 +744,20 @@ print'creating server remote client conn...'
 		thread = coroutine.running(),
 	}
 	self.serverConns:insert(serverConn)
--- TODO HERE record the current moment in the server's delta playback buffer and store it in the serverConn
 
+	self:sendRAM(serverConn)
+
+	serverConn.connected = true
+	serverConn:loop()
+end
+
+function Server:sendRAM(serverConn)
+	local app = self.app
+	local sock = serverConn.socket
 print'sending initial RAM state...'
+
+	-- set this flag while we send the RAM dump so that the server-update-loop knows to not inject its delta messages into the socket...
+	serverConn.downloadingRAM = true
 
 	-- [[ make sure changes in gpu are syncd with cpu...
 	app.spriteTex:checkDirtyGPU()
@@ -783,6 +790,11 @@ for j=0,255 do
 end
 image:save'fb.png' -- bad
 --]]
+
+	  -- send a code for 'incoming RAM dump'
+	  -- TODO how about another special code for resizing the cmdbuf?  so I don't have to pad the cmdbuf size at the frame beginning...
+	send(sock, ffi.string(ffi.cast('char*', string.char(255,255,255,255))))
+
 	-- send back current state of the game ...
 	local initMsg =
 		  ffi.string(ffi.cast('char*', app.ram.spriteSheet), spriteSheetInBytes)
@@ -812,10 +824,10 @@ print'entering server listen loop...'
 	-- TODO here go into a busy loop and wait for client messages
 	-- TODO move all this function itno serverConn:loop()
 	-- or into its ctor ...
-	serverConn.connected = true
-	serverConn:loop()
-end
+	serverConn.downloadingRAM = nil
 
+
+end
 
 
 local ClientConn = class()
@@ -895,56 +907,6 @@ print'sending player info'
 print'waiting for initial RAM state...'
 	-- now expect the initial server state
 
-	-- [[
-	local initMsg = assert(receive(sock, initMsgSize, 10))
-	--]]
-	--[[
-	local result = table.pack(receive(sock, initMsgSize, 10))
-print('...got', result:unpack())
-	local initMsg = result:unpack()
-	--]]
---print(string.hexdump(initMsg))
-
-	assertlen(initMsg, initMsgSize)
-require'ext.path''client_init.txt':write(string.hexdump(initMsg))
-	-- and decode it
-	local ptr = ffi.cast('uint8_t*', ffi.cast('char*', initMsg))
-
---[[ debugging ... yeah it does instnatly upadte
-for i=0,initMsgSize-1 do
-ptr[i] = math.random(0,255)
-end
---]]
-
-	-- make sure gpu changes are in cpu as well
-	app.fbTex:checkDirtyGPU()
-
-	-- flush GPU
-	ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
-	ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
-	ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
-	ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
-	ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
-	ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)	ptr=ptr+clipRectInBytes
-	ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)	ptr=ptr+mvMatInBytes
-	-- set all dirty as well
-	app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
-	app.tileTex.dirtyCPU = true		-- tileSheetTex
-	app.mapTex.dirtyCPU = true
-	app.palTex.dirtyCPU = true		-- paletteTex
-	app.fbTex.dirtyCPU = true		-- framebufferTex
-	app.fbTex.changedSinceDraw = true
-
-	app:mvMatFromRAM()
-
-	-- [[ this should be happenign every frame regardless...
-	app.spriteTex:checkDirtyCPU()
-	app.tileTex:checkDirtyCPU()
-	app.mapTex:checkDirtyCPU()
-	app.palTex:checkDirtyCPU()
-	app.fbTex:checkDirtyCPU()
-	--]]
-
 	self.connecting = nil
 	self.connected = true
 
@@ -979,6 +941,61 @@ print'entering client listen loop...'
 print('got cmdbuf resize to '..tostring(value))
 						self.cmdBuffer:resize(value)
 					end
+				elseif index == 0xffff and value == 0xffff then
+					-- getting a new RAM dump ...
+
+					-- [[
+					local initMsg = assert(receive(sock, initMsgSize, 10))
+					--]]
+					--[[
+					local result = table.pack(receive(sock, initMsgSize, 10))
+				print('...got', result:unpack())
+					local initMsg = result:unpack()
+					--]]
+				--print(string.hexdump(initMsg))
+
+					assertlen(initMsg, initMsgSize)
+require'ext.path''client_init.txt':write(string.hexdump(initMsg))
+					-- and decode it
+					local ptr = ffi.cast('uint8_t*', ffi.cast('char*', initMsg))
+
+				--[[ debugging ... yeah it does instnatly upadte
+				for i=0,initMsgSize-1 do
+				ptr[i] = math.random(0,255)
+				end
+				--]]
+
+					-- make sure gpu changes are in cpu as well
+					app.fbTex:checkDirtyGPU()
+
+					-- flush GPU
+					ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
+					ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
+					ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
+					ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
+					ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
+					ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)	ptr=ptr+clipRectInBytes
+					ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)	ptr=ptr+mvMatInBytes
+					-- set all dirty as well
+					app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
+					app.tileTex.dirtyCPU = true		-- tileSheetTex
+					app.mapTex.dirtyCPU = true
+					app.palTex.dirtyCPU = true		-- paletteTex
+					app.fbTex.dirtyCPU = true		-- framebufferTex
+					app.fbTex.changedSinceDraw = true
+
+					app:mvMatFromRAM()
+
+					-- [[ this should be happenign every frame regardless...
+					app.spriteTex:checkDirtyCPU()
+					app.tileTex:checkDirtyCPU()
+					app.mapTex:checkDirtyCPU()
+					app.palTex:checkDirtyCPU()
+					app.fbTex:checkDirtyCPU()
+					--]]
+
+
+
 				else
 					index = index - 1
 					local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
