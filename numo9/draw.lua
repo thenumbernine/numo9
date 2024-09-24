@@ -39,7 +39,7 @@ local fragType = 'uvec4'
 local useTextureInt = true
 
 -- uses integer coordinates in shader.  you'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
-local useTextureRect = false
+local useTextureRect = true
 --local useTextureRect = true
 
 --local texelType = (useTextureInt and 'u' or '')..'vec4'
@@ -515,20 +515,10 @@ function AppDraw:initDraw()
 ]],
 		fragType == 'vec4'
 		and [[
-	fragColor = ]]..fragType..[[(texture(palTex, palTc));	// / float((1u<<31)-1u);
+	fragColor = ]]..fragType..[[(texelFetch(palTex, palTc));	// / float((1u<<31)-1u);
 ]]
 		or [[
-	fragColor = ]]..fragType..[[(texture(palTex, palTc));
-#if 0	// rgb332
-	uvec4 color = texture(palTex, palTc);
-	// TODO only for non-solid, discard if alpha is not set
-	fragColor = uvec4(
-		(color.r >> 5) & 0x07u
-		| (color.g >> 2) & 0x38u
-		| color.b & 0xC0u,
-		0, 0, 0xFFu
-	);
-#endif
+	fragColor = ]]..fragType..[[(texelFetch(palTex, palTc));
 ]],
 	}:concat'\n'..'\n'
 
@@ -553,42 +543,16 @@ layout(location=0) out <?=fragType?> fragColor;
 
 uniform <?=samplerType?> fbTex;
 
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
-
 void main() {
-#if 1 // rgb565 just copy over
-
 <? if fragType == 'vec4' then ?>
-#if 1	// how many bits does uvec4 get from texture() ?
-	fragColor = <?=fragType?>(texture(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[) / float((1u<<31)-1u));
+#if 1	// how many bits does uvec4 get from texelFetch() ?
+	fragColor = <?=fragType?>(texelFetch(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[) / float((1u<<31)-1u));
 #else	// or does gl just magically know the conversion?
-	fragColor = <?=fragType?>(texture(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
+	fragColor = <?=fragType?>(texelFetch(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
 #endif
 <? else ?>
-	fragColor = <?=fragType?>(texture(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
+	fragColor = <?=fragType?>(texelFetch(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
 <? end ?>
-
-#endif
-#if 0 // rgb332 translate the 8bpp single-channel
-
-	// how come this gives me [0,2^8) ?
-	// meanwhile ffragment output must be [0,2^32) ?
-	// does texture() output in 8bpp while fragments output in 32bpp?
-	// and how come I can say 'fragColor = texture()' above where the texture is rgb565 and it works fine?
-	// where exactly does the conversion/normalization take place? esp for render buffer(everyone writes about what fbos do depending on the fbo format...)
-	uint rgb332 = <?=fragType?>(texture(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[).r);
-
-	uint r = rgb332 & 7u;			// 3 bits of red ...
-	uint g = (rgb332 >> 3) & 7u;	// 3 bits of green ...
-	uint b = (rgb332 >> 6) & 3u;	// 2 bits of blue ...
-	fragColor = uvec4(
-		r << 29,
-		g << 29,
-		b << 30,
-		0xFFFFFFFFu
-	);
-#endif
 }
 ]],			{
 				samplerType = samplerType,
@@ -631,13 +595,8 @@ layout(location=0) out <?=fragType?> fragColor;
 uniform <?=samplerType?> fbTex;
 uniform <?=samplerType?> palTex;
 
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
-
 void main() {
-	uint colorIndex = ]]
-		..readTexUint('texture(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')
-		..[[;
+	uint colorIndex = ]]..readTexUint('texelFetch(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
 ]]..colorIndexToFrag..[[
 }
 ]],			{
@@ -660,14 +619,77 @@ void main() {
 		},
 	}
 
+	-- used for drawing 8bpp fbIndexTex as rgb332 framebuffer to the screen
+	self.blitScreenRGB332Obj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+			fragmentCode = template([[
+in vec2 tcv;
+
+layout(location=0) out vec4 fragColor;
+
+uniform <?=samplerType?> fbTex;
+
+void main() {
+	uint rgb332 = ]]..readTexUint('texelFetch(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
+	uint r = rgb332 & 0x7u;
+	uint g = (rgb332 >> 3) & 0x7u;
+	uint b = (rgb332 >> 5) & 0x3u;
+	fragColor.r = (r << 5);// | (r << 2) | (r >> 1);
+	fragColor.g = (g << 5);// | (g << 2) | (g >> 1);
+	fragColor.b = (b << 6);// | (b << 4) | (b << 2) | b;
+	fragColor.a = 0xFFu;
+	fragColor /= 255.;
+}
+]],			{
+				samplerType = samplerType,
+				useTextureRect = useTextureRect,
+				fragType = fragType,
+				clnumber = clnumber,
+				frameBufferSize = frameBufferSize,
+			}),
+			uniforms = {
+				fbTex = 0,
+				palTex = 1,
+			},
+		},
+		texs = {self.fbTex, self.palTex},
+		geometry = self.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvProjMat = self.blitScreenView.mvProjMat.ptr,
+		},
+	}
+
+
 	-- make output shaders per-video-mode
 	-- set them up as our app fields to use upon setVideoMode
 	for _,info in ipairs{
 		{name='RGB', colorOutput=colorIndexToFrag},
-		{name='Index', colorOutput=
-colorIndexToFrag
-..[[
+		{name='Index', colorOutput=colorIndexToFrag..[[
 	fragColor.r = colorIndex;
+	fragColor.g = 0;
+	fragColor.b = 0;
+]]},
+		{name='RGB332', colorOutput=colorIndexToFrag..[[
+	// TODO this won't work if we're using fragType == vec4 ...
+	// what exactly is coming out of a usampler2D and into a uvec4?  is that documented anywhere?
+	fragColor >>= 16;	//[16,20] works
+	fragColor &= 0xFFu;
+	uint r = fragColor.r >> 5;
+	uint g = fragColor.g >> 5;
+	uint b = fragColor.b >> 6;
+	fragColor.r = r | (g << 3) | (b << 6);
 	fragColor.g = 0;
 	fragColor.b = 0;
 ]]},
@@ -896,7 +918,7 @@ const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 
 void main() {
 	uint colorIndex = (]]
-		..readTexUint('texture(spriteTex, '..texCoordRectFromFloatVec('tcv', spriteSheetSize)..').r')
+		..readTexUint('texelFetch(spriteTex, '..texCoordRectFromFloatVec('tcv', spriteSheetSize)..').r')
 		..[[ >> spriteBit) & spriteMask;
 	if (colorIndex == transparentIndex) discard;
 
@@ -983,43 +1005,42 @@ const uint tilemapSizeY = <?=tilemapSize.y?>;
 void main() {
 	// convert from input normalized coordinates to tilemap texel coordinates
 	// [0, tilemapSize)^2
-	uvec2 tci = uvec2(
-		uint(tcv.x * float(tilemapSizeX << draw16Sprites)),
-		uint(tcv.y * float(tilemapSizeY << draw16Sprites))
+	ivec2 tci = ivec2(
+		int(tcv.x * float(tilemapSizeX << draw16Sprites)),
+		int(tcv.y * float(tilemapSizeY << draw16Sprites))
 	);
 
 	// convert to map texel coordinate
 	// [0, tilemapSize)^2
-	uvec2 tileTC = uvec2(
-		(tci.x >> (3 + draw16Sprites)) & 0xFFu,
-		(tci.y >> (3 + draw16Sprites)) & 0xFFu
+	ivec2 tileTC = ivec2(
+		(tci.x >> (3 + draw16Sprites)) & 0xFF,
+		(tci.y >> (3 + draw16Sprites)) & 0xFF
 	);
 
 	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	uint tileIndex = ]]
-		..readTexUint('texture(mapTex, '..texCoordRectFromIntVec('tileTC', tilemapSize)..').r', 65536)..[[;
+	int tileIndex = int(]]..readTexUint('texelFetch(mapTex, '..texCoordRectFromIntVec('tileTC', tilemapSize)..').r', 65536)..[[);
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
-	uvec2 tileTexTC = uvec2(
-		tileIndex & 0x1Fu,					// tilemap bits 0..4
-		(tileIndex >> 5) & 0x1Fu			// tilemap bits 5..9
+	ivec2 tileTexTC = ivec2(
+		tileIndex & 0x1F,					// tilemap bits 0..4
+		(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
 	);
-	uint palHi = (tileIndex >> 10) & 0xFu;	// tilemap bits 10..13
-	if ((tileIndex & (1u<<14)) != 0u) tci.x = ~tci.x;	// tilemap bit 14
-	if ((tileIndex & (1u<<15)) != 0u) tci.y = ~tci.y;	// tilemap bit 15
+	int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
+	if ((tileIndex & (1<<14)) != 0) tci.x = ~tci.x;	// tilemap bit 14
+	if ((tileIndex & (1<<15)) != 0) tci.y = ~tci.y;	// tilemap bit 15
 
-	uint mask = (1u << (3 + draw16Sprites)) - 1u;
+	int mask = (1 << (3 + draw16Sprites)) - 1;
 	// [0, spriteSize)^2
-	tileTexTC = uvec2(
-		(tci.x & mask) | (tileTexTC.x << (3)),
-		(tci.y & mask) | (tileTexTC.y << (3))
+	tileTexTC = ivec2(
+		(tci.x & mask) | (tileTexTC.x << 3),
+		(tci.y & mask) | (tileTexTC.y << 3)
 	);
 
 	// tileTex is R8 indexing into our palette ...
 	uint colorIndex = ]]
-		..readTexUint('texture(tileTex, '..texCoordRectFromIntVec('tileTexTC', spriteSheetSize)..').r')..[[;
+		..readTexUint('texelFetch(tileTex, '..texCoordRectFromIntVec('tileTexTC', spriteSheetSize)..').r')..[[;
 	colorIndex += palHi << 4;
 	colorIndex &= 0xFFu;
 
@@ -1053,8 +1074,9 @@ void main() {
 		}
 	end
 
-	self:setVideoMode(0)	-- RGB565 output
-	--self:setVideoMode(1)	-- 8bit indexed output
+	self:setVideoMode(0)	-- 16bpp RGB565
+	--self:setVideoMode(1)	-- 8bpp indexed
+	--self:setVideoMode(2)	-- 8bpp RGB332
 
 	-- for the editor
 
@@ -1104,6 +1126,16 @@ function AppDraw:setVideoMode(mode)
 		self.quadMapObj = self.quadMapIndexObj
 		-- TODO and we need to change each shaders output from 565 RGB to Indexed also ...
 		-- ... we have to defer the palette baking
+	elseif mode == 2 then
+		-- these convert from rendered content to the framebuffer ...
+		self.lineSolidObj = self.lineSolidRGB332Obj
+		self.quadSolidObj = self.quadSolidRGB332Obj
+		self.quadSpriteObj = self.quadSpriteRGB332Obj
+		self.quadMapObj = self.quadMapRGB332Obj
+		-- this is the framebuffer
+		self.fbTex = self.fbIndexTex
+		-- this converts from the framebuffer to the screen
+		self.blitScreenObj = self.blitScreenRGB332Obj
 	else
 		error("unknown video mode "..tostring(mode))
 	end
