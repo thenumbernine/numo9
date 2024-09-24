@@ -1055,6 +1055,17 @@ print('got uint16 index='
 				app:mvMatFromRAM()
 				app.mvMat:applyLookAt(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
 				app:mvMatToRAM()
+			elseif cmdtype == netcmds.poke then
+				local c = cmd[0].poke
+				if c.size == 1 then
+					app:poke(c.addr, c.value)
+				elseif c.size == 2 then
+					app:pokew(c.addr, c.value)
+				elseif c.size == 4 then
+					app:pokel(c.addr, c.value)
+				else	
+					error("got a bad poke size "..tostring(c.size))
+				end
 			end
 		end
 
