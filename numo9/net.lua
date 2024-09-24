@@ -218,14 +218,6 @@ local Numo9Cmd_base = struct{
 	},
 }
 
-local Numo9Cmd_refresh = struct{
-	name = 'Numo9Cmd_refresh',
-	--packed = true,
-	fields = {
-		{name='type', type='uint8_t'},
-	}
-}
-
 local Numo9Cmd_clearScreen = struct{
 	name = 'Numo9Cmd_clearScreen',
 	--packed = true,
@@ -414,24 +406,20 @@ local Numo9Cmd_matlookat = struct{
 	},
 }
 
--- [[ if I'm just sending deltas of cmds across a frame then there's no need for this
--- but if I go back to streaming out all cmds then maybe I'll need it again
-local Numo9Cmd_load = struct{
-	name = 'Numo9Cmd_load',
+local Numo9Cmd_poke = struct{
 	--packed = true,
+	name = 'Numo9Cmd_poke',
 	fields = {
 		{name='type', type='uint8_t'},
-		--when a load cmd is queued, also store the load data to send over the wire ...
-		--... TODO how to GC this ...
-		--{name='loadQueueIndex', type='int'},
+		{name='addr', type='uint32_t'},
+		{name='value', type='uint32_t'},
+		{name='size', type='uint8_t'},	-- 1, 2, or 4 ... maybe I'll give each its own cmd and remove this fields
 	},
 }
---]]
 
 -- mayb I'll do like SDL does ...
 local netCmdStructs = table{
 	Numo9Cmd_base,
-	Numo9Cmd_refresh,
 	Numo9Cmd_clearScreen,
 	Numo9Cmd_clipRect,
 	Numo9Cmd_solidRect,
@@ -446,7 +434,7 @@ local netCmdStructs = table{
 	Numo9Cmd_matortho,
 	Numo9Cmd_matfrustum,
 	Numo9Cmd_matlookat,
-	Numo9Cmd_load,
+	Numo9Cmd_poke,
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
 	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))

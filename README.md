@@ -64,8 +64,7 @@ There are a few matrix functions that you can use to manipulate the render state
 `matfrustum`,
 `matlookat`.
 
-I'm storing these values in RAM, however there's no good way to modify them just yet.
-I'm tempted to use 8.8 fixed precision just like the SNES did ...
+I'm using 16.16 fixed precision to store the matrix components.  SNES used 8.8, so I am splurging a bit.  I've tested with as close as 9.7 without getting too big of rounding errors.
 
 ### Audio
 
@@ -172,7 +171,8 @@ This adds to Lua(/JIT):
 
 ## input:
 
-- `key(code) keyp(code) keyr(code)` = Returns true if the key code was pressed.
+- `key(code)`, `keyp(code, [hold], [period])`, `keyr(code)` = Returns true if the key code was pressed.
+	For `keyp()`, `hold` is how long to hold it before the first `true` is returned, and `period` is how long after that for each successive `true` to be returned.
 	Code is either a name or number.
 	The number coincides with the console's internal scancode bit offset in internal buffer.
 
@@ -180,22 +180,29 @@ This adds to Lua(/JIT):
 
 |                  |                  |                  |                  |                  |                  |                  |                  |
 |------------------|------------------|------------------|------------------|------------------|------------------|------------------|------------------|
-|`a=0             `|`b=1             `|`c=2             `|`d=3             `|`e=4             `|`f=5             `|`g=6             `|`h=7             `|
-|`i=8             `|`j=9             `|`k=10            `|`l=11            `|`m=12            `|`n=13            `|`o=14            `|`p=15            `|
-|`q=16            `|`r=17            `|`s=18            `|`t=19            `|`u=20            `|`v=21            `|`w=22            `|`x=23            `|
-|`y=24            `|`z=25            `|`0=26            `|`1=27            `|`2=28            `|`3=29            `|`4=30            `|`5=31            `|
-|`6=32            `|`7=33            `|`8=34            `|`9=35            `|`minus=36        `|`equals=37       `|`leftbracket=38  `|`rightbracket=39 `|
-|`backslash=40    `|`semicolon=41    `|`quote=42        `|`backquote=43    `|`comma=44        `|`period=45       `|`slash=46        `|`space=47        `|
-|`tab=48          `|`return=49       `|`backspace=50    `|`up=51           `|`down=52         `|`left=53         `|`right=54        `|`capslock=55     `|
-|`lctrl=56        `|`rctrl=57        `|`lshift=58       `|`rshift=59       `|`lalt=60         `|`ralt=61         `|`lgui=62         `|`rgui=63         `|
-|`delete=64       `|`insert=65       `|`pageup=66       `|`pagedown=67     `|`home=68         `|`end=69          `|`padding0=70     `|`padding1=71     `|
-|`jp0_up=72       `|`jp0_down=73     `|`jp0_left=74     `|`jp0_right=75    `|`jp0_a=76        `|`jp0_b=77        `|`jp0_x=78        `|`jp0_y=79        `|
-|`jp1_up=80       `|`jp1_down=81     `|`jp1_left=82     `|`jp1_right=83    `|`jp1_a=84        `|`jp1_b=85        `|`jp1_x=86        `|`jp1_y=87        `|
-|`jp2_up=88       `|`jp2_down=89     `|`jp2_left=90     `|`jp2_right=91    `|`jp2_a=92        `|`jp2_b=93        `|`jp2_x=94        `|`jp2_y=95        `|
-|`jp3_up=96       `|`jp3_down=97     `|`jp3_left=98     `|`jp3_right=99    `|`jp3_a=100       `|`jp3_b=101       `|`jp3_x=102       `|`jp3_y=103       `|
-|`mouse_left=104  `|`mouse_middle=105`|`mouse_right=106 `|`                `|`                `|`                `|`                `|`                `|
+|`a=0`             |`b=1`             |`c=2`             |`d=3`             |`e=4`             |`f=5`             |`g=6`             |`h=7`             |
+|`i=8`             |`j=9`             |`k=10`            |`l=11`            |`m=12`            |`n=13`            |`o=14`            |`p=15`            |
+|`q=16`            |`r=17`            |`s=18`            |`t=19`            |`u=20`            |`v=21`            |`w=22`            |`x=23`            |
+|`y=24`            |`z=25`            |`0=26`            |`1=27`            |`2=28`            |`3=29`            |`4=30`            |`5=31`            |
+|`6=32`            |`7=33`            |`8=34`            |`9=35`            |`minus=36`        |`equals=37`       |`leftbracket=38`  |`rightbracket=39` |
+|`backslash=40`    |`semicolon=41`    |`quote=42`        |`backquote=43`    |`comma=44`        |`period=45`       |`slash=46`        |`space=47`        |
+|`tab=48`          |`return=49`       |`backspace=50`    |`up=51`           |`down=52`         |`left=53`         |`right=54`        |`capslock=55`     |
+|`lctrl=56`        |`rctrl=57`        |`lshift=58`       |`rshift=59`       |`lalt=60`         |`ralt=61`         |`lgui=62`         |`rgui=63`         |
+|`delete=64`       |`insert=65`       |`pageup=66`       |`pagedown=67`     |`home=68`         |`end=69`          |`padding0=70`     |`padding1=71`     |
+|`jp0_up=72`       |`jp0_down=73`     |`jp0_left=74`     |`jp0_right=75`    |`jp0_a=76`        |`jp0_b=77`        |`jp0_x=78`        |`jp0_y=79`        |
+|`jp1_up=80`       |`jp1_down=81`     |`jp1_left=82`     |`jp1_right=83`    |`jp1_a=84`        |`jp1_b=85`        |`jp1_x=86`        |`jp1_y=87`        |
+|`jp2_up=88`       |`jp2_down=89`     |`jp2_left=90`     |`jp2_right=91`    |`jp2_a=92`        |`jp2_b=93`        |`jp2_x=94`        |`jp2_y=95`        |
+|`jp3_up=96`       |`jp3_down=97`     |`jp3_left=98`     |`jp3_right=99`    |`jp3_a=100`       |`jp3_b=101`       |`jp3_x=102`       |`jp3_y=103`       |
+|`mouse_left=104`  |`mouse_middle=105`|`mouse_right=106` |``                |``                |``                |``                |``                |
 
-- `btn, btnp, btnr` = same for emulated-joypad-buttons-on-keyboard
+- `btn(buttonCode, player)`, `btnp(buttonCode, player, [hold], [period])`, `btnr(buttonCode, player)` = same for emulated-joypad-buttons-on-keyboard.
+This is a compatability/convenience function that remaps the button+player codes to the corresponding `jpX_YYY` key codes.
+The button codes are as follows:
+
+|                  |                  |                  |                  |                  |                  |                  |                  |
+|------------------|------------------|------------------|------------------|------------------|------------------|------------------|------------------|
+|`up=0`            |`down=1`          |`left=2`          |`right=3`         |`a=4`             |`b=5`             |`x=6`             |`y=7`             |
+
 - `mouseX, mouseY, scrollX, scrollY = mouse()` = get the current mouse state.  mouse x,y are in framebuffer coordinates.  scroll is zero for now.
 
 ## other globals, maybe I'll take some out eventually:
@@ -267,10 +274,10 @@ To convert a Pico8 to Numo9 cartridge and run it:
 luajit n9a.lua p8run cart.p8
 ```
 
-Pico8 Compatability is at 90%
-- pget doesn't fully work, since I'm not using an indexed framebuffer.
-- certain escape characters don't work
+Pico8 Compatability is at 95%
+- certain string escape characters don't work
 - certain machine-specific peeks and pokes don't work
+- palette functions are still buggy
 
 # Inspiration for this:
 - https://www.pico-8.com/
@@ -290,11 +297,17 @@ Pico8 Compatability is at 90%
 
 # TODO
 - sfx and music
+- input
+	- joystick support
+	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
-- Right now browser embedding is only done through luajit ffi emulation, which is currently slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.
 - multiplayer
-- decouple editor from the fantasy-hardware so that multiplayer clients can play the game unhindered while the server edits it.
-- decouple the console from the fantasy-hardware too (cheating I know, but pretty sure some like TIC-80 do this), and then set aside the framebuffer for streaming to clients, while the server can issue commands / edit content...
+	- initial cl/sv communication works
+	- needs all commands to be emulated
+	- needs proper observer/lobby/hotseats
+	- decouple editor from the fantasy-hardware so that multiplayer clients can play the game unhindered while the server edits it.
+	- decouple the console from the fantasy-hardware too (cheating I know, but pretty sure some like TIC-80 do this), and then set aside the framebuffer for streaming to clients, while the server can issue commands / edit content...
+- Right now browser embedding is only done through luajit ffi emulation, which is currently slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.
 - copy/paste on the tilemap.
 	- copy/paste tilemap entries themselves
-	- paste sprites into the tilemap, then automatically quantize their sprites and palettes
+	- paste sprites into the tilemap, then automatically quantize their sprites and palettes.. Just need to copy most of this from my `convert-to-8x8x4bpp` repo.
