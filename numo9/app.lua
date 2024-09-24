@@ -958,7 +958,7 @@ function App:update()
 
 	local thisTime = getTime()
 
-	-- [[ fps counter ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
+	--[==[ fps counter ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
 	-- TODO only redraw the editor when the cursor blinks or a UI overlay changes ... that should reduce our draws
 	local deltaTime = thisTime - lastTime
 	fpsFrames = fpsFrames + 1
@@ -1026,14 +1026,16 @@ conn.receivesPerSecond = 0
 		if self.remoteClient then
 			io.write('client cmdbuf size: '..self.remoteClient.cmds.size)
 		end
-		print()
+		if self.server or self.remoteClient then
+			print()
+		end
 
 		drawsPerSecond = 0
 		fpsFrames = 0
 		fpsSeconds = 0
 	end
 	lastTime = thisTime	-- TODO this at end of update in case someone else needs this var
-	--]]
+	--]==]
 
 	if thisTime > lastUpdateTime + updateInterval then
 		-- [[ doing this means we need to reset lastUpdateTime when resuming from the app being paused
