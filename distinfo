@@ -61,6 +61,28 @@ if ffi.os == 'OSX' then
 		'socket.so',
 		'mime.so',
 	}
+elseif ffi.os == 'Linux' then
+	files['/usr/local/share/luajit-2.1/'] = {
+		'socket.lua',
+		'ltn12.lua',
+		'mime.lua',
+		'socket',
+	}
+	files['/usr/local/lib/lua/5.1/'] = {
+		'socket',
+		'mime',
+	}
+elseif ffi.os == 'Windows' then
+	files['${USERPROFILE}\\luarocks\\share'] = {
+		'socket.lua',
+		'ltn12.lua',
+		'mime.lua',
+		'socket',
+	}
+	files['${USERPROFILE}\\luarocks\\lib'] = {
+		'socket',
+		'mime',
+	}
 end
 
 -- binary libs needed for luajit
