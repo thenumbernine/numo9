@@ -1,3 +1,16 @@
+--[[
+network protocol
+
+1) handshake
+
+2) update loop
+server sends client:
+
+	$ff $ff $ff $ff <-> incoming RAM dump
+	$ff $fe $XX $XX <-> incoming frame of size $XXXX
+
+	all else are delta-compressed uint16 offsets and uint16 values
+--]]
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
 
@@ -38,7 +51,7 @@ local mvMatInBytes = require 'numo9.rom'.mvMatInBytes
 local mvMatAddrEnd = require 'numo9.rom'.mvMatAddrEnd
 
 
-local initMsgSize = spriteSheetInBytes
+local ramStateSize = spriteSheetInBytes
 	+ tileSheetInBytes
 	+ tilemapInBytes
 	+ paletteInBytes
@@ -401,7 +414,7 @@ local Numo9Cmd_matlookat = struct{
 	},
 }
 
---[[ if I'm just sending deltas of cmds across a frame then there's no need for this
+-- [[ if I'm just sending deltas of cmds across a frame then there's no need for this
 -- but if I go back to streaming out all cmds then maybe I'll need it again
 local Numo9Cmd_load = struct{
 	name = 'Numo9Cmd_load',
@@ -433,7 +446,7 @@ local netCmdStructs = table{
 	Numo9Cmd_matortho,
 	Numo9Cmd_matfrustum,
 	Numo9Cmd_matlookat,
-	--Numo9Cmd_load,
+	Numo9Cmd_load,
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
 	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))
@@ -474,19 +487,31 @@ function ServerConn:init(args)
 	self.socket = assertindex(args, 'socket')
 	self.playerInfos = assertindex(args, 'playerInfos')
 	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
-	self.cmdBuffer = vector('Numo9Cmd', 128)
+
+	-- keep a list of everything we have to send
+	self.toSend = table()
 end
 
 function ServerConn:isActive()
 	return coroutine.status(self.thread) ~= 'dead'
 end
 
+ServerConn.sendsPerSecond = 0
+ServerConn.receivesPerSecond = 0
 function ServerConn:loop()
+print'BEGIN SERVERCONN LOOP'
 	local data, reason
 	while self.socket
 	and self.socket:getsockname()
 	do
-		data, reason = receive(self.socket)
+		-- TODO handle input from clients here
+		-- TODO send and receive on separate threads?
+		if #self.toSend > 0 then
+			send(self.socket, self.toSend:remove(1))
+self.sendsPerSecond = self.sendsPerSecond + 1
+		end
+
+		data, reason = receive(self.socket, 4, 0)
 		if not data then
 			if reason ~= 'timeout' then
 				print('client remote connection failed: '..tostring(reason))
@@ -495,8 +520,12 @@ function ServerConn:loop()
 			end
 		else
 			print('server got data', data, reason)
+self.receivesPerSecond = self.receivesPerSecond + 1
 		end
+
+		coroutine.yield()
 	end
+print'END SERVERCONN LOOP'
 end
 
 
@@ -538,69 +567,79 @@ peek & poke to all the memory regions that we've sync'd upon init ...
 print
 ... and
 TODO console cursor location ... if we're exposing print() then we should also put the cursor position in RAM and sync it between client and server too
-
-mset x:uint8 y:uint8 value:uint16
-cls
-cls colorIndex:uint8
-clip
-clip x:uint8 y:uint8 w:uint8 h:uint8
-matident
-mattrans x:double y:double z:double
-matrot theta:double x:double y:double z:double
-matscale x:double y:double z:double
-matortho l:double r:double t:double b:double n:double f:double
-matfrustum l:double r:double t:double b:double n:double f:double
-matlookat ... double[9]
-rect, rectb, elli, ellib <-> drawSolidQuad
-line <-> drawSolidLine
-spr <-> drawSprite
-quad <-> drawQuad
-map <-> drawMap
-text <-> drawText
 	--]]
 
-	--[[
-	how much info to reproduce the last few seconds?
-	lets say
-	x 60 fps
-	x 10 seconds
-	x cmds per second ... 13 per frame for bank.n9 idle
-	x bytes per cmd (44 atm)
-
-	but what if, instead of completeness, I store all the per-frame commands into a single buffer
-	and then I delta-compress that and send its changes across the net?
-
-	this heavily asserts ...
-	- that the whole screen is redrawn per frame
-	- that everything stays in place for the most part
-
-here's one example from bank.n9:
-(clearScreen) (matident) (matscale) (map) (map) (quad) (quad) (quad) (quad) (quad) (quad) (text) (refresh)
-at the moment that is 44 bytes x 13 commands = 572 bytes/frame ... x60 fps = 34320 bytes/second ...
-let's say I compress each command ...
-1 + 1 + 13 + 30 + 30 + 6 * 38 + 41 + 1
-= 345 ... a good percent smaller than 572 ... but still over 60 fps that gets pretty big ...
-I'm really thinking the store-and-delta-compress-every-frame idea is the good one ...
-I could compress the commands further, replacing float with int8 and int16 wherever possible ...
-
-still i think delta-compressing the send buffer will be best ...
-	--]]
-	self.cmdBuffer = vector('Numo9Cmd', 128)
-	ffi.fill(self.cmdBuffer.v, self.cmdBuffer.size * ffi.sizeof'Numo9Cmd')
-	self.cmdBufferIndex = 0	-- filled once per frame
+	-- this will be a very slow implementation at first ...
+	-- per-frame i'll store
+	-- 1) a list of all commands issued
+	-- 2) a delta-compression between this list and the previous frame list
+	-- and then every frame I'll send off delta-compressed stuff to the connected clients
+	self.frames = table()
 
 	app.threads:add(self.updateCoroutine, self)
 	app.threads:add(self.newConnListenCoroutine, self)
 end
 
-function Server:pushCmd()
-	local cmd = self.cmdBuffer.v + self.cmdBufferIndex
-	self.cmdBufferIndex = self.cmdBufferIndex + 1
-	while self.cmdBufferIndex >= self.cmdBuffer.size do
-		self.cmdBuffer:resize(self.cmdBuffer.size + 32)			-- resize ... notice this will invalidate any already-out cmds...
-		self.cmd = self.cmdBuffer.v + self.cmdBufferIndex - 1	-- recalc ptr to cmd
+function Server:beginFrame()
+	self.frames:insert(1, {
+		cmds = vector'Numo9Cmd',
+	})
+end
+
+function Server:endFrame()
+	-- if there was a frame before this ... delta-compress
+	if self.frames[2] then
+		local thisBuf = self.frames[1].cmds
+		local prevBuf = self.frames[2].cmds
+
+		-- TODO generic function for delta-compressing two buffers
+		-- TODO better algorithm, like RLE, or diff, or something
+		local deltas = vector'uint16_t'
+		self.frames[1].deltas = deltas
+
+		-- how to convey change-in-sizes ...
+		-- how about storing it at the beginning of the buffer?
+		if prevBuf.size ~= thisBuf.size then
+			deltas:emplace_back()[0] = 0
+			deltas:emplace_back()[0] = thisBuf.size
+			prevBuf:resize(thisBuf.size)
+		end
+
+		local n = (math.min(thisBuf.size, prevBuf.size) * ffi.sizeof'Numo9Cmd') / 2
+		if n >= 65536 then
+			print('sending data more than our send buffer allows ... '..tostring(n))	-- byte limit ...
+		end
+
+		local svp = ffi.cast('uint16_t*', thisBuf.v)
+		local clp = ffi.cast('uint16_t*', prevBuf.v)
+		for i=0,n-1 do
+			if svp[0] ~= clp[0] then
+				deltas:emplace_back()[0] = 1+i		-- short offset ... plus 2 to make room for vector size
+				deltas:emplace_back()[0] = svp[0]	-- short value
+			end
+			svp=svp+1
+			clp=clp+1
+		end
+
+		if deltas.size > 0 then
+			local data = ffi.string(ffi.cast('char*', deltas.v), 2*deltas.size)
+			for _,serverConn in ipairs(self.serverConns) do
+				serverConn.toSend:insert(data)
+			end
+		end
 	end
-	return cmd
+
+	-- delete old frames
+	local tooOld = 60 * 10	-- keep 10 seconds @ 60 fps
+	for i=#self.frames,tooOld,-1 do
+		-- TODO how about using ffi/cpp/vector.lua which has free()?
+		-- or just use that static round-robin ... no frees necessary
+		self.frames[i] = nil
+	end
+end
+
+function Server:pushCmd()
+	return self.frames[1].cmds:emplace_back()
 end
 
 function Server:close()
@@ -636,8 +675,6 @@ function Server:updateCoroutine()
 	local app = self.app
 	local sock = self.socket
 
-	self.sendBuf = vector('uint16_t', (self.cmdBuffer.size * ffi.sizeof'Numo9Cmd') / 2)	-- worst case every byte is different ...
-
 	while sock
 	and sock:getsockname()
 	do
@@ -650,49 +687,6 @@ self.updateConnCount = self.updateConnCount + 1
 			if not serverConn:isActive() then
 print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
 				self.serverConns:remove(i)
-			elseif not serverConn.downloadingRAM then
-				self.sendBuf:resize(0)
-				if serverConn.cmdBuffer.size ~= self.cmdBuffer.size then
-					self.sendBuf:emplace_back()[0] = 0
-					self.sendBuf:emplace_back()[0] = self.cmdBuffer.size
-					serverConn.cmdBuffer:resize(self.cmdBuffer.size)
-				end
-
-				-- TODO how to convey change-in-sizes ...
-				-- how about storing it at the beginning of the buffer?
-				local n = (self.cmdBuffer.size * ffi.sizeof'Numo9Cmd') / 2
-				if n >= 65536 then
-					print('sending data more than our send buffer allows ... '..tostring(n))	-- byte limit ...
-				end
-				local svp = ffi.cast('uint16_t*', self.cmdBuffer.v)
-				local clp = ffi.cast('uint16_t*', serverConn.cmdBuffer.v)
-
-				for i=0,n-1 do
-					if svp[0] ~= clp[0] then
-						clp[0] = svp[0]
-						self.sendBuf:emplace_back()[0] = 1+i	-- short offset ... plus 2 to make room for vector size
-						self.sendBuf:emplace_back()[0] = svp[0]	-- short value
-					end
-					svp=svp+1
-					clp=clp+1
-				end
-				if self.sendBuf.size > 0 then
-assert(self.sendBuf.size % 2 == 0)
-					local data = ffi.string(
-						ffi.cast('char*', self.sendBuf.v),
-						2*self.sendBuf.size
-					)
---[[
-print('SENDING COMPRESSED FRAME', 2*self.sendBuf.size)
-print(require'ext.string'.hexdump(data, nil, 2))
-print('DONE WITH COMPRESSED FRAME')
---]]
-					send(serverConn.socket, data)
-self.numDeltasSentPerSec = self.numDeltasSentPerSec + 1
-				else
-self.numIdleChecksPerSec = self.numIdleChecksPerSec + 1
-					-- num frames idle ++
-				end
 			end
 		end
 	end
@@ -745,9 +739,21 @@ print'creating server remote client conn...'
 	}
 	self.serverConns:insert(serverConn)
 
+	-- send RAM message
 	self:sendRAM(serverConn)
 
+	-- send most recent frame state
+	local frameStr = ffi.string(ffi.cast('char*', self.frames[1].cmds.v), self.frames[1].cmds.size * ffi.sizeof'Numo9Cmd')
+	assert(#frameStr < 0xfffe, "need to fix your protocol")
+	local header = ffi.new('uint16_t[2]')
+	header[0] = 0xfeff
+	header[1] = #frameStr
+	serverConn.toSend:insert(ffi.string(ffi.cast('char*', header), 4))
+	serverConn.toSend:insert(frameStr)
+
 	serverConn.connected = true
+
+print'entering server listen loop...'
 	serverConn:loop()
 end
 
@@ -755,9 +761,6 @@ function Server:sendRAM(serverConn)
 	local app = self.app
 	local sock = serverConn.socket
 print'sending initial RAM state...'
-
-	-- set this flag while we send the RAM dump so that the server-update-loop knows to not inject its delta messages into the socket...
-	serverConn.downloadingRAM = true
 
 	-- [[ make sure changes in gpu are syncd with cpu...
 	app.spriteTex:checkDirtyGPU()
@@ -767,36 +770,13 @@ print'sending initial RAM state...'
 	app.fbTex:checkDirtyGPU()
 	app:mvMatToRAM()
 	--]]
---[[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc?
-local ptr = ffi.cast('uint8_t*', app.ram.framebuffer)
-for i=0,256*256*2-1 do
-	ptr[i] = math.random(0,255)
-end
-app.fbTex.dirtyCPU = true
---]]
-	--[[ screenshot works.  framebuffer works. (in 16bpp rgb565 at least)
-app:screenshotToFile'ss.png'
-local Image = require 'image'
-local image = Image(256, 256, 3, 'uint8_t'):clear()
-for j=0,255 do
-	for i=0,255 do
-		local r,g,b = require 'numo9.draw'.rgb565rev_to_rgba888_3ch(
-			ffi.cast('uint16_t*', app.ram.framebuffer)[i + 256 * j]
-		)
-		image.buffer[0 + 3 * (i + 256 * j)] = r
-		image.buffer[1 + 3 * (i + 256 * j)] = g
-		image.buffer[2 + 3 * (i + 256 * j)] = b
-	end
-end
-image:save'fb.png' -- bad
---]]
 
-	  -- send a code for 'incoming RAM dump'
-	  -- TODO how about another special code for resizing the cmdbuf?  so I don't have to pad the cmdbuf size at the frame beginning...
-	send(sock, ffi.string(ffi.cast('char*', string.char(255,255,255,255))))
+	-- send a code for 'incoming RAM dump'
+	-- TODO how about another special code for resizing the cmdbuf?  so I don't have to pad the cmdbuf size at the frame beginning...
+	serverConn.toSend:insert(ffi.string(ffi.cast('char*', string.char(255,255,255,255))))
 
 	-- send back current state of the game ...
-	local initMsg =
+	local ramState =
 		  ffi.string(ffi.cast('char*', app.ram.spriteSheet), spriteSheetInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.tileSheet), tileSheetInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.tilemap), tilemapInBytes)
@@ -805,29 +785,13 @@ image:save'fb.png' -- bad
 		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
 
---[[ debugging ... yeah the client does get this messages contents ... how come thats not the servers screen etc?
-local arr = ffi.new('char[?]', initMsgSize)
-local ptr = ffi.cast('uint8_t*', arr)
-for i=0,initMsgSize-1 do
-	ptr[i] = math.random(0,255)
-end
-initMsg = ffi.string(arr, initMsgSize)
---]]
-
-	assertlen(initMsg, initMsgSize)
-	asserteq(send(sock, initMsg), initMsgSize, "init msg")
+	assertlen(ramState, ramStateSize)
+	serverConn.toSend:insert(ramState)
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
 
-require'ext.path''server_init.txt':write(string.hexdump(initMsg))
-
-print'entering server listen loop...'
-	-- TODO here go into a busy loop and wait for client messages
-	-- TODO move all this function itno serverConn:loop()
-	-- or into its ctor ...
-	serverConn.downloadingRAM = nil
-
-
+require'ext.path''server_init.txt':write(string.hexdump(ramState))
 end
+
 
 
 local ClientConn = class()
@@ -852,8 +816,7 @@ function ClientConn:init(args)
 	local con = app.con
 	assertindex(args, 'playerInfos')
 
-	self.cmdBuffer = vector('Numo9Cmd', 128)	-- round-robin
-	ffi.fill(self.cmdBuffer.v, self.cmdBuffer.size * ffi.sizeof'Numo9Cmd')
+	self.cmds = vector'Numo9Cmd'
 
 	con:print('ClientConn connecting to addr',args.addr,'port',args.port)
 	local sock, reason = socket.connect(args.addr, args.port)
@@ -937,33 +900,38 @@ print'entering client listen loop...'
 				local shortp = ffi.cast('uint16_t*', charp)
 				local index, value = shortp[0], shortp[1]
 				if index == 0 then
-					if value ~= self.cmdBuffer.size then
+					if value ~= self.cmds.size then
 print('got cmdbuf resize to '..tostring(value))
-						self.cmdBuffer:resize(value)
+						self.cmds:resize(value)
 					end
+				elseif index == 0xfeff then
+					local newcmdslen = value
+					asserteq(newcmdslen % ffi.sizeof'Numo9Cmd', 0, "cmd buffer not modulo size")
+					local newsize = newcmdslen /  ffi.sizeof'Numo9Cmd'
+print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
+					self.cmds:resize(newsize)
+
+					local initCmds = receive(sock, newcmdslen, 10)
+					assertlen(initCmds, newcmdslen)
+					ffi.copy(self.cmds.v, ffi.cast('char*', initCmds), newcmdslen)
+
 				elseif index == 0xffff and value == 0xffff then
 					-- getting a new RAM dump ...
 
 					-- [[
-					local initMsg = assert(receive(sock, initMsgSize, 10))
+					local ramState = assert(receive(sock, ramStateSize, 10))
 					--]]
 					--[[
-					local result = table.pack(receive(sock, initMsgSize, 10))
+					local result = table.pack(receive(sock, ramStateSize, 10))
 				print('...got', result:unpack())
-					local initMsg = result:unpack()
+					local ramState = result:unpack()
 					--]]
-				--print(string.hexdump(initMsg))
+				--print(string.hexdump(ramState))
 
-					assertlen(initMsg, initMsgSize)
-require'ext.path''client_init.txt':write(string.hexdump(initMsg))
+					assertlen(ramState, ramStateSize)
+require'ext.path''client_init.txt':write(string.hexdump(ramState))
 					-- and decode it
-					local ptr = ffi.cast('uint8_t*', ffi.cast('char*', initMsg))
-
-				--[[ debugging ... yeah it does instnatly upadte
-				for i=0,initMsgSize-1 do
-				ptr[i] = math.random(0,255)
-				end
-				--]]
+					local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))
 
 					-- make sure gpu changes are in cpu as well
 					app.fbTex:checkDirtyGPU()
@@ -999,7 +967,7 @@ require'ext.path''client_init.txt':write(string.hexdump(initMsg))
 				else
 					index = index - 1
 					local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
-					if neededSize >= self.cmdBuffer.size then
+					if neededSize >= self.cmds.size then
 print('got uint16 index='
 	..('$%x'):format(index)
 	..' value='
@@ -1007,11 +975,11 @@ print('got uint16 index='
 	..' goes in cmd-index '
 	..('$%x'):format(neededSize)
 	..' when our cmd size is just '
-	..('$%x'):format(self.cmdBuffer.size)
+	..('$%x'):format(self.cmds.size)
 )
 					else
-						assert(index*2 < self.cmdBuffer.size * ffi.sizeof'Numo9Cmd')
-						ffi.cast('uint16_t*', self.cmdBuffer.v)[index] = value
+						assert(index*2 < self.cmds.size * ffi.sizeof'Numo9Cmd')
+						ffi.cast('uint16_t*', self.cmds.v)[index] = value
 					end
 				end
 			else
@@ -1026,8 +994,8 @@ print('got uint16 index='
 			end
 		until not data
 --print('got', receivedSize)
-		for i=0,self.cmdBuffer.size-1 do
-			local cmd = self.cmdBuffer.v + i
+		for i=0,self.cmds.size-1 do
+			local cmd = self.cmds.v + i
 			local cmdtype = cmd[0].type
 			if cmdtype == netcmds.refresh then
 				-- stop handling commands <-> refresh the screen
@@ -1114,6 +1082,7 @@ print('got uint16 index='
 			clientlistenTotalFrames = 0
 		end
 --]]
+
 		coroutine.yield()
 	end
 print'client listen done'

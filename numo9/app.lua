@@ -956,30 +956,48 @@ print('self.server.socket', self.server.socket)
 				io.write('server sock '..require'ext.tolua'(self.server.socket:getstats())..' ')
 			end
 			--]]
---[[ show server's last render state:
+--[[ show server's last delta
 print(
 	string.hexdump(
 		ffi.string(
-			ffi.cast('char*', self.server.cmdBuffer.v),
-			self.server.cmdBufferIndex * ffi.sizeof'Numo9Cmd'
+			ffi.cast('char*', self.server.frames[1].deltas.v),
+			#self.server.frames[1].deltas.v * ffi.sizeof(self.server.frames[1].deltas.type)
 		), nil, 2
 	)
 )
 --]]
-			io.write('cmds/frame='..self.server.cmdBufferIndex..' ')
+--[[ show server's last render state:
+print(
+	string.hexdump(
+		ffi.string(
+			ffi.cast('char*', self.server.frames[1].cmds.v),
+			#self.server.frames[1].cmds * ffi.sizeof'Numo9Cmd'
+		), nil, 2
+	)
+)
+--]]
+			io.write('net frames='..#self.server.frames..' ')
+			io.write(' cmds/frame='..#((self.server.frames[1] or {}).cmds or {})..' ')
 			io.write(' deltas/sec='..tostring(self.server.numDeltasSentPerSec)..' ')
-self.server.numDeltasSentPerSec = 0
 			io.write(' idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
+self.server.numDeltasSentPerSec = 0
 self.server.numIdleChecksPerSec = 0
 			if self.server.serverConns[1] then
-				io.write('serverconn stats '..require'ext.tolua'{self.server.serverConns[1].socket:getstats()}..' ')
+				local conn = self.server.serverConns[1]
+				io.write('serverconn stats '..require'ext.tolua'{self.server.serverConns[1].socket:getstats()}
+					..' msgs='..#conn.toSend
+					..' sized='..#conn.toSend:concat()
+					..' send/sec='..conn.sendsPerSecond
+					..' recv/sec='..conn.receivesPerSecond
+				)
+conn.sendsPerSecond = 0
+conn.receivesPerSecond = 0
 			end
-			-- wtf is going on anyways?  I keep seeing 17000 updates/second, that should include send()s , but somehow my send buffer gets full at sending 32kbps ... unless send() is sending just 2 bytes at a time ... THAT SHOULDNT HAPPEN
-			io.write('conn updates: '..self.server.updateConnCount..' ')
+			io.write(' conn updates: '..self.server.updateConnCount..' ')
 			self.server.updateConnCount = 0
 		end
 		if self.remoteClient then
-			io.write('client cmdbuf size: '..self.remoteClient.cmdBuffer.size)
+			io.write('client cmdbuf size: '..self.remoteClient.cmds.size)
 		end
 		print()
 
@@ -1013,6 +1031,11 @@ self.server.numIdleChecksPerSec = 0
 		self.ram.updateCounter[0] = self.ram.updateCounter[0] + 1
 		self.ram.romUpdateCounter[0] = self.ram.romUpdateCounter[0] + 1
 
+		-- tell netplay we have a new frame
+		if self.server then
+			self.server:beginFrame()
+		end
+
 		-- update input between frames
 		do
 			self.ram.lastMousePos:set(self.ram.mousePos:unpack())
@@ -1029,11 +1052,6 @@ self.server.numIdleChecksPerSec = 0
 			if self:keyp'mouse_left' then
 				self.ram.lastMousePressPos:set(self.ram.mousePos:unpack())
 			end
-		end
-
-		-- reset the frame's command buffer
-		if self.server then
-			self.server.cmdBufferIndex = 0
 		end
 
 		-- flush any cpu changes to gpu before updating
@@ -1082,6 +1100,10 @@ print('no runnable focus!')
 		-- so this copies CPU changes -> GPU changes
 		-- TODO nothing is copying the GPU back to CPU after we do our sprite renders ...
 		-- double TODO I don't have framebuffer memory
+
+		if self.server then
+			self.server:endFrame()
+		end
 
 	--[[
 	TODO ... upload framebuf, download framebuf after
