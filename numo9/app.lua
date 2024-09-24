@@ -308,7 +308,7 @@ function App:initGL()
 		cls = function(colorIndex)
 			colorIndex = colorIndex or 0
 			if self.server then
-				local cmd = self.server:getNextCmd().clearScreen
+				local cmd = self.server:pushCmd().clearScreen
 				cmd.type = netcmds.clearScreen
 				cmd.colorIndex = colorIndex
 			end
@@ -326,7 +326,7 @@ function App:initGL()
 				x, y, w, h = ...
 			end
 			if self.server then
-				local cmd = self.server:getNextCmd().clipRect
+				local cmd = self.server:pushCmd().clipRect
 				cmd.type = netcmds.clipRect
 				cmd.x = x
 				cmd.y = y
@@ -339,7 +339,7 @@ function App:initGL()
 		-- TODO tempting to just expose flags for ellipse & border to the 'cartridge' api itself ...
 		rect = function(x, y, w, h, colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd().solidRect
+				local cmd = self.server:pushCmd().solidRect
 				cmd.type = netcmds.solidRect
 				cmd.x = x
 				cmd.y = y
@@ -353,7 +353,7 @@ function App:initGL()
 		end,
 		rectb = function(x, y, w, h, colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd().solidRect
+				local cmd = self.server:pushCmd().solidRect
 				cmd.type = netcmds.solidRect
 				cmd.x = x
 				cmd.y = y
@@ -368,7 +368,7 @@ function App:initGL()
 		-- choosing tic80's api naming here.  but the rect api: width/height, not radA/radB
 		elli = function(x, y, w, h, colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd().solidRect
+				local cmd = self.server:pushCmd().solidRect
 				cmd.type = netcmds.solidRect
 				cmd.x = x
 				cmd.y = y
@@ -382,7 +382,7 @@ function App:initGL()
 		end,
 		ellib = function(x, y, w, h, colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd().solidRect
+				local cmd = self.server:pushCmd().solidRect
 				cmd.type = netcmds.solidRect
 				cmd.x = x
 				cmd.y = y
@@ -397,7 +397,7 @@ function App:initGL()
 
 		line = function(x1,y1,x2,y2,colorIndex)
 			if self.server then
-				local cmd = self.server:getNextCmd().solidLine
+				local cmd = self.server:pushCmd().solidLine
 				cmd.type = netcmds.solidLine
 				cmd.x1 = x1
 				cmd.y1 = y1
@@ -427,7 +427,7 @@ function App:initGL()
 				spriteBit = spriteBit or 0
 				spriteMask = spriteMask or 0xFF
 
-				local cmd = self.server:getNextCmd().quad
+				local cmd = self.server:pushCmd().quad
 				cmd.type = netcmds.quad
 				cmd.x = screenX
 				cmd.y = screenY
@@ -453,7 +453,7 @@ function App:initGL()
 				spriteBit = spriteBit or 0
 				spriteMask = spriteMask or 0xFF
 
-				local cmd = self.server:getNextCmd().quad
+				local cmd = self.server:pushCmd().quad
 				cmd.type = netcmds.quad
 				cmd.x, cmd.y, cmd.w, cmd.h = x, y, w, h
 				cmd.tx, cmd.ty, cmd.tw, cmd.th = tx, ty, tw, th
@@ -469,7 +469,7 @@ function App:initGL()
 				tilesWide = tilesWide or 1
 				tilesHigh = tilesHigh or 1
 				mapIndexOffset = mapIndexOffset or 0
-				local cmd = self.server:getNextCmd().map
+				local cmd = self.server:pushCmd().map
 				cmd.type = netcmds.map
 				cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh = tileX, tileY, tilesWide, tilesHigh
 				cmd.screenX, cmd.screenY = screenX, screenY
@@ -487,7 +487,7 @@ function App:initGL()
 				scaleX = scaleX or 1
 				scaleY = scaleY or 1
 
-				local cmd = self.server:getNextCmd().text
+				local cmd = self.server:pushCmd().text
 				cmd.type = netcmds.text
 				cmd.x, cmd.y = x, y
 				cmd.fgColorIndex = fgColorIndex
@@ -503,7 +503,7 @@ function App:initGL()
 		-- matrix math because i'm cheating
 		matident = function()
 			if self.server then
-				local cmd = self.server:getNextCmd().matident
+				local cmd = self.server:pushCmd().matident
 				cmd.type = netcmds.matident
 			end
 			self:mvMatFromRAM()
@@ -515,7 +515,7 @@ function App:initGL()
 			y = y or 0
 			z = z or 0
 			if self.server then
-				local cmd = self.server:getNextCmd().mattrans
+				local cmd = self.server:pushCmd().mattrans
 				cmd.type = netcmds.mattrans
 				cmd.x, cmd.y, cmd.z = x, y, z
 			end
@@ -528,7 +528,7 @@ function App:initGL()
 			y = y or 0
 			z = z or 1
 			if self.server then
-				local cmd = self.server:getNextCmd().matrot
+				local cmd = self.server:pushCmd().matrot
 				cmd.type = netcmds.matrot
 				cmd.theta, cmd.x, cmd.y, cmd.z = theta, x, y, z
 			end
@@ -541,7 +541,7 @@ function App:initGL()
 			y = y or 1
 			z = z or 1
 			if self.server then
-				local cmd = self.server:getNextCmd().matscale
+				local cmd = self.server:pushCmd().matscale
 				cmd.type = netcmds.matscale
 				cmd.x, cmd.y, cmd.z = x, y, z
 			end
@@ -553,7 +553,7 @@ function App:initGL()
 			n = n or -1000
 			f = f or 1000
 			if self.server then
-				local cmd = self.server:getNextCmd().matortho
+				local cmd = self.server:pushCmd().matortho
 				cmd.type = netcmds.matortho
 				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
 			end
@@ -563,7 +563,7 @@ function App:initGL()
 		end,
 		matfrustum = function(l, r, t, b, n, f)
 			if self.server then
-				local cmd = self.server:getNextCmd().matfrustum
+				local cmd = self.server:pushCmd().matfrustum
 				cmd.type = netcmds.matfrustum
 				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
 			end
@@ -573,7 +573,7 @@ function App:initGL()
 		end,
 		matlookat = function(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 			if self.server then
-				local cmd = self.server:getNextCmd().matlookat
+				local cmd = self.server:pushCmd().matlookat
 				cmd.type = netcmds.matlookat
 				cmd.ex, cmd.ey, cmd.ez, cmd.cx, cmd.cy, cmd.cz, cmd.upx, cmd.upy, cmd.upz = ex, ey, ez, cx, cy, cz, upx, upy, upz
 			end
@@ -907,16 +907,31 @@ function App:update()
 
 	local thisTime = getTime()
 
-	--[[ fps counter ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
+	-- [[ fps counter ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
 	-- TODO only redraw the editor when the cursor blinks or a UI overlay changes ... that should reduce our draws
 	local deltaTime = thisTime - lastTime
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
 		print(
-			'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs
-			..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
+			--'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs
+			--..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
+			self.server
+			and (
+				(
+					self.server.serverConns[1]
+						and 'server cmdbuf write index: '..self.server.cmdBufferIndex
+							..' send index: '..self.server.serverConns[1].cmdBufferSendIndex
+						or ''
+				)..' conn updates: '..self.server.updateConnCount
+			)
+			or (self.remoteClient
+			and 'client cmdbuf write index: '..self.remoteClient.cmdBufferWriteIndex
+				..' refresh index: '..self.remoteClient.cmdBufferLastRefreshIndex
+				..' read index: '..self.remoteClient.cmdBufferReadIndex
+			)
 		)
+		if self.server then self.server.updateConnCount = 0 end
 		drawsPerSecond = 0
 		fpsFrames = 0
 		fpsSeconds = 0
@@ -1012,6 +1027,13 @@ print('no runnable focus!')
 		-- TODO nothing is copying the GPU back to CPU after we do our sprite renders ...
 		-- double TODO I don't have framebuffer memory
 
+		if self.server then
+			-- send a 'refresh' command at the end of the frame
+			-- but only if there isn't already one on the msg queue
+			if self.server:cmdGetTop().base.type ~= netcmds.refresh then
+				self.server:cmdGetTop().refresh.type = netcmds.refresh
+			end
+		end
 
 	--[[
 	TODO ... upload framebuf, download framebuf after
