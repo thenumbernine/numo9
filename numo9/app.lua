@@ -932,19 +932,28 @@ print('self.server.socket', self.server.socket)
 				io.write('server sock '..require'ext.tolua'(self.server.socket:getstats())..' ')
 			end
 			--]]
-			io.write('cmdbuf write index: '..self.server.cmdBufferIndex..' ')
+			print(
+				string.hexdump(
+					ffi.string(
+						ffi.cast('char*', self.server.cmdBuffer.v),
+						self.server.cmdBufferIndex * ffi.sizeof'Numo9Cmd'
+					), nil, 2
+				)
+			)
+			io.write('cmds/frame='..self.server.cmdBufferIndex..' ')
+			io.write(' deltas/sec='..tostring(self.server.numDeltasSentPerSec)..' ')
+self.server.numDeltasSentPerSec = 0
+			io.write(' idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
+self.server.numIdleChecksPerSec = 0
 			if self.server.serverConns[1] then
 				io.write('serverconn stats '..require'ext.tolua'{self.server.serverConns[1].socket:getstats()}..' ')
-				io.write('send index: '..self.server.serverConns[1].cmdBufferSendIndex..' ')
 			end
+			-- wtf is going on anyways?  I keep seeing 17000 updates/second, that should include send()s , but somehow my send buffer gets full at sending 32kbps ... unless send() is sending just 2 bytes at a time ... THAT SHOULDNT HAPPEN
 			io.write('conn updates: '..self.server.updateConnCount..' ')
 			self.server.updateConnCount = 0
 		end
 		if self.remoteClient then
-			io.write('client cmdbuf write index: '..self.remoteClient.cmdBufferWriteIndex
-				..' refresh index: '..self.remoteClient.cmdBufferLastRefreshIndex
-				..' read index: '..self.remoteClient.cmdBufferReadIndex
-			)
+			io.write('client cmdbuf size: '..self.remoteClient.cmdBuffer.size)
 		end
 		print()
 
@@ -996,6 +1005,11 @@ print('self.server.socket', self.server.socket)
 			end
 		end
 
+		-- reset the frame's command buffer
+		if self.server then
+			self.server.cmdBufferIndex = 0
+		end
+
 		-- flush any cpu changes to gpu before updating
 		self.fbTex:checkDirtyCPU()
 
@@ -1042,14 +1056,6 @@ print('no runnable focus!')
 		-- so this copies CPU changes -> GPU changes
 		-- TODO nothing is copying the GPU back to CPU after we do our sprite renders ...
 		-- double TODO I don't have framebuffer memory
-
-		if self.server then
-			-- send a 'refresh' command at the end of the frame
-			-- but only if there isn't already one on the msg queue
-			if self.server:cmdGetTop().base.type ~= netcmds.refresh then
-				self.server:cmdGetTop().refresh.type = netcmds.refresh
-			end
-		end
 
 	--[[
 	TODO ... upload framebuf, download framebuf after

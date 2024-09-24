@@ -294,3 +294,7 @@ Pico8 Compatability is at 90%
 - Right now browser embedding is only done through luajit ffi emulation, which is currently slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.
 - multiplayer
 - decouple editor from the fantasy-hardware so that multiplayer clients can play the game unhindered while the server edits it.
+- decouple the console from the fantasy-hardware too (cheating I know, but pretty sure some like TIC-80 do this), and then set aside the framebuffer for streaming to clients, while the server can issue commands / edit content...
+- copy/paste on the tilemap.
+	- copy/paste tilemap entries themselves
+	- paste sprites into the tilemap, then automatically quantize their sprites and palettes
