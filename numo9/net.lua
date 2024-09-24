@@ -91,7 +91,7 @@ function send(conn, data)
 		-- If successful, the method returns the index of the last byte within [i, j] that has been sent. Notice that, if i is 1 or absent, this is effectively the total number of bytes sent. In
 		local successlen, reason, sentsofar, time = conn:send(data, i, j)
 --calls = calls + 1
-print('send', conn, '...', successlen, reason, sentsofar, time)
+--print('send', conn, '...', successlen, reason, sentsofar, time)
 --print('send', conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
 			assertne(reason, 'wantwrite', 'socket.send failed')	-- will wantwrite get set only if res[1] is nil?
@@ -195,160 +195,249 @@ function mustReceive(...)
 end
 
 
--- mayb I'll do like SDL does ...
-local netcmdNames = table{
-	'refresh',
-	'clearScreen',
-	'clip',
-	'solidRect',
-	'solidLine',
-	'quad',
-	'map',
-	'text',
-	'matident',
-	'mattrans',
-	'matrot',
-	'matscale',
-	'matortho',
-	'matfrustum',
-	'matlookat',
-	'reset',
-	'load',
+local struct = require 'struct'
+
+local Numo9Cmd_base = struct{
+	name = 'Numo9Cmd_base',
+	fields = {
+		{name='type', type='int'},
+	},
 }
+
+local Numo9Cmd_refresh = struct{
+	name = 'Numo9Cmd_refresh',
+	fields = {
+		{name='type', type='int'},
+	}
+}
+
+local Numo9Cmd_clearScreen = struct{
+	name = 'Numo9Cmd_clearScreen',
+	fields = {
+		{name='type', type='int'},
+		{name='colorIndex', type='uint8_t'},
+	},
+}
+
+local Numo9Cmd_clipRect = struct{
+	name = 'Numo9Cmd_clipRect',
+	fields = {
+		{name='type', type='int'},
+		{name='x', type='uint8_t'},
+		{name='y', type='uint8_t'},
+		{name='w', type='uint8_t'},
+		{name='h', type='uint8_t'},
+	},
+}
+
+local Numo9Cmd_solidRect = struct{
+	name = 'Numo9Cmd_solidRect',
+	fields = {
+		{name='type', type='int'},
+		{name='x', type='float'},
+		{name='y', type='float'},
+		{name='w', type='float'},
+		{name='h', type='float'},
+		{name='colorIndex', type='uint8_t'},
+		{name='borderOnly', type='bool'},
+		{name='round', type='bool'},
+	},
+}
+
+local Numo9Cmd_solidLine = struct{
+	name = 'Numo9Cmd_solidLine',
+	fields = {
+		{name='type', type='int'},
+		{name='x1', type='float'},
+		{name='y1', type='float'},
+		{name='x2', type='float'},
+		{name='y2', type='float'},
+		{name='colorIndex', type='uint8_t'},
+	},
+}
+
+local Numo9Cmd_quad = struct{
+	name = 'Numo9Cmd_quad',
+	fields = {
+		{name='type', type='int'},
+		{name='x', type='float'},
+		{name='y', type='float'},
+		{name='w', type='float'},
+		{name='h', type='float'},
+		{name='tx', type='float'},
+		{name='ty', type='float'},
+		{name='tw', type='float'},
+		{name='th', type='float'},
+		{name='paletteIndex', type='uint8_t'},
+		{name='transparentIndex', type='int16_t'},
+		{name='spriteBit', type='uint8_t'},		-- just needs 3 bits ...
+		{name='spriteMask', type='uint8_t'},    -- the shader accepts 8 bits, but usually all 1s, so ... I could do this in 3 bits too ...
+	},
+}
+
+local Numo9Cmd_map = struct{
+	name = 'Numo9Cmd_map',
+	fields = {
+		{name='type', type='int'},
+		{name='tileX', type='float'},
+		{name='tileY', type='float'},
+		{name='tilesWide', type='float'},
+		{name='tilesHigh', type='float'},
+		{name='screenX', type='float'},
+		{name='screenY', type='float'},
+		{name='mapIndexOffset', type='int'},
+		{name='draw16Sprites', type='bool'},
+	},
+}
+
+local Numo9Cmd_text = struct{
+	name = 'Numo9Cmd_text',
+	fields = {
+		{name='type', type='int'},
+		{name='x', type='float'},
+		{name='y', type='float'},
+		{name='fgColorIndex', type='int16_t'},
+		{name='bgColorIndex', type='int16_t'},
+		{name='scaleX', type='float'},
+		{name='scaleY', type='float'},
+		{name='text', type='char[20]'},
+		-- TODO how about an extra pointer to another table or something for strings, overlap functionality with load requests
+	},
+} 	-- TODO if text is larger than this then issue multiple commands or something
+
+local Numo9Cmd_matident = struct{
+	name = 'Numo9Cmd_matident',
+	fields = {
+		{name='type', type='int'},
+	},
+}
+
+local Numo9Cmd_mattrans = struct{
+	name = 'Numo9Cmd_mattrans',
+	fields = {
+		{name='type', type='int'},
+		{name='x', type='float'},
+		{name='y', type='float'},
+		{name='z', type='float'},
+	},
+}
+
+local Numo9Cmd_matrot = struct{
+	name = 'Numo9Cmd_matrot',
+	fields = {
+		{name='type', type='int'},
+		{name='theta', type='float'},
+		{name='x', type='float'},
+		{name='y', type='float'},
+		{name='z', type='float'},
+	},
+}
+
+local Numo9Cmd_matscale = struct{
+	name = 'Numo9Cmd_matscale',
+	fields = {
+		{name='type', type='int'},
+		{name='x', type='float'},
+		{name='y', type='float'},
+		{name='z', type='float'},
+	},
+}
+
+local Numo9Cmd_matortho = struct{
+	name = 'Numo9Cmd_matortho',
+	fields = {
+		{name='type', type='int'},
+		{name='l', type='float'},
+		{name='r', type='float'},
+		{name='t', type='float'},
+		{name='b', type='float'},
+		{name='n', type='float'},
+		{name='f', type='float'},
+	},
+}
+
+local Numo9Cmd_matfrustum = struct{
+	name = 'Numo9Cmd_matfrustum',
+	fields = {
+		{name='type', type='int'},
+		{name='l', type='float'},
+		{name='r', type='float'},
+		{name='t', type='float'},
+		{name='b', type='float'},
+		{name='n', type='float'},
+		{name='f', type='float'},
+	},
+}
+
+local Numo9Cmd_matlookat = struct{
+	name = 'Numo9Cmd_matlookat',
+	fields = {
+		{name='type', type='int'},
+		{name='ex', type='float'},
+		{name='ey', type='float'},
+		{name='ez', type='float'},
+		{name='cx', type='float'},
+		{name='cy', type='float'},
+		{name='cz', type='float'},
+		{name='upx', type='float'},
+		{name='upy', type='float'},
+		{name='upz', type='float'},
+	},
+}
+
+local Numo9Cmd_reset = struct{
+	name = 'Numo9Cmd_reset',
+	fields = {
+		{name='type', type='int'},
+	},
+}
+
+local Numo9Cmd_load = struct{
+	name = 'Numo9Cmd_load',
+	fields = {
+		{name='type', type='int'},
+	--when a load cmd is queued, also store the load data to send over the wire ...
+	--... TODO how to GC this ...
+		{name='loadQueueIndex', type='int'},
+	},
+}
+
+-- mayb I'll do like SDL does ...
+local netCmdStructs = table{
+	Numo9Cmd_base,
+	Numo9Cmd_refresh,
+	Numo9Cmd_clearScreen,
+	Numo9Cmd_clipRect,
+	Numo9Cmd_solidRect,
+	Numo9Cmd_solidLine,
+	Numo9Cmd_quad,
+	Numo9Cmd_map,
+	Numo9Cmd_text,
+	Numo9Cmd_matident,
+	Numo9Cmd_mattrans,
+	Numo9Cmd_matrot,
+	Numo9Cmd_matscale,
+	Numo9Cmd_matortho,
+	Numo9Cmd_matfrustum,
+	Numo9Cmd_matlookat,
+	Numo9Cmd_reset,
+	Numo9Cmd_load,
+}
+local netcmdNames = netCmdStructs:mapi(function(cmdtype)
+	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))
+end)
 local netcmds = netcmdNames:mapi(function(name, index) return index, name end):setmetatable(nil)
 
-ffi.cdef[[
-typedef struct Numo9Cmd_refresh {
-	int type;
-} Numo9Cmd_refresh;
+local Numo9Cmd = struct{
+	name = 'Numo9Cmd',
+	union = true,
+	fields = table{
+		{name='type', type='int'},
+	}:append(netCmdStructs:mapi(function(cmdtype, i)
+		return {name=netcmdNames[i], type=cmdtype}
+	end)),
+}
 
-typedef struct Numo9Cmd_base {
-	int type;
-} Numo9Cmd_base;
-
-typedef struct Numo9Cmd_clearScreen {
-	int type;
-	uint8_t colorIndex;
-} Numo9Cmd_clearScreen;
-
-typedef struct Numo9Cmd_clipRect {
-	int type;
-	uint8_t x, y, w, h;
-} Numo9Cmd_clipRect;
-
-typedef struct Numo9Cmd_solidRect {
-	int type;
-	float x, y, w, h;
-	uint8_t colorIndex;
-	bool borderOnly;
-	bool round;
-} Numo9Cmd_solidRect;
-
-typedef struct Numo9Cmd_solidLine {
-	int type;
-	float x1, y1, x2, y2;
-	uint8_t colorIndex;
-} Numo9Cmd_solidLine;
-
-typedef struct Numo9Cmd_quad {
-	int type;
-	float x, y, w, h;
-	float tx, ty, tw, th;
-	uint8_t paletteIndex;
-	int16_t transparentIndex;
-	uint8_t spriteBit;			// just needs 3 bits ...
-	uint8_t spriteMask;			// the shader accepts 8 bits, but usually all 1s, so ... I could do this in 3 bits too ...
-} Numo9Cmd_quad;
-
-typedef struct Numo9Cmd_map {
-	int type;
-	float tileX, tileY;
-	float tilesWide, tilesHigh;
-	float screenX, screenY;
-	int mapIndexOffset;
-	bool draw16Sprites;
-} Numo9Cmd_map;
-
-typedef struct Numo9Cmd_text {
-	int type;
-	float x, y;
-	int16_t fgColorIndex, bgColorIndex;
-	float scaleX, scaleY;
-	char text[20];
-	// TODO how about an extra pointer to another table or something for strings, overlap functionality with load requests
-} Numo9Cmd_text;	// TODO if text is larger than this then issue multiple commands or something
-
-typedef struct Numo9Cmd_matident {
-	int type;
-} Numo9Cmd_matident;
-
-typedef struct Numo9Cmd_mattrans {
-	int type;
-	float x, y, z;
-} Numo9Cmd_mattrans;
-
-typedef struct Numo9Cmd_matrot {
-	int type;
-	float theta, x, y, z;
-} Numo9Cmd_matrot;
-
-typedef struct Numo9Cmd_matscale {
-	int type;
-	float x, y, z;
-} Numo9Cmd_matscale;
-
-typedef struct Numo9Cmd_matortho {
-	int type;
-	float l, r, t, b, n, f;
-} Numo9Cmd_matortho;
-
-typedef struct Numo9Cmd_matfrustum {
-	int type;
-	float l, r, t, b, n, f;
-} Numo9Cmd_matfrustum;
-
-typedef struct Numo9Cmd_matlookat {
-	int type;
-	float ex,ey,ez,cx,cy,cz,upx,upy,upz;
-} Numo9Cmd_matlookat;
-
-typedef struct Numo9Cmd_reset {
-	int type;
-} Numo9Cmd_reset;
-
-typedef struct Numo9Cmd_load {
-	int type;
-	/*
-	when a load cmd is queued, also store the load data to send over the wire ...
-	... TODO how to GC this ...
-	*/
-	int loadQueueIndex;
-} Numo9Cmd_load;
-
-typedef union Numo9Cmd {
-	Numo9Cmd_base base;
-	Numo9Cmd_refresh refresh;
-	Numo9Cmd_clearScreen clearScreen;
-	Numo9Cmd_clipRect clipRect;
-	Numo9Cmd_solidRect solidRect;
-	Numo9Cmd_solidLine solidLine;
-	Numo9Cmd_quad quad;
-	Numo9Cmd_map map;
-	Numo9Cmd_text text;
-	Numo9Cmd_load load;
-	Numo9Cmd_reset reset;
-	Numo9Cmd_load load;
-	Numo9Cmd_matident matident;
-	Numo9Cmd_mattrans mattrans;
-	Numo9Cmd_matrot matrot;
-	Numo9Cmd_matscale matscale;
-	Numo9Cmd_matortho matortho;
-	Numo9Cmd_matfrustum matfrustum;
-	Numo9Cmd_matlookat matlookat;
-	Numo9Cmd_reset reset;
-	Numo9Cmd_load load;
-} Numo9Cmd;
-]]
 
 --[[
 for _,name in ipairs(netcmdNames) do
@@ -361,9 +450,9 @@ local handshakeClientSends = 'litagano'
 local handshakeServerSends = 'motscoud'
 
 
-local RemoteServerConn = class()
+local ServerConn = class()
 
-function RemoteServerConn:init(args)
+function ServerConn:init(args)
 	-- combine all these assert index & type and you might as well have a strongly-typed language ...
 	asserttype(args, 'table')
 	self.app = assertindex(args, 'app')
@@ -374,11 +463,11 @@ function RemoteServerConn:init(args)
 	self.cmdBufferSendIndex  = asserttype(assertindex(args, 'cmdBufferSendIndex'), 'number')
 end
 
-function RemoteServerConn:isActive()
+function ServerConn:isActive()
 	return coroutine.status(self.thread) ~= 'dead'
 end
 
-function RemoteServerConn:loop()
+function ServerConn:loop()
 	while self.socket
 	and self.socket:getsockname()
 	do
@@ -418,9 +507,10 @@ function Server:init(app)
 	self.socketaddr, self.socketport = sock:getsockname()
 	con:print('...init listening on ', tostring(self.socketaddr)..':'..tostring(self.socketport))
 
-	sock:setoption('keepalive', true)
-	sock:setoption('tcp-nodelay', true)
-	sock:settimeout(0, 'b')
+	--sock:setoption('keepalive', true)
+	--sock:setoption('tcp-nodelay', true)
+	--sock:settimeout(0, 'b')
+	sock:settimeout(0, 't')
 
 	--[[
 	ok now I need to store a list of any commands that modify the audio/visual state
@@ -546,15 +636,23 @@ print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
 				- spr()s and map()s drawn since the last update
 				- sfx() and musics() played since the last update
 				--]]
+
+				-- how to decrease network bandwidth usage
+				-- delta compress screen updates
+				-- maybe keep track between 'refresh' messages
+				-- if allll stateless commands are identical then don't send any for that frame <-> expect an identical screen
+				-- I might as well be compressing and sending the screen itself ... i do want to support that eventually for game api that just poke to the framebuffer ...
+
 --asserttype(serverConn.cmdBufferIndex, 'number')
-print("server.cmdBufferIndex "..self.cmdBufferIndex.." serverConn.cmdBufferSendIndex "..serverConn.cmdBufferSendIndex)
+--print("server.cmdBufferIndex "..self.cmdBufferIndex.." serverConn.cmdBufferSendIndex "..serverConn.cmdBufferSendIndex)
 				while serverConn.cmdBufferSendIndex ~= self.cmdBufferIndex do
 --print('self.cmdBuffer.v', self.cmdBuffer.v)
 --print('serverConn.cmdBufferSendIndex', serverConn.cmdBufferSendIndex)
 					local cmd = self.cmdBuffer.v + serverConn.cmdBufferSendIndex
+io.write('('..(netcmdNames[cmd[0].type] or '???')..') ')
 					-- send cmd to conn
 					-- TODO WHY DOES THIS STALL???!?!?!??!?!
-					send(sock, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
+					send(serverConn.socket, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
 					-- TODO is there a way to send without string-ifying it?
 					-- TODO maybe just use sock instead of luasocket ...
 					-- inc buf
@@ -570,9 +668,10 @@ function Server:connectRemoteCoroutine(sock)
 	local app = assert(self.app)
 	print('Server got connection -- starting new connectRemoteCoroutine')
 
-	sock:setoption('keepalive', true)
-	sock:setoption('tcp-nodelay', true)
-	sock:settimeout(0, 'b')	-- for the benefit of coroutines ...
+	--sock:setoption('keepalive', true)
+	--sock:setoption('tcp-nodelay', true)
+	--sock:settimeout(0, 'b')	-- for the benefit of coroutines ...
+	sock:settimeout(0, 't')
 
 print'waiting for client handshake'
 -- TODO stuck here ...
@@ -602,7 +701,7 @@ print('got player info', cmd)
 	end
 
 print'creating server remote client conn...'
-	local serverConn = RemoteServerConn{
+	local serverConn = ServerConn{
 		app = app,
 		server = self,
 		socket = sock,
@@ -717,9 +816,10 @@ function ClientConn:init(args)
 print'client connected'
 	self.socket = sock
 
-	sock:setoption('keepalive', true)
-	sock:setoption('tcp-nodelay', true)
-	sock:settimeout(0, 'b')
+	--sock:setoption('keepalive', true)
+	--sock:setoption('tcp-nodelay', true)
+	--sock:settimeout(0, 'b')
+	sock:settimeout(0, 't')
 	self.connecting = true
 
 print'starting connection thread'
@@ -842,8 +942,8 @@ print'entering client listen loop...'
 			-- and only execute them once we get an end-of-frame command
 			local cmd = self.cmdBuffer.v + self.cmdBufferWriteIndex
 			ffi.copy(cmd, data, ffi.sizeof'Numo9Cmd')
---print('client got msg', cmd[0].base.type, netcmdNames[cmd[0].base.type])
-			if cmd[0].base.type == netcmds.refresh then
+--print('client got msg', cmd[0].type, netcmdNames[cmd[0].type])
+			if cmd[0].type == netcmds.refresh then
 				self.cmdBufferLastRefreshIndex = self.cmdBufferWriteIndex
 			end
 			self.cmdBufferWriteIndex = (self.cmdBufferWriteIndex + 1) % self.cmdBuffer.size
@@ -855,23 +955,23 @@ print'entering client listen loop...'
 		while self.cmdBufferReadIndex ~= self.cmdBufferLastRefreshIndex do
 			local cmd = self.cmdBuffer.v + self.cmdBufferReadIndex
 			self.cmdBufferReadIndex = (self.cmdBufferReadIndex + 1) % self.cmdBuffer.size
-			local base = cmd[0].base
-			if base.type == netcmds.refresh then
+			local cmdtype = cmd[0].type
+			if cmdtype == netcmds.refresh then
 				-- stop handling commands <-> refresh the screen
 				break
-			elseif base.type == netcmds.clearScreen then
+			elseif cmdtype == netcmds.clearScreen then
 				local c = cmd[0].clearScreen
 				app:clearScreen(c .colorIndex)
-			elseif base.type == netcmds.clipRect then
+			elseif cmdtype == netcmds.clipRect then
 				local c = cmd[0].clipRect
 				app:setClipRect(c.x, c.y, c.w, c.h)
-			elseif base.type == netcmds.solidRect then
+			elseif cmdtype == netcmds.solidRect then
 				local c = cmd[0].solidRect
 				app:drawSolidRect(c.x, c.y, c.w, c.h, c.colorIndex, c.borderOnly, c.round)
-			elseif base.type == netcmds.solidLine then
+			elseif cmdtype == netcmds.solidLine then
 				local c = cmd[0].solidLine
 				app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex)
-			elseif base.type == netcmds.quad then
+			elseif cmdtype == netcmds.quad then
 				local c = cmd[0].quad
 				app:drawQuad(
 					c.x, c.y, c.w, c.h,
@@ -879,49 +979,49 @@ print'entering client listen loop...'
 					app.spriteTex,
 					c.paletteIndex, c.transparentIndex,
 					c.spriteBit, c.spriteMask)
-			elseif base.type == netcmds.map then
+			elseif cmdtype == netcmds.map then
 				local c = cmd[0].map
 				app:drawMap(
 					c.tileX, c.tileY, c.tilesWide, c.tilesHigh,
 					c.screenX, c.screenY,
 					c.mapIndexOffset,
 					c.draw16Sprites)
-			elseif base.type == netcmds.text then
+			elseif cmdtype == netcmds.text then
 				local c = cmd[0].text
 				app:drawText(
 					ffi.string(c.text, math.min(ffi.sizeof(c.text), tonumber(ffi.C.strlen(c.text)))),
 					c.x, c.y,
 					c.fgColorIndex, c.bgColorIndex)
-			elseif base.type == netcmds.matident then
+			elseif cmdtype == netcmds.matident then
 				app:mvMatFromRAM()
 				app.mvMat:setIdent()
 				app:mvMatToRAM()
-			elseif base.type == netcmds.mattrans then
+			elseif cmdtype == netcmds.mattrans then
 				local c = cmd[0].mattrans
 				app:mvMatFromRAM()
 				app.mvMat:applyTranslate(c.x, c.y, c.z)
 				app:mvMatToRAM()
-			elseif base.type == netcmds.matrot then
+			elseif cmdtype == netcmds.matrot then
 				local c = cmd[0].matrot
 				app:mvMatFromRAM()
 				app.mvMat:applyRotate(c.theta, c.x, c.y, c.z)
 				app:mvMatToRAM()
-			elseif base.type == netcmds.matscale then
+			elseif cmdtype == netcmds.matscale then
 				local c = cmd[0].matscale
 				app:mvMatFromRAM()
 				app.mvMat:applyScale(c.x, c.y, c.z)
 				app:mvMatToRAM()
-			elseif base.type == netcmds.matortho then
+			elseif cmdtype == netcmds.matortho then
 				local c = cmd[0].matortho
 				app:mvMatFromRAM()
 				app.mvMat:applyOrtho(c.l, c.r, c.t, c.b, c.n, c.f)
 				app:mvMatToRAM()
-			elseif base.type == netcmds.matfrustum then
+			elseif cmdtype == netcmds.matfrustum then
 				local c = cmd[0].matfrustum
 				app:mvMatFromRAM()
 				app.mvMat:applyFrustum(c.l, c.r, c.t, c.b, c.n, c.f)
 				app:mvMatToRAM()
-			elseif base.type == netcmds.matlookat then
+			elseif cmdtype == netcmds.matlookat then
 				local c = cmd[0].matlookat
 				app:mvMatFromRAM()
 				app.mvMat:applyLookAt(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
