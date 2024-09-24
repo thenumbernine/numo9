@@ -75,7 +75,7 @@ end
 
 -- https://stackoverflow.com/questions/2613734/maximum-packet-size-for-a-tcp-connection
 --local maxPacketSize = 1024	-- when sending the RAM over, small packets kill us ... starting to not trust luasocket ...
-local maxPacketSize = 65500
+local maxPacketSize = 65536		-- how come right at this offset my RAM dump goes out of sync between client and server ...
 
 -- send and make sure you send everything, and error upon fail
 function send(conn, data)
@@ -113,7 +113,7 @@ function send(conn, data)
 			i = sentsofar + 1
 		end
 
-		-- don't busy wait
+		-- don't busy wait ... or should I?
 		coroutine.yield()
 	end
 end
@@ -181,8 +181,8 @@ function receive(conn, amount, waitduration)
 					return nil, 'timeout'
 				end
 			end
+			coroutine.yield()
 		end
-		coroutine.yield()
 	until false
 
 	return data
@@ -199,30 +199,34 @@ local struct = require 'struct'
 
 local Numo9Cmd_base = struct{
 	name = 'Numo9Cmd_base',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 	},
 }
 
 local Numo9Cmd_refresh = struct{
 	name = 'Numo9Cmd_refresh',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 	}
 }
 
 local Numo9Cmd_clearScreen = struct{
 	name = 'Numo9Cmd_clearScreen',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='colorIndex', type='uint8_t'},
 	},
 }
 
 local Numo9Cmd_clipRect = struct{
 	name = 'Numo9Cmd_clipRect',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='x', type='uint8_t'},
 		{name='y', type='uint8_t'},
 		{name='w', type='uint8_t'},
@@ -232,8 +236,9 @@ local Numo9Cmd_clipRect = struct{
 
 local Numo9Cmd_solidRect = struct{
 	name = 'Numo9Cmd_solidRect',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='x', type='float'},
 		{name='y', type='float'},
 		{name='w', type='float'},
@@ -246,8 +251,9 @@ local Numo9Cmd_solidRect = struct{
 
 local Numo9Cmd_solidLine = struct{
 	name = 'Numo9Cmd_solidLine',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='x1', type='float'},
 		{name='y1', type='float'},
 		{name='x2', type='float'},
@@ -258,8 +264,9 @@ local Numo9Cmd_solidLine = struct{
 
 local Numo9Cmd_quad = struct{
 	name = 'Numo9Cmd_quad',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='x', type='float'},
 		{name='y', type='float'},
 		{name='w', type='float'},
@@ -277,8 +284,9 @@ local Numo9Cmd_quad = struct{
 
 local Numo9Cmd_map = struct{
 	name = 'Numo9Cmd_map',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='tileX', type='float'},
 		{name='tileY', type='float'},
 		{name='tilesWide', type='float'},
@@ -292,8 +300,9 @@ local Numo9Cmd_map = struct{
 
 local Numo9Cmd_text = struct{
 	name = 'Numo9Cmd_text',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='x', type='float'},
 		{name='y', type='float'},
 		{name='fgColorIndex', type='int16_t'},
@@ -307,15 +316,17 @@ local Numo9Cmd_text = struct{
 
 local Numo9Cmd_matident = struct{
 	name = 'Numo9Cmd_matident',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 	},
 }
 
 local Numo9Cmd_mattrans = struct{
 	name = 'Numo9Cmd_mattrans',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='x', type='float'},
 		{name='y', type='float'},
 		{name='z', type='float'},
@@ -324,8 +335,9 @@ local Numo9Cmd_mattrans = struct{
 
 local Numo9Cmd_matrot = struct{
 	name = 'Numo9Cmd_matrot',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='theta', type='float'},
 		{name='x', type='float'},
 		{name='y', type='float'},
@@ -335,8 +347,9 @@ local Numo9Cmd_matrot = struct{
 
 local Numo9Cmd_matscale = struct{
 	name = 'Numo9Cmd_matscale',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='x', type='float'},
 		{name='y', type='float'},
 		{name='z', type='float'},
@@ -345,8 +358,9 @@ local Numo9Cmd_matscale = struct{
 
 local Numo9Cmd_matortho = struct{
 	name = 'Numo9Cmd_matortho',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='l', type='float'},
 		{name='r', type='float'},
 		{name='t', type='float'},
@@ -358,8 +372,9 @@ local Numo9Cmd_matortho = struct{
 
 local Numo9Cmd_matfrustum = struct{
 	name = 'Numo9Cmd_matfrustum',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='l', type='float'},
 		{name='r', type='float'},
 		{name='t', type='float'},
@@ -371,8 +386,9 @@ local Numo9Cmd_matfrustum = struct{
 
 local Numo9Cmd_matlookat = struct{
 	name = 'Numo9Cmd_matlookat',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 		{name='ex', type='float'},
 		{name='ey', type='float'},
 		{name='ez', type='float'},
@@ -387,15 +403,17 @@ local Numo9Cmd_matlookat = struct{
 
 local Numo9Cmd_reset = struct{
 	name = 'Numo9Cmd_reset',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 	},
 }
 
 local Numo9Cmd_load = struct{
 	name = 'Numo9Cmd_load',
+	--packed = true,
 	fields = {
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 	--when a load cmd is queued, also store the load data to send over the wire ...
 	--... TODO how to GC this ...
 		{name='loadQueueIndex', type='int'},
@@ -438,13 +456,15 @@ local Numo9Cmd = struct{
 	end)),
 }
 
-
 --[[
-for _,name in ipairs(netcmdNames) do
-	local ctype = 'Numo9Cmd_'..name
-	print('netcmd', name, ctype, ffi.sizeof(ctype))
+for i,cmdtype in ipairs(netCmdStructs) do
+	print(netcmdNames[i], ffi.sizeof(cmdtype))
 end
+print('Numo9Cmd', ffi.sizeof'Numo9Cmd')
+os.exit()
 --]]
+
+
 
 local handshakeClientSends = 'litagano'
 local handshakeServerSends = 'motscoud'
@@ -460,7 +480,7 @@ function ServerConn:init(args)
 	self.socket = assertindex(args, 'socket')
 	self.playerInfos = assertindex(args, 'playerInfos')
 	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
-	self.cmdBufferSendIndex  = asserttype(assertindex(args, 'cmdBufferSendIndex'), 'number')
+	self.cmdBuffer = vector('Numo9Cmd', 128)
 end
 
 function ServerConn:isActive()
@@ -468,10 +488,10 @@ function ServerConn:isActive()
 end
 
 function ServerConn:loop()
+	local data, reason
 	while self.socket
 	and self.socket:getsockname()
 	do
-		local reason
 		data, reason = receive(self.socket)
 		if not data then
 			if reason ~= 'timeout' then
@@ -508,7 +528,7 @@ function Server:init(app)
 	con:print('...init listening on ', tostring(self.socketaddr)..':'..tostring(self.socketport))
 
 	--sock:setoption('keepalive', true)
-	--sock:setoption('tcp-nodelay', true)
+	sock:setoption('tcp-nodelay', true)
 	--sock:settimeout(0, 'b')
 	sock:settimeout(0, 't')
 
@@ -550,37 +570,44 @@ text <-> drawText
 	lets say
 	x 60 fps
 	x 10 seconds
-	x cmds per second ... 10? 20? 100?
+	x cmds per second ... 13 per frame for bank.n9 idle
 	x bytes per cmd (44 atm)
-	--]]
-	self.cmdBuffer = vector('Numo9Cmd', 60000)
-	self.cmdBufferIndex = 0	-- round-robin
 
-	-- keep a refresh command on top
-	self:cmdGetTop().refresh.type = netcmds.refresh
+	but what if, instead of completeness, I store all the per-frame commands into a single buffer
+	and then I delta-compress that and send its changes across the net?
+
+	this heavily asserts ...
+	- that the whole screen is redrawn per frame
+	- that everything stays in place for the most part
+
+here's one example from bank.n9:
+(clearScreen) (matident) (matscale) (map) (map) (quad) (quad) (quad) (quad) (quad) (quad) (text) (refresh)
+at the moment that is 44 bytes x 13 commands = 572 bytes/frame ... x60 fps = 34320 bytes/second ...
+let's say I compress each command ...
+1 + 1 + 13 + 30 + 30 + 6 * 38 + 41 + 1
+= 345 ... a good percent smaller than 572 ... but still over 60 fps that gets pretty big ...
+I'm really thinking the store-and-delta-compress-every-frame idea is the good one ...
+I could compress the commands further, replacing float with int8 and int16 wherever possible ...
+
+still i think delta-compressing the send buffer will be best ...
+	--]]
+	self.cmdBuffer = vector('Numo9Cmd', 128)
+	ffi.fill(self.cmdBuffer.v, self.cmdBuffer.size * ffi.sizeof'Numo9Cmd')
+	self.cmdBufferIndex = 0	-- filled once per frame
 
 	app.threads:add(self.updateCoroutine, self)
 	app.threads:add(self.newConnListenCoroutine, self)
 end
 
--- TODO what if we've never got a write yet? how to handle that situation ...
--- easy way is to just always push a refresh message onto the queue upon creation ...
-function Server:cmdGetTop()
-	return self.cmdBuffer.v + (self.cmdBufferIndex - 1) % self.cmdBuffer.size
-end
-
 function Server:pushCmd()
 	local cmd = self.cmdBuffer.v + self.cmdBufferIndex
 	self.cmdBufferIndex = self.cmdBufferIndex + 1
-	for i,serverConn in ipairs(self.serverConns) do
-		if self.cmdBufferIndex == serverConn.cmdBufferSendIndex then
-			print('WARNING - looks like serverConn '..i..' is getting overrun')
-		end
+	while self.cmdBufferIndex >= self.cmdBuffer.size do
+		self.cmdBuffer:resize(self.cmdBuffer.size + 32)			-- resize ... notice this will invalidate any already-out cmds...
+		self.cmd = self.cmdBuffer.v + self.cmdBufferIndex - 1	-- recalc ptr to cmd
 	end
-	self.cmdBufferIndex = self.cmdBufferIndex % self.cmdBuffer.size
 	return cmd
 end
-
 
 function Server:close()
 	if self.socket then
@@ -609,54 +636,66 @@ function Server:newConnListenCoroutine()
 end
 
 Server.updateConnCount = 0	-- keep track of how often we are updating the conns ... so i know if they get stuck , maybe when recieivng a client or osmething idk
+Server.numDeltasSentPerSec = 0
+Server.numIdleChecksPerSec = 0
 function Server:updateCoroutine()
 	local app = self.app
 	local sock = self.socket
+
+	self.sendBuf = vector('uint16_t', (self.cmdBuffer.size * ffi.sizeof'Numo9Cmd') / 2)	-- worst case every byte is different ...
 
 	while sock
 	and sock:getsockname()
 	do
 		coroutine.yield()
 
-self.updateConnCount = self.updateConnCount + 1
 		-- now handle connections
 		for i=#self.serverConns,1,-1 do
+self.updateConnCount = self.updateConnCount + 1
 			local serverConn = self.serverConns[i]
 			if not serverConn:isActive() then
 print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
 				self.serverConns:remove(i)
-			else
-				--[[
-				send deltas to players
-				that means server keeps a buffer of deltas that's so long
-				and a head for each connected client of where in the buffer it is at
-				and every update() here, the client sends out the new updates
-				TODO what to send to the players ...
-				- poke()s into our selective audio/video locations in memory
-				- spr()s and map()s drawn since the last update
-				- sfx() and musics() played since the last update
-				--]]
+			elseif serverConn.connected then
+				self.sendBuf:resize(0)
+				if serverConn.cmdBuffer.size ~= self.cmdBuffer.size then
+					self.sendBuf:emplace_back()[0] = 0
+					self.sendBuf:emplace_back()[0] = self.cmdBuffer.size
+					serverConn.cmdBuffer:resize(self.cmdBuffer.size)
+				end
 
-				-- how to decrease network bandwidth usage
-				-- delta compress screen updates
-				-- maybe keep track between 'refresh' messages
-				-- if allll stateless commands are identical then don't send any for that frame <-> expect an identical screen
-				-- I might as well be compressing and sending the screen itself ... i do want to support that eventually for game api that just poke to the framebuffer ...
+				-- TODO how to convey change-in-sizes ...
+				-- how about storing it at the beginning of the buffer?
+				local n = (self.cmdBuffer.size * ffi.sizeof'Numo9Cmd') / 2
+				if n >= 65536 then
+					print('sending data more than our send buffer allows ... '..tostring(n))	-- byte limit ...
+				end
+				local svp = ffi.cast('uint16_t*', self.cmdBuffer.v)
+				local clp = ffi.cast('uint16_t*', serverConn.cmdBuffer.v)
 
---asserttype(serverConn.cmdBufferIndex, 'number')
---print("server.cmdBufferIndex "..self.cmdBufferIndex.." serverConn.cmdBufferSendIndex "..serverConn.cmdBufferSendIndex)
-				while serverConn.cmdBufferSendIndex ~= self.cmdBufferIndex do
---print('self.cmdBuffer.v', self.cmdBuffer.v)
---print('serverConn.cmdBufferSendIndex', serverConn.cmdBufferSendIndex)
-					local cmd = self.cmdBuffer.v + serverConn.cmdBufferSendIndex
-io.write('('..(netcmdNames[cmd[0].type] or '???')..') ')
-					-- send cmd to conn
-					-- TODO WHY DOES THIS STALL???!?!?!??!?!
-					send(serverConn.socket, ffi.string(ffi.cast('char*', cmd), ffi.sizeof'Numo9Cmd'))
-					-- TODO is there a way to send without string-ifying it?
-					-- TODO maybe just use sock instead of luasocket ...
-					-- inc buf
-					serverConn.cmdBufferSendIndex = (serverConn.cmdBufferSendIndex + 1) % self.cmdBuffer.size
+				for i=0,n-1 do
+					if svp[0] ~= clp[0] then
+						clp[0] = svp[0]
+						self.sendBuf:emplace_back()[0] = 1+i	-- short offset ... plus 2 to make room for vector size
+						self.sendBuf:emplace_back()[0] = svp[0]	-- short value
+					end
+					svp=svp+1
+					clp=clp+1
+				end
+				if self.sendBuf.size > 0 then
+assert(self.sendBuf.size % 2 == 0)					
+					local data = ffi.string(
+						ffi.cast('char*', self.sendBuf.v),
+						2*self.sendBuf.size
+					)
+print('SENDING COMPRESSED FRAME', 2*self.sendBuf.size)
+print(require'ext.string'.hexdump(data, nil, 2))
+print('DONE WITH COMPRESSED FRAME')
+					send(serverConn.socket, data)
+self.numDeltasSentPerSec = self.numDeltasSentPerSec + 1
+				else
+self.numIdleChecksPerSec = self.numIdleChecksPerSec + 1
+					-- num frames idle ++
 				end
 			end
 		end
@@ -669,7 +708,7 @@ function Server:connectRemoteCoroutine(sock)
 	print('Server got connection -- starting new connectRemoteCoroutine')
 
 	--sock:setoption('keepalive', true)
-	--sock:setoption('tcp-nodelay', true)
+	sock:setoption('tcp-nodelay', true)
 	--sock:settimeout(0, 'b')	-- for the benefit of coroutines ...
 	sock:settimeout(0, 't')
 
@@ -707,7 +746,6 @@ print'creating server remote client conn...'
 		socket = sock,
 		playerInfos = playerInfos,
 		thread = coroutine.running(),
-		cmdBufferSendIndex = asserttype(self.cmdBufferIndex, 'number'),
 	}
 	self.serverConns:insert(serverConn)
 -- TODO HERE record the current moment in the server's delta playback buffer and store it in the serverConn
@@ -764,7 +802,6 @@ end
 initMsg = ffi.string(arr, initMsgSize)
 --]]
 
---print(string.hexdump(initMsg))
 	assertlen(initMsg, initMsgSize)
 	asserteq(send(sock, initMsg), initMsgSize, "init msg")
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
@@ -775,6 +812,7 @@ print'entering server listen loop...'
 	-- TODO here go into a busy loop and wait for client messages
 	-- TODO move all this function itno serverConn:loop()
 	-- or into its ctor ...
+	serverConn.connected = true
 	serverConn:loop()
 end
 
@@ -802,10 +840,8 @@ function ClientConn:init(args)
 	local con = app.con
 	assertindex(args, 'playerInfos')
 
-	self.cmdBuffer = vector('Numo9Cmd', 60000)	-- round-robin
-	self.cmdBufferWriteIndex = 0		-- write location for incoming cmds
-	self.cmdBufferLastRefreshIndex = 0	-- last refresh cmd written
-	self.cmdBufferReadIndex = 0			-- last interpreted cmd
+	self.cmdBuffer = vector('Numo9Cmd', 128)	-- round-robin
+	ffi.fill(self.cmdBuffer.v, self.cmdBuffer.size * ffi.sizeof'Numo9Cmd')
 
 	con:print('ClientConn connecting to addr',args.addr,'port',args.port)
 	local sock, reason = socket.connect(args.addr, args.port)
@@ -817,7 +853,7 @@ print'client connected'
 	self.socket = sock
 
 	--sock:setoption('keepalive', true)
-	--sock:setoption('tcp-nodelay', true)
+	sock:setoption('tcp-nodelay', true)
 	--sock:settimeout(0, 'b')
 	sock:settimeout(0, 't')
 	self.connecting = true
@@ -919,46 +955,66 @@ print'calling back to .success()'
 	-- now start the busy loop of listening for new messages
 
 print'entering client listen loop...'
+	local data, reason
 	while sock
 	and sock:getsockname()
 	do
-		coroutine.yield()
 --print'LISTENING...'
-		local reason
-		data, reason = receive(sock, ffi.sizeof'Numo9Cmd', 0)
---print('client got', data, reason)
-		if not data then
-			if reason ~= 'timeout' then
-				print('client remote connection failed: '..tostring(reason))
-				return false
-				-- TODO - die and go back to connection screen ... wherever that will be
-			end
-		else
---print('client got data', data, reason)
-			assertlen(data, ffi.sizeof'Numo9Cmd')
+--local receivedSize = 0
+		repeat
+			-- read our deltas 2 bytes at a time ...
+			data, reason = receive(sock, 4, 0)
+	--print('client got', data, reason)
+			if data then
+	--print('client got data', data, reason)
+				assertlen(data, 4)
+--receivedSize = receivedSize + 4
+				-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
 
-			-- TODO for vsync's sake ..
-			-- buffer commands on the client's side as well
-			-- and only execute them once we get an end-of-frame command
-			local cmd = self.cmdBuffer.v + self.cmdBufferWriteIndex
-			ffi.copy(cmd, data, ffi.sizeof'Numo9Cmd')
---print('client got msg', cmd[0].type, netcmdNames[cmd[0].type])
-			if cmd[0].type == netcmds.refresh then
-				self.cmdBufferLastRefreshIndex = self.cmdBufferWriteIndex
-			end
-			self.cmdBufferWriteIndex = (self.cmdBufferWriteIndex + 1) % self.cmdBuffer.size
-			if self.cmdBufferWriteIndex == self.cmdBufferReadIndex then
-				print('DANGER! cmd buffer overflow!')
-			end
-		end
+				local charp = ffi.cast('char*', data)
+				local shortp = ffi.cast('uint16_t*', charp)
+				local index, value = shortp[0], shortp[1]
+				if index == 0 then
+					if value ~= self.cmdBuffer.size then
+print('got cmdbuf resize to '..tostring(value))
+						self.cmdBuffer:resize(value)
+					end
+				else
+					index = index - 1
+					local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
+					if neededSize >= self.cmdBuffer.size then
+print('got uint16 index='
+	..('$%x'):format(index)
+	..' value='
+	..('$%x'):format(value)
+	..' goes in cmd-index '
+	..('$%x'):format(neededSize)
+	..' when our cmd size is just '
+	..('$%x'):format(self.cmdBuffer.size)
+)
+					else
+						assert(index*2 < self.cmdBuffer.size * ffi.sizeof'Numo9Cmd')
+						ffi.cast('uint16_t*', self.cmdBuffer.v)[index] = value
+					end
+				end
+			else
+				if reason ~= 'timeout' then
+					print('client remote connection failed: '..tostring(reason))
+					return false
+					-- TODO - die and go back to connection screen ... wherever that will be
+				end
 
-		while self.cmdBufferReadIndex ~= self.cmdBufferLastRefreshIndex do
-			local cmd = self.cmdBuffer.v + self.cmdBufferReadIndex
-			self.cmdBufferReadIndex = (self.cmdBufferReadIndex + 1) % self.cmdBuffer.size
+				-- no more data ... try to draw what we have
+				break
+			end
+		until not data
+--print('got', receivedSize)
+		for i=0,self.cmdBuffer.size-1 do
+			local cmd = self.cmdBuffer.v + i
 			local cmdtype = cmd[0].type
 			if cmdtype == netcmds.refresh then
 				-- stop handling commands <-> refresh the screen
-				break
+				--break
 			elseif cmdtype == netcmds.clearScreen then
 				local c = cmd[0].clearScreen
 				app:clearScreen(c .colorIndex)
@@ -1041,7 +1097,7 @@ print'entering client listen loop...'
 			clientlistenTotalFrames = 0
 		end
 --]]
-
+		coroutine.yield()
 	end
 print'client listen done'
 end
