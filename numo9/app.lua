@@ -246,34 +246,23 @@ function App:initGL()
 		load = function(...)
 			local result = table.pack(self:load(...))
 			if self.server then
-				--[[
-				-- TODO somehow associate with this reset-cmd the new RAM state
-				-- so when the client goes to grab it, it gets this
-				local cmd = self.server:pushCmd().load
-				cmd.type = netcmds.load
-				--]]
-				-- [[
+				-- TODO consider order of events
+				-- this is goign to sendRAM to all clients
+				-- but it's executed mid-frame on the server, while server is building a command-buffer
+				-- where will deltas come into play?
+				-- how about new-frame messages too?
 				for _,serverConn in ipairs(self.server.serverConns) do
 					self.server:sendRAM(serverConn)
 				end
-				--]]
 			end
 			return result:unpack()
 		end,
 		reset = function(...)
 			local result = table.pack(self:resetROM(...))
 			if self.server then
-				--[[
-				-- TODO somehow associate with this reset-cmd the new RAM state
-				-- so when the client goes to grab it, it gets this
-				local cmd = self.server:pushCmd().load
-				cmd.type = netcmds.load
-				--]]
-				-- [[
 				for _,serverConn in ipairs(self.server.serverConns) do
 					self.server:sendRAM(serverConn)
 				end
-				--]]
 			end
 			return result:unpack()
 		end,
@@ -1931,14 +1920,26 @@ end):setmetatable(nil)
 
 -- TODO named support just like key() keyp() keyr()
 -- double TODO - just use key/p/r, and just use extra flags
-function App:btn(buttonCode, ...)
-	return self:key(keyCodeForButtonIndex[buttonCode], ...)
+function App:btn(buttonCode, player, ...)
+	if buttonCode < 0 or buttonCode >= 8 then return end
+	player = player or 0
+	local keyCode = keyCodeForButtonIndex[buttonCode + 8 * player]
+	if not keyCode then return end
+	return self:key(keyCode, ...)
 end
-function App:btnp(buttonCode, ...)
-	return self:keyp(keyCodeForButtonIndex[buttonCode], ...)
+function App:btnp(buttonCode, player, ...)
+	if buttonCode < 0 or buttonCode >= 8 then return end
+	player = player or 0
+	local keyCode = keyCodeForButtonIndex[buttonCode + 8 * player]
+	if not keyCode then return end
+	return self:keyp(keyCode, ...)
 end
-function App:btnr(buttonCode, ...)
-	return self:keyr(keyCodeForButtonIndex[buttonCode], ...)
+function App:btnr(buttonCode, player, ...)
+	if buttonCode < 0 or buttonCode >= 8 then return end
+	player = player or 0
+	local keyCode = keyCodeForButtonIndex[buttonCode + 8 * player]
+	if not keyCode then return end
+	return self:keyr(keyCode, ...)
 end
 
 function App:mouse()
