@@ -39,8 +39,8 @@ local fragType = 'uvec4'
 local useTextureInt = true
 
 -- uses integer coordinates in shader.  you'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
+--local useTextureRect = false
 local useTextureRect = true
---local useTextureRect = true
 
 --local texelType = (useTextureInt and 'u' or '')..'vec4'
 
@@ -308,7 +308,7 @@ glreport'here'
 		self.dirtyCPU = false
 		app.fbTex.changedSinceDraw = true
 	end
-	
+
 	-- TODO is this only applicable for fbTex?
 	-- if anything else has a dirty GPU ... it'd have to be because the framebuffer was rendering to it
 	-- and right now, the fb is only outputting to fbTex ...
@@ -491,16 +491,11 @@ function AppDraw:initDraw()
 	end
 
 	local function texCoordRectFromFloatVec(code, size)
-		if useTextureRect then
-			code = 'ivec2(('..code..') * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
-		end
+		code = 'ivec2(('..code..') * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
 		return code
 	end
 
 	local function texCoordRectFromIntVec(code, size)
-		if not useTextureRect then
-			code = 'vec2(('..code..') + .5) / vec2('..clnumber(size.x)..', '..clnumber(size.y)..')'
-		end
 		return code
 	end
 
@@ -642,14 +637,10 @@ uniform <?=samplerType?> fbTex;
 
 void main() {
 	uint rgb332 = ]]..readTexUint('texelFetch(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
-	uint r = rgb332 & 0x7u;
-	uint g = (rgb332 >> 3) & 0x7u;
-	uint b = (rgb332 >> 5) & 0x3u;
-	fragColor.r = (r << 5);// | (r << 2) | (r >> 1);
-	fragColor.g = (g << 5);// | (g << 2) | (g >> 1);
-	fragColor.b = (b << 6);// | (b << 4) | (b << 2) | b;
-	fragColor.a = 0xFFu;
-	fragColor /= 255.;
+	fragColor.r = float(rgb332 & 0x7u) / 7.;
+	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
+	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
+	fragColor.a = 1.;
 }
 ]],			{
 				samplerType = samplerType,
@@ -684,12 +675,38 @@ void main() {
 		{name='RGB332', colorOutput=colorIndexToFrag..[[
 	// TODO this won't work if we're using fragType == vec4 ...
 	// what exactly is coming out of a usampler2D and into a uvec4?  is that documented anywhere?
-	fragColor >>= 16;	//[16,20] works
-	fragColor &= 0xFFu;
-	uint r = fragColor.r >> 5;
-	uint g = fragColor.g >> 5;
-	uint b = fragColor.b >> 6;
+//#error what is the range of the palTex?  internalFormat=GL_RGB5_A1, format=GL_RGBA, type=GL_UNSIGNED_SHORT_1_5_5_5_REV
+	//fragColor >>= 16;	//[16,20] works ... WHY??!?!?!
+	//fragColor &= 0xFFu;
+
+	// OK SO THIS LOOKS GOOD ... WHY
+	// WHY DID OPENGL DECIDE TO USE 26 BITS TO REPRESENT MY RGBA5551 TEXTURE'S COLOR CHANNELS?
+	// and how come the palette gradiations seem to be exponential ... 0-3 is one shade, 4-7 is another, 8-15 is another, 16-31 is another .... wtf?
+#if 1
+	uint r = (fragColor.r >> 23) & 0x7u;
+	uint g = (fragColor.g >> 23) & 0x7u;
+	uint b = (fragColor.b >> 24) & 0x3u;
 	fragColor.r = r | (g << 3) | (b << 6);
+#else
+	uint r = (fragColor.r >> 5) & 0x7u;
+	uint g = (fragColor.g >> 5) & 0x7u;
+	uint b = (fragColor.b >> 6) & 0x3u;
+	fragColor.r = r | (g << 3) | (b << 6);
+#endif
+
+// verify that, from here to the blitScreenRGB332Obj shader, everything is fine:
+	//fragColor.r = 0x3;		// mid red = WORKS
+	//fragColor.r = 0x4;		// mid red = WORKS
+	//fragColor.r = 0x7;	// full red = WORKS
+	//fragColor.r = 0x8;	// no red, dark green = WORKS
+	//fragColor.r = 0x18;		// mid green = WORKS
+	//fragColor.r = 0x20;		// mid green = WORKS (looks sort of pale)
+	//fragColor.r = 0x38;		// full green = WORKS (looks sort of pale though ...)
+	//fragColor.r = 0x40;		// no green, dark blue = WORKS
+	//fragColor.r = 0x80;			//mid blue .. WORKS
+	//fragColor.r = 0xC0;		// full blue = WORKS
+	//fragColor.r = 0xFF;		// white WORKS
+//...and it is working fine.  The only problem now is that mysterious undocumented behavior of what happens when you assign to a uvec4 fragment
 	fragColor.g = 0;
 	fragColor.b = 0;
 ]]},
@@ -1086,7 +1103,8 @@ void main() {
 		format = gl.GL_RGB,
 		internalFormat = gl.GL_RGB,
 		magFilter = gl.GL_NEAREST,
-		minFilter = gl.GL_NEAREST,
+		--minFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_NEAREST_MIPMAP_NEAREST,
 		--[[ checkerboard
 		image = Image(2,2,3,'unsigned char', {0xf0,0xf0,0xf0,0xfc,0xfc,0xfc,0xfc,0xfc,0xfc,0xf0,0xf0,0xf0}),
 		--]]
