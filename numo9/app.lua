@@ -498,7 +498,7 @@ function App:initGL()
 				cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh = tileX, tileY, tilesWide, tilesHigh
 				cmd.screenX, cmd.screenY = screenX, screenY
 				cmd.mapIndexOffset = mapIndexOffset
-				cmd.draw16Sprites = draw16Sprites
+				cmd.draw16Sprites = draw16Sprites or false
 			end
 			return self:drawMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
 		end,
