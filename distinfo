@@ -8,20 +8,24 @@ files = {
 		'README.md',
 		'n9a.lua',
 		'n9a_p8_glue.lua',
-		'n9a_p8_glue_with_comments.lua',
 		'run.lua',
 		'font.png',
 		'hello.n9',
+		'bank.n9',
 		'numo9/app.lua',
 		'numo9/archive.lua',
 		'numo9/console.lua',
+		'numo9/draw.lua',
 		'numo9/editcode.lua',
+		'numo9/editmusic.lua',
 		'numo9/editor.lua',
+		'numo9/editsfx.lua',
 		'numo9/editsprites.lua',
 		'numo9/edittilemap.lua',
 		'numo9/filesystem.lua',
 		'numo9/keys.lua',
-		'numo9/draw.lua',
+		'numo9/net.lua',
+		'numo9/rom.lua',
 	},
 	-- other paths go here
 	['..'] = table{
@@ -37,11 +41,27 @@ files = {
 		'glapp',
 		'langfix',
 		'parser',	-- needed by langfix
+		'netrefl',	-- only one function ... this is old and needs to be updated
 		'matrix',
+		'threadmanager',
 		'sdl',
 		'clip',
 	},
 }
+
+-- lua socket
+if ffi.os == 'OSX' then
+	files['/usr/local/share/luajit-2.1/'] = {
+		'socket.lua',
+		'ltn12.lua',
+		'mime.lua',
+		'socket',
+	}
+	files['/usr/local/lib/lua/5.1/'] = {
+		'socket.so',
+		'mime.so',
+	}
+end
 
 -- binary libs needed for luajit
 luajitLibs = {

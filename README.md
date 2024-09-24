@@ -22,6 +22,8 @@ Screen framebuffer is 256x256x16bpp RGB565.
 
 This is to support blending effects, which are on the TODO list, once I figure out something close enough to SNES.
 
+Screen framebuffer also has a 8bpp-indexed option, mainly for compatability for other fantasy consoles.  Irl consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
+
 ### sprites / tiles
 
 Sprites are 8x8 pixels.
@@ -84,15 +86,13 @@ Not only am I not much of a retro audio programmer, but the SNES happened to be 
 0x070204 - 0x070244 = mvMat
 0x070244 - 0x070248 = updateCounter
 0x070248 - 0x07024c = romUpdateCounter
-0x07024c - 0x070255 = keyPressFlags
-0x070255 - 0x07025e = lastKeyPressFlags
-0x07025e - 0x0702ea = keyHoldCounter
-0x0702ea - 0x0702ee = mousePos
-0x0702ee - 0x0702f2 = lastMousePos
-0x0702f2 - 0x0702f6 = lastMousePressPos
-0x0702f6 - 0x0702f7 = lastMouseButtons
-0x0702f7 - 0x0702f8 = mouseButtons
-system dedicated 0x702f8 of RAM
+0x07024c - 0x07025a = keyPressFlags
+0x07025a - 0x070268 = lastKeyPressFlags
+0x070268 - 0x07033e = keyHoldCounter
+0x07033e - 0x070342 = mousePos
+0x070342 - 0x070346 = lastMousePos
+0x070346 - 0x07034a = lastMousePressPos
+system dedicated 0x7034a of RAM
 ```
 
 # Language
@@ -193,7 +193,7 @@ This adds to Lua(/JIT):
 |`jp1_up=80`       |`jp1_down=81`     |`jp1_left=82`     |`jp1_right=83`    |`jp1_a=84`        |`jp1_b=85`        |`jp1_x=86`        |`jp1_y=87`        |
 |`jp2_up=88`       |`jp2_down=89`     |`jp2_left=90`     |`jp2_right=91`    |`jp2_a=92`        |`jp2_b=93`        |`jp2_x=94`        |`jp2_y=95`        |
 |`jp3_up=96`       |`jp3_down=97`     |`jp3_left=98`     |`jp3_right=99`    |`jp3_a=100`       |`jp3_b=101`       |`jp3_x=102`       |`jp3_y=103`       |
-|`mouse_left=104`  |`mouse_middle=105`|`mouse_right=106` |``                |``                |``                |``                |``                |
+|`mouse_left=104`  |`mouse_middle=105`|`mouse_right=106` |                  |                  |                  |                  |                  |
 
 - `btn(buttonCode, player)`, `btnp(buttonCode, player, [hold], [period])`, `btnr(buttonCode, player)` = same for emulated-joypad-buttons-on-keyboard.
 This is a compatability/convenience function that remaps the button+player codes to the corresponding `jpX_YYY` key codes.

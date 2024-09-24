@@ -237,13 +237,18 @@ function EditTilemap:update()
 						if 0 <= tx and tx < tilemapSize.x
 						and 0 <= ty and ty < tilemapSize.y
 						then
+							local tileSelIndex = self.spriteSelPos.x + dx
+								+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy)
+							--[[
 							local texelIndex = tx + tilemapSize.x * ty
 							assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 							local ptr = mapTex.image.buffer + texelIndex
-							local tileSelIndex = self.spriteSelPos.x + dx
-								+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy)
 							ptr[0] = tileSelIndex
 							app.mapTex.dirtyCPU = true
+							--]]
+							-- [[
+							app.env.mset(tx, ty, tileSelIndex)
+							--]]
 						end
 					end
 				end

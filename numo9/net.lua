@@ -1057,6 +1057,7 @@ print('got uint16 index='
 				app:mvMatToRAM()
 			elseif cmdtype == netcmds.poke then
 				local c = cmd[0].poke
+--print('client poke', ('$%x'):format(c.addr), c.size, c.value)
 				if c.size == 1 then
 					app:poke(c.addr, c.value)
 				elseif c.size == 2 then
