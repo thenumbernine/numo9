@@ -1486,6 +1486,7 @@ function App:setClipRect(x, y, w, h)
 		self.ram.clipRect[3]+1)
 end
 
+-- for when we blend against solid colors, these go to the shaders to output it
 App.drawOverrideSolidR = 0
 App.drawOverrideSolidG = 0
 App.drawOverrideSolidB = 0
@@ -1522,8 +1523,11 @@ function App:setBlendMode(blendMode)
 	end
 --]]
 -- [[ ... if not then it's gotta be done as a shader ... all shaders need a toggle to override their output when necessary for blend ...
-	self.drawOverrideSolidA = bit.band(blendMode, 4)	-- > 0 means we're using draw-override
-	self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor[0])
+	self.drawOverrideSolidA = bit.band(blendMode, 4) == 0 and 0 or 0xff	-- > 0 means we're using draw-override
+	local dr, dg, db = rgba5551_to_rgba8888_4ch(self.ram.blendColor[0])
+	self.drawOverrideSolidR = dr
+	self.drawOverrideSolidG = dg
+	self.drawOverrideSolidB = db
 --]]
 	local ca = 1
 	local half = bit.band(blendMode, 1) ~= 0
@@ -1582,6 +1586,7 @@ function App:drawQuad(
 	settable(uniforms.tcbox, tx, ty, tw, th)
 	settable(uniforms.box, x, y, w, h)
 	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
@@ -1685,6 +1690,7 @@ function App:drawMap(
 		tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
 	)
 	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
