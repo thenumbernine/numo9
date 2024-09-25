@@ -102,6 +102,7 @@ local RAM = struct{
 				{name='mvMat', type=mvMatType..'[16]'},
 				{name='videoMode', type='uint8_t[1]'},
 				{name='blendMode', type='uint8_t[1]'},
+				{name='blendColor', type='uint16_t[1]'},
 
 				-- timer
 				{name='updateCounter', type='uint32_t[1]'},	-- how many updates() overall, i.e. system clock

@@ -169,12 +169,16 @@ This adds to Lua(/JIT):
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `blend([i])` = Set blend mode.  Default value is 0xff corresponding to no blending.  The current blend modes are:
 	- 0xff = none
-	- 0 = color addition
-	- 1 = color averaging (addition then half)
-	- 2 = color subtraction
-	- 3 = color subtraction then half (not useful, as it was not useful in the SNES)
-	- TODO how about a flag for blend with a specified secondary color instead of blend with the framebuffer... and store that in memory somewhere ... just like a SNES would do.
+	- 0 = addition with framebuffer
+	- 1 = average with framebuffer (addition then half)
+	- 2 = subtract from background
+	- 3 = subtract-then-half with background
+	- 4 = addition with constant color
+	- 5 = average with constant color
+	- 6 = subtract from constant color
+	- 7 = subtract-then-half with constant color
 Blending is only applied to opaque pixels.  Transparent pixels, i.e. those whose palette color has alpha=0, are discarded.
+Constant-color blending functions use the RGB555 value stored in `blendColor` of the [memory map](#Memory Layout) as their constant color.
 
 ## mode7:
 
