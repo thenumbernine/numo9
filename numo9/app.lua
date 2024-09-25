@@ -259,8 +259,8 @@ function App:initGL()
 		end,
 		reset = function(...)
 			local result = table.pack(self:resetROM(...))
-			
-			-- TODO this or can I get by 
+
+			-- TODO this or can I get by
 			-- 1) backing up the client's cartridge state upon load() then ...
 			-- 2) ... upon client reset() just copy that over?
 			-- fwiw the initial sendRAM doesn't include the cartridge state, just the RAM state ...
@@ -305,26 +305,7 @@ function App:initGL()
 			-- TODO return default oob value
 			return 0
 		end,
-		mset = function(x, y, value)
-			x = math.floor(x)
-			y = math.floor(y)
-			if x >= 0 and x < tilemapSize.x
-			and y >= 0 and y < tilemapSize.y
-			then
-				local index = x + tilemapSize.x * y
-				-- use poke over netplay, cuz i'm lazy.
-				-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
-				if self.server then
-					local cmd = self.server:pushCmd().poke
-					cmd.type = netcmds.poke
-					cmd.addr = tilemapAddr + bit.lshift(index, 1)
-					cmd.value = value
-					cmd.size = 2
-				end
-				self.ram.tilemap[index] = value
-				self.mapTex.dirtyCPU = true
-			end
-		end,
+		mset = function(x, y, value) return self:net_mset(x, y, value) end,
 
 		-- graphics
 
@@ -525,7 +506,7 @@ function App:initGL()
 			end
 			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
-		
+
 		mode = function(mode)
 			-- for net play's sake ,how about just doing a peek/poke?
 			self:net_poke(ffi.offsetof('RAM', 'videoMode'), mode)
@@ -831,6 +812,8 @@ print('package.loaded', package.loaded)
 end
 
 ---- BEGIN ENV NETPLAY LAYER -- when I don't want to write server cmds twice
+-- leave the :(not net_)functionName stuff for the client to also call and not worry about requesting another server refresh
+--  (tho the client shouldnt have a server and that shouldnt happen anyways)
 
 function App:net_poke(addr, value)
 	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
@@ -862,8 +845,29 @@ function App:net_pokel(addr, value)
 		cmd.addr = addr
 		cmd.value = value
 		cmd.size = 4
-	end		
+	end
 	return self:pokel(addr, value)
+end
+
+function App:net_mset(x, y, value)
+	x = math.floor(x)
+	y = math.floor(y)
+	if x >= 0 and x < tilemapSize.x
+	and y >= 0 and y < tilemapSize.y
+	then
+		local index = x + tilemapSize.x * y
+		-- use poke over netplay, cuz i'm lazy.
+		-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
+		if self.server then
+			local cmd = self.server:pushCmd().poke
+			cmd.type = netcmds.poke
+			cmd.addr = tilemapAddr + bit.lshift(index, 1)
+			cmd.value = value
+			cmd.size = 2
+		end
+		self.ram.tilemap[index] = value
+		self.mapTex.dirtyCPU = true
+	end
 end
 
 ---- END ENV NETPLAY LAYER
@@ -2219,7 +2223,7 @@ do return end
 						end
 					end
 				end
-				if match 
+				if match
 				and self.players	-- not created until resetGame
 				then
 					local player = self.players[playerIndex]
