@@ -674,17 +674,27 @@ void main() {
 		},
 	}
 
+		-- and here's our blend solid-color option...
+	local drawOverrideCode = [[
+	if (drawOverrideSolid.a > 0.) {
+		fragColor = ]]..fragType..[[(drawOverrideSolid.rgb, fragColor.a);
+	}
+]]
 
 	-- make output shaders per-video-mode
 	-- set them up as our app fields to use upon setVideoMode
 	for _,info in ipairs{
-		{name='RGB', colorOutput=colorIndexToFrag},
+		{name='RGB', colorOutput=colorIndexToFrag..'\n'..drawOverrideCode},
+
+		-- indexed mode can't blend so ... no draw-override
 		{name='Index', colorOutput=colorIndexToFrag..[[
 	fragColor.r = colorIndex;
 	fragColor.g = 0;
 	fragColor.b = 0;
 ]]},
-		{name='RGB332', colorOutput=colorIndexToFrag..[[
+		{name='RGB332', colorOutput=colorIndexToFrag..'\n'
+..drawOverrideCode..'\n'
+..[[
 	// TODO this won't work if we're using fragType == vec4 ...
 	// what exactly is coming out of a usampler2D and into a uvec4?  is that documented anywhere?
 //#error what is the range of the palTex?  internalFormat=GL_RGB5_A1, format=GL_RGBA, type=GL_UNSIGNED_SHORT_1_5_5_5_REV
@@ -757,6 +767,7 @@ layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
 uniform <?=samplerType?> palTex;
+uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
 ]]..info.colorOutput..[[
@@ -777,6 +788,7 @@ void main() {
 				mvMat = self.mvMat.ptr,
 				colorIndex = 0,
 				line = {0, 0, 8, 8},
+				drawOverrideSolid = {0, 0, 0, 0},
 			},
 		}
 		assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
@@ -820,6 +832,7 @@ uniform bool round;
 uniform uint colorIndex;
 
 uniform <?=samplerType?> palTex;
+uniform <?=fragType?> drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
 
@@ -876,6 +889,7 @@ void main() {
 				mvMat = self.mvMat.ptr,
 				colorIndex = 0,
 				box = {0, 0, 8, 8},
+				drawOverrideSolid = {0, 0, 0, 0},
 			},
 		}
 
@@ -945,6 +959,8 @@ uniform <?=samplerType?> palTex;
 const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 
+uniform <?=fragType?> drawOverrideSolid;
+
 void main() {
 	uint colorIndex = (]]
 		..readTexUint(texelFunc..'(spriteTex, '..texCoordRectFromFloatVec('tcv', spriteSheetSize)..').r')
@@ -985,6 +1001,7 @@ void main() {
 				mvMat = self.mvMat.ptr,
 				box = {0, 0, 8, 8},
 				tcbox = {0, 0, 1, 1},
+				drawOverrideSolid = {0, 0, 0, 0},
 			},
 		}
 
@@ -1030,6 +1047,8 @@ const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
 const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 const uint tilemapSizeX = <?=tilemapSize.x?>;
 const uint tilemapSizeY = <?=tilemapSize.y?>;
+
+uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
 	// convert from input normalized coordinates to tilemap texel coordinates
@@ -1099,6 +1118,7 @@ void main() {
 				mvMat = self.mvMat.ptr,
 				box = {0, 0, 8, 8},
 				tcbox = {0, 0, 1, 1},
+				drawOverrideSolid = {0, 0, 0, 0},
 			},
 		}
 	end
@@ -1197,7 +1217,6 @@ end
 function AppDraw:colorSwap(from, to, x, y, w, h)
 	-- TODO SORT THIS OUT
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
-print('BEFORE', self:peek(spriteSheetAddr))
 	from = math.floor(from)
 	to = math.floor(to)
 	x = math.floor(x)
@@ -1232,7 +1251,6 @@ print('BEFORE', self:peek(spriteSheetAddr))
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
-print('AFTER', self:peek(spriteSheetAddr))
 	ffi.copy(self.cartridge.v, self.ram.v, ffi.sizeof'ROM')
 	return fromFound, toFound
 end

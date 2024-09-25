@@ -110,6 +110,7 @@ local framebufferAddr = require 'numo9.rom'.framebufferAddr
 local framebufferInBytes = require 'numo9.rom'.framebufferInBytes
 local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
 
+local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch
 for k,v in pairs(require 'numo9.draw'.AppDraw) do
 	App[k] = v
 end
@@ -489,7 +490,7 @@ function App:initGL()
 			-- for net play's sake ,how about just doing a peek/poke?
 			self:net_poke(ffi.offsetof('RAM', 'videoMode'), videoMode)
 		end,
-	
+
 		clip = function(...)
 			local x, y, w, h
 			if select('#', ...) == 0 then
@@ -1421,6 +1422,9 @@ function App:drawSolidRect(
 	if h < 0 then y,h = y+h,-h end
 	settable(uniforms.box, x, y, w, h)
 
+	-- redundant, but i guess this is a way to draw with a color outside the palette, so *shrug*
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
@@ -1447,6 +1451,7 @@ function App:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.line, x1,y1,x2,y2)
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1481,32 +1486,57 @@ function App:setClipRect(x, y, w, h)
 		self.ram.clipRect[3]+1)
 end
 
+App.drawOverrideSolidR = 0
+App.drawOverrideSolidG = 0
+App.drawOverrideSolidB = 0
+App.drawOverrideSolidA = 0
 function App:setBlendMode(blendMode)
 	self.ram.blendMode[0] = blendMode or 0xff
-	if blendMode == 0 then		-- add
-		gl.glEnable(gl.GL_BLEND)
-		gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
-		gl.glBlendEquation(gl.GL_FUNC_ADD)
-		self.blendAlpha = 1
-	elseif blendMode == 1 then	-- add & half
-		gl.glEnable(gl.GL_BLEND)
-		gl.glBlendFunc(gl.GL_CONSTANT_ALPHA, gl.GL_CONSTANT_ALPHA)
-		gl.glBlendColor(1,1,1,.5)
-		gl.glBlendEquation(gl.GL_FUNC_ADD)
-		self.blendAlpha = .5
-	elseif blendMode == 2 then	-- subtract
-		gl.glEnable(gl.GL_BLEND)
-		gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
-		gl.glBlendEquation(gl.GL_FUNC_SUBTRACT)
-		self.blendAlpha = 1
-	elseif blendMode == 3 then	-- subtract & half
-		gl.glEnable(gl.GL_BLEND)
-		gl.glBlendFunc(gl.GL_CONSTANT_ALPHA, gl.GL_CONSTANT_ALPHA)
-		gl.glBlendColor(1,1,1,.5)
-		gl.glBlendEquation(gl.GL_FUNC_SUBTRACT)
-		self.blendAlpha = .5
-	else
+	blendMode = self.ram.blendMode[0]
+
+	if blendMode >= 8 then
+		self.drawOverrideSolidA = 0
 		gl.glDisable(gl.GL_BLEND)
+		return
+	end
+
+	gl.glEnable(gl.GL_BLEND)
+
+	local subtract = bit.band(blendMode, 2) ~= 0
+	if subtract then
+		--gl.glBlendEquation(gl.GL_FUNC_SUBTRACT)		-- sprite minus framebuffer
+		gl.glBlendEquation(gl.GL_FUNC_REVERSE_SUBTRACT)	-- framebuffer minus sprite
+	else
+		gl.glBlendEquation(gl.GL_FUNC_ADD)
+	end
+
+--[[
+-- TODO how to get blend to replace the incoming color with a constant-color?
+-- or is there not?
+-- do I have to code the color-replacement into the shaders?
+	local cr, cg, cb
+	if bit.band(blendMode, 4) ~= 0 then
+		cr, cg, cb = rgba5551_to_rgba8888_4ch(self.ram.blendColor[0])
+	else
+		cr, cg, cb = 1, 1, 1
+	end
+--]]
+-- [[ ... if not then it's gotta be done as a shader ... all shaders need a toggle to override their output when necessary for blend ...
+	self.drawOverrideSolidA = bit.band(blendMode, 4)	-- > 0 means we're using draw-override
+	self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor[0])
+--]]
+	local ca = 1
+	local half = bit.band(blendMode, 1) ~= 0
+	-- technically half didnt work when blending with constant-color on the SNES ...
+	if half then
+		ca = .5
+	end
+	gl.glBlendColor(1, 1, 1, ca)
+
+	if half then
+		gl.glBlendFunc(gl.GL_CONSTANT_ALPHA, gl.GL_CONSTANT_ALPHA)
+	else
+		gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
 	end
 end
 
@@ -1551,7 +1581,7 @@ function App:drawQuad(
 	uniforms.spriteMask = spriteMask
 	settable(uniforms.tcbox, tx, ty, tw, th)
 	settable(uniforms.box, x, y, w, h)
-
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
@@ -1654,6 +1684,7 @@ function App:drawMap(
 		tilesWide * bit.lshift(spriteSize.x, draw16As0or1),
 		tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
 	)
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
