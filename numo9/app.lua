@@ -237,6 +237,7 @@ function App:initGL()
 
 		run = function(...) return self:runROM(...) end,
 		stop = function(...) return self:stop(...) end,
+		cont = function(...) return self:cont(...) end,
 		save = function(...) return self:save(...) end,
 		load = function(...)
 			local result = table.pack(self:load(...))
@@ -1868,7 +1869,7 @@ function App:runCmd(cmd)
 	local result = table.pack(assert(self:loadCmd(
 		cmd,
 		-- TODO if there's a cartridge loaded then why not use its env, for debugging eh?
-		--self.cartridgeEnv or -- would be nice but cartridgeEnv doesn't have langfix, i.e. self.env
+		--self.gameEnv or -- would be nice but gameEnv doesn't have langfix, i.e. self.env
 		self.env,
 		'con'
 	))())
@@ -1930,7 +1931,7 @@ print('update:', env.update)
 	end)
 
 	-- save the cartridge's last-env for console support until next ... idk what function should clear the console env?
-	self.cartridgeEnv = env
+	self.gameEnv = env
 
 	self:setFocus(env)
 end
@@ -1952,6 +1953,10 @@ function App:stop()
 	-- this is fine right? nobody is calling stop() from the main thread right?
 	-- I can assert that, but then it's an error, just like yield()'ing from main thread is an error so ...
 	coroutine.yield()
+end
+
+function App:cont()
+	self:setFocus(self.gameEnv)
 end
 
 function App:keyForBuffer(keycode, buffer)
