@@ -207,7 +207,6 @@ function Console:addCharToCmd(ch)
 end
 
 -- TODO just use the same functionality as the code editor ...
--- TODO don't use app:draw* or other commands that the clients will get ... or they will watch the server issue console commands ...
 function Console:update()
 	if not self.isOpen then return end
 	

@@ -7,7 +7,8 @@ network protocol
 server sends client:
 
 	$ff $ff $ff $ff <-> incoming RAM dump
-	$ff $fe $XX $XX <-> incoming frame of size $XXXX
+	$ff $fe $XX $XX <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
+	$ff $fd $XX $XX <-> cmd frame will resize to $XXXX
 
 	all else are delta-compressed uint16 offsets and uint16 values
 --]]
@@ -588,6 +589,22 @@ function Server:beginFrame()
 	})
 end
 
+local function deltaCompress(
+	prevp,	-- previous state, of uint16_t*
+	nextp,	-- next state, of uint16_t*
+	len,	-- state length
+	dstvec	-- a vector'uint16_t' for now
+)
+	for i=0,len-1 do
+		if nextp[0] ~= prevp[0] then
+			dstvec:emplace_back()[0] = i		-- short offset
+			dstvec:emplace_back()[0] = nextp[0]	-- short value
+		end
+		nextp=nextp+1
+		prevp=prevp+1
+	end
+end
+
 function Server:endFrame()
 	-- if there was a frame before this ... delta-compress
 	if self.frames[2] then
@@ -602,27 +619,20 @@ function Server:endFrame()
 		-- how to convey change-in-sizes ...
 		-- how about storing it at the beginning of the buffer?
 		if prevBuf.size ~= thisBuf.size then
-			deltas:emplace_back()[0] = 0
+			deltas:emplace_back()[0] = 0xfdff
 			deltas:emplace_back()[0] = thisBuf.size
 			prevBuf:resize(thisBuf.size)
 		end
 
 		local n = (math.min(thisBuf.size, prevBuf.size) * ffi.sizeof'Numo9Cmd') / 2
-		if n >= 65536 then
-			print('sending data more than our send buffer allows ... '..tostring(n))	-- byte limit ...
+		if n >= 65534 then
+			print('sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
 		end
 
-		local svp = ffi.cast('uint16_t*', thisBuf.v)
 		local clp = ffi.cast('uint16_t*', prevBuf.v)
-		for i=0,n-1 do
-			if svp[0] ~= clp[0] then
-				deltas:emplace_back()[0] = 1+i		-- short offset ... plus 2 to make room for vector size
-				deltas:emplace_back()[0] = svp[0]	-- short value
-			end
-			svp=svp+1
-			clp=clp+1
-		end
-
+		local svp = ffi.cast('uint16_t*', thisBuf.v)
+		deltaCompress(clp, svp, n, deltas)
+		
 		if deltas.size > 0 then
 			local data = ffi.string(ffi.cast('char*', deltas.v), 2*deltas.size)
 			for _,serverConn in ipairs(self.serverConns) do
@@ -641,7 +651,9 @@ function Server:endFrame()
 end
 
 function Server:pushCmd()
-	return self.frames[1].cmds:emplace_back()
+	local ptr = self.frames[1].cmds:emplace_back()
+	ffi.fill(ptr, ffi.sizeof'Numo9Cmd')	-- clear upon resize to make sure cl and sv both start with zeroes for their delta-compression
+	return ptr
 end
 
 function Server:close()
@@ -893,7 +905,8 @@ print'entering client listen loop...'
 			data, reason = receive(sock, 4, 0)
 	--print('client got', data, reason)
 			if data then
-	--print('client got data', data, reason)
+--print'CLIENT GOT DATA'
+--print(string.hexdump(data, nil, 2))
 				assertlen(data, 4)
 --receivedSize = receivedSize + 4
 				-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
@@ -901,16 +914,25 @@ print'entering client listen loop...'
 				local charp = ffi.cast('char*', data)
 				local shortp = ffi.cast('uint16_t*', charp)
 				local index, value = shortp[0], shortp[1]
-				if index == 0 then
+				if index == 0xfdff then
+					-- cmd buffer resize
 					if value ~= self.cmds.size then
-print('got cmdbuf resize to '..tostring(value))
+--print('got cmdbuf resize to '..tostring(value))
+						local oldsize = self.cmds.size
 						self.cmds:resize(value)
+						if self.cmds.size > oldsize then
+							-- make sure delta compression state starts with 0s
+							ffi.fill(self.cmds.v + oldsize, ffi.sizeof'Numo9Cmd' * (self.cmds.size - oldsize))
+						end
 					end
+				
 				elseif index == 0xfeff then
+					-- cmd frame reset message
+
 					local newcmdslen = value
 					asserteq(newcmdslen % ffi.sizeof'Numo9Cmd', 0, "cmd buffer not modulo size")
 					local newsize = newcmdslen /  ffi.sizeof'Numo9Cmd'
-print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
+--print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 					self.cmds:resize(newsize)
 
 					local initCmds = receive(sock, newcmdslen, 10)
@@ -918,7 +940,7 @@ print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 					ffi.copy(self.cmds.v, ffi.cast('char*', initCmds), newcmdslen)
 
 				elseif index == 0xffff and value == 0xffff then
-					-- getting a new RAM dump ...
+					-- new RAM dump message
 
 					-- [[
 					local ramState = assert(receive(sock, ramStateSize, 10))
@@ -944,8 +966,8 @@ print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 					ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
 					ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
 					ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
-					ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)	ptr=ptr+clipRectInBytes
-					ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)	ptr=ptr+mvMatInBytes
+					ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
+					ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
 					-- set all dirty as well
 					app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
 					app.tileTex.dirtyCPU = true		-- tileSheetTex
@@ -967,7 +989,6 @@ print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 
 
 				else
-					index = index - 1
 					local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
 					if neededSize >= self.cmds.size then
 print('got uint16 index='
@@ -995,7 +1016,10 @@ print('got uint16 index='
 				break
 			end
 		until not data
---print('got', receivedSize)
+
+		-- TODO send any input button changes ...
+		
+		-- now run through our command-buffer and execute its contents
 		for i=0,self.cmds.size-1 do
 			local cmd = self.cmds.v + i
 			local cmdtype = cmd[0].type
@@ -1074,7 +1098,7 @@ print('got uint16 index='
 				app:mvMatToRAM()
 			elseif cmdtype == netcmds.poke then
 				local c = cmd[0].poke
---print('client poke', ('$%x'):format(c.addr), c.size, c.value)
+print('client poke', ('$%x'):format(c.addr), c.size, c.value)
 				if c.size == 1 then
 					app:poke(c.addr, c.value)
 				elseif c.size == 2 then
