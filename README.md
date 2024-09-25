@@ -124,8 +124,9 @@ This adds to Lua(/JIT):
 - `print(...)` = print to screen
 - `trace(...)` = print to host OS terminal
 
-- `run()` = run loaded cartridge
-- `stop()` = stop all execution and drop into console mode
+- `run()` = run loaded cartridge.
+- `stop()` = stop all execution and drop into console mode.
+- `cont()` = continue execution of the cartridge. 
 
 - `save([filename])` = save cartridge to virtual-filesystem and host-filesystem
 - `load([filename])` = load cartridge
@@ -172,7 +173,8 @@ This adds to Lua(/JIT):
 	- 1 = color averaging (addition then half)
 	- 2 = color subtraction
 	- 3 = color subtraction then half (not useful, as it was not useful in the SNES)
-	- TODO flag for blend with a specified secondary color instead of blend with the framebuffer... and store that in memory somewhere
+	- TODO how about a flag for blend with a specified secondary color instead of blend with the framebuffer... and store that in memory somewhere ... just like a SNES would do.
+Blending is only applied to opaque pixels.  Transparent pixels, i.e. those whose palette color has alpha=0, are discarded.
 
 ## mode7:
 
