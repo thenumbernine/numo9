@@ -946,7 +946,7 @@ function App:connect(addr, port)
 
 	-- clear set run focus before connecting so the connection's initial update of the framebuffer etc wont get dirtied by a loseFocus() from the last runFocus
 print('setFocus empty')
-	self:setFocus{}
+	self:setFocus()
 
 	self.remoteClient = ClientConn{
 		app = self,
@@ -984,8 +984,9 @@ function App:update()
 
 	local thisTime = getTime()
 
-	--[==[ fps counter ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
-	-- TODO only redraw the editor when the cursor blinks or a UI overlay changes ... that should reduce our draws
+--[==[ per-second-tick debug display 
+	-- ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
+	-- TODO get rid of double-buffering.  you've got the framebuffer.
 	local deltaTime = thisTime - lastTime
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
@@ -1009,17 +1010,19 @@ print('self.server.socket', self.server.socket)
 				io.write('server sock '..require'ext.tolua'(self.server.socket:getstats())..' ')
 			end
 			--]]
---[[ show server's last delta
+-- [[ show server's last delta
+print'DELTA'
 print(
 	string.hexdump(
 		ffi.string(
 			ffi.cast('char*', self.server.frames[1].deltas.v),
-			#self.server.frames[1].deltas.v * ffi.sizeof(self.server.frames[1].deltas.type)
+			#self.server.frames[1].deltas * ffi.sizeof(self.server.frames[1].deltas.type)
 		), nil, 2
 	)
 )
 --]]
---[[ show server's last render state:
+-- [[ show server's last render state:
+print'STATE'
 print(
 	string.hexdump(
 		ffi.string(
@@ -1129,23 +1132,29 @@ conn.receivesPerSecond = 0
 
 		-- run the cartridge thread 
 		local runFocus = self.runFocus
-		if runFocus 
-		and runFocus.thread 
-		and not self.isPaused 
-		then
-			if coroutine.status(runFocus.thread) == 'dead' then
+		if runFocus then
+			local thread = runFocus.thread
+			if thread
+			and not self.isPaused 
+			then
+				if coroutine.status(thread) == 'dead' then
 print('cartridge thread dead')
-				self:setFocus(nil)
-			else
-				local success, msg = coroutine.resume(runFocus.thread)
-				if not success then
-					print(msg)
-					print(debug.traceback(runFocus.thread))
-					self.con:print(msg)
-					-- TODO these errors are a good argument for scrollback console buffers
-					-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
+					self:setFocus(nil)
+					self.con.isOpen = true
+				else
+					local success, msg = coroutine.resume(thread)
+					if not success then
+						print(msg)
+						print(debug.traceback(thread))
+						self.con:print(msg)
+						-- TODO these errors are a good argument for scrollback console buffers
+						-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
+					end
 				end
 			end
+		else
+			-- nothign in focus , let the console know by drawing some kind of background pattern ... or meh ...
+			self:clearScreen(0xf0)
 		end
 
 		-- now run the console and editor, separately, if it's open
@@ -1173,7 +1182,7 @@ print('cartridge thread dead')
 		gl.glDisable(gl.GL_SCISSOR_TEST)
 		self.mvMat:setIdent()
 		
-		do
+		if self.con.isOpen then
 			local thread = self.con.thread
 			if coroutine.status(thread) ~= 'dead' then
 				local success, msg = coroutine.resume(thread)
@@ -1966,6 +1975,8 @@ end
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
 	self:resetROM()
+	self.isPaused = false
+	self.con.isOpen = false
 
 	-- TODO setfenv instead?
 	local env = setmetatable({}, {
@@ -2011,7 +2022,7 @@ function App:setFocus(focus)
 	if self.runFocus then
 		if self.runFocus.loseFocus then self.runFocus:loseFocus() end
 	end
-	self.runFocus = focus or assert(self.con, "how did you lose the console?")
+	self.runFocus = focus
 	if self.runFocus then
 		if self.runFocus.gainFocus then self.runFocus:gainFocus() end
 	end
@@ -2176,9 +2187,18 @@ function App:event(e)
 					self.currentEditor:loseFocus()
 				end
 				self.currentEditor = nil
+				if not self.server then
+					-- ye ol fps behavior: console + single-player implies pause, console + multiplayer doesn't
+					-- TODO what about single-player who types 'stop()' and 'cont()' at the console?  meh, redundant cmds.
+					--  the cmds still serve a purpose in single-player for the game to use if it wan't i guess ...
+					self.isPaused = false
+				end
 			else
 				-- assume it's a game pushing esc ...
 				self.con.isOpen = true
+				if not self.server then
+					self.isPaused = true
+				end
 			end
 		else
 			local keycode = sdlSymToKeyCode[sdlsym]
