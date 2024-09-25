@@ -50,6 +50,8 @@ local useTextureRect = false
 
 local texelFunc = 'texture'
 --local texelFunc = 'texelFetch'
+-- I'm getting this error really: "No matching function for call to texelFetch(usampler2D, ivec2)"
+-- so I guess I need to use usampler2DRect if I want to use texelFetch
 
 local samplerType = (useTextureInt and 'u' or '')
 	.. 'sampler2D'
@@ -440,14 +442,6 @@ function AppDraw:initDraw()
 		})
 	end
 	--]=]
-	--[=[ framebuffer is 256 x 256 x 8bpp rgb332
-	self.fbTex = makeTexFromImage(self, {
-		image = fbImage,
-		internalFormat = gl.GL_R8UI,
-		format = gl.GL_RED_INTEGER,
-		type = gl.GL_UNSIGNED_BYTE,
-	})
-	--]=]
 
 	self.quadGeom = GLGeometry{
 		mode = gl.GL_TRIANGLE_STRIP,
@@ -498,14 +492,14 @@ function AppDraw:initDraw()
 	end
 
 	local function texCoordRectFromFloatVec(code, size)
-		if useTextureRect then
+		if useTextureRect or texelFunc == 'texelFetch' then
 			code = 'ivec2(('..code..') * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
 		end
 		return code
 	end
 
 	local function texCoordRectFromIntVec(code, size)
-		if not useTextureRect then
+		if not (useTextureRect or texelFunc == 'texelFetch') then
 			code = 'vec2(('..code..') + .5) / vec2('..clnumber(size.x)..', '..clnumber(size.y)..')'
 		end
 		return code
@@ -513,19 +507,15 @@ function AppDraw:initDraw()
 
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	local colorIndexToFrag = table{
-		useTextureRect
+		(useTextureRect or texelFunc == 'texelFetch')
 		and [[
 	ivec2 palTc = ivec2(colorIndex & ]]..('0x%Xu'):format(paletteSize-1)..[[, 0);
 ]]
 		or [[
 	vec2 palTc = vec2((float(colorIndex)+.5)/]]..clnumber(paletteSize)..[[, .5);
 ]],
-		fragType == 'vec4'
-		and [[
-	fragColor = ]]..fragType..[[(]]..texelFunc..[[(palTex, palTc));	// / float((1u<<31)-1u);
-]]
-		or [[
-	fragColor = ]]..fragType..[[(]]..texelFunc..[[(palTex, palTc));
+		[[
+	fragColor = ]]..texelFunc..[[(palTex, palTc);
 ]],
 	}:concat'\n'..'\n'
 
@@ -546,25 +536,26 @@ void main() {
 			fragmentCode = template([[
 in vec2 tcv;
 
-layout(location=0) out <?=fragType?> fragColor;
+//It should require a vec4 since our fb target will be RGB5_A1/GL_RGBA which is a float type
+// according to this post https://stackoverflow.com/a/9185740
+//layout(location=0) out vec4 fragColor;
+// so how come it doesn't work unless I use uvec4 as the fragment type?
+// and how come the gl docs just say it gets normalized ...
+layout(location=0) out uvec4 fragColor;
+// and how come texelFetch has no problem handing off to a vec4 and a uvec4 ... WHAT KIND OF CONVERSION IS GOING ON THERE?
 
 uniform <?=samplerType?> fbTex;
 
 void main() {
-<? if fragType == 'vec4' then ?>
-#if 1	// how many bits does uvec4 get from texture() ?
-	fragColor = <?=fragType?>(]]..texelFunc..[[(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[) / float((1u<<31)-1u));
-#else	// or does gl just magically know the conversion?
-	fragColor = <?=fragType?>(]]..texelFunc..[[(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
-#endif
-<? else ?>
-	fragColor = <?=fragType?>(]]..texelFunc..[[(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
-<? end ?>
+	fragColor = ]]..texelFunc..[[(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[);
+// with vec4 fragColor, none of these give a meaningful result:
+//fragColor *= 1. / 255.;
+//fragColor *= 1. / 65535.;
+//fragColor *= 1. / 16777215.;
+//fragColor *= 1. / 4294967295.;
 }
 ]],			{
 				samplerType = samplerType,
-				useTextureRect = useTextureRect,
-				fragType = fragType,
 				clnumber = clnumber,
 				frameBufferSize = frameBufferSize,
 			}),
@@ -597,7 +588,7 @@ void main() {
 			fragmentCode = template([[
 in vec2 tcv;
 
-layout(location=0) out <?=fragType?> fragColor;
+layout(location=0) out uvec4 fragColor;
 
 uniform <?=samplerType?> fbTex;
 uniform <?=samplerType?> palTex;
@@ -608,8 +599,6 @@ void main() {
 }
 ]],			{
 				samplerType = samplerType,
-				useTextureRect = useTextureRect,
-				fragType = fragType,
 				clnumber = clnumber,
 				frameBufferSize = frameBufferSize,
 			}),
@@ -656,8 +645,6 @@ void main() {
 }
 ]],			{
 				samplerType = samplerType,
-				useTextureRect = useTextureRect,
-				fragType = fragType,
 				clnumber = clnumber,
 				frameBufferSize = frameBufferSize,
 			}),
@@ -676,8 +663,15 @@ void main() {
 
 		-- and here's our blend solid-color option...
 	local drawOverrideCode = [[
-	if (drawOverrideSolid.a > 0.) {
-		fragColor = ]]..fragType..[[(drawOverrideSolid.rgb, fragColor.a);
+	if (drawOverrideSolid.a > 0) {
+		// use max int since we're writing out to RGB5_A1 which is a RGB i.e. float tex in GL
+		// ... does uint not use all 32 bits?  do i have to query the bit resolution outside glsl and shift that many bits inside glsl?  what is going on here?
+		//fragColor.rgb = drawOverrideSolid.rgb << 24;	// green/blue looks blue
+		//fragColor.rgb = drawOverrideSolid.rgb << 23;	// green/blue looks green, loses blue channel
+		//fragColor.rgb = drawOverrideSolid.rgb << 22;	// same
+		//fragColor.rgb = drawOverrideSolid.rgb << 21;	// black
+		//fragColor.rgb = drawOverrideSolid.rgb * 16843009;	// this is ((1<<32)-1)/((1<<8)-1) ... green turns blue ...
+		//fragColor.rgb = drawOverrideSolid.rgb * 8421504;	// this is ((1<<31)-1)/((1<<8)-1) ... green turns black ...
 	}
 ]]
 
@@ -700,10 +694,6 @@ void main() {
 //#error what is the range of the palTex?  internalFormat=GL_RGB5_A1, format=GL_RGBA, type=GL_UNSIGNED_SHORT_1_5_5_5_REV
 	//fragColor >>= 16;	//[16,20] works ... WHY??!?!?!
 	//fragColor &= 0xFFu;
-
-	// OK SO THIS LOOKS GOOD ... WHY
-	// WHY DID OPENGL DECIDE TO USE 26 BITS TO REPRESENT MY RGBA5551 TEXTURE'S COLOR CHANNELS?
-	// and how come the palette gradiations seem to be exponential ... 0-3 is one shade, 4-7 is another, 8-15 is another, 16-31 is another .... wtf?
 #if 1
 	uint r = (fragColor.r >> 23) & 0x7u;
 	uint g = (fragColor.g >> 23) & 0x7u;
@@ -716,19 +706,6 @@ void main() {
 	fragColor.r = r | (g << 3) | (b << 6);
 #endif
 
-// verify that, from here to the blitScreenRGB332Obj shader, everything is fine:
-	//fragColor.r = 0x3;		// mid red = WORKS
-	//fragColor.r = 0x4;		// mid red = WORKS
-	//fragColor.r = 0x7;	// full red = WORKS
-	//fragColor.r = 0x8;	// no red, dark green = WORKS
-	//fragColor.r = 0x18;		// mid green = WORKS
-	//fragColor.r = 0x20;		// mid green = WORKS (looks sort of pale)
-	//fragColor.r = 0x38;		// full green = WORKS (looks sort of pale though ...)
-	//fragColor.r = 0x40;		// no green, dark blue = WORKS
-	//fragColor.r = 0x80;			//mid blue .. WORKS
-	//fragColor.r = 0xC0;		// full blue = WORKS
-	//fragColor.r = 0xFF;		// white WORKS
-//...and it is working fine.  The only problem now is that mysterious undocumented behavior of what happens when you assign to a uvec4 fragment
 	fragColor.g = 0;
 	fragColor.b = 0;
 ]]},
@@ -976,7 +953,6 @@ void main() {
 }
 ]], 			{
 					fragType = fragType,
-					useTextureRect = useTextureRect,
 					samplerType = samplerType,
 					clnumber = clnumber,
 					spriteSheetSize = spriteSheetSize,
@@ -1097,7 +1073,6 @@ void main() {
 }
 ]],				{
 					fragType = fragType,
-					useTextureRect = useTextureRect,
 					samplerType = samplerType,
 					clnumber = clnumber,
 					spriteSheetSize = spriteSheetSize,
@@ -1129,6 +1104,18 @@ void main() {
 	self:setVideoMode(self.ram.videoMode[0])
 
 	self.ram.blendMode[0] = 0xff	-- = none
+
+	-- for debugging ...
+	-- still getting erratic results ...
+	-- how does GL do conversions between texture()/texelFetch(), and vec4-vs-uvec4 and fragments vs their targets and their respective formats?
+	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,255,127,255)
+	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,255,0,255)
+	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,255,255,255)
+	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,0,0,255)
+	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,0,255,255)
+	self.ram.blendColor[0] = rgba8888_4ch_to_5551(0,255,0,255)		-- black
+	self.ram.blendColor[0] = rgba8888_4ch_to_5551(0,255,255,255)	-- black
+	self.ram.blendColor[0] = rgba8888_4ch_to_5551(0,255,127,255)	-- works sort of
 
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self:setClipRect(0, 0, 0xff, 0xff)
