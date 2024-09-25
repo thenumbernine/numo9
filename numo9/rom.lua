@@ -100,6 +100,7 @@ local RAM = struct{
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
 				{name='mvMat', type=mvMatType..'[16]'},
+				{name='videoMode', type='uint8_t[1]'},
 
 				-- timer
 				{name='updateCounter', type='uint32_t[1]'},	-- how many updates() overall, i.e. system clock

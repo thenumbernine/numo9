@@ -289,36 +289,9 @@ function App:initGL()
 		peek = function(addr) return self:peek(addr) end,
 		peekw = function(addr) return self:peekw(addr) end,
 		peekl = function(addr) return self:peekl(addr) end,
-		poke = function(addr, value)
-			if self.server then
-				local cmd = self.server:pushCmd().poke
-				cmd.type = netcmds.poke
-				cmd.addr = addr
-				cmd.value = value
-				cmd.size = 1
-			end
-			return self:poke(addr, value)
-		end,
-		pokew = function(addr, value)
-			if self.server then
-				local cmd = self.server:pushCmd().poke
-				cmd.type = netcmds.poke
-				cmd.addr = addr
-				cmd.value = value
-				cmd.size = 2
-			end
-			return self:pokew(addr, value)
-		end,
-		pokel = function(addr, value)
-			if self.server then
-				local cmd = self.server:pushCmd().poke
-				cmd.type = netcmds.poke
-				cmd.addr = addr
-				cmd.value = value
-				cmd.size = 4
-			end		
-			return self:pokel(addr, value)
-		end,
+		poke = function(addr, value) return self:net_poke(addr, value) end,
+		pokew = function(addr, value) return self:net_pokew(addr, value) end,
+		pokel = function(addr, value) return self:net_pokel(addr, value) end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(x, y)
@@ -553,9 +526,9 @@ function App:initGL()
 			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
 		
-		mode = function(...) 
-			-- TODO for net play's sake ,how about just doing a peek/poke?
-			return self:setVideoMode(...)
+		mode = function(mode)
+			-- for net play's sake ,how about just doing a peek/poke?
+			self:net_poke(ffi.offsetof('RAM', 'videoMode'), mode)
 		end,
 
 		-- me cheating and exposing opengl modelview matrix functions:
@@ -857,6 +830,43 @@ print('package.loaded', package.loaded)
 	}
 end
 
+---- BEGIN ENV NETPLAY LAYER -- when I don't want to write server cmds twice
+
+function App:net_poke(addr, value)
+	if self.server then
+		local cmd = self.server:pushCmd().poke
+		cmd.type = netcmds.poke
+		cmd.addr = addr
+		cmd.value = value
+		cmd.size = 1
+	end
+	return self:poke(addr, value)
+end
+
+function App:net_pokew(addr, value)
+	if self.server then
+		local cmd = self.server:pushCmd().poke
+		cmd.type = netcmds.poke
+		cmd.addr = addr
+		cmd.value = value
+		cmd.size = 2
+	end
+	return self:pokew(addr, value)
+end
+
+function App:net_pokel(addr, value)
+	if self.server then
+		local cmd = self.server:pushCmd().poke
+		cmd.type = netcmds.poke
+		cmd.addr = addr
+		cmd.value = value
+		cmd.size = 4
+	end		
+	return self:pokel(addr, value)
+end
+
+---- END ENV NETPLAY LAYER
+
 -- convert to/from our fixed-point storage in RAM and the float matrix that the matrix library uses
 function App:mvMatToRAM()
 	for i=0,15 do
@@ -957,6 +967,10 @@ end
 
 function App:update()
 	App.super.update(self)
+
+	if self.currentVideoMode ~= self.ram.videoMode[0] then
+		self:setVideoMode(self.ram.videoMode[0])
+	end
 
 	-- update threadpool, clients or servers
 	self.threads:update()

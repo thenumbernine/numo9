@@ -16,6 +16,7 @@ local rgba8888_4ch_to_5551 = require 'numo9.draw'.rgba8888_4ch_to_5551	-- TODO m
 local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch
 
 local paletteSize = require 'numo9.rom'.paletteSize
+local paletteAddr = require 'numo9.rom'.paletteAddr
 local frameBufferSize = require 'numo9.rom'.frameBufferSize
 local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
 local spriteSize = require 'numo9.rom'.spriteSize
@@ -490,31 +491,38 @@ function EditSprites:update()
 	end, 'pen size='..self.penSize)
 
 	-- edit palette entries
-	local colorptr = app.ram.palette + self.paletteSelIndex
-	self:drawText(('C=%04X'):format(colorptr[0]), 16, 216, 13, -1)
-	self:drawText(('R=%02X'):format(bit.band(colorptr[0],0x1f)), 16, 224, 13, -1)
+	local selPaletteAddr = paletteAddr + bit.lshift(self.paletteSelIndex, 1)
+	local selColorValue = app:peekw(selPaletteAddr)
+	self:drawText(('C=%04X'):format(selColorValue), 16, 216, 13, -1)
+	self:drawText(('R=%02X'):format(bit.band(selColorValue,0x1f)), 16, 224, 13, -1)
 	self:guiSpinner(16+32, 224, function(dx)
-		colorptr[0] = bit.bor(bit.band(colorptr[0]+dx,0x1f),bit.band(colorptr[0],bit.bnot(0x1f)))
-		app.palTex.dirtyCPU = true
+		app:net_pokew(selPaletteAddr, 
+			bit.bor(bit.band(selColorValue+dx,0x1f),bit.band(selColorValue,bit.bnot(0x1f)))
+		)
 	end)
-	self:drawText(('G=%02X'):format(bit.band(bit.rshift(colorptr[0],5),0x1f)), 16, 224+8, 13, -1)
+	self:drawText(('G=%02X'):format(bit.band(bit.rshift(selColorValue,5),0x1f)), 16, 224+8, 13, -1)
 	self:guiSpinner(16+32, 224+8, function(dx)
-		colorptr[0] = bit.bor(bit.band((colorptr[0]+bit.lshift(dx,5)),0x3e0),bit.band(colorptr[0],bit.bnot(0x3e0)))
-		app.palTex.dirtyCPU = true
+		app:net_pokew(selPaletteAddr, 
+			bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
+		)
 	end)
-	self:drawText(('B=%02X'):format(bit.band(bit.rshift(colorptr[0],10),0x1f)), 16, 224+16, 13, -1)
+	self:drawText(('B=%02X'):format(bit.band(bit.rshift(selColorValue,10),0x1f)), 16, 224+16, 13, -1)
 	self:guiSpinner(16+32, 224+16, function(dx)
-		colorptr[0] = bit.bor(bit.band((colorptr[0]+bit.lshift(dx,10)),0x7c00),bit.band(colorptr[0],bit.bnot(0x7c00)))
-		app.palTex.dirtyCPU = true
+		app:net_pokew(selPaletteAddr, 
+			bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
+		)
 	end)
-	local alpha = bit.band(colorptr[0],0x8000)~=0
+	local alpha = bit.band(selColorValue,0x8000)~=0
 	if self:guiButton(16,224+24,'A', alpha) then
 		if alpha then	-- if it was set then clear it
-			colorptr[0] = bit.band(colorptr[0], 0x7fff)
+			app:net_pokew(selPaletteAddr, 
+				bit.band(selColorValue, 0x7fff)
+			)
 		else	-- otherwise set it
-			colorptr[0] = bit.bor(colorptr[0], 0x8000)
+			app:net_pokew(selPaletteAddr, 
+				bit.bor(selColorValue, 0x8000)
+			)
 		end
-		app.palTex.dirtyCPU = true
 	end
 	self:drawText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
 
@@ -665,14 +673,16 @@ print'BAKING PALETTE'
 						image = image1ch
 						asserteq(image.channels, 1, "image.channels")
 						for i,color in ipairs(colors) do
-							app.ram.palette[bit.band(0xff, i-1 + self.paletteOffset)] = rgba8888_4ch_to_5551(
-								color:byte(1),
-								color:byte(2),
-								color:byte(3),
-								0xff
+							app:net_pokel(
+								paletteAddr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset)), 
+								rgba8888_4ch_to_5551(
+									color:byte(1),
+									color:byte(2),
+									color:byte(3),
+									0xff
+								)
 							)
 						end
-						app.palTex.dirtyCPU = true
 					end
 				end
 				asserteq(image.channels, 1, "image.channels")
