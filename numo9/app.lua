@@ -552,6 +552,11 @@ function App:initGL()
 			end
 			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
+		
+		mode = function(...) 
+			-- TODO for net play's sake ,how about just doing a peek/poke?
+			return self:setVideoMode(...)
+		end,
 
 		-- me cheating and exposing opengl modelview matrix functions:
 		-- matident mattrans matrot matscale matortho matfrustum matlookat
@@ -2102,7 +2107,149 @@ function App:event(e)
 				)
 			end
 		end
+	elseif e[0].type == sdl.SDL_JOYHATMOTION then
+		for i=0,3 do
+			local dirbit = bit.lshift(1,i)
+			local press = bit.band(dirbit, e[0].jhat.value) ~= 0
+			self:processButtonEvent(press, sdl.SDL_JOYHATMOTION, e[0].jhat.which, e[0].jhat.hat, dirbit)
+		end
+	elseif e[0].type == sdl.SDL_JOYAXISMOTION then
+		-- -1,0,1 depend on the axis press
+		local lr = math.floor(3 * (tonumber(e[0].jaxis.value) + 32768) / 65536) - 1
+		local press = lr ~= 0
+		if not press then
+			-- clear both left and right movement
+			self:processButtonEvent(press, sdl.SDL_JOYAXISMOTION, e[0].jaxis.which, e[0].jaxis.axis, -1)
+			self:processButtonEvent(press, sdl.SDL_JOYAXISMOTION, e[0].jaxis.which, e[0].jaxis.axis, 1)
+		else
+			-- set movement for the lr direction
+			self:processButtonEvent(press, sdl.SDL_JOYAXISMOTION, e[0].jaxis.which, e[0].jaxis.axis, lr)
+		end
+	elseif e[0].type == sdl.SDL_JOYBUTTONDOWN or e[0].type == sdl.SDL_JOYBUTTONUP then
+		-- e[0].jbutton.menu is 0/1 for up/down, right?
+		local press = e[0].type == sdl.SDL_JOYBUTTONDOWN
+		self:processButtonEvent(press, sdl.SDL_JOYBUTTONDOWN, e[0].jbutton.which, e[0].jbutton.button)
+	elseif e[0].type == sdl.SDL_CONTROLLERAXISMOTION then
+		-- -1,0,1 depend on the axis press
+		local lr = math.floor(3 * (tonumber(e[0].caxis.value) + 32768) / 65536) - 1
+		local press = lr ~= 0
+		if not press then
+			-- clear both left and right movement
+			self:processButtonEvent(press, sdl.SDL_CONTROLLERAXISMOTION, e[0].caxis.which, e[0].jaxis.axis, -1)
+			self:processButtonEvent(press, sdl.SDL_CONTROLLERAXISMOTION, e[0].caxis.which, e[0].jaxis.axis, 1)
+		else
+			-- set movement for the lr direction
+			self:processButtonEvent(press, sdl.SDL_CONTROLLERAXISMOTION, e[0].caxis.which, e[0].jaxis.axis, lr)
+		end
+	elseif e[0].type == sdl.SDL_CONTROLLERBUTTONDOWN or e[0].type == sdl.SDL_CONTROLLERBUTTONUP then
+		local press = e[0].type == sdl.SDL_CONTROLLERBUTTONDOWN
+		self:processButtonEvent(press, sdl.SDL_CONTROLLERBUTTONDOWN, e[0].cbutton.which, e[0].cbutton.button)
+	elseif e[0].type == sdl.SDL_FINGERDOWN or e[0].type == sdl.SDL_FINGERUP then
+		local press = e[0].type == sdl.SDL_FINGERDOWN
+		self:processButtonEvent(press, sdl.SDL_FINGERDOWN, e[0].tfinger.x, e[0].tfinger.y)
 	end
+end
+
+local screenButtonRadius = 10
+function App:processButtonEvent(press, ...)
+do return end
+
+	-- TODO radius per-button
+	local buttonRadius = self.width * self.screenButtonRadius
+
+	-- TODO put the callback somewhere, not a global
+	-- it's used by the New Game menu
+	if self.waitingForEvent then
+		-- this callback system is only used for editing keyboard binding
+		if press then
+			local ev = {...}
+			ev.name = self:getEventName(...)
+			self.waitingForEvent.callback(ev)
+			self.waitingForEvent = nil
+		end
+	else
+		-- this branch is only used in gameplay
+		-- for that reason, if we're not in the gameplay menu-state then bail
+		--if not PlayingMenu:isa(self.menu) then return end
+
+		local etype, ex, ey = ...
+		local descLen = select('#', ...)
+		for playerIndex, playerConfig in ipairs(self.cfg.playerKeys) do
+			for buttonName, buttonDesc in pairs(playerConfig) do
+				-- special case for mouse/touch, test within a distanc
+				local match = descLen == #buttonDesc
+				if match then
+					local istart = 1
+					-- special case for mouse/touch, click within radius ...
+					if etype == sdl.SDL_MOUSEBUTTONDOWN
+					or etype == sdl.SDL_FINGERDOWN
+					then
+						match = etype == buttonDesc[1]
+						if match then
+							local dx = (ex - buttonDesc[2]) * self.width
+							local dy = (ey - buttonDesc[3]) * self.height
+							if dx*dx + dy*dy >= buttonRadius*buttonRadius then
+								match = false
+							end
+							-- skip the first 2 for values
+							istart = 4
+						end
+					end
+					if match then
+						for i=istart,descLen do
+							if select(i, ...) ~= buttonDesc[i] then
+								match = false
+								break
+							end
+						end
+					end
+				end
+				if match 
+				and self.players	-- not created until resetGame
+				then
+					local player = self.players[playerIndex]
+					if player
+					and (
+						not self.playingDemo
+						or not gameKeySet[buttonName]
+					) then
+						keyPress[buttonName] = press
+					end
+				end
+			end
+		end
+	end
+end
+
+-- static, used by gamestate and app
+function App:getEventName(sdlEventID, a,b,c)
+	if not a then return '?' end
+	local function dir(d)
+		local s = table()
+		local ds = 'udlr'
+		for i=1,4 do
+			if 0 ~= bit.band(d,bit.lshift(1,i-1)) then
+				s:insert(ds:sub(i,i))
+			end
+		end
+		return s:concat()
+	end
+	local function key(k)
+		return ffi.string(sdl.SDL_GetKeyName(k))
+	end
+	return template(({
+		[sdl.SDL_JOYHATMOTION] = 'joy<?=a?> hat<?=b?> <?=dir(c)?>',
+		[sdl.SDL_JOYAXISMOTION] = 'joy<?=a?> axis<?=b?> <?=c?>',
+		[sdl.SDL_JOYBUTTONDOWN] = 'joy<?=a?> button<?=b?>',
+		[sdl.SDL_CONTROLLERAXISMOTION] = 'gamepad<?=a?> axis<?=b?> <?=c?>',
+		[sdl.SDL_CONTROLLERBUTTONDOWN] = 'gamepad<?=a?> button<?=b?>',
+		[sdl.SDL_KEYDOWN] = 'key <?=key(a)?>',
+		[sdl.SDL_MOUSEBUTTONDOWN] = 'mouse <?=c?> x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
+		[sdl.SDL_FINGERDOWN] = 'finger x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
+	})[sdlEventID], {
+		a=a, b=b, c=c,
+		dir=dir, key=key,
+	})
 end
 
 return App

@@ -1,5 +1,5 @@
 -- begin compat layer
-app:setVideoMode(1)	-- set to indexed framebuffer ... TODO make this a poke()
+mode(1)	-- set to 8bpp-indexed framebuffer ... TODO make this a poke()
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 p8color=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...

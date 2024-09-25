@@ -187,6 +187,16 @@ and assume whatever's in .ram is dirty.
 
 But while editing, assume .ram has the baseline content of the game,
 and assume whatever's in .cartridge is stale.
+
+
+HMMMMmmm
+This is a thorn in the side of live-editing DM style
+cuz what are we editing?  the current RAM copy of the game, or the cartridge/ROM copy of the game?
+For game design you want the latter, for live-editing you want the former.
+We can always have it edit *both* ... *simultaneously* ... and then trust the editor user to reset() the game when needed to tell the difference between runtime edits and editor edits ...
+In that situation, what do we do here?
+How about nothing - not a thing - and once again rely on the editor-user to manually reset() to flush cartridge->RAM data.
+... maybe provide them with a 'dirty' warning if the game has been run, or if any ROM-area writes have been detected?
 --]]
 function Editor:gainFocus()
 	local app = self.app
@@ -214,9 +224,7 @@ function Editor:gainFocus()
 	app.fbTex.changedSinceDraw = true
 
 	-- copy cartridge code to editCode (where we can use Lua string functionality)
-	local code = ffi.string(app.cartridge.code, codeSize)	-- TODO max size on this ...
-	local i = code:find('\0', 1, true)
-	if i then code = code:sub(1, i-1) end
+	local code = ffi.string(app.cartridge.code, math.min(codeSize, tonumber(ffi.C.strlen(app.cartridge.code))))
 	app.editCode:setText(code)
 end
 

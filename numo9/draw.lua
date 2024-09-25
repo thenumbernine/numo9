@@ -39,10 +39,13 @@ local fragType = 'uvec4'
 local useTextureInt = true
 
 -- uses integer coordinates in shader.  you'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
---local useTextureRect = false
-local useTextureRect = true
+local useTextureRect = false
+--local useTextureRect = true
 
 --local texelType = (useTextureInt and 'u' or '')..'vec4'
+
+local texelFunc = 'texture'
+--local texelFunc = 'texelFetch'
 
 local samplerType = (useTextureInt and 'u' or '')
 	.. 'sampler2D'
@@ -491,11 +494,16 @@ function AppDraw:initDraw()
 	end
 
 	local function texCoordRectFromFloatVec(code, size)
-		code = 'ivec2(('..code..') * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
+		if useTextureRect then
+			code = 'ivec2(('..code..') * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
+		end
 		return code
 	end
 
 	local function texCoordRectFromIntVec(code, size)
+		if not useTextureRect then
+			code = 'vec2(('..code..') + .5) / vec2('..clnumber(size.x)..', '..clnumber(size.y)..')'
+		end
 		return code
 	end
 
@@ -510,10 +518,10 @@ function AppDraw:initDraw()
 ]],
 		fragType == 'vec4'
 		and [[
-	fragColor = ]]..fragType..[[(texelFetch(palTex, palTc));	// / float((1u<<31)-1u);
+	fragColor = ]]..fragType..[[(]]..texelFunc..[[(palTex, palTc));	// / float((1u<<31)-1u);
 ]]
 		or [[
-	fragColor = ]]..fragType..[[(texelFetch(palTex, palTc));
+	fragColor = ]]..fragType..[[(]]..texelFunc..[[(palTex, palTc));
 ]],
 	}:concat'\n'..'\n'
 
@@ -540,13 +548,13 @@ uniform <?=samplerType?> fbTex;
 
 void main() {
 <? if fragType == 'vec4' then ?>
-#if 1	// how many bits does uvec4 get from texelFetch() ?
-	fragColor = <?=fragType?>(texelFetch(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[) / float((1u<<31)-1u));
+#if 1	// how many bits does uvec4 get from texture() ?
+	fragColor = <?=fragType?>(]]..texelFunc..[[(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[) / float((1u<<31)-1u));
 #else	// or does gl just magically know the conversion?
-	fragColor = <?=fragType?>(texelFetch(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
+	fragColor = <?=fragType?>(]]..texelFunc..[[(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
 #endif
 <? else ?>
-	fragColor = <?=fragType?>(texelFetch(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
+	fragColor = <?=fragType?>(]]..texelFunc..[[(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[));
 <? end ?>
 }
 ]],			{
@@ -591,7 +599,7 @@ uniform <?=samplerType?> fbTex;
 uniform <?=samplerType?> palTex;
 
 void main() {
-	uint colorIndex = ]]..readTexUint('texelFetch(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
+	uint colorIndex = ]]..readTexUint(texelFunc..'(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
 ]]..colorIndexToFrag..[[
 }
 ]],			{
@@ -636,7 +644,7 @@ layout(location=0) out vec4 fragColor;
 uniform <?=samplerType?> fbTex;
 
 void main() {
-	uint rgb332 = ]]..readTexUint('texelFetch(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
+	uint rgb332 = ]]..readTexUint(texelFunc..'(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
 	fragColor.r = float(rgb332 & 0x7u) / 7.;
 	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
@@ -935,7 +943,7 @@ const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
 
 void main() {
 	uint colorIndex = (]]
-		..readTexUint('texelFetch(spriteTex, '..texCoordRectFromFloatVec('tcv', spriteSheetSize)..').r')
+		..readTexUint(texelFunc..'(spriteTex, '..texCoordRectFromFloatVec('tcv', spriteSheetSize)..').r')
 		..[[ >> spriteBit) & spriteMask;
 	if (colorIndex == transparentIndex) discard;
 
@@ -1037,7 +1045,7 @@ void main() {
 	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	int tileIndex = int(]]..readTexUint('texelFetch(mapTex, '..texCoordRectFromIntVec('tileTC', tilemapSize)..').r', 65536)..[[);
+	int tileIndex = int(]]..readTexUint(texelFunc..'(mapTex, '..texCoordRectFromIntVec('tileTC', tilemapSize)..').r', 65536)..[[);
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileTexTC = ivec2(
@@ -1057,7 +1065,7 @@ void main() {
 
 	// tileTex is R8 indexing into our palette ...
 	uint colorIndex = ]]
-		..readTexUint('texelFetch(tileTex, '..texCoordRectFromIntVec('tileTexTC', spriteSheetSize)..').r')..[[;
+		..readTexUint(texelFunc..'(tileTex, '..texCoordRectFromIntVec('tileTexTC', spriteSheetSize)..').r')..[[;
 	colorIndex += palHi << 4;
 	colorIndex &= 0xFFu;
 
@@ -1103,8 +1111,8 @@ void main() {
 		format = gl.GL_RGB,
 		internalFormat = gl.GL_RGB,
 		magFilter = gl.GL_NEAREST,
-		--minFilter = gl.GL_NEAREST,
-		minFilter = gl.GL_NEAREST_MIPMAP_NEAREST,
+		minFilter = gl.GL_NEAREST,
+		--minFilter = gl.GL_NEAREST_MIPMAP_NEAREST,		-- doesn't work so well with alpha channesl
 		--[[ checkerboard
 		image = Image(2,2,3,'unsigned char', {0xf0,0xf0,0xf0,0xfc,0xfc,0xfc,0xfc,0xfc,0xfc,0xf0,0xf0,0xf0}),
 		--]]
