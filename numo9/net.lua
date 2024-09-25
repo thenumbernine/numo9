@@ -33,6 +33,8 @@ local assertne = require 'ext.assert'.ne
 local getTime = require 'ext.timer'.getTime
 local vector = require 'ffi.cpp.vector-lua'
 
+local firstJoypadKeyCode = require 'numo9.keys'.firstJoypadKeyCode
+
 local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
 local spriteSheetInBytes = require 'numo9.rom'.spriteSheetInBytes
 local spriteSheetAddrEnd = require 'numo9.rom'.spriteSheetAddrEnd
@@ -502,6 +504,7 @@ end
 ServerConn.sendsPerSecond = 0
 ServerConn.receivesPerSecond = 0
 function ServerConn:loop()
+	local app = self.app
 print'BEGIN SERVERCONN LOOP'
 	local data, reason
 	while self.socket
@@ -514,7 +517,7 @@ print'BEGIN SERVERCONN LOOP'
 self.sendsPerSecond = self.sendsPerSecond + 1
 		end
 
-		data, reason = receive(self.socket, 4, 0)
+		data, reason = receive(self.socket, 2, 0)
 		if not data then
 			if reason ~= 'timeout' then
 				print('client remote connection failed: '..tostring(reason))
@@ -522,8 +525,29 @@ self.sendsPerSecond = self.sendsPerSecond + 1
 				-- TODO - die and go back to connection screen ... wherever that will be
 			end
 		else
-			print('server got data', data, reason)
+--print('server got data', data, reason)
+--print('RECEIVING INPUT', string.hexdump(data))
 self.receivesPerSecond = self.receivesPerSecond + 1
+
+			-- while we're here read inputs
+			-- TODO do this here or in the server's updateCoroutine?  or do i have too mnay needless coroutines?
+
+			local bytep = ffi.cast('uint8_t*', ffi.cast('char*', data))
+			local index, value = bytep[0], bytep[1]
+
+			-- if we're sending 4 bytes of button flag press bits ...
+			-- welp ... not many possible entries
+			-- TODO use uint8_t here instead of uint16_t
+			-- or less even?
+			-- one player = 8 keys = 1 byte = 8 bits, addresible by 3 bits.
+			-- 4 players = 32 keys = 4 bytes = 32 bits, addressible by 5 bits.
+			-- and just 1 value byte ...
+			local dest = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
+			if index < 0 or index >= 4 then	-- max # players / # of button key bitflag bytes in a row
+				print('server got oob delta compressed input:', ('$%02x'):format(index), ('$%02x'):format(value))
+			else
+				dest[index] = value
+			end
 		end
 
 		coroutine.yield()
@@ -590,15 +614,15 @@ function Server:beginFrame()
 end
 
 local function deltaCompress(
-	prevp,	-- previous state, of uint16_t*
-	nextp,	-- next state, of uint16_t*
+	prevp,	-- previous state, of T*
+	nextp,	-- next state, of T*
 	len,	-- state length
-	dstvec	-- a vector'uint16_t' for now
+	dstvec	-- a vector'T' for now
 )
 	for i=0,len-1 do
 		if nextp[0] ~= prevp[0] then
-			dstvec:emplace_back()[0] = i		-- short offset
-			dstvec:emplace_back()[0] = nextp[0]	-- short value
+			dstvec:emplace_back()[0] = i
+			dstvec:emplace_back()[0] = nextp[0]
 		end
 		nextp=nextp+1
 		prevp=prevp+1
@@ -632,7 +656,7 @@ function Server:endFrame()
 		local clp = ffi.cast('uint16_t*', prevBuf.v)
 		local svp = ffi.cast('uint16_t*', thisBuf.v)
 		deltaCompress(clp, svp, n, deltas)
-		
+
 		if deltas.size > 0 then
 			local data = ffi.string(ffi.cast('char*', deltas.v), 2*deltas.size)
 			for _,serverConn in ipairs(self.serverConns) do
@@ -695,6 +719,8 @@ function Server:updateCoroutine()
 		coroutine.yield()
 
 		-- now handle connections
+		-- this jsut removes dead ones
+		-- the conns themselves have threads that they send out messages in order
 		for i=#self.serverConns,1,-1 do
 self.updateConnCount = self.updateConnCount + 1
 			local serverConn = self.serverConns[i]
@@ -832,6 +858,12 @@ function ClientConn:init(args)
 
 	self.cmds = vector'Numo9Cmd'
 
+	-- send only joypad keys
+	-- the server will overwrite whatever player position with it
+	self.lastButtons = ffi.new'uint8_t[4]'	-- flag of our joypad keypresses
+	ffi.fill(self.lastButtons, ffi.sizeof(self.lastButtons))
+	self.inputMsgVec = vector'uint8_t'	-- for sending cmds to server
+
 	con:print('ClientConn connecting to addr',args.addr,'port',args.port)
 	local sock, reason = socket.connect(args.addr, args.port)
 	if not sock then
@@ -925,7 +957,7 @@ print'entering client listen loop...'
 							ffi.fill(self.cmds.v + oldsize, ffi.sizeof'Numo9Cmd' * (self.cmds.size - oldsize))
 						end
 					end
-				
+
 				elseif index == 0xfeff then
 					-- cmd frame reset message
 
@@ -1018,7 +1050,23 @@ print('got uint16 index='
 		until not data
 
 		-- TODO send any input button changes ...
-		
+		self.inputMsgVec:resize(0)
+--print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3), 4)))
+--print('PREV', string.hexdump(ffi.string(self.lastButtons, 4)))
+		local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
+		deltaCompress(
+			self.lastButtons,
+			buttonPtr,
+			ffi.sizeof(self.lastButtons),
+			self.inputMsgVec
+		)
+		if self.inputMsgVec.size > 0 then
+--print('SENDING INPUT', string.hexdump(data))
+			local data = ffi.string(ffi.cast('char*', self.inputMsgVec.v), self.inputMsgVec.size)
+			send(sock, data)
+		end
+		ffi.copy(self.lastButtons, buttonPtr, 4)
+
 		-- now run through our command-buffer and execute its contents
 		for i=0,self.cmds.size-1 do
 			local cmd = self.cmds.v + i

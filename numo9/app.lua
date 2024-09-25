@@ -51,6 +51,9 @@ local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
 local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode
 local firstJoypadKeyCode = require 'numo9.keys'.firstJoypadKeyCode
+local buttonCodeForName = require 'numo9.keys'.buttonCodeForName
+local keyCodeForButtonIndex = require 'numo9.keys'.keyCodeForButtonIndex
+local buttonIndexForKeyCode = require 'numo9.keys'.buttonIndexForKeyCode
 
 local netcmds = require 'numo9.net'.netcmds
 
@@ -968,7 +971,12 @@ print('setFocus empty')
 print('app:setFocus(remoteClient)')
 	self:setFocus(self.remoteClient)
 assert(self.runFocus == self.remoteClient)
-assert(self.runFocus.thread)
+	if not self.runFocus.thread then
+		-- failed to connect?
+		self.con:print'failed to connect'
+		self.runFocus = nil
+		return
+	end
 assert(coroutine.status(self.runFocus.thread) ~= 'dead')
 end
 
@@ -984,7 +992,7 @@ function App:update()
 
 	local thisTime = getTime()
 
---[==[ per-second-tick debug display 
+--[==[ per-second-tick debug display
 	-- ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
 	-- TODO get rid of double-buffering.  you've got the framebuffer.
 	local deltaTime = thisTime - lastTime
@@ -1130,12 +1138,12 @@ conn.receivesPerSecond = 0
 			self:setBlendMode(self.ram.blendMode[0])
 		end
 
-		-- run the cartridge thread 
+		-- run the cartridge thread
 		local runFocus = self.runFocus
 		if runFocus then
 			local thread = runFocus.thread
 			if thread
-			and not self.isPaused 
+			and not self.isPaused
 			then
 				if coroutine.status(thread) == 'dead' then
 print('cartridge thread dead')
@@ -1175,13 +1183,13 @@ print('cartridge thread dead')
 					print(msg)
 					print(debug.traceback(thread))
 					self.con:print(msg)
-				end	
-			end	
+				end
+			end
 		end
 
 		gl.glDisable(gl.GL_SCISSOR_TEST)
 		self.mvMat:setIdent()
-		
+
 		if self.con.isOpen then
 			local thread = self.con.thread
 			if coroutine.status(thread) ~= 'dead' then
@@ -1197,7 +1205,7 @@ print('cartridge thread dead')
 		end
 
 		self:mvMatFromRAM()
-		
+
 		self.inUpdateCallback = false
 		fb:unbind()
 
@@ -2081,52 +2089,47 @@ function App:keyr(keycode)
 	and self:keyForBuffer(keycode, self.ram.lastKeyPressFlags)
 end
 
-
--- TODO make this configurable
--- let's use tic80's standard for button codes
--- but ofc I gotta tweak it to my own mapping
--- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
--- fun fact, SNES's keys in-order are:
--- B Y Sel Start Up Down Left Right A X L R
-local keyCodeForButtonIndex = {
-	-- player 1
-	[0] = keyCodeForName.up,		-- UP
-	[1] = keyCodeForName.down,		-- DOWN
-	[2] = keyCodeForName.left,		-- LEFT
-	[3] = keyCodeForName.right,		-- RIGHT
-	[4] = keyCodeForName.s,			-- A
-	[5] = keyCodeForName.x,			-- B
-	[6] = keyCodeForName.a,			-- X
-	[7] = keyCodeForName.z,			-- Y
-	-- TODO player 2 player 3 player 4 ...
-	-- L R? start select?  or nah? or just one global menu button?
-}
-local buttonIndexForKeyCode = table.map(keyCodeForButtonIndex, function(keyCode, buttonIndex)
-	return buttonIndex, keyCode
-end):setmetatable(nil)
-
--- TODO named support just like key() keyp() keyr()
--- double TODO - just use key/p/r, and just use extra flags
+-- TODO - just use key/p/r, and just use extra flags
+-- TODO dont use keyboard keycode for determining fake-joypad button keycode
+-- instead do this down in the SDL event handling ...
 function App:btn(buttonCode, player, ...)
+	if type(buttonCode) == 'string' then
+		buttonCode = buttonCodeForName[buttonCode]
+	end
+	asserttype(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
-	local keyCode = keyCodeForButtonIndex[buttonCode + 8 * player]
+	local playerButtonCode = buttonCode + 8 * player
+	local buttonKeyCode = playerButtonCode + firstJoypadKeyCode
+	local keyCode = keyCodeForButtonIndex[playerButtonCode]
 	if not keyCode then return end
-	return self:key(keyCode, ...)
+	return self:key(buttonKeyCode, ...)
 end
 function App:btnp(buttonCode, player, ...)
+	if type(buttonCode) == 'string' then
+		buttonCode = buttonCodeForName[buttonCode]
+	end
+	asserttype(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
-	local keyCode = keyCodeForButtonIndex[buttonCode + 8 * player]
+	local playerButtonCode = buttonCode + 8 * player
+	local buttonKeyCode = playerButtonCode + firstJoypadKeyCode
+	local keyCode = keyCodeForButtonIndex[playerButtonCode]
 	if not keyCode then return end
-	return self:keyp(keyCode, ...)
+	return self:keyp(buttonKeyCode, ...)
 end
 function App:btnr(buttonCode, player, ...)
+	if type(buttonCode) == 'string' then
+		buttonCode = buttonCodeForName[buttonCode]
+	end
+	asserttype(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
-	local keyCode = keyCodeForButtonIndex[buttonCode + 8 * player]
+	local playerButtonCode = buttonCode + 8 * player
+	local buttonKeyCode = playerButtonCode + firstJoypadKeyCode
+	local keyCode = keyCodeForButtonIndex[playerButtonCode]
 	if not keyCode then return end
-	return self:keyr(keyCode, ...)
+	return self:keyr(buttonKeyCode, ...)
 end
 
 function App:mouse()
@@ -2212,6 +2215,21 @@ function App:event(e)
 					bit.band(mask, self.ram.keyPressFlags[by]),
 					down and flag or 0
 				)
+
+				local buttonCode = buttonIndexForKeyCode[keycode]
+				-- gets us the 0-based keys
+				if buttonCode then
+					local keycode = buttonCode + firstJoypadKeyCode
+					local bi = bit.band(keycode, 7)
+					local by = bit.rshift(keycode, 3)
+					local flag = bit.lshift(1, bi)
+					local mask = bit.bnot(flag)
+					self.ram.keyPressFlags[by] = bit.bor(
+						bit.band(mask, self.ram.keyPressFlags[by]),
+						down and flag or 0
+					)
+				end
+
 			end
 
 			--[[
@@ -2243,20 +2261,6 @@ function App:event(e)
 				bit.band(mask, self.ram.keyPressFlags[by]),
 				down and flag or 0
 			)
-
-			local buttonCode = buttonIndexForKeyCode[keycode]
-			-- gets us the 0-based keys
-			if buttonCode then
-				local keycode = buttonCode + firstJoypadKeyCode
-				local bi = bit.band(keycode, 7)
-				local by = bit.rshift(keycode, 3)
-				local flag = bit.lshift(1, bi)
-				local mask = bit.bnot(flag)
-				self.ram.keyPressFlags[by] = bit.bor(
-					bit.band(mask, self.ram.keyPressFlags[by]),
-					down and flag or 0
-				)
-			end
 		end
 	elseif e[0].type == sdl.SDL_JOYHATMOTION then
 		for i=0,3 do
