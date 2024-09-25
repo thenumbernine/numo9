@@ -12,7 +12,7 @@ local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
-local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes 
+local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
 local frameBufferSize = vec2i(256, 256)
 local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
 local spriteSheetSize = vec2i(256, 256)
@@ -146,10 +146,10 @@ local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType
 local framebufferAddrEnd = framebufferAddr + framebufferInBytes
 local clipRectAddr = ffi.offsetof('RAM', 'clipRect')
 local clipRectInBytes = ffi.sizeof'uint8_t' * 4
-local clipRectAddrEnd = clipRectAddr + clipRectInBytes 
+local clipRectAddrEnd = clipRectAddr + clipRectInBytes
 local mvMatAddr = ffi.offsetof('RAM', 'mvMat')
 local mvMatInBytes = ffi.sizeof(mvMatType) * 16
-local mvMatAddrEnd = mvMatAddr + mvMatInBytes 
+local mvMatAddrEnd = mvMatAddr + mvMatInBytes
 
 return {
 	paletteSize = paletteSize,
@@ -163,7 +163,7 @@ return {
 	tilemapSizeInSprites = tilemapSizeInSprites,
 	codeSize = codeSize,
 	fontWidth = fontWidth,
-	mvMatScale = mvMatScale, 
+	mvMatScale = mvMatScale,
 	keyPressFlagSize = keyPressFlagSize,
 	keyCount = keyCount,
 	ROM = ROM,

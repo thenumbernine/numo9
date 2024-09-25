@@ -265,6 +265,14 @@ SFX page is WIP
 
 Music page is WIP
 
+# Multiplayer
+
+There are a few console commands for multiplayer:
+
+- `listen(addr, [port])` = server starts listening on the address and port.
+- `connect(addr, [port])` = client connects to address and port.
+- `disconnect()` = on server: closes socket and stops listening.  on client: disconnects from server.
+
 # Cartridges
 
 All my cartridge files are in `.png`. format.  To pack and unpack them use the `n9a.lua` script.
@@ -323,9 +331,9 @@ Pico8 Compatability is at 95%
 	- joystick support
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
 - multiplayer
-	- initial cl/sv communication works
-	- needs all commands to be emulated
-	- needs proper observer/lobby/hotseats
+	- how should chat work?  or no chat?
+	- where should notification messages show up? host terminal?  windows users don't like host terminal.
+	- needs proper observer/lobby/hotseat roles.
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
 	- copy/paste on the tilemap.
@@ -340,5 +348,6 @@ Pico8 Compatability is at 95%
 - graphics:
 	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
+	- no need for doublebuffering
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.

@@ -294,10 +294,47 @@ local function getAsciiForKeyCode(keyCode, shift)
 	-- keys like esc shift ctrl alt gui
 end
 
+local buttonCodeForName = {
+	up = 0,
+	down = 1,
+	left = 2,
+	right = 3,
+	a = 4,
+	b = 5,
+	x = 6,
+	y = 7,
+}
+
+-- TODO make this configurable
+-- let's use tic80's standard for button codes
+-- but ofc I gotta tweak it to my own mapping
+-- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
+-- fun fact, SNES's keys in-order are:
+-- B Y Sel Start Up Down Left Right A X L R
+local keyCodeForButtonIndex = {
+	-- player 1
+	[0] = keyCodeForName.up,		-- UP
+	[1] = keyCodeForName.down,		-- DOWN
+	[2] = keyCodeForName.left,		-- LEFT
+	[3] = keyCodeForName.right,		-- RIGHT
+	[4] = keyCodeForName.s,			-- A
+	[5] = keyCodeForName.x,			-- B
+	[6] = keyCodeForName.a,			-- X
+	[7] = keyCodeForName.z,			-- Y
+	-- TODO player 2 player 3 player 4 ...
+	-- L R? start select?  or nah? or just one global menu button?
+}
+local buttonIndexForKeyCode = table.map(keyCodeForButtonIndex, function(keyCode, buttonIndex)
+	return buttonIndex, keyCode
+end):setmetatable(nil)
+
 return {
 	keyCodeNames = keyCodeNames,
 	keyCodeForName = keyCodeForName,
 	sdlSymToKeyCode = sdlSymToKeyCode,
 	getAsciiForKeyCode = getAsciiForKeyCode,
 	firstJoypadKeyCode = firstJoypadKeyCode,
+	buttonCodeForName = buttonCodeForName,
+	keyCodeForButtonIndex = keyCodeForButtonIndex,
+	buttonIndexForKeyCode = buttonIndexForKeyCode,
 }
