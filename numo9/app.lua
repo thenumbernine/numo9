@@ -318,9 +318,6 @@ function App:initGL()
 				cmd.type = netcmds.clearScreen
 				cmd.colorIndex = colorIndex
 			end
-			-- TODO store cursorPos here in App, in RAM even, and send it between net commands
-			local con = self.con
-			con.cursorPos:set(0, 0)
 			self:clearScreen(colorIndex)
 		end,
 
@@ -1130,31 +1127,68 @@ conn.receivesPerSecond = 0
 			self:setBlendMode(self.ram.blendMode[0])
 		end
 
-		-- TODO here run this only 60 fps
+		-- run the cartridge thread 
 		local runFocus = self.runFocus
-		if runFocus and runFocus.thread then
+		if runFocus 
+		and runFocus.thread 
+		and not self.isPaused 
+		then
 			if coroutine.status(runFocus.thread) == 'dead' then
-print('dead thread - switching to con')
-				self:setFocus(self.con)
+print('cartridge thread dead')
+				self:setFocus(nil)
 			else
 				local success, msg = coroutine.resume(runFocus.thread)
 				if not success then
 					print(msg)
 					print(debug.traceback(runFocus.thread))
-					self.con:resetThread()
-					self:setFocus(self.con)
 					self.con:print(msg)
 					-- TODO these errors are a good argument for scrollback console buffers
 					-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
 				end
 			end
-		else
-print('no runnable focus!')
-			self:setFocus(self.con)
+		end
+
+		-- now run the console and editor, separately, if it's open
+		-- this way server can issue console commands while the game is running
+		gl.glDisable(gl.GL_BLEND)
+		gl.glDisable(gl.GL_SCISSOR_TEST)
+		self.mvMat:setIdent()
+
+		if self.currentEditor
+		and self.currentEditor.thread
+		then
+			local thread = self.currentEditor.thread
+			if coroutine.status(thread) == 'dead' then
+				self.currentEditor = nil
+			else
+				local success, msg = coroutine.resume(thread)
+				if not success then
+					print(msg)
+					print(debug.traceback(thread))
+					self.con:print(msg)
+				end	
+			end	
 		end
 
 		gl.glDisable(gl.GL_SCISSOR_TEST)
-		gl.glDisable(gl.GL_BLEND)
+		self.mvMat:setIdent()
+		
+		do
+			local thread = self.con.thread
+			if coroutine.status(thread) ~= 'dead' then
+				local success, msg = coroutine.resume(thread)
+				if not success then
+					print'CONSOLE THREAD ERROR'
+					print(msg)
+					print(debug.traceback(thread))
+					self.con:resetThread()	-- this could become a negative feedback loop...
+					self.con:print(msg)
+				end
+			end
+		end
+
+		self:mvMatFromRAM()
+		
 		self.inUpdateCallback = false
 		fb:unbind()
 
@@ -1931,7 +1965,6 @@ end
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
-	self:setFocus(self.con)
 	self:resetROM()
 
 	-- TODO setfenv instead?
@@ -1985,14 +2018,12 @@ function App:setFocus(focus)
 end
 
 function App:stop()
-	self:setFocus(self.con)
-
-	-- this is fine right? nobody is calling stop() from the main thread right?
-	-- I can assert that, but then it's an error, just like yield()'ing from main thread is an error so ...
+	self.isPaused = true
 	coroutine.yield()
 end
 
 function App:cont()
+	self.isPaused = false
 	self:setFocus(self.gameEnv)
 end
 
@@ -2134,21 +2165,21 @@ function App:event(e)
 			-- editor -> escape -> console
 			-- ... how to cycle back to the game without resetting it?
 			-- ... can you not issue commands while the game is loaded without resetting the game?
-			if self.runFocus == self.con then
-				self:setFocus(self.editCode)
-			elseif Editor:isa(self.runFocus) then
-				self:setFocus(self.con)
-			else
-				-- assume it's a game
-				self:setFocus(self.con)
-			end
-			self:runInEmu(function()
-				self:resetView()
-				-- TODO re-init the con?  clear? special per runFocus?
-				if self.runFocus == self.con then
-					self.con:reset()
+			if self.con.isOpen then
+				self.con.isOpen = false
+				self.currentEditor = self.editCode
+				if self.currentEditor.gainFocus then
+					self.currentEditor:gainFocus()
 				end
-			end)
+			elseif self.currentEditor then
+				if self.currentEditor.loseFocus then
+					self.currentEditor:loseFocus()
+				end
+				self.currentEditor = nil
+			else
+				-- assume it's a game pushing esc ...
+				self.con.isOpen = true
+			end
 		else
 			local keycode = sdlSymToKeyCode[sdlsym]
 			if keycode then
@@ -2250,6 +2281,7 @@ function App:event(e)
 	end
 end
 
+------ TODO FINISHE PLZ
 local screenButtonRadius = 10
 function App:processButtonEvent(press, ...)
 do return end

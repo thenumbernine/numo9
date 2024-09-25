@@ -19,6 +19,7 @@ local spriteSize = require 'numo9.rom'.spriteSize
 local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
 local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
 local fontWidth = require 'numo9.rom'.fontWidth
+local codeSize = require 'numo9.rom'.codeSize
 
 local EditCode = require 'numo9.editor':subclass()
 
@@ -420,6 +421,22 @@ local function prevNewline(s, i)
 		if s:sub(i,i) == '\n' then return i end
 	end
 	return 1
+end
+
+-- read and write from ... cartridge?  RAM?
+-- read from cart, write to cart and RAM ...
+
+function EditCode:gainFocus()
+	local app = self.app
+	local code = ffi.string(app.cartridge.code, math.min(codeSize, tonumber(ffi.C.strlen(app.cartridge.code))))
+	app.editCode:setText(code)
+end
+
+function EditCode:loseFocus()
+	local app = self.app
+	ffi.fill(app.cartridge.code, codeSize)
+	ffi.copy(app.cartridge.code, app.editCode.text:sub(1,codeSize-1))
+	ffi.copy(app.ram.code, app.cartridge.code, codeSize)
 end
 
 return EditCode
