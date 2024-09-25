@@ -108,6 +108,7 @@ function EditSprites:update()
 			self.texField = result
 		end)
 	local currentTex = app[self.texField]
+	local currentTexAddr = ffi.cast('char*', currentTex.image.buffer) - app.ram.v
 
 	local x = 126
 	local y = 32
@@ -323,12 +324,12 @@ function EditSprites:update()
 					-- let's subtract it
 					local texelIndex = tx + spriteSheetSize.x * ty
 					assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-					local texPtr = currentTex.image.buffer + texelIndex
+					local addr = currentTexAddr + texelIndex
 					self.paletteSelIndex = bit.band(
 						0xff,
 						self.paletteOffset
 						+ bit.rshift(
-							bit.band(mask, texPtr[0]),
+							bit.band(mask, app:peek(addr)),
 							self.spriteBit
 						)
 					)
@@ -347,27 +348,23 @@ function EditSprites:update()
 						then
 							local texelIndex = tx + spriteSheetSize.x * ty
 							assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-							local texPtr = currentTex.image.buffer + texelIndex
-							texPtr[0] = bit.bor(
-								bit.band(
-									bit.bnot(mask),
-									texPtr[0]
-								),
-								bit.band(
-									mask,
-									bit.lshift(
-										self.paletteSelIndex - self.paletteOffset,
-										self.spriteBit
+							local addr = currentTexAddr + texelIndex
+							app:net_poke(
+								addr, 
+								bit.bor(
+									bit.band(
+										bit.bnot(mask),
+										app:peek(addr)
+									),
+									bit.band(
+										mask,
+										bit.lshift(
+											self.paletteSelIndex - self.paletteOffset,
+											self.spriteBit
+										)
 									)
 								)
 							)
-							currentTex:subimage{
-								xoffset = tx,
-								yoffset = ty,
-								width = 1,
-								height = 1,
-								data = texPtr,
-							}
 						end
 					end
 				end

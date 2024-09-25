@@ -833,6 +833,7 @@ end
 ---- BEGIN ENV NETPLAY LAYER -- when I don't want to write server cmds twice
 
 function App:net_poke(addr, value)
+	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
 	if self.server then
 		local cmd = self.server:pushCmd().poke
 		cmd.type = netcmds.poke

@@ -7,6 +7,7 @@ Or rename this to gfx.lua and put more GL stuff in it?
 local ffi = require 'ffi'
 local template = require 'template'
 local table = require 'ext.table'
+local math = require 'ext.math'
 local assertlt = require 'ext.assert'.lt
 local assertne = require 'ext.assert'.ne
 local Image = require 'image'
@@ -18,13 +19,16 @@ local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local clnumber = require 'cl.obj.number'
 
+local paletteAddr = require 'numo9.rom'.paletteAddr
 local paletteSize = require 'numo9.rom'.paletteSize
 local spriteSize = require 'numo9.rom'.spriteSize
 local frameBufferType = require 'numo9.rom'.frameBufferType
 local frameBufferSize = require 'numo9.rom'.frameBufferSize
 local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
+local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
 local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
 local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
+local tileSheetAddr = require 'numo9.rom'.tileSheetAddr
 local tilemapSize = require 'numo9.rom'.tilemapSize
 local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
 
@@ -1181,6 +1185,51 @@ function AppDraw:setVideoMode(mode)
 	end
 
 	self.currentVideoMode = mode
+end
+
+-- exchnage two colors in the palettes, and in all spritesheets,
+-- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
+function AppDraw:colorSwap(from, to, x, y, w, h)
+	-- TODO SORT THIS OUT
+	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
+print('BEFORE', self:peek(spriteSheetAddr))	
+	from = math.floor(from)
+	to = math.floor(to)
+	x = math.floor(x)
+	y = math.floor(y)
+	w = math.floor(w)
+	h = math.floor(h)
+	if from < 0 or from >= 256 or to < 0 or to >= 256 then return false end
+	x = math.clamp(x, 0, spriteSheetSize.x-1)
+	y = math.clamp(y, 0, spriteSheetSize.y-1)
+	w = math.clamp(w, 0, spriteSheetSize.x)
+	h = math.clamp(h, 0, spriteSheetSize.y)
+	local fromFound = 0
+	local toFound = 0
+	for _,base in ipairs{spriteSheetAddr, tileSheetAddr} do
+		for j=y,y+h-1 do
+			for i=x,x+w-1 do
+				local addr = base + i + spriteSheetSize.x * j
+				local c = self:peek(addr)
+				if c == from then
+					fromFound = fromFound + 1
+					self:net_poke(addr, to)
+				elseif c == to then
+					toFound = toFound + 1
+					self:net_poke(addr, from)
+				end
+			end
+		end
+	end
+	-- now swap palette entries
+	local fromAddr =  paletteAddr + bit.lshift(from, 1)
+	local toAddr =  paletteAddr + bit.lshift(to, 1)
+	local oldFromValue = self:peekw(fromAddr)
+	self:net_pokew(fromAddr, self:peekw(toAddr))
+	self:net_pokew(toAddr, oldFromValue)
+print('AFTER', self:peek(spriteSheetAddr))	
+	ffi.copy(self.cartridge.v, self.ram.v, ffi.sizeof'ROM')
+	return fromFound, toFound
 end
 
 return {
