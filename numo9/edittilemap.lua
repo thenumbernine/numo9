@@ -247,7 +247,7 @@ function EditTilemap:update()
 							app.mapTex.dirtyCPU = true
 							--]]
 							-- [[
-							app.env.mset(tx, ty, tileSelIndex)
+							app:net_mset(tx, ty, tileSelIndex)
 							--]]
 						end
 					end

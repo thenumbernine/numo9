@@ -197,6 +197,7 @@ We can always have it edit *both* ... *simultaneously* ... and then trust the ed
 In that situation, what do we do here?
 How about nothing - not a thing - and once again rely on the editor-user to manually reset() to flush cartridge->RAM data.
 ... maybe provide them with a 'dirty' warning if the game has been run, or if any ROM-area writes have been detected?
+... until I do that, might as well reset everything here and just claim that 'DM-realtime-editor is WIP'
 --]]
 function Editor:gainFocus()
 	local app = self.app
