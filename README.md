@@ -309,12 +309,19 @@ Pico8 Compatability is at 95%
 	- needs all commands to be emulated
 	- needs proper observer/lobby/hotseats
 - editor:
+	- tilemap UI for editing high-palette and horz/vert flip
 	- copy/paste on the tilemap.
 		- copy/paste tilemap entries themselves
 		- paste sprites into the tilemap, then automatically quantize their sprites and palettes.. Just need to copy most of this from my `convert-to-8x8x4bpp` repo.
+		- ... of text / number tables
 	- decouple editor from the fantasy-hardware so that multiplayer clients can play the game unhindered while the server edits it.
 	- decouple the console from the fantasy-hardware too (cheating I know, but pretty sure some like TIC-80 do this), and then set aside the framebuffer for streaming to clients, while the server can issue commands / edit content...
 	- route all editor-editing-commands through the game-API so that you get realtime updates for free , and so the server can DM for the games.
+	- color swap feature
+	- flag for pen / paste / bucket fill clip-to-view-area or not
+	- bucket fill functionality
+	- blob-finding functionality ... ?  How about selection masks and click-to-select stuff?  Why not just remake Photoshop.
+	- tilemap bucket fill
 - graphics:
 	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
