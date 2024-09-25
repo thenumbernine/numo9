@@ -144,7 +144,15 @@ function Editor:update()
 		app.editMode,
 		function(x)
 			app.editMode = x
-			app:setFocus(app[editFieldForMode[x] or ''])
+			if editFieldForMode[x] then
+				if app.currentEditor and app.currentEditor.loseFocus then
+					app.currentEditor:loseFocus()
+				end
+				app.currentEditor = app[editFieldForMode[x]]
+				if app.currentEditor and app.currentEditor.gainFocus then
+					app.currentEditor:gainFocus()
+				end
+			end
 		end
 	)
 
@@ -209,6 +217,7 @@ function Editor:gainFocus()
 		end
 	end
 
+--[====[
 	app.spriteTex:checkDirtyGPU()
 	app.tileTex:checkDirtyGPU()
 	app.mapTex:checkDirtyGPU()
@@ -227,8 +236,10 @@ function Editor:gainFocus()
 	-- copy cartridge code to editCode (where we can use Lua string functionality)
 	local code = ffi.string(app.cartridge.code, math.min(codeSize, tonumber(ffi.C.strlen(app.cartridge.code))))
 	app.editCode:setText(code)
+--]====]
 end
 
+--[====[
 function Editor:loseFocus()
 	local app = self.app
 
@@ -239,5 +250,6 @@ function Editor:loseFocus()
 	ffi.fill(app.cartridge.code, ffi.sizeof(app.cartridge.code))
 	ffi.copy(app.cartridge.code, app.editCode.text:sub(1,codeSize-1))
 end
+--]====]
 
 return Editor

@@ -33,6 +33,8 @@ function Console:init(args)
 	self.cmdbuf = ''
 	self.prompt = '> '
 
+	self.lines = table()
+
 	self.cmdHistory = table()
 	self.cmdHistoryIndex = nil
 
@@ -148,14 +150,12 @@ function Console:write(...)
 end
 
 function Console:print(...)
-	-- double it to the app terminal
-	print(...)
-
+	local s = ''
 	for i=1,select('#', ...) do
-		if i > 1 then self:write'\t' end
-		self:write(tostring(select(i, ...)))
+		if i > 1 then s=s..'\t' end
+		s=s..tostring(select(i, ...))
 	end
-	self:write'\n'
+	self.lines:insert(1, s)
 end
 
 -- because everyone else is doing it
@@ -187,18 +187,10 @@ function Console:coolPrint(...)
 end
 
 function Console:selectHistory(dx)
---[[ history buf works fine except that the conosle is recreated every time esc is pushed ...
-print('selecting history', self.cmdHistoryIndex)
-print'history buf:'
-print(require 'ext.tolua'(self.cmdHistory))
---]]	
 	local n = #self.cmdHistory
 	self.cmdHistoryIndex = (((self.cmdHistoryIndex or n+1) + dx - 1) % n) + 1
 	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
 	self.cursorPos.x = 0
-
-	self:writePrompt()
-	self:write(self.cmdbuf)
 end
 
 function Console:addCharToCmd(ch)
@@ -214,25 +206,24 @@ function Console:addCharToCmd(ch)
 end
 
 function Console:update()
+	if not self.isOpen then return end
+	
 	local app = self.app
 
-	-- TODO start to bypass the internal console prompt
+	-- TODO just use the same functionality as the code editor ...
 
-	if self.needsPrompt then
-		self:writePrompt()
-		self.needsPrompt = false
+	self.cursorPos.x = 0
+	self.cursorPos.y = 0
+	for i=1,math.max(#self.lines, 5) do
+		app:drawText(self.lines[i], 0, self.cursorPos.y, self.fgColor, self.bgColor)
+		self.cursorPos.y = self.cursorPos.y + 8
 	end
-
-	--[[ TODO draw
-	self.cursorPos:set(0,0)
-	app:write'CSMAB code editor'
-	--]]
+	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
+	app:drawText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
+	self.cursorPos.x = #s * fontWidth
 
 	if getTime() % 1 < .5 then
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, fontWidth, spriteSize.y, 0xff)
-	else
-		-- else TODO draw the character in the buffer at this location
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, fontWidth, spriteSize.y, 0xf0)
+		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, fontWidth, spriteSize.y, self.fgColor)
 	end
 
 	local shift = app:key'lshift' or app:key'rshift'
@@ -251,16 +242,6 @@ function Console:update()
 			end
 		end
 	end
-end
-
-function Console:writePrompt()
-	--self:resetThread() -- nope
-	self:write(self.app.fs.cwd:path()..self.prompt)
-end
-
-function Console:gainFocus()
-	-- print the prompt
-	self.needsPrompt = true
 end
 
 return Console
