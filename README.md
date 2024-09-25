@@ -18,11 +18,14 @@ There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm
 
 ### Framebuffer
 
-Screen framebuffer is 256x256x16bpp RGB565.
+Mode 0:
+Screen framebuffer is 256x256x16bpp RGB565.  This is to support blending effects, which are on the TODO list, once I figure out something close enough to SNES.
 
-This is to support blending effects, which are on the TODO list, once I figure out something close enough to SNES.
+Mode 1:
+This is a 8bpp-indexed option, mainly for compatability for other fantasy consoles.  Fun fact, in real life 80s/90s consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
 
-Screen framebuffer also has a 8bpp-indexed option, mainly for compatability for other fantasy consoles.  Irl consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
+Mode 2:
+This is 8bpp RGB332.  It looks ugly. Maybe I'll add some dithering.  Once I figure out how GLSL unpacks bits from the RGBA5551REV palette textures ... that seems mysterious to me.
 
 ### sprites / tiles
 
@@ -158,6 +161,7 @@ This adds to Lua(/JIT):
 - `map(tileX,tileY,tilesWide,tilesHigh,screenX,screenY,mapIndexOffset,draw16x16Sprites)` = draw the tilemap. mapIndexOffset = global offset to shift all map indexes. draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 - `text(str,x,y)` = draw text.  I should rename this to `print` for compat reasons.
+- `mode(i)` = set video mode.  Check out the [Framebuffer](#Framebuffer) section for a description of the video modes.
 
 ## mode7:
 
