@@ -150,6 +150,7 @@ function Console:write(...)
 end
 
 function Console:print(...)
+print(...)
 	local s = ''
 	for i=1,select('#', ...) do
 		if i > 1 then s=s..'\t' end
@@ -205,16 +206,21 @@ function Console:addCharToCmd(ch)
 	end
 end
 
+-- TODO just use the same functionality as the code editor ...
+-- TODO don't use app:draw* or other commands that the clients will get ... or they will watch the server issue console commands ...
 function Console:update()
 	if not self.isOpen then return end
 	
 	local app = self.app
 
-	-- TODO just use the same functionality as the code editor ...
+	local shownLines = math.min(#self.lines, 5)
+	app:setBlendMode(3)
+	app:drawSolidRect(0, 0, frameBufferSize.x, shownLines * spriteSize.y, 0xf0)
+	app:setBlendMode(0xff)
 
 	self.cursorPos.x = 0
 	self.cursorPos.y = 0
-	for i=1,math.max(#self.lines, 5) do
+	for i=shownLines,1,-1 do
 		app:drawText(self.lines[i], 0, self.cursorPos.y, self.fgColor, self.bgColor)
 		self.cursorPos.y = self.cursorPos.y + 8
 	end
