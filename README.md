@@ -19,7 +19,7 @@ There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm
 ### Framebuffer
 
 Mode 0:
-Screen framebuffer is 256x256x16bpp RGB565.  This is to support blending effects, which are on the TODO list, once I figure out something close enough to SNES.
+Screen framebuffer is 256x256x16bpp RGB565.  This mode supports blending effects.
 
 Mode 1:
 This is a 8bpp-indexed option, mainly for compatability for other fantasy consoles.  Fun fact, in real life 80s/90s consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
@@ -164,7 +164,7 @@ This adds to Lua(/JIT):
 - `text(str,x,y)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = set video mode.  The current video modes are:
 	- 0 = 16bpp RGB565, needed for blending
-	- 1 = 8bpp Indexed, not capable of blending, but capable of framebuffer palette modification
+	- 1 = 8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow) 
 	- 2 = 8bpp RGB332.  This is an abomination.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `blend([i])` = Set blend mode.  Default value is 0xff corresponding to no blending.  The current blend modes are:
@@ -173,10 +173,10 @@ This adds to Lua(/JIT):
 	- 1 = average with framebuffer (addition then half)
 	- 2 = subtract from background
 	- 3 = subtract-then-half with background
-	- 4 = addition with constant color
-	- 5 = average with constant color
-	- 6 = subtract from constant color
-	- 7 = subtract-then-half with constant color
+	- 4 = (FIXME) addition with constant color
+	- 5 = (FIXME) average with constant color
+	- 6 = (FIXME) subtract from constant color
+	- 7 = (FIXME) subtract-then-half with constant color
 Blending is only applied to opaque pixels.  Transparent pixels, i.e. those whose palette color has alpha=0, are discarded.
 Constant-color blending functions use the RGB555 value stored in `blendColor` of the [memory map](#Memory Layout) as their constant color.
 
