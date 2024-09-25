@@ -1108,6 +1108,11 @@ void main() {
 	--self.ram.videoMode[0] = 2	-- 8bpp RGB332
 	self:setVideoMode(self.ram.videoMode[0])
 
+	self.ram.blendMode[0] = 0xff	-- = none
+
+	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
+	self:setClipRect(0, 0, 0xff, 0xff)
+
 	-- for the editor
 
 	-- a pattern for transparencies

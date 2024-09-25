@@ -141,8 +141,8 @@ This adds to Lua(/JIT):
 
 ## graphics
 
+- `flip()` = flip the framebuffer, and wait until the next 60Hz frame to begin.
 - `cls([color])` = clear screen.
-- `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `rect(x, y, w, h, [color])` = draw solid rectangle
 - `rectb(x, y, w, h, [color])` = draw rectangle border
 - `elli/ellib` = draw solid/border ellipse/circle.
@@ -161,7 +161,18 @@ This adds to Lua(/JIT):
 - `map(tileX,tileY,tilesWide,tilesHigh,screenX,screenY,mapIndexOffset,draw16x16Sprites)` = draw the tilemap. mapIndexOffset = global offset to shift all map indexes. draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 - `text(str,x,y)` = draw text.  I should rename this to `print` for compat reasons.
-- `mode(i)` = set video mode.  Check out the [Framebuffer](#Framebuffer) section for a description of the video modes.
+- `mode(i)` = set video mode.  The current video modes are:
+	- 0 = 16bpp RGB565, needed for blending
+	- 1 = 8bpp Indexed, not capable of blending, but capable of framebuffer palette modification
+	- 2 = 8bpp RGB332.  This is an abomination.
+- `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
+- `blend([i])` = Set blend mode.  Default value is 0xff corresponding to no blending.  The current blend modes are:
+	- 0xff = none
+	- 0 = color addition
+	- 1 = color averaging (addition then half)
+	- 2 = color subtraction
+	- 3 = color subtraction then half (not useful, as it was not useful in the SNES)
+	- TODO flag for blend with a specified secondary color instead of blend with the framebuffer... and store that in memory somewhere
 
 ## mode7:
 
@@ -298,6 +309,7 @@ Pico8 Compatability is at 95%
 - https://bumbershootsoft.wordpress.com/2023/11/18/snes-digital-audio-playback/
 - https://snes.nesdev.org/wiki/BRR_samples
 - https://snes.nesdev.org/wiki/DSP_envelopes
+- https://wiki.superfamicom.org/transparency
 
 # TODO
 - sfx and music
