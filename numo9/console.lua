@@ -28,22 +28,13 @@ function Console:init(args)
 	self.app = assert(args.app)
 
 	self:reset()
-	self:resetThread()
-end
-
--- reset console state ...
-function Console:reset()
+	
 	local app = self.app
 	self.cmdbuf = ''
 	self.prompt = '> '
 
 	self.cmdHistory = table()
 	self.cmdHistoryIndex = nil
-
-	-- TODO move these to RAM
-	self.cursorPos = vec2i(0, 0)
-	self.fgColor = 0xfd
-	self.bgColor = 0xf0
 
 	-- TODO 'getFocus' or TODO always reload?
 	-- clear the screen every time, or save the screen every time?
@@ -56,6 +47,18 @@ function Console:reset()
 	--self:print"type help() for help" -- not really
 
 	-- flag 'needsPrompt' then write the prompt in update if it's needed
+
+	self:resetThread()
+end
+
+-- reset console state ...
+function Console:reset()
+	
+	-- TODO move these to RAM
+	self.cursorPos = vec2i(0, 0)
+	self.fgColor = 0xfd
+	self.bgColor = 0xf0
+
 	self.needsPrompt = true
 end
 
@@ -184,6 +187,11 @@ function Console:coolPrint(...)
 end
 
 function Console:selectHistory(dx)
+--[[ history buf works fine except that the conosle is recreated every time esc is pushed ...
+print('selecting history', self.cmdHistoryIndex)
+print'history buf:'
+print(require 'ext.tolua'(self.cmdHistory))
+--]]	
 	local n = #self.cmdHistory
 	self.cmdHistoryIndex = (((self.cmdHistoryIndex or n+1) + dx - 1) % n) + 1
 	self.cmdbuf = self.cmdHistory[self.cmdHistoryIndex] or ''
