@@ -1,3 +1,5 @@
+local ffi = require 'ffi'
+local gl = require 'gl'
 local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
 
@@ -70,27 +72,52 @@ function EditTilemap:update()
 
 	local mapTex = app.mapTex
 
+	local tileBits = self.draw16Sprites and 4 or 3
+
 	-- draw map
 	local mapX = 0
 	local mapY = spriteSize.y
 	local mapWidthInTiles = tilemapSizeInSprites.x
 	local mapHeightInTiles = tilemapSizeInSprites.y-2
-	local mapWidth = bit.lshift(mapWidthInTiles, self.draw16Sprites and 4 or 3)
-	local mapHeight = bit.lshift(mapWidthInTiles, self.draw16Sprites and 4 or 3)
---print('map', require 'ext.string'.hexdump(require 'ffi'.string(mapTex.data, 16)))
+	local mapWidth = bit.lshift(mapWidthInTiles, tileBits)
+	local mapHeight = bit.lshift(mapWidthInTiles, tileBits)
+--print('map', require 'ext.string'.hexdump(ffi.string(mapTex.data, 16)))
 
-	app:drawMap(
-		self.tilemapPanOffset.x,	-- upper-left index in the tile tex
-		self.tilemapPanOffset.y,
-		tilemapSizeInSprites.x,	-- tiles wide
-		tilemapSizeInSprites.y,	-- tiles high
-		mapX,		-- pixel x
-		mapY,		-- pixel y
-		0,			-- map index offset / high page
-		self.draw16Sprites	-- draw 16x16 vs 8x8
+	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
+	app:drawQuad(
+		mapX,mapY,mapWidth,mapHeight,0,0,mapWidth/2,mapHeight/2,app.checkerTex,0,-1,0xFF
 	)
+	do
+		local tx = self.tilemapPanOffset.x
+		local ty = self.tilemapPanOffset.y
+		local x = mapX
+		local y = mapY
+		if tx < 0 then
+			x = x + bit.lshift(-tx, tileBits)
+			tx = 0
+		end
+		if ty < 0 then
+			y = y + bit.lshift(-ty, tileBits)
+			ty = 0
+		end
+		local tw = math.max(mapWidthInTiles, tilemapSize.x - tx)
+		local th = math.max(mapHeightInTiles, tilemapSize.y - ty)
+		if tw > 0 and th > 0 then
+			app:drawMap(
+				tx,		-- upper-left index in the tile tex
+				ty,
+				tw,		-- tiles wide
+				th,		-- tiles high
+				x,		-- pixel x
+				y,		-- pixel y
+				0,		-- map index offset / high page
+				self.draw16Sprites	-- draw 16x16 vs 8x8
+			)
+		end
+	end
+	gl.glScissor(0,0,frameBufferSize:unpack())
 	if self.drawGrid then
-		local step = bit.lshift(self.gridSpacing, self.draw16Sprites and 4 or 3)
+		local step = bit.lshift(self.gridSpacing, tileBits)
 		for i=0,frameBufferSize.x-1,step do
 			app:drawSolidLine(i, spriteSize.y, i, frameBufferSize.y-spriteSize.y, self:color(1))
 		end

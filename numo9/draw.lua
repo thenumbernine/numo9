@@ -1192,7 +1192,7 @@ end
 function AppDraw:colorSwap(from, to, x, y, w, h)
 	-- TODO SORT THIS OUT
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
-print('BEFORE', self:peek(spriteSheetAddr))	
+print('BEFORE', self:peek(spriteSheetAddr))
 	from = math.floor(from)
 	to = math.floor(to)
 	x = math.floor(x)
@@ -1227,7 +1227,7 @@ print('BEFORE', self:peek(spriteSheetAddr))
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
-print('AFTER', self:peek(spriteSheetAddr))	
+print('AFTER', self:peek(spriteSheetAddr))
 	ffi.copy(self.cartridge.v, self.ram.v, ffi.sizeof'ROM')
 	return fromFound, toFound
 end

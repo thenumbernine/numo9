@@ -1068,7 +1068,7 @@ print('got uint16 index='
 					app:pokew(c.addr, c.value)
 				elseif c.size == 4 then
 					app:pokel(c.addr, c.value)
-				else	
+				else
 					error("got a bad poke size "..tostring(c.size))
 				end
 			end
