@@ -156,11 +156,6 @@ function App:initGL()
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
 
-	--[[ boy does enabling blend make me regret using uvec4 as a fragment color output
-	gl.glEnable(gl.GL_BLEND)
-	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE)
-	--]]
-
 	self.ram = ffi.new'RAM'
 
 	-- tic80 has a reset() function for resetting RAM data to original cartridge data
@@ -326,24 +321,6 @@ function App:initGL()
 			con.cursorPos:set(0, 0)
 			self:clearScreen(colorIndex)
 		end,
-		clip = function(...)
-			local x, y, w, h
-			if select('#', ...) == 0 then
-				x, y, w, h = 0, 0, 0xff, 0xff
-			else
-				asserteq(select('#', ...), 4)
-				x, y, w, h = ...
-			end
-			if self.server then
-				local cmd = self.server:pushCmd().clipRect
-				cmd.type = netcmds.clipRect
-				cmd.x = x
-				cmd.y = y
-				cmd.w = w
-				cmd.h = h
-			end
-			self:setClipRect(x, y, w, h)
-		end,
 
 		-- TODO tempting to just expose flags for ellipse & border to the 'cartridge' api itself ...
 		rect = function(x, y, w, h, colorIndex)
@@ -507,9 +484,40 @@ function App:initGL()
 			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
 
-		mode = function(mode)
+		mode = function(videoMode)
 			-- for net play's sake ,how about just doing a peek/poke?
-			self:net_poke(ffi.offsetof('RAM', 'videoMode'), mode)
+			self:net_poke(ffi.offsetof('RAM', 'videoMode'), videoMode)
+		end,
+	
+		clip = function(...)
+			local x, y, w, h
+			if select('#', ...) == 0 then
+				x, y, w, h = 0, 0, 0xff, 0xff
+			else
+				asserteq(select('#', ...), 4)
+				x, y, w, h = ...
+			end
+			if self.server then
+				local cmd = self.server:pushCmd().clipRect
+				cmd.type = netcmds.clipRect
+				cmd.x = x
+				cmd.y = y
+				cmd.w = w
+				cmd.h = h
+			end
+			self:setClipRect(x, y, w, h)
+		end,
+
+		-- for now, like clipRect, you gotta do this through the game API for it to work, not by directly writing to RAM like mode()
+		-- why? because mode can change modes fine between frames, but blend and clip have to change gl state between draw calls
+		blend = function(blendMode)
+			blendMode = blendMode or 0xff
+			if self.server then
+				local cmd = self.server:pushCmd().blendMode
+				cmd.type = netcmds.blendMode
+				cmd.blendMode = blendMode
+			end
+			self:setBlendMode(blendMode)
 		end,
 
 		-- me cheating and exposing opengl modelview matrix functions:
@@ -733,11 +741,6 @@ print('package.loaded', package.loaded)
 
 
 	self:initDraw()
-
-	-- 4 uint8 bytes ...
-	-- x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
-	self.clipRect = self.ram.clipRect
-	packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
 
 	-- keyboard init
 	-- make sure our keycodes are in bounds
@@ -1116,10 +1119,14 @@ conn.receivesPerSecond = 0
 		gl.glViewport(0,0,frameBufferSize:unpack())
 		gl.glEnable(gl.GL_SCISSOR_TEST)
 		gl.glScissor(
-			self.clipRect[0],
-			self.clipRect[1],
-			self.clipRect[2]+1,
-			self.clipRect[3]+1)
+			self.ram.clipRect[0],
+			self.ram.clipRect[1],
+			self.ram.clipRect[2]+1,
+			self.ram.clipRect[3]+1)
+		-- see if we need to re-enable it ...
+		if self.ram.blendMode[0] ~= 0xff then
+			self:setBlendMode(self.ram.blendMode[0])
+		end
 
 		-- TODO here run this only 60 fps
 		local runFocus = self.runFocus
@@ -1145,6 +1152,7 @@ print('no runnable focus!')
 		end
 
 		gl.glDisable(gl.GL_SCISSOR_TEST)
+		gl.glDisable(gl.GL_BLEND)
 		self.inUpdateCallback = false
 		fb:unbind()
 
@@ -1462,12 +1470,43 @@ function App:clearScreen(colorIndex)
 end
 
 function App:setClipRect(x, y, w, h)
-	packptr(4, self.clipRect, x, y, w, h)
+	-- NOTICE the ram is only useful for reading, not writing, as it won't invoke a glScissor call
+	-- ... should I change that?
+	packptr(4, self.ram.clipRect, x, y, w, h)
 	gl.glScissor(
-		self.clipRect[0],
-		self.clipRect[1],
-		self.clipRect[2]+1,
-		self.clipRect[3]+1)
+		self.ram.clipRect[0],
+		self.ram.clipRect[1],
+		self.ram.clipRect[2]+1,
+		self.ram.clipRect[3]+1)
+end
+
+function App:setBlendMode(blendMode)
+	self.ram.blendMode[0] = blendMode or 0xff
+	if blendMode == 0 then		-- add
+		gl.glEnable(gl.GL_BLEND)
+		gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
+		gl.glBlendEquation(gl.GL_FUNC_ADD)
+		self.blendAlpha = 1
+	elseif blendMode == 1 then	-- add & half
+		gl.glEnable(gl.GL_BLEND)
+		gl.glBlendFunc(gl.GL_CONSTANT_ALPHA, gl.GL_CONSTANT_ALPHA)
+		gl.glBlendColor(1,1,1,.5)
+		gl.glBlendEquation(gl.GL_FUNC_ADD)
+		self.blendAlpha = .5
+	elseif blendMode == 2 then	-- subtract
+		gl.glEnable(gl.GL_BLEND)
+		gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
+		gl.glBlendEquation(gl.GL_FUNC_SUBTRACT)
+		self.blendAlpha = 1
+	elseif blendMode == 3 then	-- subtract & half
+		gl.glEnable(gl.GL_BLEND)
+		gl.glBlendFunc(gl.GL_CONSTANT_ALPHA, gl.GL_CONSTANT_ALPHA)
+		gl.glBlendColor(1,1,1,.5)
+		gl.glBlendEquation(gl.GL_FUNC_SUBTRACT)
+		self.blendAlpha = .5
+	else
+		gl.glDisable(gl.GL_BLEND)
+	end
 end
 
 --[[
@@ -1848,7 +1887,7 @@ end
 -- do this every time we run a new rom
 function App:resetView()
 	self.mvMat:setIdent()
-	packptr(4, self.clipRect, 0, 0, 0xff, 0xff)
+	packptr(4, self.ram.clipRect, 0, 0, 0xff, 0xff)
 end
 
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
@@ -2022,10 +2061,10 @@ function App:runInEmu(cb, ...)
 		self.fb:bind()
 		gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
 		gl.glScissor(
-			self.clipRect[0],
-			self.clipRect[1],
-			self.clipRect[2]+1,
-			self.clipRect[3]+1)
+			self.ram.clipRect[0],
+			self.ram.clipRect[1],
+			self.ram.clipRect[2]+1,
+			self.ram.clipRect[3]+1)
 	end
 	-- TODO if we're in the update callback then maybe we'd want to push/pop the viewport and scissors?
 	-- meh I'll leave that up to the callback

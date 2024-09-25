@@ -323,6 +323,15 @@ local Numo9Cmd_text = struct{
 	},
 } 	-- TODO if text is larger than this then issue multiple commands or something
 
+local Numo9Cmd_blendMode = struct{
+	name = 'Numo9Cmd_blendMode',
+	--packed = true,
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='blendMode', type='uint8_t'},
+	},
+}
+
 local Numo9Cmd_matident = struct{
 	name = 'Numo9Cmd_matident',
 	--packed = true,
@@ -431,6 +440,7 @@ local netCmdStructs = table{
 	Numo9Cmd_quad,
 	Numo9Cmd_map,
 	Numo9Cmd_text,
+	Numo9Cmd_blendMode,
 	Numo9Cmd_matident,
 	Numo9Cmd_mattrans,
 	Numo9Cmd_matrot,
@@ -1025,6 +1035,9 @@ print('got uint16 index='
 					ffi.string(c.text, math.min(ffi.sizeof(c.text), tonumber(ffi.C.strlen(c.text)))),
 					c.x, c.y,
 					c.fgColorIndex, c.bgColorIndex)
+			elseif cmdtype == netcmds.blendMode then
+				local c = cmd[0].blendMode
+				app:setBlendMode(c.blendMode)
 			elseif cmdtype == netcmds.matident then
 				app:mvMatFromRAM()
 				app.mvMat:setIdent()
