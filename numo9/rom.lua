@@ -68,6 +68,12 @@ local ROM = struct{
 				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},
 				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},
 				{name='palette', type='uint16_t['..paletteSize..']'},
+
+				-- pico8 has 256 bytes for a song in RAM
+				-- and 4352 bytes for sfx in RAM (does it store them all in RAM?)
+				-- http://pico8wiki.com/index.php?title=Memory
+				--{name='
+
 				{name='code', type='uint8_t['..codeSize..']'},
 			},
 		}},

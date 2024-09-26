@@ -10,6 +10,7 @@ local ffi = require 'ffi'
 local path = require 'ext.path'
 local table = require 'ext.table'
 local range = require 'ext.range'
+local tolua = require 'ext.tolua'
 local string = require 'ext.string'
 local asserteq = require 'ext.assert'.eq
 local assertlt = require 'ext.assert'.lt
@@ -430,11 +431,54 @@ print('toImage', name, 'width', width, 'height', height)
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
+	-- http://pico8wiki.com/index.php?title=P8FileFormat
 	local sfxSrc = move(sections, 'sfx')
-	basepath'sfx.txt':write(sfxSrc:concat'\n'..'\n')
+	local sfxs = table()
+	for _,line in ipairs(sfxSrc) do
+		local sfx = {
+			editorMode = tonumber(line:sub(1,2), 16),
+			duration = tonumber(line:sub(3,4), 16),
+			loopStart = tonumber(line:sub(5,6), 16),
+			loopEnd = tonumber(line:sub(7,8), 16),
+		}
+		-- Should be 32 notes, each note is represented by 20 bits = 5 nybbles
+		-- each is note is per update? 30hz? 60hz? idk?
+		-- from http://pico8wiki.com/index.php?title=Memory it sounds like
+		-- - pico8 is 22050 hz sampling
+		-- - 1 note duration on full speed (effect-speed=1) is 183 audio samples
+		-- ... so 32 notes long = 32 * 183 samples long, at rate of 22050 samples/second, is 0.265 seconds
+		-- 183 samples per update at 22050 samples/second means we're updating our sound buffers 22050/183 times/second = 120 times/second ...
+		-- why 120 times per second?  why not update 60 fps and let our notes last as long as our refresh-rate?
+		-- either way, we can only issue audio commands every update() , which itself is 60hz, so might as well size our buffers at 22050/60 = 387.5 samples
+		-- or use 32000 and size our 1/60 buffers to be 533.333 samples
+		-- or use 44100 and size our 1/60 buffers to be 735 samples
+		sfx.notes = table()
+		for i=9,#line,5 do
+			sfx.notes:insert{
+				pitch = tonumber(line:sub(i,i+1), 16),		-- 0-63,
+				waveform = tonumber(line:sub(i+2,i+2), 16),	-- 0-15 ... 0-7 are builtin, 8-15 are sfx 0-7
+				volume = tonumber(line:sub(i+3,i+3), 16),	-- 0-7
+				effect = tonumber(line:sub(i+4,i+4), 16),	-- 0-7
+			}
+		end
+		sfxs:insert(sfx)
+	end
+	basepath'sfx.lua':write(tolua(sfxs))
 
 	local musicSrc = move(sections, 'music')
-	basepath'music.txt':write(musicSrc:concat'\n'..'\n')
+	local music = table()
+	for i,line in ipairs(musicSrc) do
+		if not (i >= 64 and line == '') then
+			local flags = tonumber(line:sub(1,2), 16)
+			music:insert{
+				beginPatternLoop = 0 ~= bit.band(1, flags),
+				endPatternLoop = 0 ~= bit.band(2, flags),
+				stopAtEndOfPattern = 0 ~= bit.band(4, flags),
+				sfxs = line:sub(4):gsub('..', function(h) return tonumber(h, 16) end),
+			}
+		end
+	end
+	basepath'music.lua':write(tolua(music))
 
 	local palImg = Image(16, 16, 4, 'unsigned char',
 		-- fill out the default pico8 palette
