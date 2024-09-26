@@ -132,6 +132,9 @@ local updateInterval = 1 / 60
 local needDrawCounter = 0
 local needUpdateCounter = 0
 
+local drawCounterNeededToRedraw = 1	-- 1 for single buffer,
+--local drawCounterNeededToRedraw = 2 -- 2 for double buffer
+
 -- TODO ypcall that is xpcall except ...
 -- ... 1) error strings don't have source/line in them (that goes in backtrace)
 -- ... 2) no error callback <-> default, which simply appends backtrace
@@ -141,13 +144,37 @@ local function errorHandler(err)
 end
 App.errorHandler = errorHandler
 
-
---[[ how come I can't disable double-buffering?
+-- NOTICE NOTICE NOTICE (is this a sdl bug? or is this actually correct behavior)
+-- IF YOU SET SDL_GL DOUBLEBUFFER=1 ... THEN IMMEDIATELY SET IT TO ZERO ... WHATEVER IT IS, IT ISNT SINGLE-BUFFER
+-- INSTEAD I COPIED THE WHOLE SDL SET ATTRIBUTE SECTION AND CHANGED DOUBLEBUFFER THERE TO ALWAYS ONLY SET TO ZERO AND IT WORKS FINE.
+-- [[ how come I can't disable double-buffering?
 local sdlAssertZero = require 'sdl.assert'.zero
 function App:sdlGLSetAttributes()
+	--[=[
+	-- I should be able to just call super (which sets everything ... incl doublebuffer=1) .. and then set it back to zero right?
 	App.super.sdlGLSetAttributes(self)
-	-- no need for double-buffering if we're framebuffering
 	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 0))
+	-- ... but no, it seems some state info (drawbuffer?) is changed immediatley upon setting GL_DOUBLEBUFFER=1,
+	-- and not when I expected it to be: when the window or the gl context is created.
+	-- and the change is permanent and is not reset when you set back GL_DOUBLEBUFFER=0
+	--]=]
+	-- [=[ maybe sdl/gl doens't forget once you set it the first time?
+	-- so here's a copy of GLApp:sdlGLSetAttributes but withotu setting double buffer ...
+	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_RED_SIZE, 8))
+	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_GREEN_SIZE, 8))
+	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_BLUE_SIZE, 8))
+	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ALPHA_SIZE, 8))
+	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DEPTH_SIZE, 24))
+	--sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 1))	-- THE ONE LINE I CHANGED ...
+	if ffi.os == 'OSX' then
+		local version = {4, 1}
+		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MAJOR_VERSION, version[1]))
+		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MINOR_VERSION, version[2]))
+		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_PROFILE_MASK, sdl.SDL_GL_CONTEXT_PROFILE_CORE))
+		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_FLAGS, sdl.SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG))
+		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ACCELERATED_VISUAL, 1))
+	end
+	--]=]
 end
 --]]
 
@@ -519,7 +546,7 @@ function App:initGL()
 				cmd.type = netcmds.blendMode
 				cmd.blendMode = blendMode
 			end
-			
+
 			self.ram.blendMode[0] = blendMode or 0xff
 			blendMode = self.ram.blendMode[0]
 
@@ -913,7 +940,7 @@ function App:resetGFX()
 end
 
 function App:resize()
-	needDrawCounter = 2
+	needDrawCounter = drawCounterNeededToRedraw
 end
 
 
@@ -1006,10 +1033,10 @@ function App:update()
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
-		--print(
+		print(
 		--	'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs
-		--	..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
-		--)
+			'draws/second '..drawsPerSecond	-- TODO make this single-buffered
+		)
 		if self.server then
 			--[[
 docs say:
@@ -1279,7 +1306,7 @@ print('cartridge thread dead')
 		-- then here test for that flag and only re-increment 'needDraw' if it's set
 		if self.fbTex.changedSinceDraw then
 			self.fbTex.changedSinceDraw = false
-			needDrawCounter = 2
+			needDrawCounter = drawCounterNeededToRedraw
 		end
 	end
 
