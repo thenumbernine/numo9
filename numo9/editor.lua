@@ -1,5 +1,6 @@
 local ffi = require 'ffi'
 local math = require 'ext.math'
+local table = require 'ext.table'
 local class = require 'ext.class'
 
 local paletteSize = require 'numo9.rom'.paletteSize
@@ -15,7 +16,7 @@ local codeSize = require 'numo9.rom'.codeSize
 -- TODO make the editor a rom itself
 -- TODO make roms that hold all the necessary stuff
 
-local editModes = {
+local editModesWithoutNet = table{
 	'code',
 	'sprites',
 	'tilemap',
@@ -23,7 +24,10 @@ local editModes = {
 	'music',
 }
 
+local editModesWithNet = table{'net'}:append(editModesWithoutNet)
+
 local editFieldForMode = {
+	net = 'editNet',
 	code = 'editCode',
 	sprites = 'editSprites',
 	tilemap = 'editTilemap',
@@ -49,10 +53,7 @@ end
 function Editor:guiButton(x, y, str, isset, tooltip)
 	local app = self.app
 
-	-- TODO it's tempting to draw the editor directly to RGB, not using the fantasy-console's rendering ...
-	-- ... that means builtin font as well ...
-	-- yeah it's not a console for sure.
-	self:drawText(str, x, y,
+	local w = self:drawText(str, x, y,
 		isset and 13 or 10,
 		isset and 4 or 2
 		--isset and 15 or 4,
@@ -60,7 +61,7 @@ function Editor:guiButton(x, y, str, isset, tooltip)
 	)
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
-	if mouseX >= x and mouseX < x + spriteSize.x
+	if mouseX >= x and mouseX < x + w
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
@@ -129,6 +130,7 @@ end
 
 function Editor:update()
 	local app = self.app
+	local editModes = app.server and editModesWithNet or editModesWithoutNet
 
 	app:clearScreen(0xf0)
 	app:drawSolidRect(
@@ -136,7 +138,7 @@ function Editor:update()
 		frameBufferSize.x, spriteSize.y,	-- w, h,
 		self:color(0)
 	)
-
+	
 	self:guiRadio(
 		0,
 		0,

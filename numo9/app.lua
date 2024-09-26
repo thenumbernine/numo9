@@ -251,7 +251,7 @@ function App:initGL()
 				-- but it's executed mid-frame on the server, while server is building a command-buffer
 				-- where will deltas come into play?
 				-- how about new-frame messages too?
-				for _,serverConn in ipairs(self.server.serverConns) do
+				for _,serverConn in ipairs(self.server.conns) do
 					self.server:sendRAM(serverConn)
 				end
 			end
@@ -265,7 +265,7 @@ function App:initGL()
 			-- 2) ... upon client reset() just copy that over?
 			-- fwiw the initial sendRAM doesn't include the cartridge state, just the RAM state ...
 			if self.server then
-				for _,serverConn in ipairs(self.server.serverConns) do
+				for _,serverConn in ipairs(self.server.conns) do
 					self.server:sendRAM(serverConn)
 				end
 			end
@@ -519,6 +519,10 @@ function App:initGL()
 				cmd.type = netcmds.blendMode
 				cmd.blendMode = blendMode
 			end
+			
+			self.ram.blendMode[0] = blendMode or 0xff
+			blendMode = self.ram.blendMode[0]
+
 			self:setBlendMode(blendMode)
 		end,
 
@@ -767,6 +771,7 @@ print('package.loaded', package.loaded)
 
 	self.editMode = 'code'	-- matches up with Editor's editMode's
 
+	local EditNet = require 'numo9.editnet'
 	local EditCode = require 'numo9.editcode'
 	local EditSprites = require 'numo9.editsprites'
 	local EditTilemap = require 'numo9.edittilemap'
@@ -776,6 +781,7 @@ print('package.loaded', package.loaded)
 
 	self:runInEmu(function()
 		self:resetView()	-- reset mat and clip
+		self.editNet = EditNet{app=self}
 		self.editCode = EditCode{app=self}
 		self.editSprites = EditSprites{app=self}
 		self.editTilemap = EditTilemap{app=self}
@@ -917,19 +923,19 @@ local ClientConn = require 'numo9.net'.ClientConn
 -- stop all client and server stuff from going on
 function App:disconnect()
 	if self.server then
-		self.con:print('already listening ... listening again')
+		self.con:print('closing server ...')
 		self.server:close()
 		self.server = nil
 	end
 	if self.remoteClient then
-		self.con:print('already connected ... disconnecting')
+		self.con:print('disconnecting from server ...')
 		self.remoteClient:close()
 		self.remoteClient = nil
 	end
 end
 
 App.playerInfos = {	-- TODO put this in a config file
-	{name='a'},
+	{name='a', localPlayer=1},
 	{name='b'},
 	{name='c'},
 	{name='d'},
@@ -1046,9 +1052,9 @@ print(
 			io.write(' idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
 self.server.numDeltasSentPerSec = 0
 self.server.numIdleChecksPerSec = 0
-			if self.server.serverConns[1] then
-				local conn = self.server.serverConns[1]
-				io.write('serverconn stats '..require'ext.tolua'{self.server.serverConns[1].socket:getstats()}
+			if self.server.conns[1] then
+				local conn = self.server.conns[1]
+				io.write('serverconn stats '..require'ext.tolua'{self.server.conns[1].socket:getstats()}
 					..' msgs='..#conn.toSend
 					..' sized='..#conn.toSend:concat()
 					..' send/sec='..conn.sendsPerSecond
@@ -1543,9 +1549,6 @@ App.drawOverrideSolidG = 0
 App.drawOverrideSolidB = 0
 App.drawOverrideSolidA = 0
 function App:setBlendMode(blendMode)
-	self.ram.blendMode[0] = blendMode or 0xff
-	blendMode = self.ram.blendMode[0]
-
 	if blendMode >= 8 then
 		self.drawOverrideSolidA = 0
 		gl.glDisable(gl.GL_BLEND)
@@ -2181,7 +2184,7 @@ function App:event(e)
 			-- ... can you not issue commands while the game is loaded without resetting the game?
 			if self.con.isOpen then
 				self.con.isOpen = false
-				self.currentEditor = self.editCode
+				self.currentEditor = self.server and self.editNet or self.editCode
 				if self.currentEditor.gainFocus then
 					self.currentEditor:gainFocus()
 				end

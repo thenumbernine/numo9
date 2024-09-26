@@ -248,7 +248,16 @@ The button codes are as follows:
 	- `app` = the NuMo9 app itself.  Probably going away soon.
 	- `_G` = the NuMo9 global.  Probably going away soon.
 
+# Console
+
+Push Esc in gameplay to get to the console.
+The console accepts Lua commands directly, just like the game script does.
+
 # Editor
+
+Push Esc in console to get to the editor.  Press again to get back to gameplay. 
+
+Multiplayer page will list connections.  It will let associate connected players with controllers, kick, etc. 
 
 Code page. Should do what you would expect.  Ctrl(/Apple)+X=cut C=copy V=paste A=select-all.
 
@@ -331,9 +340,12 @@ Pico8 Compatability is at 95%
 	- joystick support
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
 - multiplayer
-	- how should chat work?  or no chat?
-	- where should notification messages show up? host terminal?  windows users don't like host terminal.
-	- needs proper observer/lobby/hotseat roles.
+	- where should notification messages show up? host terminal?  windows users don't like host terminal...
+	- needs proper observer/lobby/hotseat roles.  how should server be able to see whose connected?
+		- how about another editor window?  for connections - with buttons for ...
+			- how many seats are available
+			- how many for auto-joining, such that first joined player sits down immediately
+			- per connection: boot, leave seat, sit
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
 	- copy/paste on the tilemap.
