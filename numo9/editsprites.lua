@@ -24,6 +24,7 @@ local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
 local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
 local tilemapSize = require 'numo9.rom'.tilemapSize
 local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
+local unpackptr = require 'numo9.rom'.unpackptr
 
 
 local EditSprites = require 'numo9.editor':subclass()
@@ -654,8 +655,7 @@ print'BAKING PALETTE'
 						local srcp = image.buffer
 						local dstp = image1ch.buffer
 						for i=0,image.width*image.height-1 do
-							-- TODO unpackptr here
-							local key = string.char(srcp[0], srcp[1], srcp[2])
+							local key = string.char(unpackptr(3, srcp))
 							local dstIndex = indexForColor[key]
 							if not dstIndex then
 								print("no index for color "..Quantize.bintohex(key))
