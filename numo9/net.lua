@@ -498,7 +498,8 @@ function ServerConn:init(args)
 end
 
 function ServerConn:isActive()
-	return coroutine.status(self.thread) ~= 'dead'
+	return self.socket
+	and coroutine.status(self.thread) ~= 'dead'
 end
 
 ServerConn.sendsPerSecond = 0
@@ -555,6 +556,13 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 print'END SERVERCONN LOOP'
 end
 
+function ServerConn:close()
+	if self.socket then
+		self.socket:close()
+		self.socket = nil	-- TODO this too?  or nah, just close and let that be enough for active-detection and auto-removal?
+	end
+end
+
 
 local Server = class()
 
@@ -570,7 +578,7 @@ function Server:init(app)
 	local listenPort = self.listenPort
 	con:print('init listening on '..tostring(listenAddr)..':'..tostring(listenPort))
 
-	self.serverConns = table()
+	self.conns = table()
 	-- TODO make net device configurable too?
 	local sock = assert(socket.bind(listenAddr, listenPort))
 	self.socket = sock
@@ -659,7 +667,7 @@ function Server:endFrame()
 
 		if deltas.size > 0 then
 			local data = ffi.string(ffi.cast('char*', deltas.v), 2*deltas.size)
-			for _,serverConn in ipairs(self.serverConns) do
+			for _,serverConn in ipairs(self.conns) do
 				serverConn.toSend:insert(data)
 			end
 		end
@@ -721,12 +729,12 @@ function Server:updateCoroutine()
 		-- now handle connections
 		-- this jsut removes dead ones
 		-- the conns themselves have threads that they send out messages in order
-		for i=#self.serverConns,1,-1 do
+		for i=#self.conns,1,-1 do
 self.updateConnCount = self.updateConnCount + 1
-			local serverConn = self.serverConns[i]
+			local serverConn = self.conns[i]
 			if not serverConn:isActive() then
 print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
-				self.serverConns:remove(i)
+				self.conns:remove(i)
 			end
 		end
 	end
@@ -777,7 +785,7 @@ print'creating server remote client conn...'
 		playerInfos = playerInfos,
 		thread = coroutine.running(),
 	}
-	self.serverConns:insert(serverConn)
+	self.conns:insert(serverConn)
 
 	-- send RAM message
 	self:sendRAM(serverConn)
