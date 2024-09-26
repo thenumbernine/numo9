@@ -1242,6 +1242,400 @@ function AppDraw:colorSwap(from, to, x, y, w, h)
 	return fromFound, toFound
 end
 
+
+-- convert to/from our fixed-point storage in RAM and the float matrix that the matrix library uses
+function AppDraw:mvMatToRAM()
+	for i=0,15 do
+		self.ram.mvMat[i] = self.mvMat.ptr[i] * mvMatScale
+	end
+end
+function AppDraw:mvMatFromRAM()
+	for i=0,15 do
+		self.mvMat.ptr[i] = self.ram.mvMat[i] / mvMatScale
+	end
+end
+
+-- this re-inserts the font and default palette
+-- and copies those changes back into the cartridge too (stupid idea of keeping two copies of the cartridge in RAM and ROM ...)
+function AppDraw:resetGFX()
+	--self.spriteTex:prepForCPU()
+	require 'numo9.draw'.resetFont(self.ram)
+	ffi.copy(self.cartridge.spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
+
+	--self.palTex:prepForCPU()
+	require 'numo9.draw'.resetPalette(self.ram)
+	ffi.copy(self.cartridge.palette, self.ram.palette, paletteInBytes)
+
+	assert(not self.spriteTex.dirtyGPU)
+	self.spriteTex.dirtyCPU = true
+	assert(not self.palTex.dirtyGPU)
+	self.palTex.dirtyCPU = true
+end
+
+function AppDraw:resize()
+	needDrawCounter = drawCounterNeededToRedraw
+end
+
+
+function AppDraw:drawSolidRect(
+	x,
+	y,
+	w,
+	h,
+	colorIndex,
+	borderOnly,
+	round
+)
+	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.fbTex:checkDirtyCPU()
+
+	local sceneObj = self.quadSolidObj
+	local uniforms = sceneObj.uniforms
+
+	uniforms.mvMat = self.mvMat.ptr
+	uniforms.colorIndex = math.floor(colorIndex)
+	uniforms.borderOnly = borderOnly or false
+	uniforms.round = round or false
+	if w < 0 then x,w = x+w,-w end
+	if h < 0 then y,h = y+h,-h end
+	settable(uniforms.box, x, y, w, h)
+
+	-- redundant, but i guess this is a way to draw with a color outside the palette, so *shrug*
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+
+	sceneObj:draw()
+	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
+end
+-- TODO get rid of this function
+function AppDraw:drawBorderRect(
+	x,
+	y,
+	w,
+	h,
+	colorIndex,
+	...	-- round
+)
+	return self:drawSolidRect(x,y,w,h,colorIndex,true,...)
+end
+
+function AppDraw:drawSolidLine(x1,y1,x2,y2,colorIndex)
+	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.fbTex:checkDirtyCPU()
+
+	local sceneObj = self.lineSolidObj
+	local uniforms = sceneObj.uniforms
+
+	uniforms.mvMat = self.mvMat.ptr
+	uniforms.colorIndex = colorIndex
+	settable(uniforms.line, x1,y1,x2,y2)
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+
+	sceneObj:draw()
+	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
+end
+
+local mvMatCopy = ffi.new('float[16]')
+function AppDraw:clearScreen(colorIndex)
+--	self.quadSolidObj.uniforms.mvMat = ident4x4.ptr
+	gl.glDisable(gl.GL_SCISSOR_TEST)
+	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
+	self.mvMat:setIdent()
+	self:drawSolidRect(
+		0,
+		0,
+		frameBufferSize.x,
+		frameBufferSize.y,
+		colorIndex or 0)
+	gl.glEnable(gl.GL_SCISSOR_TEST)
+	ffi.copy(self.mvMat.ptr, mvMatCopy, ffi.sizeof(mvMatCopy))
+--	self.quadSolidObj.uniforms.mvMat = self.mvMat.ptr
+end
+
+function AppDraw:setClipRect(x, y, w, h)
+	-- NOTICE the ram is only useful for reading, not writing, as it won't invoke a glScissor call
+	-- ... should I change that?
+	packptr(4, self.ram.clipRect, x, y, w, h)
+	gl.glScissor(
+		self.ram.clipRect[0],
+		self.ram.clipRect[1],
+		self.ram.clipRect[2]+1,
+		self.ram.clipRect[3]+1)
+end
+
+-- for when we blend against solid colors, these go to the shaders to output it
+AppDraw.drawOverrideSolidR = 0
+AppDraw.drawOverrideSolidG = 0
+AppDraw.drawOverrideSolidB = 0
+AppDraw.drawOverrideSolidA = 0
+function AppDraw:setBlendMode(blendMode)
+	if blendMode >= 8 then
+		self.drawOverrideSolidA = 0
+		gl.glDisable(gl.GL_BLEND)
+		return
+	end
+
+	gl.glEnable(gl.GL_BLEND)
+
+	local subtract = bit.band(blendMode, 2) ~= 0
+	if subtract then
+		--gl.glBlendEquation(gl.GL_FUNC_SUBTRACT)		-- sprite minus framebuffer
+		gl.glBlendEquation(gl.GL_FUNC_REVERSE_SUBTRACT)	-- framebuffer minus sprite
+	else
+		gl.glBlendEquation(gl.GL_FUNC_ADD)
+	end
+
+--[[
+-- TODO how to get blend to replace the incoming color with a constant-color?
+-- or is there not?
+-- do I have to code the color-replacement into the shaders?
+	local cr, cg, cb
+	if bit.band(blendMode, 4) ~= 0 then
+		cr, cg, cb = rgba5551_to_rgba8888_4ch(self.ram.blendColor[0])
+	else
+		cr, cg, cb = 1, 1, 1
+	end
+--]]
+-- [[ ... if not then it's gotta be done as a shader ... all shaders need a toggle to override their output when necessary for blend ...
+	self.drawOverrideSolidA = bit.band(blendMode, 4) == 0 and 0 or 0xff	-- > 0 means we're using draw-override
+	local dr, dg, db = rgba5551_to_rgba8888_4ch(self.ram.blendColor[0])
+	self.drawOverrideSolidR = dr
+	self.drawOverrideSolidG = dg
+	self.drawOverrideSolidB = db
+--]]
+	local ca = 1
+	local half = bit.band(blendMode, 1) ~= 0
+	-- technically half didnt work when blending with constant-color on the SNES ...
+	if half then
+		ca = .5
+	end
+	gl.glBlendColor(1, 1, 1, ca)
+
+	if half then
+		gl.glBlendFunc(gl.GL_CONSTANT_ALPHA, gl.GL_CONSTANT_ALPHA)
+	else
+		gl.glBlendFunc(gl.GL_ONE, gl.GL_ONE)
+	end
+end
+
+--[[
+'lower level' functionality than 'drawSprite'
+args:
+	x y w h = quad rectangle on screen
+	tx ty tw th = texcoord rectangle
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
+--]]
+function AppDraw:drawQuad(
+	x, y, w, h,	-- quad box
+	tx, ty, tw, th,	-- texcoord bbox
+	tex,
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
+)
+	if tex.checkDirtyCPU then	-- some editor textures are separate of the 'hardware' and don't possess this
+		tex:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
+	end
+	self.palTex:checkDirtyCPU() 	-- before any GPU op that uses palette...
+	self.fbTex:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+
+	paletteIndex = paletteIndex or 0
+	transparentIndex = transparentIndex or -1
+	spriteBit = spriteBit or 0
+	spriteMask = spriteMask or 0xFF
+
+	local sceneObj = self.quadSpriteObj
+	local uniforms = sceneObj.uniforms
+	sceneObj.texs[1] = tex
+
+	uniforms.mvMat = self.mvMat.ptr
+	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
+	uniforms.transparentIndex = transparentIndex
+	uniforms.spriteBit = spriteBit
+	uniforms.spriteMask = spriteMask
+	settable(uniforms.tcbox, tx, ty, tw, th)
+	settable(uniforms.box, x, y, w, h)
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+
+	sceneObj:draw()
+	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
+end
+
+--[[
+spriteIndex =
+	bits 0..4 = x coordinate in sprite sheet
+	bits 5..9 = y coordinate in sprite sheet
+spritesWide = width in sprites
+spritesHigh = height in sprites
+paletteIndex =
+	byte value with high 4 bits that holds which palette to use
+	... this is added to the sprite color index so really it's a palette shift.
+	(should I OR it?)
+transparentIndex = which color index in the sprite to use as transparency.  default -1 = none
+spriteBit = index of bit (0-based) to use, default is zero
+spriteMask = mask of number of bits to use, default is 0xF <=> 4bpp
+scaleX = how much to scale the drawn width, default is 1
+scaleY = how much to scale the drawn height, default is 1
+--]]
+function AppDraw:drawSprite(
+	spriteIndex,
+	screenX,
+	screenY,
+	spritesWide,
+	spritesHigh,
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask,
+	scaleX,
+	scaleY
+)
+	spritesWide = spritesWide or 1
+	spritesHigh = spritesHigh or 1
+	scaleX = scaleX or 1
+	scaleY = scaleY or 1
+	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
+	spriteIndex = math.floor(spriteIndex)
+	local tx = spriteIndex % spriteSheetSizeInTiles.x
+	local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
+	self:drawQuad(
+		-- x y w h
+		screenX,
+		screenY,
+		spritesWide * spriteSize.x * scaleX,
+		spritesHigh * spriteSize.y * scaleY,
+		-- tx ty tw th
+		tx / tonumber(spriteSheetSizeInTiles.x),
+		ty / tonumber(spriteSheetSizeInTiles.y),
+		spritesWide / tonumber(spriteSheetSizeInTiles.x),
+		spritesHigh / tonumber(spriteSheetSizeInTiles.y),
+		self.spriteTex,	-- tex
+		paletteIndex,
+		transparentIndex,
+		spriteBit,
+		spriteMask
+	)
+end
+
+-- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
+function AppDraw:drawMap(
+	tileX,			-- \_ upper-left position in the tilemap
+	tileY,			-- /
+	tilesWide,		-- \_ how many tiles wide & high to draw
+	tilesHigh,		-- /
+	screenX,		-- \_ where in the screen to draw
+	screenY,		-- /
+	mapIndexOffset,	-- general shift to apply to all read map indexes in the tilemap
+	draw16Sprites	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
+)
+	self.tileTex:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
+	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.mapTex:checkDirtyCPU()
+	self.fbTex:checkDirtyCPU()
+
+	tilesWide = tilesWide or 1
+	tilesHigh = tilesHigh or 1
+	mapIndexOffset = mapIndexOffset or 0
+
+	local sceneObj = self.quadMapObj
+	local uniforms = sceneObj.uniforms
+	sceneObj.texs[1] = self.mapTex
+
+	uniforms.mvMat = self.mvMat.ptr
+	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
+
+	settable(uniforms.tcbox,
+		tileX / tonumber(tilemapSizeInSprites.x),
+		tileY / tonumber(tilemapSizeInSprites.y),
+		tilesWide / tonumber(tilemapSizeInSprites.x),
+		tilesHigh / tonumber(tilemapSizeInSprites.y)
+	)
+	local draw16As0or1 = draw16Sprites and 1 or 0
+	uniforms.draw16Sprites = draw16As0or1
+	settable(uniforms.box,
+		screenX or 0,
+		screenY or 0,
+		tilesWide * bit.lshift(spriteSize.x, draw16As0or1),
+		tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
+	)
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+
+	sceneObj:draw()
+	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
+end
+
+-- draw transparent-background text
+function AppDraw:drawText1bpp(text, x, y, color, scaleX, scaleY)
+	for i=1,#text do
+		local ch = text:byte(i)
+		local bi = bit.band(ch, 7)		-- get the bit offset
+		local by = bit.rshift(ch, 3)	-- get the byte offset
+		self:drawSprite(
+			spriteSheetSizeInTiles.x * (spriteSheetSizeInTiles.y-1)
+			+ by,                     -- spriteIndex is th last row
+			x,						-- x
+			y,                      -- y
+			1,                      -- spritesWide
+			1,                      -- spritesHigh
+			-- font color is 0 = background, 1 = foreground
+			-- so shift this by 1 so the font tex contents shift it back
+			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
+			-- 		heck why not store 2 letters per left and right half as well?  that's half the alphaet in a single 8x8 sprite black.
+			color-1,           		-- paletteIndex ... 'color index offset' / 'palette high bits'
+			0,				       	-- transparentIndex
+			bi,                     -- spriteBit
+			1,                      -- spriteMask
+			scaleX,                 -- scaleX
+			scaleY                  -- scaleY
+		)
+		-- TODO font widths per char?
+		x = x + fontWidth
+	end
+	return x
+end
+
+-- draw a solid background color, then draw the text transparent
+-- specify an oob bgColorIndex to draw with transparent background
+-- and default x, y to the last cursor position
+function AppDraw:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+	x = x or 0
+	y = y or 0
+	fgColorIndex = fgColorIndex or 13
+	bgColorIndex = bgColorIndex or 0
+	scaleX = scaleX or 1
+	scaleY = scaleY or 1
+	local x0 = x
+	if bgColorIndex >= 0 and bgColorIndex < 255 then
+		for i=1,#text do
+			-- TODO the ... between drawSolidRect and drawSprite is not the same...
+			self:drawSolidRect(
+				x,
+				y,
+				scaleX * fontWidth, --spriteSize.x,
+				scaleY * spriteSize.y,
+				bgColorIndex
+			)
+			x = x + fontWidth
+		end
+	end
+
+	return self:drawText1bpp(
+		text,
+		x0+1,
+		y+1,
+		fgColorIndex,
+		scaleX,
+		scaleY
+	) - x0
+end
+
 return {
 	argb8888revto5551 = argb8888revto5551,
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,

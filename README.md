@@ -36,7 +36,7 @@ This way you can store (and edit) 8 1-bpp images in the same texture region.
 
 The sprite sheet is 256x256 pixels.  This means 32x32 instances of 8x8 sprites in a sprite sheet.  Sprites are indexed 0 through 1023.
 The UI and console font is stored at the bottom row of the sprite sheet.
-You can edit this, however it will affect the console and editor. 
+You can edit this, however it will affect the console and editor.
 
 The palette is a set of 256 colors stored in 5551 RGBA format.  Alpha is opacity, except when drawing solid rectangle/circle/line.
 The renderer also accepts an optional color index to consider transparent in addition to the palette alpha flag.
@@ -117,7 +117,7 @@ This adds to Lua(/JIT):
 - `ls()` = list directory
 - `dir()` = same
 - `cd()` = change directory
-- `mkdir()` = make directory 
+- `mkdir()` = make directory
 
 ## system:
 
@@ -126,7 +126,7 @@ This adds to Lua(/JIT):
 
 - `run()` = run loaded cartridge.
 - `stop()` = stop all execution and drop into console mode.
-- `cont()` = continue execution of the cartridge. 
+- `cont()` = continue execution of the cartridge.
 
 - `save([filename])` = save cartridge to virtual-filesystem and host-filesystem
 - `load([filename])` = load cartridge
@@ -138,7 +138,7 @@ This adds to Lua(/JIT):
 ## memory
 
 - `peek, peekw, peekl, poke, pokew, pokel` = read/write memory 1, 2, or 4 bytes at a time.
-- `mget, mset` = read/write uint16's from/to the tilemap.  
+- `mget, mset` = read/write uint16's from/to the tilemap.
 
 ## graphics
 
@@ -164,7 +164,7 @@ This adds to Lua(/JIT):
 - `text(str,x,y)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = set video mode.  The current video modes are:
 	- 0 = 16bpp RGB565, needed for blending
-	- 1 = 8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow) 
+	- 1 = 8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow)
 	- 2 = 8bpp RGB332.  This is an abomination.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `blend([i])` = Set blend mode.  Default value is 0xff corresponding to no blending.  The current blend modes are:
@@ -255,9 +255,9 @@ The console accepts Lua commands directly, just like the game script does.
 
 # Editor
 
-Push Esc in console to get to the editor.  Press again to get back to gameplay. 
+Push Esc in console to get to the editor.  Press again to get back to gameplay.
 
-Multiplayer page will list connections.  It will let associate connected players with controllers, kick, etc. 
+Multiplayer page will list connections.  It will let associate connected players with controllers, kick, etc.
 
 Code page. Should do what you would expect.  Ctrl(/Apple)+X=cut C=copy V=paste A=select-all.
 
@@ -333,6 +333,8 @@ Pico8 Compatability is at 95%
 - https://snes.nesdev.org/wiki/BRR_samples
 - https://snes.nesdev.org/wiki/DSP_envelopes
 - https://wiki.superfamicom.org/transparency
+- https://problemkaputt.de/fullsnes.htm
+- https://archive.org/details/SNESDevManual/book1/
 
 # TODO
 - sfx and music
