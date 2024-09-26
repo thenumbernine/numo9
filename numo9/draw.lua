@@ -19,18 +19,33 @@ local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local clnumber = require 'cl.obj.number'
 
-local paletteAddr = require 'numo9.rom'.paletteAddr
 local paletteSize = require 'numo9.rom'.paletteSize
 local spriteSize = require 'numo9.rom'.spriteSize
-local frameBufferType = require 'numo9.rom'.frameBufferType
 local frameBufferSize = require 'numo9.rom'.frameBufferSize
-local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
-local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
 local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
 local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
 local tileSheetAddr = require 'numo9.rom'.tileSheetAddr
 local tilemapSize = require 'numo9.rom'.tilemapSize
 local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
+local fontWidth = require 'numo9.rom'.fontWidth
+local mvMatScale = require 'numo9.rom'.mvMatScale
+local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
+local spriteSheetInBytes = require 'numo9.rom'.spriteSheetInBytes
+local paletteAddr = require 'numo9.rom'.paletteAddr
+local paletteInBytes = require 'numo9.rom'.paletteInBytes
+local packptr = require 'numo9.rom'.packptr
+local unpackptr = require 'numo9.rom'.unpackptr
+
+-- TODO use either settable or packptr ... ?
+local function settableindex(t, i, ...)
+	if select('#', ...) == 0 then return end
+	t[i] = ...
+	settableindex(t, i+1, select(2, ...))
+end
+
+local function settable(t, ...)
+	settableindex(t, 1, ...)
+end
 
 
 -- I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...

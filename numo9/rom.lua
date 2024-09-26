@@ -157,6 +157,19 @@ local mvMatAddr = ffi.offsetof('RAM', 'mvMat')
 local mvMatInBytes = ffi.sizeof(mvMatType) * 16
 local mvMatAddrEnd = mvMatAddr + mvMatInBytes
 
+-- n = num args to pack
+-- also in image/luajit/image.lua
+local function packptr(n, ptr, value, ...)
+	if n <= 0 then return end
+	ptr[0] = value or 0
+	return packptr(n-1, ptr+1, ...)
+end
+
+local function unpackptr(n, p)
+	if n <= 0 then return end
+	return p[0], unpackptr(n-1, p+1)
+end
+
 return {
 	paletteSize = paletteSize,
 	spriteSize = spriteSize,
@@ -196,4 +209,7 @@ return {
 	mvMatAddr = mvMatAddr,
 	mvMatInBytes = mvMatInBytes,
 	mvMatAddrEnd = mvMatAddrEnd,
+
+	packptr = packptr,
+	unpackptr = unpackptr,
 }

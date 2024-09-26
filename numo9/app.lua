@@ -28,26 +28,29 @@ local matrix_ffi = require 'matrix.ffi'
 local sdl = require 'sdl'
 local gl = require 'gl'
 local GLApp = require 'glapp'
-local GLTex2D = require 'gl.tex2d'
 local al = require 'ffi.req' 'OpenAL'
 local ThreadManager = require 'threadmanager'
 
 local ROM = require 'numo9.rom'.ROM	-- define RAM, ROM, etc
 local RAM = require 'numo9.rom'.RAM
-local paletteSize = require 'numo9.rom'.paletteSize
 local spriteSize = require 'numo9.rom'.spriteSize
-local frameBufferType = require 'numo9.rom'.frameBufferType
 local frameBufferSize = require 'numo9.rom'.frameBufferSize
-local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
-local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
 local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
 local tilemapSize = require 'numo9.rom'.tilemapSize
-local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
-local mvMatScale = require 'numo9.rom'.mvMatScale
 local keyPressFlagSize = require 'numo9.rom'.keyPressFlagSize
 local keyCount = require 'numo9.rom'.keyCount
-local fontWidth = require 'numo9.rom'.fontWidth
 local codeSize = require 'numo9.rom'.codeSize
+local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
+local spriteSheetAddrEnd = require 'numo9.rom'.spriteSheetAddrEnd
+local tileSheetAddr = require 'numo9.rom'.tileSheetAddr
+local tileSheetAddrEnd = require 'numo9.rom'.tileSheetAddrEnd
+local tilemapAddr = require 'numo9.rom'.tilemapAddr
+local tilemapAddrEnd = require 'numo9.rom'.tilemapAddrEnd
+local paletteAddr = require 'numo9.rom'.paletteAddr
+local paletteAddrEnd = require 'numo9.rom'.paletteAddrEnd
+local framebufferAddr = require 'numo9.rom'.framebufferAddr
+local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
+local packptr = require 'numo9.rom'.packptr
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
@@ -58,31 +61,6 @@ local keyCodeForButtonIndex = require 'numo9.keys'.keyCodeForButtonIndex
 local buttonIndexForKeyCode = require 'numo9.keys'.buttonIndexForKeyCode
 
 local netcmds = require 'numo9.net'.netcmds
-
--- n = num args to pack
--- also in image/luajit/image.lua
-local function packptr(n, ptr, value, ...)
-	if n <= 0 then return end
-	ptr[0] = value or 0
-	return packptr(n-1, ptr+1, ...)
-end
-
-local function unpackptr(n, p)
-	if n <= 0 then return end
-	return p[0], unpackptr(n-1, p+1)
-end
-
--- TODO use either settable or packptr ... ?
-
-local function settableindex(t, i, ...)
-	if select('#', ...) == 0 then return end
-	t[i] = ...
-	settableindex(t, i+1, select(2, ...))
-end
-
-local function settable(t, ...)
-	settableindex(t, 1, ...)
-end
 
 local function hexdump(ptr, len)
 	return string.hexdump(ffi.string(ptr, len))
@@ -98,22 +76,6 @@ local App = GLApp:subclass()
 App.title = 'NuMo9'
 App.width = 720
 App.height = 512
-
-local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
-local spriteSheetInBytes = require 'numo9.rom'.spriteSheetInBytes
-local spriteSheetAddrEnd = require 'numo9.rom'.spriteSheetAddrEnd
-local tileSheetAddr = require 'numo9.rom'.tileSheetAddr
-local tileSheetInBytes = require 'numo9.rom'.tileSheetInBytes
-local tileSheetAddrEnd = require 'numo9.rom'.tileSheetAddrEnd
-local tilemapAddr = require 'numo9.rom'.tilemapAddr
-local tilemapInBytes = require 'numo9.rom'.tilemapInBytes
-local tilemapAddrEnd = require 'numo9.rom'.tilemapAddrEnd
-local paletteAddr = require 'numo9.rom'.paletteAddr
-local paletteInBytes = require 'numo9.rom'.paletteInBytes
-local paletteAddrEnd = require 'numo9.rom'.paletteAddrEnd
-local framebufferAddr = require 'numo9.rom'.framebufferAddr
-local framebufferInBytes = require 'numo9.rom'.framebufferInBytes
-local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
 
 local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch
 for k,v in pairs(require 'numo9.draw'.AppDraw) do
@@ -1464,7 +1426,7 @@ function App:peekw(addr)
 	local addrend = addr+1
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddr+framebufferInBytes then
+	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex:checkDirtyGPU()
 	end
 
@@ -1474,7 +1436,7 @@ function App:peekl(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddr+framebufferInBytes then
+	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex:checkDirtyGPU()
 	end
 
