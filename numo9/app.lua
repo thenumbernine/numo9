@@ -934,6 +934,7 @@ function App:disconnect()
 	end
 end
 
+-- TODO where to config # of local players, keys, etc?
 App.playerInfos = {	-- TODO put this in a config file
 	{name='a', localPlayer=1},
 	{name='b'},
