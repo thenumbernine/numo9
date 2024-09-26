@@ -248,7 +248,7 @@ The button codes are as follows:
 	- `app` = the NuMo9 app itself.  Probably going away soon.
 	- `_G` = the NuMo9 global.  Probably going away soon.
 
-# Console
+# Virtual Terminal
 
 Push Esc in gameplay to get to the console.
 The console accepts Lua commands directly, just like the game script does.
@@ -339,6 +339,7 @@ Pico8 Compatability is at 95%
 - input
 	- joystick support
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
+	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
 - multiplayer
 	- where should notification messages show up? host terminal?  windows users don't like host terminal...
 	- needs proper observer/lobby/hotseat roles.  how should server be able to see whose connected?
@@ -346,6 +347,7 @@ Pico8 Compatability is at 95%
 			- how many seats are available
 			- how many for auto-joining, such that first joined player sits down immediately
 			- per connection: boot, leave seat, sit
+	- where to go to configure your name / number of players / controls?
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
 	- copy/paste on the tilemap.
