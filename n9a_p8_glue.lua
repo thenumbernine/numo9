@@ -113,11 +113,6 @@ trace(from,to,pal)
 		-- I think these just return?
 	end
 end
-p8_getpalt=[c,t]do
-	c=math.floor(c)
-assert(c >= 0 and c < 16)
-	return peekw(palMem+(c<<1))&0x8000~=0
-end
 p8_setpalt=[c,t]do
 	c=math.floor(c)
 assert(c >= 0 and c < 16)
@@ -577,7 +572,7 @@ assert(shift>=0)
 					-- draw it to x=0,y=128 in our unused spritesheet area
 					-- use hi pal=1 so we don't get any transparency changes from pal-0
 					local c = peek(gfxMem + ((nx<<3) + i) + 256 * ((ny<<3) + j))
-					c = p8palRemap[c] or c
+					c = (p8palRemap[c] or c) -- + 16		-- offset by 16 to use next palette over, with its alphas intact ... I'm still not sure how palette-remapping and transprency works together
 					poke(gfxMem + i + 256 * (j + 128), c)
 				end
 			end
