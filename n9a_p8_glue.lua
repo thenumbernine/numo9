@@ -30,12 +30,12 @@ assert(not rel, 'TODO')
 		if y<0 then h+=y y=0 end
 		w=math.min(math.floor(w),128)
 		h=math.min(math.floor(h),128)
-		clip(2*x,2*y,2*w-1,2*h-1)
+		clip(x<<1,y<<1,(w<<1)-1,(h<<1)-1)
 	end
 end
 p8_fillp=[p]nil
-p8palRemap = {}
-p8palette = {
+p8palRemap={}
+p8palette={
 	0x0000,
 	0xa8a3,
 	0xa88f,
@@ -79,29 +79,29 @@ p8_pal=[from,to,pal]do
 	elseif type(from)=='number' then
 		-- sometimes 'to' is nil ... default to zero?
 		to=tonumber(to) or 0
-if pal == 2 then trace"TODO pal(from,to,pal)" end
+if pal==2 then trace"TODO pal(from,to,pal)" end
 		from=math.floor(from)
 		to=math.floor(to)
 		if from>=0 and from<16 and to>=0 and to<16 then
-			if pal == 1 then
+			if pal==1 then
 				pokew(palMem+(to<<1),p8palette[from+1])
 			else
-				p8palRemap[from] = to
+				p8palRemap[from]=to
 			end
 		end
 		p8PalChanged=true
 	elseif type(from)=='table' then
 		pal=to
-if pal == 2 then trace"TODO pal(map,pal)" end
+if pal==2 then trace"TODO pal(map,pal)" end
 		for from,to in pairs(from) do
 			from=math.floor(from)
 			to=math.floor(to)
 			if from>=0 and from<=16 and to>=0 and to<16 then
-				from = bit.band(from,0xf)
-				if pal == 1 then
+				from=bit.band(from,0xf)
+				if pal==1 then
 					pokew(palMem+(to<<1),p8palette[from+1])
 				else
-					p8palRemap[from] = to
+					p8palRemap[from]=to
 				end
 			end
 		end
@@ -297,19 +297,19 @@ setfenv(1, {
 	end,
 	circ=[x,y,r,col]do
 		col=col or p8color
-		ellib(x-r,y-r,2*r+1,2*r+1,col)
+		ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
 	end,
 	circfill=[x,y,r,col]do
 		col=col or p8color
-		elli(x-r,y-r,2*r+1,2*r+1,col)
+		elli(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
 	end,
 	circ=[x,y,r,col]do
 		col=col or p8color
-		ellib(x-r,y-r,2*r+1,2*r+1,col)
+		ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
 	end,
 	circfill=[x,y,r,col]do
 		col=col or p8color
-		elli(x-r,y-r,2*r+1,2*r+1,col)
+		elli(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
 	end,
 	oval=[x0,y0,x1,y1,col]do
 		col=col or p8color
@@ -365,8 +365,7 @@ setfenv(1, {
 			texty=math.max(y+8,122)
 		end
 		c=c or p8color
-		text(s,x,y,c or p8color)
-		return #s*8
+		return text(s,x,y,c or p8color)
 	end,
 	pal=p8_pal,
 	palt=p8_palt,
@@ -464,7 +463,7 @@ assert(i>=0 and i<256)
 		screenY=math.floor(screenY or 0)
 
 -- [=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
-		if not layers then
+		if not layers and not p8PalChanged then
 			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
 		end
 --]=]
@@ -529,8 +528,8 @@ assert(shift>=0)
 
 		if camScreenX>128
 		or camScreenY>128
-		or camScreenX+tileW*8+128 <= 0
-		or camScreenY+tileH*8+128 <= 0
+		or camScreenX+(tileW<<3)+128 <= 0
+		or camScreenY+(tileH<<3)+128 <= 0
 		then
 			return
 		end
@@ -562,8 +561,8 @@ assert(shift>=0)
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
 		local scaleX,scaleY=1,1
-		if flipX then scaleX=-1 x+=w*8 end
-		if flipY then scaleY=-1 y+=h*8 end
+		if flipX then scaleX=-1 x+=w<<3 end
+		if flipY then scaleY=-1 y+=h<<3 end
 		-- here, if pal() has changed anything since the last pal() reset
 		-- then we're going to have to manually remap colors.
 		if p8PalChanged then
@@ -571,9 +570,9 @@ assert(shift>=0)
 				for i=0,(w<<3)-1 do
 					-- draw it to x=0,y=128 in our unused spritesheet area
 					-- use hi pal=1 so we don't get any transparency changes from pal-0
-					local c = peek(gfxMem + ((nx<<3) + i) + 256 * ((ny<<3) + j))
+					local c = peek(gfxMem + ((nx<<3) + i) + (((ny<<3) + j) << 8))
 					c = (p8palRemap[c] or c) -- + 16		-- offset by 16 to use next palette over, with its alphas intact ... I'm still not sure how palette-remapping and transprency works together
-					poke(gfxMem + i + 256 * (j + 128), c)
+					poke(gfxMem + i + ((j + 128) << 8), c)
 				end
 			end
 			n = 0x200
