@@ -602,7 +602,7 @@ function App:initGL()
 			self:mvMatToRAM()
 		end,
 
-		sfx = function(...) return self:sfx(...) end,
+		sfx = function(...) return self:playSound(...) end,
 		music = function(...) return self:music(...) end,
 
 		-- this just falls back to glapp saving the OpenGL draw buffer
@@ -768,6 +768,18 @@ print('package.loaded', package.loaded)
 	self.audio.samplesPerFramePerOutput = math.ceil(self.audio.sampleRate * updateInterval)
 	self.audio.samplesPerFrame =self.audio.samplesPerFramePerOutput * self.audio.outputChannels
 	self.audio.sampleType = 'int16_t'
+	self.audio.amplZero = assertindex({uint8_t=128, int16_t=0}, self.audio.sampleType)
+	self.audio.amplMax = assertindex({uint8_t=127, int16_t=32767}, self.audio.sampleType)
+	self.audio.alFormat = assertindex({
+		assertindex({
+			uint8_t=al.AL_FORMAT_MONO8,
+			int16_t=al.AL_FORMAT_MONO16,
+		}, self.audio.sampleType),
+		assertindex({
+			uint8_t=al.AL_FORMAT_STEREO8,
+			int16_t=al.AL_FORMAT_STEREO16,
+		}, self.audio.sampleType),
+	}, self.audio.outputChannels)
 	--self.audio:setDistanceModel'linear clamped'
 	self.audioChannels = table()
 	for i=1,8 do
@@ -775,22 +787,15 @@ print('package.loaded', package.loaded)
 		--source:setReferenceDistance(1)
 		--source:setMaxDistance(self.maxAudioDist)
 		--source:setRolloffFactor(1)
-		self.audioChannels[i] = {
+		local channel = {
 			isPlaying = false,	-- whether to keep feeding openal new buffers to play
 			source = source,
-			buffers = range(2):mapi(function()
+			-- do I even  need to doublebuffer? or just rely on openal to do that for me?
+			-- is openal going to eat up so much resources doing that that i regret using openal?
+			buffer = (function()
 				local data = ffi.new(self.audio.sampleType..'[?]', self.audio.samplesPerFrame)
 				local obj = AudioBuffer(
-					assertindex({
-						assertindex({
-							uint8_t=al.AL_FORMAT_MONO8,
-							int16_t=al.AL_FORMAT_MONO16,
-						}, self.audio.sampleType),
-						assertindex({
-							uint8_t=al.AL_FORMAT_STEREO8,
-							int16_t=al.AL_FORMAT_STEREO16,
-						}, self.audio.sampleType),
-					}, self.audio.outputChannels),	-- format
+					self.audio.alFormat,
 					data,
 					self.audio.samplesPerFrame,
 					self.audio.sampleRate
@@ -799,9 +804,26 @@ print('package.loaded', package.loaded)
 					data = data,
 					obj = obj,
 				}
-			end),
+			end)(),
 		}
+		channel.source:setBuffer(channel.buffer.obj)
+		self.audioChannels[i] = channel
 	end
+	-- https://gitlab.com/bztsrc/p8totic/-/blob/main/src/p8totic.c?ref_type=heads
+	self.waveforms = {
+		{0x76, 0x54, 0x32, 0x10, 0xf0, 0x0e, 0xdc, 0xba, 0xba, 0xdc, 0x0e, 0xf0, 0x10, 0x32, 0x54, 0x76},	-- 0 - sine
+		{0xba, 0xbc, 0xdc, 0xd0, 0x0e, 0xf0, 0x00, 0x00, 0x10, 0x02, 0x32, 0x34, 0x54, 0x56, 0x30, 0xda},	-- 1 - triangle
+		{0x00, 0x10, 0x12, 0x32, 0x34, 0x04, 0x50, 0x06, 0x0a, 0xb0, 0x0c, 0xdc, 0xde, 0xfe, 0xf0, 0x00},	-- 2 - sawtooth
+		{0x30, 0x30, 0x30, 0x30, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0x30, 0x30, 0x30, 0x30},	-- 3 - square
+		{0x04, 0x04, 0x04, 0x04, 0x04, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c},	-- 4 - short square / pulse
+		{0x34, 0x12, 0xf0, 0xde, 0xdc, 0xfe, 0xf0, 0x00, 0x00, 0xf0, 0xfe, 0xdc, 0xde, 0xf0, 0x12, 0x34},	-- 5 - ringing / organ
+		{0xf0, 0xd0, 0xf0, 0x1e, 0xb0, 0x0e, 0xf0, 0x52, 0xfa, 0x0e, 0xf0, 0xd4, 0x0e, 0x06, 0x34, 0x3a},	-- 6 - noise
+		{0x32, 0x12, 0x00, 0xf0, 0xfe, 0xd0, 0xbc, 0xba, 0x0a, 0xbc, 0xd0, 0xfe, 0xf0, 0x00, 0x12, 0x32},	-- 7 - ringing sine / phaser
+	}
+
+	-- hmm ... these are going to be collections of ... waveform, pitch,  volume, effect
+	self.sfx = {
+	}
 
 	-- filesystem init
 
@@ -880,7 +902,7 @@ volume = what volume to use.  0-15
 speed = speedup/slowdown.
 offset = at what point to start playing.
 --]]
-function App:sfx(sfxID, note, duration, channelIndex, volume, speed, offset)
+function App:playSound(sfxID, note, duration, channelIndex, volume, speed, offset)
 	channelIndex = channelIndex or -1
 print('playing', sfxID,'on channel', channelIndex)
 	if not self.audio then return end
@@ -910,7 +932,14 @@ print('playing', sfxID,'on channel', channelIndex)
 	local channel = self.audioChannels[channelIndex+1]
 	if not channel then return end
 
+	if sfxID == -1 then
+		channel.isPlaying = false
+		return
+	end
+
 	channel.isPlaying = true
+	--channel.sfxID = sfxID 0-7 = builtin, 8-15= sfx 0-7
+	channel.sfxID = assert(sfxID)
 
 	--[[
 	local sound = self:loadSound(sfxID)
@@ -1359,6 +1388,44 @@ print('cartridge thread dead')
 		-- if any channels are playing, point them to the next buffer every frame ...
 		-- the openal overhead isn't going to be horrible for this, is it?
 		-- how come I think I'm going to have to use SDL's audio streams ...
+		if self.audio then
+			local amplZero = self.audio.amplZero
+			local amplMax = self.audio.amplMax
+			for _,channel in ipairs(self.audioChannels) do
+				local source = channel.source
+				if not channel.isPlaying then
+					source:stop()
+				else
+					local buf = channel.buffer
+					local waveform = self.waveforms[bit.band(7,channel.sfxID)+1]
+					if waveform then
+						-- populate the new buffer
+						-- and play it
+						local p = ffi.cast(self.audio.sampleType..'*', buf.data)
+						for i=0,self.audio.samplesPerFramePerOutput-1 do
+							local t = (self.ram.romUpdateCounter[0] * updateHz + i) / self.audio.sampleRate
+							
+							-- 8-bit signed
+							local ampl = waveform[bit.band(i,15)+1]
+							ampl = ampl / 255
+							for lr=0,self.audio.outputChannels-1 do
+								p[0] = ampl * amplMax + amplZero
+								p=p+1
+							end
+						end
+	asserteq(p, buf.data + self.audio.samplesPerFrame)
+						buf.obj:setData(
+							self.audio.alFormat,
+							buf.data,
+							self.audio.samplesPerFrame,
+							self.audio.sampleRate
+						)
+						source:setBuffer(buf.obj)
+						source:play()
+					end
+				end
+			end
+		end
 	end
 
 	if needDrawCounter > 0 then
