@@ -18,8 +18,13 @@ local assertle = require 'ext.assert'.le
 local assertlen = require 'ext.assert'.len
 local Image = require 'image'
 local App = require 'numo9.app'
-local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch
-local rgba8888_4ch_to_5551 = require 'numo9.draw'.rgba8888_4ch_to_5551
+
+local rgba5551_to_rgba8888_4ch = require 'numo9.video'.rgba5551_to_rgba8888_4ch
+local rgba8888_4ch_to_5551 = require 'numo9.video'.rgba8888_4ch_to_5551
+local resetFontOnSheet = require 'numo9.video'.resetFontOnSheet
+local resetPalette = require 'numo9.video'.resetPalette
+local resetFont = require 'numo9.video'.resetFont
+
 local fromCartImage = require 'numo9.archive'.fromCartImage
 local toCartImage = require 'numo9.archive'.toCartImage
 
@@ -121,7 +126,7 @@ or cmd == 'r' then
 	else
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if sprite doesn't exist then load the default
-		require 'numo9.draw'.resetFont(rom)
+		resetFont(rom)
 	end
 
 	print'loading tile sheet...'
@@ -183,7 +188,7 @@ or cmd == 'r' then
 	else
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if pal.png doens't exist then load the default at least
-		require 'numo9.draw'.resetPalette(rom)
+		resetPalette(rom)
 	end
 
 	print'loading code...'
@@ -199,10 +204,10 @@ or cmd == 'r' then
 	-- TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'
-		require 'numo9.draw'.resetFont(rom)
+		resetFont(rom)
 	end
 	if extra == 'resetPal' then
-		--require 'numo9.draw'.resetPalette(rom)
+		--resetPalette(rom)
 	end
 
 	print'saving cart...'
@@ -348,7 +353,7 @@ print('toImage', name, 'width', width, 'height', height)
 		:clear()
 		:pasteInto{image=gfxImg, x=0, y=0}
 	-- now that the font is the right size and bpp we can use our 'resetFont' function on it ..
-	require 'numo9.draw'.resetFontOnSheet(gfxImg.buffer)
+	resetFontOnSheet(gfxImg.buffer)
 	gfxImg:save(basepath'sprite.png'.path)
 
 	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
@@ -434,8 +439,9 @@ print('toImage', name, 'width', width, 'height', height)
 	-- http://pico8wiki.com/index.php?title=P8FileFormat
 	local sfxSrc = move(sections, 'sfx')
 	local sfxs = table()
-	for _,line in ipairs(sfxSrc) do
+	for j,line in ipairs(sfxSrc) do
 		local sfx = {
+			index = j-1,
 			editorMode = tonumber(line:sub(1,2), 16),
 			duration = tonumber(line:sub(3,4), 16),
 			loopStart = tonumber(line:sub(5,6), 16),
@@ -465,18 +471,19 @@ print('toImage', name, 'width', width, 'height', height)
 	end
 	basepath'sfx.lua':write(tolua(sfxs))
 
+	-- while we're here, try to make them into waves
+
 	local musicSrc = move(sections, 'music')
 	local music = table()
+	while #musicSrc > 0 and #musicSrc:last() == 0 do musicSrc:remove() end
 	for i,line in ipairs(musicSrc) do
-		if not (i >= 64 and line == '') then
-			local flags = tonumber(line:sub(1,2), 16)
-			music:insert{
-				beginPatternLoop = 0 ~= bit.band(1, flags),
-				endPatternLoop = 0 ~= bit.band(2, flags),
-				stopAtEndOfPattern = 0 ~= bit.band(4, flags),
-				sfxs = line:sub(4):gsub('..', function(h) return tonumber(h, 16) end),
-			}
-		end
+		local flags = tonumber(line:sub(1,2), 16)
+		music:insert{
+			beginPatternLoop = 0 ~= bit.band(1, flags),
+			endPatternLoop = 0 ~= bit.band(2, flags),
+			stopAtEndOfPattern = 0 ~= bit.band(4, flags),
+			sfxs = line:sub(4):gsub('..', function(h) return tonumber(h, 16) end),
+		}
 	end
 	basepath'music.lua':write(tolua(music))
 

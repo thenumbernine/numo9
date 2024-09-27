@@ -14,8 +14,9 @@ files = {
 		'bank.n9',
 		'numo9/app.lua',
 		'numo9/archive.lua',
+		'numo9/audio.lua',
 		'numo9/console.lua',
-		'numo9/draw.lua',
+		'numo9/editnet.lua',
 		'numo9/editcode.lua',
 		'numo9/editmusic.lua',
 		'numo9/editor.lua',
@@ -26,6 +27,7 @@ files = {
 		'numo9/keys.lua',
 		'numo9/net.lua',
 		'numo9/rom.lua',
+		'numo9/video.lua',
 	},
 	-- other paths go here
 	['..'] = table{

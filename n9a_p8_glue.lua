@@ -34,64 +34,78 @@ assert(not rel, 'TODO')
 	end
 end
 p8_fillp=[p]nil
+p8palRemap = {}
+p8palette = {
+	0x0000,
+	0xa8a3,
+	0xa88f,
+	0xaa00,
+	0x9955,
+	0xa54b,
+	0xe318,
+	0xf7df,
+	0xa41f,
+	0x829f,
+	0x93bf,
+	0x9b80,
+	0xfea5,
+	0xcdd0,
+	0xd5df,
+	0xd73f,
+}
 --[[
-pico8 has palette-0 for modifying sprites that are drawn and palette-1 for modifying colors on screen already ...
+pico8 has palette-0 for modifying sprites that are drawn
+and palette-1 for modifying colors on screen already ...
 so how about I ... ... I guess when I draw colors then I ...
-wait is pico8 actually changing the index itself as it draws it out with palette-0?  and not just changing the associated palette values?
+wait is pico8 actually changing the index itself as it draws it out with palette-0?
+and not just changing the associated palette values?
 and only afterwards with palette-1 it does change the palette's rgb?
 hmm weird.
+
+so all these pal(from,to) commands are supposed to be visible only in what's drawn even past the pal() to reset colors.
+maybe to reproduce this I should disable all resets?
+nah but the changes accumulate ...
+I could collect unique streams of pal(...) calls post-pal() reset. and associate each one to one of my upper-4-bit palettes ...
+
+lol or i could manually write sprites to temp regions before drawing them ...
 --]]
 p8_pal=[from,to,pal]do
 	if not from then
-		--[[ preserve transparency
-		pokel(palMem,   0x28a30000|(peekl(palMem   )&0x80008000))
-		pokel(palMem+4, 0x2a00288f|(peekl(palMem+4 )&0x80008000))
-		pokel(palMem+8, 0x254b1955|(peekl(palMem+8 )&0x80008000))
-		pokel(palMem+12,0x77df6318|(peekl(palMem+12)&0x80008000))
-		pokel(palMem+16,0x029f241f|(peekl(palMem+16)&0x80008000))
-		pokel(palMem+20,0x1b8013bf|(peekl(palMem+20)&0x80008000))
-		pokel(palMem+24,0x4dd07ea5|(peekl(palMem+24)&0x80008000))
-		pokel(palMem+28,0x573f55df|(peekl(palMem+28)&0x80008000))
-		--]]
-		-- [[ reset transparency too
-		pokel(palMem,   0xa8a30000)
-		pokel(palMem+4, 0xaa00a88f)
-		pokel(palMem+8, 0xa54b9955)
-		pokel(palMem+12,0xf7dfe318)
-		pokel(palMem+16,0x829fa41f)
-		pokel(palMem+20,0x9b8093bf)
-		pokel(palMem+24,0xcdd0fea5)
-		pokel(palMem+28,0xd73fd5df)
-		--]]
+		for i=0,15 do
+			pokew(palMem+(i<<1),p8palette[i+1])
+		end
+		if next(p8palRemap) then p8palRemap={} end
+		p8PalChanged=false
 	elseif type(from)=='number' then
 		-- sometimes 'to' is nil ... default to zero?
 		to=tonumber(to) or 0
-if pal then trace"TODO pal(from,to,pal)" end
+if pal == 2 then trace"TODO pal(from,to,pal)" end
 		from=math.floor(from)
 		to=math.floor(to)
 		if from>=0 and from<16 and to>=0 and to<16 then
-			--[[ preserve transparency?
-			pokew(palMem+(to<<1),(peekw(palMem+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
-			--]]
-			-- [[
-			pokew(palMem+(to<<1),peekw(palMem+32+(from<<1)))
-			--]]
+			if pal == 1 then
+				pokew(palMem+(to<<1),p8palette[from+1])
+			else
+				p8palRemap[from] = to
+			end
 		end
+		p8PalChanged=true
 	elseif type(from)=='table' then
 		pal=to
-if pal then trace"TODO pal(map,pal)" end
+if pal == 2 then trace"TODO pal(map,pal)" end
 		for from,to in pairs(from) do
 			from=math.floor(from)
 			to=math.floor(to)
-			if from>=0 and from<16 and to>=0 and to<16 then
-				--[[ preserve transparency?
-				pokew(palMem+(to<<1),(peekw(palMem+(from<<1))&0x7fff)|(peekw(palMem+(from<<1))&0x8000))
-				--]]
-				-- [[
-				pokew(palMem+(to<<1),peekw(palMem+32+(from<<1)))
-				--]]
+			if from>=0 and from<=16 and to>=0 and to<16 then
+				from = bit.band(from,0xf)
+				if pal == 1 then
+					pokew(palMem+(to<<1),p8palette[from+1])
+				else
+					p8palRemap[from] = to
+				end
 			end
 		end
+		p8PalChanged=true
 	else
 trace'pal idk'
 trace(type(from),type(to),type(pal))
@@ -118,9 +132,10 @@ end
 p8_palt=[...]do
 	local n=select('#',...)
 	if n<=1 then
-		local ts=math.floor(... or 0x0001)	-- bitfield of transparencies in reverse-order
+		-- looks like pico8 is reversing the bit order so they can be read left-to-right (but ofc then you always have to provide all 16 digits ...)
+		local ts=math.floor(... or 0x8000)	-- bitfield of transparencies in reverse-order
 		for c=0,15 do
-			p8_setpalt(c,ts&(1<<c)~=0)
+			p8_setpalt(15-c,ts&(1<<c)~=0)
 		end
 	elseif n==2 then
 		p8_setpalt(...)
@@ -546,12 +561,28 @@ assert(shift>=0)
 	spr=[n,x,y,w,h,flipX,flipY]do
 		n=math.floor(n)
 		assert(n >= 0 and n < 256)
-		n=(n&0xf)|((n&0xf0)<<1)
+		local nx = n & 0xf
+		local ny = n >> 4
+		n=nx|(ny << 5)
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
 		local scaleX,scaleY=1,1
 		if flipX then scaleX=-1 x+=w*8 end
 		if flipY then scaleY=-1 y+=h*8 end
+		-- here, if pal() has changed anything since the last pal() reset
+		-- then we're going to have to manually remap colors.
+		if p8PalChanged then
+			for j=0,(h<<3)-1 do
+				for i=0,(w<<3)-1 do
+					-- draw it to x=0,y=128 in our unused spritesheet area
+					-- use hi pal=1 so we don't get any transparency changes from pal-0
+					local c = peek(gfxMem + ((nx<<3) + i) + 256 * ((ny<<3) + j))
+					c = p8palRemap[c] or c
+					poke(gfxMem + i + 256 * (j + 128), c)
+				end
+			end
+			n = 0x200
+		end
 		spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
 	end,
 	sspr=[sheetX,sheetY,sheetW,sheetH,destX,destY,destW,destH,flipX,flipY]do

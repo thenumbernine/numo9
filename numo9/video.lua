@@ -359,10 +359,10 @@ end
 -- This just holds a bunch of stuff that App will dump into itself
 -- so its member functions' "self"s are just 'App'.
 -- I'd call it 'App' but that might be confusing because it's not really App.
-local AppDraw = {}
+local AppVideo = {}
 
 -- 'self' == app
-function AppDraw:initDraw()
+function AppVideo:initDraw()
 	self.fb = GLFBO{
 		width = frameBufferSize.x,
 		height = frameBufferSize.y,
@@ -1165,7 +1165,7 @@ each video mode should uniquely ...
 - pick the blit SceneObj
 - pick / setup flags for each other shader (since RGB modes need RGB output, indexed modes need indexed output ...)
 --]]
-function AppDraw:setVideoMode(mode)
+function AppVideo:setVideoMode(mode)
 	if mode == 0 then
 		self.fbTex = self.fbRGB565Tex
 		self.blitScreenObj = self.blitScreenRGBObj
@@ -1216,7 +1216,7 @@ end
 
 -- exchnage two colors in the palettes, and in all spritesheets,
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
-function AppDraw:colorSwap(from, to, x, y, w, h)
+function AppVideo:colorSwap(from, to, x, y, w, h)
 	-- TODO SORT THIS OUT
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
 	from = math.floor(from)
@@ -1259,12 +1259,12 @@ end
 
 
 -- convert to/from our fixed-point storage in RAM and the float matrix that the matrix library uses
-function AppDraw:mvMatToRAM()
+function AppVideo:mvMatToRAM()
 	for i=0,15 do
 		self.ram.mvMat[i] = self.mvMat.ptr[i] * mvMatScale
 	end
 end
-function AppDraw:mvMatFromRAM()
+function AppVideo:mvMatFromRAM()
 	for i=0,15 do
 		self.mvMat.ptr[i] = self.ram.mvMat[i] / mvMatScale
 	end
@@ -1272,13 +1272,13 @@ end
 
 -- this re-inserts the font and default palette
 -- and copies those changes back into the cartridge too (stupid idea of keeping two copies of the cartridge in RAM and ROM ...)
-function AppDraw:resetGFX()
+function AppVideo:resetGFX()
 	--self.spriteTex:prepForCPU()
-	require 'numo9.draw'.resetFont(self.ram)
+	resetFont(self.ram)
 	ffi.copy(self.cartridge.spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
 
 	--self.palTex:prepForCPU()
-	require 'numo9.draw'.resetPalette(self.ram)
+	resetPalette(self.ram)
 	ffi.copy(self.cartridge.palette, self.ram.palette, paletteInBytes)
 
 	assert(not self.spriteTex.dirtyGPU)
@@ -1287,12 +1287,12 @@ function AppDraw:resetGFX()
 	self.palTex.dirtyCPU = true
 end
 
-function AppDraw:resize()
+function AppVideo:resize()
 	needDrawCounter = drawCounterNeededToRedraw
 end
 
 
-function AppDraw:drawSolidRect(
+function AppVideo:drawSolidRect(
 	x,
 	y,
 	w,
@@ -1323,7 +1323,7 @@ function AppDraw:drawSolidRect(
 	self.fbTex.changedSinceDraw = true
 end
 -- TODO get rid of this function
-function AppDraw:drawBorderRect(
+function AppVideo:drawBorderRect(
 	x,
 	y,
 	w,
@@ -1334,7 +1334,7 @@ function AppDraw:drawBorderRect(
 	return self:drawSolidRect(x,y,w,h,colorIndex,true,...)
 end
 
-function AppDraw:drawSolidLine(x1,y1,x2,y2,colorIndex)
+function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.fbTex:checkDirtyCPU()
 
@@ -1352,7 +1352,7 @@ function AppDraw:drawSolidLine(x1,y1,x2,y2,colorIndex)
 end
 
 local mvMatCopy = ffi.new('float[16]')
-function AppDraw:clearScreen(colorIndex)
+function AppVideo:clearScreen(colorIndex)
 --	self.quadSolidObj.uniforms.mvMat = ident4x4.ptr
 	gl.glDisable(gl.GL_SCISSOR_TEST)
 	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
@@ -1368,7 +1368,7 @@ function AppDraw:clearScreen(colorIndex)
 --	self.quadSolidObj.uniforms.mvMat = self.mvMat.ptr
 end
 
-function AppDraw:setClipRect(x, y, w, h)
+function AppVideo:setClipRect(x, y, w, h)
 	-- NOTICE the ram is only useful for reading, not writing, as it won't invoke a glScissor call
 	-- ... should I change that?
 	packptr(4, self.ram.clipRect, x, y, w, h)
@@ -1380,11 +1380,11 @@ function AppDraw:setClipRect(x, y, w, h)
 end
 
 -- for when we blend against solid colors, these go to the shaders to output it
-AppDraw.drawOverrideSolidR = 0
-AppDraw.drawOverrideSolidG = 0
-AppDraw.drawOverrideSolidB = 0
-AppDraw.drawOverrideSolidA = 0
-function AppDraw:setBlendMode(blendMode)
+AppVideo.drawOverrideSolidR = 0
+AppVideo.drawOverrideSolidG = 0
+AppVideo.drawOverrideSolidB = 0
+AppVideo.drawOverrideSolidA = 0
+function AppVideo:setBlendMode(blendMode)
 	if blendMode >= 8 then
 		self.drawOverrideSolidA = 0
 		gl.glDisable(gl.GL_BLEND)
@@ -1444,7 +1444,7 @@ args:
 	spriteBit,
 	spriteMask
 --]]
-function AppDraw:drawQuad(
+function AppVideo:drawQuad(
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox
 	tex,
@@ -1498,7 +1498,7 @@ spriteMask = mask of number of bits to use, default is 0xF <=> 4bpp
 scaleX = how much to scale the drawn width, default is 1
 scaleY = how much to scale the drawn height, default is 1
 --]]
-function AppDraw:drawSprite(
+function AppVideo:drawSprite(
 	spriteIndex,
 	screenX,
 	screenY,
@@ -1539,7 +1539,7 @@ function AppDraw:drawSprite(
 end
 
 -- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
-function AppDraw:drawMap(
+function AppVideo:drawMap(
 	tileX,			-- \_ upper-left position in the tilemap
 	tileY,			-- /
 	tilesWide,		-- \_ how many tiles wide & high to draw
@@ -1587,7 +1587,7 @@ function AppDraw:drawMap(
 end
 
 -- draw transparent-background text
-function AppDraw:drawText1bpp(text, x, y, color, scaleX, scaleY)
+function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
@@ -1619,7 +1619,7 @@ end
 -- draw a solid background color, then draw the text transparent
 -- specify an oob bgColorIndex to draw with transparent background
 -- and default x, y to the last cursor position
-function AppDraw:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 	x = x or 0
 	y = y or 0
 	fgColorIndex = fgColorIndex or 13
@@ -1659,5 +1659,5 @@ return {
 	resetFont = resetFont,
 	resetFontOnSheet = resetFontOnSheet,
 	resetPalette = resetPalette,
-	AppDraw = AppDraw,
+	AppVideo = AppVideo,
 }
