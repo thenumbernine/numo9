@@ -12,8 +12,8 @@ local clip = require 'clip'	-- clipboard support
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
 
-local rgba8888_4ch_to_5551 = require 'numo9.draw'.rgba8888_4ch_to_5551	-- TODO move this
-local rgba5551_to_rgba8888_4ch = require 'numo9.draw'.rgba5551_to_rgba8888_4ch
+local rgba8888_4ch_to_5551 = require 'numo9.video'.rgba8888_4ch_to_5551	-- TODO move this
+local rgba5551_to_rgba8888_4ch = require 'numo9.video'.rgba5551_to_rgba8888_4ch
 
 local paletteSize = require 'numo9.rom'.paletteSize
 local paletteAddr = require 'numo9.rom'.paletteAddr
