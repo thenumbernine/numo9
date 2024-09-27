@@ -399,11 +399,11 @@ print('toImage', name, 'width', width, 'height', height)
 		-- start as 8bpp
 		mapImg = Image(256,256,1,'unsigned char')
 			:clear()
-		-- paste our mapImg into it (to resize without resampling)
+			-- paste our mapImg into it (to resize without resampling)
 			:pasteInto{image=mapImg, x=0, y=0}
-		-- now grow to 16bpp
+			-- now grow to 16bpp
 			:combine(Image(256,256,1,'unsigned char'):clear())
-		-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
+			-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
 		do
 			local p = ffi.cast('uint16_t*', mapImg.buffer)
 			for j=0,mapImg.height-1 do
@@ -416,23 +416,21 @@ print('toImage', name, 'width', width, 'height', height)
 				end
 			end
 		end
-		-- now grow to 24bpp
-		mapImg = mapImg:combine(Image(256,256,1,'unsigned char'):clear())
 		-- also map gets the last 32 rows of gfx
 		-- looks like they are interleaved by row, lo hi lo hi ..
 		do
+			local p = ffi.cast('uint16_t*', mapImg.buffer)
 			for j=64,127 do
 				for i=0,127 do
-					local dstp = mapImg.buffer + i + mapImg.width * j
-					local srcp = gfxImg.buffer + i + gfxImg.width * bit.rshift(j, 1)
-					if bit.band(j, 1) == 0 then
-						dstp[0] = srcp[0]
-					else
-						dstp[0] = bit.bor(dstp[0], bit.lshift(srcp[0], 4))
-					end
+					local dstp = p + i + mapImg.width * j
+					local srcp = gfxImg.buffer + i + gfxImg.width * j
+					dstp[0] = bit.bor(srcp[0], bit.lshift(srcp[1], 5))
 				end
 			end
 		end
+		-- now grow to 24bpp
+		mapImg = mapImg:combine(Image(256,256,1,'unsigned char'):clear())
+		
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
