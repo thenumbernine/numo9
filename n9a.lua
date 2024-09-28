@@ -434,68 +434,45 @@ print('toImage', name, 'width', width, 'height', height)
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
-	-- https://gitlab.com/bztsrc/p8totic/-/blob/main/src/p8totic.c?ref_type=heads
-	local waveforms = table{
-		{0x76, 0x54, 0x32, 0x10, 0xf0, 0x0e, 0xdc, 0xba, 0xba, 0xdc, 0x0e, 0xf0, 0x10, 0x32, 0x54, 0x76},	-- 0 - sine
-		{0xba, 0xbc, 0xdc, 0xd0, 0x0e, 0xf0, 0x00, 0x00, 0x10, 0x02, 0x32, 0x34, 0x54, 0x56, 0x30, 0xda},	-- 1 - triangle
-		{0x00, 0x10, 0x12, 0x32, 0x34, 0x04, 0x50, 0x06, 0x0a, 0xb0, 0x0c, 0xdc, 0xde, 0xfe, 0xf0, 0x00},	-- 2 - sawtooth
-		{0x30, 0x30, 0x30, 0x30, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0x30, 0x30, 0x30, 0x30},	-- 3 - square
-		{0x04, 0x04, 0x04, 0x04, 0x04, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c},	-- 4 - short square / pulse
-		{0x34, 0x12, 0xf0, 0xde, 0xdc, 0xfe, 0xf0, 0x00, 0x00, 0xf0, 0xfe, 0xdc, 0xde, 0xf0, 0x12, 0x34},	-- 5 - ringing / organ
-		{0xf0, 0xd0, 0xf0, 0x1e, 0xb0, 0x0e, 0xf0, 0x52, 0xfa, 0x0e, 0xf0, 0xd4, 0x0e, 0x06, 0x34, 0x3a},	-- 6 - noise
-		{0x32, 0x12, 0x00, 0xf0, 0xfe, 0xd0, 0xbc, 0xba, 0x0a, 0xbc, 0xd0, 0xfe, 0xf0, 0x00, 0x12, 0x32},	-- 7 - ringing sine / phaser
-	}
-
--- [[ also in audio/test/test.lua ... consider consolidating
-local function sinewave(t)
-	return math.sin(t * (2 * math.pi))
-end
-local function trianglewave(t)
-	return math.abs(t - math.floor(t + .5)) * 4 - 1
-end
-local function sawtoothwave(t)
-	return (t % 1) * 2 - 1
-end
-local function squarewave(t)
-	return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
-end
---]]	
-	local wavefuncs = table{
-		trianglewave,
-		sawtoothwave,
-		sawtoothwave,
-		squarewave,
-		squarewave,--shortsquarewave,
-		sawtoothwave,--ringingwave,
-		trianglewave,--noisewave,
-		sinewave,--ringingsinewave,
-	}
-
-	-- http://pico8wiki.com/index.php?title=P8FileFormat
-	local sfxSrc = move(sections, 'sfx')
-	local sfxs = table()
-	for j,line in ipairs(sfxSrc) do
-		local index = j-1
-		local sfx = {
-			index = index,
-			editorMode = tonumber(line:sub(1,2), 16),
-			duration = tonumber(line:sub(3,4), 16),
-			loopStart = tonumber(line:sub(5,6), 16),
-			loopEnd = tonumber(line:sub(7,8), 16),
+	do
+		--[[ https://gitlab.com/bztsrc/p8totic/-/blob/main/src/p8totic.c?ref_type=heads
+		local waveforms = table{
+			{0x76, 0x54, 0x32, 0x10, 0xf0, 0x0e, 0xdc, 0xba, 0xba, 0xdc, 0x0e, 0xf0, 0x10, 0x32, 0x54, 0x76},	-- 0 - sine
+			{0xba, 0xbc, 0xdc, 0xd0, 0x0e, 0xf0, 0x00, 0x00, 0x10, 0x02, 0x32, 0x34, 0x54, 0x56, 0x30, 0xda},	-- 1 - triangle
+			{0x00, 0x10, 0x12, 0x32, 0x34, 0x04, 0x50, 0x06, 0x0a, 0xb0, 0x0c, 0xdc, 0xde, 0xfe, 0xf0, 0x00},	-- 2 - sawtooth
+			{0x30, 0x30, 0x30, 0x30, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0x30, 0x30, 0x30, 0x30},	-- 3 - square
+			{0x04, 0x04, 0x04, 0x04, 0x04, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c},	-- 4 - short square / pulse
+			{0x34, 0x12, 0xf0, 0xde, 0xdc, 0xfe, 0xf0, 0x00, 0x00, 0xf0, 0xfe, 0xdc, 0xde, 0xf0, 0x12, 0x34},	-- 5 - ringing / organ
+			{0xf0, 0xd0, 0xf0, 0x1e, 0xb0, 0x0e, 0xf0, 0x52, 0xfa, 0x0e, 0xf0, 0xd4, 0x0e, 0x06, 0x34, 0x3a},	-- 6 - noise
+			{0x32, 0x12, 0x00, 0xf0, 0xfe, 0xd0, 0xbc, 0xba, 0x0a, 0xbc, 0xd0, 0xfe, 0xf0, 0x00, 0x12, 0x32},	-- 7 - ringing sine / phaser
 		}
-		-- Should be 32 notes, each note is represented by 20 bits = 5 nybbles
-		-- each is note is per update? 30hz? 60hz? idk?
-		-- from http://pico8wiki.com/index.php?title=Memory it sounds like
-		sfx.notes = table()
-		for i=9,#line,5 do
-			sfx.notes:insert{
-				pitch = tonumber(line:sub(i,i+1), 16),		-- 0-63,
-				waveform = tonumber(line:sub(i+2,i+2), 16),	-- 0-15 ... 0-7 are builtin, 8-15 are sfx 0-7
-				volume = tonumber(line:sub(i+3,i+3), 16),	-- 0-7
-				effect = tonumber(line:sub(i+4,i+4), 16),	-- 0-7
-			}
+		--]]
+
+		-- [[ also in audio/test/test.lua ... consider consolidating
+		local function sinewave(t)
+			return math.sin(t * (2 * math.pi))
 		end
-		sfxs:insert(sfx)
+		local function trianglewave(t)
+			return math.abs(t - math.floor(t + .5)) * 4 - 1
+		end
+		local function sawtoothwave(t)
+			return (t % 1) * 2 - 1
+		end
+		local function squarewave(t)
+			return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
+		end
+		--]]	
+		local wavefuncs = table{
+			trianglewave,
+			sawtoothwave,
+			sawtoothwave,
+			squarewave,
+			squarewave,--shortsquarewave,
+			sawtoothwave,--ringingwave,
+			trianglewave,--noisewave,
+			sinewave,--ringingsinewave,
+		}
+
 
 		-- while we're here, try to make them into waves
 		-- then use that same sort of functionality (music -> sound effects -> waveforms -> raw audio) for SDL_QueueAudio ...
@@ -512,7 +489,6 @@ end
 		-- fwiw tic80's octaves sound one off to me ...
 		local C0freq = 13.75 * chromastep^3 * 4	-- x 2^2 for two octaves dif between pico8's octave indexes and standard octave indexes
 
-		local duration = math.max(1, sfx.duration)
 		-- - pico8 is 22050 hz sampling
 		-- - 1 note duration on full speed (effect-speed=1) is 183 audio samples
 		-- ... so 32 notes long = 32 * 183 samples long, at rate of 22050 samples/second, is 0.265 seconds
@@ -526,52 +502,107 @@ end
 		local sampleFramesPerSecond = 22050
 		--local sampleFramesPerSecond = 44100
 		local sampleType, amplMax, amplZero = 'uint8_t', 127, 128
+		local sampleFrameInSeconds = 1 / sampleFramesPerSecond
 		--local sampleType, amplMax, amplZero = 'int16_t', 32767, 0
-		local noteBaseLengthInSeconds = 1/120	-- length of a duration-1 note
-		local noteLengthInSeconds = noteBaseLengthInSeconds * duration 
-		local sampleFramesPerDuration = math.floor(sampleFramesPerSecond * noteBaseLengthInSeconds)	-- 183
-		local sampleFramesPerNote = sampleFramesPerDuration * duration 
-
+		-- https://www.lexaloffle.com/bbs/?pid=79335#p
+		-- "The sample rate of exported audio is 22,050 Hz. It looks like 1 tick is 183 samples. 1 quarter note was 10,980 samples. That's 120.4918 BPM."
+		local noteBaseLengthInSeconds =  183 / 22050 -- 1/120	-- length of a duration-1 note
+		local sampleFramesPerNoteBase = math.floor(sampleFramesPerSecond * noteBaseLengthInSeconds)	-- 183
+		
 		-- is this configurable in pico8?  seems everything is more quiet
-		local baseVolume = .3
+		local baseVolume = 1
 
-		local sampleFrames = sampleFramesPerNote * #sfx.notes
-		local samples = sampleFrames * channels
-		local data = ffi.new(sampleType..'[?]', samples)
-		local p = ffi.cast(sampleType..'*', data)
-		local si = 0
-		for ni,note in ipairs(sfx.notes) do
-			-- TODO are you sure about these waveforms?
-			-- maybe I should generate the patterns again myself ...
-			--local w = waveforms[note.waveform+1]
-			local f = wavefuncs[note.waveform+1]	-- why bother interpolate
-			local freq = C0freq * chromastep^note.pitch
-if index == 0 then print('note pitch', note.pitch,'freq', freq, 'volume', volume) end
-			local volume = baseVolume * note.volume / 7
-			for i=0,sampleFramesPerNote-1 do
-				local t = si / sampleFramesPerSecond
-				--local ampl = volume * w[bit.band(si,15)+1] * amplMax + amplZero
-				local ampl = volume * f(t * freq) * amplMax + amplZero
-				for j=0,channels-1 do
-					p[0] = ampl
-					p=p+1
-				end
-				si=si+1	-- sampleframe-index, in units of 1/sampleFramesPerSecond seconds
+		-- generate one note worth of each wavefunction
+		-- each will be an array of sampleType sized sampleFramesPerNoteBase	- so it's single-channeled
+		local waveformFreq = 1 / (sampleFrameInSeconds * sampleFramesPerNoteBase)
+		local waveforms = wavefuncs:mapi(function(f)
+			local data = ffi.new(sampleType..'[?]', sampleFramesPerNoteBase)
+			local p = ffi.cast(sampleType..'*', data)
+			local tf = 0	-- time x frequency
+			for i=0,sampleFramesPerNoteBase-1 do
+				tf = tf + sampleFrameInSeconds * waveformFreq
+				p[0] = f(tf) * amplMax + amplZero
+				p=p+1
+			end	
+			asserteq(p, data + sampleFramesPerNoteBase)
+			return data
+		end)
+
+		-- http://pico8wiki.com/index.php?title=P8FileFormat
+		local sfxSrc = move(sections, 'sfx')
+		local sfxs = table()
+		for j,line in ipairs(sfxSrc) do
+			local index = j-1
+			local sfx = {
+				index = index,
+				editorMode = tonumber(line:sub(1,2), 16),
+				duration = tonumber(line:sub(3,4), 16),
+				loopStart = tonumber(line:sub(5,6), 16),
+				loopEnd = tonumber(line:sub(7,8), 16),
+			}
+			-- Should be 32 notes, each note is represented by 20 bits = 5 nybbles
+			-- each is note is per update? 30hz? 60hz? idk?
+			-- from http://pico8wiki.com/index.php?title=Memory it sounds like
+			sfx.notes = table()
+			for i=9,#line,5 do
+				sfx.notes:insert{
+					pitch = tonumber(line:sub(i,i+1), 16),		-- 0-63,
+					waveform = tonumber(line:sub(i+2,i+2), 16),	-- 0-15 ... 0-7 are builtin, 8-15 are sfx 0-7
+					volume = tonumber(line:sub(i+3,i+3), 16),	-- 0-7
+					effect = tonumber(line:sub(i+4,i+4), 16),	-- 0-7
+				}
 			end
-		end
-		asserteq(p, data + samples)
-		-- write data to an audio file ...
-		require 'audio.io.wav'():save{
-			filename = basepath('sfx'..index..'.wav').path,
-			ctype = sampleType,
-			channels = channels,
-			data = data,
-			size = samples * ffi.sizeof(sampleType),
-			freq = sampleFramesPerSecond,
-		}
-	end
-	basepath'sfx.lua':write(tolua(sfxs))
+			sfxs:insert(sfx)
 
+			local duration = math.max(1, sfx.duration)
+			local sampleFramesPerNote = sampleFramesPerNoteBase * duration 
+			local sampleFrames = sampleFramesPerNote * #sfx.notes
+			local samples = sampleFrames * channels
+			local data = ffi.new(sampleType..'[?]', samples)
+			local p = ffi.cast(sampleType..'*', data)
+			local wi = 0
+			local tf = 0	-- time x frequency
+			for ni,note in ipairs(sfx.notes) do
+				-- TODO are you sure about these waveforms?
+				-- maybe I should generate the patterns again myself ...
+				local w = waveforms[bit.band(7,note.waveform)+1]
+				local f = wavefuncs[bit.band(7,note.waveform)+1]
+				local volume = baseVolume * note.volume / 7
+				local freq = C0freq * chromastep^note.pitch
+				for i=0,sampleFramesPerNote-1 do
+					tf = tf + sampleFrameInSeconds * freq
+					-- [[
+					--wi = math.floor(tf / (sampleFrameInSeconds * waveformFreq))
+					local wvalue = w[math.floor(wi % sampleFramesPerNoteBase)]
+					local ampl = (wvalue - amplZero) / amplMax
+					--wi = wi + 1	-- sampleframe-index, in units of 1/sampleFramesPerSecond seconds
+					-- or if we want to include frequency ..
+					wi = wi + sampleFrameInSeconds * freq / (sampleFrameInSeconds * waveformFreq)
+					--]]
+					--[[
+					local ampl = f(tf)
+					--]]
+
+					ampl = ampl * volume * amplMax + amplZero
+					for j=0,channels-1 do
+						p[0] = ampl
+						p=p+1
+					end
+				end
+			end
+			asserteq(p, data + samples)
+			-- write data to an audio file ...
+			require 'audio.io.wav'():save{
+				filename = basepath('sfx'..index..'.wav').path,
+				ctype = sampleType,
+				channels = channels,
+				data = data,
+				size = samples * ffi.sizeof(sampleType),
+				freq = sampleFramesPerSecond,
+			}
+		end
+		basepath'sfx.lua':write(tolua(sfxs))
+	end
 
 	local musicSrc = move(sections, 'music')
 	local music = table()
