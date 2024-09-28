@@ -1518,11 +1518,8 @@ function App:load(filename)
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
 
-	-- [[ TODO image stuck reading and writing to disk, FIXME
 	local fromCartImage = require 'numo9.archive'.fromCartImage
-	local romStr = fromCartImage(d)
-	assertlen(romStr, ffi.sizeof'ROM')
-	ffi.copy(self.cartridge.v, romStr, ffi.sizeof'ROM')
+	self.cartridge = fromCartImage(d)
 
 	self.cartridgeName = filename	-- TODO display this somewhere
 	self:resetROM()

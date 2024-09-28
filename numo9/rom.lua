@@ -21,6 +21,10 @@ local tilemapSize = vec2i(256, 256)
 local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
 local codeSize = 0x10000	-- tic80's size ... but with my langfix shorthands like pico8 has
 
+local sfxTableSize =  256	-- max number of sounds played at a time
+local sfxDataSize = 0x8000	-- snes had 64k dedicated to audio so :shrug:
+local numChannels = 8
+
 --local fontWidth = spriteSize.x
 local fontWidth = 5
 
@@ -69,11 +73,37 @@ local ROM = struct{
 				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},
 				{name='palette', type='uint16_t['..paletteSize..']'},
 
-				-- pico8 has 256 bytes for a song in RAM
-				-- and 4352 bytes for sfx in RAM (does it store them all in RAM?)
-				-- http://pico8wiki.com/index.php?title=Memory
-				--{name='
+--[[
+waveforms ...
+pico8 and tic80 use 16 waveforms of 32 notes of 4bits/sample = 256 bytes
+but I want snes-quality, but snes was basically full cd audio quality,
+and i want some kind of restrictions simulating the hardware of the era, 
+but the snes's solution to this was its BRR
+ and I don't want to implement it or make people usign numo9 peek/poke to have to deal with it either ...
 
+so our sound is gonna have ...
+- sound pointer table x256 (64k = addressible with 2 bytes)
+- ... to sound effect data
+
+- (borrowing from snes dev manual book 1, chapter 7)
+how about I first say audio is stored mono 16bit-samples ... any length?
+- 8 channels of playback, each has:
+	- volume left = 1 byte 0-127, flag 0x80 = reverse phase (2's complement)
+	- volume right = 1 byte 
+	- pitch = 2 bytes, directly proportional to freq multiplier, 0x1000 is 1:1
+	- wave source = 1 byte ... so only 256 diffferent source wave options?
+	- TODO ... ADSR ... how to specify that ...
+	- GAIN ... ENVX ... OUTX
+	- flags of: reset, mute, echo, noise ?
+	- modulate with previous channel
+	- key on / key off flags = pertains to inserting a 1/256 into the ADSR to prevent clicking
+- main volume L R
+- echo volume L R
+- echo feedback ?
+--]]
+				{name='sfxAddrs', type='uint16_t['..sfxTableSize..']'},
+				{name='sfxData', type='uint16_t['..sfxDataSize..']'},
+				
 				{name='code', type='uint8_t['..codeSize..']'},
 			},
 		}},
@@ -81,6 +111,26 @@ local ROM = struct{
 }
 --DEBUG:print(ROM.code)
 --DEBUG:print('ROM size', ffi.sizeof(ROM))
+
+local Numo9Channel = struct{
+	name = 'Numo9Channel',
+	fields = {
+		{name='volumeL', type='uint8_t'},	-- 2s c, vol & 0x7f is volume, flag 0x80 = reverse
+		{name='volumeR', type='uint8_t'},
+		{name='pitch', type='uint16_t'},	-- fixed point 4.12 multiplier
+		{name='sfxID', type='uint8_t'},		-- index in sfxAddrs[]
+		-- TODO ADSR
+		-- TODO effect flags
+	},
+}
+
+local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
+
+-- make sure our sfx table can address all our sound ram
+--assert(maxrangeforsize(ffi.sizeof(RAM.sfxAddrs[0])) >= ffi.sizeof(RAM.sfxData))
+
+-- make sure we can index all our sfx in the table
+--assert(maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)) >= sfxTableSize)
 
 local RAM = struct{
 	name = 'RAM',
@@ -109,6 +159,9 @@ local RAM = struct{
 				{name='videoMode', type='uint8_t[1]'},
 				{name='blendMode', type='uint8_t[1]'},
 				{name='blendColor', type='uint16_t[1]'},
+
+				-- audio
+				{name='channels', type='Numo9Channel['..numChannels..']'},
 
 				-- timer
 				{name='updateCounter', type='uint32_t[1]'},	-- how many updates() overall, i.e. system clock
