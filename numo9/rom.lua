@@ -77,7 +77,7 @@ local ROM = struct{
 waveforms ...
 pico8 and tic80 use 16 waveforms of 32 notes of 4bits/sample = 256 bytes
 but I want snes-quality, but snes was basically full cd audio quality,
-and i want some kind of restrictions simulating the hardware of the era, 
+and i want some kind of restrictions simulating the hardware of the era,
 but the snes's solution to this was its BRR
  and I don't want to implement it or make people usign numo9 peek/poke to have to deal with it either ...
 
@@ -89,7 +89,7 @@ so our sound is gonna have ...
 how about I first say audio is stored mono 16bit-samples ... any length?
 - 8 channels of playback, each has:
 	- volume left = 1 byte 0-127, flag 0x80 = reverse phase (2's complement)
-	- volume right = 1 byte 
+	- volume right = 1 byte
 	- pitch = 2 bytes, directly proportional to freq multiplier, 0x1000 is 1:1
 	- wave source = 1 byte ... so only 256 diffferent source wave options?
 	- TODO ... ADSR ... how to specify that ...
@@ -102,8 +102,10 @@ how about I first say audio is stored mono 16bit-samples ... any length?
 - echo feedback ?
 --]]
 				{name='sfxAddrs', type='uint16_t['..sfxTableSize..']'},
+
+				-- TODO tempting to store this all with BRR...
 				{name='sfxData', type='uint16_t['..sfxDataSize..']'},
-				
+
 				{name='code', type='uint8_t['..codeSize..']'},
 			},
 		}},
@@ -120,7 +122,12 @@ local Numo9Channel = struct{
 		{name='pitch', type='uint16_t'},	-- fixed point 4.12 multiplier
 		{name='sfxID', type='uint8_t'},		-- index in sfxAddrs[]
 		-- TODO ADSR
-		-- TODO effect flags
+		-- TODO effect flags ... key ... pitch-modulation ... noise ... echo ...
+		-- TODO main volume ... but why dif from just volL volR?
+		{name='echoVolL', type='uint8_t'},
+		{name='echoVolR', type='uint8_t'},
+		{name='echoStartAddr', type='uint8_t'},
+		{name='echoDelay', type='uint8_t'},
 	},
 }
 

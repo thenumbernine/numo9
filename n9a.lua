@@ -371,7 +371,7 @@ print('toImage', name, 'width', width, 'height', height)
 	local labelSrc = move(sections, 'label')
 	if labelSrc then
 		local labelImg = toImage(labelSrc, false, 'label')
-		labelImg:save(basepath'label.png'.path)
+		labelImg:rgb():save(basepath'label.png'.path)
 	end
 
 	-- TODO embed this somewhere in the ROM
@@ -553,6 +553,7 @@ print('toImage', name, 'width', width, 'height', height)
 						loopStart = tonumber(line:sub(5,6), 16),
 						loopEnd = tonumber(line:sub(7,8), 16),
 					}
+					sfxs[j] = sfx
 					-- Should be 32 notes, each note is represented by 20 bits = 5 nybbles
 					-- each is note is per update? 30hz? 60hz? idk?
 					-- from http://pico8wiki.com/index.php?title=Memory it sounds like
@@ -586,11 +587,11 @@ print('toImage', name, 'width', width, 'height', height)
 						else
 							local srcsfxindex = 1+note.waveform-8
 							local srcsfx = sfxs[srcsfxindex]
-							if not srcsfx then
+							if not (srcsfx and srcsfx.data) then
 								if pass==0 then
 									tryagain = true
 								else
-									print('WARNING sfx '..#sfxs..' uses sfx '..srcsfxindex..' based on waveform '..note.waveform)
+									print("WARNING even on 2nd pass couldn't fulfill sfx "..j..' uses sfx '..srcsfxindex..' based on waveform '..note.waveform)
 								end
 								break
 							end
@@ -635,7 +636,6 @@ print('wav '..index..' of size', samples * ffi.sizeof(sampleType))
 							size = samples * ffi.sizeof(sampleType),
 							freq = sampleFramesPerSecond,
 						}
-						sfxs[j] = sfx
 					end
 				end
 			end
