@@ -1447,6 +1447,11 @@ end
 
 -- save from cartridge to filesystem
 function App:save(filename)
+	-- flush anything that might need it
+	self.spriteTex:checkDirtyGPU()
+	self.tileTex:checkDirtyGPU()
+	self.mapTex:checkDirtyGPU()
+	self.palTex:checkDirtyGPU()
 
 	local n = #self.editCode.text
 	assertlt(n+1, codeSize)
@@ -1465,7 +1470,8 @@ function App:save(filename)
 	local success, s = xpcall(
 		toCartImage,
 		errorHandler,
-		self.ram.v
+		--self.ram.v
+		self.cartridge.v
 	)
 	if not success then
 		return nil, basemsg..(s or '')
