@@ -208,10 +208,15 @@ or cmd == 'r' then
 		--resetPalette(rom)
 	end
 
+	local labelImage
+	pcall(function()
+		labelImage = Image(basepath'label.png'.path)
+	end)
+
 	print'saving cart...'
 	assert(path(fn):write(toCartImage(
 		rom,
-		Image(basepath'label.png'.path)	-- add a label if it's there
+		labelImage	-- add a label if it's there
 	)))
 
 	if cmd == 'r' then
