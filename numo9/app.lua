@@ -1808,10 +1808,21 @@ function App:event(e)
 			-- ... can you not issue commands while the game is loaded without resetting the game?
 			if self.menu.isOpen then
 				self.menu.isOpen = false
+				--[[ go to console?
 				self.con.isOpen = true
 				if not self.server then
 					self.isPaused = true
 				end
+				--]]
+				-- [[ go to game?
+				self.con.isOpen = false
+				self.menu.isOpen = false
+				if self.currentEditor and self.currentEditor.loseFocus then
+					self.currentEditor:loseFocus()
+				end
+				self.currentEditor = nil
+				self.isPaused = false
+				--]]
 			elseif self.con.isOpen then
 				self.con.isOpen = false
 				self.currentEditor = self.server and self.editNet or self.editCode
