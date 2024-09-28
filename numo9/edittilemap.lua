@@ -51,15 +51,15 @@ function EditTilemap:update()
 	end, 'grid='..self.gridSpacing)
 	x = x + 24
 
-	if self:guiButton(x, y, 'G', self.drawGrid, 'grid') then
+	if self:guiButton('G', x, y, self.drawGrid, 'grid') then
 		self.drawGrid = not self.drawGrid
 	end
 	x = x + 8
-	if self:guiButton(x, y, 'T', self.pickOpen, 'tile') then
+	if self:guiButton('T', x, y, self.pickOpen, 'tile') then
 		self.pickOpen = not self.pickOpen
 	end
 	x = x + 8
-	if self:guiButton(x, y, 'X', self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
+	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
 		self.draw16Sprites = not self.draw16Sprites
 	end
 

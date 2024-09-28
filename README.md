@@ -256,14 +256,18 @@ The button codes are as follows:
 	- `app` = the NuMo9 app itself.  Probably going away soon.
 	- `_G` = the NuMo9 global.  Probably going away soon.
 
+# Menu
+
+Push Esc in gameplay to get to the menu.
+
 # Virtual Terminal
 
-Push Esc in gameplay to get to the console.
+Push Esc from the menu to get to the console.
 The console accepts Lua commands directly, just like the game script does.
 
 # Editor
 
-Push Esc in console to get to the editor.  Press again to get back to gameplay.
+Push Esc from the console to get to the editor.  Press again to get back to gameplay.
 
 Multiplayer page will list connections.  It will let associate connected players with controllers, kick, etc.
 
@@ -365,21 +369,6 @@ Pico8 Compatability is at 95%
 	- joystick support
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
-- menu system
-	- push escape to enter menu
-	- resume game
-	- new / reset game
-	- multiplayer
-		- listen
-			- and then in server mode, when ppl connect, you can redirect connected players to game players ...
-			- then have buttons for auto-assign-first-players or not
-		- connect
-	- configure 
-		- sound volume
-		- player names
-		- player controls / virtual joystick controls
-	- quit-to-console
-	- quit-to-OS
 
 ... how to mix the console, the menu system, and the editor ... like tic80 does maybe ... hmm  
 

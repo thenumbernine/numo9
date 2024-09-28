@@ -781,6 +781,7 @@ print('package.loaded', package.loaded)
 	local EditSFX = require 'numo9.editsfx'
 	local EditMusic = require 'numo9.editmusic'
 	local Console = require 'numo9.console'
+	local Menu = require 'numo9.menu'
 
 	self:runInEmu(function()
 		self:resetView()	-- reset mat and clip
@@ -791,6 +792,7 @@ print('package.loaded', package.loaded)
 		self.editSFX = EditSFX{app=self}
 		self.editMusic = EditMusic{app=self}
 		self.con = Console{app=self}
+		self.menu = Menu{app=self}
 	end)
 
 	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
@@ -1127,7 +1129,8 @@ conn.receivesPerSecond = 0
 				if coroutine.status(thread) == 'dead' then
 print('cartridge thread dead')
 					self:setFocus(nil)
-					self.con.isOpen = true
+					--self.con.isOpen = true
+					self.menu.isOpen = true
 				else
 					local success, msg = coroutine.resume(thread)
 					if not success then
@@ -1147,41 +1150,32 @@ print('cartridge thread dead')
 		-- now run the console and editor, separately, if it's open
 		-- this way server can issue console commands while the game is running
 		gl.glDisable(gl.GL_BLEND)
-		gl.glDisable(gl.GL_SCISSOR_TEST)
-		self.mvMat:setIdent()
 
-		if self.currentEditor
-		and self.currentEditor.thread
-		then
-			local thread = self.currentEditor.thread
+		-- TODO don't use a table, and don't use an inline lambda
+		local function updateThread(thread)
+			if not thread then return end
+			gl.glDisable(gl.GL_SCISSOR_TEST)
+			self.mvMat:setIdent()
 			if coroutine.status(thread) == 'dead' then
 				self.currentEditor = nil
-			else
-				local success, msg = coroutine.resume(thread)
-				if not success then
-					print(msg)
-					print(debug.traceback(thread))
-					self.con:print(msg)
-				end
+				return
 			end
-		end
-
-		gl.glDisable(gl.GL_SCISSOR_TEST)
-		self.mvMat:setIdent()
-
-		if self.con.isOpen then
-			local thread = self.con.thread
-			if coroutine.status(thread) ~= 'dead' then
-				local success, msg = coroutine.resume(thread)
-				if not success then
+			local success, msg = coroutine.resume(thread)
+			if not success then
+				if thread == self.con.thread then
 					print'CONSOLE THREAD ERROR'
-					print(msg)
-					print(debug.traceback(thread))
-					self.con:resetThread()	-- this could become a negative feedback loop...
-					self.con:print(msg)
 				end
+				print(msg)
+				print(debug.traceback(thread))
+				if thread == self.con.thread then
+					self.con:resetThread()	-- this could become a negative feedback loop...
+				end
+				self.con:print(msg)
 			end
 		end
+		if self.currentEditor then updateThread(self.currentEditor.thread) end
+		if self.con.isOpen then updateThread(self.con.thread) end
+		if self.menu.isOpen then updateThread(self.menu.thread) end
 
 		self:mvMatFromRAM()
 
@@ -1264,6 +1258,7 @@ print('cartridge thread dead')
 			self.palTex:checkDirtyCPU()
 		end
 
+		gl.glDisable(gl.GL_SCISSOR_TEST)
 		gl.glViewport(0, 0, self.width, self.height)
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
@@ -1614,6 +1609,7 @@ function App:runROM()
 	self:resetROM()
 	self.isPaused = false
 	self.con.isOpen = false
+	self.menu.isOpen = false
 
 	-- TODO setfenv instead?
 	local env = setmetatable({}, {
@@ -1810,7 +1806,13 @@ function App:event(e)
 			-- editor -> escape -> console
 			-- ... how to cycle back to the game without resetting it?
 			-- ... can you not issue commands while the game is loaded without resetting the game?
-			if self.con.isOpen then
+			if self.menu.isOpen then
+				self.menu.isOpen = false
+				self.con.isOpen = true
+				if not self.server then
+					self.isPaused = true
+				end
+			elseif self.con.isOpen then
 				self.con.isOpen = false
 				self.currentEditor = self.server and self.editNet or self.editCode
 				if self.currentEditor.gainFocus then
@@ -1829,7 +1831,9 @@ function App:event(e)
 				end
 			else
 				-- assume it's a game pushing esc ...
-				self.con.isOpen = true
+				-- go to the menu
+				self.con.isOpen = false
+				self.menu.isOpen = true
 				if not self.server then
 					self.isPaused = true
 				end

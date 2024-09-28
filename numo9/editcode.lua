@@ -84,7 +84,7 @@ function EditCode:update()
 
 	-- ui controls
 
-	if self:guiButton(120, 0, 'N', self.useLineNumbers) then
+	if self:guiButton('N', 120, 0, self.useLineNumbers) then
 		self.useLineNumbers = not self.useLineNumbers
 	end
 

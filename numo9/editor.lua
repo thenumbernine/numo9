@@ -50,7 +50,7 @@ function Editor:init(args)
 	end)
 end
 
-function Editor:guiButton(x, y, str, isset, tooltip)
+function Editor:guiButton(str, x, y, isset, tooltip)
 	local app = self.app
 
 	local w = self:drawText(str, x, y,
@@ -116,9 +116,9 @@ end
 function Editor:guiRadio(x, y, options, selected, cb)
 	for _,name in ipairs(options) do
 		if self:guiButton(
+			name:sub(1,1):upper(),
 			x,
 			y,
-			name:sub(1,1):upper(),
 			selected == name,
 			name
 		) then
