@@ -445,19 +445,6 @@ print('toImage', name, 'width', width, 'height', height)
 
 	local totalSfxSize = 0
 	do
-		--[[ https://gitlab.com/bztsrc/p8totic/-/blob/main/src/p8totic.c?ref_type=heads
-		local waveforms = table{
-			{0x76, 0x54, 0x32, 0x10, 0xf0, 0x0e, 0xdc, 0xba, 0xba, 0xdc, 0x0e, 0xf0, 0x10, 0x32, 0x54, 0x76},	-- 0 - sine
-			{0xba, 0xbc, 0xdc, 0xd0, 0x0e, 0xf0, 0x00, 0x00, 0x10, 0x02, 0x32, 0x34, 0x54, 0x56, 0x30, 0xda},	-- 1 - triangle
-			{0x00, 0x10, 0x12, 0x32, 0x34, 0x04, 0x50, 0x06, 0x0a, 0xb0, 0x0c, 0xdc, 0xde, 0xfe, 0xf0, 0x00},	-- 2 - sawtooth
-			{0x30, 0x30, 0x30, 0x30, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0x30, 0x30, 0x30, 0x30},	-- 3 - square
-			{0x04, 0x04, 0x04, 0x04, 0x04, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c},	-- 4 - short square / pulse
-			{0x34, 0x12, 0xf0, 0xde, 0xdc, 0xfe, 0xf0, 0x00, 0x00, 0xf0, 0xfe, 0xdc, 0xde, 0xf0, 0x12, 0x34},	-- 5 - ringing / organ
-			{0xf0, 0xd0, 0xf0, 0x1e, 0xb0, 0x0e, 0xf0, 0x52, 0xfa, 0x0e, 0xf0, 0xd4, 0x0e, 0x06, 0x34, 0x3a},	-- 6 - noise
-			{0x32, 0x12, 0x00, 0xf0, 0xfe, 0xd0, 0xbc, 0xba, 0x0a, 0xbc, 0xd0, 0xfe, 0xf0, 0x00, 0x12, 0x32},	-- 7 - ringing sine / phaser
-		}
-		--]]
-
 		-- [[ also in audio/test/test.lua ... consider consolidating
 		local function sinewave(t)
 			return math.sin(t * (2 * math.pi))
@@ -465,22 +452,47 @@ print('toImage', name, 'width', width, 'height', height)
 		local function trianglewave(t)
 			return math.abs(t - math.floor(t + .5)) * 4 - 1
 		end
-		local function sawtoothwave(t)
+		local function sawwave(t)
 			return (t % 1) * 2 - 1
 		end
+		local function tiltedsawwave(t)
+			t = t % 1
+			return math.min(
+				t  / (3 / 4),	-- 3:4 is our ratio of tilt lhs to rhs
+				(1 - t) * 4
+			) * 2 - 1
+		end
 		local function squarewave(t)
-			return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
+			t = t % 1
+			return t > .5 and 1 or -1
+			--return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
+		end
+		local function pulsewave(t)
+			t = t % 1
+			return t > .75 and 1 or -1
+
+		end
+		local function organwave(t)
+			return (sinewave(t) + sinewave(2*t) + sinewave(.5*t))/3
+		end
+		local function noisewave(t)
+			-- too random <-> too high-pitched?  needs to be spectral noise at a certain frequency?
+			--return math.random() * 2 - 1
+			return sinewave(t)
+		end
+		local function phaserwave(t)
+			return sinewave(t) * .75 + sinewave(3*t) * .25
 		end
 		--]]
 		local wavefuncs = table{
 			trianglewave,
-			sawtoothwave,
-			sawtoothwave,
+			sawwave,
+			tiltedsawwave,
 			squarewave,
-			squarewave,--shortsquarewave,
-			sawtoothwave,--ringingwave,
-			trianglewave,--noisewave,
-			sinewave,--ringingsinewave,
+			pulsewave,
+			organwave,
+			noisewave,
+			phaserwave,
 		}
 
 		-- while we're here, try to make them into waves
@@ -509,16 +521,15 @@ print('toImage', name, 'width', width, 'height', height)
 		local channels = 1	-- mono
 		--local channels = 2	-- stereo
 		local sampleFramesPerSecond = 22050
+		--local sampleFramesPerSecond = 32000
 		--local sampleFramesPerSecond = 44100
 		local sampleType, amplMax, amplZero = 'uint8_t', 127, 128
-		local sampleFrameInSeconds = 1 / sampleFramesPerSecond
 		--local sampleType, amplMax, amplZero = 'int16_t', 32767, 0
+		local sampleFrameInSeconds = 1 / sampleFramesPerSecond
 		-- https://www.lexaloffle.com/bbs/?pid=79335#p
 		-- "The sample rate of exported audio is 22,050 Hz. It looks like 1 tick is 183 samples. 1 quarter note was 10,980 samples. That's 120.4918 BPM."
 		local noteBaseLengthInSeconds =  183 / 22050 -- 1/120	-- length of a duration-1 note
 		local sampleFramesPerNoteBase = math.floor(sampleFramesPerSecond * noteBaseLengthInSeconds)	-- 183
-
-		-- is this configurable in pico8?  seems everything is more quiet
 		local baseVolume = 1
 
 		-- generate one note worth of each wavefunction

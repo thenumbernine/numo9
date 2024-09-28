@@ -41,7 +41,7 @@ function EditNet:update()
 		if conn == app then
 			app:drawText('host', x, y, 0xfa, 0xf2)
 		else
-			if self:guiButton(x, y, 'kick') then
+			if self:guiButton('kick', x, y) then
 				conn:close()
 			end
 		end
@@ -54,11 +54,11 @@ function EditNet:update()
 			y = y + 9
 			
 			if info.localPlayer then
-				if self:guiButton(x, y, 'stand') then
+				if self:guiButton('stand', x, y) then
 					info.localPlayer = nil
 				end
 			else
-				if self:guiButton(x, y, 'sit') then
+				if self:guiButton('sit', x, y) then
 					info.localPlayer = 2	-- TODO is the next available player
 				end
 			end

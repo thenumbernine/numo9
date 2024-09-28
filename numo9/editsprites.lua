@@ -511,7 +511,7 @@ function EditSprites:update()
 		)
 	end)
 	local alpha = bit.band(selColorValue,0x8000)~=0
-	if self:guiButton(16,224+24,'A', alpha) then
+	if self:guiButton('A', 16, 224+24, alpha) then
 		if alpha then	-- if it was set then clear it
 			app:net_pokew(selPaletteAddr, 
 				bit.band(selColorValue, 0x7fff)
@@ -524,7 +524,7 @@ function EditSprites:update()
 	end
 	self:drawText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
 
-	if self:guiButton(128-16, 32, 'P', self.pastePreservePalette, 'Paste Keeps Pal='..tostring(self.pastePreservePalette)) then
+	if self:guiButton('P', 128-16, 32, self.pastePreservePalette, 'Paste Keeps Pal='..tostring(self.pastePreservePalette)) then
 		self.pastePreservePalette = not self.pastePreservePalette
 	end
 	-- TODO button for cut copy and paste as well
