@@ -47,9 +47,7 @@ if cmd == 'x' then
 	assert(basepath:isdir())
 
 	print'loading cart...'
-	local romStr = fromCartImage((assert(n9path:read())))
-	assert(#romStr >= ffi.sizeof'ROM')
-	local rom = ffi.cast('ROM*', ffi.cast('char*', romStr))[0]
+	local rom = fromCartImage((assert(n9path:read())))
 
 	print'saving sprite sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
@@ -211,7 +209,10 @@ or cmd == 'r' then
 	end
 
 	print'saving cart...'
-	assert(path(fn):write(toCartImage(rom)))
+	assert(path(fn):write(toCartImage(
+		rom,
+		Image(basepath'label.png'.path)	-- add a label if it's there
+	)))
 
 	if cmd == 'r' then
 		assert(os.execute('./run.lua "'..fn..'"'))
@@ -225,7 +226,10 @@ elseif cmd == 'n9tobin' then
 
 	local binpath = n9path:setext'bin'
 	assert(binpath:write(
-		(assert(fromCartImage((assert(n9path:read())))))
+		ffi.string(
+			(assert(fromCartImage((assert(n9path:read()))))),
+			ffi.sizeof'ROM'
+		)
 	))
 
 elseif cmd == 'binton9' then
@@ -434,6 +438,7 @@ print('toImage', name, 'width', width, 'height', height)
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
+	local totalSfxSize = 0
 	do
 		--[[ https://gitlab.com/bztsrc/p8totic/-/blob/main/src/p8totic.c?ref_type=heads
 		local waveforms = table{
@@ -613,6 +618,8 @@ print('toImage', name, 'width', width, 'height', height)
 					if not tryagain then
 						asserteq(p, data + samples)
 						sfx.data = data
+totalSfxSize = totalSfxSize + samples * ffi.sizeof(sampleType)
+print('wav '..index..' of size', samples * ffi.sizeof(sampleType))
 						sfx.samples = samples
 						-- write data to an audio file ...
 						require 'audio.io.wav'():save{
@@ -630,6 +637,7 @@ print('toImage', name, 'width', width, 'height', height)
 			basepath'sfx.lua':write(tolua(sfxs))
 		end
 	end
+print('total SFX data size: '..totalSfxSize)
 
 	local musicSrc = move(sections, 'music')
 	local music = table()

@@ -12,7 +12,7 @@ It's strictly LuaJIT.  No compiling required.
 
 Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.  If you don't trust them you can rebuild and re-run your own LuaJIT.  All the code is readable and modifyable for your convenience.
 
-There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
+There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, libtiff, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
 
 # Hardware
 
@@ -75,6 +75,14 @@ I'm using 16.16 fixed precision to store the matrix components.  SNES used 8.8, 
 
 I might undercut SNES quality when it comes to audio.
 Not only am I not much of a retro audio programmer, but the SNES happened to be an exceptional audio hardware console of its time.
+
+256 Sound samples at once.
+Each sample is 16bit mono.
+They can be played back through 8 channels at a time.
+Channels have the following properties:
+- separate left/right volume (0-127) and flag for reverse.
+- pitch / frequency as a multiplier (0-65536).  4096 = 1:1, so 2048 is one octave lower, 8192 is one octave higher.
+- source sample ID.
 
 ### Memory Layout
 
@@ -284,7 +292,7 @@ There are a few console commands for multiplayer:
 
 # Cartridges
 
-All my cartridge files are in `.png`. format.  To pack and unpack them use the `n9a.lua` script.
+All my cartridge files are in `.tiff`. format.  To pack and unpack them use the `n9a.lua` script.
 
 To unpack a cartridge into a local directory with matching name:
 ```
@@ -300,6 +308,16 @@ luajit n9a.lua a cart.n9
 To pack a cartridge and immediately run it:
 ```
 luajit n9a.lua r cart.n9
+```
+
+To convert a TIFF-encoded cartridge to its binary ROM format:
+```
+luajit n9a.lua n9tobin cart.n9
+```
+
+To convert the binary ROM back to a TIFF-encoded cartridge:
+```
+luajit n9a.lua binton9 cart.bin
 ```
 
 To convert a Pico8 cartridge to a local directory of unpacked n9 contents:
@@ -329,27 +347,42 @@ Pico8 Compatability is at 95%
 - https://snes.nesdev.org/wiki/Tilemaps
 - https://www.raphnet.net/divers/retro_challenge_2019_03/qsnesdoc.html
 - https://www.coranac.com/tonc/text/hardware.htm
+- https://pikensoft.com/docs.html
 - https://bumbershootsoft.wordpress.com/2023/11/18/snes-digital-audio-playback/
 - https://snes.nesdev.org/wiki/BRR_samples
 - https://snes.nesdev.org/wiki/DSP_envelopes
 - https://wiki.superfamicom.org/transparency
 - https://problemkaputt.de/fullsnes.htm
 - https://archive.org/details/SNESDevManual/book1/
+- https://en.wikibooks.org/wiki/Super_NES_Programming/Loading_SPC700_programs
 
 # TODO
-- sfx and music
+- sfx
+	- plays WAVs and generates WAVs from pico8 carts
+	- still not sure how my sound 'hardware' should work ...
+- music WIP
 - input
 	- joystick support
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
-- multiplayer
-	- where should notification messages show up? host terminal?  windows users don't like host terminal...
-	- needs proper observer/lobby/hotseat roles.  how should server be able to see whose connected?
-		- how about another editor window?  for connections - with buttons for ...
-			- how many seats are available
-			- how many for auto-joining, such that first joined player sits down immediately
-			- per connection: boot, leave seat, sit
-	- where to go to configure your name / number of players / controls?
+- menu system
+	- push escape to enter menu
+	- resume game
+	- new / reset game
+	- multiplayer
+		- listen
+			- and then in server mode, when ppl connect, you can redirect connected players to game players ...
+			- then have buttons for auto-assign-first-players or not
+		- connect
+	- configure 
+		- sound volume
+		- player names
+		- player controls / virtual joystick controls
+	- quit-to-console
+	- quit-to-OS
+
+... how to mix the console, the menu system, and the editor ... like tic80 does maybe ... hmm  
+
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
 	- copy/paste on the tilemap.
