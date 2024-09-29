@@ -608,7 +608,7 @@ function App:initGL()
 		end,
 
 		sfx = function(...) return self:playSound(...) end,
-		music = function(...) return self:music(...) end,
+		music = function(...) return self:playMusic(...) end,
 
 		-- this just falls back to glapp saving the OpenGL draw buffer
 		screenshot = function() return self:screenshotToFile'ss.png' end,

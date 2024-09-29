@@ -611,8 +611,8 @@ assert(shift>=0)
 		p8_fillp(0)
 	end,
 
-	music=[]nil,	-- TODO
-	sfx=[n,ch,ofs,len] sfx(n,0,len,ch,ofs),	-- id, note, duration, channel, volume, speed, offset)
+	music=[n, fadeLen, mask]music(n, fadeLen, mask),
+	sfx=[n,ch,ofs,len]sfx(n,0,len,ch,ofs),	-- id, note, duration, channel, volume, speed, offset)
 
 	reload=[dst,src,len]do
 trace'TODO reload'

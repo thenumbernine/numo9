@@ -378,7 +378,7 @@ Pico8 Compatability is at 95%
 		- copy/paste tilemap entries themselves
 		- paste sprites into the tilemap, then automatically quantize their sprites and palettes.. Just need to copy most of this from my `convert-to-8x8x4bpp` repo.
 		- ... of text / number tables
-	- palette index swap feature
+	- expose palette index swap feature
 	- bucket fill functionality
 	- flag for pen / paste / bucket fill clip-to-view-area or not
 	- blob-finding functionality ... ?  How about selection masks and click-to-select stuff?  Why not just remake Photoshop.

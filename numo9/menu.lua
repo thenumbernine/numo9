@@ -75,7 +75,7 @@ function Menu:update()
 
 	section'input'
 
-	if self:guiButton('input configu', x, y) then
+	if self:guiButton('input config', x, y) then
 	end
 	y = y + ystep
 
