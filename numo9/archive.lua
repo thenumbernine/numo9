@@ -16,7 +16,7 @@ local Image = require 'image'
 local App = require 'numo9.app'
 
 -- 40200 right now
-local cartImageSize = vec3i(363, 363, 3)
+local cartImageSize = vec3i(364, 364, 3)
 if ffi.sizeof'ROM' >= cartImageSize:volume() then
 	print("You need to resize your cartridge image size for the ROM image to fit into the cartridge file.")
 	print(" ROM size: "..ffi.sizeof'ROM')
@@ -38,7 +38,7 @@ creates an Image and returns it
 local function toCartImage(rom, labelImage)
 	asserttype(rom, 'cdata')
 	local romImage = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'uint16_t'):clear()
-	
+
 	-- TODO image hardcodes this to 1) file io and 2) extension ... because a lot of the underlying image format apis do too ... fix me plz
 	--[[ if it's 8bpp ...
 	ffi.copy(romImage.buffer, rom, ffi.sizeof'ROM')
@@ -57,7 +57,7 @@ local function toCartImage(rom, labelImage)
 				else
 					romImage.buffer[index] = 0
 				end
-				
+
 				if labelImage then
 					romImage.buffer[index] = bit.bor(
 						romImage.buffer[index],
@@ -67,7 +67,7 @@ local function toCartImage(rom, labelImage)
 									math.floor(x / romImage.width * labelImage.width)
 									+ labelImage.width * math.floor(y / romImage.height * labelImage.height)
 								)
-							]), 
+							]),
 							8
 						)
 					)
@@ -99,12 +99,12 @@ local function fromCartImage(imageFileData)
 
 	asserteq(romImage.channels, 3)
 	assertle(ffi.sizeof'ROM', romImage.width * romImage.height * romImage.channels)
-	
+
 	local rom = ffi.new'ROM'
 	--[[ if it's 8bpp ...
 	ffi.copy(rom.v, romImage.buffer, ffi.sizeof'ROM')
 	--]]
-	-- [[ if it's 16bpp ...	
+	-- [[ if it's 16bpp ...
 	local index = 0
 	for y=0,cartImageSize.y-1 do
 		for x=0,cartImageSize.x-1 do

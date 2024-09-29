@@ -56,6 +56,7 @@ local clipRectAddrEnd = require 'numo9.rom'.clipRectAddrEnd
 local mvMatAddr = require 'numo9.rom'.mvMatAddr
 local mvMatInBytes = require 'numo9.rom'.mvMatInBytes
 local mvMatAddrEnd = require 'numo9.rom'.mvMatAddrEnd
+local deltaCompress = require 'numo9.rom'.deltaCompress
 
 
 local ramStateSize = spriteSheetInBytes
@@ -621,22 +622,6 @@ function Server:beginFrame()
 	})
 end
 
-local function deltaCompress(
-	prevp,	-- previous state, of T*
-	nextp,	-- next state, of T*
-	len,	-- state length
-	dstvec	-- a vector'T' for now
-)
-	for i=0,len-1 do
-		if nextp[0] ~= prevp[0] then
-			dstvec:emplace_back()[0] = i
-			dstvec:emplace_back()[0] = nextp[0]
-		end
-		nextp=nextp+1
-		prevp=prevp+1
-	end
-end
-
 function Server:endFrame()
 	-- if there was a frame before this ... delta-compress
 	if self.frames[2] then
@@ -666,7 +651,7 @@ function Server:endFrame()
 		deltaCompress(clp, svp, n, deltas)
 
 		if deltas.size > 0 then
-			local data = ffi.string(ffi.cast('char*', deltas.v), 2*deltas.size)
+			local data = deltas:dataToStr()
 			for _,serverConn in ipairs(self.conns) do
 				serverConn.toSend:insert(data)
 			end
@@ -791,7 +776,7 @@ print'creating server remote client conn...'
 	self:sendRAM(serverConn)
 
 	-- send most recent frame state
-	local frameStr = ffi.string(ffi.cast('char*', self.frames[1].cmds.v), self.frames[1].cmds.size * ffi.sizeof'Numo9Cmd')
+	local frameStr = self.frames[1].cmds:dataToStr()
 	assert(#frameStr < 0xfffe, "need to fix your protocol")
 	local header = ffi.new('uint16_t[2]')
 	header[0] = 0xfeff
@@ -1069,8 +1054,8 @@ print('got uint16 index='
 			self.inputMsgVec
 		)
 		if self.inputMsgVec.size > 0 then
+			local data = self.inputMsgVec:dataToStr()
 --print('SENDING INPUT', string.hexdump(data))
-			local data = ffi.string(ffi.cast('char*', self.inputMsgVec.v), self.inputMsgVec.size)
 			send(sock, data)
 		end
 		ffi.copy(self.lastButtons, buttonPtr, 4)

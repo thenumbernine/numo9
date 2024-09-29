@@ -16,21 +16,27 @@ local asserteq = require 'ext.assert'.eq
 local assertlt = require 'ext.assert'.lt
 local assertle = require 'ext.assert'.le
 local assertlen = require 'ext.assert'.len
+local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local App = require 'numo9.app'
 
-local rgba5551_to_rgba8888_4ch = require 'numo9.video'.rgba5551_to_rgba8888_4ch
-local rgba8888_4ch_to_5551 = require 'numo9.video'.rgba8888_4ch_to_5551
-local resetFontOnSheet = require 'numo9.video'.resetFontOnSheet
-local resetPalette = require 'numo9.video'.resetPalette
-local resetFont = require 'numo9.video'.resetFont
+local numo9_video = require 'numo9.video'
+local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
+local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
+local resetFontOnSheet = numo9_video.resetFontOnSheet
+local resetPalette = numo9_video.resetPalette
+local resetFont = numo9_video.resetFont
 
-local fromCartImage = require 'numo9.archive'.fromCartImage
-local toCartImage = require 'numo9.archive'.toCartImage
+local numo9_archive = require 'numo9.archive'
+local fromCartImage = numo9_archive.fromCartImage
+local toCartImage = numo9_archive.toCartImage
 
-local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
-local tilemapSize = require 'numo9.rom'.tilemapSize
-local codeSize = require 'numo9.rom'.codeSize
+local numo9_rom = require 'numo9.rom'
+local spriteSheetSize = numo9_rom.spriteSheetSize
+local tilemapSize = numo9_rom.tilemapSize
+local codeSize = numo9_rom.codeSize
+local sfxTableSize = numo9_rom.sfxTableSize
+local audioDataSize = numo9_rom.audioDataSize
 
 local cmd, fn, extra = ...
 assert(cmd and fn, "expected: `n9a.lua cmd fn`")
@@ -112,6 +118,7 @@ or cmd == 'r' then
 
 	assert(basepath:isdir())
 	local rom = ffi.new'ROM'
+	ffi.fill(rom.v, 0, ffi.sizeof(rom))
 
 	print'loading sprite sheet...'
 	if basepath'sprite.png':exists() then
@@ -187,6 +194,41 @@ or cmd == 'r' then
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if pal.png doens't exist then load the default at least
 		resetPalette(rom)
+	end
+
+	print'loading sfx...'
+	do
+		local audioDataOffset = 0
+		-- returns start and end of offset into audioData for 'data' to go
+		local function addToAudio(data, size)
+			local addr = audioDataOffset
+			assert(addr + size <= audioDataSize)
+			ffi.copy(rom.audioData + addr, data, size)
+			audioDataOffset = audioDataOffset + size
+			return addr, audioDataOffset
+		end
+
+		-- load sfx into audio memory
+		for i=0,sfxTableSize-1 do
+			local p = basepath('waveform'..i..'.wav')
+			if p:exists() then
+				local wav = require 'audio.io.wav'():load(p.path)
+				asserteq(wav.channels, 1)	-- waveforms / sfx are mono
+				-- TODO resample if they are different.
+				-- for now I'm just saving them in this format and being lazy
+				asserteq(wav.ctype, numo9_rom.audioSampleType)
+				asserteq(wav.freq, numo9_rom.audioSampleRate)
+				local data = wav.data
+				local size = wav.size
+				--[[ now BRR-compress them and copy them into rom.audioData, and store their offsets in sfxAddrs
+				-- TODO what if the data doesn't align to 8 samples? what did SNES do?
+				local brrComp = vector'uint8_t'
+				--]]
+				-- [[ until then, use raw for now
+				rom.sfxAddrs[i].addr, rom.sfxAddrs[i].len = addToAudio(data, size), size
+				--]]
+			end
+		end
 	end
 
 	print'loading code...'
@@ -444,6 +486,7 @@ print('toImage', name, 'width', width, 'height', height)
 	end
 
 	local totalSfxSize = 0
+	local totalMusicSize = 0
 	do
 		-- [[ also in audio/test/test.lua ... consider consolidating
 		local function sinewave(t)
@@ -518,13 +561,15 @@ print('toImage', name, 'width', width, 'height', height)
 		-- either way, we can only issue audio commands every update() , which itself is 60hz, so might as well size our buffers at 22050/60 = 387.5 samples
 		-- or use 32000 and size our 1/60 buffers to be 533.333 samples
 		-- or use 44100 and size our 1/60 buffers to be 735 samples
-		local channels = 1	-- mono
+		local channels = 1	-- store mono samples, mix stereo, right?
 		--local channels = 2	-- stereo
-		local sampleFramesPerSecond = 22050
+		--local sampleFramesPerSecond = 22050
 		--local sampleFramesPerSecond = 32000
 		--local sampleFramesPerSecond = 44100
-		local sampleType, amplMax, amplZero = 'uint8_t', 127, 128
-		--local sampleType, amplMax, amplZero = 'int16_t', 32767, 0
+		local sampleFramesPerSecond = numo9_rom.audioSampleRate	-- 32000
+		--local sampleType, amplMax, amplZero = 'uint8_t', 127, 128
+		local sampleType, amplMax, amplZero = 'int16_t', 32767, 0
+		asserteq(sampleType, numo9_rom.audioSampleType)
 		local sampleFrameInSeconds = 1 / sampleFramesPerSecond
 		-- https://www.lexaloffle.com/bbs/?pid=79335#p
 		-- "The sample rate of exported audio is 22,050 Hz. It looks like 1 tick is 183 samples. 1 quarter note was 10,980 samples. That's 120.4918 BPM."
@@ -535,17 +580,33 @@ print('toImage', name, 'width', width, 'height', height)
 		-- generate one note worth of each wavefunction
 		-- each will be an array of sampleType sized sampleFramesPerNoteBase	- so it's single-channeled
 		-- make the freq such that a single wave fits in a single note
-		local waveformFreq = 1 / (sampleFrameInSeconds * sampleFramesPerNoteBase)
-		local waveforms = wavefuncs:mapi(function(f)
+		--local waveformFreq = 1 / (sampleFrameInSeconds * sampleFramesPerNoteBase) -- = 1/sampleFramesPerNoteBase ~ 120.49180327869
+		-- would it be good to pick a frequency high enough that pitch-adjuster could slow down lower to any freq ?
+		local waveformFreq = 22050 / 183 * 8	-- any higher and it sounds bad
+		-- there's gotta be some math rule about converting from one frequency wave to another and how well that works ...
+		-- ANOTHER OPTION is just use more samples for this, and not 183
+		local waveforms = wavefuncs:mapi(function(f,j)
 			local data = ffi.new(sampleType..'[?]', sampleFramesPerNoteBase)
 			local p = ffi.cast(sampleType..'*', data)
 			local tf = 0	-- time x frequency
 			for i=0,sampleFramesPerNoteBase-1 do
 				tf = tf + sampleFrameInSeconds * waveformFreq
 				p[0] = f(tf) * amplMax + amplZero
-				p=p+1
+				p = p + 1
 			end
 			asserteq(p, data + sampleFramesPerNoteBase)
+
+			-- TODO make these the sfx samples in-game
+			-- and then turn the sfx into whatever the playback-format is
+			require 'audio.io.wav'():save{
+				filename = basepath('waveform'..(j-1)..'.wav').path,
+				ctype = sampleType,
+				channels = 1,
+				data = data,
+				size = sampleFramesPerNoteBase * ffi.sizeof(sampleType),
+				freq = sampleFramesPerSecond,
+			}
+
 			return data
 		end)
 
@@ -564,7 +625,6 @@ print('toImage', name, 'width', width, 'height', height)
 						loopStart = tonumber(line:sub(5,6), 16),
 						loopEnd = tonumber(line:sub(7,8), 16),
 					}
-					sfxs[j] = sfx
 					-- Should be 32 notes, each note is represented by 20 bits = 5 nybbles
 					-- each is note is per update? 30hz? 60hz? idk?
 					-- from http://pico8wiki.com/index.php?title=Memory it sounds like
@@ -580,89 +640,163 @@ print('toImage', name, 'width', width, 'height', height)
 					while #sfx.notes > 0 and sfx.notes:last().volume == 0 do
 						sfx.notes:remove()
 					end
+					if #sfx.notes > 0 then
 
-					local duration = math.max(1, sfx.duration)
-					local sampleFramesPerNote = sampleFramesPerNoteBase * duration
-					local sampleFrames = sampleFramesPerNote * #sfx.notes
-					local samples = sampleFrames * channels
-					local data = ffi.new(sampleType..'[?]', samples)
-					local p = ffi.cast(sampleType..'*', data)
-					local wi = 0
-					local tf = 0	-- time x frequency
-					local tryagain = false
-					
-					for ni,note in ipairs(sfx.notes) do
-						-- TODO are you sure about these waveforms?
-						-- maybe I should generate the patterns again myself ...
-						local waveformData,waveformLen
-						if note.waveform < 8 then
-							local waveformIndex = bit.band(7,note.waveform)
-							waveformData  = waveforms[waveformIndex+1]
-							waveformLen = sampleFramesPerNoteBase
-						else
-							local srcsfxindex = 1+note.waveform-8
-							local srcsfx = sfxs[srcsfxindex]
-							if not (srcsfx and srcsfx.data) then
-								if pass==0 then
-									tryagain = true
-								else
-									print("WARNING even on 2nd pass couldn't fulfill sfx "..j..' uses sfx '..srcsfxindex..' based on waveform '..note.waveform)
+						-- no notes = no sound file ...
+						sfxs[j] = sfx
+
+						--[[
+						TODO here write out an equivalent of our "spc"-ish commands for playing back our "sfx" i mean waveforms
+						or midi-ish ... idk
+						Time to define a SPC-ish MIDI-ish format of my own ...
+						or maybe I'll just use MIDI?
+						--]]
+						local deltaCompress = require 'numo9.rom'.deltaCompress
+						local numAudioChannels = require 'numo9.rom'.audioMixChannels -- TODO names ... channels for mixing vs output channels L R for stereo
+						local prevSoundState = ffi.new('Numo9Channel[?]', numAudioChannels)
+						ffi.fill(prevSoundState, ffi.sizeof(prevSoundState))
+						local soundState = ffi.new('Numo9Channel[?]', numAudioChannels)
+						ffi.fill(soundState, ffi.sizeof(soundState))
+
+						-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
+						assertlt(ffi.sizeof(soundState), 255)
+
+						local playbackDeltas = vector'uint8_t'
+						local short = ffi.new'uint16_t[1]'
+						local byte = ffi.cast('uint8_t*', short)
+						playbackDeltas:push_back(120)	-- bpm
+						local lastNoteIndex = 1
+						for ni,note in ipairs(sfx.notes) do
+							if note.volume > 0 then
+								-- when converting pico8 sfx to my music tracks, just put them at track zero, I'll figure out how to shift them around later *shrug*
+								soundState[0].volumeL = note.volume
+								soundState[0].volumeR = note.volume
+
+								-- convert from note to multiplier
+								local freq = C0freq * chromastep^note.pitch
+								local pitchScale = 0x1000 * freq / waveformFreq
+								assertlt(pitchScale, 0x10000)	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
+								soundState[0].pitch = pitchScale
+
+								soundState[0].sfxID = note.waveform
+
+								-- TODO effects and loops and stuff ...
+
+								-- insert wait time in beats
+								-- how to distingish this from deltas?  start-frame or end-frame message?
+								short[0] = ni-lastNoteIndex
+								lastNoteIndex = ni
+								playbackDeltas:emplace_back()[0] = byte[1]
+								playbackDeltas:emplace_back()[0] = byte[0]
+
+								-- insert delta
+								deltaCompress(
+									ffi.cast('uint8_t*', prevSoundState),
+									ffi.cast('uint8_t*', soundState),
+									ffi.sizeof(soundState),
+									playbackDeltas
+								)
+
+								-- insert an end-frame
+								playbackDeltas:insert(0xff)
+
+								-- update
+								ffi.copy(prevSoundState, soundState, ffi.sizeof(soundState))
+							end
+						end
+						basepath('music'..j..'.bin'):write(playbackDeltas:dataToStr())
+
+						local duration = math.max(1, sfx.duration)
+						local sampleFramesPerNote = sampleFramesPerNoteBase * duration
+						local sampleFrames = sampleFramesPerNote * #sfx.notes
+						local samples = sampleFrames * channels
+						local data = ffi.new(sampleType..'[?]', samples)
+						local p = ffi.cast(sampleType..'*', data)
+						local wi = 0
+						local tf = 0	-- time x frequency
+						local tryagain = false
+
+						for ni,note in ipairs(sfx.notes) do
+							-- TODO are you sure about these waveforms?
+							-- maybe I should generate the patterns again myself ...
+							local waveformData,waveformLen
+							if note.waveform < 8 then
+								local waveformIndex = bit.band(7,note.waveform)
+								waveformData  = waveforms[waveformIndex+1]
+								waveformLen = sampleFramesPerNoteBase
+							else
+								local srcsfxindex = 1+note.waveform-8
+								local srcsfx = sfxs[srcsfxindex]
+								if not (srcsfx and srcsfx.data) then
+									if pass==0 then
+										tryagain = true
+									else
+										print("WARNING even on 2nd pass couldn't fulfill sfx "..j..' uses sfx '..srcsfxindex..' based on waveform '..note.waveform)
+									end
+									break
 								end
-								break
+								waveformData = srcsfx.data
+								waveformLen = srcsfx.samples / channels
+								asserteq(channels, 1)	-- ...otherwise I have to do some adjusting between the original waveform data and the reused rendered sfx data
 							end
-							waveformData = srcsfx.data
-							waveformLen = srcsfx.samples / channels
-							asserteq(channels, 1)	-- ...otherwise I have to do some adjusting between the original waveform data and the reused rendered sfx data
-						end
 
-						local f = wavefuncs[bit.band(7,note.waveform)+1]
-						local volume = baseVolume * note.volume / 7
-						local freq = C0freq * chromastep^note.pitch
-						for i=0,sampleFramesPerNote-1 do
-							-- [[ use sampled buffer, just like we'll reuse it for custom sfx of sfx ...
-							local ampl = (waveformData[math.floor(wi) % waveformLen] - amplZero) / amplMax
-							ampl = volume * ampl * amplMax + amplZero
-							-- oh yeah ... when using custom sfx ... what freq should we assume they are in?
-							wi = wi + freq / waveformFreq
-							--]]
-							--[[ WE'LL DO IT LIVE
-							tf = tf + sampleFrameInSeconds * freq
-							local ampl = f(tf) * volume * amplMax + amplZero
-							--]]
+							local f = wavefuncs[bit.band(7,note.waveform)+1]
+							local volume = baseVolume * note.volume / 7
+							local freq = C0freq * chromastep^note.pitch
+							for i=0,sampleFramesPerNote-1 do
+								-- [[ use sampled buffer, just like we'll reuse it for custom sfx of sfx ...
+								local ampl = (waveformData[math.floor(wi) % waveformLen] - amplZero) / amplMax
+								ampl = volume * ampl * amplMax + amplZero
+								-- oh yeah ... when using custom sfx ... what freq should we assume they are in?
+								wi = wi + freq / waveformFreq
+								--]]
+								--[[ WE'LL DO IT LIVE
+								tf = tf + sampleFrameInSeconds * freq
+								local ampl = f(tf) * volume * amplMax + amplZero
+								--]]
 
-							for k=0,channels-1 do
-								p[0] = ampl
-								p=p+1
+								for k=0,channels-1 do
+									p[0] = ampl
+									p=p+1
+								end
 							end
 						end
-					end
-					if not tryagain then
-						asserteq(p, data + samples)
-						sfx.data = data
+						if not tryagain then
+							asserteq(p, data + samples)
+							sfx.data = data
 totalSfxSize = totalSfxSize + samples * ffi.sizeof(sampleType)
-print('wav '..index..' of size', samples * ffi.sizeof(sampleType))
-						sfx.samples = samples
-						-- write data to an audio file ...
-						require 'audio.io.wav'():save{
-							filename = basepath('sfx'..index..'.wav').path,
-							ctype = sampleType,
-							channels = channels,
-							data = data,
-							size = samples * ffi.sizeof(sampleType),
-							freq = sampleFramesPerSecond,
-						}
+print('wav '..index..' size', samples * ffi.sizeof(sampleType), 'delta compressed notes to', #playbackDeltas..' delta bytes')
+totalMusicSize = totalMusicSize + #playbackDeltas
+							sfx.samples = samples
+							-- write data to an audio file ...
+							require 'audio.io.wav'():save{
+								filename = basepath('sfx'..index..'.wav').path,
+								ctype = sampleType,
+								channels = channels,
+								data = data,
+								size = samples * ffi.sizeof(sampleType),
+								freq = sampleFramesPerSecond,
+							}
+						end
 					end
 				end
 			end
 			basepath'sfx.lua':write(tolua(sfxs))
 		end
-	end
+
 print('total SFX data size: '..totalSfxSize)
+print('total sfx as music commands: '..totalMusicSize)
+--[[ TODO don't bother BRR-encode SFX data, it's going to turn into music commands anyways
+-- but go ahead and BRR-encode the waveforms, they're going to become our SFX data
 print("total SFX data size if I'd use BRR: "..(
 	-- 16 samples x 2 bytes @ 16bits = 32 bytes ...
 	-- ... is replaced with 8 bytes + 1 byte header
 	math.ceil(totalSfxSize / 32 * 9)
 ))
+--]]
+		print('num created sfx (matches pico8 waveforms):', lastAudioSFX)
+		print('num audio data stored:', audioDataOffset)
+	end
 
 	local musicSrc = move(sections, 'music')
 	local music = table()
@@ -673,10 +807,14 @@ print("total SFX data size if I'd use BRR: "..(
 			beginPatternLoop = 0 ~= bit.band(1, flags),
 			endPatternLoop = 0 ~= bit.band(2, flags),
 			stopAtEndOfPattern = 0 ~= bit.band(4, flags),
-			sfxs = {line:sub(4):gsub('..', function(h) 
-				-- btw what are those top 2 bits for?
-				return string.char(bit.band(0x3f, tonumber(h, 16))) 
-			end):byte(1,4)},
+			sfxs = table{
+				line:sub(4):gsub('..', function(h)
+					-- btw what are those top 2 bits for?
+					return string.char(tonumber(h, 16))
+				end):byte(1,4)
+			}:filter(function(i)
+				return i < 64
+			end),
 		}
 	end
 	basepath'music.lua':write(tolua(music))

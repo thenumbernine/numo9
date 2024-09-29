@@ -29,26 +29,27 @@ local gl = require 'gl'
 local GLApp = require 'glapp'
 local ThreadManager = require 'threadmanager'
 
-local ROM = require 'numo9.rom'.ROM	-- define RAM, ROM, etc
-local RAM = require 'numo9.rom'.RAM
-local spriteSize = require 'numo9.rom'.spriteSize
-local frameBufferSize = require 'numo9.rom'.frameBufferSize
-local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
-local tilemapSize = require 'numo9.rom'.tilemapSize
-local keyPressFlagSize = require 'numo9.rom'.keyPressFlagSize
-local keyCount = require 'numo9.rom'.keyCount
-local codeSize = require 'numo9.rom'.codeSize
-local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
-local spriteSheetAddrEnd = require 'numo9.rom'.spriteSheetAddrEnd
-local tileSheetAddr = require 'numo9.rom'.tileSheetAddr
-local tileSheetAddrEnd = require 'numo9.rom'.tileSheetAddrEnd
-local tilemapAddr = require 'numo9.rom'.tilemapAddr
-local tilemapAddrEnd = require 'numo9.rom'.tilemapAddrEnd
-local paletteAddr = require 'numo9.rom'.paletteAddr
-local paletteAddrEnd = require 'numo9.rom'.paletteAddrEnd
-local framebufferAddr = require 'numo9.rom'.framebufferAddr
-local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
-local packptr = require 'numo9.rom'.packptr
+local numo9_rom = require 'numo9.rom'
+local ROM = numo9_rom.ROM	-- define RAM, ROM, etc
+local RAM = numo9_rom.RAM
+local spriteSize = numo9_rom.spriteSize
+local frameBufferSize = numo9_rom.frameBufferSize
+local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local tilemapSize = numo9_rom.tilemapSize
+local keyPressFlagSize = numo9_rom.keyPressFlagSize
+local keyCount = numo9_rom.keyCount
+local codeSize = numo9_rom.codeSize
+local spriteSheetAddr = numo9_rom.spriteSheetAddr
+local spriteSheetAddrEnd = numo9_rom.spriteSheetAddrEnd
+local tileSheetAddr = numo9_rom.tileSheetAddr
+local tileSheetAddrEnd = numo9_rom.tileSheetAddrEnd
+local tilemapAddr = numo9_rom.tilemapAddr
+local tilemapAddrEnd = numo9_rom.tilemapAddrEnd
+local paletteAddr = numo9_rom.paletteAddr
+local paletteAddrEnd = numo9_rom.paletteAddrEnd
+local framebufferAddr = numo9_rom.framebufferAddr
+local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
+local packptr = numo9_rom.packptr
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local keyCodeForName = require 'numo9.keys'.keyCodeForName
@@ -1533,6 +1534,8 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
+	-- TODO call this resetVideo() ?
+
 	--[[ update later ...
 	self.spriteTex:checkDirtyGPU()
 	self.tileTex:checkDirtyGPU()
@@ -1566,6 +1569,15 @@ function App:resetROM()
 	self.palTex.dirtyCPU = true
 	self.fbTex.dirtyCPU = true
 	--]]
+
+	-- and this resetAudio() ?
+
+	for i=0,numo9_rom.sfxTableSize-1 do
+		local addrLen = self.ram.sfxAddrs[i]
+		if addrLen.len > 0 then
+			print('sfx found',i,'size',addrLen.len)
+		end
+	end
 
 	return true
 end
