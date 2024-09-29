@@ -577,6 +577,9 @@ print('toImage', name, 'width', width, 'height', height)
 							effect = tonumber(line:sub(i+4,i+4), 16),	-- 0-7
 						}
 					end
+					while #sfx.notes > 0 and sfx.notes:last().volume == 0 do
+						sfx.notes:remove()
+					end
 
 					local duration = math.max(1, sfx.duration)
 					local sampleFramesPerNote = sampleFramesPerNoteBase * duration
@@ -587,6 +590,7 @@ print('toImage', name, 'width', width, 'height', height)
 					local wi = 0
 					local tf = 0	-- time x frequency
 					local tryagain = false
+					
 					for ni,note in ipairs(sfx.notes) do
 						-- TODO are you sure about these waveforms?
 						-- maybe I should generate the patterns again myself ...
@@ -654,6 +658,11 @@ print('wav '..index..' of size', samples * ffi.sizeof(sampleType))
 		end
 	end
 print('total SFX data size: '..totalSfxSize)
+print("total SFX data size if I'd use BRR: "..(
+	-- 16 samples x 2 bytes @ 16bits = 32 bytes ...
+	-- ... is replaced with 8 bytes + 1 byte header
+	math.ceil(totalSfxSize / 32 * 9)
+))
 
 	local musicSrc = move(sections, 'music')
 	local music = table()
@@ -664,7 +673,10 @@ print('total SFX data size: '..totalSfxSize)
 			beginPatternLoop = 0 ~= bit.band(1, flags),
 			endPatternLoop = 0 ~= bit.band(2, flags),
 			stopAtEndOfPattern = 0 ~= bit.band(4, flags),
-			sfxs = line:sub(4):gsub('..', function(h) return tonumber(h, 16) end),
+			sfxs = {line:sub(4):gsub('..', function(h) 
+				-- btw what are those top 2 bits for?
+				return string.char(bit.band(0x3f, tonumber(h, 16))) 
+			end):byte(1,4)},
 		}
 	end
 	basepath'music.lua':write(tolua(music))
