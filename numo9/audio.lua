@@ -1,6 +1,8 @@
 local ffi = require 'ffi'
 local sdl = require 'sdl'
 local sdlAssertZero = require 'sdl.assert'.zero
+local ctypeForSDLAudioFormat = require 'sdl.audio'.ctypeForSDLAudioFormat
+local sdlAudioFormatForCType = require 'sdl.audio'.sdlAudioFormatForCType
 local asserteq = require 'ext.assert'.eq
 local assertindex = require 'ext.assert'.index
 local table = require 'ext.table'
@@ -40,23 +42,6 @@ local AppAudio = {}
 function AppAudio:initAudio()
 	sdlAssertZero(sdl.SDL_AudioInit'coreaudio')
 
-	-- [[ TODO also in sdl/tests/audio.lua, consider consolidating
-	local ctypeForSDLAudioFormat =  {
-		-- TODO 'LSB' vs 'MSB' ...
-		-- TODO how to determine unique types for each of these ...
-		[sdl.AUDIO_U8] = 'uint8_t',
-		[sdl.AUDIO_S8] = 'int8_t',
-		[sdl.AUDIO_S16] = 'int16_t',
-		[sdl.AUDIO_U16] = 'uint16_t',
-		[sdl.AUDIO_S32] = 'int32_t',
-		[sdl.AUDIO_F32] = 'float',
-
-		[sdl.AUDIO_S16SYS] = 'int16_t',
-		[sdl.AUDIO_U16SYS] = 'uint16_t',
-		[sdl.AUDIO_S32SYS] = 'int32_t',
-		[sdl.AUDIO_F32SYS] = 'float',
-	}
-	local sdlAudioFormatForCType = table.map(ctypeForSDLAudioFormat, function(v,k) return k,v end):setmetatable(nil)
 	local function printSpecs(spec)
 		print('', 'freq', spec.freq)
 		print('', 'format', spec.format, ctypeForSDLAudioFormat[spec.format])
@@ -68,14 +53,13 @@ function AppAudio:initAudio()
 		print('', 'callback', spec.callback)
 		print('', 'userdata', spec.userdata)
 	end
-	--]]
 
 	local audio = {}
 	self.audio = audio
 
 	local desired = ffi.new'SDL_AudioSpec[1]'
 
-	local bufferSizeInSeconds = 4 * updateIntervalInSeconds
+	local bufferSizeInSeconds = updateIntervalInSeconds
 
 print('sampleFramesPerSecond', sampleFramesPerSecond)
 print('requested ezeInSeconds', bufferSizeInSeconds)
@@ -158,6 +142,7 @@ function AppAudio:resetAudio()
 	audio.musicPlaying = false
 
 	-- this is to keep 1:1 with romUpdateCounter
+	-- or not and just assume we're getting called once per update anyways
 	--audio.audioUpdateCounter = 0
 
 	-- this is the current sample-frame index, and updates at `sampleFramesPerSecond` times per second
@@ -169,68 +154,17 @@ function AppAudio:updateAudio()
 	local audio = self.audio
 	local channelPtr = ffi.cast('uint8_t*', self.ram.channels)
 
-	-- sound can't keep up ... hmm ...
-	--while self.ram.romUpdateCounter[0] > audio.audioUpdateCounter do
-	--if self.ram.romUpdateCounter[0] > audio.audioUpdateCounter then
-	--	audio.audioUpdateCounter = audio.audioUpdateCounter + 1
-	-- or just call this 1/60th of a second and T R U S T
-	do
-		-- TODO here fill with whatever the audio channels are set to
-		-- The bufferSizeInSampleFrames is more than one update's worth
-		local p = audio.audioBuffer
-		--for i=0,audio.bufferSizeInSampleFrames-1 do
-		for i=0,updateIntervalInSampleFrames-1 do
-			p[0] = 0
-
-			local channel = self.ram.channels+0
-			for j=0,audioMixChannels-1 do
-				if channel.volume[0] > 0
-				or channel.volume[1] > 0
-				then
-					local sfx = self.ram.sfxAddrs + channel.sfxID
-
-					-- where in sfx we are currently playing
-					local sfxaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
-assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
-					local ampl = ffi.cast(sampleTypePtr, self.ram.audioData + sfxaddr)[0]
-
-					channel.addr = channel.addr + channel.pitch
-					if bit.lshift(bit.rshift(channel.addr, pitchPrec), 1) > sfx.addr + sfx.len then -- sfx.loopEndAddr then
-	-- TODO flag for loop or not
-	--print'sfx looping'
-						asserteq(bit.band(sfxaddr, 1), 0)
-						channel.addr = bit.lshift(sfx.addr, pitchPrec-1) -- sfx.loopStartAddr
-					end
-
-					for k=0,audioOutChannels-1 do
-						p[0] = p[0] + math.floor(tonumber(ampl * channel.volume[k]) / 255)
-					end
-				end
-				channel = channel + 1
-			end
-
-			p = p + audioOutChannels
-			audio.sampleFrameIndex = audio.sampleFrameIndex + 1
-		end
---DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + audio.bufferSizeInBytes)
-
---print('queueing', updateIntervalInSampleFrames, 'samples', updateIntervalInSampleFrames/sampleFramesPerSecond , 'seconds')
-		sdlAssertZero(sdl.SDL_QueueAudio(
-			audio.deviceID,
-			audio.audioBuffer,
-			updateIntervalInSampleFrames * audioOutChannels * ffi.sizeof(sampleType)
-		))
-	end
-
 	-- see if we need to process any playing music's change-of-channel-state
 
 	if audio.musicAddr >= audio.musicEndAddr then
 		audio.musicPlaying = false
 	end
-	if audio.musicPlaying 
-	and audio.sampleFrameIndex >= audio.nextBeatSampleFrameIndex
+	if audio.musicPlaying
+	--and audio.sampleFrameIndex >= audio.nextBeatSampleFrameIndex
+	and audio.sampleFrameIndex + updateIntervalInSampleFrames >= audio.nextBeatSampleFrameIndex
 	then
 		audio.musicSampleFrameIndex = audio.sampleFrameIndex
+		--audio.musicSampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
 		
 		-- decode channel deltas
 		-- TODO if we have bad audio data then this will have to process all 64k before it quits ...
@@ -307,6 +241,63 @@ assert(audio.musicAddr >= 0 and audio.musicAddr < audioDataSize)
 		audio.nextBeatSampleFrameIndex = math.floor(audio.musicSampleFrameIndex + delay * audio.sampleFramesPerBeat)
 --print('updateAudio music wait', delay, 'from',  audio.musicSampleFrameIndex, 'to', audio.nextBeatSampleFrameIndex)
 	end
+
+	-- sound can't keep up ... hmm ...
+	--while self.ram.romUpdateCounter[0] > audio.audioUpdateCounter do
+	--if self.ram.romUpdateCounter[0] > audio.audioUpdateCounter then
+	--	audio.audioUpdateCounter = audio.audioUpdateCounter + 1
+	-- or just call this 1/60th of a second and T R U S T
+	do
+		-- TODO here fill with whatever the audio channels are set to
+		-- The bufferSizeInSampleFrames is more than one update's worth
+		local p = audio.audioBuffer
+		--for i=0,audio.bufferSizeInSampleFrames-1 do
+		for i=0,updateIntervalInSampleFrames-1 do
+			for k=0,audioOutChannels-1 do
+				p[k] = 0
+			end
+
+			local channel = self.ram.channels+0
+			for j=0,audioMixChannels-1 do
+				if channel.volume[0] > 0
+				or channel.volume[1] > 0
+				then
+					local sfx = self.ram.sfxAddrs + channel.sfxID
+
+					-- where in sfx we are currently playing
+					local sfxaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
+assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
+					local ampl = ffi.cast(sampleTypePtr, self.ram.audioData + sfxaddr)[0]
+
+					channel.addr = channel.addr + channel.pitch
+					if bit.lshift(bit.rshift(channel.addr, pitchPrec), 1) > sfx.addr + sfx.len then -- sfx.loopEndAddr then
+	-- TODO flag for loop or not
+	--print'sfx looping'
+						asserteq(bit.band(sfxaddr, 1), 0)
+						channel.addr = bit.lshift(sfx.addr, pitchPrec-1) -- sfx.loopStartAddr
+					end
+
+					for k=0,audioOutChannels-1 do
+						p[k] = p[k] + ampl * channel.volume[k] / 255
+					end
+				end
+				channel = channel + 1
+			end
+
+			p = p + audioOutChannels
+		end
+		audio.sampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
+--DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + audio.bufferSizeInBytes)
+
+--print('queueing', updateIntervalInSampleFrames, 'samples', updateIntervalInSampleFrames/sampleFramesPerSecond , 'seconds')
+		sdlAssertZero(sdl.SDL_QueueAudio(
+			audio.deviceID,
+			audio.audioBuffer,
+			updateIntervalInSampleFrames * audioOutChannels * ffi.sizeof(sampleType)
+		))
+	end
+
+
 end
 
 --[[
@@ -421,6 +412,7 @@ function AppAudio:playMusic(musicID)
 	assert(audio.musicAddr >= 0 and audio.musicAddr < ffi.sizeof(self.ram.audioData))
 	assert(audio.musicEndAddr >= 0 and audio.musicEndAddr <= ffi.sizeof(self.ram.audioData))
 	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.audioData + audio.musicAddr)[0]
+--print('playing with beats/second', beatsPerSecond)	
 	audio.musicAddr = audio.musicAddr + 2
 
 	audio.musicPlaying = true
