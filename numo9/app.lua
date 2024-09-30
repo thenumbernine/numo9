@@ -1080,7 +1080,7 @@ conn.receivesPerSecond = 0
 		self.ram.updateCounter[0] = self.ram.updateCounter[0] + 1
 		self.ram.romUpdateCounter[0] = self.ram.romUpdateCounter[0] + 1
 
-		--[[
+		-- [[
 		self:updateAudio()
 		--]]
 
