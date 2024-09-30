@@ -685,7 +685,7 @@ print('toImage', name, 'width', width, 'height', height)
 						local playbackDeltas = vector'uint8_t'
 						local short = ffi.new'uint16_t[1]'
 						local byte = ffi.cast('uint8_t*', short)
-						short[0] = 120	-- bps
+						short[0] = 120 / math.max(1, sfx.duration)	-- bps
 						playbackDeltas:push_back(byte[0])
 						playbackDeltas:push_back(byte[1])
 						local lastNoteIndex = 1
@@ -732,7 +732,7 @@ print('music'..index..'.bin')
 print(string.hexdump(data))
 						basepath('music'..index..'.bin'):write(data)
 
-						--[=[ don't need to generate these here anymore...
+						-- [=[ don't need to generate these here anymore...
 						local duration = math.max(1, sfx.duration)
 						local sampleFramesPerNote = sampleFramesPerNoteBase * duration
 						local sampleFrames = sampleFramesPerNote * #sfx.notes
@@ -776,7 +776,7 @@ print(string.hexdump(data))
 								ampl = volume * ampl * amplMax + amplZero
 								-- oh yeah ... when using custom sfx ... what freq should we assume they are in?
 								wi = wi + freq / waveformFreq
-print(freq / waveformFreq * 0x1000)
+--print(freq / waveformFreq * 0x1000)
 								--]]
 								--[[ WE'LL DO IT LIVE
 								tf = tf + sampleFrameInSeconds * freq
@@ -789,8 +789,6 @@ print(freq / waveformFreq * 0x1000)
 								end
 							end
 						end
-						--]=]
-						--[=[
 						if not tryagain then
 							asserteq(p, data + samples)
 							sfx.data = data
