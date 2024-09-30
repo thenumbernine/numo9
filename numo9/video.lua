@@ -361,6 +361,7 @@ end
 -- I'd call it 'App' but that might be confusing because it's not really App.
 local AppVideo = {}
 
+-- called upon app init
 -- 'self' == app
 function AppVideo:initDraw()
 	self.fb = GLFBO{
@@ -1157,6 +1158,42 @@ void main() {
 		}),
 		--]]
 	}:unbind()
+end
+
+function AppVideo:resetVideo()
+	--[[ update later ...
+	self.spriteTex:checkDirtyGPU()
+	self.tileTex:checkDirtyGPU()
+	self.mapTex:checkDirtyGPU()
+	self.palTex:checkDirtyGPU()
+	self.fbTex:checkDirtyGPU()
+	--]]
+	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
+	-- [[ update now ...
+	self.spriteTex:bind()
+		:subimage()
+		:unbind()
+	self.spriteTex.dirtyCPU = false
+	self.tileTex:bind()
+		:subimage()
+		:unbind()
+	self.tileTex.dirtyCPU = false
+	self.mapTex:bind()
+		:subimage()
+		:unbind()
+	self.mapTex.dirtyCPU = false
+	self.palTex:bind()
+		:subimage()
+		:unbind()
+	self.palTex.dirtyCPU = false
+	--]]
+	--[[ update later ...
+	self.spriteTex.dirtyCPU = true
+	self.tileTex.dirtyCPU = true
+	self.mapTex.dirtyCPU = true
+	self.palTex.dirtyCPU = true
+	self.fbTex.dirtyCPU = true
+	--]]
 end
 
 --[[

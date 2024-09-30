@@ -611,8 +611,8 @@ assert(shift>=0)
 		p8_fillp(0)
 	end,
 
-	music=[n, fadeLen, mask]music(n, fadeLen, mask),
-	sfx=[n,ch,ofs,len]sfx(n,0,len,ch,ofs),	-- id, note, duration, channel, volume, speed, offset)
+	music=[n, fadeLen, mask]nil,
+	sfx=[n,ch,ofs,len]music(n),	-- store pico8 waveforms as my sfx, store its sfx and music as my music
 
 	reload=[dst,src,len]do
 trace'TODO reload'

@@ -30,6 +30,8 @@ local GLApp = require 'glapp'
 local ThreadManager = require 'threadmanager'
 
 local numo9_rom = require 'numo9.rom'
+local updateHz = numo9_rom.updateHz
+local updateIntervalInSeconds = numo9_rom.updateIntervalInSeconds
 local ROM = numo9_rom.ROM	-- define RAM, ROM, etc
 local RAM = numo9_rom.RAM
 local spriteSize = numo9_rom.spriteSize
@@ -51,13 +53,14 @@ local framebufferAddr = numo9_rom.framebufferAddr
 local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
 local packptr = numo9_rom.packptr
 
-local keyCodeNames = require 'numo9.keys'.keyCodeNames
-local keyCodeForName = require 'numo9.keys'.keyCodeForName
-local sdlSymToKeyCode = require 'numo9.keys'.sdlSymToKeyCode
-local firstJoypadKeyCode = require 'numo9.keys'.firstJoypadKeyCode
-local buttonCodeForName = require 'numo9.keys'.buttonCodeForName
-local keyCodeForButtonIndex = require 'numo9.keys'.keyCodeForButtonIndex
-local buttonIndexForKeyCode = require 'numo9.keys'.buttonIndexForKeyCode
+local numo9_keys = require 'numo9.keys'
+local keyCodeNames = numo9_keys.keyCodeNames
+local keyCodeForName = numo9_keys.keyCodeForName
+local sdlSymToKeyCode = numo9_keys.sdlSymToKeyCode
+local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode
+local buttonCodeForName = numo9_keys.buttonCodeForName
+local keyCodeForButtonIndex = numo9_keys.keyCodeForButtonIndex
+local buttonIndexForKeyCode = numo9_keys.buttonIndexForKeyCode
 
 local netcmds = require 'numo9.net'.netcmds
 
@@ -98,8 +101,6 @@ local drawsPerSecond = 0
 
 -- update interval vars
 local lastUpdateTime = getTime()	-- TODO resetme upon resuming from a pause state
-local updateHz = 60
-local updateInterval = 1 / updateHz
 local needDrawCounter = 0
 local needUpdateCounter = 0
 
@@ -277,7 +278,7 @@ function App:initGL()
 
 		-- timer
 		time = function()
-			return self.ram.romUpdateCounter[0] * updateInterval
+			return self.ram.romUpdateCounter[0] * updateIntervalInSeconds
 		end,
 
 		-- pico8 has poke2 as word, poke4 as dword
@@ -758,6 +759,9 @@ print('package.loaded', package.loaded)
 		end
 	end
 
+	-- TODO use this for setFocus as well, so you don't have to call resume so often?
+	self.threads = ThreadManager()
+
 	self:initAudio()
 
 	-- filesystem init
@@ -797,9 +801,6 @@ print('package.loaded', package.loaded)
 	end)
 
 	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
-
-	-- TODO use this for setFocus as well, so you don't have to call resume so often?
-	self.threads = ThreadManager()
 
 	self:setFocus{
 		thread = coroutine.create(function()
@@ -1056,10 +1057,10 @@ conn.receivesPerSecond = 0
 	lastTime = thisTime	-- TODO this at end of update in case someone else needs this var
 	--]==]
 
-	if thisTime > lastUpdateTime + updateInterval then
+	if thisTime > lastUpdateTime + updateIntervalInSeconds then
 		-- [[ doing this means we need to reset lastUpdateTime when resuming from the app being paused
 		-- and indeed the in-console fps first readout is high (67), then drops back down to 60 consistently
-		lastUpdateTime = lastUpdateTime + updateInterval
+		lastUpdateTime = lastUpdateTime + updateIntervalInSeconds
 		--]]
 		--[[ doing this means we might lose fractions of time resolution during our updates
 		-- and indeed the in-console fps bounces between 59 and 60
@@ -1078,6 +1079,10 @@ conn.receivesPerSecond = 0
 		-- system update refresh timer
 		self.ram.updateCounter[0] = self.ram.updateCounter[0] + 1
 		self.ram.romUpdateCounter[0] = self.ram.romUpdateCounter[0] + 1
+
+		--[[
+		self:updateAudio()
+		--]]
 
 		-- tell netplay we have a new frame
 		if self.server then
@@ -1534,51 +1539,8 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
-	-- TODO call this resetVideo() ?
-
-	--[[ update later ...
-	self.spriteTex:checkDirtyGPU()
-	self.tileTex:checkDirtyGPU()
-	self.mapTex:checkDirtyGPU()
-	self.palTex:checkDirtyGPU()
-	self.fbTex:checkDirtyGPU()
-	--]]
-	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
-	-- [[ update now ...
-	self.spriteTex:bind()
-		:subimage()
-		:unbind()
-	self.spriteTex.dirtyCPU = false
-	self.tileTex:bind()
-		:subimage()
-		:unbind()
-	self.tileTex.dirtyCPU = false
-	self.mapTex:bind()
-		:subimage()
-		:unbind()
-	self.mapTex.dirtyCPU = false
-	self.palTex:bind()
-		:subimage()
-		:unbind()
-	self.palTex.dirtyCPU = false
-	--]]
-	--[[ update later ...
-	self.spriteTex.dirtyCPU = true
-	self.tileTex.dirtyCPU = true
-	self.mapTex.dirtyCPU = true
-	self.palTex.dirtyCPU = true
-	self.fbTex.dirtyCPU = true
-	--]]
-
-	-- and this resetAudio() ?
-
-	for i=0,numo9_rom.sfxTableSize-1 do
-		local addrLen = self.ram.sfxAddrs[i]
-		if addrLen.len > 0 then
-			print('sfx found',i,'size',addrLen.len)
-		end
-	end
-
+	self:resetVideo()
+	self:resetAudio()
 	return true
 end
 
