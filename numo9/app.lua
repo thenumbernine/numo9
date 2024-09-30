@@ -1075,14 +1075,15 @@ conn.receivesPerSecond = 0
 	if needUpdateCounter > 0 then
 		-- TODO decrement to use framedrops
 		needUpdateCounter = 0
+		
+		-- [[
+		self:updateAudio()
+		--]]
 
 		-- system update refresh timer
 		self.ram.updateCounter[0] = self.ram.updateCounter[0] + 1
 		self.ram.romUpdateCounter[0] = self.ram.romUpdateCounter[0] + 1
 
-		-- [[
-		self:updateAudio()
-		--]]
 
 		-- tell netplay we have a new frame
 		if self.server then
