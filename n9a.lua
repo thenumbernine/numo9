@@ -18,6 +18,7 @@ local assertle = require 'ext.assert'.le
 local assertlen = require 'ext.assert'.len
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
+local AudioWAV = require 'audio.io.wav'
 local App = require 'numo9.app'
 
 local numo9_video = require 'numo9.video'
@@ -36,7 +37,11 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local tilemapSize = numo9_rom.tilemapSize
 local codeSize = numo9_rom.codeSize
 local sfxTableSize = numo9_rom.sfxTableSize
+local musicTableSize = numo9_rom.musicTableSize
 local audioDataSize = numo9_rom.audioDataSize
+local audioOutChannels = numo9_rom.audioOutChannels
+local deltaCompress = numo9_rom.deltaCompress
+local audioMixChannels = numo9_rom.audioMixChannels -- TODO names ... channels for mixing vs output channels L R for stereo
 
 local cmd, fn, extra = ...
 assert(cmd and fn, "expected: `n9a.lua cmd fn`")
@@ -204,15 +209,15 @@ or cmd == 'r' then
 			local addr = audioDataOffset
 			assert(addr + size <= audioDataSize)
 			ffi.copy(rom.audioData + addr, data, size)
-			audioDataOffset = audioDataOffset + size
-			return addr, audioDataOffset
+			audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
+			return addr
 		end
 
 		-- load sfx into audio memory
 		for i=0,sfxTableSize-1 do
 			local p = basepath('waveform'..i..'.wav')
 			if p:exists() then
-				local wav = require 'audio.io.wav'():load(p.path)
+				local wav = AudioWAV():load(p.path)
 				asserteq(wav.channels, 1)	-- waveforms / sfx are mono
 				-- TODO resample if they are different.
 				-- for now I'm just saving them in this format and being lazy
@@ -225,10 +230,24 @@ or cmd == 'r' then
 				local brrComp = vector'uint8_t'
 				--]]
 				-- [[ until then, use raw for now
-				rom.sfxAddrs[i].addr, rom.sfxAddrs[i].len = addToAudio(data, size), size
+				local addrLen = rom.sfxAddrs[i]
+				addrLen.addr, addrLen.len = addToAudio(data, size), size
 				--]]
 			end
 		end
+
+		-- load music tracks into audio memory
+		for i=0,musicTableSize-1 do
+			local p = basepath('music'..i..'.bin')
+			if p:exists() then
+				local data = p:read()
+				local size = #data
+				local addrLen = rom.musicAddrs[i]
+				addrLen.addr, addrLen.len = addToAudio(data, size), size
+			end
+		end
+
+		print('num audio data stored:', audioDataOffset)
 	end
 
 	print'loading code...'
@@ -485,7 +504,6 @@ print('toImage', name, 'width', width, 'height', height)
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
-	local totalSfxSize = 0
 	local totalMusicSize = 0
 	do
 		-- [[ also in audio/test/test.lua ... consider consolidating
@@ -561,7 +579,7 @@ print('toImage', name, 'width', width, 'height', height)
 		-- either way, we can only issue audio commands every update() , which itself is 60hz, so might as well size our buffers at 22050/60 = 387.5 samples
 		-- or use 32000 and size our 1/60 buffers to be 533.333 samples
 		-- or use 44100 and size our 1/60 buffers to be 735 samples
-		local channels = 1	-- store mono samples, mix stereo, right?
+		local channels = 1	-- save mono samples, mix stereo, right?
 		--local channels = 2	-- stereo
 		--local sampleFramesPerSecond = 22050
 		--local sampleFramesPerSecond = 32000
@@ -598,7 +616,7 @@ print('toImage', name, 'width', width, 'height', height)
 
 			-- TODO make these the sfx samples in-game
 			-- and then turn the sfx into whatever the playback-format is
-			require 'audio.io.wav'():save{
+			AudioWAV():save{
 				filename = basepath('waveform'..(j-1)..'.wav').path,
 				ctype = sampleType,
 				channels = 1,
@@ -615,9 +633,9 @@ print('toImage', name, 'width', width, 'height', height)
 		basepath'sfx.txt':write(sfxSrc:concat'\n'..'\n')
 		local sfxs = table()
 		for pass=0,1 do	-- second pass to handle sfx that reference themselves out of order
-			for j,line in ipairs(sfxSrc) do
-				if not sfxs[j] then
-					local index = j-1
+			for sfxIndexPlusOne,line in ipairs(sfxSrc) do
+				if not sfxs[sfxIndexPlusOne] then
+					local index = sfxIndexPlusOne-1
 					local sfx = {
 						index = index,
 						editorMode = tonumber(line:sub(1,2), 16),
@@ -637,13 +655,18 @@ print('toImage', name, 'width', width, 'height', height)
 							effect = tonumber(line:sub(i+4,i+4), 16),	-- 0-7
 						}
 					end
-					while #sfx.notes > 0 and sfx.notes:last().volume == 0 do
+					while #sfx.notes > 1
+					and sfx.notes[#sfx.notes].volume == 0
+					-- keep at least the last volume==0 note so delta-compress can tell us to set the channel to 0 when we're done
+					-- OR LOOP
+					and sfx.notes[#sfx.notes-1].volume == 0
+					do
 						sfx.notes:remove()
 					end
 					if #sfx.notes > 0 then
 
 						-- no notes = no sound file ...
-						sfxs[j] = sfx
+						sfxs[sfxIndexPlusOne] = sfx
 
 						--[[
 						TODO here write out an equivalent of our "spc"-ish commands for playing back our "sfx" i mean waveforms
@@ -651,26 +674,27 @@ print('toImage', name, 'width', width, 'height', height)
 						Time to define a SPC-ish MIDI-ish format of my own ...
 						or maybe I'll just use MIDI?
 						--]]
-						local deltaCompress = require 'numo9.rom'.deltaCompress
-						local numAudioChannels = require 'numo9.rom'.audioMixChannels -- TODO names ... channels for mixing vs output channels L R for stereo
-						local prevSoundState = ffi.new('Numo9Channel[?]', numAudioChannels)
-						ffi.fill(prevSoundState, ffi.sizeof(prevSoundState))
-						local soundState = ffi.new('Numo9Channel[?]', numAudioChannels)
-						ffi.fill(soundState, ffi.sizeof(soundState))
+						local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+						ffi.fill(prevSoundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
+						local soundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+						ffi.fill(soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
 
 						-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
-						assertlt(ffi.sizeof(soundState), 255)
+						assertlt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
 
 						local playbackDeltas = vector'uint8_t'
 						local short = ffi.new'uint16_t[1]'
 						local byte = ffi.cast('uint8_t*', short)
-						playbackDeltas:push_back(120)	-- bpm
+						short[0] = 120	-- bps
+						playbackDeltas:push_back(byte[0])
+						playbackDeltas:push_back(byte[1])
 						local lastNoteIndex = 1
 						for ni,note in ipairs(sfx.notes) do
-							if note.volume > 0 then
+							do -- if note.volume > 0 then
 								-- when converting pico8 sfx to my music tracks, just put them at track zero, I'll figure out how to shift them around later *shrug*
-								soundState[0].volumeL = note.volume
-								soundState[0].volumeR = note.volume
+								for k=0,audioOutChannels-1 do
+									soundState[0].volume[k] = math.floor(note.volume / 7 * 255)
+								end
 
 								-- convert from note to multiplier
 								local freq = C0freq * chromastep^note.pitch
@@ -680,32 +704,35 @@ print('toImage', name, 'width', width, 'height', height)
 
 								soundState[0].sfxID = note.waveform
 
-								-- TODO effects and loops and stuff ...
-
 								-- insert wait time in beats
 								-- how to distingish this from deltas?  start-frame or end-frame message?
 								short[0] = ni-lastNoteIndex
 								lastNoteIndex = ni
-								playbackDeltas:emplace_back()[0] = byte[1]
 								playbackDeltas:emplace_back()[0] = byte[0]
+								playbackDeltas:emplace_back()[0] = byte[1]
 
 								-- insert delta
 								deltaCompress(
 									ffi.cast('uint8_t*', prevSoundState),
 									ffi.cast('uint8_t*', soundState),
-									ffi.sizeof(soundState),
+									ffi.sizeof'Numo9Channel' * audioMixChannels,
 									playbackDeltas
 								)
 
 								-- insert an end-frame
-								playbackDeltas:insert(0xff)
+								playbackDeltas:emplace_back()[0] = 0xff
+								playbackDeltas:emplace_back()[0] = 0xff
 
 								-- update
-								ffi.copy(prevSoundState, soundState, ffi.sizeof(soundState))
+								ffi.copy(prevSoundState, soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
 							end
 						end
-						basepath('music'..j..'.bin'):write(playbackDeltas:dataToStr())
+						local data = playbackDeltas:dataToStr()
+print('music'..index..'.bin')
+print(string.hexdump(data))
+						basepath('music'..index..'.bin'):write(data)
 
+						--[=[ don't need to generate these here anymore...
 						local duration = math.max(1, sfx.duration)
 						local sampleFramesPerNote = sampleFramesPerNoteBase * duration
 						local sampleFrames = sampleFramesPerNote * #sfx.notes
@@ -731,7 +758,7 @@ print('toImage', name, 'width', width, 'height', height)
 									if pass==0 then
 										tryagain = true
 									else
-										print("WARNING even on 2nd pass couldn't fulfill sfx "..j..' uses sfx '..srcsfxindex..' based on waveform '..note.waveform)
+										print("WARNING even on 2nd pass couldn't fulfill sfx "..sfxIndexPlusOne..' uses sfx '..srcsfxindex..' based on waveform '..note.waveform)
 									end
 									break
 								end
@@ -749,6 +776,7 @@ print('toImage', name, 'width', width, 'height', height)
 								ampl = volume * ampl * amplMax + amplZero
 								-- oh yeah ... when using custom sfx ... what freq should we assume they are in?
 								wi = wi + freq / waveformFreq
+print(freq / waveformFreq * 0x1000)
 								--]]
 								--[[ WE'LL DO IT LIVE
 								tf = tf + sampleFrameInSeconds * freq
@@ -761,15 +789,16 @@ print('toImage', name, 'width', width, 'height', height)
 								end
 							end
 						end
+						--]=]
+						--[=[
 						if not tryagain then
 							asserteq(p, data + samples)
 							sfx.data = data
-totalSfxSize = totalSfxSize + samples * ffi.sizeof(sampleType)
+totalSfxSize = (totalSfxSize or 0) + samples * ffi.sizeof(sampleType)
 print('wav '..index..' size', samples * ffi.sizeof(sampleType), 'delta compressed notes to', #playbackDeltas..' delta bytes')
-totalMusicSize = totalMusicSize + #playbackDeltas
 							sfx.samples = samples
 							-- write data to an audio file ...
-							require 'audio.io.wav'():save{
+							AudioWAV():save{
 								filename = basepath('sfx'..index..'.wav').path,
 								ctype = sampleType,
 								channels = channels,
@@ -778,13 +807,15 @@ totalMusicSize = totalMusicSize + #playbackDeltas
 								freq = sampleFramesPerSecond,
 							}
 						end
+						--]=]
+totalMusicSize = totalMusicSize + #playbackDeltas
 					end
 				end
 			end
 			basepath'sfx.lua':write(tolua(sfxs))
 		end
 
-print('total SFX data size: '..totalSfxSize)
+--print('total SFX data size: '..totalSfxSize)
 print('total sfx as music commands: '..totalMusicSize)
 --[[ TODO don't bother BRR-encode SFX data, it's going to turn into music commands anyways
 -- but go ahead and BRR-encode the waveforms, they're going to become our SFX data
@@ -794,30 +825,38 @@ print("total SFX data size if I'd use BRR: "..(
 	math.ceil(totalSfxSize / 32 * 9)
 ))
 --]]
-		print('num created sfx (matches pico8 waveforms):', lastAudioSFX)
-		print('num audio data stored:', audioDataOffset)
 	end
 
-	local musicSrc = move(sections, 'music')
-	local music = table()
-	while #musicSrc > 0 and #musicSrc:last() == 0 do musicSrc:remove() end
-	for i,line in ipairs(musicSrc) do
-		local flags = tonumber(line:sub(1,2), 16)
-		music:insert{
-			beginPatternLoop = 0 ~= bit.band(1, flags),
-			endPatternLoop = 0 ~= bit.band(2, flags),
-			stopAtEndOfPattern = 0 ~= bit.band(4, flags),
-			sfxs = table{
-				line:sub(4):gsub('..', function(h)
-					-- btw what are those top 2 bits for?
-					return string.char(tonumber(h, 16))
-				end):byte(1,4)
-			}:filter(function(i)
-				return i < 64
-			end),
-		}
+	do
+		local musicSrc = move(sections, 'music')
+		local music = table()
+		while #musicSrc > 0 and #musicSrc:last() == 0 do musicSrc:remove() end
+		--[[
+		TODO how to convert pico8 music to my music ...
+		pico8 music issues play commands for its sfx onto dif channels
+		my music issues play of waveform/samples onto dif channels
+		can my music issue play commands of other music tracks?
+		should it be allowed to?
+		or should I just copy the music data here and recompress it again
+		--]]
+		for i,line in ipairs(musicSrc) do
+			local flags = tonumber(line:sub(1,2), 16)
+			music:insert{
+				beginPatternLoop = 0 ~= bit.band(1, flags),
+				endPatternLoop = 0 ~= bit.band(2, flags),
+				stopAtEndOfPattern = 0 ~= bit.band(4, flags),
+				sfxs = table{
+					line:sub(4):gsub('..', function(h)
+						-- btw what are those top 2 bits for?
+						return string.char(tonumber(h, 16))
+					end):byte(1,4)
+				}:filter(function(i)
+					return i < 64
+				end),
+			}
+		end
+		basepath'music.lua':write(tolua(music))
 	end
-	basepath'music.lua':write(tolua(music))
 
 	local palImg = Image(16, 16, 4, 'unsigned char',
 		-- fill out the default pico8 palette

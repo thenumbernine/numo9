@@ -3,12 +3,15 @@ put config / spec specific / rom stuff here that everyone else uses
 should I jsut call this something like 'util' ?
 --]]
 local ffi = require 'ffi'
+local assertle = require 'ext.assert'.le
 local table = require 'ext.table'
 local struct = require 'struct'
 local vec2i = require 'vec-ffi.vec2i'
 
-local keyCodeNames = require 'numo9.keys'.keyCodeNames
+local updateHz = 60
+local updateIntervalInSeconds = 1 / updateHz
 
+local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
@@ -100,8 +103,21 @@ local ROM = struct{
 
 				-- playback information for sfx
 				-- so my music == pico8/tic80's sfx ... and rlly their music is just some small references to start loop / end loop of their sfx.
+
+				--	music format:
+				--	uint16_t beatsPerSecond;
+				--	struct {
+				--		uint16_t delay
+				--		struct {
+				--			uint8_t ofs; == 0xff => done with frame
+				--			uint8_t val;
+				--		}[];
+				--	}[];
+				-- TODO effects and loops and stuff ...
 				{name='musicAddrs', type='AddrLen['..musicTableSize..']'},
 
+				-- this is a combination of the sfx and the music data
+				-- sfx is just int16_t samples
 				-- technically I should be cutting the addrs out of the 64kb
 				{name='audioData', type='uint8_t['..audioDataSize..']'},
 				--]]
@@ -163,27 +179,34 @@ how about I first say audio is stored mono 16bit-samples ... any length?
 local Numo9Channel = struct{
 	name = 'Numo9Channel',
 	fields = {
-		{name='volumeL', type='uint8_t'},	-- 2s c, vol & 0x7f is volume, flag 0x80 = reverse
-		{name='volumeR', type='uint8_t'},
-		{name='pitch', type='uint16_t'},	-- fixed point 4.12 multiplier
-		{name='sfxID', type='uint8_t'},		-- index in sfxAddrs[]
+		-- address of where we are playing in the current sample
+		-- this is going to be incremented by the pitch, which is 4.12 fixed so 0x1000 <=> 1:1 pitch
+		-- that means we need 12 bits to spare in this as well, it's going to be 20.12 fixed
+		-- and at that, the 20 is going to be << 1 anyways, because we're addressing int16 samples
+		{name='addr', type='uint32_t'},
+
+		{name='volume', type='uint8_t['..audioOutChannels..']'},	-- 0-255
 		-- TODO ADSR
 		-- TODO effect flags ... key ... pitch-modulation ... noise ... echo ...
 		-- TODO main volume ... but why dif from just volL volR?
-		{name='echoVolL', type='uint8_t'},
-		{name='echoVolR', type='uint8_t'},
+		{name='echoVol', type='uint8_t['..audioOutChannels..']'},
+		{name='pitch', type='uint16_t'},	-- fixed point 4.12 multiplier
+		{name='sfxID', type='uint8_t'},		-- index in sfxAddrs[]
 		{name='echoStartAddr', type='uint8_t'},
 		{name='echoDelay', type='uint8_t'},
 	},
 }
 
+-- make sure our delta compressed channels state change encoding can fit in its 8bpp messages
+assertle(ffi.sizeof'Numo9Channel' * audioMixChannels, 256)
+
 local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
 
 -- make sure our sfx table can address all our sound ram
---assert(maxrangeforsize(ffi.sizeof(RAM.sfxAddrs[0])) >= ffi.sizeof(RAM.audioData))
+--assertle(ffi.sizeof(RAM.audioData), maxrangeforsize(ffi.sizeof(RAM.sfxAddrs[0])))
 
 -- make sure we can index all our sfx in the table
---assert(maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)) >= sfxTableSize)
+--assertle(sfxTableSize, maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)))
 
 local RAM = struct{
 	name = 'RAM',
@@ -292,8 +315,10 @@ local function deltaCompress(
 	end
 end
 
-
 return {
+	updateHz = updateHz,
+	updateIntervalInSeconds = updateIntervalInSeconds,
+
 	paletteSize = paletteSize,
 	spriteSize = spriteSize,
 	frameBufferType = frameBufferType,
@@ -312,7 +337,9 @@ return {
 	audioSampleType = audioSampleType,
 	audioSampleRate = audioSampleRate,
 	audioMixChannels = audioMixChannels,
+	audioOutChannels = audioOutChannels,
 	sfxTableSize = sfxTableSize,
+	musicTableSize = musicTableSize,
 	audioDataSize = audioDataSize,
 
 	ROM = ROM,
