@@ -984,7 +984,8 @@ function App:update()
 	if fpsSeconds > 1 then
 		print(
 		--	'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
-			'draws/second '..drawsPerSecond	-- TODO make this single-buffered
+		--	'draws/second '..drawsPerSecond	-- TODO make this single-buffered
+			'SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
 		)
 		if self.server then
 			--[[
@@ -1075,7 +1076,7 @@ conn.receivesPerSecond = 0
 	if needUpdateCounter > 0 then
 		-- TODO decrement to use framedrops
 		needUpdateCounter = 0
-		
+
 		-- [[ where should I even put this?
 		self:updateAudio()
 		--]]

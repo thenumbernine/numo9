@@ -43,15 +43,15 @@ function AppAudio:initAudio()
 	sdlAssertZero(sdl.SDL_AudioInit'coreaudio')
 
 	local function printSpecs(spec)
-		print('', 'freq', spec.freq)
-		print('', 'format', spec.format, ctypeForSDLAudioFormat[spec.format])
-		print('', 'channels', spec.channels)
-		print('', 'silence', spec.silence)
-		print('', 'samples', spec.samples)
-		print('', 'padding', spec.padding)
-		print('', 'size', spec.size)
-		print('', 'callback', spec.callback)
-		print('', 'userdata', spec.userdata)
+		print('\tfreq', spec.freq)
+		print('\tformat', spec.format, ctypeForSDLAudioFormat[spec.format])
+		print('\tchannels', spec.channels)
+		print('\tsilence', spec.silence)
+		print('\tsamples', spec.samples)
+		print('\tpadding', spec.padding)
+		print('\tsize', spec.size)
+		print('\tcallback', spec.callback)
+		print('\tuserdata', spec.userdata)
 	end
 
 	local audio = {}
@@ -59,7 +59,10 @@ function AppAudio:initAudio()
 
 	local desired = ffi.new'SDL_AudioSpec[1]'
 
-	local bufferSizeInSeconds = updateIntervalInSeconds
+	-- smaller is better I think?  since SDL queues indefnitely, this is more like a lower bound of sorts
+	--local bufferSizeInSeconds = updateIntervalInSeconds * 4	-- don't do this if you're clearing the queue every frame ... pick a different queue clear frequency ....
+	--local bufferSizeInSeconds = updateIntervalInSeconds
+	local bufferSizeInSeconds = updateIntervalInSeconds / 16	-- works
 
 print('sampleFramesPerSecond', sampleFramesPerSecond)
 print('requested ezeInSeconds', bufferSizeInSeconds)
@@ -110,13 +113,17 @@ print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	audio.bufferSizeInSampleFrames = bufferSizeInSamples / audioOutChannels
 	bufferSizeInSeconds = audio.bufferSizeInSampleFrames / sampleFramesPerSecond
 print('got bufferSizeInSeconds', bufferSizeInSeconds)
-	audio.audioBufferLength = math.ceil(audio.bufferSizeInBytes / ffi.sizeof(sampleType))
+	--audio.audioBufferLength = math.ceil(audio.bufferSizeInBytes / ffi.sizeof(sampleType))
+	audio.audioBufferLength = updateIntervalInSampleFrames * audioOutChannels
 	audio.audioBuffer = ffi.new(sampleType..'[?]', audio.audioBufferLength)
 
 	print'starting audio...'
 	sdl.SDL_PauseAudioDevice(audio.deviceID, 0)	-- pause 0 <=> play
 
 	self:resetAudio()
+
+	self.audio.queueClearFreq = 60	-- update ticks
+	self.audio.lastQueueClear = 0
 end
 
 function AppAudio:resetAudio()
@@ -151,153 +158,171 @@ end
 
 -- currently called every 1/60 ... I could call it every frame :shrug: a few thousand times a second
 function AppAudio:updateAudio()
+
+	if self.ram.updateCounter[0] > self.audio.lastQueueClear + self.audio.queueClearFreq then
+		self.audio.lastQueueClear = self.ram.updateCounter[0]
+		-- as is for some reason when things start, SDL will queue about 4seconds worth of samples before it starts consuming
+		-- so to fix that lag, lets periodically clear the queue
+		sdl.SDL_ClearQueuedAudio(self.audio.deviceID)
+	end
+
+	self:updateMusic()
+	self:updateSoundEffects()
+end
+
+function AppAudio:updateSoundEffects()
 	local audio = self.audio
-	local channelPtr = ffi.cast('uint8_t*', self.ram.channels)
-
-	-- see if we need to process any playing music's change-of-channel-state
-
-	if audio.musicAddr >= audio.musicEndAddr then
-		audio.musicPlaying = false
-	end
-	if audio.musicPlaying
-	--and audio.sampleFrameIndex >= audio.nextBeatSampleFrameIndex
-	and audio.sampleFrameIndex + updateIntervalInSampleFrames >= audio.nextBeatSampleFrameIndex
-	then
-		audio.musicSampleFrameIndex = audio.sampleFrameIndex
-		--audio.musicSampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
-		
-		-- decode channel deltas
-		-- TODO if we have bad audio data then this will have to process all 64k before it quits ...
-		while true do
-local decodeStartAddr = audio.musicAddr
-assert(audio.musicAddr >= 0 and audio.musicAddr < audioDataSize)
-			local index = self.ram.audioData[audio.musicAddr]
-			local value = self.ram.audioData[audio.musicAddr + 1]
-			audio.musicAddr = audio.musicAddr + 2
-			if audio.musicAddr >= audio.musicEndAddr-1 then
---print('musicAddr finished sfx')
-				audio.musicPlaying = false
-				break
-			end
-
-			if index == 0xff then
---print('music delta frame done: ff ff')
-				break
-			end
-			--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
-			if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
---print("audio got bad data")
-				break
-			end
---print( 'channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
-			channelPtr[index] = value
-
-			-- if we're setting a channel to a new sfx
-			-- then reset the channel addr to that sfx's addr
-			-- I guess I could 'TODO when it sets the sfxID, have it set the addr as well'
-			--  but this might take some extra preparation in packaging the ROM ... I'll think about
-			local channelOffset = index % ffi.sizeof'Numo9Channel'
-			local channelIndex = (index - channelOffset) / ffi.sizeof'Numo9Channel'
-			if channelOffset == ffi.offsetof('Numo9Channel', 'volume') then
---print('channel', channelIndex, 'volume L', value)
-			elseif channelOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
---print('channel', channelIndex, 'volume R', value)
-
-			elseif channelOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
---print('channel', channelIndex, 'echoVol L', value)
-			elseif channelOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
---print('channel', channelIndex, 'echoVol R', value)
-
-			elseif channelOffset == ffi.offsetof('Numo9Channel', 'pitch')
-			or channelOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
-			then
---print('channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
-
-			elseif channelOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
---print('channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
-				-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
-				local sfx = self.ram.sfxAddrs[value]
-				local sfxaddr =  sfx.addr
-				-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
-				asserteq(bit.band(sfxaddr, 1), 0)
-				-- THEN SHIFT IT ... 11 ... which is 12 minus 1
-				-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
-				local channel = self.ram.channels[channelIndex]
-				channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
-				-- so the bottom 12 should be 0's at this point
-			end
-
-			if audio.musicAddr >= audio.musicEndAddr-1 then
---print('musicAddr finished sfx')
-				audio.musicPlaying = false
-				break
-			end
-			-- TODO either handle state changes here or somewhere else.
-			-- here is as good as anywhere ...
-		end
-	
-		local delay = ffi.cast('uint16_t*', self.ram.audioData + audio.musicAddr)[0]
-		audio.musicAddr = audio.musicAddr + 2
-		audio.nextBeatSampleFrameIndex = math.floor(audio.musicSampleFrameIndex + delay * audio.sampleFramesPerBeat)
---print('updateAudio music wait', delay, 'from',  audio.musicSampleFrameIndex, 'to', audio.nextBeatSampleFrameIndex)
-	end
 
 	-- sound can't keep up ... hmm ...
 	--while self.ram.romUpdateCounter[0] > audio.audioUpdateCounter do
 	--if self.ram.romUpdateCounter[0] > audio.audioUpdateCounter then
 	--	audio.audioUpdateCounter = audio.audioUpdateCounter + 1
 	-- or just call this 1/60th of a second and T R U S T
-	do
-		-- TODO here fill with whatever the audio channels are set to
-		-- The bufferSizeInSampleFrames is more than one update's worth
-		local p = audio.audioBuffer
-		--for i=0,audio.bufferSizeInSampleFrames-1 do
-		for i=0,updateIntervalInSampleFrames-1 do
-			for k=0,audioOutChannels-1 do
-				p[k] = 0
-			end
-
-			local channel = self.ram.channels+0
-			for j=0,audioMixChannels-1 do
-				if channel.volume[0] > 0
-				or channel.volume[1] > 0
-				then
-					local sfx = self.ram.sfxAddrs + channel.sfxID
-
-					-- where in sfx we are currently playing
-					local sfxaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
-assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
-					local ampl = ffi.cast(sampleTypePtr, self.ram.audioData + sfxaddr)[0]
-
-					channel.addr = channel.addr + channel.pitch
-					if bit.lshift(bit.rshift(channel.addr, pitchPrec), 1) > sfx.addr + sfx.len then -- sfx.loopEndAddr then
-	-- TODO flag for loop or not
-	--print'sfx looping'
-						asserteq(bit.band(sfxaddr, 1), 0)
-						channel.addr = bit.lshift(sfx.addr, pitchPrec-1) -- sfx.loopStartAddr
-					end
-
-					for k=0,audioOutChannels-1 do
-						p[k] = p[k] + ampl * channel.volume[k] / 255
-					end
-				end
-				channel = channel + 1
-			end
-
-			p = p + audioOutChannels
+	-- TODO here fill with whatever the audio channels are set to
+	-- The bufferSizeInSampleFrames is more than one update's worth
+	local p = audio.audioBuffer
+	-- bufferSizeInSampleFrames is now much smaller than updateIntervalInSampleFrames
+	-- because bufferSizeInSampleFrames is how much SDL pulls at a time, and if it's too big (even 1/60) then the audio stalls for like 1 whole second, idk why
+	-- so we need to tell SDL to take small pieces while providing SDL with big pieces
+	local updateSampleFrameCount = updateIntervalInSampleFrames
+	--local updateSampleFrameCount = audio.bufferSizeInSampleFrames
+	--local updateSampleFrameCount = math.min(updateIntervalInSampleFrames, audio.bufferSizeInSampleFrames)
+	for i=0,updateSampleFrameCount-1 do
+		for k=0,audioOutChannels-1 do
+			p[k] = 0
 		end
-		audio.sampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
+
+		local channel = self.ram.channels+0
+		for j=0,audioMixChannels-1 do
+			if channel.volume[0] > 0
+			or channel.volume[1] > 0
+			then
+				local sfx = self.ram.sfxAddrs + channel.sfxID
+
+				-- where in sfx we are currently playing
+				local sfxaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
+assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
+				local ampl = ffi.cast(sampleTypePtr, self.ram.audioData + sfxaddr)[0]
+
+				channel.addr = channel.addr + channel.pitch
+				if bit.lshift(bit.rshift(channel.addr, pitchPrec), 1) > sfx.addr + sfx.len then -- sfx.loopEndAddr then
+-- TODO flag for loop or not
+--print'sfx looping'
+					asserteq(bit.band(sfxaddr, 1), 0)
+					channel.addr = bit.lshift(sfx.addr, pitchPrec-1) -- sfx.loopStartAddr
+				end
+
+				for k=0,audioOutChannels-1 do
+					p[k] = p[k] + ampl * channel.volume[k] / 255
+				end
+			end
+			channel = channel + 1
+		end
+
+		p = p + audioOutChannels
+	end
+	audio.sampleFrameIndex = audio.sampleFrameIndex + updateSampleFrameCount
 --DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + audio.bufferSizeInBytes)
 
---print('queueing', updateIntervalInSampleFrames, 'samples', updateIntervalInSampleFrames/sampleFramesPerSecond , 'seconds')
-		sdlAssertZero(sdl.SDL_QueueAudio(
-			audio.deviceID,
-			audio.audioBuffer,
-			updateIntervalInSampleFrames * audioOutChannels * ffi.sizeof(sampleType)
-		))
+--print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
+	sdlAssertZero(sdl.SDL_QueueAudio(
+		audio.deviceID,
+		audio.audioBuffer,
+		updateSampleFrameCount * audioOutChannels * ffi.sizeof(sampleType)
+	))
+end
+
+function AppAudio:updateMusic()
+	local audio = self.audio
+	local channelPtr = ffi.cast('uint8_t*', self.ram.channels)
+
+	if audio.musicAddr >= audio.musicEndAddr then
+		audio.musicPlaying = false
+		return
+	end
+	if not audio.musicPlaying then return end
+	if audio.sampleFrameIndex < audio.nextBeatSampleFrameIndex then return end
+	--if audio.sampleFrameIndex + updateIntervalInSampleFrames < audio.nextBeatSampleFrameIndex then return end
+
+	-- TODO combine this with musicAddr just like channel.addr
+	audio.musicSampleFrameIndex = audio.sampleFrameIndex
+	--audio.musicSampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
+
+	-- decode channel deltas
+	-- TODO if we have bad audio data then this will have to process all 64k before it quits ...
+	while true do
+local decodeStartAddr = audio.musicAddr
+assert(audio.musicAddr >= 0 and audio.musicAddr < audioDataSize)
+		local index = self.ram.audioData[audio.musicAddr]
+		local value = self.ram.audioData[audio.musicAddr + 1]
+		audio.musicAddr = audio.musicAddr + 2
+		if audio.musicAddr >= audio.musicEndAddr-1 then
+--print('musicAddr finished sfx')
+			audio.musicPlaying = false
+			return
+		end
+
+		if index == 0xff then
+--print('music delta frame done: ff ff')
+			return
+		end
+		--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
+		if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
+print("audio got bad data")
+			audio.musicPlaying = false
+			return
+		end
+--print( 'channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
+		channelPtr[index] = value
+
+		-- if we're setting a channel to a new sfx
+		-- then reset the channel addr to that sfx's addr
+		-- I guess I could 'TODO when it sets the sfxID, have it set the addr as well'
+		--  but this might take some extra preparation in packaging the ROM ... I'll think about
+		local channelOffset = index % ffi.sizeof'Numo9Channel'
+		local channelIndex = (index - channelOffset) / ffi.sizeof'Numo9Channel'
+		if channelOffset == ffi.offsetof('Numo9Channel', 'volume') then
+--print('channel', channelIndex, 'volume L', value)
+		elseif channelOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
+--print('channel', channelIndex, 'volume R', value)
+
+		elseif channelOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
+--print('channel', channelIndex, 'echoVol L', value)
+		elseif channelOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
+--print('channel', channelIndex, 'echoVol R', value)
+
+		elseif channelOffset == ffi.offsetof('Numo9Channel', 'pitch')
+		or channelOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
+		then
+--print('channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
+
+		elseif channelOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
+--print('channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
+			-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
+			local sfx = self.ram.sfxAddrs[value]
+			local sfxaddr =  sfx.addr
+			-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
+			asserteq(bit.band(sfxaddr, 1), 0)
+			-- THEN SHIFT IT ... 11 ... which is 12 minus 1
+			-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
+			local channel = self.ram.channels[channelIndex]
+			channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
+			-- so the bottom 12 should be 0's at this point
+		end
+
+		if audio.musicAddr >= audio.musicEndAddr-1 then
+--print('musicAddr finished sfx')
+			audio.musicPlaying = false
+			return
+		end
+		-- TODO either handle state changes here or somewhere else.
+		-- here is as good as anywhere ...
 	end
 
-
+	local delay = ffi.cast('uint16_t*', self.ram.audioData + audio.musicAddr)[0]
+	audio.musicAddr = audio.musicAddr + 2
+	audio.nextBeatSampleFrameIndex = math.floor(audio.musicSampleFrameIndex + delay * audio.sampleFramesPerBeat)
+--print('updateAudio music wait', delay, 'from',  audio.musicSampleFrameIndex, 'to', audio.nextBeatSampleFrameIndex)
 end
 
 --[[
@@ -412,7 +437,7 @@ function AppAudio:playMusic(musicID)
 	assert(audio.musicAddr >= 0 and audio.musicAddr < ffi.sizeof(self.ram.audioData))
 	assert(audio.musicEndAddr >= 0 and audio.musicEndAddr <= ffi.sizeof(self.ram.audioData))
 	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.audioData + audio.musicAddr)[0]
---print('playing with beats/second', beatsPerSecond)	
+--print('playing with beats/second', beatsPerSecond)
 	audio.musicAddr = audio.musicAddr + 2
 
 	audio.musicPlaying = true
@@ -425,6 +450,9 @@ function AppAudio:playMusic(musicID)
 	audio.musicAddr = audio.musicAddr + 2
 	audio.nextBeatSampleFrameIndex = math.floor(audio.musicSampleFrameIndex + delay * audio.sampleFramesPerBeat)
 --print('playMusic music wait', delay, 'from',  audio.musicSampleFrameIndex, 'to', audio.nextBeatSampleFrameIndex)
+
+	-- see if any notes need to be played immediately
+	self:updateMusic()
 end
 
 return {
