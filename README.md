@@ -78,32 +78,63 @@ Not only am I not much of a retro audio programmer, but the SNES happened to be 
 
 256 Sound samples at once.
 Each sample is 16bit mono.
-They can be played back through 8 channels at a time.
-Channels have the following properties:
-- separate left/right volume (0-127) and flag for reverse.
-- pitch / frequency as a multiplier (0-65536).  4096 = 1:1, so 2048 is one octave lower, 8192 is one octave higher.
-- source sample ID.
+
+256 different music tracks.
+Music is stored in a custom format:
+```
+uint16_t beatsPerSecond;
+struct {
+	uint16_t delayUntilNextNoteInBeats;
+
+	//Array of byte offset and value changes to the `channels` array in RAM at the current beat.
+	//An offset and value of 0xff indicates the end of the list.
+	struct {
+		uint8_t offset;
+		uint8_t value;
+	}[];
+}[];
+```
+When playing music track i, the music data starts at `musicAddrs[i].addr` and ends at 	`musicAddrs[i].addr + musicAddrs[i].len`.
+
+Each mixing channel holds the following information:
+- volume[2] for left and right output
+- echoVolume[2] TODO
+- pitch frequency scalar, where 0x1000 pitch corresponds to 1:1 playback
+- sfxID 0-255 corresponding with what sfx sample to play;
+- echoStartAddr TODO
+- echoDelay TODO
+There are 8 mixing channels.
+
+In this sense, if you are used to other fantasy consoles, their waveforms becomes my samples and their sfx and music (tracker format audio) become my music.
 
 ### Memory Layout
 
 ```
+memory layout:
 0x000000 - 0x010000 = spriteSheet
 0x010000 - 0x020000 = tileSheet
 0x020000 - 0x040000 = tilemap
 0x040000 - 0x040200 = palette
-0x040200 - 0x050200 = code
-0x050200 - 0x070200 = framebuffer
-0x070200 - 0x070204 = clipRect
-0x070204 - 0x070244 = mvMat
-0x070244 - 0x070248 = updateCounter
-0x070248 - 0x07024c = romUpdateCounter
-0x07024c - 0x07025a = keyPressFlags
-0x07025a - 0x070268 = lastKeyPressFlags
-0x070268 - 0x07033e = keyHoldCounter
-0x07033e - 0x070342 = mousePos
-0x070342 - 0x070346 = lastMousePos
-0x070346 - 0x07034a = lastMousePressPos
-system dedicated 0x7034a of RAM
+0x040200 - 0x040600 = sfxAddrs
+0x040600 - 0x040a00 = musicAddrs
+0x040a00 - 0x050a00 = audioData
+0x050a00 - 0x060a00 = code
+0x060a00 - 0x080a00 = framebuffer
+0x080a00 - 0x080a04 = clipRect
+0x080a04 - 0x080a44 = mvMat
+0x080a44 - 0x080a45 = videoMode
+0x080a45 - 0x080a46 = blendMode
+0x080a46 - 0x080a48 = blendColor
+0x080a48 - 0x080ac8 = channels
+0x080ac8 - 0x080acc = updateCounter
+0x080acc - 0x080ad0 = romUpdateCounter
+0x080ad0 - 0x080ade = keyPressFlags
+0x080ade - 0x080aec = lastKeyPressFlags
+0x080aec - 0x080bc2 = keyHoldCounter
+0x080bc2 - 0x080bc6 = mousePos
+0x080bc6 - 0x080bca = lastMousePos
+0x080bca - 0x080bce = lastMousePressPos
+system dedicated 0x80bce of RAM
 ```
 
 # Language
@@ -370,7 +401,7 @@ Pico8 Compatability is at 95%
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
 
-... how to mix the console, the menu system, and the editor ... like tic80 does maybe ... hmm  
+... how to mix the console, the menu system, and the editor ... like tic80 does maybe ... hmm
 
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip

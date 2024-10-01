@@ -194,6 +194,8 @@ trace(('TODO poke $%x $%x'):format(addr, value))
 	end
 end
 setfenv(1, {
+	getmetatable=getmetatable,
+	setmetatable=setmetatable,
 	printh=trace,
 	assert=assert,
 	band=bit.band,
@@ -238,11 +240,13 @@ setfenv(1, {
 		return pairs(t)
 	end,
 	all=[t]coroutine.wrap([]do
+		if not t then return end
 		for _,x in ipairs(t) do
 			coroutine.yield(x)
 		end
 	end),
 	foreach=[t,f]do
+		if not t then return end
 		for _,o in ipairs(t) do f(o) end
 	end,
 	tostr=tostring,
