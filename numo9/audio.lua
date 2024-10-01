@@ -6,6 +6,7 @@ local sdlAudioFormatForCType = require 'sdl.audio'.sdlAudioFormatForCType
 local asserteq = require 'ext.assert'.eq
 local assertindex = require 'ext.assert'.index
 local table = require 'ext.table'
+local math = require 'ext.math'
 local Audio = require 'audio'
 local AudioSource = require 'audio.source'
 local AudioBuffer = require 'audio.buffer'
@@ -177,6 +178,7 @@ print('resetting runaway audio queue with size '..queueSize..' exceeding thresho
 	self:updateSoundEffects()
 end
 
+local tmpOut = ffi.new('int32_t[?]', audioOutChannels)
 function AppAudio:updateSoundEffects()
 	local audio = self.audio
 
@@ -196,14 +198,12 @@ function AppAudio:updateSoundEffects()
 	--local updateSampleFrameCount = math.min(updateIntervalInSampleFrames, audio.bufferSizeInSampleFrames)
 	for i=0,updateSampleFrameCount-1 do
 		for k=0,audioOutChannels-1 do
-			p[k] = 0
+			tmpOut[k] = 0
 		end
 
 		local channel = self.ram.channels+0
 		for j=0,audioMixChannels-1 do
-			if channel.volume[0] > 0
-			or channel.volume[1] > 0
-			then
+			if channel.flags.isPlaying ~= 0 then
 				local sfx = self.ram.sfxAddrs + channel.sfxID
 
 				-- where in sfx we are currently playing
@@ -215,17 +215,26 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 				if bit.lshift(bit.rshift(channel.addr, pitchPrec), 1) > sfx.addr + sfx.len then -- sfx.loopEndAddr then
 -- TODO flag for loop or not
 --print'sfx looping'
-					asserteq(bit.band(sfxaddr, 1), 0)
-					channel.addr = bit.lshift(sfx.addr, pitchPrec-1) -- sfx.loopStartAddr
+					if channel.flags.isLooping ~= 0 then
+						asserteq(bit.band(sfxaddr, 1), 0)
+						channel.addr = bit.lshift(sfx.addr, pitchPrec-1) -- sfx.loopStartAddr
+					else
+						channel.addr = 0
+						channel.flags.isPlaying = 0
+					end
 				end
 
 				for k=0,audioOutChannels-1 do
-					p[k] = p[k] + ampl * channel.volume[k] / 255
+					tmpOut[k] = tmpOut[k] + ampl * channel.volume[k] / 255
 				end
 			end
 			channel = channel + 1
 		end
 
+		for k=0,audioOutChannels-1 do
+			-- TODO another assertion that amplZero == 0
+			p[k] = math.clamp(tmpOut[k], -amplMax, amplMax)
+		end
 		p = p + audioOutChannels
 	end
 	audio.sampleFrameIndex = audio.sampleFrameIndex + updateSampleFrameCount
@@ -244,74 +253,83 @@ function AppAudio:updateMusic()
 	local channelPtr = ffi.cast('uint8_t*', self.ram.channels)
 
 	local musicPlaying = self.ram.musicPlaying+0
-	for q=0,audioMusicPlayingCount-1 do
+	for musicPlayingIndex=0,audioMusicPlayingCount-1 do
 		do
 			if musicPlaying.addr >= musicPlaying.endAddr then
-				musicPlaying.isPlaying = false
+				musicPlaying.isPlaying = 0
 				goto updateMusic_nextPlaying
 			end
-			if not musicPlaying.isPlaying then 
+			if musicPlaying.isPlaying == 0 then 
 				goto updateMusic_nextPlaying
 			end
+			--if audio.sampleFrameIndex + updateIntervalInSampleFrames < musicPlaying.nextBeatSampleFrameIndex then 
 			if audio.sampleFrameIndex < musicPlaying.nextBeatSampleFrameIndex then 
 				goto updateMusic_nextPlaying
 			end
-			--if audio.sampleFrameIndex + updateIntervalInSampleFrames < musicPlaying.nextBeatSampleFrameIndex then goto updateMusic_nextPlaying end
 
-			-- TODO combine this with musicAddr just like channel.addr
+			-- TODO combine this with musicPlaying.addr just like channel.addr's lower 12 bits
 			musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
 
 			-- decode channel deltas
 			-- TODO if we have bad audio data then this will have to process all 64k before it quits ...
 			while true do
-	local decodeStartAddr = musicPlaying.addr
-	assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
+local decodeStartAddr = musicPlaying.addr
+assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 				local index = self.ram.audioData[musicPlaying.addr]
 				local value = self.ram.audioData[musicPlaying.addr + 1]
 				musicPlaying.addr = musicPlaying.addr + 2
 				if musicPlaying.addr >= musicPlaying.endAddr-1 then
-		--print('musicAddr finished sfx')
-					musicPlaying.isPlaying = false
+print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+					musicPlaying.isPlaying = 0
 					goto updateMusic_nextPlaying
 				end
 
 				if index == 0xff then
-		--print('music delta frame done: ff ff')
-					goto updateMusic_nextPlaying
+print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
+					goto updateMusic_readDelay
 				end
 				--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
 				if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
-		print("audio got bad data")
-					musicPlaying.isPlaying = false
+print('musicPlaying', musicPlayingIndex, 'got bad data')
+					musicPlaying.isPlaying = 0
 					goto updateMusic_nextPlaying
 				end
-		--print( 'channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
-				channelPtr[index] = value
+print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
 
 				-- if we're setting a channel to a new sfx
 				-- then reset the channel addr to that sfx's addr
 				-- I guess I could 'TODO when it sets the sfxID, have it set the addr as well'
 				--  but this might take some extra preparation in packaging the ROM ... I'll think about
-				local channelOffset = index % ffi.sizeof'Numo9Channel'
-				local channelIndex = (index - channelOffset) / ffi.sizeof'Numo9Channel'
-				if channelOffset == ffi.offsetof('Numo9Channel', 'volume') then
-		--print('channel', channelIndex, 'volume L', value)
-				elseif channelOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
-		--print('channel', channelIndex, 'volume R', value)
+				local channelByteOffset = index % ffi.sizeof'Numo9Channel'
+				local channelIndex = (index - channelByteOffset) / ffi.sizeof'Numo9Channel'
+				-- 7 cuz max # playing tracks is 8 ... TODO an assert somewhere
+				channelIndex = bit.band(7, channelIndex + musicPlaying.channelOffset)
 
-				elseif channelOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
-		--print('channel', channelIndex, 'echoVol L', value)
-				elseif channelOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
-		--print('channel', channelIndex, 'echoVol R', value)
+				--[[ play using delta encoding's offset into all channels
+				channelPtr[index] = value
+				--]]
+				-- [[ play using our modulo channel size
+				ffi.cast('uint8_t*', self.ram.channels + channelIndex)[channelByteOffset] = value
+				--]]
 
-				elseif channelOffset == ffi.offsetof('Numo9Channel', 'pitch')
-				or channelOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
+				if channelByteOffset == ffi.offsetof('Numo9Channel', 'volume') then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
+				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
+
+				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
+				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
+
+				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')
+				or channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
 				then
-		--print('channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
 
-				elseif channelOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
-		--print('channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
+				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
 					-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
 					local sfx = self.ram.sfxAddrs[value]
 					local sfxaddr =  sfx.addr
@@ -320,23 +338,27 @@ function AppAudio:updateMusic()
 					-- THEN SHIFT IT ... 11 ... which is 12 minus 1
 					-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
 					local channel = self.ram.channels[channelIndex]
+					channel.flags.isPlaying = 1
+					-- TODO looping ... looping in track music ... looping in sfx playback ... idk shrug
+					channel.flags.isLooping = 1
 					channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
 					-- so the bottom 12 should be 0's at this point
 				end
 
 				if musicPlaying.addr >= musicPlaying.endAddr-1 then
-		--print('musicAddr finished sfx')
-					musicPlaying.isPlaying = false
+print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+					musicPlaying.isPlaying = 0
 					goto updateMusic_nextPlaying
 				end
 				-- TODO either handle state changes here or somewhere else.
 				-- here is as good as anywhere ...
 			end
 
+::updateMusic_readDelay::
 			local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
 			musicPlaying.addr = musicPlaying.addr + 2
 			musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
-		--print('updateAudio music wait', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
+print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
 		end
 ::updateMusic_nextPlaying::
 		musicPlaying = musicPlaying + 1
@@ -357,14 +379,14 @@ speed = speedup/slowdown.
 offset = at what point to start playing.
 --]]
 function AppAudio:playSound(sfxID, pitch, duration, channelIndex, volume, speed, offset)
-print('TODO playSound', sfxID, 'on channel', channelIndex, 'volume', volume, 'pitch', pitch)
---[=[
+print('FIXME playSound', sfxID, 'on channel', channelIndex, 'volume', volume, 'pitch', pitch)
 	channelIndex = channelIndex or -1
 	if not self.audio then return end
 
+--[=[ what if there's a track issuing commands to this channel?  what to do ... nothing?
 	if channelIndex == -1 then
 		for i,channel in ipairs(self.audio.channels) do
-			if not channel:isPlaying() then
+			if channel.flags.isPlaying == 0 then
 				channelIndex = i-1
 				break
 			end
@@ -376,10 +398,10 @@ print('TODO playSound', sfxID, 'on channel', channelIndex, 'volume', volume, 'pi
 	elseif channelIndex == -2 then
 		-- TODO stop all instances of 'sfxID' from playing anywhere ...
 		for i,channel in ipairs(self.audio.channels) do
-			if channel:isPlaying()
+			if channel.flags.isPlaying == 1
 			and channel.sfxID == sfxID
 			then
-				channel:stop()
+				channel.flags.isPlaying = 0
 			end
 		end
 		return
@@ -388,7 +410,7 @@ print('TODO playSound', sfxID, 'on channel', channelIndex, 'volume', volume, 'pi
 	if not channel then return end
 
 	if sfxID == -1 then
-		channel:stop()
+		channel.flags.isPlaying = 0
 		return
 	end
 
@@ -439,20 +461,21 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 -- one music at a time
 -- music tracks periodically issue sfx play commands to certain channels
 	musicID = math.floor(musicID or -1)
---print('playMusic', musicID)
+print('playMusic', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
 	if musicID == -1 then
 		-- stop music
 		-- TODO what kind of state for the channel to specify playing or not
 		--   just turn the volume off for now ...
-		--[[
+		-- [[ stop each track's last played channels too or something
+		-- or just stop all tracks
 		for i=0,audioMixChannels-1 do
 			for j=0,audioOutChannels-1 do
-				self.ram.channels[i].volume[j] = 0
+				self.ram.channels[i].flags.isPlaying = 0
 			end
 		end
 		--]]
 		for i=0,audioMusicPlayingCount-1 do
-			self.ram.musicPlaying[i].isPlaying = false
+			self.ram.musicPlaying[i].isPlaying = 0
 		end
 		return
 	end
@@ -464,7 +487,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 
 	musicPlayingIndex = musicPlayingIndex or 0
 	local musicPlaying = self.ram.musicPlaying + musicPlayingIndex
-	musicPlaying.isPlaying = true
+	musicPlaying.isPlaying = 1
 	musicPlaying.channelOffset = channelOffset or 0
 	musicPlaying.addr = music.addr
 

@@ -617,15 +617,18 @@ assert(shift>=0)
 
 	music=[n, fadeLen, mask]do
 		if n==-1 then music(-1) return end
-trace('playing music', n)		
 		for i=1,4 do
 			local sfxID=musicTable[5*n+i+1]
-			if sfxID==0xff then break end
+			if sfxID<0xff then 
 trace('playing music sfx', sfxID)			
-			music(sfxID, 3+i, 0)
+-- TODO FIXME it's playing nonsense
+				music(sfxID, i+3, i+3)
+			end
 		end
 	end,
-	sfx=[n,ch,ofs,len]music(n,0,ch),	-- store pico8 waveforms as my sfx, store its sfx and music as my music
+	sfx=[n,ch,ofs,len]do
+		music(n, 0, ch)	-- store pico8 waveforms as my sfx, store its sfx and music as my music
+	end,
 
 	reload=[dst,src,len]do
 trace'TODO reload'
