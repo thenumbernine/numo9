@@ -186,7 +186,7 @@ function App:initGL()
 	print'memory layout:'
 	for _,field in ipairs(RAM.fields[2].type.fields) do
 		local offset = ffi.offsetof('RAM', field.name)
-		local size = ffi.sizeof(self.ram[field.name])
+		local size = ffi.sizeof(field.type)
 		print(('0x%06x - 0x%06x = '):format(offset, offset + size)..field.name)
 	end
 
@@ -218,8 +218,8 @@ function App:initGL()
 	... and does it even matter if it loops?  if people store 'timestamps' and subtract,
 	then these time constraints (or half of them for signed) will give you the maximum delta-time capable of being stored.
 	--]]
-	self.ram.updateCounter[0] = 0
-	self.ram.romUpdateCounter[0] = 0
+	self.ram.updateCounter = 0
+	self.ram.romUpdateCounter = 0
 
 	-- TODO soooo tempting to treat 'app' as a global
 	-- It would cut down on *all* these glue functions
@@ -278,7 +278,7 @@ function App:initGL()
 
 		-- timer
 		time = function()
-			return self.ram.romUpdateCounter[0] * updateIntervalInSeconds
+			return self.ram.romUpdateCounter * updateIntervalInSeconds
 		end,
 
 		-- pico8 has poke2 as word, poke4 as dword
@@ -519,8 +519,8 @@ function App:initGL()
 				cmd.blendMode = blendMode
 			end
 
-			self.ram.blendMode[0] = blendMode or 0xff
-			blendMode = self.ram.blendMode[0]
+			self.ram.blendMode = blendMode or 0xff
+			blendMode = self.ram.blendMode
 
 			self:setBlendMode(blendMode)
 		end,
@@ -968,8 +968,8 @@ end
 function App:update()
 	App.super.update(self)
 
-	if self.currentVideoMode ~= self.ram.videoMode[0] then
-		self:setVideoMode(self.ram.videoMode[0])
+	if self.currentVideoMode ~= self.ram.videoMode then
+		self:setVideoMode(self.ram.videoMode)
 	end
 
 	-- update threadpool, clients or servers
@@ -987,7 +987,7 @@ function App:update()
 		print(
 		--	'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
 		--	'draws/second '..drawsPerSecond	-- TODO make this single-buffered
-		--	'SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
+			'SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
 		)
 		if self.server then
 			--[[
@@ -1084,8 +1084,8 @@ conn.receivesPerSecond = 0
 		--]]
 
 		-- system update refresh timer
-		self.ram.updateCounter[0] = self.ram.updateCounter[0] + 1
-		self.ram.romUpdateCounter[0] = self.ram.romUpdateCounter[0] + 1
+		self.ram.updateCounter = self.ram.updateCounter + 1
+		self.ram.romUpdateCounter = self.ram.romUpdateCounter + 1
 
 
 		-- tell netplay we have a new frame
@@ -1125,8 +1125,8 @@ conn.receivesPerSecond = 0
 			self.ram.clipRect[2]+1,
 			self.ram.clipRect[3]+1)
 		-- see if we need to re-enable it ...
-		if self.ram.blendMode[0] ~= 0xff then
-			self:setBlendMode(self.ram.blendMode[0])
+		if self.ram.blendMode ~= 0xff then
+			self:setBlendMode(self.ram.blendMode)
 		end
 
 		-- run the cartridge thread
@@ -1264,7 +1264,7 @@ print('cartridge thread dead')
 		drawsPerSecond = drawsPerSecond + 1
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
-		if self.ram.videoMode[0] == 1 then
+		if self.ram.videoMode == 1 then
 			self.palTex:checkDirtyCPU()
 		end
 
@@ -1613,7 +1613,7 @@ print('code is', #code, 'bytes')
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
-		self.ram.romUpdateCounter[0] = 0
+		self.ram.romUpdateCounter = 0
 		self:resetView()
 
 		-- here, if the assert fails then it's an (ugly) parse error, and you can just pcall / pick out the offender

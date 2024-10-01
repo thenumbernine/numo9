@@ -1114,24 +1114,24 @@ void main() {
 		}
 	end
 
-	self.ram.videoMode[0] = 0	-- 16bpp RGB565
-	--self.ram.videoMode[0] = 1	-- 8bpp indexed
-	--self.ram.videoMode[0] = 2	-- 8bpp RGB332
-	self:setVideoMode(self.ram.videoMode[0])
+	self.ram.videoMode = 0	-- 16bpp RGB565
+	--self.ram.videoMode = 1	-- 8bpp indexed
+	--self.ram.videoMode = 2	-- 8bpp RGB332
+	self:setVideoMode(self.ram.videoMode)
 
-	self.ram.blendMode[0] = 0xff	-- = none
+	self.ram.blendMode = 0xff	-- = none
 
 	-- for debugging ...
 	-- still getting erratic results ...
 	-- how does GL do conversions between texture()/texelFetch(), and vec4-vs-uvec4 and fragments vs their targets and their respective formats?
-	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,255,127,255)
-	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,255,0,255)
-	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,255,255,255)
-	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,0,0,255)
-	self.ram.blendColor[0] = rgba8888_4ch_to_5551(255,0,255,255)
-	self.ram.blendColor[0] = rgba8888_4ch_to_5551(0,255,0,255)		-- black
-	self.ram.blendColor[0] = rgba8888_4ch_to_5551(0,255,255,255)	-- black
-	self.ram.blendColor[0] = rgba8888_4ch_to_5551(0,255,127,255)	-- works sort of
+	self.ram.blendColor = rgba8888_4ch_to_5551(255,255,127,255)
+	self.ram.blendColor = rgba8888_4ch_to_5551(255,255,0,255)
+	self.ram.blendColor = rgba8888_4ch_to_5551(255,255,255,255)
+	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)
+	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,255,255)
+	self.ram.blendColor = rgba8888_4ch_to_5551(0,255,0,255)		-- black
+	self.ram.blendColor = rgba8888_4ch_to_5551(0,255,255,255)	-- black
+	self.ram.blendColor = rgba8888_4ch_to_5551(0,255,127,255)	-- works sort of
 
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self:setClipRect(0, 0, 0xff, 0xff)
@@ -1454,14 +1454,14 @@ function AppVideo:setBlendMode(blendMode)
 -- do I have to code the color-replacement into the shaders?
 	local cr, cg, cb
 	if bit.band(blendMode, 4) ~= 0 then
-		cr, cg, cb = rgba5551_to_rgba8888_4ch(self.ram.blendColor[0])
+		cr, cg, cb = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	else
 		cr, cg, cb = 1, 1, 1
 	end
 --]]
 -- [[ ... if not then it's gotta be done as a shader ... all shaders need a toggle to override their output when necessary for blend ...
 	self.drawOverrideSolidA = bit.band(blendMode, 4) == 0 and 0 or 0xff	-- > 0 means we're using draw-override
-	local dr, dg, db = rgba5551_to_rgba8888_4ch(self.ram.blendColor[0])
+	local dr, dg, db = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	self.drawOverrideSolidR = dr
 	self.drawOverrideSolidG = dg
 	self.drawOverrideSolidB = db
