@@ -648,7 +648,7 @@ GunShot=[owner]do
 	self.owner=owner
 	self:setPos(owner.posX, owner.posY)
 	self.seq=-1	--invis
-	
+
 	self.cannotPassThru=[:,maptype]mapType[maptype].blocksGunShot
 
 	self.hitObject=[:,what,pushDestX,pushDestY,side]do
@@ -1098,7 +1098,7 @@ update=[]do
 	matscale(1.6,1.6)
 	-- draw ground first
 	-- TODO put this at location 0, and levels after it ...
-	map(0,10,mapw,maph,0,0,0,true)
+	map(0,20,mapw,maph,0,0,0,true)
 	-- then draw map
 	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
 

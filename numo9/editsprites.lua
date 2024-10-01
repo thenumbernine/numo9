@@ -127,7 +127,7 @@ function EditSprites:update()
 	local h = sh * spriteSize.y
 
 	local function spritesheetCoordToFb(ssX, ssY)
-		return 
+		return
 			ssX * spriteSize.x - self.spritesheetPanOffset.x + x,
 			ssY * spriteSize.y - self.spritesheetPanOffset.y + y
 	end
@@ -157,7 +157,7 @@ function EditSprites:update()
 		0,		-- spriteBit
 		0xFF	-- spriteMask
 	)
-	gl.glScissor(0,0,frameBufferSize:unpack())	
+	gl.glScissor(0,0,frameBufferSize:unpack())
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 	local function fbToSpritesheetCoord(fbX, fbY)
 		return
@@ -244,7 +244,7 @@ function EditSprites:update()
 	-- draw some pattern under the sprite so you can tell what's transparent
 	gl.glScissor(x,y,w,h)
 	local function spriteCoordToFb(sX, sY)
-		return 
+		return
 			(sX - self.spriteSelPos.x * spriteSize.x - self.spritePanOffset.x) / tonumber(self.spriteSelSize.x * spriteSize.x) * w + x,
 			(sY - self.spriteSelPos.y * spriteSize.y - self.spritePanOffset.y) / tonumber(self.spriteSelSize.y * spriteSize.y) * h + y
 	end
@@ -269,7 +269,7 @@ function EditSprites:update()
 		self.spriteBit,							-- spriteBit
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
-	gl.glScissor(0, 0, frameBufferSize:unpack())	
+	gl.glScissor(0, 0, frameBufferSize:unpack())
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 
 	-- convert x y in framebuffer space to x y in sprite window space
@@ -323,7 +323,7 @@ function EditSprites:update()
 				bit.lshift(1, self.spriteBitDepth) - 1,
 				self.spriteBit
 			)
-			
+
 			local function getpixel(tx, ty)
 				if not (0 <= tx and tx < spriteSheetSize.x
 				and 0 <= ty and ty < spriteSheetSize.y)
@@ -402,7 +402,7 @@ function EditSprites:update()
 								putpixel(tx1, ty1)
 								fillstack:insert{tx1, ty1}
 							end
-						end			
+						end
 					end
 				end
 			end
@@ -529,30 +529,30 @@ function EditSprites:update()
 	self:drawText(('C=%04X'):format(selColorValue), 16, 216, 13, -1)
 	self:drawText(('R=%02X'):format(bit.band(selColorValue,0x1f)), 16, 224, 13, -1)
 	self:guiSpinner(16+32, 224, function(dx)
-		self:edit_pokew(selPaletteAddr, 
+		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band(selColorValue+dx,0x1f),bit.band(selColorValue,bit.bnot(0x1f)))
 		)
 	end)
 	self:drawText(('G=%02X'):format(bit.band(bit.rshift(selColorValue,5),0x1f)), 16, 224+8, 13, -1)
 	self:guiSpinner(16+32, 224+8, function(dx)
-		self:edit_pokew(selPaletteAddr, 
+		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
 		)
 	end)
 	self:drawText(('B=%02X'):format(bit.band(bit.rshift(selColorValue,10),0x1f)), 16, 224+16, 13, -1)
 	self:guiSpinner(16+32, 224+16, function(dx)
-		self:edit_pokew(selPaletteAddr, 
+		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
 		)
 	end)
 	local alpha = bit.band(selColorValue,0x8000)~=0
 	if self:guiButton('A', 16, 224+24, alpha) then
 		if alpha then	-- if it was set then clear it
-			self:edit_pokew(selPaletteAddr, 
+			self:edit_pokew(selPaletteAddr,
 				bit.band(selColorValue, 0x7fff)
 			)
 		else	-- otherwise set it
-			self:edit_pokew(selPaletteAddr, 
+			self:edit_pokew(selPaletteAddr,
 				bit.bor(selColorValue, 0x8000)
 			)
 		end
@@ -709,7 +709,7 @@ print'BAKING PALETTE'
 						asserteq(image.channels, 1, "image.channels")
 						for i,color in ipairs(colors) do
 							self:edit_pokel(
-								paletteAddr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset)), 
+								paletteAddr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset)),
 								rgba8888_4ch_to_5551(
 									color:byte(1),
 									color:byte(2),
@@ -742,7 +742,7 @@ print'BAKING PALETTE'
 			end
 		end
 	end
-	
+
 	self:drawTooltip()
 end
 
