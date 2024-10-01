@@ -122,6 +122,7 @@ print('got bufferSizeInSeconds', bufferSizeInSeconds)
 
 	self:resetAudio()
 
+	-- how to fix the mystery SDL QueueAudio lag ...
 	self.audio.queueClearFreq = 60	-- update ticks
 	self.audio.lastQueueClear = 0
 end
@@ -144,6 +145,8 @@ function AppAudio:resetAudio()
 
 	local audio = self.audio
 
+	ffi.fill(self.ram.channels, ffi.sizeof'Numo9Channel' * audioMixChannels)
+
 	audio.musicAddr = 0
 	audio.musicEndAddr = 0
 	audio.musicPlaying = false
@@ -157,13 +160,19 @@ function AppAudio:resetAudio()
 end
 
 -- currently called every 1/60 ... I could call it every frame :shrug: a few thousand times a second
+local queueThresholdInBytes = math.floor(5 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(sampleType))
 function AppAudio:updateAudio()
+	local audio = self.audio
 
-	if self.ram.updateCounter[0] > self.audio.lastQueueClear + self.audio.queueClearFreq then
-		self.audio.lastQueueClear = self.ram.updateCounter[0]
-		-- as is for some reason when things start, SDL will queue about 4seconds worth of samples before it starts consuming
-		-- so to fix that lag, lets periodically clear the queue
-		sdl.SDL_ClearQueuedAudio(self.audio.deviceID)
+	-- as is for some reason when things start, SDL will queue about 4seconds worth of samples before it starts consuming
+	-- so to fix that lag, lets periodically clear the queue
+	if self.ram.updateCounter > audio.lastQueueClear + audio.queueClearFreq then
+		local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)
+		if queueSize > queueThresholdInBytes  then
+			audio.lastQueueClear = self.ram.updateCounter
+print('resetting runaway audio queue with size '..queueSize..' exceeding threshold '..queueThresholdInBytes)
+			sdl.SDL_ClearQueuedAudio(audio.deviceID)
+		end
 	end
 
 	self:updateMusic()
@@ -174,8 +183,8 @@ function AppAudio:updateSoundEffects()
 	local audio = self.audio
 
 	-- sound can't keep up ... hmm ...
-	--while self.ram.romUpdateCounter[0] > audio.audioUpdateCounter do
-	--if self.ram.romUpdateCounter[0] > audio.audioUpdateCounter then
+	--while self.ram.romUpdateCounter > audio.audioUpdateCounter do
+	--if self.ram.romUpdateCounter > audio.audioUpdateCounter then
 	--	audio.audioUpdateCounter = audio.audioUpdateCounter + 1
 	-- or just call this 1/60th of a second and T R U S T
 	-- TODO here fill with whatever the audio channels are set to

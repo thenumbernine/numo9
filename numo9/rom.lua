@@ -29,8 +29,9 @@ local audioSampleType = 'int16_t'
 --local audioSampleRate = 22050
 local audioSampleRate = 32000
 --local audioSampleRate = 44100
-local audioMixChannels = 8	-- # channels to play at the same time
 local audioOutChannels = 2	-- 1 for mono, 2 for stereo ... # L/R samples-per-sample-frame ... there's so much conflated terms in audio programming ...
+local audioMixChannels = 8	-- # channels to play at the same time
+local audioMusicTrackCount = 8	-- how many unique music tracks can play at a time
 local sfxTableSize =  256	-- max number of unique sfx that a music can reference
 local musicTableSize = 256	-- max number of music tracks stored
 local audioDataSize = 0x10000	-- snes had 64k dedicated to audio so :shrug:
@@ -176,6 +177,16 @@ how about I first say audio is stored mono 16bit-samples ... any length?
 - echo volume L R
 - echo feedback ?
 --]]
+local Numo9ChannelFlags = struct{
+	name = 'Numo9ChannelFlags',
+	fields = {
+		--[[
+		do i really need an 'enabled' flag?  why not just use volume?
+		how do I tell if a channel is busy?  based on this flag?  based on volume?  based on whether a music track is using it?
+		--]]
+		--{name='enabled', type='uint8_t:1'},
+	},
+}
 local Numo9Channel = struct{
 	name = 'Numo9Channel',
 	fields = {
@@ -192,6 +203,17 @@ local Numo9Channel = struct{
 		{name='echoVol', type='uint8_t['..audioOutChannels..']'},
 		{name='pitch', type='uint16_t'},	-- fixed point 4.12 multiplier
 		{name='sfxID', type='uint8_t'},		-- index in sfxAddrs[]
+		--[[ TODO in struct.lua, inline anonymous types with flags aren't working?
+		{name='flags', type=struct{
+			anonymous = true,
+			fields = {
+				{name='enabled', type='uint8_t:1'},
+			},
+		}},
+		--]]
+		-- [[
+		{name='flags', type='Numo9ChannelFlags'},
+		--]]
 		{name='echoStartAddr', type='uint8_t'},
 		{name='echoDelay', type='uint8_t'},
 	},
@@ -232,16 +254,16 @@ local RAM = struct{
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 				{name='clipRect', type='uint8_t[4]'},
 				{name='mvMat', type=mvMatType..'[16]'},
-				{name='videoMode', type='uint8_t[1]'},
-				{name='blendMode', type='uint8_t[1]'},
-				{name='blendColor', type='uint16_t[1]'},
+				{name='videoMode', type='uint8_t'},
+				{name='blendMode', type='uint8_t'},
+				{name='blendColor', type='uint16_t'},
 
 				-- audio
 				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
 
 				-- timer
-				{name='updateCounter', type='uint32_t[1]'},	-- how many updates() overall, i.e. system clock
-				{name='romUpdateCounter', type='uint32_t[1]'},	-- how many updates() for the current ROM.  reset upon run()
+				{name='updateCounter', type='uint32_t'},	-- how many updates() overall, i.e. system clock
+				{name='romUpdateCounter', type='uint32_t'},	-- how many updates() for the current ROM.  reset upon run()
 
 				-- keyboard
 
