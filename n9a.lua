@@ -870,7 +870,7 @@ print("total SFX data size if I'd use BRR: "..(
 		musicCode = 'musicTable={'..p8MusicTable:mapi(function(i)
 			return ('0x%02x'):format(i)
 		end):concat','..'}\n'
-		basepath'music.lua':write(tolua(music))
+		basepath'music.lua':write(tolua(musicTracks))
 	end
 
 	local palImg = Image(16, 16, 4, 'unsigned char',

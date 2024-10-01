@@ -25,6 +25,8 @@ local musicTableSize = numo9_rom.musicTableSize
 
 local sampleTypePtr = sampleType..'*'
 local updateIntervalInSampleFrames = math.ceil(updateIntervalInSeconds * sampleFramesPerSecond)
+local updateIntervalInSamples = updateIntervalInSampleFrames * audioOutChannels
+local updateIntervalInBytes =  updateIntervalInSamples * ffi.sizeof(sampleType)
 
 -- our console update is 60hz,
 -- if our sound is 44100 hz then that's 735 samples/frame
@@ -116,7 +118,7 @@ print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	bufferSizeInSeconds = audio.bufferSizeInSampleFrames / sampleFramesPerSecond
 print('got bufferSizeInSeconds', bufferSizeInSeconds)
 	--audio.audioBufferLength = math.ceil(audio.bufferSizeInBytes / ffi.sizeof(sampleType))
-	audio.audioBufferLength = updateIntervalInSampleFrames * audioOutChannels
+	audio.audioBufferLength = updateIntervalInSamples
 	audio.audioBuffer = ffi.new(sampleType..'[?]', audio.audioBufferLength)
 
 	print'starting audio...'
@@ -239,7 +241,7 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 		p = p + audioOutChannels
 	end
 	audio.sampleFrameIndex = audio.sampleFrameIndex + updateSampleFrameCount
---DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + audio.bufferSizeInBytes)
+--DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + updateIntervalInBytes)
 
 --print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
 	sdlAssertZero(sdl.SDL_QueueAudio(
@@ -283,22 +285,22 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 				local value = self.ram.audioData[musicPlaying.addr + 1]
 				musicPlaying.addr = musicPlaying.addr + 2
 				if musicPlaying.addr >= musicPlaying.endAddr-1 then
-print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+--print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 					musicPlaying.isPlaying = 0
 					goto updateMusic_nextPlaying
 				end
 
 				if index == 0xff then
-print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
+--print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
 					goto updateMusic_readDelay
 				end
 				--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
 				if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
-print('musicPlaying', musicPlayingIndex, 'got bad data')
+--print('musicPlaying', musicPlayingIndex, 'got bad data')
 					musicPlaying.isPlaying = 0
 					goto updateMusic_nextPlaying
 				end
-print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
+--print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
 
 				-- if we're setting a channel to a new sfx
 				-- then reset the channel addr to that sfx's addr
@@ -317,22 +319,22 @@ print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..(
 				--]]
 
 				if channelByteOffset == ffi.offsetof('Numo9Channel', 'volume') then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
 				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
 
 				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
 				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
 
 				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')
 				or channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
 				then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
 
 				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
 					-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
 					local sfx = self.ram.sfxAddrs[value]
 					local sfxaddr =  sfx.addr
@@ -349,7 +351,7 @@ print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value
 				end
 
 				if musicPlaying.addr >= musicPlaying.endAddr-1 then
-print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+--print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 					musicPlaying.isPlaying = 0
 					goto updateMusic_nextPlaying
 				end
@@ -361,7 +363,7 @@ print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 			local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
 			musicPlaying.addr = musicPlaying.addr + 2
 			musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
-print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
+--print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
 		end
 ::updateMusic_nextPlaying::
 		musicPlaying = musicPlaying + 1
