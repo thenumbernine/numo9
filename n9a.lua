@@ -653,13 +653,20 @@ print('toImage', name, 'width', width, 'height', height)
 						}
 					end
 					while #sfx.notes > 1
-					and sfx.notes[#sfx.notes].volume == 0
-					-- keep at least the last volume==0 note so delta-compress can tell us to set the channel to 0 when we're done
-					-- OR LOOP
-					and sfx.notes[#sfx.notes-1].volume == 0
+					and sfx.notes:last().volume == 0
 					do
 						sfx.notes:remove()
 					end
+
+					-- keep at least the last volume==0 note so delta-compress can tell us to set the channel to 0 when we're done
+					-- TODO OR LOOP
+					sfx.notes:insert{
+						pitch = 0,
+						waveform = 0,
+						volume = 0,
+						effect = 0,
+					}
+
 					if #sfx.notes > 0 then
 
 						-- no notes = no sound file ...
@@ -834,7 +841,7 @@ print("total SFX data size if I'd use BRR: "..(
 		can my music issue play commands of other music tracks?
 		should it be allowed to?
 		or should I just copy the music data here and recompress it again
-		
+
 		or I could just store it as a lua structure in the code, like sprFlags is...
 		--]]
 		local p8MusicTable = table()
