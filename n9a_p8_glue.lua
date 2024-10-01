@@ -616,11 +616,17 @@ assert(shift>=0)
 	end,
 
 	music=[n, fadeLen, mask]do
-		if n==-1 then music(-1) return end
+		n = tonumber(n)	-- sometimes it's passed as a string ... smh
+trace('playing music', n, type(n))
+		if n==-1 then
+			music(-1)
+			return
+		end
 		for i=1,4 do
 			local sfxID=musicTable[5*n+i+1]
-			if sfxID<0xff then 
-trace('playing music sfx', sfxID)			
+trace('...got music', n, i,'musicTableIndex', 5*n+i+1,'sfx', sfxID)
+			if sfxID<0xff then
+trace('playing music sfx', sfxID)
 -- TODO FIXME it's playing nonsense
 				music(sfxID, i+3, i+3)
 			end

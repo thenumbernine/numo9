@@ -355,6 +355,8 @@ To convert the binary ROM back to a TIFF-encoded cartridge:
 luajit n9a.lua binton9 cart.bin
 ```
 
+# Pico8-Compatability
+
 To convert a Pico8 cartridge to a local directory of unpacked n9 contents:
 ```
 luajit n9a.lua p8 cart.p8
@@ -392,14 +394,19 @@ Pico8 Compatability is at 95%
 - https://en.wikibooks.org/wiki/Super_NES_Programming/Loading_SPC700_programs
 
 # TODO
-- sfx
-	- plays WAVs and generates WAVs from pico8 carts
-	- still not sure how my sound 'hardware' should work ...
-- music WIP
+- waveforms
+	- BRR
+- music 
+	- no sort of looping track information just yet
+	- needs echo effect
+	- needs ADSR
 - input
 	- joystick support
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
+- graphics:
+	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
+	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
 
 ... how to mix the console, the menu system, and the editor ... like tic80 does maybe ... hmm
 
@@ -414,8 +421,9 @@ Pico8 Compatability is at 95%
 	- flag for pen / paste / bucket fill clip-to-view-area or not
 	- blob-finding functionality ... ?  How about selection masks and click-to-select stuff?  Why not just remake Photoshop.
 	- tilemap bucket fill
-- graphics:
-	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
-	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
+	- sfx tab
+		- paste in wave files
+	- music tab
+		- paste in midi files ... but how to correlate instruments with your wave samples?  can midi files save wave data themselves?
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
