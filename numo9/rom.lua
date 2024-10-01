@@ -230,6 +230,7 @@ local Numo9MusicPlaying = struct{
 		{name='sampleFramesPerBeat', type='uint16_t'},	-- this should be sampleFramesPerSecond / musicTable[musicID].addr's first uint16_t ...
 		{name='sampleFrameIndex', type='uint32_t'},			-- which sample-frame # the music is currently on
 		{name='nextBeatSampleFrameIndex', type='uint32_t'},	-- which sample-frame # the music will next execute a beat instructions on
+		{name='channelOffset', type='uint8_t'},		-- what # to add to all channels , module max # of channels, when playing (so dif tracks can play on dif channels at the same time)
 	},
 }
 -- assert sizeof musicID >= musicTableSize - that it can represent all our music table entries 
