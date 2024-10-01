@@ -6,6 +6,7 @@ local ffi = require 'ffi'
 local assertle = require 'ext.assert'.le
 local table = require 'ext.table'
 local struct = require 'struct'
+local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 
 local updateHz = 60
@@ -184,7 +185,14 @@ local Numo9ChannelFlags = struct{
 		do i really need an 'enabled' flag?  why not just use volume?
 		how do I tell if a channel is busy?  based on this flag?  based on volume?  based on whether a music track is using it?
 		--]]
-		--{name='enabled', type='uint8_t:1'},
+		{name='isPlaying', type='uint8_t:1'},
+		
+		--[[
+		if this is false and we reach the end of the sfx data then stop the channel
+		if it's true then go back to the start of the sfx data
+			TODO how about loop start and loop end addresses?
+		--]]
+		{name='isLooping', type='uint8_t:1'},
 	},
 }
 local Numo9Channel = struct{
@@ -207,7 +215,7 @@ local Numo9Channel = struct{
 		{name='flags', type=struct{
 			anonymous = true,
 			fields = {
-				{name='enabled', type='uint8_t:1'},
+				{name='isPlaying', type='uint8_t:1'},
 			},
 		}},
 		--]]
@@ -223,7 +231,7 @@ local Numo9Channel = struct{
 local Numo9MusicPlaying = struct{
 	name = 'Numo9MusicPlaying',
 	fields = {
-		{name='isPlaying', type='bool'},	-- TODO flags
+		{name='isPlaying', type='uint8_t'},	-- TODO flags
 		{name='musicID', type='uint8_t'},
 		{name='addr', type='uint16_t'},
 		{name='endAddr', type='uint16_t'},

@@ -725,11 +725,11 @@ print('toImage', name, 'width', width, 'height', height)
 							end
 						end
 						local data = playbackDeltas:dataToStr()
---print('music'..index..'.bin')
---print(string.hexdump(data))
+print('music'..index..'.bin')
+print(string.hexdump(data))
 						basepath('music'..index..'.bin'):write(data)
 
-						--[=[ don't need to generate these here anymore...
+						-- [=[ don't need to generate these here anymore...
 						local duration = math.max(1, sfx.duration)
 						local sampleFramesPerNote = sampleFramesPerNoteBase * duration
 						local sampleFrames = sampleFramesPerNote * #sfx.notes
