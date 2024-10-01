@@ -144,7 +144,7 @@ function Editor:update()
 		frameBufferSize.x, spriteSize.y,	-- w, h,
 		self:color(0)
 	)
-	
+
 	self:guiRadio(
 		0,
 		0,
@@ -272,21 +272,18 @@ end
 -- TODO how about flags in the editor for which you write to?
 
 function Editor:edit_poke(addr, value)
-print('edit_poke', addr, value)	
 	local app = self.app
 	app:net_poke(addr, value)
 	app.cartridge.v[addr] = value
 end
 
 function Editor:edit_pokew(addr, value)
-print('edit_pokew', addr, value)	
 	local app = self.app
 	app:net_pokew(addr, value)
 	ffi.cast('uint16_t*', app.cartridge.v + addr)[0] = value
 end
 
 function Editor:edit_pokel(addr, value)
-print('edit_pokel', addr, value)	
 	local app = self.app
 	app:net_pokel(addr, value)
 	ffi.cast('uint32_t*', app.cartridge.v + addr)[0] = value

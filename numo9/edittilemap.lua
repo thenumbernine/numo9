@@ -3,15 +3,16 @@ local gl = require 'gl'
 local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
 
-local paletteSize = require 'numo9.rom'.paletteSize
-local spriteSize = require 'numo9.rom'.spriteSize
-local frameBufferSize = require 'numo9.rom'.frameBufferSize
-local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
-local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
-local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
-local tilemapAddr = require 'numo9.rom'.tilemapAddr
-local tilemapSize = require 'numo9.rom'.tilemapSize
-local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
+local numo9_rom = require 'numo9.rom'
+local paletteSize = numo9_rom.paletteSize
+local spriteSize = numo9_rom.spriteSize
+local frameBufferSize = numo9_rom.frameBufferSize
+local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
+local spriteSheetSize = numo9_rom.spriteSheetSize
+local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local tilemapAddr = numo9_rom.tilemapAddr
+local tilemapSize = numo9_rom.tilemapSize
+local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
 
 local EditTilemap = require 'numo9.editor':subclass()
 
@@ -76,8 +77,8 @@ function EditTilemap:update()
 	-- draw map
 	local mapX = 0
 	local mapY = spriteSize.y
-	local mapWidthInTiles = tilemapSizeInSprites.x
-	local mapHeightInTiles = tilemapSizeInSprites.y-2
+	local mapWidthInTiles = frameBufferSizeInTiles.x
+	local mapHeightInTiles = frameBufferSizeInTiles.y-2
 	local mapWidth = bit.lshift(mapWidthInTiles, tileBits)
 	local mapHeight = bit.lshift(mapWidthInTiles, tileBits)
 
@@ -113,16 +114,30 @@ function EditTilemap:update()
 			)
 		end
 	end
-	gl.glScissor(0,0,frameBufferSize:unpack())
 	if self.drawGrid then
 		local step = bit.lshift(self.gridSpacing, tileBits)
-		for i=0,frameBufferSize.x-1,step do
-			app:drawSolidLine(i, spriteSize.y, i, frameBufferSize.y-spriteSize.y, self:color(1))
+		local gx = bit.lshift(-self.tilemapPanOffset.x % self.gridSpacing, tileBits)
+		local gy = bit.lshift(-self.tilemapPanOffset.y % self.gridSpacing, tileBits)
+		for i=-step,frameBufferSize.x-1,step do
+			app:drawSolidLine(
+				gx + i,
+				spriteSize.y,
+				gx + i,
+				frameBufferSize.y-spriteSize.y,
+				self:color(1)
+			)
 		end
-		for j=spriteSize.y,frameBufferSize.y-spriteSize.y-1,step do
-			app:drawSolidLine(0, j, frameBufferSize.x, j, self:color(1))
+		for j=spriteSize.y-step,frameBufferSize.y-spriteSize.y-1,step do
+			app:drawSolidLine(
+				0,
+				gy + j,
+				frameBufferSize.x,
+				gy + j,
+				self:color(1)
+			)
 		end
 	end
+	gl.glScissor(0,0,frameBufferSize:unpack())
 
 	if self.pickOpen then
 		local pickX = 2 * spriteSize.x
@@ -278,7 +293,7 @@ function EditTilemap:update()
 			self.tilePanPressed = false
 		end
 	end
-	
+
 	self:drawTooltip()
 end
 
