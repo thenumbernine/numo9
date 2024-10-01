@@ -24,6 +24,7 @@ tic80 has 16 waveforms
 
 TODO to be like SNES ...
 --]]
+	self:drawTooltip()
 end
 
 return EditSFX 

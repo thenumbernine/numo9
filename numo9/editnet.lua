@@ -73,6 +73,8 @@ function EditNet:update()
 		end
 		y = y + 12
 	end
+	
+	self:drawTooltip()
 end
 
 return EditNet

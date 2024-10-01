@@ -291,6 +291,8 @@ function EditTilemap:update()
 			self.tilePanPressed = false
 		end
 	end
+	
+	self:drawTooltip()
 end
 
 return EditTilemap

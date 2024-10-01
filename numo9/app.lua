@@ -1452,17 +1452,22 @@ end
 
 -- save from cartridge to filesystem
 function App:save(filename)
-	-- flush anything that might need it
-	self.spriteTex:checkDirtyGPU()
-	self.tileTex:checkDirtyGPU()
-	self.mapTex:checkDirtyGPU()
-	self.palTex:checkDirtyGPU()
+--	self:checkDirtyGPU()
+
+	-- flush that back to .cartridge ... 
+	-- ... or not? idk.  handle this by the editor?
+	--ffi.copy(self.cartridge.v, self.ram.v, ffi.sizeof'ROM')
+	-- TODO self.ram vs self.cartridge ... editor puts .cartridge into .ram before editing
+	-- or at least it used to ... now with multiplayer editing idk even ...
+
+	-- and then that to the virtual filesystem ...
+	-- and then that to the real filesystem ...
 
 	local n = #self.editCode.text
 	assertlt(n+1, codeSize)
 --print('saving code', self.editCode.text, 'size', n)
-	ffi.copy(self.ram.code, self.editCode.text, n)
-	self.ram.code[n] = 0	-- null term
+	ffi.copy(self.cartridge.code, self.editCode.text, n)
+	self.cartridge.code[n] = 0	-- null term
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
@@ -1475,16 +1480,19 @@ function App:save(filename)
 	local success, s = xpcall(
 		toCartImage,
 		errorHandler,
-		--self.ram.v
-		self.cartridge.v
+		self.cartridge
 	)
 	if not success then
+print('save failed:', basemsg..(s or ''))
 		return nil, basemsg..(s or '')
 	end
 
 	-- [[ do I bother implement fs:open'w' ?
 	local f, msg = self.fs:create(filename)
-	if not f then return nil, basemsg..' fs:create failed: '..msg end
+	if not f then 
+print('save failed:', basemsg..' fs:create failed: '..msg)
+		return nil, basemsg..' fs:create failed: '..msg 
+	end
 	f.data = s
 	--]]
 
@@ -1543,6 +1551,7 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
+	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
 	self:resetVideo()
 	self:resetAudio()
 	return true

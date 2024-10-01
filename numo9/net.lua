@@ -796,11 +796,7 @@ function Server:sendRAM(serverConn)
 print'sending initial RAM state...'
 
 	-- [[ make sure changes in gpu are syncd with cpu...
-	app.spriteTex:checkDirtyGPU()
-	app.tileTex:checkDirtyGPU()
-	app.mapTex:checkDirtyGPU()
-	app.palTex:checkDirtyGPU()
-	app.fbTex:checkDirtyGPU()
+	self:checkDirtyGPU()
 	app:mvMatToRAM()
 	--]]
 
