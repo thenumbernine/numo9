@@ -31,7 +31,7 @@ local audioSampleRate = 32000
 --local audioSampleRate = 44100
 local audioOutChannels = 2	-- 1 for mono, 2 for stereo ... # L/R samples-per-sample-frame ... there's so much conflated terms in audio programming ...
 local audioMixChannels = 8	-- # channels to play at the same time
-local audioMusicTrackCount = 8	-- how many unique music tracks can play at a time
+local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a time
 local sfxTableSize =  256	-- max number of unique sfx that a music can reference
 local musicTableSize = 256	-- max number of music tracks stored
 local audioDataSize = 0x10000	-- snes had 64k dedicated to audio so :shrug:
@@ -219,6 +219,21 @@ local Numo9Channel = struct{
 	},
 }
 
+-- we can play so many music tracks at once ...
+local Numo9MusicPlaying = struct{
+	name = 'Numo9MusicPlaying',
+	fields = {
+		{name='isPlaying', type='bool'},	-- TODO flags
+		{name='musicID', type='uint8_t'},
+		{name='addr', type='uint16_t'},
+		{name='endAddr', type='uint16_t'},
+		{name='sampleFramesPerBeat', type='uint16_t'},	-- this should be sampleFramesPerSecond / musicTable[musicID].addr's first uint16_t ...
+		{name='sampleFrameIndex', type='uint32_t'},			-- which sample-frame # the music is currently on
+		{name='nextBeatSampleFrameIndex', type='uint32_t'},	-- which sample-frame # the music will next execute a beat instructions on
+	},
+}
+-- assert sizeof musicID >= musicTableSize - that it can represent all our music table entries 
+
 -- make sure our delta compressed channels state change encoding can fit in its 8bpp messages
 assertle(ffi.sizeof'Numo9Channel' * audioMixChannels, 256)
 
@@ -258,8 +273,11 @@ local RAM = struct{
 				{name='blendMode', type='uint8_t'},
 				{name='blendColor', type='uint16_t'},
 
-				-- audio
+				-- audio state of waves that are playing
 				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
+
+				-- audio state of music tracks executing instructions to play dif waves at dif times
+				{name='musicPlaying', type='Numo9MusicPlaying['..audioMusicPlayingCount..']'}, 
 
 				-- timer
 				{name='updateCounter', type='uint32_t'},	-- how many updates() overall, i.e. system clock
@@ -360,6 +378,7 @@ return {
 	audioSampleRate = audioSampleRate,
 	audioMixChannels = audioMixChannels,
 	audioOutChannels = audioOutChannels,
+	audioMusicPlayingCount = audioMusicPlayingCount,
 	sfxTableSize = sfxTableSize,
 	musicTableSize = musicTableSize,
 	audioDataSize = audioDataSize,

@@ -18,6 +18,7 @@ local sampleFramesPerSecond = numo9_rom.audioSampleRate
 local sampleType = numo9_rom.audioSampleType
 local audioMixChannels = numo9_rom.audioMixChannels -- # channels to mix, set to 8 right now
 local audioOutChannels = numo9_rom.audioOutChannels 	-- # speakers: 1 = mono, 2 = stereo
+local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
 local musicTableSize = numo9_rom.musicTableSize
 
@@ -146,10 +147,7 @@ function AppAudio:resetAudio()
 	local audio = self.audio
 
 	ffi.fill(self.ram.channels, ffi.sizeof'Numo9Channel' * audioMixChannels)
-
-	audio.musicAddr = 0
-	audio.musicEndAddr = 0
-	audio.musicPlaying = false
+	ffi.fill(self.ram.musicPlaying, ffi.sizeof'Numo9MusicPlaying' * audioMusicPlayingCount)
 
 	-- this is to keep 1:1 with romUpdateCounter
 	-- or not and just assume we're getting called once per update anyways
@@ -245,29 +243,30 @@ function AppAudio:updateMusic()
 	local audio = self.audio
 	local channelPtr = ffi.cast('uint8_t*', self.ram.channels)
 
-	if audio.musicAddr >= audio.musicEndAddr then
-		audio.musicPlaying = false
+	local musicPlaying = self.ram.musicPlaying+0
+	if musicPlaying.addr >= musicPlaying.endAddr then
+		musicPlaying.isPlaying = false
 		return
 	end
-	if not audio.musicPlaying then return end
-	if audio.sampleFrameIndex < audio.nextBeatSampleFrameIndex then return end
-	--if audio.sampleFrameIndex + updateIntervalInSampleFrames < audio.nextBeatSampleFrameIndex then return end
+	if not musicPlaying.isPlaying then return end
+	if audio.sampleFrameIndex < musicPlaying.nextBeatSampleFrameIndex then return end
+	--if audio.sampleFrameIndex + updateIntervalInSampleFrames < musicPlaying.nextBeatSampleFrameIndex then return end
 
 	-- TODO combine this with musicAddr just like channel.addr
-	audio.musicSampleFrameIndex = audio.sampleFrameIndex
-	--audio.musicSampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
+	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
+	--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
 
 	-- decode channel deltas
 	-- TODO if we have bad audio data then this will have to process all 64k before it quits ...
 	while true do
-local decodeStartAddr = audio.musicAddr
-assert(audio.musicAddr >= 0 and audio.musicAddr < audioDataSize)
-		local index = self.ram.audioData[audio.musicAddr]
-		local value = self.ram.audioData[audio.musicAddr + 1]
-		audio.musicAddr = audio.musicAddr + 2
-		if audio.musicAddr >= audio.musicEndAddr-1 then
+local decodeStartAddr = musicPlaying.addr
+assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
+		local index = self.ram.audioData[musicPlaying.addr]
+		local value = self.ram.audioData[musicPlaying.addr + 1]
+		musicPlaying.addr = musicPlaying.addr + 2
+		if musicPlaying.addr >= musicPlaying.endAddr-1 then
 --print('musicAddr finished sfx')
-			audio.musicPlaying = false
+			musicPlaying.isPlaying = false
 			return
 		end
 
@@ -278,7 +277,7 @@ assert(audio.musicAddr >= 0 and audio.musicAddr < audioDataSize)
 		--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
 		if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
 print("audio got bad data")
-			audio.musicPlaying = false
+			musicPlaying.isPlaying = false
 			return
 		end
 --print( 'channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
@@ -319,19 +318,19 @@ print("audio got bad data")
 			-- so the bottom 12 should be 0's at this point
 		end
 
-		if audio.musicAddr >= audio.musicEndAddr-1 then
+		if musicPlaying.addr >= musicPlaying.endAddr-1 then
 --print('musicAddr finished sfx')
-			audio.musicPlaying = false
+			musicPlaying.isPlaying = false
 			return
 		end
 		-- TODO either handle state changes here or somewhere else.
 		-- here is as good as anywhere ...
 	end
 
-	local delay = ffi.cast('uint16_t*', self.ram.audioData + audio.musicAddr)[0]
-	audio.musicAddr = audio.musicAddr + 2
-	audio.nextBeatSampleFrameIndex = math.floor(audio.musicSampleFrameIndex + delay * audio.sampleFramesPerBeat)
---print('updateAudio music wait', delay, 'from',  audio.musicSampleFrameIndex, 'to', audio.nextBeatSampleFrameIndex)
+	local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+	musicPlaying.addr = musicPlaying.addr + 2
+	musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
+--print('updateAudio music wait', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
 end
 
 --[[
@@ -439,26 +438,28 @@ function AppAudio:playMusic(musicID)
 	local music = self.ram.musicAddrs[musicID]
 	if music.len == 0 then return end
 
+	local musicPlaying = self.ram.musicPlaying+0
+	musicPlaying.isPlaying = true
+	musicPlaying.addr = music.addr
+
 	-- keep our head counter here
 	local audio = self.audio
-	audio.musicAddr = music.addr
-	audio.musicEndAddr = music.addr + music.len
-	assert(audio.musicAddr >= 0 and audio.musicAddr < ffi.sizeof(self.ram.audioData))
-	assert(audio.musicEndAddr >= 0 and audio.musicEndAddr <= ffi.sizeof(self.ram.audioData))
-	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.audioData + audio.musicAddr)[0]
+	musicPlaying.endAddr = music.addr + music.len
+	assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.audioData))
+	assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= ffi.sizeof(self.ram.audioData))
+	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
 --print('playing with beats/second', beatsPerSecond)
-	audio.musicAddr = audio.musicAddr + 2
+	musicPlaying.addr = musicPlaying.addr + 2
 
-	audio.musicPlaying = true
-	audio.musicSampleFrameIndex = audio.sampleFrameIndex
+	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 	-- audio ticks should be in sampleFramesPerSecond
 	-- so `1 / beatsPerSecond` seconds = `sampleFramesPerSecond / beatsPerSecond` sampleFrames
-	audio.sampleFramesPerBeat = sampleFramesPerSecond / beatsPerSecond
+	musicPlaying.sampleFramesPerBeat = sampleFramesPerSecond / beatsPerSecond
 
-	local delay = ffi.cast('uint16_t*', self.ram.audioData + audio.musicAddr)[0]
-	audio.musicAddr = audio.musicAddr + 2
-	audio.nextBeatSampleFrameIndex = math.floor(audio.musicSampleFrameIndex + delay * audio.sampleFramesPerBeat)
---print('playMusic music wait', delay, 'from',  audio.musicSampleFrameIndex, 'to', audio.nextBeatSampleFrameIndex)
+	local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+	musicPlaying.addr = musicPlaying.addr + 2
+	musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
+--print('playMusic music wait', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
 
 	-- see if any notes need to be played immediately
 	self:updateMusic()
