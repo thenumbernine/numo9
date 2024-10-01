@@ -722,7 +722,7 @@ end
 Sentry=[]do
 	local self=MovableObj{}
 	self.dir = dirs.left
-	self.seq=seq.sentry
+	self.seq=seqs.sentry
 
 	local superUpdate = self.update
 	self.update=[:]do
@@ -970,8 +970,9 @@ end
 
 setLevel=[level_]do
 	level=level_
-	levelTileX=level*10
-	levelTileY=0
+	levelTileX=level%25
+	levelTileY=(level-levelTileX)/25*10
+	levelTileX*=10
 	if level>-1 then
 		--TODO if level >= 0 then set the local storage current-level value to 'level'
 		levelstr='level '..tostring(level)
@@ -1058,14 +1059,14 @@ update=[]do
 			player:die()
 		end
 		if btnp(4) then
-			--setLevel(level+1)
-			--loadLevelRequest=true
-			player.blend=((player.blend or 0)+1)&7
+			setLevel(level+1)
+			loadLevelRequest=true
+			--player.blend=((player.blend or 0)+1)&7
 		end
 		if btnp(6) then
-			--setLevel(level-1)
-			--loadLevelRequest=true
-			player.blend=((player.blend or 0)-1)&7
+			setLevel(level-1)
+			loadLevelRequest=true
+			--player.blend=((player.blend or 0)-1)&7
 		end
 	end
 	for _,o in ipairs(objs) do
@@ -1109,7 +1110,7 @@ update=[]do
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
 		lastLevelStrWidth=text(levelstr,(256-(lastLevelStrWidth or 0))/2,0,22,-1)
-		text('blend='..tostring(player.blend),0,8,22,-1)
+		--text('blend='..tostring(player.blend),0,8,22,-1)
 	end
 end
 
