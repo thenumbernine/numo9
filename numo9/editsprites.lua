@@ -26,6 +26,12 @@ local tilemapSize = require 'numo9.rom'.tilemapSize
 local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
 local unpackptr = require 'numo9.rom'.unpackptr
 
+local dirs = {
+	{-1,0},
+	{1,0},
+	{0,-1},
+	{0,1},
+}
 
 local EditSprites = require 'numo9.editor':subclass()
 
@@ -299,6 +305,7 @@ function EditSprites:update()
 
 	if self.spriteDrawMode == 'draw'
 	or self.spriteDrawMode == 'dropper'
+	or self.spriteDrawMode == 'fill'
 	then
 		if leftButtonDown
 		and mouseX >= x and mouseX < x + w
@@ -314,26 +321,59 @@ function EditSprites:update()
 				bit.lshift(1, self.spriteBitDepth) - 1,
 				self.spriteBit
 			)
+			
+			local function getpixel(tx, ty)
+				if not (0 <= tx and tx < spriteSheetSize.x
+				and 0 <= ty and ty < spriteSheetSize.y)
+				then return end
+
+				-- TODO since shift is shift, should I be subtracing it here?
+				-- or should I just be AND'ing it?
+				-- let's subtract it
+				local texelIndex = tx + spriteSheetSize.x * ty
+				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+				local addr = currentTexAddr + texelIndex
+				return bit.band(
+					0xff,
+					self.paletteOffset
+					+ bit.rshift(
+						bit.band(mask, app:peek(addr)),
+						self.spriteBit
+					)
+				)
+			end
+			local function putpixel(tx,ty)
+				if not (0 <= tx and tx < spriteSheetSize.x
+				and 0 <= ty and ty < spriteSheetSize.y)
+				then return end
+
+				local texelIndex = tx + spriteSheetSize.x * ty
+				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+				local addr = currentTexAddr + texelIndex
+				app:net_poke(
+					addr, 
+					bit.bor(
+						bit.band(
+							bit.bnot(mask),
+							app:peek(addr)
+						),
+						bit.band(
+							mask,
+							bit.lshift(
+								self.paletteSelIndex - self.paletteOffset,
+								self.spriteBit
+							)
+						)
+					)
+				)
+			end
+
 			if self.spriteDrawMode == 'dropper'
 			or (self.spriteDrawMode == 'draw' and shift)
 			then
-				if 0 <= tx and tx < spriteSheetSize.x
-				and 0 <= ty and ty < spriteSheetSize.y
-				then
-					-- TODO since shift is shift, should I be subtracing it here?
-					-- or should I just be AND'ing it?
-					-- let's subtract it
-					local texelIndex = tx + spriteSheetSize.x * ty
-					assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-					local addr = currentTexAddr + texelIndex
-					self.paletteSelIndex = bit.band(
-						0xff,
-						self.paletteOffset
-						+ bit.rshift(
-							bit.band(mask, app:peek(addr)),
-							self.spriteBit
-						)
-					)
+				local c = getpixel(tx, ty)
+				if c then
+					self.paletteSelIndex = bit.band(0xff, c + self.paletteOffset)
 				end
 			elseif self.spriteDrawMode == 'draw' then
 				local tx0 = tx - math.floor(self.penSize / 2)
@@ -341,35 +381,30 @@ function EditSprites:update()
 				assert(currentTex.image.buffer == currentTex.data)
 				currentTex:bind()
 				for dy=0,self.penSize-1 do
-					local ty = ty0 + dy
 					for dx=0,self.penSize-1 do
+						local ty = ty0 + dy
 						local tx = tx0 + dx
-						if 0 <= tx and tx < spriteSheetSize.x
-						and 0 <= ty and ty < spriteSheetSize.y
-						then
-							local texelIndex = tx + spriteSheetSize.x * ty
-							assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-							local addr = currentTexAddr + texelIndex
-							app:net_poke(
-								addr, 
-								bit.bor(
-									bit.band(
-										bit.bnot(mask),
-										app:peek(addr)
-									),
-									bit.band(
-										mask,
-										bit.lshift(
-											self.paletteSelIndex - self.paletteOffset,
-											self.spriteBit
-										)
-									)
-								)
-							)
-						end
+						putpixel(tx,ty)
 					end
 				end
 				currentTex:unbind()
+			elseif self.spriteDrawMode == 'fill' then
+				local srcColor = getpixel(tx, ty)
+				if srcColor ~= self.paletteSelIndex then
+					local fillstack = table()
+					putpixel(tx, ty)
+					fillstack:insert{tx, ty}
+					while #fillstack > 0 do
+						local tx0, ty0 = table.unpack(fillstack:remove())
+						for _,dir in ipairs(dirs) do
+							local tx1, ty1 = tx0 + dir[1], ty0 + dir[2]
+							if getpixel(tx1, ty1) == srcColor then
+								putpixel(tx1, ty1)
+								fillstack:insert{tx1, ty1}
+							end
+						end			
+					end
+				end
 			end
 		end
 	end
@@ -394,7 +429,7 @@ function EditSprites:update()
 	-- sprite edit method
 	local x = 32
 	local y = 96
-	self:guiRadio(x, y, {'draw', 'dropper', 'pan'}, self.spriteDrawMode, function(result)
+	self:guiRadio(x, y, {'draw', 'dropper', 'fill', 'pan'}, self.spriteDrawMode, function(result)
 		self.spriteDrawMode = result
 	end)
 
@@ -524,8 +559,11 @@ function EditSprites:update()
 	end
 	self:drawText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
 
-	if self:guiButton('P', 128-16, 32, self.pastePreservePalette, 'Paste Keeps Pal='..tostring(self.pastePreservePalette)) then
+	if self:guiButton('P', 112, 32, self.pastePreservePalette, 'Paste Keeps Pal='..tostring(self.pastePreservePalette)) then
 		self.pastePreservePalette = not self.pastePreservePalette
+	end
+	if self:guiButton('A', 112, 42, self.pasteTransparent, 'Paste Transparent='..tostring(self.pasteTransparent)) then
+		self.pasteTransparent = not self.pasteTransparent
 	end
 	-- TODO button for cut copy and paste as well
 
@@ -684,7 +722,28 @@ print'BAKING PALETTE'
 				end
 				asserteq(image.channels, 1, "image.channels")
 				print'pasting image'
-				currentTex.image:pasteInto{x=x, y=y, image=image}
+				if self.pasteTransparent then
+					currentTex.image:pasteInto{x=x, y=y, image=image}
+				else
+					local currentImage = currentTex.image
+					for j=0,image.height-1 do
+						for i=0,image.width-1 do
+							local destx = i + x
+							local desty = j + y
+							if destx >= 0 and destx < currentImage.width
+							and desty >= 0 and desty < currentImage.height
+							then
+								local c = image.buffer[
+									i + image.width * j
+								]
+								local r,g,b,a = rgba5551_to_rgba8888_4ch(app.ram.palette[c])
+								if a > 0 then
+									currentImage.buffer[destx + currentImage.width * desty] = c
+								end
+							end
+						end
+					end
+				end
 				currentTex.dirtyCPU = true
 			end
 		end
