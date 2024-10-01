@@ -729,7 +729,7 @@ print('toImage', name, 'width', width, 'height', height)
 --print(string.hexdump(data))
 						basepath('music'..index..'.bin'):write(data)
 
-						-- [=[ don't need to generate these here anymore...
+						--[=[ don't need to generate these here anymore...
 						local duration = math.max(1, sfx.duration)
 						local sampleFramesPerNote = sampleFramesPerNoteBase * duration
 						local sampleFrames = sampleFramesPerNote * #sfx.notes
@@ -822,9 +822,10 @@ print("total SFX data size if I'd use BRR: "..(
 --]]
 	end
 
+	local musicCode
 	do
 		local musicSrc = move(sections, 'music')
-		local music = table()
+		local musicTracks = table()
 		while #musicSrc > 0 and #musicSrc:last() == 0 do musicSrc:remove() end
 		--[[
 		TODO how to convert pico8 music to my music ...
@@ -833,10 +834,14 @@ print("total SFX data size if I'd use BRR: "..(
 		can my music issue play commands of other music tracks?
 		should it be allowed to?
 		or should I just copy the music data here and recompress it again
+		
+		or I could just store it as a lua structure in the code, like sprFlags is...
 		--]]
+		local p8MusicTable = table()
 		for i,line in ipairs(musicSrc) do
 			local flags = tonumber(line:sub(1,2), 16)
-			music:insert{
+			local musicTrack = {
+				flags = flags,
 				beginPatternLoop = 0 ~= bit.band(1, flags),
 				endPatternLoop = 0 ~= bit.band(2, flags),
 				stopAtEndOfPattern = 0 ~= bit.band(4, flags),
@@ -849,7 +854,15 @@ print("total SFX data size if I'd use BRR: "..(
 					return i < 64
 				end),
 			}
+			musicTracks:insert(musicTrack)
+			p8MusicTable:insert(flags)
+			p8MusicTable:append(musicTrack.sfxs)
+			p8MusicTable:append(table{0xff}:rep(4 - #musicTrack.sfxs))
+			assert(#p8MusicTable % 5 == 0)
 		end
+		musicCode = 'musicTable={'..p8MusicTable:mapi(function(i)
+			return ('0x%02x'):format(i)
+		end):concat','..'}\n'
 		basepath'music.lua':write(tolua(music))
 	end
 
@@ -1017,7 +1030,9 @@ assertlen(
 
 	-- now add our glue between APIs ...
 	code = table{
-		spriteFlagCode,
+		spriteFlagCode
+	}:append{	-- append each separately so if it's nil then it wont leave a nil in the table
+		musicCode
 	}:append{
 		'-- begin compat layer',
 		-- some glue code needs this, might as well generate it dynamically here:
