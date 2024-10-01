@@ -642,6 +642,8 @@ function App:initGL()
 		next = next,
 		pairs = pairs,
 		ipairs = ipairs,
+		getmetatable = getmetatable,
+		setmetatable = setmetatable,
 
 		-- TODO don't let the ROM see the App...
 		app = self,
@@ -975,7 +977,7 @@ function App:update()
 
 	local thisTime = getTime()
 
--- [==[ per-second-tick debug display
+--[==[ per-second-tick debug display
 	-- ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
 	-- TODO get rid of double-buffering.  you've got the framebuffer.
 	local deltaTime = thisTime - lastTime
@@ -985,7 +987,7 @@ function App:update()
 		print(
 		--	'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
 		--	'draws/second '..drawsPerSecond	-- TODO make this single-buffered
-			'SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
+		--	'SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
 		)
 		if self.server then
 			--[[
