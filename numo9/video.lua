@@ -1160,13 +1160,26 @@ void main() {
 	}:unbind()
 end
 
-function AppVideo:resetVideo()
-	--[[ update later ...
+-- flush anything from gpu to cpu
+function AppVideo:checkDirtyGPU()
 	self.spriteTex:checkDirtyGPU()
 	self.tileTex:checkDirtyGPU()
 	self.mapTex:checkDirtyGPU()
 	self.palTex:checkDirtyGPU()
 	self.fbTex:checkDirtyGPU()
+end
+
+function AppVideo:setDirtyCPU()
+	self.spriteTex.dirtyCPU = true
+	self.tileTex.dirtyCPU = true
+	self.mapTex.dirtyCPU = true
+	self.palTex.dirtyCPU = true
+	self.fbTex.dirtyCPU = true
+end
+
+function AppVideo:resetVideo()
+	--[[ update later ...
+	self:checkDirtyGPU()
 	--]]
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
 	-- [[ update now ...
@@ -1188,11 +1201,7 @@ function AppVideo:resetVideo()
 	self.palTex.dirtyCPU = false
 	--]]
 	--[[ update later ...
-	self.spriteTex.dirtyCPU = true
-	self.tileTex.dirtyCPU = true
-	self.mapTex.dirtyCPU = true
-	self.palTex.dirtyCPU = true
-	self.fbTex.dirtyCPU = true
+	self:setDirtyCPU()
 	--]]
 end
 

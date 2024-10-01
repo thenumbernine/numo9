@@ -62,6 +62,8 @@ function EditSprites:init(args)
 	self.pastePreservePalette = true
 	self.penSize = 1 		-- size 1 thru 5 or so
 	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
+
+	self.pasteTransparent = false
 end
 
 local selBorderColors = {0xfd,0xfc}
@@ -267,7 +269,7 @@ function EditSprites:update()
 		self.spriteBit,							-- spriteBit
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
-	gl.glScissor(0,0,frameBufferSize:unpack())	
+	gl.glScissor(0, 0, frameBufferSize:unpack())	
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 
 	-- convert x y in framebuffer space to x y in sprite window space
@@ -350,22 +352,20 @@ function EditSprites:update()
 				local texelIndex = tx + spriteSheetSize.x * ty
 				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
 				local addr = currentTexAddr + texelIndex
-				app:net_poke(
-					addr, 
-					bit.bor(
-						bit.band(
-							bit.bnot(mask),
-							app:peek(addr)
-						),
-						bit.band(
-							mask,
-							bit.lshift(
-								self.paletteSelIndex - self.paletteOffset,
-								self.spriteBit
-							)
+				local value = bit.bor(
+					bit.band(
+						bit.bnot(mask),
+						app:peek(addr)
+					),
+					bit.band(
+						mask,
+						bit.lshift(
+							self.paletteSelIndex - self.paletteOffset,
+							self.spriteBit
 						)
 					)
 				)
+				self:edit_poke(addr, value)
 			end
 
 			if self.spriteDrawMode == 'dropper'
@@ -529,30 +529,30 @@ function EditSprites:update()
 	self:drawText(('C=%04X'):format(selColorValue), 16, 216, 13, -1)
 	self:drawText(('R=%02X'):format(bit.band(selColorValue,0x1f)), 16, 224, 13, -1)
 	self:guiSpinner(16+32, 224, function(dx)
-		app:net_pokew(selPaletteAddr, 
+		self:edit_pokew(selPaletteAddr, 
 			bit.bor(bit.band(selColorValue+dx,0x1f),bit.band(selColorValue,bit.bnot(0x1f)))
 		)
 	end)
 	self:drawText(('G=%02X'):format(bit.band(bit.rshift(selColorValue,5),0x1f)), 16, 224+8, 13, -1)
 	self:guiSpinner(16+32, 224+8, function(dx)
-		app:net_pokew(selPaletteAddr, 
+		self:edit_pokew(selPaletteAddr, 
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
 		)
 	end)
 	self:drawText(('B=%02X'):format(bit.band(bit.rshift(selColorValue,10),0x1f)), 16, 224+16, 13, -1)
 	self:guiSpinner(16+32, 224+16, function(dx)
-		app:net_pokew(selPaletteAddr, 
+		self:edit_pokew(selPaletteAddr, 
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
 		)
 	end)
 	local alpha = bit.band(selColorValue,0x8000)~=0
 	if self:guiButton('A', 16, 224+24, alpha) then
 		if alpha then	-- if it was set then clear it
-			app:net_pokew(selPaletteAddr, 
+			self:edit_pokew(selPaletteAddr, 
 				bit.band(selColorValue, 0x7fff)
 			)
 		else	-- otherwise set it
-			app:net_pokew(selPaletteAddr, 
+			self:edit_pokew(selPaletteAddr, 
 				bit.bor(selColorValue, 0x8000)
 			)
 		end
@@ -610,7 +610,7 @@ print'BAKING PALETTE'
 				asserteq(currentTex.image.channels, 1)
 				for j=y,y+height-1 do
 					for i=x,x+width-1 do
-						currentTex.image.buffer[i + currentTex.width * j] = self.paletteOffset
+						self:edit_poke(currentTexAddr + i + currentTex.width * j, self.paletteOffset)
 					end
 				end
 			end
@@ -708,7 +708,7 @@ print'BAKING PALETTE'
 						image = image1ch
 						asserteq(image.channels, 1, "image.channels")
 						for i,color in ipairs(colors) do
-							app:net_pokel(
+							self:edit_pokel(
 								paletteAddr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset)), 
 								rgba8888_4ch_to_5551(
 									color:byte(1),
@@ -722,32 +722,28 @@ print'BAKING PALETTE'
 				end
 				asserteq(image.channels, 1, "image.channels")
 				print'pasting image'
-				if self.pasteTransparent then
-					currentTex.image:pasteInto{x=x, y=y, image=image}
-				else
-					local currentImage = currentTex.image
-					for j=0,image.height-1 do
-						for i=0,image.width-1 do
-							local destx = i + x
-							local desty = j + y
-							if destx >= 0 and destx < currentImage.width
-							and desty >= 0 and desty < currentImage.height
-							then
-								local c = image.buffer[
-									i + image.width * j
-								]
-								local r,g,b,a = rgba5551_to_rgba8888_4ch(app.ram.palette[c])
-								if a > 0 then
-									currentImage.buffer[destx + currentImage.width * desty] = c
-								end
+				for j=0,image.height-1 do
+					for i=0,image.width-1 do
+						local destx = i + x
+						local desty = j + y
+						if destx >= 0 and destx < currentTex.width
+						and desty >= 0 and desty < currentTex.height
+						then
+							local c = image.buffer[
+								i + image.width * j
+							]
+							local r,g,b,a = rgba5551_to_rgba8888_4ch(app.ram.palette[c])
+							if not self.pasteTransparent or a > 0 then
+								self:edit_poke(currentTexAddr + destx + currentTex.width * desty, c)
 							end
 						end
 					end
 				end
-				currentTex.dirtyCPU = true
 			end
 		end
 	end
+	
+	self:drawTooltip()
 end
 
 return EditSprites

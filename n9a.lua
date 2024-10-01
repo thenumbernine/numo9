@@ -275,10 +275,7 @@ or cmd == 'r' then
 	end)
 
 	print'saving cart...'
-	assert(path(fn):write(toCartImage(
-		rom,
-		labelImage	-- add a label if it's there
-	)))
+	assert(path(fn):write(toCartImage(rom, labelImage)))
 
 	if cmd == 'r' then
 		assert(os.execute('./run.lua "'..fn..'"'))
@@ -306,7 +303,7 @@ elseif cmd == 'binton9' then
 
 	local binpath = n9path:setext'bin'
 	assert(path(fn):write(
-		(assert(toCartImage(binpath.path)))
+		(assert(toCartImage(rom, binpath.path)))
 	))
 
 elseif cmd == 'p8' or cmd == 'p8run' then

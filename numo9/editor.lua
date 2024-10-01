@@ -65,7 +65,7 @@ function Editor:guiButton(str, x, y, isset, tooltip)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
-			self:drawTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+			self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 		end
 		if app:keyp'mouse_left' then
 			return true
@@ -102,15 +102,21 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	and mouseY >= y and mouseY < y + spriteSize.y
 	then
 		if tooltip then
-			self:drawTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+			self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 		end
 	end
 end
 
-function Editor:drawTooltip(s, x, y, fg, bg)
+function Editor:setTooltip(s, x, y, fg, bg)
 	x = math.clamp(x, 8, frameBufferSize.x-8)
 	y = math.clamp(y, 8, frameBufferSize.y-8)
-	return self:drawText(s, x, y, fg, bg)
+	self.tooltip = {s, x, y, fg, bg}
+end
+
+function Editor:drawTooltip()
+	if not self.tooltip then return end
+	self:drawText(table.unpack(self.tooltip))
+	self.tooltip = nil
 end
 
 function Editor:guiRadio(x, y, options, selected, cb)
@@ -166,6 +172,18 @@ function Editor:update()
 		12,
 		-1
 	)
+
+	if self:guiButton(
+		'R',
+		240,
+		0,
+		nil,
+		'reset RAM'
+	) then
+		app:checkDirtyGPU()
+		ffi.copy(app.ram.v, app.cartridge.v, ffi.sizeof'ROM')
+		app:setDirtyCPU()
+	end
 end
 
 -- put editor palette in the last entry
@@ -220,11 +238,7 @@ function Editor:gainFocus()
 	end
 
 --[====[
-	app.spriteTex:checkDirtyGPU()
-	app.tileTex:checkDirtyGPU()
-	app.mapTex:checkDirtyGPU()
-	app.palTex:checkDirtyGPU()
-	app.fbTex:checkDirtyGPU()
+	app:checkDirtyGPU()
 	-- copy everything from cartridge to RAM (where it'll be edited & the engine can live-update the edits)
 	ffi.copy(app.ram, app.cartridge, ffi.sizeof'ROM')
 	-- set all dirty flags too
@@ -253,5 +267,29 @@ function Editor:loseFocus()
 	ffi.copy(app.cartridge.code, app.editCode.text:sub(1,codeSize-1))
 end
 --]====]
+
+-- setters from editor that write to both .ram and .cartridge
+-- TODO how about flags in the editor for which you write to?
+
+function Editor:edit_poke(addr, value)
+print('edit_poke', addr, value)	
+	local app = self.app
+	app:net_poke(addr, value)
+	app.cartridge.v[addr] = value
+end
+
+function Editor:edit_pokew(addr, value)
+print('edit_pokew', addr, value)	
+	local app = self.app
+	app:net_pokew(addr, value)
+	ffi.cast('uint16_t*', app.cartridge.v + addr)[0] = value
+end
+
+function Editor:edit_pokel(addr, value)
+print('edit_pokel', addr, value)	
+	local app = self.app
+	app:net_pokel(addr, value)
+	ffi.cast('uint32_t*', app.cartridge.v + addr)[0] = value
+end
 
 return Editor

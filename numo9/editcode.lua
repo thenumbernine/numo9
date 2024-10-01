@@ -337,6 +337,8 @@ function EditCode:update()
 			end
 		end
 	end
+
+	self:drawTooltip()
 end
 
 function EditCode:moveCursor(dx, dy)
