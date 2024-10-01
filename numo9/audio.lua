@@ -156,6 +156,7 @@ function AppAudio:resetAudio()
 
 	-- this is the current sample-frame index, and updates at `sampleFramesPerSecond` times per second
 	audio.sampleFrameIndex = 0
+	sdl.SDL_ClearQueuedAudio(audio.deviceID)
 end
 
 -- currently called every 1/60 ... I could call it every frame :shrug: a few thousand times a second
@@ -259,17 +260,19 @@ function AppAudio:updateMusic()
 				musicPlaying.isPlaying = 0
 				goto updateMusic_nextPlaying
 			end
-			if musicPlaying.isPlaying == 0 then 
+			if musicPlaying.isPlaying == 0 then
 				goto updateMusic_nextPlaying
 			end
-			--if audio.sampleFrameIndex + updateIntervalInSampleFrames < musicPlaying.nextBeatSampleFrameIndex then 
-			if audio.sampleFrameIndex < musicPlaying.nextBeatSampleFrameIndex then 
+			if audio.sampleFrameIndex < musicPlaying.nextBeatSampleFrameIndex then
+			--if audio.sampleFrameIndex + updateIntervalInSampleFrames < musicPlaying.nextBeatSampleFrameIndex then
 				goto updateMusic_nextPlaying
 			end
 
 			-- TODO combine this with musicPlaying.addr just like channel.addr's lower 12 bits
-			musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
+			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
+			-- ... maintain bps and try not to skip
+			musicPlaying.sampleFrameIndex = musicPlaying.nextBeatSampleFrameIndex
 
 			-- decode channel deltas
 			-- TODO if we have bad audio data then this will have to process all 64k before it quits ...

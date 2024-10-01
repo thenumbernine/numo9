@@ -1456,7 +1456,7 @@ end
 function App:save(filename)
 --	self:checkDirtyGPU()
 
-	-- flush that back to .cartridge ... 
+	-- flush that back to .cartridge ...
 	-- ... or not? idk.  handle this by the editor?
 	--ffi.copy(self.cartridge.v, self.ram.v, ffi.sizeof'ROM')
 	-- TODO self.ram vs self.cartridge ... editor puts .cartridge into .ram before editing
@@ -1491,9 +1491,9 @@ print('save failed:', basemsg..(s or ''))
 
 	-- [[ do I bother implement fs:open'w' ?
 	local f, msg = self.fs:create(filename)
-	if not f then 
+	if not f then
 print('save failed:', basemsg..' fs:create failed: '..msg)
-		return nil, basemsg..' fs:create failed: '..msg 
+		return nil, basemsg..' fs:create failed: '..msg
 	end
 	f.data = s
 	--]]
