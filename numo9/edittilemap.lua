@@ -9,6 +9,7 @@ local frameBufferSize = require 'numo9.rom'.frameBufferSize
 local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
 local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
 local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
+local tilemapAddr = require 'numo9.rom'.tilemapAddr
 local tilemapSize = require 'numo9.rom'.tilemapSize
 local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
 
@@ -70,8 +71,6 @@ function EditTilemap:update()
 	end)
 
 
-	local mapTex = app.mapTex
-
 	local tileBits = self.draw16Sprites and 4 or 3
 
 	-- draw map
@@ -81,7 +80,6 @@ function EditTilemap:update()
 	local mapHeightInTiles = tilemapSizeInSprites.y-2
 	local mapWidth = bit.lshift(mapWidthInTiles, tileBits)
 	local mapHeight = bit.lshift(mapWidthInTiles, tileBits)
---print('map', require 'ext.string'.hexdump(ffi.string(mapTex.data, 16)))
 
 	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
 	app:drawQuad(
@@ -241,8 +239,7 @@ function EditTilemap:update()
 			then
 				local texelIndex = tx + tilemapSize.x * ty
 				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-				local ptr = mapTex.image.buffer + texelIndex
-				local tileSelIndex = ptr[0]
+				local tileSelIndex = app:peekw(tilemapAddr + bit.lshift(texelIndex, 1))
 				self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
 				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
 			end
@@ -255,8 +252,6 @@ function EditTilemap:update()
 			then
 				local tx0 = tx -- - math.floor(self.penSize / 2)
 				local ty0 = ty -- - math.floor(self.penSize / 2)
-				assert(mapTex.image.buffer == mapTex.data)
-				mapTex:bind()
 				for dy=0,self.spriteSelSize.y-1 do -- self.penSize-1 do
 					local ty = ty0 + dy
 					for dx=0,self.spriteSelSize.x-1 do -- self.penSize-1 do
@@ -266,20 +261,12 @@ function EditTilemap:update()
 						then
 							local tileSelIndex = self.spriteSelPos.x + dx
 								+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy)
-							--[[
 							local texelIndex = tx + tilemapSize.x * ty
 							assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-							local ptr = mapTex.image.buffer + texelIndex
-							ptr[0] = tileSelIndex
-							app.mapTex.dirtyCPU = true
-							--]]
-							-- [[
-							app:net_mset(tx, ty, tileSelIndex)
-							--]]
+							self:edit_pokew(tilemapAddr + bit.lshift(texelIndex, 1), tileSelIndex)
 						end
 					end
 				end
-				mapTex:unbind()
 			end
 		elseif self.drawMode == 'pan' then
 			if leftButtonDown then
