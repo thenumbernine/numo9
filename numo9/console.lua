@@ -156,10 +156,14 @@ print(...)
 		if i > 1 then s=s..'\t' end
 		s=s..tostring(select(i, ...))
 	end
+	-- TODO do we still want colored console text?
+	-- I could save it per-line or per-letter
+	-- or meh just not ...
 	self.lines:insert(1, s)
 end
 
 -- because everyone else is doing it
+-- TODO color in console is disabled.  either add it to the buffer and use this, or just get rid of this function.
 function Console:coolPrint(...)
 	self.fgColor = 0xf9
 	--self.bgColor = 0xf1

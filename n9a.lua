@@ -891,7 +891,7 @@ print("total SFX data size if I'd use BRR: "..(
 		--[[
 		local p8MusicTable = table()
 		--]]
-		local lastBegin	-- 0-based track index
+		local lastBegin = 0	-- 0-based track index
 		for musicTrackIndexPlusOne,line in ipairs(musicSrc) do
 			local musicTrackIndex = musicTrackIndexPlusOne-1
 			local flags = tonumber(line:sub(1,2), 16)
@@ -906,7 +906,7 @@ print("total SFX data size if I'd use BRR: "..(
 				beginLoop = beginLoop,
 				endLoop = endLoop,
 				loopTo = endLoop
-					and assert(lastBegin, "you have an end-loop without a begin-loop...")
+					and assert(lastBegin, "music has an end-loop without a begin-loop...")
 					or musicTrackIndex + 1,	-- or just play through to the next track
 				stopAtEnd = 0 ~= bit.band(4, flags),
 				sfxs = table{
