@@ -25,6 +25,7 @@ local fromlua = require 'ext.fromlua'
 local getTime = require 'ext.timer'.getTime
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
+local template = require 'template'
 local matrix_ffi = require 'matrix.ffi'
 local sdl = require 'sdl'
 local gl = require 'gl'
@@ -837,10 +838,14 @@ print('package.loaded', package.loaded)
 	setdefault(self.cfg, 'lastConnectAddr', 'localhost')	-- TODO ... eh ... LAN search?  idk
 	setdefault(self.cfg, 'lastConnectPort', tostring(Server.defaultListenPort))
 	setdefault(self.cfg, 'playerInfos', {})
-	setdefault(self.cfg.playerInfos, 1, {})
+	for i=1,maxLocalPlayers do
+		setdefault(self.cfg.playerInfos, i, {})
+		-- for netplay, shows up in the net menu
+		setdefault(self.cfg.playerInfos[i], 'name', i == 1 and 'steve' or '')
+		setdefault(self.cfg.playerInfos[i], 'buttonBinds', {})
+	end
+	setdefault(self.cfg, 'screenButtonRadius', 10)
 
-	-- for netplay, shows up in the net menu
-	setdefault(self.cfg.playerInfos[1], 'name', 'steve')
 	-- this is for server netplay, it says who to associate this conn's player with
 	setdefault(self.cfg.playerInfos[1], 'localPlayer', 1)
 	-- fake-gamepad key bindings
@@ -855,26 +860,14 @@ L	A/V		D		Q
 R	Z		C		W
 looks like I'm a Snes9x-default-keybinding fan.
 	--]]
-	setdefault(self.cfg.playerInfos[1], 'keyCodeForButtonIndex', {})
-	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.up, keyCodeForName.up)
-	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.down, keyCodeForName.down)
-	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.left, keyCodeForName.left)
-	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.right, keyCodeForName.right)
-	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.a, keyCodeForName.s)
-	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.b, keyCodeForName.x)
-	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.x, keyCodeForName.a)
-	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.y, keyCodeForName.z)
-
-	-- NOTICE any time the cfg.playerInfos[i].keyCodeForButtonIndex[j] changes, update this:
-	self.buttonIndexForKeyCode = {}
-	for playerIndex=0,maxLocalPlayers-1 do
-		local playerInfo = self.cfg.playerInfos[playerIndex+1]
-		if playerInfo then
-			for buttonIndex, keyCode in pairs(playerInfo.keyCodeForButtonIndex) do	-- use pairs since it has a [0] in it ...
-				self.buttonIndexForKeyCode[keyCode] = buttonIndex + bit.lshift(playerIndex, 3)
-			end
-		end
-	end
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.up, {768, 1073741906, name="key Up"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.down, {768, 1073741905, name="key Down"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.left, {768, 1073741904, name="key Left"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.right, {768, 1073741903, name="key Right"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.a, {768, ('s'):byte(), name="key s"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.b, {768, ('x'):byte(), name="key x"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.x, {768, ('a'):byte(), name="key a"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.y, {768, ('z'):byte(), name="key z"})
 
 	-- can have 3 more ... at least I've only allocated enough for 4 players worth of keys ...
 	-- and right now netplay operates by reflecting keys and draw-commands ...
@@ -1826,7 +1819,7 @@ function App:btn(buttonCode, player, ...)
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
-	local keyCode = self.cfg.playerInfos[player+1].keyCodeForButtonIndex[buttonCode]
+	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
 	if not keyCode then return end
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:key(buttonKeyCode, ...)
@@ -1839,7 +1832,7 @@ function App:btnp(buttonCode, player, ...)
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
-	local keyCode = self.cfg.playerInfos[player+1].keyCodeForButtonIndex[buttonCode]
+	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
 	if not keyCode then return end
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyp(buttonKeyCode, ...)
@@ -1852,7 +1845,7 @@ function App:btnr(buttonCode, player, ...)
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
-	local keyCode = self.cfg.playerInfos[player+1].keyCodeForButtonIndex[buttonCode]
+	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
 	if not keyCode then return end
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyr(buttonKeyCode, ...)
@@ -1872,6 +1865,8 @@ function App:event(e)
 	or e[0].type == sdl.SDL_KEYDOWN
 	then
 		local down = e[0].type == sdl.SDL_KEYDOWN
+		self:processButtonEvent(down, sdl.SDL_KEYDOWN, e[0].key.keysym.sym)
+
 		local sdlsym = e[0].key.keysym.sym
 		if down
 		and sdlsym == sdl.SDLK_ESCAPE
@@ -1937,42 +1932,20 @@ function App:event(e)
 			if keycode then
 				local bi = bit.band(keycode, 7)
 				local by = bit.rshift(keycode, 3)
-				-- TODO turn this into raw mem like those other virt cons
 				local flag = bit.lshift(1, bi)
 				local mask = bit.bnot(flag)
 				self.ram.keyPressFlags[by] = bit.bor(
 					bit.band(mask, self.ram.keyPressFlags[by]),
 					down and flag or 0
 				)
-
-				local buttonCode = self.buttonIndexForKeyCode[keycode]
-				-- gets us the 0-based keys
-				if buttonCode then
-					local keycode = buttonCode + firstJoypadKeyCode
-					local bi = bit.band(keycode, 7)
-					local by = bit.rshift(keycode, 3)
-					local flag = bit.lshift(1, bi)
-					local mask = bit.bnot(flag)
-					self.ram.keyPressFlags[by] = bit.bor(
-						bit.band(mask, self.ram.keyPressFlags[by]),
-						down and flag or 0
-					)
-				end
-
 			end
-
-			--[[
-			-- Keys can have multiple bindings - both to keys and to joypad buttons
-			-- TODO also handle them in other events like SDL_BUTTONDOWN
-			local buttonCode = buttonForKeyCode[keycode]
-			if buttonCode then
-			end
-			--]]
 		end
 	elseif e[0].type == sdl.SDL_MOUSEBUTTONDOWN
 	or e[0].type == sdl.SDL_MOUSEBUTTONUP
 	then
 		local down = e[0].type == sdl.SDL_MOUSEBUTTONDOWN
+		self:processButtonEvent(down, sdl.SDL_MOUSEBUTTONDOWN, tonumber(e[0].button.x)/self.width, tonumber(e[0].button.y)/self.height, e[0].button.button)
+		
 		local keycode
 		if e[0].button.button == sdl.SDL_BUTTON_LEFT then
 			keycode = keyCodeForName.mouse_left
@@ -2034,13 +2007,9 @@ function App:event(e)
 	end
 end
 
------- TODO FINISHE PLZ
-local screenButtonRadius = 10
 function App:processButtonEvent(press, ...)
-do return end
-
 	-- TODO radius per-button
-	local buttonRadius = self.width * self.screenButtonRadius
+	local buttonRadius = self.width * self.cfg.screenButtonRadius
 
 	-- TODO put the callback somewhere, not a global
 	-- it's used by the New Game menu
@@ -2059,20 +2028,21 @@ do return end
 
 		local etype, ex, ey = ...
 		local descLen = select('#', ...)
-		for playerIndex, playerConfig in ipairs(self.cfg.playerKeys) do
-			for buttonName, buttonDesc in pairs(playerConfig) do
+		for playerIndexPlusOne, playerInfo in ipairs(self.cfg.playerInfos) do
+			local playerIndex = playerIndexPlusOne-1
+			for buttonIndex, buttonBind in pairs(playerInfo.buttonBinds) do
 				-- special case for mouse/touch, test within a distanc
-				local match = descLen == #buttonDesc
+				local match = descLen == #buttonBind
 				if match then
 					local istart = 1
 					-- special case for mouse/touch, click within radius ...
 					if etype == sdl.SDL_MOUSEBUTTONDOWN
 					or etype == sdl.SDL_FINGERDOWN
 					then
-						match = etype == buttonDesc[1]
+						match = etype == buttonBind[1]
 						if match then
-							local dx = (ex - buttonDesc[2]) * self.width
-							local dy = (ey - buttonDesc[3]) * self.height
+							local dx = (ex - buttonBind[2]) * self.width
+							local dy = (ey - buttonBind[3]) * self.height
 							if dx*dx + dy*dy >= buttonRadius*buttonRadius then
 								match = false
 							end
@@ -2082,24 +2052,24 @@ do return end
 					end
 					if match then
 						for i=istart,descLen do
-							if select(i, ...) ~= buttonDesc[i] then
+							if select(i, ...) ~= buttonBind[i] then
 								match = false
 								break
 							end
 						end
 					end
 				end
-				if match
-				and self.players	-- not created until resetGame
-				then
-					local player = self.players[playerIndex]
-					if player
-					and (
-						not self.playingDemo
-						or not gameKeySet[buttonName]
-					) then
-						keyPress[buttonName] = press
-					end
+				if match then
+					local buttonCode = buttonIndex + bit.lshift(playerIndex, 3)
+					local keycode = buttonCode + firstJoypadKeyCode
+					local bi = bit.band(keycode, 7)
+					local by = bit.rshift(keycode, 3)
+					local flag = bit.lshift(1, bi)
+					local mask = bit.bnot(flag)
+					self.ram.keyPressFlags[by] = bit.bor(
+						bit.band(mask, self.ram.keyPressFlags[by]),
+						down and flag or 0
+					)
 				end
 			end
 		end

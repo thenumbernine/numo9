@@ -8,8 +8,11 @@ local fontWidth = numo9_rom.fontWidth
 local spriteSize = numo9_rom.spriteSize
 
 local numo9_keys = require 'numo9.keys'
+local maxLocalPlayers = numo9_keys.maxLocalPlayers
 local keyCodeNames = numo9_keys.keyCodeNames
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
+local buttonNames = numo9_keys.buttonNames
+local buttonSingleCharLabels = numo9_keys.buttonSingleCharLabels
 
 -- it's not an editor, but I put the gui functions in numo9.editor, so ...
 -- strraigthen this out, either rename numo9.editor to numo9.gui, or use the gui project, or put the functions somewhere else like app or video, idk...
@@ -120,22 +123,27 @@ function Menu:update()
 	-- draw our menu and handle ui input
 	if self.currentMenu == 'multiplayer' then
 		self:updateMenuMultiplayer()
+	elseif self.currentMenu == 'input' then
+		self:updateMenuInput()
 	else	-- main and default
 		self:updateMenuMain()
 	end
 
-	-- handle keyboard input
-	if app:keyp'up' then
-		self.menuTabIndex = self.menuTabIndex - 1
-	end
-	if app:keyp'down' then
-		self.menuTabIndex = self.menuTabIndex + 1
-	end
-	if app:keyp('return', 15, 2) then
-		self.execMenuTab = true
-	end
-	if self.menuTabMax and self.menuTabMax > 0 then
-		self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+	-- handle keyboard input / tab-index stuff
+	-- TODO move this into all editors,since the tab-index stuff is in the gui functions that they all use anyways
+	if not app.waitingForEvent then
+		if app:keyp'up' then
+			self.menuTabIndex = self.menuTabIndex - 1
+		end
+		if app:keyp'down' then
+			self.menuTabIndex = self.menuTabIndex + 1
+		end
+		if app:keyp('return', 15, 2) then
+			self.execMenuTab = true
+		end
+		if self.menuTabMax and self.menuTabMax > 0 then
+			self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+		end
 	end
 end
 
@@ -164,6 +172,11 @@ function Menu:updateMenuMain()
 		return
 	end
 
+	if self:menuButton'input' then
+		self.currentMenu = 'input'
+		self.menuTabIndex = 0
+	end
+
 	-- configure
 	self:menuSection'sound'
 
@@ -173,14 +186,6 @@ function Menu:updateMenuMain()
 	end, 'volume')	-- TODO where's the tooltip?
 	app:drawText(tostring(app.cfg.volume), self.cursorX + 56, self.cursorY, 0xf7, 0xf0)
 	self.cursorY = self.cursorY + self.ystep
-
-	self:menuSection'input'
-
-	if self:menuButton'input config' then
-	end
-
-	if self:menuButton'player names' then
-	end
 
 	self:menuSection'system'
 
@@ -203,7 +208,6 @@ function Menu:updateMenuMain()
 		end
 		return
 	end
-
 
 	if self:menuButton'quit' then
 		app:requestExit()
@@ -239,6 +243,14 @@ function Menu:updateMenuMultiplayer()
 		self.isOpen = false
 		return
 	end
+	
+	self:menuSection'player names'
+
+	for i=1,maxLocalPlayers do
+		-- TODO checkbox for whether the player is active or not during netplay ...
+		-- TODO TODO how to allow #-local-players-active to change during a game ... 
+		self:menuTextField('name', app.cfg.playerInfos[i], 'name')
+	end
 
 	self.cursorY = self.cursorY + self.ysepstep
 	if self:menuButton'back' then
@@ -247,10 +259,51 @@ function Menu:updateMenuMultiplayer()
 		return
 	end
 
-
 	-- you can redirect connected players to game players ...
 	-- then have buttons for auto-assign-first-players or not
+end
 
+function Menu:updateMenuInput()
+	local app = self.app
+
+	self:menuSection'input'
+
+	local pushCursorX, pushCursorY = self.cursorX, self.cursorY
+	for playerIndexPlusOne=1,maxLocalPlayers do
+		self.cursorX = (playerIndexPlusOne-1) * 64 + 20
+		self.cursorY = pushCursorY
+		self:menuLabel('player '..playerIndexPlusOne)
+		local playerInfo = app.cfg.playerInfos[playerIndexPlusOne]
+		self:menuLabel(playerInfo.name)
+		for buttonIndexPlusOne,buttonName in ipairs(buttonSingleCharLabels) do
+			local buttonIndex = buttonIndexPlusOne - 1	-- atm playerInfo.buttonBinds is 0-based
+			-- TODO instead of name use some of our extra codes ...
+			app:drawText(buttonName, self.cursorX-8, self.cursorY, 0xfc, 0xf0)
+			local buttonBind = playerInfo.buttonBinds[buttonIndex]
+			local label = app.waitingForEvent and self.menuTabIndex == self.menuTabCounter
+				and 'Press...' 
+				or tostring(buttonBind and buttonBind.name or nil)
+			if self:menuButton(label) then
+				-- if we're waiting then call it 'press a key'
+				-- otherwise show the key desc
+				-- capture it
+				app.waitingForEvent = {
+					callback = function(e)
+--print('got event', require 'ext.tolua'(e))	
+						playerInfo.buttonBinds[buttonIndex] = e
+					end,
+				}
+			end
+		end
+	end
+	self.cursorX = pushCursorX
+	self.cursorY = self.cursorY + 9
+
+	if self:menuButton'back' then
+		self.currentMenu = 'main'
+		self.menuTabIndex = 0
+		return
+	end
 end
 
 return Menu
