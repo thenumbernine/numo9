@@ -63,6 +63,7 @@ function Editor:guiButton(str, x, y, isset, tooltip)
 	local app = self.app
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
+	self.menuTabCounter = self.menuTabCounter + 1
 
 	local fg, bg
 	if isset and onThisMenuItem then
@@ -75,10 +76,7 @@ function Editor:guiButton(str, x, y, isset, tooltip)
 		fg, bg = 0xfd, 0xf8
 	end
 
---print('menutab', self.menuTabCounter, str)
 	local w = self:drawText(str, x, y, fg, bg)
-
-	self.menuTabCounter = self.menuTabCounter + 1
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 	local mouseOver =

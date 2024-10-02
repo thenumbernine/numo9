@@ -1,90 +1,196 @@
 local math = require 'ext.math'
+local asserttype = require 'ext.assert'.type
 local assertindex = require 'ext.assert'.index
+local getTime = require 'ext.timer'.getTime
+
+local numo9_rom = require 'numo9.rom'
+local fontWidth = numo9_rom.fontWidth
+local spriteSize = numo9_rom.spriteSize
+
+local numo9_keys = require 'numo9.keys'
+local keyCodeNames = numo9_keys.keyCodeNames
+local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
+
 -- it's not an editor, but I put the gui functions in numo9.editor, so ...
 -- strraigthen this out, either rename numo9.editor to numo9.gui, or use the gui project, or put the functions somewhere else like app or video, idk...
 local Editor = require 'numo9.editor'
 
 local Menu = Editor:subclass()
 
+Menu.ystep = 9
+Menu.ysepstep = 7
+
+-- the ':menu...' prefix on all my menu gui cmds is to separate them from the :gui ones that don't read/write the Menu class' cursorX/cursorY
+
+function Menu:menuLabel(str)
+	self.app:drawText(str, self.cursorX, self.cursorY, 0xf7, 0xf0)
+	self.cursorY = self.cursorY + self.ystep
+end
+
+function Menu:menuSection(str)
+	-- TODO show a section divider
+	self.cursorY = self.cursorY + self.ysepstep
+	self.app:drawText(str, self.cursorX+16, self.cursorY, 0xf7, 0xf0)
+	self.cursorY = self.cursorY + self.ystep
+end
+
+Menu.cursorLoc = 0
+function Menu:menuTextField(label, t, k)
+	-- TODO here ... only if we have tab-focus ... read our input.
+	-- TODO color by tab-focus or not
+	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
+	asserttype(assertindex(t, k), 'string')
+	local app = self.app
+
+	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
+	if self.menuTabIndex ~= self.cursorMenuTabIndex then
+		-- if we just switched to this tabitem then reset the cursor position
+		self.cursorLoc = #t[k]
+	end
+	self.menuTabCounter = self.menuTabCounter + 1
+
+	local fg, bg
+	if onThisMenuItem then
+		fg, bg = 0xfd, 0xf9
+	else
+		fg, bg = 0xfd, 0xf8
+	end
+
+	app:drawText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
+	local editX = self.cursorX + 40
+	app:drawText(t[k], editX, self.cursorY, fg, bg)
+
+	-- TODO like some UIs, push enter to enable/disable editing? or nah
+	if onThisMenuItem then
+		if getTime() % 1 < .5 then
+			app:drawSolidRect(
+				editX + self.cursorLoc * fontWidth,
+				self.cursorY,
+				fontWidth,
+				spriteSize.y,
+				0xfc
+			)
+		end
+
+		-- TODO lots in common with editcode ... hmmm ...
+		local shift = app:key'lshift' or app:key'rshift'
+		local function addCharToText(ch)
+			if ch == 8 then
+				t[k] = t[k]:sub(1, self.cursorLoc - 1) .. t[k]:sub(self.cursorLoc+1)
+				self.cursorLoc = math.max(0, self.cursorLoc - 1)
+			elseif ch then
+				t[k] = t[k]:sub(1, self.cursorLoc) .. string.char(ch) .. t[k]:sub(self.cursorLoc+1)
+				self.cursorLoc = math.min(#t[k], self.cursorLoc + 1)
+			end
+		end
+
+		-- handle input here ...
+		for keycode=0,#keyCodeNames-1 do
+			if app:keyp(keycode,30,5) then
+				local ch = getAsciiForKeyCode(keycode, shift)
+				if ch then
+					addCharToText(ch)
+				end
+			end
+		end
+	end
+
+	self.cursorY = self.cursorY + self.ystep
+end
+
+function Menu:menuButton(str)
+	local result = self:guiButton(str, self.cursorX, self.cursorY)
+	self.cursorY = self.cursorY + self.ystep
+	return result
+end
+
+Menu.currentMenu = 'main'
+
 function Menu:update()
 	if not self.isOpen then return end
 	local app = self.app
 
-	local ystep = 9
-	local ysepstep = 7
-	local x = 60
-	local y = 24
-
+	-- init the tab-order for editor controls
 	self:initMenuTabs()
 
-	local function section(str)
-		y = y + ysepstep
-		app:drawText(str, x+16, y, 0xf7, 0xf0)
-		y = y + ystep
+	-- init the menu cursor position
+	self.cursorX = 80
+	self.cursorY = 8
+
+	-- draw our menu and handle ui input
+	if self.currentMenu == 'multiplayer' then
+		self:updateMenuMultiplayer()
+	else	-- main and default
+		self:updateMenuMain()
 	end
 
-	section'NuMo9'
+	-- handle keyboard input
+	if app:keyp'up' then
+		self.menuTabIndex = self.menuTabIndex - 1
+	end
+	if app:keyp'down' then
+		self.menuTabIndex = self.menuTabIndex + 1
+	end
+	if app:keyp('return', 15, 2) then
+		self.execMenuTab = true
+	end
+	if self.menuTabMax and self.menuTabMax > 0 then
+		self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+	end
+end
 
-	section'game'
+function Menu:updateMenuMain()
+	local app = self.app
 
-	if self:guiButton('resume', x, y) then
+	self:menuSection'NuMo9'
+
+	self:menuSection'game'
+
+	if self:menuButton'resume' then
 		self.isOpen = false
 		app.isPaused = false
 		return
 	end
-	y = y + ystep
 
-	if self:guiButton('new game', x, y) then
+	if self:menuButton'new game' then
 		self.isOpen = false
 		app:runROM()
 		return
 	end
-	y = y + ystep
 
-	-- multiplayer
-
-	section'multiplayer'
-
-	if self:guiButton('connect', x, y) then
+	if self:menuButton'multiplayer' then
+		self.currentMenu = 'multiplayer'
+		self.menuTabIndex = 0
+		return
 	end
-	y = y + ystep
-
-	if self:guiButton('listen', x, y) then
-	end
-	y = y + ystep
-	-- you can redirect connected players to game players ...
-	-- then have buttons for auto-assign-first-players or not
 
 	-- configure
-	section'sound'
+	self:menuSection'sound'
 
-	app:drawText('volume', x, y, 0xf7, 0xf0)
-	self:guiSpinner(x + 32, y, function(dx)
-		app.cfg.volume = math.clamp(app.cfg.volume + dx, 0, 255)
+	app:drawText('volume', self.cursorX, self.cursorY, 0xf7, 0xf0)
+	self:guiSpinner(self.cursorX + 32, self.cursorY, function(dx)
+		app.cfg.volume = math.clamp(app.cfg.volume + 10 * dx, 0, 255)
 	end, 'volume')	-- TODO where's the tooltip?
-	app:drawText(tostring(app.cfg.volume), x + 56, y, 0xf7, 0xf0)
-	y = y + ystep
+	app:drawText(tostring(app.cfg.volume), self.cursorX + 56, self.cursorY, 0xf7, 0xf0)
+	self.cursorY = self.cursorY + self.ystep
 
-	section'input'
+	self:menuSection'input'
 
-	if self:guiButton('input config', x, y) then
+	if self:menuButton'input config' then
 	end
-	y = y + ystep
 
-	if self:guiButton('player names', x, y) then
+	if self:menuButton'player names' then
 	end
-	y = y + ystep
 
-	section'system'
+	self:menuSection'system'
 
-	if self:guiButton('to console', x, y) then
+	if self:menuButton'to console' then
 		self.isOpen = false
 		app.con.isOpen = true
 		return
 	end
-	y = y + ystep
 
-	if self:guiButton('to editor', x, y) then
+	if self:menuButton'to editor' then
 		self.isOpen = false
 		app.con.isOpen = false
 		app.con.isOpen = false
@@ -97,27 +203,54 @@ function Menu:update()
 		end
 		return
 	end
-	y = y + ystep
 
 
-	if self:guiButton('quit', x, y) then
+	if self:menuButton'quit' then
 		app:requestExit()
 		return
 	end
-	y = y + ystep
+end
 
-	if app:keyp'up' then
-		self.menuTabIndex = self.menuTabIndex - 1
+function Menu:updateMenuMultiplayer()
+	local app = self.app
+	-- multiplayer ... TODO menu sub-screen
+
+	self:menuSection'multiplayer'
+
+	self.cursorY = self.cursorY + self.ysepstep
+
+	self:menuSection'connect'
+	self:menuTextField('addr', app.cfg, 'lastConnectAddr')
+	self:menuTextField('port', app.cfg, 'lastConnectPort')
+	if self:menuButton'go' then
+		app:connect(
+			app.cfg.lastConnectAddr,
+			app.cfg.lastConnectPort
+		)
+		return
 	end
-	if app:keyp'down' then
-		self.menuTabIndex = self.menuTabIndex + 1
+
+	self:menuSection'listen'
+	self:menuTextField('addr', app.cfg, 'serverListenAddr')
+	self:menuTextField('port', app.cfg, 'serverListenPort')
+	if self:menuButton'go' then
+		app:listen()
+		-- if we're listening then ... close the menu I guess?
+		self.isOpen = false
+		return
 	end
-	if app:keyp'return' then
-		self.execMenuTab = true
+
+	self.cursorY = self.cursorY + self.ysepstep
+	if self:menuButton'back' then
+		self.currentMenu = 'main'
+		self.menuTabIndex = 0
+		return
 	end
-	if self.menuTabMax and self.menuTabMax > 0 then
-		self.menuTabIndex = self.menuTabIndex % self.menuTabMax
-	end
+
+
+	-- you can redirect connected players to game players ...
+	-- then have buttons for auto-assign-first-players or not
+
 end
 
 return Menu

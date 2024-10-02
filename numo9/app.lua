@@ -833,8 +833,9 @@ print('package.loaded', package.loaded)
 	-- notice on my osx, even 'localhost' and '127.0.0.1' aren't interchangeable
 	-- TODO use a proper ip ...
 	setdefault(self.cfg, 'serverListenAddr', 'localhost')
-
-	setdefault(self.cfg, 'serverListenPort', Server.defaultListenPort)
+	setdefault(self.cfg, 'serverListenPort', tostring(Server.defaultListenPort))
+	setdefault(self.cfg, 'lastConnectAddr', 'localhost')	-- TODO ... eh ... LAN search?  idk
+	setdefault(self.cfg, 'lastConnectPort', tostring(Server.defaultListenPort))
 	setdefault(self.cfg, 'playerInfos', {})
 	setdefault(self.cfg.playerInfos, 1, {})
 
@@ -843,6 +844,17 @@ print('package.loaded', package.loaded)
 	-- this is for server netplay, it says who to associate this conn's player with
 	setdefault(self.cfg.playerInfos[1], 'localPlayer', 1)
 	-- fake-gamepad key bindings
+	--[[
+Some default keys options:
+	Snes9x	ZSNES	LibRetro
+A	D		X		X
+B	C		Z		Z
+X	S		S		S
+Y	X		A		A
+L	A/V		D		Q
+R	Z		C		W
+looks like I'm a Snes9x-default-keybinding fan.
+	--]]
 	setdefault(self.cfg.playerInfos[1], 'keyCodeForButtonIndex', {})
 	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.up, keyCodeForName.up)
 	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.down, keyCodeForName.down)
@@ -1010,7 +1022,8 @@ print('setFocus empty')
 
 		-- default to the system default port, not the configured server listen port
 		-- since odds are wherever you're connecting is using the default
-		port = port or Server.defaultListenPort,
+		-- TODO silent default, or error?  same as in Server:init
+		port = tonumber(port) or Server.defaultListenPort,
 
 		fail = function(...)
 			print('connect fail', ...)
@@ -1888,21 +1901,28 @@ function App:event(e)
 				--]]
 			elseif self.con.isOpen then
 				self.con.isOpen = false
+				--[[ con -> editor?
 				self.currentEditor = self.server and self.editNet or self.editCode
 				if self.currentEditor.gainFocus then
 					self.currentEditor:gainFocus()
 				end
+				--]]
+				-- [[ con -> menu?
+				self.menu.isOpen = true
+				--]]
 			elseif self.currentEditor then
 				if self.currentEditor.loseFocus then
 					self.currentEditor:loseFocus()
 				end
 				self.currentEditor = nil
+				-- [[ editor -> game?
 				if not self.server then
 					-- ye ol fps behavior: console + single-player implies pause, console + multiplayer doesn't
 					-- TODO what about single-player who types 'stop()' and 'cont()' at the console?  meh, redundant cmds.
 					--  the cmds still serve a purpose in single-player for the game to use if it wan't i guess ...
 					self.isPaused = false
 				end
+				--]]
 			else
 				-- assume it's a game pushing esc ...
 				-- go to the menu
