@@ -177,7 +177,9 @@ print('resetting runaway audio queue with size '..queueSize..' exceeding thresho
 		end
 	end
 
+--[[ nah don't do this here, do it in updateSoundEffects inter-sample-update
 	self:updateMusic()
+--]]	
 	self:updateSoundEffects()
 end
 
@@ -239,8 +241,27 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 			p[k] = math.clamp(tmpOut[k], -amplMax, amplMax)
 		end
 		p = p + audioOutChannels
+		
+		-- [[ update one at a time and handle music-track-playing changes exactly on the sample that they should take place
+		-- might take some more computations
+		-- TODO if this is model to use then 
+		-- ... no need to check updateMusicPlaying() outside this function every frame.
+		-- ... and no need to check the isPlaying within updateMusicPlaying() also ...
+		audio.sampleFrameIndex = audio.sampleFrameIndex + 1
+		local musicPlaying = self.ram.musicPlaying+0
+		for musicPlayingIndex=0,audioMusicPlayingCount-1 do
+			if musicPlaying.isPlaying ~= 0
+			and audio.sampleFrameIndex >= musicPlaying.nextBeatSampleFrameIndex
+			then
+				self:updateMusicPlaying(musicPlaying)
+			end
+			musicPlaying = musicPlaying + 1
+		end
+		--]]
 	end
+	--[[ update all at once and let the beats fall where they may
 	audio.sampleFrameIndex = audio.sampleFrameIndex + updateSampleFrameCount
+	--]]
 --DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + updateIntervalInBytes)
 
 --print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
@@ -249,6 +270,11 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 		audio.audioBuffer,
 		updateSampleFrameCount * audioOutChannels * ffi.sizeof(sampleType)
 	))
+end
+
+-- move common code here
+-- but idk exactly what i need in the loop or not since i'm getting those weird stalls ...
+function AppAudio:setMusicPlayingToMusic(music)
 end
 
 function AppAudio:updateMusicPlaying(musicPlaying)
@@ -297,10 +323,13 @@ print('GOT PLAY MUSIC', value)
 
 			local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
 			musicPlaying.addr = musicPlaying.addr + 2
+			
+			--self:setMusicPlayingToMusic(music)
 
 			-- this usually comes right after a delay command ... so ... should I even bother with resetting the musicPlaying.sampleFrameIndex
 			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
-			--musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
+			musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
+print('loopAt sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
 			self:updateMusicPlaying(musicPlaying)
 			return
 		end
@@ -381,6 +410,7 @@ print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.s
 	end
 end
 
+--[[ nah don't do this here, do it in updateSoundEffects inter-sample-update
 function AppAudio:updateMusic()
 	local audio = self.audio
 	local channelPtr = ffi.cast('uint8_t*', self.ram.channels)
@@ -391,6 +421,7 @@ function AppAudio:updateMusic()
 		musicPlaying = musicPlaying + 1
 	end
 end
+--]]
 
 --[[
 TODO this was originally compat with pico8s format
@@ -537,6 +568,9 @@ print('playMusic', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffs
 	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 	musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
 --print('playMusic music wait', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
+print('playMusic sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
+
+	--self:setMusicPlayingToID(music)
 
 	-- see if any notes need to be played immediately
 	-- TODO only update this specific track ...
