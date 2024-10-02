@@ -230,7 +230,7 @@ or cmd == 'r' then
 		-- returns start and end of offset into audioData for 'data' to go
 		local function addToAudio(data, size)
 			local addr = audioDataOffset
-			assert(addr + size <= audioDataSize)
+			assert(addr + size <= audioDataSize, "overflow")
 			ffi.copy(rom.audioData + addr, data, size)
 			audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
 			return addr
@@ -253,6 +253,7 @@ or cmd == 'r' then
 				local brrComp = vector'uint8_t'
 				--]]
 				-- [[ until then, use raw for now
+print('writing sfx', i, 'size', size)
 				local addrLen = rom.sfxAddrs[i]
 				addrLen.addr, addrLen.len = addToAudio(data, size), size
 				--]]
@@ -265,6 +266,7 @@ or cmd == 'r' then
 			if p:exists() then
 				local data = p:read()
 				local size = #data
+print('writing music', i, 'size', size)
 				local addrLen = rom.musicAddrs[i]
 				addrLen.addr, addrLen.len = addToAudio(data, size), size
 			end
@@ -524,7 +526,6 @@ print('toImage', name, 'width', width, 'height', height)
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
-	local totalMusicSize = 0
 	local sfxs = table()
 	do
 		-- [[ also in audio/test/test.lua ... consider consolidating
@@ -634,214 +635,217 @@ print('toImage', name, 'width', width, 'height', height)
 		-- http://pico8wiki.com/index.php?title=P8FileFormat
 		local sfxSrc = move(sections, 'sfx')
 		basepath'sfx.txt':write(sfxSrc:concat'\n'..'\n')
+		for sfxIndexPlusOne,line in ipairs(sfxSrc) do
+			local index = sfxIndexPlusOne-1
+			local sfx = {
+				index = index,
+				editorMode = tonumber(line:sub(1,2), 16),
+				duration = tonumber(line:sub(3,4), 16),
+				loopStart = tonumber(line:sub(5,6), 16),
+				loopEnd = tonumber(line:sub(7,8), 16),
+			}
+			-- Should be 32 notes, each note is represented by 20 bits = 5 nybbles
+			-- each is note is per update? 30hz? 60hz? idk?
+			-- from http://pico8wiki.com/index.php?title=Memory it sounds like
+			sfx.notes = table()
+			for i=9,#line,5 do
+				sfx.notes:insert{
+					pitch = tonumber(line:sub(i,i+1), 16),		-- 0-63,
+					waveform = tonumber(line:sub(i+2,i+2), 16),	-- 0-15 ... 0-7 are builtin, 8-15 are sfx 0-7
+					volume = tonumber(line:sub(i+3,i+3), 16),	-- 0-7
+					effect = tonumber(line:sub(i+4,i+4), 16),	-- 0-7
+				}
+			end
+
+			-- make sure the original sfx.notes has a volume=0 at the end to clear the channel
+			sfx.notes:insert{
+				pitch = 0,
+				waveform = 0,
+				volume = 0,
+				effect = 0,
+			}
+
+			--[[
+			-- truncate the generated music and wav by removing volume=0 notes at the end ...
+			-- ... but don't modify the original, because music track generation below needs the #notes to match
+			local sfxNotes = table(sfx.notes)
+			while #sfxNotes > 1
+			and sfxNotes:last().volume == 0
+			do
+				sfxNotes:remove()
+			end
+			--]]
+			-- [[
+			local sfxNotes = sfx.notes
+			--]]
+			-- [[ keep at least the last volume==0 note so delta-compress can tell us to set the channel to 0 when we're done
+			-- but DONT DELAY on that last note also (or with looping tracks you will notice it)
+			sfxNotes:insert{
+				pitch = 0,
+				waveform = 0,
+				volume = 0,
+				effect = 0,
+			}
+			--]]
+
+			if #sfxNotes > 0 then
+
+				-- no notes = no sound file ...
+				sfxs[sfxIndexPlusOne] = sfx
+
+				--[[
+				TODO here write out an equivalent of our "spc"-ish commands for playing back our "sfx" i mean waveforms
+				or midi-ish ... idk
+				Time to define a SPC-ish MIDI-ish format of my own ...
+				or maybe I'll just use MIDI?
+				--]]
+				local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+				ffi.fill(prevSoundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
+				local soundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+				ffi.fill(soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
+
+				-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
+				assertlt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
+
+				local playbackDeltas = vector'uint8_t'
+				local short = ffi.new'uint16_t[1]'
+				local byte = ffi.cast('uint8_t*', short)
+				short[0] = 120 / math.max(1, sfx.duration)	-- bps
+				playbackDeltas:push_back(byte[0])
+				playbackDeltas:push_back(byte[1])
+				local lastNoteIndex = 1
+				for noteIndex,note in ipairs(sfxNotes) do
+					do --if note.volume > 0 then
+						-- when converting pico8 sfx to my music tracks, just put them at track zero, I'll figure out how to shift them around later *shrug*
+						for k=0,audioOutChannels-1 do
+							soundState[0].volume[k] = math.floor(note.volume / 7 * 255)
+						end
+
+						-- convert from note to multiplier
+						local freq = C0freq * chromastep^note.pitch
+						local pitchScale = 0x1000 * freq / waveformFreq
+						assertlt(pitchScale, 0x10000)	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
+						soundState[0].pitch = pitchScale
+
+						soundState[0].sfxID = note.waveform
+
+						-- insert wait time in beats
+						-- how to distingish this from deltas?  start-frame or end-frame message?
+						short[0] = noteIndex == #sfx.notes and 0 or noteIndex - lastNoteIndex
+						lastNoteIndex = noteIndex
+						playbackDeltas:emplace_back()[0] = byte[0]
+						playbackDeltas:emplace_back()[0] = byte[1]
+
+						-- insert delta
+						deltaCompress(
+							ffi.cast('uint8_t*', prevSoundState),
+							ffi.cast('uint8_t*', soundState),
+							ffi.sizeof'Numo9Channel' * audioMixChannels,
+							playbackDeltas
+						)
+
+						-- insert an end-frame
+						playbackDeltas:emplace_back()[0] = 0xff
+						playbackDeltas:emplace_back()[0] = 0xff
+
+						-- update
+						ffi.copy(prevSoundState, soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
+					end
+				end
+				local data = playbackDeltas:dataToStr()
+--print('music'..index..'.bin')
+--print(string.hexdump(data))
+				basepath('music'..index..'.bin'):write(data)
+			end
+		end
+		
+
 		for pass=0,1 do	-- second pass to handle sfx that reference themselves out of order
-			for sfxIndexPlusOne,line in ipairs(sfxSrc) do
-				if not sfxs[sfxIndexPlusOne] then
-					local index = sfxIndexPlusOne-1
-					local sfx = {
-						index = index,
-						editorMode = tonumber(line:sub(1,2), 16),
-						duration = tonumber(line:sub(3,4), 16),
-						loopStart = tonumber(line:sub(5,6), 16),
-						loopEnd = tonumber(line:sub(7,8), 16),
-					}
-					-- Should be 32 notes, each note is represented by 20 bits = 5 nybbles
-					-- each is note is per update? 30hz? 60hz? idk?
-					-- from http://pico8wiki.com/index.php?title=Memory it sounds like
-					sfx.notes = table()
-					for i=9,#line,5 do
-						sfx.notes:insert{
-							pitch = tonumber(line:sub(i,i+1), 16),		-- 0-63,
-							waveform = tonumber(line:sub(i+2,i+2), 16),	-- 0-15 ... 0-7 are builtin, 8-15 are sfx 0-7
-							volume = tonumber(line:sub(i+3,i+3), 16),	-- 0-7
-							effect = tonumber(line:sub(i+4,i+4), 16),	-- 0-7
+			for sfxIndexPlusOne=1,64 do
+				local index = sfxIndexPlusOne-1
+				local sfx = sfxs[sfxIndexPlusOne]
+				if sfx and #sfx.notes > 0 then
+					local sfxNotes = sfx.notes
+					-- [=[ don't need to generate these here anymore...
+					local duration = math.max(1, sfx.duration)
+					local sampleFramesPerNote = sampleFramesPerNoteBase * duration
+					local sampleFrames = sampleFramesPerNote * #sfxNotes
+					local samples = sampleFrames * channels
+					local data = ffi.new(sampleType..'[?]', samples)
+					local p = ffi.cast(sampleType..'*', data)
+					local wi = 0
+					local tf = 0	-- time x frequency
+					local tryagain = false
+
+					for noteIndex,note in ipairs(sfxNotes) do
+						-- TODO are you sure about these waveforms?
+						-- maybe I should generate the patterns again myself ...
+						local waveformData,waveformLen
+						if note.waveform < 8 then
+							local waveformIndex = bit.band(7,note.waveform)
+							waveformData  = waveforms[waveformIndex+1]
+							waveformLen = sampleFramesPerNoteBase
+						else
+							local srcsfxindex = 1+note.waveform-8
+							local srcsfx = sfxs[srcsfxindex]
+							if not (srcsfx and srcsfx.data) then
+								if pass==0 then
+									tryagain = true
+								else
+									print("WARNING even on 2nd pass couldn't fulfill sfx "..sfxIndexPlusOne..' uses sfx '..srcsfxindex..' based on waveform '..note.waveform)
+								end
+								break
+							end
+							waveformData = srcsfx.data
+							waveformLen = srcsfx.samples / channels
+							asserteq(channels, 1)	-- ...otherwise I have to do some adjusting between the original waveform data and the reused rendered sfx data
+						end
+
+						local f = wavefuncs[bit.band(7,note.waveform)+1]
+						local volume = baseVolume * note.volume / 7
+						local freq = C0freq * chromastep^note.pitch
+						for i=0,sampleFramesPerNote-1 do
+							-- [[ use sampled buffer, just like we'll reuse it for custom sfx of sfx ...
+							local ampl = (waveformData[math.floor(wi) % waveformLen] - amplZero) / amplMax
+							ampl = volume * ampl * amplMax + amplZero
+							-- oh yeah ... when using custom sfx ... what freq should we assume they are in?
+							wi = wi + freq / waveformFreq
+--print(freq / waveformFreq * 0x1000)
+							--]]
+							--[[ WE'LL DO IT LIVE
+							tf = tf + sampleFrameInSeconds * freq
+							local ampl = f(tf) * volume * amplMax + amplZero
+							--]]
+
+							for k=0,channels-1 do
+								p[0] = ampl
+								p=p+1
+							end
+						end
+					end
+					if not tryagain then
+						asserteq(p, data + samples)
+						sfx.data = data
+totalSfxSize = (totalSfxSize or 0) + samples * ffi.sizeof(sampleType)
+print('wav '..index..' size', samples * ffi.sizeof(sampleType))
+						sfx.samples = samples
+						-- write data to an audio file ...
+						AudioWAV():save{
+							filename = basepath('sfx'..index..'.wav').path,
+							ctype = sampleType,
+							channels = channels,
+							data = data,
+							size = samples * ffi.sizeof(sampleType),
+							freq = sampleFramesPerSecond,
 						}
 					end
-
-					-- make sure the original sfx.notes has a volume=0 at the end to clear the channel
-					sfx.notes:insert{
-						pitch = 0,
-						waveform = 0,
-						volume = 0,
-						effect = 0,
-					}
-
-
-					--[[
-					-- truncate the generated music and wav by removing volume=0 notes at the end ...
-					-- ... but don't modify the original, because music track generation below needs the #notes to match
-					local sfxNotes = table(sfx.notes)
-					while #sfxNotes > 1
-					and sfxNotes:last().volume == 0
-					do
-						sfxNotes:remove()
-					end
-					--]]
-					-- [[
-					local sfxNotes = sfx.notes
-					--]]
-					--[[ keep at least the last volume==0 note so delta-compress can tell us to set the channel to 0 when we're done
-					-- TODO OR LOOP
-					sfxNotes:insert{
-						pitch = 0,
-						waveform = 0,
-						volume = 0,
-						effect = 0,
-					}
-					--]]
-
-					if #sfxNotes > 0 then
-
-						-- no notes = no sound file ...
-						sfxs[sfxIndexPlusOne] = sfx
-
-						--[[
-						TODO here write out an equivalent of our "spc"-ish commands for playing back our "sfx" i mean waveforms
-						or midi-ish ... idk
-						Time to define a SPC-ish MIDI-ish format of my own ...
-						or maybe I'll just use MIDI?
-						--]]
-						local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
-						ffi.fill(prevSoundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
-						local soundState = ffi.new('Numo9Channel[?]', audioMixChannels)
-						ffi.fill(soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
-
-						-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
-						assertlt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
-
-						local playbackDeltas = vector'uint8_t'
-						local short = ffi.new'uint16_t[1]'
-						local byte = ffi.cast('uint8_t*', short)
-						short[0] = 120 / math.max(1, sfx.duration)	-- bps
-						playbackDeltas:push_back(byte[0])
-						playbackDeltas:push_back(byte[1])
-						local lastNoteIndex = 1
-						for noteIndex,note in ipairs(sfxNotes) do
-							do --if note.volume > 0 then
-								-- when converting pico8 sfx to my music tracks, just put them at track zero, I'll figure out how to shift them around later *shrug*
-								for k=0,audioOutChannels-1 do
-									soundState[0].volume[k] = math.floor(note.volume / 7 * 255)
-								end
-
-								-- convert from note to multiplier
-								local freq = C0freq * chromastep^note.pitch
-								local pitchScale = 0x1000 * freq / waveformFreq
-								assertlt(pitchScale, 0x10000)	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
-								soundState[0].pitch = pitchScale
-
-								soundState[0].sfxID = note.waveform
-
-								-- insert wait time in beats
-								-- how to distingish this from deltas?  start-frame or end-frame message?
-								short[0] = noteIndex - lastNoteIndex
-								lastNoteIndex = noteIndex
-								playbackDeltas:emplace_back()[0] = byte[0]
-								playbackDeltas:emplace_back()[0] = byte[1]
-
-								-- insert delta
-								deltaCompress(
-									ffi.cast('uint8_t*', prevSoundState),
-									ffi.cast('uint8_t*', soundState),
-									ffi.sizeof'Numo9Channel' * audioMixChannels,
-									playbackDeltas
-								)
-
-								-- insert an end-frame
-								playbackDeltas:emplace_back()[0] = 0xff
-								playbackDeltas:emplace_back()[0] = 0xff
-
-								-- update
-								ffi.copy(prevSoundState, soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
-							end
-						end
-						local data = playbackDeltas:dataToStr()
-print('music'..index..'.bin')
-print(string.hexdump(data))
-						basepath('music'..index..'.bin'):write(data)
-
-						-- [=[ don't need to generate these here anymore...
-						local duration = math.max(1, sfx.duration)
-						local sampleFramesPerNote = sampleFramesPerNoteBase * duration
-						local sampleFrames = sampleFramesPerNote * #sfxNotes
-						local samples = sampleFrames * channels
-						local data = ffi.new(sampleType..'[?]', samples)
-						local p = ffi.cast(sampleType..'*', data)
-						local wi = 0
-						local tf = 0	-- time x frequency
-						local tryagain = false
-
-						for noteIndex,note in ipairs(sfxNotes) do
-							-- TODO are you sure about these waveforms?
-							-- maybe I should generate the patterns again myself ...
-							local waveformData,waveformLen
-							if note.waveform < 8 then
-								local waveformIndex = bit.band(7,note.waveform)
-								waveformData  = waveforms[waveformIndex+1]
-								waveformLen = sampleFramesPerNoteBase
-							else
-								local srcsfxindex = 1+note.waveform-8
-								local srcsfx = sfxs[srcsfxindex]
-								if not (srcsfx and srcsfx.data) then
-									if pass==0 then
-										tryagain = true
-									else
-										print("WARNING even on 2nd pass couldn't fulfill sfx "..sfxIndexPlusOne..' uses sfx '..srcsfxindex..' based on waveform '..note.waveform)
-									end
-									break
-								end
-								waveformData = srcsfx.data
-								waveformLen = srcsfx.samples / channels
-								asserteq(channels, 1)	-- ...otherwise I have to do some adjusting between the original waveform data and the reused rendered sfx data
-							end
-
-							local f = wavefuncs[bit.band(7,note.waveform)+1]
-							local volume = baseVolume * note.volume / 7
-							local freq = C0freq * chromastep^note.pitch
-							for i=0,sampleFramesPerNote-1 do
-								-- [[ use sampled buffer, just like we'll reuse it for custom sfx of sfx ...
-								local ampl = (waveformData[math.floor(wi) % waveformLen] - amplZero) / amplMax
-								ampl = volume * ampl * amplMax + amplZero
-								-- oh yeah ... when using custom sfx ... what freq should we assume they are in?
-								wi = wi + freq / waveformFreq
---print(freq / waveformFreq * 0x1000)
-								--]]
-								--[[ WE'LL DO IT LIVE
-								tf = tf + sampleFrameInSeconds * freq
-								local ampl = f(tf) * volume * amplMax + amplZero
-								--]]
-
-								for k=0,channels-1 do
-									p[0] = ampl
-									p=p+1
-								end
-							end
-						end
-						if not tryagain then
-							asserteq(p, data + samples)
-							sfx.data = data
-totalSfxSize = (totalSfxSize or 0) + samples * ffi.sizeof(sampleType)
-print('wav '..index..' size', samples * ffi.sizeof(sampleType), 'delta compressed notes to', #playbackDeltas..' delta bytes')
-							sfx.samples = samples
-							-- write data to an audio file ...
-							AudioWAV():save{
-								filename = basepath('sfx'..index..'.wav').path,
-								ctype = sampleType,
-								channels = channels,
-								data = data,
-								size = samples * ffi.sizeof(sampleType),
-								freq = sampleFramesPerSecond,
-							}
-						end
-						--]=]
-totalMusicSize = totalMusicSize + #playbackDeltas
-					end
+					--]=]
 				end
 			end
 			basepath'sfx.lua':write(tolua(sfxs))
 		end
 
 --print('total SFX data size: '..totalSfxSize)
-print('total sfx as music commands: '..totalMusicSize)
 --[[ TODO don't bother BRR-encode SFX data, it's going to turn into music commands anyways
 -- but go ahead and BRR-encode the waveforms, they're going to become our SFX data
 print("total SFX data size if I'd use BRR: "..(
@@ -880,6 +884,7 @@ print("total SFX data size if I'd use BRR: "..(
 				lastBegin = musicTrackIndex
 			end
 			local musicTrack = {
+				index = musicTrackIndex,
 				flags = flags,
 				beginLoop = beginLoop,
 				endLoop = endLoop,
@@ -934,28 +939,43 @@ print("total SFX data size if I'd use BRR: "..(
 				local playbackDeltas = vector'uint8_t'
 				local short = ffi.new'uint16_t[1]'
 				local byte = ffi.cast('uint8_t*', short)
-				for _,sfx in ipairs(musicSfxs) do
-					if sfx.duration ~= musicSfxs[1].duration then
-						error('music sfxs '
+				local durations = musicSfxs:mapi(function(sfx) return sfx.duration end)
+				local sortedDurations = table(durations):sort()
+				for q=1,#sortedDurations-1 do
+					if sortedDurations[q+1] % sortedDurations[q] ~= 0 then
+						error('music '..musicTrackIndex..' sfxs '
 							..musicTrack.sfxs:concat' '
-							..' have different durations: '..musicSfxs:mapi(function(sfx) return sfx.duration end):concat' ')
+							..' have durations that do not divide: '..durations:concat' ')
 					end
 				end
+print('durations '..sortedDurations:concat' ')
+				--[[ TOOD pick the lcm of the durations and use that
+				-- or just pick the lowest idk
+				for _,sfx in ipairs(musicSfxs) do
+					if sfx.duration ~= musicSfxs[1].duration then
+						error('music '..musicTrackIndex..' sfxs '
+							..musicTrack.sfxs:concat' '
+							..' have different durations: '..durations:concat' ')
+					end
+				end
+				--]]
 				short[0] = 120 / math.max(1, musicSfxs[1].duration)	-- bps
 				playbackDeltas:push_back(byte[0])
 				playbackDeltas:push_back(byte[1])
-				local lastNoteIndex = 1
 				--[[ will all music sfx have the same # of notes?
 				-- maybe I shouldn't be deleting notes ...
 				for _,sfx in ipairs(musicSfxs) do
 					asserteq(#sfx.notes, #musicSfxs[1].notes)
 				end
 				--]]
-				for noteIndex=1,#musicSfxs[1].notes do
+				local beatRatio = sortedDurations:last() / sortedDurations[1]
+				local lastNoteIndex = 0
+asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0's at the end
+				for q=0,33-1 do
 					local changed = false
 					for channelIndexPlusOne,sfx in ipairs(musicSfxs) do
-						local note = sfx.notes[noteIndex]
-						do --if note.volume > 0 then
+						local note = sfx.notes[q+1]
+						if note then -- and note.volume > 0 then
 							local channelIndex = channelIndexPlusOne-1
 							-- when converting pico8 sfx to my music tracks, just put them at track zero, I'll figure out how to shift them around later *shrug*
 							for k=0,audioOutChannels-1 do
@@ -976,8 +996,8 @@ print("total SFX data size if I'd use BRR: "..(
 					if changed then
 						-- insert wait time in beats
 						-- how to distingish this from deltas?  start-frame or end-frame message?
-						short[0] = noteIndex - lastNoteIndex
-						lastNoteIndex = noteIndex
+						short[0] = q == #musicSfxs[1].notes-1 and 0 or q - lastNoteIndex
+						lastNoteIndex = q
 						playbackDeltas:emplace_back()[0] = byte[0]
 						playbackDeltas:emplace_back()[0] = byte[1]
 
@@ -998,7 +1018,7 @@ print("total SFX data size if I'd use BRR: "..(
 					end
 				end
 				if musicTrack.loopTo then
-print('MUSIC', musicTrackIndex+128,'LOOPING TO', 128 + musicTrack.loopTo)
+--print('MUSIC', musicTrackIndex+128,'LOOPING TO', 128 + musicTrack.loopTo)
 					-- insert another 1-beat delay
 					playbackDeltas:emplace_back()[0] = 0 --1
 					playbackDeltas:emplace_back()[0] = 0
@@ -1008,8 +1028,8 @@ print('MUSIC', musicTrackIndex+128,'LOOPING TO', 128 + musicTrack.loopTo)
 				end
 
 				local data = playbackDeltas:dataToStr()
-print('music'..(musicTrackIndex + 128)..'.bin')
-print(string.hexdump(data))
+--print('music'..(musicTrackIndex + 128)..'.bin')
+--print(string.hexdump(data))
 				basepath('music'..(musicTrackIndex + 128)..'.bin'):write(data)
 			end
 		end

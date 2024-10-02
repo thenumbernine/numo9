@@ -977,7 +977,7 @@ function App:update()
 
 	local thisTime = getTime()
 
--- [==[ per-second-tick debug display
+--[==[ per-second-tick debug display
 	-- ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
 	-- TODO get rid of double-buffering.  you've got the framebuffer.
 	local deltaTime = thisTime - lastTime
