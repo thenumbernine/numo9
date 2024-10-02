@@ -622,6 +622,7 @@ trace('playing music', n, type(n))
 			music(-1)
 			return
 		end
+		--[[ when I was putting the music table into the code ...
 		for i=1,4 do
 			local sfxID=musicTable[5*n+i+1]
 trace('...got music', n, i,'musicTableIndex', 5*n+i+1,'sfx', sfxID)
@@ -631,6 +632,11 @@ trace('playing music sfx', sfxID)
 				music(sfxID, i+3, i+3)
 			end
 		end
+		--]]
+		-- [[ nah, just export music tracks as sfx-music tracks
+		-- notice this method isn't so compatible with 'mask' like the above method is
+		music(n+128, 4, 4)
+		--]]
 	end,
 	sfx=[n,ch,ofs,len]do
 		music(n, 0, ch)	-- store pico8 waveforms as my sfx, store its sfx and music as my music

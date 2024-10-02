@@ -106,15 +106,19 @@ local ROM = struct{
 				-- playback information for sfx
 				-- so my music == pico8/tic80's sfx ... and rlly their music is just some small references to start loop / end loop of their sfx.
 
-				--	music format:
-				--	uint16_t beatsPerSecond;
-				--	struct {
-				--		uint16_t delay
-				--		struct {
-				--			uint8_t ofs; == 0xff => done with frame
-				--			uint8_t val;
-				--		}[];
-				--	}[];
+				--[[
+				music format:
+				uint16_t beatsPerSecond;
+				struct {
+					uint16_t beatsDelayUntilIssuingDeltaCmds;
+					struct {
+						uint8_t ofs;
+						uint8_t val;
+					} deltaCmdsPerFrame[];
+					-- ofs=0xff val=0xff represents the end of the delta-cmd frame
+					-- ofs=0xfe val=track # means jump to music track specified in the next uint16_t
+				} notes[];
+				--]]
 				-- TODO effects and loops and stuff ...
 				{name='musicAddrs', type='AddrLen['..musicTableSize..']'},
 
@@ -186,7 +190,7 @@ local Numo9ChannelFlags = struct{
 		how do I tell if a channel is busy?  based on this flag?  based on volume?  based on whether a music track is using it?
 		--]]
 		{name='isPlaying', type='uint8_t:1'},
-		
+
 		--[[
 		if this is false and we reach the end of the sfx data then stop the channel
 		if it's true then go back to the start of the sfx data
@@ -241,7 +245,7 @@ local Numo9MusicPlaying = struct{
 		{name='channelOffset', type='uint8_t'},		-- what # to add to all channels , module max # of channels, when playing (so dif tracks can play on dif channels at the same time)
 	},
 }
--- assert sizeof musicID >= musicTableSize - that it can represent all our music table entries 
+-- assert sizeof musicID >= musicTableSize - that it can represent all our music table entries
 
 -- make sure our delta compressed channels state change encoding can fit in its 8bpp messages
 assertle(ffi.sizeof'Numo9Channel' * audioMixChannels, 256)
@@ -286,7 +290,7 @@ local RAM = struct{
 				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
 
 				-- audio state of music tracks executing instructions to play dif waves at dif times
-				{name='musicPlaying', type='Numo9MusicPlaying['..audioMusicPlayingCount..']'}, 
+				{name='musicPlaying', type='Numo9MusicPlaying['..audioMusicPlayingCount..']'},
 
 				-- timer
 				{name='updateCounter', type='uint32_t'},	-- how many updates() overall, i.e. system clock
