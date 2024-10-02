@@ -667,6 +667,7 @@ print('toImage', name, 'width', width, 'height', height)
 					}
 
 
+					--[[
 					-- truncate the generated music and wav by removing volume=0 notes at the end ...
 					-- ... but don't modify the original, because music track generation below needs the #notes to match
 					local sfxNotes = table(sfx.notes)
@@ -675,7 +676,11 @@ print('toImage', name, 'width', width, 'height', height)
 					do
 						sfxNotes:remove()
 					end
-					-- keep at least the last volume==0 note so delta-compress can tell us to set the channel to 0 when we're done
+					--]]
+					-- [[
+					local sfxNotes = sfx.notes
+					--]]
+					--[[ keep at least the last volume==0 note so delta-compress can tell us to set the channel to 0 when we're done
 					-- TODO OR LOOP
 					sfxNotes:insert{
 						pitch = 0,
@@ -683,6 +688,7 @@ print('toImage', name, 'width', width, 'height', height)
 						volume = 0,
 						effect = 0,
 					}
+					--]]
 
 					if #sfxNotes > 0 then
 
@@ -711,7 +717,7 @@ print('toImage', name, 'width', width, 'height', height)
 						playbackDeltas:push_back(byte[1])
 						local lastNoteIndex = 1
 						for noteIndex,note in ipairs(sfxNotes) do
-							if note.volume > 0 then
+							do --if note.volume > 0 then
 								-- when converting pico8 sfx to my music tracks, just put them at track zero, I'll figure out how to shift them around later *shrug*
 								for k=0,audioOutChannels-1 do
 									soundState[0].volume[k] = math.floor(note.volume / 7 * 255)
@@ -949,7 +955,7 @@ print("total SFX data size if I'd use BRR: "..(
 					local changed = false
 					for channelIndexPlusOne,sfx in ipairs(musicSfxs) do
 						local note = sfx.notes[noteIndex]
-						if note.volume > 0 then
+						do --if note.volume > 0 then
 							local channelIndex = channelIndexPlusOne-1
 							-- when converting pico8 sfx to my music tracks, just put them at track zero, I'll figure out how to shift them around later *shrug*
 							for k=0,audioOutChannels-1 do
@@ -994,7 +1000,7 @@ print("total SFX data size if I'd use BRR: "..(
 				if musicTrack.loopTo then
 print('MUSIC', musicTrackIndex+128,'LOOPING TO', 128 + musicTrack.loopTo)
 					-- insert another 1-beat delay
-					playbackDeltas:emplace_back()[0] = 1
+					playbackDeltas:emplace_back()[0] = 0 --1
 					playbackDeltas:emplace_back()[0] = 0
 					-- then a jump-to-track
 					playbackDeltas:emplace_back()[0] = 0xfe
