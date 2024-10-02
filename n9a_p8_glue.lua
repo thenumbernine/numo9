@@ -467,6 +467,7 @@ assert(i>=0 and i<256)
 		screenY=math.floor(screenY or 0)
 
 -- [=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
+-- but wait, now that I started writing blank to tile index 0 in the converted cartridge ... 
 		if not layers and not p8PalChanged then
 			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
 		end

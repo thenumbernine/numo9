@@ -121,6 +121,18 @@ print('got bufferSizeInSeconds', bufferSizeInSeconds)
 	audio.audioBufferLength = updateIntervalInSamples
 	audio.audioBuffer = ffi.new(sampleType..'[?]', audio.audioBufferLength)
 
+	-- [[ trying to fix this mystery initial slowdown in sdl_queuaudio ...
+	-- maybe its caused by the intial mallocs so
+	-- lets alloc enough mem that we don't have to alloc any more
+	local tmpbuf = ffi.new(sampleType..'['..(audioOutChannels * sampleFramesPerSecond * 2)..']')	-- 2 seconds worth
+	sdlAssertZero(sdl.SDL_QueueAudio(
+		audio.deviceID,
+		tmpbuf,
+		ffi.sizeof(tmpbuf)
+	))
+	sdl.SDL_ClearQueuedAudio(audio.deviceID)
+	--]] -- hmm, didn't help ... 
+
 	print'starting audio...'
 	sdl.SDL_PauseAudioDevice(audio.deviceID, 0)	-- pause 0 <=> play
 

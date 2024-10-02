@@ -5,16 +5,6 @@ local Editor = require 'numo9.editor'
 
 local Menu = Editor:subclass()
 
-function Menu:init(args)
-	self.app = assertindex(args, 'app')
-	self.thread = coroutine.create(function()
-		while true do
-			coroutine.yield()
-			self:update()
-		end
-	end)
-end
-
 function Menu:update()
 	if not self.isOpen then return end
 	local app = self.app
@@ -23,6 +13,8 @@ function Menu:update()
 	local ysepstep = 7
 	local x = 60
 	local y = 24
+
+	self:initMenuTabs()
 
 	local function section(str)
 		y = y + ysepstep
@@ -113,6 +105,19 @@ function Menu:update()
 		return
 	end
 	y = y + ystep
+
+	if app:keyp'up' then
+		self.menuTabIndex = self.menuTabIndex - 1
+	end
+	if app:keyp'down' then
+		self.menuTabIndex = self.menuTabIndex + 1
+	end
+	if app:keyp'return' then
+		self.execMenuTab = true
+	end
+	if self.menuTabMax and self.menuTabMax > 0 then
+		self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+	end
 end
 
 return Menu

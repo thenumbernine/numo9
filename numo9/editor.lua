@@ -1,17 +1,19 @@
 local ffi = require 'ffi'
 local math = require 'ext.math'
 local table = require 'ext.table'
+local assertindex = require 'ext.assert'.index
 local class = require 'ext.class'
 
-local paletteSize = require 'numo9.rom'.paletteSize
-local spriteSize = require 'numo9.rom'.spriteSize
-local frameBufferSize = require 'numo9.rom'.frameBufferSize
-local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
-local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
-local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
-local tilemapSize = require 'numo9.rom'.tilemapSize
-local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
-local codeSize = require 'numo9.rom'.codeSize
+local numo9_rom = require 'numo9.rom'
+local paletteSize = numo9_rom.paletteSize
+local spriteSize = numo9_rom.spriteSize
+local frameBufferSize = numo9_rom.frameBufferSize
+local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
+local spriteSheetSize = numo9_rom.spriteSheetSize
+local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local tilemapSize = numo9_rom.tilemapSize
+local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
+local codeSize = numo9_rom.codeSize
 
 -- TODO make the editor a rom itself
 -- TODO make roms that hold all the necessary stuff
@@ -39,9 +41,16 @@ local editFieldForMode = {
 local Editor = class()
 
 function Editor:init(args)
-	self.app = assert(args.app)
-	self.tilemapEditor = args.tilemapEditor
+	self.app = assertindex(args, 'app')
 
+	self.menuTabCounter = 0
+	self.menuTabIndex = 0
+
+	-- thread that busy loops update and yields?
+	-- vs just calling update instead of resuming the thread?
+	-- the thread will store its errors separately
+	-- and that means no need to wrap all the updates in xpcall
+	-- likewise the error call stacks won't go back into the calling App's code
 	self.thread = coroutine.create(function()
 		while true do
 			coroutine.yield()
@@ -53,23 +62,37 @@ end
 function Editor:guiButton(str, x, y, isset, tooltip)
 	local app = self.app
 
-	local w = self:drawText(str, x, y,
-		isset and 13 or 10,
-		isset and 4 or 2
-		--isset and 15 or 4,
-		--isset and 7 or 8
-	)
+	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
+
+	local fg, bg
+	if isset and onThisMenuItem then
+		fg, bg = 0xfc, 0xf9
+	elseif isset then
+		fg, bg = 0xfc, 0xf8
+	elseif onThisMenuItem then
+		fg, bg = 0xfd, 0xf9
+	else
+		fg, bg = 0xfd, 0xf8
+	end
+
+--print('menutab', self.menuTabCounter, str)
+	local w = self:drawText(str, x, y, fg, bg)
+
+	self.menuTabCounter = self.menuTabCounter + 1
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
-	if mouseX >= x and mouseX < x + w
-	and mouseY >= y and mouseY < y + spriteSize.y
+	local mouseOver =
+		mouseX >= x and mouseX < x + w
+		and mouseY >= y and mouseY < y + spriteSize.y
+	if tooltip and mouseOver then
+		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+	end
+	if (mouseOver and app:keyp'mouse_left')
+	or (self.execMenuTab and onThisMenuItem)
 	then
-		if tooltip then
-			self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
-		end
-		if app:keyp'mouse_left' then
-			return true
-		end
+		-- only clear it once its been handled
+		self.execMenuTab = false
+		return true
 	end
 end
 
@@ -134,9 +157,17 @@ function Editor:guiRadio(x, y, options, selected, cb)
 	end
 end
 
+-- this and the :gui stuff really is Gui more than Editor ...
+function Editor:initMenuTabs()
+	self.menuTabMax = self.menuTabCounter
+	self.menuTabCounter = 0
+end
+
 function Editor:update()
 	local app = self.app
 	local editModes = app.server and editModesWithNet or editModesWithoutNet
+
+	self:initMenuTabs()
 
 	app:clearScreen(0xf0)
 	app:drawSolidRect(

@@ -779,6 +779,8 @@ print('package.loaded', package.loaded)
 
 	-- editor init
 
+	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
+
 	self.editMode = 'code'	-- matches up with Editor's editMode's
 
 	local EditNet = require 'numo9.editnet'
@@ -802,8 +804,10 @@ print('package.loaded', package.loaded)
 		self.menu = Menu{app=self}
 	end)
 
-	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
-
+-- setFocus has been neglected ...
+-- ... this will cause the menu to open once its done playing
+-- TODO I need a good boot screen or something ...
+-- [[
 	self:setFocus{
 		thread = coroutine.create(function()
 			self:resetGFX()		-- needed to initialize UI colors
@@ -826,9 +830,13 @@ print('package.loaded', package.loaded)
 			if cmdline[1] then
 				self:load(cmdline[1])
 				self:runROM()
+			else
+				-- how to make it start with console open if there's no rom ...
+				self.con.isOpen = true
 			end
 		end),
 	}
+--]]
 end
 
 -------------------- ENV NETPLAY LAYER --------------------
@@ -1141,8 +1149,9 @@ conn.receivesPerSecond = 0
 				if coroutine.status(thread) == 'dead' then
 print('cartridge thread dead')
 					self:setFocus(nil)
-					--self.con.isOpen = true
-					self.menu.isOpen = true
+					-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
+					self.con.isOpen = true
+					--self.menu.isOpen = true
 				else
 					local success, msg = coroutine.resume(thread)
 					if not success then

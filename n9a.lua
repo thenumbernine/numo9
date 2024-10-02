@@ -777,14 +777,13 @@ print('toImage', name, 'width', width, 'height', height)
 			end
 		end
 		
-
+		--[=[ don't need to generate these here anymore...
 		for pass=0,1 do	-- second pass to handle sfx that reference themselves out of order
 			for sfxIndexPlusOne=1,64 do
 				local index = sfxIndexPlusOne-1
 				local sfx = sfxs[sfxIndexPlusOne]
 				if sfx and #sfx.notes > 0 then
 					local sfxNotes = sfx.notes
-					-- [=[ don't need to generate these here anymore...
 					local duration = math.max(1, sfx.duration)
 					local sampleFramesPerNote = sampleFramesPerNoteBase * duration
 					local sampleFrames = sampleFramesPerNote * #sfxNotes
@@ -857,11 +856,11 @@ print('wav '..index..' size', samples * ffi.sizeof(sampleType))
 							freq = sampleFramesPerSecond,
 						}
 					end
-					--]=]
 				end
 			end
-			basepath'sfx.lua':write(tolua(sfxs))
 		end
+		--]=]
+		basepath'sfx.lua':write(tolua(sfxs))
 
 --print('total SFX data size: '..totalSfxSize)
 --[[ TODO don't bother BRR-encode SFX data, it's going to turn into music commands anyways

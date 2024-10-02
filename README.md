@@ -401,6 +401,7 @@ Pico8 Compatability is at 95%
 	- needs echo effect
 	- needs ADSR
 - input
+	- menu arrow key support
 	- joystick support
 	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
@@ -427,3 +428,4 @@ Pico8 Compatability is at 95%
 		- paste in midi files ... but how to correlate instruments with your wave samples?  can midi files save wave data themselves?
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
+- package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
