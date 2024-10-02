@@ -449,7 +449,14 @@ print('toImage', name, 'width', width, 'height', height)
 	gfxImg:save(basepath'sprite.png'.path)
 
 	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
-	gfxImg:save(basepath'tiles.png'.path)
+	local tileImage = gfxImg:clone()
+	-- tile index 0 is always transparent so ...
+	for j=0,7 do
+		for i=0,7 do
+			tileImage.buffer[i + tileImage.width * j] = 0
+		end
+	end
+	tileImage:save(basepath'tiles.png'.path)
 
 	local labelSrc = move(sections, 'label')
 	if labelSrc then
@@ -508,15 +515,26 @@ print('toImage', name, 'width', width, 'height', height)
 				end
 			end
 		end
-		-- also map gets the last 32 rows of gfx
-		-- looks like they are interleaved by row, lo hi lo hi ..
+		--[[
+		ok spritesheet is 128x64 4bpp with another shared 128x64 4bpp
+		tilemap is 128x32 8bpp with shared 128x32 8bpp
+		so that's what's shared ... so 128 pixels of the spritesheet fit into 64 pixels of the tilesheet
+		--]]
 		do
 			local p = ffi.cast('uint16_t*', mapImg.buffer)
 			for j=64,127 do
-				for i=0,127 do
-					local dstp = p + i + mapImg.width * j
-					local srcp = gfxImg.buffer + i + gfxImg.width * j
-					dstp[0] = bit.bor(srcp[0], bit.lshift(srcp[1], 5))
+				for i=0,63 do
+					local dstp
+					if bit.band(j, 1) == 0 then
+						dstp = p + i + mapImg.width * bit.rshift(j, 1)
+					else
+						dstp = p + i + 64 + mapImg.width * bit.rshift(j, 1)
+					end
+					local srcp = gfxImg.buffer + bit.lshift(i, 1) + gfxImg.width * j
+					dstp[0] = bit.bor(
+						bit.band(0x0f, srcp[0]),
+						bit.lshift(bit.band(0x0f, srcp[1]), 5)
+					)
 				end
 			end
 		end
