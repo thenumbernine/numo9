@@ -576,7 +576,8 @@ function Server:init(app)
 	local listenAddr = app.cfg.serverListenAddr
 	-- default to the config (which itself is defaulted to Server.defaultListenPort)
 	-- so that a 'listen()' call will use the config specified port
-	local listenPort = app.cfg.serverListenPort
+	-- TODO if the text isn't a number... silently use default? error?
+	local listenPort = tonumber(app.cfg.serverListenPort) or self.defaultListenPort
 	con:print('init listening on '..tostring(listenAddr)..':'..tostring(listenPort))
 
 	self.conns = table()
