@@ -104,42 +104,14 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
-	self:drawText('<', x, y, 13, 0)
-	if leftButtonPress
-	and mouseX >= x and mouseX < x + spriteSize.x
-	and mouseY >= y and mouseY < y + spriteSize.y
-	then
+	if self:guiButton('<', x, y, nil, tooltip) then
 		cb(-1)
 	end
 
 	x = x + spriteSize.x
-	self:drawText('>', x, y, 13, 0)
-	if leftButtonPress
-	and mouseX >= x and mouseX < x + spriteSize.x
-	and mouseY >= y and mouseY < y + spriteSize.y
-	then
+	if self:guiButton('>', x, y, nil, tooltip) then
 		cb(1)
 	end
-
-	if mouseX >= x - spriteSize.x and mouseX < x + spriteSize.x
-	and mouseY >= y and mouseY < y + spriteSize.y
-	then
-		if tooltip then
-			self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
-		end
-	end
-end
-
-function Editor:setTooltip(s, x, y, fg, bg)
-	x = math.clamp(x, 8, frameBufferSize.x-8)
-	y = math.clamp(y, 8, frameBufferSize.y-8)
-	self.tooltip = {s, x, y, fg, bg}
-end
-
-function Editor:drawTooltip()
-	if not self.tooltip then return end
-	self:drawText(table.unpack(self.tooltip))
-	self.tooltip = nil
 end
 
 function Editor:guiRadio(x, y, options, selected, cb)
@@ -155,6 +127,18 @@ function Editor:guiRadio(x, y, options, selected, cb)
 		end
 		x = x + 6
 	end
+end
+
+function Editor:setTooltip(s, x, y, fg, bg)
+	x = math.clamp(x, 8, frameBufferSize.x-8)
+	y = math.clamp(y, 8, frameBufferSize.y-8)
+	self.tooltip = {s, x, y, fg, bg}
+end
+
+function Editor:drawTooltip()
+	if not self.tooltip then return end
+	self:drawText(table.unpack(self.tooltip))
+	self.tooltip = nil
 end
 
 -- this and the :gui stuff really is Gui more than Editor ...

@@ -1,3 +1,4 @@
+local math = require 'ext.math'
 local assertindex = require 'ext.assert'.index
 -- it's not an editor, but I put the gui functions in numo9.editor, so ...
 -- strraigthen this out, either rename numo9.editor to numo9.gui, or use the gui project, or put the functions somewhere else like app or video, idk...
@@ -57,12 +58,11 @@ function Menu:update()
 	-- configure
 	section'sound'
 
-	if self:guiButton('sfx volume', x, y) then
-	end
-	y = y + ystep
-
-	if self:guiButton('music volume', x, y) then
-	end
+	app:drawText('volume', x, y, 0xf7, 0xf0)
+	self:guiSpinner(x + 32, y, function(dx)
+		app.cfg.volume = math.clamp(app.cfg.volume + dx, 0, 255)
+	end, 'volume')	-- TODO where's the tooltip?
+	app:drawText(tostring(app.cfg.volume), x + 56, y, 0xf7, 0xf0)
 	y = y + ystep
 
 	section'input'

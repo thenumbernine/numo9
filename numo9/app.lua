@@ -20,6 +20,8 @@ local table = require 'ext.table'
 local range = require 'ext.range'
 local math = require 'ext.math'
 local path = require 'ext.path'
+local tolua = require 'ext.tolua'
+local fromlua = require 'ext.fromlua'
 local getTime = require 'ext.timer'.getTime
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
@@ -95,7 +97,7 @@ end
 
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
-App.cfgfilename = 'config.lua'
+App.cfgpath = path'config.lua'
 
 -- fps vars
 local lastTime = getTime()
@@ -809,26 +811,24 @@ print('package.loaded', package.loaded)
 	end)
 
 	-- load config if it exists
-	local fromlua = require 'ext.fromlua'
 	xpcall(function()
-		local cfgpath = path(self.cfgfilename)
-		if cfgpath:exists() then
-			self.cfg = fromlua(assert(cfgpath:read()))
+		if self.cfgpath:exists() then
+			self.cfg = fromlua(assert(self.cfgpath:read()))
 		end
 	end, function(err)
-		print('failed to read lua from file '..tostring(self.cfgfilename)..'\n'
+		print('failed to read lua from file '..tostring(self.cfgpath)..'\n'
 			..tostring(err)..'\n'
 			..debug.traceback())
 	end)
 
 
 	-- initialize config or any of its properties if they were missing
-	self.cfg = self.cfg or {}
 	local function setdefault(t,k,v)
 		if t[k] == nil then t[k] = v end
 	end
 
-	setdefault(self.cfg, 'volume', 1)
+	setdefault(self, 'cfg', {})
+	setdefault(self.cfg, 'volume', 255)
 
 	-- notice on my osx, even 'localhost' and '127.0.0.1' aren't interchangeable
 	-- TODO use a proper ip ...
@@ -902,6 +902,12 @@ print('package.loaded', package.loaded)
 		end),
 	}
 --]]
+end
+
+function App:exit()
+	self.cfgpath:write(tolua(self.cfg, {indent=true}))
+
+	App.super.exit(self)
 end
 
 -------------------- ENV NETPLAY LAYER --------------------
