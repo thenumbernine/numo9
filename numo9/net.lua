@@ -567,16 +567,16 @@ end
 
 local Server = class()
 
--- TODO make this configurable
-Server.listenAddr = 'localhost'	-- notice on my osx, even 'localhost' and '127.0.0.1' aren't interchangeable
-Server.listenPort = 50505
+Server.defaultListenPort = 50505
 
 function Server:init(app)
 	self.app = assert(app)
 	local con = app.con
 
-	local listenAddr = self.listenAddr
-	local listenPort = self.listenPort
+	local listenAddr = app.cfg.serverListenAddr
+	-- default to the config (which itself is defaulted to Server.defaultListenPort)
+	-- so that a 'listen()' call will use the config specified port
+	local listenPort = app.cfg.serverListenPort
 	con:print('init listening on '..tostring(listenAddr)..':'..tostring(listenPort))
 
 	self.conns = table()

@@ -87,14 +87,15 @@ struct {
 	uint16_t delayUntilNextNoteInBeats;
 
 	//Array of byte offset and value changes to the `channels` array in RAM at the current beat.
-	//An offset and value of 0xff indicates the end of the list.
+	//An offset and value of 0XFF indicates the end of the list.
+	//An offset of 0xFE means that the next value will specify the music track to immediately jump to.
 	struct {
 		uint8_t offset;
 		uint8_t value;
 	}[];
 }[];
 ```
-When playing music track i, the music data starts at `musicAddrs[i].addr` and ends at 	`musicAddrs[i].addr + musicAddrs[i].len`.
+When playing music track i, the music data starts at `musicAddrs[i].addr` and ends at `musicAddrs[i].addr + musicAddrs[i].len`.
 
 Each mixing channel holds the following information:
 - volume[2] for left and right output
@@ -396,8 +397,8 @@ Pico8 Compatability is at 95%
 # TODO
 - waveforms
 	- BRR
+	- with this comes looping-sample info being stored in the BRR ... should I also?
 - music 
-	- no sort of looping track information just yet
 	- needs echo effect
 	- needs ADSR
 - input
@@ -429,3 +430,12 @@ Pico8 Compatability is at 95%
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
+
+# Things I'm still debating ...
+- How many max players at once?  Right now it's upper bound to 4, restricted by my fixed player button memory locaitons, but this can be changed...
+- Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can see separate screens?
+- Right now the keypad is UP DOWN LEFT RIGHT A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
+- What's a good default keyboard configuration?
+- Right now editor palette is 4bpp by default, to be like similar fantasy consoles ... why not default to 8bpp?
+- Right now editor tilemap is 8x8 tiles by default ... why not default to 16x16?
+- How to organize the UX of the running game, the console, the menu, and the editor ...

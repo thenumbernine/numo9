@@ -29,6 +29,9 @@ local gl = require 'gl'
 local GLApp = require 'glapp'
 local ThreadManager = require 'threadmanager'
 
+local Server = require 'numo9.net'.Server
+local ClientConn = require 'numo9.net'.ClientConn
+
 local numo9_rom = require 'numo9.rom'
 local updateHz = numo9_rom.updateHz
 local updateIntervalInSeconds = numo9_rom.updateIntervalInSeconds
@@ -54,13 +57,12 @@ local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
 local packptr = numo9_rom.packptr
 
 local numo9_keys = require 'numo9.keys'
+local maxLocalPlayers = numo9_keys.maxLocalPlayers
 local keyCodeNames = numo9_keys.keyCodeNames
 local keyCodeForName = numo9_keys.keyCodeForName
 local sdlSymToKeyCode = numo9_keys.sdlSymToKeyCode
 local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode
 local buttonCodeForName = numo9_keys.buttonCodeForName
-local keyCodeForButtonIndex = numo9_keys.keyCodeForButtonIndex
-local buttonIndexForKeyCode = numo9_keys.buttonIndexForKeyCode
 
 local netcmds = require 'numo9.net'.netcmds
 
@@ -92,6 +94,8 @@ for k,v in pairs(require 'numo9.audio'.AppAudio) do
 end
 
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
+
+App.cfgfilename = 'config.lua'
 
 -- fps vars
 local lastTime = getTime()
@@ -804,6 +808,66 @@ print('package.loaded', package.loaded)
 		self.menu = Menu{app=self}
 	end)
 
+	-- load config if it exists
+	local fromlua = require 'ext.fromlua'
+	xpcall(function()
+		local cfgpath = path(self.cfgfilename)
+		if cfgpath:exists() then
+			self.cfg = fromlua(assert(cfgpath:read()))
+		end
+	end, function(err)
+		print('failed to read lua from file '..tostring(self.cfgfilename)..'\n'
+			..tostring(err)..'\n'
+			..debug.traceback())
+	end)
+
+
+	-- initialize config or any of its properties if they were missing
+	self.cfg = self.cfg or {}
+	local function setdefault(t,k,v)
+		if t[k] == nil then t[k] = v end
+	end
+
+	setdefault(self.cfg, 'volume', 1)
+
+	-- notice on my osx, even 'localhost' and '127.0.0.1' aren't interchangeable
+	-- TODO use a proper ip ...
+	setdefault(self.cfg, 'serverListenAddr', 'localhost')
+
+	setdefault(self.cfg, 'serverListenPort', Server.defaultListenPort)
+	setdefault(self.cfg, 'playerInfos', {})
+	setdefault(self.cfg.playerInfos, 1, {})
+
+	-- for netplay, shows up in the net menu
+	setdefault(self.cfg.playerInfos[1], 'name', 'steve')
+	-- this is for server netplay, it says who to associate this conn's player with
+	setdefault(self.cfg.playerInfos[1], 'localPlayer', 1)
+	-- fake-gamepad key bindings
+	setdefault(self.cfg.playerInfos[1], 'keyCodeForButtonIndex', {})
+	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.up, keyCodeForName.up)
+	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.down, keyCodeForName.down)
+	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.left, keyCodeForName.left)
+	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.right, keyCodeForName.right)
+	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.a, keyCodeForName.s)
+	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.b, keyCodeForName.x)
+	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.x, keyCodeForName.a)
+	setdefault(self.cfg.playerInfos[1].keyCodeForButtonIndex, buttonCodeForName.y, keyCodeForName.z)
+
+	-- NOTICE any time the cfg.playerInfos[i].keyCodeForButtonIndex[j] changes, update this:
+	self.buttonIndexForKeyCode = {}
+	for playerIndex=0,maxLocalPlayers-1 do
+		local playerInfo = self.cfg.playerInfos[playerIndex+1]
+		if playerInfo then
+			for buttonIndex, keyCode in pairs(playerInfo.keyCodeForButtonIndex) do	-- use pairs since it has a [0] in it ...
+				self.buttonIndexForKeyCode[keyCode] = buttonIndex + bit.lshift(playerIndex, 3)
+			end
+		end
+	end
+
+	-- can have 3 more ... at least I've only allocated enough for 4 players worth of keys ...
+	-- and right now netplay operates by reflecting keys and draw-commands ...
+
+
 -- setFocus has been neglected ...
 -- ... this will cause the menu to open once its done playing
 -- TODO I need a good boot screen or something ...
@@ -812,16 +876,17 @@ print('package.loaded', package.loaded)
 		thread = coroutine.create(function()
 			self:resetGFX()		-- needed to initialize UI colors
 			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
+			--[[ print or so something cheesy idk
 			--for i=1,30 do coroutine.yield() end
 			for i=0,15 do
 				self.con.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
 				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
 				self.con:print'hello world'
-
 				--for i=1,3 do coroutine.yield() end
 			end
 			self.con.fgColor = 0xfc			-- 11 = bg, 12 = fg
 			self.con.bgColor = 0xf0
+			--]]
 
 			if cmdline.initCmd then
 				self:runCmd(cmdline.initCmd)
@@ -901,9 +966,6 @@ end
 
 -------------------- MULTIPLAYER --------------------
 
-local Server = require 'numo9.net'.Server
-local ClientConn = require 'numo9.net'.ClientConn
-
 -- stop all client and server stuff from going on
 function App:disconnect()
 	if self.server then
@@ -918,14 +980,6 @@ function App:disconnect()
 	end
 end
 
--- TODO where to config # of local players, keys, etc?
-App.playerInfos = {	-- TODO put this in a config file
-	{name='a', localPlayer=1},
-	{name='b'},
-	{name='c'},
-	{name='d'},
-}
-
 -- server listen
 function App:listen()
 	self:disconnect()
@@ -935,6 +989,7 @@ function App:listen()
 end
 
 -- client connect
+-- TODO save addr and port in config also, for next time you connect?
 function App:connect(addr, port)
 	self:disconnect()
 
@@ -944,9 +999,13 @@ print('setFocus empty')
 
 	self.remoteClient = ClientConn{
 		app = self,
-		playerInfos = self.playerInfos,
+		playerInfos = self.cfg.playerInfos,
 		addr = assert(addr, "expected addr"),
-		port = port or Server.listenPort,
+
+		-- default to the system default port, not the configured server listen port
+		-- since odds are wherever you're connecting is using the default
+		port = port or Server.defaultListenPort,
+
 		fail = function(...)
 			print('connect fail', ...)
 		end,
@@ -1620,7 +1679,7 @@ function App:runROM()
 --DEBUG:print'**** GOT CODE ****'
 --DEBUG:print(require 'template.showcode'(code))
 --DEBUG:print('**** CODE LEN ****', #code)
-print('code is', #code, 'bytes')
+--DEBUG:print('code is', #code, 'bytes')
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
@@ -1631,9 +1690,9 @@ print('code is', #code, 'bytes')
 		local f = assert(self:loadCmd(code, env, self.cartridgeName))
 		local result = table.pack(f())
 
-print('LOAD RESULT', result:unpack())
-print('RUNNING CODE')
-print('update:', env.update)
+--DEBUG:print('LOAD RESULT', result:unpack())
+--DEBUG:print('RUNNING CODE')
+--DEBUG:print('update:', env.update)
 
 		if not env.update then return end
 		while true do
@@ -1747,10 +1806,10 @@ function App:btn(buttonCode, player, ...)
 	asserttype(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
-	local playerButtonCode = buttonCode + 8 * player
-	local buttonKeyCode = playerButtonCode + firstJoypadKeyCode
-	local keyCode = keyCodeForButtonIndex[playerButtonCode]
+	if player < 0 or player >= maxLocalPlayers then return end
+	local keyCode = self.cfg.playerInfos[player+1].keyCodeForButtonIndex[buttonCode]
 	if not keyCode then return end
+	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:key(buttonKeyCode, ...)
 end
 function App:btnp(buttonCode, player, ...)
@@ -1760,10 +1819,10 @@ function App:btnp(buttonCode, player, ...)
 	asserttype(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
-	local playerButtonCode = buttonCode + 8 * player
-	local buttonKeyCode = playerButtonCode + firstJoypadKeyCode
-	local keyCode = keyCodeForButtonIndex[playerButtonCode]
+	if player < 0 or player >= maxLocalPlayers then return end
+	local keyCode = self.cfg.playerInfos[player+1].keyCodeForButtonIndex[buttonCode]
 	if not keyCode then return end
+	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyp(buttonKeyCode, ...)
 end
 function App:btnr(buttonCode, player, ...)
@@ -1773,10 +1832,10 @@ function App:btnr(buttonCode, player, ...)
 	asserttype(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
-	local playerButtonCode = buttonCode + 8 * player
-	local buttonKeyCode = playerButtonCode + firstJoypadKeyCode
-	local keyCode = keyCodeForButtonIndex[playerButtonCode]
+	if player < 0 or player >= maxLocalPlayers then return end
+	local keyCode = self.cfg.playerInfos[player+1].keyCodeForButtonIndex[buttonCode]
 	if not keyCode then return end
+	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyr(buttonKeyCode, ...)
 end
 
@@ -1860,7 +1919,7 @@ function App:event(e)
 					down and flag or 0
 				)
 
-				local buttonCode = buttonIndexForKeyCode[keycode]
+				local buttonCode = self.buttonIndexForKeyCode[keycode]
 				-- gets us the 0-based keys
 				if buttonCode then
 					local keycode = buttonCode + firstJoypadKeyCode

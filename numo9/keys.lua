@@ -4,6 +4,8 @@ local sdl = require 'sdl'
 local table = require 'ext.table'
 local asserteq = require 'ext.assert'.eq
 
+local maxLocalPlayers = 4	-- does this go here or ROM?  for now it seems here is best
+
 -- key code list, 1-baesd, sequential
 local keyCodeNames = table{
 	'a',
@@ -92,43 +94,27 @@ keyCodeNames:append{
 asserteq(#keyCodeNames % 8, 0)
 
 local firstJoypadKeyCode = #keyCodeNames
+assert(bit.band(firstJoypadKeyCode, 7) == 0)	-- make sure we are 8-aligned so the keyflag bits are byte-aligned, for net reflection
 
+-- indexed code+1 because 1-based array...
+-- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
+-- fun fact, SNES's keys in-order are:
+-- B Y Sel Start Up Down Left Right A X L R
+local buttonNames = table{'up', 'down', 'left', 'right', 'a', 'b', 'x', 'y'}
+
+local buttonCodeForName = buttonNames:mapi(function(name,indexPlusOne)
+	return indexPlusOne-1, name
+end):setmetatable(nil)
+
+for playerIndex=0,maxLocalPlayers-1 do
+	for _,buttonName in ipairs(buttonNames) do
+		keyCodeNames:insert('jp'..playerIndex..'_'..buttonName)
+	end
+end
+
+-- TODO tempting to put the mouse buttons before the joypad ones, tho i want the joypad ones to be aligned to 8
+-- then if I add more joypads the mouse won't change
 keyCodeNames:append{
-	-- joypad 0 thru 3
-	-- buttons: up down left right a b x y
-	'jp0_up',
-	'jp0_down',
-	'jp0_left',
-	'jp0_right',
-	'jp0_a',
-	'jp0_b',
-	'jp0_x',
-	'jp0_y',
-	'jp1_up',
-	'jp1_down',
-	'jp1_left',
-	'jp1_right',
-	'jp1_a',
-	'jp1_b',
-	'jp1_x',
-	'jp1_y',
-	'jp2_up',
-	'jp2_down',
-	'jp2_left',
-	'jp2_right',
-	'jp2_a',
-	'jp2_b',
-	'jp2_x',
-	'jp2_y',
-	'jp3_up',
-	'jp3_down',
-	'jp3_left',
-	'jp3_right',
-	'jp3_a',
-	'jp3_b',
-	'jp3_x',
-	'jp3_y',
-
 	'mouse_left',
 	'mouse_middle',
 	'mouse_right',
@@ -294,47 +280,12 @@ local function getAsciiForKeyCode(keyCode, shift)
 	-- keys like esc shift ctrl alt gui
 end
 
-local buttonCodeForName = {
-	up = 0,
-	down = 1,
-	left = 2,
-	right = 3,
-	a = 4,
-	b = 5,
-	x = 6,
-	y = 7,
-}
-
--- TODO make this configurable
--- let's use tic80's standard for button codes
--- but ofc I gotta tweak it to my own mapping
--- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
--- fun fact, SNES's keys in-order are:
--- B Y Sel Start Up Down Left Right A X L R
-local keyCodeForButtonIndex = {
-	-- player 1
-	[0] = keyCodeForName.up,		-- UP
-	[1] = keyCodeForName.down,		-- DOWN
-	[2] = keyCodeForName.left,		-- LEFT
-	[3] = keyCodeForName.right,		-- RIGHT
-	[4] = keyCodeForName.s,			-- A
-	[5] = keyCodeForName.x,			-- B
-	[6] = keyCodeForName.a,			-- X
-	[7] = keyCodeForName.z,			-- Y
-	-- TODO player 2 player 3 player 4 ...
-	-- L R? start select?  or nah? or just one global menu button?
-}
-local buttonIndexForKeyCode = table.map(keyCodeForButtonIndex, function(keyCode, buttonIndex)
-	return buttonIndex, keyCode
-end):setmetatable(nil)
-
 return {
+	maxLocalPlayers = maxLocalPlayers,
 	keyCodeNames = keyCodeNames,
 	keyCodeForName = keyCodeForName,
 	sdlSymToKeyCode = sdlSymToKeyCode,
 	getAsciiForKeyCode = getAsciiForKeyCode,
 	firstJoypadKeyCode = firstJoypadKeyCode,
 	buttonCodeForName = buttonCodeForName,
-	keyCodeForButtonIndex = keyCodeForButtonIndex,
-	buttonIndexForKeyCode = buttonIndexForKeyCode,
 }
