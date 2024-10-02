@@ -251,121 +251,143 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 	))
 end
 
+function AppAudio:updateMusicPlaying(musicPlaying)
+	local audio = self.audio
+	if musicPlaying.addr >= musicPlaying.endAddr then
+		musicPlaying.isPlaying = 0
+		return
+	end
+	if musicPlaying.isPlaying == 0 then
+		return
+	end
+	if audio.sampleFrameIndex < musicPlaying.nextBeatSampleFrameIndex then
+	--if audio.sampleFrameIndex + updateIntervalInSampleFrames < musicPlaying.nextBeatSampleFrameIndex then
+		return
+	end
+
+	-- TODO combine this with musicPlaying.addr just like channel.addr's lower 12 bits
+	--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
+	--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
+	-- ... maintain bps and try not to skip
+	musicPlaying.sampleFrameIndex = musicPlaying.nextBeatSampleFrameIndex
+
+	-- decode channel deltas
+	-- TODO if we have bad audio data then this will have to process all 64k before it quits ...
+	while true do
+local decodeStartAddr = musicPlaying.addr
+assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
+		local index = self.ram.audioData[musicPlaying.addr]
+		local value = self.ram.audioData[musicPlaying.addr + 1]
+		musicPlaying.addr = musicPlaying.addr + 2
+		if index == 0xff then
+print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
+			goto updateMusic_readDelay
+		end
+		if index == 0xfe then
+print('GOT PLAY MUSIC', value)
+			-- play music
+			local music = self.ram.musicAddrs[value]
+			musicPlaying.addr = music.addr
+			musicPlaying.endAddr = music.addr + music.len
+--assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.audioData))
+--assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= ffi.sizeof(self.ram.audioData))
+			local beatsPerSecond = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+			musicPlaying.sampleFramesPerBeat = sampleFramesPerSecond / beatsPerSecond
+			musicPlaying.addr = musicPlaying.addr + 2
+
+			local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+			musicPlaying.addr = musicPlaying.addr + 2
+
+			-- this usually comes right after a delay command ... so ... should I even bother with resetting the musicPlaying.sampleFrameIndex
+			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
+			--musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
+			self:updateMusicPlaying(musicPlaying)
+			return
+		end
+		--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
+		if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
+print('musicPlaying', musicPlayingIndex, 'got bad data')
+			musicPlaying.isPlaying = 0
+			return
+		end
+print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
+
+		-- if we're setting a channel to a new sfx
+		-- then reset the channel addr to that sfx's addr
+		-- I guess I could 'TODO when it sets the sfxID, have it set the addr as well'
+		--  but this might take some extra preparation in packaging the ROM ... I'll think about
+		local channelByteOffset = index % ffi.sizeof'Numo9Channel'
+		local channelIndex = (index - channelByteOffset) / ffi.sizeof'Numo9Channel'
+		-- 7 cuz max # playing tracks is 8 ... TODO an assert somewhere
+		channelIndex = bit.band(7, channelIndex + musicPlaying.channelOffset)
+
+		--[[ play using delta encoding's offset into all channels
+		channelPtr[index] = value
+		--]]
+		-- [[ play using our modulo channel size
+		ffi.cast('uint8_t*', self.ram.channels + channelIndex)[channelByteOffset] = value
+		--]]
+
+		if channelByteOffset == ffi.offsetof('Numo9Channel', 'volume') then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
+		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
+
+		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
+		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
+
+		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')
+		or channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
+		then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
+
+		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
+print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
+			-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
+			local sfx = self.ram.sfxAddrs[value]
+			local sfxaddr =  sfx.addr
+			-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
+			asserteq(bit.band(sfxaddr, 1), 0)
+			-- THEN SHIFT IT ... 11 ... which is 12 minus 1
+			-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
+			local channel = self.ram.channels[channelIndex]
+			channel.flags.isPlaying = 1
+			-- TODO looping ... looping in track music ... looping in sfx playback ... idk shrug
+			channel.flags.isLooping = 1
+			channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
+			-- so the bottom 12 should be 0's at this point
+		end
+
+		if musicPlaying.addr >= musicPlaying.endAddr-1 then
+print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+			musicPlaying.isPlaying = 0
+			return
+		end
+		-- TODO either handle state changes here or somewhere else.
+		-- here is as good as anywhere ...
+	end
+
+::updateMusic_readDelay::
+	if musicPlaying.addr >= musicPlaying.endAddr-1 then
+print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+		musicPlaying.isPlaying = 0
+	else
+		local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+		musicPlaying.addr = musicPlaying.addr + 2
+		musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
+print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
+	end
+end
+
 function AppAudio:updateMusic()
 	local audio = self.audio
 	local channelPtr = ffi.cast('uint8_t*', self.ram.channels)
 
 	local musicPlaying = self.ram.musicPlaying+0
 	for musicPlayingIndex=0,audioMusicPlayingCount-1 do
-		do
-			if musicPlaying.addr >= musicPlaying.endAddr then
-				musicPlaying.isPlaying = 0
-				goto updateMusic_nextPlaying
-			end
-			if musicPlaying.isPlaying == 0 then
-				goto updateMusic_nextPlaying
-			end
-			if audio.sampleFrameIndex < musicPlaying.nextBeatSampleFrameIndex then
-			--if audio.sampleFrameIndex + updateIntervalInSampleFrames < musicPlaying.nextBeatSampleFrameIndex then
-				goto updateMusic_nextPlaying
-			end
-
-			-- TODO combine this with musicPlaying.addr just like channel.addr's lower 12 bits
-			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
-			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
-			-- ... maintain bps and try not to skip
-			musicPlaying.sampleFrameIndex = musicPlaying.nextBeatSampleFrameIndex
-
-			-- decode channel deltas
-			-- TODO if we have bad audio data then this will have to process all 64k before it quits ...
-			while true do
-local decodeStartAddr = musicPlaying.addr
-assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
-				local index = self.ram.audioData[musicPlaying.addr]
-				local value = self.ram.audioData[musicPlaying.addr + 1]
-				musicPlaying.addr = musicPlaying.addr + 2
-				if musicPlaying.addr >= musicPlaying.endAddr-1 then
---print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
-					musicPlaying.isPlaying = 0
-					goto updateMusic_nextPlaying
-				end
-
-				if index == 0xff then
---print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
-					goto updateMusic_readDelay
-				end
-				--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
-				if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
---print('musicPlaying', musicPlayingIndex, 'got bad data')
-					musicPlaying.isPlaying = 0
-					goto updateMusic_nextPlaying
-				end
---print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
-
-				-- if we're setting a channel to a new sfx
-				-- then reset the channel addr to that sfx's addr
-				-- I guess I could 'TODO when it sets the sfxID, have it set the addr as well'
-				--  but this might take some extra preparation in packaging the ROM ... I'll think about
-				local channelByteOffset = index % ffi.sizeof'Numo9Channel'
-				local channelIndex = (index - channelByteOffset) / ffi.sizeof'Numo9Channel'
-				-- 7 cuz max # playing tracks is 8 ... TODO an assert somewhere
-				channelIndex = bit.band(7, channelIndex + musicPlaying.channelOffset)
-
-				--[[ play using delta encoding's offset into all channels
-				channelPtr[index] = value
-				--]]
-				-- [[ play using our modulo channel size
-				ffi.cast('uint8_t*', self.ram.channels + channelIndex)[channelByteOffset] = value
-				--]]
-
-				if channelByteOffset == ffi.offsetof('Numo9Channel', 'volume') then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
-				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
-
-				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
-				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
-
-				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')
-				or channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
-				then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
-
-				elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
-					-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
-					local sfx = self.ram.sfxAddrs[value]
-					local sfxaddr =  sfx.addr
-					-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
-					asserteq(bit.band(sfxaddr, 1), 0)
-					-- THEN SHIFT IT ... 11 ... which is 12 minus 1
-					-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
-					local channel = self.ram.channels[channelIndex]
-					channel.flags.isPlaying = 1
-					-- TODO looping ... looping in track music ... looping in sfx playback ... idk shrug
-					channel.flags.isLooping = 1
-					channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
-					-- so the bottom 12 should be 0's at this point
-				end
-
-				if musicPlaying.addr >= musicPlaying.endAddr-1 then
---print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
-					musicPlaying.isPlaying = 0
-					goto updateMusic_nextPlaying
-				end
-				-- TODO either handle state changes here or somewhere else.
-				-- here is as good as anywhere ...
-			end
-
-::updateMusic_readDelay::
-			local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
-			musicPlaying.addr = musicPlaying.addr + 2
-			musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
---print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
-		end
-::updateMusic_nextPlaying::
+		self:updateMusicPlaying(musicPlaying)
 		musicPlaying = musicPlaying + 1
 	end
 end
@@ -505,18 +527,20 @@ print('playMusic', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffs
 --print('playing with beats/second', beatsPerSecond)
 	musicPlaying.addr = musicPlaying.addr + 2
 
-	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 	-- audio ticks should be in sampleFramesPerSecond
 	-- so `1 / beatsPerSecond` seconds = `sampleFramesPerSecond / beatsPerSecond` sampleFrames
 	musicPlaying.sampleFramesPerBeat = sampleFramesPerSecond / beatsPerSecond
 
 	local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
 	musicPlaying.addr = musicPlaying.addr + 2
+
+	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 	musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
 --print('playMusic music wait', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
 
 	-- see if any notes need to be played immediately
-	self:updateMusic()
+	-- TODO only update this specific track ...
+	self:updateMusicPlaying(musicPlaying)
 end
 
 return {
