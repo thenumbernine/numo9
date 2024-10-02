@@ -306,11 +306,11 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 		local value = self.ram.audioData[musicPlaying.addr + 1]
 		musicPlaying.addr = musicPlaying.addr + 2
 		if index == 0xff then
-print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
-			goto updateMusic_readDelay
+--print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
+			break
 		end
 		if index == 0xfe then
-print('GOT PLAY MUSIC', value)
+--print('GOT PLAY MUSIC', value)
 			-- play music
 			local music = self.ram.musicAddrs[value]
 			musicPlaying.addr = music.addr
@@ -329,17 +329,17 @@ print('GOT PLAY MUSIC', value)
 			-- this usually comes right after a delay command ... so ... should I even bother with resetting the musicPlaying.sampleFrameIndex
 			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 			musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
-print('loopAt sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
+--print('loopAt sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
 			self:updateMusicPlaying(musicPlaying)
 			return
 		end
 		--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
 		if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
-print('musicPlaying', musicPlayingIndex, 'got bad data')
+--print('musicPlaying', musicPlayingIndex, 'got bad data')
 			musicPlaying.isPlaying = 0
 			return
 		end
-print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
+--print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
 
 		-- if we're setting a channel to a new sfx
 		-- then reset the channel addr to that sfx's addr
@@ -358,22 +358,22 @@ print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..(
 		--]]
 
 		if channelByteOffset == ffi.offsetof('Numo9Channel', 'volume') then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
 
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
 
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')
 		or channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
 		then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
 
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
-print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
 			-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
 			local sfx = self.ram.sfxAddrs[value]
 			local sfxaddr =  sfx.addr
@@ -390,7 +390,7 @@ print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value
 		end
 
 		if musicPlaying.addr >= musicPlaying.endAddr-1 then
-print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+--print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 			musicPlaying.isPlaying = 0
 			return
 		end
@@ -398,15 +398,14 @@ print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 		-- here is as good as anywhere ...
 	end
 
-::updateMusic_readDelay::
 	if musicPlaying.addr >= musicPlaying.endAddr-1 then
-print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+--print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 		musicPlaying.isPlaying = 0
 	else
 		local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
 		musicPlaying.addr = musicPlaying.addr + 2
 		musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
-print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
+--print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
 	end
 end
 
@@ -519,7 +518,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 -- one music at a time
 -- music tracks periodically issue sfx play commands to certain channels
 	musicID = math.floor(musicID or -1)
-print('playMusic', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
+--print('playMusic', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
 	if musicID == -1 then
 		-- stop music
 		-- TODO what kind of state for the channel to specify playing or not
@@ -568,7 +567,7 @@ print('playMusic', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffs
 	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 	musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
 --print('playMusic music wait', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
-print('playMusic sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
+--print('playMusic sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
 
 	--self:setMusicPlayingToID(music)
 
