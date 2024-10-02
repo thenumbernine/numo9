@@ -2,6 +2,7 @@ local math = require 'ext.math'
 local asserttype = require 'ext.assert'.type
 local assertindex = require 'ext.assert'.index
 local getTime = require 'ext.timer'.getTime
+local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
 local fontWidth = numo9_rom.fontWidth
@@ -19,6 +20,18 @@ local buttonSingleCharLabels = numo9_keys.buttonSingleCharLabels
 local Editor = require 'numo9.editor'
 
 local Menu = Editor:subclass()
+
+Menu.currentMenu = 'main'
+
+function Menu:open()
+	self.isOpen = true
+	self:setCurrentMenu'main'
+end
+
+function Menu:setCurrentMenu(name)
+	self.currentMenu = name
+	self.menuTabIndex = 0
+end
 
 Menu.ystep = 9
 Menu.ysepstep = 7
@@ -107,8 +120,6 @@ function Menu:menuButton(str)
 	return result
 end
 
-Menu.currentMenu = 'main'
-
 function Menu:update()
 	if not self.isOpen then return end
 	local app = self.app
@@ -167,14 +178,12 @@ function Menu:updateMenuMain()
 	end
 
 	if self:menuButton'multiplayer' then
-		self.currentMenu = 'multiplayer'
-		self.menuTabIndex = 0
+		self:setCurrentMenu'multiplayer'
 		return
 	end
 
 	if self:menuButton'input' then
-		self.currentMenu = 'input'
-		self.menuTabIndex = 0
+		self:setCurrentMenu'input'
 	end
 
 	-- configure
@@ -243,19 +252,18 @@ function Menu:updateMenuMultiplayer()
 		self.isOpen = false
 		return
 	end
-	
+
 	self:menuSection'player names'
 
 	for i=1,maxLocalPlayers do
 		-- TODO checkbox for whether the player is active or not during netplay ...
-		-- TODO TODO how to allow #-local-players-active to change during a game ... 
+		-- TODO TODO how to allow #-local-players-active to change during a game ...
 		self:menuTextField('name', app.cfg.playerInfos[i], 'name')
 	end
 
 	self.cursorY = self.cursorY + self.ysepstep
 	if self:menuButton'back' then
-		self.currentMenu = 'main'
-		self.menuTabIndex = 0
+		self:setCurrentMenu'main'
 		return
 	end
 
@@ -270,8 +278,10 @@ function Menu:updateMenuInput()
 
 	local pushCursorX, pushCursorY = self.cursorX, self.cursorY
 	for playerIndexPlusOne=1,maxLocalPlayers do
-		self.cursorX = (playerIndexPlusOne-1) * 64 + 20
-		self.cursorY = pushCursorY
+		local playerIndex = playerIndexPlusOne-1
+		self.cursorX = bit.band(playerIndex, 1) * 128 + 8
+		self.cursorY = pushCursorY + bit.band(bit.rshift(playerIndex, 1), 1) * (#buttonSingleCharLabels + 3) * 9
+
 		self:menuLabel('player '..playerIndexPlusOne)
 		local playerInfo = app.cfg.playerInfos[playerIndexPlusOne]
 		self:menuLabel(playerInfo.name)
@@ -281,15 +291,22 @@ function Menu:updateMenuInput()
 			app:drawText(buttonName, self.cursorX-8, self.cursorY, 0xfc, 0xf0)
 			local buttonBind = playerInfo.buttonBinds[buttonIndex]
 			local label = app.waitingForEvent and self.menuTabIndex == self.menuTabCounter
-				and 'Press...' 
-				or tostring(buttonBind and buttonBind.name or nil)
+				and 'Press...'
+				or tostring(buttonBind and buttonBind.name or '...')
 			if self:menuButton(label) then
 				-- if we're waiting then call it 'press a key'
 				-- otherwise show the key desc
 				-- capture it
 				app.waitingForEvent = {
 					callback = function(e)
---print('got event', require 'ext.tolua'(e))	
+--print('got event', require 'ext.tolua'(e))
+						-- [[ let esc clear the binding
+						if e[1] == sdl.SDL_KEYDOWN and e[2] == sdl.SDLK_ESCAPE then
+							playerInfo.buttonBinds[buttonIndex] = {}
+							return
+						end
+						--]]
+
 						playerInfo.buttonBinds[buttonIndex] = e
 					end,
 				}
@@ -300,8 +317,7 @@ function Menu:updateMenuInput()
 	self.cursorY = self.cursorY + 9
 
 	if self:menuButton'back' then
-		self.currentMenu = 'main'
-		self.menuTabIndex = 0
+		self:setCurrentMenu'main'
 		return
 	end
 end

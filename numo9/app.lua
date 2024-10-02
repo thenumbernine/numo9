@@ -1222,7 +1222,7 @@ print('cartridge thread dead')
 					self:setFocus(nil)
 					-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
 					self.con.isOpen = true
-					--self.menu.isOpen = true
+					--self.menu:open()
 				else
 					local success, msg = coroutine.resume(thread)
 					if not success then
@@ -1877,7 +1877,12 @@ function App:event(e)
 			-- editor -> escape -> console
 			-- ... how to cycle back to the game without resetting it?
 			-- ... can you not issue commands while the game is loaded without resetting the game?
-			if self.menu.isOpen then
+			if self.waitingForEvent then
+				-- if key config is waiting for this event then let it handle it ... it'll clear the binding
+				-- already handled probably
+				-- TODO need a last-down for ESC (tho i'm not tracking it in the virt console key state stuff ... cuz its not supposed to be accessible by the cartridge code)
+				-- TODO why does sdl handle multiple keydowns for single keyups?
+			elseif self.menu.isOpen then
 				self.menu.isOpen = false
 				--[[ go to console?
 				self.con.isOpen = true
@@ -1903,7 +1908,7 @@ function App:event(e)
 				end
 				--]]
 				-- [[ con -> menu?
-				self.menu.isOpen = true
+				self.menu:open()
 				--]]
 			elseif self.currentEditor then
 				if self.currentEditor.loseFocus then
@@ -1922,7 +1927,7 @@ function App:event(e)
 				-- assume it's a game pushing esc ...
 				-- go to the menu
 				self.con.isOpen = false
-				self.menu.isOpen = true
+				self.menu:open()
 				if not self.server then
 					self.isPaused = true
 				end
@@ -1945,7 +1950,7 @@ function App:event(e)
 	then
 		local down = e[0].type == sdl.SDL_MOUSEBUTTONDOWN
 		self:processButtonEvent(down, sdl.SDL_MOUSEBUTTONDOWN, tonumber(e[0].button.x)/self.width, tonumber(e[0].button.y)/self.height, e[0].button.button)
-		
+
 		local keycode
 		if e[0].button.button == sdl.SDL_BUTTON_LEFT then
 			keycode = keyCodeForName.mouse_left
@@ -2093,14 +2098,14 @@ function App:getEventName(sdlEventID, a,b,c)
 		return ffi.string(sdl.SDL_GetKeyName(k))
 	end
 	return template(({
-		[sdl.SDL_JOYHATMOTION] = 'joy<?=a?> hat<?=b?> <?=dir(c)?>',
-		[sdl.SDL_JOYAXISMOTION] = 'joy<?=a?> axis<?=b?> <?=c?>',
-		[sdl.SDL_JOYBUTTONDOWN] = 'joy<?=a?> button<?=b?>',
-		[sdl.SDL_CONTROLLERAXISMOTION] = 'gamepad<?=a?> axis<?=b?> <?=c?>',
-		[sdl.SDL_CONTROLLERBUTTONDOWN] = 'gamepad<?=a?> button<?=b?>',
-		[sdl.SDL_KEYDOWN] = 'key <?=key(a)?>',
-		[sdl.SDL_MOUSEBUTTONDOWN] = 'mouse <?=c?> x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
-		[sdl.SDL_FINGERDOWN] = 'finger x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
+		[sdl.SDL_JOYHATMOTION] = 'jh<?=a?> <?=b?> <?=dir(c)?>',
+		[sdl.SDL_JOYAXISMOTION] = 'ja<?=a?> <?=b?> <?=c?>',
+		[sdl.SDL_JOYBUTTONDOWN] = 'jb<?=a?> <?=b?>',
+		[sdl.SDL_CONTROLLERAXISMOTION] = 'ga<?=a?> <?=b?> <?=c?>',
+		[sdl.SDL_CONTROLLERBUTTONDOWN] = 'gb<?=a?> <?=b?>',
+		[sdl.SDL_KEYDOWN] = 'key<?=key(a)?>',
+		[sdl.SDL_MOUSEBUTTONDOWN] = 'mb<?=c?> x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
+		[sdl.SDL_FINGERDOWN] = 't x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
 	})[sdlEventID], {
 		a=a, b=b, c=c,
 		dir=dir, key=key,
