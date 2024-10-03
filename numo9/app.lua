@@ -1671,7 +1671,9 @@ That means code too - save your changes!
 function App:resetROM()
 	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
 	self:resetVideo()
-	self:resetAudio()
+
+	-- calling reset() live will kill all sound ...
+	-- ... unless I move resetAudio() into load()
 	return true
 end
 
@@ -1712,6 +1714,7 @@ end
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
 	self:resetROM()
+	self:resetAudio()
 	self.isPaused = false
 	self.con.isOpen = false
 	self.menu.isOpen = false

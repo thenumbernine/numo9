@@ -748,7 +748,7 @@ void main() {
 	vec4 delta = xformPos1 - xformPos0;
 	gl_Position = xformPos0
 		+ delta * vertex.x
-		+ normalize(vec4(-delta.y, delta.x, 0., 0.)) * (vertex.y - .5) * lineThickness;
+		+ normalize(vec4(-delta.y, delta.x, 0., 0.)) * (vertex.y - .5) * 2. * lineThickness;
 	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;

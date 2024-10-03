@@ -143,6 +143,14 @@ print('got bufferSizeInSeconds', bufferSizeInSeconds)
 	self.audio.lastQueueClear = 0
 end
 
+--[[
+resetAudio() clears the audio state.
+it's called ...
+- upon console init
+- upon loading a new rom
+- upon running a new rom
+- ... not upon reset(), because that just resets the ROM->RAM memory, and doesn't imply the sound should all be stopped
+--]]
 function AppAudio:resetAudio()
 --[[
 	for i=0,numo9_rom.sfxTableSize-1 do
