@@ -401,16 +401,17 @@ Pico8 Compatability is at 95%
 - music 
 	- needs echo effect
 	- needs ADSR
-- input
-	- menu arrow key support
-	- joystick support
-	- virtual buttons / touch interface ... it's in my `gameapp` repo, I just need to move it over.
+	- net messages for sfx() and music()
+- menu
+	- draw mouse / touch regions
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
+	- transparent menu
+	- make sure editor and menu don't use draw commands that get forwarded across the network
 - graphics:
 	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
-
-... how to mix the console, the menu system, and the editor ... like tic80 does maybe ... hmm
+	- how does glsl handle uvec4 vs vec4, texture vs texelFetch vs fragment writing ...
+	- solid color blending is broken atm .  rgb332 is probably broken, i hope that's not what it's supposed to look like ... I am very close to just ripping out all the integer math in glsl, no matter how retro it seems, because the results are painful to deal with.
 
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
@@ -428,6 +429,8 @@ Pico8 Compatability is at 95%
 	- music tab
 		- paste in midi files ... but how to correlate instruments with your wave samples?  can midi files save wave data themselves?
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
+	- At present if there's a parse error then the line will show up correctly ... right underneath the line and file of the parser code itself ... hmm
+	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
 
@@ -438,4 +441,4 @@ Pico8 Compatability is at 95%
 - What's a good default keyboard configuration?
 - Right now editor palette is 4bpp by default, to be like similar fantasy consoles ... why not default to 8bpp?
 - Right now editor tilemap is 8x8 tiles by default ... why not default to 16x16?
-- How to organize the UX of the running game, the console, the menu, and the editor ...
+- How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
