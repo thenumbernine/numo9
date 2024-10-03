@@ -236,42 +236,51 @@ function Menu:updateMenuMultiplayer()
 	-- multiplayer ... TODO menu sub-screen
 
 	self:menuSection'multiplayer'
-
 	self.cursorY = self.cursorY + self.ysepstep
 
-	self:menuSection'connect'
-	self:menuTextField('addr', app.cfg, 'lastConnectAddr')
-	self:menuTextField('port', app.cfg, 'lastConnectPort')
-	-- TODO so tempting to implement a sameline() function ...
-	if self.connectStatus then
-		app:drawText(self.connectStatus, self.cursorX+40, self.cursorY, 0xfc, 0xf0)
-		-- TODO timeout? clear upon new menu? idk?
-	end
-	if self:menuButton'go' then
-		local success, msg = app:connect(
-			app.cfg.lastConnectAddr,
-			app.cfg.lastConnectPort
-		)
-		if not success then
-			self.connectStatus = msg
-		else
-			-- TODO report connection failed if it failed
-			-- and go back to the game ...
+	if app.server then
+		if self:menuBotton'close server' then
+			app:disconnect()
+		end
+	elseif app.remoteClient then
+		if self:menuBotton'disconnect' then
+			app:disconnect()
+		end
+	else
+		self:menuSection'connect'
+		self:menuTextField('addr', app.cfg, 'lastConnectAddr')
+		self:menuTextField('port', app.cfg, 'lastConnectPort')
+		-- TODO so tempting to implement a sameline() function ...
+		if self.connectStatus then
+			app:drawText(self.connectStatus, self.cursorX+40, self.cursorY, 0xfc, 0xf0)
+			-- TODO timeout? clear upon new menu? idk?
+		end
+		if self:menuButton'go' then
+			local success, msg = app:connect(
+				app.cfg.lastConnectAddr,
+				app.cfg.lastConnectPort
+			)
+			if not success then
+				self.connectStatus = msg
+			else
+				-- TODO report connection failed if it failed
+				-- and go back to the game ...
+				self.isOpen = false
+				app.isPaused = false
+				return
+			end
+		end
+
+		self:menuSection'listen'
+		self:menuTextField('addr', app.cfg, 'serverListenAddr')
+		self:menuTextField('port', app.cfg, 'serverListenPort')
+		if self:menuButton'go' then
+			app:listen()
+			-- if we're listening then ... close the menu I guess
 			self.isOpen = false
 			app.isPaused = false
 			return
 		end
-	end
-
-	self:menuSection'listen'
-	self:menuTextField('addr', app.cfg, 'serverListenAddr')
-	self:menuTextField('port', app.cfg, 'serverListenPort')
-	if self:menuButton'go' then
-		app:listen()
-		-- if we're listening then ... close the menu I guess
-		self.isOpen = false
-		app.isPaused = false
-		return
 	end
 
 	self:menuSection'player names'

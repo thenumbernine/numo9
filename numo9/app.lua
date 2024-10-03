@@ -1946,9 +1946,16 @@ function App:event(e)
 					self.currentEditor:gainFocus()
 				end
 				--]]
-				-- [[ con -> menu?
-				self.menu:open()
+				-- [[ con -> game if it's available ?
+				if self.runFocus then
+					self.con.isOpen = false
+					self.isPaused = false
+				else
 				--]]
+				-- [[ con -> menu?
+					self.menu:open()
+				--]]
+				end
 			elseif self.currentEditor then
 				if self.currentEditor.loseFocus then
 					self.currentEditor:loseFocus()
