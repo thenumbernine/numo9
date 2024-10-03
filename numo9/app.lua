@@ -402,6 +402,21 @@ function App:initGL()
 			return self:drawSolidLine(x1,y1,x2,y2,colorIndex)
 		end,
 
+		line3d = function(x1,y1,z1,x2,y2,z2,colorIndex)
+			if self.server then
+				local cmd = self.server:pushCmd().solidLine3D
+				cmd.type = netcmds.solidLine3D
+				cmd.x1 = x1
+				cmd.y1 = y1
+				cmd.z1 = z1
+				cmd.x2 = x2
+				cmd.y2 = y2
+				cmd.z2 = z2
+				cmd.colorIndex = colorIndex
+			end
+			return self:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
+		end,
+
 		spr = function(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
 			if self.server then
 				-- TODO I'm calculating default values twice ...
@@ -616,6 +631,8 @@ function App:initGL()
 			self:mvMatToRAM()
 		end,
 
+		-- TODO NEED NETCMDS FOR THESE .. once I figure out the API
+		tri3d = function(...) return self:drawTri3D(...) end,
 		sfx = function(...) return self:playSound(...) end,
 		music = function(...) return self:playMusic(...) end,
 
