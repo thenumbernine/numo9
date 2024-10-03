@@ -485,14 +485,13 @@ local Numo9Cmd = struct{
 	end)),
 }
 
--- [[
+--[[ want to see the netcmd struct sizes?
 for i,cmdtype in ipairs(netCmdStructs) do
 	print(ffi.sizeof(cmdtype), netcmdNames[i])
 end
 print(ffi.sizeof'Numo9Cmd', 'Numo9Cmd')
 os.exit()
 --]]
-
 
 
 local handshakeClientSends = 'litagano'
