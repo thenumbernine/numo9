@@ -32,6 +32,7 @@ end
 function Menu:setCurrentMenu(name)
 	self.currentMenu = name
 	self.menuTabIndex = 0
+	self.connectStatus = nil
 end
 
 Menu.ystep = 9
@@ -241,12 +242,25 @@ function Menu:updateMenuMultiplayer()
 	self:menuSection'connect'
 	self:menuTextField('addr', app.cfg, 'lastConnectAddr')
 	self:menuTextField('port', app.cfg, 'lastConnectPort')
+	-- TODO so tempting to implement a sameline() function ...
+	if self.connectStatus then
+		app:drawText(self.connectStatus, self.cursorX+40, self.cursorY, 0xfc, 0xf0)
+		-- TODO timeout? clear upon new menu? idk?
+	end
 	if self:menuButton'go' then
-		app:connect(
+		local success, msg = app:connect(
 			app.cfg.lastConnectAddr,
 			app.cfg.lastConnectPort
 		)
-		return
+		if not success then
+			self.connectStatus = msg
+		else
+			-- TODO report connection failed if it failed
+			-- and go back to the game ...
+			self.isOpen = false
+			app.isPaused = false
+			return
+		end
 	end
 
 	self:menuSection'listen'
@@ -254,8 +268,9 @@ function Menu:updateMenuMultiplayer()
 	self:menuTextField('port', app.cfg, 'serverListenPort')
 	if self:menuButton'go' then
 		app:listen()
-		-- if we're listening then ... close the menu I guess?
+		-- if we're listening then ... close the menu I guess
 		self.isOpen = false
+		app.isPaused = false
 		return
 	end
 

@@ -1072,9 +1072,10 @@ assert(self.runFocus == self.remoteClient)
 		-- failed to connect?
 		self.con:print'failed to connect'
 		self.runFocus = nil
-		return
+		return nil, 'failed to connect'
 	end
 assert(coroutine.status(self.runFocus.thread) ~= 'dead')
+	return true
 end
 
 -------------------- MAIN UPDATE CALLBACK --------------------
@@ -1959,6 +1960,9 @@ function App:event(e)
 					-- TODO what about single-player who types 'stop()' and 'cont()' at the console?  meh, redundant cmds.
 					--  the cmds still serve a purpose in single-player for the game to use if it wan't i guess ...
 					self.isPaused = false
+					if not self.runFocus then
+						self.con.isOpen = true
+					end
 				end
 				--]]
 			else
