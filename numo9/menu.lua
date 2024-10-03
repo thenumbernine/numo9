@@ -239,11 +239,11 @@ function Menu:updateMenuMultiplayer()
 	self.cursorY = self.cursorY + self.ysepstep
 
 	if app.server then
-		if self:menuBotton'close server' then
+		if self:menuButton'close server' then
 			app:disconnect()
 		end
 	elseif app.remoteClient then
-		if self:menuBotton'disconnect' then
+		if self:menuButton'disconnect' then
 			app:disconnect()
 		end
 	else
