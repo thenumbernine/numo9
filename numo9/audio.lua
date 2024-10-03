@@ -44,8 +44,6 @@ local pitchPrec = 12
 local AppAudio = {}
 
 function AppAudio:initAudio()
-	sdlAssertZero(sdl.SDL_AudioInit'coreaudio')
-
 	local function printSpecs(spec)
 		print('\tfreq', spec.freq)
 		print('\tformat', spec.format, ctypeForSDLAudioFormat[spec.format])

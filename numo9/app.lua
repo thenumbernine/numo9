@@ -84,6 +84,8 @@ App.title = 'NuMo9'
 App.width = 720
 App.height = 512
 
+App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO)
+
 local rgba5551_to_rgba8888_4ch = require 'numo9.video'.rgba5551_to_rgba8888_4ch
 
 -- copy in video behavior
