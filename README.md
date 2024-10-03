@@ -62,7 +62,7 @@ What's a SNES-era fantasy-console without mode7?
 There are a few matrix functions that you can use to manipulate the render state:
 `matident`, `mattrans`, `matrot`, `matscale`, `matortho`, `matfrustum`, `matlookat`.
 
-I'm using 16.16 fixed precision to store the matrix components.  SNES used 8.8, so I am splurging a bit.  I've tested with as close as 9.7 without getting too big of rounding errors.
+I'm using 16.16 fixed precision to store the matrix components.  SNES used 8.8, so I am being generous.  I've tested with as close as 9.7 without getting too big of rounding errors, so maybe I could restrict this later, but meh.
 
 ### Audio
 
@@ -179,8 +179,11 @@ This adds to Lua(/JIT):
 - `cls([color])` = clear screen.
 - `rect(x, y, w, h, [color])` = draw solid rectangle
 - `rectb(x, y, w, h, [color])` = draw rectangle border
-- `elli/ellib` = draw solid/border ellipse/circle.
+- `elli(x, y, w, h, [color])` = draw a solid filled ellipse.  If you want to draw a circle then you have use an ellipse.
+- `ellib(x, y, w, h, [color])` = draw a ellipse border.
+- `tri(x1,y1,x2,y2,x3,y3,[color])` = draw a solid triangle.
 - `line(x1,y1,x2,y2,[color])` = draw line.
+- `line3d(x1,y1,z1,x2,y2,z2,[color])` = draw line but with z / perspective.
 - `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY])` = draw sprite
 	- spriteIndex = which sprite to draw
 	- screenX, screenY = pixel location of upper-left corner of the sprite

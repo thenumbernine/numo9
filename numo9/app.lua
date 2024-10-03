@@ -389,6 +389,22 @@ function App:initGL()
 			return self:drawSolidRect(x, y, w, h, colorIndex, true, true)
 		end,
 
+		tri = function(x1,y1,x2,y2,x3,y3,colorIndex)
+			if self.server then
+				local cmd = self.server:pushCmd().solidTri
+				cmd.type = netcmds.solidLine
+				cmd.x1 = x1
+				cmd.y1 = y1
+				cmd.x2 = x2
+				cmd.y2 = y2
+				cmd.x3 = x3
+				cmd.y3 = y3
+				cmd.colorIndex = colorIndex
+			end
+			return self:drawSolidTri(x1,y1,x2,y2,x3,y3,colorIndex)
+	
+		end,
+
 		line = function(x1,y1,x2,y2,colorIndex)
 			if self.server then
 				local cmd = self.server:pushCmd().solidLine

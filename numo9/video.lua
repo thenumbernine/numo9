@@ -789,6 +789,71 @@ void main() {
 		}
 		assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
 
+		-- TODO maybe ditch quadSolid* and dont' use uniforms to draw quads ... and just do this with prims ... idk
+		-- but quadSolid has my ellipse/border shader so ....
+		self['triSolid'..info.name..'Obj'] = GLSceneObject{
+			program = {
+				version = glslVersion,
+				precision = 'best',
+				vertexCode = template([[
+layout(location=0) in vec3 vertex;
+uniform mat4 mvMat;
+
+//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
+const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+
+void main() {
+	gl_Position = mvMat * vec4(vertex, 1.);
+	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
+	gl_Position.xy *= 2.;
+	gl_Position.xy -= 1.;
+}
+]],				{
+					clnumber = clnumber,
+					frameBufferSize = frameBufferSize,
+				}),
+				fragmentCode = template([[
+layout(location=0) out <?=fragType?> fragColor;
+
+uniform uint colorIndex;
+
+uniform <?=samplerType?> palTex;
+uniform <?=fragType?> drawOverrideSolid;
+
+float sqr(float x) { return x * x; }
+
+void main() {
+]]..info.colorOutput..[[
+}
+]],				{
+					fragType = fragType,
+					samplerType = samplerType,
+				}),
+				uniforms = {
+					palTex = 0,
+					--mvMat = self.mvMat.ptr,
+				},
+			},
+			texs = {self.palTex},
+			-- glUniform()'d every frame
+			uniforms = {
+				mvMat = self.mvMat.ptr,
+				colorIndex = 0,
+				drawOverrideSolid = {0, 0, 0, 0},
+			},
+			vertexes = {
+				dim = 3,
+				useVec = true,
+				count = 3,
+			},
+			geometry = {
+				mode = gl.GL_TRIANGLES,
+				count = 3,
+			},
+		}
+
+
 		self['quadSolid'..info.name..'Obj'] = GLSceneObject{
 			program = {
 				version = glslVersion,
@@ -804,7 +869,7 @@ const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 
 void main() {
-	pcv = box.xy + vertex * box.zw;
+	pcv = box.xy + vertex * box.zw;	// TODO should this be after transform? but then you'd have to transform the box by mvmat in the fragment shader too ...
 	gl_Position = mvMat * vec4(pcv, 0., 1.);
 	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
 	gl_Position.xy *= 2.;
@@ -1220,6 +1285,7 @@ function AppVideo:setVideoMode(mode)
 		self.blitScreenObj = self.blitScreenRGBObj
 		self.lineSolidObj = self.lineSolidRGBObj
 		self.quadSolidObj = self.quadSolidRGBObj
+		self.triSolidObj = self.triSolidRGBObj
 		self.quadSpriteObj = self.quadSpriteRGBObj
 		self.quadMapObj = self.quadMapRGBObj
 	elseif mode == 1 then
@@ -1227,6 +1293,7 @@ function AppVideo:setVideoMode(mode)
 		self.blitScreenObj = self.blitScreenIndexObj
 		self.lineSolidObj = self.lineSolidIndexObj
 		self.quadSolidObj = self.quadSolidIndexObj
+		self.triSolidObj = self.triSolidIndexObj
 		self.quadSpriteObj = self.quadSpriteIndexObj
 		self.quadMapObj = self.quadMapIndexObj
 		-- TODO and we need to change each shaders output from 565 RGB to Indexed also ...
@@ -1235,6 +1302,7 @@ function AppVideo:setVideoMode(mode)
 		-- these convert from rendered content to the framebuffer ...
 		self.lineSolidObj = self.lineSolidRGB332Obj
 		self.quadSolidObj = self.quadSolidRGB332Obj
+		self.triSolidObj = self.triSolidRGB332Obj
 		self.quadSpriteObj = self.quadSpriteRGB332Obj
 		self.quadMapObj = self.quadMapRGB332Obj
 		-- this is the framebuffer
@@ -1372,6 +1440,7 @@ function AppVideo:drawSolidRect(
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
 end
+
 -- TODO get rid of this function
 function AppVideo:drawBorderRect(
 	x,
@@ -1382,6 +1451,31 @@ function AppVideo:drawBorderRect(
 	...	-- round
 )
 	return self:drawSolidRect(x,y,w,h,colorIndex,true,...)
+end
+
+function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
+	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.fbTex:checkDirtyCPU()
+
+	local sceneObj = self.triSolidObj
+	local uniforms = sceneObj.uniforms
+
+	uniforms.mvMat = self.mvMat.ptr
+	uniforms.colorIndex = math.floor(colorIndex)
+
+	local vtxGPU = sceneObj.attrs.vertex.buffer
+	local vtxCPU = vtxGPU:beginUpdate()
+	vtxCPU:emplace_back():set(x1, y1, 0)
+	vtxCPU:emplace_back():set(x2, y2, 0)
+	vtxCPU:emplace_back():set(x3, y3, 0)
+	vtxGPU:endUpdate()
+
+	-- redundant, but i guess this is a way to draw with a color outside the palette, so *shrug*
+	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+
+	sceneObj:draw()
+	self.fbTex.dirtyGPU = true
+	self.fbTex.changedSinceDraw = true
 end
 
 function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
@@ -1408,7 +1502,6 @@ end
 
 local mvMatCopy = ffi.new('float[16]')
 function AppVideo:clearScreen(colorIndex)
---	self.quadSolidObj.uniforms.mvMat = ident4x4.ptr
 	gl.glDisable(gl.GL_SCISSOR_TEST)
 	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
 	self.mvMat:setIdent()
@@ -1420,7 +1513,6 @@ function AppVideo:clearScreen(colorIndex)
 		colorIndex or 0)
 	gl.glEnable(gl.GL_SCISSOR_TEST)
 	ffi.copy(self.mvMat.ptr, mvMatCopy, ffi.sizeof(mvMatCopy))
---	self.quadSolidObj.uniforms.mvMat = self.mvMat.ptr
 end
 
 function AppVideo:setClipRect(x, y, w, h)
