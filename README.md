@@ -409,7 +409,7 @@ Pico8 Compatability is at 95%
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
 	- how does glsl handle uvec4 vs vec4, texture vs texelFetch vs fragment writing ...
 	- solid color blending is broken atm.  rgb332 is probably broken, i hope that's not what it's supposed to look like ... I am very close to just ripping out all the integer math in glsl, no matter how retro it seems, because the results are painful to deal with.
-
+	- sprite renderer still clips into neighboring sprites because IT HAS ROUNDING ERRORS DESPITE USING INTEGER MATH ... I'm about to throw all the integer GLSL stuff out the window, because it is clearly an afterthought, and just go back to GLSL everything-float.
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
 	- copy/paste on the tilemap.
@@ -440,3 +440,4 @@ Pico8 Compatability is at 95%
 - Right now editor tilemap is 8x8 tiles by default ... why not default to 16x16?
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
 - matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
+- ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?

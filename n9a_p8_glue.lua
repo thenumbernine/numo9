@@ -235,6 +235,7 @@ setfenv(1, {
 	add=table.insert,
 	del=table.removeObject,
 	deli=table.remove,
+	count=[t]#t,
 	pairs=[t]do
 		if t==nil then return coroutine.wrap([]nil) end
 		return pairs(t)

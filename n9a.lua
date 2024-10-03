@@ -960,7 +960,7 @@ print("total SFX data size if I'd use BRR: "..(
 				local sortedDurations = table(durations):sort()
 				for q=1,#sortedDurations-1 do
 					if sortedDurations[q+1] % sortedDurations[q] ~= 0 then
-						error('music '..musicTrackIndex..' sfxs '
+						print('!!!! WARNING !!!! music '..musicTrackIndex..' sfxs '
 							..musicTrack.sfxs:concat' '
 							..' have durations that do not divide: '..durations:concat' ')
 					end
@@ -985,7 +985,7 @@ print('durations '..sortedDurations:concat' ')
 					asserteq(#sfx.notes, #musicSfxs[1].notes)
 				end
 				--]]
-				local beatRatio = sortedDurations:last() / sortedDurations[1]
+				--local beatRatio = sortedDurations:last() / sortedDurations[1]
 				local lastNoteIndex = 0
 asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0's at the end
 				for q=0,33-1 do
