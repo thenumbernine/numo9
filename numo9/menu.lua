@@ -7,6 +7,7 @@ local sdl = require 'sdl'
 local numo9_rom = require 'numo9.rom'
 local fontWidth = numo9_rom.fontWidth
 local spriteSize = numo9_rom.spriteSize
+local frameBufferSize = numo9_rom.frameBufferSize
 
 local numo9_keys = require 'numo9.keys'
 local maxLocalPlayers = numo9_keys.maxLocalPlayers
@@ -126,6 +127,11 @@ function Menu:update()
 
 	-- init the tab-order for editor controls
 	self:initMenuTabs()
+
+	-- clear screen
+	app:setBlendMode(3)
+	app:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, 0xf0)
+	app:setBlendMode(0xff)
 
 	-- init the menu cursor position
 	self.cursorX = 80

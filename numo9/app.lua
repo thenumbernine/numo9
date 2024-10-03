@@ -860,14 +860,14 @@ L	A/V		D		Q
 R	Z		C		W
 looks like I'm a Snes9x-default-keybinding fan.
 	--]]
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.up, {768, 1073741906, name="key Up"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.down, {768, 1073741905, name="key Down"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.left, {768, 1073741904, name="key Left"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.right, {768, 1073741903, name="key Right"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.a, {768, ('s'):byte(), name="key s"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.b, {768, ('x'):byte(), name="key x"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.x, {768, ('a'):byte(), name="key a"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.y, {768, ('z'):byte(), name="key z"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.up, {768, 1073741906, name="keyUp"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.down, {768, 1073741905, name="keyDown"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.left, {768, 1073741904, name="keyLeft"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.right, {768, 1073741903, name="keyRight"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.a, {768, ('s'):byte(), name="keyS"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.b, {768, ('x'):byte(), name="keyX"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.x, {768, ('a'):byte(), name="keyA"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.y, {768, ('z'):byte(), name="keyZ"})
 
 	-- can have 3 more ... at least I've only allocated enough for 4 players worth of keys ...
 	-- and right now netplay operates by reflecting keys and draw-commands ...
@@ -1898,6 +1898,9 @@ function App:event(e)
 				end
 				self.currentEditor = nil
 				self.isPaused = false
+				if not self.runFocus then
+					self.con.isOpen = true
+				end
 				--]]
 			elseif self.con.isOpen then
 				self.con.isOpen = false
@@ -2012,7 +2015,7 @@ function App:event(e)
 	end
 end
 
-function App:processButtonEvent(press, ...)
+function App:processButtonEvent(down, ...)
 	-- TODO radius per-button
 	local buttonRadius = self.width * self.cfg.screenButtonRadius
 
@@ -2020,7 +2023,7 @@ function App:processButtonEvent(press, ...)
 	-- it's used by the New Game menu
 	if self.waitingForEvent then
 		-- this callback system is only used for editing keyboard binding
-		if press then
+		if down then
 			local ev = {...}
 			ev.name = self:getEventName(...)
 			self.waitingForEvent.callback(ev)
@@ -2030,7 +2033,6 @@ function App:processButtonEvent(press, ...)
 		-- this branch is only used in gameplay
 		-- for that reason, if we're not in the gameplay menu-state then bail
 		--if not PlayingMenu:isa(self.menu) then return end
-
 		local etype, ex, ey = ...
 		local descLen = select('#', ...)
 		for playerIndexPlusOne, playerInfo in ipairs(self.cfg.playerInfos) do
