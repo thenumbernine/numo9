@@ -853,7 +853,6 @@ void main() {
 			},
 		}
 
-
 		self['quadSolid'..info.name..'Obj'] = GLSceneObject{
 			program = {
 				version = glslVersion,
@@ -1453,7 +1452,7 @@ function AppVideo:drawBorderRect(
 	return self:drawSolidRect(x,y,w,h,colorIndex,true,...)
 end
 
-function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
+function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.fbTex:checkDirtyCPU()
 
@@ -1465,9 +1464,9 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 
 	local vtxGPU = sceneObj.attrs.vertex.buffer
 	local vtxCPU = vtxGPU:beginUpdate()
-	vtxCPU:emplace_back():set(x1, y1, 0)
-	vtxCPU:emplace_back():set(x2, y2, 0)
-	vtxCPU:emplace_back():set(x3, y3, 0)
+	vtxCPU:emplace_back():set(x1, y1, z1)
+	vtxCPU:emplace_back():set(x2, y2, z2)
+	vtxCPU:emplace_back():set(x3, y3, z3)
 	vtxGPU:endUpdate()
 
 	-- redundant, but i guess this is a way to draw with a color outside the palette, so *shrug*
@@ -1476,6 +1475,10 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
+end
+
+function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
+	return self:drawSolidTri3D(x1,y1,0,x2,y2,0,x3,y3,0,colorIndex)
 end
 
 function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)

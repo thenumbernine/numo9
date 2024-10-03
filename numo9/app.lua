@@ -402,7 +402,24 @@ function App:initGL()
 				cmd.colorIndex = colorIndex
 			end
 			return self:drawSolidTri(x1,y1,x2,y2,x3,y3,colorIndex)
-	
+		end,
+
+		tri3d = function(x1,y1,z1,x2,y2,z2,x3,y3,z3,colorIndex)
+			if self.server then
+				local cmd = self.server:pushCmd().solidTri3D
+				cmd.type = netcmds.solidLine
+				cmd.x1 = x1
+				cmd.y1 = y1
+				cmd.z1 = z1
+				cmd.x2 = x2
+				cmd.y2 = y2
+				cmd.z2 = z2
+				cmd.x3 = x3
+				cmd.y3 = y3
+				cmd.z3 = z3
+				cmd.colorIndex = colorIndex
+			end
+			return self:drawSolidTri3D(x1,y1,z1,x2,y2,z2,x3,y3,z3,colorIndex)
 		end,
 
 		line = function(x1,y1,x2,y2,colorIndex)
