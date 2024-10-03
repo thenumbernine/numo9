@@ -32,7 +32,9 @@ function EditNet:update()
 
 
 	for i,conn in ipairs(
-		table{app}:append(
+		table{
+			app.cfg	-- has .playerInfos[i].name ...
+		}:append(
 			server.conns
 		)
 	) do

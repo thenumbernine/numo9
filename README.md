@@ -287,18 +287,18 @@ The button codes are as follows:
 
 # Menu
 
-Push Esc in gameplay to get to the menu.
+Push Esc to get to the menu.  Push Esc again to get back to gameplay.
 
 # Virtual Terminal
 
-Push Esc from the menu to get to the console.
+From the menu you can select "to console" to get to the virtual-console.  Press again to get back to gameplay.
 The console accepts Lua commands directly, just like the game script does.
 
 # Editor
 
-Push Esc from the console to get to the editor.  Press again to get back to gameplay.
+From the menu you can select "to editor" to get to the editor.  Press again to get back to gameplay.
 
-Multiplayer page will list connections.  It will let associate connected players with controllers, kick, etc.
+If you are hosting a server then there will be an extra multiplayer page that will list connections.  It will let associate connected players with controllers, kick, etc.
 
 Code page. Should do what you would expect.  Ctrl(/Apple)+X=cut C=copy V=paste A=select-all.
 

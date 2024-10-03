@@ -943,6 +943,7 @@ print'waiting for server handshake'
 print('got', recv, reason)
 	if not recv then error("ClientConn waiting for handshake failed with error "..tostring(reason)) end
 	asserteq(recv, handshakeServerSends, "ClientConn handshake failed")
+	-- TODO HERE also expect a server netcmd protocol ... and icnreemnt the protocol every time you change the netcmd structures ...
 
 print'sending player info'
 	-- now send player names
