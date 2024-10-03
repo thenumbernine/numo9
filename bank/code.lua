@@ -144,135 +144,132 @@ BaseObj=class{
 	onRemove=[:]do self.removeMe=true end,
 }
 
-do
-	local super=BaseObj
-	MovableObj=subclass(super){
-		init=[:,args]do
-			super.init(self,args)
-			self.lastMoveResponse='no move'
-			self.moveCmd=dirs.none
-			self.speed=10
-			self.moveFracMoving=false
-			self.moveFrac=0
-		end,
-		moveIsBlocked_CheckHitWorld=[:,whereX,whereY]do
-			return self:hitWorld(
-				whereX,whereY,
-				mapGet(whereX-.25,whereY-.25),
-				mapGet(whereX+.25,whereY-.25),
-				mapGet(whereX-.25,whereY+.25),
-				mapGet(whereX+.25,whereY+.25)
-			)
-		end,
-		hitWorld=[:,whereX,whereY,typeUL,typeUR,typeLL,typeLR]do
-			for _,o in ipairs(objs) do
-				if not o.removeMe
-				and o~=self
-				and o.isBomb
-				and o.state=='sinking'
-				then
-					if typeUL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY-.25)<.5 then
-						typeUL=EMPTY
-					end
-					if typeUR==WATER and linfDist(o.destPosX,o.destPosY,whereX+.25,whereY-.25)<.5 then
-						typeUR=EMPTY
-					end
-					if typeLL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY+.25)<.5 then
-						typeLL=EMPTY
-					end
-					if typeLR==WATER and linfDist(o.destPosX,o.destPosY,whereX+.25,whereY+.25)<.5 then
-						typeLR=EMPTY
-					end
-				end
-			end
-			return super.hitWorld(self,whereX,whereY,typeUL,typeUR,typeLL,typeLR)
-		end,
-		moveIsBlocked_CheckEdge=[:,newDestX,newDestY]do
-			if newDestX < .25
-			or newDestY < .25
-			or newDestX > mapw - .25
-			or newDestY > maph - .25
+MovableObj=([super]subclass(super){
+	init=[:,args]do
+		super.init(self,args)
+		self.lastMoveResponse='no move'
+		self.moveCmd=dirs.none
+		self.speed=10
+		self.moveFracMoving=false
+		self.moveFrac=0
+	end,
+	moveIsBlocked_CheckHitWorld=[:,whereX,whereY]do
+		return self:hitWorld(
+			whereX,whereY,
+			mapGet(whereX-.25,whereY-.25),
+			mapGet(whereX+.25,whereY-.25),
+			mapGet(whereX-.25,whereY+.25),
+			mapGet(whereX+.25,whereY+.25)
+		)
+	end,
+	hitWorld=[:,whereX,whereY,typeUL,typeUR,typeLL,typeLR]do
+		for _,o in ipairs(objs) do
+			if not o.removeMe
+			and o~=self
+			and o.isBomb
+			and o.state=='sinking'
 			then
-				return self:hitEdge(newDestX,newDestY)
-			end
-			return false
-		end,
-		moveIsBlocked_CheckHitObject=[:,o,cmd,newDestX,newDestY]do
-			if linfDist(o.destPosX,o.destPosY,newDestX,newDestY)>.75 then return false end
-			local response=self:hitObject(o,newDestX,newDestY,cmd)
-			if response=='stop' then return true end
-			if response=='test object' then
-				if o:startPush(self,newDestX,newDestY,cmd) then return true end
-			end
-			return false
-		end,
-		moveIsBlocked_CheckHitObjects=[:,cmd,newDestX,newDestY]do
-			for _,o in ipairs(objs) do
-				if not o.removeMe
-				and o ~= self
-				and self:moveIsBlocked_CheckHitObject(o, cmd, newDestX, newDestY) then
-					return true
+				if typeUL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY-.25)<.5 then
+					typeUL=EMPTY
+				end
+				if typeUR==WATER and linfDist(o.destPosX,o.destPosY,whereX+.25,whereY-.25)<.5 then
+					typeUR=EMPTY
+				end
+				if typeLL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY+.25)<.5 then
+					typeLL=EMPTY
+				end
+				if typeLR==WATER and linfDist(o.destPosX,o.destPosY,whereX+.25,whereY+.25)<.5 then
+					typeLR=EMPTY
 				end
 			end
-		end,
-		moveIsBlocked=[:,cmd,newDestX,newDestY]do
-			return self:moveIsBlocked_CheckEdge(newDestX, newDestY)
-			or self:moveIsBlocked_CheckHitWorld(newDestX, newDestY)
-			or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY)
-		end,
-		doMove=[:,cmd]do
-			if cmd==dirs.none then return 'no move' end
-			local newDestX=self.posX
-			local newDestY=self.posY
-			if cmd >= 0 and cmd < 4 then
-				newDestX+=vecs[cmd][1] * .5
-				newDestY+=vecs[cmd][2] * .5
-			else
-				return 'no move'
+		end
+		return super.hitWorld(self,whereX,whereY,typeUL,typeUR,typeLL,typeLR)
+	end,
+	moveIsBlocked_CheckEdge=[:,newDestX,newDestY]do
+		if newDestX < .25
+		or newDestY < .25
+		or newDestX > mapw - .25
+		or newDestY > maph - .25
+		then
+			return self:hitEdge(newDestX,newDestY)
+		end
+		return false
+	end,
+	moveIsBlocked_CheckHitObject=[:,o,cmd,newDestX,newDestY]do
+		if linfDist(o.destPosX,o.destPosY,newDestX,newDestY)>.75 then return false end
+		local response=self:hitObject(o,newDestX,newDestY,cmd)
+		if response=='stop' then return true end
+		if response=='test object' then
+			if o:startPush(self,newDestX,newDestY,cmd) then return true end
+		end
+		return false
+	end,
+	moveIsBlocked_CheckHitObjects=[:,cmd,newDestX,newDestY]do
+		for _,o in ipairs(objs) do
+			if not o.removeMe
+			and o ~= self
+			and self:moveIsBlocked_CheckHitObject(o, cmd, newDestX, newDestY) then
+				return true
 			end
-			if self:moveIsBlocked(cmd,newDestX,newDestY) then
+		end
+	end,
+	moveIsBlocked=[:,cmd,newDestX,newDestY]do
+		return self:moveIsBlocked_CheckEdge(newDestX, newDestY)
+		or self:moveIsBlocked_CheckHitWorld(newDestX, newDestY)
+		or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY)
+	end,
+	doMove=[:,cmd]do
+		if cmd==dirs.none then return 'no move' end
+		local newDestX=self.posX
+		local newDestY=self.posY
+		if cmd >= 0 and cmd < 4 then
+			newDestX+=vecs[cmd][1] * .5
+			newDestY+=vecs[cmd][2] * .5
+		else
+			return 'no move'
+		end
+		if self:moveIsBlocked(cmd,newDestX,newDestY) then
+			self.moveFracMoving=false
+			return 'was blocked'
+		end
+		self.destPosX=newDestX
+		self.destPosY=newDestY
+		self.moveFrac=0
+		self.moveFracMoving=true
+		self.srcPosX=self.posX
+		self.srcPosY=self.posY
+		return 'did move'
+	end,
+	update=[:]do
+		super.update(self)
+		if self.moveFracMoving then
+			self.moveFrac+=dt*self.speed
+			if self.moveFrac>=1 then
 				self.moveFracMoving=false
-				return 'was blocked'
-			end
-			self.destPosX=newDestX
-			self.destPosY=newDestY
-			self.moveFrac=0
-			self.moveFracMoving=true
-			self.srcPosX=self.posX
-			self.srcPosY=self.posY
-			return 'did move'
-		end,
-		update=[:]do
-			super.update(self)
-			if self.moveFracMoving then
-				self.moveFrac+=dt*self.speed
-				if self.moveFrac>=1 then
-					self.moveFracMoving=false
-					self.posX=self.destPosX
-					self.posY=self.destPosY
-					for _,o in ipairs(objs) do
-						if not o.removeMe
-						and o ~= self
-						and linfDist(o.destPosX, o.destPosY, self.destPosX, self.destPosY) <= .75
-						then
-							o:endPush(self, self.destPosX, self.destPosY)
-						end
+				self.posX=self.destPosX
+				self.posY=self.destPosY
+				for _,o in ipairs(objs) do
+					if not o.removeMe
+					and o ~= self
+					and linfDist(o.destPosX, o.destPosY, self.destPosX, self.destPosY) <= .75
+					then
+						o:endPush(self, self.destPosX, self.destPosY)
 					end
-				else
-					local oneMinusMoveFrac=1 - self.moveFrac
-					self.posX=self.destPosX * self.moveFrac + self.srcPosX * oneMinusMoveFrac
-					self.posY=self.destPosY * self.moveFrac + self.srcPosY * oneMinusMoveFrac
 				end
-			end
-
-			if not self.moveFracMoving then
-				self.lastMoveResponse=self:doMove(self.moveCmd)
 			else
-				self.lastMoveResponse='no move'
+				local oneMinusMoveFrac=1 - self.moveFrac
+				self.posX=self.destPosX * self.moveFrac + self.srcPosX * oneMinusMoveFrac
+				self.posY=self.destPosY * self.moveFrac + self.srcPosY * oneMinusMoveFrac
 			end
-		end,
-	}
-end
+		end
+
+		if not self.moveFracMoving then
+			self.lastMoveResponse=self:doMove(self.moveCmd)
+		else
+			self.lastMoveResponse='no move'
+		end
+	end,
+})(BaseObj)
 
 do
 	local super=MovableObj

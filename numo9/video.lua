@@ -732,7 +732,8 @@ void main() {
 				precision = 'best',
 				vertexCode = template([[
 layout(location=0) in vec2 vertex;
-uniform vec4 line;	//x1,y1,x2,y2
+uniform vec4 pos0;
+uniform vec4 pos1;
 uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
@@ -742,11 +743,11 @@ const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 const float lineThickness = 1.;
 
 void main() {
-	vec2 delta = line.zw - line.xy;
-	vec2 pc = line.xy
+	vec3 delta = pos1 - pos0;
+	vec3 pc = pos0
 		+ delta * vertex.x
-		+ normalize(vec2(-delta.y, delta.x)) * (vertex.y - .5) * lineThickness;
-	gl_Position = mvMat * vec4(pc, 0., 1.);
+		+ normalize(vec3(-delta.y, delta.x, 0.)) * (vertex.y - .5) * lineThickness;
+	gl_Position = mvMat * vec4(pc, 1.);
 	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;
@@ -780,7 +781,8 @@ void main() {
 			uniforms = {
 				mvMat = self.mvMat.ptr,
 				colorIndex = 0,
-				line = {0, 0, 8, 8},
+				pos0 = {0, 0, 0},
+				pos1 = {8, 8, 8},
 				drawOverrideSolid = {0, 0, 0, 0},
 			},
 		}
@@ -1381,7 +1383,7 @@ function AppVideo:drawBorderRect(
 	return self:drawSolidRect(x,y,w,h,colorIndex,true,...)
 end
 
-function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
+function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.fbTex:checkDirtyCPU()
 
@@ -1390,12 +1392,17 @@ function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
 
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
-	settable(uniforms.line, x1,y1,x2,y2)
+	settable(uniforms.pos0, x1,y1,z1)
+	settable(uniforms.pos1, x2,y2,z2)
 	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
+end
+
+function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
+	return self:drawSolidLine3D(x1,y1,0,x2,y2,0,colorIndex)
 end
 
 local mvMatCopy = ffi.new('float[16]')
