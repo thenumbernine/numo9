@@ -732,8 +732,8 @@ void main() {
 				precision = 'best',
 				vertexCode = template([[
 layout(location=0) in vec2 vertex;
-uniform vec4 pos0;
-uniform vec4 pos1;
+uniform vec3 pos0;
+uniform vec3 pos1;
 uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
@@ -743,11 +743,12 @@ const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
 const float lineThickness = 1.;
 
 void main() {
-	vec3 delta = pos1 - pos0;
-	vec3 pc = pos0
+	vec4 xformPos0 = mvMat * vec4(pos0, 1.);
+	vec4 xformPos1 = mvMat * vec4(pos1, 1.);
+	vec4 delta = xformPos1 - xformPos0;
+	gl_Position = xformPos0
 		+ delta * vertex.x
-		+ normalize(vec3(-delta.y, delta.x, 0.)) * (vertex.y - .5) * lineThickness;
-	gl_Position = mvMat * vec4(pc, 1.);
+		+ normalize(vec4(-delta.y, delta.x, 0., 0.)) * (vertex.y - .5) * lineThickness;
 	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
 	gl_Position.xy *= 2.;
 	gl_Position.xy -= 1.;

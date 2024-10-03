@@ -60,14 +60,7 @@ Tilemaps can render 8x8 or 16x16 sprites.
 
 What's a SNES-era fantasy-console without mode7?
 There are a few matrix functions that you can use to manipulate the render state:
-
-`matident`,
-`mattrans`,
-`matrot`,
-`matscale`,
-`matortho`,
-`matfrustum`,
-`matlookat`.
+`matident`, `mattrans`, `matrot`, `matscale`, `matortho`, `matfrustum`, `matlookat`.
 
 I'm using 16.16 fixed precision to store the matrix components.  SNES used 8.8, so I am splurging a bit.  I've tested with as close as 9.7 without getting too big of rounding errors.
 
@@ -226,7 +219,7 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 - `mattrans([x],[y],[z])` = translate the transform matrix by x,y,z.  Default translate is 0.
 - `matrot(theta,[x,y,z])` = rotate by theta radians on axis x,y,z.  Default axis is 0,0,1 for screen rotations.
 - `matscale([x],[y],[z])` = scale by x,y,z.  Default scale is 1.
-- `matortho(left,right,bottom,top,[near,far])` = apply orthographic transform.
+- `matortho(left,right,bottom,top,[near,far])` = apply orthographic transform.  Mind you that (-1, 1) x (-1, 1) is an identity transform, leaving the screen space coordinate domain at its original of (0, 256) x (0, 256).  Maybe I'll change it later so you don't need to do the extra transform fix.
 - `matfrustum(left,right,bottom,top,near,far)` = apply frustum perspective transform.
 - `matlookat(eyeX,eyeY,eyeZ,camX,camY,camZ,upX,upY,upZ)` = transform view to position at camX,camY,camZ and look at eyeX,eyeY,eyeZ with the up vector upX,upY,upZ.
 
