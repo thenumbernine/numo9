@@ -9,17 +9,19 @@ local tolua = require 'ext.tolua'
 local getTime = require 'ext.timer'.getTime
 local vec2i = require 'vec-ffi.vec2i'
 
-local keyCodeNames = require 'numo9.keys'.keyCodeNames
-local keyCodeForName = require 'numo9.keys'.keyCodeForName
-local getAsciiForKeyCode = require 'numo9.keys'.getAsciiForKeyCode
+local numo9_keys = require 'numo9.keys'
+local keyCodeNames = numo9_keys.keyCodeNames
+local keyCodeForName = numo9_keys.keyCodeForName
+local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
-local paletteSize = require 'numo9.rom'.paletteSize
-local frameBufferSize = require 'numo9.rom'.frameBufferSize
-local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
-local spriteSize = require 'numo9.rom'.spriteSize
-local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
-local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
-local fontWidth = require 'numo9.rom'.fontWidth
+local numo9_rom = require 'numo9.rom'
+local paletteSize = numo9_rom.paletteSize
+local frameBufferSize = numo9_rom.frameBufferSize
+local spriteSheetSize = numo9_rom.spriteSheetSize
+local spriteSize = numo9_rom.spriteSize
+local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
+local fontWidth = numo9_rom.fontWidth
 
 
 local Console = class()
