@@ -77,13 +77,13 @@ elseif ffi.os == 'Linux' then
 		'mime',
 	}
 elseif ffi.os == 'Windows' then
-	files['${USERPROFILE}\\luarocks\\share'] = {
+	files['${USERPROFILE}\\share\\luajit-2.1'] = {
 		'socket.lua',
 		'ltn12.lua',
 		'mime.lua',
 		'socket',
 	}
-	files['${USERPROFILE}\\luarocks\\lib'] = {
+	files['${USERPROFILE}\\lib\\luajit-2.1'] = {
 		'socket',
 		'mime',
 	}
