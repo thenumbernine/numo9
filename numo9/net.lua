@@ -847,7 +847,7 @@ function Server:sendRAM(serverConn)
 print'sending initial RAM state...'
 
 	-- [[ make sure changes in gpu are syncd with cpu...
-	self:checkDirtyGPU()
+	app:checkDirtyGPU()
 	app:mvMatToRAM()
 	--]]
 
