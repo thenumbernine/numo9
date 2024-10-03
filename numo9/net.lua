@@ -1160,39 +1160,25 @@ print('got uint16 index='
 				local c = cmd[0].blendMode
 				app:setBlendMode(c.blendMode)
 			elseif cmdtype == netcmds.matident then
-				app:mvMatFromRAM()
-				app.mvMat:setIdent()
-				app:mvMatToRAM()
+				app:matident()
 			elseif cmdtype == netcmds.mattrans then
 				local c = cmd[0].mattrans
-				app:mvMatFromRAM()
-				app.mvMat:applyTranslate(c.x, c.y, c.z)
-				app:mvMatToRAM()
+				app:mattrans(c.x, c.y, c.z)
 			elseif cmdtype == netcmds.matrot then
 				local c = cmd[0].matrot
-				app:mvMatFromRAM()
-				app.mvMat:applyRotate(c.theta, c.x, c.y, c.z)
-				app:mvMatToRAM()
+				app:matrot(c.theta, c.x, c.y, c.z)
 			elseif cmdtype == netcmds.matscale then
 				local c = cmd[0].matscale
-				app:mvMatFromRAM()
-				app.mvMat:applyScale(c.x, c.y, c.z)
-				app:mvMatToRAM()
+				app:matscale(c.x, c.y, c.z)
 			elseif cmdtype == netcmds.matortho then
 				local c = cmd[0].matortho
-				app:mvMatFromRAM()
-				app.mvMat:applyOrtho(c.l, c.r, c.t, c.b, c.n, c.f)
-				app:mvMatToRAM()
+				app:matortho(c.l, c.r, c.t, c.b, c.n, c.f)
 			elseif cmdtype == netcmds.matfrustum then
 				local c = cmd[0].matfrustum
-				app:mvMatFromRAM()
-				app.mvMat:applyFrustum(c.l, c.r, c.t, c.b, c.n, c.f)
-				app:mvMatToRAM()
+				app:matfrustum(c.l, c.r, c.t, c.b, c.n, c.f)
 			elseif cmdtype == netcmds.matlookat then
 				local c = cmd[0].matlookat
-				app:mvMatFromRAM()
-				app.mvMat:applyLookAt(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
-				app:mvMatToRAM()
+				app:matlookat(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
 			elseif cmdtype == netcmds.poke then
 				local c = cmd[0].poke
 print('client poke', ('$%x'):format(c.addr), c.size, c.value)

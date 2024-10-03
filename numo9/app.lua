@@ -588,9 +588,7 @@ function App:initGL()
 				local cmd = self.server:pushCmd().matident
 				cmd.type = netcmds.matident
 			end
-			self:mvMatFromRAM()
-			self.mvMat:setIdent()
-			self:mvMatToRAM()
+			self:matident()
 		end,
 		mattrans = function(x, y, z)
 			x = x or 0
@@ -601,9 +599,7 @@ function App:initGL()
 				cmd.type = netcmds.mattrans
 				cmd.x, cmd.y, cmd.z = x, y, z
 			end
-			self:mvMatFromRAM()
-			self.mvMat:applyTranslate(x, y, z)
-			self:mvMatToRAM()
+			self:mattrans(x, y, z)
 		end,
 		matrot = function(theta, x, y, z)
 			x = x or 0
@@ -614,9 +610,7 @@ function App:initGL()
 				cmd.type = netcmds.matrot
 				cmd.theta, cmd.x, cmd.y, cmd.z = theta, x, y, z
 			end
-			self:mvMatFromRAM()
-			self.mvMat:applyRotate(theta, x, y, z)
-			self:mvMatToRAM()
+			self:matrot(theta, x, y, z)
 		end,
 		matscale = function(x, y, z)
 			x = x or 1
@@ -627,9 +621,7 @@ function App:initGL()
 				cmd.type = netcmds.matscale
 				cmd.x, cmd.y, cmd.z = x, y, z
 			end
-			self:mvMatFromRAM()
-			self.mvMat:applyScale(x, y, z)
-			self:mvMatToRAM()
+			self:matscale(x, y, z)
 		end,
 		matortho = function(l, r, t, b, n, f)
 			n = n or -1000
@@ -639,9 +631,7 @@ function App:initGL()
 				cmd.type = netcmds.matortho
 				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
 			end
-			self:mvMatFromRAM()
-			self.mvMat:applyOrtho(l, r, t, b, n, f)
-			self:mvMatToRAM()
+			self:matortho(l, r, t, b, n, f)
 		end,
 		matfrustum = function(l, r, t, b, n, f)
 			if self.server then
@@ -649,9 +639,7 @@ function App:initGL()
 				cmd.type = netcmds.matfrustum
 				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
 			end
-			self:mvMatFromRAM()
-			self.mvMat:applyFrustum(l, r, t, b, n, f)
-			self:mvMatToRAM()
+			self:matfrustum(l, r, t, b, n, f)
 		end,
 		matlookat = function(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 			if self.server then
@@ -659,13 +647,10 @@ function App:initGL()
 				cmd.type = netcmds.matlookat
 				cmd.ex, cmd.ey, cmd.ez, cmd.cx, cmd.cy, cmd.cz, cmd.upx, cmd.upy, cmd.upz = ex, ey, ez, cx, cy, cz, upx, upy, upz
 			end
-			self:mvMatFromRAM()
-			self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-			self:mvMatToRAM()
+			self:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 		end,
 
 		-- TODO NEED NETCMDS FOR THESE .. once I figure out the API
-		tri3d = function(...) return self:drawTri3D(...) end,
 		sfx = function(...) return self:playSound(...) end,
 		music = function(...) return self:playMusic(...) end,
 
