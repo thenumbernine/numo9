@@ -262,6 +262,21 @@ local Numo9Cmd_solidRect = struct{
 	},
 }
 
+local Numo9Cmd_solidTri = struct{
+	name = 'Numo9Cmd_solidTri',
+	--packed = true,
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='x1', type='float'},
+		{name='y1', type='float'},
+		{name='x2', type='float'},
+		{name='y2', type='float'},
+		{name='x3', type='float'},
+		{name='y3', type='float'},
+		{name='colorIndex', type='uint8_t'},
+	},
+}
+
 local Numo9Cmd_solidLine = struct{
 	name = 'Numo9Cmd_solidLine',
 	--packed = true,
@@ -455,6 +470,7 @@ local netCmdStructs = table{
 	Numo9Cmd_clearScreen,
 	Numo9Cmd_clipRect,
 	Numo9Cmd_solidRect,
+	Numo9Cmd_solidTri,
 	Numo9Cmd_solidLine,
 	Numo9Cmd_solidLine3D,
 	Numo9Cmd_quad,
@@ -1088,6 +1104,9 @@ print('got uint16 index='
 			elseif cmdtype == netcmds.solidRect then
 				local c = cmd[0].solidRect
 				app:drawSolidRect(c.x, c.y, c.w, c.h, c.colorIndex, c.borderOnly, c.round)
+			elseif cmdtype == netcmds.solidTri then
+				local c = cmd[0].solidTri
+				app:drawSolidTri(c.x1, c.y1, c.x2, c.y2, c.x3, c.y3, c.colorIndex)
 			elseif cmdtype == netcmds.solidLine then
 				local c = cmd[0].solidLine
 				app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex)
