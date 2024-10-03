@@ -303,7 +303,7 @@ print('writing music', i, 'size', size)
 	assert(path(fn):write(toCartImage(rom, labelImage)))
 
 	if cmd == 'r' then
-		assert(os.execute('./run.lua "'..fn..'"'))
+		assert(os.execute('luajit run.lua "'..fn..'"'))
 	end
 
 elseif cmd == 'n9tobin' then
@@ -1238,7 +1238,7 @@ assertlen(
 	assert(basepath'code.lua':write(code))
 
 	if cmd == 'p8run' then
-		assert(os.execute('./n9a.lua r "'..basepath:setext'n9'..'"'))
+		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
 	end
 
 	if next(sections) then
