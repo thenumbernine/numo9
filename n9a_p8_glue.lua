@@ -628,8 +628,13 @@ assert(shift>=0)
 		music(n, 0, ch)	-- store pico8 waveforms as my sfx, store its sfx and music as my music
 	end,
 
-	reload=[dst,src,len]do
-trace'TODO reload'
+	reload=[...]do
+		if select('#',...)==0 then
+			reset()	-- reset entire rom->ram
+		else
+			local dst,src,len
+trace('TODO reload', dst, src, len)
+		end
 	end,
 	cstore=[dst,src,len]do
 trace'TODO cstore'

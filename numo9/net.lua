@@ -1182,7 +1182,6 @@ print('got uint16 index='
 				app:matlookat(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
 			elseif cmdtype == netcmds.poke then
 				local c = cmd[0].poke
-print('client poke', ('$%x'):format(c.addr), c.size, c.value)
 				if c.size == 1 then
 					app:poke(c.addr, c.value)
 				elseif c.size == 2 then
