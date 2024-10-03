@@ -181,9 +181,10 @@ This adds to Lua(/JIT):
 - `rectb(x, y, w, h, [color])` = draw rectangle border
 - `elli(x, y, w, h, [color])` = draw a solid filled ellipse.  If you want to draw a circle then you have use an ellipse.
 - `ellib(x, y, w, h, [color])` = draw a ellipse border.
-- `tri(x1,y1,x2,y2,x3,y3,[color])` = draw a solid triangle.
-- `line(x1,y1,x2,y2,[color])` = draw line.
-- `line3d(x1,y1,z1,x2,y2,z2,[color])` = draw line but with z / perspective.
+- `tri(x1, y1, x2, y2, x3, y3, [color])` = draw a solid triangle.
+- `tri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, [color])` = draw a solid triangle.
+- `line(x1, y1, x2, y2, [color])` = draw line.
+- `line3d(x1, y1, z1, x2, y2, z2, [color])` = draw line but with z / perspective.
 - `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY])` = draw sprite
 	- spriteIndex = which sprite to draw
 	- screenX, screenY = pixel location of upper-left corner of the sprite
@@ -194,10 +195,10 @@ This adds to Lua(/JIT):
 	- spriteMask = mask of which bits to use.  default is 0xFF, in binary 1111:1111, which uses all 8 bitplanes.
 		- the resulting color index drawn is `(incomingTexelIndex >> spriteBit) & spriteMask + paletteIndex`
 	- scaleX, scaleY = on-screen scaling.
-- `quad(x,y,w,h,tx,ty,tw,th,pal,transparent,spriteBit,spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
-- `map(tileX,tileY,tilesWide,tilesHigh,screenX,screenY,mapIndexOffset,draw16x16Sprites)` = draw the tilemap. mapIndexOffset = global offset to shift all map indexes. draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
+- `quad(x, y, w, h, tx, ty, tw, th, pal, transparent, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
+- `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16x16Sprites)` = draw the tilemap. mapIndexOffset = global offset to shift all map indexes. draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
-- `text(str,x,y)` = draw text.  I should rename this to `print` for compat reasons.
+- `text(str, x, y)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = set video mode.  The current video modes are:
 	- 0 = 16bpp RGB565, needed for blending
 	- 1 = 8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow)
@@ -222,7 +223,7 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 - `mattrans([x],[y],[z])` = translate the transform matrix by x,y,z.  Default translate is 0.
 - `matrot(theta,[x,y,z])` = rotate by theta radians on axis x,y,z.  Default axis is 0,0,1 for screen rotations.
 - `matscale([x],[y],[z])` = scale by x,y,z.  Default scale is 1.
-- `matortho(left,right,bottom,top,[near,far])` = apply orthographic transform.  Mind you that (-1, 1) x (-1, 1) is an identity transform, leaving the screen space coordinate domain at its original of (0, 256) x (0, 256).  Maybe I'll change it later so you don't need to do the extra transform fix.
+- `matortho(left,right,bottom,top,[near,far])` = apply orthographic transform.
 - `matfrustum(left,right,bottom,top,near,far)` = apply frustum perspective transform.
 - `matlookat(eyeX,eyeY,eyeZ,camX,camY,camZ,upX,upY,upZ)` = transform view to position at camX,camY,camZ and look at eyeX,eyeY,eyeZ with the up vector upX,upY,upZ.
 
@@ -407,7 +408,7 @@ Pico8 Compatability is at 95%
 	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
 	- how does glsl handle uvec4 vs vec4, texture vs texelFetch vs fragment writing ...
-	- solid color blending is broken atm .  rgb332 is probably broken, i hope that's not what it's supposed to look like ... I am very close to just ripping out all the integer math in glsl, no matter how retro it seems, because the results are painful to deal with.
+	- solid color blending is broken atm.  rgb332 is probably broken, i hope that's not what it's supposed to look like ... I am very close to just ripping out all the integer math in glsl, no matter how retro it seems, because the results are painful to deal with.
 
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
@@ -438,3 +439,4 @@ Pico8 Compatability is at 95%
 - Right now editor palette is 4bpp by default, to be like similar fantasy consoles ... why not default to 8bpp?
 - Right now editor tilemap is 8x8 tiles by default ... why not default to 16x16?
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
+- matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?

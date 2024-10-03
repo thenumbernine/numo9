@@ -1478,7 +1478,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 end
 
 function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
-	return self:drawSolidTri3D(x1,y1,0,x2,y2,0,x3,y3,0,colorIndex)
+	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
 function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
@@ -1799,6 +1799,52 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 		scaleX,
 		scaleY
 	) - x0
+end
+
+-- matrix commands, so I don't duplicate these here in the env and in net ...
+-- should I set defaults here as well?
+-- I'm already setting them in env so ... nah ...
+
+function AppVideo:matident()
+	self:mvMatFromRAM()
+	self.mvMat:setIdent()
+	self:mvMatToRAM()
+end
+
+function AppVideo:mattrans(x,y,z)
+	self:mvMatFromRAM()
+	self.mvMat:applyTranslate(x, y, z)
+	self:mvMatToRAM()
+end
+
+function AppVideo:matrot(theta, x, y, z)
+	self:mvMatFromRAM()
+	self.mvMat:applyRotate(theta, x, y, z)
+	self:mvMatToRAM()
+end
+
+function AppVideo:matscale(x, y, z)
+	self:mvMatFromRAM()
+	self.mvMat:applyScale(x, y, z)
+	self:mvMatToRAM()
+end
+
+function AppVideo:matortho(l, r, t, b, n, f)
+	self:mvMatFromRAM()
+	self.mvMat:applyOrtho(l, r, t, b, n, f)
+	self:mvMatToRAM()
+end
+
+function AppVideo:matfrustum(l, r, t, b, n, f)
+	self:mvMatFromRAM()
+	self.mvMat:applyFrustum(l, r, t, b, n, f)
+	self:mvMatToRAM()
+end
+
+function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+	self:mvMatFromRAM()
+	self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+	self:mvMatToRAM()
 end
 
 return {
