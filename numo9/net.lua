@@ -220,7 +220,7 @@ local struct = require 'struct'
 
 local Numo9Cmd_base = struct{
 	name = 'Numo9Cmd_base',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 	},
@@ -228,7 +228,7 @@ local Numo9Cmd_base = struct{
 
 local Numo9Cmd_clearScreen = struct{
 	name = 'Numo9Cmd_clearScreen',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='colorIndex', type='uint8_t'},
@@ -237,7 +237,7 @@ local Numo9Cmd_clearScreen = struct{
 
 local Numo9Cmd_clipRect = struct{
 	name = 'Numo9Cmd_clipRect',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x', type='uint8_t'},
@@ -249,7 +249,7 @@ local Numo9Cmd_clipRect = struct{
 
 local Numo9Cmd_solidRect = struct{
 	name = 'Numo9Cmd_solidRect',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x', type='float'},
@@ -264,7 +264,7 @@ local Numo9Cmd_solidRect = struct{
 
 local Numo9Cmd_solidTri = struct{
 	name = 'Numo9Cmd_solidTri',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x1', type='float'},
@@ -279,7 +279,7 @@ local Numo9Cmd_solidTri = struct{
 
 local Numo9Cmd_solidTri3D = struct{
 	name = 'Numo9Cmd_solidTri3D',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x1', type='float'},
@@ -297,7 +297,7 @@ local Numo9Cmd_solidTri3D = struct{
 
 local Numo9Cmd_solidLine = struct{
 	name = 'Numo9Cmd_solidLine',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x1', type='float'},
@@ -310,7 +310,7 @@ local Numo9Cmd_solidLine = struct{
 
 local Numo9Cmd_solidLine3D = struct{
 	name = 'Numo9Cmd_solidLine3D',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x1', type='float'},
@@ -325,7 +325,7 @@ local Numo9Cmd_solidLine3D = struct{
 
 local Numo9Cmd_quad = struct{
 	name = 'Numo9Cmd_quad',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x', type='float'},
@@ -345,7 +345,7 @@ local Numo9Cmd_quad = struct{
 
 local Numo9Cmd_map = struct{
 	name = 'Numo9Cmd_map',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='tileX', type='float'},
@@ -361,7 +361,7 @@ local Numo9Cmd_map = struct{
 
 local Numo9Cmd_text = struct{
 	name = 'Numo9Cmd_text',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x', type='float'},
@@ -377,7 +377,7 @@ local Numo9Cmd_text = struct{
 
 local Numo9Cmd_blendMode = struct{
 	name = 'Numo9Cmd_blendMode',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='blendMode', type='uint8_t'},
@@ -386,7 +386,7 @@ local Numo9Cmd_blendMode = struct{
 
 local Numo9Cmd_matident = struct{
 	name = 'Numo9Cmd_matident',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 	},
@@ -394,7 +394,7 @@ local Numo9Cmd_matident = struct{
 
 local Numo9Cmd_mattrans = struct{
 	name = 'Numo9Cmd_mattrans',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x', type='float'},
@@ -405,7 +405,7 @@ local Numo9Cmd_mattrans = struct{
 
 local Numo9Cmd_matrot = struct{
 	name = 'Numo9Cmd_matrot',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='theta', type='float'},
@@ -417,7 +417,7 @@ local Numo9Cmd_matrot = struct{
 
 local Numo9Cmd_matscale = struct{
 	name = 'Numo9Cmd_matscale',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='x', type='float'},
@@ -428,7 +428,7 @@ local Numo9Cmd_matscale = struct{
 
 local Numo9Cmd_matortho = struct{
 	name = 'Numo9Cmd_matortho',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='l', type='float'},
@@ -442,7 +442,7 @@ local Numo9Cmd_matortho = struct{
 
 local Numo9Cmd_matfrustum = struct{
 	name = 'Numo9Cmd_matfrustum',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='l', type='float'},
@@ -456,7 +456,7 @@ local Numo9Cmd_matfrustum = struct{
 
 local Numo9Cmd_matlookat = struct{
 	name = 'Numo9Cmd_matlookat',
-	--packed = true,
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='ex', type='float'},
@@ -472,8 +472,8 @@ local Numo9Cmd_matlookat = struct{
 }
 
 local Numo9Cmd_sfx = struct{
-	--packed = true,
 	name = 'Numo9Cmd_sfx',
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='sfxID', type='int16_t'},	-- would be type='uint8_t' except for sfxID==-1 stop command ... TODO best to make a separate stop function for netcmd's sake
@@ -486,8 +486,8 @@ local Numo9Cmd_sfx = struct{
 }
 
 local Numo9Cmd_music = struct{
-	--packed = true,
 	name = 'Numo9Cmd_music',
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='musicID', type='int16_t'},	-- TODO same complaint as sfx above
@@ -497,8 +497,8 @@ local Numo9Cmd_music = struct{
 }
 
 local Numo9Cmd_poke = struct{
-	--packed = true,
 	name = 'Numo9Cmd_poke',
+	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='addr', type='uint32_t'},
@@ -539,6 +539,7 @@ local netcmds = netcmdNames:mapi(function(name, index) return index, name end):s
 
 local Numo9Cmd = struct{
 	name = 'Numo9Cmd',
+	packed = true,
 	union = true,
 	fields = table{
 		{name='type', type='uint8_t'},
@@ -720,8 +721,9 @@ function Server:endFrame()
 		end
 
 		local n = (math.min(thisBuf.size, prevBuf.size) * ffi.sizeof'Numo9Cmd') / 2
-		if n >= 65534 then
+		if n >= 0xfeff then
 			print('sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
+			n = 0xfefe	-- one less than our highest special code
 		end
 
 		local clp = ffi.cast('uint16_t*', prevBuf.v)
@@ -1030,7 +1032,11 @@ print'entering client listen loop...'
 					-- cmd frame reset message
 
 					local newcmdslen = value
-					asserteq(newcmdslen % ffi.sizeof'Numo9Cmd', 0, "cmd buffer not modulo size")
+					if newcmdslen % ffi.sizeof'Numo9Cmd' ~= 0 then
+						--error"cmd buffer not modulo size"
+						print"DANGER - cmd buffer not modulo size"
+						break
+					end
 					local newsize = newcmdslen /  ffi.sizeof'Numo9Cmd'
 --print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 					self.cmds:resize(newsize)
@@ -1209,11 +1215,9 @@ print('got uint16 index='
 				app:matlookat(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
 			elseif cmdtype == assert(netcmds.sfx) then
 				local c = cmd[0].sfx
-print('cli net sfx', c)
 				app:playSound(c.sfxID, c.channelIndex, c.pitch, c.volL, c.volR, c.looping ~= 0)
 			elseif cmdtype == assert(netcmds.music) then
 				local c = cmd[0].music
-print('cli net music', c)
 				app:playMusic(c.musicID, c.musicPlayingIndex, c.channelOffset)
 			elseif cmdtype == netcmds.poke then
 				local c = cmd[0].poke
@@ -1224,7 +1228,9 @@ print('cli net music', c)
 				elseif c.size == 4 then
 					app:pokel(c.addr, c.value)
 				else
-					error("got a bad poke size "..tostring(c.size))
+					--error("got a bad poke size "..tostring(c.size))
+					-- guaranteed to be a bad idea to keep going...
+					print("DANGER - got a bad poke size "..tostring(c.size))
 				end
 			end
 		end

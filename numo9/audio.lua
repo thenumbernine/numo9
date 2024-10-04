@@ -514,7 +514,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 -- one music at a time
 -- music tracks periodically issue sfx play commands to certain channels
 	musicID = math.floor(musicID or -1)
-print('playMusic musicID', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
+--print('playMusic musicID', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
 	if musicID == -1 then
 		-- stop music
 		-- TODO what kind of state for the channel to specify playing or not
