@@ -1831,12 +1831,17 @@ end
 
 function AppVideo:matortho(l, r, t, b, n, f)
 	self:mvMatFromRAM()
+	-- adjust from [-1,1] to [0,256]
+	-- opengl ortho matrix, which expects input space to be [-1,1]
+	self.mvMat:applyTranslate(128, 128)
+	self.mvMat:applyScale(128, 128)
 	self.mvMat:applyOrtho(l, r, t, b, n, f)
 	self:mvMatToRAM()
 end
 
 function AppVideo:matfrustum(l, r, t, b, n, f)
 	self:mvMatFromRAM()
+	-- TODO this still needs a coordinate fix like matortho now has ...
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 	self:mvMatToRAM()
 end
