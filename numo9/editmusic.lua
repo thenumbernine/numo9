@@ -9,6 +9,7 @@ local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
+local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
 
 local audioSampleTypePtr = audioSampleType..'*'
@@ -45,9 +46,11 @@ function EditMusic:update()
 	local isPlaying = app.ram.musicPlaying[0].isPlaying == 1
 	if self:guiButton(isPlaying and '||' or '=>', 64, 128, nil, 'play') then
 		if isPlaying then
-			app.ram.musicPlaying[0].isPlaying = 0
 			for i=0,audioMixChannels-1 do
 				app.ram.channels[i].flags.isPlaying = 0
+			end
+			for i=0,audioMusicPlayingCount-1 do
+				app.ram.musicPlaying[i].isPlaying = 0
 			end
 		else
 			app:playMusic(self.selMusicIndex, 0)
@@ -65,9 +68,11 @@ function EditMusic:update()
 
 	if isPlaying then
 		if app:keyr'space' then
-			app.ram.musicPlaying[0].isPlaying = 0
 			for i=0,audioMixChannels-1 do
 				app.ram.channels[i].flags.isPlaying = 0
+			end
+			for i=0,audioMusicPlayingCount-1 do
+				app.ram.musicPlaying[i].isPlaying = 0
 			end
 		end
 	else
