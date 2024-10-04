@@ -214,8 +214,6 @@ end
 
 -- TODO just use the same functionality as the code editor ...
 function Console:update()
-	if not self.isOpen then return end
-	
 	local app = self.app
 
 	local shownLines = math.min(#self.lines, 5)

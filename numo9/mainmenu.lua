@@ -21,7 +21,7 @@ local MainMenu = require 'numo9.ui':subclass()
 MainMenu.currentMenu = 'main'
 
 function MainMenu:open()
-	self.isOpen = true
+	self.app:setMenu(self)
 	self:setCurrentMenu'main'
 end
 
@@ -119,7 +119,6 @@ function MainMenu:menuButton(str)
 end
 
 function MainMenu:update()
-	if not self.isOpen then return end
 	local app = self.app
 
 	-- init the tab-order for editor controls
@@ -169,13 +168,13 @@ function MainMenu:updateMenuMain()
 	self:menuSection'game'
 
 	if self:menuButton'resume' then
-		self.isOpen = false
+		app:setMenu(nil)
 		app.isPaused = false
 		return
 	end
 
 	if self:menuButton'new game' then
-		self.isOpen = false
+		app:setMenu(nil)
 		app:runROM()
 		return
 	end
@@ -202,14 +201,11 @@ function MainMenu:updateMenuMain()
 	self:menuSection'system'
 
 	if self:menuButton'to console' then
-		self.isOpen = false
-		app.con.isOpen = true
+		app:setMenu(app.con)
 		return
 	end
 
 	if self:menuButton'to editor' then
-		self.isOpen = false
-		app.con.isOpen = false
 		app:setMenu(app.server and app.editNet or app.editCode)
 		return
 	end
@@ -254,7 +250,7 @@ function MainMenu:updateMenuMultiplayer()
 			else
 				-- TODO report connection failed if it failed
 				-- and go back to the game ...
-				self.isOpen = false
+				app:setMenu(nil)
 				app.isPaused = false
 				return
 			end
@@ -266,7 +262,7 @@ function MainMenu:updateMenuMultiplayer()
 		if self:menuButton'go' then
 			app:listen()
 			-- if we're listening then ... close the menu I guess
-			self.isOpen = false
+			app:setMenu(nil)
 			app.isPaused = false
 			return
 		end
