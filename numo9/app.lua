@@ -825,7 +825,7 @@ print('package.loaded', package.loaded)
 
 	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
 
-	self.editMode = 'code'	-- matches up with Editor's editMode's
+	self.editMode = 'code'	-- matches up with UI's editMode's
 
 	local EditNet = require 'numo9.editnet'
 	local EditCode = require 'numo9.editcode'
@@ -834,7 +834,7 @@ print('package.loaded', package.loaded)
 	local EditSFX = require 'numo9.editsfx'
 	local EditMusic = require 'numo9.editmusic'
 	local Console = require 'numo9.console'
-	local Menu = require 'numo9.menu'
+	local MainMenu = require 'numo9.mainMenu'
 
 	self:runInEmu(function()
 		self:resetView()	-- reset mat and clip
@@ -845,7 +845,7 @@ print('package.loaded', package.loaded)
 		self.editSFX = EditSFX{app=self}
 		self.editMusic = EditMusic{app=self}
 		self.con = Console{app=self}
-		self.menu = Menu{app=self}
+		self.mainMenu = MainMenu{app=self}
 	end)
 
 	-- load config if it exists
@@ -1260,7 +1260,7 @@ print('cartridge thread dead')
 					self:setFocus(nil)
 					-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
 					self.con.isOpen = true
-					--self.menu:open()
+					--self.mainMenu:open()
 				else
 					local success, msg = coroutine.resume(thread)
 					if not success then
@@ -1287,8 +1287,7 @@ print('cartridge thread dead')
 			gl.glDisable(gl.GL_SCISSOR_TEST)
 			self.mvMat:setIdent()
 			if coroutine.status(thread) == 'dead' then
-				--self.currentEditor = nil
-				self:setEditor(nil)
+				self:setMenu(nil)
 				return
 			end
 			local success, msg = coroutine.resume(thread)
@@ -1304,9 +1303,9 @@ print('cartridge thread dead')
 				self.con:print(msg)
 			end
 		end
-		if self.currentEditor then updateThread(self.currentEditor.thread) end
+		if self.activeMenu then updateThread(self.activeMenu.thread) end
 		if self.con.isOpen then updateThread(self.con.thread) end
-		if self.menu.isOpen then updateThread(self.menu.thread) end
+		if self.mainMenu.isOpen then updateThread(self.mainMenu.thread) end
 
 		self:mvMatFromRAM()
 
@@ -1720,7 +1719,7 @@ function App:runROM()
 	self:resetAudio()
 	self.isPaused = false
 	self.con.isOpen = false
-	self.menu.isOpen = false
+	self.mainMenu.isOpen = false
 
 	-- TODO setfenv instead?
 	local env = setmetatable({}, {
@@ -1762,7 +1761,7 @@ function App:runROM()
 end
 
 -- set the focus of whats running ... between the cartridge, the console, or the emulator
--- TODO this whole system got split up between the rom's env as runFocus, and the currentEditor - now both can exist simultaneously
+-- TODO this whole system got split up between the rom's env as runFocus, and the activeMenu - now both can exist simultaneously
 function App:setFocus(focus)
 	if self.runFocus then
 		if self.runFocus.loseFocus then self.runFocus:loseFocus() end
@@ -1776,13 +1775,13 @@ end
 -- can the menu and editor coexist?
 -- should the menu be one of these?
 -- (menu & gameplay can coexist ... editor & gameplay can coexist ...)
-function App:setEditor(editTab)
-	if self.currentEditor and self.currentEditor.loseFocus then
-		self.currentEditor:loseFocus()
+function App:setMenu(editTab)
+	if self.activeMenu and self.activeMenu.loseFocus then
+		self.activeMenu:loseFocus()
 	end
-	self.currentEditor = editTab
-	if self.currentEditor and self.currentEditor.gainFocus then
-		self.currentEditor:gainFocus()
+	self.activeMenu = editTab
+	if self.activeMenu and self.activeMenu.gainFocus then
+		self.activeMenu:gainFocus()
 	end
 end
 
@@ -1916,7 +1915,6 @@ function App:mouse()
 end
 
 function App:event(e)
-	local Editor = require 'numo9.editor'
 	if e[0].type == sdl.SDL_KEYUP
 	or e[0].type == sdl.SDL_KEYDOWN
 	then
@@ -1938,8 +1936,8 @@ function App:event(e)
 				-- already handled probably
 				-- TODO need a last-down for ESC (tho i'm not tracking it in the virt console key state stuff ... cuz its not supposed to be accessible by the cartridge code)
 				-- TODO why does sdl handle multiple keydowns for single keyups?
-			elseif self.menu.isOpen then
-				self.menu.isOpen = false
+			elseif self.mainMenu.isOpen then
+				self.mainMenu.isOpen = false
 				--[[ go to console?
 				self.con.isOpen = true
 				if not self.server then
@@ -1948,8 +1946,8 @@ function App:event(e)
 				--]]
 				-- [[ go to game?
 				self.con.isOpen = false
-				self.menu.isOpen = false
-				self:setEditor(nil)
+				self.mainMenu.isOpen = false
+				self:setMenu(nil)
 				self.isPaused = false
 				if not self.runFocus then
 					self.con.isOpen = true
@@ -1958,7 +1956,7 @@ function App:event(e)
 			elseif self.con.isOpen then
 				self.con.isOpen = false
 				--[[ con -> editor?
-				self:setEditor(self.server and self.editNet or self.editCode)
+				self:setMenu(self.server and self.editNet or self.editCode)
 				--]]
 				-- [[ con -> game if it's available ?
 				if self.runFocus then
@@ -1967,11 +1965,11 @@ function App:event(e)
 				else
 				--]]
 				-- [[ con -> menu?
-					self.menu:open()
+					self.mainMenu:open()
 				--]]
 				end
-			elseif self.currentEditor then
-				self:setEditor(nil)
+			elseif self.activeMenu then
+				self:setMenu(nil)
 				-- [[ editor -> game?
 				if not self.server then
 					-- ye ol fps behavior: console + single-player implies pause, console + multiplayer doesn't
@@ -1987,7 +1985,7 @@ function App:event(e)
 				-- assume it's a game pushing esc ...
 				-- go to the menu
 				self.con.isOpen = false
-				self.menu:open()
+				self.mainMenu:open()
 				if not self.server then
 					self.isPaused = true
 				end
@@ -2048,7 +2046,7 @@ function App:event(e)
 			self:processButtonEvent(press, sdl.SDL_JOYAXISMOTION, e[0].jaxis.which, e[0].jaxis.axis, lr)
 		end
 	elseif e[0].type == sdl.SDL_JOYBUTTONDOWN or e[0].type == sdl.SDL_JOYBUTTONUP then
-		-- e[0].jbutton.menu is 0/1 for up/down, right?
+		-- e[0].jbutton.mainMenu is 0/1 for up/down, right?
 		local press = e[0].type == sdl.SDL_JOYBUTTONDOWN
 		self:processButtonEvent(press, sdl.SDL_JOYBUTTONDOWN, e[0].jbutton.which, e[0].jbutton.button)
 	elseif e[0].type == sdl.SDL_CONTROLLERAXISMOTION then
@@ -2089,7 +2087,7 @@ function App:processButtonEvent(down, ...)
 	else
 		-- this branch is only used in gameplay
 		-- for that reason, if we're not in the gameplay menu-state then bail
-		--if not PlayingMenu:isa(self.menu) then return end
+		--if not PlayingMenu:isa(self.mainMenu) then return end
 		local etype, ex, ey = ...
 		local descLen = select('#', ...)
 		for playerIndexPlusOne, playerInfo in ipairs(self.cfg.playerInfos) do

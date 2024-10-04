@@ -1,8 +1,6 @@
 local ffi = require 'ffi'
 local math = require 'ext.math'
 
-local Editor = require 'numo9.editor'
-
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
@@ -15,7 +13,7 @@ local audioDataSize = numo9_rom.audioDataSize
 
 local audioSampleTypePtr = audioSampleType..'*'
 
-local EditMusic = Editor:subclass()
+local EditMusic = require 'numo9.ui':subclass()
 
 function EditMusic:init(args)
 	EditMusic.super.init(self, args)

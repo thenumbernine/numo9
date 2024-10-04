@@ -16,44 +16,40 @@ local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 local buttonNames = numo9_keys.buttonNames
 local buttonSingleCharLabels = numo9_keys.buttonSingleCharLabels
 
--- it's not an editor, but I put the gui functions in numo9.editor, so ...
--- strraigthen this out, either rename numo9.editor to numo9.gui, or use the gui project, or put the functions somewhere else like app or video, idk...
-local Editor = require 'numo9.editor'
+local MainMenu = require 'numo9.ui':subclass()
 
-local Menu = Editor:subclass()
+MainMenu.currentMenu = 'main'
 
-Menu.currentMenu = 'main'
-
-function Menu:open()
+function MainMenu:open()
 	self.isOpen = true
 	self:setCurrentMenu'main'
 end
 
-function Menu:setCurrentMenu(name)
+function MainMenu:setCurrentMenu(name)
 	self.currentMenu = name
 	self.menuTabIndex = 0
 	self.connectStatus = nil
 end
 
-Menu.ystep = 9
-Menu.ysepstep = 7
+MainMenu.ystep = 9
+MainMenu.ysepstep = 7
 
--- the ':menu...' prefix on all my menu gui cmds is to separate them from the :gui ones that don't read/write the Menu class' cursorX/cursorY
+-- the ':menu...' prefix on all my menu gui cmds is to separate them from the :gui ones that don't read/write the MainMenu class' cursorX/cursorY
 
-function Menu:menuLabel(str)
+function MainMenu:menuLabel(str)
 	self.app:drawText(str, self.cursorX, self.cursorY, 0xf7, 0xf0)
 	self.cursorY = self.cursorY + self.ystep
 end
 
-function Menu:menuSection(str)
+function MainMenu:menuSection(str)
 	-- TODO show a section divider
 	self.cursorY = self.cursorY + self.ysepstep
 	self.app:drawText(str, self.cursorX+16, self.cursorY, 0xf7, 0xf0)
 	self.cursorY = self.cursorY + self.ystep
 end
 
-Menu.cursorLoc = 0
-function Menu:menuTextField(label, t, k)
+MainMenu.cursorLoc = 0
+function MainMenu:menuTextField(label, t, k)
 	-- TODO here ... only if we have tab-focus ... read our input.
 	-- TODO color by tab-focus or not
 	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
@@ -116,13 +112,13 @@ function Menu:menuTextField(label, t, k)
 	self.cursorY = self.cursorY + self.ystep
 end
 
-function Menu:menuButton(str)
+function MainMenu:menuButton(str)
 	local result = self:guiButton(str, self.cursorX, self.cursorY)
 	self.cursorY = self.cursorY + self.ystep
 	return result
 end
 
-function Menu:update()
+function MainMenu:update()
 	if not self.isOpen then return end
 	local app = self.app
 
@@ -165,7 +161,7 @@ function Menu:update()
 	end
 end
 
-function Menu:updateMenuMain()
+function MainMenu:updateMenuMain()
 	local app = self.app
 
 	self:menuSection'NuMo9'
@@ -214,7 +210,7 @@ function Menu:updateMenuMain()
 	if self:menuButton'to editor' then
 		self.isOpen = false
 		app.con.isOpen = false
-		app:setEditor(app.server and app.editNet or app.editCode)
+		app:setMenu(app.server and app.editNet or app.editCode)
 		return
 	end
 
@@ -224,7 +220,7 @@ function Menu:updateMenuMain()
 	end
 end
 
-function Menu:updateMenuMultiplayer()
+function MainMenu:updateMenuMultiplayer()
 	local app = self.app
 	-- multiplayer ... TODO menu sub-screen
 
@@ -294,7 +290,7 @@ function Menu:updateMenuMultiplayer()
 	-- then have buttons for auto-assign-first-players or not
 end
 
-function Menu:updateMenuInput()
+function MainMenu:updateMenuInput()
 	local app = self.app
 
 	self:menuSection'input'
@@ -345,4 +341,4 @@ function Menu:updateMenuInput()
 	end
 end
 
-return Menu
+return MainMenu
