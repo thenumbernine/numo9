@@ -471,6 +471,31 @@ local Numo9Cmd_matlookat = struct{
 	},
 }
 
+local Numo9Cmd_sfx = struct{
+	--packed = true,
+	name = 'Numo9Cmd_sfx',
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='sfxID', type='int16_t'},	-- would be type='uint8_t' except for sfxID==-1 stop command ... TODO best to make a separate stop function for netcmd's sake
+		{name='channelIndex', type='int8_t'},	-- only needs 0-7 or -1 for 'pick any' 
+		{name='pitch', type='int16_t'},
+		{name='volL', type='int8_t'},
+		{name='volR', type='int8_t'},
+		{name='looping', type='int8_t'},		-- 1 bit
+	},
+}
+
+local Numo9Cmd_music = struct{
+	--packed = true,
+	name = 'Numo9Cmd_music',
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='musicID', type='int16_t'},	-- TODO same complaint as sfx above
+		{name='musicPlayingIndex', type='uint8_t'},	-- 3 bits
+		{name='channelOffset', type='uint8_t'},		-- 3 bits
+	},
+}
+
 local Numo9Cmd_poke = struct{
 	--packed = true,
 	name = 'Numo9Cmd_poke',
@@ -503,6 +528,8 @@ local netCmdStructs = table{
 	Numo9Cmd_matortho,
 	Numo9Cmd_matfrustum,
 	Numo9Cmd_matlookat,
+	Numo9Cmd_sfx,
+	Numo9Cmd_music,
 	Numo9Cmd_poke,
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
@@ -514,7 +541,7 @@ local Numo9Cmd = struct{
 	name = 'Numo9Cmd',
 	union = true,
 	fields = table{
-		{name='type', type='int'},
+		{name='type', type='uint8_t'},
 	}:append(netCmdStructs:mapi(function(cmdtype, i)
 		return {name=netcmdNames[i], type=cmdtype}
 	end)),
@@ -1180,6 +1207,14 @@ print('got uint16 index='
 			elseif cmdtype == netcmds.matlookat then
 				local c = cmd[0].matlookat
 				app:matlookat(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
+			elseif cmdtype == assert(netcmds.sfx) then
+				local c = cmd[0].sfx
+print('cli net sfx', c)
+				app:playSound(c.sfxID, c.channelIndex, c.pitch, c.volL, c.volR, c.looping ~= 0)
+			elseif cmdtype == assert(netcmds.music) then
+				local c = cmd[0].music
+print('cli net music', c)
+				app:playMusic(c.musicID, c.musicPlayingIndex, c.channelOffset)
 			elseif cmdtype == netcmds.poke then
 				local c = cmd[0].poke
 				if c.size == 1 then

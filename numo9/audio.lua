@@ -204,7 +204,8 @@ end
 local tmpOut = ffi.new('int32_t[?]', audioOutChannels)
 function AppAudio:updateSoundEffects()
 	local audio = self.audio
-
+	local masterVolFrac = self.cfg.volume / 255
+	
 	-- sound can't keep up ... hmm ...
 	--while self.ram.romUpdateCounter > audio.audioUpdateCounter do
 	--if self.ram.romUpdateCounter > audio.audioUpdateCounter then
@@ -248,7 +249,7 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 				end
 
 				for k=0,audioOutChannels-1 do
-					tmpOut[k] = tmpOut[k] + ampl * channel.volume[k] / 255
+					tmpOut[k] = tmpOut[k] + ampl * channel.volume[k] / 255 * masterVolFrac
 				end
 			end
 			channel = channel + 1
@@ -460,6 +461,9 @@ speed = speedup/slowdown.
 --]]
 function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	channelIndex = channelIndex or -1
+	pitch = pitch or 0x1000
+	volL = volL or 0xff
+    volR = volR or 0xff
 	local audio = self.audio
 
 	if channelIndex == -1 then
@@ -493,9 +497,9 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	channel.flags.isPlaying = 1
 	channel.flags.isLooping = looping and 1 or 0
 	channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
-	channel.pitch = pitch or 0x1000
-	channel.volume[0] = volL or 0xff
-	channel.volume[1] = volR or 0xff
+	channel.pitch = pitch
+	channel.volume[0] = volL 
+	channel.volume[1] = volR 
 end
 
 --[[
@@ -510,7 +514,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 -- one music at a time
 -- music tracks periodically issue sfx play commands to certain channels
 	musicID = math.floor(musicID or -1)
---print('playMusic', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
+print('playMusic musicID', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
 	if musicID == -1 then
 		-- stop music
 		-- TODO what kind of state for the channel to specify playing or not
@@ -535,9 +539,10 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	if music.len == 0 then return end
 
 	musicPlayingIndex = musicPlayingIndex or 0
+	channelOffset = channelOffset or 0
 	local musicPlaying = self.ram.musicPlaying + musicPlayingIndex
 	musicPlaying.isPlaying = 1
-	musicPlaying.channelOffset = channelOffset or 0
+	musicPlaying.channelOffset = channelOffset 
 	musicPlaying.addr = music.addr
 
 	-- keep our head counter here
