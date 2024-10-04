@@ -33,7 +33,7 @@ local dirs = {
 	{0,1},
 }
 
-local EditSprites = require 'numo9.editor':subclass()
+local EditSprites = require 'numo9.ui':subclass()
 
 function EditSprites:init(args)
 	EditSprites.super.init(self, args)

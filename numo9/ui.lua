@@ -1,3 +1,9 @@
+--[[
+This used to be the editor base
+but it grew too abstract and now it's the UI base
+I could separate them, but meh, at what point do you stop smashing things into smaller pieces
+TODO tempted to use my lua-gui ...
+--]]
 local ffi = require 'ffi'
 local math = require 'ext.math'
 local table = require 'ext.table'
@@ -38,9 +44,9 @@ local editFieldForMode = {
 }
 
 
-local Editor = class()
+local UI = class()
 
-function Editor:init(args)
+function UI:init(args)
 	self.app = assertindex(args, 'app')
 
 	self.menuTabCounter = 0
@@ -59,7 +65,7 @@ function Editor:init(args)
 	end)
 end
 
-function Editor:guiButton(str, x, y, isset, tooltip)
+function UI:guiButton(str, x, y, isset, tooltip)
 	local app = self.app
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
@@ -94,7 +100,7 @@ function Editor:guiButton(str, x, y, isset, tooltip)
 	end
 end
 
-function Editor:guiSpinner(x, y, cb, tooltip)
+function UI:guiSpinner(x, y, cb, tooltip)
 	local app = self.app
 
 	local leftButtonDown = app:key'mouse_left'
@@ -112,7 +118,7 @@ function Editor:guiSpinner(x, y, cb, tooltip)
 	end
 end
 
-function Editor:guiRadio(x, y, options, selected, cb)
+function UI:guiRadio(x, y, options, selected, cb)
 	for _,name in ipairs(options) do
 		if self:guiButton(
 			name:sub(1,1):upper(),
@@ -127,25 +133,25 @@ function Editor:guiRadio(x, y, options, selected, cb)
 	end
 end
 
-function Editor:setTooltip(s, x, y, fg, bg)
+function UI:setTooltip(s, x, y, fg, bg)
 	x = math.clamp(x, 8, frameBufferSize.x-8)
 	y = math.clamp(y, 8, frameBufferSize.y-8)
 	self.tooltip = {s, x, y, fg, bg}
 end
 
-function Editor:drawTooltip()
+function UI:drawTooltip()
 	if not self.tooltip then return end
 	self:drawText(table.unpack(self.tooltip))
 	self.tooltip = nil
 end
 
--- this and the :gui stuff really is Gui more than Editor ...
-function Editor:initMenuTabs()
+-- this and the :gui stuff really is Gui more than UI ...
+function UI:initMenuTabs()
 	self.menuTabMax = self.menuTabCounter
 	self.menuTabCounter = 0
 end
 
-function Editor:update()
+function UI:update()
 	local app = self.app
 	local editModes = app.server and editModesWithNet or editModesWithoutNet
 
@@ -166,7 +172,7 @@ function Editor:update()
 		function(x)
 			app.editMode = x
 			if editFieldForMode[x] then
-				app:setEditor(app[editFieldForMode[x]])
+				app:setMenu(app[editFieldForMode[x]])
 			end
 		end
 	)
@@ -197,12 +203,12 @@ end
 -- so that people dont touch it
 -- but still make sure they can use it
 -- cuz honestly I'm aiming to turn the editor into a ROM itself and stash it in console 'memory'
-function Editor:color(i)
+function UI:color(i)
 	if i == -1 then return -1 end	-- -1 for transparency meant don't use a valid color ...
 	return bit.bor(bit.band(i,0xf),0xf0)
 end
 
-function Editor:drawText(s,x,y,fg,bg)
+function UI:drawText(s,x,y,fg,bg)
 	return self.app:drawText(
 		s,x,y,
 		self:color(fg),
@@ -234,7 +240,7 @@ How about nothing - not a thing - and once again rely on the editor-user to manu
 ... maybe provide them with a 'dirty' warning if the game has been run, or if any ROM-area writes have been detected?
 ... until I do that, might as well reset everything here and just claim that 'DM-realtime-editor is WIP'
 --]]
-function Editor:gainFocus()
+function UI:gainFocus()
 	local app = self.app
 
 	-- if an editor tab gains focus, make sure to select it
@@ -263,7 +269,7 @@ function Editor:gainFocus()
 end
 
 --[====[
-function Editor:loseFocus()
+function UI:loseFocus()
 	local app = self.app
 
 	-- sync with RAM as well for when we run stuff ... tho calling run() or reset() should do this copy ROM->RAM for us
@@ -278,19 +284,19 @@ end
 -- setters from editor that write to both .ram and .cartridge
 -- TODO how about flags in the editor for which you write to?
 
-function Editor:edit_poke(addr, value)
+function UI:edit_poke(addr, value)
 	local app = self.app
 	app:net_poke(addr, value)
 	app.cartridge.v[addr] = value
 end
 
-function Editor:edit_pokew(addr, value)
+function UI:edit_pokew(addr, value)
 	local app = self.app
 	app:net_pokew(addr, value)
 	ffi.cast('uint16_t*', app.cartridge.v + addr)[0] = value
 end
 
-function Editor:edit_pokel(addr, value)
+function UI:edit_pokel(addr, value)
 	local app = self.app
 	app:net_pokel(addr, value)
 	ffi.cast('uint32_t*', app.cartridge.v + addr)[0] = value
@@ -301,7 +307,7 @@ end
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
 
-function Editor:calculateAudioSize()
+function UI:calculateAudioSize()
 	local app = self.app
 	self.totalAudioBytes = 0
 	for i=0,sfxTableSize-1 do
@@ -312,4 +318,4 @@ function Editor:calculateAudioSize()
 	end
 end
 
-return Editor
+return UI

@@ -23,7 +23,7 @@ local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local fontWidth = numo9_rom.fontWidth
 local codeSize = numo9_rom.codeSize
 
-local EditCode = require 'numo9.editor':subclass()
+local EditCode = require 'numo9.ui':subclass()
 
 function EditCode:init(args)
 	EditCode.super.init(self, args)

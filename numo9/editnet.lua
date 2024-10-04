@@ -1,11 +1,10 @@
 local table = require 'ext.table'
-local Editor = require 'numo9.editor'
 
 local frameBufferSize = require 'numo9.rom'.frameBufferSize
 local spriteSize = require 'numo9.rom'.spriteSize
 local fontWidth = require 'numo9.rom'.fontWidth
 
-local EditNet = Editor:subclass()
+local EditNet = require 'numo9.ui':subclass()
 
 function EditNet:update()
 	local app = self.app

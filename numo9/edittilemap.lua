@@ -14,7 +14,7 @@ local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapSize = numo9_rom.tilemapSize
 local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
 
-local EditTilemap = require 'numo9.editor':subclass()
+local EditTilemap = require 'numo9.ui':subclass()
 
 function EditTilemap:init(args)
 	EditTilemap.super.init(self, args)
