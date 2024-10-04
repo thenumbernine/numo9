@@ -196,6 +196,7 @@ end
 setfenv(1, {
 	getmetatable=getmetatable,
 	setmetatable=setmetatable,
+	type=type,
 	printh=trace,
 	assert=assert,
 	band=bit.band,
@@ -207,8 +208,18 @@ setfenv(1, {
 	lshr=bit.arshift,
 	rotl=bit.rol,
 	rotr=bit.ror,
-	min=math.min,
-	max=math.max,
+	--min=math.min,	-- some games complain about passing nils ... is that from other parse errors? or is that really pico8 functionality?
+	--max=math.max,
+	min=[a,b]do
+		if a==nil then return b end
+		if b==nil then return a end
+		return math.min(a,b)
+	end,
+	max=[a,b]do
+		if a==nil then return b end
+		if b==nil then return a end
+		return math.max(a,b)
+	end,
 	mid=[a,b,c]do
 		if b<a then a,b=b,a end
 		if c<b then

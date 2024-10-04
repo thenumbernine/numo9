@@ -1180,12 +1180,35 @@ assertlen(
 			end
 		end
 
+		-- man this is ugly.  i really need to just subclass the luaparser ...
+		-- TODO DON'T DO THIS WHEN IT'S IN A STRING
+		-- really I need to subclass LuaParser for this
+		while true do
+			local a,b,c = line:match'^(.*)@([_a-zA-Z][_a-zA-Z0-9]*)(.-)$'
+			if a then
+				if string.trim(c):sub(1,1) == '[' then
+					error("here's an edge case I cannot yet handle: handling @...[...] pokes ")
+				end
+				line = a..' peek('..b..') '..c
+			else
+				local a,b,c = line:match'^(.*)@(%b())(.-)$'
+				if a then
+					if string.trim(c):sub(1,1) == '[' then
+						error("here's an edge case I cannot yet handle: handling @...[...] pokes ")
+					end
+					line = a..' peek('..b..') '..c
+				else
+					break	-- no more matches/changes
+				end
+			end
+		end
+
 		--[[
 		still TODO
 		*) <<> with bit.rol
 		*) >>< with bit.ror (why not <>> to keep things symmetric?)
 		*) a \ b with math.floor(a / b) .  Lua uses a//b.  I don't want to replace all \ with // because escape codes in strings.
-		*) shorthand print: ? @ , raw memory writes, etc
+		*) shorthand print: ? , raw memory writes, etc
 		*) special control codes in strings
 		--]]
 		line = line:match'^(.-)%s*$' or line
