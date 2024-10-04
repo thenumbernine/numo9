@@ -8,6 +8,8 @@ local sfxTableSize = numo9_rom.sfxTableSize
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioOutChannels = numo9_rom.audioOutChannels
+local audioMixChannels = numo9_rom.audioMixChannels
+local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
 
 local audioSampleTypePtr = audioSampleType..'*'
@@ -69,7 +71,12 @@ function EditSFX:update()
 	local isPlaying = app.ram.channels[0].flags.isPlaying == 1
 	if self:guiButton(isPlaying and '||' or '=>', 64, 128, nil, 'play') then
 		if isPlaying then
-			app.ram.channels[0].flags.isPlaying = 0
+			for i=0,audioMixChannels-1 do
+				app.ram.channels[i].flags.isPlaying = 0
+			end
+			for i=0,audioMusicPlayingCount-1 do
+				app.ram.musicPlaying[i].isPlaying = 0
+			end
 		else
 			app:playSound(self.selSfxIndex, 0, nil, nil, nil, true)
 		end
@@ -86,7 +93,12 @@ function EditSFX:update()
 
 	if isPlaying then
 		if app:keyr'space' then
-			app.ram.channels[0].flags.isPlaying = 0
+			for i=0,audioMixChannels-1 do
+				app.ram.channels[i].flags.isPlaying = 0
+			end
+			for i=0,audioMusicPlayingCount-1 do
+				app.ram.musicPlaying[i].isPlaying = 0
+			end
 		end
 	else
 		if app:key'space' then

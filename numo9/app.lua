@@ -1213,7 +1213,8 @@ conn.receivesPerSecond = 0
 		-- TODO decrement to use framedrops
 		needUpdateCounter = 0
 
-		-- [[ where should I even put this?
+		-- [[ where should I even put this?  in here to make sure runs once per frame
+		-- outside the 1/60 block to make sure it runs as often as possible?
 		self:updateAudio()
 		--]]
 

@@ -626,6 +626,7 @@ print('toImage', name, 'width', width, 'height', height)
 		-- there's gotta be some math rule about converting from one frequency wave to another and how well that works ...
 		-- ANOTHER OPTION is just use more samples for this, and not 183
 		local waveforms = wavefuncs:mapi(function(f,j)
+			-- TODO I don't need to do this size ... I just need a size that's proportional to the wavelength so we dont' get clicks
 			local data = ffi.new(sampleType..'[?]', sampleFramesPerNoteBase)
 			local p = ffi.cast(sampleType..'*', data)
 			local tf = 0	-- time x frequency
