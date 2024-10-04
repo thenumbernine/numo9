@@ -398,7 +398,6 @@ Pico8 Compatability is at 95%
 - music 
 	- needs echo effect
 	- needs ADSR
-	- net messages for sfx() and music()
 	- when converting p8 to n9 music tracks that play two sfxs of different durations, I haven't finished that yet ...
 	- currently the music track data is delta encoded, but it handles new values as changes come in, so if the sfxID starts at zero then it won't be delta-encoded (unless you add an extra zero to the delta data) or alternatively (BETTER) don't add the extra zero, and instead have the music ... play on sfx ID initially?  only on non-zero vol channels? (then i have to process a whole first frame first)?  or only on isPlaying channels?  idk...
 - input
@@ -432,6 +431,8 @@ Pico8 Compatability is at 95%
 	- multiplayer ... draw commands in editors aren't issued to netplay so the client wont see the server's menus ...
 		... but they still modify the VRAM ...
 		... so I really need another framebuffer for the non-game stuff like the editor, menu, etc ...
+- netplay
+	- some things aren't syncing properly, client goes out of sync and disconnects after not much time.  music never seemed to work.
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 	- At present if there's a parse error then the line will show up correctly ... right underneath the line and file of the parser code itself ... hmm
 	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.

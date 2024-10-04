@@ -652,9 +652,36 @@ function App:initGL()
 			self:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 		end,
 
-		-- TODO NEED NETCMDS FOR THESE .. once I figure out the API
-		sfx = function(...) return self:playSound(...) end,
-		music = function(...) return self:playMusic(...) end,
+		sfx = function(sfxID, channelIndex, pitch, volL, volR, looping)
+-- [[			
+			if self.server then
+				channelIndex = channelIndex or -1
+				pitch = pitch or 0x1000
+				volL = volL or 0xff
+				volR = volR or 0xff
+				local cmd = self.server:pushCmd().sfx
+				cmd.type = assert(netcmds.sfx)
+				cmd.sfxID, cmd.channelIndex, cmd.pitch, cmd.volL, cmd.volR, cmd.looping = sfxID, channelIndex, pitch, volL, volR, looping
+			end
+--]]			
+			self:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
+		end,
+
+		music = function(musicID, musicPlayingIndex, channelOffset)
+-- [[			
+print('server music', 		musicID, musicPlayingIndex, channelOffset)	
+			if self.server then
+				musicID = math.floor(musicID or -1)
+				musicPlayingIndex = musicPlayingIndex or 0
+				channelOffset = channelOffset or 0
+				local cmd = self.server:pushCmd().music
+				cmd.type = assert(netcmds.music)
+				cmd.musicID, cmd.musicPlayingIndex, cmd.channelOffset = musicID, musicPlayingIndex, channelOffset
+print('server send', cmd)			
+			end
+--]]			
+			self:playMusic(musicID, musicPlayingIndex, channelOffset) 
+		end,
 
 		-- this just falls back to glapp saving the OpenGL draw buffer
 		screenshot = function() return self:screenshotToFile'ss.png' end,
@@ -919,7 +946,8 @@ looks like I'm a Snes9x-default-keybinding fan.
 			-- set state to paused initially
 			-- then if we get a loadROM command it'll unpause
 			-- or if we get a setmenu command in init this will remain paused and not kick us back to console when this finishes
-			self.isPaused = true
+			--self.isPaused = true
+			-- HOWEVER doing this makes it so starting to the console requires TWO ESCAPE (one to stop this startup) to enter the main menu ...
 			-- the trade off is that when this finishes, even if it got another load cmd in .initCmd, it still waits to finish and kicks to console even though another rom is loaded
 			-- I could work around *that too* with a yield after load here ...
 			-- edge case behavior getting too out of hand yet?
