@@ -120,15 +120,16 @@ memory layout:
 0x080a45 - 0x080a46 = blendMode
 0x080a46 - 0x080a48 = blendColor
 0x080a48 - 0x080ac8 = channels
-0x080ac8 - 0x080acc = updateCounter
-0x080acc - 0x080ad0 = romUpdateCounter
-0x080ad0 - 0x080ade = keyPressFlags
-0x080ade - 0x080aec = lastKeyPressFlags
-0x080aec - 0x080bc2 = keyHoldCounter
-0x080bc2 - 0x080bc6 = mousePos
-0x080bc6 - 0x080bca = lastMousePos
-0x080bca - 0x080bce = lastMousePressPos
-system dedicated 0x80bce of RAM
+0x080ac8 - 0x080b68 = musicPlaying
+0x080b68 - 0x080b6c = updateCounter
+0x080b6c - 0x080b70 = romUpdateCounter
+0x080b70 - 0x080b7e = keyPressFlags
+0x080b7e - 0x080b8c = lastKeyPressFlags
+0x080b8c - 0x080c62 = keyHoldCounter
+0x080c62 - 0x080c66 = mousePos
+0x080c66 - 0x080c6a = lastMousePos
+0x080c6a - 0x080c6e = lastMousePressPos
+system dedicated 0x80c6e of RAM
 ```
 
 # Language

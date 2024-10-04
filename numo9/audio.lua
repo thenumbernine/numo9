@@ -281,6 +281,12 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 	audio.sampleFrameIndex = audio.sampleFrameIndex + updateSampleFrameCount
 	--]]
 --DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + updateIntervalInBytes)
+	
+	-- don't queue if we're too full
+	local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)
+	--if queueSize > queueThresholdInBytes then return end	-- queue threshold size = 5 ticks @ 60hz ... no different then just clearing the audio as I'm doing above ...
+	--if queueSize > math.floor(updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(sampleType)) then return end -- 1 tick @ 60hz ... no overflow, occasional skip .... still 4 second delay to start sound ...
+	if queueSize > math.floor(2 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(sampleType)) then return end -- 2 ticks @ 60hz ... no overflow, no skip .... still 4 second delay to start sound ...
 
 --print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
 	sdlAssertZero(sdl.SDL_QueueAudio(
