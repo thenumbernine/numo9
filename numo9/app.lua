@@ -653,7 +653,6 @@ function App:initGL()
 		end,
 
 		sfx = function(sfxID, channelIndex, pitch, volL, volR, looping)
--- [[			
 			if self.server then
 				channelIndex = channelIndex or -1
 				pitch = pitch or 0x1000
@@ -663,13 +662,10 @@ function App:initGL()
 				cmd.type = assert(netcmds.sfx)
 				cmd.sfxID, cmd.channelIndex, cmd.pitch, cmd.volL, cmd.volR, cmd.looping = sfxID, channelIndex, pitch, volL, volR, looping
 			end
---]]			
 			self:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 		end,
 
 		music = function(musicID, musicPlayingIndex, channelOffset)
--- [[			
-print('server music', 		musicID, musicPlayingIndex, channelOffset)	
 			if self.server then
 				musicID = math.floor(musicID or -1)
 				musicPlayingIndex = musicPlayingIndex or 0
@@ -677,9 +673,7 @@ print('server music', 		musicID, musicPlayingIndex, channelOffset)
 				local cmd = self.server:pushCmd().music
 				cmd.type = assert(netcmds.music)
 				cmd.musicID, cmd.musicPlayingIndex, cmd.channelOffset = musicID, musicPlayingIndex, channelOffset
-print('server send', cmd)			
 			end
---]]			
 			self:playMusic(musicID, musicPlayingIndex, channelOffset) 
 		end,
 
