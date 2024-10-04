@@ -166,13 +166,7 @@ function Editor:update()
 		function(x)
 			app.editMode = x
 			if editFieldForMode[x] then
-				if app.currentEditor and app.currentEditor.loseFocus then
-					app.currentEditor:loseFocus()
-				end
-				app.currentEditor = app[editFieldForMode[x]]
-				if app.currentEditor and app.currentEditor.gainFocus then
-					app.currentEditor:gainFocus()
-				end
+				app:setEditor(app[editFieldForMode[x]])
 			end
 		end
 	)
@@ -300,6 +294,22 @@ function Editor:edit_pokel(addr, value)
 	local app = self.app
 	app:net_pokel(addr, value)
 	ffi.cast('uint32_t*', app.cartridge.v + addr)[0] = value
+end
+
+-- used by the editsfx and editmusic
+
+local sfxTableSize = numo9_rom.sfxTableSize
+local musicTableSize = numo9_rom.musicTableSize
+
+function Editor:calculateAudioSize()
+	local app = self.app
+	self.totalAudioBytes = 0
+	for i=0,sfxTableSize-1 do
+		self.totalAudioBytes = self.totalAudioBytes + app.ram.sfxAddrs[i].len
+	end
+	for i=0,musicTableSize-1 do
+		self.totalAudioBytes = self.totalAudioBytes + app.ram.musicAddrs[i].len
+	end
 end
 
 return Editor

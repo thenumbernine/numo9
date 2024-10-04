@@ -428,6 +428,9 @@ Pico8 Compatability is at 95%
 		- paste in wave files
 	- music tab
 		- paste in midi files ... but how to correlate instruments with your wave samples?  can midi files save wave data themselves?
+	- multiplayer ... draw commands in editors aren't issued to netplay so the client wont see the server's menus ...
+		... but they still modify the VRAM ...
+		... so I really need another framebuffer for the non-game stuff like the editor, menu, etc ...
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 	- At present if there's a parse error then the line will show up correctly ... right underneath the line and file of the parser code itself ... hmm
 	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.

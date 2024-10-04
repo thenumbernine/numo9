@@ -4,11 +4,14 @@ local math = require 'ext.math'
 local Editor = require 'numo9.editor'
 
 local numo9_rom = require 'numo9.rom'
+local spriteSize = numo9_rom.spriteSize
+local frameBufferSize = numo9_rom.frameBufferSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
+local audioDataSize = numo9_rom.audioDataSize
 
 local audioSampleTypePtr = audioSampleType..'*'
 
@@ -18,6 +21,11 @@ function EditMusic:init(args)
 	EditMusic.super.init(self, args)
 
 	self.selMusicIndex = 0
+	self:calculateAudioSize()
+end
+
+function EditMusic:gainFocus()
+	self:calculateAudioSize()
 end
 
 function EditMusic:update()
@@ -47,6 +55,13 @@ function EditMusic:update()
 			app:playMusic(self.selMusicIndex, 0)
 		end
 	end
+
+	-- footer
+	app:drawSolidRect(0, frameBufferSize.y - spriteSize.y, frameBufferSize.x, spriteSize.y, 0xf7, 0xf8)
+	app:drawText(
+		'ARAM '..self.totalAudioBytes..'/'..audioDataSize..' '
+		..('%d%%'):format(math.floor(100*self.totalAudioBytes / audioDataSize))
+		, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
 
 	self:drawTooltip()
 
