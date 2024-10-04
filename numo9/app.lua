@@ -1287,7 +1287,8 @@ print('cartridge thread dead')
 			gl.glDisable(gl.GL_SCISSOR_TEST)
 			self.mvMat:setIdent()
 			if coroutine.status(thread) == 'dead' then
-				self.currentEditor = nil
+				--self.currentEditor = nil
+				self:setEditor(nil)
 				return
 			end
 			local success, msg = coroutine.resume(thread)
@@ -1761,6 +1762,7 @@ function App:runROM()
 end
 
 -- set the focus of whats running ... between the cartridge, the console, or the emulator
+-- TODO this whole system got split up between the rom's env as runFocus, and the currentEditor - now both can exist simultaneously
 function App:setFocus(focus)
 	if self.runFocus then
 		if self.runFocus.loseFocus then self.runFocus:loseFocus() end
@@ -1768,6 +1770,19 @@ function App:setFocus(focus)
 	self.runFocus = focus
 	if self.runFocus then
 		if self.runFocus.gainFocus then self.runFocus:gainFocus() end
+	end
+end
+
+-- can the menu and editor coexist?
+-- should the menu be one of these?
+-- (menu & gameplay can coexist ... editor & gameplay can coexist ...)
+function App:setEditor(editTab)
+	if self.currentEditor and self.currentEditor.loseFocus then
+		self.currentEditor:loseFocus()
+	end
+	self.currentEditor = editTab
+	if self.currentEditor and self.currentEditor.gainFocus then
+		self.currentEditor:gainFocus()
 	end
 end
 
@@ -1934,10 +1949,7 @@ function App:event(e)
 				-- [[ go to game?
 				self.con.isOpen = false
 				self.menu.isOpen = false
-				if self.currentEditor and self.currentEditor.loseFocus then
-					self.currentEditor:loseFocus()
-				end
-				self.currentEditor = nil
+				self:setEditor(nil)
 				self.isPaused = false
 				if not self.runFocus then
 					self.con.isOpen = true
@@ -1946,10 +1958,7 @@ function App:event(e)
 			elseif self.con.isOpen then
 				self.con.isOpen = false
 				--[[ con -> editor?
-				self.currentEditor = self.server and self.editNet or self.editCode
-				if self.currentEditor.gainFocus then
-					self.currentEditor:gainFocus()
-				end
+				self:setEditor(self.server and self.editNet or self.editCode)
 				--]]
 				-- [[ con -> game if it's available ?
 				if self.runFocus then
@@ -1962,10 +1971,7 @@ function App:event(e)
 				--]]
 				end
 			elseif self.currentEditor then
-				if self.currentEditor.loseFocus then
-					self.currentEditor:loseFocus()
-				end
-				self.currentEditor = nil
+				self:setEditor(nil)
 				-- [[ editor -> game?
 				if not self.server then
 					-- ye ol fps behavior: console + single-player implies pause, console + multiplayer doesn't

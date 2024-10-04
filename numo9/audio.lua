@@ -16,17 +16,17 @@ local numo9_rom = require 'numo9.rom'
 local updateHz = numo9_rom.updateHz
 local updateIntervalInSeconds = numo9_rom.updateIntervalInSeconds
 local sampleFramesPerSecond = numo9_rom.audioSampleRate
-local sampleType = numo9_rom.audioSampleType
+local audioSampleType = numo9_rom.audioSampleType
 local audioMixChannels = numo9_rom.audioMixChannels -- # channels to mix, set to 8 right now
 local audioOutChannels = numo9_rom.audioOutChannels 	-- # speakers: 1 = mono, 2 = stereo
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
 local musicTableSize = numo9_rom.musicTableSize
 
-local sampleTypePtr = sampleType..'*'
+local audioSampleTypePtr = audioSampleType..'*'
 local updateIntervalInSampleFrames = math.ceil(updateIntervalInSeconds * sampleFramesPerSecond)
 local updateIntervalInSamples = updateIntervalInSampleFrames * audioOutChannels
-local updateIntervalInBytes =  updateIntervalInSamples * ffi.sizeof(sampleType)
+local updateIntervalInBytes =  updateIntervalInSamples * ffi.sizeof(audioSampleType)
 
 -- our console update is 60hz,
 -- if our sound is 44100 hz then that's 735 samples/frame
@@ -34,8 +34,8 @@ local updateIntervalInBytes =  updateIntervalInSamples * ffi.sizeof(sampleType)
 local samplesPerSecond = sampleFramesPerSecond * audioOutChannels
 local sampleFramesPerAppUpdate = math.ceil(sampleFramesPerSecond * updateIntervalInSeconds)			-- SDL docs terminology: 1 "sample frame" = 1 amplitude-quantity over a minimum discrete time interval across all output channels
 local samplesPerAppUpdate = sampleFramesPerAppUpdate * audioOutChannels	-- ... while a "sample frame" contains "sample"s  x the number of output channels
-local amplZero = assertindex({uint8_t=128, int16_t=0}, sampleType)
-local amplMax = assertindex({uint8_t=127, int16_t=32767}, sampleType)
+local amplZero = assertindex({uint8_t=128, int16_t=0}, audioSampleType)
+local amplMax = assertindex({uint8_t=127, int16_t=32767}, audioSampleType)
 
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
@@ -74,12 +74,12 @@ print('bufferSizeInSampleFrames', audio.bufferSizeInSampleFrames)
 	-- for .size: "Good values seem to range between 512 and 8096 inclusive"
 	local bufferSizeInSamples = audio.bufferSizeInSampleFrames * audioOutChannels
 print('bufferSizeInSamples', bufferSizeInSamples)
-print('sampleType', sampleType)
-	audio.bufferSizeInBytes = bufferSizeInSamples * ffi.sizeof(sampleType)
+print('audioSampleType', audioSampleType)
+	audio.bufferSizeInBytes = bufferSizeInSamples * ffi.sizeof(audioSampleType)
 print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	ffi.fill(desired, ffi.sizeof'SDL_AudioSpec')
 	desired[0].freq = sampleFramesPerSecond
-	desired[0].format = sdlAudioFormatForCType[sampleType]
+	desired[0].format = sdlAudioFormatForCType[audioSampleType]
 	desired[0].channels = audioOutChannels
 	desired[0].samples = audio.bufferSizeInSampleFrames -- in "sample frames" ... where stereo means two samples per "sample frame"
 	desired[0].size = audio.bufferSizeInBytes		-- is calculated, but I wanted to make sure my calculations matched.
@@ -109,27 +109,27 @@ print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	-- I WOULD HAVE TO DO RESAMPLING AS IT PLAYS
 	asserteq(sampleFramesPerSecond, spec[0].freq)
 	asserteq(audioOutChannels, spec[0].channels)
-	asserteq(sampleType, assertindex(ctypeForSDLAudioFormat, spec[0].format))
+	asserteq(audioSampleType, assertindex(ctypeForSDLAudioFormat, spec[0].format))
 	audio.bufferSizeInBytes = spec[0].size
-	bufferSizeInSamples = audio.bufferSizeInBytes / ffi.sizeof(sampleType)
+	bufferSizeInSamples = audio.bufferSizeInBytes / ffi.sizeof(audioSampleType)
 	audio.bufferSizeInSampleFrames = bufferSizeInSamples / audioOutChannels
 	bufferSizeInSeconds = audio.bufferSizeInSampleFrames / sampleFramesPerSecond
 print('got bufferSizeInSeconds', bufferSizeInSeconds)
-	--audio.audioBufferLength = math.ceil(audio.bufferSizeInBytes / ffi.sizeof(sampleType))
+	--audio.audioBufferLength = math.ceil(audio.bufferSizeInBytes / ffi.sizeof(audioSampleType))
 	audio.audioBufferLength = updateIntervalInSamples
-	audio.audioBuffer = ffi.new(sampleType..'[?]', audio.audioBufferLength)
+	audio.audioBuffer = ffi.new(audioSampleType..'[?]', audio.audioBufferLength)
 
 	-- [[ trying to fix this mystery initial slowdown in sdl_queuaudio ...
 	-- maybe its caused by the intial mallocs so
 	-- lets alloc enough mem that we don't have to alloc any more
-	local tmpbuf = ffi.new(sampleType..'['..(audioOutChannels * sampleFramesPerSecond * 2)..']')	-- 2 seconds worth
+	local tmpbuf = ffi.new(audioSampleType..'['..(audioOutChannels * sampleFramesPerSecond * 2)..']')	-- 2 seconds worth
 	sdlAssertZero(sdl.SDL_QueueAudio(
 		audio.deviceID,
 		tmpbuf,
 		ffi.sizeof(tmpbuf)
 	))
 	sdl.SDL_ClearQueuedAudio(audio.deviceID)
-	--]] -- hmm, didn't help ... 
+	--]] -- hmm, didn't help ...
 
 	print'starting audio...'
 	sdl.SDL_PauseAudioDevice(audio.deviceID, 0)	-- pause 0 <=> play
@@ -180,7 +180,7 @@ function AppAudio:resetAudio()
 end
 
 -- currently called every 1/60 ... I could call it every frame :shrug: a few thousand times a second
-local queueThresholdInBytes = math.floor(5 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(sampleType))
+local queueThresholdInBytes = math.floor(5 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(audioSampleType))
 function AppAudio:updateAudio()
 	local audio = self.audio
 
@@ -197,7 +197,7 @@ print('resetting runaway audio queue with size '..queueSize..' exceeding thresho
 
 --[[ nah don't do this here, do it in updateSoundEffects inter-sample-update
 	self:updateMusic()
---]]	
+--]]
 	self:updateSoundEffects()
 end
 
@@ -232,7 +232,7 @@ function AppAudio:updateSoundEffects()
 				-- where in sfx we are currently playing
 				local sfxaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
 assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
-				local ampl = ffi.cast(sampleTypePtr, self.ram.audioData + sfxaddr)[0]
+				local ampl = ffi.cast(audioSampleTypePtr, self.ram.audioData + sfxaddr)[0]
 
 				channel.addr = channel.addr + channel.pitch
 				if bit.lshift(bit.rshift(channel.addr, pitchPrec), 1) > sfx.addr + sfx.len then -- sfx.loopEndAddr then
@@ -259,10 +259,10 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 			p[k] = math.clamp(tmpOut[k], -amplMax, amplMax)
 		end
 		p = p + audioOutChannels
-		
+
 		-- [[ update one at a time and handle music-track-playing changes exactly on the sample that they should take place
 		-- might take some more computations
-		-- TODO if this is model to use then 
+		-- TODO if this is model to use then
 		-- ... no need to check updateMusicPlaying() outside this function every frame.
 		-- ... and no need to check the isPlaying within updateMusicPlaying() also ...
 		audio.sampleFrameIndex = audio.sampleFrameIndex + 1
@@ -281,18 +281,18 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 	audio.sampleFrameIndex = audio.sampleFrameIndex + updateSampleFrameCount
 	--]]
 --DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + updateIntervalInBytes)
-	
+
 	-- don't queue if we're too full
 	local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)
 	--if queueSize > queueThresholdInBytes then return end	-- queue threshold size = 5 ticks @ 60hz ... no different then just clearing the audio as I'm doing above ...
-	--if queueSize > math.floor(updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(sampleType)) then return end -- 1 tick @ 60hz ... no overflow, occasional skip .... still 4 second delay to start sound ...
-	if queueSize > math.floor(2 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(sampleType)) then return end -- 2 ticks @ 60hz ... no overflow, no skip .... still 4 second delay to start sound ...
+	--if queueSize > math.floor(updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(audioSampleType)) then return end -- 1 tick @ 60hz ... no overflow, occasional skip .... still 4 second delay to start sound ...
+	if queueSize > math.floor(2 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(audioSampleType)) then return end -- 2 ticks @ 60hz ... no overflow, no skip .... still 4 second delay to start sound ...
 
 --print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
 	sdlAssertZero(sdl.SDL_QueueAudio(
 		audio.deviceID,
 		audio.audioBuffer,
-		updateSampleFrameCount * audioOutChannels * ffi.sizeof(sampleType)
+		updateSampleFrameCount * audioOutChannels * ffi.sizeof(audioSampleType)
 	))
 end
 
@@ -347,7 +347,7 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 
 			local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
 			musicPlaying.addr = musicPlaying.addr + 2
-			
+
 			--self:setMusicPlayingToMusic(music)
 
 			-- this usually comes right after a delay command ... so ... should I even bother with resetting the musicPlaying.sampleFrameIndex
@@ -447,28 +447,26 @@ end
 --]]
 
 --[[
-TODO this was originally compat with pico8s format
-but now I'm rethinking this ... how to allow playing sound channels apart from music tracks. ..
-this is where sound channels' loop or stop addrs come in handy
+sfxID = sfx id.  -1 = stop channel
+channelIndex = which channel to play on.  0-7, or -1 to pick the first empty channel.
+pitch = frequency scalar.  uint16_t.  0x1000 = 1:1.  Default is 0x1000
+volL, volR = L/R speaker volume (0-255)
+looping = true for looping, false for not
 
-id = stored sound id.  -1 = stop channel
-note = 0-95, pitch adjustment
+TODO maybe later:
 duration = how long to play.  -1 = forever.
-channelIndex = which channel to play on.  0-7
-volume = what volume to use.  0-15
-speed = speedup/slowdown.
 offset = at what point to start playing.
+speed = speedup/slowdown.
 --]]
-function AppAudio:playSound(sfxID, pitch, duration, channelIndex, volume, speed, offset)
-print('FIXME playSound', sfxID, 'on channel', channelIndex, 'volume', volume, 'pitch', pitch)
+function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	channelIndex = channelIndex or -1
-	if not self.audio then return end
+	local audio = self.audio
 
---[=[ what if there's a track issuing commands to this channel?  what to do ... nothing?
 	if channelIndex == -1 then
-		for i,channel in ipairs(self.audio.channels) do
+		for i=0,audioMixChannels-1 do
+			local channel = self.ram.channels + i
 			if channel.flags.isPlaying == 0 then
-				channelIndex = i-1
+				channelIndex = i
 				break
 			end
 		end
@@ -476,58 +474,28 @@ print('FIXME playSound', sfxID, 'on channel', channelIndex, 'volume', volume, 'p
 			-- if all are playing then do we skip or do we just pick ?
 			channelIndex = 0
 		end
-	elseif channelIndex == -2 then
-		-- TODO stop all instances of 'sfxID' from playing anywhere ...
-		for i,channel in ipairs(self.audio.channels) do
-			if channel.flags.isPlaying == 1
-			and channel.sfxID == sfxID
-			then
-				channel.flags.isPlaying = 0
-			end
-		end
-		return
 	end
-	local channel = self.audio.channels[channelIndex+1]
-	if not channel then return end
+--DEBUG:asserteq(audioMixChannels, 8)
+	channelIndex = bit.band(channelIndex, 7)
+	local channel = self.ram.channels + channelIndex
 
 	if sfxID == -1 then
+		channel.addr = 0
 		channel.flags.isPlaying = 0
 		return
 	end
+	sfxID = bit.band(sfxID, 0xff)
+	local sfx = self.ram.sfxAddrs[sfxID]
+	local sfxaddr = sfx.addr
 
-	--channel.sfxID = sfxID 0-7 = builtin, 8-15= sfx 0-7
-	channel.sfxID = assert(sfxID)
-
-	--[[
-	local sound = self.sfxBuffers[bit.band(sfxID,7)+1]	-- TOOD make sure all are already loaded
-	--]]
-	-- [[ hack for now
-	if not self.sfxBuffers[sfxID] then
-		local file = require 'ext.path'(self.cartridgeName)
-				:setext()
-				('sfx'..sfxID..'.wav')
-		if file:exists() then
-print('loading sound', file)
-			self.sfxBuffers[sfxID] = AudioBuffer(file.path)
-		else
-			return
-		end
-	end
-	local sound = self.sfxBuffers[sfxID]
-	--]]
-	if not sound then print'...not loaded' return end
-	channel:setBuffer(sound)
-	volume = (volume or 7) / 31 -- 7 ... TODO ...
-	channel.volume = volume	-- save for later
-	channel:setGain(volume)
-	--channel:setPitch(1)
-	--if pitch and pitch ~= 0 then channel:setPitch(2^(pitch/12)) end
-	--channel:setPosition(0, 0, 0)
-	--channel:setVelocity(0, 0, 0)
-	channel:play()
-
-	return channel
---]=]
+--DEBUG:asserteq(sfxTableSize, 256)
+	channel.sfxID = sfxID
+	channel.flags.isPlaying = 1
+	channel.flags.isLooping = looping and 1 or 0
+	channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
+	channel.pitch = pitch or 0x1000
+	channel.volume[0] = volL or 0xff
+	channel.volume[1] = volR or 0xff
 end
 
 --[[

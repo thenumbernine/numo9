@@ -214,14 +214,7 @@ function Menu:updateMenuMain()
 	if self:menuButton'to editor' then
 		self.isOpen = false
 		app.con.isOpen = false
-		app.con.isOpen = false
-		if app.currentEditor and app.currentEditor.loseFocus then
-			app.currentEditor:loseFocus()
-		end
-		app.currentEditor = app.server and app.editNet or app.editCode
-		if app.currentEditor.gainFocus then
-			app.currentEditor:gainFocus()
-		end
+		app:setEditor(app.server and app.editNet or app.editCode)
 		return
 	end
 
