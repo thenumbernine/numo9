@@ -23,6 +23,9 @@ function EditTilemap:init(args)
 	self.pickOpen = false
 	self.spriteSelPos = vec2i()
 	self.spriteSelSize = vec2i(1,1)
+	self.horzFlip = false
+	self.vertFlip = false
+	self.selPalHiOffset = 0
 	self.draw16Sprites = false
 	self.drawMode = 'draw'	--TODO ui for this
 	self.gridSpacing = 1
@@ -71,6 +74,21 @@ function EditTilemap:update()
 		self.drawMode = result
 	end)
 
+	x = x + 32
+	if self:guiButton('H', x, y, self.horzFlip, 'hflip='..tostring(self.horzFlip)) then
+		self.horzFlip = not self.horzFlip
+	end
+	x = x + 8
+
+	if self:guiButton('V', x, y, self.vertFlip, 'vflip='..tostring(self.vertFlip)) then
+		self.vertFlip = not self.vertFlip
+	end
+	x = x + 16
+
+	self:guiSpinner(x, y, function(dx)
+		self.selPalHiOffset = math.clamp(self.selPalHiOffset + dx, 0, 0xf)
+	end, 'palhi='..self.selPalHiOffset)
+	x = x + 24
 
 	local tileBits = self.draw16Sprites and 4 or 3
 
@@ -256,7 +274,10 @@ function EditTilemap:update()
 				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 				local tileSelIndex = app:peekw(tilemapAddr + bit.lshift(texelIndex, 1))
 				self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
-				self.spriteSelPos.y = (tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
+				self.spriteSelPos.y = ((tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
+				self.selPalHiOffset = bit.band(bit.lshift(tileSelIndex, 10), 0xf)
+				self.horzFlip = bit.band(tileSelIndex, 0x4000) ~= 0
+				self.vertFlip = bit.band(tileSelIndex, 0x8000) ~= 0
 			end
 		elseif self.drawMode == 'draw' then
 			if leftButtonDown
@@ -274,8 +295,12 @@ function EditTilemap:update()
 						if 0 <= tx and tx < tilemapSize.x
 						and 0 <= ty and ty < tilemapSize.y
 						then
-							local tileSelIndex = self.spriteSelPos.x + dx
-								+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy)
+							local tileSelIndex = bit.bor(
+								self.spriteSelPos.x + dx
+								+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy),
+								bit.lshift(bit.band(0xf, self.selPalHiOffset), 10),
+								self.horzFlip and 0x4000 or 0,
+								self.vertFlip and 0x8000 or 0)
 							local texelIndex = tx + tilemapSize.x * ty
 							assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 							self:edit_pokew(tilemapAddr + bit.lshift(texelIndex, 1), tileSelIndex)
