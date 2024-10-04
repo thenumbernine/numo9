@@ -762,6 +762,21 @@ print('toImage', name, 'width', width, 'height', height)
 							ffi.sizeof'Numo9Channel' * audioMixChannels,
 							playbackDeltas
 						)
+						-- if we're on the first note and the sfxID is 0 then make sure we insert a 0 anyways, to trigger the first sfx playback
+						-- TODO rethink playback by volume vs playback by manually setting flags.isPlaying vs playback by encoding flags.isPlaying ...
+						if noteIndex==1 then
+							-- TODO to properly do this I'd have to check every frame until the volume was >0 ...
+							-- or another TODO could be just issue the isPlaying flag maybe
+							for i=0,audioMixChannels-1 do
+								if (soundState[i].volume[0] > 0
+									or soundState[i].volume[1] > 0)
+								and soundState[i].sfxID == 0 
+								then
+									playbackDeltas:emplace_back()[0] = ffi.offsetof('Numo9Channel', 'sfxID') + i * ffi.sizeof'Numo9Channel'
+									playbackDeltas:emplace_back()[0] = 0
+								end
+							end
+						end
 
 						-- insert an end-frame
 						playbackDeltas:emplace_back()[0] = 0xff
@@ -959,8 +974,8 @@ print("total SFX data size if I'd use BRR: "..(
 				local byte = ffi.cast('uint8_t*', short)
 				local durations = musicSfxs:mapi(function(sfx) return sfx.duration end)
 				local sortedDurations = table(durations):sort()
-				for q=1,#sortedDurations-1 do
-					if sortedDurations[q+1] % sortedDurations[q] ~= 0 then
+				for beatIndex=1,#sortedDurations-1 do
+					if sortedDurations[beatIndex+1] % sortedDurations[beatIndex] ~= 0 then
 						print('!!!! WARNING !!!! music '..musicTrackIndex..' sfxs '
 							..musicTrack.sfxs:concat' '
 							..' have durations that do not divide: '..durations:concat' ')
@@ -989,10 +1004,10 @@ print('durations '..sortedDurations:concat' ')
 				--local beatRatio = sortedDurations:last() / sortedDurations[1]
 				local lastNoteIndex = 0
 asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0's at the end
-				for q=0,33-1 do
+				for beatIndex=0,33-1 do
 					local changed = false
 					for channelIndexPlusOne,sfx in ipairs(musicSfxs) do
-						local note = sfx.notes[q+1]
+						local note = sfx.notes[beatIndex+1]
 						if note then -- and note.volume > 0 then
 							local channelIndex = channelIndexPlusOne-1
 							-- when converting pico8 sfx to my music tracks, just put them at track zero, I'll figure out how to shift them around later *shrug*
@@ -1014,8 +1029,8 @@ asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0
 					if changed then
 						-- insert wait time in beats
 						-- how to distingish this from deltas?  start-frame or end-frame message?
-						short[0] = q == #musicSfxs[1].notes-1 and 0 or q - lastNoteIndex
-						lastNoteIndex = q
+						short[0] = beatIndex == #musicSfxs[1].notes-1 and 0 or beatIndex - lastNoteIndex
+						lastNoteIndex = beatIndex
 						playbackDeltas:emplace_back()[0] = byte[0]
 						playbackDeltas:emplace_back()[0] = byte[1]
 
@@ -1026,6 +1041,21 @@ asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0
 							ffi.sizeof'Numo9Channel' * audioMixChannels,
 							playbackDeltas
 						)
+						-- if we're on the first note and the sfxID is 0 then make sure we insert a 0 anyways, to trigger the first sfx playback
+						-- TODO rethink playback by volume vs playback by manually setting flags.isPlaying vs playback by encoding flags.isPlaying ...
+						if beatIndex==0 then
+							-- TODO to properly do this I'd have to check every frame until the volume was >0 ...
+							-- or another TODO could be just issue the isPlaying flag maybe
+							for i=0,audioMixChannels-1 do
+								if (soundState[i].volume[0] > 0
+									or soundState[i].volume[1] > 0)
+								and soundState[i].sfxID == 0 
+								then
+									playbackDeltas:emplace_back()[0] = ffi.offsetof('Numo9Channel', 'sfxID') + i * ffi.sizeof'Numo9Channel'
+									playbackDeltas:emplace_back()[0] = 0
+								end
+							end
+						end
 
 						-- insert an end-frame
 						playbackDeltas:emplace_back()[0] = 0xff

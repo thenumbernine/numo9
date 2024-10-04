@@ -391,6 +391,7 @@ Pico8 Compatability is at 95%
 - https://en.wikibooks.org/wiki/Super_NES_Programming/Loading_SPC700_programs
 
 # TODO
+- upon fantasy console startup the first few frames skip ...
 - waveforms
 	- BRR
 	- with this comes looping-sample info being stored in the BRR ... should I also?
@@ -399,6 +400,7 @@ Pico8 Compatability is at 95%
 	- needs ADSR
 	- net messages for sfx() and music()
 	- when converting p8 to n9 music tracks that play two sfxs of different durations, I haven't finished that yet ...
+	- currently the music track data is delta encoded, but it handles new values as changes come in, so if the sfxID starts at zero then it won't be delta-encoded (unless you add an extra zero to the delta data) or alternatively (BETTER) don't add the extra zero, and instead have the music ... play on sfx ID initially?  only on non-zero vol channels? (then i have to process a whole first frame first)?  or only on isPlaying channels?  idk...
 - input
 	- mouse wheel returned in mouse() function.
 - menu
