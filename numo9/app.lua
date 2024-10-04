@@ -916,6 +916,14 @@ looks like I'm a Snes9x-default-keybinding fan.
 -- [[
 	self:setFocus{
 		thread = coroutine.create(function()
+			-- set state to paused initially
+			-- then if we get a loadROM command it'll unpause
+			-- or if we get a setmenu command in init this will remain paused and not kick us back to console when this finishes
+			self.isPaused = true
+			-- the trade off is that when this finishes, even if it got another load cmd in .initCmd, it still waits to finish and kicks to console even though another rom is loaded
+			-- I could work around *that too* with a yield after load here ...
+			-- edge case behavior getting too out of hand yet?
+
 			self:resetGFX()		-- needed to initialize UI colors
 			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
 			--[[ print or so something cheesy idk
@@ -930,17 +938,24 @@ looks like I'm a Snes9x-default-keybinding fan.
 			self.con.bgColor = 0xf0
 			--]]
 
-			if cmdline.initCmd then
-				self:runCmd(cmdline.initCmd)
-			end
+			-- first assign to console
+			self:setMenu(self.con)
 
+			-- how to make it start with console open if there's no rom ...
+			-- then run our cmdline file ... ?
 			if cmdline[1] then
 				self:load(cmdline[1])
 				self:runROM()
-			else
-				-- how to make it start with console open if there's no rom ...
-				self.con.isOpen = true
 			end
+
+			-- then let us run cmds
+			if cmdline.initCmd then
+print('running cmd', cmdline.initCmd)
+				self:runCmd(cmdline.initCmd)
+			end
+
+			-- yield before quit in case initCmd or load has a better runFocus and we dont need to end-thread and drop to console
+			coroutine.yield()
 		end),
 	}
 --]]
@@ -1259,8 +1274,7 @@ conn.receivesPerSecond = 0
 print('cartridge thread dead')
 					self:setFocus(nil)
 					-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
-					self.con.isOpen = true
-					--self.mainMenu:open()
+					self:setMenu(self.con)
 				else
 					local success, msg = coroutine.resume(thread)
 					if not success then
@@ -1304,8 +1318,6 @@ print('cartridge thread dead')
 			end
 		end
 		if self.activeMenu then updateThread(self.activeMenu.thread) end
-		if self.con.isOpen then updateThread(self.con.thread) end
-		if self.mainMenu.isOpen then updateThread(self.mainMenu.thread) end
 
 		self:mvMatFromRAM()
 
@@ -1718,8 +1730,7 @@ function App:runROM()
 	self:resetROM()
 	self:resetAudio()
 	self.isPaused = false
-	self.con.isOpen = false
-	self.mainMenu.isOpen = false
+	self:setMenu(nil)
 
 	-- TODO setfenv instead?
 	local env = setmetatable({}, {
@@ -1936,31 +1947,21 @@ function App:event(e)
 				-- already handled probably
 				-- TODO need a last-down for ESC (tho i'm not tracking it in the virt console key state stuff ... cuz its not supposed to be accessible by the cartridge code)
 				-- TODO why does sdl handle multiple keydowns for single keyups?
-			elseif self.mainMenu.isOpen then
-				self.mainMenu.isOpen = false
-				--[[ go to console?
-				self.con.isOpen = true
-				if not self.server then
-					self.isPaused = true
-				end
-				--]]
+			elseif self.activeMenu == self.mainMenu then
 				-- [[ go to game?
-				self.con.isOpen = false
-				self.mainMenu.isOpen = false
 				self:setMenu(nil)
 				self.isPaused = false
 				if not self.runFocus then
-					self.con.isOpen = true
+					self:setMenu(self.con)
 				end
 				--]]
-			elseif self.con.isOpen then
-				self.con.isOpen = false
+			elseif self.activeMenu == self.con then
 				--[[ con -> editor?
 				self:setMenu(self.server and self.editNet or self.editCode)
 				--]]
 				-- [[ con -> game if it's available ?
 				if self.runFocus then
-					self.con.isOpen = false
+					self:setMenu(nil)
 					self.isPaused = false
 				else
 				--]]
@@ -1977,14 +1978,14 @@ function App:event(e)
 					--  the cmds still serve a purpose in single-player for the game to use if it wan't i guess ...
 					self.isPaused = false
 					if not self.runFocus then
-						self.con.isOpen = true
+						self:setMenu(self.con)
 					end
 				end
 				--]]
 			else
 				-- assume it's a game pushing esc ...
 				-- go to the menu
-				self.con.isOpen = false
+				self:setMenu(nil)
 				self.mainMenu:open()
 				if not self.server then
 					self.isPaused = true
