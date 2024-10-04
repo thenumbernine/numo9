@@ -32,8 +32,16 @@ function EditSFX:update()
 	self:drawText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
 	local endAddr = selsfx.addr + selsfx.len
 	self:drawText(('mem: $%04x-$%04x'):format(selsfx.addr, endAddr), 64, 10, 0xfc, 0)
-	local lengthInSeconds = selsfx.len / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
+
+	local playaddr = bit.lshift(bit.rshift(app.ram.channels[0].addr, 12), 1)
+	self:drawText(('$%04x'):format(playaddr), 160, 10, 0xfc, 0)
+
+	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
+	local lengthInSeconds = selsfx.len * secondsPerByte
 	self:drawText(('length: %02.3f'):format(lengthInSeconds), 64, 18, 0xfc, 0)
+
+	local playLen = (playaddr - selsfx.addr) * secondsPerByte
+	self:drawText(('%02.3f'):format(playLen), 160, 18, 0xfc, 0)
 
 	-- TODO render the wave ...
 	local prevAmpl
