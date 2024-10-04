@@ -368,7 +368,6 @@ luajit n9a.lua p8run cart.p8
 Pico8 Compatability is at 95%
 - certain string escape characters don't work
 - certain machine-specific peeks and pokes don't work
-- palette functions are still buggy
 
 # Other Fantasy Consoles / Inspiration for this:
 - https://www.pico-8.com/
@@ -448,3 +447,5 @@ Pico8 Compatability is at 95%
 - matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
 - ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
 - I switched from PNG to TIFF so that I could save the whole cartridge binary in the lower 8 bits of 16bpp images, *with* LZW compression.  But never mind, in current year browsers still only seem to support png and jpeg.  I might go back to png, but that means either get rid of the option to have a display label image in the cartridge or it means lower the storage bpp down to 2 or something, and then that means I have to double the image size for matching space, then carts are getting up there in pixel size.
+- How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.
+- the reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ...

@@ -997,7 +997,7 @@ setLevel=[level_]do
 	end
 end
 
-mapGet=[x,y]mget(x+levelTileX,y+levelTileY)
+mapGet=[x,y]mget(x+levelTileX,y+levelTileY)&0x3ff	-- drop the hv flip and pal-hi
 mapSet=[x,y,value]mset(x+levelTileX,y+levelTileY,value)
 
 loadLevel=[]do
