@@ -86,11 +86,12 @@ local keyCodeNames = table{
 -- so let's keep track of the keyboard ending ...
 local lastKeyboardKeyCode = #keyCodeNames
 --print('lastKeyboardKeyCode', lastKeyboardKeyCode)
--- TODO instead of doing this, do handlers like in gamepad/sand-attack
+
 keyCodeNames:append{
-	'padding0',
-	'padding1',
+	'mouse_left',
+	'mouse_right',
 }
+
 asserteq(#keyCodeNames % 8, 0)
 
 local firstJoypadKeyCode = #keyCodeNames
@@ -116,23 +117,15 @@ for playerIndex=0,maxLocalPlayers-1 do
 	end
 end
 
--- TODO tempting to put the mouse buttons before the joypad ones, tho i want the joypad ones to be aligned to 8
--- then if I add more joypads the mouse won't change
-keyCodeNames:append{
-	'mouse_left',
-	'mouse_middle',
-	'mouse_right',
-}
-
 --DEBUG:print'keyCodeNames'
 --DEBUG:print(require'ext.tolua'(keyCodeNames))
 
---[[ print out the table for the readme
+-- [[ print out the table for the readme
 local colsize = 4 + keyCodeNames:mapi(function(name) return #name end):sup()
 for keyCodePlusOne,name in ipairs(keyCodeNames) do
 	local title = name..'='..(keyCodePlusOne-1)
-	io.write('|'..title..(' '):rep(colsize-#title))
-	if keyCodePlusOne % 8 == 0 then print'|' end
+	io.write('|`'..title..(' '):rep(colsize-#title))
+	if keyCodePlusOne % 8 == 0 then print'`|' end
 end
 if #keyCodeNames % 8 ~= 0 then print() end
 --]]

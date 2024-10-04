@@ -123,13 +123,13 @@ memory layout:
 0x080ac8 - 0x080b68 = musicPlaying
 0x080b68 - 0x080b6c = updateCounter
 0x080b6c - 0x080b70 = romUpdateCounter
-0x080b70 - 0x080b7e = keyPressFlags
-0x080b7e - 0x080b8c = lastKeyPressFlags
-0x080b8c - 0x080c62 = keyHoldCounter
-0x080c62 - 0x080c66 = mousePos
-0x080c66 - 0x080c6a = lastMousePos
-0x080c6a - 0x080c6e = lastMousePressPos
-system dedicated 0x80c6e of RAM
+0x080b70 - 0x080b7d = keyPressFlags
+0x080b7d - 0x080b8a = lastKeyPressFlags
+0x080b8a - 0x080c5a = keyHoldCounter
+0x080c5a - 0x080c5e = mousePos
+0x080c5e - 0x080c62 = lastMousePos
+0x080c62 - 0x080c66 = lastMousePressPos
+system dedicated 0x80c66 of RAM
 ```
 
 # Language
@@ -237,22 +237,22 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 
 	Key code numbers:
 
-|                  |                  |                  |                  |                  |                  |                  |                  |
-|------------------|------------------|------------------|------------------|------------------|------------------|------------------|------------------|
-|`a=0`             |`b=1`             |`c=2`             |`d=3`             |`e=4`             |`f=5`             |`g=6`             |`h=7`             |
-|`i=8`             |`j=9`             |`k=10`            |`l=11`            |`m=12`            |`n=13`            |`o=14`            |`p=15`            |
-|`q=16`            |`r=17`            |`s=18`            |`t=19`            |`u=20`            |`v=21`            |`w=22`            |`x=23`            |
-|`y=24`            |`z=25`            |`0=26`            |`1=27`            |`2=28`            |`3=29`            |`4=30`            |`5=31`            |
-|`6=32`            |`7=33`            |`8=34`            |`9=35`            |`minus=36`        |`equals=37`       |`leftbracket=38`  |`rightbracket=39` |
-|`backslash=40`    |`semicolon=41`    |`quote=42`        |`backquote=43`    |`comma=44`        |`period=45`       |`slash=46`        |`space=47`        |
-|`tab=48`          |`return=49`       |`backspace=50`    |`up=51`           |`down=52`         |`left=53`         |`right=54`        |`capslock=55`     |
-|`lctrl=56`        |`rctrl=57`        |`lshift=58`       |`rshift=59`       |`lalt=60`         |`ralt=61`         |`lgui=62`         |`rgui=63`         |
-|`delete=64`       |`insert=65`       |`pageup=66`       |`pagedown=67`     |`home=68`         |`end=69`          |`padding0=70`     |`padding1=71`     |
-|`jp0_up=72`       |`jp0_down=73`     |`jp0_left=74`     |`jp0_right=75`    |`jp0_a=76`        |`jp0_b=77`        |`jp0_x=78`        |`jp0_y=79`        |
-|`jp1_up=80`       |`jp1_down=81`     |`jp1_left=82`     |`jp1_right=83`    |`jp1_a=84`        |`jp1_b=85`        |`jp1_x=86`        |`jp1_y=87`        |
-|`jp2_up=88`       |`jp2_down=89`     |`jp2_left=90`     |`jp2_right=91`    |`jp2_a=92`        |`jp2_b=93`        |`jp2_x=94`        |`jp2_y=95`        |
-|`jp3_up=96`       |`jp3_down=97`     |`jp3_left=98`     |`jp3_right=99`    |`jp3_a=100`       |`jp3_b=101`       |`jp3_x=102`       |`jp3_y=103`       |
-|`mouse_left=104`  |`mouse_middle=105`|`mouse_right=106` |                  |                  |                  |                  |                  |
+|                 |                 |                 |                 |                 |                 |                 |                  |
+|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|------------------|
+|`a=0             |`b=1             |`c=2             |`d=3             |`e=4             |`f=5             |`g=6             |`h=7             `|
+|`i=8             |`j=9             |`k=10            |`l=11            |`m=12            |`n=13            |`o=14            |`p=15            `|
+|`q=16            |`r=17            |`s=18            |`t=19            |`u=20            |`v=21            |`w=22            |`x=23            `|
+|`y=24            |`z=25            |`0=26            |`1=27            |`2=28            |`3=29            |`4=30            |`5=31            `|
+|`6=32            |`7=33            |`8=34            |`9=35            |`minus=36        |`equals=37       |`leftbracket=38  |`rightbracket=39 `|
+|`backslash=40    |`semicolon=41    |`quote=42        |`backquote=43    |`comma=44        |`period=45       |`slash=46        |`space=47        `|
+|`tab=48          |`return=49       |`backspace=50    |`up=51           |`down=52         |`left=53         |`right=54        |`capslock=55     `|
+|`lctrl=56        |`rctrl=57        |`lshift=58       |`rshift=59       |`lalt=60         |`ralt=61         |`lgui=62         |`rgui=63         `|
+|`delete=64       |`insert=65       |`pageup=66       |`pagedown=67     |`home=68         |`end=69          |`mouse_left=70   |`mouse_right=71  `|
+|`jp0_up=72       |`jp0_down=73     |`jp0_left=74     |`jp0_right=75    |`jp0_a=76        |`jp0_b=77        |`jp0_x=78        |`jp0_y=79        `|
+|`jp1_up=80       |`jp1_down=81     |`jp1_left=82     |`jp1_right=83    |`jp1_a=84        |`jp1_b=85        |`jp1_x=86        |`jp1_y=87        `|
+|`jp2_up=88       |`jp2_down=89     |`jp2_left=90     |`jp2_right=91    |`jp2_a=92        |`jp2_b=93        |`jp2_x=94        |`jp2_y=95        `|
+|`jp3_up=96       |`jp3_down=97     |`jp3_left=98     |`jp3_right=99    |`jp3_a=100       |`jp3_b=101       |`jp3_x=102       |`jp3_y=103       `|
+
 
 - `btn(buttonCode, player)`, `btnp(buttonCode, player, [hold], [period])`, `btnr(buttonCode, player)` = same for emulated-joypad-buttons-on-keyboard.
 This is a compatability/convenience function that remaps the button+player codes to the corresponding `jpX_YYY` key codes.
@@ -400,6 +400,9 @@ Pico8 Compatability is at 95%
 	- needs echo effect
 	- needs ADSR
 	- net messages for sfx() and music()
+	- when converting p8 to n9 music tracks that play two sfxs of different durations, I haven't finished that yet ...
+- input
+	- mouse wheel returned in mouse() function.
 - menu
 	- draw mouse / touch regions
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
@@ -420,8 +423,8 @@ Pico8 Compatability is at 95%
 	- expose palette index swap feature
 	- bucket fill functionality
 	- flag for pen / paste / bucket fill clip-to-view-area or not
-	- blob-finding functionality ... ?  How about selection masks and click-to-select stuff?  Why not just remake Photoshop.
-	- tilemap bucket fill
+	- tilemap bucket fill, pen size, and basically all the sam edit functionality as the sprite editor
+	- scroll to zoom
 	- sfx tab
 		- paste in wave files
 	- music tab
@@ -442,3 +445,4 @@ Pico8 Compatability is at 95%
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
 - matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
 - ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
+- I switched from PNG to TIFF so that I could save the whole cartridge binary in the lower 8 bits of 16bpp images, *with* LZW compression.  But never mind, in current year browsers still only seem to support png and jpeg.  I might go back to png, but that means either get rid of the option to have a display label image in the cartridge or it means lower the storage bpp down to 2 or something, and then that means I have to double the image size for matching space, then carts are getting up there in pixel size.
