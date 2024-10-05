@@ -302,17 +302,7 @@ function App:initGL()
 		pokel = function(addr, value) return self:net_pokel(addr, value) end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
-		mget = function(x, y)
-			x = math.floor(x)
-			y = math.floor(y)
-			if x >= 0 and x < tilemapSize.x
-			and y >= 0 and y < tilemapSize.y
-			then
-				return self.ram.tilemap[x + tilemapSize.x * y]
-			end
-			-- TODO return default oob value
-			return 0
-		end,
+		mget = function(...) return self:mget(...) end,
 		mset = function(x, y, value) return self:net_mset(x, y, value) end,
 
 		-- graphics
@@ -994,43 +984,62 @@ end
 -- leave the :(not net_)functionName stuff for the client to also call and not worry about requesting another server refresh
 --  (tho the client shouldnt have a server and that shouldnt happen anyways)
 
+-- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast('int') ? ffi.new('int') ? bit.bor(0) ?
+local function toint(x)
+	return bit.bor(x, 0)
+end
+
 function App:net_poke(addr, value)
 	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
 	if self.server then
-		local cmd = self.server:pushCmd().poke
-		cmd.type = netcmds.poke
-		cmd.addr = addr
-		cmd.value = value
-		cmd.size = 1
+		-- spare us reocurring messages
+		addr = toint(addr)
+		value = toint(value)
+		if self:peek(addr) ~= value then
+			local cmd = self.server:pushCmd().poke
+			cmd.type = netcmds.poke
+			cmd.addr = addr
+			cmd.value = value
+			cmd.size = 1
+		end
 	end
 	return self:poke(addr, value)
 end
 
 function App:net_pokew(addr, value)
 	if self.server then
-		local cmd = self.server:pushCmd().poke
-		cmd.type = netcmds.poke
-		cmd.addr = addr
-		cmd.value = value
-		cmd.size = 2
+		addr = toint(addr)
+		value = toint(value)
+		if self:peekw(addr) ~= value then
+			local cmd = self.server:pushCmd().poke
+			cmd.type = netcmds.poke
+			cmd.addr = addr
+			cmd.value = value
+			cmd.size = 2
+		end
 	end
 	return self:pokew(addr, value)
 end
 
 function App:net_pokel(addr, value)
 	if self.server then
-		local cmd = self.server:pushCmd().poke
-		cmd.type = netcmds.poke
-		cmd.addr = addr
-		cmd.value = value
-		cmd.size = 4
+		addr = toint(addr)
+		value = toint(value)
+		if self:peekl(addr) ~= value then
+			local cmd = self.server:pushCmd().poke
+			cmd.type = netcmds.poke
+			cmd.addr = addr
+			cmd.value = value
+			cmd.size = 4
+		end
 	end
 	return self:pokel(addr, value)
 end
 
 function App:net_mset(x, y, value)
-	x = math.floor(x)
-	y = math.floor(y)
+	x = toint(x)
+	y = toint(y)
+	value = toint(value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
 	then
@@ -1038,15 +1047,32 @@ function App:net_mset(x, y, value)
 		-- use poke over netplay, cuz i'm lazy.
 		-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
 		if self.server then
-			local cmd = self.server:pushCmd().poke
-			cmd.type = netcmds.poke
-			cmd.addr = tilemapAddr + bit.lshift(index, 1)
-			cmd.value = value
-			cmd.size = 2
+			if self:mget(x, y) ~= value then
+				local cmd = self.server:pushCmd().poke
+				cmd.type = netcmds.poke
+				cmd.addr = tilemapAddr + bit.lshift(index, 1)
+				cmd.value = value
+				cmd.size = 2
+			end
 		end
 		self.ram.tilemap[index] = value
 		self.mapTex.dirtyCPU = true
 	end
+end
+
+-------------------- LOCAL ENV API --------------------
+
+function App:mget(x, y)
+	x = toint(x)
+	y = toint(y)
+	if x >= 0 and x < tilemapSize.x
+	and y >= 0 and y < tilemapSize.y
+	then
+		-- use peek so we make sure to flush gpu->cpu ... but right now we only have framebuffer to check for gpu-writes ...
+		return self.ram.tilemap[x + tilemapSize.x * y]
+	end
+	-- TODO return default oob value
+	return 0
 end
 
 -------------------- MULTIPLAYER --------------------
