@@ -4,9 +4,12 @@
 
 I thought I'd make a fantasy console with all the LuaJIT binding code and libraries I have laying around.
 
-## What's unique about this one?
-
-It's strictly LuaJIT.  No compiling required.
+What does NuMo9 have that the competition doesn't?
+- 16-bit console era.  4-button gamepads.
+- 8bpp sprites, 16x16 tilemaps, "mode-7" transformations, blending.
+- Multiplayer, 4 player netplay, with unlimited observers.
+- Server can edit games in realtime.  Live game DM'ing.
+- It's strictly LuaJIT.  No compiler needed.
 
 ## Build Instructions.
 

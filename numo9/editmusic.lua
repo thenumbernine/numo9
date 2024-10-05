@@ -94,7 +94,8 @@ function EditMusic:update()
 
 	local y = 10
 	self:guiSpinner(2, y, function(dx)
-		self.selMusicIndex = math.clamp(self.selMusicIndex + dx, 0, sfxTableSize-1)
+asserteq(sfxTableSize, 256)
+		self.selMusicIndex = bit.band(self.selMusicIndex + dx, 0xff)
 		self:refreshSelectedMusic()
 	end)
 
@@ -108,7 +109,8 @@ function EditMusic:update()
 	self:drawText(('bps: %d'):format(self.selectedTrack.bps), 20, y, 0xfc, 0xf0)
 	y = y + 10
 
-	for _,frame in ipairs(self.selectedTrack.frames) do
+	--[[ as text
+	for frameIndex,frame in ipairs(self.selectedTrack.frames) do
 		local x = 8
 		self:drawText(('%d'):format(frame.delay), x, y, 0xfc, 0xf0)
 		x = x + fontWidth * 4
@@ -116,7 +118,70 @@ function EditMusic:update()
 			self:drawText(('%02X'):format(v), x + (2 * fontWidth + 2) * (k-1), y, 0xfc, 0xf0)
 		end
 		y = y + 10
+	end	
+	--]]
+	-- volume
+	do
+		local x = 1
+		local h = 96
+		for frameIndex,frame in ipairs(self.selectedTrack.frames) do
+			-- [[ as vbars
+			x = x + frame.delay	-- in beats
+			app:drawSolidLine(
+				x * 3,
+				y + h,
+				x * 3,
+				y + h - tonumber(frame.channels[0].volume[0]) * h / 255,
+				0xf9,
+				0xf0
+			)
+			x = x + 1
+			app:drawSolidLine(
+				x * 3,
+				y + h,
+				x * 3,
+				y + h - tonumber(frame.channels[0].volume[1]) * h / 255,
+				0xf8,
+				0xf0
+			)
+			--]]
+		end
+		y = y + h + 4
 	end
+	-- pitche
+	do
+		local x = 1
+		local h = 96
+		for frameIndex,frame in ipairs(self.selectedTrack.frames) do
+			-- [[ as vbars
+			x = x + frame.delay	-- in beats
+			if frame.channels[0].volume[0] > 0 or frame.channels[0].volume[1] > 0 then
+				--[=[ as ampl
+				local a = (tonumber(frame.channels[0].pitch)) * h / 0xffff
+				--]=]
+				-- [=[ as octave
+				local a = 
+					(
+						(	-- this is from [-12, 4]
+							(math.log(tonumber(frame.channels[0].pitch)) - math.log(0x1000)) / math.log(2)
+						)
+					-- + 12) / 16 * h	-- so add 12 to get from [0,16]
+					+ 4) / 8 * h		-- or just go by [0,4] octaves
+				--]=]
+				app:drawSolidLine(
+					x * 3,
+					y + h,
+					x * 3,
+					y + h - a,
+					0xf7,
+					0xf0
+				)
+			end
+			x = x + 1
+			--]]
+		end
+	end
+
 
 	local isPlaying = app.ram.musicPlaying[0].isPlaying == 1
 	if self:guiButton(isPlaying and '||' or '=>', 128, 0, nil, 'play') then
@@ -154,6 +219,14 @@ function EditMusic:update()
 		if app:key'space' then
 			app:playMusic(self.selMusicIndex, 0)
 		end
+	end
+
+	if app:keyp'left' then
+		self.selMusicIndex = bit.band(self.selMusicIndex - 1, 0xff)
+		self:refreshSelectedMusic()
+	elseif app:keyp'right' then
+		self.selMusicIndex = bit.band(self.selMusicIndex + 1, 0xff)
+		self:refreshSelectedMusic()
 	end
 end
 
