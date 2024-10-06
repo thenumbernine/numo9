@@ -78,50 +78,49 @@ local samplerType = (useTextureInt and 'u' or '')
 	.. 'sampler2D'
 	.. (useTextureRect and 'Rect' or '')
 
--- is this going to turn into a parser?
+--[[
+args:
+	tex
+	tc
+	from (optional) 'float' or 'int'
+	to (optional) 'float' or 'int'
+is this going to turn into a parser?
+--]]
 local function texelFunc(args)
 	local tex = args.tex
 	local tc = args.tc
-	if args.fromFloat then
+	if args.from == 'float' then
 		if useTextureRect or texelFuncName == 'texelFetch' then
 			tc = 'ivec2(('..tc..') * vec2(textureSize('..tex..', 0)))'
 		end
+	elseif args.from == 'int' then
+		if not (useTextureRect or texelFuncName == 'texelFetch') then
+			tc = 'vec2(('..tc..') + .5) / vec2(textureSize('..tex..', 0))'
+		end
 	end
+	local dst
 	if texelFuncName == 'texelFetch' then
-		return texelFuncName..'('..tex..', '..tc..', 0)'
+		dst = texelFuncName..'('..tex..', '..tc..', 0)'
 	else
-		return texelFuncName..'('..tex..', '..tc..')'
+		dst = texelFuncName..'('..tex..', '..tc..')'
 	end
-end
-
---[[
-convert to uint, assume the source is a texture texel
-when outputting uint, does texture() vs texelFetch() output normalized to [0,2^32-1], or the texture format [0,255], or ... what?
---]]
-local function readTexUint(code, scale)
--- [=[
-	if not useTextureInt then
-		code = 'uvec4('..code..' * '..glslnumber(scale or
-			-- why doesn't this make a difference?
-			4294967295
-			--2147483647
-			--256
-			--1
-			--]]
-			)..')'
+	if args.to == 'uint' then
+		--[[
+		convert to uint, assume the source is a texture texel
+		when outputting uint, does texture() vs texelFetch() output normalized to [0,2^32-1], or the texture format [0,255], or ... what?
+		--]]
+		if not useTextureInt then
+			code = 'uvec4('..dst..' * '..glslnumber(
+				-- why doesn't this make a difference?
+				4294967295
+				--2147483647
+				--256
+				--1
+				--]]
+				)..')'
+		end
 	end
---]=]
-	return '('..code..')'
-end
-
---[[
-convert from ivec2 to texelFuncName texcoord input
---]]
-local function texCoordRectFromIntVec(code, size)
-	if not (useTextureRect or texelFuncName == 'texelFetch') then
-		code = 'vec2(('..code..') + .5) / vec2('..glslnumber(size.x)..', '..glslnumber(size.y)..')'
-	end
-	return code
+	return dst
 end
 
 -- r,g,b,a is 8bpp
@@ -588,10 +587,7 @@ layout(location=0) out ]]..fragType..[[ fragColor;
 uniform <?=samplerType?> fbTex;
 
 void main() {
-	fragColor = ]]
-		..readTexUint(
-			texelFunc{tex='fbTex', tc='tcv', fromFloat=true}
-		)..[[;
+	fragColor = ]]..texelFunc{tex='fbTex', tc='tcv', from='float', to='uint'}..[[;
 // with vec4 fragColor, none of these give a meaningful result:
 //fragColor *= 1. / 255.;
 //fragColor *= 1. / 65535.;
@@ -638,9 +634,7 @@ uniform <?=samplerType?> fbTex;
 uniform <?=samplerType?> palTex;
 
 void main() {
-	uint colorIndex = ]]..readTexUint(
-		texelFunc{tex='fbTex', tc='tcv', fromFloat=true}
-	)..[[.r;
+	uint colorIndex = ]]..texelFunc{tex='fbTex', tc='tcv', from='float', to='uint'}..[[.r;
 ]]..colorIndexToFrag..[[
 }
 ]],			{
@@ -683,9 +677,7 @@ layout(location=0) out vec4 fragColor;
 uniform <?=samplerType?> fbTex;
 
 void main() {
-	uint rgb332 = ]]..readTexUint(
-		texelFunc{tex='fbTex', tc='tcv', fromFloat=true}
-	)..[[.r;
+	uint rgb332 = ]]..texelFunc{tex='fbTex', tc='tcv', from='float', to='uint'}..[[.r;
 	fragColor.r = float(rgb332 & 0x7u) / 7.;
 	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
@@ -1058,11 +1050,7 @@ const float spriteSheetSizeY = <?=glslnumber(spriteSheetSize.y)?>;
 uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
-	uint colorIndex = (]]
-		..readTexUint(
-			texelFunc{tex='spriteTex', tc='tcv', fromFloat=true}
-		)
-		..[[.r >> spriteBit) & spriteMask;
+	uint colorIndex = (]]..texelFunc{tex='spriteTex', tc='tcv', from='float', to='uint'}..[[.r >> spriteBit) & spriteMask;
 	
 	if (colorIndex == transparentIndex) discard;
 
@@ -1169,10 +1157,7 @@ void main() {
 	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	int tileIndex = int(]]..readTexUint(
-		texelFunc{tex='mapTex', tc=texCoordRectFromIntVec('tileTC', tilemapSize)}
-		--, 65536
-	)..[[.r);
+	int tileIndex = int(]]..texelFunc{tex='mapTex', tc='tileTC', from='int', to='uint'}..[[.r);
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileTexTC = ivec2(
@@ -1191,10 +1176,7 @@ void main() {
 	);
 
 	// tileTex is R8 indexing into our palette ...
-	uint colorIndex = ]]
-		..readTexUint(
-			texelFunc{tex='tileTex', tc=texCoordRectFromIntVec('tileTexTC', spriteSheetSize)}
-		)..[[.r;
+	uint colorIndex = ]]..texelFunc{tex='tileTex', tc='tileTexTC', from='int', to='uint'}..[[.r;
 	colorIndex += palHi << 4;
 	colorIndex &= 0xFFu;
 
