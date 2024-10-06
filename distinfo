@@ -32,7 +32,6 @@ files = {
 	},
 	-- other paths go here
 	['..'] = table{
-		'cl',		-- only for cl.obj.number ... todo move it somewhere else ... or just copy it into gl ...
 		'template',
 		'ext',
 		'lfs_ffi',	-- needed by ext
