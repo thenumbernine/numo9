@@ -986,7 +986,8 @@ end
 
 -- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast('int') ? ffi.new('int') ? bit.bor(0) ?
 local function toint(x)
-	return bit.bor(x, 0)
+	--return bit.bor(x, 0)	-- seems nice but I think it rounds instead of truncates ...
+	return ffi.cast('int32_t', x)	-- use int32 so Lua has no problem with it
 end
 
 function App:net_poke(addr, value)
