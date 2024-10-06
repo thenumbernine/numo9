@@ -60,21 +60,21 @@ local fragType = 'uvec4'
 --local fragType = 'vec4'	-- not working
 
 -- on = read usampler, off = read sampler
---local useTextureInt = false	-- not working
-local useTextureInt = true
+--local useSamplerUInt = false	-- false == use traditional floats.  not working
+local useSamplerUInt = true
 
 -- uses integer coordinates in shader.  you'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
 local useTextureRect = false
 --local useTextureRect = true
 
---local texelType = (useTextureInt and 'u' or '')..'vec4'
+--local texelType = (useSamplerUInt and 'u' or '')..'vec4'
 
-local texelFuncName = 'texture'
---local texelFuncName = 'texelFetch'
+local texelFunc = 'texture'
+--local texelFunc = 'texelFetch'
 -- I'm getting this error really: "No matching function for call to texelFetch(usampler2D, ivec2)"
 -- so I guess I need to use usampler2DRect if I want to use texelFetch
 
-local samplerType = (useTextureInt and 'u' or '')
+local samplerType = (useSamplerUInt and 'u' or '')
 	.. 'sampler2D'
 	.. (useTextureRect and 'Rect' or '')
 
@@ -90,44 +90,48 @@ end
 args:
 	tex
 	tc
-	from (optional) 'float' or 'int'
-	to (optional) 'float' or 'int'
+	from (optional) 'vec2' or 'ivec2'
+	to (optional) 'vec4' or 'uvec4'
 is this going to turn into a parser?
 --]]
-local function texelFunc(args)
+local function readTex(args)
 	local tex = args.tex
 	local tc = args.tc
-	if args.from == 'float' then
-		if useTextureRect or texelFuncName == 'texelFetch' then
+	if args.from == 'vec2' then
+		if useTextureRect or texelFunc == 'texelFetch' then
 			tc = 'ivec2(('..tc..') * vec2('..textureSize(tex)..'))'
 		end
-	elseif args.from == 'int' then
-		if not (useTextureRect or texelFuncName == 'texelFetch') then
-			tc = 'vec2(('..tc..') + .5) / vec2('..textureSize(tex)..')'
+	elseif args.from == 'ivec2' then
+		if not (useTextureRect or texelFunc == 'texelFetch') then
+			tc = '(vec2('..tc..') + .5) / vec2('..textureSize(tex)..')'
 		end
 	end
 	local dst
-	if texelFuncName == 'texelFetch' 
+	if texelFunc == 'texelFetch'
 	and not useTextureRect 	-- texelFetch(gsampler2DRect) doesn't have a LOD argument
 	then
-		dst = texelFuncName..'('..tex..', '..tc..', 0)'
+		dst = texelFunc..'('..tex..', '..tc..', 0)'
 	else
-		dst = texelFuncName..'('..tex..', '..tc..')'
+		dst = texelFunc..'('..tex..', '..tc..')'
 	end
-	if args.to == 'uint' then
+	if args.to == 'uvec4' then
 		--[[
 		convert to uint, assume the source is a texture texel
 		when outputting uint, does texture() vs texelFetch() output normalized to [0,2^32-1], or the texture format [0,255], or ... what?
 		--]]
-		if not useTextureInt then
-			code = 'uvec4('..dst..' * '..glslnumber(
+		if not useSamplerUInt then
+			dst = 'uvec4('..dst
+				--[[
+				..' * '..glslnumber(
 				-- why doesn't this make a difference?
-				4294967295
+				--4294967295
 				--2147483647
-				--256
+				--255
 				--1
+				--1 / 255
+				)
 				--]]
-				)..')'
+			..')'
 		end
 	end
 	return dst
@@ -555,22 +559,30 @@ function AppVideo:initDraw()
 	--local glslVersion = '320 es'
 
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
+	-- assert palleteSize is a power-of-two ...
 	local colorIndexToFrag = table{
-		(useTextureRect or texelFuncName == 'texelFetch')
-		-- assert palleteSize is a power-of-two ...
-		and [[
-	ivec2 palTc = ivec2(colorIndex & ]]..('0x%Xu'):format(paletteSize-1)..[[, 0);
-]]
-		or [[
-	vec2 palTc = vec2((float(colorIndex)+.5)/]]..glslnumber(paletteSize)..[[, .5);
-]],
-		[[
-	fragColor = ]]..fragType..'('..texelFunc{tex='palTex', tc='palTc'}..[[);
-]],
+	'fragColor = '..readTex{
+		tex = 'palTex',
+		tc = 'ivec2(colorIndex & '..('0x%Xu'):format(paletteSize-1)..', 0)',
+		from = 'ivec2',
+		to = fragType,
+	}..';',
 	}:concat'\n'..'\n'
 
+	local function makeSceneObject(args)
+--[[
+print(args.name)
+print'vertex'
+print(require 'template.showcode'(args.program.vertexCode))
+print'fragment'
+print(require 'template.showcode'(args.program.fragmentCode))
+--]]
+		self[args.name] = GLSceneObject(args)
+	end
+
 	-- used for drawing our 16bpp framebuffer to the screen
-	self.blitScreenRGBObj = GLSceneObject{
+	makeSceneObject{
+		name = 'blitScreenRGBObj',
 		program = {
 			version = glslVersion,
 			precision = 'best',
@@ -597,7 +609,7 @@ layout(location=0) out ]]..fragType..[[ fragColor;
 uniform <?=samplerType?> fbTex;
 
 void main() {
-	fragColor = ]]..texelFunc{tex='fbTex', tc='tcv', from='float', to='uint'}..[[;
+	fragColor = ]]..readTex{tex='fbTex', tc='tcv', from='vec2', to=fragType}..[[;
 // with vec4 fragColor, none of these give a meaningful result:
 //fragColor *= 1. / 255.;
 //fragColor *= 1. / 65535.;
@@ -622,7 +634,8 @@ void main() {
 	}
 
 	-- used for drawing our 8bpp indexed framebuffer to the screen
-	self.blitScreenIndexObj = GLSceneObject{
+	makeSceneObject{
+		name = 'blitScreenIndexObj',
 		program = {
 			version = glslVersion,
 			precision = 'best',
@@ -644,7 +657,7 @@ uniform <?=samplerType?> fbTex;
 uniform <?=samplerType?> palTex;
 
 void main() {
-	uint colorIndex = ]]..texelFunc{tex='fbTex', tc='tcv', from='float', to='uint'}..[[.r;
+	uint colorIndex = ]]..readTex{tex='fbTex', tc='tcv', from='vec2', to='uvec4'}..[[.r;
 ]]..colorIndexToFrag..[[
 }
 ]],			{
@@ -666,7 +679,8 @@ void main() {
 	}
 
 	-- used for drawing 8bpp fbIndexTex as rgb332 framebuffer to the screen
-	self.blitScreenRGB332Obj = GLSceneObject{
+	makeSceneObject{
+		name = 'blitScreenRGB332Obj',
 		program = {
 			version = glslVersion,
 			precision = 'best',
@@ -687,7 +701,7 @@ layout(location=0) out vec4 fragColor;
 uniform <?=samplerType?> fbTex;
 
 void main() {
-	uint rgb332 = ]]..texelFunc{tex='fbTex', tc='tcv', from='float', to='uint'}..[[.r;
+	uint rgb332 = ]]..readTex{tex='fbTex', tc='tcv', from='vec2', to='uvec4'}..[[.r;
 	fragColor.r = float(rgb332 & 0x7u) / 7.;
 	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
@@ -739,7 +753,7 @@ void main() {
 		{name='RGB332', colorOutput=template([[
 <?=colorIndexToFrag?>
 <?=drawOverrideCode?>
-	
+
 <? if fragType == 'uvec4' then ?>
 	// what exactly is coming out of a usampler2D and into a uvec4?  is that documented anywhere?
 //#error what is the range of the palTex?  internalFormat=GL_RGB5_A1, format=GL_RGBA, type=GL_UNSIGNED_SHORT_1_5_5_5_REV
@@ -769,7 +783,8 @@ end
 			fragType = fragType,
 		})},
 	} do
-		self['lineSolid'..info.name..'Obj'] = GLSceneObject{
+		makeSceneObject{
+			name = 'lineSolid'..info.name..'Obj',
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -833,7 +848,8 @@ void main() {
 
 		-- TODO maybe ditch quadSolid* and dont' use uniforms to draw quads ... and just do this with prims ... idk
 		-- but quadSolid has my ellipse/border shader so ....
-		self['triSolid'..info.name..'Obj'] = GLSceneObject{
+		makeSceneObject{
+			name = 'triSolid'..info.name..'Obj',
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -894,7 +910,8 @@ void main() {
 			},
 		}
 
-		self['quadSolid'..info.name..'Obj'] = GLSceneObject{
+		makeSceneObject{
+			name = 'quadSolid'..info.name..'Obj',
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -993,7 +1010,8 @@ void main() {
 			},
 		}
 
-		self['quadSprite'..info.name..'Obj'] = GLSceneObject{
+		makeSceneObject{
+			name = 'quadSprite'..info.name..'Obj',
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -1060,13 +1078,12 @@ const float spriteSheetSizeY = <?=glslnumber(spriteSheetSize.y)?>;
 uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
-	uint colorIndex = (]]..texelFunc{tex='spriteTex', tc='tcv', from='float', to='uint'}..[[.r >> spriteBit) & spriteMask;
-	
+	uint colorIndex = (]]..readTex{tex='spriteTex', tc='tcv', from='vec2', to='uvec4'}..[[.r >> spriteBit) & spriteMask;
+
 	if (colorIndex == transparentIndex) discard;
 
 	//colorIndex should hold
 	colorIndex += paletteIndex;
-	colorIndex &= 0XFFu;
 
 ]]..info.colorOutput..[[
 
@@ -1106,7 +1123,8 @@ void main() {
 			},
 		}
 
-		self['quadMap'..info.name..'Obj'] = GLSceneObject{
+		makeSceneObject{
+			name = 'quadMap'..info.name..'Obj',
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -1167,7 +1185,7 @@ void main() {
 	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	int tileIndex = int(]]..texelFunc{tex='mapTex', tc='tileTC', from='int', to='uint'}..[[.r);
+	int tileIndex = int(]]..readTex{tex='mapTex', tc='tileTC', from='ivec2', to='uvec4'}..[[.r);
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileTexTC = ivec2(
@@ -1186,9 +1204,8 @@ void main() {
 	);
 
 	// tileTex is R8 indexing into our palette ...
-	uint colorIndex = ]]..texelFunc{tex='tileTex', tc='tileTexTC', from='int', to='uint'}..[[.r;
+	uint colorIndex = ]]..readTex{tex='tileTex', tc='tileTexTC', from='ivec2', to='uvec4'}..[[.r;
 	colorIndex += palHi << 4;
-	colorIndex &= 0xFFu;
 
 ]]..info.colorOutput..[[
 	if (fragColor.a == 0.) discard;
