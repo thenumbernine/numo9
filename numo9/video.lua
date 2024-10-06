@@ -78,6 +78,14 @@ local samplerType = (useTextureInt and 'u' or '')
 	.. 'sampler2D'
 	.. (useTextureRect and 'Rect' or '')
 
+local function textureSize(tex)
+	if useTextureRect then	-- textureSize(gsampler2DRect) doesn't have a LOD argument
+		return 'textureSize('..tex..')'
+	else
+		return 'textureSize('..tex..', 0)'
+	end
+end
+
 --[[
 args:
 	tex
@@ -91,15 +99,17 @@ local function texelFunc(args)
 	local tc = args.tc
 	if args.from == 'float' then
 		if useTextureRect or texelFuncName == 'texelFetch' then
-			tc = 'ivec2(('..tc..') * vec2(textureSize('..tex..', 0)))'
+			tc = 'ivec2(('..tc..') * vec2('..textureSize(tex)..'))'
 		end
 	elseif args.from == 'int' then
 		if not (useTextureRect or texelFuncName == 'texelFetch') then
-			tc = 'vec2(('..tc..') + .5) / vec2(textureSize('..tex..', 0))'
+			tc = 'vec2(('..tc..') + .5) / vec2('..textureSize(tex)..')'
 		end
 	end
 	local dst
-	if texelFuncName == 'texelFetch' then
+	if texelFuncName == 'texelFetch' 
+	and not useTextureRect 	-- texelFetch(gsampler2DRect) doesn't have a LOD argument
+	then
 		dst = texelFuncName..'('..tex..', '..tc..', 0)'
 	else
 		dst = texelFuncName..'('..tex..', '..tc..')'
