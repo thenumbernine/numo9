@@ -1068,7 +1068,9 @@ function App:mget(x, y)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
 	then
-		-- use peek so we make sure to flush gpu->cpu ... but right now we only have framebuffer to check for gpu-writes ...
+		-- should I use peek so we make sure to flush gpu->cpu?
+		-- nah, right now we only have framebuffer to check for gpu-writes ...
+		-- and the framebuffer is not (yet?) relocatable
 		return self.ram.tilemap[x + tilemapSize.x * y]
 	end
 	-- TODO return default oob value
