@@ -69,8 +69,8 @@ local useTextureRect = false
 
 --local texelType = (useTextureInt and 'u' or '')..'vec4'
 
-local texelFunc = 'texture'
---local texelFunc = 'texelFetch'
+local texelFuncName = 'texture'
+--local texelFuncName = 'texelFetch'
 -- I'm getting this error really: "No matching function for call to texelFetch(usampler2D, ivec2)"
 -- so I guess I need to use usampler2DRect if I want to use texelFetch
 
@@ -78,6 +78,51 @@ local samplerType = (useTextureInt and 'u' or '')
 	.. 'sampler2D'
 	.. (useTextureRect and 'Rect' or '')
 
+-- is this going to turn into a parser?
+local function texelFunc(args)
+	local tex = args.tex
+	local tc = args.tc
+	if args.fromFloat then
+		if useTextureRect or texelFuncName == 'texelFetch' then
+			tc = 'ivec2(('..tc..') * vec2(textureSize('..tex..', 0)))'
+		end
+	end
+	if texelFuncName == 'texelFetch' then
+		return texelFuncName..'('..tex..', '..tc..', 0)'
+	else
+		return texelFuncName..'('..tex..', '..tc..')'
+	end
+end
+
+--[[
+convert to uint, assume the source is a texture texel
+when outputting uint, does texture() vs texelFetch() output normalized to [0,2^32-1], or the texture format [0,255], or ... what?
+--]]
+local function readTexUint(code, scale)
+-- [=[
+	if not useTextureInt then
+		code = 'uvec4('..code..' * '..glslnumber(scale or
+			-- why doesn't this make a difference?
+			4294967295
+			--2147483647
+			--256
+			--1
+			--]]
+			)..')'
+	end
+--]=]
+	return '('..code..')'
+end
+
+--[[
+convert from ivec2 to texelFuncName texcoord input
+--]]
+local function texCoordRectFromIntVec(code, size)
+	if not (useTextureRect or texelFuncName == 'texelFetch') then
+		code = 'vec2(('..code..') + .5) / vec2('..glslnumber(size.x)..', '..glslnumber(size.y)..')'
+	end
+	return code
+end
 
 -- r,g,b,a is 8bpp
 -- result is 5551 16bpp
@@ -500,36 +545,9 @@ function AppVideo:initDraw()
 	--local glslVersion = '310 es'
 	--local glslVersion = '320 es'
 
-	local function readTexUint(code, scale)
-		if not useTextureInt then
-			code = 'uint('..code..' * '..glslnumber(scale or
-				-- why doesn't this make a difference?
-				--bit.lshift(1,32)-1
-				--256
-				1
-				--]]
-				)..')'
-		end
-		return code
-	end
-
-	local function texCoordRectFromFloatVec(code, size)
-		if useTextureRect or texelFunc == 'texelFetch' then
-			code = 'ivec2(('..code..') * vec2('..glslnumber(size.x)..', '..glslnumber(size.y)..'))'
-		end
-		return code
-	end
-
-	local function texCoordRectFromIntVec(code, size)
-		if not (useTextureRect or texelFunc == 'texelFetch') then
-			code = 'vec2(('..code..') + .5) / vec2('..glslnumber(size.x)..', '..glslnumber(size.y)..')'
-		end
-		return code
-	end
-
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	local colorIndexToFrag = table{
-		(useTextureRect or texelFunc == 'texelFetch')
+		(useTextureRect or texelFuncName == 'texelFetch')
 		-- assert palleteSize is a power-of-two ...
 		and [[
 	ivec2 palTc = ivec2(colorIndex & ]]..('0x%Xu'):format(paletteSize-1)..[[, 0);
@@ -538,7 +556,7 @@ function AppVideo:initDraw()
 	vec2 palTc = vec2((float(colorIndex)+.5)/]]..glslnumber(paletteSize)..[[, .5);
 ]],
 		[[
-	fragColor = ]]..texelFunc..[[(palTex, palTc);
+	fragColor = ]]..fragType..'('..texelFunc{tex='palTex', tc='palTc'}..[[);
 ]],
 	}:concat'\n'..'\n'
 
@@ -570,7 +588,10 @@ layout(location=0) out ]]..fragType..[[ fragColor;
 uniform <?=samplerType?> fbTex;
 
 void main() {
-	fragColor = ]]..texelFunc..[[(fbTex, ]]..texCoordRectFromFloatVec('tcv', frameBufferSize)..[[);
+	fragColor = ]]
+		..readTexUint(
+			texelFunc{tex='fbTex', tc='tcv', fromFloat=true}
+		)..[[;
 // with vec4 fragColor, none of these give a meaningful result:
 //fragColor *= 1. / 255.;
 //fragColor *= 1. / 65535.;
@@ -617,7 +638,9 @@ uniform <?=samplerType?> fbTex;
 uniform <?=samplerType?> palTex;
 
 void main() {
-	uint colorIndex = ]]..readTexUint(texelFunc..'(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
+	uint colorIndex = ]]..readTexUint(
+		texelFunc{tex='fbTex', tc='tcv', fromFloat=true}
+	)..[[.r;
 ]]..colorIndexToFrag..[[
 }
 ]],			{
@@ -660,7 +683,9 @@ layout(location=0) out vec4 fragColor;
 uniform <?=samplerType?> fbTex;
 
 void main() {
-	uint rgb332 = ]]..readTexUint(texelFunc..'(fbTex, '..texCoordRectFromFloatVec('tcv', frameBufferSize)..').r')..[[;
+	uint rgb332 = ]]..readTexUint(
+		texelFunc{tex='fbTex', tc='tcv', fromFloat=true}
+	)..[[.r;
 	fragColor.r = float(rgb332 & 0x7u) / 7.;
 	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
@@ -1034,8 +1059,10 @@ uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
 	uint colorIndex = (]]
-		..readTexUint(texelFunc..'(spriteTex, '..texCoordRectFromFloatVec('tcv', spriteSheetSize)..').r')
-		..[[ >> spriteBit) & spriteMask;
+		..readTexUint(
+			texelFunc{tex='spriteTex', tc='tcv', fromFloat=true}
+		)
+		..[[.r >> spriteBit) & spriteMask;
 	
 	if (colorIndex == transparentIndex) discard;
 
@@ -1142,7 +1169,10 @@ void main() {
 	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	int tileIndex = int(]]..readTexUint(texelFunc..'(mapTex, '..texCoordRectFromIntVec('tileTC', tilemapSize)..').r', 65536)..[[);
+	int tileIndex = int(]]..readTexUint(
+		texelFunc{tex='mapTex', tc=texCoordRectFromIntVec('tileTC', tilemapSize)}
+		--, 65536
+	)..[[.r);
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileTexTC = ivec2(
@@ -1162,7 +1192,9 @@ void main() {
 
 	// tileTex is R8 indexing into our palette ...
 	uint colorIndex = ]]
-		..readTexUint(texelFunc..'(tileTex, '..texCoordRectFromIntVec('tileTexTC', spriteSheetSize)..').r')..[[;
+		..readTexUint(
+			texelFunc{tex='tileTex', tc=texCoordRectFromIntVec('tileTexTC', spriteSheetSize)}
+		)..[[.r;
 	colorIndex += palHi << 4;
 	colorIndex &= 0xFFu;
 
