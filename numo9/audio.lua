@@ -83,8 +83,8 @@ print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	desired[0].channels = audioOutChannels
 	desired[0].samples = audio.bufferSizeInSampleFrames -- in "sample frames" ... where stereo means two samples per "sample frame"
 	desired[0].size = audio.bufferSizeInBytes		-- is calculated, but I wanted to make sure my calculations matched.
-	print'desired specs:'
-	printSpecs(desired[0])
+--DEBUG:print'desired specs:'
+--DEBUG:printSpecs(desired[0])
 	local spec = ffi.new'SDL_AudioSpec[1]'
 	audio.deviceID = sdl.SDL_OpenAudioDevice(
 		nil,	-- deviceName,	-- "Passing in a device name of NULL requests the most reasonable default"  from https://wiki.libsdl.org/SDL2/SDL_OpenAudioDevice
@@ -101,8 +101,8 @@ print('bufferSizeInBytes', audio.bufferSizeInBytes)
 			0
 		)
 	)
-	print('obtained spec:')
-	printSpecs(spec[0])
+--DEBUG:print('obtained spec:')
+--DEBUG:printSpecs(spec[0])
 
 	-- recalculate based on what we're given
 	-- TODO OR NOT BECAUSE ALL THE ROM STUFF IS BASED ON THIS
