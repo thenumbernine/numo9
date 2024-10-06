@@ -1,5 +1,6 @@
 local ffi = require 'ffi'
 local math = require 'ext.math'
+local asserteq = require 'ext.assert'.eq
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -31,10 +32,21 @@ function EditSFX:update()
 	EditSFX.super.update(self)
 	local app = self.app
 
+	local function stop()
+		for i=0,audioMixChannels-1 do
+			app.ram.channels[i].flags.isPlaying = 0
+		end
+		for i=0,audioMusicPlayingCount-1 do
+			app.ram.musicPlaying[i].isPlaying = 0
+		end
+	end
+
 	local selsfx = app.ram.sfxAddrs + self.selSfxIndex
 
 	self:guiSpinner(2, 10, function(dx)
-		self.selSfxIndex = math.clamp(self.selSfxIndex + dx, 0, sfxTableSize-1)
+		stop()
+		asserteq(sfxTableSize, 256)
+		self.selSfxIndex = bit.band(self.selSfxIndex + dx, 0xff)
 	end)
 
 	self:drawText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
@@ -53,30 +65,35 @@ function EditSFX:update()
 
 	-- TODO render the wave ...
 	local prevAmpl
-	for i=0, math.min(512, endAddr-2), 2 do
+	for i=0, math.min(512, selsfx.len-2), 2 do
 		local ampl = ffi.cast(audioSampleTypePtr, app.ram.audioData + selsfx.addr + i)[0]
-		if i > 0 then
-			-- TODO variable thickness?
-			app:drawSolidLine(
-				bit.rshift((i-1),2) + 4,
-				bit.rshift((prevAmpl + 0x8000), 10) + 32,
-				bit.rshift(i,2) + 4,
-				bit.rshift((ampl + 0x8000), 10) + 32,
-				0xfc
-			)
-		end
+		prevAmpl = prevAmpl or ampl
+		--[[
+		-- TODO variable thickness?
+		app:drawSolidLine(
+			bit.arshift((i-1),2) + 4,
+			bit.arshift((prevAmpl + 0x8000), 10) + 32,
+			bit.arshift(i,2) + 4,
+			bit.arshift((ampl + 0x8000), 10) + 32,
+			0xfc
+		)
+		--]]
+		-- [[
+		app:drawSolidRect(
+			bit.rshift(i,1) + 4,
+			math.min(ampl, prevAmpl) / 32768 * 64 + 64 + 18,
+			1,
+			math.floor(math.abs(ampl - prevAmpl) / 32768 * 64) + 1,
+			0xfc
+		)
+		--]]
 		prevAmpl = ampl
 	end
 
 	local isPlaying = app.ram.channels[0].flags.isPlaying == 1
 	if self:guiButton(isPlaying and '||' or '=>', 64, 128, nil, 'play') then
 		if isPlaying then
-			for i=0,audioMixChannels-1 do
-				app.ram.channels[i].flags.isPlaying = 0
-			end
-			for i=0,audioMusicPlayingCount-1 do
-				app.ram.musicPlaying[i].isPlaying = 0
-			end
+			stop()
 		else
 			app:playSound(self.selSfxIndex, 0, nil, nil, nil, true)
 		end
@@ -93,17 +110,22 @@ function EditSFX:update()
 
 	if isPlaying then
 		if app:keyr'space' then
-			for i=0,audioMixChannels-1 do
-				app.ram.channels[i].flags.isPlaying = 0
-			end
-			for i=0,audioMusicPlayingCount-1 do
-				app.ram.musicPlaying[i].isPlaying = 0
-			end
+			stop()
 		end
 	else
 		if app:key'space' then
 			app:playSound(self.selSfxIndex, 0, nil, nil, nil, true)
 		end
+	end
+
+	if app:keyp('left', 30, 15) then
+		stop()
+		asserteq(sfxTableSize, 256)
+		self.selSfxIndex = bit.band(self.selSfxIndex - 1, 0xff)
+	elseif app:keyp('right', 30, 15) then
+		stop()
+		asserteq(sfxTableSize, 256)
+		self.selSfxIndex = bit.band(self.selSfxIndex + 1, 0xff)
 	end
 end
 

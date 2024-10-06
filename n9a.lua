@@ -8,6 +8,7 @@ n9a r file.n9 = pack and run
 --]]
 local ffi = require 'ffi'
 local path = require 'ext.path'
+local math = require 'ext.math'
 local table = require 'ext.table'
 local range = require 'ext.range'
 local tolua = require 'ext.tolua'
@@ -56,14 +57,15 @@ local chromastep = 2^(1/12)
 -- by ear it sounds like what Pico8 says is C0 is really C2
 -- so octave goes up 2 ...
 -- fwiw tic80's octaves sound one off to me ...
-local C0freq = 13.75 * chromastep^3 * 4	-- x 2^2 for two octaves dif between pico8's octave indexes and standard octave indexes
+local C0freq = 13.75 * chromastep^3 * 4	-- x 2^2 for two octaves dif between pico8's octave indexes and standard pitch notation's octave-indexes
 
 -- generate one note worth of each wavefunction
 -- each will be an array of sampleType sized sampleFramesPerNoteBase	- so it's single-channeled
 -- make the freq such that a single wave fits in a single note
 --local waveformFreq = 1 / (sampleFrameInSeconds * sampleFramesPerNoteBase) -- = 1/sampleFramesPerNoteBase ~ 120.49180327869
 -- would it be good to pick a frequency high enough that pitch-adjuster could slow down lower to any freq ?
-local waveformFreq = 22050 / 183 * 8	-- any higher and it sounds bad
+--local waveformFreq = 22050 / 183 * 8	-- any higher and it sounds bad
+local waveformFreq = 220 * chromastep^3 * 4	-- C4 , middle C ... or C6, raise the pitch a bit due to my pitch-freq-scale being a uint16_t and 0x1000 being 1:1
 
 
 local cmd, fn, extra = ...
@@ -230,7 +232,7 @@ or cmd == 'r' then
 		-- returns start and end of offset into audioData for 'data' to go
 		local function addToAudio(data, size)
 			local addr = audioDataOffset
-			assert(addr + size <= audioDataSize, "overflow")
+			assert(addr + size <= audioDataSize, "audio data overflow")
 			ffi.copy(rom.audioData + addr, data, size)
 			audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
 			return addr
@@ -548,10 +550,13 @@ print('toImage', name, 'width', width, 'height', height)
 	do
 		-- [[ also in audio/test/test.lua ... consider consolidating
 		local function sinewave(t)
-			return math.sin(t * (2 * math.pi))
+			return math.sin(t * 2 * math.pi)
 		end
 		local function trianglewave(t)
-			return math.abs(t - math.floor(t + .5)) * 4 - 1
+			--t = t + .5		-- why the buzzing noise ...
+			--t = t + .25
+			--return -(math.abs(t - math.floor(t + .5)) * 4 - 1)
+			return math.abs(math.floor(t + .5) - t) * 4 - 1
 		end
 		local function sawwave(t)
 			return (t % 1) * 2 - 1
@@ -623,33 +628,98 @@ print('toImage', name, 'width', width, 'height', height)
 		local sampleFramesPerNoteBase = math.floor(sampleFramesPerSecond * noteBaseLengthInSeconds)	-- 183
 		local baseVolume = 1
 
-		-- there's gotta be some math rule about converting from one frequency wave to another and how well that works ...
-		-- ANOTHER OPTION is just use more samples for this, and not 183
-		local waveforms = wavefuncs:mapi(function(f,j)
-			-- TODO I don't need to do this size ... I just need a size that's proportional to the wavelength so we dont' get clicks
+
+		--[[ pico8-to-tic80's converter's waveforms: https://gitlab.com/bztsrc/p8totic/-/blob/main/src/p8totic.c?ref_type=heads
+    	local waveforms = table{
+			{0x76, 0x54, 0x32, 0x10, 0xf0, 0x0e, 0xdc, 0xba, 0xba, 0xdc, 0x0e, 0xf0, 0x10, 0x32, 0x54, 0x76}, -- 0 - sine
+			{0xba, 0xbc, 0xdc, 0xd0, 0x0e, 0xf0, 0x00, 0x00, 0x10, 0x02, 0x32, 0x34, 0x54, 0x56, 0x30, 0xda}, -- 1 - triangle
+			{0x00, 0x10, 0x12, 0x32, 0x34, 0x04, 0x50, 0x06, 0x0a, 0xb0, 0x0c, 0xdc, 0xde, 0xfe, 0xf0, 0x00}, -- 2 - sawtooth
+			{0x30, 0x30, 0x30, 0x30, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0xd0, 0x30, 0x30, 0x30, 0x30}, -- 3 - square
+			{0x04, 0x04, 0x04, 0x04, 0x04, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c}, -- 4 - short square / pulse
+			{0x34, 0x12, 0xf0, 0xde, 0xdc, 0xfe, 0xf0, 0x00, 0x00, 0xf0, 0xfe, 0xdc, 0xde, 0xf0, 0x12, 0x34}, -- 5 - ringing / organ
+			{0xf0, 0xd0, 0xf0, 0x1e, 0xb0, 0x0e, 0xf0, 0x52, 0xfa, 0x0e, 0xf0, 0xd4, 0x0e, 0x06, 0x34, 0x3a}, -- 6 - noise
+			{0x32, 0x12, 0x00, 0xf0, 0xfe, 0xd0, 0xbc, 0xba, 0x0a, 0xbc, 0xd0, 0xfe, 0xf0, 0x00, 0x12, 0x32}, -- 7 - ringing sine / phaser
+		}
+		-- [=[ are the waveform ampls in 8bit or 4bit?
+		:mapi(function(waveform)
+			local w = table()
+			for i,a in ipairs(waveform) do
+				--[==[
+				w:insert(bit.band(bit.rshift(a, 4), 15) / 15 * 255)
+				w:insert(bit.band(a, 15) / 15 * 255)
+				--]==]
+				-- [==[ "out: 16 bytes as in picowave, each byte contains 2 values so 32 samples in total, one is -8 to 7, on 4 bits"
+				local function _4bit_unsigned_as_signed_to_8bit_unsigned(x)
+					if x >= 8 then x = x - 16 end	-- convert values [8, 15] to [-8, -1] so now all oru values go from [0,15] to [-8,7]
+					return (x / 8) * 127 + 128		-- convert from [-8,7] 0-centered to [0,255] 128-centered
+				end
+				w:insert(_4bit_unsigned_as_signed_to_8bit_unsigned(bit.band(bit.rshift(a, 4), 15)))
+				w:insert(_4bit_unsigned_as_signed_to_8bit_unsigned(bit.band(a, 15)))
+				--]==]
+			end
+			return w
+		end)
+		--]=]
+		:mapi(function(waveform)
+			-- change from uint8_t to int26_t and change from 22050 to 32000
 			local data = ffi.new(sampleType..'[?]', sampleFramesPerNoteBase)
 			local p = ffi.cast(sampleType..'*', data)
-			local tf = 0	-- time x frequency
 			for i=0,sampleFramesPerNoteBase-1 do
-				tf = tf + sampleFrameInSeconds * waveformFreq
-				p[0] = f(tf) * amplMax + amplZero
+				-- hmm original frequency convert is too high
+				-- original ... / 8 as I'm doing in 'waveformFreq' is too low ...
+				-- or should I use LERP or somethign else?
+				--local j = (i * 22050 / 32000) % #waveform + 1
+				local j = (i * 22050 / 32000) % #waveform + 1
+				local j0 = math.floor(j)
+				local f = j - j0
+				local j1 = (j0 % #waveform) + 1
+				local function uint8_to_int16(x)
+					--return (tonumber(x) - 128) / 128 * 32768
+					return (tonumber(x) - 128) / 127 * 32767
+					--return tonumber(ffi.cast('int8_t', x)) / 127 * 32767
+				end
+				p[0] = uint8_to_int16(waveform[j0] * (1 - f) + waveform[j1] * f)
+				--p[0] = uint8_to_int16(waveform[j0])
 				p = p + 1
 			end
 			asserteq(p, data + sampleFramesPerNoteBase)
-
+			return {data=data, len=sampleFramesPerNoteBase}
+		end)
+		--]]
+		-- [[
+		-- there's gotta be some math rule about converting from one frequency wave to another and how well that works ...
+		-- ANOTHER OPTION is just use more samples for this, and not 183
+		local waveforms = wavefuncs:mapi(function(f)
+			-- TODO I don't need to do this size ... I just need a size that's proportional to the wavelength so we dont' get clicks
+			--local len = sampleFramesPerNoteBase
+			-- now that we loop waveforms thorughout the note, no need ot constrain the waveform size to the note size
+			-- inf act, better to constrain it to an integer power of its wavelength
+			local len = math.ceil(numo9_rom.audioSampleRate / waveformFreq * 2)
+			local data = ffi.new(sampleType..'[?]', len)
+			local p = ffi.cast(sampleType..'*', data)
+			--local tf = .25	-- time x frequency
+			local tf = 0	-- time x frequency
+			for i=0,len-1 do
+				p[0] = math.round(f(tf) * amplMax * .5) + amplZero
+				tf = tf + waveformFreq / numo9_rom.audioSampleRate -- one period wave per waveform sample
+				p = p + 1
+			end
+			asserteq(p, data + len)
+			return {data=data, len=len}
+		end)
+		--]]
+		for j,waveform in ipairs(waveforms) do
 			-- TODO make these the sfx samples in-game
 			-- and then turn the sfx into whatever the playback-format is
 			AudioWAV():save{
 				filename = basepath('waveform'..(j-1)..'.wav').path,
 				ctype = sampleType,
 				channels = 1,
-				data = data,
-				size = sampleFramesPerNoteBase * ffi.sizeof(sampleType),
+				data = waveform.data,
+				size = waveform.len * ffi.sizeof(sampleType),
 				freq = sampleFramesPerSecond,
 			}
-
-			return data
-		end)
+		end
 
 		-- http://pico8wiki.com/index.php?title=P8FileFormat
 		local sfxSrc = move(sections, 'sfx')
@@ -743,7 +813,7 @@ print('toImage', name, 'width', width, 'height', height)
 						-- convert from note to multiplier
 						local freq = C0freq * chromastep^note.pitch
 						local pitchScale = 0x1000 * freq / waveformFreq
-						assertlt(pitchScale, 0x10000)	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
+						assertlt(pitchScale, 0x10000, "you have an out of bounds pitch scale")	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
 						soundState[0].pitch = pitchScale
 
 						soundState[0].sfxID = note.waveform
@@ -770,7 +840,7 @@ print('toImage', name, 'width', width, 'height', height)
 							for i=0,audioMixChannels-1 do
 								if (soundState[i].volume[0] > 0
 									or soundState[i].volume[1] > 0)
-								and soundState[i].sfxID == 0 
+								and soundState[i].sfxID == 0
 								then
 									playbackDeltas:emplace_back()[0] = ffi.offsetof('Numo9Channel', 'sfxID') + i * ffi.sizeof'Numo9Channel'
 									playbackDeltas:emplace_back()[0] = 0
@@ -792,7 +862,7 @@ print('toImage', name, 'width', width, 'height', height)
 				basepath('music'..index..'.bin'):write(data)
 			end
 		end
-		
+
 		--[=[ don't need to generate these here anymore...
 		for pass=0,1 do	-- second pass to handle sfx that reference themselves out of order
 			for sfxIndexPlusOne=1,64 do
@@ -816,8 +886,8 @@ print('toImage', name, 'width', width, 'height', height)
 						local waveformData,waveformLen
 						if note.waveform < 8 then
 							local waveformIndex = bit.band(7,note.waveform)
-							waveformData  = waveforms[waveformIndex+1]
-							waveformLen = sampleFramesPerNoteBase
+							waveformData  = waveforms[waveformIndex+1].data
+							waveformLen = waveforms[waveformIndex+1].len
 						else
 							local srcsfxindex = 1+note.waveform-8
 							local srcsfx = sfxs[srcsfxindex]
@@ -1049,7 +1119,7 @@ asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0
 							for i=0,audioMixChannels-1 do
 								if (soundState[i].volume[0] > 0
 									or soundState[i].volume[1] > 0)
-								and soundState[i].sfxID == 0 
+								and soundState[i].sfxID == 0
 								then
 									playbackDeltas:emplace_back()[0] = ffi.offsetof('Numo9Channel', 'sfxID') + i * ffi.sizeof'Numo9Channel'
 									playbackDeltas:emplace_back()[0] = 0
