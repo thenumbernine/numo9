@@ -382,9 +382,21 @@ function EditSprites:update()
 				currentTex:bind()
 				for dy=0,self.penSize-1 do
 					for dx=0,self.penSize-1 do
-						local ty = ty0 + dy
 						local tx = tx0 + dx
-						putpixel(tx,ty)
+						local ty = ty0 + dy
+						--[[ constrain to entire sheet (TODO flag for this option)
+						if tx >= 0 and tx < spriteSheetSize.x
+						and ty >= 0 and ty < spriteSheetSize.y
+						--]]
+						-- [[ constrain to current selection
+						if  tx >= self.spriteSelPos.x * spriteSize.x
+						and ty >= self.spriteSelPos.y * spriteSize.y
+						and tx < (self.spriteSelPos.x + self.spriteSelSize.x) * spriteSize.x
+						and ty < (self.spriteSelPos.y + self.spriteSelSize.y) * spriteSize.y
+						--]]					
+						then
+							putpixel(tx,ty)
+						end
 					end
 				end
 				currentTex:unbind()
@@ -398,7 +410,18 @@ function EditSprites:update()
 						local tx0, ty0 = table.unpack(fillstack:remove())
 						for _,dir in ipairs(dirs) do
 							local tx1, ty1 = tx0 + dir[1], ty0 + dir[2]
-							if getpixel(tx1, ty1) == srcColor then
+							--[[ constrain to entire sheet (TODO flag for this option)
+							if tx1 >= 0 and tx1 < spriteSheetSize.x
+							and ty1 >= 0 and ty1 < spriteSheetSize.y
+							--]]
+							-- [[ constrain to current selection
+							if  tx1 >= self.spriteSelPos.x * spriteSize.x
+							and ty1 >= self.spriteSelPos.y * spriteSize.y
+							and tx1 < (self.spriteSelPos.x + self.spriteSelSize.x) * spriteSize.x
+							and ty1 < (self.spriteSelPos.y + self.spriteSelSize.y) * spriteSize.y
+							--]]
+							and getpixel(tx1, ty1) == srcColor 
+							then
 								putpixel(tx1, ty1)
 								fillstack:insert{tx1, ty1}
 							end
