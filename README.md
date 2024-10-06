@@ -443,14 +443,14 @@ Pico8 Compatability is at 95%
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
 
 # Things I'm still debating ...
-- How many max players at once?  Right now it's upper bound to 4, restricted by my fixed player button memory locaitons, but this can be changed...
-- Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can see separate screens?
+- How many max players at once?  Right now it's upper bound to 4, but this can be changed...
+- Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is UP DOWN LEFT RIGHT A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
-- What's a good default keyboard configuration?
+- What's a good default keyboard configuration?  I'm going with Snes9x's.
 - Right now editor palette is 4bpp by default, to be like similar fantasy consoles ... why not default to 8bpp?
-- Right now editor tilemap is 8x8 tiles by default ... why not default to 16x16?
+- Right now editor tilemap is 8x8 tiles by default ... maybe default to 16x16?
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
-- matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
+- matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay? 
 - ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
 - I switched from PNG to TIFF so that I could save the whole cartridge binary in the lower 8 bits of 16bpp images, *with* LZW compression.  But never mind, in current year browsers still only seem to support png and jpeg.  I might go back to png, but that means either get rid of the option to have a display label image in the cartridge or it means lower the storage bpp down to 2 or something, and then that means I have to double the image size for matching space, then carts are getting up there in pixel size.
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.

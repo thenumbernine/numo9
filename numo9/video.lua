@@ -17,7 +17,6 @@ local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
-local clnumber = require 'cl.obj.number'
 
 local paletteSize = require 'numo9.rom'.paletteSize
 local spriteSize = require 'numo9.rom'.spriteSize
@@ -35,6 +34,13 @@ local paletteAddr = require 'numo9.rom'.paletteAddr
 local paletteInBytes = require 'numo9.rom'.paletteInBytes
 local packptr = require 'numo9.rom'.packptr
 local unpackptr = require 'numo9.rom'.unpackptr
+
+local function glslnumber(x)
+	local s = tostring(tonumber(x))
+	if s:find'e' then return s end
+	if not s:find'%.' then s = s .. '.' end
+	return s
+end
 
 -- TODO use either settable or packptr ... ?
 local function settableindex(t, i, ...)
@@ -496,7 +502,7 @@ function AppVideo:initDraw()
 
 	local function readTexUint(code, scale)
 		if not useTextureInt then
-			code = 'uint('..code..' * '..clnumber(scale or
+			code = 'uint('..code..' * '..glslnumber(scale or
 				-- why doesn't this make a difference?
 				--bit.lshift(1,32)-1
 				--256
@@ -509,14 +515,14 @@ function AppVideo:initDraw()
 
 	local function texCoordRectFromFloatVec(code, size)
 		if useTextureRect or texelFunc == 'texelFetch' then
-			code = 'ivec2(('..code..') * vec2('..clnumber(size.x)..', '..clnumber(size.y)..'))'
+			code = 'ivec2(('..code..') * vec2('..glslnumber(size.x)..', '..glslnumber(size.y)..'))'
 		end
 		return code
 	end
 
 	local function texCoordRectFromIntVec(code, size)
 		if not (useTextureRect or texelFunc == 'texelFetch') then
-			code = 'vec2(('..code..') + .5) / vec2('..clnumber(size.x)..', '..clnumber(size.y)..')'
+			code = 'vec2(('..code..') + .5) / vec2('..glslnumber(size.x)..', '..glslnumber(size.y)..')'
 		end
 		return code
 	end
@@ -524,11 +530,12 @@ function AppVideo:initDraw()
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	local colorIndexToFrag = table{
 		(useTextureRect or texelFunc == 'texelFetch')
+		-- assert palleteSize is a power-of-two ...
 		and [[
 	ivec2 palTc = ivec2(colorIndex & ]]..('0x%Xu'):format(paletteSize-1)..[[, 0);
 ]]
 		or [[
-	vec2 palTc = vec2((float(colorIndex)+.5)/]]..clnumber(paletteSize)..[[, .5);
+	vec2 palTc = vec2((float(colorIndex)+.5)/]]..glslnumber(paletteSize)..[[, .5);
 ]],
 		[[
 	fragColor = ]]..texelFunc..[[(palTex, palTc);
@@ -557,7 +564,7 @@ in vec2 tcv;
 //layout(location=0) out vec4 fragColor;
 // so how come it doesn't work unless I use uvec4 as the fragment type?
 // and how come the gl docs just say it gets normalized ...
-layout(location=0) out uvec4 fragColor;
+layout(location=0) out ]]..fragType..[[ fragColor;
 // and how come texelFetch has no problem handing off to a vec4 and a uvec4 ... WHAT KIND OF CONVERSION IS GOING ON THERE?
 
 uniform <?=samplerType?> fbTex;
@@ -572,7 +579,7 @@ void main() {
 }
 ]],			{
 				samplerType = samplerType,
-				clnumber = clnumber,
+				glslnumber = glslnumber,
 				frameBufferSize = frameBufferSize,
 			}),
 			uniforms = {
@@ -604,7 +611,7 @@ void main() {
 			fragmentCode = template([[
 in vec2 tcv;
 
-layout(location=0) out uvec4 fragColor;
+layout(location=0) out ]]..fragType..[[ fragColor;
 
 uniform <?=samplerType?> fbTex;
 uniform <?=samplerType?> palTex;
@@ -615,7 +622,7 @@ void main() {
 }
 ]],			{
 				samplerType = samplerType,
-				clnumber = clnumber,
+				glslnumber = glslnumber,
 				frameBufferSize = frameBufferSize,
 			}),
 			uniforms = {
@@ -661,7 +668,7 @@ void main() {
 }
 ]],			{
 				samplerType = samplerType,
-				clnumber = clnumber,
+				glslnumber = glslnumber,
 				frameBufferSize = frameBufferSize,
 			}),
 			uniforms = {
@@ -702,10 +709,11 @@ void main() {
 	fragColor.g = 0;
 	fragColor.b = 0;
 ]]},
-		{name='RGB332', colorOutput=colorIndexToFrag..'\n'
-..drawOverrideCode..'\n'
-..[[
-	// TODO this won't work if we're using fragType == vec4 ...
+		{name='RGB332', colorOutput=template([[
+<?=colorIndexToFrag?>
+<?=drawOverrideCode?>
+	
+<? if fragType == 'uvec4' then ?>
 	// what exactly is coming out of a usampler2D and into a uvec4?  is that documented anywhere?
 //#error what is the range of the palTex?  internalFormat=GL_RGB5_A1, format=GL_RGBA, type=GL_UNSIGNED_SHORT_1_5_5_5_REV
 	//fragColor >>= 16;	//[16,20] works ... WHY??!?!?!
@@ -721,10 +729,18 @@ void main() {
 	uint b = (fragColor.b >> 6) & 0x3u;
 	fragColor.r = r | (g << 3) | (b << 6);
 #endif
-
+<?
+else
+	print'TODO'
+end
+?>
 	fragColor.g = 0;
 	fragColor.b = 0;
-]]},
+]],		{
+			colorIndexToFrag = colorIndexToFrag,
+			drawOverrideCode = drawOverrideCode,
+			fragType = fragType,
+		})},
 	} do
 		self['lineSolid'..info.name..'Obj'] = GLSceneObject{
 			program = {
@@ -737,8 +753,8 @@ uniform vec3 pos1;
 uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 const float lineThickness = 1.;
 
@@ -749,12 +765,11 @@ void main() {
 	gl_Position = xformPos0
 		+ delta * vertex.x
 		+ normalize(vec4(-delta.y, delta.x, 0., 0.)) * (vertex.y - .5) * 2. * lineThickness;
-	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
-	gl_Position.xy *= 2.;
+	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
 ]],				{
-					clnumber = clnumber,
+					glslnumber = glslnumber,
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
@@ -800,17 +815,16 @@ layout(location=0) in vec3 vertex;
 uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
 	gl_Position = mvMat * vec4(vertex, 1.);
-	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
-	gl_Position.xy *= 2.;
+	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
 ]],				{
-					clnumber = clnumber,
+					glslnumber = glslnumber,
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
@@ -864,18 +878,17 @@ uniform vec4 box;	//x,y,w,h
 uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
 	pcv = box.xy + vertex * box.zw;	// TODO should this be after transform? but then you'd have to transform the box by mvmat in the fragment shader too ...
 	gl_Position = mvMat * vec4(pcv, 0., 1.);
-	gl_Position.xy /= vec2(frameBufferSizeX, frameBufferSizeY);
-	gl_Position.xy *= 2.;
+	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
 ]],				{
-					clnumber = clnumber,
+					glslnumber = glslnumber,
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
@@ -965,20 +978,18 @@ uniform vec4 tcbox;	//x,y,w,h
 
 uniform mat4 mvMat;
 
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 pc = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(pc, 0., 1.);
-	gl_Position.x /= frameBufferSizeX;
-	gl_Position.y /= frameBufferSizeY;
-	gl_Position.xy *= 2.;
+	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
 ]],				{
-					clnumber = clnumber,
+					glslnumber = glslnumber,
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
@@ -1016,8 +1027,8 @@ uniform uint transparentIndex;
 
 uniform <?=samplerType?> palTex;
 
-const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
-const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
+const float spriteSheetSizeX = <?=glslnumber(spriteSheetSize.x)?>;
+const float spriteSheetSizeY = <?=glslnumber(spriteSheetSize.y)?>;
 
 uniform <?=fragType?> drawOverrideSolid;
 
@@ -1025,6 +1036,7 @@ void main() {
 	uint colorIndex = (]]
 		..readTexUint(texelFunc..'(spriteTex, '..texCoordRectFromFloatVec('tcv', spriteSheetSize)..').r')
 		..[[ >> spriteBit) & spriteMask;
+	
 	if (colorIndex == transparentIndex) discard;
 
 	//colorIndex should hold
@@ -1032,12 +1044,17 @@ void main() {
 	colorIndex &= 0XFFu;
 
 ]]..info.colorOutput..[[
-	if (fragColor.a == 0.) discard;
+
+<? if fragType == 'uvec4' then ?>
+	if (fragColor.a == 0) discard;
+<? else ?>
+	if (fragColor.a < .5) discard;
+<? end ?>
 }
 ]], 			{
 					fragType = fragType,
 					samplerType = samplerType,
-					clnumber = clnumber,
+					glslnumber = glslnumber,
 					spriteSheetSize = spriteSheetSize,
 				}),
 				uniforms = {
@@ -1075,20 +1092,18 @@ uniform vec4 box;		//x y w h
 uniform vec4 tcbox;		//tx ty tw th
 uniform mat4 mvMat;
 
-const float frameBufferSizeX = <?=clnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=clnumber(frameBufferSize.y)?>;
+const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 pc = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(pc, 0., 1.);
-	gl_Position.x /= frameBufferSizeX;
-	gl_Position.y /= frameBufferSizeY;
-	gl_Position.xy *= 2.;
+	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
 ]],				{
-					clnumber = clnumber,
+					glslnumber = glslnumber,
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
@@ -1102,8 +1117,8 @@ uniform <?=samplerType?> mapTex;
 uniform <?=samplerType?> tileTex;
 uniform <?=samplerType?> palTex;
 
-const float spriteSheetSizeX = <?=clnumber(spriteSheetSize.x)?>;
-const float spriteSheetSizeY = <?=clnumber(spriteSheetSize.y)?>;
+const float spriteSheetSizeX = <?=glslnumber(spriteSheetSize.x)?>;
+const float spriteSheetSizeY = <?=glslnumber(spriteSheetSize.y)?>;
 const uint tilemapSizeX = <?=tilemapSize.x?>;
 const uint tilemapSizeY = <?=tilemapSize.y?>;
 
@@ -1157,7 +1172,7 @@ void main() {
 ]],				{
 					fragType = fragType,
 					samplerType = samplerType,
-					clnumber = clnumber,
+					glslnumber = glslnumber,
 					spriteSheetSize = spriteSheetSize,
 					tilemapSize = tilemapSize,
 				}),
