@@ -164,6 +164,8 @@ function App:postUpdate() end
 
 function App:initGL()
 
+	gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
+	
 	--[[ getting single-buffer to work
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
@@ -179,8 +181,6 @@ function App:initGL()
 	-- TODO maybe ... keeping separate 'ROM' and 'RAM' space?  how should the ROM be accessible? with a 0xC00000 (SNES)?
 	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
 	-- and the editor would edit the ROM ...
-
-
 
 	--DEBUG:print(RAM.code)
 	--DEBUG:print('RAM size', ffi.sizeof(RAM))
@@ -1495,6 +1495,7 @@ print('cartridge thread dead')
 		sdl.SDL_GL_SwapWindow(self.window)
 		--]]
 	end
+--DEBUG:require 'gl.report' 'here'
 end
 
 -------------------- MEMORY PEEK/POKE (and draw dirty bits) --------------------

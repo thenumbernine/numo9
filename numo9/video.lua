@@ -53,26 +53,62 @@ local function settable(t, ...)
 	settableindex(t, 1, ...)
 end
 
-
 -- I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...
 -- glsl unsigned int fragment colors and samplers really doesn't do anything predictable...
-local fragType = 'uvec4'
+-- https://stackoverflow.com/a/44255778
+-- is saying that the framebuffer texture and the fragment type must be compatible
+-- but when fragType == vec4 that should work with framebuffer tex type is GL_RGB565 or with GL_R8, but it doesn't.
+-- but when fragTYpe == uvec4 and framebuffer tex type is GL_RGB565 or GL_R8UI, it does work.  should it?
 --local fragType = 'vec4'	-- not working
+local fragType = 'uvec4'
 
 -- on = read usampler, off = read sampler
---local useSamplerUInt = false	-- false == use traditional floats.  not working
-local useSamplerUInt = true
+--local useSamplerUInt = false	-- false == use 'sampler'.  not working
+local useSamplerUInt = true	-- true == use 'usampler'
 
 -- uses integer coordinates in shader.  you'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
-local useTextureRect = false
---local useTextureRect = true
+--local useTextureRect = false
+local useTextureRect = true
 
---local texelType = (useSamplerUInt and 'u' or '')..'vec4'
-
-local texelFunc = 'texture'
---local texelFunc = 'texelFetch'
+--local texelFunc = 'texture'
+local texelFunc = 'texelFetch'
 -- I'm getting this error really: "No matching function for call to texelFetch(usampler2D, ivec2)"
 -- so I guess I need to use usampler2DRect if I want to use texelFetch
+
+--[[
+https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexImage2D.xhtml
+https://registry.khronos.org/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
+The more I look into how to send/recv single-channel CPU-side 8bpp data to/from the GPU, the less the specs make sense.
+Doing this with 3 or 4 channels, using ints for CPU and floats for GPU, works fine - the old GL_RGB/GL_RGBA
+But doing this for one channel and all the sudden you must use matching type on the CPU and GPU side of things.
+So if I want to read/write quickly to my 8bpp VRAM, then I'm stuck using ints in both CPU and GPU... ?
+And if I want GL to store R32F in GPU, then (at least according to GLES3) I need to upload floats from the CPU.
+And if I want CPU uint8 and GPU R8 then ... I'm stuck as to why this doesn't work, but the texture is only giving me 0 values back.
+--]]
+
+local texInternalFormat_u8 = useSamplerUInt
+	and gl.GL_R8UI	-- use this with usampler2D(Rect) ... right?
+	or gl.GL_R8	-- use this with sampler2D(Rect) ... right?
+	--or gl.GL_RED
+	--or gl.GL_R32F	-- needs CPU data to be in 
+	--or gl.GL_RGBA
+
+local texInternalFormat_u16 = useSamplerUInt
+	and gl.GL_R16UI
+	or gl.GL_R16
+	--or gl.GL_RED
+	--or gl.GL_R32F
+	--or gl.GL_RGBA
+
+local texFormat_u8 = useSamplerUInt
+	and gl.GL_RED_INTEGER
+	or gl.GL_RED
+	--or gl.GL_RGBA
+
+local texFormat_u16 = useSamplerUInt
+	and gl.GL_RED_INTEGER
+	or gl.GL_RED
+	--or gl.GL_RGBA
 
 local samplerType = (useSamplerUInt and 'u' or '')
 	.. 'sampler2D'
@@ -352,7 +388,7 @@ end
 -- consider putting somewhere common, maybe in gl.tex2d ?
 -- maybe just save .image in gltex2d?
 function makeTexFromImage(app, args)
-glreport'here'
+glreport'before makeTexFromImage'
 	local image = assert(args.image)
 	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
 	local tex = GLTex2D{
@@ -414,7 +450,7 @@ glreport'here'
 		end
 		self.dirtyGPU = false
 	end
-glreport'here'
+glreport'after makeTexFromImage'
 
 	return tex
 end
@@ -447,15 +483,15 @@ function AppVideo:initDraw()
 	-- redirect the image buffer to our virtual system rom
 	self.spriteTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
-		internalFormat = gl.GL_R8UI,
-		format = gl.GL_RED_INTEGER,
+		internalFormat = texInternalFormat_u8,
+		format = texFormat_u8,
 		type = gl.GL_UNSIGNED_BYTE,
 	})
 
 	self.tileTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
-		internalFormat = gl.GL_R8UI,
-		format = gl.GL_RED_INTEGER,
+		internalFormat = texInternalFormat_u8,
+		format = texFormat_u8,
 		type = gl.GL_UNSIGNED_BYTE,
 	})
 
@@ -470,8 +506,8 @@ function AppVideo:initDraw()
 	--]]
 	self.mapTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
-		internalFormat = gl.GL_R16UI,
-		format = gl.GL_RED_INTEGER,
+		internalFormat = texInternalFormat_u16,
+		format = texFormat_u16,
 		type = gl.GL_UNSIGNED_SHORT,
 	})
 	self.mapMem = self.mapTex.image.buffer
@@ -516,8 +552,8 @@ function AppVideo:initDraw()
 		)
 		self.fbIndexTex = makeTexFromImage(self, {
 			image = fbIndexImage,
-			internalFormat = gl.GL_R8UI,
-			format = gl.GL_RED_INTEGER,
+			internalFormat = texInternalFormat_u8,
+			format = texFormat_u8,
 			type = gl.GL_UNSIGNED_BYTE,
 		})
 	end
@@ -563,14 +599,14 @@ function AppVideo:initDraw()
 	local colorIndexToFrag = table{
 	'fragColor = '..readTex{
 		tex = 'palTex',
-		tc = 'ivec2(colorIndex & '..('0x%Xu'):format(paletteSize-1)..', 0)',
+		tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 		from = 'ivec2',
 		to = fragType,
 	}..';',
 	}:concat'\n'..'\n'
 
 	local function makeSceneObject(args)
---[[
+-- [[
 print(args.name)
 print'vertex'
 print(require 'template.showcode'(args.program.vertexCode))
@@ -1072,32 +1108,76 @@ uniform uint transparentIndex;
 
 uniform <?=samplerType?> palTex;
 
-const float spriteSheetSizeX = <?=glslnumber(spriteSheetSize.x)?>;
-const float spriteSheetSizeY = <?=glslnumber(spriteSheetSize.y)?>;
+const vec2 spriteSheetSize = vec2(
+	<?=glslnumber(spriteSheetSize.x)?>,
+	<?=glslnumber(spriteSheetSize.y)?>
+);
+
 
 uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
-	uint colorIndex = (]]..readTex{tex='spriteTex', tc='tcv', from='vec2', to='uvec4'}..[[.r >> spriteBit) & spriteMask;
+<? if useSamplerUInt then ?>
+	uint colorIndex = ]]
+		..readTex{tex='spriteTex', tc='tcv', from='vec2', to='uvec4'}
+		..[[.r;
+	
+	colorIndex >>= spriteBit;
+	colorIndex &= spriteMask;
 
 	if (colorIndex == transparentIndex) discard;
-
-	//colorIndex should hold
 	colorIndex += paletteIndex;
 
-]]..info.colorOutput..[[
+<?=info.colorOutput?>
 
 <? if fragType == 'uvec4' then ?>
 	if (fragColor.a == 0) discard;
 <? else ?>
-	if (fragColor.a < .5) discard;
+//	if (fragColor.a < .5) discard;
+<? end ?>
+
+<? else ?>
+	
+	float colorIndexNorm = ]]
+		..readTex{tex='spriteTex', tc='tcv / spriteSheetSize', from='vec2', to='vec4'}
+		..[[.r;
+	//uint colorIndex = uint((colorIndexNorm + .5) / 4294967295.);	// transparent / nothing
+	//uint colorIndex = uint((colorIndexNorm + .5) / 16777215.);	// transparent / nothing
+	//uint colorIndex = uint((colorIndexNorm + .5) / 65535.);	// transparent / nothing
+	//uint colorIndex = uint((colorIndexNorm + .5) / 255.);	// transparent / nothing
+	//uint colorIndex = uint(colorIndexNorm);	// transparent / nothing
+	//uint colorIndex = uint(colorIndexNorm * 255.);	// transparent / nothing
+	//uint colorIndex = uint((colorIndexNorm + .5) * 255.);	// shows black
+	uint colorIndex = uint(colorIndexNorm * 255. + .5);	// transparent / nothing
+	//uint colorIndex = uint((colorIndexNorm + .5) * 65535.);	// shows black
+	//uint colorIndex = uint(colorIndexNorm * 65535.);	// transparent / nothing
+	//uint colorIndex = uint((colorIndexNorm + .5) * 16777215.);	// shows black
+	//uint colorIndex = uint(colorIndexNorm * 16777215.);	// transparent / nothing
+	//uint colorIndex = uint((colorIndexNorm + .5) * 4294967295.);	// transparent / nothing
+	//uint colorIndex = uint(colorIndexNorm * 4294967295.);	// transparent / nothing
+	//uint colorIndex = uint(colorIndexNorm * 4294967295. + .5);	// transparent / nothing
+	colorIndex >>= spriteBit;
+	colorIndex &= spriteMask;
+	if (colorIndex == transparentIndex) discard;
+	colorIndex += paletteIndex;
+#if 1
+<?=info.colorOutput?>
+#else	// inlined
+fragColor = texture(palTex, vec2((colorIndexNorm * 255. + .5) / 256., .5), 0);
+// IT'S GOING STRAIGHT FROM THE SPRITE SHEET TO THE PALETTE TO THE FRAGMENT, ALL FLOATS, WHAT IS GOING WRONG?!?!?!?!?
+// HOW COME colorIndexNorm IS ALWAYS ZERO?!?!?!?!?!?!?!?
+//fragColor = texture(palTex, vec2(2.5/255., .5), 0);
+#endif
+
 <? end ?>
 }
 ]], 			{
-					fragType = fragType,
-					samplerType = samplerType,
 					glslnumber = glslnumber,
+					fragType = fragType,
+					useSamplerUInt = useSamplerUInt,
+					samplerType = samplerType,
 					spriteSheetSize = spriteSheetSize,
+					info = info,
 				}),
 				uniforms = {
 					spriteTex = 0,
@@ -1160,8 +1240,6 @@ uniform <?=samplerType?> mapTex;
 uniform <?=samplerType?> tileTex;
 uniform <?=samplerType?> palTex;
 
-const float spriteSheetSizeX = <?=glslnumber(spriteSheetSize.x)?>;
-const float spriteSheetSizeY = <?=glslnumber(spriteSheetSize.y)?>;
 const uint tilemapSizeX = <?=tilemapSize.x?>;
 const uint tilemapSizeY = <?=tilemapSize.y?>;
 
