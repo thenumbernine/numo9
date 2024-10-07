@@ -659,8 +659,7 @@ colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'..
 		})},
 	}
 
-
--- [[ a wrapper to output the code
+--[[ a wrapper to output the code
 	local origGLSceneObject = GLSceneObject
 	local function GLSceneObject(args)
 		print'vertex'

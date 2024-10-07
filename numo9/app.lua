@@ -1140,9 +1140,11 @@ assert(self.runFocus == self.remoteClient)
 		-- failed to connect?
 		self.con:print'failed to connect'
 		self.runFocus = nil
+		self.remoteClient = nil
 		return nil, 'failed to connect'
 	end
 assert(coroutine.status(self.runFocus.thread) ~= 'dead')
+	self:setMenu(nil)
 	return true
 end
 
