@@ -1108,9 +1108,14 @@ update=[]do
 
 	-- draw
 
-	cls()
+	cls(0xf0)
 	matident()
-	matscale(1.6,1.6)
+	-- my maps are 10x10, (lolo's were 11x1), the screen is 16x16 ... how to resolve
+	matscale(1.6,1.6)	-- scale up? looks ugly
+--	mattrans(128-80, 128-80)	-- recenter?  looks tiny
+	-- the lolo fix: draw a 1 tile border, 1 tile header, and put the inventory on the right side
+	-- or another fix ... 2x everything so there's no aliasing and have the camera follow the player so they can't see the whole screen.  nah.
+
 	-- draw ground first
 	-- TODO put this at location 0, and levels after it ...
 	map(0,20,mapw,maph,0,0,0,true)

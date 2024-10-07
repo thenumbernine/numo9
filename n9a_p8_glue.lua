@@ -679,6 +679,10 @@ trace'TODO cstore'
 	end,
 	peek=p8peek,
 	poke=p8poke,
+	peek2=[]error'TODO',
+	poke2=[]error'TODO',
+	peek4=[]error'TODO',
+	poke4=[]error'TODO',
 
 	-- persistent data:
 	cartdata=[]nil,

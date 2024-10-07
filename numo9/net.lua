@@ -1122,7 +1122,7 @@ print('got uint16 index='
 				break
 			end
 
-			if not sock:getsockname() then goto ClientConn_done end	-- is this working?
+			if not sock:getsockname() then goto ClientConn_done end	-- TODO is this working?
 		until not data
 
 		-- TODO send any input button changes ...
