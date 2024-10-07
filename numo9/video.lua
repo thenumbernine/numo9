@@ -604,19 +604,7 @@ function AppVideo:initDraw()
 	-- and here's our blend solid-color option...
 	local drawOverrideCode = [[
 	if (drawOverrideSolid.a > 0) {
-		// use max int since we're writing out to RGB5_A1 which is a RGB i.e. float tex in GL
-		// ... does uint not use all 32 bits?  do i have to query the bit resolution outside glsl and shift that many bits inside glsl?  what is going on here?
-		//fragColor.rgb = drawOverrideSolid.rgb << 24;	// green/blue looks blue
-		//fragColor.rgb = drawOverrideSolid.rgb << 23;	// green/blue looks green, loses blue channel
-		//fragColor.rgb = drawOverrideSolid.rgb << 22;	// same
-		//fragColor.rgb = drawOverrideSolid.rgb << 21;	// black
-		//fragColor.rgb = drawOverrideSolid.rgb * 16843009;	// this is ((1<<32)-1)/((1<<8)-1) ... green turns blue ...
-		//fragColor.rgb = drawOverrideSolid.rgb * 8421504;	// this is ((1<<31)-1)/((1<<8)-1) ... green turns black ...
-		//fragColor.rgb = drawOverrideSolid.rgb;
-// what is a valid value here?  nothing seems to work
-fragColor.r = 0x7FFFFFFF;
-fragColor.g = 0x7FFFFFFF;
-fragColor.b = 0x7FFFFFFF;
+		fragColor.rgb = drawOverrideSolid.rgb;
 	}
 ]]
 
@@ -1140,7 +1128,6 @@ const vec2 spriteSheetSize = vec2(
 	<?=glslnumber(spriteSheetSize.y)?>
 );
 
-
 uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
@@ -1598,8 +1585,8 @@ function AppVideo:drawSolidRect(
 	if h < 0 then y,h = y+h,-h end
 	settable(uniforms.box, x, y, w, h)
 
-	-- redundant, but i guess this is a way to draw with a color outside the palette, so *shrug*
-	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1635,8 +1622,8 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	vtxCPU:emplace_back():set(x3, y3, z3)
 	vtxGPU:endUpdate()
 
-	-- redundant, but i guess this is a way to draw with a color outside the palette, so *shrug*
-	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1658,7 +1645,9 @@ function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.pos0, x1,y1,z1)
 	settable(uniforms.pos1, x2,y2,z2)
-	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+	
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1719,10 +1708,6 @@ function AppVideo:setBlendMode(blendMode)
 
 -- [[ TODO this here or this in the draw commands?
 	self.drawOverrideSolidA = bit.band(blendMode, 4) == 0 and 0 or 0xff	-- > 0 means we're using draw-override
-	local dr, dg, db = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	self.drawOverrideSolidR = dr
-	self.drawOverrideSolidG = dg
-	self.drawOverrideSolidB = db
 --]]
 	local ca = 1
 	local half = bit.band(blendMode, 1) ~= 0
@@ -1780,7 +1765,9 @@ function AppVideo:drawQuad(
 	uniforms.spriteMask = spriteMask
 	settable(uniforms.tcbox, tx, ty, tw, th)
 	settable(uniforms.box, x, y, w, h)
-	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+	
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1884,7 +1871,9 @@ function AppVideo:drawMap(
 		tilesWide * bit.lshift(spriteSize.x, draw16As0or1),
 		tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
 	)
-	settable(uniforms.drawOverrideSolid, self.drawOverrideSolidR, self.drawOverrideSolidG, self.drawOverrideSolidB, self.drawOverrideSolidA)
+	
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
