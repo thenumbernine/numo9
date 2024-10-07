@@ -137,7 +137,7 @@ p8_palt=[...]do
 	end
 end
 p8peek=[addr]do
-	if addr>=0 and addr<0x2000 then
+	if addr>=0 and addr<0x2000 then	-- gfx and map2
 --[[
 pico8 memory from 0..0x1000 is spritesheet 128x64
 from 0x1000..0x2000 is shared spritesheet/tilemap 128x64
@@ -145,50 +145,63 @@ so the spritesheet gets 128x128 contiguous memory
 pico8 x 0..128 = addrs 0..63 / bits 0..5 = numo9 addrs be 0..127 (bits 1..6) for me, i'm reading two peeks into its one.
 pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 --]]
-		local x = (addr & 0x3f) << 1
-		local yhi = (addr & 0x1fc0) << 2
-		addr = x | yhi
-		local value = peekw(gfxMem+addr)
+		local x=(addr&0x3f)<<1
+		local yhi=(addr&0x1fc0)<<2
+		addr=x|yhi
+		local value=peekw(gfxMem+addr)
 		return (value&0xf)|((value&0xf00)>>4)
+		-- TODO addr>=0x1000 and addr <0x2000 then ALSO write to the tilemapTex
 --pico8 memory from $6000 to $8000 is the 4bpp screen
 -- I've got 'video mode 1' which is 8bpp indexed, so I can use mine for picso ...
-	elseif addr>=0x2000 and addr<0x3000 then
+	elseif addr>=0x2000 and addr<0x3000 then	-- map
 		addr-=0x2000
-		local x = addr & 0x7f
-		local y = (addr >> 7) & 0x1f
-		addr = (x << 1) | (y << 9)
-		local value = peekw(mapMem+addr)
+		local x=addr&0x7f
+		local y=(addr>>7)&0x1f
+		addr=(x<<1)|(y<<9)
+		local value=peekw(mapMem+addr)
 		return (value&0x0f)|((value>>1)&0xf0)
+	elseif addr>=0x4300 and addr<0x5600 then	-- user data
+		return peek(addr-0x4300+userMem)
 	elseif addr>=0x6000 and addr<0x8000 then
 		addr-=0x6000
-		local x = (addr & 0x3f) << 1		-- lo 6 bits = x coord, to be shifted << 1
-		local yhi = (addr & 0x1fc0) << 2	-- next 7 bits = y coord, to be shifted << 8
-		addr = x | yhi
-		local value = peekw(fbMem+addr)
+		local x=(addr&0x3f)<<1		-- lo 6 bits=x coord, to be shifted << 1
+		local yhi=(addr&0x1fc0)<<2	-- next 7 bits=y coord, to be shifted << 8
+		addr=x|yhi
+		local value=peekw(fbMem+addr)
 		return (value&0x0f)|((value&0x0f00)>>4)
 	end
 trace(('TODO peek $%x'):format(addr))
 	return 0
 end
 p8poke=[addr,value]do
-	if addr >= 0 and addr < 0x2000 then
-		local x = (addr & 0x3f) << 1		-- x coord
-		local yhi = (addr & 0x1fc0) << 2	-- y coord << 8
-		addr = x | yhi
-		pokew(gfxMem+addr, (value&0xf)|((value&0xf0)<<4))
+	if addr>=0 and addr<0x2000 then
+		local x=(addr&0x3f)<<1		-- x coord
+		local yhi=(addr&0x1fc0)<<2	-- y coord << 8
+		addr=x|yhi
+		pokew(gfxMem+addr,(value&0xf)|((value&0xf0)<<4))
+		if addr>=0x1000 then
+			-- shared mem, also write to the map lower
+			addr-=0x1000
+			local x=addr&0x7f				-- 7 bits x
+			local y=((addr>>7)&0x1f)|0x20	-- 5 bits y
+			addr=(x<<1)|(y<<9)
+			pokew(mapMem+addr,(value&0xf)|((value&0xf0)<<1))
+		end
 	elseif addr>=0x2000 and addr<0x3000 then
 		addr-=0x2000
-		local x = addr & 0x7f			-- 7 bits x
-		local y = (addr >> 7) & 0x1f	-- 5 bits y
-		addr = (x << 1) | (y << 9)
+		local x=addr&0x7f			-- 7 bits x
+		local y=(addr>>7)&0x1f	-- 5 bits y
+		addr=(x<<1)|(y<<9)
 		pokew(mapMem+addr,(value&0xf)|((value&0xf0)<<1))
+	elseif addr>=0x4300 and addr<0x5600 then	-- user data
+		poke(addr-0x4300+userMem,value)
 	elseif addr>=0x6000 and addr<0x8000 then
 		-- only valid for 8bpp-indexed video mode
 		addr-=0x6000
-		local x = (addr & 0x3f) << 1		-- x coord
-		local yhi = (addr & 0x1fc0) << 2	-- y coord << 8
-		addr = x | yhi
-		pokew(fbMem+addr, (value&0xf)|((value&0xf0)<<4))
+		local x=(addr&0x3f)<<1		-- x coord
+		local yhi=(addr&0x1fc0)<<2	-- y coord << 8
+		addr=x|yhi
+		pokew(fbMem+addr,(value&0xf)|((value&0xf0)<<4))
 	else
 trace(('TODO poke $%x $%x'):format(addr, value))
 	end
@@ -247,10 +260,7 @@ setfenv(1, {
 	del=table.removeObject,
 	deli=table.remove,
 	count=[t]#t,
-	pairs=[t]do
-		if t==nil then return coroutine.wrap([]nil) end
-		return pairs(t)
-	end,
+	pairs=[t](t==nil? (coroutine.wrap([]nil)):(pairs(t))),
 	all=[t]coroutine.wrap([]do
 		if not t then return end
 		for _,x in ipairs(t) do
@@ -264,7 +274,13 @@ setfenv(1, {
 	tostr=tostring,
 	tonum=tonumber,
 	chr=string.char,
-	ord=string.byte,
+	ord=[...]do
+		if select('#', ...)==3 then
+			local a,b,c=...
+			return string.byte(a,b,b+c-1)
+		end
+		return string.byte(...)
+	end,
 	sub=string.sub,
 	split=string.split,
 	yield=coroutine.yield,

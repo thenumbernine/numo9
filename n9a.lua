@@ -1351,6 +1351,7 @@ assertlen(
 		('mapMem=0x%06x'):format(ffi.offsetof('RAM', 'tilemap')),
 		('palMem=0x%06x'):format(ffi.offsetof('RAM', 'palette')),
 		('fbMem=0x%06x'):format(ffi.offsetof('RAM', 'framebuffer')),
+		('userMem=0x%06x'):format(ffi.offsetof('RAM', 'userData')),
 		assert(path'n9a_p8_glue.lua':read()),
 		'-- end compat layer',
 		code,

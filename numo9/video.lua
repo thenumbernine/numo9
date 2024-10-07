@@ -53,25 +53,26 @@ local function settable(t, ...)
 	settableindex(t, 1, ...)
 end
 
--- I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...
--- glsl unsigned int fragment colors and samplers really doesn't do anything predictable...
--- https://stackoverflow.com/a/44255778
--- is saying that the framebuffer texture and the fragment type must be compatible
--- but when fragType == vec4 that should work with framebuffer tex type is GL_RGB565 or with GL_R8, but it doesn't.
--- but when fragTYpe == uvec4 and framebuffer tex type is GL_RGB565 or GL_R8UI, it does work.  should it?
---local fragType = 'vec4'	-- not working
-local fragType = 'uvec4'
+--[[
+I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...
+glsl unsigned int fragment colors and samplers really doesn't do anything predictable...
+https://stackoverflow.com/a/44255778
+is saying that the framebuffer texture and the fragment type must be compatible
+but when fragType == vec4 that should work with framebuffer tex type is GL_RGB565 or with GL_R8, but it doesn't.
+but when fragType == uvec4 and framebuffer tex type is GL_RGB565 or GL_R8UI, it does work.  should it?  I think only one of those two is an 'integer' format ...
 
--- on = read usampler, off = read sampler
---local useSamplerUInt = false	-- false == use 'sampler'.  not working
-local useSamplerUInt = true	-- true == use 'usampler'
+so maybe when I'm drawing to the screen or to the 16bpp rgb565 then I should use 'vec4'
+but when I'm drawing to the 8bpp framebuffer then I should use 'uvec4'.r?
+--]]
+local fragType = 'vec4'	-- not working
+--local fragType = 'uvec4'
 
 -- uses integer coordinates in shader.  you'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
---local useTextureRect = false
-local useTextureRect = true
+local useTextureRect = false
+--local useTextureRect = true
 
---local texelFunc = 'texture'
-local texelFunc = 'texelFetch'
+local texelFunc = 'texture'
+--local texelFunc = 'texelFetch'
 -- I'm getting this error really: "No matching function for call to texelFetch(usampler2D, ivec2)"
 -- so I guess I need to use usampler2DRect if I want to use texelFetch
 
@@ -86,19 +87,19 @@ And if I want GL to store R32F in GPU, then (at least according to GLES3) I need
 And if I want CPU uint8 and GPU R8 then ... I'm stuck as to why this doesn't work, but the texture is only giving me 0 values back.
 --]]
 
+-- on = use GL_*UI for our texture internal format, off = use regular non-integer
+--local useSamplerUInt = false
+local useSamplerUInt = true
+
 local texInternalFormat_u8 = useSamplerUInt
 	and gl.GL_R8UI	-- use this with usampler2D(Rect) ... right?
 	or gl.GL_R8	-- use this with sampler2D(Rect) ... right?
-	--or gl.GL_RED
 	--or gl.GL_R32F	-- needs CPU data to be in 
-	--or gl.GL_RGBA
 
 local texInternalFormat_u16 = useSamplerUInt
 	and gl.GL_R16UI
 	or gl.GL_R16
-	--or gl.GL_RED
 	--or gl.GL_R32F
-	--or gl.GL_RGBA
 
 local texFormat_u8 = useSamplerUInt
 	and gl.GL_RED_INTEGER
@@ -110,9 +111,14 @@ local texFormat_u16 = useSamplerUInt
 	or gl.GL_RED
 	--or gl.GL_RGBA
 
-local samplerType = (useSamplerUInt and 'u' or '')
-	.. 'sampler2D'
-	.. (useTextureRect and 'Rect' or '')
+local function texIsUInt(tex)
+	return tex.internalFormat == gl.GL_R8UI
+		or tex.internalFormat == gl.GL_R16UI
+end
+
+local function samplerTypeForTex(tex)
+	return (texIsUInt(tex) and 'u' or '')..'sampler2D'..(useTextureRect and 'Rect' or '')
+end
 
 local function textureSize(tex)
 	if useTextureRect then	-- textureSize(gsampler2DRect) doesn't have a LOD argument
@@ -124,50 +130,40 @@ end
 
 --[[
 args:
-	tex
+	texvar = glsl var name
+	tex = GLTex object
 	tc
 	from (optional) 'vec2' or 'ivec2'
 	to (optional) 'vec4' or 'uvec4'
 is this going to turn into a parser?
 --]]
 local function readTex(args)
-	local tex = args.tex
+	local texvar = args.texvar
 	local tc = args.tc
 	if args.from == 'vec2' then
 		if useTextureRect or texelFunc == 'texelFetch' then
-			tc = 'ivec2(('..tc..') * vec2('..textureSize(tex)..'))'
+			tc = 'ivec2(('..tc..') * vec2('..textureSize(texvar)..'))'
 		end
 	elseif args.from == 'ivec2' then
 		if not (useTextureRect or texelFunc == 'texelFetch') then
-			tc = '(vec2('..tc..') + .5) / vec2('..textureSize(tex)..')'
+			tc = '(vec2('..tc..') + .5) / vec2('..textureSize(texvar)..')'
 		end
 	end
 	local dst
 	if texelFunc == 'texelFetch'
 	and not useTextureRect 	-- texelFetch(gsampler2DRect) doesn't have a LOD argument
 	then
-		dst = texelFunc..'('..tex..', '..tc..', 0)'
+		dst = texelFunc..'('..texvar..', '..tc..', 0)'
 	else
-		dst = texelFunc..'('..tex..', '..tc..')'
+		dst = texelFunc..'('..texvar..', '..tc..')'
 	end
 	if args.to == 'uvec4' then
 		--[[
 		convert to uint, assume the source is a texture texel
 		when outputting uint, does texture() vs texelFetch() output normalized to [0,2^32-1], or the texture format [0,255], or ... what?
 		--]]
-		if not useSamplerUInt then
-			dst = 'uvec4('..dst
-				--[[
-				..' * '..glslnumber(
-				-- why doesn't this make a difference?
-				--4294967295
-				--2147483647
-				--255
-				--1
-				--1 / 255
-				)
-				--]]
-			..')'
+		if texIsUInt(args.tex) then
+			dst = 'uvec4('..dst..')'
 		end
 	end
 	return dst
@@ -239,7 +235,6 @@ local function argb8888revto5551(rgba)
 end
 
 local function resetFontOnSheet(spriteSheetPtr)
-
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
 	local fontImg = Image'font.png'
@@ -558,7 +553,7 @@ function AppVideo:initDraw()
 		})
 	end
 	--]=]
-
+	
 	self.quadGeom = GLGeometry{
 		mode = gl.GL_TRIANGLE_STRIP,
 		vertexes = {
@@ -598,170 +593,15 @@ function AppVideo:initDraw()
 	-- assert palleteSize is a power-of-two ...
 	local colorIndexToFrag = table{
 	'fragColor = '..readTex{
-		tex = 'palTex',
+		tex = self.palTex,
+		texvar = 'palTex',
 		tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 		from = 'ivec2',
 		to = fragType,
 	}..';',
 	}:concat'\n'..'\n'
 
-	local function makeSceneObject(args)
--- [[
-print(args.name)
-print'vertex'
-print(require 'template.showcode'(args.program.vertexCode))
-print'fragment'
-print(require 'template.showcode'(args.program.fragmentCode))
---]]
-		self[args.name] = GLSceneObject(args)
-	end
-
-	-- used for drawing our 16bpp framebuffer to the screen
-	makeSceneObject{
-		name = 'blitScreenRGBObj',
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = [[
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
-			fragmentCode = template([[
-in vec2 tcv;
-
-//It should require a vec4 since our fb target will be RGB5_A1/GL_RGBA which is a float type
-// according to this post https://stackoverflow.com/a/9185740
-//layout(location=0) out vec4 fragColor;
-// so how come it doesn't work unless I use uvec4 as the fragment type?
-// and how come the gl docs just say it gets normalized ...
-layout(location=0) out ]]..fragType..[[ fragColor;
-// and how come texelFetch has no problem handing off to a vec4 and a uvec4 ... WHAT KIND OF CONVERSION IS GOING ON THERE?
-
-uniform <?=samplerType?> fbTex;
-
-void main() {
-	fragColor = ]]..readTex{tex='fbTex', tc='tcv', from='vec2', to=fragType}..[[;
-// with vec4 fragColor, none of these give a meaningful result:
-//fragColor *= 1. / 255.;
-//fragColor *= 1. / 65535.;
-//fragColor *= 1. / 16777215.;
-//fragColor *= 1. / 4294967295.;
-}
-]],			{
-				samplerType = samplerType,
-				glslnumber = glslnumber,
-				frameBufferSize = frameBufferSize,
-			}),
-			uniforms = {
-				fbTex = 0,
-			},
-		},
-		texs = {self.fbTex},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = self.blitScreenView.mvProjMat.ptr,
-		},
-	}
-
-	-- used for drawing our 8bpp indexed framebuffer to the screen
-	makeSceneObject{
-		name = 'blitScreenIndexObj',
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = [[
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
-			fragmentCode = template([[
-in vec2 tcv;
-
-layout(location=0) out ]]..fragType..[[ fragColor;
-
-uniform <?=samplerType?> fbTex;
-uniform <?=samplerType?> palTex;
-
-void main() {
-	uint colorIndex = ]]..readTex{tex='fbTex', tc='tcv', from='vec2', to='uvec4'}..[[.r;
-]]..colorIndexToFrag..[[
-}
-]],			{
-				samplerType = samplerType,
-				glslnumber = glslnumber,
-				frameBufferSize = frameBufferSize,
-			}),
-			uniforms = {
-				fbTex = 0,
-				palTex = 1,
-			},
-		},
-		texs = {self.fbTex, self.palTex},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = self.blitScreenView.mvProjMat.ptr,
-		},
-	}
-
-	-- used for drawing 8bpp fbIndexTex as rgb332 framebuffer to the screen
-	makeSceneObject{
-		name = 'blitScreenRGB332Obj',
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = [[
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
-			fragmentCode = template([[
-in vec2 tcv;
-
-layout(location=0) out vec4 fragColor;
-
-uniform <?=samplerType?> fbTex;
-
-void main() {
-	uint rgb332 = ]]..readTex{tex='fbTex', tc='tcv', from='vec2', to='uvec4'}..[[.r;
-	fragColor.r = float(rgb332 & 0x7u) / 7.;
-	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
-	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
-	fragColor.a = 1.;
-}
-]],			{
-				samplerType = samplerType,
-				glslnumber = glslnumber,
-				frameBufferSize = frameBufferSize,
-			}),
-			uniforms = {
-				fbTex = 0,
-				palTex = 1,
-			},
-		},
-		texs = {self.fbTex, self.palTex},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = self.blitScreenView.mvProjMat.ptr,
-		},
-	}
-
-		-- and here's our blend solid-color option...
+	-- and here's our blend solid-color option...
 	local drawOverrideCode = [[
 	if (drawOverrideSolid.a > 0) {
 		// use max int since we're writing out to RGB5_A1 which is a RGB i.e. float tex in GL
@@ -772,21 +612,44 @@ void main() {
 		//fragColor.rgb = drawOverrideSolid.rgb << 21;	// black
 		//fragColor.rgb = drawOverrideSolid.rgb * 16843009;	// this is ((1<<32)-1)/((1<<8)-1) ... green turns blue ...
 		//fragColor.rgb = drawOverrideSolid.rgb * 8421504;	// this is ((1<<31)-1)/((1<<8)-1) ... green turns black ...
+		//fragColor.rgb = drawOverrideSolid.rgb;
+// what is a valid value here?  nothing seems to work
+fragColor.r = 0x7FFFFFFF;
+fragColor.g = 0x7FFFFFFF;
+fragColor.b = 0x7FFFFFFF;
 	}
 ]]
 
-	-- make output shaders per-video-mode
-	-- set them up as our app fields to use upon setVideoMode
-	for _,info in ipairs{
-		{name='RGB', colorOutput=colorIndexToFrag..'\n'..drawOverrideCode},
 
-		-- indexed mode can't blend so ... no draw-override
-		{name='Index', colorOutput=colorIndexToFrag..[[
+	self.videoModeInfo = {
+		-- 16bpp rgb565
+		[0]={
+			fbTex = self.fbRGB565Tex,
+		
+			-- generator properties
+			name = 'RGB',
+			colorOutput = colorIndexToFrag..'\n'..drawOverrideCode,
+		},
+		-- 8bpp indexed
+		{
+			fbTex = self.fbIndexTex,
+		
+			-- generator properties
+			-- indexed mode can't blend so ... no draw-override
+			name = 'Index',
+			colorOutput = colorIndexToFrag..[[
 	fragColor.r = colorIndex;
 	fragColor.g = 0;
 	fragColor.b = 0;
-]]},
-		{name='RGB332', colorOutput=template([[
+]],
+		},
+		-- 8bpp rgb332
+		{
+			fbTex = self.fbIndexTex,
+	
+			-- generator properties
+			name = 'RGB332',
+			colorOutput = template([[
 <?=colorIndexToFrag?>
 <?=drawOverrideCode?>
 
@@ -818,9 +681,173 @@ end
 			drawOverrideCode = drawOverrideCode,
 			fragType = fragType,
 		})},
-	} do
-		makeSceneObject{
-			name = 'lineSolid'..info.name..'Obj',
+	}
+
+
+--[[ a wrapper to output the code
+	local origGLSceneObj = GLSceneObj
+	local function GLSceneObject(args)
+		print(args.name)
+		print'vertex'
+		print(require 'template.showcode'(args.program.vertexCode))
+		print'fragment'
+		print(require 'template.showcode'(args.program.fragmentCode))
+		return origGLSceneObject(args)
+	end
+--]]
+
+	-- used for drawing our 16bpp framebuffer to the screen
+	self.videoModeInfo[0].blitScreenObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+			fragmentCode = template([[
+in vec2 tcv;
+
+layout(location=0) out ]]..fragType..[[ fragColor;
+uniform <?=samplerTypeForTex(fbTex)?> fbTex;
+
+void main() {
+	fragColor = ]]..readTex{
+		tex = self.videoModeInfo[0].fbTex,
+		texvar = 'fbTex',
+		tc = 'tcv',
+		from = 'vec2',
+		to = fragType,
+	}..[[;
+}
+]],			{
+				fbTex = self.videoModeInfo[0].fbTex,
+				samplerTypeForTex = samplerTypeForTex,
+			}),
+			uniforms = {
+				fbTex = 0,
+			},
+		},
+		texs = {self.videoModeInfo[0].fbTex},
+		geometry = self.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvProjMat = self.blitScreenView.mvProjMat.ptr,
+		},
+	}
+
+	-- used for drawing our 8bpp indexed framebuffer to the screen
+	self.videoModeInfo[1].blitScreenObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+			fragmentCode = template([[
+in vec2 tcv;
+
+layout(location=0) out ]]..fragType..[[ fragColor;
+
+uniform <?=samplerTypeForTex(fbTex)?> fbTex;
+uniform <?=samplerTypeForTex(palTex)?> palTex;
+
+void main() {
+	uint colorIndex = ]]..readTex{
+		tex = self.videoModeInfo[1].fbTex,
+		texvar = 'fbTex',
+		tc = 'tcv',
+		from = 'vec2',
+		to = 'uvec4',
+	}..[[.r;
+]]..colorIndexToFrag..[[
+}
+]],			{
+				samplerTypeForTex = samplerTypeForTex,
+				fbTex = self.videoModeInfo[1].fbTex,
+				palTex = self.palTex,
+			}),
+			uniforms = {
+				fbTex = 0,
+				palTex = 1,
+			},
+		},
+		texs = {self.videoModeInfo[1].fbTex, self.palTex},
+		geometry = self.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvProjMat = self.blitScreenView.mvProjMat.ptr,
+		},
+	}
+
+	-- used for drawing 8bpp fbIndexTex as rgb332 framebuffer to the screen
+	self.videoModeInfo[2].blitScreenObj = GLSceneObject{
+		program = {
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+			fragmentCode = template([[
+in vec2 tcv;
+
+layout(location=0) out vec4 fragColor;
+
+uniform <?=samplerTypeForTex(fbTex)?> fbTex;
+
+void main() {
+	uint rgb332 = ]]..readTex{
+		tex = self.videoModeInfo[1].fbTex,
+		texvar = 'fbTex',
+		tc = 'tcv',
+		from = 'vec2',
+		to = 'uvec4',
+	}..[[.r;
+	fragColor.r = float(rgb332 & 0x7u) / 7.;
+	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
+	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
+	fragColor.a = 1.;
+}
+]],			{
+				fbTex = self.videoModeInfo[2].fbTex,
+				samplerTypeForTex = samplerTypeForTex,
+				glslnumber = glslnumber,
+				frameBufferSize = frameBufferSize,
+			}),
+			uniforms = {
+				fbTex = 0,
+				palTex = 1,
+			},
+		},
+		texs = {self.videoModeInfo[2].fbTex, self.palTex},
+		geometry = self.quadGeom,
+		-- glUniform()'d every frame
+		uniforms = {
+			mvProjMat = self.blitScreenView.mvProjMat.ptr,
+		},
+	}
+
+	-- make output shaders per-video-mode
+	-- set them up as our app fields to use upon setVideoMode
+	for infoIndex,info in pairs(self.videoModeInfo) do
+		info.lineSolidObj = GLSceneObject{
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -854,7 +881,7 @@ void main() {
 layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
-uniform <?=samplerType?> palTex;
+uniform <?=samplerTypeForTex(self.palTex)?> palTex;
 uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
@@ -862,7 +889,8 @@ void main() {
 }
 ]],				{
 					fragType = fragType,
-					samplerType = samplerType,
+					self = self,
+					samplerTypeForTex = samplerTypeForTex,
 				}),
 				uniforms = {
 					palTex = 0,
@@ -884,8 +912,7 @@ void main() {
 
 		-- TODO maybe ditch quadSolid* and dont' use uniforms to draw quads ... and just do this with prims ... idk
 		-- but quadSolid has my ellipse/border shader so ....
-		makeSceneObject{
-			name = 'triSolid'..info.name..'Obj',
+		info.triSolidObj = GLSceneObject{
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -911,7 +938,7 @@ layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
 
-uniform <?=samplerType?> palTex;
+uniform <?=samplerTypeForTex(self.palTex)?> palTex;
 uniform <?=fragType?> drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
@@ -921,7 +948,8 @@ void main() {
 }
 ]],				{
 					fragType = fragType,
-					samplerType = samplerType,
+					self = self,
+					samplerTypeForTex = samplerTypeForTex,
 				}),
 				uniforms = {
 					palTex = 0,
@@ -946,8 +974,7 @@ void main() {
 			},
 		}
 
-		makeSceneObject{
-			name = 'quadSolid'..info.name..'Obj',
+		info.quadSolidObj = GLSceneObject{
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -984,7 +1011,7 @@ uniform bool round;
 
 uniform uint colorIndex;
 
-uniform <?=samplerType?> palTex;
+uniform <?=samplerTypeForTex(self.palTex)?> palTex;
 uniform <?=fragType?> drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
@@ -1026,7 +1053,8 @@ void main() {
 }
 ]],				{
 					fragType = fragType,
-					samplerType = samplerType,
+					self = self,
+					samplerTypeForTex = samplerTypeForTex,
 				}),
 				uniforms = {
 					palTex = 0,
@@ -1046,8 +1074,7 @@ void main() {
 			},
 		}
 
-		makeSceneObject{
-			name = 'quadSprite'..info.name..'Obj',
+		info.quadSpriteObj = GLSceneObject{
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -1085,7 +1112,7 @@ layout(location=0) out <?=fragType?> fragColor;
 uniform uint paletteIndex;
 
 // Reads 4 bits from wherever shift location you provide.
-uniform <?=samplerType?> spriteTex;
+uniform <?=samplerTypeForTex(self.spriteTex)?> spriteTex;
 
 // Specifies which bit to read from at the sprite.
 //  0 = read sprite low nibble.
@@ -1106,7 +1133,7 @@ uniform uint spriteMask;
 // If you want fully opaque then just choose an oob color index.
 uniform uint transparentIndex;
 
-uniform <?=samplerType?> palTex;
+uniform <?=samplerTypeForTex(self.palTex)?> palTex;
 
 const vec2 spriteSheetSize = vec2(
 	<?=glslnumber(spriteSheetSize.x)?>,
@@ -1119,7 +1146,13 @@ uniform <?=fragType?> drawOverrideSolid;
 void main() {
 <? if useSamplerUInt then ?>
 	uint colorIndex = ]]
-		..readTex{tex='spriteTex', tc='tcv', from='vec2', to='uvec4'}
+		..readTex{
+			tex = self.spriteTex,
+			texvar = 'spriteTex',
+			tc = 'tcv',
+			from = 'vec2',
+			to = 'uvec4',
+		}
 		..[[.r;
 	
 	colorIndex >>= spriteBit;
@@ -1133,13 +1166,19 @@ void main() {
 <? if fragType == 'uvec4' then ?>
 	if (fragColor.a == 0) discard;
 <? else ?>
-//	if (fragColor.a < .5) discard;
+	if (fragColor.a < .5) discard;
 <? end ?>
 
 <? else ?>
 	
 	float colorIndexNorm = ]]
-		..readTex{tex='spriteTex', tc='tcv / spriteSheetSize', from='vec2', to='vec4'}
+		..readTex{
+			tex = self.spriteTex,
+			texvar = 'spriteTex',
+			tc = 'tcv / spriteSheetSize',
+			from = 'vec2',
+			to = 'vec4',
+		}
 		..[[.r;
 	//uint colorIndex = uint((colorIndexNorm + .5) / 4294967295.);	// transparent / nothing
 	//uint colorIndex = uint((colorIndexNorm + .5) / 16777215.);	// transparent / nothing
@@ -1175,7 +1214,8 @@ fragColor = texture(palTex, vec2((colorIndexNorm * 255. + .5) / 256., .5), 0);
 					glslnumber = glslnumber,
 					fragType = fragType,
 					useSamplerUInt = useSamplerUInt,
-					samplerType = samplerType,
+					self = self,
+					samplerTypeForTex = samplerTypeForTex,
 					spriteSheetSize = spriteSheetSize,
 					info = info,
 				}),
@@ -1203,8 +1243,7 @@ fragColor = texture(palTex, vec2((colorIndexNorm * 255. + .5) / 256., .5), 0);
 			},
 		}
 
-		makeSceneObject{
-			name = 'quadMap'..info.name..'Obj',
+		info.quadMapObj = GLSceneObject{
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -1236,9 +1275,9 @@ layout(location=0) out <?=fragType?> fragColor;
 // tilemap texture
 uniform uint mapIndexOffset;
 uniform int draw16Sprites;	 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
-uniform <?=samplerType?> mapTex;
-uniform <?=samplerType?> tileTex;
-uniform <?=samplerType?> palTex;
+uniform <?=samplerTypeForTex(self.mapTex)?> mapTex;
+uniform <?=samplerTypeForTex(self.tileTex)?> tileTex;
+uniform <?=samplerTypeForTex(self.palTex)?> palTex;
 
 const uint tilemapSizeX = <?=tilemapSize.x?>;
 const uint tilemapSizeY = <?=tilemapSize.y?>;
@@ -1263,7 +1302,13 @@ void main() {
 	//read the tileIndex in mapTex at tileTC
 	//mapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	int tileIndex = int(]]..readTex{tex='mapTex', tc='tileTC', from='ivec2', to='uvec4'}..[[.r);
+	int tileIndex = int(]]..readTex{
+		tex = self.mapTex,
+		texvar = 'mapTex',
+		tc = 'tileTC',
+		from = 'ivec2',
+		to = 'uvec4',
+	}..[[.r);
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileTexTC = ivec2(
@@ -1282,7 +1327,13 @@ void main() {
 	);
 
 	// tileTex is R8 indexing into our palette ...
-	uint colorIndex = ]]..readTex{tex='tileTex', tc='tileTexTC', from='ivec2', to='uvec4'}..[[.r;
+	uint colorIndex = ]]..readTex{
+		tex = self.tileTex,
+		texvar = 'tileTex',
+		tc = 'tileTexTC',
+		from = 'ivec2',
+		to = 'uvec4',
+	}..[[.r;
 	colorIndex += palHi << 4;
 
 ]]..info.colorOutput..[[
@@ -1290,7 +1341,8 @@ void main() {
 }
 ]],				{
 					fragType = fragType,
-					samplerType = samplerType,
+					self = self,
+					samplerTypeForTex = samplerTypeForTex,
 					glslnumber = glslnumber,
 					spriteSheetSize = spriteSheetSize,
 					tilemapSize = tilemapSize,
@@ -1413,35 +1465,15 @@ each video mode should uniquely ...
 - pick / setup flags for each other shader (since RGB modes need RGB output, indexed modes need indexed output ...)
 --]]
 function AppVideo:setVideoMode(mode)
-	if mode == 0 then
-		self.fbTex = self.fbRGB565Tex
-		self.blitScreenObj = self.blitScreenRGBObj
-		self.lineSolidObj = self.lineSolidRGBObj
-		self.quadSolidObj = self.quadSolidRGBObj
-		self.triSolidObj = self.triSolidRGBObj
-		self.quadSpriteObj = self.quadSpriteRGBObj
-		self.quadMapObj = self.quadMapRGBObj
-	elseif mode == 1 then
-		self.fbTex = self.fbIndexTex
-		self.blitScreenObj = self.blitScreenIndexObj
-		self.lineSolidObj = self.lineSolidIndexObj
-		self.quadSolidObj = self.quadSolidIndexObj
-		self.triSolidObj = self.triSolidIndexObj
-		self.quadSpriteObj = self.quadSpriteIndexObj
-		self.quadMapObj = self.quadMapIndexObj
-		-- TODO and we need to change each shaders output from 565 RGB to Indexed also ...
-		-- ... we have to defer the palette baking
-	elseif mode == 2 then
-		-- these convert from rendered content to the framebuffer ...
-		self.lineSolidObj = self.lineSolidRGB332Obj
-		self.quadSolidObj = self.quadSolidRGB332Obj
-		self.triSolidObj = self.triSolidRGB332Obj
-		self.quadSpriteObj = self.quadSpriteRGB332Obj
-		self.quadMapObj = self.quadMapRGB332Obj
-		-- this is the framebuffer
-		self.fbTex = self.fbIndexTex
-		-- this converts from the framebuffer to the screen
-		self.blitScreenObj = self.blitScreenRGB332Obj
+	local info = self.videoModeInfo[mode]
+	if info then
+		self.fbTex = info.fbTex
+		self.blitScreenObj = info.blitScreenObj
+		self.lineSolidObj = info.lineSolidObj
+		self.triSolidObj = info.triSolidObj
+		self.quadSolidObj = info.quadSolidObj
+		self.quadSpriteObj = info.quadSpriteObj
+		self.quadMapObj = info.quadMapObj
 	else
 		error("unknown video mode "..tostring(mode))
 	end
@@ -1685,18 +1717,7 @@ function AppVideo:setBlendMode(blendMode)
 		gl.glBlendEquation(gl.GL_FUNC_ADD)
 	end
 
---[[
--- TODO how to get blend to replace the incoming color with a constant-color?
--- or is there not?
--- do I have to code the color-replacement into the shaders?
-	local cr, cg, cb
-	if bit.band(blendMode, 4) ~= 0 then
-		cr, cg, cb = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	else
-		cr, cg, cb = 1, 1, 1
-	end
---]]
--- [[ ... if not then it's gotta be done as a shader ... all shaders need a toggle to override their output when necessary for blend ...
+-- [[ TODO this here or this in the draw commands?
 	self.drawOverrideSolidA = bit.band(blendMode, 4) == 0 and 0 or 0xff	-- > 0 means we're using draw-override
 	local dr, dg, db = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	self.drawOverrideSolidR = dr

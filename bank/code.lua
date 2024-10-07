@@ -1074,14 +1074,13 @@ update=[]do
 			player:die()
 		end
 		if btnp(4) then
-			setLevel(level+1)
-			loadLevelRequest=true
-			--player.blend=((player.blend or 0)+1)&7
+			--setLevel(level+1) loadLevelRequest=true
+			pokew(0x080a46, 0xffff)	-- set blend color to white
+			player.blend=((player.blend or 0)+1)%9
 		end
 		if btnp(6) then
-			setLevel(level-1)
-			loadLevelRequest=true
-			--player.blend=((player.blend or 0)-1)&7
+			--setLevel(level-1) loadLevelRequest=true
+			player.blend=((player.blend or 0)-1)%9
 		end
 	end
 	for _,o in ipairs(objs) do
@@ -1125,7 +1124,7 @@ update=[]do
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
 		lastLevelStrWidth=text(levelstr,(256-(lastLevelStrWidth or 0))/2,0,22,-1)
-		--text('blend='..tostring(player.blend),0,8,22,-1)
+		text('blend='..tostring(player.blend),0,8,22,-1)
 	end
 end
 

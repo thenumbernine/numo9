@@ -37,6 +37,8 @@ local sfxTableSize =  256	-- max number of unique sfx that a music can reference
 local musicTableSize = 256	-- max number of music tracks stored
 local audioDataSize = 0x10000	-- snes had 64k dedicated to audio so :shrug:
 
+local userDataSize = 0x10000
+
 --local fontWidth = spriteSize.x
 local fontWidth = 5
 
@@ -312,6 +314,9 @@ local RAM = struct{
 				{name='mousePos', type='vec2s_t'},			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
 				{name='lastMousePos', type='vec2s_t'},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
 				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
+		
+				-- TODO maybe align this
+				{name='userData', type='uint8_t['..userDataSize..']'},
 			},
 		}},
 	},
@@ -395,6 +400,7 @@ return {
 	sfxTableSize = sfxTableSize,
 	musicTableSize = musicTableSize,
 	audioDataSize = audioDataSize,
+	userDataSize = userDataSize,
 
 	ROM = ROM,
 	RAM = RAM,

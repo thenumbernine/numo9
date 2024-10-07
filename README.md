@@ -214,10 +214,10 @@ This adds to Lua(/JIT):
 	- 1 = average with framebuffer (addition then half)
 	- 2 = subtract from background
 	- 3 = subtract-then-half with background
-	- 4 = (FIXME) addition with constant color
-	- 5 = (FIXME) average with constant color
-	- 6 = (FIXME) subtract from constant color
-	- 7 = (FIXME) subtract-then-half with constant color
+	- 4 = addition with constant color
+	- 5 = average with constant color
+	- 6 = subtract from constant color
+	- 7 = subtract-then-half with constant color
 Blending is only applied to opaque pixels.  Transparent pixels, i.e. those whose palette color has alpha=0, are discarded.
 Constant-color blending functions use the RGB555 value stored in `blendColor` of the [memory map](#Memory Layout) as their constant color.
 
@@ -408,13 +408,12 @@ Pico8 Compatability is at 95%
 - menu
 	- draw mouse / touch regions
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
-	- transparent menu
 	- make sure editor and menu don't use draw commands that get forwarded across the network
+	- transparent menu ... that will mean separating out all the draw commands, or rendering the editor and menu to a *separate* framebuffer and using the game's framebuffer as a backdrop ... or just issue the menu/editor render commands every frame ...
 - graphics:
 	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
-	- how does glsl handle uvec4 vs vec4, texture vs texelFetch vs fragment writing ...
-	- solid color blending is broken atm.  rgb332 is probably broken, i hope that's not what it's supposed to look like ... I am very close to just ripping out all the integer math in glsl, no matter how retro it seems, because the results are painful to deal with.
+	- rgb332 is probably broken, i hope that's not what it's supposed to look like ... I am very close to just ripping out all the integer math in glsl, no matter how retro it seems, because the results are painful to deal with.
 	- sprite renderer still clips into neighboring sprites because IT HAS ROUNDING ERRORS DESPITE USING INTEGER MATH ... I'm about to throw all the integer GLSL stuff out the window, because it is clearly an afterthought, and just go back to GLSL everything-float.
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
@@ -434,6 +433,12 @@ Pico8 Compatability is at 95%
 	- multiplayer ... draw commands in editors aren't issued to netplay so the client wont see the server's menus ...
 		... but they still modify the VRAM ...
 		... so I really need another framebuffer for the non-game stuff like the editor, menu, etc ...
+- memory
+	- reset, memcpy, and the pico8 functions cstore, and reload.  
+		Real cartridge consoles just gave separate address space to the cartridges, then you just copy between your RAM and your ROM addresses.  
+		Fantasy consoles seem to be keeping an extra copy of the cartridge in memory and accessing it through these functions.
+		Maybe I will put the ROM in addressible space and just have load/reset perform an initial copy from ROM to RAM space. How about ROM at 0xC00000 or so?
+		Maybe I'll think more on this as I think about spriteSheet vs tileSheet vs multiple sheets vs multiple arbitrary-purpose banks ...
 - netplay
 	- getting some desyncs in the protocol ...
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
@@ -454,4 +459,4 @@ Pico8 Compatability is at 95%
 - ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
 - I switched from PNG to TIFF so that I could save the whole cartridge binary in the lower 8 bits of 16bpp images, *with* LZW compression.  But never mind, in current year browsers still only seem to support png and jpeg.  I might go back to png, but that means either get rid of the option to have a display label image in the cartridge or it means lower the storage bpp down to 2 or something, and then that means I have to double the image size for matching space, then carts are getting up there in pixel size.
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.
-- the reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ...
+- The reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ...
