@@ -28,7 +28,7 @@ Mode 1:
 This is a 8bpp-indexed option, mainly for compatability for other fantasy consoles.  Fun fact, in real life 80s/90s consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
 
 Mode 2:
-This is 8bpp RGB332.  It looks ugly. Maybe I'll add some dithering.  Once I figure out how GLSL unpacks bits from the RGBA5551REV palette textures ... that seems mysterious to me.
+This is 8bpp RGB332.  It looks ugly. Maybe I'll add some dithering.
 
 ### sprites / tiles
 
@@ -206,7 +206,7 @@ This adds to Lua(/JIT):
 - `mode(i)` = set video mode.  The current video modes are:
 	- 0 = 16bpp RGB565, needed for blending
 	- 1 = 8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow)
-	- 2 = 8bpp RGB332.  This is an abomination.
+	- 2 = 8bpp RGB332.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `blend([i])` = Set blend mode.  Default value is 0xff corresponding to no blending.  The current blend modes are:
 	- 0xff = none
@@ -413,8 +413,7 @@ Pico8 Compatability is at 95%
 - graphics:
 	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
-	- rgb332 is probably broken, i hope that's not what it's supposed to look like ... I am very close to just ripping out all the integer math in glsl, no matter how retro it seems, because the results are painful to deal with.
-	- sprite renderer still clips into neighboring sprites because IT HAS ROUNDING ERRORS DESPITE USING INTEGER MATH ... I'm about to throw all the integer GLSL stuff out the window, because it is clearly an afterthought, and just go back to GLSL everything-float.
+	- sprite renderer still clips into neighboring sprites.
 - editor:
 	- tilemap UI for editing high-palette and horz/vert flip
 	- copy/paste on the tilemap.

@@ -632,7 +632,7 @@ colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'..
 	fragColor.r = colorIndex;
 	fragColor.g = 0;
 	fragColor.b = 0;
-	// only needed for quadSprite / quadMap
+	// only needed for quadSprite / quadMap:
 	fragColor.a = uint(palColor.a * 255.);
 ]],
 		},
@@ -651,6 +651,8 @@ colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'..
 	fragColor.r = r | (g << 3) | (b << 6);
 	fragColor.g = 0;
 	fragColor.b = 0;
+	// only needed for quadSprite / quadMap:
+	fragColor.a = uint(palColor.a * 255.);
 ]],		{
 			self = self,
 			fragTypeForTex = fragTypeForTex,
