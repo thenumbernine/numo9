@@ -165,7 +165,7 @@ function App:postUpdate() end
 function App:initGL()
 
 	gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
-	
+
 	--[[ getting single-buffer to work
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
@@ -664,7 +664,7 @@ function App:initGL()
 				cmd.type = assert(netcmds.music)
 				cmd.musicID, cmd.musicPlayingIndex, cmd.channelOffset = musicID, musicPlayingIndex, channelOffset
 			end
-			self:playMusic(musicID, musicPlayingIndex, channelOffset) 
+			self:playMusic(musicID, musicPlayingIndex, channelOffset)
 		end,
 
 		-- this just falls back to glapp saving the OpenGL draw buffer
@@ -951,7 +951,28 @@ looks like I'm a Snes9x-default-keybinding fan.
 			self.con.bgColor = 0xf0
 			--]]
 
-			-- first assign to console
+
+			for sleep=1,60 do
+				coroutine.yield()
+			end
+
+			-- do fanfare ...
+			local s = 'NuMo9.......'
+			for t=0,63+#s do
+				for i=t,0,-1 do
+					for j=0,i do
+						local x = bit.lshift(i-j, 3)
+						local y = bit.lshift(j, 3)
+						self:drawSolidRect(x,y,8,8,bit.band(i+1, 0xf) + 0xf0)
+						local l = t - i + 1
+						self:drawText(s:sub(l,l),x+1,y,bit.band(i, 0xf) + 0xf0,-1)
+					end
+				end
+				coroutine.yield()
+			end
+			coroutine.yield()
+
+			-- assign to console
 			self:setMenu(self.con)
 
 			-- how to make it start with console open if there's no rom ...
