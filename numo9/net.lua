@@ -477,7 +477,7 @@ local Numo9Cmd_sfx = struct{
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='sfxID', type='int16_t'},	-- would be type='uint8_t' except for sfxID==-1 stop command ... TODO best to make a separate stop function for netcmd's sake
-		{name='channelIndex', type='int8_t'},	-- only needs 0-7 or -1 for 'pick any' 
+		{name='channelIndex', type='int8_t'},	-- only needs 0-7 or -1 for 'pick any'
 		{name='pitch', type='int16_t'},
 		{name='volL', type='int8_t'},
 		{name='volR', type='int8_t'},
@@ -1121,6 +1121,8 @@ print('got uint16 index='
 				-- no more data ... try to draw what we have
 				break
 			end
+
+			if not sock:getsockname() then goto ClientConn_done end	-- is this working?
 		until not data
 
 		-- TODO send any input button changes ...
@@ -1250,6 +1252,7 @@ print('got uint16 index='
 
 		coroutine.yield()
 	end
+::ClientConn_done::
 print'client listen done'
 end
 
