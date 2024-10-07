@@ -645,10 +645,19 @@ colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'..
 			colorOutput = colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'
 ..drawOverrideCode..'\n'
 ..template([[
-	uint r = uint(palColor.r * 7.);
-	uint g = uint(palColor.g * 7.);
-	uint b = uint(palColor.b * 3.);
-	fragColor.r = r | (g << 3) | (b << 6);
+	/*
+	palColor is  5 5 5
+	fragColor is 3 3 2
+	so we lose   2 2 3 bits
+	so we can dither those in ...
+	*/
+	uint r5 = uint(palColor.r * 31.);
+	uint g5 = uint(palColor.g * 31.);
+	uint b5 = uint(palColor.b * 31.);
+	ivec2 ipixelPos = ivec2(pixelPos);
+	fragColor.r = (r5 >> 2) |
+				((g5 >> 2) << 3) |
+				((b5 >> 3) << 6);
 	fragColor.g = 0;
 	fragColor.b = 0;
 	// only needed for quadSprite / quadMap:
@@ -835,6 +844,7 @@ print('mode '..infoIndex..' lineSolidObj')
 				precision = 'best',
 				vertexCode = template([[
 layout(location=0) in vec2 vertex;
+out vec2 pixelPos;
 uniform vec3 pos0;
 uniform vec3 pos1;
 uniform mat4 mvMat;
@@ -852,6 +862,7 @@ void main() {
 	gl_Position = xformPos0
 		+ delta * vertex.x
 		+ normalize(vec4(-delta.y, delta.x, 0., 0.)) * (vertex.y - .5) * 2. * lineThickness;
+	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
@@ -860,6 +871,7 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+in vec2 pixelPos;
 layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
@@ -902,6 +914,7 @@ print('mode '..infoIndex..' triSolidObj')
 				precision = 'best',
 				vertexCode = template([[
 layout(location=0) in vec3 vertex;
+out vec2 pixelPos;
 uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
@@ -910,6 +923,7 @@ const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
 	gl_Position = mvMat * vec4(vertex, 1.);
+	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
@@ -918,6 +932,7 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+in vec2 pixelPos;
 layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
@@ -965,6 +980,7 @@ print('mode '..infoIndex..' quadSolidObj')
 				precision = 'best',
 				vertexCode = template([[
 layout(location=0) in vec2 vertex;
+out vec2 pixelPos;
 out vec2 pcv;	// unnecessary except for the sake of 'round' ...
 uniform vec4 box;	//x,y,w,h
 uniform mat4 mvMat;
@@ -976,6 +992,7 @@ const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 void main() {
 	pcv = box.xy + vertex * box.zw;	// TODO should this be after transform? but then you'd have to transform the box by mvmat in the fragment shader too ...
 	gl_Position = mvMat * vec4(pcv, 0., 1.);
+	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
@@ -984,8 +1001,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
-// framebuffer pixel coordinates
-in vec2 pcv;
+in vec2 pcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
+in vec2 pixelPos;	// framebuffer pixel coordaintes after transform, so they really are framebuffer coordinates
 
 uniform vec4 box;	//x,y,w,h
 
@@ -1067,6 +1084,7 @@ print('mode '..infoIndex..' quadSpriteObj')
 				vertexCode = template([[
 in vec2 vertex;
 out vec2 tcv;
+out vec2 pixelPos;
 uniform vec4 box;	//x,y,w,h
 uniform vec4 tcbox;	//x,y,w,h
 
@@ -1079,6 +1097,7 @@ void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 pc = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(pc, 0., 1.);
+	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
@@ -1088,6 +1107,7 @@ void main() {
 				}),
 				fragmentCode = template([[
 in vec2 tcv;
+in vec2 pixelPos;
 
 layout(location=0) out <?=fragType?> fragColor;
 
@@ -1236,6 +1256,7 @@ print('mode '..infoIndex..' quadMapObj')
 				vertexCode = template([[
 in vec2 vertex;
 out vec2 tcv;
+out vec2 pixelPos;
 uniform vec4 box;		//x y w h
 uniform vec4 tcbox;		//tx ty tw th
 uniform mat4 mvMat;
@@ -1247,6 +1268,7 @@ void main() {
 	tcv = tcbox.xy + vertex * tcbox.zw;
 	vec2 pc = box.xy + vertex * box.zw;
 	gl_Position = mvMat * vec4(pc, 0., 1.);
+	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
@@ -1256,6 +1278,7 @@ void main() {
 				}),
 				fragmentCode = template([[
 in vec2 tcv;
+in vec2 pixelPos;
 layout(location=0) out <?=fragType?> fragColor;
 
 // tilemap texture
@@ -1271,6 +1294,63 @@ const uint tilemapSizeY = <?=tilemapSize.y?>;
 uniform <?=fragType?> drawOverrideSolid;
 
 void main() {
+#if 0	// do it in float
+	int tileSize = 1 << (3 + draw16Sprites);
+	float tileSizef = float(tileSize);
+	int mask = tileSize - 1;
+
+	// convert from input normalized coordinates to tilemap texel coordinates
+	// [0, tilemapSize)^2
+	vec2 tcf = vec2(
+		.5 + tcv.x * float(tilemapSizeX << draw16Sprites),
+		.5 + tcv.y * float(tilemapSizeY << draw16Sprites)
+	);
+	tcf /= tileSizef;
+
+	// convert to map texel coordinate
+	// [0, tilemapSize)^2
+	// mod 256 ? maybe?
+	// integer part of tcf
+
+	//read the tileIndex in mapTex at tcf
+	//mapTex is R16, so red channel should be 16bpp (right?)
+	// how come I don't trust that and think I'll need to switch this to RG8 ...
+	int tileIndex = int(]]..readTex{
+		tex = self.mapTex,
+		texvar = 'mapTex',
+		tc = '(floor(tcf) + .5) / vec2('..textureSize'mapTex'..')',
+		from = 'vec2',
+		to = 'uvec4',
+	}..[[.r);
+
+	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
+	ivec2 tileIndexTC = ivec2(
+		tileIndex & 0x1F,				// tilemap bits 0..4
+		(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
+	);
+	int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
+
+	vec2 tcfp = tcf - floor(tcf);
+	if ((tileIndex & (1<<14)) != 0) tcfp.x = 1. - tcfp.x;	// tilemap bit 14
+	if ((tileIndex & (1<<15)) != 0) tcfp.y = 1. - tcfp.y;	// tilemap bit 15
+
+	// [0, spriteSize)^2
+	ivec2 tileTexTC = ivec2(
+		int(tcfp.x * tileSizef) ^ (tileIndexTC.x << 3),
+		int(tcfp.y * tileSizef) ^ (tileIndexTC.y << 3)
+	);
+
+	// tileTex is R8 indexing into our palette ...
+	uint colorIndex = ]]..readTex{
+		tex = self.tileTex,
+		texvar = 'tileTex',
+		tc = 'tileTexTC',
+		from = 'ivec2',
+		to = 'uvec4',
+	}..[[.r;
+
+#else	//do it in int
+
 	// convert from input normalized coordinates to tilemap texel coordinates
 	// [0, tilemapSize)^2
 	ivec2 tci = ivec2(
@@ -1297,8 +1377,8 @@ void main() {
 	}..[[.r);
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
-	ivec2 tileTexTC = ivec2(
-		tileIndex & 0x1F,					// tilemap bits 0..4
+	ivec2 tileIndexTC = ivec2(
+		tileIndex & 0x1F,				// tilemap bits 0..4
 		(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
 	);
 	int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
@@ -1307,9 +1387,9 @@ void main() {
 
 	int mask = (1 << (3 + draw16Sprites)) - 1;
 	// [0, spriteSize)^2
-	tileTexTC = ivec2(
-		(tci.x & mask) | (tileTexTC.x << 3),
-		(tci.y & mask) | (tileTexTC.y << 3)
+	ivec2 tileTexTC = ivec2(
+		(tci.x & mask) ^ (tileIndexTC.x << 3),
+		(tci.y & mask) ^ (tileIndexTC.y << 3)
 	);
 
 	// tileTex is R8 indexing into our palette ...
@@ -1320,8 +1400,11 @@ void main() {
 		from = 'ivec2',
 		to = 'uvec4',
 	}..[[.r;
-	colorIndex += palHi << 4;
 
+#endif
+
+
+	colorIndex += palHi << 4;
 ]]..info.colorOutput..[[
 	if (fragColor.a == 0.) discard;
 }

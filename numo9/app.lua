@@ -836,6 +836,7 @@ print('package.loaded', package.loaded)
 
 	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
 
+	-- TODO app.editMode is the field name, app.activeMenu is the value, merge these two ...
 	self.editMode = 'code'	-- matches up with UI's editMode's
 
 	local EditNet = require 'numo9.editnet'
@@ -1108,7 +1109,6 @@ function App:connect(addr, port)
 	self:disconnect()
 
 	-- clear set run focus before connecting so the connection's initial update of the framebuffer etc wont get dirtied by a loseFocus() from the last runFocus
-print('setFocus empty')
 	self:setFocus()
 
 	self.remoteClient = ClientConn{

@@ -398,7 +398,7 @@ Pico8 Compatability is at 95%
 - waveforms
 	- BRR
 	- with this comes looping-sample info being stored in the BRR ... should I also?
-- music 
+- music
 	- needs echo effect
 	- needs ADSR
 	- when converting p8 to n9 music tracks that play two sfxs of different durations, I haven't finished that yet ...
@@ -431,10 +431,15 @@ Pico8 Compatability is at 95%
 		- paste in midi files ... but how to correlate instruments with your wave samples?  can midi files save wave data themselves?
 	- multiplayer ... draw commands in editors aren't issued to netplay so the client wont see the server's menus ...
 		... but they still modify the VRAM ...
-		... so I really need another framebuffer for the non-game stuff like the editor, menu, etc ...
+		... so I really need another framebuffer (seperate of the fantasy-console) for displaying/rendering the non-game stuff like the editor, menu, etc ...
+	- editor+memory ... for live editing during netplay, the editor needs to see the live data.
+		... but for editing live data during single-player, you will see out-of-sync data that has been since modified by the game (like when object-init tiles are spawned and cleared).
+		... so to fix this I added a reset button on the rhs that you have to *always push* every time you edit single-player content ...
+		... the other route to go that I don't want to do is always auto-reset when editing single-player, and don't auto-reset when editing multipalyer ...
+		... another option is put the RAM and ROM both in addressible memory (to get around the reload/cstore API issue), ... but then what would the editor be editing?  the current RAM state, to-be-flushed-to-ROM-upon-save (what it's doing now), or the ROM state, or what?
 - memory
-	- reset, memcpy, and the pico8 functions cstore, and reload.  
-		Real cartridge consoles just gave separate address space to the cartridges, then you just copy between your RAM and your ROM addresses.  
+	- reset, memcpy, and the pico8 functions cstore, and reload.
+		Real cartridge consoles just gave separate address space to the cartridges, then you just copy between your RAM and your ROM addresses.
 		Fantasy consoles seem to be keeping an extra copy of the cartridge in memory and accessing it through these functions.
 		Maybe I will put the ROM in addressible space and just have load/reset perform an initial copy from ROM to RAM space. How about ROM at 0xC00000 or so?
 		Maybe I'll think more on this as I think about spriteSheet vs tileSheet vs multiple sheets vs multiple arbitrary-purpose banks ...
@@ -454,7 +459,7 @@ Pico8 Compatability is at 95%
 - Right now editor palette is 4bpp by default, to be like similar fantasy consoles ... why not default to 8bpp?
 - Right now editor tilemap is 8x8 tiles by default ... maybe default to 16x16?
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
-- matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay? 
+- matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
 - ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
 - I switched from PNG to TIFF so that I could save the whole cartridge binary in the lower 8 bits of 16bpp images, *with* LZW compression.  But never mind, in current year browsers still only seem to support png and jpeg.  I might go back to png, but that means either get rid of the option to have a display label image in the cartridge or it means lower the storage bpp down to 2 or something, and then that means I have to double the image size for matching space, then carts are getting up there in pixel size.
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.

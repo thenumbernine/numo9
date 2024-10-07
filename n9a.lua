@@ -1284,22 +1284,29 @@ assertlen(
 		-- man this is ugly.  i really need to just subclass the luaparser ...
 		-- TODO DON'T DO THIS WHEN IT'S IN A STRING
 		-- really I need to subclass LuaParser for this
-		while true do
-			local a,b,c = line:match'^(.*)@([_a-zA-Z][_a-zA-Z0-9]*)(.-)$'
-			if a then
-				if string.trim(c):sub(1,1) == '[' then
-					error("here's an edge case I cannot yet handle: handling @...[...] pokes ")
-				end
-				line = a..' peek('..b..') '..c
-			else
-				local a,b,c = line:match'^(.*)@(%b())(.-)$'
+		for _,info in ipairs{
+			{'@', 'peek'},
+			{'%', 'peek2'},
+			{'$', 'peek4'},
+		} do
+			while true do
+				local sym, func = table.unpack(info)
+				local a,b,c = line:match('^(.*)'..string.patescape(sym)..'([_a-zA-Z][_a-zA-Z0-9]*)(.-)$')
 				if a then
 					if string.trim(c):sub(1,1) == '[' then
-						error("here's an edge case I cannot yet handle: handling @...[...] pokes ")
+						error("here's an edge case I cannot yet handle: handling "..sym.."...[...] pokes ")
 					end
-					line = a..' peek('..b..') '..c
+					line = a..' '..func..'('..b..') '..c
 				else
-					break	-- no more matches/changes
+					local a,b,c = line:match('^(.*)'..string.patescape(sym)..'(%b())(.-)$')
+					if a then
+						if string.trim(c):sub(1,1) == '[' then
+							error("here's an edge case I cannot yet handle: handling "..sym.." ...[...] pokes ")
+						end
+						line = a..' '..func..'('..b..') '..c
+					else
+						break	-- no more matches/changes
+					end
 				end
 			end
 		end
