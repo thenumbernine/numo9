@@ -929,6 +929,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 -- [[
 	self:setFocus{
 		thread = coroutine.create(function()
+			local env = self.env
 			-- set state to paused initially
 			-- then if we get a loadROM command it'll unpause
 			-- or if we get a setmenu command in init this will remain paused and not kick us back to console when this finishes
@@ -941,12 +942,12 @@ looks like I'm a Snes9x-default-keybinding fan.
 			self:resetGFX()		-- needed to initialize UI colors
 			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
 			--[[ print or so something cheesy idk
-			--for i=1,30 do coroutine.yield() end
+			--for i=1,30 do env.flip() end
 			for i=0,15 do
 				self.con.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
 				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
 				self.con:print'hello world'
-				--for i=1,3 do coroutine.yield() end
+				--for i=1,3 do env.flip() end
 			end
 			self.con.fgColor = 0xfc			-- 11 = bg, 12 = fg
 			self.con.bgColor = 0xf0
@@ -957,7 +958,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 			self.tileTex.dirtyCPU = true
 			for j=0,31 do
 				for i=0,31 do
-					self.env.mset(i, j, bit.bor(
+					env.mset(i, j, bit.bor(
 						i,
 						bit.lshift(j, 5)
 					))
@@ -965,36 +966,55 @@ looks like I'm a Snes9x-default-keybinding fan.
 			end
 
 			for sleep=1,60 do
-				coroutine.yield()
+				env.flip()
 			end
 
 			-- do splash screen fanfare ...
-			local s = 'NuMo9=-\t '
-			for black=0,1 do
-				for t=0,63+#s do
-					for i=t,0,-1 do
-						for j=0,i do
-							local x = bit.lshift(i-j, 3)
-							local y = bit.lshift(j, 3)
-							--self.env.blend(1)	-- average
-							self:drawSolidRect(x,y,8,8, black==1 and 0 or bit.bor(bit.band(i+1, 0xf), 0xf0))
-							local l = t - i + 1
-							if black == 0 then
-								self:drawText(s:sub(l,l),x+1,y,bit.bor(bit.band(i, 0xf), 0xf0),-1)
-							end
-							-- now additive-blend ... or subtract-blend the inverse ... or ... idk
-							self.env.blend(2)	-- subtract
-							--self.env.blend(3)	-- subtract-and-half
-							-- if I draw this as a sprite then I can shift the palette ... 
-							-- if I draw it as a tilemap then I can use the upper 4 bits for shifting the palette ...
-							self:drawMap(0, 0, 32, 32, 0, 0, 0, false)
-							self.env.blend(-1)
-						end
+			local s = ('NuMo9=-\t '):rep(3)
+			--local s = ('9'):rep(27)
+			local colors = range(0xf1, 0xfe)
+			for t=0,63+#s do		-- t = time = leading diagonal
+				env.cls()
+				for i=t,0,-1 do		-- i = across all diagonals so far
+					for j=0,i do	-- j = along diagonal
+						local x = bit.lshift(i-j, 3)
+						local y = bit.lshift(j, 3)
+						--env.blend(1)	-- average
+						env.matident()
+						env.mattrans(x+4, y+4)
+						local r = ((t-i)/16 + .5)*2*math.pi
+						env.matrot(r)
+						local w = 2*math.exp(-((t- i+ 4)/30)^2)
+						env.matscale(w, w)
+						env.mattrans(-4, -4)
+						self:drawSolidRect(0,0,8,8, colors[(i+1)%#colors+1])
+						local l = t - i + 1
+						env.blend(2)	-- subtract
+						self:drawText(s:sub(l,l),1,0,0xf7,-1)
+						env.matident()
+						env.blend(2)	-- subtract
+						-- if I draw this as a sprite then I can draw as a low bpp and shift the palette ...
+						-- if I draw it as a tilemap then I can use the upper 4 bits of the tilemap entries for shifting the palette ...
+						self:drawMap(0, 0, 32, 32, 0, 0, 0, false)
+						env.blend(-1)
 					end
-					if bit.band(t,3) == 0 then coroutine.yield() end
 				end
+				--[[ pause and watch
+				for i=0,3 do
+					env.flip()
+					if env.keyp'space' then
+						env.flip()
+						repeat
+							env.flip()
+						until env.keyp'space'
+					end
+				end
+				--]]
+				-- [[
+				if bit.band(t,3) == 0 then env.flip() end
+				--]]
 			end
-			coroutine.yield()
+			env.flip()
 
 			-- assign to console
 			self:setMenu(self.con)
@@ -1013,7 +1033,7 @@ print('running cmd', cmdline.initCmd)
 			end
 
 			-- yield before quit in case initCmd or load has a better runFocus and we dont need to end-thread and drop to console
-			coroutine.yield()
+			env.flip()
 		end),
 	}
 --]]
