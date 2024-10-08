@@ -75,8 +75,18 @@ local ramStateSize = spriteSheetInBytes
 -- is this the same as old id quake network encoding?
 -- is this the same as unicode encoding?
 -- until then ...
+--[[ because I don't want to copy all of netrefl ...
 local netescape = require 'netrefl.netfield'.netescape
 local netunescape = require 'netrefl.netfield'.netunescape
+--]]
+-- [[
+local function netescape(s)
+	return (s:gsub('%$','%$%$'):gsub(' ', '%$s'))
+end
+local function netunescape(s)
+	return (s:gsub('%$s', ' '):gsub('%$%$', '%$'))
+end
+--]]
 
 --[[ TODO replace \n-term luasocket strings with pascal-strings ...
 local function netuintsend(conn, x)
