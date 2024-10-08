@@ -957,7 +957,10 @@ looks like I'm a Snes9x-default-keybinding fan.
 			self.tileTex.dirtyCPU = true
 			for j=0,31 do
 				for i=0,31 do
-					self.env.mset(i, j, bit.bor(i, bit.lshift(j, 5)))
+					self.env.mset(i, j, bit.bor(
+						i,
+						bit.lshift(j, 5)
+					))
 				end
 			end
 
@@ -965,23 +968,31 @@ looks like I'm a Snes9x-default-keybinding fan.
 				coroutine.yield()
 			end
 
-			-- do fanfare ...
+			-- do splash screen fanfare ...
 			local s = 'NuMo9=-\t '
-			for t=0,63+#s do
-				for i=t,0,-1 do
-					for j=0,i do
-						local x = bit.lshift(i-j, 3)
-						local y = bit.lshift(j, 3)
-						self:drawSolidRect(x,y,8,8,bit.band(i+1, 0xf) + 0xf0)
-						local l = t - i + 1
-						self:drawText(s:sub(l,l),x+1,y,bit.band(i, 0xf) + 0xf0,-1)
-						-- now additive-blend ... or subtract-blend the inverse ... or ... idk
-						self.env.blend(2)	-- subtract
-						self:drawMap(0, 0, 32, 32, 0, 0, 0, false)
-						self.env.blend(-1)
+			for black=0,1 do
+				for t=0,63+#s do
+					for i=t,0,-1 do
+						for j=0,i do
+							local x = bit.lshift(i-j, 3)
+							local y = bit.lshift(j, 3)
+							--self.env.blend(1)	-- average
+							self:drawSolidRect(x,y,8,8, black==1 and 0 or bit.bor(bit.band(i+1, 0xf), 0xf0))
+							local l = t - i + 1
+							if black == 0 then
+								self:drawText(s:sub(l,l),x+1,y,bit.bor(bit.band(i, 0xf), 0xf0),-1)
+							end
+							-- now additive-blend ... or subtract-blend the inverse ... or ... idk
+							self.env.blend(2)	-- subtract
+							--self.env.blend(3)	-- subtract-and-half
+							-- if I draw this as a sprite then I can shift the palette ... 
+							-- if I draw it as a tilemap then I can use the upper 4 bits for shifting the palette ...
+							self:drawMap(0, 0, 32, 32, 0, 0, 0, false)
+							self.env.blend(-1)
+						end
 					end
+					if bit.band(t,3) == 0 then coroutine.yield() end
 				end
-				coroutine.yield()
 			end
 			coroutine.yield()
 
