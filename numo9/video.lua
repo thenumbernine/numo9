@@ -8,8 +8,9 @@ local ffi = require 'ffi'
 local template = require 'template'
 local table = require 'ext.table'
 local math = require 'ext.math'
-local assertlt = require 'ext.assert'.lt
+local asserteq = require 'ext.assert'.eq
 local assertne = require 'ext.assert'.ne
+local assertlt = require 'ext.assert'.lt
 local Image = require 'image'
 local gl = require 'gl'
 local glreport = require 'gl.report'
@@ -234,6 +235,21 @@ local function argb8888revto5551(rgba)
 	return rgba8888_4ch_to_5551(r,g,b,a)
 end
 
+-- upon boot, upload the logo to the whole sheet
+local function resetLogoOnSheet(spriteSheetPtr)
+	local splashImg = Image'splash.png'
+	asserteq(splashImg.channels, 1)
+	asserteq(splashImg.width, spriteSheetSize.x)
+	asserteq(splashImg.height, spriteSheetSize.y)
+	-- TODO don't do the whole spritesheet ...
+	for y=0,spriteSheetSize.y-1 do
+		for x=0,spriteSheetSize.x-1 do
+			local index = x + spriteSheetSize.x * y
+			spriteSheetPtr[index] = splashImg.buffer[index]
+		end
+	end
+end
+
 local function resetFontOnSheet(spriteSheetPtr)
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
@@ -281,9 +297,6 @@ local function resetFontOnSheet(spriteSheetPtr)
 			if not dstx then break end
 		end
 	end
-end
-local function resetFont(rom)
-	return resetFontOnSheet(rom.spriteSheet)	-- uint8_t*
 end
 
 -- TODO every time App calls this, make sure its palTex.dirtyCPU flag is set
@@ -1628,7 +1641,7 @@ function AppVideo:resetGFX()
 	self.palTex:checkDirtyGPU()
 
 	--self.spriteTex:prepForCPU()
-	resetFont(self.ram)
+	resetFontOnSheet(self.ram.spriteSheet)
 	ffi.copy(self.cartridge.spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
 
 	--self.palTex:prepForCPU()
@@ -2083,8 +2096,8 @@ return {
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
 	rgb565rev_to_rgba888_3ch = rgb565rev_to_rgba888_3ch,
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
-	resetFont = resetFont,
 	resetFontOnSheet = resetFontOnSheet,
+	resetLogoOnSheet = resetLogoOnSheet,
 	resetPalette = resetPalette,
 	AppVideo = AppVideo,
 }
