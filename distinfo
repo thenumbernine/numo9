@@ -60,8 +60,8 @@ if ffi.os == 'OSX' then
 		'socket',
 	}
 	files['/usr/local/lib/lua/5.1/'] = {
-		'socket.so',
-		'mime.so',
+		'socket',
+		'mime',
 	}
 elseif ffi.os == 'Linux' then
 	files['/usr/local/share/luajit-2.1/'] = {
