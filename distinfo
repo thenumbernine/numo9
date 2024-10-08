@@ -44,7 +44,6 @@ files = {
 		'glapp',
 		'langfix',
 		'parser',	-- needed by langfix
-		'netrefl',	-- only one function ... this is old and needs to be updated
 		'matrix',
 		'threadmanager',
 		'sdl',
