@@ -2083,8 +2083,10 @@ end
 
 function AppVideo:matfrustum(l, r, t, b, n, f)
 	self:mvMatFromRAM()
-	-- TODO this still needs a coordinate fix like matortho now has ...
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
+	-- TODO Why is matortho a lhs transform to screen space but matfrustum a rhs transform to screen space? what did I do wrong?
+	self.mvMat:applyTranslate(128, 128)
+	self.mvMat:applyScale(128, 128)
 	self:mvMatToRAM()
 end
 
