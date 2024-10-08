@@ -106,7 +106,7 @@ function EditMusic:update()
 	self:drawText(('$%04x'):format(app.ram.musicPlaying[0].addr), 160, y, 0xfc, 0xf0)
 	y = y + 10
 
-	self:drawText(('bps: %d'):format(self.selectedTrack.bps), 20, y, 0xfc, 0xf0)
+	self:drawText(('bps: %d'):format(self.selectedTrack and self.selectedTrack.bps or -1), 20, y, 0xfc, 0xf0)
 	y = y + 10
 
 	--[[ as text
