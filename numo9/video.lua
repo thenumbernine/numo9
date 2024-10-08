@@ -246,8 +246,9 @@ local function resetLogoOnSheet(spriteSheetPtr)
 		for x=0,spriteSheetSize.x-1 do
 			local index = x + spriteSheetSize.x * y
 			spriteSheetPtr[index] = splashImg.buffer[index] == 0 
-				and 0xfc or 0xf0
-				--and 0xf0 or 0xfc
+				and 0xfc or 0xf0	-- subtract out the white
+				--and 0xff or 0xf0	-- subtract light-gray (to fade? nah not working)
+				--and 0xf0 or 0xfc	-- opposite, good for adding i guess?
 		end
 	end
 end
