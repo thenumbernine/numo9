@@ -278,16 +278,16 @@ The button codes are as follows:
 - `assert`
 - `pairs`
 - `ipairs`
-- `ffi` = the luajit ffi library
 - `getfenv`
 - `setfenv`
+- `ffi` = the luajit ffi library.  Probably going away soon.
 - tables:
-	- `bit` = luajit's bit library
-	- `math` = luajit's math library
-	- `table` = my lua-ext table library
-	- `string` = my lua-ext string library
-	- `coroutine` = my lua-ext coroutine library
-	- `app` = the NuMo9 app itself.  Probably going away soon.
+	- `bit` = luajit's bit library.
+	- `math` = my [lua-ext](https://github.com/thenumbernine/lua-ext) math library.
+	- `table` = my [lua-ext](https://github.com/thenumbernine/lua-ext) table library.
+	- `string` = my [lua-ext](https://github.com/thenumbernine/lua-ext) string library.
+	- `coroutine` = my [lua-ext](https://github.com/thenumbernine/lua-ext) coroutine library.
+	- `app` = the NuMo9 app object itself.  Probably going away soon.
 	- `_G` = the NuMo9 global.  Probably going away soon.
 
 # Menu
