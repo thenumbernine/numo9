@@ -15,3 +15,9 @@ rm -fr dist/numo9-linux64/data/bin/OSX/
 # no need, they have alreayd been overwritten by dist-multi/linux64/*
 #rm dist/numo9-linux64/data/mime/core.so
 #rm dist/numo9-linux64/data/socket/core.so
+cd dist
+zip -r numo9-win64.zip numo9-win64/
+zip -r numo9-linux64.zip numo9-linux64/
+cd osx
+zip -r numo9-osx.zip numo9.app/
+mv numo9-osx.zip ..
