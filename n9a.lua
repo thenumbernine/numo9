@@ -28,7 +28,7 @@ local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
 local resetFontOnSheet = numo9_video.resetFontOnSheet
 local resetPalette = numo9_video.resetPalette
-local resetFont = numo9_video.resetFont
+local resetFontOnSheet = numo9_video.resetFontOnSheet
 
 local numo9_archive = require 'numo9.archive'
 local fromCartImage = numo9_archive.fromCartImage
@@ -161,7 +161,7 @@ or cmd == 'r' then
 	else
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if sprite doesn't exist then load the default
-		resetFont(rom)
+		resetFontOnSheet(rom.spriteSheet)
 	end
 
 	print'loading tile sheet...'
@@ -290,7 +290,7 @@ print('writing music', i, 'size', size)
 	-- TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'
-		resetFont(rom)
+		resetFontOnSheet(rom.spriteSheet)
 	end
 	if extra == 'resetPal' then
 		--resetPalette(rom)

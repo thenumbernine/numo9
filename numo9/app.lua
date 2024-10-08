@@ -86,10 +86,11 @@ App.height = 512
 
 App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO)
 
-local rgba5551_to_rgba8888_4ch = require 'numo9.video'.rgba5551_to_rgba8888_4ch
+local numo9_video = require 'numo9.video'
+local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 
 -- copy in video behavior
-for k,v in pairs(require 'numo9.video'.AppVideo) do
+for k,v in pairs(numo9_video.AppVideo) do
 	App[k] = v
 end
 
@@ -951,13 +952,21 @@ looks like I'm a Snes9x-default-keybinding fan.
 			self.con.bgColor = 0xf0
 			--]]
 
+			-- also for init, do the splash screen
+			numo9_video.resetLogoOnSheet(self.ram.tileSheet)
+			self.tileTex.dirtyCPU = true
+			for j=0,31 do
+				for i=0,31 do
+					self.env.mset(i, j, bit.bor(i, bit.lshift(j, 5)))
+				end
+			end
 
 			for sleep=1,60 do
 				coroutine.yield()
 			end
 
 			-- do fanfare ...
-			local s = 'NuMo9.......'
+			local s = 'NuMo9=-\t '
 			for t=0,63+#s do
 				for i=t,0,-1 do
 					for j=0,i do
@@ -966,6 +975,10 @@ looks like I'm a Snes9x-default-keybinding fan.
 						self:drawSolidRect(x,y,8,8,bit.band(i+1, 0xf) + 0xf0)
 						local l = t - i + 1
 						self:drawText(s:sub(l,l),x+1,y,bit.band(i, 0xf) + 0xf0,-1)
+						-- now additive-blend ... or subtract-blend the inverse ... or ... idk
+						self.env.blend(2)	-- subtract
+						self:drawMap(0, 0, 32, 32, 0, 0, 0, false)
+						self.env.blend(-1)
 					end
 				end
 				coroutine.yield()
