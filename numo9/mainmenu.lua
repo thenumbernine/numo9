@@ -1,4 +1,5 @@
 local math = require 'ext.math'
+local table = require 'ext.table'
 local asserttype = require 'ext.assert'.type
 local assertindex = require 'ext.assert'.index
 local getTime = require 'ext.timer'.getTime
@@ -206,7 +207,7 @@ function MainMenu:updateMenuMain()
 	end
 
 	if self:menuButton'to editor' then
-		app:setMenu(app.server and app.editNet or app.editCode)
+		app:setMenu(app.editCode)
 		return
 	end
 
@@ -218,12 +219,13 @@ end
 
 function MainMenu:updateMenuMultiplayer()
 	local app = self.app
+	local server = app.server
 	-- multiplayer ... TODO menu sub-screen
 
 	self:menuSection'multiplayer'
 	self.cursorY = self.cursorY + self.ysepstep
 
-	if app.server then
+	if server then
 		if self:menuButton'close server' then
 			app:disconnect()
 		end
@@ -268,12 +270,71 @@ function MainMenu:updateMenuMultiplayer()
 		end
 	end
 
-	self:menuSection'player names'
+	self:menuSection'local player names'
 
 	for i=1,maxLocalPlayers do
 		-- TODO checkbox for whether the player is active or not during netplay ...
 		-- TODO TODO how to allow #-local-players-active to change during a game ...
 		self:menuTextField('name', app.cfg.playerInfos[i], 'name')
+	end
+
+	-- where to put this menu ...
+	if server 
+	--or app.remoteClient 	
+	-- should clients get to see all connections? I don't have it sending them the info yet ... i'd have to add it to the protocol
+	then
+		self:menuSection'connections'
+		
+		-- draw local conn first
+
+
+		for i,conn in ipairs(
+			table{
+				app.cfg	-- has .playerInfos[i].name ...
+			}:append(
+				server.conns
+			)
+		) do
+			local x = self.cursorX
+			
+			if conn == app then
+				app:drawText('host', x, self.cursorY, 0xfa, 0xf2)
+			else
+				if self:guiButton('kick', x, self.cursorY) then
+					conn:close()
+				end
+			end
+			x = x + fontWidth * 5
+
+			app:drawText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
+			
+			for j,info in ipairs(conn.playerInfos) do
+				x = self.cursorX + 8
+				self.cursorY = self.cursorY + 9
+				
+				if info.localPlayer then
+					if self:guiButton('stand', x, self.cursorY) then
+						info.localPlayer = nil
+					end
+				else
+					if self:guiButton('sit', x, self.cursorY) then
+						info.localPlayer = 2
+						-- TODO is the next available player
+						-- TODO track active players on all clients ...
+						-- TODO buttons for accept observers, accept seats, etc
+					end
+				end
+				x = x + fontWidth * 6
+
+				if info.localPlayer then
+					app:drawText('plr '..tostring(info.localPlayer), x, self.cursorY, 0xfe, 0xf0)
+				end
+				x = x + fontWidth * 6
+
+				app:drawText(info.name, x, self.cursorY, 0xfc, 0xf1)
+			end
+			self.cursorY = self.cursorY + 12
+		end
 	end
 
 	self.cursorY = self.cursorY + self.ysepstep

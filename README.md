@@ -446,7 +446,10 @@ Pico8 Compatability is at 95%
 		Maybe I will put the ROM in addressible space and just have load/reset perform an initial copy from ROM to RAM space. How about ROM at 0xC00000 or so?
 		Maybe I'll think more on this as I think about spriteSheet vs tileSheet vs multiple sheets vs multiple arbitrary-purpose banks ...
 - netplay
-	- getting some desyncs in the protocol ...
+	- sending too much data / too big of delta cmds gets desyncs ... I can easily push cmds into the next frame and just give a client a single bad frame instead of desyncing them fully ...
+	- persistent memory per cart by checksum
+	- multiplayer persistent memory per client ... how to associate and how to secure
+
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 	- At present if there's a parse error then the line will show up correctly ... right underneath the line and file of the parser code itself ... hmm
 	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.
