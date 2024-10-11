@@ -30,6 +30,9 @@ function MainMenu:setCurrentMenu(name)
 	self.currentMenu = name
 	self.menuTabIndex = 0
 	self.connectStatus = nil
+
+	-- TODO set this upon ... opening the menu I guess?
+	self.serverMaxConns = server and tostring(server.maxConns) or nil
 end
 
 MainMenu.ystep = 9
@@ -50,7 +53,7 @@ function MainMenu:menuSection(str)
 end
 
 MainMenu.cursorLoc = 0
-function MainMenu:menuTextField(label, t, k)
+function MainMenu:menuTextField(label, t, k, tooltip)
 	-- TODO here ... only if we have tab-focus ... read our input.
 	-- TODO color by tab-focus or not
 	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
@@ -58,11 +61,26 @@ function MainMenu:menuTextField(label, t, k)
 	local app = self.app
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
+	local editX = self.cursorX + 80
+
+	local mouseX, mouseY = app.ram.mousePos:unpack()
+	local mouseOver =
+		mouseX >= editX and mouseX < editX + 80	-- math.min(w, 80)
+		and mouseY >= self.cursorY and mouseY < self.cursorY + spriteSize.y
+	if tooltip and mouseOver then
+		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+	end
+
+	-- TODO like some UIs, push enter to enable/disable editing? or nah
+	if mouseOver and app:keyp'mouse_left' then
+		self.menuTabIndex = self.menuTabCounter
+		onThisMenuItem = true
+	end
+
 	if self.menuTabIndex ~= self.cursorMenuTabIndex then
 		-- if we just switched to this tabitem then reset the cursor position
 		self.cursorLoc = #t[k]
 	end
-	self.menuTabCounter = self.menuTabCounter + 1
 
 	local fg, bg
 	if onThisMenuItem then
@@ -71,11 +89,12 @@ function MainMenu:menuTextField(label, t, k)
 		fg, bg = 0xfd, 0xf8
 	end
 
+	-- TODO gotta cache the last width to properly place this ...
+	-- maybe I should separate the label from the textinput, introduce a 'sameline()' function,  and start caching widths everywhere?
 	app:drawText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
-	local editX = self.cursorX + 40
-	app:drawText(t[k], editX, self.cursorY, fg, bg)
+	local w = app:drawText(t[k], editX, self.cursorY, fg, bg)
 
-	-- TODO like some UIs, push enter to enable/disable editing? or nah
+	local changed
 	if onThisMenuItem then
 		if getTime() % 1 < .5 then
 			app:drawSolidRect(
@@ -104,6 +123,7 @@ function MainMenu:menuTextField(label, t, k)
 			if app:keyp(keycode,30,5) then
 				local ch = getAsciiForKeyCode(keycode, shift)
 				if ch then
+					changed = true
 					addCharToText(ch)
 				end
 			end
@@ -111,10 +131,14 @@ function MainMenu:menuTextField(label, t, k)
 	end
 
 	self.cursorY = self.cursorY + self.ystep
+
+	self.menuTabCounter = self.menuTabCounter + 1
+
+	return changed
 end
 
-function MainMenu:menuButton(str)
-	local result = self:guiButton(str, self.cursorX, self.cursorY)
+function MainMenu:menuButton(str, ...)
+	local result = self:guiButton(str, self.cursorX, self.cursorY, ...)
 	self.cursorY = self.cursorY + self.ystep
 	return result
 end
@@ -278,26 +302,46 @@ function MainMenu:updateMenuMultiplayer()
 		self:menuTextField('name', app.cfg.playerInfos[i], 'name')
 	end
 
+	if server then
+		self.cursorY = self.cursorY + self.ysepstep
+		self:menuLabel('connections: '..#server.conns)
+		self.serverMaxConns = self.serverMaxConns or tostring(server.maxConns)
+		if self:menuTextField('max conns', self, 'serverMaxConns') then
+			server.maxConns = tonumber(self.serverMaxConns) or server.maxConns
+		end
+	end
+
 	-- where to put this menu ...
-	if server 
-	--or app.remoteClient 	
+	if server
+	--or app.remoteClient
 	-- should clients get to see all connections? I don't have it sending them the info yet ... i'd have to add it to the protocol
 	then
 		self:menuSection'connections'
-		
+
 		-- draw local conn first
 
+		local conns = table{
+			app.cfg	-- has .playerInfos[i].name ...
+		}:append(
+			server.conns
+		)
 
-		for i,conn in ipairs(
-			table{
-				app.cfg	-- has .playerInfos[i].name ...
-			}:append(
-				server.conns
-			)
-		) do
+		-- TODO track active players on all clients in net ...
+		local connForPlayer = {}
+		for _,conn in ipairs(conns) do
+			for _,info in ipairs(conn.playerInfos) do
+				if info.localPlayer then
+					connForPlayer[info.localPlayer] = conn
+				end
+			end
+		end
+
+		for i,conn in ipairs(conns) do
+			local isHost = conn == app.cfg
+
 			local x = self.cursorX
-			
-			if conn == app then
+
+			if isHost then
 				app:drawText('host', x, self.cursorY, 0xfa, 0xf2)
 			else
 				if self:guiButton('kick', x, self.cursorY) then
@@ -307,21 +351,30 @@ function MainMenu:updateMenuMultiplayer()
 			x = x + fontWidth * 5
 
 			app:drawText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
-			
+
 			for j,info in ipairs(conn.playerInfos) do
 				x = self.cursorX + 8
 				self.cursorY = self.cursorY + 9
-				
+
 				if info.localPlayer then
 					if self:guiButton('stand', x, self.cursorY) then
 						info.localPlayer = nil
 					end
 				else
-					if self:guiButton('sit', x, self.cursorY) then
-						info.localPlayer = 2
+					if #connForPlayer < maxLocalPlayers
+					and self:guiButton('sit', x, self.cursorY)
+					then
+						-- find our next local player ...
+						-- or how about buttons to manually assign them?
 						-- TODO is the next available player
-						-- TODO track active players on all clients ...
 						-- TODO buttons for accept observers, accept seats, etc
+
+						for j=1,maxLocalPlayers do
+							if not connForPlayer[j] then
+								info.localPlayer = j
+								break
+							end
+						end
 					end
 				end
 				x = x + fontWidth * 6

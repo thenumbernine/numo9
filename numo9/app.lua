@@ -896,6 +896,7 @@ print('package.loaded', package.loaded)
 	setdefault(self.cfg, 'screenButtonRadius', 10)
 
 	-- this is for server netplay, it says who to associate this conn's player with
+	-- it is convenient to put it here ... but is it information worth saving?
 	setdefault(self.cfg.playerInfos[1], 'localPlayer', 1)
 	-- fake-gamepad key bindings
 	--[[
