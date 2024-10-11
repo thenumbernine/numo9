@@ -47,6 +47,7 @@ local tilemapSize = numo9_rom.tilemapSize
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
 local codeSize = numo9_rom.codeSize
+local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize 
 local spriteSheetAddr = numo9_rom.spriteSheetAddr
 local spriteSheetAddrEnd = numo9_rom.spriteSheetAddrEnd
 local tileSheetAddr = numo9_rom.tileSheetAddr
@@ -253,7 +254,7 @@ function App:initGL()
 		cont = function(...) return self:cont(...) end,
 		save = function(...) return self:save(...) end,
 		load = function(...)
-			local result = table.pack(self:load(...))
+			local result = table.pack(self:loadROM(...))
 			if self.server then
 				-- TODO consider order of events
 				-- this is goign to sendRAM to all clients
@@ -840,7 +841,6 @@ print('package.loaded', package.loaded)
 	-- TODO app.editMode is the field name, app.activeMenu is the value, merge these two ...
 	self.editMode = 'code'	-- matches up with UI's editMode's
 
-	local EditNet = require 'numo9.editnet'
 	local EditCode = require 'numo9.editcode'
 	local EditSprites = require 'numo9.editsprites'
 	local EditTilemap = require 'numo9.edittilemap'
@@ -851,7 +851,6 @@ print('package.loaded', package.loaded)
 
 	self:runInEmu(function()
 		self:resetView()	-- reset mat and clip
-		self.editNet = EditNet{app=self}
 		self.editCode = EditCode{app=self}
 		self.editSprites = EditSprites{app=self}
 		self.editTilemap = EditTilemap{app=self}
@@ -1022,7 +1021,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 			-- how to make it start with console open if there's no rom ...
 			-- then run our cmdline file ... ?
 			if cmdline[1] then
-				self:load(cmdline[1])
+				self:loadROM(cmdline[1])
 				self:runROM()
 			end
 
@@ -1767,7 +1766,10 @@ TODO maybe ... have the editor modify the cartridge copy as well
 (or it would mean upon entering editor to copy the cartridge back into RAM, then edit as usual (live updates on palette and sprites)
 	and then when done editing, copy back from RAM to cartridge)
 --]]
-function App:load(filename)
+function App:loadROM(filename)
+	-- if there was an old ROM loaded then write its persistent data ...
+	self:writePersistent()
+
 	filename = filename or defaultSaveFilename
 	self.con:print('loading', filename)
 	local basemsg = 'failed to load file '..tostring(filename)
@@ -1795,6 +1797,24 @@ function App:load(filename)
 	self.cartridgeName = filename	-- TODO display this somewhere
 	self:resetROM()
 	return true
+end
+
+function App:writePersistent()
+	--if not self.cartridgeName then return end	-- should not I bother if there's no cartridge loaded? or still allow saving of persistent data if ppl are messing around on the editor?
+	self.cfg.persistent = self.cfg.persistent or {}
+
+	-- TODO this when you read cart header
+	self.cartridgeSaveID = self.cartridgeSaveID or ''--md5(self.cartridge.v, ffi.sizeof'ROM')
+	
+	-- save a string up to the last non-zero value ... opposite  of C-strings
+	local len = persistentCartridgeDataSize
+	while len > 0 do
+		if self.ram.persistentCartridgeData[len-1] ~= 0 then break end
+		len = len - 1
+	end
+	if len > 0 then 
+		self.cfg.persistent[self.cartridgeSaveID] = ffi.string(self.ram.persistentCartridgeData, len)
+	end
 end
 
 --[[
@@ -2077,7 +2097,7 @@ function App:event(e)
 				--]]
 			elseif self.activeMenu == self.con then
 				--[[ con -> editor?
-				self:setMenu(self.server and self.editNet or self.editCode)
+				self:setMenu(self.editCode)
 				--]]
 				-- [[ con -> game if it's available ?
 				if self.runFocus then

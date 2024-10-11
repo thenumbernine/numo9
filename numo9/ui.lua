@@ -35,7 +35,6 @@ local editModesWithoutNet = table{
 local editModesWithNet = table{'net'}:append(editModesWithoutNet)
 
 local editFieldForMode = {
-	net = 'editNet',
 	code = 'editCode',
 	sprites = 'editSprites',
 	tilemap = 'editTilemap',

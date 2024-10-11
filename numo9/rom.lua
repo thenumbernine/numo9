@@ -39,6 +39,11 @@ local audioDataSize = 0x10000	-- snes had 64k dedicated to audio so :shrug:
 
 local userDataSize = 0x10000
 
+-- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
+-- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
+-- tic80 metadata includes title, author, some dates..., description, some urls ...
+local persistentCartridgeDataSize = 0x2000
+
 --local fontWidth = spriteSize.x
 local fontWidth = 5
 
@@ -317,6 +322,9 @@ local RAM = struct{
 		
 				-- TODO maybe align this
 				{name='userData', type='uint8_t['..userDataSize..']'},
+
+				-- TODO align this too
+				{name='persistentCartridgeData', type='uint8_t['..persistentCartridgeDataSize..']'},
 			},
 		}},
 	},
@@ -401,6 +409,7 @@ return {
 	musicTableSize = musicTableSize,
 	audioDataSize = audioDataSize,
 	userDataSize = userDataSize,
+	persistentCartridgeDataSize = persistentCartridgeDataSize,
 
 	ROM = ROM,
 	RAM = RAM,
