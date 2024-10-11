@@ -657,6 +657,9 @@ local Server = class()
 
 Server.defaultListenPort = 50505
 
+-- including observers, only applied to new conns (you gotta kick the old ones)
+Server.maxConns = 64
+
 function Server:init(app)
 	self.app = assert(app)
 	local con = app.con
@@ -781,10 +784,14 @@ function Server:newConnListenCoroutine()
 	do
 		coroutine.yield()
 
-		-- listen for new connections
-		local client = sock:accept()
-		if client then
-			app.threads:add(self.connectRemoteCoroutine, self, client)
+		-- TODO should maxConns stop even the handshake?
+		if #self.conns < self.maxConns then
+
+			-- listen for new connections
+			local client = sock:accept()
+			if client then
+				app.threads:add(self.connectRemoteCoroutine, self, client)
+			end
 		end
 	end
 end
