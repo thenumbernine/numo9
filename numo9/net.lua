@@ -31,32 +31,36 @@ local asserttype = require 'ext.assert'.type
 local assertlen = require 'ext.assert'.len
 local assertne = require 'ext.assert'.ne
 local getTime = require 'ext.timer'.getTime
+local struct = require 'struct'
 local vector = require 'ffi.cpp.vector-lua'
 
-local firstJoypadKeyCode = require 'numo9.keys'.firstJoypadKeyCode
+local numo9_keys = require 'numo9.keys'
+local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode
+local maxLocalPlayers = numo9_keys.maxLocalPlayers
 
-local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
-local spriteSheetInBytes = require 'numo9.rom'.spriteSheetInBytes
-local spriteSheetAddrEnd = require 'numo9.rom'.spriteSheetAddrEnd
-local tileSheetAddr = require 'numo9.rom'.tileSheetAddr
-local tileSheetInBytes = require 'numo9.rom'.tileSheetInBytes
-local tileSheetAddrEnd = require 'numo9.rom'.tileSheetAddrEnd
-local tilemapAddr = require 'numo9.rom'.tilemapAddr
-local tilemapInBytes = require 'numo9.rom'.tilemapInBytes
-local tilemapAddrEnd = require 'numo9.rom'.tilemapAddrEnd
-local paletteAddr = require 'numo9.rom'.paletteAddr
-local paletteInBytes = require 'numo9.rom'.paletteInBytes
-local paletteAddrEnd = require 'numo9.rom'.paletteAddrEnd
-local framebufferAddr = require 'numo9.rom'.framebufferAddr
-local framebufferInBytes = require 'numo9.rom'.framebufferInBytes
-local framebufferAddrEnd = require 'numo9.rom'.framebufferAddrEnd
-local clipRectAddr = require 'numo9.rom'.clipRectAddr
-local clipRectInBytes = require 'numo9.rom'.clipRectInBytes
-local clipRectAddrEnd = require 'numo9.rom'.clipRectAddrEnd
-local mvMatAddr = require 'numo9.rom'.mvMatAddr
-local mvMatInBytes = require 'numo9.rom'.mvMatInBytes
-local mvMatAddrEnd = require 'numo9.rom'.mvMatAddrEnd
-local deltaCompress = require 'numo9.rom'.deltaCompress
+local numo9_rom = require 'numo9.rom'
+local spriteSheetAddr = numo9_rom.spriteSheetAddr
+local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
+local spriteSheetAddrEnd = numo9_rom.spriteSheetAddrEnd
+local tileSheetAddr = numo9_rom.tileSheetAddr
+local tileSheetInBytes = numo9_rom.tileSheetInBytes
+local tileSheetAddrEnd = numo9_rom.tileSheetAddrEnd
+local tilemapAddr = numo9_rom.tilemapAddr
+local tilemapInBytes = numo9_rom.tilemapInBytes
+local tilemapAddrEnd = numo9_rom.tilemapAddrEnd
+local paletteAddr = numo9_rom.paletteAddr
+local paletteInBytes = numo9_rom.paletteInBytes
+local paletteAddrEnd = numo9_rom.paletteAddrEnd
+local framebufferAddr = numo9_rom.framebufferAddr
+local framebufferInBytes = numo9_rom.framebufferInBytes
+local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
+local clipRectAddr = numo9_rom.clipRectAddr
+local clipRectInBytes = numo9_rom.clipRectInBytes
+local clipRectAddrEnd = numo9_rom.clipRectAddrEnd
+local mvMatAddr = numo9_rom.mvMatAddr
+local mvMatInBytes = numo9_rom.mvMatInBytes
+local mvMatAddrEnd = numo9_rom.mvMatAddrEnd
+local deltaCompress = numo9_rom.deltaCompress
 
 
 local ramStateSize = spriteSheetInBytes
@@ -226,7 +230,6 @@ function mustReceive(...)
 end
 
 
-local struct = require 'struct'
 
 local Numo9Cmd_base = struct{
 	name = 'Numo9Cmd_base',
@@ -579,8 +582,12 @@ function ServerConn:init(args)
 	self.app = assertindex(args, 'app')
 	self.server = assertindex(args, 'server')
 	self.socket = assertindex(args, 'socket')
-	self.playerInfos = assertindex(args, 'playerInfos')
 	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
+	self.playerInfos = assertindex(args, 'playerInfos')
+	for i=1,maxLocalPlayers do
+		local info = self.playerInfos[i]
+		if info then info.localPlayer = nil end
+	end
 
 	-- keep a list of everything we have to send
 	self.toSend = table()
@@ -633,10 +640,13 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 			-- 4 players = 32 keys = 4 bytes = 32 bits, addressible by 5 bits.
 			-- and just 1 value byte ...
 			local dest = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
-			if index < 0 or index >= 4 then	-- max # players / # of button key bitflag bytes in a row
+			if index < 0 or index >= maxLocalPlayers then	-- max # players / # of button key bitflag bytes in a row
 				print('server got oob delta compressed input:', ('$%02x'):format(index), ('$%02x'):format(value))
 			else
-				dest[index] = value
+				local localPlayer = self.playerInfos[index+1].localPlayer
+				if localPlayer then
+					dest[localPlayer-1] = value
+				end
 			end
 		end
 
