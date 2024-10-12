@@ -1074,13 +1074,13 @@ update=[]do
 			player:die()
 		end
 		if btnp(4) then
-			--setLevel(level+1) loadLevelRequest=true
-			pokew(0x080a46, 0xffff)	-- set blend color to white
-			player.blend=((player.blend or 0)+1)%9
+			setLevel(level+1) loadLevelRequest=true
+			--pokew(0x080a46, 0x801f)	-- set blend color to white
+			--player.blend=((player.blend or 0)+1)%9
 		end
 		if btnp(6) then
-			--setLevel(level-1) loadLevelRequest=true
-			player.blend=((player.blend or 0)-1)%9
+			setLevel(level-1) loadLevelRequest=true
+			--player.blend=((player.blend or 0)-1)%9
 		end
 	end
 	for _,o in ipairs(objs) do
@@ -1110,26 +1110,26 @@ update=[]do
 
 	cls(0xf0)
 	matident()
-	-- my maps are 10x10, (lolo's were 11x1), the screen is 16x16 ... how to resolve
-	matscale(1.6,1.6)	-- scale up? looks ugly
---	mattrans(128-80, 128-80)	-- recenter?  looks tiny
-	-- the lolo fix: draw a 1 tile border, 1 tile header, and put the inventory on the right side
-	-- or another fix ... 2x everything so there's no aliasing and have the camera follow the player so they can't see the whole screen.  nah.
+	
+	if player then
+		text(tostring(player.bombs)..' bombs',0,0,22,-1)
+		lastLevelStrWidth=text(levelstr,(256-(lastLevelStrWidth or 0))/2,0,22,-1)
+		text('blend='..tostring(player.blend),0,8,22,-1)
+	end
+
+	mattrans(32, 32)
+
+	-- draw the map border
 
 	-- draw ground first
-	-- TODO put this at location 0, and levels after it ...
-	map(0,20,mapw,maph,0,0,0,true)
+	--map(0,20,mapw,maph,0,0,0,true)
+	map(10,20,mapw+2,maph+3,0,0,0,true)
+	mattrans(16, 32)
 	-- then draw map
 	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
 
 	for _,o in ipairs(objs) do
 		o:drawSprite()
-	end
-
-	if player then
-		text(tostring(player.bombs)..' bombs',0,0,22,-1)
-		lastLevelStrWidth=text(levelstr,(256-(lastLevelStrWidth or 0))/2,0,22,-1)
-		text('blend='..tostring(player.blend),0,8,22,-1)
 	end
 end
 

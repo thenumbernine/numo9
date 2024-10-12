@@ -1458,18 +1458,7 @@ void main() {
 	self:setVideoMode(self.ram.videoMode)
 
 	self.ram.blendMode = 0xff	-- = none
-
-	-- for debugging ...
-	-- still getting erratic results ...
-	-- how does GL do conversions between texture()/texelFetch(), and vec4-vs-uvec4 and fragments vs their targets and their respective formats?
-	self.ram.blendColor = rgba8888_4ch_to_5551(255,255,127,255)
-	self.ram.blendColor = rgba8888_4ch_to_5551(255,255,0,255)
-	self.ram.blendColor = rgba8888_4ch_to_5551(255,255,255,255)
-	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)
-	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,255,255)
-	self.ram.blendColor = rgba8888_4ch_to_5551(0,255,0,255)		-- black
-	self.ram.blendColor = rgba8888_4ch_to_5551(0,255,255,255)	-- black
-	self.ram.blendColor = rgba8888_4ch_to_5551(0,255,127,255)	-- works sort of
+	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
 
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self:setClipRect(0, 0, 0xff, 0xff)
