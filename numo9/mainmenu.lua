@@ -138,8 +138,13 @@ function MainMenu:menuTextField(label, t, k, tooltip)
 end
 
 function MainMenu:menuButton(str, ...)
+	local thisMenuTabCounter = self.menuTabCounter
 	local result = self:guiButton(str, self.cursorX, self.cursorY, ...)
 	self.cursorY = self.cursorY + self.ystep
+	if result then
+		-- if we click then tabsel the button
+		self.menuTabIndex = thisMenuTabCounter
+	end
 	return result
 end
 
