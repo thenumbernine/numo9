@@ -4,7 +4,7 @@ end
 
 dt=1/60
 mapw,maph=10,10
-maxLevels=2
+maxLevels=31
 levelstr='?'
 
 EMPTY=0
@@ -473,10 +473,10 @@ do
 						end
 					end
 
-					if typeUL == WATER
-					and typeUR == WATER
-					and typeLL == WATER
-					and typeLR == WATER
+					if typeUL==WATER
+					and typeUR==WATER
+					and typeLL==WATER
+					and typeLR==WATER
 					then
 						self.seq=seqs.bombSunk
 						self.state='sinking'
@@ -524,10 +524,10 @@ do
 								end
 							end
 
-							if typeUL == WATER
-							and typeUR == WATER
-							and typeLL == WATER
-							and typeLR == WATER
+							if typeUL==WATER
+							and typeUR==WATER
+							and typeLL==WATER
+							and typeLR==WATER
 							then
 								o:onGroundSunk()
 							end
@@ -715,7 +715,7 @@ do
 					repeat
 						response = shot:doMove(dir)
 						shot:setPos(shot.destPosX, shot.destPosY)
-					until response == 'was blocked'
+					until response=='was blocked'
 					--delete ... but it's not attached, so we're safe
 				end
 			end
@@ -991,7 +991,7 @@ setLevel=[level_]do
 		--TODO if level >= 0 then set the local storage current-level value to 'level'
 		levelstr='level '..tostring(level)
 	else
-		level%=maxLevels
+		--level%=maxLevels
 		levelstr='level ?'
 	end
 end
@@ -1006,11 +1006,11 @@ loadLevel=[]do
 		for x=0,mapw-1 do
 			local posX,posY=x+.5,y+.5
 			local m = mapGet(x,y)
-			if m == EMPTY
-			or m == TREE
-			or m == BRICK
-			or m == STONE
-			or m == WATER
+			if m==EMPTY
+			or m==TREE
+			or m==BRICK
+			or m==STONE
+			or m==WATER
 			then
 				-- map type
 			else
@@ -1109,11 +1109,11 @@ update=[]do
 
 	cls(0xf0)
 	matident()
-	
+
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
 		lastLevelStrWidth=text(levelstr,(256-(lastLevelStrWidth or 0))/2,0,22,-1)
-		text('blend='..tostring(player.blend),0,8,22,-1)
+		--text('blend='..tostring(player.blend),0,8,22,-1)
 	end
 
 	mattrans(32, 32)
