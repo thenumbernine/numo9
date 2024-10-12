@@ -699,7 +699,7 @@ colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'..
 	local blitFragType = 'vec4'	-- blit screen is always to vec4 ... right?
 
 	-- used for drawing our 16bpp framebuffer to the screen
-print'mode 0 blitScreenObj'
+--DEBUG:print'mode 0 blitScreenObj'
 	self.videoModeInfo[0].blitScreenObj = GLSceneObject{
 		program = {
 			version = glslVersion,
@@ -746,7 +746,7 @@ void main() {
 	}
 
 	-- used for drawing our 8bpp indexed framebuffer to the screen
-print'mode 1 blitScreenObj'
+--DEBUG:print'mode 1 blitScreenObj'
 	self.videoModeInfo[1].blitScreenObj = GLSceneObject{
 		program = {
 			version = glslVersion,
@@ -798,7 +798,7 @@ void main() {
 	}
 
 	-- used for drawing 8bpp fbIndexTex as rgb332 framebuffer to the screen
-print'mode 2 blitScreenObj'
+--DEBUG:print'mode 2 blitScreenObj'
 	self.videoModeInfo[2].blitScreenObj = GLSceneObject{
 		program = {
 			version = glslVersion,
@@ -853,7 +853,7 @@ void main() {
 	-- make output shaders per-video-mode
 	-- set them up as our app fields to use upon setVideoMode
 	for infoIndex,info in pairs(self.videoModeInfo) do
-print('mode '..infoIndex..' lineSolidObj')
+--DEBUG:print('mode '..infoIndex..' lineSolidObj')
 		info.lineSolidObj = GLSceneObject{
 			program = {
 				version = glslVersion,
@@ -923,7 +923,7 @@ void main() {
 
 		-- TODO maybe ditch quadSolid* and dont' use uniforms to draw quads ... and just do this with prims ... idk
 		-- but quadSolid has my ellipse/border shader so ....
-print('mode '..infoIndex..' triSolidObj')
+--DEBUG:print('mode '..infoIndex..' triSolidObj')
 		info.triSolidObj = GLSceneObject{
 			program = {
 				version = glslVersion,
@@ -989,7 +989,7 @@ void main() {
 			},
 		}
 
-print('mode '..infoIndex..' quadSolidObj')
+--DEBUG:print('mode '..infoIndex..' quadSolidObj')
 		info.quadSolidObj = GLSceneObject{
 			program = {
 				version = glslVersion,
@@ -1092,7 +1092,7 @@ void main() {
 			},
 		}
 
-print('mode '..infoIndex..' quadSpriteObj')
+--DEBUG:print('mode '..infoIndex..' quadSpriteObj')
 		info.quadSpriteObj = GLSceneObject{
 			program = {
 				version = glslVersion,
@@ -1264,7 +1264,7 @@ fragColor = texture(palTex, vec2((colorIndexNorm * 255. + .5) / 256., .5), 0);
 			},
 		}
 
-print('mode '..infoIndex..' quadMapObj')
+--DEBUG:print('mode '..infoIndex..' quadMapObj')
 		info.quadMapObj = GLSceneObject{
 			program = {
 				version = glslVersion,

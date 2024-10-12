@@ -290,20 +290,9 @@ The button codes are as follows:
 	- `app` = the NuMo9 app object itself.  Probably going away soon.
 	- `_G` = the NuMo9 global.  Probably going away soon.
 
-# Menu
-
-Push Esc to get to the menu.  Push Esc again to get back to gameplay.
-
-# Virtual Terminal
-
-From the menu you can select "to console" to get to the virtual-console.  Press again to get back to gameplay.
-The console accepts Lua commands directly, just like the game script does.
-
 # Editor
 
 From the menu you can select "to editor" to get to the editor.  Press again to get back to gameplay.
-
-If you are hosting a server then there will be an extra multiplayer page that will list connections.  It will let associate connected players with controllers, kick, etc.
 
 Code page. Should do what you would expect.  Ctrl(/Apple)+X=cut C=copy V=paste A=select-all.
 
