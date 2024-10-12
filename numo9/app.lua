@@ -1016,6 +1016,11 @@ looks like I'm a Snes9x-default-keybinding fan.
 			end
 			env.flip()
 
+			-- and clear the tilemap now that we're done with it
+			ffi.fill(self.ram.tileSheet, ffi.sizeof(self.ram.tileSheet))
+			ffi.fill(self.ram.tilemap, ffi.sizeof(self.ram.tilemap))
+			self.tileTex.dirtyCPU = true
+
 			-- assign to console
 			self:setMenu(self.con)
 
