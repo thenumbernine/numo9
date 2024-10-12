@@ -292,7 +292,6 @@ local function resetFontOnSheet(spriteSheetPtr)
 				)
 			end
 		end
---DEBUG:print('copied letter from', srcx, srcy,'to', dstx, dsty)
 		srcx, srcy = inc2d(srcx, srcy, fontImg.width, fontImg.height)
 		if not srcx then break end
 		if b == 7 then

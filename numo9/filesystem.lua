@@ -87,13 +87,10 @@ end
 
 function FileSystem:create(pathToFile, typeIsDir)
 	asserttype(pathToFile, 'string')
---DEBUG:print('pathToFile', pathToFile)
 	local parts = string.split(pathToFile, '/')
---DEBUG:print('parts', require 'ext.tolua'(parts))
 	local name = parts:remove()
 	local dir, msg = self:get(parts:concat'/')
 	if not dir.isdir then return nil, tostring(pathToFile)..' no such dir' end
---DEBUG:print('at', dir:path(), 'adding', name)
 	return self:add({
 		isdir = not not typeIsDir or nil,
 		name = name,
@@ -116,7 +113,6 @@ function FileSystem:cd(dir)
 end
 
 function FileSystem:mkdir(name)
---DEBUG:print('mkdir', name)
 	local app = self.app
 	local f, msg = self:create(name, true)
 	if not f then return nil, msg end
