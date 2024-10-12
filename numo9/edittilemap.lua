@@ -317,6 +317,10 @@ function EditTilemap:update()
 		if not tilemapPanHandled then
 			self.tilePanPressed = false
 		end
+		
+		if not self.tooltip then
+			self:setTooltip(tx..','..ty, mouseX-8, mouseY-8, 0xfc, 0)
+		end
 	end
 
 	self:drawTooltip()
