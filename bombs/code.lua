@@ -73,6 +73,14 @@ removeAll=[]do
 	objs=table()
 	addList=table()
 end
+players=table()
+maxPlayers=4
+startPos={
+	[0]={0,0},
+	{mapw-1,maph-1},
+	{mapw-1,0},
+	{0,maph-1},
+}
 
 class=[...]do
 	local t=table(...)
@@ -721,37 +729,44 @@ loadLevel=[]do
 		end
 		if #allBombable==0 then break end
 	end
-
-	-- TODO spawn player here or spawn player using a tilemap marker?
-	player=Player{}
-	player:setPos(.5,.5)
-	objs:insert(player)
 end
 
 update=[]do
-	if player then
-		if btn(0) then
-			player:move(dirs.up)
-		elseif btn(1) then
-			player:move(dirs.down)
-		elseif btn(2) then
-			player:move(dirs.left)
-		elseif btn(3) then
-			player:move(dirs.right)
+	for pid=0,maxPlayers-1 do
+		local player = players[pid]
+		if not player then
+			for bid=0,7 do
+				if btnp(bid,pid) then 
+					player=Player{}
+					players[pid]=player
+					local s=startPos[pid]
+					player:setPos(s[1]+.5,s[2]+.5)
+					objs:insert(player)
+					break
+				end
+			end
 		else
-			player:stopMoving()
-		end
-		--if btn(7) or btn(5) or btn(4) or btn(6) then
-		if btnp(7) or btnp(5) or btnp(4) or btnp(6) then
-			player:dropBomb()
+			if btn(0,pid) then
+				player:move(dirs.up)
+			elseif btn(1,pid) then
+				player:move(dirs.down)
+			elseif btn(2,pid) then
+				player:move(dirs.left)
+			elseif btn(3,pid) then
+				player:move(dirs.right)
+			else
+				player:stopMoving()
+			end
+			--if btn(7,pid) or btn(5,pid) or btn(4,pid) or btn(6,pid) then
+			if btnp(7,pid) or btnp(5,pid) or btnp(4,pid) or btnp(6,pid) then
+				player:dropBomb()
+			end
 		end
 	end
 	for _,o in ipairs(objs) do
 		if not o.removeMe then o:update() end
 	end
-	if player and player.dead and player.deadTime < time() then
-		loadLevel()
-	end
+	--if player and player.dead and player.deadTime < time() then loadLevel() end
 
 	if removeRequest then
 		for i=#objs,1,-1 do
