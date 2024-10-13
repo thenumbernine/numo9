@@ -75,7 +75,6 @@ function UI:guiButton(str, x, y, isset, tooltip)
 	local app = self.app
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
-	self.menuTabCounter = self.menuTabCounter + 1
 
 	local fg, bg
 	if isset and onThisMenuItem then
@@ -97,13 +96,17 @@ function UI:guiButton(str, x, y, isset, tooltip)
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
+	local result
 	if (mouseOver and app:keyp'mouse_left')
 	or (self.execMenuTab and onThisMenuItem)
 	then
+		self.menuTabIndex = self.menuTabCounter
 		-- only clear it once its been handled
 		self.execMenuTab = false
-		return true
+		result = true
 	end
+	self.menuTabCounter = self.menuTabCounter + 1
+	return result
 end
 
 function UI:guiSpinner(x, y, cb, tooltip)
@@ -139,7 +142,7 @@ function UI:guiRadio(x, y, options, selected, cb)
 	end
 end
 
-function UI:guiTextField(x, y, t, k, tooltip)
+function UI:guiTextField(x, y, w, t, k, tooltip)
 	-- TODO here ... only if we have tab-focus ... read our input.
 	-- TODO color by tab-focus or not
 	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
@@ -150,7 +153,7 @@ function UI:guiTextField(x, y, t, k, tooltip)
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 	local mouseOver =
-		mouseX >= x and mouseX < x + 80	-- math.min(w, 80)
+		mouseX >= x and mouseX < x + w
 		and mouseY >= y and mouseY < y + spriteSize.y
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)

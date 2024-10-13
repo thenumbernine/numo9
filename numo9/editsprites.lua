@@ -505,7 +505,9 @@ function EditSprites:update()
 				if leftButtonPress then
 					if self.isPaletteSwapping then
 						-- TODO button for only swap in this screen
-						app:colorSwap(self.paletteSelIndex, paletteIndex, 0, 0, spriteSheetSize.x, spriteSheetSize.y)
+						app:colorSwap(self.paletteSelIndex, paletteIndex, 0, 0, spriteSheetSize.x, 
+							spriteSheetSize.y-8	-- cheap trick to avoid the font row
+						)
 						self.isPaletteSwapping = false
 					end
 					self.paletteSelIndex = paletteIndex
@@ -607,7 +609,7 @@ function EditSprites:update()
 	-- [[
 	local tmp = {}
 	tmp[1] = tostring(self.pasteTargetNumColors)
-	if self:guiTextField(80, 52, tmp, 1, 'paste target # colors='..tmp[1]) then
+	if self:guiTextField(80, 32, 4*8, tmp, 1, 'paste target # colors='..tmp[1]) then
 		self.pasteTargetNumColors = tonumber(tmp[1]) or 0 --self.pasteTargetNumColors
 	end
 	--]]
@@ -683,7 +685,7 @@ print'BAKING PALETTE'
 					- use 'convert-to-8x8x4pp's trick there ...
 				--]]
 				if image.channels ~= 1 then
-					print'quantizing image...'
+					print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 					assert(image.channels >= 3)	-- NOTICE it's only RGB right now ... not even alpha
 					image = image:rgb()
 					asserteq(image.channels, 3, "image channels")
@@ -748,8 +750,8 @@ print('possible colors: '..require 'ext.tolua'(colors))
 						image = image1ch
 						asserteq(image.channels, 1, "image.channels")
 						for i,color in ipairs(colors) do
-							self:edit_pokel(
-								paletteAddr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset)),
+							self:edit_pokew(
+								paletteAddr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
 								rgba8888_4ch_to_5551(
 									color:byte(1),
 									color:byte(2),
