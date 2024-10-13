@@ -502,6 +502,11 @@ function EditSprites:update()
 			and mouseY >= ry and mouseY < ry + bh
 			then
 				if leftButtonPress then
+					if self.isPaletteSwapping then
+						-- TODO button for only swap in this screen
+						app:colorSwap(self.paletteSelIndex, paletteIndex, 0, 0, spriteSheetSize.x, spriteSheetSize.y)
+						self.isPaletteSwapping = false
+					end
 					self.paletteSelIndex = paletteIndex
 					self.paletteSelDown = paletteIndex
 				elseif leftButtonDown then
@@ -529,6 +534,10 @@ function EditSprites:update()
 				end
 			end
 		end
+	end
+
+	if self:guiButton('X', 16, 128, self.isPaletteSwapping, 'pal swap') then
+		self.isPaletteSwapping = not self.isPaletteSwapping
 	end
 
 	-- adjust palette size

@@ -829,14 +829,15 @@ do
 			super.update(self)
 			if not self.dead then
 				--if self.moveFracMoving then
+				local animstep = self.moveCmd~=dirs.none and time() % .5 > .25
 				if self.dir==dirs.up then
-					self.seq=seqs.playerStandUp
+					self.seq = animstep and seqs.playerStandUp2 or seqs.playerStandUp
 				elseif self.dir==dirs.left then
-					self.seq=seqs.playerStandLeft
+					self.seq = animstep and seqs.playerStandLeft2 or seqs.playerStandLeft
 				elseif self.dir==dirs.right then
-					self.seq=seqs.playerStandRight
+					self.seq = animstep and seqs.playerStandRight2 or seqs.playerStandRight
 				else
-					self.seq=seqs.playerStandDown
+					self.seq = animstep and seqs.playerStandDown2 or seqs.playerStandDown
 				end
 			end
 		end,
