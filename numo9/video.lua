@@ -1587,6 +1587,7 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 	h = math.clamp(h, 0, spriteSheetSize.y)
 	local fromFound = 0
 	local toFound = 0
+	-- TODO option for only swap in a specific sheet/addr
 	for _,base in ipairs{spriteSheetAddr, tileSheetAddr} do
 		for j=y,y+h-1 do
 			for i=x,x+w-1 do

@@ -35,18 +35,17 @@ vecs={[0]={0,1},{-1,0},{1,0},{0,-1}}
 seqs={
 	cloud=128,
 	brick=74,	-- irl? why not just the tilemap?
-	spark=132,	-- TODO color this red or something
+	spark=134,
 	bomb=64,
 	bombLit=66,
 	redbomb=68,
-	playerStandDown=256,
-	playerStandDown2=258,
-	playerStandLeft=260,
-	playerStandLeft2=262,
-	playerStandRight=264,
-	playerStandRight2=266,
-	playerStandUp=268,
-	playerStandUp2=270,
+	redbombLit=70,
+	playerStandDown=384,
+	playerStandDown2=386,
+	playerStandLeft=388,
+	playerStandLeft2=390,
+	playerStandUp=392,
+	playerStandUp2=394,
 	playerDead=206,
 	
 	bombItem=324,
@@ -99,6 +98,7 @@ end
 
 BaseObj=class{
 	bbox={-.4,-.4,.4,.4},
+	palOfs=0,
 	init=[:,args]do
 		self.scaleX,self.scaleY=1,1
 		self.removeMe=false
@@ -199,6 +199,7 @@ BaseObj=class{
 			end
 			for _,o in ipairs(objs) do
 				if not o.removeMe 
+				and not o.noPhysics
 				and o~=self
 				then
 					local oxmin=o.posX+o.bbox[1]
@@ -238,7 +239,7 @@ BaseObj=class{
 			y,			--screenY,
 			2,			--spritesWide,
 			2,			--spritesHigh,
-			nil,		--paletteIndex,
+			self.palOfs,--paletteIndex,
 			nil,		--transparentIndex,
 			nil,		--spriteBit,
 			nil,		--spriteMask,
@@ -329,7 +330,7 @@ do
 		end,
 		setFuse=[:,fuseTime]do
 			if self.state=='exploding' then return end
-			self.seq=seqs.bombLit
+			self.seq=self.redbomb and seqs.redbombLit or seqs.bombLit
 			self.state='live'
 			self.boomTime=time()+fuseTime
 		end,
@@ -382,6 +383,7 @@ do
 					local hit=false
 					for _,o in ipairs(objs)do
 						if not o.removeMe
+						and not o.noPhysics	-- dont let dead players block
 						and o~=self
 						then
 							local dist=linfDist(o.posX, o.posY, checkPosX+.5, checkPosY+.5)
@@ -602,6 +604,11 @@ do
 			self.moveCmd=dirs.none
 		end,
 		update=[:]do
+			
+			if self and self.dead and self.deadTime < time() then 
+				removeObj(self)
+			end
+
 			if self.moveCmd~=dirs.none then self.dir=self.moveCmd end
 			
 			self.velX=0
@@ -633,14 +640,17 @@ do
 					self.bumpDY=0
 				end
 
+				local animstep = self.moveCmd~=dirs.none and time() % .5 > .25
 				if self.dir==dirs.up then
-					self.seq=seqs.playerStandUp
+					self.seq = animstep and seqs.playerStandUp2 or seqs.playerStandUp
 				elseif self.dir==dirs.left then
-					self.seq=seqs.playerStandLeft
+					self.seq = animstep and seqs.playerStandLeft2 or seqs.playerStandLeft
+					self.scaleX = 1
 				elseif self.dir==dirs.right then
-					self.seq=seqs.playerStandRight
+					self.seq = animstep and seqs.playerStandLeft2 or seqs.playerStandLeft
+					self.scaleX = -1
 				else
-					self.seq=seqs.playerStandDown
+					self.seq = animstep and seqs.playerStandDown2 or seqs.playerStandDown
 				end
 			end
 			super.update(self)
@@ -660,13 +670,15 @@ do
 			end
 			return super.touch(self,other)
 		end,
-		onTouchFlames=[:]do self:die()end,
+		onTouchFlames=[:]self:die(),
 		die=[:]do
 			if self.dead then return end
 			self.seq=seqs.playerDead
 			self.dead=true
 			self.deadTime=time()+2
+			self.noPhysics=true
 			self.isBlocking=false
+			self.isBlocked=false
 			self.blockExplosion=false
 			self.moveCmd=dirs.none
 		end,
@@ -729,23 +741,25 @@ loadLevel=[]do
 		end
 		if #allBombable==0 then break end
 	end
+	for pid=0,maxPlayers-1 do
+		player=Player{}
+		players[pid]=player
+		local s=startPos[pid]
+		player.playerID=pid
+		player.palOfs=pid<<4
+		player:setPos(s[1]+.5,s[2]+.5)
+		objs:insert(player)
+	end
 end
 
 update=[]do
+	local alive=0
+	local lastAlive
 	for pid=0,maxPlayers-1 do
 		local player = players[pid]
-		if not player then
-			for bid=0,7 do
-				if btnp(bid,pid) then 
-					player=Player{}
-					players[pid]=player
-					local s=startPos[pid]
-					player:setPos(s[1]+.5,s[2]+.5)
-					objs:insert(player)
-					break
-				end
-			end
-		else
+		if player and not player.dead then
+			alive+=1
+			lastAlive=pid
 			if btn(0,pid) then
 				player:move(dirs.up)
 			elseif btn(1,pid) then
@@ -763,10 +777,26 @@ update=[]do
 			end
 		end
 	end
+
+	if alive <= 1 then
+		if alive==0 then
+			-- draw
+			text('DRAW', 128, 4, 0xfc, 0)
+		elseif alive==1 then
+			-- player won
+			text('PLAYER '..lastAlive..' WON!', 128, 4, 0xfc, 0)
+		end
+		
+		-- or TODO wait for button click?
+		for i=0,60*10 do
+			flip()
+		end
+		loadLevelRequest=true
+	end
+
 	for _,o in ipairs(objs) do
 		if not o.removeMe then o:update() end
 	end
-	--if player and player.dead and player.deadTime < time() then loadLevel() end
 
 	if removeRequest then
 		for i=#objs,1,-1 do
