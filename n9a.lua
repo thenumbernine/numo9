@@ -85,16 +85,36 @@ if cmd == 'x' then
 	print'loading cart...'
 	local rom = fromCartImage((assert(n9path:read())))
 
+	print'saving palette...'
+	-- palette: 16 x 16 x 24bpp 8bpp r g b
+	local image = Image(16, 16, 4, 'unsigned char')
+	local imagePtr = image.buffer
+	local palPtr = rom.palette -- uint16_t*
+	local palette = table()
+	for y=0,15 do
+		for x=0,15 do
+			-- TODO packptr in numo9/app.lua
+			local r,g,b,a = rgba5551_to_rgba8888_4ch(palPtr[0])
+			imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = r,g,b,a
+			palette:insert{r,g,b,a}
+			palPtr = palPtr + 1
+			imagePtr = imagePtr + 4
+		end
+	end
+	image:save(basepath'pal.png'.path)
+
 	print'saving sprite sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
 	local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char')
 	ffi.copy(image.buffer, rom.spriteSheet, ffi.sizeof(rom.spriteSheet))
+	image.palette = palette
 	image:save(basepath'sprite.png'.path)
 
 	print'saving tile sheet...'
 	-- tile tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	ffi.copy(image.buffer, rom.tileSheet, ffi.sizeof(rom.tileSheet))
+	image.palette = palette
 	image:save(basepath'tiles.png'.path)
 
 	print'saving tile map...'
@@ -117,21 +137,6 @@ if cmd == 'x' then
 		end
 	end
 	image:save(basepath'tilemap.png'.path)
-
-	print'saving palette...'
-	-- palette: 16 x 16 x 24bpp 8bpp r g b
-	local image = Image(16, 16, 4, 'unsigned char')
-	local imagePtr = image.buffer
-	local palPtr = rom.palette -- uint16_t*
-	for y=0,15 do
-		for x=0,15 do
-			-- TODO packptr in numo9/app.lua
-			imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = rgba5551_to_rgba8888_4ch(palPtr[0])
-			palPtr = palPtr + 1
-			imagePtr = imagePtr + 4
-		end
-	end
-	image:save(basepath'pal.png'.path)
 
 	print'saving code...'
 	local code = ffi.string(rom.code, ffi.sizeof(rom.code))
@@ -403,7 +408,6 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 
 	local code = move(sections, 'lua'):concat'\n'..'\n'
 
-
 	local function toImage(ls, _8bpp, name)
 		ls = ls:filter(function(line) return #line > 0 end)
 		if #ls == 0 then
@@ -439,6 +443,50 @@ print('toImage', name, 'width', width, 'height', height)
 		return image
 	end
 
+	-- fill out the default pico8 palette
+	local palette = assertlen(table{
+		{0x00, 0x00, 0x00, 0x00},
+		{0x1D, 0x2B, 0x53, 0xFF},
+		{0x7E, 0x25, 0x53, 0xFF},
+		{0x00, 0x87, 0x51, 0xFF},
+		{0xAB, 0x52, 0x36, 0xFF},
+		{0x5F, 0x57, 0x4F, 0xFF},
+		{0xC2, 0xC3, 0xC7, 0xFF},
+		{0xFF, 0xF1, 0xE8, 0xFF},
+		{0xFF, 0x00, 0x4D, 0xFF},
+		{0xFF, 0xA3, 0x00, 0xFF},
+		{0xFF, 0xEC, 0x27, 0xFF},
+		{0x00, 0xE4, 0x36, 0xFF},
+		{0x29, 0xAD, 0xFF, 0xFF},
+		{0x83, 0x76, 0x9C, 0xFF},
+		{0xFF, 0x77, 0xA8, 0xFF},
+		{0xFF, 0xCC, 0xAA, 0xFF},
+	}:rep(15)
+	-- but then add the system palette at the end for the editor, so pico8's games don't mess with the editor's palette
+	-- yes you can do that in numo9, i'm tryin to make it more like a real emulator where nothing is sacred
+	:append{
+		{0x00, 0x00, 0x00, 0x00},
+		{0x56, 0x2b, 0x5a, 0xff},
+		{0xa4, 0x46, 0x54, 0xff},
+		{0xe0, 0x82, 0x60, 0xff},
+		{0xf7, 0xce, 0x82, 0xff},
+		{0xb7, 0xed, 0x80, 0xff},
+		{0x60, 0xb4, 0x6c, 0xff},
+		{0x3b, 0x70, 0x78, 0xff},
+		{0x2b, 0x37, 0x6b, 0xff},
+		{0x41, 0x5f, 0xc2, 0xff},
+		{0x5c, 0xa5, 0xef, 0xff},
+		{0x93, 0xec, 0xf5, 0xff},
+		{0xf4, 0xf4, 0xf4, 0xff},
+		{0x99, 0xaf, 0xc0, 0xff},
+		{0x5a, 0x6c, 0x84, 0xff},
+		{0x34, 0x3c, 0x55, 0xff},
+	}, 16*16)
+	local palImg = Image(16, 16, 4, 'unsigned char', range(0,16*16*4-1):mapi(function(i)
+		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
+	end))
+	palImg:save(basepath'pal.png'.path)
+
 	local gfxImg = toImage(move(sections, 'gfx'), false, 'gfx')
 	asserteq(gfxImg.channels, 1)
 	asserteq(gfxImg.width, 128)
@@ -448,6 +496,7 @@ print('toImage', name, 'width', width, 'height', height)
 		:pasteInto{image=gfxImg, x=0, y=0}
 	-- now that the font is the right size and bpp we can use our 'resetFont' function on it ..
 	resetFontOnSheet(gfxImg.buffer)
+	gfxImg.palette = palette
 	gfxImg:save(basepath'sprite.png'.path)
 
 	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
@@ -458,6 +507,7 @@ print('toImage', name, 'width', width, 'height', height)
 			tileImage.buffer[i + tileImage.width * j] = 0
 		end
 	end
+	tileImage.palette = palette
 	tileImage:save(basepath'tiles.png'.path)
 
 	local labelSrc = move(sections, 'label')
@@ -1152,51 +1202,6 @@ asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0
 			end
 		end
 	end
-
-	local palImg = Image(16, 16, 4, 'unsigned char',
-		-- fill out the default pico8 palette
-assertlen(
-		table{
-			0x00, 0x00, 0x00, 0x00,
-			0x1D, 0x2B, 0x53, 0xFF,
-			0x7E, 0x25, 0x53, 0xFF,
-			0x00, 0x87, 0x51, 0xFF,
-			0xAB, 0x52, 0x36, 0xFF,
-			0x5F, 0x57, 0x4F, 0xFF,
-			0xC2, 0xC3, 0xC7, 0xFF,
-			0xFF, 0xF1, 0xE8, 0xFF,
-			0xFF, 0x00, 0x4D, 0xFF,
-			0xFF, 0xA3, 0x00, 0xFF,
-			0xFF, 0xEC, 0x27, 0xFF,
-			0x00, 0xE4, 0x36, 0xFF,
-			0x29, 0xAD, 0xFF, 0xFF,
-			0x83, 0x76, 0x9C, 0xFF,
-			0xFF, 0x77, 0xA8, 0xFF,
-			0xFF, 0xCC, 0xAA, 0xFF,
-		}:rep(15)
-		-- but then add the system palette at the end for the editor, so pico8's games don't mess with the editor's palette
-		-- yes you can do that in numo9, i'm tryin to make it more like a real emulator where nothing is sacred
-		:append{
-			0x00, 0x00, 0x00, 0x00,
-			0x56, 0x2b, 0x5a, 0xff,
-			0xa4, 0x46, 0x54, 0xff,
-			0xe0, 0x82, 0x60, 0xff,
-			0xf7, 0xce, 0x82, 0xff,
-			0xb7, 0xed, 0x80, 0xff,
-			0x60, 0xb4, 0x6c, 0xff,
-			0x3b, 0x70, 0x78, 0xff,
-			0x2b, 0x37, 0x6b, 0xff,
-			0x41, 0x5f, 0xc2, 0xff,
-			0x5c, 0xa5, 0xef, 0xff,
-			0x93, 0xec, 0xf5, 0xff,
-			0xf4, 0xf4, 0xf4, 0xff,
-			0x99, 0xaf, 0xc0, 0xff,
-			0x5a, 0x6c, 0x84, 0xff,
-			0x34, 0x3c, 0x55, 0xff,
-		}
-, 16*16*4)
-	)
-	palImg:save(basepath'pal.png'.path)
 
 	--[[
 	now parse and re-emit the lua code to work around pico8's weird syntax
