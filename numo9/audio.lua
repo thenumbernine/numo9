@@ -66,17 +66,17 @@ function AppAudio:initAudio()
 	--local bufferSizeInSeconds = updateIntervalInSeconds
 	local bufferSizeInSeconds = updateIntervalInSeconds / 16	-- works
 
-print('sampleFramesPerSecond', sampleFramesPerSecond)
-print('requested ezeInSeconds', bufferSizeInSeconds)
+--DEBUG:print('sampleFramesPerSecond', sampleFramesPerSecond)
+--DEBUG:print('requested ezeInSeconds', bufferSizeInSeconds)
 	audio.bufferSizeInSampleFrames = math.ceil(bufferSizeInSeconds * sampleFramesPerSecond)
-print('bufferSizeInSampleFrames', audio.bufferSizeInSampleFrames)
+--DEBUG:print('bufferSizeInSampleFrames', audio.bufferSizeInSampleFrames)
 	-- https://wiki.libsdl.org/SDL2/SDL_OpenAudioDevice
 	-- for .size: "Good values seem to range between 512 and 8096 inclusive"
 	local bufferSizeInSamples = audio.bufferSizeInSampleFrames * audioOutChannels
-print('bufferSizeInSamples', bufferSizeInSamples)
-print('audioSampleType', audioSampleType)
+--DEBUG:print('bufferSizeInSamples', bufferSizeInSamples)
+--DEBUG:print('audioSampleType', audioSampleType)
 	audio.bufferSizeInBytes = bufferSizeInSamples * ffi.sizeof(audioSampleType)
-print('bufferSizeInBytes', audio.bufferSizeInBytes)
+--DEBUG:print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	ffi.fill(desired, ffi.sizeof'SDL_AudioSpec')
 	desired[0].freq = sampleFramesPerSecond
 	desired[0].format = sdlAudioFormatForCType[audioSampleType]
@@ -114,7 +114,7 @@ print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	bufferSizeInSamples = audio.bufferSizeInBytes / ffi.sizeof(audioSampleType)
 	audio.bufferSizeInSampleFrames = bufferSizeInSamples / audioOutChannels
 	bufferSizeInSeconds = audio.bufferSizeInSampleFrames / sampleFramesPerSecond
-print('got bufferSizeInSeconds', bufferSizeInSeconds)
+--DEBUG:print('got bufferSizeInSeconds', bufferSizeInSeconds)
 	--audio.audioBufferLength = math.ceil(audio.bufferSizeInBytes / ffi.sizeof(audioSampleType))
 	audio.audioBufferLength = updateIntervalInSamples
 	audio.audioBuffer = ffi.new(audioSampleType..'[?]', audio.audioBufferLength)

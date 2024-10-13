@@ -281,6 +281,36 @@ end
 
 do
 	local super=BaseObj
+	Flame=BaseObj:subclass{
+		init=[:,args]do
+			super.init(self,args)
+			self.doesBlock=false
+			self.isBlocking=false
+			self.blocksExplosion=false
+			self.removeTime=time()+args.life
+			self:setPos(table.unpack(args.pos))
+			self.startTime=time()
+			self.seq=args.seq or seqs.spark
+			self.blend=args.blend or 0
+		end,
+		update=[:]do
+			super.update(self)
+			if time()>=self.removeTime then
+				removeObj(self)
+				return
+			end
+		end,
+		touch=[:,other]do
+			if other and other.isPlayer then
+				other:die()
+			end
+			return super.touch(self,other)
+		end,
+	}
+end
+
+do
+	local super=BaseObj
 	Particle=BaseObj:subclass{
 		init=[:,args]do
 			super.init(self,args)
@@ -320,7 +350,7 @@ do
 			self.sinkDone = 0
 			self.fuseDuration = 2
 			self.chainDuration = .2
-			self.explodingDuration = .2
+			self.explodingDuration = .4
 			--
 			self.owner=args.owner
 			self.state='idle'
@@ -400,7 +430,11 @@ do
 						end
 					end
 
-					self:makeSpark(checkPosX+.5, checkPosY+.5)
+					addObj(Flame{
+						pos={checkPosX+.5, checkPosY+.5},
+						life=self.explodingDuration,
+					})
+
 
 					if not self.redbomb and hit then 
 						break 
@@ -450,18 +484,6 @@ do
 
 			self.state='exploding'
 			self.explodingDone=time()+self.explodingDuration
-		end,
-		makeSpark=[:,x,y]do
-			for i=0,2 do
-				local c=math.random()
-				addObj(Particle{
-					vel={math.random()*2-1, math.random()*2-1},
-					pos={x,y},
-					life=.5 * (math.random() * .5 + .5),
-					radius=.25 * (math.random() + .5),
-					blend=0,
-				})
-			end
 		end,
 	}
 end
