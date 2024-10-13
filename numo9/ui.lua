@@ -7,10 +7,13 @@ TODO tempted to use my lua-gui ...
 local ffi = require 'ffi'
 local math = require 'ext.math'
 local table = require 'ext.table'
+local asserttype = require 'ext.assert'.type
 local assertindex = require 'ext.assert'.index
+local getTime = require 'ext.timer'.getTime
 local class = require 'ext.class'
 
 local numo9_rom = require 'numo9.rom'
+local fontWidth = numo9_rom.fontWidth
 local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
@@ -20,6 +23,10 @@ local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
 local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
 local codeSize = numo9_rom.codeSize
+
+local numo9_keys = require 'numo9.keys'
+local keyCodeNames = numo9_keys.keyCodeNames
+local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 -- TODO make the editor a rom itself
 -- TODO make roms that hold all the necessary stuff
@@ -130,6 +137,84 @@ function UI:guiRadio(x, y, options, selected, cb)
 		end
 		x = x + 6
 	end
+end
+
+function UI:guiTextField(x, y, t, k, tooltip)
+	-- TODO here ... only if we have tab-focus ... read our input.
+	-- TODO color by tab-focus or not
+	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
+	asserttype(assertindex(t, k), 'string')
+	local app = self.app
+
+	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
+
+	local mouseX, mouseY = app.ram.mousePos:unpack()
+	local mouseOver =
+		mouseX >= x and mouseX < x + 80	-- math.min(w, 80)
+		and mouseY >= y and mouseY < y + spriteSize.y
+	if tooltip and mouseOver then
+		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
+	end
+
+	-- TODO like some UIs, push enter to enable/disable editing? or nah
+	if mouseOver and app:keyp'mouse_left' then
+		self.menuTabIndex = self.menuTabCounter
+		onThisMenuItem = true
+	end
+
+	if self.menuTabIndex ~= self.cursorMenuTabIndex then
+		-- if we just switched to this tabitem then reset the cursor position
+		self.textFieldCursorLoc = #t[k]
+	end
+
+	local fg, bg
+	if onThisMenuItem then
+		fg, bg = 0xfd, 0xf9
+	else
+		fg, bg = 0xfd, 0xf8
+	end
+
+	local w = app:drawText(t[k], x, y, fg, bg)
+
+	local changed
+	if onThisMenuItem then
+		if getTime() % 1 < .5 then
+			app:drawSolidRect(
+				x + self.textFieldCursorLoc * fontWidth,
+				y,
+				fontWidth,
+				spriteSize.y,
+				0xfc
+			)
+		end
+
+		-- TODO lots in common with editcode ... hmmm ...
+		local shift = app:key'lshift' or app:key'rshift'
+		local function addCharToText(ch)
+			if ch == 8 then
+				t[k] = t[k]:sub(1, self.textFieldCursorLoc - 1) .. t[k]:sub(self.textFieldCursorLoc+1)
+				self.textFieldCursorLoc = math.max(0, self.textFieldCursorLoc - 1)
+			elseif ch then
+				t[k] = t[k]:sub(1, self.textFieldCursorLoc) .. string.char(ch) .. t[k]:sub(self.textFieldCursorLoc+1)
+				self.textFieldCursorLoc = math.min(#t[k], self.textFieldCursorLoc + 1)
+			end
+		end
+
+		-- handle input here ...
+		for keycode=0,#keyCodeNames-1 do
+			if app:keyp(keycode,30,5) then
+				local ch = getAsciiForKeyCode(keycode, shift)
+				if ch then
+					changed = true
+					addCharToText(ch)
+				end
+			end
+		end
+	end
+
+	self.menuTabCounter = self.menuTabCounter + 1
+
+	return changed
 end
 
 function UI:setTooltip(s, x, y, fg, bg)

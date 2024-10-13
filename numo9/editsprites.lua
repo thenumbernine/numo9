@@ -56,10 +56,11 @@ function EditSprites:init(args)
 
 	self.spriteDrawMode = 'draw'
 	self.paletteSelIndex = 0	-- which color we are painting
-	self.log2PalBits = 2	-- showing an 1<<3 == 8bpp image: 0-3
+	self.log2PalBits = 3	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 
 	self.pastePreservePalette = true
+	self.pasteTargetNumColors = 240		-- 240 to preserve the UI colors. TODO separate editor rendering fully and let them mess with all 256.
 	self.penSize = 1 		-- size 1 thru 5 or so
 	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 
@@ -597,6 +598,20 @@ function EditSprites:update()
 	if self:guiButton('A', 112, 42, self.pasteTransparent, 'Paste Transparent='..tostring(self.pasteTransparent)) then
 		self.pasteTransparent = not self.pasteTransparent
 	end
+
+	--[[
+	self:guiSpinner(96, 52, function(dx)
+		self.pasteTargetNumColors = bit.band(self.pasteTargetNumColors + dx)
+	end, 'paste target # colors='..tostring(self.pasteTargetNumColors))
+	--]]
+	-- [[
+	local tmp = {}
+	tmp[1] = tostring(self.pasteTargetNumColors)
+	if self:guiTextField(80, 52, tmp, 1, 'paste target # colors='..tmp[1]) then
+		self.pasteTargetNumColors = tonumber(tmp[1]) or 0 --self.pasteTargetNumColors
+	end
+	--]]
+
 	-- TODO button for cut copy and paste as well
 
 	-- flags ... ???
@@ -672,13 +687,6 @@ print'BAKING PALETTE'
 					assert(image.channels >= 3)	-- NOTICE it's only RGB right now ... not even alpha
 					image = image:rgb()
 					asserteq(image.channels, 3, "image channels")
-					-- TODO use the # sprite bits being used,
-					--  or use the # of palette colors being used?
-					-- ... why separate the two anyways?
-					--local targetNumColors = bit.lshift(1, self.spriteBitDepth)
-					local targetNumColors = bit.lshift(1, bit.lshift(1, self.log2PalBits))
-					targetNumColors = math.min(targetNumColors, 240)	-- preserve the UI colors. TODO make this an option ...
-					print('target num colors', targetNumColors)
 
 					if self.pastePreservePalette then
 						local image1ch = Image(image.width, image.height, 1, 'unsigned char')
@@ -691,7 +699,7 @@ print'BAKING PALETTE'
 							local bestIndex = bit.band(0xff, self.paletteOffset)
 							local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(app.ram.palette[bestIndex])
 							local bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
-							for j=1,targetNumColors-1 do
+							for j=1,self.pasteTargetNumColors-1 do
 								local colorIndex = bit.band(0xff, j + self.paletteOffset)
 								local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(app.ram.palette[colorIndex])
 								local distSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
@@ -709,7 +717,7 @@ print'BAKING PALETTE'
 						local hist
 						image, hist = Quantize.reduceColorsMedianCut{
 							image = image,
-							targetSize = targetNumColors,
+							targetSize = self.pasteTargetNumColors,
 						}
 						asserteq(image.channels, 3, "image channels")
 						-- I could use image.quantize_mediancut.applyColorMap but it doesn't use palette'd image (cuz my image library didn't support it at the time)
@@ -728,8 +736,8 @@ print'BAKING PALETTE'
 							local key = string.char(unpackptr(3, srcp))
 							local dstIndex = indexForColor[key]
 							if not dstIndex then
-								print("no index for color "..Quantize.bintohex(key))
-								print('possible colors: '..require 'ext.tolua'(colors))
+print("no index for color "..Quantize.bintohex(key))
+print('possible colors: '..require 'ext.tolua'(colors))
 								error'here'
 							end
 							dstp[0] = bit.band(0xff, dstIndex + self.paletteOffset)
@@ -753,7 +761,7 @@ print'BAKING PALETTE'
 					end
 				end
 				asserteq(image.channels, 1, "image.channels")
-				print'pasting image'
+print'pasting image'
 				for j=0,image.height-1 do
 					for i=0,image.width-1 do
 						local destx = i + x
@@ -761,9 +769,7 @@ print'BAKING PALETTE'
 						if destx >= 0 and destx < currentTex.width
 						and desty >= 0 and desty < currentTex.height
 						then
-							local c = image.buffer[
-								i + image.width * j
-							]
+							local c = image.buffer[i + image.width * j]
 							local r,g,b,a = rgba5551_to_rgba8888_4ch(app.ram.palette[c])
 							if not self.pasteTransparent or a > 0 then
 								self:edit_poke(currentTexAddr + destx + currentTex.width * desty, c)
