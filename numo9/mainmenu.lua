@@ -50,8 +50,8 @@ MainMenu.textFieldCursorLoc = 0
 function MainMenu:menuTextField(label, t, k, tooltip)
 	-- TODO gotta cache the last width to properly place this ...
 	-- maybe I should separate the label from the textinput, introduce a 'sameline()' function,  and start caching widths everywhere?
-	app:drawText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
-	local changed = self:guiTextField(self.cursorX + 80, self.cursorY, t, k, tooltip)
+	local w = app:drawText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
+	local changed = self:guiTextField(self.cursorX + 80, self.cursorY, 80, t, k, tooltip)
 	self.cursorY = self.cursorY + self.ystep
 	return changed
 end
