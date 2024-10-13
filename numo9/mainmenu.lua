@@ -1,8 +1,5 @@
 local math = require 'ext.math'
 local table = require 'ext.table'
-local asserttype = require 'ext.assert'.type
-local assertindex = require 'ext.assert'.index
-local getTime = require 'ext.timer'.getTime
 local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
@@ -12,9 +9,6 @@ local frameBufferSize = numo9_rom.frameBufferSize
 
 local numo9_keys = require 'numo9.keys'
 local maxLocalPlayers = numo9_keys.maxLocalPlayers
-local keyCodeNames = numo9_keys.keyCodeNames
-local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
-local buttonNames = numo9_keys.buttonNames
 local buttonSingleCharLabels = numo9_keys.buttonSingleCharLabels
 
 local MainMenu = require 'numo9.ui':subclass()
@@ -52,88 +46,13 @@ function MainMenu:menuSection(str)
 	self.cursorY = self.cursorY + self.ystep
 end
 
-MainMenu.cursorLoc = 0
+MainMenu.textFieldCursorLoc = 0
 function MainMenu:menuTextField(label, t, k, tooltip)
-	-- TODO here ... only if we have tab-focus ... read our input.
-	-- TODO color by tab-focus or not
-	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
-	asserttype(assertindex(t, k), 'string')
-	local app = self.app
-
-	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
-	local editX = self.cursorX + 80
-
-	local mouseX, mouseY = app.ram.mousePos:unpack()
-	local mouseOver =
-		mouseX >= editX and mouseX < editX + 80	-- math.min(w, 80)
-		and mouseY >= self.cursorY and mouseY < self.cursorY + spriteSize.y
-	if tooltip and mouseOver then
-		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
-	end
-
-	-- TODO like some UIs, push enter to enable/disable editing? or nah
-	if mouseOver and app:keyp'mouse_left' then
-		self.menuTabIndex = self.menuTabCounter
-		onThisMenuItem = true
-	end
-
-	if self.menuTabIndex ~= self.cursorMenuTabIndex then
-		-- if we just switched to this tabitem then reset the cursor position
-		self.cursorLoc = #t[k]
-	end
-
-	local fg, bg
-	if onThisMenuItem then
-		fg, bg = 0xfd, 0xf9
-	else
-		fg, bg = 0xfd, 0xf8
-	end
-
 	-- TODO gotta cache the last width to properly place this ...
 	-- maybe I should separate the label from the textinput, introduce a 'sameline()' function,  and start caching widths everywhere?
 	app:drawText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
-	local w = app:drawText(t[k], editX, self.cursorY, fg, bg)
-
-	local changed
-	if onThisMenuItem then
-		if getTime() % 1 < .5 then
-			app:drawSolidRect(
-				editX + self.cursorLoc * fontWidth,
-				self.cursorY,
-				fontWidth,
-				spriteSize.y,
-				0xfc
-			)
-		end
-
-		-- TODO lots in common with editcode ... hmmm ...
-		local shift = app:key'lshift' or app:key'rshift'
-		local function addCharToText(ch)
-			if ch == 8 then
-				t[k] = t[k]:sub(1, self.cursorLoc - 1) .. t[k]:sub(self.cursorLoc+1)
-				self.cursorLoc = math.max(0, self.cursorLoc - 1)
-			elseif ch then
-				t[k] = t[k]:sub(1, self.cursorLoc) .. string.char(ch) .. t[k]:sub(self.cursorLoc+1)
-				self.cursorLoc = math.min(#t[k], self.cursorLoc + 1)
-			end
-		end
-
-		-- handle input here ...
-		for keycode=0,#keyCodeNames-1 do
-			if app:keyp(keycode,30,5) then
-				local ch = getAsciiForKeyCode(keycode, shift)
-				if ch then
-					changed = true
-					addCharToText(ch)
-				end
-			end
-		end
-	end
-
+	local changed = self:guiTextField(self.cursorX + 80, self.cursorY, t, k, tooltip)
 	self.cursorY = self.cursorY + self.ystep
-
-	self.menuTabCounter = self.menuTabCounter + 1
-
 	return changed
 end
 
