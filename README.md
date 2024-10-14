@@ -134,7 +134,9 @@ memory layout:
 0x080c5a - 0x080c5e = mousePos
 0x080c5e - 0x080c62 = lastMousePos
 0x080c62 - 0x080c66 = lastMousePressPos
-system dedicated 0x80c66 of RAM
+0x080c66 - 0x090c66 = userData
+0x090c66 - 0x092c66 = persistentCartridgeData
+system dedicated 0x92c66 of RAM
 ```
 
 # Language

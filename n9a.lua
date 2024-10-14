@@ -16,6 +16,7 @@ local string = require 'ext.string'
 local asserteq = require 'ext.assert'.eq
 local assertlt = require 'ext.assert'.lt
 local assertle = require 'ext.assert'.le
+local assertge = require 'ext.assert'.ge
 local assertlen = require 'ext.assert'.len
 local assertindex = require 'ext.assert'.index
 local vector = require 'ffi.cpp.vector-lua'
@@ -87,7 +88,7 @@ if cmd == 'x' then
 
 	print'saving palette...'
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
-	local image = Image(16, 16, 4, 'unsigned char')
+	local image = Image(16, 16, 4, 'uint8_t')
 	local imagePtr = image.buffer
 	local palPtr = rom.palette -- uint16_t*
 	local palette = table()
@@ -106,7 +107,7 @@ if cmd == 'x' then
 	print'saving sprite sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
-	local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char')
+	local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
 	ffi.copy(image.buffer, rom.spriteSheet, ffi.sizeof(rom.spriteSheet))
 	image.palette = palette
 	image:save(basepath'sprite.png'.path)
@@ -119,7 +120,7 @@ if cmd == 'x' then
 
 	print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
-	local image = Image(tilemapSize.x, tilemapSize.x, 3, 'unsigned char')
+	local image = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
 	local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
 	local imagePtr = image.buffer
 	for y=0,tilemapSize.y-1 do
@@ -338,6 +339,7 @@ elseif cmd == 'binton9' then
 		(assert(toCartImage(rom, binpath.path)))
 	))
 
+-- TODO make this auto-detect 'x' and 'r' based on extension
 elseif cmd == 'p8' or cmd == 'p8run' then
 
 	--[[
@@ -424,7 +426,7 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 		local height = #ls
 print('toImage', name, 'width', width, 'height', height)
 --print(require 'ext.tolua'(ls))
-		local image = Image(width, height, 1, 'unsigned char'):clear()
+		local image = Image(width, height, 1, 'uint8_t'):clear()
 		-- for now output 4bpp -> 8bpp
 		for j=0,height-1 do
 			local srcrow = ls[j+1]
@@ -482,7 +484,7 @@ print('toImage', name, 'width', width, 'height', height)
 		{0x5a, 0x6c, 0x84, 0xff},
 		{0x34, 0x3c, 0x55, 0xff},
 	}, 16*16)
-	local palImg = Image(16, 16, 4, 'unsigned char', range(0,16*16*4-1):mapi(function(i)
+	local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
 		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
 	end))
 	palImg:save(basepath'pal.png'.path)
@@ -491,7 +493,7 @@ print('toImage', name, 'width', width, 'height', height)
 	asserteq(gfxImg.channels, 1)
 	asserteq(gfxImg.width, 128)
 	assertle(gfxImg.height, 128)  -- how come the jelpi.p8 cartridge I exported from pico-8-edu.com has only 127 rows of gfx?
-	gfxImg = Image(256,256,1,'unsigned char')
+	gfxImg = Image(256,256,1,'uint8_t')
 		:clear()
 		:pasteInto{image=gfxImg, x=0, y=0}
 	-- now that the font is the right size and bpp we can use our 'resetFont' function on it ..
@@ -548,12 +550,12 @@ print('toImage', name, 'width', width, 'height', height)
 		asserteq(mapImg.width, 128)
 		assertle(mapImg.height, 64)
 		-- start as 8bpp
-		mapImg = Image(256,256,1,'unsigned char')
+		mapImg = Image(256,256,1,'uint8_t')
 			:clear()
 			-- paste our mapImg into it (to resize without resampling)
 			:pasteInto{image=mapImg, x=0, y=0}
 			-- now grow to 16bpp
-			:combine(Image(256,256,1,'unsigned char'):clear())
+			:combine(Image(256,256,1,'uint8_t'):clear())
 			-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
 		do
 			local p = ffi.cast('uint16_t*', mapImg.buffer)
@@ -591,7 +593,7 @@ print('toImage', name, 'width', width, 'height', height)
 			end
 		end
 		-- now grow to 24bpp
-		mapImg = mapImg:combine(Image(256,256,1,'unsigned char'):clear())
+		mapImg = mapImg:combine(Image(256,256,1,'uint8_t'):clear())
 
 		mapImg:save(basepath'tilemap.png'.path)
 	end
@@ -1381,6 +1383,241 @@ asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0
 	if next(sections) then
 		error("unhandled sections: "..table.keys(sections):sort():concat', ')
 	end
+
+-- TODO make this auto-detect 'x' and 'r' based on extension
+elseif cmd == 'tic' or cmd == 'ticrun' then
+
+	local ticpath = path(fn)
+	local baseNameAndDir, ext = ticpath:getext()
+	asserteq(ext, 'tic')
+	local basepath = select(2, baseNameAndDir:getdir())
+	basepath:mkdir()
+	assert(basepath:isdir())
+
+	local data = assert(ticpath:read())
+	local ptr = ffi.cast('uint8_t*', data)
+	local endptr = ptr + #data
+	local banks = {}	-- banks[0-7][chunkType]
+	while ptr < endptr do
+		local bankNo = bit.rshift(ptr[0], 5)
+		local bank = banks[bankNo]
+		if not bank then
+			bank = {}
+			banks[bankNo] = bank
+		end
+		local chunkType = bit.band(ptr[0], 0x1f)
+		local chunkSize = ffi.cast('uint16_t*', ptr+1)[0]
+		ptr = ptr + 4
+		if ptr >= endptr then break end
+		if bank[chunkType] then
+			error("bank "..tostring(bankNo).." has two of chunk "..tostring(chunkType))
+		end
+		bank[chunkType] = ffi.string(ptr, chunkSize)
+		ptr = ptr + chunkSize
+	end
+	if ptr > endptr then
+		error("read past end of file! ptr is "..tostring(ptr).." end is "..tostring(endptr))
+	end
+
+	for _,bankid in ipairs(table.keys(banks)) do
+		local chunks = banks[bankid]
+		for _,chunkid in ipairs(table.keys(chunks)) do
+			print('got bank', bankid, 'chunk', chunkid, 'size', #chunks[chunkid])
+		end
+	end
+
+	-- how should I do extensible memory?
+	-- like tic80? multiple banks
+	-- or just have memory freeform and let you use it for whatever?
+	-- or do like tic80 and store a collection of chunks?
+	-- or worst case, do I just have multiple ROM copies in a row?  cuz there would be lots of wasted space I think...
+	-- but then how to change my cart file format?
+	-- follow TIC-80's lead and use custom PNG chunks?
+
+	local code = table()
+	for _,bankid in ipairs(table.keys(banks)) do
+		local function getfn(base, ext)
+			local suffix = bankid == 0 and '' or bankid
+			return basepath(base..suffix..'.'..ext)
+		end
+		local chunks = banks[bankid]
+
+		-- save the palettes
+		local palette = assertlen(table{
+			{0x00, 0x00, 0x00, 0x00},
+			{0x56, 0x2b, 0x5a, 0xff},
+			{0xa4, 0x46, 0x54, 0xff},
+			{0xe0, 0x82, 0x60, 0xff},
+			{0xf7, 0xce, 0x82, 0xff},
+			{0xb7, 0xed, 0x80, 0xff},
+			{0x60, 0xb4, 0x6c, 0xff},
+			{0x3b, 0x70, 0x78, 0xff},
+			{0x2b, 0x37, 0x6b, 0xff},
+			{0x41, 0x5f, 0xc2, 0xff},
+			{0x5c, 0xa5, 0xef, 0xff},
+			{0x93, 0xec, 0xf5, 0xff},
+			{0xf4, 0xf4, 0xf4, 0xff},
+			{0x99, 0xaf, 0xc0, 0xff},
+			{0x5a, 0x6c, 0x84, 0xff},
+			{0x34, 0x3c, 0x55, 0xff},
+		}:rep(15)
+		-- then add the system palette at the end for the editor
+		:append{
+			{0x00, 0x00, 0x00, 0x00},
+			{0x56, 0x2b, 0x5a, 0xff},
+			{0xa4, 0x46, 0x54, 0xff},
+			{0xe0, 0x82, 0x60, 0xff},
+			{0xf7, 0xce, 0x82, 0xff},
+			{0xb7, 0xed, 0x80, 0xff},
+			{0x60, 0xb4, 0x6c, 0xff},
+			{0x3b, 0x70, 0x78, 0xff},
+			{0x2b, 0x37, 0x6b, 0xff},
+			{0x41, 0x5f, 0xc2, 0xff},
+			{0x5c, 0xa5, 0xef, 0xff},
+			{0x93, 0xec, 0xf5, 0xff},
+			{0xf4, 0xf4, 0xf4, 0xff},
+			{0x99, 0xaf, 0xc0, 0xff},
+			{0x5a, 0x6c, 0x84, 0xff},
+			{0x34, 0x3c, 0x55, 0xff},
+		}, 16*16)
+		
+		if chunks[12] then	-- CHUNK_PALETTE
+			-- https://github.com/nesbox/TIC-80/wiki/.tic-File-Format#palette 
+			-- "This represents the palette data... In 0.70.6 and above, each bank gets its own palette."
+			-- how many banks can we have? how many banks do most carts have?
+			-- "This chunk type is 96 bytes long: 48 bytes for the SCN palette, followed by 48 bytes for the OVR palette"
+			-- what if it's only 48 bytes?  are the 2nd 48 bytes zeroes, or default? default I think.
+			local data = chunks[12]
+			for i=0,#data-1 do
+				local rgbindex = i%3
+				local colorindex = (i-rgbindex)/3
+				assertlt(colorindex, 256)
+				local v = data:byte(i+1)
+				palette[colorindex+1][rgbindex+1] = v
+			end
+		end
+		
+		local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
+			return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
+		end))
+		palImg:save(getfn('pal', 'png').path)
+
+		local function chunkToImage(data)
+			-- how is it stored ... raw? compressed? raw until all zeroes remain ... lol no lzw compression
+			local subimg = Image(128, 128, 1, 'uint8_t'):clear()
+			local ptr = ffi.cast('uint8_t*', data)
+			assert(#data <= subimg.width * subimg.height)
+			for i=0,#data-1 do
+				-- extract as 4bpp
+				-- TODO maybe keep 2bpp and 1bpp copies as well
+				-- is it stored as sequential sprites, or is it one giant texture like pico8?
+				-- looks like TIC-80 is a lot more like a proper console than Pico8 
+				local spriteIndex = bit.rshift(i, 5)
+				local x = bit.lshift(bit.band(i, 3), 1)
+				local y = bit.band(bit.rshift(i, 2), 7)
+				local spriteX = bit.band(spriteIndex, 0xf)
+				local spriteY = bit.rshift(spriteIndex, 4)
+				local dstx = x + bit.lshift(spriteX, 3)
+				local dsty = y + bit.lshift(spriteY, 3)
+				assert(0 <= dstx and dstx < subimg.width)
+				assert(0 <= dsty and dsty < subimg.height)
+				local destindex = dstx + subimg.width * dsty
+				assert(0 <= destindex and destindex < subimg.width * subimg.height)
+				subimg.buffer[destindex] = bit.band(ptr[i], 0xf)
+				subimg.buffer[destindex+1] = bit.rshift(ptr[i], 4)
+			end
+			local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+				:clear()
+				:pasteInto{image=subimg, x=0, y=0}
+			resetFontOnSheet(image.buffer)
+			image.palette = palette
+			return image
+		end
+
+		if chunks[1] then	-- CHUNK_TILES / bank 8
+			chunkToImage(chunks[1]):save(getfn('tiles', 'png').path)
+		end
+		if chunks[2] then	-- CHUNK_SPRITES / bank 8
+			chunkToImage(chunks[2]):save(getfn('sprite', 'png').path)
+		end
+		if chunks[4] then	-- CHUNK_MAP / bank 8
+			-- copy tilemap, 0x7F7F worth of data
+			local srcw, srch = 240, 136
+			assertge(tilemapSize.x, srcw)
+			assertge(tilemapSize.y, srch)
+			local image = Image(tilemapSize.x, tilemapSize.y, 3, 'uint8_t'):clear()
+			local data = chunks[4]
+			local ptr = ffi.cast('uint8_t*', data)
+			for i=0,#data-1 do
+				-- change from 240x136 to 256x256
+				local x = i % srcw
+				local y = (i - x) / srcw
+				-- change sprite index from 16x16 to 32x32
+				image.buffer[0 + 3 * (x + image.width * y)] = bit.bor(
+					bit.band(0x0f, ptr[i]),
+					bit.lshift(bit.band(0xf0, ptr[i]), 1)
+				)
+			end
+			image:save(getfn('tilemap', 'png').path)
+		end
+		
+		if chunks[5] then	-- CHUNK_CODE / bank 8
+			-- does code have to be parseable per chunk, or can words get split across chunk/bank boundaries?
+			code:insert(chunks[5])
+		end
+		if chunks[6] then	-- CHUNK_FLAGS / bank 8
+			-- afaik this is sprite flags like pico8 has.  interesting that it was added later to TIC-80, I wonder if it was only added as a compat feature, or by request of pico8 users.
+			local flagSrc = chunks[6]
+			assertle(#flagSrc, 512)
+			code:insert(1, 'sprFlags'..(bankid==0 and '' or bankid)..'={\n'
+				..range(0,31):mapi(function(j)
+					return range(0,15):mapi(function(i)
+						local e = i + 16 * j
+						return '0x'..(flagSrc:byte(e) or 0)..','
+					end):concat''..'\n'
+				end):concat()
+				..'}\n'
+			)
+		end
+		if chunks[9] then	-- CHUNK_SAMPLES / bank 8
+			-- sfx data ... 
+		end
+		if chunks[10] then	-- CHUNK_WAVEFORM
+			-- wave-table data ...
+		end
+		if chunks[14] then	-- CHUNK_MUSIC / bank 8
+		end
+		if chunks[15] then	-- CHUNK_PATTERNS / bank 8
+		end
+		if chunks[17] then	-- CHUNK_DEFAULT
+		end
+		if chunks[18] then	-- CHUNK_SCREEN / bank 8
+		end
+		if chunks[19] then	-- CHUNK_BINARY / bank 4
+		end
+		if chunks[3] then	-- CHUNK_COVER_DEP		deprecated as of 0.90
+			print("!!!WARNING!!! found deprecated CHUNK_COVER_DEP")
+		end
+		if chunks[13] then	-- CHUNK_PATTERNS_DEP / bank 8	deprecated as of 0.80
+			print("!!!WARNING!!! found deprecated CHUNK_PATTERNS_DEP")
+		end
+		if chunks[16] then	-- CHUNK_CODE_ZIP	deprecated as of 1.00
+			print("!!!WARNING!!! found deprecated CHUNK_CODE_ZIP")
+		end
+		
+		if cmd == 'ticrun' then
+			assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
+		end
+
+		-- TODO here's a big dilemma ... 
+		-- TIC-80 has base 64k of code and expandable for multiple banks
+		-- soooo ... its code limit is high ...
+		-- and the glue code is another 16k ...
+		-- hmm ...
+		-- should I use separate banks as well?  or some other system?
+	end
+
+	basepath'code.lua':write(code:concat'\n')
 else
 
 	error("unknown cmd "..tostring(cmd))

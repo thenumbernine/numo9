@@ -1,6 +1,18 @@
 --[[
 compress/decompress cartridges
 maybe this should accept the current loaded ROM ...
+
+ok so here's a thought
+if i support multiple 'banks'
+or if i store the cart in a png
+why even bother convert stuff?
+why not just save it in a zip file, and let the loader target our zip data or a directory structure, like a pak file.
+and if fantasy-consoles like tik-80 say "swap won't handle code, leave that to us", then lol why even include code in the 'cart' data structure?
+why not just work with the uncompressed directories and then optionally use a zip file...
+but this would now beg the question, how to reconcile this with the virtual filesystem ... 
+
+so for all else except code, it is convenient to just copy RAM->ROM over
+for code ... hmm, if I put it in a zip file, it is very convenient to just keep it in one giant code.lua file ...
 --]]
 local ffi = require 'ffi'
 local assertle = require 'ext.assert'.le
@@ -29,7 +41,7 @@ end
 
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
 -- so reading is from files now
-local tmploc = path'___tmp.tiff'
+local tmploc = path'___tmp.png'
 
 --[[
 assumes 'rom' is ptr to the start of our ROM memory
@@ -37,13 +49,18 @@ creates an Image and returns it
 --]]
 local function toCartImage(rom, labelImage)
 	asserttype(rom, 'cdata')
-	local romImage = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'uint16_t'):clear()
+	-- [[ saving the raw binary
+	return ffi.string(rom, ffi.sizeof'ROM')
+	--]]
 
+	--[=[
 	-- TODO image hardcodes this to 1) file io and 2) extension ... because a lot of the underlying image format apis do too ... fix me plz
-	--[[ if it's 8bpp ...
+	--[[ store it as an 8bpp PNG ...
+	local romImage = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'uint8_t'):clear()
 	ffi.copy(romImage.buffer, rom, ffi.sizeof'ROM')
 	--]]
-	-- [[ if it's 16bpp ... use the lower byte for storage and upper byte for a cartridge label image
+	--[[ if it's 16bpp ... use the lower byte for storage and upper byte for a cartridge label image
+	local romImage = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'uint16_t'):clear()
 	if labelImage then
 		assertge(labelImage.channels, 3, "label image must be RGB")
 		asserteq(ffi.sizeof(labelImage.format), 1, "label image must be 8bp")
@@ -78,6 +95,9 @@ local function toCartImage(rom, labelImage)
 		end
 	end
 	--]]
+	--[[ TODO save png with custom chunk holding the cart data
+	-- TODO TODO change image png loader to support custom chunks
+	--]]
 
 --DEBUG:assert(not tmploc:exists())
 	assert(romImage:save(tmploc.path))
@@ -85,14 +105,21 @@ local function toCartImage(rom, labelImage)
 	tmploc:remove()
 --DEBUG:assert(not tmploc:exists())
 	return data
+	--]=]
 end
 
 --[[
 takes an Image
 --]]
-local function fromCartImage(imageFileData)
+local function fromCartImage(srcData)
+	-- [[ saving/loading raw data
+	local rom = ffi.new'ROM'
+	ffi.copy(rom.v, ffi.cast('uint8_t*', srcData), ffi.sizeof'ROM')
+	return rom
+	--]]
+	--[=[ saving/loading image data
 --DEBUG:assert(not tmploc:exists())
-	assert(path(tmploc):write(imageFileData))
+	assert(path(tmploc):write(srcData))
 	local romImage = Image(tmploc.path)
 	tmploc:remove()
 --DEBUG:assert(not tmploc:exists())
@@ -101,10 +128,10 @@ local function fromCartImage(imageFileData)
 	assertle(ffi.sizeof'ROM', romImage.width * romImage.height * romImage.channels)
 
 	local rom = ffi.new'ROM'
-	--[[ if it's 8bpp ...
+	-- [[ if it's 8bpp ...
 	ffi.copy(rom.v, romImage.buffer, ffi.sizeof'ROM')
 	--]]
-	-- [[ if it's 16bpp ...
+	--[[ if it's 16bpp ...
 	local index = 0
 	for y=0,cartImageSize.y-1 do
 		for x=0,cartImageSize.x-1 do
@@ -119,6 +146,7 @@ local function fromCartImage(imageFileData)
 ::fromCartImageDone::
 	--]]
 	return rom
+	--]=]
 end
 
 return {

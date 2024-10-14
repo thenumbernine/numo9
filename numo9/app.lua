@@ -47,7 +47,7 @@ local tilemapSize = numo9_rom.tilemapSize
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
 local codeSize = numo9_rom.codeSize
-local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize 
+local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize
 local spriteSheetAddr = numo9_rom.spriteSheetAddr
 local spriteSheetAddrEnd = numo9_rom.spriteSheetAddrEnd
 local tileSheetAddr = numo9_rom.tileSheetAddr
@@ -500,6 +500,7 @@ function App:initGL()
 			end
 			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteTex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
+		-- TODO make draw16Sprites a poke'd value
 		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
 			if self.server then
 				tilesWide = tilesWide or 1
@@ -1809,16 +1810,16 @@ function App:writePersistent()
 	--if not self.cartridgeName then return end	-- should not I bother if there's no cartridge loaded? or still allow saving of persistent data if ppl are messing around on the editor?
 	self.cfg.persistent = self.cfg.persistent or {}
 
-	-- TODO this when you read cart header
+	-- TODO this when you read cart header ... or should we put it in ROM somewhere?
 	self.cartridgeSaveID = self.cartridgeSaveID or ''--md5(self.cartridge.v, ffi.sizeof'ROM')
-	
+
 	-- save a string up to the last non-zero value ... opposite  of C-strings
 	local len = persistentCartridgeDataSize
 	while len > 0 do
 		if self.ram.persistentCartridgeData[len-1] ~= 0 then break end
 		len = len - 1
 	end
-	if len > 0 then 
+	if len > 0 then
 		self.cfg.persistent[self.cartridgeSaveID] = ffi.string(self.ram.persistentCartridgeData, len)
 	end
 end

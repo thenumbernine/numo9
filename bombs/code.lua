@@ -728,6 +728,18 @@ setLevel=[level_]do
 	end
 end
 
+playerOptions=table{
+	off=0,
+	human=1,
+	ai=2,
+	count=3,
+}
+playerOptionNames=playerOptions:map([v,k](k,v)):setmetatable(nil)
+playersActive=table{playerOptions.off}:rep(maxPlayers-1)
+playersActive[0]=playerOptions.human
+inMenu=true
+menuSel=0
+
 loadLevel=[]do
 	reset()		-- reload our tilemap? or not?
 	removeAll()
@@ -764,17 +776,65 @@ loadLevel=[]do
 		if #allBombable==0 then break end
 	end
 	for pid=0,maxPlayers-1 do
-		player=Player{}
-		players[pid]=player
-		local s=startPos[pid]
-		player.playerID=pid
-		player.palOfs=pid<<4
-		player:setPos(s[1]+.5,s[2]+.5)
-		objs:insert(player)
+		if playersActive[pid]~=playerOptions.off then
+			-- TODO handle AI
+			local player=Player{}
+			players[pid]=player
+			local s=startPos[pid]
+			player.playerID=pid
+			player.palOfs=pid<<4
+			player:setPos(s[1]+.5,s[2]+.5)
+			objs:insert(player)
+		end
 	end
 end
 
 update=[]do
+	if inMenu then
+		cls(0xf0)
+		local x,y=64,96
+		text('>', x-8, y+8*menuSel, 0xfc, 0xf0)
+		for pid=0,maxPlayers-1 do
+			text('player '..pid..' = '
+				..tostring(playerOptionNames[playersActive[pid]]), 
+				x, y, 0xfc, 0xf0)
+			y+=8
+		end
+		text('Start!', x, y, 0xfc, 0xf0)
+		for pid=0,maxPlayers-1 do
+			if btnp(0,pid) then
+				menuSel-=1
+				menuSel%=maxPlayers+1
+			elseif btnp(1,pid) then
+				menuSel+=1
+				menuSel%=maxPlayers+1
+			end
+			if menuSel<maxPlayers then
+				if btnp(2,pid) then
+					playersActive[menuSel]-=1
+					playersActive[menuSel]%=playerOptions.count
+				elseif btnp(3,pid) then
+					playersActive[menuSel]+=1
+					playersActive[menuSel]%=playerOptions.count
+				else
+					if btnp(4,pid) or btnp(5,pid) or btnp(6,pid) or btnp(7,pid) then
+						playersActive[menuSel] = playerOptions.human
+					end
+				end
+			else
+				if btnp(4,pid) or btnp(5,pid) or btnp(6,pid) or btnp(7,pid) then
+					matchDoneTime=nil
+					winningPlayer=nil
+					setLevel(0)
+					removeAll()
+					loadLevel()
+					inMenu=false
+				end
+			end
+		end
+		return
+	end
+
 	local alive=0
 	local lastAlive
 	for pid=0,maxPlayers-1 do
@@ -800,22 +860,6 @@ update=[]do
 		end
 	end
 
-	if alive <= 1 then
-		if alive==0 then
-			-- draw
-			text('DRAW', 128, 4, 0xfc, 0)
-		elseif alive==1 then
-			-- player won
-			text('PLAYER '..lastAlive..' WON!', 128, 4, 0xfc, 0)
-		end
-		
-		-- or TODO wait for button click?
-		for i=0,60*10 do
-			flip()
-		end
-		loadLevelRequest=true
-	end
-
 	for _,o in ipairs(objs) do
 		if not o.removeMe then o:update() end
 	end
@@ -830,6 +874,7 @@ update=[]do
 		objs:append(addList)
 		for i=1,#addList do addList[i]=nil end
 	end
+
 
 	if loadLevelRequest then
 		loadLevelRequest=false
@@ -849,6 +894,27 @@ update=[]do
 
 	for _,o in ipairs(objs) do
 		o:drawSprite()
+	end
+
+	if matchDoneTime==nil then
+		if alive<=1 then
+			winningPlayer=nil
+			if alive==0 then
+				-- draw
+				text('DRAW', 128, 4, 0xfc, 0)
+			elseif alive==1 then
+				winningPlayer=lastAlive
+			end
+			matchDoneTime=time()
+		end
+	else
+		-- player won
+		matident()
+		winMsgWidth=winMsgWidth or 0
+		winMsgWidth=text('PLAYER '..tostring(winningPlayer)..' WON!', 128-(winMsgWidth>>1), 4, 0xfc, 0)
+		if time()>matchDoneTime+5 then
+			inMenu=true
+		end
 	end
 end
 
