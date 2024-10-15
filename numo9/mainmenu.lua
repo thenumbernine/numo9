@@ -304,7 +304,15 @@ function MainMenu:updateMenuMultiplayer()
 				end
 
 				if info.localPlayer then
-					app:drawText('plr '..tostring(info.localPlayer), x, self.cursorY + 9, 0xfe, 0xf0)
+					app:drawText('plr '..tostring(info.localPlayer), x+9, self.cursorY + 9, 0xfe, 0xf0)
+				end
+				if not isHost then
+					for b=0,7 do
+						local remoteJPIndexPlusOne = bit.bor(bit.lshift(j-1,3),b)+1
+						local h = conn.remoteButtonIndicator[remoteJPIndexPlusOne]*8
+						app:drawSolidRect(x+b, self.cursorY+9+8-h, 1, h, 0xf3)
+						conn.remoteButtonIndicator[remoteJPIndexPlusOne] = conn.remoteButtonIndicator[remoteJPIndexPlusOne] * .99
+					end
 				end
 
 				app:drawText(info.name, x, self.cursorY, 0xfc, 0xf1)

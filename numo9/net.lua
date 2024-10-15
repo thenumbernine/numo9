@@ -590,7 +590,7 @@ function ServerConn:init(args)
 		if info then info.localPlayer = nil end
 	end
 
-	self.remoteButtonMax = range(8 * maxLocalPlayers):mapi(function(i) return 1 end)
+	self.remoteButtonIndicator = range(8 * maxLocalPlayers):mapi(function(i) return 1 end)
 
 	-- keep a list of everything we have to send
 	self.toSend = table()
@@ -649,9 +649,11 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 				-- store the latest input times on the server regardless of if it's mapped to a local player
 				-- so we can display them to the server to let them know who is connected
 				-- is this a useless feature?
-				for i=0,7 do
-					local remoteJPIndex = i + index * 8
-					self.remoteButtonMax[remoteJPIndex+1] = 1
+				for b=0,7 do
+					local remoteJPIndex = bit.bor(b, bit.lshift(index, 3))
+					if bit.band(value, bit.lshift(1, b)) ~= 0 then
+						self.remoteButtonIndicator[remoteJPIndex+1] = 1
+					end
 				end
 
 				local localPlayer = self.playerInfos[index+1].localPlayer
@@ -757,7 +759,7 @@ function Server:endFrame()
 
 		local n = (math.min(thisBuf.size, prevBuf.size) * ffi.sizeof'Numo9Cmd') / 2
 		if n >= 0xfeff then
-			print('sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
+			print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
 			n = 0xfefe	-- one less than our highest special code
 		end
 
@@ -1020,140 +1022,141 @@ end
 function ClientConn:listenCoroutine(args)
 	local app = self.app
 	local sock = self.socket
-
 	coroutine.yield()
 
+	local result, err = xpcall(function()
+
 print'sending client handshake to server'
-	assert(send(sock, handshakeClientSends..'\n'))
+		assert(send(sock, handshakeClientSends..'\n'))
 
 print'waiting for server handshake'
-	local recv, reason = receive(sock, nil, 10)
+		local recv, reason = receive(sock, nil, 10)
 print('got', recv, reason)
-	if not recv then error("ClientConn waiting for handshake failed with error "..tostring(reason)) end
-	asserteq(recv, handshakeServerSends, "ClientConn handshake failed")
-	-- TODO HERE also expect a server netcmd protocol ... and icnreemnt the protocol every time you change the netcmd structures ...
+		if not recv then error("ClientConn waiting for handshake failed with error "..tostring(reason)) end
+		asserteq(recv, handshakeServerSends, "ClientConn handshake failed")
+		-- TODO HERE also expect a server netcmd protocol ... and icnreemnt the protocol every time you change the netcmd structures ...
 
 print'sending player info'
-	-- now send player names
-	local msg = table{'playernames'}
-	for _,playerInfo in ipairs(args.playerInfos) do
-		msg:insert(netescape(playerInfo.name))
-	end
-	assert(send(sock, msg:concat' '..'\n'))
+		-- now send player names
+		local msg = table{'playernames'}
+		for _,playerInfo in ipairs(args.playerInfos) do
+			msg:insert(netescape(playerInfo.name))
+		end
+		assert(send(sock, msg:concat' '..'\n'))
 
--- TODO HOW COME IT SOMETIMES HANGS HERE
+	-- TODO HOW COME IT SOMETIMES HANGS HERE
 print'waiting for initial RAM state...'
-	-- now expect the initial server state
+		-- now expect the initial server state
 
-	self.connecting = nil
-	self.connected = true
+		self.connecting = nil
+		self.connected = true
 
 print'calling back to .success()'
-	-- TODO - onfailure?  and a pcall please ... one the coroutines won't mind ...
-	if args.success then args.success() end
+		-- TODO - onfailure?  and a pcall please ... one the coroutines won't mind ...
+		if args.success then args.success() end
 
-	-- now start the busy loop of listening for new messages
+		-- now start the busy loop of listening for new messages
 
 print'begin client listen loop...'
-	local data, reason
-	while sock
-	and sock:getsockname()
-	do
+		local data, reason
+		while sock
+		and sock:getsockname()
+		do
 --print'LISTENING...'
 --local receivedSize = 0
-		repeat
-			-- read our deltas 2 bytes at a time ...
-			data, reason = receive(sock, 4, 0)
-	--print('client got', data, reason)
-			if data then
+			repeat
+				-- read our deltas 2 bytes at a time ...
+				data, reason = receive(sock, 4, 0)
+--print('client got', data, reason)
+				if data then
 --print'CLIENT GOT DATA'
 --print(string.hexdump(data, nil, 2))
-				assertlen(data, 4)
+					assertlen(data, 4)
 --receivedSize = receivedSize + 4
-				-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
+					-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
 
-				local charp = ffi.cast('char*', data)
-				local shortp = ffi.cast('uint16_t*', charp)
-				local index, value = shortp[0], shortp[1]
-				if index == 0xfdff then
-					-- cmd buffer resize
-					if value ~= self.cmds.size then
+					local charp = ffi.cast('char*', data)
+					local shortp = ffi.cast('uint16_t*', charp)
+					local index, value = shortp[0], shortp[1]
+					if index == 0xfdff then
+						-- cmd buffer resize
+						if value ~= self.cmds.size then
 --print('got cmdbuf resize to '..tostring(value))
-						local oldsize = self.cmds.size
-						self.cmds:resize(value)
-						if self.cmds.size > oldsize then
-							-- make sure delta compression state starts with 0s
-							ffi.fill(self.cmds.v + oldsize, ffi.sizeof'Numo9Cmd' * (self.cmds.size - oldsize))
+							local oldsize = self.cmds.size
+							self.cmds:resize(value)
+							if self.cmds.size > oldsize then
+								-- make sure delta compression state starts with 0s
+								ffi.fill(self.cmds.v + oldsize, ffi.sizeof'Numo9Cmd' * (self.cmds.size - oldsize))
+							end
 						end
-					end
 
-				elseif index == 0xfeff then
-					-- cmd frame reset message
+					elseif index == 0xfeff then
+						-- cmd frame reset message
 
-					local newcmdslen = value
-					if newcmdslen % ffi.sizeof'Numo9Cmd' ~= 0 then
-						--error"cmd buffer not modulo size"
-						print"DANGER - cmd buffer not modulo size"
-						break
-					end
-					local newsize = newcmdslen /  ffi.sizeof'Numo9Cmd'
+						local newcmdslen = value
+						if newcmdslen % ffi.sizeof'Numo9Cmd' ~= 0 then
+							--error"cmd buffer not modulo size"
+							print"!!!WARNING!!! - cmd buffer not modulo size"
+							break
+						end
+						local newsize = newcmdslen /  ffi.sizeof'Numo9Cmd'
 --print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
-					self.cmds:resize(newsize)
+						self.cmds:resize(newsize)
 
-					local initCmds = receive(sock, newcmdslen, 10)
-					assertlen(initCmds, newcmdslen)
-					ffi.copy(self.cmds.v, ffi.cast('char*', initCmds), newcmdslen)
+						local initCmds = receive(sock, newcmdslen, 10)
+						assertlen(initCmds, newcmdslen)
+						ffi.copy(self.cmds.v, ffi.cast('char*', initCmds), newcmdslen)
 
-				elseif index == 0xffff and value == 0xffff then
-					-- new RAM dump message
+					elseif index == 0xffff and value == 0xffff then
+						-- new RAM dump message
 
-					-- [[
-					local ramState = assert(receive(sock, ramStateSize, 10))
-					--]]
-					--[[
-					local result = table.pack(receive(sock, ramStateSize, 10))
-				print('...got', result:unpack())
-					local ramState = result:unpack()
-					--]]
-				--print(string.hexdump(ramState))
+						-- [[
+						local ramState = assert(receive(sock, ramStateSize, 10))
+						--]]
+						--[[
+						local result = table.pack(receive(sock, ramStateSize, 10))
+print('...got', result:unpack())
+						local ramState = result:unpack()
+						--]]
+--print(string.hexdump(ramState))
 
-					assertlen(ramState, ramStateSize)
+						assertlen(ramState, ramStateSize)
 --require'ext.path''client_init.txt':write(string.hexdump(ramState))
-					-- and decode it
-					local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))
+						-- and decode it
+						local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))
 
-					-- make sure gpu changes are in cpu as well
-					app.fbTex:checkDirtyGPU()
+						-- make sure gpu changes are in cpu as well
+						app.fbTex:checkDirtyGPU()
 
-					-- flush GPU
-					ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
-					ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
-					ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
-					ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
-					ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
-					ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
-					ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
-					-- set all dirty as well
-					app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
-					app.tileTex.dirtyCPU = true		-- tileSheetTex
-					app.mapTex.dirtyCPU = true
-					app.palTex.dirtyCPU = true		-- paletteTex
-					app.fbTex.dirtyCPU = true		-- framebufferTex
-					app.fbTex.changedSinceDraw = true
+						-- flush GPU
+						ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
+						ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
+						ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
+						ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
+						ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
+						ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
+						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
+						-- set all dirty as well
+						app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
+						app.tileTex.dirtyCPU = true		-- tileSheetTex
+						app.mapTex.dirtyCPU = true
+						app.palTex.dirtyCPU = true		-- paletteTex
+						app.fbTex.dirtyCPU = true		-- framebufferTex
+						app.fbTex.changedSinceDraw = true
 
-					app:mvMatFromRAM()
+						app:mvMatFromRAM()
 
-					-- [[ this should be happenign every frame regardless...
-					app.spriteTex:checkDirtyCPU()
-					app.tileTex:checkDirtyCPU()
-					app.mapTex:checkDirtyCPU()
-					app.palTex:checkDirtyCPU()
-					app.fbTex:checkDirtyCPU()
-					--]]
+						-- [[ this should be happenign every frame regardless...
+						app.spriteTex:checkDirtyCPU()
+						app.tileTex:checkDirtyCPU()
+						app.mapTex:checkDirtyCPU()
+						app.palTex:checkDirtyCPU()
+						app.fbTex:checkDirtyCPU()
+						--]]
 
-				else
-					local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
-					if neededSize >= self.cmds.size then
+					else
+						local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
+						if neededSize >= self.cmds.size then
 print('got uint16 index='
 	..('$%x'):format(index)
 	..' value='
@@ -1163,155 +1166,161 @@ print('got uint16 index='
 	..' when our cmd size is just '
 	..('$%x'):format(self.cmds.size)
 )
-					else
-						assert(index*2 < self.cmds.size * ffi.sizeof'Numo9Cmd')
-						ffi.cast('uint16_t*', self.cmds.v)[index] = value
+						else
+							assert(index*2 < self.cmds.size * ffi.sizeof'Numo9Cmd')
+							ffi.cast('uint16_t*', self.cmds.v)[index] = value
+						end
 					end
+				else
+					if reason ~= 'timeout' then
+						if reason == 'closed' then return end
+						error('client remote connection failed: '..tostring(reason))
+						-- TODO - die and go back to connection screen ... wherever that will be
+					end
+
+					-- no more data ... try to draw what we have
+					break
 				end
-			else
-				if reason ~= 'timeout' then
-					print('client remote connection failed: '..tostring(reason))
-					goto ClientConn_done
-					-- TODO - die and go back to connection screen ... wherever that will be
+
+				if not sock:getsockname() then
+					error'conn closed'
 				end
+			until not data
 
-				-- no more data ... try to draw what we have
-				break
-			end
-
-			if not sock:getsockname() then goto ClientConn_done end	-- TODO is this working?
-		until not data
-
-		-- TODO send any input button changes ...
-		self.inputMsgVec:resize(0)
+			-- TODO send any input button changes ...
+			self.inputMsgVec:resize(0)
 --print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3), 4)))
 --print('PREV', string.hexdump(ffi.string(self.lastButtons, 4)))
-		local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
-		deltaCompress(
-			self.lastButtons,
-			buttonPtr,
-			ffi.sizeof(self.lastButtons),
-			self.inputMsgVec
-		)
-		if self.inputMsgVec.size > 0 then
-			local data = self.inputMsgVec:dataToStr()
+			local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
+			deltaCompress(
+				self.lastButtons,
+				buttonPtr,
+				ffi.sizeof(self.lastButtons),
+				self.inputMsgVec
+			)
+			if self.inputMsgVec.size > 0 then
+				local data = self.inputMsgVec:dataToStr()
 --print('SENDING INPUT', string.hexdump(data))
-			send(sock, data)
-		end
-		ffi.copy(self.lastButtons, buttonPtr, 4)
+				send(sock, data)
+			end
+			ffi.copy(self.lastButtons, buttonPtr, 4)
 
-		-- now run through our command-buffer and execute its contents
-		for i=0,self.cmds.size-1 do
-			local cmd = self.cmds.v + i
-			local cmdtype = cmd[0].type
-			if cmdtype == netcmds.refresh then
-				-- stop handling commands <-> refresh the screen
-				--break
-			elseif cmdtype == netcmds.clearScreen then
-				local c = cmd[0].clearScreen
-				app:clearScreen(c .colorIndex)
-			elseif cmdtype == netcmds.clipRect then
-				local c = cmd[0].clipRect
-				app:setClipRect(c.x, c.y, c.w, c.h)
-			elseif cmdtype == netcmds.solidRect then
-				local c = cmd[0].solidRect
-				app:drawSolidRect(c.x, c.y, c.w, c.h, c.colorIndex, c.borderOnly, c.round)
-			elseif cmdtype == netcmds.solidTri then
-				local c = cmd[0].solidTri
-				app:drawSolidTri(c.x1, c.y1, c.x2, c.y2, c.x3, c.y3, c.colorIndex)
-			elseif cmdtype == netcmds.solidTri3D then
-				local c = cmd[0].solidTri3D
-				app:drawSolidTri3D(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2, c.x3, c.y3, c.z3, c.colorIndex)
-			elseif cmdtype == netcmds.solidLine then
-				local c = cmd[0].solidLine
-				app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex)
-			elseif cmdtype == netcmds.solidLine3D then
-				local c = cmd[0].solidLine3D
-				app:drawSolidLine3D(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2, c.colorIndex)
-			elseif cmdtype == netcmds.quad then
-				local c = cmd[0].quad
-				app:drawQuad(
-					c.x, c.y, c.w, c.h,
-					c.tx, c.ty, c.tw, c.th,
-					app.spriteTex,
-					c.paletteIndex, c.transparentIndex,
-					c.spriteBit, c.spriteMask)
-			elseif cmdtype == netcmds.map then
-				local c = cmd[0].map
-				app:drawMap(
-					c.tileX, c.tileY, c.tilesWide, c.tilesHigh,
-					c.screenX, c.screenY,
-					c.mapIndexOffset,
-					c.draw16Sprites)
-			elseif cmdtype == netcmds.text then
-				local c = cmd[0].text
-				app:drawText(
-					ffi.string(c.text, math.min(ffi.sizeof(c.text), tonumber(ffi.C.strlen(c.text)))),
-					c.x, c.y,
-					c.fgColorIndex, c.bgColorIndex)
-			elseif cmdtype == netcmds.blendMode then
-				local c = cmd[0].blendMode
-				app:setBlendMode(c.blendMode)
-			elseif cmdtype == netcmds.matident then
-				app:matident()
-			elseif cmdtype == netcmds.mattrans then
-				local c = cmd[0].mattrans
-				app:mattrans(c.x, c.y, c.z)
-			elseif cmdtype == netcmds.matrot then
-				local c = cmd[0].matrot
-				app:matrot(c.theta, c.x, c.y, c.z)
-			elseif cmdtype == netcmds.matscale then
-				local c = cmd[0].matscale
-				app:matscale(c.x, c.y, c.z)
-			elseif cmdtype == netcmds.matortho then
-				local c = cmd[0].matortho
-				app:matortho(c.l, c.r, c.t, c.b, c.n, c.f)
-			elseif cmdtype == netcmds.matfrustum then
-				local c = cmd[0].matfrustum
-				app:matfrustum(c.l, c.r, c.t, c.b, c.n, c.f)
-			elseif cmdtype == netcmds.matlookat then
-				local c = cmd[0].matlookat
-				app:matlookat(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
-			elseif cmdtype == assert(netcmds.sfx) then
-				local c = cmd[0].sfx
-				app:playSound(c.sfxID, c.channelIndex, c.pitch, c.volL, c.volR, c.looping ~= 0)
-			elseif cmdtype == assert(netcmds.music) then
-				local c = cmd[0].music
-				app:playMusic(c.musicID, c.musicPlayingIndex, c.channelOffset)
-			elseif cmdtype == netcmds.poke then
-				local c = cmd[0].poke
-				if c.size == 1 then
-					app:poke(c.addr, c.value)
-				elseif c.size == 2 then
-					app:pokew(c.addr, c.value)
-				elseif c.size == 4 then
-					app:pokel(c.addr, c.value)
-				else
-					--error("got a bad poke size "..tostring(c.size))
-					-- guaranteed to be a bad idea to keep going...
-					print("DANGER - got a bad poke size "..tostring(c.size))
+			-- now run through our command-buffer and execute its contents
+			for i=0,self.cmds.size-1 do
+				local cmd = self.cmds.v + i
+				local cmdtype = cmd[0].type
+				if cmdtype == netcmds.refresh then
+					-- stop handling commands <-> refresh the screen
+					--break
+				elseif cmdtype == netcmds.clearScreen then
+					local c = cmd[0].clearScreen
+					app:clearScreen(c .colorIndex)
+				elseif cmdtype == netcmds.clipRect then
+					local c = cmd[0].clipRect
+					app:setClipRect(c.x, c.y, c.w, c.h)
+				elseif cmdtype == netcmds.solidRect then
+					local c = cmd[0].solidRect
+					app:drawSolidRect(c.x, c.y, c.w, c.h, c.colorIndex, c.borderOnly, c.round)
+				elseif cmdtype == netcmds.solidTri then
+					local c = cmd[0].solidTri
+					app:drawSolidTri(c.x1, c.y1, c.x2, c.y2, c.x3, c.y3, c.colorIndex)
+				elseif cmdtype == netcmds.solidTri3D then
+					local c = cmd[0].solidTri3D
+					app:drawSolidTri3D(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2, c.x3, c.y3, c.z3, c.colorIndex)
+				elseif cmdtype == netcmds.solidLine then
+					local c = cmd[0].solidLine
+					app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex)
+				elseif cmdtype == netcmds.solidLine3D then
+					local c = cmd[0].solidLine3D
+					app:drawSolidLine3D(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2, c.colorIndex)
+				elseif cmdtype == netcmds.quad then
+					local c = cmd[0].quad
+					app:drawQuad(
+						c.x, c.y, c.w, c.h,
+						c.tx, c.ty, c.tw, c.th,
+						app.spriteTex,
+						c.paletteIndex, c.transparentIndex,
+						c.spriteBit, c.spriteMask)
+				elseif cmdtype == netcmds.map then
+					local c = cmd[0].map
+					app:drawMap(
+						c.tileX, c.tileY, c.tilesWide, c.tilesHigh,
+						c.screenX, c.screenY,
+						c.mapIndexOffset,
+						c.draw16Sprites)
+				elseif cmdtype == netcmds.text then
+					local c = cmd[0].text
+					app:drawText(
+						ffi.string(c.text, math.min(ffi.sizeof(c.text), tonumber(ffi.C.strlen(c.text)))),
+						c.x, c.y,
+						c.fgColorIndex, c.bgColorIndex)
+				elseif cmdtype == netcmds.blendMode then
+					local c = cmd[0].blendMode
+					app:setBlendMode(c.blendMode)
+				elseif cmdtype == netcmds.matident then
+					app:matident()
+				elseif cmdtype == netcmds.mattrans then
+					local c = cmd[0].mattrans
+					app:mattrans(c.x, c.y, c.z)
+				elseif cmdtype == netcmds.matrot then
+					local c = cmd[0].matrot
+					app:matrot(c.theta, c.x, c.y, c.z)
+				elseif cmdtype == netcmds.matscale then
+					local c = cmd[0].matscale
+					app:matscale(c.x, c.y, c.z)
+				elseif cmdtype == netcmds.matortho then
+					local c = cmd[0].matortho
+					app:matortho(c.l, c.r, c.t, c.b, c.n, c.f)
+				elseif cmdtype == netcmds.matfrustum then
+					local c = cmd[0].matfrustum
+					app:matfrustum(c.l, c.r, c.t, c.b, c.n, c.f)
+				elseif cmdtype == netcmds.matlookat then
+					local c = cmd[0].matlookat
+					app:matlookat(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
+				elseif cmdtype == assert(netcmds.sfx) then
+					local c = cmd[0].sfx
+					app:playSound(c.sfxID, c.channelIndex, c.pitch, c.volL, c.volR, c.looping ~= 0)
+				elseif cmdtype == assert(netcmds.music) then
+					local c = cmd[0].music
+					app:playMusic(c.musicID, c.musicPlayingIndex, c.channelOffset)
+				elseif cmdtype == netcmds.poke then
+					local c = cmd[0].poke
+					if c.size == 1 then
+						app:poke(c.addr, c.value)
+					elseif c.size == 2 then
+						app:pokew(c.addr, c.value)
+					elseif c.size == 4 then
+						app:pokel(c.addr, c.value)
+					else
+						--error("got a bad poke size "..tostring(c.size))
+						-- guaranteed to be a bad idea to keep going...
+						print("!!!WARNING!!! - got a bad poke size "..tostring(c.size))
+					end
 				end
 			end
-		end
 
---[[ clientlisten loop fps counter
-		local clientlistenEnd = sdl.SDL_GetTicks() / 1000
-		clientlistenTotalTime = clientlistenTotalTime + clientlistenEnd - clientlistenStart
-		clientlistenTotalFrames = clientlistenTotalFrames + 1
-		local thissec = math.floor(clientlistenEnd)
-		if thissec ~= clientlistenReportSecond and clientlistenTotalTime > 0 then
-			print('clientlistening at '..(clientlistenTotalFrames/clientlistenTotalTime)..' fps')
-			clientlistenReportSecond = thissec
-			clientlistenTotalTime = 0
-			clientlistenTotalFrames = 0
-		end
---]]
+	--[[ clientlisten loop fps counter
+			local clientlistenEnd = sdl.SDL_GetTicks() / 1000
+			clientlistenTotalTime = clientlistenTotalTime + clientlistenEnd - clientlistenStart
+			clientlistenTotalFrames = clientlistenTotalFrames + 1
+			local thissec = math.floor(clientlistenEnd)
+			if thissec ~= clientlistenReportSecond and clientlistenTotalTime > 0 then
+				print('clientlistening at '..(clientlistenTotalFrames/clientlistenTotalTime)..' fps')
+				clientlistenReportSecond = thissec
+				clientlistenTotalTime = 0
+				clientlistenTotalFrames = 0
+			end
+	--]]
 
-		coroutine.yield()
-	end
-::ClientConn_done::
+			coroutine.yield()
+		end
+	end, function(err)
+print('error in client listen loop', err..'\n'..debug.traceback())
+		return err..'\n'..debug.traceback()
+	end)
 print'end client listen loop'
 	app:disconnect()
+	-- return the result? does it matter?
 end
 
 function ClientConn:close()
