@@ -2,9 +2,9 @@
 --[[
 n9a - achive/unarchive n9 files
 
-n9a x file.n9.png = extract archive file.n9.png to file/
-n9a a file.n9.png = pack directory file/ to file.n9.png
-n9a r file.n9.png = pack and run
+n9a x file.n9 = extract archive file.n9 to file/
+n9a a file.n9 = pack directory file/ to file.n9
+n9a r file.n9 = pack and run
 --]]
 local ffi = require 'ffi'
 local path = require 'ext.path'
@@ -68,6 +68,16 @@ local C0freq = 13.75 * chromastep^3 * 4	-- x 2^2 for two octaves dif between pic
 --local waveformFreq = 22050 / 183 * 8	-- any higher and it sounds bad
 local waveformFreq = 220 * chromastep^3 * 4	-- C4 , middle C ... or C6, raise the pitch a bit due to my pitch-freq-scale being a uint16_t and 0x1000 being 1:1
 
+local function getbasepath(fn)
+	local n9path = path(fn)
+	local basepath, ext = n9path:getext()
+	if ext == 'n9' then return basepath end
+	if ext ~= 'png' then error("got an unknown ext for "..tostring(fn)) end
+	-- .png?  try again ...
+	basepath, ext = basepath:getext()
+	if ext == 'n9' then return basepath end
+	error("got an unknown ext for "..tostring(fn))
+end
 
 local cmd, fn, extra = ...
 assert(cmd and fn, "expected: `n9a.lua cmd fn`")
@@ -76,10 +86,7 @@ assert(cmd and fn, "expected: `n9a.lua cmd fn`")
 if cmd == 'x' then
 
 	local n9path = path(fn)
-	local secondextpath, ext = n9path:getext()
-	asserteq(ext, 'png')
-	local basepath, ext2 = secondextpath:getext()
-	asserteq(ext2, 'n9')
+	local basepath = getbasepath(fn)
 
 	assert(n9path:exists(), tostring(fn).." doesn't exist")
 	basepath:mkdir()
@@ -151,10 +158,7 @@ elseif cmd == 'a'
 or cmd == 'r' then
 
 	local n9path = path(fn)
-	local secondextpath, ext = n9path:getext()
-	asserteq(ext, 'png')
-	local basepath, ext2 = secondextpath:getext()
-	asserteq(ext2, 'n9')
+	local basepath = getbasepath(fn)
 
 	assert(basepath:isdir())
 	local rom = ffi.new'ROM'
@@ -321,10 +325,7 @@ print('writing music', i, 'size', size)
 elseif cmd == 'n9tobin' then
 
 	local n9path = path(fn)
-	local secondextpath, ext = n9path:getext()
-	asserteq(ext, 'png')
-	local basepath, ext2 = secondextpath:getext()
-	asserteq(ext2, 'n9')
+	local basepath = getbasepath(fn)
 
 	local binpath = n9path:setext'bin'
 	assert(binpath:write(
@@ -337,10 +338,7 @@ elseif cmd == 'n9tobin' then
 elseif cmd == 'binton9' then
 
 	local n9path = path(fn)
-	local secondextpath, ext = n9path:getext()
-	asserteq(ext, 'png')
-	local basepath, ext2 = secondextpath:getext()
-	asserteq(ext2, 'n9')
+	local basepath = getbasepath(fn)
 
 	local binpath = n9path:setext'bin'
 	assert(path(fn):write(
@@ -1385,7 +1383,7 @@ asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0
 	assert(basepath'code.lua':write(code))
 
 	if cmd == 'p8run' then
-		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9.png'..'"'))
+		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
 	end
 
 	if next(sections) then
@@ -1614,7 +1612,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		end
 		
 		if cmd == 'ticrun' then
-			assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9.png'..'"'))
+			assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
 		end
 
 		-- TODO here's a big dilemma ... 
