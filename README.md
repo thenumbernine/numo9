@@ -450,6 +450,7 @@ Pico8 Compatability is at 95%
 	- sending too much data / too big of delta cmds gets desyncs ... I can easily push cmds into the next frame and just give a client a single bad frame instead of desyncing them fully ...
 	- persistent memory per cart by checksum
 	- multiplayer persistent memory per client ... how to associate and how to secure
+	- still have some issues where temporary / single-frame cmds like map changes aren't getting reflected ...
 
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 	- At present if there's a parse error then the line will show up correctly ... right underneath the line and file of the parser code itself ... hmm
