@@ -830,7 +830,7 @@ print('package.loaded', package.loaded)
 	self.fs = FileSystem{app=self}
 	-- copy over a local filetree somewhere in the app ...
 	for fn in path:dir() do
-		if select(2, fn:getext()) == 'png' 
+		if select(2, fn:getext()) == 'png'
 		and select(2, fn:getext():getext()) == 'n9'
 		then
 			self.fs:addFromHost(fn.path)
@@ -1122,7 +1122,7 @@ function App:net_mset(x, y, value)
 		-- use poke over netplay, cuz i'm lazy.
 		-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
 		if self.server then
-			if self:mget(x, y) ~= value then
+			if self.ram.tilemap[index]~=value then
 				local cmd = self.server:pushCmd().poke
 				cmd.type = netcmds.poke
 				cmd.addr = tilemapAddr + bit.lshift(index, 1)
