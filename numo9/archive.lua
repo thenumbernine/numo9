@@ -65,6 +65,9 @@ local function toCartImage(rom, labelImage)
 	asserteq(baseLabelImage.channels, 4)
 	local romImage = Image(baseLabelImage.width, baseLabelImage.height, 4, 'uint8_t'):clear()
 	if labelImage then
+		if labelImage.channels == 3 then
+			labelImage = labelImage:setChannels(4)
+		end
 		romImage:pasteInto{image=labelImage, x=math.floor((romImage.width-labelImage.width)/2), y=0}
 	end
 	--[[

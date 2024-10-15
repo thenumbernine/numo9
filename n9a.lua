@@ -1385,7 +1385,7 @@ asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0
 	assert(basepath'code.lua':write(code))
 
 	if cmd == 'p8run' then
-		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
+		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9.png'..'"'))
 	end
 
 	if next(sections) then
@@ -1614,7 +1614,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		end
 		
 		if cmd == 'ticrun' then
-			assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
+			assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9.png'..'"'))
 		end
 
 		-- TODO here's a big dilemma ... 
