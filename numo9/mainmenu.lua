@@ -75,7 +75,7 @@ function MainMenu:update()
 
 	-- clear screen
 	app:setBlendMode(3)
-	app:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, 0xf0)
+	app:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, 0xfd)
 	app:setBlendMode(0xff)
 
 	-- init the menu cursor position
@@ -276,17 +276,17 @@ function MainMenu:updateMenuMultiplayer()
 
 			app:drawText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
 
+			self.cursorY = self.cursorY + 9
 			for j,info in ipairs(conn.playerInfos) do
-				x = self.cursorX + 8
-				self.cursorY = self.cursorY + 9
+				x = (j-1) * 64 + 8
 
 				if info.localPlayer then
-					if self:guiButton('stand', x, self.cursorY) then
+					if self:guiButton('stand', x, self.cursorY + 18) then
 						info.localPlayer = nil
 					end
 				else
 					if #connForPlayer < maxLocalPlayers
-					and self:guiButton('sit', x, self.cursorY)
+					and self:guiButton('sit', x, self.cursorY + 18)
 					then
 						-- find our next local player ...
 						-- or how about buttons to manually assign them?
@@ -302,16 +302,14 @@ function MainMenu:updateMenuMultiplayer()
 						end
 					end
 				end
-				x = x + fontWidth * 6
 
 				if info.localPlayer then
-					app:drawText('plr '..tostring(info.localPlayer), x, self.cursorY, 0xfe, 0xf0)
+					app:drawText('plr '..tostring(info.localPlayer), x, self.cursorY + 9, 0xfe, 0xf0)
 				end
-				x = x + fontWidth * 6
 
 				app:drawText(info.name, x, self.cursorY, 0xfc, 0xf1)
 			end
-			self.cursorY = self.cursorY + 12
+			self.cursorY = self.cursorY + 32
 		end
 	end
 

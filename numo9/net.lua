@@ -903,7 +903,27 @@ print'creating server remote client conn...'
 	serverConn.toSend:insert(ffi.string(ffi.cast('char*', header), 4))
 	serverConn.toSend:insert(frameStr)
 
+	-- TODO how about put not-yet-connected in a separate list?
 	serverConn.connected = true
+
+	-- [[ sit the first player if possible
+	local connForPlayer = {}
+	for _,conn in ipairs(table{app.cfg}:append(self.conns)) do
+		for _,info in ipairs(conn.playerInfos) do
+			if info.localPlayer then
+				connForPlayer[info.localPlayer] = conn
+			end
+		end
+	end
+	local info = serverConn.playerInfos[1]
+	for j=1,maxLocalPlayers do
+		if not connForPlayer[j] then
+			connForPlayer[j] = conn
+			info.localPlayer = j
+			break
+		end
+	end
+	--]]
 
 print'entering server listen loop...'
 	serverConn:loop()
