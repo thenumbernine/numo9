@@ -24,6 +24,7 @@ end
 
 local class = require 'ext.class'
 local table = require 'ext.table'
+local range = require 'ext.range'
 local string = require 'ext.string'
 local asserteq = require 'ext.assert'.eq
 local assertindex = require 'ext.assert'.index
@@ -589,6 +590,8 @@ function ServerConn:init(args)
 		if info then info.localPlayer = nil end
 	end
 
+	self.remoteButtonMax = range(8 * maxLocalPlayers):mapi(function(i) return 1 end)
+
 	-- keep a list of everything we have to send
 	self.toSend = table()
 end
@@ -602,7 +605,7 @@ ServerConn.sendsPerSecond = 0
 ServerConn.receivesPerSecond = 0
 function ServerConn:loop()
 	local app = self.app
-print'BEGIN SERVERCONN LOOP'
+print'begin server conn loop'
 	local data, reason
 	while self.socket
 	and self.socket:getsockname()
@@ -617,8 +620,8 @@ self.sendsPerSecond = self.sendsPerSecond + 1
 		data, reason = receive(self.socket, 2, 0)
 		if not data then
 			if reason ~= 'timeout' then
-				print('client remote connection failed: '..tostring(reason))
-				return false
+				print('server connection failed: '..tostring(reason))
+				return false, reason
 				-- TODO - die and go back to connection screen ... wherever that will be
 			end
 		else
@@ -627,7 +630,7 @@ self.sendsPerSecond = self.sendsPerSecond + 1
 self.receivesPerSecond = self.receivesPerSecond + 1
 
 			-- while we're here read inputs
-			-- TODO do this here or in the server's updateCoroutine?  or do i have too mnay needless coroutines?
+			-- TODO do this here or in the server's updateCoroutine?  or do I have too mnay needless coroutines?
 
 			local bytep = ffi.cast('uint8_t*', ffi.cast('char*', data))
 			local index, value = bytep[0], bytep[1]
@@ -643,6 +646,14 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 			if index < 0 or index >= maxLocalPlayers then	-- max # players / # of button key bitflag bytes in a row
 				print('server got oob delta compressed input:', ('$%02x'):format(index), ('$%02x'):format(value))
 			else
+				-- store the latest input times on the server regardless of if it's mapped to a local player
+				-- so we can display them to the server to let them know who is connected
+				-- is this a useless feature?
+				for i=0,7 do
+					local remoteJPIndex = i + index * 8
+					self.remoteButtonMax[remoteJPIndex+1] = 1
+				end
+
 				local localPlayer = self.playerInfos[index+1].localPlayer
 				if localPlayer then
 					dest[localPlayer-1] = value
@@ -652,7 +663,8 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 
 		coroutine.yield()
 	end
-print'END SERVERCONN LOOP'
+print'end server conn loop'
+	return true
 end
 
 function ServerConn:close()
@@ -1022,7 +1034,7 @@ print'calling back to .success()'
 
 	-- now start the busy loop of listening for new messages
 
-print'entering client listen loop...'
+print'begin client listen loop...'
 	local data, reason
 	while sock
 	and sock:getsockname()
@@ -1119,8 +1131,6 @@ print'entering client listen loop...'
 					app.fbTex:checkDirtyCPU()
 					--]]
 
-
-
 				else
 					local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
 					if neededSize >= self.cmds.size then
@@ -1141,7 +1151,7 @@ print('got uint16 index='
 			else
 				if reason ~= 'timeout' then
 					print('client remote connection failed: '..tostring(reason))
-					return false
+					goto ClientConn_done
 					-- TODO - die and go back to connection screen ... wherever that will be
 				end
 
@@ -1280,7 +1290,8 @@ print('got uint16 index='
 		coroutine.yield()
 	end
 ::ClientConn_done::
-print'client listen done'
+print'end client listen loop'
+	app:disconnect()
 end
 
 function ClientConn:close()
