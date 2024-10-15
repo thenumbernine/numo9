@@ -100,7 +100,7 @@ for k,v in pairs(require 'numo9.audio'.AppAudio) do
 	App[k] = v
 end
 
-local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
+local defaultSaveFilename = 'last.n9.png'	-- default name of save/load if you don't provide one ...
 
 App.cfgpath = path'config.lua'
 
@@ -830,7 +830,9 @@ print('package.loaded', package.loaded)
 	self.fs = FileSystem{app=self}
 	-- copy over a local filetree somewhere in the app ...
 	for fn in path:dir() do
-		if select(2, fn:getext()) == 'n9' then
+		if select(2, fn:getext()) == 'png' 
+		and select(2, fn:getext():getext()) == 'n9'
+		then
 			self.fs:addFromHost(fn.path)
 		end
 	end
@@ -1728,7 +1730,7 @@ function App:save(filename)
 	self.cartridge.code[n] = 0	-- null term
 
 	if not select(2, path(filename):getext()) then
-		filename = path(filename):setext'n9'.path
+		filename = path(filename):setext'n9.png'.path
 	end
 	filename = filename or defaultSaveFilename
 	local basemsg = 'failed to save file '..tostring(filename)
@@ -1783,7 +1785,7 @@ function App:loadROM(filename)
 
 	local f
 	local checked = table()
-	for _,suffix in ipairs{'', '.n9'} do
+	for _,suffix in ipairs{'', '.n9.png'} do
 		local checkfn = filename..suffix
 		checked:insert(checkfn)
 		f = self.fs:get(checkfn)
