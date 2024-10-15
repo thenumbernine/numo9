@@ -47,7 +47,7 @@ seqs={
 	playerStandUp=392,
 	playerStandUp2=394,
 	playerDead=206,
-	
+
 	bombItem=324,
 	flameItem=326,
 	incineratorItem=328,
@@ -188,17 +188,17 @@ BaseObj=class{
 				for y=math.floor(math.min(self.posY,newPosY)+self.bbox[2]),
 					math.ceil(math.max(self.posY,newPosY)+self.bbox[4])
 				do
-					local response = checkMap(x,y) 
+					local response = checkMap(x,y)
 					if response then
-						if response == 'retry' then 
-							goto retry 
+						if response == 'retry' then
+							goto retry
 						end
-						return 
+						return
 					end
 				end
 			end
 			for _,o in ipairs(objs) do
-				if not o.removeMe 
+				if not o.removeMe
 				and not o.noPhysics
 				and o~=self
 				then
@@ -206,7 +206,7 @@ BaseObj=class{
 					local oymin=o.posY+o.bbox[2]
 					local oxmax=o.posX+o.bbox[3]
 					local oymax=o.posY+o.bbox[4]
-					local response = checkBox(o,oxmin,oymin,oxmax,oymax) 
+					local response = checkBox(o,oxmin,oymin,oxmax,oymax)
 					if response then
 						if response == 'retry' then goto retry end
 						return
@@ -219,7 +219,7 @@ BaseObj=class{
 	end,
 	touch=[:,other]do
 		if not other then return true end
-		if other==self.wasTouching 
+		if other==self.wasTouching
 		or self==other.wasTouching
 		then return end
 		return self.isBlocking and other.doesBlock
@@ -436,8 +436,8 @@ do
 					})
 
 
-					if not self.redbomb and hit then 
-						break 
+					if not self.redbomb and hit then
+						break
 					end
 					len+=1
 					if not self.incinerator and len>self.bombLength then
@@ -593,11 +593,11 @@ do
 			self.moveCmd=dir
 		end,
 		dropBomb=[:]do
-			if self.dead then 
-				return 
+			if self.dead then
+				return
 			end
-			if #self.bombs>=self.bombCount then 
-				return 
+			if #self.bombs>=self.bombCount then
+				return
 			end
 			local bombpos={self.posX,self.posY}
 			bombpos[1] = math.round(bombpos[1]-.5)+.5
@@ -626,13 +626,13 @@ do
 			self.moveCmd=dirs.none
 		end,
 		update=[:]do
-			
-			if self and self.dead and self.deadTime < time() then 
+
+			if self and self.dead and self.deadTime < time() then
 				removeObj(self)
 			end
 
 			if self.moveCmd~=dirs.none then self.dir=self.moveCmd end
-			
+
 			self.velX=0
 			self.velY=0
 			if not self.dead then
@@ -737,6 +737,7 @@ playerOptions=table{
 playerOptionNames=playerOptions:map([v,k](k,v)):setmetatable(nil)
 playersActive=table{playerOptions.off}:rep(maxPlayers-1)
 playersActive[0]=playerOptions.human
+playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
 inMenu=true
 menuSel=0
 
@@ -792,13 +793,26 @@ end
 update=[]do
 	if inMenu then
 		cls(0xf0)
+		spr(
+			20,
+			0, 0,
+			8, 8,
+			nil,
+			nil,
+			nil,
+			nil,
+			4,
+			4)
 		local x,y=64,96
-		text('>', x-8, y+8*menuSel, 0xfc, 0xf0)
+		text('>', x-8, y+16*menuSel, 0xfc, 0xf0)
+		text('wins',x+120,y-12,0xfc,0xf0)
 		for pid=0,maxPlayers-1 do
+			spr(seqs.playerStandDown, x, y-4, 2, 2, pid<<4)
 			text('player '..pid..' = '
-				..tostring(playerOptionNames[playersActive[pid]]), 
-				x, y, 0xfc, 0xf0)
-			y+=8
+				..tostring(playerOptionNames[playersActive[pid]]),
+				x+24, y, 0xfc, 0xf0)
+			text(tostring(playerWins[pid]),x+128, y,0xfc,0xf0)
+			y+=16
 		end
 		text('Start!', x, y, 0xfc, 0xf0)
 		for pid=0,maxPlayers-1 do
@@ -810,6 +824,7 @@ update=[]do
 				menuSel%=maxPlayers+1
 			end
 			if menuSel<maxPlayers then
+				-- any players left/right can toggle
 				if btnp(2,pid) then
 					playersActive[menuSel]-=1
 					playersActive[menuSel]%=playerOptions.count
@@ -817,11 +832,13 @@ update=[]do
 					playersActive[menuSel]+=1
 					playersActive[menuSel]%=playerOptions.count
 				else
+					-- if any player presses a button then set them to human
 					if btnp(4,pid) or btnp(5,pid) or btnp(6,pid) or btnp(7,pid) then
-						playersActive[menuSel] = playerOptions.human
+						playersActive[pid] = playerOptions.human
 					end
 				end
 			else
+				-- if any player pushes when we're on 'start' then go
 				if btnp(4,pid) or btnp(5,pid) or btnp(6,pid) or btnp(7,pid) then
 					matchDoneTime=nil
 					winningPlayer=nil
@@ -896,6 +913,17 @@ update=[]do
 		o:drawSprite()
 	end
 
+	-- now draw border / ui
+	matident()
+
+	for pid=0,maxPlayers-1 do
+		if playersActive[pid]~=playerOptions.off then
+			local x=pid*56+32
+			spr(seqs.playerStandDown, x, 0, 2, 2, pid<<4)
+			text('x'..tostring(playerWins[pid]),x+16,0,0xfc,0xf0)
+		end
+	end
+
 	if matchDoneTime==nil then
 		if alive<=1 then
 			winningPlayer=nil
@@ -904,16 +932,17 @@ update=[]do
 				text('DRAW', 128, 4, 0xfc, 0)
 			elseif alive==1 then
 				winningPlayer=lastAlive
+				playerWins[winningPlayer]+=1
 			end
 			matchDoneTime=time()
 		end
 	else
 		-- player won
-		matident()
 		winMsgWidth=winMsgWidth or 0
 		winMsgWidth=text('PLAYER '..tostring(winningPlayer)..' WON!', 128-(winMsgWidth>>1), 4, 0xfc, 0)
 		if time()>matchDoneTime+5 then
 			inMenu=true
+			menuSel=0
 		end
 	end
 end
