@@ -17,7 +17,7 @@ What does NuMo9 have that the competition doesn't?
 
 Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.  If you don't trust them you can rebuild and re-run your own LuaJIT.  All the code is readable and modifyable for your convenience.
 
-There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, libtiff, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
+There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
 
 # Hardware
 
@@ -321,7 +321,7 @@ There are a few console commands for multiplayer:
 
 To start a server from the command line:
 ```
-luajit run.lua <cart.n9.png> -e "listen()"
+luajit run.lua <cart.n9> -e "listen()"
 ```
 
 To connect to a server from the command line:
@@ -331,27 +331,27 @@ luajit run.lua -e "connect'<address>'"
 
 # Cartridges
 
-All my cartridge files are in `.tiff`. format.  To pack and unpack them use the `n9a.lua` script.
+All my cartridge files are in `.png`. format.  If you want to distribute them as an image, just rename them from `.n9` to `.n9.png`.  To pack and unpack them use the `n9a.lua` script.
 
 To unpack a cartridge into a local directory with matching name:
 ```
-luajit n9a.lua x cart.n9.png
+luajit n9a.lua x cart.n9
 ```
 It will overwrite files.
 
 To pack a cartridge from a local directory of matching name:
 ```
-luajit n9a.lua a cart.n9.png
+luajit n9a.lua a cart.n9
 ```
 
 To pack a cartridge and immediately run it:
 ```
-luajit n9a.lua r cart.n9.png
+luajit n9a.lua r cart.n9
 ```
 
 To convert a TIFF-encoded cartridge to its binary ROM format:
 ```
-luajit n9a.lua n9tobin cart.n9.png
+luajit n9a.lua n9tobin cart.n9
 ```
 
 To convert the binary ROM back to a TIFF-encoded cartridge:
@@ -454,7 +454,7 @@ Pico8 Compatability is at 95%
 
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 	- At present if there's a parse error then the line will show up correctly ... right underneath the line and file of the parser code itself ... hmm
-	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9.png>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.
+	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
 
