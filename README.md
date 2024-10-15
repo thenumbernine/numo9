@@ -319,6 +319,16 @@ There are a few console commands for multiplayer:
 - `connect(addr, [port])` = client connects to address and port.
 - `disconnect()` = on server: closes socket and stops listening.  on client: disconnects from server.
 
+To start a server from the command line:
+```
+luajit run.lua <cart.n9.png> -e "listen()"
+```
+
+To connect to a server from the command line:
+```
+luajit run.lua -e "connect'<address>'"
+```
+
 # Cartridges
 
 All my cartridge files are in `.tiff`. format.  To pack and unpack them use the `n9a.lua` script.
