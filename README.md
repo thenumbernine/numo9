@@ -325,23 +325,23 @@ All my cartridge files are in `.tiff`. format.  To pack and unpack them use the 
 
 To unpack a cartridge into a local directory with matching name:
 ```
-luajit n9a.lua x cart.n9
+luajit n9a.lua x cart.n9.png
 ```
 It will overwrite files.
 
 To pack a cartridge from a local directory of matching name:
 ```
-luajit n9a.lua a cart.n9
+luajit n9a.lua a cart.n9.png
 ```
 
 To pack a cartridge and immediately run it:
 ```
-luajit n9a.lua r cart.n9
+luajit n9a.lua r cart.n9.png
 ```
 
 To convert a TIFF-encoded cartridge to its binary ROM format:
 ```
-luajit n9a.lua n9tobin cart.n9
+luajit n9a.lua n9tobin cart.n9.png
 ```
 
 To convert the binary ROM back to a TIFF-encoded cartridge:
@@ -443,7 +443,7 @@ Pico8 Compatability is at 95%
 
 - langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
 	- At present if there's a parse error then the line will show up correctly ... right underneath the line and file of the parser code itself ... hmm
-	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.
+	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9.png>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
 
