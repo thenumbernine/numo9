@@ -2,9 +2,9 @@
 --[[
 n9a - achive/unarchive n9 files
 
-n9a x file.n9 = extract archive file.n9 to file/
-n9a a file.n9 = pack directory file/ to file.n9
-n9a r file.n9 = pack and run
+n9a x file.n9.png = extract archive file.n9.png to file/
+n9a a file.n9.png = pack directory file/ to file.n9.png
+n9a r file.n9.png = pack and run
 --]]
 local ffi = require 'ffi'
 local path = require 'ext.path'
@@ -76,8 +76,10 @@ assert(cmd and fn, "expected: `n9a.lua cmd fn`")
 if cmd == 'x' then
 
 	local n9path = path(fn)
-	local basepath, ext = n9path:getext()
-	asserteq(ext, 'n9')
+	local secondextpath, ext = n9path:getext()
+	asserteq(ext, 'png')
+	local basepath, ext2 = secondextpath:getext()
+	asserteq(ext2, 'n9')
 
 	assert(n9path:exists(), tostring(fn).." doesn't exist")
 	basepath:mkdir()
@@ -149,8 +151,10 @@ elseif cmd == 'a'
 or cmd == 'r' then
 
 	local n9path = path(fn)
-	local basepath, ext = n9path:getext()
-	asserteq(ext, 'n9')
+	local secondextpath, ext = n9path:getext()
+	asserteq(ext, 'png')
+	local basepath, ext2 = secondextpath:getext()
+	asserteq(ext2, 'n9')
 
 	assert(basepath:isdir())
 	local rom = ffi.new'ROM'
@@ -317,8 +321,10 @@ print('writing music', i, 'size', size)
 elseif cmd == 'n9tobin' then
 
 	local n9path = path(fn)
-	local basepath, ext = n9path:getext()
-	asserteq(ext, 'n9')
+	local secondextpath, ext = n9path:getext()
+	asserteq(ext, 'png')
+	local basepath, ext2 = secondextpath:getext()
+	asserteq(ext2, 'n9')
 
 	local binpath = n9path:setext'bin'
 	assert(binpath:write(
@@ -331,8 +337,10 @@ elseif cmd == 'n9tobin' then
 elseif cmd == 'binton9' then
 
 	local n9path = path(fn)
-	local basepath, ext = n9path:getext()
-	asserteq(ext, 'n9')
+	local secondextpath, ext = n9path:getext()
+	asserteq(ext, 'png')
+	local basepath, ext2 = secondextpath:getext()
+	asserteq(ext2, 'n9')
 
 	local binpath = n9path:setext'bin'
 	assert(path(fn):write(
