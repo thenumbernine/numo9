@@ -15,7 +15,6 @@ class=[...]do
 	return t
 end
 
-
 getvalue=[x, dim]do
 	if type(x) == 'number' then return x end
 	if type(x) == 'table' then
@@ -28,115 +27,110 @@ getvalue=[x, dim]do
 	error("tried to getvalue from an unknown type "..type(x))
 end
 
-vec2 = class()
-vec2.dim = 2
-vec2.init=[:,x,y]do
-	if x then
-		self:set(x,y)
-	else
-		self:set(0,0)
-	end
-end
-vec2.set=[:,x,y]do
-	if type(x) == 'table' then
-		self[1] = assert(x[1])
-		self[2] = assert(x[2])
-	else
-		self[1] = assert(x)
-		if y then
-			self[2] = assert(y)
+vec2=class{
+	dim=2,
+	init=[:,x,y]do
+		if x then
+			self:set(x,y)
 		else
-			self[2] = x
+			self:set(0,0)
 		end
-	end
-end
-vec2.volume=[:]do
-	local v = 1
-	for i=1,self.dim do
-		v = v * self[i]
-	end
-	return v
-end
-vec2.clamp=[:,a,b]do
-	local mins = a
-	local maxs = b
-	if type(a) == 'table' and a.min and a.max then	
-		mins = a.min
-		maxs = a.max
-		-- assertion for table-based params
-		assert(mins)
-		assert(maxs)
-	else	-- assertion for param-based mins & maxs
-		assert(mins)
-		assert(maxs)
-	end
-	for i=1,self.dim do
-		self[i] = math.clamp(self[i], getvalue(mins, i), getvalue(maxs, i))
-	end
-	return self
-end
-vec2.floor=[:]do
-	for i=1,self.dim do
-		self[i] = math.floor(self[i])
-	end
-	return self
-end
-vec2.ceil=[:]do
-	for i=1,self.dim do
-		self[i] = math.ceil(self[i])
-	end
-	return self
-end
-vec2.l1Length=[v]do
-	local d = 0
-	for i=1,v.dim do
-		d = d + math.abs(v[i])
-	end
-	return d
-end
-vec2.lInfLength=[v]do
-	local d = 0
-	for i=1,v.dim do
-		d = math.max(d, math.abs(v[i]))
-	end
-	return d
-end
-vec2.__add=[a,b]do
-	local c = vec2()
-	for i=1,a.dim do
-		c[i] = getvalue(a,i) + getvalue(b,i)
-	end
-	return c
-end
-vec2.__sub=[a,b]do
-	local c = vec2()
-	for i=1,a.dim do
-		c[i] = getvalue(a,i) - getvalue(b,i)
-	end
-	return c
-end
-vec2.__mul=[a,b]do
-	local c = vec2()
-	for i=1,a.dim do
-		c[i] = getvalue(a,i) * getvalue(b,i)
-	end
-	return c
-end
-vec2.__div=[a,b]do
-	local c = vec2()
-	for i=1,a.dim do
-		c[i] = getvalue(a,i) / getvalue(b,i)
-	end
-	return c
-end
-vec2.__eq=[a,b]do
-	for i=1,a.dim do
-		if a[i] ~= b[i] then return false end
-	end
-	return true
-end
-vec2.__tostring=[v]v[1]..','..v[2]
-vec2.__concat=[a,b]tostring(a)..tostring(b)
+	end,
+	set=[:,x,y]do
+		if type(x) == 'table' then
+			self[1] = x[1]
+			self[2] = x[2]
+		else
+			self[1] = x
+			if y then
+				self[2] = y
+			else
+				self[2] = x
+			end
+		end
+	end,
+	volume=[:]do
+		local v = 1
+		for i=1,self.dim do
+			v = v * self[i]
+		end
+		return v
+	end,
+	clamp=[:,a,b]do
+		local mins = a
+		local maxs = b
+		if type(a) == 'table' and a.min and a.max then	
+			mins = a.min
+			maxs = a.max
+		end
+		for i=1,self.dim do
+			self[i] = math.clamp(self[i], getvalue(mins, i), getvalue(maxs, i))
+		end
+		return self
+	end,
+	floor=[:]do
+		for i=1,self.dim do
+			self[i] = math.floor(self[i])
+		end
+		return self
+	end,
+	ceil=[:]do
+		for i=1,self.dim do
+			self[i] = math.ceil(self[i])
+		end
+		return self
+	end,
+	l1Length=[v]do
+		local d = 0
+		for i=1,v.dim do
+			d = d + math.abs(v[i])
+		end
+		return d
+	end,
+	lInfLength=[v]do
+		local d = 0
+		for i=1,v.dim do
+			d = math.max(d, math.abs(v[i]))
+		end
+		return d
+	end,
+	__add=[a,b]do
+		local c = vec2()
+		for i=1,a.dim do
+			c[i] = getvalue(a,i) + getvalue(b,i)
+		end
+		return c
+	end,
+	__sub=[a,b]do
+		local c = vec2()
+		for i=1,a.dim do
+			c[i] = getvalue(a,i) - getvalue(b,i)
+		end
+		return c
+	end,
+	__mul=[a,b]do
+		local c = vec2()
+		for i=1,a.dim do
+			c[i] = getvalue(a,i) * getvalue(b,i)
+		end
+		return c
+	end,
+	__div=[a,b]do
+		local c = vec2()
+		for i=1,a.dim do
+			c[i] = getvalue(a,i) / getvalue(b,i)
+		end
+		return c
+	end,
+	__eq=[a,b]do
+		for i=1,a.dim do
+			if a[i] ~= b[i] then return false end
+		end
+		return true
+	end,
+	__tostring=[v]v[1]..','..v[2],
+	__concat=[a,b]tostring(a)..tostring(b),
+}
 
 getminvalue=[x]do
 	if x.min then return x.min end
@@ -150,7 +144,7 @@ getmaxvalue=[x]do
 	return x
 end
 
-box2 = class()
+box2=class()
 box2.dim = 2
 box2.init=[:,a,b]do
 	if type(a) == 'table' and a.min and a.max then
@@ -293,7 +287,7 @@ con={
 	end,
 }
 
-Log = class()
+Log=class()
 Log.index = 0
 Log.lines = table()
 Log.size = 4
@@ -325,7 +319,7 @@ Log.render=[:]do
 end
 log=Log()
 
-MapTile = class()
+MapTile=class()
 
 MapTile.init=[:]do
 end
@@ -453,10 +447,8 @@ for x=1,map.size[1] do
 	end
 end
 
-Battle = class()
-
+Battle=class()
 Battle.radius = 4
-
 Battle.init=[:,args]do
 	if args.bbox then
 		self.bbox = box2(args.bbox)
@@ -486,7 +478,6 @@ Battle.init=[:,args]do
 	end
 	log('starting battle...')
 end
-
 Battle.update=[:]do
 	while not self.done do
 		self:getCurrentEnt()
@@ -498,7 +489,6 @@ Battle.update=[:]do
 		end
 	end
 end
-
 Battle.removeEnt=[:,ent]do
 	self.ents:removeObject(ent)
 	if self.currentEnt == ent then
@@ -506,7 +496,6 @@ Battle.removeEnt=[:,ent]do
 		self:endTurn()
 	end
 end
-
 Battle.getCurrentEnt=[:]do
 	if not self.currentEnt then
 		while true do
@@ -521,7 +510,6 @@ Battle.getCurrentEnt=[:]do
 		end
 	end
 end
-
 Battle.enemiesOf=[:,ent]do
 	local enemies = table()
 	for _,army in ipairs(self.armies) do
@@ -533,10 +521,8 @@ Battle.enemiesOf=[:,ent]do
 	end
 	return enemies
 end
-
 Battle.endTurn=[:]do
 	self.currentEnt = nil
-
 	local armiesForAffiliation = table()
 	for _,army in ipairs(self.armies) do
 		local affiliation = army.affiliation or 'nil'
@@ -554,10 +540,8 @@ Battle.endTurn=[:]do
 	end
 	local affiliationsAlive = armiesForAffiliation:keys()
 	if #affiliationsAlive > 1 then return end
-
 	log('ending battle')
 	self.currentEnt = nil
-
 	self.done = true
 	for _,ent in ipairs(self.ents) do
 		ent:endBattle()
@@ -566,7 +550,6 @@ Battle.endTurn=[:]do
 		army:endBattle(self)
 	end
 	battles:removeObject(self)
-
 	if #affiliationsAlive == 1 then
 		for _,affiliation in ipairs(affiliationsAlive) do
 			for _,army in ipairs(armiesForAffiliation[affiliation]) do
@@ -577,6 +560,7 @@ Battle.endTurn=[:]do
 		end
 	end
 end
+
 entsAtPos=[pos]do
 	if not map.bbox:contains(pos) then return table() end
 	return table(map.tiles[pos[1]][pos[2]].ents)
@@ -707,13 +691,11 @@ pathSearchToPoint=[args]do
 end
 
 
-Entity = class()
+Entity=class()
 Entity.name = 'Entity'
 Entity.ct = 0
-
 Entity.level = 1
 Entity.exp = 0
-
 Entity.hpMax = 50
 Entity.move = 3.5
 Entity.speed = 7
@@ -721,18 +703,15 @@ Entity.attack = 10
 Entity.defense = 10
 Entity.hitChance = 75
 Entity.evade = 5
-
 Entity.speedLevelUpRange = {0, .1}
 Entity.attackLevelUpRange = {0, 1}
 Entity.defenseLevelUpRange = {0, 1}
 Entity.hitChanceLevelUpRange = {0, 1}
 Entity.evadeLevelUpRange = {0,1}
-
 Entity.solid = true
 Entity.attackable = true
 Entity.zOrder = 0
 Entity.char = '?'
-
 Entity.statFields = {
 	'level',
 	'exp',
@@ -744,14 +723,12 @@ Entity.statFields = {
 	'hitChance',
 	'evade',
 }
-
 Entity.equipFields = {
 	'weapon',
 	'shield',
 	'armor',
 	'helmet',
 }
-
 
 Entity.init=[:,args]do
 	assert(args.pos)
@@ -991,9 +968,8 @@ Entity.die=[:]do
 end
 
 
-Army = class()
+Army=class()
 Army.gold = 0
-
 Army.init=[:,args]do
 	if args then
 		self.affiliation = args.affiliation
@@ -1001,7 +977,6 @@ Army.init=[:,args]do
 	self.ents = table()
 	self.items = table()
 end
-
 Army.addEnt=[:,ent]do
 	if ent.army then
 		ent.army:removeEnt(ent)
@@ -1011,15 +986,12 @@ Army.addEnt=[:,ent]do
 			self:addItem(ent[field])
 		end
 	end
-
 	ent.army = self
 	self.ents:insert(ent)
-
 	if not self.leader then
 		self.leader = ent
 	end
 end
-
 Army.removeEnt=[:,ent]do
 	assert(self.ents:find(ent))
 	self.ents:removeObject(ent)
@@ -1076,34 +1048,27 @@ Army.endBattle=[:]do
 end
 
 
-
-ClientArmy = class(Army)
-
+ClientArmy=Army:subclass()
 ClientArmy.init=[:,client]do
 	ClientArmy.super.init(self)
 	self.client = client
 end
-
 ClientArmy.addEnt=[:,ent]do
 	ClientArmy.super.addEnt(self, ent)
 	ent.client = client
 end
-
 ClientArmy.removeEnt=[:,ent]do
 	ClientArmy.super.removeEnt(self, ent)
 	ent.client = nil
 end
-
 ClientArmy.beginBattle=[:,battle]do
 	ClientArmy.super.beginBattle(self, battle)
 
 	self.client:removeToState(Client.mainCmdState)
 	self.client:pushState(Client.battleCmdState)
 end
-
 ClientArmy.endBattle=[:,battle]do
 	ClientArmy.super.endBattle(self, battle)
-
 	assert(self.client.cmdstate == Client.battleCmdState, "expected client cmdstate to be battleCmdState")
 	self.client:popState()
 end
@@ -1138,7 +1103,7 @@ were
 sea
 ]], '\n')
 
-Unit = class(Entity)
+Unit = Entity:subclass()
 Unit.canBattle = true
 Unit.name = 'Unit'
 Unit.char = 'U'
@@ -1386,12 +1351,12 @@ Unit.die=[:]do
 	end
 end
 
-Player = class(Unit)
+Player = Unit:subclass()
 Player.name = 'Player'
 Player.char = 'P'
 Player.baseType = Unit.baseTypes.Human
 
-Treasure = class(Entity)
+Treasure = Entity:subclass()
 Treasure.name = 'Treasure'
 Treasure.char = '$'
 Treasure.solid = false
@@ -1433,7 +1398,7 @@ end
 local Item = class()
 Item.__lt=[a,b]((items:find(getmetatable(a)) or 0)<(items:find(getmetatable(b)) or 0))
 
-local Potion = class(Item)
+local Potion = Item:subclass()
 Potion.name = 'Potion'
 Potion.healRange = {20,30}
 Potion.init=[:,...]do
@@ -1446,7 +1411,7 @@ Potion.use=[:,who]do
 	who.hp = math.min(who.hp + self.heal, who:stat('hpMax'))
 end
 
-local Equipment = class(Item)
+local Equipment = Item:subclass()
 Equipment.init=[:,maxLevel]do
 	assert(self.baseTypes, "tried to instanciate an equipment of type "..self.name.." with no basetypes")
 	local baseTypeOptions = table(self.baseTypes)
@@ -1532,14 +1497,14 @@ local defenseModifiers = {
 	{name="Diamond", defenseRange={750,1000}, hpMaxRange={750,1000}, evadeRange={750,1000}, dropLevel=115},
 }
 
-local Weapon = class(Equipment)
+local Weapon = Equipment:subclass()
 Weapon.name = 'Weapon'
 Weapon.equip = 'weapon'
 Weapon.baseTypes = weaponBaseTypes
 Weapon.modifiers = weaponModifiers
 Weapon.modifierFields = {'attack','hitChance'}
 
-local Armor = class(Equipment)
+local Armor = Equipment:subclass()
 Armor.name = 'Armor'
 Armor.equip = 'armor'
 Armor.baseTypes = {
@@ -1548,7 +1513,7 @@ Armor.baseTypes = {
 Armor.modifiers = defenseModifiers
 Armor.modifierFields = {'defense','hpMax'}
 
-local Helmet = class(Equipment)
+local Helmet = Equipment:subclass()
 Helmet.name = 'Helmet'
 Helmet.equip = 'helmet'
 Helmet.baseTypes = {
@@ -1557,7 +1522,7 @@ Helmet.baseTypes = {
 Helmet.modifiers = defenseModifiers
 Helmet.modifierFields = {'defense'}
 
-local Shield = class(Equipment)
+local Shield = Equipment:subclass()
 Shield.name = 'Shield'
 Shield.equip = 'shield'
 Shield.baseTypes = {
@@ -1755,14 +1720,14 @@ Window.draw=[:]do
 	end
 end
 
-DoneWindow = class(Window)
+DoneWindow = Window:subclass()
 DoneWindow.init=[:,args]do
 	DoneWindow.super.init(self, args)
 end
 DoneWindow.refresh=[:,text]do
 	self:setLines{text}
 end
-QuitWindow = class(Window)
+QuitWindow = Window:subclass()
 QuitWindow.init=[:,args]do
 	local client = assert(args.client)
 	QuitWindow.super.init(self, args)
@@ -1774,14 +1739,14 @@ QuitWindow.init=[:,args]do
 	}
 end
 
-ClientBaseWindow = class(Window)
+ClientBaseWindow = Window:subclass()
 ClientBaseWindow.init=[:,args]do
 	ClientBaseWindow.super.init(self, args)
 	self.client = assert(args.client)
 	self.army = self.client.army
 end
 
-MoveFinishedWindow = class(ClientBaseWindow)
+MoveFinishedWindow = ClientBaseWindow:subclass()
 MoveFinishedWindow.refresh=[:]do
 	local lines = table()
 	local solidfound
@@ -1814,7 +1779,7 @@ MoveFinishedWindow.refresh=[:]do
 	self:setLines(lines)
 end
 
-MapOptionsWindow=class(ClientBaseWindow)
+MapOptionsWindow=ClientBaseWindow:subclass()
 MapOptionsWindow.init=[:,args]do
 	MapOptionsWindow.super.init(self, args)
 	self:refresh()
@@ -1858,7 +1823,7 @@ refreshWinPlayers=[client]do
 	end
 end
 
-ArmyWindow = class(ClientBaseWindow)
+ArmyWindow = ClientBaseWindow:subclass()
 ArmyWindow.refresh=[:]do
 	local lines = table()
 	for _,ent in ipairs(self.army.ents) do
@@ -1873,7 +1838,7 @@ ArmyWindow.moveCursor=[:,ch]do
 	self.client.statWin:refresh()
 end
 
-StatWindow = class(ClientBaseWindow)
+StatWindow = ClientBaseWindow:subclass()
 StatWindow.noInteraction = true
 StatWindow.refresh=[:,field,equip]do
 	local recordStats=[dest]do
@@ -1920,7 +1885,7 @@ StatWindow.refresh=[:,field,equip]do
 	self:setLines(lines)
 end
 
-EquipWindow = class(ClientBaseWindow)
+EquipWindow = ClientBaseWindow:subclass()
 EquipWindow.refresh=[:]do
 	local lines = table()
 	local width = 0
@@ -1940,7 +1905,7 @@ EquipWindow.refresh=[:]do
 	self:setLines(lines)
 end
 
-ItemWindow = class(ClientBaseWindow)
+ItemWindow = ClientBaseWindow:subclass()
 local refreshEquipStatWin=[client]do
 	local item = client.itemWin.items[client.itemWin.currentLine]
 	if item then
@@ -2007,7 +1972,7 @@ ItemWindow.refresh=[:,filter]do
 	self:setLines(lines)
 end
 
-PlayerWindow = class(ClientBaseWindow)
+PlayerWindow = ClientBaseWindow:subclass()
 
 PlayerWindow.init=[:,args]do
 	PlayerWindow.super.init(self, args)
@@ -2027,7 +1992,7 @@ PlayerWindow.init=[:,args]do
 	}
 end
 
-BattleWindow = class(ClientBaseWindow)
+BattleWindow = ClientBaseWindow:subclass()
 BattleWindow.refresh=[:]do
 	local client = self.client
 	local currentEnt = client.army.currentEnt
