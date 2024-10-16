@@ -1626,21 +1626,21 @@ function AppVideo:mvMatFromRAM()
 	end
 end
 
+function AppVideo:resetFont()
+	self.spriteTex:checkDirtyGPU()
+	resetFontOnSheet(self.ram.spriteSheet)
+	ffi.copy(self.cartridge.spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
+	self.spriteTex.dirtyCPU = true
+end
+
 -- this re-inserts the font and default palette
 -- and copies those changes back into the cartridge too (stupid idea of keeping two copies of the cartridge in RAM and ROM ...)
 function AppVideo:resetGFX()
-	self.spriteTex:checkDirtyGPU()
+	self:resetFont()
+
 	self.palTex:checkDirtyGPU()
-
-	--self.spriteTex:prepForCPU()
-	resetFontOnSheet(self.ram.spriteSheet)
-	ffi.copy(self.cartridge.spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
-
-	--self.palTex:prepForCPU()
 	resetPalette(self.ram)
 	ffi.copy(self.cartridge.palette, self.ram.palette, paletteInBytes)
-
-	self.spriteTex.dirtyCPU = true
 	self.palTex.dirtyCPU = true
 end
 

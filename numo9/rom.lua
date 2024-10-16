@@ -44,8 +44,8 @@ local userDataSize = 0x10000
 -- tic80 metadata includes title, author, some dates..., description, some urls ...
 local persistentCartridgeDataSize = 0x2000
 
---local fontWidth = spriteSize.x
-local fontWidth = 5
+local fontWidth = spriteSize.x
+--local fontWidth = 5
 
 local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
