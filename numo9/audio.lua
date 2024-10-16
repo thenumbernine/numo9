@@ -21,6 +21,7 @@ local audioMixChannels = numo9_rom.audioMixChannels -- # channels to mix, set to
 local audioOutChannels = numo9_rom.audioOutChannels 	-- # speakers: 1 = mono, 2 = stereo
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
+local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
 
 local audioSampleTypePtr = audioSampleType..'*'
@@ -205,7 +206,7 @@ local tmpOut = ffi.new('int32_t[?]', audioOutChannels)
 function AppAudio:updateSoundEffects()
 	local audio = self.audio
 	local masterVolFrac = self.cfg.volume / 255
-	
+
 	-- sound can't keep up ... hmm ...
 	--while self.ram.romUpdateCounter > audio.audioUpdateCounter do
 	--if self.ram.romUpdateCounter > audio.audioUpdateCounter then
@@ -488,18 +489,18 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 		channel.flags.isPlaying = 0
 		return
 	end
+--DEBUG:asserteq(sfxTableSize, 256)
 	sfxID = bit.band(sfxID, 0xff)
 	local sfx = self.ram.sfxAddrs[sfxID]
 	local sfxaddr = sfx.addr
 
---DEBUG:asserteq(sfxTableSize, 256)
 	channel.sfxID = sfxID
 	channel.flags.isPlaying = 1
 	channel.flags.isLooping = looping and 1 or 0
 	channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
 	channel.pitch = pitch
-	channel.volume[0] = volL 
-	channel.volume[1] = volR 
+	channel.volume[0] = volL
+	channel.volume[1] = volR
 end
 
 --[[
@@ -542,7 +543,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	channelOffset = channelOffset or 0
 	local musicPlaying = self.ram.musicPlaying + musicPlayingIndex
 	musicPlaying.isPlaying = 1
-	musicPlaying.channelOffset = channelOffset 
+	musicPlaying.channelOffset = channelOffset
 	musicPlaying.addr = music.addr
 
 	-- keep our head counter here
