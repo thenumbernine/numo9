@@ -1665,7 +1665,7 @@ function AppVideo:drawSolidRect(
 	local uniforms = sceneObj.uniforms
 
 	uniforms.mvMat = self.mvMat.ptr
-	uniforms.colorIndex = math.floor(colorIndex)
+	uniforms.colorIndex = math.floor(colorIndex or 0)
 	uniforms.borderOnly = borderOnly or false
 	uniforms.round = round or false
 	if w < 0 then x,w = x+w,-w end
