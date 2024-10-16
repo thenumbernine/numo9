@@ -690,6 +690,7 @@ function App:initGL()
 		table = require 'ext.table',
 		string = require 'ext.string',
 		coroutine = coroutine,	-- TODO need a threadmanager ...
+		tstamp = os.time,
 
 		tostring = tostring,
 		tonumber = tonumber,

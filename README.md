@@ -282,6 +282,7 @@ The button codes are as follows:
 - `ipairs`
 - `getfenv`
 - `setfenv`
+- `tstamp` = `os.time`
 - `ffi` = the luajit ffi library.  Probably going away soon.
 - tables:
 	- `bit` = luajit's bit library.

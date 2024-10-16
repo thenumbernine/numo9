@@ -19,6 +19,7 @@ vec2=class{
 		self[2]=y or 0
 		return self
 	end,
+	init=[:,...]self:set(...),
 	unpack=table.unpack,
 	dot=[a,b]a[1]*b[1]+a[2]*b[2],
 	__add=[a,b]vec2(a[1]+b[1],a[2]+b[2]),
@@ -26,7 +27,6 @@ vec2=class{
 	__mul=[a,b]vec2(a[1]*b,a[2]*b),
 	__div=[a,b]vec2(a[1]/b,a[2]/b),
 }
-vec2.init=vec2.set
 
 local worldSize = 256	-- biggest size of the game
 local dt = 1/60
