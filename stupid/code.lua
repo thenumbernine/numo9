@@ -29,105 +29,52 @@ end
 
 vec2=class{
 	dim=2,
-	init=[:,x,y]do
+	init=[v,x,y]do
 		if x then
-			self:set(x,y)
+			v:set(x,y)
 		else
-			self:set(0,0)
+			v:set(0,0)
 		end
 	end,
-	set=[:,x,y]do
+	set=[v,x,y]do
 		if type(x) == 'table' then
-			self[1] = x[1]
-			self[2] = x[2]
+			v[1] = x[1]
+			v[2] = x[2]
 		else
-			self[1] = x
+			v[1] = x
 			if y then
-				self[2] = y
+				v[2] = y
 			else
-				self[2] = x
+				v[2] = x
 			end
 		end
 	end,
-	volume=[:]do
-		local v = 1
-		for i=1,self.dim do
-			v = v * self[i]
-		end
-		return v
-	end,
-	clamp=[:,a,b]do
+	volume=[v]v[1]*v[2],
+	clamp=[v,a,b]do
 		local mins = a
 		local maxs = b
 		if type(a) == 'table' and a.min and a.max then	
 			mins = a.min
 			maxs = a.max
 		end
-		for i=1,self.dim do
-			self[i] = math.clamp(self[i], getvalue(mins, i), getvalue(maxs, i))
-		end
-		return self
+		v[1] = math.clamp(v[1], getvalue(mins, 1), getvalue(maxs, 1))
+		v[2] = math.clamp(v[2], getvalue(mins, 2), getvalue(maxs, 2))
+		return v
 	end,
-	floor=[:]do
-		for i=1,self.dim do
-			self[i] = math.floor(self[i])
-		end
-		return self
+	map=[v,f]do
+		v[1]=f(v[1],1)
+		v[2]=f(v[2],2)
+		return v
 	end,
-	ceil=[:]do
-		for i=1,self.dim do
-			self[i] = math.ceil(self[i])
-		end
-		return self
-	end,
-	l1Length=[v]do
-		local d = 0
-		for i=1,v.dim do
-			d = d + math.abs(v[i])
-		end
-		return d
-	end,
-	lInfLength=[v]do
-		local d = 0
-		for i=1,v.dim do
-			d = math.max(d, math.abs(v[i]))
-		end
-		return d
-	end,
-	__add=[a,b]do
-		local c = vec2()
-		for i=1,a.dim do
-			c[i] = getvalue(a,i) + getvalue(b,i)
-		end
-		return c
-	end,
-	__sub=[a,b]do
-		local c = vec2()
-		for i=1,a.dim do
-			c[i] = getvalue(a,i) - getvalue(b,i)
-		end
-		return c
-	end,
-	__mul=[a,b]do
-		local c = vec2()
-		for i=1,a.dim do
-			c[i] = getvalue(a,i) * getvalue(b,i)
-		end
-		return c
-	end,
-	__div=[a,b]do
-		local c = vec2()
-		for i=1,a.dim do
-			c[i] = getvalue(a,i) / getvalue(b,i)
-		end
-		return c
-	end,
-	__eq=[a,b]do
-		for i=1,a.dim do
-			if a[i] ~= b[i] then return false end
-		end
-		return true
-	end,
+	floor=[v]v:map(math.floor),
+	ceil=[v]v:map(math.ceil),
+	l1Length=[v]math.abs(v[1])+math.abs(v[2]),
+	lInfLength=[v]math.max(math.abs(v[1]),math.abs(v[2])),
+	__add=[a,b]vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
+	__sub=[a,b]vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
+	__mul=[a,b]vec2(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2)),
+	__div=[a,b]vec2(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2)),
+	__eq=[a,b]a[1]==b[1]and a[2]==b[2],
 	__tostring=[v]v[1]..','..v[2],
 	__concat=[a,b]tostring(a)..tostring(b),
 }
@@ -144,83 +91,65 @@ getmaxvalue=[x]do
 	return x
 end
 
-box2=class()
-box2.dim = 2
-box2.init=[:,a,b]do
-	if type(a) == 'table' and a.min and a.max then
-		self.min = vec2(a.min)
-		self.max = vec2(a.max)
-	else
-		self.min = vec2(a)
-		self.max = vec2(b)
-	end
-end
-box2.stretch=[:,v]do
-	if getmetatable(v) == box2 then
-		self:stretch(v.min)
-		self:stretch(v.max)
-	else
-		for i=1,self.dim do
-			self.min[i] = math.min(self.min[i], v[i])
-			self.max[i] = math.max(self.max[i], v[i])
+box2=class{
+	dim=2,
+	init=[:,a,b]do
+		if type(a) == 'table' and a.min and a.max then
+			self.min = vec2(a.min)
+			self.max = vec2(a.max)
+		else
+			self.min = vec2(a)
+			self.max = vec2(b)
 		end
-	end
-end
-box2.size=[:]self.max - self.min
-box2.floor=[:]do
-	self.min:floor()
-	self.max:floor()
-	return self
-end
-box2.ceil=[:]do
-	self.min:ceil()
-	self.max:ceil()
-	return self
-end
-box2.clamp=[:,b]do
-	self.min:clamp(b)
-	self.max:clamp(b)
-	return self
-end
-box2.contains=[:,v]do
-	if getmetatable(v) == box2 then
-		return self:contains(v.min) and self:contains(v.max)
-	else
-		for i=1,v.dim do
-			local x = v[i]
-			if x < self.min[i] or x > self.max[i] then
-				return false
+	end,
+	stretch=[:,v]do
+		if getmetatable(v) == box2 then
+			self:stretch(v.min)
+			self:stretch(v.max)
+		else
+			for i=1,self.dim do
+				self.min[i] = math.min(self.min[i], v[i])
+				self.max[i] = math.max(self.max[i], v[i])
 			end
 		end
-		return true
-	end
-end
-box2.map=[:,coordBox]do
-	local size = self:size()
-	return coordBox * size + self.min
-end
-box2.__add=[a,b]do
-	return box2(
-		getminvalue(a) + getminvalue(b),
-		getmaxvalue(a) + getmaxvalue(b))
-end
-box2.__sub=[a,b]do
-	return box2(
-		getminvalue(a) - getminvalue(b),
-		getmaxvalue(a) - getmaxvalue(b))
-end
-box2.__mul=[a,b]do
-	return box2(
-		getminvalue(a) * getminvalue(b),
-		getmaxvalue(a) * getmaxvalue(b))
-end
-box2.__div=[a,b]do
-	return box2(
-		getminvalue(a) / getminvalue(b),
-		getmaxvalue(a) / getmaxvalue(b))
-end
-box2.__tostring=[b]b.min..'..'..b.max
-box2.__concat=[a,b]tostring(a)..tostring(b)
+	end,
+	size=[:]self.max-self.min,
+	floor=[:]do
+		self.min:floor()
+		self.max:floor()
+		return self
+	end,
+	ceil=[:]do
+		self.min:ceil()
+		self.max:ceil()
+		return self
+	end,
+	clamp=[:,b]do
+		self.min:clamp(b)
+		self.max:clamp(b)
+		return self
+	end,
+	contains=[:,v]do
+		if getmetatable(v) == box2 then
+			return self:contains(v.min) and self:contains(v.max)
+		else
+			for i=1,v.dim do
+				local x = v[i]
+				if x < self.min[i] or x > self.max[i] then
+					return false
+				end
+			end
+			return true
+		end
+	end,
+	map=[b,c]c*b:size()+b.min,
+	__add=[a,b]box2(getminvalue(a)+getminvalue(b),getmaxvalue(a)+getmaxvalue(b)),
+	__sub=[a,b]box2(getminvalue(a)-getminvalue(b),getmaxvalue(a)-getmaxvalue(b)),
+	__mul=[a,b]box2(getminvalue(a)*getminvalue(b),getmaxvalue(a)*getmaxvalue(b)),
+	__div=[a,b]box2(getminvalue(a)/getminvalue(b),getmaxvalue(a)/getmaxvalue(b)),
+	__tostring=[b]b.min..'..'..b.max,
+	__concat=[a,b]tostring(a)..tostring(b),
+}
 
 dirs = {
 	'up',
@@ -248,7 +177,7 @@ capitalize=[s]s:sub(1,1):upper()..s:sub(2)
 
 serializeTable=[obj]do
 	local lines = table()
-	lines:insert('{')
+	lines:insert'{'
 	for _,row in ipairs(obj) do
 		local s = table()
 		for k,v in pairs(row) do
@@ -256,10 +185,10 @@ serializeTable=[obj]do
 			v = ('%q'):format(tostring(v))
 			s:insert(k..'='..v)
 		end
-		lines:insert('\t{'..s:concat('; ')..'};')
+		lines:insert('\t{'..s:concat'; '..'};')
 	end
-	lines:insert('}')
-	return lines:concat('\n')
+	lines:insert'}'
+	return lines:concat'\n'
 end
 tiletypes = {
 	floor = {
@@ -287,83 +216,79 @@ con={
 	end,
 }
 
-Log=class()
-Log.index = 0
-Log.lines = table()
-Log.size = 4
-Log.__call = [:,s]do
-	local lines = string.split(s, '\n')
-	for _,line in ipairs(lines) do
-		line=self.index..'> '..line
-		while #line>32 do
-			self.lines:insert(line:sub(1,32))
-			line = line:sub(33)
+Log=class{
+	index=0,
+	lines=table(),
+	size=4,
+	__call=[:,s]do
+		local lines = string.split(s, '\n')
+		for _,line in ipairs(lines) do
+			line=self.index..'> '..line
+			while #line>32 do
+				self.lines:insert(line:sub(1,32))
+				line = line:sub(33)
+				self.index+=1
+			end
+			self.lines:insert(line)
 			self.index+=1
 		end
-		self.lines:insert(line)
-		self.index+=1
-	end
-	while #self.lines > self.size do
-		self.lines:remove(1)
-	end
-end
-Log.render=[:]do
-	for i=1,self.size do
-		local line = self.lines[i]
-		con.locate(1, view.size[2]+i)
-		if line then
-			con.write(line)
+		while #self.lines > self.size do
+			self.lines:remove(1)
 		end
-		con.clearline()
-	end
-end
+	end,
+	render=[:]do
+		for i=1,self.size do
+			local line = self.lines[i]
+			con.locate(1, view.size[2]+i)
+			if line then
+				con.write(line)
+			end
+			con.clearline()
+		end
+	end,
+}
 log=Log()
 
-MapTile=class()
+MapTile=class{
+	init=[:]nil,
+	isRevealed=[:]do
+		local visibleTime=-math.log(0)
+		return self.lastSeen and (game.time - self.lastSeen) < visibleTime
+	end,
+	getChar=[:]do
+		return self.char or self.type.char
+	end,
+	addEnt=[:,ent]do
+		if not self.ents then
+			self.ents=table()
+		end
+		self.ents:insert(ent)
+	end,
+	removeEnt=[:,ent]do
+		assert(self.ents)
+		self.ents:removeObject(ent)
+		if #self.ents == 0 then
+			self.ents=nil
+		end
+	end,
+}
 
-MapTile.init=[:]do
-end
-
-MapTile.isRevealed=[:]do
-	local visibleTime = -math.log(0)
-	return self.lastSeen and (game.time - self.lastSeen) < visibleTime
-end
-
-MapTile.getChar=[:]do
-	return self.char or self.type.char
-end
-
-MapTile.addEnt=[:,ent]do
-	if not self.ents then
-		self.ents = table()
-	end
-	self.ents:insert(ent)
-end
-
-MapTile.removeEnt=[:,ent]do
-	assert(self.ents)
-	self.ents:removeObject(ent)
-	if #self.ents == 0 then
-		self.ents = nil
-	end
-end
-
-map = {}
-map.size = vec2(256,256)
-map.bbox = box2(1, map.size)
-map.tiles = {}
+map={}
+map.size=vec2(256,256)
+map.bbox=box2(1, map.size)
+map.tiles={}
 for i=1,map.size[1] do
-	map.tiles[i] = {}
+	map.tiles[i]={}
 	for j=1,map.size[2] do
-		local tile = MapTile()
-		tile.type = tiletypes.floor
-		map.tiles[i][j] = tile
+		local tile=MapTile()
+		tile.type=tiletypes.floor
+		map.tiles[i][j]=tile
 	end
 end
 
-local seeds = table()
+local seeds=table()
 for i=1,math.floor(map.size:volume()/13) do
-	local seed = {
+	local seed={
 		pos=vec2(math.random(map.size[1]), math.random(map.size[2])),
 	}
 	seed.mins=vec2(table.unpack(seed.pos))
@@ -440,126 +365,126 @@ for _,seed in ipairs(seeds) do
 	end
 end
 
-
 for x=1,map.size[1] do
 	for y=1,map.size[2] do
 		map.tiles[x][y].seed = nil
 	end
 end
 
-Battle=class()
-Battle.radius = 4
-Battle.init=[:,args]do
-	if args.bbox then
-		self.bbox = box2(args.bbox)
-	else
-		self.pos=vec2(assert(args.pos))
-		self.bbox=box2(self.pos-self.radius,self.pos+self.radius):clamp(map.bbox)
-	end
-	self.armies = table(assert(args.armies))
-	self.ents = table()
-	for _,army in ipairs(self.armies) do
-		for _,ent in ipairs(army.ents) do
-			self.ents:insert(ent)
+Battle=class{
+	radius=4,
+	init=[:,args]do
+		if args.bbox then
+			self.bbox = box2(args.bbox)
+		else
+			self.pos=vec2(assert(args.pos))
+			self.bbox=box2(self.pos-self.radius,self.pos+self.radius):clamp(map.bbox)
 		end
-	end
-	self.index = 1
-	for _,army in ipairs(self.armies) do
-		army:beginBattle(self)
-	end
-	battles:insert(self)
-	for i,ent in ipairs(self.ents) do
-		ent:beginBattle(self)
-		local s = table{'name='..ent.name, 'affil='..tostring(ent.army.affiliation)}
-		for _,field in ipairs(Entity.statFields) do
-			s:insert(field..'='..ent:stat(field))
-		end
-		log('Entity '..i..': '..s:concat', ')
-	end
-	log('starting battle...')
-end
-Battle.update=[:]do
-	while not self.done do
-		self:getCurrentEnt()
-		if not self.currentEnt or self.currentEnt.client then break end
-		if self.currentEnt and not self.currentEnt.client then
-			while self.currentEnt do
-				self.currentEnt:update()
+		self.armies = table(assert(args.armies))
+		self.ents = table()
+		for _,army in ipairs(self.armies) do
+			for _,ent in ipairs(army.ents) do
+				self.ents:insert(ent)
 			end
 		end
-	end
-end
-Battle.removeEnt=[:,ent]do
-	self.ents:removeObject(ent)
-	if self.currentEnt == ent then
-		self.index = self.index - 1
-		self:endTurn()
-	end
-end
-Battle.getCurrentEnt=[:]do
-	if not self.currentEnt then
-		while true do
-			local ent = self.ents[((self.index - 1) % #self.ents) + 1]
-			self.index = (self.index % #self.ents) + 1
-			ent.ct = math.min(ent.ct + ent:stat('speed'), 100)
-			if ent.ct == 100 then
-				self.currentEnt = ent
-				ent:beginTurn()
-				break
-			end
+		self.index = 1
+		for _,army in ipairs(self.armies) do
+			army:beginBattle(self)
 		end
-	end
-end
-Battle.enemiesOf=[:,ent]do
-	local enemies = table()
-	for _,army in ipairs(self.armies) do
-		if army ~= ent.army then
-			for _,enemy in ipairs(army.ents) do
-				enemies:insert(enemy)
+		battles:insert(self)
+		for i,ent in ipairs(self.ents) do
+			ent:beginBattle(self)
+			local s = table{'name='..ent.name, 'affil='..tostring(ent.army.affiliation)}
+			for _,field in ipairs(Entity.statFields) do
+				s:insert(field..'='..ent:stat(field))
 			end
+			log('Entity '..i..': '..s:concat', ')
 		end
-	end
-	return enemies
-end
-Battle.endTurn=[:]do
-	self.currentEnt = nil
-	local armiesForAffiliation = table()
-	for _,army in ipairs(self.armies) do
-		local affiliation = army.affiliation or 'nil'
-		for _,ent in ipairs(army.ents) do
-			if not ent.dead then
-				local armies = armiesForAffiliation[affiliation]
-				if not armies then
-					armies = table()
-					armiesForAffiliation[affiliation] = armies
-				end
-				armies:insert(army)
-				break
-			end
-		end
-	end
-	local affiliationsAlive = armiesForAffiliation:keys()
-	if #affiliationsAlive > 1 then return end
-	log('ending battle')
-	self.currentEnt = nil
-	self.done = true
-	for _,ent in ipairs(self.ents) do
-		ent:endBattle()
-	end
-	for _,army in ipairs(self.armies) do
-		army:endBattle(self)
-	end
-	battles:removeObject(self)
-	if #affiliationsAlive == 1 then
-		for _,affiliation in ipairs(affiliationsAlive) do
-			for _,army in ipairs(armiesForAffiliation[affiliation]) do
-				for _,ent in ipairs(army.ents) do
-					if ent.dead then ent:setDead(false) end
+		log'starting battle...'
+	end,
+	update=[:]do
+		while not self.done do
+			self:getCurrentEnt()
+			if not self.currentEnt or self.currentEnt.client then break end
+			if self.currentEnt and not self.currentEnt.client then
+				while self.currentEnt do
+					self.currentEnt:update()
 				end
 			end
 		end
-	end
-end
+	end,
+	removeEnt=[:,ent]do
+		self.ents:removeObject(ent)
+		if self.currentEnt == ent then
+			self.index = self.index - 1
+			self:endTurn()
+		end
+	end,
+	getCurrentEnt=[:]do
+		if not self.currentEnt then
+			while true do
+				local ent = self.ents[((self.index - 1) % #self.ents) + 1]
+				self.index = (self.index % #self.ents) + 1
+				ent.ct = math.min(ent.ct + ent:stat'speed', 100)
+				if ent.ct == 100 then
+					self.currentEnt = ent
+					ent:beginTurn()
+					break
+				end
+			end
+		end
+	end,
+	enemiesOf=[:,ent]do
+		local enemies = table()
+		for _,army in ipairs(self.armies) do
+			if army ~= ent.army then
+				for _,enemy in ipairs(army.ents) do
+					enemies:insert(enemy)
+				end
+			end
+		end
+		return enemies
+	end,
+	endTurn=[:]do
+		self.currentEnt = nil
+		local armiesForAffiliation = table()
+		for _,army in ipairs(self.armies) do
+			local affiliation = army.affiliation or 'nil'
+			for _,ent in ipairs(army.ents) do
+				if not ent.dead then
+					local armies = armiesForAffiliation[affiliation]
+					if not armies then
+						armies = table()
+						armiesForAffiliation[affiliation] = armies
+					end
+					armies:insert(army)
+					break
+				end
+			end
+		end
+		local affiliationsAlive = armiesForAffiliation:keys()
+		if #affiliationsAlive > 1 then return end
+		log'ending battle'
+		self.currentEnt = nil
+		self.done = true
+		for _,ent in ipairs(self.ents) do
+			ent:endBattle()
+		end
+		for _,army in ipairs(self.armies) do
+			army:endBattle(self)
+		end
+		battles:removeObject(self)
+		if #affiliationsAlive == 1 then
+			for _,affiliation in ipairs(affiliationsAlive) do
+				for _,army in ipairs(armiesForAffiliation[affiliation]) do
+					for _,ent in ipairs(army.ents) do
+						if ent.dead then ent:setDead(false) end
+					end
+				end
+			end
+		end
+	end,
+}
 
 entsAtPos=[pos]do
 	if not map.bbox:contains(pos) then return table() end
@@ -622,16 +547,13 @@ pathSearchToPoint=[args]do
 	local start = assert(args.src)
 	local dest = assert(args.dst)
 	local entBlocking = args.entBlocking
-
 	assert(bbox:contains(start))
 	assert(bbox:contains(dest))
-
 	local states = table{
 		{pos = vec2(table.unpack(start))}
 	}
 	local allpositions = table()
 	allpositions[tostring(vec2(table.unpack(start)))] = true
-
 	local bestState
 	local bestDist
 	while bestDist ~= 0 and #states > 0 do
@@ -672,7 +594,6 @@ pathSearchToPoint=[args]do
 			end
 		end
 	end
-
 	local path
 	if bestState then
 		path = table()
@@ -690,390 +611,354 @@ pathSearchToPoint=[args]do
 	return path, bestDist
 end
 
-
-Entity=class()
-Entity.name = 'Entity'
-Entity.ct = 0
-Entity.level = 1
-Entity.exp = 0
-Entity.hpMax = 50
-Entity.move = 3.5
-Entity.speed = 7
-Entity.attack = 10
-Entity.defense = 10
-Entity.hitChance = 75
-Entity.evade = 5
-Entity.speedLevelUpRange = {0, .1}
-Entity.attackLevelUpRange = {0, 1}
-Entity.defenseLevelUpRange = {0, 1}
-Entity.hitChanceLevelUpRange = {0, 1}
-Entity.evadeLevelUpRange = {0,1}
-Entity.solid = true
-Entity.attackable = true
-Entity.zOrder = 0
-Entity.char = '?'
-Entity.statFields = {
-	'level',
-	'exp',
-	'hpMax',
-	'move',
-	'speed',
-	'attack',
-	'defense',
-	'hitChance',
-	'evade',
-}
-Entity.equipFields = {
-	'weapon',
-	'shield',
-	'armor',
-	'helmet',
-}
-
-Entity.init=[:,args]do
-	assert(args.pos)
-	self.pos = vec2()
-	self.lastpos = vec2()
-	self:setPos(assert(args.pos))
-	setFieldsByRange(self, self.statFields)
-	ents:insert(self)
-	assert(args.army):addEnt(self)
-	self.hp = self:stat('hpMax')
-end
-
-Entity.delete=[:]do
-	self:setTile(nil)
-	if self.army then self.army:removeEnt(self) end
-	ents:removeObject(self)
-	for _,battle in ipairs(battles) do
-		battle:removeEnt(self)
-	end
-end
-
-Entity.addExp=[:,exp]do
-	assert(exp)
-	exp = math.floor(exp)
-	log(self.name..' got '..exp..' experience')
-	self.exp = self.exp + exp
-	local oldLevel = self.level
-	self.level = 10 * math.log(self.exp + 1) / math.log(1.1) + 1
-	if math.floor(self.level) > math.floor(oldLevel) then
-		for level = math.floor(oldLevel) + 1, math.floor(self.level) do
-			for _,field in ipairs(self.equipFields) do
-				local range = self[field..'LevelUpRange']
-				if range then
-					local lo, hi = table.unpack(range)
-					assert(hi >= lo, "item "..obj.name.." field "..field.." has interval "..tostring(hi)..","..tostring(lo))
-					self[field] = math.random() * (hi - lo) + lo
+Entity=class{
+	name='Entity',
+	ct=0,
+	level=1,
+	exp=0,
+	hpMax=50,
+	move=3.5,
+	speed=7,
+	attack=10,
+	defense=10,
+	hitChance=75,
+	evade=5,
+	speedLevelUpRange={0, .1},
+	attackLevelUpRange={0, 1},
+	defenseLevelUpRange={0, 1},
+	hitChanceLevelUpRange={0, 1},
+	evadeLevelUpRange={0,1},
+	solid=true,
+	attackable=true,
+	zOrder=0,
+	char='?',
+	statFields={
+		'level',
+		'exp',
+		'hpMax',
+		'move',
+		'speed',
+		'attack',
+		'defense',
+		'hitChance',
+		'evade',
+	},
+	equipFields={
+		'weapon',
+		'shield',
+		'armor',
+		'helmet',
+	},
+	init=[:,args]do
+		assert(args.pos)
+		self.pos = vec2()
+		self.lastpos = vec2()
+		self:setPos(assert(args.pos))
+		setFieldsByRange(self,self.statFields)
+		ents:insert(self)
+		assert(args.army):addEnt(self)
+		self.hp = self:stat'hpMax'
+	end,
+	delete=[:]do
+		self:setTile(nil)
+		if self.army then self.army:removeEnt(self) end
+		ents:removeObject(self)
+		for _,battle in ipairs(battles) do
+			battle:removeEnt(self)
+		end
+	end,
+	addExp=[:,exp]do
+		assert(exp)
+		exp = math.floor(exp)
+		log(self.name..' got '..exp..' experience')
+		self.exp = self.exp + exp
+		local oldLevel = self.level
+		self.level = 10 * math.log(self.exp + 1) / math.log(1.1) + 1
+		if math.floor(self.level) > math.floor(oldLevel) then
+			for level = math.floor(oldLevel) + 1, math.floor(self.level) do
+				for _,field in ipairs(self.equipFields) do
+					local range = self[field..'LevelUpRange']
+					if range then
+						local lo, hi = table.unpack(range)
+						assert(hi >= lo, "item "..obj.name.." field "..field.." has interval "..tostring(hi)..","..tostring(lo))
+						self[field] = math.random() * (hi - lo) + lo
+					end
+				end
+			end
+			log(self.name..' is now at level '..math.floor(self.level))
+		end
+	end,
+	getChar=[:]do
+		local char = self.char
+		if self.dead then char = 'd' end
+		return char
+	end,
+	setPos=[:,pos]do
+		assert(pos)
+		self:setTile(nil)
+		self.lastpos:set(self.pos)
+		self.pos:set(pos)
+		if map.bbox:contains(self.pos) then
+			self:setTile(map.tiles[self.pos[1]][self.pos[2]])
+		end
+	end,
+	setTile=[:,tile]do
+		if self.tile then
+			self.tile:removeEnt(self)
+		end
+		self.tile = tile
+		if self.tile then
+			self.tile:addEnt(self)
+		end
+	end,
+	update=[:]do
+		if self.dead then
+			if self.battle and self.battle.currentEnt == self then
+				self:endTurn()
+			end
+			return
+		end
+	end,
+	setDead=[:,dead]do
+		self.dead = dead
+		self.attackable = not dead
+		self:setSolid(not dead)
+	end,
+	setSolid=[:,solid]do
+		self.solid = solid
+		if not self.solid then
+			self.zOrder = -1
+		else
+			self.zOrder = nil
+		end
+	end,
+	walk=[:,dir]do
+		if self.dead then return end
+		if self.battle then
+			if self.battle.currentEnt ~= self then
+				return
+			else
+				if self.movesLeft <= 0 then
+					return
 				end
 			end
 		end
-		log(self.name..' is now at level '..math.floor(self.level))
-	end
-end
-
-Entity.getChar=[:]do
-	local char = self.char
-	if self.dead then char = 'd' end
-	return char
-end
-
-Entity.setPos=[:,pos]do
-	assert(pos)
-	self:setTile(nil)
-	self.lastpos:set(self.pos)
-	self.pos:set(pos)
-	if map.bbox:contains(self.pos) then
-		self:setTile(map.tiles[self.pos[1]][self.pos[2]])
-	end
-end
-
-Entity.setTile=[:,tile]do
-	if self.tile then
-		self.tile:removeEnt(self)
-	end
-	self.tile = tile
-	if self.tile then
-		self.tile:addEnt(self)
-	end
-end
-
-Entity.update=[:]do
-	if self.dead then
-		if self.battle and self.battle.currentEnt == self then
-			self:endTurn()
-		end
-		return
-	end
-end
-
-Entity.setDead=[:,dead]do
-	self.dead = dead
-	self.attackable = not dead
-	self:setSolid(not dead)
-end
-
-Entity.setSolid=[:,solid]do
-	self.solid = solid
-	if not self.solid then
-		self.zOrder = -1
-	else
-		self.zOrder = nil
-	end
-end
-
-Entity.walk=[:,dir]do
-	if self.dead then return end
-	if self.battle then
-		if self.battle.currentEnt ~= self then
-			return
+		local newpos = self.pos + assert(dirs[dir], "failed to find dir "..tostring(dir))
+		if self.battle then
+			newpos:clamp(self.battle.bbox)
 		else
-			if self.movesLeft <= 0 then
+			for _,battle in ipairs(battles) do
+				if battle.bbox:contains(newpos) then
+					return
+				end
+			end
+		end
+		newpos:clamp(map.bbox)
+		local tiletype = map.tiles[newpos[1]][newpos[2]].type
+		if tiletype.solid then return end
+		for _,ent in ipairs(entsAtPos(newpos)) do
+			if ent.army.affiliation ~= self.army.affiliation
+			and ent.solid
+			then
 				return
 			end
 		end
-	end
-
-	local newpos = self.pos + assert(dirs[dir], "failed to find dir "..tostring(dir))
-
-	if self.battle then
+		self:setPos(newpos)
+		if self.battle then
+			assert(self.battle.currentEnt == self)
+			self.movesLeft = self.movesLeft - 1
+		end
+		return true
+	end,
+	beginBattle=[:,battle]do
+		self.battle = battle
+		self.ct = 0
+		self.hp = self:stat'hpMax'
+		self.movesLeft = 0
+	end,
+	endBattle=[:]do
+		self.battle = nil
+	end,
+	beginTurn=[:]do
+		self.ct = 100
+		self.movesLeft = self:stat'move'
+		self.turnStartPos = vec2(table.unpack(self.pos))
+		self.acted = false
+		self.army.currentEnt = self
+	end,
+	endTurn=[:]do
+		assert(self.battle)
+		assert(self.battle.currentEnt == self)
+		self.army.currentEnt = nil
+		self.ct = 0
+		if self.movesLeft == self:stat'move' then
+			self.ct = self.ct + 20
+		end
+		if not self.acted then
+			self.ct = self.ct + 20
+		end
+		self.battle:endTurn()
+	end,
+	stat=[:,field]do
+		assert(table.find(self.statFields,field))
+		local value = self[field]
+		assert(type(value) == 'number', "expected stat "..field.." to be a number, but got "..type(value))
+		local equipSources = table()
+		if self.job then equipSources:insert(self.job) end
+		for _,equipField in ipairs(self.equipFields) do
+			local equip = self[equipField]
+			if equip then equipSources:insert(equip) end
+		end
+		for _,src in ipairs(equipSources) do
+			local equipValue = src[field]
+			if equipValue then
+				assert(type(equipValue) == 'number', "expected equipment "..equipValue.." stat "..field.." to be a number, but got "..type(equipValue))
+				value = value + equipValue
+			end
+		end
+		return math.floor(value)
+	end,
+	attackDir=[:,dir]do
+		self.acted = true
+		if self.movesLeft ~= self:stat'move' then self.movesLeft = 0 end
+		assert(self.battle)
+		assert(self.battle.currentEnt == self)
+		local newpos = self.pos + dirs[dir]
 		newpos:clamp(self.battle.bbox)
-	else
-		for _,battle in ipairs(battles) do
-			if battle.bbox:contains(newpos) then
-				return
+		for _,other in ipairs(entsAtPos(newpos)) do
+			if other.attackable then
+				self:attackTarget(other)
 			end
 		end
-	end
-	newpos:clamp(map.bbox)
-
-	local tiletype = map.tiles[newpos[1]][newpos[2]].type
-	if tiletype.solid then return end
-
-	for _,ent in ipairs(entsAtPos(newpos)) do
-		if ent.army.affiliation ~= self.army.affiliation
-		and ent.solid
-		then
+	end,
+	attackTarget=[:,target]do
+		local hitChance = math.clamp(self:stat'hitChance' - target:stat'evade', 5, 100)
+		log(self.name..' attacks '..target.name..' with a '..hitChance..'% chance to hit')
+		if math.random(100) > hitChance then
+			log'...miss'
 			return
 		end
-	end
-	self:setPos(newpos)
-	if self.battle then
-		assert(self.battle.currentEnt == self)
-		self.movesLeft = self.movesLeft - 1
-	end
-	return true
-end
-
-Entity.beginBattle=[:,battle]do
-	self.battle = battle
-	self.ct = 0
-	self.hp = self:stat('hpMax')
-	self.movesLeft = 0
-end
-
-Entity.endBattle=[:]do
-	self.battle = nil
-end
-
-Entity.beginTurn=[:]do
-	self.ct = 100
-	self.movesLeft = self:stat('move')
-	self.turnStartPos = vec2(table.unpack(self.pos))
-	self.acted = false
-	self.army.currentEnt = self
-end
-
-Entity.endTurn=[:]do
-	assert(self.battle)
-	assert(self.battle.currentEnt == self)
-	self.army.currentEnt = nil
-
-	self.ct = 0
-	if self.movesLeft == self:stat('move') then
-		self.ct = self.ct + 20
-	end
-	if not self.acted then
-		self.ct = self.ct + 20
-	end
-
-	self.battle:endTurn()
-end
-
-Entity.stat=[:,field]do
-	assert(table.find(self.statFields, field))
-	local value = self[field]
-	assert(type(value) == 'number', "expected stat "..field.." to be a number, but got "..type(value))
-	local equipSources = table()
-	if self.job then equipSources:insert(self.job) end
-	for _,equipField in ipairs(self.equipFields) do
-		local equip = self[equipField]
-		if equip then equipSources:insert(equip) end
-	end
-	for _,src in ipairs(equipSources) do
-		local equipValue = src[field]
-		if equipValue then
-			assert(type(equipValue) == 'number', "expected equipment "..equipValue.." stat "..field.." to be a number, but got "..type(equipValue))
-			value = value + equipValue
+		local defense = target:stat'defense' - .5 * self:stat'attack'
+		defense = 1 - math.clamp(defense, 0, 95) / 100
+		local dmg = math.ceil(self:stat'attack' * defense)
+		target:takeDamage(dmg, self)
+	end,
+	getExpGiven=[:]do
+		return self.level
+	end,
+	takeDamage=[:,dmg,inflicter]do
+		self.hp = math.max(self.hp - dmg, 0)
+		log(self.name..' receives '..dmg..' dmg and is at '..self.hp..' hp')
+		if self.hp == 0 then
+			log(self.name..' is dead')
+			inflicter:addExp(self:getExpGiven())
+			self:die()
 		end
-	end
+	end,
+	die=[:]do
+		self:setDead(true)
+	end,
+}
 
-	return math.floor(value)
-end
-
-Entity.attackDir=[:,dir]do
-	self.acted = true
-	if self.movesLeft ~= self:stat('move') then self.movesLeft = 0 end
-	assert(self.battle)
-	assert(self.battle.currentEnt == self)
-	local newpos = self.pos + dirs[dir]
-	newpos:clamp(self.battle.bbox)
-	for _,other in ipairs(entsAtPos(newpos)) do
-		if other.attackable then
-			self:attackTarget(other)
+Army=class{
+	gold=0,
+	init=[:,args]do
+		if args then
+			self.affiliation = args.affiliation
 		end
-	end
-end
-
-Entity.attackTarget=[:,target]do
-	local hitChance = math.clamp(self:stat('hitChance') - target:stat('evade'), 5, 100)
-	log(self.name..' attacks '..target.name..' with a '..hitChance..'% chance to hit')
-
-	if math.random(100) > hitChance then
-		log('...miss')
-		return
-	end
-	local defense = target:stat('defense') - .5 * self:stat('attack')
-	defense = 1 - math.clamp(defense, 0, 95) / 100
-	local dmg = math.ceil(self:stat('attack') * defense)
-	target:takeDamage(dmg, self)
-end
-
-Entity.getExpGiven=[:]do
-	return self.level
-end
-
-Entity.takeDamage=[:,dmg,inflicter]do
-	self.hp = math.max(self.hp - dmg, 0)
-	log(self.name..' receives '..dmg..' dmg and is at '..self.hp..' hp')
-	if self.hp == 0 then
-		log(self.name..' is dead')
-		inflicter:addExp(self:getExpGiven())
-		self:die()
-	end
-end
-
-Entity.die=[:]do
-	self:setDead(true)
-end
-
-
-Army=class()
-Army.gold = 0
-Army.init=[:,args]do
-	if args then
-		self.affiliation = args.affiliation
-	end
-	self.ents = table()
-	self.items = table()
-end
-Army.addEnt=[:,ent]do
-	if ent.army then
-		ent.army:removeEnt(ent)
-	end
-	for _,field in ipairs(ent.equipFields) do
-		if ent[field] then
-			self:addItem(ent[field])
+		self.ents = table()
+		self.items = table()
+	end,
+	addEnt=[:,ent]do
+		if ent.army then
+			ent.army:removeEnt(ent)
 		end
-	end
-	ent.army = self
-	self.ents:insert(ent)
-	if not self.leader then
-		self.leader = ent
-	end
-end
-Army.removeEnt=[:,ent]do
-	assert(self.ents:find(ent))
-	self.ents:removeObject(ent)
-	for _,field in ipairs(ent.equipFields) do
-		local item = ent[field]
-		if item then self:removeItem(item) end
-	end
-	if ent == self.leader then
-		self.leader = self.ents[1]
-	end
-end
-
-Army.deleteAll=[:]do
-	assert(not self.battle, "i don't have deleting armies mid-battle done yet")
-	for i=#self.ents,1,-1 do
-		self.ents[i]:delete()
-	end
-end
-
-Army.addItem=[:,item]do
-	self.items:insert(item)
-end
-
-Army.removeItem=[:,item]do
-	for _,ent in ipairs(self.ents) do
 		for _,field in ipairs(ent.equipFields) do
-			if ent[field] == item then
-				ent[field] = nil
+			if ent[field] then
+				self:addItem(ent[field])
 			end
 		end
-	end
+		ent.army = self
+		self.ents:insert(ent)
+		if not self.leader then
+			self.leader = ent
+		end
+	end,
+	removeEnt=[:,ent]do
+		assert(self.ents:find(ent))
+		self.ents:removeObject(ent)
+		for _,field in ipairs(ent.equipFields) do
+			local item = ent[field]
+			if item then self:removeItem(item) end
+		end
+		if ent == self.leader then
+			self.leader = self.ents[1]
+		end
+	end,
+	deleteAll=[:]do
+		assert(not self.battle, "i don't have deleting armies mid-battle done yet")
+		for i=#self.ents,1,-1 do
+			self.ents[i]:delete()
+		end
+	end,
+	addItem=[:,item]do
+		self.items:insert(item)
+	end,
+	removeItem=[:,item]do
+		for _,ent in ipairs(self.ents) do
+			for _,field in ipairs(ent.equipFields) do
+				if ent[field] == item then
+					ent[field] = nil
+				end
+			end
+		end
+		self.items:removeObject(item)
+	end,
+	addArmy=[:,army]do
+		assert(army ~= self)
+		for _,ent in ipairs(army.ents) do
+			self:addEnt(ent)
+		end
+		for i=#army.items,1,-1 do
+			local item = army.items[i]
+			self:addItem(item)
+			army.items:remove(i)
+		end
+	end,
+	beginBattle=[:,battle]do
+		self.battle = battle
+	end,
+	endBattle=[:]do
+		self.battle = nil
+	end,
+}
 
-	self.items:removeObject(item)
-end
+ClientArmy=Army:subclass{
+	init=[:,client]do
+		ClientArmy.super.init(self)
+		self.client = client
+	end,
+	addEnt=[:,ent]do
+		ClientArmy.super.addEnt(self, ent)
+		ent.client = client
+	end,
+	removeEnt=[:,ent]do
+		ClientArmy.super.removeEnt(self, ent)
+		ent.client = nil
+	end,
+	beginBattle=[:,battle]do
+		ClientArmy.super.beginBattle(self, battle)
+		self.client:removeToState(Client.mainCmdState)
+		self.client:pushState(Client.battleCmdState)
+	end,
+	endBattle=[:,battle]do
+		ClientArmy.super.endBattle(self, battle)
+		assert(self.client.cmdstate == Client.battleCmdState, "expected client cmdstate to be battleCmdState")
+		self.client:popState()
+	end,
+}
 
-Army.addArmy=[:,army]do
-	assert(army ~= self)
-	for _,ent in ipairs(army.ents) do
-		self:addEnt(ent)
-	end
-	for i=#army.items,1,-1 do
-		local item = army.items[i]
-		self:addItem(item)
-		army.items:remove(i)
-	end
-end
-
-Army.beginBattle=[:,battle]do
-	self.battle = battle
-end
-
-Army.endBattle=[:]do
-	self.battle = nil
-end
-
-
-ClientArmy=Army:subclass()
-ClientArmy.init=[:,client]do
-	ClientArmy.super.init(self)
-	self.client = client
-end
-ClientArmy.addEnt=[:,ent]do
-	ClientArmy.super.addEnt(self, ent)
-	ent.client = client
-end
-ClientArmy.removeEnt=[:,ent]do
-	ClientArmy.super.removeEnt(self, ent)
-	ent.client = nil
-end
-ClientArmy.beginBattle=[:,battle]do
-	ClientArmy.super.beginBattle(self, battle)
-
-	self.client:removeToState(Client.mainCmdState)
-	self.client:pushState(Client.battleCmdState)
-end
-ClientArmy.endBattle=[:,battle]do
-	ClientArmy.super.endBattle(self, battle)
-	assert(self.client.cmdstate == Client.battleCmdState, "expected client cmdstate to be battleCmdState")
-	self.client:popState()
-end
-
-local sizes = table{
+local sizes=table{
 	'tiny',
 	'small',
 	'medium',
@@ -1082,14 +967,14 @@ local sizes = table{
 	'super',
 }
 
-local elements = string.split(string.trim[[
+local elements=string.split(string.trim[[
 water
 frost
 fire
 earth
 ]], '\n')
 
-local modifiers = string.split(string.trim[[
+local modifiers=string.split(string.trim[[
 mud
 great
 humanoid
@@ -1103,11 +988,11 @@ were
 sea
 ]], '\n')
 
-Unit = Entity:subclass()
-Unit.canBattle = true
-Unit.name = 'Unit'
-Unit.char = 'U'
-Unit.baseTypes = table{
+Unit=Entity:subclass()
+Unit.canBattle=true
+Unit.name='Unit'
+Unit.char='U'
+Unit.baseTypes=table{
 	{name='Spider', bodyType='arachnid', size='tiny', weight=.1},
 	{name='Snake', bodyType='reptile', size='small', weight=.5},
 	{name='Lobster', bodyType='crustacean', size='tiny', weight=1},
@@ -1132,21 +1017,21 @@ Unit.baseTypes = table{
 	{name='T-rex', bodyType='reptile', size='super', weight=15000},
 }
 for i=1,#Unit.baseTypes do
-	local baseType = Unit.baseTypes[i]
+	local baseType=Unit.baseTypes[i]
 	for _,stat in ipairs(Unit.statFields) do
-		if stat ~= 'level'
-		and stat ~= 'exp'
+		if stat~='level'
+		and stat~='exp'
 		then
-			baseType[stat..'Range'] = vec2(
+			baseType[stat..'Range']=vec2(
 				-math.random() * Unit[stat] * .1,
 				math.random() * Unit[stat] * .1
 			)
 		end
 	end
 	for _,baseField in ipairs(Unit.statFields) do
-		local rangeField = baseField..'Range'
+		local rangeField=baseField..'Range'
 		if baseType[rangeField] then
-			local min = 1 - (Unit[baseField] or 0)
+			local min=1 - (Unit[baseField] or 0)
 			if baseType[rangeField][1] < min then baseType[rangeField][1] = min end
 		end
 	end
@@ -1221,7 +1106,6 @@ Unit.update=[:]do
 				self:walk(dirs[math.random(#dirs)])
 			end
 		end
-
 	else
 		if not self.battle then
 			if self.army.leader ~= self then
@@ -1252,7 +1136,6 @@ Unit.update=[:]do
 				end
 			end
 		end
-
 		self:checkBattle()
 		self:updateFog()
 	end
@@ -1408,38 +1291,39 @@ Potion.init=[:,...]do
 	self.name = self.name .. '(+'..self.heal..')'
 end
 Potion.use=[:,who]do
-	who.hp = math.min(who.hp + self.heal, who:stat('hpMax'))
+	who.hp = math.min(who.hp + self.heal, who:stat'hpMax')
 end
 
-local Equipment = Item:subclass()
-Equipment.init=[:,maxLevel]do
-	assert(self.baseTypes, "tried to instanciate an equipment of type "..self.name.." with no basetypes")
-	local baseTypeOptions = table(self.baseTypes)
-	local modifierOptions = table(self.modifiers)
-	if maxLevel then
-		local filter = [baseType]do
-			return not baseType.dropLevel or baseType.dropLevel <= maxLevel
+local Equipment = Item:subclass{
+	init=[:,maxLevel]do
+		assert(self.baseTypes, "tried to instanciate an equipment of type "..self.name.." with no basetypes")
+		local baseTypeOptions = table(self.baseTypes)
+		local modifierOptions = table(self.modifiers)
+		if maxLevel then
+			local filter = [baseType]do
+				return not baseType.dropLevel or baseType.dropLevel <= maxLevel
+			end
+			baseTypeOptions = baseTypeOptions:filter(filter)
+			modifierOptions = modifierOptions:filter(filter)
 		end
-		baseTypeOptions = baseTypeOptions:filter(filter)
-		modifierOptions = modifierOptions:filter(filter)
-	end
-	local baseType = baseTypeOptions[math.random(#baseTypeOptions)]
-	local modifier = modifierOptions[math.random(#modifierOptions)]
-	self.name = modifier.name
-	if self.name ~= '' then self.name = self.name..' ' end
-	self.name = self.name..baseType.name
-	for _,baseField in ipairs(Entity.statFields) do
-		if table.find(self.modifierFields, baseField) then
-			local field = baseField..'Range'
-			local range = vec2()
-			if self[field] then range = range + vec2(self[field]) end
-			if baseType[field] then range = range + vec2(baseType[field]) end
-			if modifier[field] then range = range + vec2(modifier[field]) end
-			self[field] = range
+		local baseType = baseTypeOptions[math.random(#baseTypeOptions)]
+		local modifier = modifierOptions[math.random(#modifierOptions)]
+		self.name = modifier.name
+		if self.name ~= '' then self.name = self.name..' ' end
+		self.name = self.name..baseType.name
+		for _,baseField in ipairs(Entity.statFields) do
+			if table.find(self.modifierFields, baseField) then
+				local field = baseField..'Range'
+				local range = vec2()
+				if self[field] then range = range + vec2(self[field]) end
+				if baseType[field] then range = range + vec2(baseType[field]) end
+				if modifier[field] then range = range + vec2(modifier[field]) end
+				self[field] = range
+			end
 		end
-	end
-	setFieldsByRange(self, Entity.statFields)
-end
+		setFieldsByRange(self,Entity.statFields)
+	end,
+}
 
 local weaponBaseTypes = {
 	{name='Derp', attackRange=5, hitChanceRange=5, dropLevel=0},
@@ -1570,250 +1454,252 @@ Monster.init=[:,...]do
 	self.army.gold = self.army.gold + (math.random(11) - 1) * 10
 end
 
-View = class()
-View.size = vec2(32,28)
-View.bbox = box2(1, View.size)
-View.center = (View.size / 2):ceil()
-View.update=[:,mapCenter]do
-	self.delta = mapCenter - self.center
-end
-View.drawBorder=[:,b]do
-	local mins = b.min
-	local maxs = b.max
-	for x=mins[1]+1,maxs[1]-1 do
-		if mins[2] >= 1 and mins[2] <= view.size[2] then
-			con.locate(x, mins[2])
-			con.write('-')
-		end
-		if maxs[2] >= 1 and maxs[2] <= view.size[2] then
-			con.locate(x, maxs[2])
-			con.write('-')
-		end
-	end
-	for y=mins[2]+1,maxs[2]-1 do
-		if mins[1] >= 1 and mins[1] <= view.size[1] then
-			con.locate(mins[1], y)
-			con.write('|')
-		end
-		if maxs[1] >= 1 and maxs[1] <= view.size[1] then
-			con.locate(maxs[1], y)
-			con.write('|')
-		end
-	end
-	local minmax = {mins, maxs}
-	for x=1,2 do
-		for y=1,2 do
-			local v = vec2(minmax[x][1], minmax[y][2])
-			if view.bbox:contains(v) then
-				con.locate(table.unpack(v))
-				con.write('+')
+local ViewSize = vec2(32,28)
+View=class{
+	size=ViewSize,
+	bbox=box2(1, ViewSize),
+	center=(ViewSize/2):ceil(),
+	update=[:,mapCenter]do
+		self.delta=mapCenter-self.center
+	end,
+	drawBorder=[:,b]do
+		local mins = b.min
+		local maxs = b.max
+		for x=mins[1]+1,maxs[1]-1 do
+			if mins[2] >= 1 and mins[2] <= view.size[2] then
+				con.locate(x, mins[2])
+				con.write'\151'	--'-'
+			end
+			if maxs[2] >= 1 and maxs[2] <= view.size[2] then
+				con.locate(x, maxs[2])
+				con.write'\156'	--'-'
 			end
 		end
-	end
-end
-View.fillBox=[:,b]do
-	b = box2(b):clamp(view.bbox)
-	for y=b.min[2],b.max[2] do
-		con.locate(b.min[1], y)
-		con.write((' '):rep(b.max[1] - b.min[1] + 1))
-	end
-end
+		for y=mins[2]+1,maxs[2]-1 do
+			if mins[1] >= 1 and mins[1] <= view.size[1] then
+				con.locate(mins[1], y)
+				con.write'\153'	--'|'
+			end
+			if maxs[1] >= 1 and maxs[1] <= view.size[1] then
+				con.locate(maxs[1], y)
+				con.write'\154'	--'|'
+			end
+		end
+		local minmax = {mins, maxs}
+		local asciicorner = {{'\150','\155'},{'\152','\157'}}
+		for x=1,2 do
+			for y=1,2 do
+				local v = vec2(minmax[x][1], minmax[y][2])
+				if view.bbox:contains(v) then
+					con.locate(table.unpack(v))
+					con.write(asciicorner[x][y])	--'+'
+				end
+			end
+		end
+	end,
+	fillBox=[:,b]do
+		b = box2(b):clamp(view.bbox)
+		for y=b.min[2],b.max[2] do
+			con.locate(b.min[1], y)
+			con.write((' '):rep(b.max[1] - b.min[1] + 1))
+		end
+	end,
+}
 view=View()
 
-Client=class()
-Client.maxArmySize=4
+Client=class{
+	maxArmySize=4,
+}
 
-WindowLine = class()
-WindowLine.text = ''
+WindowLine=class{
+	text='',
+	init=[:,args]do
+		if type(args) == 'string' then args = {text=args} end
+		self.text = args.text
+		self.cantSelect = args.cantSelect
+		self.onSelect = args.onSelect
+	end,
+}
 
-WindowLine.init=[:,args]do
-	if type(args) == 'string' then args = {text=args} end
-	self.text = args.text
-	self.cantSelect = args.cantSelect
-	self.onSelect = args.onSelect
-end
-
-
-Window = class()
-Window.init=[:,args]do
-	self.fixed = args.fixed
-	self.currentLine = 1
-	self.firstLine = 1
-	self.pos = vec2(args.pos or {1,1})
-	self.size = vec2(args.size or {1,1})
-	self:refreshBorder()
-	self:setLines(args.lines or {})
-end
-Window.setPos=[:,pos]do
-	self.pos:set(assert(pos))
-	self:refreshBorder()
-end
-Window.refreshBorder=[:]do
-	self.border = box2(self.pos, self.pos + self.size - 1)
-end
-Window.setLines=[:,lines]do
-	self.lines = table.map(lines, [line]((WindowLine(line))))
-
-	self.textWidth = 0
-	self.selectableLines = table()
-	for index,line in ipairs(self.lines) do
-		self.textWidth = math.max(self.textWidth, #line.text)
-		line.row = index
-		if not line.cantSelect then
-			self.selectableLines:insert(line)
-		end
-	end
-
-	if not self.fixed then
-		self.size = (vec2(self.textWidth + 1, #self.lines) + 2):clamp(view.bbox)
-		self:refreshBorder()
-	end
-end
-Window.moveCursor=[:,ch]do
-	if #self.selectableLines == 0 then
+Window=class{
+	init=[:,args]do
+		self.fixed = args.fixed
 		self.currentLine = 1
-	else
-		if ch == 'down' then
-			self.currentLine = self.currentLine % #self.selectableLines + 1
-		elseif ch == 'up' then
-			self.currentLine = (self.currentLine - 2) % #self.selectableLines + 1
+		self.firstLine = 1
+		self.pos = vec2(args.pos or {1,1})
+		self.size = vec2(args.size or {1,1})
+		self:refreshBorder()
+		self:setLines(args.lines or {})
+	end,
+	setPos=[:,pos]do
+		self.pos:set(assert(pos))
+		self:refreshBorder()
+	end,
+	refreshBorder=[:]do
+		self.border = box2(self.pos, self.pos + self.size - 1)
+	end,
+	setLines=[:,lines]do
+		self.lines = table.map(lines, [line]((WindowLine(line))))
+		self.textWidth = 0
+		self.selectableLines = table()
+		for index,line in ipairs(self.lines) do
+			self.textWidth = math.max(self.textWidth, #line.text)
+			line.row = index
+			if not line.cantSelect then
+				self.selectableLines:insert(line)
+			end
 		end
-
-		local row = self.selectableLines[self.currentLine].row
-		if row < self.firstLine then
-			self.firstLine = row
-		elseif row > self.firstLine + (self.size[2] - 3) then
-			self.firstLine = row - (self.size[2] - 3)
+		if not self.fixed then
+			self.size = (vec2(self.textWidth + 1, #self.lines) + 2):clamp(view.bbox)
+			self:refreshBorder()
 		end
-	end
-end
-Window.chooseCursor=[:]do
-	if #self.selectableLines > 0 then
-		self.currentLine = (self.currentLine - 1) % #self.selectableLines + 1
-		local line = self.selectableLines[self.currentLine]
-		if line.onSelect then line.onSelect() end
-	end
-end
-Window.draw=[:]do
-	view:drawBorder(self.border)
-	local box = box2(self.border.min+1, self.border.max-1)
-	view:fillBox(box)
-	local cursor = vec2(box.min)
-
-	local i = self.firstLine
-	while cursor[2] < self.border.max[2]
-	and i <= #self.lines
-	do
-		local line = self.lines[i]
-		con.locate(table.unpack(cursor))
-		if not self.noInteraction
-		and line == self.selectableLines[self.currentLine]
-		then
-			con.write('>')
+	end,
+	moveCursor=[:,ch]do
+		if #self.selectableLines == 0 then
+			self.currentLine = 1
 		else
-			con.write(' ')
+			if ch == 'down' then
+				self.currentLine = self.currentLine % #self.selectableLines + 1
+			elseif ch == 'up' then
+				self.currentLine = (self.currentLine - 2) % #self.selectableLines + 1
+			end
+			local row = self.selectableLines[self.currentLine].row
+			if row < self.firstLine then
+				self.firstLine = row
+			elseif row > self.firstLine + (self.size[2] - 3) then
+				self.firstLine = row - (self.size[2] - 3)
+			end
 		end
-		con.write(line.text)
-
-		cursor[2] = cursor[2] + 1
-		i = i + 1
-	end
-end
-
-DoneWindow = Window:subclass()
-DoneWindow.init=[:,args]do
-	DoneWindow.super.init(self, args)
-end
-DoneWindow.refresh=[:,text]do
-	self:setLines{text}
-end
-QuitWindow = Window:subclass()
-QuitWindow.init=[:,args]do
-	local client = assert(args.client)
-	QuitWindow.super.init(self, args)
-	self:setLines{
-		{text='Quit?', cantSelect=true},
-		{text='-----', cantSelect=true},
-		{text='Yes', onSelect=[]reset()},
-		{text='No', onSelect=[]client:popState()},
-	}
-end
-
-ClientBaseWindow = Window:subclass()
-ClientBaseWindow.init=[:,args]do
-	ClientBaseWindow.super.init(self, args)
-	self.client = assert(args.client)
-	self.army = self.client.army
-end
-
-MoveFinishedWindow = ClientBaseWindow:subclass()
-MoveFinishedWindow.refresh=[:]do
-	local lines = table()
-	local solidfound
-	for _,e in ipairs(entsAtPos(self.client.army.currentEnt.pos)) do
-		if e ~= self.client.army.currentEnt and e.solid then
-			solidfound = true
-			break
+	end,
+	chooseCursor=[:]do
+		if #self.selectableLines > 0 then
+			self.currentLine = (self.currentLine - 1) % #self.selectableLines + 1
+			local line = self.selectableLines[self.currentLine]
+			if line.onSelect then line.onSelect() end
 		end
-	end
-	if not solidfound then
+	end,
+	draw=[:]do
+		view:drawBorder(self.border)
+		local box = box2(self.border.min+1, self.border.max-1)
+		view:fillBox(box)
+		local cursor = vec2(box.min)
+		local i = self.firstLine
+		while cursor[2] < self.border.max[2]
+		and i <= #self.lines
+		do
+			local line = self.lines[i]
+			con.locate(table.unpack(cursor))
+			if not self.noInteraction
+			and line == self.selectableLines[self.currentLine]
+			then
+				con.write'>'
+			else
+				con.write' '
+			end
+			con.write(line.text)
+			cursor[2] = cursor[2] + 1
+			i = i + 1
+		end
+	end,
+}
+
+DoneWindow=Window:subclass{
+	refresh=[:,text]do
+		self:setLines{text}
+	end,
+}
+
+QuitWindow=Window:subclass{
+	init=[:,args]do
+		local client = assert(args.client)
+		QuitWindow.super.init(self, args)
+		self:setLines{
+			{text='Quit?', cantSelect=true},
+			{text='-----', cantSelect=true},
+			{text='Yes', onSelect=[]reset()},
+			{text='No', onSelect=[]client:popState()},
+		}
+	end,
+}
+
+ClientBaseWindow=Window:subclass{
+	init=[:,args]do
+		ClientBaseWindow.super.init(self, args)
+		self.client = assert(args.client)
+		self.army = self.client.army
+	end,
+}
+
+MoveFinishedWindow=ClientBaseWindow:subclass{
+	refresh=[:]do
+		local lines = table()
+		local solidfound
+		for _,e in ipairs(entsAtPos(self.client.army.currentEnt.pos)) do
+			if e ~= self.client.army.currentEnt and e.solid then
+				solidfound = true
+				break
+			end
+		end
+		if not solidfound then
+			lines:insert{
+				text = 'Ok',
+				onSelect = []do
+					self.client.army.currentEnt.movesLeft = 0
+					self.client:popState()
+					self.client:popState()
+				end,
+			}
+		end
 		lines:insert{
-			text = 'Ok',
-			onSelect = []do
-				self.client.army.currentEnt.movesLeft = 0
+			text='Cancel',
+			onSelect=[]do
+				local currentEnt=self.client.army.currentEnt
+				currentEnt:setPos(currentEnt.turnStartPos)
+				currentEnt.movesLeft=currentEnt:stat'move'
 				self.client:popState()
 				self.client:popState()
 			end,
 		}
-	end
-	lines:insert{
-		text='Cancel',
-		onSelect=[]do
-			local currentEnt=self.client.army.currentEnt
-			currentEnt:setPos(currentEnt.turnStartPos)
-			currentEnt.movesLeft=currentEnt:stat('move')
-			self.client:popState()
-			self.client:popState()
-		end,
-	}
-	self:setLines(lines)
-end
+		self:setLines(lines)
+	end,
+}
 
-MapOptionsWindow=ClientBaseWindow:subclass()
-MapOptionsWindow.init=[:,args]do
-	MapOptionsWindow.super.init(self, args)
-	self:refresh()
-end
-MapOptionsWindow.refresh=[:]do
-	local lines = table()
-	lines:insert{
-		text = 'Status',
-		onSelect = []self.client:pushState(Client.armyCmdState),
-	}
-	lines:insert{
-		text = 'Inspect',
-		onSelect = []self.client:pushState(Client.inspectCmdState),
-	}
-	if #self.client.army.ents < Client.maxArmySize then
+MapOptionsWindow=ClientBaseWindow:subclass{
+	init=[:,args]do
+		MapOptionsWindow.super.init(self, args)
+		self:refresh()
+	end,
+	refresh=[:]do
+		local lines = table()
 		lines:insert{
-			text = 'Recruit',
-			onSelect = []do
-				if #self.client.army.ents < Client.maxArmySize then
-					self.client:pushState(Client.recruitCmdState)
-				end
-			end,
+			text = 'Status',
+			onSelect = []self.client:pushState(Client.armyCmdState),
 		}
-	end
-	lines:insert{
-		text = 'Quit',
-		onSelect = []self.client:pushState(Client.quitCmdState),
-	}
-	lines:insert{
-		text = 'Done',
-		onSelect = []self.client:popState(),
-	}
-	self:setLines(lines)
-end
+		lines:insert{
+			text = 'Inspect',
+			onSelect = []self.client:pushState(Client.inspectCmdState),
+		}
+		if #self.client.army.ents < Client.maxArmySize then
+			lines:insert{
+				text = 'Recruit',
+				onSelect = []do
+					if #self.client.army.ents < Client.maxArmySize then
+						self.client:pushState(Client.recruitCmdState)
+					end
+				end,
+			}
+		end
+		lines:insert{
+			text = 'Quit',
+			onSelect = []self.client:pushState(Client.quitCmdState),
+		}
+		lines:insert{
+			text = 'Done',
+			onSelect = []self.client:popState(),
+		}
+		self:setLines(lines)
+	end,
+}
 
 refreshWinPlayers=[client]do
 	local player = client.army.ents[client.armyWin.currentLine]
@@ -1823,276 +1709,290 @@ refreshWinPlayers=[client]do
 	end
 end
 
-ArmyWindow = ClientBaseWindow:subclass()
-ArmyWindow.refresh=[:]do
-	local lines = table()
-	for _,ent in ipairs(self.army.ents) do
-		lines:insert(ent.name)
-	end
-	self:setLines(lines)
-end
-ArmyWindow.moveCursor=[:,ch]do
-	ArmyWindow.super.moveCursor(self, ch)
-
-	refreshWinPlayers(self.client)
-	self.client.statWin:refresh()
-end
-
-StatWindow = ClientBaseWindow:subclass()
-StatWindow.noInteraction = true
-StatWindow.refresh=[:,field,equip]do
-	local recordStats=[dest]do
-		local stats = table()
-		for _,field in ipairs(self.player.statFields) do
-			stats[field] = self.player:stat(field)
+ArmyWindow=ClientBaseWindow:subclass{
+	refresh=[:]do
+		local lines = table()
+		for _,ent in ipairs(self.army.ents) do
+			lines:insert(ent.name)
 		end
-		return stats
-	end
+		self:setLines(lines)
+	end,
+	moveCursor=[:,ch]do
+		ArmyWindow.super.moveCursor(self, ch)
+		refreshWinPlayers(self.client)
+		self.client.statWin:refresh()
+	end,
+}
 
-	local currentStats = recordStats()
-	local equipStats
-
-	if field then
-		local lastEquip = self.player[field]
-		self.player[field] = equip
-
-		equipStats = recordStats()
-
-		self.player[field] = lastEquip
-	end
-
-	local lines = table()
-	for _,field in ipairs(self.player.statFields) do
-		local fieldName = field
-		if field == 'hpMax' then fieldName = 'hp' end
-		local value = currentStats[field]
-		if equipStats and equipStats[field] then
-			local dif = equipStats[field] - currentStats[field]
-			if dif ~= 0 then
-				local sign
-				if dif > 0 then sign = '+' else sign = '' end
-				value = '('..sign..dif..')'
+local shorthandStat={
+	level='Lv. ',
+	exp='Exp.',
+	hpMax='HP  ',
+	speed='Spd.',
+	attack='Atk.',
+	defense='Def.',
+	hitChance='Hit%',
+	evade='Ev.%',
+}
+StatWindow=ClientBaseWindow:subclass{
+	noInteraction=true,
+	refresh=[:,field,equip]do
+		local recordStats=[dest]do
+			local stats=table()
+			for _,field in ipairs(self.player.statFields) do
+				stats[field]=self.player:stat(field)
 			end
+			return stats
 		end
-		if self.client.army.battle and field == 'hpMax' then
-			value = self.player.hp .. '/' .. value
+		local currentStats=recordStats()
+		local equipStats
+		if field then
+			local lastEquip=self.player[field]
+			self.player[field]=equip
+			equipStats=recordStats()
+			self.player[field]=lastEquip
 		end
-		local s = fieldName..' '..value
-		lines:insert(s)
-	end
-	lines:insert('gold '..self.client.army.gold)
-
-	self:setLines(lines)
-end
-
-EquipWindow = ClientBaseWindow:subclass()
-EquipWindow.refresh=[:]do
-	local lines = table()
-	local width = 0
-	for _,field in ipairs(self.player.equipFields) do
-		width = math.max(width, #field)
-	end
-	for _,field in ipairs(self.player.equipFields) do
-		local s = (' '):rep(width - #field)..field..': '
-		local equip = self.player[field]
-		if equip then
-			s = s .. equip.name
-		else
-			s = s .. '[Empty]'
+		local lines=table()
+		for _,field in ipairs(self.player.statFields) do
+			local fieldName=shorthandStat[field]or field
+			local value=currentStats[field]
+			if equipStats and equipStats[field] then
+				local dif=equipStats[field] - currentStats[field]
+				if dif ~= 0 then
+					local sign=dif>0 and'+'or''
+					value='('..sign..dif..')'
+				end
+			end
+			if self.client.army.battle and field == 'hpMax' then
+				value=self.player.hp..'/'..value
+			end
+			local s=fieldName..' '..value
+			lines:insert(s)
 		end
-		lines:insert(s)
-	end
-	self:setLines(lines)
-end
+		lines:insert('gold '..self.client.army.gold)
 
-ItemWindow = ClientBaseWindow:subclass()
+		self:setLines(lines)
+	end,
+}
+
+local shorthandFields={
+	weapon='\132',
+	shield='\141',
+	armor='\143',
+	helmet='\142',
+}
+EquipWindow=ClientBaseWindow:subclass{
+	refresh=[:]do
+		local lines=table()
+		local width=0
+		for _,field in ipairs(self.player.equipFields) do
+			local fieldName=shorthandFields[field]or field
+			width=math.max(width, #fieldName)
+		end
+		for _,field in ipairs(self.player.equipFields) do
+			local fieldName=shorthandFields[field]or field
+			local s=(' '):rep(width - #fieldName)..fieldName..': '
+			local equip=self.player[field]
+			if equip then
+				s..=equip.name
+			else
+				s..='[Empty]'
+			end
+			lines:insert(s)
+		end
+		self:setLines(lines)
+	end,
+}
+
 local refreshEquipStatWin=[client]do
-	local item = client.itemWin.items[client.itemWin.currentLine]
+	local item=client.itemWin.items[client.itemWin.currentLine]
 	if item then
-		local field = assert(client.itemWin.player.equipFields[client.equipWin.currentLine])
+		local field=assert(client.itemWin.player.equipFields[client.equipWin.currentLine])
 		if field then
 			client.statWin:refresh(field, item)
 		end
 	end
 end
-ItemWindow.moveCursor=[:,ch]do
-	ItemWindow.super.moveCursor(self, ch)
-	if self.client.cmdstate==Client.chooseEquipCmdState then
-		refreshEquipStatWin(self.client)
-	end
-end
-ItemWindow.chooseCursor=[:]do
-	ItemWindow.super.chooseCursor(self)
-	if self.client.cmdstate==Client.chooseEquipCmdState then
-		local player = client.equipWin.player
-		local field = assert(player.equipFields[client.equipWin.currentLine])
-		local equip = client.itemWin.items[client.itemWin.currentLine]
-		if player[field] == equip then
-			player[field] = nil
-		else
-			player[field] = equip
+
+ItemWindow=ClientBaseWindow:subclass{
+	moveCursor=[:,ch]do
+		ItemWindow.super.moveCursor(self, ch)
+		if self.client.cmdstate==Client.chooseEquipCmdState then
+			refreshEquipStatWin(self.client)
 		end
-		client.equipWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
-		client.equipWin:refresh()
-		client.itemWin:refresh([item]do
-			if item.equip ~= field then return false end
-			for _,p2 in ipairs(client.army.ents) do
-				if p2 ~= player then
-					for _,f2 in ipairs(p2.equipFields) do
-						if p2[f2] == item then return false end
+	end,
+	chooseCursor=[:]do
+		ItemWindow.super.chooseCursor(self)
+		if self.client.cmdstate==Client.chooseEquipCmdState then
+			local player=client.equipWin.player
+			local field=assert(player.equipFields[client.equipWin.currentLine])
+			local equip=client.itemWin.items[client.itemWin.currentLine]
+			if player[field] == equip then
+				player[field]=nil
+			else
+				player[field]=equip
+			end
+			client.equipWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
+			client.equipWin:refresh()
+			client.itemWin:refresh([item]do
+				if item.equip ~= field then return false end
+				for _,p2 in ipairs(client.army.ents) do
+					if p2 ~= player then
+						for _,f2 in ipairs(p2.equipFields) do
+							if p2[f2] == item then return false end
+						end
 					end
 				end
-			end
-			return true
-		end)
-		--client.itemWin:setPos(vec2(client.equipWin.border.max[1]+1, client.equipWin.border.min[2]))
-		client.itemWin:setPos(vec2(client.equipWin.border.min[1], client.equipWin.border.max[2]+1))
-		refreshEquipStatWin(client)
-	end
-end
-ItemWindow.refresh=[:,filter]do
-	local lines = table()
-	self.items = table()
-	for _,item in ipairs(self.client.army.items) do
-		local good = true
-		if filter then good = filter(item) end
-		if good then
-			self.items:insert(item)
-			lines:insert(item.name)
+				return true
+			end)
+			--client.itemWin:setPos(vec2(client.equipWin.border.max[1]+1, client.equipWin.border.min[2]))
+			client.itemWin:setPos(vec2(client.equipWin.border.min[1], client.equipWin.border.max[2]+1))
+			refreshEquipStatWin(client)
 		end
-	end
-	for _,player in ipairs(self.client.army.ents) do
-		for _,field in ipairs(player.equipFields) do
-			if player[field] then
-				local index = self.items:find(player[field])
-				if index then lines[index] = lines[index] .. ' (E)' end
+	end,
+	refresh=[:,filter]do
+		local lines=table()
+		self.items=table()
+		for _,item in ipairs(self.client.army.items) do
+			local good=true
+			if filter then good=filter(item) end
+			if good then
+				self.items:insert(item)
+				lines:insert(item.name)
 			end
 		end
-	end
-	self:setLines(lines)
-end
-
-PlayerWindow = ClientBaseWindow:subclass()
-
-PlayerWindow.init=[:,args]do
-	PlayerWindow.super.init(self, args)
-	self:setLines{
-		{
-			text = 'Equip',
-			onSelect = []self.client:pushState(Client.equipCmdState),
-		},
-		{
-			text = 'Use Item',
-			onSelect = []self.client:pushState(Client.itemCmdState),
-		},
-		{
-			text = 'Drop Item',
-			onSelect = []self.client:pushState(Client.dropItemCmdState),
-		},
-	}
-end
-
-BattleWindow = ClientBaseWindow:subclass()
-BattleWindow.refresh=[:]do
-	local client = self.client
-	local currentEnt = client.army.currentEnt
-
-	local lines = table()
-	if currentEnt.movesLeft > 0 then
-		lines:insert{
-			text = 'Move',
-			onSelect = []client:pushState(Client.battleMoveCmdState),
-		}
-	end
-	if not currentEnt.acted then
-		lines:insert{
-			text = 'Attack',
-			onSelect = []client:pushState(Client.attackCmdState),
-		}
-		if #client.army.items > 0 then
-			lines:insert{
-				text = 'Use Item',
-				onSelect = []client:pushState(Client.itemCmdState),
-			}
-		end
-	end
-
-	local getEnt
-	for _,ent in ipairs(entsAtPos(currentEnt.pos)) do
-		if ent.get then
-			getEnt = true
-			break
-		end
-	end
-	if getEnt then
-		lines:insert{
-			text = 'Get',
-			onSelect = []do
-				for _,ent in ipairs(entsAtPos(currentEnt.pos)) do
-					if ent.get then
-						currentEnt.movesLeft = 0
-						ent:get(currentEnt)
-					end
+		for _,player in ipairs(self.client.army.ents) do
+			for _,field in ipairs(player.equipFields) do
+				if player[field] then
+					local index=self.items:find(player[field])
+					if index then lines[index]=lines[index] .. ' (E)' end
 				end
-			end,
-		}
-	end
-	lines:insert{
-		text = 'End Turn',
-		onSelect = []currentEnt:endTurn(),
-	}
-	lines:insert{
-		text = 'Party',
-		onSelect = []client:pushState(Client.armyCmdState),
-	}
-	lines:insert{
-		text = 'Inspect',
-		onSelect = []self.client:pushState(Client.inspectCmdState),
-	}
-	lines:insert{
-		text = 'Quit',
-		onSelect = []client:pushState(Client.quitCmdState),
-	}
-	self:setLines(lines)
-end
-
-local cmdPopState = {
-	name = 'Done',
-	exec = [client, cmd, ch] client:popState(),
+			end
+		end
+		self:setLines(lines)
+	end,
 }
 
-local makeCmdPushState = [name, state, disabled]do
+PlayerWindow=ClientBaseWindow:subclass{
+	init=[:,args]do
+		PlayerWindow.super.init(self, args)
+		self:setLines{
+			{
+				text='Equip',
+				onSelect=[]self.client:pushState(Client.equipCmdState),
+			},
+			{
+				text='Use',
+				onSelect=[]self.client:pushState(Client.itemCmdState),
+			},
+			{
+				text='Drop',
+				onSelect=[]self.client:pushState(Client.dropItemCmdState),
+			},
+		}
+	end,
+}
+
+BattleWindow=ClientBaseWindow:subclass{
+	refresh=[:]do
+		local client=self.client
+		local currentEnt=client.army.currentEnt
+		local lines=table()
+		if currentEnt.movesLeft > 0 then
+			lines:insert{
+				text='Move',
+				onSelect=[]client:pushState(Client.battleMoveCmdState),
+			}
+		end
+		if not currentEnt.acted then
+			lines:insert{
+				text='Attack',
+				onSelect=[]client:pushState(Client.attackCmdState),
+			}
+			if #client.army.items > 0 then
+				lines:insert{
+					text='Use',
+					onSelect=[]client:pushState(Client.itemCmdState),
+				}
+			end
+		end
+		local getEnt
+		for _,ent in ipairs(entsAtPos(currentEnt.pos)) do
+			if ent.get then
+				getEnt=true
+				break
+			end
+		end
+		if getEnt then
+			lines:insert{
+				text='Get',
+				onSelect=[]do
+					for _,ent in ipairs(entsAtPos(currentEnt.pos)) do
+						if ent.get then
+							currentEnt.movesLeft=0
+							ent:get(currentEnt)
+						end
+					end
+				end,
+			}
+		end
+		lines:insert{
+			text='End Turn',
+			onSelect=[]currentEnt:endTurn(),
+		}
+		lines:insert{
+			text='Party',
+			onSelect=[]client:pushState(Client.armyCmdState),
+		}
+		lines:insert{
+			text='Inspect',
+			onSelect=[]self.client:pushState(Client.inspectCmdState),
+		}
+		lines:insert{
+			text='Quit',
+			onSelect=[]client:pushState(Client.quitCmdState),
+		}
+		self:setLines(lines)
+	end,
+}
+
+local cmdPopState={
+	name='Done',
+	exec=[client,cmd,ch]client:popState(),
+}
+
+local makeCmdPushState=[name,state,disabled]do
 	assert(state)
 	return {
-		name = name,
-		exec = [:,cmd,ch]self:pushState(state),
-		disabled = disabled,
+		name=name,
+		exec=[:,cmd,ch]self:pushState(state),
+		disabled=disabled,
 	}
 end
 
-local makeCmdWindowMoveCursor = [winField]do
+local makeCmdWindowMoveCursor=[winField]do
 	return {
-		name = 'Scroll',
-		exec = [client, cmd, ch]do
-			local win = assert(client[winField])
+		name='Scroll',
+		exec=[client,cmd,ch]do
+			local win=assert(client[winField])
 			win:moveCursor(ch)
 		end,
 	}
 end
 
-local makeCmdWindowChooseCursor = [winField]do
+local makeCmdWindowChooseCursor=[winField]do
 	return {
-		name = 'Choose',
-		exec = [client, cmd, ch]do
-			local win = assert(client[winField])
+		name='Choose',
+		exec=[client,cmd,ch]do
+			local win=assert(client[winField])
 			win:chooseCursor()
 		end,
 	}
 end
 
-local cmdMove = {
-	name = 'Move',
-	exec = [client, cmd, ch]do
+local cmdMove={
+	name='Move',
+	exec=[client,cmd,ch]do
 		if not client.army.battle then
 			client.army.leader:walk(ch)
 		else
@@ -2101,58 +2001,57 @@ local cmdMove = {
 	end,
 }
 
-local refreshStatusToInspect = [client]do
-	local ents = entsAtPos(client.inspectPos)
-	if #ents > 0 then
-		local ent = ents[tstamp() % #ents + 1]
-		client.statWin.player = ent
+local refreshStatusToInspect=[client]do
+	local ents=entsAtPos(client.inspectPos)
+	if #ents>0 then
+		local ent=ents[tstamp()%#ents+1]
+		client.statWin.player=ent
 		client.statWin:refresh()
 	else
 		client.statWin:setLines{'>Close'}
 	end
 end
 
-local cmdInspectMove = {
-	name = 'Move',
-	exec = [client, cmd, ch]do
-		client.inspectPos = client.inspectPos + dirs[ch]
+local cmdInspectMove={
+	name='Move',
+	exec=[client,cmd,ch]do
+		client.inspectPos=client.inspectPos+dirs[ch]
 		refreshStatusToInspect(client)
 	end,
 }
 
-Client.inspectCmdState = {
-	cmds = {
-		up = cmdInspectMove,
-		down = cmdInspectMove,
-		left = cmdInspectMove,
-		right = cmdInspectMove,
-		space = cmdPopState,
+Client.inspectCmdState={
+	cmds={
+		up=cmdInspectMove,
+		down=cmdInspectMove,
+		left=cmdInspectMove,
+		right=cmdInspectMove,
+		space=cmdPopState,
 	},
-	enter = [client, state]do
-		client.inspectPos = vec2(client.army.leader.pos)
+	enter=[client, state]do
+		client.inspectPos=vec2(client.army.leader.pos)
 		client.statWin:setPos(vec2(1,1))
 		refreshStatusToInspect(client)
 	end,
-	draw = [client, state]do
-		local viewpos = client.inspectPos - view.delta
+	draw=[client, state]do
+		local viewpos=client.inspectPos-view.delta
 		if view.bbox:contains(viewpos) then
 			con.locate(table.unpack(viewpos))
-			con.write('X')
+			con.write'X'
 		end
 		client.statWin:draw()
 	end,
 }
-Client.chooseEquipCmdState = {
-	cmds = {
-		left = cmdPopState,
-		up = makeCmdWindowMoveCursor('itemWin'),
-		down = makeCmdWindowMoveCursor('itemWin'),
-		space = makeCmdWindowChooseCursor('itemWin'),
+Client.chooseEquipCmdState={
+	cmds={
+		left=cmdPopState,
+		up=makeCmdWindowMoveCursor'itemWin',
+		down=makeCmdWindowMoveCursor'itemWin',
+		space=makeCmdWindowChooseCursor'itemWin',
 	},
-	enter = [client, state]do
-		local player = client.equipWin.player
-		local field = assert(player.equipFields[client.equipWin.currentLine])
-
+	enter=[client, state]do
+		local player=client.equipWin.player
+		local field=assert(player.equipFields[client.equipWin.currentLine])
 		client.itemWin:refresh([item]do
 			if item.equip ~= field then return false end
 			for _,p2 in ipairs(client.army.ents) do
@@ -2164,48 +2063,48 @@ Client.chooseEquipCmdState = {
 			end
 			return true
 		end)
-		client.itemWin.currentLine = 1
+		client.itemWin.currentLine=1
 		if player[field] then
 			client.itemWin.items:find(player[field])
 		end
 		refreshEquipStatWin(client)
 		client.itemWin:setPos(vec2(client.equipWin.border.min[1], client.equipWin.border.max[2]+1))
 	end,
-	draw = [client, state]do
+	draw=[client, state]do
 		client.itemWin:draw()
 	end,
 }
-Client.equipCmdState = {
-	cmds = {
-		e = cmdPopState,
-		left = cmdPopState,
-		up = makeCmdWindowMoveCursor('equipWin'),
-		down = makeCmdWindowMoveCursor('equipWin'),
-		space = makeCmdPushState('Choose', Client.chooseEquipCmdState),
-		right = makeCmdPushState('Choose', Client.chooseEquipCmdState),
+Client.equipCmdState={
+	cmds={
+		e=cmdPopState,
+		left=cmdPopState,
+		up=makeCmdWindowMoveCursor'equipWin',
+		down=makeCmdWindowMoveCursor'equipWin',
+		space=makeCmdPushState('Choose', Client.chooseEquipCmdState),
+		right=makeCmdPushState('Choose', Client.chooseEquipCmdState),
 	},
-	enter = [client, state]do
+	enter=[client, state]do
 		client.statWin:refresh()
 		client.equipWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
 		client.equipWin:refresh()
 	end,
-	draw = [client, state]do
+	draw=[client, state]do
 		client.statWin:draw()
 		client.equipWin:draw()
 	end,
 }
-Client.itemCmdState = {
-	cmds = {
-		up = makeCmdWindowMoveCursor('itemWin'),
-		down = makeCmdWindowMoveCursor('itemWin'),
-		left = cmdPopState,
-		space = {
-			name = 'Use',
-			exec = [client, cmd, ch]do
-				local player = client.itemWin.player
+Client.itemCmdState={
+	cmds={
+		up=makeCmdWindowMoveCursor'itemWin',
+		down=makeCmdWindowMoveCursor'itemWin',
+		left=cmdPopState,
+		space={
+			name='Use',
+			exec=[client,cmd,ch]do
+				local player=client.itemWin.player
 				if #client.itemWin.items == 0 then return end
-				client.itemWin.currentLine = (client.itemWin.currentLine - 1) % #client.itemWin.items + 1
-				local item = client.itemWin.items[client.itemWin.currentLine]
+				client.itemWin.currentLine=(client.itemWin.currentLine - 1) % #client.itemWin.items + 1
+				local item=client.itemWin.items[client.itemWin.currentLine]
 				if item.use then
 					item:use(player)
 					player.army:removeItem(item)
@@ -2214,88 +2113,87 @@ Client.itemCmdState = {
 			end,
 		},
 	},
-	enter = [client, state]do
+	enter=[client,state]do
 		client.itemWin:setPos(vec2(1,1))
 		client.itemWin:refresh()
 	end,
-	draw = [client, state]do
+	draw=[client,state]do
 		client.itemWin:draw()
 	end,
 }
-Client.dropItemCmdState = {
-	cmds = {
-		up = makeCmdWindowMoveCursor('itemWin'),
-		down = makeCmdWindowMoveCursor('itemWin'),
-		left = cmdPopState,
-		space = {
-			name = 'Drop',
-			exec = [client, cmd, ch]do
+Client.dropItemCmdState={
+	cmds={
+		up=makeCmdWindowMoveCursor'itemWin',
+		down=makeCmdWindowMoveCursor'itemWin',
+		left=cmdPopState,
+		space={
+			name='Drop',
+			exec=[client, cmd, ch]do
 				if #client.army.items == 0 then return end
-				client.itemWin.currentLine = (client.itemWin.currentLine - 1) % #client.army.items + 1
-				local item = client.itemWin.items[client.itemWin.currentLine]
+				client.itemWin.currentLine=(client.itemWin.currentLine - 1) % #client.army.items + 1
+				local item=client.itemWin.items[client.itemWin.currentLine]
 				client.army:removeItem(item)
 				if #client.army.items > 0 then
-					client.itemWin.currentLine = (client.itemWin.currentLine - 1) % #client.army.items + 1
+					client.itemWin.currentLine=(client.itemWin.currentLine - 1) % #client.army.items + 1
 				end
 				client.itemWin:refresh()
 			end,
 		},
 	},
-	enter = [client, state]do
+	enter=[client,state]do
 		client.itemWin:setPos(vec2(1,1))
 		client.itemWin:refresh()
 	end,
-	draw = [client, state]do
+	draw=[client,state]do
 		client.itemWin:draw()
 	end,
 }
-Client.playerCmdState = {
-	cmds = {
-		left = cmdPopState,
-		up = makeCmdWindowMoveCursor('playerWin'),
-		down = makeCmdWindowMoveCursor('playerWin'),
-		right = makeCmdWindowChooseCursor('playerWin'),
-		space = makeCmdWindowChooseCursor('playerWin'),
+Client.playerCmdState={
+	cmds={
+		left=cmdPopState,
+		up=makeCmdWindowMoveCursor'playerWin',
+		down=makeCmdWindowMoveCursor'playerWin',
+		right=makeCmdWindowChooseCursor'playerWin',
+		space=makeCmdWindowChooseCursor'playerWin',
 	},
-	enter = [client, state]do
+	enter=[client,state]do
 		client.playerWin:setPos(vec2(client.statWin.border.max[1]+3, client.statWin.border.min[2]+1))
 	end,
-	draw = [client, state]do
+	draw=[client,state]do
 		client.playerWin:draw()
 	end,
 }
-Client.armyCmdState = {
-	cmds = {
-		left = cmdPopState,
-		up = makeCmdWindowMoveCursor('armyWin'),
-		down = makeCmdWindowMoveCursor('armyWin'),
-		right = makeCmdPushState('Player', Client.playerCmdState),
-		space = makeCmdPushState('Player', Client.playerCmdState),
+Client.armyCmdState={
+	cmds={
+		left=cmdPopState,
+		up=makeCmdWindowMoveCursor'armyWin',
+		down=makeCmdWindowMoveCursor'armyWin',
+		right=makeCmdPushState('Player', Client.playerCmdState),
+		space=makeCmdPushState('Player', Client.playerCmdState),
 	},
-	enter = [client, state]do
+	enter=[client, state]do
 		refreshWinPlayers(client)
 		client.statWin:refresh()
 		client.armyWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
 		client.armyWin:refresh()
-		game.paused = true
+		game.paused=true
 	end,
-	draw = [client, state]do
-		game.paused = false
-
+	draw=[client, state]do
+		game.paused=false
 		client.statWin:draw()
 		client.armyWin:draw()
 	end,
 }
 
-local cmdRecruit = {
-	name = 'Recruit',
-	exec = [client, cmd, ch]do
+local cmdRecruit={
+	name='Recruit',
+	exec=[client, cmd, ch]do
 		if #client.army.ents >= Client.maxArmySize then
 			log("party is full")
 		else
-			local pos = client.army.leader.pos + dirs[ch]
+			local pos=client.army.leader.pos + dirs[ch]
 			if map.bbox:contains(pos) then
-				local armies = table()
+				local armies=table()
 				for _,ent in ipairs(entsAtPos(pos)) do
 					if ent.army ~= client.army
 					and ent.army.affiliation == client.army.affiliation
@@ -2313,136 +2211,136 @@ local cmdRecruit = {
 		client:popState()
 	end,
 }
-Client.recruitCmdState = {
-	cmds = {
-		up = cmdRecruit,
-		down = cmdRecruit,
-		left = cmdRecruit,
-		right = cmdRecruit,
-		space = cmdPopState,
+Client.recruitCmdState={
+	cmds={
+		up=cmdRecruit,
+		down=cmdRecruit,
+		left=cmdRecruit,
+		right=cmdRecruit,
+		space=cmdPopState,
 	},
-	enter = [client, state]do
-		client.doneWin:refresh('Cancel')
+	enter=[client, state]do
+		client.doneWin:refresh'Cancel'
 		client.doneWin:setPos(vec2(1,1))
 	end,
-	draw = [client, state]do
+	draw=[client, state]do
 		client.doneWin:draw()
 	end,
 }
-Client.mapOptionsCmdState = {
-	cmds = {
-		left = cmdPopState,
-		up = makeCmdWindowMoveCursor('mapOptionsWin'),
-		down = makeCmdWindowMoveCursor('mapOptionsWin'),
-		right = makeCmdWindowChooseCursor('mapOptionsWin'),
-		space = makeCmdWindowChooseCursor('mapOptionsWin'),
+Client.mapOptionsCmdState={
+	cmds={
+		left=cmdPopState,
+		up=makeCmdWindowMoveCursor'mapOptionsWin',
+		down=makeCmdWindowMoveCursor'mapOptionsWin',
+		right=makeCmdWindowChooseCursor'mapOptionsWin',
+		space=makeCmdWindowChooseCursor'mapOptionsWin',
 	},
-	enter = [client, state]do
+	enter=[client, state]do
 		client.mapOptionsWin:setPos(vec2(1,1))
 		client.mapOptionsWin:refresh()
 	end,
-	draw = [client, state]do
+	draw=[client, state]do
 		client.mapOptionsWin:refresh()
 		client.mapOptionsWin:draw()
 	end,
 }
-Client.mainCmdState = {
-	cmds = {
-		up = cmdMove,
-		down = cmdMove,
-		left = cmdMove,
-		right = cmdMove,
-		space = makeCmdPushState('Party', Client.mapOptionsCmdState),
+Client.mainCmdState={
+	cmds={
+		up=cmdMove,
+		down=cmdMove,
+		left=cmdMove,
+		right=cmdMove,
+		space=makeCmdPushState('Party', Client.mapOptionsCmdState),
 	},
 }
 
-local cmdAttack = {
-	name = 'Attack',
-	exec = [client, cmd, ch]do
+local cmdAttack={
+	name='Attack',
+	exec=[client, cmd, ch]do
 		client.army.currentEnt:attackDir(ch)
 		client:popState()
 	end,
 }
 
-Client.attackCmdState = {
-	cmds = {
-		up = cmdAttack,
-		down = cmdAttack,
-		left = cmdAttack,
-		right = cmdAttack,
-		space = cmdPopState,
+Client.attackCmdState={
+	cmds={
+		up=cmdAttack,
+		down=cmdAttack,
+		left=cmdAttack,
+		right=cmdAttack,
+		space=cmdPopState,
 	},
-	enter = [client, state]do
-		client.doneWin:refresh('Cancel')
+	enter=[client, state]do
+		client.doneWin:refresh'Cancel'
 		client.doneWin:setPos(vec2(1,1))
 	end,
-	draw = [client, state]do
+	draw=[client, state]do
 		client.doneWin:draw()
 	end,
 }
-Client.battleMoveCmdFinishedState = {
-	cmds = {
-		up = makeCmdWindowMoveCursor('moveFinishedWin'),
-		down = makeCmdWindowMoveCursor('moveFinishedWin'),
-		space = makeCmdWindowChooseCursor('moveFinishedWin'),
+Client.battleMoveCmdFinishedState={
+	cmds={
+		up=makeCmdWindowMoveCursor'moveFinishedWin',
+		down=makeCmdWindowMoveCursor'moveFinishedWin',
+		space=makeCmdWindowChooseCursor'moveFinishedWin',
 	},
-	draw = [client, state]do
+	draw=[client, state]do
 		client.moveFinishedWin:refresh()
 		client.moveFinishedWin:draw()
 	end,
 }
 
-local cmdMoveDone = {
-	name = 'Done',
-	exec = [client, cmd, ch]do
+local cmdMoveDone={
+	name='Done',
+	exec=[client, cmd, ch]do
 		client:pushState(Client.battleMoveCmdFinishedState)
 	end,
 }
 
-Client.battleMoveCmdState = {
-	cmds = {
-		up = cmdMove,
-		down = cmdMove,
-		left = cmdMove,
-		right = cmdMove,
-		space = cmdMoveDone,
+Client.battleMoveCmdState={
+	cmds={
+		up=cmdMove,
+		down=cmdMove,
+		left=cmdMove,
+		right=cmdMove,
+		space=cmdMoveDone,
 	},
-	enter = [client, state]do
-		client.doneWin:refresh('Done')
+	enter=[client, state]do
+		client.doneWin:refresh'Done'
 		client.doneWin:setPos(vec2(1,1))
 	end,
-	draw = [client, state]do
+	draw=[client, state]do
 		client.doneWin:draw()
 	end,
 }
-Client.battleCmdState = {
-	cmds = {
-		up = makeCmdWindowMoveCursor('battleWin'),
-		down = makeCmdWindowMoveCursor('battleWin'),
-		space = makeCmdWindowChooseCursor('battleWin'),
+Client.battleCmdState={
+	cmds={
+		up=makeCmdWindowMoveCursor'battleWin',
+		down=makeCmdWindowMoveCursor'battleWin',
+		space=makeCmdWindowChooseCursor'battleWin',
 	},
-	enter = [client, state]do
+	enter=[client, state]do
 		client.battleWin:setPos(vec2(1,1))
 	end,
-	draw = [client, state]do
+	draw=[client, state]do
 		client.battleWin:refresh()
 		client.battleWin:draw()
 	end,
 }
-Client.quitCmdState = {
-	cmds = {
-		left = cmdPopState,
-		up = makeCmdWindowMoveCursor('quitWin'),
-		down = makeCmdWindowMoveCursor('quitWin'),
-		space = makeCmdWindowChooseCursor('quitWin'),
+Client.quitCmdState={
+	cmds={
+		left=cmdPopState,
+		up=makeCmdWindowMoveCursor'quitWin',
+		down=makeCmdWindowMoveCursor'quitWin',
+		space=makeCmdWindowChooseCursor'quitWin',
 	},
-	draw = [client,state] client.quitWin:draw(),
+	draw=[client,state] client.quitWin:draw(),
 }
 Client.setState=[:,state]do
 	if self.cmdstate and self.cmdstate.exit then
 		self.cmdstate.exit(self, self.cmdstate)
 	end
-	self.cmdstate = state
+	self.cmdstate=state
 	if self.cmdstate and self.cmdstate.enter then
 		self.cmdstate.enter(self, self.cmdstate)
 	end
@@ -2450,11 +2348,11 @@ end
 Client.removeToState=[:,state]do
 	assert(state)
 	if state == self.cmdstate then return end
-	local i = assert(self.cmdstack:find(state))
+	local i=assert(self.cmdstack:find(state))
 	for i=i,#self.cmdstack do
-		self.cmdstack[i] = nil
+		self.cmdstack[i]=nil
 	end
-	self.cmdstate = state
+	self.cmdstate=state
 end
 Client.pushState=[:,state]do
 	assert(state)
@@ -2599,11 +2497,11 @@ render=[]do
 					end
 				else
 					con.locate(i,j)
-					con.write(' ')
+					con.write' '
 				end
 			else
 				con.locate(i,j)
-				con.write(' ')
+				con.write' '
 			end
 		end
 		con.clearline()
@@ -2625,18 +2523,18 @@ render=[]do
 	end
 
 	if client.army.battle then
-		printright('Battle:')
-		printright('-------')
+		printright'Battle:'
+		printright'-------'
 		for _,ent in ipairs(client.army.ents) do
-			printright('hp '..ent.hp..'/'..ent:stat('hpMax'))
-			printright('move '..ent.movesLeft..'/'..ent:stat('move'))
+			printright('hp '..ent.hp..'/'..ent:stat'hpMax')
+			printright('move '..ent.movesLeft..'/'..ent:stat'move')
 			printright('ct '..ent.ct..'/100')
 			printright()
 		end
 	end
 
-	printright('Commands:')
-	printright('---------')
+	printright'Commands:'
+	printright'---------'
 
 	if client.cmdstate then
 		for k,cmd in pairs(client.cmdstate.cmds) do
