@@ -155,7 +155,7 @@ local function readTex(args)
 	end
 	if args.to == 'uvec4' then
 		-- convert to uint, assume the source is a texture texel
-		if fragTypeForTex(args.tex) ~= 'uvec4' then
+		if fragTypeForTex(args.tex) == 'uvec4' then
 			dst = 'uvec4('..dst..')'
 		end
 	end
