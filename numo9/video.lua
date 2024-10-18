@@ -11,6 +11,7 @@ local math = require 'ext.math'
 local asserteq = require 'ext.assert'.eq
 local assertne = require 'ext.assert'.ne
 local assertlt = require 'ext.assert'.lt
+local assertindex = require 'ext.assert'.index
 local Image = require 'image'
 local gl = require 'gl'
 local glreport = require 'gl.report'
@@ -98,27 +99,21 @@ local texInternalFormat_u16 = useSamplerUInt
 	or gl.GL_R16
 	--or gl.GL_R32F
 
-local texFormat_u8 = useSamplerUInt
-	and gl.GL_RED_INTEGER
-	or gl.GL_RED
-	--or gl.GL_RGBA
+-- TODO move to gl?
+local function infoForTex(tex)
+	return assertindex(GLTex2D.formatInfoForInternalFormat, tex.internalFormat, "failed to find formatInfo for internalFormat")
+end
 
-local texFormat_u16 = useSamplerUInt
-	and gl.GL_RED_INTEGER
-	or gl.GL_RED
-	--or gl.GL_RGBA
-
-local function texIsUInt(tex)
-	return tex.internalFormat == gl.GL_R8UI
-		or tex.internalFormat == gl.GL_R16UI
+local function glslPrefixForTex(tex)
+	return GLTex2D.glslPrefixForInternalType[infoForTex(tex).internalType] or ''
 end
 
 local function samplerTypeForTex(tex)
-	return (texIsUInt(tex) and 'u' or '')..'sampler2D'..(useTextureRect and 'Rect' or '')
+	return glslPrefixForTex(tex)..'sampler2D'..(useTextureRect and 'Rect' or '')
 end
 
 local function fragTypeForTex(tex)
-	return texIsUInt(tex) and 'uvec4' or 'vec4'
+	return glslPrefixForTex(tex)..'vec4'
 end
 
 local function textureSize(tex)
@@ -159,11 +154,8 @@ local function readTex(args)
 		dst = texelFunc..'('..texvar..', '..tc..')'
 	end
 	if args.to == 'uvec4' then
-		--[[
-		convert to uint, assume the source is a texture texel
-		when outputting uint, does texture() vs texelFetch() output normalized to [0,2^32-1], or the texture format [0,255], or ... what?
-		--]]
-		if texIsUInt(args.tex) then
+		-- convert to uint, assume the source is a texture texel
+		if fragTypeForTexType(args.tex) ~= 'uvec4' then
 			dst = 'uvec4('..dst..')'
 		end
 	end
@@ -494,14 +486,14 @@ function AppVideo:initDraw()
 	self.spriteTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = texInternalFormat_u8,
-		format = texFormat_u8,
+		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		type = gl.GL_UNSIGNED_BYTE,
 	})
 
 	self.tileTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
 		internalFormat = texInternalFormat_u8,
-		format = texFormat_u8,
+		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		type = gl.GL_UNSIGNED_BYTE,
 	})
 
@@ -517,7 +509,7 @@ function AppVideo:initDraw()
 	self.mapTex = makeTexFromImage(self, {
 		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
 		internalFormat = texInternalFormat_u16,
-		format = texFormat_u16,
+		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
 		type = gl.GL_UNSIGNED_SHORT,
 	})
 	self.mapMem = self.mapTex.image.buffer
@@ -563,7 +555,7 @@ function AppVideo:initDraw()
 		self.fbIndexTex = makeTexFromImage(self, {
 			image = fbIndexImage,
 			internalFormat = texInternalFormat_u8,
-			format = texFormat_u8,
+			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 			type = gl.GL_UNSIGNED_BYTE,
 		})
 	end
