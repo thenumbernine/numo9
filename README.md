@@ -277,7 +277,6 @@ The button codes are as follows:
 - `select`
 - `type`
 - `error`
-- `assert`
 - `pairs`
 - `ipairs`
 - `getfenv`
@@ -286,6 +285,7 @@ The button codes are as follows:
 - `ffi` = the luajit ffi library.  Probably going away soon.
 - tables:
 	- `bit` = luajit's bit library.
+	- `assert` = my [lua-ext](https://github.com/thenumbernine/lua-ext) assert object.
 	- `math` = my [lua-ext](https://github.com/thenumbernine/lua-ext) math library.
 	- `table` = my [lua-ext](https://github.com/thenumbernine/lua-ext) table library.
 	- `string` = my [lua-ext](https://github.com/thenumbernine/lua-ext) string library.

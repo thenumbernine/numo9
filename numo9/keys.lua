@@ -2,7 +2,7 @@
 local ffi = require 'ffi'
 local sdl = require 'sdl'
 local table = require 'ext.table'
-local asserteq = require 'ext.assert'.eq
+local assert = require 'ext.assert'
 
 local maxLocalPlayers = 4	-- does this go here or ROM?  for now it seems here is best
 
@@ -92,7 +92,7 @@ keyCodeNames:append{
 	'mouse_right',
 }
 
-asserteq(#keyCodeNames % 8, 0)
+assert.eq(#keyCodeNames % 8, 0)
 
 local firstJoypadKeyCode = #keyCodeNames
 assert(bit.band(firstJoypadKeyCode, 7) == 0)	-- make sure we are 8-aligned so the keyflag bits are byte-aligned, for net reflection

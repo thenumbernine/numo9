@@ -3,8 +3,7 @@ This will be the code editor
 --]]
 local ffi = require 'ffi'
 local gl = require 'gl'
-local asserteq = require 'ext.assert'.eq
-local assertle = require 'ext.assert'.le
+local assert = require 'ext.assert'
 local math = require 'ext.math'
 local table = require 'ext.table'
 local vec2i = require 'vec-ffi.vec2i'
@@ -656,7 +655,7 @@ print'BAKING PALETTE'
 			if app:keyp'x' then
 				-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
 				currentTex.dirtyCPU = true
-				asserteq(currentTex.image.channels, 1)
+				assert.eq(currentTex.image.channels, 1)
 				for j=y,y+height-1 do
 					for i=x,x+width-1 do
 						self:edit_poke(currentTexAddr + i + currentTex.width * j, self.paletteOffset)
@@ -688,7 +687,7 @@ print'BAKING PALETTE'
 					print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 					assert(image.channels >= 3)	-- NOTICE it's only RGB right now ... not even alpha
 					image = image:rgb()
-					asserteq(image.channels, 3, "image channels")
+					assert.eq(image.channels, 3, "image channels")
 
 					if self.pastePreservePalette then
 						local image1ch = Image(image.width, image.height, 1, 'unsigned char')
@@ -721,12 +720,12 @@ print'BAKING PALETTE'
 							image = image,
 							targetSize = self.pasteTargetNumColors,
 						}
-						asserteq(image.channels, 3, "image channels")
+						assert.eq(image.channels, 3, "image channels")
 						-- I could use image.quantize_mediancut.applyColorMap but it doesn't use palette'd image (cuz my image library didn't support it at the time)
 						-- soo .. I'll implement indexed-apply here (TODO move this into image.quantize_mediancut, and TOOD change convert-to-8x84bpp to use paletted images)
 						local colors = table.keys(hist):sort()
 						print('num colors', #colors)
-						assertle(#colors, 256, "resulting number of quantized colors")
+						assert.le(#colors, 256, "resulting number of quantized colors")
 						local indexForColor = colors:mapi(function(color,i)	-- 0-based index
 							return i-1, color
 						end)
@@ -748,7 +747,7 @@ print('possible colors: '..require 'ext.tolua'(colors))
 						end
 						-- TODO proper would be to set image1ch.palette here but meh I'm just copying it on the next line anyways ...
 						image = image1ch
-						asserteq(image.channels, 1, "image.channels")
+						assert.eq(image.channels, 1, "image.channels")
 						for i,color in ipairs(colors) do
 							self:edit_pokew(
 								paletteAddr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
@@ -762,7 +761,7 @@ print('possible colors: '..require 'ext.tolua'(colors))
 						end
 					end
 				end
-				asserteq(image.channels, 1, "image.channels")
+				assert.eq(image.channels, 1, "image.channels")
 print'pasting image'
 				for j=0,image.height-1 do
 					for i=0,image.width-1 do

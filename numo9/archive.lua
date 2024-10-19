@@ -15,11 +15,7 @@ so for all else except code, it is convenient to just copy RAM->ROM over
 for code ... hmm, if I put it in a zip file, it is very convenient to just keep it in one giant code.lua file ...
 --]]
 local ffi = require 'ffi'
-local asserteq = require 'ext.assert'.eq
-local assertle = require 'ext.assert'.le
-local assertge = require 'ext.assert'.ge
-local asserttype = require 'ext.assert'.type
-local assertindex = require 'ext.assert'.index
+local assert = require 'ext.assert'
 local table = require 'ext.table'
 local path = require 'ext.path'
 local vector = require 'ffi.cpp.vector-lua'
@@ -37,13 +33,13 @@ assumes 'banks' is vector<ROM>
 creates an Image and returns it
 --]]
 local function toCartImage(banks, labelImage)
-	assert(vector:isa(banks))
-	asserteq(banks.type, 'ROM')
-	assertge(#banks, 1)
+	assert.is(banks, vector)
+	assert.eq(banks.type, 'ROM')
+	assert.ge(#banks, 1)
 
 	-- [[ storing in png metadata
 	local baseLabelImage = Image'defaultlabel.png'
-	asserteq(baseLabelImage.channels, 4)
+	assert.eq(baseLabelImage.channels, 4)
 	local romImage = Image(baseLabelImage.width, baseLabelImage.height, 4, 'uint8_t'):clear()
 	if labelImage then
 		labelImage = labelImage:setChannels(4)
@@ -93,10 +89,10 @@ local function fromCartImage(srcData)
 	tmploc:remove()
 --DEBUG:assert(not tmploc:exists())
 	-- [[ storing in png metadata
-	local data = assertindex(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
+	local data = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
 	local numBanksNeeded = math.ceil(#data / ffi.sizeof'ROM')
 	banks:resize(math.max(1, numBanksNeeded))
-	assertge(#banks * ffi.sizeof'ROM', #data)
+	assert.ge(#banks * ffi.sizeof'ROM', #data)
 	ffi.copy(banks.v, data, #data)
 	--]]
 	return banks
@@ -105,8 +101,8 @@ end
 
 -- convert multiple banks' code into a single string
 local function codeBanksToStr(banks)
-	assert(vector:isa(banks))
-	asserteq(banks.type, 'ROM')
+	assert.is(banks, vector)
+	assert.eq(banks.type, 'ROM')
 	local codePages = table()
 	for bankNo=0,#banks-1 do
 		local bank = banks.v + bankNo
@@ -122,9 +118,9 @@ local function codeBanksToStr(banks)
 end
 
 local function codeStrToBanks(banks, code)
-	assert(vector:isa(banks))
-	asserteq(banks.type, 'ROM')
-	asserttype(code, 'string')
+	assert.is(banks, vector)
+	assert.eq(banks.type, 'ROM')
+	assert.type(code, 'string')
 	local n = #code
 --DEBUG:print('code size is', n)
 	local numBanksNeededForCode = math.ceil(n / codeSize)
@@ -134,14 +130,14 @@ local function codeStrToBanks(banks, code)
 		banks:resize(numBanksNeededForCode)
 		ffi.fill(banks.v + numBanksPrev, ffi.sizeof'ROM' * (numBanksNeededForCode - numBanksNow))
 	end
-	assertge(#banks, numBanksNeededForCode)
-	assertle(n, codeSize * #banks)
+	assert.ge(#banks, numBanksNeededForCode)
+	assert.le(n, codeSize * #banks)
 	for bankNo=0,#banks-1 do
 		local bank = banks.v + bankNo
 		local i1 = bankNo*codeSize
 		local i2 = (bankNo+1)*codeSize-1
 		local s = code:sub(i1, i2)
-		assertle(#s, codeSize)
+		assert.le(#s, codeSize)
 		ffi.fill(bank.code, 0, codeSize)
 		ffi.copy(bank.code, s)
 	end

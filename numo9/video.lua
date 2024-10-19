@@ -8,10 +8,7 @@ local ffi = require 'ffi'
 local template = require 'template'
 local table = require 'ext.table'
 local math = require 'ext.math'
-local asserteq = require 'ext.assert'.eq
-local assertne = require 'ext.assert'.ne
-local assertlt = require 'ext.assert'.lt
-local assertindex = require 'ext.assert'.index
+local assert = require 'ext.assert'
 local Image = require 'image'
 local gl = require 'gl'
 local glreport = require 'gl.report'
@@ -102,7 +99,7 @@ local texInternalFormat_u16 = useSamplerUInt
 
 -- TODO move to gl?
 local function infoForTex(tex)
-	return assertindex(GLTex2D.formatInfoForInternalFormat, tex.internalFormat, "failed to find formatInfo for internalFormat")
+	return assert.index(GLTex2D.formatInfoForInternalFormat, tex.internalFormat, "failed to find formatInfo for internalFormat")
 end
 
 local function glslPrefixForTex(tex)
@@ -231,9 +228,9 @@ end
 -- upon boot, upload the logo to the whole sheet
 local function resetLogoOnSheet(spriteSheetPtr)
 	local splashImg = Image'splash.png'
-	asserteq(splashImg.channels, 1)
-	asserteq(splashImg.width, spriteSheetSize.x)
-	asserteq(splashImg.height, spriteSheetSize.y)
+	assert.eq(splashImg.channels, 1)
+	assert.eq(splashImg.width, spriteSheetSize.x)
+	assert.eq(splashImg.height, spriteSheetSize.y)
 	-- TODO don't do the whole spritesheet ...
 	for y=0,spriteSheetSize.y-1 do
 		for x=0,spriteSheetSize.x-1 do
@@ -263,10 +260,10 @@ local function resetFontOnSheet(spriteSheetPtr)
 	for i=0,255 do
 		local b = bit.band(i, 7)
 		local mask = bit.bnot(bit.lshift(1, b))
-		assertlt(srcx, fontImg.width)
-		assertlt(srcy, fontImg.height)
-		assertlt(dstx, spriteSheetSize.x)
-		assertlt(dsty, spriteSheetSize.y)
+		assert.lt(srcx, fontImg.width)
+		assert.lt(srcy, fontImg.height)
+		assert.lt(dstx, spriteSheetSize.x)
+		assert.lt(dsty, spriteSheetSize.y)
 		for by=0,7 do
 			for bx=0,7 do
 				local srcp = fontImg.buffer
@@ -473,7 +470,7 @@ function AppVideo:initDraw()
 	}:unbind()
 
 	local function makeImageAtPtr(ptr, x, y, ch, type, ...)
-		assertne(ptr, nil)
+		assert.ne(ptr, nil)
 		local image = Image(x, y, ch, type, ...)
 		local size = x * y * ch * ffi.sizeof(type)
 		if select('#', ...) > 0 then	-- if we specified a generator...

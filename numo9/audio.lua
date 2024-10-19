@@ -3,8 +3,7 @@ local sdl = require 'sdl'
 local sdlAssertZero = require 'sdl.assert'.zero
 local ctypeForSDLAudioFormat = require 'sdl.audio'.ctypeForSDLAudioFormat
 local sdlAudioFormatForCType = require 'sdl.audio'.sdlAudioFormatForCType
-local asserteq = require 'ext.assert'.eq
-local assertindex = require 'ext.assert'.index
+local assert = require 'ext.assert'
 local table = require 'ext.table'
 local math = require 'ext.math'
 local Audio = require 'audio'
@@ -35,8 +34,8 @@ local updateIntervalInBytes =  updateIntervalInSamples * ffi.sizeof(audioSampleT
 local samplesPerSecond = sampleFramesPerSecond * audioOutChannels
 local sampleFramesPerAppUpdate = math.ceil(sampleFramesPerSecond * updateIntervalInSeconds)			-- SDL docs terminology: 1 "sample frame" = 1 amplitude-quantity over a minimum discrete time interval across all output channels
 local samplesPerAppUpdate = sampleFramesPerAppUpdate * audioOutChannels	-- ... while a "sample frame" contains "sample"s  x the number of output channels
-local amplZero = assertindex({uint8_t=128, int16_t=0}, audioSampleType)
-local amplMax = assertindex({uint8_t=127, int16_t=32767}, audioSampleType)
+local amplZero = assert.index({uint8_t=128, int16_t=0}, audioSampleType)
+local amplMax = assert.index({uint8_t=127, int16_t=32767}, audioSampleType)
 
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
@@ -108,9 +107,9 @@ function AppAudio:initAudio()
 	-- recalculate based on what we're given
 	-- TODO OR NOT BECAUSE ALL THE ROM STUFF IS BASED ON THIS
 	-- I WOULD HAVE TO DO RESAMPLING AS IT PLAYS
-	asserteq(sampleFramesPerSecond, spec[0].freq)
-	asserteq(audioOutChannels, spec[0].channels)
-	asserteq(audioSampleType, assertindex(ctypeForSDLAudioFormat, spec[0].format))
+	assert.eq(sampleFramesPerSecond, spec[0].freq)
+	assert.eq(audioOutChannels, spec[0].channels)
+	assert.eq(audioSampleType, assert.index(ctypeForSDLAudioFormat, spec[0].format))
 	audio.bufferSizeInBytes = spec[0].size
 	bufferSizeInSamples = audio.bufferSizeInBytes / ffi.sizeof(audioSampleType)
 	audio.bufferSizeInSampleFrames = bufferSizeInSamples / audioOutChannels
@@ -241,7 +240,7 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 -- TODO flag for loop or not
 --print'sfx looping'
 					if channel.flags.isLooping ~= 0 then
-						asserteq(bit.band(sfxaddr, 1), 0)
+						assert.eq(bit.band(sfxaddr, 1), 0)
 						channel.addr = bit.lshift(sfx.addr, pitchPrec-1) -- sfx.loopStartAddr
 					else
 						channel.addr = 0
@@ -282,7 +281,7 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 	--[[ update all at once and let the beats fall where they may
 	audio.sampleFrameIndex = audio.sampleFrameIndex + updateSampleFrameCount
 	--]]
---DEBUG:asserteq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + updateIntervalInBytes)
+--DEBUG:assert.eq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + updateIntervalInBytes)
 
 	-- don't queue if we're too full
 	local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)
@@ -404,7 +403,7 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 			local sfx = self.ram.sfxAddrs[value]
 			local sfxaddr =  sfx.addr
 			-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
-			asserteq(bit.band(sfxaddr, 1), 0)
+			assert.eq(bit.band(sfxaddr, 1), 0)
 			-- THEN SHIFT IT ... 11 ... which is 12 minus 1
 			-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
 			local channel = self.ram.channels[channelIndex]
@@ -480,7 +479,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 			channelIndex = 0
 		end
 	end
---DEBUG:asserteq(audioMixChannels, 8)
+--DEBUG:assert.eq(audioMixChannels, 8)
 	channelIndex = bit.band(channelIndex, 7)
 	local channel = self.ram.channels + channelIndex
 
@@ -489,7 +488,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 		channel.flags.isPlaying = 0
 		return
 	end
---DEBUG:asserteq(sfxTableSize, 256)
+--DEBUG:assert.eq(sfxTableSize, 256)
 	sfxID = bit.band(sfxID, 0xff)
 	local sfx = self.ram.sfxAddrs[sfxID]
 	local sfxaddr = sfx.addr

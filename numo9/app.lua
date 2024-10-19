@@ -10,13 +10,7 @@ I think I'll separate out the builtin states:
 	run
 --]]
 local ffi = require 'ffi'
-local assertindex = require 'ext.assert'.index
-local asserttype = require 'ext.assert'.type
-local assertlen = require 'ext.assert'.len
-local asserteq = require 'ext.assert'.eq
-local assertlt = require 'ext.assert'.lt
-local assertle = require 'ext.assert'.le
-local assertge = require 'ext.assert'.ge
+local assert = require 'ext.assert'
 local string = require 'ext.string'
 local table = require 'ext.table'
 local range = require 'ext.range'
@@ -201,7 +195,7 @@ function App:initGL()
 
 	for _,field in ipairs(ROM.fields[2].type.fields) do
 		assert(xpcall(function()
-			asserteq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
+			assert.eq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
 		end, function(err)
 			return errorHandler('for field '..field.name..'\n')
 		end))
@@ -556,7 +550,7 @@ function App:initGL()
 			if select('#', ...) == 0 then
 				x, y, w, h = 0, 0, 0xff, 0xff
 			else
-				asserteq(select('#', ...), 4)
+				assert.eq(select('#', ...), 4)
 				x, y, w, h = ...
 			end
 			if self.server then
@@ -697,6 +691,7 @@ function App:initGL()
 		mouse = function(...) return self:mouse(...) end,
 
 		bit = bit,
+		assert = require 'ext.assert',
 		math = require 'ext.math',
 		table = require 'ext.table',
 		string = require 'ext.string',
@@ -708,7 +703,6 @@ function App:initGL()
 		select = select,
 		type = type,
 		error = error,
-		assert = assert,
 		next = next,
 		pairs = pairs,
 		ipairs = ipairs,
@@ -793,7 +787,7 @@ print('package.loaded', package.loaded)
 
 -- [[ using langfix
 	self.langfixState = require 'langfix.env'(self.loadenv)
---asserteq(self.loadenv.langfix, self.langfixState)
+--assert.eq(self.loadenv.langfix, self.langfixState)
 	self.env.langfix = self.loadenv.langfix	-- so langfix can do its internal calls
 --]]
 --[[ not using it
@@ -1811,7 +1805,7 @@ function App:loadROM(filename)
 	if not d then return nil, basemsg..(msg or '') end
 
 	self.banks = fromCartImage(d)
-	assertge(#self.banks, 1)
+	assert.ge(#self.banks, 1)
 	self.cartridgeName = filename	-- TODO display this somewhere
 	self.editCode.text = codeBanksToStr(self.banks)
 	self:resetROM()
@@ -2000,9 +1994,9 @@ end
 
 function App:key(keycode)
 	if type(keycode) == 'string' then
-		keycode = assertindex(keyCodeForName, keycode, 'keyCodeForName')
+		keycode = assert.index(keyCodeForName, keycode, 'keyCodeForName')
 	end
-	asserttype(keycode, 'number')
+	assert.type(keycode, 'number')
 	return self:keyForBuffer(keycode, self.ram.keyPressFlags)
 end
 
@@ -2011,7 +2005,7 @@ function App:keyp(keycode, hold, period)
 	if type(keycode) == 'string' then
 		keycode = keyCodeForName[keycode]
 	end
-	asserttype(keycode, 'number')
+	assert.type(keycode, 'number')
 	keycode = math.floor(keycode)	-- or cast int? which is faster?
 	if keycode < 0 or keycode >= keyCount then return end
 	if hold and period
@@ -2028,7 +2022,7 @@ function App:keyr(keycode)
 	if type(keycode) == 'string' then
 		keycode = keyCodeForName[keycode]
 	end
-	asserttype(keycode, 'number')
+	assert.type(keycode, 'number')
 	return not self:keyForBuffer(keycode, self.ram.keyPressFlags)
 	and self:keyForBuffer(keycode, self.ram.lastKeyPressFlags)
 end
@@ -2040,7 +2034,7 @@ function App:btn(buttonCode, player, ...)
 	if type(buttonCode) == 'string' then
 		buttonCode = buttonCodeForName[buttonCode]
 	end
-	asserttype(buttonCode, 'number')
+	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
@@ -2053,7 +2047,7 @@ function App:btnp(buttonCode, player, ...)
 	if type(buttonCode) == 'string' then
 		buttonCode = buttonCodeForName[buttonCode]
 	end
-	asserttype(buttonCode, 'number')
+	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
@@ -2066,7 +2060,7 @@ function App:btnr(buttonCode, player, ...)
 	if type(buttonCode) == 'string' then
 		buttonCode = buttonCodeForName[buttonCode]
 	end
-	asserttype(buttonCode, 'number')
+	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end

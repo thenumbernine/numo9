@@ -26,11 +26,7 @@ local class = require 'ext.class'
 local table = require 'ext.table'
 local range = require 'ext.range'
 local string = require 'ext.string'
-local asserteq = require 'ext.assert'.eq
-local assertindex = require 'ext.assert'.index
-local asserttype = require 'ext.assert'.type
-local assertlen = require 'ext.assert'.len
-local assertne = require 'ext.assert'.ne
+local assert = require 'ext.assert'
 local getTime = require 'ext.timer'.getTime
 local struct = require 'struct'
 local vector = require 'ffi.cpp.vector-lua'
@@ -130,7 +126,7 @@ function send(conn, data)
 --print('send', conn, '...', successlen, reason, sentsofar, time)
 --print('send', conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
-			assertne(reason, 'wantwrite', 'socket.send failed')	-- will wantwrite get set only if res[1] is nil?
+			assert.ne(reason, 'wantwrite', 'socket.send failed')	-- will wantwrite get set only if res[1] is nil?
 --print('send', conn, '...done sending')
 			i = successlen
 			if i == n then
@@ -143,7 +139,7 @@ function send(conn, data)
 			i = i + 1
 		else
 			-- In case of error, the method returns nil, followed by an error message, followed by the index of the last byte within [i, j] that has been sent.
-			assertne(reason, 'wantwrite', 'socket.send failed')
+			assert.ne(reason, 'wantwrite', 'socket.send failed')
 			--socket.select({conn}, nil)	-- not good?
 			-- try again
 			i = sentsofar + 1
@@ -579,12 +575,12 @@ local ServerConn = class()
 
 function ServerConn:init(args)
 	-- combine all these assert index & type and you might as well have a strongly-typed language ...
-	asserttype(args, 'table')
-	self.app = assertindex(args, 'app')
-	self.server = assertindex(args, 'server')
-	self.socket = assertindex(args, 'socket')
-	self.thread = asserttype(assertindex(args, 'thread'), 'thread')
-	self.playerInfos = assertindex(args, 'playerInfos')
+	assert.type(args, 'table')
+	self.app = assert.index(args, 'app')
+	self.server = assert.index(args, 'server')
+	self.socket = assert.index(args, 'socket')
+	self.thread = assert.type(assert.index(args, 'thread'), 'thread')
+	self.playerInfos = assert.index(args, 'playerInfos')
 	for i=1,maxLocalPlayers do
 		local info = self.playerInfos[i]
 		if info then info.localPlayer = nil end
@@ -863,7 +859,7 @@ print'waiting for client handshake'
 print('got', recv, reason)
 	if not recv then error("Server waiting for handshake receive failed with error "..tostring(reason)) end
 
-	asserteq(recv, handshakeClientSends, "handshake failed")
+	assert.eq(recv, handshakeClientSends, "handshake failed")
 print'sending server handshake'
 	send(sock, handshakeServerSends..'\n')
 
@@ -874,7 +870,7 @@ print'waiting for player info'
 	local cmd = receive(sock, nil, 10)
 	if not cmd then error("expected player names...") end
 	local parts = string.split(cmd, ' ')
-	asserteq(parts:remove(1), 'playernames', "expected 'playernames' to come first")
+	assert.eq(parts:remove(1), 'playernames', "expected 'playernames' to come first")
 print('got player info', cmd)
 
 	local playerInfos = table()
@@ -955,7 +951,7 @@ print'sending initial RAM state...'
 		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
 
-	assertlen(ramState, ramStateSize)
+	assert.len(ramState, ramStateSize)
 	serverConn.toSend:insert(ramState)
 	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
 
@@ -981,10 +977,10 @@ args:
 	playernames
 --]]
 function ClientConn:init(args)
-	local app = assertindex(args, 'app')
+	local app = assert.index(args, 'app')
 	self.app = app
 	local con = app.con
-	assertindex(args, 'playerInfos')
+	assert.index(args, 'playerInfos')
 
 	self.cmds = vector'Numo9Cmd'
 
@@ -1033,7 +1029,7 @@ print'waiting for server handshake'
 		local recv, reason = receive(sock, nil, 10)
 print('got', recv, reason)
 		if not recv then error("ClientConn waiting for handshake failed with error "..tostring(reason)) end
-		asserteq(recv, handshakeServerSends, "ClientConn handshake failed")
+		assert.eq(recv, handshakeServerSends, "ClientConn handshake failed")
 		-- TODO HERE also expect a server netcmd protocol ... and icnreemnt the protocol every time you change the netcmd structures ...
 
 print'sending player info'
@@ -1071,7 +1067,7 @@ print'begin client listen loop...'
 				if data then
 --print'CLIENT GOT DATA'
 --print(string.hexdump(data, nil, 2))
-					assertlen(data, 4)
+					assert.len(data, 4)
 --receivedSize = receivedSize + 4
 					-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
 
@@ -1104,7 +1100,7 @@ print'begin client listen loop...'
 						self.cmds:resize(newsize)
 
 						local initCmds = receive(sock, newcmdslen, 10)
-						assertlen(initCmds, newcmdslen)
+						assert.len(initCmds, newcmdslen)
 						ffi.copy(self.cmds.v, ffi.cast('char*', initCmds), newcmdslen)
 
 					elseif index == 0xffff and value == 0xffff then
@@ -1120,7 +1116,7 @@ print('...got', result:unpack())
 						--]]
 --print(string.hexdump(ramState))
 
-						assertlen(ramState, ramStateSize)
+						assert.len(ramState, ramStateSize)
 --require'ext.path''client_init.txt':write(string.hexdump(ramState))
 						-- and decode it
 						local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))

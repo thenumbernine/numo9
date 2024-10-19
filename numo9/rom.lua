@@ -3,7 +3,7 @@ put config / spec specific / rom stuff here that everyone else uses
 should I jsut call this something like 'util' ?
 --]]
 local ffi = require 'ffi'
-local assertle = require 'ext.assert'.le
+local assert = require 'ext.assert'
 local table = require 'ext.table'
 local struct = require 'struct'
 local vec2s = require 'vec-ffi.vec2s'
@@ -255,15 +255,15 @@ local Numo9MusicPlaying = struct{
 -- assert sizeof musicID >= musicTableSize - that it can represent all our music table entries
 
 -- make sure our delta compressed channels state change encoding can fit in its 8bpp messages
-assertle(ffi.sizeof'Numo9Channel' * audioMixChannels, 256)
+assert.le(ffi.sizeof'Numo9Channel' * audioMixChannels, 256)
 
 local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
 
 -- make sure our sfx table can address all our sound ram
---assertle(ffi.sizeof(RAM.audioData), maxrangeforsize(ffi.sizeof(RAM.sfxAddrs[0])))
+--assert.le(ffi.sizeof(RAM.audioData), maxrangeforsize(ffi.sizeof(RAM.sfxAddrs[0])))
 
 -- make sure we can index all our sfx in the table
---assertle(sfxTableSize, maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)))
+--assert.le(sfxTableSize, maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)))
 
 local RAM = struct{
 	name = 'RAM',
