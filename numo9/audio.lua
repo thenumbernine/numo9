@@ -132,7 +132,7 @@ function AppAudio:initAudio()
 	sdl.SDL_ClearQueuedAudio(audio.deviceID)
 	--]] -- hmm, didn't help ...
 
-	print'starting audio...'
+--DEBUG:print'starting audio...'
 	sdl.SDL_PauseAudioDevice(audio.deviceID, 0)	-- pause 0 <=> play
 
 	self:resetAudio()
