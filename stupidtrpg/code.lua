@@ -1,3 +1,5 @@
+poke(ffi.offsetof('RAM','fontWidth'),8)
+
 math.randomseed(tstamp())
 
 class=[...]do

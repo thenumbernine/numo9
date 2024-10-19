@@ -5,7 +5,6 @@ local assert = require 'ext.assert'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
-local fontWidth = numo9_rom.fontWidth
 local frameBufferSize = numo9_rom.frameBufferSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local audioSampleType = numo9_rom.audioSampleType
@@ -114,9 +113,9 @@ function EditMusic:update()
 	for frameIndex,frame in ipairs(self.selectedTrack.frames) do
 		local x = 8
 		self:drawText(('%d'):format(frame.delay), x, y, 0xfc, 0xf0)
-		x = x + fontWidth * 4
+		x = x + app.ram.fontWidth * 4
 		for k,v in pairs(frame.changed) do
-			self:drawText(('%02X'):format(v), x + (2 * fontWidth + 2) * (k-1), y, 0xfc, 0xf0)
+			self:drawText(('%02X'):format(v), x + (2 * app.ram.fontWidth + 2) * (k-1), y, 0xfc, 0xf0)
 		end
 		y = y + 10
 	end	

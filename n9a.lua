@@ -1393,12 +1393,13 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 	}:append{
 		'-- begin compat layer',
 		-- some glue code needs this, might as well generate it dynamically here:
-		('updateCounterMem=0x%06x'):format(ffi.offsetof('RAM', 'updateCounter')),
-		('gfxMem=0x%06x'):format(ffi.offsetof('RAM', 'spriteSheet')),
-		('mapMem=0x%06x'):format(ffi.offsetof('RAM', 'tilemap')),
-		('palMem=0x%06x'):format(ffi.offsetof('RAM', 'palette')),
-		('fbMem=0x%06x'):format(ffi.offsetof('RAM', 'framebuffer')),
-		('userMem=0x%06x'):format(ffi.offsetof('RAM', 'userData')),
+		-- NOTICE if you ever remove ffi from the cartridge API then this will break ...
+		"updateCounterMem=ffi.offsetof('RAM', 'updateCounter')",
+		"gfxMem=ffi.offsetof('RAM', 'spriteSheet')",
+		"mapMem=ffi.offsetof('RAM', 'tilemap')",
+		"palMem=ffi.offsetof('RAM', 'palette')",
+		"fbMem=ffi.offsetof('RAM', 'framebuffer')",
+		"userMem=ffi.offsetof('RAM', 'userData')",
 		assert(path'n9a_p8_glue.lua':read()),
 		'-- end compat layer',
 		code,

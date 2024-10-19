@@ -3,7 +3,6 @@ local table = require 'ext.table'
 local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
-local fontWidth = numo9_rom.fontWidth
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
 
@@ -272,7 +271,7 @@ function MainMenu:updateMenuMultiplayer()
 					conn:close()
 				end
 			end
-			x = x + fontWidth * 5
+			x = x + app.ram.fontWidth * 5
 
 			app:drawText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
 

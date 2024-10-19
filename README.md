@@ -291,7 +291,6 @@ The button codes are as follows:
 	- `string` = my [lua-ext](https://github.com/thenumbernine/lua-ext) string library.
 	- `coroutine` = my [lua-ext](https://github.com/thenumbernine/lua-ext) coroutine library.
 	- `app` = the NuMo9 app object itself.  Probably going away soon.
-	- `_G` = the NuMo9 global.  Probably going away soon.
 
 # Editor
 
@@ -458,6 +457,7 @@ Pico8 Compatability is at 95%
 	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
+- Some day I should cut off cartridge access to `app`, `ffi`, etc.  I like having them around for `offsetof`'ing fields to get locations in RAM, which are subject to change while this is in alpha.  Should I introduce constant variables with the address names instead, and then hide ffi?
 
 # Things I'm still debating ...
 - How many max players at once?  Right now it's upper bound to 4, but this can be changed...
