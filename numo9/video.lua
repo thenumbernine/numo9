@@ -26,7 +26,6 @@ local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tileSheetAddr = numo9_rom.tileSheetAddr
 local tilemapSize = numo9_rom.tilemapSize
 local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
-local fontWidth = numo9_rom.fontWidth
 local mvMatScale = numo9_rom.mvMatScale
 local spriteSheetAddr = numo9_rom.spriteSheetAddr
 local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
@@ -1519,6 +1518,8 @@ function AppVideo:resetVideo()
 	self.ram.blendMode = 0xff	-- = none
 	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
 
+	self.ram.fontWidth = 5--spriteSize.x
+
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self:setClipRect(0, 0, 0xff, 0xff)
 
@@ -1986,7 +1987,7 @@ function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
 			scaleY                  -- scaleY
 		)
 		-- TODO font widths per char?
-		x = x + fontWidth
+		x = x + self.ram.fontWidth
 	end
 	return x
 end
@@ -2008,11 +2009,11 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 			self:drawSolidRect(
 				x,
 				y,
-				scaleX * fontWidth, --spriteSize.x,
+				scaleX * self.ram.fontWidth, --spriteSize.x,
 				scaleY * spriteSize.y,
 				bgColorIndex
 			)
-			x = x + fontWidth
+			x = x + self.ram.fontWidth
 		end
 	end
 

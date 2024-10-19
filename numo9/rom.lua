@@ -44,9 +44,6 @@ local userDataSize = 0x10000
 -- tic80 metadata includes title, author, some dates..., description, some urls ...
 local persistentCartridgeDataSize = 0x2000
 
-local fontWidth = spriteSize.x
---local fontWidth = 5
-
 local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
 local keyPressFlagSize = math.ceil(keyCount / 8)
@@ -293,6 +290,9 @@ local RAM = struct{
 				{name='blendMode', type='uint8_t'},
 				{name='blendColor', type='uint16_t'},
 
+				-- used by text() and by the console
+				{name='fontWidth', type='uint8_t'},
+
 				-- audio state of waves that are playing
 				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
 
@@ -395,7 +395,6 @@ return {
 	tilemapSize = tilemapSize,
 	tilemapSizeInSprites = tilemapSizeInSprites,
 	codeSize = codeSize,
-	fontWidth = fontWidth,
 	mvMatScale = mvMatScale,
 	keyPressFlagSize = keyPressFlagSize,
 	keyCount = keyCount,

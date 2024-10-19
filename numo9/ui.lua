@@ -12,7 +12,6 @@ local getTime = require 'ext.timer'.getTime
 local class = require 'ext.class'
 
 local numo9_rom = require 'numo9.rom'
-local fontWidth = numo9_rom.fontWidth
 local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
@@ -182,9 +181,9 @@ function UI:guiTextField(x, y, w, t, k, tooltip)
 	if onThisMenuItem then
 		if getTime() % 1 < .5 then
 			app:drawSolidRect(
-				x + self.textFieldCursorLoc * fontWidth,
+				x + self.textFieldCursorLoc * app.ram.fontWidth,
 				y,
-				fontWidth,
+				app.ram.fontWidth,
 				spriteSize.y,
 				0xfc
 			)

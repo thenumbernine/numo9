@@ -128,7 +128,7 @@ local function codeStrToBanks(banks, code)
 	local numBanksPrev = #banks
 	if numBanksPrev < numBanksNeededForCode then
 		banks:resize(numBanksNeededForCode)
-		ffi.fill(banks.v + numBanksPrev, ffi.sizeof'ROM' * (numBanksNeededForCode - numBanksNow))
+		ffi.fill(banks.v + numBanksPrev, ffi.sizeof'ROM' * (numBanksNeededForCode - numBanksPrev))
 	end
 	assert.ge(#banks, numBanksNeededForCode)
 	assert.le(n, codeSize * #banks)

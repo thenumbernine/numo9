@@ -714,7 +714,6 @@ function App:initGL()
 		ffi = ffi,
 		getfenv = getfenv,
 		setfenv = setfenv,
-		_G = _G,
 	}
 
 --[[ debugging - trace all calls

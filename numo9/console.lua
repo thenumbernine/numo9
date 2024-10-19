@@ -21,7 +21,6 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
-local fontWidth = numo9_rom.fontWidth
 
 
 local Console = class()
@@ -123,16 +122,16 @@ function Console:addChar(ch)
 		self.fgColor,
 		self.bgColor
 	)
-	self:offsetCursor(fontWidth, 0)
+	self:offsetCursor(app.ram.fontWidth, 0)
 end
 
 function Console:addCharToScreen(ch)
 	local app = self.app
 	if ch == 8 then
 		self:addChar((' '):byte())	-- in case the cursor is there
-		self:offsetCursor(-2*fontWidth, 0)
+		self:offsetCursor(-2*app.ram.fontWidth, 0)
 		self:addChar((' '):byte())	-- clear the prev char as well
-		self:offsetCursor(-fontWidth, 0)
+		self:offsetCursor(-app.ram.fontWidth, 0)
 	elseif ch == 10 or ch == 13 then
 		self:addChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
 		self.cursorPos.x = 0
@@ -229,10 +228,10 @@ function Console:update()
 	end
 	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
 	app:drawText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
-	self.cursorPos.x = #s * fontWidth
+	self.cursorPos.x = #s * app.ram.fontWidth
 
 	if getTime() % 1 < .5 then
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, fontWidth, spriteSize.y, self.fgColor)
+		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, app.ram.fontWidth, spriteSize.y, self.fgColor)
 	end
 
 	local shift = app:key'lshift' or app:key'rshift'
