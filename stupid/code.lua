@@ -2753,10 +2753,9 @@ updateGame=[]do
 		for i,spawnInfo in ipairs(map.spawn) do
 			if math.random() < spawnInfo.rate and #map.objs < 2000 then
 				local spawnClass = spawnInfo.type
-				local classifier = nil
-				if spawnClass.movesInWater then
-					classifier = [tile] tile.water,
-				end
+				local classifier = spawnClass.movesInWater 
+					and ([tile] tile.water)
+					or nil
 				spawnClass{pos=pickFreePos(classifier)}
 			end
 		end
