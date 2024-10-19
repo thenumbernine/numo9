@@ -9,71 +9,50 @@ why even bother convert stuff?
 why not just save it in a zip file, and let the loader target our zip data or a directory structure, like a pak file.
 and if fantasy-consoles like tik-80 say "swap won't handle code, leave that to us", then lol why even include code in the 'cart' data structure?
 why not just work with the uncompressed directories and then optionally use a zip file...
-but this would now beg the question, how to reconcile this with the virtual filesystem ... 
+but this would now beg the question, how to reconcile this with the virtual filesystem ...
 
 so for all else except code, it is convenient to just copy RAM->ROM over
 for code ... hmm, if I put it in a zip file, it is very convenient to just keep it in one giant code.lua file ...
 --]]
 local ffi = require 'ffi'
-local assertle = require 'ext.assert'.le
 local asserteq = require 'ext.assert'.eq
+local assertle = require 'ext.assert'.le
 local assertge = require 'ext.assert'.ge
 local asserttype = require 'ext.assert'.type
 local assertindex = require 'ext.assert'.index
+local table = require 'ext.table'
 local path = require 'ext.path'
-local vec3i = require 'vec-ffi.vec3i'
+local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 
--- only need to require this to make sure it defines ROM and RAM ctypes
--- TODO maybe move that into its own file?
-local App = require 'numo9.app'
-
--- 40200 right now
-local cartImageSize = vec3i(364, 364, 3)
-if ffi.sizeof'ROM' >= cartImageSize:volume() then
-	print("You need to resize your cartridge image size for the ROM image to fit into the cartridge file.")
-	print(" ROM size: "..ffi.sizeof'ROM')
-	print(" cart size: "..cartImageSize:volume())
-	print(" cart image dim: "..cartImageSize)
-	local newSize = math.ceil(math.sqrt(tonumber(ffi.sizeof'ROM') / 3))
-	print("How about a new size of "..vec3i(newSize, newSize, 3))
-	error'here'
-end
+local numo9_rom = require 'numo9.rom'
+local codeSize = numo9_rom.codeSize
 
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
 -- so reading is from files now
 local tmploc = path'___tmp.png'
 local pngCustomKey = 'nuMO'
 --[[
-assumes 'rom' is ptr to the start of our ROM memory
+assumes 'banks' is vector<ROM>
 creates an Image and returns it
 --]]
-local function toCartImage(rom, labelImage)
-	asserttype(rom, 'cdata')
-	--[[ saving the raw binary
-	return ffi.string(rom, ffi.sizeof'ROM')
-	--]]
+local function toCartImage(banks, labelImage)
+	assert(vector:isa(banks))
+	asserteq(banks.type, 'ROM')
+	assertge(#banks, 1)
 
-	-- [=[ save as an image
-	-- TODO image hardcodes this to 1) file io and 2) extension ... because a lot of the underlying image format apis do too ... fix me plz
-	--[[ store it as an 8bpp PNG ...
-	local romImage = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'uint8_t'):clear()
-	ffi.copy(romImage.buffer, rom, ffi.sizeof'ROM')
-	--]]
 	-- [[ storing in png metadata
 	local baseLabelImage = Image'defaultlabel.png'
 	asserteq(baseLabelImage.channels, 4)
 	local romImage = Image(baseLabelImage.width, baseLabelImage.height, 4, 'uint8_t'):clear()
 	if labelImage then
-		if labelImage.channels == 3 then
-			labelImage = labelImage:setChannels(4)
-		end
+		labelImage = labelImage:setChannels(4)
 		romImage:pasteInto{image=labelImage, x=math.floor((romImage.width-labelImage.width)/2), y=0}
 	end
-	--[[
+	--[[ paste without alpha
 	romImage:pasteInto{image=baseLabelImage, x=0, y=0}
 	--]]
-	-- [[ paste-with-alpha, TODO move to image library? 
+	-- [[ paste-with-alpha, TODO move to image library?
 	for i=0,baseLabelImage.width*baseLabelImage.height-1 do
 		local dstp = romImage.buffer + 4 * i
 		local srcp = baseLabelImage.buffer + 4 * i
@@ -85,46 +64,11 @@ local function toCartImage(rom, labelImage)
 	end
 	--]]
 	romImage.unknown = romImage.unknown or {}
-	romImage.unknown[pngCustomKey] = {data=ffi.string(rom, ffi.sizeof'ROM')}
-	--]]
-	--[[ if it's 16bpp ... use the lower byte for storage and upper byte for a cartridge label image
-	local romImage = Image(cartImageSize.x, cartImageSize.y, cartImageSize.z, 'uint16_t'):clear()
-	if labelImage then
-		assertge(labelImage.channels, 3, "label image must be RGB")
-		asserteq(ffi.sizeof(labelImage.format), 1, "label image must be 8bp")
-	end
-	local index = 0
-	for y=0,cartImageSize.y-1 do
-		for x=0,cartImageSize.x-1 do
-			for ch=0,cartImageSize.z-1 do
-				if index < ffi.sizeof'ROM' then
-					romImage.buffer[index] = rom.v[index]
-				else
-					romImage.buffer[index] = 0
-				end
-
-				if labelImage then
-					romImage.buffer[index] = bit.bor(
-						romImage.buffer[index],
-						bit.lshift(
-							bit.band(0xff, labelImage.buffer[
-								ch + labelImage.channels * (
-									math.floor(x / romImage.width * labelImage.width)
-									+ labelImage.width * math.floor(y / romImage.height * labelImage.height)
-								)
-							]),
-							8
-						)
-					)
-				end
-
-				index = index + 1
-			end
-		end
-	end
-	--]]
-	--[[ TODO save png with custom chunk holding the cart data
-	-- TODO TODO change image png loader to support custom chunks
+	romImage.unknown[pngCustomKey] = {
+		-- TODO you could save the regions that are used like tic80
+		-- or you could just zlib zip the whole thing
+		data = ffi.string(banks.v, ffi.sizeof'ROM' * #banks),
+	}
 	--]]
 
 --DEBUG:assert(not tmploc:exists())
@@ -138,13 +82,10 @@ end
 
 --[[
 takes an Image
+returns vector<ROM>
 --]]
 local function fromCartImage(srcData)
-	local rom = ffi.new'ROM'
-	--[[ saving/loading raw data
-	ffi.copy(rom.v, ffi.cast('uint8_t*', srcData), ffi.sizeof'ROM')
-	return rom
-	--]]
+	local banks = vector'ROM'
 	-- [=[ loading as an image
 --DEBUG:assert(not tmploc:exists())
 	assert(path(tmploc):write(srcData))
@@ -153,35 +94,62 @@ local function fromCartImage(srcData)
 --DEBUG:assert(not tmploc:exists())
 	-- [[ storing in png metadata
 	local data = assertindex(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
-	assertle(ffi.sizeof'ROM', #data)
-	ffi.copy(rom.v, data, ffi.sizeof'ROM')
+	local numBanksNeeded = math.ceil(#data / ffi.sizeof'ROM')
+	banks:resize(math.max(1, numBanksNeeded))
+	assertge(#banks * ffi.sizeof'ROM', #data)
+	ffi.copy(banks.v, data, #data)
 	--]]
-	--[[ if it's 8bpp ...
-	asserteq(romImage.channels, 3)
-	assertle(ffi.sizeof'ROM', romImage.width * romImage.height * romImage.channels)
-	ffi.copy(rom.v, romImage.buffer, ffi.sizeof'ROM')
-	--]]
-	--[[ if it's 16bpp ...
-	asserteq(romImage.channels, 3)
-	assertle(ffi.sizeof'ROM', romImage.width * romImage.height * romImage.channels)
-	local index = 0
-	for y=0,cartImageSize.y-1 do
-		for x=0,cartImageSize.x-1 do
-			for ch=0,cartImageSize.z-1 do
-				-- handles the cast from short to byte
-				if index >= ffi.sizeof'ROM' then goto fromCartImageDone end
-				rom.v[index] = romImage.buffer[index]
-				index = index + 1
-			end
-		end
-	end
-::fromCartImageDone::
-	--]]
-	return rom
+	return banks
 	--]=]
+end
+
+-- convert multiple banks' code into a single string
+local function codeBanksToStr(banks)
+	assert(vector:isa(banks))
+	asserteq(banks.type, 'ROM')
+	local codePages = table()
+	for bankNo=0,#banks-1 do
+		local bank = banks.v + bankNo
+		codePages:insert(ffi.string(bank.code, codeSize))
+	end
+	local code = codePages:concat()
+	-- trim off trailing \0's - do it here and not per-bank to allow statements (and possibly '\0' strings) to cross the code bank boundaries
+	local codeEnd = #code
+	while codeEnd > 0 and code:byte(codeEnd) == 0 do
+		codeEnd = codeEnd - 1
+	end
+	return code:sub(1, codeEnd)
+end
+
+local function codeStrToBanks(banks, code)
+	assert(vector:isa(banks))
+	asserteq(banks.type, 'ROM')
+	asserttype(code, 'string')
+	local n = #code
+--DEBUG:print('code size is', n)
+	local numBanksNeededForCode = math.ceil(n / codeSize)
+--DEBUG:print('num banks needed is', numBanksNeededForCode)
+	local numBanksPrev = #banks
+	if numBanksPrev < numBanksNeededForCode then
+		banks:resize(numBanksNeededForCode)
+		ffi.fill(banks.v + numBanksPrev, ffi.sizeof'ROM' * (numBanksNeededForCode - numBanksNow))
+	end
+	assertge(#banks, numBanksNeededForCode)
+	assertle(n, codeSize * #banks)
+	for bankNo=0,#banks-1 do
+		local bank = banks.v + bankNo
+		local i1 = bankNo*codeSize
+		local i2 = (bankNo+1)*codeSize-1
+		local s = code:sub(i1, i2)
+		assertle(#s, codeSize)
+		ffi.fill(bank.code, 0, codeSize)
+		ffi.copy(bank.code, s)
+	end
 end
 
 return {
 	toCartImage = toCartImage,
 	fromCartImage = fromCartImage,
+	codeBanksToStr = codeBanksToStr,
+	codeStrToBanks = codeStrToBanks,
 }

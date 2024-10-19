@@ -15,6 +15,8 @@ local asserttype = require 'ext.assert'.type
 local assertlen = require 'ext.assert'.len
 local asserteq = require 'ext.assert'.eq
 local assertlt = require 'ext.assert'.lt
+local assertle = require 'ext.assert'.le
+local assertge = require 'ext.assert'.ge
 local string = require 'ext.string'
 local table = require 'ext.table'
 local range = require 'ext.range'
@@ -23,17 +25,28 @@ local path = require 'ext.path'
 local tolua = require 'ext.tolua'
 local fromlua = require 'ext.fromlua'
 local getTime = require 'ext.timer'.getTime
+local vector = require 'ffi.cpp.vector-lua'
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 local template = require 'template'
 local matrix_ffi = require 'matrix.ffi'
 local sdl = require 'sdl'
+local sdlAssertZero = require 'sdl.assert'.zero
 local gl = require 'gl'
 local GLApp = require 'glapp'
+local View = require 'glapp.view'
 local ThreadManager = require 'threadmanager'
 
-local Server = require 'numo9.net'.Server
-local ClientConn = require 'numo9.net'.ClientConn
+local numo9_archive = require 'numo9.archive'
+local fromCartImage = numo9_archive.fromCartImage
+local toCartImage = numo9_archive.toCartImage
+local codeBanksToStr = numo9_archive.codeBanksToStr
+local codeStrToBanks = numo9_archive.codeStrToBanks
+
+local numo9_net = require 'numo9.net'
+local Server = numo9_net.Server
+local ClientConn = numo9_net.ClientConn
+local netcmds = numo9_net.netcmds
 
 local numo9_rom = require 'numo9.rom'
 local updateHz = numo9_rom.updateHz
@@ -68,7 +81,8 @@ local sdlSymToKeyCode = numo9_keys.sdlSymToKeyCode
 local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode
 local buttonCodeForName = numo9_keys.buttonCodeForName
 
-local netcmds = require 'numo9.net'.netcmds
+local numo9_video = require 'numo9.video'
+local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 
 local function hexdump(ptr, len)
 	return string.hexdump(ffi.string(ptr, len))
@@ -86,9 +100,6 @@ App.width = 720
 App.height = 512
 
 App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO)
-
-local numo9_video = require 'numo9.video'
-local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 
 -- copy in video behavior
 for k,v in pairs(numo9_video.AppVideo) do
@@ -131,7 +142,6 @@ App.errorHandler = errorHandler
 -- IF YOU SET SDL_GL DOUBLEBUFFER=1 ... THEN IMMEDIATELY SET IT TO ZERO ... WHATEVER IT IS, IT ISNT SINGLE-BUFFER
 -- INSTEAD I COPIED THE WHOLE SDL SET ATTRIBUTE SECTION AND CHANGED DOUBLEBUFFER THERE TO ALWAYS ONLY SET TO ZERO AND IT WORKS FINE.
 -- [[ how come I can't disable double-buffering?
-local sdlAssertZero = require 'sdl.assert'.zero
 function App:sdlGLSetAttributes()
 	--[=[
 	-- I should be able to just call super (which sets everything ... incl doublebuffer=1) .. and then set it back to zero right?
@@ -178,8 +188,10 @@ function App:initGL()
 	-- pico8 has a reset function that seems to do something different: reset the color and console state
 	-- but pico8 does support a reload() function for copying data from cartridge to RAM ... if you specify range of the whole ROM memory then it's the same (right?)
 	-- but pico8 also supports cstore(), i.e. writing to sections of a cartridge while the code is running ... now we're approaching fantasy land where you can store disk quickly - didn't happen on old Apple2's ... or in the NES case where reading was quick, the ROM was just that so there was no point to allow writing and therefore no point to address both the ROM and the ROM's copy in RAM ...
-	-- with all that said, 'cartridge' here will be inaccessble by my api except a reset() function
-	self.cartridge = ffi.new'ROM'
+	-- but tic80 has a sync() function for swapping out the active banks ...
+	-- with all that said, 'banks' here will be inaccessble by my api except a reset() function
+	-- and sync() function ..
+	self.banks = vector('ROM', 1)
 	-- TODO maybe ... keeping separate 'ROM' and 'RAM' space?  how should the ROM be accessible? with a 0xC00000 (SNES)?
 	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
 	-- and the editor would edit the ROM ...
@@ -215,7 +227,6 @@ function App:initGL()
 	self.mvMat = matrix_ffi({4,4}, 'float'):zeros():setIdent()
 	self:mvMatToRAM()
 
-	local View = require 'glapp.view'
 	self.blitScreenView = View()
 	self.blitScreenView.ortho = true
 	self.blitScreenView.orthoSize = 1
@@ -252,7 +263,7 @@ function App:initGL()
 		run = function(...) return self:runROM(...) end,
 		stop = function(...) return self:stop(...) end,
 		cont = function(...) return self:cont(...) end,
-		save = function(...) return self:save(...) end,
+		save = function(...) return self:saveROM(...) end,
 		load = function(...)
 			local result = table.pack(self:loadROM(...))
 			if self.server then
@@ -1400,7 +1411,7 @@ conn.receivesPerSecond = 0
 			and not self.isPaused
 			then
 				if coroutine.status(thread) == 'dead' then
-print('cartridge thread dead')
+print('run thread dead')
 					self:setFocus(nil)
 					-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
 					self:setMenu(self.con)
@@ -1713,23 +1724,20 @@ function App:resetView()
 end
 
 -- save from cartridge to filesystem
-function App:save(filename)
+function App:saveROM(filename)
 --	self:checkDirtyGPU()
 
-	-- flush that back to .cartridge ...
+	-- flush that back to .banks ...
 	-- ... or not? idk.  handle this by the editor?
-	--ffi.copy(self.cartridge.v, self.ram.v, ffi.sizeof'ROM')
-	-- TODO self.ram vs self.cartridge ... editor puts .cartridge into .ram before editing
+	--ffi.copy(self.banks.v[0].v, self.ram.v, ffi.sizeof'ROM')
+	-- TODO self.ram vs self.banks ... editor puts .banks into .ram before editing
 	-- or at least it used to ... now with multiplayer editing idk even ...
 
 	-- and then that to the virtual filesystem ...
 	-- and then that to the real filesystem ...
 
-	local n = #self.editCode.text
-	assertlt(n+1, codeSize)
---print('saving code', self.editCode.text, 'size', n)
-	ffi.copy(self.cartridge.code, self.editCode.text, n)
-	self.cartridge.code[n] = 0	-- null term
+	-- save code to multibanks
+	codeStrToBanks(self.banks, self.editCode.text)
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
@@ -1739,11 +1747,10 @@ function App:save(filename)
 	local basemsg = 'failed to save file '..tostring(filename)
 
 	-- TODO xpcall?
-	local toCartImage = require 'numo9.archive'.toCartImage
 	local success, s = xpcall(
 		toCartImage,
 		errorHandler,
-		self.cartridge
+		self.banks
 	)
 	if not success then
 print('save failed:', basemsg..(s or ''))
@@ -1803,10 +1810,10 @@ function App:loadROM(filename)
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
 
-	local fromCartImage = require 'numo9.archive'.fromCartImage
-	self.cartridge = fromCartImage(d)
-
+	self.banks = fromCartImage(d)
+	assertge(#self.banks, 1)
 	self.cartridgeName = filename	-- TODO display this somewhere
+	self.editCode.text = codeBanksToStr(self.banks)
 	self:resetROM()
 	return true
 end
@@ -1816,7 +1823,7 @@ function App:writePersistent()
 	self.cfg.persistent = self.cfg.persistent or {}
 
 	-- TODO this when you read cart header ... or should we put it in ROM somewhere?
-	self.cartridgeSaveID = self.cartridgeSaveID or ''--md5(self.cartridge.v, ffi.sizeof'ROM')
+	self.cartridgeSaveID = self.cartridgeSaveID or ''--md5(self.banks.v, #self.banks * ffi.sizeof'ROM')
 
 	-- save a string up to the last non-zero value ... opposite  of C-strings
 	local len = persistentCartridgeDataSize
@@ -1830,12 +1837,12 @@ function App:writePersistent()
 end
 
 --[[
-This resets everything from the last loaded .cartridge ROM into .ram
+This resets everything from the last loaded .banks ROM into .ram
 Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
-	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
+	ffi.copy(self.ram.v, self.banks.v[0].v, ffi.sizeof'ROM')
 	self:resetVideo()
 
 	-- calling reset() live will kill all sound ...

@@ -34,6 +34,8 @@ local resetFontOnSheet = numo9_video.resetFontOnSheet
 local numo9_archive = require 'numo9.archive'
 local fromCartImage = numo9_archive.fromCartImage
 local toCartImage = numo9_archive.toCartImage
+local codeBanksToStr = numo9_archive.codeBanksToStr
+local codeStrToBanks = numo9_archive.codeStrToBanks
 
 local numo9_rom = require 'numo9.rom'
 local spriteSheetSize = numo9_rom.spriteSheetSize
@@ -93,66 +95,80 @@ if cmd == 'x' then
 	assert(basepath:isdir())
 
 	print'loading cart...'
-	local rom = fromCartImage((assert(n9path:read())))
+	local banks = fromCartImage((assert(n9path:read())))
+	assert(vector:isa(banks))
+	asserteq(banks.type, 'ROM')
+	assertge(#banks, 1)
 
-	print'saving palette...'
-	-- palette: 16 x 16 x 24bpp 8bpp r g b
-	local image = Image(16, 16, 4, 'uint8_t')
-	local imagePtr = image.buffer
-	local palPtr = rom.palette -- uint16_t*
-	local palette = table()
-	for y=0,15 do
-		for x=0,15 do
-			-- TODO packptr in numo9/app.lua
-			local r,g,b,a = rgba5551_to_rgba8888_4ch(palPtr[0])
-			imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = r,g,b,a
-			palette:insert{r,g,b,a}
-			palPtr = palPtr + 1
-			imagePtr = imagePtr + 4
+	for bankNo=0,#banks-1 do
+		local bank = banks.v + bankNo
+		local bankpath = basepath
+		if bankNo > 0 then
+			bankpath = basepath/tostring(bankNo)
+			bankpath:mkdir()
 		end
-	end
-	image:save(basepath'pal.png'.path)
 
-	print'saving sprite sheet...'
-	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
-	-- TODO save a palette'd image
-	local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
-	ffi.copy(image.buffer, rom.spriteSheet, ffi.sizeof(rom.spriteSheet))
-	image.palette = palette
-	image:save(basepath'sprite.png'.path)
-
-	print'saving tile sheet...'
-	-- tile tex: 256 x 256 x 8bpp ... TODO needs to be indexed
-	ffi.copy(image.buffer, rom.tileSheet, ffi.sizeof(rom.tileSheet))
-	image.palette = palette
-	image:save(basepath'tiles.png'.path)
-
-	print'saving tile map...'
-	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
-	local image = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
-	local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
-	local imagePtr = image.buffer
-	for y=0,tilemapSize.y-1 do
-		for x=0,tilemapSize.x-1 do
-			imagePtr[0] = mapPtr[0]
-			imagePtr = imagePtr + 1
-			mapPtr = mapPtr + 1
-
-			imagePtr[0] = mapPtr[0]
-			imagePtr = imagePtr + 1
-			mapPtr = mapPtr + 1
-
-			imagePtr[0] = 0
-			imagePtr = imagePtr + 1
+		print'saving palette...'
+		-- palette: 16 x 16 x 24bpp 8bpp r g b
+		local image = Image(16, 16, 4, 'uint8_t')
+		local imagePtr = image.buffer
+		local palPtr = bank.palette -- uint16_t*
+		local palette = table()
+		for y=0,15 do
+			for x=0,15 do
+				-- TODO packptr in numo9/app.lua
+				local r,g,b,a = rgba5551_to_rgba8888_4ch(palPtr[0])
+				imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = r,g,b,a
+				palette:insert{r,g,b,a}
+				palPtr = palPtr + 1
+				imagePtr = imagePtr + 4
+			end
 		end
+		image:save(bankpath'pal.png'.path)
+
+		print'saving sprite sheet...'
+		-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
+		-- TODO save a palette'd image
+		local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+		ffi.copy(image.buffer, bank.spriteSheet, ffi.sizeof(bank.spriteSheet))
+		image.palette = palette
+		image:save(bankpath'sprite.png'.path)
+
+		print'saving tile sheet...'
+		-- tile tex: 256 x 256 x 8bpp ... TODO needs to be indexed
+		ffi.copy(image.buffer, bank.tileSheet, ffi.sizeof(bank.tileSheet))
+		image.palette = palette
+		image:save(bankpath'tiles.png'.path)
+
+		print'saving tile map...'
+		-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
+		local image = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
+		local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
+		local imagePtr = image.buffer
+		for y=0,tilemapSize.y-1 do
+			for x=0,tilemapSize.x-1 do
+				imagePtr[0] = mapPtr[0]
+				imagePtr = imagePtr + 1
+				mapPtr = mapPtr + 1
+
+				imagePtr[0] = mapPtr[0]
+				imagePtr = imagePtr + 1
+				mapPtr = mapPtr + 1
+
+				imagePtr[0] = 0
+				imagePtr = imagePtr + 1
+			end
+		end
+		image:save(bankpath'tilemap.png'.path)
+
+		-- TODO save sfx and music here
 	end
-	image:save(basepath'tilemap.png'.path)
 
 	print'saving code...'
-	local code = ffi.string(rom.code, ffi.sizeof(rom.code))
-	local i = code:find('\0', 1, true)
-	if i then code = code:sub(1, i-1) end
-	assert(basepath'code.lua':write(code))
+	local code = codeBanksToStr(banks)
+	if #code > 0 then
+		assert(basepath'code.lua':write(code))
+	end
 
 elseif cmd == 'a'
 or cmd == 'r' then
@@ -161,153 +177,168 @@ or cmd == 'r' then
 	local basepath = getbasepath(fn)
 
 	assert(basepath:isdir())
-	local rom = ffi.new'ROM'
-	ffi.fill(rom.v, 0, ffi.sizeof(rom))
-
-	print'loading sprite sheet...'
-	if basepath'sprite.png':exists() then
-		local image = assert(Image(basepath'sprite.png'.path))
-		asserteq(image.width, spriteSheetSize.x)
-		asserteq(image.height, spriteSheetSize.y)
-		asserteq(image.channels, 1)
-		assert(ffi.sizeof(image.format), 1)
-		ffi.copy(rom.spriteSheet, image.buffer, spriteSheetSize:volume())
-	else
-		-- TODO resetGFX flag for n9a to do this anyways
-		-- if sprite doesn't exist then load the default
-		resetFontOnSheet(rom.spriteSheet)
-	end
-
-	print'loading tile sheet...'
-	if basepath'tiles.png':exists() then
-		local image = assert(Image(basepath'tiles.png'.path))
-		asserteq(image.width, spriteSheetSize.x)
-		asserteq(image.height, spriteSheetSize.y)
-		asserteq(image.channels, 1)
-		assert(ffi.sizeof(image.format), 1)
-		ffi.copy(rom.tileSheet, image.buffer, spriteSheetSize:volume())
-	end
-
-	print'loading tile map...'
-	if basepath'tilemap.png':exists() then
-		local image = assert(Image(basepath'tilemap.png'.path))
-		asserteq(image.width, tilemapSize.x)
-		asserteq(image.height, tilemapSize.y)
-		asserteq(image.channels, 3)
-		asserteq(ffi.sizeof(image.format), 1)
-		local mapPtr = ffi.cast('uint8_t*', rom.tilemap)
-		local imagePtr = image.buffer
-		for y=0,tilemapSize.y-1 do
-			for x=0,tilemapSize.x-1 do
-				mapPtr[0] = imagePtr[0]
-				imagePtr = imagePtr + 1
-				mapPtr = mapPtr + 1
-
-				mapPtr[0] = imagePtr[0]
-				imagePtr = imagePtr + 1
-				mapPtr = mapPtr + 1
-
-				imagePtr = imagePtr + 1
-			end
-		end
-		image:save(basepath'tilemap.png'.path)
-	end
-
-	print'loading palette...'
-	if basepath'pal.png':exists() then
-		local image = assert(Image(basepath'pal.png'.path))
-		asserteq(image.width, 16)
-		asserteq(image.height, 16)
-		asserteq(image.channels, 4)
-		asserteq(ffi.sizeof(image.format), 1)
-		local imagePtr = image.buffer
-		local palPtr = rom.palette -- uint16_t*
-		for y=0,15 do
-			for x=0,15 do
-				palPtr[0] = rgba8888_4ch_to_5551(
-					imagePtr[0],
-					imagePtr[1],
-					imagePtr[2],
-					imagePtr[3]
-				)
-				palPtr = palPtr + 1
-				imagePtr = imagePtr + 4
-			end
-		end
-	else
-		-- TODO resetGFX flag for n9a to do this anyways
-		-- if pal.png doens't exist then load the default at least
-		resetPalette(rom)
-	end
-
-	print'loading sfx...'
-	do
-		local audioDataOffset = 0
-		-- returns start and end of offset into audioData for 'data' to go
-		local function addToAudio(data, size)
-			local addr = audioDataOffset
-			assert(addr + size <= audioDataSize, "audio data overflow")
-			ffi.copy(rom.audioData + addr, data, size)
-			audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
-			return addr
-		end
-
-		-- load sfx into audio memory
-		for i=0,sfxTableSize-1 do
-			local p = basepath('waveform'..i..'.wav')
-			if p:exists() then
-				local wav = AudioWAV():load(p.path)
-				asserteq(wav.channels, 1)	-- waveforms / sfx are mono
-				-- TODO resample if they are different.
-				-- for now I'm just saving them in this format and being lazy
-				asserteq(wav.ctype, numo9_rom.audioSampleType)
-				asserteq(wav.freq, numo9_rom.audioSampleRate)
-				local data = wav.data
-				local size = wav.size
-				--[[ now BRR-compress them and copy them into rom.audioData, and store their offsets in sfxAddrs
-				-- TODO what if the data doesn't align to 8 samples? what did SNES do?
-				local brrComp = vector'uint8_t'
-				--]]
-				-- [[ until then, use raw for now
-print('writing sfx', i, 'size', size)
-				local addrLen = rom.sfxAddrs[i]
-				addrLen.addr, addrLen.len = addToAudio(data, size), size
-				--]]
-			end
-		end
-
-		-- load music tracks into audio memory
-		for i=0,musicTableSize-1 do
-			local p = basepath('music'..i..'.bin')
-			if p:exists() then
-				local data = p:read()
-				local size = #data
-print('writing music', i, 'size', size)
-				local addrLen = rom.musicAddrs[i]
-				addrLen.addr, addrLen.len = addToAudio(data, size), size
-			end
-		end
-
-		print('num audio data stored:', audioDataOffset)
-	end
+	local banks = vector('ROM', 1)
 
 	print'loading code...'
 	if basepath'code.lua':exists() then
 		local code = assert(basepath'code.lua':read())
-		local n = #code
-		assertlt(n+1, codeSize)
-		local codeMem = rom.code
-		ffi.copy(codeMem, code, n)
-		codeMem[n] = 0	-- null term
+		codeStrToBanks(banks, code)	-- this grows the # banks
+	end
+
+	local fns = table()
+	for f in basepath:dir() do
+		local bankpath = basepath/f
+		if bankpath:isdir() then
+			local bankNo = tonumber(f.path)
+			if bankNo then
+				banks:resize(math.max(#banks, tonumber(bankNo)+1))
+			end
+		end
+	end
+
+	for bankNo=0,#banks-1 do
+		local bank = banks.v + bankNo
+		local bankpath = basepath
+		if bankNo > 0 then
+			bankpath = basepath/tostring(bankNo)
+			bankpath:mkdir()
+		end
+
+		print'loading sprite sheet...'
+		if bankpath'sprite.png':exists() then
+			local image = assert(Image(bankpath'sprite.png'.path))
+			asserteq(image.width, spriteSheetSize.x)
+			asserteq(image.height, spriteSheetSize.y)
+			asserteq(image.channels, 1)
+			assert(ffi.sizeof(image.format), 1)
+			ffi.copy(bank.spriteSheet, image.buffer, spriteSheetSize:volume())
+		else
+			-- TODO resetGFX flag for n9a to do this anyways
+			-- if sprite doesn't exist then load the default
+			resetFontOnSheet(bank.spriteSheet)
+		end
+
+		print'loading tile sheet...'
+		if bankpath'tiles.png':exists() then
+			local image = assert(Image(bankpath'tiles.png'.path))
+			asserteq(image.width, spriteSheetSize.x)
+			asserteq(image.height, spriteSheetSize.y)
+			asserteq(image.channels, 1)
+			assert(ffi.sizeof(image.format), 1)
+			ffi.copy(bank.tileSheet, image.buffer, spriteSheetSize:volume())
+		end
+
+		print'loading tile map...'
+		if bankpath'tilemap.png':exists() then
+			local image = assert(Image(bankpath'tilemap.png'.path))
+			asserteq(image.width, tilemapSize.x)
+			asserteq(image.height, tilemapSize.y)
+			asserteq(image.channels, 3)
+			asserteq(ffi.sizeof(image.format), 1)
+			local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
+			local imagePtr = image.buffer
+			for y=0,tilemapSize.y-1 do
+				for x=0,tilemapSize.x-1 do
+					mapPtr[0] = imagePtr[0]
+					imagePtr = imagePtr + 1
+					mapPtr = mapPtr + 1
+
+					mapPtr[0] = imagePtr[0]
+					imagePtr = imagePtr + 1
+					mapPtr = mapPtr + 1
+
+					imagePtr = imagePtr + 1
+				end
+			end
+			image:save(bankpath'tilemap.png'.path)
+		end
+
+		print'loading palette...'
+		if bankpath'pal.png':exists() then
+			local image = assert(Image(bankpath'pal.png'.path))
+			asserteq(image.width, 16)
+			asserteq(image.height, 16)
+			asserteq(image.channels, 4)
+			asserteq(ffi.sizeof(image.format), 1)
+			local imagePtr = image.buffer
+			local palPtr = bank.palette -- uint16_t*
+			for y=0,15 do
+				for x=0,15 do
+					palPtr[0] = rgba8888_4ch_to_5551(
+						imagePtr[0],
+						imagePtr[1],
+						imagePtr[2],
+						imagePtr[3]
+					)
+					palPtr = palPtr + 1
+					imagePtr = imagePtr + 4
+				end
+			end
+		else
+			-- TODO resetGFX flag for n9a to do this anyways
+			-- if pal.png doens't exist then load the default at least
+			resetPalette(bank)
+		end
+
+		print'loading sfx...'
+		do
+			local audioDataOffset = 0
+			-- returns start and end of offset into audioData for 'data' to go
+			local function addToAudio(data, size)
+				local addr = audioDataOffset
+				assert(addr + size <= audioDataSize, "audio data overflow")
+				ffi.copy(bank.audioData + addr, data, size)
+				audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
+				return addr
+			end
+
+			-- load sfx into audio memory
+			for i=0,sfxTableSize-1 do
+				local p = bankpath('waveform'..i..'.wav')
+				if p:exists() then
+					local wav = AudioWAV():load(p.path)
+					asserteq(wav.channels, 1)	-- waveforms / sfx are mono
+					-- TODO resample if they are different.
+					-- for now I'm just saving them in this format and being lazy
+					asserteq(wav.ctype, numo9_rom.audioSampleType)
+					asserteq(wav.freq, numo9_rom.audioSampleRate)
+					local data = wav.data
+					local size = wav.size
+					--[[ now BRR-compress them and copy them into bank.audioData, and store their offsets in sfxAddrs
+					-- TODO what if the data doesn't align to 8 samples? what did SNES do?
+					local brrComp = vector'uint8_t'
+					--]]
+					-- [[ until then, use raw for now
+--DEUBG:print('writing sfx', i, 'size', size)
+					local addrLen = bank.sfxAddrs[i]
+					addrLen.addr, addrLen.len = addToAudio(data, size), size
+					--]]
+				end
+			end
+
+			-- load music tracks into audio memory
+			for i=0,musicTableSize-1 do
+				local p = bankpath('music'..i..'.bin')
+				if p:exists() then
+					local data = p:read()
+					local size = #data
+--DEUBG:print('writing music', i, 'size', size)
+					local addrLen = bank.musicAddrs[i]
+					addrLen.addr, addrLen.len = addToAudio(data, size), size
+				end
+			end
+
+			print('num audio data stored:', audioDataOffset)
+		end
 	end
 
 	-- TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'
-		resetFontOnSheet(rom.spriteSheet)
+		resetFontOnSheet(banks.v[0].spriteSheet)
 	end
 	if extra == 'resetPal' then
-		--resetPalette(rom)
+		--resetPalette(bank)
 	end
 
 	local labelImage
@@ -316,7 +347,7 @@ print('writing music', i, 'size', size)
 	end)
 
 	print'saving cart...'
-	assert(path(fn):write(toCartImage(rom, labelImage)))
+	assert(path(fn):write(toCartImage(banks, labelImage)))
 
 	if cmd == 'r' then
 		assert(os.execute('luajit run.lua "'..fn..'"'))
@@ -326,23 +357,24 @@ elseif cmd == 'n9tobin' then
 
 	local n9path = path(fn)
 	local basepath = getbasepath(fn)
-
 	local binpath = n9path:setext'bin'
-	assert(binpath:write(
-		ffi.string(
-			(assert(fromCartImage((assert(n9path:read()))))),
-			ffi.sizeof'ROM'
-		)
-	))
+
+	local banks = assert(fromCartImage((assert(n9path:read()))))
+	assert(binpath:write(ffi.string(banks.v, #banks * ffi.sizeof'ROM')))
 
 elseif cmd == 'binton9' then
 
 	local n9path = path(fn)
 	local basepath = getbasepath(fn)
-
 	local binpath = n9path:setext'bin'
+
+	local data = assert(binpath:read())
+	local banks = vector'ROM'
+	banks:resize(math.ceil(#data/ffi.sizeof'ROM'))
+	ffi.fill(banks.v, ffi.sizeof'ROM' * #banks)
+	ffi.copy(banks.v, data, #data)
 	assert(path(fn):write(
-		(assert(toCartImage(rom, binpath.path)))
+		(assert(toCartImage(banks, binpath.path)))
 	))
 
 -- TODO make this auto-detect 'x' and 'r' based on extension
@@ -1403,13 +1435,14 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	local data = assert(ticpath:read())
 	local ptr = ffi.cast('uint8_t*', data)
 	local endptr = ptr + #data
-	local banks = {}	-- banks[0-7][chunkType]
+	local banks = vector'ROM'	-- banks[0-7][chunkType]
 	while ptr < endptr do
 		local bankNo = bit.rshift(ptr[0], 5)
-		local bank = banks[bankNo]
+		banks:resize(bankNo+1)
+		local bank = banks.v[bankNo]
 		if not bank then
 			bank = {}
-			banks[bankNo] = bank
+			banks.v[bankNo] = bank
 		end
 		local chunkType = bit.band(ptr[0], 0x1f)
 		local chunkSize = ffi.cast('uint16_t*', ptr+1)[0]
@@ -1425,8 +1458,8 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		error("read past end of file! ptr is "..tostring(ptr).." end is "..tostring(endptr))
 	end
 
-	for _,bankid in ipairs(table.keys(banks)) do
-		local chunks = banks[bankid]
+	for bankid=0,#banks-1 do
+		local chunks = banks.v[bankid]
 		for _,chunkid in ipairs(table.keys(chunks)) do
 			print('got bank', bankid, 'chunk', chunkid, 'size', #chunks[chunkid])
 		end
@@ -1441,12 +1474,12 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	-- follow TIC-80's lead and use custom PNG chunks?
 
 	local code = table()
-	for _,bankid in ipairs(table.keys(banks)) do
+	for bankid=0,#banks-1 do
 		local function getfn(base, ext)
 			local suffix = bankid == 0 and '' or bankid
 			return basepath(base..suffix..'.'..ext)
 		end
-		local chunks = banks[bankid]
+		local chunks = banks.v[bankid]
 
 		-- save the palettes
 		local palette = assertlen(table{
@@ -1486,9 +1519,9 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			{0x5a, 0x6c, 0x84, 0xff},
 			{0x34, 0x3c, 0x55, 0xff},
 		}, 16*16)
-		
+
 		if chunks[12] then	-- CHUNK_PALETTE
-			-- https://github.com/nesbox/TIC-80/wiki/.tic-File-Format#palette 
+			-- https://github.com/nesbox/TIC-80/wiki/.tic-File-Format#palette
 			-- "This represents the palette data... In 0.70.6 and above, each bank gets its own palette."
 			-- how many banks can we have? how many banks do most carts have?
 			-- "This chunk type is 96 bytes long: 48 bytes for the SCN palette, followed by 48 bytes for the OVR palette"
@@ -1502,7 +1535,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 				palette[colorindex+1][rgbindex+1] = v
 			end
 		end
-		
+
 		local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
 			return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
 		end))
@@ -1517,7 +1550,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 				-- extract as 4bpp
 				-- TODO maybe keep 2bpp and 1bpp copies as well
 				-- is it stored as sequential sprites, or is it one giant texture like pico8?
-				-- looks like TIC-80 is a lot more like a proper console than Pico8 
+				-- looks like TIC-80 is a lot more like a proper console than Pico8
 				local spriteIndex = bit.rshift(i, 5)
 				local x = bit.lshift(bit.band(i, 3), 1)
 				local y = bit.band(bit.rshift(i, 2), 7)
@@ -1566,7 +1599,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			end
 			image:save(getfn('tilemap', 'png').path)
 		end
-		
+
 		if chunks[5] then	-- CHUNK_CODE / bank 8
 			-- does code have to be parseable per chunk, or can words get split across chunk/bank boundaries?
 			code:insert(chunks[5])
@@ -1586,7 +1619,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			)
 		end
 		if chunks[9] then	-- CHUNK_SAMPLES / bank 8
-			-- sfx data ... 
+			-- sfx data ...
 		end
 		if chunks[10] then	-- CHUNK_WAVEFORM
 			-- wave-table data ...
@@ -1610,12 +1643,12 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		if chunks[16] then	-- CHUNK_CODE_ZIP	deprecated as of 1.00
 			print("!!!WARNING!!! found deprecated CHUNK_CODE_ZIP")
 		end
-		
+
 		if cmd == 'ticrun' then
 			assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
 		end
 
-		-- TODO here's a big dilemma ... 
+		-- TODO here's a big dilemma ...
 		-- TIC-80 has base 64k of code and expandable for multiple banks
 		-- soooo ... its code limit is high ...
 		-- and the glue code is another 16k ...

@@ -20,22 +20,23 @@ local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 
-local paletteSize = require 'numo9.rom'.paletteSize
-local spriteSize = require 'numo9.rom'.spriteSize
-local frameBufferSize = require 'numo9.rom'.frameBufferSize
-local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
-local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
-local tileSheetAddr = require 'numo9.rom'.tileSheetAddr
-local tilemapSize = require 'numo9.rom'.tilemapSize
-local tilemapSizeInSprites = require 'numo9.rom'.tilemapSizeInSprites
-local fontWidth = require 'numo9.rom'.fontWidth
-local mvMatScale = require 'numo9.rom'.mvMatScale
-local spriteSheetAddr = require 'numo9.rom'.spriteSheetAddr
-local spriteSheetInBytes = require 'numo9.rom'.spriteSheetInBytes
-local paletteAddr = require 'numo9.rom'.paletteAddr
-local paletteInBytes = require 'numo9.rom'.paletteInBytes
-local packptr = require 'numo9.rom'.packptr
-local unpackptr = require 'numo9.rom'.unpackptr
+local numo9_rom = require 'numo9.rom'
+local paletteSize = numo9_rom.paletteSize
+local spriteSize = numo9_rom.spriteSize
+local frameBufferSize = numo9_rom.frameBufferSize
+local spriteSheetSize = numo9_rom.spriteSheetSize
+local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local tileSheetAddr = numo9_rom.tileSheetAddr
+local tilemapSize = numo9_rom.tilemapSize
+local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
+local fontWidth = numo9_rom.fontWidth
+local mvMatScale = numo9_rom.mvMatScale
+local spriteSheetAddr = numo9_rom.spriteSheetAddr
+local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
+local paletteAddr = numo9_rom.paletteAddr
+local paletteInBytes = numo9_rom.paletteInBytes
+local packptr = numo9_rom.packptr
+local unpackptr = numo9_rom.unpackptr
 
 local function glslnumber(x)
 	local s = tostring(tonumber(x))
@@ -1499,7 +1500,7 @@ function AppVideo:resetVideo()
 	--[[ update later ...
 	self:checkDirtyGPU()
 	--]]
-	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
+	ffi.copy(self.ram.v, self.banks.v[0].v, ffi.sizeof'ROM')
 	-- [[ update now ...
 	self.spriteTex:bind()
 		:subimage()
@@ -1565,7 +1566,7 @@ end
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
 function AppVideo:colorSwap(from, to, x, y, w, h)
 	-- TODO SORT THIS OUT
-	ffi.copy(self.ram.v, self.cartridge.v, ffi.sizeof'ROM')
+	ffi.copy(self.ram.v, self.banks.v[0].v, ffi.sizeof'ROM')
 	from = math.floor(from)
 	to = math.floor(to)
 	x = math.floor(x)
@@ -1601,7 +1602,7 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
-	ffi.copy(self.cartridge.v, self.ram.v, ffi.sizeof'ROM')
+	ffi.copy(self.banks.v[0].v, self.ram.v, ffi.sizeof'ROM')
 	return fromFound, toFound
 end
 
@@ -1621,7 +1622,7 @@ end
 function AppVideo:resetFont()
 	self.spriteTex:checkDirtyGPU()
 	resetFontOnSheet(self.ram.spriteSheet)
-	ffi.copy(self.cartridge.spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
+	ffi.copy(self.banks.v[0].spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
 	self.spriteTex.dirtyCPU = true
 end
 
@@ -1632,7 +1633,7 @@ function AppVideo:resetGFX()
 
 	self.palTex:checkDirtyGPU()
 	resetPalette(self.ram)
-	ffi.copy(self.cartridge.palette, self.ram.palette, paletteInBytes)
+	ffi.copy(self.banks.v[0].palette, self.ram.palette, paletteInBytes)
 	self.palTex.dirtyCPU = true
 end
 

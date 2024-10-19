@@ -281,7 +281,7 @@ function UI:update()
 		'reset RAM'
 	) then
 		app:checkDirtyGPU()
-		ffi.copy(app.ram.v, app.cartridge.v, ffi.sizeof'ROM')
+		ffi.copy(app.ram.v, app.banks.v[0].v, ffi.sizeof'ROM')
 		app:setDirtyCPU()
 	end
 end
@@ -307,14 +307,14 @@ Editing will go on in RAM, for live cpu/gpu sprite/palette update's sake
 but it'll always reflect the cartridge state
 
 When the user sets the editCode to focus,
-copy from the app.cartridge.code to the editor,
+copy from the app.banks.v[i].code to the editor,
 so we can use Lua string functinoality.
 
-While playing, assume .cartridge has the baseline content of the game,
+While playing, assume .banks.v[i] has the baseline content of the game,
 and assume whatever's in .ram is dirty.
 
 But while editing, assume .ram has the baseline content of the game,
-and assume whatever's in .cartridge is stale.
+and assume whatever's in .banks.v[i] is stale.
 
 
 HMMMMmmm
@@ -336,57 +336,36 @@ function UI:gainFocus()
 			app.editMode = name
 		end
 	end
-
---[====[
-	app:checkDirtyGPU()
-	-- copy everything from cartridge to RAM (where it'll be edited & the engine can live-update the edits)
-	ffi.copy(app.ram, app.cartridge, ffi.sizeof'ROM')
-	-- set all dirty flags too
-	app.spriteTex.dirtyCPU = true
-	app.tileTex.dirtyCPU = true
-	app.mapTex.dirtyCPU = true
-	app.palTex.dirtyCPU = true
-	app.fbTex.dirtyCPU = true
-	app.fbTex.changedSinceDraw = true
-
-	-- copy cartridge code to editCode (where we can use Lua string functionality)
-	local code = ffi.string(app.cartridge.code, math.min(codeSize, tonumber(ffi.C.strlen(app.cartridge.code))))
-	app.editCode:setText(code)
---]====]
 end
 
---[====[
+--[[
 function UI:loseFocus()
 	local app = self.app
 
 	-- sync with RAM as well for when we run stuff ... tho calling run() or reset() should do this copy ROM->RAM for us
-	ffi.copy(app.cartridge, app.ram, ffi.sizeof'ROM')
-
-	-- sync us back from editor to cartridge so everyone else sees the console code where it belongs
-	ffi.fill(app.cartridge.code, ffi.sizeof(app.cartridge.code))
-	ffi.copy(app.cartridge.code, app.editCode.text:sub(1,codeSize-1))
+	ffi.copy(app.banks.v[0].v, app.ram, ffi.sizeof'ROM')
 end
---]====]
+--]]
 
--- setters from editor that write to both .ram and .cartridge
+-- setters from editor that write to both .ram and .banks.v[0]
 -- TODO how about flags in the editor for which you write to?
 
 function UI:edit_poke(addr, value)
 	local app = self.app
 	app:net_poke(addr, value)
-	app.cartridge.v[addr] = value
+	app.banks.v[0].v[addr] = value
 end
 
 function UI:edit_pokew(addr, value)
 	local app = self.app
 	app:net_pokew(addr, value)
-	ffi.cast('uint16_t*', app.cartridge.v + addr)[0] = value
+	ffi.cast('uint16_t*', app.banks.v[0].v + addr)[0] = value
 end
 
 function UI:edit_pokel(addr, value)
 	local app = self.app
 	app:net_pokel(addr, value)
-	ffi.cast('uint32_t*', app.cartridge.v + addr)[0] = value
+	ffi.cast('uint32_t*', app.banks.v[0].v + addr)[0] = value
 end
 
 -- used by the editsfx and editmusic
