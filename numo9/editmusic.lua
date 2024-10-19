@@ -1,6 +1,7 @@
 local ffi = require 'ffi'
 local math = require 'ext.math'
 local table = require 'ext.table'
+local assert = require 'ext.assert'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -94,7 +95,7 @@ function EditMusic:update()
 
 	local y = 10
 	self:guiSpinner(2, y, function(dx)
-		asserteq(sfxTableSize, 256)
+		assert.eq(sfxTableSize, 256)
 		self.selMusicIndex = bit.band(self.selMusicIndex + dx, 0xff)
 		self:refreshSelectedMusic()
 	end)
@@ -222,11 +223,11 @@ function EditMusic:update()
 	end
 
 	if app:keyp('left', 30, 15) then
-		asserteq(sfxTableSize, 256)
+		assert.eq(sfxTableSize, 256)
 		self.selMusicIndex = bit.band(self.selMusicIndex - 1, 0xff)
 		self:refreshSelectedMusic()
 	elseif app:keyp('right', 30, 15) then
-		asserteq(sfxTableSize, 256)
+		assert.eq(sfxTableSize, 256)
 		self.selMusicIndex = bit.band(self.selMusicIndex + 1, 0xff)
 		self:refreshSelectedMusic()
 	end
