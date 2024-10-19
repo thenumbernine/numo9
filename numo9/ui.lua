@@ -7,8 +7,7 @@ TODO tempted to use my lua-gui ...
 local ffi = require 'ffi'
 local math = require 'ext.math'
 local table = require 'ext.table'
-local asserttype = require 'ext.assert'.type
-local assertindex = require 'ext.assert'.index
+local assert = require 'ext.assert'
 local getTime = require 'ext.timer'.getTime
 local class = require 'ext.class'
 
@@ -53,7 +52,7 @@ local editFieldForMode = {
 local UI = class()
 
 function UI:init(args)
-	self.app = assertindex(args, 'app')
+	self.app = assert.index(args, 'app')
 
 	self.menuTabCounter = 0
 	self.menuTabIndex = 0
@@ -146,7 +145,7 @@ function UI:guiTextField(x, y, w, t, k, tooltip)
 	-- TODO here ... only if we have tab-focus ... read our input.
 	-- TODO color by tab-focus or not
 	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
-	asserttype(assertindex(t, k), 'string')
+	assert.type(assert.index(t, k), 'string')
 	local app = self.app
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter

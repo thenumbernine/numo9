@@ -1,6 +1,6 @@
 local ffi = require 'ffi'
 local math = require 'ext.math'
-local asserteq = require 'ext.assert'.eq
+local assert = require 'ext.assert'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -45,7 +45,7 @@ function EditSFX:update()
 
 	self:guiSpinner(2, 10, function(dx)
 		stop()
-		asserteq(sfxTableSize, 256)
+		assert.eq(sfxTableSize, 256)
 		self.selSfxIndex = bit.band(self.selSfxIndex + dx, 0xff)
 	end)
 
@@ -120,11 +120,11 @@ function EditSFX:update()
 
 	if app:keyp('left', 30, 15) then
 		stop()
-		asserteq(sfxTableSize, 256)
+		assert.eq(sfxTableSize, 256)
 		self.selSfxIndex = bit.band(self.selSfxIndex - 1, 0xff)
 	elseif app:keyp('right', 30, 15) then
 		stop()
-		asserteq(sfxTableSize, 256)
+		assert.eq(sfxTableSize, 256)
 		self.selSfxIndex = bit.band(self.selSfxIndex + 1, 0xff)
 	end
 end

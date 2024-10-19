@@ -2,15 +2,14 @@ local path = require 'ext.path'
 local table = require 'ext.table'
 local class = require 'ext.class'
 local string = require 'ext.string'
-local asserttype = require 'ext.assert'.type
-local assertindex = require 'ext.assert'.index
+local assert = require 'ext.assert'
 
 
 local File = class()
 
 function File:init(args)
-	self.fs = assertindex(args, 'fs')
-	self.name = asserttype(assertindex(args, 'name'), 'string')
+	self.fs = assert.index(args, 'fs')
+	self.name = assert.type(assert.index(args, 'name'), 'string')
 	assert(self.name ~= '.' and self.name ~= '..', "you picked a bad name")
 	-- dirs and data aren't exclusive in my filesystem...
 	self.isdir = args.isdir
@@ -20,7 +19,7 @@ function File:init(args)
 	if args.root then
 		self.chs['..'] = self
 	else
-		self.chs['..'] = assertindex(args, 'parent')
+		self.chs['..'] = assert.index(args, 'parent')
 	end
 end
 
@@ -86,7 +85,7 @@ function FileSystem:get(pathToFile)
 end
 
 function FileSystem:create(pathToFile, typeIsDir)
-	asserttype(pathToFile, 'string')
+	assert.type(pathToFile, 'string')
 	local parts = string.split(pathToFile, '/')
 	local name = parts:remove()
 	local dir, msg = self:get(parts:concat'/')

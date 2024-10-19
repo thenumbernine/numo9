@@ -115,9 +115,10 @@ trace(from,to,pal)
 end
 p8_setpalt=[c,t]do
 	c=math.floor(c)
-assert(c >= 0 and c < 16)
+assert.ge(c, 0)
+assert.lt(c, 16)
 	local addr=palMem+(c<<1)
-assert(type(t)=='boolean')
+assert.type(t,'boolean')
 	if t~=false then	-- true <-> transparent <-> clear alpha
 		pokew(addr,peekw(addr)&0x7fff)
 	else	-- false <-> opaque <-> set alpha
@@ -365,10 +366,10 @@ setfenv(1, {
 			x0,y0,x1,y1,col=...
 			col=col or p8color
 		end
-		assert(type(x0)=='number')
-		assert(type(y0)=='number')
-		assert(type(x1)=='number')
-		assert(type(y1)=='number')
+		assert.type(x0,'number')
+		assert.type(y0,'number')
+		assert.type(x1,'number')
+		assert.type(y1,'number')
 		x0=math.floor(x0)
 		y0=math.floor(y0)
 		x1=math.floor(x1)
@@ -432,14 +433,17 @@ setfenv(1, {
 		if n==1 then
 			local i=...
 			i=math.floor(i)
-assert(i>=0 and i<256)
+assert.ge(i,0)
+assert.lt(i,256)
 			return sprFlags[i+1]
 		elseif n==2 then
 			local i,f=...
 			i=math.floor(i)
 			f=math.floor(f)
-assert(i>=0 and i<256)
-assert(f>=0 and f<8)
+assert.ge(i,0)
+assert.lt(i,256)
+assert.ge(f,0)
+assert.lt(f,8)
 			return (1 & (sprFlags[i+1] >> f)) ~= 0
 		else
 			error'here'
@@ -451,15 +455,18 @@ assert(f>=0 and f<8)
 			local i,val=...
 			i=math.floor(i)
 			val=math.floor(val)
-assert(i>=0 and i<256)
-assert(val>=0 and val<256)
+assert.ge(i,0)
+assert.lt(i,256)
+assert.ge(val,0)
+assert.lt(val,256)
 			sprFlags[i+1]=val
 		elseif n==3 then
 			local i,f,val=...
 			i=math.floor(i)
 			f=math.floor(f)
 			val=math.floor(val)
-assert(i>=0 and i<256)
+assert.ge(i,0)
+assert.lt(i,256)
 			local flag=1<<f
 			local mask=~flag
 			sprFlags[i+1] &= mask
@@ -517,7 +524,7 @@ assert(i>=0 and i<256)
 
 		if camScreenX+8<0 then
 			local shift=(-8-camScreenX)>>3
-assert(shift>=0)
+assert.ge(shift,0)
 			screenX+=shift<<3
 			camScreenX+=shift<<3
 			tileX+=shift
@@ -525,7 +532,7 @@ assert(shift>=0)
 		end
 		if camScreenY+8<0 then
 			local shift=(-8-camScreenY)>>3
-assert(shift>=0)
+assert.ge(shift,0)
 			screenY+=shift<<3
 			camScreenY+=shift<<3
 			tileY+=shift
@@ -534,12 +541,12 @@ assert(shift>=0)
 
 		if camScreenX+(tileW<<3) > 128 then
 			local shift=(camScreenX+(tileW<<3) - 128)>>3
-assert(shift>=0)
+assert.ge(shift,0)
 			tileW-=shift
 		end
 		if camScreenY+(tileH<<3) > 128 then
 			local shift=(camScreenY+(tileH<<3) - 128)>>3
-assert(shift>=0)
+assert.ge(shift,0)
 			tileH-=shift
 		end
 
@@ -587,7 +594,8 @@ assert(shift>=0)
 	end,
 	spr=[n,x,y,w,h,flipX,flipY]do
 		n=math.floor(n)
-		assert(n >= 0 and n < 256)
+assert.ge(n,0)
+assert.lt(n,256)
 		local nx = n & 0xf
 		local ny = n >> 4
 		n=nx|(ny << 5)

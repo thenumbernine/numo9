@@ -13,12 +13,7 @@ local table = require 'ext.table'
 local range = require 'ext.range'
 local tolua = require 'ext.tolua'
 local string = require 'ext.string'
-local asserteq = require 'ext.assert'.eq
-local assertlt = require 'ext.assert'.lt
-local assertle = require 'ext.assert'.le
-local assertge = require 'ext.assert'.ge
-local assertlen = require 'ext.assert'.len
-local assertindex = require 'ext.assert'.index
+local assert = require 'ext.assert'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local AudioWAV = require 'audio.io.wav'
@@ -96,9 +91,9 @@ if cmd == 'x' then
 
 	print'loading cart...'
 	local banks = fromCartImage((assert(n9path:read())))
-	assert(vector:isa(banks))
-	asserteq(banks.type, 'ROM')
-	assertge(#banks, 1)
+	assert.is(banks, vector)
+	assert.eq(banks.type, 'ROM')
+	assert.ge(#banks, 1)
 
 	for bankNo=0,#banks-1 do
 		local bank = banks.v + bankNo
@@ -207,9 +202,9 @@ or cmd == 'r' then
 		print'loading sprite sheet...'
 		if bankpath'sprite.png':exists() then
 			local image = assert(Image(bankpath'sprite.png'.path))
-			asserteq(image.width, spriteSheetSize.x)
-			asserteq(image.height, spriteSheetSize.y)
-			asserteq(image.channels, 1)
+			assert.eq(image.width, spriteSheetSize.x)
+			assert.eq(image.height, spriteSheetSize.y)
+			assert.eq(image.channels, 1)
 			assert(ffi.sizeof(image.format), 1)
 			ffi.copy(bank.spriteSheet, image.buffer, spriteSheetSize:volume())
 		else
@@ -221,9 +216,9 @@ or cmd == 'r' then
 		print'loading tile sheet...'
 		if bankpath'tiles.png':exists() then
 			local image = assert(Image(bankpath'tiles.png'.path))
-			asserteq(image.width, spriteSheetSize.x)
-			asserteq(image.height, spriteSheetSize.y)
-			asserteq(image.channels, 1)
+			assert.eq(image.width, spriteSheetSize.x)
+			assert.eq(image.height, spriteSheetSize.y)
+			assert.eq(image.channels, 1)
 			assert(ffi.sizeof(image.format), 1)
 			ffi.copy(bank.tileSheet, image.buffer, spriteSheetSize:volume())
 		end
@@ -231,10 +226,10 @@ or cmd == 'r' then
 		print'loading tile map...'
 		if bankpath'tilemap.png':exists() then
 			local image = assert(Image(bankpath'tilemap.png'.path))
-			asserteq(image.width, tilemapSize.x)
-			asserteq(image.height, tilemapSize.y)
-			asserteq(image.channels, 3)
-			asserteq(ffi.sizeof(image.format), 1)
+			assert.eq(image.width, tilemapSize.x)
+			assert.eq(image.height, tilemapSize.y)
+			assert.eq(image.channels, 3)
+			assert.eq(ffi.sizeof(image.format), 1)
 			local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
 			local imagePtr = image.buffer
 			for y=0,tilemapSize.y-1 do
@@ -256,10 +251,10 @@ or cmd == 'r' then
 		print'loading palette...'
 		if bankpath'pal.png':exists() then
 			local image = assert(Image(bankpath'pal.png'.path))
-			asserteq(image.width, 16)
-			asserteq(image.height, 16)
-			asserteq(image.channels, 4)
-			asserteq(ffi.sizeof(image.format), 1)
+			assert.eq(image.width, 16)
+			assert.eq(image.height, 16)
+			assert.eq(image.channels, 4)
+			assert.eq(ffi.sizeof(image.format), 1)
 			local imagePtr = image.buffer
 			local palPtr = bank.palette -- uint16_t*
 			for y=0,15 do
@@ -297,11 +292,11 @@ or cmd == 'r' then
 				local p = bankpath('waveform'..i..'.wav')
 				if p:exists() then
 					local wav = AudioWAV():load(p.path)
-					asserteq(wav.channels, 1)	-- waveforms / sfx are mono
+					assert.eq(wav.channels, 1)	-- waveforms / sfx are mono
 					-- TODO resample if they are different.
 					-- for now I'm just saving them in this format and being lazy
-					asserteq(wav.ctype, numo9_rom.audioSampleType)
-					asserteq(wav.freq, numo9_rom.audioSampleRate)
+					assert.eq(wav.ctype, numo9_rom.audioSampleType)
+					assert.eq(wav.freq, numo9_rom.audioSampleRate)
 					local data = wav.data
 					local size = wav.size
 					--[[ now BRR-compress them and copy them into bank.audioData, and store their offsets in sfxAddrs
@@ -398,7 +393,7 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 	-- TODO this above to make sure 'basepath' is always local?
 	-- or TODO here as well always put basepath in the input folder
 	local baseNameAndDir, ext = p8path:getext()
-	asserteq(ext, 'p8')
+	assert.eq(ext, 'p8')
 	local basepath = select(2, baseNameAndDir:getdir())
 	basepath:mkdir()
 	assert(basepath:isdir())
@@ -436,7 +431,7 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 		local startLine = sortedLines[i]+1
 		local endLine = sortedLines[i+1] or #lines+1	-- exclusive
 		local sublines = lines:sub(startLine, endLine-1)
-		asserteq(#sublines, endLine-startLine)
+		assert.eq(#sublines, endLine-startLine)
 		print('section '..key..' lines '..startLine..' - '..endLine..' = '..(endLine-startLine)..' lines')
 		sections[key] = sublines
 	end
@@ -456,7 +451,7 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 		if _8bpp then
 			assert(#ls[1] % 2 == 0)
 		end
-		for i=2,#ls do asserteq(#ls[1], #ls[i]) end
+		for i=2,#ls do assert.eq(#ls[1], #ls[i]) end
 		local width = #ls[1]
 		if _8bpp then
 			width = bit.rshift(width, 1)
@@ -484,7 +479,7 @@ print('toImage', name, 'width', width, 'height', height)
 	end
 
 	-- fill out the default pico8 palette
-	local palette = assertlen(table{
+	local palette = assert.len(table{
 		{0x00, 0x00, 0x00, 0x00},
 		{0x1D, 0x2B, 0x53, 0xFF},
 		{0x7E, 0x25, 0x53, 0xFF},
@@ -528,9 +523,9 @@ print('toImage', name, 'width', width, 'height', height)
 	palImg:save(basepath'pal.png'.path)
 
 	local gfxImg = toImage(move(sections, 'gfx'), false, 'gfx')
-	asserteq(gfxImg.channels, 1)
-	asserteq(gfxImg.width, 128)
-	assertle(gfxImg.height, 128)  -- how come the jelpi.p8 cartridge I exported from pico-8-edu.com has only 127 rows of gfx?
+	assert.eq(gfxImg.channels, 1)
+	assert.eq(gfxImg.width, 128)
+	assert.le(gfxImg.height, 128)  -- how come the jelpi.p8 cartridge I exported from pico-8-edu.com has only 127 rows of gfx?
 	gfxImg = Image(256,256,1,'uint8_t')
 		:clear()
 		:pasteInto{image=gfxImg, x=0, y=0}
@@ -568,7 +563,7 @@ print('toImage', name, 'width', width, 'height', height)
 --]]
 -- [[ or nah, just embed them in the code ...
 		flagSrc = flagSrc:concat():gsub('%s', '')	-- only hex chars
-		assertlen(flagSrc, 512)
+		assert.len(flagSrc, 512)
 		spriteFlagCode = 'sprFlags={\n'
 			..range(0,15):mapi(function(j)
 				return range(0,15):mapi(function(i)
@@ -584,9 +579,9 @@ print('toImage', name, 'width', width, 'height', height)
 	local mapSrc = move(sections, 'map')
 	if mapSrc then
 		local mapImg = toImage(mapSrc, true, 'map')
-		asserteq(mapImg.channels, 1)
-		asserteq(mapImg.width, 128)
-		assertle(mapImg.height, 64)
+		assert.eq(mapImg.channels, 1)
+		assert.eq(mapImg.width, 128)
+		assert.le(mapImg.height, 64)
 		-- start as 8bpp
 		mapImg = Image(256,256,1,'uint8_t')
 			:clear()
@@ -710,7 +705,7 @@ print('toImage', name, 'width', width, 'height', height)
 		local sampleFramesPerSecond = numo9_rom.audioSampleRate	-- 32000
 		--local sampleType, amplMax, amplZero = 'uint8_t', 127, 128
 		local sampleType, amplMax, amplZero = 'int16_t', 32767, 0
-		asserteq(sampleType, numo9_rom.audioSampleType)
+		assert.eq(sampleType, numo9_rom.audioSampleType)
 		local sampleFrameInSeconds = 1 / sampleFramesPerSecond
 		-- https://www.lexaloffle.com/bbs/?pid=79335#p
 		-- "The sample rate of exported audio is 22,050 Hz. It looks like 1 tick is 183 samples. 1 quarter note was 10,980 samples. That's 120.4918 BPM."
@@ -772,7 +767,7 @@ print('toImage', name, 'width', width, 'height', height)
 				--p[0] = uint8_to_int16(waveform[j0])
 				p = p + 1
 			end
-			asserteq(p, data + sampleFramesPerNoteBase)
+			assert.eq(p, data + sampleFramesPerNoteBase)
 			return {data=data, len=sampleFramesPerNoteBase}
 		end)
 		--]]
@@ -794,7 +789,7 @@ print('toImage', name, 'width', width, 'height', height)
 				tf = tf + waveformFreq / numo9_rom.audioSampleRate -- one period wave per waveform sample
 				p = p + 1
 			end
-			asserteq(p, data + len)
+			assert.eq(p, data + len)
 			return {data=data, len=len}
 		end)
 		--]]
@@ -884,7 +879,7 @@ print('toImage', name, 'width', width, 'height', height)
 				ffi.fill(soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
 
 				-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
-				assertlt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
+				assert.lt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
 
 				local playbackDeltas = vector'uint8_t'
 				local short = ffi.new'uint16_t[1]'
@@ -903,7 +898,7 @@ print('toImage', name, 'width', width, 'height', height)
 						-- convert from note to multiplier
 						local freq = C0freq * chromastep^note.pitch
 						local pitchScale = 0x1000 * freq / waveformFreq
-						assertlt(pitchScale, 0x10000, "you have an out of bounds pitch scale")	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
+						assert.lt(pitchScale, 0x10000, "you have an out of bounds pitch scale")	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
 						soundState[0].pitch = pitchScale
 
 						soundState[0].sfxID = note.waveform
@@ -991,7 +986,7 @@ print('toImage', name, 'width', width, 'height', height)
 							end
 							waveformData = srcsfx.data
 							waveformLen = srcsfx.samples / channels
-							asserteq(channels, 1)	-- ...otherwise I have to do some adjusting between the original waveform data and the reused rendered sfx data
+							assert.eq(channels, 1)	-- ...otherwise I have to do some adjusting between the original waveform data and the reused rendered sfx data
 						end
 
 						local f = wavefuncs[bit.band(7,note.waveform)+1]
@@ -1017,7 +1012,7 @@ print('toImage', name, 'width', width, 'height', height)
 						end
 					end
 					if not tryagain then
-						asserteq(p, data + samples)
+						assert.eq(p, data + samples)
 						sfx.data = data
 totalSfxSize = (totalSfxSize or 0) + samples * ffi.sizeof(sampleType)
 print('wav '..index..' size', samples * ffi.sizeof(sampleType))
@@ -1118,7 +1113,7 @@ print("total SFX data size if I'd use BRR: "..(
 			--  stop when the shorter track stops?
 			-- how about if the tracks have different duration/bps?
 			local musicSfxs = musicTrack.sfxs:mapi(function(id)
-				return (assertindex(sfxs, id+1))
+				return (assert.index(sfxs, id+1))
 			end)
 			if #musicSfxs > 0 then
 				local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
@@ -1127,7 +1122,7 @@ print("total SFX data size if I'd use BRR: "..(
 				ffi.fill(soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
 
 				-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
-				assertlt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
+				assert.lt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
 
 				local playbackDeltas = vector'uint8_t'
 				local short = ffi.new'uint16_t[1]'
@@ -1158,12 +1153,12 @@ print('durations '..sortedDurations:concat' ')
 				--[[ will all music sfx have the same # of notes?
 				-- maybe I shouldn't be deleting notes ...
 				for _,sfx in ipairs(musicSfxs) do
-					asserteq(#sfx.notes, #musicSfxs[1].notes)
+					assert.eq(#sfx.notes, #musicSfxs[1].notes)
 				end
 				--]]
 				--local beatRatio = sortedDurations:last() / sortedDurations[1]
 				local lastNoteIndex = 0
-asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0's at the end
+assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0's at the end
 				for beatIndex=0,33-1 do
 					local changed = false
 					for channelIndexPlusOne,sfx in ipairs(musicSfxs) do
@@ -1178,7 +1173,7 @@ asserteq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 0
 							-- convert from note to multiplier
 							local freq = C0freq * chromastep^note.pitch
 							local pitchScale = 0x1000 * freq / waveformFreq
-							assertlt(pitchScale, 0x10000)	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
+							assert.lt(pitchScale, 0x10000)	-- is frequency-scalar signed?  what's the point of a negative frequency scalar ... the wavefunctions tend to be symmetric ...
 							soundState[channelIndex].pitch = pitchScale
 
 							soundState[channelIndex].sfxID = note.waveform
@@ -1427,7 +1422,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 
 	local ticpath = path(fn)
 	local baseNameAndDir, ext = ticpath:getext()
-	asserteq(ext, 'tic')
+	assert.eq(ext, 'tic')
 	local basepath = select(2, baseNameAndDir:getdir())
 	basepath:mkdir()
 	assert(basepath:isdir())
@@ -1482,7 +1477,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		local chunks = banks.v[bankid]
 
 		-- save the palettes
-		local palette = assertlen(table{
+		local palette = assert.len(table{
 			{0x00, 0x00, 0x00, 0x00},
 			{0x56, 0x2b, 0x5a, 0xff},
 			{0xa4, 0x46, 0x54, 0xff},
@@ -1530,7 +1525,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			for i=0,#data-1 do
 				local rgbindex = i%3
 				local colorindex = (i-rgbindex)/3
-				assertlt(colorindex, 256)
+				assert.lt(colorindex, 256)
 				local v = data:byte(i+1)
 				palette[colorindex+1][rgbindex+1] = v
 			end
@@ -1582,8 +1577,8 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		if chunks[4] then	-- CHUNK_MAP / bank 8
 			-- copy tilemap, 0x7F7F worth of data
 			local srcw, srch = 240, 136
-			assertge(tilemapSize.x, srcw)
-			assertge(tilemapSize.y, srch)
+			assert.ge(tilemapSize.x, srcw)
+			assert.ge(tilemapSize.y, srch)
 			local image = Image(tilemapSize.x, tilemapSize.y, 3, 'uint8_t'):clear()
 			local data = chunks[4]
 			local ptr = ffi.cast('uint8_t*', data)
@@ -1607,7 +1602,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		if chunks[6] then	-- CHUNK_FLAGS / bank 8
 			-- afaik this is sprite flags like pico8 has.  interesting that it was added later to TIC-80, I wonder if it was only added as a compat feature, or by request of pico8 users.
 			local flagSrc = chunks[6]
-			assertle(#flagSrc, 512)
+			assert.le(#flagSrc, 512)
 			code:insert(1, 'sprFlags'..(bankid==0 and '' or bankid)..'={\n'
 				..range(0,31):mapi(function(j)
 					return range(0,15):mapi(function(i)

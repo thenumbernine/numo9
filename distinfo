@@ -95,19 +95,16 @@ end
 luajitLibs = {
 	win = {
 		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
-		'tiff',
 		'SDL2',
 		'clip',
 	},
 	linux = {
 		'png',			-- /usr/lib/x86_64-linux-gnu/libpng16.so.16.39.0
-		'tiff',
 		'SDL2',			-- /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.2600.3
 		'clip',
 	},
 	osx = {
 		'png',
-		'tiff',
 		'SDL2',
 		'clip',
 	},
