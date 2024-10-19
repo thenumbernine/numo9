@@ -20,7 +20,6 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
-local codeSize = numo9_rom.codeSize
 
 local EditCode = require 'numo9.ui':subclass()
 
