@@ -1441,17 +1441,6 @@ void main() {
 		}
 	end
 
-	self.ram.videoMode = 0	-- 16bpp RGB565
-	--self.ram.videoMode = 1	-- 8bpp indexed
-	--self.ram.videoMode = 2	-- 8bpp RGB332
-	self:setVideoMode(self.ram.videoMode)
-
-	self.ram.blendMode = 0xff	-- = none
-	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
-
-	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
-	self:setClipRect(0, 0, 0xff, 0xff)
-
 	-- for the editor
 
 	-- a pattern for transparencies
@@ -1474,6 +1463,8 @@ void main() {
 		}),
 		--]]
 	}:unbind()
+
+	self:resetVideo()
 end
 
 -- flush anything from gpu to cpu
@@ -1519,6 +1510,19 @@ function AppVideo:resetVideo()
 	--[[ update later ...
 	self:setDirtyCPU()
 	--]]
+
+	self.ram.videoMode = 0	-- 16bpp RGB565
+	--self.ram.videoMode = 1	-- 8bpp indexed
+	--self.ram.videoMode = 2	-- 8bpp RGB332
+	self:setVideoMode(self.ram.videoMode)
+
+	self.ram.blendMode = 0xff	-- = none
+	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
+
+	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
+	self:setClipRect(0, 0, 0xff, 0xff)
+
+	self:matident()
 end
 
 --[[
@@ -2027,7 +2031,6 @@ end
 -- I'm already setting them in env so ... nah ...
 
 function AppVideo:matident()
-	self:mvMatFromRAM()
 	self.mvMat:setIdent()
 	self:mvMatToRAM()
 end
