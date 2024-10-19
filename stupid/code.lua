@@ -269,7 +269,10 @@ GameObj=class{
 				for i,obj in ipairs(tile.objs) do
 					if obj~=self
 					and obj.solid
-						if self.moveIntoObj then self:moveIntoObj(obj)	--only player has self
+					then
+						if self.moveIntoObj then
+							self:moveIntoObj(obj)	--only player has self
+						end
 						blocked=true
 					end
 				end
@@ -561,11 +564,11 @@ BattleObj=GameObj:subclass{
 			end
 		end
 	end,
-	physHitRoll=[:,defender]math.random(100)<=self:stat'physHitChance'-defender:stat'physEvade',
-	magicHitRoll=[:,defender]math.random(100) <= self:stat'magicHitChance'-defender:stat'magicEvade',
+	physHitRoll=[:,defender] math.random(100)<=self:stat'physHitChance'-defender:stat'physEvade',
+	magicHitRoll=[:,defender] math.random(100)<=self:stat'magicHitChance'-defender:stat'magicEvade',
 	adjustPoints=[:,field,amount,inflictor]do
 		local color
-		if amount>0 then color=0xf6	--TODO rgb(0,127,255)
+		if amount>0 then color=0xf6 end	--TODO rgb(0,127,255)
 		local msg=(amount>=0 and'+'or'')..amount..' '..field
 		PopupText{msg=msg, pos=self.pos, color=color}
 		self[field]+=amount
@@ -642,7 +645,7 @@ HeroObj=BattleObj:subclass{
 	end,
 	moveIntoObj=[:,obj]do
 		if obj.onInteract then
-			obj;onInteract(self)
+			obj:onInteract(self)
 		else
 			if MonsterObj:isa(obj) then
 				self:attack(obj.pos.x-self.pos.x,obj.pos.y-self.pos.y)
@@ -686,7 +689,7 @@ AIObj=BattleObj:subclass{
 		end
 
 		if type(self.distToRetreat)=='number' then
-			self.retreat=playerDist<=self.distToRetreat 
+			self.retreat=playerDist<=self.distToRetreat
 		end
 
 		local dx, dy;
@@ -831,7 +834,7 @@ TownNPCObj=AIObj:subclass{
 				if TownNPCObj:isa(obj) then
 					if GuardObj:isa(obj) then
 						obj.hostile=true
-					else	
+					else
 						obj.retreat=true
 					end
 				end
@@ -1042,7 +1045,7 @@ args:
 	text
 	x
 	y
-	outlineSize 
+	outlineSize
 --]]
 drawOutlineText=[args]do
 	for x=-1,1 do
@@ -1319,7 +1322,7 @@ Spell=class{
 	end,
 	useOnTile=[:,caster, tile]do
 		if self.img then
-			 PopupSpellIcon{pos:tile.pos, img:self.img}
+			 PopupSpellIcon{pos=tile.pos, img=self.img}
 		end
 		if tile.objs then
 			for i,obj in ipairs(tile.objs) do
@@ -1736,7 +1739,7 @@ Map=class{
 
 			maps:insert(self)
 			maps[self.name] = self
-			args.onload?(self)
+			local _ = args.onload?(self)	-- FIXME in langfix, make safe-navigation work in statements apart from assignment
 		end
 	end,
 	--wraps the position if the map is a wrap map
@@ -1748,14 +1751,14 @@ Map=class{
 			pos.y = ((pos.y % self.size.y) + self.size.y) % self.size.y;
 			pos.x = ((pos.x % self.size.x) + self.size.x) % self.size.x;
 		else
-			if pos.x < 0 or pos.y < 0 
-			or pos.x >= self.size.x or pos.y >= self.size.y 
-			then 
+			if pos.x < 0 or pos.y < 0
+			or pos.x >= self.size.x or pos.y >= self.size.y
+			then
 				return false
 			end
 		end
 		return true
-	end
+	end,
 	getTile=[:,x,y]do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
@@ -1880,7 +1883,7 @@ pickFreeRandomFixedPos=[args]do
 		end
 		if good then
 			local found = false
-			for i,obj i ipairs(map.fixedObjs) do
+			for i,obj in ipairs(map.fixedObjs) do
 				if obj.pos == pos then
 					found = true
 					break
@@ -2213,7 +2216,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 					local nextpos = vec2(pos)
 					nextpos[dimfield] += minmaxofs
 					local tile = map:getTile(nextpos.x,nextpos.y)
-					if tile 
+					if tile
 					and tile.room
 					then
 						local neighborRoom = tile.room
@@ -2244,7 +2247,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 			--so keep all of the neighbor's neighbors that haven't been used
 			--if self has any good neighbors then consider it
 			#room.neighbors:filter([neighborInfo]
-				not usedRooms:find(neighborInfo.room) 
+				not usedRooms:find(neighborInfo.room)
 			) > 0
 		)
 		if srcRoomOptions == 0 then break end
@@ -2313,9 +2316,10 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 
 	--add treasure - after stairs so they get precedence
 	for i,room in ipairs(usedRooms) do
-		if room == startRoom then continue end
-		if room == lastRoom then continue end
-		if math.random() <= .5 then 
+		if room ~= startRoom
+		and room ~= lastRoom
+		and math.random() <= .5
+		then
 			map.fixedObjs:insert{
 				type=TreasureObj,
 				pos=pickFreeRandomFixedPos{map=map, bbox=room.bbox},
@@ -2448,7 +2452,10 @@ initMaps=[]do
 	local grassRadius = 15
 	local townGrassPos = randomBoxPos(world.bbox)
 	local dungeonDist = 10
-	local dungeonPos = vec2(math.random(-2*dungeonDist,-dungeonDist),math.random(-dungeonDist,dungeonDist)) + townGrassPos
+	local dungeonPos = vec2(
+		math.random(-2*dungeonDist,-dungeonDist),
+		math.random(-dungeonDist,dungeonDist)
+	) + townGrassPos
 	local delta = dungeonPos - townGrassPos
 	local divs = math.ceil(math.max(math.abs(delta.x), math.abs(delta.y)))
 	for i=0,divs do
@@ -2511,8 +2518,8 @@ initMaps=[]do
 	local dungeonFixedObj = findFixedObj(world, [fixedObj] fixedObj.destMap == dungeon.name )
 	--now pathfind from townFixedObj.pos to dungeonFixedObj.pos, follow the path, and fill it in as brick
 	local path = world:pathfind(townFixedObj.pos, dungeonFixedObj.pos)
-	if not path then 
-		trace("from",townFixedObj.pos,"to",dungeonFixedObj.pos) 
+	if not path then
+		trace("from",townFixedObj.pos,"to",dungeonFixedObj.pos)
 	else
 		for i,pos in ipairs(path) do
 			world:setTileType(pos.x, pos.y, tileTypes.Bricks)
@@ -2727,12 +2734,12 @@ pickFreePos=[classifier]do
 		local tile = map:getTile(pos.x, pos.y)
 		if not tile.objs then
 			local good
-			if classifier then 
+			if classifier then
 				good = classifier(tile);
-			else 
+			else
 				good = not (tile.solid or tile.water)
 			end
-			if good then 
+			if good then
 				return pos
 			end
 		end

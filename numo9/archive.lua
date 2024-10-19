@@ -106,7 +106,8 @@ local function codeBanksToStr(banks)
 	local codePages = table()
 	for bankNo=0,#banks-1 do
 		local bank = banks.v + bankNo
-		codePages:insert(ffi.string(bank.code, codeSize))
+		local bankCode = ffi.string(bank.code, codeSize)
+		codePages:insert(bankCode)
 	end
 	local code = codePages:concat()
 	-- trim off trailing \0's - do it here and not per-bank to allow statements (and possibly '\0' strings) to cross the code bank boundaries
@@ -135,8 +136,8 @@ local function codeStrToBanks(banks, code)
 	for bankNo=0,#banks-1 do
 		local bank = banks.v + bankNo
 		local i1 = bankNo*codeSize
-		local i2 = (bankNo+1)*codeSize-1
-		local s = code:sub(i1, i2)
+		local i2 = (bankNo+1)*codeSize
+		local s = code:sub(i1+1, i2)
 		assert.le(#s, codeSize)
 		ffi.fill(bank.code, 0, codeSize)
 		ffi.copy(bank.code, s)

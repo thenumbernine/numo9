@@ -35,7 +35,6 @@ local codeStrToBanks = numo9_archive.codeStrToBanks
 local numo9_rom = require 'numo9.rom'
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local tilemapSize = numo9_rom.tilemapSize
-local codeSize = numo9_rom.codeSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
 local audioDataSize = numo9_rom.audioDataSize
@@ -323,7 +322,7 @@ or cmd == 'r' then
 				end
 			end
 
-			print('num audio data stored:', audioDataOffset)
+--DEBUG:print('num audio data stored:', audioDataOffset)
 		end
 	end
 

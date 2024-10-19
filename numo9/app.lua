@@ -53,7 +53,6 @@ local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
-local codeSize = numo9_rom.codeSize
 local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize
 local spriteSheetAddr = numo9_rom.spriteSheetAddr
 local spriteSheetAddrEnd = numo9_rom.spriteSheetAddrEnd
@@ -1889,13 +1888,7 @@ function App:runROM()
 		__index = self.env,
 	})
 
-	local code = ffi.string(self.ram.code, self.codeSize)	-- TODO max size on this ...
-	local i = code:find('\0', 1, true)
-	if i then code = code:sub(1, i-1) end
---DEBUG:print'**** GOT CODE ****'
---DEBUG:print(require 'template.showcode'(code))
---DEBUG:print('**** CODE LEN ****', #code)
---DEBUG:print('code is', #code, 'bytes')
+	local code = self.editCode.text	-- use the editor's code as the definitive code while numo9 is running
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
