@@ -81,18 +81,22 @@ startPos={
 	{0,maph-1},
 }
 
+new=[cl,...]do
+	local o=setmetatable({},cl)
+	o?:init(...)
+	return o
+end
+isa=[cl,o]o.isaSet[cl]
+classmeta = {__call=new}
 class=[...]do
 	local t=table(...)
 	t.super=...
 	t.__index=t
 	t.subclass=class
-	setmetatable(t,{
-		__call=[:,...]do
-			local o=setmetatable({},self)
-			o?:init(...)
-			return o
-		end,
-	})
+	t.isaSet=table(table{...}:mapi([cl]cl.isaSet):unpack()):setmetatable(nil)
+	t.isaSet[t] = true
+	t.isa=isa
+	setmetatable(t,classmeta)
 	return t
 end
 
@@ -301,7 +305,7 @@ do
 			end
 		end,
 		touch=[:,other]do
-			if other and other.isPlayer then
+			if other and Player:isa(other) then
 				other:die()
 			end
 			return super.touch(self,other)
@@ -342,7 +346,6 @@ do
 	Bomb=super:subclass{
 		init=[:,args]do
 			super.init(self,args)
-			self.isBomb=true
 			-- class constants / defaults:
 			self.boomTime = 0
 			self.bombLength = args.bombLength or 1
@@ -417,7 +420,7 @@ do
 						and o~=self
 						then
 							local dist=linfDist(o.posX, o.posY, checkPosX+.5, checkPosY+.5)
-							if o.isPlayer
+							if Player:isa(o)
 							and dist > .75 then
 							elseif dist > .25 then
 							else
@@ -502,7 +505,7 @@ do
 		touch=[:,other]do
 			--super.touch(self,other)
 			if not other then return true end
-			if not other.isPlayer then return end
+			if not Player:isa(other) then return end
 			other.items:insert(self)
 			other[self.itemParam] = (other[self.itemParam] or 0) + 1
 			self.seq=nil
@@ -578,7 +581,6 @@ do
 		bumpTime=0,
 		init=[:,args]do
 			super.init(self,args)
-			self.isPlayer=true
 			self.dead=false
 			self.deadTime=0
 			self.dir=dirs.down
@@ -604,7 +606,7 @@ do
 			bombpos[2] = math.round(bombpos[2]-.5)+.5
 			for _,e in ipairs(objs) do
 				if not e.removeMe
-				and e.isBomb
+				and Bomb:isa(e)
 				and linfDist(e.posX,e.posY,bombpos[1],bombpos[2])<.25
 				then
 					return
