@@ -855,7 +855,7 @@ print('package.loaded', package.loaded)
 	local EditSFX = require 'numo9.editsfx'
 	local EditMusic = require 'numo9.editmusic'
 	local Console = require 'numo9.console'
-	local MainMenu = require 'numo9.mainMenu'
+	local MainMenu = require 'numo9.mainmenu'
 
 	self:runInEmu(function()
 		self:resetView()	-- reset mat and clip
