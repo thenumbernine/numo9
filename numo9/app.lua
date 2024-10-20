@@ -89,8 +89,8 @@ end
 local App = GLApp:subclass()
 
 App.title = 'NuMo9'
-App.width = 720
-App.height = 512
+App.width = cmdline.video and cmdline.video[1] or 720
+App.height = cmdline.video and cmdline.video[2] or 512
 
 App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO)
 
