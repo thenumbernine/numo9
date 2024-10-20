@@ -3,6 +3,25 @@ distLInf=[a,b] math.max(math.abs(a.x-b.x),math.abs(a.y-b.y))
 distL1=[a,b] math.abs(a.x-b.x)+math.abs(a.y-b.y)
 round=[x,r] math.round(x*r)/r
 
+new=[cl,...]do
+	local o=setmetatable({},cl)
+	o?:init(...)
+	return o
+end
+isa=[cl,o] o.isaSet[cl]
+classmeta = {__call=new}
+class=[...]do
+	local t=table(...)
+	t.super=...
+	t.__index=t
+	t.subclass=class
+	t.isaSet=table(table{...}:mapi([cl]cl.isaSet):unpack()):setmetatable(nil)
+	t.isaSet[t] = true
+	t.isa=isa
+	setmetatable(t,classmeta)
+	return t
+end
+
 -- 2D simplex noise
 grad3={
 	{1,1,0},{-1,1,0},{1,-1,0},{-1,-1,0},
@@ -1831,7 +1850,7 @@ Map=class{
 			local nextset = table()
 			for i,currentmove in ipairs(currentset) do
 				for dirIndex,dir in ipairs(dirs) do
-					local nextpos = currentmove.pos.add(dir.offset)
+					local nextpos = currentmove.pos + dir.offset
 					if self:wrapPos(nextpos) then
 						if nextpos.x == dstX and nextpos.y == dstY then
 							--process the list and return it

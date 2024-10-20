@@ -64,18 +64,22 @@ removeAll=[]do
 	addList=table()
 end
 
+new=[cl,...]do
+	local o=setmetatable({},cl)
+	o?:init(...)
+	return o
+end
+isa=[cl,o]o.isaSet[cl]
+classmeta = {__call=new}
 class=[...]do
 	local t=table(...)
 	t.super=...
 	t.__index=t
 	t.subclass=class
-	setmetatable(t,{
-		__call=[:,...]do
-			local o=setmetatable({},self)
-			o?:init(...)
-			return o
-		end,
-	})
+	t.isaSet=table(table{...}:mapi([cl]cl.isaSet):unpack()):setmetatable(nil)
+	t.isaSet[t] = true
+	t.isa=isa
+	setmetatable(t,classmeta)
 	return t
 end
 
@@ -167,7 +171,7 @@ do
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o~=self
-				and o.isBomb
+				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
 					if typeUL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY-.25)<.5 then
@@ -369,7 +373,6 @@ do
 	Bomb=PushableObj:subclass{
 		init=[:,owner]do
 			super.init(self,{})
-			self.isBomb=true
 			-- class constants / defaults:
 			self.boomTime = 0
 			self.blastRadius = 1
@@ -463,7 +466,7 @@ do
 
 					for _,o in ipairs(objs)do
 						if not removeMe
-						and o.isBomb
+						and Bomb:isa(o)
 						and o.state=='sinking'
 						then
 							if typeUL==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX - .25, self.destPosY - .25) < .5 then typeUL=EMPTY end
@@ -514,7 +517,7 @@ do
 
 							for _,o2 in ipairs(objs)do
 								if not o2.removeMe
-								and o2.isBomb
+								and Bomb:isa(o2)
 								and o2.state=='sinking'
 								then
 									if typeUL==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX - .25, o.destPosY - .25) < .5 then typeUL=EMPTY end
@@ -572,7 +575,7 @@ do
 						and o~=self
 						then
 							local dist=linfDist(o.destPosX, o.destPosY, checkPosX, checkPosY)
-							if o.isPlayer
+							if Player:isa(o)
 							and dist > .75 then
 							elseif dist > .25 then
 							else
@@ -659,11 +662,11 @@ do
 		cannotPassThru=[:,maptype]mapType[maptype].blocksGunShot,
 		hitObject=[:,what,pushDestX,pushDestY,side]do
 			if what==self.owner then return 'move thru' end
-			if what.isPlayer then
+			if Player:isa(what) then
 				what:die()
 				return 'stop'
 			end
-			if what.isBlocking or what.isMoney then return 'stop' end
+			if what.isBlocking or Money:isa(what) then return 'stop' end
 			return 'move thru'
 		end,
 	}
@@ -757,7 +760,7 @@ do
 
 		--the sentry tried to move and hit an object...
 		hitObject=[:,what,pushDestX,pushDestY,side]do
-			if what.isPlayer then
+			if Player:isa(what) then
 				return 'move thru'	--wait for the update() test to pick up hitting the player
 			end
 			return what:isBlockingSentry() and 'stop' or 'test object'
@@ -786,7 +789,6 @@ do
 	Player=MovableObj:subclass{
 		init=[:,args]do
 			super.init(self,args)
-			self.isPlayer=true
 			self.dead=false
 			self.deadTime=0
 			self.dir=dirs.down
@@ -808,7 +810,7 @@ do
 			then return end
 			for _,o in ipairs(objs) do
 				if not o.removeMe
-				and o.isBomb
+				and Bomb:isa(o)
 				and o.owner==self
 				and linfDist(self.destPosX,self.destPosY,o.destPosX,o.destPosY)<.25
 				and (o.state=='idle' or o.state=='live')
@@ -867,7 +869,6 @@ do
 	Money=BaseObj:subclass{
 		init=[:,args]do
 			super.init(self,args)
-			self.isMoney=true
 			self.items=0
 			self.bombs=0
 			self.isBlocking=false
@@ -894,14 +895,14 @@ do
 		end,
 
 		endPush=[:,who,pushDestX,pushDestY]do
-			if not who.isPlayer
+			if not Player:isa(who)
 			or linfDist(pushDestX,pushDestY,self.destPosX,self.destPosY) >= .5
 			then return end
 
 			who:getMoney(self)
 			removeObj(self)
 			for _,o in ipairs(objs) do
-				if o.isKey then o:checkMoney() end
+				if Key:isa(o) then o:checkMoney() end
 			end
 		end,
 	}
@@ -912,7 +913,6 @@ do
 	Key=BaseObj:subclass{
 		init=[:,args]do
 			super.init(self,args)
-			self.isKey=true
 			self.changeLevelTime=0
 			self.touchToEndLevelDuration=dt
 			self.inactive=true
@@ -927,7 +927,7 @@ do
 		end,
 
 		endPush=[:,who,pushDestX,pushDestY]do
-			if not who.isPlayer
+			if not Player:isa(who)
 			or self.inactive
 			or self.changeLevelTime > 0
 			or linfDist(pushDestX,pushDestY,self.destPosX,self.destPosY) >= .5
@@ -964,7 +964,7 @@ do
 			local moneyleft = 0
 			for _,o in ipairs(objs) do
 				if not o.removeMe
-				and o.isMoney
+				and Money:isa(o)
 				then
 					moneyleft+=1
 				end
