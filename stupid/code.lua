@@ -25,7 +25,7 @@ end
 getvalue=[x, dim]do
 	if type(x) == 'number' then return x end
 	if type(x) == 'table' then
-		if dim==1 then	
+		if dim==1 then
 			x=x.x
 		elseif dim==2 then
 			x=x.y
@@ -61,11 +61,12 @@ vec2=class{
 			end
 		end
 	end,
+	unpack=[v](v.x,v.y),
 	volume=[v]v.x*v.y,
 	clamp=[v,a,b]do
 		local mins = a
 		local maxs = b
-		if type(a) == 'table' and a.min and a.max then	
+		if type(a) == 'table' and a.min and a.max then
 			mins = a.min
 			maxs = a.max
 		end
@@ -251,8 +252,8 @@ end
 
 local screenSize = vec2(256, 256)
 local tileSize = vec2(16, 16)
+local fontSize = 8
 local map
-local fontSize = 32
 local player
 local setMapRequest = nil
 local keyCallback
@@ -310,7 +311,7 @@ onclose
 ClientPrompt=class{
 	enabled=true,
 	init=[:,options,onchoose,onselect,onclose]do
-		local divsHigh=options.length
+		local divsHigh=#options
 		if divsHigh>9 then divsHigh=9 end
 		self.options=options
 		self.onchoose=onchoose
@@ -358,6 +359,11 @@ local dirs=table{
 	{name='s', offset=vec2(0,1)},
 	{name='w', offset=vec2(-1,0)},
 	{name='n', offset=vec2(0,-1)},
+}
+
+view={
+	center=vec2(),
+	bbox=box2(),
 }
 
 -- spawn classes
@@ -442,7 +448,7 @@ GameObj=class{
 		end
 
 		--do self after moveIntoObj so player can moveIntoObj neighbors while still being stuck
-		if self.hasAttribute and self.hasAttribute"Don't Move" then return true end
+		if self.hasAttribute and self:hasAttribute"Don't Move" then return true end
 
 		self:setPos(nx,ny)
 	end,
@@ -489,9 +495,9 @@ GameObj=class{
 		ry -= view.bbox.min.y
 		rx *= tileSize.x
 		ry *= tileSize.y
-		self.drawLocal(rx, ry)
+		self:drawLocal(rx, ry)
 	end,
-	drawLocal=[rx,ry]do
+	drawLocal=[:,rx,ry]do
 		if not self.spriteIndex then return end
 		if self.angle then
 			local pivotX=rx+tileSize.x/2
@@ -501,10 +507,10 @@ GameObj=class{
 			mattrans(pivotX, pivotY)
 			matrot(self.angle)
 			mattrans(-pivotX, -pivotY)
-			spr(self.spriteIndex, rx, ry, 2, 2, nil, nil, nil, nil, nil, tileSize.x, tileSize.y)
+			spr(self.spriteIndex, rx, ry, 2, 2)
 			matident()--pop
 		else
-			spr(self.spriteIndex, rx, ry, 2, 2, nil, nil, nil, nil, nil, tileSize.x, tileSize.y)
+			spr(self.spriteIndex, rx, ry, 2, 2)
 		end
 	end,
 }
@@ -512,7 +518,7 @@ GameObj=class{
 ChestObj=class()
 
 DeadObj=GameObj:subclass{
-	spriteIndex=0,	--'objs/dead.png';
+	spriteIndex=12,	--'objs/dead.png';
 	solid=false,
 	init=[:,args]do
 		DeadObj.super.init(self,args)
@@ -558,13 +564,23 @@ BattleObj=GameObj:subclass{
 	end,
 	stat=[:,field]do
 		local value=self[field]
-		local srcInfos=table()
-		local thiz=self
-		srcInfos:append(
+		local srcInfos=table():append(
 			self.equipFields:filter([equipField]self.equipField)
 				:mapi([equipField]{equip=equipField, src=self[equipField]}),
 			self.attributes:mapi([attribute]{attribute=true, src=attribute})
 		)
+		--[[ prefix args
+		(
+			([equipField]{equip=equipField, src=self[equipField]})
+			->((
+				([equipField]self.equipField)
+				->self.equipFields:filter	-- : operator means "insert previous indexes as 1st arg into params before passing into this function"
+				-- then the result of this is a table ... which we want a 1st arg :mapi and 2nd arg callback ...
+			):mapi),
+			([attribute]{attribute=true, src=attribute})
+				->self.attributes:mapi
+		)->srcInfos:append
+		--]]
 		for i,srcInfo in ipairs(srcInfos) do
 			local src=srcInfo.src
 			if src.field~=nil then
@@ -748,7 +764,7 @@ BattleObj=GameObj:subclass{
 }
 
 HeroObj=BattleObj:subclass{
-	spriteIndex=0,--'objs/hero.png'
+	spriteIndex=130,--'objs/hero.png'
 	hpMax=25,
 	mpMax=25,
 	foodMax=5000,
@@ -770,18 +786,18 @@ HeroObj=BattleObj:subclass{
 		self.food-=1
 		if self.food<=0 then
 			clientMessage"HUNGRY!!!"
-			self:adjustPoints('hp', -math.ceil(self.stat'hpMax'/20))
-		elseif self.food>self.stat'foodMax'then
+			self:adjustPoints('hp', -math.ceil(self:stat'hpMax'/20))
+		elseif self.food>self:stat'foodMax'then
 			clientMessage"FATTY FAT FAT!!!"
-			local overweight=self.food-self.stat'foodMax'
-			if math.random()<self.stat'hpMax'/100 then
+			local overweight=self.food-self:stat'foodMax'
+			if math.random()<self:stat'hpMax'/100 then
 				local dmg=overweight/1000
-				--dmg*=self.stat'hpMax'/20
+				--dmg*=self:stat'hpMax'/20
 				self:adjustPoints('hp',-math.ceil(dmg))
 			end
 			self.food-=math.ceil(overweight*.1)
 		end
-		local envTemp=map.temp+self.stat'warmth'
+		local envTemp=map.temp+self:stat'warmth'
 		self.temp+=(envTemp-self.temp)*.1
 		if math.abs(self.temp-self.nominalTemp)>50 then
 			if self.temp>self.nominalTemp then
@@ -789,7 +805,7 @@ HeroObj=BattleObj:subclass{
 			else
 				clientMessage"You're too cold!"
 			end
-			self:adjustPoints('hp',-math.ceil(self.stat'hpMax'/20))
+			self:adjustPoints('hp',-math.ceil(self:stat'hpMax'/20))
 		end
 	end,
 	move=[:,dx,dy]do
@@ -826,7 +842,7 @@ HeroObj=BattleObj:subclass{
 }
 
 AIObj=BattleObj:subclass{
-	spriteIndex=0,--'objs/orc.png'
+	spriteIndex=136,--'objs/orc.png'
 	update=[:]do
 		if not player then return end
 		local acted=self:performAction()
@@ -851,7 +867,7 @@ AIObj=BattleObj:subclass{
 		end
 
 		local dx, dy;
-		if nto (self.hostile or self.retreat or self.wander) then return end
+		if not (self.hostile or self.retreat or self.wander) then return end
 
 		if self.retreat then
 			dx=math.sign(-deltax)
@@ -896,7 +912,7 @@ OrcObj=MonsterObj:subclass{
 }
 
 ThiefObj=MonsterObj:subclass{
-	spriteIndex=0,--'objs/thief.png';
+	spriteIndex=206,--'objs/thief.png';
 	hpMax=2,
 	physEvade=30,
 	gold=10,
@@ -919,7 +935,7 @@ ThiefObj=MonsterObj:subclass{
 }
 
 TroggleObj=MonsterObj:subclass{
-	spriteIndex=0,--'objs/imp.png';
+	spriteIndex=132,--'objs/imp.png';
 	hpMax=4,
 	gold=4,
 	performAction=[:]do
@@ -936,7 +952,7 @@ TroggleObj=MonsterObj:subclass{
 }
 
 FighterObj=MonsterObj:subclass{
-	spriteIndex=0,--'objs/fighter.png';
+	spriteIndex=68,--'objs/fighter.png';
 	hpMax=8,
 	gold=8,
 	physAttack=3,
@@ -944,7 +960,7 @@ FighterObj=MonsterObj:subclass{
 }
 
 SnakeObj=MonsterObj:subclass{
-	spriteIndex=0,--'objs/snake.png';
+	spriteIndex=202,--'objs/snake.png';
 	hpMax=1,
 	gold=2,
 	physEvade=30,
@@ -953,7 +969,7 @@ SnakeObj=MonsterObj:subclass{
 }
 
 FishObj=MonsterObj:subclass{
-	spriteIndex=0,--'objs/fish.png';
+	spriteIndex=72,--'objs/fish.png';
 	hpMax=1,
 	items=table{'Fish Fillet','Fish Fillet','Fish Fillet'},
 	physEvade=50,
@@ -962,7 +978,7 @@ FishObj=MonsterObj:subclass{
 }
 
 DeerObj=MonsterObj:subclass{
-	spriteIndex=0,--'objs/deer.png';
+	spriteIndex=14,--'objs/deer.png';
 	hpMax=1,
 	items=table{'Venison'},
 	physEvade=50,
@@ -971,7 +987,7 @@ DeerObj=MonsterObj:subclass{
 }
 
 SeaMonsterObj=MonsterObj:subclass{
-	spriteIndex=0,--'objs/seamonster.png';
+	spriteIndex=138,--'objs/seamonster.png';
 	hpMax=20,
 	gold=100,
 	physAttack=5,
@@ -980,7 +996,7 @@ SeaMonsterObj=MonsterObj:subclass{
 }
 
 EnemyBoatObj=MonsterObj:subclass{
-	spriteIndex=0,--'objs/boat.png';
+	spriteIndex=2,--'objs/boat.png';
 	hpMax=10,
 	gold=50,
 	physAttack=5,
@@ -1065,7 +1081,7 @@ HelperObj=AIObj:subclass{
 }
 
 GuardObj=TownNPCObj:subclass{
-	spriteIndex=0,--'objs/fighter.png';
+	spriteIndex=68,--'objs/fighter.png';
 	msg='Stay in school!',
 	hpMax=100,
 	gold=100,
@@ -1075,7 +1091,7 @@ GuardObj=TownNPCObj:subclass{
 }
 
 MerchantObj=TownNPCObj:subclass{
-	spriteIndex=0,--'objs/merchant.png';
+	spriteIndex=134,--'objs/merchant.png';
 	hpMax=10,
 	init=[:,args]do
 		MerchantObj.super.init(self,args)
@@ -1175,15 +1191,15 @@ TownObj=WarpObj:subclass{
 }
 
 UpStairsObj=WarpObj:subclass{
-	spriteIndex=0,--'objs/upstairs.png';
+	spriteIndex=260,--'objs/upstairs.png';
 }
 
 DownStairsObj=WarpObj:subclass{
-	spriteIndex=0,--'objs/downstairs.png';
+	spriteIndex=66,--'objs/downstairs.png';
 }
 
 FireWallObj=GameObj:subclass{
-	spriteIndex=0,--'objs/firewall.png';
+	spriteIndex=70,--'objs/firewall.png';
 	lightRadius=10,
 	init=[:,args]do
 		GameObj.super.init(self,args)
@@ -1203,11 +1219,11 @@ FireWallObj=GameObj:subclass{
 }
 
 FriendlyFrogObj=HelperObj:subclass{
-	spriteIndex=0,--'objs/frog.png';
+	spriteIndex=74,--'objs/frog.png';
 }
 
 FriendlySnakeObj=HelperObj:subclass{
-	spriteIndex=0,--'objs/snake.png';
+	spriteIndex=202,--'objs/snake.png';
 	hpMax = 1,
 	physEvade = 30,
 	inflictAttributes = {'Poison'},
@@ -1233,7 +1249,7 @@ drawOutlineText=[args]do
 			text(args.text, args.x + x * args.outlineSize, args.y + y * args.outlineSize, 0xf0, -1)
 		end
 	end
-	text(args.text, args.x + x * args.outlineSize, args.y + y * args.outlineSize, 0xfc, -1)
+	text(args.text, args.x, args.y, 0xfc, -1)
 end
 
 PopupText=PopupObj:subclass{
@@ -1244,21 +1260,16 @@ PopupText=PopupObj:subclass{
 		self.color = args.color
 	end,
 	drawLocal=[:,rx,ry]do
-		--ctx.globalAlpha = .35;
-		-- TODO draw a circle at rx, ry
-
-		local fontSize = math.ceil(tileSize.x/2);
-		ctx.font = fontSize+'px sans-serif';
-		--ctx.fillStyle = self.color;
-		local msgs = self.msg.split(' ');
-		local y = ry + fontSize - 3;
+		local fontSize = math.ceil(tileSize.x/2)
+		local msgs = string.split(self.msg,' ')
+		local y = ry + fontSize - 3
 		for i,msg in ipairs(msgs) do
 			local length = text(msg, -100, -100, -1, -1)
 			drawOutlineText{
 				text=msgs[i],
 				outlineSize=math.ceil(fontSize/16),
 				x=rx+tileSize.x/2 - length/2,
-				y=y
+				y=y,
 			}
 			y += fontSize
 		end
@@ -1270,24 +1281,24 @@ PopupText=PopupObj:subclass{
 PopupSpellIcon=PopupObj:subclass{
 	init=[:,args]do
 		PopupSpellIcon.super.init(self,args)
-		self.spriteIndex = args.spriteIndex
+		self.spriteIndex=args.spriteIndex
 	end,
 }
 
 PopupSlashAttack=PopupObj:subclass{
-	spriteIndex=0,--'objs/damage-slash.png';
+	spriteIndex=10,--'objs/damage-slash.png';
 }
 
 PopupPierceAttack=PopupObj:subclass{
-	spriteIndex=0,--url='objs/damage-pierce.png';
+	spriteIndex=8,--url='objs/damage-pierce.png';
 }
 
 PopupBludgeonAttack=PopupObj:subclass{
-	spriteIndex=0,--url='objs/damage-bludgeon.png';
+	spriteIndex=6,--url='objs/damage-bludgeon.png';
 }
 
 DoorObj=GameObj:subclass{
-	spriteIndex=0,--url='objs/door.png';
+	spriteIndex=64,--url='objs/door.png';
 	solid=true,
 	blocksLight=true,
 	onInteract=[:,player]do
@@ -1296,7 +1307,7 @@ DoorObj=GameObj:subclass{
 }
 
 TreasureObj=GameObj:subclass{
-	spriteIndex=0,--url='objs/treasure.png';
+	spriteIndex=256,--url='objs/treasure.png';
 	solid=true,
 	onInteract=[:,player]do
 		local itemClass = itemClasses:pickRandom()
@@ -1322,31 +1333,31 @@ SignObj=GameObj:subclass{
 }
 
 WeaponSign=SignObj:subclass{
-	spriteIndex=0,--url='objs/shop-weapon-sign.png';
+	spriteIndex=200,--url='objs/shop-weapon-sign.png';
 }
 
 ArmorSign=SignObj:subclass{
-	spriteIndex=0,--url='objs/shop-armor-sign.png';
+	spriteIndex=140,--url='objs/shop-armor-sign.png';
 }
 
 FoodSign=SignObj:subclass{
-	spriteIndex=0,--url='objs/shop-food-sign.png';
+	spriteIndex=142,--url='objs/shop-food-sign.png';
 }
 
 ItemSign=SignObj:subclass{
-	spriteIndex=0,--url='objs/shop-item-sign.png';
+	spriteIndex=194,--url='objs/shop-item-sign.png';
 }
 
 RelicSign=SignObj:subclass{
-	spriteIndex=0,--url='objs/shop-relic-sign.png';
+	spriteIndex=196,--url='objs/shop-relic-sign.png';
 }
 
 SpellSign=SignObj:subclass{
-	spriteIndex=0,--url='objs/shop-spell-sign.png';
+	spriteIndex=198,--url='objs/shop-spell-sign.png';
 }
 
 HealSign=SignObj:subclass{
-	spriteIndex=0,--url='objs/shop-heal-sign.png';
+	spriteIndex=192,--url='objs/shop-heal-sign.png';
 }
 
 --a list of all types that need graphics to be cached
@@ -1397,7 +1408,7 @@ local attributes = {
 		name = "Poison",
 		lifeRange = {10,20},
 		update=[:,target, ...]do
-			target:adjustPoints('hp', -math.ceil(target.stat'hpMax'/50))
+			target:adjustPoints('hp', -math.ceil(target:stat'hpMax'/50))
 			Attribute.update(self, target, ...)
 		end,
 	},
@@ -1405,7 +1416,7 @@ local attributes = {
 		name = "Regen",
 		lifeRange = {10,20},
 		update=[:,target,...]do
-			target:adjustPoints('hp', math.ceil(target.stat'hpMax'/50))
+			target:adjustPoints('hp', math.ceil(target:stat'hpMax'/50))
 			Attribute.update(self, target, ...)
 		end,
 	},
@@ -1564,7 +1575,7 @@ Spell=class{
 			return
 		end
 		if self.damage then
-			target:adjustPoints('hp', -self.damage * caster.stat'magicAttack', caster)
+			target:adjustPoints('hp', -self.damage * caster:stat'magicAttack', caster)
 		end
 		if self.inflictAttributes then
 			target:setAttributes(self.inflictAttributes)
@@ -1578,13 +1589,13 @@ Spell=class{
 local spells = table{
 	-- TODO get rid of these, and route the damage call from Fire Wall through spell itself some other way ...
 	{name='Fire', damage=5, range=8, area=2, cost=1,
-		spriteIndex=0,--url:'objs/firewall.png'},
+		spriteIndex=70,--url:'objs/firewall.png'},
 	},
 	{name='Ice', damage=5, range=8, area=2, cost=1,
-		spriteIndex=0,--url:'objs/firewall.png'},
+		spriteIndex=70,--url:'objs/firewall.png'},
 	},
 	{name='Bolt', damage=5, range=8, area=2, cost=1,
-		spriteIndex=0,--url:'objs/firewall.png'},
+		spriteIndex=70,--url:'objs/firewall.png'},
 	},
 	{name='Fire Wall', spawn=FireWallObj, range=5, area=2, cost=3},
 	{name='Frog Wall', spawn=FriendlyFrogObj, range=10, area=3, cost=1, alwaysHits=true},
@@ -1879,25 +1890,25 @@ local tileTypes = {
 	Tile:subclass{
 		name='Grass',
 		tileIndexes={
-			0,--TODO 'images/grass.png',
-			0,--'images/grass2.png',
-			0,--'images/grass3.png',
+			76,--TODO 'images/grass.png',
+			78,--'images/grass2.png',
+			128,--'images/grass3.png',
 		},
 	},
 	Tile:subclass{name='Trees', tileIndexes={
-		0,--'images/trees.png'
+		258,--'images/trees.png'
 	}},
 	Tile:subclass{name='Water', tileIndexes={
-		0,--'images/water.png'
+		264,--'images/water.png'
 	}, water=true},
 	Tile:subclass{name='Stone', tileIndexes={
-		0,--'images/stone.png'
+		204,--'images/stone.png'
 	}, solid=true},
 	Tile:subclass{name='Bricks', tileIndexes={
-		0,--'images/bricks.png'
+		4,--'images/bricks.png'
 	}},
 	Tile:subclass{name='Wall', tileIndexes={
-		0,--'images/wall.png'
+		262,--'images/wall.png'
 	}, solid=true},
 }
 for _,tileType in ipairs(tileTypes) do
@@ -1940,7 +1951,7 @@ Map=class{
 		self.fixedObjs=table(args.fixedObjs)
 		if args.playerStart then self.playerStart = vec2(args.playerStart) end
 		if args.fogColor then self.fogColor = args.fogColor end
-		
+
 		self.size = vec2(assert.index(args,'size'))
 		self.bbox = box2(vec2(), self.size-1)
 
@@ -2256,12 +2267,12 @@ genTown=[args]do
 			pos=findNPCPos(),
 			onInteract=[:,player]do
 				local cost = 1
-				if player.hp == player.stat'hpMax' and player.mp == player.stat'mpMax' then
+				if player.hp == player:stat'hpMax' and player.mp == player:stat'mpMax' then
 					clientMessage("Come back when you need a healin'!")
 				elseif player.gold >= cost then
 					player.gold -= cost
-					player:adjustPoints('mp', math.ceil(player.stat'mpMax'/5))
-					player:adjustPoints('hp', math.ceil(player.stat'hpMax'/5))
+					player:adjustPoints('mp', math.ceil(player:stat'mpMax'/5))
+					player:adjustPoints('hp', math.ceil(player:stat'hpMax'/5))
 					clientMessage("Heal yo self!");
 				else
 					clientMessage("No free lunches!!! One coin please!")
@@ -2521,7 +2532,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 				-- so much for ES6 OOP being more useful than hacked-together original JS prototypes...
 				-- can't call super here even if self function is added to a class prototype
 				MerchantObj.onInteract(self, arguments)
-				player:adjustPoints('hp', player.stat'hpMax')
+				player:adjustPoints('hp', player:stat'hpMax')
 				-- unlock the next story point
 				--TODO quests?
 				storyInfo.foundPrincess = true
@@ -2781,13 +2792,16 @@ drawTextBlock=[msgs, x, y, floatRight]do
 	if floatRight then rectx -= maxWidth + 20 end
 
 	blend(2)
-	rect(rectx, y, maxWidth + 20, fontSize * msgs.length + 10, 0xfe)
+	rect(rectx, y, maxWidth + 20, fontSize * #msgs + 10, 0xfe)
 	blend(-1)
 
 	y += fontSize
 	for j,msg in ipairs(msgs) do
 		local rowx = x
-		if floatRight then rowx -= ctx.measureText(msg).width + 10 end
+		if floatRight then 
+			local width = text(msg, -100, -100)
+			rowx -= width + 10 
+		end
 		drawOutlineText{
 			text=msg,
 			outlineSize=math.ceil(fontSize/16),
@@ -2797,11 +2811,6 @@ drawTextBlock=[msgs, x, y, floatRight]do
 		 y += fontSize
 	end
 end
-
-local view = {
-	center = vec2(),
-	bbox = box2(),
-}
 
 local possibleEquipField
 local possibleEquipItem
@@ -2834,8 +2843,10 @@ draw=[]do
 	for y=view.bbox.min.y,view.bbox.max.y do
 		local rx=0
 		for x=view.bbox.min.x,view.bbox.max.x do
-			local tile=map:getTile(x,y)
-			spr(tile.tileIndex, 2, 2, rx*tileSize.x, ry*tileSize.y)
+			local tile = map:getTile(x,y)
+
+			spr(tile.tileIndex, rx * tileSize.x, ry * tileSize.y, 2, 2)
+
 			if tile.objs then
 				for _,obj in ipairs(tile.objs) do
 					if obj.draw then obj:draw() end
@@ -2932,13 +2943,15 @@ draw=[]do
 
 	if #player.attributes > 0 then
 		drawTextBlock(player.attributes:mapi([attribute] attribute.name),
-			0, screenSize.y - player.attributes.length * fontSize - 8
+			0, screenSize.y - #player.attributes * fontSize - 8
 		)
 	end
 
 	if #popupMessage > 0 then
 		drawTextBlock(popupMessage, 0, 0)
-		popupMessage = {}
+		for k in pairs(popupMessage) do
+			popupMessage[k] = nil
+		end
 	end
 end
 
@@ -2967,7 +2980,7 @@ updateGame=[]do
 		for i,spawnInfo in ipairs(map.spawn) do
 			if math.random() < spawnInfo.rate and #map.objs < 2000 then
 				local spawnClass = spawnInfo.type
-				local classifier = spawnClass.movesInWater 
+				local classifier = spawnClass.movesInWater
 					and ([tile] tile.water)
 					or nil
 				spawnClass{pos=pickFreePos(classifier)}
