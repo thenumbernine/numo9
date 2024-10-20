@@ -8,7 +8,7 @@ new=[cl,...]do
 	o?:init(...)
 	return o
 end
-isa=[cl,o] o.isaSet[cl]
+isa=[cl,o]o.isaSet[cl]
 classmeta = {__call=new}
 class=[...]do
 	local t=table(...)
@@ -22,9 +22,146 @@ class=[...]do
 	return t
 end
 
+getvalue=[x, dim]do
+	if type(x) == 'number' then return x end
+	if type(x) == 'table' then
+		if dim==1 then	
+			x=x.x
+		elseif dim==2 then
+			x=x.y
+		else
+			x=nil
+		end
+		if type(x)~='number' then
+			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
+		end
+		return x
+	end
+	error("tried to getvalue from an unknown type "..type(x))
+end
+
+vec2=class{
+	init=[v,x,y]do
+		if x then
+			v:set(x,y)
+		else
+			v:set(0,0)
+		end
+	end,
+	set=[v,x,y]do
+		if type(x) == 'table' then
+			v.x = x.x
+			v.y = x.y
+		else
+			v.x = x
+			if y then
+				v.y = y
+			else
+				v.y = x
+			end
+		end
+	end,
+	volume=[v]v.x*v.y,
+	clamp=[v,a,b]do
+		local mins = a
+		local maxs = b
+		if type(a) == 'table' and a.min and a.max then	
+			mins = a.min
+			maxs = a.max
+		end
+		v.x = math.clamp(v.x, getvalue(mins, 1), getvalue(maxs, 1))
+		v.y = math.clamp(v.y, getvalue(mins, 2), getvalue(maxs, 2))
+		return v
+	end,
+	map=[v,f]do
+		v.x=f(v.x,1)
+		v.y=f(v.y,2)
+		return v
+	end,
+	floor=[v]v:map(math.floor),
+	ceil=[v]v:map(math.ceil),
+	l1Length=[v]math.abs(v.x)+math.abs(v.y),
+	lInfLength=[v]math.max(math.abs(v.x),math.abs(v.y)),
+	__add=[a,b]vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
+	__sub=[a,b]vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
+	__mul=[a,b]vec2(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2)),
+	__div=[a,b]vec2(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2)),
+	__eq=[a,b]a.x==b.x and a.y==b.y,
+	__tostring=[v]v.x..','..v.y,
+	__concat=[a,b]tostring(a)..tostring(b),
+}
+
+getminvalue=[x]do
+	if x.min then return x.min end
+	assert(x ~= nil, "getminvalue got nil value")
+	return x
+end
+
+getmaxvalue=[x]do
+	if x.max then return x.max end
+	assert(x ~= nil, "getmaxvalue got nil value")
+	return x
+end
+
+box2=class{
+	init=[:,a,b]do
+		if type(a) == 'table' and a.min and a.max then
+			self.min = vec2(a.min)
+			self.max = vec2(a.max)
+		else
+			self.min = vec2(a)
+			self.max = vec2(b)
+		end
+	end,
+	stretch=[:,v]do
+		if getmetatable(v) == box2 then
+			self:stretch(v.min)
+			self:stretch(v.max)
+		else
+			self.min.x = math.min(self.min.x, v.x)
+			self.max.x = math.max(self.max.x, v.x)
+			self.min.y = math.min(self.min.y, v.y)
+			self.max.y = math.max(self.max.y, v.y)
+		end
+	end,
+	size=[:]self.max-self.min,
+	floor=[:]do
+		self.min:floor()
+		self.max:floor()
+		return self
+	end,
+	ceil=[:]do
+		self.min:ceil()
+		self.max:ceil()
+		return self
+	end,
+	clamp=[:,b]do
+		self.min:clamp(b)
+		self.max:clamp(b)
+		return self
+	end,
+	contains=[:,v]do
+		if getmetatable(v)==box2 then
+			return self:contains(v.min) and self:contains(v.max)
+		else
+			if v.x < self.min.x or v.x > self.max.x then return false end
+			if v.y < self.min.y or v.y > self.max.y then return false end
+			return true
+		end
+	end,
+	map=[b,c]c*b:size()+b.min,
+	__add=[a,b]box2(getminvalue(a)+getminvalue(b),getmaxvalue(a)+getmaxvalue(b)),
+	__sub=[a,b]box2(getminvalue(a)-getminvalue(b),getmaxvalue(a)-getmaxvalue(b)),
+	__mul=[a,b]box2(getminvalue(a)*getminvalue(b),getmaxvalue(a)*getmaxvalue(b)),
+	__div=[a,b]box2(getminvalue(a)/getminvalue(b),getmaxvalue(a)/getmaxvalue(b)),
+	__tostring=[b]b.min..'..'..b.max,
+	__concat=[a,b]tostring(a)..tostring(b),
+}
+
+
 -- 2D simplex noise
 grad3={
-	{1,1,0},{-1,1,0},{1,-1,0},{-1,-1,0},
+	[0]={1,1,0},{-1,1,0},{1,-1,0},{-1,-1,0},
 	{1,0,1},{-1,0,1},{1,0,-1},{-1,0,-1},
 	{0,1,1},{0,-1,1},{0,1,-1},{0,-1,-1}
 }
@@ -112,10 +249,9 @@ end
 
 -- globals
 
-
-local canvas
+local screenSize = vec2(256, 256)
+local tileSize = vec2(16, 16)
 local map
-local tileSize = vec2(64, 64)
 local fontSize = 32
 local player
 local setMapRequest = nil
@@ -356,7 +492,7 @@ GameObj=class{
 		self.drawLocal(rx, ry)
 	end,
 	drawLocal=[rx,ry]do
-		if not self.img then return end
+		if not self.spriteIndex then return end
 		if self.angle then
 			local pivotX=rx+tileSize.x/2
 			local pivotY=ry+tileSize.y/2
@@ -365,10 +501,10 @@ GameObj=class{
 			mattrans(pivotX, pivotY)
 			matrot(self.angle)
 			mattrans(-pivotX, -pivotY)
-			spr(self.img, rx, ry, 2, 2, nil, nil, nil, nil, nil, tileSize.x, tileSize.y)
+			spr(self.spriteIndex, rx, ry, 2, 2, nil, nil, nil, nil, nil, tileSize.x, tileSize.y)
 			matident()--pop
 		else
-			spr(self.img, rx, ry, 2, 2, nil, nil, nil, nil, nil, tileSize.x, tileSize.y)
+			spr(self.spriteIndex, rx, ry, 2, 2, nil, nil, nil, nil, nil, tileSize.x, tileSize.y)
 		end
 	end,
 }
@@ -376,6 +512,7 @@ GameObj=class{
 ChestObj=class()
 
 DeadObj=GameObj:subclass{
+	spriteIndex=0,	--'objs/dead.png';
 	solid=false,
 	init=[:,args]do
 		DeadObj.super.init(self,args)
@@ -611,6 +748,7 @@ BattleObj=GameObj:subclass{
 }
 
 HeroObj=BattleObj:subclass{
+	spriteIndex=0,--'objs/hero.png'
 	hpMax=25,
 	mpMax=25,
 	foodMax=5000,
@@ -688,6 +826,7 @@ HeroObj=BattleObj:subclass{
 }
 
 AIObj=BattleObj:subclass{
+	spriteIndex=0,--'objs/orc.png'
 	update=[:]do
 		if not player then return end
 		local acted=self:performAction()
@@ -757,6 +896,7 @@ OrcObj=MonsterObj:subclass{
 }
 
 ThiefObj=MonsterObj:subclass{
+	spriteIndex=0,--'objs/thief.png';
 	hpMax=2,
 	physEvade=30,
 	gold=10,
@@ -779,6 +919,7 @@ ThiefObj=MonsterObj:subclass{
 }
 
 TroggleObj=MonsterObj:subclass{
+	spriteIndex=0,--'objs/imp.png';
 	hpMax=4,
 	gold=4,
 	performAction=[:]do
@@ -795,6 +936,7 @@ TroggleObj=MonsterObj:subclass{
 }
 
 FighterObj=MonsterObj:subclass{
+	spriteIndex=0,--'objs/fighter.png';
 	hpMax=8,
 	gold=8,
 	physAttack=3,
@@ -802,6 +944,7 @@ FighterObj=MonsterObj:subclass{
 }
 
 SnakeObj=MonsterObj:subclass{
+	spriteIndex=0,--'objs/snake.png';
 	hpMax=1,
 	gold=2,
 	physEvade=30,
@@ -810,6 +953,7 @@ SnakeObj=MonsterObj:subclass{
 }
 
 FishObj=MonsterObj:subclass{
+	spriteIndex=0,--'objs/fish.png';
 	hpMax=1,
 	items=table{'Fish Fillet','Fish Fillet','Fish Fillet'},
 	physEvade=50,
@@ -818,6 +962,7 @@ FishObj=MonsterObj:subclass{
 }
 
 DeerObj=MonsterObj:subclass{
+	spriteIndex=0,--'objs/deer.png';
 	hpMax=1,
 	items=table{'Venison'},
 	physEvade=50,
@@ -826,6 +971,7 @@ DeerObj=MonsterObj:subclass{
 }
 
 SeaMonsterObj=MonsterObj:subclass{
+	spriteIndex=0,--'objs/seamonster.png';
 	hpMax=20,
 	gold=100,
 	physAttack=5,
@@ -834,6 +980,7 @@ SeaMonsterObj=MonsterObj:subclass{
 }
 
 EnemyBoatObj=MonsterObj:subclass{
+	spriteIndex=0,--'objs/boat.png';
 	hpMax=10,
 	gold=50,
 	physAttack=5,
@@ -918,6 +1065,7 @@ HelperObj=AIObj:subclass{
 }
 
 GuardObj=TownNPCObj:subclass{
+	spriteIndex=0,--'objs/fighter.png';
 	msg='Stay in school!',
 	hpMax=100,
 	gold=100,
@@ -927,6 +1075,7 @@ GuardObj=TownNPCObj:subclass{
 }
 
 MerchantObj=TownNPCObj:subclass{
+	spriteIndex=0,--'objs/merchant.png';
 	hpMax=10,
 	init=[:,args]do
 		MerchantObj.super.init(self,args)
@@ -936,7 +1085,9 @@ MerchantObj=TownNPCObj:subclass{
 			local items = table()
 			for i=1,100 do
 				local itemClass = self.itemClasses:pickRandom()
-				items:insert(itemClass())
+				if itemClass then	-- TODO this wasn't in the original
+					items:insert(itemClass())
+				end
 			end
 
 			items:sort([itemA,itemB]
@@ -1019,20 +1170,27 @@ WarpObj=GameObj:subclass{
 	end,
 }
 
-TownObj=WarpObj:subclass()
+TownObj=WarpObj:subclass{
+	spriteIndex=0,--'objs/town.png';
+}
 
-UpStairsObj=WarpObj:subclass()
+UpStairsObj=WarpObj:subclass{
+	spriteIndex=0,--'objs/upstairs.png';
+}
 
-DownStairsObj=WarpObj:subclass()
+DownStairsObj=WarpObj:subclass{
+	spriteIndex=0,--'objs/downstairs.png';
+}
 
 FireWallObj=GameObj:subclass{
+	spriteIndex=0,--'objs/firewall.png';
 	lightRadius=10,
 	init=[:,args]do
 		GameObj.super.init(self,args)
 		self.life = math.random(10,100)
 		self.caster = args.caster
 	end,
-	getLightRadius=[:] (math.random() * .5 + .5) * self.lightRadius,
+	getLightRadius=[:] self.lightRadius * (math.random() * .5 + .5),
 	update=[:]do
 		self.life-=1
 		if self.life <= 0 then self.remove = true end
@@ -1044,9 +1202,12 @@ FireWallObj=GameObj:subclass{
 	end,
 }
 
-FriendlyFrogObj=HelperObj:subclass()
+FriendlyFrogObj=HelperObj:subclass{
+	spriteIndex=0,--'objs/frog.png';
+}
 
 FriendlySnakeObj=HelperObj:subclass{
+	spriteIndex=0,--'objs/snake.png';
 	hpMax = 1,
 	physEvade = 30,
 	inflictAttributes = {'Poison'},
@@ -1109,17 +1270,24 @@ PopupText=PopupObj:subclass{
 PopupSpellIcon=PopupObj:subclass{
 	init=[:,args]do
 		PopupSpellIcon.super.init(self,args)
-		self.img = args.img
+		self.spriteIndex = args.spriteIndex
 	end,
 }
 
-PopupSlashAttack=PopupObj:subclass()
+PopupSlashAttack=PopupObj:subclass{
+	spriteIndex=0,--'objs/damage-slash.png';
+}
 
-PopupPierceAttack=PopupObj:subclass()
+PopupPierceAttack=PopupObj:subclass{
+	spriteIndex=0,--url='objs/damage-pierce.png';
+}
 
-PopupBludgeonAttack=PopupObj:subclass()
+PopupBludgeonAttack=PopupObj:subclass{
+	spriteIndex=0,--url='objs/damage-bludgeon.png';
+}
 
 DoorObj=GameObj:subclass{
+	spriteIndex=0,--url='objs/door.png';
 	solid=true,
 	blocksLight=true,
 	onInteract=[:,player]do
@@ -1128,6 +1296,7 @@ DoorObj=GameObj:subclass{
 }
 
 TreasureObj=GameObj:subclass{
+	spriteIndex=0,--url='objs/treasure.png';
 	solid=true,
 	onInteract=[:,player]do
 		local itemClass = itemClasses:pickRandom()
@@ -1152,19 +1321,33 @@ SignObj=GameObj:subclass{
 	solid=true,
 }
 
-WeaponSign=SignObj:subclass()
+WeaponSign=SignObj:subclass{
+	spriteIndex=0,--url='objs/shop-weapon-sign.png';
+}
 
-ArmorSign=SignObj:subclass()
+ArmorSign=SignObj:subclass{
+	spriteIndex=0,--url='objs/shop-armor-sign.png';
+}
 
-FoodSign=SignObj:subclass()
+FoodSign=SignObj:subclass{
+	spriteIndex=0,--url='objs/shop-food-sign.png';
+}
 
-ItemSign=SignObj:subclass()
+ItemSign=SignObj:subclass{
+	spriteIndex=0,--url='objs/shop-item-sign.png';
+}
 
-RelicSign=SignObj:subclass()
+RelicSign=SignObj:subclass{
+	spriteIndex=0,--url='objs/shop-relic-sign.png';
+}
 
-SpellSign=SignObj:subclass()
+SpellSign=SignObj:subclass{
+	spriteIndex=0,--url='objs/shop-spell-sign.png';
+}
 
-HealSign=SignObj:subclass()
+HealSign=SignObj:subclass{
+	spriteIndex=0,--url='objs/shop-heal-sign.png';
+}
 
 --a list of all types that need graphics to be cached
 local objTypes = table{
@@ -1340,8 +1523,8 @@ Spell=class{
 		end
 	end,
 	useOnTile=[:,caster, tile]do
-		if self.img then
-			 PopupSpellIcon{pos=tile.pos, img=self.img}
+		if self.spriteIndex then
+			 PopupSpellIcon{pos=tile.pos, spriteIndex=self.spriteIndex}
 		end
 		if tile.objs then
 			for i,obj in ipairs(tile.objs) do
@@ -1392,11 +1575,17 @@ Spell=class{
 	end,
 }
 
-local spells = {
+local spells = table{
 	-- TODO get rid of these, and route the damage call from Fire Wall through spell itself some other way ...
-	{name='Fire', damage=5, range=8, area=2, cost=1},
-	{name='Ice', damage=5, range=8, area=2, cost=1},
-	{name='Bolt', damage=5, range=8, area=2, cost=1},
+	{name='Fire', damage=5, range=8, area=2, cost=1,
+		spriteIndex=0,--url:'objs/firewall.png'},
+	},
+	{name='Ice', damage=5, range=8, area=2, cost=1,
+		spriteIndex=0,--url:'objs/firewall.png'},
+	},
+	{name='Bolt', damage=5, range=8, area=2, cost=1,
+		spriteIndex=0,--url:'objs/firewall.png'},
+	},
 	{name='Fire Wall', spawn=FireWallObj, range=5, area=2, cost=3},
 	{name='Frog Wall', spawn=FriendlyFrogObj, range=10, area=3, cost=1, alwaysHits=true},
 	{name='Snake Wall', spawn=FriendlySnakeObj, range=10, area=3, cost=2, alwaysHits=true},
@@ -1420,7 +1609,7 @@ end
 -- items
 
 
-local weaponBaseTypes = {
+local weaponBaseTypes = table{
 	{name='Derp', damageType='slash', fieldRanges={physAttack=1, physHitChance=5}},
 	{name='Staff', damageType='bludgeon', fieldRanges={physAttack=1, physHitChance=10, magicAttack=5, magicHitChance=10}},
 	{name='Dagger', damageType='slash', fieldRanges={physAttack=2, physHitChance=10}},
@@ -1434,7 +1623,7 @@ local weaponBaseTypes = {
 	{name='Crossbow', damageType='pierce', fieldRanges={physAttack=9, physHitChance=45, range=20}},
 }
 
-local weaponModifiers = {
+local weaponModifiers = table{
 	{name="Plain ol'"},
 	{name='Short', fieldRanges={physAttack={0,5}, physHitChance={0,10}}},
 	{name='Long', fieldRanges={physAttack={3,8}, physHitChance={5,15}}},
@@ -1446,9 +1635,9 @@ local weaponModifiers = {
 	{name='Dragon', fieldRanges={physAttack={30,40}, physHitChance={40,50}}},
 	{name='Quick', fieldRanges={physAttack={40,45}, physHitChance={90,100}}},
 }
-local weaponModifierFields = {'physAttack','physHitChance'}
+local weaponModifierFields = table{'physAttack','physHitChance'}
 
-local defenseModifiers = {
+local defenseModifiers = table{
 	{name="Cloth", fieldRanges={magicEvade=1, hpMax=1, physEvade=1}},
 	{name="Leather", fieldRanges={magicEvade=2, hpMax=2, physEvade=2}},
 	{name="Wooden", fieldRanges={magicEvade=3, hpMax=3, physEvade=3}},
@@ -1474,24 +1663,24 @@ local defenseModifiers = {
 	{name="Pro", fieldRanges={magicEvade=23, hpMax=23, physEvade=23}},
 	{name="Diamond", fieldRanges={magicEvade=24, hpMax=24, physEvade=24}},
 }
-local armorBaseTypes = {
+local armorBaseTypes = table{
 	{name='Armor'},
 }
 local armorModifiers = defenseModifiers
-local armorModifierFields = {'magicEvade','physEvade','hpMax'}
+local armorModifierFields = table{'magicEvade','physEvade','hpMax'}
 
-local helmBaseTypes = {
+local helmBaseTypes = table{
 	{name='Helm'},
 }
 local helmModifiers = defenseModifiers
-local helmModifierFields = {'magicEvade','physEvade'}
+local helmModifierFields = table{'magicEvade','physEvade'}
 
-local shieldBaseTypes = {
+local shieldBaseTypes = table{
 	{name='Buckler'},
 	{name='Shield', evadeRange={5,10}},
 }
 local shieldModifiers = defenseModifiers
-local shieldModifierFields = {'magicEvade','physEvade'}
+local shieldModifierFields = table{'magicEvade','physEvade'}
 
 Item=class{
 	costPerField = {
@@ -1509,16 +1698,16 @@ Item=class{
 		if self.fieldRanges then self:applyRanges(self.fieldRanges) end
 	end,
 	applyRanges=[:,fieldRanges]do
-		for field, rangeInfo in pairs(fieldRanges)do
+		for field,rangeInfo in pairs(fieldRanges)do
 			if type(rangeInfo)=='number' then
-				rangeInfo = {math.ceil(rangeInfo * .75), rangeInfo}
+				rangeInfo={math.ceil(rangeInfo*.75), rangeInfo}
 			end
-			if self[field] == nil then self[field] = 0 end
-			local statValue = math.random(rangeInfo)
+			if self[field]==nil then self[field]=0 end
+			local statValue=math.random(table.unpack(rangeInfo))
 			self[field]+=statValue
 			if self.costPerField[field] then
-				if self.cost == nil then self.cost = 0 end
-				self.cost += statValue * self.costPerField[field]
+				if self.cost==nil then self.cost=0 end
+				self.cost+=statValue*self.costPerField[field]
 			end
 		end
 		if self.cost ~= nil then self.cost = math.ceil(self.cost) end
@@ -1558,7 +1747,9 @@ EquipItem=Item:subclass{
 			local baseType = baseTypes:pickRandom()
 			if baseType.damageType ~= nil then self.damageType = baseType.damageType end
 			if baseType.area ~= nil then area += baseType.area end
-			self:applyRanges(baseType.fieldRanges)
+			if baseType.fieldRanges then	-- TODO this condition wasn't in the original ... why is it needed here?
+				self:applyRanges(baseType.fieldRanges)
+			end
 			name = baseType.name
 		end
 		if self.modifiers then
@@ -1569,15 +1760,13 @@ EquipItem=Item:subclass{
 			local modifier = modifiers:pickRandom()
 			if modifier.area ~= nil then area += modifier.area end
 			if modifier.fieldRanges then
-				local modifierRanges = {}
+				local modifierRanges={}
 				for i,field in ipairs(self.modifierFields) do
-					modifierRanges[field] = modifier.fieldRanges[field]
+					modifierRanges[field]=modifier.fieldRanges[field]
 				end
 				self:applyRanges(modifierRanges)
 			end
-			if name ~= nil then name = modifier.name..' '..name
-			else name = modifier.name
-			end
+			name = modifier.name..(name and ' '..name or '')
 		end
 		if name ~= nil then self.name = name end
 		self.attackOffsets = table{vec2(1,0)}
@@ -1680,7 +1869,7 @@ end
 
 Tile=class{
 	init=[:,pos]do
-		self.img = self.imgs:pickRandom()
+		self.tileIndex = table.pickRandom(self.tileIndexes)
 		self.pos = vec2(pos)
 	end,
 }
@@ -1689,13 +1878,27 @@ Tile=class{
 local tileTypes = {
 	Tile:subclass{
 		name='Grass',
-		urls={'images/grass.png','images/grass2.png','images/grass3.png'},
+		tileIndexes={
+			0,--TODO 'images/grass.png',
+			0,--'images/grass2.png',
+			0,--'images/grass3.png',
+		},
 	},
-	Tile:subclass{name='Trees', urls={'images/trees.png'}},
-	Tile:subclass{name='Water', urls={'images/water.png'}, water=true},
-	Tile:subclass{name='Stone', urls={'images/stone.png'}, solid=true},
-	Tile:subclass{name='Bricks', urls={'images/bricks.png'}},
-	Tile:subclass{name='Wall', urls={'images/wall.png'}, solid=true},
+	Tile:subclass{name='Trees', tileIndexes={
+		0,--'images/trees.png'
+	}},
+	Tile:subclass{name='Water', tileIndexes={
+		0,--'images/water.png'
+	}, water=true},
+	Tile:subclass{name='Stone', tileIndexes={
+		0,--'images/stone.png'
+	}, solid=true},
+	Tile:subclass{name='Bricks', tileIndexes={
+		0,--'images/bricks.png'
+	}},
+	Tile:subclass{name='Wall', tileIndexes={
+		0,--'images/wall.png'
+	}, solid=true},
 }
 for _,tileType in ipairs(tileTypes) do
 	if tileTypes[tileType.name] then trace("tileTypes name "..tileType.name.." used twice!") end
@@ -1715,9 +1918,8 @@ Map=class{
 	--[[
 	args:
 		name
-		size = required for non-url maps
-		url = optional, says to load the map from a specified png file
-		onload = optional for url maps
+		size
+		onload
 		exitMap
 		temp
 		wrap
@@ -1730,36 +1932,31 @@ Map=class{
 	init=[:,args]do
 		self.name = assert.index(args, 'name')
 
-		self.fixedObjs = {}
-		if args.url then self.url = args.url end
 		if args.exitMap then self.exitMap = args.exitMap end
 		if args.temp then self.temp = args.temp end
 		if args.wrap then self.wrap = args.wrap end
 		if args.spawn then self.spawn = args.spawn end
-		if args.resetObjs then self.resetObjs = args.resetObjs end
-		if args.fixedObjs then self.fixedObjs = args.fixedObjs end
+		if args.resetObjs then self.resetObjs=args.resetObjs end
+		self.fixedObjs=table(args.fixedObjs)
 		if args.playerStart then self.playerStart = vec2(args.playerStart) end
 		if args.fogColor then self.fogColor = args.fogColor end
-		if args.url then
-			error'TODO'
-		elseif args.size then
-			self.size = vec2(args.size)
-			self.bbox = box2(vec2(), self.size-1)
+		
+		self.size = vec2(assert.index(args,'size'))
+		self.bbox = box2(vec2(), self.size-1)
 
-			local tileType = args.tileType or tileTypes.Grass
-			self.tiles = {}
-			for y=0,self.size.y-1 do
-				local tilerow = {}
-				self.tiles[y] = tilerow
-				for x=0,self.size.x-1 do
-					tilerow[x] = tileType(vec2(x,y))
-				end
+		local tileType = args.tileType or tileTypes.Grass
+		self.tiles = {}
+		for y=0,self.size.y-1 do
+			local tilerow = {}
+			self.tiles[y] = tilerow
+			for x=0,self.size.x-1 do
+				tilerow[x] = tileType(vec2(x,y))
 			end
-
-			maps:insert(self)
-			maps[self.name] = self
-			local _ = args.onload?(self)	-- FIXME in langfix, make safe-navigation work in statements apart from assignment
 		end
+
+		maps:insert(self)
+		maps[self.name] = self
+		local _ = args.onload?(self)	-- FIXME in langfix, make safe-navigation work in statements apart from assignment
 	end,
 	--wraps the position if the map is a wrap map
 	--if not, returns false
@@ -1919,7 +2116,6 @@ end
 
 findFixedObj=[map, callback]do
 	for i,fixedObj in ipairs(map.fixedObjs) do
-		local fixedObj = map.fixedObjs[i]
 		if callback(fixedObj) then return fixedObj end
 	end
 end
@@ -2024,7 +2220,7 @@ genTown=[args]do
 		pickFreeRandomFixedPos{
 			map=map,
 			classify=[tile] tileTypes.Grass:isa(tile),
-			bbox:box2(
+			bbox=box2(
 				 vec2(border+npcBrickRadius+1, border+npcBrickRadius+1),
 				 vec2(map.size.x-border-npcBrickRadius-2,map.size.y-border-npcBrickRadius-3)
 			),
@@ -2127,7 +2323,7 @@ end
 
 
 genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
-	local rooms = {}
+	local rooms = table()
 
 	--trace("begin gen "+map.name);
 
@@ -2141,7 +2337,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 
 	local modified
 	repeat
-		modified = false
+		modified=false
 		for j,room in ipairs(rooms) do
 			local bbox = box2(room.bbox.min-1, room.bbox.max+1):clamp(map.bbox)
 			local roomcorners = {room.bbox.min, room.bbox.max}
@@ -2149,7 +2345,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 			for i,corner in ipairs(corners) do
 				local found = false
 				for y=room.bbox.min.y,room.bbox.max.y do
-					if map.room.tiles[y][corner.x] then
+					if map.tiles[y][corner.x].room then
 						found = true
 						break
 					end
@@ -2164,7 +2360,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 
 				found = false
 				for x=room.bbox.min.x,room.bbox.max.x do
-					if map.room.tiles[corner.y][x] then
+					if map.tiles[corner.y][x].room then
 						found = true
 						break
 					end
@@ -2239,12 +2435,13 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 					and tile.room
 					then
 						local neighborRoom = tile.room
-						local neighborRoomIndex = sasert(rooms:find(neighborRoom), "found unknown neighbor room")
-						local j = room.neighbors:find(nil, [nbh] nbh.room == neighborRoom)
-						if not j then
-							room.neighbors:insert{room=neighborRoom, positions=table()}
+						local neighborRoomIndex = assert(rooms:find(neighborRoom), "found unknown neighbor room")
+						local _, neighbor = room.neighbors:find(nil, [neighbor] neighbor.room == neighborRoom)
+						if not neighbor then
+							neighbor = {room=neighborRoom, positions=table()}
+							room.neighbors:insert(neighbor)
 						end
-						room.neighbors[j].positions:insert(vec2(pos))
+						neighbor.positions:insert(vec2(pos))
 					end
 				end
 			end
@@ -2256,7 +2453,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	local startRoom = rooms:pickRandom()
 	local lastRoom = startRoom
 
-	local leafRooms = {}
+	local leafRooms = table()
 	local usedRooms = table{startRoom}
 
 	--trace("establishing connectivity");
@@ -2269,7 +2466,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 				not usedRooms:find(neighborInfo.room)
 			) > 0
 		)
-		if srcRoomOptions == 0 then break end
+		if #srcRoomOptions == 0 then break end
 		local srcRoom = srcRoomOptions:pickRandom()
 
 		local leafRoomIndex = leafRooms:find(srcRoom)
@@ -2495,7 +2692,7 @@ initMaps=[]do
 	local isWeapon=[itemClass] WeaponItem:isa(itemClass)
 	local isRelic=[itemClass] RelicItem:isa(itemClass)
 	local isArmor=[itemClass] not isWeapon(itemClass) and not isRelic(itemClass) and EquipItem:isa(itemClass)	--all else
-	local isFood=[itemClass] UsableItem:isa(itemClass) and itemClass.food or itemClass.fieldRanges and itemClass.food.fieldRanges
+	local isFood=[itemClass] (UsableItem:isa(itemClass) and itemClass.food) or (itemClass.fieldRanges and itemClass.fieldRanges.food)
 	local isSpell=[itemClass] UsableItem:isa(itemClass) and itemClass.spellUsed or itemClass.spellTaught
 	local isMisc=[itemClass] UsableItem:isa(itemClass) and not isFood(itemClass) and not isSpell(itemClass)
 
@@ -2616,8 +2813,8 @@ draw=[]do
 
 	cls(0xf0)
 
-	local widthInTiles = math.floor(canvas.width / tileSize.x)
-	local heightInTiles = math.floor(canvas.height / tileSize.y)
+	local widthInTiles = math.floor(screenSize.x / tileSize.x)
+	local heightInTiles = math.floor(screenSize.y / tileSize.y)
 	view.bbox.min.x = math.ceil(view.center.x - widthInTiles / 2)
 	view.bbox.min.y = math.ceil(view.center.y - heightInTiles / 2)
 	if not map.wrap then
@@ -2637,10 +2834,8 @@ draw=[]do
 	for y=view.bbox.min.y,view.bbox.max.y do
 		local rx=0
 		for x=view.bbox.min.x,view.bbox.max.x do
-			local tile = map:getTile(x,y)
-
-			spr(tile.img, 2, 2, rx * tileSize.x, ry * tileSize.y)
-
+			local tile=map:getTile(x,y)
+			spr(tile.tileIndex, 2, 2, rx*tileSize.x, ry*tileSize.y)
 			if tile.objs then
 				for _,obj in ipairs(tile.objs) do
 					if obj.draw then obj:draw() end
@@ -2733,11 +2928,11 @@ draw=[]do
 		'MA:' .. stats.magicAttack,
 		'M.Hit:' .. stats.magicHitChance,
 		'M.Evd:' .. stats.magicEvade
-	}, canvas.width, 0, true)
+	}, screenSize.x, 0, true)
 
 	if #player.attributes > 0 then
 		drawTextBlock(player.attributes:mapi([attribute] attribute.name),
-			0, canvas.height - player.attributes.length * fontSize - 8
+			0, screenSize.y - player.attributes.length * fontSize - 8
 		)
 	end
 
@@ -2874,7 +3069,7 @@ setMap=[args]do
 		player:applyLight()
 	end
 
-	args?.done()
+	local _ = args.done?()	-- TODO langifx
 
 	clientMessage("Entering "..map.name)
 
@@ -3071,5 +3266,5 @@ update=[]do
 end
 
 initMaps()
-player = HeroObj()
+player=HeroObj{}
 setMap{map='Helpless Village'}

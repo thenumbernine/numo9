@@ -1805,7 +1805,7 @@ function App:loadROM(filename)
 	self.banks = fromCartImage(d)
 	assert.ge(#self.banks, 1)
 	self.cartridgeName = filename	-- TODO display this somewhere
-	self.editCode.text = codeBanksToStr(self.banks)
+	self.editCode:setText(codeBanksToStr(self.banks))
 	self:resetROM()
 	return true
 end

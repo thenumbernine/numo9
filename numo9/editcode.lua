@@ -406,7 +406,7 @@ function EditCode:addCharToText(ch)
 		ch = newlineByte	-- store \n's instead of \r's
 	end
 	if ch == 8 then
-		self.text = self.text:sub(1, self.cursorLoc - 1) .. self.text:sub(self.cursorLoc+1)
+		self.text = self.text:sub(1, math.max(0, self.cursorLoc - 1)) .. self.text:sub(self.cursorLoc+1)
 		self.cursorLoc = math.max(0, self.cursorLoc - 1)
 	elseif ch then
 		self.text = self.text:sub(1, self.cursorLoc) .. string.char(ch) .. self.text:sub(self.cursorLoc+1)
