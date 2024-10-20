@@ -5,7 +5,8 @@ round=[x,r] math.round(x*r)/r
 
 new=[cl,...]do
 	local o=setmetatable({},cl)
-	o?:init(...)
+	--o?:init(...)
+	if o.init then o:init(...) end
 	return o
 end
 isa=[cl,o]o.isaSet[cl]
@@ -282,19 +283,13 @@ promptKeyCallback=[key]do
 	if key=='ok' then
 		clientPrompt.onchoose(clientPrompt.options[clientPrompt.index], clientPrompt.index)
 	elseif key=='up' then
-		clientPrompt.cycle(-1)
+		clientPrompt:cycle(-1)
 	elseif key=='down' then
-		clientPrompt.cycle(1)
+		clientPrompt:cycle(1)
 	elseif key=='left' then
-		--option 1: page scroll
-		clientPrompt.cycle(-10)
-		--option 2: ok/cancel
-		--clientPrompt.close()
+		clientPrompt:cycle(-10)
 	elseif key=='right' then
-		--option 1: page scroll
-		clientPrompt.cycle(10)
-		--option 2: ok/cancel
-		--clientPrompt.onchoose(clientPrompt.options[clientPrompt.index], clientPrompt.index)
+		clientPrompt:cycle(10)
 	else
 		clientPrompt:close()
 	end
@@ -319,11 +314,12 @@ ClientPrompt=class{
 		self.onclose=onclose
 		self.topIndex=0
 		self.index=0
-		clientPromptStack:last()?:disable()
+		--clientPromptStack:last()?:disable()
+		if clientPromptStack:last() and clientPromptStack:last().disable then clientPromptStack:last():disable() end
 		clientPromptStack:insert(self)
 		keyCallback=promptKeyCallback
 		self:refreshPos()
-		self.enable()
+		self:enable()
 		self:refreshContent()
 	end,
 	enable=[:]do
@@ -340,12 +336,14 @@ ClientPrompt=class{
 			end
 			clientPromptStack:remove(index)
 		end
-		self?:onclose()
+		--self?:onclose()
+		if self.onclose then self:onclose() end
 	end,
 	refreshPos=[:]do
 	end,
 	refreshContent=[:]do
-		self?:onselect(self.options[self.index], self.index)
+		--self?:onselect(self.options[self.index], self.index)
+		if self.onselect then self:onselect(self.options[self.index], self.index) end
 	end,
 	cycle=[:,ofs]do
 		self.index+=ofs
@@ -890,11 +888,11 @@ AIObj=BattleObj:subclass{
 				dy=0
 			end
 		end
-		local result=self.move(dx, dy);
+		local result=self:move(dx, dy);
 	end,
 	performAction=[:]do
 		if self.hostile and distL1(player.pos,self.pos)<=1 then
-			self.attack(player.pos.x-self.pos.x,player.pos.y-self.pos.y)
+			self:attack(player.pos.x-self.pos.x,player.pos.y-self.pos.y)
 			return true
 		end
 	end,
@@ -1967,7 +1965,8 @@ Map=class{
 
 		maps:insert(self)
 		maps[self.name] = self
-		local _ = args.onload?(self)	-- FIXME in langfix, make safe-navigation work in statements apart from assignment
+		--local _ = args.onload?(self)	-- FIXME in langfix, make safe-navigation work in statements apart from assignment
+		if args.onload then args.onload(self) end
 	end,
 	--wraps the position if the map is a wrap map
 	--if not, returns false
@@ -2007,7 +2006,7 @@ Map=class{
 	floodFill=[:,args]do
 		local allTiles = {}
 		local startPos = vec2(args.pos)
-		local startTile = self.getTile(startPos.x, startPos.y)
+		local startTile = self:getTile(startPos.x, startPos.y)
 		local startInfo = {tile=startTile, pos=startPos, dist=0}
 		args.callback(startInfo.tile, startInfo.dist)
 		allTiles[tostring(startPos)] = startInfo
@@ -3013,8 +3012,10 @@ updateGame=[]do
 				player = nil
 			end
 		else
-			obj?:update()
-			obj?:postUpdate()
+			--obj?:update()
+			if obj.update then obj:update() end
+			--obj?:postUpdate()
+			if obj.postUpdate then obj:postUpdate() end
 		end
 		if setMapRequest ~= nil then break end	--christmas came early
 	end
@@ -3082,7 +3083,8 @@ setMap=[args]do
 		player:applyLight()
 	end
 
-	local _ = args.done?()	-- TODO langifx
+	--local _ = args.done?()	-- TODO langifx
+	if args.done then args.done() end
 
 	clientMessage("Entering "..map.name)
 
