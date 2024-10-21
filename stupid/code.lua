@@ -582,12 +582,14 @@ BattleObj=GameObj:subclass{
 		self.mp=self:stat'mpMax'
 	end,
 	stat=[:,field]do
-trace('stat', field)
 		local value=self[field]
-trace(' base', value)
-		local srcInfos=table():append(
-			self.equipFields:filter([equipField]self.equipField)
-				:mapi([equipField]{equip=equipField, src=self[equipField]}),
+		local srcInfos=table()
+		srcInfos:append(
+			self.equipFields
+				:filter([equipField]self[equipField])
+				:mapi([equipField]{equip=equipField, src=self[equipField]})
+		)
+		srcInfos:append(
 			self.attributes:mapi([attribute]{attribute=true, src=attribute})
 		)
 		--[[ prefix args
@@ -604,11 +606,12 @@ trace(' base', value)
 		--]]
 		for _,srcInfo in ipairs(srcInfos) do
 			local src=srcInfo.src
-			if src.field~=nil then
-				local srcvalue=src[field]
+			local srcvalue=src[field]
+			if srcvalue then
 				if type(value)=='number' then
 					value += srcvalue
-				elseif type(value)=='table' and getmetatable(value)==table then
+				elseif type(value)=='table' then
+assert.eq(getmetatable(value), table)
 					--special case for attackOffsets -=1 mirror left hand on the 'y' axis
 					if field == 'attackOffsets' and srcInfo.equip == 'lhand' then
 						srcvalue=srcvalue:mapi([ofs]vec2(ofs.x,-ofs.y))
@@ -617,7 +620,6 @@ trace(' base', value)
 				else	--strings? functions? booleans? override...
 					value=srcvalue
 				end
-trace(' modified', value)
 			end
 		end
 		--and now that we've accum'd (+) all our stats
@@ -627,10 +629,8 @@ trace(' modified', value)
 			local f=src[field..'Modify']
 			if f then
 				value=f(src, value, baseValue, self)
-trace(' modified func', value)
 			end
 		end
-trace(' return', value)
 		return value
 	end,
 	getLightRadius=[:]self:stat'lightRadius',
@@ -1180,10 +1180,8 @@ MerchantObj=TownNPCObj:subclass{
 								if HelmItem:isa(item) then possibleEquipField = 'head' end
 								if RelicItem:isa(item) then possibleEquipField = 'relic2' end
 							end
-trace('cmd', cmd, 'index', index, 'possibleEquipItem', possibleEquipItem, 'possibleEquipField', possibleEquipField)
 						end, [:]do
 							possibleEquipField = nil
-trace('clearing possibleEquipField')
 						end)
 					end
 				elseif cmd == 'Sell' then
@@ -1635,7 +1633,7 @@ Spell=class{
 	end,
 }
 
-spells = table{
+spells=table{
 	-- TODO get rid of these, and route the damage call from Fire Wall through spell itself some other way ...
 	{name='Fire', damage=5, range=8, area=2, cost=1,
 		spriteIndex=70,--url:'objs/firewall.png'},
@@ -1805,7 +1803,7 @@ EquipItem=Item:subclass{
 		if self.baseTypes then
 			local baseTypes = self.baseTypes
 			local baseType = baseTypes:pickRandom()
-			if baseType.damageType ~= nil then self.damageType = baseType.damageType end
+			self.damageType = baseType.damageType
 			if baseType.area ~= nil then area += baseType.area end
 			if baseType.fieldRanges then	-- TODO this condition wasn't in the original ... why is it needed here?
 				self:applyRanges(baseType.fieldRanges)
@@ -1813,22 +1811,21 @@ EquipItem=Item:subclass{
 			name = baseType.name
 		end
 		if self.modifiers then
-			if not self.modifierFields then
-				error("class "..self.name.." has no modifierFields")
-			end
 			local modifiers = self.modifiers
 			local modifier = modifiers:pickRandom()
 			if modifier.area ~= nil then area += modifier.area end
 			if modifier.fieldRanges then
 				local modifierRanges={}
-				for _,field in ipairs(self.modifierFields) do
-					modifierRanges[field]=modifier.fieldRanges[field]
+				if self.modifierFields then
+					for _,field in ipairs(self.modifierFields) do
+						modifierRanges[field]=modifier.fieldRanges[field]
+					end
 				end
 				self:applyRanges(modifierRanges)
 			end
 			name = modifier.name..(name and ' '..name or '')
 		end
-		if name ~= nil then self.name = name end
+		self.name = name
 		self.attackOffsets = table{vec2(1,0)}
 		local used = {}
 		used[tostring(vec2(0,0))] = true
@@ -2951,23 +2948,19 @@ draw=[]do
 	end
 
 	if showMenu then
-trace()
 		local statFields = {'hpMax','mpMax','warmth','physAttack','physHitChance','physEvade','magicAttack','magicHitChance','magicEvade','attackOffsets'}
 		local stats = {}
 		for _,field in ipairs(statFields) do
 			stats[field] = player:stat(field)
 			if field == 'attackOffsets' then stats[field] = #stats[field] end
-trace('orig field', field, 'stat', stats[field])
 		end
 		if possibleEquipField then
-trace('considering possibleEquipField', possibleEquipField, 'possibleEquipItem', possibleEquipItem)
 			local oldEquip = player[possibleEquipField]
 			player[possibleEquipField] = possibleEquipItem
 			for _,field in ipairs(statFields) do
 				local altStat = player:stat(field)
 				if field == 'attackOffsets' then altStat = #altStat end
 				local diff = altStat - stats[field]
-trace('field', field, 'diff', diff)
 				if diff > 0 then
 					stats[field] = '(+' .. diff .. ')'
 				elseif diff < 0 then
@@ -3214,11 +3207,9 @@ doEquipScreen=[]do
 				[:,cmd,index]do
 					possibleEquipField = equipField
 					possibleEquipItem = player.items[equippableItemIndexes[index]]
-trace('cmd', cmd, 'index', index, 'possibleEquipItem', possibleEquipItem, 'possibleEquipField', possibleEquipField)
 				end,
 				[:]do
 					possibleEquipField = nil
-trace('clearing possibleEquipField')
 				end
 			)
 		end
