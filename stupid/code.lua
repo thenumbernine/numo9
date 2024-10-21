@@ -281,7 +281,7 @@ promptKeyCallback=[key]do
 	local clientPrompt=clientPromptStack:last()
 	keyCallback=nil
 	if key=='ok' then
-		clientPrompt.onchoose(clientPrompt.options[clientPrompt.index], clientPrompt.index)
+		clientPrompt:onchoose(clientPrompt.options[clientPrompt.index], clientPrompt.index)
 	elseif key=='up' then
 		clientPrompt:cycle(-1)
 	elseif key=='down' then
@@ -313,7 +313,7 @@ ClientPrompt=class{
 		self.onselect=onselect
 		self.onclose=onclose
 		self.topIndex=0
-		self.index=0
+		self.index=1
 		--clientPromptStack:last()?:disable()
 		if clientPromptStack:last() and clientPromptStack:last().disable then clientPromptStack:last():disable() end
 		clientPromptStack:insert(self)
@@ -329,12 +329,14 @@ ClientPrompt=class{
 		self.enabled=false
 	end,
 	close=[:]do
-		local index=clientPromptStack:find(self)
-		if index then
-			if index == #clientPromptStack then
-				clientPromptStack[index-1]:enable()
+		local promptIndex=clientPromptStack:find(self)
+		if promptIndex then
+			if promptIndex == #clientPromptStack 
+			and promptIndex > 1
+			then
+				clientPromptStack[promptIndex-1]:enable()
 			end
-			clientPromptStack:remove(index)
+			clientPromptStack:remove(promptIndex)
 		end
 		--self?:onclose()
 		if self.onclose then self:onclose() end
@@ -347,7 +349,7 @@ ClientPrompt=class{
 	end,
 	cycle=[:,ofs]do
 		self.index+=ofs
-		self.index=math.clamp(self.index,0,#self.options-1)
+		self.index=math.clamp(self.index,1,#self.options)
 		self:refreshContent()
 	end,
 }
@@ -1117,15 +1119,16 @@ MerchantObj=TownNPCObj:subclass{
 	end,
 	onInteract=[:,player]do
 		MerchantObj.super.onInteract(self,player)
+		local merchant=self
 		if self.store then
-			local buySellPrompt = ClientPrompt({'Buy','Sell'}, [cmd,index]do
+			local buySellPrompt = ClientPrompt({'Buy','Sell'}, [:,cmd,index]do
 				if cmd == 'Buy' then
-					local buyOptions = self.items:mapi([item,index] item.name.." ("..item.cost.." GP)")
+					local buyOptions = merchant.items:mapi([item,index] item.name.." ("..item.cost.." GP)")
 					if #buyOptions == 0 then
 						clientMessage"I have nothing to sell you!"
 					else
-						local buyPrompt = ClientPrompt(buyOptions, [cmd, index]do
-							local item = self.items[index]
+						local buyPrompt = ClientPrompt(buyOptions, [:,cmd, index]do
+							local item = merchant.items[index]
 							--TODO 'how many?'
 							if player.gold >= item.cost then
 								player.gold -= item.cost
@@ -1134,8 +1137,8 @@ MerchantObj=TownNPCObj:subclass{
 							else
 								clientMessage"You can't afford that!"
 							end
-						end, [cmd, index]do
-							local item = self.items[index]
+						end, [:,cmd, index]do
+							local item = merchant.items[index]
 							possibleEquipItem = item
 							if EquipItem:isa(item) then
 								if WeaponItem:isa(item) then possibleEquipField = 'rhand' end
@@ -1144,7 +1147,7 @@ MerchantObj=TownNPCObj:subclass{
 								if HelmItem:isa(item) then possibleEquipField = 'head' end
 								if RelicItem:isa(item) then possibleEquipField = 'relic2' end
 							end
-						end, []do
+						end, [:]do
 							possibleEquipField = nil
 						end)
 					end
@@ -1156,7 +1159,7 @@ MerchantObj=TownNPCObj:subclass{
 					if #sellOptions == 0 then
 						clientMessage"You have nothing to sell me!"
 					else
-						local sellPrompt = ClientPrompt(sellOptions, [cmd, index]do
+						local sellPrompt = ClientPrompt(sellOptions, [:,cmd,index]do
 							local item = player.items[index]
 							--TODO howmany?
 							player.gold += math.ceil(item.cost * sellScale)
@@ -2211,7 +2214,7 @@ genTown=[args]do
 				clientMessage("I'm the guy at the docks")
 			else
 				clientMessage("We're sailing for the capitol! All set?")
-				local prompt = clientPrompt({'No','Yes'}, [cmd, index]do
+				local prompt = clientPrompt({'No','Yes'}, [cmd,index]do
 					prompt:close()
 					if cmd=='Yes' then
 						--TODO make the player a boat ...
@@ -2952,6 +2955,12 @@ draw=[]do
 			popupMessage[k] = nil
 		end
 	end
+
+	for i,prompt in ipairs(clientPromptStack) do
+		drawTextBlock(table.mapi(prompt.options, [option,i]
+			((prompt.index == i and '>' or ' ')..option)
+		), i<<2, i<<2)
+	end
 end
 
 pickFreePos=[classifier]do
@@ -3133,7 +3142,7 @@ doEquipScreen=[]do
 	end
 	equipPrompt = ClientPrompt(
 		player.equipFields,
-		[cmd, index]do
+		[:,cmd,index]do
 			local equipField = player.equipFields[index]
 			local equippableItems = player.items:filter([item]
 				player:canEquip(equipField, item)
@@ -3141,18 +3150,18 @@ doEquipScreen=[]do
 			equippableItems:insert(1, nil)
 			local equipFieldPrompt = ClientPrompt(
 				equippableItems:mapi([item] item.name or 'Nothing'),
-				[itemName, index]do
+				[:,itemName,index]do
 					equipFieldPrompt:close()
 					local item = equippableItems[index]
 					if item then player.items:removeObject(item) end
 					player:setEquip(equipField, item)
 					refreshEquipPrompt()
 				end,
-				[cmd, index]do
+				[:,cmd,index]do
 					possibleEquipField = equipField
 					possibleEquipItem = equippableItems[index]
 				end,
-				[]do
+				[:]do
 					possibleEquipField = nil
 				end
 			)
@@ -3171,7 +3180,7 @@ doSpellScreen=[]do
 	end
 	local spellPrompt = ClientPrompt(
 		spells:mapi([spell] spell.name..' ('..spell.cost..')'),
-		[cmd, index]do
+		[:,cmd,index]do
 			closeAllPrompts()
 			spells[index]:clientUse()
 		end
@@ -3186,9 +3195,9 @@ doItemScreen=[]do
 		clientMessage("You don't have any items that you can use right now")
 		return
 	end
-	local itemPrompt = ClientPrompt(items:mapi([item, index]
+	local itemPrompt = ClientPrompt(items:mapi([:,item,index]
 		item.name
-	), [cmd, index]do
+	), [:,cmd,index]do
 		itemPrompt:close()
 		local item = items[index]
 		local result = item:use(player)
@@ -3207,7 +3216,7 @@ doMenu=[]do
 		'Talk',
 		'Equip',
 		'Cheat',
-	}, [cmd, index]do
+	}, [:,cmd,index]do
 		if cmd=='Attack' then
 			menuPrompt:close();
 			keyCallback = attackKeyCallback

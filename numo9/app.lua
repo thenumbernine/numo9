@@ -89,8 +89,8 @@ end
 local App = GLApp:subclass()
 
 App.title = 'NuMo9'
-App.width = cmdline.video and cmdline.video[1] or 720
-App.height = cmdline.video and cmdline.video[2] or 512
+App.width = cmdline and cmdline.video and cmdline.video[1] or 720
+App.height = cmdline and cmdline.video and cmdline.video[2] or 512
 
 App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO)
 
@@ -1034,13 +1034,13 @@ looks like I'm a Snes9x-default-keybinding fan.
 
 			-- how to make it start with console open if there's no rom ...
 			-- then run our cmdline file ... ?
-			if cmdline[1] then
+			if cmdline and cmdline[1] then
 				self:loadROM(cmdline[1])
 				self:runROM()
 			end
 
 			-- then let us run cmds
-			if cmdline.initCmd then
+			if cmdline and cmdline.initCmd then
 print('running cmd', cmdline.initCmd)
 				self:runCmd(cmdline.initCmd)
 			end

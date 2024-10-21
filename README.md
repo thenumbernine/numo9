@@ -418,19 +418,19 @@ Pico8 Compatability is at 95%
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
 	- sprite renderer still clips into neighboring sprites.
 - editor:
-	- tilemap UI for editing high-palette and horz/vert flip
+	- add multi-bank support to editor.
 	- copy/paste on the tilemap.
 		- copy/paste tilemap entries themselves
 		- paste sprites into the tilemap, then automatically quantize their sprites and palettes.. Just need to copy most of this from my `convert-to-8x8x4bpp` repo.
 		- ... of text / number tables
-	- expose palette index swap feature
-	- bucket fill functionality
 	- flag for pen / paste / bucket fill clip-to-view-area or not
 	- tilemap bucket fill, pen size, and basically all the sam edit functionality as the sprite editor
 	- scroll to zoom
 	- sfx tab
+		- any kind of editing at all
 		- paste in wave files
 	- music tab
+		- any kind of editing at all
 		- paste in midi files ... but how to correlate instruments with your wave samples?  can midi files save wave data themselves?
 	- multiplayer ... draw commands in editors aren't issued to netplay so the client wont see the server's menus ...
 		... but they still modify the VRAM ...
