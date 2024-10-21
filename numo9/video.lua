@@ -557,6 +557,22 @@ function AppVideo:initDraw()
 		})
 	end
 	--]=]
+	-- [=[ framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
+	self.fbMenuTex = GLTex2D{
+		target = gl.GL_TEXTURE_2D,
+		internalFormat = gl.GL_RGB,
+		format = gl.GL_RGB,
+		type = gl.GL_UNSIGNED_BYTE,
+		width = frameBufferSize.x,
+		height = frameBufferSize.y,
+		wrap = {
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
+		minFilter = gl.GL_NEAREST,
+		magFilter = gl.GL_NEAREST,
+	}:unbind()
+	--]=]
 
 	self.quadGeom = GLGeometry{
 		mode = gl.GL_TRIANGLE_STRIP,
@@ -1537,6 +1553,7 @@ each video mode should uniquely ...
 function AppVideo:setVideoMode(mode)
 	local info = self.videoModeInfo[mode]
 	if info then
+		-- fbTex is the VRAM tex ... soo rename it?  fbVRAMTex or something?
 		self.fbTex = info.fbTex
 		self.blitScreenObj = info.blitScreenObj
 		self.lineSolidObj = info.lineSolidObj
@@ -1549,11 +1566,18 @@ function AppVideo:setVideoMode(mode)
 	end
 	self.blitScreenObj.texs[1] = self.fbTex
 
+	self:setFBTex(self.fbTex)
+	self.currentVideoMode = mode
+end
+
+-- this is set between the VRAM tex .fbTex (for draw commands that need to be reflected to the CPU)
+--  and the menu tex .fbMenuTex (for those that don't)
+function AppVideo:setFBTex(tex)
 	local fb = self.fb
 	if not self.inUpdateCallback then
 		fb:bind()
 	end
-	fb:setColorAttachmentTex2D(self.fbTex.id, 0, self.fbTex.target)
+	fb:setColorAttachmentTex2D(tex.id, 0, tex.target)
 	local res,err = fb.check()
 	if not res then
 		print(err)
@@ -1562,8 +1586,6 @@ function AppVideo:setVideoMode(mode)
 	if not self.inUpdateCallback then
 		fb:unbind()
 	end
-
-	self.currentVideoMode = mode
 end
 
 -- exchnage two colors in the palettes, and in all spritesheets,
