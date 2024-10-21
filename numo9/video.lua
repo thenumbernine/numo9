@@ -234,7 +234,7 @@ local function resetLogoOnSheet(spriteSheetPtr)
 	for y=0,spriteSheetSize.y-1 do
 		for x=0,spriteSheetSize.x-1 do
 			local index = x + spriteSheetSize.x * y
-			spriteSheetPtr[index] = splashImg.buffer[index] == 0 
+			spriteSheetPtr[index] = splashImg.buffer[index] == 0
 				and 0xfc or 0xf0	-- subtract out the white
 				--and 0xff or 0xf0	-- subtract light-gray (to fade? nah not working)
 				--and 0xf0 or 0xfc	-- opposite, good for adding i guess?
@@ -606,11 +606,13 @@ function AppVideo:initDraw()
 	end
 
 	-- and here's our blend solid-color option...
-	local drawOverrideCode = [[
+	local function getDrawOverrideCode(fbTex, vec3)
+		return [[
 	if (drawOverrideSolid.a > 0) {
-		fragColor.rgb = drawOverrideSolid.rgb;
+		fragColor.rgb = ]]..vec3..[[(drawOverrideSolid.rgb);
 	}
 ]]
+	end
 
 	self.videoModeInfo = {
 		-- 16bpp rgb565
@@ -620,7 +622,7 @@ function AppVideo:initDraw()
 			-- generator properties
 			name = 'RGB',
 			colorOutput = colorIndexToFrag(self.fbRGB565Tex)..'\n'
-				..drawOverrideCode,
+				..getDrawOverrideCode(self.fbRGB565Tex, 'vec3'),
 		},
 		-- 8bpp indexed
 		{
@@ -647,7 +649,7 @@ colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'..
 			-- generator properties
 			name = 'RGB332',
 			colorOutput = colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'
-..drawOverrideCode..'\n'
+..getDrawOverrideCode(self.fbIndexTex, 'uvec3')..'\n'
 ..template([[
 	/*
 	palColor is  5 5 5
@@ -880,7 +882,7 @@ layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
 uniform <?=samplerTypeForTex(self.palTex)?> palTex;
-uniform <?=fragType?> drawOverrideSolid;
+uniform vec4 drawOverrideSolid;
 
 void main() {
 ]]..info.colorOutput..[[
@@ -942,7 +944,7 @@ layout(location=0) out <?=fragType?> fragColor;
 uniform uint colorIndex;
 
 uniform <?=samplerTypeForTex(self.palTex)?> palTex;
-uniform <?=fragType?> drawOverrideSolid;
+uniform vec4 drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
 
@@ -1018,7 +1020,7 @@ uniform bool round;
 uniform uint colorIndex;
 
 uniform <?=samplerTypeForTex(self.palTex)?> palTex;
-uniform <?=fragType?> drawOverrideSolid;
+uniform vec4 drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
 
@@ -1150,7 +1152,7 @@ const vec2 spriteSheetSize = vec2(
 	<?=glslnumber(spriteSheetSize.y)?>
 );
 
-uniform <?=fragType?> drawOverrideSolid;
+uniform vec4 drawOverrideSolid;
 
 void main() {
 <? if useSamplerUInt then ?>
@@ -1295,7 +1297,7 @@ uniform <?=samplerTypeForTex(self.palTex)?> palTex;
 const uint tilemapSizeX = <?=tilemapSize.x?>;
 const uint tilemapSizeY = <?=tilemapSize.y?>;
 
-uniform <?=fragType?> drawOverrideSolid;
+uniform vec4 drawOverrideSolid;
 
 void main() {
 #if 0	// do it in float
@@ -1668,7 +1670,7 @@ function AppVideo:drawSolidRect(
 	settable(uniforms.box, x, y, w, h)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
+	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1705,7 +1707,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	vtxGPU:endUpdate()
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
+	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1729,7 +1731,7 @@ function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	settable(uniforms.pos1, x2,y2,z2)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
+	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1849,7 +1851,7 @@ function AppVideo:drawQuad(
 	settable(uniforms.box, x, y, w, h)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
+	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
@@ -1955,7 +1957,7 @@ function AppVideo:drawMap(
 	)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA)
+	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
 	self.fbTex.dirtyGPU = true
