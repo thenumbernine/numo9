@@ -5,6 +5,18 @@ distLInf=[a,b] math.max(math.abs(a.x-b.x),math.abs(a.y-b.y))
 distL1=[a,b] math.abs(a.x-b.x)+math.abs(a.y-b.y)
 round=[x,r] math.round(x*r)/r
 
+range=[a,b,c]do
+	local t = table()
+	if c then
+		for x=a,b,c do t:insert(x) end
+	elseif b then
+		for x=a,b do t:insert(x) end
+	else
+		for x=1,a do t:insert(x) end
+	end
+	return t
+end
+
 new=[cl,...]do
 	local o=setmetatable({},cl)
 	--o?:init(...)
@@ -310,7 +322,7 @@ ClientPrompt=class{
 	init=[:,options,onchoose,onselect,onclose]do
 		local divsHigh=#options
 		if divsHigh>9 then divsHigh=9 end
-		self.options=options
+		self.options=table(options)
 		self.onchoose=onchoose
 		self.onselect=onselect
 		self.onclose=onclose
@@ -351,7 +363,10 @@ ClientPrompt=class{
 	end,
 	cycle=[:,ofs]do
 		self.index+=ofs
-		self.index=math.clamp(self.index,1,#self.options)
+		self.index-=1
+		self.index%=#self.options
+		self.index+=1
+		--self.index=math.clamp(self.index,1,#self.options)
 		self:refreshContent()
 	end,
 }
@@ -467,7 +482,7 @@ GameObj=class{
 			pos=self.pos,
 			maxDist=lightRadius,
 			callback=[tile,dist]do
-				local newLight=1-dist/lightRadius
+				local newLight=1.1-dist/lightRadius
 				tile.light=math.max(tile.light or 0, newLight)
 				if tile.solid then return false end
 				if tile.objs then
@@ -606,8 +621,9 @@ BattleObj=GameObj:subclass{
 		local baseValue=value
 		for i,srcInfo in ipairs(srcInfos)do
 			local src=srcInfo.src
-			if field..src.Modify then
-				value=src[field..'Modify'](src, value, baseValue, self)
+			local f=src[field..'Modify']
+			if f then
+				value=f(src, value, baseValue, self)
 			end
 		end
 		return value
@@ -647,12 +663,15 @@ BattleObj=GameObj:subclass{
 		return false
 	end,
 	setEquip=[:,field,item]do
-		if self[field] then
-			self.items:insert(self[field])
+		local currentEquip = self[field]
+		if currentEquip  then
+			self.items:insert(currentEquip)
 			self[field]=nil
 		end
-		if item and self:canEquip(field,item) then
-			self[field]=item
+		if item then
+			if self:canEquip(field,item) then
+				self[field]=item
+			end
 		end
 		self.hp=math.min(self.hp,self:stat'hpMax')
 		self.mp=math.min(self.mp,self:stat'mpMax')
@@ -1405,7 +1424,7 @@ objTypes = table{
 
 Attribute=class{
 	init=[:,target]do
-		if self.lifeRange then self.life = math.random(self.lifeRange) end
+		if self.lifeRange then self.life = math.random(table.unpack(self.lifeRange)) end
 	end,
 	update=[:,target]do
 		if self.life then
@@ -2812,18 +2831,17 @@ drawTextBlock=[msgs, x, y, floatRight]do
 	end
 
 	local rectx = x
-	if floatRight then rectx -= maxWidth + 20 end
+	if floatRight then rectx -= maxWidth end
 
 	blend(3)
-	rect(rectx, y, maxWidth + 20, fontSize * #msgs + 10, 0xfe)
+	rect(rectx, y, maxWidth, fontSize * #msgs, 0xfe)
 	blend(-1)
 
-	y += fontSize
 	for j,msg in ipairs(msgs) do
 		local rowx = x
 		if floatRight then
 			local width = text(msg, -100, -100)
-			rowx -= width + 10
+			rowx -= width
 		end
 		drawOutlineText{
 			text=msg,
@@ -2831,10 +2849,11 @@ drawTextBlock=[msgs, x, y, floatRight]do
 			x=rowx,
 			y=y,
 		}
-		 y += fontSize
+		y += fontSize
 	end
 end
 
+showMenu=true
 draw=[]do
 	if not player then return end
 
@@ -2925,44 +2944,46 @@ draw=[]do
 		blend(-1)
 	end
 
-	local statFields = {'hpMax','mpMax','warmth','physAttack','physHitChance','physEvade','magicAttack','magicHitChance','magicEvade','attackOffsets'}
-	local stats = {}
-	for i,field in ipairs(statFields) do
-		stats[field] = player:stat(field)
-		if field == 'attackOffsets' then stats[field] = #stats[field] end
-	end
-	if possibleEquipField then
-		local altStats = {}
-		local oldEquip = player[possibleEquipField]
-		player[possibleEquipField] = possibleEquipItem
+	if showMenu then
+		local statFields = {'hpMax','mpMax','warmth','physAttack','physHitChance','physEvade','magicAttack','magicHitChance','magicEvade','attackOffsets'}
+		local stats = {}
 		for i,field in ipairs(statFields) do
-			local altStat = player:stat(field)
-			if field == 'attackOffsets' then altStat = #altStat end
-			local diff = altStat - stats[field]
-			if diff > 0 then
-				stats[field] = '(+' .. diff .. ')'
-			elseif diff < 0 then
-				stats[field] = '(' .. diff .. ')'
-			end
+			stats[field] = player:stat(field)
+			if field == 'attackOffsets' then stats[field] = #stats[field] end
 		end
-		player[possibleEquipField] = oldEquip
-	end
+		if possibleEquipField then
+			local altStats = {}
+			local oldEquip = player[possibleEquipField]
+			player[possibleEquipField] = possibleEquipItem
+			for i,field in ipairs(statFields) do
+				local altStat = player:stat(field)
+				if field == 'attackOffsets' then altStat = #altStat end
+				local diff = altStat - stats[field]
+				if diff > 0 then
+					stats[field] = '(+' .. diff .. ')'
+				elseif diff < 0 then
+					stats[field] = '(' .. diff .. ')'
+				end
+			end
+			player[possibleEquipField] = oldEquip
+		end
 
-	drawTextBlock({
-		'HP:' .. player.hp..'/'..stats.hpMax,
-		'MP:' .. player.mp..'/'..stats.mpMax,
-		'Cal.:' .. player.food,
-		'Temp:' .. round(player.temp, 10),
-		'Warmth:' .. stats.warmth,
-		'Gold:' .. player.gold,
-		'PA:' .. stats.physAttack,
-		'P.Hit:' .. stats.physHitChance,
-		'P.Evd:' .. stats.physEvade,
-		'P.Area:' .. stats.attackOffsets,
-		'MA:' .. stats.magicAttack,
-		'M.Hit:' .. stats.magicHitChance,
-		'M.Evd:' .. stats.magicEvade
-	}, screenSize.x, 0, true)
+		drawTextBlock({
+			'HP:' .. player.hp..'/'..stats.hpMax,
+			'MP:' .. player.mp..'/'..stats.mpMax,
+			'Cal.:' .. player.food,
+			'Temp:' .. round(player.temp, 10),
+			'Warmth:' .. stats.warmth,
+			'Gold:' .. player.gold,
+			'PA:' .. stats.physAttack,
+			'P.Hit:' .. stats.physHitChance,
+			'P.Evd:' .. stats.physEvade,
+			'P.Area:' .. stats.attackOffsets,
+			'MA:' .. stats.magicAttack,
+			'M.Hit:' .. stats.magicHitChance,
+			'M.Evd:' .. stats.magicEvade
+		}, screenSize.x, 0, true)
+	end
 
 	if #player.attributes > 0 then
 		drawTextBlock(player.attributes:mapi([attribute] attribute.name),
@@ -2980,7 +3001,7 @@ draw=[]do
 	for i,prompt in ipairs(clientPromptStack) do
 		drawTextBlock(table.mapi(prompt.options, [option,i]
 			((prompt.index == i and '>' or ' ')..option)
-		), i<<2, i<<2)
+		), (i-1)<<2, ((i-1)<<2) + 8)
 	end
 end
 
@@ -3165,21 +3186,25 @@ doEquipScreen=[]do
 		player.equipFields,
 		[:,cmd,index]do
 			local equipField = player.equipFields[index]
-			local equippableItems = player.items:filter([item] player:canEquip(equipField, item))
-			local nothing = {name='Nothing'}
-			equippableItems:insert(1, nothing)
+			local equippableItemIndexes = range(#player.items):filter([itemIndex]
+				player:canEquip(equipField, player.items[itemIndex])
+			)
+			equippableItemIndexes:insert(1, 0)
 			ClientPrompt(
-				equippableItems:mapi([item] item.name),
+				equippableItemIndexes:mapi([itemIndex] 
+					itemIndex==0 and 'Nothing' or player.items[itemIndex].name
+				),
 				[:,itemName,index]do
 					self:close()
-					local item = index>1 and equippableItems[index] or nil
-					if index>1 then player.items:removeObject(item) end
-					player:setEquip(equipField, item)
+					local itemIndex = equippableItemIndexes[index]
+					local item = player.items[itemIndex]
+					if item then player.items:remove(itemIndex) end
+					player:setEquip(equipField,item)
 					refreshEquipPrompt()
 				end,
 				[:,cmd,index]do
 					possibleEquipField = equipField
-					possibleEquipItem = index>1 and equippableItems[index] or nil
+					possibleEquipItem = player.items[equippableItemIndexes[index]]
 				end,
 				[:]do
 					possibleEquipField = nil
@@ -3302,6 +3327,9 @@ update=[]do
 		handleCommand'right'
 	elseif btnp('b', 0, 20, 5) then
 		handleCommand'ok'
+	elseif btnp'x' then
+		showMenu=not showMenu
+		draw()
 	elseif btnp('y', 0, 20, 5) then
 		handleCommand'cancel'
 	end
