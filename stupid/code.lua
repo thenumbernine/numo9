@@ -582,7 +582,9 @@ BattleObj=GameObj:subclass{
 		self.mp=self:stat'mpMax'
 	end,
 	stat=[:,field]do
+trace('stat', field)
 		local value=self[field]
+trace(' base', value)
 		local srcInfos=table():append(
 			self.equipFields:filter([equipField]self.equipField)
 				:mapi([equipField]{equip=equipField, src=self[equipField]}),
@@ -600,7 +602,7 @@ BattleObj=GameObj:subclass{
 				->self.attributes:mapi
 		)->srcInfos:append
 		--]]
-		for i,srcInfo in ipairs(srcInfos) do
+		for _,srcInfo in ipairs(srcInfos) do
 			local src=srcInfo.src
 			if src.field~=nil then
 				local srcvalue=src[field]
@@ -615,17 +617,20 @@ BattleObj=GameObj:subclass{
 				else	--strings? functions? booleans? override...
 					value=srcvalue
 				end
+trace(' modified', value)
 			end
 		end
 		--and now that we've accum'd (+) all our stats
 		local baseValue=value
-		for i,srcInfo in ipairs(srcInfos)do
+		for _,srcInfo in ipairs(srcInfos)do
 			local src=srcInfo.src
 			local f=src[field..'Modify']
 			if f then
 				value=f(src, value, baseValue, self)
+trace(' modified func', value)
 			end
 		end
+trace(' return', value)
 		return value
 	end,
 	getLightRadius=[:]self:stat'lightRadius',
@@ -640,7 +645,7 @@ BattleObj=GameObj:subclass{
 		end
 	end,
 	setAttributes=[:,attrNames]do
-		for i,attrName in ipairs(attrNames)do
+		for _,attrName in ipairs(attrNames)do
 			self:setAttribute(attrName)
 		end
 	end,
@@ -1175,8 +1180,10 @@ MerchantObj=TownNPCObj:subclass{
 								if HelmItem:isa(item) then possibleEquipField = 'head' end
 								if RelicItem:isa(item) then possibleEquipField = 'relic2' end
 							end
+trace('cmd', cmd, 'index', index, 'possibleEquipItem', possibleEquipItem, 'possibleEquipField', possibleEquipField)
 						end, [:]do
 							possibleEquipField = nil
+trace('clearing possibleEquipField')
 						end)
 					end
 				elseif cmd == 'Sell' then
@@ -1814,7 +1821,7 @@ EquipItem=Item:subclass{
 			if modifier.area ~= nil then area += modifier.area end
 			if modifier.fieldRanges then
 				local modifierRanges={}
-				for i,field in ipairs(self.modifierFields) do
+				for _,field in ipairs(self.modifierFields) do
 					modifierRanges[field]=modifier.fieldRanges[field]
 				end
 				self:applyRanges(modifierRanges)
@@ -2056,7 +2063,7 @@ Map=class{
 		local currentset = table{startInfo}
 		while #currentset > 0 do
 			local nextset = table()
-			for i,currentInfo in ipairs(currentset) do
+			for _,currentInfo in ipairs(currentset) do
 				local nextDist = currentInfo.dist + 1
 				if nextDist <= args.maxDist then
 					for j,dir in ipairs(dirs) do
@@ -2098,7 +2105,7 @@ Map=class{
 			if any are not in all tiles then add it to the next set and to the all tiles
 			--]]
 			local nextset = table()
-			for i,currentmove in ipairs(currentset) do
+			for _,currentmove in ipairs(currentset) do
 				for dirIndex,dir in ipairs(dirs) do
 					local nextpos = currentmove.pos + dir.offset
 					if self:wrapPos(nextpos) then
@@ -2152,7 +2159,7 @@ pickFreeRandomFixedPos=[args]do
 		end
 		if good then
 			local found = false
-			for i,obj in ipairs(map.fixedObjs) do
+			for _,obj in ipairs(map.fixedObjs) do
 				if obj.pos == pos then
 					found = true
 					break
@@ -2168,7 +2175,7 @@ pickFreeRandomFixedPos=[args]do
 end
 
 findFixedObj=[map, callback]do
-	for i,fixedObj in ipairs(map.fixedObjs) do
+	for _,fixedObj in ipairs(map.fixedObjs) do
 		if callback(fixedObj) then return fixedObj end
 	end
 end
@@ -2330,7 +2337,7 @@ genTown=[args]do
 	end
 
 	if args.stores then
-		for i,storeInfo in ipairs(args.stores) do
+		for _,storeInfo in ipairs(args.stores) do
 			local storeGuy = {
 				type=MerchantObj,
 				pos=findNPCPos(),
@@ -2355,7 +2362,7 @@ genTown=[args]do
 		end
 	end
 
-	for i,fixedObj in ipairs(map.fixedObjs) do
+	for _,fixedObj in ipairs(map.fixedObjs) do
 		if fixedObj.type == MerchantObj then
 			for x=math.min(fixedObj.pos.x, math.floor(map.size.x/2)),math.max(fixedObj.pos.x, math.floor(map.size.x/2)) do
 				for y=fixedObj.pos.y-pathwidth,fixedObj.pos.y+pathwidth do
@@ -2448,7 +2455,6 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 		local dead = (room.bbox.min.x > room.bbox.max.x) or (room.bbox.min.y > room.bbox.max.y)
 		if dead then
 			rooms:remove(i)
-			i-=1
 		else
 			for y=room.bbox.min.y,room.bbox.max.y do
 				for x=room.bbox.min.x,room.bbox.max.x do
@@ -2471,7 +2477,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	--see what rooms touch other rooms
 	--trace("finding neighbors")
 	local pos = vec2()
-	for i,room in ipairs(rooms) do
+	for _,room in ipairs(rooms) do
 		room.neighbors = table()
 		for dim,dimfield in ipairs(dimfields) do
 			local dimnextfield = dimfields[dim%2+1]
@@ -2584,7 +2590,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	end
 
 	--add treasure - after stairs so they get precedence
-	for i,room in ipairs(usedRooms) do
+	for _,room in ipairs(usedRooms) do
 		if room ~= startRoom
 		and room ~= lastRoom
 		and math.random() <= .5
@@ -2790,7 +2796,7 @@ initMaps=[]do
 	if not path then
 		trace("from",townFixedObj.pos,"to",dungeonFixedObj.pos)
 	else
-		for i,pos in ipairs(path) do
+		for _,pos in ipairs(path) do
 			world:setTileType(pos.x, pos.y, tileTypes.Bricks)
 		end
 	end
@@ -2945,20 +2951,23 @@ draw=[]do
 	end
 
 	if showMenu then
+trace()
 		local statFields = {'hpMax','mpMax','warmth','physAttack','physHitChance','physEvade','magicAttack','magicHitChance','magicEvade','attackOffsets'}
 		local stats = {}
-		for i,field in ipairs(statFields) do
+		for _,field in ipairs(statFields) do
 			stats[field] = player:stat(field)
 			if field == 'attackOffsets' then stats[field] = #stats[field] end
+trace('orig field', field, 'stat', stats[field])
 		end
 		if possibleEquipField then
-			local altStats = {}
+trace('considering possibleEquipField', possibleEquipField, 'possibleEquipItem', possibleEquipItem)
 			local oldEquip = player[possibleEquipField]
 			player[possibleEquipField] = possibleEquipItem
-			for i,field in ipairs(statFields) do
+			for _,field in ipairs(statFields) do
 				local altStat = player:stat(field)
 				if field == 'attackOffsets' then altStat = #altStat end
 				local diff = altStat - stats[field]
+trace('field', field, 'diff', diff)
 				if diff > 0 then
 					stats[field] = '(+' .. diff .. ')'
 				elseif diff < 0 then
@@ -3027,7 +3036,7 @@ end
 
 updateGame=[]do
 	if map.spawn then
-		for i,spawnInfo in ipairs(map.spawn) do
+		for _,spawnInfo in ipairs(map.spawn) do
 			if math.random() < spawnInfo.rate and #map.objs < 2000 then
 				local spawnClass = spawnInfo.type
 				local classifier = spawnClass.movesInWater
@@ -3112,7 +3121,7 @@ setMap=[args]do
 
 	--spawn any fixed objs
 	if map.fixedObjs and firstSpawn then
-		for i,fixedObj in ipairs(map.fixedObjs) do
+		for _,fixedObj in ipairs(map.fixedObjs) do
 			 fixedObj:type()
 		end
 	end
@@ -3191,7 +3200,7 @@ doEquipScreen=[]do
 			)
 			equippableItemIndexes:insert(1, 0)
 			ClientPrompt(
-				equippableItemIndexes:mapi([itemIndex] 
+				equippableItemIndexes:mapi([itemIndex]
 					itemIndex==0 and 'Nothing' or player.items[itemIndex].name
 				),
 				[:,itemName,index]do
@@ -3205,9 +3214,11 @@ doEquipScreen=[]do
 				[:,cmd,index]do
 					possibleEquipField = equipField
 					possibleEquipItem = player.items[equippableItemIndexes[index]]
+trace('cmd', cmd, 'index', index, 'possibleEquipItem', possibleEquipItem, 'possibleEquipField', possibleEquipField)
 				end,
 				[:]do
 					possibleEquipField = nil
+trace('clearing possibleEquipField')
 				end
 			)
 		end
