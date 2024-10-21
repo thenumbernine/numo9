@@ -1,3 +1,5 @@
+math.randomseed(tstamp())
+blendColorMem=ffi.offsetof('RAM','blendColor')
 randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
 distLInf=[a,b] math.max(math.abs(a.x-b.x),math.abs(a.y-b.y))
 distL1=[a,b] math.abs(a.x-b.x)+math.abs(a.y-b.y)
@@ -331,7 +333,7 @@ ClientPrompt=class{
 	close=[:]do
 		local promptIndex=clientPromptStack:find(self)
 		if promptIndex then
-			if promptIndex == #clientPromptStack 
+			if promptIndex == #clientPromptStack
 			and promptIndex > 1
 			then
 				clientPromptStack[promptIndex-1]:enable()
@@ -427,7 +429,7 @@ GameObj=class{
 		if tile then
 			local blocked=false
 			if tile.objs then
-				for i,obj in ipairs(tile.objs) do
+				for _,obj in ipairs(tile.objs) do
 					if obj~=self
 					and obj.solid
 					then
@@ -469,7 +471,7 @@ GameObj=class{
 				tile.light=math.max(tile.light or 0, newLight)
 				if tile.solid then return false end
 				if tile.objs then
-					for i,obj in ipairs(tile.objs) do
+					for _,obj in ipairs(tile.objs) do
 						if obj.blocksLight then return false end
 					end
 				end
@@ -550,12 +552,14 @@ BattleObj=GameObj:subclass{
 		BattleObj.super.init(self,args)
 		local classItems=self.items
 		self.items=table()
-		for _,item in ipairs(classItems or {}) do
-			if type(item)=='string' then item=itemClasses[item] end
-			item=item.class and item or item()
-			self.items:insert(item)
+		if classItems then
+			for _,item in ipairs(classItems) do
+				if type(item)=='string' then item=itemClasses[item] end
+				item=item.class and item or item()
+				self.items:insert(item)
+			end
 		end
-		self.items:append(args.items or{})
+		self.items:append(args.items)
 
 		self.spells=table()
 		self.attributes=table()
@@ -671,7 +675,7 @@ BattleObj=GameObj:subclass{
 		if self.tile then
 			local tile=self.tile
 			if tile.objs then
-				for i,obj in ipairs(tile.objs) do
+				for _,obj in ipairs(tile.objs) do
 					if obj~=self then
 						if obj.onTouch then obj:onTouch(self) end
 					end
@@ -685,7 +689,7 @@ BattleObj=GameObj:subclass{
 		local ny=math.floor(self.pos.y+dy+map.size.y)%map.size.y
 		local tile=map:getTile(nx,ny)
 		if tile and tile.objs then
-			for i,obj in ipairs(tile.objs)do
+			for _,obj in ipairs(tile.objs)do
 				if obj.onInteract then
 					obj:onInteract(self)
 					return
@@ -700,7 +704,7 @@ BattleObj=GameObj:subclass{
 		local attackOffsets=self:stat'attackOffsets'
 		local inflictAttributes=self:stat'inflictAttributes'
 		local pos=vec2()
-		for j,attackOffset in ipairs(attackOffsets) do
+		for _,attackOffset in ipairs(attackOffsets) do
 			--rotate the offset by the dir (cplxmul)
 			pos.x=dx*attackOffset.x-dy*attackOffset.y+self.pos.x
 			pos.y=dx*attackOffset.y+dy*attackOffset.x+self.pos.y
@@ -716,15 +720,19 @@ BattleObj=GameObj:subclass{
 					trace("unknown damage type: "..damageType)
 				end
 				local tile=map.tiles[pos.y][pos.x]
-				if tile and tile.objs then
-					for i,obj in ipairs(tile.objs)do
+				if tile
+				and tile.objs
+				then
+					for _,obj in ipairs(tile.objs)do
 						if BattleObj:isa(obj)then
 							if self:physHitRoll(obj)then
 								local dmg=-physAttack
 								obj:adjustPoints('hp',dmg,self)
-								for k,attr in ipairs(inflictAttributes)do
-									if math.random()<self.inflictChance then
-										obj:setAttribute(attr)
+								if inflictAttributes then
+									for _,attr in ipairs(inflictAttributes)do
+										if math.random()<self.inflictChance then
+											obj:setAttribute(attr)
+										end
 									end
 								end
 							else
@@ -740,7 +748,7 @@ BattleObj=GameObj:subclass{
 	magicHitRoll=[:,defender] math.random(100)<=self:stat'magicHitChance'-defender:stat'magicEvade',
 	adjustPoints=[:,field,amount,inflictor]do
 		local color
-		if amount>0 then color=0xf6 end	--TODO rgb(0,127,255)
+		if amount>0 then color=(0x1f<<10)|(0xf<<5) end	--rgb(0,127,255)
 		local msg=(amount>=0 and'+'or'')..amount..' '..field
 		PopupText{msg=msg, pos=self.pos, color=color}
 		self[field]+=amount
@@ -834,8 +842,7 @@ HeroObj=BattleObj:subclass{
 		self.food=math.ceil(self.foodMax/2)
 		self.temp=self.nominalTemp
 		self.gold=math.floor(self.gold/2)
-		for i=0,#maps-1 do
-			local map=maps[i]
+		for _,map in ipairs(maps) do
 			map.lastPlayerStart=nil
 		end
 	end,
@@ -1012,7 +1019,7 @@ TownNPCObj=AIObj:subclass{
 	end,
 	adjustPoints=[:,...]do
 		if select('#',...)>0 and select(1,...)==player then
-			for i,obj in ipairs(map.objs) do
+			for _,obj in ipairs(map.objs) do
 				if TownNPCObj:isa(obj) then
 					if GuardObj:isa(obj) then
 						obj.hostile=true
@@ -1067,8 +1074,10 @@ HelperObj=AIObj:subclass{
 			for y=self.pos.y-searchRadius,self.pos.y+searchRadius do
 				for x=self.pos.x-searchRadius,self.pos.x+searchRadius do
 					local tile=map:getTile(x,y)
-					if tile and tile.objs then
-						for i,obj in ipairs(tile.objs) do
+					if tile
+					and tile.objs
+					then
+						for _,obj in ipairs(tile.objs) do
 							if MonsterObj:isa(obj) and obj.hostile then
 								self.target=obj
 							end
@@ -1121,13 +1130,13 @@ MerchantObj=TownNPCObj:subclass{
 		MerchantObj.super.onInteract(self,player)
 		local merchant=self
 		if self.store then
-			local buySellPrompt = ClientPrompt({'Buy','Sell'}, [:,cmd,index]do
+			ClientPrompt({'Buy','Sell'}, [:,cmd,index]do
 				if cmd == 'Buy' then
 					local buyOptions = merchant.items:mapi([item,index] item.name.." ("..item.cost.." GP)")
 					if #buyOptions == 0 then
 						clientMessage"I have nothing to sell you!"
 					else
-						local buyPrompt = ClientPrompt(buyOptions, [:,cmd, index]do
+						ClientPrompt(buyOptions, [:,cmd, index]do
 							local item = merchant.items[index]
 							--TODO 'how many?'
 							if player.gold >= item.cost then
@@ -1159,13 +1168,13 @@ MerchantObj=TownNPCObj:subclass{
 					if #sellOptions == 0 then
 						clientMessage"You have nothing to sell me!"
 					else
-						local sellPrompt = ClientPrompt(sellOptions, [:,cmd,index]do
+						ClientPrompt(sellOptions, [:,cmd,index]do
 							local item = player.items[index]
-							--TODO howmany?
+							--TODO how many?
 							player.gold += math.ceil(item.cost * sellScale)
 							player.items:remove(index)
 							clientMessage"Thanks!"
-							sellPrompt:close()	--TODO repopulate
+							self:close()	--TODO repopulate
 						end)
 					end
 				end
@@ -1254,26 +1263,32 @@ drawOutlineText=[args]do
 end
 
 PopupText=PopupObj:subclass{
-	color=red,
+	color=0x1f,	-- rgb(255,0,0)
 	init=[:,args]do
 		PopupText.super.init(self,args)
 		self.msg = args.msg
 		self.color = args.color
 	end,
 	drawLocal=[:,rx,ry]do
+		-- draw a circle at this location ... avg blended ... what color?
+		blend(5)	-- avg w/solid color
+		pokew(blendColorMem, self.color)
+		elli(rx, ry, tileSize.x, tileSize.y)
+
 		local fontSize = math.ceil(tileSize.x/2)
 		local msgs = string.split(self.msg,' ')
 		local y = ry + fontSize - 3
-		for i,msg in ipairs(msgs) do
+		for _,msg in ipairs(msgs) do
 			local length = text(msg, -100, -100, -1, -1)
 			drawOutlineText{
-				text=msgs[i],
+				text=msg,
 				outlineSize=math.ceil(fontSize/16),
 				x=rx+tileSize.x/2 - length/2,
 				y=y,
 			}
 			y += fontSize
 		end
+		blend(-1)
 	end,
 }
 
@@ -1483,8 +1498,10 @@ Spell=class{
 					local tileDist = distL1(player.pos, tilePos)
 					if tileDist <= self.range then
 						local tile = map:getTile(x,y)
-						if tile and tile.objs then
-							for i,obj in ipairs(tile.objs) do
+						if tile
+						and tile.objs
+						then
+							for _,obj in ipairs(tile.objs) do
 								if BattleObj:isa(obj) and obj.hostile then
 									if tileDist < bestDist then
 										bestDist = tileDist
@@ -1498,8 +1515,10 @@ Spell=class{
 			end
 		end
 
-		for k,v in pairs(args) do
-			castingInfo[k] = v
+		if args then
+			for k,v in pairs(args) do
+				castingInfo[k] = v
+			end
 		end
 		clientMessage("choose target for spell "..castingInfo.spell.name)
 		keyCallback	= spellTargetKeyCallback
@@ -1538,7 +1557,7 @@ Spell=class{
 			 PopupSpellIcon{pos=tile.pos, spriteIndex=self.spriteIndex}
 		end
 		if tile.objs then
-			for i,obj in ipairs(tile.objs) do
+			for _,obj in ipairs(tile.objs) do
 				if BattleObj:isa(obj) then
 					self:useOnTarget(caster, obj)
 				end
@@ -1549,7 +1568,7 @@ Spell=class{
 			local blocking = false
 			if self.spawn.solid then
 				if tile.objs then
-					for i,obj in ipairs(tile.objs) do
+					for _,obj in ipairs(tile.objs) do
 						if obj.solid then
 							blocking = true
 							break
@@ -1561,8 +1580,12 @@ Spell=class{
 				--spawn
 				local spawnObj = self.spawn{pos= vec2(tile.pos), caster=caster}
 				--do an initial touch test
-				if spawnObj.onTouch and spawnObj.tile and spawnObj.objs.tile then
-					for i,obj in ipairs(spawnObj.tile.objs) do
+				if spawnObj.onTouch
+				and spawnObj.tile
+				and spawnObj.objs.tile
+				and spawnObj.objs.tile.objs
+				then
+					for _,obj in ipairs(spawnObj.tile.objs) do
 						spawnObj:onTouch(obj)
 					end
 				end
@@ -1942,15 +1965,14 @@ Map=class{
 	--]]
 	init=[:,args]do
 		self.name = assert.index(args, 'name')
-
-		if args.exitMap then self.exitMap = args.exitMap end
-		if args.temp then self.temp = args.temp end
-		if args.wrap then self.wrap = args.wrap end
-		if args.spawn then self.spawn = args.spawn end
-		if args.resetObjs then self.resetObjs=args.resetObjs end
+		self.exitMap = args.exitMap
+		self.temp = args.temp
+		self.wrap = args.wrap
+		self.spawn = args.spawn
+		self.resetObjs=args.resetObjs
 		self.fixedObjs=table(args.fixedObjs)
 		if args.playerStart then self.playerStart = vec2(args.playerStart) end
-		if args.fogColor then self.fogColor = args.fogColor end
+		self.fogColor = args.fogColor
 
 		self.size = vec2(assert.index(args,'size'))
 		self.bbox = box2(vec2(), self.size-1)
@@ -2792,16 +2814,16 @@ drawTextBlock=[msgs, x, y, floatRight]do
 	local rectx = x
 	if floatRight then rectx -= maxWidth + 20 end
 
-	blend(2)
+	blend(3)
 	rect(rectx, y, maxWidth + 20, fontSize * #msgs + 10, 0xfe)
 	blend(-1)
 
 	y += fontSize
 	for j,msg in ipairs(msgs) do
 		local rowx = x
-		if floatRight then 
+		if floatRight then
 			local width = text(msg, -100, -100)
-			rowx -= width + 10 
+			rowx -= width + 10
 		end
 		drawOutlineText{
 			text=msg,
@@ -2857,7 +2879,7 @@ draw=[]do
 	end
 
 	if map.fogColor then
-		blend(2)	-- TODO blend w/solid color based on light
+		blend(6)	-- set to subtract
 		local ry=0
 		for y=view.bbox.min.y,view.bbox.max.y do
 			local rx=0
@@ -2867,7 +2889,9 @@ draw=[]do
 				if tile.light then
 					light = tile.light
 				end
-				rect(rx * tileSize.x, ry * tileSize.y, tileSize.x, tileSize.y)
+				local darkness = math.floor((1 - math.clamp(light,0,1)) * 31)
+				pokew(blendColorMem, darkness|(darkness<<5)|(darkness<<10))
+				rect(rx * tileSize.x, ry * tileSize.y, tileSize.x, tileSize.y, 0xf0)
 				rx+=1
 			end
 			ry+=1
@@ -2876,13 +2900,13 @@ draw=[]do
 	end
 
 	if castingInfo then
-		blend(1)
+		blend(5)
 		for y=player.pos.y-castingInfo.spell.range,player.pos.y+castingInfo.spell.range do
 			for x=player.pos.x-castingInfo.spell.range,player.pos.x+castingInfo.spell.range do
 				if distL1(player.pos, vec2(x,y))<=castingInfo.spell.range then
 					local rx = (x - view.bbox.min.x) * tileSize.x
 					local ry = (y - view.bbox.min.y) * tileSize.y
-					-- TOOD ctx.fillStyle = 'rgb(0,0,255)'
+					pokew(blendColorMem, (0x1f<<10))	-- blend avg with blue ...
 					rect(rx, ry, tileSize.x, tileSize.y)
 				end
 			end
@@ -2893,7 +2917,7 @@ draw=[]do
 				if distL1(castingInfo.target, vec2(x,y)) <= castingInfo.spell.area then
 					local rx = (x - view.bbox.min.x) * tileSize.x
 					local ry = (y - view.bbox.min.y) * tileSize.y
-					--ctx.fillStyle = 'rgb(255,0,0)'
+					pokew(blendColorMem, 0x1f)	-- blend avg with red ...
 					rect(rx, ry, tileSize.x, tileSize.y)
 				end
 			end
@@ -3044,7 +3068,7 @@ setMap=[args]do
 			player:clearTile()
 			map.objs:removeObject(player)
 			if not args.dontSavePos then
-				map.lastPlayerStart = vec2(player.pos)
+				map.lastPlayerStart=vec2(player.pos)
 			end
 		end
 
@@ -3141,22 +3165,21 @@ doEquipScreen=[]do
 		player.equipFields,
 		[:,cmd,index]do
 			local equipField = player.equipFields[index]
-			local equippableItems = player.items:filter([item]
-				player:canEquip(equipField, item)
-			)
-			equippableItems:insert(1, nil)
-			local equipFieldPrompt = ClientPrompt(
-				equippableItems:mapi([item] item.name or 'Nothing'),
+			local equippableItems = player.items:filter([item] player:canEquip(equipField, item))
+			local nothing = {name='Nothing'}
+			equippableItems:insert(1, nothing)
+			ClientPrompt(
+				equippableItems:mapi([item] item.name),
 				[:,itemName,index]do
-					equipFieldPrompt:close()
-					local item = equippableItems[index]
-					if item then player.items:removeObject(item) end
+					self:close()
+					local item = index>1 and equippableItems[index] or nil
+					if index>1 then player.items:removeObject(item) end
 					player:setEquip(equipField, item)
 					refreshEquipPrompt()
 				end,
 				[:,cmd,index]do
 					possibleEquipField = equipField
-					possibleEquipItem = equippableItems[index]
+					possibleEquipItem = index>1 and equippableItems[index] or nil
 				end,
 				[:]do
 					possibleEquipField = nil
@@ -3168,14 +3191,12 @@ doEquipScreen=[]do
 end
 
 doSpellScreen=[]do
-	local spells = player.spells:filter([spell]
-		spell:canPayFor(player)	--TODO grey out uncastable spells
-	)
+	local spells = player.spells:filter([spell] spell:canPayFor(player))	--TODO grey out uncastable spells
 	if #spells == 0 then
 		clientMessage("You don't have any spells that you can use right now")
 		return
 	end
-	local spellPrompt = ClientPrompt(
+	ClientPrompt(
 		spells:mapi([spell] spell.name..' ('..spell.cost..')'),
 		[:,cmd,index]do
 			closeAllPrompts()
@@ -3185,20 +3206,18 @@ doSpellScreen=[]do
 end
 
 doItemScreen=[]do
-	local items = player.items:filter([item]
-		item.use	--TODO grey out unusable items
-	)
+	local items = player.items:filter([item] item.use)	--TODO grey out unusable items
 	if #items == 0 then
 		clientMessage("You don't have any items that you can use right now")
 		return
 	end
-	local itemPrompt = ClientPrompt(
-		items:mapi([item,index]item.name),
+	ClientPrompt(
+		items:mapi([item,index] item.name),
 		[:,cmd,index]do
-			itemPrompt:close()
+			self:close()
 			local item = items[index]
 			local result = item:use(player)
-			if result ~= 'keep' then
+			if result~='keep' then
 				player.items:removeObject(item)
 			end
 		end
@@ -3206,8 +3225,7 @@ doItemScreen=[]do
 end
 
 doMenu=[]do
-	local menuPrompt 
-	menuPrompt = ClientPrompt({
+	ClientPrompt({
 		'Pass',
 		'Attack',
 		'Spell',
@@ -3216,8 +3234,9 @@ doMenu=[]do
 		'Equip',
 		'Cheat',
 	}, [:,cmd,index]do
+		-- TODO Pass doesn't pass ...
 		if cmd=='Attack' then
-			menuPrompt:close()
+			self:close()
 			keyCallback = attackKeyCallback
 			clientMessage"Attack Whom?"
 		elseif cmd=='Spell' then
@@ -3225,7 +3244,7 @@ doMenu=[]do
 		elseif cmd=='Item' then
 			doItemScreen()
 		elseif cmd=='Talk' then
-			menuPrompt:close()
+			self:close()
 			keyCallback = interactKeyCallback
 			clientMessage"Talk to Whom?"
 		elseif cmd=='Equip' then
@@ -3273,17 +3292,17 @@ cheat=[]do
 end
 
 update=[]do
-	if btnp'up' then
+	if btnp('up', 0, 20, 5) then
 		handleCommand'up'
-	elseif btnp'down' then
+	elseif btnp('down', 0, 20, 5) then
 		handleCommand'down'
-	elseif btnp'left' then
+	elseif btnp('left', 0, 20, 5) then
 		handleCommand'left'
-	elseif btnp'right' then
+	elseif btnp('right', 0, 20, 5) then
 		handleCommand'right'
-	elseif btnp'b' then
+	elseif btnp('b', 0, 20, 5) then
 		handleCommand'ok'
-	elseif btnp'y' then
+	elseif btnp('y', 0, 20, 5) then
 		handleCommand'cancel'
 	end
 end
