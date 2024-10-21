@@ -265,11 +265,11 @@ local storyInfo = table()
 
 -- client prompt stuff
 
-local popupMessage=table()
+popupMessage=table()
 
 clientMessage=[str] popupMessage:insert(1, str)
 
-local clientPromptStack=table()
+clientPromptStack=table()
 
 closeAllPrompts=[]do
 	while #clientPromptStack>0 do
@@ -354,7 +354,7 @@ ClientPrompt=class{
 	end,
 }
 
-local dirs=table{
+dirs=table{
 	{name='e', offset=vec2(1,0)},
 	{name='s', offset=vec2(0,1)},
 	{name='w', offset=vec2(-1,0)},
@@ -370,7 +370,7 @@ view={
 
 GameObj=class{
 	init=[:,args]do
-		self.pos=vec2();
+		self.pos=vec2()
 		if args.pos then
 			self.pos.x=math.floor(args.pos.x)
 			self.pos.y=math.floor(args.pos.y)
@@ -382,7 +382,7 @@ GameObj=class{
 	end,
 	clearTile=[:]do
 		if self.tile then
-			local tile=self.tile;
+			local tile=self.tile
 			if tile.objs then
 				local objIndex=tile.objs:find(self)
 				tile.objs:remove(objIndex)
@@ -414,8 +414,8 @@ GameObj=class{
 			end
 		end
 		if map.wrap then
-			nx=(nx + map.size.x) % map.size.x;
-			ny=(ny + map.size.y) % map.size.y;
+			nx=(nx + map.size.x) % map.size.x
+			ny=(ny + map.size.y) % map.size.y
 		else
 			if nx < 0 then nx=0 end
 			if ny < 0 then ny=0 end
@@ -518,7 +518,7 @@ GameObj=class{
 ChestObj=class()
 
 DeadObj=GameObj:subclass{
-	spriteIndex=12,	--'objs/dead.png';
+	spriteIndex=12,	--'objs/dead.png'
 	solid=false,
 	init=[:,args]do
 		DeadObj.super.init(self,args)
@@ -696,7 +696,7 @@ BattleObj=GameObj:subclass{
 	attack=[:,dx,dy]do
 		local angle=math.atan2(dy,dx)
 		local physAttack=self:stat'physAttack'
-		local baseDamageType=self;stat'damageType'
+		local baseDamageType=self:stat'damageType'
 		local attackOffsets=self:stat'attackOffsets'
 		local inflictAttributes=self:stat'inflictAttributes'
 		local pos=vec2()
@@ -713,7 +713,7 @@ BattleObj=GameObj:subclass{
 				elseif damageType=='bludgeon' then
 					PopupBludgeonAttack{pos=pos, angle=angle}
 				else
-					trace("unknown damage type: "..damageType);
+					trace("unknown damage type: "..damageType)
 				end
 				local tile=map.tiles[pos.y][pos.x]
 				if tile and tile.objs then
@@ -866,15 +866,15 @@ AIObj=BattleObj:subclass{
 			self.retreat=playerDist<=self.distToRetreat
 		end
 
-		local dx, dy;
+		local dx, dy
 		if not (self.hostile or self.retreat or self.wander) then return end
 
 		if self.retreat then
 			dx=math.sign(-deltax)
 			dy=math.sign(-deltay)
 		elseif self.hostile then
-			dx=math.sign(deltax);
-			dy=math.sign(deltay);
+			dx=math.sign(deltax)
+			dy=math.sign(deltay)
 		elseif self.wander then
 			if math.random()>.2 then return end
 			local dir=dirs:pickRandom().offset
@@ -890,7 +890,7 @@ AIObj=BattleObj:subclass{
 				dy=0
 			end
 		end
-		local result=self:move(dx, dy);
+		local result=self:move(dx, dy)
 	end,
 	performAction=[:]do
 		if self.hostile and distL1(player.pos,self.pos)<=1 then
@@ -912,7 +912,7 @@ OrcObj=MonsterObj:subclass{
 }
 
 ThiefObj=MonsterObj:subclass{
-	spriteIndex=206,--'objs/thief.png';
+	spriteIndex=206,--'objs/thief.png'
 	hpMax=2,
 	physEvade=30,
 	gold=10,
@@ -935,7 +935,7 @@ ThiefObj=MonsterObj:subclass{
 }
 
 TroggleObj=MonsterObj:subclass{
-	spriteIndex=132,--'objs/imp.png';
+	spriteIndex=132,--'objs/imp.png'
 	hpMax=4,
 	gold=4,
 	performAction=[:]do
@@ -952,7 +952,7 @@ TroggleObj=MonsterObj:subclass{
 }
 
 FighterObj=MonsterObj:subclass{
-	spriteIndex=68,--'objs/fighter.png';
+	spriteIndex=68,--'objs/fighter.png'
 	hpMax=8,
 	gold=8,
 	physAttack=3,
@@ -960,7 +960,7 @@ FighterObj=MonsterObj:subclass{
 }
 
 SnakeObj=MonsterObj:subclass{
-	spriteIndex=202,--'objs/snake.png';
+	spriteIndex=202,--'objs/snake.png'
 	hpMax=1,
 	gold=2,
 	physEvade=30,
@@ -969,7 +969,7 @@ SnakeObj=MonsterObj:subclass{
 }
 
 FishObj=MonsterObj:subclass{
-	spriteIndex=72,--'objs/fish.png';
+	spriteIndex=72,--'objs/fish.png'
 	hpMax=1,
 	items=table{'Fish Fillet','Fish Fillet','Fish Fillet'},
 	physEvade=50,
@@ -978,7 +978,7 @@ FishObj=MonsterObj:subclass{
 }
 
 DeerObj=MonsterObj:subclass{
-	spriteIndex=14,--'objs/deer.png';
+	spriteIndex=14,--'objs/deer.png'
 	hpMax=1,
 	items=table{'Venison'},
 	physEvade=50,
@@ -987,7 +987,7 @@ DeerObj=MonsterObj:subclass{
 }
 
 SeaMonsterObj=MonsterObj:subclass{
-	spriteIndex=138,--'objs/seamonster.png';
+	spriteIndex=138,--'objs/seamonster.png'
 	hpMax=20,
 	gold=100,
 	physAttack=5,
@@ -996,7 +996,7 @@ SeaMonsterObj=MonsterObj:subclass{
 }
 
 EnemyBoatObj=MonsterObj:subclass{
-	spriteIndex=2,--'objs/boat.png';
+	spriteIndex=2,--'objs/boat.png'
 	hpMax=10,
 	gold=50,
 	physAttack=5,
@@ -1081,7 +1081,7 @@ HelperObj=AIObj:subclass{
 }
 
 GuardObj=TownNPCObj:subclass{
-	spriteIndex=68,--'objs/fighter.png';
+	spriteIndex=68,--'objs/fighter.png'
 	msg='Stay in school!',
 	hpMax=100,
 	gold=100,
@@ -1091,7 +1091,7 @@ GuardObj=TownNPCObj:subclass{
 }
 
 MerchantObj=TownNPCObj:subclass{
-	spriteIndex=134,--'objs/merchant.png';
+	spriteIndex=134,--'objs/merchant.png'
 	hpMax=10,
 	init=[:,args]do
 		MerchantObj.super.init(self,args)
@@ -1188,19 +1188,19 @@ WarpObj=GameObj:subclass{
 }
 
 TownObj=WarpObj:subclass{
-	spriteIndex=0,--'objs/town.png';
+	spriteIndex=0,--'objs/town.png'
 }
 
 UpStairsObj=WarpObj:subclass{
-	spriteIndex=260,--'objs/upstairs.png';
+	spriteIndex=260,--'objs/upstairs.png'
 }
 
 DownStairsObj=WarpObj:subclass{
-	spriteIndex=66,--'objs/downstairs.png';
+	spriteIndex=66,--'objs/downstairs.png'
 }
 
 FireWallObj=GameObj:subclass{
-	spriteIndex=70,--'objs/firewall.png';
+	spriteIndex=70,--'objs/firewall.png'
 	lightRadius=10,
 	init=[:,args]do
 		GameObj.super.init(self,args)
@@ -1220,11 +1220,11 @@ FireWallObj=GameObj:subclass{
 }
 
 FriendlyFrogObj=HelperObj:subclass{
-	spriteIndex=74,--'objs/frog.png';
+	spriteIndex=74,--'objs/frog.png'
 }
 
 FriendlySnakeObj=HelperObj:subclass{
-	spriteIndex=202,--'objs/snake.png';
+	spriteIndex=202,--'objs/snake.png'
 	hpMax = 1,
 	physEvade = 30,
 	inflictAttributes = {'Poison'},
@@ -1287,19 +1287,19 @@ PopupSpellIcon=PopupObj:subclass{
 }
 
 PopupSlashAttack=PopupObj:subclass{
-	spriteIndex=10,--'objs/damage-slash.png';
+	spriteIndex=10,--'objs/damage-slash.png'
 }
 
 PopupPierceAttack=PopupObj:subclass{
-	spriteIndex=8,--url='objs/damage-pierce.png';
+	spriteIndex=8,--url='objs/damage-pierce.png'
 }
 
 PopupBludgeonAttack=PopupObj:subclass{
-	spriteIndex=6,--url='objs/damage-bludgeon.png';
+	spriteIndex=6,--url='objs/damage-bludgeon.png'
 }
 
 DoorObj=GameObj:subclass{
-	spriteIndex=64,--url='objs/door.png';
+	spriteIndex=64,--url='objs/door.png'
 	solid=true,
 	blocksLight=true,
 	onInteract=[:,player]do
@@ -1308,7 +1308,7 @@ DoorObj=GameObj:subclass{
 }
 
 TreasureObj=GameObj:subclass{
-	spriteIndex=256,--url='objs/treasure.png';
+	spriteIndex=256,--url='objs/treasure.png'
 	solid=true,
 	onInteract=[:,player]do
 		local itemClass = itemClasses:pickRandom()
@@ -1334,35 +1334,35 @@ SignObj=GameObj:subclass{
 }
 
 WeaponSign=SignObj:subclass{
-	spriteIndex=200,--url='objs/shop-weapon-sign.png';
+	spriteIndex=200,--url='objs/shop-weapon-sign.png'
 }
 
 ArmorSign=SignObj:subclass{
-	spriteIndex=140,--url='objs/shop-armor-sign.png';
+	spriteIndex=140,--url='objs/shop-armor-sign.png'
 }
 
 FoodSign=SignObj:subclass{
-	spriteIndex=142,--url='objs/shop-food-sign.png';
+	spriteIndex=142,--url='objs/shop-food-sign.png'
 }
 
 ItemSign=SignObj:subclass{
-	spriteIndex=194,--url='objs/shop-item-sign.png';
+	spriteIndex=194,--url='objs/shop-item-sign.png'
 }
 
 RelicSign=SignObj:subclass{
-	spriteIndex=196,--url='objs/shop-relic-sign.png';
+	spriteIndex=196,--url='objs/shop-relic-sign.png'
 }
 
 SpellSign=SignObj:subclass{
-	spriteIndex=198,--url='objs/shop-spell-sign.png';
+	spriteIndex=198,--url='objs/shop-spell-sign.png'
 }
 
 HealSign=SignObj:subclass{
-	spriteIndex=192,--url='objs/shop-heal-sign.png';
+	spriteIndex=192,--url='objs/shop-heal-sign.png'
 }
 
 --a list of all types that need graphics to be cached
-local objTypes = table{
+objTypes = table{
 	--hero
 	HeroObj,
 	--monsters
@@ -1400,7 +1400,7 @@ Attribute=class{
 	end,
 }
 
-local attributes = {
+attributes = {
 	Attribute:subclass{
 		name = "Don't Move",
 		lifeRange = {5,10},
@@ -1441,7 +1441,6 @@ castingInfo:
 	dontCost = override costing mp (for scrolls)
 	onCast = what to do upon casting it (for scrolls)
 --]]
-local castingInfo
 spellTargetKeyCallback=[key]do
 	local nx = castingInfo.target.x
 	local ny = castingInfo.target.y
@@ -1468,7 +1467,7 @@ spellTargetKeyCallback=[key]do
 end
 
 Spell=class{
-	inflictAttributes = {};
+	inflictAttributes = {},
 	inflictChance = 1/4,
 	clientUse=[:,args]do
 		--prompt the user for a target location
@@ -1587,7 +1586,7 @@ Spell=class{
 	end,
 }
 
-local spells = table{
+spells = table{
 	-- TODO get rid of these, and route the damage call from Fire Wall through spell itself some other way ...
 	{name='Fire', damage=5, range=8, area=2, cost=1,
 		spriteIndex=70,--url:'objs/firewall.png'},
@@ -1621,7 +1620,7 @@ end
 -- items
 
 
-local weaponBaseTypes = table{
+weaponBaseTypes = table{
 	{name='Derp', damageType='slash', fieldRanges={physAttack=1, physHitChance=5}},
 	{name='Staff', damageType='bludgeon', fieldRanges={physAttack=1, physHitChance=10, magicAttack=5, magicHitChance=10}},
 	{name='Dagger', damageType='slash', fieldRanges={physAttack=2, physHitChance=10}},
@@ -1635,7 +1634,7 @@ local weaponBaseTypes = table{
 	{name='Crossbow', damageType='pierce', fieldRanges={physAttack=9, physHitChance=45, range=20}},
 }
 
-local weaponModifiers = table{
+weaponModifiers = table{
 	{name="Plain ol'"},
 	{name='Short', fieldRanges={physAttack={0,5}, physHitChance={0,10}}},
 	{name='Long', fieldRanges={physAttack={3,8}, physHitChance={5,15}}},
@@ -1647,9 +1646,9 @@ local weaponModifiers = table{
 	{name='Dragon', fieldRanges={physAttack={30,40}, physHitChance={40,50}}},
 	{name='Quick', fieldRanges={physAttack={40,45}, physHitChance={90,100}}},
 }
-local weaponModifierFields = table{'physAttack','physHitChance'}
+weaponModifierFields = table{'physAttack','physHitChance'}
 
-local defenseModifiers = table{
+defenseModifiers = table{
 	{name="Cloth", fieldRanges={magicEvade=1, hpMax=1, physEvade=1}},
 	{name="Leather", fieldRanges={magicEvade=2, hpMax=2, physEvade=2}},
 	{name="Wooden", fieldRanges={magicEvade=3, hpMax=3, physEvade=3}},
@@ -1675,24 +1674,24 @@ local defenseModifiers = table{
 	{name="Pro", fieldRanges={magicEvade=23, hpMax=23, physEvade=23}},
 	{name="Diamond", fieldRanges={magicEvade=24, hpMax=24, physEvade=24}},
 }
-local armorBaseTypes = table{
+armorBaseTypes = table{
 	{name='Armor'},
 }
-local armorModifiers = defenseModifiers
-local armorModifierFields = table{'magicEvade','physEvade','hpMax'}
+armorModifiers = defenseModifiers
+armorModifierFields = table{'magicEvade','physEvade','hpMax'}
 
-local helmBaseTypes = table{
+helmBaseTypes = table{
 	{name='Helm'},
 }
-local helmModifiers = defenseModifiers
-local helmModifierFields = table{'magicEvade','physEvade'}
+helmModifiers = defenseModifiers
+helmModifierFields = table{'magicEvade','physEvade'}
 
-local shieldBaseTypes = table{
+shieldBaseTypes = table{
 	{name='Buckler'},
 	{name='Shield', evadeRange={5,10}},
 }
-local shieldModifiers = defenseModifiers
-local shieldModifierFields = table{'magicEvade','physEvade'}
+shieldModifiers = defenseModifiers
+shieldModifierFields = table{'magicEvade','physEvade'}
 
 Item=class{
 	costPerField = {
@@ -1839,7 +1838,7 @@ RelicItem=EquipItem:subclass{
 	type = 'relic',
 }
 
-local itemClasses = table{
+itemClasses = table{
 	--potions
 	UsableItem:subclass{name='Potion', fieldRanges={hp=25}},
 	UsableItem:subclass{name='Big Potion', fieldRanges={hp=150}},
@@ -1887,7 +1886,7 @@ Tile=class{
 }
 
 
-local tileTypes = {
+tileTypes = {
 	Tile:subclass{
 		name='Grass',
 		tileIndexes={
@@ -1917,7 +1916,7 @@ for _,tileType in ipairs(tileTypes) do
 	tileTypes[tileType.name] = tileType
 end
 
-local tileTypeForPixel = {
+tileTypeForPixel = {
 	[0x00ff00] = tileTypes.Grass,
 	[0x007f00] = tileTypes.Trees,
 	[0x0000ff] = tileTypes.Water,
@@ -1977,8 +1976,8 @@ Map=class{
 		pos.y = math.floor(pos.y)
 		pos.x = math.floor(pos.x)
 		if self.wrap then
-			pos.y = ((pos.y % self.size.y) + self.size.y) % self.size.y;
-			pos.x = ((pos.x % self.size.x) + self.size.x) % self.size.x;
+			pos.y = ((pos.y % self.size.y) + self.size.y) % self.size.y
+			pos.x = ((pos.x % self.size.x) + self.size.x) % self.size.x
 		else
 			if pos.x < 0 or pos.y < 0
 			or pos.x >= self.size.x or pos.y >= self.size.y
@@ -2275,7 +2274,7 @@ genTown=[args]do
 					player.gold -= cost
 					player:adjustPoints('mp', math.ceil(player:stat'mpMax'/5))
 					player:adjustPoints('hp', math.ceil(player:stat'hpMax'/5))
-					clientMessage("Heal yo self!");
+					clientMessage("Heal yo self!")
 				else
 					clientMessage("No free lunches!!! One coin please!")
 				end
@@ -2338,7 +2337,7 @@ end
 genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	local rooms = table()
 
-	--trace("begin gen "+map.name);
+	--trace("begin gen "+map.name)
 
 	local max = math.floor(map.size.x * map.size.y / avgRoomSize)
 	for i=1,max do
@@ -2397,7 +2396,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	end
 
 	--carve out rooms
-	--console.log("carving out rooms");
+	--console.log("carving out rooms")
 	for i=#rooms,1,-1 do
 		local room = rooms[i]
 		room.bbox.min.x+=1
@@ -2429,7 +2428,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	local dimfields = {'x','y'}
 	local minmaxfields = {'min','max'}
 	--see what rooms touch other rooms
-	--trace("finding neighbors");
+	--trace("finding neighbors")
 	local pos = vec2()
 	for i,room in ipairs(rooms) do
 		room.neighbors = table()
@@ -2469,7 +2468,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	local leafRooms = table()
 	local usedRooms = table{startRoom}
 
-	--trace("establishing connectivity");
+	--trace("establishing connectivity")
 	while true do
 		local srcRoomOptions = usedRooms:filter([room]
 			--if the room has no rooms that haven't been used,then don't consider it
@@ -2506,7 +2505,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	--[[
 	for (local y = 0; y < map.size.y; y+=1) {
 		for (local x = 0; x < map.size.x; x+=1) {
-			delete map.tiles[y][x].room;
+			delete map.tiles[y][x].room
 		}
 	}
 	--]]
@@ -2556,7 +2555,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 		end
 	end
 
-	--trace("end gen "+map.name);
+	--trace("end gen "+map.name)
 end
 
 --[[
@@ -2580,9 +2579,9 @@ genDungeon=[args]do
 
 	local avgRoomSize = args.avgRoomSize or 20
 
-	--trace("generating dungeon stack "+args.prefix);
+	--trace("generating dungeon stack "+args.prefix)
 	local depth = args.depth or 1
-	local firstMap;
+	local firstMap
 	for i=0,depth-1 do
 		local map = Map{
 			name=args.prefix..(i+1),
@@ -2598,7 +2597,7 @@ genDungeon=[args]do
 		local prevMapName = nil
 		local nextMapName = nil
 		if i == 0 then
-			prevMapName = 'World';
+			prevMapName = 'World'
 		else
 			prevMapName = args.prefix..i
 		end
@@ -2626,7 +2625,7 @@ genDungeon=[args]do
 		maps:insert(map)
 	end
 
-	--trace("done with "+args.prefix);
+	--trace("done with "+args.prefix)
 	return firstMap
 end
 
@@ -2759,7 +2758,7 @@ initMaps=[]do
 	local rockRadius = 3
 	for y=townFixedObj.pos.y-rockRadius,townFixedObj.pos.y+rockRadius do
 		for x=townFixedObj.pos.x-rockRadius,townFixedObj.pos.x+rockRadius do
-			local tile = world:getTile(x,y);
+			local tile = world:getTile(x,y)
 			if tileTypes.Grass:isa(tile) then
 				if distLInf(townFixedObj.pos,{x=x,y=y}) <= 1 then
 					world:setTileType(x,y,tileTypes.Bricks)
@@ -2814,8 +2813,6 @@ drawTextBlock=[msgs, x, y, floatRight]do
 	end
 end
 
-local possibleEquipField
-local possibleEquipItem
 draw=[]do
 	if not player then return end
 
@@ -2865,7 +2862,7 @@ draw=[]do
 		for y=view.bbox.min.y,view.bbox.max.y do
 			local rx=0
 			for x=view.bbox.min.x,view.bbox.max.x do
-				local tile = map;getTile(x,y)
+				local tile = map:getTile(x,y)
 				local light = 0
 				if tile.light then
 					light = tile.light
@@ -2896,7 +2893,7 @@ draw=[]do
 				if distL1(castingInfo.target, vec2(x,y)) <= castingInfo.spell.area then
 					local rx = (x - view.bbox.min.x) * tileSize.x
 					local ry = (y - view.bbox.min.y) * tileSize.y
-					--ctx.fillStyle = 'rgb(255,0,0)';
+					--ctx.fillStyle = 'rgb(255,0,0)'
 					rect(rx, ry, tileSize.x, tileSize.y)
 				end
 			end
@@ -2970,7 +2967,7 @@ pickFreePos=[classifier]do
 		if not tile.objs then
 			local good
 			if classifier then
-				good = classifier(tile);
+				good = classifier(tile)
 			else
 				good = not (tile.solid or tile.water)
 			end
@@ -2979,7 +2976,7 @@ pickFreePos=[classifier]do
 			end
 		end
 	end
-	trace("failed to find free position");
+	trace("failed to find free position")
 	return vec2()
 end
 
@@ -3000,7 +2997,7 @@ updateGame=[]do
 	if map.fogDecay then
 		for y=view.bbox.min.y-1,view.bbox.max.y+1 do
 			for x=view.bbox.min.x-1,view.bbox.max.x+1 do
-				local tile = map:getTile(x,y);
+				local tile = map:getTile(x,y)
 				if tile and tile.light then
 					if view.bbox:contains(vec2(x,y)) then
 						tile.light = math.max(0, tile.light - map.fogDecay)
@@ -3113,7 +3110,7 @@ attackKeyCallback=[key]do
 	elseif key=='down' then
 		player:attack(0, 1)
 	end
-	return true;
+	return true
 end
 
 interactKeyCallback=[key]do
@@ -3195,20 +3192,22 @@ doItemScreen=[]do
 		clientMessage("You don't have any items that you can use right now")
 		return
 	end
-	local itemPrompt = ClientPrompt(items:mapi([:,item,index]
-		item.name
-	), [:,cmd,index]do
-		itemPrompt:close()
-		local item = items[index]
-		local result = item:use(player)
-		if result ~= 'keep' then
-			player.items:removeObject(item)
+	local itemPrompt = ClientPrompt(
+		items:mapi([item,index]item.name),
+		[:,cmd,index]do
+			itemPrompt:close()
+			local item = items[index]
+			local result = item:use(player)
+			if result ~= 'keep' then
+				player.items:removeObject(item)
+			end
 		end
-	end)
+	)
 end
 
 doMenu=[]do
-	local menuPrompt = ClientPrompt({
+	local menuPrompt 
+	menuPrompt = ClientPrompt({
 		'Pass',
 		'Attack',
 		'Spell',
@@ -3218,7 +3217,7 @@ doMenu=[]do
 		'Cheat',
 	}, [:,cmd,index]do
 		if cmd=='Attack' then
-			menuPrompt:close();
+			menuPrompt:close()
 			keyCallback = attackKeyCallback
 			clientMessage"Attack Whom?"
 		elseif cmd=='Spell' then
@@ -3226,7 +3225,7 @@ doMenu=[]do
 		elseif cmd=='Item' then
 			doItemScreen()
 		elseif cmd=='Talk' then
-			menuPrompt:close();
+			menuPrompt:close()
 			keyCallback = interactKeyCallback
 			clientMessage"Talk to Whom?"
 		elseif cmd=='Equip' then
