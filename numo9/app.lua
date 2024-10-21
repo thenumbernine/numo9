@@ -1427,30 +1427,33 @@ print('run thread dead')
 		-- this way server can issue console commands while the game is running
 		gl.glDisable(gl.GL_BLEND)
 
-		-- TODO don't use a table, and don't use an inline lambda
-		local function updateThread(thread)
-			if not thread then return end
-			gl.glDisable(gl.GL_SCISSOR_TEST)
-			self.mvMat:setIdent()
-			if coroutine.status(thread) == 'dead' then
-				self:setMenu(nil)
-				return
-			end
-			local success, msg = coroutine.resume(thread)
-			if not success then
-				if thread == self.con.thread then
-					print'CONSOLE THREAD ERROR'
+		-- if we're using menu then render to the fbMenuTex
+		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
+		if self.activeMenu then 
+			self:setFBTex(self.fbMenuTex)
+			local thread = self.activeMenu.thread
+			if thread then
+				gl.glDisable(gl.GL_SCISSOR_TEST)
+				self.mvMat:setIdent()
+				if coroutine.status(thread)=='dead' then
+					self:setMenu(nil)
+				else
+					local success, msg = coroutine.resume(thread)
+					if not success then
+						if thread == self.con.thread then
+							print'CONSOLE THREAD ERROR'
+						end
+						print(msg)
+						print(debug.traceback(thread))
+						if thread == self.con.thread then
+							self.con:resetThread()	-- this could become a negative feedback loop...
+						end
+						self.con:print(msg)
+					end
 				end
-				print(msg)
-				print(debug.traceback(thread))
-				if thread == self.con.thread then
-					self.con:resetThread()	-- this could become a negative feedback loop...
-				end
-				self.con:print(msg)
 			end
+			self:setFBTex(self.fbTex)
 		end
-		if self.activeMenu then updateThread(self.activeMenu.thread) end
-
 		self:mvMatFromRAM()
 
 		self.inUpdateCallback = false
@@ -1521,6 +1524,10 @@ print('run thread dead')
 			self.fbTex.changedSinceDraw = false
 			needDrawCounter = drawCounterNeededToRedraw
 		end
+	
+		if self.activeMenu then
+			needDrawCounter = 1
+		end
 	end
 
 	if needDrawCounter > 0 then
@@ -1567,6 +1574,7 @@ print('run thread dead')
 		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+		if self.activeMenu then sceneObj.texs[1] = self.fbMenuTex end
 --]]
 
 		-- draw from framebuffer to screen
@@ -1574,6 +1582,8 @@ print('run thread dead')
 		-- [[ and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
 		--]]
+		
+		if self.activeMenu then sceneObj.texs[1] = self.fbTex end
 	end
 --DEBUG:require 'gl.report' 'here'
 end
@@ -1938,6 +1948,10 @@ function App:setMenu(editTab)
 	self.activeMenu = editTab
 	if self.activeMenu and self.activeMenu.gainFocus then
 		self.activeMenu:gainFocus()
+	end
+	-- if we're closing the menu then tell it to draw one more time
+	if editTab == nil then
+		self.fbTex.changedSinceDraw = true
 	end
 end
 
