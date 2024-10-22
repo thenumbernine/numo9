@@ -1430,6 +1430,9 @@ print('run thread dead')
 		-- if we're using menu then render to the fbMenuTex
 		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
 		if self.activeMenu then 
+			-- so as long as the framebuffer is pointed at the fbMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
+			-- the draw commands will all go to fbMenuTex and not the VRAM fbTex
+			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM fbTex, but meh, it still won't change them.
 			self:setFBTex(self.fbMenuTex)
 			local thread = self.activeMenu.thread
 			if thread then
