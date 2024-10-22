@@ -1791,10 +1791,12 @@ UsableItem=Item:subclass{
 			end
 		end
 		if self.spellUsed then
+			-- don't have the item menu remove the scroll ...
+			result='keep'
 			self.spellUsed:clientUse{dontCost=true, onCast=[]do
-				player.items:remove(player.items.find(self))
+				-- instead have the scroll removed if we can pay for it
+				player.items:remove((player.items:find(self)))
 			end}
-			result = 'keep'
 		end
 		return result
 	end,
