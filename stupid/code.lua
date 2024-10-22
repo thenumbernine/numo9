@@ -1606,8 +1606,7 @@ Spell=class{
 				--do an initial touch test
 				if spawnObj.onTouch
 				and spawnObj.tile
-				and spawnObj.objs.tile
-				and spawnObj.objs.tile.objs
+				and spawnObj.tile.objs
 				then
 					for _,obj in ipairs(spawnObj.tile.objs) do
 						spawnObj:onTouch(obj)
@@ -1782,8 +1781,14 @@ UsableItem=Item:subclass{
 		if self.removeAttributes then player:removeAttributes(self.removeAttributes) end
 		--TODO player.giveSpell ... and have it up the spell level if the player already knows it
 		if self.spellTaught then
-			clientMessage("You learned "..self.spellTaught.name)
-			player.spells:insert(self.spellTaught)
+			if player.spells:find(self.spellTaught) then
+				clientMessage("You already know "..self.spellTaught.name)
+				return 'keep'
+			else
+				clientMessage("You learned "..self.spellTaught.name)
+				player.spells:insert(self.spellTaught)
+				player.spells:sort([a,b] a.cost < b.cost)
+			end
 		end
 		if self.spellUsed then
 			self.spellUsed:clientUse{dontCost=true, onCast=[]do
@@ -2282,14 +2287,6 @@ genTown=[args]do
 				 vec2(map.size.x-border-npcBrickRadius-2,map.size.y-border-npcBrickRadius-3)
 			),
 		}
-
-	local suckGuy = {
-		type=MerchantObj,
-		msg='YOU SUCK',
-		pos=findNPCPos()
-	}
-	buildBricksAround(suckGuy.pos)
-	map.fixedObjs:insert(suckGuy)
 
 	local storyGuy = {
 		type=MerchantObj,
@@ -3218,8 +3215,10 @@ doEquipScreen=[]do
 end
 
 doSpellScreen=[]do
-	local spells = player.spells:filter([spell] spell:canPayFor(player))	--TODO grey out uncastable spells
-	if #spells == 0 then
+	local spells = player.spells:filter([spell]do
+		return spell:canPayFor(player)	--TODO grey out uncastable spells
+	end)
+	if #spells==0 then
 		clientMessage("You don't have any spells that you can use right now")
 		return
 	end
@@ -3233,8 +3232,8 @@ doSpellScreen=[]do
 end
 
 doItemScreen=[]do
-	local items = player.items:filter([item] item.use)	--TODO grey out unusable items
-	if #items == 0 then
+	local items=player.items:filter([item] item.use)	--TODO grey out unusable items
+	if #items==0 then
 		clientMessage("You don't have any items that you can use right now")
 		return
 	end
@@ -3264,7 +3263,7 @@ doMenu=[]do
 		-- TODO Pass doesn't pass ...
 		if cmd=='Attack' then
 			self:close()
-			keyCallback = attackKeyCallback
+			keyCallback=attackKeyCallback
 			clientMessage"Attack Whom?"
 		elseif cmd=='Spell' then
 			doSpellScreen()
