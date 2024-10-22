@@ -1042,7 +1042,7 @@ TownNPCObj=AIObj:subclass{
 		end
 	end,
 	adjustPoints=[:,...]do
-		if select('#',...)>0 and select(1,...)==player then
+		if select('#',...)>=3 and select(3,...)==player then
 			for _,obj in ipairs(map.objs) do
 				if TownNPCObj:isa(obj) then
 					if GuardObj:isa(obj) then
@@ -1053,7 +1053,7 @@ TownNPCObj=AIObj:subclass{
 				end
 			end
 		end
-		TownNPCObj.super.adjustPoints(self)
+		TownNPCObj.super.adjustPoints(self, ...)
 	end,
 }
 
