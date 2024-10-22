@@ -411,8 +411,7 @@ Pico8 Compatability is at 95%
 - menu
 	- draw mouse / touch regions
 	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
-	- make sure editor and menu don't use draw commands that get forwarded across the network
-	- transparent menu ... that will mean separating out all the draw commands, or rendering the editor and menu to a *separate* framebuffer and using the game's framebuffer as a backdrop ... or just issue the menu/editor render commands every frame ...
+	- transparent menu
 - graphics:
 	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
@@ -432,9 +431,6 @@ Pico8 Compatability is at 95%
 	- music tab
 		- any kind of editing at all
 		- paste in midi files ... but how to correlate instruments with your wave samples?  can midi files save wave data themselves?
-	- multiplayer ... draw commands in editors aren't issued to netplay so the client wont see the server's menus ...
-		... but they still modify the VRAM ...
-		... so I really need another framebuffer (seperate of the fantasy-console) for displaying/rendering the non-game stuff like the editor, menu, etc ...
 	- editor+memory ... for live editing during netplay, the editor needs to see the live data.
 		... but for editing live data during single-player, you will see out-of-sync data that has been since modified by the game (like when object-init tiles are spawned and cleared).
 		... so to fix this I added a reset button on the rhs that you have to *always push* every time you edit single-player content ...
