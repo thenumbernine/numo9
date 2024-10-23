@@ -33,14 +33,16 @@ local codeBanksToStr = numo9_archive.codeBanksToStr
 local codeStrToBanks = numo9_archive.codeStrToBanks
 
 local numo9_rom = require 'numo9.rom'
+local deltaCompress = numo9_rom.deltaCompress
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local tilemapSize = numo9_rom.tilemapSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
 local audioDataSize = numo9_rom.audioDataSize
 local audioOutChannels = numo9_rom.audioOutChannels
-local deltaCompress = numo9_rom.deltaCompress
 local audioMixChannels = numo9_rom.audioMixChannels -- TODO names ... channels for mixing vs output channels L R for stereo
+local audioSampleType = numo9_rom.audioSampleType
+local audioSampleRate = numo9_rom.audioSampleRate
 
 
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
@@ -287,6 +289,7 @@ or cmd == 'r' then
 			end
 
 			-- load sfx into audio memory
+			local found
 			for i=0,sfxTableSize-1 do
 				local p = bankpath('waveform'..i..'.wav')
 				if p:exists() then
@@ -294,8 +297,8 @@ or cmd == 'r' then
 					assert.eq(wav.channels, 1)	-- waveforms / sfx are mono
 					-- TODO resample if they are different.
 					-- for now I'm just saving them in this format and being lazy
-					assert.eq(wav.ctype, numo9_rom.audioSampleType)
-					assert.eq(wav.freq, numo9_rom.audioSampleRate)
+					assert.eq(wav.ctype, audioSampleType)
+					assert.eq(wav.freq, audioSampleRate)
 					local data = wav.data
 					local size = wav.size
 					--[[ now BRR-compress them and copy them into bank.audioData, and store their offsets in sfxAddrs
@@ -307,6 +310,84 @@ or cmd == 'r' then
 					local addrLen = bank.sfxAddrs[i]
 					addrLen.addr, addrLen.len = addToAudio(data, size), size
 					--]]
+					found = true
+				end
+			end
+			-- if there's no audio waveforms then add the defaults
+			-- i'm tempted to do this always for the first 10 waveforms, but there's always the scenario where someone has just 1 waveform and a bunch of music data and fills the ARAM, and then adding the other 9 waveforms overflows ARAM ...
+			-- but if someone has *no waveforms* then they definitely don't have any music ...
+			-- ... unless ... it's on another bank ... hmm ...
+			-- so only fill in default waveforms on bank 0 if we only have 1 bank total ...
+			if not found and #banks == 1 then
+				local amplMax, amplZero = 32767, 0
+				local function sinewave(t)
+					return math.sin(t * 2 * math.pi)
+				end
+				local function trianglewave(t)
+					--t = t + .5		-- why the buzzing noise ...
+					--t = t + .25
+					--return -(math.abs(t - math.floor(t + .5)) * 4 - 1)
+					return math.abs(math.floor(t + .5) - t) * 4 - 1
+				end
+				local function sawwave(t)
+					return (t % 1) * 2 - 1
+				end
+				local function tiltedsawwave(t)
+					t = t % 1
+					return math.min(
+						t  / (3 / 4),	-- 3:4 is our ratio of tilt lhs to rhs
+						(1 - t) * 4
+					) * 2 - 1
+				end
+				local function squarewave(t)
+					t = t % 1
+					return t > .5 and 1 or -1
+					--return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
+				end
+				local function pulsewave(t)
+					t = t % 1
+					return t > .75 and 1 or -1
+
+				end
+				local function organwave(t)
+					return (sinewave(t) + sinewave(2*t) + sinewave(.5*t))/3
+				end
+				local function noisewave(t)
+					-- too random <-> too high-pitched?  needs to be spectral noise at a certain frequency?
+					--return math.random() * 2 - 1
+					return sinewave(t)
+				end
+				local function phaserwave(t)
+					return sinewave(t) * .75 + sinewave(3*t) * .25
+				end
+				--]]
+				local wavefuncs = table{
+					trianglewave,
+					sawwave,
+					tiltedsawwave,
+					squarewave,
+					pulsewave,
+					organwave,
+					noisewave,
+					phaserwave,
+				}
+
+			
+
+				for i,f in ipairs(wavefuncs) do
+					local len = math.ceil(audioSampleRate / waveformFreq * 2)
+					local data = ffi.new(audioSampleType..'[?]', len)
+					local p = ffi.cast(audioSampleType..'*', data)
+					local tf = 0	-- time x frequency
+					for j=0,len-1 do
+						p[0] = math.round(f(tf) * amplMax * .5) + amplZero
+						tf = tf + waveformFreq / audioSampleRate
+						p = p + 1
+					end
+					assert.eq(p, data + len)
+					local addrLen = bank.sfxAddrs[i-1]
+					local size = len * 2 -- lazy integer rup
+					addrLen.addr, addrLen.len = addToAudio(data, size), size
 				end
 			end
 
@@ -701,10 +782,10 @@ print('toImage', name, 'width', width, 'height', height)
 		--local sampleFramesPerSecond = 22050
 		--local sampleFramesPerSecond = 32000
 		--local sampleFramesPerSecond = 44100
-		local sampleFramesPerSecond = numo9_rom.audioSampleRate	-- 32000
+		local sampleFramesPerSecond = audioSampleRate	-- 32000
 		--local sampleType, amplMax, amplZero = 'uint8_t', 127, 128
 		local sampleType, amplMax, amplZero = 'int16_t', 32767, 0
-		assert.eq(sampleType, numo9_rom.audioSampleType)
+		assert.eq(sampleType, audioSampleType)
 		local sampleFrameInSeconds = 1 / sampleFramesPerSecond
 		-- https://www.lexaloffle.com/bbs/?pid=79335#p
 		-- "The sample rate of exported audio is 22,050 Hz. It looks like 1 tick is 183 samples. 1 quarter note was 10,980 samples. That's 120.4918 BPM."
@@ -778,14 +859,14 @@ print('toImage', name, 'width', width, 'height', height)
 			--local len = sampleFramesPerNoteBase
 			-- now that we loop waveforms thorughout the note, no need ot constrain the waveform size to the note size
 			-- inf act, better to constrain it to an integer power of its wavelength
-			local len = math.ceil(numo9_rom.audioSampleRate / waveformFreq * 2)
+			local len = math.ceil(audioSampleRate / waveformFreq * 2)
 			local data = ffi.new(sampleType..'[?]', len)
 			local p = ffi.cast(sampleType..'*', data)
 			--local tf = .25	-- time x frequency
 			local tf = 0	-- time x frequency
 			for i=0,len-1 do
 				p[0] = math.round(f(tf) * amplMax * .5) + amplZero
-				tf = tf + waveformFreq / numo9_rom.audioSampleRate -- one period wave per waveform sample
+				tf = tf + waveformFreq / audioSampleRate -- one period wave per waveform sample
 				p = p + 1
 			end
 			assert.eq(p, data + len)
