@@ -190,7 +190,8 @@ function App:initGL()
 	-- and the editor would edit the ROM ...
 
 	--DEBUG:print(RAM.code)
-	--DEBUG:print('RAM size', ffi.sizeof(RAM))
+	print('RAM size', ffi.sizeof'RAM')
+	print('ROM size', ffi.sizeof'ROM')
 
 	for _,field in ipairs(ROM.fields[2].type.fields) do
 		assert(xpcall(function()
@@ -1909,7 +1910,11 @@ function App:runROM()
 		self:resetView()
 
 		-- here, if the assert fails then it's an (ugly) parse error, and you can just pcall / pick out the offender
-		local f = assert(self:loadCmd(code, env, self.cartridgeName))
+		local f, msg = self:loadCmd(code, env, self.cartridgeName)
+		if not f then
+			print(msg)
+			return
+		end
 		local result = table.pack(f())
 
 --DEBUG:print('LOAD RESULT', result:unpack())
