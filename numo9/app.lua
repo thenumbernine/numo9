@@ -167,6 +167,12 @@ end
 -- don't gl swap every frame - only do after draws
 function App:postUpdate() end
 
+-- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast('int') ? ffi.new('int') ? bit.bor(0) ?
+local function toint(x)
+	--return bit.bor(x, 0)	-- seems nice but I think it rounds instead of truncates ...
+	return ffi.cast('int32_t', x)	-- use int32 so Lua has no problem with it
+end
+
 function App:initGL()
 
 	gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
@@ -311,6 +317,41 @@ function App:initGL()
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(...) return self:mget(...) end,
 		mset = function(x, y, value) return self:net_mset(x, y, value) end,
+
+		pset = function(x, y, color)
+			x = toint(x)
+			y = toint(y)
+--DEBUG:assert.eq(frameBufferSize.x, 256)
+--DEBUG:assert.eq(frameBufferSize.y, 256)
+			if x < 0 or x >= 256
+			or y < 0 or y >= 256
+			then
+				return
+			end
+			local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
+			if self.ram.videoMode == 0 then	-- rgb565
+				self:net_pokew(addr, color)
+			else
+				self:net_poke(addr, color)
+			end
+		end,
+		pget = function(x, y)
+			x = toint(x)
+			y = toint(y)
+--DEBUG:assert.eq(frameBufferSize.x, 256)
+--DEBUG:assert.eq(frameBufferSize.y, 256)
+			local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
+			if x < 0 or x >= 256
+			or y < 0 or y > 256
+			then
+				return 0
+			end
+			if self.ram.videoMode == 0 then	-- rgb565
+				return self:peekw(addr)
+			else
+				return self:peek(addr)
+			end
+		end,
 
 		-- graphics
 
@@ -1064,12 +1105,6 @@ end
 -- leave the :(not net_)functionName stuff for the client to also call and not worry about requesting another server refresh
 --  (tho the client shouldnt have a server and that shouldnt happen anyways)
 
--- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast('int') ? ffi.new('int') ? bit.bor(0) ?
-local function toint(x)
-	--return bit.bor(x, 0)	-- seems nice but I think it rounds instead of truncates ...
-	return ffi.cast('int32_t', x)	-- use int32 so Lua has no problem with it
-end
-
 function App:net_poke(addr, value)
 	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
 	if self.server then
@@ -1430,7 +1465,7 @@ print('run thread dead')
 
 		-- if we're using menu then render to the fbMenuTex
 		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
-		if self.activeMenu then 
+		if self.activeMenu then
 			-- so as long as the framebuffer is pointed at the fbMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
 			-- the draw commands will all go to fbMenuTex and not the VRAM fbTex
 			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM fbTex, but meh, it still won't change them.
@@ -1528,7 +1563,7 @@ print('run thread dead')
 			self.fbTex.changedSinceDraw = false
 			needDrawCounter = drawCounterNeededToRedraw
 		end
-	
+
 		if self.activeMenu then
 			needDrawCounter = 1
 		end
@@ -1586,7 +1621,7 @@ print('run thread dead')
 		-- [[ and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
 		--]]
-		
+
 		if self.activeMenu then sceneObj.texs[1] = self.fbTex end
 	end
 --DEBUG:require 'gl.report' 'here'
