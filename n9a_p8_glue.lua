@@ -308,14 +308,14 @@ setfenv(1, {
 	pset=[x,y,col]do
 		x=math.floor(x)
 		y=math.floor(y)
-		if x<0 or x>=128 or y<0 or y >= 128 then return end
+		if x<0 or x>=128 or y<0 or y>=128 then return end
 		col=math.floor(col or p8color)
 		pset(x,y,col)
 	end,
 	pget=[x,y]do
 		x=math.floor(x)
 		y=math.floor(y)
-		return x<0 or x>=128 or y<0 or y>128 and 0 or pget(x,y)
+		return x<0 or x>=128 or y<0 or y>=128 and 0 or pget(x,y)
 	end,
 	sset=[x,y,col]do
 		x=math.floor(x)
