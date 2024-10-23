@@ -137,7 +137,15 @@ p8_palt=[...]do
 		p8_setpalt(...)
 	end
 end
-p8peek=[addr]do
+p8peek=[addr,n]do
+	if n then
+		assert.le(n, 8192)
+		local results = {}
+		for i=1,n do
+			results[i]=p8peek(addr+i-1)
+		end
+		return table.unpack(results)
+	end
 	if addr>=0 and addr<0x2000 then	-- gfx and map2
 --[[
 pico8 memory from 0..0x1000 is spritesheet 128x64
@@ -174,7 +182,8 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 trace(('TODO peek $%x'):format(addr))
 	return 0
 end
-p8poke=[addr,value]do
+p8poke=[addr,value,...]do
+	assert.eq(select('#', ...), 0, 'TODO')
 	if addr>=0 and addr<0x2000 then
 		local x=(addr&0x3f)<<1		-- x coord
 		local yhi=(addr&0x1fc0)<<2	-- y coord << 8

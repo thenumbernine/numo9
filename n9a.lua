@@ -1451,17 +1451,13 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		return code
 		--]]
 		-- [[ save some space by running it through the langfix parser
-		local result
-		assert(xpcall(function()
-			local parser = LuaFixedParser()
-			parser:setData(code)
-			local tree = parser.tree
-			result = tree:toLuaFixed()
-		end, function(err)
-			return require 'template.showcode'(code)..'\n'
-					..err..'\n'..debug.traceback()
-		end))
-		return result
+		local parser = LuaFixedParser()
+		local success, err = parser:setData(code)
+		if not success then
+			print(parser.t:getpos()..err)
+			os.exit()
+		end
+		return assert(parser.tree:toLuaFixed())
 		--]]
 	end
 
