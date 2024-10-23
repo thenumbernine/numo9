@@ -321,6 +321,7 @@ function App:initGL()
 		pset = function(x, y, color)
 			x = toint(x)
 			y = toint(y)
+			color = toint(color)
 --DEBUG:assert.eq(frameBufferSize.x, 256)
 --DEBUG:assert.eq(frameBufferSize.y, 256)
 			if x < 0 or x >= 256
@@ -329,9 +330,9 @@ function App:initGL()
 				return
 			end
 			local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
-			if self.ram.videoMode == 0 then	-- rgb565
+			if self.ram.videoMode == 0 then	-- 16bpp rgb565
 				self:net_pokew(addr, color)
-			else
+			else	-- 8bpp indexed or 8bpp rgb332
 				self:net_poke(addr, color)
 			end
 		end,
@@ -342,7 +343,7 @@ function App:initGL()
 --DEBUG:assert.eq(frameBufferSize.y, 256)
 			local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
 			if x < 0 or x >= 256
-			or y < 0 or y > 256
+			or y < 0 or y >= 256
 			then
 				return 0
 			end
@@ -1666,8 +1667,7 @@ function App:poke(addr, value)
 	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
-	-- assume the GL framebuffer is bound to the fbTex
-	if self.fbTex.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
+	if addr >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
 	end
@@ -1694,15 +1694,12 @@ function App:poke(addr, value)
 		self.palTex.dirtyCPU = true
 	end
 	-- TODO if we poked the code
-	if addr >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex.dirtyCPU = false
-	end
 end
 function App:pokew(addr, value)
 	local addrend = addr+1
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
+	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
 	end
@@ -1722,15 +1719,12 @@ function App:pokew(addr, value)
 		self.palTex.dirtyCPU = true
 	end
 	-- TODO if we poked the code
-	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex.dirtyCPU = false
-	end
 end
 function App:pokel(addr, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
+	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
 		self.fbTex:checkDirtyGPU()
 		self.fbTex.dirtyCPU = true
 	end
@@ -1750,9 +1744,6 @@ function App:pokel(addr, value)
 		self.palTex.dirtyCPU = true
 	end
 	-- TODO if we poked the code
-	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex.dirtyCPU = false
-	end
 end
 
 -------------------- ROM STATE STUFF --------------------
