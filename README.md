@@ -185,6 +185,8 @@ This adds to Lua(/JIT):
 
 - `flip()` = flip the framebuffer, and wait until the next 60Hz frame to begin.
 - `cls([color])` = clear screen.
+- `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
+- `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
 - `rect(x, y, w, h, [color])` = draw solid rectangle
 - `rectb(x, y, w, h, [color])` = draw rectangle border
 - `elli(x, y, w, h, [color])` = draw a solid filled ellipse.  If you want to draw a circle then you have use an ellipse.
