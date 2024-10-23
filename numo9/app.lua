@@ -329,10 +329,11 @@ function App:initGL()
 			then
 				return
 			end
-			local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
 			if self.ram.videoMode == 0 then	-- 16bpp rgb565
+				local addr = framebufferAddr + bit.lshift(bit.bor(x, bit.lshift(y, 8)), 1)
 				self:net_pokew(addr, color)
 			else	-- 8bpp indexed or 8bpp rgb332
+				local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
 				self:net_poke(addr, color)
 			end
 		end,
@@ -341,15 +342,16 @@ function App:initGL()
 			y = toint(y)
 --DEBUG:assert.eq(frameBufferSize.x, 256)
 --DEBUG:assert.eq(frameBufferSize.y, 256)
-			local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
 			if x < 0 or x >= 256
 			or y < 0 or y >= 256
 			then
 				return 0
 			end
 			if self.ram.videoMode == 0 then	-- rgb565
+				local addr = framebufferAddr + bit.lshift(bit.bor(x, bit.lshift(y, 8)), 1)
 				return self:peekw(addr)
 			else
+				local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
 				return self:peek(addr)
 			end
 		end,
