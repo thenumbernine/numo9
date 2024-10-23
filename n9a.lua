@@ -522,6 +522,7 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 	end
 
 	local code = move(sections, 'lua'):concat'\n'..'\n'
+	assert(basepath'origcode.lua':write(code))
 
 	local function toImage(ls, _8bpp, name)
 		ls = ls:filter(function(line) return #line > 0 end)
@@ -1406,11 +1407,13 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		-- really I need to subclass LuaParser for this
 		for _,info in ipairs{
 			{'@', 'peek'},
-			{'%', 'peek2'},
+			--{'%', 'peek2'}, -- parser problems with modulo vs this
 			{'$', 'peek4'},
 		} do
 			while true do
 				local sym, func = table.unpack(info)
+				-- do these work with expressions or only constants?
+				-- if it's expressions then this makes the parser ambiguous for % ...
 				local a,b,c = line:match('^(.*)'..string.patescape(sym)..'([_a-zA-Z][_a-zA-Z0-9]*)(.-)$')
 				if a then
 					if string.trim(c):sub(1,1) == '[' then
@@ -1447,13 +1450,14 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 
 	local LuaFixedParser = require 'langfix.parser'
 	local function minify(code)
-		--[[ glue the code as-is
+		-- [[ glue the code as-is
 		return code
 		--]]
-		-- [[ save some space by running it through the langfix parser
+		--[[ save some space by running it through the langfix parser
 		local parser = LuaFixedParser()
 		local success, err = parser:setData(code)
 		if not success then
+			print"MINIFICATION FAILED"
 			print(parser.t:getpos()..err)
 			os.exit()
 		end
