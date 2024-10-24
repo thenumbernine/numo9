@@ -2009,7 +2009,15 @@ Map=class{
 		return self.tiles[pos.y][pos.x]
 	end,
 	getTileType=[:,x,y]do
-		return tileTypeForIndex
+		error'TODO'	
+		--[[
+		It seems ideal to mget() this, but don't forget that only the current map is in mget memory
+		Reading multiple maps from ROM memory brings up the question of how to store multiple tilemap resources ...
+		That brings up the question ... 
+			one tilemap chunk-per-bank and multiple banks , like TIC-80?
+			or multiple banks that can be assigned to anything, and a tilemap-bank is one option (less wasteful of memory) ?
+			or just have the ROM one giant arbitrary blob, put a FAT somewhere, and have it point to locations for arbitray-sized tilemaps? ...  this might mean extra overhead for the FAT.
+		--]]
 	end,
 	setTileType=[:,x,y,tileType]do
 		local pos = vec2(x,y)
@@ -2209,36 +2217,36 @@ genTown=[args]do
 		destMap=args.name,
 	}
 
-	local targetMap=Map{
+	local newMap=Map{
 		name=args.name,
 		size=vec2(args.size),
 		temp=args.temp,
 		exitMap=world.name,
 		resetObjs=true,
 	}
-	targetMap.playerStart=vec2(math.floor(targetMap.size.x/2), targetMap.size.y-2)
+	newMap.playerStart=vec2(math.floor(newMap.size.x/2), newMap.size.y-2)
 	local border = 3
 	local entrance = 6
-	for y=0,targetMap.size.y-1 do
-		for x=0,targetMap.size.x-1 do
-			if x < border or y < border or y >= targetMap.size.y-border then
-				if math.abs(x-targetMap.size.x/2) >= entrance then
-					targetMap:setTileType(x,y,tileTypes.Stone)
+	for y=0,newMap.size.y-1 do
+		for x=0,newMap.size.x-1 do
+			if x < border or y < border or y >= newMap.size.y-border then
+				if math.abs(x-newMap.size.x/2) >= entrance then
+					newMap:setTileType(x,y,tileTypes.Stone)
 				end
-			elseif x >= targetMap.size.x-border then
-				targetMap:setTileType(x,y,tileTypes.Water)
+			elseif x >= newMap.size.x-border then
+				newMap:setTileType(x,y,tileTypes.Water)
 			end
 		end
 	end
 
-	targetMap.fixedObjs:insert{
+	newMap.fixedObjs:insert{
 		type=GuardObj,
-		pos=vec2(math.floor(targetMap.size.x/2-entrance)+2, targetMap.size.y-2),
+		pos=vec2(math.floor(newMap.size.x/2-entrance)+2, newMap.size.y-2),
 	}
 
-	targetMap.fixedObjs:insert{
+	newMap.fixedObjs:insert{
 		type=GuardObj,
-		pos=vec2(math.floor(targetMap.size.x/2+entrance)-2, targetMap.size.y-2),
+		pos=vec2(math.floor(newMap.size.x/2+entrance)-2, newMap.size.y-2),
 	}
 
 	local brickradius=3
@@ -2249,15 +2257,15 @@ genTown=[args]do
 		local maxy = pos.y + 1
 		if minx < 0 then minx = 0 end
 		if miny < 0 then miny = 0 end
-		if maxx >= targetMap.size.x then maxx = targetMap.size.x-1 end
-		if maxy >= targetMap.size.y then maxy = targetMap.size.y-1 end
+		if maxx >= newMap.size.x then maxx = newMap.size.x-1 end
+		if maxy >= newMap.size.y then maxy = newMap.size.y-1 end
 		for y=miny,maxy do
 			for x=minx,maxx do
-				if tileTypes.Grass:isa(targetMap:getTile(x,y)) then
+				if tileTypes.Grass:isa(newMap:getTile(x,y)) then
 					if distLInf(pos,{x=x,y=y}) == math.ceil(brickradius/2) and y <= pos.y then
-						targetMap:setTileType(x,y,tileTypes.Wall)
+						newMap:setTileType(x,y,tileTypes.Wall)
 					else
-						targetMap:setTileType(x,y,tileTypes.Bricks)
+						newMap:setTileType(x,y,tileTypes.Bricks)
 					end
 				end
 			end
@@ -2266,7 +2274,7 @@ genTown=[args]do
 
 	local dockGuy = {
 		type=MerchantObj,
-		pos=vec2(targetMap.size.x-border-brickradius-1, math.random(border+1, targetMap.size.y-border-2)),
+		pos=vec2(newMap.size.x-border-brickradius-1, math.random(border+1, newMap.size.y-border-2)),
 		onInteract=[:,player]do
 			if not storyInfo.foundPrincess then
 				clientMessage("I'm the guy at the docks")
@@ -2283,17 +2291,17 @@ genTown=[args]do
 		end,
 	}
 	buildBricksAround(dockGuy.pos)
-	targetMap.fixedObjs:insert(dockGuy)
+	newMap.fixedObjs:insert(dockGuy)
 
 	local pathwidth = 1
 	local npcBrickRadius = 3
 	local findNPCPos = []
 		pickFreeRandomFixedPos{
-			map=targetMap,
+			map=newMap,
 			classify=[tile] tileTypes.Grass:isa(tile),
 			bbox=box2(
 				 vec2(border+npcBrickRadius+1, border+npcBrickRadius+1),
-				 vec2(targetMap.size.x-border-npcBrickRadius-2,targetMap.size.y-border-npcBrickRadius-3)
+				 vec2(newMap.size.x-border-npcBrickRadius-2,newMap.size.y-border-npcBrickRadius-3)
 			),
 		}
 
@@ -2309,7 +2317,7 @@ genTown=[args]do
 		end,
 	}
 	buildBricksAround(storyGuy.pos)
-	targetMap.fixedObjs:insert(storyGuy)
+	newMap.fixedObjs:insert(storyGuy)
 
 	local signOffset = vec2(-2,0)
 
@@ -2332,8 +2340,8 @@ genTown=[args]do
 			end,
 		}
 		buildBricksAround(healerGuy.pos)
-		targetMap.fixedObjs:insert(healerGuy)
-		targetMap.fixedObjs:insert{
+		newMap.fixedObjs:insert(healerGuy)
+		newMap.fixedObjs:insert{
 			type=HealSign,
 			pos=healerGuy.pos + signOffset,
 		}
@@ -2349,29 +2357,29 @@ genTown=[args]do
 				msg=storeInfo.msg,
 			}
 			buildBricksAround(storeGuy.pos)
-			targetMap.fixedObjs:insert(storeGuy)
-			targetMap.fixedObjs:insert{
+			newMap.fixedObjs:insert(storeGuy)
+			newMap.fixedObjs:insert{
 				type=storeInfo.signType,
 				pos=storeGuy.pos + signOffset,
 			}
 		end
 	end
 
-	for y=0,targetMap.size.y-1 do
-		for x=math.floor(targetMap.size.x/2)-pathwidth, math.floor(targetMap.size.x/2)+pathwidth do
-			if tileTypes.Grass:isa(targetMap:getTile(x,y)) then
-				targetMap:setTileType(x,y,tileTypes.Bricks)
+	for y=0,newMap.size.y-1 do
+		for x=math.floor(newMap.size.x/2)-pathwidth, math.floor(newMap.size.x/2)+pathwidth do
+			if tileTypes.Grass:isa(newMap:getTile(x,y)) then
+				newMap:setTileType(x,y,tileTypes.Bricks)
 			end
 		end
 	end
 
-	for _,fixedObj in ipairs(targetMap.fixedObjs) do
+	for _,fixedObj in ipairs(newMap.fixedObjs) do
 		if fixedObj.type == MerchantObj then
-			for x=math.min(fixedObj.pos.x, math.floor(targetMap.size.x/2)),math.max(fixedObj.pos.x, math.floor(targetMap.size.x/2)) do
+			for x=math.min(fixedObj.pos.x, math.floor(newMap.size.x/2)),math.max(fixedObj.pos.x, math.floor(newMap.size.x/2)) do
 				for y=fixedObj.pos.y-pathwidth,fixedObj.pos.y+pathwidth do
-					if x >= 0 and y >= 0 and x < targetMap.size.x and y < targetMap.size.y then
-						if tileTypes.Grass:isa(targetMap:getTile(x,y)) then
-							targetMap:setTileType(x,y,tileTypes.Bricks)
+					if x >= 0 and y >= 0 and x < newMap.size.x and y < newMap.size.y then
+						if tileTypes.Grass:isa(newMap:getTile(x,y)) then
+							newMap:setTileType(x,y,tileTypes.Bricks)
 						end
 					end
 				end
@@ -2379,9 +2387,9 @@ genTown=[args]do
 		end
 	end
 
-	maps:insert(targetMap)
+	maps:insert(newMap)
 
-	return targetMap
+	return newMap
 end
 
 
@@ -2711,7 +2719,7 @@ initMaps=[]do
 	local worldBaseSpawnRate = .02
 	local world = Map{
 		name='World',
-		size= vec2(256, 256),
+		size=vec2(256,256),	-- but not all is used ... ... hmm
 		temp=70,
 		tileType=tileTypes.Water,
 		wrap=true,
@@ -2762,7 +2770,7 @@ initMaps=[]do
 		world=world,
 		worldPos=townPos,
 		name='Helpless Village',
-		size=vec2(32, 32),
+		size=vec2(32,32),
 		temp=70,
 		healer=true,
 		--TODO gen a whole bunch of items, then divy them up (rather than searching through their prototypes and trying to predict their behavior)
@@ -2782,7 +2790,7 @@ initMaps=[]do
 		worldPos=dungeonPos,
 		prefix='DungeonA',
 		depth=16,
-		size=vec2(64, 64),
+		size=vec2(64,64),
 		avgRoomSize=100,
 		spawn={
 			{type=OrcObj, rate=dungeonBaseSpawnRate},
