@@ -549,7 +549,7 @@ function App:initGL()
 			end
 			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteTex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
-		-- TODO make draw16Sprites a poke'd value
+		-- TODO maybe make draw16Sprites a poke'd value
 		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
 			if self.server then
 				tilesWide = tilesWide or 1
