@@ -274,17 +274,15 @@ local setMapRequest = nil
 local keyCallback
 
 local maps = table()
-local storyInfo = table()
+local storyInfo = {}
 
 
 -- client prompt stuff
 
 popupMessage=table()
-
 clientMessage=[str] popupMessage:insert(1, str)
 
 clientPromptStack=table()
-
 closeAllPrompts=[]do
 	while #clientPromptStack>0 do
 		clientPromptStack:last():close()
@@ -398,14 +396,8 @@ GameObj=class{
 		if map then map.objs:insert(self) end
 	end,
 	clearTile=[:]do
-		if self.tile then
-			local tile=self.tile
-			if tile.objs then
-				local objIndex=tile.objs:find(self)
-				tile.objs:remove(objIndex)
-				if #tile.objs==0 then tile.objs=nil end
-			end
-			self.tile=nil
+		if map then
+			map:removeObjFromTile(self)
 		end
 	end,
 	setPos=[:,x,y]do
@@ -413,12 +405,7 @@ GameObj=class{
 		self.pos.x=x
 		self.pos.y=y
 		if map then
-			local tile=map:getTile(x,y)
-			if tile then
-				self.tile=tile
-				if not tile.objs then tile.objs=table() end
-				tile.objs:insert(self)
-			end
+			map:addObjToTile(self)
 		end
 	end,
 	move=[:,dx,dy]do
@@ -441,10 +428,11 @@ GameObj=class{
 		end
 
 		local tile=map:getTile(nx,ny)
+		local tileObjs=map:getTileObjs(nx,ny)
 		if tile then
 			local blocked=false
-			if tile.objs then
-				for _,obj in ipairs(tile.objs) do
+			if tileObjs then
+				for _,obj in ipairs(tileObjs) do
 					if obj~=self
 					and obj.solid
 					then
@@ -481,12 +469,12 @@ GameObj=class{
 		map:floodFill{
 			pos=self.pos,
 			maxDist=lightRadius,
-			callback=[tile,dist]do
+			callback=[tile,dist,tileObjs]do
 				local newLight=1.1-dist/lightRadius
 				tile.light=math.max(tile.light or 0, newLight)
 				if tile.solid then return false end
-				if tile.objs then
-					for _,obj in ipairs(tile.objs) do
+				if tileObjs then
+					for _,obj in ipairs(tileObjs) do
 						if obj.blocksLight then return false end
 					end
 				end
@@ -696,13 +684,11 @@ assert.eq(getmetatable(value), table)
 				self.attributes:remove(i)
 			end
 		end
-		if self.tile then
-			local tile=self.tile
-			if tile.objs then
-				for _,obj in ipairs(tile.objs) do
-					if obj~=self then
-						if obj.onTouch then obj:onTouch(self) end
-					end
+		local tileObjs=map:getTileObjs(self.pos:unpack())
+		if tileObjs then
+			for _,obj in ipairs(tileObjs) do
+				if obj~=self then
+					if obj.onTouch then obj:onTouch(self) end
 				end
 			end
 		end
@@ -711,9 +697,9 @@ assert.eq(getmetatable(value), table)
 	interact=[:,dx,dy]do
 		local nx=math.floor(self.pos.x+dx+map.size.x)%map.size.x
 		local ny=math.floor(self.pos.y+dy+map.size.y)%map.size.y
-		local tile=map:getTile(nx,ny)
-		if tile and tile.objs then
-			for _,obj in ipairs(tile.objs)do
+		local tileObjs=map:getTileObjs(nx,ny)
+		if tileObjs then
+			for _,obj in ipairs(tileObjs)do
 				if obj.onInteract then
 					obj:onInteract(self)
 					return
@@ -743,11 +729,9 @@ assert.eq(getmetatable(value), table)
 				else
 					trace("unknown damage type: "..damageType)
 				end
-				local tile=map.tiles[pos.y][pos.x]
-				if tile
-				and tile.objs
-				then
-					for _,obj in ipairs(tile.objs)do
+				local tileObjs=map:getTileObjs(pos:unpack())
+				if tileObjs then
+					for _,obj in ipairs(tileObjs)do
 						if BattleObj:isa(obj)then
 							if self:physHitRoll(obj)then
 								local dmg=-physAttack
@@ -1097,11 +1081,9 @@ HelperObj=AIObj:subclass{
 			local searchRadius=5
 			for y=self.pos.y-searchRadius,self.pos.y+searchRadius do
 				for x=self.pos.x-searchRadius,self.pos.x+searchRadius do
-					local tile=map:getTile(x,y)
-					if tile
-					and tile.objs
-					then
-						for _,obj in ipairs(tile.objs) do
+					local tileObjs=map:getTileObjs(x,y)
+					if tileObjs then
+						for _,obj in ipairs(tileObjs) do
 							if MonsterObj:isa(obj) and obj.hostile then
 								self.target=obj
 							end
@@ -1521,11 +1503,9 @@ Spell=class{
 					local tilePos = vec2(x,y)
 					local tileDist = distL1(player.pos, tilePos)
 					if tileDist <= self.range then
-						local tile = map:getTile(x,y)
-						if tile
-						and tile.objs
-						then
-							for _,obj in ipairs(tile.objs) do
+						local tileObjs=map:getTileObjs(x,y)
+						if tileObjs then
+							for _,obj in ipairs(tileObjs) do
 								if BattleObj:isa(obj) and obj.hostile then
 									if tileDist < bestDist then
 										bestDist = tileDist
@@ -1564,11 +1544,11 @@ Spell=class{
 
 		for y=pos.y-self.area,pos.y+self.area do
 			for x=pos.x-self.area,pos.x+self.area do
-				if distL1(pos, vec2(x,y)) <= self.area then
-					local tile = map:getTile(x,y)
-					if tile then
-						self:useOnTile(caster, tile)
-					end
+				local tilePos=vec2(x,y)
+				if distL1(pos, tilePos) <= self.area then
+					local tile = map:getTile(tilePos:unpack())
+					local tileObjs=map:getTileObjs(tilePos:unpack())
+					self:useOnTile(caster, tile, tilePos, tileObjs)
 				end
 			end
 		end
@@ -1576,12 +1556,12 @@ Spell=class{
 			castingInfo:onCast(caster)
 		end
 	end,
-	useOnTile=[:,caster, tile]do
+	useOnTile=[:,caster,tile,tilePos,tileObjs]do
 		if self.spriteIndex then
-			 PopupSpellIcon{pos=tile.pos, spriteIndex=self.spriteIndex}
+			 PopupSpellIcon{pos=tilePos, spriteIndex=self.spriteIndex}
 		end
-		if tile.objs then
-			for _,obj in ipairs(tile.objs) do
+		if tileObjs then
+			for _,obj in ipairs(tileObjs) do
 				if BattleObj:isa(obj) then
 					self:useOnTarget(caster, obj)
 				end
@@ -1591,8 +1571,8 @@ Spell=class{
 			--don't allow solid spawned objects to spawn over other solid objects
 			local blocking = false
 			if self.spawn.solid then
-				if tile.objs then
-					for _,obj in ipairs(tile.objs) do
+				if tileObjs then
+					for _,obj in ipairs(tileObjs) do
 						if obj.solid then
 							blocking = true
 							break
@@ -1602,13 +1582,10 @@ Spell=class{
 			end
 			if not blocking then
 				--spawn
-				local spawnObj = self.spawn{pos= vec2(tile.pos), caster=caster}
+				local spawnObj = self.spawn{pos=vec2(tilePos), caster=caster}
 				--do an initial touch test
-				if spawnObj.onTouch
-				and spawnObj.tile
-				and spawnObj.tile.objs
-				then
-					for _,obj in ipairs(spawnObj.tile.objs) do
+				if spawnObj.onTouch then
+					for _,obj in ipairs(tileObjs) do
 						spawnObj:onTouch(obj)
 					end
 				end
@@ -1651,7 +1628,7 @@ spells=table{
 	{name="Heal", damage=-10, range=3, area=0, cost=3, targetSelf=true, alwaysHits=true},
 	{name="Antidote", removeAttributes={"Poison"}, range=0, area=0, cost=1, targetSelf=true, alwaysHits=true},
 	{name="Regen", inflictAttributes={"Regen"}, inflictChance=1, range=0, area=0, cost=1, targetSelf=true, alwaysHits=true},
-	{name="Blink", range=20, area=0, cost=10, targetSelf=true, useOnTile=[:,caster,tile]do player:setPos(tile.pos.x, tile.pos.y) end},
+	{name="Blink", range=20, area=0, cost=10, targetSelf=true, useOnTile=[:,caster,tile,tilePos,tileObjs]player:setPos(tilePos:unpack())},
 	{name="Light", range=20, area=0, cost=1, targetSelf=true, inflictAttributes={"Light"}, inflictChance=1, alwaysHits=true},
 }
 for i,spellProto in ipairs(spells) do
@@ -2008,6 +1985,7 @@ Map=class{
 		self.bbox = box2(vec2(), self.size-1)
 
 		local tileType = args.tileType or tileTypes.Grass
+		-- TODO only alloc what tiles have objs on them ... and use the tilemap for tile images ... then use map() for rendering ...
 		self.tiles = {}
 		for y=0,self.size.y-1 do
 			local tilerow = {}
@@ -2016,6 +1994,8 @@ Map=class{
 				tilerow[x] = tileType(vec2(x,y))
 			end
 		end
+		
+		self.tileObjs={}
 
 		maps:insert(self)
 		maps[self.name] = self
@@ -2060,9 +2040,9 @@ Map=class{
 	floodFill=[:,args]do
 		local allTiles = {}
 		local startPos = vec2(args.pos)
-		local startTile = self:getTile(startPos.x, startPos.y)
+		local startTile = self:getTile(startPos:unpack())
 		local startInfo = {tile=startTile, pos=startPos, dist=0}
-		args.callback(startInfo.tile, startInfo.dist)
+		args.callback(startInfo.tile, startInfo.dist, self:getTileObjs(startPos:unpack()))
 		allTiles[tostring(startPos)] = startInfo
 		local currentset = table{startInfo}
 		while #currentset > 0 do
@@ -2075,10 +2055,10 @@ Map=class{
 						if self:wrapPos(nextPos) then
 							local nextkey = tostring(nextPos)
 							if not allTiles[nextkey] then
-								local tile = self:getTile(nextPos.x, nextPos.y)
+								local tile = self:getTile(nextPos:unpack())
 								local nextInfo = {tile=tile, pos=nextPos, dist=nextDist}
 								allTiles[nextkey] = true
-								if args.callback(tile, nextDist) then
+								if args.callback(tile, nextDist, self:getTileObjs(nextPos:unpack())) then
 									nextset:insert(nextInfo)
 								end
 							end
@@ -2089,6 +2069,45 @@ Map=class{
 			currentset = nextset
 		end
 	end,
+	
+	getTileObjs=[:,x,y]do
+		local pos=vec2(x,y)
+		if not self:wrapPos(pos) then return end
+		local tileObjsRow=self.tileObjs[pos.y]
+		if not tileObjsRow then return end
+		return tileObjsRow[pos.x]
+	end,
+	addObjToTile=[:,obj]do
+		local pos=vec2(obj.pos)
+		if not self:wrapPos(pos) then return end
+		local tileObjsRow=self.tileObjs[pos.y]
+		if not tileObjsRow then 
+			tileObjsRow={}
+			self.tileObjs[pos.y]=tileObjsRow
+		end
+		local tileObjs=tileObjsRow[pos.x]
+		if not tileObjs then
+			tileObjs=table()
+			tileObjsRow[pos.x]=tileObjs
+		end
+		tileObjs:insertUnique(obj)
+	end,
+	removeObjFromTile=[:,obj]do
+		local pos=vec2(obj.pos)
+		if not self:wrapPos(pos) then return end
+		local tileObjsRow=self.tileObjs[pos.y]
+		if not tileObjsRow then return end
+		local tileObjs=tileObjsRow[pos.x]
+		if not tileObjs then return end
+		tileObjs:removeObject(obj)
+		if #tileObjs==0 then
+			tileObjsRow[pos.x]=nil
+			if not next(tileObjsRow) then
+				self.tileObjs[pos.y]=nil
+			end
+		end
+	end,
+	
 	pathfind=[:,start, finish]do
 		if not self:wrapPos(start) then return end
 		if not self:wrapPos(finish) then return end
@@ -2886,11 +2905,11 @@ draw=[]do
 		local rx=0
 		for x=view.bbox.min.x,view.bbox.max.x do
 			local tile = map:getTile(x,y)
-
 			spr(tile.tileIndex, rx * tileSize.x, ry * tileSize.y, 2, 2)
 
-			if tile.objs then
-				for _,obj in ipairs(tile.objs) do
+			local tileObjs = map:getTileObjs(x,y)
+			if tileObjs then
+				for _,obj in ipairs(tileObjs) do
 					if obj.draw then obj:draw() end
 				end
 			end
@@ -3010,7 +3029,8 @@ pickFreePos=[classifier]do
 	for attempt=1,1000 do
 		local pos = randomBoxPos(map.bbox)
 		local tile = map:getTile(pos.x, pos.y)
-		if not tile.objs then
+		local tileObjs = map:getTileObjs(pos.x, pos.y)
+		if not tileObjs then
 			local good
 			if classifier then
 				good = classifier(tile)
