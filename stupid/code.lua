@@ -2914,25 +2914,26 @@ draw=[]do
 		if view.bbox.max.y >= thisMap.size.y then view.bbox.max.y = thisMap.size.y-1 end
 	end
 	--draw tiles first
-	local ry=0
+	map(view.bbox.min.x,		-- tilemap pos
+		view.bbox.min.y,
+		view.bbox.max.x - view.bbox.min.x + 1,	-- tilemap size
+		view.bbox.max.y - view.bbox.min.y + 1,
+		0, 0,					-- screen pos
+		0,						-- tilemap index offset
+		true					-- 16x16
+	)
 	for y=view.bbox.min.y,view.bbox.max.y do
-		local rx=0
 		for x=view.bbox.min.x,view.bbox.max.x do
-			local tile = thisMap:getTile(x,y)
-			--spr(tile.tileIndex, rx * tileSize.x, ry * tileSize.y, 2, 2)
-			map(x,y,1,1,rx*tileSize.x,ry*tileSize.y,0,true)
-
 			local tileObjs = thisMap:getTileObjs(x,y)
 			if tileObjs then
 				for _,obj in ipairs(tileObjs) do
 					if obj.draw then obj:draw() end
 				end
 			end
-			rx+=1
 		end
-		ry+=1
 	end
 
+	local ry=0
 	if thisMap.fogColor then
 		blend(6)	-- set to subtract
 		local ry=0
