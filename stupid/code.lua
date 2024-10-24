@@ -1910,58 +1910,29 @@ end
 
 Tile=class{
 	init=[:,pos]do
-		self.tileIndex=table.pickRandom(self.tileIndexes)
 		self.pos = vec2(pos)
 	end,
 }
 
 -- indexes in the tilemap
-tileTypeForName={
-	Grass={0,2,4},
-	Bricks={6},
-	Wall={64},
-	Stone={66},
-	Water={128},
-	Trees={192},
-}
-tileTypes = {
-	Tile:subclass{
-		name='Grass',
-		tileIndexes={
-			76,--TODO 'images/grass.png',
-			78,--'images/grass2.png',
-			128,--'images/grass3.png',
-		},
-	},
-	Tile:subclass{name='Trees', tileIndexes={
-		258,--'images/trees.png'
-	}},
-	Tile:subclass{name='Water', tileIndexes={
-		264,--'images/water.png'
-	}, water=true},
-	Tile:subclass{name='Stone', tileIndexes={
-		204,--'images/stone.png'
-	}, solid=true},
-	Tile:subclass{name='Bricks', tileIndexes={
-		4,--'images/bricks.png'
-	}},
-	Tile:subclass{name='Wall', tileIndexes={
-		262,--'images/wall.png'
-	}, solid=true},
-}
-for _,tileType in ipairs(tileTypes) do
+tileTypes = {}
+for _,tileType in ipairs{
+	Tile:subclass{name='Grass', tileIndexes={0,2,4}},
+	Tile:subclass{name='Bricks', tileIndexes={6}},
+	Tile:subclass{name='Trees', tileIndexes={192}},
+	Tile:subclass{name='Water', tileIndexes={128}, water=true},
+	Tile:subclass{name='Stone', tileIndexes={66}, solid=true},
+	Tile:subclass{name='Wall', tileIndexes={64}, solid=true},
+} do
+	-- key by name
 	if tileTypes[tileType.name] then trace("tileTypes name "..tileType.name.." used twice!") end
 	tileTypes[tileType.name] = tileType
+	-- key by tilesheet index
+	for _,tileIndex in ipairs(tileType.tileIndexes) do
+		if tileTypes[tileIndex] then trace("tileTypes index "..tileIndex.." used twice") end
+		tileType[tileIndex] = tileType
+	end
 end
-
-tileTypeForPixel = {
-	[0x00ff00] = tileTypes.Grass,
-	[0x007f00] = tileTypes.Trees,
-	[0x0000ff] = tileTypes.Water,
-	[0x7f0000] = tileTypes.Stone,
-	[0xffffff] = tileTypes.Bricks,
-	[0x000000] = tileTypes.Wall,
-}
 
 Map=class{
 	--[[
@@ -1994,6 +1965,9 @@ Map=class{
 
 		local tileType = args.tileType or tileTypes.Grass
 		-- TODO only alloc what tiles have objs on them ... and use the tilemap for tile images ... then use map() for rendering ...
+		-- tiles still holds...
+		--  - the room (temporary for level generation)
+		-- 	- the light level ... hmm ...
 		self.tiles = {}
 		for y=0,self.size.y-1 do
 			local tilerow = {}
@@ -2001,7 +1975,7 @@ Map=class{
 			for x=0,self.size.x-1 do
 				tilerow[x] = tileType(vec2(x,y))
 				-- here or in setMap ?
-				mset(x,y,assert(table.pickRandom(assert.index(tileTypeForName,tileType.name))))
+				mset(x,y,assert(table.pickRandom(assert.index(tileTypes,tileType.name).tileIndexes)))
 			end
 		end
 		
@@ -2035,14 +2009,14 @@ Map=class{
 		return self.tiles[pos.y][pos.x]
 	end,
 	getTileType=[:,x,y]do
-		error("TODO")
+		return tileTypeForIndex
 	end,
 	setTileType=[:,x,y,tileType]do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
 		local tile = tileType(pos)
 		self.tiles[pos.y][pos.x] = tile
-		mset(pos.x,pos.y,assert(table.pickRandom(assert.index(tileTypeForName,tileType.name))))
+		mset(pos.x,pos.y,assert(table.pickRandom(assert.index(tileTypes,tileType.name).tileIndexes)))
 		return tile
 	end,
 	--[[
@@ -3146,7 +3120,7 @@ setMap=[args]do
 		local tilerow=thisMap.tiles[y]
 		for x=0,thisMap.size.x-1 do
 			local tile=tilerow[x]
-			mset(x,y,assert(table.pickRandom(assert.index(tileTypeForName,tile.name))))
+			mset(x,y,assert(table.pickRandom(assert.index(tileTypes,tile.name).tileIndexes)))
 		end
 	end
 
