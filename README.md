@@ -1,5 +1,7 @@
 ![splash](docpics/splash.gif)
 
+[![NuMo9 Youtube Playlist](https://img.youtube.com/vi/R8FA24Iwo6w/0.jpg)](https://www.youtube.com/watch?v=R8FA24Iwo6w&list=PLvkQx1ZpORprcwfSuMEvSgGO7Kpxo44Ma)
+
 [![Donate via Stripe](https://img.shields.io/badge/Donate-Stripe-green.svg)](https://buy.stripe.com/00gbJZ0OdcNs9zi288)<br>
 
 # Fantasy Console
@@ -110,6 +112,7 @@ In this sense, if you are used to other fantasy consoles, their waveforms become
 
 ```
 memory layout:
+- ROM:
 0x000000 - 0x010000 = spriteSheet
 0x010000 - 0x020000 = tileSheet
 0x020000 - 0x040000 = tilemap
@@ -118,6 +121,7 @@ memory layout:
 0x040600 - 0x040a00 = musicAddrs
 0x040a00 - 0x050a00 = audioData
 0x050a00 - 0x060a00 = code
+- RAM:
 0x060a00 - 0x080a00 = framebuffer
 0x080a00 - 0x080a04 = clipRect
 0x080a04 - 0x080a44 = mvMat
@@ -138,6 +142,15 @@ memory layout:
 0x090c66 - 0x092c66 = persistentCartridgeData
 system dedicated 0x92c66 of RAM
 ```
+
+I'm tempted to just chop this up into arbitrary 64k banks and let you expand as much as you want.
+- Then internally I could flag each bank for the editor to designate what to do with it.  Similar to TIC-80's chunks-within-banks, but for the whole bank and not just a portion.
+- Bank types could include: spritesheet (or tilesheet) (each uses 64k atm), tilemap (uses 128k atm), audio, code, etc...
+- Then in-editor the sprite-editor, tilemap-editor, audio-editor can let you add, remove, and change what the current targetted bank is.
+- Not sure where to squeeze palettes or fonts into this, or how to make them modular.
+	- Maybe I could end up like I'm already doing for audio and put an allocation-table somewhere for arbitrary chunks and not just audio chunks?
+	- Maybe I can give audio and misc chunks ATs?  Maybe ATs shoudl come with flags of what they are carrying?
+	- Maybe one giant allocation table for all of memory?  Maybe this is getting carried way ...
 
 # Language
 
@@ -456,6 +469,7 @@ Pico8 Compatability is at 95%
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
 - Some day I should cut off cartridge access to `app`, `ffi`, etc.  I like having them around for `offsetof`'ing fields to get locations in RAM, which are subject to change while this is in alpha.  Should I introduce constant variables with the address names instead, and then hide ffi?
+- Cart browser.
 
 # Things I'm still debating ...
 - How many max players at once?  Right now it's upper bound to 4, but this can be changed...
