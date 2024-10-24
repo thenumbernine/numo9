@@ -268,7 +268,7 @@ end
 local screenSize = vec2(256, 256)
 local tileSize = vec2(16, 16)
 local fontSize = 8
-local map
+local thisMap
 local player
 local setMapRequest = nil
 local keyCallback
@@ -393,42 +393,42 @@ GameObj=class{
 		self:setPos(self.pos.x, self.pos.y) --link to tile
 		self.angle=args.angle
 		self.onInteract=args.onInteract
-		if map then map.objs:insert(self) end
+		if thisMap then thisMap.objs:insert(self) end
 	end,
 	clearTile=[:]do
-		if map then
-			map:removeObjFromTile(self)
+		if thisMap then
+			thisMap:removeObjFromTile(self)
 		end
 	end,
 	setPos=[:,x,y]do
 		self:clearTile()
 		self.pos.x=x
 		self.pos.y=y
-		if map then
-			map:addObjToTile(self)
+		if thisMap then
+			thisMap:addObjToTile(self)
 		end
 	end,
 	move=[:,dx,dy]do
 		local nx=math.floor(self.pos.x+dx)
 		local ny=math.floor(self.pos.y+dy)
-		if self==player and map.exitMap then
-			if nx<0 or ny<0 or nx>=map.size.x or ny>=map.size.y then
-				setMapRequest={map=map.exitMap}
+		if self==player and thisMap.exitMap then
+			if nx<0 or ny<0 or nx>=thisMap.size.x or ny>=thisMap.size.y then
+				setMapRequest={map=thisMap.exitMap}
 				return
 			end
 		end
-		if map.wrap then
-			nx=(nx + map.size.x) % map.size.x
-			ny=(ny + map.size.y) % map.size.y
+		if thisMap.wrap then
+			nx=(nx + thisMap.size.x) % thisMap.size.x
+			ny=(ny + thisMap.size.y) % thisMap.size.y
 		else
 			if nx < 0 then nx=0 end
 			if ny < 0 then ny=0 end
-			if nx >= map.size.x then nx=map.size.x-1 end
-			if ny >= map.size.y then ny=map.size.y-1 end
+			if nx >= thisMap.size.x then nx=thisMap.size.x-1 end
+			if ny >= thisMap.size.y then ny=thisMap.size.y-1 end
 		end
 
-		local tile=map:getTile(nx,ny)
-		local tileObjs=map:getTileObjs(nx,ny)
+		local tile=thisMap:getTile(nx,ny)
+		local tileObjs=thisMap:getTileObjs(nx,ny)
 		if tile then
 			local blocked=false
 			if tileObjs then
@@ -461,12 +461,12 @@ GameObj=class{
 		self:applyLight()
 	end,
 	applyLight=[:]do
-		if not map.fogColor then return end
+		if not thisMap.fogColor then return end
 		--update fog of war
 		local lightRadius=self:getLightRadius()
 		if not lightRadius then return end
 
-		map:floodFill{
+		thisMap:floodFill{
 			pos=self.pos,
 			maxDist=lightRadius,
 			callback=[tile,dist,tileObjs]do
@@ -486,11 +486,11 @@ GameObj=class{
 	draw=[:]do
 		local dx=self.pos.x-view.center.x
 		local dy=self.pos.y-view.center.y
-		if map.wrap then
-			if dx < -map.size.x/2 then dx += map.size.x end
-			if dx > map.size.x/2 then dx -= map.size.x end
-			if dy < -map.size.y/2 then dy += map.size.y end
-			if dy > map.size.y/2 then dy -= map.size.y end
+		if thisMap.wrap then
+			if dx < -thisMap.size.x/2 then dx += thisMap.size.x end
+			if dx > thisMap.size.x/2 then dx -= thisMap.size.x end
+			if dy < -thisMap.size.y/2 then dy += thisMap.size.y end
+			if dy > thisMap.size.y/2 then dy -= thisMap.size.y end
 		end
 		dx+=view.center.x
 		dy+=view.center.y
@@ -684,7 +684,7 @@ assert.eq(getmetatable(value), table)
 				self.attributes:remove(i)
 			end
 		end
-		local tileObjs=map:getTileObjs(self.pos:unpack())
+		local tileObjs=thisMap:getTileObjs(self.pos:unpack())
 		if tileObjs then
 			for _,obj in ipairs(tileObjs) do
 				if obj~=self then
@@ -695,9 +695,9 @@ assert.eq(getmetatable(value), table)
 		BattleObj.super.postUpdate(self)
 	end,
 	interact=[:,dx,dy]do
-		local nx=math.floor(self.pos.x+dx+map.size.x)%map.size.x
-		local ny=math.floor(self.pos.y+dy+map.size.y)%map.size.y
-		local tileObjs=map:getTileObjs(nx,ny)
+		local nx=math.floor(self.pos.x+dx+thisMap.size.x)%thisMap.size.x
+		local ny=math.floor(self.pos.y+dy+thisMap.size.y)%thisMap.size.y
+		local tileObjs=thisMap:getTileObjs(nx,ny)
 		if tileObjs then
 			for _,obj in ipairs(tileObjs)do
 				if obj.onInteract then
@@ -718,7 +718,7 @@ assert.eq(getmetatable(value), table)
 			--rotate the offset by the dir (cplxmul)
 			pos.x=dx*attackOffset.x-dy*attackOffset.y+self.pos.x
 			pos.y=dx*attackOffset.y+dy*attackOffset.x+self.pos.y
-			if map:wrapPos(pos) then
+			if thisMap:wrapPos(pos) then
 				damageType=attackOffset.type or baseDamageType
 				if damageType=='slash' then
 					PopupSlashAttack{pos=pos, angle=angle}
@@ -729,7 +729,7 @@ assert.eq(getmetatable(value), table)
 				else
 					trace("unknown damage type: "..damageType)
 				end
-				local tileObjs=map:getTileObjs(pos:unpack())
+				local tileObjs=thisMap:getTileObjs(pos:unpack())
 				if tileObjs then
 					for _,obj in ipairs(tileObjs)do
 						if BattleObj:isa(obj)then
@@ -813,7 +813,7 @@ HeroObj=BattleObj:subclass{
 			end
 			self.food-=math.ceil(overweight*.1)
 		end
-		local envTemp=map.temp+self:stat'warmth'
+		local envTemp=thisMap.temp+self:stat'warmth'
 		self.temp+=(envTemp-self.temp)*.1
 		if math.abs(self.temp-self.nominalTemp)>50 then
 			if self.temp>self.nominalTemp then
@@ -826,7 +826,7 @@ HeroObj=BattleObj:subclass{
 	end,
 	move=[:,dx,dy]do
 		if not HeroObj.super.move(self,dx,dy) then
-			local tile=map:getTile(self.pos:unpack())
+			local tile=thisMap:getTile(self.pos:unpack())
 			if tile.playerTouch then
 				tile:playerTouch(self)
 			end
@@ -864,11 +864,11 @@ AIObj=BattleObj:subclass{
 		if acted then return end
 		local deltax=player.pos.x - self.pos.x
 		local deltay=player.pos.y - self.pos.y
-		if map.wrap then
-			if deltax < -map.size.x/2 then deltax += map.size.x end
-			if deltax > map.size.x/2 then deltax -= map.size.x end
-			if deltay < -map.size.y/2 then deltay += map.size.y end
-			if deltay > map.size.y/2 then deltay -= map.size.y end
+		if thisMap.wrap then
+			if deltax < -thisMap.size.x/2 then deltax += thisMap.size.x end
+			if deltax > thisMap.size.x/2 then deltax -= thisMap.size.x end
+			if deltay < -thisMap.size.y/2 then deltay += thisMap.size.y end
+			if deltay > thisMap.size.y/2 then deltay -= thisMap.size.y end
 		end
 		local absdeltax=math.abs(deltax)
 		local absdeltay=math.abs(deltay)
@@ -1027,7 +1027,7 @@ TownNPCObj=AIObj:subclass{
 	end,
 	adjustPoints=[:,...]do
 		if select('#',...)>=3 and select(3,...)==player then
-			for _,obj in ipairs(map.objs) do
+			for _,obj in ipairs(thisMap.objs) do
 				if TownNPCObj:isa(obj) then
 					if GuardObj:isa(obj) then
 						obj.hostile=true
@@ -1081,7 +1081,7 @@ HelperObj=AIObj:subclass{
 			local searchRadius=5
 			for y=self.pos.y-searchRadius,self.pos.y+searchRadius do
 				for x=self.pos.x-searchRadius,self.pos.x+searchRadius do
-					local tileObjs=map:getTileObjs(x,y)
+					local tileObjs=thisMap:getTileObjs(x,y)
 					if tileObjs then
 						for _,obj in ipairs(tileObjs) do
 							if MonsterObj:isa(obj) and obj.hostile then
@@ -1503,7 +1503,7 @@ Spell=class{
 					local tilePos = vec2(x,y)
 					local tileDist = distL1(player.pos, tilePos)
 					if tileDist <= self.range then
-						local tileObjs=map:getTileObjs(x,y)
+						local tileObjs=thisMap:getTileObjs(x,y)
 						if tileObjs then
 							for _,obj in ipairs(tileObjs) do
 								if BattleObj:isa(obj) and obj.hostile then
@@ -1546,8 +1546,8 @@ Spell=class{
 			for x=pos.x-self.area,pos.x+self.area do
 				local tilePos=vec2(x,y)
 				if distL1(pos, tilePos) <= self.area then
-					local tile = map:getTile(tilePos:unpack())
-					local tileObjs=map:getTileObjs(tilePos:unpack())
+					local tile = thisMap:getTile(tilePos:unpack())
+					local tileObjs=thisMap:getTileObjs(tilePos:unpack())
 					self:useOnTile(caster, tile, tilePos, tileObjs)
 				end
 			end
@@ -1910,12 +1910,20 @@ end
 
 Tile=class{
 	init=[:,pos]do
-		self.tileIndex = table.pickRandom(self.tileIndexes)
+		self.tileIndex=table.pickRandom(self.tileIndexes)
 		self.pos = vec2(pos)
 	end,
 }
 
-
+-- indexes in the tilemap
+tileTypeForName={
+	Grass={0,2,4},
+	Bricks={6},
+	Wall={64},
+	Stone={66},
+	Water={128},
+	Trees={192},
+}
 tileTypes = {
 	Tile:subclass{
 		name='Grass',
@@ -1978,7 +1986,7 @@ Map=class{
 		self.spawn = args.spawn
 		self.resetObjs=args.resetObjs
 		self.fixedObjs=table(args.fixedObjs)
-		if args.playerStart then self.playerStart = vec2(args.playerStart) end
+		if args.playerStart then self.playerStart=vec2(args.playerStart) end
 		self.fogColor = args.fogColor
 
 		self.size = vec2(assert.index(args,'size'))
@@ -1992,6 +2000,8 @@ Map=class{
 			self.tiles[y] = tilerow
 			for x=0,self.size.x-1 do
 				tilerow[x] = tileType(vec2(x,y))
+				-- here or in setMap ?
+				mset(x,y,assert(table.pickRandom(assert.index(tileTypeForName,tileType.name))))
 			end
 		end
 		
@@ -2024,11 +2034,15 @@ Map=class{
 		if not self:wrapPos(pos) then return end
 		return self.tiles[pos.y][pos.x]
 	end,
+	getTileType=[:,x,y]do
+		error("TODO")
+	end,
 	setTileType=[:,x,y,tileType]do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
 		local tile = tileType(pos)
 		self.tiles[pos.y][pos.x] = tile
+		mset(pos.x,pos.y,assert(table.pickRandom(assert.index(tileTypeForName,tileType.name))))
 		return tile
 	end,
 	--[[
@@ -2166,13 +2180,13 @@ args:
 	bbox <- default: range
 --]]
 pickFreeRandomFixedPos=[args]do
-	local map = args.map
-	local bbox = box2(args.bbox or map.bbox)
+	local targetMap = args.map
+	local bbox = box2(args.bbox or targetMap.bbox)
 	local classify = args.classify
 
 	for attempt=1,1000 do
 		local pos = randomBoxPos(bbox)
-		local tile = map:getTile(pos.x, pos.y)
+		local tile = targetMap:getTile(pos.x, pos.y)
 
 		local good
 		if classify then
@@ -2182,7 +2196,7 @@ pickFreeRandomFixedPos=[args]do
 		end
 		if good then
 			local found = false
-			for _,obj in ipairs(map.fixedObjs) do
+			for _,obj in ipairs(targetMap.fixedObjs) do
 				if obj.pos == pos then
 					found = true
 					break
@@ -2197,8 +2211,8 @@ pickFreeRandomFixedPos=[args]do
 	return vec2()
 end
 
-findFixedObj=[map, callback]do
-	for _,fixedObj in ipairs(map.fixedObjs) do
+findFixedObj=[targetMap,callback]do
+	for _,fixedObj in ipairs(targetMap.fixedObjs) do
 		if callback(fixedObj) then return fixedObj end
 	end
 end
@@ -2221,36 +2235,36 @@ genTown=[args]do
 		destMap=args.name,
 	}
 
-	local map = Map{
+	local targetMap=Map{
 		name=args.name,
 		size=vec2(args.size),
 		temp=args.temp,
 		exitMap=world.name,
 		resetObjs=true,
 	}
-	map.playerStart = vec2(math.floor(map.size.x/2), map.size.y-2)
+	targetMap.playerStart=vec2(math.floor(targetMap.size.x/2), targetMap.size.y-2)
 	local border = 3
 	local entrance = 6
-	for y=0,map.size.y-1 do
-		for x=0,map.size.x-1 do
-			if x < border or y < border or y >= map.size.y-border then
-				if math.abs(x-map.size.x/2) >= entrance then
-					map:setTileType(x,y,tileTypes.Stone)
+	for y=0,targetMap.size.y-1 do
+		for x=0,targetMap.size.x-1 do
+			if x < border or y < border or y >= targetMap.size.y-border then
+				if math.abs(x-targetMap.size.x/2) >= entrance then
+					targetMap:setTileType(x,y,tileTypes.Stone)
 				end
-			elseif x >= map.size.x-border then
-				map:setTileType(x,y,tileTypes.Water)
+			elseif x >= targetMap.size.x-border then
+				targetMap:setTileType(x,y,tileTypes.Water)
 			end
 		end
 	end
 
-	map.fixedObjs:insert{
+	targetMap.fixedObjs:insert{
 		type=GuardObj,
-		pos=vec2(math.floor(map.size.x/2-entrance)+2, map.size.y-2),
+		pos=vec2(math.floor(targetMap.size.x/2-entrance)+2, targetMap.size.y-2),
 	}
 
-	map.fixedObjs:insert{
+	targetMap.fixedObjs:insert{
 		type=GuardObj,
-		pos=vec2(math.floor(map.size.x/2+entrance)-2, map.size.y-2),
+		pos=vec2(math.floor(targetMap.size.x/2+entrance)-2, targetMap.size.y-2),
 	}
 
 	local brickradius=3
@@ -2261,15 +2275,15 @@ genTown=[args]do
 		local maxy = pos.y + 1
 		if minx < 0 then minx = 0 end
 		if miny < 0 then miny = 0 end
-		if maxx >= map.size.x then maxx = map.size.x-1 end
-		if maxy >= map.size.y then maxy = map.size.y-1 end
+		if maxx >= targetMap.size.x then maxx = targetMap.size.x-1 end
+		if maxy >= targetMap.size.y then maxy = targetMap.size.y-1 end
 		for y=miny,maxy do
 			for x=minx,maxx do
-				if tileTypes.Grass:isa(map:getTile(x,y)) then
+				if tileTypes.Grass:isa(targetMap:getTile(x,y)) then
 					if distLInf(pos,{x=x,y=y}) == math.ceil(brickradius/2) and y <= pos.y then
-						map:setTileType(x,y,tileTypes.Wall)
+						targetMap:setTileType(x,y,tileTypes.Wall)
 					else
-						map:setTileType(x,y,tileTypes.Bricks)
+						targetMap:setTileType(x,y,tileTypes.Bricks)
 					end
 				end
 			end
@@ -2278,7 +2292,7 @@ genTown=[args]do
 
 	local dockGuy = {
 		type=MerchantObj,
-		pos=vec2(map.size.x-border-brickradius-1, math.random(border+1, map.size.y-border-2)),
+		pos=vec2(targetMap.size.x-border-brickradius-1, math.random(border+1, targetMap.size.y-border-2)),
 		onInteract=[:,player]do
 			if not storyInfo.foundPrincess then
 				clientMessage("I'm the guy at the docks")
@@ -2288,24 +2302,24 @@ genTown=[args]do
 					prompt:close()
 					if cmd=='Yes' then
 						--TODO make the player a boat ...
-						setMapRequest = {map='World'}
+						setMapRequest={map='World'}
 					end
 				end)
 			end
 		end,
 	}
 	buildBricksAround(dockGuy.pos)
-	map.fixedObjs:insert(dockGuy)
+	targetMap.fixedObjs:insert(dockGuy)
 
 	local pathwidth = 1
 	local npcBrickRadius = 3
 	local findNPCPos = []
 		pickFreeRandomFixedPos{
-			map=map,
+			map=targetMap,
 			classify=[tile] tileTypes.Grass:isa(tile),
 			bbox=box2(
 				 vec2(border+npcBrickRadius+1, border+npcBrickRadius+1),
-				 vec2(map.size.x-border-npcBrickRadius-2,map.size.y-border-npcBrickRadius-3)
+				 vec2(targetMap.size.x-border-npcBrickRadius-2,targetMap.size.y-border-npcBrickRadius-3)
 			),
 		}
 
@@ -2321,7 +2335,7 @@ genTown=[args]do
 		end,
 	}
 	buildBricksAround(storyGuy.pos)
-	map.fixedObjs:insert(storyGuy)
+	targetMap.fixedObjs:insert(storyGuy)
 
 	local signOffset = vec2(-2,0)
 
@@ -2344,8 +2358,8 @@ genTown=[args]do
 			end,
 		}
 		buildBricksAround(healerGuy.pos)
-		map.fixedObjs:insert(healerGuy)
-		map.fixedObjs:insert{
+		targetMap.fixedObjs:insert(healerGuy)
+		targetMap.fixedObjs:insert{
 			type=HealSign,
 			pos=healerGuy.pos + signOffset,
 		}
@@ -2361,29 +2375,29 @@ genTown=[args]do
 				msg=storeInfo.msg,
 			}
 			buildBricksAround(storeGuy.pos)
-			map.fixedObjs:insert(storeGuy)
-			map.fixedObjs:insert{
+			targetMap.fixedObjs:insert(storeGuy)
+			targetMap.fixedObjs:insert{
 				type=storeInfo.signType,
 				pos=storeGuy.pos + signOffset,
 			}
 		end
 	end
 
-	for y=0,map.size.y-1 do
-		for x=math.floor(map.size.x/2)-pathwidth, math.floor(map.size.x/2)+pathwidth do
-			if tileTypes.Grass:isa(map:getTile(x,y)) then
-				map:setTileType(x,y,tileTypes.Bricks)
+	for y=0,targetMap.size.y-1 do
+		for x=math.floor(targetMap.size.x/2)-pathwidth, math.floor(targetMap.size.x/2)+pathwidth do
+			if tileTypes.Grass:isa(targetMap:getTile(x,y)) then
+				targetMap:setTileType(x,y,tileTypes.Bricks)
 			end
 		end
 	end
 
-	for _,fixedObj in ipairs(map.fixedObjs) do
+	for _,fixedObj in ipairs(targetMap.fixedObjs) do
 		if fixedObj.type == MerchantObj then
-			for x=math.min(fixedObj.pos.x, math.floor(map.size.x/2)),math.max(fixedObj.pos.x, math.floor(map.size.x/2)) do
+			for x=math.min(fixedObj.pos.x, math.floor(targetMap.size.x/2)),math.max(fixedObj.pos.x, math.floor(targetMap.size.x/2)) do
 				for y=fixedObj.pos.y-pathwidth,fixedObj.pos.y+pathwidth do
-					if x >= 0 and y >= 0 and x < map.size.x and y < map.size.y then
-						if tileTypes.Grass:isa(map:getTile(x,y)) then
-							map:setTileType(x,y,tileTypes.Bricks)
+					if x >= 0 and y >= 0 and x < targetMap.size.x and y < targetMap.size.y then
+						if tileTypes.Grass:isa(targetMap:getTile(x,y)) then
+							targetMap:setTileType(x,y,tileTypes.Bricks)
 						end
 					end
 				end
@@ -2391,43 +2405,43 @@ genTown=[args]do
 		end
 	end
 
-	maps:insert(map)
+	maps:insert(targetMap)
 
-	return map
+	return targetMap
 end
 
 
-genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
+genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
 	local rooms = table()
 
-	--trace("begin gen "+map.name)
+	--trace("begin gen "+targetMap.name)
 
-	local max = math.floor(map.size.x * map.size.y / avgRoomSize)
+	local max = math.floor(targetMap.size.x * targetMap.size.y / avgRoomSize)
 	for i=1,max do
-		local room = {pos=randomBoxPos(map.bbox)}
+		local room = {pos=randomBoxPos(targetMap.bbox)}
 		room.bbox = box2(room.pos, room.pos)
 		rooms:insert(room)
-		map.tiles[room.pos.y][room.pos.x].room = room
+		targetMap.tiles[room.pos.y][room.pos.x].room = room
 	end
 
 	local modified
 	repeat
 		modified=false
 		for j,room in ipairs(rooms) do
-			local bbox = box2(room.bbox.min-1, room.bbox.max+1):clamp(map.bbox)
+			local bbox = box2(room.bbox.min-1, room.bbox.max+1):clamp(targetMap.bbox)
 			local roomcorners = {room.bbox.min, room.bbox.max}
 			local corners = {bbox.min, bbox.max}
 			for i,corner in ipairs(corners) do
 				local found = false
 				for y=room.bbox.min.y,room.bbox.max.y do
-					if map.tiles[y][corner.x].room then
+					if targetMap.tiles[y][corner.x].room then
 						found = true
 						break
 					end
 				end
 				if not found then
 					for y=room.bbox.min.y,room.bbox.max.y do
-						map.tiles[y][corner.x].room = room
+						targetMap.tiles[y][corner.x].room = room
 					end
 					roomcorners[i].x = corner.x
 					modified = true
@@ -2435,14 +2449,14 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 
 				found = false
 				for x=room.bbox.min.x,room.bbox.max.x do
-					if map.tiles[corner.y][x].room then
+					if targetMap.tiles[corner.y][x].room then
 						found = true
 						break
 					end
 				end
 				if not found then
 					for x=room.bbox.min.x,room.bbox.max.x do
-						map.tiles[corner.y][x].room = room
+						targetMap.tiles[corner.y][x].room = room
 					end
 					roomcorners[i].y = corner.y
 					modified = true
@@ -2452,9 +2466,9 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	until not modified
 
 	--clear tile rooms for reassignment
-	for y=0,map.size.y-1 do
-		for x=0,map.size.x-1 do
-			map.tiles[y][x].room = nil
+	for y=0,targetMap.size.y-1 do
+		for x=0,targetMap.size.x-1 do
+			targetMap.tiles[y][x].room = nil
 		end
 	end
 
@@ -2473,14 +2487,14 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 		else
 			for y=room.bbox.min.y,room.bbox.max.y do
 				for x=room.bbox.min.x,room.bbox.max.x do
-					map:setTileType(x,y,tileTypes.Bricks)
+					targetMap:setTileType(x,y,tileTypes.Bricks)
 				end
 			end
 
 			--rooms
 			for y=room.bbox.min.y,room.bbox.max.y do
 				for x=room.bbox.min.x,room.bbox.max.x do
-					map.tiles[y][x].room = room
+					targetMap.tiles[y][x].room = room
 				end
 			end
 		end
@@ -2504,7 +2518,7 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 					--step twice to find our neighbor
 					local nextpos = vec2(pos)
 					nextpos[dimfield] += minmaxofs
-					local tile = map:getTile(nextpos.x,nextpos.y)
+					local tile = targetMap:getTile(nextpos.x,nextpos.y)
 					if tile
 					and tile.room
 					then
@@ -2555,8 +2569,8 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 		lastRoom = dstRoom
 		--so find dstRoom in srcRoom.neighbors
 		local pos = neighborInfo.positions:pickRandom()
-		map:setTileType(pos.x, pos.y, tileTypes.Bricks)
-		map.fixedObjs:insert{
+		targetMap:setTileType(pos.x, pos.y, tileTypes.Bricks)
+		targetMap.fixedObjs:insert{
 			pos=pos,
 			type=DoorObj,
 		}
@@ -2565,31 +2579,31 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 	end
 
 	--[[
-	for (local y = 0; y < map.size.y; y+=1) {
-		for (local x = 0; x < map.size.x; x+=1) {
-			delete map.tiles[y][x].room
+	for (local y = 0; y < targetMap.size.y; y+=1) {
+		for (local x = 0; x < targetMap.size.x; x+=1) {
+			delete targetMap.tiles[y][x].room
 		}
 	}
 	--]]
 
 	local upstairs = {
 		type=UpStairsObj,
-		pos=pickFreeRandomFixedPos{map=map, bbox=startRoom.bbox},
+		pos=pickFreeRandomFixedPos{map=targetMap, bbox=startRoom.bbox},
 		destMap=prevMapName,
 	}
-	map.fixedObjs:insert(upstairs)
-	map.playerStart = upstairs.pos
+	targetMap.fixedObjs:insert(upstairs)
+	targetMap.playerStart=upstairs.pos
 	if nextMapName then
-		map.fixedObjs:insert{
+		targetMap.fixedObjs:insert{
 			type=DownStairsObj,
-			pos=pickFreeRandomFixedPos{map=map, bbox=lastRoom.bbox},
+			pos=pickFreeRandomFixedPos{map=targetMap, bbox=lastRoom.bbox},
 			destMap=nextMapName,
 		}
 	else
 		--add a princess or a key or a crown or something stupid
-		map.fixedObjs:insert{
+		targetMap.fixedObjs:insert{
 			type=MerchantObj,
-			pos=pickFreeRandomFixedPos{map=map, bbox=lastRoom.bbox},
+			pos=pickFreeRandomFixedPos{map=targetMap, bbox=lastRoom.bbox},
 			msg='Tee Hee! Take me back to the village',
 			onInteract=[:,player]do
 				-- so much for ES6 OOP being more useful than hacked-together original JS prototypes...
@@ -2610,14 +2624,14 @@ genDungeonLevel=[map,prevMapName,nextMapName,avgRoomSize]do
 		and room ~= lastRoom
 		and math.random() <= .5
 		then
-			map.fixedObjs:insert{
+			targetMap.fixedObjs:insert{
 				type=TreasureObj,
-				pos=pickFreeRandomFixedPos{map=map, bbox=room.bbox},
+				pos=pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox},
 			}
 		end
 	end
 
-	--trace("end gen "+map.name)
+	--trace("end gen "+targetMap.name)
 end
 
 --[[
@@ -2645,7 +2659,7 @@ genDungeon=[args]do
 	local depth = args.depth or 1
 	local firstMap
 	for i=0,depth-1 do
-		local map = Map{
+		local newMap=Map{
 			name=args.prefix..(i+1),
 			size= vec2(args.size),
 			spawn=args.spawn,	--all keeping the same copy for now
@@ -2654,7 +2668,7 @@ genDungeon=[args]do
 			fogColor=0xf0,	--black
 			fogDecay=.01,
 		}
-		if not firstMap then firstMap = map end
+		if not firstMap then firstMap=newMap end
 
 		local prevMapName = nil
 		local nextMapName = nil
@@ -2664,7 +2678,7 @@ genDungeon=[args]do
 			prevMapName = args.prefix..i
 		end
 		if i < depth-2 then nextMapName = args.prefix..(i+2) end
-		genDungeonLevel(map, prevMapName, nextMapName, avgRoomSize)
+		genDungeonLevel(newMap, prevMapName, nextMapName, avgRoomSize)
 
 		--after generating it and before adding it
 		--modify all warps to self dungeon -=1 give them the appropriate location
@@ -2673,9 +2687,9 @@ genDungeon=[args]do
 				if othermap.fixedObjs then
 					for k,fixedObj in ipairs(othermap.fixedObjs) do
 						if fixedObj.destMap == args.prefix..'1' then
-							for l=1,#map.fixedObjs do
-								if map.fixedObjs[l].type == UpStairsObj then
-									fixedObj.destPos = map.fixedObjs[l].pos
+							for l=1,#newMap.fixedObjs do
+								if newMap.fixedObjs[l].type == UpStairsObj then
+									fixedObj.destPos = newMap.fixedObjs[l].pos
 									break
 								end
 							end
@@ -2684,7 +2698,7 @@ genDungeon=[args]do
 				end
 			end
 		end
-		maps:insert(map)
+		maps:insert(newMap)
 	end
 
 	--trace("done with "+args.prefix)
@@ -2700,7 +2714,7 @@ args:
 start it out
 --]]
 
-drawGrassBlob=[map, cx,cy,r]do
+drawGrassBlob=[targetMap,cx,cy,r]do
 	local extra = 3
 	local sr = r + extra
 	for dy=-sr,sr do
@@ -2710,9 +2724,9 @@ drawGrassBlob=[map, cx,cy,r]do
 			local rad = math.sqrt(dx*dx + dy*dy)
 			rad -= extra*(1+noise(x/10,y/10))
 			if rad <= r then
-				local mx = (x + map.size.x) % map.size.x
-				local my = (y + map.size.y) % map.size.y
-				map:setTileType(mx, my, tileTypes.Grass)
+				local mx = (x + targetMap.size.x) % targetMap.size.x
+				local my = (y + targetMap.size.y) % targetMap.size.y
+				targetMap:setTileType(mx, my, tileTypes.Grass)
 			end
 		end
 	end
@@ -2761,7 +2775,7 @@ initMaps=[]do
 	while tileTypes.Grass:isa(world:getTile(townPos.x,townPos.y)) do
 		townPos.x+=1
 	end
-	world.playerStart = townPos - vec2(1,0)
+	world.playerStart=townPos-vec2(1,0)
 
 	local isWeapon=[itemClass] WeaponItem:isa(itemClass)
 	local isRelic=[itemClass] RelicItem:isa(itemClass)
@@ -2887,27 +2901,28 @@ draw=[]do
 	local heightInTiles = math.floor(screenSize.y / tileSize.y)
 	view.bbox.min.x = math.ceil(view.center.x - widthInTiles / 2)
 	view.bbox.min.y = math.ceil(view.center.y - heightInTiles / 2)
-	if not map.wrap then
-		if view.bbox.min.x + widthInTiles >= map.size.x then view.bbox.min.x = map.size.x - widthInTiles end
-		if view.bbox.min.y + heightInTiles >= map.size.y then view.bbox.min.y = map.size.y - heightInTiles end
+	if not thisMap.wrap then
+		if view.bbox.min.x + widthInTiles >= thisMap.size.x then view.bbox.min.x = thisMap.size.x - widthInTiles end
+		if view.bbox.min.y + heightInTiles >= thisMap.size.y then view.bbox.min.y = thisMap.size.y - heightInTiles end
 		if view.bbox.min.x < 0 then view.bbox.min.x = 0 end
 		if view.bbox.min.y < 0 then view.bbox.min.y = 0 end
 	end
 	view.bbox.max.x = view.bbox.min.x + widthInTiles
 	view.bbox.max.y = view.bbox.min.y + heightInTiles
-	if not map.wrap then
-		if view.bbox.max.x >= map.size.x then view.bbox.max.x = map.size.x-1 end
-		if view.bbox.max.y >= map.size.y then view.bbox.max.y = map.size.y-1 end
+	if not thisMap.wrap then
+		if view.bbox.max.x >= thisMap.size.x then view.bbox.max.x = thisMap.size.x-1 end
+		if view.bbox.max.y >= thisMap.size.y then view.bbox.max.y = thisMap.size.y-1 end
 	end
 	--draw tiles first
 	local ry=0
 	for y=view.bbox.min.y,view.bbox.max.y do
 		local rx=0
 		for x=view.bbox.min.x,view.bbox.max.x do
-			local tile = map:getTile(x,y)
-			spr(tile.tileIndex, rx * tileSize.x, ry * tileSize.y, 2, 2)
+			local tile = thisMap:getTile(x,y)
+			--spr(tile.tileIndex, rx * tileSize.x, ry * tileSize.y, 2, 2)
+			map(x,y,1,1,rx*tileSize.x,ry*tileSize.y,0,true)
 
-			local tileObjs = map:getTileObjs(x,y)
+			local tileObjs = thisMap:getTileObjs(x,y)
 			if tileObjs then
 				for _,obj in ipairs(tileObjs) do
 					if obj.draw then obj:draw() end
@@ -2918,13 +2933,13 @@ draw=[]do
 		ry+=1
 	end
 
-	if map.fogColor then
+	if thisMap.fogColor then
 		blend(6)	-- set to subtract
 		local ry=0
 		for y=view.bbox.min.y,view.bbox.max.y do
 			local rx=0
 			for x=view.bbox.min.x,view.bbox.max.x do
-				local tile = map:getTile(x,y)
+				local tile = thisMap:getTile(x,y)
 				local light = 0
 				if tile.light then
 					light = tile.light
@@ -3027,9 +3042,9 @@ end
 
 pickFreePos=[classifier]do
 	for attempt=1,1000 do
-		local pos = randomBoxPos(map.bbox)
-		local tile = map:getTile(pos.x, pos.y)
-		local tileObjs = map:getTileObjs(pos.x, pos.y)
+		local pos = randomBoxPos(thisMap.bbox)
+		local tile = thisMap:getTile(pos.x, pos.y)
+		local tileObjs = thisMap:getTileObjs(pos.x, pos.y)
 		if not tileObjs then
 			local good
 			if classifier then
@@ -3047,9 +3062,9 @@ pickFreePos=[classifier]do
 end
 
 updateGame=[]do
-	if map.spawn then
-		for _,spawnInfo in ipairs(map.spawn) do
-			if math.random() < spawnInfo.rate and #map.objs < 2000 then
+	if thisMap.spawn then
+		for _,spawnInfo in ipairs(thisMap.spawn) do
+			if math.random() < spawnInfo.rate and #thisMap.objs < 2000 then
 				local spawnClass = spawnInfo.type
 				local classifier = spawnClass.movesInWater
 					and ([tile] tile.water)
@@ -3060,26 +3075,27 @@ updateGame=[]do
 	end
 
 	--decay light
-	if map.fogDecay then
+	if thisMap.fogDecay then
 		for y=view.bbox.min.y-1,view.bbox.max.y+1 do
 			for x=view.bbox.min.x-1,view.bbox.max.x+1 do
-				local tile = map:getTile(x,y)
+				local tile = thisMap:getTile(x,y)
 				if tile and tile.light then
 					if view.bbox:contains(vec2(x,y)) then
-						tile.light = math.max(0, tile.light - map.fogDecay)
+						tile.light = math.max(0, tile.light - thisMap.fogDecay)
 					else
-						map.tiles[y][x] = nil
+						thisMap.tiles[y][x] = nil
 					end
 				end
 			end
 		end
 	end
 
-	for i=#map.objs,1,-1 do
-		local obj = map.objs[i]
+	local i=1
+	while i<=#thisMap.objs do
+		local obj = thisMap.objs[i]
 		if obj.remove then
 			obj:clearTile()
-			map.objs:remove(i)
+			thisMap.objs:remove(i)
 			if obj == player then
 				player = nil
 			end
@@ -3088,11 +3104,12 @@ updateGame=[]do
 			if obj.update then obj:update() end
 			--obj?:postUpdate()
 			if obj.postUpdate then obj:postUpdate() end
+			i+=1
 		end
-		if setMapRequest ~= nil then break end	--christmas came early
+		if setMapRequest~=nil then break end	--christmas came early
 	end
 
-	if setMapRequest ~= nil and player then
+	if setMapRequest~=nil and player then
 		setMap(setMapRequest)
 		setMapRequest = nil
 	else
@@ -3102,52 +3119,59 @@ end
 
 
 setMap=[args]do
-
 	--if we were somewhere already...
-	if map then
+	if thisMap then
 		--remove player
 		if player then
 			player:clearTile()
-			map.objs:removeObject(player)
+			thisMap.objs:removeObject(player)
 			if not args.dontSavePos then
-				map.lastPlayerStart=vec2(player.pos)
+				thisMap.lastPlayerStart=vec2(player.pos)
 			end
 		end
-
-		if map.resetObjs then
-			for _,obj in ipairs(map.objs) do
+		if thisMap.resetObjs then
+			for _,obj in ipairs(thisMap.objs) do
 				obj:clearTile()
 			end
-			map.objs = nil
+			thisMap.objs = nil
 		end
 	end
 
 	--now load the map
-	map = assert.index(maps, args.map, "failed to find map")
+	thisMap = assert.index(maps, args.map, "failed to find map")
+
+	-- copy the map tile types into the tilemap
+	for y=0,thisMap.size.y-1 do
+		local tilerow=thisMap.tiles[y]
+		for x=0,thisMap.size.x-1 do
+			local tile=tilerow[x]
+			mset(x,y,assert(table.pickRandom(assert.index(tileTypeForName,tile.name))))
+		end
+	end
 
 	local firstSpawn = false
-	if not map.objs then
+	if not thisMap.objs then
 		firstSpawn = true
-		map.objs = table()
+		thisMap.objs = table()
 	end
 
 	--spawn any fixed objs
-	if map.fixedObjs and firstSpawn then
-		for _,fixedObj in ipairs(map.fixedObjs) do
+	if thisMap.fixedObjs and firstSpawn then
+		for _,fixedObj in ipairs(thisMap.fixedObjs) do
 			 fixedObj:type()
 		end
 	end
 
 	if player then
-		map.objs:insert(1, player)
+		thisMap.objs:insert(1, player)
 
 		--init hero
 		if args.pos then
-			player:setPos(args.pos.x, args.pos.y)
-		elseif map.lastPlayerStart then
-			player:setPos(map.lastPlayerStart.x, map.lastPlayerStart.y)
-		elseif map.playerStart then
-			player:setPos(map.playerStart.x, map.playerStart.y)
+			player:setPos(args.pos:unpack())
+		elseif thisMap.lastPlayerStart then
+			player:setPos(thisMap.lastPlayerStart:unpack())
+		elseif thisMap.playerStart then
+			player:setPos(thisMap.playerStart:unpack())
 		else
 			trace("we don't have a setMap pos and we don't have a map.playerStart ...")
 			player:setPos(0,0)
@@ -3158,7 +3182,7 @@ setMap=[args]do
 	--local _ = args.done?()	-- TODO langifx
 	if args.done then args.done() end
 
-	clientMessage("Entering "..map.name)
+	clientMessage("Entering "..thisMap.name)
 
 	draw()
 end
