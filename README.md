@@ -463,9 +463,6 @@ Pico8 Compatability is at 95%
 	- multiplayer persistent memory per client ... how to associate and how to secure
 	- still have some issues where temporary / single-frame cmds like map changes aren't getting reflected ...
 
-- langfix needs better error-handling, line and col redirection from transpiled location to rua script location.
-	- At present if there's a parse error then the line will show up correctly ... right underneath the line and file of the parser code itself ... hmm
-	- but if there's a runtime error then it'll give you the line and col in terms of the runtime-generated transpiled code, which does not match up line for line with the langfix code.  You can see this code by running `luajit -e "require'ext.debug''langfix'" run.lua <your cart name.n9>`, but I'd like to instead generate line-by-line equivalent code, or remap the code error regions from the generated to the original code, idk.
 - Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
 - Some day I should cut off cartridge access to `app`, `ffi`, etc.  I like having them around for `offsetof`'ing fields to get locations in RAM, which are subject to change while this is in alpha.  Should I introduce constant variables with the address names instead, and then hide ffi?
@@ -482,6 +479,8 @@ Pico8 Compatability is at 95%
 - ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.
 - The reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ... this and multicart/bank and sync() function ...
-- Maybe I shouldn't keep the font in the tilemap/spritemap...
 - If I'm going to continue with the SNES theme then I'm going to need a lot more than 64k for storing all audio.  SNES just had 64k of ARAM active at a time, but for allll samples, often it could get into the MBs ...
 	What if I just had arbitrary banks, and in the editor you pick what you want to use them for ... code | sprite/tile sheets | tilemaps | audio | etc
+- <8bpp interleaved instead of planar.
+- Font goes in its own memory.
+- Editor palette goes in its own memory.

@@ -756,7 +756,7 @@ function App:initGL()
 		-- TODO don't let the ROM see the App...
 		app = self,
 		ffi = ffi,
-		getfenv = getfenv,
+		getfenv = getfenv,	-- maybe ... needed for _ENV replacement, but maybe can break out of sandbox ...
 		setfenv = setfenv,
 	}
 
