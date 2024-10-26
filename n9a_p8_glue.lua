@@ -1,4 +1,3 @@
--- begin compat layer
 mode(1)	-- set to 8bpp-indexed framebuffer ... TODO make this a poke()
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 p8color=6
@@ -222,6 +221,7 @@ setfenv(1, {
 	getmetatable=getmetatable,
 	setmetatable=setmetatable,
 	type=type,
+	unpack=table.unpack,
 	printh=trace,
 	assert=assert,
 	band=bit.band,
@@ -293,11 +293,23 @@ setfenv(1, {
 		end
 		return string.byte(...)
 	end,
-	sub=string.sub,
+	sub=[...]do
+		local a,b,c=...
+		local tc = type(c)
+		if tc ~= 'nil' and tc ~= 'number' then
+			return string.sub(a,b,b)
+		end
+		return string.sub(...)
+	end,
 	split=[str,sep,num]do
+		if type(sep)=='number' then
+			-- "When separator is a number n, the string is split into n-character groups"
+			error"TODO"
+		end
 		local t = string.split(str, sep or ',')
+		if num == nil then num=true end	-- TODO use select('#', ...) ?
 		if num then
-			for i=1,#t do t[i] = tonumber(t[i]) end
+			for i=1,#t do t[i] = tonumber(t[i]) or t[i] end
 		end
 		return t
 	end,
