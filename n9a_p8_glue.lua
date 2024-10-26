@@ -215,6 +215,19 @@ p8poke=[addr,value,...]do
 trace(('TODO poke $%x $%x'):format(addr, value))
 	end
 end
+
+p8bit={
+	band=[a,b]bit.band(a or 0, b or 0),
+	bor=[a,b]bit.bor(a or 0, b or 0),
+	bxor=[a,b]bit.bxor(a or 0, b or 0),
+	bnot=[a]bit.bnot(a or 0),
+	shl=[a,b]bit.lshift(a or 0, b or 0),
+	shr=[a,b]bit.rshift(a or 0, b or 0),
+	lshr=[a,b]bit.arshift(a or 0, b or 0),
+	rotl=[a,b]bit.rol(a or 0, b or 0),
+	rotr=[a,b]bit.ror(a or 0, b or 0),
+}
+
 setfenv(1, {
 	getfenv=getfenv,	-- for code that uses _ENV...
 	setfenv=setfenv,
@@ -224,16 +237,19 @@ setfenv(1, {
 	unpack=table.unpack,
 	printh=trace,
 	assert=assert,
-	bit=bit,	-- for langfix scope
-	band=bit.band,
-	bor=bit.bor,
-	bxor=bit.bxor,
-	bnot=bit.bnot,
-	shl=bit.lshift,
-	shr=bit.rshift,
-	lshr=bit.arshift,
-	rotl=bit.rol,
-	rotr=bit.ror,
+
+	-- pico8's bit ops works dif than luajits ... nils are converted to 0s
+	band=p8bit.band,
+	bor=p8bit.bor,
+	bxor=p8bit.bxor,
+	bnot=p8bit.bnot,
+	shl=p8bit.shl,
+	shr=p8bit.shr,
+	lshr=p8bit.lshr,
+	rotl=p8bit.rotl,
+	rotr=p8bit.rotr,
+	bit=p8bit,
+
 	--min=math.min,	-- some games complain about passing nils ... is that from other parse errors? or is that really pico8 functionality?
 	--max=math.max,
 	min=[a,b]do
@@ -531,7 +547,7 @@ assert.lt(i,256)
 		screenY=math.floor(screenY or 0)
 
 -- [=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
--- but wait, now that I started writing blank to tile index 0 in the converted cartridge ... 
+-- but wait, now that I started writing blank to tile index 0 in the converted cartridge ...
 		if not layers and not p8PalChanged then
 			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
 		end
