@@ -1350,6 +1350,9 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		line = line:gsub('\\^', '')--ctrl-carat')
 		line = line:gsub('\\#', '')--esc-hash')
 
+		-- TODO pico8 converts its 127-255 chars to unicode ...
+		-- ... convert them back plz
+
 		--btn(b) btnp(b): b can be a extended unicode:
 		-- Lua parser doesn't like this.
 		for k,v in pairs{

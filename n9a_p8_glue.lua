@@ -224,6 +224,7 @@ setfenv(1, {
 	unpack=table.unpack,
 	printh=trace,
 	assert=assert,
+	bit=bit,	-- for langfix scope
 	band=bit.band,
 	bor=bit.bor,
 	bxor=bit.bxor,
@@ -269,7 +270,14 @@ setfenv(1, {
 	end,
 	srand=math.randomseed,
 	add=table.insert,
-	del=table.removeObject,
+	del=[t,v]do
+		for i,u in ipairs(t) do
+			if u==v then
+				table.remove(t,i)
+				return
+			end
+		end
+	end,
 	deli=table.remove,
 	count=[t]#t,
 	pairs=[t](t==nil? (coroutine.wrap([]nil)):(pairs(t))),
@@ -365,21 +373,13 @@ setfenv(1, {
 		col=col or p8color
 		elli(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
 	end,
-	circ=[x,y,r,col]do
-		col=col or p8color
-		ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
-	end,
-	circfill=[x,y,r,col]do
-		col=col or p8color
-		elli(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
-	end,
 	oval=[x0,y0,x1,y1,col]do
 		col=col or p8color
-		elli(x0,y0,x1-x0+1,y1-y0+1,col)
-	end,
-	ovalb=[x0,y0,x1,y1,col]do
-		col=col or p8color
 		ellib(x0,y0,x1-x0+1,y1-y0+1,col)
+	end,
+	ovalfill=[x0,y0,x1,y1,col]do
+		col=col or p8color
+		elli(x0,y0,x1-x0+1,y1-y0+1,col)
 	end,
 	line=[...]do
 		local x0,y0,col,x1,y1=lastlinex,lastliney,p8color
