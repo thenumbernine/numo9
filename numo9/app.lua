@@ -1521,7 +1521,6 @@ print('run thread dead')
 			self.videoModeInfo[0].quadMapObj.texs[3] = self.palTex
 
 			self:setVideoMode(self.ram.videoMode)
-
 		end
 		self:mvMatFromRAM()
 
