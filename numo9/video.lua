@@ -558,20 +558,26 @@ function AppVideo:initDraw()
 	end
 	--]=]
 	-- [=[ framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
-	self.fbMenuTex = GLTex2D{
-		target = gl.GL_TEXTURE_2D,
-		internalFormat = gl.GL_RGB,
-		format = gl.GL_RGB,
-		type = gl.GL_UNSIGNED_BYTE,
-		width = frameBufferSize.x,
-		height = frameBufferSize.y,
-		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
-		minFilter = gl.GL_NEAREST,
-		magFilter = gl.GL_NEAREST,
-	}:unbind()
+	do
+		local size = frameBufferSize.x * frameBufferSize.y * 3
+		local data = ffi.new('uint8_t[?]', size)
+		ffi.fill(data, size)
+		self.fbMenuTex = GLTex2D{
+			target = gl.GL_TEXTURE_2D,
+			internalFormat = gl.GL_RGB,
+			format = gl.GL_RGB,
+			type = gl.GL_UNSIGNED_BYTE,
+			width = frameBufferSize.x,
+			height = frameBufferSize.y,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			data = data,
+		}:unbind()
+	end
 	--]=]
 
 	self.quadGeom = GLGeometry{
@@ -1207,34 +1213,12 @@ void main() {
 			to = 'vec4',
 		}
 		..[[.r;
-	//uint colorIndex = uint((colorIndexNorm + .5) / 4294967295.);	// transparent / nothing
-	//uint colorIndex = uint((colorIndexNorm + .5) / 16777215.);	// transparent / nothing
-	//uint colorIndex = uint((colorIndexNorm + .5) / 65535.);	// transparent / nothing
-	//uint colorIndex = uint((colorIndexNorm + .5) / 255.);	// transparent / nothing
-	//uint colorIndex = uint(colorIndexNorm);	// transparent / nothing
-	//uint colorIndex = uint(colorIndexNorm * 255.);	// transparent / nothing
-	//uint colorIndex = uint((colorIndexNorm + .5) * 255.);	// shows black
-	uint colorIndex = uint(colorIndexNorm * 255. + .5);	// transparent / nothing
-	//uint colorIndex = uint((colorIndexNorm + .5) * 65535.);	// shows black
-	//uint colorIndex = uint(colorIndexNorm * 65535.);	// transparent / nothing
-	//uint colorIndex = uint((colorIndexNorm + .5) * 16777215.);	// shows black
-	//uint colorIndex = uint(colorIndexNorm * 16777215.);	// transparent / nothing
-	//uint colorIndex = uint((colorIndexNorm + .5) * 4294967295.);	// transparent / nothing
-	//uint colorIndex = uint(colorIndexNorm * 4294967295.);	// transparent / nothing
-	//uint colorIndex = uint(colorIndexNorm * 4294967295. + .5);	// transparent / nothing
+	uint colorIndex = uint(colorIndexNorm * 255. + .5);
 	colorIndex >>= spriteBit;
 	colorIndex &= spriteMask;
 	if (colorIndex == transparentIndex) discard;
 	colorIndex += paletteIndex;
-#if 1
 <?=info.colorOutput?>
-#else	// inlined
-fragColor = texture(palTex, vec2((colorIndexNorm * 255. + .5) / 256., .5), 0);
-// IT'S GOING STRAIGHT FROM THE SPRITE SHEET TO THE PALETTE TO THE FRAGMENT, ALL FLOATS, WHAT IS GOING WRONG?!?!?!?!?
-// HOW COME colorIndexNorm IS ALWAYS ZERO?!?!?!?!?!?!?!?
-//fragColor = texture(palTex, vec2(2.5/255., .5), 0);
-#endif
-
 <? end ?>
 }
 ]], 			{

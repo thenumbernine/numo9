@@ -217,6 +217,8 @@ trace(('TODO poke $%x $%x'):format(addr, value))
 	end
 end
 setfenv(1, {
+	getfenv=getfenv,	-- for code that uses _ENV...
+	setfenv=setfenv,
 	getmetatable=getmetatable,
 	setmetatable=setmetatable,
 	type=type,
@@ -292,7 +294,13 @@ setfenv(1, {
 		return string.byte(...)
 	end,
 	sub=string.sub,
-	split=string.split,
+	split=[str,sep,num]do
+		local t = string.split(str, sep or ',')
+		if num then
+			for i=1,#t do t[i] = tonumber(t[i]) end
+		end
+		return t
+	end,
 	yield=coroutine.yield,
 	cocreate=coroutine.create,
 	coresume=coroutine.resume,

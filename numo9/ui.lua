@@ -270,13 +270,8 @@ function UI:update()
 		-1
 	)
 
-	if self:guiButton(
-		'R',
-		240,
-		0,
-		nil,
-		'reset RAM'
-	) then
+	-- TODO current bank vs editing ROM vs editing RAM ...
+	if self:guiButton('R', 240, 0, nil, 'reset RAM') then
 		app:checkDirtyGPU()
 		ffi.copy(app.ram.v, app.banks.v[0].v, ffi.sizeof'ROM')
 		app:setDirtyCPU()
@@ -334,15 +329,6 @@ function UI:gainFocus()
 		end
 	end
 end
-
---[[
-function UI:loseFocus()
-	local app = self.app
-
-	-- sync with RAM as well for when we run stuff ... tho calling run() or reset() should do this copy ROM->RAM for us
-	ffi.copy(app.banks.v[0].v, app.ram, ffi.sizeof'ROM')
-end
---]]
 
 -- setters from editor that write to both .ram and .banks.v[0]
 -- TODO how about flags in the editor for which you write to?

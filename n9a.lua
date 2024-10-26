@@ -372,7 +372,6 @@ or cmd == 'r' then
 					phaserwave,
 				}
 
-			
 
 				for i,f in ipairs(wavefuncs) do
 					local len = math.ceil(audioSampleRate / waveformFreq * 2)
@@ -1324,7 +1323,10 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 	or nah, maybe I can just grep it out
 	https://pico-8.fandom.com/wiki/Lua#Conditional_statements
 	--]]
-	-- [[ TODO try using patterns, but I think I need a legit regex library
+	-- [[
+	-- TODO try using patterns, but I think I need a legit regex library ... or parser ...
+	-- TODO for parser, functions whose arg is _ENV, or _ENV-assignment, replace with setfenv call
+	-- or if you don't want to expose setfenv then how about doing this in langfix?
 	code = string.split(code, '\n'):mapi(function(line, lineNo)
 		-- change // comments with -- comments
 		line = line:gsub('//', '--')
