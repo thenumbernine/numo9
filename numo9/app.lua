@@ -547,7 +547,7 @@ function App:initGL()
 				cmd.spriteBit = spriteBit
 				cmd.spriteMask = spriteMask
 			end
-			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteTex, paletteIndex, transparentIndex, spriteBit, spriteMask)
+			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteTex, self.palTex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
 		-- TODO maybe make draw16Sprites a poke'd value
 		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
@@ -1469,6 +1469,22 @@ print('run thread dead')
 		-- if we're using menu then render to the fbMenuTex
 		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
 		if self.activeMenu then
+			-- and set the palette to the editor palette ... ?
+			-- or not ...
+			-- TODO or not for when we want to show the game palette stuff ...
+			-- hmm , gotta split this up now ...
+			-- default draw calls will use the palMenuTex
+			-- and special calls will use the palTex
+			self.videoModeInfo[0].lineSolidObj.texs[1] = self.palMenuTex
+			self.videoModeInfo[0].triSolidObj.texs[1] = self.palMenuTex
+			self.videoModeInfo[0].quadSolidObj.texs[1] = self.palMenuTex
+			self.videoModeInfo[0].quadSpriteObj.texs[2] = self.palMenuTex
+			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
+			--self.videoModeInfo[0].quadMapObj.texs[3] = self.palMenuTex
+
+			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
+			self:setVideoMode(0)
+
 			-- so as long as the framebuffer is pointed at the fbMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
 			-- the draw commands will all go to fbMenuTex and not the VRAM fbTex
 			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM fbTex, but meh, it still won't change them.
@@ -1494,7 +1510,18 @@ print('run thread dead')
 					end
 				end
 			end
+
 			self:setFBTex(self.fbTex)
+
+			-- restore palettes
+			self.videoModeInfo[0].lineSolidObj.texs[1] = self.palTex
+			self.videoModeInfo[0].triSolidObj.texs[1] = self.palTex
+			self.videoModeInfo[0].quadSolidObj.texs[1] = self.palTex
+			self.videoModeInfo[0].quadSpriteObj.texs[2] = self.palTex
+			self.videoModeInfo[0].quadMapObj.texs[3] = self.palTex
+
+			self:setVideoMode(self.ram.videoMode)
+
 		end
 		self:mvMatFromRAM()
 

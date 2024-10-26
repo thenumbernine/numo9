@@ -386,7 +386,7 @@ To convert a Pico8 to Numo9 cartridge and run it:
 luajit n9a.lua p8run cart.p8
 ```
 
-Pico8 Compatability is at 95%
+Pico8 compatability has most basic functions covered but still fails at some edge cases.
 - certain string escape characters don't work
 - certain machine-specific peeks and pokes don't work
 

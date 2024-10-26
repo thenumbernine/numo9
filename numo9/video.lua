@@ -292,8 +292,7 @@ end
 
 -- TODO every time App calls this, make sure its palTex.dirtyCPU flag is set
 -- it would be here but this is sometimes called by n9a as well
-local function resetPalette(rom)
-	local ptr = rom.palette	-- uint16_t*
+local function resetPalette(ptr)	-- uint16_t*
 	for i,c in ipairs(
 		--[[ garbage colors
 		function(i)
@@ -381,6 +380,10 @@ local function resetPalette(rom)
 		ptr[0] = c
 		ptr = ptr + 1
 	end
+end
+
+local function resetROMPalette(rom)
+	resetPalette(rom.palette)
 end
 
 -- [[ also in sand-attack ... hmmmm ...
@@ -481,14 +484,14 @@ function AppVideo:initDraw()
 
 	-- redirect the image buffer to our virtual system rom
 	self.spriteTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t'):clear(),
 		internalFormat = texInternalFormat_u8,
 		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		type = gl.GL_UNSIGNED_BYTE,
 	})
 
 	self.tileTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'unsigned char'):clear(),
+		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t'):clear(),
 		internalFormat = texInternalFormat_u8,
 		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -504,7 +507,7 @@ function AppVideo:initDraw()
 	- .... 8 bits palette offset ... ? nah
 	--]]
 	self.mapTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'unsigned short'):clear(),
+		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'uint16_t'):clear(),
 		internalFormat = texInternalFormat_u16,
 		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
 		type = gl.GL_UNSIGNED_SHORT,
@@ -513,12 +516,11 @@ function AppVideo:initDraw()
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'unsigned short'),
+		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'uint16_t'),
 		internalFormat = gl.GL_RGB5_A1,
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
 	})
---print('palTex\n'..imageToHex(self.palTex.image))
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), -1)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
@@ -557,13 +559,32 @@ function AppVideo:initDraw()
 		})
 	end
 	--]=]
-	-- [=[ framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
+
+	-- keep menu/editor gfx separate of the fantasy-console
 	do
+		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
+		local data = ffi.new('uint16_t[?]', 256)
+		resetPalette(data)
+		self.palMenuTex = GLTex2D{
+			internalFormat = gl.GL_RGB5_A1,
+			format = gl.GL_RGBA,
+			width = paletteSize,
+			height = 1,
+			type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			data = data,
+		}:unbind()
+
+		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
 		local size = frameBufferSize.x * frameBufferSize.y * 3
 		local data = ffi.new('uint8_t[?]', size)
 		ffi.fill(data, size)
 		self.fbMenuTex = GLTex2D{
-			target = gl.GL_TEXTURE_2D,
 			internalFormat = gl.GL_RGB,
 			format = gl.GL_RGB,
 			type = gl.GL_UNSIGNED_BYTE,
@@ -1453,10 +1474,10 @@ void main() {
 		minFilter = gl.GL_NEAREST,
 		--minFilter = gl.GL_NEAREST_MIPMAP_NEAREST,		-- doesn't work so well with alpha channesl
 		--[[ checkerboard
-		image = Image(2,2,3,'unsigned char', {0xf0,0xf0,0xf0,0xfc,0xfc,0xfc,0xfc,0xfc,0xfc,0xf0,0xf0,0xf0}),
+		image = Image(2,2,3,'uint8_t', {0xf0,0xf0,0xf0,0xfc,0xfc,0xfc,0xfc,0xfc,0xfc,0xf0,0xf0,0xf0}),
 		--]]
 		-- [[ gradient
-		image = Image(4,4,3,'unsigned char', {
+		image = Image(4,4,3,'uint8_t', {
 			0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 0xff,0xff,0xff,
 			0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 0xff,0xff,0xff, 0xf0,0xf0,0xf0,
 			0xfe,0xfe,0xfe, 0xff,0xff,0xff, 0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd,
@@ -1636,13 +1657,14 @@ function AppVideo:resetFont()
 	self.spriteTex.dirtyCPU = true
 end
 
+-- externally used ...
 -- this re-inserts the font and default palette
 -- and copies those changes back into the cartridge too (stupid idea of keeping two copies of the cartridge in RAM and ROM ...)
 function AppVideo:resetGFX()
 	self:resetFont()
 
 	self.palTex:checkDirtyGPU()
-	resetPalette(self.ram)
+	resetROMPalette(self.ram)
 	ffi.copy(self.banks.v[0].palette, self.ram.palette, paletteInBytes)
 	self.palTex.dirtyCPU = true
 end
@@ -1828,6 +1850,7 @@ function AppVideo:drawQuad(
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox
 	tex,
+	palTex,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
@@ -1836,7 +1859,9 @@ function AppVideo:drawQuad(
 	if tex.checkDirtyCPU then	-- some editor textures are separate of the 'hardware' and don't possess this
 		tex:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
-	self.palTex:checkDirtyCPU() 	-- before any GPU op that uses palette...
+	if palTex.checkDirtyCPU then
+		palTex:checkDirtyCPU() 	-- before any GPU op that uses palette...
+	end
 	self.fbTex:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 
 	paletteIndex = paletteIndex or 0
@@ -1847,6 +1872,7 @@ function AppVideo:drawQuad(
 	local sceneObj = self.quadSpriteObj
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = tex
+	sceneObj.texs[2] = palTex
 
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
@@ -1860,6 +1886,11 @@ function AppVideo:drawQuad(
 	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
+
+	-- restore in case it wasn't the original
+	sceneObj.texs[1] = self.spriteTex
+	sceneObj.texs[2] = self.palTex
+
 	self.fbTex.dirtyGPU = true
 	self.fbTex.changedSinceDraw = true
 end
@@ -1913,6 +1944,7 @@ function AppVideo:drawSprite(
 		spritesWide / tonumber(spriteSheetSizeInTiles.x),
 		spritesHigh / tonumber(spriteSheetSizeInTiles.y),
 		self.spriteTex,	-- tex
+		self.palTex,	-- palTex
 		paletteIndex,
 		transparentIndex,
 		spriteBit,
@@ -2094,6 +2126,6 @@ return {
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
 	resetFontOnSheet = resetFontOnSheet,
 	resetLogoOnSheet = resetLogoOnSheet,
-	resetPalette = resetPalette,
+	resetROMPalette = resetROMPalette,
 	AppVideo = AppVideo,
 }

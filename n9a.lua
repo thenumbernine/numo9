@@ -23,7 +23,7 @@ local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
 local resetFontOnSheet = numo9_video.resetFontOnSheet
-local resetPalette = numo9_video.resetPalette
+local resetROMPalette = numo9_video.resetROMPalette
 local resetFontOnSheet = numo9_video.resetFontOnSheet
 
 local numo9_archive = require 'numo9.archive'
@@ -273,7 +273,7 @@ or cmd == 'r' then
 		else
 			-- TODO resetGFX flag for n9a to do this anyways
 			-- if pal.png doens't exist then load the default at least
-			resetPalette(bank)
+			resetROMPalette(bank)
 		end
 
 		print'loading sfx...'
@@ -412,7 +412,7 @@ or cmd == 'r' then
 		resetFontOnSheet(banks.v[0].spriteSheet)
 	end
 	if extra == 'resetPal' then
-		--resetPalette(bank)
+		--resetROMPalette(bank)
 	end
 
 	local labelImage

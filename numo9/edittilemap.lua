@@ -101,9 +101,7 @@ function EditTilemap:update()
 	local mapHeight = bit.lshift(mapWidthInTiles, tileBits)
 
 	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
-	app:drawQuad(
-		mapX,mapY,mapWidth,mapHeight,0,0,mapWidth/2,mapHeight/2,app.checkerTex,0,-1,0xFF
-	)
+	app:drawQuad(mapX, mapY, mapWidth, mapHeight, 0, 0, mapWidth/2, mapHeight/2, app.checkerTex, app.palMenuTex, 0, -1, 0xFF)
 	do
 		local tx = self.tilemapPanOffset.x
 		local ty = self.tilemapPanOffset.y
@@ -187,6 +185,7 @@ function EditTilemap:update()
 			1,
 			1,
 			app.tileTex,
+			app.palTex,
 			0,
 			-1,
 			0,
