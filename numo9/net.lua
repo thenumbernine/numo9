@@ -1235,6 +1235,7 @@ print('got uint16 index='
 						c.x, c.y, c.w, c.h,
 						c.tx, c.ty, c.tw, c.th,
 						app.spriteTex,
+						app.palTex,
 						c.paletteIndex, c.transparentIndex,
 						c.spriteBit, c.spriteMask)
 				elseif cmdtype == netcmds.map then
