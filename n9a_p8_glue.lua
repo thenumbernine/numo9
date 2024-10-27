@@ -216,6 +216,7 @@ trace(('TODO poke $%x $%x'):format(addr, value))
 	end
 end
 
+--[[ TODO technically ... if pico8 is fixed 32bpp ... then I should be floor(x*2^16) to both args before performing ops, then x/2^16 back afterwards.
 p8bit={
 	band=[a,b]bit.band(a or 0, b or 0),
 	bor=[a,b]bit.bor(a or 0, b or 0),
@@ -227,6 +228,22 @@ p8bit={
 	rotl=[a,b]bit.rol(a or 0, b or 0),
 	rotr=[a,b]bit.ror(a or 0, b or 0),
 }
+--]]
+-- [[
+bitfrom=[x]math.floor((x or 0)*2^16+.5)
+bitto=[x]((x or 0)/2^16)	-- don't re-offset.  leave 0 at 0.
+p8bit={
+	band=[a,b]bitto(bit.band(bitfrom(a), bitfrom(b))),
+	bor=[a,b]bitto(bit.bor(bitfrom(a), bitfrom(b))),
+	bxor=[a,b]bitto(bit.bxor(bitfrom(a), bitfrom(b))),
+	bnot=[a]bitto(bit.bnot(bitfrom(a))),
+	shl=[a,b]bitto(bit.lshift(bitfrom(a), bitfrom(b))),
+	shr=[a,b]bitto(bit.rshift(bitfrom(a), bitfrom(b))),
+	lshr=[a,b]bitto(bit.arshift(bitfrom(a), bitfrom(b))),
+	rotl=[a,b]bitto(bit.rol(bitfrom(a), bitfrom(b))),
+	rotr=[a,b]bitto(bit.ror(bitfrom(a), bitfrom(b))),
+}
+--]]
 
 setfenv(1, {
 	getfenv=getfenv,	-- for code that uses _ENV...

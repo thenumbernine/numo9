@@ -66,21 +66,22 @@ end
 
 new=[cl,...]do
 	local o=setmetatable({},cl)
-	o?:init(...)
-	return o
+	return o, o?:init(...)
 end
 isa=[cl,o]o.isaSet[cl]
-classmeta = {__call=new}
+classmeta={__call=new}
 class=[...]do
-	local t=table(...)
-	t.super=...
-	t.__index=t
-	t.subclass=class
-	t.isaSet=table(table{...}:mapi([cl]cl.isaSet):unpack()):setmetatable(nil)
-	t.isaSet[t] = true
-	t.isa=isa
-	setmetatable(t,classmeta)
-	return t
+	local cl=table(...)
+	cl.super=...
+	cl.__index=cl
+	cl.subclass=class
+	cl.isaSet=table(table{...}
+		:mapi([pc]pc.isaSet):unpack())
+		:setmetatable(nil)
+	cl.isaSet[cl] = true
+	cl.isa=isa
+	setmetatable(cl,classmeta)
+	return cl
 end
 
 BaseObj=class{
