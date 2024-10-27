@@ -36,7 +36,7 @@ This is 8bpp RGB332.  It looks ugly. Maybe I'll add some dithering.
 
 ### sprites / tiles
 
-Sprites are 8x8 pixels.
+Sprite sheet tiles are 8x8 pixels.
 Sprite bpp can be anywhere from 1bpp to 8bpp, colors indexed into a palette.
 The renderer can draw the sprite bits starting at any bitplane.
 This way you can store (and edit) 8 1-bpp images in the same texture region.
@@ -481,6 +481,5 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - The reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ... this and multicart/bank and sync() function ...
 - If I'm going to continue with the SNES theme then I'm going to need a lot more than 64k for storing all audio.  SNES just had 64k of ARAM active at a time, but for allll samples, often it could get into the MBs ...
 	What if I just had arbitrary banks, and in the editor you pick what you want to use them for ... code | sprite/tile sheets | tilemaps | audio | etc
-- <8bpp interleaved instead of planar.
+- <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.  This means redoing the tiles-wide and high of the sprite and map draw functions.
 - Font goes in its own memory.
-- Editor palette goes in its own memory.

@@ -523,6 +523,63 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 	local code = move(sections, 'lua'):concat'\n'..'\n'
 	assert(basepath'origcode.lua':write(code))
 
+	-- pico8 converts its 127-255 chars to unicode ...
+	-- ... convert them back here 
+	-- TODO this will frustrate the text editors
+	-- maybe it's best to handle all code as utf8 and leave pico8-exported code as is
+	-- ... and TODO just get a utf8 library for luajit
+	-- using https://github.com/dansanderson/picotool/blob/main/pico8/lua/lua.py#L110
+	local p8ToUnicode= table({
+		-- 0 thru 15 match
+		['\16'] = '▮',	['\17'] = '■',	['\18'] = '□',	['\19'] = '⁙',	['\20'] = '⁘',	['\21'] = '‖',	['\22'] = '◀',	['\23'] = '▶',
+		['\24'] = '「',	['\25'] = '」',	['\26'] = '¥',	['\27'] = '•',	['\28'] = '、',	['\29'] = '。',	['\30'] = '゛',	['\31'] = '゜',
+		-- 32 thru 127 match
+		['\127'] = '○',
+		['\128'] = '█',	['\129'] = '▒',	['\130'] = '🐱',	['\131'] = '⬇️',	['\132'] = '░',	['\133'] = '✽',	['\134'] = '●',	['\135'] = '♥',
+		['\136'] = '☉',	['\137'] = '웃',	['\138'] = '⌂',	['\139'] = '⬅️',	['\140'] = '😐',	['\141'] = '♪',	['\142'] = '🅾️',	['\143'] = '◆',
+		['\144'] = '…',	['\145'] = '➡️',	['\146'] = '★',	['\147'] = '⧗',	['\148'] = '⬆️',	['\149'] = 'ˇ',	['\150'] = '∧',	['\151'] = '❎',
+		['\152'] = '▤',	['\153'] = '▥',	['\154'] = 'あ',	['\155'] = 'い',	['\156'] = 'う',	['\157'] = 'え',	['\158'] = 'お',	['\159'] = 'か',
+		['\160'] = 'き',	['\161'] = 'く',	['\162'] = 'け',	['\163'] = 'こ',	['\164'] = 'さ',	['\165'] = 'し',	['\166'] = 'す',	['\167'] = 'せ',
+		['\168'] = 'そ',	['\169'] = 'た',	['\170'] = 'ち',	['\171'] = 'つ',	['\172'] = 'て',	['\173'] = 'と',	['\174'] = 'な',	['\175'] = 'に',
+		['\176'] = 'ぬ',	['\177'] = 'ね',	['\178'] = 'の',	['\179'] = 'は',	['\180'] = 'ひ',	['\181'] = 'ふ',	['\182'] = 'へ',	['\183'] = 'ほ',
+		['\184'] = 'ま',	['\185'] = 'み',	['\186'] = 'む',	['\187'] = 'め',	['\188'] = 'も',	['\189'] = 'や',	['\190'] = 'ゆ',	['\191'] = 'よ',
+		['\192'] = 'ら',	['\193'] = 'り',	['\194'] = 'る',	['\195'] = 'れ',	['\196'] = 'ろ',	['\197'] = 'わ',	['\198'] = 'を',	['\199'] = 'ん',
+		['\200'] = 'っ',	['\201'] = 'ゃ',	['\202'] = 'ゅ',	['\203'] = 'ょ',	['\204'] = 'ア',	['\205'] = 'イ',	['\206'] = 'ウ',	['\207'] = 'エ',
+		['\208'] = 'オ',	['\209'] = 'カ',	['\210'] = 'キ',	['\211'] = 'ク',	['\212'] = 'ケ',	['\213'] = 'コ',	['\214'] = 'サ',	['\215'] = 'シ',
+		['\216'] = 'ス',	['\217'] = 'セ',	['\218'] = 'ソ',	['\219'] = 'タ',	['\220'] = 'チ',	['\221'] = 'ツ',	['\222'] = 'テ',	['\223'] = 'ト',
+		['\224'] = 'ナ',	['\225'] = 'ニ',	['\226'] = 'ヌ',	['\227'] = 'ネ',	['\228'] = 'ノ',	['\229'] = 'ハ',	['\230'] = 'ヒ',	['\231'] = 'フ',
+		['\232'] = 'ヘ',	['\233'] = 'ホ',	['\234'] = 'マ',	['\235'] = 'ミ',	['\236'] = 'ム',	['\237'] = 'メ',	['\238'] = 'モ',	['\239'] = 'ヤ',
+		['\240'] = 'ユ',	['\241'] = 'ヨ',	['\242'] = 'ラ',	['\243'] = 'リ',	['\244'] = 'ル',	['\245'] = 'レ',	['\246'] = 'ロ',	['\247'] = 'ワ',
+		['\248'] = 'ヲ',	['\249'] = 'ン',	['\250'] = 'ッ',	['\251'] = 'ャ',	['\252'] = 'ュ',	['\253'] = 'ョ',	['\254'] = '◜',	['\255'] = '◝',
+	}):setmetatable(nil)
+	local unicodeToP8 = table.map(p8ToUnicode, function(v,k) 
+		assert.ne(k,v,"redundant entry "..string.bytes(k):concat',')
+		return k,v 
+	end):setmetatable(nil)
+	local unicodeMaxLen = select(2, table.keys(unicodeToP8):map(function(s) return #s end):sup())
+	-- now replace all unicode characters with their original P8 characters
+	-- TODO this now needs a proper utf8 library so that I don't end up decoding misaligned characters
+	-- but until then meh ...
+	do
+		local i = 1
+		while i <= #code do
+			local found = false
+			for j=1,unicodeMaxLen do
+				local k = code:sub(i,i+j-1)
+				local p8 = unicodeToP8[k]
+				if p8 then
+print('replacing', string.bytes(k):concat',', string.bytes(p8):concat',')
+					code = code:sub(1,i-1)..p8..code:sub(i+j)
+					found = true
+					break
+				end
+			end
+			if not found then
+				i = i + 1
+			end
+		end
+	end
+
 	local function toImage(ls, _8bpp, name)
 		ls = ls:filter(function(line) return #line > 0 end)
 		if #ls == 0 then
@@ -1350,18 +1407,13 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		line = line:gsub('\\^', '')--ctrl-carat')
 		line = line:gsub('\\#', '')--esc-hash')
 
-		-- TODO pico8 converts its 127-255 chars to unicode ...
-		-- ... convert them back plz
-
-		--btn(b) btnp(b): b can be a extended unicode:
-		-- Lua parser doesn't like this.
 		for k,v in pairs{
-			['⬅️'] = 0,
-			['➡️'] = 1,
-			['⬆️'] = 2,
-			['⬇️'] = 3,
-			['🅾️'] = 4,
-			['❎'] = 5,
+			['\139'] = 0,	-- ⬅️
+			['\145'] = 1,	-- ➡️
+			['\148'] = 2,	-- ⬆️
+			['\131'] = 3,	-- ⬇️
+			['\142'] = 4,	-- 🅾️
+			['\151'] = 5,	-- ❎
 		} do
 			--[[ why isn't this working? Lua doesn't like unicode in their patterns?
 			line = line:gsub('btn('..k..')', 'btn('..v..')')
