@@ -696,7 +696,8 @@ function Server:init(app)
 	local sock = assert(socket.bind(listenAddr, listenPort))
 	self.socket = sock
 	self.socketaddr, self.socketport = sock:getsockname()
-	con:print('...init listening on ', tostring(self.socketaddr)..':'..tostring(self.socketport))
+	self.ident = tostring(self.socketaddr)..':'..tostring(self.socketport)
+	con:print('...init listening on ', self.ident)
 
 	--sock:setoption('keepalive', true)
 	sock:setoption('tcp-nodelay', true)
