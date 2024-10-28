@@ -1,3 +1,4 @@
+_G=getfenv(1)
 linfDist=[ax,ay,bx,by]do
 	return math.max(math.abs(ax-bx), math.abs(ay-by))
 end
@@ -69,7 +70,10 @@ new=[cl,...]do
 	return o, o?:init(...)
 end
 isa=[cl,o]o.isaSet[cl]
-classmeta={__call=new}
+classmeta={
+	__call=new,
+	__index=_G,	-- obj __index looks in its class, if not there then looks into global.  This line is needed for :: setfenv(1,self) use.
+}
 class=[...]do
 	local cl=table(...)
 	cl.super=...
@@ -85,38 +89,38 @@ class=[...]do
 end
 
 BaseObj=class{
-	init=[:,args]do
-		self.scaleX,self.scaleY=1,1
-		self.removeMe=false
-		self.posX=0
-		self.posY=0
-		self.startPosX=0
-		self.startPosY=0
-		self.srcPosX=0
-		self.srcPosY=0
-		self.destPosX=0
-		self.destPosY=0
-		self.moveCmd=-1
-		self.isBlocking=true
-		self.isBlockingPushers=true
-		self.blocksExplosion=true
+	init=[::,args]do
+		scaleX,scaleY=1,1
+		removeMe=false
+		posX=0
+		posY=0
+		startPosX=0
+		startPosY=0
+		srcPosX=0
+		srcPosY=0
+		destPosX=0
+		destPosY=0
+		moveCmd=-1
+		isBlocking=true
+		isBlockingPushers=true
+		blocksExplosion=true
 	end,
 	-- in AnimatedObj in fact ...
-	update=[:]nil,
-	setPos=[:,x,y]do
-		self.posX=x
-		self.srcPosX=x
-		self.destPosX=x
-		self.posY=y
-		self.srcPosY=y
-		self.destPosY=y
+	update=[::]nil,
+	setPos=[::,x,y]do
+		posX=x
+		srcPosX=x
+		destPosX=x
+		posY=y
+		srcPosY=y
+		destPosY=y
 	end,
-	drawSprite=[:]do
+	drawSprite=[::]do
 		-- posX posY are tile-centered so ...
-		local x = self.posX * 16 - 8 * self.scaleX
-		local y = self.posY * 16 - 8 * self.scaleY
-		if self.blend then blend(self.blend) end
-		spr(self.seq,	--spriteIndex,
+		local x = posX * 16 - 8 * scaleX
+		local y = posY * 16 - 8 * scaleY
+		if blendMode then blend(blendMode) end
+		spr(seq,	--spriteIndex,
 			x,			--screenX,
 			y,			--screenY,
 			2,			--spritesWide,
@@ -125,27 +129,25 @@ BaseObj=class{
 			nil,		--transparentIndex,
 			nil,		--spriteBit,
 			nil,		--spriteMask,
-			self.scaleX,
-			self.scaleY)
-		if self.blend then blend() end
+			scaleX,
+			scaleY)
+		if blendMode then blend() end
 	end,
-	isBlockingSentry=[:]self.isBlocking,
-	hitEdge=[:,whereX,whereY]true,
-	cannotPassThru=[:,maptype]mapType[maptype]?.cannotPassThru,
-	hitWorld=[:,whereX,whereY,typeUL,typeUR,typeLL,typeLR]
+	isBlockingSentry=[::]isBlocking,
+	hitEdge=[::,whereX,whereY]true,
+	cannotPassThru=[::,maptype]mapType[maptype]?.cannotPassThru,
+	hitWorld=[::,whereX,whereY,typeUL,typeUR,typeLL,typeLR]
 		self:cannotPassThru(typeUL)
 			or self:cannotPassThru(typeUR)
 			or self:cannotPassThru(typeLL)
 			or self:cannotPassThru(typeLR),
-	hitObject=[:,what,pushDestX,pushDestY,side]'test object',
-	startPush=[:,pusher,pushDestX,pushDestY,side]self.isBlocking,
-	endPush=[:,who,pushDestX,pushDestY]nil,
-	onKeyTouch=[:]nil,
-	onTouchFlames=[:]nil,
-	onGroundSunk=[:]do
-		removeObj(self)
-	end,
-	onRemove=[:]do self.removeMe=true end,
+	hitObject=[::,what,pushDestX,pushDestY,side]'test object',
+	startPush=[::,pusher,pushDestX,pushDestY,side]isBlocking,
+	endPush=[::,who,pushDestX,pushDestY]nil,
+	onKeyTouch=[::]nil,
+	onTouchFlames=[::]nil,
+	onGroundSunk=[::]removeObj(self),
+	onRemove=[::]do self.removeMe=true end,
 }
 
 do
@@ -322,7 +324,7 @@ do
 			self.isBlocking=false
 			self.isBlockingPushers=false
 			self.blocksExplosion=false
-			self.blend=1
+			self.blendMode=1
 			self.vel=args.vel
 			self.life=args.life
 			self.scaleX,self.scaleY=args.scale,args.scale
@@ -355,7 +357,7 @@ do
 			self:setPos(args.pos[1],args.pos[2])
 			self.startTime=time()
 			self.seq=args.seq or seqs.spark
-			self.blend=args.blend or 0
+			self.blendMode=args.blendMode or 0
 		end,
 		update=[:]do
 			super.update(self)
@@ -430,7 +432,7 @@ do
 			if self.state=='idle'
 			or self.state=='live'
 			then
-				if self.blend then blend(self.blend) end
+				if self.blendMode then blend(self.blendMode) end
 				spr(self.blastRadius<<1,
 					16*self.posX-4,
 					16*self.posY-4,
@@ -441,7 +443,7 @@ do
 					nil,
 					nil,
 					.5,.5)
-				if self.blend then blend() end
+				if self.blendMode then blend() end
 			end
 		end,
 		onKeyTouch=[:]removeObj(self),
@@ -620,7 +622,7 @@ do
 												life=math.random()*.5+.5,
 												radius=.5,
 												seq=seqs.brick,
-												blend=0,
+												blendMode=0,
 											})
 										end
 									end
@@ -645,7 +647,7 @@ do
 					pos={x,y},
 					life=.5 * (math.random() * .5 + .5),
 					radius=.25 * (math.random() + .5),
-					blend=0,
+					blendMode=0,
 				})
 			end
 		end,
@@ -880,7 +882,7 @@ do
 			super.drawSprite(self)
 
 			if self.bombs>0 then
-				if self.blend then blend(self.blend) end
+				if self.blendMode then blend(self.blendMode) end
 				spr(self.bombs<<1,
 					16*self.posX-4,
 					16*self.posY-4,
@@ -891,7 +893,7 @@ do
 					nil,
 					nil,
 					.5,.5)
-				if self.blend then blend() end
+				if self.blendMode then blend() end
 			end
 		end,
 
@@ -1077,11 +1079,11 @@ update=[]do
 		if btnp(4) then
 			setLevel(level+1) loadLevelRequest=true
 			--pokew(0x080a46, 0x801f)	-- set blend color to white
-			--player.blend=((player.blend or 0)+1)%9
+			--player.blendMode=((player.blendMode or 0)+1)%9
 		end
 		if btnp(6) then
 			setLevel(level-1) loadLevelRequest=true
-			--player.blend=((player.blend or 0)-1)%9
+			--player.blendMode=((player.blendMode or 0)-1)%9
 		end
 	end
 	for _,o in ipairs(objs) do
@@ -1115,7 +1117,7 @@ update=[]do
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
 		lastLevelStrWidth=text(levelstr,(256-(lastLevelStrWidth or 0))/2,0,22,-1)
-		--text('blend='..tostring(player.blend),0,8,22,-1)
+		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
 	end
 
 	mattrans(32, 32)

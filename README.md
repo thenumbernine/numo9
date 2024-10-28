@@ -151,6 +151,8 @@ I'm tempted to just chop this up into arbitrary 64k banks and let you expand as 
 	- Maybe I could end up like I'm already doing for audio and put an allocation-table somewhere for arbitrary chunks and not just audio chunks?
 	- Maybe I can give audio and misc chunks ATs?  Maybe ATs shoudl come with flags of what they are carrying?
 	- Maybe one giant allocation table for all of memory?  Maybe this is getting carried way ...
+	- The cart could have meta-info that the editor and file saves, but cart doesn't see, like what type of resources each page uses, or the allocation-table, or idk ...
+- Just having each bank have its own sprites, tilemaps, audio and only saving the present ones will be memory efficient enough, and keep things organized, and this is what TIC-80 does.
 
 # Language
 
@@ -165,6 +167,14 @@ This adds to Lua(/JIT):
 - ternary operator: `a ? b : c`, null-coalescence: `a ?? b`.
 
 # API
+
+## Callbacks
+
+If the following functions are defined then they will be called from the virtual-console:
+
+- `update()` - This is called 60 times every second.  You can call draw routines here if you would like and they should be sent out to all connected clients.
+- `draw(connID)` - This is called 60 times every second per-client that is connected.
+- `onconnect(connID)` - This is called when a ROM is initialized or when a new client connects to a server listening.
 
 ## virtual-filesystem commands:
 
@@ -476,10 +486,13 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - Right now editor tilemap is 8x8 tiles by default ... maybe default to 16x16?
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
 - matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
-- ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.
 - The reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ... this and multicart/bank and sync() function ...
-- If I'm going to continue with the SNES theme then I'm going to need a lot more than 64k for storing all audio.  SNES just had 64k of ARAM active at a time, but for allll samples, often it could get into the MBs ...
+- ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  
+	In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
+- If I'm going to continue with the SNES theme then I'm going to need a lot more than 64k for storing all audio.  
+	SNES just had 64k of ARAM active at a time, but for allll samples, often it could get into the MBs ...
 	What if I just had arbitrary banks, and in the editor you pick what you want to use them for ... code | sprite/tile sheets | tilemaps | audio | etc
-- <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.  This means redoing the tiles-wide and high of the sprite and map draw functions.
+- <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.  
+	This means redoing the tiles-wide and high of the sprite and map draw functions.
 - Font goes in its own memory.

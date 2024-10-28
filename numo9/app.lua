@@ -294,9 +294,11 @@ function App:initGL()
 		end,
 		quit = function(...) self:requestExit() end,
 
+		-- [[ this is for the console, but this means the cart can call it as well ...
 		listen = function(...) return self:listen(...) end,
 		connect = function(...) return self:connect(...) end,
 		disconnect = function(...) return self:disconnect(...) end,
+		--]]
 
 		-- timer
 		time = function()
@@ -1976,9 +1978,42 @@ function App:runROM()
 --DEBUG:print('update:', env.update)
 
 		if not env.update then return end
+
+		local localHasCalledOnConnect
 		while true do
 			coroutine.yield()
+
+			-- upon new game, if the server is running,
+			-- then call "onconnect" on all conns connected so far.
+			-- here - for all connections so far - run the 'onconnect' function if it exists
+			if env.onconnect then
+				-- TODO need that local-conn object ...
+				if not localHasCalledOnConnect then
+					env.onconnect'lo'
+					localHasCalledOnConnect = true
+				end
+				if self.server then
+					for _,conn in ipairs(self.server.conns) do
+						if not conn.hasCalledOnConnect then
+							conn.hasCalledOnConnect = true
+							env.onconnect(conn.ident)
+						end
+					end
+				end
+			end
+
 			env.update()
+			-- see if the console supports separate drawing for multiple connections ...
+			if env.draw then
+				-- TODO during this function, capture all commands and send them only to the loopback conn.
+				env.draw'lo'	-- TODO how about just giving the server.conns a fake loopback conn for the server's local connection?
+				if self.server then
+					for _,conn in ipairs(self.server.conns) do
+						-- TODO during this call only send commands to this conn.
+						env.draw(conn.ident)
+					end
+				end
+			end
 		end
 	end)
 
