@@ -273,7 +273,9 @@ function App:initGL()
 				-- where will deltas come into play?
 				-- how about new-frame messages too?
 				for _,serverConn in ipairs(self.server.conns) do
-					self.server:sendRAM(serverConn)
+					if serverConn.remote then
+						self.server:sendRAM(serverConn)
+					end
 				end
 			end
 			return result:unpack()
@@ -287,7 +289,9 @@ function App:initGL()
 			-- fwiw the initial sendRAM doesn't include the cartridge state, just the RAM state ...
 			if self.server then
 				for _,serverConn in ipairs(self.server.conns) do
-					self.server:sendRAM(serverConn)
+					if serverConn.remote then
+						self.server:sendRAM(serverConn)
+					end
 				end
 			end
 			return result:unpack()
@@ -1338,9 +1342,9 @@ print(
 			io.write(' idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
 self.server.numDeltasSentPerSec = 0
 self.server.numIdleChecksPerSec = 0
-			if self.server.conns[1] then
-				local conn = self.server.conns[1]
-				io.write('serverconn stats '..require'ext.tolua'{self.server.conns[1].socket:getstats()}
+			if self.server.conns[2] then
+				local conn = self.server.conns[2]
+				io.write('serverconn stats '..require'ext.tolua'{self.server.conns[2].socket:getstats()}
 					..' msgs='..#conn.toSend
 					..' sized='..#conn.toSend:concat()
 					..' send/sec='..conn.sendsPerSecond
@@ -1979,19 +1983,14 @@ function App:runROM()
 
 		if not env.update then return end
 
-		local localHasCalledOnConnect
 		while true do
 			coroutine.yield()
 
 			-- upon new game, if the server is running,
 			-- then call "onconnect" on all conns connected so far.
 			-- here - for all connections so far - run the 'onconnect' function if it exists
+			-- TODO how about a callback for assigning / unassigning players? so the game can associate player #s with conn IDs ...
 			if env.onconnect then
-				-- TODO need that local-conn object ...
-				if not localHasCalledOnConnect then
-					env.onconnect'lo'
-					localHasCalledOnConnect = true
-				end
 				if self.server then
 					for _,conn in ipairs(self.server.conns) do
 						if not conn.hasCalledOnConnect then
@@ -2006,12 +2005,14 @@ function App:runROM()
 			-- see if the console supports separate drawing for multiple connections ...
 			if env.draw then
 				-- TODO during this function, capture all commands and send them only to the loopback conn.
-				env.draw'lo'	-- TODO how about just giving the server.conns a fake loopback conn for the server's local connection?
 				if self.server then
 					for _,conn in ipairs(self.server.conns) do
 						-- TODO during this call only send commands to this conn.
 						env.draw(conn.ident)
 					end
+				else
+					-- if we dont have a server then just do a draw for the loopback connection
+					env.draw'lo'
 				end
 			end
 		end

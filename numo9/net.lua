@@ -571,9 +571,11 @@ local handshakeClientSends = 'litagano'
 local handshakeServerSends = 'motscoud'
 
 
-local ServerConn = class()
+-- remote-connections that the server holds
+local RemoteServerConn = class()
+RemoteServerConn.remote = true
 
-function ServerConn:init(args)
+function RemoteServerConn:init(args)
 	-- combine all these assert index & type and you might as well have a strongly-typed language ...
 	assert.type(args, 'table')
 	self.app = assert.index(args, 'app')
@@ -592,14 +594,14 @@ function ServerConn:init(args)
 	self.toSend = table()
 end
 
-function ServerConn:isActive()
+function RemoteServerConn:isActive()
 	return self.socket
 	and coroutine.status(self.thread) ~= 'dead'
 end
 
-ServerConn.sendsPerSecond = 0
-ServerConn.receivesPerSecond = 0
-function ServerConn:loop()
+RemoteServerConn.sendsPerSecond = 0
+RemoteServerConn.receivesPerSecond = 0
+function RemoteServerConn:loop()
 	local app = self.app
 print'begin server conn loop'
 	local data, reason
@@ -665,11 +667,19 @@ print'end server conn loop'
 	return true
 end
 
-function ServerConn:close()
+function RemoteServerConn:close()
 	if self.socket then
 		self.socket:close()
 		self.socket = nil	-- TODO this too?  or nah, just close and let that be enough for active-detection and auto-removal?
 	end
+end
+
+
+-- the one fake-conn to represent the local players
+local LocalServerConn = class()
+LocalServerConn.ident = 'lo'
+function LocalServerConn:init(args)
+	self.playerInfos = assert.index(args, 'playerInfos')
 end
 
 
@@ -692,6 +702,13 @@ function Server:init(app)
 	con:print('init listening on '..tostring(listenAddr)..':'..tostring(listenPort))
 
 	self.conns = table()
+	
+	-- add our local conn
+	self.conns:insert(LocalServerConn{
+		-- shallow-copy
+		playerInfos = app.cfg.playerInfos,
+	})
+
 	-- TODO make net device configurable too?
 	local sock = assert(socket.bind(listenAddr, listenPort))
 	self.socket = sock
@@ -767,7 +784,9 @@ function Server:endFrame()
 		if deltas.size > 0 then
 			local data = deltas:dataToStr()
 			for _,serverConn in ipairs(self.conns) do
-				serverConn.toSend:insert(data)
+				if serverConn.remote then
+					serverConn.toSend:insert(data)
+				end
 			end
 		end
 	end
@@ -835,7 +854,9 @@ function Server:updateCoroutine()
 		for i=#self.conns,1,-1 do
 self.updateConnCount = self.updateConnCount + 1
 			local serverConn = self.conns[i]
-			if not serverConn:isActive() then
+			if serverConn.remote
+			and not serverConn:isActive() 
+			then
 print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
 				self.conns:remove(i)
 			end
@@ -881,7 +902,7 @@ print('got player info', cmd)
 	end
 
 print'creating server remote client conn...'
-	local serverConn = ServerConn{
+	local serverConn = RemoteServerConn{
 		app = app,
 		server = self,
 		socket = sock,
@@ -907,7 +928,7 @@ print'creating server remote client conn...'
 
 	-- [[ sit the first player if possible
 	local connForPlayer = {}
-	for _,conn in ipairs(table{app.cfg}:append(self.conns)) do
+	for _,conn in ipairs(self.conns) do
 		for _,info in ipairs(conn.playerInfos) do
 			if info.localPlayer then
 				connForPlayer[info.localPlayer] = conn
