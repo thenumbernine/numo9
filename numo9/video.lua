@@ -1964,7 +1964,7 @@ function AppVideo:drawMap(
 	draw16Sprites	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
 )
 	self.tileTex:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
-	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.palTex:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	self.mapTex:checkDirtyCPU()
 	self.fbTex:checkDirtyCPU()
 
