@@ -2147,7 +2147,6 @@ function App:btn(buttonCode, player, ...)
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 
-	-- TODO remap net player indexes
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
 
@@ -2161,7 +2160,6 @@ function App:btnp(buttonCode, player, ...)
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 
-	-- TODO remap net player indexes
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
 
@@ -2175,7 +2173,6 @@ function App:btnr(buttonCode, player, ...)
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
 
-	-- TODO remap net player indexes
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
 	
@@ -2357,48 +2354,51 @@ function App:processButtonEvent(down, ...)
 		--if not PlayingMenu:isa(self.mainMenu) then return end
 		local etype, ex, ey = ...
 		local descLen = select('#', ...)
-		for playerIndexPlusOne, playerInfo in ipairs(self.cfg.playerInfos) do
-			local playerIndex = playerIndexPlusOne-1
-			for buttonIndex, buttonBind in pairs(playerInfo.buttonBinds) do
-				-- special case for mouse/touch, test within a distanc
-				local match = descLen == #buttonBind
-				if match then
-					local istart = 1
-					-- special case for mouse/touch, click within radius ...
-					if etype == sdl.SDL_MOUSEBUTTONDOWN
-					or etype == sdl.SDL_FINGERDOWN
-					then
-						match = etype == buttonBind[1]
-						if match then
-							local dx = (ex - buttonBind[2]) * self.width
-							local dy = (ey - buttonBind[3]) * self.height
-							if dx*dx + dy*dy >= buttonRadius*buttonRadius then
-								match = false
+		for _, playerInfo in ipairs(self.cfg.playerInfos) do
+			if playerInfo.localPlayer then
+				local playerIndex = playerInfo.localPlayer-1
+				-- when processing input events to virtual-joypad-events, do the multiplayer player-index-remapping
+				for buttonIndex, buttonBind in pairs(playerInfo.buttonBinds) do
+					-- special case for mouse/touch, test within a distanc
+					local match = descLen == #buttonBind
+					if match then
+						local istart = 1
+						-- special case for mouse/touch, click within radius ...
+						if etype == sdl.SDL_MOUSEBUTTONDOWN
+						or etype == sdl.SDL_FINGERDOWN
+						then
+							match = etype == buttonBind[1]
+							if match then
+								local dx = (ex - buttonBind[2]) * self.width
+								local dy = (ey - buttonBind[3]) * self.height
+								if dx*dx + dy*dy >= buttonRadius*buttonRadius then
+									match = false
+								end
+								-- skip the first 2 for values
+								istart = 4
 							end
-							-- skip the first 2 for values
-							istart = 4
+						end
+						if match then
+							for i=istart,descLen do
+								if select(i, ...) ~= buttonBind[i] then
+									match = false
+									break
+								end
+							end
 						end
 					end
 					if match then
-						for i=istart,descLen do
-							if select(i, ...) ~= buttonBind[i] then
-								match = false
-								break
-							end
-						end
+						local buttonCode = buttonIndex + bit.lshift(playerIndex, 3)
+						local keycode = buttonCode + firstJoypadKeyCode
+						local bi = bit.band(keycode, 7)
+						local by = bit.rshift(keycode, 3)
+						local flag = bit.lshift(1, bi)
+						local mask = bit.bnot(flag)
+						self.ram.keyPressFlags[by] = bit.bor(
+							bit.band(mask, self.ram.keyPressFlags[by]),
+							down and flag or 0
+						)
 					end
-				end
-				if match then
-					local buttonCode = buttonIndex + bit.lshift(playerIndex, 3)
-					local keycode = buttonCode + firstJoypadKeyCode
-					local bi = bit.band(keycode, 7)
-					local by = bit.rshift(keycode, 3)
-					local flag = bit.lshift(1, bi)
-					local mask = bit.bnot(flag)
-					self.ram.keyPressFlags[by] = bit.bor(
-						bit.band(mask, self.ram.keyPressFlags[by]),
-						down and flag or 0
-					)
 				end
 			end
 		end
