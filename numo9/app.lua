@@ -2151,8 +2151,6 @@ function App:btn(buttonCode, player, ...)
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
 
-	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
-	if not keyCode then return end
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:key(buttonKeyCode, ...)
 end
@@ -2167,8 +2165,6 @@ function App:btnp(buttonCode, player, ...)
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
 
-	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
-	if not keyCode then return end
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyp(buttonKeyCode, ...)
 end
@@ -2182,9 +2178,7 @@ function App:btnr(buttonCode, player, ...)
 	-- TODO remap net player indexes
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
-
-	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
-	if not keyCode then return end
+	
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyr(buttonKeyCode, ...)
 end
