@@ -33,7 +33,8 @@ local vector = require 'ffi.cpp.vector-lua'
 
 local numo9_keys = require 'numo9.keys'
 local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode
-local maxLocalPlayers = numo9_keys.maxLocalPlayers
+local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
+local maxPlayersTotal = numo9_keys.maxPlayersTotal
 
 local numo9_rom = require 'numo9.rom'
 local spriteSheetAddr = numo9_rom.spriteSheetAddr
@@ -584,12 +585,12 @@ function RemoteServerConn:init(args)
 	self.thread = assert.type(assert.index(args, 'thread'), 'thread')
 	self.playerInfos = assert.index(args, 'playerInfos')
 	self.ident = assert.index(args, 'ident')
-	for i=1,maxLocalPlayers do
+	for i=1,maxPlayersPerConn do
 		local info = self.playerInfos[i]
 		if info then info.localPlayer = nil end
 	end
 
-	self.remoteButtonIndicator = range(8 * maxLocalPlayers):mapi(function(i) return 1 end)
+	self.remoteButtonIndicator = range(8 * maxPlayersPerConn):mapi(function(i) return 1 end)
 
 	-- keep a list of everything we have to send
 	self.toSend = table()
@@ -642,7 +643,7 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 			-- 4 players = 32 keys = 4 bytes = 32 bits, addressible by 5 bits.
 			-- and just 1 value byte ...
 			local dest = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
-			if index < 0 or index >= maxLocalPlayers then	-- max # players / # of button key bitflag bytes in a row
+			if index < 0 or index >= maxPlayersPerConn then	-- max # players / # of button key bitflag bytes in a row
 				print('server got oob delta compressed input:', ('$%02x'):format(index), ('$%02x'):format(value))
 			else
 				-- store the latest input times on the server regardless of if it's mapped to a local player
@@ -936,7 +937,7 @@ print'creating server remote client conn...'
 		end
 	end
 	local info = serverConn.playerInfos[1]
-	for j=1,maxLocalPlayers do
+	for j=1,maxPlayersTotal do
 		if not connForPlayer[j] then
 			connForPlayer[j] = conn
 			info.localPlayer = j

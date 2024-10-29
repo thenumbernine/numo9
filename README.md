@@ -11,7 +11,7 @@ I thought I'd make a fantasy console with all the LuaJIT binding code and librar
 What does NuMo9 have that the competition doesn't?
 - 16-bit console era.  4-button gamepads.
 - 8bpp sprites, 8x8 or 16x16 tilemaps, "mode-7" transformations, blending.
-- Multiplayer, 4 player netplay, with unlimited observers.
+- Multiplayer, 4 local players per connection, up to 64 total players, unlimited observers.
 - Server can edit games in realtime.  Live game DM'ing.
 - It's strictly LuaJIT.  No compiler needed.
 
@@ -284,6 +284,8 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 |`jp1_up=80`       |`jp1_down=81`     |`jp1_left=82`     |`jp1_right=83`    |`jp1_a=84`        |`jp1_b=85`        |`jp1_x=86`        |`jp1_y=87`        |
 |`jp2_up=88`       |`jp2_down=89`     |`jp2_left=90`     |`jp2_right=91`    |`jp2_a=92`        |`jp2_b=93`        |`jp2_x=94`        |`jp2_y=95`        |
 |`jp3_up=96`       |`jp3_down=97`     |`jp3_left=98`     |`jp3_right=99`    |`jp3_a=100`       |`jp3_b=101`       |`jp3_x=102`       |`jp3_y=103`       |
+...
+etc up to `jp63`
 
 - `btn(buttonCode, player)`, `btnp(buttonCode, player, [hold], [period])`, `btnr(buttonCode, player)` = same for emulated-joypad-buttons-on-keyboard.
 This is a compatability/convenience function that remaps the button+player codes to the corresponding `jpX_YYY` key codes.

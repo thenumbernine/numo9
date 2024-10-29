@@ -4,7 +4,11 @@ local sdl = require 'sdl'
 local table = require 'ext.table'
 local assert = require 'ext.assert'
 
-local maxLocalPlayers = 4	-- does this go here or ROM?  for now it seems here is best
+-- Does this go here or ROM?  for now it seems here is best
+-- Right now this is both the max # of players-per-conn and the max # of serverside players ...
+--  ... how about I separate those two variables?
+local maxPlayersPerConn = 4
+local maxPlayersTotal = 64
 
 -- key code list, 1-baesd, sequential
 local keyCodeNames = table{
@@ -111,7 +115,7 @@ local buttonCodeForName = buttonNames:mapi(function(name,indexPlusOne)
 	return indexPlusOne-1, name
 end):setmetatable(nil)
 
-for playerIndex=0,maxLocalPlayers-1 do
+for playerIndex=0,maxPlayersTotal-1 do
 	for _,buttonName in ipairs(buttonNames) do
 		keyCodeNames:insert('jp'..playerIndex..'_'..buttonName)
 	end
@@ -281,7 +285,8 @@ local function getAsciiForKeyCode(keyCode, shift)
 end
 
 return {
-	maxLocalPlayers = maxLocalPlayers,
+	maxPlayersPerConn = maxPlayersPerConn,
+	maxPlayersTotal = maxPlayersTotal,
 	keyCodeNames = keyCodeNames,
 	keyCodeForName = keyCodeForName,
 	sdlSymToKeyCode = sdlSymToKeyCode,

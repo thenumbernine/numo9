@@ -1,5 +1,6 @@
 local math = require 'ext.math'
 local table = require 'ext.table'
+local assert = require 'ext.assert'
 local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
@@ -7,7 +8,8 @@ local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
 
 local numo9_keys = require 'numo9.keys'
-local maxLocalPlayers = numo9_keys.maxLocalPlayers
+local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
+local maxPlayersTotal = numo9_keys.maxPlayersTotal
 local buttonSingleCharLabels = numo9_keys.buttonSingleCharLabels
 
 local MainMenu = require 'numo9.ui':subclass()
@@ -219,7 +221,7 @@ function MainMenu:updateMenuMultiplayer()
 
 	self:menuSection'local player names'
 
-	for i=1,maxLocalPlayers do
+	for i=1,maxPlayersPerConn do
 		-- TODO checkbox for whether the player is active or not during netplay ...
 		-- TODO TODO how to allow #-local-players-active to change during a game ...
 		self:menuTextField('name', app.cfg.playerInfos[i], 'name')
@@ -251,7 +253,7 @@ function MainMenu:updateMenuMultiplayer()
 			end
 		end
 		local nextAvailablePlayer
-		for i=1,maxLocalPlayers do
+		for i=1,maxPlayersTotal do
 			if not connForPlayer[i] then
 				nextAvailablePlayer = i
 				break
@@ -276,6 +278,7 @@ function MainMenu:updateMenuMultiplayer()
 
 			self.cursorY = self.cursorY + 9
 			for j,info in ipairs(conn.playerInfos) do
+				assert.le(j, maxPlayersPerConn)
 				x = (j-1) * 64 + 8
 
 				if info.localPlayer then
@@ -329,7 +332,7 @@ function MainMenu:updateMenuInput()
 	self:menuSection'input'
 
 	local pushCursorX, pushCursorY = self.cursorX, self.cursorY
-	for playerIndexPlusOne=1,maxLocalPlayers do
+	for playerIndexPlusOne=1,maxPlayersPerConn do
 		local playerIndex = playerIndexPlusOne-1
 		self.cursorX = bit.band(playerIndex, 1) * 128 + 8
 		self.cursorY = pushCursorY + bit.band(bit.rshift(playerIndex, 1), 1) * (#buttonSingleCharLabels + 3) * 9
