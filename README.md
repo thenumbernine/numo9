@@ -287,6 +287,8 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 ...
 etc up to `jp63`
 
+Keyboard state is read from the local machine.  Remote connections can only send joypad input.
+
 - `btn(buttonCode, player)`, `btnp(buttonCode, player, [hold], [period])`, `btnr(buttonCode, player)` = same for emulated-joypad-buttons-on-keyboard.
 This is a compatability/convenience function that remaps the button+player codes to the corresponding `jpX_YYY` key codes.
 The button codes are as follows:
@@ -295,7 +297,9 @@ The button codes are as follows:
 |------------------|------------------|------------------|------------------|------------------|------------------|------------------|------------------|
 |`up=0`            |`down=1`          |`left=2`          |`right=3`         |`a=4`             |`b=5`             |`x=6`             |`y=7`             |
 
-- `mouseX, mouseY, scrollX, scrollY = mouse()` = get the current mouse state.  mouse x,y are in framebuffer coordinates.  scroll is zero for now.
+- `mouseX, mouseY, scrollX, scrollY = mouse()` = get the current mouse state.  mouse x,y are in framebuffer coordinates.
+
+Mouse state is read from the local machine.  Remote connections can only send joypad input.
 
 ## other globals, maybe I'll take some out eventually:
 
@@ -437,7 +441,6 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 	- mouse wheel returned in mouse() function.
 - menu
 	- draw mouse / touch regions
-	- between input and multiplayer, how about a higher max # of players than just hardcoded at 4?
 	- transparent menu
 - graphics:
 	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
@@ -481,7 +484,6 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - Cart browser.
 
 # Things I'm still debating ...
-- How many max players at once?  Right now it's upper bound to 4, but this can be changed...
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is UP DOWN LEFT RIGHT A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
 - What's a good default keyboard configuration?  I'm going with Snes9x's.

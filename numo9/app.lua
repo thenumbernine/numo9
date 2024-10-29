@@ -1599,6 +1599,10 @@ print('run thread dead')
 		-- so that sdl event can populate changes to current key buffer while execution runs outside this callback
 		ffi.copy(self.ram.lastKeyPressFlags, self.ram.keyPressFlags, keyPressFlagSize)
 
+		-- also reset the mousewheel ...
+		self.ram.mouseWheel.x = 0
+		self.ram.mouseWheel.y = 0
+
 --print('press flags', (ffi.string(self.ram.lastKeyPressFlags, keyPressFlagSize):gsub('.', function(ch) return ('%02x'):format(ch:byte()) end)))
 --print('mouse_left', self:key'mouse_left')
 
@@ -2191,8 +2195,8 @@ function App:mouse()
 	return
 		self.ram.mousePos.x,
 		self.ram.mousePos.y,
-		0,	-- TODO scrollX
-		0	-- TODO scrollY
+		self.ram.mouseWheel.x,
+		self.ram.mouseWheel.y
 end
 
 function App:event(e)
@@ -2298,6 +2302,10 @@ function App:event(e)
 				down and flag or 0
 			)
 		end
+	elseif e[0].type == sdl.SDL_MOUSEWHEEL then
+		-- TODO scale mousewheel?
+		self.ram.mouseWheel.x = self.ram.mouseWheel.x + e[0].wheel.x
+		self.ram.mouseWheel.y = self.ram.mouseWheel.y + e[0].wheel.y
 	elseif e[0].type == sdl.SDL_JOYHATMOTION then
 		for i=0,3 do
 			local dirbit = bit.lshift(1,i)
