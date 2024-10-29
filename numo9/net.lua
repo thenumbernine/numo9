@@ -656,7 +656,6 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 				end
 
 				local localPlayer = self.playerInfos[index+1].localPlayer
-print('conn', self.ident, 'player', index, 'local', localPlayer, 'value', value)
 				if localPlayer then
 					dest[localPlayer-1] = value
 				end
