@@ -7,7 +7,6 @@ sprites={
 	snakeDown=2,
 	snakeLeft=3,
 	snakeRight=4,
-	snakeBody=5,
 	fruit=6,
 	snakeUpDown=32,
 	snakeUpLeft=33,
@@ -18,7 +17,7 @@ sprites={
 	snakeEndUp=64,
 	snakeEndDown=64|vflip,
 	snakeEndLeft=65,
-	snakeEndRight=65|vflip,
+	snakeEndRight=65|hflip,
 	snakeVertOverHorz=96,
 	snakeHorzOverVert=97,
 }
@@ -47,7 +46,7 @@ snakeBodies={
 		[2]=sprites.snakeLeftRight,
 		[3]=sprites.snakeLeftRight,
 	},
-	[5]={
+	tail={
 		[0]=sprites.snakeEndUp,
 		[1]=sprites.snakeEndDown,
 		[2]=sprites.snakeEndLeft,
@@ -63,26 +62,52 @@ dirs={
 }
 
 reset=[]do
+	--[[
 	for j=0,h-1 do
 		for i=0,w-1 do
 			mset(i,j,sprites.empty)
 		end
 	end
+	--]]
 
-	dir=1
-	--dir=4	-- endpiece
-	nextDir=1
+	done=false
+	dir=5
 	snake=table()
 	snakeX=tonumber(w//2)
 	snakeY=tonumber(h//2)
-	snake:insert{snakeX,snakeY}
-	mset(snakeX,snakeY,sprites.snakeUp+dir)
+	snake:insert{snakeX,snakeY,sprites.snakeDown}
+	--mset(snakeX,snakeY,sprites.snakeDown)
 end
-reset()
 
-update=[]do
+redraw=[]do
 	cls(1)
-	map(0,0,w,h,0,0)
+	--map(0,0,w,h,0,0)
+	for _,s in ipairs(snake) do
+		local x,y,i = table.unpack(s)
+		local sx = i & hflip ~= 0
+		local sy = i & vflip ~= 0
+		spr(i&0x3ff,(x + (sx and 1 or 0))<<3,(y + (sy and 1 or 0))<<3,1,1,0,-1,0,0xff,sx and -1 or 1,sy and -1 or 1)
+	end
+end
+snakeGet=[x,y]do
+	for i=#snake,1,-1 do
+		local s=snake[i]
+		if s[1]==x and s[2]==y then 
+			return s[3],i
+		end
+	end
+	return sprites.empty
+end
+
+reset()
+update=[]do
+	redraw()
+
+	if btnp(6) then
+		reset()
+		return
+	end
+	if done then return end
 
 	nextDir=nil
 	if btnp(0,0,5,5) and dir ~= 1 then
@@ -95,44 +120,49 @@ update=[]do
 		nextDir=3
 	end
 
-	if btnp(6) then
-		reset()
-		return
-	end
-
 	if nextDir then
+		local moveVert=nextDir&2==0
+		local moveHorz=not moveVert
 		local dx,dy=table.unpack(dirs[nextDir])
 		newX=snakeX+dx
 		newY=snakeY+dy
 		newX%=w
 		newY%=h
-		local i=mget(newX, newY)
+		local spriteIndex,snakeIndex=snakeGet(newX, newY)
 
 		-- check for free movement or overlap/underlap ...
 		blocked=nil
-		if i~=sprites.empty then
+		if spriteIndex~=sprites.empty then
 			-- TODO multiple over/under?
 			if (
-				(nextDir==0 or nextDir==1)
-				and (i==sprites.snakeLeftRight)
-				and mget(newX+dx,newY+dy)==sprites.empty
+				moveVert
+				and (spriteIndex==sprites.snakeLeftRight)
+				and snakeGet(newX+dx,newY+dy)==sprites.empty
 			)
 			or (
-				(nextDir==2 or nextDir==3)
-				and (i==sprites.snakeUpDown)
-				and mget(newX+dx,newY+dy)==sprites.empty
+				moveHorz
+				and (spriteIndex==sprites.snakeUpDown)
+				and snakeGet(newX+dx,newY+dy)==sprites.empty
 			)
 			then
 				-- skip
-				local j=(nextDir==0 or nextDir==1)
+				local j=moveVert
 					and sprites.snakeVertOverHorz
 					or sprites.snakeHorzOverVert
 				if btn(5) or btn(7) then
 					j~~=1
 				end
-				mset(newX,newY,j)
+				snake[snakeIndex][3]=j
+				--snake:insert(1,{newX,newY,j})
+				--mset(newX,newY,j)
 				newX+=dx
 				newY+=dy
+			elseif moveVert and (spriteIndex==sprites.snakeEndUp or spriteIndex==sprites.snakeEndDown) then
+				snake:last()[3]=sprites.snakeUpDown
+				done=true
+			elseif moveHorz and (spriteIndex==sprites.snakeEndLeft or spriteIndex==sprites.snakeEndRight) then
+				snake:last()[3]=sprites.snakeLeftRight
+				done=true
 			else
 				blocked=true
 			end
@@ -140,13 +170,16 @@ update=[]do
 
 		if not blocked then
 			if #snake==1 then
-				mset(snakeX,snakeY,sprites.snakeEndUp+dir)
+				snake[1][3] = snakeBodies.tail[nextDir]
+				--mset(snakeX,snakeY,snakeBodies.tail[nextDir])
 			else
-				mset(snakeX,snakeY,snakeBodies[dir~1][nextDir] or sprites.snakeBody)
+				snake[1][3] = snakeBodies[dir~1][nextDir] or sprites.fruit
+				--mset(snakeX,snakeY,snakeBodies[dir~1][nextDir] or sprites.fruit)
 			end
+			if done then return end
 			dir=nextDir
-			mset(newX,newY,sprites.snakeUp+dir)
-			snake:insert(1,{newX,newY,dir})
+			--mset(newX,newY,sprites.snakeUp+dir)
+			snake:insert(1,{newX,newY,sprites.snakeUp+dir})
 			snakeX,snakeY=newX,newY
 		end
 	end
