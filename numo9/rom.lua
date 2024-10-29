@@ -319,6 +319,7 @@ local RAM = struct{
 				{name='keyHoldCounter', type='uint16_t['..keyCount..']'},
 
 				{name='mousePos', type='vec2s_t'},			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
+				{name='mouseWheel', type='vec2s_t'},		-- mousewheel accum for this frame
 				{name='lastMousePos', type='vec2s_t'},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
 				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
 
