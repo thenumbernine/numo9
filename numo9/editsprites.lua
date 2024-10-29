@@ -493,6 +493,9 @@ function EditSprites:update()
 			local paletteIndex = bit.band(0xff, self.paletteOffset + i + palBlockWidth * j)
 			local rx = x + bw * i
 			local ry = y + bh * j
+			
+			-- cheap hack to use game palette here instead of menu palette ...
+			app.videoModeInfo[0].quadSolidObj.texs[1] = app.palTex
 			app:drawSolidRect(
 				rx,
 				ry,
@@ -500,6 +503,9 @@ function EditSprites:update()
 				bh,
 				paletteIndex
 			)
+			app.videoModeInfo[0].quadSolidObj.texs[1] = app.palMenuTex
+			-- end cheap hack
+			
 			if mouseX >= rx and mouseX < rx + bw
 			and mouseY >= ry and mouseY < ry + bh
 			then
