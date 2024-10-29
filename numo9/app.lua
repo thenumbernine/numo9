@@ -67,7 +67,8 @@ local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
 local packptr = numo9_rom.packptr
 
 local numo9_keys = require 'numo9.keys'
-local maxLocalPlayers = numo9_keys.maxLocalPlayers
+local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
+local maxPlayersTotal = numo9_keys.maxPlayersTotal
 local keyCodeNames = numo9_keys.keyCodeNames
 local keyCodeForName = numo9_keys.keyCodeForName
 local sdlSymToKeyCode = numo9_keys.sdlSymToKeyCode
@@ -946,11 +947,17 @@ print('package.loaded', package.loaded)
 	setdefault(self.cfg, 'lastConnectAddr', 'localhost')	-- TODO ... eh ... LAN search?  idk
 	setdefault(self.cfg, 'lastConnectPort', tostring(Server.defaultListenPort))
 	setdefault(self.cfg, 'playerInfos', {})
-	for i=1,maxLocalPlayers do
+	for i=1,maxPlayersPerConn do
 		setdefault(self.cfg.playerInfos, i, {})
 		-- for netplay, shows up in the net menu
 		setdefault(self.cfg.playerInfos[i], 'name', i == 1 and 'steve' or '')
 		setdefault(self.cfg.playerInfos[i], 'buttonBinds', {})
+	end
+	-- don't let the config put us in a bad state -- erase invalid playerInfos
+	for _,k in ipairs(table.keys(self.cfg.playerInfos)) do
+		if k > maxPlayersPerConn then
+			self.cfg.playerInfos[k] = nil
+		end
 	end
 	setdefault(self.cfg, 'screenButtonRadius', 10)
 
@@ -960,7 +967,7 @@ print('package.loaded', package.loaded)
 	-- also ... should I associate all 4 players immediately?
 	--  yes because otherwise for local play you'll need to manually associate them
 	--  no because for netplay this means you have to unbind them to give other players room on your current game ...
-	for i=1,maxLocalPlayers do
+	for i=1,maxPlayersPerConn do
 		self.cfg.playerInfos[i].localPlayer = i
 	end
 	-- fake-gamepad key bindings
@@ -2148,7 +2155,7 @@ function App:btn(buttonCode, player, ...)
 	if buttonCode < 0 or buttonCode >= 8 then return end
 
 	player = player or 0
-	if player < 0 or player >= maxLocalPlayers then return end
+	if player < 0 or player >= maxPlayersTotal then return end
 
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:key(buttonKeyCode, ...)
@@ -2161,7 +2168,7 @@ function App:btnp(buttonCode, player, ...)
 	if buttonCode < 0 or buttonCode >= 8 then return end
 
 	player = player or 0
-	if player < 0 or player >= maxLocalPlayers then return end
+	if player < 0 or player >= maxPlayersTotal then return end
 
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyp(buttonKeyCode, ...)
@@ -2174,7 +2181,7 @@ function App:btnr(buttonCode, player, ...)
 	if buttonCode < 0 or buttonCode >= 8 then return end
 
 	player = player or 0
-	if player < 0 or player >= maxLocalPlayers then return end
+	if player < 0 or player >= maxPlayersTotal then return end
 	
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyr(buttonKeyCode, ...)
