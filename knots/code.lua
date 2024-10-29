@@ -61,6 +61,15 @@ dirs={
 	[3]={1,0},
 }
 
+local snakeHist=table()
+pushSnakeHist=[]do
+	snakeHist:insert(snake:mapi([s]{table.unpack(s)}))
+end
+popSnakeHist=[]do
+	snake=snakeHist:remove()
+	snakeX,snakeY,_,dir=table.unpack(snake[1])
+end
+
 reset=[]do
 	--[[
 	for j=0,h-1 do
@@ -70,12 +79,13 @@ reset=[]do
 	end
 	--]]
 
+	snakeHist=table()
 	done=false
 	dir=5
 	snake=table()
 	snakeX=tonumber(w//2)
 	snakeY=tonumber(h//2)
-	snake:insert{snakeX,snakeY,sprites.snakeDown}
+	snake:insert{snakeX,snakeY,sprites.snakeDown,dir}
 	--mset(snakeX,snakeY,sprites.snakeDown)
 end
 
@@ -103,6 +113,10 @@ reset()
 update=[]do
 	redraw()
 
+	if btnp(4) and #snakeHist>0 then
+		popSnakeHist()
+		return
+	end
 	if btnp(6) then
 		reset()
 		return
@@ -153,6 +167,7 @@ update=[]do
 					j~~=1
 				end
 				snake[snakeIndex][3]=j
+				--pushSnakeHist()
 				--snake:insert(1,{newX,newY,j})
 				--mset(newX,newY,j)
 				newX+=dx
@@ -179,7 +194,8 @@ update=[]do
 			if done then return end
 			dir=nextDir
 			--mset(newX,newY,sprites.snakeUp+dir)
-			snake:insert(1,{newX,newY,sprites.snakeUp+dir})
+			pushSnakeHist()
+			snake:insert(1,{newX,newY,sprites.snakeUp+dir,dir})
 			snakeX,snakeY=newX,newY
 		end
 	end
