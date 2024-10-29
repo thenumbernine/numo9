@@ -955,8 +955,14 @@ print('package.loaded', package.loaded)
 	setdefault(self.cfg, 'screenButtonRadius', 10)
 
 	-- this is for server netplay, it says who to associate this conn's player with
-	-- it is convenient to put it here ... but is it information worth saving?
-	setdefault(self.cfg.playerInfos[1], 'localPlayer', 1)
+	-- it is convenient to put it here ...
+	-- but is it information worth saving? maybe not -- maybe reset it every time.
+	-- also ... should I associate all 4 players immediately?
+	--  yes because otherwise for local play you'll need to manually associate them
+	--  no because for netplay this means you have to unbind them to give other players room on your current game ...
+	for i=1,maxLocalPlayers do
+		self.cfg.playerInfos[i].localPlayer = i
+	end
 	-- fake-gamepad key bindings
 	--[[
 Some default keys options:
@@ -2140,8 +2146,11 @@ function App:btn(buttonCode, player, ...)
 	end
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
+
+	-- TODO remap net player indexes
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
+
 	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
 	if not keyCode then return end
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
@@ -2153,8 +2162,11 @@ function App:btnp(buttonCode, player, ...)
 	end
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
+
+	-- TODO remap net player indexes
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
+
 	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
 	if not keyCode then return end
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
@@ -2166,8 +2178,11 @@ function App:btnr(buttonCode, player, ...)
 	end
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
+
+	-- TODO remap net player indexes
 	player = player or 0
 	if player < 0 or player >= maxLocalPlayers then return end
+
 	local keyCode = self.cfg.playerInfos[player+1].buttonBinds[buttonCode]
 	if not keyCode then return end
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode

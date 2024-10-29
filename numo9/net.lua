@@ -583,6 +583,7 @@ function RemoteServerConn:init(args)
 	self.socket = assert.index(args, 'socket')
 	self.thread = assert.type(assert.index(args, 'thread'), 'thread')
 	self.playerInfos = assert.index(args, 'playerInfos')
+	self.ident = assert.index(args, 'ident')
 	for i=1,maxLocalPlayers do
 		local info = self.playerInfos[i]
 		if info then info.localPlayer = nil end
@@ -648,13 +649,14 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 				-- so we can display them to the server to let them know who is connected
 				-- is this a useless feature?
 				for b=0,7 do
-					local remoteJPIndex = bit.bor(b, bit.lshift(index, 3))
+					local remoteJPIndexPlusOne = bit.bor(b, bit.lshift(index, 3)) + 1
 					if bit.band(value, bit.lshift(1, b)) ~= 0 then
-						self.remoteButtonIndicator[remoteJPIndex+1] = 1
+						self.remoteButtonIndicator[remoteJPIndexPlusOne] = 1
 					end
 				end
 
 				local localPlayer = self.playerInfos[index+1].localPlayer
+print('conn', self.ident, 'player', index, 'local', localPlayer, 'value', value)
 				if localPlayer then
 					dest[localPlayer-1] = value
 				end
@@ -702,7 +704,7 @@ function Server:init(app)
 	con:print('init listening on '..tostring(listenAddr)..':'..tostring(listenPort))
 
 	self.conns = table()
-	
+
 	-- add our local conn
 	self.conns:insert(LocalServerConn{
 		-- shallow-copy
@@ -713,7 +715,6 @@ function Server:init(app)
 	local sock = assert(socket.bind(listenAddr, listenPort))
 	self.socket = sock
 	self.socketaddr, self.socketport = sock:getsockname()
-	self.ident = tostring(self.socketaddr)..':'..tostring(self.socketport)
 	con:print('...init listening on ', self.ident)
 
 	--sock:setoption('keepalive', true)
@@ -826,7 +827,6 @@ function Server:newConnListenCoroutine()
 
 		-- TODO should maxConns stop even the handshake?
 		if #self.conns < self.maxConns then
-
 			-- listen for new connections
 			local client = sock:accept()
 			if client then
@@ -855,7 +855,7 @@ function Server:updateCoroutine()
 self.updateConnCount = self.updateConnCount + 1
 			local serverConn = self.conns[i]
 			if serverConn.remote
-			and not serverConn:isActive() 
+			and not serverConn:isActive()
 			then
 print'WARNING - SERVER CONN IS NO LONGER ACTIVE - REMOVING IT'
 				self.conns:remove(i)
@@ -908,6 +908,7 @@ print'creating server remote client conn...'
 		socket = sock,
 		playerInfos = playerInfos,
 		thread = coroutine.running(),
+		ident = table{sock:getsockname()}:concat':',
 	}
 	self.conns:insert(serverConn)
 
@@ -926,7 +927,7 @@ print'creating server remote client conn...'
 	-- TODO how about put not-yet-connected in a separate list?
 	serverConn.connected = true
 
-	-- [[ sit the first player if possible
+	-- [[ sit the new connection's player #1 if possible
 	local connForPlayer = {}
 	for _,conn in ipairs(self.conns) do
 		for _,info in ipairs(conn.playerInfos) do

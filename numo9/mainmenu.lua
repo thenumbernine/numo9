@@ -250,6 +250,13 @@ function MainMenu:updateMenuMultiplayer()
 				end
 			end
 		end
+		local nextAvailablePlayer
+		for i=1,maxLocalPlayers do
+			if not connForPlayer[i] then
+				nextAvailablePlayer = i
+				break
+			end
+		end
 
 		for i,conn in ipairs(server.conns) do
 			local isHost = not conn.remote
@@ -276,7 +283,7 @@ function MainMenu:updateMenuMultiplayer()
 						info.localPlayer = nil
 					end
 				else
-					if #connForPlayer < maxLocalPlayers
+					if nextAvailablePlayer
 					and self:guiButton('sit', x, self.cursorY + 18)
 					then
 						-- find our next local player ...
@@ -284,13 +291,7 @@ function MainMenu:updateMenuMultiplayer()
 						-- TODO is the next available player
 						-- TODO buttons for accept observers, accept seats, etc
 
-						for j=1,maxLocalPlayers do
-							if not connForPlayer[j] then
-								connForPlayer[j] = conn
-								info.localPlayer = j
-								break
-							end
-						end
+						info.localPlayer = nextAvailablePlayer
 					end
 				end
 
