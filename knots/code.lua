@@ -71,7 +71,7 @@ popSnakeHist=[]do
 end
 
 reset=[]do
-	--[[
+	-- [[
 	for j=0,h-1 do
 		for i=0,w-1 do
 			mset(i,j,sprites.empty)
@@ -91,7 +91,7 @@ end
 
 redraw=[]do
 	cls(1)
-	--map(0,0,w,h,0,0)
+	map(0,0,w,h,0,0)
 	for _,s in ipairs(snake) do
 		local x,y,i = table.unpack(s)
 		local sx = i & hflip ~= 0
