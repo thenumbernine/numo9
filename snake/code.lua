@@ -1,13 +1,49 @@
-w,h=16,16
+w,h=32,32
 
 sprites={
 	empty=0,
-	snakeUp=2,
-	snakeDown=4,
-	snakeLeft=6,
-	snakeRight=8,
-	snakeBody=10,
-	fruit=12,
+	snakeUp=1,
+	snakeDown=2,
+	snakeLeft=3,
+	snakeRight=4,
+	snakeBody=5,
+	fruit=6,
+	snakeUpDown=32,
+	snakeUpLeft=33,
+	snakeUpRight=34,
+	snakeDownLeft=35,
+	snakeDownRight=36,
+	snakeLeftRight=37,
+	snakeEndUp=64,
+	snakeEndDown=65,
+	snakeEndLeft=66,
+	snakeEndRight=67,
+}
+snakeBodies={
+	[0]={
+		[0]=sprites.snakeUpDown,
+		[1]=sprites.snakeUpDown,
+		[2]=sprites.snakeUpLeft,
+		[3]=sprites.snakeUpRight,
+	},
+	[1]={
+		[0]=sprites.snakeUpDown,
+		[1]=sprites.snakeUpDown,
+		[2]=sprites.snakeDownLeft,
+		[3]=sprites.snakeDownRight,
+	},
+	[2]={
+		[0]=sprites.snakeUpLeft,
+		[1]=sprites.snakeDownLeft,
+		[2]=sprites.snakeLeftRight,
+		[3]=sprites.snakeLeftRight
+	},
+	[3]={
+		[0]=sprites.snakeUpRight,
+		[1]=sprites.snakeDownRight,
+		[2]=sprites.snakeLeftRight,
+		[3]=sprites.snakeLeftRight,
+	},
 }
 
 dirs={
@@ -32,7 +68,7 @@ placeFruit=[]do
 		reset()
 		return
 	end
-	fruitX,fruitY = table.unpack(empty:pickRandom())
+	fruitX,fruitY=table.unpack(empty:pickRandom())
 	mset(fruitX,fruitY,sprites.fruit)
 end
 
@@ -49,10 +85,10 @@ reset=[]do
 	dir=1
 	nextDir=1
 	snake=table()
-	snakeX = math.random(0,w-1)
-	snakeY = math.random(0,h-1)
+	snakeX=tonumber(w//2)
+	snakeY=tonumber(h//2)
 	snake:insert{snakeX,snakeY}
-	mset(snakeX,snakeY,sprites.snakeUp+(dir<<1))
+	mset(snakeX,snakeY,sprites.snakeUp+dir)
 
 	nextTick=time()
 	speed=15
@@ -63,7 +99,7 @@ reset()
 
 update=[]do
 	cls(1)
-	map(0,0,w,h,0,0,0,true)
+	map(0,0,w,h,0,0)	--,0,true)
 
 	if btn(0) and dir ~= 1 then
 		nextDir=0
@@ -77,29 +113,29 @@ update=[]do
 
 	local t=time()
 	if t < nextTick then return end
-	nextTick = t+speed/60
+	nextTick=t+speed/60
 
-	mset(snakeX, snakeY, sprites.snakeBody)
+	mset(snakeX,snakeY,snakeBodies[dir~1][nextDir] or sprites.snakeBody)
 	dir=nextDir
-	local dx,dy = table.unpack(dirs[dir])
+	local dx,dy=table.unpack(dirs[dir])
 	snakeX+=dx
 	snakeY+=dy
 	if snakeX<0 or snakeX>=w or snakeY<0 or snakeY>=h then
 		trace'YOU LOSE'
 		reset()
 	end
-	local i = mget(snakeX, snakeY) 
-	mset(snakeX, snakeY, sprites.snakeUp+(dir<<1))
-	if i == sprites.fruit then
-		snake:insert(1, {snakeX, snakeY})
+	local i=mget(snakeX, snakeY) 
+	mset(snakeX, snakeY, sprites.snakeUp+dir)
+	if i==sprites.fruit then
+		snake:insert(1,{snakeX,snakeY,dir})
 		speed=math.max(1,speed-1)
 		placeFruit()
-	elseif i ~= 0 then
+	elseif i~=sprites.empty then
 		trace'YOU LOSE'
 		reset()
 	else
 		snake:insert(1, {snakeX, snakeY})
-		local tailX, tailY = table.unpack(snake:remove())
-		mset(tailX, tailY, sprites.empty)
+		local tailX,tailY,tailDir=table.unpack(snake:remove())
+		mset(tailX,tailY,sprites.empty)
 	end
 end
