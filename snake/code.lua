@@ -1,14 +1,13 @@
-w,h=32,32
+w,h=16,16
 
 sprites={
 	empty=0,
-	--empty=7,
-	snakeUp=1,
-	snakeDown=2,
-	snakeLeft=3,
-	snakeRight=4,
-	snakeBody=5,
-	fruit=6,
+	snakeUp=2,
+	snakeDown=4,
+	snakeLeft=6,
+	snakeRight=8,
+	snakeBody=10,
+	fruit=12,
 }
 
 dirs={
@@ -53,7 +52,7 @@ reset=[]do
 	snakeX = math.random(0,w-1)
 	snakeY = math.random(0,h-1)
 	snake:insert{snakeX,snakeY}
-	mset(snakeX,snakeY,sprites.snakeUp+dir)
+	mset(snakeX,snakeY,sprites.snakeUp+(dir<<1))
 
 	nextTick=time()
 	speed=15
@@ -64,7 +63,7 @@ reset()
 
 update=[]do
 	cls(1)
-	map(0,0,w,h,0,0)
+	map(0,0,w,h,0,0,0,true)
 
 	if btn(0) and dir ~= 1 then
 		nextDir=0
@@ -90,7 +89,7 @@ update=[]do
 		reset()
 	end
 	local i = mget(snakeX, snakeY) 
-	mset(snakeX, snakeY, sprites.snakeUp+dir)
+	mset(snakeX, snakeY, sprites.snakeUp+(dir<<1))
 	if i == sprites.fruit then
 		snake:insert(1, {snakeX, snakeY})
 		speed=math.max(1,speed-1)
