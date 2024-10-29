@@ -241,17 +241,9 @@ function MainMenu:updateMenuMultiplayer()
 	then
 		self:menuSection'connections'
 
-		-- draw local conn first
-
-		local conns = table{
-			app.cfg	-- has .playerInfos[i].name ...
-		}:append(
-			server.conns
-		)
-
 		-- TODO track active players on all clients in net ...
 		local connForPlayer = {}
-		for _,conn in ipairs(conns) do
+		for _,conn in ipairs(server.conns) do
 			for _,info in ipairs(conn.playerInfos) do
 				if info.localPlayer then
 					connForPlayer[info.localPlayer] = conn
@@ -259,8 +251,8 @@ function MainMenu:updateMenuMultiplayer()
 			end
 		end
 
-		for i,conn in ipairs(conns) do
-			local isHost = conn == app.cfg
+		for i,conn in ipairs(server.conns) do
+			local isHost = not conn.remote
 
 			local x = self.cursorX
 
