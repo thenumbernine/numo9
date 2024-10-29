@@ -96,6 +96,7 @@ local ROM = struct{
 				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},
 				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},
 				{name='palette', type='uint16_t['..paletteSize..']'},
+				-- TODO put system font here too ... maybe ... 
 				--]]
 
 				-- [[ audio stuff
@@ -314,6 +315,7 @@ local RAM = struct{
 				-- on the old Apple 2 console they did this by keeping only a count for the current key, such that if you held on it it'd pause, then repeat, then if you switched keys there would be no pause-and-repeat ...
 				-- I guess I'll dedicate 16 bits per hold counter to every key ...
 				-- TODO mayyybbee ... just dedicate one to every button, and an extra one for keys that aren't buttons
+				-- TODO maybe maybe ... pretend it is "done in hardware" and just move it outside of RAM ...
 				{name='keyHoldCounter', type='uint16_t['..keyCount..']'},
 
 				{name='mousePos', type='vec2s_t'},			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
