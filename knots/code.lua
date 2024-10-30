@@ -101,6 +101,9 @@ popSnakeHist=[]do
 end
 
 reset=[]do
+	knotMsg=nil
+	knotMsgTime=nil
+	knotMsgWidth=0
 	for j=0,h-1 do
 		for i=0,w-1 do
 			mset(i,j,0)
@@ -166,6 +169,25 @@ redraw=[]do
 		local sy = spriteIndex & vflip ~= 0
 		spr(spriteIndex&0x3ff,(x + (sx and 1 or 0))<<3,(y + (sy and 1 or 0))<<3,1,1,0,-1,0,0xff,sx and -1 or 1,sy and -1 or 1)
 		prevLinkDir=linkDir
+	end
+	if knotMsg then
+		if knotMsgWidth > 256 then
+			-- cycle back and forth 
+			local cycle = knotMsgWidth - 256
+			knotMsgX = (time()*32) % (4 * cycle)
+			if knotMsgX < cycle then
+				knotMsgX = -cycle
+			elseif knotMsgX < 2*cycle then
+				knotMsgX = -2*cycle+knotMsgX	-- -cycle to 0
+			elseif knotMsgX < 3*cycle then
+				knotMsgX = 0
+			else
+				knotMsgX = -(knotMsgX - 3*cycle)	-- 0 to -cycle
+			end
+		else
+			knotMsgX = math.min((time()-knotMsgTime)*32, 256-knotMsgWidth)
+		end
+		knotMsgWidth = text(knotMsg,knotMsgX,0,0xfc,0xf0)
 	end
 end
 snakeGet=[x,y]do
@@ -362,10 +384,29 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 	end
 	--]]
 
+	polyToStr=[p]do
+		local s = p:keys():sort([a,b]a>b):mapi([exp,_,t]do
+			local o = table()
+			local v = p[exp]
+			local sign = '+'
+			if v<0 then
+				v=math.abs(v)
+				sign = '-'
+			end
+			if v~=1 then o:insert(v) end
+			if exp~=0 then o:insert(exp==1 and 't' or 't^('..exp..'/4)') end
+			return (#t>0 and ' '..sign..' ' or (sign=='-' and sign or ''))
+				..(#o==0 and '1' or o:concat'*'),
+				#t+1
+		end)
+		return #s==0 and '0' or s:concat()
+	end
+
+	local poly=table()
 	local n = #crossingCoords
 trace('# crossings', n)
 	if n==0 then
-trace('V(t) = 1')
+		poly=table{[0]=1}
 	else
 
 		local writhe=0
@@ -381,18 +422,34 @@ trace('writhe', writhe)
 
 		local tripMatrix=range(n):mapi([i]do
 			local coordI = crossingCoords[i]
+			local coordIKey = coordI.x..','..coordI.y
+			local firstLinkIndexAtCrossingCoordI = assert.index(crossingIndexesForCoords[coordIKey], 1)
 			return range(n):mapi([j]do
 				local coordJ = crossingCoords[j]
+				local coordJKey = coordJ.x..','..coordJ.y
 				if i==j then
 					-- all indexes per-coord-key in crossingIndexesForCoords have the same crossing sign ...
-					local k = crossingIndexesForCoords[coordI.x..','..coordI.y]
 					-- source says sign==1 means diagonal==0 but my signs are all -1 so my trefoil knot is opposite the Zulli paper
-					local sign = assert.index(crossingSigns, k[1])
+					local sign = assert.index(crossingSigns, firstLinkIndexAtCrossingCoordI)
 					return sign==1 and 0 or 1
 				else
 					-- "count the # of times mod 2 we pass the i'th crossing" ...
 					-- ... won't that always be 2 times?  I'm missing something.
-					return 1
+					-- the other papers say this is the # times we cross any crossing that it goes against the arrow of positive-sign at that crossing
+					-- and since it's just passing one point
+					-- and since it's mod 2
+					-- it's just the parity of the one link when starting from the other
+					local result = 0
+					for k=1,#snake do
+						local link = snake[((firstLinkIndexAtCrossingCoordI-1+k)%#snake)+1]
+						local coordKey = link.x..','..link.y
+						if coordKey == coordIKey then break end
+						if coordKey == coordJKey then
+							-- then increment ... something ... based on what ...
+							result += 1
+						end
+					end
+					return result & 1
 				end
 			end)
 		end)
@@ -401,7 +458,6 @@ for i=1,n do
 trace(tripMatrix[i]:mapi(tostring):concat',')
 end
 	
-		local poly=table()
 		local numStates = 1 << n
 		for i=0,numStates-1 do
 			local state = range(0,n-1):mapi([j]((i>>j)&1))
@@ -458,38 +514,43 @@ end
 			for i=1,n do
 				if m[i]:sum()==0 then nullity+=1 end
 			end
-trace('state', state:concat(), 'nullity', nullity)
+trace('state', state:concat(), 'nullity', nullity, 'A='..A, 'B='..B, 'A-B='..(A-B))
 
 			local statePoly=table()
-			do
-				local sign=-1
-				for r=0,nullity do
-					sign*=-1
-					local num,denom=1,1
-					for s=0,r-1 do
-						num*=nullity-s
-						denom*=s+1
-					end
-					local coeff=math.floor(num/denom)
-					local exp=4*r-2*nullity
-					statePoly[exp]=(statePoly[exp] or 0) + coeff
+			local sign=-1
+			for r=0,nullity do
+				sign*=-1
+				local num,denom=1,1
+				for s=0,r-1 do
+					num*=nullity-s
+					denom*=s+1
 				end
-				-- multiply statePoly by `sign*t^(A-B)`
-				statePoly=statePoly:map([coeff,exp](coeff*sign,exp+A-B))
-print('statePoly', statePoly:keys():sort():mapi([k]statePoly[k]..'*t^'..k):concat' + ')
-				-- add statePoly to poly
-				for exp,coeff in pairs(statePoly) do
-					poly[exp]=(poly[exp] or 0) + coeff
-				end
-				poly=poly:filter([coeff,exp]coeff~=0)
-print('poly', poly:keys():sort():mapi([k]poly[k]..'*t^'..k):concat' + ')
+trace('num='..num..' denom='..denom)					
+				local coeff=math.floor(num/denom)
+				local exp=4*r-2*nullity
+				statePoly[exp]=(statePoly[exp] or 0) + coeff
 			end
+			-- multiply statePoly by `sign*t^(A-B)`
+			statePoly=statePoly:map([coeff,exp](coeff*sign,exp+A-B))
+trace('statePoly', polyToStr(statePoly))
+			-- add statePoly to poly
+			for exp,coeff in pairs(statePoly) do
+				poly[exp]=(poly[exp] or 0) + coeff
+			end
+			--poly=poly:filter([coeff,exp]coeff~=0)
+			for _,k in ipairs(table.keys(poly)) do if poly[k]==0 then poly[k]=nil end end
+trace('V(t) so far', polyToStr(poly))
 		end
 		
 		-- sign = (-1)^(3*w) ... = (-1)^(2*w) * (-1)^w ... = (-1)^w
 		local sign = writhe&1==0 and 1 or -1
 		-- multiply poly by `sign*t^(-3*w)`
-		poly=poly:map([coeff,exp](coeff*sign,exp-3*writhe)):filter([coeff,exp]coeff~=0)
-print('V(t)', poly:keys():sort():mapi([k]poly[k]..'*t^'..k):concat' + ')
+		poly=poly:map([coeff,exp](coeff*sign,3*writhe-exp))
+			--:filter([coeff,exp]coeff~=0)
+		for _,k in ipairs(table.keys(poly)) do if poly[k]==0 then poly[k]=nil end end
 	end
+
+	knotMsg = 'V(t)='..polyToStr(poly)
+trace(knotMsg)
+	knotMsgTime=time()
 end
