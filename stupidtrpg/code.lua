@@ -15,7 +15,7 @@ class=[...]do
 	t.__index=t
 	t.subclass=class
 	t.isaSet=table(table{...}:mapi([cl]cl.isaSet):unpack()):setmetatable(nil)
-	t.isaSet[t] = true
+	t.isaSet[t]=true
 	t.isa=isa
 	setmetatable(t,classmeta)
 	return t

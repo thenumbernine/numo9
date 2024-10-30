@@ -73,6 +73,7 @@ local keyCodeNames = numo9_keys.keyCodeNames
 local keyCodeForName = numo9_keys.keyCodeForName
 local sdlSymToKeyCode = numo9_keys.sdlSymToKeyCode
 local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode
+local buttonNames = numo9_keys.buttonNames
 local buttonCodeForName = numo9_keys.buttonCodeForName
 
 local numo9_video = require 'numo9.video'
@@ -2153,7 +2154,8 @@ end
 -- instead do this down in the SDL event handling ...
 function App:btn(buttonCode, player, ...)
 	if type(buttonCode) == 'string' then
-		buttonCode = buttonCodeForName[buttonCode]
+		buttonCode = buttonCodeForName[buttonCode] 
+			or error(string.format("unknown button string %q ... valid buttons are: %s", buttonCode, buttonNames:concat' '))
 	end
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
@@ -2167,6 +2169,7 @@ end
 function App:btnp(buttonCode, player, ...)
 	if type(buttonCode) == 'string' then
 		buttonCode = buttonCodeForName[buttonCode]
+			or error(string.format("unknown button string %q ... valid buttons are: %s", buttonCode, buttonNames:concat' '))
 	end
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
@@ -2180,6 +2183,7 @@ end
 function App:btnr(buttonCode, player, ...)
 	if type(buttonCode) == 'string' then
 		buttonCode = buttonCodeForName[buttonCode]
+			or error(string.format("unknown button string %q ... valid buttons are: %s", buttonCode, buttonNames:concat' '))
 	end
 	assert.type(buttonCode, 'number')
 	if buttonCode < 0 or buttonCode >= 8 then return end
