@@ -63,11 +63,16 @@ dirs={
 
 local snakeHist=table()
 pushSnakeHist=[]do
-	snakeHist:insert(snake:mapi([s]{table.unpack(s)}))
+	snakeHist:insert(snake:mapi([s]
+		(table(s):setmetatable(nil))
+	))
 end
 popSnakeHist=[]do
 	snake=snakeHist:remove()
-	snakeX,snakeY,dir=table.unpack(snake[1])
+	local head=snake[1]
+	snakeX=head.x
+	snakeY=head.y
+	dir=head.dir
 	done=false
 end
 
@@ -83,12 +88,17 @@ reset=[]do
 	snake=table()
 	snakeX=tonumber(w//2)
 	snakeY=tonumber(h//2)
-	snake:insert{snakeX,snakeY,dir}
+	snake:insert{x=snakeX,y=snakeY,dir=dir}
 end
 
 snakeCalcSprite=[i]do
-	local prevLinkDir = i>1 and snake[i-1][3] or nil
-	local x,y,linkDir,crossingOver,linkDone = table.unpack(snake[i])
+	local prevLinkDir = i>1 and snake[i-1].dir or nil
+	local link = snake[i]
+	local x=link.x
+	local y=link.y
+	local linkDir=link.dir
+	local crossingOver=link.crossingOver
+	local linkDone=link.done
 	if crossingOver ~= nil then
 		-- draw order matters now since we have two links at one point whose sprites differ
 		if linkDir&2==0 then	-- moving up/down
@@ -122,7 +132,11 @@ redraw=[]do
 	map(0,0,w,h,0,0)
 	local prevLinkDir
 	for i,link in ipairs(snake) do
-		local x,y,linkDir,crossingOver = table.unpack(link)
+		local x=link.x
+		local y=link.y
+		local linkDir=link.dir
+		local crossingOver=link.crossingOver
+		local linkDone=link.done
 		local spriteIndex = snakeCalcSprite(i)
 		local sx = spriteIndex & hflip ~= 0
 		local sy = spriteIndex & vflip ~= 0
@@ -133,7 +147,7 @@ end
 snakeGet=[x,y]do
 	for i=#snake,1,-1 do
 		local link=snake[i]
-		if link[1]==x and link[2]==y then 
+		if link.x==x and link.y==y then 
 			return snakeCalcSprite(i), i
 		end
 	end
@@ -146,7 +160,7 @@ update=[]do
 
 	if btnp(4) and #snakeHist>0 then
 		popSnakeHist()
-		if snake[1][4]~=nil then	-- don't leave us hanging at a crossing
+		if snake[1].crossingOver~=nil then	-- don't leave us hanging at a crossing
 			popSnakeHist()
 		end
 		return
@@ -179,7 +193,7 @@ update=[]do
 		local spriteIndex,snakeIndex=snakeGet(newX, newY)
 
 		-- check for free movement or overlap/underlap ...
-		blocked=nil
+		local blocked
 		if spriteIndex~=sprites.empty then
 			-- TODO multiple over/under?
 			if (
@@ -199,15 +213,13 @@ update=[]do
 					crossingOver = false
 				end
 				pushSnakeHist()
-				snake[snakeIndex][4]=not crossingOver
-				snake:insert(1,{newX,newY,nextDir,crossingOver})
+				snake[snakeIndex].crossingOver=not crossingOver
+				snake:insert(1,{x=newX,y=newY,dir=nextDir,crossingOver=crossingOver})
 				newX+=dx
 				newY+=dy
 			elseif moveVert and (spriteIndex==sprites.snakeEndUp or spriteIndex==sprites.snakeEndDown) then
-				--snake:last()[3]=sprites.snakeUpDown
 				done=true
 			elseif moveHorz and (spriteIndex==sprites.snakeEndLeft or spriteIndex==sprites.snakeEndRight) then
-				--snake:last()[3]=sprites.snakeLeftRight
 				done=true
 			else
 				blocked=true
@@ -217,8 +229,12 @@ update=[]do
 		if not blocked then
 			dir=nextDir
 			pushSnakeHist()
-			snake:insert(1,{newX,newY,dir,nil,done})
+			snake:insert(1,{x=newX,y=newY,dir=dir,done=done})
 			snakeX,snakeY=newX,newY
+		
+			if done then
+				-- calc knot stuff
+			end
 		end
 	end
 end
