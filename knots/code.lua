@@ -1,3 +1,8 @@
+--[[
+doing knot theory stuff
+https://core.ac.uk/download/pdf/81160141.pdf
+https://homepages.warwick.ac.uk/~maaac/TimL.html
+--]]
 w,h=32,32
 hflip=0x4000
 vflip=0x8000
@@ -166,7 +171,7 @@ end
 snakeGet=[x,y]do
 	for i=#snake,1,-1 do
 		local link=snake[i]
-		if link.x==x and link.y==y then 
+		if link.x==x and link.y==y then
 			return snakeCalcSprite(i), i
 		end
 	end
@@ -177,7 +182,7 @@ reset()
 update=[]do
 	redraw()
 
-	if btnp(4) and #snakeHist>0 then
+	if btnp(4,0,5,5) and #snakeHist>0 then
 		popSnakeHist()
 		if snake[1].crossingOver~=nil then	-- don't leave us hanging at a crossing
 			popSnakeHist()
@@ -250,7 +255,7 @@ update=[]do
 			pushSnakeHist()
 			snake:insert(1,{x=newX,y=newY,dir=dir,done=done})
 			snakeX,snakeY=newX,newY
-		
+
 			if done then
 				classify()
 			end
@@ -260,24 +265,26 @@ end
 
 classify=[]do
 	-- calc knot stuff
-trace('#snake', #snake)				
+trace('#snake', #snake)
 	-- this is the indexes of all crossings
-	local ci = range(#snake):filter([i]snake[i].crossingOver~=nil)
-trace('got crossing indexes', ci:mapi(tostring):concat',')				
-	if #ci & 1 == 1 then 
+	local crossingIndexes = range(#snake):filter([i]snake[i].crossingOver~=nil)
+trace('got crossing indexes', crossingIndexes:mapi(tostring):concat',')
+	if #crossingIndexes & 1 == 1 then
 		trace"somehow you have an odd number of links at crossings..."
 		return
 	end
 	-- this is the indexes of the unique crossing coordinates
-	local coords = ci:mapi([i](
+	local crossingCoords = crossingIndexes:mapi([i](
 		true,snake[i].x..','..snake[i].y
 	)):keys():mapi([c]do
 		local x,y=string.split(c,','):mapi([x]tonumber(x)):unpack()
 		return {x=x,y=y}
 	end)
+	assert.eq(#crossingCoords<<1, #crossingIndexes)
 
-	local crossingIndexesForCoords = coords:mapi([coord]
- 		(assert.len(ci:filter([i]
+	-- key = coord string, value = table of snake link indexes
+	local crossingIndexesForCoords = crossingCoords:mapi([coord]
+ 		(assert.len(crossingIndexes:filter([i]
 			snake[i].x==coord.x
 			and snake[i].y==coord.y
 		), 2), coord.x..','..coord.y)
@@ -294,8 +301,9 @@ trace('got crossing indexes', ci:mapi(tostring):concat',')
 	-- [[ print crossing # of each crossing
 	-- crossing sign is going to be based on direction and on over/under...
 	-- if the top arrow goes along the x-axis towards x+ then the crossing sign is the direction of the bottom arrow (towards y- = -1, towards y+ = +1)
+	local crossingSigns={}	-- index is the snake link index
 	do
-		for _,i in ipairs(ci) do
+		for _,i in ipairs(crossingIndexes) do
 			local link = snake[i]
 			local link2 = getOtherLink(i)
 			local dir1 = link.dir
@@ -306,6 +314,7 @@ trace('got crossing indexes', ci:mapi(tostring):concat',')
 				error'unknown crossing state at crossing link'
 			end
 			-- TODO this would all be much more simplified if my directions were in angle order
+			-- then we get crossingSign=(dir2-dir1)%4 ... and then 3=>-1
 			local crossingSign
 			if dir1==dirIndexForName.up then
 				if dir2==dirIndexForName.left then
@@ -322,7 +331,7 @@ trace('got crossing indexes', ci:mapi(tostring):concat',')
 					crossingSign=-1
 				else
 					error'here'
-				end		
+				end
 			elseif dir1==dirIndexForName.left then
 				if dir2==dirIndexForName.down then
 					crossingSign=1
@@ -330,7 +339,7 @@ trace('got crossing indexes', ci:mapi(tostring):concat',')
 					crossingSign=-1
 				else
 					error'here'
-				end		
+				end
 			elseif dir1==dirIndexForName.right then
 				if dir2==dirIndexForName.up then
 					crossingSign=1
@@ -341,40 +350,146 @@ trace('got crossing indexes', ci:mapi(tostring):concat',')
 				end
 			end
 trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSign', crossingSign)
+			crossingSigns[i]=crossingSign
 		end
-		return
+	end
+	-- assert all crossing signs of a coord are the same
+	for i,coord in ipairs(crossingCoords) do
+		local key = coord.x..','..coord.y
+		local is = crossingIndexesForCoords[key]
+		assert.len(is, 2)
+		assert.eq(crossingSigns[is[1]], crossingSigns[is[2]])
 	end
 	--]]
 
-
-	local n = #ci>>1
-trace('# crossings', n)	
+	local n = #crossingCoords
+trace('# crossings', n)
 	if n==0 then
-trace('V(t) = 1') 				
+trace('V(t) = 1')
 	else
-		local t={}
-		for i=1,n do t[i]={} end
-		
+
+		local writhe=0
 		for i=1,n do
-			for j=1,n do
+trace('i', i)			
+			local coordI = crossingCoords[i]
+trace('coordI', coordI.x..','..coordI.y)
+			local k = crossingIndexesForCoords[coordI.x..','..coordI.y]
+trace('crossing indexes', k:concat' ')			
+			writhe+=crossingSigns[k[1]]
+		end
+trace('writhe', writhe)
+
+		local tripMatrix=range(n):mapi([i]do
+			local coordI = crossingCoords[i]
+			return range(n):mapi([j]do
+				local coordJ = crossingCoords[j]
 				if i==j then
-					local spriteIndex = snakeCalcSprite(ci[i<<1])
-					t[i][j] = spriteIndex == sprites.snakeVertOverHorz and 0 or 1 
+					-- all indexes per-coord-key in crossingIndexesForCoords have the same crossing sign ...
+					local k = crossingIndexesForCoords[coordI.x..','..coordI.y]
+					-- source says sign==1 means diagonal==0 but my signs are all -1 so my trefoil knot is opposite the Zulli paper
+					local sign = assert.index(crossingSigns, k[1])
+					return sign==1 and 0 or 1
 				else
 					-- "count the # of times mod 2 we pass the i'th crossing" ...
-					-- it's gonna be 0 or 1 always by the constraints of my system ...
-					t[i][j] = 1
+					-- ... won't that always be 2 times?  I'm missing something.
+					return 1
+				end
+			end)
+		end)
+trace'tripMatrix='
+for i=1,n do
+trace(tripMatrix[i]:mapi(tostring):concat',')
+end
+	
+		local poly=table()
+		local numStates = 1 << n
+		for i=0,numStates-1 do
+			local state = range(0,n-1):mapi([j]((i>>j)&1))
+			local ABs={[0]=0,[1]=0}
+			for j,statej in ipairs(state) do
+				ABs[statej]+=1
+			end
+			local A,B=ABs[0],ABs[1]
+		
+			local stateMatrix=range(n):mapi([i]
+				range(n):mapi([j]do
+					if i==j then
+						return (state[i] + tripMatrix[i][j]) & 1
+					else
+						return tripMatrix[i][j]
+					end
+				end)
+			)
+		
+			local m=range(n):mapi([i] table(stateMatrix[i]))
+			local swapRows=[i1,i2]do
+				for j=1,n do
+					m[i1][j],m[i2][j]=m[i2][j],m[i1][j]
 				end
 			end
-		end
-trace'T='
-		for i=1,n do
-local str=table()					
-			for j=1,n do
-str:insert(t[i][j])
+			local subRows=[i1,i2]do
+				for j=1,n do
+					m[i1][j]=(m[i1][j]-m[i2][j])&1
+				end
 			end
-trace(str:mapi(tostring):concat', ')					
+			local imax=n
+			for j=1,n-1 do
+				local maxZero=1
+				for i=1,imax do
+					if m[i][j]==0 then
+						maxZero=math.max(maxZero,i)
+					else
+						if i<n then
+							if m[i+1][j]==0 then
+								swapRows(i,i+1)
+							elseif m[i+1][j]==1 then
+								subRows(i,i+1)
+							else
+								error'here'
+							end
+							maxZero=math.max(maxZero,i)
+						end
+					end
+				end
+				imax=maxZero
+			end
+	
+			local nullity=0
+			for i=1,n do
+				if m[i]:sum()==0 then nullity+=1 end
+			end
+trace('state', state:concat(), 'nullity', nullity)
+
+			local statePoly=table()
+			do
+				local sign=-1
+				for r=0,nullity do
+					sign*=-1
+					local num,denom=1,1
+					for s=0,r-1 do
+						num*=nullity-s
+						denom*=s+1
+					end
+					local coeff=math.floor(num/denom)
+					local exp=4*r-2*nullity
+					statePoly[exp]=(statePoly[exp] or 0) + coeff
+				end
+				-- multiply statePoly by `sign*t^(A-B)`
+				statePoly=statePoly:map([coeff,exp](coeff*sign,exp+A-B))
+print('statePoly', statePoly:keys():sort():mapi([k]statePoly[k]..'*t^'..k):concat' + ')
+				-- add statePoly to poly
+				for exp,coeff in pairs(statePoly) do
+					poly[exp]=(poly[exp] or 0) + coeff
+				end
+				poly=poly:filter([coeff,exp]coeff~=0)
+print('poly', poly:keys():sort():mapi([k]poly[k]..'*t^'..k):concat' + ')
+			end
 		end
-		-- 
+		
+		-- sign = (-1)^(3*w) ... = (-1)^(2*w) * (-1)^w ... = (-1)^w
+		local sign = writhe&1==0 and 1 or -1
+		-- multiply poly by `sign*t^(-3*w)`
+		poly=poly:map([coeff,exp](coeff*sign,exp-3*writhe)):filter([coeff,exp]coeff~=0)
+print('V(t)', poly:keys():sort():mapi([k]poly[k]..'*t^'..k):concat' + ')
 	end
 end
