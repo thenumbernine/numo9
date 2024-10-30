@@ -67,43 +67,63 @@ pushSnakeHist=[]do
 end
 popSnakeHist=[]do
 	snake=snakeHist:remove()
-	snakeX,snakeY,_,dir=table.unpack(snake[1])
+	snakeX,snakeY,dir=table.unpack(snake[1])
+	done=false
 end
 
 reset=[]do
-	-- [[
-	for j=0,h-1 do
-		for i=0,w-1 do
-			mset(i,j,sprites.empty)
-		end
-	end
-	--]]
-
 	snakeHist=table()
 	done=false
-	dir=5
+	dir=4
 	snake=table()
 	snakeX=tonumber(w//2)
 	snakeY=tonumber(h//2)
-	snake:insert{snakeX,snakeY,sprites.snakeDown,dir}
-	--mset(snakeX,snakeY,sprites.snakeDown)
+	snake:insert{snakeX,snakeY,dir}
+end
+
+snakeCalcSprite=[i]do
+	local prevLinkDir = i>1 and snake[i-1][3] or nil
+	local x,y,linkDir,crossing,linkDone = table.unpack(snake[i])
+	if crossing then
+		return sprites[crossing]
+	elseif #snake==1 then
+		return sprites.snakeDown
+	else
+		if i==1 then
+			if done then
+				return snakeBodies[linkDir][linkDir~1]
+			else
+				return sprites.snakeUp + linkDir
+			end
+		elseif i==#snake then
+			if done then
+				return snakeBodies[prevLinkDir][prevLinkDir~1]	-- use prevLinkDir since linkDir for the tail is 4 / invalid
+			else
+				return snakeBodies.tail[prevLinkDir]
+			end
+		else
+			return snakeBodies[prevLinkDir][linkDir~1]
+		end
+	end
 end
 
 redraw=[]do
 	cls(1)
-	map(0,0,w,h,0,0)
-	for _,s in ipairs(snake) do
-		local x,y,i = table.unpack(s)
-		local sx = i & hflip ~= 0
-		local sy = i & vflip ~= 0
-		spr(i&0x3ff,(x + (sx and 1 or 0))<<3,(y + (sy and 1 or 0))<<3,1,1,0,-1,0,0xff,sx and -1 or 1,sy and -1 or 1)
+	local prevLinkDir
+	for i,link in ipairs(snake) do
+		local x,y,linkDir,crossing = table.unpack(link)
+		local spriteIndex = snakeCalcSprite(i)
+		local sx = spriteIndex & hflip ~= 0
+		local sy = spriteIndex & vflip ~= 0
+		spr(spriteIndex&0x3ff,(x + (sx and 1 or 0))<<3,(y + (sy and 1 or 0))<<3,1,1,0,-1,0,0xff,sx and -1 or 1,sy and -1 or 1)
+		prevLinkDir=linkDir
 	end
 end
 snakeGet=[x,y]do
 	for i=#snake,1,-1 do
-		local s=snake[i]
-		if s[1]==x and s[2]==y then 
-			return s[3],i
+		local link=snake[i]
+		if link[1]==x and link[2]==y then 
+			return snakeCalcSprite(i), i
 		end
 	end
 	return sprites.empty
@@ -160,23 +180,27 @@ update=[]do
 			)
 			then
 				-- skip
-				local j=moveVert
-					and sprites.snakeVertOverHorz
-					or sprites.snakeHorzOverVert
+				local vertOverHorz = moveVert
 				if btn(5) or btn(7) then
-					j~~=1
+					vertOverHorz = not vertOverHorz
 				end
-				snake[snakeIndex][3]=j
+				local crossing = vertOverHorz
+					and 'snakeVertOverHorz'
+					or 'snakeHorzOverVert'
+				local j=sprites[crossing]
+				snake[snakeIndex][4]=crossing
 				--pushSnakeHist()
 				--snake:insert(1,{newX,newY,j})
-				--mset(newX,newY,j)
+				-- TODO insert a crossing here too
+				-- but then we need to undo double if we undo a crossing
+
 				newX+=dx
 				newY+=dy
 			elseif moveVert and (spriteIndex==sprites.snakeEndUp or spriteIndex==sprites.snakeEndDown) then
-				snake:last()[3]=sprites.snakeUpDown
+				--snake:last()[3]=sprites.snakeUpDown
 				done=true
 			elseif moveHorz and (spriteIndex==sprites.snakeEndLeft or spriteIndex==sprites.snakeEndRight) then
-				snake:last()[3]=sprites.snakeLeftRight
+				--snake:last()[3]=sprites.snakeLeftRight
 				done=true
 			else
 				blocked=true
@@ -184,18 +208,9 @@ update=[]do
 		end
 
 		if not blocked then
-			if #snake==1 then
-				snake[1][3] = snakeBodies.tail[nextDir]
-				--mset(snakeX,snakeY,snakeBodies.tail[nextDir])
-			else
-				snake[1][3] = snakeBodies[dir~1][nextDir] or sprites.fruit
-				--mset(snakeX,snakeY,snakeBodies[dir~1][nextDir] or sprites.fruit)
-			end
-			if done then return end
 			dir=nextDir
-			--mset(newX,newY,sprites.snakeUp+dir)
 			pushSnakeHist()
-			snake:insert(1,{newX,newY,sprites.snakeUp+dir,dir})
+			snake:insert(1,{newX,newY,dir,nil,done})
 			snakeX,snakeY=newX,newY
 		end
 	end
