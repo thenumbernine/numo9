@@ -1967,6 +1967,11 @@ function App:runCmd(cmd)
 	--]]
 end
 
+local function indexargs(field, ...)
+	if select('#', ...) == 0 then return end
+	return (...)[field], indexargs(field, select(2, ...))
+end
+
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
@@ -2025,8 +2030,7 @@ function App:runROM()
 				-- TODO during this function, capture all commands and send them only to the loopback conn.
 				if self.server then
 					for _,conn in ipairs(self.server.conns) do
-						-- TODO during this call only send commands to this conn.
-						env.draw(conn.ident)
+						env.draw(conn.ident, indexargs('localPlayer', table.unpack(conn.playerInfos)))
 					end
 				else
 					-- if we dont have a server then just do a draw for the loopback connection

@@ -173,7 +173,11 @@ This adds to Lua(/JIT):
 If the following functions are defined then they will be called from the virtual-console:
 
 - `update()` - This is called 60 times every second.  You can call draw routines here if you would like and they should be sent out to all connected clients.
-- `draw(connID)` - This is called 60 times every second per-client that is connected.
+
+- `draw(connID, connPlayer1, connPlayer2, connPlayer3, connPlayer4)` - This is called 60 times every second per-client that is connected.
+	- `connID` = a unique string for this connection.
+	- `connPlayer#` = the index number (1-64) of the 4 players present on this connection.
+
 - `onconnect(connID)` - This is called when a ROM is initialized or when a new client connects to a server listening.
 
 ## virtual-filesystem commands:
@@ -482,6 +486,7 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
 - Some day I should cut off cartridge access to `app`, `ffi`, etc.  I like having them around for `offsetof`'ing fields to get locations in RAM, which are subject to change while this is in alpha.  Should I introduce constant variables with the address names instead, and then hide ffi?
 - Cart browser.
+- Still need to make the draw message history to be per-connection, and need to send draw-specific commands to their specific connections.
 
 # Things I'm still debating ...
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
