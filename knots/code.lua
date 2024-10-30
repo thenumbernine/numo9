@@ -54,12 +54,31 @@ snakeBodies={
 	},
 }
 
+dirIndexForName={
+	up=0,
+	down=1,
+	left=2,
+	right=3,
+}
+dirNameForIndex=table.map(dirIndexForName,[v,k](k,v)):setmetatable(nil)
 dirs={
 	[0]={0,-1},
 	[1]={0,1},
 	[2]={-1,0},
 	[3]={1,0},
 }
+
+local range=[a,b,c]do
+	local t = table()
+	if c then
+		for x=a,b,c do t:insert(x) end
+	elseif b then
+		for x=a,b do t:insert(x) end
+	else
+		for x=1,a do t:insert(x) end
+	end
+	return t
+end
 
 local snakeHist=table()
 pushSnakeHist=[]do
@@ -233,8 +252,129 @@ update=[]do
 			snakeX,snakeY=newX,newY
 		
 			if done then
-				-- calc knot stuff
+				classify()
 			end
 		end
+	end
+end
+
+classify=[]do
+	-- calc knot stuff
+trace('#snake', #snake)				
+	-- this is the indexes of all crossings
+	local ci = range(#snake):filter([i]snake[i].crossingOver~=nil)
+trace('got crossing indexes', ci:mapi(tostring):concat',')				
+	if #ci & 1 == 1 then 
+		trace"somehow you have an odd number of links at crossings..."
+		return
+	end
+	-- this is the indexes of the unique crossing coordinates
+	local coords = ci:mapi([i](
+		true,snake[i].x..','..snake[i].y
+	)):keys():mapi([c]do
+		local x,y=string.split(c,','):mapi([x]tonumber(x)):unpack()
+		return {x=x,y=y}
+	end)
+
+	local crossingIndexesForCoords = coords:mapi([coord]
+ 		(assert.len(ci:filter([i]
+			snake[i].x==coord.x
+			and snake[i].y==coord.y
+		), 2), coord.x..','..coord.y)
+	)
+	local getOtherLink=[i]do
+		local link = snake[i]
+		local cis=assert.index(crossingIndexesForCoords,link.x..','..link.y)
+		assert.len(cis,2)
+		if cis[1]==i then return snake[cis[2]] end
+		if cis[2]==i then return snake[cis[1]] end
+		error'here'
+	end
+
+	-- [[ print crossing # of each crossing
+	-- crossing sign is going to be based on direction and on over/under...
+	-- if the top arrow goes along the x-axis towards x+ then the crossing sign is the direction of the bottom arrow (towards y- = -1, towards y+ = +1)
+	do
+		for _,i in ipairs(ci) do
+			local link = snake[i]
+			local link2 = getOtherLink(i)
+			local dir1 = link.dir
+			local dir2 = link2.dir
+			if link.crossingOver == false then
+				dir1,dir2 = dir2,dir1
+			elseif link.crossingOver ~= true then
+				error'unknown crossing state at crossing link'
+			end
+			-- TODO this would all be much more simplified if my directions were in angle order
+			local crossingSign
+			if dir1==dirIndexForName.up then
+				if dir2==dirIndexForName.left then
+					crossingSign=1
+				elseif dir2==dirIndexForName.right then
+					crossingSign=-1
+				else
+					error'here'
+				end
+			elseif dir1==dirIndexForName.down then
+				if dir2==dirIndexForName.right then
+					crossingSign=1
+				elseif dir2==dirIndexForName.left then
+					crossingSign=-1
+				else
+					error'here'
+				end		
+			elseif dir1==dirIndexForName.left then
+				if dir2==dirIndexForName.down then
+					crossingSign=1
+				elseif dir2==dirIndexForName.up then
+					crossingSign=-1
+				else
+					error'here'
+				end		
+			elseif dir1==dirIndexForName.right then
+				if dir2==dirIndexForName.up then
+					crossingSign=1
+				elseif dir2==dirIndexForName.down then
+					crossingSign=-1
+				else
+					error'here'
+				end
+			end
+trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSign', crossingSign)
+		end
+		return
+	end
+	--]]
+
+
+	local n = #ci>>1
+trace('# crossings', n)	
+	if n==0 then
+trace('V(t) = 1') 				
+	else
+		local t={}
+		for i=1,n do t[i]={} end
+		
+		for i=1,n do
+			for j=1,n do
+				if i==j then
+					local spriteIndex = snakeCalcSprite(ci[i<<1])
+					t[i][j] = spriteIndex == sprites.snakeVertOverHorz and 0 or 1 
+				else
+					-- "count the # of times mod 2 we pass the i'th crossing" ...
+					-- it's gonna be 0 or 1 always by the constraints of my system ...
+					t[i][j] = 1
+				end
+			end
+		end
+trace'T='
+		for i=1,n do
+local str=table()					
+			for j=1,n do
+str:insert(t[i][j])
+			end
+trace(str:mapi(tostring):concat', ')					
+		end
+		-- 
 	end
 end
