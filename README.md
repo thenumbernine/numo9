@@ -500,3 +500,4 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.  
 	This means redoing the tiles-wide and high of the sprite and map draw functions.
 - Font goes in its own memory.
+- one thing that bugged me about pico8 and tic80's API ... `map()` uses tile-x and tile-y in the tile-sheet, while `spr, sget, sset, mget, mset,` etc all use a single index.  I think `map()` should use a single index as well.
