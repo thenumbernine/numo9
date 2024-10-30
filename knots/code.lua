@@ -88,9 +88,14 @@ end
 
 snakeCalcSprite=[i]do
 	local prevLinkDir = i>1 and snake[i-1][3] or nil
-	local x,y,linkDir,crossing,linkDone = table.unpack(snake[i])
-	if crossing then
-		return sprites[crossing]
+	local x,y,linkDir,crossingOver,linkDone = table.unpack(snake[i])
+	if crossingOver ~= nil then
+		-- draw order matters now since we have two links at one point whose sprites differ
+		if linkDir&2==0 then	-- moving up/down
+			return crossingOver and sprites.snakeVertOverHorz or sprites.snakeHorzOverVert
+		else
+			return crossingOver and sprites.snakeHorzOverVert or sprites.snakeVertOverHorz
+		end
 	elseif #snake==1 then
 		return sprites.snakeDown
 	else
@@ -117,7 +122,7 @@ redraw=[]do
 	map(0,0,w,h,0,0)
 	local prevLinkDir
 	for i,link in ipairs(snake) do
-		local x,y,linkDir,crossing = table.unpack(link)
+		local x,y,linkDir,crossingOver = table.unpack(link)
 		local spriteIndex = snakeCalcSprite(i)
 		local sx = spriteIndex & hflip ~= 0
 		local sy = spriteIndex & vflip ~= 0
@@ -141,7 +146,7 @@ update=[]do
 
 	if btnp(4) and #snakeHist>0 then
 		popSnakeHist()
-		if snake[1][4] then	-- don't leave us hanging at a crossing
+		if snake[1][4]~=nil then	-- don't leave us hanging at a crossing
 			popSnakeHist()
 		end
 		return
@@ -189,17 +194,13 @@ update=[]do
 			)
 			then
 				-- skip
-				local vertOverHorz = moveVert
+				local crossingOver = true
 				if btn(5) or btn(7) then
-					vertOverHorz = not vertOverHorz
+					crossingOver = false
 				end
-				local crossing = vertOverHorz
-					and 'snakeVertOverHorz'
-					or 'snakeHorzOverVert'
-				local j=sprites[crossing]
 				pushSnakeHist()
-				snake[snakeIndex][4]=crossing
-				snake:insert(1,{newX,newY,nextDir,crossing})
+				snake[snakeIndex][4]=not crossingOver
+				snake:insert(1,{newX,newY,nextDir,crossingOver})
 				newX+=dx
 				newY+=dy
 			elseif moveVert and (spriteIndex==sprites.snakeEndUp or spriteIndex==sprites.snakeEndDown) then
