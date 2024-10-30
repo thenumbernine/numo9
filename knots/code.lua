@@ -72,6 +72,11 @@ popSnakeHist=[]do
 end
 
 reset=[]do
+	for j=0,h-1 do
+		for i=0,w-1 do
+			mset(i,j,0)
+		end
+	end
 	snakeHist=table()
 	done=false
 	dir=4
@@ -109,6 +114,7 @@ end
 
 redraw=[]do
 	cls(1)
+	map(0,0,w,h,0,0)
 	local prevLinkDir
 	for i,link in ipairs(snake) do
 		local x,y,linkDir,crossing = table.unpack(link)
@@ -135,6 +141,9 @@ update=[]do
 
 	if btnp(4) and #snakeHist>0 then
 		popSnakeHist()
+		if snake[1][4] then	-- don't leave us hanging at a crossing
+			popSnakeHist()
+		end
 		return
 	end
 	if btnp(6) then
@@ -188,12 +197,9 @@ update=[]do
 					and 'snakeVertOverHorz'
 					or 'snakeHorzOverVert'
 				local j=sprites[crossing]
+				pushSnakeHist()
 				snake[snakeIndex][4]=crossing
-				--pushSnakeHist()
-				--snake:insert(1,{newX,newY,j})
-				-- TODO insert a crossing here too
-				-- but then we need to undo double if we undo a crossing
-
+				snake:insert(1,{newX,newY,nextDir,crossing})
 				newX+=dx
 				newY+=dy
 			elseif moveVert and (spriteIndex==sprites.snakeEndUp or spriteIndex==sprites.snakeEndDown) then
