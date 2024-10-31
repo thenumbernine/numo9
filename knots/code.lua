@@ -449,7 +449,11 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 		if p:equals{		  [-9]=-1, [-8]=2,  [-7]=-3, [-6]=3,  [-5]=-3, [-4]=3,  [-3]=-1, [-2]=1																								} then return '7_5' end
 		if p:equals{									 [-6]=-1, [-5]=2,  [-4]=-3, [-3]=4,  [-2]=-3, [-1]=3,  [0]=-2, [1]=1																	} then return '7_6' end
 		if p:equals{																[-3]=-1, [-2]=3,  [-1]=-3, [0]=4,  [1]=-4, [2]=3,  [3]=-2, [4]=1											} then return '7_7' end
-		return polyToStr(p)
+	end
+	local polyNameOrStr=[p]do
+		return polyName(p)
+		or polyName(p:map([coeff,exp](coeff,-exp)))		-- t -> t^-1 ... is that right?
+		or polyToStr(p)
 	end
 
 	local poly=table()
@@ -603,7 +607,7 @@ trace('V(t) so far', polyToStr(poly))
 	-- it's a poly of the 4th root, and looks like the powers are all 4s, so ...
 	poly=poly:map([coeff,exp](coeff,exp/4))
 
-	knotMsg = '#'..(#snake-1)..' V(t)='..polyName(poly)
+	knotMsg = '#'..(#snake-1)..' V(t)='..polyNameOrStr(poly)
 trace(knotMsg)
 	knotMsgTime=time()
 end
