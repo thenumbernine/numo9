@@ -138,13 +138,13 @@ snakeCalcSprite=[i]do
 	else
 		if i==1 then
 			if done then
-				return snakeBodies[linkDir][linkDir~1]
+				return snakeBodies[linkDir][snake[#snake-1].dir~1]
 			else
 				return sprites.snakeUp + linkDir
 			end
 		elseif i==#snake then
 			if done then
-				return snakeBodies[prevLinkDir][prevLinkDir~1]	-- use prevLinkDir since linkDir for the tail is 4 / invalid
+				return snakeBodies[prevLinkDir][snake[1].dir~1]	-- use prevLinkDir since linkDir for the tail is 4 / invalid
 			else
 				return snakeBodies.tail[prevLinkDir]
 			end
@@ -240,33 +240,44 @@ update=[]do
 
 		-- check for free movement or overlap/underlap ...
 		local blocked
+		local crossingOver
 		if spriteIndex~=sprites.empty then
 			-- TODO multiple over/under?
 			if (
 				moveVert
 				and (spriteIndex==sprites.snakeLeftRight)
-				and snakeGet(newX+dx,newY+dy)==sprites.empty
+				--and snakeGet(newX+dx,newY+dy)==sprites.empty
 			)
 			or (
 				moveHorz
 				and (spriteIndex==sprites.snakeUpDown)
-				and snakeGet(newX+dx,newY+dy)==sprites.empty
+				--and snakeGet(newX+dx,newY+dy)==sprites.empty
 			)
 			then
 				-- skip
-				local crossingOver = true
+				crossingOver = true
 				if btn(5) or btn(7) then
 					crossingOver = false
 				end
-				pushSnakeHist()
-				snake[snakeIndex].crossingOver=not crossingOver
-				snake:insert(1,{x=newX,y=newY,dir=nextDir,crossingOver=crossingOver})
-				newX+=dx
-				newY+=dy
+				--pushSnakeHist()
+				--snake[snakeIndex].crossingOver=not crossingOver
+				--snake:insert(1,{x=newX,y=newY,dir=nextDir,crossingOver=crossingOver})
+				--newX+=dx
+				--newY+=dy
+			--[[ only allow move into the tail from same dir ...
 			elseif moveVert and (spriteIndex==sprites.snakeEndUp or spriteIndex==sprites.snakeEndDown) then
 				done=true
 			elseif moveHorz and (spriteIndex==sprites.snakeEndLeft or spriteIndex==sprites.snakeEndRight) then
 				done=true
+			--]]
+			-- [[ allow move into tail from any dir
+			elseif spriteIndex==sprites.snakeEndUp
+			or spriteIndex==sprites.snakeEndDown
+			or spriteIndex==sprites.snakeEndLeft
+			or spriteIndex==sprites.snakeEndRight
+			then
+				done=true
+			--]]
 			else
 				blocked=true
 			end
@@ -275,7 +286,10 @@ update=[]do
 		if not blocked then
 			dir=nextDir
 			pushSnakeHist()
-			snake:insert(1,{x=newX,y=newY,dir=dir,done=done})
+			if crossingOver~=nil then
+				snake[snakeIndex].crossingOver=not crossingOver
+			end
+			snake:insert(1,{x=newX,y=newY,dir=dir,done=done,crossingOver=crossingOver})
 			snakeX,snakeY=newX,newY
 
 			if done then
@@ -394,7 +408,19 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 				sign = '-'
 			end
 			if v~=1 then o:insert(v) end
-			if exp~=0 then o:insert(exp==1 and 't' or 't^('..exp..'/4)') end
+			if exp~=0 then 
+				local sexp
+				if exp==1 then
+					sexp = 't'
+				else
+					if exp%4 == 0 then
+						sexp = 't^'..math.floor(exp/4)
+					else
+						sexp = 't^('..exp..'/4)'
+					end
+				end
+				o:insert(sexp)
+			end
 			return (#t>0 and ' '..sign..' ' or (sign=='-' and sign or ''))
 				..(#o==0 and '1' or o:concat'*'),
 				#t+1
@@ -550,7 +576,7 @@ trace('V(t) so far', polyToStr(poly))
 		for _,k in ipairs(table.keys(poly)) do if poly[k]==0 then poly[k]=nil end end
 	end
 
-	knotMsg = 'V(t)='..polyToStr(poly)
+	knotMsg = '#'..(#snake-1)..' V(t)='..polyToStr(poly)
 trace(knotMsg)
 	knotMsgTime=time()
 end
