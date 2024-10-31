@@ -1333,8 +1333,8 @@ print'DELTA'
 print(
 	string.hexdump(
 		ffi.string(
-			ffi.cast('char*', self.server.frames[1].deltas.v),
-			#self.server.frames[1].deltas * ffi.sizeof(self.server.frames[1].deltas.type)
+			ffi.cast('char*', self.server.conns[1].deltas.v),
+			#self.server.conns[1].deltas * ffi.sizeof(self.server.conns[1].deltas.type)
 		), nil, 2
 	)
 )
@@ -1344,14 +1344,14 @@ print'STATE'
 print(
 	string.hexdump(
 		ffi.string(
-			ffi.cast('char*', self.server.frames[1].cmds.v),
-			#self.server.frames[1].cmds * ffi.sizeof'Numo9Cmd'
+			ffi.cast('char*', self.server.conns[1].cmds.v),
+			#self.server.conns[1].cmds * ffi.sizeof'Numo9Cmd'
 		), nil, 2
 	)
 )
 --]]
 			io.write('net frames='..#self.server.frames..' ')
-			io.write(' cmds/frame='..#((self.server.frames[1] or {}).cmds or {})..' ')
+			io.write(' cmds/frame='..#((self.server.conns[1] or {}).cmds or {})..' ')
 			io.write(' deltas/sec='..tostring(self.server.numDeltasSentPerSec)..' ')
 			io.write(' idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
 self.server.numDeltasSentPerSec = 0
@@ -2009,30 +2009,34 @@ function App:runROM()
 		while true do
 			coroutine.yield()
 
-			-- upon new game, if the server is running,
-			-- then call "onconnect" on all conns connected so far.
-			-- here - for all connections so far - run the 'onconnect' function if it exists
-			-- TODO how about a callback for assigning / unassigning players? so the game can associate player #s with conn IDs ...
-			if env.onconnect then
-				if self.server then
-					for _,conn in ipairs(self.server.conns) do
-						if not conn.hasCalledOnConnect then
-							conn.hasCalledOnConnect = true
-							env.onconnect(conn.ident)
-						end
-					end
-				end
-			end
-
 			env.update()
-			-- see if the console supports separate drawing for multiple connections ...
-			if env.draw then
-				-- TODO during this function, capture all commands and send them only to the loopback conn.
-				if self.server then
-					for _,conn in ipairs(self.server.conns) do
+
+			if self.server then
+				for _,conn in ipairs(self.server.conns) do
+					-- set our override - cmds only go to this conn
+					self.server.currentCmdConn = conn
+
+					-- upon new game, if the server is running,
+					-- then call "onconnect" on all conns connected so far.
+					-- here - for all connections so far - run the 'onconnect' function if it exists
+					-- TODO how about a callback for assigning / unassigning players? so the game can associate player #s with conn IDs ...
+					if env.onconnect
+					and not conn.hasCalledOnConnect
+					then
+						conn.hasCalledOnConnect = true
+						env.onconnect(conn.ident)
+					end
+
+					-- see if the console supports separate drawing for multiple connections ...
+					if env.draw then
+						-- TODO during this function, capture all commands and send them only to the loopback conn.
 						env.draw(conn.ident, indexargs('localPlayer', table.unpack(conn.playerInfos)))
 					end
-				else
+					
+					self.server.currentCmdConn = nil
+				end
+			else
+				if env.draw then
 					-- if we dont have a server then just do a draw for the loopback connection
 					env.draw'lo'
 				end
