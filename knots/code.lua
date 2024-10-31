@@ -85,6 +85,16 @@ local range=[a,b,c]do
 	return t
 end
 
+table.equals=[a,b]do
+	local ka=table.keys(a)
+	local kb=table.keys(b)
+	if #ka~=#kb then return false end
+	for _,k in ipairs(ka) do
+		if a[k]~=b[k] then return false end
+	end
+	return true
+end
+
 local snakeHist=table()
 pushSnakeHist=[]do
 	snakeHist:insert(snake:mapi([s]
@@ -398,7 +408,7 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 	end
 	--]]
 
-	polyToStr=[p]do
+	local polyToStr=[p]do
 		local s = p:keys():sort([a,b]a>b):mapi([exp,_,t]do
 			local o = table()
 			local v = p[exp]
@@ -413,11 +423,7 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 				if exp==1 then
 					sexp = 't'
 				else
-					if exp%4 == 0 then
-						sexp = 't^'..math.floor(exp/4)
-					else
-						sexp = 't^('..exp..'/4)'
-					end
+					sexp = 't^'..exp
 				end
 				o:insert(sexp)
 			end
@@ -426,6 +432,24 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 				#t+1
 		end)
 		return #s==0 and '0' or s:concat()
+	end
+	local polyName=[p]do
+		if p:equals{															  							   [0]=1																			} then return '0_1' end
+		if p:equals{													   [-4]=-1, [-3]=1,			  [-1]=1																					} then return '3_1' end
+		if p:equals{															  			 [-2]=1,  [-1]=-1, [0]=1,  [1]=-1, [2]=1															} then return '4_1' end
+		if p:equals{							[-7]=-1, [-6]=1,  [-5]=-1, [-4]=1, 			 [-2]=1																								} then return '5_1' end
+		if p:equals{									 [-6]=-1, [-5]=1,  [-4]=-1, [-3]=2,  [-2]=-1, [-1]=1																					} then return '5_2' end
+		if p:equals{													   [-4]=1,  [-3]=-1, [-2]=1,  [-1]=-2, [0]=2,  [1]=-1, [2]=1															} then return '6_1' end
+		if p:equals{											  [-5]=1,  [-4]=-2, [-3]=2,  [-2]=-2, [-1]=2,  [0]=-1, [1]=1																	} then return '6_2' end
+		if p:equals{															    [-3]=-1, [-2]=2,  [-1]=-2, [0]=3,  [1]=-2, [2]=2,  [3]=-1													} then return '6_3' end
+		if p:equals{[-10]=-1, [-9]=1,  [-8]=-1, [-7]=1,  [-6]=-1, [-5]=1,		    [-3]=1																										} then return '7_1' end
+		if p:equals{				   [-8]=-1, [-7]=1,  [-6]=-1, [-5]=2,  [-4]=-2, [-3]=2,	 [-2]=-1, [-1]=1																					} then return '7_2' end
+		if p:equals{																										   [2]=1,  [3]=-1, [4]=2,  [5]=-2, [6]=3,  [7]=-2, [8]=1, [9]=-1	} then return '7_3' end
+		if p:equals{																								   [1]=1,  [2]=-2, [3]=3,  [4]=-2, [5]=3,  [6]=-2, [7]=1,  [8]=-1			} then return '7_4' end
+		if p:equals{		  [-9]=-1, [-8]=2,  [-7]=-3, [-6]=3,  [-5]=-3, [-4]=3,  [-3]=-1, [-2]=1																								} then return '7_5' end
+		if p:equals{									 [-6]=-1, [-5]=2,  [-4]=-3, [-3]=4,  [-2]=-3, [-1]=3,  [0]=-2, [1]=1																	} then return '7_6' end
+		if p:equals{																[-3]=-1, [-2]=3,  [-1]=-3, [0]=4,  [1]=-4, [2]=3,  [3]=-2, [4]=1											} then return '7_7' end
+		return polyToStr(p)
 	end
 
 	local poly=table()
@@ -567,7 +591,7 @@ trace('statePoly', polyToStr(statePoly))
 			for _,k in ipairs(table.keys(poly)) do if poly[k]==0 then poly[k]=nil end end
 trace('V(t) so far', polyToStr(poly))
 		end
-		
+
 		-- sign = (-1)^(3*w) ... = (-1)^(2*w) * (-1)^w ... = (-1)^w
 		local sign = writhe&1==0 and 1 or -1
 		-- multiply poly by `sign*t^(-3*w)`
@@ -576,7 +600,10 @@ trace('V(t) so far', polyToStr(poly))
 		for _,k in ipairs(table.keys(poly)) do if poly[k]==0 then poly[k]=nil end end
 	end
 
-	knotMsg = '#'..(#snake-1)..' V(t)='..polyToStr(poly)
+	-- it's a poly of the 4th root, and looks like the powers are all 4s, so ...
+	poly=poly:map([coeff,exp](coeff,exp/4))
+
+	knotMsg = '#'..(#snake-1)..' V(t)='..polyName(poly)
 trace(knotMsg)
 	knotMsgTime=time()
 end
