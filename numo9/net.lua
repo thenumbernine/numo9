@@ -594,6 +594,12 @@ function RemoteServerConn:init(args)
 
 	-- keep a list of everything we have to send
 	self.toSend = table()
+
+	-- keep per-conn send frames for stuff done in draw() per-connection
+	self.cmds = vector'Numo9Cmd'			-- the per-conn cmds
+	self.thisFrameCmds = vector'Numo9Cmd'	-- the cobmined per-conn cmds + everyone cmds
+	self.prevFrameCmds = vector'Numo9Cmd'	-- the previous combined cmds
+	self.deltas = vector'uint16_t'
 end
 
 function RemoteServerConn:isActive()
@@ -682,6 +688,9 @@ local LocalServerConn = class()
 LocalServerConn.ident = 'lo'
 function LocalServerConn:init(args)
 	self.playerInfos = assert.index(args, 'playerInfos')
+
+	-- this exists only so pushCmd can give back a dummy buffer for the loopback connection when doing env.draw() locally
+	self.cmds = vector'Numo9Cmd'
 end
 
 
@@ -741,68 +750,75 @@ TODO console cursor location ... if we're exposing print() then we should also p
 	-- 1) a list of all commands issued
 	-- 2) a delta-compression between this list and the previous frame list
 	-- and then every frame I'll send off delta-compressed stuff to the connected clients
-	self.frames = table()
+	self.cmds = vector'Numo9Cmd'
 
 	app.threads:add(self.updateCoroutine, self)
 	app.threads:add(self.newConnListenCoroutine, self)
 end
 
 function Server:beginFrame()
-	self.frames:insert(1, {
-		cmds = vector'Numo9Cmd',
-	})
+	-- cmds for all conns
+	self.cmds:resize(0)
+
+	-- cmds per-conn
+	for _,conn in ipairs(self.conns) do
+		conn.cmds:resize(0)
+	end
 end
 
 function Server:endFrame()
+	-- per-conn copy server frames to conn frames
+	-- then append the per-conn frames
+
 	-- if there was a frame before this ... delta-compress
-	if self.frames[2] then
-		local thisBuf = self.frames[1].cmds
-		local prevBuf = self.frames[2].cmds
+	for _,conn in ipairs(self.conns) do
+		if conn.remote then
+			-- which is faster, a memcpy here or one per cmd when the cmds are issued?
+			conn.thisFrameCmds:resize(self.cmds.size + conn.cmds.size)
+			ffi.copy(conn.thisFrameCmds.v, self.cmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
+			ffi.copy(conn.thisFrameCmds.v + self.cmds.size, conn.cmds.v, ffi.sizeof'Numo9Cmd' * conn.cmds.size)
 
-		-- TODO generic function for delta-compressing two buffers
-		-- TODO better algorithm, like RLE, or diff, or something
-		local deltas = vector'uint16_t'
-		self.frames[1].deltas = deltas
+			local thisBuf = conn.thisFrameCmds
+			local prevBuf = conn.prevFrameCmds
+			local deltas = conn.deltas
+			deltas:resize(0)
 
-		-- how to convey change-in-sizes ...
-		-- how about storing it at the beginning of the buffer?
-		if prevBuf.size ~= thisBuf.size then
-			deltas:emplace_back()[0] = 0xfdff
-			deltas:emplace_back()[0] = thisBuf.size
-			prevBuf:resize(thisBuf.size)
-		end
-
-		local n = (math.min(thisBuf.size, prevBuf.size) * ffi.sizeof'Numo9Cmd') / 2
-		if n >= 0xfeff then
-			print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
-			n = 0xfefe	-- one less than our highest special code
-		end
-
-		local clp = ffi.cast('uint16_t*', prevBuf.v)
-		local svp = ffi.cast('uint16_t*', thisBuf.v)
-		deltaCompress(clp, svp, n, deltas)
-
-		if deltas.size > 0 then
-			local data = deltas:dataToStr()
-			for _,serverConn in ipairs(self.conns) do
-				if serverConn.remote then
-					serverConn.toSend:insert(data)
-				end
+			-- how to convey change-in-sizes ...
+			-- how about storing it at the beginning of the buffer?
+			if prevBuf.size ~= thisBuf.size then
+				deltas:emplace_back()[0] = 0xfdff
+				deltas:emplace_back()[0] = thisBuf.size
+				prevBuf:resize(thisBuf.size)
 			end
-		end
-	end
 
-	-- delete old frames
-	local tooOld = 60 * 10	-- keep 10 seconds @ 60 fps
-	for i=#self.frames,tooOld,-1 do
-		-- TODO how about using ffi/cpp/vector.lua which has free()?
-		-- or just use that static round-robin ... no frees necessary
-		self.frames[i] = nil
+			local n = (math.min(thisBuf.size, prevBuf.size) * ffi.sizeof'Numo9Cmd') / 2
+			if n >= 0xfeff then
+				print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
+				n = 0xfefe	-- one less than our highest special code
+			end
+
+			local clp = ffi.cast('uint16_t*', prevBuf.v)
+			local svp = ffi.cast('uint16_t*', thisBuf.v)
+			deltaCompress(clp, svp, n, deltas)
+
+			if deltas.size > 0 then
+				local data = deltas:dataToStr()
+				conn.toSend:insert(data)
+			end
+		
+			conn.prevFrameCmds:resize(conn.thisFrameCmds.size)
+			ffi.copy(conn.prevFrameCmds.v, conn.thisFrameCmds.v, ffi.sizeof'Numo9Cmd' * conn.thisFrameCmds.size)
+		end
 	end
 end
 
 function Server:pushCmd()
-	local ptr = self.frames[1].cmds:emplace_back()
+	local ptr
+	if self.currentCmdConn then
+		ptr = self.currentCmdConn.cmds:emplace_back()
+	else
+		ptr = self.cmds:emplace_back()
+	end
 	ffi.fill(ptr, ffi.sizeof'Numo9Cmd')	-- clear upon resize to make sure cl and sv both start with zeroes for their delta-compression
 	return ptr
 end
@@ -916,7 +932,7 @@ print'creating server remote client conn...'
 	self:sendRAM(serverConn)
 
 	-- send most recent frame state
-	local frameStr = self.frames[1].cmds:dataToStr()
+	local frameStr = self.cmds:dataToStr()
 	assert(#frameStr < 0xfffe, "need to fix your protocol")
 	local header = ffi.new('uint16_t[2]')
 	header[0] = 0xfeff
