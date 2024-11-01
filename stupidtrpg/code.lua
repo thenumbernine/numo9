@@ -1,4 +1,7 @@
-poke(ffi.offsetof('RAM','fontWidth'),8)
+local fontWidthAddr = ffi.offsetof('RAM','fontWidth')
+for i=0,255 do
+	poke(fontWidthAddr+i,8)
+end
 
 math.randomseed(tstamp())
 
