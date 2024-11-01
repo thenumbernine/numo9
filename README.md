@@ -488,6 +488,7 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - Some day I should cut off cartridge access to `app`, `ffi`, etc.  I like having them around for `offsetof`'ing fields to get locations in RAM, which are subject to change while this is in alpha.  Should I introduce constant variables with the address names instead, and then hide ffi?
 - Cart browser.
 - Still need to make the draw message history to be per-connection, and need to send draw-specific commands to their specific connections.
+- give the UI its own font-tex just like its got its own palette
 
 # Things I'm still debating ...
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?

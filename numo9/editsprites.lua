@@ -59,7 +59,7 @@ function EditSprites:init(args)
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 
 	self.pastePreservePalette = true
-	self.pasteTargetNumColors = 240		-- 240 to preserve the UI colors. TODO separate editor rendering fully and let them mess with all 256.
+	self.pasteTargetNumColors = 256
 	self.penSize = 1 		-- size 1 thru 5 or so
 	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 
@@ -686,7 +686,6 @@ print'BAKING PALETTE'
 					- or create new palette from pasted image
 						- option to preserve spritesheet original indexes vs remap them
 					- or create new palette from current and pasted image
-					- preserve UI colors (240) or change them as well (256)?
 					- target bitness?  just use spriteFlags?
 					- target palette offset?  just use paletteOffset?
 				- quantize tiles? only relevant for whatever the tilemap is pointing into ...

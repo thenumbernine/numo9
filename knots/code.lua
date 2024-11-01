@@ -164,6 +164,18 @@ snakeCalcSprite=[i]do
 	end
 end
 
+local knotNames = table{
+	'0_1',
+	'3_1',
+	'4_1',
+	'5_1', '5_2',
+	'6_1', '6_2', '6_3',
+	'7_1', '7_2', '7_3', '7_4', '7_5', '7_6', '7_7',
+}
+local knotNameSet = knotNames:mapi([v](true,v)):setmetatable(nil)
+-- per each knot we track, record the time to draw and the number of links
+local knotStats = {}
+
 redraw=[]do
 	cls(1)
 	map(0,0,w,h,0,0)
@@ -199,6 +211,14 @@ redraw=[]do
 		end
 		knotMsgWidth = text(knotMsg,knotMsgX,0,0xfc,0xf0)
 	end
+	for i,name in ipairs(knotNames) do
+		local knotStat = knotStats[name]
+		if knotStat then
+			text(name..' '..tostring(knotStat.len), 0, i<<3, 0xfc, 0xf0)
+		else
+			text(name..' '..'*', 0, i<<3, 0xfc, 0xf0)
+		end
+	end
 end
 snakeGet=[x,y]do
 	for i=#snake,1,-1 do
@@ -210,8 +230,31 @@ snakeGet=[x,y]do
 	return sprites.empty
 end
 
+inSplash=true
 reset()
 update=[]do
+	if inSplash then
+		cls(0x10)
+		local x,y = 24, 48
+		local txt=[s]do text(s,x,y,0xc,-1) y+=8 end
+		txt'KNOTS!!!!'
+		txt'tie the snake in a knot'
+		txt'try to find all the prime knots'
+		txt'then try to complete them in the least steps'
+		txt''
+		txt'arrows = move'
+		txt'press KP-S / JP-A to undo a move'
+		txt'hold KP-X / JP-B to duck under'
+		txt'press KP-A / JP-X to reset'
+		txt''
+		txt'press any JP button to continue...'
+		for i=0,7 do
+			if btnr(i) then
+				inSplash=false
+			end
+		end
+		return
+	end
 	redraw()
 
 	if btnp(4,0,5,5) and #snakeHist>0 then
@@ -607,7 +650,15 @@ trace('V(t) so far', polyToStr(poly))
 	-- it's a poly of the 4th root, and looks like the powers are all 4s, so ...
 	poly=poly:map([coeff,exp](coeff,exp/4))
 
-	knotMsg = 'len='..(#snake-1)..' knot='..polyNameOrStr(poly)
+	local knotName = polyNameOrStr(poly)
+	knotMsg = 'len='..(#snake-1)..' knot='..knotName
 trace(knotMsg)
 	knotMsgTime=time()
+	if knotNameSet[knotName] then
+		local newlen = #snake-1
+		local oldlen = knotStats[knotName]?.len or math.huge
+		if newlen < oldlen then
+			knotStats[knotName] = {len=newlen}
+		end
+	end
 end

@@ -368,10 +368,6 @@ function App:initGL()
 
 		-- graphics
 
-		-- fun fact, if the API calls cls() it clears with color zero
-		-- but color zero is a game color, not an editor color, that'd be color 240
-		-- but at the moment the console is routed to directly call the API,
-		-- so if you type "cls" at the console then you could get a screen full of some nonsense color
 		flip = coroutine.yield,	-- simple as
 		cls = function(colorIndex)
 			colorIndex = colorIndex or 0
@@ -575,6 +571,8 @@ function App:initGL()
 			return self:drawMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
 		end,
 		text = function(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+			text = tostring(text)	-- convert?
+			--assert.type(text, 'string')	-- or assert?
 			if self.server then
 				x = x or 0
 				y = y or 0
