@@ -1531,7 +1531,9 @@ function AppVideo:resetVideo()
 	self.ram.blendMode = 0xff	-- = none
 	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
 
-	self.ram.fontWidth = 5--spriteSize.x
+	for i=0,255 do
+		self.ram.fontWidth[i] = 5
+	end
 
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self:setClipRect(0, 0, 0xff, 0xff)
@@ -2026,8 +2028,7 @@ function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
 			bi,									-- spriteBit
 			1									-- spriteMask
 		)
-		-- TODO font widths per char?
-		x = x + self.ram.fontWidth
+		x = x + self.ram.fontWidth[ch]
 	end
 	return x
 end
@@ -2045,15 +2046,16 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	local x0 = x
 	if bgColorIndex >= 0 and bgColorIndex < 255 then
 		for i=1,#text do
+			local ch = text:byte(i)
 			-- TODO the ... between drawSolidRect and drawSprite is not the same...
 			self:drawSolidRect(
 				x,
 				y,
-				scaleX * self.ram.fontWidth, --spriteSize.x,
+				scaleX * self.ram.fontWidth[ch],
 				scaleY * spriteSize.y,
 				bgColorIndex
 			)
-			x = x + self.ram.fontWidth
+			x = x + self.ram.fontWidth[ch]
 		end
 	end
 

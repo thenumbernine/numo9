@@ -122,16 +122,18 @@ function Console:addChar(ch)
 		self.fgColor,
 		self.bgColor
 	)
-	self:offsetCursor(app.ram.fontWidth, 0)
+	-- TODO use the text width returned
+	self:offsetCursor(app.ram.fontWidth[ch], 0)
 end
 
 function Console:addCharToScreen(ch)
 	local app = self.app
 	if ch == 8 then
 		self:addChar((' '):byte())	-- in case the cursor is there
-		self:offsetCursor(-2*app.ram.fontWidth, 0)
+		-- TODO use the text width returned
+		self:offsetCursor(-2*app.ram.fontWidth[32], 0)
 		self:addChar((' '):byte())	-- clear the prev char as well
-		self:offsetCursor(-app.ram.fontWidth, 0)
+		self:offsetCursor(-app.ram.fontWidth[32], 0)
 	elseif ch == 10 or ch == 13 then
 		self:addChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
 		self.cursorPos.x = 0
@@ -228,10 +230,12 @@ function Console:update()
 	end
 	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
 	app:drawText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
-	self.cursorPos.x = #s * app.ram.fontWidth
+	-- TODO use the text width returned
+	self.cursorPos.x = #s * app.ram.fontWidth[0]
 
 	if getTime() % 1 < .5 then
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, app.ram.fontWidth, spriteSize.y, self.fgColor)
+		-- TODO use the text width returned
+		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, app.ram.fontWidth[0], spriteSize.y, self.fgColor)
 	end
 
 	local shift = app:key'lshift' or app:key'rshift'
