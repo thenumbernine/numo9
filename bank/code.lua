@@ -1073,17 +1073,19 @@ update=[]do
 		if btnp(7) then
 			player:dropBomb()
 		end
-		if btnp(5) then
+		if btnp(6) then
 			player:die()
 		end
-		if btnp(4) then
-			setLevel(level+1) loadLevelRequest=true
-			--pokew(0x080a46, 0x801f)	-- set blend color to white
-			--player.blendMode=((player.blendMode or 0)+1)%9
-		end
-		if btnp(6) then
-			setLevel(level-1) loadLevelRequest=true
-			--player.blendMode=((player.blendMode or 0)-1)%9
+		if btn(4) then
+			if btnp(3) then
+				setLevel(level+1) loadLevelRequest=true
+				--pokew(0x080a46, 0x801f)	-- set blend color to white
+				--player.blendMode=((player.blendMode or 0)+1)%9
+			end
+			if btnp(4) then
+				setLevel(level-1) loadLevelRequest=true
+				--player.blendMode=((player.blendMode or 0)-1)%9
+			end
 		end
 	end
 	for _,o in ipairs(objs) do
