@@ -37,34 +37,23 @@ local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
 local maxPlayersTotal = numo9_keys.maxPlayersTotal
 
 local numo9_rom = require 'numo9.rom'
-local spriteSheetAddr = numo9_rom.spriteSheetAddr
 local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
-local spriteSheetAddrEnd = numo9_rom.spriteSheetAddrEnd
-local tileSheetAddr = numo9_rom.tileSheetAddr
 local tileSheetInBytes = numo9_rom.tileSheetInBytes
-local tileSheetAddrEnd = numo9_rom.tileSheetAddrEnd
-local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapInBytes = numo9_rom.tilemapInBytes
-local tilemapAddrEnd = numo9_rom.tilemapAddrEnd
-local paletteAddr = numo9_rom.paletteAddr
 local paletteInBytes = numo9_rom.paletteInBytes
-local paletteAddrEnd = numo9_rom.paletteAddrEnd
-local framebufferAddr = numo9_rom.framebufferAddr
+local fontInBytes = numo9_rom.fontInBytes
 local framebufferInBytes = numo9_rom.framebufferInBytes
-local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
-local clipRectAddr = numo9_rom.clipRectAddr
 local clipRectInBytes = numo9_rom.clipRectInBytes
-local clipRectAddrEnd = numo9_rom.clipRectAddrEnd
-local mvMatAddr = numo9_rom.mvMatAddr
 local mvMatInBytes = numo9_rom.mvMatInBytes
-local mvMatAddrEnd = numo9_rom.mvMatAddrEnd
 local deltaCompress = numo9_rom.deltaCompress
 
 
-local ramStateSize = spriteSheetInBytes
+local ramStateSize = 0
+	+ spriteSheetInBytes
 	+ tileSheetInBytes
 	+ tilemapInBytes
 	+ paletteInBytes
+	+ fontInBytes
 	+ framebufferInBytes
 	+ clipRectInBytes
 	+ mvMatInBytes
@@ -986,6 +975,7 @@ print'sending initial RAM state...'
 		..ffi.string(ffi.cast('char*', app.ram.tileSheet), tileSheetInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.tilemap), tilemapInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.palette), paletteInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.font), fontInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
@@ -1168,6 +1158,7 @@ print('...got', result:unpack())
 						ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
 						ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
 						ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
+						ffi.copy(app.ram.font, ptr, fontInBytes)				ptr=ptr+fontInBytes
 						ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
 						ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
 						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
@@ -1176,6 +1167,7 @@ print('...got', result:unpack())
 						app.tileTex.dirtyCPU = true		-- tileSheetTex
 						app.mapTex.dirtyCPU = true
 						app.palTex.dirtyCPU = true		-- paletteTex
+						app.fontTex.dirtyCPU = true
 						app.fbTex.dirtyCPU = true		-- framebufferTex
 						app.fbTex.changedSinceDraw = true
 
@@ -1186,6 +1178,7 @@ print('...got', result:unpack())
 						app.tileTex:checkDirtyCPU()
 						app.mapTex:checkDirtyCPU()
 						app.palTex:checkDirtyCPU()
+						app.fontTex:checkDirtyCPU()
 						app.fbTex:checkDirtyCPU()
 						--]]
 

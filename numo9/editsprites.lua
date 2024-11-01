@@ -495,6 +495,7 @@ function EditSprites:update()
 			local ry = y + bh * j
 			
 			-- cheap hack to use game palette here instead of menu palette ...
+			-- TODO just make it an arg like drawQuad
 			app.videoModeInfo[0].quadSolidObj.texs[1] = app.palTex
 			app:drawSolidRect(
 				rx,

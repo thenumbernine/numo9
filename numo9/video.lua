@@ -26,11 +26,14 @@ local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tileSheetAddr = numo9_rom.tileSheetAddr
 local tilemapSize = numo9_rom.tilemapSize
 local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
+local fontImageSize = numo9_rom.fontImageSize
+local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
 local mvMatScale = numo9_rom.mvMatScale
 local spriteSheetAddr = numo9_rom.spriteSheetAddr
 local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
 local paletteAddr = numo9_rom.paletteAddr
 local paletteInBytes = numo9_rom.paletteInBytes
+local fontInBytes = numo9_rom.fontInBytes
 local packptr = numo9_rom.packptr
 local unpackptr = numo9_rom.unpackptr
 
@@ -60,27 +63,6 @@ local texelFunc = 'texture'
 --local texelFunc = 'texelFetch'
 -- I'm getting this error really: "No matching function for call to texelFetch(usampler2D, ivec2)"
 -- so I guess I need to use usampler2DRect if I want to use texelFetch
-
---[[
-I was hoping I could do this all in integer, but maybe not for the fragment output, esp with blending ...
-glsl unsigned int fragment colors and samplers really doesn't do anything predictable...
-https://stackoverflow.com/a/44255778
-is saying that the framebuffer texture and the fragment type must be compatible
-but when fragType == vec4 that should work with framebuffer tex type is GL_RGB565 or with GL_R8, but it doesn't.
-but when fragType == uvec4 and framebuffer tex type is GL_RGB565 or GL_R8UI, it does work.  should it?  I think only one of those two is an 'integer' format ...
-
-so maybe when I'm drawing to the screen or to the 16bpp rgb565 then I should use 'vec4'
-but when I'm drawing to the 8bpp framebuffer then I should use 'uvec4'.r?
-
-https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexImage2D.xhtml
-https://registry.khronos.org/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
-The more I look into how to send/recv single-channel CPU-side 8bpp data to/from the GPU, the less the specs make sense.
-Doing this with 3 or 4 channels, using ints for CPU and floats for GPU, works fine - the old GL_RGB/GL_RGBA
-But doing this for one channel and all the sudden you must use matching type on the CPU and GPU side of things.
-So if I want to read/write quickly to my 8bpp VRAM, then I'm stuck using ints in both CPU and GPU... ?
-And if I want GL to store R32F in GPU, then (at least according to GLES3) I need to upload floats from the CPU.
-And if I want CPU uint8 and GPU R8 then ... I'm stuck as to why this doesn't work, but the texture is only giving me 0 values back.
---]]
 
 -- on = use GL_*UI for our texture internal format, off = use regular non-integer
 --local useSamplerUInt = false
@@ -242,13 +224,12 @@ local function resetLogoOnSheet(spriteSheetPtr)
 	end
 end
 
-local function resetFontOnSheet(spriteSheetPtr)
+local function resetROMFont(fontPtr, fontFilename)
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
-	local fontImg = Image'font.png'
+	local fontImg = assert(Image(fontFilename or 'font.png'), "failed to find file "..tostring(fontFilename))
 	local srcx, srcy = 0, 0
-	-- store on the last row
-	local dstx, dsty = 0, spriteSheetSize.y - spriteSize.y
+	local dstx, dsty = 0, 0
 	local function inc2d(x, y, w, h)
 		x = x + 8
 		if x < w then return x, y end
@@ -261,8 +242,8 @@ local function resetFontOnSheet(spriteSheetPtr)
 		local mask = bit.bnot(bit.lshift(1, b))
 		assert.lt(srcx, fontImg.width)
 		assert.lt(srcy, fontImg.height)
-		assert.lt(dstx, spriteSheetSize.x)
-		assert.lt(dsty, spriteSheetSize.y)
+		assert.lt(dstx, fontImageSize.x)
+		assert.lt(dsty, fontImageSize.y)
 		for by=0,7 do
 			for bx=0,7 do
 				local srcp = fontImg.buffer
@@ -270,9 +251,9 @@ local function resetFontOnSheet(spriteSheetPtr)
 					+ fontImg.width * (
 						srcy + by
 					)
-				local dstp = spriteSheetPtr
+				local dstp = fontPtr
 					+ dstx + bx
-					+ spriteSheetSize.x * (
+					+ fontImageSize.x * (
 						dsty + by
 					)
 				dstp[0] = bit.bor(
@@ -284,7 +265,7 @@ local function resetFontOnSheet(spriteSheetPtr)
 		srcx, srcy = inc2d(srcx, srcy, fontImg.width, fontImg.height)
 		if not srcx then break end
 		if b == 7 then
-			dstx, dsty = inc2d(dstx, dsty, spriteSheetSize.x, spriteSheetSize.y)
+			dstx, dsty = inc2d(dstx, dsty, fontImageSize.x, fontImageSize.y)
 			if not dstx then break end
 		end
 	end
@@ -520,6 +501,15 @@ function AppVideo:initDraw()
 		internalFormat = gl.GL_RGB5_A1,
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
+	})
+
+	-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
+	-- so a 256 char font will be 2048 bytes
+	self.fontTex = makeTexFromImage(self, {
+		image = makeImageAtPtr(self.ram.font, fontImageSize.x, fontImageSize.y, 1, 'uint8_t'),
+		internalFormat = texInternalFormat_u8,
+		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+		type = gl.GL_UNSIGNED_BYTE,
 	})
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), -1)
@@ -1190,11 +1180,6 @@ uniform uint transparentIndex;
 
 uniform <?=samplerTypeForTex(self.palTex)?> palTex;
 
-const vec2 spriteSheetSize = vec2(
-	<?=glslnumber(spriteSheetSize.x)?>,
-	<?=glslnumber(spriteSheetSize.y)?>
-);
-
 uniform vec4 drawOverrideSolid;
 
 void main() {
@@ -1229,11 +1214,11 @@ void main() {
 		..readTex{
 			tex = self.spriteTex,
 			texvar = 'spriteTex',
-			tc = 'tcv / spriteSheetSize',
+			tc = 'tcv / vec2(textureSize(spriteTex))',
 			from = 'vec2',
 			to = 'vec4',
 		}
-		..[[.r;
+..[[.r;
 	uint colorIndex = uint(colorIndexNorm * 255. + .5);
 	colorIndex >>= spriteBit;
 	colorIndex &= spriteMask;
@@ -1248,7 +1233,6 @@ void main() {
 					useSamplerUInt = useSamplerUInt,
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
-					spriteSheetSize = spriteSheetSize,
 					info = info,
 				}),
 				uniforms = {
@@ -1495,6 +1479,7 @@ function AppVideo:checkDirtyGPU()
 	self.tileTex:checkDirtyGPU()
 	self.mapTex:checkDirtyGPU()
 	self.palTex:checkDirtyGPU()
+	self.fontTex:checkDirtyGPU()
 	self.fbTex:checkDirtyGPU()
 end
 
@@ -1503,6 +1488,7 @@ function AppVideo:setDirtyCPU()
 	self.tileTex.dirtyCPU = true
 	self.mapTex.dirtyCPU = true
 	self.palTex.dirtyCPU = true
+	self.fontTex.dirtyCPU = true
 	self.fbTex.dirtyCPU = true
 end
 
@@ -1528,6 +1514,10 @@ function AppVideo:resetVideo()
 		:subimage()
 		:unbind()
 	self.palTex.dirtyCPU = false
+	self.fontTex:bind()
+		:subimage()
+		:unbind()
+	self.fontTex.dirtyCPU = false
 	--]]
 	--[[ update later ...
 	self:setDirtyCPU()
@@ -1651,10 +1641,10 @@ function AppVideo:mvMatFromRAM()
 end
 
 function AppVideo:resetFont()
-	self.spriteTex:checkDirtyGPU()
-	resetFontOnSheet(self.ram.spriteSheet)
-	ffi.copy(self.banks.v[0].spriteSheet, self.ram.spriteSheet, spriteSheetInBytes)
-	self.spriteTex.dirtyCPU = true
+	self.fontTex:checkDirtyGPU()
+	resetROMFont(self.ram.font)
+	ffi.copy(self.banks.v[0].font, self.ram.font, fontInBytes)
+	self.fontTex.dirtyCPU = true
 end
 
 -- externally used ...
@@ -2004,27 +1994,37 @@ end
 
 -- draw transparent-background text
 function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
+	scaleX = scaleX or 1
+	scaleY = scaleY or 1
+	--local texSizeInTiles = spriteSheetSizeInTiles	-- using sprite sheet last row
+	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
 		local by = bit.rshift(ch, 3)	-- get the byte offset
-		self:drawSprite(
-			spriteSheetSizeInTiles.x * (spriteSheetSizeInTiles.y-1)
-			+ by,                     -- spriteIndex is th last row
-			x,						-- x
-			y,                      -- y
-			1,                      -- spritesWide
-			1,                      -- spritesHigh
+		--local tx,ty = by,texSizeInTiles.y-1				-- using sprite sheet last row
+		local tx,ty = by,0							-- using separate font tex
+		self:drawQuad(
+			x,									-- x
+			y,									-- y
+			spriteSize.x * scaleX,				-- spritesWide
+			spriteSize.y * scaleY,				-- spritesHigh
+			tx / tonumber(texSizeInTiles.x),	-- tx
+			ty / tonumber(texSizeInTiles.y),	-- ty
+			1 / tonumber(texSizeInTiles.x),		-- tw
+			1 / tonumber(texSizeInTiles.y),		-- th
+			--self.spriteTex,						-- tex
+			self.fontTex,						-- tex
+			self.palTex,						-- palTex
 			-- font color is 0 = background, 1 = foreground
 			-- so shift this by 1 so the font tex contents shift it back
 			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
-			-- 		heck why not store 2 letters per left and right half as well?  that's half the alphaet in a single 8x8 sprite black.
-			color-1,           		-- paletteIndex ... 'color index offset' / 'palette high bits'
-			0,				       	-- transparentIndex
-			bi,                     -- spriteBit
-			1,                      -- spriteMask
-			scaleX,                 -- scaleX
-			scaleY                  -- scaleY
+			-- heck why not store 2 letters per left and right half as well?
+			-- 	that's half the alphaet in a single 8x8 sprite black.
+			color-1,							-- paletteIndex ... 'color index offset' / 'palette high bits'
+			0,									-- transparentIndex
+			bi,									-- spriteBit
+			1									-- spriteMask
 		)
 		-- TODO font widths per char?
 		x = x + self.ram.fontWidth
@@ -2124,7 +2124,7 @@ return {
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
 	rgb565rev_to_rgba888_3ch = rgb565rev_to_rgba888_3ch,
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
-	resetFontOnSheet = resetFontOnSheet,
+	resetROMFont = resetROMFont,
 	resetLogoOnSheet = resetLogoOnSheet,
 	resetROMPalette = resetROMPalette,
 	AppVideo = AppVideo,

@@ -17,12 +17,24 @@ local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local paletteSize = 256
 local spriteSize = vec2i(8, 8)
 local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
-local frameBufferSize = vec2i(256, 256)
-local frameBufferSizeInTiles = vec2i(frameBufferSize.x / spriteSize.x, frameBufferSize.y / spriteSize.y)
-local spriteSheetSize = vec2i(256, 256)
-local spriteSheetSizeInTiles = vec2i(spriteSheetSize.x / spriteSize.x, spriteSheetSize.y / spriteSize.y)
-local tilemapSize = vec2i(256, 256)
-local tilemapSizeInSprites = vec2i(tilemapSize.x /  spriteSize.x, tilemapSize.y /  spriteSize.y)
+local frameBufferSizeInTiles = vec2i(32, 32)
+local frameBufferSize = vec2i(frameBufferSizeInTiles.x * spriteSize.x, frameBufferSizeInTiles.y * spriteSize.y)
+local spriteSheetSizeInTiles = vec2i(32, 32)
+local spriteSheetSize = vec2i(spriteSheetSizeInTiles.x * spriteSize.x, spriteSheetSizeInTiles.y * spriteSize.y)
+local tilemapSizeInSprites = vec2i(32, 32)
+local tilemapSize = vec2i(tilemapSizeInSprites.x * spriteSize.x, tilemapSizeInSprites.y * spriteSize.y)
+
+--[[
+32x8 = 256 wide, 8 high, 8x 1bpp planar
+such that
+[0,0]to[7,7] holds chars 0-7
+[8,0]to[15,7] holds chars 8-15
+[248,0]to[255,7] holds chars 248-255
+--]]
+local fontImageSizeInTiles = vec2i(32, 1)
+local fontImageSize = vec2i(fontImageSizeInTiles.x * spriteSize.x, fontImageSizeInTiles.y * spriteSize.y)
+local fontSizeInBytes = 256 * 8	-- 8 bytes per char, 256 chars
+
 local codeSize = 0x10000	-- tic80's size ... but with my langfix shorthands like pico8 has
 
 --local audioSampleType = 'uint8_t'
@@ -96,7 +108,7 @@ local ROM = struct{
 				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},
 				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},
 				{name='palette', type='uint16_t['..paletteSize..']'},
-				-- TODO put system font here too ... maybe ... 
+				{name='font', type='uint8_t['..fontSizeInBytes..']'},
 				--]]
 
 				-- [[ audio stuff
@@ -334,17 +346,20 @@ local RAM = struct{
 }
 
 local spriteSheetAddr = ffi.offsetof('ROM', 'spriteSheet')
-local spriteSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].spriteSheet[0])
+local spriteSheetInBytes = ffi.sizeof(ffi.cast('ROM*',0).spriteSheet)	--spriteSheetSize:volume() * 1
 local spriteSheetAddrEnd = spriteSheetAddr + spriteSheetInBytes
 local tileSheetAddr = ffi.offsetof('ROM', 'tileSheet')
-local tileSheetInBytes = spriteSheetSize:volume() * 1--ffi.sizeof(ffi.cast('ROM*',0)[0].tileSheet[0])
+local tileSheetInBytes = ffi.sizeof(ffi.cast('ROM*',0).tileSheet)	--spriteSheetSize:volume() * 1
 local tileSheetAddrEnd = tileSheetAddr + tileSheetInBytes
 local tilemapAddr = ffi.offsetof('ROM', 'tilemap')
-local tilemapInBytes = tilemapSize:volume() * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].tilemap[0])
+local tilemapInBytes = ffi.sizeof(ffi.cast('ROM*',0).tilemap)	--tilemapSize:volume() * 2
 local tilemapAddrEnd = tilemapAddr + tilemapInBytes
 local paletteAddr = ffi.offsetof('ROM', 'palette')
-local paletteInBytes = paletteSize * 2--ffi.sizeof(ffi.cast('ROM*',0)[0].palette[0])
+local paletteInBytes = ffi.sizeof(ffi.cast('ROM*',0).palette)	--paletteSize * 2
 local paletteAddrEnd = paletteAddr + paletteInBytes
+local fontAddr = ffi.offsetof('ROM', 'font')
+local fontInBytes = ffi.sizeof(ffi.cast('ROM*',0).font)
+local fontAddrEnd = fontAddr + fontInBytes
 local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
 local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
 local framebufferAddrEnd = framebufferAddr + framebufferInBytes
@@ -397,6 +412,8 @@ return {
 	spriteSheetSizeInTiles = spriteSheetSizeInTiles,
 	tilemapSize = tilemapSize,
 	tilemapSizeInSprites = tilemapSizeInSprites,
+	fontImageSize = fontImageSize,
+	fontImageSizeInTiles = fontImageSizeInTiles,
 	codeSize = codeSize,
 	mvMatScale = mvMatScale,
 	keyPressFlagSize = keyPressFlagSize,
@@ -428,6 +445,9 @@ return {
 	paletteAddr = paletteAddr,
 	paletteInBytes = paletteInBytes,
 	paletteAddrEnd = paletteAddrEnd,
+	fontAddr = fontAddr,
+	fontInBytes = fontInBytes, 
+	fontAddrEnd = fontAddrEnd,
 	framebufferAddr = framebufferAddr,
 	framebufferInBytes = framebufferInBytes,
 	framebufferAddrEnd = framebufferAddrEnd,

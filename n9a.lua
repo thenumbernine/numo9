@@ -22,9 +22,8 @@ local App = require 'numo9.app'
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
-local resetFontOnSheet = numo9_video.resetFontOnSheet
 local resetROMPalette = numo9_video.resetROMPalette
-local resetFontOnSheet = numo9_video.resetFontOnSheet
+local resetROMFont = numo9_video.resetROMFont
 
 local numo9_archive = require 'numo9.archive'
 local fromCartImage = numo9_archive.fromCartImage
@@ -208,12 +207,8 @@ or cmd == 'r' then
 			assert.eq(image.channels, 1)
 			assert(ffi.sizeof(image.format), 1)
 			ffi.copy(bank.spriteSheet, image.buffer, spriteSheetSize:volume())
-		else
-			-- TODO resetGFX flag for n9a to do this anyways
-			-- if sprite doesn't exist then load the default
-			resetFontOnSheet(bank.spriteSheet)
 		end
-
+			
 		print'loading tile sheet...'
 		if bankpath'tiles.png':exists() then
 			local image = assert(Image(bankpath'tiles.png'.path))
@@ -275,6 +270,14 @@ or cmd == 'r' then
 			-- if pal.png doens't exist then load the default at least
 			resetROMPalette(bank)
 		end
+
+		local fontpath = path'font.png'
+		assert(fontpath:exists(), "failed to find the default font file!")
+		local bankfontpath = bankpath'font.png'
+		if bankfontpath :exists() then
+			fontpath = bankfontpath
+		end
+		resetROMFont(bank.font, fontpath.path)
 
 		print'loading sfx...'
 		do
@@ -409,7 +412,7 @@ or cmd == 'r' then
 	-- TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'
-		resetFontOnSheet(banks.v[0].spriteSheet)
+		resetROMFont(banks.v[0].font)
 	end
 	if extra == 'resetPal' then
 		--resetROMPalette(bank)
@@ -666,8 +669,6 @@ print('toImage', name, 'width', width, 'height', height)
 	gfxImg = Image(256,256,1,'uint8_t')
 		:clear()
 		:pasteInto{image=gfxImg, x=0, y=0}
-	-- now that the font is the right size and bpp we can use our 'resetFont' function on it ..
-	resetFontOnSheet(gfxImg.buffer)
 	gfxImg.palette = palette
 	gfxImg:save(basepath'sprite.png'.path)
 
@@ -681,7 +682,7 @@ print('toImage', name, 'width', width, 'height', height)
 	end
 	tileImage.palette = palette
 	tileImage:save(basepath'tiles.png'.path)
-
+	
 	local labelSrc = move(sections, 'label')
 	if labelSrc then
 		local labelImg = toImage(labelSrc, false, 'label')
@@ -1701,7 +1702,6 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
 				:clear()
 				:pasteInto{image=subimg, x=0, y=0}
-			resetFontOnSheet(image.buffer)
 			image.palette = palette
 			return image
 		end

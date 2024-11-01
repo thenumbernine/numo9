@@ -62,6 +62,8 @@ local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapAddrEnd = numo9_rom.tilemapAddrEnd
 local paletteAddr = numo9_rom.paletteAddr
 local paletteAddrEnd = numo9_rom.paletteAddrEnd
+local fontAddr = numo9_rom.fontAddr
+local fontAddrEnd = numo9_rom.fontAddrEnd
 local framebufferAddr = numo9_rom.framebufferAddr
 local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
 local packptr = numo9_rom.packptr
@@ -1745,6 +1747,9 @@ function App:poke(addr, value)
 	if addr >= paletteAddr and addr < paletteAddrEnd then
 		self.palTex.dirtyCPU = true
 	end
+	if addr >= fontAddr and addr < fontAddrEnd then
+		self.fontTex.dirtyCPU = true
+	end
 	-- TODO if we poked the code
 end
 function App:pokew(addr, value)
@@ -1770,6 +1775,9 @@ function App:pokew(addr, value)
 	if addrend >= paletteAddr and addr < paletteAddrEnd then
 		self.palTex.dirtyCPU = true
 	end
+	if addrend >= fontAddr and addr < fontAddrEnd then
+		self.fontTex.dirtyCPU = true
+	end
 	-- TODO if we poked the code
 end
 function App:pokel(addr, value)
@@ -1794,6 +1802,9 @@ function App:pokel(addr, value)
 	end
 	if addrend >= paletteAddr and addr < paletteAddrEnd then
 		self.palTex.dirtyCPU = true
+	end
+	if addrend >= fontAddr and addr < fontAddrEnd then
+		self.fontTex.dirtyCPU = true
 	end
 	-- TODO if we poked the code
 end
