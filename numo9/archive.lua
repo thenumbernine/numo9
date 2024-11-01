@@ -20,6 +20,7 @@ local table = require 'ext.table'
 local path = require 'ext.path'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
+local zlib = require 'ffi.req' 'zlib'	-- TODO maybe ... use libzip if we're storing a compressed collection of files ... but doing this would push back the conversion of files<->ROM into the application loadROM() function ...
 
 local numo9_rom = require 'numo9.rom'
 local codeSize = numo9_rom.codeSize
@@ -36,6 +37,9 @@ local function toCartImage(banks, labelImage)
 	assert.is(banks, vector)
 	assert.eq(banks.type, 'ROM')
 	assert.ge(#banks, 1)
+
+	local banksAsStr = ffi.string(banks.v, ffi.sizeof'ROM' * #banks)
+	local banksCompressed = zlib.compressLua(banksAsStr)
 
 	-- [[ storing in png metadata
 	local baseLabelImage = Image'defaultlabel.png'
@@ -63,7 +67,7 @@ local function toCartImage(banks, labelImage)
 	romImage.unknown[pngCustomKey] = {
 		-- TODO you could save the regions that are used like tic80
 		-- or you could just zlib zip the whole thing
-		data = ffi.string(banks.v, ffi.sizeof'ROM' * #banks),
+		data = banksCompressed,
 	}
 	--]]
 
@@ -89,11 +93,12 @@ local function fromCartImage(srcData)
 	tmploc:remove()
 --DEBUG:assert(not tmploc:exists())
 	-- [[ storing in png metadata
-	local data = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
-	local numBanksNeeded = math.ceil(#data / ffi.sizeof'ROM')
+	local banksCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
+	local banksAsStr = zlib.uncompressLua(banksCompressed)
+	local numBanksNeeded = math.ceil(#banksAsStr / ffi.sizeof'ROM')
 	banks:resize(math.max(1, numBanksNeeded))
-	assert.ge(#banks * ffi.sizeof'ROM', #data)
-	ffi.copy(banks.v, data, #data)
+	assert.ge(#banks * ffi.sizeof'ROM', #banksAsStr)
+	ffi.copy(banks.v, banksAsStr, #banksAsStr)
 	--]]
 	return banks
 	--]=]

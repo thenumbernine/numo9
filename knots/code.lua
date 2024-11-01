@@ -453,7 +453,7 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 	local polyNameOrStr=[p]do
 		return polyName(p)
 		or polyName(p:map([coeff,exp](coeff,-exp)))		-- t -> t^-1 ... is that right?
-		or polyToStr(p)
+		or ' V(t)='..polyToStr(p)
 	end
 
 	local poly=table()
@@ -607,7 +607,7 @@ trace('V(t) so far', polyToStr(poly))
 	-- it's a poly of the 4th root, and looks like the powers are all 4s, so ...
 	poly=poly:map([coeff,exp](coeff,exp/4))
 
-	knotMsg = '#'..(#snake-1)..' V(t)='..polyNameOrStr(poly)
+	knotMsg = 'len='..(#snake-1)..' knot='..polyNameOrStr(poly)
 trace(knotMsg)
 	knotMsgTime=time()
 end
