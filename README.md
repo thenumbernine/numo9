@@ -42,10 +42,8 @@ The renderer can draw the sprite bits starting at any bitplane.
 This way you can store (and edit) 8 1-bpp images in the same texture region.
 
 The sprite sheet is 256x256 pixels.  This means 32x32 instances of 8x8 sprites in a sprite sheet.  Sprites are indexed 0 through 1023.
-The UI and console font is stored at the bottom row of the sprite sheet.
-You can edit this, however it will affect the console and editor.
-
 The palette is a set of 256 colors stored in 5551 RGBA format.  Alpha is opacity, except when drawing solid rectangle/circle/line.
+The font is stored in a 256x8 texture.  Each 8x8 tile holds 8 characters in 1bpp, one per bitplane.
 The renderer also accepts an optional color index to consider transparent in addition to the palette alpha flag.
 The renderer also accepts a palette offset used for drawing low-bpp images using various palettes.
 The last 16 palette colors are used by the UI and console.  You can use this, however it will affect the UI.
@@ -504,5 +502,3 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 	What if I just had arbitrary banks, and in the editor you pick what you want to use them for ... code | sprite/tile sheets | tilemaps | audio | etc
 - <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.  
 	This means redoing the tiles-wide and high of the sprite and map draw functions.
-- Font goes in its own memory.
-- one thing that bugged me about pico8 and tic80's API ... `map()` uses tile-x and tile-y in the tile-sheet, while `spr, sget, sset, mget, mset,` etc all use a single index.  I think `map()` should use a single index as well.
