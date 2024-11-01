@@ -103,6 +103,34 @@ if cmd == 'x' then
 			bankpath:mkdir()
 		end
 
+		print'saving font...'
+		local image = Image(256, 64, 1, 'uint8_t')
+		for xl=0,31 do
+			for yl=0,7 do
+				local ch = bit.bor(xl, bit.lshift(yl, 5))
+				for x=0,7 do
+					for y=0,7 do
+						image.buffer[
+							bit.bor(
+								x,
+								bit.lshift(xl, 3),
+								bit.lshift(y, 8),
+								bit.lshift(yl, 11)
+							)
+						] = bit.band(bit.rshift(bank.font[
+							bit.bor(
+								x,
+								bit.band(ch, bit.bnot(7)),
+								bit.lshift(y, 8)
+							)
+						], bit.band(ch, 7)), 1)
+					end
+				end
+			end
+		end
+		image.palette = {{0,0,0},{255,255,255}}
+		image:save(bankpath'font.png'.path)
+
 		print'saving palette...'
 		-- palette: 16 x 16 x 24bpp 8bpp r g b
 		local image = Image(16, 16, 4, 'uint8_t')

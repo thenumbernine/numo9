@@ -142,7 +142,8 @@ function EditCode:update()
 		local j = self.newlines[y + self.scrollY + 1]
 
 		-- TODO use scissors and TODO use the mv transform
-		local lineX = textareaX - self.scrollX * app.ram.fontWidth
+		-- TODO use the text width returned
+		local lineX = textareaX - self.scrollX * app.ram.fontWidth[0]
 		local lineY = y * spriteSize.y
 		local selLineStart = math.clamp(self.selectStart and self.selectStart or (#self.text+1), i, j)
 		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (#self.text+1), i, j)
@@ -182,7 +183,8 @@ function EditCode:update()
 	elseif self.cursorRow - (frameBufferSizeInTiles.y-2) > self.scrollY then
 		self.scrollY = math.max(0, self.cursorRow - (frameBufferSizeInTiles.y-2))
 	end
-	local textAreaWidthInLetters = math.ceil(textareaWidth / app.ram.fontWidth)
+	-- TODO use the text width returned
+	local textAreaWidthInLetters = math.ceil(textareaWidth / app.ram.fontWidth[0])
 	if self.cursorCol < self.scrollX+1 then
 		self.scrollX = math.max(0, self.cursorCol-1)
 	elseif self.cursorCol - textAreaWidthInLetters > self.scrollX then
@@ -192,10 +194,11 @@ function EditCode:update()
 	-- cursor
 
 	if getTime() % 1 < .5 then
+		-- TODO use the text width returned
 		app:drawSolidRect(
-			textareaX + (self.cursorCol-1 - self.scrollX) * app.ram.fontWidth,
+			textareaX + (self.cursorCol-1 - self.scrollX) * app.ram.fontWidth[0],
 			(self.cursorRow - self.scrollY) * spriteSize.y,
-			app.ram.fontWidth,
+			app.ram.fontWidth[0],
 			spriteSize.y,
 			self:color(12)
 		)
@@ -222,7 +225,8 @@ function EditCode:update()
 		then
 			local i = self.newlines[y + self.scrollY] + 1
 			local j = self.newlines[y + self.scrollY + 1]
-			local x = math.floor((mouseX - textareaX - self.scrollX) / app.ram.fontWidth) + i
+			-- TODO use the text width returned
+			local x = math.floor((mouseX - textareaX - self.scrollX) / app.ram.fontWidth[0]) + i
 			x = math.clamp(x, i,j)	-- TODO add scrolling left/right, and consider the offset here
 			self.cursorLoc = x-1
 			self:refreshCursorColRowForLoc()	-- just in case?

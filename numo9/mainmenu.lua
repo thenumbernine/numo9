@@ -272,7 +272,8 @@ function MainMenu:updateMenuMultiplayer()
 					conn:close()
 				end
 			end
-			x = x + app.ram.fontWidth * 5
+			-- TODO use the text width returned
+			x = x + app.ram.fontWidth[0] * 5
 
 			app:drawText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
 

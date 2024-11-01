@@ -179,10 +179,11 @@ function UI:guiTextField(x, y, w, t, k, tooltip)
 	local changed
 	if onThisMenuItem then
 		if getTime() % 1 < .5 then
+			-- TODO use the text width returned
 			app:drawSolidRect(
-				x + self.textFieldCursorLoc * app.ram.fontWidth,
+				x + self.textFieldCursorLoc * app.ram.fontWidth[0],
 				y,
-				app.ram.fontWidth,
+				app.ram.fontWidth[0],
 				spriteSize.y,
 				0xfc
 			)

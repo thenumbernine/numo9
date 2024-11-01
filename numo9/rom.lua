@@ -304,7 +304,8 @@ local RAM = struct{
 				{name='blendColor', type='uint16_t'},
 
 				-- used by text() and by the console
-				{name='fontWidth', type='uint8_t'},
+				-- TODO move to ROM?
+				{name='fontWidth', type='uint8_t[256]'},
 
 				-- audio state of waves that are playing
 				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
