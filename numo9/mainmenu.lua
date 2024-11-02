@@ -75,8 +75,8 @@ function MainMenu:update()
 	self:initMenuTabs()
 
 	-- clear screen
-	app:setBlendMode(3)
-	app:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, 0xfd)
+	app:setBlendMode(2)
+	app:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, 0xff)
 	app:setBlendMode(0xff)
 
 	-- init the menu cursor position
