@@ -2240,6 +2240,7 @@ function App:event(e)
 	if e[0].type == sdl.SDL_KEYUP
 	or e[0].type == sdl.SDL_KEYDOWN
 	then
+		local didHandleEvent = self.waitingForEvent
 		local down = e[0].type == sdl.SDL_KEYDOWN
 		self:processButtonEvent(down, sdl.SDL_KEYDOWN, e[0].key.keysym.sym)
 
@@ -2253,7 +2254,7 @@ function App:event(e)
 			-- editor -> escape -> console
 			-- ... how to cycle back to the game without resetting it?
 			-- ... can you not issue commands while the game is loaded without resetting the game?
-			if self.waitingForEvent then
+			if didHandleEvent then
 				-- if key config is waiting for this event then let it handle it ... it'll clear the binding
 				-- already handled probably
 				-- TODO need a last-down for ESC (tho i'm not tracking it in the virt console key state stuff ... cuz its not supposed to be accessible by the cartridge code)
