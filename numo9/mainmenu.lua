@@ -6,6 +6,7 @@ local sdl = require 'sdl'
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
+local menuFontWidth = numo9_rom.menuFontWidth
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -272,8 +273,7 @@ function MainMenu:updateMenuMultiplayer()
 					conn:close()
 				end
 			end
-			-- TODO use the text width returned
-			x = x + app.ram.fontWidth[0] * 5
+			x = x + menuFontWidth * 5
 
 			app:drawText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
 

@@ -13,6 +13,7 @@ local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
+local menuFontWidth = numo9_rom.menuFontWidth
 
 local audioSampleTypePtr = audioSampleType..'*'
 
@@ -22,7 +23,7 @@ function EditMusic:init(args)
 	EditMusic.super.init(self, args)
 
 	self:calculateAudioSize()
-	
+
 	self.selMusicIndex = 0
 	self:refreshSelectedMusic()
 end
@@ -31,7 +32,7 @@ function EditMusic:gainFocus()
 	self:calculateAudioSize()
 	self:refreshSelectedMusic()
 end
-		
+
 function EditMusic:refreshSelectedMusic()
 	local app = self.app
 	local selMusic = app.ram.musicAddrs + self.selMusicIndex
@@ -44,7 +45,7 @@ function EditMusic:refreshSelectedMusic()
 	local ptr = ffi.cast('uint16_t*', app.ram.audioData + selMusic.addr)
 	local pend = ffi.cast('uint16_t*', app.ram.audioData + selMusic.addr + selMusic.len)
 	local nextTrack
-	if ptr < pend then 
+	if ptr < pend then
 		track.bps = ptr[0]
 		ptr = ptr + 1
 		-- reading frames ...
@@ -62,7 +63,7 @@ function EditMusic:refreshSelectedMusic()
 				local offset = bp[0]
 				local value = bp[1]
 				ptr = ptr + 1
-				
+
 				if offset == 0xff then break end	-- frame end
 				if offset == 0xfe then				-- jump to next track -- track end
 					track.nextTrack = value
@@ -75,10 +76,10 @@ function EditMusic:refreshSelectedMusic()
 
 				if ptr >= pend then break end
 			end
-			
+
 			frame.channels = ffi.new('Numo9Channel[?]', audioMixChannels)
 			ffi.copy(frame.channels, channels, ffi.sizeof'Numo9Channel' * audioMixChannels)
-		
+
 			if track.nextTrack then break end	-- done
 			if ptr >= pend then break end
 		end
@@ -113,12 +114,12 @@ function EditMusic:update()
 	for frameIndex,frame in ipairs(self.selectedTrack.frames) do
 		local x = 8
 		self:drawText(('%d'):format(frame.delay), x, y, 0xfc, 0xf0)
-		x = x + app.ram.fontWidth[0] * 4
+		x = x + menuFontWidth * 4
 		for k,v in pairs(frame.changed) do
-			self:drawText(('%02X'):format(v), x + (2 * app.ram.fontWidth[0] + 2) * (k-1), y, 0xfc, 0xf0)
+			self:drawText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, 0xfc, 0xf0)
 		end
 		y = y + 10
-	end	
+	end
 	--]]
 	-- volume
 	do
@@ -160,7 +161,7 @@ function EditMusic:update()
 				local a = (tonumber(frame.channels[0].pitch)) * h / 0xffff
 				--]=]
 				-- [=[ as octave
-				local a = 
+				local a =
 					(
 						(	-- this is from [-12, 4]
 							(math.log(tonumber(frame.channels[0].pitch)) - math.log(0x1000)) / math.log(2)

@@ -20,6 +20,7 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
 local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
+local menuFontWidth = numo9_rom.menuFontWidth
 
 local numo9_keys = require 'numo9.keys'
 local keyCodeNames = numo9_keys.keyCodeNames
@@ -179,11 +180,10 @@ function UI:guiTextField(x, y, w, t, k, tooltip)
 	local changed
 	if onThisMenuItem then
 		if getTime() % 1 < .5 then
-			-- TODO use the text width returned
 			app:drawSolidRect(
-				x + self.textFieldCursorLoc * app.ram.fontWidth[0],
+				x + self.textFieldCursorLoc * menuFontWidth,
 				y,
-				app.ram.fontWidth[0],
+				menuFontWidth,
 				spriteSize.y,
 				0xfc
 			)
