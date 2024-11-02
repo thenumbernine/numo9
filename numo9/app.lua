@@ -1277,6 +1277,8 @@ assert(self.runFocus == self.remoteClient)
 		-- failed to connect?
 		self.con:print'failed to connect'
 		self.runFocus = nil
+		-- disconnect if we're a client ... but stay connected if we are a server?
+		if self.remoteClient then self.remoteClient:close() end
 		self.remoteClient = nil
 		return nil, 'failed to connect'
 	end

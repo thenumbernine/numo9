@@ -287,10 +287,11 @@ function EditTilemap:update()
 			then
 				local tx0 = tx -- - math.floor(self.penSize / 2)
 				local ty0 = ty -- - math.floor(self.penSize / 2)
-				for dy=0,self.spriteSelSize.y-1 do -- self.penSize-1 do
-					local ty = ty0 + dy
-					for dx=0,self.spriteSelSize.x-1 do -- self.penSize-1 do
-						local tx = tx0 + dx
+				local step = 1 + draw16As0or1
+				for dy=0,self.spriteSelSize.y-1,step do -- self.penSize-1 do
+					local ty = ty0 + bit.rshift(dy, draw16As0or1)
+					for dx=0,self.spriteSelSize.x-1,step do -- self.penSize-1 do
+						local tx = tx0 + bit.rshift(dx, draw16As0or1)
 						if 0 <= tx and tx < tilemapSize.x
 						and 0 <= ty and ty < tilemapSize.y
 						then

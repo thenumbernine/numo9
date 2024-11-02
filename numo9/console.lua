@@ -217,7 +217,11 @@ end
 function Console:update()
 	local app = self.app
 
-	local shownLines = math.min(#self.lines, 5)
+	-- if a game is running, overlay the console on the top
+	-- otherwise give it full screen
+	local maxLines = app.runFocus and 5 or 30
+
+	local shownLines = math.min(#self.lines, maxLines)
 	app:setBlendMode(3)
 	app:drawSolidRect(0, 0, frameBufferSize.x, shownLines * spriteSize.y, 0xf0)
 	app:setBlendMode(0xff)
