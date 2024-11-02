@@ -1491,6 +1491,11 @@ print('run thread dead')
 		-- if we're using menu then render to the fbMenuTex
 		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
 		if self.activeMenu then
+			-- set drawText font & pal to the UI's
+			self.textFontTex = self.fontMenuTex
+			self.textPalTex = self.palMenuTex
+			self.inMenuUpdate = true
+
 			-- and set the palette to the editor palette ... ?
 			-- or not ...
 			-- TODO or not for when we want to show the game palette stuff ...
@@ -1500,7 +1505,7 @@ print('run thread dead')
 			self.videoModeInfo[0].lineSolidObj.texs[1] = self.palMenuTex
 			self.videoModeInfo[0].triSolidObj.texs[1] = self.palMenuTex
 			self.videoModeInfo[0].quadSolidObj.texs[1] = self.palMenuTex
-			self.videoModeInfo[0].quadSpriteObj.texs[2] = self.palMenuTex
+			-- don't override quadSpriteObj since all its textures are provided in function args
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.palMenuTex
 
@@ -1557,6 +1562,11 @@ print('run thread dead')
 			self.videoModeInfo[0].quadMapObj.texs[3] = self.palTex
 
 			self:setVideoMode(self.ram.videoMode)
+
+			-- set drawText font & pal to the ROM's
+			self.inMenuUpdate = false
+			self.textFontTex = self.fontTex
+			self.textPalTex = self.palTex
 		end
 		self:mvMatFromRAM()
 

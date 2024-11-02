@@ -21,6 +21,7 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
+local menuFontWidth = numo9_rom.menuFontWidth
 
 
 local Console = class()
@@ -29,7 +30,7 @@ function Console:init(args)
 	self.app = assert(args.app)
 
 	self:reset()
-	
+
 	local app = self.app
 	self.cmdbuf = ''
 	self.prompt = '> '
@@ -56,7 +57,7 @@ end
 
 -- reset console state ...
 function Console:reset()
-	
+
 	-- TODO move these to RAM
 	self.cursorPos = vec2i(0, 0)
 	self.fgColor = 0xfd
@@ -122,18 +123,16 @@ function Console:addChar(ch)
 		self.fgColor,
 		self.bgColor
 	)
-	-- TODO use the text width returned
-	self:offsetCursor(app.ram.fontWidth[ch], 0)
+	self:offsetCursor(menuFontWidth, 0)
 end
 
 function Console:addCharToScreen(ch)
 	local app = self.app
 	if ch == 8 then
 		self:addChar((' '):byte())	-- in case the cursor is there
-		-- TODO use the text width returned
-		self:offsetCursor(-2*app.ram.fontWidth[32], 0)
+		self:offsetCursor(-2*menuFontWidth, 0)
 		self:addChar((' '):byte())	-- clear the prev char as well
-		self:offsetCursor(-app.ram.fontWidth[32], 0)
+		self:offsetCursor(-menuFontWidth, 0)
 	elseif ch == 10 or ch == 13 then
 		self:addChar((' '):byte())	-- just in case the cursor is drawing white on the next char ...
 		self.cursorPos.x = 0
@@ -234,12 +233,10 @@ function Console:update()
 	end
 	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
 	app:drawText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
-	-- TODO use the text width returned
-	self.cursorPos.x = #s * app.ram.fontWidth[0]
+	self.cursorPos.x = #s * menuFontWidth
 
 	if getTime() % 1 < .5 then
-		-- TODO use the text width returned
-		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, app.ram.fontWidth[0], spriteSize.y, self.fgColor)
+		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, menuFontWidth, spriteSize.y, self.fgColor)
 	end
 
 	local shift = app:key'lshift' or app:key'rshift'

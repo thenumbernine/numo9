@@ -26,6 +26,7 @@ local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tileSheetAddr = numo9_rom.tileSheetAddr
 local tilemapSize = numo9_rom.tilemapSize
 local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
+local fontSizeInBytes = numo9_rom.fontSizeInBytes
 local fontImageSize = numo9_rom.fontImageSize
 local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
 local mvMatScale = numo9_rom.mvMatScale
@@ -36,6 +37,7 @@ local paletteInBytes = numo9_rom.paletteInBytes
 local fontInBytes = numo9_rom.fontInBytes
 local packptr = numo9_rom.packptr
 local unpackptr = numo9_rom.unpackptr
+local menuFontWidth = numo9_rom.menuFontWidth
 
 local function glslnumber(x)
 	local s = tostring(tonumber(x))
@@ -556,6 +558,7 @@ function AppVideo:initDraw()
 		local data = ffi.new('uint16_t[?]', 256)
 		resetPalette(data)
 		self.palMenuTex = GLTex2D{
+			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
 			internalFormat = gl.GL_RGB5_A1,
 			format = gl.GL_RGBA,
 			width = paletteSize,
@@ -570,11 +573,32 @@ function AppVideo:initDraw()
 			data = data,
 		}:unbind()
 
+		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
+		local fontData = ffi.new('uint8_t[?]', fontSizeInBytes)
+		resetROMFont(fontData, 'font.png')
+		self.fontMenuTex = GLTex2D{
+			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
+			internalFormat = texInternalFormat_u8,
+			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+			type = gl.GL_UNSIGNED_BYTE,
+			data = fontData,
+			width = fontImageSize.x,
+			height = fontImageSize.y,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			data = fontData,
+		}:unbind()
+
 		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
 		local size = frameBufferSize.x * frameBufferSize.y * 3
 		local data = ffi.new('uint8_t[?]', size)
 		ffi.fill(data, size)
 		self.fbMenuTex = GLTex2D{
+			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
 			internalFormat = gl.GL_RGB,
 			format = gl.GL_RGB,
 			type = gl.GL_UNSIGNED_BYTE,
@@ -1470,6 +1494,11 @@ void main() {
 		--]]
 	}:unbind()
 
+	-- :drawText font and pal tex by default the fontTex and palTex associated with the ROM
+	-- later during the editor draw I'll change it to fontMenuTex / palMenuTex
+	self.textFontTex = self.fontTex
+	self.textPalTex = self.palTex
+
 	self:resetVideo()
 end
 
@@ -2016,8 +2045,8 @@ function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
 			1 / tonumber(texSizeInTiles.x),		-- tw
 			1 / tonumber(texSizeInTiles.y),		-- th
 			--self.spriteTex,						-- tex
-			self.fontTex,						-- tex
-			self.palTex,						-- palTex
+			self.textFontTex,						-- tex
+			self.textPalTex,						-- palTex
 			-- font color is 0 = background, 1 = foreground
 			-- so shift this by 1 so the font tex contents shift it back
 			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
@@ -2028,7 +2057,7 @@ function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
 			bi,									-- spriteBit
 			1									-- spriteMask
 		)
-		x = x + self.ram.fontWidth[ch] * scaleX
+		x = x + (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch]) * scaleX
 	end
 	return x
 end
@@ -2047,15 +2076,16 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	if bgColorIndex >= 0 and bgColorIndex < 255 then
 		for i=1,#text do
 			local ch = text:byte(i)
+			local w = scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
 			-- TODO the ... between drawSolidRect and drawSprite is not the same...
 			self:drawSolidRect(
 				x,
 				y,
-				scaleX * self.ram.fontWidth[ch],
+				w,
 				scaleY * spriteSize.y,
 				bgColorIndex
 			)
-			x = x + self.ram.fontWidth[ch]
+			x = x + w
 		end
 	end
 

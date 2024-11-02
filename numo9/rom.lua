@@ -33,7 +33,8 @@ such that
 --]]
 local fontImageSizeInTiles = vec2i(32, 1)
 local fontImageSize = vec2i(fontImageSizeInTiles.x * spriteSize.x, fontImageSizeInTiles.y * spriteSize.y)
-local fontSizeInBytes = 256 * 8	-- 8 bytes per char, 256 chars
+local fontSizeInBytes = fontImageSize:volume()	-- 8 bytes per char, 256 chars
+local menuFontWidth = 5
 
 local codeSize = 0x10000	-- tic80's size ... but with my langfix shorthands like pico8 has
 
@@ -413,8 +414,10 @@ return {
 	spriteSheetSizeInTiles = spriteSheetSizeInTiles,
 	tilemapSize = tilemapSize,
 	tilemapSizeInSprites = tilemapSizeInSprites,
+	fontSizeInBytes = fontSizeInBytes,
 	fontImageSize = fontImageSize,
 	fontImageSizeInTiles = fontImageSizeInTiles,
+	menuFontWidth = menuFontWidth,
 	codeSize = codeSize,
 	mvMatScale = mvMatScale,
 	keyPressFlagSize = keyPressFlagSize,
