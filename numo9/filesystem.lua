@@ -60,7 +60,8 @@ end
 
 function FileSystem:ls()
 	local app = self.app
-	for name,f in pairs(self.cwd.chs) do
+	for _,name in ipairs(table.keys(self.cwd.chs):sort()) do
+		local f = self.cwd.chs[name]
 		if f.isdir then name = '['..name..']' end
 		app.con:print('  '..name)
 	end

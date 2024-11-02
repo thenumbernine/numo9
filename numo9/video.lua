@@ -2028,7 +2028,7 @@ function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
 			bi,									-- spriteBit
 			1									-- spriteMask
 		)
-		x = x + self.ram.fontWidth[ch]
+		x = x + self.ram.fontWidth[ch] * scaleX
 	end
 	return x
 end
