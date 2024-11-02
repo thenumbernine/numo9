@@ -194,7 +194,7 @@ redraw=[]do
 	end
 	if knotMsg then
 		if knotMsgWidth > 256 then
-			-- cycle back and forth 
+			-- cycle back and forth
 			local cycle = knotMsgWidth - 256
 			knotMsgX = (time()*32) % (4 * cycle)
 			if knotMsgX < cycle then
@@ -461,7 +461,7 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 				sign = '-'
 			end
 			if v~=1 then o:insert(v) end
-			if exp~=0 then 
+			if exp~=0 then
 				local sexp
 				if exp==1 then
 					sexp = 't'
@@ -508,11 +508,11 @@ trace('# crossings', n)
 
 		local writhe=0
 		for i=1,n do
-trace('i', i)			
+trace('i', i)
 			local coordI = crossingCoords[i]
 trace('coordI', coordI.x..','..coordI.y)
 			local k = crossingIndexesForCoords[coordI.x..','..coordI.y]
-trace('crossing indexes', k:concat' ')			
+trace('crossing indexes', k:concat' ')
 			writhe+=crossingSigns[k[1]]
 		end
 trace('writhe', writhe)
@@ -554,7 +554,7 @@ trace'tripMatrix='
 for i=1,n do
 trace(tripMatrix[i]:mapi(tostring):concat',')
 end
-	
+
 		local numStates = 1 << n
 		for i=0,numStates-1 do
 			local state = range(0,n-1):mapi([j]((i>>j)&1))
@@ -563,7 +563,7 @@ end
 				ABs[statej]+=1
 			end
 			local A,B=ABs[0],ABs[1]
-		
+
 			local stateMatrix=range(n):mapi([i]
 				range(n):mapi([j]do
 					if i==j then
@@ -573,7 +573,7 @@ end
 					end
 				end)
 			)
-		
+
 			local m=range(n):mapi([i] table(stateMatrix[i]))
 			local swapRows=[i1,i2]do
 				for j=1,n do
@@ -606,7 +606,7 @@ end
 				end
 				imax=maxZero
 			end
-	
+
 			local nullity=0
 			for i=1,n do
 				if m[i]:sum()==0 then nullity+=1 end
@@ -622,7 +622,7 @@ trace('state', state:concat(), 'nullity', nullity, 'A='..A, 'B='..B, 'A-B='..(A-
 					num*=nullity-s
 					denom*=s+1
 				end
-trace('num='..num..' denom='..denom)					
+--trace('num='..num..' denom='..denom)
 				local coeff=math.floor(num/denom)
 				local exp=4*r-2*nullity
 				statePoly[exp]=(statePoly[exp] or 0) + coeff
@@ -637,6 +637,9 @@ trace('statePoly', polyToStr(statePoly))
 			--poly=poly:filter([coeff,exp]coeff~=0)
 			for _,k in ipairs(table.keys(poly)) do if poly[k]==0 then poly[k]=nil end end
 trace('V(t) so far', polyToStr(poly))
+
+			-- yield so we can kill it if it gets out of hand
+			flip()
 		end
 
 		-- sign = (-1)^(3*w) ... = (-1)^(2*w) * (-1)^w ... = (-1)^w

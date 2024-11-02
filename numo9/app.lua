@@ -1511,11 +1511,25 @@ print('run thread dead')
 			-- the draw commands will all go to fbMenuTex and not the VRAM fbTex
 			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM fbTex, but meh, it still won't change them.
 			self:setFBTex(self.fbMenuTex)
+
+			gl.glDisable(gl.GL_SCISSOR_TEST)
+			-- [[
+			-- while we're here, start us off with the current fbTex contents
+			-- fbMenuTex is RGB, while fbTex can vary depending on the video mode, so I'll use the blitScreenObj to draw it
+			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+			local view = self.blitScreenView
+			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
+			view.mvMat:setIdent()
+			view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+			local sceneObj = self.blitScreenObj
+			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+			sceneObj:draw()
+			--]]
+
 			local thread = self.activeMenu.thread
 			if thread then
-				gl.glDisable(gl.GL_SCISSOR_TEST)
 				self.mvMat:setIdent()
-				if coroutine.status(thread)=='dead' then
+				if coroutine.status(thread) == 'dead' then
 					self:setMenu(nil)
 				else
 					local success, msg = coroutine.resume(thread)
@@ -2043,7 +2057,7 @@ function App:runROM()
 						-- TODO during this function, capture all commands and send them only to the loopback conn.
 						env.draw(conn.ident, indexargs('localPlayer', table.unpack(conn.playerInfos)))
 					end
-					
+
 					self.server.currentCmdConn = nil
 				end
 			else
@@ -2173,7 +2187,7 @@ end
 -- instead do this down in the SDL event handling ...
 function App:btn(buttonCode, player, ...)
 	if type(buttonCode) == 'string' then
-		buttonCode = buttonCodeForName[buttonCode] 
+		buttonCode = buttonCodeForName[buttonCode]
 			or error(string.format("unknown button string %q ... valid buttons are: %s", buttonCode, buttonNames:concat' '))
 	end
 	assert.type(buttonCode, 'number')
@@ -2209,7 +2223,7 @@ function App:btnr(buttonCode, player, ...)
 
 	player = player or 0
 	if player < 0 or player >= maxPlayersTotal then return end
-	
+
 	local buttonKeyCode = buttonCode + 8 * player + firstJoypadKeyCode
 	return self:keyr(buttonKeyCode, ...)
 end
