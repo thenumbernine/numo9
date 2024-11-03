@@ -1026,73 +1026,77 @@ looks like I'm a Snes9x-default-keybinding fan.
 			self.con.bgColor = 0xf0
 			--]]
 
-			-- also for init, do the splash screen
-			numo9_video.resetLogoOnSheet(self.ram.tileSheet)
-			self.tileTex.dirtyCPU = true
-			for j=0,31 do
-				for i=0,31 do
-					env.mset(i, j, bit.bor(
-						i,
-						bit.lshift(j, 5)
-					))
-				end
-			end
+			if not cmdline.nosplash then
 
-			for sleep=1,60 do
-				env.flip()
-			end
-
-			-- do splash screen fanfare ...
-			local s = ('NuMo9=-\t '):rep(3)
-			--local s = ('9'):rep(27)
-			local colors = range(0xf1, 0xfe)
-			for t=0,63+#s do		-- t = time = leading diagonal
-				env.cls()
-				for i=t,0,-1 do		-- i = across all diagonals so far
-					for j=0,i do	-- j = along diagonal
-						local x = bit.lshift(i-j, 3)
-						local y = bit.lshift(j, 3)
-						--env.blend(1)	-- average
-						env.matident()
-						env.mattrans(x+4, y+4)
-						local r = ((t-i)/16 + .5)*2*math.pi
-						env.matrot(r)
-						local w = 2*math.exp(-((t- i+ 4)/30)^2)
-						env.matscale(w, w)
-						env.mattrans(-4, -4)
-						self:drawSolidRect(0,0,8,8, colors[(i+1)%#colors+1])
-						local l = t - i + 1
-						env.blend(2)	-- subtract
-						self:drawText(s:sub(l,l),1,0,0xf7,-1)
-						env.matident()
-						env.blend(2)	-- subtract
-						-- if I draw this as a sprite then I can draw as a low bpp and shift the palette ...
-						-- if I draw it as a tilemap then I can use the upper 4 bits of the tilemap entries for shifting the palette ...
-						self:drawMap(0, 0, 32, 32, 0, 0, 0, false)
-						env.blend(-1)
+				-- also for init, do the splash screen
+				numo9_video.resetLogoOnSheet(self.ram.tileSheet)
+				self.tileTex.dirtyCPU = true
+				for j=0,31 do
+					for i=0,31 do
+						env.mset(i, j, bit.bor(
+							i,
+							bit.lshift(j, 5)
+						))
 					end
 				end
-				--[[ pause and watch
-				for i=0,3 do
+
+				for sleep=1,60 do
 					env.flip()
-					if env.keyp'space' then
-						env.flip()
-						repeat
-							env.flip()
-						until env.keyp'space'
-					end
 				end
-				--]]
-				-- [[
-				if bit.band(t,3) == 0 then env.flip() end
-				--]]
-			end
-			env.flip()
 
-			-- and clear the tilemap now that we're done with it
-			ffi.fill(self.ram.tileSheet, ffi.sizeof(self.ram.tileSheet))
-			ffi.fill(self.ram.tilemap, ffi.sizeof(self.ram.tilemap))
-			self.tileTex.dirtyCPU = true
+				-- do splash screen fanfare ...
+				local s = ('NuMo9=-\t '):rep(3)
+				--local s = ('9'):rep(27)
+				local colors = range(0xf1, 0xfe)
+				for t=0,63+#s do		-- t = time = leading diagonal
+					env.cls()
+					for i=t,0,-1 do		-- i = across all diagonals so far
+						for j=0,i do	-- j = along diagonal
+							local x = bit.lshift(i-j, 3)
+							local y = bit.lshift(j, 3)
+							--env.blend(1)	-- average
+							env.matident()
+							env.mattrans(x+4, y+4)
+							local r = ((t-i)/16 + .5)*2*math.pi
+							env.matrot(r)
+							local w = 2*math.exp(-((t- i+ 4)/30)^2)
+							env.matscale(w, w)
+							env.mattrans(-4, -4)
+							self:drawSolidRect(0,0,8,8, colors[(i+1)%#colors+1])
+							local l = t - i + 1
+							env.blend(2)	-- subtract
+							self:drawText(s:sub(l,l),1,0,0xf7,-1)
+							env.matident()
+							env.blend(2)	-- subtract
+							-- if I draw this as a sprite then I can draw as a low bpp and shift the palette ...
+							-- if I draw it as a tilemap then I can use the upper 4 bits of the tilemap entries for shifting the palette ...
+							self:drawMap(0, 0, 32, 32, 0, 0, 0, false)
+							env.blend(-1)
+						end
+					end
+					--[[ pause and watch
+					for i=0,3 do
+						env.flip()
+						if env.keyp'space' then
+							env.flip()
+							repeat
+								env.flip()
+							until env.keyp'space'
+						end
+					end
+					--]]
+					-- [[
+					if bit.band(t,3) == 0 then env.flip() end
+					--]]
+				end
+				env.flip()
+
+				-- and clear the tilemap now that we're done with it
+				ffi.fill(self.ram.tileSheet, ffi.sizeof(self.ram.tileSheet))
+				ffi.fill(self.ram.tilemap, ffi.sizeof(self.ram.tilemap))
+				self.tileTex.dirtyCPU = true
+
+			end
 
 			-- assign to console
 			self:setMenu(self.con)

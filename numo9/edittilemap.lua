@@ -238,8 +238,8 @@ function EditTilemap:update()
 
 		local function fbToTileCoord(cx, cy)
 			return
-				(cx - mapX + self.tilemapPanOffset.x) / (bit.lshift(spriteSize.x, draw16As0or1) * self.scale),
-				(cy - mapY + self.tilemapPanOffset.y) / (bit.lshift(spriteSize.y, draw16As0or1) * self.scale)
+				(cx - mapX) / (bit.lshift(spriteSize.x, draw16As0or1) * self.scale) + self.tilemapPanOffset.x / bit.lshift(spriteSize.x, draw16As0or1),
+				(cy - mapY) / (bit.lshift(spriteSize.y, draw16As0or1) * self.scale) + self.tilemapPanOffset.y / bit.lshift(spriteSize.y, draw16As0or1)
 		end
 		local tx, ty = fbToTileCoord(mouseX, mouseY)
 		tx = math.floor(tx)
