@@ -455,7 +455,7 @@ or cmd == 'r' then
 	assert(path(fn):write(toCartImage(banks, labelImage)))
 
 	if cmd == 'r' then
-		assert(os.execute('luajit run.lua "'..fn..'"'))
+		assert(os.execute('luajit run.lua -nosplash "'..fn..'"'))
 	end
 
 elseif cmd == 'n9tobin' then

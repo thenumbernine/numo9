@@ -15,6 +15,10 @@ for i=#cmdline-1,1,-1 do
 		table.remove(cmdline, i)
 		cmdline.video = assert.len(string.split(table.remove(cmdline, i), 'x'):mapi(function(x) return assert(tonumber(x)) end), 2)
 	end
+	if cmdline[i] == '-nosplash' then
+		table.remove(cmdline, i)
+		cmdline.nosplash = true
+	end
 end
 
 -- TODO gl setup here
