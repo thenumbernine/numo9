@@ -21,8 +21,7 @@ local frameBufferSizeInTiles = vec2i(32, 32)
 local frameBufferSize = vec2i(frameBufferSizeInTiles.x * spriteSize.x, frameBufferSizeInTiles.y * spriteSize.y)
 local spriteSheetSizeInTiles = vec2i(32, 32)
 local spriteSheetSize = vec2i(spriteSheetSizeInTiles.x * spriteSize.x, spriteSheetSizeInTiles.y * spriteSize.y)
-local tilemapSizeInSprites = vec2i(32, 32)
-local tilemapSize = vec2i(tilemapSizeInSprites.x * spriteSize.x, tilemapSizeInSprites.y * spriteSize.y)
+local tilemapSize = vec2i(256, 256)
 
 --[[
 32x8 = 256 wide, 8 high, 8x 1bpp planar
@@ -413,7 +412,6 @@ return {
 	spriteSheetSize = spriteSheetSize,
 	spriteSheetSizeInTiles = spriteSheetSizeInTiles,
 	tilemapSize = tilemapSize,
-	tilemapSizeInSprites = tilemapSizeInSprites,
 	fontSizeInBytes = fontSizeInBytes,
 	fontImageSize = fontImageSize,
 	fontImageSizeInTiles = fontImageSizeInTiles,

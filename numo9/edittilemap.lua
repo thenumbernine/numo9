@@ -2,6 +2,7 @@ local ffi = require 'ffi'
 local gl = require 'gl'
 local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
+local vec2d = require 'vec-ffi.vec2d'
 
 local numo9_rom = require 'numo9.rom'
 local paletteSize = numo9_rom.paletteSize
@@ -12,7 +13,6 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapSize = numo9_rom.tilemapSize
-local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
 
 local EditTilemap = require 'numo9.ui':subclass()
 
@@ -31,12 +31,15 @@ function EditTilemap:init(args)
 	self.gridSpacing = 1
 	self.penSize = 1
 	self.tilePanDownPos = vec2i()
-	self.tilemapPanOffset = vec2i()
+	self.tilemapPanOffset = vec2d()
 	self.tilePanPressed = false
+	self.scale = 1
 end
 
 function EditTilemap:update()
 	local app = self.app
+
+	local draw16As0or1 = self.draw16Sprites and 1 or 0
 
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
@@ -96,61 +99,62 @@ function EditTilemap:update()
 	local mapX = 0
 	local mapY = spriteSize.y
 	local mapWidthInTiles = frameBufferSizeInTiles.x
-	local mapHeightInTiles = frameBufferSizeInTiles.y-2
+	local mapHeightInTiles = frameBufferSizeInTiles.y
 	local mapWidth = bit.lshift(mapWidthInTiles, tileBits)
 	local mapHeight = bit.lshift(mapWidthInTiles, tileBits)
 
-	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
-	app:drawQuad(mapX, mapY, mapWidth, mapHeight, 0, 0, mapWidth/2, mapHeight/2, app.checkerTex, app.palMenuTex, 0, -1, 0xFF)
-	do
-		local tx = self.tilemapPanOffset.x
-		local ty = self.tilemapPanOffset.y
-		local x = mapX
-		local y = mapY
-		if tx < 0 then
-			x = x + bit.lshift(-tx, tileBits)
-			tx = 0
-		end
-		if ty < 0 then
-			y = y + bit.lshift(-ty, tileBits)
-			ty = 0
-		end
-		local tw = math.max(mapWidthInTiles, tilemapSize.x - tx)
-		local th = math.max(mapHeightInTiles, tilemapSize.y - ty)
-		if tw > 0 and th > 0 then
-			app:drawMap(
-				tx,		-- upper-left index in the tile tex
-				ty,
-				tw,		-- tiles wide
-				th,		-- tiles high
-				x,		-- pixel x
-				y,		-- pixel y
-				0,		-- map index offset / high page
-				self.draw16Sprites	-- draw 16x16 vs 8x8
-			)
-		end
+	local function pan(dx,dy)	-- dx, dy in screen coords right?
+		self.tilemapPanOffset.x = self.tilemapPanOffset.x + dx
+		self.tilemapPanOffset.y = self.tilemapPanOffset.y + dy
 	end
+	if shift then
+		pan(128 / self.scale, 128 / self.scale)
+		self.scale = self.scale * math.exp(-.1 * app.ram.mouseWheel.y)
+		pan(-128 / self.scale, -128 / self.scale)
+	else
+		pan(
+			bit.lshift(spriteSize.x, draw16As0or1) * app.ram.mouseWheel.x,
+			-bit.lshift(spriteSize.y, draw16As0or1) * app.ram.mouseWheel.y
+		)
+	end
+
+	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
+	app:drawQuad(
+		mapX, mapY,
+		mapWidth * self.scale, mapHeight * self.scale,
+		0, 0,
+		mapWidth/2, mapHeight/2,
+		app.checkerTex,
+		app.palMenuTex,
+		0, -1, 0xFF
+	)
+	
+	app:matident()
+	app:mattrans(mapX, mapY)
+	app:matscale(self.scale, self.scale)
+	app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
+	
+	app:drawMap(
+		0,		-- upper-left index in the tile tex
+		0,
+		tilemapSize.x,	-- tiles wide
+		tilemapSize.y,	-- tiles high
+		0,		-- pixel x
+		0,		-- pixel y
+		0,		-- map index offset / high page
+		self.draw16Sprites	-- draw 16x16 vs 8x8
+	)
+
+self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xfc, 0)
 	if self.drawGrid then
 		local step = bit.lshift(self.gridSpacing, tileBits)
-		local gx = bit.lshift(-self.tilemapPanOffset.x % self.gridSpacing, tileBits)
-		local gy = bit.lshift(-self.tilemapPanOffset.y % self.gridSpacing, tileBits)
-		for i=-step,frameBufferSize.x-1,step do
-			app:drawSolidLine(
-				gx + i,
-				spriteSize.y,
-				gx + i,
-				frameBufferSize.y-spriteSize.y,
-				self:color(1)
-			)
+		local gx = math.floor(self.tilemapPanOffset.x / step) * step
+		local gy = math.floor(self.tilemapPanOffset.y / step) * step
+		for i=gx-step,gx+3*step+frameBufferSize.x/self.scale,step do
+			app:drawSolidLine(i, gy-step, i, gy+3*step+frameBufferSize.y/self.scale, self:color(1))
 		end
-		for j=spriteSize.y-step,frameBufferSize.y-spriteSize.y-1,step do
-			app:drawSolidLine(
-				0,
-				gy + j,
-				frameBufferSize.x,
-				gy + j,
-				self:color(1)
-			)
+		for j=gy-step,gy+3*step+frameBufferSize.y/self.scale,step do
+			app:drawSolidLine(gx-step, j, gx+3*step+frameBufferSize.x/self.scale, j, self:color(1))
 		end
 	end
 	gl.glScissor(0,0,frameBufferSize:unpack())
@@ -220,14 +224,14 @@ function EditTilemap:update()
 		-- maybe ... then i should disable the auto-close-on-select ...
 		-- and I should also resize the pick tile area
 
-		local draw16As0or1 = self.draw16Sprites and 1 or 0
-
 		local function fbToTileCoord(cx, cy)
 			return
-				math.floor((cx - mapX) / bit.lshift(spriteSize.x, draw16As0or1)) + self.tilemapPanOffset.x,
-				math.floor((cy - mapY) / bit.lshift(spriteSize.y, draw16As0or1)) + self.tilemapPanOffset.y
+				(cx - mapX + self.tilemapPanOffset.x) / (bit.lshift(spriteSize.x, draw16As0or1) * self.scale),
+				(cy - mapY + self.tilemapPanOffset.y) / (bit.lshift(spriteSize.y, draw16As0or1) * self.scale)
 		end
 		local tx, ty = fbToTileCoord(mouseX, mouseY)
+		tx = math.floor(tx)
+		ty = math.floor(ty)
 
 		local tilemapPanHandled
 		local function tilemapPan(press)
@@ -244,11 +248,11 @@ function EditTilemap:update()
 					local tx1, ty1 = fbToTileCoord(mouseX, mouseY)
 					local tx0, ty0 = fbToTileCoord(self.tilePanDownPos:unpack())
 					-- convert mouse framebuffer pixel movement to sprite texel movement
-					local tx = math.round(tx1 - tx0)
-					local ty = math.round(ty1 - ty0)
+					local tx = tx1 - tx0
+					local ty = ty1 - ty0
 					if tx ~= 0 or ty ~= 0 then
-						self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx
-						self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty
+						self.tilemapPanOffset.x = self.tilemapPanOffset.x - tx * bit.lshift(spriteSize.x, draw16As0or1)
+						self.tilemapPanOffset.y = self.tilemapPanOffset.y - ty * bit.lshift(spriteSize.y, draw16As0or1)
 						self.tilePanDownPos:set(mouseX, mouseY)
 					end
 				end
@@ -322,6 +326,8 @@ function EditTilemap:update()
 			self:setTooltip(tx..','..ty, mouseX-8, mouseY-8, 0xfc, 0)
 		end
 	end
+
+	app:matident()
 
 	self:drawTooltip()
 end
