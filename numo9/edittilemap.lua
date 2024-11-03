@@ -1,6 +1,7 @@
 local ffi = require 'ffi'
 local gl = require 'gl'
 local math = require 'ext.math'
+local table = require 'ext.table'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
 
@@ -14,19 +15,25 @@ local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapSize = numo9_rom.tilemapSize
 
+-- used by fill
+local dirs = {
+	{0,-1},
+	{0,1},
+	{-1,0},
+	{1,0},
+}
+
 local EditTilemap = require 'numo9.ui':subclass()
 
 function EditTilemap:init(args)
 	EditTilemap.super.init(self, args)
 
-	self.drawGrid = true
 	self.pickOpen = false
 	self.spriteSelPos = vec2i()
 	self.spriteSelSize = vec2i(1,1)
 	self.horzFlip = false
 	self.vertFlip = false
 	self.selPalHiOffset = 0
-	self.draw16Sprites = false
 	self.drawMode = 'draw'	--TODO ui for this
 	self.gridSpacing = 1
 	self.penSize = 1
@@ -34,6 +41,10 @@ function EditTilemap:init(args)
 	self.tilemapPanOffset = vec2d()
 	self.tilePanPressed = false
 	self.scale = 1
+
+	-- save these in config?
+	self.drawGrid = true
+	self.draw16Sprites = false
 end
 
 function EditTilemap:update()
@@ -73,7 +84,7 @@ function EditTilemap:update()
 
 	-- sprite edit method
 	x = x + 16
-	self:guiRadio(x, y, {'draw', 'dropper', 'pan'}, self.drawMode, function(result)
+	self:guiRadio(x, y, {'draw', 'fill', 'dropper', 'pan'}, self.drawMode, function(result)
 		self.drawMode = result
 	end)
 
@@ -128,12 +139,12 @@ function EditTilemap:update()
 		app.palMenuTex,
 		0, -1, 0xFF
 	)
-	
+
 	app:matident()
 	app:mattrans(mapX, mapY)
 	app:matscale(self.scale, self.scale)
 	app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
-	
+
 	app:drawMap(
 		0,		-- upper-left index in the tile tex
 		0,
@@ -145,7 +156,7 @@ function EditTilemap:update()
 		self.draw16Sprites	-- draw 16x16 vs 8x8
 	)
 
-self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xfc, 0)
+--self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xfc, 0)
 	if self.drawGrid then
 		local step = bit.lshift(self.gridSpacing, tileBits)
 		local gx = math.floor(self.tilemapPanOffset.x / step) * step
@@ -160,6 +171,7 @@ self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xf
 	gl.glScissor(0,0,frameBufferSize:unpack())
 
 	if self.pickOpen then
+		app:matident()
 		local pickX = 2 * spriteSize.x
 		local pickY = 2 * spriteSize.y
 		local pickW = frameBufferSize.x - 2 * pickX
@@ -263,24 +275,49 @@ self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xf
 			tilemapPan(app:keyp'space')
 		end
 
+		local function gettile(tx, ty)
+			if tx < 0 or tx >= tilemapSize.x
+			or ty < 0 or ty >= tilemapSize.y
+			then return end
+
+			local texelIndex = tx + tilemapSize.x * ty
+			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+			return app:peekw(tilemapAddr + bit.lshift(texelIndex, 1))
+		end
+
+		local function puttile(tx, ty, dx, dy)
+			if tx < 0 or tx >= tilemapSize.x
+			or ty < 0 or ty >= tilemapSize.y
+			then return end
+
+			local tileSelIndex = bit.bor(
+				self.spriteSelPos.x + dx
+				+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy),
+				bit.lshift(bit.band(0xf, self.selPalHiOffset), 10),
+				self.horzFlip and 0x4000 or 0,
+				self.vertFlip and 0x8000 or 0)
+			local texelIndex = tx + tilemapSize.x * ty
+			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+			self:edit_pokew(tilemapAddr + bit.lshift(texelIndex, 1), tileSelIndex)
+		end
+
 		-- TODO pen size here
 		if self.drawMode == 'dropper'
 		or (self.drawMode == 'draw' and shift)
+		or (self.drawMode == 'fill' and shift)
 		then
 			if leftButtonPress
 			and mouseX >= mapX and mouseX < mapX + mapWidth
 			and mouseY >= mapY and mouseY < mapY + mapHeight
-			and 0 <= tx and tx < tilemapSize.x
-			and 0 <= ty and ty < tilemapSize.y
 			then
-				local texelIndex = tx + tilemapSize.x * ty
-				assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-				local tileSelIndex = app:peekw(tilemapAddr + bit.lshift(texelIndex, 1))
-				self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
-				self.spriteSelPos.y = ((tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
-				self.selPalHiOffset = bit.band(bit.lshift(tileSelIndex, 10), 0xf)
-				self.horzFlip = bit.band(tileSelIndex, 0x4000) ~= 0
-				self.vertFlip = bit.band(tileSelIndex, 0x8000) ~= 0
+				local tileSelIndex = gettile(tx, ty)
+				if tileSelIndex then
+					self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
+					self.spriteSelPos.y = ((tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
+					self.selPalHiOffset = bit.band(bit.lshift(tileSelIndex, 10), 0xf)
+					self.horzFlip = bit.band(tileSelIndex, 0x4000) ~= 0
+					self.vertFlip = bit.band(tileSelIndex, 0x8000) ~= 0
+				end
 			end
 		elseif self.drawMode == 'draw' then
 			if leftButtonDown
@@ -296,18 +333,47 @@ self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xf
 					local ty = ty0 + bit.rshift(dy, draw16As0or1)
 					for dx=0,self.spriteSelSize.x-1,step do -- self.penSize-1 do
 						local tx = tx0 + bit.rshift(dx, draw16As0or1)
-						if 0 <= tx and tx < tilemapSize.x
-						and 0 <= ty and ty < tilemapSize.y
-						then
-							local tileSelIndex = bit.bor(
-								self.spriteSelPos.x + dx
-								+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy),
-								bit.lshift(bit.band(0xf, self.selPalHiOffset), 10),
-								self.horzFlip and 0x4000 or 0,
-								self.vertFlip and 0x8000 or 0)
-							local texelIndex = tx + tilemapSize.x * ty
-							assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-							self:edit_pokew(tilemapAddr + bit.lshift(texelIndex, 1), tileSelIndex)
+						puttile(tx,ty, dx,dy)
+					end
+				end
+			end
+		elseif self.drawMode == 'fill' then
+			if leftButtonDown
+			and mouseX >= mapX and mouseX < mapX + mapWidth
+			and mouseY >= mapY and mouseY < mapY + mapHeight
+			then
+				local srcTile = gettile(tx, ty)
+
+				local tileSelIndex = bit.bor(
+					self.spriteSelPos.x
+					+ spriteSheetSizeInTiles.x * self.spriteSelPos.y,
+					bit.lshift(bit.band(0xf, self.selPalHiOffset), 10),
+					self.horzFlip and 0x4000 or 0,
+					self.vertFlip and 0x8000 or 0)
+
+				if srcTile ~= tileSelIndex then
+					local fillstack = table()
+					puttile(tx, ty, 0, 0)
+					fillstack:insert{tx, ty}
+					while #fillstack > 0 do
+						local tx0, ty0 = table.unpack(fillstack:remove())
+						for _,dir in ipairs(dirs) do
+							local tx1, ty1 = tx0 + dir[1], ty0 + dir[2]
+							-- [[ constrain to entire sheet (TODO flag for this option)
+							if tx1 >= 0 and tx1 < tilemapSize.x
+							and ty1 >= 0 and ty1 < tilemapSize.y
+							--]]
+							--[[ constrain to current selection
+							if  tx1 >= self.spriteSelPos.x * spriteSize.x
+							and ty1 >= self.spriteSelPos.y * spriteSize.y
+							and tx1 < (self.spriteSelPos.x + self.spriteSelSize.x) * spriteSize.x
+							and ty1 < (self.spriteSelPos.y + self.spriteSelSize.y) * spriteSize.y
+							--]]
+							and gettile(tx1, ty1) == srcTile
+							then
+								puttile(tx1, ty1, 0, 0)
+								fillstack:insert{tx1, ty1}
+							end
 						end
 					end
 				end
@@ -321,7 +387,7 @@ self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xf
 		if not tilemapPanHandled then
 			self.tilePanPressed = false
 		end
-		
+
 		if not self.tooltip then
 			self:setTooltip(tx..','..ty, mouseX-8, mouseY-8, 0xfc, 0)
 		end
