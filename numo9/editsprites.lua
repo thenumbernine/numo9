@@ -24,11 +24,12 @@ local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
 local tilemapSize = require 'numo9.rom'.tilemapSize
 local unpackptr = require 'numo9.rom'.unpackptr
 
+-- used by fill
 local dirs = {
-	{-1,0},
-	{1,0},
 	{0,-1},
 	{0,1},
+	{-1,0},
+	{1,0},
 }
 
 local EditSprites = require 'numo9.ui':subclass()
@@ -371,6 +372,7 @@ function EditSprites:update()
 
 			if self.spriteDrawMode == 'dropper'
 			or (self.spriteDrawMode == 'draw' and shift)
+			or (self.spriteDrawMode == 'fill' and shift)
 			then
 				local c = getpixel(tx, ty)
 				if c then
@@ -394,7 +396,7 @@ function EditSprites:update()
 						and ty >= self.spriteSelPos.y * spriteSize.y
 						and tx < (self.spriteSelPos.x + self.spriteSelSize.x) * spriteSize.x
 						and ty < (self.spriteSelPos.y + self.spriteSelSize.y) * spriteSize.y
-						--]]					
+						--]]
 						then
 							putpixel(tx,ty)
 						end
@@ -421,7 +423,7 @@ function EditSprites:update()
 							and tx1 < (self.spriteSelPos.x + self.spriteSelSize.x) * spriteSize.x
 							and ty1 < (self.spriteSelPos.y + self.spriteSelSize.y) * spriteSize.y
 							--]]
-							and getpixel(tx1, ty1) == srcColor 
+							and getpixel(tx1, ty1) == srcColor
 							then
 								putpixel(tx1, ty1)
 								fillstack:insert{tx1, ty1}
@@ -492,7 +494,7 @@ function EditSprites:update()
 			local paletteIndex = bit.band(0xff, self.paletteOffset + i + palBlockWidth * j)
 			local rx = x + bw * i
 			local ry = y + bh * j
-			
+
 			-- cheap hack to use game palette here instead of menu palette ...
 			-- TODO just make it an arg like drawQuad
 			app.videoModeInfo[0].quadSolidObj.texs[1] = app.palTex
@@ -505,14 +507,14 @@ function EditSprites:update()
 			)
 			app.videoModeInfo[0].quadSolidObj.texs[1] = app.palMenuTex
 			-- end cheap hack
-			
+
 			if mouseX >= rx and mouseX < rx + bw
 			and mouseY >= ry and mouseY < ry + bh
 			then
 				if leftButtonPress then
 					if self.isPaletteSwapping then
 						-- TODO button for only swap in this screen
-						app:colorSwap(self.paletteSelIndex, paletteIndex, 0, 0, spriteSheetSize.x, 
+						app:colorSwap(self.paletteSelIndex, paletteIndex, 0, 0, spriteSheetSize.x,
 							spriteSheetSize.y-8	-- cheap trick to avoid the font row
 						)
 						self.isPaletteSwapping = false
