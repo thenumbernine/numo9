@@ -25,7 +25,6 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tileSheetAddr = numo9_rom.tileSheetAddr
 local tilemapSize = numo9_rom.tilemapSize
-local tilemapSizeInSprites = numo9_rom.tilemapSizeInSprites
 local fontSizeInBytes = numo9_rom.fontSizeInBytes
 local fontImageSize = numo9_rom.fontImageSize
 local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
@@ -2001,10 +2000,10 @@ function AppVideo:drawMap(
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
 	settable(uniforms.tcbox,
-		tileX / tonumber(tilemapSizeInSprites.x),
-		tileY / tonumber(tilemapSizeInSprites.y),
-		tilesWide / tonumber(tilemapSizeInSprites.x),
-		tilesHigh / tonumber(tilemapSizeInSprites.y)
+		tileX / tonumber(spriteSheetSizeInTiles.x),
+		tileY / tonumber(spriteSheetSizeInTiles.y),
+		tilesWide / tonumber(spriteSheetSizeInTiles.x),
+		tilesHigh / tonumber(spriteSheetSizeInTiles.y)
 	)
 	local draw16As0or1 = draw16Sprites and 1 or 0
 	uniforms.draw16Sprites = draw16As0or1
