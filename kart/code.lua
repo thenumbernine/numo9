@@ -130,7 +130,7 @@ vec3=class{
 	dot=[a,b]a[1]*b[1]+a[2]*b[2]+a[3]*b[3],
 	lenSq=[v]vec3.dot(v,v),
 	length=[v]math.sqrt(vec3.lenSq(v)),
-	normalize=[v]v/vec2.length(v),
+	normalize=[v]v/vec3.length(v),
 	cross=[a,b]vec3(a[2]*b[3]-a[3]*b[2],a[3]*b[1]-a[1]*b[3],a[1]*b[2]-a[2]*b[1]),
 	__unm=[a]vec2(-a[1],-a[2],-a[3]),
 	__add=[a,b]vec3(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2),getvalue(a,3)+getvalue(b,3)),
@@ -163,6 +163,17 @@ local function rot2d(v, costh, sinth, newv)
 	newv[1], newv[2], newv[3] = v[1] * costh - v[2] * sinth, v[1] * sinth + v[2] * costh, v[3]
 	return newv
 end
+
+-- TODO this is a byproduct of palette quantization after-the-fact.  plz go back to the original, and maybe also introduce tileindex-swapping into the tilemap editor.
+local trackTileTypes = {
+	SolidTile= 0,
+	startback = 1,
+	startfront = 2,
+	item = 3,
+	SmoothTile= 4,
+	BoostTile = 5,
+	RoughTile = 6,
+}
 
 local game	-- TODO use pointers instead of global
 local font
@@ -303,24 +314,14 @@ function Object:draw(viewMatrix)
 	do
 		-- TODO how to calculate this
 local viewAngle = math.atan2(viewFwd[2], viewFwd[1])
-local kartAngle = math.atan2(self.dir[2], self.dir[1])
 		matpush()
 		mattrans(self.pos:unpack())
 		matscale(1/32,1/32,1/32)
 		-- undo camera viewAngle to make a billboard
 		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
-		matrot(math.rad(-60), 1, 0, 0)
-		local angleNorm = (-(viewAngle - kartAngle) / math.pi) % 2
-		local scaleX = 1
-		if angleNorm > 1 then
-			angleNorm = 2 - angleNorm
-			scaleX = -1
-			mattrans(16, -32, 0)
-		else
-			mattrans(-16, -32, 0)
-		end
-		local spriteIndex = spriteIndexForAngle[math.floor(angleNorm * #spriteIndexForAngle) + 1]
-		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
+		matrot(math.rad(-70), 1, 0, 0)
+		mattrans(-16, -32, 0)
+		spr(self.spriteIndex, 0, 0, 4, 4)
 		matpop()
 	end
 	--]]
@@ -713,8 +714,8 @@ function VanDeGraaffItem:use(kart)
 	local i = 1
 	while i <= #game.objs do
 		local obj = game.objs[i]
-		local isItem = obj:isa(BananaObject) or obj:isa(RedShellObject) or obj:isa(GreenShellObject)
-		if obj:isa(Kart) or isItem then
+		local isItem = BananaObject:isa(obj) or RedShellObject:isa(obj) or GreenShellObject:isa(obj)
+		if Kart:isa(obj) or isItem then
 			local otherPos = obj.pos
 			if not isItem then otherPos = otherPos + vec3(0,0,.5) end
 			local posDiff = otherPos - start
@@ -768,7 +769,7 @@ local HandToFootItem = Item:subclass()
 --HandToFootItem.texFileName = 'sprites/items/handtofoot.png'
 
 function HandToFootItem:use(kart)
---[[	
+--[[
 	kart.effectAudioSource:setBuffer(castSpellSound)
 	kart.effectAudioSource:play()
 --]]
@@ -869,13 +870,16 @@ function Track:init(args)
 	self.tileTexs = table()
 	self.untexTiles = table()
 	self.tiles = {}
-	self.size = vec2(128,128)
+	self.size = vec2(256,256)
 	self.itemBoxPositions = table()
 	local realStartDest
+histogram=table()
 	for i=1,self.size[1] do
 		self.tiles[i] = {}
 		for j=1,self.size[2] do
-			local tile, startDest = self:processTrackColor(i-1, j-1, mget(i-1,j-1))
+			local tileIndex = mget(i-1,j-1)
+			histogram[tileIndex] = (histogram[tileIndex] or 0) + 1
+			local tile, startDest = self:processTrackColor(i-1, j-1, tileIndex)
 			realStartDest = realStartDest or startDest
 			self.tiles[i][j] = tile
 			--if self.heightImg then
@@ -886,7 +890,7 @@ function Track:init(args)
 			self.tiles[i][j].normal = vec3(0,0,1)
 
 			if tile.textureName then
---[[				
+--[[
 				if not self.tileTexs[tile.textureName] then
 					local fn = 'textures/'..tile.textureName
 					self.tileTexs[tile.textureName] = {
@@ -900,17 +904,21 @@ function Track:init(args)
 					}
 					self.tileTexs[tile.textureName].tex.filename = fn
 				end
---]]				
+--]]
 				self.tileTexs[tile.textureName].tiles:insert(vec2(i,j))
 			else
 				self.untexTiles:insert(vec2(i,j))
 			end
 		end
 	end
+for _,k in ipairs(histogram:keys():sort()) do
+	trace('hist', k, histogram[k])
+end
 	for i=1,self.size[1]-1 do
 		for j=1,self.size[2]-1 do
 			local dx = vec3(1,0, self.tiles[i+1][j].z - self.tiles[i][j].z)
 			local dy = vec3(0,1, self.tiles[i][j+1].z - self.tiles[i][j].z)
+
 			self.tiles[i][j].normal = vec3.cross(dx,dy):normalize()
 		end
 	end
@@ -954,24 +962,27 @@ function Track:init(args)
 end
 
 function Track:processTrackColor(u,v,tileIndex)
-	if tileIndex==0 then
+	if tileIndex==trackTileTypes.RoughTile then
 		return RoughTile()
-	elseif tileIndex==1 then
+	elseif tileIndex==trackTileTypes.startback then
+		mset(u,v,trackTileTypes.SmoothTile)
 		return SmoothTile(), vec2(u+1.5,v+1.5)
-	elseif tileIndex==2 then
+	elseif tileIndex==trackTileTypes.startfront then
+		mset(u,v,trackTileTypes.SmoothTile)
 		self.startPos = vec2(u+1.5,v+1.5)
 		return SmoothTile()
-	elseif tileIndex==3 then
+	elseif tileIndex==trackTileTypes.SmoothTile then
 		return SmoothTile()
-	elseif tileIndex==4 then
+	elseif tileIndex==trackTileTypes.SolidTile then
 		return SolidTile()
-	elseif tileIndex==5 then
+	elseif tileIndex==trackTileTypes.BoostTile then
 		return BoostTile()
-	elseif tileIndex==6 then
+	elseif tileIndex==trackTileTypes.item then
+		mset(u,v,trackTileTypes.SmoothTile)
 		self.itemBoxPositions:insert(vec3(u+1.5, v+1.5,0))
 		return SmoothTile()
 	end
---trace("unknown tile at "..u..", "..v.." has "..r..', '..g..', '..b)
+	trace("unknown tile at "..u..", "..v.." has "..tileIndex)
 	return SmoothTile()
 end
 
@@ -1025,10 +1036,10 @@ function Track:draw(viewMatrix)
 
 --	gl.glEnable(gl.GL_DEPTH_TEST)
 
-	-- [[ draw the track as tilemap 
+	-- [[ draw the track as tilemap
 	matpush()
-	matscale(1/16,1/16,1/16)
-	map(0,0,256,256,0,0)
+	matscale(1/8, 1/8, 1/8)
+	map(0, 0, track.size[1], track.size[2], 0, 0)
 	matpop()
 	--]]
 
@@ -1073,12 +1084,16 @@ function Kart:init(args)
 	local kartSpacing = 2
 	local dx = ((args.startIndex % 2) - .5) * 2 * kartSpacing
 	local dy = (args.startIndex + 1) * kartSpacing
+trace('game.track.startPos', game.track.startPos)
+trace('game.track.startDir', game.track.startDir)
 	self.pos = vec3(
 		game.track.startPos[1] - game.track.startDir[1] * dy + game.track.startDir[2] * dx,
 		game.track.startPos[2] - game.track.startDir[2] * dy - game.track.startDir[1] * dx,
 		0)
 	self.pos[3] = game.track:getZ(self.pos[1], self.pos[2])
+--DEBUG:trace('kart.pos', self.pos)
 	self.dir = vec3(game.track.startDir[1], game.track.startDir[2], 0)	-- cart fwd dir
+--DEBUG:trace('kart.dir', self.dir)
 	self.lookDir = vec3(self.dir[1], self.dir[2], self.dir[3])	-- follow camera fwd dir
 	self.vel = vec3(0,0,0)
 	self.surfaceNormal = game.track:getNormal(self.pos[1], self.pos[2])
@@ -1107,7 +1122,7 @@ end
 function Kart:clientInputUpdate()
 	local inputBrake = self.inputBrake
 	if self.handToFootFlip then inputBrake = self.inputGas end
---[[		
+--[[
 	if inputBrake or self.inputJumpDrift then
 		if not self.brakeAudioSource.isPlaying then
 			self.brakeAudioSource.isPlaying = true
@@ -1124,10 +1139,10 @@ end
 
 function Kart:setupClientView(aspectRatio)
 	matident()
-	
+
 	--local n=.1
 	local n=1
-	local f=150
+	local f=128
 	matfrustum(-n,n,-n,n,n,f)
 
 	-- [[
@@ -1234,7 +1249,7 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 		matscale(1/32,1/32,1/32)
 		-- undo camera viewAngle to make a billboard
 		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
-		matrot(math.rad(-60), 1, 0, 0)
+		matrot(math.rad(-70), 1, 0, 0)
 		local angleNorm = (-(viewAngle - kartAngle) / math.pi) % 2
 		local scaleX = 1
 		if angleNorm > 1 then
@@ -1611,10 +1626,10 @@ Kart.colorSprayEndTime = -9
 function Kart:colorSpray()
 	-- only refresh the start time if the interval has already completed
 	if self.colorSprayEndTime < game.time then
---[[	
+--[[
 		self.effectAudioSource:setBuffer(dizzySound)
 		self.effectAudioSource:play()
---]]		
+--]]
 		self.colorSprayStartTime = game.time
 	end
 	self.colorSprayEndTime = game.time + 30
@@ -1663,7 +1678,7 @@ Kart.lap = 0
 
 function Kart:update(dt)
 --	recording:update()	-- enable to record track nodes
-
+--DEBUG:trace('kart.pos', self.pos)
 	local track = game.track
 
 	if track.nodes then
@@ -1744,22 +1759,29 @@ function Kart:update(dt)
 		rot2d(self.dir, costh, sinth, self.dir)
 
 		local invlen = 1 / self.dir:length()
+--DEBUG:trace('spinning out before dir=', self.dir)
 		self.dir[1] = self.dir[1] * invlen
 		self.dir[2] = self.dir[2] * invlen
 		self.dir[3] = self.dir[3] * invlen
+--DEBUG:trace('spinning out after dir=', self.dir)
 	end
 
 	-- after dir influences, recorrect to surface normal
 	if self.onground then
+--DEBUG:trace('self.surfaceNormal', self.surfaceNormal)
 		local dirDotNormal = vec3.dot(self.dir, self.surfaceNormal)
+--DEBUG:trace('dirDotNormal', dirDotNormal)
+--DEBUG:trace('ongroundA before dir=', self.dir)
 		self.dir[1] = self.dir[1] - self.surfaceNormal[1] * dirDotNormal
 		self.dir[2] = self.dir[2] - self.surfaceNormal[2] * dirDotNormal
 		self.dir[3] = self.dir[3] - self.surfaceNormal[3] * dirDotNormal
+--DEBUG:trace('ongroundA before2 dir=', self.dir)
 
 		local invlen = 1 / self.dir:length()
 		self.dir[1] = self.dir[1] * invlen
 		self.dir[2] = self.dir[2] * invlen
 		self.dir[3] = self.dir[3] * invlen
+--DEBUG:trace('ongroundA after dir=', self.dir)
 	end
 
 	-- spinning items stopped
@@ -1806,7 +1828,7 @@ function Kart:update(dt)
 		forceX = forceX + self.dir[1] * boostForce
 		forceY = forceY + self.dir[2] * boostForce
 		forceZ = forceZ + self.dir[3] * boostForce
-		--trace('forceZ after boost',forceZ)
+--DEBUG:trace('forceZ after boost',forceZ)
 	end
 
 	if self.onground and not spinningOut then
@@ -1816,7 +1838,7 @@ function Kart:update(dt)
 			forceX = forceX + self.dir[1] * self.gasForce
 			forceY = forceY + self.dir[2] * self.gasForce
 			forceZ = forceZ + self.dir[3] * self.gasForce
-			--trace('forceZ after gas',forceZ)
+--DEBUG:trace('forceZ after gas',forceZ)
 		end
 	end
 
@@ -1835,24 +1857,24 @@ function Kart:update(dt)
 		local airDensity = 1.184	-- kg/m^3 at temperature 77 degrees F
 		local airDragCoeff = 0		-- unitless.  .5 is for a car
 		local airReferenceArea = 1	-- in m^2
-		--trace('dragForce',dragForce)
+--DEBUG:trace('dragForce',dragForce)
 		local speed = self.vel:length()
 		local dragPerSpeedMagn = .5 * airDensity * speed * (airDragCoeff * airReferenceArea + groundDragCoeff * groundDragArea)
 		forceX = forceX - self.vel[1] * dragPerSpeedMagn
 		forceY = forceY - self.vel[2] * dragPerSpeedMagn
 		forceZ = forceZ - self.vel[3] * dragPerSpeedMagn
-		--trace('forceZ after drag',forceZ)
+--DEBUG:trace('forceZ after drag',forceZ)
 	end
 
 	-- integrate force without friction
 	-- but keep the force vector around for determining friction
-	--trace('total integrated force',force)
-	--trace('vel before integration before friction',self.vel)
+--DEBUG:trace('total integrated force',force)
+--DEBUG:trace('vel before integration before friction',self.vel)
 	self.vel[1] = self.vel[1] + forceX * (dt / self.mass)
 	self.vel[2] = self.vel[2] + forceY * (dt / self.mass)
 	self.vel[3] = self.vel[3] + forceZ * (dt / self.mass)
 
-	--trace('vel after integration before friction',self.vel)
+--DEBUG:trace('vel after integration before friction',self.vel)
 
 --[[ fake friction?
 	if self.onground then
@@ -1914,37 +1936,43 @@ function Kart:update(dt)
 			-- this shouldn't happen ... if it does, do we zero the force or do we ignore friction?
 			if forceIntoNormal < 0 then forceIntoNormal = 0 end
 
-			--trace('forceIntoNormal',forceIntoNormal)
-			--trace('frictionCoeff',frictionCoeff)
+--DEBUG:trace('forceIntoNormal',forceIntoNormal)
+--DEBUG:trace('frictionCoeff',frictionCoeff)
 
-			-- not used except for printing
 			local speed = self.vel:length()
+--DEBUG:trace('speed', speed)
 			local frictionForceWithoutCoeffX = -self.vel[1] * forceIntoNormal / speed
 			local frictionForceWithoutCoeffY = -self.vel[2] * forceIntoNormal / speed
 			local frictionForceWithoutCoeffZ = -self.vel[3] * forceIntoNormal / speed
-			local frictionForceFwdMagn = frictionForceWithoutCoeffX * self.dir[1] + frictionForceWithoutCoeffY * self.dir[2] + frictionForceWithoutCoeffZ * self.dir[3]
-			local frictionForceLeftMagn = frictionForceWithoutCoeffX * leftX + frictionForceWithoutCoeffY * leftY + frictionForceWithoutCoeffZ * leftZ
-
-			--trace('friction force (w/o coeff) forward',frictionForceFwdMagn,'left',frictionForceLeftMagn)
+--DEBUG:trace('self.dir', self.dir)
+			local frictionForceFwdMagn =
+				  frictionForceWithoutCoeffX * self.dir[1]
+				+ frictionForceWithoutCoeffY * self.dir[2]
+				+ frictionForceWithoutCoeffZ * self.dir[3]
+			local frictionForceLeftMagn =
+				  frictionForceWithoutCoeffX * leftX
+				+ frictionForceWithoutCoeffY * leftY
+				+ frictionForceWithoutCoeffZ * leftZ
+--DEBUG:trace('friction force (w/o coeff) forward',frictionForceFwdMagn,'left',frictionForceLeftMagn)
 
 			local frictionImpulseFwdMagn = frictionForceFwdMagn * frictionCoeff * (dt / self.mass)
 			local frictionImpulseLeftMagn = frictionForceLeftMagn * (frictionCoeff + 10) * (dt / self.mass)
-			--trace('friction impulse forward',frictionImpulseFwdMagn,'left',frictionImpulseLeftMagn)
+--DEBUG:trace('friction impulse forward',frictionImpulseFwdMagn,'left',frictionImpulseLeftMagn)
 
-			--trace('surface normal',self.surfaceNormal)
+--DEBUG:trace('surface normal',self.surfaceNormal)
 
 			-- decompose velocity into direction basis
 
 			local velFwdMagn = vec3.dot(self.vel, self.dir)
 			local velLeftMagn = self.vel[1] * leftX + self.vel[2] * leftY + self.vel[3] * leftZ
 			local velUpMagn = vec3.dot(self.vel, self.surfaceNormal)
-			--trace('vel forward', velFwdMagn, 'left', velLeftMagn,'up',velUpMagn)
+--DEBUG:trace('vel forward', velFwdMagn, 'left', velLeftMagn,'up',velUpMagn)
 
 			local restingVelocityThreshold = .1
 
 			local newVelFwdMagn
 			if math.abs(velFwdMagn) < restingVelocityThreshold then
-				--trace('|vel fwd| == '..velFwdMagn..' < resting threshold')
+--DEBUG:trace('|vel fwd| == '..velFwdMagn..' < resting threshold')
 				newVelFwdMagn = 0
 			elseif velFwdMagn > 0 then
 				newVelFwdMagn = velFwdMagn + frictionImpulseFwdMagn
@@ -1956,7 +1984,7 @@ function Kart:update(dt)
 
 			local newVelLeftMagn
 			if math.abs(velLeftMagn) < restingVelocityThreshold then
-				--trace('|vel left| == '..velLeftMagn..' < resting threshold')
+--DEBUG:trace('|vel left| == '..velLeftMagn..' < resting threshold')
 				newVelLeftMagn = 0
 			elseif velLeftMagn > 0 then
 				newVelLeftMagn = velLeftMagn + frictionImpulseLeftMagn
@@ -1976,25 +2004,28 @@ function Kart:update(dt)
 			local newVelUpMagn = velUpMagn
 			if newVelUpMagn < 0 then newVelUpMagn = 0 end
 
-			--trace('new vel forward',newVelFwdMagn,'left',newVelLeftMagn,'up',newVelUpMagn)
+--DEBUG:trace('new vel forward',newVelFwdMagn,'left',newVelLeftMagn,'up',newVelUpMagn)
 
 			self.vel[1] = leftX * newVelLeftMagn + self.dir[1] * newVelFwdMagn + self.surfaceNormal[1] * newVelUpMagn
 			self.vel[2] = leftY * newVelLeftMagn + self.dir[2] * newVelFwdMagn + self.surfaceNormal[2] * newVelUpMagn
 			self.vel[3] = leftZ * newVelLeftMagn + self.dir[3] * newVelFwdMagn + self.surfaceNormal[3] * newVelUpMagn
-			--trace('post friction new vel',self.vel)
+--DEBUG:trace('post friction new vel',self.vel)
 		else
 			self.vel[1], self.vel[2], self.vel[3] = 0, 0, 0
 		end
 	end
 --]]
 
-	--trace('vel after friction',self.vel)
+--DEBUG:trace('vel after friction',self.vel)
 
 	-- integrate position
 	local newposX = self.pos[1] + self.vel[1] * dt
 	local newposY = self.pos[2] + self.vel[2] * dt
 	local newposZ = self.pos[3] + self.vel[3] * dt
-
+--DEBUG:trace('dt', dt)
+--DEBUG:trace('vel', self.vel)
+--DEBUG:trace('newpos', newposX, newposY, newposZ)
+--[[
 	-- check for collisions with world
 	do
 		local solid = false
@@ -2013,6 +2044,7 @@ function Kart:update(dt)
 			tileBounceVel(ix, iy, self.pos, self.vel, nil, self.vel)
 		end
 	end
+--]]
 
 	-- check for ground contact
 	do
@@ -2038,23 +2070,29 @@ function Kart:update(dt)
 			-- and if we got a new surface normal then readjust our pitch
 			if self.onground then
 				local dirDotNormal = vec3.dot(self.dir, self.surfaceNormal)
+--DEBUG:trace('ongroundB before dir=', self.dir)
 				self.dir[1] = self.dir[1] - self.surfaceNormal[1] * dirDotNormal
 				self.dir[2] = self.dir[2] - self.surfaceNormal[2] * dirDotNormal
 				self.dir[3] = self.dir[3] - self.surfaceNormal[3] * dirDotNormal
+--DEBUG:trace('ongroundB before2 dir=', self.dir)
 				local invlen = 1 / self.dir:length()
 				self.dir[1] = self.dir[1] * invlen
 				self.dir[2] = self.dir[2] * invlen
 				self.dir[3] = self.dir[3] * invlen
+--DEBUG:trace('ongroundB after dir=', self.dir)
 			end
 		else
+--DEBUG:trace('ongroundC before dir=', self.dir)
 			self.dir[3] = 0
 			local invlen = 1 / vec2.length(self.dir)
 			self.dir[1] = self.dir[1] * invlen
 			self.dir[2] = self.dir[2] * invlen
 			self.dir[3] = self.dir[3] * invlen
+--DEBUG:trace('ongroundC before dir=', self.dir)
 		end
 	end
 	self.pos[1], self.pos[2], self.pos[3] = newposX, newposY, newposZ
+--DEBUG:trace('setting pos', self.pos)
 
 	-- [[ jumping
 	if self.onground and self.inputJumpDrift and not self.lastInputJumpDrift then
@@ -2106,9 +2144,11 @@ function Kart:update(dt)
 		end
 
 		local invlen = 1 / self.dir:length()
+--DEBUG:trace('turning before dir', self.dir)
 		self.dir[1] = self.dir[1] * invlen
 		self.dir[2] = self.dir[2] * invlen
 		self.dir[3] = self.dir[3] * invlen
+--DEBUG:trace('turning after dir', self.dir)
 		invlen = self.lookDir:length()
 		self.lookDir[1] = self.lookDir[1] * invlen
 		self.lookDir[2] = self.lookDir[2] * invlen
@@ -2156,7 +2196,8 @@ local function sortKarts(ka,kb)
 end
 
 function Game:init()
-	self.time = -6
+	--self.time = -6	-- TODO lakitu etc
+	self.time = 0
 
 	local trackName = 'map1'
 	self.track = Track()
@@ -2217,6 +2258,8 @@ assert(cl)
 		end
 	end
 	--]]
+
+	return obj
 end
 
 function Game:update(dt)
@@ -2242,7 +2285,9 @@ function Game:update(dt)
 			local i=1
 			while i <= #self.objs do
 				local obj = self.objs[i]
-				if obj.update then obj:update(dt) end
+				if obj.update then
+					obj:update(dt)
+				end
 				if not obj.removed then
 					i=i+1
 				end
@@ -2270,7 +2315,7 @@ function Game:update(dt)
 				if posDiff:lenSq() < objSizes * objSizes then
 
 					-- collision!
-					if objA:isa(Kart) and objB:isa(Kart) then
+					if Kart:isa(objA) and Kart:isa(objB) then
 						local velDiff = objB.vel - objA.vel
 						local distSq = posDiff:lenSq()
 						local normal = vec3(0,0,1)
@@ -2283,19 +2328,20 @@ function Game:update(dt)
 						local restitution = 0
 						local vDotN = vec3.dot(velDiff, normal)
 
+--DEBUG:trace'BOUNCE'
 						objA.vel = objA.vel + normal * ((1 + restitution) * vDotN)
 						objB.vel = objB.vel - normal * ((1 + restitution) * vDotN)
 					else
 						local kart, other
-						if objA:isa(Kart) then
+						if Kart:isa(objA) then
 							kart = objA
 							other = objB
-						elseif objB:isa(Kart) then
+						elseif Kart:isa(objB) then
 							kart = objB
 							other = objA
 						end
 						if kart then
-							if other:isa(ItemBox) then
+							if ItemBox:isa(other) then
 								if other.respawnTime <= game.time then
 									other.respawnTime = game.time + 5
 									if not kart.item and not kart.gettingItem then
@@ -2307,7 +2353,7 @@ function Game:update(dt)
 								end
 							elseif other.spinsOutPlayerOnTouch then
 								kart:spinOut()
-								if other:isa(CloudKillObject) then
+								if CloudKillObject:isa(other) then
 									for i=1,3 do
 										kart.vel[i] = kart.vel[i] + (math.random() * 2 - 1) * 10
 									end
@@ -2317,12 +2363,19 @@ function Game:update(dt)
 									if other==objA then i=i-1 end
 									if other==objB then j=j-1 end
 								end
-							elseif other:isa(ColorSprayObject) then
+							elseif ColorSprayObject:isa(other) then
 								kart:colorSpray()
 							end
 						else
-							if (objA:isa(BananaObject) or objA:isa(GreenShellObject) or objA:isa(RedShellObject))
-							and (objB:isa(BananaObject) or objB:isa(GreenShellObject) or objB:isa(RedShellObject))
+							if (BananaObject:isa(objA)
+								or GreenShellObject:isa(objA)
+								or RedShellObject:isa(objA)
+							)
+							and (
+								BananaObject:isa(objB)
+								or GreenShellObject:isa(objB)
+								or RedShellObject:isa(objB)
+							)
 							then
 								objA:remove()
 								objB:remove()
@@ -2426,6 +2479,7 @@ update=[]do
 	end
 	game:update(fixedDeltaTime)
 	local windowWidth, windowHeight = 256, 256
+
 	cls(0xf0)
 	local divY = math.ceil(math.sqrt(#game.players))
 	local divX = math.ceil(#game.players / divY)
@@ -2441,5 +2495,19 @@ update=[]do
 		local aspectRatio = viewWidth / viewHeight
 		clip(viewX * windowWidth / divX, viewY * windowHeight / divY, viewWidth - 1, viewHeight - 1)
 		clientViewObj:drawScene(kart, aspectRatio, kartSprites)
+
+local r1 = ('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12])
+local r2 = ('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.mvMat[13])
+local r3 = ('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14])
+local r4 = ('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15])
+
+		matident()
+		text('pos:'..kart.pos, 0, 0, 0xfc, -1)
+		text('vel:'..kart.vel, 0, 8, 0xfc, -1)
+		text('dir:'..kart.dir, 0, 16, 0xfc, -1)
+		text(r1, 0, 32, 0xfc, -1)
+		text(r2, 0, 40, 0xfc, -1)
+		text(r3, 0, 48, 0xfc, -1)
+		text(r4, 0, 56, 0xfc, -1)
 	end
 end
