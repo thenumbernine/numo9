@@ -1094,7 +1094,7 @@ void main() {
 		vec2 radius = .5 * box.zw;
 		vec2 center = box.xy + radius;
 		vec2 delta = pcv - center;
-		//if (box.w < box.z) {					// idk why I was using this? 
+		//if (box.w < box.z) {					// idk why I was using this?
 		if (abs(delta.y) > abs(delta.x)) {		// good for doing proper ellipse borders.
 			// top/bottom quadrant
 			float by = radius.y * sqrt(1. - sqr(delta.x / radius.x));
@@ -1130,7 +1130,7 @@ void main() {
 			float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
 			//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
 			//float eps = max(abs(dFdx(pcv.x)), abs(dFdy(pcv.y)));
-			
+
 			if (pcv.x > box.x+eps
 				&& pcv.x < box.x+box.z-eps
 				&& pcv.y > box.y+eps
@@ -2174,6 +2174,9 @@ end
 
 function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 	self:mvMatFromRAM()
+	-- typically y+ is up, but in the 90s console era y- is up
+	-- also flip x+ since OpenGL uses a RHS but I want to preserve orientation of our renderer when looking down from above, so we use a LHS
+	self.mvMat:applyScale(-1, -1, 1)
 	self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 	self:mvMatToRAM()
 end

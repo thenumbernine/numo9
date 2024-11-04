@@ -33,8 +33,8 @@ for i=1,10 do
 	}
 end
 local player = karts[1]
-player.x = 10
-player.y = 10
+player.x = 0
+player.y = 0
 player.angle = 0
 viewAngle=0
 update=[]do
@@ -43,7 +43,7 @@ update=[]do
 	local zo = 10
 	local viewDist = 2
 	local viewAlt = 2
-	
+
 	local viewAngle = player.angle
 	local fwdx = math.cos(viewAngle)
 	local fwdy = math.sin(viewAngle)
@@ -55,34 +55,74 @@ update=[]do
 	--[[ ortho
 	matortho(-zo,zo,-zo,zo)
 	--]]
-	-- [[ frustum
+	-- [==[ frustum
 	--projection
 	matfrustum(-zn, zn, -zn, zn, zn, zf)
-	
-	local tiltUpAngle = 70	
-	-- [=[ using explicit inverse rotate/translate
+	-- go from lhs to rhs coord system (??) since usu x+ is right and y+ is *DOWN* ... maybe I should be putting this in matfrustum?
+	-- this is to match opengl convention, but I don't think I'll move it into the numo9 API since I want frustum to match the numo9 y+ down 90s-console convention
+	matscale(-1, 1, 1)
+
+--[[
+8388608, 0, 0, 8388608
+0, 8388608, 0, 8388608
+0, 0, -66859, -132395
+0, 0, -65536, 0
+--]]
+
+	local tiltUpAngle = 70
+	--[=[ using explicit inverse rotate/translate
 	-- inverse-rotate
 		-- rot on x axis so now x+ is right and y+ is forward
 		-- by default the view is looking along the z axis , and I'm using XY as my drawing coordinates (cuz that's what the map() and spr() use), so Z is up/down by the renderer.
 		-- so I have to tilt up to look along the Y+ plane
-	matrot(math.rad(tiltUpAngle), 1, 0, 0)	
+	matrot(math.rad(tiltUpAngle), 1, 0, 0)
 		-- inv-rot by our viewAngle around
 		-- add an extra rot of 90' on z axis to put x+ forward.  now we can use exp(i*viewAngle) for our forward vector.
 	matrot(-(viewAngle + .5*math.pi), 0, 0, 1)
 	-- inverse-translate
 	mattrans(-viewX, -viewY, -viewZ)
+--[[
+tilUpAngle = 70:
+0, -8388608, 0, 8388608
+-2869073, 0, -7882713, 18415888
+62826, 0, -22867, 38991
+61583, 0, -22414, 167994
+
+tiltUpAngle = 90:
+0, -8388608, 0, 8388608
+0, 0, -8388608, 25165824
+66859, 0, 0, 1323
+65536, 0, 0, 131072
+--]]
 	--]=]
-	--[=[ using matlookat
+	-- [=[ using matlookat
 	matlookat(
 		viewX, viewY, viewZ,
-		viewX + fwdx * math.sin(math.rad(tiltUpAngle)), viewY + fwdy * math.sin(math.rad(tiltUpAngle)), math.cos(math.rad(tiltUpAngle)),	-- TODO pick a 60' slope to match above
+		viewX + fwdx * math.sin(math.rad(tiltUpAngle)),
+			viewY + fwdy * math.sin(math.rad(tiltUpAngle)),
+			viewZ - math.cos(math.rad(tiltUpAngle)),	-- TODO pick a 60' slope to match above
 		0, 0, 1
 	)
+--[[[
+tiltUpAngle = 70:
+0, -8388608, 0, 8388608
+-2869073, 0, -7882713, 18415888
+62826, 0, -22867, 38993
+61583, 0, -22414, 167996
+
+tiltUpAngle = 90:
+0, -8388608, 0, 8388608
+0, 0, -8388608, 25165824
+66859, 0, 0, 1323
+65536, 0, 0, 131072
+--]]
+
 	--]=]
+	-- then per-model:
 	-- modelspace translate
 	-- modelspace rotate
-	--]]
-	
+	--]==]
+
 	--[[ should be centered in [-10,10]^2 ortho or in FOV=45' at z=10 frustum
 	ellib(-5,-5,10,10,0xfc)
 	rectb(-5,-5,10,10,0xfc)
@@ -117,7 +157,7 @@ update=[]do
 	-- [[ draw bilboard sprite
 	for _,kart in ipairs(karts) do
 		matpush()
-		mattrans(kart.x,kart.y,0)
+		mattrans(kart.x,kart.y, 0)
 		matscale(1/32,1/32,1/32)
 
 		-- undo camera viewAngle to make a billboard
@@ -151,9 +191,9 @@ update=[]do
 		player.y -= spd * fwdy
 	end
 	if btn(2) then
-		player.angle-=rot
+		player.angle+=rot
 	end
 	if btn(3) then
-		player.angle+=rot
+		player.angle-=rot
 	end
 end
