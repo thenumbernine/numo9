@@ -1102,10 +1102,11 @@ void main() {
 			if (borderOnly) {
 				// TODO think this through
 				// calculate screen space epsilon at this point
-				float eps = abs(dFdy(pcv.y));
+				//float eps = abs(dFdy(pcv.y));
 				// more solid for 3D
-				//float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
+				float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
 				//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
+				//float eps = max(abs(dFdx(pcv.x)),abs(dFdy(pcv.y)));
 				if (delta.y < by-eps && delta.y > -by+eps) discard;
 			}
 		} else {
@@ -1114,25 +1115,26 @@ void main() {
 			if (delta.x > bx || delta.x < -bx) discard;
 			if (borderOnly) {
 				// calculate screen space epsilon at this point
-				float eps = abs(dFdx(pcv.x));
+				//float eps = abs(dFdx(pcv.x));
 				// more solid for 3D
-				//float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
+				float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
 				//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
+				//float eps = max(abs(dFdx(pcv.x)),abs(dFdy(pcv.y)));
 				if (delta.x < bx-eps && delta.x > -bx+eps) discard;
 			}
 		}
 	} else {
 		if (borderOnly) {
 			// calculate screen space epsilon at this point
-			vec2 eps = abs(vec2(dFdx(pcv.x), dFdy(pcv.y)));
-			//float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
+			//vec2 eps = abs(vec2(dFdx(pcv.x), dFdy(pcv.y)));
+			float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
 			//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
 			//float eps = max(abs(dFdx(pcv.x)), abs(dFdy(pcv.y)));
 			
-			if (pcv.x > box.x+eps.x
-				&& pcv.x < box.x+box.z-eps.x
-				&& pcv.y > box.y+eps.y
-				&& pcv.y < box.y+box.w-eps.y
+			if (pcv.x > box.x+eps
+				&& pcv.x < box.x+box.z-eps
+				&& pcv.y > box.y+eps
+				&& pcv.y < box.y+box.w-eps
 			) discard;
 		}
 		// else default solid rect
