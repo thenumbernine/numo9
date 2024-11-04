@@ -1080,6 +1080,8 @@ uniform vec4 drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
 
+float lenSq(vec2 v) { return dot(v,v); }
+
 void main() {
 	if (round) {
 		// midpoint-circle / Bresenham algorithm, like Tic80 uses:
@@ -1098,9 +1100,13 @@ void main() {
 			float by = radius.y * sqrt(1. - sqr(delta.x / radius.x));
 			if (delta.y > by || delta.y < -by) discard;
 			if (borderOnly) {
+				// TODO think this through
 				// calculate screen space epsilon at this point
-				float epsy = dFdy(pcv.y);
-				if (delta.y < by-epsy && delta.y > -by+epsy) discard;
+				float eps = abs(dFdy(pcv.y));
+				// more solid for 3D
+				//float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
+				//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
+				if (delta.y < by-eps && delta.y > -by+eps) discard;
 			}
 		} else {
 			// left/right quadrant
@@ -1108,14 +1114,20 @@ void main() {
 			if (delta.x > bx || delta.x < -bx) discard;
 			if (borderOnly) {
 				// calculate screen space epsilon at this point
-				float epsx = dFdx(pcv.x);
-				if (delta.x < bx-epsx && delta.x > -bx+epsx) discard;
+				float eps = abs(dFdx(pcv.x));
+				// more solid for 3D
+				//float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
+				//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
+				if (delta.x < bx-eps && delta.x > -bx+eps) discard;
 			}
 		}
 	} else {
 		if (borderOnly) {
 			// calculate screen space epsilon at this point
-			vec2 eps = vec2(dFdx(pcv.x), dFdy(pcv.y));
+			vec2 eps = abs(vec2(dFdx(pcv.x), dFdy(pcv.y)));
+			//float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
+			//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
+			//float eps = max(abs(dFdx(pcv.x)), abs(dFdy(pcv.y)));
 			
 			if (pcv.x > box.x+eps.x
 				&& pcv.x < box.x+box.z-eps.x
