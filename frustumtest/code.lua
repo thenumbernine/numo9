@@ -17,6 +17,19 @@ local matpop=[]do
 	end
 end
 
+local range=[a,b,c]do
+	local t = table()
+	if c then
+		for x=a,b,c do t:insert(x) end
+	elseif b then
+		for x=a,b do t:insert(x) end
+	else
+		for x=1,a do t:insert(x) end
+	end
+	return t
+end
+
+
 -- divided into 180'.  flip the sprite to get the other 180'
 local angleForIndex = {
 	0, 4, 8, 12,
@@ -155,7 +168,10 @@ tiltUpAngle = 90:
 	--]]
 
 	-- [[ draw bilboard sprite
-	for _,kart in ipairs(karts) do
+	local depths = karts:mapi([kart]((kart.x - viewX) * fwdx + (kart.y - viewY) * fwdy))
+	local order = range(#karts):sort([a,b] depths[a] > depths[b])
+	for _,i in ipairs(order) do
+		local kart = karts[i]
 		matpush()
 		mattrans(kart.x,kart.y, 0)
 		matscale(1/32,1/32,1/32)
