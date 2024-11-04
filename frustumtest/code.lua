@@ -31,7 +31,7 @@ end
 
 
 -- divided into 180'.  flip the sprite to get the other 180'
-local angleForIndex = {
+local spriteIndexForAngle = {
 	0, 4, 8, 12,
 	128+0, 128+4, 128+8, 128+12,
 	256+0, 256+4, 256+8, 256+12,
@@ -50,6 +50,11 @@ player.x = 0
 player.y = 0
 player.angle = 0
 viewAngle=0
+
+-- true = y+ goes on the left, and the tilemap looks like it does in the editor
+-- false = y+ goes on the right, and the tilemap looks flipped
+spaceRHS=true
+
 update=[]do
 	cls()
 	local zn, zf = 1, 100
@@ -73,7 +78,9 @@ update=[]do
 	matfrustum(-zn, zn, -zn, zn, zn, zf)
 	-- go from lhs to rhs coord system (??) since usu x+ is right and y+ is *DOWN* ... maybe I should be putting this in matfrustum?
 	-- this is to match opengl convention, but I don't think I'll move it into the numo9 API since I want frustum to match the numo9 y+ down 90s-console convention
-	matscale(-1, 1, 1)
+	if spaceRHS then
+		matscale(-1, 1, 1)
+	end
 
 --[[
 8388608, 0, 0, 8388608
@@ -190,14 +197,14 @@ tiltUpAngle = 90:
 		else
 			mattrans(-16, -32, 0)
 		end
-		local spriteIndex = angleForIndex[math.floor(angleNorm * #angleForIndex) + 1]
+		local spriteIndex = spriteIndexForAngle[math.floor(angleNorm * #spriteIndexForAngle) + 1]
 		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
 		matpop()
 	end
 	--]]
 
 	local spd = .2
-	local rot = .03
+	local rot = spaceRHS and .03 or -.03
 	if btn(0) then
 		player.x += spd * fwdx
 		player.y += spd * fwdy

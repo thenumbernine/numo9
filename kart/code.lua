@@ -69,7 +69,8 @@ vec2=class{
 			end
 		end
 	end,
-	volume=[v]v[1]*v[2],
+	unpack=[v](v[1],v[2]),
+	product=[v]v[1]*v[2],
 	map=[v,f]do
 		v[1]=f(v[1],1)
 		v[2]=f(v[2],2)
@@ -118,7 +119,8 @@ vec3=class{
 			end
 		end
 	end,
-	volume=[v]v[1]*v[2]*v[3],
+	unpack=[v](v[1],v[2],v[3]),
+	product=[v]v[1]*v[2]*v[3],
 	map=[v,f]do
 		v[1]=f(v[1],1)
 		v[2]=f(v[2],2)
@@ -283,6 +285,7 @@ function Object:draw(viewMatrix)
 	local viewRight = viewMatrix[2]
 	local viewUp = viewMatrix[3]
 
+	--[[
 	local so = spriteSceneObj
 	so.texs[1] = self.tex
 	so.uniforms.viewFwd = viewFwd
@@ -294,17 +297,33 @@ function Object:draw(viewMatrix)
 	so.uniforms.billboardOffset = {0, 0}
 	so.uniforms.mvProjMat = view.mvProjMat.ptr
 	so:draw()
+	--]]
 
--- [[ temp
-matpush()
-mattrans(pos:unpack())
-matscale(1/16,1/16,1/16)
---matrot(angle, 0, 0, 1)	-- TODO inv rot to counteract view transform
-matrot(math.rad(-60), 1, 0, 0)
-mattrans(-16, -32, 0)
-spr(0,0,0,4,4)
-matpop()
---]]
+	-- [[
+	do
+		-- TODO how to calculate this
+local viewAngle = math.atan2(viewFwd[2], viewFwd[1])
+local kartAngle = math.atan2(self.dir[2], self.dir[1])
+		matpush()
+		mattrans(self.pos:unpack())
+		matscale(1/32,1/32,1/32)
+		-- undo camera viewAngle to make a billboard
+		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
+		matrot(math.rad(-60), 1, 0, 0)
+		local angleNorm = (-(viewAngle - kartAngle) / math.pi) % 2
+		local scaleX = 1
+		if angleNorm > 1 then
+			angleNorm = 2 - angleNorm
+			scaleX = -1
+			mattrans(16, -32, 0)
+		else
+			mattrans(-16, -32, 0)
+		end
+		local spriteIndex = spriteIndexForAngle[math.floor(angleNorm * #spriteIndexForAngle) + 1]
+		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
+		matpop()
+	end
+	--]]
 end
 
 function Object:drawShutdown()
@@ -992,10 +1011,6 @@ function Track:getNormal(x, y, n)
 end
 
 function Track:draw(viewMatrix)
-cls(0)
-matident()
-matortho(-1, 1, -1, 1, -1, 1)
-
 	-- draw sky
 --	gl.glDisable(gl.GL_DEPTH_TEST)
 	local viewTheta = -math.atan2(viewMatrix[1][2], viewMatrix[1][1])
@@ -1010,27 +1025,14 @@ matortho(-1, 1, -1, 1, -1, 1)
 
 --	gl.glEnable(gl.GL_DEPTH_TEST)
 
--- [[ working demo ... TODO fix the rest of this
-clip()
+	-- [[ draw the track as tilemap 
+	matpush()
+	matscale(1/16,1/16,1/16)
+	map(0,0,256,256,0,0)
+	matpop()
+	--]]
 
-local zn, zf = 1, 100
-local zo = 10
-local posx,posy,angle = 10,10,0
-matident()
-matfrustum(-zn, zn, -zn, zn, zn, zf)	-- projection
-matrot(math.rad(60), 1, 0, 0)			-- view inv angle
-matrot(-angle, 0, 0, 1)					-- view inv angle
-mattrans(-posx,-posy,-3)				-- view inv pos
-
-matpush()
-matscale(1/16,1/16,1/16)
-map(0,0,256,256,0,0,nil,true)
-matpop()
---]]
-
-do return end
-
-	-- draw starting line
+	--[[ draw starting line
 	gl.glDisable(gl.GL_CULL_FACE)
 	local so = self.startingLineSceneObj
 	so.uniforms.length = math.ceil((self.startingLineLeftPos - self.startingLineRightPos):length())
@@ -1040,6 +1042,7 @@ do return end
 	so.uniforms.mvProjMat = view.mvProjMat.ptr
 	so:draw()
 	gl.glEnable(gl.GL_CULL_FACE)
+	--]]
 
 	--[[ debug grid
 	gl.glColor3f(0,1,0)
@@ -1122,7 +1125,8 @@ end
 function Kart:setupClientView(aspectRatio)
 	matident()
 	
-	local n=.1
+	--local n=.1
+	local n=1
 	local f=150
 	matfrustum(-n,n,-n,n,n,f)
 
@@ -1131,7 +1135,11 @@ function Kart:setupClientView(aspectRatio)
 	local camVDist = 1.75
 	local camVLookDist = 1
 
-	local camPos = vec3(self.pos[1] - self.lookDir[1] * camHDist, self.pos[2] - self.lookDir[2] * camHDist, camVDist + self.pos[3])
+	local camPos = vec3(
+		self.pos[1] - self.lookDir[1] * camHDist,
+		self.pos[2] - self.lookDir[2] * camHDist,
+		self.pos[3] + camVDist
+	)
 	local camPosTrackZ = 1 + game.track:getZ(camPos[1], camPos[2])
 	camPos[3] = math.max(camPos[3], camPosTrackZ)	-- crashes when I replace it with a condition
 	local camLookAt = vec3(self.pos[1], self.pos[2], camPos[3] + (camVLookDist - camVDist))
@@ -1144,9 +1152,28 @@ function Kart:setupClientView(aspectRatio)
 	local x, y, z = self.pos[1] + self.lookDir[1] * 10, self.pos[2] + self.lookDir[2] * 10, self.pos[3] + self.lookDir[3] * 10
 	matlookat(x,y,z + 100, x,y,z, self.lookDir[1], self.lookDir[2], self.lookDir[3])
 	--]]
+
+--[[
+local zn, zf = 1, 100
+local zo = 10
+local posx,posy,angle = 10,10,0
+matident()
+matfrustum(-zn, zn, -zn, zn, zn, zf)	-- projection
+matrot(math.rad(60), 1, 0, 0)			-- view inv angle
+matrot(-angle, 0, 0, 1)					-- view inv angle
+mattrans(-posx,-posy,-3)				-- view inv pos
+--]]
+
 end
 
 Kart.drawRadius = .75
+
+-- divided into 180'.  flip the sprite to get the other 180'
+local spriteIndexForAngle = {
+	0, 4, 8, 12,
+	128+0, 128+4, 128+8, 128+12,
+	256+0, 256+4, 256+8, 256+12,
+}
 
 function Kart:drawInit()
 end
@@ -1195,6 +1222,32 @@ function Kart:draw(viewMatrix, kartSprites)
 	so.uniforms.billboardOffset = {0, .25}
 	so.uniforms.mvProjMat = view.mvProjMat.ptr
 	so:draw()
+	--]]
+
+	-- [[
+	do
+		-- TODO how to calculate this
+local viewAngle = math.atan2(viewFwd[2], viewFwd[1])
+local kartAngle = math.atan2(self.dir[2], self.dir[1])
+		matpush()
+		mattrans(self.pos:unpack())
+		matscale(1/32,1/32,1/32)
+		-- undo camera viewAngle to make a billboard
+		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
+		matrot(math.rad(-60), 1, 0, 0)
+		local angleNorm = (-(viewAngle - kartAngle) / math.pi) % 2
+		local scaleX = 1
+		if angleNorm > 1 then
+			angleNorm = 2 - angleNorm
+			scaleX = -1
+			mattrans(16, -32, 0)
+		else
+			mattrans(-16, -32, 0)
+		end
+		local spriteIndex = spriteIndexForAngle[math.floor(angleNorm * #spriteIndexForAngle) + 1]
+		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
+		matpop()
+	end
 	--]]
 
 	--[[ debug dir pointer
@@ -2386,7 +2439,7 @@ update=[]do
 		local viewWidth = windowWidth / divX
 		local viewHeight = windowHeight / divY
 		local aspectRatio = viewWidth / viewHeight
-		clip(viewX * windowWidth / divX, viewY * windowHeight / divY, viewWidth, viewHeight)
+		clip(viewX * windowWidth / divX, viewY * windowHeight / divY, viewWidth - 1, viewHeight - 1)
 		clientViewObj:drawScene(kart, aspectRatio, kartSprites)
 	end
 end
