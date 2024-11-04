@@ -1735,6 +1735,7 @@ function AppVideo:drawSolidRect(
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 
+self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = math.floor(colorIndex or 0)
 	uniforms.borderOnly = borderOnly or false
@@ -1770,6 +1771,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	local sceneObj = self.triSolidObj
 	local uniforms = sceneObj.uniforms
 
+self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = math.floor(colorIndex)
 
@@ -1799,6 +1801,7 @@ function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	local sceneObj = self.lineSolidObj
 	local uniforms = sceneObj.uniforms
 
+self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.pos0, x1,y1,z1)
@@ -1920,6 +1923,7 @@ function AppVideo:drawQuad(
 	sceneObj.texs[1] = tex
 	sceneObj.texs[2] = palTex
 
+self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
@@ -2022,6 +2026,7 @@ function AppVideo:drawMap(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.mapTex
 
+self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 

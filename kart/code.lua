@@ -17,6 +17,33 @@ local matpop=[]do
 	end
 end
 
+--[[ not helping
+local projmat={}
+local function applyprojmat()
+	-- lhs mul the stored projmat
+	-- matrices are stored in column-major
+
+	local a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15 = projmat[1+0]/65536, projmat[1+1]/65536, projmat[1+2]/65536, projmat[1+3]/65536, projmat[1+4]/65536, projmat[1+5]/65536, projmat[1+6]/65536, projmat[1+7]/65536, projmat[1+8]/65536, projmat[1+9]/65536, projmat[1+10]/65536, projmat[1+11]/65536, projmat[1+12]/65536, projmat[1+13]/65536, projmat[1+14]/65536, projmat[1+15]/65536
+	local b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15 = ram.mvMat[0]/65536, ram.mvMat[1]/65536, ram.mvMat[2]/65536, ram.mvMat[3]/65536, ram.mvMat[4]/65536, ram.mvMat[5]/65536, ram.mvMat[6]/65536, ram.mvMat[7]/65536, ram.mvMat[8]/65536, ram.mvMat[9]/65536, ram.mvMat[10]/65536, ram.mvMat[11]/65536, ram.mvMat[12]/65536, ram.mvMat[13]/65536, ram.mvMat[14]/65536, ram.mvMat[15]/65536
+	ram.mvMat[0]		=65536*(a0  * b0  + a4  * b1  + a8  * b2  + a12 * b3)
+	ram.mvMat[4]		=65536*(a0  * b4  + a4  * b5  + a8  * b6  + a12 * b7)
+	ram.mvMat[8]		=65536*(a0  * b8  + a4  * b9  + a8  * b10 + a12 * b11)
+	ram.mvMat[12]		=65536*(a0  * b12 + a4  * b13 + a8  * b14 + a12 * b15)
+	ram.mvMat[1]		=65536*(a1  * b0  + a5  * b1  + a9  * b2  + a13 * b3)
+	ram.mvMat[5]		=65536*(a1  * b4  + a5  * b5  + a9  * b6  + a13 * b7)
+	ram.mvMat[9]		=65536*(a1  * b8  + a5  * b9  + a9  * b10 + a13 * b11)
+	ram.mvMat[13]		=65536*(a1  * b12 + a5  * b13 + a9  * b14 + a13 * b15)
+	ram.mvMat[2]		=65536*(a2  * b0  + a6  * b1  + a10 * b2  + a14 * b3)
+	ram.mvMat[6]		=65536*(a2  * b4  + a6  * b5  + a10 * b6  + a14 * b7)
+	ram.mvMat[10]		=65536*(a2  * b8  + a6  * b9  + a10 * b10 + a14 * b11)
+	ram.mvMat[14]		=65536*(a2  * b12 + a6  * b13 + a10 * b14 + a14 * b15)
+	ram.mvMat[3]		=65536*(a3  * b0  + a7  * b1  + a11 * b2  + a15 * b3)
+	ram.mvMat[7]		=65536*(a3  * b4  + a7  * b5  + a11 * b6  + a15 * b7)
+	ram.mvMat[11]		=65536*(a3  * b8  + a7  * b9  + a11 * b10 + a15 * b11)
+	ram.mvMat[15]		=65536*(a3  * b12 + a7  * b13 + a11 * b14 + a15 * b15)
+end
+--]]
+
 new=[cl,...]do
 	local o=setmetatable({},cl)
 	o?:init(...)
@@ -167,8 +194,8 @@ end
 -- TODO this is a byproduct of palette quantization after-the-fact.  plz go back to the original, and maybe also introduce tileindex-swapping into the tilemap editor.
 local trackTileTypes = {
 	SolidTile= 0,
-	startback = 1,
-	startfront = 2,
+	startback = 2,
+	startfront = 1,
 	item = 3,
 	SmoothTile= 4,
 	BoostTile = 5,
@@ -321,6 +348,7 @@ local viewAngle = math.atan2(viewFwd[2], viewFwd[1])
 		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
 		matrot(math.rad(-70), 1, 0, 0)
 		mattrans(-16, -32, 0)
+--applyprojmat()
 		spr(self.spriteIndex, 0, 0, 4, 4)
 		matpop()
 	end
@@ -1039,6 +1067,7 @@ function Track:draw(viewMatrix)
 	-- [[ draw the track as tilemap
 	matpush()
 	matscale(1/8, 1/8, 1/8)
+--applyprojmat()
 	map(0, 0, track.size[1], track.size[2], 0, 0)
 	matpop()
 	--]]
@@ -1142,8 +1171,26 @@ function Kart:setupClientView(aspectRatio)
 
 	--local n=.1
 	local n=1
-	local f=128
+	local f=256
+
+-- [[ this gets resolution issues the further from the origin we are
 	matfrustum(-n,n,-n,n,n,f)
+trace()
+trace('frustum:')
+trace(('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12]))
+trace(('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.mvMat[13]))
+trace(('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14]))
+trace(('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15]))
+--[=[ not helping
+for i=0,15 do
+	projmat[i+1] = ram.mvMat[i]
+end
+matident()
+--]=]
+--]]
+--[[ ortho works fine at all positions
+	matortho(-10,10,-10,10,-1000,1000)
+--]]
 
 	-- [[
 	local camHDist = 3
@@ -1260,6 +1307,7 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 			mattrans(-16, -32, 0)
 		end
 		local spriteIndex = spriteIndexForAngle[math.floor(angleNorm * #spriteIndexForAngle) + 1]
+--applyprojmat()
 		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
 		matpop()
 	end
