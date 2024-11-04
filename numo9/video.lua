@@ -1092,23 +1092,35 @@ void main() {
 		vec2 radius = .5 * box.zw;
 		vec2 center = box.xy + radius;
 		vec2 delta = pcv - center;
-		if (box.w < box.z) {	// TODO consider the mvMat transform ...
+		//if (box.w < box.z) {					// idk why I was using this? 
+		if (abs(delta.y) > abs(delta.x)) {		// good for doing proper ellipse borders.
 			// top/bottom quadrant
 			float by = radius.y * sqrt(1. - sqr(delta.x / radius.x));
 			if (delta.y > by || delta.y < -by) discard;
-			if (borderOnly && delta.y < by-1. && delta.y > -by+1.) discard;
+			if (borderOnly) {
+				// calculate screen space epsilon at this point
+				float epsy = dFdy(pcv.y);
+				if (delta.y < by-epsy && delta.y > -by+epsy) discard;
+			}
 		} else {
 			// left/right quadrant
 			float bx = radius.x * sqrt(1. - sqr(delta.y / radius.y));
 			if (delta.x > bx || delta.x < -bx) discard;
-			if (borderOnly && delta.x < bx-1. && delta.x > -bx+1.) discard;
+			if (borderOnly) {
+				// calculate screen space epsilon at this point
+				float epsx = dFdx(pcv.x);
+				if (delta.x < bx-epsx && delta.x > -bx+epsx) discard;
+			}
 		}
 	} else {
 		if (borderOnly) {
-			if (pcv.x > box.x+1.
-				&& pcv.x < box.x+box.z-1.
-				&& pcv.y > box.y+1.
-				&& pcv.y < box.y+box.w-1.
+			// calculate screen space epsilon at this point
+			vec2 eps = vec2(dFdx(pcv.x), dFdy(pcv.y));
+			
+			if (pcv.x > box.x+eps.x
+				&& pcv.x < box.x+box.z-eps.x
+				&& pcv.y > box.y+eps.y
+				&& pcv.y < box.y+box.w-eps.y
 			) discard;
 		}
 		// else default solid rect
