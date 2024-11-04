@@ -1975,7 +1975,7 @@ function AppVideo:drawSprite(
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
-	spriteIndex = math.floor(spriteIndex)
+	spriteIndex = math.floor(spriteIndex or 0)
 	local tx = spriteIndex % spriteSheetSizeInTiles.x
 	local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
 	self:drawQuad(
