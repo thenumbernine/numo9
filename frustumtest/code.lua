@@ -24,17 +24,34 @@ local angleForIndex = {
 	256+0, 256+4, 256+8, 256+12,
 }
 
-posx=10
-posy=10
-angle=0
+local karts = table()
+for i=1,10 do
+	karts:insert{
+		x = math.random()*20,
+		y = math.random()*20,
+		angle = math.random()*math.pi*2,
+	}
+end
+local player = karts[1]
+player.x = 10
+player.y = 10
+player.angle = 0
+viewAngle=0
 update=[]do
 	cls()
 	local zn, zf = 1, 100
 	local zo = 10
-	local fwdx = math.cos(angle)
-	local fwdy = math.sin(angle)
-	matident()
+	local viewDist = 2
+	local viewAlt = 2
 	
+	local viewAngle = player.angle
+	local fwdx = math.cos(viewAngle)
+	local fwdy = math.sin(viewAngle)
+	local viewX = player.x - viewDist * fwdx
+	local viewY = player.y - viewDist * fwdy
+	local viewZ = viewAlt
+
+	matident()
 	--[[ ortho
 	matortho(-zo,zo,-zo,zo)
 	--]]
@@ -42,20 +59,23 @@ update=[]do
 	--projection
 	matfrustum(-zn, zn, -zn, zn, zn, zf)
 	
+	local tiltUpAngle = 70	
 	-- [=[ using explicit inverse rotate/translate
 	-- inverse-rotate
 		-- rot on x axis so now x+ is right and y+ is forward
-	matrot(math.rad(60), 1, 0, 0)	
-		-- inv-rot by our angle around
-		-- add an extra rot of 90' on z axis to put x+ forward.  now we can use exp(i*angle) for our forward vector.
-	matrot(-(angle + .5*math.pi), 0, 0, 1)
+		-- by default the view is looking along the z axis , and I'm using XY as my drawing coordinates (cuz that's what the map() and spr() use), so Z is up/down by the renderer.
+		-- so I have to tilt up to look along the Y+ plane
+	matrot(math.rad(tiltUpAngle), 1, 0, 0)	
+		-- inv-rot by our viewAngle around
+		-- add an extra rot of 90' on z axis to put x+ forward.  now we can use exp(i*viewAngle) for our forward vector.
+	matrot(-(viewAngle + .5*math.pi), 0, 0, 1)
 	-- inverse-translate
-	mattrans(-posx,-posy,-3)
+	mattrans(-viewX, -viewY, -viewZ)
 	--]=]
 	--[=[ using matlookat
 	matlookat(
-		posx, posy, 3,
-		posx + fwdx, posy + fwdy, 0,	-- TODO pick a 60' slope to match above
+		viewX, viewY, viewZ,
+		viewX + fwdx * math.sin(math.rad(tiltUpAngle)), viewY + fwdy * math.sin(math.rad(tiltUpAngle)), math.cos(math.rad(tiltUpAngle)),	-- TODO pick a 60' slope to match above
 		0, 0, 1
 	)
 	--]=]
@@ -95,43 +115,45 @@ update=[]do
 	--]]
 
 	-- [[ draw bilboard sprite
-	matpush()
-	mattrans(13,10,0)
-	matscale(1/32,1/32,1/32)
+	for _,kart in ipairs(karts) do
+		matpush()
+		mattrans(kart.x,kart.y,0)
+		matscale(1/32,1/32,1/32)
 
-	-- undo camera angle to make a billboard
-	matrot(angle + .5 * math.pi, 0, 0, 1)
-	matrot(math.rad(-60), 1, 0, 0)
-	-- recenter
+		-- undo camera viewAngle to make a billboard
+		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
+		matrot(math.rad(-60), 1, 0, 0)
+		-- recenter
 
-	local angleNorm = (-angle / math.pi) % 2
-	local scaleX = 1
-	if angleNorm > 1 then
-		angleNorm = 2 - angleNorm
-		scaleX = -1
-		mattrans(16, -32, 0)
-	else
-		mattrans(-16, -32, 0)
+		local angleNorm = (-(viewAngle - kart.angle) / math.pi) % 2
+		local scaleX = 1
+		if angleNorm > 1 then
+			angleNorm = 2 - angleNorm
+			scaleX = -1
+			mattrans(16, -32, 0)
+		else
+			mattrans(-16, -32, 0)
+		end
+		local spriteIndex = angleForIndex[math.floor(angleNorm * #angleForIndex) + 1]
+		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
+		matpop()
 	end
-	local spriteIndex = angleForIndex[math.floor(angleNorm * #angleForIndex) + 1]
-	spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
-	matpop()
 	--]]
 
 	local spd = .2
 	local rot = .03
 	if btn(0) then
-		posx += spd * fwdx
-		posy += spd * fwdy
+		player.x += spd * fwdx
+		player.y += spd * fwdy
 	end
 	if btn(1) then
-		posx -= spd * fwdx
-		posy -= spd * fwdy
+		player.x -= spd * fwdx
+		player.y -= spd * fwdy
 	end
 	if btn(2) then
-		angle-=rot
+		player.angle-=rot
 	end
 	if btn(3) then
-		angle+=rot
+		player.angle+=rot
 	end
 end
