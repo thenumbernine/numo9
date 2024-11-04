@@ -509,7 +509,7 @@ function App:initGL()
 				scaleX = scaleX or 1
 				scaleY = scaleY or 1
 				-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
-				spriteIndex = math.floor(spriteIndex)
+				spriteIndex = math.floor(spriteIndex or 0)
 				local tx = spriteIndex % spriteSheetSizeInTiles.x
 				local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
 
@@ -1522,7 +1522,8 @@ print('run thread dead')
 			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM fbTex, but meh, it still won't change them.
 			self:setFBTex(self.fbMenuTex)
 
-			gl.glDisable(gl.GL_SCISSOR_TEST)
+			gl.glScissor(0,0,256,256)
+
 			-- [[
 			-- while we're here, start us off with the current fbTex contents
 			-- fbMenuTex is RGB, while fbTex can vary depending on the video mode, so I'll use the blitScreenObj to draw it

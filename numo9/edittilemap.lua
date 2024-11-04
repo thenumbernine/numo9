@@ -2,8 +2,12 @@ local ffi = require 'ffi'
 local gl = require 'gl'
 local math = require 'ext.math'
 local table = require 'ext.table'
+local assert = require 'ext.assert'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
+local clip = require 'clip'	-- clipboard support
+local Image = require 'image'
+local Quantize = require 'image.quantize_mediancut'
 
 local numo9_rom = require 'numo9.rom'
 local paletteSize = numo9_rom.paletteSize
@@ -14,6 +18,7 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapSize = numo9_rom.tilemapSize
+local unpackptr = require 'numo9.rom'.unpackptr
 
 -- used by fill
 local dirs = {
@@ -105,6 +110,7 @@ function EditTilemap:update()
 	x = x + 24
 
 	local tileBits = self.draw16Sprites and 4 or 3
+	local tileSize = bit.lshift(1, tileBits)
 
 	-- draw map
 	local mapX = 0
@@ -130,20 +136,20 @@ function EditTilemap:update()
 	end
 
 	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
-	app:drawQuad(
-		mapX, mapY,
-		mapWidth * self.scale, mapHeight * self.scale,
-		0, 0,
-		mapWidth/2, mapHeight/2,
-		app.checkerTex,
-		app.palMenuTex,
-		0, -1, 0xFF
-	)
-
+	
 	app:matident()
 	app:mattrans(mapX, mapY)
 	app:matscale(self.scale, self.scale)
 	app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
+
+	app:drawQuad(
+		-tileSize, -tileSize,
+		2*tileSize+bit.lshift(tilemapSize.x,tileBits), 2*tileSize+bit.lshift(tilemapSize.y, tileBits),
+		0, 0,
+		(2+mapWidth)*2, (2+mapHeight)*2,
+		app.checkerTex,
+		app.palMenuTex
+	)
 
 	app:drawMap(
 		0,		-- upper-left index in the tile tex
@@ -161,11 +167,15 @@ function EditTilemap:update()
 		local step = bit.lshift(self.gridSpacing, tileBits)
 		local gx = math.floor(self.tilemapPanOffset.x / step) * step
 		local gy = math.floor(self.tilemapPanOffset.y / step) * step
-		for i=gx-step,gx+3*step+frameBufferSize.x/self.scale,step do
-			app:drawSolidLine(i, gy-step, i, gy+3*step+frameBufferSize.y/self.scale, self:color(1))
+		local xmin = math.max(0, gx-step)
+		local xmax = math.min(gx+3*step+frameBufferSize.x/self.scale, bit.lshift(tilemapSize.x, tileBits))
+		local ymin = math.max(0, gy-step)
+		local ymax = math.min(gy+3*step+frameBufferSize.y/self.scale, bit.lshift(tilemapSize.y, tileBits))
+		for i=xmin,xmax,step do
+			app:drawSolidLine(i, ymin, i, ymax, self:color(1))
 		end
-		for j=gy-step,gy+3*step+frameBufferSize.y/self.scale,step do
-			app:drawSolidLine(gx-step, j, gx+3*step+frameBufferSize.x/self.scale, j, self:color(1))
+		for j=ymin,ymax,step do
+			app:drawSolidLine(xmin, j, xmax, j, self:color(1))
 		end
 	end
 	gl.glScissor(0,0,frameBufferSize:unpack())
@@ -394,6 +404,86 @@ function EditTilemap:update()
 	end
 
 	app:matident()
+
+	local uikey
+	if ffi.os == 'OSX' then
+		uikey = app:key'lgui' or app:key'rgui'
+	else
+		uikey = app:key'lctrl' or app:key'rctrl'
+	end
+	if uikey then
+		local x = 0
+		local y = 0
+		--TODO cut or copy ... need to specify selection beforehand
+		if app:keyp'v' then
+			-- TODO how to specify where to paste? beforehand? or paste as overlay until you click outside the box?
+		
+			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
+			assert(not app.mapTex.dirtyGPU)
+			local image = clip.image()
+			if image then
+				local pasteTargetNumColors = 1024
+				local indexOffset = 0
+				-- TODO right now libclip always converts to RGBA, so I'm just quantizing to convert back
+				-- so it's mixing up the palette index order
+				-- TODO allow 1-channel support from libclip
+				if image.channels ~= 1 then
+					print('quantizing image to '..tostring(pasteTargetNumColors)..' colors')
+					assert(image.channels >= 3)	-- NOTICE it's only RGB right now ... not even alpha
+					image = image:rgb()
+					assert.eq(image.channels, 3, "image channels")
+
+					local hist
+					image, hist = Quantize.reduceColorsMedianCut{
+						image = image,
+						targetSize = pasteTargetNumColors,
+					}
+					assert.eq(image.channels, 3, "image channels")
+					-- I could use image.quantize_mediancut.applyColorMap but it doesn't use palette'd image (cuz my image library didn't support it at the time)
+					-- soo .. I'll implement indexed-apply here (TODO move this into image.quantize_mediancut, and TOOD change convert-to-8x84bpp to use paletted images)
+					local colors = table.keys(hist):sort()
+print('num colors', #colors)
+assert.le(#colors, 256, "resulting number of quantized colors")
+					local indexForColor = colors:mapi(function(color,i)	-- 0-based index
+						return i-1, color
+					end)
+					-- override colors here ...
+					local image1ch = Image(image.width, image.height, 1, 'unsigned char')
+					local srcp = image.buffer
+					local dstp = image1ch.buffer
+					for i=0,image.width*image.height-1 do
+						local key = string.char(unpackptr(3, srcp))
+						local dstIndex = indexForColor[key]
+						if not dstIndex then
+print("no index for color "..Quantize.bintohex(key))
+print('possible colors: '..require 'ext.tolua'(colors))
+							error'here'
+						end
+						dstp[0] = bit.band(0xff, dstIndex + indexOffset)
+						dstp = dstp + 1
+						srcp = srcp + image.channels
+					end
+					-- TODO proper would be to set image1ch.palette here but meh I'm just copying it on the next line anyways ...
+					image = image1ch
+				end
+				assert.eq(image.channels, 1, "image.channels")
+print'pasting image'
+				for j=0,image.height-1 do
+					for i=0,image.width-1 do
+						local destx = i + x
+						local desty = j + y
+						if destx >= 0 and destx < app.mapTex.width
+						and desty >= 0 and desty < app.mapTex.height
+						then
+							local c = image.buffer[i + image.width * j]
+							self:edit_pokew(tilemapAddr + bit.lshift(destx + app.mapTex.width * desty, 1), c)
+						end
+					end
+				end
+			end
+
+		end
+	end
 
 	self:drawTooltip()
 end

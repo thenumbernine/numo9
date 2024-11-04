@@ -1,5 +1,22 @@
 math.randomseed(tstamp())
 
+local ram=app.ram
+local matstack=table()
+local matpush=[]do
+	local t={}
+	for i=0,15 do
+		t[i+1] = ram.mvMat[i]
+	end
+	matstack:insert(t)
+end
+local matpop=[]do
+	local t = matstack:remove(1)
+	if not t then return end
+	for i=0,15 do
+		ram.mvMat[i]=t[i+1]
+	end
+end
+
 new=[cl,...]do
 	local o=setmetatable({},cl)
 	o?:init(...)
@@ -277,6 +294,17 @@ function Object:draw(viewMatrix)
 	so.uniforms.billboardOffset = {0, 0}
 	so.uniforms.mvProjMat = view.mvProjMat.ptr
 	so:draw()
+
+-- [[ temp
+matpush()
+mattrans(pos:unpack())
+matscale(1/16,1/16,1/16)
+--matrot(angle, 0, 0, 1)	-- TODO inv rot to counteract view transform
+matrot(math.rad(-60), 1, 0, 0)
+mattrans(-16, -32, 0)
+spr(0,0,0,4,4)
+matpop()
+--]]
 end
 
 function Object:drawShutdown()
@@ -964,7 +992,7 @@ function Track:getNormal(x, y, n)
 end
 
 function Track:draw(viewMatrix)
-cls(1)
+cls(0)
 matident()
 matortho(-1, 1, -1, 1, -1, 1)
 
@@ -981,6 +1009,25 @@ matortho(-1, 1, -1, 1, -1, 1)
 	--]]
 
 --	gl.glEnable(gl.GL_DEPTH_TEST)
+
+-- [[ working demo ... TODO fix the rest of this
+clip()
+
+local zn, zf = 1, 100
+local zo = 10
+local posx,posy,angle = 10,10,0
+matident()
+matfrustum(-zn, zn, -zn, zn, zn, zf)	-- projection
+matrot(math.rad(60), 1, 0, 0)			-- view inv angle
+matrot(-angle, 0, 0, 1)					-- view inv angle
+mattrans(-posx,-posy,-3)				-- view inv pos
+
+matpush()
+matscale(1/16,1/16,1/16)
+map(0,0,256,256,0,0,nil,true)
+matpop()
+--]]
+
 do return end
 
 	-- draw starting line
