@@ -346,6 +346,7 @@ update=[]do
 			snakeX,snakeY=newX,newY
 
 			if done then
+				redraw()
 				classify()
 			end
 		end
