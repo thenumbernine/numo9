@@ -271,10 +271,23 @@ function UI:update()
 	)
 
 	-- TODO current bank vs editing ROM vs editing RAM ...
-	if self:guiButton('R', 240, 0, nil, 'reset RAM') then
+	local x = 230
+	if self:guiButton('R', x, 0, nil, 'reset RAM') then
 		app:checkDirtyGPU()
 		ffi.copy(app.ram.v, app.banks.v[0].v, ffi.sizeof'ROM')
 		app:setDirtyCPU()
+	end
+	x=x+6
+	if self:guiButton('\223', x, 0, nil, 'run') then
+		app:runROM()
+	end
+	x=x+6
+	if self:guiButton('S', x, 0, nil, 'save') then
+		app:saveROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+	end
+	x=x+6
+	if self:guiButton('L', x, 0, nil, 'load') then
+		app:loadROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
 	end
 end
 

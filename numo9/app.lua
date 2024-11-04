@@ -1296,13 +1296,6 @@ end
 function App:update()
 	App.super.update(self)
 
-	if self.currentVideoMode ~= self.ram.videoMode then
-		self:setVideoMode(self.ram.videoMode)
-	end
-
-	-- update threadpool, clients or servers
-	self.threads:update()
-
 	local thisTime = getTime()
 
 --[==[ per-second-tick debug display
@@ -1409,6 +1402,15 @@ conn.receivesPerSecond = 0
 		-- TODO decrement to use framedrops
 		needUpdateCounter = 0
 
+		collectgarbage()
+
+		if self.currentVideoMode ~= self.ram.videoMode then
+			self:setVideoMode(self.ram.videoMode)
+		end
+
+		-- update threadpool, clients or servers
+		self.threads:update()
+
 		-- [[ where should I even put this?  in here to make sure runs once per frame
 		-- outside the 1/60 block to make sure it runs as often as possible?
 		self:updateAudio()
@@ -1417,7 +1419,6 @@ conn.receivesPerSecond = 0
 		-- system update refresh timer
 		self.ram.updateCounter = self.ram.updateCounter + 1
 		self.ram.romUpdateCounter = self.ram.romUpdateCounter + 1
-
 
 		-- tell netplay we have a new frame
 		if self.server then
@@ -1866,7 +1867,9 @@ function App:saveROM(filename)
 		filename = path(filename):setext'n9'.path
 		-- TODO try twice? as .n9 and .n9.png?  or don't add extensions at all?
 	end
-	filename = filename or defaultSaveFilename
+	filename = filename
+		--or self.currentLoadedFilename 	-- overwrite? backup? trust them to be using revision control?
+		or defaultSaveFilename
 	local basemsg = 'failed to save file '..tostring(filename)
 
 	-- TODO xpcall?
@@ -1935,14 +1938,14 @@ function App:loadROM(filename)
 
 	self.banks = fromCartImage(d)
 	assert.ge(#self.banks, 1)
-	self.cartridgeName = filename	-- TODO display this somewhere
+	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 	self.editCode:setText(codeBanksToStr(self.banks))
 	self:resetROM()
 	return true
 end
 
 function App:writePersistent()
-	--if not self.cartridgeName then return end	-- should not I bother if there's no cartridge loaded? or still allow saving of persistent data if ppl are messing around on the editor?
+	--if not self.currentLoadedFilename then return end	-- should not I bother if there's no cartridge loaded? or still allow saving of persistent data if ppl are messing around on the editor?
 	self.cfg.persistent = self.cfg.persistent or {}
 
 	-- TODO this when you read cart header ... or should we put it in ROM somewhere?
@@ -2032,9 +2035,10 @@ function App:runROM()
 		self:resetView()
 
 		-- here, if the assert fails then it's an (ugly) parse error, and you can just pcall / pick out the offender
-		local f, msg = self:loadCmd(code, env, self.cartridgeName)
+		local f, msg = self:loadCmd(code, env, self.currentLoadedFilename)
 		if not f then
-			print(msg)
+			--print(msg)
+			self.con:print(msg)
 			return
 		end
 		local result = table.pack(f())
