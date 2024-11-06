@@ -126,7 +126,7 @@ function EditTilemap:update()
 	end
 	if shift then
 		pan(128 / self.scale, 128 / self.scale)
-		self.scale = self.scale * math.exp(-.1 * app.ram.mouseWheel.y)
+		self.scale = self.scale * math.exp(.1 * app.ram.mouseWheel.y)
 		pan(-128 / self.scale, -128 / self.scale)
 	else
 		pan(
