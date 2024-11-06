@@ -17,7 +17,7 @@ local matpop=[]do
 	end
 end
 
---[[ not helping
+-- [[ not helping
 local projmat={}
 local function applyprojmat()
 	-- lhs mul the stored projmat
@@ -342,13 +342,22 @@ function Object:draw(viewMatrix)
 		-- TODO how to calculate this
 local viewAngle = math.atan2(viewFwd[2], viewFwd[1])
 		matpush()
-		mattrans(self.pos:unpack())
+
+--[=[ using world origin as view origin
+		mattrans(self.pos[1], self.pos[2], self.pos[3])
+--]=]
+-- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
+		mattrans(self.pos[1] - currentCamPos[1], self.pos[2] - currentCamPos[2], self.pos[3] - currentCamPos[3])
+--]=]
 		matscale(1/32,1/32,1/32)
+
 		-- undo camera viewAngle to make a billboard
 		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
 		matrot(math.rad(-70), 1, 0, 0)
 		mattrans(-16, -32, 0)
---applyprojmat()
+--[=[ not helping
+applyprojmat()
+--]=]
 		spr(self.spriteIndex, 0, 0, 4, 4)
 		matpop()
 	end
@@ -1066,9 +1075,18 @@ function Track:draw(viewMatrix)
 
 	-- [[ draw the track as tilemap
 	matpush()
+
+-- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
+	mattrans(-currentCamPos[1], -currentCamPos[2], -currentCamPos[3])
+--]=]
+
 	matscale(1/8, 1/8, 1/8)
---applyprojmat()
+--[=[ not helping
+applyprojmat()
+--]=]
+
 	map(0, 0, track.size[1], track.size[2], 0, 0)
+
 	matpop()
 	--]]
 
@@ -1175,12 +1193,14 @@ function Kart:setupClientView(aspectRatio)
 
 -- [[ this gets resolution issues the further from the origin we are
 	matfrustum(-n,n,-n,n,n,f)
+--[=[
 trace()
 trace('frustum:')
 trace(('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12]))
 trace(('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.mvMat[13]))
 trace(('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14]))
 trace(('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15]))
+--]=]
 --[=[ not helping
 for i=0,15 do
 	projmat[i+1] = ram.mvMat[i]
@@ -1205,14 +1225,28 @@ matident()
 	local camPosTrackZ = 1 + game.track:getZ(camPos[1], camPos[2])
 	camPos[3] = math.max(camPos[3], camPosTrackZ)	-- crashes when I replace it with a condition
 	local camLookAt = vec3(self.pos[1], self.pos[2], camPos[3] + (camVLookDist - camVDist))
+
+currentCamPos = camPos
+
+--[=[ using world origin as view origin
 	matlookat(
 		camPos[1], camPos[2], camPos[3],
 		camLookAt[1], camLookAt[2], camLookAt[3],
 		0, 0, 1)
+--]=]
+-- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
+-- doing this fixes the translation overflow error
+-- but still getting some view coord issues...
+	matlookat(
+		0, 0, 0,
+		camLookAt[1] - camPos[1], camLookAt[2] - camPos[2], camLookAt[3] - camPos[3],
+		0, 0, 1)
+--]=]
 	--]]
 	--[[ debug overhead view
 	local x, y, z = self.pos[1] + self.lookDir[1] * 10, self.pos[2] + self.lookDir[2] * 10, self.pos[3] + self.lookDir[3] * 10
-	matlookat(x,y,z + 100, x,y,z, self.lookDir[1], self.lookDir[2], self.lookDir[3])
+	--matlookat(x,y,z + 100, x,y,z, self.lookDir[1], self.lookDir[2], self.lookDir[3])
+	matlookat(0,0,100, x,y,z, self.lookDir[1], self.lookDir[2], self.lookDir[3])
 	--]]
 
 --[[
@@ -1292,7 +1326,14 @@ function Kart:draw(viewMatrix, kartSprites)
 local viewAngle = math.atan2(viewFwd[2], viewFwd[1])
 local kartAngle = math.atan2(self.dir[2], self.dir[1])
 		matpush()
-		mattrans(self.pos:unpack())
+
+--[=[ using world origin as view origin
+		mattrans(self.pos[1], self.pos[2], self.pos[3])
+--]=]
+-- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
+		mattrans(self.pos[1] - currentCamPos[1], self.pos[2] - currentCamPos[2], self.pos[3] - currentCamPos[3])
+--]=]
+
 		matscale(1/32,1/32,1/32)
 		-- undo camera viewAngle to make a billboard
 		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
@@ -1307,7 +1348,9 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 			mattrans(-16, -32, 0)
 		end
 		local spriteIndex = spriteIndexForAngle[math.floor(angleNorm * #spriteIndexForAngle) + 1]
---applyprojmat()
+--[=[ not helping
+applyprojmat()
+--]=]
 		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
 		matpop()
 	end
