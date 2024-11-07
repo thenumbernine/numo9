@@ -1592,6 +1592,7 @@ function AppVideo:resetVideo()
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self:setClipRect(0, 0, 0xff, 0xff)
 
+	-- hmm, this matident isn't working ,but if you put one in your init code then it does work ... why ...
 	self:matident()
 end
 
