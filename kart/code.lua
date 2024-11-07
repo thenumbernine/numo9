@@ -1,20 +1,32 @@
+local ram=app.ram
+local palAddr = ffi.offsetof('RAM', 'palette')
+
 math.randomseed(tstamp())
 
-local sprites = {
-	ralph = 16,	-- 8x8
-	ItemBox = 24,	-- 4x4
-	colorspray = 28,	-- 4x4
-	banana = 272,	-- 2x2s...
-	cloudkill = 274,
-	colorspray = 276,
-	greenshell = 278,
-	handtofoot = 280,
-	mushroom = 282,
-	redshell = 284,
-	vandegraaf = 336,
+local colors = {
+	white = 0x70,
 }
 
-local ram=app.ram
+local sprites = {
+	ralph = {16, 8, 8},
+	ItemBox = {24, 4, 4},
+	colorcloud = {28, 4, 4},
+	banana = {272, 2, 2},
+	cloudkill = {274, 2, 2},
+	colorspray = {276, 2, 2},
+	greenshell = {278, 2, 2},
+	handtofoot = {280, 2, 2},
+	mushroom = {282, 2, 2},
+	redshell = {284, 2, 2},
+	vandegraaf = {336, 2, 2},
+	outline = {338, 2, 2},
+}
+
+local palPush = {}
+for i=0,255 do
+	palPush[i] = peekw(palAddr+(i<<1))
+end
+
 local matstack=table()
 local matpush=[]do
 	local t={}
@@ -183,22 +195,6 @@ vec3=class{
 	__concat=string.concat,
 }
 
-local uvs = {
-	vec2(0,0),
-	vec2(1,0),
-	vec2(1,1),
-	vec2(0,1),
-}
-
-local uvsInTrisInQuad = {
-	vec2(0,0),
-	vec2(1,0),
-	vec2(0,1),
-	vec2(0,1),
-	vec2(1,0),
-	vec2(1,1),
-}
-
 local function rot2d(v, costh, sinth, newv)
 	if not newv then newv = vec3() end
 	newv[1], newv[2], newv[3] = v[1] * costh - v[2] * sinth, v[1] * sinth + v[2] * costh, v[3]
@@ -219,13 +215,9 @@ local tileIndexForName = {
 local tileClassForIndex = {}
 
 
-
 local game	-- TODO use pointers instead of global
-local font
-local sysThisTime = 0
-local sysLastTime = 0
-local frameAccumTime = 0
-local fixedDeltaTime = 1/50
+local fixedDeltaTime = 1/50	-- for some reason setting this to 1/60 prevents you from starting unless you jump and turn while pushing gas ...
+--local fixedDeltaTime = 1/60
 
 local engineSound = 0	--AudioBuffer('sound/engine.wav')
 local brakeSound = 0	--AudioBuffer('sound/brake.wav')
@@ -376,11 +368,12 @@ local viewAngle = math.atan2(viewFwd[2], viewFwd[1])
 		-- undo camera viewAngle to make a billboard
 		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
 		matrot(math.rad(-70), 1, 0, 0)
-		mattrans(-16, -32, 0)
+		local w, h = self.spriteIndex[2], self.spriteIndex[3]
+		mattrans(-(w/2)*16, -h*16, 0)
 --[=[ not helping
 applyprojmat()
 --]=]
-		spr(self.spriteIndex, 0, 0, 4, 4)
+		spr(self.spriteIndex[1], 0, 0, w, h)
 		matpop()
 	end
 	--]]
@@ -392,6 +385,7 @@ end
 
 local BananaObject = Object:subclass()
 
+BananaObject.spriteIndex = sprites.banana
 BananaObject.drawRadius = .3
 BananaObject.radius = .3
 BananaObject.spinsOutPlayerOnTouch = true
@@ -436,6 +430,7 @@ end
 
 local GreenShellObject = Object:subclass()
 
+GreenShellObject.spriteIndex = sprites.greenshell
 GreenShellObject.initialSpeed = 20
 GreenShellObject.spinsOutPlayerOnTouch = true
 GreenShellObject.removesOnPlayerTouch = true
@@ -483,6 +478,7 @@ local Kart
 
 local RedShellObject = Object:subclass()
 
+RedShellObject.spriteIndex = sprites.redshell
 RedShellObject.noSeekDuration = .5
 RedShellObject.initialSpeed = 20
 RedShellObject.spinsOutPlayerOnTouch = true
@@ -624,26 +620,13 @@ function VanDeGraaffObject:drawInit()
 end
 
 function VanDeGraaffObject:draw()
-	local so = vanDeGraaffSceneObj
-	local vtxGPU = so.attrs.vertex.buffer
-	local vtxCPU = vtxGPU.vec
-	local fade = (self.doneTime - game.time) / self.duration
-	so.uniforms.mvProjMat = view.mvProjMat.ptr
-	so.uniforms.fade = fade
-
-	local vtxCount = 0
+	--local fade = (self.doneTime - game.time) / self.duration
 	for _,lineStrip in ipairs(self.lineStrips) do
-		vtxCount = math.max(vtxCount, #lineStrip)
-	end
-	for _,lineStrip in ipairs(self.lineStrips) do
-		so:beginUpdate()
-		local index = 0
-		vtxCPU:resize(vtxCount)
-		for j, vtx in ipairs(lineStrip) do
-			vtxCPU.v[index]:set(vtx[1], vtx[2], vtx[3])
-			index = index + 1
+		for j=1,#lineStrip-1 do
+			local v1 = lineStrip[j]
+			local v2 = lineStrip[j+1]
+			line3d(v1[1], v1[2], v1[3], v2[1], v2[2], v2[3], colors.white)
 		end
-		so:endUpdate()
 	end
 end
 
@@ -689,12 +672,13 @@ end
 
 
 local CloudKillObject = CloudObject:subclass()
+CloudKillObject.spriteIndex = sprites.cloudkill
 CloudKillObject.duration = 10
-
 CloudKillObject.spinsOutPlayerOnTouch = true
 
 
 local ColorSprayObject = CloudObject:subclass()
+ColorSprayObject.spriteIndex = sprites.colorcloud
 
 
 local BananaItem, GreenShellItem, RedShellItem, CloudKillItem
@@ -820,7 +804,7 @@ CloudKillItem.spriteIndex = sprites.cloudkill
 local ColorSprayItem = CloudItem:subclass()
 
 ColorSprayItem.objectClass = ColorSprayObject
-ColorSprayItem.spriteindex = sprites.colorspray
+ColorSprayItem.spriteIndex = sprites.colorspray
 
 
 local HandToFootItem = Item:subclass()
@@ -1363,7 +1347,6 @@ Kart.lakituCenterX = 0
 Kart.lakituCenterY = 2
 
 function Kart:drawHUD(aspectRatio)
-do return end
 	local orthoXMin = -aspectRatio / 2
 	local orthoXMax = aspectRatio / 2
 	matident()
@@ -1393,46 +1376,32 @@ do return end
 		0x81
 	)
 	blend(-1)
-do return end
+	
 	do
-		gl.glBindTexture(gl.GL_TEXTURE_2D, game.outlineTex.id)
-
 		local centerX, centerY = 0, .9
 		local length = .1
 
-		gl.glBegin(gl.GL_QUADS)
-		for i=1,#uvs do
-			local uv = uvs[i]
-			gl.glTexCoord2f(uv[1], 1-uv[2])
-			gl.glVertex2f(centerX + (uv[1] - .5) * 2 * length, centerY + (uv[2] - .5) * 2 * length)
-		end
-		gl.glEnd()
+		matpush()
+		matscale(1/128,1/128)
+		spr(sprites.outline[1], centerX + (-32) * 2 * length, centerY + (.5) * 2 * length, sprites.outline[2], sprites.outline[3])
+		matpop()
 
 		if self.gettingItem then
 			if self.getItemTime + self.getItemDuration > game.time then
-				local randomType = Item.types[math.random(#Item.types)]
-				assert(randomType)
-				assert(randomType.tex)
-				assert(randomType.tex.id)
-				gl.glBindTexture(gl.GL_TEXTURE_2D, randomType.tex.id)
-				gl.glBegin(gl.GL_QUADS)
-				for i=1,#uvs do
-					local uv = uvs[i]
-					gl.glTexCoord2f(uv[1], 1-uv[2])
-					gl.glVertex2f(centerX + (uv[1] - .5) * 2 * length, centerY + (uv[2] - .5) * 2 * length)
-				end
-				gl.glEnd()
+				local itemIndex = math.random(#Item.types)
+				local randomType = Item.types[itemIndex]
+				if not randomType.spriteIndex then error("Item.types["..itemIndex.."] is missing its .spriteIndex") end
+				matpush()
+				matscale(1/128,1/128)
+				spr(randomType.spriteIndex[1], centerX + (-32) * 2 * length, centerY + (.5) * 2 * length, randomType.spriteIndex[2], randomType.spriteIndex[3])
+				matpop()
 			end
 		end
 		if self.item then
-			gl.glBindTexture(gl.GL_TEXTURE_2D, self.item.tex.id)
-			gl.glBegin(gl.GL_QUADS)
-			for i=1,#uvs do
-				local uv = uvs[i]
-				gl.glTexCoord2f(uv[1], 1-uv[2])
-				gl.glVertex2f(centerX + (uv[1] - .5) * 2 * length, centerY + (uv[2] - .5) * 2 * length)
-			end
-			gl.glEnd()
+			matpush()
+			matscale(1/128,1/128)
+			spr(self.item.spriteIndex[1], centerX + (-32) * 2 * length, centerY + (.5) * 2 * length, self.item.spriteIndex[2], self.item.spriteIndex[3])
+			matpop()
 		end
 	end
 
@@ -1447,71 +1416,66 @@ do return end
 			frac = frac * (1 - alpha) + alpha
 		end
 
-		gl.glBindTexture(gl.GL_TEXTURE_2D, HandToFootItem.tex.id)
-		gl.glColor4f(1,1,1,1-frac)
+		--gl.glColor4f(1,1,1,1-frac)	-- TODO 
 		local centerX, centerY = 0, .5
 		local length = (1 + frac) * .5
-		gl.glBegin(gl.GL_QUADS)
-		for i=1,#uvs do
-			local uv = uvs[i]
-			gl.glTexCoord2f(uv[1], 1-uv[2])
-			gl.glVertex2f(centerX + (uv[1]-.5)*length, centerY + (uv[2]-.5)*length)
-		end
-		gl.glEnd()
+		matpush()
+		matscale(1/128,1/128)
+		spr(sprites.handtofoot[1], centerX + (-32)*length, centerY + (-.5)*length, sprites.handtofoot[2], sprites.handtofoot[3])
+		matpop()
 	end
-
-	gl.glDisable(gl.GL_TEXTURE_2D)
+do return end	
 --]]
 
 	if game.time >= 0 then
-		font:drawUnpacked(
-			orthoXMin+.01, .99,
-			.1, -.1,
-			('%02d:%02d.%02d'):format(math.floor(game.time/60), math.floor(game.time)%60, math.floor(game.time*100)%100)
+		text(
+			('%02d:%02d.%02d'):format(math.floor(game.time/60), math.floor(game.time)%60, math.floor(game.time*100)%100),
+			orthoXMin+.01, .99
+			--.1, -.1,
 		)
 	end
 
-	font:drawUnpacked(
-		orthoXMin + .04, .15,
-		.07, -.07,
-		('%02.1f'):format(speed)
+	text(
+		('%02.1f'):format(speed),
+		orthoXMin + .04, .15
+		--.07, -.07,
 	)
 
-	font:drawUnpacked(
-		orthoXMax - .55, .31,
-		.3, -.3,
-		tostring(self.place)..placeSuffix(self.place)
+	text(
+		tostring(self.place)..placeSuffix(self.place),
+		orthoXMax - .55, .31
+		--.3, -.3,
 	)
 
-	font:drawUnpacked(
-		orthoXMax - .41, .42,
-		.1, -.1,
-		'lap '..tostring(self.lap+1)
+	text(
+		'lap '..tostring(self.lap+1),
+		orthoXMax - .41, .42
+		--.1, -.1,
 	)
 
 	--[[ debugging
 	if game.track.nodes then
-		font:drawUnpacked(
-			orthoXMax - .6, .53,
-			.07, -.07,
-			'node '..tostring(self.nodeIndex)..'/'..#game.track.nodes
+		text(
+			'node '..tostring(self.nodeIndex)..'/'..#game.track.nodes,
+			orthoXMax - .6, .53
+			--.07, -.07,
 		)
 	end
 	--]]
 
 	if self.item then
-		font:drawUnpacked(
-			.1, .94,
-			.1, -.1,
-			'x'..self.item.count
+		text(
+			'x'..self.item.count,
+			.1, .94
+			--.1, -.1,
 		)
 	end
 
 	if self.reserveItemCount > 0 then
-		font:drawUnpacked(
-			.35, .94,
-			.1, -.1,
-			'R'..self.reserveItemCount
+		text(
+			'R'..self.reserveItemCount,
+			.35, .94
+			--.1, -.1,
 		)
 	end
 
@@ -1533,18 +1497,9 @@ do return end
 		local centerX = self.lakituCenterX + math.cos(game.time) * floatRadius
 		local centerY = self.lakituCenterY + math.sin(game.time) * floatRadius
 		local length = .3
---[[ TODO
-		gl.glEnable(gl.GL_TEXTURE_2D)
-		gl.glBindTexture(gl.GL_TEXTURE_2D, game.lakituTex.id)
-		gl.glBegin(gl.GL_QUADS)
-		for i=1,#uvs do
-			local uv = uvs[i]
-			gl.glTexCoord2f(uv[1],1-uv[2])
-			gl.glVertex2f(centerX + (uv[1]-.5) * length, centerY + (uv[2]-.5) * length)
-		end
-		gl.glEnd()
-		gl.glDisable(gl.GL_TEXTURE_2D)
---]]
+
+		spr(sprites.ralph[1], centerX + (-.5) * length, centerY + (-.5) * length, sprites.ralph[2], sprites.ralph[3])
+		
 		local msg
 		if starting then
 			if game.time > -.3 then
@@ -1560,12 +1515,9 @@ do return end
 			msg = "Wrong Way\nRETARD!"
 		end
 		if msg then
-			font:drawUnpacked(centerX, centerY, .1, -.1, msg)
+			text(msg, centerX, centerY) --, .1, -.1, )
 		end
 	end
-
-	gl.glDisable(gl.GL_BLEND)
-	gl.glEnable(gl.GL_DEPTH_TEST)
 end
 
 Kart.nextBoostTime = -10
@@ -2459,7 +2411,26 @@ update=[]do
 		local viewHeight = windowHeight / divY
 		local aspectRatio = viewWidth / viewHeight
 		clip(viewX * windowWidth / divX, viewY * windowHeight / divY, viewWidth - 1, viewHeight - 1)
+		
+		local useColorSpray = game.time < kart.colorSprayEndTime
+		-- cycle palette
+		if useColorSpray then
+			for i=0,255 do
+				pokew(palAddr+(i<<1), 
+					(0x7fff & palPush[(i+10*time())&0xff])
+					| (0x8000 & palPush[i])	-- preserve transparnecy flag
+				)
+			end
+		end
+
 		clientViewObj:drawScene(kart, aspectRatio, kartSprites)
+	
+		-- reset
+		if useColorSpray then
+			for i=0,255 do
+				pokew(palAddr+(i<<1), palPush[i])
+			end
+		end
 
 --[[
 local r1 = ('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12])
@@ -2467,13 +2438,13 @@ local r2 = ('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.
 local r3 = ('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14])
 local r4 = ('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15])
 		matident()
-		text('pos:'..kart.pos, 0, 0, 0x70, -1)
-		text('vel:'..kart.vel, 0, 8, 0x70, -1)
-		text('dir:'..kart.dir, 0, 16, 0x70, -1)
-		text(r1, 0, 32, 0x70, -1)
-		text(r2, 0, 40, 0x70, -1)
-		text(r3, 0, 48, 0x70, -1)
-		text(r4, 0, 56, 0x70, -1)
+		text('pos:'..kart.pos, 0, 0, colors.white, -1)
+		text('vel:'..kart.vel, 0, 8, colors.white, -1)
+		text('dir:'..kart.dir, 0, 16, colors.white, -1)
+		text(r1, 0, 32, colors.white, -1)
+		text(r2, 0, 40, colors.white, -1)
+		text(r3, 0, 48, colors.white, -1)
+		text(r4, 0, 56, colors.white, -1)
 --]]
 	end
 end
