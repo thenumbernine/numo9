@@ -1561,9 +1561,9 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		-- some glue code needs this, might as well generate it dynamically here:
 		-- NOTICE if you ever remove ffi from the cartridge API then this will break ...
 		"updateCounterMem=ffi.offsetof('RAM', 'updateCounter')",
-		"gfxMem=ffi.offsetof('RAM', 'spriteSheet')",
-		"mapMem=ffi.offsetof('RAM', 'tilemap')",
-		"palMem=ffi.offsetof('RAM', 'palette')",
+		"gfxMem=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')",
+		"mapMem=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')",
+		"palMem=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')",
 		"fbMem=ffi.offsetof('RAM', 'framebuffer')",
 		"userMem=ffi.offsetof('RAM', 'userData')",
 		assert(path'n9a_p8_glue.lua':read()),

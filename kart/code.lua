@@ -1,5 +1,9 @@
+--[[
+sprites from https://www.spriters-resource.com/submitter/NICKtendoDS/
+--]]
+
 local ram=app.ram
-local palAddr = ffi.offsetof('RAM', 'palette')
+local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 
 local windowWidth, windowHeight = 256, 256
 
@@ -1470,8 +1474,8 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 			text(msg, 256*centerX, 256*centerY, colors.white, colors.black, 2, 2)
 			end
 		elseif self.goingBackwards then
-			text("Wrong Way", 256*centerX, 256*centerY, colors.white, colors.black, 2, 2)
-			text("RETARD!", 256*centerX, 16+256*centerY, colors.white, colors.black, 2, 2)
+			text("Wrong Way", 256*centerX-32, 256*centerY, colors.white, colors.black, 2, 2)
+			text("RETARD!", 256*centerX-32, 16+256*centerY, colors.white, colors.black, 2, 2)
 		end
 	end
 end
@@ -2338,7 +2342,7 @@ track = game.track
 
 -- TODO menu and pick # players
 local clientViewObjs = table()	 -- one for each local player
-local numPlayers = 4
+local numPlayers = 1
 for playerIndex=1,numPlayers do
 	clientViewObjs[playerIndex] = ClientViewObject()
 	local player = Player()

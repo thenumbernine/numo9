@@ -466,14 +466,14 @@ function AppVideo:initDraw()
 
 	-- redirect the image buffer to our virtual system rom
 	self.spriteTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t'):clear(),
+		image = makeImageAtPtr(self.ram.bank[0].spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t'):clear(),
 		internalFormat = texInternalFormat_u8,
 		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		type = gl.GL_UNSIGNED_BYTE,
 	})
 
 	self.tileTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t'):clear(),
+		image = makeImageAtPtr(self.ram.bank[0].tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t'):clear(),
 		internalFormat = texInternalFormat_u8,
 		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -489,7 +489,7 @@ function AppVideo:initDraw()
 	- .... 8 bits palette offset ... ? nah
 	--]]
 	self.mapTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.tilemap, tilemapSize.x, tilemapSize.y, 1, 'uint16_t'):clear(),
+		image = makeImageAtPtr(self.ram.bank[0].tilemap, tilemapSize.x, tilemapSize.y, 1, 'uint16_t'):clear(),
 		internalFormat = texInternalFormat_u16,
 		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
 		type = gl.GL_UNSIGNED_SHORT,
@@ -498,7 +498,7 @@ function AppVideo:initDraw()
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 	self.palTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.palette, paletteSize, 1, 1, 'uint16_t'),
+		image = makeImageAtPtr(self.ram.bank[0].palette, paletteSize, 1, 1, 'uint16_t'),
 		internalFormat = gl.GL_RGB5_A1,
 		format = gl.GL_RGBA,
 		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
@@ -507,7 +507,7 @@ function AppVideo:initDraw()
 	-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
 	-- so a 256 char font will be 2048 bytes
 	self.fontTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.font, fontImageSize.x, fontImageSize.y, 1, 'uint8_t'),
+		image = makeImageAtPtr(self.ram.bank[0].font, fontImageSize.x, fontImageSize.y, 1, 'uint8_t'),
 		internalFormat = texInternalFormat_u8,
 		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		type = gl.GL_UNSIGNED_BYTE,
@@ -1698,8 +1698,8 @@ end
 
 function AppVideo:resetFont()
 	self.fontTex:checkDirtyGPU()
-	resetROMFont(self.ram.font)
-	ffi.copy(self.banks.v[0].font, self.ram.font, fontInBytes)
+	resetROMFont(self.ram.bank[0].font)
+	ffi.copy(self.banks.v[0].font, self.ram.bank[0].font, fontInBytes)
 	self.fontTex.dirtyCPU = true
 end
 
@@ -1710,8 +1710,8 @@ function AppVideo:resetGFX()
 	self:resetFont()
 
 	self.palTex:checkDirtyGPU()
-	resetROMPalette(self.ram)
-	ffi.copy(self.banks.v[0].palette, self.ram.palette, paletteInBytes)
+	resetROMPalette(self.ram.bank[0])
+	ffi.copy(self.banks.v[0].palette, self.ram.bank[0].palette, paletteInBytes)
 	self.palTex.dirtyCPU = true
 end
 

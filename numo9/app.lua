@@ -204,6 +204,7 @@ function App:initGL()
 	print('RAM size', ffi.sizeof'RAM')
 	print('ROM size', ffi.sizeof'ROM')
 
+	--[[
 	for _,field in ipairs(ROM.fields[2].type.fields) do
 		assert(xpcall(function()
 			assert.eq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
@@ -211,6 +212,7 @@ function App:initGL()
 			return errorHandler('for field '..field.name..'\n')
 		end))
 	end
+	--]]
 	print'memory layout:'
 	for _,field in ipairs(RAM.fields[2].type.fields) do
 		local offset = ffi.offsetof('RAM', field.name)
@@ -1030,7 +1032,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 			if not cmdline.nosplash then
 
 				-- also for init, do the splash screen
-				numo9_video.resetLogoOnSheet(self.ram.tileSheet)
+				numo9_video.resetLogoOnSheet(self.ram.bank[0].tileSheet)
 				self.tileTex.dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
@@ -1093,8 +1095,8 @@ looks like I'm a Snes9x-default-keybinding fan.
 				env.flip()
 
 				-- and clear the tilemap now that we're done with it
-				ffi.fill(self.ram.tileSheet, ffi.sizeof(self.ram.tileSheet))
-				ffi.fill(self.ram.tilemap, ffi.sizeof(self.ram.tilemap))
+				ffi.fill(self.ram.bank[0].tileSheet, ffi.sizeof(self.ram.bank[0].tileSheet))
+				ffi.fill(self.ram.bank[0].tilemap, ffi.sizeof(self.ram.bank[0].tilemap))
 				self.tileTex.dirtyCPU = true
 
 			end
@@ -1191,7 +1193,7 @@ function App:net_mset(x, y, value)
 		-- use poke over netplay, cuz i'm lazy.
 		-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
 		if self.server then
-			if self.ram.tilemap[index]~=value then
+			if self.ram.bank[0].tilemap[index]~=value then
 				local cmd = self.server:pushCmd().poke
 				cmd.type = netcmds.poke
 				cmd.addr = tilemapAddr + bit.lshift(index, 1)
@@ -1199,7 +1201,7 @@ function App:net_mset(x, y, value)
 				cmd.size = 2
 			end
 		end
-		self.ram.tilemap[index] = value
+		self.ram.bank[0].tilemap[index] = value
 		self.mapTex.dirtyCPU = true
 	end
 end
@@ -1215,7 +1217,7 @@ function App:mget(x, y)
 		-- should I use peek so we make sure to flush gpu->cpu?
 		-- nah, right now we only have framebuffer to check for gpu-writes ...
 		-- and the framebuffer is not (yet?) relocatable
-		return self.ram.tilemap[x + tilemapSize.x * y]
+		return self.ram.bank[0].tilemap[x + tilemapSize.x * y]
 	end
 	-- TODO return default oob value
 	return 0

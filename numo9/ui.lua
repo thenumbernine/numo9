@@ -373,10 +373,10 @@ function UI:calculateAudioSize()
 	local app = self.app
 	self.totalAudioBytes = 0
 	for i=0,sfxTableSize-1 do
-		self.totalAudioBytes = self.totalAudioBytes + app.ram.sfxAddrs[i].len
+		self.totalAudioBytes = self.totalAudioBytes + app.ram.bank[0].sfxAddrs[i].len
 	end
 	for i=0,musicTableSize-1 do
-		self.totalAudioBytes = self.totalAudioBytes + app.ram.musicAddrs[i].len
+		self.totalAudioBytes = self.totalAudioBytes + app.ram.bank[0].musicAddrs[i].len
 	end
 end
 

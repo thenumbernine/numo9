@@ -152,13 +152,13 @@ it's called ...
 function AppAudio:resetAudio()
 --[[
 	for i=0,numo9_rom.sfxTableSize-1 do
-		local addrLen = self.ram.sfxAddrs[i]
+		local addrLen = self.ram.bank[0].sfxAddrs[i]
 		if addrLen.len > 0 then
 			print('sfx found',i,'size',addrLen.len)
 		end
 	end
 	for i=0,numo9_rom.musicTableSize-1 do
-		local addrLen = self.ram.musicAddrs[i]
+		local addrLen = self.ram.bank[0].musicAddrs[i]
 		if addrLen.len > 0 then
 			print('music found',i,'size',addrLen.len)
 		end
@@ -228,12 +228,12 @@ function AppAudio:updateSoundEffects()
 		local channel = self.ram.channels+0
 		for j=0,audioMixChannels-1 do
 			if channel.flags.isPlaying ~= 0 then
-				local sfx = self.ram.sfxAddrs + channel.sfxID
+				local sfx = self.ram.bank[0].sfxAddrs + channel.sfxID
 
 				-- where in sfx we are currently playing
 				local sfxaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
 assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
-				local ampl = ffi.cast(audioSampleTypePtr, self.ram.audioData + sfxaddr)[0]
+				local ampl = ffi.cast(audioSampleTypePtr, self.ram.bank[0].audioData + sfxaddr)[0]
 
 				channel.addr = channel.addr + channel.pitch
 				if bit.lshift(bit.rshift(channel.addr, pitchPrec), 1) > sfx.addr + sfx.len then -- sfx.loopEndAddr then
@@ -327,8 +327,8 @@ function AppAudio:updateMusicPlaying(musicPlaying)
 	while true do
 local decodeStartAddr = musicPlaying.addr
 assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
-		local index = self.ram.audioData[musicPlaying.addr]
-		local value = self.ram.audioData[musicPlaying.addr + 1]
+		local index = self.ram.bank[0].audioData[musicPlaying.addr]
+		local value = self.ram.bank[0].audioData[musicPlaying.addr + 1]
 		musicPlaying.addr = musicPlaying.addr + 2
 		if index == 0xff then
 --print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
@@ -337,16 +337,16 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 		if index == 0xfe then
 --print('GOT PLAY MUSIC', value)
 			-- play music
-			local music = self.ram.musicAddrs[value]
+			local music = self.ram.bank[0].musicAddrs[value]
 			musicPlaying.addr = music.addr
 			musicPlaying.endAddr = music.addr + music.len
---assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.audioData))
---assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= ffi.sizeof(self.ram.audioData))
-			local beatsPerSecond = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+--assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.bank[0].audioData))
+--assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= ffi.sizeof(self.ram.bank[0].audioData))
+			local beatsPerSecond = ffi.cast('uint16_t*', self.ram.bank[0].audioData + musicPlaying.addr)[0]
 			musicPlaying.sampleFramesPerBeat = sampleFramesPerSecond / beatsPerSecond
 			musicPlaying.addr = musicPlaying.addr + 2
 
-			local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+			local delay = ffi.cast('uint16_t*', self.ram.bank[0].audioData + musicPlaying.addr)[0]
 			musicPlaying.addr = musicPlaying.addr + 2
 
 			--self:setMusicPlayingToMusic(music)
@@ -398,9 +398,9 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 --print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
 
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.sfxAddrs[value].addr)
+--print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.bank[0].sfxAddrs[value].addr)
 			-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
-			local sfx = self.ram.sfxAddrs[value]
+			local sfx = self.ram.bank[0].sfxAddrs[value]
 			local sfxaddr =  sfx.addr
 			-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
 			assert.eq(bit.band(sfxaddr, 1), 0)
@@ -427,7 +427,7 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 --print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 		musicPlaying.isPlaying = 0
 	else
-		local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+		local delay = ffi.cast('uint16_t*', self.ram.bank[0].audioData + musicPlaying.addr)[0]
 		musicPlaying.addr = musicPlaying.addr + 2
 		musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
 --print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
@@ -490,7 +490,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	end
 --DEBUG:assert.eq(sfxTableSize, 256)
 	sfxID = bit.band(sfxID, 0xff)
-	local sfx = self.ram.sfxAddrs[sfxID]
+	local sfx = self.ram.bank[0].sfxAddrs[sfxID]
 	local sfxaddr = sfx.addr
 
 	channel.sfxID = sfxID
@@ -535,7 +535,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	if musicID < 0 or musicID >= musicTableSize then return end
 
 	-- play music
-	local music = self.ram.musicAddrs[musicID]
+	local music = self.ram.bank[0].musicAddrs[musicID]
 	if music.len == 0 then return end
 
 	musicPlayingIndex = musicPlayingIndex or 0
@@ -548,9 +548,9 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	-- keep our head counter here
 	local audio = self.audio
 	musicPlaying.endAddr = music.addr + music.len
-	assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.audioData))
-	assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= ffi.sizeof(self.ram.audioData))
-	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+	assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.bank[0].audioData))
+	assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= ffi.sizeof(self.ram.bank[0].audioData))
+	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.bank[0].audioData + musicPlaying.addr)[0]
 --print('playing with beats/second', beatsPerSecond)
 	musicPlaying.addr = musicPlaying.addr + 2
 
@@ -558,7 +558,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	-- so `1 / beatsPerSecond` seconds = `sampleFramesPerSecond / beatsPerSecond` sampleFrames
 	musicPlaying.sampleFramesPerBeat = sampleFramesPerSecond / beatsPerSecond
 
-	local delay = ffi.cast('uint16_t*', self.ram.audioData + musicPlaying.addr)[0]
+	local delay = ffi.cast('uint16_t*', self.ram.bank[0].audioData + musicPlaying.addr)[0]
 	musicPlaying.addr = musicPlaying.addr + 2
 
 	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
