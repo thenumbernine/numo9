@@ -1,5 +1,7 @@
 local ram=app.ram
 local palAddr = ffi.offsetof('RAM', 'palette')
+	
+local windowWidth, windowHeight = 256, 256
 
 math.randomseed(tstamp())
 
@@ -337,9 +339,6 @@ Object.drawRadius = .5
 Object.gravity = vec3(0,0,-22)		-- set to this value to 'fall' at the correct speed
 Object.mass = 1
 
-function Object:drawInit()
-end
-
 function Object:draw(viewMatrix)
 	local viewFwd = viewMatrix[1]
 	local viewRight = viewMatrix[2]
@@ -385,9 +384,6 @@ applyprojmat()
 		matpop()
 	end
 	--]]
-end
-
-function Object:drawShutdown()
 end
 
 
@@ -990,17 +986,19 @@ function Track:processTrackColor(u,v,tileIndex)
 	end
 end
 
-function Track:draw(viewMatrix)
+function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 	-- draw sky
 --	gl.glDisable(gl.GL_DEPTH_TEST)
 	local viewTheta = -math.atan2(viewMatrix[1][2], viewMatrix[1][1])
 	local viewU = viewTheta / (2 * math.pi)
 	matpush()
 	matident()
-	matscale(2, 2)
+	local skyScale = viewWidth / windowWidth
+	local s = 2 * skyScale
+	matscale(s, s)
 	mattrans(viewU * 32 * 8, 0)
-	spr(768, 0, 0, 32, 8)		-- draw sky
-	spr(768, -32*8, 0, 32, 8)	-- make it wrap
+	spr(768, viewX / s, viewY / s, 32, 8)		-- draw sky
+	spr(768, viewX / s - 32 * 8, viewY / s, 32, 8)	-- make it wrap
 	matpop()
 
 	-- [[ draw the track as tilemap
@@ -1084,7 +1082,7 @@ function Kart:clientInputUpdate()
 --]]
 end
 
-function Kart:setupClientView(aspectRatio)
+function Kart:setupClientView(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 	matident()
 
 	--local n=.1
@@ -1092,7 +1090,12 @@ function Kart:setupClientView(aspectRatio)
 	local f=128
 
 -- [[ this gets resolution issues the further from the origin we are
+	local viewCenterX = viewX + .5 * viewWidth
+	local viewCenterY = viewY + .5 * viewHeight
+	mattrans(viewCenterX - 128, viewCenterY - 128)
 	matfrustum(-n,n,-n,n,n,f)
+	local s = viewWidth / windowWidth
+	matscale(s, s)
 --[=[
 trace()
 trace('frustum:')
@@ -1113,9 +1116,8 @@ matident()
 --]]
 
 	-- [[
-	local camHDist = 3
-	local camVDist = 1.75
-	local camVLookDist = 1
+	local camHDist = 2.5 local camVDist = 2.5
+	local camVLookDist = 2
 
 	local camPos = vec3(
 		self.pos[1] - self.lookDir[1] * camHDist,
@@ -1136,7 +1138,7 @@ currentCamPos = camPos
 --]=]
 -- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
 -- doing this fixes the translation overflow error
--- but still getting some view coord issues...
+-- but still getting some transformation/translation accuracy issues when our coordinates get to 256 away from the origin ... hmm
 	matlookat(
 		0, 0, 0,
 		camLookAt[1] - camPos[1], camLookAt[2] - camPos[2], camLookAt[3] - camPos[3],
@@ -1163,9 +1165,6 @@ mattrans(-posx,-posy,-3)				-- view inv pos
 end
 
 Kart.drawRadius = .75
-
-function Kart:drawInit()
-end
 
 function Kart:draw(viewMatrix, kartSprites)
 	local viewFwd = viewMatrix[1]
@@ -1323,9 +1322,6 @@ applyprojmat()
 	--]]
 end
 
-function Kart:drawShutdown()
-end
-
 local function placeSuffix(n)
 	if n == 1 then return 'st' end
 	if n == 2 then return 'nd' end
@@ -1336,8 +1332,12 @@ end
 Kart.lakituCenterX = 0
 Kart.lakituCenterY = -.1
 
-function Kart:drawHUD(aspectRatio)
+function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 	matident()
+	-- inverse-transform ortho so that [0,256]^2 lines up with the view rect
+	--matortho(viewX, viewX + viewWidth, viewY, viewY + viewHeight)
+	mattrans(viewX, viewY)
+	matscale(viewWidth/256, viewHeight/256)
 	local speed = self.vel:length()
 
 	do
@@ -1367,22 +1367,28 @@ function Kart:drawHUD(aspectRatio)
 	end
 	
 	do
-		local centerX, centerY = 128, 10
+		local centerX, centerY = 128, 18
 		local length = 8
 
-		spr(sprites.outline[1], centerX - length, centerY - length, sprites.outline[2], sprites.outline[3])
+		matpush()
+		mattrans(centerX, centerY)
+		matscale(2, 2)
+		
+		spr(sprites.outline[1], -8, -8, sprites.outline[2], sprites.outline[3])
 
 		if self.gettingItem then
 			if self.getItemTime + self.getItemDuration > game.time then
 				local itemIndex = math.random(#Item.types)
 				local randomType = Item.types[itemIndex]
 				if not randomType.spriteIndex then error("Item.types["..itemIndex.."] is missing its .spriteIndex") end
-				spr(randomType.spriteIndex[1], centerX - length, centerY - length, randomType.spriteIndex[2], randomType.spriteIndex[3])
+				spr(randomType.spriteIndex[1], -8, -8, randomType.spriteIndex[2], randomType.spriteIndex[3])
 			end
 		end
 		if self.item then
-			spr(self.item.spriteIndex[1], centerX - length, centerY - length, self.item.spriteIndex[2], self.item.spriteIndex[3])
+			spr(self.item.spriteIndex[1], -8, -8, self.item.spriteIndex[2], self.item.spriteIndex[3])
 		end
+		
+		matpop()
 	end
 
 	if self.handToFootEndTime >= game.time then
@@ -1408,26 +1414,30 @@ function Kart:drawHUD(aspectRatio)
 		text(
 			('%02d:%02d.%02d'):format(math.floor(game.time/60), math.floor(game.time)%60, math.floor(game.time*100)%100),
 			1, 1,
-			colors.white, -1
+			colors.white, -1,
+			2, 2
 		)
 	end
 
 	text(
 		('%02.1f'):format(speed),
-		4, 248,
-		colors.white, -1
+		4, 240,
+		colors.white, -1,
+		2, 2
 	)
 
 	text(
 		tostring(self.place)..placeSuffix(self.place),
-		220, 240,
-		colors.white, -1
+		220, 224,
+		colors.white, -1,
+		2, 2
 	)
 
 	text(
 		'lap '..tostring(self.lap+1),
-		220, 248,
-		colors.white, -1
+		200, 240,
+		colors.white, -1,
+		2, 2
 	)
 
 	--[[ debugging
@@ -1443,16 +1453,18 @@ function Kart:drawHUD(aspectRatio)
 	if self.item then
 		text(
 			'x'..self.item.count,
-			136, 2,
-			colors.white, -1
+			144, 2,
+			colors.white, -1,
+			2, 2
 		)
 	end
 
 	if self.reserveItemCount > 0 then
 		text(
 			'R'..self.reserveItemCount,
-			136, 10,
-			colors.white, -1
+			144, 18,
+			colors.white, -1,
+			2, 2
 		)
 	end
 
@@ -1492,8 +1504,8 @@ function Kart:drawHUD(aspectRatio)
 			text(msg, 256*centerX, 256*centerY, colors.white, colors.black)
 			end
 		elseif self.goingBackwards then
-			text("Wrong Way", 256*centerX, 256*centerY, colors.white, colors.black)
-			text("RETARD!", 256*centerX, 8+256*centerY, colors.white, colors.black)
+			text("Wrong Way", 256*centerX, 256*centerY, colors.white, colors.black, 2, 2)
+			text("RETARD!", 256*centerX, 16+256*centerY, colors.white, colors.black, 2, 2)
 		end
 	end
 end
@@ -2302,7 +2314,7 @@ function ClientViewObject:init()
 	self.viewMatrix = {vec3(),vec3(),vec3()}
 end
 
-function ClientViewObject:drawScene(kart, aspectRatio, kartSprites)
+function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY, viewWidth, viewHeight)
 --[[ client update the sound
 	do
 		local speed = kart.vel:length()
@@ -2311,7 +2323,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites)
 	end
 --]]
 
-	kart:setupClientView(aspectRatio)
+	kart:setupClientView(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 
 	local viewFwd = self.viewMatrix[1]
 	local viewLeft = self.viewMatrix[2]
@@ -2326,12 +2338,11 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites)
 	viewUp[2] = 0
 	viewUp[3] = 1
 
-	game.track:draw(self.viewMatrix)
+	game.track:draw(self.viewMatrix, viewX, viewY, viewWidth, viewHeight)
 
-	for class,objs in pairs(game.objsOfClass) do
+	for class,classObjs in pairs(game.objsOfClass) do
 		if class.drawInit then class:drawInit(self.viewMatrix, kartSprites) end
-		for i=1,#objs do
-			local obj = objs[i]
+		for i,obj in ipairs(classObjs) do
 			if obj.draw then obj:draw(self.viewMatrix, kartSprites) end
 		end
 		if class.drawShutdown then class:drawShutdown(self.viewMatrix, kartSprites) end
@@ -2350,7 +2361,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites)
 	end
 --]]
 
-	kart:drawHUD(aspectRatio)
+	kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 end
 
 
@@ -2361,7 +2372,7 @@ track = game.track
 
 -- TODO menu and pick # players
 local clientViewObjs = table()	 -- one for each local player
-local numPlayers = 1
+local numPlayers = 4
 for playerIndex=1,numPlayers do
 	clientViewObjs[playerIndex] = ClientViewObject()
 	local player = Player()
@@ -2385,7 +2396,6 @@ update=[]do
 		player.kart:clientInputUpdate()
 	end
 	game:update(fixedDeltaTime)
-	local windowWidth, windowHeight = 256, 256
 
 	cls(0)
 	local divY = math.ceil(math.sqrt(#game.players))
@@ -2400,7 +2410,9 @@ update=[]do
 		local viewWidth = windowWidth / divX
 		local viewHeight = windowHeight / divY
 		local aspectRatio = viewWidth / viewHeight
-		clip(viewX * windowWidth / divX, viewY * windowHeight / divY, viewWidth - 1, viewHeight - 1)
+		viewX *= windowWidth / divX
+		viewY *= windowHeight / divY
+		clip(viewX, viewY, viewWidth - 1, viewHeight - 1)
 		
 		local useColorSpray = game.time < kart.colorSprayEndTime
 		-- cycle palette
@@ -2413,7 +2425,7 @@ update=[]do
 			end
 		end
 
-		clientViewObj:drawScene(kart, aspectRatio, kartSprites)
+		clientViewObj:drawScene(kart, aspectRatio, kartSprites, viewX, viewY, viewWidth, viewHeight)
 	
 		-- reset
 		if useColorSpray then
