@@ -1,5 +1,19 @@
 math.randomseed(tstamp())
 
+local sprites = {
+	ralph = 16,	-- 8x8
+	ItemBox = 24,	-- 4x4
+	colorspray = 28,	-- 4x4
+	banana = 272,	-- 2x2s...
+	cloudkill = 274,
+	colorspray = 276,
+	greenshell = 278,
+	handtofoot = 280,
+	mushroom = 282,
+	redshell = 284,
+	vandegraaf = 336,
+}
+
 local ram=app.ram
 local matstack=table()
 local matpush=[]do
@@ -306,6 +320,7 @@ tileClassForIndex[tileIndexForName.BoostTile] = BoostTile
 local Object = class()
 
 Object.radius = .5
+Object.spriteIndex = sprites.ItemBox
 
 function Object:init(args)
 	self.pos = vec3()
@@ -690,13 +705,13 @@ Item.count = 1
 
 -- returns true if we didn't use the item (returns false/nil if we did)
 function Item:use(kart)
-	trace('not implemented for '..self.texFileName)
+	trace'not implemented'
 end
 
 BananaItem = Item:subclass()
 
 BananaItem.count = 10
-BananaItem.texFileName = 'sprites/items/banana.png'
+BananaItem.spriteIndex = sprites.banana
 
 function BananaItem:use(kart)
 	BananaObject{pos = kart.pos, vel = kart.vel, dir = kart.dir, throw = kart.inputUpDown > 0}
@@ -706,7 +721,7 @@ end
 GreenShellItem = Item:subclass()
 
 GreenShellItem.count = 10
-GreenShellItem.texFileName = 'sprites/items/greenshell.png'
+GreenShellItem.spriteIndex = sprites.greenshell
 
 function GreenShellItem:use(kart)
 	GreenShellObject{pos = kart.pos, vel = kart.vel, dir = kart.dir, drop = kart.inputUpDown < 0}
@@ -716,7 +731,7 @@ end
 RedShellItem = Item:subclass()
 
 RedShellItem.count = 5
-RedShellItem.texFileName = 'sprites/items/redshell.png'
+RedShellItem.spriteIndex = sprites.redshell
 
 function RedShellItem:use(kart)
 	RedShellObject{
@@ -731,7 +746,7 @@ end
 local MushroomItem = Item:subclass()
 
 MushroomItem.count = 5
-MushroomItem.texFileName = 'sprites/items/mushroom.png'
+MushroomItem.spriteIndex = sprites.mushroom
 
 function MushroomItem:use(kart)
 	return not kart:boost()
@@ -741,7 +756,7 @@ end
 local VanDeGraaffItem = Item:subclass()
 
 VanDeGraaffItem.count = 6
-VanDeGraaffItem.texFileName = 'sprites/items/vandegraaff.png'
+VanDeGraaffItem.spriteIndex = sprites.vandegraaf
 
 function VanDeGraaffItem:use(kart)
 	local start = kart.pos + vec3(0,0,.5)
@@ -799,18 +814,17 @@ end
 CloudKillItem = CloudItem:subclass()
 
 CloudKillItem.objectClass = CloudKillObject
---CloudKillItem.texFileName = 'sprites/items/cloudkill.png'
+CloudKillItem.spriteIndex = sprites.cloudkill
 
 
 local ColorSprayItem = CloudItem:subclass()
 
 ColorSprayItem.objectClass = ColorSprayObject
---ColorSprayItem.texFileName = 'sprites/items/colorspray.png'
+ColorSprayItem.spriteindex = sprites.colorspray
 
 
 local HandToFootItem = Item:subclass()
-
---HandToFootItem.texFileName = 'sprites/items/handtofoot.png'
+HandToFootItem.spriteIndex = sprites.handtofoot
 
 function HandToFootItem:use(kart)
 --[[
@@ -961,16 +975,16 @@ function Track:processTrackColor(u,v,tileIndex)
 	if tileIndex==tileIndexForName.RoughTile then
 	elseif tileIndex==tileIndexForName.startback then
 		mset(u,v,tileIndexForName.SmoothTile)
-		return vec2(u+1.5,v+1.5)
+		return vec2(u+.5,v+.5)
 	elseif tileIndex==tileIndexForName.startfront then
 		mset(u,v,tileIndexForName.SmoothTile)
-		self.startPos = vec2(u+1.5,v+1.5)
+		self.startPos = vec2(u+.5,v+.5)
 	elseif tileIndex==tileIndexForName.SmoothTile then
 	elseif tileIndex==tileIndexForName.SolidTile then
 	elseif tileIndex==tileIndexForName.BoostTile then
 	elseif tileIndex==tileIndexForName.item then
 		mset(u,v,tileIndexForName.SmoothTile)
-		self.itemBoxPositions:insert(vec3(u+1.5, v+1.5,0))
+		self.itemBoxPositions:insert(vec3(u+.5, v+.5,0))
 	else
 		trace("unknown tile at "..u..", "..v.." has "..tileIndex)
 		mset(u,v,tileIndexForName.SmoothTile)
@@ -1349,15 +1363,11 @@ Kart.lakituCenterX = 0
 Kart.lakituCenterY = 2
 
 function Kart:drawHUD(aspectRatio)
-do return end	-- TODO
-
+do return end
 	local orthoXMin = -aspectRatio / 2
 	local orthoXMax = aspectRatio / 2
-	view.projMat:setOrtho(orthoXMin, orthoXMax, 0, 1, -1, 1)
-	view.mvMat:setIdent()
-	view.mvProjMat:mul4x4(view.projMat, view.mvMat)
-
-	gl.glDisable(gl.GL_DEPTH_TEST)
+	matident()
+	matortho(orthoXMin, orthoXMax, 0, 1, -1, 1)
 
 	local speed = self.vel:length()
 	local spedoAngle = math.pi * 5 / 4 - (speed / 3) / (2 * math.pi)
@@ -1366,44 +1376,24 @@ do return end	-- TODO
 	local centerX, centerY = .12 + orthoXMin, .12
 	local length = .1
 
-	gl.glEnable(gl.GL_BLEND)
+	blend(1)
+	elli(centerX - length, centerY - length, 2 * length, 2 * length, 0)
 
-	local so = triFanSceneObj
-	so.uniforms.color = {0,0,0,.75}
-	so.uniforms.mvProjMat = view.mvProjMat.ptr
-	local vtxGPU = so.attrs.vertex.buffer
-	local vtxCPU = vtxGPU.vec
-	so:beginUpdate()
-	local divs = 10
-	vtxCPU:resize(divs)
-	for i=1,divs do
-		local theta = (i-1)/divs * 2 * math.pi
-		vtxCPU.v[i-1]:set(
-			centerX + length * math.cos(theta),
-			centerY + length * math.sin(theta),
-			0)
-	end
-	so:endUpdate()
-
---[[ TODO
-	gl.glColor4f(1,1,1,.25)
-	gl.glBegin(gl.GL_TRIANGLES)
-	gl.glVertex2f(
+	tri(
+		-- x1 y1
 		centerX + length * dx,
-		centerY + length * dy)
-	gl.glVertex2f(
+		centerY + length * dy,
+		-- x2 y2
 		centerX - .2 * length * dy,
-		centerY + .2 * length * dx)
-	gl.glVertex2f(
+		centerY + .2 * length * dx,
+		-- x3 y3
 		centerX + .2 * length * dy,
-		centerY - .2 * length * dx)
-	gl.glEnd()
-
-	gl.glColor3f(1,1,1)
-	gl.glEnable(gl.GL_TEXTURE_2D)
---]]
-
---[[ TODO
+		centerY - .2 * length * dx,
+		-- colorIndex
+		0x81
+	)
+	blend(-1)
+do return end
 	do
 		gl.glBindTexture(gl.GL_TEXTURE_2D, game.outlineTex.id)
 
@@ -2021,7 +2011,7 @@ function Kart:update(dt)
 --DEBUG:trace('dt', dt)
 --DEBUG:trace('vel', self.vel)
 --DEBUG:trace('newpos', newposX, newposY, newposZ)
---[[
+-- [[
 	-- check for collisions with world
 	do
 		local solid = false
@@ -2030,7 +2020,7 @@ function Kart:update(dt)
 		and iy >= 0 and iy < track.size[2]
 		then
 			local tileClass = tileClassForIndex[mget(ix,iy)]
-			solid = tile.solid
+			solid = tileClass.solid
 		else
 			solid = true
 		end
@@ -2455,7 +2445,7 @@ update=[]do
 	game:update(fixedDeltaTime)
 	local windowWidth, windowHeight = 256, 256
 
-	cls(0xf0)
+	cls(0)
 	local divY = math.ceil(math.sqrt(#game.players))
 	local divX = math.ceil(#game.players / divY)
 	for playerIndex,player in ipairs(game.players) do
@@ -2471,18 +2461,19 @@ update=[]do
 		clip(viewX * windowWidth / divX, viewY * windowHeight / divY, viewWidth - 1, viewHeight - 1)
 		clientViewObj:drawScene(kart, aspectRatio, kartSprites)
 
+--[[
 local r1 = ('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12])
 local r2 = ('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.mvMat[13])
 local r3 = ('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14])
 local r4 = ('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15])
-
 		matident()
-		text('pos:'..kart.pos, 0, 0, 0xfc, -1)
-		text('vel:'..kart.vel, 0, 8, 0xfc, -1)
-		text('dir:'..kart.dir, 0, 16, 0xfc, -1)
-		text(r1, 0, 32, 0xfc, -1)
-		text(r2, 0, 40, 0xfc, -1)
-		text(r3, 0, 48, 0xfc, -1)
-		text(r4, 0, 56, 0xfc, -1)
+		text('pos:'..kart.pos, 0, 0, 0x70, -1)
+		text('vel:'..kart.vel, 0, 8, 0x70, -1)
+		text('dir:'..kart.dir, 0, 16, 0x70, -1)
+		text(r1, 0, 32, 0x70, -1)
+		text(r2, 0, 40, 0x70, -1)
+		text(r3, 0, 48, 0x70, -1)
+		text(r4, 0, 56, 0x70, -1)
+--]]
 	end
 end

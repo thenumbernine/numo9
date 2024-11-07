@@ -432,6 +432,8 @@ return {
 	userDataSize = userDataSize,
 	persistentCartridgeDataSize = persistentCartridgeDataSize,
 
+	mvMatType = mvMatType,
+
 	ROM = ROM,
 	RAM = RAM,
 

@@ -67,6 +67,7 @@ local fontAddrEnd = numo9_rom.fontAddrEnd
 local framebufferAddr = numo9_rom.framebufferAddr
 local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
 local packptr = numo9_rom.packptr
+local mvMatType = numo9_rom.mvMatType
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -1293,6 +1294,7 @@ end
 
 -------------------- MAIN UPDATE CALLBACK --------------------
 
+local mvMatPush = ffi.new(mvMatType..'[16]')
 function App:update()
 	App.super.update(self)
 
@@ -1496,6 +1498,9 @@ print('run thread dead')
 		-- if we're using menu then render to the fbMenuTex
 		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
 		if self.activeMenu then
+			-- push matrix
+			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+			self:matident()
 			-- set drawText font & pal to the UI's
 			self.textFontTex = self.fontMenuTex
 			self.textPalTex = self.palMenuTex
@@ -1573,8 +1578,9 @@ print('run thread dead')
 			self.inMenuUpdate = false
 			self.textFontTex = self.fontTex
 			self.textPalTex = self.palTex
+			-- pop matrix
+			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		end
-		self:mvMatFromRAM()
 
 		self.inUpdateCallback = false
 		fb:unbind()

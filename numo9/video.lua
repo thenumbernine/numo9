@@ -1731,11 +1731,11 @@ function AppVideo:drawSolidRect(
 )
 	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.fbTex:checkDirtyCPU()
+	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.quadSolidObj
 	local uniforms = sceneObj.uniforms
 
-self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = math.floor(colorIndex or 0)
 	uniforms.borderOnly = borderOnly or false
@@ -1767,11 +1767,11 @@ end
 function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.fbTex:checkDirtyCPU()
+	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.triSolidObj
 	local uniforms = sceneObj.uniforms
 
-self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = math.floor(colorIndex)
 
@@ -1797,11 +1797,11 @@ end
 function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.fbTex:checkDirtyCPU()
+	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.lineSolidObj
 	local uniforms = sceneObj.uniforms
 
-self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.colorIndex = colorIndex
 	settable(uniforms.pos0, x1,y1,z1)
