@@ -633,7 +633,10 @@ function VanDeGraaffObject:draw()
 		for j=1,#lineStrip-1 do
 			local v1 = lineStrip[j]
 			local v2 = lineStrip[j+1]
-			line3d(v1[1], v1[2], v1[3], v2[1], v2[2], v2[3], colors.white)
+			line3d(
+				v1[1] - currentCamPos[1], v1[2] - currentCamPos[2], v1[3] - currentCamPos[3],
+				v2[1] - currentCamPos[1], v2[2] - currentCamPos[2], v2[3] - currentCamPos[3],
+				colors.white)
 		end
 	end
 end
@@ -1461,14 +1464,14 @@ function Kart:drawHUD(aspectRatio)
 
 		local alpha = .005
 		if needsLakitu then
-			self.lakituCenterX = self.lakituCenterX * (1 - alpha) + 0 * alpha
+			self.lakituCenterX = self.lakituCenterX * (1 - alpha) + .5 * alpha
 			self.lakituCenterY = self.lakituCenterY * (1 - alpha) + .5 * alpha
 		else
-			self.lakituCenterX = self.lakituCenterX * (1 - alpha) + 0 * alpha
-			self.lakituCenterY = self.lakituCenterY * (1 - alpha) + 2 * alpha
+			self.lakituCenterX = self.lakituCenterX * (1 - alpha) + .5 * alpha
+			self.lakituCenterY = self.lakituCenterY * (1 - alpha) + -.5 * alpha
 		end
 		local floatRadius = .2
-		local centerX = .5 + self.lakituCenterX + math.cos(game.time) * floatRadius
+		local centerX = self.lakituCenterX + math.cos(game.time) * floatRadius
 		local centerY = self.lakituCenterY + math.sin(game.time) * floatRadius
 		local length = .3
 
@@ -2333,6 +2336,19 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites)
 		end
 		if class.drawShutdown then class:drawShutdown(self.viewMatrix, kartSprites) end
 	end
+
+--[[ debugging
+	if game.track.nodes then
+		local node = game.track.nodes[self.nodeIndex]
+		if node then
+			line3d(
+				kart.pos[1] - currentCamPos[1], kart.pos[2] - currentCamPos[2], kart.pos[3] + 2 - currentCamPos[3],
+				node[1] - currentCamPos[1], node[2] - currentCamPos[2], node[3] + 0 - currentCamPos[3],
+				colors.white
+			)
+		end
+	end
+--]]
 
 	kart:drawHUD(aspectRatio)
 end
