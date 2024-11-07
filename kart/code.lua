@@ -363,13 +363,13 @@ local viewAngle = math.atan2(viewFwd[2], viewFwd[1])
 -- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
 		mattrans(self.pos[1] - currentCamPos[1], self.pos[2] - currentCamPos[2], self.pos[3] - currentCamPos[3])
 --]=]
-		matscale(1/32,1/32,1/32)
+		matscale(1/16,1/16,1/16)
 
 		-- undo camera viewAngle to make a billboard
 		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
 		matrot(math.rad(-70), 1, 0, 0)
 		local w, h = self.spriteIndex[2], self.spriteIndex[3]
-		mattrans(-(w/2)*16, -h*16, 0)
+		mattrans(-(w/2)*8, -(h/2)*8, 0)
 --[=[ not helping
 applyprojmat()
 --]=]
@@ -980,15 +980,13 @@ function Track:draw(viewMatrix)
 --	gl.glDisable(gl.GL_DEPTH_TEST)
 	local viewTheta = -math.atan2(viewMatrix[1][2], viewMatrix[1][1])
 	local viewU = viewTheta / (2 * math.pi)
-	local viewUWidth = .5
-	--[[
-	local so = self.skySceneObj
-	so.uniforms.viewUAndWidth = {viewU, viewUWidth}
-	so.uniforms.mvProjMat = view.mvProjMat.ptr
-	so:draw()
-	--]]
-
---	gl.glEnable(gl.GL_DEPTH_TEST)
+	matpush()
+	matident()
+	matscale(2, 2)
+	mattrans(viewU * 32 * 8, 0)
+	spr(768, 0, 0, 32, 8)		-- draw sky
+	spr(768, -32*8, 0, 32, 8)	-- make it wrap
+	matpop()
 
 	-- [[ draw the track as tilemap
 	matpush()

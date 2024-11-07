@@ -198,6 +198,8 @@ function EditSprites:update()
 		if self.spritesheetEditMode == 'select' then
 			if leftButtonPress then
 				self.spriteSelPos:set(fbToSpritesheetCoord(mouseX, mouseY))
+				self.spriteSelPos.x = math.clamp(self.spriteSelPos.x, 0, spriteSheetSizeInTiles.x-1)
+				self.spriteSelPos.y = math.clamp(self.spriteSelPos.y, 0, spriteSheetSizeInTiles.x-1)
 				self.spriteSelSize:set(1,1)
 				self.spritePanOffset:set(0,0)
 			elseif leftButtonDown then
