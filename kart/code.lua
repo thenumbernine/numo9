@@ -4,7 +4,9 @@ local palAddr = ffi.offsetof('RAM', 'palette')
 math.randomseed(tstamp())
 
 local colors = {
+	black = 0x00,
 	white = 0x70,
+	clear = 0xff,
 }
 
 local sprites = {
@@ -20,6 +22,14 @@ local sprites = {
 	redshell = {284, 2, 2},
 	vandegraaf = {336, 2, 2},
 	outline = {338, 2, 2},
+}
+
+-- kart sprites
+-- divided into 180'.  flip the sprite to get the other 180'
+local spriteIndexForAngle = {
+	0, 4, 8, 12,
+	128+0, 128+4, 128+8, 128+12,
+	256+0, 256+4, 256+8, 256+12,
 }
 
 local palPush = {}
@@ -209,6 +219,7 @@ local tileIndexForName = {
 	item = 4,
 	startback = 5,
 	startfront = 6,
+	StartingLineTile = 7,	-- visual only
 }
 
 -- lookup for class from tile index
@@ -285,22 +296,19 @@ Tile.friction = .1
 Tile.drag = 0
 
 local SmoothTile = Tile:subclass()
---SmoothTile.textureName = 'dirt.png'	--'grid.png'
 tileClassForIndex[tileIndexForName.SmoothTile] = SmoothTile
+tileClassForIndex[tileIndexForName.StartingLineTile] = SmoothTile
 
 local RoughTile = Tile:subclass()
 RoughTile.drag = .4
---RoughTile.textureName = 'grass.png'
 tileClassForIndex[tileIndexForName.RoughTile] = RoughTile
 
 local SolidTile = Tile:subclass()
 SolidTile.solid = true
 SolidTile.friction = 0
---SolidTile.textureName = 'bluerock.png'
 tileClassForIndex[tileIndexForName.SolidTile] = SolidTile
 
 local BoostTile = Tile:subclass()
---BoostTile.textureName = 'boost.png'
 BoostTile.friction = 0
 BoostTile.boost = true
 tileClassForIndex[tileIndexForName.BoostTile] = BoostTile
@@ -894,11 +902,14 @@ function Track:init(args)
 225.46654505101, 51.764759635523, 8
 ]]
 	if self.nodes then
-		self.nodes = string.split(self.nodes, '\n'):mapi([line]
-			vec3(table.unpack(string.split(line,','):mapi([v]
+		self.nodes = string.split(self.nodes, '\n'):mapi([line]do
+			local v = vec3(table.unpack(string.split(line,','):mapi([v]
 				tonumber(string.trim(v))
 			)))
-		)
+			v *= .5				-- cuz they were recorded at 256x but now the track is 128x
+			v[2] = 128 - v[2]	-- cuz console vflip
+			return v
+		end)
 		for i=1,#self.nodes do
 			node = self.nodes[i]
 			local ii = (i % #self.nodes) + 1
@@ -909,7 +920,7 @@ function Track:init(args)
 	end
 
 	-- each tile represents [i-1,1]x[j-1,j]
-	self.size = vec2(256,256)
+	self.size = vec2(128,128)
 	self.itemBoxPositions = table()
 	local realStartDest
 	for i=0,self.size[1]-1 do
@@ -956,16 +967,17 @@ function Track:init(args)
 end
 
 function Track:processTrackColor(u,v,tileIndex)
-	if tileIndex==tileIndexForName.RoughTile then
+	if tileIndex==tileIndexForName.SmoothTile then
+	elseif tileIndex==tileIndexForName.RoughTile then
+	elseif tileIndex==tileIndexForName.SolidTile then
+	elseif tileIndex==tileIndexForName.BoostTile then
+	elseif tileIndex==tileIndexForName.StartingLineTile then
 	elseif tileIndex==tileIndexForName.startback then
 		mset(u,v,tileIndexForName.SmoothTile)
 		return vec2(u+.5,v+.5)
 	elseif tileIndex==tileIndexForName.startfront then
 		mset(u,v,tileIndexForName.SmoothTile)
 		self.startPos = vec2(u+.5,v+.5)
-	elseif tileIndex==tileIndexForName.SmoothTile then
-	elseif tileIndex==tileIndexForName.SolidTile then
-	elseif tileIndex==tileIndexForName.BoostTile then
 	elseif tileIndex==tileIndexForName.item then
 		mset(u,v,tileIndexForName.SmoothTile)
 		self.itemBoxPositions:insert(vec3(u+.5, v+.5,0))
@@ -990,31 +1002,15 @@ function Track:draw(viewMatrix)
 
 	-- [[ draw the track as tilemap
 	matpush()
-
 -- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
 	mattrans(-currentCamPos[1], -currentCamPos[2], -currentCamPos[3])
 --]=]
-
 	matscale(1/8, 1/8, 1/8)
 --[=[ not helping
 applyprojmat()
 --]=]
-
 	map(0, 0, track.size[1], track.size[2], 0, 0)
-
 	matpop()
-	--]]
-
-	--[[ draw starting line
-	gl.glDisable(gl.GL_CULL_FACE)
-	local so = self.startingLineSceneObj
-	so.uniforms.length = math.ceil((self.startingLineLeftPos - self.startingLineRightPos):length())
-	so.uniforms.line0 = self.startingLineLeftPos
-	so.uniforms.line1 = self.startingLineRightPos
-	so.uniforms.startingLineZ = self.startingLineZ
-	so.uniforms.mvProjMat = view.mvProjMat.ptr
-	so:draw()
-	gl.glEnable(gl.GL_CULL_FACE)
 	--]]
 end
 
@@ -1089,8 +1085,8 @@ function Kart:setupClientView(aspectRatio)
 	matident()
 
 	--local n=.1
-	local n=1
-	local f=256
+	local n=.1
+	local f=128
 
 -- [[ this gets resolution issues the further from the origin we are
 	matfrustum(-n,n,-n,n,n,f)
@@ -1164,13 +1160,6 @@ mattrans(-posx,-posy,-3)				-- view inv pos
 end
 
 Kart.drawRadius = .75
-
--- divided into 180'.  flip the sprite to get the other 180'
-local spriteIndexForAngle = {
-	0, 4, 8, 12,
-	128+0, 128+4, 128+8, 128+12,
-	256+0, 256+4, 256+8, 256+12,
-}
 
 function Kart:drawInit()
 end
@@ -1342,64 +1331,54 @@ local function placeSuffix(n)
 end
 
 Kart.lakituCenterX = 0
-Kart.lakituCenterY = 2
+Kart.lakituCenterY = -.1
 
 function Kart:drawHUD(aspectRatio)
-	local orthoXMin = -aspectRatio / 2
-	local orthoXMax = aspectRatio / 2
 	matident()
-	matortho(orthoXMin, orthoXMax, 0, 1, -1, 1)
-
 	local speed = self.vel:length()
-	local spedoAngle = math.pi * 5 / 4 - (speed / 3) / (2 * math.pi)
-	local dx = math.cos(spedoAngle)
-	local dy = math.sin(spedoAngle)
-	local centerX, centerY = .12 + orthoXMin, .12
-	local length = .1
 
-	blend(1)
-	elli(centerX - length, centerY - length, 2 * length, 2 * length, 0)
+	do
+		local spedoAngle = math.pi * 5 / 4 - (speed / 3) / (2 * math.pi)
+		local dx = math.cos(spedoAngle)
+		local dy = -math.sin(spedoAngle)
+		local centerX, centerY = 31, 255-31
+		local length = 26
 
-	tri(
-		-- x1 y1
-		centerX + length * dx,
-		centerY + length * dy,
-		-- x2 y2
-		centerX - .2 * length * dy,
-		centerY + .2 * length * dx,
-		-- x3 y3
-		centerX + .2 * length * dy,
-		centerY - .2 * length * dx,
-		-- colorIndex
-		0x81
-	)
-	blend(-1)
+		blend(1)
+		elli(centerX - length, centerY - length, 2 * length, 2 * length, 0)
+
+		tri(
+			-- x1 y1
+			centerX + length * dx,
+			centerY + length * dy,
+			-- x2 y2
+			centerX - .2 * length * dy,
+			centerY + .2 * length * dx,
+			-- x3 y3
+			centerX + .2 * length * dy,
+			centerY - .2 * length * dx,
+			-- colorIndex
+			0x81
+		)
+		blend(-1)
+	end
 	
 	do
-		local centerX, centerY = 0, .9
-		local length = .1
+		local centerX, centerY = 128, 10
+		local length = 8
 
-		matpush()
-		matscale(1/128,1/128)
-		spr(sprites.outline[1], centerX + (-32) * 2 * length, centerY + (.5) * 2 * length, sprites.outline[2], sprites.outline[3])
-		matpop()
+		spr(sprites.outline[1], centerX - length, centerY - length, sprites.outline[2], sprites.outline[3])
 
 		if self.gettingItem then
 			if self.getItemTime + self.getItemDuration > game.time then
 				local itemIndex = math.random(#Item.types)
 				local randomType = Item.types[itemIndex]
 				if not randomType.spriteIndex then error("Item.types["..itemIndex.."] is missing its .spriteIndex") end
-				matpush()
-				matscale(1/128,1/128)
-				spr(randomType.spriteIndex[1], centerX + (-32) * 2 * length, centerY + (.5) * 2 * length, randomType.spriteIndex[2], randomType.spriteIndex[3])
-				matpop()
+				spr(randomType.spriteIndex[1], centerX - length, centerY - length, randomType.spriteIndex[2], randomType.spriteIndex[3])
 			end
 		end
 		if self.item then
-			matpush()
-			matscale(1/128,1/128)
-			spr(self.item.spriteIndex[1], centerX + (-32) * 2 * length, centerY + (.5) * 2 * length, self.item.spriteIndex[2], self.item.spriteIndex[3])
-			matpop()
+			spr(self.item.spriteIndex[1], centerX - length, centerY - length, self.item.spriteIndex[2], self.item.spriteIndex[3])
 		end
 	end
 
@@ -1414,49 +1393,46 @@ function Kart:drawHUD(aspectRatio)
 			frac = frac * (1 - alpha) + alpha
 		end
 
-		--gl.glColor4f(1,1,1,1-frac)	-- TODO 
-		local centerX, centerY = 0, .5
-		local length = (1 + frac) * .5
-		matpush()
-		matscale(1/128,1/128)
-		spr(sprites.handtofoot[1], centerX + (-32)*length, centerY + (-.5)*length, sprites.handtofoot[2], sprites.handtofoot[3])
-		matpop()
+		--gl.glColor4f(1,1,1,1-frac)	-- TODO fade
+		local centerX, centerY = 128, 128
+		local length = 8
+		spr(sprites.handtofoot[1], centerX - length, centerY - length, sprites.handtofoot[2], sprites.handtofoot[3])
 	end
-do return end	
+
 --]]
 
 	if game.time >= 0 then
 		text(
 			('%02d:%02d.%02d'):format(math.floor(game.time/60), math.floor(game.time)%60, math.floor(game.time*100)%100),
-			orthoXMin+.01, .99
-			--.1, -.1,
+			1, 1,
+			colors.white, -1
 		)
 	end
 
 	text(
 		('%02.1f'):format(speed),
-		orthoXMin + .04, .15
-		--.07, -.07,
+		4, 248,
+		colors.white, -1
 	)
 
 	text(
 		tostring(self.place)..placeSuffix(self.place),
-		orthoXMax - .55, .31
-		--.3, -.3,
+		220, 240,
+		colors.white, -1
 	)
 
 	text(
 		'lap '..tostring(self.lap+1),
-		orthoXMax - .41, .42
-		--.1, -.1,
+		220, 248,
+		colors.white, -1
 	)
 
 	--[[ debugging
 	if game.track.nodes then
 		text(
 			'node '..tostring(self.nodeIndex)..'/'..#game.track.nodes,
-			orthoXMax - .6, .53
-			--.07, -.07,
+			0, 8,
+			colors.white, -1
 		)
 	end
 	--]]
@@ -1464,16 +1440,16 @@ do return end
 	if self.item then
 		text(
 			'x'..self.item.count,
-			.1, .94
-			--.1, -.1,
+			136, 2,
+			colors.white, -1
 		)
 	end
 
 	if self.reserveItemCount > 0 then
 		text(
 			'R'..self.reserveItemCount,
-			.35, .94
-			--.1, -.1,
+			136, 10,
+			colors.white, -1
 		)
 	end
 
@@ -1492,14 +1468,14 @@ do return end
 			self.lakituCenterY = self.lakituCenterY * (1 - alpha) + 2 * alpha
 		end
 		local floatRadius = .2
-		local centerX = self.lakituCenterX + math.cos(game.time) * floatRadius
+		local centerX = .5 + self.lakituCenterX + math.cos(game.time) * floatRadius
 		local centerY = self.lakituCenterY + math.sin(game.time) * floatRadius
 		local length = .3
 
-		spr(sprites.ralph[1], centerX + (-.5) * length, centerY + (-.5) * length, sprites.ralph[2], sprites.ralph[3])
+		spr(sprites.ralph[1], 256 * (centerX + (-.5) * length), 256 * (centerY + (-.5) * length), sprites.ralph[2], sprites.ralph[3])
 		
-		local msg
 		if starting then
+			local msg
 			if game.time > -.3 then
 				msg = 'GO!!!'
 			elseif game.time > -1.3 then
@@ -1509,11 +1485,12 @@ do return end
 			elseif game.time > -3.3 then
 				msg = '3'
 			end
+			if msg then
+			text(msg, 256*centerX, 256*centerY, colors.white, colors.black)
+			end
 		elseif self.goingBackwards then
-			msg = "Wrong Way\nRETARD!"
-		end
-		if msg then
-			text(msg, centerX, centerY) --, .1, -.1, )
+			text("Wrong Way", 256*centerX, 256*centerY, colors.white, colors.black)
+			text("RETARD!", 256*centerX, 8+256*centerY, colors.white, colors.black)
 		end
 	end
 end
@@ -2132,8 +2109,7 @@ local function sortKarts(ka,kb)
 end
 
 function Game:init()
-	--self.time = -6	-- TODO lakitu etc
-	self.time = 0
+	self.time = -6	-- TODO lakitu etc
 
 	local trackName = 'map1'
 	self.track = Track()
