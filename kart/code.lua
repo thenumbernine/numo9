@@ -1,4 +1,13 @@
 --[[
+TODO 
+- ... multi "bank" rendering ... hmm
+	and how to do that with 64 players at once ...
+	it's easy with just 4players ...
+- also add sounds
+- track nodes are a bit off with the finish line
+- multiplayer needs to track foreign conns and place clientViewObjs in their local screens accordingly
+- rendering needs to move to draw()
+
 sprites from https://www.spriters-resource.com/submitter/NICKtendoDS/
 --]]
 
@@ -860,7 +869,6 @@ function Track:init(args)
 	self.startDir = vec2(1,0)
 
 	self.nodes = [[
-223.93364120053, 74.520196198627, 8
 220.44807852958, 94.287804405524, 8
 216.93629282519, 114.20413082523, 8
 213.41589576494, 134.12053951153, 7.2670865210312
@@ -903,6 +911,7 @@ function Track:init(args)
 205.1668421285, 21.800035021895, 7.605750377657
 221.93167316411, 32.136298021778, 8
 225.46654505101, 51.764759635523, 8
+223.93364120053, 74.520196198627, 8
 ]]
 	if self.nodes then
 		self.nodes = string.split(self.nodes, '\n'):mapi([line]do
@@ -1171,6 +1180,8 @@ end
 Kart.drawRadius = .75
 
 function Kart:draw(viewMatrix, kartSprites)
+	if self.done then return end
+
 	local viewFwd = viewMatrix[1]
 	local viewRight = viewMatrix[2]
 	local viewUp = viewMatrix[3]
@@ -1413,8 +1424,10 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 	--[[ debugging
 	if game.track.nodes then
 		text(
-			'node '..tostring(self.nodeIndex)..'/'..#game.track.nodes,
-			0, 8,
+			'node '..tostring(self.nodeIndex)
+				..' : '..tostring(self.nodeIndexParam)
+				..' /'..#game.track.nodes,
+			0, 16,
 			colors.white, -1
 		)
 	end
@@ -1473,6 +1486,8 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 			if msg then
 			text(msg, 256*centerX, 256*centerY, colors.white, colors.black, 2, 2)
 			end
+		elseif self.done then
+			text(self.place.."rd Place!", 256*centerX-32, 256*centerY, colors.white, colors.black, 2, 2)
 		elseif self.goingBackwards then
 			text("Wrong Way", 256*centerX-32, 256*centerY, colors.white, colors.black, 2, 2)
 			text("RETARD!", 256*centerX-32, 16+256*centerY, colors.white, colors.black, 2, 2)
@@ -1555,14 +1570,14 @@ Kart.speed = 0
 local recording = {
 	distBetweenPositions = 10,
 	positions = table(),
-	update = function(self)
+	update = function(self, kart)
 		if self.done then return end
-		if #self.positions == 0 or (self.pos - self.positions[#self.positions]):length() > self.distBetweenPositions then
-			self.positions:insert(vec3(self.pos[1], self.pos[2], self.pos[3]))
+		if #self.positions == 0 or (kart.pos - self.positions[#self.positions]):length() > self.distBetweenPositions then
+			self.positions:insert(vec3(kart.pos[1], kart.pos[2], kart.pos[3]))
 		end
-		if #self.positions > 3 and (self.pos - self.positions[1]):length() < self.distBetweenPositions then
+		if #self.positions > 3 and (kart.pos - self.positions[1]):length() < self.distBetweenPositions then
 			trace('writing nodes')
-			self.positions:insert(vec3(self.pos[1], self.pos[2], self.pos[3]))
+			self.positions:insert(vec3(kart.pos[1], kart.pos[2], kart.pos[3]))
 			trace(self.positions:mapi(tostring):concat('\n'))
 			self.done = true
 		end
@@ -1575,7 +1590,9 @@ Kart.place = 1
 Kart.lap = 0
 
 function Kart:update(dt)
---	recording:update()	-- enable to record track nodes
+	if self.done then return end
+
+--	recording:update(self)	-- enable to record track nodes
 --DEBUG:trace('kart.pos', self.pos)
 	local track = game.track
 
@@ -1622,10 +1639,22 @@ function Kart:update(dt)
 		local lap = math.floor( (self.nodeIndex-1) / #track.nodes )
 		if lap > self.lap then
 			self.lap = lap
+			-- lap # is one off so
+			if self.lap >= game.maxLaps then
+				-- TODO switch to AI or something
+				game.finishPlayers:insert(self.playerIndex)
+			
+				if #game.finishPlayers == #clientViewObjs then
+					-- game is over or something
+				end
+
+				self.done = true
+				self:remove()
+				return
+			end
 		end
 
 		self.nodeIndexParam = (bestToNextDistSq - bestToPrevDistSq) - (self.nodesDistSq[nextOfBestIndex] - self.nodesDistSq[prevOfBestIndex])
-
 
 		local vecToNext = track.nodes[currentNodeIndex].vecToNext
 		local fwddotnext = vec3.dot(vecToNext, self.dir)
@@ -2093,6 +2122,8 @@ local function sortKarts(ka,kb)
 	return ka.nodeIndexParam > kb.nodeIndexParam
 end
 
+Game.maxLaps = 3
+
 function Game:init()
 	self.time = -6	-- TODO lakitu etc
 
@@ -2104,6 +2135,8 @@ function Game:init()
 
 	self.objs = table()
 	self.objsOfClass = table()	-- classify by class, for better optimized drawing
+
+	self.finishPlayers = table()
 end
 
 function Game:createItemBoxes()
@@ -2268,10 +2301,12 @@ function Game:update(dt)
 	end
 
 	local karts = self.objsOfClass[Kart]
-	karts:sort(sortKarts)
-	for kartIndex=1,#karts do
-		local kart = karts[kartIndex]
-		kart.place = kartIndex
+	if karts then
+		karts:sort(sortKarts)
+		for kartIndex=1,#karts do
+			local kart = karts[kartIndex]
+			kart.place = #self.finishPlayers + kartIndex
+		end
 	end
 
 	self.time = self.time + dt
@@ -2323,10 +2358,26 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 		local node = game.track.nodes[self.nodeIndex]
 		if node then
 			line3d(
-				kart.pos[1] - currentCamPos[1], kart.pos[2] - currentCamPos[2], kart.pos[3] + 2 - currentCamPos[3],
-				node[1] - currentCamPos[1], node[2] - currentCamPos[2], node[3] + 0 - currentCamPos[3],
+				kart.pos[1] - currentCamPos[1], kart.pos[2] - currentCamPos[2], kart.pos[3] + 1 - currentCamPos[3],
+				node[1] - currentCamPos[1], node[2] - currentCamPos[2], node[3] + 1 - currentCamPos[3],
 				colors.white
 			)
+		end
+
+		for nodeIndex,node in ipairs(game.track.nodes) do
+			matpush()
+			mattrans(node[1] - currentCamPos[1], node[2] - currentCamPos[2], .1 - currentCamPos[3])
+			local length = .5
+			elli(-length, -length, 2 * length, 2 * length, 
+				({
+					colors.white,
+					colors.black,
+					0xb0,	-- red
+					0x89,	-- green
+					0xf6,	-- blue
+				})[((nodeIndex-1)%5)+1]
+			)
+			matpop()
 		end
 	end
 --]]
@@ -2340,9 +2391,8 @@ local inMenu = true
 local menuSel = 0
 local playersActive=table{false}:rep(maxPlayers-1)
 playersActive[0]=true
-local playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
+playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
 
-local clientViewObjs 	-- index is not player index
 startGame=[]do
 	inMenu=false
 
@@ -2351,7 +2401,7 @@ startGame=[]do
 	kart = game.kart
 	track = game.track
 
-	clientViewObjs = table()
+	clientViewObjs = table()	-- index is not player index
 	for playerIndex=0,maxPlayers-1 do
 		if playersActive[playerIndex] then
 			local clientViewObj = ClientViewObject()
@@ -2374,6 +2424,7 @@ update=[]do
 	if inMenu then
 		cls(0)
 		local x,y=16,96
+		text('max laps: 5', 128, y-32, colors.white, -1)	-- TODO customize this
 		text('>', x-8, y+16*menuSel, colors.white, colors.black)
 		text('wins',x+192-16,y-12,colors.white,colors.black)
 		for pid=0,maxPlayers-1 do
@@ -2413,7 +2464,6 @@ update=[]do
 		return
 	end
 
-
 	for _,player in ipairs(game.players) do
 		local playerIndex=player.playerIndex
 		local kart = player.kart
@@ -2428,7 +2478,10 @@ update=[]do
 		player.kart:clientInputUpdate()
 	end
 	game:update(fixedDeltaTime)
+end
 
+draw=[conn]do
+	if not game then return end
 	cls(0)
 	local divY = math.ceil(math.sqrt(#game.players))
 	local divX = math.ceil(#game.players / divY)
@@ -2437,6 +2490,8 @@ update=[]do
 
 		local kart = player.kart
 
+		-- TODO determine view size by the conn
+		-- TODO move the rendering into draw()
 		local viewX = (i - 1) % divX
 		local viewY = ((i - 1) - viewX) / divX
 		local viewWidth = windowWidth / divX
