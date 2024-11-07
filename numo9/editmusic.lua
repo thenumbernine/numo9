@@ -35,15 +35,15 @@ end
 
 function EditMusic:refreshSelectedMusic()
 	local app = self.app
-	local selMusic = app.ram.musicAddrs + self.selMusicIndex
+	local selMusic = app.ram.bank[0].musicAddrs + self.selMusicIndex
 	local channels = ffi.new('Numo9Channel[?]', audioMixChannels)
 	local channelBytes = ffi.cast('uint8_t*', channels)
 	ffi.fill(channels, ffi.sizeof(channels))
 	local track = {
 		frames = table(),
 	}
-	local ptr = ffi.cast('uint16_t*', app.ram.audioData + selMusic.addr)
-	local pend = ffi.cast('uint16_t*', app.ram.audioData + selMusic.addr + selMusic.len)
+	local ptr = ffi.cast('uint16_t*', app.ram.bank[0].audioData + selMusic.addr)
+	local pend = ffi.cast('uint16_t*', app.ram.bank[0].audioData + selMusic.addr + selMusic.len)
 	local nextTrack
 	if ptr < pend then
 		track.bps = ptr[0]
@@ -91,7 +91,7 @@ function EditMusic:update()
 	EditMusic.super.update(self)
 	local app = self.app
 
-	local selMusic = app.ram.musicAddrs + self.selMusicIndex
+	local selMusic = app.ram.bank[0].musicAddrs + self.selMusicIndex
 
 	local y = 10
 	self:guiSpinner(2, y, function(dx)

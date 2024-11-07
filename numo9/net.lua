@@ -971,11 +971,11 @@ print'sending initial RAM state...'
 
 	-- send back current state of the game ...
 	local ramState =
-		  ffi.string(ffi.cast('char*', app.ram.spriteSheet), spriteSheetInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.tileSheet), tileSheetInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.tilemap), tilemapInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.palette), paletteInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.font), fontInBytes)
+		  ffi.string(ffi.cast('char*', app.ram.bank[0].spriteSheet), spriteSheetInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.bank[0].tileSheet), tileSheetInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.bank[0].tilemap), tilemapInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.bank[0].palette), paletteInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.bank[0].font), fontInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
@@ -1154,14 +1154,15 @@ print('...got', result:unpack())
 						app.fbTex:checkDirtyGPU()
 
 						-- flush GPU
-						ffi.copy(app.ram.spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
-						ffi.copy(app.ram.tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
-						ffi.copy(app.ram.tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
-						ffi.copy(app.ram.palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
-						ffi.copy(app.ram.font, ptr, fontInBytes)				ptr=ptr+fontInBytes
+						ffi.copy(app.ram.bank[0].spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
+						ffi.copy(app.ram.bank[0].tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
+						ffi.copy(app.ram.bank[0].tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
+						ffi.copy(app.ram.bank[0].palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
+						ffi.copy(app.ram.bank[0].font, ptr, fontInBytes)				ptr=ptr+fontInBytes
 						ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
 						ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
 						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
+						-- TODO copy music too?
 						-- set all dirty as well
 						app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
 						app.tileTex.dirtyCPU = true		-- tileSheetTex

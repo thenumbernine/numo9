@@ -1,9 +1,9 @@
 print'Hello NuMo9'
 
-local spriteMem = ffi.offsetof('RAM', 'spriteSheet')
-local tileMem = ffi.offsetof('RAM', 'tileSheet')
-local mapMem = ffi.offsetof('RAM', 'tilemap')
-local palMem = ffi.offsetof('RAM', 'palette')
+local spriteMem = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
+local tileMem = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tileSheet')
+local mapMem = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
+local palMem = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 
 -- [=[ fill our tiles with a gradient
 for j=0,255 do

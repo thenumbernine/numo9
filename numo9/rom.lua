@@ -288,8 +288,10 @@ local RAM = struct{
 			-- they let you have named fields with anonymous (inline-defined) types ...
 			-- until then, just wedge in the fields here and assert their offsets match.
 			fields = table(
-				ROM.fields[2].type.fields
+--				ROM.fields[2].type.fields
 			):append{
+				{name='bank', type='ROM[1]'},
+
 				-- graphics
 
 				-- I know, I know, old consoles didn't have a framebuffer
@@ -346,19 +348,19 @@ local RAM = struct{
 	},
 }
 
-local spriteSheetAddr = ffi.offsetof('ROM', 'spriteSheet')
+local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
 local spriteSheetInBytes = ffi.sizeof(ffi.cast('ROM*',0).spriteSheet)	--spriteSheetSize:volume() * 1
 local spriteSheetAddrEnd = spriteSheetAddr + spriteSheetInBytes
-local tileSheetAddr = ffi.offsetof('ROM', 'tileSheet')
+local tileSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tileSheet')
 local tileSheetInBytes = ffi.sizeof(ffi.cast('ROM*',0).tileSheet)	--spriteSheetSize:volume() * 1
 local tileSheetAddrEnd = tileSheetAddr + tileSheetInBytes
-local tilemapAddr = ffi.offsetof('ROM', 'tilemap')
+local tilemapAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
 local tilemapInBytes = ffi.sizeof(ffi.cast('ROM*',0).tilemap)	--tilemapSize:volume() * 2
 local tilemapAddrEnd = tilemapAddr + tilemapInBytes
-local paletteAddr = ffi.offsetof('ROM', 'palette')
+local paletteAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 local paletteInBytes = ffi.sizeof(ffi.cast('ROM*',0).palette)	--paletteSize * 2
 local paletteAddrEnd = paletteAddr + paletteInBytes
-local fontAddr = ffi.offsetof('ROM', 'font')
+local fontAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'font')
 local fontInBytes = ffi.sizeof(ffi.cast('ROM*',0).font)
 local fontAddrEnd = fontAddr + fontInBytes
 local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
