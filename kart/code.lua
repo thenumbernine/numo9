@@ -1,6 +1,6 @@
 local ram=app.ram
 local palAddr = ffi.offsetof('RAM', 'palette')
-	
+
 local windowWidth, windowHeight = 256, 256
 
 math.randomseed(tstamp())
@@ -1365,7 +1365,7 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 		)
 		blend(-1)
 	end
-	
+
 	do
 		local centerX, centerY = 128, 18
 		local length = 8
@@ -1373,7 +1373,7 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 		matpush()
 		mattrans(centerX, centerY)
 		matscale(2, 2)
-		
+
 		spr(sprites.outline[1], -8, -8, sprites.outline[2], sprites.outline[3])
 
 		if self.gettingItem then
@@ -1387,27 +1387,24 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 		if self.item then
 			spr(self.item.spriteIndex[1], -8, -8, self.item.spriteIndex[2], self.item.spriteIndex[3])
 		end
-		
-		matpop()
-	end
 
-	if self.handToFootEndTime >= game.time then
-		local frac = math.sin(10 * game.time / math.pi) * .15 + .65
+		if self.handToFootEndTime >= game.time then
+			local frac = math.sin(10 * game.time / math.pi) * .15 + .65
 
-		local transition = .5
-		if game.time < self.handToFootStartTime + transition then
-			frac = frac * (game.time - self.handToFootStartTime) / transition
-		elseif game.time > self.handToFootEndTime - transition then
-			local alpha = 1 - (self.handToFootEndTime - game.time) / transition
-			frac = frac * (1 - alpha) + alpha
+			local transition = .5
+			if game.time < self.handToFootStartTime + transition then
+				frac = frac * (game.time - self.handToFootStartTime) / transition
+			elseif game.time > self.handToFootEndTime - transition then
+				local alpha = 1 - (self.handToFootEndTime - game.time) / transition
+				frac = frac * (1 - alpha) + alpha
+			end
+
+			--gl.glColor4f(1,1,1,1-frac)	-- TODO fade
+			spr(sprites.handtofoot[1], centerX - length, centerY - length, sprites.handtofoot[2], sprites.handtofoot[3])
 		end
 
-		--gl.glColor4f(1,1,1,1-frac)	-- TODO fade
-		local centerX, centerY = 128, 128
-		local length = 8
-		spr(sprites.handtofoot[1], centerX - length, centerY - length, sprites.handtofoot[2], sprites.handtofoot[3])
+		matpop()
 	end
-
 --]]
 
 	if game.time >= 0 then
@@ -1488,7 +1485,7 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 		local length = .3
 
 		spr(sprites.ralph[1], 256 * (centerX + (-.5) * length), 256 * (centerY + (-.5) * length), sprites.ralph[2], sprites.ralph[3])
-		
+
 		if starting then
 			local msg
 			if game.time > -.3 then
@@ -1501,7 +1498,7 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 				msg = '3'
 			end
 			if msg then
-			text(msg, 256*centerX, 256*centerY, colors.white, colors.black)
+			text(msg, 256*centerX, 256*centerY, colors.white, colors.black, 2, 2)
 			end
 		elseif self.goingBackwards then
 			text("Wrong Way", 256*centerX, 256*centerY, colors.white, colors.black, 2, 2)
@@ -2413,12 +2410,12 @@ update=[]do
 		viewX *= windowWidth / divX
 		viewY *= windowHeight / divY
 		clip(viewX, viewY, viewWidth - 1, viewHeight - 1)
-		
+
 		local useColorSpray = game.time < kart.colorSprayEndTime
 		-- cycle palette
 		if useColorSpray then
 			for i=0,255 do
-				pokew(palAddr+(i<<1), 
+				pokew(palAddr+(i<<1),
 					(0x7fff & palPush[(i+10*time())&0xff])
 					| (0x8000 & palPush[i])	-- preserve transparnecy flag
 				)
@@ -2426,7 +2423,7 @@ update=[]do
 		end
 
 		clientViewObj:drawScene(kart, aspectRatio, kartSprites, viewX, viewY, viewWidth, viewHeight)
-	
+
 		-- reset
 		if useColorSpray then
 			for i=0,255 do
