@@ -191,16 +191,20 @@ local function rot2d(v, costh, sinth, newv)
 	return newv
 end
 
--- TODO this is a byproduct of palette quantization after-the-fact.  plz go back to the original, and maybe also introduce tileindex-swapping into the tilemap editor.
-local trackTileTypes = {
-	SolidTile= 0,
-	startback = 2,
-	startfront = 1,
-	item = 3,
-	SmoothTile= 4,
-	BoostTile = 5,
-	RoughTile = 6,
+local tileIndexForName = {
+	SmoothTile= 0,
+	RoughTile = 1,
+	SolidTile= 2,
+	BoostTile = 3,
+	item = 4,
+	startback = 5,
+	startfront = 6,
 }
+
+-- lookup for class from tile index
+local tileClassForIndex = {}
+
+
 
 local game	-- TODO use pointers instead of global
 local font
@@ -270,27 +274,30 @@ local function tileBounceVel(ix, iy, pos, vel, restitution, newvel)
 end
 
 
-
 local Tile = class()
 Tile.friction = .1
 Tile.drag = 0
 
 local SmoothTile = Tile:subclass()
 --SmoothTile.textureName = 'dirt.png'	--'grid.png'
+tileClassForIndex[tileIndexForName.SmoothTile] = SmoothTile
 
 local RoughTile = Tile:subclass()
 RoughTile.drag = .4
 --RoughTile.textureName = 'grass.png'
+tileClassForIndex[tileIndexForName.RoughTile] = RoughTile
 
 local SolidTile = Tile:subclass()
 SolidTile.solid = true
 SolidTile.friction = 0
 --SolidTile.textureName = 'bluerock.png'
+tileClassForIndex[tileIndexForName.SolidTile] = SolidTile
 
 local BoostTile = Tile:subclass()
 --BoostTile.textureName = 'boost.png'
 BoostTile.friction = 0
 BoostTile.boost = true
+tileClassForIndex[tileIndexForName.BoostTile] = BoostTile
 
 
 -- track collidable physical object
@@ -389,13 +396,13 @@ end
 
 function BananaObject:update(dt)
 	if self.vel then
-		local z = game.track:getZ(self.pos[1], self.pos[2])
+		local z = 0
 		if self.pos[3] < z then
 			self.pos[3] = z
 			self.vel = nil
 
 			local ix, iy = math.floor(self.pos[1]), math.floor(self.pos[2])
-			if ix >= 1 and iy >= 1 and ix < game.track.size[1]+1 and iy < game.track.size[1]+1 then
+			if ix >= 0 and iy >= 0 and ix < game.track.size[1] and iy < game.track.size[1] then
 			else
 				self:remove()
 				return
@@ -426,7 +433,7 @@ function GreenShellObject:init(args)
 		self.pos = args.pos + args.dir
 		self.vel = args.vel + args.dir * self.initialSpeed
 	end
-	self.pos[3] = game.track:getZ(self.pos[1], self.pos[2])
+	self.pos[3] = 0
 end
 
 function GreenShellObject:update(dt)
@@ -436,15 +443,15 @@ function GreenShellObject:update(dt)
 		local newposZ = self.pos[3] + self.vel[3] * dt
 
 		local ix, iy = math.floor(newposX), math.floor(newposY)
-		if ix >= 1 and iy >= 1 and ix < game.track.size[1]+1 and iy < game.track.size[1]+1 then
-			local tile = game.track.tiles[ix][iy]
-			if tile.solid then
+		if ix >= 0 and iy >= 0 and ix < game.track.size[1] and iy < game.track.size[1] then
+			local tileClass = tileClassForIndex[mget(ix,iy)]
+			if tileClass.solid then
 				newposX = self.pos[1]
 				newposY = self.pos[2]
 				newposZ = self.pos[3]
 				tileBounceVel(ix, iy, self.pos, self.vel, nil, self.vel)
 			end
-			newposZ = game.track:getZ(newposX, newposY)
+			--newposZ = 0
 		else
 			self:remove()
 			return
@@ -471,7 +478,7 @@ function RedShellObject:init(args)
 	self.owner = args.owner
 	self.vel = args.vel + args.dir * self.initialSpeed
 	self.pos = args.pos + args.dir
-	self.pos[3] = game.track:getZ(self.pos[1], self.pos[2])
+	self.pos[3] = 0
 	self.seekTime = game.time + self.noSeekDuration
 end
 
@@ -481,13 +488,13 @@ function RedShellObject:update(dt)
 	local newposZ = self.pos[3] + self.vel[3] * dt
 
 	local ix, iy = math.floor(newposX), math.floor(newposY)
-	if ix >= 1 and iy >= 1 and ix <= game.track.size[1] and iy <= game.track.size[1] then
-		local tile = game.track.tiles[ix][iy]
-		if tile.solid then
+	if ix >= 0 and iy >= 0 and ix < game.track.size[1] and iy < game.track.size[1] then
+		local tileClass = tileClassForIndex[mget(ix,iy)]
+		if tileClass.solid then
 			self:remove()
 			return
 		end
-		newposZ = game.track:getZ(newposX, newposY)
+		newposZ = 0
 	else
 		self:remove()
 		return
@@ -904,59 +911,14 @@ function Track:init(args)
 	end
 
 	-- each tile represents [i-1,1]x[j-1,j]
-	self.tileTexs = table()
-	self.untexTiles = table()
-	self.tiles = {}
 	self.size = vec2(256,256)
 	self.itemBoxPositions = table()
 	local realStartDest
-histogram=table()
-	for i=1,self.size[1] do
-		self.tiles[i] = {}
-		for j=1,self.size[2] do
-			local tileIndex = mget(i-1,j-1)
-			histogram[tileIndex] = (histogram[tileIndex] or 0) + 1
-			local tile, startDest = self:processTrackColor(i-1, j-1, tileIndex)
+	for i=0,self.size[1]-1 do
+		for j=0,self.size[2]-1 do
+			local tileIndex = mget(i,j)
+			local startDest = self:processTrackColor(i, j, tileIndex)
 			realStartDest = realStartDest or startDest
-			self.tiles[i][j] = tile
-			--if self.heightImg then
-			--	self.tiles[i][j].z = self.heightImg(i-1,self.size[2]-j) * zScale
-			--else
-			self.tiles[i][j].z = 0
-			--end
-			self.tiles[i][j].normal = vec3(0,0,1)
-
-			if tile.textureName then
---[[
-				if not self.tileTexs[tile.textureName] then
-					local fn = 'textures/'..tile.textureName
-					self.tileTexs[tile.textureName] = {
-						tex = GLTex2D{
-							filename = fn,
-							minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
-							magFilter = gl.GL_LINEAR,
-							generateMipmap = true,
-						}:unbind(),
-						tiles = table(),
-					}
-					self.tileTexs[tile.textureName].tex.filename = fn
-				end
---]]
-				self.tileTexs[tile.textureName].tiles:insert(vec2(i,j))
-			else
-				self.untexTiles:insert(vec2(i,j))
-			end
-		end
-	end
-for _,k in ipairs(histogram:keys():sort()) do
-	trace('hist', k, histogram[k])
-end
-	for i=1,self.size[1]-1 do
-		for j=1,self.size[2]-1 do
-			local dx = vec3(1,0, self.tiles[i+1][j].z - self.tiles[i][j].z)
-			local dy = vec3(0,1, self.tiles[i][j+1].z - self.tiles[i][j].z)
-
-			self.tiles[i][j].normal = vec3.cross(dx,dy):normalize()
 		end
 	end
 	if realStartDest then
@@ -970,10 +932,10 @@ end
 			while true do
 				local newv = v + dir
 				local ix, iy = math.floor(v[1]), math.floor(v[2])
-				if ix < 1 or iy < 1 or ix > self.size[1] or iy > self.size[2] then
+				if ix < 0 or iy < 0 or ix >= self.size[1] or iy >= self.size[2] then
 					break
 				end
-				if self.tiles[ix][iy].solid then
+				if tileClassForIndex[mget(ix,iy)].solid then
 					break
 				end
 				v = newv
@@ -981,81 +943,38 @@ end
 			return v
 		end
 		local left = vec2(-self.startDir[2], self.startDir[1])
-		self.startingLineZ = self:getZ(self.startPos[1], self.startPos[2])
+		self.startingLineZ = 0
 		self.startingLineLeftPos = trace(left)
 		self.startingLineRightPos = trace(-left)
 	end
 
 	for i=1,#self.itemBoxPositions do
 		local itemPos = self.itemBoxPositions[i]
-		itemPos[3] = self:getZ(itemPos[1], itemPos[2])
+		itemPos[3] = 0
 	end
-
-	-- use the keys table to determine the index of the textures
-	local textureNames = table.keys(self.tileTexs)
 
 	local l = vec3(1,1,1):normalize()
 	self.lightPos = ffi.new('float[4]', {l[1], l[2], l[3], 0})
 end
 
 function Track:processTrackColor(u,v,tileIndex)
-	if tileIndex==trackTileTypes.RoughTile then
-		return RoughTile()
-	elseif tileIndex==trackTileTypes.startback then
-		mset(u,v,trackTileTypes.SmoothTile)
-		return SmoothTile(), vec2(u+1.5,v+1.5)
-	elseif tileIndex==trackTileTypes.startfront then
-		mset(u,v,trackTileTypes.SmoothTile)
+	if tileIndex==tileIndexForName.RoughTile then
+	elseif tileIndex==tileIndexForName.startback then
+		mset(u,v,tileIndexForName.SmoothTile)
+		return vec2(u+1.5,v+1.5)
+	elseif tileIndex==tileIndexForName.startfront then
+		mset(u,v,tileIndexForName.SmoothTile)
 		self.startPos = vec2(u+1.5,v+1.5)
-		return SmoothTile()
-	elseif tileIndex==trackTileTypes.SmoothTile then
-		return SmoothTile()
-	elseif tileIndex==trackTileTypes.SolidTile then
-		return SolidTile()
-	elseif tileIndex==trackTileTypes.BoostTile then
-		return BoostTile()
-	elseif tileIndex==trackTileTypes.item then
-		mset(u,v,trackTileTypes.SmoothTile)
+	elseif tileIndex==tileIndexForName.SmoothTile then
+	elseif tileIndex==tileIndexForName.SolidTile then
+	elseif tileIndex==tileIndexForName.BoostTile then
+	elseif tileIndex==tileIndexForName.item then
+		mset(u,v,tileIndexForName.SmoothTile)
 		self.itemBoxPositions:insert(vec3(u+1.5, v+1.5,0))
-		return SmoothTile()
-	end
-	trace("unknown tile at "..u..", "..v.." has "..tileIndex)
-	return SmoothTile()
-end
-
-function Track:getZ(x, y)
-	local ix, iy = math.floor(x), math.floor(y)
-	local fx, fy = x - ix, y - iy
-	local ifx, ify = 1 - fx, 1 - fy
-	if ix >= 1 and iy >= 1 and ix < self.size[1] and iy < self.size[2] then
-		return self.tiles[ix][iy].z * ifx * ify
-			+ self.tiles[ix+1][iy].z * fx * ify
-			+ self.tiles[ix][iy+1].z * ifx * fy
-			+ self.tiles[ix+1][iy+1].z * fx * fy
-	end
-	return 0
-end
-
-function Track:getNormal(x, y, n)
-	if not n then n = vec3() end
-	local ix, iy = math.floor(x), math.floor(y)
-	local fx, fy = x - ix, y - iy
-	local ifx, ify = 1 - fx, 1 - fy
-	if ix >= 1 and iy >= 1 and ix < self.size[1] and iy < self.size[2] then
-		for i=1,3 do
-			n[i] = self.tiles[ix][iy].normal[i] * ifx * ify
-				+ self.tiles[ix+1][iy].normal[i] * fx * ify
-				+ self.tiles[ix][iy+1].normal[i] * ifx * fy
-				+ self.tiles[ix+1][iy+1].normal[i] * fx * fy
-		end
-		local invlen = 1 / n:length()
-		n[1] = n[1] * invlen
-		n[2] = n[2] * invlen
-		n[3] = n[3] * invlen
 	else
-		n[1], n[2], n[3] = 0, 0, 1
+		trace("unknown tile at "..u..", "..v.." has "..tileIndex)
+		mset(u,v,tileIndexForName.SmoothTile)
 	end
-	return n
 end
 
 function Track:draw(viewMatrix)
@@ -1101,20 +1020,6 @@ applyprojmat()
 	so:draw()
 	gl.glEnable(gl.GL_CULL_FACE)
 	--]]
-
-	--[[ debug grid
-	gl.glColor3f(0,1,0)
-	gl.glBegin(gl.GL_LINES)
-	for i=1,track.size[1]-1 do
-		for j=1,track.size[2]-1 do
-			gl.glVertex3f(i,j, track.tiles[i][j].z+.1)
-			gl.glVertex3f(i,j+1, track.tiles[i][j+1].z+.1)
-			gl.glVertex3f(i,j, track.tiles[i][j].z+.1)
-			gl.glVertex3f(i+1,j, track.tiles[i+1][j].z+.1)
-		end
-	end
-	gl.glEnd()
-	--]]
 end
 
 
@@ -1137,13 +1042,13 @@ trace('game.track.startDir', game.track.startDir)
 		game.track.startPos[1] - game.track.startDir[1] * dy + game.track.startDir[2] * dx,
 		game.track.startPos[2] - game.track.startDir[2] * dy - game.track.startDir[1] * dx,
 		0)
-	self.pos[3] = game.track:getZ(self.pos[1], self.pos[2])
+	self.pos[3] = 0
 --DEBUG:trace('kart.pos', self.pos)
 	self.dir = vec3(game.track.startDir[1], game.track.startDir[2], 0)	-- cart fwd dir
 --DEBUG:trace('kart.dir', self.dir)
 	self.lookDir = vec3(self.dir[1], self.dir[2], self.dir[3])	-- follow camera fwd dir
 	self.vel = vec3(0,0,0)
-	self.surfaceNormal = game.track:getNormal(self.pos[1], self.pos[2])
+	self.surfaceNormal = vec3(0,0,1)	--game.track:getNormal(self.pos[1], self.pos[2])
 	self.onground = true
 
 	-- stack!
@@ -1222,7 +1127,7 @@ matident()
 		self.pos[2] - self.lookDir[2] * camHDist,
 		self.pos[3] + camVDist
 	)
-	local camPosTrackZ = 1 + game.track:getZ(camPos[1], camPos[2])
+	local camPosTrackZ = 1
 	camPos[3] = math.max(camPos[3], camPosTrackZ)	-- crashes when I replace it with a condition
 	local camLookAt = vec3(self.pos[1], self.pos[2], camPos[3] + (camVLookDist - camVDist))
 
@@ -1401,7 +1306,7 @@ applyprojmat()
 	--]]
 
 	--[[ crappy shadow
-	local z = game.track:getZ(self.pos[1], self.pos[2])
+	local z = 0
 	do
 		gl.glEnable(gl.GL_BLEND)
 		local so = triFanSceneObj
@@ -1939,8 +1844,8 @@ function Kart:update(dt)
 		local groundDragCoeff = 0
 		local groundDragArea = 1
 		if self.onground and #self.boosts == 0 then
-			if ix >= 1 and iy >= 1 and ix <= track.size[1] and iy <= track.size[2] then
-				groundDragCoeff = track.tiles[ix][iy].drag
+			if ix >= 0 and iy >= 0 and ix < track.size[1] and iy < track.size[2] then
+				groundDragCoeff = tileClassForIndex[mget(ix,iy)].drag
 			end
 		else
 			groundDragArea = 0
@@ -1992,14 +1897,14 @@ function Kart:update(dt)
 			-- friction decel
 
 			-- get the kart surface friction
-			if self.pos[1] >= 1 and self.pos[1] < track.size[1] + 1
-			and self.pos[2] >= 1 and self.pos[2] < track.size[2] + 1
+			if self.pos[1] >= 0 and self.pos[1] < track.size[1]
+			and self.pos[2] >= 0 and self.pos[2] < track.size[2]
 			then
 				local ix, iy = math.floor(self.pos[1]), math.floor(self.pos[2])
-				local tile = track.tiles[ix][iy]
-				if tile.boost then self:boost() end
+				local tileClass = tileClassForIndex[mget(ix,iy)]
+				if tileClass.boost then self:boost() end
 				if #self.boosts == 0 then
-					frictionCoeff = tile.friction
+					frictionCoeff = tileClass.friction
 				else
 					frictionCoeff = SmoothTile.friction
 				end
@@ -2121,10 +2026,10 @@ function Kart:update(dt)
 	do
 		local solid = false
 		local ix, iy = math.floor(newposX), math.floor(newposY)
-		if ix >= 1 and ix <= track.size[1]
-		and iy >= 1 and iy <= track.size[2]
+		if ix >= 0 and ix < track.size[1]
+		and iy >= 0 and iy < track.size[2]
 		then
-			local tile = track.tiles[ix][iy]
+			local tileClass = tileClassForIndex[mget(ix,iy)]
 			solid = tile.solid
 		else
 			solid = true
@@ -2139,7 +2044,7 @@ function Kart:update(dt)
 
 	-- check for ground contact
 	do
-		local z = track:getZ(newposX, newposY)
+		local z = 0
 		self.onground = false
 		-- TODO if newposZ < z then track back to collision point and try again
 		if newposZ <= z+.1 then
@@ -2328,27 +2233,6 @@ assert(cl)
 		self.objsOfClass[cl] = objsOfClass
 	end
 	objsOfClass:insert(obj)
-
-	--[[ TODO attach / detach to world grid every update ... could eat up processor, could save us for physics updates
-	local x,y = obj.pos[1], obj.pos[2]
-	local r = obj.radius
-	local minx, miny, maxx, maxy = x-r, y-r, x+r, y+r
-	for i=math.floor(minx),math.floor(miny) do
-		for j=math.floor(maxx),math.floor(maxy) do
-			if i >= 1 and i <= self.track.size[1]
-			and j >= 1 and j <= self.track.size[2]
-			then
-				local tile = self.track.tiles[i][j]
-				local objsForTile = tile.objs
-				if not objsForTile then
-					objsForTile = table()
-					tile.objs = objsForTile
-				end
-				objsForTile:insertUnique(obj)
-			end
-		end
-	end
-	--]]
 
 	return obj
 end
