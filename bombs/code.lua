@@ -73,7 +73,7 @@ removeAll=[]do
 	addList=table()
 end
 players=table()
-maxPlayers=4
+maxPlayers=4	-- TODO 64 ... 
 startPos={
 	[0]={0,0},
 	{mapw-1,maph-1},

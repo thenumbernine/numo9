@@ -2335,33 +2335,95 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 end
 
 
-game = Game()
-game:createItemBoxes()
-kart = game.kart
-track = game.track
+local maxPlayers=4	-- TODO 64 ...TODO track conns and add/remove from the start menu accordingly?
+local inMenu = true
+local menuSel = 0
+local playersActive=table{false}:rep(maxPlayers-1)
+playersActive[0]=true
+local playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
 
--- TODO menu and pick # players
-local clientViewObjs = table()	 -- one for each local player
-local numPlayers = 1
-for playerIndex=1,numPlayers do
-	clientViewObjs[playerIndex] = ClientViewObject()
-	local player = Player()
-	game.players:insert(player)
-	local kart = Kart{startIndex=playerIndex}
-	player.kart = kart
+local clientViewObjs 	-- index is not player index
+startGame=[]do
+	inMenu=false
+
+	game = Game()
+	game:createItemBoxes()
+	kart = game.kart
+	track = game.track
+
+	clientViewObjs = table()
+	for playerIndex=0,maxPlayers-1 do
+		if playersActive[playerIndex] then
+			local clientViewObj = ClientViewObject()
+			clientViewObj.playerIndex = playerIndex
+			clientViewObjs:insert(clientViewObj)
+			local player = Player()
+			player.playerIndex = playerIndex
+			game.players:insert(player)
+			local kart = Kart{
+				startIndex=#clientViewObjs,
+				playerIndex=playerIndex,
+			}
+			player.kart = kart
+		end
+	end
 end
 
+matident()	-- hmm having trouble resetting it with 'new game'...
 update=[]do
-	for i,player in ipairs(game.players) do
-		local pi=i-1
-		local kart = player.kart
-		kart.inputUpDown = (btn('up',pi) and 1 or 0) + (btn('down',pi) and -1 or 0)
-		kart.inputLeftRight = (btn('right',pi) and 1 or 0) + (btn('left',pi) and -1 or 0)
+	if inMenu then
+		cls(0)
+		local x,y=16,96
+		text('>', x-8, y+16*menuSel, colors.white, colors.black)
+		text('wins',x+192-16,y-12,colors.white,colors.black)
+		for pid=0,maxPlayers-1 do
+			spr(spriteIndexForAngle[12], x, y-4, 4, 4, nil, nil, nil, nil, .5, .5)	-- TODO palette ...
+			text('player '..pid..' = '
+				..tostring(playersActive[pid]),
+				x+24, y, colors.white, colors.black)
+			text(tostring(playerWins[pid]),x+192, y,colors.white,colors.black)
+			y+=16
+		end
+		text('Start!', x, y, colors.white, colors.black)
+		for pid=0,maxPlayers-1 do
+			if btnp(0,pid) then
+				menuSel-=1
+				menuSel%=maxPlayers+1
+			elseif btnp(1,pid) then
+				menuSel+=1
+				menuSel%=maxPlayers+1
+			end
+			if menuSel<maxPlayers then
+				-- any players left/right can toggle
+				if btnp(2,pid) or btnp(3,pid) then
+					playersActive[menuSel] = not playersActive[menuSel]
+				-- if any player presses a button then set them to human
+				elseif btnp(4,pid) or btnp(5,pid) then
+					playersActive[pid] = true
+				elseif btnp(6,pid) or btnp(7,pid) then
+					playersActive[pid] = false
+				end
+			else
+				-- if any player pushes when we're on 'start' then go
+				if btnp(4,pid) or btnp(5,pid) or btnp(6,pid) or btnp(7,pid) then
+					startGame()
+				end
+			end
+		end
+		return
+	end
 
-		kart.inputBrake = btn('y',pi)
-		kart.inputGas = btn('b',pi)
-		kart.inputItem = btn('a',pi)
-		kart.inputJumpDrift = btn('x',pi)
+
+	for _,player in ipairs(game.players) do
+		local playerIndex=player.playerIndex
+		local kart = player.kart
+		kart.inputUpDown = (btn('up',playerIndex) and 1 or 0) + (btn('down',playerIndex) and -1 or 0)
+		kart.inputLeftRight = (btn('right',playerIndex) and 1 or 0) + (btn('left',playerIndex) and -1 or 0)
+
+		kart.inputItem = btn('a',playerIndex)
+		kart.inputGas = btn('b',playerIndex)
+		kart.inputJumpDrift = btn('x',playerIndex)
+		kart.inputBrake = btn('y',playerIndex)
 
 		player.kart:clientInputUpdate()
 	end
@@ -2370,13 +2432,13 @@ update=[]do
 	cls(0)
 	local divY = math.ceil(math.sqrt(#game.players))
 	local divX = math.ceil(#game.players / divY)
-	for playerIndex,player in ipairs(game.players) do
-		local clientViewObj = clientViewObjs[playerIndex]
+	for i,player in ipairs(game.players) do
+		local clientViewObj = clientViewObjs[i]
 
 		local kart = player.kart
 
-		local viewX = (playerIndex - 1) % divX
-		local viewY = ((playerIndex - 1) - viewX) / divX
+		local viewX = (i - 1) % divX
+		local viewY = ((i - 1) - viewX) / divX
 		local viewWidth = windowWidth / divX
 		local viewHeight = windowHeight / divY
 		local aspectRatio = viewWidth / viewHeight

@@ -301,6 +301,7 @@ function App:initGL()
 					end
 				end
 			end
+
 			return result:unpack()
 		end,
 		quit = function(...) self:requestExit() end,
@@ -2041,6 +2042,9 @@ function App:runROM()
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
 		self.ram.romUpdateCounter = 0
+
+		-- this is even done in App:resetVideo()
+		-- so why isn't it working?
 		self:resetView()
 
 		-- here, if the assert fails then it's an (ugly) parse error, and you can just pcall / pick out the offender
