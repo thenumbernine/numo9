@@ -1198,18 +1198,16 @@ function Kart:draw(viewMatrix, kartSprites)
 		uBias = 1
 	end
 
-	--[[
-	local so = spriteSceneObj
-	so.texs[1] = kartSprites.texsForKart[self.kartName][angleIndex]
-	so.uniforms.viewFwd = viewFwd
-	so.uniforms.viewRight = viewRight
-	so.uniforms.viewUp = viewUp
-	so.uniforms.pos = self.pos
-	so.uniforms.drawRadius = self.drawRadius
-	so.uniforms.uScaleAndBias = {uScale, uBias}
-	so.uniforms.billboardOffset = {0, .25}
-	so.uniforms.mvProjMat = view.mvProjMat.ptr
-	so:draw()
+	-- [[ crappy shadow
+	do
+		blend(1)
+		matpush()
+		mattrans(self.pos[1] - currentCamPos[1], self.pos[2] - currentCamPos[2], -currentCamPos[3])
+		local length = .3
+		elli(-length, -length, 2 * length, 2 * length, 0)
+		blend(-1)
+		matpop()
+	end
 	--]]
 
 	-- [[
@@ -1289,35 +1287,6 @@ applyprojmat()
 		end
 		gl.glEnd()
 		gl.glPopMatrix()
-	end
-	--]]
-
-	--[[ crappy shadow
-	local z = 0
-	do
-		gl.glEnable(gl.GL_BLEND)
-		local so = triFanSceneObj
-		so.uniforms.mvProjMat = view.mvProjMat.ptr
-		if self.onground then
-			so.color = {0,1,0,.25}
-		else
-			so.color = {0,0,1,.25}
-		end
-		local vtxGPU = so.attrs.vertex.buffer
-		local vtxCPU = vtxGPU.vec
-		so:beginUpdate()
-		local divs = 10
-		local length = .5
-		vtxCPU:resize(divs)
-		for i=1,divs do
-			local theta = (i-1)/divs * 2 * math.pi
-			vtxCPU.v[i-1]:set(
-				self.pos[1] + length * math.cos(theta),
-				self.pos[2] + length * math.sin(theta),
-				z+.01)
-		end
-		so:endUpdate()
-		gl.glDisable(gl.GL_BLEND)
 	end
 	--]]
 end
