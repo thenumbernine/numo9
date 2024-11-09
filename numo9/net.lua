@@ -580,7 +580,7 @@ function RemoteServerConn:init(args)
 	end
 	for i=1,self.numLocalPlayers do
 		local info = self.playerInfos[i]
-		if info then info.localPlayer = nil end
+		if info then info.hostPlayerIndex = nil end
 	end
 
 	self.remoteButtonIndicator = range(8 * self.numLocalPlayers):mapi(function(i) return 1 end)
@@ -655,9 +655,9 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 					end
 				end
 
-				local localPlayer = self.playerInfos[index+1].localPlayer
-				if localPlayer then
-					dest[localPlayer-1] = value
+				local hostPlayerIndex = self.playerInfos[index+1].hostPlayerIndex
+				if hostPlayerIndex then
+					dest[hostPlayerIndex] = value
 				end
 			end
 		end
@@ -944,20 +944,21 @@ print'creating server remote client conn...'
 
 	-- TODO this is here and in MainMenu:updateMenuMultiplayer()
 	-- [[ sit the new connection's player #1 if possible
+	-- ok now playerInfos is 1-based and hostPlayerIndex is 0-based
 	local connForPlayer = {}
 	for _,conn in ipairs(self.conns) do
 		for j=1,conn.numLocalPlayers do
 			local info = conn.playerInfos[j]
-			if info.localPlayer then
-				connForPlayer[info.localPlayer] = conn
+			if info.hostPlayerIndex then
+				connForPlayer[info.hostPlayerIndex] = conn
 			end
 		end
 	end
 	local info = serverConn.playerInfos[1]
-	for j=1,maxPlayersTotal do
+	for j=0,maxPlayersTotal-1 do
 		if not connForPlayer[j] then
 			connForPlayer[j] = conn
-			info.localPlayer = j
+			info.hostPlayerIndex = j
 			break
 		end
 	end

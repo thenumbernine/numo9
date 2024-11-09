@@ -970,11 +970,8 @@ print('package.loaded', package.loaded)
 	-- this is for server netplay, it says who to associate this conn's player with
 	-- it is convenient to put it here ...
 	-- but is it information worth saving? maybe not -- maybe reset it every time.
-	-- also ... should I associate all 4 players immediately?
-	--  yes because otherwise for local play you'll need to manually associate them
-	--  no because for netplay this means you have to unbind them to give other players room on your current game ...
 	for i=1,maxPlayersPerConn do
-		self.cfg.playerInfos[i].localPlayer = i
+		self.cfg.playerInfos[i].hostPlayerIndex = i-1
 	end
 	-- fake-gamepad key bindings
 	--[[
@@ -2025,6 +2022,12 @@ local function indexargs(field, ...)
 	return (...)[field], indexargs(field, select(2, ...))
 end
 
+local function seq(n, i)
+	i = i or 0
+	if i>=n then return end
+	return i, seq(n, i+1)
+end
+
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
@@ -2068,10 +2071,11 @@ function App:runROM()
 
 			env.update()
 
-			if self.server then
-				for _,conn in ipairs(self.server.conns) do
+			local server = self.server
+			if server then
+				for _,conn in ipairs(server.conns) do
 					-- set our override - cmds only go to this conn
-					self.server.currentCmdConn = conn
+					server.currentCmdConn = conn
 
 					-- upon new game, if the server is running,
 					-- then call "onconnect" on all conns connected so far.
@@ -2087,15 +2091,15 @@ function App:runROM()
 					-- see if the console supports separate drawing for multiple connections ...
 					if env.draw then
 						-- TODO during this function, capture all commands and send them only to the loopback conn.
-						env.draw(conn.ident, indexargs('localPlayer', table.unpack(conn.playerInfos)))
+						env.draw(conn.ident, indexargs('hostPlayerIndex', table.unpack(conn.playerInfos, 1, conn.numLocalPlayers)))
 					end
 
-					self.server.currentCmdConn = nil
+					server.currentCmdConn = nil
 				end
 			else
 				if env.draw then
 					-- if we dont have a server then just do a draw for the loopback connection
-					env.draw'lo'
+					env.draw('lo', seq(self.cfg.numLocalPlayers))
 				end
 			end
 		end
@@ -2440,8 +2444,8 @@ function App:processButtonEvent(down, ...)
 		local etype, ex, ey = ...
 		local descLen = select('#', ...)
 		for _, playerInfo in ipairs(self.cfg.playerInfos) do
-			if playerInfo.localPlayer then
-				local playerIndex = playerInfo.localPlayer-1
+			if playerInfo.hostPlayerIndex then
+				local playerIndex = playerInfo.hostPlayerIndex
 				-- when processing input events to virtual-joypad-events, do the multiplayer player-index-remapping
 				for buttonIndex, buttonBind in pairs(playerInfo.buttonBinds) do
 					-- special case for mouse/touch, test within a distanc
