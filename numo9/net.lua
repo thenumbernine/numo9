@@ -574,12 +574,16 @@ function RemoteServerConn:init(args)
 	self.thread = assert.type(assert.index(args, 'thread'), 'thread')
 	self.playerInfos = assert.index(args, 'playerInfos')
 	self.ident = assert.index(args, 'ident')
-	for i=1,maxPlayersPerConn do
+	self.numLocalPlayers = #self.playerInfos
+	if self.numLocalPlayers < 1 or self.numLocalPlayers > maxPlayersPerConn then
+		print('WARNING - remote conn has a bad # local players: '..tostring(self.numLocalPlayers))
+	end
+	for i=1,self.numLocalPlayers do
 		local info = self.playerInfos[i]
 		if info then info.localPlayer = nil end
 	end
 
-	self.remoteButtonIndicator = range(8 * maxPlayersPerConn):mapi(function(i) return 1 end)
+	self.remoteButtonIndicator = range(8 * self.numLocalPlayers):mapi(function(i) return 1 end)
 
 	-- keep a list of everything we have to send
 	self.toSend = table()
@@ -638,7 +642,7 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 			-- 4 players = 32 keys = 4 bytes = 32 bits, addressible by 5 bits.
 			-- and just 1 value byte ...
 			local dest = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
-			if index < 0 or index >= maxPlayersPerConn then	-- max # players / # of button key bitflag bytes in a row
+			if index < 0 or index >= self.numLocalPlayers then	-- max # players / # of button key bitflag bytes in a row
 				print('server got oob delta compressed input:', ('$%02x'):format(index), ('$%02x'):format(value))
 			else
 				-- store the latest input times on the server regardless of if it's mapped to a local player
@@ -676,6 +680,11 @@ end
 local LocalServerConn = class()
 LocalServerConn.ident = 'lo'
 function LocalServerConn:init(args)
+	self.numLocalPlayers = assert.index(args, 'numLocalPlayers')
+	if self.numLocalPlayers < 1 or self.numLocalPlayers > maxPlayersPerConn then
+		print('WARNING - local conn has a bad # local players: '..tostring(self.numLocalPlayers))
+	end
+
 	self.playerInfos = assert.index(args, 'playerInfos')
 
 	-- this exists only so pushCmd can give back a dummy buffer for the loopback connection when doing env.draw() locally
@@ -705,6 +714,7 @@ function Server:init(app)
 
 	-- add our local conn
 	self.conns:insert(LocalServerConn{
+		numLocalPlayers = app.cfg.numLocalPlayers,
 		-- shallow-copy
 		playerInfos = app.cfg.playerInfos,
 	})
@@ -794,7 +804,7 @@ function Server:endFrame()
 				local data = deltas:dataToStr()
 				conn.toSend:insert(data)
 			end
-		
+
 			conn.prevFrameCmds:resize(conn.thisFrameCmds.size)
 			ffi.copy(conn.prevFrameCmds.v, conn.thisFrameCmds.v, ffi.sizeof'Numo9Cmd' * conn.thisFrameCmds.size)
 		end
@@ -932,10 +942,12 @@ print'creating server remote client conn...'
 	-- TODO how about put not-yet-connected in a separate list?
 	serverConn.connected = true
 
+	-- TODO this is here and in MainMenu:updateMenuMultiplayer()
 	-- [[ sit the new connection's player #1 if possible
 	local connForPlayer = {}
 	for _,conn in ipairs(self.conns) do
-		for _,info in ipairs(conn.playerInfos) do
+		for j=1,conn.numLocalPlayers do
+			local info = conn.playerInfos[j]
 			if info.localPlayer then
 				connForPlayer[info.localPlayer] = conn
 			end
@@ -1064,7 +1076,10 @@ print('got', recv, reason)
 print'sending player info'
 		-- now send player names
 		local msg = table{'playernames'}
-		for _,playerInfo in ipairs(args.playerInfos) do
+		-- TODO send # local players separately
+		-- TODO have mid-gameplay messages for changing # local players and for changing player names
+		--msg:insert(tostring(app.cfg.numLocalPlayers))
+		for _,playerInfo in ipairs(table.sub(args.playerInfos, 1, app.cfg.numLocalPlayers)) do
 			msg:insert(netescape(playerInfo.name))
 		end
 		assert(send(sock, msg:concat' '..'\n'))

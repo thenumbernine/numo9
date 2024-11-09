@@ -951,6 +951,7 @@ print('package.loaded', package.loaded)
 	setdefault(self.cfg, 'serverListenPort', tostring(Server.defaultListenPort))
 	setdefault(self.cfg, 'lastConnectAddr', 'localhost')	-- TODO ... eh ... LAN search?  idk
 	setdefault(self.cfg, 'lastConnectPort', tostring(Server.defaultListenPort))
+	setdefault(self.cfg, 'numLocalPlayers', 1)	-- # local players to use, default at 1 so that servers dont needlessly fill up player spots.
 	setdefault(self.cfg, 'playerInfos', {})
 	for i=1,maxPlayersPerConn do
 		setdefault(self.cfg.playerInfos, i, {})
