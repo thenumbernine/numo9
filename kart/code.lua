@@ -2141,7 +2141,7 @@ function Game:init()
 	local trackName = 'map1'
 	self.track = Track()
 
-	self.players = table()
+	self.players = {}		-- key = player # (0-63), value=Player object
 	self.kartOrder = table()
 
 	self.objs = table()
@@ -2417,10 +2417,11 @@ startGame=[]do
 		if playersActive[playerIndex] then
 			local clientViewObj = ClientViewObject()
 			clientViewObj.playerIndex = playerIndex
-			clientViewObjs:insert(clientViewObj)
+			clientViewObjs:insert(clientViewObj)		-- 1-based dense
 			local player = Player()
 			player.playerIndex = playerIndex
-			game.players:insert(player)
+			game.players[playerIndex] = player
+			player.clientViewObj = clientViewObj
 			local kart = Kart{
 				startIndex=#clientViewObjs,
 				playerIndex=playerIndex,
@@ -2440,7 +2441,7 @@ update=[]do
 		text('wins',x+192-16,y-12,colors.white,colors.black)
 		for pid=0,maxPlayers-1 do
 			spr(spriteIndexForAngle[12], x, y-4, 4, 4, nil, nil, nil, nil, .5, .5)	-- TODO palette ...
-			text('player '..pid..' = '
+			text('player '..(pid+1)..' = '
 				..tostring(playersActive[pid]),
 				x+24, y, colors.white, colors.black)
 			text(tostring(playerWins[pid]),x+192, y,colors.white,colors.black)
@@ -2475,8 +2476,7 @@ update=[]do
 		return
 	end
 
-	for _,player in ipairs(game.players) do
-		local playerIndex=player.playerIndex
+	for playerIndex,player in pairs(game.players) do
 		local kart = player.kart
 		kart.inputUpDown = (btn('up',playerIndex) and 1 or 0) + (btn('down',playerIndex) and -1 or 0)
 		kart.inputLeftRight = (btn('right',playerIndex) and 1 or 0) + (btn('left',playerIndex) and -1 or 0)
@@ -2486,65 +2486,96 @@ update=[]do
 		kart.inputJumpDrift = btn('x',playerIndex)
 		kart.inputBrake = btn('y',playerIndex)
 
+if kart.inputGas then
+end
+
 		player.kart:clientInputUpdate()
 	end
 	game:update(fixedDeltaTime)
 end
 
-draw=[conn]do
+local divsForNumPlayers = {{1,1}, {1,2}, {2,2}, {2,2}}
+draw=[conn, ...]do
 	if not game then return end
 	cls(0)
-	local divY = math.ceil(math.sqrt(#game.players))
-	local divX = math.ceil(#game.players / divY)
-	for i,player in ipairs(game.players) do
-		local clientViewObj = clientViewObjs[i]
+	-- TODO ... holds the player indexes for this conn
+	-- we need to filter them by the players active
 
-		local kart = player.kart
+	--[[ draw all
+	local numPlayers = select('#', ...)
+	local divX, divY = table.unpack(divsForNumPlayers[numPlayers])
+	for i=1,numPlayers do
+		local playerIndex = select(i, ...)
+	--]]
+	-- [[ draw only players that the main menu flagged as active-in-this-race
+	local numPlayers = 0
+	for i=1,select('#', ...) do
+		local playerIndex = select(i, ...)
+		if playersActive[playerIndex] then
+			numPlayers+=1
+		end
+	end
+	local divForNumPlayer = divsForNumPlayers[numPlayers]
+	if not divForNumPlayer then
+		trace("no valid divs for "..tostring(numPlayers))
+		return
+	end
+	local divX, divY = table.unpack(divForNumPlayer)
+	for i=1,select('#', ...) do
+		local playerIndex = select(i, ...)
+		if playersActive[playerIndex] then
+			local player = game.players[playerIndex]
+			if player then	-- maybe there's one frame in there that the player hasn't yet been assigned ...
+				local clientViewObj = player.clientViewObj
 
-		-- TODO determine view size by the conn
-		-- TODO move the rendering into draw()
-		local viewX = (i - 1) % divX
-		local viewY = ((i - 1) - viewX) / divX
-		local viewWidth = windowWidth / divX
-		local viewHeight = windowHeight / divY
-		local aspectRatio = viewWidth / viewHeight
-		viewX *= windowWidth / divX
-		viewY *= windowHeight / divY
-		clip(viewX, viewY, viewWidth - 1, viewHeight - 1)
+				local kart = player.kart
 
-		local useColorSpray = game.time < kart.colorSprayEndTime
-		-- cycle palette
-		if useColorSpray then
-			for i=0,255 do
-				pokew(palAddr+(i<<1),
-					(0x7fff & palPush[(i+10*time())&0xff])
-					| (0x8000 & palPush[i])	-- preserve transparnecy flag
-				)
+				-- TODO determine view size by the conn
+				-- TODO move the rendering into draw()
+				local viewX = (i - 1) % divX
+				local viewY = ((i - 1) - viewX) / divX
+				local viewWidth = windowWidth / divX
+				local viewHeight = windowHeight / divY
+				local aspectRatio = viewWidth / viewHeight
+				viewX *= windowWidth / divX
+				viewY *= windowHeight / divY
+				clip(viewX, viewY, viewWidth - 1, viewHeight - 1)
+
+				local useColorSpray = game.time < kart.colorSprayEndTime
+				-- cycle palette
+				if useColorSpray then
+					for i=0,255 do
+						pokew(palAddr+(i<<1),
+							(0x7fff & palPush[(i+10*time())&0xff])
+							| (0x8000 & palPush[i])	-- preserve transparnecy flag
+						)
+					end
+				end
+
+				clientViewObj:drawScene(kart, aspectRatio, kartSprites, viewX, viewY, viewWidth, viewHeight)
+
+				-- reset
+				if useColorSpray then
+					for i=0,255 do
+						pokew(palAddr+(i<<1), palPush[i])
+					end
+				end
+
+		--[[
+		local r1 = ('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12])
+		local r2 = ('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.mvMat[13])
+		local r3 = ('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14])
+		local r4 = ('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15])
+				matident()
+				text('pos:'..kart.pos, 0, 0, colors.white, -1)
+				text('vel:'..kart.vel, 0, 8, colors.white, -1)
+				text('dir:'..kart.dir, 0, 16, colors.white, -1)
+				text(r1, 0, 32, colors.white, -1)
+				text(r2, 0, 40, colors.white, -1)
+				text(r3, 0, 48, colors.white, -1)
+				text(r4, 0, 56, colors.white, -1)
+		--]]
 			end
 		end
-
-		clientViewObj:drawScene(kart, aspectRatio, kartSprites, viewX, viewY, viewWidth, viewHeight)
-
-		-- reset
-		if useColorSpray then
-			for i=0,255 do
-				pokew(palAddr+(i<<1), palPush[i])
-			end
-		end
-
---[[
-local r1 = ('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12])
-local r2 = ('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.mvMat[13])
-local r3 = ('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14])
-local r4 = ('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15])
-		matident()
-		text('pos:'..kart.pos, 0, 0, colors.white, -1)
-		text('vel:'..kart.vel, 0, 8, colors.white, -1)
-		text('dir:'..kart.dir, 0, 16, colors.white, -1)
-		text(r1, 0, 32, colors.white, -1)
-		text(r2, 0, 40, colors.white, -1)
-		text(r3, 0, 48, colors.white, -1)
-		text(r4, 0, 56, colors.white, -1)
---]]
 	end
 end

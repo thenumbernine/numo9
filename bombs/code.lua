@@ -809,7 +809,7 @@ update=[]do
 		text('wins',x+192-16,y-12,0xfc,0xf0)
 		for pid=0,maxPlayers-1 do
 			spr(seqs.playerStandDown, x, y-4, 2, 2, pid<<4)
-			text('player '..pid..' = '
+			text('player '..(pid+1)..' = '
 				..tostring(playerOptionNames[playersActive[pid]]),
 				x+24, y, 0xfc, 0xf0)
 			text(tostring(playerWins[pid]),x+192, y,0xfc,0xf0)

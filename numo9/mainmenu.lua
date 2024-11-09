@@ -257,13 +257,13 @@ function MainMenu:updateMenuMultiplayer()
 		for _,conn in ipairs(server.conns) do
 			for j=1,conn.numLocalPlayers do
 				local info = conn.playerInfos[j]
-				if info.localPlayer then
-					connForPlayer[info.localPlayer] = conn
+				if info.hostPlayerIndex then
+					connForPlayer[info.hostPlayerIndex] = conn
 				end
 			end
 		end
 		local nextAvailablePlayer
-		for i=1,maxPlayersTotal do
+		for i=0,maxPlayersTotal-1 do
 			if not connForPlayer[i] then
 				nextAvailablePlayer = i
 				break
@@ -291,9 +291,9 @@ function MainMenu:updateMenuMultiplayer()
 				local info = conn.playerInfos[j]
 				x = (j-1) * 64 + 8
 
-				if info.localPlayer then
+				if info.hostPlayerIndex then
 					if self:guiButton('stand', x, self.cursorY + 18) then
-						info.localPlayer = nil
+						info.hostPlayerIndex = nil
 					end
 				else
 					if nextAvailablePlayer
@@ -304,12 +304,12 @@ function MainMenu:updateMenuMultiplayer()
 						-- TODO is the next available player
 						-- TODO buttons for accept observers, accept seats, etc
 
-						info.localPlayer = nextAvailablePlayer
+						info.hostPlayerIndex = nextAvailablePlayer
 					end
 				end
 
-				if info.localPlayer then
-					app:drawText('plr '..tostring(info.localPlayer), x+9, self.cursorY + 9, 0xfe, 0xf0)
+				if info.hostPlayerIndex then
+					app:drawText('plr '..tostring(info.hostPlayerIndex+1), x+9, self.cursorY + 9, 0xfe, 0xf0)
 				end
 				if not isHost then
 					for b=0,7 do
