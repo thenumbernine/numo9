@@ -2396,7 +2396,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 --]]
 
 
--- [[ debug - show projection matrix
+--[[ debug - show projection matrix
 	local r1 = ('%08x %08x %08x %08x'):format(peekl(matAddr+(0<<2)), peekl(matAddr+(4<<2)), peekl(matAddr+(8<<2)), peekl(matAddr+(12<<2)))
 	local r2 = ('%08x %08x %08x %08x'):format(peekl(matAddr+(1<<2)), peekl(matAddr+(5<<2)), peekl(matAddr+(9<<2)), peekl(matAddr+(13<<2)))
 	local r3 = ('%08x %08x %08x %08x'):format(peekl(matAddr+(2<<2)), peekl(matAddr+(6<<2)), peekl(matAddr+(10<<2)), peekl(matAddr+(14<<2)))
@@ -2405,7 +2405,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 
 	kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 
--- [[ debug - show projection matrix
+--[[ debug - show projection matrix
 	text('pos:'..kart.pos, 0, 0, colors.white, -1)
 	text('vel:'..kart.vel, 0, 8, colors.white, -1)
 	text('dir:'..kart.dir, 0, 16, colors.white, -1)

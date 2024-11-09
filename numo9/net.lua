@@ -7,10 +7,22 @@ network protocol
 server sends client:
 
 	$ff $ff $ff $ff <-> incoming RAM dump
-	$ff $fe $XX $XX <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
-	$ff $fd $XX $XX <-> cmd frame will resize to $XXXX
+	$fe $ff $XX $XX <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
+	$fd $ff $XX $XX <-> cmd frame will resize to $XXXX
 
 	all else are delta-compressed uint16 offsets and uint16 values
+
+or how about others are # of delta-compressed messages to expect?
+and how should I delta-compresse messages ...
+what's my max buffer size?  64k?
+maybe I should be encoding offsets and values dif to support larger sizes?
+
+TODO ... maybe ... like unicode ...
+7 bits = offsets 0-255
+8th bit set = use this 7 and next 7 = offsets 0-16383
+16th bit set = use this 7, next 7, next 7 = offsets 0-2097151 ... should be plenty ...
+... then everything is bytes ... ?  or should I send a byte for the len and then # bytes for how many?
+
 --]]
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
@@ -370,7 +382,7 @@ local Numo9Cmd_text = struct{
 		{name='bgColorIndex', type='int16_t'},
 		{name='scaleX', type='float'},
 		{name='scaleY', type='float'},
-		{name='text', type='char[20]'},
+		{name='text', type='char[19]'},
 		-- TODO how about an extra pointer to another table or something for strings, overlap functionality with load requests
 	},
 } 	-- TODO if text is larger than this then issue multiple commands or something
@@ -570,6 +582,7 @@ local Numo9Cmd = struct{
 	end)),
 }
 
+assert.eq(bit.band(ffi.sizeof'Numo9Cmd', 1), 0, "for now sizeof(Numo9Cmd) should be even")
 --[[ want to see the netcmd struct sizes?
 for i,cmdtype in ipairs(netCmdStructs) do
 	print(ffi.sizeof(cmdtype), netcmdNames[i])
@@ -804,18 +817,29 @@ function Server:endFrame()
 			local deltas = conn.deltas
 			deltas:resize(0)
 
+--[[
+io.write'sendcmds:'
+for i=0,thisFrameCmds.size-1 do
+	io.write((' %02x'):format(thisFrameCmds.v[i].type))
+end
+print()
+--]]
 			-- how to convey change-in-sizes ...
 			-- how about storing it at the beginning of the buffer?
 			if prevFrameCmds.size ~= thisFrameCmds.size then
-				deltas:emplace_back()[0] = 0xfdff
+				deltas:emplace_back()[0] = 0xfffd
 				deltas:emplace_back()[0] = thisFrameCmds.size
+print('resizing to', deltas:rbegin()[0])
 				prevFrameCmds:resize(thisFrameCmds.size)
 			end
 
-			local n = (math.min(thisFrameCmds.size, prevFrameCmds.size) * ffi.sizeof'Numo9Cmd') / 2
-			if n >= 0xfeff then
+			local n = math.min(thisFrameCmds.size, prevFrameCmds.size) * ffi.sizeof'Numo9Cmd'
+			assert.ne(bit.band(n, 1), 1, "how did we get an odd-numbered cmd buffer")
+			n = bit.rshift(n ,1)
+
+			if n >= 0xfffd then
 				print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
-				n = 0xfefe	-- one less than our highest special code
+				n = 0xfffc	-- one less than our highest special code
 			end
 
 			local clp = ffi.cast('uint16_t*', prevFrameCmds.v)
@@ -824,11 +848,17 @@ function Server:endFrame()
 
 			if deltas.size > 0 then
 				local data = deltas:dataToStr()
+assert.eq(bit.band(#data, 1), 0, "how did I send data that wasn't 2-byte-aligned?")
 				conn.toSend:insert(data)
 			end
 
+			--[[
 			conn.prevFrameCmds:resize(conn.thisFrameCmds.size)
 			ffi.copy(conn.prevFrameCmds.v, conn.thisFrameCmds.v, ffi.sizeof'Numo9Cmd' * conn.thisFrameCmds.size)
+			--]]
+			-- [[
+			conn.prevFrameCmds, conn.thisFrameCmds = conn.thisFrameCmds, conn.prevFrameCmds
+			--]]
 		end
 	end
 end
@@ -956,7 +986,7 @@ print'creating server remote client conn...'
 	local frameStr = self.cmds:dataToStr()
 	assert(#frameStr < 0xfffe, "need to fix your protocol")
 	local header = ffi.new('uint16_t[2]')
-	header[0] = 0xfeff
+	header[0] = 0xfffe
 	header[1] = #frameStr
 	serverConn.toSend:insert(ffi.string(ffi.cast('char*', header), 4))
 	serverConn.toSend:insert(frameStr)
@@ -1141,10 +1171,10 @@ print'begin client listen loop...'
 					local charp = ffi.cast('char*', data)
 					local shortp = ffi.cast('uint16_t*', charp)
 					local index, value = shortp[0], shortp[1]
-					if index == 0xfdff then
+					if index == 0xfffd then
 						-- cmd buffer resize
 						if value ~= self.cmds.size then
---print('got cmdbuf resize to '..tostring(value))
+print('got cmdbuf resize to '..tostring(value))
 							local oldsize = self.cmds.size
 							self.cmds:resize(value)
 							if self.cmds.size > oldsize then
@@ -1153,7 +1183,7 @@ print'begin client listen loop...'
 							end
 						end
 
-					elseif index == 0xfeff then
+					elseif index == 0xfffe then
 						-- cmd frame reset message
 
 						local newcmdslen = value
@@ -1272,6 +1302,14 @@ print('got uint16 index='
 			end
 			ffi.copy(self.lastButtons, buttonPtr, 4)
 
+--[[
+io.write'recvcmds: '
+for i=0,self.cmds.size-1 do
+	io.write((' %02x'):format(self.cmds.v[i].type))
+end
+print()
+--]]
+
 			-- now run through our command-buffer and execute its contents
 			for i=0,self.cmds.size-1 do
 				local cmd = self.cmds.v + i
@@ -1360,7 +1398,10 @@ print('got uint16 index='
 				elseif cmdtype == netcmds.pokel then
 					local c = cmd[0].pokel
 					app:pokel(c.addr, c.value)
-				else
+				-- don't warn if we have 0s at the end, cuz that could just be some lag between resize commands and whatever fills the contents
+				-- on that note, maybe I should be receiving into a separate buffer and only copying it into the client once its gathered an entire frame...
+				-- does that mean I need a frame-end message?
+				elseif cmdtype ~= 0 then
 					print("!!!WARNING!!! - got an unknown netcmd "..tostring(cmdtype))
 				end
 			end
