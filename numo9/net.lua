@@ -502,10 +502,30 @@ local Numo9Cmd_poke = struct{
 	fields = {
 		{name='type', type='uint8_t'},
 		{name='addr', type='uint32_t'},
-		{name='value', type='uint32_t'},
-		{name='size', type='uint8_t'},	-- 1, 2, or 4 ... maybe I'll give each its own cmd and remove this fields
+		{name='value', type='uint8_t'},
 	},
 }
+
+local Numo9Cmd_pokew = struct{
+	name = 'Numo9Cmd_pokew',
+	packed = true,
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='addr', type='uint32_t'},
+		{name='value', type='uint16_t'},
+	},
+}
+
+local Numo9Cmd_pokel = struct{
+	name = 'Numo9Cmd_pokel',
+	packed = true,
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='addr', type='uint32_t'},
+		{name='value', type='uint32_t'},
+	},
+}
+
 
 -- mayb I'll do like SDL does ...
 local netCmdStructs = table{
@@ -531,6 +551,8 @@ local netCmdStructs = table{
 	Numo9Cmd_sfx,
 	Numo9Cmd_music,
 	Numo9Cmd_poke,
+	Numo9Cmd_pokew,
+	Numo9Cmd_pokel,
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
 	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))
@@ -1331,17 +1353,15 @@ print('got uint16 index='
 					app:playMusic(c.musicID, c.musicPlayingIndex, c.channelOffset)
 				elseif cmdtype == netcmds.poke then
 					local c = cmd[0].poke
-					if c.size == 1 then
-						app:poke(c.addr, c.value)
-					elseif c.size == 2 then
-						app:pokew(c.addr, c.value)
-					elseif c.size == 4 then
-						app:pokel(c.addr, c.value)
-					else
-						--error("got a bad poke size "..tostring(c.size))
-						-- guaranteed to be a bad idea to keep going...
-						print("!!!WARNING!!! - got a bad poke size "..tostring(c.size))
-					end
+					app:poke(c.addr, c.value)
+				elseif cmdtype == netcmds.pokew then
+					local c = cmd[0].pokew
+					app:pokew(c.addr, c.value)
+				elseif cmdtype == netcmds.pokel then
+					local c = cmd[0].pokel
+					app:pokel(c.addr, c.value)
+				else
+					print("!!!WARNING!!! - got an unknown netcmd "..tostring(cmdtype))
 				end
 			end
 
