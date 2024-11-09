@@ -1305,11 +1305,11 @@ function App:update()
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
 		print(
-		--	'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
+			'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
 		--	'draws/second '..drawsPerSecond	-- TODO make this single-buffered
-			'channels active '..range(0,7):mapi(function(i) return self.ram.channels[i].flags.isPlaying end):concat' '
-			..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
-			..' SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
+		--	'channels active '..range(0,7):mapi(function(i) return self.ram.channels[i].flags.isPlaying end):concat' '
+		--	..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
+		--	..' SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
 		)
 		if self.server then
 			--[[
@@ -1326,7 +1326,7 @@ print('self.server.socket', self.server.socket)
 				io.write('server sock '..require'ext.tolua'(self.server.socket:getstats())..' ')
 			end
 			--]]
--- [[ show server's last delta
+--[[ show server's last delta
 print'DELTA'
 print(
 	string.hexdump(
@@ -1337,7 +1337,7 @@ print(
 	)
 )
 --]]
--- [[ show server's last render state:
+--[[ show server's last render state:
 print'STATE'
 print(
 	string.hexdump(
@@ -1348,10 +1348,9 @@ print(
 	)
 )
 --]]
-			io.write('net frames='..#self.server.frames..' ')
-			io.write(' cmds/frame='..#((self.server.conns[1] or {}).cmds or {})..' ')
-			io.write(' deltas/sec='..tostring(self.server.numDeltasSentPerSec)..' ')
-			io.write(' idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
+			io.write('netcmds='..#((self.server.conns[1] or {}).cmds or {})..' ')
+			io.write('deltas/sec='..tostring(self.server.numDeltasSentPerSec)..' ')
+			io.write('idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
 self.server.numDeltasSentPerSec = 0
 self.server.numIdleChecksPerSec = 0
 			if self.server.conns[2] then

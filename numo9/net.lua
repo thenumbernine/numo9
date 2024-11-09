@@ -767,7 +767,6 @@ function Server:init(app)
 	local sock = assert(socket.bind(listenAddr, listenPort))
 	self.socket = sock
 	self.socketaddr, self.socketport = sock:getsockname()
-	con:print('...init listening on ', self.ident)
 
 	--sock:setoption('keepalive', true)
 	sock:setoption('tcp-nodelay', true)
@@ -1215,11 +1214,13 @@ print'begin client listen loop...'
 						-- and do nextCmds too
 						self.nextCmds:resize(newsize)
 						ffi.copy(self.nextCmds.v, ffi.cast('char*', initCmds), newcmdslen)
+						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 
 					elseif index == 0xffff and value == 0xfffe then
 						-- tell client that deltas are finished and to flush received cmds
 						self.cmds:resize(self.nextCmds.size)
 						ffi.copy(self.cmds.v, self.nextCmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
+						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 					elseif index == 0xffff and value == 0xffff then
 						-- new RAM dump message
 
@@ -1271,6 +1272,7 @@ print('...got', result:unpack())
 						app.fbTex:checkDirtyCPU()
 						--]]
 
+						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 					else
 						local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
 						if neededSize >= self.nextCmds.size then
