@@ -220,9 +220,16 @@ function MainMenu:updateMenuMultiplayer()
 		end
 	end
 
+	self.cursorY = self.cursorY + 8
+	app:drawText('num. local players: '..app.cfg.numLocalPlayers, self.cursorX - 32, self.cursorY, 0xf7, 0xf0)
+	self:guiSpinner(self.cursorX + 80, self.cursorY, function(dx)
+		app.cfg.numLocalPlayers = math.clamp(app.cfg.numLocalPlayers + dx, 1, maxPlayersPerConn)
+	end, 'num. local players')	-- TODO where's the tooltip?
+	self.cursorY = self.cursorY + 8
+
 	self:menuSection'local player names'
 
-	for i=1,maxPlayersPerConn do
+	for i=1,app.cfg.numLocalPlayers do
 		-- TODO checkbox for whether the player is active or not during netplay ...
 		-- TODO TODO how to allow #-local-players-active to change during a game ...
 		self:menuTextField('name', app.cfg.playerInfos[i], 'name')
@@ -244,10 +251,12 @@ function MainMenu:updateMenuMultiplayer()
 	then
 		self:menuSection'connections'
 
+		-- TODO this is here and Server:updateCoroutine()
 		-- TODO track active players on all clients in net ...
 		local connForPlayer = {}
 		for _,conn in ipairs(server.conns) do
-			for _,info in ipairs(conn.playerInfos) do
+			for j=1,conn.numLocalPlayers do
+				local info = conn.playerInfos[j]
 				if info.localPlayer then
 					connForPlayer[info.localPlayer] = conn
 				end
@@ -278,8 +287,8 @@ function MainMenu:updateMenuMultiplayer()
 			app:drawText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
 
 			self.cursorY = self.cursorY + 9
-			for j,info in ipairs(conn.playerInfos) do
-				assert.le(j, maxPlayersPerConn)
+			for j=1,conn.numLocalPlayers do
+				local info = conn.playerInfos[j]
 				x = (j-1) * 64 + 8
 
 				if info.localPlayer then
@@ -332,8 +341,15 @@ function MainMenu:updateMenuInput()
 
 	self:menuSection'input'
 
+	app:drawText('num. local players: '..app.cfg.numLocalPlayers, self.cursorX - 32, self.cursorY, 0xf7, 0xf0)
+	self:guiSpinner(self.cursorX + 80, self.cursorY, function(dx)
+		app.cfg.numLocalPlayers = math.clamp(app.cfg.numLocalPlayers + dx, 1, maxPlayersPerConn)
+	end, 'num. local players')	-- TODO where's the tooltip?
+	self.cursorY = self.cursorY + 16
+
 	local pushCursorX, pushCursorY = self.cursorX, self.cursorY
 	for playerIndexPlusOne=1,maxPlayersPerConn do
+		local active = playerIndexPlusOne <= app.cfg.numLocalPlayers
 		local playerIndex = playerIndexPlusOne-1
 		self.cursorX = bit.band(playerIndex, 1) * 128 + 8
 		self.cursorY = pushCursorY + bit.band(bit.rshift(playerIndex, 1), 1) * (#buttonSingleCharLabels + 3) * 9
@@ -344,28 +360,30 @@ function MainMenu:updateMenuInput()
 		for buttonIndexPlusOne,buttonName in ipairs(buttonSingleCharLabels) do
 			local buttonIndex = buttonIndexPlusOne - 1	-- atm playerInfo.buttonBinds is 0-based
 			-- TODO instead of name use some of our extra codes ...
-			app:drawText(buttonName, self.cursorX-8, self.cursorY, 0xfc, 0xf0)
-			local buttonBind = playerInfo.buttonBinds[buttonIndex]
-			local label = app.waitingForEvent and self.menuTabIndex == self.menuTabCounter
-				and 'Press...'
-				or tostring(buttonBind and buttonBind.name or '...')
-			if self:menuButton(label) then
-				-- if we're waiting then call it 'press a key'
-				-- otherwise show the key desc
-				-- capture it
-				app.waitingForEvent = {
-					callback = function(e)
+			if active then
+				app:drawText(buttonName, self.cursorX-8, self.cursorY, 0xfc, 0xf0)
+				local buttonBind = playerInfo.buttonBinds[buttonIndex]
+				local label = app.waitingForEvent and self.menuTabIndex == self.menuTabCounter
+					and 'Press...'
+					or tostring(buttonBind and buttonBind.name or '...')
+				if self:menuButton(label) then
+					-- if we're waiting then call it 'press a key'
+					-- otherwise show the key desc
+					-- capture it
+					app.waitingForEvent = {
+						callback = function(e)
 --print('got event', require 'ext.tolua'(e))
-						-- [[ let esc clear the binding
-						if e[1] == sdl.SDL_KEYDOWN and e[2] == sdl.SDLK_ESCAPE then
-							playerInfo.buttonBinds[buttonIndex] = {}
-							return
-						end
-						--]]
+							-- [[ let esc clear the binding
+							if e[1] == sdl.SDL_KEYDOWN and e[2] == sdl.SDLK_ESCAPE then
+								playerInfo.buttonBinds[buttonIndex] = {}
+								return
+							end
+							--]]
 
-						playerInfo.buttonBinds[buttonIndex] = e
-					end,
-				}
+							playerInfo.buttonBinds[buttonIndex] = e
+						end,
+					}
+				end
 			end
 		end
 	end

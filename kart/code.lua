@@ -1,5 +1,5 @@
 --[[
-TODO 
+TODO
 - ... multi "bank" rendering ... hmm
 	and how to do that with 64 players at once ...
 	it's easy with just 4players ...
@@ -7,6 +7,17 @@ TODO
 - track nodes are a bit off with the finish line
 - multiplayer needs to track foreign conns and place clientViewObjs in their local screens accordingly
 - rendering needs to move to draw()
+
+How did SMK do it?
+one character uses ...
+12 frames x distances 1-3 x 32x32 = 576 tiles
+8 frames x distances 4-5 x 24x24 = 144 tiles ... total 720
+4 frames x distances 6-8 x 16x16 = 48 tiles  ... total 768
+3 frames x distance 9 x 8x16 = 6 tiles       ... total 774
+2 frames x distance 10-11 x 8x8 = 4 tiles    ... total 778
+{lookback1 lookback2 turn cry cheer} x 32x32 = 80 tiles ... total 858
+and i'll ignore the flat and cheer sprites ...
+... a single 256x256 sheet has 1024 tiles ... it's close to one sheet per character.
 
 sprites from https://www.spriters-resource.com/submitter/NICKtendoDS/
 --]]
@@ -1643,7 +1654,7 @@ function Kart:update(dt)
 			if self.lap >= game.maxLaps then
 				-- TODO switch to AI or something
 				game.finishPlayers:insert(self.playerIndex)
-			
+
 				if #game.finishPlayers == #clientViewObjs then
 					-- game is over or something
 				end
@@ -2368,7 +2379,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 			matpush()
 			mattrans(node[1] - currentCamPos[1], node[2] - currentCamPos[2], .1 - currentCamPos[3])
 			local length = .5
-			elli(-length, -length, 2 * length, 2 * length, 
+			elli(-length, -length, 2 * length, 2 * length,
 				({
 					colors.white,
 					colors.black,
