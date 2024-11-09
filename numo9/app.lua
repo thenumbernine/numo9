@@ -1145,7 +1145,6 @@ function App:net_poke(addr, value)
 			cmd.type = netcmds.poke
 			cmd.addr = addr
 			cmd.value = value
-			cmd.size = 1
 		end
 	end
 	return self:poke(addr, value)
@@ -1156,11 +1155,10 @@ function App:net_pokew(addr, value)
 		addr = toint(addr)
 		value = toint(value)
 		if self:peekw(addr) ~= value then
-			local cmd = self.server:pushCmd().poke
-			cmd.type = netcmds.poke
+			local cmd = self.server:pushCmd().pokew
+			cmd.type = netcmds.pokew
 			cmd.addr = addr
 			cmd.value = value
-			cmd.size = 2
 		end
 	end
 	return self:pokew(addr, value)
@@ -1171,11 +1169,10 @@ function App:net_pokel(addr, value)
 		addr = toint(addr)
 		value = toint(value)
 		if self:peekl(addr) ~= value then
-			local cmd = self.server:pushCmd().poke
-			cmd.type = netcmds.poke
+			local cmd = self.server:pushCmd().pokel
+			cmd.type = netcmds.pokel
 			cmd.addr = addr
 			cmd.value = value
-			cmd.size = 4
 		end
 	end
 	return self:pokel(addr, value)
@@ -1193,11 +1190,10 @@ function App:net_mset(x, y, value)
 		-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
 		if self.server then
 			if self.ram.bank[0].tilemap[index]~=value then
-				local cmd = self.server:pushCmd().poke
-				cmd.type = netcmds.poke
+				local cmd = self.server:pushCmd().pokew
+				cmd.type = netcmds.pokew
 				cmd.addr = tilemapAddr + bit.lshift(index, 1)
 				cmd.value = value
-				cmd.size = 2
 			end
 		end
 		self.ram.bank[0].tilemap[index] = value
