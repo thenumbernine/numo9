@@ -18,6 +18,8 @@ and how should I delta-compresse messages ...
 what's my max buffer size?  64k?
 maybe I should be encoding offsets and values dif to support larger sizes?
 
+	hmm ok on the kart game it's surpassing 64k ...
+
 TODO ... maybe ... like unicode ...
 7 bits = offsets 0-255
 8th bit set = use this 7 and next 7 = offsets 0-16383
@@ -25,11 +27,10 @@ TODO ... maybe ... like unicode ...
 ... then everything is bytes ... ?  or should I send a byte for the len and then # bytes for how many?
 ... but how often do we exceed 8bits?  if it's pretty often then might as well just use 16bits right?
 
-a frame-end message would also be useful, for telling the client when to flush what its gathered to the renderloop...
-... and then ofc separate what the net is gathering at a time in one buffer, and what is rendered in another ...
-but that'd be extra traffic ...
-
 how about line up all the bits of the current cmd state ... or even of the entire RAM state ... and subdivide changed bits until your ranges are so small that subdividing any further would mean representation size increases instead of decreases, and then send whatever you have.
+
+TODO I'm doubling up the net cmds sent for 2 draw conns ...
+	this is cuz the local conn receives its messages ... and theyre added to the general list ... and that combines with the per-client conn msgs ... and the per-client conn gets 2x ..
 
 --]]
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
@@ -549,30 +550,30 @@ local Numo9Cmd_pokel = struct{
 
 -- mayb I'll do like SDL does ...
 local netCmdStructs = table{
-	Numo9Cmd_base,
-	Numo9Cmd_clearScreen,
-	Numo9Cmd_clipRect,
-	Numo9Cmd_solidRect,
-	Numo9Cmd_solidTri,
-	Numo9Cmd_solidTri3D,
-	Numo9Cmd_solidLine,
-	Numo9Cmd_solidLine3D,
-	Numo9Cmd_quad,
-	Numo9Cmd_map,
-	Numo9Cmd_text,
-	Numo9Cmd_blendMode,
-	Numo9Cmd_matident,
-	Numo9Cmd_mattrans,
-	Numo9Cmd_matrot,
-	Numo9Cmd_matscale,
-	Numo9Cmd_matortho,
-	Numo9Cmd_matfrustum,
-	Numo9Cmd_matlookat,
-	Numo9Cmd_sfx,
-	Numo9Cmd_music,
-	Numo9Cmd_poke,
-	Numo9Cmd_pokew,
-	Numo9Cmd_pokel,
+	Numo9Cmd_base,				-- 0x01
+	Numo9Cmd_clearScreen,		-- 0x02
+	Numo9Cmd_clipRect,			-- 0x03
+	Numo9Cmd_solidRect,			-- 0x04
+	Numo9Cmd_solidTri,			-- 0x05
+	Numo9Cmd_solidTri3D,		-- 0x06
+	Numo9Cmd_solidLine,			-- 0x07
+	Numo9Cmd_solidLine3D,		-- 0x08
+	Numo9Cmd_quad,				-- 0x09
+	Numo9Cmd_map,				-- 0x0a
+	Numo9Cmd_text,				-- 0x0b
+	Numo9Cmd_blendMode,			-- 0x0c
+	Numo9Cmd_matident,			-- 0x0d
+	Numo9Cmd_mattrans,			-- 0x0e
+	Numo9Cmd_matrot,			-- 0x0f
+	Numo9Cmd_matscale,			-- 0x10
+	Numo9Cmd_matortho,			-- 0x11
+	Numo9Cmd_matfrustum,		-- 0x12
+	Numo9Cmd_matlookat,			-- 0x13
+	Numo9Cmd_sfx,				-- 0x14
+	Numo9Cmd_music,				-- 0x15
+	Numo9Cmd_poke,				-- 0x16
+	Numo9Cmd_pokew,				-- 0x17
+	Numo9Cmd_pokel,				-- 0x18
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
 	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))
@@ -992,7 +993,7 @@ print'creating server remote client conn...'
 
 	-- send most recent frame state
 	local frameStr = self.cmds:dataToStr()
-	assert(#frameStr < 0xfffe, "need to fix your protocol")
+	assert(#frameStr < 0xfffe, "the cmds buffer is too big -- need to fix your protocol")
 	local header = ffi.new('uint16_t[2]')
 	header[0] = 0xfffe
 	header[1] = #frameStr
@@ -1322,7 +1323,7 @@ print('got uint16 index='
 			ffi.copy(self.lastButtons, buttonPtr, 4)
 
 --[[
-io.write'recvcmds: '
+io.write'recvcmds:'
 for i=0,self.nextCmds.size-1 do
 	io.write((' %02x'):format(self.nextCmds.v[i].type))
 end
