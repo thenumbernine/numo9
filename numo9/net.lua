@@ -777,27 +777,27 @@ function Server:endFrame()
 			ffi.copy(conn.thisFrameCmds.v, self.cmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
 			ffi.copy(conn.thisFrameCmds.v + self.cmds.size, conn.cmds.v, ffi.sizeof'Numo9Cmd' * conn.cmds.size)
 
-			local thisBuf = conn.thisFrameCmds
-			local prevBuf = conn.prevFrameCmds
+			local thisFrameCmds = conn.thisFrameCmds
+			local prevFrameCmds = conn.prevFrameCmds
 			local deltas = conn.deltas
 			deltas:resize(0)
 
 			-- how to convey change-in-sizes ...
 			-- how about storing it at the beginning of the buffer?
-			if prevBuf.size ~= thisBuf.size then
+			if prevFrameCmds.size ~= thisFrameCmds.size then
 				deltas:emplace_back()[0] = 0xfdff
-				deltas:emplace_back()[0] = thisBuf.size
-				prevBuf:resize(thisBuf.size)
+				deltas:emplace_back()[0] = thisFrameCmds.size
+				prevFrameCmds:resize(thisFrameCmds.size)
 			end
 
-			local n = (math.min(thisBuf.size, prevBuf.size) * ffi.sizeof'Numo9Cmd') / 2
+			local n = (math.min(thisFrameCmds.size, prevFrameCmds.size) * ffi.sizeof'Numo9Cmd') / 2
 			if n >= 0xfeff then
 				print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
 				n = 0xfefe	-- one less than our highest special code
 			end
 
-			local clp = ffi.cast('uint16_t*', prevBuf.v)
-			local svp = ffi.cast('uint16_t*', thisBuf.v)
+			local clp = ffi.cast('uint16_t*', prevFrameCmds.v)
+			local svp = ffi.cast('uint16_t*', thisFrameCmds.v)
 			deltaCompress(clp, svp, n, deltas)
 
 			if deltas.size > 0 then

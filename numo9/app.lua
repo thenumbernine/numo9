@@ -2073,7 +2073,18 @@ function App:runROM()
 
 			local server = self.server
 			if server then
-				for _,conn in ipairs(server.conns) do
+				-- I could do a proper loopback client
+				-- or I could just run the local conn last and leave the RAM state as-is
+				-- TODO if anything but draw commands happen in the draw function then the RAM can go out of sync!!!
+				-- how to fix this?
+				-- should I fix this?
+				-- should I just add a disclaimer to not put any permanent changes in the draw() function?
+				-- should I be saving and loading the RAM (sans framebuffer) each time as well?
+				-- what about things like the matrix?
+				--for _,conn in ipairs(server.conns) do
+				for i=#server.conns,1,-1 do
+					local conn = server.conns[i]
+
 					-- set our override - cmds only go to this conn
 					server.currentCmdConn = conn
 

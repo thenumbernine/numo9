@@ -452,7 +452,7 @@ return {
 	paletteInBytes = paletteInBytes,
 	paletteAddrEnd = paletteAddrEnd,
 	fontAddr = fontAddr,
-	fontInBytes = fontInBytes, 
+	fontInBytes = fontInBytes,
 	fontAddrEnd = fontAddrEnd,
 	framebufferAddr = framebufferAddr,
 	framebufferInBytes = framebufferInBytes,
