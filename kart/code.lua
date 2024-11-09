@@ -2395,7 +2395,25 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 	end
 --]]
 
+
+-- [[ debug - show projection matrix
+	local r1 = ('%08x %08x %08x %08x'):format(peekl(matAddr+(0<<2)), peekl(matAddr+(4<<2)), peekl(matAddr+(8<<2)), peekl(matAddr+(12<<2)))
+	local r2 = ('%08x %08x %08x %08x'):format(peekl(matAddr+(1<<2)), peekl(matAddr+(5<<2)), peekl(matAddr+(9<<2)), peekl(matAddr+(13<<2)))
+	local r3 = ('%08x %08x %08x %08x'):format(peekl(matAddr+(2<<2)), peekl(matAddr+(6<<2)), peekl(matAddr+(10<<2)), peekl(matAddr+(14<<2)))
+	local r4 = ('%08x %08x %08x %08x'):format(peekl(matAddr+(3<<2)), peekl(matAddr+(7<<2)), peekl(matAddr+(11<<2)), peekl(matAddr+(15<<2)))
+--]]
+
 	kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
+
+-- [[ debug - show projection matrix
+	text('pos:'..kart.pos, 0, 0, colors.white, -1)
+	text('vel:'..kart.vel, 0, 8, colors.white, -1)
+	text('dir:'..kart.dir, 0, 16, colors.white, -1)
+	text(r1, 0, 32, colors.white, -1)
+	text(r2, 0, 40, colors.white, -1)
+	text(r3, 0, 48, colors.white, -1)
+	text(r4, 0, 56, colors.white, -1)
+--]]
 end
 
 
@@ -2564,21 +2582,6 @@ draw=[conn, ...]do
 						pokew(palAddr+(i<<1), palPush[i])
 					end
 				end
-
-		--[[
-		local r1 = ('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12])
-		local r2 = ('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.mvMat[13])
-		local r3 = ('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14])
-		local r4 = ('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15])
-				matident()
-				text('pos:'..kart.pos, 0, 0, colors.white, -1)
-				text('vel:'..kart.vel, 0, 8, colors.white, -1)
-				text('dir:'..kart.dir, 0, 16, colors.white, -1)
-				text(r1, 0, 32, colors.white, -1)
-				text(r2, 0, 40, colors.white, -1)
-				text(r3, 0, 48, colors.white, -1)
-				text(r4, 0, 56, colors.white, -1)
-		--]]
 			end
 		end
 	end
