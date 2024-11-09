@@ -7,6 +7,7 @@ network protocol
 server sends client:
 
 	$ff $ff $ff $ff <-> incoming RAM dump
+	$ff $ff $ff $fe <-> delta compression frame end.  let the client know it can flush the cmds (so we dont display incomplete cmds)
 	$fe $ff $XX $XX <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
 	$fd $ff $XX $XX <-> cmd frame will resize to $XXXX
 
@@ -22,6 +23,13 @@ TODO ... maybe ... like unicode ...
 8th bit set = use this 7 and next 7 = offsets 0-16383
 16th bit set = use this 7, next 7, next 7 = offsets 0-2097151 ... should be plenty ...
 ... then everything is bytes ... ?  or should I send a byte for the len and then # bytes for how many?
+... but how often do we exceed 8bits?  if it's pretty often then might as well just use 16bits right?
+
+a frame-end message would also be useful, for telling the client when to flush what its gathered to the renderloop...
+... and then ofc separate what the net is gathering at a time in one buffer, and what is rendered in another ...
+but that'd be extra traffic ...
+
+how about line up all the bits of the current cmd state ... or even of the entire RAM state ... and subdivide changed bits until your ranges are so small that subdividing any further would mean representation size increases instead of decreases, and then send whatever you have.
 
 --]]
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
@@ -829,7 +837,7 @@ print()
 			if prevFrameCmds.size ~= thisFrameCmds.size then
 				deltas:emplace_back()[0] = 0xfffd
 				deltas:emplace_back()[0] = thisFrameCmds.size
-print('resizing to', deltas:rbegin()[0])
+--print('resizing to', deltas:rbegin()[0])
 				prevFrameCmds:resize(thisFrameCmds.size)
 			end
 
@@ -837,9 +845,9 @@ print('resizing to', deltas:rbegin()[0])
 			assert.ne(bit.band(n, 1), 1, "how did we get an odd-numbered cmd buffer")
 			n = bit.rshift(n ,1)
 
-			if n >= 0xfffd then
+			if n >= 0xfffc then
 				print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
-				n = 0xfffc	-- one less than our highest special code
+				n = 0xfffb	-- one less than our highest special code
 			end
 
 			local clp = ffi.cast('uint16_t*', prevFrameCmds.v)
@@ -847,8 +855,8 @@ print('resizing to', deltas:rbegin()[0])
 			deltaCompress(clp, svp, n, deltas)
 
 			if deltas.size > 0 then
-				local data = deltas:dataToStr()
-assert.eq(bit.band(#data, 1), 0, "how did I send data that wasn't 2-byte-aligned?")
+				local data = deltas:dataToStr()..'\xff\xff\xfe\xff'	-- terminator is 0xfffffffe <-> delta index=0xffff, value=0xfffe
+--DEBUG:assert.eq(bit.band(#data, 1), 0, "how did I send data that wasn't 2-byte-aligned?")
 				conn.toSend:insert(data)
 			end
 
@@ -1032,7 +1040,7 @@ print'sending initial RAM state...'
 
 	-- send a code for 'incoming RAM dump'
 	-- TODO how about another special code for resizing the cmdbuf?  so I don't have to pad the cmdbuf size at the frame beginning...
-	serverConn.toSend:insert(ffi.string(ffi.cast('char*', string.char(255,255,255,255))))
+	serverConn.toSend:insert'\xff\xff\xff\xff'
 
 	-- send back current state of the game ...
 	local ramState =
@@ -1077,6 +1085,9 @@ function ClientConn:init(args)
 	assert.index(args, 'playerInfos')
 
 	self.cmds = vector'Numo9Cmd'
+	-- store netcmds here as they are being processed and before the final flush cmd is received
+	-- this way we dont draw half-complete sprites etc
+	self.nextCmds = vector'Numo9Cmd'
 
 	-- send only joypad keys
 	-- the server will overwrite whatever player position with it
@@ -1168,18 +1179,18 @@ print'begin client listen loop...'
 --receivedSize = receivedSize + 4
 					-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
 
-					local charp = ffi.cast('char*', data)
-					local shortp = ffi.cast('uint16_t*', charp)
+					local bytep = ffi.cast('uint8_t*', data)
+					local shortp = ffi.cast('uint16_t*', bytep)
 					local index, value = shortp[0], shortp[1]
 					if index == 0xfffd then
 						-- cmd buffer resize
-						if value ~= self.cmds.size then
-print('got cmdbuf resize to '..tostring(value))
-							local oldsize = self.cmds.size
-							self.cmds:resize(value)
-							if self.cmds.size > oldsize then
+						if value ~= self.nextCmds.size then
+--print('got cmdbuf resize to '..tostring(value))
+							local oldsize = self.nextCmds.size
+							self.nextCmds:resize(value)
+							if self.nextCmds.size > oldsize then
 								-- make sure delta compression state starts with 0s
-								ffi.fill(self.cmds.v + oldsize, ffi.sizeof'Numo9Cmd' * (self.cmds.size - oldsize))
+								ffi.fill(self.nextCmds.v + oldsize, ffi.sizeof'Numo9Cmd' * (self.nextCmds.size - oldsize))
 							end
 						end
 
@@ -1200,6 +1211,14 @@ print('got cmdbuf resize to '..tostring(value))
 						assert.len(initCmds, newcmdslen)
 						ffi.copy(self.cmds.v, ffi.cast('char*', initCmds), newcmdslen)
 
+						-- and do nextCmds too
+						self.nextCmds:resize(newsize)
+						ffi.copy(self.nextCmds.v, ffi.cast('char*', initCmds), newcmdslen)
+
+					elseif index == 0xffff and value == 0xfffe then
+						-- tell client that deltas are finished and to flush received cmds
+						self.cmds:resize(self.nextCmds.size)
+						ffi.copy(self.cmds.v, self.nextCmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
 					elseif index == 0xffff and value == 0xffff then
 						-- new RAM dump message
 
@@ -1253,7 +1272,7 @@ print('...got', result:unpack())
 
 					else
 						local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
-						if neededSize >= self.cmds.size then
+						if neededSize >= self.nextCmds.size then
 print('got uint16 index='
 	..('$%x'):format(index)
 	..' value='
@@ -1261,11 +1280,11 @@ print('got uint16 index='
 	..' goes in cmd-index '
 	..('$%x'):format(neededSize)
 	..' when our cmd size is just '
-	..('$%x'):format(self.cmds.size)
+	..('$%x'):format(self.nextCmds.size)
 )
 						else
-							assert(index*2 < self.cmds.size * ffi.sizeof'Numo9Cmd')
-							ffi.cast('uint16_t*', self.cmds.v)[index] = value
+							assert(index*2 < self.nextCmds.size * ffi.sizeof'Numo9Cmd')
+							ffi.cast('uint16_t*', self.nextCmds.v)[index] = value
 						end
 					end
 				else
@@ -1304,8 +1323,8 @@ print('got uint16 index='
 
 --[[
 io.write'recvcmds: '
-for i=0,self.cmds.size-1 do
-	io.write((' %02x'):format(self.cmds.v[i].type))
+for i=0,self.nextCmds.size-1 do
+	io.write((' %02x'):format(self.nextCmds.v[i].type))
 end
 print()
 --]]
