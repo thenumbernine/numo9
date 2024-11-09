@@ -1138,8 +1138,8 @@ function App:net_poke(addr, value)
 	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
 	if self.server then
 		-- spare us reocurring messages
-		addr = toint(addr)
-		value = toint(value)
+		addr = ffi.cast('uint32_t', addr)
+		value = ffi.cast('uint8_t', value)
 		if self:peek(addr) ~= value then
 			local cmd = self.server:pushCmd().poke
 			cmd.type = netcmds.poke
@@ -1152,8 +1152,8 @@ end
 
 function App:net_pokew(addr, value)
 	if self.server then
-		addr = toint(addr)
-		value = toint(value)
+		addr = ffi.cast('uint32_t', addr)
+		value = ffi.cast('uint16_t', value)
 		if self:peekw(addr) ~= value then
 			local cmd = self.server:pushCmd().pokew
 			cmd.type = netcmds.pokew
@@ -1166,8 +1166,8 @@ end
 
 function App:net_pokel(addr, value)
 	if self.server then
-		addr = toint(addr)
-		value = toint(value)
+		addr = ffi.cast('uint32_t', addr)
+		value = ffi.cast('uint32_t', value)
 		if self:peekl(addr) ~= value then
 			local cmd = self.server:pushCmd().pokel
 			cmd.type = netcmds.pokel
@@ -1181,7 +1181,7 @@ end
 function App:net_mset(x, y, value)
 	x = toint(x)
 	y = toint(y)
-	value = toint(value)
+	value = ffi.cast('uint16_t', value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
 	then
@@ -2082,7 +2082,12 @@ function App:runROM()
 					local conn = server.conns[i]
 
 					-- set our override - cmds only go to this conn
-					server.currentCmdConn = conn
+					-- NOTICE (bit of an ugly hack)
+					-- but the loopback conn doesn't use messages atm
+					-- and the loopback conn runs last
+					-- so if it's the loopback conn then just put it in the ... general cmd stack ... ??? 
+					-- maybe I should have the loopback conn always rendering based on its messages ...
+					server.currentCmdConn = conn.remote and conn or nil
 
 					-- upon new game, if the server is running,
 					-- then call "onconnect" on all conns connected so far.

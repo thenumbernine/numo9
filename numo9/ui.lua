@@ -25,18 +25,13 @@ local numo9_keys = require 'numo9.keys'
 local keyCodeNames = numo9_keys.keyCodeNames
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
--- TODO make the editor a rom itself
--- TODO make roms that hold all the necessary stuff
-
-local editModesWithoutNet = table{
+local editModes = table{
 	'code',
 	'sprites',
 	'tilemap',
 	'sfx',
 	'music',
 }
-
-local editModesWithNet = table{'net'}:append(editModesWithoutNet)
 
 local editFieldForMode = {
 	code = 'editCode',
@@ -237,7 +232,6 @@ end
 
 function UI:update()
 	local app = self.app
-	local editModes = app.server and editModesWithNet or editModesWithoutNet
 
 	self:initMenuTabs()
 
