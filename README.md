@@ -177,7 +177,7 @@ If the following functions are defined then they will be called from the virtual
 
 - `draw(connID, connPlayer1, connPlayer2, connPlayer3, connPlayer4)` - This is called 60 times every second per-client that is connected.
 	- `connID` = a unique string for this connection.
-	- `connPlayer#` = the index number (1-64) of the 4 players present on this connection.
+	- `connPlayer#` = the index number (0-63) of the 4 players present on this connection.
 
 - `onconnect(connID)` - This is called when a ROM is initialized or when a new client connects to a server listening.
 

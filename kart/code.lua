@@ -22,8 +22,9 @@ and i'll ignore the flat and cheer sprites ...
 sprites from https://www.spriters-resource.com/submitter/NICKtendoDS/
 --]]
 
-local ram=app.ram
 local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+local matAddr = ffi.offsetof('RAM', 'mvMat')
+assert.eq(ffi.sizeof(ffi.cast('RAM*',0).mvMat), 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 
 local windowWidth, windowHeight = 256, 256
 
@@ -67,7 +68,7 @@ local matstack=table()
 local matpush=[]do
 	local t={}
 	for i=0,15 do
-		t[i+1] = ram.mvMat[i]
+		t[i+1] = peekl(matAddr + (i<<2))
 	end
 	matstack:insert(t)
 end
@@ -75,11 +76,12 @@ local matpop=[]do
 	local t = matstack:remove(1)
 	if not t then return end
 	for i=0,15 do
-		ram.mvMat[i]=t[i+1]
+		pokel(matAddr + (i<<2), t[i+1])
 	end
 end
 
--- [[ not helping
+--[[ not helping
+-- also isn't netplay compat cuz it directly accesses app.ram
 local projmat={}
 local function applyprojmat()
 	-- lhs mul the stored projmat
@@ -2542,7 +2544,9 @@ draw=[conn, ...]do
 				clip(viewX, viewY, viewWidth - 1, viewHeight - 1)
 
 				local useColorSpray = game.time < kart.colorSprayEndTime
+
 				-- cycle palette
+				-- TODO draw(), RAM modifications, netplay, and this...
 				if useColorSpray then
 					for i=0,255 do
 						pokew(palAddr+(i<<1),
