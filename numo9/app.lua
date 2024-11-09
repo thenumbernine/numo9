@@ -2087,7 +2087,9 @@ function App:runROM()
 					-- and the loopback conn runs last
 					-- so if it's the loopback conn then just put it in the ... general cmd stack ... ??? 
 					-- maybe I should have the loopback conn always rendering based on its messages ...
-					server.currentCmdConn = conn.remote and conn or nil
+					--server.currentCmdConn = conn.remote and conn or nil
+					-- but then it doubles up remote sent messages...
+					server.currentCmdConn = conn
 
 					-- upon new game, if the server is running,
 					-- then call "onconnect" on all conns connected so far.

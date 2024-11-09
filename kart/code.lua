@@ -2514,33 +2514,7 @@ end
 	game:update(fixedDeltaTime)
 end
 
-local divsForNumPlayers = {{1,1}, {1,2}, {2,2}, {2,2}}
-draw=[conn, ...]do
-	if not game then return end
-	cls(0)
-	-- TODO ... holds the player indexes for this conn
-	-- we need to filter them by the players active
-
-	--[[ draw all
-	local numPlayers = select('#', ...)
-	local divX, divY = table.unpack(divsForNumPlayers[numPlayers])
-	for i=1,numPlayers do
-		local playerIndex = select(i, ...)
-	--]]
-	-- [[ draw only players that the main menu flagged as active-in-this-race
-	local numPlayers = 0
-	for i=1,select('#', ...) do
-		local playerIndex = select(i, ...)
-		if playersActive[playerIndex] then
-			numPlayers+=1
-		end
-	end
-	local divForNumPlayer = divsForNumPlayers[numPlayers]
-	if not divForNumPlayer then
-		trace("no valid divs for "..tostring(numPlayers))
-		return
-	end
-	local divX, divY = table.unpack(divForNumPlayer)
+drawPlayers=[divX, divY, ...]do
 	for i=1,select('#', ...) do
 		local playerIndex = select(i, ...)
 		if playersActive[playerIndex] then
@@ -2585,4 +2559,50 @@ draw=[conn, ...]do
 			end
 		end
 	end
+end
+
+local divsForNumPlayers = {{1,1}, {1,2}, {2,2}, {2,2}}
+draw=[conn, ...]do
+	if not game then return end
+	cls(0)
+	-- TODO ... holds the player indexes for this conn
+	-- we need to filter them by the players active
+
+	--[[ draw all
+	local numPlayers = select('#', ...)
+	local divX, divY = table.unpack(divsForNumPlayers[numPlayers])
+	for i=1,numPlayers do
+		local playerIndex = select(i, ...)
+	--]]
+	-- [[ draw only players that the main menu flagged as active-in-this-race
+	local numPlayers = 0
+	if select('#', ...) == 0 then
+		-- if we are an observer then we will get this ...
+		-- in that case, what should we draw?
+		-- how about the first active player
+		for i=0,maxPlayers-1 do
+			if playersActive[playerIndex] then
+				drawPlayers(divForNumPlayers[1][1], divForNumPlayers[1][2], playerIndex)
+				return
+			end
+		end
+	else
+		for i=1,select('#', ...) do
+			local playerIndex = select(i, ...)
+			if playersActive[playerIndex] then
+				numPlayers+=1
+			end
+		end
+	end
+	if numPlayers == 0 then
+		-- if we got here then we should have a player but for some reason its not active ... so return
+		return
+	end
+	local divForNumPlayer = divsForNumPlayers[numPlayers]
+	if not divForNumPlayer then
+		trace("no valid divs for "..tostring(numPlayers))
+		return
+	end
+	local divX, divY = table.unpack(divForNumPlayer)
+	drawPlayers(divX, divY, ...)
 end
