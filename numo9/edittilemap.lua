@@ -136,20 +136,25 @@ function EditTilemap:update()
 	end
 
 	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
-	
+
 	app:matident()
 	app:mattrans(mapX, mapY)
 	app:matscale(self.scale, self.scale)
 	app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
 
+	-- ugly for now
+	local pushtex = app.spriteSheetRAM.tex
+	app.spriteSheetRAM.tex = app.checkerTex
+	--app.paletteRAM.tex = app.paletteMenuTex	-- already done?
 	app:drawQuad(
 		-tileSize, -tileSize,
 		2*tileSize+bit.lshift(tilemapSize.x,tileBits), 2*tileSize+bit.lshift(tilemapSize.y, tileBits),
 		0, 0,
 		(2+mapWidth)*2, (2+mapHeight)*2,
-		app.checkerTex,
-		app.paletteMenuTex
+		0
 	)
+	app.spriteSheetRAM.tex = pushtex
+	--app.paletteRAM.tex = app.paletteTex
 
 	app:drawMap(
 		0,		-- upper-left index in the tile tex
@@ -210,8 +215,7 @@ function EditTilemap:update()
 			0,
 			1,
 			1,
-			app.tileSheetRAM,
-			app.paletteRAM,
+			1,	-- sheetIndex
 			0,
 			-1,
 			0,
@@ -417,7 +421,7 @@ function EditTilemap:update()
 		--TODO cut or copy ... need to specify selection beforehand
 		if app:keyp'v' then
 			-- TODO how to specify where to paste? beforehand? or paste as overlay until you click outside the box?
-		
+
 			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
 			assert(not app.tilemapRAM.dirtyGPU)
 			local image = clip.image()

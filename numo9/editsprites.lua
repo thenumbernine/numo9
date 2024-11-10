@@ -116,7 +116,8 @@ function EditSprites:update()
 		function(result)
 			self.texField = result
 		end)
-	local currentVRAM = app[self.texField]
+	local currentSheetIndex = self.texField == 'spriteSheetRAM' and 0 or 1	-- TODO
+	local currentVRAM = app.spriteSheetRAMs[currentSheetIndex+1]
 	local currentTexAddr = currentVRAM.addr
 
 	local x = 126
@@ -137,7 +138,15 @@ function EditSprites:update()
 		-- this is the framebuffer coord bounds of the spritesheet.
 		local x1, y1 = spritesheetCoordToFb(0, 0)
 		local x2, y2 = spritesheetCoordToFb(spriteSheetSizeInTiles:unpack())
-		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w/2, h/2, app.checkerTex, app.paletteMenuTex, 0, -1, 0, 0xFF)
+
+		-- ugly for now
+		local pushtex = app.spriteSheetRAM.tex
+		app.spriteSheetRAM.tex = app.checkerTex
+		--app.paletteRAM.tex = app.paletteMenuTex	-- already done?
+		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w/2, h/2, 0, 0, -1, 0, 0xFF)
+		app.spriteSheetRAM.tex = pushtex
+		--app.paletteRAM.tex = app.paletteTex
+
 		-- clamp it to the viewport of the spritesheet to get the rendered region
 		-- then you can scissor-test this to get rid of the horrible texture stretching at borders from clamp_to_edge ...
 		gl.glScissor(x1, y1, x2-x1, y2-y1)
@@ -151,8 +160,7 @@ function EditSprites:update()
 		tonumber(self.spritesheetPanOffset.y) / tonumber(spriteSheetSize.y),		-- ty
 		tonumber(w) / tonumber(spriteSheetSize.x),							-- tw
 		tonumber(h) / tonumber(spriteSheetSize.y),							-- th
-		currentVRAM,
-		app.paletteRAM,
+		currentSheetIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit
@@ -254,7 +262,12 @@ function EditSprites:update()
 	do
 		local x1, y1 = spriteCoordToFb(0, 0)
 		local x2, y2 = spriteCoordToFb(spriteSheetSize:unpack())
-		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w*8, h*8, app.checkerTex, app.paletteMenuTex, 0, -1, 0, 0xFF)
+		local pushtex = app.spriteSheetRAM.tex
+		app.spriteSheetRAM.tex = app.checkerTex
+		--app.paletteRAM.tex = app.paletteMenuTex	-- already done?
+		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w*8, h*8, 0, 0, -1, 0, 0xFF)
+		app.spriteSheetRAM.tex = pushtex
+		--app.paletteRAM.tex = app.paletteTex
 		gl.glScissor(x1, y1, x2-x1, y2-y1)
 	end
 	app:drawQuad(
@@ -266,8 +279,7 @@ function EditSprites:update()
 		tonumber(self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y) / tonumber(spriteSheetSize.y),
 		tonumber(self.spriteSelSize.x * spriteSize.x) / tonumber(spriteSheetSize.x),
 		tonumber(self.spriteSelSize.y * spriteSize.y) / tonumber(spriteSheetSize.y),
-		currentVRAM,
-		app.paletteRAM,
+		currentSheetIndex,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex
 		self.spriteBit,							-- spriteBit
@@ -498,7 +510,6 @@ function EditSprites:update()
 			local ry = y + bh * j
 
 			-- cheap hack to use game palette here instead of menu palette ...
-			-- TODO just make it an arg like drawQuad
 			app.videoModeInfo[0].quadSolidObj.texs[1] = app.paletteRAM.tex
 			app:drawSolidRect(
 				rx,

@@ -698,6 +698,7 @@ assert.lt(n,256)
 		quad(destX,destY,destW,destH,
 			sheetX/256, sheetY/256,
 			sheetW/256, sheetH/256,
+			0,	-- sprite sheet ... TODO eventually for pico8 glue, use only 1 sheet, no separate sprites and tiles like tic80
 			0,-1,0,0xf)
 	end,
 	color=[c]do p8color=math.floor(c or 6) end,

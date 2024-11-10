@@ -47,7 +47,7 @@ local audioMixChannels = 8	-- # channels to play at the same time
 local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a time
 local sfxTableSize =  256	-- max number of unique sfx that a music can reference
 local musicTableSize = 256	-- max number of music tracks stored
-local audioDataSize = 0x10000	-- snes had 64k dedicated to audio so :shrug:
+local audioDataSize = 0xe000	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
 
 local userDataSize = 0x10000
 
@@ -158,7 +158,7 @@ local ROM = struct{
 				-- this is a combination of the sfx and the music data
 				-- sfx is just int16_t samples
 				-- technically I should be cutting the addrs out of the 64kb
-				{name='audioData', type='uint8_t['..audioDataSize..']'},				-- 64k
+				{name='audioData', type='uint8_t['..audioDataSize..']'},				-- 62k
 				--]]
 
 				{name='code', type='uint8_t['..codeSize..']'},							-- 64k

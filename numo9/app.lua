@@ -201,8 +201,8 @@ function App:initGL()
 	-- and the editor would edit the ROM ...
 
 	--DEBUG:print(RAM.code)
-	print('RAM size', ffi.sizeof'RAM')
-	print('ROM size', ffi.sizeof'ROM')
+	print(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
+	print(('ROM size: 0x%x'):format(ffi.sizeof'ROM'))
 
 	--[[
 	for _,field in ipairs(ROM.fields[2].type.fields) do
@@ -541,8 +541,9 @@ function App:initGL()
 		end,
 
 		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
-		quad = function(x, y, w, h, tx, ty, tw, th, paletteIndex, transparentIndex, spriteBit, spriteMask)
+		quad = function(x, y, w, h, tx, ty, tw, th, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 			if self.server then
+				sheetIndex = sheetIndex or 0
 				paletteIndex = paletteIndex or 0
 				transparentIndex = transparentIndex or -1
 				spriteBit = spriteBit or 0
@@ -556,8 +557,9 @@ function App:initGL()
 				cmd.transparentIndex = transparentIndex
 				cmd.spriteBit = spriteBit
 				cmd.spriteMask = spriteMask
+				cmd.sheetIndex = sheetIndex
 			end
-			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteSheetRAM, self.paletteRAM, paletteIndex, transparentIndex, spriteBit, spriteMask)
+			return self:drawQuad(x, y, w, h, tx, ty, tw, th, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
 		-- TODO maybe make draw16Sprites a poke'd value
 		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
@@ -1498,8 +1500,6 @@ print('run thread dead')
 			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 			self:matident()
 			-- set drawText font & pal to the UI's
-			self.textFontTex = self.fontMenuTex
-			self.textPalTex = self.paletteMenuTex
 			self.inMenuUpdate = true
 
 			-- and set the palette to the editor palette ... ?
@@ -1572,8 +1572,6 @@ print('run thread dead')
 
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
-			self.textFontTex = self.fontRAM.tex
-			self.textPalTex = self.paletteRAM.tex
 			-- pop matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		end
@@ -2084,7 +2082,7 @@ function App:runROM()
 					-- NOTICE (bit of an ugly hack)
 					-- but the loopback conn doesn't use messages atm
 					-- and the loopback conn runs last
-					-- so if it's the loopback conn then just put it in the ... general cmd stack ... ??? 
+					-- so if it's the loopback conn then just put it in the ... general cmd stack ... ???
 					-- maybe I should have the loopback conn always rendering based on its messages ...
 					--server.currentCmdConn = conn.remote and conn or nil
 					-- but then it doubles up remote sent messages...
