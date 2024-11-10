@@ -1240,7 +1240,7 @@ print('...got', result:unpack())
 						local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))
 
 						-- make sure gpu changes are in cpu as well
-						app.fbTex:checkDirtyGPU()
+						app.framebufferRAM:checkDirtyGPU()
 
 						-- flush GPU
 						ffi.copy(app.ram.bank[0].spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
@@ -1253,23 +1253,23 @@ print('...got', result:unpack())
 						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
 						-- TODO copy music too?
 						-- set all dirty as well
-						app.spriteTex.dirtyCPU = true	-- TODO spriteSheetTex
-						app.tileTex.dirtyCPU = true		-- tileSheetTex
-						app.mapTex.dirtyCPU = true
-						app.palTex.dirtyCPU = true		-- paletteTex
-						app.fontTex.dirtyCPU = true
-						app.fbTex.dirtyCPU = true		-- framebufferTex
-						app.fbTex.changedSinceDraw = true
+						app.spriteSheetRAM.dirtyCPU = true	-- TODO spriteSheetTex
+						app.tileSheetRAM.dirtyCPU = true		-- tileSheetTex
+						app.tilemapRAM.dirtyCPU = true
+						app.paletteRAM.dirtyCPU = true		-- paletteTex
+						app.fontRAM.dirtyCPU = true
+						app.framebufferRAM.dirtyCPU = true		-- framebufferTex
+						app.framebufferRAM.changedSinceDraw = true
 
 						app:mvMatFromRAM()
 
 						-- [[ this should be happenign every frame regardless...
-						app.spriteTex:checkDirtyCPU()
-						app.tileTex:checkDirtyCPU()
-						app.mapTex:checkDirtyCPU()
-						app.palTex:checkDirtyCPU()
-						app.fontTex:checkDirtyCPU()
-						app.fbTex:checkDirtyCPU()
+						app.spriteSheetRAM:checkDirtyCPU()
+						app.tileSheetRAM:checkDirtyCPU()
+						app.tilemapRAM:checkDirtyCPU()
+						app.paletteRAM:checkDirtyCPU()
+						app.fontRAM:checkDirtyCPU()
+						app.framebufferRAM:checkDirtyCPU()
 						--]]
 
 						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
@@ -1365,8 +1365,8 @@ print()
 					app:drawQuad(
 						c.x, c.y, c.w, c.h,
 						c.tx, c.ty, c.tw, c.th,
-						app.spriteTex,
-						app.palTex,
+						app.spriteSheetRAM,
+						app.paletteRAM,
 						c.paletteIndex, c.transparentIndex,
 						c.spriteBit, c.spriteMask)
 				elseif cmdtype == netcmds.map then

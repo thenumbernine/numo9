@@ -44,7 +44,7 @@ function EditSprites:init(args)
 	self.spritesheetPanDownPos = vec2i()
 	self.spritesheetPanPressed = false
 
-	self.texField = 'spriteTex'
+	self.texField = 'spriteSheetRAM'
 	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
 	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
@@ -112,12 +112,12 @@ function EditSprites:update()
 			self.spritesheetEditMode = result
 		end)
 
-	self:guiRadio(128, 12, {'spriteTex', 'tileTex'}, self.texField,
+	self:guiRadio(128, 12, {'spriteSheetRAM', 'tileSheetRAM'}, self.texField,
 		function(result)
 			self.texField = result
 		end)
-	local currentTex = app[self.texField]
-	local currentTexAddr = ffi.cast('char*', currentTex.image.buffer) - app.ram.v
+	local currentVRAM = app[self.texField]
+	local currentTexAddr = currentVRAM.addr
 
 	local x = 126
 	local y = 32
@@ -137,7 +137,7 @@ function EditSprites:update()
 		-- this is the framebuffer coord bounds of the spritesheet.
 		local x1, y1 = spritesheetCoordToFb(0, 0)
 		local x2, y2 = spritesheetCoordToFb(spriteSheetSizeInTiles:unpack())
-		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w/2, h/2, app.checkerTex, app.palMenuTex, 0, -1, 0, 0xFF)
+		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w/2, h/2, app.checkerTex, app.paletteMenuTex, 0, -1, 0, 0xFF)
 		-- clamp it to the viewport of the spritesheet to get the rendered region
 		-- then you can scissor-test this to get rid of the horrible texture stretching at borders from clamp_to_edge ...
 		gl.glScissor(x1, y1, x2-x1, y2-y1)
@@ -151,8 +151,8 @@ function EditSprites:update()
 		tonumber(self.spritesheetPanOffset.y) / tonumber(spriteSheetSize.y),		-- ty
 		tonumber(w) / tonumber(spriteSheetSize.x),							-- tw
 		tonumber(h) / tonumber(spriteSheetSize.y),							-- th
-		currentTex,
-		app.palTex,
+		currentVRAM,
+		app.paletteRAM,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit
@@ -254,7 +254,7 @@ function EditSprites:update()
 	do
 		local x1, y1 = spriteCoordToFb(0, 0)
 		local x2, y2 = spriteCoordToFb(spriteSheetSize:unpack())
-		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w*8, h*8, app.checkerTex, app.palMenuTex, 0, -1, 0, 0xFF)
+		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w*8, h*8, app.checkerTex, app.paletteMenuTex, 0, -1, 0, 0xFF)
 		gl.glScissor(x1, y1, x2-x1, y2-y1)
 	end
 	app:drawQuad(
@@ -266,8 +266,8 @@ function EditSprites:update()
 		tonumber(self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y) / tonumber(spriteSheetSize.y),
 		tonumber(self.spriteSelSize.x * spriteSize.x) / tonumber(spriteSheetSize.x),
 		tonumber(self.spriteSelSize.y * spriteSize.y) / tonumber(spriteSheetSize.y),
-		currentTex,
-		app.palTex,
+		currentVRAM,
+		app.paletteRAM,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex
 		self.spriteBit,							-- spriteBit
@@ -383,8 +383,8 @@ function EditSprites:update()
 			elseif self.spriteDrawMode == 'draw' then
 				local tx0 = tx - math.floor(self.penSize / 2)
 				local ty0 = ty - math.floor(self.penSize / 2)
-				assert(currentTex.image.buffer == currentTex.data)
-				currentTex:bind()
+				assert.eq(currentVRAM.image.buffer, currentVRAM.tex.data)
+				currentVRAM.tex:bind()
 				for dy=0,self.penSize-1 do
 					for dx=0,self.penSize-1 do
 						local tx = tx0 + dx
@@ -404,7 +404,7 @@ function EditSprites:update()
 						end
 					end
 				end
-				currentTex:unbind()
+				currentVRAM.tex:unbind()
 			elseif self.spriteDrawMode == 'fill' then
 				local srcColor = getpixel(tx, ty)
 				if srcColor ~= self.paletteSelIndex then
@@ -499,7 +499,7 @@ function EditSprites:update()
 
 			-- cheap hack to use game palette here instead of menu palette ...
 			-- TODO just make it an arg like drawQuad
-			app.videoModeInfo[0].quadSolidObj.texs[1] = app.palTex
+			app.videoModeInfo[0].quadSolidObj.texs[1] = app.paletteRAM.tex
 			app:drawSolidRect(
 				rx,
 				ry,
@@ -507,7 +507,7 @@ function EditSprites:update()
 				bh,
 				paletteIndex
 			)
-			app.videoModeInfo[0].quadSolidObj.texs[1] = app.palMenuTex
+			app.videoModeInfo[0].quadSolidObj.texs[1] = app.paletteMenuTex
 			-- end cheap hack
 
 			if mouseX >= rx and mouseX < rx + bw
@@ -645,10 +645,10 @@ function EditSprites:update()
 		if app:keyp'x' or app:keyp'c' then
 			-- copy the selected region in the sprite/tile sheet
 			-- TODO copy the current-edit region? wait it's the same region ...
-			-- TODO if there is such a spriteTex.dirtyGPU then flush GPU changes here ... but there's not cuz I never write to it with the GPU ...
-			assert(not currentTex.dirtyGPU)
-			assert(x >= 0 and y >= 0 and x + width <= currentTex.image.width and y + height <= currentTex.image.height)
-			local image = currentTex.image:copy{x=x, y=y, width=width, height=height}
+			-- TODO if there is such a spriteSheetRAM.dirtyGPU then flush GPU changes here ... but there's not cuz I never write to it with the GPU ...
+			assert(not currentVRAM.dirtyGPU)
+			assert(x >= 0 and y >= 0 and x + width <= currentVRAM.image.width and y + height <= currentVRAM.image.height)
+			local image = currentVRAM.image:copy{x=x, y=y, width=width, height=height}
 			if image.channels == 1 then
 print'BAKING PALETTE'
 				-- TODO move palette functionality inot Image
@@ -666,17 +666,17 @@ print'BAKING PALETTE'
 			clip.image(image)
 			if app:keyp'x' then
 				-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
-				currentTex.dirtyCPU = true
-				assert.eq(currentTex.image.channels, 1)
+				currentVRAM.dirtyCPU = true
+				assert.eq(currentVRAM.image.channels, 1)
 				for j=y,y+height-1 do
 					for i=x,x+width-1 do
-						self:edit_poke(currentTexAddr + i + currentTex.width * j, self.paletteOffset)
+						self:edit_poke(currentTexAddr + i + currentVRAM.image.width * j, self.paletteOffset)
 					end
 				end
 			end
 		elseif app:keyp'v' then
 			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
-			assert(not currentTex.dirtyGPU)
+			assert(not currentVRAM.dirtyGPU)
 			local image = clip.image()
 			if image then
 				--[[
@@ -778,13 +778,13 @@ print'pasting image'
 					for i=0,image.width-1 do
 						local destx = i + x
 						local desty = j + y
-						if destx >= 0 and destx < currentTex.width
-						and desty >= 0 and desty < currentTex.height
+						if destx >= 0 and destx < currentVRAM.image.width
+						and desty >= 0 and desty < currentVRAM.image.height
 						then
 							local c = image.buffer[i + image.width * j]
 							local r,g,b,a = rgba5551_to_rgba8888_4ch(app.ram.bank[0].palette[c])
 							if not self.pasteTransparent or a > 0 then
-								self:edit_poke(currentTexAddr + destx + currentTex.width * desty, c)
+								self:edit_poke(currentTexAddr + destx + currentVRAM.image.width * desty, c)
 							end
 						end
 					end
