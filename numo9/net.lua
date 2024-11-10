@@ -357,10 +357,12 @@ local Numo9Cmd_quad = struct{
 		{name='ty', type='float'},
 		{name='tw', type='float'},
 		{name='th', type='float'},
+		{name='sheetIndex', type='uint8_t'},
 		{name='paletteIndex', type='uint8_t'},
-		{name='transparentIndex', type='int16_t'},
+		{name='transparentIndex', type='int16_t'},	-- 16 and not 8 only so I can use -1 ...
 		{name='spriteBit', type='uint8_t'},		-- just needs 3 bits ...
 		{name='spriteMask', type='uint8_t'},    -- the shader accepts 8 bits, but usually all 1s, so ... I could do this in 3 bits too ...
+		{name='padding', type='uint8_t'},
 	},
 }
 
@@ -1253,12 +1255,12 @@ print('...got', result:unpack())
 						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
 						-- TODO copy music too?
 						-- set all dirty as well
-						app.spriteSheetRAM.dirtyCPU = true	-- TODO spriteSheetTex
-						app.tileSheetRAM.dirtyCPU = true		-- tileSheetTex
+						app.spriteSheetRAM.dirtyCPU = true
+						app.tileSheetRAM.dirtyCPU = true
 						app.tilemapRAM.dirtyCPU = true
-						app.paletteRAM.dirtyCPU = true		-- paletteTex
+						app.paletteRAM.dirtyCPU = true
 						app.fontRAM.dirtyCPU = true
-						app.framebufferRAM.dirtyCPU = true		-- framebufferTex
+						app.framebufferRAM.dirtyCPU = true
 						app.framebufferRAM.changedSinceDraw = true
 
 						app:mvMatFromRAM()
@@ -1365,8 +1367,7 @@ print()
 					app:drawQuad(
 						c.x, c.y, c.w, c.h,
 						c.tx, c.ty, c.tw, c.th,
-						app.spriteSheetRAM,
-						app.paletteRAM,
+						c.sheetIndex,
 						c.paletteIndex, c.transparentIndex,
 						c.spriteBit, c.spriteMask)
 				elseif cmdtype == netcmds.map then
