@@ -1589,6 +1589,9 @@ function AppVideo:resetVideo()
 		self.ram.fontWidth[i] = 5
 	end
 
+	self.ram.textFgColor = 0xfc
+	self.ram.textBgColor = 0xf0
+
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self:setClipRect(0, 0, 0xff, 0xff)
 
@@ -2099,12 +2102,17 @@ end
 function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 	x = x or 0
 	y = y or 0
-	fgColorIndex = fgColorIndex or 13
-	bgColorIndex = bgColorIndex or 0
+	fgColorIndex = tonumber(ffi.cast('uint8_t', fgColorIndex or self.ram.textFgColor))
+	bgColorIndex = tonumber(ffi.cast('uint8_t', bgColorIndex or self.ram.textBgColor))
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
 	local x0 = x
-	if bgColorIndex >= 0 and bgColorIndex < 255 then
+
+	-- should font bg respect transparency/alpha?
+	-- or why even draw a background to it? let the user?
+	-- or how about use it as a separate flag?
+	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.ram.bank[0].palette[bgColorIndex])
+	if a > 0 then
 		for i=1,#text do
 			local ch = text:byte(i)
 			local w = scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])

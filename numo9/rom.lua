@@ -309,6 +309,9 @@ local RAM = struct{
 				-- TODO move to ROM?
 				{name='fontWidth', type='uint8_t[256]'},
 
+				{name='textFgColor', type='uint8_t'},
+				{name='textBgColor', type='uint8_t'},
+
 				-- audio state of waves that are playing
 				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
 
