@@ -580,8 +580,8 @@ function App:initGL()
 			if self.server then
 				x = x or 0
 				y = y or 0
-				fgColorIndex = fgColorIndex or 13
-				bgColorIndex = bgColorIndex or 0
+				fgColorIndex = fgColorIndex or self.ram.textFgColor
+				bgColorIndex = bgColorIndex or self.ram.textBgColor
 				scaleX = scaleX or 1
 				scaleY = scaleY or 1
 

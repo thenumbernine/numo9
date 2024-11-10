@@ -73,7 +73,8 @@ removeAll=[]do
 	addList=table()
 end
 players=table()
-maxPlayers=4	-- TODO 64 ... 
+maxPlayers=64
+activePlayers=0
 startPos={
 	[0]={0,0},
 	{mapw-1,maph-1},
@@ -741,9 +742,13 @@ playersActive[0]=playerOptions.human
 playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
 inMenu=true
 menuSel=0
+menuTopY=0
 
 loadLevel=[]do
-	reset()		-- reload our tilemap? or not?
+	reset()		-- reload our tilemap? or not?  this resets the font color too.
+	poke(ffi.offsetof('RAM', 'textFgColor'), 0xfc)
+	poke(ffi.offsetof('RAM', 'textBgColor'), 0xf0)
+	
 	removeAll()
 	local allBombable=table()
 	for y=0,maph-1 do
@@ -777,12 +782,22 @@ loadLevel=[]do
 		end
 		if #allBombable==0 then break end
 	end
+	activePlayers=0
 	for pid=0,maxPlayers-1 do
 		if playersActive[pid]~=playerOptions.off then
+			activePlayers+=1
 			-- TODO handle AI
 			local player=Player{}
 			players[pid]=player
-			local s=startPos[pid]
+			local s=startPos[pid] 
+			if not s then
+				s = {math.random(0,mapw-1),math.random(0,maph-1)}
+				mapSet(s[1],s[2],EMPTY)
+				mapSet(s[1]-1,s[2],EMPTY)
+				mapSet(s[1]+1,s[2],EMPTY)
+				mapSet(s[1],s[2]-1,EMPTY)
+				mapSet(s[1],s[2]+1,EMPTY)
+			end
 			player.playerID=pid
 			player.palOfs=pid<<4
 			player:setPos(s[1]+.5,s[2]+.5)
@@ -794,6 +809,7 @@ end
 update=[]do
 	if inMenu then
 		cls(0xf0)
+		matident()
 		spr(
 			20,
 			0, 0,
@@ -804,18 +820,25 @@ update=[]do
 			nil,
 			4,
 			4)
+		mattrans(0, -menuTopY)
 		local x,y=16,96
-		text('>', x-8, y+16*menuSel, 0xfc, 0xf0)
-		text('wins',x+192-16,y-12,0xfc,0xf0)
+		local selY = y+16*menuSel
+		if selY - menuTopY > 224 then
+			menuTopY = selY - 224
+		elseif selY - menuTopY < 32 then
+			menuTopY = selY - 32
+		end
+		text('>', x-8, selY)
+		text('wins',x+192-16,y-12)
 		for pid=0,maxPlayers-1 do
 			spr(seqs.playerStandDown, x, y-4, 2, 2, pid<<4)
 			text('player '..(pid+1)..' = '
 				..tostring(playerOptionNames[playersActive[pid]]),
-				x+24, y, 0xfc, 0xf0)
-			text(tostring(playerWins[pid]),x+192, y,0xfc,0xf0)
+				x+24, y)
+			text(tostring(playerWins[pid]),x+192, y)
 			y+=16
 		end
-		text('Start!', x, y, 0xfc, 0xf0)
+		text('Start!', x, y)
 		for pid=0,maxPlayers-1 do
 			if btnp(0,pid) then
 				menuSel-=1
@@ -917,11 +940,13 @@ update=[]do
 	-- now draw border / ui
 	matident()
 
+	local playerCount=0
 	for pid=0,maxPlayers-1 do
 		if playersActive[pid]~=playerOptions.off then
-			local x=pid*56+32
+			local x=playerCount/activePlayers*224
 			spr(seqs.playerStandDown, x, 0, 2, 2, pid<<4)
-			text('x'..tostring(playerWins[pid]),x+16,0,0xfc,0xf0)
+			text('x'..tostring(playerWins[pid]),x+16,0)
+			playerCount+=1
 		end
 	end
 
