@@ -7,6 +7,7 @@ Or rename this to gfx.lua and put more GL stuff in it?
 local ffi = require 'ffi'
 local template = require 'template'
 local table = require 'ext.table'
+local class = require 'ext.class'
 local math = require 'ext.math'
 local assert = require 'ext.assert'
 local Image = require 'image'
@@ -18,22 +19,25 @@ local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 
 local numo9_rom = require 'numo9.rom'
-local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
-local frameBufferSize = numo9_rom.frameBufferSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local spriteSheetAddr = numo9_rom.spriteSheetAddr
+local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
 local tileSheetAddr = numo9_rom.tileSheetAddr
+local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapSize = numo9_rom.tilemapSize
+local paletteSize = numo9_rom.paletteSize
+local paletteAddr = numo9_rom.paletteAddr
+local paletteInBytes = numo9_rom.paletteInBytes
+local fontAddr = numo9_rom.fontAddr
 local fontSizeInBytes = numo9_rom.fontSizeInBytes
 local fontImageSize = numo9_rom.fontImageSize
 local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
-local mvMatScale = numo9_rom.mvMatScale
-local spriteSheetAddr = numo9_rom.spriteSheetAddr
-local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
-local paletteAddr = numo9_rom.paletteAddr
-local paletteInBytes = numo9_rom.paletteInBytes
 local fontInBytes = numo9_rom.fontInBytes
+local framebufferAddr = numo9_rom.framebufferAddr
+local frameBufferSize = numo9_rom.frameBufferSize
+local mvMatScale = numo9_rom.mvMatScale
 local packptr = numo9_rom.packptr
 local unpackptr = numo9_rom.unpackptr
 local menuFontWidth = numo9_rom.menuFontWidth
@@ -272,7 +276,7 @@ local function resetROMFont(fontPtr, fontFilename)
 	end
 end
 
--- TODO every time App calls this, make sure its palTex.dirtyCPU flag is set
+-- TODO every time App calls this, make sure its paletteRAM.dirtyCPU flag is set
 -- it would be here but this is sometimes called by n9a as well
 local function resetPalette(ptr)	-- uint16_t*
 	for i,c in ipairs(
@@ -368,23 +372,69 @@ local function resetROMPalette(rom)
 	resetPalette(rom.palette)
 end
 
--- [[ also in sand-attack ... hmmmm ...
--- consider putting somewhere common, maybe in gl.tex2d ?
--- maybe just save .image in gltex2d?
-function makeTexFromImage(app, args)
-glreport'before makeTexFromImage'
-	local image = assert(args.image)
-	if image.channels ~= 1 then print'DANGER - non-single-channel Image!' end
+
+--[[
+makes an image whose buffer is at a location in RAM
+makes a GLTex2D that goes with that image
+provides dirty/flushing functions
+--]]
+local RAMGPUTex = class()
+
+--[[
+args:
+	app = app
+	addr = where in RAM
+	
+	Image ctor:
+	width
+	height
+	channels
+	ctype
+	src (optional)
+
+	Tex ctor:
+	target (optional)
+	gltype
+	glformat
+	internalFormat
+	wrap
+	magFilter
+	minFilter
+--]]
+function RAMGPUTex:init(args)
+glreport'before RAMGPUTex:init'
+	self.app = assert.index(args, 'app')
+	self.addr = assert.index(args, 'addr')
+	assert.ge(self.addr, 0)
+	local width = assert(tonumber(assert.index(args, 'width')))
+	local height = assert(tonumber(assert.index(args, 'height')))
+	local channels = assert.index(args, 'channels')
+	if channels ~= 1 then print'DANGER - non-single-channel Image!' end
+	local ctype = assert.index(args, 'ctype')
+	
+	self.size = width * height * channels * ffi.sizeof(ctype)
+	self.addrEnd = self.addr + self.size
+	assert.le(self.addrEnd, ffi.sizeof'RAM')
+	local ptr = self.app.ram.v + self.addr
+	local src = args.src
+	
+	local image = Image(width, height, channels, ctype, src)
+	self.image = image
+	if src then	-- if we specified a src to the Image then copy it into RAM before switching Image pointers to point at RAM
+		ffi.copy(ptr, image.buffer, self.size)
+	end
+	image.buffer = ptr
+
 	local tex = GLTex2D{
 		target = args.target or (
 			useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil	-- nil defaults to TEXTURE_2D
 		),
 		internalFormat = args.internalFormat or gl.GL_RGBA,
-		format = args.format or gl.GL_RGBA,
-		type = args.type or gl.GL_UNSIGNED_BYTE,
+		format = args.glformat or gl.GL_RGBA,
+		type = args.gltype or gl.GL_UNSIGNED_BYTE,
 
-		width = tonumber(image.width),
-		height = tonumber(image.height),
+		width = width,
+		height = height,
 		wrap = args.wrap or { -- texture_rectangle doens't support repeat ...
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
@@ -393,51 +443,54 @@ glreport'before makeTexFromImage'
 		magFilter = args.magFilter or gl.GL_NEAREST,
 		data = image.buffer,	-- stored
 	}:unbind()
-	-- TODO move this store command to gl.tex2d ctor if .image is used?
-	tex.image = image
-
-	-- TODO gonna subclass this soon ...
-	-- assumes it is being called from within the render loop
-	function tex:checkDirtyCPU()
-		if not self.dirtyCPU then return end
-		-- we should never get in a state where both CPU and GPU are dirty
-		-- if someone is about to write to one then it shoudl test the other and flush it if it's dirty, then set the one
-		assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
-		local fb = app.fb
-		if app.inUpdateCallback then
-			fb:unbind()
-		end
-		self:bind()
-			:subimage()
-			:unbind()
-		if app.inUpdateCallback then
-			fb:bind()
-		end
-		self.dirtyCPU = false
-		app.fbTex.changedSinceDraw = true
-	end
-
-	-- TODO is this only applicable for fbTex?
-	-- if anything else has a dirty GPU ... it'd have to be because the framebuffer was rendering to it
-	-- and right now, the fb is only outputting to fbTex ...
-	function tex:checkDirtyGPU()
-		if not self.dirtyGPU then return end
-		assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
-		-- assert that fb is bound to fbTex ...
-		local fb = app.fb
-		if not app.inUpdateCallback then
-			fb:bind()
-		end
-		gl.glReadPixels(0, 0, self.width, self.height, self.format, self.type, self.image.buffer)
-		if not app.inUpdateCallback then
-			fb:unbind()
-		end
-		self.dirtyGPU = false
-	end
-glreport'after makeTexFromImage'
-
-	return tex
+	self.tex = tex
+glreport'after RAMGPUTex:init'
 end
+
+-- TODO gonna subclass this soon ...
+-- assumes it is being called from within the render loop
+function RAMGPUTex:checkDirtyCPU()
+	if not self.dirtyCPU then return end
+	-- we should never get in a state where both CPU and GPU are dirty
+	-- if someone is about to write to one then it shoudl test the other and flush it if it's dirty, then set the one
+	assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
+	local app = self.app
+	local tex = self.tex
+	local fb = app.fb
+	if app.inUpdateCallback then
+		fb:unbind()
+	end
+	tex:bind()
+		:subimage()
+		:unbind()
+	if app.inUpdateCallback then
+		fb:bind()
+	end
+	self.dirtyCPU = false
+	app.framebufferRAM.changedSinceDraw = true
+end
+
+-- TODO is this only applicable for framebufferRAM?
+-- if anything else has a dirty GPU ... it'd have to be because the framebuffer was rendering to it
+-- and right now, the fb is only outputting to framebufferRAM ...
+function RAMGPUTex:checkDirtyGPU()
+	if not self.dirtyGPU then return end
+	assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
+	-- assert that fb is bound to framebufferRAM ...
+	local app = self.app
+	local tex = self.tex
+	local image = self.image
+	local fb = app.fb
+	if not app.inUpdateCallback then
+		fb:bind()
+	end
+	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
+	if not app.inUpdateCallback then
+		fb:unbind()
+	end
+	self.dirtyGPU = false
+end
+
 
 
 -- This just holds a bunch of stuff that App will dump into itself
@@ -453,102 +506,110 @@ function AppVideo:initDraw()
 		height = frameBufferSize.y,
 	}:unbind()
 
-	local function makeImageAtPtr(ptr, x, y, ch, type, ...)
-		assert.ne(ptr, nil)
-		local image = Image(x, y, ch, type, ...)
-		local size = x * y * ch * ffi.sizeof(type)
-		if select('#', ...) > 0 then	-- if we specified a generator...
-			ffi.copy(ptr, image.buffer, size)
-		end
-		image.buffer = ptr
-		return image
-	end
-
 	-- redirect the image buffer to our virtual system rom
-	self.spriteTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.bank[0].spriteSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t'):clear(),
+	self.spriteSheetRAM = RAMGPUTex{
+		app = self,
+		addr = spriteSheetAddr,
+		width = spriteSheetSize.x,
+		height = spriteSheetSize.y,
+		channels = 1, 
+		ctype = 'uint8_t',
 		internalFormat = texInternalFormat_u8,
-		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-		type = gl.GL_UNSIGNED_BYTE,
-	})
+		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+		gltype = gl.GL_UNSIGNED_BYTE,
+	}
 
-	self.tileTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.bank[0].tileSheet, spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t'):clear(),
+	self.tileSheetRAM = RAMGPUTex{
+		app = self,
+		addr = tileSheetAddr,
+		width = spriteSheetSize.x,
+		height = spriteSheetSize.y,
+		channels = 1,
+		ctype = 'uint8_t',
 		internalFormat = texInternalFormat_u8,
-		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-		type = gl.GL_UNSIGNED_BYTE,
-	})
+		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+		gltype = gl.GL_UNSIGNED_BYTE,
+	}
+
+	-- trying to make these interchangeable / expandable
+	self.spriteSheetRAMs = table()	-- RAMRegions ... RAMBanks ... idk what to name this ...
+	self.spriteSheetRAMs:insert(self.spriteSheetRAM)
+	self.spriteSheetRAMs:insert(self.tileSheetRAM)
 
 	--[[
 	16bpp ...
-	- 10 bits of lookup into spriteTex
+	- 10 bits of lookup into spriteSheetRAM
 	- 4 bits high palette nibble
 	- 1 bit hflip
 	- 1 bit vflip
 	- .... 2 bits rotate ... ? nah
 	- .... 8 bits palette offset ... ? nah
 	--]]
-	self.mapTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.bank[0].tilemap, tilemapSize.x, tilemapSize.y, 1, 'uint16_t'):clear(),
+	self.tilemapRAM = RAMGPUTex{
+		app = self,
+		addr = tilemapAddr,
+		width = tilemapSize.x,
+		height = tilemapSize.y,
+		channels = 1,
+		ctype = 'uint16_t',
 		internalFormat = texInternalFormat_u16,
-		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
-		type = gl.GL_UNSIGNED_SHORT,
-	})
-	self.mapMem = self.mapTex.image.buffer
+		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
+		gltype = gl.GL_UNSIGNED_SHORT,
+	}
 
 	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
-	self.palTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.bank[0].palette, paletteSize, 1, 1, 'uint16_t'),
+	self.paletteRAM = RAMGPUTex{
+		app = self,
+		addr = paletteAddr,
+		width = paletteSize,
+		height = 1,
+		channels = 1,
+		ctype = 'uint16_t',
 		internalFormat = gl.GL_RGB5_A1,
-		format = gl.GL_RGBA,
-		type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
-	})
+		glformat = gl.GL_RGBA,
+		gltype = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
+	}
 
 	-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
 	-- so a 256 char font will be 2048 bytes
-	self.fontTex = makeTexFromImage(self, {
-		image = makeImageAtPtr(self.ram.bank[0].font, fontImageSize.x, fontImageSize.y, 1, 'uint8_t'),
+	self.fontRAM = RAMGPUTex{
+		app = self,
+		addr = fontAddr,
+		width = fontImageSize.x,
+		height = fontImageSize.y,
+		channels = 1,
+		ctype = 'uint8_t',
 		internalFormat = texInternalFormat_u8,
-		format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-		type = gl.GL_UNSIGNED_BYTE,
-	})
+		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+		gltype = gl.GL_UNSIGNED_BYTE,
+	}
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), -1)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
-	do
-		local ctype = 'uint16_t'
-		local fbRGB565Image = makeImageAtPtr(
-			self.ram.framebuffer,
-			frameBufferSize.x,
-			frameBufferSize.y,
-			1,
-			ctype
-		)
-		self.fbRGB565Tex = makeTexFromImage(self, {
-			image = fbRGB565Image,
-			internalFormat = gl.GL_RGB565,
-			format = gl.GL_RGB,
-			type = gl.GL_UNSIGNED_SHORT_5_6_5,
-		})
-	end
+	self.framebufferRGB565RAM = RAMGPUTex{
+		app = self,
+		addr = framebufferAddr,
+		width = frameBufferSize.x,
+		height = frameBufferSize.y,
+		channels = 1,
+		ctype = 'uint16_t',
+		internalFormat = gl.GL_RGB565,
+		glformat = gl.GL_RGB,
+		gltype = gl.GL_UNSIGNED_SHORT_5_6_5,
+	}
 	--]=]
 	-- [=[ framebuffer is 256 x 256 x 8bpp indexed
-	do
-		local ctype = 'uint8_t'
-		local fbIndexImage = makeImageAtPtr(
-			self.ram.framebuffer,
-			frameBufferSize.x,
-			frameBufferSize.y,
-			1,
-			ctype
-		)
-		self.fbIndexTex = makeTexFromImage(self, {
-			image = fbIndexImage,
-			internalFormat = texInternalFormat_u8,
-			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-			type = gl.GL_UNSIGNED_BYTE,
-		})
-	end
+	self.framebufferIndexRAM = RAMGPUTex{
+		app = self,
+		addr = framebufferAddr,
+		width = frameBufferSize.x,
+		height = frameBufferSize.y,
+		channels = 1,
+		ctype = 'uint8_t',
+		internalFormat = texInternalFormat_u8,
+		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+		gltype = gl.GL_UNSIGNED_BYTE,
+	}
 	--]=]
 
 	-- keep menu/editor gfx separate of the fantasy-console
@@ -556,7 +617,7 @@ function AppVideo:initDraw()
 		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 		local data = ffi.new('uint16_t[?]', 256)
 		resetPalette(data)
-		self.palMenuTex = GLTex2D{
+		self.paletteMenuTex = GLTex2D{
 			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
 			internalFormat = gl.GL_RGB5_A1,
 			format = gl.GL_RGBA,
@@ -580,7 +641,6 @@ function AppVideo:initDraw()
 			internalFormat = texInternalFormat_u8,
 			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 			type = gl.GL_UNSIGNED_BYTE,
-			data = fontData,
 			width = fontImageSize.x,
 			height = fontImageSize.y,
 			wrap = {
@@ -596,7 +656,7 @@ function AppVideo:initDraw()
 		local size = frameBufferSize.x * frameBufferSize.y * 3
 		local data = ffi.new('uint8_t[?]', size)
 		ffi.fill(data, size)
-		self.fbMenuTex = GLTex2D{
+		self.framebufferMenuTex = GLTex2D{
 			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
 			internalFormat = gl.GL_RGB,
 			format = gl.GL_RGB,
@@ -653,8 +713,8 @@ function AppVideo:initDraw()
 	-- assert palleteSize is a power-of-two ...
 	local function colorIndexToFrag(tex, decl)
 		return (decl or 'fragColor')..' = '..readTex{
-			tex = self.palTex,
-			texvar = 'palTex',
+			tex = self.paletteRAM.tex,
+			texvar = 'paletteTex',
 			tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 			from = 'ivec2',
 			to = fragTypeForTex(tex),
@@ -662,7 +722,7 @@ function AppVideo:initDraw()
 	end
 
 	-- and here's our blend solid-color option...
-	local function getDrawOverrideCode(fbTex, vec3)
+	local function getDrawOverrideCode(vec3)
 		return [[
 	if (drawOverrideSolid.a > 0) {
 		fragColor.rgb = ]]..vec3..[[(drawOverrideSolid.rgb);
@@ -673,23 +733,23 @@ function AppVideo:initDraw()
 	self.videoModeInfo = {
 		-- 16bpp rgb565
 		[0]={
-			fbTex = self.fbRGB565Tex,
+			framebufferRAM = self.framebufferRGB565RAM,
 
 			-- generator properties
 			name = 'RGB',
-			colorOutput = colorIndexToFrag(self.fbRGB565Tex)..'\n'
-				..getDrawOverrideCode(self.fbRGB565Tex, 'vec3'),
+			colorOutput = colorIndexToFrag(self.framebufferRGB565RAM.tex)..'\n'
+				..getDrawOverrideCode'vec3',
 		},
 		-- 8bpp indexed
 		{
-			fbTex = self.fbIndexTex,
+			framebufferRAM = self.framebufferIndexRAM,
 
 			-- generator properties
 			-- indexed mode can't blend so ... no draw-override
 			name = 'Index',
 			colorOutput =
 -- this part is only needed for alpha
-colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'..
+colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 [[
 	fragColor.r = colorIndex;
 	fragColor.g = 0;
@@ -700,12 +760,12 @@ colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'..
 		},
 		-- 8bpp rgb332
 		{
-			fbTex = self.fbIndexTex,
+			framebufferRAM = self.framebufferIndexRAM,
 
 			-- generator properties
 			name = 'RGB332',
-			colorOutput = colorIndexToFrag(self.fbIndexTex, 'vec4 palColor')..'\n'
-..getDrawOverrideCode(self.fbIndexTex, 'uvec3')..'\n'
+			colorOutput = colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'
+..getDrawOverrideCode'uvec3'..'\n'
 ..template([[
 	/*
 	palColor is  5 5 5
@@ -763,27 +823,27 @@ void main() {
 in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
-uniform <?=samplerTypeForTex(fbTex)?> fbTex;
+uniform <?=samplerTypeForTex(framebufferRAM.tex)?> framebufferTex;
 
 void main() {
 	fragColor = ]]..readTex{
-		tex = self.videoModeInfo[0].fbTex,
-		texvar = 'fbTex',
+		tex = self.videoModeInfo[0].framebufferRAM,
+		texvar = 'framebufferTex',
 		tc = 'tcv',
 		from = 'vec2',
 		to = blitFragType,
 	}..[[;
 }
 ]],			{
-				fbTex = self.videoModeInfo[0].fbTex,
+				framebufferRAM = self.videoModeInfo[0].framebufferRAM,
 				samplerTypeForTex = samplerTypeForTex,
 				blitFragType = blitFragType,
 			}),
 			uniforms = {
-				fbTex = 0,
+				framebufferTex = 0,
 			},
 		},
-		texs = {self.videoModeInfo[0].fbTex},
+		texs = {self.videoModeInfo[0].framebufferRAM},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
@@ -811,31 +871,34 @@ in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
 
-uniform <?=samplerTypeForTex(fbTex)?> fbTex;
-uniform <?=samplerTypeForTex(palTex)?> palTex;
+uniform <?=samplerTypeForTex(framebufferRAM.tex)?> framebufferTex;
+uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
 void main() {
 	uint colorIndex = ]]..readTex{
-		tex = self.videoModeInfo[1].fbTex,
-		texvar = 'fbTex',
+		tex = self.videoModeInfo[1].framebufferRAM,
+		texvar = 'framebufferTex',
 		tc = 'tcv',
 		from = 'vec2',
 		to = blitFragType,
 	}..[[.r;
-]]..colorIndexToFrag(self.videoModeInfo[1].fbTex)..[[
+]]..colorIndexToFrag(self.videoModeInfo[1].framebufferRAM.tex)..[[
 }
 ]],			{
 				samplerTypeForTex = samplerTypeForTex,
-				fbTex = self.videoModeInfo[1].fbTex,
-				palTex = self.palTex,
+				framebufferRAM = self.videoModeInfo[1].framebufferRAM,
+				self = self,
 				blitFragType = blitFragType,
 			}),
 			uniforms = {
-				fbTex = 0,
-				palTex = 1,
+				framebufferTex = 0,
+				paletteTex = 1,
 			},
 		},
-		texs = {self.videoModeInfo[1].fbTex, self.palTex},
+		texs = {
+			self.videoModeInfo[1].framebufferRAM.tex,
+			self.paletteRAM.tex,
+		},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
@@ -843,7 +906,7 @@ void main() {
 		},
 	}
 
-	-- used for drawing 8bpp fbIndexTex as rgb332 framebuffer to the screen
+	-- used for drawing 8bpp framebufferIndexRAM as rgb332 framebuffer to the screen
 --DEBUG:print'mode 2 blitScreenObj'
 	self.videoModeInfo[2].blitScreenObj = GLSceneObject{
 		program = {
@@ -863,12 +926,12 @@ in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
 
-uniform <?=samplerTypeForTex(fbTex)?> fbTex;
+uniform <?=samplerTypeForTex(framebufferRAM.tex)?> framebufferTex;
 
 void main() {
 	uint rgb332 = ]]..readTex{
-		tex = self.videoModeInfo[1].fbTex,
-		texvar = 'fbTex',
+		tex = self.videoModeInfo[1].framebufferRAM.tex,
+		texvar = 'framebufferTex',
 		tc = 'tcv',
 		from = 'vec2',
 		to = blitFragType,
@@ -879,16 +942,19 @@ void main() {
 	fragColor.a = 1.;
 }
 ]],			{
-				fbTex = self.videoModeInfo[2].fbTex,
+				framebufferRAM = self.videoModeInfo[2].framebufferRAM,
 				samplerTypeForTex = samplerTypeForTex,
 				blitFragType = blitFragType,
 			}),
 			uniforms = {
-				fbTex = 0,
-				palTex = 1,
+				framebufferTex = 0,
+				paletteTex = 1,
 			},
 		},
-		texs = {self.videoModeInfo[2].fbTex, self.palTex},
+		texs = {
+			self.videoModeInfo[2].framebufferRAM.tex,
+			self.paletteRAM.tex,
+		},
 		geometry = self.quadGeom,
 		-- glUniform()'d every frame
 		uniforms = {
@@ -937,7 +1003,7 @@ in vec2 pixelPos;
 layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
-uniform <?=samplerTypeForTex(self.palTex)?> palTex;
+uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 uniform vec4 drawOverrideSolid;
 
 void main() {
@@ -945,16 +1011,16 @@ void main() {
 }
 ]],				{
 					info = info,
-					fragType = fragTypeForTex(info.fbTex),
+					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
 				}),
 				uniforms = {
-					palTex = 0,
+					paletteTex = 0,
 					--mvMat = self.mvMat.ptr,
 				},
 			},
-			texs = {self.palTex},
+			texs = {self.paletteRAM.tex},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
 			uniforms = {
@@ -999,7 +1065,7 @@ layout(location=0) out <?=fragType?> fragColor;
 
 uniform uint colorIndex;
 
-uniform <?=samplerTypeForTex(self.palTex)?> palTex;
+uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 uniform vec4 drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
@@ -1008,16 +1074,16 @@ void main() {
 ]]..info.colorOutput..[[
 }
 ]],				{
-					fragType = fragTypeForTex(info.fbTex),
+					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
 				}),
 				uniforms = {
-					palTex = 0,
+					paletteTex = 0,
 					--mvMat = self.mvMat.ptr,
 				},
 			},
-			texs = {self.palTex},
+			texs = {self.paletteRAM.tex},
 			-- glUniform()'d every frame
 			uniforms = {
 				mvMat = self.mvMat.ptr,
@@ -1075,7 +1141,7 @@ uniform bool round;
 
 uniform uint colorIndex;
 
-uniform <?=samplerTypeForTex(self.palTex)?> palTex;
+uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 uniform vec4 drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
@@ -1142,18 +1208,18 @@ void main() {
 ]]..info.colorOutput..[[
 }
 ]],				{
-					fragType = fragTypeForTex(info.fbTex),
+					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
 				}),
 				uniforms = {
-					palTex = 0,
+					paletteTex = 0,
 					borderOnly = false,
 					round = false,
 					--mvMat = self.mvMat.ptr,
 				},
 			},
-			texs = {self.palTex},
+			texs = {self.paletteRAM.tex},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
 			uniforms = {
@@ -1206,7 +1272,7 @@ layout(location=0) out <?=fragType?> fragColor;
 uniform uint paletteIndex;
 
 // Reads 4 bits from wherever shift location you provide.
-uniform <?=samplerTypeForTex(self.spriteTex)?> spriteTex;
+uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> spriteTex;
 
 // Specifies which bit to read from at the sprite.
 //  0 = read sprite low nibble.
@@ -1227,7 +1293,7 @@ uniform uint spriteMask;
 // If you want fully opaque then just choose an oob color index.
 uniform uint transparentIndex;
 
-uniform <?=samplerTypeForTex(self.palTex)?> palTex;
+uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
 uniform vec4 drawOverrideSolid;
 
@@ -1235,7 +1301,7 @@ void main() {
 <? if useSamplerUInt then ?>
 	uint colorIndex = ]]
 		..readTex{
-			tex = self.spriteTex,
+			tex = self.spriteSheetRAM.tex,
 			texvar = 'spriteTex',
 			tc = 'tcv',
 			from = 'vec2',
@@ -1261,7 +1327,7 @@ void main() {
 
 	float colorIndexNorm = ]]
 		..readTex{
-			tex = self.spriteTex,
+			tex = self.spriteSheetRAM.tex,
 			texvar = 'spriteTex',
 			tc = 'tcv / vec2(textureSize(spriteTex))',
 			from = 'vec2',
@@ -1278,7 +1344,7 @@ void main() {
 }
 ]], 			{
 					glslnumber = glslnumber,
-					fragType = fragTypeForTex(info.fbTex),
+					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					useSamplerUInt = useSamplerUInt,
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
@@ -1286,7 +1352,7 @@ void main() {
 				}),
 				uniforms = {
 					spriteTex = 0,
-					palTex = 1,
+					paletteTex = 1,
 					paletteIndex = 0,
 					transparentIndex = -1,
 					spriteBit = 0,
@@ -1295,8 +1361,8 @@ void main() {
 				},
 			},
 			texs = {
-				self.spriteTex,
-				self.palTex,
+				self.spriteSheetRAM.tex,
+				self.paletteRAM.tex,
 			},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
@@ -1344,9 +1410,9 @@ layout(location=0) out <?=fragType?> fragColor;
 // tilemap texture
 uniform uint mapIndexOffset;
 uniform int draw16Sprites;	 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
-uniform <?=samplerTypeForTex(self.mapTex)?> mapTex;
-uniform <?=samplerTypeForTex(self.tileTex)?> tileTex;
-uniform <?=samplerTypeForTex(self.palTex)?> palTex;
+uniform <?=samplerTypeForTex(self.tilemapRAM.tex)?> tilemapTex;
+uniform <?=samplerTypeForTex(self.tileSheetRAM.tex)?> tileSheetTex;
+uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
 const uint tilemapSizeX = <?=tilemapSize.x?>;
 const uint tilemapSizeY = <?=tilemapSize.y?>;
@@ -1372,13 +1438,13 @@ void main() {
 	// mod 256 ? maybe?
 	// integer part of tcf
 
-	//read the tileIndex in mapTex at tcf
-	//mapTex is R16, so red channel should be 16bpp (right?)
+	//read the tileIndex in tilemapTex at tcf
+	//tilemapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
 	int tileIndex = int(]]..readTex{
-		tex = self.mapTex,
-		texvar = 'mapTex',
-		tc = '(floor(tcf) + .5) / vec2('..textureSize'mapTex'..')',
+		tex = self.tilemapRAM.tex,
+		texvar = 'tilemapTex',
+		tc = '(floor(tcf) + .5) / vec2('..textureSize'tilemapTex'..')',
 		from = 'vec2',
 		to = 'uvec4',
 	}..[[.r);
@@ -1400,10 +1466,10 @@ void main() {
 		int(tcfp.y * tileSizef) ^ (tileIndexTC.y << 3)
 	);
 
-	// tileTex is R8 indexing into our palette ...
+	// tileSheetTex is R8 indexing into our palette ...
 	uint colorIndex = ]]..readTex{
-		tex = self.tileTex,
-		texvar = 'tileTex',
+		tex = self.tileSheetRAM.tex,
+		texvar = 'tileSheetTex',
 		tc = 'tileTexTC',
 		from = 'ivec2',
 		to = 'uvec4',
@@ -1425,12 +1491,12 @@ void main() {
 		(tci.y >> (3 + draw16Sprites)) & 0xFF
 	);
 
-	//read the tileIndex in mapTex at tileTC
-	//mapTex is R16, so red channel should be 16bpp (right?)
+	//read the tileIndex in tilemapTex at tileTC
+	//tilemapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
 	int tileIndex = int(]]..readTex{
-		tex = self.mapTex,
-		texvar = 'mapTex',
+		tex = self.tilemapRAM.tex,
+		texvar = 'tilemapTex',
 		tc = 'tileTC',
 		from = 'ivec2',
 		to = 'uvec4',
@@ -1452,10 +1518,10 @@ void main() {
 		(tci.y & mask) ^ (tileIndexTC.y << 3)
 	);
 
-	// tileTex is R8 indexing into our palette ...
+	// tileSheetTex is R8 indexing into our palette ...
 	uint colorIndex = ]]..readTex{
-		tex = self.tileTex,
-		texvar = 'tileTex',
+		tex = self.tileSheetRAM.tex,
+		texvar = 'tileSheetTex',
 		tc = 'tileTexTC',
 		from = 'ivec2',
 		to = 'uvec4',
@@ -1469,7 +1535,7 @@ void main() {
 	if (fragColor.a == 0.) discard;
 }
 ]],				{
-					fragType = fragTypeForTex(info.fbTex),
+					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
 					glslnumber = glslnumber,
@@ -1477,14 +1543,18 @@ void main() {
 					tilemapSize = tilemapSize,
 				}),
 				uniforms = {
-					mapTex = 0,
-					tileTex = 1,
-					palTex = 2,
+					tilemapTex = 0,
+					tileSheetTex = 1,
+					paletteTex = 2,
 					mapIndexOffset = 0,
 					--mvMat = self.mvMat.ptr,
 				},
 			},
-			texs = {self.mapTex, self.tileTex, self.palTex},
+			texs = {
+				self.tilemapRAM.tex,
+				self.tileSheetRAM.tex,
+				self.paletteRAM.tex,
+			},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
 			uniforms = {
@@ -1519,31 +1589,31 @@ void main() {
 		--]]
 	}:unbind()
 
-	-- :drawText font and pal tex by default the fontTex and palTex associated with the ROM
-	-- later during the editor draw I'll change it to fontMenuTex / palMenuTex
-	self.textFontTex = self.fontTex
-	self.textPalTex = self.palTex
+	-- :drawText font and pal tex by default the fontRAM and paletteRAM associated with the ROM
+	-- later during the editor draw I'll change it to fontMenuTex / paletteMenuTex
+	self.textFontTex = self.fontRAM.tex
+	self.textPalTex = self.paletteRAM.tex
 
 	self:resetVideo()
 end
 
 -- flush anything from gpu to cpu
 function AppVideo:checkDirtyGPU()
-	self.spriteTex:checkDirtyGPU()
-	self.tileTex:checkDirtyGPU()
-	self.mapTex:checkDirtyGPU()
-	self.palTex:checkDirtyGPU()
-	self.fontTex:checkDirtyGPU()
-	self.fbTex:checkDirtyGPU()
+	self.spriteSheetRAM:checkDirtyGPU()
+	self.tileSheetRAM:checkDirtyGPU()
+	self.tilemapRAM:checkDirtyGPU()
+	self.paletteRAM:checkDirtyGPU()
+	self.fontRAM:checkDirtyGPU()
+	self.framebufferRAM:checkDirtyGPU()
 end
 
 function AppVideo:setDirtyCPU()
-	self.spriteTex.dirtyCPU = true
-	self.tileTex.dirtyCPU = true
-	self.mapTex.dirtyCPU = true
-	self.palTex.dirtyCPU = true
-	self.fontTex.dirtyCPU = true
-	self.fbTex.dirtyCPU = true
+	self.spriteSheetRAM.dirtyCPU = true
+	self.tileSheetRAM.dirtyCPU = true
+	self.tilemapRAM.dirtyCPU = true
+	self.paletteRAM.dirtyCPU = true
+	self.fontRAM.dirtyCPU = true
+	self.framebufferRAM.dirtyCPU = true
 end
 
 function AppVideo:resetVideo()
@@ -1552,26 +1622,26 @@ function AppVideo:resetVideo()
 	--]]
 	ffi.copy(self.ram.v, self.banks.v[0].v, ffi.sizeof'ROM')
 	-- [[ update now ...
-	self.spriteTex:bind()
+	self.spriteSheetRAM.tex:bind()
 		:subimage()
 		:unbind()
-	self.spriteTex.dirtyCPU = false
-	self.tileTex:bind()
+	self.spriteSheetRAM.dirtyCPU = false
+	self.tileSheetRAM.tex:bind()
 		:subimage()
 		:unbind()
-	self.tileTex.dirtyCPU = false
-	self.mapTex:bind()
+	self.tileSheetRAM.dirtyCPU = false
+	self.tilemapRAM.tex:bind()
 		:subimage()
 		:unbind()
-	self.mapTex.dirtyCPU = false
-	self.palTex:bind()
+	self.tilemapRAM.dirtyCPU = false
+	self.paletteRAM.tex:bind()
 		:subimage()
 		:unbind()
-	self.palTex.dirtyCPU = false
-	self.fontTex:bind()
+	self.paletteRAM.dirtyCPU = false
+	self.fontRAM.tex:bind()
 		:subimage()
 		:unbind()
-	self.fontTex.dirtyCPU = false
+	self.fontRAM.dirtyCPU = false
 	--]]
 	--[[ update later ...
 	self:setDirtyCPU()
@@ -1608,8 +1678,8 @@ each video mode should uniquely ...
 function AppVideo:setVideoMode(mode)
 	local info = self.videoModeInfo[mode]
 	if info then
-		-- fbTex is the VRAM tex ... soo rename it?  fbVRAMTex or something?
-		self.fbTex = info.fbTex
+		-- framebufferRAM is the VRAM tex ... soo rename it?  fbVRAMTex or something?
+		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
 		self.lineSolidObj = info.lineSolidObj
 		self.triSolidObj = info.triSolidObj
@@ -1619,15 +1689,15 @@ function AppVideo:setVideoMode(mode)
 	else
 		error("unknown video mode "..tostring(mode))
 	end
-	self.blitScreenObj.texs[1] = self.fbTex
+	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
 
-	self:setFBTex(self.fbTex)
+	self:setFramebufferTex(self.framebufferRAM.tex)
 	self.currentVideoMode = mode
 end
 
--- this is set between the VRAM tex .fbTex (for draw commands that need to be reflected to the CPU)
---  and the menu tex .fbMenuTex (for those that don't)
-function AppVideo:setFBTex(tex)
+-- this is set between the VRAM tex .framebufferRAM (for draw commands that need to be reflected to the CPU)
+--  and the menu tex .framebufferMenuTex (for those that don't)
+function AppVideo:setFramebufferTex(tex)
 	local fb = self.fb
 	if not self.inUpdateCallback then
 		fb:bind()
@@ -1701,10 +1771,10 @@ function AppVideo:mvMatFromRAM()
 end
 
 function AppVideo:resetFont()
-	self.fontTex:checkDirtyGPU()
+	self.fontRAM:checkDirtyGPU()
 	resetROMFont(self.ram.bank[0].font)
 	ffi.copy(self.banks.v[0].font, self.ram.bank[0].font, fontInBytes)
-	self.fontTex.dirtyCPU = true
+	self.fontRAM.dirtyCPU = true
 end
 
 -- externally used ...
@@ -1713,10 +1783,10 @@ end
 function AppVideo:resetGFX()
 	self:resetFont()
 
-	self.palTex:checkDirtyGPU()
+	self.paletteRAM:checkDirtyGPU()
 	resetROMPalette(self.ram.bank[0])
 	ffi.copy(self.banks.v[0].palette, self.ram.bank[0].palette, paletteInBytes)
-	self.palTex.dirtyCPU = true
+	self.paletteRAM.dirtyCPU = true
 end
 
 function AppVideo:resize()
@@ -1733,8 +1803,8 @@ function AppVideo:drawSolidRect(
 	borderOnly,
 	round
 )
-	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
-	self.fbTex:checkDirtyCPU()
+	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.framebufferRAM:checkDirtyCPU()
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.quadSolidObj
@@ -1752,8 +1822,8 @@ function AppVideo:drawSolidRect(
 	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
-	self.fbTex.dirtyGPU = true
-	self.fbTex.changedSinceDraw = true
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
 end
 
 -- TODO get rid of this function
@@ -1769,8 +1839,8 @@ function AppVideo:drawBorderRect(
 end
 
 function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
-	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
-	self.fbTex:checkDirtyCPU()
+	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.framebufferRAM:checkDirtyCPU()
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.triSolidObj
@@ -1790,8 +1860,8 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
-	self.fbTex.dirtyGPU = true
-	self.fbTex.changedSinceDraw = true
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
 end
 
 function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
@@ -1799,8 +1869,8 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 end
 
 function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
-	self.palTex:checkDirtyCPU() -- before any GPU op that uses palette...
-	self.fbTex:checkDirtyCPU()
+	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+	self.framebufferRAM:checkDirtyCPU()
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.lineSolidObj
@@ -1815,8 +1885,8 @@ function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
-	self.fbTex.dirtyGPU = true
-	self.fbTex.changedSinceDraw = true
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
 end
 
 function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
@@ -1902,20 +1972,21 @@ args:
 function AppVideo:drawQuad(
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox
-	tex,
-	palTex,
+	-- TODO replace these two args with indexes
+	sheetRAM,
+	paletteRAM,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
 	spriteMask
 )
-	if tex.checkDirtyCPU then	-- some editor textures are separate of the 'hardware' and don't possess this
-		tex:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
+	if sheetRAM.checkDirtyCPU then	-- some editor textures are separate of the 'hardware' and don't possess this
+		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
-	if palTex.checkDirtyCPU then
-		palTex:checkDirtyCPU() 	-- before any GPU op that uses palette...
+	if paletteRAM.checkDirtyCPU then
+		paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	end
-	self.fbTex:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
@@ -1924,8 +1995,8 @@ function AppVideo:drawQuad(
 
 	local sceneObj = self.quadSpriteObj
 	local uniforms = sceneObj.uniforms
-	sceneObj.texs[1] = tex
-	sceneObj.texs[2] = palTex
+	sceneObj.texs[1] = sheetRAM.tex or sheetRAM
+	sceneObj.texs[2] = paletteRAM.tex or paletteRAM
 
 self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
@@ -1942,11 +2013,11 @@ self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	sceneObj:draw()
 
 	-- restore in case it wasn't the original
-	sceneObj.texs[1] = self.spriteTex
-	sceneObj.texs[2] = self.palTex
+	sceneObj.texs[1] = self.spriteSheetRAM.tex
+	sceneObj.texs[2] = self.paletteRAM.tex
 
-	self.fbTex.dirtyGPU = true
-	self.fbTex.changedSinceDraw = true
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
 end
 
 --[[
@@ -1997,8 +2068,8 @@ function AppVideo:drawSprite(
 		ty / tonumber(spriteSheetSizeInTiles.y),
 		spritesWide / tonumber(spriteSheetSizeInTiles.x),
 		spritesHigh / tonumber(spriteSheetSizeInTiles.y),
-		self.spriteTex,	-- tex
-		self.palTex,	-- palTex
+		self.spriteSheetRAM,	-- tex
+		self.paletteRAM,	-- paletteRAM
 		paletteIndex,
 		transparentIndex,
 		spriteBit,
@@ -2017,10 +2088,10 @@ function AppVideo:drawMap(
 	mapIndexOffset,	-- general shift to apply to all read map indexes in the tilemap
 	draw16Sprites	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
 )
-	self.tileTex:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
-	self.palTex:checkDirtyCPU() 	-- before any GPU op that uses palette...
-	self.mapTex:checkDirtyCPU()
-	self.fbTex:checkDirtyCPU()
+	self.tileSheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
+	self.paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
+	self.tilemapRAM:checkDirtyCPU()
+	self.framebufferRAM:checkDirtyCPU()
 
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
@@ -2028,7 +2099,7 @@ function AppVideo:drawMap(
 
 	local sceneObj = self.quadMapObj
 	local uniforms = sceneObj.uniforms
-	sceneObj.texs[1] = self.mapTex
+	sceneObj.texs[1] = self.tilemapRAM.tex
 
 self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
@@ -2053,8 +2124,8 @@ self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
-	self.fbTex.dirtyGPU = true
-	self.fbTex.changedSinceDraw = true
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
 end
 
 -- draw transparent-background text
@@ -2078,9 +2149,9 @@ function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
 			ty / tonumber(texSizeInTiles.y),	-- ty
 			1 / tonumber(texSizeInTiles.x),		-- tw
 			1 / tonumber(texSizeInTiles.y),		-- th
-			--self.spriteTex,						-- tex
+			--self.spriteSheetRAM.tex,						-- tex
 			self.textFontTex,						-- tex
-			self.textPalTex,						-- palTex
+			self.textPalTex,						-- paletteRAM
 			-- font color is 0 = background, 1 = foreground
 			-- so shift this by 1 so the font tex contents shift it back
 			-- TODO if compression is a thing then store 8 letters per 8x8 sprite

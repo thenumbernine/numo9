@@ -557,7 +557,7 @@ function App:initGL()
 				cmd.spriteBit = spriteBit
 				cmd.spriteMask = spriteMask
 			end
-			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteTex, self.palTex, paletteIndex, transparentIndex, spriteBit, spriteMask)
+			return self:drawQuad(x, y, w, h, tx, ty, tw, th, self.spriteSheetRAM, self.paletteRAM, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
 		-- TODO maybe make draw16Sprites a poke'd value
 		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
@@ -1032,7 +1032,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 
 				-- also for init, do the splash screen
 				numo9_video.resetLogoOnSheet(self.ram.bank[0].tileSheet)
-				self.tileTex.dirtyCPU = true
+				self.tileSheetRAM.dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
 						env.mset(i, j, bit.bor(
@@ -1096,7 +1096,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 				-- and clear the tilemap now that we're done with it
 				ffi.fill(self.ram.bank[0].tileSheet, ffi.sizeof(self.ram.bank[0].tileSheet))
 				ffi.fill(self.ram.bank[0].tilemap, ffi.sizeof(self.ram.bank[0].tilemap))
-				self.tileTex.dirtyCPU = true
+				self.tileSheetRAM.dirtyCPU = true
 
 			end
 
@@ -1197,7 +1197,7 @@ function App:net_mset(x, y, value)
 			end
 		end
 		self.ram.bank[0].tilemap[index] = value
-		self.mapTex.dirtyCPU = true
+		self.tilemapRAM.dirtyCPU = true
 	end
 end
 
@@ -1442,7 +1442,7 @@ conn.receivesPerSecond = 0
 		end
 
 		-- flush any cpu changes to gpu before updating
-		self.fbTex:checkDirtyCPU()
+		self.framebufferRAM:checkDirtyCPU()
 
 		local fb = self.fb
 		fb:bind()
@@ -1491,7 +1491,7 @@ print('run thread dead')
 		-- this way server can issue console commands while the game is running
 		gl.glDisable(gl.GL_BLEND)
 
-		-- if we're using menu then render to the fbMenuTex
+		-- if we're using menu then render to the framebufferMenuTex
 		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
 		if self.activeMenu then
 			-- push matrix
@@ -1499,35 +1499,35 @@ print('run thread dead')
 			self:matident()
 			-- set drawText font & pal to the UI's
 			self.textFontTex = self.fontMenuTex
-			self.textPalTex = self.palMenuTex
+			self.textPalTex = self.paletteMenuTex
 			self.inMenuUpdate = true
 
 			-- and set the palette to the editor palette ... ?
 			-- or not ...
 			-- TODO or not for when we want to show the game palette stuff ...
 			-- hmm , gotta split this up now ...
-			-- default draw calls will use the palMenuTex
-			-- and special calls will use the palTex
-			self.videoModeInfo[0].lineSolidObj.texs[1] = self.palMenuTex
-			self.videoModeInfo[0].triSolidObj.texs[1] = self.palMenuTex
-			self.videoModeInfo[0].quadSolidObj.texs[1] = self.palMenuTex
+			-- default draw calls will use the paletteMenuTex
+			-- and special calls will use the paletteRAM
+			self.videoModeInfo[0].lineSolidObj.texs[1] = self.paletteMenuTex
+			self.videoModeInfo[0].triSolidObj.texs[1] = self.paletteMenuTex
+			self.videoModeInfo[0].quadSolidObj.texs[1] = self.paletteMenuTex
 			-- don't override quadSpriteObj since all its textures are provided in function args
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
-			--self.videoModeInfo[0].quadMapObj.texs[3] = self.palMenuTex
+			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
 
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
 			self:setVideoMode(0)
 
-			-- so as long as the framebuffer is pointed at the fbMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
-			-- the draw commands will all go to fbMenuTex and not the VRAM fbTex
-			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM fbTex, but meh, it still won't change them.
-			self:setFBTex(self.fbMenuTex)
+			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
+			-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
+			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
+			self:setFramebufferTex(self.framebufferMenuTex)
 
 			gl.glScissor(0,0,256,256)
 
 			-- [[
-			-- while we're here, start us off with the current fbTex contents
-			-- fbMenuTex is RGB, while fbTex can vary depending on the video mode, so I'll use the blitScreenObj to draw it
+			-- while we're here, start us off with the current framebufferRAM contents
+			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenObj to draw it
 			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 			local view = self.blitScreenView
 			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
@@ -1559,21 +1559,21 @@ print('run thread dead')
 				end
 			end
 
-			self:setFBTex(self.fbTex)
+			self:setFramebufferTex(self.framebufferRAM.tex)
 
 			-- restore palettes
-			self.videoModeInfo[0].lineSolidObj.texs[1] = self.palTex
-			self.videoModeInfo[0].triSolidObj.texs[1] = self.palTex
-			self.videoModeInfo[0].quadSolidObj.texs[1] = self.palTex
-			self.videoModeInfo[0].quadSpriteObj.texs[2] = self.palTex
-			self.videoModeInfo[0].quadMapObj.texs[3] = self.palTex
+			self.videoModeInfo[0].lineSolidObj.texs[1] = self.paletteRAM.tex
+			self.videoModeInfo[0].triSolidObj.texs[1] = self.paletteRAM.tex
+			self.videoModeInfo[0].quadSolidObj.texs[1] = self.paletteRAM.tex
+			self.videoModeInfo[0].quadSpriteObj.texs[2] = self.paletteRAM.tex
+			self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteRAM.tex
 
 			self:setVideoMode(self.ram.videoMode)
 
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
-			self.textFontTex = self.fontTex
-			self.textPalTex = self.palTex
+			self.textFontTex = self.fontRAM.tex
+			self.textPalTex = self.paletteRAM.tex
 			-- pop matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		end
@@ -1644,10 +1644,10 @@ print('run thread dead')
 		-- do this every frame or only on updates?
 		-- how about no more than twice after an update (to please the double-buffers)
 		-- TODO don't do it unless we've changed the framebuffer since the last draw
-		-- 	so any time fbTex is modified (wherever dirtyCPU/GPU is set/cleared), also set a changedSinceDraw=true flag
+		-- 	so any time framebufferRAM is modified (wherever dirtyCPU/GPU is set/cleared), also set a changedSinceDraw=true flag
 		-- then here test for that flag and only re-increment 'needDraw' if it's set
-		if self.fbTex.changedSinceDraw then
-			self.fbTex.changedSinceDraw = false
+		if self.framebufferRAM.changedSinceDraw then
+			self.framebufferRAM.changedSinceDraw = false
 			needDrawCounter = drawCounterNeededToRedraw
 		end
 
@@ -1662,7 +1662,7 @@ print('run thread dead')
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		if self.ram.videoMode == 1 then
-			self.palTex:checkDirtyCPU()
+			self.paletteRAM:checkDirtyCPU()
 		end
 
 		gl.glDisable(gl.GL_SCISSOR_TEST)
@@ -1700,7 +1700,7 @@ print('run thread dead')
 		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		if self.activeMenu then sceneObj.texs[1] = self.fbMenuTex end
+		if self.activeMenu then sceneObj.texs[1] = self.framebufferMenuTex end
 --]]
 
 		-- draw from framebuffer to screen
@@ -1709,7 +1709,7 @@ print('run thread dead')
 		sdl.SDL_GL_SwapWindow(self.window)
 		--]]
 
-		if self.activeMenu then sceneObj.texs[1] = self.fbTex end
+		if self.activeMenu then sceneObj.texs[1] = self.framebufferRAM.tex end
 	end
 --DEBUG:require 'gl.report' 'here'
 end
@@ -1720,9 +1720,9 @@ function App:peek(addr)
 	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
-	-- assume the GL framebuffer is bound to the fbTex
-	if self.fbTex.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex:checkDirtyGPU()
+	-- assume the GL framebuffer is bound to the framebufferRAM
+	if self.framebufferRAM.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
+		self.framebufferRAM:checkDirtyGPU()
 	end
 
 	return self.ram.v[addr]
@@ -1731,8 +1731,8 @@ function App:peekw(addr)
 	local addrend = addr+1
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex:checkDirtyGPU()
+	if self.framebufferRAM.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
+		self.framebufferRAM:checkDirtyGPU()
 	end
 
 	return ffi.cast('uint16_t*', self.ram.v + addr)[0]
@@ -1741,8 +1741,8 @@ function App:peekl(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if self.fbTex.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex:checkDirtyGPU()
+	if self.framebufferRAM.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
+		self.framebufferRAM:checkDirtyGPU()
 	end
 
 	return ffi.cast('uint32_t*', self.ram.v + addr)[0]
@@ -1754,8 +1754,8 @@ function App:poke(addr, value)
 
 	-- if we're writing to a dirty area then flush it to cpu
 	if addr >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex:checkDirtyGPU()
-		self.fbTex.dirtyCPU = true
+		self.framebufferRAM:checkDirtyGPU()
+		self.framebufferRAM.dirtyCPU = true
 	end
 
 	self.ram.v[addr] = tonumber(value)
@@ -1764,23 +1764,23 @@ function App:poke(addr, value)
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
 	if addr >= spriteSheetAddr and addr < spriteSheetAddrEnd then
 		-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
-		self.spriteTex.dirtyCPU = true
+		self.spriteSheetRAM.dirtyCPU = true
 	end
 	if addr >= tileSheetAddr and addr < tileSheetAddrEnd then
-		self.tileTex.dirtyCPU = true
+		self.tileSheetRAM.dirtyCPU = true
 	end
 	if addr >= tilemapAddr and addr < tilemapAddrEnd then
-		self.mapTex.dirtyCPU = true
+		self.tilemapRAM.dirtyCPU = true
 	end
 	-- a few options with dirtying palette entries
 	-- 1) consolidate calls, so write this separately in pokew and pokel
 	-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
 	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
 	if addr >= paletteAddr and addr < paletteAddrEnd then
-		self.palTex.dirtyCPU = true
+		self.paletteRAM.dirtyCPU = true
 	end
 	if addr >= fontAddr and addr < fontAddrEnd then
-		self.fontTex.dirtyCPU = true
+		self.fontRAM.dirtyCPU = true
 	end
 	-- TODO if we poked the code
 end
@@ -1789,26 +1789,26 @@ function App:pokew(addr, value)
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
 	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex:checkDirtyGPU()
-		self.fbTex.dirtyCPU = true
+		self.framebufferRAM:checkDirtyGPU()
+		self.framebufferRAM.dirtyCPU = true
 	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
 
 	if addrend >= spriteSheetAddr and addr < spriteSheetAddrEnd then
-		self.spriteTex.dirtyCPU = true
+		self.spriteSheetRAM.dirtyCPU = true
 	end
 	if addrend >= tileSheetAddr and addr < tileSheetAddrEnd then
-		self.tileTex.dirtyCPU = true
+		self.tileSheetRAM.dirtyCPU = true
 	end
 	if addrend >= tilemapAddr and addr < tilemapAddrEnd then
-		self.mapTex.dirtyCPU = true
+		self.tilemapRAM.dirtyCPU = true
 	end
 	if addrend >= paletteAddr and addr < paletteAddrEnd then
-		self.palTex.dirtyCPU = true
+		self.paletteRAM.dirtyCPU = true
 	end
 	if addrend >= fontAddr and addr < fontAddrEnd then
-		self.fontTex.dirtyCPU = true
+		self.fontRAM.dirtyCPU = true
 	end
 	-- TODO if we poked the code
 end
@@ -1817,26 +1817,26 @@ function App:pokel(addr, value)
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
 	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
-		self.fbTex:checkDirtyGPU()
-		self.fbTex.dirtyCPU = true
+		self.framebufferRAM:checkDirtyGPU()
+		self.framebufferRAM.dirtyCPU = true
 	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
 
 	if addrend >= spriteSheetAddr and addr < spriteSheetAddrEnd then
-		self.spriteTex.dirtyCPU = true
+		self.spriteSheetRAM.dirtyCPU = true
 	end
 	if addrend >= tileSheetAddr and addr < tileSheetAddrEnd then
-		self.tileTex.dirtyCPU = true
+		self.tileSheetRAM.dirtyCPU = true
 	end
 	if addrend >= tilemapAddr and addr < tilemapAddrEnd then
-		self.mapTex.dirtyCPU = true
+		self.tilemapRAM.dirtyCPU = true
 	end
 	if addrend >= paletteAddr and addr < paletteAddrEnd then
-		self.palTex.dirtyCPU = true
+		self.paletteRAM.dirtyCPU = true
 	end
 	if addrend >= fontAddr and addr < fontAddrEnd then
-		self.fontTex.dirtyCPU = true
+		self.fontRAM.dirtyCPU = true
 	end
 	-- TODO if we poked the code
 end
@@ -2149,7 +2149,7 @@ function App:setMenu(editTab)
 	end
 	-- if we're closing the menu then tell it to draw one more time
 	if editTab == nil then
-		self.fbTex.changedSinceDraw = true
+		self.framebufferRAM.changedSinceDraw = true
 	end
 end
 

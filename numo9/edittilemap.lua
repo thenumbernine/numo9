@@ -148,7 +148,7 @@ function EditTilemap:update()
 		0, 0,
 		(2+mapWidth)*2, (2+mapHeight)*2,
 		app.checkerTex,
-		app.palMenuTex
+		app.paletteMenuTex
 	)
 
 	app:drawMap(
@@ -210,8 +210,8 @@ function EditTilemap:update()
 			0,
 			1,
 			1,
-			app.tileTex,
-			app.palTex,
+			app.tileSheetRAM,
+			app.paletteRAM,
 			0,
 			-1,
 			0,
@@ -419,7 +419,7 @@ function EditTilemap:update()
 			-- TODO how to specify where to paste? beforehand? or paste as overlay until you click outside the box?
 		
 			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
-			assert(not app.mapTex.dirtyGPU)
+			assert(not app.tilemapRAM.dirtyGPU)
 			local image = clip.image()
 			if image then
 				local pasteTargetNumColors = 1024
@@ -472,11 +472,11 @@ print'pasting image'
 					for i=0,image.width-1 do
 						local destx = i + x
 						local desty = j + y
-						if destx >= 0 and destx < app.mapTex.width
-						and desty >= 0 and desty < app.mapTex.height
+						if destx >= 0 and destx < app.tilemapRAM.image.width
+						and desty >= 0 and desty < app.tilemapRAM.image.height
 						then
 							local c = image.buffer[i + image.width * j]
-							self:edit_pokew(tilemapAddr + bit.lshift(destx + app.mapTex.width * desty, 1), c)
+							self:edit_pokew(tilemapAddr + bit.lshift(destx + app.tilemapRAM.image.width * desty, 1), c)
 						end
 					end
 				end

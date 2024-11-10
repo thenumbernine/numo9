@@ -103,12 +103,28 @@ local ROM = struct{
 			anonymous = true,
 			packed = true,
 			fields = {
+				
+				--[[
+				tempting to split up ROM/"bank" into individual unit sizes dedicated to thinks like vram etc ...
+				maybe 64k units ...
+				- spritesheet	\_ same really, just one for the tilemap and one for the sprite renderer
+				- tilesheet		/
+				- audio
+				- code
+				- misc ... where palette, font, etc would go
+				
+				and then in the ROM meta-info (which I don't have yet) flag banks as VRAM or not
+				and if they're VRAM then make a texture w/dirty bits etc.
+				and then give spr() and map() an extra byte var for specifying which sheet to use.
+				--]]
+
 				-- [[ video stuff
-				{name='spriteSheet', type='uint8_t['..spriteSheetSize:volume()..']'},
-				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},
-				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},
-				{name='palette', type='uint16_t['..paletteSize..']'},
-				{name='font', type='uint8_t['..fontSizeInBytes..']'},
+				{name='spriteSheet', type='uint8_t['..spriteSheetSize:volume()..']'},	-- 64k
+				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},		-- 64k
+				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},			-- 128k
+				
+				{name='palette', type='uint16_t['..paletteSize..']'},					-- 0.5k
+				{name='font', type='uint8_t['..fontSizeInBytes..']'},					-- 2k
 				--]]
 
 				-- [[ audio stuff
@@ -118,7 +134,7 @@ local ROM = struct{
 				-- should I put the end-addr/length here, or should I store it as a first byte of the waveform data?
 				-- put here = more space, but leaves sequences of waveforms contiguous so we can point into the lump sum of all samples without worrying about dodging other data
 				-- put there = halves the space of this array.  if you want one track for hte whole of audio RAM then you only store one 'length' value.
-				{name='sfxAddrs', type='AddrLen['..sfxTableSize..']'},
+				{name='sfxAddrs', type='AddrLen['..sfxTableSize..']'},					-- 1k
 
 				-- playback information for sfx
 				-- so my music == pico8/tic80's sfx ... and rlly their music is just some small references to start loop / end loop of their sfx.
@@ -137,15 +153,15 @@ local ROM = struct{
 				} notes[];
 				--]]
 				-- TODO effects and loops and stuff ...
-				{name='musicAddrs', type='AddrLen['..musicTableSize..']'},
+				{name='musicAddrs', type='AddrLen['..musicTableSize..']'},				-- 1k
 
 				-- this is a combination of the sfx and the music data
 				-- sfx is just int16_t samples
 				-- technically I should be cutting the addrs out of the 64kb
-				{name='audioData', type='uint8_t['..audioDataSize..']'},
+				{name='audioData', type='uint8_t['..audioDataSize..']'},				-- 64k
 				--]]
 
-				{name='code', type='uint8_t['..codeSize..']'},
+				{name='code', type='uint8_t['..codeSize..']'},							-- 64k
 			},
 		}},
 	},
