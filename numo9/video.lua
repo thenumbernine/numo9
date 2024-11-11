@@ -418,6 +418,8 @@ glreport'before RAMGPUTex:init'
 	local ptr = self.app.ram.v + self.addr
 	local src = args.src
 
+print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.size))
+
 	local image = Image(width, height, channels, ctype, src)
 	self.image = image
 	if src then	-- if we specified a src to the Image then copy it into RAM before switching Image pointers to point at RAM
@@ -441,7 +443,7 @@ glreport'before RAMGPUTex:init'
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		magFilter = args.magFilter or gl.GL_NEAREST,
-		data = image.buffer,	-- stored
+		data = image.buffer,	-- ptr is stored
 	}:unbind()
 	self.tex = tex
 glreport'after RAMGPUTex:init'
@@ -532,9 +534,9 @@ function AppVideo:initDraw()
 	}
 
 	-- trying to make these interchangeable / expandable
-	self.spriteSheetRAMs = table()	-- RAMRegions ... RAMBanks ... idk what to name this ...
-	self.spriteSheetRAMs:insert(self.spriteSheetRAM)
-	self.spriteSheetRAMs:insert(self.tileSheetRAM)
+	self.sheetRAMs = table()	-- RAMRegions ... RAMBanks ... idk what to name this ...
+	self.sheetRAMs:insert(self.spriteSheetRAM)
+	self.sheetRAMs:insert(self.tileSheetRAM)
 
 	--[[
 	16bpp ...
@@ -583,6 +585,7 @@ function AppVideo:initDraw()
 		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		gltype = gl.GL_UNSIGNED_BYTE,
 	}
+	self.sheetRAMs:insert(self.fontRAM)
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), -1)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
@@ -1612,10 +1615,16 @@ function AppVideo:setDirtyCPU()
 end
 
 function AppVideo:resetVideo()
+	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
+	self.ram.videoMode = 0	-- 16bpp RGB565
+	--self.ram.videoMode = 1	-- 8bpp indexed
+	--self.ram.videoMode = 2	-- 8bpp RGB332
+	self:setVideoMode(self.ram.videoMode)
+
 	--[[ update later ...
 	self:checkDirtyGPU()
 	--]]
-	ffi.copy(self.ram.v, self.banks.v[0].v, ffi.sizeof'ROM')
+	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
 	-- [[ update now ...
 	self.spriteSheetRAM.tex:bind()
 		:subimage()
@@ -1641,11 +1650,6 @@ function AppVideo:resetVideo()
 	--[[ update later ...
 	self:setDirtyCPU()
 	--]]
-
-	self.ram.videoMode = 0	-- 16bpp RGB565
-	--self.ram.videoMode = 1	-- 8bpp indexed
-	--self.ram.videoMode = 2	-- 8bpp RGB332
-	self:setVideoMode(self.ram.videoMode)
 
 	self.ram.blendMode = 0xff	-- = none
 	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
@@ -1673,7 +1677,6 @@ each video mode should uniquely ...
 function AppVideo:setVideoMode(mode)
 	local info = self.videoModeInfo[mode]
 	if info then
-		-- framebufferRAM is the VRAM tex ... soo rename it?  fbVRAMTex or something?
 		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
 		self.lineSolidObj = info.lineSolidObj
@@ -1712,7 +1715,7 @@ end
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
 function AppVideo:colorSwap(from, to, x, y, w, h)
 	-- TODO SORT THIS OUT
-	ffi.copy(self.ram.v, self.banks.v[0].v, ffi.sizeof'ROM')
+	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
 	from = math.floor(from)
 	to = math.floor(to)
 	x = math.floor(x)
@@ -1748,7 +1751,7 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
-	ffi.copy(self.banks.v[0].v, self.ram.v, ffi.sizeof'ROM')
+	ffi.copy(self.banks.v[0].v, self.ram.bank, ffi.sizeof'ROM')
 	return fromFound, toFound
 end
 
@@ -1955,7 +1958,48 @@ function AppVideo:setBlendMode(blendMode)
 end
 
 --[[
+'lower level' than 'drawQuad'
+accepts a texture as arguments, so the UI/Editor can draw with textures outside of the RAM
+doesn't care about tex dirty (cuz its probably a tex outside RAM)
+doesn't care about framebuffer dirty (cuz its probably the editor framebuffer)
+--]]
+function AppVideo:drawQuadTex(
+	x, y, w, h,	-- quad box
+	tx, ty, tw, th,	-- texcoord bbox
+	spriteTex,
+	palTex,
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
+)
+	paletteIndex = paletteIndex or 0
+	transparentIndex = transparentIndex or -1
+	spriteBit = spriteBit or 0
+	spriteMask = spriteMask or 0xFF
+
+	local sceneObj = self.quadSpriteObj
+	local uniforms = sceneObj.uniforms
+	sceneObj.texs[1] = spriteTex
+	sceneObj.texs[2] = palTex
+
+	uniforms.mvMat = self.mvMat.ptr
+	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
+	uniforms.transparentIndex = transparentIndex
+	uniforms.spriteBit = spriteBit
+	uniforms.spriteMask = spriteMask
+	settable(uniforms.tcbox, tx, ty, tw, th)
+	settable(uniforms.box, x, y, w, h)
+
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+
+	sceneObj:draw()
+end
+
+--[[
 'lower level' functionality than 'drawSprite'
+but now that i'm using it for `sspr()` glue, it's in the cartridge api ...
 args:
 	x y w h = quad rectangle on screen
 	tx ty tw th = texcoord rectangle
@@ -1978,7 +2022,7 @@ function AppVideo:drawQuad(
 	spriteBit,
 	spriteMask
 )
-	local sheetRAM = assert.index(self.spriteSheetRAMs, sheetIndex+1)
+	local sheetRAM = assert.index(self.sheetRAMs, sheetIndex+1)
 	if sheetRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
@@ -1986,31 +2030,7 @@ function AppVideo:drawQuad(
 	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
-	paletteIndex = paletteIndex or 0
-	transparentIndex = transparentIndex or -1
-	spriteBit = spriteBit or 0
-	spriteMask = spriteMask or 0xFF
-
-	local sceneObj = self.quadSpriteObj
-	local uniforms = sceneObj.uniforms
-	sceneObj.texs[1] = sheetRAM.tex
-	sceneObj.texs[2] = self.paletteRAM.tex
-
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
-	uniforms.transparentIndex = transparentIndex
-	uniforms.spriteBit = spriteBit
-	uniforms.spriteMask = spriteMask
-	settable(uniforms.tcbox, tx, ty, tw, th)
-	settable(uniforms.box, x, y, w, h)
-
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-
-	sceneObj:draw()
-
-	-- restore in case it wasn't the original ... do I need to?
-	sceneObj.texs[1] = self.spriteSheetRAM.tex
+	self:drawQuadTex(x, y, w, h, tx, ty, tw, th, sheetRAM.tex, self.paletteRAM.tex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2087,7 +2107,7 @@ function AppVideo:drawMap(
 	sheetIndex
 )
 	sheetIndex = sheetIndex or 1
-	local sheetRAM = assert.index(self.spriteSheetRAMs, sheetIndex+1)
+	local sheetRAM = assert.index(self.sheetRAMs, sheetIndex+1)
 	sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	self.paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	self.tilemapRAM:checkDirtyCPU()
@@ -2102,6 +2122,7 @@ function AppVideo:drawMap(
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.tilemapRAM.tex
 	sceneObj.texs[2] = sheetRAM.tex
+	sceneObj.texs[3] = self.paletteRAM.tex
 
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
@@ -2125,81 +2146,9 @@ function AppVideo:drawMap(
 	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	sceneObj:draw()
+
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
-end
-
--- draw transparent-background text
-function AppVideo:drawText1bpp(text, x, y, color, scaleX, scaleY)
-	scaleX = scaleX or 1
-	scaleY = scaleY or 1
-	--local texSizeInTiles = spriteSheetSizeInTiles	-- using sprite sheet last row
-	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
-
-	-- ugly for now
-	local pushSpriteSheetTex
-	local pushPaletteTex
-	local pushSpriteSheetRAM
-	if self.inMenuUpdate then
-		pushSpriteSheetTex = self.spriteSheetRAM.tex
-		pushPaletteTex = self.paletteRAM.tex
-		self.spriteSheetRAM.tex = self.fontMenuTex
-		self.paletteRAM.tex = self.paletteMenuTex
-	else
-		--[[ should work but not
-		pushSpriteSheetRAM = self.spriteSheetRAM
-		self.spriteSheetRAM = self.fontRAM
-		--]]
-		-- [[ ... does work ... hmm ..
-		-- why does setting the sheet RAM and therefore flushing the fontRAM corrupt it?
-		pushSpriteSheetTex = self.spriteSheetRAM.tex
-		self.spriteSheetRAM.tex = self.fontRAM.tex
-		--]]
-	end
-
-	for i=1,#text do
-		local ch = text:byte(i)
-		local bi = bit.band(ch, 7)		-- get the bit offset
-		local by = bit.rshift(ch, 3)	-- get the byte offset
-		--local tx,ty = by,texSizeInTiles.y-1				-- using sprite sheet last row
-		local tx,ty = by,0							-- using separate font tex
-		self:drawQuad(
-			x,									-- x
-			y,									-- y
-			spriteSize.x * scaleX,				-- spritesWide
-			spriteSize.y * scaleY,				-- spritesHigh
-			tx / tonumber(texSizeInTiles.x),	-- tx
-			ty / tonumber(texSizeInTiles.y),	-- ty
-			1 / tonumber(texSizeInTiles.x),		-- tw
-			1 / tonumber(texSizeInTiles.y),		-- th
-			0,									-- sheetIndex == spriteSheet
-			-- font color is 0 = background, 1 = foreground
-			-- so shift this by 1 so the font tex contents shift it back
-			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
-			-- heck why not store 2 letters per left and right half as well?
-			-- 	that's half the alphaet in a single 8x8 sprite black.
-			color-1,							-- paletteIndex ... 'color index offset' / 'palette high bits'
-			0,									-- transparentIndex
-			bi,									-- spriteBit
-			1									-- spriteMask
-		)
-		x = x + (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch]) * scaleX
-	end
-
-	-- ugly for now
-	if self.inMenuUpdate then
-		self.spriteSheetRAM.tex = pushSpriteSheetTex
-		self.paletteRAM.tex = pushPaletteTex
-	else
-		--[[ should work but not
-		self.spriteSheetRAM = pushSpriteSheetRAM
-		--]]
-		-- [[
-		self.spriteSheetRAM.tex = pushSpriteSheetTex
-		--]]
-	end
-
-	return x
 end
 
 -- draw a solid background color, then draw the text transparent
@@ -2213,6 +2162,20 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
 	local x0 = x
+
+	-- ugly for now
+	local pushSpriteSheetTex
+	local pushPaletteTex
+	local pushSpriteSheetRAM
+	if self.inMenuUpdate then
+		pushSpriteSheetTex = self.spriteSheetRAM.tex
+		pushPaletteTex = self.paletteRAM.tex
+		self.spriteSheetRAM.tex = self.fontMenuTex
+		self.paletteRAM.tex = self.paletteMenuTex
+	else
+		pushSpriteSheetRAM = self.spriteSheetRAM
+		self.spriteSheetRAM = self.fontRAM
+	end
 
 	-- should font bg respect transparency/alpha?
 	-- or why even draw a background to it? let the user?
@@ -2234,14 +2197,50 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 		end
 	end
 
-	return self:drawText1bpp(
-		text,
-		x0+1,
-		y+1,
-		fgColorIndex,
-		scaleX,
-		scaleY
-	) - x0
+-- draw transparent-background text
+	local x = x0 + 1
+	y = y + 1
+	--local texSizeInTiles = spriteSheetSizeInTiles	-- using sprite sheet last row
+	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
+
+	for i=1,#text do
+		local ch = text:byte(i)
+		local bi = bit.band(ch, 7)		-- get the bit offset
+		local by = bit.rshift(ch, 3)	-- get the byte offset
+		--local tx,ty = by,texSizeInTiles.y-1				-- using sprite sheet last row
+		local tx,ty = by,0							-- using separate font tex
+		self:drawQuad(
+			x,									-- x
+			y,									-- y
+			spriteSize.x * scaleX,				-- spritesWide
+			spriteSize.y * scaleY,				-- spritesHigh
+			tx / tonumber(texSizeInTiles.x),	-- tx
+			ty / tonumber(texSizeInTiles.y),	-- ty
+			1 / tonumber(texSizeInTiles.x),		-- tw
+			1 / tonumber(texSizeInTiles.y),		-- th
+			2,		-- sheetIndex == fontRAM
+			-- font color is 0 = background, 1 = foreground
+			-- so shift this by 1 so the font tex contents shift it back
+			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
+			-- heck why not store 2 letters per left and right half as well?
+			-- 	that's half the alphaet in a single 8x8 sprite black.
+			fgColorIndex-1,							-- paletteIndex ... 'color index offset' / 'palette high bits'
+			0,									-- transparentIndex
+			bi,									-- spriteBit
+			1									-- spriteMask
+		)
+		x = x + (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch]) * scaleX
+	end
+
+	-- ugly for now
+	if self.inMenuUpdate then
+		self.spriteSheetRAM.tex = pushSpriteSheetTex
+		self.paletteRAM.tex = pushPaletteTex
+	else
+		self.spriteSheetRAM = pushSpriteSheetRAM
+	end
+
+	return x - x0
 end
 
 -- matrix commands, so I don't duplicate these here in the env and in net ...

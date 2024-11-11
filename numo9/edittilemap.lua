@@ -67,13 +67,13 @@ function EditTilemap:update()
 	EditTilemap.super.update(self)
 
 	-- title controls
-	local x = 104
+	local x = 80
 	local y = 0
 
 	self:guiSpinner(x, y, function(dx)
 		self.gridSpacing = math.clamp(self.gridSpacing + dx, 1, 256)
 	end, 'grid='..self.gridSpacing)
-	x = x + 24
+	x = x + 14
 
 	if self:guiButton('G', x, y, self.drawGrid, 'grid') then
 		self.drawGrid = not self.drawGrid
@@ -142,19 +142,14 @@ function EditTilemap:update()
 	app:matscale(self.scale, self.scale)
 	app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
 
-	-- ugly for now
-	local pushtex = app.spriteSheetRAM.tex
-	app.spriteSheetRAM.tex = app.checkerTex
-	--app.paletteRAM.tex = app.paletteMenuTex	-- already done?
-	app:drawQuad(
-		-tileSize, -tileSize,
-		2*tileSize+bit.lshift(tilemapSize.x,tileBits), 2*tileSize+bit.lshift(tilemapSize.y, tileBits),
+	app:drawQuadTex(
+		-1, -1,
+		2+bit.lshift(tilemapSize.x,tileBits), 2+bit.lshift(tilemapSize.y, tileBits),
 		0, 0,
-		(2+mapWidth)*2, (2+mapHeight)*2,
-		0
+		2+mapWidth*2, 2+mapHeight*2,
+		app.checkerTex,
+		app.paletteMenuTex
 	)
-	app.spriteSheetRAM.tex = pushtex
-	--app.paletteRAM.tex = app.paletteTex
 
 	app:drawMap(
 		0,		-- upper-left index in the tile tex
@@ -164,7 +159,8 @@ function EditTilemap:update()
 		0,		-- pixel x
 		0,		-- pixel y
 		0,		-- map index offset / high page
-		self.draw16Sprites	-- draw 16x16 vs 8x8
+		self.draw16Sprites,	-- draw 16x16 vs 8x8
+		1		-- sprite vs tile sheet
 	)
 
 --self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xfc, 0)

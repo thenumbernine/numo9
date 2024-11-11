@@ -117,7 +117,7 @@ function EditSprites:update()
 			self.texField = result
 		end)
 	local currentSheetIndex = self.texField == 'spriteSheetRAM' and 0 or 1	-- TODO
-	local currentVRAM = app.spriteSheetRAMs[currentSheetIndex+1]
+	local currentVRAM = app.sheetRAMs[currentSheetIndex+1]
 	local currentTexAddr = currentVRAM.addr
 
 	local x = 126
@@ -138,15 +138,12 @@ function EditSprites:update()
 		-- this is the framebuffer coord bounds of the spritesheet.
 		local x1, y1 = spritesheetCoordToFb(0, 0)
 		local x2, y2 = spritesheetCoordToFb(spriteSheetSizeInTiles:unpack())
-
-		-- ugly for now
-		local pushtex = app.spriteSheetRAM.tex
-		app.spriteSheetRAM.tex = app.checkerTex
-		--app.paletteRAM.tex = app.paletteMenuTex	-- already done?
-		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w/2, h/2, 0, 0, -1, 0, 0xFF)
-		app.spriteSheetRAM.tex = pushtex
-		--app.paletteRAM.tex = app.paletteTex
-
+		app:drawQuadTex(
+			x1, y1, x2-x1, y2-y1,
+			0, 0, w/2, h/2,
+			app.checkerTex,
+			app.paletteMenuTex,
+			0, -1, 0, 0xFF)
 		-- clamp it to the viewport of the spritesheet to get the rendered region
 		-- then you can scissor-test this to get rid of the horrible texture stretching at borders from clamp_to_edge ...
 		gl.glScissor(x1, y1, x2-x1, y2-y1)
@@ -262,12 +259,12 @@ function EditSprites:update()
 	do
 		local x1, y1 = spriteCoordToFb(0, 0)
 		local x2, y2 = spriteCoordToFb(spriteSheetSize:unpack())
-		local pushtex = app.spriteSheetRAM.tex
-		app.spriteSheetRAM.tex = app.checkerTex
-		--app.paletteRAM.tex = app.paletteMenuTex	-- already done?
-		app:drawQuad(x1, y1, x2-x1, y2-y1, 0, 0, w*8, h*8, 0, 0, -1, 0, 0xFF)
-		app.spriteSheetRAM.tex = pushtex
-		--app.paletteRAM.tex = app.paletteTex
+		app:drawQuadTex(
+			x1, y1, x2-x1, y2-y1,
+			0, 0, w*8, h*8,
+			app.checkerTex,
+			app.paletteMenuTex,
+			0, -1, 0, 0xFF)
 		gl.glScissor(x1, y1, x2-x1, y2-y1)
 	end
 	app:drawQuad(

@@ -6,7 +6,7 @@ end
 dt=1/60
 mapw,maph=10,10
 maxLevels=31
-levelstr='?'
+levelstr='level ?'
 
 EMPTY=0
 TREE=2
@@ -1118,7 +1118,8 @@ update=[]do
 
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
-		lastLevelStrWidth=text(levelstr,(256-(lastLevelStrWidth or 0))/2,0,22,-1)
+		lastLevelStrWidth = lastLevelStrWidth or 5*7
+		lastLevelStrWidth = text(levelstr,(256-lastLevelStrWidth)/2,0,22,-1)
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
 	end
 

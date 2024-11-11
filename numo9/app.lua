@@ -68,6 +68,8 @@ local framebufferAddr = numo9_rom.framebufferAddr
 local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
 local packptr = numo9_rom.packptr
 local mvMatType = numo9_rom.mvMatType
+local clipRectAddr = numo9_rom.clipRectAddr
+local mvMatAddr = numo9_rom.mvMatAddr
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -200,27 +202,46 @@ function App:initGL()
 	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
 	-- and the editor would edit the ROM ...
 
-	--DEBUG:print(RAM.code)
-	print(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
-	print(('ROM size: 0x%x'):format(ffi.sizeof'ROM'))
+	do
+		--DEBUG:print(RAM.code)
+		print(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
+		print(('ROM size: 0x%x'):format(ffi.sizeof'ROM'))
 
-	--[[
-	for _,field in ipairs(ROM.fields[2].type.fields) do
-		assert(xpcall(function()
-			assert.eq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
-		end, function(err)
-			return errorHandler('for field '..field.name..'\n')
-		end))
-	end
-	--]]
-	print'memory layout:'
-	for _,field in ipairs(RAM.fields[2].type.fields) do
-		local offset = ffi.offsetof('RAM', field.name)
-		local size = ffi.sizeof(field.type)
-		print(('0x%06x - 0x%06x = '):format(offset, offset + size)..field.name)
-	end
+		-- make sure these constants work ...
+		assert.eq(framebufferAddr, ffi.cast('uint8_t*', self.ram.framebuffer) - ffi.cast('uint8_t*', self.ram.v))
+		assert.eq(clipRectAddr, ffi.cast('uint8_t*', self.ram.clipRect) - ffi.cast('uint8_t*', self.ram.v))
+		assert.eq(mvMatAddr, ffi.cast('uint8_t*', self.ram.mvMat) - ffi.cast('uint8_t*', self.ram.v))
+		assert.eq(spriteSheetAddr, ffi.cast('uint8_t*', self.ram.bank[0].spriteSheet) - ffi.cast('uint8_t*', self.ram.v))
+		assert.eq(tileSheetAddr, ffi.cast('uint8_t*', self.ram.bank[0].tileSheet) - ffi.cast('uint8_t*', self.ram.v))
+		assert.eq(tilemapAddr, ffi.cast('uint8_t*', self.ram.bank[0].tilemap) - ffi.cast('uint8_t*', self.ram.v))
+		assert.eq(paletteAddr, ffi.cast('uint8_t*', self.ram.bank[0].palette) - ffi.cast('uint8_t*', self.ram.v))
+		assert.eq(fontAddr, ffi.cast('uint8_t*', self.ram.bank[0].font) - ffi.cast('uint8_t*', self.ram.v))
 
-	print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
+		--[[
+		for _,field in ipairs(ROM.fields[2].type.fields) do
+			assert(xpcall(function()
+				assert.eq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
+			end, function(err)
+				return errorHandler('for field '..field.name..'\n')
+			end))
+		end
+		--]]
+		print'memory layout:'
+		print'- RAM -'
+		for name,ctype in RAM:fielditer() do	-- TODO struct iterable fields ...
+			local offset = ffi.offsetof('RAM', name)
+			local size = ffi.sizeof(ctype)
+			print(('0x%06x - 0x%06x = '):format(offset, offset + size)..name)
+		end
+		print'- ROM -'
+		local bankofs = ffi.offsetof('RAM', 'bank')
+		for name,ctype in ROM:fielditer() do
+			local offset = ffi.offsetof('ROM', name)
+			local size = ffi.sizeof(ctype)
+			print(('0x%06x - 0x%06x = '):format(bankofs + offset, bankofs + offset + size)..name)
+		end
+		print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
+	end
 
 	--[[
 	TODO use fixed-precision here ... or ... expose floating-precision poke/peeks? nahhh
@@ -1079,7 +1100,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 							env.blend(2)	-- subtract
 							-- if I draw this as a sprite then I can draw as a low bpp and shift the palette ...
 							-- if I draw it as a tilemap then I can use the upper 4 bits of the tilemap entries for shifting the palette ...
-							self:drawMap(0, 0, 32, 32, 0, 0, 0, false)
+							self:drawMap(0, 0, 32, 32, 0, 0, 0, false, 1)
 							env.blend(-1)
 						end
 					end
@@ -1506,6 +1527,14 @@ print('run thread dead')
 			self:matident()
 			-- set drawText font & pal to the UI's
 			self.inMenuUpdate = true
+			
+			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
+			self:setVideoMode(0)
+
+			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
+			-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
+			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
+			self:setFramebufferTex(self.framebufferMenuTex)
 
 			-- and set the palette to the editor palette ... ?
 			-- or not ...
@@ -1519,14 +1548,6 @@ print('run thread dead')
 			-- don't override quadSpriteObj since all its textures are provided in function args
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
-
-			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
-			self:setVideoMode(0)
-
-			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
-			-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
-			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
-			self:setFramebufferTex(self.framebufferMenuTex)
 
 			gl.glScissor(0,0,256,256)
 
@@ -1564,14 +1585,14 @@ print('run thread dead')
 				end
 			end
 
-			self:setFramebufferTex(self.framebufferRAM.tex)
-
 			-- restore palettes
 			self.videoModeInfo[0].lineSolidObj.texs[1] = self.paletteRAM.tex
 			self.videoModeInfo[0].triSolidObj.texs[1] = self.paletteRAM.tex
 			self.videoModeInfo[0].quadSolidObj.texs[1] = self.paletteRAM.tex
 			self.videoModeInfo[0].quadSpriteObj.texs[2] = self.paletteRAM.tex
 			self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteRAM.tex
+
+			self:setFramebufferTex(self.framebufferRAM.tex)
 
 			self:setVideoMode(self.ram.videoMode)
 
@@ -1620,7 +1641,9 @@ print('run thread dead')
 			for keycode=0,keyCount-1 do
 				local bi = bit.band(keycode, 7)
 				local by = bit.rshift(keycode, 3)
-	--DEBUG:assert(by >= 0 and by < keyPressFlagSize)
+--DEBUG:assert(by >= 0 and by < keyPressFlagSize)
+--DEBUG:assert(by >= 0 and by < ffi.sizeof(self.ram.keyPressFlags))
+--DEBUG:assert(by >= 0 and by < ffi.sizeof(self.ram.lastKeyPressFlags))
 				local keyFlag = bit.lshift(1, bi)
 				local down = 0 ~= bit.band(self.ram.keyPressFlags[by], keyFlag)
 				local lastDown = 0 ~= bit.band(self.ram.lastKeyPressFlags[by], keyFlag)
@@ -1631,6 +1654,7 @@ print('run thread dead')
 				end
 				holdptr = holdptr + 1
 			end
+--DEBUG:assert.eq(ffi.cast('uint8_t*', holdptr), ffi.cast('uint8_t*', self.ram.keyHoldCounter) + ffi.sizeof(self.ram.keyHoldCounter))
 		end
 
 		-- copy last key buffer to key buffer here after update()
@@ -1859,7 +1883,7 @@ function App:saveROM(filename)
 
 	-- flush that back to .banks ...
 	-- ... or not? idk.  handle this by the editor?
-	--ffi.copy(self.banks.v[0].v, self.ram.v, ffi.sizeof'ROM')
+	--ffi.copy(self.banks.v[0].v, self.ram.bank, ffi.sizeof'ROM')
 	-- TODO self.ram vs self.banks ... editor puts .banks into .ram before editing
 	-- or at least it used to ... now with multiplayer editing idk even ...
 
@@ -1974,7 +1998,7 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
-	ffi.copy(self.ram.v, self.banks.v[0].v, ffi.sizeof'ROM')
+	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
 	self:resetVideo()
 
 	-- calling reset() live will kill all sound ...
@@ -2049,7 +2073,7 @@ function App:runROM()
 		-- so why isn't it working?
 		self:resetView()
 
-		-- here, if the assert fails then it's an (ugly) parse error, and you can just pcall / pick out the offender
+		-- here, if the assert fails then it's a parse error, and you can just pcall / pick out the offender
 		local f, msg = self:loadCmd(code, env, self.currentLoadedFilename)
 		if not f then
 			--print(msg)
