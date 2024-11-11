@@ -223,7 +223,7 @@ If the following functions are defined then they will be called from the virtual
 - `tri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, [color])` = draw a solid triangle.
 - `line(x1, y1, x2, y2, [color])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [color])` = draw line but with z / perspective.
-- `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY])` = draw sprite
+- `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY,sheetIndex])` = draw sprite
 	- spriteIndex = which sprite to draw
 	- screenX, screenY = pixel location of upper-left corner of the sprite
 	- spritesWide, spritesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
@@ -233,10 +233,22 @@ If the following functions are defined then they will be called from the virtual
 	- spriteMask = mask of which bits to use.  default is 0xFF, in binary 1111:1111, which uses all 8 bitplanes.
 		- the resulting color index drawn is `(incomingTexelIndex >> spriteBit) & spriteMask + paletteIndex`
 	- scaleX, scaleY = on-screen scaling.
-- `quad(x, y, w, h, tx, ty, tw, th, pal, transparent, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
-- `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16x16Sprites)` = draw the tilemap. mapIndexOffset = global offset to shift all map indexes. draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
+	- sheetIndex = sheet to use, 0 = sprite sheet, 1 = tile sheet, default 0.
+- `quad(screenX, screenY, w, h, tx, ty, tw, th, sheetIndex, pal, transparent, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
+	- screenX, screneY = pixel location of upper-left corner of the sprite-sheet to draw
+	- w, h = pixels wide and high to draw.
+	- tx, ty = sprite sheet pixel upper left corner.
+	- tw, th = sprite sheet width and height to use.
+	- sheetIndex = sheet index. 0 for sprite sheet, 1 for tile sheet.  default 1.
+	- pal = palette index offset.
+	- transparent = transparent index to use.
+	- spriteBit, spriteMask = same as `spr()`
+- `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16x16Sprites, sheetIndex)` = draw the tilemap.
+	- mapIndexOffset = global offset to shift all map indexes.
+	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
+	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
 	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
-- `text(str, x, y)` = draw text.  I should rename this to `print` for compat reasons.
+- `text(str, x, y, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = set video mode.  The current video modes are:
 	- 0 = 16bpp RGB565, needed for blending
 	- 1 = 8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow)

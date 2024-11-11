@@ -503,7 +503,7 @@ function App:initGL()
 			return self:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 		end,
 
-		spr = function(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
+		spr = function(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY, sheetIndex)
 			if self.server then
 				-- TODO I'm calculating default values twice ...
 				-- TODO move the server netcmd stuff into a separate intermediate function
@@ -521,6 +521,7 @@ function App:initGL()
 				transparentIndex = transparentIndex or -1
 				spriteBit = spriteBit or 0
 				spriteMask = spriteMask or 0xFF
+				sheetIndex = sheetIndex or 0
 
 				local cmd = self.server:pushCmd().quad
 				cmd.type = netcmds.quad
@@ -536,8 +537,9 @@ function App:initGL()
 				cmd.transparentIndex = transparentIndex
 				cmd.spriteBit = spriteBit
 				cmd.spriteMask = spriteMask
+				cmd.sheetIndex = sheetIndex
 			end
-			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
+			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY, sheetIndex)
 		end,
 
 		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
@@ -561,20 +563,23 @@ function App:initGL()
 			end
 			return self:drawQuad(x, y, w, h, tx, ty, tw, th, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
+
 		-- TODO maybe make draw16Sprites a poke'd value
-		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
+		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites, sheetIndex)
 			if self.server then
 				tilesWide = tilesWide or 1
 				tilesHigh = tilesHigh or 1
 				mapIndexOffset = mapIndexOffset or 0
+				sheetIndex = sheetIndex or 1
 				local cmd = self.server:pushCmd().map
 				cmd.type = netcmds.map
 				cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh = tileX, tileY, tilesWide, tilesHigh
 				cmd.screenX, cmd.screenY = screenX, screenY
 				cmd.mapIndexOffset = mapIndexOffset
 				cmd.draw16Sprites = draw16Sprites or false
+				cmd.sheetIndex = sheetIndex
 			end
-			return self:drawMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites)
+			return self:drawMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites, sheetIndex)
 		end,
 		text = function(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 			text = tostring(text)	-- convert?

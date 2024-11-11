@@ -2539,10 +2539,11 @@ drawPlayers=[divX, divY, ...]do
 
 				-- cycle palette
 				-- TODO draw(), RAM modifications, netplay, and this...
+				-- TODO just store a palette shift index somewhere and feed it into every draw command ...
 				if useColorSpray then
 					for i=0,255 do
 						pokew(palAddr+(i<<1),
-							(0x7fff & palPush[(i+10*time())&0xff])
+							(0x7fff & palPush[(i+15*time())&0xff])
 							| (0x8000 & palPush[i])	-- preserve transparnecy flag
 						)
 					end
