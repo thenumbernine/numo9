@@ -449,6 +449,10 @@ print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.si
 glreport'after RAMGPUTex:init'
 end
 
+function RAMGPUTex:overlaps(other)
+	return self.addr < other.addrEnd and other.addr < self.addrEnd
+end
+
 -- TODO gonna subclass this soon ...
 -- assumes it is being called from within the render loop
 function RAMGPUTex:checkDirtyCPU()

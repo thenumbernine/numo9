@@ -1432,34 +1432,59 @@ conn.receivesPerSecond = 0
 
 		local newFramebufferAddr = self.ram.framebufferAddr:toabs()
 		if self.framebufferRAM.addr ~= newFramebufferAddr then
-print'updating framebufferRAM addr'	
-			self.framebufferRGB565RAM:updateAddr(newFramebufferAddr) 
+--DEBUG:print'updating framebufferRAM addr'
+			self.framebufferRGB565RAM:updateAddr(newFramebufferAddr)
 			self.framebufferIndexRAM:updateAddr(newFramebufferAddr)
 		end
 		local newSpriteSheetAddr = self.ram.spriteSheetAddr:toabs()
 		if self.spriteSheetRAM.addr ~= newSpriteSheetAddr then
-print'updating spriteSheetRAM addr'	
+--DEBUG:print'updating spriteSheetRAM addr'
 			self.spriteSheetRAM:updateAddr(newSpriteSheetAddr)
 		end
 		local newTileSheetAddr = self.ram.tileSheetAddr:toabs()
 		if self.tileSheetRAM.addr ~= newTileSheetAddr then
-print'updating tileSheetRAM addr'	
+--DEBUG:print'updating tileSheetRAM addr'
 			self.tileSheetRAM:updateAddr(newTileSheetAddr)
 		end
 		local newTilemapAddr = self.ram.tilemapAddr:toabs()
 		if self.tilemapRAM.addr ~= newTilemapAddr then
-print'updating tilemapRAM addr'	
+--DEBUG:print'updating tilemapRAM addr'
 			self.tilemapRAM:updateAddr(newTilemapAddr)
 		end
 		local newPaletteAddr = self.ram.paletteAddr:toabs()
 		if self.paletteRAM.addr ~= newPaletteAddr then
-print'updating paletteRAM addr'	
+--DEBUG:print'updating paletteRAM addr'
 			self.paletteRAM:updateAddr(newPaletteAddr)
 		end
 		local newFontAddr = self.ram.fontAddr:toabs()
 		if self.fontRAM.addr ~= newFontAddr then
-print'updating fontRAM addr'	
+--DEBUG:print'updating fontRAM addr'
 			self.fontRAM:updateAddr(newFontAddr)
+		end
+
+		-- BIG TODO for feedback framebuffer
+		-- if any of the sheets are pointed to the framebuffer then we gotta checkDirtyGPU here on the framebuffer every frame ...
+		-- in fact same if the framebuffer points to any of the other system RAM addresses, in case you want to draw to the fontWidth array or something ...
+		-- but we don't need to always be copying back from GPU to CPU ... only if any of the sheets overlap with it ...
+		-- and if any sheets intersect with it then we need to copy the GPU back to CPU ... and then set the sheets' dirtyCPU flag ...
+		local spriteSheetOverlapsFramebuffer = self.spriteSheetRAM:overlaps(self.framebufferRAM)
+		local tileSheetOverlapsFramebuffer = self.tileSheetRAM:overlaps(self.framebufferRAM)
+		local tilemapOverlapsFramebuffer = self.tilemapRAM:overlaps(self.framebufferRAM)
+		local paletteOverlapsFramebuffer = self.paletteRAM:overlaps(self.framebufferRAM)
+		local fontOverlapsFramebuffer = self.fontRAM:overlaps(self.framebufferRAM)
+		if spriteSheetOverlapsFramebuffer
+		or tileSheetOverlapsFramebuffer
+		or tilemapOverlapsFramebuffer
+		or paletteOverlapsFramebuffer
+		or fontOverlapsFramebuffer
+		then
+--DEBUG:print'syncing framebuffer'
+			self.framebufferRAM:checkDirtyGPU()
+			if spriteSheetOverlapsFramebuffer then self.spriteSheetRAM.dirtyCPU = true end
+			if tileSheetOverlapsFramebuffer then self.tileSheetRAM.dirtyCPU = true end
+			if tilemapOverlapsFramebuffer then self.tilemapRAM.dirtyCPU = true end
+			if paletteOverlapsFramebuffer then self.paletteRAM.dirtyCPU = true end
+			if fontOverlapsFramebuffer then self.fontRAM.dirtyCPU = true end
 		end
 
 		if self.currentVideoMode ~= self.ram.videoMode then
@@ -1559,7 +1584,7 @@ print('run thread dead')
 			self:matident()
 			-- set drawText font & pal to the UI's
 			self.inMenuUpdate = true
-			
+
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
 			self:setVideoMode(0)
 
