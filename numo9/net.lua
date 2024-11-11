@@ -379,6 +379,7 @@ local Numo9Cmd_map = struct{
 		{name='screenY', type='float'},
 		{name='mapIndexOffset', type='int'},
 		{name='draw16Sprites', type='bool'},
+		{name='sheetIndex', type='uint8_t'},
 	},
 }
 
@@ -1376,7 +1377,8 @@ print()
 						c.tileX, c.tileY, c.tilesWide, c.tilesHigh,
 						c.screenX, c.screenY,
 						c.mapIndexOffset,
-						c.draw16Sprites)
+						c.draw16Sprites,
+						c.sheetIndex)
 				elseif cmdtype == netcmds.text then
 					local c = cmd[0].text
 					app:drawText(

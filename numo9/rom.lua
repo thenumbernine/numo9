@@ -103,7 +103,7 @@ local ROM = struct{
 			anonymous = true,
 			packed = true,
 			fields = {
-				
+
 				--[[
 				tempting to split up ROM/"bank" into individual unit sizes dedicated to thinks like vram etc ...
 				maybe 64k units ...
@@ -112,17 +112,23 @@ local ROM = struct{
 				- audio
 				- code
 				- misc ... where palette, font, etc would go
-				
+
 				and then in the ROM meta-info (which I don't have yet) flag banks as VRAM or not
 				and if they're VRAM then make a texture w/dirty bits etc.
 				and then give spr() and map() an extra byte var for specifying which sheet to use.
+
+
+				... but then when specifying spr() or map() sheet, 
+				should I use some internal order (0=sprite 1=tile) or should I just pass the bank?
+				Bank = more flexible, but if I choose that then how should I know which banks to associate GPU textures with?
+					and if I do a GPU tex per bank, does that throw out the idea of making the GPU tex relocatable to anywhere in memory?
 				--]]
 
 				-- [[ video stuff
 				{name='spriteSheet', type='uint8_t['..spriteSheetSize:volume()..']'},	-- 64k
 				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},		-- 64k
 				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},			-- 128k
-				
+
 				{name='palette', type='uint16_t['..paletteSize..']'},					-- 0.5k
 				{name='font', type='uint8_t['..fontSizeInBytes..']'},					-- 2k
 				--]]
@@ -306,6 +312,7 @@ local RAM = struct{
 			fields = table(
 --				ROM.fields[2].type.fields
 			):append{
+				-- TODO move this last
 				{name='bank', type='ROM[1]'},
 
 				-- graphics

@@ -566,7 +566,7 @@ assert.lt(i,256)
 -- [=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
 -- but wait, now that I started writing blank to tile index 0 in the converted cartridge ...
 		if not layers and not p8PalChanged then
-			return map(tileX,tileY,tileW,tileH,screenX,screenY,0)
+			return map(tileX,tileY,tileW,tileH,screenX,screenY,0,false,0)
 		end
 --]=]
 
@@ -646,7 +646,7 @@ assert.ge(shift,0)
 					if not layers
 					or sprFlags[i+1]&layers==layers
 					then
-						map(tx,ty,1,1,ssx,ssy,0)
+						map(tx,ty,1,1,ssx,ssy,0,false,0)
 					end
 				end
 				ssx+=8

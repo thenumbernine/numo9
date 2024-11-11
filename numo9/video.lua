@@ -2083,12 +2083,16 @@ function AppVideo:drawMap(
 	screenX,		-- \_ where in the screen to draw
 	screenY,		-- /
 	mapIndexOffset,	-- general shift to apply to all read map indexes in the tilemap
-	draw16Sprites	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
+	draw16Sprites,	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
+	sheetIndex
 )
-	self.tileSheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
+	sheetIndex = sheetIndex or 1
+	local sheetRAM = assert.index(self.spriteSheetRAMs, sheetIndex+1)
+	sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	self.paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	self.tilemapRAM:checkDirtyCPU()
 	self.framebufferRAM:checkDirtyCPU()
+	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
@@ -2097,8 +2101,8 @@ function AppVideo:drawMap(
 	local sceneObj = self.quadMapObj
 	local uniforms = sceneObj.uniforms
 	sceneObj.texs[1] = self.tilemapRAM.tex
+	sceneObj.texs[2] = sheetRAM.tex
 
-self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
 
