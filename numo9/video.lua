@@ -493,6 +493,19 @@ function RAMGPUTex:checkDirtyGPU()
 	self.dirtyGPU = false
 end
 
+--[[
+sync CPU and GPU mem then move and flag cpu-dirty so the next cycle will update
+--]]
+function RAMGPUTex:updateAddr(newaddr)
+	self:checkDirtyGPU()	-- only the framebuffer has this
+	self:checkDirtyCPU()
+	newaddr = math.clamp(bit.bor(0, newaddr), 0, ffi.sizeof'RAM' - self.size)
+	self.addr = newaddr
+	self.addrEnd = newaddr + self.size
+	self.image.buffer = self.app.ram.v + self.addr
+	self.tex.data = self.image.buffer
+	self.dirtyCPU = true
+end
 
 
 -- This just holds a bunch of stuff that App will dump into itself
@@ -502,7 +515,7 @@ local AppVideo = {}
 
 -- called upon app init
 -- 'self' == app
-function AppVideo:initDraw()
+function AppVideo:initVideo()
 	self.fb = GLFBO{
 		width = frameBufferSize.x,
 		height = frameBufferSize.y,
@@ -1615,15 +1628,44 @@ function AppVideo:setDirtyCPU()
 end
 
 function AppVideo:resetVideo()
+	-- flush all before resetting RAM addrs in case any are pointed to the addrs' location
+	-- do the framebuffers explicitly cuz typically 'checkDirtyGPU' just does the current one
+	-- and also because the first time resetVideo() is called, the video mode hasn't been set yet, os the framebufferRAM hasn't been assigned yet
+	self.framebufferRGB565RAM:checkDirtyGPU()
+	self.framebufferIndexRAM:checkDirtyGPU()
+	self.spriteSheetRAM:checkDirtyGPU()
+	self.tileSheetRAM:checkDirtyGPU()
+	self.tilemapRAM:checkDirtyGPU()
+	self.paletteRAM:checkDirtyGPU()
+	self.fontRAM:checkDirtyGPU()
+	-- reset these
+	local defaultFramebufferAddr = 0
+	local defaultSpriteSheetAddr = 0x30000
+	local defaultTileSheetAddr = 0x40000
+	local defaultTilemapAddr = 0x50000
+	local defaultPaletteAddr = 0x70000
+	local defaultFontAddr = 0x70200
+	self.ram.framebufferAddr:fromabs(defaultFramebufferAddr)
+	self.ram.spriteSheetAddr:fromabs(defaultSpriteSheetAddr)
+	self.ram.tileSheetAddr:fromabs(defaultTileSheetAddr)
+	self.ram.tilemapAddr:fromabs(defaultTilemapAddr)
+	self.ram.paletteAddr:fromabs(defaultPaletteAddr)
+	self.ram.fontAddr:fromabs(defaultFontAddr)
+	-- and these
+	self.framebufferRGB565RAM:updateAddr(defaultFramebufferAddr)
+	self.framebufferIndexRAM:updateAddr(defaultFramebufferAddr)
+	self.spriteSheetRAM:updateAddr(defaultSpriteSheetAddr)
+	self.tileSheetRAM:updateAddr(defaultTileSheetAddr)
+	self.tilemapRAM:updateAddr(defaultTilemapAddr)
+	self.paletteRAM:updateAddr(defaultPaletteAddr)
+	self.fontRAM:updateAddr(defaultFontAddr)
+
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
 	--self.ram.videoMode = 1	-- 8bpp indexed
 	--self.ram.videoMode = 2	-- 8bpp RGB332
 	self:setVideoMode(self.ram.videoMode)
 
-	--[[ update later ...
-	self:checkDirtyGPU()
-	--]]
 	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
 	-- [[ update now ...
 	self.spriteSheetRAM.tex:bind()

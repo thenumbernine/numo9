@@ -898,7 +898,7 @@ print('package.loaded', package.loaded)
 --]]
 
 
-	self:initDraw()
+	self:initVideo()
 
 	-- keyboard init
 	-- make sure our keycodes are in bounds
@@ -1429,6 +1429,38 @@ conn.receivesPerSecond = 0
 		needUpdateCounter = 0
 
 		collectgarbage()
+
+		local newFramebufferAddr = self.ram.framebufferAddr:toabs()
+		if self.framebufferRAM.addr ~= newFramebufferAddr then
+print'updating framebufferRAM addr'	
+			self.framebufferRGB565RAM:updateAddr(newFramebufferAddr) 
+			self.framebufferIndexRAM:updateAddr(newFramebufferAddr)
+		end
+		local newSpriteSheetAddr = self.ram.spriteSheetAddr:toabs()
+		if self.spriteSheetRAM.addr ~= newSpriteSheetAddr then
+print'updating spriteSheetRAM addr'	
+			self.spriteSheetRAM:updateAddr(newSpriteSheetAddr)
+		end
+		local newTileSheetAddr = self.ram.tileSheetAddr:toabs()
+		if self.tileSheetRAM.addr ~= newTileSheetAddr then
+print'updating tileSheetRAM addr'	
+			self.tileSheetRAM:updateAddr(newTileSheetAddr)
+		end
+		local newTilemapAddr = self.ram.tilemapAddr:toabs()
+		if self.tilemapRAM.addr ~= newTilemapAddr then
+print'updating tilemapRAM addr'	
+			self.tilemapRAM:updateAddr(newTilemapAddr)
+		end
+		local newPaletteAddr = self.ram.paletteAddr:toabs()
+		if self.paletteRAM.addr ~= newPaletteAddr then
+print'updating paletteRAM addr'	
+			self.paletteRAM:updateAddr(newPaletteAddr)
+		end
+		local newFontAddr = self.ram.fontAddr:toabs()
+		if self.fontRAM.addr ~= newFontAddr then
+print'updating fontRAM addr'	
+			self.fontRAM:updateAddr(newFontAddr)
+		end
 
 		if self.currentVideoMode ~= self.ram.videoMode then
 			self:setVideoMode(self.ram.videoMode)

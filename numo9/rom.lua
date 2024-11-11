@@ -49,7 +49,7 @@ local sfxTableSize =  256	-- max number of unique sfx that a music can reference
 local musicTableSize = 256	-- max number of music tracks stored
 local audioDataSize = 0xf800	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
 
-local userDataSize = 0xd85c
+local userDataSize = 0xd84a
 
 -- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
 -- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
@@ -304,6 +304,28 @@ local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
 -- make sure we can index all our sfx in the table
 --assert.le(sfxTableSize, maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)))
 
+local addr24_t = struct{
+	name = 'addr24_t',
+	packed = true,
+	fields = {
+		{name='ofs', type='uint16_t'},
+		{name='bank', type='uint8_t'},
+	},
+	metatable = function(m)
+		function m:toabs()
+			return bit.bor(
+				bit.lshift(bit.band(self.bank, 0xff), 16),
+				bit.band(self.ofs, 0xffff)
+			)
+		end
+		function m:fromabs(addr)
+			self.bank = bit.band(bit.rshift(addr, 16), 0xff)
+			self.ofs = bit.band(addr, 0xffff)
+		end
+	end,
+}
+assert.eq(ffi.sizeof'addr24_t', 3)
+
 local RAM = struct{
 	name = 'RAM',
 	union = true,
@@ -321,6 +343,7 @@ local RAM = struct{
 				-- maybe I'll do rgb332+dithering to save space ...
 				-- maybe I'll say rgb565 is maximum but if the user chooses they can change modes to rgb332, indexed, heck why not 4bit or 2bit ...
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
+
 				{name='clipRect', type='uint8_t[4]'},
 				{name='mvMat', type=mvMatType..'[16]'},
 				{name='videoMode', type='uint8_t'},
@@ -333,6 +356,17 @@ local RAM = struct{
 
 				{name='textFgColor', type='uint8_t'},
 				{name='textBgColor', type='uint8_t'},
+
+				-- Store VRAM addrs here, and let the user point them wherever
+				-- This way they can redirect sprite/tile sheets to other (expandible) banks
+				-- Or heck why not use the framebuffer, yeah I'll allow it even though Pico8 didn't
+				-- Changes to these reflect the next vsync
+				{name='framebufferAddr', type='addr24_t'},	-- where the framebuffer is
+				{name='spriteSheetAddr', type='addr24_t'},	-- where sheet 0 is / default sheet of spr() function
+				{name='tileSheetAddr', type='addr24_t'},	-- where sheet 1 is / default sheet of map() function
+				{name='tilemapAddr', type='addr24_t'},		-- where the tilemap is / used by map() function
+				{name='paletteAddr', type='addr24_t'},		-- where the palette is / used by pal() function
+				{name='fontAddr', type='addr24_t'},			-- where the font is / sheet 2 / used by text() function
 
 				-- audio state of waves that are playing
 				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
