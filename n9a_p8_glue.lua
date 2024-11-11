@@ -71,7 +71,7 @@ lol or i could manually write sprites to temp regions before drawing them ...
 p8_pal=[from,to,pal]do
 	if not from then
 		for i=0,15 do
-			pokew(palMem+(i<<1),p8palette[i+1])
+			pokew(paletteAddr+(i<<1),p8palette[i+1])
 		end
 		if next(p8palRemap) then p8palRemap={} end
 		p8PalChanged=false
@@ -83,7 +83,7 @@ if pal==2 then trace"TODO pal(from,to,pal)" end
 		to=math.floor(to)
 		if from>=0 and from<16 and to>=0 and to<16 then
 			if pal==1 then
-				pokew(palMem+(to<<1),p8palette[from+1])
+				pokew(paletteAddr+(to<<1),p8palette[from+1])
 			else
 				p8palRemap[from]=to
 			end
@@ -98,7 +98,7 @@ if pal==2 then trace"TODO pal(map,pal)" end
 			if from>=0 and from<=16 and to>=0 and to<16 then
 				from=bit.band(from,0xf)
 				if pal==1 then
-					pokew(palMem+(to<<1),p8palette[from+1])
+					pokew(paletteAddr+(to<<1),p8palette[from+1])
 				else
 					p8palRemap[from]=to
 				end
@@ -116,7 +116,7 @@ p8_setpalt=[c,t]do
 	c=math.floor(c)
 assert.ge(c, 0)
 assert.lt(c, 16)
-	local addr=palMem+(c<<1)
+	local addr=paletteAddr+(c<<1)
 assert.type(t,'boolean')
 	if t~=false then	-- true <-> transparent <-> clear alpha
 		pokew(addr,peekw(addr)&0x7fff)
@@ -156,7 +156,7 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 		local x=(addr&0x3f)<<1
 		local yhi=(addr&0x1fc0)<<2
 		addr=x|yhi
-		local value=peekw(gfxMem+addr)
+		local value=peekw(spriteSheetAddr+addr)
 		return (value&0xf)|((value&0xf00)>>4)
 		-- TODO addr>=0x1000 and addr <0x2000 then ALSO write to the tilemapTex
 --pico8 memory from $6000 to $8000 is the 4bpp screen
@@ -166,16 +166,16 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 		local x=addr&0x7f
 		local y=(addr>>7)&0x1f
 		addr=(x<<1)|(y<<9)
-		local value=peekw(mapMem+addr)
+		local value=peekw(tilemapAddr+addr)
 		return (value&0x0f)|((value>>1)&0xf0)
 	elseif addr>=0x4300 and addr<0x5600 then	-- user data
-		return peek(addr-0x4300+userMem)
+		return peek(addr-0x4300+userDataAddr)
 	elseif addr>=0x6000 and addr<0x8000 then
 		addr-=0x6000
 		local x=(addr&0x3f)<<1		-- lo 6 bits=x coord, to be shifted << 1
 		local yhi=(addr&0x1fc0)<<2	-- next 7 bits=y coord, to be shifted << 8
 		addr=x|yhi
-		local value=peekw(fbMem+addr)
+		local value=peekw(framebufferAddr+addr)
 		return (value&0x0f)|((value&0x0f00)>>4)
 	end
 trace(('TODO peek $%x'):format(addr))
@@ -187,30 +187,30 @@ p8poke=[addr,value,...]do
 		local x=(addr&0x3f)<<1		-- x coord
 		local yhi=(addr&0x1fc0)<<2	-- y coord << 8
 		addr=x|yhi
-		pokew(gfxMem+addr,(value&0xf)|((value&0xf0)<<4))
+		pokew(spriteSheetAddr+addr,(value&0xf)|((value&0xf0)<<4))
 		if addr>=0x1000 then
 			-- shared mem, also write to the map lower
 			addr-=0x1000
 			local x=addr&0x7f				-- 7 bits x
 			local y=((addr>>7)&0x1f)|0x20	-- 5 bits y
 			addr=(x<<1)|(y<<9)
-			pokew(mapMem+addr,(value&0xf)|((value&0xf0)<<1))
+			pokew(tilemapAddr+addr,(value&0xf)|((value&0xf0)<<1))
 		end
 	elseif addr>=0x2000 and addr<0x3000 then
 		addr-=0x2000
 		local x=addr&0x7f			-- 7 bits x
 		local y=(addr>>7)&0x1f	-- 5 bits y
 		addr=(x<<1)|(y<<9)
-		pokew(mapMem+addr,(value&0xf)|((value&0xf0)<<1))
+		pokew(tilemapAddr+addr,(value&0xf)|((value&0xf0)<<1))
 	elseif addr>=0x4300 and addr<0x5600 then	-- user data
-		poke(addr-0x4300+userMem,value)
+		poke(addr-0x4300+userDataAddr,value)
 	elseif addr>=0x6000 and addr<0x8000 then
 		-- only valid for 8bpp-indexed video mode
 		addr-=0x6000
 		local x=(addr&0x3f)<<1		-- x coord
 		local yhi=(addr&0x1fc0)<<2	-- y coord << 8
 		addr=x|yhi
-		pokew(fbMem+addr,(value&0xf)|((value&0xf0)<<4))
+		pokew(framebufferAddr+addr,(value&0xf)|((value&0xf0)<<4))
 	else
 trace(('TODO poke $%x $%x'):format(addr, value))
 	end
@@ -383,12 +383,12 @@ setfenv(1, {
 		y=math.floor(y)
 		if x<0 or x>=128 or y<0 or y >= 128 then return end
 		col=math.floor(col or p8color)
-		poke(gfxMem+((x|(y<<8))),col)
+		poke(spriteSheetAddr+((x|(y<<8))),col)
 	end,
 	sget=[x,y]do
 		x=math.floor(x)
 		y=math.floor(y)
-		return x<0 or x>=128 or y<0 or y>128 and 0 or peek(gfxMem+((x|(y<<8))))
+		return x<0 or x>=128 or y<0 or y>128 and 0 or peek(spriteSheetAddr+((x|(y<<8))))
 	end,
 	rect=[x0,y0,x1,y1,col]do
 		col=col or p8color	-- TODO `or=` operator for logical-inplace-or?
@@ -673,9 +673,9 @@ assert.lt(n,256)
 				for i=0,(w<<3)-1 do
 					-- draw it to x=0,y=128 in our unused spritesheet area
 					-- use hi pal=1 so we don't get any transparency changes from pal-0
-					local c = peek(gfxMem + ((nx<<3) + i) + (((ny<<3) + j) << 8))
+					local c = peek(spriteSheetAddr + ((nx<<3) + i) + (((ny<<3) + j) << 8))
 					c = (p8palRemap[c] or c) -- + 16		-- offset by 16 to use next palette over, with its alphas intact ... I'm still not sure how palette-remapping and transprency works together
-					poke(gfxMem + i + ((j + 128) << 8), c)
+					poke(spriteSheetAddr + i + ((j + 128) << 8), c)
 				end
 			end
 			n = 0x200
@@ -768,7 +768,7 @@ trace'TODO cstore'
 		if _update60 then _update60() end
 		update=[]do
 			if _update
-			and peek(updateCounterMem)&1==0 -- run at 30fps
+			and peek(updateCounterAddr)&1==0 -- run at 30fps
 			then
 				_update()
 			end

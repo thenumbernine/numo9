@@ -236,7 +236,7 @@ or cmd == 'r' then
 			assert(ffi.sizeof(image.format), 1)
 			ffi.copy(bank.spriteSheet, image.buffer, spriteSheetSize:volume())
 		end
-			
+
 		print'loading tile sheet...'
 		if bankpath'tiles.png':exists() then
 			local image = assert(Image(bankpath'tiles.png'.path))
@@ -555,7 +555,7 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 	assert(basepath'origcode.lua':write(code))
 
 	-- pico8 converts its 127-255 chars to unicode ...
-	-- ... convert them back here 
+	-- ... convert them back here
 	-- TODO this will frustrate the text editors
 	-- maybe it's best to handle all code as utf8 and leave pico8-exported code as is
 	-- ... and TODO just get a utf8 library for luajit
@@ -583,9 +583,9 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 		['\240'] = 'ユ',	['\241'] = 'ヨ',	['\242'] = 'ラ',	['\243'] = 'リ',	['\244'] = 'ル',	['\245'] = 'レ',	['\246'] = 'ロ',	['\247'] = 'ワ',
 		['\248'] = 'ヲ',	['\249'] = 'ン',	['\250'] = 'ッ',	['\251'] = 'ャ',	['\252'] = 'ュ',	['\253'] = 'ョ',	['\254'] = '◜',	['\255'] = '◝',
 	}):setmetatable(nil)
-	local unicodeToP8 = table.map(p8ToUnicode, function(v,k) 
+	local unicodeToP8 = table.map(p8ToUnicode, function(v,k)
 		assert.ne(k,v,"redundant entry "..string.bytes(k):concat',')
-		return k,v 
+		return k,v
 	end):setmetatable(nil)
 	local unicodeMaxLen = select(2, table.keys(unicodeToP8):map(function(s) return #s end):sup())
 	-- now replace all unicode characters with their original P8 characters
@@ -710,7 +710,7 @@ print('toImage', name, 'width', width, 'height', height)
 	end
 	tileImage.palette = palette
 	tileImage:save(basepath'tiles.png'.path)
-	
+
 	local labelSrc = move(sections, 'label')
 	if labelSrc then
 		local labelImg = toImage(labelSrc, false, 'label')
@@ -1551,6 +1551,10 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		--]]
 	end
 
+	if ffi.sizeof(ffi.cast('RAM*',0).userData) < 0x1300 then
+		error"DANGER! userData isn't large enough for Pico8"
+	end
+
 	-- now add our glue between APIs ...
 	code = table{
 		spriteFlagCode
@@ -1560,12 +1564,12 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		'-- begin compat layer',
 		-- some glue code needs this, might as well generate it dynamically here:
 		-- NOTICE if you ever remove ffi from the cartridge API then this will break ...
-		"updateCounterMem=ffi.offsetof('RAM', 'updateCounter')",
-		"gfxMem=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')",
-		"mapMem=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')",
-		"palMem=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')",
-		"fbMem=ffi.offsetof('RAM', 'framebuffer')",
-		"userMem=ffi.offsetof('RAM', 'userData')",
+		"updateCounterAddr=ffi.offsetof('RAM', 'updateCounter')",
+		"spriteSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')",
+		"tilemapAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')",
+		"paletteAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')",
+		"framebufferAddr=ffi.offsetof('RAM', 'framebuffer')",
+		"userDataAddr=ffi.offsetof('RAM', 'userData')",
 		assert(path'n9a_p8_glue.lua':read()),
 		'-- end compat layer',
 		code,

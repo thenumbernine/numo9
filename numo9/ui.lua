@@ -268,7 +268,7 @@ function UI:update()
 	local x = 230
 	if self:guiButton('R', x, 0, nil, 'reset RAM') then
 		app:checkDirtyGPU()
-		ffi.copy(app.ram.v, app.banks.v[0].v, ffi.sizeof'ROM')
+		ffi.copy(app.ram.bank, app.banks.v[0].v, ffi.sizeof'ROM')
 		app:setDirtyCPU()
 	end
 	x=x+6
@@ -343,18 +343,21 @@ end
 function UI:edit_poke(addr, value)
 	local app = self.app
 	app:net_poke(addr, value)
+	addr = addr - ffi.offsetof('RAM', 'bank')
 	app.banks.v[0].v[addr] = value
 end
 
 function UI:edit_pokew(addr, value)
 	local app = self.app
 	app:net_pokew(addr, value)
+	addr = addr - ffi.offsetof('RAM', 'bank')
 	ffi.cast('uint16_t*', app.banks.v[0].v + addr)[0] = value
 end
 
 function UI:edit_pokel(addr, value)
 	local app = self.app
 	app:net_pokel(addr, value)
+	addr = addr - ffi.offsetof('RAM', 'bank')
 	ffi.cast('uint32_t*', app.banks.v[0].v + addr)[0] = value
 end
 

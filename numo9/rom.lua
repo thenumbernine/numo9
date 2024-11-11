@@ -47,9 +47,9 @@ local audioMixChannels = 8	-- # channels to play at the same time
 local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a time
 local sfxTableSize =  256	-- max number of unique sfx that a music can reference
 local musicTableSize = 256	-- max number of music tracks stored
-local audioDataSize = 0xe000	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
+local audioDataSize = 0xf800	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
 
-local userDataSize = 0x10000
+local userDataSize = 0xd85c
 
 -- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
 -- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
@@ -118,10 +118,12 @@ local ROM = struct{
 				and then give spr() and map() an extra byte var for specifying which sheet to use.
 
 
-				... but then when specifying spr() or map() sheet, 
+				... but then when specifying spr() or map() sheet,
 				should I use some internal order (0=sprite 1=tile) or should I just pass the bank?
 				Bank = more flexible, but if I choose that then how should I know which banks to associate GPU textures with?
 					and if I do a GPU tex per bank, does that throw out the idea of making the GPU tex relocatable to anywhere in memory?
+
+				Or I should use only 2 ... one for spr() renderer, one for map() renderer, and let either be relocatable.
 				--]]
 
 				-- [[ video stuff
@@ -132,6 +134,11 @@ local ROM = struct{
 				{name='palette', type='uint16_t['..paletteSize..']'},					-- 0.5k
 				{name='font', type='uint8_t['..fontSizeInBytes..']'},					-- 2k
 				--]]
+
+				-- I'm chopping ROM things into 64k banks
+				-- but the palette and font are small and dont fit
+				-- so their bank has lots of extra room
+				{name='extra', type='uint8_t[' .. 0xf600 .. ']'},				-- 61.5k
 
 				-- [[ audio stuff
 				-- sfxs should have -start addr -loop addr (what to play next ... any addr in audio ram)
@@ -306,15 +313,7 @@ local RAM = struct{
 			anonymous = true,
 			packed = true,
 
-			-- does C let you inherit classes?  anonymous fields with named types?
-			-- they let you have named fields with anonymous (inline-defined) types ...
-			-- until then, just wedge in the fields here and assert their offsets match.
-			fields = table(
---				ROM.fields[2].type.fields
-			):append{
-				-- TODO move this last
-				{name='bank', type='ROM[1]'},
-
+			fields = {
 				-- graphics
 
 				-- I know, I know, old consoles didn't have a framebuffer
@@ -364,11 +363,17 @@ local RAM = struct{
 				{name='lastMousePos', type='vec2s_t'},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
 				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
 
-				-- TODO maybe align this
-				{name='userData', type='uint8_t['..userDataSize..']'},
-
-				-- TODO align this too
+				-- persistent data per-game
+				-- TODO align this
 				{name='persistentCartridgeData', type='uint8_t['..persistentCartridgeDataSize..']'},
+
+				-- I needed 0x1300 of 'userData' for pico8 compat
+				-- so I thought, why put it in  RAM, why not in the cart as well, since the cart has space?
+				-- TODO maybe ... netplay persistent data ... one set per-game, one set per-game-per-server
+				{name='userData', type='uint8_t['.. userDataSize ..']'},
+
+				-- last so it can be expandable
+				{name='bank', type='ROM[1]'},
 			},
 		}},
 	},
