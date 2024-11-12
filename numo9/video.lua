@@ -23,7 +23,6 @@ local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local spriteSheetAddr = numo9_rom.spriteSheetAddr
-local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
 local tileSheetAddr = numo9_rom.tileSheetAddr
 local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapSize = numo9_rom.tilemapSize
@@ -31,7 +30,6 @@ local paletteSize = numo9_rom.paletteSize
 local paletteAddr = numo9_rom.paletteAddr
 local paletteInBytes = numo9_rom.paletteInBytes
 local fontAddr = numo9_rom.fontAddr
-local fontSizeInBytes = numo9_rom.fontSizeInBytes
 local fontImageSize = numo9_rom.fontImageSize
 local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
 local fontInBytes = numo9_rom.fontInBytes
@@ -654,7 +652,7 @@ function AppVideo:initVideo()
 		}:unbind()
 
 		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
-		local fontData = ffi.new('uint8_t[?]', fontSizeInBytes)
+		local fontData = ffi.new('uint8_t[?]', fontInBytes)
 		resetROMFont(fontData, 'font.png')
 		self.fontMenuTex = GLTex2D{
 			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
@@ -1643,26 +1641,20 @@ function AppVideo:resetVideo()
 	self.paletteRAM:checkDirtyGPU()
 	self.fontRAM:checkDirtyGPU()
 	-- reset these
-	local defaultFramebufferAddr = 0
-	local defaultSpriteSheetAddr = 0x30000
-	local defaultTileSheetAddr = 0x40000
-	local defaultTilemapAddr = 0x50000
-	local defaultPaletteAddr = 0x70000
-	local defaultFontAddr = 0x70200
-	self.ram.framebufferAddr:fromabs(defaultFramebufferAddr)
-	self.ram.spriteSheetAddr:fromabs(defaultSpriteSheetAddr)
-	self.ram.tileSheetAddr:fromabs(defaultTileSheetAddr)
-	self.ram.tilemapAddr:fromabs(defaultTilemapAddr)
-	self.ram.paletteAddr:fromabs(defaultPaletteAddr)
-	self.ram.fontAddr:fromabs(defaultFontAddr)
+	self.ram.framebufferAddr:fromabs(framebufferAddr)
+	self.ram.spriteSheetAddr:fromabs(spriteSheetAddr)
+	self.ram.tileSheetAddr:fromabs(tileSheetAddr)
+	self.ram.tilemapAddr:fromabs(tilemapAddr)
+	self.ram.paletteAddr:fromabs(paletteAddr)
+	self.ram.fontAddr:fromabs(fontAddr)
 	-- and these
-	self.framebufferRGB565RAM:updateAddr(defaultFramebufferAddr)
-	self.framebufferIndexRAM:updateAddr(defaultFramebufferAddr)
-	self.spriteSheetRAM:updateAddr(defaultSpriteSheetAddr)
-	self.tileSheetRAM:updateAddr(defaultTileSheetAddr)
-	self.tilemapRAM:updateAddr(defaultTilemapAddr)
-	self.paletteRAM:updateAddr(defaultPaletteAddr)
-	self.fontRAM:updateAddr(defaultFontAddr)
+	self.framebufferRGB565RAM:updateAddr(framebufferAddr)
+	self.framebufferIndexRAM:updateAddr(framebufferAddr)
+	self.spriteSheetRAM:updateAddr(spriteSheetAddr)
+	self.tileSheetRAM:updateAddr(tileSheetAddr)
+	self.tilemapRAM:updateAddr(tilemapAddr)
+	self.paletteRAM:updateAddr(paletteAddr)
+	self.fontRAM:updateAddr(fontAddr)
 
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
@@ -1776,7 +1768,7 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 	local fromFound = 0
 	local toFound = 0
 	-- TODO option for only swap in a specific sheet/addr
-	for _,base in ipairs{spriteSheetAddr, tileSheetAddr} do
+	for _,base in ipairs{self.spriteSheetRAM.addr, self.tileSheetRAM.addr} do
 		for j=y,y+h-1 do
 			for i=x,x+w-1 do
 				local addr = base + i + spriteSheetSize.x * j
@@ -1792,8 +1784,8 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 		end
 	end
 	-- now swap palette entries
-	local fromAddr =  paletteAddr + bit.lshift(from, 1)
-	local toAddr =  paletteAddr + bit.lshift(to, 1)
+	local fromAddr =  self.paletteRAM.addr + bit.lshift(from, 1)
+	local toAddr =  self.paletteRAM.addr + bit.lshift(to, 1)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)

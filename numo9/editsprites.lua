@@ -14,8 +14,6 @@ local Quantize = require 'image.quantize_mediancut'
 local rgba8888_4ch_to_5551 = require 'numo9.video'.rgba8888_4ch_to_5551	-- TODO move this
 local rgba5551_to_rgba8888_4ch = require 'numo9.video'.rgba5551_to_rgba8888_4ch
 
-local paletteSize = require 'numo9.rom'.paletteSize
-local paletteAddr = require 'numo9.rom'.paletteAddr
 local frameBufferSize = require 'numo9.rom'.frameBufferSize
 local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
 local spriteSize = require 'numo9.rom'.spriteSize
@@ -578,7 +576,7 @@ function EditSprites:update()
 	end, 'pen size='..self.penSize)
 
 	-- edit palette entries
-	local selPaletteAddr = paletteAddr + bit.lshift(self.paletteSelIndex, 1)
+	local selPaletteAddr = app.paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
 	local selColorValue = app:peekw(selPaletteAddr)
 	self:drawText(('C=%04X'):format(selColorValue), 16, 216, 13, -1)
 	self:drawText(('R=%02X'):format(bit.band(selColorValue,0x1f)), 16, 224, 13, -1)
@@ -769,7 +767,7 @@ print('possible colors: '..require 'ext.tolua'(colors))
 						assert.eq(image.channels, 1, "image.channels")
 						for i,color in ipairs(colors) do
 							self:edit_pokew(
-								paletteAddr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
+								app.paletteRAM.addr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
 								rgba8888_4ch_to_5551(
 									color:byte(1),
 									color:byte(2),
