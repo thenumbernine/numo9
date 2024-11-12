@@ -101,7 +101,7 @@ setfenv(1, {
 		if colorkey then trace'TODO map colorkey' end
 		if scale then trace'TODO map scale' end
 		if remap then trace'TODO map remap' end
-		map(tileX,tileY,tileW,tileH,screenX,screenY)
+		map(tileX or 0,tileY or 0,tileW or 30,tileH or 17,screenX or 0,screenY or 0)
 	end,
 	memcpy=[dst,src,len]do
 		for i=0,len-1 do
@@ -154,9 +154,20 @@ setfenv(1, {
 	rectb=rectb,
 	reset=reset,
 	sfx=[] trace'TODO sfx',
-	spr=[id,x,y,colorkey,scale,flip,rotate,w,h]do
-		-- TODO flip and rotate
-		spr(id,x,y,w or 1,h or 1,0,-1,0,0xf,scale,scale)
+	spr=[n,x,y,colorkey,scale,flip,rotate,w,h]do
+		if rotate then trace'TODO spr rotate' end
+		n=math.floor(n)
+assert.ge(n,0)
+assert.lt(n,256)
+		local nx=n&0xf
+		local ny=n>>4
+		n=nx|(ny<<5)
+		w=math.floor(w or 1)
+		h=math.floor(h or 1)
+		local scaleX,scaleY=scale,scale
+		if flipX then x+=w*scale*8 scaleX=-scale end
+		if flipY then y+=h*sclae*8 scaleY=-scale end
+		spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
 	end,
 	sync=[] trace'TODO sync',
 	time=[] 1000*time(),
@@ -181,6 +192,9 @@ setfenv(1, {
 	math=math,	-- TODO original math
 	table=table,	-- TODO original table
 	string=string,	-- TODO original string
+	langfix={	-- needed for langfix to work
+		idiv=[a,b] tonumber(langfix.idiv(a,b)),
+	},
 
 	__numo9_finished=[boot, tic, ovr, scn, bdr]do
 		local _ = boot?()

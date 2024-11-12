@@ -640,9 +640,9 @@ assert.ge(shift,0)
 		n=math.floor(n)
 assert.ge(n,0)
 assert.lt(n,256)
-		local nx = n & 0xf
-		local ny = n >> 4
-		n=nx|(ny << 5)
+		local nx=n&0xf
+		local ny=n>>4
+		n=nx|(ny<<5)
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
 		local scaleX,scaleY=1,1
