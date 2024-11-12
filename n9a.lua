@@ -1627,7 +1627,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 
 	for bankNo=0,7 do
 		local chunks = ticbanks[bankNo]
-		for _,chunkid in ipairs(table.keys(chunks)) do
+		for _,chunkid in ipairs(table.keys(chunks or {})) do
 			print('got bank', bankNo, 'chunk', chunkid, 'size', #chunks[chunkid])
 		end
 	end
@@ -1650,11 +1650,11 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			bankpath = basepath/tostring(bankNo)
 			bankpath:mkdir()
 		end
-		local chunks = ticbanks[bankNo]
+		local chunks = ticbanks[bankNo] or {}
 
 		-- save the palettes
 		local palette = assert.len(table{
-			{0x00, 0x00, 0x00, 0x00},
+			{0x00, 0x00, 0x00, 0xff},
 			{0x56, 0x2b, 0x5a, 0xff},
 			{0xa4, 0x46, 0x54, 0xff},
 			{0xe0, 0x82, 0x60, 0xff},
@@ -1779,13 +1779,11 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			local flagSrc = chunks[6]
 			assert.le(#flagSrc, 512)
 			spriteFlagCode:insert(1, 'sprFlags'..(bankNo==0 and '' or bankNo)..'={\n'
-				..range(0,31):mapi(function(j)
-					return range(0,15):mapi(function(i)
-						local index = i + 16 * j
-						local s = '0x'..flagSrc:sub(2*index+1,2*index+2)..','
-						if index==0 then s='[0]='..s end
-						return s
-					end):concat''..'\n'
+				..range(0,#flagSrc-1):mapi(function(index)
+					local s = ('0x%02x,'):format(flagSrc:byte(index+1))
+					if index==0 then s='[0]='..s end
+					if bit.band(index, 0xf) == 0xf then s = s .. '\n' end
+					return s
 				end):concat()
 				..'}\n'
 			)
