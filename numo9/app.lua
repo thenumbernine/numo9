@@ -54,22 +54,8 @@ local tilemapSize = numo9_rom.tilemapSize
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
 local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize
-local spriteSheetAddr = numo9_rom.spriteSheetAddr
-local spriteSheetAddrEnd = numo9_rom.spriteSheetAddrEnd
-local tileSheetAddr = numo9_rom.tileSheetAddr
-local tileSheetAddrEnd = numo9_rom.tileSheetAddrEnd
-local tilemapAddr = numo9_rom.tilemapAddr
-local tilemapAddrEnd = numo9_rom.tilemapAddrEnd
-local paletteAddr = numo9_rom.paletteAddr
-local paletteAddrEnd = numo9_rom.paletteAddrEnd
-local fontAddr = numo9_rom.fontAddr
-local fontAddrEnd = numo9_rom.fontAddrEnd
-local framebufferAddr = numo9_rom.framebufferAddr
-local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
 local packptr = numo9_rom.packptr
 local mvMatType = numo9_rom.mvMatType
-local clipRectAddr = numo9_rom.clipRectAddr
-local mvMatAddr = numo9_rom.mvMatAddr
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -206,16 +192,6 @@ function App:initGL()
 		--DEBUG:print(RAM.code)
 		print(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
 		print(('ROM size: 0x%x'):format(ffi.sizeof'ROM'))
-
-		-- make sure these constants work ...
-		assert.eq(framebufferAddr, ffi.cast('uint8_t*', self.ram.framebuffer) - ffi.cast('uint8_t*', self.ram.v))
-		assert.eq(clipRectAddr, ffi.cast('uint8_t*', self.ram.clipRect) - ffi.cast('uint8_t*', self.ram.v))
-		assert.eq(mvMatAddr, ffi.cast('uint8_t*', self.ram.mvMat) - ffi.cast('uint8_t*', self.ram.v))
-		assert.eq(spriteSheetAddr, ffi.cast('uint8_t*', self.ram.bank[0].spriteSheet) - ffi.cast('uint8_t*', self.ram.v))
-		assert.eq(tileSheetAddr, ffi.cast('uint8_t*', self.ram.bank[0].tileSheet) - ffi.cast('uint8_t*', self.ram.v))
-		assert.eq(tilemapAddr, ffi.cast('uint8_t*', self.ram.bank[0].tilemap) - ffi.cast('uint8_t*', self.ram.v))
-		assert.eq(paletteAddr, ffi.cast('uint8_t*', self.ram.bank[0].palette) - ffi.cast('uint8_t*', self.ram.v))
-		assert.eq(fontAddr, ffi.cast('uint8_t*', self.ram.bank[0].font) - ffi.cast('uint8_t*', self.ram.v))
 
 		--[[
 		for _,field in ipairs(ROM.fields[2].type.fields) do
@@ -365,10 +341,10 @@ function App:initGL()
 				return
 			end
 			if self.ram.videoMode == 0 then	-- 16bpp rgb565
-				local addr = framebufferAddr + bit.lshift(bit.bor(x, bit.lshift(y, 8)), 1)
+				local addr = self.framebufferRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, 8)), 1)
 				self:net_pokew(addr, color)
 			else	-- 8bpp indexed or 8bpp rgb332
-				local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
+				local addr = self.framebufferRAM.addr + bit.bor(x, bit.lshift(y, 8))
 				self:net_poke(addr, color)
 			end
 		end,
@@ -383,10 +359,10 @@ function App:initGL()
 				return 0
 			end
 			if self.ram.videoMode == 0 then	-- rgb565
-				local addr = framebufferAddr + bit.lshift(bit.bor(x, bit.lshift(y, 8)), 1)
+				local addr = self.framebufferRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, 8)), 1)
 				return self:peekw(addr)
 			else
-				local addr = framebufferAddr + bit.bor(x, bit.lshift(y, 8))
+				local addr = self.framebufferRAM.addr + bit.bor(x, bit.lshift(y, 8))
 				return self:peek(addr)
 			end
 		end,
@@ -1220,7 +1196,7 @@ function App:net_mset(x, y, value)
 			if self.ram.bank[0].tilemap[index]~=value then
 				local cmd = self.server:pushCmd().pokew
 				cmd.type = netcmds.pokew
-				cmd.addr = tilemapAddr + bit.lshift(index, 1)
+				cmd.addr = self.tilemapRAM.addr + bit.lshift(index, 1)
 				cmd.value = value
 			end
 		end
@@ -1805,7 +1781,10 @@ function App:peek(addr)
 
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the framebufferRAM
-	if self.framebufferRAM.dirtyGPU and addr >= framebufferAddr and addr < framebufferAddrEnd then
+	if self.framebufferRAM.dirtyGPU
+	and addr >= self.framebufferRAM.addr
+	and addr < self.framebufferRAM.addrEnd
+	then
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -1815,7 +1794,10 @@ function App:peekw(addr)
 	local addrend = addr+1
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if self.framebufferRAM.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
+	if self.framebufferRAM.dirtyGPU
+	and addr >= self.framebufferRAM.addr
+	and addr < self.framebufferRAM.addrEnd
+	then
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -1825,7 +1807,10 @@ function App:peekl(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if self.framebufferRAM.dirtyGPU and addrend >= framebufferAddr and addr < framebufferAddrEnd then
+	if self.framebufferRAM.dirtyGPU
+	and addr >= self.framebufferRAM.addr
+	and addr < self.framebufferRAM.addrEnd
+	then
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -1837,7 +1822,9 @@ function App:poke(addr, value)
 	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
-	if addr >= framebufferAddr and addr < framebufferAddrEnd then
+	if addr >= self.framebufferRAM.addr
+	and addr < self.framebufferRAM.addrEnd
+	then
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
@@ -1846,24 +1833,34 @@ function App:poke(addr, value)
 
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
-	if addr >= spriteSheetAddr and addr < spriteSheetAddrEnd then
+	if addr >= self.spriteSheetRAM.addr
+	and addr < self.spriteSheetRAM.addrEnd
+	then
 		-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
 		self.spriteSheetRAM.dirtyCPU = true
 	end
-	if addr >= tileSheetAddr and addr < tileSheetAddrEnd then
+	if addr >= self.tileSheetRAM.addr
+	and addr < self.tileSheetRAM.addrEnd
+	then
 		self.tileSheetRAM.dirtyCPU = true
 	end
-	if addr >= tilemapAddr and addr < tilemapAddrEnd then
+	if addr >= self.tilemapRAM.addr
+	and addr < self.tilemapRAM.addrEnd
+	then
 		self.tilemapRAM.dirtyCPU = true
 	end
 	-- a few options with dirtying palette entries
 	-- 1) consolidate calls, so write this separately in pokew and pokel
 	-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
 	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
-	if addr >= paletteAddr and addr < paletteAddrEnd then
+	if addr >= self.paletteRAM.addr
+	and addr < self.paletteRAM.addrEnd
+	then
 		self.paletteRAM.dirtyCPU = true
 	end
-	if addr >= fontAddr and addr < fontAddrEnd then
+	if addr >= self.fontRAM.addr
+	and addr < self.fontRAM.addrEnd
+	then
 		self.fontRAM.dirtyCPU = true
 	end
 	-- TODO if we poked the code
@@ -1872,26 +1869,38 @@ function App:pokew(addr, value)
 	local addrend = addr+1
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
+	if addrend >= self.framebufferRAM.addr
+	and addr < self.framebufferRAM.addrEnd
+	then
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
 
-	if addrend >= spriteSheetAddr and addr < spriteSheetAddrEnd then
+	if addrend >= self.spriteSheetRAM.addr
+	and addr < self.spriteSheetRAM.addrEnd
+	then
 		self.spriteSheetRAM.dirtyCPU = true
 	end
-	if addrend >= tileSheetAddr and addr < tileSheetAddrEnd then
+	if addrend >= self.tileSheetRAM.addr
+	and addr < self.tileSheetRAM.addrEnd
+	then
 		self.tileSheetRAM.dirtyCPU = true
 	end
-	if addrend >= tilemapAddr and addr < tilemapAddrEnd then
+	if addrend >= self.tilemapRAM.addr
+	and addr < self.tilemapRAM.addrEnd
+	then
 		self.tilemapRAM.dirtyCPU = true
 	end
-	if addrend >= paletteAddr and addr < paletteAddrEnd then
+	if addrend >= self.paletteRAM.addr
+	and addr < self.paletteRAM.addrEnd
+	then
 		self.paletteRAM.dirtyCPU = true
 	end
-	if addrend >= fontAddr and addr < fontAddrEnd then
+	if addrend >= self.fontRAM.addr
+	and addr < self.fontRAM.addrEnd
+	then
 		self.fontRAM.dirtyCPU = true
 	end
 	-- TODO if we poked the code
@@ -1900,26 +1909,38 @@ function App:pokel(addr, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
 
-	if addrend >= framebufferAddr and addr < framebufferAddrEnd then
+	if addrend >= self.framebufferRAM.addr
+	and addr < self.framebufferRAM.addrEnd
+	then
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
 
-	if addrend >= spriteSheetAddr and addr < spriteSheetAddrEnd then
+	if addrend >= self.spriteSheetRAM.addr
+	and addr < self.spriteSheetRAM.addrEnd
+	then
 		self.spriteSheetRAM.dirtyCPU = true
 	end
-	if addrend >= tileSheetAddr and addr < tileSheetAddrEnd then
+	if addrend >= self.tileSheetRAM.addr
+	and addr < self.tileSheetRAM.addrEnd
+	then
 		self.tileSheetRAM.dirtyCPU = true
 	end
-	if addrend >= tilemapAddr and addr < tilemapAddrEnd then
+	if addrend >= self.tilemapRAM.addr
+	and addr < self.tilemapRAM.addrEnd
+	then
 		self.tilemapRAM.dirtyCPU = true
 	end
-	if addrend >= paletteAddr and addr < paletteAddrEnd then
+	if addrend >= self.paletteRAM.addr
+	and addr < self.paletteRAM.addrEnd
+	then
 		self.paletteRAM.dirtyCPU = true
 	end
-	if addrend >= fontAddr and addr < fontAddrEnd then
+	if addrend >= self.fontRAM.addr
+	and addr < self.fontRAM.addrEnd
+	then
 		self.fontRAM.dirtyCPU = true
 	end
 	-- TODO if we poked the code

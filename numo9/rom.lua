@@ -479,7 +479,6 @@ return {
 	spriteSheetSize = spriteSheetSize,
 	spriteSheetSizeInTiles = spriteSheetSizeInTiles,
 	tilemapSize = tilemapSize,
-	fontSizeInBytes = fontSizeInBytes,
 	fontImageSize = fontImageSize,
 	fontImageSizeInTiles = fontImageSizeInTiles,
 	menuFontWidth = menuFontWidth,
@@ -504,6 +503,10 @@ return {
 	ROM = ROM,
 	RAM = RAM,
 
+	-- these are defaults and can be changed:
+	framebufferAddr = framebufferAddr,
+	framebufferInBytes = framebufferInBytes,
+	framebufferAddrEnd = framebufferAddrEnd,
 	spriteSheetAddr = spriteSheetAddr,
 	spriteSheetInBytes = spriteSheetInBytes,
 	spriteSheetAddrEnd = spriteSheetAddrEnd,
@@ -519,9 +522,7 @@ return {
 	fontAddr = fontAddr,
 	fontInBytes = fontInBytes,
 	fontAddrEnd = fontAddrEnd,
-	framebufferAddr = framebufferAddr,
-	framebufferInBytes = framebufferInBytes,
-	framebufferAddrEnd = framebufferAddrEnd,
+	-- these are not ...
 	clipRectAddr = clipRectAddr,
 	clipRectInBytes = clipRectInBytes,
 	clipRectAddrEnd = clipRectAddrEnd,

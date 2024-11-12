@@ -10,13 +10,11 @@ local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
 
 local numo9_rom = require 'numo9.rom'
-local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
-local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapSize = numo9_rom.tilemapSize
 local unpackptr = require 'numo9.rom'.unpackptr
 
@@ -292,7 +290,7 @@ function EditTilemap:update()
 
 			local texelIndex = tx + tilemapSize.x * ty
 			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-			return app:peekw(tilemapAddr + bit.lshift(texelIndex, 1))
+			return app:peekw(app.ram.tilemapRAM.addr + bit.lshift(texelIndex, 1))
 		end
 
 		local function puttile(tx, ty, dx, dy)
@@ -308,7 +306,7 @@ function EditTilemap:update()
 				self.vertFlip and 0x8000 or 0)
 			local texelIndex = tx + tilemapSize.x * ty
 			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-			self:edit_pokew(tilemapAddr + bit.lshift(texelIndex, 1), tileSelIndex)
+			self:edit_pokew(app.ram.tilemapRAM.addr + bit.lshift(texelIndex, 1), tileSelIndex)
 		end
 
 		-- TODO pen size here
@@ -476,7 +474,7 @@ print'pasting image'
 						and desty >= 0 and desty < app.tilemapRAM.image.height
 						then
 							local c = image.buffer[i + image.width * j]
-							self:edit_pokew(tilemapAddr + bit.lshift(destx + app.tilemapRAM.image.width * desty, 1), c)
+							self:edit_pokew(app.ram.tilemapRAM.addr + bit.lshift(destx + app.tilemapRAM.image.width * desty, 1), c)
 						end
 					end
 				end
