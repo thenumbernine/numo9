@@ -1,4 +1,4 @@
-mode(1)	-- set to 8bpp-indexed framebuffer ... TODO make this a poke()
+mode(1)	-- set to 8bpp-indexed framebuffer
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 p8color=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
@@ -176,7 +176,7 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 		local yhi=(addr&0x1fc0)<<2	-- next 7 bits=y coord, to be shifted << 8
 		addr=x|yhi
 		local value=peekw(framebufferAddr+addr)
-		return (value&0x0f)|((value&0x0f00)>>4)
+		return (value&0x000f)|((value&0x0f00)>>4)
 	end
 trace(('TODO peek $%x'):format(addr))
 	return 0
@@ -366,54 +366,36 @@ setfenv(1, {
 	cls=cls,
 	clip=p8_clip,
 	camera=p8_camera,
-	pset=[x,y,col]do
+	pset=[x,y,c]do
 		x=math.floor(x)
 		y=math.floor(y)
 		if x<0 or x>=128 or y<0 or y>=128 then return end
-		col=math.floor(col or p8color)
-		pset(x,y,col)
+		c=math.floor(c or p8color)
+		pset(x,y,c)
 	end,
 	pget=[x,y]do
 		x=math.floor(x)
 		y=math.floor(y)
 		return x<0 or x>=128 or y<0 or y>=128 and 0 or pget(x,y)
 	end,
-	sset=[x,y,col]do
+	sset=[x,y,c]do
 		x=math.floor(x)
 		y=math.floor(y)
 		if x<0 or x>=128 or y<0 or y >= 128 then return end
-		col=math.floor(col or p8color)
-		poke(spriteSheetAddr+((x|(y<<8))),col)
+		c=math.floor(c or p8color)
+		poke(spriteSheetAddr+((x|(y<<8))),c)
 	end,
 	sget=[x,y]do
 		x=math.floor(x)
 		y=math.floor(y)
-		return x<0 or x>=128 or y<0 or y>128 and 0 or peek(spriteSheetAddr+((x|(y<<8))))
+		return x<0 or x>=128 or y<0 or y>=128 and 0 or peek(spriteSheetAddr+((x|(y<<8))))
 	end,
-	rect=[x0,y0,x1,y1,col]do
-		col=col or p8color	-- TODO `or=` operator for logical-inplace-or?
-		rectb(x0,y0,x1-x0+1,y1-y0+1,col)
-	end,
-	rectfill=[x0,y0,x1,y1,col]do
-		col=col or p8color
-		rect(x0,y0,x1-x0+1,y1-y0+1,col)
-	end,
-	circ=[x,y,r,col]do
-		col=col or p8color
-		ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
-	end,
-	circfill=[x,y,r,col]do
-		col=col or p8color
-		elli(x-r,y-r,(r<<1)+1,(r<<1)+1,col)
-	end,
-	oval=[x0,y0,x1,y1,col]do
-		col=col or p8color
-		ellib(x0,y0,x1-x0+1,y1-y0+1,col)
-	end,
-	ovalfill=[x0,y0,x1,y1,col]do
-		col=col or p8color
-		elli(x0,y0,x1-x0+1,y1-y0+1,col)
-	end,
+	rect=[x0,y0,x1,y1,c]rectb(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
+	rectfill=[x0,y0,x1,y1,c]rect(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
+	circ=[x,y,r,c]ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,c or p8color),
+	circfill=[x,y,r,c]elli(x-r,y-r,(r<<1)+1,(r<<1)+1,c or p8color),
+	oval=[x0,y0,x1,y1,c]ellib(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
+	ovalfill=[x0,y0,x1,y1,c]elli(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
 	line=[...]do
 		local x0,y0,col,x1,y1=lastlinex,lastliney,p8color
 		local n=select('#',...)
@@ -497,7 +479,7 @@ setfenv(1, {
 			i=math.floor(i)
 assert.ge(i,0)
 assert.lt(i,256)
-			return sprFlags[i+1]
+			return sprFlags[i]
 		elseif n==2 then
 			local i,f=...
 			i=math.floor(i)
@@ -506,7 +488,7 @@ assert.ge(i,0)
 assert.lt(i,256)
 assert.ge(f,0)
 assert.lt(f,8)
-			return (1 & (sprFlags[i+1] >> f)) ~= 0
+			return (1&(sprFlags[i]>>f)) ~= 0
 		else
 			error'here'
 		end
@@ -521,7 +503,7 @@ assert.ge(i,0)
 assert.lt(i,256)
 assert.ge(val,0)
 assert.lt(val,256)
-			sprFlags[i+1]=val
+			sprFlags[i]=val
 		elseif n==3 then
 			local i,f,val=...
 			i=math.floor(i)
@@ -531,9 +513,9 @@ assert.ge(i,0)
 assert.lt(i,256)
 			local flag=1<<f
 			local mask=~flag
-			sprFlags[i+1] &= mask
+			sprFlags[i]&=mask
 			if val==true then
-				sprFlags[i+1] |= flag
+				sprFlags[i]|=flag
 			elseif val == false then
 			else
 				error'here'
@@ -644,7 +626,7 @@ assert.ge(shift,0)
 				if i>0 then
 					i=(i&0xf)|((i>>1)&0xf0)
 					if not layers
-					or sprFlags[i+1]&layers==layers
+					or sprFlags[i]&layers==layers
 					then
 						map(tx,ty,1,1,ssx,ssy,0,false,0)
 					end
