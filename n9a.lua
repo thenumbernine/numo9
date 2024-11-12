@@ -35,6 +35,8 @@ local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local tilemapSize = numo9_rom.tilemapSize
+local userDataSize = numo9_rom.userDataSize
+local persistentCartridgeDataSize = numo9_rom.persistentCartridgeDataSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
 local audioDataSize = numo9_rom.audioDataSize
@@ -733,8 +735,10 @@ print('toImage', name, 'width', width, 'height', height)
 		spriteFlagCode = 'sprFlags={\n'
 			..range(0,15):mapi(function(j)
 				return range(0,15):mapi(function(i)
-					local e = 2 * (i + 16 * j)
-					return '0x'..flagSrc:sub(e+1,e+2)..','
+					local index = i + 16 * j
+					local s = '0x'..flagSrc:sub(2*index+1,2*index+2)..','
+					if index==0 then s='[0]='..s end
+					return s
 				end):concat''..'\n'
 			end):concat()
 			..'}\n'
@@ -1551,9 +1555,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		--]]
 	end
 
-	if ffi.sizeof(ffi.cast('RAM*',0).userData) < 0x1300 then
-		error"DANGER! userData isn't large enough for Pico8"
-	end
+	assert.ge(userDataSize, 0x1300, "DANGER! userData isn't large enough for Pico8")
 
 	-- now add our glue between APIs ...
 	code = table{
@@ -1601,14 +1603,13 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	local data = assert(ticpath:read())
 	local ptr = ffi.cast('uint8_t*', data)
 	local endptr = ptr + #data
-	local banks = vector'ROM'	-- banks[0-7][chunkType]
+	local ticbanks = {}	-- ticbanks[0-7][chunkType]
 	while ptr < endptr do
 		local bankNo = bit.rshift(ptr[0], 5)
-		banks:resize(bankNo+1)
-		local bank = banks.v[bankNo]
+		local bank = ticbanks[bankNo]
 		if not bank then
 			bank = {}
-			banks.v[bankNo] = bank
+			ticbanks[bankNo] = bank
 		end
 		local chunkType = bit.band(ptr[0], 0x1f)
 		local chunkSize = ffi.cast('uint16_t*', ptr+1)[0]
@@ -1624,10 +1625,10 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		error("read past end of file! ptr is "..tostring(ptr).." end is "..tostring(endptr))
 	end
 
-	for bankid=0,#banks-1 do
-		local chunks = banks.v[bankid]
+	for bankNo=0,7 do
+		local chunks = ticbanks[bankNo]
 		for _,chunkid in ipairs(table.keys(chunks)) do
-			print('got bank', bankid, 'chunk', chunkid, 'size', #chunks[chunkid])
+			print('got bank', bankNo, 'chunk', chunkid, 'size', #chunks[chunkid])
 		end
 	end
 
@@ -1639,13 +1640,17 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	-- but then how to change my cart file format?
 	-- follow TIC-80's lead and use custom PNG chunks?
 
+	-- TODO what if we get mutiple?
+	local spriteFlagCode = table()
+
 	local code = table()
-	for bankid=0,#banks-1 do
-		local function getfn(base, ext)
-			local suffix = bankid == 0 and '' or bankid
-			return basepath(base..suffix..'.'..ext)
+	for bankNo=0,7 do
+		local bankpath = basepath
+		if bankNo > 0 then
+			bankpath = basepath/tostring(bankNo)
+			bankpath:mkdir()
 		end
-		local chunks = banks.v[bankid]
+		local chunks = ticbanks[bankNo]
 
 		-- save the palettes
 		local palette = assert.len(table{
@@ -1705,7 +1710,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
 			return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
 		end))
-		palImg:save(getfn('pal', 'png').path)
+		palImg:save(bankpath'pal.png'.path)
 
 		local function chunkToImage(data)
 			-- how is it stored ... raw? compressed? raw until all zeroes remain ... lol no lzw compression
@@ -1739,10 +1744,10 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		end
 
 		if chunks[1] then	-- CHUNK_TILES / bank 8
-			chunkToImage(chunks[1]):save(getfn('tiles', 'png').path)
+			chunkToImage(chunks[1]):save(bankpath'tiles.png'.path)
 		end
 		if chunks[2] then	-- CHUNK_SPRITES / bank 8
-			chunkToImage(chunks[2]):save(getfn('sprite', 'png').path)
+			chunkToImage(chunks[2]):save(bankpath'sprite.png'.path)
 		end
 		if chunks[4] then	-- CHUNK_MAP / bank 8
 			-- copy tilemap, 0x7F7F worth of data
@@ -1762,7 +1767,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 					bit.lshift(bit.band(0xf0, ptr[i]), 1)
 				)
 			end
-			image:save(getfn('tilemap', 'png').path)
+			image:save(bankpath'tilemap.png'.path)
 		end
 
 		if chunks[5] then	-- CHUNK_CODE / bank 8
@@ -1773,11 +1778,13 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			-- afaik this is sprite flags like pico8 has.  interesting that it was added later to TIC-80, I wonder if it was only added as a compat feature, or by request of pico8 users.
 			local flagSrc = chunks[6]
 			assert.le(#flagSrc, 512)
-			code:insert(1, 'sprFlags'..(bankid==0 and '' or bankid)..'={\n'
+			spriteFlagCode:insert(1, 'sprFlags'..(bankNo==0 and '' or bankNo)..'={\n'
 				..range(0,31):mapi(function(j)
 					return range(0,15):mapi(function(i)
-						local e = i + 16 * j
-						return '0x'..(flagSrc:byte(e) or 0)..','
+						local index = i + 16 * j
+						local s = '0x'..flagSrc:sub(2*index+1,2*index+2)..','
+						if index==0 then s='[0]='..s end
+						return s
 					end):concat''..'\n'
 				end):concat()
 				..'}\n'
@@ -1808,20 +1815,32 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		if chunks[16] then	-- CHUNK_CODE_ZIP	deprecated as of 1.00
 			print("!!!WARNING!!! found deprecated CHUNK_CODE_ZIP")
 		end
-
-		if cmd == 'ticrun' then
-			assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
-		end
-
-		-- TODO here's a big dilemma ...
-		-- TIC-80 has base 64k of code and expandable for multiple banks
-		-- soooo ... its code limit is high ...
-		-- and the glue code is another 16k ...
-		-- hmm ...
-		-- should I use separate banks as well?  or some other system?
 	end
 
+	assert.ge(persistentCartridgeDataSize, 0x400, "DANGER! persistentData isn't large enough for Tic80")
+
+	code = table{
+		'-- begin compat layer',
+		"framebufferAddr=ffi.offsetof('RAM', 'framebuffer')",
+		"spriteSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')",
+		"tilemapAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')",
+		"paletteAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')",
+		"persistentDataAddr=ffi.offsetof('RAM', 'persistentCartridgeData')",
+		"userDataAddr=ffi.offsetof('RAM', 'userData')",
+		spriteFlagCode:concat'\n',
+		assert(path'n9a_tic_glue.lua':read()),
+		'-- end compat layer',
+	}:append(
+		code
+	):append{
+		'__numo9_finished(BOOT, TIC, OVR, SCN, BDR)'
+	}
+
 	basepath'code.lua':write(code:concat'\n')
+
+	if cmd == 'ticrun' then
+		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
+	end
 else
 
 	error("unknown cmd "..tostring(cmd))
