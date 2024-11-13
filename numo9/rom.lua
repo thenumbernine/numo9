@@ -109,6 +109,7 @@ local ROM = struct{
 				maybe 64k units ...
 				- spritesheet	\_ same really, just one for the tilemap and one for the sprite renderer
 				- tilesheet		/
+				- tilemap
 				- audio
 				- code
 				- misc ... where palette, font, etc would go
@@ -124,6 +125,7 @@ local ROM = struct{
 					and if I do a GPU tex per bank, does that throw out the idea of making the GPU tex relocatable to anywhere in memory?
 
 				Or I should use only 2 ... one for spr() renderer, one for map() renderer, and let either be relocatable.
+				Nah.  For flexibility and for tic80 compat, I should have more than just 2, and should probably not include the font ...
 				--]]
 
 				-- [[ video stuff

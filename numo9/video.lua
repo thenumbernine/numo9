@@ -600,7 +600,6 @@ function AppVideo:initVideo()
 		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 		gltype = gl.GL_UNSIGNED_BYTE,
 	}
-	self.sheetRAMs:insert(self.fontRAM)
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), -1)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
@@ -2213,6 +2212,7 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	else
 		pushSpriteSheetRAM = self.spriteSheetRAM
 		self.spriteSheetRAM = self.fontRAM
+		self.sheetRAMs[1] = self.fontRAM
 	end
 
 	-- should font bg respect transparency/alpha?
@@ -2256,7 +2256,7 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 			ty / tonumber(texSizeInTiles.y),	-- ty
 			1 / tonumber(texSizeInTiles.x),		-- tw
 			1 / tonumber(texSizeInTiles.y),		-- th
-			2,		-- sheetIndex == fontRAM
+			0,									-- sheetIndex == spriteSheetRAM
 			-- font color is 0 = background, 1 = foreground
 			-- so shift this by 1 so the font tex contents shift it back
 			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
@@ -2276,6 +2276,7 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 		self.paletteRAM.tex = pushPaletteTex
 	else
 		self.spriteSheetRAM = pushSpriteSheetRAM
+		self.sheetRAMs[1] = pushSpriteSheetRAM
 	end
 
 	return x - x0
