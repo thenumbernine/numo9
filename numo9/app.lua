@@ -768,6 +768,7 @@ function App:initGL()
 		ipairs = ipairs,
 		getmetatable = getmetatable,
 		setmetatable = setmetatable,
+		traceback = debug.traceback,	-- useful for threads
 
 		-- TODO don't let the ROM see the App...
 		app = self,

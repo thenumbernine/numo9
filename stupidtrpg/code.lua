@@ -1290,8 +1290,8 @@ end
 local Item = class()
 Item.__lt=[a,b]((items:find(getmetatable(a)) or 0)<(items:find(getmetatable(b)) or 0))
 
-local Potion = Item:subclass()
-Potion.name = 'Potion'
+local Potion=Item:subclass()
+Potion.name='Potion'
 Potion.healRange = {20,30}
 Potion.init=[:,...]do
 	if Potion.super.init then Potion.super.init(self, ...) end
