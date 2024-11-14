@@ -14,7 +14,6 @@ local updateIntervalInSeconds = 1 / updateHz
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
-local paletteSize = 256
 local spriteSize = vec2i(8, 8)
 local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
 local frameBufferSizeInTiles = vec2i(32, 32)
@@ -22,6 +21,9 @@ local frameBufferSize = vec2i(frameBufferSizeInTiles.x * spriteSize.x, frameBuff
 local spriteSheetSizeInTiles = vec2i(32, 32)
 local spriteSheetSize = vec2i(spriteSheetSizeInTiles.x * spriteSize.x, spriteSheetSizeInTiles.y * spriteSize.y)
 local tilemapSize = vec2i(256, 256)
+local tilemapType = 'uint16_t'
+local paletteSize = 256
+local paletteType = 'uint16_t'
 
 --[[
 32x8 = 256 wide, 8 high, 8x 1bpp planar
@@ -32,10 +34,8 @@ such that
 --]]
 local fontImageSizeInTiles = vec2i(32, 1)
 local fontImageSize = vec2i(fontImageSizeInTiles.x * spriteSize.x, fontImageSizeInTiles.y * spriteSize.y)
-local fontSizeInBytes = fontImageSize:volume()	-- 8 bytes per char, 256 chars
+-- font is 8 bytes per char, 256 chars
 local menuFontWidth = 5
-
-local codeSize = 0x10000	-- tic80's size ... but with my langfix shorthands like pico8 has
 
 --local audioSampleType = 'uint8_t'
 local audioSampleType = 'int16_t'
@@ -45,8 +45,9 @@ local audioSampleRate = 32000
 local audioOutChannels = 2	-- 1 for mono, 2 for stereo ... # L/R samples-per-sample-frame ... there's so much conflated terms in audio programming ...
 local audioMixChannels = 8	-- # channels to play at the same time
 local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a time
-local sfxTableSize =  256	-- max number of unique sfx that a music can reference
-local musicTableSize = 256	-- max number of music tracks stored
+
+local sfxTableSize =  0x100		-- max number of unique sfx that a music can reference
+local musicTableSize = 0x100	-- max number of music tracks stored
 local audioDataSize = 0xf800	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
 
 local userDataSize = 0xd84a
@@ -85,6 +86,24 @@ local mvMatType = 'int16_t'
 local mvMatScale = 256
 --]]
 
+local bankTypeNames = table{
+	'system',	-- for the first 3 that are used for RAM
+	'sheet',	-- sprite/tile sheets
+	'tilemap',	-- for tilemaps, needs 2 in a row
+	'audio',
+	'code',
+	'misc',
+}
+
+local bankSize = 0x10000
+local Bank = struct{
+	name = 'Bank',
+	fields = {
+		{name='v', type='uint8_t['..bankSize..']'},
+	},
+}
+assert.eq(ffi.sizeof'Bank', bankSize)
+
 -- instead of a 'length' i could store an 'end-addr'
 local AddrLen = struct{
 	name = 'AddrLen',
@@ -94,6 +113,55 @@ local AddrLen = struct{
 	},
 }
 
+local AudioBank = struct{
+	name = 'AudioBank',
+	union = true,
+	fields = {
+		{name ='v', type='uint8_t[1]', no_iter=true},
+		{type=struct{
+			anonymous = true,
+			packed = true,
+			fields = {
+				-- [[ audio stuff
+				-- sfxs should have -start addr -loop addr (what to play next ... any addr in audio ram)
+				-- so my sfx == pico8/tic80's waveforms
+				-- tempting to store this all with BRR... that will reduce the size by 32/9 ~ 3.555x
+				-- should I put the end-addr/length here, or should I store it as a first byte of the waveform data?
+				-- put here = more space, but leaves sequences of waveforms contiguous so we can point into the lump sum of all samples without worrying about dodging other data
+				-- put there = halves the space of this array.  if you want one track for hte whole of audio RAM then you only store one 'length' value.
+				{name='sfxAddrs', type='AddrLen['..sfxTableSize..']'},					-- 1k
+
+				-- playback information for sfx
+				-- so my music == pico8/tic80's sfx ... and rlly their music is just some small references to start loop / end loop of their sfx.
+
+				--[[
+				music format:
+				uint16_t beatsPerSecond;
+				struct {
+					uint16_t beatsDelayUntilIssuingDeltaCmds;
+					struct {
+						uint8_t ofs;
+						uint8_t val;
+					} deltaCmdsPerFrame[];
+					-- ofs=0xff val=0xff represents the end of the delta-cmd frame
+					-- ofs=0xfe val=track # means jump to music track specified in the next uint16_t
+				} notes[];
+				--]]
+				-- TODO effects and loops and stuff ...
+				{name='musicAddrs', type='AddrLen['..musicTableSize..']'},				-- 1k
+
+				-- this is a combination of the sfx and the music data
+				-- sfx is just int16_t samples
+				-- technically I should be cutting the addrs out of the 64kb
+				{name='audioData', type='uint8_t['..audioDataSize..']'},				-- 62k
+				--]]
+			},
+		}},
+	},
+}
+assert.eq(ffi.sizeof'AudioBank', bankSize)
+
+--[==[
 local ROM = struct{
 	name = 'ROM',
 	union = true,
@@ -118,7 +186,6 @@ local ROM = struct{
 				and if they're VRAM then make a texture w/dirty bits etc.
 				and then give spr() and map() an extra byte var for specifying which sheet to use.
 
-
 				... but then when specifying spr() or map() sheet,
 				should I use some internal order (0=sprite 1=tile) or should I just pass the bank?
 				Bank = more flexible, but if I choose that then how should I know which banks to associate GPU textures with?
@@ -126,21 +193,25 @@ local ROM = struct{
 
 				Or I should use only 2 ... one for spr() renderer, one for map() renderer, and let either be relocatable.
 				Nah.  For flexibility and for tic80 compat, I should have more than just 2, and should probably not include the font ...
+				
+				But what about determining where the code is?
+				You will always need the bankTypeNames and the banks ...
 				--]]
 
 				-- [[ video stuff
 				{name='spriteSheet', type='uint8_t['..spriteSheetSize:volume()..']'},	-- 64k
 				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},		-- 64k
-				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},			-- 128k
-
-				{name='palette', type='uint16_t['..paletteSize..']'},					-- 0.5k
-				{name='font', type='uint8_t['..fontSizeInBytes..']'},					-- 2k
+				{name='tilemap', type=tilemapType..'['..tilemapSize:volume()..']'},			-- 128k
 				--]]
 
+				-- [[ more video stuff
 				-- I'm chopping ROM things into 64k banks
 				-- but the palette and font are small and dont fit
 				-- so their bank has lots of extra room
-				{name='extra', type='uint8_t[' .. 0xf600 .. ']'},				-- 61.5k
+				{name='palette', type=paletteType..'['..paletteSize..']'},					-- 0.5k
+				{name='font', type='uint8_t['..fontImageSize:volume()..']'},					-- 2k
+				{name='extra', type='uint8_t[' .. 0xf600 .. ']'},						-- 61.5k
+				--]]
 
 				-- [[ audio stuff
 				-- sfxs should have -start addr -loop addr (what to play next ... any addr in audio ram)
@@ -183,7 +254,7 @@ local ROM = struct{
 }
 --DEBUG:print(ROM.code)
 --DEBUG:print('ROM size', ffi.sizeof(ROM))
-
+--]==]
 
 --[[
 music format ...
@@ -407,38 +478,52 @@ local RAM = struct{
 				-- so I thought, why put it in  RAM, why not in the cart as well, since the cart has space?
 				-- TODO maybe ... netplay persistent data ... one set per-game, one set per-game-per-server
 				{name='userData', type='uint8_t['.. userDataSize ..']'},
-
-				-- last so it can be expandable
-				{name='bank', type='ROM[1]'},
 			},
 		}},
 	},
 }
 
-local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
-local spriteSheetInBytes = ffi.sizeof(ffi.cast('ROM*',0).spriteSheet)	--spriteSheetSize:volume() * 1
-local spriteSheetAddrEnd = spriteSheetAddr + spriteSheetInBytes
-local tileSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tileSheet')
-local tileSheetInBytes = ffi.sizeof(ffi.cast('ROM*',0).tileSheet)	--spriteSheetSize:volume() * 1
-local tileSheetAddrEnd = tileSheetAddr + tileSheetInBytes
-local tilemapAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
-local tilemapInBytes = ffi.sizeof(ffi.cast('ROM*',0).tilemap)	--tilemapSize:volume() * 2
-local tilemapAddrEnd = tilemapAddr + tilemapInBytes
-local paletteAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
-local paletteInBytes = ffi.sizeof(ffi.cast('ROM*',0).palette)	--paletteSize * 2
-local paletteAddrEnd = paletteAddr + paletteInBytes
-local fontAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'font')
-local fontInBytes = ffi.sizeof(ffi.cast('ROM*',0).font)
-local fontAddrEnd = fontAddr + fontInBytes
+local systemRAMSize = 3 * bankSize
+assert.ge(systemRAMSize, ffi.sizeof'RAM')
+
 local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
 local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
+assert.eq(framebufferInBytes, 2 * bankSize)
 local framebufferAddrEnd = framebufferAddr + framebufferInBytes
+
 local clipRectAddr = ffi.offsetof('RAM', 'clipRect')
 local clipRectInBytes = ffi.sizeof'uint8_t' * 4
 local clipRectAddrEnd = clipRectAddr + clipRectInBytes
+
 local mvMatAddr = ffi.offsetof('RAM', 'mvMat')
 local mvMatInBytes = ffi.sizeof(mvMatType) * 16
 local mvMatAddrEnd = mvMatAddr + mvMatInBytes
+
+local spriteSheetAddr = systemRAMSize + 0 * bankSize
+local spriteSheetInBytes = spriteSheetSize:volume() 
+assert.eq(spriteSheetInBytes, bankSize)
+local spriteSheetAddrEnd = spriteSheetAddr + spriteSheetInBytes
+
+local tileSheetAddr = spriteSheetAddrEnd
+local tileSheetInBytes = spriteSheetSize:volume()
+assert.eq(tileSheetInBytes, bankSize)
+local tileSheetAddrEnd = tileSheetAddr + tileSheetInBytes
+
+local tilemapAddr = tileSheetAddrEnd
+local tilemapInBytes = tilemapSize:volume() * ffi.sizeof(tilemapType)
+assert.eq(tilemapInBytes, 2 * bankSize)
+local tilemapAddrEnd = tilemapAddr + tilemapInBytes
+
+local paletteAddr = tilemapAddrEnd
+local paletteInBytes = paletteSize * ffi.sizeof(paletteType)
+assert.le(paletteInBytes, bankSize)
+local paletteAddrEnd = paletteAddr + paletteInBytes
+
+local fontAddr = paletteAddrEnd
+local fontInBytes = fontImageSize:volume()
+local fontAddrEnd = fontAddr + fontInBytes
+assert.le(paletteInBytes + fontInBytes, bankSize)	-- palette and font go in the same bank
+
 
 -- n = num args to pack
 -- also in image/luajit/image.lua
@@ -473,7 +558,12 @@ return {
 	updateHz = updateHz,
 	updateIntervalInSeconds = updateIntervalInSeconds,
 
+	bankTypeNames = bankTypeNames,
+	bankSize = bankSize,
+	systemRAMSize = systemRAMSize,
+
 	paletteSize = paletteSize,
+	paletteType = paletteType,
 	spriteSize = spriteSize,
 	frameBufferType = frameBufferType,
 	frameBufferSize = frameBufferSize,
@@ -484,7 +574,6 @@ return {
 	fontImageSize = fontImageSize,
 	fontImageSizeInTiles = fontImageSizeInTiles,
 	menuFontWidth = menuFontWidth,
-	codeSize = codeSize,
 	mvMatScale = mvMatScale,
 	keyPressFlagSize = keyPressFlagSize,
 	keyCount = keyCount,

@@ -268,7 +268,11 @@ function UI:update()
 	local x = 230
 	if self:guiButton('R', x, 0, nil, 'reset RAM') then
 		app:checkDirtyGPU()
-		ffi.copy(app.ram.bank, app.banks.v[0].v, ffi.sizeof'ROM')
+		
+		assert.eq(#self.romBanks, #self.bankTypes)
+		assert.eq(#self.ramBanks, #self.bankTypes+3)
+		ffi.copy(self.ramBanks.v+3, self.romBanks.v, #self.romBanks * ffi.sizeof'Bank')
+
 		app:setDirtyCPU()
 	end
 	x=x+6
@@ -306,14 +310,14 @@ Editing will go on in RAM, for live cpu/gpu sprite/palette update's sake
 but it'll always reflect the cartridge state
 
 When the user sets the editCode to focus,
-copy from the app.banks.v[i].code to the editor,
+copy from the app.romBanks.v[i].code to the editor,
 so we can use Lua string functinoality.
 
-While playing, assume .banks.v[i] has the baseline content of the game,
+While playing, assume .romBanks.v[i] has the baseline content of the game,
 and assume whatever's in .ram is dirty.
 
 But while editing, assume .ram has the baseline content of the game,
-and assume whatever's in .banks.v[i] is stale.
+and assume whatever's in .romBanks.v[i] is stale.
 
 
 HMMMMmmm
@@ -337,28 +341,28 @@ function UI:gainFocus()
 	end
 end
 
--- setters from editor that write to both .ram and .banks.v[0]
+-- setters from editor that write to both .ram and .romBanks.v[0]
 -- TODO how about flags in the editor for which you write to?
 
 function UI:edit_poke(addr, value)
 	local app = self.app
 	app:net_poke(addr, value)
 	addr = addr - ffi.offsetof('RAM', 'bank')
-	app.banks.v[0].v[addr] = value
+	app.romBanks.v[0].v[addr] = value
 end
 
 function UI:edit_pokew(addr, value)
 	local app = self.app
 	app:net_pokew(addr, value)
 	addr = addr - ffi.offsetof('RAM', 'bank')
-	ffi.cast('uint16_t*', app.banks.v[0].v + addr)[0] = value
+	ffi.cast('uint16_t*', app.romBanks.v[0].v + addr)[0] = value
 end
 
 function UI:edit_pokel(addr, value)
 	local app = self.app
 	app:net_pokel(addr, value)
 	addr = addr - ffi.offsetof('RAM', 'bank')
-	ffi.cast('uint32_t*', app.banks.v[0].v + addr)[0] = value
+	ffi.cast('uint32_t*', app.romBanks.v[0].v + addr)[0] = value
 end
 
 -- used by the editsfx and editmusic
@@ -370,10 +374,10 @@ function UI:calculateAudioSize()
 	local app = self.app
 	self.totalAudioBytes = 0
 	for i=0,sfxTableSize-1 do
-		self.totalAudioBytes = self.totalAudioBytes + app.ram.bank[0].sfxAddrs[i].len
+		self.totalAudioBytes = self.totalAudioBytes + app.audioBankPtr.sfxAddrs[i].len
 	end
 	for i=0,musicTableSize-1 do
-		self.totalAudioBytes = self.totalAudioBytes + app.ram.bank[0].musicAddrs[i].len
+		self.totalAudioBytes = self.totalAudioBytes + app.audioBankPtr.musicAddrs[i].len
 	end
 end
 

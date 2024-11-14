@@ -43,14 +43,17 @@ local ClientConn = numo9_net.ClientConn
 local netcmds = numo9_net.netcmds
 
 local numo9_rom = require 'numo9.rom'
-local updateHz = numo9_rom.updateHz
 local updateIntervalInSeconds = numo9_rom.updateIntervalInSeconds
+local bankTypeNames = numo9_rom.bankTypeNames
+local systemRAMSize = numo9_rom.systemRAMSize
 local ROM = numo9_rom.ROM	-- define RAM, ROM, etc
 local RAM = numo9_rom.RAM
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local tileSheetInBytes = numo9_rom.tileSheetInBytes
 local tilemapSize = numo9_rom.tilemapSize
+local tilemapInBytes = numo9_rom.tilemapInBytes
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
 local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize
@@ -174,25 +177,60 @@ function App:initGL()
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
 
-	self.ram = ffi.new'RAM'
+	self.ramBanks = vector'Bank'
+	
+	self.ramBanks:emplace_back()	-- \_ first two are the framebuffer.  meh.
+	self.ramBanks:emplace_back()	-- /
+	self.ramBanks:emplace_back()	--- next is misc system stuff.
 
-	-- tic80 has a reset() function for resetting RAM data to original cartridge data
-	-- pico8 has a reset function that seems to do something different: reset the color and console state
-	-- but pico8 does support a reload() function for copying data from cartridge to RAM ... if you specify range of the whole ROM memory then it's the same (right?)
-	-- but pico8 also supports cstore(), i.e. writing to sections of a cartridge while the code is running ... now we're approaching fantasy land where you can store disk quickly - didn't happen on old Apple2's ... or in the NES case where reading was quick, the ROM was just that so there was no point to allow writing and therefore no point to address both the ROM and the ROM's copy in RAM ...
-	-- but tic80 has a sync() function for swapping out the active banks ...
-	-- with all that said, 'banks' here will be inaccessble by my api except a reset() function
-	-- and sync() function ..
-	self.banks = vector('ROM', 1)
-	-- TODO maybe ... keeping separate 'ROM' and 'RAM' space?  how should the ROM be accessible? with a 0xC00000 (SNES)?
-	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
-	-- and the editor would edit the ROM ...
+	-- NOTICE This will need to be updated every time self.ramBanks is resized
+	self.ram = ffi.cast('RAM*', self.ramBanks.v)
+	assert.ge(self.ramBanks:getNumBytes(), ffi.sizeof'RAM')
+
+	-- this represents the external, fixed cartridge.
+	-- it'll mirror the RAM past system banks upon load, 
+	-- but upon running the RAM banks will be subject to change.
+	-- the ROM banks can only be edited.
+	-- reset() will write ROM->RAM 
+	self.romBanks = vector'Bank'
+	-- now romBank's types will match ramBanks's types, so we only need to store one vector
+	-- and that might as well skip the system banks ...
+
+	self.bankTypes = vector'uint8_t'
+	assert.eq(#self.romBanks, #self.bankTypes)
+	assert.eq(#self.ramBanks, #self.bankTypes+3)
+
+	-- now set up our initial "blank cartridge" ... with copies in RAM and ROM ... 
+	-- spritesheet:
+	self.ramBanks:emplace_back()
+	self.romBanks:emplace_back()
+	self.bankTypes:emplace_back()[0] = assert(bankTypeNames:find'sheet')
+	-- tilesheet:
+	self.ramBanks:emplace_back()
+	self.romBanks:emplace_back()
+	self.bankTypes:emplace_back()[0] = assert(bankTypeNames:find'sheet')
+	-- tilemap 1 of 2	
+	self.ramBanks:emplace_back()
+	self.romBanks:emplace_back()
+	self.bankTypes:emplace_back()[0] = assert(bankTypeNames:find'tilemap')
+	-- tilemap 2 of 2
+	self.ramBanks:emplace_back()
+	self.romBanks:emplace_back()
+	self.bankTypes:emplace_back()[0] = assert(bankTypeNames:find'tilemap')
+	-- audio
+	self.ramBanks:emplace_back()
+	self.romBanks:emplace_back()
+	self.bankTypes:emplace_back()[0] = assert(bankTypeNames:find'audio')
+	-- code
+	self.ramBanks:emplace_back()
+	self.romBanks:emplace_back()
+	self.bankTypes:emplace_back()[0] = assert(bankTypeNames:find'code')
+	-- misc
+	self.ramBanks:emplace_back()
+	self.romBanks:emplace_back()
+	self.bankTypes:emplace_back()[0] = assert(bankTypeNames:find'misc')
 
 	do
-		--DEBUG:print(RAM.code)
-		print(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
-		print(('ROM size: 0x%x'):format(ffi.sizeof'ROM'))
-
 		--[[
 		for _,field in ipairs(ROM.fields[2].type.fields) do
 			assert(xpcall(function()
@@ -209,6 +247,7 @@ function App:initGL()
 			local size = ffi.sizeof(ctype)
 			print(('0x%06x - 0x%06x = '):format(offset, offset + size)..name)
 		end
+		--[[
 		print'- ROM -'
 		local bankofs = ffi.offsetof('RAM', 'bank')
 		for name,ctype in ROM:fielditer() do
@@ -216,6 +255,7 @@ function App:initGL()
 			local size = ffi.sizeof(ctype)
 			print(('0x%06x - 0x%06x = '):format(bankofs + offset, bankofs + offset + size)..name)
 		end
+		--]]
 		print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
 	end
 
@@ -1036,7 +1076,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 			if not cmdline.nosplash then
 
 				-- also for init, do the splash screen
-				numo9_video.resetLogoOnSheet(self.ram.bank[0].tileSheet)
+				numo9_video.resetLogoOnSheet(self.ramBanks.v[0].v + self.tileSheetRAM.addr)
 				self.tileSheetRAM.dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
@@ -1099,8 +1139,8 @@ looks like I'm a Snes9x-default-keybinding fan.
 				env.flip()
 
 				-- and clear the tilemap now that we're done with it
-				ffi.fill(self.ram.bank[0].tileSheet, ffi.sizeof(self.ram.bank[0].tileSheet))
-				ffi.fill(self.ram.bank[0].tilemap, ffi.sizeof(self.ram.bank[0].tilemap))
+				ffi.fill(self.ramBanks.v[0].v + self.tileSheetRAM.addr, tileSheetInBytes)
+				ffi.fill(self.ramBanks.v[0].v + self.tilemapRAM.addr, tilemapInBytes)
 				self.tileSheetRAM.dirtyCPU = true
 
 			end
@@ -1194,14 +1234,14 @@ function App:net_mset(x, y, value)
 		-- use poke over netplay, cuz i'm lazy.
 		-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
 		if self.server then
-			if self.ram.bank[0].tilemap[index]~=value then
+			if self.tilemapRAM.ptr[index] ~= value then
 				local cmd = self.server:pushCmd().pokew
 				cmd.type = netcmds.pokew
 				cmd.addr = self.tilemapRAM.addr + bit.lshift(index, 1)
 				cmd.value = value
 			end
 		end
-		self.ram.bank[0].tilemap[index] = value
+		self.tilemapRAM.ptr[index] = value
 		self.tilemapRAM.dirtyCPU = true
 	end
 end
@@ -1217,7 +1257,7 @@ function App:mget(x, y)
 		-- should I use peek so we make sure to flush gpu->cpu?
 		-- nah, right now we only have framebuffer to check for gpu-writes ...
 		-- and the framebuffer is not (yet?) relocatable
-		return self.ram.bank[0].tilemap[x + tilemapSize.x * y]
+		return self.tilemapRAM.ptr[x + tilemapSize.x * y]
 	end
 	-- TODO return default oob value
 	return 0
@@ -1335,10 +1375,8 @@ print('self.server.socket', self.server.socket)
 print'DELTA'
 print(
 	string.hexdump(
-		ffi.string(
-			ffi.cast('char*', self.server.conns[1].deltas.v),
-			#self.server.conns[1].deltas * ffi.sizeof(self.server.conns[1].deltas.type)
-		), nil, 2
+		self.server.conns[1].deltas:dataToStr(),
+		nil, 2
 	)
 )
 --]]
@@ -1346,10 +1384,8 @@ print(
 print'STATE'
 print(
 	string.hexdump(
-		ffi.string(
-			ffi.cast('char*', self.server.conns[1].cmds.v),
-			#self.server.conns[1].cmds * ffi.sizeof'Numo9Cmd'
-		), nil, 2
+		self.server.conns[1].cmds:dataToStr(),
+		nil, 2
 	)
 )
 --]]
@@ -1778,7 +1814,7 @@ end
 -------------------- MEMORY PEEK/POKE (and draw dirty bits) --------------------
 
 function App:peek(addr)
-	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addr >= self.ram:getNumBytes() then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the framebufferRAM
@@ -1793,7 +1829,7 @@ function App:peek(addr)
 end
 function App:peekw(addr)
 	local addrend = addr+1
-	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addrend >= self.ram:getNumBytes() then return end
 
 	if self.framebufferRAM.dirtyGPU
 	and addr >= self.framebufferRAM.addr
@@ -1806,7 +1842,7 @@ function App:peekw(addr)
 end
 function App:peekl(addr)
 	local addrend = addr+3
-	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addrend >= self.ram:getNumBytes() then return end
 
 	if self.framebufferRAM.dirtyGPU
 	and addr >= self.framebufferRAM.addr
@@ -1820,7 +1856,7 @@ end
 
 function App:poke(addr, value)
 	--addr = math.floor(addr) -- TODO just never pass floats in here or its your own fault
-	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addr >= self.ram:getNumBytes() then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
 	if addr >= self.framebufferRAM.addr
@@ -1868,7 +1904,7 @@ function App:poke(addr, value)
 end
 function App:pokew(addr, value)
 	local addrend = addr+1
-	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addrend >= self.ram:getNumBytes() then return end
 
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
@@ -1908,7 +1944,7 @@ function App:pokew(addr, value)
 end
 function App:pokel(addr, value)
 	local addrend = addr+3
-	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addrend >= self.ram:getNumBytes() then return end
 
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
@@ -1960,17 +1996,17 @@ end
 function App:saveROM(filename)
 --	self:checkDirtyGPU()
 
-	-- flush that back to .banks ...
+	-- flush that back to .romBanks ...
 	-- ... or not? idk.  handle this by the editor?
-	--ffi.copy(self.banks.v[0].v, self.ram.bank, ffi.sizeof'ROM')
-	-- TODO self.ram vs self.banks ... editor puts .banks into .ram before editing
+	--ffi.copy(self.romBanks.v[0].v, self.ramBanks.v[0].v + systemRAMSize, self.romBanks:getNumBytes())
+	-- TODO self.ram vs self.romBanks ... editor puts .romBanks into .ram before editing
 	-- or at least it used to ... now with multiplayer editing idk even ...
 
 	-- and then that to the virtual filesystem ...
 	-- and then that to the real filesystem ...
 
 	-- save code to multibanks
-	codeStrToBanks(self.banks, self.editCode.text)
+	codeStrToBanks(self.romBanks, self.bankTypes, self.editCode.text)
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
@@ -1985,7 +2021,9 @@ function App:saveROM(filename)
 	local success, s = xpcall(
 		toCartImage,
 		errorHandler,
-		self.banks
+		self.romBanks,
+		self.bankTypes
+		-- TODO save the label image from when you load the cart
 	)
 	if not success then
 print('save failed:', basemsg..(s or ''))
@@ -2045,10 +2083,10 @@ function App:loadROM(filename)
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
 
-	self.banks = fromCartImage(d)
-	assert.ge(#self.banks, 1)
+	self.romBanks, self.bankTypes = fromCartImage(d)
+	assert.eq(#self.romBanks, #self.bankTypes)
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
-	self.editCode:setText(codeBanksToStr(self.banks))
+	self.editCode:setText(codeBanksToStr(self.romBanks, self.bankTypes))
 	self:resetROM()
 	return true
 end
@@ -2058,7 +2096,7 @@ function App:writePersistent()
 	self.cfg.persistent = self.cfg.persistent or {}
 
 	-- TODO this when you read cart header ... or should we put it in ROM somewhere?
-	self.cartridgeSaveID = self.cartridgeSaveID or ''--md5(self.banks.v, #self.banks * ffi.sizeof'ROM')
+	self.cartridgeSaveID = self.cartridgeSaveID or ''--md5(self.romBanks.v, self.romBanks:getNumBytes())
 
 	-- save a string up to the last non-zero value ... opposite  of C-strings
 	local len = persistentCartridgeDataSize
@@ -2072,12 +2110,13 @@ function App:writePersistent()
 end
 
 --[[
-This resets everything from the last loaded .banks ROM into .ram
+This resets everything from the last loaded .romBanks ROM into .ram
 Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
-	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
+	ffi.copy(self.ramBanks.v[0].v + systemRAMSize, self.ramBanks.v[0].v, self.romBanks:getNumBytes())
+	
 	self:resetVideo()
 
 	-- calling reset() live will kill all sound ...
