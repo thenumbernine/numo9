@@ -41,7 +41,7 @@ function EditSFX:update()
 		end
 	end
 
-	local selsfx = app.ram.bank[0].sfxAddrs + self.selSfxIndex
+	local selsfx = app.audioBankPtr.sfxAddrs + self.selSfxIndex
 
 	self:guiSpinner(2, 10, function(dx)
 		stop()
@@ -66,7 +66,7 @@ function EditSFX:update()
 	-- TODO render the wave ...
 	local prevAmpl
 	for i=0, math.min(512, selsfx.len-2), 2 do
-		local ampl = ffi.cast(audioSampleTypePtr, app.ram.bank[0].audioData + selsfx.addr + i)[0]
+		local ampl = ffi.cast(audioSampleTypePtr, app.audioBankPtr.audioData + selsfx.addr + i)[0]
 		prevAmpl = prevAmpl or ampl
 		--[[
 		-- TODO variable thickness?

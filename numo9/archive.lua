@@ -23,7 +23,10 @@ local Image = require 'image'
 local zlib = require 'ffi.req' 'zlib'	-- TODO maybe ... use libzip if we're storing a compressed collection of files ... but doing this would push back the conversion of files<->ROM into the application loadROM() function ...
 
 local numo9_rom = require 'numo9.rom'
-local codeSize = numo9_rom.codeSize
+local bankSize = numo9_rom.bankSize
+local bankTypeNames = numo9_rom.bankTypeNames
+
+local numBanksType = 'uint32_t'
 
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
 -- so reading is from files now
@@ -33,12 +36,19 @@ local pngCustomKey = 'nuMO'
 assumes 'banks' is vector<ROM>
 creates an Image and returns it
 --]]
-local function toCartImage(banks, labelImage)
+local function toCartImage(banks, bankTypes, labelImage)
 	assert.is(banks, vector)
-	assert.eq(banks.type, 'ROM')
-	assert.ge(#banks, 1)
+	assert.eq(banks.type, 'Bank')
+	assert.is(bankTypes, vector)
+	assert.eq(bankTypes.type, 'uint8_t')
+	assert.eq(#bankTypes, #banks)
 
-	local banksAsStr = ffi.string(banks.v, ffi.sizeof'ROM' * #banks)
+	local numBanks = ffi.new(numBanksType..'[1]')
+	numBanks[0] = #bankTypes
+	local banksAsStr = 
+		ffi.string(numBanks, ffi.sizeof(numBanks))
+		..bankTypes:dataToStr()
+		..banks:dataToStr()
 	local banksCompressed = zlib.compressLua(banksAsStr)
 
 	-- [[ storing in png metadata
@@ -83,9 +93,26 @@ end
 --[[
 takes an Image
 returns vector<ROM>
+
+TODO new format:
+	- # of banks
+	- list of bank types
+	- list of banks
+- then hand these off to subsystems (resetROM) for preparation of resources
+- for orig compat our list would be:
+	- sprite sheet #0 (sprites)
+	- sprite sheet #1 (tiles)
+	- tilemap (1of2)
+	- tilemap (2of2)
+	- video extra ... holds palette and font and a lot of empty space ... this could even be fully optional to provide/load ... but it always needs to go somewhere ...
+		... so for carts without video-extra i'd need palette and font space in RAM somewhere
+	- audio
+	- code
+Then through the bank-type list, the console knows what to build gpu textures for
+Hmm, seems weird to have two font or palette gpu textures, one pointing to RAM and another to the cart's custom version ... meh?
 --]]
 local function fromCartImage(srcData)
-	local banks = vector'ROM'
+	local banks = vector'Bank'
 	-- [=[ loading as an image
 --DEBUG:assert(not tmploc:exists())
 	assert(path(tmploc):write(srcData))
@@ -95,24 +122,43 @@ local function fromCartImage(srcData)
 	-- [[ storing in png metadata
 	local banksCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
 	local banksAsStr = zlib.uncompressLua(banksCompressed)
-	local numBanksNeeded = math.ceil(#banksAsStr / ffi.sizeof'ROM')
-	banks:resize(math.max(1, numBanksNeeded))
-	assert.ge(#banks * ffi.sizeof'ROM', #banksAsStr)
-	ffi.copy(banks.v, banksAsStr, #banksAsStr)
+
+	local banksAsStrPtr = ffi.cast('char*', banksAsStr)
+	local banksAsStrOfs = 0
+	
+	local numBanks = ffi.new(numBanksType..'[1]')
+	ffi.copy(numBanks, banksAsStrPtr + banksAsStrOfs, ffi.sizeof(numBanks))
+	banksAsStrOfs = banksAsStrOfs + ffi.sizeof(numBanks)
+	assert.le(banksAsStrOfs, #banksAsStr)
+
+	local bankTypes = vector('uint8_t', numBanks[0])
+	ffi.copy(bankTypes.v, banksAsStrPtr + banksAsStrOfs, numBanks[0])
+	banksAsStrOfs = banksAsStrOfs + numBanks[0]
+	assert.le(banksAsStrOfs, #banksAsStr)
+
+	banks:resize(numBanks[0])
+	assert.ge(banks:getNumBytes(), #banksAsStr - banksAsStrOfs)
+	ffi.copy(banks.v, banksAsStrPtr + banksAsStrOfs, #banksAsStr - banksAsStrOfs)
 	--]]
-	return banks
+	return banks, bankTypes
 	--]=]
 end
 
 -- convert multiple banks' code into a single string
-local function codeBanksToStr(banks)
+local function codeBanksToStr(banks, bankTypes)
 	assert.is(banks, vector)
-	assert.eq(banks.type, 'ROM')
+	assert.eq(banks.type, 'Bank')
+	assert.is(bankTypes, vector)
+	assert.eq(bankTypes.type, 'uint8_t')
+	assert.eq(#bankTypes, #banks)
+
 	local codePages = table()
 	for bankNo=0,#banks-1 do
 		local bank = banks.v + bankNo
-		local bankCode = ffi.string(bank.code, codeSize)
-		codePages:insert(bankCode)
+		if bankType.v[bankNo] == assert(bankTypeNames:find'code') then
+			local bankCode = ffi.string(bank.code, bankSize)
+			codePages:insert(bankCode)
+		end
 	end
 	local code = codePages:concat()
 	-- trim off trailing \0's - do it here and not per-bank to allow statements (and possibly '\0' strings) to cross the code bank boundaries
@@ -123,29 +169,39 @@ local function codeBanksToStr(banks)
 	return code:sub(1, codeEnd)
 end
 
-local function codeStrToBanks(banks, code)
+local function codeStrToBanks(banks, bankTypes, code)
 	assert.is(banks, vector)
-	assert.eq(banks.type, 'ROM')
+	assert.eq(banks.type, 'Bank')
+	assert.is(bankTypes, vector)
+	assert.eq(bankTypes.type, 'uint8_t')
+	assert.eq(#bankTypes, #banks)
+
 	assert.type(code, 'string')
+
+	-- assume there's no code banks already ... ? and then insert new code?
+	-- ... or should I overwrite the old banks, and ... remove any extras?
+	-- nah just assume none
+	local numBanksPrev = #banks
+	for bankNo=0,numBanksPrev-1 do
+		if bankType.v[bankNo] == assert(bankTypeNames:find'code') then
+			error'WARNING - found a previous code bank when we were writing code banks'
+		end
+	end
+
 	local n = #code
 --DEBUG:print('code size is', n)
-	local numBanksNeededForCode = math.ceil(n / codeSize)
+	local numBanksNeededForCode = math.ceil(n / bankSize)
 --DEBUG:print('num banks needed is', numBanksNeededForCode)
-	local numBanksPrev = #banks
-	if numBanksPrev < numBanksNeededForCode then
-		banks:resize(numBanksNeededForCode)
-		ffi.fill(banks.v + numBanksPrev, ffi.sizeof'ROM' * (numBanksNeededForCode - numBanksPrev))
-	end
-	assert.ge(#banks, numBanksNeededForCode)
-	assert.le(n, codeSize * #banks)
-	for bankNo=0,#banks-1 do
-		local bank = banks.v + bankNo
-		local i1 = bankNo*codeSize
-		local i2 = (bankNo+1)*codeSize
+	banks:resize(numBanksPrev + numBanksNeededForCode)
+	ffi.fill(banks.v[numBanksPrev].v, ffi.sizeof'Bank' * numBanksNeededForCode)
+	for bankNo=0,numBanksNeededForCode-1 do
+		local bank = banks.v[bankNo + numBanksPrev]
+		local i1 = bankNo*bankSize
+		local i2 = (bankNo+1)*bankSize
 		local s = code:sub(i1+1, i2)
-		assert.le(#s, codeSize)
-		ffi.fill(bank.code, 0, codeSize)
-		ffi.copy(bank.code, s)
+		assert.le(#s, bankSize)
+		ffi.fill(bank.v, 0, bankSize)
+		ffi.copy(bank.v, s)
 	end
 end
 

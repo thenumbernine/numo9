@@ -400,16 +400,6 @@ To pack a cartridge and immediately run it:
 luajit n9a.lua r cart.n9
 ```
 
-To convert a PNG-encoded cartridge to its binary ROM format:
-```
-luajit n9a.lua n9tobin cart.n9
-```
-
-To convert the binary ROM back to a PNG-encoded cartridge:
-```
-luajit n9a.lua binton9 cart.bin
-```
-
 # Pico8-Compatability
 
 To convert a Pico8 cartridge to a local directory of unpacked n9 contents:

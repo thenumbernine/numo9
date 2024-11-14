@@ -22,8 +22,8 @@ local App = require 'numo9.app'
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
-local resetROMPalette = numo9_video.resetROMPalette
-local resetROMFont = numo9_video.resetROMFont
+local resetPalette = numo9_video.resetPalette
+local resetFont = numo9_video.resetFont
 
 local numo9_archive = require 'numo9.archive'
 local fromCartImage = numo9_archive.fromCartImage
@@ -32,11 +32,15 @@ local codeBanksToStr = numo9_archive.codeBanksToStr
 local codeStrToBanks = numo9_archive.codeStrToBanks
 
 local numo9_rom = require 'numo9.rom'
+local bankTypeNames = numo9_rom.bankTypeNames
+local paletteType = numo9_rom.paletteType
 local deltaCompress = numo9_rom.deltaCompress
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local tilemapSize = numo9_rom.tilemapSize
 local userDataSize = numo9_rom.userDataSize
 local persistentCartridgeDataSize = numo9_rom.persistentCartridgeDataSize
+local fontAddr = numo9_rom.fontAddr
+local systemRAMSize = numo9_rom.systemRAMSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
 local audioDataSize = numo9_rom.audioDataSize
@@ -92,105 +96,122 @@ if cmd == 'x' then
 	assert(basepath:isdir())
 
 	print'loading cart...'
-	local banks = fromCartImage((assert(n9path:read())))
+	local banks, bankTypes = fromCartImage((assert(n9path:read())))
 	assert.is(banks, vector)
-	assert.eq(banks.type, 'ROM')
-	assert.ge(#banks, 1)
+	assert.eq(banks.type, 'Bank')
+	assert.is(bankTypes, vector)
+	assert.eq(bankTypes.type, 'uint8_t')
+	assert.eq(#banks, #bankTypes)
 
+	-- first find a palette to use
+	local lastPalette
 	for bankNo=0,#banks-1 do
 		local bank = banks.v + bankNo
-		local bankpath = basepath
-		if bankNo > 0 then
-			bankpath = basepath/tostring(bankNo)
-			bankpath:mkdir()
-		end
+		local bankpath = basepath/tostring(bankNo)
+		bankpath:mkdir()
 
-		print'saving font...'
-		local image = Image(256, 64, 1, 'uint8_t')
-		for xl=0,31 do
-			for yl=0,7 do
-				local ch = bit.bor(xl, bit.lshift(yl, 5))
-				for x=0,7 do
-					for y=0,7 do
-						image.buffer[
-							bit.bor(
-								x,
-								bit.lshift(xl, 3),
-								bit.lshift(y, 8),
-								bit.lshift(yl, 11)
-							)
-						] = bit.band(bit.rshift(bank.font[
-							bit.bor(
-								x,
-								bit.band(ch, bit.bnot(7)),
-								bit.lshift(y, 8)
-							)
-						], bit.band(ch, 7)), 1)
+		if bankType.v[bankNo] == assert(bankTypeNames:find'misc') then
+			print'saving font...'
+			local image = Image(256, 64, 1, 'uint8_t')
+			for xl=0,31 do
+				for yl=0,7 do
+					local ch = bit.bor(xl, bit.lshift(yl, 5))
+					for x=0,7 do
+						for y=0,7 do
+							image.buffer[
+								bit.bor(
+									x,
+									bit.lshift(xl, 3),
+									bit.lshift(y, 8),
+									bit.lshift(yl, 11)
+								)
+							] = bit.band(bit.rshift(bank.font[
+								bit.bor(
+									x,
+									bit.band(ch, bit.bnot(7)),
+									bit.lshift(y, 8)
+								)
+							], bit.band(ch, 7)), 1)
+						end
 					end
 				end
 			end
-		end
-		image.palette = {{0,0,0},{255,255,255}}
-		image:save(bankpath'font.png'.path)
+			image.palette = {{0,0,0},{255,255,255}}
+			image:save(bankpath'font.png'.path)
 
-		print'saving palette...'
-		-- palette: 16 x 16 x 24bpp 8bpp r g b
-		local image = Image(16, 16, 4, 'uint8_t')
-		local imagePtr = image.buffer
-		local palPtr = bank.palette -- uint16_t*
-		local palette = table()
-		for y=0,15 do
-			for x=0,15 do
-				-- TODO packptr in numo9/app.lua
-				local r,g,b,a = rgba5551_to_rgba8888_4ch(palPtr[0])
-				imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = r,g,b,a
-				palette:insert{r,g,b,a}
-				palPtr = palPtr + 1
-				imagePtr = imagePtr + 4
+			print'saving palette...'
+			-- palette: 16 x 16 x 24bpp 8bpp r g b
+			local image = Image(16, 16, 4, 'uint8_t')
+			local imagePtr = image.buffer
+			local palPtr = bank.palette -- uint16_t*
+			lastPalette = table()
+			for y=0,15 do
+				for x=0,15 do
+					-- TODO packptr in numo9/app.lua
+					local r,g,b,a = rgba5551_to_rgba8888_4ch(palPtr[0])
+					imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = r,g,b,a
+					lastPalette:insert{r,g,b,a}
+					palPtr = palPtr + 1
+					imagePtr = imagePtr + 4
+				end
 			end
+			image:save(bankpath'pal.png'.path)
 		end
-		image:save(bankpath'pal.png'.path)
+	end
 
-		print'saving sprite sheet...'
-		-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
-		-- TODO save a palette'd image
-		local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
-		ffi.copy(image.buffer, bank.spriteSheet, ffi.sizeof(bank.spriteSheet))
-		image.palette = palette
-		image:save(bankpath'sprite.png'.path)
+	-- then save images
+	do
+		local bankNo=0
+		while bankNo < #banks do
+	
+			local bank = banks.v + bankNo
+			local bankpath = basepath/tostring(bankNo)
+			bankpath:mkdir()
 
-		print'saving tile sheet...'
-		-- tile tex: 256 x 256 x 8bpp ... TODO needs to be indexed
-		ffi.copy(image.buffer, bank.tileSheet, ffi.sizeof(bank.tileSheet))
-		image.palette = palette
-		image:save(bankpath'tiles.png'.path)
+			if bankType.v[bankNo] == assert(bankTypeNames:find'misc') then
+				-- already handled above
+			elseif bankType.v[bankNo] == assert(bankTypeNames:find'sheet') then
+				print'saving sheet...'
+				-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
+				-- TODO save a palette'd image
+				local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+				ffi.copy(image.buffer, bank.v, spriteSheetInBytes)
+				image.palette = lastPalette
+				image:save(bankpath'sheet.png'.path)
+			elseif bankType.v[bankNo] == assert(bankTypeNames:find'tilemap') then
+				assert.lt(bankNo, #banks-1, "tilemap needs two banks in a row")
+				assert.eq(bankType.v[bankNo+1], assert(bankTypeNames:find'tilemap'))
 
-		print'saving tile map...'
-		-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
-		local image = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
-		local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
-		local imagePtr = image.buffer
-		for y=0,tilemapSize.y-1 do
-			for x=0,tilemapSize.x-1 do
-				imagePtr[0] = mapPtr[0]
-				imagePtr = imagePtr + 1
-				mapPtr = mapPtr + 1
+				print'saving tile map...'
+				-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
+				local image = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
+				local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
+				local imagePtr = image.buffer
+				for y=0,tilemapSize.y-1 do
+					for x=0,tilemapSize.x-1 do
+						imagePtr[0] = mapPtr[0]
+						imagePtr = imagePtr + 1
+						mapPtr = mapPtr + 1
 
-				imagePtr[0] = mapPtr[0]
-				imagePtr = imagePtr + 1
-				mapPtr = mapPtr + 1
+						imagePtr[0] = mapPtr[0]
+						imagePtr = imagePtr + 1
+						mapPtr = mapPtr + 1
 
-				imagePtr[0] = 0
-				imagePtr = imagePtr + 1
+						imagePtr[0] = 0
+						imagePtr = imagePtr + 1
+					end
+				end
+				image:save(bankpath'tilemap.png'.path)
+			else
+				error("got unknown bankType "..tostring(bankTypes.v[bankNo]))
 			end
+			bankNo = bankNo + 1
 		end
-		image:save(bankpath'tilemap.png'.path)
-
 		-- TODO save sfx and music here
 	end
 
 	print'saving code...'
-	local code = codeBanksToStr(banks)
+	local code = codeBanksToStr(banks, bankTypes)
 	if #code > 0 then
 		assert(basepath'code.lua':write(code))
 	end
@@ -202,251 +223,284 @@ or cmd == 'r' then
 	local basepath = getbasepath(fn)
 
 	assert(basepath:isdir())
-	local banks = vector('ROM', 1)
+	local banks = vector'Bank'
+	local bankTypes = vector'uint8_t'
 
+	-- hmm load code last ...
+	-- or if code can be split up then maybe now I have to load it scattered across all banks?
+	-- hmm ...
+	-- does that mean I have to externally edit it scattered across all banks?
 	print'loading code...'
 	if basepath'code.lua':exists() then
 		local code = assert(basepath'code.lua':read())
-		codeStrToBanks(banks, code)	-- this grows the # banks
+		codeStrToBanks(banks, bankTypes, code)	-- this grows the # banks
 	end
 
+	-- default font should always be there
+	local fontpath = path'font.png'
+	assert(fontpath:exists(), "failed to find the default font file!")
+	
 	local fns = table()
 	for f in basepath:dir() do
 		local bankpath = basepath/f
 		if bankpath:isdir() then
 			local bankNo = tonumber(f.path)
 			if bankNo then
-				banks:resize(math.max(#banks, tonumber(bankNo)+1))
+				local newSize = math.max(#banks, tonumber(bankNo)+1)
+				banks:resize(newSize)
+				bankTypes:resize(newSize)
 			end
 		end
 	end
 
-	for bankNo=0,#banks-1 do
-		local bank = banks.v + bankNo
-		local bankpath = basepath
-		if bankNo > 0 then
-			bankpath = basepath/tostring(bankNo)
+	do
+		local bankNo = 0
+		while bankNo < #banks do
+			local bank = banks.v + bankNo
+			local bankpath = basepath/tostring(bankNo)
 			bankpath:mkdir()
-		end
 
-		print'loading sprite sheet...'
-		if bankpath'sprite.png':exists() then
-			local image = assert(Image(bankpath'sprite.png'.path))
-			assert.eq(image.width, spriteSheetSize.x)
-			assert.eq(image.height, spriteSheetSize.y)
-			assert.eq(image.channels, 1)
-			assert(ffi.sizeof(image.format), 1)
-			ffi.copy(bank.spriteSheet, image.buffer, spriteSheetSize:volume())
-		end
-
-		print'loading tile sheet...'
-		if bankpath'tiles.png':exists() then
-			local image = assert(Image(bankpath'tiles.png'.path))
-			assert.eq(image.width, spriteSheetSize.x)
-			assert.eq(image.height, spriteSheetSize.y)
-			assert.eq(image.channels, 1)
-			assert(ffi.sizeof(image.format), 1)
-			ffi.copy(bank.tileSheet, image.buffer, spriteSheetSize:volume())
-		end
-
-		print'loading tile map...'
-		if bankpath'tilemap.png':exists() then
-			local image = assert(Image(bankpath'tilemap.png'.path))
-			assert.eq(image.width, tilemapSize.x)
-			assert.eq(image.height, tilemapSize.y)
-			assert.eq(image.channels, 3)
-			assert.eq(ffi.sizeof(image.format), 1)
-			local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
-			local imagePtr = image.buffer
-			for y=0,tilemapSize.y-1 do
-				for x=0,tilemapSize.x-1 do
-					mapPtr[0] = imagePtr[0]
-					imagePtr = imagePtr + 1
-					mapPtr = mapPtr + 1
-
-					mapPtr[0] = imagePtr[0]
-					imagePtr = imagePtr + 1
-					mapPtr = mapPtr + 1
-
-					imagePtr = imagePtr + 1
-				end
-			end
-			image:save(bankpath'tilemap.png'.path)
-		end
-
-		print'loading palette...'
-		if bankpath'pal.png':exists() then
-			local image = assert(Image(bankpath'pal.png'.path))
-			assert.eq(image.width, 16)
-			assert.eq(image.height, 16)
-			assert.eq(image.channels, 4)
-			assert.eq(ffi.sizeof(image.format), 1)
-			local imagePtr = image.buffer
-			local palPtr = bank.palette -- uint16_t*
-			for y=0,15 do
-				for x=0,15 do
-					palPtr[0] = rgba8888_4ch_to_5551(
-						imagePtr[0],
-						imagePtr[1],
-						imagePtr[2],
-						imagePtr[3]
-					)
-					palPtr = palPtr + 1
-					imagePtr = imagePtr + 4
-				end
-			end
-		else
-			-- TODO resetGFX flag for n9a to do this anyways
-			-- if pal.png doens't exist then load the default at least
-			resetROMPalette(bank)
-		end
-
-		local fontpath = path'font.png'
-		assert(fontpath:exists(), "failed to find the default font file!")
-		local bankfontpath = bankpath'font.png'
-		if bankfontpath :exists() then
-			fontpath = bankfontpath
-		end
-		resetROMFont(bank.font, fontpath.path)
-
-		print'loading sfx...'
-		do
-			local audioDataOffset = 0
-			-- returns start and end of offset into audioData for 'data' to go
-			local function addToAudio(data, size)
-				local addr = audioDataOffset
-				assert(addr + size <= audioDataSize, "audio data overflow")
-				ffi.copy(bank.audioData + addr, data, size)
-				audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
-				return addr
-			end
-
-			-- load sfx into audio memory
 			local found
-			for i=0,sfxTableSize-1 do
-				local p = bankpath('waveform'..i..'.wav')
-				if p:exists() then
-					local wav = AudioWAV():load(p.path)
-					assert.eq(wav.channels, 1)	-- waveforms / sfx are mono
-					-- TODO resample if they are different.
-					-- for now I'm just saving them in this format and being lazy
-					assert.eq(wav.ctype, audioSampleType)
-					assert.eq(wav.freq, audioSampleRate)
-					local data = wav.data
-					local size = wav.size
-					--[[ now BRR-compress them and copy them into bank.audioData, and store their offsets in sfxAddrs
-					-- TODO what if the data doesn't align to 8 samples? what did SNES do?
-					local brrComp = vector'uint8_t'
+		
+			print'loading sfx...'
+			-- TODO if any sfx are found then use the whole bank for audio
+			-- but if it was already used then complain
+			do
+				local audioBank = ffi.cast('AudioBank*', bank)
+				local audioDataOffset = 0
+				-- returns start and end of offset into audioData for 'data' to go
+				local function addToAudio(data, size)
+					local addr = audioDataOffset
+					assert(addr + size <= audioDataSize, "audio data overflow")
+					ffi.copy(audioBank.v + addr, data, size)
+					audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
+					return addr
+				end
+
+				-- load sfx into audio memory
+				local audioFound
+				for i=0,sfxTableSize-1 do
+					local p = bankpath('waveform'..i..'.wav')
+					if p:exists() then
+						local wav = AudioWAV():load(p.path)
+						assert.eq(wav.channels, 1)	-- waveforms / sfx are mono
+						-- TODO resample if they are different.
+						-- for now I'm just saving them in this format and being lazy
+						assert.eq(wav.ctype, audioSampleType)
+						assert.eq(wav.freq, audioSampleRate)
+						local data = wav.data
+						local size = wav.size
+						--[[ now BRR-compress them and copy them into bank.audioData, and store their offsets in sfxAddrs
+						-- TODO what if the data doesn't align to 8 samples? what did SNES do?
+						local brrComp = vector'uint8_t'
+						--]]
+						-- [[ until then, use raw for now
+	--DEUBG:print('writing sfx', i, 'size', size)
+						local addrLen = audioBank.sfxAddrs[i]
+						addrLen.addr, addrLen.len = addToAudio(data, size), size
+						--]]
+						audioFound = true
+					end
+				end
+				
+				--[=[
+				-- if there's no audio waveforms then add the defaults ... or not?
+				-- i'm tempted to do this always for the first 10 waveforms, but there's always the scenario where someone has just 1 waveform and a bunch of music data and fills the ARAM, and then adding the other 9 waveforms overflows ARAM ...
+				-- but if someone has *no waveforms* then they definitely don't have any music ...
+				-- ... unless ... it's on another bank ... hmm ...
+				-- so only fill in default waveforms on bank 0 if we only have 1 bank total ...
+				if not audioFound 
+				and #banks == 1 
+				then
+					local amplMax, amplZero = 32767, 0
+					local function sinewave(t)
+						return math.sin(t * 2 * math.pi)
+					end
+					local function trianglewave(t)
+						--t = t + .5		-- why the buzzing noise ...
+						--t = t + .25
+						--return -(math.abs(t - math.floor(t + .5)) * 4 - 1)
+						return math.abs(math.floor(t + .5) - t) * 4 - 1
+					end
+					local function sawwave(t)
+						return (t % 1) * 2 - 1
+					end
+					local function tiltedsawwave(t)
+						t = t % 1
+						return math.min(
+							t  / (3 / 4),	-- 3:4 is our ratio of tilt lhs to rhs
+							(1 - t) * 4
+						) * 2 - 1
+					end
+					local function squarewave(t)
+						t = t % 1
+						return t > .5 and 1 or -1
+						--return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
+					end
+					local function pulsewave(t)
+						t = t % 1
+						return t > .75 and 1 or -1
+
+					end
+					local function organwave(t)
+						return (sinewave(t) + sinewave(2*t) + sinewave(.5*t))/3
+					end
+					local function noisewave(t)
+						-- too random <-> too high-pitched?  needs to be spectral noise at a certain frequency?
+						--return math.random() * 2 - 1
+						return sinewave(t)
+					end
+					local function phaserwave(t)
+						return sinewave(t) * .75 + sinewave(3*t) * .25
+					end
 					--]]
-					-- [[ until then, use raw for now
---DEUBG:print('writing sfx', i, 'size', size)
-					local addrLen = bank.sfxAddrs[i]
-					addrLen.addr, addrLen.len = addToAudio(data, size), size
-					--]]
+					local wavefuncs = table{
+						trianglewave,
+						sawwave,
+						tiltedsawwave,
+						squarewave,
+						pulsewave,
+						organwave,
+						noisewave,
+						phaserwave,
+					}
+
+
+					for i,f in ipairs(wavefuncs) do
+						local len = math.ceil(audioSampleRate / waveformFreq * 2)
+						local data = ffi.new(audioSampleType..'[?]', len)
+						local p = ffi.cast(audioSampleType..'*', data)
+						local tf = 0	-- time x frequency
+						for j=0,len-1 do
+							p[0] = math.round(f(tf) * amplMax * .5) + amplZero
+							tf = tf + waveformFreq / audioSampleRate
+							p = p + 1
+						end
+						assert.eq(p, data + len)
+						local addrLen = audioBank.sfxAddrs[i-1]
+						local size = len * 2 -- lazy integer rup
+						addrLen.addr, addrLen.len = addToAudio(data, size), size
+					end
+				end
+				--]=]
+
+				-- load music tracks into audio memory
+				for i=0,musicTableSize-1 do
+					local p = bankpath('music'..i..'.bin')
+					if p:exists() then
+						audioFound = true
+						local data = p:read()
+						local size = #data
+	--DEUBG:print('writing music', i, 'size', size)
+						local addrLen = audioBank.musicAddrs[i]
+						addrLen.addr, addrLen.len = addToAudio(data, size), size
+					end
+				end
+
+	--DEBUG:print('num audio data stored:', audioDataOffset)
+				if audioFound then
+					assert(not found, "bank "..tostring(bankNo).." has overlapping resources")
 					found = true
 				end
 			end
-			-- if there's no audio waveforms then add the defaults
-			-- i'm tempted to do this always for the first 10 waveforms, but there's always the scenario where someone has just 1 waveform and a bunch of music data and fills the ARAM, and then adding the other 9 waveforms overflows ARAM ...
-			-- but if someone has *no waveforms* then they definitely don't have any music ...
-			-- ... unless ... it's on another bank ... hmm ...
-			-- so only fill in default waveforms on bank 0 if we only have 1 bank total ...
-			if not found and #banks == 1 then
-				local amplMax, amplZero = 32767, 0
-				local function sinewave(t)
-					return math.sin(t * 2 * math.pi)
-				end
-				local function trianglewave(t)
-					--t = t + .5		-- why the buzzing noise ...
-					--t = t + .25
-					--return -(math.abs(t - math.floor(t + .5)) * 4 - 1)
-					return math.abs(math.floor(t + .5) - t) * 4 - 1
-				end
-				local function sawwave(t)
-					return (t % 1) * 2 - 1
-				end
-				local function tiltedsawwave(t)
-					t = t % 1
-					return math.min(
-						t  / (3 / 4),	-- 3:4 is our ratio of tilt lhs to rhs
-						(1 - t) * 4
-					) * 2 - 1
-				end
-				local function squarewave(t)
-					t = t % 1
-					return t > .5 and 1 or -1
-					--return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
-				end
-				local function pulsewave(t)
-					t = t % 1
-					return t > .75 and 1 or -1
 
-				end
-				local function organwave(t)
-					return (sinewave(t) + sinewave(2*t) + sinewave(.5*t))/3
-				end
-				local function noisewave(t)
-					-- too random <-> too high-pitched?  needs to be spectral noise at a certain frequency?
-					--return math.random() * 2 - 1
-					return sinewave(t)
-				end
-				local function phaserwave(t)
-					return sinewave(t) * .75 + sinewave(3*t) * .25
-				end
-				--]]
-				local wavefuncs = table{
-					trianglewave,
-					sawwave,
-					tiltedsawwave,
-					squarewave,
-					pulsewave,
-					organwave,
-					noisewave,
-					phaserwave,
-				}
-
-
-				for i,f in ipairs(wavefuncs) do
-					local len = math.ceil(audioSampleRate / waveformFreq * 2)
-					local data = ffi.new(audioSampleType..'[?]', len)
-					local p = ffi.cast(audioSampleType..'*', data)
-					local tf = 0	-- time x frequency
-					for j=0,len-1 do
-						p[0] = math.round(f(tf) * amplMax * .5) + amplZero
-						tf = tf + waveformFreq / audioSampleRate
-						p = p + 1
+			local paletteFound
+			if bankpath'pal.png':exists() then
+				print'loading palette...'
+				assert(not found, "bank "..tostring(bankNo).." has overlapping resources")
+				found = true
+				paletteFound = true	-- since palette & font can share a bank
+				local image = assert(Image(bankpath'pal.png'.path))
+				assert.eq(image.width, 16)
+				assert.eq(image.height, 16)
+				assert.eq(image.channels, 4)
+				assert.eq(ffi.sizeof(image.format), 1)
+				local imagePtr = image.buffer
+				local palPtr = ffi.cast(paletteType..'*', bank.v)
+				for y=0,15 do
+					for x=0,15 do
+						palPtr[0] = rgba8888_4ch_to_5551(
+							imagePtr[0],
+							imagePtr[1],
+							imagePtr[2],
+							imagePtr[3]
+						)
+						palPtr = palPtr + 1
+						imagePtr = imagePtr + 4
 					end
-					assert.eq(p, data + len)
-					local addrLen = bank.sfxAddrs[i-1]
-					local size = len * 2 -- lazy integer rup
-					addrLen.addr, addrLen.len = addToAudio(data, size), size
 				end
+			else
+				-- TODO resetGFX flag for n9a to do this anyways
+				-- if pal.png doens't exist then load the default at least
+				resetPalette(ffi.cast(paletteType..'*', bank.v))
+			end
+		
+			local bankfontpath = bankpath'font.png'
+			if bankfontpath:exists() then
+				print'loading font...'
+				assert(not found, "bank "..tostring(bankNo).." has overlapping resources")
+				found = true
+				fontpath = bankfontpath
+				-- TODO what about resetting to the builtin font?
+				resetFont(bank.v + paletteInBytes, fontpath.path)
 			end
 
-			-- load music tracks into audio memory
-			for i=0,musicTableSize-1 do
-				local p = bankpath('music'..i..'.bin')
-				if p:exists() then
-					local data = p:read()
-					local size = #data
---DEUBG:print('writing music', i, 'size', size)
-					local addrLen = bank.musicAddrs[i]
-					addrLen.addr, addrLen.len = addToAudio(data, size), size
-				end
+			if bankpath'sheet.png':exists() then
+				print'loading sheet...'
+				assert(not found, "bank "..tostring(bankNo).." has overlapping resources")
+				found = true
+				local image = assert(Image(bankpath'sheet.png'.path))
+				assert.eq(image.width, spriteSheetSize.x)
+				assert.eq(image.height, spriteSheetSize.y)
+				assert.eq(image.channels, 1)
+				assert(ffi.sizeof(image.format), 1)
+				ffi.copy(bank.v, image.buffer, spriteSheetSize:volume())
 			end
 
---DEBUG:print('num audio data stored:', audioDataOffset)
+			if bankpath'tilemap.png':exists() then
+				print'loading tile map...'
+				assert(not found, "bank "..tostring(bankNo).." has overlapping resources")
+				assert.lt(bankNo, #banks-1, "tilemaps need two banks")
+				found = true
+				local image = assert(Image(bankpath'tilemap.png'.path))
+				assert.eq(image.width, tilemapSize.x)
+				assert.eq(image.height, tilemapSize.y)
+				assert.eq(image.channels, 3)
+				assert.eq(ffi.sizeof(image.format), 1)
+				local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
+				local imagePtr = image.buffer
+				for y=0,tilemapSize.y-1 do
+					for x=0,tilemapSize.x-1 do
+						mapPtr[0] = imagePtr[0]
+						imagePtr = imagePtr + 1
+						mapPtr = mapPtr + 1
+
+						mapPtr[0] = imagePtr[0]
+						imagePtr = imagePtr + 1
+						mapPtr = mapPtr + 1
+
+						imagePtr = imagePtr + 1
+					end
+				end
+				-- load tilemap last cuz it's going to increment the pointer, don't want that interfering with subsequent resource load attempts
+				bankNo = bankNo + 1
+			end
+			
+			bankNo = bankNo + 1
 		end
 	end
 
-	-- TODO organize this more
+	--[[ TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'
-		resetROMFont(banks.v[0].font)
+		resetFont(banks.v[0].v + fontAddr - systemRAMSize) error but which bank?
 	end
+	--]]
+	--[[	
 	if extra == 'resetPal' then
-		--resetROMPalette(bank)
+		resetPalette(bank) error but which bank?
 	end
+	--]]
 
 	local labelImage
 	pcall(function()
@@ -454,19 +508,20 @@ or cmd == 'r' then
 	end)
 
 	print'saving cart...'
-	assert(path(fn):write(toCartImage(banks, labelImage)))
+	assert(path(fn):write(toCartImage(banks, bankTypes, labelImage)))
 
 	if cmd == 'r' then
 		assert(os.execute('luajit run.lua -nosplash "'..fn..'"'))
 	end
 
+--[==[
 elseif cmd == 'n9tobin' then
 
 	local n9path = path(fn)
 	local basepath = getbasepath(fn)
 	local binpath = n9path:setext'bin'
 
-	local banks = assert(fromCartImage((assert(n9path:read()))))
+	local banks, bankTypes = assert(fromCartImage((assert(n9path:read()))))
 	assert(binpath:write(ffi.string(banks.v, #banks * ffi.sizeof'ROM')))
 
 elseif cmd == 'binton9' then
@@ -481,8 +536,10 @@ elseif cmd == 'binton9' then
 	ffi.fill(banks.v, ffi.sizeof'ROM' * #banks)
 	ffi.copy(banks.v, data, #data)
 	assert(path(fn):write(
-		(assert(toCartImage(banks, binpath.path)))
+		(assert(toCartImage(banks, bankTypes, binpath.path)))
 	))
+
+--]==]
 
 -- TODO make this auto-detect 'x' and 'r' based on extension
 elseif cmd == 'p8' or cmd == 'p8run' then
@@ -1645,11 +1702,8 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 
 	local code = table()
 	for bankNo=0,7 do
-		local bankpath = basepath
-		if bankNo > 0 then
-			bankpath = basepath/tostring(bankNo)
-			bankpath:mkdir()
-		end
+		local bankpath = basepath/tostring(bankNo)
+		bankpath:mkdir()
 		local chunks = ticbanks[bankNo] or {}
 
 		-- save the palettes

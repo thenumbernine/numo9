@@ -19,6 +19,7 @@ local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 
 local numo9_rom = require 'numo9.rom'
+local systemRAMSize = numo9_rom.systemRAMSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
@@ -227,7 +228,7 @@ local function resetLogoOnSheet(spriteSheetPtr)
 	end
 end
 
-local function resetROMFont(fontPtr, fontFilename)
+local function resetFont(fontPtr, fontFilename)
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
 	local fontImg = assert(Image(fontFilename or 'font.png'), "failed to find file "..tostring(fontFilename))
@@ -366,10 +367,6 @@ local function resetPalette(ptr)	-- uint16_t*
 	end
 end
 
-local function resetROMPalette(rom)
-	resetPalette(rom.palette)
-end
-
 
 --[[
 makes an image whose buffer is at a location in RAM
@@ -401,7 +398,8 @@ args:
 --]]
 function RAMGPUTex:init(args)
 glreport'before RAMGPUTex:init'
-	self.app = assert.index(args, 'app')
+	local app = assert.index(args, 'app')
+	self.app = app
 	self.addr = assert.index(args, 'addr')
 	assert.ge(self.addr, 0)
 	local width = assert(tonumber(assert.index(args, 'width')))
@@ -409,17 +407,20 @@ glreport'before RAMGPUTex:init'
 	local channels = assert.index(args, 'channels')
 	if channels ~= 1 then print'DANGER - non-single-channel Image!' end
 	local ctype = assert.index(args, 'ctype')
-
+	self.ctype = ctype
+	
 	self.size = width * height * channels * ffi.sizeof(ctype)
 	self.addrEnd = self.addr + self.size
-	assert.le(self.addrEnd, ffi.sizeof'RAM')
-	local ptr = self.app.ram.v + self.addr
-	local src = args.src
+	assert.le(self.addrEnd, #app.ramBanks * ffi.sizeof'Bank')
+	local ptr = ffi.cast(ctype..'*', app.ramBanks.v[0].v + self.addr)
+	self.ptr = ptr
 
 print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.size))
 
 	local image = Image(width, height, channels, ctype, src)
 	self.image = image
+	
+	local src = args.src
 	if src then	-- if we specified a src to the Image then copy it into RAM before switching Image pointers to point at RAM
 		ffi.copy(ptr, image.buffer, self.size)
 	end
@@ -441,7 +442,7 @@ print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.si
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		magFilter = args.magFilter or gl.GL_NEAREST,
-		data = image.buffer,	-- ptr is stored
+		data = ptr,	-- ptr is stored
 	}:unbind()
 	self.tex = tex
 glreport'after RAMGPUTex:init'
@@ -504,7 +505,8 @@ function RAMGPUTex:updateAddr(newaddr)
 	newaddr = math.clamp(bit.bor(0, newaddr), 0, ffi.sizeof'RAM' - self.size)
 	self.addr = newaddr
 	self.addrEnd = newaddr + self.size
-	self.image.buffer = self.app.ram.v + self.addr
+	self.ptr = ffi.cast(self.ctype..'*', self.app.ramBanks.v[0].v + self.addr)
+	self.image.buffer = self.ptr
 	self.tex.data = self.image.buffer
 	self.dirtyCPU = true
 end
@@ -652,7 +654,7 @@ function AppVideo:initVideo()
 
 		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
 		local fontData = ffi.new('uint8_t[?]', fontInBytes)
-		resetROMFont(fontData, 'font.png')
+		resetFont(fontData, 'font.png')
 		self.fontMenuTex = GLTex2D{
 			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
 			internalFormat = texInternalFormat_u8,
@@ -1661,7 +1663,11 @@ function AppVideo:resetVideo()
 	--self.ram.videoMode = 2	-- 8bpp RGB332
 	self:setVideoMode(self.ram.videoMode)
 
-	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
+	-- copy ROM->RAM
+	assert.eq(#self.romBanks, #self.bankTypes)
+	assert.eq(#self.ramBanks, #self.bankTypes+3)
+	ffi.copy(self.ramBanks.v+3, self.romBanks.v, #self.romBanks * ffi.sizeof'Bank')
+	
 	-- [[ update now ...
 	self.spriteSheetRAM.tex:bind()
 		:subimage()
@@ -1748,11 +1754,14 @@ function AppVideo:setFramebufferTex(tex)
 	end
 end
 
--- exchnage two colors in the palettes, and in all spritesheets,
+-- exchange two colors in the palettes, and in all spritesheets,
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
 function AppVideo:colorSwap(from, to, x, y, w, h)
-	-- TODO SORT THIS OUT
-	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
+	-- copy ROM->RAM
+	assert.eq(#self.romBanks, #self.bankTypes)
+	assert.eq(#self.ramBanks, #self.bankTypes+3)
+	ffi.copy(self.ramBanks.v+3, self.romBanks.v, #self.romBanks * ffi.sizeof'Bank')
+
 	from = math.floor(from)
 	to = math.floor(to)
 	x = math.floor(x)
@@ -1788,7 +1797,12 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
-	ffi.copy(self.banks.v[0].v, self.ram.bank, ffi.sizeof'ROM')
+	
+	-- copy RAM->ROM
+	assert.eq(#self.romBanks, #self.bankTypes)
+	assert.eq(#self.ramBanks, #self.bankTypes+3)
+	ffi.copy(self.romBanks.v, self.ramBanks.v+3, #self.romBanks * ffi.sizeof'Bank')
+
 	return fromFound, toFound
 end
 
@@ -1807,8 +1821,8 @@ end
 
 function AppVideo:resetFont()
 	self.fontRAM:checkDirtyGPU()
-	resetROMFont(self.ram.bank[0].font)
-	ffi.copy(self.banks.v[0].font, self.ram.bank[0].font, fontInBytes)
+	resetFont(self.ramBanks.v[0].v + self.fontRAM.addr)
+	ffi.copy(self.romBanks.v[0].v + (self.fontRAM.addr - systemRAMSize), self.ramBanks.v[0].v + self.fontRAM.addr, fontInBytes)
 	self.fontRAM.dirtyCPU = true
 end
 
@@ -1819,8 +1833,8 @@ function AppVideo:resetGFX()
 	self:resetFont()
 
 	self.paletteRAM:checkDirtyGPU()
-	resetROMPalette(self.ram.bank[0])
-	ffi.copy(self.banks.v[0].palette, self.ram.bank[0].palette, paletteInBytes)
+	resetPalette(self.ramBanks.v[0].v + self.paletteRAM.addr)
+	ffi.copy(self.romBanks.v[0].v + (self.paletteRAM.addr - systemRAMSize), self.ramBanks.v[0].v + self.paletteRAM.addr, paletteInBytes)
 	self.paletteRAM.dirtyCPU = true
 end
 
@@ -2218,7 +2232,7 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	-- should font bg respect transparency/alpha?
 	-- or why even draw a background to it? let the user?
 	-- or how about use it as a separate flag?
-	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.ram.bank[0].palette[bgColorIndex])
+	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.paletteRAM.ptr[bgColorIndex])
 	if a > 0 then
 		for i=1,#text do
 			local ch = text:byte(i)
@@ -2344,8 +2358,8 @@ return {
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
 	rgb565rev_to_rgba888_3ch = rgb565rev_to_rgba888_3ch,
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
-	resetROMFont = resetROMFont,
+	resetFont = resetFont,
+	resetPalette = resetPalette,
 	resetLogoOnSheet = resetLogoOnSheet,
-	resetROMPalette = resetROMPalette,
 	AppVideo = AppVideo,
 }

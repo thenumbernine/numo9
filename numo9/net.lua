@@ -67,6 +67,14 @@ local framebufferInBytes = numo9_rom.framebufferInBytes
 local clipRectInBytes = numo9_rom.clipRectInBytes
 local mvMatInBytes = numo9_rom.mvMatInBytes
 local deltaCompress = numo9_rom.deltaCompress
+local spriteSheetAddr = numo9_rom.spriteSheetAddr
+local tileSheetAddr = numo9_rom.tileSheetAddr
+local tilemapAddr = numo9_rom.tilemapAddr
+local paletteAddr = numo9_rom.paletteAddr
+local fontAddr = numo9_rom.fontAddr
+local framebufferAddr = numo9_rom.framebufferAddr
+local clipRectAddr = numo9_rom.clipRectAddr
+local mvMatAddr = numo9_rom.mvMatAddr
 
 
 local ramStateSize = 0
@@ -1047,14 +1055,14 @@ print'sending initial RAM state...'
 
 	-- send back current state of the game ...
 	local ramState =
-		  ffi.string(ffi.cast('char*', app.ram.bank[0].spriteSheet), spriteSheetInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].tileSheet), tileSheetInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].tilemap), tilemapInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].palette), paletteInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].font), fontInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
+		  ffi.string(ffi.cast('char*', app.ramBanks.v[0].v + spriteSheetAddr), spriteSheetInBytes)
+		..ffi.string(ffi.cast('char*', app.ramBanks.v[0].v + tileSheetAddr), tileSheetInBytes)
+		..ffi.string(ffi.cast('char*', app.ramBanks.v[0].v + tilemapAddr), tilemapInBytes)
+		..ffi.string(ffi.cast('char*', app.ramBanks.v[0].v + paletteAddr), paletteInBytes)
+		..ffi.string(ffi.cast('char*', app.ramBanks.v[0].v + fontAddr), fontInBytes)
+		..ffi.string(ffi.cast('char*', app.ramBanks.v[0].v + framebufferAddr), framebufferInBytes)
+		..ffi.string(ffi.cast('char*', app.ramBanks.v[0].v + clipRectAddr), clipRectInBytes)
+		..ffi.string(ffi.cast('char*', app.ramBanks.v[0].v + mvMatAddr), mvMatInBytes)
 
 	assert.len(ramState, ramStateSize)
 	serverConn.toSend:insert(ramState)
@@ -1246,14 +1254,14 @@ print('...got', result:unpack())
 						app.framebufferRAM:checkDirtyGPU()
 
 						-- flush GPU
-						ffi.copy(app.ram.bank[0].spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
-						ffi.copy(app.ram.bank[0].tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
-						ffi.copy(app.ram.bank[0].tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
-						ffi.copy(app.ram.bank[0].palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
-						ffi.copy(app.ram.bank[0].font, ptr, fontInBytes)				ptr=ptr+fontInBytes
-						ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
-						ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
-						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
+						ffi.copy(app.ramBanks.v[0].v + spriteSheetAddr, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
+						ffi.copy(app.ramBanks.v[0].v + tileSheetAddr, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
+						ffi.copy(app.ramBanks.v[0].v + tilemapAddr, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
+						ffi.copy(app.ramBanks.v[0].v + paletteAddr, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
+						ffi.copy(app.ramBanks.v[0].v + fontAddr, ptr, fontInBytes)				ptr=ptr+fontInBytes
+						ffi.copy(app.ramBanks.v[0].v + framebufferAddr, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
+						ffi.copy(app.ramBanks.v[0].v + clipRectAddr, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
+						ffi.copy(app.ramBanks.v[0].v + mvMatAddr, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
 						-- TODO copy music too?
 						-- set all dirty as well
 						app.spriteSheetRAM.dirtyCPU = true
