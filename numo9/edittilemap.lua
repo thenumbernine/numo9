@@ -290,7 +290,7 @@ function EditTilemap:update()
 
 			local texelIndex = tx + tilemapSize.x * ty
 			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-			return app:peekw(app.ram.tilemapRAM.addr + bit.lshift(texelIndex, 1))
+			return app:peekw(app.tilemapRAM.addr + bit.lshift(texelIndex, 1))
 		end
 
 		local function puttile(tx, ty, dx, dy)
@@ -306,7 +306,7 @@ function EditTilemap:update()
 				self.vertFlip and 0x8000 or 0)
 			local texelIndex = tx + tilemapSize.x * ty
 			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-			self:edit_pokew(app.ram.tilemapRAM.addr + bit.lshift(texelIndex, 1), tileSelIndex)
+			self:edit_pokew(app.tilemapRAM.addr + bit.lshift(texelIndex, 1), tileSelIndex)
 		end
 
 		-- TODO pen size here
@@ -474,7 +474,7 @@ print'pasting image'
 						and desty >= 0 and desty < app.tilemapRAM.image.height
 						then
 							local c = image.buffer[i + image.width * j]
-							self:edit_pokew(app.ram.tilemapRAM.addr + bit.lshift(destx + app.tilemapRAM.image.width * desty, 1), c)
+							self:edit_pokew(app.tilemapRAM.addr + bit.lshift(destx + app.tilemapRAM.image.width * desty, 1), c)
 						end
 					end
 				end
