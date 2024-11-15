@@ -47,7 +47,7 @@ local audioMixChannels = 8	-- # channels to play at the same time
 local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a time
 local sfxTableSize =  256	-- max number of unique sfx that a music can reference
 local musicTableSize = 256	-- max number of music tracks stored
-local audioDataSize = 0xf800	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
+local audioDataSize = 0xf400	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
 
 local userDataSize = 0xd84a
 
@@ -91,6 +91,16 @@ local AddrLen = struct{
 	fields = {
 		{name='addr', type='uint16_t'},
 		{name='len', type='uint16_t'},
+	},
+}
+
+-- sfx needs addr, len, and loop offset
+local SFXHeader = struct{
+	name = 'SFXHeader',
+	fields = {
+		{name='addr', type='uint16_t'},
+		{name='len', type='uint16_t'},
+		{name='loopOffset', type='uint16_t'},
 	},
 }
 
@@ -149,7 +159,7 @@ local ROM = struct{
 				-- should I put the end-addr/length here, or should I store it as a first byte of the waveform data?
 				-- put here = more space, but leaves sequences of waveforms contiguous so we can point into the lump sum of all samples without worrying about dodging other data
 				-- put there = halves the space of this array.  if you want one track for hte whole of audio RAM then you only store one 'length' value.
-				{name='sfxAddrs', type='AddrLen['..sfxTableSize..']'},					-- 1k
+				{name='sfxAddrs', type='SFXHeader['..sfxTableSize..']'},					-- 1k
 
 				-- playback information for sfx
 				-- so my music == pico8/tic80's sfx ... and rlly their music is just some small references to start loop / end loop of their sfx.
@@ -173,7 +183,7 @@ local ROM = struct{
 				-- this is a combination of the sfx and the music data
 				-- sfx is just int16_t samples
 				-- technically I should be cutting the addrs out of the 64kb
-				{name='audioData', type='uint8_t['..audioDataSize..']'},				-- 62k
+				{name='audioData', type='uint8_t['..audioDataSize..']'},				-- 61.5k
 				--]]
 
 				{name='code', type='uint8_t['..codeSize..']'},							-- 64k
