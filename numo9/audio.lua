@@ -232,7 +232,8 @@ function AppAudio:updateSoundEffects()
 
 				-- where in sfx we are currently playing
 				local sfxaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
-assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
+--DEBUG:assert.ge(sfxaddr, 0)
+--DEBUG:assert.lt(sfxaddr, audioDataSize)
 				local ampl = ffi.cast(audioSampleTypePtr, self.ram.bank[0].audioData + sfxaddr)[0]
 
 				channel.addr = channel.addr + channel.pitch
@@ -240,8 +241,8 @@ assert(sfxaddr >= 0 and sfxaddr < audioDataSize)
 -- TODO flag for loop or not
 --print'sfx looping'
 					if channel.flags.isLooping ~= 0 then
-						assert.eq(bit.band(sfxaddr, 1), 0)
-						channel.addr = bit.lshift(sfx.addr, pitchPrec-1) -- sfx.loopStartAddr
+--DEBUG:assert.eq(bit.band(sfxaddr, 1), 0)
+						channel.addr = bit.lshift(sfx.addr + sfx.loopOffset, pitchPrec-1)
 					else
 						channel.addr = 0
 						channel.flags.isPlaying = 0

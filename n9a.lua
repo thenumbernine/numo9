@@ -17,7 +17,6 @@ local assert = require 'ext.assert'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local AudioWAV = require 'audio.io.wav'
-local App = require 'numo9.app'
 
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
@@ -340,8 +339,10 @@ or cmd == 'r' then
 					--]]
 					-- [[ until then, use raw for now
 --DEUBG:print('writing sfx', i, 'size', size)
-					local addrLen = bank.sfxAddrs[i]
-					addrLen.addr, addrLen.len = addToAudio(data, size), size
+					local sfxHeader = bank.sfxAddrs[i]
+					sfxHeader.addr = addToAudio(data, size)
+					sfxHeader.len = size
+					sfxHeader.loopOffset = 0
 					--]]
 					found = true
 				end
@@ -417,9 +418,11 @@ or cmd == 'r' then
 						p = p + 1
 					end
 					assert.eq(p, data + len)
-					local addrLen = bank.sfxAddrs[i-1]
+					local sfxHeader = bank.sfxAddrs[i-1]
 					local size = len * 2 -- lazy integer rup
-					addrLen.addr, addrLen.len = addToAudio(data, size), size
+					sfxHeader.addr = addToAudio(data, size)
+					sfxHeader.len = size
+					sfxHeader.loopOffset = 0
 				end
 			end
 
