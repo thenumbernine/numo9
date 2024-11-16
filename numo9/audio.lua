@@ -241,9 +241,11 @@ function AppAudio:updateSoundEffects()
 -- TODO flag for loop or not
 --print'sfx looping'
 					if channel.flags.isLooping ~= 0 then
---DEBUG:assert.eq(bit.band(sfxaddr, 1), 0)
 						channel.addr = bit.lshift(sfx.addr + sfx.loopOffset, pitchPrec-1)
+						--channel.addr = sfx.addr + sfx.loopOffset
+--DEBUG:assert.eq(bit.band(sfxaddr, 1), 0)
 					else
+						-- TODO change to channel-0 ... should channel-0 be empty always?
 						channel.addr = 0
 						channel.flags.isPlaying = 0
 					end
