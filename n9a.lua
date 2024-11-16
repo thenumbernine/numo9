@@ -342,6 +342,7 @@ or cmd == 'r' then
 					local sfxHeader = bank.sfxAddrs[i]
 					sfxHeader.addr = addToAudio(data, size)
 					sfxHeader.len = size
+					sfxHeader.loopOffset = 0
 					local tmp = {}
 					assert(load(bankpath('waveform'..i..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
 					sfxHeader.loopOffset = tmp.loopOffset or 0
