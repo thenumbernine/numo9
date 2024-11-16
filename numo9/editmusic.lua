@@ -133,6 +133,7 @@ function EditMusic:update()
 
 	y = y + 10
 
+	local thisFrame
 	if self.showText then
 		-- TODO scrollbar
 		local nextFrameStart
@@ -153,6 +154,7 @@ function EditMusic:update()
 				y = y + 10
 			end
 			if not pastPlaying and lastPastPlaying then
+				thisFrame = frame
 				if frameIndex < self.frameStart then
 					nextFrameStart = frameIndex
 				elseif frameIndex > self.frameStart + numFramesShown - 5 then
@@ -166,10 +168,17 @@ function EditMusic:update()
 		end
 	else
 		-- volume
+		local lastPastPlaying
 		do
 			local x = 1
 			local h = 96
 			for frameIndex,frame in ipairs(self.selectedTrack.frames) do
+				local pastPlaying = musicPlaying.addr >= frame.addr
+				if not pastPlaying and lastPastPlaying then
+					app:drawSolidLine(x * 3, y, x * 3, y + 2 * h + 4, 0xfc)
+					thisFrame = frame
+				end
+				lastPastPlaying = pastPlaying			
 				-- [[ as vbars
 				x = x + frame.delay	-- in beats
 				app:drawSolidLine(
@@ -225,6 +234,16 @@ function EditMusic:update()
 				x = x + 1
 				--]]
 			end
+		end
+	end
+
+	if thisFrame then
+		-- show volL volR pitch etc
+		for i=0,audioMixChannels-1 do
+			local channel = thisFrame.channels+i
+			app:drawText(
+				('VL %3d VR %3d DT %5d'):format(channel.volume[0], channel.volume[1], channel.pitch),
+				144, 40 + 8 * i, 0xfc, 0xf0)
 		end
 	end
 
