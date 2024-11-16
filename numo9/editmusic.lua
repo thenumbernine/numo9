@@ -15,6 +15,7 @@ local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
 local menuFontWidth = numo9_rom.menuFontWidth
 local sampleFramesPerSecond = numo9_rom.audioSampleRate
+local pitchPrec = numo9_rom.pitchPrec
 
 local audioSampleTypePtr = audioSampleType..'*'
 
@@ -133,11 +134,11 @@ function EditMusic:update()
 
 	y = y + 10
 
-	local thisFrame
+	local thisFrame = self.selectedTrack and self.selectedTrack.frames[1]
 	if self.showText then
 		-- TODO scrollbar
 		local nextFrameStart
-		local numFramesShown = 20
+		local numFramesShown = 16
 		local lastPastPlaying
 		for frameIndex,frame in ipairs(self.selectedTrack.frames) do
 			local x = 8
@@ -151,7 +152,7 @@ function EditMusic:update()
 				for k,v in pairs(frame.changed) do
 					self:drawText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, color, 0xf0)
 				end
-				y = y + 10
+				y = y + 8
 			end
 			if not pastPlaying and lastPastPlaying then
 				thisFrame = frame
@@ -169,9 +170,9 @@ function EditMusic:update()
 	else
 		-- volume
 		local lastPastPlaying
+		local h = 64
 		do
 			local x = 1
-			local h = 96
 			for frameIndex,frame in ipairs(self.selectedTrack.frames) do
 				local pastPlaying = musicPlaying.addr >= frame.addr
 				if not pastPlaying and lastPastPlaying then
@@ -205,7 +206,6 @@ function EditMusic:update()
 		-- pitch
 		do
 			local x = 1
-			local h = 96
 			for frameIndex,frame in ipairs(self.selectedTrack.frames) do
 				-- [[ as vbars
 				x = x + frame.delay	-- in beats
@@ -239,16 +239,34 @@ function EditMusic:update()
 
 	if thisFrame then
 		-- show volL volR pitch etc
+		local x = 8
+		local y = 176
+		app:drawText(
+			'CH TN ADDR LOOP READ  VL  VR    DT',
+			x,y,0xfc,0xf0
+		)
+		y=y+8
 		for i=0,audioMixChannels-1 do
-			local channel = thisFrame.channels+i
+			local channel = thisFrame.channels + i
+			local sfx = app.ram.bank[0].sfxAddrs + channel.sfxID
 			app:drawText(
-				('VL %3d VR %3d DT %5d'):format(channel.volume[0], channel.volume[1], channel.pitch),
-				144, 40 + 8 * i, 0xfc, 0xf0)
+				('%1d %3d %04x %04x %04x %3d %3d %5d'):format(
+					i,
+					channel.sfxID,
+					sfx.addr,
+					sfx.addr + sfx.loopOffset,
+					bit.rshift(channel.addr, pitchPrec-1),
+					channel.volume[0],
+					channel.volume[1],
+					channel.pitch
+				),
+				x, y, 0xfc, 0xf0)
+			y=y+8
 		end
 	end
 
 	local isPlaying = app.ram.musicPlaying[0].isPlaying == 1
-	if self:guiButton(isPlaying and '||' or '=>', 128, 240, nil, 'play') then
+	if self:guiButton(isPlaying and '||' or '=>', 0, 20, nil, 'play') then
 		if isPlaying then
 			for i=0,audioMixChannels-1 do
 				app.ram.channels[i].flags.isPlaying = 0
