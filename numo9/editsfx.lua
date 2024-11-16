@@ -56,6 +56,8 @@ function EditSFX:update()
 
 	self:drawText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
 
+	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
+	
 	local xlhs = 48
 	local xrhs = 200
 
@@ -63,14 +65,13 @@ function EditSFX:update()
 	self:drawText(('mem:  $%04x-$%04x'):format(selsfx.addr, endAddr), xlhs, 10, 0xfc, 0)
 
 	local playaddr = bit.lshift(bit.rshift(app.ram.channels[0].addr, pitchPrec), 1)
-	self:drawText(('$%04x b'):format(playaddr), xrhs, 10, 0xfc, 0)
+	self:drawText(('@$%04x b'):format(playaddr), xrhs, 10, 0xfc, 0)
+	
+	local playLen = (playaddr - selsfx.addr) * secondsPerByte
+	self:drawText(('@%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
 
-	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
 	local lengthInSeconds = selsfx.len * secondsPerByte
 	self:drawText(('len:  $%04x b / %02.3fs'):format(selsfx.len, lengthInSeconds), xlhs, 18, 0xfc, 0)
-
-	local playLen = (playaddr - selsfx.addr) * secondsPerByte
-	self:drawText(('%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
 
 	local loopInSeconds = selsfx.loopOffset * secondsPerByte
 	self:drawText(('loop: $%04x b / %02.3fs'):format(selsfx.loopOffset, loopInSeconds), xlhs, 26, 0xfc, 0)
@@ -133,8 +134,8 @@ function EditSFX:update()
 		end
 	end
 
-	app:drawText('pitch:', 8, 136, 0xf7, 0xf0)
-	if self:guiTextField(40, 136, 80, self, 'pitchStr') then
+	app:drawText('play pitch:', 8, 136, 0xf7, 0xf0)
+	if self:guiTextField(60, 136, 80, self, 'pitchStr') then
 		self.pitch = tonumber(self.pitchStr) or 0
 	end
 

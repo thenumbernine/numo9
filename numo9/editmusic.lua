@@ -14,6 +14,7 @@ local audioMixChannels = numo9_rom.audioMixChannels
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
 local menuFontWidth = numo9_rom.menuFontWidth
+local sampleFramesPerSecond = numo9_rom.audioSampleRate
 
 local audioSampleTypePtr = audioSampleType..'*'
 
@@ -25,6 +26,7 @@ function EditMusic:init(args)
 	self:calculateAudioSize()
 
 	self.selMusicIndex = 0
+	self.startSampleFrameIndex = 0
 	self:refreshSelectedMusic()
 end
 
@@ -92,6 +94,7 @@ function EditMusic:update()
 	local app = self.app
 
 	local selMusic = app.ram.bank[0].musicAddrs + self.selMusicIndex
+	local musicPlaying = app.ram.musicPlaying+0
 
 	local y = 10
 	self:guiSpinner(2, y, function(dx)
@@ -104,88 +107,102 @@ function EditMusic:update()
 	local endAddr = selMusic.addr + selMusic.len
 	self:drawText(('mem: $%04x-$%04x'):format(selMusic.addr, endAddr), 64, y, 0xfc, 0xf0)
 
-	self:drawText(('$%04x'):format(app.ram.musicPlaying[0].addr), 160, y, 0xfc, 0xf0)
+	local playaddr = musicPlaying.addr
+	self:drawText(('$%04x'):format(playaddr), 160, y, 0xfc, 0xf0)
 	y = y + 10
+
+	--local playLen = (playaddr - selMusic.addr) * secondsPerByte
+	local numSampleFramesPlayed = musicPlaying.sampleFrameIndex - self.startSampleFrameIndex
+	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', app.ram.bank[0].audioData + musicPlaying.addr)[0])
+	self:drawText(
+		('%d frame / %.3f s'):format(
+			numSampleFramesPlayed,
+			tonumber(numSampleFramesPlayed) / sampleFramesPerSecond
+		), 128, y, 0xfc, 0xf0)
 
 	self:drawText(('bps: %d'):format(self.selectedTrack and self.selectedTrack.bps or -1), 20, y, 0xfc, 0xf0)
 	y = y + 10
 
-	--[[ as text
-	for frameIndex,frame in ipairs(self.selectedTrack.frames) do
-		local x = 8
-		self:drawText(('%d'):format(frame.delay), x, y, 0xfc, 0xf0)
-		x = x + menuFontWidth * 4
-		for k,v in pairs(frame.changed) do
-			self:drawText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, 0xfc, 0xf0)
-		end
-		y = y + 10
+	if self:guiButton('X', 0, y, self.showText, self.showText and 'cmd display' or 'vol/pitch display') then
+		self.showText = not self.showText
 	end
-	--]]
-	-- volume
-	do
-		local x = 1
-		local h = 96
+
+	if self.showText then
 		for frameIndex,frame in ipairs(self.selectedTrack.frames) do
-			-- [[ as vbars
-			x = x + frame.delay	-- in beats
-			app:drawSolidLine(
-				x * 3,
-				y + h,
-				x * 3,
-				y + h - tonumber(frame.channels[0].volume[0]) * h / 255,
-				0xf9,
-				0xf0
-			)
-			x = x + 1
-			app:drawSolidLine(
-				x * 3,
-				y + h,
-				x * 3,
-				y + h - tonumber(frame.channels[0].volume[1]) * h / 255,
-				0xf8,
-				0xf0
-			)
-			--]]
+			local x = 8
+			self:drawText(('%d'):format(frame.delay), x, y, 0xfc, 0xf0)
+			x = x + menuFontWidth * 4
+			for k,v in pairs(frame.changed) do
+				self:drawText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, 0xfc, 0xf0)
+			end
+			y = y + 10
 		end
-		y = y + h + 4
-	end
-	-- pitche
-	do
-		local x = 1
-		local h = 96
-		for frameIndex,frame in ipairs(self.selectedTrack.frames) do
-			-- [[ as vbars
-			x = x + frame.delay	-- in beats
-			if frame.channels[0].volume[0] > 0 or frame.channels[0].volume[1] > 0 then
-				--[=[ as ampl
-				local a = (tonumber(frame.channels[0].pitch)) * h / 0xffff
-				--]=]
-				-- [=[ as octave
-				local a =
-					(
-						(	-- this is from [-12, 4]
-							(math.log(tonumber(frame.channels[0].pitch)) - math.log(0x1000)) / math.log(2)
-						)
-					-- + 12) / 16 * h	-- so add 12 to get from [0,16]
-					+ 4) / 8 * h		-- or just go by [0,4] octaves
-				--]=]
+	else
+		-- volume
+		do
+			local x = 1
+			local h = 96
+			for frameIndex,frame in ipairs(self.selectedTrack.frames) do
+				-- [[ as vbars
+				x = x + frame.delay	-- in beats
 				app:drawSolidLine(
 					x * 3,
 					y + h,
 					x * 3,
-					y + h - a,
-					0xf7,
+					y + h - tonumber(frame.channels[0].volume[0]) * h / 255,
+					0xf9,
 					0xf0
 				)
+				x = x + 1
+				app:drawSolidLine(
+					x * 3,
+					y + h,
+					x * 3,
+					y + h - tonumber(frame.channels[0].volume[1]) * h / 255,
+					0xf8,
+					0xf0
+				)
+				--]]
 			end
-			x = x + 1
-			--]]
+			y = y + h + 4
+		end
+		-- pitch
+		do
+			local x = 1
+			local h = 96
+			for frameIndex,frame in ipairs(self.selectedTrack.frames) do
+				-- [[ as vbars
+				x = x + frame.delay	-- in beats
+				if frame.channels[0].volume[0] > 0 or frame.channels[0].volume[1] > 0 then
+					--[=[ as ampl
+					local a = (tonumber(frame.channels[0].pitch)) * h / 0xffff
+					--]=]
+					-- [=[ as octave
+					local a =
+						(
+							(	-- this is from [-12, 4]
+								(math.log(tonumber(frame.channels[0].pitch)) - math.log(0x1000)) / math.log(2)
+							)
+						-- + 12) / 16 * h	-- so add 12 to get from [0,16]
+						+ 4) / 8 * h		-- or just go by [0,4] octaves
+					--]=]
+					app:drawSolidLine(
+						x * 3,
+						y + h,
+						x * 3,
+						y + h - a,
+						0xf7,
+						0xf0
+					)
+				end
+				x = x + 1
+				--]]
+			end
 		end
 	end
 
-
 	local isPlaying = app.ram.musicPlaying[0].isPlaying == 1
-	if self:guiButton(isPlaying and '||' or '=>', 128, 128, nil, 'play') then
+	if self:guiButton(isPlaying and '||' or '=>', 128, 240, nil, 'play') then
 		if isPlaying then
 			for i=0,audioMixChannels-1 do
 				app.ram.channels[i].flags.isPlaying = 0
@@ -195,6 +212,7 @@ function EditMusic:update()
 			end
 		else
 			app:playMusic(self.selMusicIndex, 0)
+			self.startSampleFrameIndex = musicPlaying.sampleFrameIndex
 		end
 	end
 
@@ -219,6 +237,7 @@ function EditMusic:update()
 	else
 		if app:key'space' then
 			app:playMusic(self.selMusicIndex, 0)
+			self.startSampleFrameIndex = musicPlaying.sampleFrameIndex
 		end
 	end
 
