@@ -27,6 +27,7 @@ function EditMusic:init(args)
 
 	self.selMusicIndex = 0
 	self.startSampleFrameIndex = 0
+	self.frameStart = 1
 	self:refreshSelectedMusic()
 end
 
@@ -54,6 +55,7 @@ function EditMusic:refreshSelectedMusic()
 		while ptr < pend do
 			local frame = {}
 			track.frames:insert(frame)
+			frame.addr = ffi.cast('uint8_t*', ptr) - app.ram.bank[0].audioData
 			frame.delay = ptr[0]
 			frame.changed = table()
 			ptr = ptr + 1
@@ -127,15 +129,40 @@ function EditMusic:update()
 		self.showText = not self.showText
 	end
 
+	-- TODO headers
+
+	y = y + 10
+
 	if self.showText then
+		-- TODO scrollbar
+		local nextFrameStart
+		local numFramesShown = 20
+		local lastPastPlaying
 		for frameIndex,frame in ipairs(self.selectedTrack.frames) do
 			local x = 8
-			self:drawText(('%d'):format(frame.delay), x, y, 0xfc, 0xf0)
-			x = x + menuFontWidth * 4
-			for k,v in pairs(frame.changed) do
-				self:drawText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, 0xfc, 0xf0)
+			local pastPlaying = musicPlaying.addr >= frame.addr
+			local color = pastPlaying and 0xf6 or 0xfc
+			if frameIndex >= self.frameStart 
+			and frameIndex < self.frameStart+numFramesShown
+			then
+				self:drawText(('%d'):format(frame.delay), x, y, color, 0xf0)
+				x = x + menuFontWidth * 4
+				for k,v in pairs(frame.changed) do
+					self:drawText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, color, 0xf0)
+				end
+				y = y + 10
 			end
-			y = y + 10
+			if not pastPlaying and lastPastPlaying then
+				if frameIndex < self.frameStart then
+					nextFrameStart = frameIndex
+				elseif frameIndex > self.frameStart + numFramesShown - 5 then
+					nextFrameStart = frameIndex - (numFramesShown - 5)
+				end
+			end
+			lastPastPlaying = pastPlaying
+		end
+		if nextFrameStart then
+			self.frameStart = nextFrameStart
 		end
 	else
 		-- volume
