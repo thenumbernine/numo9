@@ -22,6 +22,7 @@ local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
+local pitchPrec = numo9_rom.pitchPrec
 
 local audioSampleTypePtr = audioSampleType..'*'
 local updateIntervalInSampleFrames = math.ceil(updateIntervalInSeconds * sampleFramesPerSecond)
@@ -37,8 +38,6 @@ local samplesPerAppUpdate = sampleFramesPerAppUpdate * audioOutChannels	-- ... w
 local amplZero = assert.index({uint8_t=128, int16_t=0}, audioSampleType)
 local amplMax = assert.index({uint8_t=127, int16_t=32767}, audioSampleType)
 
--- what the 1:1 point is in pitch
-local pitchPrec = 12
 
 -- put all audio-specific app stuff here
 local AppAudio = {}
@@ -237,12 +236,17 @@ function AppAudio:updateSoundEffects()
 				local ampl = ffi.cast(audioSampleTypePtr, self.ram.bank[0].audioData + sfxaddr)[0]
 
 				channel.addr = channel.addr + channel.pitch
-				if bit.lshift(bit.rshift(channel.addr, pitchPrec), 1) > sfx.addr + sfx.len then -- sfx.loopEndAddr then
--- TODO flag for loop or not
---print'sfx looping'
+				local offsetOver = channel.addr - bit.lshift(sfx.addr + sfx.len, pitchPrec-1)
+				if offsetOver >= 0 then
+--print('sfx looping over', offsetOver)
 					if channel.flags.isLooping ~= 0 then
-						channel.addr = bit.lshift(sfx.addr + sfx.loopOffset, pitchPrec-1)
-						--channel.addr = sfx.addr + sfx.loopOffset
+						if sfx.len == 0 then	-- can't modulo zero so just assign it to the start.
+							channel.addr = bit.lshift(sfx.addr + sfx.loopOffset, pitchPrec-1)
+						else
+							-- offset modulo length, to make sure it doesn't pass the end
+							channel.addr = ((bit.lshift(sfx.loopOffset, pitchPrec-1) + offsetOver)
+								% bit.lshift(sfx.len, pitchPrec-1)) + bit.lshift(sfx.addr, pitchPrec-1)
+						end
 --DEBUG:assert.eq(bit.band(sfxaddr, 1), 0)
 					else
 						-- TODO change to channel-0 ... should channel-0 be empty always?

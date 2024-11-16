@@ -12,6 +12,7 @@ local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local audioDataSize = numo9_rom.audioDataSize
+local pitchPrec = numo9_rom.pitchPrec
 
 local audioSampleTypePtr = audioSampleType..'*'
 
@@ -20,6 +21,8 @@ local EditSFX = require 'numo9.ui':subclass()
 function EditSFX:init(args)
 	EditSFX.super.init(self, args)
 
+	self.pitch = bit.lshift(1, pitchPrec)
+	self.pitchStr = tostring(self.pitch)
 	self.selSfxIndex = 0
 	self.offsetScrollX = 0
 	self:calculateAudioSize()
@@ -52,21 +55,25 @@ function EditSFX:update()
 	end)
 
 	self:drawText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
-	local endAddr = selsfx.addr + selsfx.len
-	self:drawText(('mem: $%04x-$%04x'):format(selsfx.addr, endAddr), 64, 10, 0xfc, 0)
 
-	local playaddr = bit.lshift(bit.rshift(app.ram.channels[0].addr, 12), 1)
-	self:drawText(('$%04x'):format(playaddr), 160, 10, 0xfc, 0)
+	local xlhs = 48
+	local xrhs = 200
+
+	local endAddr = selsfx.addr + selsfx.len
+	self:drawText(('mem:  $%04x-$%04x'):format(selsfx.addr, endAddr), xlhs, 10, 0xfc, 0)
+
+	local playaddr = bit.lshift(bit.rshift(app.ram.channels[0].addr, pitchPrec), 1)
+	self:drawText(('$%04x b'):format(playaddr), xrhs, 10, 0xfc, 0)
 
 	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
 	local lengthInSeconds = selsfx.len * secondsPerByte
-	self:drawText(('length: %02.3f'):format(lengthInSeconds), 64, 18, 0xfc, 0)
+	self:drawText(('len:  $%04x b / %02.3fs'):format(selsfx.len, lengthInSeconds), xlhs, 18, 0xfc, 0)
 
 	local playLen = (playaddr - selsfx.addr) * secondsPerByte
-	self:drawText(('%02.3f'):format(playLen), 160, 18, 0xfc, 0)
+	self:drawText(('%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
 
 	local loopInSeconds = selsfx.loopOffset * secondsPerByte
-	self:drawText(('loop: %02.3f'):format(loopInSeconds), 64, 26, 0xfc, 0)
+	self:drawText(('loop: $%04x b / %02.3fs'):format(selsfx.loopOffset, loopInSeconds), xlhs, 26, 0xfc, 0)
 
 
 	-- TODO render the wave ...
@@ -99,14 +106,19 @@ function EditSFX:update()
 	end
 
 	local scrollMax = math.max(0, selsfx.len-512)
-	if self:guiButton('#', self.offsetScrollX / scrollMax * 248, 120) then
+	app:drawSolidLine(0, 120, 255, 120, 0xfc)
+	app:drawSolidLine(0, 127, 255, 127, 0xfc)
+
+	app:drawText('|', (playaddr - selsfx.addr) / selsfx.len * 248, 120, 0xfc, 0)
+
+	if self:guiButton('#', self.offsetScrollX / selsfx.len * 248, 120) then
 		self.draggingScroll = true
 	end
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 	if self.draggingScroll then
 		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
-		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, selsfx.len)
+		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 		if app:keyr'mouse_left' then
 			self.draggingScroll = false
 		end
@@ -117,8 +129,13 @@ function EditSFX:update()
 		if isPlaying then
 			stop()
 		else
-			app:playSound(self.selSfxIndex, 0, nil, nil, nil, true)
+			app:playSound(self.selSfxIndex, 0, self.pitch, nil, nil, true)
 		end
+	end
+
+	app:drawText('pitch:', 8, 136, 0xf7, 0xf0)
+	if self:guiTextField(40, 136, 80, self, 'pitchStr') then
+		self.pitch = tonumber(self.pitchStr) or 0
 	end
 
 	-- footer
@@ -136,7 +153,7 @@ function EditSFX:update()
 		end
 	else
 		if app:key'space' then
-			app:playSound(self.selSfxIndex, 0, nil, nil, nil, true)
+			app:playSound(self.selSfxIndex, 0, self.pitch, nil, nil, true)
 		end
 	end
 
