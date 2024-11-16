@@ -21,6 +21,7 @@ function EditSFX:init(args)
 	EditSFX.super.init(self, args)
 
 	self.selSfxIndex = 0
+	self.offsetScrollX = 0
 	self:calculateAudioSize()
 end
 
@@ -47,6 +48,7 @@ function EditSFX:update()
 		stop()
 		assert.eq(sfxTableSize, 256)
 		self.selSfxIndex = bit.band(self.selSfxIndex + dx, 0xff)
+		self.offsetScrollX = 0
 	end)
 
 	self:drawText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
@@ -66,12 +68,13 @@ function EditSFX:update()
 	local loopInSeconds = selsfx.loopOffset * secondsPerByte
 	self:drawText(('loop: %02.3f'):format(loopInSeconds), 64, 26, 0xfc, 0)
 
-	self.offsetScrollX = self.offsetScrollX or 0
 
 	-- TODO render the wave ...
 	local prevAmpl
 	for i=0, math.min(512, math.max(0, selsfx.len - self.offsetScrollX - 2)), 2 do
-		local ampl = ffi.cast(audioSampleTypePtr, app.ram.bank[0].audioData + selsfx.addr + self.offsetScrollX + i)[0]
+		local sampleOffset = self.offsetScrollX + i
+		local pastLoopOffset = sampleOffset > selsfx.loopOffset
+		local ampl = -tonumber(ffi.cast(audioSampleTypePtr, app.ram.bank[0].audioData + selsfx.addr + sampleOffset)[0])
 		prevAmpl = prevAmpl or ampl
 		--[[
 		-- TODO variable thickness?
@@ -89,7 +92,7 @@ function EditSFX:update()
 			math.min(ampl, prevAmpl) / 32768 * 64 + 64 + 18,
 			1,
 			math.floor(math.abs(ampl - prevAmpl) / 32768 * 64) + 1,
-			0xfc
+			pastLoopOffset and 0xf6 or 0xfc
 		)
 		--]]
 		prevAmpl = ampl
