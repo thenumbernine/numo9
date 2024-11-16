@@ -63,10 +63,15 @@ function EditSFX:update()
 	local playLen = (playaddr - selsfx.addr) * secondsPerByte
 	self:drawText(('%02.3f'):format(playLen), 160, 18, 0xfc, 0)
 
+	local loopInSeconds = selsfx.loopOffset * secondsPerByte
+	self:drawText(('loop: %02.3f'):format(loopInSeconds), 64, 26, 0xfc, 0)
+
+	self.offsetScrollX = self.offsetScrollX or 0
+
 	-- TODO render the wave ...
 	local prevAmpl
-	for i=0, math.min(512, selsfx.len-2), 2 do
-		local ampl = ffi.cast(audioSampleTypePtr, app.ram.bank[0].audioData + selsfx.addr + i)[0]
+	for i=0, math.min(512, math.max(0, selsfx.len - self.offsetScrollX - 2)), 2 do
+		local ampl = ffi.cast(audioSampleTypePtr, app.ram.bank[0].audioData + selsfx.addr + self.offsetScrollX + i)[0]
 		prevAmpl = prevAmpl or ampl
 		--[[
 		-- TODO variable thickness?
@@ -88,6 +93,20 @@ function EditSFX:update()
 		)
 		--]]
 		prevAmpl = ampl
+	end
+
+	local scrollMax = math.max(0, selsfx.len-512)
+	if self:guiButton('#', self.offsetScrollX / scrollMax * 248, 120) then
+		self.draggingScroll = true
+	end
+	local mouseX, mouseY = app.ram.mousePos:unpack()
+	if self.draggingScroll then
+		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
+		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
+		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, selsfx.len)
+		if app:keyr'mouse_left' then
+			self.draggingScroll = false
+		end
 	end
 
 	local isPlaying = app.ram.channels[0].flags.isPlaying == 1

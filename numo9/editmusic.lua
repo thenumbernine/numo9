@@ -185,7 +185,7 @@ function EditMusic:update()
 
 
 	local isPlaying = app.ram.musicPlaying[0].isPlaying == 1
-	if self:guiButton(isPlaying and '||' or '=>', 128, 0, nil, 'play') then
+	if self:guiButton(isPlaying and '||' or '=>', 128, 128, nil, 'play') then
 		if isPlaying then
 			for i=0,audioMixChannels-1 do
 				app.ram.channels[i].flags.isPlaying = 0
