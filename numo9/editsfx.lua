@@ -47,6 +47,9 @@ function EditSFX:update()
 
 	local selsfx = app.ram.bank[0].sfxAddrs + self.selSfxIndex
 
+	local channel = app.ram.channels+0
+	local isPlaying = channel.flags.isPlaying == 1
+
 	self:guiSpinner(2, 10, function(dx)
 		stop()
 		assert.eq(sfxTableSize, 256)
@@ -57,16 +60,16 @@ function EditSFX:update()
 	self:drawText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
 
 	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
-	
+
 	local xlhs = 48
 	local xrhs = 200
 
 	local endAddr = selsfx.addr + selsfx.len
 	self:drawText(('mem:  $%04x-$%04x'):format(selsfx.addr, endAddr), xlhs, 10, 0xfc, 0)
 
-	local playaddr = bit.lshift(bit.rshift(app.ram.channels[0].addr, pitchPrec), 1)
+	local playaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
 	self:drawText(('@$%04x b'):format(playaddr), xrhs, 10, 0xfc, 0)
-	
+
 	local playLen = (playaddr - selsfx.addr) * secondsPerByte
 	self:drawText(('@%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
 
@@ -118,14 +121,18 @@ function EditSFX:update()
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 	if self.draggingScroll then
 		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
-		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, selsfx.len)
+		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, selsfx.len - 512)
 		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 		if app:keyr'mouse_left' then
 			self.draggingScroll = false
 		end
 	end
+	if isPlaying then
+		self.offsetScrollX = bit.rshift(channel.addr, pitchPrec-1) - selsfx.addr
+		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, selsfx.len - 512)
+		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
+	end
 
-	local isPlaying = app.ram.channels[0].flags.isPlaying == 1
 	if self:guiButton(isPlaying and '||' or '=>', 64, 128, nil, 'play') then
 		if isPlaying then
 			stop()
