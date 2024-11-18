@@ -57,7 +57,7 @@ function EditSFX:update()
 		self.offsetScrollX = 0
 	end)
 
-	self:drawText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
+	app:drawMenuText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
 
 	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
 
@@ -65,19 +65,19 @@ function EditSFX:update()
 	local xrhs = 200
 
 	local endAddr = selsfx.addr + selsfx.len
-	self:drawText(('mem:  $%04x-$%04x'):format(selsfx.addr, endAddr), xlhs, 10, 0xfc, 0)
+	app:drawMenuText(('mem:  $%04x-$%04x'):format(selsfx.addr, endAddr), xlhs, 10, 0xfc, 0)
 
 	local playaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
-	self:drawText(('@$%04x b'):format(playaddr), xrhs, 10, 0xfc, 0)
+	app:drawMenuText(('@$%04x b'):format(playaddr), xrhs, 10, 0xfc, 0)
 
 	local playLen = (playaddr - selsfx.addr) * secondsPerByte
-	self:drawText(('@%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
+	app:drawMenuText(('@%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
 
 	local lengthInSeconds = selsfx.len * secondsPerByte
-	self:drawText(('len:  $%04x b / %02.3fs'):format(selsfx.len, lengthInSeconds), xlhs, 18, 0xfc, 0)
+	app:drawMenuText(('len:  $%04x b / %02.3fs'):format(selsfx.len, lengthInSeconds), xlhs, 18, 0xfc, 0)
 
 	local loopInSeconds = selsfx.loopOffset * secondsPerByte
-	self:drawText(('loop: $%04x b / %02.3fs'):format(selsfx.loopOffset, loopInSeconds), xlhs, 26, 0xfc, 0)
+	app:drawMenuText(('loop: $%04x b / %02.3fs'):format(selsfx.loopOffset, loopInSeconds), xlhs, 26, 0xfc, 0)
 
 
 	-- TODO render the wave ...
@@ -113,7 +113,7 @@ function EditSFX:update()
 	app:drawSolidLine(0, 120, 255, 120, 0xfc)
 	app:drawSolidLine(0, 127, 255, 127, 0xfc)
 
-	app:drawText('|', (playaddr - selsfx.addr) / selsfx.len * 248, 120, 0xfc, 0)
+	app:drawMenuText('|', (playaddr - selsfx.addr) / selsfx.len * 248, 120, 0xfc, 0)
 
 	if self:guiButton('#', self.offsetScrollX / selsfx.len * 248, 120) then
 		self.draggingScroll = true
@@ -141,14 +141,14 @@ function EditSFX:update()
 		end
 	end
 
-	app:drawText('play pitch:', 8, 136, 0xf7, 0xf0)
+	app:drawMenuText('play pitch:', 8, 136, 0xf7, 0xf0)
 	if self:guiTextField(60, 136, 80, self, 'pitchStr') then
 		self.pitch = tonumber(self.pitchStr) or 0
 	end
 
 	-- footer
 	app:drawSolidRect(0, frameBufferSize.y - spriteSize.y, frameBufferSize.x, spriteSize.y, 0xf7, 0xf8)
-	app:drawText(
+	app:drawMenuText(
 		'ARAM '..self.totalAudioBytes..'/'..audioDataSize..' '
 		..('%d%%'):format(math.floor(100*self.totalAudioBytes / audioDataSize))
 		, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)

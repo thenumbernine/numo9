@@ -79,7 +79,7 @@ function UI:guiButton(str, x, y, isset, tooltip)
 		fg, bg = 0xfd, 0xf8
 	end
 
-	local w = self:drawText(str, x, y, fg, bg)
+	local w = app:drawMenuText(str, x, y, fg, bg)
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 	local mouseOver =
@@ -169,7 +169,7 @@ function UI:guiTextField(x, y, w, t, k, tooltip)
 		fg, bg = 0xfd, 0xf8
 	end
 
-	local w = app:drawText(t[k], x, y, fg, bg)
+	local w = app:drawMenuText(t[k], x, y, fg, bg)
 
 	local changed
 	if onThisMenuItem then
@@ -220,7 +220,7 @@ end
 
 function UI:drawTooltip()
 	if not self.tooltip then return end
-	self:drawText(table.unpack(self.tooltip))
+	self.app:drawMenuText(table.unpack(self.tooltip))
 	self.tooltip = nil
 end
 
@@ -256,7 +256,7 @@ function UI:update()
 	)
 
 	local titlebar = '  '..app.editMode
-	self:drawText(
+	app:drawMenuText(
 		titlebar,
 		#editModes*6,
 		0,
@@ -292,13 +292,6 @@ end
 function UI:color(i)
 	if i == -1 then return -1 end	-- -1 for transparency meant don't use a valid color ...
 	return bit.bor(bit.band(i,0xf),0xf0)
-end
-
-function UI:drawText(s,x,y,fg,bg)
-	return self.app:drawText(
-		s,x,y,
-		self:color(fg),
-		self:color(bg))
 end
 
 --[[

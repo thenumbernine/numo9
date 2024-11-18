@@ -37,14 +37,14 @@ MainMenu.ysepstep = 7
 -- the ':menu...' prefix on all my menu gui cmds is to separate them from the :gui ones that don't read/write the MainMenu class' cursorX/cursorY
 
 function MainMenu:menuLabel(str)
-	self.app:drawText(str, self.cursorX, self.cursorY, 0xf7, 0xf0)
+	self.app:drawMenuText(str, self.cursorX, self.cursorY, 0xf7, 0xf0)
 	self.cursorY = self.cursorY + self.ystep
 end
 
 function MainMenu:menuSection(str)
 	-- TODO show a section divider
 	self.cursorY = self.cursorY + self.ysepstep
-	self.app:drawText(str, self.cursorX+16, self.cursorY, 0xf7, 0xf0)
+	self.app:drawMenuText(str, self.cursorX+16, self.cursorY, 0xf7, 0xf0)
 	self.cursorY = self.cursorY + self.ystep
 end
 
@@ -52,7 +52,7 @@ MainMenu.textFieldCursorLoc = 0
 function MainMenu:menuTextField(label, t, k, tooltip)
 	-- TODO gotta cache the last width to properly place this ...
 	-- maybe I should separate the label from the textinput, introduce a 'sameline()' function,  and start caching widths everywhere?
-	local w = self.app:drawText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
+	local w = self.app:drawMenuText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
 	local changed = self:guiTextField(self.cursorX + 80, self.cursorY, 80, t, k, tooltip)
 	self.cursorY = self.cursorY + self.ystep
 	return changed
@@ -142,11 +142,11 @@ function MainMenu:updateMenuMain()
 	-- configure
 	self:menuSection'sound'
 
-	app:drawText('volume', self.cursorX, self.cursorY, 0xf7, 0xf0)
+	app:drawMenuText('volume', self.cursorX, self.cursorY, 0xf7, 0xf0)
 	self:guiSpinner(self.cursorX + 32, self.cursorY, function(dx)
 		app.cfg.volume = math.clamp(app.cfg.volume + 10 * dx, 0, 255)
 	end, 'volume')	-- TODO where's the tooltip?
-	app:drawText(tostring(app.cfg.volume), self.cursorX + 56, self.cursorY, 0xf7, 0xf0)
+	app:drawMenuText(tostring(app.cfg.volume), self.cursorX + 56, self.cursorY, 0xf7, 0xf0)
 	self.cursorY = self.cursorY + self.ystep
 
 	self:menuSection'system'
@@ -189,7 +189,7 @@ function MainMenu:updateMenuMultiplayer()
 		self:menuTextField('port', app.cfg, 'lastConnectPort')
 		-- TODO so tempting to implement a sameline() function ...
 		if self.connectStatus then
-			app:drawText(self.connectStatus, self.cursorX+40, self.cursorY, 0xfc, 0xf0)
+			app:drawMenuText(self.connectStatus, self.cursorX+40, self.cursorY, 0xfc, 0xf0)
 			-- TODO timeout? clear upon new menu? idk?
 		end
 		if self:menuButton'go' then
@@ -221,7 +221,7 @@ function MainMenu:updateMenuMultiplayer()
 	end
 
 	self.cursorY = self.cursorY + 8
-	app:drawText('num. local players: '..app.cfg.numLocalPlayers, self.cursorX - 32, self.cursorY, 0xf7, 0xf0)
+	app:drawMenuText('num. local players: '..app.cfg.numLocalPlayers, self.cursorX - 32, self.cursorY, 0xf7, 0xf0)
 	self:guiSpinner(self.cursorX + 80, self.cursorY, function(dx)
 		app.cfg.numLocalPlayers = math.clamp(app.cfg.numLocalPlayers + dx, 1, maxPlayersPerConn)
 	end, 'num. local players')	-- TODO where's the tooltip?
@@ -276,7 +276,7 @@ function MainMenu:updateMenuMultiplayer()
 			local x = self.cursorX
 
 			if isHost then
-				app:drawText('host', x, self.cursorY, 0xfa, 0xf2)
+				app:drawMenuText('host', x, self.cursorY, 0xfa, 0xf2)
 			else
 				if self:guiButton('kick', x, self.cursorY) then
 					conn:close()
@@ -284,7 +284,7 @@ function MainMenu:updateMenuMultiplayer()
 			end
 			x = x + menuFontWidth * 5
 
-			app:drawText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
+			app:drawMenuText('conn '..i, x, self.cursorY, 0xfc, 0xf1)
 
 			self.cursorY = self.cursorY + 9
 			for j=1,conn.numLocalPlayers do
@@ -309,7 +309,7 @@ function MainMenu:updateMenuMultiplayer()
 				end
 
 				if info.hostPlayerIndex then
-					app:drawText('plr '..tostring(info.hostPlayerIndex+1), x+9, self.cursorY + 9, 0xfe, 0xf0)
+					app:drawMenuText('plr '..tostring(info.hostPlayerIndex+1), x+9, self.cursorY + 9, 0xfe, 0xf0)
 				end
 				if not isHost then
 					for b=0,7 do
@@ -320,7 +320,7 @@ function MainMenu:updateMenuMultiplayer()
 					end
 				end
 
-				app:drawText(info.name, x, self.cursorY, 0xfc, 0xf1)
+				app:drawMenuText(info.name, x, self.cursorY, 0xfc, 0xf1)
 			end
 			self.cursorY = self.cursorY + 32
 		end
@@ -341,7 +341,7 @@ function MainMenu:updateMenuInput()
 
 	self:menuSection'input'
 
-	app:drawText('num. local players: '..app.cfg.numLocalPlayers, self.cursorX - 32, self.cursorY, 0xf7, 0xf0)
+	app:drawMenuText('num. local players: '..app.cfg.numLocalPlayers, self.cursorX - 32, self.cursorY, 0xf7, 0xf0)
 	self:guiSpinner(self.cursorX + 80, self.cursorY, function(dx)
 		app.cfg.numLocalPlayers = math.clamp(app.cfg.numLocalPlayers + dx, 1, maxPlayersPerConn)
 	end, 'num. local players')	-- TODO where's the tooltip?
@@ -361,7 +361,7 @@ function MainMenu:updateMenuInput()
 			local buttonIndex = buttonIndexPlusOne - 1	-- atm playerInfo.buttonBinds is 0-based
 			-- TODO instead of name use some of our extra codes ...
 			if active then
-				app:drawText(buttonName, self.cursorX-8, self.cursorY, 0xfc, 0xf0)
+				app:drawMenuText(buttonName, self.cursorX-8, self.cursorY, 0xfc, 0xf0)
 				local buttonBind = playerInfo.buttonBinds[buttonIndex]
 				local label = app.waitingForEvent and self.menuTabIndex == self.menuTabCounter
 					and 'Press...'

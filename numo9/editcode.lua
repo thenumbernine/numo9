@@ -113,7 +113,7 @@ function EditCode:update()
 
 			local i = self.newlines[y + self.scrollY] + 1
 			local j = self.newlines[y + self.scrollY + 1]
-			textareaX = math.max(textareaX, app:drawText(
+			textareaX = math.max(textareaX, app:drawMenuText(
 				tostring(y + self.scrollY),
 				0,
 				y * spriteSize.y,
@@ -149,7 +149,7 @@ function EditCode:update()
 		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (#self.text+1), i, j)
 
 		if selLineStart-1 >= i then
-			lineX = lineX + app:drawText(
+			lineX = lineX + app:drawMenuText(
 				self.text:sub(i, selLineStart-1),
 				lineX,
 				lineY,
@@ -158,7 +158,7 @@ function EditCode:update()
 			)
 		end
 		if selLineEnd-1 >= selLineStart then
-			lineX = lineX + app:drawText(
+			lineX = lineX + app:drawMenuText(
 				self.text:sub(selLineStart,selLineEnd-1),
 				lineX,
 				lineY,
@@ -167,7 +167,7 @@ function EditCode:update()
 			)
 		end
 		if j-1 >= selLineEnd then
-			lineX = lineX + app:drawText(
+			lineX = lineX + app:drawMenuText(
 				self.text:sub(selLineEnd, j-1),
 				lineX,
 				lineY,
@@ -205,11 +205,11 @@ function EditCode:update()
 	-- footer
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
-	app:drawText(footer, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
+	app:drawMenuText(footer, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
 
 	footer = self.cursorLoc..'/'..#self.text
-	local width = app:drawText(footer, 0, frameBufferSize.y, 0, 0)
-	app:drawText(footer, frameBufferSize.x-width, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
+	local width = app:drawMenuText(footer, 0, frameBufferSize.y, 0, 0)
+	app:drawMenuText(footer, frameBufferSize.x-width, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
 
 	-- handle mouse
 

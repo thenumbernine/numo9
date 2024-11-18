@@ -1560,6 +1560,7 @@ print('run thread dead')
 			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 			self:matident()
 			-- set drawText font & pal to the UI's
+			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
 
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff

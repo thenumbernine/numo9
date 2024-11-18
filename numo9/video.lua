@@ -413,7 +413,7 @@ glreport'before RAMGPUTex:init'
 	self.size = width * height * channels * ffi.sizeof(ctype)
 	self.addrEnd = self.addr + self.size
 	assert.le(self.addrEnd, ffi.sizeof'RAM')
-	local ptr = self.app.ram.v + self.addr
+	local ptr = ffi.cast('uint8_t*', self.app.ram) + self.addr
 	local src = args.src
 
 print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.size))
@@ -423,7 +423,7 @@ print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.si
 	if src then	-- if we specified a src to the Image then copy it into RAM before switching Image pointers to point at RAM
 		ffi.copy(ptr, image.buffer, self.size)
 	end
-	image.buffer = ptr
+	image.buffer = ffi.cast(image.format..'*', ptr)
 
 	local tex = GLTex2D{
 		target = args.target or (
@@ -441,8 +441,10 @@ print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.si
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		magFilter = args.magFilter or gl.GL_NEAREST,
-		data = image.buffer,	-- ptr is stored
+		data = ptr,	-- ptr is stored
 	}:unbind()
+-- this will fail when the menu font is being used
+--assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 	self.tex = tex
 glreport'after RAMGPUTex:init'
 end
@@ -464,6 +466,8 @@ function RAMGPUTex:checkDirtyCPU()
 	if app.inUpdateCallback then
 		fb:unbind()
 	end
+-- this will fail when the menu font is being used
+--assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 	tex:bind()
 		:subimage()
 		:unbind()
@@ -471,7 +475,7 @@ function RAMGPUTex:checkDirtyCPU()
 		fb:bind()
 	end
 	self.dirtyCPU = false
-	app.framebufferRAM.changedSinceDraw = true
+	self.changedSinceDraw = true	-- only used by framebufferRAM, if its GPU state ever changes, to let the app know to draw it again
 end
 
 -- TODO is this only applicable for framebufferRAM?
@@ -488,6 +492,8 @@ function RAMGPUTex:checkDirtyGPU()
 	if not app.inUpdateCallback then
 		fb:bind()
 	end
+-- this will fail when the menu font is being used
+--assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 	if not app.inUpdateCallback then
 		fb:unbind()
@@ -504,8 +510,8 @@ function RAMGPUTex:updateAddr(newaddr)
 	newaddr = math.clamp(bit.bor(0, newaddr), 0, ffi.sizeof'RAM' - self.size)
 	self.addr = newaddr
 	self.addrEnd = newaddr + self.size
-	self.image.buffer = self.app.ram.v + self.addr
-	self.tex.data = self.image.buffer
+	self.tex.data = ffi.cast('uint8_t*', self.app.ram) + self.addr
+	self.image.buffer = ffi.cast(self.image.format..'*', self.tex.data)
 	self.dirtyCPU = true
 end
 
@@ -2200,20 +2206,13 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	scaleY = scaleY or 1
 	local x0 = x
 
-	-- ugly for now
-	local pushSpriteSheetTex
-	local pushPaletteTex
+	-- [[ ugly for now
 	local pushSpriteSheetRAM
-	if self.inMenuUpdate then
-		pushSpriteSheetTex = self.spriteSheetRAM.tex
-		pushPaletteTex = self.paletteRAM.tex
-		self.spriteSheetRAM.tex = self.fontMenuTex
-		self.paletteRAM.tex = self.paletteMenuTex
-	else
-		pushSpriteSheetRAM = self.spriteSheetRAM
-		self.spriteSheetRAM = self.fontRAM
-		self.sheetRAMs[1] = self.fontRAM
-	end
+--DEBUG:assert(not self.inMenuUpdate) -- if it's inMenuUpdate then use drawMenuText ... unless you want the game-font and game-palette
+	pushSpriteSheetRAM = self.spriteSheetRAM
+	self.spriteSheetRAM = self.fontRAM
+	self.sheetRAMs[1] = self.fontRAM
+	--]]
 
 	-- should font bg respect transparency/alpha?
 	-- or why even draw a background to it? let the user?
@@ -2270,17 +2269,84 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 		x = x + (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch]) * scaleX
 	end
 
-	-- ugly for now
-	if self.inMenuUpdate then
-		self.spriteSheetRAM.tex = pushSpriteSheetTex
-		self.paletteRAM.tex = pushPaletteTex
-	else
-		self.spriteSheetRAM = pushSpriteSheetRAM
-		self.sheetRAMs[1] = pushSpriteSheetRAM
+	-- [[ ugly for now
+--DEBUG:assert(not self.inMenuUpdate) -- if it's inMenuUpdate then use drawMenuText ... unless you want the game-font and game-palette
+	self.spriteSheetRAM = pushSpriteSheetRAM
+	self.sheetRAMs[1] = pushSpriteSheetRAM
+	--]]
+
+	return x - x0
+end
+
+-- same as drawText but using the menu font and palette
+function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+	x = x or 0
+	y = y or 0
+	fgColorIndex = tonumber(ffi.cast('uint8_t', fgColorIndex or self.ram.textFgColor))
+	bgColorIndex = tonumber(ffi.cast('uint8_t', bgColorIndex or self.ram.textBgColor))
+	scaleX = scaleX or 1
+	scaleY = scaleY or 1
+	local x0 = x
+
+	-- should font bg respect transparency/alpha?
+	-- or why even draw a background to it? let the user?
+	-- or how about use it as a separate flag?
+	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.ram.bank[0].palette[bgColorIndex])
+	if a > 0 then
+		for i=1,#text do
+			local ch = text:byte(i)
+			local w = scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
+			-- TODO the ... between drawSolidRect and drawSprite is not the same...
+			self:drawSolidRect(
+				x,
+				y,
+				w,
+				scaleY * spriteSize.y,
+				bgColorIndex
+			)
+			x = x + w
+		end
+	end
+
+-- draw transparent-background text
+	local x = x0 + 1
+	y = y + 1
+	--local texSizeInTiles = spriteSheetSizeInTiles	-- using sprite sheet last row
+	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
+
+	for i=1,#text do
+		local ch = text:byte(i)
+		local bi = bit.band(ch, 7)		-- get the bit offset
+		local by = bit.rshift(ch, 3)	-- get the byte offset
+		--local tx,ty = by,texSizeInTiles.y-1				-- using sprite sheet last row
+		local tx,ty = by,0							-- using separate font tex
+		self:drawQuadTex(
+			x,									-- x
+			y,									-- y
+			spriteSize.x * scaleX,				-- spritesWide
+			spriteSize.y * scaleY,				-- spritesHigh
+			tx / tonumber(texSizeInTiles.x),	-- tx
+			ty / tonumber(texSizeInTiles.y),	-- ty
+			1 / tonumber(texSizeInTiles.x),		-- tw
+			1 / tonumber(texSizeInTiles.y),		-- th
+			self.fontMenuTex,					-- sheetTex
+			self.paletteMenuTex,				-- paletteTex
+			-- font color is 0 = background, 1 = foreground
+			-- so shift this by 1 so the font tex contents shift it back
+			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
+			-- heck why not store 2 letters per left and right half as well?
+			-- 	that's half the alphaet in a single 8x8 sprite black.
+			fgColorIndex-1,							-- paletteIndex ... 'color index offset' / 'palette high bits'
+			0,									-- transparentIndex
+			bi,									-- spriteBit
+			1									-- spriteMask
+		)
+		x = x + menuFontWidth * scaleX
 	end
 
 	return x - x0
 end
+
 
 -- matrix commands, so I don't duplicate these here in the env and in net ...
 -- should I set defaults here as well?
