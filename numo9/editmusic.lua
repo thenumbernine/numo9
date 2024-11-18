@@ -106,24 +106,24 @@ function EditMusic:update()
 		self:refreshSelectedMusic()
 	end)
 
-	self:drawText('#'..self.selMusicIndex, 32, y, 0xfc, 0)
+	app:drawMenuText('#'..self.selMusicIndex, 32, y, 0xfc, 0)
 	local endAddr = selMusic.addr + selMusic.len
-	self:drawText(('mem: $%04x-$%04x'):format(selMusic.addr, endAddr), 64, y, 0xfc, 0xf0)
+	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusic.addr, endAddr), 64, y, 0xfc, 0xf0)
 
 	local playaddr = musicPlaying.addr
-	self:drawText(('$%04x'):format(playaddr), 160, y, 0xfc, 0xf0)
+	app:drawMenuText(('$%04x'):format(playaddr), 160, y, 0xfc, 0xf0)
 	y = y + 10
 
 	--local playLen = (playaddr - selMusic.addr) * secondsPerByte
 	local numSampleFramesPlayed = musicPlaying.sampleFrameIndex - self.startSampleFrameIndex
 	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', app.ram.bank[0].audioData + musicPlaying.addr)[0])
-	self:drawText(
+	app:drawMenuText(
 		('%d frame / %.3f s'):format(
 			numSampleFramesPlayed,
 			tonumber(numSampleFramesPlayed) / sampleFramesPerSecond
 		), 128, y, 0xfc, 0xf0)
 
-	self:drawText(('bps: %d'):format(self.selectedTrack and self.selectedTrack.bps or -1), 20, y, 0xfc, 0xf0)
+	app:drawMenuText(('bps: %d'):format(self.selectedTrack and self.selectedTrack.bps or -1), 20, y, 0xfc, 0xf0)
 	y = y + 10
 
 	if self:guiButton('X', 0, y, self.showText, self.showText and 'cmd display' or 'vol/pitch display') then
@@ -144,13 +144,13 @@ function EditMusic:update()
 			local x = 8
 			local pastPlaying = musicPlaying.addr >= frame.addr
 			local color = pastPlaying and 0xf6 or 0xfc
-			if frameIndex >= self.frameStart 
+			if frameIndex >= self.frameStart
 			and frameIndex < self.frameStart+numFramesShown
 			then
-				self:drawText(('%d'):format(frame.delay), x, y, color, 0xf0)
+				app:drawMenuText(('%d'):format(frame.delay), x, y, color, 0xf0)
 				x = x + menuFontWidth * 4
 				for k,v in pairs(frame.changed) do
-					self:drawText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, color, 0xf0)
+					app:drawMenuText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, color, 0xf0)
 				end
 				y = y + 8
 			end
@@ -168,6 +168,13 @@ function EditMusic:update()
 			self.frameStart = nextFrameStart
 		end
 	else
+		local mouseX, mouseY = app.ram.mousePos:unpack()
+		if app:keyp'mouse_left' then
+			-- then move the current frame to the mouse click position ...
+			-- but frame index doesn't correlate with time, or with x position ...
+			-- hmm how about editing one channel at a time?
+		end
+
 		-- volume
 		local lastPastPlaying
 		local h = 64
@@ -179,7 +186,7 @@ function EditMusic:update()
 					app:drawSolidLine(x * 3, y, x * 3, y + 2 * h + 4, 0xfc)
 					thisFrame = frame
 				end
-				lastPastPlaying = pastPlaying			
+				lastPastPlaying = pastPlaying
 				-- [[ as vbars
 				x = x + frame.delay	-- in beats
 				app:drawSolidLine(
@@ -235,13 +242,14 @@ function EditMusic:update()
 				--]]
 			end
 		end
+
 	end
 
 	if thisFrame then
 		-- show volL volR pitch etc
 		local x = 8
 		local y = 176
-		app:drawText(
+		app:drawMenuText(
 			'CH TN ADDR LOOP READ  VL  VR    DT',
 			x,y,0xfc,0xf0
 		)
@@ -249,7 +257,7 @@ function EditMusic:update()
 		for i=0,audioMixChannels-1 do
 			local channel = thisFrame.channels + i
 			local sfx = app.ram.bank[0].sfxAddrs + channel.sfxID
-			app:drawText(
+			app:drawMenuText(
 				('%1d %3d %04x %04x %04x %3d %3d %5d'):format(
 					i,
 					channel.sfxID,
@@ -282,7 +290,7 @@ function EditMusic:update()
 
 	-- footer
 	app:drawSolidRect(0, frameBufferSize.y - spriteSize.y, frameBufferSize.x, spriteSize.y, 0xf7, 0xf8)
-	app:drawText(
+	app:drawMenuText(
 		'ARAM '..self.totalAudioBytes..'/'..audioDataSize..' '
 		..('%d%%'):format(math.floor(100*self.totalAudioBytes / audioDataSize))
 		, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)

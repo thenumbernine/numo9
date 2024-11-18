@@ -116,7 +116,7 @@ end
 
 function Console:addChar(ch)
 	local app = self.app
-	app:drawText(
+	app:drawMenuText(
 		string.char(ch),
 		self.cursorPos.x,
 		self.cursorPos.y,
@@ -228,11 +228,11 @@ function Console:update()
 	self.cursorPos.x = 0
 	self.cursorPos.y = 0
 	for i=shownLines,1,-1 do
-		app:drawText(self.lines[i], 0, self.cursorPos.y, self.fgColor, self.bgColor)
+		app:drawMenuText(self.lines[i], 0, self.cursorPos.y, self.fgColor, self.bgColor)
 		self.cursorPos.y = self.cursorPos.y + 8
 	end
 	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf
-	app:drawText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
+	app:drawMenuText(s, 0, self.cursorPos.y, self.fgColor, self.bgColor)
 	self.cursorPos.x = #s * menuFontWidth
 
 	if getTime() % 1 < .5 then

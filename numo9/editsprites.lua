@@ -79,7 +79,7 @@ function EditSprites:update()
 	EditSprites.super.update(self)
 
 	-- choose spriteBit
-	self:drawText(
+	app:drawMenuText(
 		'#'..self.spriteBit,
 		128+16+24,
 		12,
@@ -91,7 +91,7 @@ function EditSprites:update()
 	end, 'bit='..self.spriteBit)
 
 	-- choose spriteMask
-	self:drawText(
+	app:drawMenuText(
 		'#'..self.spriteBitDepth,
 		128+16+24+32,
 		12,
@@ -236,7 +236,7 @@ function EditSprites:update()
 	-- sprite edit area
 	local x = 2
 	local y = 12
-	self:drawText(
+	app:drawMenuText(
 		'#'..(self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y),
 		x + 32,
 		y,
@@ -469,7 +469,7 @@ function EditSprites:update()
 	end)
 
 	-- select palette color to draw
-	self:drawText(
+	app:drawMenuText(
 		'#'..self.paletteSelIndex,
 		16,
 		112,
@@ -578,20 +578,20 @@ function EditSprites:update()
 	-- edit palette entries
 	local selPaletteAddr = app.paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
 	local selColorValue = app:peekw(selPaletteAddr)
-	self:drawText(('C=%04X'):format(selColorValue), 16, 216, 13, -1)
-	self:drawText(('R=%02X'):format(bit.band(selColorValue,0x1f)), 16, 224, 13, -1)
+	app:drawMenuText(('C=%04X'):format(selColorValue), 16, 216, 13, -1)
+	app:drawMenuText(('R=%02X'):format(bit.band(selColorValue,0x1f)), 16, 224, 13, -1)
 	self:guiSpinner(16+32, 224, function(dx)
 		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band(selColorValue+dx,0x1f),bit.band(selColorValue,bit.bnot(0x1f)))
 		)
 	end)
-	self:drawText(('G=%02X'):format(bit.band(bit.rshift(selColorValue,5),0x1f)), 16, 224+8, 13, -1)
+	app:drawMenuText(('G=%02X'):format(bit.band(bit.rshift(selColorValue,5),0x1f)), 16, 224+8, 13, -1)
 	self:guiSpinner(16+32, 224+8, function(dx)
 		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
 		)
 	end)
-	self:drawText(('B=%02X'):format(bit.band(bit.rshift(selColorValue,10),0x1f)), 16, 224+16, 13, -1)
+	app:drawMenuText(('B=%02X'):format(bit.band(bit.rshift(selColorValue,10),0x1f)), 16, 224+16, 13, -1)
 	self:guiSpinner(16+32, 224+16, function(dx)
 		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
@@ -609,7 +609,7 @@ function EditSprites:update()
 			)
 		end
 	end
-	self:drawText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
+	app:drawMenuText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
 
 	if self:guiButton('P', 112, 32, self.pastePreservePalette, 'Paste Keeps Pal='..tostring(self.pastePreservePalette)) then
 		self.pastePreservePalette = not self.pastePreservePalette
@@ -780,6 +780,7 @@ print('possible colors: '..require 'ext.tolua'(colors))
 				end
 				assert.eq(image.channels, 1, "image.channels")
 print'pasting image'
+print('currentTexAddr', ('$%x'):format(currentTexAddr))
 				for j=0,image.height-1 do
 					for i=0,image.width-1 do
 						local destx = i + x
