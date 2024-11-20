@@ -224,6 +224,7 @@ If the following functions are defined then they will be called from the virtual
 - `ellib(x, y, w, h, [color])` = draw a ellipse border.
 - `tri(x1, y1, x2, y2, x3, y3, [color])` = draw a solid triangle.
 - `tri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, [color])` = draw a solid triangle.
+- `ttri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, u1, v1, u2, v2, u3, v3, [sheetIndex=0, paletteIndex=0, transparentIndex=-1, spriteBit=0, spriteMask=0xFF])` = draw a triangle textured with a sprite/tile sheet.
 - `line(x1, y1, x2, y2, [color])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [color])` = draw line but with z / perspective.
 - `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY,sheetIndex])` = draw sprite
