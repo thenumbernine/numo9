@@ -80,7 +80,7 @@ end
 
 
 local App = GLApp:subclass()
-
+App.version = '0.5-alpha'
 App.title = 'NuMo9'
 App.width = cmdline and cmdline.video and cmdline.video[1] or 720
 App.height = cmdline and cmdline.video and cmdline.video[2] or 512
@@ -1055,7 +1055,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 				local s = ('NuMo9=-\t '):rep(3)
 				--local s = ('9'):rep(27)
 				local colors = range(0xf1, 0xfe)
-				for t=0,63+#s do		-- t = time = leading diagonal
+				for t=0,31+#s do		-- t = time = leading diagonal
 					env.cls()
 					for i=t,0,-1 do		-- i = across all diagonals so far
 						for j=0,i do	-- j = along diagonal
@@ -1066,7 +1066,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 							env.mattrans(x+4, y+4)
 							local r = ((t-i)/16 + .5)*2*math.pi
 							env.matrot(r)
-							local w = 2*math.exp(-((t- i+ 4)/30)^2)
+							local w = 3*math.exp(-((t - i + 4) / 15)^2)
 							env.matscale(w, w)
 							env.mattrans(-4, -4)
 							self:drawSolidRect(0,0,8,8, colors[(i+1)%#colors+1])
