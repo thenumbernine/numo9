@@ -44,7 +44,7 @@ function Console:init(args)
 	-- clear the screen every time, or save the screen every time?
 	app:clearScreen(0xf0)
 
-	self:coolPrint'NuMo-9 ver. 0.1-alpha'
+	self:coolPrint'NuMo-9 ver. '..self.app.version
 	self:coolPrint'https://github.com/thenumbernine/numo9 (c) 2024'
 	self:coolPrint'...OpenResty LuaJIT'
 	self:coolPrint('...'..frameBufferSize.x..'x'..frameBufferSize.y..'x8bpp framebuffer')
