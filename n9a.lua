@@ -1825,12 +1825,6 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 
 	code = table{
 		'-- begin compat layer',
-		"framebufferAddr=ffi.offsetof('RAM', 'framebuffer')",
-		"spriteSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')",
-		"tilemapAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')",
-		"paletteAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')",
-		"persistentDataAddr=ffi.offsetof('RAM', 'persistentCartridgeData')",
-		"userDataAddr=ffi.offsetof('RAM', 'userData')",
 		spriteFlagCode:concat'\n',
 		assert(path'n9a_tic_glue.lua':read()),
 		'-- end compat layer',

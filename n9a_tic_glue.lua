@@ -1,3 +1,28 @@
+framebufferAddr=ffi.offsetof('RAM', 'framebuffer')
+spriteSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
+tilemapAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
+paletteAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+persistentDataAddr=ffi.offsetof('RAM', 'persistentCartridgeData')
+userDataAddr=ffi.offsetof('RAM', 'userData')
+matAddr = ffi.offsetof('RAM', 'mvMat')
+assert.eq(ffi.sizeof(ffi.cast('RAM*',0).mvMat), 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
+
+local matstack=table()
+local matpush=[]do
+	local t={}
+	for i=0,15 do
+		t[i+1] = peekl(matAddr + (i<<2))
+	end
+	matstack:insert(t)
+end
+local matpop=[]do
+	local t = matstack:remove(1)
+	if not t then return end
+	for i=0,15 do
+		pokel(matAddr + (i<<2), t[i+1])
+	end
+end
+
 mode(1)	-- set to 8bpp-indexed framebuffer
 screenWidth=240
 screenHeight=136
@@ -113,10 +138,32 @@ setfenv(1, {
 	keyp=keyp,	-- "
 	line=line,
 	map=[tileX,tileY,tileW,tileH,screenX,screenY,colorkey,scale,remap]do
-		if colorkey then trace'TODO map colorkey' end
-		if scale then trace'TODO map scale' end
-		if remap then trace'TODO map remap' end
-		map(tileX or 0,tileY or 0,tileW or 30,tileH or 17,screenX or 0,screenY or 0)
+		-- https://github.com/nesbox/TIC-80/wiki/map
+		tileX=tileX or 0
+		tileY=tileY or 0
+		tileW=tileW or 30
+		tileH=tileH or 17
+		screenX=screenX or 0
+		screenY=screenY or 0
+		if colorkey then
+trace'TODO map colorkey'
+		end
+		scale = scale or 1
+		if remap then
+trace'TODO map remap'
+			-- if my tilemap address is relocatable then I could implement this as just every single frame copying it into a temporary buffer and then rendering that
+			-- or I could implement remap() myself, but it seems like it would be incredibly slow
+			-- or I could just implement its functionality in-shader using a tilemap-"palette" that maps to another tilemap entry
+			-- ... that'd be useful for just remapping all tiles of a certain value per-frame, but remap() supports custom functionality based on x and y as well ...
+		end
+		if scale ~= 1 then
+			matpush()
+			matscale(scale,scale,scale)
+			map(tileX,tileY,tileW,tileH,screenX,screenY)
+			matpop()
+		else
+			map(tileX,tileY,tileW,tileH,screenX,screenY)
+		end
 	end,
 	memcpy=[dst,src,len]do
 		for i=0,len-1 do
@@ -170,7 +217,8 @@ setfenv(1, {
 	reset=reset,
 	sfx=[] trace'TODO sfx',
 	spr=[n,x,y,colorkey,scale,flip,rotate,w,h]do
-		if rotate then trace'TODO spr rotate' end
+		-- https://github.com/nesbox/TIC-80/wiki/spr
+		rotate = rotate or 0
 		n=math.floor(n)
 		local bankno=bit.rshift(n, 8)
 		n&=0xff
@@ -184,13 +232,48 @@ setfenv(1, {
 		if flipY then y+=h*sclae*8 scaleY=-scale end
 		-- TODO here multiple bank sprites ... hmm ...
 		-- how should I chop up banks myself ...
-		spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
+		if rotate ~= 0 then
+			local spriteHalfSize = 4
+			matpush()
+			mattrans(x+spriteHalfSize*w,y+spriteHalfSize*h)
+			matrot(math.rad(90*rotate))
+			spr(n,-spriteHalfSize*w,-spriteHalfSize*h,w,h,0,-1,0,0xf,scaleX,scaleY)
+			matpop()
+		else
+			spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
+		end
 	end,
 	sync=[] trace'TODO sync',
 	time=[] 1000*time(),
 	trace=trace,
 	tri=tri,
 	trib=[] trace'TODO trib',
+	textri=[x1,y1,x2,y2,x3,y3,u1,v1,u2,v2,u3,v3,use_map,transparentIndex]do
+		-- https://github.com/nesbox/TIC-80/wiki/textri
+		ttri3d(
+			x1,y1,0,
+			x2,y2,0,
+			x3,y3,0,
+			u1,v1,
+			u2,v2,
+			u3,v3,
+			use_map and 1 or 0,
+			nil,
+			transparentIndex)
+	end,
+	ttri=[x1, y1, x2, y2, x3, y3, u1, v1, u2, v2, u3, v3, texsrc, transparentIndex, z1, z2, z3]do
+		-- https://github.com/nesbox/TIC-80/wiki/ttri
+		ttri3d(
+			x1,y1,z1 or 0,
+			x2,y2,z2 or 0,
+			x3,y3,z3 or 0,
+			u1,v1,
+			u2,v2,
+			u3,v3,
+			texsrc,
+			nil,
+			transparentIndex)
+	end,
 	tstamp=tstamp,
 	ttri=[] trace'TODO ttri',
 	vbank=[] trace'TODO vbank',
