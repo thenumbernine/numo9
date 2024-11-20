@@ -472,6 +472,34 @@ function App:initGL()
 			return self:drawSolidTri3D(x1,y1,z1,x2,y2,z2,x3,y3,z3,colorIndex)
 		end,
 
+		ttri3d = function(x1,y1,z1,x2,y2,z2,x3,y3,z3,u1,v1,u2,v2,u3,v3,sheetIndex,paletteIndex,transparentIndex,spriteBit,spriteMask)
+			if self.server then
+				local cmd = self.server:pushCmd().solidTri3D
+				cmd.type = netcmds.solidLine
+				cmd.x1 = x1
+				cmd.y1 = y1
+				cmd.z1 = z1
+				cmd.x2 = x2
+				cmd.y2 = y2
+				cmd.z2 = z2
+				cmd.x3 = x3
+				cmd.y3 = y3
+				cmd.z3 = z3
+				cmd.u1 = u1
+				cmd.v1 = v1
+				cmd.u2 = u2
+				cmd.v2 = v2
+				cmd.u3 = u3
+				cmd.v3 = v3
+				cmd.sheetIndex = sheetIndex or 0
+				cmd.paletteIndex = paletteIndex or 0
+				cmd.transparentIndex = transparentIndex or -1
+				cmd.spriteBit = spriteBit or 0
+				cmd.spriteMask = spriteMask or 0xFF
+			end
+			return self:drawTexTri3D(x1,y1,z1,x2,y2,z2,x3,y3,z3,u1,v1,u2,v2,u3,v3,sheetIndex,paletteIndex,transparentIndex,spriteBit,spriteMask)
+		end,
+
 		line = function(x1,y1,x2,y2,colorIndex)
 			if self.server then
 				local cmd = self.server:pushCmd().solidLine
@@ -1302,7 +1330,7 @@ function App:update()
 
 	local thisTime = getTime()
 
---[==[ per-second-tick debug display
+-- [==[ per-second-tick debug display
 	-- ... now that I've moved the swap out of the parent class and only draw on dirty bit, this won't show useful information
 	-- TODO get rid of double-buffering.  you've got the framebuffer.
 	local deltaTime = thisTime - lastTime

@@ -16,6 +16,7 @@ local glreport = require 'gl.report'
 local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
+local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 
 local numo9_rom = require 'numo9.rom'
@@ -1253,17 +1254,14 @@ void main() {
 			},
 		}
 
---DEBUG:print('mode '..infoIndex..' quadSpriteObj')
-		info.quadSpriteObj = GLSceneObject{
-			program = {
-				version = glslVersion,
-				precision = 'best',
-				vertexCode = template([[
+		local spriteProgram = GLProgram{
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = template([[
 in vec2 vertex;
+in vec2 texcoord;
 out vec2 tcv;
 out vec2 pixelPos;
-uniform vec4 box;	//x,y,w,h
-uniform vec4 tcbox;	//x,y,w,h
 
 uniform mat4 mvMat;
 
@@ -1271,18 +1269,17 @@ const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
-	tcv = tcbox.xy + vertex * tcbox.zw;
-	vec2 pc = box.xy + vertex * box.zw;
-	gl_Position = mvMat * vec4(pc, 0., 1.);
+	tcv = texcoord;
+	gl_Position = mvMat * vec4(vertex, 0., 1.);
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
 }
-]],				{
-					glslnumber = glslnumber,
-					frameBufferSize = frameBufferSize,
-				}),
-				fragmentCode = template([[
+]],			{
+				glslnumber = glslnumber,
+				frameBufferSize = frameBufferSize,
+			}),
+			fragmentCode = template([[
 in vec2 tcv;
 in vec2 pixelPos;
 
@@ -1365,34 +1362,90 @@ void main() {
 <?=info.colorOutput?>
 <? end ?>
 }
-]], 			{
-					glslnumber = glslnumber,
-					fragType = fragTypeForTex(info.framebufferRAM.tex),
-					useSamplerUInt = useSamplerUInt,
-					self = self,
-					samplerTypeForTex = samplerTypeForTex,
-					info = info,
-				}),
-				uniforms = {
-					spriteTex = 0,
-					paletteTex = 1,
-					paletteIndex = 0,
-					transparentIndex = -1,
-					spriteBit = 0,
-					spriteMask = 0xFF,
-					--mvMat = self.mvMat.ptr,
-				},
+]], 		{
+				glslnumber = glslnumber,
+				fragType = fragTypeForTex(info.framebufferRAM.tex),
+				useSamplerUInt = useSamplerUInt,
+				self = self,
+				samplerTypeForTex = samplerTypeForTex,
+				info = info,
+			}),
+			uniforms = {
+				spriteTex = 0,
+				paletteTex = 1,
+				paletteIndex = 0,
+				transparentIndex = -1,
+				spriteBit = 0,
+				spriteMask = 0xFF,
+				--mvMat = self.mvMat.ptr,
 			},
+		}:useNone()
+
+--DEBUG:print('mode '..infoIndex..' quadSpriteObj')
+		info.quadSpriteObj = GLSceneObject{
+			program = spriteProgram,
 			texs = {
 				self.spriteSheetRAM.tex,
 				self.paletteRAM.tex,
 			},
-			geometry = self.quadGeom,
+			vertexes = {
+				dim = 2,
+				useVec = true,
+				count = 4,
+				usage = gl.GL_DYNAMIC_DRAW,
+			},
+			attrs = {
+				texcoord = {
+					buffer = {
+						dim = 2,
+						useVec = true,
+						count = 4,
+						usage = gl.GL_DYNAMIC_DRAW,
+					},
+				},
+			},
+			geometry = {
+				mode = gl.GL_TRIANGLE_STRIP,
+				count = 4,
+			},
 			-- glUniform()'d every frame
 			uniforms = {
 				mvMat = self.mvMat.ptr,
 				box = {0, 0, 8, 8},
 				tcbox = {0, 0, 1, 1},
+				drawOverrideSolid = {0, 0, 0, 0},
+			},
+		}
+
+		info.triSpriteObj = GLSceneObject{
+			program = spriteProgram,
+			texs = {
+				self.spriteSheetRAM.tex,
+				self.paletteRAM.tex,
+			},
+			vertexes = {
+				dim = 3,
+				useVec = true,
+				count = 3,
+				usage = gl.GL_DYNAMIC_DRAW,
+			},
+			attrs = {
+				texcoord = {
+					buffer = {
+						dim = 2,
+						useVec = true,
+						count = 3,
+						usage = gl.GL_DYNAMIC_DRAW,
+					},
+				},
+			},
+			geometry = {
+				mode = gl.GL_TRIANGLES,
+				count = 3,
+			},
+			-- glUniform()'d every frame
+			uniforms = {
+				mvMat = self.mvMat.ptr,
 				drawOverrideSolid = {0, 0, 0, 0},
 			},
 		}
@@ -1726,6 +1779,7 @@ function AppVideo:setVideoMode(mode)
 		self.triSolidObj = info.triSolidObj
 		self.quadSolidObj = info.quadSolidObj
 		self.quadSpriteObj = info.quadSpriteObj
+		self.triSpriteObj = info.triSpriteObj
 		self.quadMapObj = info.quadMapObj
 	else
 		error("unknown video mode "..tostring(mode))
@@ -2026,13 +2080,39 @@ function AppVideo:drawQuadTex(
 	sceneObj.texs[1] = spriteTex
 	sceneObj.texs[2] = palTex
 
+	-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
+	local vertex = sceneObj.attrs.vertex.buffer.vec
+	vertex.v[0].x = x
+	vertex.v[0].y = y
+	vertex.v[1].x = x+w
+	vertex.v[1].y = y
+	vertex.v[2].x = x
+	vertex.v[2].y = y+h
+	vertex.v[3].x = x+w
+	vertex.v[3].y = y+h
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	texcoord.v[0].x = tx
+	texcoord.v[0].y = ty
+	texcoord.v[1].x = tx+tw
+	texcoord.v[1].y = ty
+	texcoord.v[2].x = tx
+	texcoord.v[2].y = ty+th
+	texcoord.v[3].x = tx+tw
+	texcoord.v[3].y = ty+th
+
+	sceneObj.attrs.vertex.buffer
+		:bind()
+		:updateData(0, vertex:getNumBytes())
+	sceneObj.attrs.texcoord.buffer
+		:bind()
+		:updateData(0, texcoord:getNumBytes())
+		:unbind()
+
 	uniforms.mvMat = self.mvMat.ptr
 	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
 	uniforms.transparentIndex = transparentIndex
 	uniforms.spriteBit = spriteBit
 	uniforms.spriteMask = spriteMask
-	settable(uniforms.tcbox, tx, ty, tw, th)
-	settable(uniforms.box, x, y, w, h)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
@@ -2078,6 +2158,83 @@ function AppVideo:drawQuad(
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
+
+function AppVideo:drawTexTri3D(
+	x1,y1,z1,
+	x2,y2,z2,
+	x3,y3,z3,
+	u1,v1,
+	u2,v2,
+	u3,v3,
+	sheetIndex,
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
+)
+	sheetIndex = sheetIndex or 0
+	paletteIndex = paletteIndex or 0
+	transparentIndex = transparentIndex or -1
+	spriteBit = spriteBit or 0
+	spriteMask = spriteMask or 0xFF
+	
+	local sheetRAM = assert.index(self.sheetRAMs, sheetIndex+1)
+	if sheetRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
+		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
+	end
+	self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
+
+	local sceneObj = self.triSpriteObj
+	sceneObj.texs[1] = spriteTex
+	sceneObj.texs[2] = palTex
+
+	local vertex = sceneObj.attrs.vertex.buffer.vec
+	vertex.v[0].x = x1
+	vertex.v[0].y = y1
+	vertex.v[0].z = z1
+	vertex.v[1].x = x2
+	vertex.v[1].y = y2
+	vertex.v[1].z = z2
+	vertex.v[2].x = x3
+	vertex.v[2].y = y3
+	vertex.v[2].z = z3
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	texcoord.v[0].x = u1
+	texcoord.v[0].y = v1
+	texcoord.v[1].x = u2
+	texcoord.v[1].y = v2
+	texcoord.v[2].x = u3
+	texcoord.v[2].y = v3
+
+	sceneObj.attrs.vertex.buffer
+		:bind()
+		:updateData(0, vertex:getNumBytes())
+	sceneObj.attrs.texcoord.buffer
+		:bind()
+		:updateData(0, texcoord:getNumBytes())
+		:unbind()
+	-- ... or interleave xyzuv and do one update?
+
+	-- which is faster? 
+	-- uniforms to do linear transform of a tri's coordiantes?
+	-- or writing the coords to cpu and update the buffer?
+	local uniforms = sceneObj.uniforms
+	uniforms.mvMat = self.mvMat.ptr
+	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
+	uniforms.transparentIndex = transparentIndex
+	uniforms.spriteBit = spriteBit
+	uniforms.spriteMask = spriteMask
+
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+
+	sceneObj:draw()
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
+end
+
 
 --[[
 spriteIndex =

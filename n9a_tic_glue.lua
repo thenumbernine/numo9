@@ -63,17 +63,17 @@ ticpoke=[addr,value,bits]do
 	end
 trace(('TODO poke $%x '):format(addr)..tostring(bits)..' '..tostring(value))
 end
--- default to 0
+-- default to 0 ... does tic80 really need this?
 ticbit={
 	band=[a,b]bit.band(a or 0, b or 0),
 	bor=[a,b]bit.bor(a or 0, b or 0),
 	bxor=[a,b]bit.bxor(a or 0, b or 0),
 	bnot=[a]bit.bnot(a or 0),
-	shl=[a,b]bit.lshift(a or 0, b or 0),
-	shr=[a,b]bit.rshift(a or 0, b or 0),
-	lshr=[a,b]bit.arshift(a or 0, b or 0),
-	rotl=[a,b]bit.rol(a or 0, b or 0),
-	rotr=[a,b]bit.ror(a or 0, b or 0),
+	lshift=[a,b]bit.lshift(a or 0, b or 0),
+	rshift=[a,b]bit.rshift(a or 0, b or 0),
+	arshift=[a,b]bit.arshift(a or 0, b or 0),
+	rol=[a,b]bit.rol(a or 0, b or 0),
+	ror=[a,b]bit.ror(a or 0, b or 0),
 }
 setfenv(1, {
 	btn=[b]btn(b&7,b>>3),

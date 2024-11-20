@@ -316,6 +316,35 @@ local Numo9Cmd_solidTri3D = struct{
 	},
 }
 
+-- definitely our biggest at 50 bytes
+local Numo9Cmd_texTri3D = struct{
+	name = 'Numo9Cmd_texTri3D',
+	packed = true,
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='x1', type='float'},
+		{name='y1', type='float'},
+		{name='z1', type='float'},
+		{name='x2', type='float'},
+		{name='y2', type='float'},
+		{name='z2', type='float'},
+		{name='x3', type='float'},
+		{name='y3', type='float'},
+		{name='z3', type='float'},
+		{name='u1', type='uint8_t'},
+		{name='v1', type='uint8_t'},
+		{name='u2', type='uint8_t'},
+		{name='v2', type='uint8_t'},
+		{name='u3', type='uint8_t'},
+		{name='v3', type='uint8_t'},
+		{name='sheetIndex', type='uint8_t'},
+		{name='paletteIndex', type='int16_t'},
+		{name='transparentIndex', type='int16_t'},
+		{name='spriteBit', type='uint8_t'},
+		{name='spriteMask', type='uint8_t'},
+	},
+}
+
 local Numo9Cmd_solidLine = struct{
 	name = 'Numo9Cmd_solidLine',
 	packed = true,
@@ -559,24 +588,25 @@ local netCmdStructs = table{
 	Numo9Cmd_solidRect,			-- 0x04
 	Numo9Cmd_solidTri,			-- 0x05
 	Numo9Cmd_solidTri3D,		-- 0x06
-	Numo9Cmd_solidLine,			-- 0x07
-	Numo9Cmd_solidLine3D,		-- 0x08
-	Numo9Cmd_quad,				-- 0x09
-	Numo9Cmd_map,				-- 0x0a
-	Numo9Cmd_text,				-- 0x0b
-	Numo9Cmd_blendMode,			-- 0x0c
-	Numo9Cmd_matident,			-- 0x0d
-	Numo9Cmd_mattrans,			-- 0x0e
-	Numo9Cmd_matrot,			-- 0x0f
-	Numo9Cmd_matscale,			-- 0x10
-	Numo9Cmd_matortho,			-- 0x11
-	Numo9Cmd_matfrustum,		-- 0x12
-	Numo9Cmd_matlookat,			-- 0x13
-	Numo9Cmd_sfx,				-- 0x14
-	Numo9Cmd_music,				-- 0x15
-	Numo9Cmd_poke,				-- 0x16
-	Numo9Cmd_pokew,				-- 0x17
-	Numo9Cmd_pokel,				-- 0x18
+	Numo9Cmd_texTri3D,			-- 0x07
+	Numo9Cmd_solidLine,			-- 0x08
+	Numo9Cmd_solidLine3D,		-- 0x09
+	Numo9Cmd_quad,				-- 0x0a
+	Numo9Cmd_map,				-- 0x0b
+	Numo9Cmd_text,				-- 0x0c
+	Numo9Cmd_blendMode,			-- 0x0d
+	Numo9Cmd_matident,			-- 0x0e
+	Numo9Cmd_mattrans,			-- 0x0f
+	Numo9Cmd_matrot,			-- 0x10
+	Numo9Cmd_matscale,			-- 0x11
+	Numo9Cmd_matortho,			-- 0x12
+	Numo9Cmd_matfrustum,		-- 0x13
+	Numo9Cmd_matlookat,			-- 0x14
+	Numo9Cmd_sfx,				-- 0x15
+	Numo9Cmd_music,				-- 0x16
+	Numo9Cmd_poke,				-- 0x17
+	Numo9Cmd_pokew,				-- 0x18
+	Numo9Cmd_pokel,				-- 0x19
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
 	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))
@@ -1357,6 +1387,9 @@ print()
 				elseif cmdtype == netcmds.solidTri3D then
 					local c = cmd[0].solidTri3D
 					app:drawSolidTri3D(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2, c.x3, c.y3, c.z3, c.colorIndex)
+				elseif cmdtype == netcmds.texTri3D then
+					local c = cmd[0].texTri3D
+					app:drawTexTri3D(c.x1,c.y1,c.z1,c.x2,c.y2,c.z2,c.x3,c.y3,c.z3,c.u1,c.v1,c.u2,c.v2,c.u3,c.v3,c.sheetIndex,c.paletteIndex,c.transparentIndex,c.spriteBit,c.spriteMask)
 				elseif cmdtype == netcmds.solidLine then
 					local c = cmd[0].solidLine
 					app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex)
