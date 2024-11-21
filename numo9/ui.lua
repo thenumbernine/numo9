@@ -242,6 +242,7 @@ function UI:guiTextField(
 		changed = true
 		self.currentEditValue = nil
 		self.lastMenuTabIndex = nil
+		self.menuTabIndex = self.menuTabIndex + 1		-- enter = select next
 	end
 
 	-- [[

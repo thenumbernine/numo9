@@ -190,7 +190,7 @@ function EditMusic:update()
 	app:drawMenuText('#', 8, y, 0xfc, 0)
 
 	self:guiTextField(14, y, 15, self, 'selMusicIndex', function(index)
-		self.selMusicIndex = index
+		self.selMusicIndex = tonumber(index) or self.selMusicIndex
 		self:refreshSelectedMusic()
 	end)
 
@@ -295,6 +295,7 @@ function EditMusic:update()
 				-- [[ as notes
 				local oldx = x
 				x = x + frame.delay	-- in beats
+				-- what about a note start on frame0 that has 0 delay?
 				if frame.channels[0].volume[0] > 0
 				or frame.channels[0].volume[1] > 0
 				then
@@ -314,6 +315,8 @@ function EditMusic:update()
 					app:drawSolidLine(
 						oldx * 3 - 1,
 						notey,
+						-- width should be this-frame or next-frame's duration?
+						-- or should it be the duration until a frame that changes its value?
 						x * 3 + 1,
 						notey,
 						0xf7,
