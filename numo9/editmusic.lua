@@ -1,12 +1,19 @@
 local ffi = require 'ffi'
 local math = require 'ext.math'
 local table = require 'ext.table'
+local range = require 'ext.range'
 local assert = require 'ext.assert'
+local vector = require 'ffi.cpp.vector-lua'
+
+local numo9_archive = require 'numo9.archive'
+local buildAudio = numo9_archive.buildAudio
 
 local numo9_rom = require 'numo9.rom'
+local deltaCompress = numo9_rom.deltaCompress
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
 local sfxTableSize = numo9_rom.sfxTableSize
+local musicTableSize = numo9_rom.musicTableSize
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioOutChannels = numo9_rom.audioOutChannels
@@ -95,10 +102,71 @@ function EditMusic:refreshSelectedMusic()
 	self.selectedTrack = track
 end
 
+-- TODO this and n9a have the same code, consolidate
+function EditMusic:encodeMusicFromFrames()
+	local track = self.selectedTrack
+	if not track then return end
+	local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+	local deltas = vector'uint8_t'
+	local short = ffi.new'uint16_t[1]'
+	local byte = ffi.cast('uint8_t*', short)
+	short[0] = track.bps
+	deltas:push_back(byte[0])
+	deltas:push_back(byte[1])
+
+	for i=1,#track.frames do
+		-- insert wait time in beats
+		local frame = track.frames[i]
+		short[0] = frame.delay
+		deltas:push_back(byte[0])
+		deltas:push_back(byte[1])
+
+		-- insert deltas
+		deltaCompress(
+			ffi.cast('uint8_t*', prevSoundState),
+			ffi.cast('uint8_t*', frame.channels),
+			audioAllMixChannelsInBytes,
+			deltas
+		)
+
+		-- insert an end-frame
+		deltas:emplace_back()[0] = 0xff
+		deltas:emplace_back()[0] = 0xff
+
+		prevSoundState = frame.channels
+	end
+
+	local newMusicData = deltas:dataToStr()
+
+	local app = self.app
+	local bank = app.ram.bank[0]
+
+	-- TODO now update all the sound table to make room for this data
+	local sfxs = range(0,sfxTableSize-1):mapi(function(i)
+		local sfx = bank.sfxAddrs + i
+		return {
+			data = ffi.string(bank.audioData + sfx.addr, sfx.len),
+			loopOffset = sfx.loopOffset,
+		}
+	end)
+	local musics = range(0,musicTableSize-1):mapi(function(i)
+		local music = bank.musicAddrs + i
+		return {
+			data = ffi.string(bank.audioData + music.addr, music.len),
+		}
+	end)
+
+	-- replace the new music data
+	musics[self.selMusicIndex+1].data = newMusicData
+
+	-- and rebuild
+	buildAudio(bank, sfxs, musics)
+end
+
 function EditMusic:update()
 	EditMusic.super.update(self)
 	local app = self.app
-	
+
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local selMusic = app.ram.bank[0].musicAddrs + self.selMusicIndex
@@ -125,7 +193,7 @@ function EditMusic:update()
 		self.selMusicIndex = index
 		self:refreshSelectedMusic()
 	end)
-	
+
 	local endAddr = selMusic.addr + selMusic.len
 	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusic.addr, endAddr), 64, y, 0xfc, 0xf0)
 
@@ -169,7 +237,7 @@ function EditMusic:update()
 			then
 				self:guiTextField(x, y, 10, frame, 'delay', function(result)
 					frame.delay = tonumber(result) or frame.delay
-				end) 
+				end)
 				x = x + menuFontWidth * 4
 				for i=0,ffi.sizeof'Numo9Channel'-1 do
 					local by = i + ffi.sizeof'Numo9Channel' * self.selectedChannel
@@ -183,7 +251,7 @@ function EditMusic:update()
 						('%02X'):format(v), nil,-- read value
 						function(result)		-- write value
 							ptr[0] = tonumber(result, 16) or ptr[0]
-							self:refreshSelectedMusic()
+							self:encodeMusicFromFrames()
 						end,
 						nil,					-- tooltip
 						not changed and color or nil, not changed and 0xf0 or nil	-- unselected text color: show unchanged data as dark
@@ -194,7 +262,7 @@ function EditMusic:update()
 			if not pastPlaying and lastPastPlaying then
 				thisFrame = frame
 				if frameIndex < self.frameStart then
-					nextFrameStart = frameIndex
+					nextFrameStart = math.max(1, frameIndex-5)
 				elseif frameIndex > self.frameStart + numFramesShown - 5 then
 					nextFrameStart = frameIndex - (numFramesShown - 5)
 				end
@@ -211,9 +279,9 @@ function EditMusic:update()
 			-- hmm how about editing one channel at a time?
 		end
 
-		-- volume
 		local lastPastPlaying
 		local h = 64
+		-- pitch
 		do
 			local x = 1
 			for frameIndex,frame in ipairs(self.selectedTrack.frames) do
@@ -223,6 +291,46 @@ function EditMusic:update()
 					thisFrame = frame
 				end
 				lastPastPlaying = pastPlaying
+
+				-- [[ as notes
+				local oldx = x
+				x = x + frame.delay	-- in beats
+				if frame.channels[0].volume[0] > 0
+				or frame.channels[0].volume[1] > 0
+				then
+					--[=[ as ampl
+					local a = (tonumber(frame.channels[0].pitch)) * h / 0xffff
+					--]=]
+					-- [=[ as octave
+					local a =
+						(
+							(	-- this is from [-12, 4]
+								(math.log(tonumber(frame.channels[0].pitch)) - math.log(0x1000)) / math.log(2)
+							)
+						-- + 12) / 16 * h	-- so add 12 to get from [0,16]
+						+ 4) / 8 * h		-- or just go by [0,4] octaves
+					--]=]
+					local notey = y + h - a
+					app:drawSolidLine(
+						oldx * 3 - 1,
+						notey,
+						x * 3 + 1,
+						notey,
+						0xf7,
+						0xf0
+					)
+				end
+				x = x + 1
+				--]]
+			end
+		end
+
+		y = y + h + 4
+
+		-- volume
+		do
+			local x = 1
+			for frameIndex,frame in ipairs(self.selectedTrack.frames) do
 				-- [[ as vbars
 				x = x + frame.delay	-- in beats
 				app:drawSolidLine(
@@ -242,39 +350,6 @@ function EditMusic:update()
 					0xf8,
 					0xf0
 				)
-				--]]
-			end
-			y = y + h + 4
-		end
-		-- pitch
-		do
-			local x = 1
-			for frameIndex,frame in ipairs(self.selectedTrack.frames) do
-				-- [[ as vbars
-				x = x + frame.delay	-- in beats
-				if frame.channels[0].volume[0] > 0 or frame.channels[0].volume[1] > 0 then
-					--[=[ as ampl
-					local a = (tonumber(frame.channels[0].pitch)) * h / 0xffff
-					--]=]
-					-- [=[ as octave
-					local a =
-						(
-							(	-- this is from [-12, 4]
-								(math.log(tonumber(frame.channels[0].pitch)) - math.log(0x1000)) / math.log(2)
-							)
-						-- + 12) / 16 * h	-- so add 12 to get from [0,16]
-						+ 4) / 8 * h		-- or just go by [0,4] octaves
-					--]=]
-					app:drawSolidLine(
-						x * 3,
-						y + h,
-						x * 3,
-						y + h - a,
-						0xf7,
-						0xf0
-					)
-				end
-				x = x + 1
 				--]]
 			end
 		end

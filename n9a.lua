@@ -29,6 +29,7 @@ local fromCartImage = numo9_archive.fromCartImage
 local toCartImage = numo9_archive.toCartImage
 local codeBanksToStr = numo9_archive.codeBanksToStr
 local codeStrToBanks = numo9_archive.codeStrToBanks
+local buildAudio = numo9_archive.buildAudio
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
@@ -320,6 +321,9 @@ or cmd == 'r' then
 				return addr
 			end
 
+			local sfxs = table()
+			local musics = table()
+
 			-- load sfx into audio memory
 			local found
 			for i=0,sfxTableSize-1 do
@@ -331,22 +335,13 @@ or cmd == 'r' then
 					-- for now I'm just saving them in this format and being lazy
 					assert.eq(wav.ctype, audioSampleType)
 					assert.eq(wav.freq, audioSampleRate)
-					local data = wav.data
-					local size = wav.size
-					--[[ now BRR-compress them and copy them into bank.audioData, and store their offsets in sfxAddrs
-					-- TODO what if the data doesn't align to 8 samples? what did SNES do?
-					local brrComp = vector'uint8_t'
-					--]]
-					-- [[ until then, use raw for now
+					sfxs[i+1] = {data = wav.data}
+
 --DEUBG:print('writing sfx', i, 'size', size)
-					local sfxHeader = bank.sfxAddrs[i]
-					sfxHeader.addr = addToAudio(data, size)
-					sfxHeader.len = size
-					sfxHeader.loopOffset = 0
 					local tmp = {}
 					assert(load(bankpath('waveform'..i..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
-					sfxHeader.loopOffset = tmp.loopOffset or 0
-					--]]
+					sfxs[i+1].loopOffset = tmp.loopOffset or 0
+
 					found = true
 				end
 			end
@@ -421,11 +416,7 @@ or cmd == 'r' then
 						p = p + 1
 					end
 					assert.eq(p, data + len)
-					local sfxHeader = bank.sfxAddrs[i-1]
-					local size = len * 2 -- lazy integer rup
-					sfxHeader.addr = addToAudio(data, size)
-					sfxHeader.len = size
-					sfxHeader.loopOffset = 0
+					sfxs[i] = {data = ffi.string(data, ffi.sizeof(audioSampleType) * len)}
 				end
 			end
 
@@ -433,15 +424,13 @@ or cmd == 'r' then
 			for i=0,musicTableSize-1 do
 				local p = bankpath('music'..i..'.bin')
 				if p:exists() then
-					local data = p:read()
-					local size = #data
+					musics[i+1] = {data=p:read()}
 --DEUBG:print('writing music', i, 'size', size)
-					local addrLen = bank.musicAddrs[i]
-					addrLen.addr, addrLen.len = addToAudio(data, size), size
 				end
 			end
 
 --DEBUG:print('num audio data stored:', audioDataOffset)
+			buildAudio(bank, sfxs, musics)
 		end
 	end
 

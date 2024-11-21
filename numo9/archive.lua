@@ -24,6 +24,9 @@ local zlib = require 'ffi.req' 'zlib'	-- TODO maybe ... use libzip if we're stor
 
 local numo9_rom = require 'numo9.rom'
 local codeSize = numo9_rom.codeSize
+local audioDataSize = numo9_rom.audioDataSize
+local sfxTableSize = numo9_rom.sfxTableSize
+local musicTableSize = numo9_rom.musicTableSize
 
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
 -- so reading is from files now
@@ -149,9 +152,51 @@ local function codeStrToBanks(banks, code)
 	end
 end
 
+--[[
+sfxs is indexed 1 to sfxTableSize and has .data and .loopOffset
+musics is indexed 1 to musicTableSize and has .data
+--]]
+local function buildAudio(bank, sfxs, musics)
+	local audioDataOffset = 0
+	-- returns start and end of offset into audioData for 'data' to go
+	local function addToAudio(data, size)
+		local addr = audioDataOffset
+		assert(addr + size <= audioDataSize, "audio data overflow")
+		ffi.copy(bank.audioData + addr, data, size)
+		audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
+		return addr
+	end
+	for i=0,sfxTableSize-1 do
+		local sfxsrc = sfxs[i+1]
+		local sfx = bank.sfxAddrs + i
+		local data = sfxsrc and sfxsrc.data
+		if not data then
+			sfx.len = 0
+			sfx.addr = 0
+		else
+			sfx.len = #data
+			sfx.addr = addToAudio(data, sfx.len)
+		end
+		sfx.loopOffset = sfxsrc and sfxsrc.loopOffset or 0
+	end
+	for i=0,musicTableSize-1 do
+		local music = bank.musicAddrs + i
+		local musicsrc = musics[i+1]
+		local data = musicsrc and musicsrc.data
+		if not data then
+			music.len = 0
+			music.addr = 0
+		else
+			music.len = #data
+			music.addr = addToAudio(data, music.len)
+		end
+	end
+end
+
 return {
 	toCartImage = toCartImage,
 	fromCartImage = fromCartImage,
 	codeBanksToStr = codeBanksToStr,
 	codeStrToBanks = codeStrToBanks,
+	buildAudio = buildAudio,
 }
