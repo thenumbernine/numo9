@@ -269,7 +269,8 @@ local function getAsciiForKeyCode(keyCode, shift)
 		return ascii
 	-- keys to add to buffers
 	elseif ascii == 8 -- backspace
-	or ascii == 10 	-- newline
+	or ascii == 10 	-- cr
+	or ascii == 13 	-- lf
 	or ascii == 9	-- tab
 	or ascii == 32	-- space
 	then
