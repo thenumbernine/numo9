@@ -134,7 +134,15 @@ function UI:guiRadio(x, y, options, selected, cb)
 	end
 end
 
-function UI:guiTextField(x, y, w, t, k, tooltip)
+function UI:guiTextField(
+	x, y, w, t, k, tooltip,
+	fgDesel, bgDesel, fgSel, bgSel	-- fg and bg when not-selected and when selected
+)
+	fgDesel = fgDesel or 0xfd
+	bgDesel = bgDesel or 0xf8
+	fgSel = fgSel or 0xfd
+	bgSel = bgSel or 0xf9
+
 	-- TODO here ... only if we have tab-focus ... read our input.
 	-- TODO color by tab-focus or not
 	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
@@ -164,14 +172,15 @@ function UI:guiTextField(x, y, w, t, k, tooltip)
 
 	local fg, bg
 	if onThisMenuItem then
-		fg, bg = 0xfd, 0xf9
+		fg, bg = fgSel, bgSel
 	else
-		fg, bg = 0xfd, 0xf8
+		fg, bg = fgDesel, bgDesel
 	end
 
 	local w = app:drawMenuText(t[k], x, y, fg, bg)
 
 	local changed
+	local enter
 	if onThisMenuItem then
 		if getTime() % 1 < .5 then
 			app:drawSolidRect(
@@ -201,14 +210,27 @@ function UI:guiTextField(x, y, w, t, k, tooltip)
 				local ch = getAsciiForKeyCode(keycode, shift)
 				if ch then
 					changed = true
+					if ch == 10 or ch == 13 then
+						enter = true
+					end
 					addCharToText(ch)
 				end
 			end
 		end
 	end
 
+	-- [[
 	self.menuTabCounter = self.menuTabCounter + 1
-
+	--]]
+	--[[ how to get enter to deselect the textfield ...
+	-- two menu-tab-counters per text-field, one for in-edit mode, one for not
+	self.menuTabCounter = self.menuTabCounter + 2
+	
+	if enter and onThisMenuItem then
+		self.menuTabIndex = self.menuTabIndex + 1
+	end
+	--]]
+	
 	return changed
 end
 
