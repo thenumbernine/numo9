@@ -1389,13 +1389,16 @@ void main() {
 		--  or 1/2 steps for 4bpp ... same as Pico8 and Tic80
 		-- and then floor() the inputs?
 		-- and then ... that'd make transforms a bigger mess ...
+		-- ... or maybe I should use texcoord.z as the sprite bit always ?
+		-- or use a separate spriteBit attr always?
 		-- ....HMMMMMMMMMMMM
 		local drawTextProgram = GLProgram{
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = template([[
 in vec2 vertex;
-in vec3 texcoord;
+in vec2 texcoord;
+in uint spriteBitAttr;
 out vec2 tcv;
 out vec2 pixelPos;
 flat out uint spriteBit;
@@ -1408,7 +1411,7 @@ const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 void main() {
 	tcv = texcoord.xy;
 	gl_Position = mvMat * vec4(vertex.xy, 0., 1.);
-	spriteBit = uint(texcoord.z + .5);
+	spriteBit = spriteBitAttr;
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
@@ -1527,7 +1530,7 @@ void main() {
 				self.paletteMenuTex,
 			},
 			vertexes = {
-				count = 4,
+				count = 6,
 				dim = 2,
 				useVec = true,
 				usage = gl.GL_DYNAMIC_DRAW,
@@ -1535,11 +1538,26 @@ void main() {
 			attrs = {
 				texcoord = {
 					buffer = {
-						count = 4,
-						dim = 3,	-- storing the sprite bit in the z coordinate ... should I use a u8 or does it matter?
+						count = 6,
+						dim = 2,
 						useVec = true,
 						usage = gl.GL_DYNAMIC_DRAW,
 					},
+				},
+				spriteBitAttr = {
+					buffer = {
+						count = 6,
+						ctype = 'uint8_t',
+						type = gl.GL_UNSIGNED_BYTE,
+						dim = 1,
+						useVec = true,
+						usage = gl.GL_DYNAMIC_DRAW,
+					},
+					type = gl.GL_UNSIGNED_BYTE,
+					dim = 1,
+					-- can divisor exceed the geometry # of vtxs?
+					--divisor = 6,	-- two triangles = 1 quad
+					--divisor = 3,
 				},
 			},
 			geometry = {
@@ -2519,6 +2537,7 @@ function AppVideo:drawMap(
 	self.framebufferRAM.changedSinceDraw = true
 end
 
+-- TODO same inlining as I just did to :drawMenuText ...
 -- draw a solid background color, then draw the text transparent
 -- specify an oob bgColorIndex to draw with transparent background
 -- and default x, y to the last cursor position
@@ -2638,8 +2657,6 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 -- draw transparent-background text
 	local x = x0 + 1
 	y = y + 1
-	--local texSizeInTiles = spriteSheetSizeInTiles	-- using sprite sheet last row
-	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 
 	local sceneObj = self.drawTextObj
 	local tex0 = sceneObj.texs[1]
@@ -2649,8 +2666,10 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	sceneObj:beginUpdate()
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	local spriteBitAttr = sceneObj.attrs.spriteBitAttr.buffer.vec
 	local w = spriteSize.x * scaleX
 	local h = spriteSize.y * scaleY
+	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	local tw = 1 / tonumber(texSizeInTiles.x)
 	local th = 1 / tonumber(texSizeInTiles.y)
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
@@ -2660,11 +2679,8 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
 		local by = bit.rshift(ch, 3)	-- get the byte offset
-		--local tx0,ty0 = by,texSizeInTiles.y-1				-- using sprite sheet last row
-		local tx0,ty0 = by,0							-- using separate font tex
-
-		local tx = tx0 / tonumber(texSizeInTiles.x)
-		local ty = ty0 / tonumber(texSizeInTiles.y)
+		local tx = by / tonumber(texSizeInTiles.x)
+		local ty = 0
 	
 		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
 		local v
@@ -2691,29 +2707,31 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 		v = texcoord:emplace_back()
 		v.x = tx
 		v.y = ty
-		v.z = bi
-		-- or TODO a 3rd attribute for this, with divisor 4 or 6 or whatever
 		v = texcoord:emplace_back()
 		v.x = tx+tw
 		v.y = ty
-		v.z = bi
 		v = texcoord:emplace_back()
 		v.x = tx
 		v.y = ty+th
-		v.z = bi
 
 		v = texcoord:emplace_back()
 		v.x = tx
 		v.y = ty+th
-		v.z = bi
 		v = texcoord:emplace_back()
 		v.x = tx+tw
 		v.y = ty
-		v.z = bi
 		v = texcoord:emplace_back()
 		v.x = tx+tw
 		v.y = ty+th
-		v.z = bi
+
+		spriteBitAttr:emplace_back()[0] = bi
+		-- [[ TODO get divisor working
+		spriteBitAttr:emplace_back()[0] = bi
+		spriteBitAttr:emplace_back()[0] = bi
+		spriteBitAttr:emplace_back()[0] = bi
+		spriteBitAttr:emplace_back()[0] = bi
+		spriteBitAttr:emplace_back()[0] = bi
+		--]]
 
 		x = x + menuFontWidth * scaleX
 	end
