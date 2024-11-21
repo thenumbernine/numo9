@@ -311,16 +311,6 @@ or cmd == 'r' then
 
 		print'loading sfx...'
 		do
-			local audioDataOffset = 0
-			-- returns start and end of offset into audioData for 'data' to go
-			local function addToAudio(data, size)
-				local addr = audioDataOffset
-				assert(addr + size <= audioDataSize, "audio data overflow")
-				ffi.copy(bank.audioData + addr, data, size)
-				audioDataOffset = audioDataOffset + math.ceil(size / 2) * 2 -- lazy integer rup
-				return addr
-			end
-
 			local sfxs = table()
 			local musics = table()
 
@@ -429,7 +419,6 @@ or cmd == 'r' then
 				end
 			end
 
---DEBUG:print('num audio data stored:', audioDataOffset)
 			buildAudio(bank, sfxs, musics)
 		end
 	end
