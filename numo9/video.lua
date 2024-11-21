@@ -2450,19 +2450,21 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	-- or how about use it as a separate flag?
 	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.ram.bank[0].palette[bgColorIndex])
 	if a > 0 then
+		local bgw = 0
 		for i=1,#text do
 			local ch = text:byte(i)
 			local w = scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
-			-- TODO the ... between drawSolidRect and drawSprite is not the same...
-			self:drawSolidRect(
-				x,
-				y,
-				w,
-				scaleY * spriteSize.y,
-				bgColorIndex
-			)
-			x = x + w
+			bgw = bgw + w
 		end
+	
+		-- TODO the ... between drawSolidRect and drawSprite is not the same ...
+		self:drawSolidRect(
+			x0,
+			y,
+			bgw,
+			scaleY * spriteSize.y,
+			bgColorIndex
+		)
 	end
 
 -- draw transparent-background text
@@ -2477,6 +2479,7 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 		local by = bit.rshift(ch, 3)	-- get the byte offset
 		--local tx,ty = by,texSizeInTiles.y-1				-- using sprite sheet last row
 		local tx,ty = by,0							-- using separate font tex
+-- [[
 		self:drawQuadTex(
 			x,									-- x
 			y,									-- y
@@ -2493,11 +2496,12 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
 			-- heck why not store 2 letters per left and right half as well?
 			-- 	that's half the alphaet in a single 8x8 sprite black.
-			fgColorIndex-1,							-- paletteIndex ... 'color index offset' / 'palette high bits'
+			fgColorIndex-1,						-- paletteIndex ... 'color index offset' / 'palette high bits'
 			0,									-- transparentIndex
 			bi,									-- spriteBit
 			1									-- spriteMask
 		)
+--]]		
 		x = x + menuFontWidth * scaleX
 	end
 
