@@ -2602,7 +2602,6 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 		local bi = bit.band(ch, 7)		-- get the bit offset
 		local by = bit.rshift(ch, 3)	-- get the byte offset
 		local tx = by / tonumber(texSizeInTiles.x)
-		local ty = 0
 
 		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
 		local v
@@ -2628,23 +2627,23 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 
 		v = texcoord:emplace_back()
 		v.x = tx
-		v.y = ty
+		v.y = 0
 		v = texcoord:emplace_back()
 		v.x = tx+tw
-		v.y = ty
+		v.y = 0
 		v = texcoord:emplace_back()
 		v.x = tx
-		v.y = ty+th
+		v.y = th
 
 		v = texcoord:emplace_back()
 		v.x = tx
-		v.y = ty+th
+		v.y = th
 		v = texcoord:emplace_back()
 		v.x = tx+tw
-		v.y = ty
+		v.y = 0
 		v = texcoord:emplace_back()
 		v.x = tx+tw
-		v.y = ty+th
+		v.y = th
 
 		spriteBitAttr:emplace_back()[0] = bi
 		-- [[ TODO get divisor working
@@ -2741,7 +2740,6 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 		local bi = bit.band(ch, 7)		-- get the bit offset
 		local by = bit.rshift(ch, 3)	-- get the byte offset
 		local tx = by / tonumber(texSizeInTiles.x)
-		local ty = 0
 
 		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
 		local v
@@ -2767,23 +2765,23 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 
 		v = texcoord:emplace_back()
 		v.x = tx
-		v.y = ty
+		v.y = 0
 		v = texcoord:emplace_back()
 		v.x = tx+tw
-		v.y = ty
+		v.y = 0
 		v = texcoord:emplace_back()
 		v.x = tx
-		v.y = ty+th
+		v.y = th
 
 		v = texcoord:emplace_back()
 		v.x = tx
-		v.y = ty+th
+		v.y = th
 		v = texcoord:emplace_back()
 		v.x = tx+tw
-		v.y = ty
+		v.y = 0
 		v = texcoord:emplace_back()
 		v.x = tx+tw
-		v.y = ty+th
+		v.y = th
 
 		spriteBitAttr:emplace_back()[0] = bi
 		-- [[ TODO get divisor working

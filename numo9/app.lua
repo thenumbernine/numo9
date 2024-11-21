@@ -2088,6 +2088,19 @@ function App:loadROM(filename)
 	assert.ge(#self.banks, 1)
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 	self.editCode:setText(codeBanksToStr(self.banks))
+
+--[[ I'd like to reallocate .ram but things are messing up
+-- should I be doing this outside of the update thread?
+	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
+	self.holdram = ffi.new('uint8_t[?]', 
+		ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1)
+	)
+	local oldram = self.ram
+	self.ram = ffi.cast('RAM*', self.holdram)
+	ffi.copy(self.ram, oldram, ffi.sizeof'RAM')
+	self:mvMatFromRAM()
+--]]
+
 	self:resetROM()
 	return true
 end
