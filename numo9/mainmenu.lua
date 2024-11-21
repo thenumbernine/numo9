@@ -26,9 +26,6 @@ function MainMenu:setCurrentMenu(name)
 	self.currentMenu = name
 	self.menuTabIndex = 0
 	self.connectStatus = nil
-
-	-- TODO set this upon ... opening the menu I guess?
-	self.serverMaxConns = server and tostring(server.maxConns) or nil
 end
 
 MainMenu.ystep = 9
@@ -49,11 +46,11 @@ function MainMenu:menuSection(str)
 end
 
 MainMenu.textFieldCursorLoc = 0
-function MainMenu:menuTextField(label, t, k, tooltip)
+function MainMenu:menuTextField(label, t, k, write, tooltip)
 	-- TODO gotta cache the last width to properly place this ...
 	-- maybe I should separate the label from the textinput, introduce a 'sameline()' function,  and start caching widths everywhere?
-	local w = self.app:drawMenuText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
-	local changed = self:guiTextField(self.cursorX + 80, self.cursorY, 80, t, k, tooltip)
+	self.app:drawMenuText(label, self.cursorX, self.cursorY, 0xf7, 0xf0)
+	local changed = self:guiTextField(self.cursorX + 80, self.cursorY, 80, t, k, tooltip, write)
 	self.cursorY = self.cursorY + self.ystep
 	return changed
 end
@@ -238,10 +235,9 @@ function MainMenu:updateMenuMultiplayer()
 	if server then
 		self.cursorY = self.cursorY + self.ysepstep
 		self:menuLabel('connections: '..#server.conns)
-		self.serverMaxConns = self.serverMaxConns or tostring(server.maxConns)
-		if self:menuTextField('max conns', self, 'serverMaxConns') then
-			server.maxConns = tonumber(self.serverMaxConns) or server.maxConns
-		end
+		self:menuTextField('max conns', server, 'maxConns', function(result)
+			server.maxConns = tonumber(result) or server.maxConns
+		end) 
 	end
 
 	-- where to put this menu ...

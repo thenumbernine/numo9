@@ -135,7 +135,10 @@ function UI:guiRadio(x, y, options, selected, cb)
 end
 
 function UI:guiTextField(
-	x, y, w, t, k, tooltip,
+	x, y, w,
+	t, k,	-- provide t and k to just read and write to t[k].  provide just 't' to use it as a value and then write with 'write' next. 
+	write,	-- if this is nil then t[k] is assigned currentEditValue.  otherwise write(currentEditValue) is called for assignment.
+	tooltip,
 	fgDesel, bgDesel, fgSel, bgSel	-- fg and bg when not-selected and when selected
 )
 	fgDesel = fgDesel or 0xfd
@@ -146,7 +149,12 @@ function UI:guiTextField(
 	-- TODO here ... only if we have tab-focus ... read our input.
 	-- TODO color by tab-focus or not
 	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
-	assert.type(assert.index(t, k), 'string')
+	local str
+	if k == nil then
+		str = tostring(t)
+	else
+		str = tostring(t[k])
+	end
 	local app = self.app
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
@@ -165,9 +173,20 @@ function UI:guiTextField(
 		onThisMenuItem = true
 	end
 
+	-- if we're on this and we're editing this then use what's in the edit-buffer
+	if onThisMenuItem then 
+		-- if we just selected then setup state for editing
+		if self.lastMenuTabIndex ~= self.menuTabCounter then
+			self.lastMenuTabIndex = self.menuTabCounter
+			self.currentEditValue = str
+		else
+			str = self.currentEditValue
+		end
+	end
+
 	if self.menuTabIndex ~= self.cursorMenuTabIndex then
 		-- if we just switched to this tabitem then reset the cursor position
-		self.textFieldCursorLoc = #t[k]
+		self.textFieldCursorLoc = #str
 	end
 
 	local fg, bg
@@ -177,9 +196,8 @@ function UI:guiTextField(
 		fg, bg = fgDesel, bgDesel
 	end
 
-	local w = app:drawMenuText(t[k], x, y, fg, bg)
+	local w = app:drawMenuText(str, x, y, fg, bg)
 
-	local changed
 	local enter
 	if onThisMenuItem then
 		if getTime() % 1 < .5 then
@@ -194,29 +212,36 @@ function UI:guiTextField(
 
 		-- TODO lots in common with editcode ... hmmm ...
 		local shift = app:key'lshift' or app:key'rshift'
-		local function addCharToText(ch)
-			if ch == 8 then
-				t[k] = t[k]:sub(1, self.textFieldCursorLoc - 1) .. t[k]:sub(self.textFieldCursorLoc+1)
-				self.textFieldCursorLoc = math.max(0, self.textFieldCursorLoc - 1)
-			elseif ch then
-				t[k] = t[k]:sub(1, self.textFieldCursorLoc) .. string.char(ch) .. t[k]:sub(self.textFieldCursorLoc+1)
-				self.textFieldCursorLoc = math.min(#t[k], self.textFieldCursorLoc + 1)
-			end
-		end
 
 		-- handle input here ...
 		for keycode=0,#keyCodeNames-1 do
 			if app:keyp(keycode,30,5) then
 				local ch = getAsciiForKeyCode(keycode, shift)
 				if ch then
-					changed = true
 					if ch == 10 or ch == 13 then
 						enter = true
-					end
-					addCharToText(ch)
+					elseif ch == 8 then
+						self.currentEditValue = self.currentEditValue:sub(1, self.textFieldCursorLoc - 1) .. self.currentEditValue:sub(self.textFieldCursorLoc+1)
+						self.textFieldCursorLoc = math.max(0, self.textFieldCursorLoc - 1)
+					elseif ch then
+						self.currentEditValue = self.currentEditValue:sub(1, self.textFieldCursorLoc) .. string.char(ch) .. self.currentEditValue:sub(self.textFieldCursorLoc+1)
+						self.textFieldCursorLoc = math.min(#self.currentEditValue, self.textFieldCursorLoc + 1)
+					end			
 				end
 			end
 		end
+	end
+
+	local changed
+	if enter then
+		if not write then
+			t[k] = self.currentEditValue
+		else
+			write(self.currentEditValue)
+		end
+		changed = true
+		self.currentEditValue = nil
+		self.lastMenuTabIndex = nil
 	end
 
 	-- [[

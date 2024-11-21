@@ -22,7 +22,6 @@ function EditSFX:init(args)
 	EditSFX.super.init(self, args)
 
 	self.pitch = bit.lshift(1, pitchPrec)
-	self.pitchStr = tostring(self.pitch)
 	self.selSfxIndex = 0
 	self.offsetScrollX = 0
 	self:calculateAudioSize()
@@ -142,9 +141,9 @@ function EditSFX:update()
 	end
 
 	app:drawMenuText('play pitch:', 8, 136, 0xf7, 0xf0)
-	if self:guiTextField(60, 136, 80, self, 'pitchStr') then
-		self.pitch = tonumber(self.pitchStr) or 0
-	end
+	self:guiTextField(60, 136, 80, self, 'pitch', function(result)
+		self.pitch = tonumber(result) or self.pitch
+	end)
 
 	-- footer
 	app:drawSolidRect(0, frameBufferSize.y - spriteSize.y, frameBufferSize.x, spriteSize.y, 0xf7, 0xf8)

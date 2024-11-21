@@ -119,7 +119,13 @@ function EditMusic:update()
 
 	local y = 10
 
-	app:drawMenuText('#'..self.selMusicIndex, 8, y, 0xfc, 0)
+	app:drawMenuText('#', 8, y, 0xfc, 0)
+
+	self:guiTextField(14, y, 15, self, 'selMusicIndex', function(index)
+		self.selMusicIndex = index
+		self:refreshSelectedMusic()
+	end)
+	
 	local endAddr = selMusic.addr + selMusic.len
 	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusic.addr, endAddr), 64, y, 0xfc, 0xf0)
 
@@ -161,10 +167,9 @@ function EditMusic:update()
 			if frameIndex >= self.frameStart
 			and frameIndex < self.frameStart+numFramesShown
 			then
-				self.curTextField = tostring(frame.delay)
-				if self:guiTextField(x, y, 10, self, 'curTextField') then
-					frame.delay = tonumber(self.curTextField) or frame.delay
-				end
+				self:guiTextField(x, y, 10, frame, 'delay', function(result)
+					frame.delay = tonumber(result) or frame.delay
+				end) 
 				x = x + menuFontWidth * 4
 				for i=0,ffi.sizeof'Numo9Channel'-1 do
 					local by = i + ffi.sizeof'Numo9Channel' * self.selectedChannel
@@ -172,17 +177,17 @@ function EditMusic:update()
 					local ptr = ffi.cast('uint8_t*', frame.channels) + by
 					local v = ptr[0]
 					local xi = x + (2 * menuFontWidth + 2) * (i-1)
-					self.curTextField = ('%02X'):format(v)
-					if self:guiTextField(
+					self:guiTextField(
 						xi, y,					-- pos
 						10,						-- width
-						self, 'curTextField', 	-- table, key
+						('%02X'):format(v), nil,-- read value
+						function(result)		-- write value
+							ptr[0] = tonumber(result, 16) or ptr[0]
+							self:refreshSelectedMusic()
+						end,
 						nil,					-- tooltip
 						not changed and color or nil, not changed and 0xf0 or nil	-- unselected text color: show unchanged data as dark
-					) then
-						ptr[0] = tonumber(self.curTextField, 16) or ptr[0]
-						--self:refreshSelectedMusic()	-- TODO enter-returns-true ... but then I'd need separate buffering for the mid-editing text-fields
-					end
+					)
 				end
 				y = y + 8
 			end

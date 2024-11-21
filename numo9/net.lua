@@ -798,6 +798,7 @@ function Server:init(app)
 
 	-- TODO make net device configurable too?
 	local sock = assert(socket.bind(listenAddr, listenPort))
+-- TODO if the address fails, you'll get an exception "permission denied"
 	self.socket = sock
 	self.socketaddr, self.socketport = sock:getsockname()
 

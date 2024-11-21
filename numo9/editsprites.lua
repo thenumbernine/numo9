@@ -624,11 +624,14 @@ function EditSprites:update()
 	end, 'paste target # colors='..tostring(self.pasteTargetNumColors))
 	--]]
 	-- [[
-	local tmp = {}
-	tmp[1] = tostring(self.pasteTargetNumColors)
-	if self:guiTextField(80, 32, 4*8, tmp, 1, 'paste target # colors='..tmp[1]) then
-		self.pasteTargetNumColors = tonumber(tmp[1]) or 0 --self.pasteTargetNumColors
-	end
+	self:guiTextField(
+		80, 32, 4*8,
+		self, 'pasteTargetNumColors',
+		function(result)
+			self.pasteTargetNumColors = tonumber(result) or 0
+		end,
+		'paste target # colors='..self.pasteTargetNumColors
+	)
 	--]]
 
 	-- TODO button for cut copy and paste as well
