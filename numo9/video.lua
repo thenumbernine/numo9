@@ -1292,7 +1292,7 @@ layout(location=0) out <?=fragType?> fragColor;
 uniform uint paletteIndex;
 
 // Reads 4 bits from wherever shift location you provide.
-uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> spriteTex;
+uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
 
 // Specifies which bit to read from at the sprite.
 //  0 = read sprite low nibble.
@@ -1322,7 +1322,7 @@ void main() {
 	uint colorIndex = ]]
 		..readTex{
 			tex = self.spriteSheetRAM.tex,
-			texvar = 'spriteTex',
+			texvar = 'sheetTex',
 			tc = 'tcv',
 			from = 'vec2',
 			to = 'uvec4',
@@ -1348,8 +1348,8 @@ void main() {
 	float colorIndexNorm = ]]
 		..readTex{
 			tex = self.spriteSheetRAM.tex,
-			texvar = 'spriteTex',
-			tc = 'tcv / vec2(textureSize(spriteTex))',
+			texvar = 'sheetTex',
+			tc = 'tcv / vec2(textureSize(sheetTex))',
 			from = 'vec2',
 			to = 'vec4',
 		}
@@ -1371,7 +1371,7 @@ void main() {
 				info = info,
 			}),
 			uniforms = {
-				spriteTex = 0,
+				sheetTex = 0,
 				paletteTex = 1,
 				paletteIndex = 0,
 				transparentIndex = -1,
@@ -1380,6 +1380,173 @@ void main() {
 				--mvMat = self.mvMat.ptr,
 			},
 		}:useNone()
+
+		-- HMM..........
+		-- this is an identical copy of spriteProgram
+		-- except that the spriteBit is read from the input z coordinate
+		-- how can I fix all this ...
+		-- maybe I should use 1/8th steps of the x variable for the bit? 
+		--  or 1/2 steps for 4bpp ... same as Pico8 and Tic80
+		-- and then floor() the inputs?
+		-- and then ... that'd make transforms a bigger mess ...
+		-- ....HMMMMMMMMMMMM
+		local drawTextProgram = GLProgram{
+			version = glslVersion,
+			precision = 'best',
+			vertexCode = template([[
+in vec2 vertex;
+in vec3 texcoord;
+out vec2 tcv;
+out vec2 pixelPos;
+flat out uint spriteBit;
+
+uniform mat4 mvMat;
+
+const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
+const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
+
+void main() {
+	tcv = texcoord.xy;
+	gl_Position = mvMat * vec4(vertex.xy, 0., 1.);
+	spriteBit = uint(texcoord.z + .5);
+	pixelPos = gl_Position.xy;
+	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
+	gl_Position.xy -= 1.;
+}
+]],			{
+				glslnumber = glslnumber,
+				frameBufferSize = frameBufferSize,
+			}),
+			fragmentCode = template([[
+in vec2 tcv;
+in vec2 pixelPos;
+
+// Specifies which bit to read from at the sprite.
+//  0 = read sprite low nibble.
+//  4 = read sprite high nibble.
+//  other = ???
+flat in uint spriteBit;
+
+layout(location=0) out <?=fragType?> fragColor;
+
+//For now this is an integer added to the 0-15 4-bits of the sprite tex.
+//You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
+//Or you can set it to low numbers and use it to offset the palette.
+//Should this be high bits? or just an offset to OR? or to add?
+uniform uint paletteIndex;
+
+// Reads 4 bits from wherever shift location you provide.
+uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
+
+// specifies the mask after shifting the sprite bit
+//  0x01u = 1bpp
+//  0x03u = 2bpp
+//  0x07u = 3bpp
+//  0x0Fu = 4bpp
+//  0xFFu = 8bpp
+uniform uint spriteMask;
+
+// Specifies which colorIndex to use as transparency.
+// This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
+// If you want fully opaque then just choose an oob color index.
+uniform uint transparentIndex;
+
+uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
+
+uniform vec4 drawOverrideSolid;
+
+void main() {
+<? if useSamplerUInt then ?>
+	uint colorIndex = ]]
+		..readTex{
+			tex = self.spriteSheetRAM.tex,
+			texvar = 'sheetTex',
+			tc = 'tcv',
+			from = 'vec2',
+			to = 'uvec4',
+		}
+		..[[.r;
+
+	colorIndex >>= spriteBit;
+	colorIndex &= spriteMask;
+
+	if (colorIndex == transparentIndex) discard;
+	colorIndex += paletteIndex;
+
+<?=info.colorOutput?>
+
+<? if fragType == 'uvec4' then ?>
+	if (fragColor.a == 0) discard;
+<? else ?>
+	if (fragColor.a < .5) discard;
+<? end ?>
+
+<? else ?>
+
+	float colorIndexNorm = ]]
+		..readTex{
+			tex = self.spriteSheetRAM.tex,
+			texvar = 'sheetTex',
+			tc = 'tcv / vec2(textureSize(sheetTex))',
+			from = 'vec2',
+			to = 'vec4',
+		}
+..[[.r;
+	uint colorIndex = uint(colorIndexNorm * 255. + .5);
+	colorIndex >>= spriteBit;
+	colorIndex &= spriteMask;
+	if (colorIndex == transparentIndex) discard;
+	colorIndex += paletteIndex;
+<?=info.colorOutput?>
+<? end ?>
+}
+]], 		{
+				glslnumber = glslnumber,
+				fragType = fragTypeForTex(info.framebufferRAM.tex),
+				useSamplerUInt = useSamplerUInt,
+				self = self,
+				samplerTypeForTex = samplerTypeForTex,
+				info = info,
+			}),
+			uniforms = {
+				sheetTex = 0,
+				paletteTex = 1,
+				paletteIndex = 0,
+				transparentIndex = -1,
+				spriteBit = 0,
+				spriteMask = 0xFF,
+				--mvMat = self.mvMat.ptr,
+			},
+		}:useNone()
+
+		info.drawTextObj = GLSceneObject{
+			-- make some vertex buffers for text 
+			program = drawTextProgram,
+			texs = {
+				self.fontMenuTex,
+				self.paletteMenuTex,
+			},
+			vertexes = {
+				count = 4,
+				dim = 2,
+				useVec = true,
+				usage = gl.GL_DYNAMIC_DRAW,
+			},
+			attrs = {
+				texcoord = {
+					buffer = {
+						count = 4,
+						dim = 3,	-- storing the sprite bit in the z coordinate ... should I use a u8 or does it matter?
+						useVec = true,
+						usage = gl.GL_DYNAMIC_DRAW,
+					},
+				},
+			},
+			geometry = {
+				mode = gl.GL_TRIANGLES,	-- QUADS would be nice ...
+				count = 6,
+			},
+		}
 
 --DEBUG:print('mode '..infoIndex..' quadSpriteObj')
 		info.quadSpriteObj = GLSceneObject{
@@ -1781,6 +1948,7 @@ function AppVideo:setVideoMode(mode)
 		self.quadSpriteObj = info.quadSpriteObj
 		self.triSpriteObj = info.triSpriteObj
 		self.quadMapObj = info.quadMapObj
+		self.drawTextObj = info.drawTextObj
 	else
 		error("unknown video mode "..tostring(mode))
 	end
@@ -2063,8 +2231,8 @@ doesn't care about framebuffer dirty (cuz its probably the editor framebuffer)
 function AppVideo:drawQuadTex(
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox
-	spriteTex,
-	palTex,
+	sheetTex,
+	paletteTex,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
@@ -2077,8 +2245,8 @@ function AppVideo:drawQuadTex(
 
 	local sceneObj = self.quadSpriteObj
 	local uniforms = sceneObj.uniforms
-	sceneObj.texs[1] = spriteTex
-	sceneObj.texs[2] = palTex
+	sceneObj.texs[1] = sheetTex
+	sceneObj.texs[2] = paletteTex
 
 	-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
 	local vertex = sceneObj.attrs.vertex.buffer.vec
@@ -2187,8 +2355,8 @@ function AppVideo:drawTexTri3D(
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.triSpriteObj
-	sceneObj.texs[1] = spriteTex
-	sceneObj.texs[2] = palTex
+	sceneObj.texs[1] = sheetRAM.tex
+	sceneObj.texs[2] = self.paletteRAM.tex
 
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	vertex.v[0].x = x1
@@ -2473,37 +2641,99 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	--local texSizeInTiles = spriteSheetSizeInTiles	-- using sprite sheet last row
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 
+	local sceneObj = self.drawTextObj
+	local tex0 = sceneObj.texs[1]
+	local tex1 = sceneObj.texs[2]
+	tex0:bind(0)
+	tex1:bind(1)
+	sceneObj:beginUpdate()
+	local vertex = sceneObj.attrs.vertex.buffer.vec
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	local w = spriteSize.x * scaleX
+	local h = spriteSize.y * scaleY
+	local tw = 1 / tonumber(texSizeInTiles.x)
+	local th = 1 / tonumber(texSizeInTiles.y)
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	local program = sceneObj.program
+
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
 		local by = bit.rshift(ch, 3)	-- get the byte offset
-		--local tx,ty = by,texSizeInTiles.y-1				-- using sprite sheet last row
-		local tx,ty = by,0							-- using separate font tex
--- [[
-		self:drawQuadTex(
-			x,									-- x
-			y,									-- y
-			spriteSize.x * scaleX,				-- spritesWide
-			spriteSize.y * scaleY,				-- spritesHigh
-			tx / tonumber(texSizeInTiles.x),	-- tx
-			ty / tonumber(texSizeInTiles.y),	-- ty
-			1 / tonumber(texSizeInTiles.x),		-- tw
-			1 / tonumber(texSizeInTiles.y),		-- th
-			self.fontMenuTex,					-- sheetTex
-			self.paletteMenuTex,				-- paletteTex
-			-- font color is 0 = background, 1 = foreground
-			-- so shift this by 1 so the font tex contents shift it back
-			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
-			-- heck why not store 2 letters per left and right half as well?
-			-- 	that's half the alphaet in a single 8x8 sprite black.
-			fgColorIndex-1,						-- paletteIndex ... 'color index offset' / 'palette high bits'
-			0,									-- transparentIndex
-			bi,									-- spriteBit
-			1									-- spriteMask
-		)
---]]		
+		--local tx0,ty0 = by,texSizeInTiles.y-1				-- using sprite sheet last row
+		local tx0,ty0 = by,0							-- using separate font tex
+
+		local tx = tx0 / tonumber(texSizeInTiles.x)
+		local ty = ty0 / tonumber(texSizeInTiles.y)
+	
+		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
+		local v
+		v = vertex:emplace_back()
+		v.x = x
+		v.y = y
+		v = vertex:emplace_back()
+		v.x = x+w
+		v.y = y
+		v = vertex:emplace_back()
+		v.x = x
+		v.y = y+h
+
+		v = vertex:emplace_back()
+		v.x = x
+		v.y = y+h
+		v = vertex:emplace_back()
+		v.x = x+w
+		v.y = y
+		v = vertex:emplace_back()
+		v.x = x+w
+		v.y = y+h
+		
+		v = texcoord:emplace_back()
+		v.x = tx
+		v.y = ty
+		v.z = bi
+		-- or TODO a 3rd attribute for this, with divisor 4 or 6 or whatever
+		v = texcoord:emplace_back()
+		v.x = tx+tw
+		v.y = ty
+		v.z = bi
+		v = texcoord:emplace_back()
+		v.x = tx
+		v.y = ty+th
+		v.z = bi
+
+		v = texcoord:emplace_back()
+		v.x = tx
+		v.y = ty+th
+		v.z = bi
+		v = texcoord:emplace_back()
+		v.x = tx+tw
+		v.y = ty
+		v.z = bi
+		v = texcoord:emplace_back()
+		v.x = tx+tw
+		v.y = ty+th
+		v.z = bi
+
 		x = x + menuFontWidth * scaleX
 	end
+
+	sceneObj:endUpdate()
+	local programUniforms = program.uniforms
+	program:use()
+	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
+	gl.glUniform1i(programUniforms.sheetTex.loc, 0)
+	gl.glUniform1i(programUniforms.paletteTex.loc, 1)
+	gl.glUniform1ui(programUniforms.paletteIndex.loc, fgColorIndex-1)
+	gl.glUniform1ui(programUniforms.transparentIndex.loc, 0)
+	gl.glUniform1ui(programUniforms.spriteMask.loc, 1)
+	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
+	program:useNone()
+	tex1:unbind(1)
+	tex0:unbind(0)
 
 	return x - x0
 end
