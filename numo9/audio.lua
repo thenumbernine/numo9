@@ -23,6 +23,7 @@ local audioDataSize = numo9_rom.audioDataSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
 local pitchPrec = numo9_rom.pitchPrec
+local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 local audioSampleTypePtr = audioSampleType..'*'
 local updateIntervalInSampleFrames = math.ceil(updateIntervalInSeconds * sampleFramesPerSecond)
@@ -166,7 +167,7 @@ function AppAudio:resetAudio()
 
 	local audio = self.audio
 
-	ffi.fill(self.ram.channels, ffi.sizeof'Numo9Channel' * audioMixChannels)
+	ffi.fill(self.ram.channels, audioAllMixChannelsInBytes)
 	ffi.fill(self.ram.musicPlaying, ffi.sizeof'Numo9MusicPlaying' * audioMusicPlayingCount)
 
 	-- this is to keep 1:1 with romUpdateCounter
@@ -366,7 +367,7 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < audioDataSize)
 			return
 		end
 		--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
-		if index < 0 or index >= audioMixChannels * ffi.sizeof'Numo9Channel' then
+		if index < 0 or index >= audioAllMixChannelsInBytes then
 --print('musicPlaying', musicPlayingIndex, 'got bad data')
 			musicPlaying.isPlaying = 0
 			return

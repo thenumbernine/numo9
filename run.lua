@@ -5,9 +5,10 @@ local string = require 'ext.string'
 -- TODO cli here
 cmdline = {...}	-- global for later
 
-for i=#cmdline-1,1,-1 do
+for i=#cmdline,1,-1 do
 	-- -e to execute code before load
 	if cmdline[i] == '-e' then
+		assert(i < #cmdline, "-e expected argument")
 		table.remove(cmdline, i)
 		cmdline.initCmd = table.remove(cmdline, i)
 	end
