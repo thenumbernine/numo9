@@ -381,6 +381,18 @@ To connect to a server from the command line:
 luajit run.lua -e "connect'<address>'"
 ```
 
+# CLI args:
+
+`-e "<cmd>"` = run `<cmd>` upon initialization.
+
+`-window <width>x<height>` = initialize window with specified width and height.
+
+`-nosplash` = disable fantasy-console splash-screen.
+
+`-editor` = start in editor.
+
+... any other arguments are assumed to be the input cartridge file to load.
+
 # Cartridges
 
 All my cartridge files are in `.png`. format.  If you want to distribute them as an image, just rename them from `.n9` to `.n9.png`.  To pack and unpack them use the `n9a.lua` script.

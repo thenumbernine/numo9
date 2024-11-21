@@ -82,8 +82,8 @@ end
 local App = GLApp:subclass()
 App.version = '0.5-alpha'
 App.title = 'NuMo9'
-App.width = cmdline and cmdline.video and cmdline.video[1] or 720
-App.height = cmdline and cmdline.video and cmdline.video[2] or 512
+App.width = cmdline and cmdline.window and cmdline.window[1] or 720
+App.height = cmdline and cmdline.window and cmdline.window[2] or 512
 
 App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO)
 
@@ -1138,7 +1138,6 @@ looks like I'm a Snes9x-default-keybinding fan.
 				ffi.fill(self.ram.bank[0].tileSheet, ffi.sizeof(self.ram.bank[0].tileSheet))
 				ffi.fill(self.ram.bank[0].tilemap, ffi.sizeof(self.ram.bank[0].tilemap))
 				self.tileSheetRAM.dirtyCPU = true
-
 			end
 
 			-- assign to console
@@ -1153,12 +1152,15 @@ looks like I'm a Snes9x-default-keybinding fan.
 
 			-- then let us run cmds
 			if cmdline and cmdline.initCmd then
-print('running cmd', cmdline.initCmd)
 				self:runCmd(cmdline.initCmd)
 			end
 
+			if cmdline.editor then
+				self:setMenu(self.editCode)
+			end
+
 			-- yield before quit in case initCmd or load has a better runFocus and we dont need to end-thread and drop to console
-			env.flip()
+			coroutine.yield()
 		end),
 	}
 --]]

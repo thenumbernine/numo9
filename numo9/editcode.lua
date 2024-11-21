@@ -24,6 +24,16 @@ local menuFontWidth = numo9_rom.menuFontWidth
 
 local EditCode = require 'numo9.ui':subclass()
 
+local colors = {
+	fg = 0xfc,
+	bg = 0,
+	fgSel = 0xff,
+	bgSel = 0xfc,
+	fgFooter = 0xfc,
+	bgFooter = 0xf1,
+}
+
+
 function EditCode:init(args)
 	EditCode.super.init(self, args)
 
@@ -117,8 +127,8 @@ function EditCode:update()
 				tostring(y + self.scrollY),
 				0,
 				y * spriteSize.y,
-				0xfc,
-				-1
+				colors.fg,
+				colors.bg
 			))
 		end
 		textareaX = textareaX + 2
@@ -153,8 +163,8 @@ function EditCode:update()
 				self.text:sub(i, selLineStart-1),
 				lineX,
 				lineY,
-				0xfc,
-				-1
+				colors.fg,
+				colors.bg
 			)
 		end
 		if selLineEnd-1 >= selLineStart then
@@ -162,8 +172,8 @@ function EditCode:update()
 				self.text:sub(selLineStart,selLineEnd-1),
 				lineX,
 				lineY,
-				0,
-				0xfc
+				colors.fgSel,
+				colors.bgSel
 			)
 		end
 		if j-1 >= selLineEnd then
@@ -171,8 +181,8 @@ function EditCode:update()
 				self.text:sub(selLineEnd, j-1),
 				lineX,
 				lineY,
-				0xfc,
-				-1
+				colors.fg,
+				colors.bg
 			)
 		end
 	end
@@ -205,11 +215,10 @@ function EditCode:update()
 	-- footer
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
-	app:drawMenuText(footer, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
+	app:drawMenuText(footer, 0, frameBufferSize.y - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
 	footer = self.cursorLoc..'/'..#self.text
-	local width = app:drawMenuText(footer, 0, frameBufferSize.y, 0, 0)
-	app:drawMenuText(footer, frameBufferSize.x-width, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
+	self.footerWidth = app:drawMenuText(footer, frameBufferSize.x - (self.footerWidth or 0), frameBufferSize.y - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
 	-- handle mouse
 
