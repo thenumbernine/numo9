@@ -1385,7 +1385,7 @@ void main() {
 		-- this is an identical copy of spriteProgram
 		-- except that the spriteBit is read from the input z coordinate
 		-- how can I fix all this ...
-		-- maybe I should use 1/8th steps of the x variable for the bit? 
+		-- maybe I should use 1/8th steps of the x variable for the bit?
 		--  or 1/2 steps for 4bpp ... same as Pico8 and Tic80
 		-- and then floor() the inputs?
 		-- and then ... that'd make transforms a bigger mess ...
@@ -1523,12 +1523,8 @@ void main() {
 		}:useNone()
 
 		info.drawTextObj = GLSceneObject{
-			-- make some vertex buffers for text 
+			-- make some vertex buffers for text
 			program = drawTextProgram,
-			texs = {
-				self.fontMenuTex,
-				self.paletteMenuTex,
-			},
 			vertexes = {
 				count = 6,
 				dim = 2,
@@ -2363,7 +2359,7 @@ function AppVideo:drawTexTri3D(
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
-	
+
 	local sheetRAM = assert.index(self.sheetRAMs, sheetIndex+1)
 	if sheetRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
@@ -2403,7 +2399,7 @@ function AppVideo:drawTexTri3D(
 		:unbind()
 	-- ... or interleave xyzuv and do one update?
 
-	-- which is faster? 
+	-- which is faster?
 	-- uniforms to do linear transform of a tri's coordiantes?
 	-- or writing the coords to cpu and update the buffer?
 	local uniforms = sceneObj.uniforms
@@ -2550,74 +2546,139 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	scaleY = scaleY or 1
 	local x0 = x
 
-	-- [[ ugly for now
-	local pushSpriteSheetRAM
---DEBUG:assert(not self.inMenuUpdate) -- if it's inMenuUpdate then use drawMenuText ... unless you want the game-font and game-palette
-	pushSpriteSheetRAM = self.spriteSheetRAM
-	self.spriteSheetRAM = self.fontRAM
-	self.sheetRAMs[1] = self.fontRAM
-	--]]
-
 	-- should font bg respect transparency/alpha?
 	-- or why even draw a background to it? let the user?
 	-- or how about use it as a separate flag?
 	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.ram.bank[0].palette[bgColorIndex])
 	if a > 0 then
+		local bgw = 0
 		for i=1,#text do
 			local ch = text:byte(i)
-			local w = scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
-			-- TODO the ... between drawSolidRect and drawSprite is not the same...
-			self:drawSolidRect(
-				x,
-				y,
-				w,
-				scaleY * spriteSize.y,
-				bgColorIndex
-			)
-			x = x + w
+			local w = scaleX * self.ram.fontWidth[ch]
+			bgw = bgw + w
 		end
+		-- TODO the ... between drawSolidRect and drawSprite is not the same...
+		self:drawSolidRect(
+			x0,
+			y,
+			bgw,
+			scaleY * spriteSize.y,
+			bgColorIndex
+		)
 	end
+
+-- [[ drawQuad startup
+	if self.fontRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
+		self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
+	end
+	self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
+--]]
 
 -- draw transparent-background text
 	local x = x0 + 1
 	y = y + 1
-	--local texSizeInTiles = spriteSheetSizeInTiles	-- using sprite sheet last row
+
+	local sceneObj = self.drawTextObj
+	local tex0 = self.fontRAM.tex
+	local tex1 = self.paletteRAM.tex
+	tex0:bind(0)
+	tex1:bind(1)
+	sceneObj:beginUpdate()
+	local vertex = sceneObj.attrs.vertex.buffer.vec
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	local spriteBitAttr = sceneObj.attrs.spriteBitAttr.buffer.vec
+	local w = spriteSize.x * scaleX
+	local h = spriteSize.y * scaleY
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
+	local tw = 1 / tonumber(texSizeInTiles.x)
+	local th = 1 / tonumber(texSizeInTiles.y)
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	local program = sceneObj.program
 
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
 		local by = bit.rshift(ch, 3)	-- get the byte offset
-		--local tx,ty = by,texSizeInTiles.y-1				-- using sprite sheet last row
-		local tx,ty = by,0							-- using separate font tex
-		self:drawQuad(
-			x,									-- x
-			y,									-- y
-			spriteSize.x * scaleX,				-- spritesWide
-			spriteSize.y * scaleY,				-- spritesHigh
-			tx / tonumber(texSizeInTiles.x),	-- tx
-			ty / tonumber(texSizeInTiles.y),	-- ty
-			1 / tonumber(texSizeInTiles.x),		-- tw
-			1 / tonumber(texSizeInTiles.y),		-- th
-			0,									-- sheetIndex == spriteSheetRAM
-			-- font color is 0 = background, 1 = foreground
-			-- so shift this by 1 so the font tex contents shift it back
-			-- TODO if compression is a thing then store 8 letters per 8x8 sprite
-			-- heck why not store 2 letters per left and right half as well?
-			-- 	that's half the alphaet in a single 8x8 sprite black.
-			fgColorIndex-1,							-- paletteIndex ... 'color index offset' / 'palette high bits'
-			0,									-- transparentIndex
-			bi,									-- spriteBit
-			1									-- spriteMask
-		)
-		x = x + (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch]) * scaleX
+		local tx = by / tonumber(texSizeInTiles.x)
+		local ty = 0
+
+		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
+		local v
+		v = vertex:emplace_back()
+		v.x = x
+		v.y = y
+		v = vertex:emplace_back()
+		v.x = x+w
+		v.y = y
+		v = vertex:emplace_back()
+		v.x = x
+		v.y = y+h
+
+		v = vertex:emplace_back()
+		v.x = x
+		v.y = y+h
+		v = vertex:emplace_back()
+		v.x = x+w
+		v.y = y
+		v = vertex:emplace_back()
+		v.x = x+w
+		v.y = y+h
+
+		v = texcoord:emplace_back()
+		v.x = tx
+		v.y = ty
+		v = texcoord:emplace_back()
+		v.x = tx+tw
+		v.y = ty
+		v = texcoord:emplace_back()
+		v.x = tx
+		v.y = ty+th
+
+		v = texcoord:emplace_back()
+		v.x = tx
+		v.y = ty+th
+		v = texcoord:emplace_back()
+		v.x = tx+tw
+		v.y = ty
+		v = texcoord:emplace_back()
+		v.x = tx+tw
+		v.y = ty+th
+
+		spriteBitAttr:emplace_back()[0] = bi
+		-- [[ TODO get divisor working
+		spriteBitAttr:emplace_back()[0] = bi
+		spriteBitAttr:emplace_back()[0] = bi
+		spriteBitAttr:emplace_back()[0] = bi
+		spriteBitAttr:emplace_back()[0] = bi
+		spriteBitAttr:emplace_back()[0] = bi
+		--]]
+
+		x = x + self.ram.fontWidth[ch] * scaleX
 	end
 
-	-- [[ ugly for now
---DEBUG:assert(not self.inMenuUpdate) -- if it's inMenuUpdate then use drawMenuText ... unless you want the game-font and game-palette
-	self.spriteSheetRAM = pushSpriteSheetRAM
-	self.sheetRAMs[1] = pushSpriteSheetRAM
-	--]]
+	sceneObj:endUpdate()
+	local programUniforms = program.uniforms
+	program:use()
+	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
+	gl.glUniform1i(programUniforms.sheetTex.loc, 0)
+	gl.glUniform1i(programUniforms.paletteTex.loc, 1)
+	gl.glUniform1ui(programUniforms.paletteIndex.loc, fgColorIndex-1)
+	gl.glUniform1ui(programUniforms.transparentIndex.loc, 0)
+	gl.glUniform1ui(programUniforms.spriteMask.loc, 1)
+	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
+	program:useNone()
+	tex1:unbind(1)
+	tex0:unbind(0)
+
+-- [[ drawQuad shutdown
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
+--]]
 
 	return x - x0
 end
@@ -2643,7 +2704,7 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 			local w = scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
 			bgw = bgw + w
 		end
-	
+
 		-- TODO the ... between drawSolidRect and drawSprite is not the same ...
 		self:drawSolidRect(
 			x0,
@@ -2659,8 +2720,8 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	y = y + 1
 
 	local sceneObj = self.drawTextObj
-	local tex0 = sceneObj.texs[1]
-	local tex1 = sceneObj.texs[2]
+	local tex0 = self.fontMenuTex
+	local tex1 = self.paletteMenuTex
 	tex0:bind(0)
 	tex1:bind(1)
 	sceneObj:beginUpdate()
@@ -2681,7 +2742,7 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 		local by = bit.rshift(ch, 3)	-- get the byte offset
 		local tx = by / tonumber(texSizeInTiles.x)
 		local ty = 0
-	
+
 		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
 		local v
 		v = vertex:emplace_back()
@@ -2703,7 +2764,7 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 		v = vertex:emplace_back()
 		v.x = x+w
 		v.y = y+h
-		
+
 		v = texcoord:emplace_back()
 		v.x = tx
 		v.y = ty
