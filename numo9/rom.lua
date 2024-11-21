@@ -308,7 +308,10 @@ local Numo9MusicPlaying = struct{
 -- assert sizeof musicID >= musicTableSize - that it can represent all our music table entries
 
 -- make sure our delta compressed channels state change encoding can fit in its 8bpp messages
-assert.le(ffi.sizeof'Numo9Channel' * audioMixChannels, 256)
+-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
+-- make sure our 0xfe end-of-track signal will not overlap the delta-compression messages
+local audioAllMixChannelsInBytes = ffi.sizeof'Numo9Channel' * audioMixChannels
+assert.le(audioAllMixChannelsInBytes, 0xfe)	-- special codes: 0xff means frame-end, 0xfe means track end.
 
 local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
 
@@ -506,6 +509,7 @@ return {
 	audioMixChannels = audioMixChannels,
 	audioOutChannels = audioOutChannels,
 	audioMusicPlayingCount = audioMusicPlayingCount,
+	audioAllMixChannelsInBytes = audioAllMixChannelsInBytes,
 	sfxTableSize = sfxTableSize,
 	musicTableSize = musicTableSize,
 	audioDataSize = audioDataSize,

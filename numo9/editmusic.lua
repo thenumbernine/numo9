@@ -16,6 +16,8 @@ local audioDataSize = numo9_rom.audioDataSize
 local menuFontWidth = numo9_rom.menuFontWidth
 local sampleFramesPerSecond = numo9_rom.audioSampleRate
 local pitchPrec = numo9_rom.pitchPrec
+local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
+
 
 local audioSampleTypePtr = audioSampleType..'*'
 
@@ -29,6 +31,7 @@ function EditMusic:init(args)
 	self.selMusicIndex = 0
 	self.startSampleFrameIndex = 0
 	self.frameStart = 1
+	self.selectedChannel = 0
 	self:refreshSelectedMusic()
 end
 
@@ -75,7 +78,7 @@ function EditMusic:refreshSelectedMusic()
 					break
 				end
 
-				assert(offset >= 0 and offset < ffi.sizeof'Numo9Channel' * audioMixChannels and offset < 0xfe)
+				assert(offset >= 0 and offset < audioAllMixChannelsInBytes and offset < 0xfe)
 				frame.changed[offset] = value
 				channelBytes[offset] = value
 
@@ -83,7 +86,7 @@ function EditMusic:refreshSelectedMusic()
 			end
 
 			frame.channels = ffi.new('Numo9Channel[?]', audioMixChannels)
-			ffi.copy(frame.channels, channels, ffi.sizeof'Numo9Channel' * audioMixChannels)
+			ffi.copy(frame.channels, channels, audioAllMixChannelsInBytes)
 
 			if track.nextTrack then break end	-- done
 			if ptr >= pend then break end
@@ -99,14 +102,22 @@ function EditMusic:update()
 	local selMusic = app.ram.bank[0].musicAddrs + self.selMusicIndex
 	local musicPlaying = app.ram.musicPlaying+0
 
-	local y = 10
-	self:guiSpinner(2, y, function(dx)
+	self:guiSpinner(70, 0, function(dx)
 		assert.eq(sfxTableSize, 256)
 		self.selMusicIndex = bit.band(self.selMusicIndex + dx, 0xff)
 		self:refreshSelectedMusic()
-	end)
+	end, 'music: '..self.selMusicIndex)
+	self:guiSpinner(85, 0, function(dx)
+		self.selectedChannel = math.clamp(self.selectedChannel + dx, 0, audioMixChannels-1)
+	end, 'channel:'..self.selectedChannel)
 
-	app:drawMenuText('#'..self.selMusicIndex, 32, y, 0xfc, 0)
+	if self:guiButton('X', 100, 0, self.showText, self.showText and 'cmd display' or 'vol/pitch display') then
+		self.showText = not self.showText
+	end
+
+	local y = 10
+
+	app:drawMenuText('#'..self.selMusicIndex, 8, y, 0xfc, 0)
 	local endAddr = selMusic.addr + selMusic.len
 	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusic.addr, endAddr), 64, y, 0xfc, 0xf0)
 
@@ -126,16 +137,17 @@ function EditMusic:update()
 	app:drawMenuText(('bps: %d'):format(self.selectedTrack and self.selectedTrack.bps or -1), 20, y, 0xfc, 0xf0)
 	y = y + 10
 
-	if self:guiButton('X', 0, y, self.showText, self.showText and 'cmd display' or 'vol/pitch display') then
-		self.showText = not self.showText
-	end
-
 	-- TODO headers
 
 	y = y + 10
 
 	local thisFrame = self.selectedTrack and self.selectedTrack.frames[1]
 	if self.showText then
+
+		app:drawMenuText(
+			'addr      vol echo pitch sfx flags',
+			15, y-10, 0xfc, 0xf0)
+
 		-- TODO scrollbar
 		local nextFrameStart
 		local numFramesShown = 16
@@ -149,8 +161,18 @@ function EditMusic:update()
 			then
 				app:drawMenuText(('%d'):format(frame.delay), x, y, color, 0xf0)
 				x = x + menuFontWidth * 4
+
+				for i=0,ffi.sizeof'Numo9Channel'-1 do
+					local v = ffi.cast('uint8_t*', frame.channels + self.selectedChannel)[i]
+					app:drawMenuText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (i-1), y, 0xff, 0xf0)
+				end
 				for k,v in pairs(frame.changed) do
-					app:drawMenuText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (k-1), y, color, 0xf0)
+					if k >= ffi.sizeof'Numo9Channel' * self.selectedChannel
+					and k < ffi.sizeof'Numo9Channel' * (self.selectedChannel + 1)
+					then
+						local i = k - ffi.sizeof'Numo9Channel' * self.selectedChannel
+						app:drawMenuText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (i-1), y, color, 0xf0)
+					end
 				end
 				y = y + 8
 			end

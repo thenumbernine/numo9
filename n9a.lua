@@ -43,7 +43,7 @@ local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels -- TODO names ... channels for mixing vs output channels L R for stereo
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
-
+local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
 -- A4=440hz, so A[-1]=13.75hz, so C0 is 3 half-steps higher than A[-1] = 2^(3/12) * 13.75 = 16.351597831287 hz ...
@@ -1047,15 +1047,12 @@ print('toImage', name, 'width', width, 'height', height)
 				TODO here write out an equivalent of our "spc"-ish commands for playing back our "sfx" i mean waveforms
 				or midi-ish ... idk
 				Time to define a SPC-ish MIDI-ish format of my own ...
-				or maybe I'll just use MIDI?
+				or maybe I'll just use MIDI?  but MIDI has no samples and then I'd have to map MIDI instruments to samples.
 				--]]
 				local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
-				ffi.fill(prevSoundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
+				ffi.fill(prevSoundState, audioAllMixChannelsInBytes)
 				local soundState = ffi.new('Numo9Channel[?]', audioMixChannels)
-				ffi.fill(soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
-
-				-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
-				assert.lt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
+				ffi.fill(soundState, audioAllMixChannelsInBytes)
 
 				local playbackDeltas = vector'uint8_t'
 				local short = ffi.new'uint16_t[1]'
@@ -1090,7 +1087,7 @@ print('toImage', name, 'width', width, 'height', height)
 						deltaCompress(
 							ffi.cast('uint8_t*', prevSoundState),
 							ffi.cast('uint8_t*', soundState),
-							ffi.sizeof'Numo9Channel' * audioMixChannels,
+							audioAllMixChannelsInBytes,
 							playbackDeltas
 						)
 						-- if we're on the first note and the sfxID is 0 then make sure we insert a 0 anyways, to trigger the first sfx playback
@@ -1114,7 +1111,7 @@ print('toImage', name, 'width', width, 'height', height)
 						playbackDeltas:emplace_back()[0] = 0xff
 
 						-- update
-						ffi.copy(prevSoundState, soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
+						ffi.copy(prevSoundState, soundState, audioAllMixChannelsInBytes)
 					end
 				end
 				local data = playbackDeltas:dataToStr()
@@ -1293,12 +1290,9 @@ print("total SFX data size if I'd use BRR: "..(
 			end)
 			if #musicSfxs > 0 then
 				local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
-				ffi.fill(prevSoundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
+				ffi.fill(prevSoundState, audioAllMixChannelsInBytes)
 				local soundState = ffi.new('Numo9Channel[?]', audioMixChannels)
-				ffi.fill(soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
-
-				-- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
-				assert.lt(ffi.sizeof'Numo9Channel' * audioMixChannels, 255)
+				ffi.fill(soundState, audioAllMixChannelsInBytes)
 
 				local playbackDeltas = vector'uint8_t'
 				local short = ffi.new'uint16_t[1]'
@@ -1369,7 +1363,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 						deltaCompress(
 							ffi.cast('uint8_t*', prevSoundState),
 							ffi.cast('uint8_t*', soundState),
-							ffi.sizeof'Numo9Channel' * audioMixChannels,
+							audioAllMixChannelsInBytes,
 							playbackDeltas
 						)
 						-- if we're on the first note and the sfxID is 0 then make sure we insert a 0 anyways, to trigger the first sfx playback
@@ -1393,7 +1387,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 						playbackDeltas:emplace_back()[0] = 0xff
 
 						-- update
-						ffi.copy(prevSoundState, soundState, ffi.sizeof'Numo9Channel' * audioMixChannels)
+						ffi.copy(prevSoundState, soundState, audioAllMixChannelsInBytes)
 					end
 				end
 				if musicTrack.loopTo then
