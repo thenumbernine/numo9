@@ -98,6 +98,8 @@ end
 function EditMusic:update()
 	EditMusic.super.update(self)
 	local app = self.app
+	
+	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local selMusic = app.ram.bank[0].musicAddrs + self.selMusicIndex
 	local musicPlaying = app.ram.musicPlaying+0
@@ -159,19 +161,27 @@ function EditMusic:update()
 			if frameIndex >= self.frameStart
 			and frameIndex < self.frameStart+numFramesShown
 			then
-				app:drawMenuText(('%d'):format(frame.delay), x, y, color, 0xf0)
-				x = x + menuFontWidth * 4
-
-				for i=0,ffi.sizeof'Numo9Channel'-1 do
-					local v = ffi.cast('uint8_t*', frame.channels + self.selectedChannel)[i]
-					app:drawMenuText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (i-1), y, 0xff, 0xf0)
+				self.curTextField = tostring(frame.delay)
+				if self:guiTextField(x, y, 10, self, 'curTextField') then
+					frame.delay = tonumber(self.curTextField) or frame.delay
 				end
-				for k,v in pairs(frame.changed) do
-					if k >= ffi.sizeof'Numo9Channel' * self.selectedChannel
-					and k < ffi.sizeof'Numo9Channel' * (self.selectedChannel + 1)
-					then
-						local i = k - ffi.sizeof'Numo9Channel' * self.selectedChannel
-						app:drawMenuText(('%02X'):format(v), x + (2 * menuFontWidth + 2) * (i-1), y, color, 0xf0)
+				x = x + menuFontWidth * 4
+				for i=0,ffi.sizeof'Numo9Channel'-1 do
+					local by = i + ffi.sizeof'Numo9Channel' * self.selectedChannel
+					local changed = frame.changed[by]
+					local ptr = ffi.cast('uint8_t*', frame.channels) + by
+					local v = ptr[0]
+					local xi = x + (2 * menuFontWidth + 2) * (i-1)
+					self.curTextField = ('%02X'):format(v)
+					if self:guiTextField(
+						xi, y,					-- pos
+						10,						-- width
+						self, 'curTextField', 	-- table, key
+						nil,					-- tooltip
+						not changed and color or nil, not changed and 0xf0 or nil	-- unselected text color: show unchanged data as dark
+					) then
+						ptr[0] = tonumber(self.curTextField, 16) or ptr[0]
+						--self:refreshSelectedMusic()	-- TODO enter-returns-true ... but then I'd need separate buffering for the mid-editing text-fields
 					end
 				end
 				y = y + 8
@@ -190,7 +200,6 @@ function EditMusic:update()
 			self.frameStart = nextFrameStart
 		end
 	else
-		local mouseX, mouseY = app.ram.mousePos:unpack()
 		if app:keyp'mouse_left' then
 			-- then move the current frame to the mouse click position ...
 			-- but frame index doesn't correlate with time, or with x position ...
