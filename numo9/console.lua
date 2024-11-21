@@ -243,10 +243,10 @@ function Console:update()
 	for keycode=0,#keyCodeNames-1 do
 		if app:keyp(keycode,30,5) then
 			local ch = getAsciiForKeyCode(keycode, shift)
-			if ch then
-				self:addCharToCmd(ch)
-			elseif keycode == keyCodeForName['return'] then
+			if ch == 10 or ch == 13 then
 				self:runCmdBuf()
+			elseif ch then
+				self:addCharToCmd(ch)
 			elseif keycode == keyCodeForName.up then
 				self:selectHistory(-1)
 			elseif keycode == keyCodeForName.down then

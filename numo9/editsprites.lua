@@ -80,11 +80,20 @@ function EditSprites:update()
 
 	-- choose spriteBit
 	app:drawMenuText(
-		'#'..self.spriteBit,
+		'#',
 		128+16+24,
 		12,
 		13,
 		-1
+	)
+	self:guiTextField(
+		128+16+24+5,
+		12,
+		10,
+		self, 'spriteBit',
+		function(result)
+			self.spriteBit = math.clamp(tonumber(result) or self.spriteBit, 0, 7)
+		end
 	)
 	self:guiSpinner(128+16+24, 20, function(dx)
 		self.spriteBit = math.clamp(self.spriteBit + dx, 0, 7)
