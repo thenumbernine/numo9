@@ -270,6 +270,7 @@ function App:initGL()
 		save = function(...) return self:saveROM(...) end,
 		load = function(...)
 			local result = table.pack(self:loadROM(...))
+
 			if self.server then
 				-- TODO consider order of events
 				-- this is goign to sendRAM to all clients
@@ -955,16 +956,17 @@ print('package.loaded', package.loaded)
 	local Console = require 'numo9.console'
 	local MainMenu = require 'numo9.mainmenu'
 
-	self:runInEmu(function()
-		self:resetView()	-- reset mat and clip
-		self.editCode = EditCode{app=self}
-		self.editSprites = EditSprites{app=self}
-		self.editTilemap = EditTilemap{app=self}
-		self.editSFX = EditSFX{app=self}
-		self.editMusic = EditMusic{app=self}
-		self.con = Console{app=self}
-		self.mainMenu = MainMenu{app=self}
-	end)
+	-- reset mat and clip
+	self.mvMat:setIdent()
+	packptr(4, self.ram.clipRect, 0, 0, 0xff, 0xff)
+
+	self.editCode = EditCode{app=self}
+	self.editSprites = EditSprites{app=self}
+	self.editTilemap = EditTilemap{app=self}
+	self.editSFX = EditSFX{app=self}
+	self.editMusic = EditMusic{app=self}
+	self.con = Console{app=self}
+	self.mainMenu = MainMenu{app=self}
 
 	-- load config if it exists
 	xpcall(function()
@@ -1546,7 +1548,7 @@ conn.receivesPerSecond = 0
 
 		local fb = self.fb
 		fb:bind()
-		self.inUpdateCallback = true	-- tell 'runInEmu' not to set up the fb:bind() to do gfx stuff
+		self.inUpdateCallback = true	-- tell video not to set up the fb:bind() to do gfx stuff
 		gl.glViewport(0,0,frameBufferSize:unpack())
 		gl.glEnable(gl.GL_SCISSOR_TEST)
 		gl.glScissor(
@@ -1988,13 +1990,6 @@ end
 
 -------------------- ROM STATE STUFF --------------------
 
--- initialize our projection to framebuffer size
--- do this every time we run a new rom
-function App:resetView()
-	self.mvMat:setIdent()
-	packptr(4, self.ram.clipRect, 0, 0, 0xff, 0xff)
-end
-
 -- save from cartridge to filesystem
 function App:saveROM(filename)
 --	self:checkDirtyGPU()
@@ -2089,16 +2084,18 @@ function App:loadROM(filename)
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 	self.editCode:setText(codeBanksToStr(self.banks))
 
+--	coroutine.yield()
 --[[ I'd like to reallocate .ram but things are messing up
 -- should I be doing this outside of the update thread?
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
-	self.holdram = ffi.new('uint8_t[?]', 
+	self.holdram = ffi.new('uint8_t[?]',
 		ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1)
 	)
 	local oldram = self.ram
 	self.ram = ffi.cast('RAM*', self.holdram)
 	ffi.copy(self.ram, oldram, ffi.sizeof'RAM')
 	self:mvMatFromRAM()
+-- TODO the matrix messes up here
 --]]
 
 	self:resetROM()
@@ -2199,10 +2196,6 @@ function App:runROM()
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
 		self.ram.romUpdateCounter = 0
-
-		-- this is even done in App:resetVideo()
-		-- so why isn't it working?
-		self:resetView()
 
 		-- here, if the assert fails then it's a parse error, and you can just pcall / pick out the offender
 		local f, msg = self:loadCmd(code, env, self.currentLoadedFilename)
@@ -2319,29 +2312,6 @@ end
 function App:cont()
 	self.isPaused = false
 	self:setFocus(self.gameEnv)
-end
-
--- run but make sure the vm is set up
--- esp the framebuffer
--- TODO might get rid of this now that i just upload cpu->gpu the vram every frame
-function App:runInEmu(cb, ...)
-	if not self.inUpdateCallback then
-		self.fb:bind()
-		gl.glViewport(0, 0, frameBufferSize.x, frameBufferSize.y)
-		gl.glScissor(
-			self.ram.clipRect[0],
-			self.ram.clipRect[1],
-			self.ram.clipRect[2]+1,
-			self.ram.clipRect[3]+1)
-	end
-	-- TODO if we're in the update callback then maybe we'd want to push/pop the viewport and scissors?
-	-- meh I'll leave that up to the callback
-
-	cb(...)
-
-	if not self.inUpdateCallback then
-		self.fb:unbind()
-	end
 end
 
 -------------------- INPUT HANDLING --------------------
