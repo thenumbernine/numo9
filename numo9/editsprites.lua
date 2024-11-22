@@ -119,6 +119,7 @@ function EditSprites:update()
 			self.spritesheetEditMode = result
 		end)
 
+	-- TODO multiple banks
 	self:guiRadio(128, 12, {'spriteSheetRAM', 'tileSheetRAM'}, self.texField,
 		function(result)
 			self.texField = result
@@ -246,11 +247,24 @@ function EditSprites:update()
 	local x = 2
 	local y = 12
 	app:drawMenuText(
-		'#'..(self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y),
+		'#',
 		x + 32,
 		y,
 		0xfd,
 		-1
+	)
+	self:guiTextField(
+		x + 32 + 5,
+		y,
+		20,
+		self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y, nil,
+		function(result)
+			local index = tonumber(result)
+			if index then
+				self.spriteSelPos.x = index % spriteSheetSizeInTiles.x
+				self.spriteSelPos.y = (index - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
+			end
+		end
 	)
 
 	local y = 24
@@ -479,11 +493,20 @@ function EditSprites:update()
 
 	-- select palette color to draw
 	app:drawMenuText(
-		'#'..self.paletteSelIndex,
+		'#',
 		16,
 		112,
 		13,
 		-1
+	)
+	self:guiTextField(
+		16+5,
+		112,
+		15,
+		self, 'paletteSelIndex',
+		function(result)
+			self.paletteSelIndex = tonumber(result) or self.paletteSelIndex
+		end
 	)
 
 	-- TODO how to draw all colors
@@ -587,25 +610,82 @@ function EditSprites:update()
 	-- edit palette entries
 	local selPaletteAddr = app.paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
 	local selColorValue = app:peekw(selPaletteAddr)
-	app:drawMenuText(('C=%04X'):format(selColorValue), 16, 216, 13, -1)
-	app:drawMenuText(('R=%02X'):format(bit.band(selColorValue,0x1f)), 16, 224, 13, -1)
+	app:drawMenuText('C=', 16, 216, 13, -1)
+	self:guiTextField(
+		16+10, 216, 20,
+		('%04X'):format(selColorValue), nil,
+		function(result)
+			result = tonumber(result, 16)
+			if result then self:edit_pokew(selPaletteAddr, result) end
+		end
+	)
+	
+	app:drawMenuText('R=', 16, 224, 13, -1)
+	self:guiTextField(
+		16+10, 224, 20,
+		('%02X'):format(bit.band(selColorValue,0x1f)), nil,
+		function(result)
+			result = tonumber(result, 16)
+			if result then
+				self:edit_pokew(selPaletteAddr, 
+					bit.bor(
+						bit.band(app:peekw(selPaletteAddr), bit.bnot(0x1f)),
+						result
+					)
+				)
+			end
+		end
+	)
 	self:guiSpinner(16+32, 224, function(dx)
 		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band(selColorValue+dx,0x1f),bit.band(selColorValue,bit.bnot(0x1f)))
 		)
 	end)
-	app:drawMenuText(('G=%02X'):format(bit.band(bit.rshift(selColorValue,5),0x1f)), 16, 224+8, 13, -1)
+	
+	app:drawMenuText('G=', 16, 224+8, 13, -1)
+	self:guiTextField(
+		16+10, 224+8, 20,
+		('%02X'):format(bit.band(bit.rshift(selColorValue,5),0x1f)), nil,
+		function(result)
+			result = tonumber(result, 16)
+			if result then
+				self:edit_pokew(selPaletteAddr,
+					bit.bor(
+						bit.band(app:peekw(selPaletteAddr), bit.bnot(0x3e0)),
+						bit.lshift(result, 5)
+					)
+				)
+			end
+		end
+	)
 	self:guiSpinner(16+32, 224+8, function(dx)
 		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
 		)
 	end)
-	app:drawMenuText(('B=%02X'):format(bit.band(bit.rshift(selColorValue,10),0x1f)), 16, 224+16, 13, -1)
+	
+	app:drawMenuText('B=', 16, 224+16, 13, -1)
+	self:guiTextField(
+		16+10, 224+16, 20,
+		('%02X'):format(bit.band(bit.rshift(selColorValue,10),0x1f)), nil,
+		function(result)
+			result = tonumber(result, 16)
+			if result then
+				self:edit_pokew(selPaletteAddr,
+					bit.bor(
+						bit.band(app:peekw(selPaletteAddr), bit.bnot(0x7c00)),
+						bit.lshift(result, 10)
+					)
+				)
+			end
+		end
+	)
 	self:guiSpinner(16+32, 224+16, function(dx)
 		self:edit_pokew(selPaletteAddr,
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
 		)
 	end)
+
 	local alpha = bit.band(selColorValue,0x8000)~=0
 	if self:guiButton('A', 16, 224+24, alpha) then
 		if alpha then	-- if it was set then clear it

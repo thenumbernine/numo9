@@ -1077,15 +1077,16 @@ print'sending initial RAM state...'
 	serverConn.toSend:insert'\xff\xff\xff\xff'
 
 	-- send back current state of the game ...
+	-- TODO send RAM state size / # banks
 	local ramState =
-		  ffi.string(ffi.cast('char*', app.ram.bank[0].spriteSheet), spriteSheetInBytes)
+		  ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
+		..ffi.string(ffi.cast('char*', app.ram.bank[0].spriteSheet), spriteSheetInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.bank[0].tileSheet), tileSheetInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.bank[0].tilemap), tilemapInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.bank[0].palette), paletteInBytes)
 		..ffi.string(ffi.cast('char*', app.ram.bank[0].font), fontInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
 
 	assert.len(ramState, ramStateSize)
 	serverConn.toSend:insert(ramState)
@@ -1277,18 +1278,20 @@ print('...got', result:unpack())
 						app.framebufferRAM:checkDirtyGPU()
 
 						-- flush GPU
+						-- TODO multiple banks
+						ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
+						ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
+						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
 						ffi.copy(app.ram.bank[0].spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
 						ffi.copy(app.ram.bank[0].tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
 						ffi.copy(app.ram.bank[0].tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
 						ffi.copy(app.ram.bank[0].palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
 						ffi.copy(app.ram.bank[0].font, ptr, fontInBytes)				ptr=ptr+fontInBytes
-						ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
-						ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
-						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
 						-- TODO copy music too?
 						-- set all dirty as well
-						app.spriteSheetRAM.dirtyCPU = true
-						app.tileSheetRAM.dirtyCPU = true
+						for _,sheetRAM in ipairs(app.sheetRAMs) do
+							sheetRAM.dirtyCPU = true
+						end
 						app.tilemapRAM.dirtyCPU = true
 						app.paletteRAM.dirtyCPU = true
 						app.fontRAM.dirtyCPU = true
@@ -1298,8 +1301,9 @@ print('...got', result:unpack())
 						app:mvMatFromRAM()
 
 						-- [[ this should be happenign every frame regardless...
-						app.spriteSheetRAM:checkDirtyCPU()
-						app.tileSheetRAM:checkDirtyCPU()
+						for _,sheetRAM in ipairs(app.sheetRAMs) do
+							sheetRAM:checkDirtyGPU()
+						end
 						app.tilemapRAM:checkDirtyCPU()
 						app.paletteRAM:checkDirtyCPU()
 						app.fontRAM:checkDirtyCPU()
