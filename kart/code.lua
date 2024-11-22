@@ -2576,6 +2576,8 @@ draw=[conn, ...]do
 		local playerIndex = select(i, ...)
 	--]]
 	-- [[ draw only players that the main menu flagged as active-in-this-race
+	-- TODO this means if the user hasn't set their 'local-players #' then even if you flag them in the start-screen here , they wont play.
+	-- to fix this ... DONT LET THEM FLAG in the START screen, instead have a message 'enable local player to use'
 	local numPlayers = 0
 	if select('#', ...) == 0 then
 		-- if we are an observer then we will get this ...
