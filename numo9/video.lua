@@ -1851,8 +1851,9 @@ end
 
 -- flush anything from gpu to cpu
 function AppVideo:checkDirtyGPU()
-	self.spriteSheetRAM:checkDirtyGPU()
-	self.tileSheetRAM:checkDirtyGPU()
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		sheetRAM:checkDirtyGPU()
+	end
 	self.tilemapRAM:checkDirtyGPU()
 	self.paletteRAM:checkDirtyGPU()
 	self.fontRAM:checkDirtyGPU()
@@ -1860,8 +1861,9 @@ function AppVideo:checkDirtyGPU()
 end
 
 function AppVideo:setDirtyCPU()
-	self.spriteSheetRAM.dirtyCPU = true
-	self.tileSheetRAM.dirtyCPU = true
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		sheetRAM.dirtyCPU = true
+	end
 	self.tilemapRAM.dirtyCPU = true
 	self.paletteRAM.dirtyCPU = true
 	self.fontRAM.dirtyCPU = true
@@ -1874,8 +1876,9 @@ function AppVideo:resetVideo()
 	-- and also because the first time resetVideo() is called, the video mode hasn't been set yet, os the framebufferRAM hasn't been assigned yet
 	self.framebufferRGB565RAM:checkDirtyGPU()
 	self.framebufferIndexRAM:checkDirtyGPU()
-	self.spriteSheetRAM:checkDirtyGPU()
-	self.tileSheetRAM:checkDirtyGPU()
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		sheetRAM:checkDirtyGPU()
+	end
 	self.tilemapRAM:checkDirtyGPU()
 	self.paletteRAM:checkDirtyGPU()
 	self.fontRAM:checkDirtyGPU()
@@ -1889,8 +1892,8 @@ function AppVideo:resetVideo()
 	-- and these
 	self.framebufferRGB565RAM:updateAddr(framebufferAddr)
 	self.framebufferIndexRAM:updateAddr(framebufferAddr)
-	self.spriteSheetRAM:updateAddr(spriteSheetAddr)
-	self.tileSheetRAM:updateAddr(tileSheetAddr)
+	self.sheetRAMs[1]:updateAddr(spriteSheetAddr)
+	self.sheetRAMs[2]:updateAddr(tileSheetAddr)
 	self.tilemapRAM:updateAddr(tilemapAddr)
 	self.paletteRAM:updateAddr(paletteAddr)
 	self.fontRAM:updateAddr(fontAddr)
@@ -1903,14 +1906,12 @@ function AppVideo:resetVideo()
 
 	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
 	-- [[ update now ...
-	self.spriteSheetRAM.tex:bind()
-		:subimage()
-		:unbind()
-	self.spriteSheetRAM.dirtyCPU = false
-	self.tileSheetRAM.tex:bind()
-		:subimage()
-		:unbind()
-	self.tileSheetRAM.dirtyCPU = false
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		sheetRAM.tex:bind()
+			:subimage()
+			:unbind()
+		sheetRAM.dirtyCPU = false
+	end
 	self.tilemapRAM.tex:bind()
 		:subimage()
 		:unbind()
@@ -2009,7 +2010,8 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 	local fromFound = 0
 	local toFound = 0
 	-- TODO option for only swap in a specific sheet/addr
-	for _,base in ipairs{self.spriteSheetRAM.addr, self.tileSheetRAM.addr} do
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		local base = sheetRAM.addr
 		for j=y,y+h-1 do
 			for i=x,x+w-1 do
 				local addr = base + i + spriteSheetSize.x * j

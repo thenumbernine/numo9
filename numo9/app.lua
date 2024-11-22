@@ -1076,7 +1076,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 
 				-- also for init, do the splash screen
 				numo9_video.resetLogoOnSheet(self.ram.bank[0].tileSheet)
-				self.tileSheetRAM.dirtyCPU = true
+				self.sheetRAMs[2].dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
 						env.mset(i, j, bit.bor(
@@ -1140,7 +1140,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 				-- and clear the tilemap now that we're done with it
 				ffi.fill(self.ram.bank[0].tileSheet, ffi.sizeof(self.ram.bank[0].tileSheet))
 				ffi.fill(self.ram.bank[0].tilemap, ffi.sizeof(self.ram.bank[0].tilemap))
-				self.tileSheetRAM.dirtyCPU = true
+				self.sheetRAMs[2].dirtyCPU = true
 			end
 
 			-- assign to console
@@ -1454,15 +1454,17 @@ conn.receivesPerSecond = 0
 			self.framebufferRGB565RAM:updateAddr(newFramebufferAddr)
 			self.framebufferIndexRAM:updateAddr(newFramebufferAddr)
 		end
+
+		-- TODO how to handle these plus expandable ROM?  I could only have the first sheets relocatable?
 		local newSpriteSheetAddr = self.ram.spriteSheetAddr:toabs()
-		if self.spriteSheetRAM.addr ~= newSpriteSheetAddr then
---DEBUG:print'updating spriteSheetRAM addr'
-			self.spriteSheetRAM:updateAddr(newSpriteSheetAddr)
+		if self.sheetRAMs[1].addr ~= newSpriteSheetAddr then
+--DEBUG:print'updating sheetRAMs[1] addr'
+			self.sheetRAMs[1]:updateAddr(newSpriteSheetAddr)
 		end
 		local newTileSheetAddr = self.ram.tileSheetAddr:toabs()
-		if self.tileSheetRAM.addr ~= newTileSheetAddr then
---DEBUG:print'updating tileSheetRAM addr'
-			self.tileSheetRAM:updateAddr(newTileSheetAddr)
+		if self.sheetRAMs[2].addr ~= newTileSheetAddr then
+--DEBUG:print'updating sheetRAMs[2] addr'
+			self.sheetRAMs[2]:updateAddr(newTileSheetAddr)
 		end
 		local newTilemapAddr = self.ram.tilemapAddr:toabs()
 		if self.tilemapRAM.addr ~= newTilemapAddr then
@@ -1485,8 +1487,8 @@ conn.receivesPerSecond = 0
 		-- in fact same if the framebuffer points to any of the other system RAM addresses, in case you want to draw to the fontWidth array or something ...
 		-- but we don't need to always be copying back from GPU to CPU ... only if any of the sheets overlap with it ...
 		-- and if any sheets intersect with it then we need to copy the GPU back to CPU ... and then set the sheets' dirtyCPU flag ...
-		local spriteSheetOverlapsFramebuffer = self.spriteSheetRAM:overlaps(self.framebufferRAM)
-		local tileSheetOverlapsFramebuffer = self.tileSheetRAM:overlaps(self.framebufferRAM)
+		local spriteSheetOverlapsFramebuffer = self.sheetRAMs[1]:overlaps(self.framebufferRAM)
+		local tileSheetOverlapsFramebuffer = self.sheetRAMs[2]:overlaps(self.framebufferRAM)
 		local tilemapOverlapsFramebuffer = self.tilemapRAM:overlaps(self.framebufferRAM)
 		local paletteOverlapsFramebuffer = self.paletteRAM:overlaps(self.framebufferRAM)
 		local fontOverlapsFramebuffer = self.fontRAM:overlaps(self.framebufferRAM)
@@ -1498,8 +1500,8 @@ conn.receivesPerSecond = 0
 		then
 --DEBUG:print'syncing framebuffer'
 			self.framebufferRAM:checkDirtyGPU()
-			if spriteSheetOverlapsFramebuffer then self.spriteSheetRAM.dirtyCPU = true end
-			if tileSheetOverlapsFramebuffer then self.tileSheetRAM.dirtyCPU = true end
+			if spriteSheetOverlapsFramebuffer then self.sheetRAMs[1].dirtyCPU = true end
+			if tileSheetOverlapsFramebuffer then self.sheetRAMs[2].dirtyCPU = true end
 			if tilemapOverlapsFramebuffer then self.tilemapRAM.dirtyCPU = true end
 			if paletteOverlapsFramebuffer then self.paletteRAM.dirtyCPU = true end
 			if fontOverlapsFramebuffer then self.fontRAM.dirtyCPU = true end
@@ -1876,16 +1878,13 @@ function App:poke(addr, value)
 
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
-	if addr >= self.spriteSheetRAM.addr
-	and addr < self.spriteSheetRAM.addrEnd
-	then
-		-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
-		self.spriteSheetRAM.dirtyCPU = true
-	end
-	if addr >= self.tileSheetRAM.addr
-	and addr < self.tileSheetRAM.addrEnd
-	then
-		self.tileSheetRAM.dirtyCPU = true
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		if addr >= sheetRAM.addr
+		and addr < sheetRAM.addrEnd
+		then
+			-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
+			sheetRAM.dirtyCPU = true
+		end
 	end
 	if addr >= self.tilemapRAM.addr
 	and addr < self.tilemapRAM.addrEnd
@@ -1921,15 +1920,12 @@ function App:pokew(addr, value)
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
 
-	if addrend >= self.spriteSheetRAM.addr
-	and addr < self.spriteSheetRAM.addrEnd
-	then
-		self.spriteSheetRAM.dirtyCPU = true
-	end
-	if addrend >= self.tileSheetRAM.addr
-	and addr < self.tileSheetRAM.addrEnd
-	then
-		self.tileSheetRAM.dirtyCPU = true
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		if addrend >= sheetRAM.addr
+		and addr < sheetRAM.addrEnd
+		then
+			sheetRAM.dirtyCPU = true
+		end
 	end
 	if addrend >= self.tilemapRAM.addr
 	and addr < self.tilemapRAM.addrEnd
@@ -1961,15 +1957,12 @@ function App:pokel(addr, value)
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
 
-	if addrend >= self.spriteSheetRAM.addr
-	and addr < self.spriteSheetRAM.addrEnd
-	then
-		self.spriteSheetRAM.dirtyCPU = true
-	end
-	if addrend >= self.tileSheetRAM.addr
-	and addr < self.tileSheetRAM.addrEnd
-	then
-		self.tileSheetRAM.dirtyCPU = true
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		if addrend >= sheetRAM.addr
+		and addr < sheetRAM.addrEnd
+		then
+			sheetRAM.dirtyCPU = true
+		end
 	end
 	if addrend >= self.tilemapRAM.addr
 	and addr < self.tilemapRAM.addrEnd
