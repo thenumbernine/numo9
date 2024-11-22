@@ -174,7 +174,8 @@ function App:initGL()
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
 
-	self.ram = ffi.new'RAM'
+	self.holdram = ffi.new('uint8_t[?]', ffi.sizeof'RAM')
+	self.ram = ffi.cast('RAM&', self.holdram)
 
 	-- tic80 has a reset() function for resetting RAM data to original cartridge data
 	-- pico8 has a reset function that seems to do something different: reset the color and console state
@@ -2053,10 +2054,14 @@ TODO maybe ... have the editor modify the cartridge copy as well
 	... unless I constantly copy changes across as the user edits ... maybe that's best ...)
 (or it would mean upon entering editor to copy the cartridge back into RAM, then edit as usual (live updates on palette and sprites)
 	and then when done editing, copy back from RAM to cartridge)
+
+whoever calls this should create a runFocus coroutine to load the ROM
+ so that the load only takes place in the runFocus loop and not the UI loop (which pushes and pops the modelview matrix values)
 --]]
 function App:loadROM(filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
+	self:mvMatFromRAM()
 
 	filename = filename or defaultSaveFilename
 	self.con:print('loading', filename)
@@ -2084,18 +2089,16 @@ function App:loadROM(filename)
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 	self.editCode:setText(codeBanksToStr(self.banks))
 
---	coroutine.yield()
---[[ I'd like to reallocate .ram but things are messing up
+-- [[ reallocate .ram for as many banks as the cart wants
 -- should I be doing this outside of the update thread?
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
 	self.holdram = ffi.new('uint8_t[?]',
 		ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1)
 	)
 	local oldram = self.ram
-	self.ram = ffi.cast('RAM*', self.holdram)
+	-- wow first time I've used references in LuaJIT, didn't know they were implemented.
+	self.ram = ffi.cast('RAM&', self.holdram)
 	ffi.copy(self.ram, oldram, ffi.sizeof'RAM')
-	self:mvMatFromRAM()
--- TODO the matrix messes up here
 --]]
 
 	self:resetROM()
@@ -2126,7 +2129,8 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
-	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
+	assert.eq(ffi.sizeof(self.holdram), ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1))
+	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM' * #self.banks)
 	self:resetVideo()
 
 	-- calling reset() live will kill all sound ...

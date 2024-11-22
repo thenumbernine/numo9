@@ -321,7 +321,11 @@ function UI:update()
 	end
 	x=x+6
 	if self:guiButton('\223', x, 0, nil, 'run') then
-		app:runROM()
+		app:setFocus{
+			thread = coroutine.create(function()
+				app:runROM()
+			end),
+		}
 	end
 	x=x+6
 	if self:guiButton('S', x, 0, nil, 'save') then
@@ -329,7 +333,12 @@ function UI:update()
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then
-		app:loadROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+		app:setFocus{
+			thread = coroutine.create(function()
+				-- do this from runFocus thread, not UI thread
+				app:loadROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+			end),
+		}
 	end
 end
 
