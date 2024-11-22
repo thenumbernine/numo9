@@ -42,7 +42,7 @@ function EditSprites:init(args)
 	self.spritesheetPanDownPos = vec2i()
 	self.spritesheetPanPressed = false
 
-	self.texField = 'spriteSheetRAM'
+	self.sheetIndex = 0	-- 0-based, like the API, but indexes into app.sheetRAMs, which is 1-based
 	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
 	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
@@ -101,12 +101,22 @@ function EditSprites:update()
 
 	-- choose spriteMask
 	app:drawMenuText(
-		'#'..self.spriteBitDepth,
+		'#',
 		128+16+24+32,
 		12,
 		13,
 		-1
 	)
+	self:guiTextField(
+		128+16+24+32+5,
+		12,
+		10,
+		self, 'spriteBitDepth',
+		function(result)
+			self.spriteBitDepth = tonumber(result) or self.spriteBitDepth
+		end
+	)
+
 	self:guiSpinner(128+16+24+32, 20, function(dx)
 		-- should I not let this exceed 8 - spriteBit ?
 		-- or should I wrap around bits and be really unnecessarily clever?
@@ -120,12 +130,13 @@ function EditSprites:update()
 		end)
 
 	-- TODO multiple banks
-	self:guiRadio(128, 12, {'spriteSheetRAM', 'tileSheetRAM'}, self.texField,
-		function(result)
-			self.texField = result
-		end)
-	local currentSheetIndex = self.texField == 'spriteSheetRAM' and 0 or 1	-- TODO
-	local currentVRAM = app.sheetRAMs[currentSheetIndex+1]
+	self:guiSpinner(128, 12, function(dx)
+		self.sheetIndex = (self.sheetIndex + dx) % #app.sheetRAMs
+	end, 'sheetIndex='..self.sheetIndex..(({
+		[0]=' sprite',
+		[1]=' tiles',
+	})[self.sheetIndex] or ''))
+	local currentVRAM = app.sheetRAMs[self.sheetIndex+1]
 	local currentTexAddr = currentVRAM.addr
 
 	local x = 126
@@ -165,7 +176,7 @@ function EditSprites:update()
 		tonumber(self.spritesheetPanOffset.y) / tonumber(spriteSheetSize.y),		-- ty
 		tonumber(w) / tonumber(spriteSheetSize.x),							-- tw
 		tonumber(h) / tonumber(spriteSheetSize.y),							-- th
-		currentSheetIndex,
+		self.sheetIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit
@@ -297,7 +308,7 @@ function EditSprites:update()
 		tonumber(self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y) / tonumber(spriteSheetSize.y),
 		tonumber(self.spriteSelSize.x * spriteSize.x) / tonumber(spriteSheetSize.x),
 		tonumber(self.spriteSelSize.y * spriteSize.y) / tonumber(spriteSheetSize.y),
-		currentSheetIndex,
+		self.sheetIndex,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex
 		self.spriteBit,							-- spriteBit
@@ -619,7 +630,7 @@ function EditSprites:update()
 			if result then self:edit_pokew(selPaletteAddr, result) end
 		end
 	)
-	
+
 	app:drawMenuText('R=', 16, 224, 13, -1)
 	self:guiTextField(
 		16+10, 224, 20,
@@ -627,7 +638,7 @@ function EditSprites:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
-				self:edit_pokew(selPaletteAddr, 
+				self:edit_pokew(selPaletteAddr,
 					bit.bor(
 						bit.band(app:peekw(selPaletteAddr), bit.bnot(0x1f)),
 						result
@@ -641,7 +652,7 @@ function EditSprites:update()
 			bit.bor(bit.band(selColorValue+dx,0x1f),bit.band(selColorValue,bit.bnot(0x1f)))
 		)
 	end)
-	
+
 	app:drawMenuText('G=', 16, 224+8, 13, -1)
 	self:guiTextField(
 		16+10, 224+8, 20,
@@ -663,7 +674,7 @@ function EditSprites:update()
 			bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
 		)
 	end)
-	
+
 	app:drawMenuText('B=', 16, 224+16, 13, -1)
 	self:guiTextField(
 		16+10, 224+16, 20,
