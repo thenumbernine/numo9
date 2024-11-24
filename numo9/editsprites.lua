@@ -42,7 +42,7 @@ function EditSprites:init(args)
 	self.spritesheetPanDownPos = vec2i()
 	self.spritesheetPanPressed = false
 
-	self.sheetIndex = 0	-- 0-based, like the API, but indexes into app.sheetRAMs, which is 1-based
+	self.spritesOrTiles = false
 	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
 	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
@@ -77,6 +77,22 @@ function EditSprites:update()
 	local shift = app:key'lshift' or app:key'rshift'
 
 	EditSprites.super.update(self)
+
+	-- TODO use just 1 variable for all editors?
+	self:guiSpinner(80, 0, function(dx)
+		app.editBankNo = math.clamp(app.editBankNo + dx, 0, #app.banks-1)
+	end, 'bank='..app.editBankNo)
+	if self:guiButton(self.spritesOrTiles and 'T' or 'S', 96, 0, false, 
+		self.spritesOrTiles and 'tiles' or 'sprites'
+	) then
+		self.spritesOrTiles = not self.spritesOrTiles
+	end
+	
+	local sheetIndex = 2 * app.editBankNo + (self.spritesOrTiles and 1 or 0)
+	local currentVRAM = app.sheetRAMs[sheetIndex+1]
+	local currentTexAddr = currentVRAM.addr
+
+	local paletteRAM = app.paletteRAMs[app.editBankNo+1]
 
 	-- choose spriteBit
 	app:drawMenuText(
@@ -129,16 +145,6 @@ function EditSprites:update()
 			self.spritesheetEditMode = result
 		end)
 
-	-- TODO multiple banks
-	self:guiSpinner(128, 12, function(dx)
-		self.sheetIndex = (self.sheetIndex + dx) % #app.sheetRAMs
-	end, 'sheetIndex='..self.sheetIndex..(({
-		[0]=' sprite',
-		[1]=' tiles',
-	})[self.sheetIndex] or ''))
-	local currentVRAM = app.sheetRAMs[self.sheetIndex+1]
-	local currentTexAddr = currentVRAM.addr
-
 	local x = 126
 	local y = 32
 	local sw = spriteSheetSizeInTiles.x / 2	-- only draw a quarter worth since it's the same size as the screen
@@ -176,7 +182,7 @@ function EditSprites:update()
 		tonumber(self.spritesheetPanOffset.y) / tonumber(spriteSheetSize.y),		-- ty
 		tonumber(w) / tonumber(spriteSheetSize.x),							-- tw
 		tonumber(h) / tonumber(spriteSheetSize.y),							-- th
-		self.sheetIndex,
+		sheetIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit
@@ -308,7 +314,7 @@ function EditSprites:update()
 		tonumber(self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y) / tonumber(spriteSheetSize.y),
 		tonumber(self.spriteSelSize.x * spriteSize.x) / tonumber(spriteSheetSize.x),
 		tonumber(self.spriteSelSize.y * spriteSize.y) / tonumber(spriteSheetSize.y),
-		self.sheetIndex,
+		sheetIndex,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex
 		self.spriteBit,							-- spriteBit
@@ -548,7 +554,7 @@ function EditSprites:update()
 			local ry = y + bh * j
 
 			-- cheap hack to use game palette here instead of menu palette ...
-			app.videoModeInfo[0].quadSolidObj.texs[1] = app.paletteRAM.tex
+			app.videoModeInfo[0].quadSolidObj.texs[1] = paletteRAM.tex
 			app:drawSolidRect(
 				rx,
 				ry,
@@ -619,7 +625,7 @@ function EditSprites:update()
 	end, 'pen size='..self.penSize)
 
 	-- edit palette entries
-	local selPaletteAddr = app.paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
+	local selPaletteAddr = paletteRAM.addr + bit.lshift(self.paletteSelIndex, 1)
 	local selColorValue = app:peekw(selPaletteAddr)
 	app:drawMenuText('C=', 16, 216, 13, -1)
 	self:guiTextField(
@@ -870,7 +876,7 @@ print('possible colors: '..require 'ext.tolua'(colors))
 						assert.eq(image.channels, 1, "image.channels")
 						for i,color in ipairs(colors) do
 							self:edit_pokew(
-								app.paletteRAM.addr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
+								paletteRAM.addr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
 								rgba8888_4ch_to_5551(
 									color:byte(1),
 									color:byte(2),

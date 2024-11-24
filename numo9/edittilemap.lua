@@ -69,14 +69,10 @@ function EditTilemap:update()
 	local y = 0
 
 	self:guiSpinner(x, y, function(dx)
-		self.gridSpacing = math.clamp(self.gridSpacing + dx, 1, 256)
-	end, 'grid='..self.gridSpacing)
-	x = x + 14
+		app.editBankNo = math.clamp(app.editBankNo + dx, 0, #app.banks-1)
+	end, 'bank='..app.editBankNo)
+	x = x + 16
 
-	if self:guiButton('G', x, y, self.drawGrid, 'grid') then
-		self.drawGrid = not self.drawGrid
-	end
-	x = x + 8
 	if self:guiButton('T', x, y, self.pickOpen, 'tile') then
 		self.pickOpen = not self.pickOpen
 	end
@@ -100,12 +96,23 @@ function EditTilemap:update()
 	if self:guiButton('V', x, y, self.vertFlip, 'vflip='..tostring(self.vertFlip)) then
 		self.vertFlip = not self.vertFlip
 	end
-	x = x + 16
+	x = x + 12
 
 	self:guiSpinner(x, y, function(dx)
 		self.selPalHiOffset = math.clamp(self.selPalHiOffset + dx, 0, 0xf)
 	end, 'palhi='..self.selPalHiOffset)
-	x = x + 24
+	x = x + 16
+
+	self:guiSpinner(x, y, function(dx)
+		self.gridSpacing = math.clamp(self.gridSpacing + dx, 1, 256)
+	end, 'grid='..self.gridSpacing)
+	x = x + 16
+
+	if self:guiButton('G', x, y, self.drawGrid, 'grid') then
+		self.drawGrid = not self.drawGrid
+	end
+
+	local tilemapRAM = app.tilemapRAMs[app.editBankNo+1]
 
 	local tileBits = self.draw16Sprites and 4 or 3
 	local tileSize = bit.lshift(1, tileBits)
@@ -290,7 +297,7 @@ function EditTilemap:update()
 
 			local texelIndex = tx + tilemapSize.x * ty
 			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-			return app:peekw(app.tilemapRAM.addr + bit.lshift(texelIndex, 1))
+			return app:peekw(tilemapRAM.addr + bit.lshift(texelIndex, 1))
 		end
 
 		local function puttile(tx, ty, dx, dy)
@@ -306,7 +313,7 @@ function EditTilemap:update()
 				self.vertFlip and 0x8000 or 0)
 			local texelIndex = tx + tilemapSize.x * ty
 			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-			self:edit_pokew(app.tilemapRAM.addr + bit.lshift(texelIndex, 1), tileSelIndex)
+			self:edit_pokew(tilemapRAM.addr + bit.lshift(texelIndex, 1), tileSelIndex)
 		end
 
 		-- TODO pen size here
@@ -417,7 +424,7 @@ function EditTilemap:update()
 			-- TODO how to specify where to paste? beforehand? or paste as overlay until you click outside the box?
 
 			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
-			assert(not app.tilemapRAM.dirtyGPU)
+			assert(not tilemapRAM.dirtyGPU)
 			local image = clip.image()
 			if image then
 				local pasteTargetNumColors = 1024
@@ -470,11 +477,11 @@ print'pasting image'
 					for i=0,image.width-1 do
 						local destx = i + x
 						local desty = j + y
-						if destx >= 0 and destx < app.tilemapRAM.image.width
-						and desty >= 0 and desty < app.tilemapRAM.image.height
+						if destx >= 0 and destx < tilemapRAM.image.width
+						and desty >= 0 and desty < tilemapRAM.image.height
 						then
 							local c = image.buffer[i + image.width * j]
-							self:edit_pokew(app.tilemapRAM.addr + bit.lshift(destx + app.tilemapRAM.image.width * desty, 1), c)
+							self:edit_pokew(tilemapRAM.addr + bit.lshift(destx + tilemapRAM.image.width * desty, 1), c)
 						end
 					end
 				end
