@@ -228,8 +228,12 @@ If the following functions are defined then they will be called from the virtual
 	- sheetIndex = sheet to use, 0 = sprite sheet, 1 = tile sheet, default 0.
 - `line(x1, y1, x2, y2, [color])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [color])` = draw line but with z / perspective.
-- `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY,sheetIndex])` = draw sprite
-	- spriteIndex = which sprite to draw
+- `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY])` = draw sprite
+	- spriteIndex = which sprite to draw.
+		- Bits 0..4 = x coordinate into the 32x32 grid of 8x8 tiles in the 256x256 sprite/tile sheet.
+		- Bits 5..9 = y coordinate " " "
+		- Bit 10 = whether to use the sprite sheet or tile sheet.
+		- Bits 11... = represent which bank to use (up to 32 addressable).
 	- screenX, screenY = pixel location of upper-left corner of the sprite
 	- spritesWide, spritesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
 	- paletteIndex = a value to offset the colors by.  this can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
@@ -238,7 +242,6 @@ If the following functions are defined then they will be called from the virtual
 	- spriteMask = mask of which bits to use.  default is 0xFF, in binary 1111:1111, which uses all 8 bitplanes.
 		- the resulting color index drawn is `(incomingTexelIndex >> spriteBit) & spriteMask + paletteIndex`
 	- scaleX, scaleY = on-screen scaling.
-	- sheetIndex = sheet to use, 0 = sprite sheet, 1 = tile sheet, default 0.
 - `quad(screenX, screenY, w, h, tx, ty, tw, th, sheetIndex, pal, transparent, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
 	- screenX, screneY = pixel location of upper-left corner of the sprite-sheet to draw
 	- w, h = pixels wide and high to draw.

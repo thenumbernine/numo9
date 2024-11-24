@@ -1043,8 +1043,8 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 	matscale(s, s)
 	local si, sw, sh = table.unpack(sprites.sky)
 	mattrans(viewU * sw * 8, 0)
-	spr(si, viewX / s, viewY / s, sw, sh, nil, nil, nil, nil, nil, nil, 1)			-- draw sky
-	spr(si, viewX / s - sw * 8, viewY / s, sw, sh, nil, nil, nil, nil, nil, nil, 1)	-- and again to make it wrap
+	spr(si|0x400, viewX / s, viewY / s, sw, sh)			-- draw sky
+	spr(si|0x400, viewX / s - sw * 8, viewY / s, sw, sh)	-- and again to make it wrap
 	matpop()
 
 	-- [[ draw the track as tilemap
@@ -1290,7 +1290,7 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 --[=[ not helping
 applyprojmat()
 --]=]
-		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX, nil, kartSpriteSheet)
+		spr(spriteIndex|(kartSpriteSheet<<10), 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
 		matpop()
 	end
 	--]]
@@ -2486,7 +2486,7 @@ update=[]do
 		text('>', x-8, y+16*menuSel, colors.white, colors.black)
 		text('wins',x+192-16,y-12,colors.white,colors.black)
 		for pid=0,maxPlayers-1 do
-			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo), x, y-4, 4, 4, nil, nil, nil, nil, .5, .5, kartSpriteSheet)
+			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo)|(kartSpriteSheet<<10), x, y-4, 4, 4, nil, nil, nil, nil, .5, .5)
 			text('player '..(pid+1)..' = '
 				..tostring(playersActive[pid]),
 				x+24, y, colors.white, colors.black)
