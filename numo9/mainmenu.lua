@@ -237,7 +237,7 @@ function MainMenu:updateMenuMultiplayer()
 		self:menuLabel('connections: '..#server.conns)
 		self:menuTextField('max conns', server, 'maxConns', function(result)
 			server.maxConns = tonumber(result) or server.maxConns
-		end) 
+		end)
 	end
 
 	-- where to put this menu ...

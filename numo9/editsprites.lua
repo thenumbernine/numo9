@@ -78,16 +78,15 @@ function EditSprites:update()
 
 	EditSprites.super.update(self)
 
-	-- TODO use just 1 variable for all editors?
 	self:guiSpinner(80, 0, function(dx)
 		app.editBankNo = math.clamp(app.editBankNo + dx, 0, #app.banks-1)
 	end, 'bank='..app.editBankNo)
-	if self:guiButton(self.spritesOrTiles and 'T' or 'S', 96, 0, false, 
+	if self:guiButton(self.spritesOrTiles and 'T' or 'S', 96, 0, false,
 		self.spritesOrTiles and 'tiles' or 'sprites'
 	) then
 		self.spritesOrTiles = not self.spritesOrTiles
 	end
-	
+
 	local sheetIndex = 2 * app.editBankNo + (self.spritesOrTiles and 1 or 0)
 	local currentVRAM = app.sheetRAMs[sheetIndex+1]
 	local currentTexAddr = currentVRAM.addr

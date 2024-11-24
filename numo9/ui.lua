@@ -136,7 +136,7 @@ end
 
 function UI:guiTextField(
 	x, y, w,
-	t, k,	-- provide t and k to just read and write to t[k].  provide just 't' to use it as a value and then write with 'write' next. 
+	t, k,	-- provide t and k to just read and write to t[k].  provide just 't' to use it as a value and then write with 'write' next.
 	write,	-- if this is nil then t[k] is assigned currentEditValue.  otherwise write(currentEditValue) is called for assignment.
 	tooltip,
 	fgDesel, bgDesel, fgSel, bgSel	-- fg and bg when not-selected and when selected
@@ -174,7 +174,7 @@ function UI:guiTextField(
 	end
 
 	-- if we're on this and we're editing this then use what's in the edit-buffer
-	if onThisMenuItem then 
+	if onThisMenuItem then
 		-- if we just selected then setup state for editing
 		if self.lastMenuTabIndex ~= self.menuTabCounter then
 			self.lastMenuTabIndex = self.menuTabCounter
@@ -226,7 +226,7 @@ function UI:guiTextField(
 					elseif ch then
 						self.currentEditValue = self.currentEditValue:sub(1, self.textFieldCursorLoc) .. string.char(ch) .. self.currentEditValue:sub(self.textFieldCursorLoc+1)
 						self.textFieldCursorLoc = math.min(#self.currentEditValue, self.textFieldCursorLoc + 1)
-					end			
+					end
 				end
 			end
 		end
@@ -251,12 +251,12 @@ function UI:guiTextField(
 	--[[ how to get enter to deselect the textfield ...
 	-- two menu-tab-counters per text-field, one for in-edit mode, one for not
 	self.menuTabCounter = self.menuTabCounter + 2
-	
+
 	if enter and onThisMenuItem then
 		self.menuTabIndex = self.menuTabIndex + 1
 	end
 	--]]
-	
+
 	return changed
 end
 
