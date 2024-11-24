@@ -223,8 +223,9 @@ trace'TODO map remap'
 		local bankno=bit.rshift(n, 8)
 		n&=0xff
 		local nx=n&0xf
-		local ny=n>>4
-		n=nx|(ny<<5)
+		local ny=(n>>4)0xf
+		local sheet=n>>8
+		n=nx|(ny<<5)|(sheet<<10)
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
 		local scaleX,scaleY=scale,scale

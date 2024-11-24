@@ -1,9 +1,3 @@
---[[
-TODO maybe move this into a numo9/rom.lua file
-and put in that file the ROM and RAM struct defs
-and all the spritesheet / tilemap specs
-Or rename this to gfx.lua and put more GL stuff in it?
---]]
 local ffi = require 'ffi'
 local template = require 'template'
 local table = require 'ext.table'
@@ -2478,6 +2472,8 @@ end
 spriteIndex =
 	bits 0..4 = x coordinate in sprite sheet
 	bits 5..9 = y coordinate in sprite sheet
+	bit 10 = sprite sheet vs tile sheet
+	bits 11.. = bank to use for sprite/tile sheet
 spritesWide = width in sprites
 spritesHigh = height in sprites
 paletteIndex =
@@ -2489,7 +2485,6 @@ spriteBit = index of bit (0-based) to use, default is zero
 spriteMask = mask of number of bits to use, default is 0xF <=> 4bpp
 scaleX = how much to scale the drawn width, default is 1
 scaleY = how much to scale the drawn height, default is 1
-sheetIndex = 0 or 1 for spriteSheet vs tileSheet.  default is 0.
 --]]
 function AppVideo:drawSprite(
 	spriteIndex,
@@ -2502,8 +2497,7 @@ function AppVideo:drawSprite(
 	spriteBit,
 	spriteMask,
 	scaleX,
-	scaleY,
-	sheetIndex
+	scaleY
 )
 	spritesWide = spritesWide or 1
 	spritesHigh = spritesHigh or 1
@@ -2511,8 +2505,9 @@ function AppVideo:drawSprite(
 	scaleY = scaleY or 1
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 	spriteIndex = math.floor(spriteIndex or 0)
-	local tx = spriteIndex % spriteSheetSizeInTiles.x
-	local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
+	local tx = bit.band(spriteIndex, 0x1f)
+	local ty = bit.band(bit.rshift(spriteIndex, 5), 0x1f)
+	local sheetIndex = bit.rshift(spriteIndex, 10)
 	self:drawQuad(
 		-- x y w h
 		screenX,
@@ -2524,7 +2519,7 @@ function AppVideo:drawSprite(
 		ty / tonumber(spriteSheetSizeInTiles.y),
 		spritesWide / tonumber(spriteSheetSizeInTiles.x),
 		spritesHigh / tonumber(spriteSheetSizeInTiles.y),
-		sheetIndex or 0,
+		sheetIndex,
 		paletteIndex,
 		transparentIndex,
 		spriteBit,

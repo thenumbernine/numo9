@@ -539,7 +539,7 @@ function App:initGL()
 			return self:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 		end,
 
-		spr = function(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY, sheetIndex)
+		spr = function(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
 			if self.server then
 				-- TODO I'm calculating default values twice ...
 				-- TODO move the server netcmd stuff into a separate intermediate function
@@ -550,14 +550,14 @@ function App:initGL()
 				scaleY = scaleY or 1
 				-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 				spriteIndex = math.floor(spriteIndex or 0)
-				local tx = spriteIndex % spriteSheetSizeInTiles.x
-				local ty = (spriteIndex - tx) / spriteSheetSizeInTiles.x
+				local tx = bit.band(spriteIndex, 0x1f)
+				local ty = bit.band(bit.rshift(spriteIndex, 5), 0x1f)
+				local sheetIndex = bit.rshift(spriteIndx, 10)
 
 				paletteIndex = paletteIndex or 0
 				transparentIndex = transparentIndex or -1
 				spriteBit = spriteBit or 0
 				spriteMask = spriteMask or 0xFF
-				sheetIndex = sheetIndex or 0
 
 				local cmd = self.server:pushCmd().quad
 				cmd.type = netcmds.quad
@@ -575,7 +575,7 @@ function App:initGL()
 				cmd.spriteMask = spriteMask
 				cmd.sheetIndex = sheetIndex
 			end
-			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY, sheetIndex)
+			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
 		end,
 
 		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
