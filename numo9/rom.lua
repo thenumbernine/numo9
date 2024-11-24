@@ -47,7 +47,7 @@ local audioMixChannels = 8	-- # channels to play at the same time
 local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a time
 local sfxTableSize =  256	-- max number of unique sfx that a music can reference
 local musicTableSize = 256	-- max number of music tracks stored
-local audioDataSize = 0xf400	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
+local audioDataSize = 0xf600	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
 
