@@ -54,14 +54,29 @@ local sprites = {
 
 -- kart sprites
 -- divided into 180'.  flip the sprite to get the other 180'
+-- there's 5 karts per sheet.  each kart has 3 rows of 4 cols of angle sprites.
+local numSpriteAngles = 12
 local spriteIndexForAngle = {
 	0, 4, 8, 12,
 	128+0, 128+4, 128+8, 128+12,
 	256+0, 256+4, 256+8, 256+12,
 }
-local kartSpriteSheet = 0
---local kartSpriteSheet = 2
--- TODO lots of sheets
+local numKartSprites = 5
+local kartSpriteSheet = 2
+-- TODO lots more sheets of sprite options
+local calcSpriteIndex=[angle, kartSpriteNo]do
+	assert.le(0, kartSpriteNo)
+	assert.lt(kartSpriteNo, numKartSprites)
+	assert.le(0, angle)
+	assert.lt(angle, numSpriteAngles)
+	local index = spriteIndexForAngle[angle+1] + 384 * kartSpriteNo
+	if index >= 1024 then
+		index -= 1024
+		index += 16
+	end
+	return index
+end
+
 
 local palPush = {}
 for i=0,255 do
@@ -1050,12 +1065,13 @@ end
 local kartNames = {'mario','luigi','princess','yoshi','bowser','donkeykong','koopa','toad'}
 
 Kart = Object:subclass()	-- previously local'd
-
+Kart.kartSpriteNo = 0
 Kart.reserveItemCount = 0
 
 function Kart:init(args)
 	Kart.super.init(self, args)
 
+	self.kartSpriteNo=args.kartSpriteNo
 	self.kartName = kartNames[math.random(#kartNames)]
 	local kartSpacing = 2
 	local dx = ((args.startIndex % 2) - .5) * 2 * kartSpacing
@@ -1270,7 +1286,7 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 		else
 			mattrans(-16, -32, 0)
 		end
-		local spriteIndex = spriteIndexForAngle[math.floor(angleNorm * #spriteIndexForAngle) + 1]
+		local spriteIndex = calcSpriteIndex(math.floor(angleNorm * numSpriteAngles), self.kartSpriteNo)
 --[=[ not helping
 applyprojmat()
 --]=]
@@ -2427,7 +2443,11 @@ local inMenu = true
 local menuSel = 0
 local playersActive=table{false}:rep(maxPlayers-1)
 playersActive[0]=true
-playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
+local playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
+local startPlayerInfo={}
+for i=0,maxPlayers-1 do
+	startPlayerInfo[i] = {kartSpriteNo=0}
+end
 
 startGame=[]do
 	inMenu=false
@@ -2450,6 +2470,7 @@ startGame=[]do
 			local kart = Kart{
 				startIndex=#clientViewObjs,
 				playerIndex=playerIndex,
+				kartSpriteNo=startPlayerInfo[playerIndex].kartSpriteNo,
 			}
 			player.kart = kart
 		end
@@ -2465,7 +2486,7 @@ update=[]do
 		text('>', x-8, y+16*menuSel, colors.white, colors.black)
 		text('wins',x+192-16,y-12,colors.white,colors.black)
 		for pid=0,maxPlayers-1 do
-			spr(spriteIndexForAngle[12], x, y-4, 4, 4, nil, nil, nil, nil, .5, .5, kartSpriteSheet)
+			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo), x, y-4, 4, 4, nil, nil, nil, nil, .5, .5, kartSpriteSheet)
 			text('player '..(pid+1)..' = '
 				..tostring(playersActive[pid]),
 				x+24, y, colors.white, colors.black)
@@ -2480,16 +2501,22 @@ update=[]do
 			elseif btnp(1,pid) then
 				menuSel+=1
 				menuSel%=maxPlayers+1
+			elseif btnp(2,pid) then
+				startPlayerInfo[menuSel].kartSpriteNo-=1
+				startPlayerInfo[menuSel].kartSpriteNo%=numKartSprites
+			elseif btnp(3,pid) then
+				startPlayerInfo[menuSel].kartSpriteNo+=1
+				startPlayerInfo[menuSel].kartSpriteNo%=numKartSprites		
 			end
 			if menuSel<maxPlayers then
 				-- any players left/right can toggle
-				if btnp(2,pid) or btnp(3,pid) then
-					playersActive[menuSel] = not playersActive[menuSel]
+				--if btnp(2,pid) or btnp(3,pid) then
+				--	playersActive[menuSel] = not playersActive[menuSel]
 				-- if any player presses a button then set them to human
-				elseif btnp(4,pid) or btnp(5,pid) then
-					playersActive[pid] = true
-				elseif btnp(6,pid) or btnp(7,pid) then
-					playersActive[pid] = false
+				if btnp(4,pid) or btnp(5,pid) then
+					playersActive[menuSel] = not playersActive[menuSel]
+				--elseif btnp(6,pid) or btnp(7,pid) then
+				--	playersActive[menuSel] = false
 				end
 			else
 				-- if any player pushes when we're on 'start' then go

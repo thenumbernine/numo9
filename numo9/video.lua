@@ -414,7 +414,7 @@ glreport'before RAMGPUTex:init'
 
 	self.size = width * height * channels * ffi.sizeof(ctype)
 	self.addrEnd = self.addr + self.size
-	assert.le(self.addrEnd, ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#app.banks - 1))
+	assert.le(self.addrEnd, app.memSize)
 	local ptr = ffi.cast('uint8_t*', app.ram) + self.addr
 	local src = args.src
 
@@ -509,7 +509,7 @@ sync CPU and GPU mem then move and flag cpu-dirty so the next cycle will update
 function RAMGPUTex:updateAddr(newaddr)
 	self:checkDirtyGPU()	-- only the framebuffer has this
 	self:checkDirtyCPU()
-	newaddr = math.clamp(bit.bor(0, newaddr), 0, ffi.sizeof'RAM' - self.size)
+	newaddr = math.clamp(bit.bor(0, newaddr), 0, self.app.memSize - self.size)
 	self.addr = newaddr
 	self.addrEnd = newaddr + self.size
 	self.tex.data = ffi.cast('uint8_t*', self.app.ram) + self.addr
@@ -1796,12 +1796,12 @@ function AppVideo:resizeRAMGPUs()
 	end
 	for i=1,2*numBanks do
 		local bankNo = bit.rshift(i-1, 1)
-		local addr = ffi.cast('uint8_t*',
-				bit.band(i-1, 1) == 0
-				and self.ram.bank[bankNo].spriteSheet
-				or self.ram.bank[bankNo].tileSheet
-			)
-			- ffi.cast('uint8_t*', self.ram.v)
+		local addr
+		if bit.band(i-1, 1) == 0 then
+			addr = ffi.cast('uint8_t*', self.ram.bank[bankNo].spriteSheet) - ffi.cast('uint8_t*', self.ram.v)
+		else
+			addr = ffi.cast('uint8_t*', self.ram.bank[bankNo].tileSheet) - ffi.cast('uint8_t*', self.ram.v)
+		end
 		if self.sheetRAMs[i] then
 			self.sheetRAMs[i]:updateAddr(addr)
 		else
