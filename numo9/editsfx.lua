@@ -36,6 +36,7 @@ function EditSFX:update()
 	local app = self.app
 
 	local function stop()
+		self.offsetScrollX = 0
 		for i=0,audioMixChannels-1 do
 			app.ram.channels[i].flags.isPlaying = 0
 		end
@@ -44,20 +45,31 @@ function EditSFX:update()
 		end
 	end
 
-	local selsfx = app.ram.bank[0].sfxAddrs + self.selSfxIndex
+	local x, y = 80, 0
+	self:guiSpinner(x, y, function(dx)
+		stop()
+		app.editBankNo = math.clamp(app.editBankNo + dx, 0, #app.banks-1)
+	end, 'bank='..app.editBankNo)
+	x = x + 16
 
+assert.eq(sfxTableSize, 256)
+	self:guiSpinner(x, y, function(dx)
+		stop()
+		self.selSfxIndex = bit.band(self.selSfxIndex + dx, 0xff)
+	end, 'sfx='..self.selSfxIndex)
+	x = x + 16
+
+	app:drawMenuText('#', x, y, 0xfc, 0)
+	x = x + 6
+	self:guiTextField(x, y, 24, self, 'selSfxIndex', function(index)
+		stop()
+		self.selSfxIndex = bit.band(tonumber(index) or self.selSfxIndex, 0xff)
+	end, 'sfx='..self.selSfxIndex)
+
+	local selbank = app.ram.bank[app.editBankNo]
+	local selsfx = selbank.sfxAddrs + self.selSfxIndex
 	local channel = app.ram.channels+0
 	local isPlaying = channel.flags.isPlaying == 1
-
-	self:guiSpinner(2, 10, function(dx)
-		stop()
-		assert.eq(sfxTableSize, 256)
-		self.selSfxIndex = bit.band(self.selSfxIndex + dx, 0xff)
-		self.offsetScrollX = 0
-	end)
-
-	app:drawMenuText('#'..self.selSfxIndex, 32, 10, 0xfc, 0)
-
 	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
 
 	local xlhs = 48
@@ -84,7 +96,7 @@ function EditSFX:update()
 	for i=0, math.min(512, math.max(0, selsfx.len - self.offsetScrollX - 2)), 2 do
 		local sampleOffset = self.offsetScrollX + i
 		local pastLoopOffset = sampleOffset > selsfx.loopOffset
-		local ampl = -tonumber(ffi.cast(audioSampleTypePtr, app.ram.bank[0].audioData + selsfx.addr + sampleOffset)[0])
+		local ampl = -tonumber(ffi.cast(audioSampleTypePtr, selbank.audioData + selsfx.addr + sampleOffset)[0])
 		prevAmpl = prevAmpl or ampl
 		--[[
 		-- TODO variable thickness?

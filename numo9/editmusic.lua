@@ -49,15 +49,16 @@ end
 
 function EditMusic:refreshSelectedMusic()
 	local app = self.app
-	local selMusic = app.ram.bank[0].musicAddrs + self.selMusicIndex
+	local selbank = app.ram.bank[app.editBankNo]
+	local selMusic = selbank.musicAddrs + self.selMusicIndex
 	local channels = ffi.new('Numo9Channel[?]', audioMixChannels)
 	local channelBytes = ffi.cast('uint8_t*', channels)
 	ffi.fill(channels, ffi.sizeof(channels))
 	local track = {
 		frames = table(),
 	}
-	local ptr = ffi.cast('uint16_t*', app.ram.bank[0].audioData + selMusic.addr)
-	local pend = ffi.cast('uint16_t*', app.ram.bank[0].audioData + selMusic.addr + selMusic.len)
+	local ptr = ffi.cast('uint16_t*', selbank.audioData + selMusic.addr)
+	local pend = ffi.cast('uint16_t*', selbank.audioData + selMusic.addr + selMusic.len)
 	local nextTrack
 	if ptr < pend then
 		track.bps = ptr[0]
@@ -66,7 +67,7 @@ function EditMusic:refreshSelectedMusic()
 		while ptr < pend do
 			local frame = {}
 			track.frames:insert(frame)
-			frame.addr = ffi.cast('uint8_t*', ptr) - app.ram.bank[0].audioData
+			frame.addr = ffi.cast('uint8_t*', ptr) - selbank.audioData
 			frame.delay = ptr[0]
 			frame.changed = table()
 			ptr = ptr + 1
@@ -169,30 +170,42 @@ function EditMusic:update()
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
-	local selMusic = app.ram.bank[0].musicAddrs + self.selMusicIndex
-	local musicPlaying = app.ram.musicPlaying+0
+	local x, y = 80, 0
+	self:guiSpinner(x, y, function(dx)
+		stop()
+		app.editBankNo = math.clamp(app.editBankNo + dx, 0, #app.banks-1)
+	end, 'bank='..app.editBankNo)
+	x = x + 16
 
-	self:guiSpinner(70, 0, function(dx)
-		assert.eq(sfxTableSize, 256)
+assert.eq(sfxTableSize, 256)
+	self:guiSpinner(x, y, function(dx)
 		self.selMusicIndex = bit.band(self.selMusicIndex + dx, 0xff)
 		self:refreshSelectedMusic()
-	end, 'music: '..self.selMusicIndex)
-	self:guiSpinner(85, 0, function(dx)
-		self.selectedChannel = math.clamp(self.selectedChannel + dx, 0, audioMixChannels-1)
-	end, 'channel:'..self.selectedChannel)
+	end, 'music='..self.selMusicIndex)
+	x = x + 16
 
-	if self:guiButton('X', 100, 0, self.showText, self.showText and 'cmd display' or 'vol/pitch display') then
+	app:drawMenuText('#', x, y, 0xfc, 0)
+	x = x + 6
+	self:guiTextField(x, y, 24, self, 'selMusicIndex', function(index)
+		self.selMusicIndex = bit.band(tonumber(index) or self.selMusicIndex, 0xff)
+		self:refreshSelectedMusic()
+	end, 'music='..self.selMusicIndex)
+	x = x + 24
+
+	self:guiSpinner(x, y, function(dx)
+		self.selectedChannel = math.clamp(self.selectedChannel + dx, 0, audioMixChannels-1)
+	end, 'channel='..self.selectedChannel)
+	x = x + 16
+
+	if self:guiButton('X', x, y, self.showText, self.showText and 'cmd display' or 'vol/pitch display') then
 		self.showText = not self.showText
 	end
 
+	local selbank = app.ram.bank[app.editBankNo]
+	local selMusic = selbank.musicAddrs + self.selMusicIndex
+	local musicPlaying = app.ram.musicPlaying+0
+
 	local y = 10
-
-	app:drawMenuText('#', 8, y, 0xfc, 0)
-
-	self:guiTextField(14, y, 15, self, 'selMusicIndex', function(index)
-		self.selMusicIndex = tonumber(index) or self.selMusicIndex
-		self:refreshSelectedMusic()
-	end)
 
 	local endAddr = selMusic.addr + selMusic.len
 	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusic.addr, endAddr), 64, y, 0xfc, 0xf0)
@@ -203,7 +216,7 @@ function EditMusic:update()
 
 	--local playLen = (playaddr - selMusic.addr) * secondsPerByte
 	local numSampleFramesPlayed = musicPlaying.sampleFrameIndex - self.startSampleFrameIndex
-	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', app.ram.bank[0].audioData + musicPlaying.addr)[0])
+	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', selbank.audioData + musicPlaying.addr)[0])
 	app:drawMenuText(
 		('%d frame / %.3f s'):format(
 			numSampleFramesPlayed,
@@ -370,7 +383,7 @@ function EditMusic:update()
 		y=y+8
 		for i=0,audioMixChannels-1 do
 			local channel = thisFrame.channels + i
-			local sfx = app.ram.bank[0].sfxAddrs + channel.sfxID
+			local sfx = selbank.sfxAddrs + channel.sfxID
 			app:drawMenuText(
 				('%1d %3d %04x %04x %04x %3d %3d %5d'):format(
 					i,
