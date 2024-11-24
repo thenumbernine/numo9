@@ -961,6 +961,7 @@ print('package.loaded', package.loaded)
 	self.mvMat:setIdent()
 	packptr(4, self.ram.clipRect, 0, 0, 0xff, 0xff)
 
+	self.editBankNo = 0
 	self.editCode = EditCode{app=self}
 	self.editSprites = EditSprites{app=self}
 	self.editTilemap = EditTilemap{app=self}
