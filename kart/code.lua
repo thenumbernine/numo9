@@ -49,6 +49,7 @@ local sprites = {
 	redshell = {284, 2, 2},
 	vandegraaf = {336, 2, 2},
 	outline = {338, 2, 2},
+	sky = {768, 32, 8},	-- on sheet #1 == the tileSheet
 }
 
 -- kart sprites
@@ -1022,9 +1023,10 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 	local skyScale = viewWidth / windowWidth
 	local s = 2 * skyScale
 	matscale(s, s)
-	mattrans(viewU * 32 * 8, 0)
-	spr(768, viewX / s, viewY / s, 32, 8)		-- draw sky
-	spr(768, viewX / s - 32 * 8, viewY / s, 32, 8)	-- make it wrap
+	local si, sw, sh = table.unpack(sprites.sky)
+	mattrans(viewU * sw * 8, 0)
+	spr(si, viewX / s, viewY / s, sw, sh, nil, nil, nil, nil, nil, nil, 1)			-- draw sky
+	spr(si, viewX / s - sw * 8, viewY / s, sw, sh, nil, nil, nil, nil, nil, nil, 1)	-- and again to make it wrap
 	matpop()
 
 	-- [[ draw the track as tilemap
