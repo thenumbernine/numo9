@@ -215,27 +215,30 @@ If the following functions are defined then they will be called from the virtual
 ## graphics
 
 - `flip()` = flip the framebuffer, and wait until the next 60Hz frame to begin.
-- `cls([color])` = Clears the screen to the palette index at `color`.
+- `cls([colorIndex])` = Clears the screen to the palette index at `color`.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
-- `rect(x, y, w, h, [color])` = draw solid rectangle
-- `rectb(x, y, w, h, [color])` = draw rectangle border
-- `elli(x, y, w, h, [color])` = draw a solid filled ellipse.  If you want to draw a circle then you have use an ellipse.
-- `ellib(x, y, w, h, [color])` = draw a ellipse border.
-- `tri(x1, y1, x2, y2, x3, y3, [color])` = draw a solid triangle.
-- `tri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, [color])` = draw a solid triangle.
+- `rect(x, y, w, h, [colorIndex])` = draw solid rectangle
+- `rectb(x, y, w, h, [colorIndex])` = draw rectangle border
+- `elli(x, y, w, h, [colorIndex])` = draw a solid filled ellipse.  If you want to draw a circle then you have use an ellipse.
+- `ellib(x, y, w, h, [colorIndex])` = draw a ellipse border.
+- `tri(x1, y1, x2, y2, x3, y3, [colorIndex])` = draw a solid triangle.
+- `tri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, [colorIndex])` = draw a solid triangle.
+	- x1,y1,z1,x2,y2,z2,x3,y3,z3 = triangle coordinates
 - `ttri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, u1, v1, u2, v2, u3, v3, [sheetIndex=0, paletteIndex=0, transparentIndex=-1, spriteBit=0, spriteMask=0xFF])` = draw a triangle textured with a sprite/tile sheet.
+	- x1,y1,z1,x2,y2,z2,x3,y3,z3 = triangle coordinates
+	- u1,v1,u2,v2,u3,v3 = texture coordinates
 	- sheetIndex = sheet to use, 0 = sprite sheet, 1 = tile sheet, default 0.
-- `line(x1, y1, x2, y2, [color])` = draw line.
-- `line3d(x1, y1, z1, x2, y2, z2, [color])` = draw line but with z / perspective.
-- `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY])` = draw sprite
+- `line(x1, y1, x2, y2, [colorIndex])` = draw line.
+- `line3d(x1, y1, z1, x2, y2, z2, [colorIndex])` = draw line but with z / perspective.
+- `spr(spriteIndex,screenX,screenY,[tilesWide,tilesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY])` = draw sprite
 	- spriteIndex = which sprite to draw.
 		- Bits 0..4 = x coordinate into the 32x32 grid of 8x8 tiles in the 256x256 sprite/tile sheet.
 		- Bits 5..9 = y coordinate " " "
 		- Bit 10 = whether to use the sprite sheet or tile sheet.
 		- Bits 11... = represent which bank to use (up to 32 addressable).
 	- screenX, screenY = pixel location of upper-left corner of the sprite
-	- spritesWide, spritesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
+	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
 	- paletteIndex = a value to offset the colors by.  this can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
 	- transparentIndex = an optional color to specify as transparent.  default is -1 to disable this.
 	- spriteBit = which bitplane to draw.  default is start at bitplane 0.
@@ -252,10 +255,10 @@ If the following functions are defined then they will be called from the virtual
 	- transparent = transparent index to use.
 	- spriteBit, spriteMask = same as `spr()`
 - `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16x16Sprites, sheetIndex)` = draw the tilemap.
+	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 	- mapIndexOffset = global offset to shift all map indexes.
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
-	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 - `text(str, x, y, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = set video mode.  The current video modes are:
 	- 0 = 16bpp RGB565, needed for blending

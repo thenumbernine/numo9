@@ -2474,8 +2474,8 @@ spriteIndex =
 	bits 5..9 = y coordinate in sprite sheet
 	bit 10 = sprite sheet vs tile sheet
 	bits 11.. = bank to use for sprite/tile sheet
-spritesWide = width in sprites
-spritesHigh = height in sprites
+tilesWide = width in tiles
+tilesHigh = height in tiles
 paletteIndex =
 	byte value with high 4 bits that holds which palette to use
 	... this is added to the sprite color index so really it's a palette shift.
@@ -2490,8 +2490,8 @@ function AppVideo:drawSprite(
 	spriteIndex,
 	screenX,
 	screenY,
-	spritesWide,
-	spritesHigh,
+	tilesWide,
+	tilesHigh,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
@@ -2499,8 +2499,8 @@ function AppVideo:drawSprite(
 	scaleX,
 	scaleY
 )
-	spritesWide = spritesWide or 1
-	spritesHigh = spritesHigh or 1
+	tilesWide = tilesWide or 1
+	tilesHigh = tilesHigh or 1
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
 	-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
@@ -2512,13 +2512,13 @@ function AppVideo:drawSprite(
 		-- x y w h
 		screenX,
 		screenY,
-		spritesWide * spriteSize.x * scaleX,
-		spritesHigh * spriteSize.y * scaleY,
+		tilesWide * spriteSize.x * scaleX,
+		tilesHigh * spriteSize.y * scaleY,
 		-- tx ty tw th
 		tx / tonumber(spriteSheetSizeInTiles.x),
 		ty / tonumber(spriteSheetSizeInTiles.y),
-		spritesWide / tonumber(spriteSheetSizeInTiles.x),
-		spritesHigh / tonumber(spriteSheetSizeInTiles.y),
+		tilesWide / tonumber(spriteSheetSizeInTiles.x),
+		tilesHigh / tonumber(spriteSheetSizeInTiles.y),
 		sheetIndex,
 		paletteIndex,
 		transparentIndex,

@@ -19,7 +19,9 @@ one character uses ...
 and i'll ignore the flat and cheer sprites ...
 ... a single 256x256 sheet has 1024 tiles ... it's close to one sheet per character.
 
-sprites from https://www.spriters-resource.com/submitter/NICKtendoDS/
+sprites from 
+https://www.spriters-resource.com/submitter/NICKtendoDS/
+https://www.spriters-resource.com/custom_edited/mariocustoms/
 --]]
 
 local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
