@@ -402,7 +402,8 @@ args:
 --]]
 function RAMGPUTex:init(args)
 glreport'before RAMGPUTex:init'
-	self.app = assert.index(args, 'app')
+	local app = assert.index(args, 'app')
+	self.app = app
 	self.addr = assert.index(args, 'addr')
 	assert.ge(self.addr, 0)
 	local width = assert(tonumber(assert.index(args, 'width')))
@@ -413,8 +414,8 @@ glreport'before RAMGPUTex:init'
 
 	self.size = width * height * channels * ffi.sizeof(ctype)
 	self.addrEnd = self.addr + self.size
-	assert.le(self.addrEnd, ffi.sizeof'RAM')
-	local ptr = ffi.cast('uint8_t*', self.app.ram) + self.addr
+	assert.le(self.addrEnd, ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#app.banks - 1))
+	local ptr = ffi.cast('uint8_t*', app.ram) + self.addr
 	local src = args.src
 
 print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.size))
@@ -530,85 +531,23 @@ function AppVideo:initVideo()
 		height = frameBufferSize.y,
 	}:unbind()
 
-	-- redirect the image buffer to our virtual system rom
-	self.spriteSheetRAM = RAMGPUTex{
-		app = self,
-		addr = spriteSheetAddr,
-		width = spriteSheetSize.x,
-		height = spriteSheetSize.y,
-		channels = 1,
-		ctype = 'uint8_t',
-		internalFormat = texInternalFormat_u8,
-		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-		gltype = gl.GL_UNSIGNED_BYTE,
-	}
+	-- create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per bank
+	-- but I am still using the texture specs for my shader creation
+	-- and my shader creation is done once
+	-- so until then, just resize them here
+	-- RAMRegions ... RAMBanks ... idk what to name this ...
+	self.sheetRAMs = table()
+	self.tilemapRAMs = table()
+	self.paletteRAMs = table()
+	self.fontRAMs = table()
+	self:resizeRAMGPUs()
+	self.spriteSheetRAM = self.sheetRAMs[1]
+	self.tileSheetRAM = self.sheetRAMs[2]
+	self.tilemapRAM = self.tilemapRAMs[1]
+	self.paletteRAM = self.paletteRAMs[1]
+	self.fontRAM = self.fontRAMs[1]
 
-	self.tileSheetRAM = RAMGPUTex{
-		app = self,
-		addr = tileSheetAddr,
-		width = spriteSheetSize.x,
-		height = spriteSheetSize.y,
-		channels = 1,
-		ctype = 'uint8_t',
-		internalFormat = texInternalFormat_u8,
-		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-		gltype = gl.GL_UNSIGNED_BYTE,
-	}
-
-	-- trying to make these interchangeable / expandable
-	self.sheetRAMs = table()	-- RAMRegions ... RAMBanks ... idk what to name this ...
-	self.sheetRAMs:insert(self.spriteSheetRAM)
-	self.sheetRAMs:insert(self.tileSheetRAM)
-
-	--[[
-	16bpp ...
-	- 10 bits of lookup into spriteSheetRAM
-	- 4 bits high palette nibble
-	- 1 bit hflip
-	- 1 bit vflip
-	- .... 2 bits rotate ... ? nah
-	- .... 8 bits palette offset ... ? nah
-	--]]
-	self.tilemapRAM = RAMGPUTex{
-		app = self,
-		addr = tilemapAddr,
-		width = tilemapSize.x,
-		height = tilemapSize.y,
-		channels = 1,
-		ctype = 'uint16_t',
-		internalFormat = texInternalFormat_u16,
-		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
-		gltype = gl.GL_UNSIGNED_SHORT,
-	}
-
-	-- palette is 256 x 1 x 16 bpp (5:5:5:1)
-	self.paletteRAM = RAMGPUTex{
-		app = self,
-		addr = paletteAddr,
-		width = paletteSize,
-		height = 1,
-		channels = 1,
-		ctype = 'uint16_t',
-		internalFormat = gl.GL_RGB5_A1,
-		glformat = gl.GL_RGBA,
-		gltype = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
-	}
-
-	-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
-	-- so a 256 char font will be 2048 bytes
-	self.fontRAM = RAMGPUTex{
-		app = self,
-		addr = fontAddr,
-		width = fontImageSize.x,
-		height = fontImageSize.y,
-		channels = 1,
-		ctype = 'uint8_t',
-		internalFormat = texInternalFormat_u8,
-		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-		gltype = gl.GL_UNSIGNED_BYTE,
-	}
-
-	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), -1)
+	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
 	self.framebufferRGB565RAM = RAMGPUTex{
 		app = self,
@@ -1849,28 +1788,122 @@ void main() {
 	self:resetVideo()
 end
 
--- flush anything from gpu to cpu
-function AppVideo:checkDirtyGPU()
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		sheetRAM:checkDirtyGPU()
+-- resize the # of RAMGPUs to match the # banks
+function AppVideo:resizeRAMGPUs()
+	local numBanks = #self.banks
+	for i=2*numBanks+1,#self.sheetRAMs do
+		self.sheetRAMs[i] = nil
 	end
-	self.tilemapRAM:checkDirtyGPU()
-	self.paletteRAM:checkDirtyGPU()
-	self.fontRAM:checkDirtyGPU()
-	self.framebufferRAM:checkDirtyGPU()
-end
+	for i=1,2*numBanks do
+		local bankNo = bit.rshift(i-1, 1)
+		local addr = ffi.cast('uint8_t*',
+				bit.band(i, 1) == 1
+				and self.ram.bank[bankNo].spriteSheet
+				or self.ram.bank[bankNo].tileSheet
+			)
+			- ffi.cast('uint8_t*', self.ram.v)
+		if self.sheetRAMs[i] then
+			self.sheetRAMs[i]:updateAddr(addr)
+		else
+			self.sheetRAMs[i] = RAMGPUTex{
+				app = self,
+				addr = addr,
+				width = spriteSheetSize.x,
+				height = spriteSheetSize.y,
+				channels = 1,
+				ctype = 'uint8_t',
+				internalFormat = texInternalFormat_u8,
+				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+				gltype = gl.GL_UNSIGNED_BYTE,
+			}
+		end
+	end
 
-function AppVideo:setDirtyCPU()
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		sheetRAM.dirtyCPU = true
+	for i=numBanks+1,#self.tilemapRAMs do
+		self.tilemapRAMs[i] = nil
 	end
-	self.tilemapRAM.dirtyCPU = true
-	self.paletteRAM.dirtyCPU = true
-	self.fontRAM.dirtyCPU = true
-	self.framebufferRAM.dirtyCPU = true
+	for i=1,numBanks do
+		--[[
+		16bpp ...
+		- 10 bits of lookup into spriteSheetRAM
+		- 4 bits high palette nibble
+		- 1 bit hflip
+		- 1 bit vflip
+		- .... 2 bits rotate ... ? nah
+		- .... 8 bits palette offset ... ? nah
+		--]]
+		local addr = ffi.cast('uint8_t*', self.ram.bank[i-1].tilemap) - ffi.cast('uint8_t*', self.ram.v)
+		if self.tilemapRAMs[i] then
+			self.tilemapRAMs[i]:updateAddr(addr)
+		else
+			self.tilemapRAMs[i] = RAMGPUTex{
+				app = self,
+				addr = addr,
+				width = tilemapSize.x,
+				height = tilemapSize.y,
+				channels = 1,
+				ctype = 'uint16_t',
+				internalFormat = texInternalFormat_u16,
+				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
+				gltype = gl.GL_UNSIGNED_SHORT,
+			}
+		end
+	end
+
+	for i=numBanks+1,#self.paletteRAMs do
+		self.paletteRAMs[i] = nil
+	end
+	for i=1,numBanks do
+print('creating palette for bank #'..(i-1))
+		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
+		local addr = ffi.cast('uint8_t*', self.ram.bank[i-1].palette) - ffi.cast('uint8_t*', self.ram.v)
+		if self.paletteRAMs[i] then
+			self.paletteRAMs[i]:updateAddr(addr)
+		else
+			self.paletteRAMs[i] = RAMGPUTex{
+				app = self,
+				addr = addr,
+				width = paletteSize,
+				height = 1,
+				channels = 1,
+				ctype = 'uint16_t',
+				internalFormat = gl.GL_RGB5_A1,
+				glformat = gl.GL_RGBA,
+				gltype = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
+			}
+		end
+	end
+
+	for i=numBanks+1,#self.fontRAMs do
+		self.fontRAMs[i] = nil
+	end
+	for i=1,numBanks do
+		-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
+		-- so a 256 char font will be 2048 bytes
+		-- TODO option for 2bpp etc fonts?
+		local addr = ffi.cast('uint8_t*', self.ram.bank[i-1].font) - ffi.cast('uint8_t*', self.ram.v)
+		if self.fontRAMs[i] then
+			self.fontRAMs[i]:updateAddr(addr)
+		else
+			self.fontRAMs[i] = RAMGPUTex{
+				app = self,
+				addr = addr,
+				width = fontImageSize.x,
+				height = fontImageSize.y,
+				channels = 1,
+				ctype = 'uint8_t',
+				internalFormat = texInternalFormat_u8,
+				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+				gltype = gl.GL_UNSIGNED_BYTE,
+			}
+		end
+	end
 end
 
 function AppVideo:resetVideo()
+	-- remake the textures every time the # bank changes thanks to loadRAM()
+	self:resizeRAMGPUs()
+
 	-- flush all before resetting RAM addrs in case any are pointed to the addrs' location
 	-- do the framebuffers explicitly cuz typically 'checkDirtyGPU' just does the current one
 	-- and also because the first time resetVideo() is called, the video mode hasn't been set yet, os the framebufferRAM hasn't been assigned yet
@@ -1944,6 +1977,27 @@ function AppVideo:resetVideo()
 
 	-- hmm, this matident isn't working ,but if you put one in your init code then it does work ... why ...
 	self:matident()
+end
+
+-- flush anything from gpu to cpu
+function AppVideo:checkDirtyGPU()
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		sheetRAM:checkDirtyGPU()
+	end
+	self.tilemapRAM:checkDirtyGPU()
+	self.paletteRAM:checkDirtyGPU()
+	self.fontRAM:checkDirtyGPU()
+	self.framebufferRAM:checkDirtyGPU()
+end
+
+function AppVideo:setDirtyCPU()
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		sheetRAM.dirtyCPU = true
+	end
+	self.tilemapRAM.dirtyCPU = true
+	self.paletteRAM.dirtyCPU = true
+	self.fontRAM.dirtyCPU = true
+	self.framebufferRAM.dirtyCPU = true
 end
 
 --[[
