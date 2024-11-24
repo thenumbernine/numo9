@@ -215,7 +215,7 @@ If the following functions are defined then they will be called from the virtual
 ## graphics
 
 - `flip()` = flip the framebuffer, and wait until the next 60Hz frame to begin.
-- `cls([color])` = clear screen.
+- `cls([color])` = Clears the screen to the palette index at `color`.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
 - `rect(x, y, w, h, [color])` = draw solid rectangle
@@ -225,6 +225,7 @@ If the following functions are defined then they will be called from the virtual
 - `tri(x1, y1, x2, y2, x3, y3, [color])` = draw a solid triangle.
 - `tri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, [color])` = draw a solid triangle.
 - `ttri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, u1, v1, u2, v2, u3, v3, [sheetIndex=0, paletteIndex=0, transparentIndex=-1, spriteBit=0, spriteMask=0xFF])` = draw a triangle textured with a sprite/tile sheet.
+	- sheetIndex = sheet to use, 0 = sprite sheet, 1 = tile sheet, default 0.
 - `line(x1, y1, x2, y2, [color])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [color])` = draw line but with z / perspective.
 - `spr(spriteIndex,screenX,screenY,[spritesWide,spritesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY,sheetIndex])` = draw sprite
