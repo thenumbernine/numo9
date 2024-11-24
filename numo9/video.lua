@@ -1797,7 +1797,7 @@ function AppVideo:resizeRAMGPUs()
 	for i=1,2*numBanks do
 		local bankNo = bit.rshift(i-1, 1)
 		local addr = ffi.cast('uint8_t*',
-				bit.band(i, 1) == 1
+				bit.band(i-1, 1) == 0
 				and self.ram.bank[bankNo].spriteSheet
 				or self.ram.bank[bankNo].tileSheet
 			)

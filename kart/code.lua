@@ -59,6 +59,9 @@ local spriteIndexForAngle = {
 	128+0, 128+4, 128+8, 128+12,
 	256+0, 256+4, 256+8, 256+12,
 }
+local kartSpriteSheet = 0
+--local kartSpriteSheet = 2
+-- TODO lots of sheets
 
 local palPush = {}
 for i=0,255 do
@@ -1271,7 +1274,7 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 --[=[ not helping
 applyprojmat()
 --]=]
-		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
+		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX, nil, kartSpriteSheet)
 		matpop()
 	end
 	--]]
@@ -2462,7 +2465,7 @@ update=[]do
 		text('>', x-8, y+16*menuSel, colors.white, colors.black)
 		text('wins',x+192-16,y-12,colors.white,colors.black)
 		for pid=0,maxPlayers-1 do
-			spr(spriteIndexForAngle[12], x, y-4, 4, 4, nil, nil, nil, nil, .5, .5)	-- TODO palette ...
+			spr(spriteIndexForAngle[12], x, y-4, 4, 4, nil, nil, nil, nil, .5, .5, kartSpriteSheet)
 			text('player '..(pid+1)..' = '
 				..tostring(playersActive[pid]),
 				x+24, y, colors.white, colors.black)
