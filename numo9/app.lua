@@ -174,7 +174,8 @@ function App:initGL()
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
 
-	self.holdram = ffi.new('uint8_t[?]', ffi.sizeof'RAM')
+	self.memSize = ffi.sizeof'RAM'
+	self.holdram = ffi.new('uint8_t[?]', self.memSize)
 	self.ram = ffi.cast('RAM&', self.holdram)
 
 	-- tic80 has a reset() function for resetting RAM data to original cartridge data
@@ -1823,7 +1824,7 @@ end
 -------------------- MEMORY PEEK/POKE (and draw dirty bits) --------------------
 
 function App:peek(addr)
-	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addr >= self.memSize then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the framebufferRAM
@@ -1838,7 +1839,7 @@ function App:peek(addr)
 end
 function App:peekw(addr)
 	local addrend = addr+1
-	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addrend >= self.memSize then return end
 
 	if self.framebufferRAM.dirtyGPU
 	and addr >= self.framebufferRAM.addr
@@ -1851,7 +1852,7 @@ function App:peekw(addr)
 end
 function App:peekl(addr)
 	local addrend = addr+3
-	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addrend >= self.memSize then return end
 
 	if self.framebufferRAM.dirtyGPU
 	and addr >= self.framebufferRAM.addr
@@ -1865,7 +1866,7 @@ end
 
 function App:poke(addr, value)
 	--addr = math.floor(addr) -- TODO just never pass floats in here or its your own fault
-	if addr < 0 or addr >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addr >= self.memSize then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
 	if addr >= self.framebufferRAM.addr
@@ -1910,7 +1911,7 @@ function App:poke(addr, value)
 end
 function App:pokew(addr, value)
 	local addrend = addr+1
-	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addrend >= self.memSize then return end
 
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
@@ -1947,7 +1948,7 @@ function App:pokew(addr, value)
 end
 function App:pokel(addr, value)
 	local addrend = addr+3
-	if addr < 0 or addrend >= ffi.sizeof(self.ram) then return end
+	if addr < 0 or addrend >= self.memSize then return end
 
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
@@ -2086,9 +2087,8 @@ function App:loadROM(filename)
 -- [[ reallocate .ram for as many banks as the cart wants
 -- should I be doing this outside of the update thread?
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
-	self.holdram = ffi.new('uint8_t[?]',
-		ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1)
-	)
+	self.memSize = ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1)
+	self.holdram = ffi.new('uint8_t[?]', self.memSize)
 	local oldram = self.ram
 	-- wow first time I've used references in LuaJIT, didn't know they were implemented.
 	self.ram = ffi.cast('RAM&', self.holdram)
@@ -2124,7 +2124,8 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
-	assert.eq(ffi.sizeof(self.holdram), ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1))
+assert.eq(ffi.sizeof(self.holdram), self.memSize)
+assert.eq(self.memSize, ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1))
 	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM' * #self.banks)
 	self:resetVideo()
 
