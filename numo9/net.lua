@@ -317,6 +317,7 @@ local Numo9Cmd_solidTri3D = struct{
 }
 
 -- definitely our biggest at 50 bytes
+-- I could tone down the xyz coord res ... but what's the limit that I can do that?
 local Numo9Cmd_texTri3D = struct{
 	name = 'Numo9Cmd_texTri3D',
 	packed = true,
@@ -382,16 +383,15 @@ local Numo9Cmd_quad = struct{
 		{name='y', type='float'},
 		{name='w', type='float'},
 		{name='h', type='float'},
-		{name='tx', type='float'},
-		{name='ty', type='float'},
-		{name='tw', type='float'},
-		{name='th', type='float'},
+		{name='tx', type='uint8_t'},
+		{name='ty', type='uint8_t'},
+		{name='tw', type='uint8_t'},
+		{name='th', type='uint8_t'},
 		{name='sheetIndex', type='uint8_t'},
 		{name='paletteIndex', type='uint8_t'},
 		{name='transparentIndex', type='int16_t'},	-- 16 and not 8 only so I can use -1 ...
 		{name='spriteBit', type='uint8_t'},		-- just needs 3 bits ...
 		{name='spriteMask', type='uint8_t'},    -- the shader accepts 8 bits, but usually all 1s, so ... I could do this in 3 bits too ...
-		{name='padding', type='uint8_t'},
 	},
 }
 

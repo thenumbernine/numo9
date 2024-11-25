@@ -177,10 +177,10 @@ function EditSprites:update()
 		y,		-- y
 		w,		-- w
 		h,		-- h
-		tonumber(self.spritesheetPanOffset.x) / tonumber(spriteSheetSize.x),		-- tx
-		tonumber(self.spritesheetPanOffset.y) / tonumber(spriteSheetSize.y),		-- ty
-		tonumber(w) / tonumber(spriteSheetSize.x),							-- tw
-		tonumber(h) / tonumber(spriteSheetSize.y),							-- th
+		self.spritesheetPanOffset.x,-- tx
+		self.spritesheetPanOffset.y,-- ty
+		w-1,						-- tw
+		h-1,						-- th
 		sheetIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
@@ -309,10 +309,10 @@ function EditSprites:update()
 		y,
 		w,
 		h,
-		tonumber(self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x) / tonumber(spriteSheetSize.x),
-		tonumber(self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y) / tonumber(spriteSheetSize.y),
-		tonumber(self.spriteSelSize.x * spriteSize.x) / tonumber(spriteSheetSize.x),
-		tonumber(self.spriteSelSize.y * spriteSize.y) / tonumber(spriteSheetSize.y),
+		self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x,
+		self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y,
+		self.spriteSelSize.x * spriteSize.x,
+		self.spriteSelSize.y * spriteSize.y,
 		sheetIndex,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex

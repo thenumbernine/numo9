@@ -578,7 +578,7 @@ function App:initGL()
 			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
 		end,
 
-		-- TODO maybe maybe not expose this? idk?  tic80 lets you expose all its functionality via spr() i think, though maybe it doesn't? maybe this is only pico8 equivalent sspr? or pyxel blt() ?
+		-- like spr() but for inter-tile rendering
 		quad = function(x, y, w, h, tx, ty, tw, th, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 			if self.server then
 				sheetIndex = sheetIndex or 0
