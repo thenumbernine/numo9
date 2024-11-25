@@ -56,6 +56,7 @@ local sprites = {
 
 -- kart sprites
 -- divided into 180'.  flip the sprite to get the other 180'
+-- 8 angles for back to side, 4 angles for side to front
 -- there's 5 karts per sheet.  each kart has 3 rows of 4 cols of angle sprites.
 local numSpriteAngles = 12
 local spriteIndexForAngle = {
@@ -63,20 +64,29 @@ local spriteIndexForAngle = {
 	128+0, 128+4, 128+8, 128+12,
 	256+0, 256+4, 256+8, 256+12,
 }
-local numKartSprites = 5
-local kartSpriteSheet = 2
--- TODO lots more sheets of sprite options
+local numKartsPerSheet = 5
+local numKartSheets = 4
+local kartSpriteCount = 20	-- total # kart sprites
+assert.le(kartSpriteCount, numKartSheets * numKartsPerSheet)
+
 local calcSpriteIndex=[angle, kartSpriteNo]do
 	assert.le(0, kartSpriteNo)
-	assert.lt(kartSpriteNo, numKartSprites)
+	assert.lt(kartSpriteNo, kartSpriteCount)
 	assert.le(0, angle)
 	assert.lt(angle, numSpriteAngles)
-	local index = spriteIndexForAngle[angle+1] + 384 * kartSpriteNo
+	
+	local kartSpriteNoInSheet = kartSpriteNo % numKartsPerSheet
+	local sheetNo = (kartSpriteNo - kartSpriteNoInSheet) / numKartsPerSheet
+	assert.ge(sheetNo, 0)
+	assert.lt(sheetNo, numKartSheets)
+
+	local index = spriteIndexForAngle[angle+1] + 384 * kartSpriteNoInSheet
 	if index >= 1024 then
 		index -= 1024
 		index += 16
+		assert.lt(index, 1024)
 	end
-	return index
+	return index | ((sheetNo + 1) << 11)	-- <<10 for the sheet index, <<1 for sprite vs tile sheet, +1 because sprite sheet #1 is full of items
 end
 
 
@@ -1292,7 +1302,7 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 --[=[ not helping
 applyprojmat()
 --]=]
-		spr(spriteIndex|(kartSpriteSheet<<10), 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
+		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
 		matpop()
 	end
 	--]]
@@ -2440,15 +2450,16 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 end
 
 
-local maxPlayers=4	-- TODO 64 ...TODO track conns and add/remove from the start menu accordingly?
+local maxPlayers=64
 local inMenu = true
 local menuSel = 0
-local playersActive=table{false}:rep(maxPlayers-1)
-playersActive[0]=true
-local playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
 local startPlayerInfo={}
 for i=0,maxPlayers-1 do
-	startPlayerInfo[i] = {kartSpriteNo=0}
+	startPlayerInfo[i] = {
+		active = i==0,
+		kartSpriteNo = i % kartSpriteCount,
+		wins = 0,
+	}
 end
 
 startGame=[]do
@@ -2461,7 +2472,7 @@ startGame=[]do
 
 	clientViewObjs = table()	-- index is not player index
 	for playerIndex=0,maxPlayers-1 do
-		if playersActive[playerIndex] then
+		if startPlayerInfo[playerIndex].active then
 			local clientViewObj = ClientViewObject()
 			clientViewObj.playerIndex = playerIndex
 			clientViewObjs:insert(clientViewObj)		-- 1-based dense
@@ -2484,15 +2495,15 @@ update=[]do
 	if inMenu then
 		cls(0)
 		local x,y=16,96
-		text('max laps: 5', 128, y-32, colors.white, -1)	-- TODO customize this
+		text('max laps: 3', 128, y-32, colors.white, -1)	-- TODO customize this
 		text('>', x-8, y+16*menuSel, colors.white, colors.black)
 		text('wins',x+192-16,y-12,colors.white,colors.black)
 		for pid=0,maxPlayers-1 do
-			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo)|(kartSpriteSheet<<10), x, y-4, 4, 4, nil, nil, nil, nil, .5, .5)
+			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo), x, y-4, 4, 4, nil, nil, nil, nil, .5, .5)
 			text('player '..(pid+1)..' = '
-				..tostring(playersActive[pid]),
+				..tostring(startPlayerInfo[pid].active),
 				x+24, y, colors.white, colors.black)
-			text(tostring(playerWins[pid]),x+192, y,colors.white,colors.black)
+			text(tostring(startPlayerInfo[pid].wins),x+192, y,colors.white,colors.black)
 			y+=16
 		end
 		text('Start!', x, y, colors.white, colors.black)
@@ -2505,20 +2516,20 @@ update=[]do
 				menuSel%=maxPlayers+1
 			elseif btnp(2,pid) then
 				startPlayerInfo[menuSel].kartSpriteNo-=1
-				startPlayerInfo[menuSel].kartSpriteNo%=numKartSprites
+				startPlayerInfo[menuSel].kartSpriteNo%=kartSpriteCount
 			elseif btnp(3,pid) then
 				startPlayerInfo[menuSel].kartSpriteNo+=1
-				startPlayerInfo[menuSel].kartSpriteNo%=numKartSprites		
+				startPlayerInfo[menuSel].kartSpriteNo%=kartSpriteCount
 			end
 			if menuSel<maxPlayers then
 				-- any players left/right can toggle
 				--if btnp(2,pid) or btnp(3,pid) then
-				--	playersActive[menuSel] = not playersActive[menuSel]
+				--	startPlayerInfo[menuSel].active = not startPlayerInfo[menuSel].active
 				-- if any player presses a button then set them to human
 				if btnp(4,pid) or btnp(5,pid) then
-					playersActive[menuSel] = not playersActive[menuSel]
+					startPlayerInfo[menuSel].active = not startPlayerInfo[menuSel].active
 				--elseif btnp(6,pid) or btnp(7,pid) then
-				--	playersActive[menuSel] = false
+				--	startPlayerInfo[menuSel].active = false
 				end
 			else
 				-- if any player pushes when we're on 'start' then go
@@ -2540,9 +2551,6 @@ update=[]do
 		kart.inputJumpDrift = btn('x',playerIndex)
 		kart.inputBrake = btn('y',playerIndex)
 
-if kart.inputGas then
-end
-
 		player.kart:clientInputUpdate()
 	end
 	game:update(fixedDeltaTime)
@@ -2551,7 +2559,7 @@ end
 drawPlayers=[divX, divY, ...]do
 	for i=1,select('#', ...) do
 		local playerIndex = select(i, ...)
-		if playersActive[playerIndex] then
+		if startPlayerInfo[playerIndex].active then
 			local player = game.players[playerIndex]
 			if player then	-- maybe there's one frame in there that the player hasn't yet been assigned ...
 				local clientViewObj = player.clientViewObj
@@ -2618,7 +2626,7 @@ draw=[conn, ...]do
 		-- in that case, what should we draw?
 		-- how about the first active player
 		for i=0,maxPlayers-1 do
-			if playersActive[playerIndex] then
+			if startPlayerInfo[playerIndex].active then
 				drawPlayers(divForNumPlayers[1][1], divForNumPlayers[1][2], playerIndex)
 				return
 			end
@@ -2626,7 +2634,7 @@ draw=[conn, ...]do
 	else
 		for i=1,select('#', ...) do
 			local playerIndex = select(i, ...)
-			if playersActive[playerIndex] then
+			if startPlayerInfo[playerIndex].active then
 				numPlayers+=1
 			end
 		end
