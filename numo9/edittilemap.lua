@@ -214,8 +214,8 @@ function EditTilemap:update()
 			-- or TODO use the same scrollable pick area for the sprite editor and the tile editor
 			0,
 			0,
-			1,
-			1,
+			255,
+			255,
 			1,	-- sheetIndex
 			0,
 			-1,

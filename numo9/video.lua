@@ -2357,7 +2357,7 @@ end
 but now that i'm using it for `sspr()` glue, it's in the cartridge api ...
 args:
 	x y w h = quad rectangle on screen
-	tx ty tw th = texcoord rectangle
+	tx ty tw th = texcoord rectangle in [0,255] pixel coordinates
 	sheetIndex = 0 for sprite sheet, 1 for tile sheet
 	paletteIndex = offset into the 256-color palette
 	transparentIndex,
@@ -2385,7 +2385,10 @@ function AppVideo:drawQuad(
 	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
-	self:drawQuadTex(x, y, w, h, tx, ty, tw, th, sheetRAM.tex, self.paletteRAM.tex, paletteIndex, transparentIndex, spriteBit, spriteMask)
+	self:drawQuadTex(
+		x, y, w, h,
+		tx / 256, ty / 256, (tw+1) / 256, (th+1) / 256,
+		sheetRAM.tex, self.paletteRAM.tex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2514,11 +2517,11 @@ function AppVideo:drawSprite(
 		screenY,
 		tilesWide * spriteSize.x * scaleX,
 		tilesHigh * spriteSize.y * scaleY,
-		-- tx ty tw th
-		tx / tonumber(spriteSheetSizeInTiles.x),
-		ty / tonumber(spriteSheetSizeInTiles.y),
-		tilesWide / tonumber(spriteSheetSizeInTiles.x),
-		tilesHigh / tonumber(spriteSheetSizeInTiles.y),
+		-- tx ty tw th in [0,255] pixels
+		bit.lshift(tx, 3),
+		bit.lshift(ty, 3),
+		bit.lshift(tilesWide, 3)-1,
+		bit.lshift(tilesHigh, 3)-1,
 		sheetIndex,
 		paletteIndex,
 		transparentIndex,
