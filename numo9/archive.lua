@@ -98,7 +98,10 @@ local function fromCartImage(srcData)
 	-- [[ storing in png metadata
 	local banksCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
 	local banksAsStr = zlib.uncompressLua(banksCompressed)
+--DEBUG:print('bank data length, decompressed: '..('0x%x'):format(#banksAsStr))
 	local numBanksNeeded = math.ceil(#banksAsStr / ffi.sizeof'ROM')
+--DEBUG:print('bank data length modulo sizeof ROM: '..('0x%x'):format(#banksAsStr % ffi.sizeof'ROM'))
+--DEBUG:print('banks needed: '..numBanksNeeded)
 	banks:resize(math.max(1, numBanksNeeded))
 	assert.ge(#banks * ffi.sizeof'ROM', #banksAsStr)
 	ffi.copy(banks.v, banksAsStr, #banksAsStr)

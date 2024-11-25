@@ -2093,7 +2093,7 @@ function App:loadROM(filename)
 	-- wow first time I've used references in LuaJIT, didn't know they were implemented.
 	self.ram = ffi.cast('RAM&', self.holdram)
 	ffi.copy(self.ram, oldram, ffi.sizeof'RAM')
-	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM' * #self.banks)
+	ffi.copy(self.ram.bank, self.banks.v, ffi.sizeof'ROM' * #self.banks)
 --]]
 
 	self:resetROM()
