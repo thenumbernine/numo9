@@ -1074,8 +1074,6 @@ applyprojmat()
 end
 
 
-local kartNames = {'mario','luigi','princess','yoshi','bowser','donkeykong','koopa','toad'}
-
 Kart = Object:subclass()	-- previously local'd
 Kart.kartSpriteNo = 0
 Kart.reserveItemCount = 0
@@ -1084,8 +1082,7 @@ function Kart:init(args)
 	Kart.super.init(self, args)
 
 	self.kartSpriteNo=args.kartSpriteNo
-	self.kartName = kartNames[math.random(#kartNames)]
-	local kartSpacing = 2
+	local kartSpacing = 1
 	local dx = ((args.startIndex % 2) - .5) * 2 * kartSpacing
 	local dy = (args.startIndex + 1) * kartSpacing
 trace('game.track.startPos', game.track.startPos)
@@ -1298,7 +1295,7 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 		else
 			mattrans(-16, -32, 0)
 		end
-		local spriteIndex = calcSpriteIndex(math.floor(angleNorm * numSpriteAngles), self.kartSpriteNo)
+		local spriteIndex = calcSpriteIndex(math.clamp(math.floor(angleNorm * numSpriteAngles), 0, numSpriteAngles-1), self.kartSpriteNo)
 --[=[ not helping
 applyprojmat()
 --]=]
@@ -2456,7 +2453,7 @@ local menuSel = 0
 local startPlayerInfo={}
 for i=0,maxPlayers-1 do
 	startPlayerInfo[i] = {
-		active = i==0,
+		active = true,--i==0,
 		kartSpriteNo = i % kartSpriteCount,
 		wins = 0,
 	}

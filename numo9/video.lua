@@ -412,7 +412,7 @@ glreport'before RAMGPUTex:init'
 	local ptr = ffi.cast('uint8_t*', app.ram) + self.addr
 	local src = args.src
 
-print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.size))
+--DEBUG:print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.size))
 
 	local image = Image(width, height, channels, ctype, src)
 	self.image = image
@@ -1848,7 +1848,7 @@ function AppVideo:resizeRAMGPUs()
 		self.paletteRAMs[i] = nil
 	end
 	for i=1,numBanks do
-print('creating palette for bank #'..(i-1))
+--DEBUG:print('creating palette for bank #'..(i-1))
 		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 		local addr = ffi.cast('uint8_t*', self.ram.bank[i-1].palette) - ffi.cast('uint8_t*', self.ram.v)
 		if self.paletteRAMs[i] then
