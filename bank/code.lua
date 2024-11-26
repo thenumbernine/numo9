@@ -1078,13 +1078,13 @@ update=[]do
 		end
 		if btn(4) then
 			if btnp(2) then
+				setLevel(level-1) loadLevelRequest=true
+				--player.blendMode=((player.blendMode or 0)-1)%9
+			end
+			if btnp(3) then
 				setLevel(level+1) loadLevelRequest=true
 				--pokew(0x080a46, 0x801f)	-- set blend color to white
 				--player.blendMode=((player.blendMode or 0)+1)%9
-			end
-			if btnp(3) then
-				setLevel(level-1) loadLevelRequest=true
-				--player.blendMode=((player.blendMode or 0)-1)%9
 			end
 		end
 	end
