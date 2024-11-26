@@ -49,7 +49,9 @@ local ROM = numo9_rom.ROM	-- define RAM, ROM, etc
 local RAM = numo9_rom.RAM
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
+local frameBufferSizeInBits = numo9_rom.frameBufferSizeInBits
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local tilemapSizeInBits = numo9_rom.tilemapSizeInBits
 local tilemapSize = numo9_rom.tilemapSize
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
@@ -327,6 +329,8 @@ function App:initGL()
 		poke = function(addr, value) return self:net_poke(addr, value) end,
 		pokew = function(addr, value) return self:net_pokew(addr, value) end,
 		pokel = function(addr, value) return self:net_pokel(addr, value) end,
+		memcpy = function(...) return self:net_memcpy(...) end,
+		memset = function(...) return self:net_memset(...) end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(...) return self:mget(...) end,
@@ -336,36 +340,32 @@ function App:initGL()
 			x = toint(x)
 			y = toint(y)
 			color = toint(color)
---DEBUG:assert.eq(frameBufferSize.x, 256)
---DEBUG:assert.eq(frameBufferSize.y, 256)
-			if x < 0 or x >= 256
-			or y < 0 or y >= 256
+			if x < 0 or x >= frameBufferSize.x
+			or y < 0 or y >= frameBufferSize.y
 			then
 				return
 			end
 			if self.ram.videoMode == 0 then	-- 16bpp rgb565
-				local addr = self.framebufferRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, 8)), 1)
+				local addr = self.framebufferRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, frameBufferSizeInBits.x)), 1)
 				self:net_pokew(addr, color)
 			else	-- 8bpp indexed or 8bpp rgb332
-				local addr = self.framebufferRAM.addr + bit.bor(x, bit.lshift(y, 8))
+				local addr = self.framebufferRAM.addr + bit.bor(x, bit.lshift(y, frameBufferSizeInBits.x))
 				self:net_poke(addr, color)
 			end
 		end,
 		pget = function(x, y)
 			x = toint(x)
 			y = toint(y)
---DEBUG:assert.eq(frameBufferSize.x, 256)
---DEBUG:assert.eq(frameBufferSize.y, 256)
-			if x < 0 or x >= 256
-			or y < 0 or y >= 256
+			if x < 0 or x >= frameBufferSize.x
+			or y < 0 or y >= frameBufferSize.y
 			then
 				return 0
 			end
 			if self.ram.videoMode == 0 then	-- rgb565
-				local addr = self.framebufferRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, 8)), 1)
+				local addr = self.framebufferRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, frameBufferSizeInBits.x)), 1)
 				return self:peekw(addr)
 			else
-				local addr = self.framebufferRAM.addr + bit.bor(x, bit.lshift(y, 8))
+				local addr = self.framebufferRAM.addr + bit.bor(x, bit.lshift(y, frameBufferSizeInBits.x))
 				return self:peek(addr)
 			end
 		end,
@@ -1226,6 +1226,26 @@ function App:net_pokel(addr, value)
 	return self:pokel(addr, value)
 end
 
+function App:net_memcpy(dst, src, len)
+	if self.server then
+		local cmd = self.server:pushCmd().memcpy
+		cmd.dst = dst
+		cmd.src = src
+		cmd.len = len
+	end
+	return self:memcpy(dst, src, len)
+end
+
+function App:net_memset(dst, val, len)
+	if self.server then
+		local cmd = self.server:pushCmd().memset
+		cmd.dst = dst
+		cmd.val = val
+		cmd.len = len
+	end
+	return self:memset(dst, val, len)
+end
+
 function App:net_mset(x, y, value)
 	x = toint(x)
 	y = toint(y)
@@ -1233,19 +1253,19 @@ function App:net_mset(x, y, value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
 	then
-		local index = x + tilemapSize.x * y
+		local addr = self.tilemapRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		-- use poke over netplay, cuz i'm lazy.
-		-- I'm thinking poke is slower than mset singleplayer because it has more dirty GPU tests
 		if self.server then
-			if self.ram.bank[0].tilemap[index]~=value then
+			local prevValue = self:peekw(addr)
+			if prevValue ~= value then
 				local cmd = self.server:pushCmd().pokew
 				cmd.type = netcmds.pokew
-				cmd.addr = self.tilemapRAM.addr + bit.lshift(index, 1)
+				cmd.addr = addr
 				cmd.value = value
 			end
 		end
-		self.ram.bank[0].tilemap[index] = value
-		self.tilemapRAM.dirtyCPU = true
+
+		self:pokew(addr, value)
 	end
 end
 
@@ -1257,12 +1277,10 @@ function App:mget(x, y)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
 	then
-		-- should I use peek so we make sure to flush gpu->cpu?
-		-- nah, right now we only have framebuffer to check for gpu-writes ...
-		-- and the framebuffer is not (yet?) relocatable
-		return self.ram.bank[0].tilemap[x + tilemapSize.x * y]
+		local addr = self.tilemapRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		return self:peekw(addr)
 	end
-	-- TODO return default oob value
+	-- TODO return default oob value?  or return nil?
 	return 0
 end
 
@@ -1842,7 +1860,7 @@ function App:peekw(addr)
 	if addr < 0 or addrend >= self.memSize then return end
 
 	if self.framebufferRAM.dirtyGPU
-	and addr >= self.framebufferRAM.addr
+	and addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
 		self.framebufferRAM:checkDirtyGPU()
@@ -1855,7 +1873,7 @@ function App:peekl(addr)
 	if addr < 0 or addrend >= self.memSize then return end
 
 	if self.framebufferRAM.dirtyGPU
-	and addr >= self.framebufferRAM.addr
+	and addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
 		self.framebufferRAM:checkDirtyGPU()
@@ -1982,6 +2000,92 @@ function App:pokel(addr, value)
 		self.fontRAM.dirtyCPU = true
 	end
 	-- TODO if we poked the code
+end
+
+function App:memcpy(dst, src, len)
+	local dstend = dst + len
+	local srcend = src + len
+
+	-- truncate address ranges to valid ranges, or just discount the call altogether?
+	-- discount for now
+	if dst < 0 or dstend >= self.memSize
+	or src < 0 or srcend >= self.memSize
+	then return end
+
+	local touchessrc = srcend >= self.framebufferRAM.addr and src < self.framebufferRAM.addrEnd
+	local touchesdst = dstend >= self.framebufferRAM.addr and dst < self.framebufferRAM.addrEnd
+	if touchessrc or touchesdst then
+		self.framebufferRAM:checkDirtyGPU()
+		if touchesdst then
+			self.framebufferRAM.dirtyCPU = true
+		end
+	end
+
+	ffi.copy(self.ram.v + dst, self.ram.v + src, len)
+
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		if dstend >= sheetRAM.addr
+		and dst < sheetRAM.addrEnd
+		then
+			sheetRAM.dirtyCPU = true
+		end
+	end
+	if dstend >= self.tilemapRAM.addr
+	and dst < self.tilemapRAM.addrEnd
+	then
+		self.tilemapRAM.dirtyCPU = true
+	end
+	if dstend >= self.paletteRAM.addr
+	and dst < self.paletteRAM.addrEnd
+	then
+		self.paletteRAM.dirtyCPU = true
+	end
+	if dstend >= self.fontRAM.addr
+	and dst < self.fontRAM.addrEnd
+	then
+		self.fontRAM.dirtyCPU = true
+	end
+end
+
+function App:memset(dst, val, len)
+	local dstend = dst + len
+
+	-- truncate address ranges to valid ranges, or just discount the call altogether?
+	-- discount for now
+	if dst < 0 or dstend >= self.memSize
+	then return end
+
+	if dstend >= self.framebufferRAM.addr
+	and dst < self.framebufferRAM.addrEnd
+	then
+		self.framebufferRAM:checkDirtyGPU()
+		self.framebufferRAM.dirtyCPU = true
+	end
+
+	ffi.fill(self.ram.v + dst, len, val)
+
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		if dstend >= sheetRAM.addr
+		and dst < sheetRAM.addrEnd
+		then
+			sheetRAM.dirtyCPU = true
+		end
+	end
+	if dstend >= self.tilemapRAM.addr
+	and dst < self.tilemapRAM.addrEnd
+	then
+		self.tilemapRAM.dirtyCPU = true
+	end
+	if dstend >= self.paletteRAM.addr
+	and dst < self.paletteRAM.addrEnd
+	then
+		self.paletteRAM.dirtyCPU = true
+	end
+	if dstend >= self.fontRAM.addr
+	and dst < self.fontRAM.addrEnd
+	then
+		self.fontRAM.dirtyCPU = true
+	end
 end
 
 -------------------- ROM STATE STUFF --------------------
