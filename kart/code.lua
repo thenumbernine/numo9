@@ -24,9 +24,10 @@ https://www.spriters-resource.com/submitter/NICKtendoDS/
 https://www.spriters-resource.com/custom_edited/mariocustoms/
 --]]
 
-local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+local userAddr = ffi.offsetof('RAM', 'userData')
 local matAddr = ffi.offsetof('RAM', 'mvMat')
 assert.eq(ffi.sizeof(ffi.cast('RAM*',0).mvMat), 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
+local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 
 local windowWidth, windowHeight = 256, 256
 
@@ -90,10 +91,15 @@ local calcSpriteIndex=[angle, kartSpriteNo]do
 end
 
 
+--[[ using lua to push/pop palette.  more peeks = slower, but no net cmds required
 local palPush = {}
 for i=0,255 do
 	palPush[i] = peekw(palAddr+(i<<1))
 end
+--]]
+-- [[ using userdata to push/pop palette.  single player faster, but takes a netcall so multiplayer slower.
+memcpy(userAddr, palAddr, 0x200)
+--]]
 
 local matstack=table()
 local matpush=[]do
@@ -2580,21 +2586,36 @@ drawPlayers=[divX, divY, ...]do
 				-- TODO draw(), RAM modifications, netplay, and this...
 				-- TODO just store a palette shift index somewhere and feed it into every draw command ...
 				if useColorSpray then
+					--[[ using lua to push/pop palette.  more peeks = slower, but no net cmds required
 					for i=0,255 do
 						pokew(palAddr+(i<<1),
 							(0x7fff & palPush[(i+15*time())&0xff])
 							| (0x8000 & palPush[i])	-- preserve transparnecy flag
 						)
 					end
+					--]]
+					-- [[ using userdata to push/pop palette.
+					for i=0,255 do
+						pokew(palAddr+(i<<1),
+							(0x7fff & peekw(userAddr+(((i+15*time())&0xff)<<1)))
+							| (0x8000 & peekw(userAddr+(i<<1)))	-- preserve transparnecy flag
+						)
+					end
+					--]]
 				end
 
 				clientViewObj:drawScene(kart, aspectRatio, kartSprites, viewX, viewY, viewWidth, viewHeight)
 
 				-- reset
 				if useColorSpray then
+					--[[ using lua to push/pop palette.  more peeks = slower, but no net cmds required
 					for i=0,255 do
 						pokew(palAddr+(i<<1), palPush[i])
 					end
+					--]]
+					-- [[ using userdata to push/pop palette.
+					memcpy(palAddr, userAddr, 0x200)
+					--]]
 				end
 			end
 		end

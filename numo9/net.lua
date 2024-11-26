@@ -579,6 +579,27 @@ local Numo9Cmd_pokel = struct{
 	},
 }
 
+local Numo9Cmd_memcpy = struct{
+	name = 'Numo9Cmd_memcpy',
+	packed = true,
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='dst', type='uint32_t'},
+		{name='src', type='uint32_t'},
+		{name='len', type='uint32_t'},
+	},
+}
+
+local Numo9Cmd_memset = struct{
+	name = 'Numo9Cmd_memset',
+	packed = true,
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='dst', type='uint32_t'},
+		{name='val', type='uint8_t'},
+		{name='len', type='uint32_t'},
+	},
+}
 
 -- mayb I'll do like SDL does ...
 local netCmdStructs = table{
@@ -607,6 +628,8 @@ local netCmdStructs = table{
 	Numo9Cmd_poke,				-- 0x17
 	Numo9Cmd_pokew,				-- 0x18
 	Numo9Cmd_pokel,				-- 0x19
+	Numo9Cmd_memcpy,			-- 0x1a
+	Numo9Cmd_memset,			-- 0x1b
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
 	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))
@@ -1461,6 +1484,13 @@ print()
 				elseif cmdtype == netcmds.pokel then
 					local c = cmd[0].pokel
 					app:pokel(c.addr, c.value)
+				elseif cmdtype == netcmds.memcpy then
+					local c = cmd[0].memcpy
+					app:memcpy(c.dst, c.src, c.len)
+				elseif cmdtype == netcmds.memset then
+					local c = cmd[0].memset
+					app:memset(c.dst, c.val, c.len)
+
 				-- don't warn if we have 0s at the end, cuz that could just be some lag between resize commands and whatever fills the contents
 				-- on that note, maybe I should be receiving into a separate buffer and only copying it into the client once its gathered an entire frame...
 				-- does that mean I need a frame-end message?

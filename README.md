@@ -209,15 +209,26 @@ If the following functions are defined then they will be called from the virtual
 
 ## memory
 
-- `peek, peekw, peekl, poke, pokew, pokel` = read/write memory 1, 2, or 4 bytes at a time.
-- `mget, mset` = read/write uint16's from/to the tilemap.
+- `peek(addr)` = read 1 byte from memory.
+- `peekw(addr)` = read 2 bytes from memory.
+- `peekl(addr)` = read 4 bytes from memory.
+- `poke(addr, value)` = write 1 byte to memory.
+- `pokew(addr, value)` = write 2 bytes to memory.
+- `pokel(addr, value)` = write 4 bytes to memory.
+- `memcpy(dst, src, len)` = copy from `src` to `dst`, sized `len`.
+- `memset(dst, val, len)` = set memory in `dst` to uint8 value `val`, size in bytes `len`.
+- `mget(x, y)` = Read the uint16 from the current tilemap address at x, y.  Out of bounds coordinates return a value of 0.
+- `mset(x, y, value)` = Write a uint16 to the current tilemap address at x, y.
+- `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
+- `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
+
+While Pico8 has the `reload` and `cstore` functions for copying to/from RAM to ROM, and Tic80 has the `sync` function for doing similar, I am tempting myself with the idea of just using a different address range.
+But how to do this in conjunction with multiple banks, a feature that Tic80 also has, especially multiple VRAM banks.  I do like the idea of having multiple VRAM banks accessible with `spr` and `map` functions.
 
 ## graphics
 
 - `flip()` = flip the framebuffer, and wait until the next 60Hz frame to begin.
 - `cls([colorIndex])` = Clears the screen to the palette index at `color`.
-- `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
-- `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
 - `rect(x, y, w, h, [colorIndex])` = draw solid rectangle
 - `rectb(x, y, w, h, [colorIndex])` = draw rectangle border
 - `elli(x, y, w, h, [colorIndex])` = draw a solid filled ellipse.  If you want to draw a circle then you have use an ellipse.

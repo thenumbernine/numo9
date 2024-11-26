@@ -15,13 +15,26 @@ local updateIntervalInSeconds = 1 / updateHz
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
 local paletteSize = 256
-local spriteSize = vec2i(8, 8)
+local tileSizeInBits = 3
+local tileSize = bit.lshift(1, tileSizeInBits)
+local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
 local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
-local frameBufferSizeInTiles = vec2i(32, 32)
+local frameBufferSizeInTilesInBits = vec2i(5, 5)
+local frameBufferSizeInBits = frameBufferSizeInTilesInBits + tileSizeInBits 
+local frameBufferSizeInTiles = vec2i(
+	bit.lshift(1, frameBufferSizeInTilesInBits.x),
+	bit.lshift(1, frameBufferSizeInTilesInBits.y))
 local frameBufferSize = vec2i(frameBufferSizeInTiles.x * spriteSize.x, frameBufferSizeInTiles.y * spriteSize.y)
-local spriteSheetSizeInTiles = vec2i(32, 32)
+local spriteSheetSizeInTilesInBits = vec2i(5, 5)
+local spriteSheetSizeInTiles = spriteSheetSizeInTilesInBits + tileSizeInBits
+local spriteSheetSizeInTiles = vec2i(
+	bit.lshift(1, spriteSheetSizeInTilesInBits.x),
+	bit.lshift(1, spriteSheetSizeInTilesInBits.y))
 local spriteSheetSize = vec2i(spriteSheetSizeInTiles.x * spriteSize.x, spriteSheetSizeInTiles.y * spriteSize.y)
-local tilemapSize = vec2i(256, 256)
+local tilemapSizeInBits = vec2i(8, 8)
+local tilemapSize = vec2i(
+	bit.lshift(1, tilemapSizeInBits.x),
+	bit.lshift(1, tilemapSizeInBits.y))
 
 --[[
 32x8 = 256 wide, 8 high, 8x 1bpp planar
@@ -493,8 +506,10 @@ return {
 	frameBufferType = frameBufferType,
 	frameBufferSize = frameBufferSize,
 	frameBufferSizeInTiles = frameBufferSizeInTiles,
+	frameBufferSizeInBits = frameBufferSizeInBits,
 	spriteSheetSize = spriteSheetSize,
 	spriteSheetSizeInTiles = spriteSheetSizeInTiles,
+	tilemapSizeInBits = tilemapSizeInBits,
 	tilemapSize = tilemapSize,
 	fontImageSize = fontImageSize,
 	fontImageSizeInTiles = fontImageSizeInTiles,

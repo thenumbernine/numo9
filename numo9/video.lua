@@ -2377,7 +2377,8 @@ function AppVideo:drawQuad(
 	spriteBit,
 	spriteMask
 )
-	local sheetRAM = assert.index(self.sheetRAMs, sheetIndex+1)
+	local sheetRAM = self.sheetRAMs[sheetIndex+1]
+	if not sheetRAM then return end
 	if sheetRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
@@ -2413,7 +2414,8 @@ function AppVideo:drawTexTri3D(
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
 
-	local sheetRAM = assert.index(self.sheetRAMs, sheetIndex+1)
+	local sheetRAM = self.sheetRAMs[sheetIndex+1]
+	if not sheetRAM then return end
 	if sheetRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
@@ -2543,7 +2545,8 @@ function AppVideo:drawMap(
 	sheetIndex
 )
 	sheetIndex = sheetIndex or 1
-	local sheetRAM = assert.index(self.sheetRAMs, sheetIndex+1)
+	local sheetRAM = self.sheetRAMs[sheetIndex+1]
+	if not sheetRAM then return end
 	sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	self.paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	self.tilemapRAM:checkDirtyCPU()
