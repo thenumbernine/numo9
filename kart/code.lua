@@ -2453,7 +2453,8 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 end
 
 
-local maxPlayers=64
+-- so long as everyone starts inside the track bounds, it goes decently fast.  but if any players start oob, the framerate drops to slow.
+local maxPlayers=20
 local inMenu = true
 local menuSel = 0
 local startPlayerInfo={}
