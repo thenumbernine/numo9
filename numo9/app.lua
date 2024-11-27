@@ -2003,13 +2003,28 @@ function App:pokel(addr, value)
 end
 
 function App:memcpy(dst, src, len)
-	local dstend = dst + len
-	local srcend = src + len
+	if len <= 0 then return end
 
 	-- truncate address ranges to valid ranges, or just discount the call altogether?
-	-- discount for now
-	if dst < 0 or dstend >= self.memSize
-	or src < 0 or srcend >= self.memSize
+	-- truncate the dst, discount src if it's OOB
+	-- if I wanted to truncate the src, what happens if the source is OOB?  read default values of zero?
+	if dst < 0 then
+		src = src - dst
+		len = len + dst
+		if len <= 0 then return end
+		dst = 0
+	end
+	if dst + len >= self.memSize then
+		len = self.memSize - dst
+		if len <= 0 then return end
+	end
+	local dstend = dst + len
+	local srcend = src + len
+--DEBUG:assert.ge(dst, 0)
+--DEBUG:assert.ge(dstend, 0)
+--DEBUG:assert.lt(dst, self.memSize)
+--DEBUG:assert.lt(dstend, self.memSize)
+	if src < 0 or srcend >= self.memSize
 	then return end
 
 	local touchessrc = srcend >= self.framebufferRAM.addr and src < self.framebufferRAM.addrEnd
@@ -2048,12 +2063,22 @@ function App:memcpy(dst, src, len)
 end
 
 function App:memset(dst, val, len)
-	local dstend = dst + len
+	if len <= 0 then return end
 
-	-- truncate address ranges to valid ranges, or just discount the call altogether?
-	-- discount for now
-	if dst < 0 or dstend >= self.memSize
-	then return end
+	-- truncate address ranges to valid ranges, or just discount the call altogether? truncate
+	if dst < 0 then
+		len = len + dst
+		if len <= 0 then return end
+		dst = 0
+	end
+	if dst + len >= self.memSize then
+		len = self.memSize - dst
+		if len <= 0 then return end
+	end
+
+	local dstend = dst + len
+--DEBUG:assert.ge(dst, 0)
+--DEBUG:assert.ge(dstend, 0)
 
 	if dstend >= self.framebufferRAM.addr
 	and dst < self.framebufferRAM.addrEnd
