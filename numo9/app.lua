@@ -387,7 +387,7 @@ function App:initGL()
 			if value then
 				return self:net_pokew(self.paletteRAM.addr + bit.lshift(colorIndex, 1), value)
 			else
-				return self:net_peekw(self.paletteRAM.addr + bit.lshift(colorIndex, 1))
+				return self:peekw(self.paletteRAM.addr + bit.lshift(colorIndex, 1))
 			end
 		end,
 
