@@ -2005,9 +2005,8 @@ end
 function App:memcpy(dst, src, len)
 	if len <= 0 then return end
 
-	-- truncate address ranges to valid ranges, or just discount the call altogether?
-	-- truncate the dst, discount src if it's OOB
-	-- if I wanted to truncate the src, what happens if the source is OOB?  read default values of zero?
+	-- truncate address ranges to valid ranges, or just discount the call altogether?  truncate
+	-- if I wanted to truncate the src, what happens if the source is OOB?  read default values of zero
 	if dst < 0 then
 		src = src - dst
 		len = len + dst
@@ -2024,7 +2023,7 @@ function App:memcpy(dst, src, len)
 --DEBUG:assert.ge(dstend, 0)
 --DEBUG:assert.lt(dst, self.memSize)
 --DEBUG:assert.lt(dstend, self.memSize)
-	if src < 0 or srcend >= self.memSize
+	if srcend < 0 or src >= self.memSize
 	then return end
 
 	local touchessrc = srcend >= self.framebufferRAM.addr and src < self.framebufferRAM.addrEnd
@@ -2035,8 +2034,6 @@ function App:memcpy(dst, src, len)
 			self.framebufferRAM.dirtyCPU = true
 		end
 	end
-
-	ffi.copy(self.ram.v + dst, self.ram.v + src, len)
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if dstend >= sheetRAM.addr
@@ -2060,6 +2057,23 @@ function App:memcpy(dst, src, len)
 	then
 		self.fontRAM.dirtyCPU = true
 	end
+
+	if src < 0 then
+		ffi.fill(self.ram.v + dst, math.min(-src, len))
+		if -src <= len then return end
+		dst = dst - src
+		len = len + src
+		src = 0
+	end
+	local copyLen = math.min(len, self.memSize - src)
+	ffi.copy(self.ram.v + dst, self.ram.v + src, copyLen)
+	len = len - copyLen
+	dst = dst + copyLen
+	src = src + copyLen
+	if len <= 0 then return end
+	-- at this point, src should be at the end of memory.  if it's not then we would've returned in the last line
+--DEBUG:assert.eq(src, self.memSize)
+	ffi.fill(self.ram.v + dst, len)
 end
 
 function App:memset(dst, val, len)

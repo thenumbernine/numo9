@@ -216,7 +216,7 @@ If the following functions are defined then they will be called from the virtual
 - `pokew(addr, value)` = write 2 bytes to memory.
 - `pokel(addr, value)` = write 4 bytes to memory.
 - `memcpy(dst, src, len)` = copy from `src` to `dst`, sized `len`.
-- `memset(dst, val, len)` = set memory in `dst` to uint8 value `val`, size in bytes `len`.
+- `memset(dst, val, len)` = set memory in `dst` to uint8 value `val`, size in bytes `len`.  OOB ranges will copy a value of 0.
 - `mget(x, y)` = Read the uint16 from the current tilemap address at x, y.  Out of bounds coordinates return a value of 0.
 - `mset(x, y, value)` = Write a uint16 to the current tilemap address at x, y.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
