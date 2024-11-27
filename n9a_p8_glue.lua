@@ -1,3 +1,10 @@
+-- some glue code needs this, might as well generate it dynamically here:
+-- NOTICE if you ever remove ffi from the cartridge API then this will break ...
+updateCounterAddr=ffi.offsetof('RAM', 'updateCounter')
+spriteSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
+tilemapAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
+framebufferAddr=ffi.offsetof('RAM', 'framebuffer')
+userDataAddr=ffi.offsetof('RAM', 'userData')
 mode(1)	-- set to 8bpp-indexed framebuffer
 p8ton9btnmap={[0]=2,3,0,1,7,5}
 p8color=6
@@ -68,37 +75,37 @@ I could collect unique streams of pal(...) calls post-pal() reset. and associate
 
 lol or i could manually write sprites to temp regions before drawing them ...
 --]]
-p8_pal=[from,to,pal]do
+p8_pal=[from,to,remapping]do
 	if not from then
 		for i=0,15 do
-			pokew(paletteAddr+(i<<1),p8palette[i+1])
+			pal(i,p8palette[i+1])
 		end
 		if next(p8palRemap) then p8palRemap={} end
 		p8PalChanged=false
 	elseif type(from)=='number' then
 		-- sometimes 'to' is nil ... default to zero?
 		to=tonumber(to) or 0
-if pal==2 then trace"TODO pal(from,to,pal)" end
+if remapping==2 then trace"TODO pal(from,to,2)" end
 		from=math.floor(from)
 		to=math.floor(to)
 		if from>=0 and from<16 and to>=0 and to<16 then
-			if pal==1 then
-				pokew(paletteAddr+(to<<1),p8palette[from+1])
+			if remapping==1 then
+				pal(to,p8palette[from+1])
 			else
 				p8palRemap[from]=to
 			end
 		end
 		p8PalChanged=true
 	elseif type(from)=='table' then
-		pal=to
-if pal==2 then trace"TODO pal(map,pal)" end
+		remapping=to
+if remapping==2 then trace"TODO pal(map,2)" end
 		for from,to in pairs(from) do
 			from=math.floor(from)
 			to=math.floor(to)
 			if from>=0 and from<=16 and to>=0 and to<16 then
 				from=bit.band(from,0xf)
-				if pal==1 then
-					pokew(paletteAddr+(to<<1),p8palette[from+1])
+				if remapping==1 then
+					pal(to,p8palette[from+1])
 				else
 					p8palRemap[from]=to
 				end
@@ -107,8 +114,8 @@ if pal==2 then trace"TODO pal(map,pal)" end
 		p8PalChanged=true
 	else
 trace'pal idk'
-trace(type(from),type(to),type(pal))
-trace(from,to,pal)
+trace(type(from),type(to),type(remapping))
+trace(from,to,remapping)
 		-- I think these just return?
 	end
 end
@@ -116,12 +123,11 @@ p8_setpalt=[c,t]do
 	c=math.floor(c)
 assert.ge(c, 0)
 assert.lt(c, 16)
-	local addr=paletteAddr+(c<<1)
 assert.type(t,'boolean')
 	if t~=false then	-- true <-> transparent <-> clear alpha
-		pokew(addr,peekw(addr)&0x7fff)
+		pal(c, pal(c)&0x7fff)
 	else	-- false <-> opaque <-> set alpha
-		pokew(addr,peekw(addr)|0x8000)
+		pal(c, pal(c)|0x8000)
 	end
 end
 p8_palt=[...]do
