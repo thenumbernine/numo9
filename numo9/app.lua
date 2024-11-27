@@ -383,6 +383,14 @@ function App:initGL()
 			self:clearScreen(colorIndex)
 		end,
 
+		pal = function(colorIndex, value)
+			if value then
+				return self:net_pokew(self.paletteRAM.addr + bit.lshift(colorIndex, 1), value)
+			else
+				return self:net_peekw(self.paletteRAM.addr + bit.lshift(colorIndex, 1))
+			end
+		end,
+
 		-- TODO tempting to just expose flags for ellipse & border to the 'cartridge' api itself ...
 		rect = function(x, y, w, h, colorIndex)
 			if self.server then

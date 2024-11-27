@@ -229,6 +229,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 
 - `flip()` = flip the framebuffer, and wait until the next 60Hz frame to begin.
 - `cls([colorIndex])` = Clears the screen to the palette index at `color`.
+- `pal(i, [value])` = If value is not provided then returns the uint16 RGBA 5551 value of the palette entry at index `i`.  If value is provided then the palette entry at `i` is set to the value.
 - `rect(x, y, w, h, [colorIndex])` = draw solid rectangle
 - `rectb(x, y, w, h, [colorIndex])` = draw rectangle border
 - `elli(x, y, w, h, [colorIndex])` = draw a solid filled ellipse.  If you want to draw a circle then you have use an ellipse.
@@ -256,14 +257,14 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- spriteMask = mask of which bits to use.  default is 0xFF, in binary 1111:1111, which uses all 8 bitplanes.
 		- the resulting color index drawn is `(incomingTexelIndex >> spriteBit) & spriteMask + paletteIndex`
 	- scaleX, scaleY = on-screen scaling.
-- `quad(screenX, screenY, w, h, tx, ty, tw, th, sheetIndex, pal, transparent, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
+- `quad(screenX, screenY, w, h, tx, ty, tw, th, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
 	- screenX, screneY = pixel location of upper-left corner of the sprite-sheet to draw
 	- w, h = pixels wide and high to draw.
 	- tx, ty = sprite sheet pixel upper left corner.
 	- tw, th = sprite sheet width and height to use.
 	- sheetIndex = sheet index. 0 for sprite sheet, 1 for tile sheet.  default 1.
-	- pal = palette index offset.
-	- transparent = transparent index to use.
+	- paletteIndex = palette index offset.
+	- transparentIndex = transparent index to use.
 	- spriteBit, spriteMask = same as `spr()`
 - `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16x16Sprites, sheetIndex)` = draw the tilemap.
 	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
