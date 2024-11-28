@@ -272,7 +272,8 @@ function App:initGL()
 		stop = function(...) return self:stop(...) end,
 		cont = function(...) return self:cont(...) end,
 		save = function(...) return self:saveROM(...) end,
-		load = function(...)
+
+		open = function(...)
 			local result = table.pack(self:loadROM(...))
 
 			if self.server then
@@ -822,6 +823,11 @@ function App:initGL()
 		ffi = ffi,
 		getfenv = getfenv,	-- maybe ... needed for _ENV replacement, but maybe can break out of sandbox ...
 		setfenv = setfenv,
+
+		-- sandboxed load
+		load = function(s, name)
+			return load(s, name, 't', self.env)
+		end,
 	}
 
 --[[ debugging - trace all calls
