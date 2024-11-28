@@ -34,10 +34,12 @@ This is a 8bpp-indexed option, mainly for compatability for other fantasy consol
 Mode 2:
 This is 8bpp RGB332.  It looks ugly. Maybe I'll add some dithering.
 
+It's really tempting to include a hidden depth-buffer, since TIC-80 does as well.  But meh, for now nope, you have to do your own z-sorting.
+
 ### sprites / tiles
 
-Sprite sheet tiles are 8x8 pixels.
-Sprite bpp can be anywhere from 1bpp to 8bpp, colors indexed into a palette.
+Tiles are 8x8 pixels.
+Sprite BPP can be anywhere from 1bpp to 8bpp, colors indexed into a palette.
 The renderer can draw the sprite bits starting at any bitplane.
 This way you can store (and edit) 8 1-bpp images in the same texture region.
 
@@ -200,8 +202,8 @@ If the following functions are defined then they will be called from the virtual
 - `stop()` = stop all execution and drop into console mode.
 - `cont()` = continue execution of the cartridge.
 
-- `save([filename])` = save cartridge to virtual-filesystem and host-filesystem
-- `load([filename])` = load cartridge
+- `save([filename])` = save cartridge to virtual-filesystem and host-filesystem.
+- `open([filename])` = open cartridge.
 - `reset()` = reload cartridge to its initial state.
 - `quit()` = quit the entire application outright to host OS.
 

@@ -2533,6 +2533,8 @@ function AppVideo:drawSprite(
 end
 
 -- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
+-- TODO which is faster, using a single quad draw here, or chopping it up into individual quads and rendering each separately?
+-- especially considering if we make them all quads and use the same shader as the sprite shader then we can batch draw all sprites + maps together.
 function AppVideo:drawMap(
 	tileX,			-- \_ upper-left position in the tilemap
 	tileY,			-- /
