@@ -395,6 +395,7 @@ args:
 	minFilter
 --]]
 function RAMGPUTex:init(args)
+--DEBUG:print'RAMGPUTex:init begin'
 glreport'before RAMGPUTex:init'
 	local app = assert.index(args, 'app')
 	self.app = app
@@ -443,6 +444,7 @@ glreport'before RAMGPUTex:init'
 --assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 	self.tex = tex
 glreport'after RAMGPUTex:init'
+--DEBUG:print'RAMGPUTex:init done'
 end
 
 function RAMGPUTex:overlaps(other)
@@ -501,13 +503,22 @@ end
 sync CPU and GPU mem then move and flag cpu-dirty so the next cycle will update
 --]]
 function RAMGPUTex:updateAddr(newaddr)
+--DEBUG:print'checkDirtyGPU'
 	self:checkDirtyGPU()	-- only the framebuffer has this
+--DEBUG:print'checkDirtyCPU'
 	self:checkDirtyCPU()
+-- clamp or allow OOB? or error?  or what?
 	newaddr = math.clamp(bit.bor(0, newaddr), 0, self.app.memSize - self.size)
+--DEBUG:print(('new addr: $%x'):format(newaddr))
 	self.addr = newaddr
+--DEBUG:print('self.addr', self.addr)
+--DEBUG:print('self.size', self.size)
 	self.addrEnd = newaddr + self.size
-	self.tex.data = ffi.cast('uint8_t*', self.app.ram) + self.addr
+--DEBUG:print('self.addrEnd', self.addrEnd)
+	self.tex.data = ffi.cast('uint8_t*', self.app.ram.v) + self.addr
+--DEBUG:print('self.tex.data', self.tex.data)
 	self.image.buffer = ffi.cast(self.image.format..'*', self.tex.data)
+--DEBUG:print('self.image.buffer', self.image.buffer)
 	self.dirtyCPU = true
 end
 
@@ -1784,6 +1795,7 @@ end
 
 -- resize the # of RAMGPUs to match the # banks
 function AppVideo:resizeRAMGPUs()
+--DEBUG:print'AppVideo:resizeRAMGPUs'
 	local numBanks = #self.banks
 	for i=2*numBanks+1,#self.sheetRAMs do
 		self.sheetRAMs[i] = nil
@@ -1875,10 +1887,18 @@ function AppVideo:resizeRAMGPUs()
 		-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
 		-- so a 256 char font will be 2048 bytes
 		-- TODO option for 2bpp etc fonts?
+		-- before I had fonts just stored as a certain 1bpp region of the sprite sheet ...
+		-- eventually have custom sized spritesheets and drawText refer to those?
+		-- or eventually just make all textures 1D and map regions of RAM, and have the tile shader use offsets for horz and vert step?
 		local addr = ffi.cast('uint8_t*', self.ram.bank[i-1].font) - ffi.cast('uint8_t*', self.ram.v)
+--DEBUG:assert.ge(addr, 0)
+--DEBUG:assert.lt(addr + fontInBytes, self.memSize)
+--DEBUG:print('creating font for bank #'..(i-1)..' from addr '..('$%x / %d'):format(addr, addr))
 		if self.fontRAMs[i] then
+--DEBUG:print'...updating old addr'
 			self.fontRAMs[i]:updateAddr(addr)
 		else
+--DEBUG:print'...creating new obj'
 			self.fontRAMs[i] = RAMGPUTex{
 				app = self,
 				addr = addr,
@@ -1892,23 +1912,54 @@ function AppVideo:resizeRAMGPUs()
 			}
 		end
 	end
+--DEBUG:print'AppVideo:resizeRAMGPUs done'
 end
 
+function AppVideo:allRAMRegionsCheckDirtyGPU()
+	self.framebufferRGB565RAM:checkDirtyGPU()
+	self.framebufferIndexRAM:checkDirtyGPU()
+	for _,ramgpu in ipairs(self.sheetRAMs) do
+		ramgpu:checkDirtyGPU()
+	end
+	for _,ramgpu in ipairs(self.tilemapRAMs) do
+		ramgpu:checkDirtyGPU()
+	end
+	for _,ramgpu in ipairs(self.paletteRAMs) do
+		ramgpu:checkDirtyGPU()
+	end
+	for _,ramgpu in ipairs(self.fontRAMs) do
+		ramgpu:checkDirtyGPU()
+	end
+end
+
+function AppVideo:allRAMRegionsCheckDirtyCPU()
+	self.framebufferRGB565RAM:checkDirtyCPU()
+	self.framebufferIndexRAM:checkDirtyCPU()
+	for _,ramgpu in ipairs(self.sheetRAMs) do
+		ramgpu:checkDirtyCPU()
+	end
+	for _,ramgpu in ipairs(self.tilemapRAMs) do
+		ramgpu:checkDirtyCPU()
+	end
+	for _,ramgpu in ipairs(self.paletteRAMs) do
+		ramgpu:checkDirtyCPU()
+	end
+	for _,ramgpu in ipairs(self.fontRAMs) do
+		ramgpu:checkDirtyCPU()
+	end
+end
+
+
 function AppVideo:resetVideo()
+--DEBUG:print'App:resetVideo'
 	-- remake the textures every time the # bank changes thanks to loadRAM()
 	self:resizeRAMGPUs()
 
 	-- flush all before resetting RAM addrs in case any are pointed to the addrs' location
 	-- do the framebuffers explicitly cuz typically 'checkDirtyGPU' just does the current one
 	-- and also because the first time resetVideo() is called, the video mode hasn't been set yet, os the framebufferRAM hasn't been assigned yet
-	self.framebufferRGB565RAM:checkDirtyGPU()
-	self.framebufferIndexRAM:checkDirtyGPU()
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		sheetRAM:checkDirtyGPU()
-	end
-	self.tilemapRAM:checkDirtyGPU()
-	self.paletteRAM:checkDirtyGPU()
-	self.fontRAM:checkDirtyGPU()
+	self:allRAMRegionsCheckDirtyGPU()
+
 	-- reset these
 	self.ram.framebufferAddr:fromabs(framebufferAddr)
 	self.ram.spriteSheetAddr:fromabs(spriteSheetAddr)
@@ -1916,14 +1967,14 @@ function AppVideo:resetVideo()
 	self.ram.tilemapAddr:fromabs(tilemapAddr)
 	self.ram.paletteAddr:fromabs(paletteAddr)
 	self.ram.fontAddr:fromabs(fontAddr)
-	-- and these
+	-- and these, which are the ones that can be moved
 	self.framebufferRGB565RAM:updateAddr(framebufferAddr)
 	self.framebufferIndexRAM:updateAddr(framebufferAddr)
 	self.sheetRAMs[1]:updateAddr(spriteSheetAddr)
 	self.sheetRAMs[2]:updateAddr(tileSheetAddr)
-	self.tilemapRAM:updateAddr(tilemapAddr)
-	self.paletteRAM:updateAddr(paletteAddr)
-	self.fontRAM:updateAddr(fontAddr)
+	self.tilemapRAMs[1]:updateAddr(tilemapAddr)
+	self.paletteRAMs[1]:updateAddr(paletteAddr)
+	self.fontRAMs[1]:updateAddr(fontAddr)
 
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
@@ -1971,6 +2022,7 @@ function AppVideo:resetVideo()
 
 	-- hmm, this matident isn't working ,but if you put one in your init code then it does work ... why ...
 	self:matident()
+--DEBUG:print'App:resetVideo done'
 end
 
 -- flush anything from gpu to cpu
