@@ -1327,7 +1327,7 @@ void main() {
 
 		-- HMM..........
 		-- this is an identical copy of spriteProgram
-		-- except that the spriteBit is read from the input z coordinate
+		-- except that the spriteBit is read from an attribute instead of a uniform
 		-- how can I fix all this ...
 		-- maybe I should use 1/8th steps of the x variable for the bit?
 		--  or 1/2 steps for 4bpp ... same as Pico8 and Tic80
@@ -1948,7 +1948,6 @@ function AppVideo:allRAMRegionsCheckDirtyCPU()
 		ramgpu:checkDirtyCPU()
 	end
 end
-
 
 function AppVideo:resetVideo()
 --DEBUG:print'App:resetVideo'
@@ -2777,7 +2776,10 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	gl.glUniform1ui(programUniforms.paletteIndex.loc, fgColorIndex-1)
 	gl.glUniform1ui(programUniforms.transparentIndex.loc, 0)
 	gl.glUniform1ui(programUniforms.spriteMask.loc, 1)
-	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	-- this won't be there for 8bpp indexed mode:
+	if programUniforms.drawOverrideSolid then
+		gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	end
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()

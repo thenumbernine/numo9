@@ -174,6 +174,8 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 		addr=(x<<1)|(y<<9)
 		local value=peekw(tilemapAddr+addr)
 		return (value&0x0f)|((value>>1)&0xf0)
+	elseif addr>=0x3000 and addr<0x3100 then
+		return sprFlags[addr&0xff]
 	elseif addr>=0x4300 and addr<0x5600 then	-- user data
 		return peek(addr-0x4300+userDataAddr)
 	elseif addr>=0x6000 and addr<0x8000 then
@@ -189,12 +191,12 @@ trace(('TODO peek $%x'):format(addr))
 end
 p8poke=[addr,value,...]do
 	assert.eq(select('#', ...), 0, 'TODO')
-	if addr>=0 and addr<0x2000 then
+	if addr>=0 and addr<0x2000 then				-- sprites & sprite+tilemap shared
 		local x=(addr&0x3f)<<1		-- x coord
 		local yhi=(addr&0x1fc0)<<2	-- y coord << 8
 		addr=x|yhi
 		pokew(spriteSheetAddr+addr,(value&0xf)|((value&0xf0)<<4))
-		if addr>=0x1000 then
+		if addr>=0x1000 then					-- sprite+tilemap shared
 			-- shared mem, also write to the map lower
 			addr-=0x1000
 			local x=addr&0x7f				-- 7 bits x
@@ -202,12 +204,14 @@ p8poke=[addr,value,...]do
 			addr=(x<<1)|(y<<9)
 			pokew(tilemapAddr+addr,(value&0xf)|((value&0xf0)<<1))
 		end
-	elseif addr>=0x2000 and addr<0x3000 then
+	elseif addr>=0x2000 and addr<0x3000 then	-- tilemap
 		addr-=0x2000
 		local x=addr&0x7f			-- 7 bits x
 		local y=(addr>>7)&0x1f	-- 5 bits y
 		addr=(x<<1)|(y<<9)
 		pokew(tilemapAddr+addr,(value&0xf)|((value&0xf0)<<1))
+	elseif addr>=0x3000 and addr<0x3100 then
+		sprFlags[addr&0xff] = value
 	elseif addr>=0x4300 and addr<0x5600 then	-- user data
 		poke(addr-0x4300+userDataAddr,value)
 	elseif addr>=0x6000 and addr<0x8000 then
