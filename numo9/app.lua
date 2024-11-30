@@ -177,6 +177,7 @@ function App:initGL()
 	--]]
 
 	self.memSize = ffi.sizeof'RAM'
+--DEBUG:print(('memSize = 0x%0x'):format(self.memSize))
 	self.holdram = ffi.new('uint8_t[?]', self.memSize)
 	self.ram = ffi.cast('RAM&', self.holdram)
 
@@ -2211,9 +2212,14 @@ whoever calls this should create a runFocus coroutine to load the ROM
  so that the load only takes place in the runFocus loop and not the UI loop (which pushes and pops the modelview matrix values)
 --]]
 function App:loadROM(filename)
+--DEBUG:print('App:loadROM', filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
 	self:mvMatFromRAM()
+
+	-- before resizing the memory range, make sure all memory is synced, so that when we move addresses later it doesn't try to sync to CPU mem that is stale / dangling
+	self:allRAMRegionsCheckDirtyGPU()
+	self:allRAMRegionsCheckDirtyCPU()
 
 	filename = filename or defaultSaveFilename
 	self.con:print('loading', filename)
@@ -2245,6 +2251,7 @@ function App:loadROM(filename)
 -- should I be doing this outside of the update thread?
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
 	self.memSize = ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1)
+--DEBUG:print(('memSize = 0x%0x'):format(self.memSize))
 	self.holdram = ffi.new('uint8_t[?]', self.memSize)
 	local oldram = self.ram
 	-- wow first time I've used references in LuaJIT, didn't know they were implemented.
@@ -2281,6 +2288,7 @@ Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
+--DEBUG:print'App:resetROM'
 assert.eq(ffi.sizeof(self.holdram), self.memSize)
 assert.eq(self.memSize, ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1))
 	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM' * #self.banks)
