@@ -1,5 +1,6 @@
 framebufferAddr=ffi.offsetof('RAM', 'framebuffer')
 spriteSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
+tileSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tileSheet')
 tilemapAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
 paletteAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 persistentDataAddr=ffi.offsetof('RAM', 'persistentCartridgeData')
@@ -26,6 +27,10 @@ end
 mode(1)	-- set to 8bpp-indexed framebuffer
 screenWidth=240
 screenHeight=136
+borderColor=0
+mouseCursor=1
+fontParams={[0]=0,0,0,0,0,0,0,0}
+musicState={[0]=0,0,0}
 ticpeek=[addr,bits]do
 	bits=bits or 8
 	if bits==1 then
@@ -37,21 +42,54 @@ ticpeek=[addr,bits]do
 	elseif bits~=8 then
 		error('bits must be 1,2,4,8.  got '..tostring(bits))
 	end
-	if addr>=0 and addr<0x4000 then	-- vram
+	if addr>=0 and addr<0x3fc0 then	-- framebuffer
 		local x=addr%120
 		local y=(addr-x)/120
 		addr=(x<<1)|(y<<8)
 		local value=peekw(framebufferAddr+addr)
 		return (value&0x000f)|((value&0x0f00)>>4)
-	elseif addr>=0x8000 and addr<0xff80 then
+	elseif addr>=0x3fc0 and addr<0x3ff0 then
+		local offset =  addr - 0x3fc0 
+		local channel = offset % 3
+		local index = (offset - channel) / 3
+		local rgba = peekw(paletteAddr + (index << 1))
+		local value = (rgba >> (5 * channel)) & 0x1f
+		return (value << 3) | (value >> 2)
+	elseif addr==0x3ff8 then
+		return borderColor
+	elseif addr==0x3ffb then
+		return mouseCursor
+	elseif addr>=0x4000 and addr<0x6000 then	-- tilesheet
+		local x = (addr & 0x3f) << 1		-- x coord
+		local yhi = (addr & 0x1fc0) << 2	-- y coord << 8
+		addr = x | yhi
+		local value=peekw(tileSheetAddr+addr)
+		return (value&0xf)|((value&0xf00)>>4)	-- read the lo nibble from one pixel, the hi from the next
+	elseif addr>=0x6000 and addr<0x8000 then	-- spritesheet
+		local x = (addr & 0x3f) << 1		-- x coord
+		local yhi = (addr & 0x1fc0) << 2	-- y coord << 8
+		addr = x | yhi
+		local value=peekw(spriteSheetAddr+addr)
+		return (value&0xf)|((value&0xf00)>>4)	-- read the lo nibble from one pixel, the hi from the next
+	elseif addr>=0x8000 and addr<0xff80 then	-- tilemap
 		addr-=0x8000
 		local x=addr%240
 		local y=(addr-x)/240
 		addr=(x|(y<<8))<<1
 		local value=peekw(tilemapAddr+addr)
 		return (value&0x0f)|((value>>1)&0xf0)
+	elseif addr>=0x13ffc and addr<0x14000 then
+		-- TODO what's the music state? currently playing track?
+		return musicState[addr-0x13ffc]
+	--[[
+	elseif addr>=0x14604 and addr<0x149fc then
+		font, size 1016 bytes
+	--]]
+	elseif addr>=0x149fc and addr<0x14a04 then
+		return fontParams[addr-0x149fc]
+	else
+trace(('TODO peek $%x'):format(addr))
 	end
-trace(('TODO peek $%x '):format(addr)..tostring(bits))
 end
 ticpoke=[addr,value,bits]do
 	bits=bits or 8
@@ -74,19 +112,52 @@ ticpoke=[addr,value,bits]do
 	elseif bits~=8 then
 		error('bits must be 1,2,4,8.  got '..tostring(bits))
 	end
-	if addr>=0 and addr<0x4000 then	-- vram
+	if addr>=0 and addr<0x3fc0 then	-- framebuffer
 		local x=addr%120
 		local y=(addr-x)/120
 		addr=(x<<1)|(y<<8)
-		return pokew(framebufferAddr+addr,(value&0xf)|((value&0xf0)<<4))
-	elseif addr>=0x8000 and addr<0xff80 then
+		pokew(framebufferAddr+addr,(value&0xf)|((value&0xf0)<<4))
+	elseif addr>=0x3fc0 and addr<0x3ff0 then
+		local offset = addr - 0x3fc0
+		local channel = offset % 3
+		local index = (offset - channel) / 3
+		local dstaddr = paletteAddr + (index << 1)
+		local rgba = peekw(dstaddr)
+		local shift = channel * 5
+		local value5 = (value >> 3) & 0x1f
+		pokew(dstaddr, (rgba & ~(0x1f << shift)) | (value5 << shift))
+	elseif addr==0x3ff8 then
+		borderColor = value
+	elseif addr==0x3ffb then
+		mouseCursor = value
+	elseif addr>=0x4000 and addr<0x6000 then	-- tilesheet
+		local x = (addr & 0x3f) << 1		-- x coord
+		local yhi = (addr & 0x1fc0) << 2	-- y coord << 8
+		addr = x | yhi
+		pokew(tileSheetAddr + addr, (value&0xf)|((value&0xf0)<<4))	-- write the lo nibble to one pixel , the hi to the next
+	elseif addr>=0x6000 and addr<0x8000 then	-- spritesheet
+		local x = (addr & 0x3f) << 1		-- x coord
+		local yhi = (addr & 0x1fc0) << 2	-- y coord << 8
+		addr = x | yhi
+		pokew(spriteSheetAddr + addr, (value&0xf)|((value&0xf0)<<4))	-- write the lo nibble to one pixel , the hi to the next
+	elseif addr>=0x8000 and addr<0xff80 then	-- tilemap
 		addr-=0x8000
 		local x=addr%240
 		local y=(addr-x)/240
 		addr=(x|(y<<8))<<1
-		return pokew(tilemapAddr+addr,(value&0xf)|((value&0xf0)<<1))
+		pokew(tilemapAddr+addr,(value&0xf)|((value&0xf0)<<1))
+	elseif addr>=0x13ffc and addr<0x14000 then
+		-- TODO what's the music state? currently playing track?
+		musicState[addr-0x13ffc]=value
+	--[[
+	elseif addr>=0x14604 and addr<0x149fc then
+		font, size 1016 bytes
+	--]]
+	elseif addr>=0x149fc and addr<0x14a04 then
+		fontParams[addr-0x149fc] = value
+	else
+trace(('TODO poke $%x '):format(addr)..tostring(value))
 	end
-trace(('TODO poke $%x '):format(addr)..tostring(bits)..' '..tostring(value))
 end
 -- default to 0 ... does tic80 really need this?
 ticbit={
@@ -100,7 +171,7 @@ ticbit={
 	rol=[a,b]bit.rol(a or 0, b or 0),
 	ror=[a,b]bit.ror(a or 0, b or 0),
 }
-setfenv(1, {
+local newG = {
 	btn=[b]btn(b&7,b>>3),
 	btnp=[b,...]btnp(b&7,b>>3,...),
 	circ=[x,y,r,...]elli(x-r,y-r,(r<<1)+1,(r<<1)+1,...),
@@ -117,7 +188,11 @@ setfenv(1, {
 	end,
 	--font(text x y chromakey char_width char_height fixed=false scale=1 alt=false) -> width`
 	font=[s,x,y,k,w,h,fixed,scale,alt]do
-		return text(s,x,y,w*scale/8,h*scale/8)	-- TODO
+		if not warning_font then
+			warning_font = true
+			trace('TODO font')
+		end
+		return text(s,x,y,w*scale/8,h*scale/8)
 	end,
 	fset=[i,f,v]do
 		i=math.floor(i)
@@ -146,11 +221,17 @@ setfenv(1, {
 		screenX=screenX or 0
 		screenY=screenY or 0
 		if colorkey then
-trace'TODO map colorkey'
+			if not warning_map_colorkey then
+				warning_map_colorkey = true
+				trace'TODO map colorkey'
+			end
 		end
 		scale = scale or 1
 		if remap then
-trace'TODO map remap'
+			if not warning_map_remap then
+				warning_map_remap = true
+				trace'TODO map remap'
+			end
 			-- if my tilemap address is relocatable then I could implement this as just every single frame copying it into a temporary buffer and then rendering that
 			-- or I could implement remap() myself, but it seems like it would be incredibly slow
 			-- or I could just implement its functionality in-shader using a tilemap-"palette" that maps to another tilemap entry
@@ -178,7 +259,10 @@ trace'TODO map remap'
 	mget=[x,y]mget(x,y) or 0,	-- TODO what's the default for mget?
 	mset=[x,y,v]mset(x,y,v),
 	music=[]do
-		trace'TODO music'
+		if not warning_music then
+			warning_music = true
+			trace'TODO music'
+		end
 	end,
 	peek=ticpeek,
 	peek1=[i]ticpeek(i,1),
@@ -215,7 +299,12 @@ trace'TODO map remap'
 	rect=rect,
 	rectb=rectb,
 	reset=reset,
-	sfx=[] trace'TODO sfx',
+	sfx=[]do
+		if not warning_sfx then
+			warning_sfx = true
+			trace'TODO sfx'
+		end
+	end,
 	spr=[n,x,y,colorkey,scale,flip,rotate,w,h]do
 		-- https://github.com/nesbox/TIC-80/wiki/spr
 		rotate = rotate or 0
@@ -223,7 +312,7 @@ trace'TODO map remap'
 		local bankno=bit.rshift(n, 8)
 		n&=0xff
 		local nx=n&0xf
-		local ny=(n>>4)0xf
+		local ny=(n>>4)&0xf
 		local sheet=n>>8
 		n=nx|(ny<<5)|(sheet<<10)
 		w=math.floor(w or 1)
@@ -244,11 +333,21 @@ trace'TODO map remap'
 			spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
 		end
 	end,
-	sync=[] trace'TODO sync',
+	sync=[] do
+		if not warning_sync then
+			warning_sync=true
+			trace'TODO sync'
+		end
+	end,
 	time=[] 1000*time(),
 	trace=trace,
 	tri=tri,
-	trib=[] trace'TODO trib',
+	trib=[] do
+		if not warning_trib then
+			warning_trib=true
+			trace'TODO trib'
+		end
+	end,
 	textri=[x1,y1,x2,y2,x3,y3,u1,v1,u2,v2,u3,v3,use_map,transparentIndex]do
 		-- https://github.com/nesbox/TIC-80/wiki/textri
 		ttri3d(
@@ -276,8 +375,13 @@ trace'TODO map remap'
 			transparentIndex)
 	end,
 	tstamp=tstamp,
-	ttri=[] trace'TODO ttri',
-	vbank=[] trace'TODO vbank',
+	vbank=[] do
+		-- https://github.com/nesbox/TIC-80/wiki/vbank
+		if not warned_vbank then
+			warned_vbank = true
+			trace'TODO vbank'
+		end
+	end,
 
 --[[
 	getfenv=getfenv,
@@ -291,9 +395,10 @@ trace'TODO map remap'
 	ipairs=ipairs,
 	type=type,
 	bit=ticbit,
-	math=math,	-- TODO original math
-	table=table,	-- TODO original table
-	string=string,	-- TODO original string
+	math=math,				-- TODO original math
+	table=table,			-- TODO original table
+	string=string,			-- TODO original string
+	coroutine=coroutine,	-- TODO original coroutine
 	langfix={	-- needed for langfix to work
 		idiv=[a,b] tonumber(langfix.idiv(a,b)),
 	},
@@ -308,4 +413,6 @@ trace'TODO map remap'
 			--if bdr then bdr() end
 		end
 	end,
-})
+}
+newG._G = newG
+setfenv(1, newG)
