@@ -2453,7 +2453,15 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 end
 
 
--- so long as everyone starts inside the track bounds, it goes decently fast.  but if any players start oob, the framerate drops to slow.
+--[[
+so long as everyone starts inside the track bounds, it goes decently fast.  but if any players start oob, the framerate drops to slow.
+... what if I just staggered the time of the initial spawns and still have them all spawn at the same position?
+... and then have AI take over the players when they are not driving?
+
+What should the splash screen even look like?
+- # of laps ... 100, 1000, 10000
+- #
+--]]
 local maxPlayers=20
 local inMenu = true
 local menuSel = 0

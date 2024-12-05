@@ -549,20 +549,20 @@ function App:initGL()
 			return self:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 		end,
 
-		spr = function(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
+		spr = function(spriteIndex, screenX, screenY, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
 			if self.server then
 				-- TODO I'm calculating default values twice ...
 				-- TODO move the server netcmd stuff into a separate intermediate function
 				-- TODO same with all the drawSolidRect stuff
-				spritesWide = spritesWide or 1
-				spritesHigh = spritesHigh or 1
+				tilesWide = tilesWide or 1
+				tilesHigh = tilesHigh or 1
 				scaleX = scaleX or 1
 				scaleY = scaleY or 1
 				-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
 				spriteIndex = math.floor(spriteIndex or 0)
 				local tx = bit.band(spriteIndex, 0x1f)
 				local ty = bit.band(bit.rshift(spriteIndex, 5), 0x1f)
-				local sheetIndex = bit.rshift(spriteIndx, 10)
+				local sheetIndex = bit.rshift(spriteIndex, 10)
 
 				paletteIndex = paletteIndex or 0
 				transparentIndex = transparentIndex or -1
@@ -573,19 +573,25 @@ function App:initGL()
 				cmd.type = netcmds.quad
 				cmd.x = screenX
 				cmd.y = screenY
-				cmd.w = spritesWide * spriteSize.x * scaleX
-				cmd.h = spritesHigh * spriteSize.y * scaleY
-				cmd.tx = tx / tonumber(spriteSheetSizeInTiles.x)
-				cmd.ty = ty / tonumber(spriteSheetSizeInTiles.y)
-				cmd.tw = spritesWide / tonumber(spriteSheetSizeInTiles.x)
-				cmd.th = spritesHigh / tonumber(spriteSheetSizeInTiles.y)
+				cmd.w = tilesWide * spriteSize.x * scaleX
+				cmd.h = tilesHigh * spriteSize.y * scaleY
+				cmd.tx = bit.lshift(tx, 3)
+				cmd.ty = bit.lshift(ty, 3)
+				cmd.tw = bit.lshift(tilesWide, 3) - 1
+				cmd.th = bit.lshift(tilesHigh, 3) - 1
 				cmd.paletteIndex = paletteIndex
 				cmd.transparentIndex = transparentIndex
 				cmd.spriteBit = spriteBit
 				cmd.spriteMask = spriteMask
 				cmd.sheetIndex = sheetIndex
 			end
-			return self:drawSprite(spriteIndex, screenX, screenY, spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
+			return self:drawSprite(
+				spriteIndex,
+				screenX, screenY,
+				tilesWide, tilesHigh,
+				paletteIndex, transparentIndex,
+				spriteBit, spriteMask,
+				scaleX, scaleY)
 		end,
 
 		-- like spr() but for inter-tile rendering
