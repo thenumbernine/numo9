@@ -51,6 +51,8 @@ local assert = require 'ext.assert'
 local getTime = require 'ext.timer'.getTime
 local struct = require 'struct'
 local vector = require 'ffi.cpp.vector-lua'
+local zlibCompressLua = require 'ffi.req' 'zlib' .compressLua
+local zlibUncompressLua = require 'ffi.req' 'zlib' .uncompressLua
 
 local numo9_keys = require 'numo9.keys'
 local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode
@@ -58,26 +60,8 @@ local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
 local maxPlayersTotal = numo9_keys.maxPlayersTotal
 
 local numo9_rom = require 'numo9.rom'
-local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
-local tileSheetInBytes = numo9_rom.tileSheetInBytes
-local tilemapInBytes = numo9_rom.tilemapInBytes
-local paletteInBytes = numo9_rom.paletteInBytes
-local fontInBytes = numo9_rom.fontInBytes
-local framebufferInBytes = numo9_rom.framebufferInBytes
-local clipRectInBytes = numo9_rom.clipRectInBytes
-local mvMatInBytes = numo9_rom.mvMatInBytes
 local deltaCompress = numo9_rom.deltaCompress
 
-
-local ramStateSize = 0
-	+ spriteSheetInBytes
-	+ tileSheetInBytes
-	+ tilemapInBytes
-	+ paletteInBytes
-	+ fontInBytes
-	+ framebufferInBytes
-	+ clipRectInBytes
-	+ mvMatInBytes
 
 -- TOOD how about a net-string?
 -- pascal-string-encoded: length then data
@@ -1100,22 +1084,14 @@ print'sending initial RAM state...'
 	serverConn.toSend:insert'\xff\xff\xff\xff'
 
 	-- send back current state of the game ...
-	-- TODO send RAM state size / # banks
-	local ramState =
-		  ffi.string(ffi.cast('char*', app.ram.framebuffer), framebufferInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.clipRect), clipRectInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.mvMat), mvMatInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].spriteSheet), spriteSheetInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].tileSheet), tileSheetInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].tilemap), tilemapInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].palette), paletteInBytes)
-		..ffi.string(ffi.cast('char*', app.ram.bank[0].font), fontInBytes)
-
-	assert.len(ramState, ramStateSize)
-	serverConn.toSend:insert(ramState)
-	-- ROM includes spriteSheet, tileSheet, tilemap, palette, code
-
---require'ext.path''server_init.txt':write(string.hexdump(ramState))
+	-- send RAM state
+	local ramState = ffi.string(app.ram.v, app.memSize)
+--DEBUG:require'ext.path''server_init.txt':write(string.hexdump(ramState))
+	local ramStateCompressed = zlibCompressLua(ramState)
+	local ramStateCompressedSize = ffi.new'uint32_t[1]'
+	ramStateCompressedSize[0] = #ramStateCompressed
+	local ramStateCompressedSizeStr = ffi.string(ramStateCompressedSize, 4)
+	serverConn.toSend:insert(ramStateCompressedSizeStr..ramStateCompressed)
 end
 
 
@@ -1282,58 +1258,65 @@ print'begin client listen loop...'
 					elseif index == 0xffff and value == 0xffff then
 						-- new RAM dump message
 
-						-- [[
-						local ramState = assert(receive(sock, ramStateSize, 10))
-						--]]
-						--[[
-						local result = table.pack(receive(sock, ramStateSize, 10))
-print('...got', result:unpack())
-						local ramState = result:unpack()
-						--]]
+						local ramStateCompressedSizeStr = assert(receive(sock, 4, 10))
+						local ramStateCompressedSize = assert(tonumber(ffi.cast('uint32_t*', ffi.cast('char*', ramStateCompressedSizeStr))[0]))
+						local ramStateCompressed = assert(receive(sock, ramStateCompressedSize, 10))
+						local ramState = zlibUncompressLua(ramStateCompressed)
 --print(string.hexdump(ramState))
 
-						assert.len(ramState, ramStateSize)
---require'ext.path''client_init.txt':write(string.hexdump(ramState))
+--DEBUG:require'ext.path''client_init.txt':write(string.hexdump(ramState))
 						-- and decode it
 						local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))
 
-						-- make sure gpu changes are in cpu as well
-						app.framebufferRAM:checkDirtyGPU()
-
 						-- flush GPU
-						-- TODO multiple banks
-						ffi.copy(app.ram.framebuffer, ptr, framebufferInBytes)	ptr=ptr+framebufferInBytes
-						ffi.copy(app.ram.clipRect, ptr, clipRectInBytes)		ptr=ptr+clipRectInBytes
-						ffi.copy(app.ram.mvMat, ptr, mvMatInBytes)				ptr=ptr+mvMatInBytes
-						ffi.copy(app.ram.bank[0].spriteSheet, ptr, spriteSheetInBytes)	ptr=ptr+spriteSheetInBytes
-						ffi.copy(app.ram.bank[0].tileSheet, ptr, tileSheetInBytes)		ptr=ptr+tileSheetInBytes
-						ffi.copy(app.ram.bank[0].tilemap, ptr, tilemapInBytes)			ptr=ptr+tilemapInBytes
-						ffi.copy(app.ram.bank[0].palette, ptr, paletteInBytes)			ptr=ptr+paletteInBytes
-						ffi.copy(app.ram.bank[0].font, ptr, fontInBytes)				ptr=ptr+fontInBytes
-						-- TODO copy music too?
-						-- set all dirty as well
+						-- make sure gpu changes are in cpu as well
+						app:allRAMRegionsCheckDirtyGPU()
+						app:allRAMRegionsCheckDirtyCPU()
+
+						local newMemSize = #ramState
+--DEBUG:print('newMemSize', newMemSize)
+						local newNumBanks = math.ceil((newMemSize - ffi.sizeof'RAM') / ffi.sizeof'ROM') + 1
+--DEBUG:print('newNumBanks fraction', (newMemSize - ffi.sizeof'RAM') / ffi.sizeof'ROM' + 1)
+--DEBUG:print('newNumBanks', newNumBanks)
+						app.banks:resize(newNumBanks)	-- hmm but idk that I use this in netplay...
+						app.memSize = newMemSize
+						app.holdram = ffi.new('uint8_t[?]', app.memSize)
+						app.ram = ffi.cast('RAM&', app.holdram)
+						ffi.copy(app.ram, ramState, app.memSize)
+
+						app:resizeRAMGPUs()	-- resizes # of RAMGPU objects, sets them to their default address too
+						app:setVideoMode(app.ram.videoMode)
+
+						app.framebufferRGB565RAM.dirtyCPU = true
+						app.framebufferRGB565RAM:updateAddr(app.ram.framebufferAddr:toabs())
+						app.framebufferIndexRAM.dirtyCPU = true
+						app.framebufferIndexRAM:updateAddr(app.ram.framebufferAddr:toabs())
 						for _,sheetRAM in ipairs(app.sheetRAMs) do
 							sheetRAM.dirtyCPU = true
+							sheetRAM:checkDirtyCPU()	-- and flush
 						end
-						app.tilemapRAM.dirtyCPU = true
-						app.paletteRAM.dirtyCPU = true
-						app.fontRAM.dirtyCPU = true
-						app.framebufferRAM.dirtyCPU = true
+						app.sheetRAMs[1]:updateAddr(app.ram.spriteSheetAddr:toabs())
+						for _,tilemapRAM in ipairs(app.tilemapRAMs) do
+							tilemapRAM.dirtyCPU = true
+							tilemapRAM:checkDirtyCPU()
+						end
+						app.tilemapRAMs[1]:updateAddr(app.ram.tilemapAddr:toabs())
+						for _,paletteRAM in ipairs(app.paletteRAMs) do
+							paletteRAM.dirtyCPU = true
+							paletteRAM:checkDirtyCPU()
+						end
+						app.paletteRAMs[1]:updateAddr(app.ram.paletteAddr:toabs())
+						for _,fontRAM in ipairs(app.fontRAMs) do
+							fontRAM.dirtyCPU = true
+							fontRAM:checkDirtyCPU()
+						end
+						app.fontRAMs[1]:updateAddr(app.ram.fontAddr:toabs())
+						app:mvMatFromRAM()
+						--app:resetVideo()
 						app.framebufferRAM.changedSinceDraw = true
 
-						app:mvMatFromRAM()
-
-						-- [[ this should be happenign every frame regardless...
-						for _,sheetRAM in ipairs(app.sheetRAMs) do
-							sheetRAM:checkDirtyGPU()
-						end
-						app.tilemapRAM:checkDirtyCPU()
-						app.paletteRAM:checkDirtyCPU()
-						app.fontRAM:checkDirtyCPU()
-						app.framebufferRAM:checkDirtyCPU()
-						--]]
-
-						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
+						--break	-- stop recv'ing and process data ... 
+						-- BAD idea, this slows the framerate down incredibly
 					else
 						local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
 						if neededSize >= self.nextCmds.size then
