@@ -831,8 +831,23 @@ function App:initGL()
 		setfenv = setfenv,
 
 		-- sandboxed load
-		load = function(s, name)
-			return load(s, name, 't', self.env)
+
+		load = function(cmd, ...)
+			-- ok so ... load() is Lua's load()
+			-- but in pico8 and tic80, `load` is also the console command for loading carts
+			-- which is where my open() function comes in
+			-- but sometimes I forget,
+			--[[ so for moments like those, I'm tempted to have a check here to see if the file exists, and then just do an open() instead if it does ...
+			for _,suffix in ipairs{'', '.n9', '.n9.png'} do
+				local checkfn = cmd..suffix
+				if self.fs:get(checkfn) then
+					return self:loadROM(cmd)
+				end
+			end
+			--]]
+
+			return self:loadCmd(cmd, ...)
+			--return self:loadCmd(cmd, source, self.gameEnv)  -- should it use the game's env, or the app's default env? or should it be an arg?
 		end,
 	}
 
@@ -2305,7 +2320,7 @@ assert.eq(self.memSize, ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1))
 end
 
 -- returns the function to run the code
-function App:loadCmd(cmd, env, source)
+function App:loadCmd(cmd, source, env)
 	-- Lua is wrapping [string "  "] around my source always ...
 	return self.loadenv.load(cmd, source, 't', env or self.env)
 end
@@ -2325,16 +2340,12 @@ function App:runCmd(cmd)
 	return xpcall(f, errorHandler)
 	--]]
 	-- [[ error always
-	local f, msg = self:loadCmd(
-		cmd,
-		-- TODO if there's a cartridge loaded then why not use its env, for debugging eh?
-		--self.gameEnv or -- would be nice but gameEnv doesn't have langfix, i.e. self.env
-		self.env,
-		'con'
-	)
+	local f, msg = self:loadCmd('return '..cmd, 'con')	-- return prepend first or second?
+	-- TODO if there's a cartridge loaded then why not use its env, for debugging eh?
+	--, self.gameEnv -- would be nice but gameEnv doesn't have langfix, i.e. self.env
 	-- if it fails then try again with a 'return' on the front ...
 	if not f then
-		f = self:loadCmd('return '..cmd, self.env, 'con')
+		f = self:loadCmd(cmd, 'con')
 		-- if f fails again then use the first error message (right?)
 	end
 	if not f then
@@ -2377,7 +2388,7 @@ function App:runROM()
 		self.ram.romUpdateCounter = 0
 
 		-- here, if the assert fails then it's a parse error, and you can just pcall / pick out the offender
-		local f, msg = self:loadCmd(code, env, self.currentLoadedFilename)
+		local f, msg = self:loadCmd(code, self.currentLoadedFilename, env)
 		if not f then
 			--print(msg)
 			self.con:print(msg)
