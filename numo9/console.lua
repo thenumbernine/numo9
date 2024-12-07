@@ -75,17 +75,15 @@ function Console:resetThread()
 	end)
 end
 
+-- TODO maybe, merge this with App:runCmd?
 function Console:runCmdBuf()
 	local app = self.app
 	local cmd = self.cmdbuf
 	self.cmdHistory:insert(cmd)
 	self.cmdHistoryIndex = nil
 	self.cmdbuf = ''
-	self:write'\n'
+	self:print(app.fs.cwd:path()..self.prompt..cmd)
 	self.needsPrompt = true
-
-	-- TODO merge this with App:runCmd?
-	cmd = cmd:gsub('^=', 'return ')
 	app:runCmd(cmd)
 end
 
@@ -142,15 +140,6 @@ function Console:addCharToScreen(ch)
 	end
 end
 
-function Console:write(...)
-	for j=1,select('#', ...) do
-		local s = tostring(select(j, ...))
-		for i=1,#s do
-			self:addCharToScreen(s:byte(i,i))
-		end
-	end
-end
-
 function Console:print(...)
 print(...)
 	local s = ''
@@ -161,7 +150,19 @@ print(...)
 	-- TODO do we still want colored console text?
 	-- I could save it per-line or per-letter
 	-- or meh just not ...
+	--[[ add line without truncating
 	self.lines:insert(1, s)
+	--]]
+	-- [[ chop lines up
+	local maxcol = math.floor(tonumber(frameBufferSize.x) / menuFontWidth)
+	while #s > maxcol do
+		self.lines:insert(1, s:sub(1,maxcol))
+		s = s:sub(maxcol+1)
+	end
+	if #s > 0 then
+		self.lines:insert(1, s)
+	end
+	--]]
 end
 
 -- because everyone else is doing it
@@ -227,8 +228,17 @@ function Console:update()
 
 	self.cursorPos.x = 0
 	self.cursorPos.y = 0
+	local maxcol = math.floor(tonumber(frameBufferSize.x) / menuFontWidth)
 	for i=shownLines,1,-1 do
-		app:drawMenuText(self.lines[i], 0, self.cursorPos.y, self.fgColor, self.bgColor)
+		local l = self.lines[i]
+		--[[ hmm TODO split up lines in display, or split them up when adding them?
+		while #l > maxcol do
+			app:drawMenuText(l:sub(1,maxcol), 0, self.cursorPos.y, self.fgColor, self.bgColor)
+			l = l:sub(maxcol+1)
+			self.cursorPos.y = self.cursorPos.y + 8
+		end
+		--]]
+		app:drawMenuText(l, 0, self.cursorPos.y, self.fgColor, self.bgColor)
 		self.cursorPos.y = self.cursorPos.y + 8
 	end
 	local s = app.fs.cwd:path()..self.prompt..self.cmdbuf

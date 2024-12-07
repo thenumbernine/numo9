@@ -266,7 +266,6 @@ function App:initGL()
 -- and then implement auto-scroll
 -- none of this console buffering crap
 		print = function(...) return self.con:print(...) end,
-		--write = function(...) return self.con:write(...) end,
 		trace = _G.print,
 
 		run = function(...) return self:runROM(...) end,
@@ -2311,8 +2310,14 @@ function App:loadCmd(cmd, env, source)
 	return self.loadenv.load(cmd, source, 't', env or self.env)
 end
 
--- system() function
--- TODO fork this between console functions and between running "rom" code
+--[[
+system() function
+TODO fork this between console functions and between running "rom" code
+TODO 'return' prefix xpcall like interpreter does? or do that in caller?
+but then the caller would risk extra prints ...
+... unless I moved print outside this function too ...
+This is only run from -e init and from numo9/console.lua so I'll just do it here.
+--]]
 function App:runCmd(cmd)
 	--[[ suppress always
 	local f, msg = self:loadCmd(cmd)
@@ -2320,20 +2325,23 @@ function App:runCmd(cmd)
 	return xpcall(f, errorHandler)
 	--]]
 	-- [[ error always
-	local result = table.pack(assert(self:loadCmd(
+	local f, msg = self:loadCmd(
 		cmd,
 		-- TODO if there's a cartridge loaded then why not use its env, for debugging eh?
 		--self.gameEnv or -- would be nice but gameEnv doesn't have langfix, i.e. self.env
 		self.env,
 		'con'
-	))())
-	-- print without newline ...
-	for i=1,result.n do
-		if i>1 then self.con:write'\t' end
-		self.con:write(tostring(result[i]))
+	)
+	-- if it fails then try again with a 'return' on the front ...
+	if not f then
+		f = self:loadCmd('return '..cmd, self.env, 'con')
+		-- if f fails again then use the first error message (right?)
 	end
-	print(result:unpack())
-	--assert(result:unpack())
+	if not f then
+		error(msg)
+	end
+	local result = table.pack(f())
+	self.con:print(result:unpack())
 	return result:unpack()
 	--]]
 end
