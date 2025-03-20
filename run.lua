@@ -34,6 +34,10 @@ for i=#cmdline,1,-1 do
 		table.remove(cmdline, i)
 		cmdline.glsl = table.remove(cmdline, i)
 	end
+	if cmdline[i] == '-noaudio' then
+		table.remove(cmdline, i)
+		cmdline.noaudio = true
+	end
 end
 
 require 'gl.setup'(cmdline.gl or 'OpenGL')
