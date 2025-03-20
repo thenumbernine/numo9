@@ -416,6 +416,8 @@ luajit run.lua -e "connect'<address>'"
 
 `-glsl <glsl version>` = use GLSL version.  This is your `#version` pragma that goes in your GLSL code.
 
+`-noaudio` = don't use audio.
+
 ... any other arguments are assumed to be the input cartridge file to load.
 
 # Cartridges

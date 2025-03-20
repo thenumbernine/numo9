@@ -1,3 +1,17 @@
+if cmdline.noaudio then
+	local AppAudio = {}
+	function AppAudio:initAudio() end
+	function AppAudio:resetAudio() end
+	function AppAudio:updateAudio() end
+	function AppAudio:updateSoundEffects() end
+	function AppAudio:setMusicPlayingToMusic(music) end
+	function AppAudio:updateMusicPlaying(musicPlaying) end
+	function AppAudio:updateMusic() end
+	function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping) end
+	function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset) end
+	return {AppAudio = AppAudio}
+end
+
 local ffi = require 'ffi'
 local sdl = require 'sdl'
 local sdlAssertZero = require 'sdl.assert'.zero
