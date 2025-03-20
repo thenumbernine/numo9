@@ -695,7 +695,7 @@ function AppVideo:initVideo()
 	-- and here's our blend solid-color option...
 	local function getDrawOverrideCode(vec3)
 		return [[
-	if (drawOverrideSolid.a > 0) {
+	if (drawOverrideSolid.a > 0.) {
 		fragColor.rgb = ]]..vec3..[[(drawOverrideSolid.rgb);
 	}
 ]]
@@ -1770,9 +1770,9 @@ void main() {
 #endif
 
 
-	colorIndex += palHi << 4;
+	colorIndex += uint(palHi) << 4;
 ]]..info.colorOutput..[[
-	if (fragColor.a == 0.) discard;
+	if (fragColor.a == <?=fragType == 'uvec4' and '0u' or '0.'?>) discard;
 }
 ]],				{
 					fragType = fragTypeForTex(info.framebufferRAM.tex),
