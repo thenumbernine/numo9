@@ -26,9 +26,16 @@ for i=#cmdline,1,-1 do
 		cmdline.editor = true
 		cmdline.nosplash = true
 	end
+	if cmdline[i] == '-gl' then
+		table.remove(cmdline, i)
+		cmdline.gl = table.remove(cmdline, i)
+	end
+	if cmdline[i] == '-glsl' then
+		table.remove(cmdline, i)
+		cmdline.glsl = table.remove(cmdline, i)
+	end
 end
 
--- TODO gl setup here
-require 'gl'
+require 'gl.setup'(cmdline.gl or 'OpenGL')
 
 return require 'numo9.app'():run()

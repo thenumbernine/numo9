@@ -412,6 +412,10 @@ luajit run.lua -e "connect'<address>'"
 
 `-editor` = start in editor.
 
+`-gl <gl version>` = use GL library, options are `OpenGL`, `OpenGLES3`.
+
+`-glsl <glsl version>` = use GLSL version.  This is your `#version` pragma that goes in your GLSL code.
+
 ... any other arguments are assumed to be the input cartridge file to load.
 
 # Cartridges

@@ -677,6 +677,9 @@ function AppVideo:initVideo()
 	--local glslVersion = '310 es'
 	--local glslVersion = '320 es'
 
+	-- allow override
+	glslVersion = cmdline.glsl or glslVersion
+
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	-- assert palleteSize is a power-of-two ...
 	local function colorIndexToFrag(tex, decl)
@@ -720,8 +723,8 @@ function AppVideo:initVideo()
 colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 [[
 	fragColor.r = colorIndex;
-	fragColor.g = 0;
-	fragColor.b = 0;
+	fragColor.g = 0u;
+	fragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
 	fragColor.a = uint(palColor.a * 255.);
 ]],
@@ -748,8 +751,8 @@ colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 	fragColor.r = (r5 >> 2) |
 				((g5 >> 2) << 3) |
 				((b5 >> 3) << 6);
-	fragColor.g = 0;
-	fragColor.b = 0;
+	fragColor.g = 0u;
+	fragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
 	fragColor.a = uint(palColor.a * 255.);
 ]],		{
@@ -779,6 +782,8 @@ colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
+precision highp usampler2D;	// needed by #version 300 es
+
 layout(location=0) in vec2 vertex;
 out vec2 tcv;
 uniform mat4 mvProjMat;
@@ -788,6 +793,8 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
@@ -826,6 +833,8 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
+precision highp usampler2D;	// needed by #version 300 es
+
 layout(location=0) in vec2 vertex;
 out vec2 tcv;
 uniform mat4 mvProjMat;
@@ -835,6 +844,8 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
@@ -881,6 +892,8 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
+precision highp usampler2D;	// needed by #version 300 es
+
 layout(location=0) in vec2 vertex;
 out vec2 tcv;
 uniform mat4 mvProjMat;
@@ -890,6 +903,8 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
@@ -939,6 +954,8 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 layout(location=0) in vec2 vertex;
 out vec2 pixelPos;
 uniform vec3 pos0;
@@ -967,6 +984,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 pixelPos;
 layout(location=0) out <?=fragType?> fragColor;
 
@@ -1009,6 +1028,8 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 layout(location=0) in vec3 vertex;
 out vec2 pixelPos;
 uniform mat4 mvMat;
@@ -1028,6 +1049,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 pixelPos;
 layout(location=0) out <?=fragType?> fragColor;
 
@@ -1075,6 +1098,8 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 layout(location=0) in vec2 vertex;
 out vec2 pixelPos;
 out vec2 pcv;	// unnecessary except for the sake of 'round' ...
@@ -1097,6 +1122,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 pcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
 in vec2 pixelPos;	// framebuffer pixel coordaintes after transform, so they really are framebuffer coordinates
 
@@ -1202,6 +1229,8 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 vertex;
 in vec2 texcoord;
 out vec2 tcv;
@@ -1224,6 +1253,8 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 tcv;
 in vec2 pixelPos;
 
@@ -1282,7 +1313,7 @@ void main() {
 <?=info.colorOutput?>
 
 <? if fragType == 'uvec4' then ?>
-	if (fragColor.a == 0) discard;
+	if (fragColor.a == 0u) discard;
 <? else ?>
 	if (fragColor.a < .5) discard;
 <? end ?>
@@ -1340,6 +1371,8 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 vertex;
 in vec2 texcoord;
 in uint spriteBitAttr;
@@ -1365,6 +1398,8 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 tcv;
 in vec2 pixelPos;
 
@@ -1423,7 +1458,7 @@ void main() {
 <?=info.colorOutput?>
 
 <? if fragType == 'uvec4' then ?>
-	if (fragColor.a == 0) discard;
+	if (fragColor.a == 0u) discard;
 <? else ?>
 	if (fragColor.a < .5) discard;
 <? end ?>
@@ -1581,6 +1616,8 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 vertex;
 out vec2 tcv;
 out vec2 pixelPos;
@@ -1604,6 +1641,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+precision highp usampler2D;	// needed by #version 300 es
+
 in vec2 tcv;
 in vec2 pixelPos;
 layout(location=0) out <?=fragType?> fragColor;
