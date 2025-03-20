@@ -1654,8 +1654,8 @@ uniform <?=samplerTypeForTex(self.tilemapRAM.tex)?> tilemapTex;
 uniform <?=samplerTypeForTex(self.tileSheetRAM.tex)?> tileSheetTex;
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
-const uint tilemapSizeX = <?=tilemapSize.x?>;
-const uint tilemapSizeY = <?=tilemapSize.y?>;
+const uint tilemapSizeX = <?=tilemapSize.x?>u;
+const uint tilemapSizeY = <?=tilemapSize.y?>u;
 
 uniform vec4 drawOverrideSolid;
 
