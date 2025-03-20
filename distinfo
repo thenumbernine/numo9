@@ -101,6 +101,7 @@ elseif ffi.os == 'Windows' then
 end
 
 -- binary libs needed for luajit
+-- TODO how about consulting ffi/load.lua for where these are
 luajitLibs = {
 	win = {
 		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
