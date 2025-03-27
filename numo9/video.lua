@@ -2478,7 +2478,7 @@ function AppVideo:drawQuad(
 
 	self:drawQuadTex(
 		x, y, w, h,
-		tx / 256, ty / 256, (tw+1) / 256, (th+1) / 256,
+		tx / 256, ty / 256, tw / 256, th / 256,
 		sheetRAM.tex, self.paletteRAM.tex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 
 	self.framebufferRAM.dirtyGPU = true
@@ -2612,8 +2612,8 @@ function AppVideo:drawSprite(
 		-- tx ty tw th in [0,255] pixels
 		bit.lshift(tx, 3),
 		bit.lshift(ty, 3),
-		bit.lshift(tilesWide, 3)-1,
-		bit.lshift(tilesHigh, 3)-1,
+		bit.lshift(tilesWide, 3),
+		bit.lshift(tilesHigh, 3),
 		sheetIndex,
 		paletteIndex,
 		transparentIndex,

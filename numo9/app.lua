@@ -576,8 +576,8 @@ function App:initGL()
 				cmd.h = tilesHigh * spriteSize.y * scaleY
 				cmd.tx = bit.lshift(tx, 3)
 				cmd.ty = bit.lshift(ty, 3)
-				cmd.tw = bit.lshift(tilesWide, 3) - 1
-				cmd.th = bit.lshift(tilesHigh, 3) - 1
+				cmd.tw = bit.lshift(tilesWide, 3)
+				cmd.th = bit.lshift(tilesHigh, 3)
 				cmd.paletteIndex = paletteIndex
 				cmd.transparentIndex = transparentIndex
 				cmd.spriteBit = spriteBit
