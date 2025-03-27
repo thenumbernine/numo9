@@ -3,6 +3,8 @@ shipMoveUpSprite=32
 shipMoveDownSprite=64
 playerShotSprite=2
 
+explodeSprites={4,6,8,10}
+
 enemySprites={96,98,100}
 enemyShotSprite = 3
 
@@ -11,7 +13,7 @@ scrollX,scrollY=0,0
 mx,my=0,0
 
 -- player stats
-playerDead = false
+playerDeadTime = nil
 playerX,playerY=32,128-4
 playerVelX,playerVelY=0,0
 nextshottime = 0
@@ -21,6 +23,11 @@ playerShoot=[playerVelX,playerVelY]do
 	if time() < nextshottime then return end
 	playerShots:insert{x=playerX+8,y=playerY,vx=playerVelX,vy=playerVelY}
 	nextshottime = time() + 1/10
+end
+
+local explosions = table()
+makeExplosion=[x,y]do
+	explosions:insert{x=x,y=y,time=time()}
 end
 
 local enemyShots = table()
@@ -55,6 +62,25 @@ makeEnemy=[x,y,class]do
 	}, Enemy))
 end
 
+reset=[]do
+	scrollX,scrollY = 0,0
+	mx,my = 0,0
+	playerDeadTime = nil
+	playerX, playerY = 32, 128-4
+	playerVelX, playerVelY = 0, 0
+	nextshottime = 0
+	playerShots = table()
+	explosions = table()
+	enemyShots = table()
+	enemies = table()
+
+	-- TODO for the sake of level state,
+	-- copy whatever loaded level into tilemap slot 0 or something
+	-- and then we can modify the level as we play it (erase enemy spawn markers etc)
+	-- and reset() will work fine
+end
+reset()
+
 local scrollSpeed = .5
 update=[]do
 	cls()
@@ -85,7 +111,7 @@ update=[]do
 		end
 	end
 
-	if not playerDead then
+	if not playerDeadTime then
 		spr(playerVelY < 0 and shipMoveUpSprite or
 			(playerVelY > 0 and shipMoveDownSprite or
 			shipSprite),playerX,playerY,2,1)
@@ -102,6 +128,10 @@ update=[]do
 		playerY+=playerVelY
 		-- should coords be relative to screen or relative to level?  hmm...
 		--playerX += 1	-- whatever the scroll screen is ...? 
+	else
+		if time() > playerDeadTime + 5 then
+			reset()
+		end
 	end
 
 	for i=#playerShots,1,-1 do
@@ -122,8 +152,8 @@ update=[]do
 			then
 				enemies:remove(j)
 				playerShots:remove(i)
+				makeExplosion(s.x, s.y)
 				goto playerShotDone
-				-- TODO explosion
 			end
 		end
 ::playerShotDone::
@@ -143,13 +173,14 @@ update=[]do
 			goto enemyShotDone
 		end
 		local e = enemies[j]
-		if s.x+1 >= playerX-8 and s.x-1 <= playerX+8
+		if not playerDeadTime
+		and s.x+1 >= playerX-8 and s.x-1 <= playerX+8
 		and s.y+1 >= playerY-4 and s.y-1 <= playerY+4
 		then
 --trace('...hit player, removing')			
 			enemyShots:remove(i)
-			-- TODO explosion...
-			playerDead = true
+			makeExplosion(s.x, s.y)
+			playerDeadTime = time()
 			goto enemyShotDone
 		end
 ::enemyShotDone::
@@ -159,10 +190,21 @@ update=[]do
 -- [[
 	for i=#enemies,1,-1 do
 		local e = enemies[i]
-		spr(enemySprites[1],e.x,e.y)
+		local frame = math.floor((time() - e.time) * 5) % #enemySprites
+		spr(enemySprites[frame+1],e.x,e.y, 2, 1)
 		local t = time() - e.time
 		e.x -= 1 + math.cos(2*math.pi*t)
 		e.y += math.sin(2*math.pi*t)
+
+		-- blow up upon crash
+		if not playerDeadTime
+		and e.x+8 >= playerX-8 and e.x-8 <= playerX+8
+		and e.y+4 >= playerY-4 and e.y-4 <= playerY+4
+		then
+			playerDeadTime = time()
+			makeExplosion(e.x, e.y)
+			makeExplosion(playerX, playerY)
+		end
 
 		if math.random() < .01 then
 			e:shootPlayer()
@@ -174,4 +216,14 @@ update=[]do
 		end
 	end
 --]]
+
+	for i=#explosions,1,-1 do
+		local ex = explosions[i]
+		local f = explodeSprites[math.floor((time() - ex.time) * 8) + 1]
+		if not f then
+			explosions:remove(i)
+		else
+			spr(f, ex.x, ex.y, 2, 2)
+		end
+	end
 end
