@@ -62,7 +62,8 @@ makeEnemy=[x,y,class]do
 	}, Enemy))
 end
 
-reset=[]do
+doReset=[]do
+	reset()
 	scrollX,scrollY = 0,0
 	mx,my = 0,0
 	playerDeadTime = nil
@@ -77,9 +78,9 @@ reset=[]do
 	-- TODO for the sake of level state,
 	-- copy whatever loaded level into tilemap slot 0 or something
 	-- and then we can modify the level as we play it (erase enemy spawn markers etc)
-	-- and reset() will work fine
+	-- and doReset() will work fine
 end
-reset()
+doReset()
 
 local scrollSpeed = .5
 update=[]do
@@ -130,7 +131,7 @@ update=[]do
 		--playerX += 1	-- whatever the scroll screen is ...? 
 	else
 		if time() > playerDeadTime + 5 then
-			reset()
+			doReset()
 		end
 	end
 
