@@ -61,6 +61,7 @@ vec2.__concat = string.concat
 vec2.cross = [a,b] a.x * b.y - a.y * b.x
 vec2.dot = [a,b] a.x * b.x + a.y * b.y
 vec2.lenSq = [v] v:dot(v)
+vec2.distSq = [a,b] ((a.x-b.x)^2 + (a.y-b.y)^2)
 vec2.len = [v] math.sqrt(v:lenSq())
 vec2.unit = [v] v * (1 / math.max(1e-15, v:len()))
 
@@ -127,60 +128,49 @@ Shot.update=[:]do
 	rect(-1, -1, 3, 3, self.color)
 	matpop()
 
-	if self.shooter == player then
-		-- check enemy
-		if enemy then
-			local distSq = (self.pos - enemy.pos):lenSq()
-			if distSq < enemy.size * enemy.size then
-				enemy = nil	-- die
-			end
+	if time() > self.endTime then self.dead = true end
+end
+Shot.touch=[:,other]do
+	if other == self.shooter then return end
+
+	if Ship:isa(other) then
+		if other ~= player then	-- TODO player hit
+			self.dead = true
+			other.dead = true
 		end
-		for i=#objs,1,-1 do
-			local rock = objs[i]
-			if Rock:isa(rock) then
-				local distSq = (self.pos - rock.pos):lenSq()
-				if distSq < rock.size * rock.size then
-					if rock.size > rock.sizeS then
-						-- make new rocks
-						local mom = rock.vel * rock:calcMass()
-						local perturb1 = vec2.exp(math.random() * 2 * math.pi) * 2000
-						local perturb2 = vec2.exp(math.random() * 2 * math.pi) * 2000
-						for s1=-1,1,2 do
-							for s2=-1,1,2 do
-								local newmom = .25 * mom + s1 * perturb1 + s2 * perturb2
-								local piece = Rock{
-									pos = self.pos,
-									angle = math.random() * 2 * math.pi,	-- TODO conserve this too
-									rot = math.random() * 2 * 20,			-- and this?
-									size = rock.size == rock.sizeL and rock.sizeM or rock.sizeS,
-								}
-								piece.vel = newmom * (1 / piece:calcMass())
-							end
-						end
-					end
-					rock.dead = true
-					self.dead = true
-					break
+	end
+	if Rock:isa(other) then
+		if other.size > other.sizeS then
+			-- make new rocks
+			local mom = other.vel * other:calcMass()
+			local perturb1 = vec2.exp(math.random() * 2 * math.pi) * 2000
+			local perturb2 = vec2.exp(math.random() * 2 * math.pi) * 2000
+			for s1=-1,1,2 do
+				for s2=-1,1,2 do
+					local newmom = .25 * mom + s1 * perturb1 + s2 * perturb2
+					local piece = Rock{
+						pos = self.pos,
+						angle = math.random() * 2 * math.pi,	-- TODO conserve this too
+						rot = math.random() * 2 * 20,			-- and this?
+						size = other.size == other.sizeL and other.sizeM or other.sizeS,
+					}
+					piece.vel = newmom * (1 / piece:calcMass())
 				end
 			end
 		end
-	elseif self.shooter == enemy then
-		local distSq = (self.pos - player.pos):lenSq()
-		if distSq < player.size * player.size then
-			-- TODO kill player
-		end
+		other.dead = true
+		self.dead = true
 	end
-	if time() > self.endTime then self.dead = true end
 end
 
-local Ship = Object:subclass()
+Ship = Object:subclass()
 Ship.nextShootTime = 0
 Ship.update=[:]do
 	local fwd = vec2.exp(self.angle)
 	matpush()
 	mattrans(self.pos.x, self.pos.y)
 	drawTri(vec2(), fwd, self.size, self.color)
-	
+
 	if self.thrust then
 		drawTri(-3 * fwd, -fwd, .5 * self.size, 9)
 	end
@@ -225,7 +215,7 @@ EnemyShip.update = [:]do
 	elseif sinth < 0 then
 		self.angle += dt * self.rot
 	end
-	
+
 	self.thrust = true
 	self.vel += fwd * dt * self.accel
 
@@ -242,7 +232,7 @@ Rock.color = 13
 Rock.calcMass = [:] math.pi * self.size^2 * self.density
 Rock.update=[:]do
 	local fwd = vec2.exp(self.angle)
-	
+
 	local rightx = -fwd.y
 	local righty = fwd.x
 	matpush()
@@ -257,10 +247,12 @@ Rock.update=[:]do
 end
 
 player = PlayerShip()
-enemy = EnemyShip{
+--[[
+EnemyShip{
 	pos=vec2(50,0),
 	vel=vec2(0,30),
 }
+--]]
 for i=1,5 do
 	Rock{
 		pos=vec2(math.random(), math.random())*256,
@@ -278,7 +270,28 @@ update=[]do
 
 	for i=#objs,1,-1 do
 		local o = objs[i]
+		-- do update
 		o:update()
+		-- remove dead
 		if o.dead then objs:remove(i) end
+	end
+	for i=1,#objs-1 do
+		local o = objs[i]
+		if not o.dead then
+			for i2=i+1,#objs do
+				local o2 = objs[i2]
+				if not o2.dead then
+					-- check touch
+					local distSq = vec2.distSq(o.pos, o2.pos)
+					if distSq < (o.size + o2.size)^2 then
+						if o.touch then o:touch(o2) end
+						if not o.dead and not o2.dead then
+							if o2.touch then o2:touch(o) end
+						end
+						if o.dead then break end
+					end
+				end
+			end
+		end
 	end
 end
