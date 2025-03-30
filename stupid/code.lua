@@ -1,3 +1,9 @@
+--[[
+TODO somehow dialogs don't show up anymore, probably due to transparency issues
+--]]
+--#include ext/class.lua
+--#include vec/vec2.lua
+
 math.randomseed(tstamp())
 blendColorMem=ffi.offsetof('RAM','blendColor')
 randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
@@ -16,78 +22,6 @@ range=[a,b,c]do
 	end
 	return t
 end
-
---#include ext/class.lua
-
-getvalue=[x, dim]do
-	if type(x) == 'number' then return x end
-	if type(x) == 'table' then
-		if dim==1 then
-			x=x.x
-		elseif dim==2 then
-			x=x.y
-		else
-			x=nil
-		end
-		if type(x)~='number' then
-			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
-		end
-		return x
-	end
-	error("tried to getvalue from an unknown type "..type(x))
-end
-
-vec2=class{
-	init=[v,x,y]do
-		if x then
-			v:set(x,y)
-		else
-			v:set(0,0)
-		end
-	end,
-	set=[v,x,y]do
-		if type(x) == 'table' then
-			v.x = x.x
-			v.y = x.y
-		else
-			v.x = x
-			if y then
-				v.y = y
-			else
-				v.y = x
-			end
-		end
-	end,
-	unpack=[v](v.x,v.y),
-	volume=[v]v.x*v.y,
-	clamp=[v,a,b]do
-		local mins = a
-		local maxs = b
-		if type(a) == 'table' and a.min and a.max then
-			mins = a.min
-			maxs = a.max
-		end
-		v.x = math.clamp(v.x, getvalue(mins, 1), getvalue(maxs, 1))
-		v.y = math.clamp(v.y, getvalue(mins, 2), getvalue(maxs, 2))
-		return v
-	end,
-	map=[v,f]do
-		v.x=f(v.x,1)
-		v.y=f(v.y,2)
-		return v
-	end,
-	floor=[v]v:map(math.floor),
-	ceil=[v]v:map(math.ceil),
-	l1Length=[v]math.abs(v.x)+math.abs(v.y),
-	lInfLength=[v]math.max(math.abs(v.x),math.abs(v.y)),
-	__add=[a,b]vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
-	__sub=[a,b]vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
-	__mul=[a,b]vec2(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2)),
-	__div=[a,b]vec2(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2)),
-	__eq=[a,b]a.x==b.x and a.y==b.y,
-	__tostring=[v]v.x..','..v.y,
-	__concat=[a,b]tostring(a)..tostring(b),
-}
 
 getminvalue=[x]do
 	if x.min then return x.min end
