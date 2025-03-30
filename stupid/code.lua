@@ -2,6 +2,7 @@
 TODO somehow dialogs don't show up anymore, probably due to transparency issues
 --]]
 --#include ext/class.lua
+--#include ext/range.lua
 --#include vec/vec2.lua
 --#include vec/box2.lua
 
@@ -11,18 +12,6 @@ randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,b
 distLInf=[a,b] math.max(math.abs(a.x-b.x),math.abs(a.y-b.y))
 distL1=[a,b] math.abs(a.x-b.x)+math.abs(a.y-b.y)
 round=[x,r] math.round(x*r)/r
-
-range=[a,b,c]do
-	local t = table()
-	if c then
-		for x=a,b,c do t:insert(x) end
-	elseif b then
-		for x=a,b do t:insert(x) end
-	else
-		for x=1,a do t:insert(x) end
-	end
-	return t
-end
 
 
 

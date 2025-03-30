@@ -1,4 +1,10 @@
 --#include vec/vec2.lua
+--#include vec/box2.lua
+--#include ext/class.lua
+--#include ext/range.lua
+
+math.randomseed(tstamp())
+
 local sprites = {
 	player = 0,
 	enemy = 1,
@@ -230,8 +236,48 @@ range=[a,b,c]do
 end
 
 -- stole from stupid/code.lua
-genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
-	targetMap.tiles = range
+local randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
+local genDungeonLevel=[avgRoomSize]do
+	avgRoomSize ??= 20
+	local targetMap = {}
+	targetMap.size = vec2(32,32)
+	targetMap.tiles = range(0,targetMap.size.y-1):mapi([i] 
+		(range(0,targetMap.size.x-1):mapi([j]
+			({}, j)
+		), i)
+	)
+	targetMap.bbox = box2(vec2(), targetMap.size-1)
+	targetMap.wrapPos=[:,pos]do
+		pos.y = math.floor(pos.y)
+		pos.x = math.floor(pos.x)
+		if self.wrap then
+			pos.y = ((pos.y % self.size.y) + self.size.y) % self.size.y
+			pos.x = ((pos.x % self.size.x) + self.size.x) % self.size.x
+		else
+			if pos.x < 0 or pos.y < 0
+			or pos.x >= self.size.x or pos.y >= self.size.y
+			then
+				return false
+			end
+		end
+		return true
+	end	
+	targetMap.getTile=[:,x,y]do
+		local pos = vec2(x,y)
+		if not self:wrapPos(pos) then return end
+		local t = self.tiles[pos.y][pos.x]
+		t.solid = mapTypes[mget(x,y)].flags & flags.solid ~= 0
+		return t
+	end
+	targetMap.setTileType=[:,x,y,mapType]do
+		local pos = vec2(x,y)
+		if not self:wrapPos(pos) then return end
+		--local tile = mapType(pos)
+		--self.tiles[pos.y][pos.x] = tile
+		mset(pos.x,pos.y,mapType)--assert(table.pickRandom(assert.index(tileTypes,tileType.name).tileIndexes)))
+		return tile
+	end
+	
 	local rooms = table()
 
 	--trace("begin gen "+targetMap.name)
@@ -307,7 +353,7 @@ genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
 		else
 			for y=room.bbox.min.y,room.bbox.max.y do
 				for x=room.bbox.min.x,room.bbox.max.x do
-					targetMap:setTileType(x,y,tileTypes.Bricks)
+					targetMap:setTileType(x,y,mapTypeForName.empty.index)
 				end
 			end
 
@@ -389,54 +435,35 @@ genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
 		lastRoom = dstRoom
 		--so find dstRoom in srcRoom.neighbors
 		local pos = neighborInfo.positions:pickRandom()
-		targetMap:setTileType(pos.x, pos.y, tileTypes.Bricks)
-		targetMap.fixedObjs:insert{
-			pos=pos,
-			type=DoorObj,
-		}
+		targetMap:setTileType(pos.x, pos.y, mapTypeForName.empty.index)
+		mset(pos.x, pos.y, mapTypeForName.door.index)
 		usedRooms:insert(dstRoom)
 		leafRooms:insert(dstRoom)
 	end
 
-	--[[
-	for (local y = 0; y < targetMap.size.y; y+=1) {
-		for (local x = 0; x < targetMap.size.x; x+=1) {
-			delete targetMap.tiles[y][x].room
-		}
-	}
-	--]]
+	pickFreeRandomFixedPos=[args]do
+		local targetMap = args.map
+		local bbox = box2(args.bbox or targetMap.bbox)
+		local classify = args.classify
 
-	local upstairs = {
-		type=UpStairsObj,
-		pos=pickFreeRandomFixedPos{map=targetMap, bbox=startRoom.bbox},
-		destMap=prevMapName,
-	}
-	targetMap.fixedObjs:insert(upstairs)
-	targetMap.playerStart=upstairs.pos
-	if nextMapName then
-		targetMap.fixedObjs:insert{
-			type=DownStairsObj,
-			pos=pickFreeRandomFixedPos{map=targetMap, bbox=lastRoom.bbox},
-			destMap=nextMapName,
-		}
-	else
-		--add a princess or a key or a crown or something stupid
-		targetMap.fixedObjs:insert{
-			type=MerchantObj,
-			pos=pickFreeRandomFixedPos{map=targetMap, bbox=lastRoom.bbox},
-			msg='Tee Hee! Take me back to the village',
-			onInteract=[:,player]do
-				-- so much for ES6 OOP being more useful than hacked-together original JS prototypes...
-				-- can't call super here even if self function is added to a class prototype
-				MerchantObj.onInteract(self, arguments)
-				player:adjustPoints('hp', player:stat'hpMax')
-				-- unlock the next story point
-				--TODO quests?
-				storyInfo.foundPrincess = true
-				self.remove = true
-			end,
-		}
+		for attempt=1,1000 do
+			local pos = randomBoxPos(bbox)
+			local tile = targetMap:getTile(pos.x, pos.y)
+
+			local good
+			if classify then
+				good = classify(tile)
+			else
+				good = not (tile.solid or tile.water)
+			end
+			if good then
+				return pos
+			end
+		end
+		trace"failed to find free position"
+		return vec2()
 	end
+
 
 	--add treasure - after stairs so they get precedence
 	for _,room in ipairs(usedRooms) do
@@ -444,10 +471,8 @@ genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
 		and room ~= lastRoom
 		and math.random() <= .5
 		then
-			targetMap.fixedObjs:insert{
-				type=TreasureObj,
-				pos=pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox},
-			}
+			local pos = pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox}
+			mset(pos.x, pos.y, mapTypeForName.chest.index)
 		end
 	end
 
@@ -457,6 +482,9 @@ end
 
 init=[]do
 	reset()	-- reset rom
+	
+	--genDungeonLevel()
+
 	objs=table()
 	player = nil
 	for y=0,255 do
@@ -476,10 +504,18 @@ init=[]do
 	end
 end
 
+local viewPos = vec2()
 update=[]do
+	matident()	-- TODO FIXME matident() before cls()
 	cls()
-	map(0,0,32,32,0,0)
-	
+	map(0,0,256,256,0,0)
+
+	matident()
+--	mattrans(-128-viewPos.x*8, -128-viewPos.y*8)
+	if player then
+		viewPos:set(player.pos)
+	end
+
 	for _,o in ipairs(objs) do
 		o:update()
 	end
