@@ -65,28 +65,8 @@ removeAll=[]do
 	addList=table()
 end
 
-new=[cl,...]do
-	local o=setmetatable({},cl)
-	return o, o?:init(...)
-end
-isa=[cl,o]o.isaSet[cl]
-classmeta={
-	__call=new,
-	__index=_G,	-- obj __index looks in its class, if not there then looks into global.  This line is needed for :: setfenv(1,self) use.
-}
-class=[...]do
-	local cl=table(...)
-	cl.super=...
-	cl.__index=cl
-	cl.subclass=class
-	cl.isaSet=table(table{...}
-		:mapi([pc]pc.isaSet):unpack())
-		:setmetatable(nil)
-	cl.isaSet[cl] = true
-	cl.isa=isa
-	setmetatable(cl,classmeta)
-	return cl
-end
+--#include ext/class.lua
+classmeta.__index=_G	-- obj __index looks in its class, if not there then looks into global.  This line is needed for :: setfenv(1,self) use.
 
 BaseObj=class{
 	init=[::,args]do

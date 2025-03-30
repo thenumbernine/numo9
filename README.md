@@ -209,6 +209,8 @@ If the following functions are defined then they will be called from the virtual
 
 - `time()` = soon to be cartridge run time, currently poor mans implementation
 
+- `#include <code-to-insert>` = Ok reluctantly I'm adding an `#include` preprocessor.  It is only applied upon `n9a.lua` archiving carts, if you extract the cartridge then you will see the code already inserted. I'll replace it with multi-file storage and a proper `require` someday.
+
 ## memory
 
 - `peek(addr)` = read 1 byte from memory.

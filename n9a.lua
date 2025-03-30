@@ -207,6 +207,29 @@ or cmd == 'r' then
 	print'loading code...'
 	if basepath'code.lua':exists() then
 		local code = assert(basepath'code.lua':read())
+		
+		-- [[ preproc here ... replace #include's with included code ...
+		-- or what's another option ... I could have my own virtual filesystem per cartridge ... and then allow 'require' functions ... and then worry about where to mount the cartridge ...
+		-- that sounds like a much better idea.
+		-- so here's a temp fix ...
+		local includePath = path'include'
+		local included = {}
+		local function insertIncludes(s)
+			return string.split(s, '\n'):mapi(function(l)
+				local loc = l:match'^%-%-#include%s+(.*)$'
+				if loc then
+					if included[loc] then return '' end
+					included[loc] = true
+					return insertIncludes(assert(includePath(loc):read()))
+				else
+					return l
+				end
+			end):concat'\n'
+	
+		end
+		code = insertIncludes(code)
+		--]]
+
 		codeStrToBanks(banks, code)	-- this grows the # banks
 	end
 
