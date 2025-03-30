@@ -171,7 +171,9 @@ Quat.normalize = [:, res, eps] do
 end
 
 
-worldSize = 256
+--worldSize = 256
+worldSize = 128			-- one screen size
+--worldSize = 64		-- too small
 
 local dt = 1/60
 
@@ -362,7 +364,7 @@ Rock.update=[:]do
 end
 
 player = PlayerShip()
---[[
+-- [[
 EnemyShip{
 	pos=vec2(50,0),
 	vel=vec2(0,30),

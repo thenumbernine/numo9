@@ -19,6 +19,7 @@ mapTypes=table{
 	[2]={name='chest',flags=flags.solid},
 	[3]={name='chest_open',flags=flags.solid},
 	[32]={name='spawn_player'},
+	[33]={name='spawn_enemy'},
 }
 for k,v in pairs(mapTypes) do 
 	v.index = k 
@@ -44,6 +45,8 @@ class=[...]do
 	return t
 end
 
+local mapwidth = 256
+local mapheight = 256
 objs=table()
 
 Object=class()
@@ -53,26 +56,17 @@ Object.init=[:,args]do
 	objs:insert(self)
 end
 Object.update=[:]do
+	-- draw
 	spr(self.sprite, (self.x + self.bbox.min.x)*8, (self.y + self.bbox.min.y)*8)
-end
 
-local mapwidth = 256
-local mapheight = 256
+	-- move
 
-Player=Object:subclass()
-Player.sprite=0
-Player.update=[:]do
-	Player.super.update(self)
-
-	local speed = .1
 	for bi=0,1 do	-- move horz then vert, so we can slide on walls or something
 		local dx,dy = 0, 0
 		if bi == 0 then
-			if btn(0) then dy -= speed end
-			if btn(1) then dy += speed end
+			dy = self.vy
 		elseif bi == 1 then
-			if btn(2) then dx -= speed end
-			if btn(3) then dx += speed end
+			dx = self.vx
 		end
 		if dx ~= 0 or dy ~= 0 then
 			local nx = self.x + dx
@@ -111,6 +105,28 @@ Player.update=[:]do
 	end
 end
 
+Player=Object:subclass()
+Player.sprite=0
+Player.update=[:]do
+
+	self.vx, self.vy = 0, 0
+
+	local speed = .1
+	if btn(0) then self.vy -= speed end
+	if btn(1) then self.vy += speed end
+	if btn(2) then self.vx -= speed end
+	if btn(3) then self.vx += speed end
+	
+	Player.super.update(self)	-- draw and move
+end
+
+Enemy=Object:subclass()
+Enemy.sprite=1
+Enemy.update=[:]do
+	self.vx, self.vy = 0, 0
+	Enemy.super.update(self)
+end
+
 init=[]do
 	reset()	-- reset rom
 	youWon = false
@@ -118,8 +134,12 @@ init=[]do
 	player = nil
 	for y=0,255 do
 		for x=0,255 do
-			if mget(x,y) == mapTypeForName.spawn_player.index then
+			local ti = mget(x,y)
+			if ti == mapTypeForName.spawn_player.index then
 				player = Player{x=x+.5, y=y+.5}
+				mset(x,y,0)
+			elseif ti == mapTypeForName.spawn_enemy.index then
+				Enemy{x=x+.5, y=y+.5}
 				mset(x,y,0)
 			end
 		end
@@ -144,4 +164,3 @@ update=[]do
 
 end
 init()
-
