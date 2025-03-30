@@ -67,4 +67,3 @@ box2=class{
 	__tostring=[b]b.min..'..'..b.max,
 	__concat=[a,b]tostring(a)..tostring(b),
 }
-

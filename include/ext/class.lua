@@ -7,6 +7,7 @@ local class
 class=[...]do
 	local t=table(...)
 	t.super=...
+	--t.supers=table{...}
 	t.__index=t
 	t.subclass=class
 	t.isaSet=table(table{...}
