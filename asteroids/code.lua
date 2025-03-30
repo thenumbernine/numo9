@@ -16,41 +16,7 @@ local matpop=[]do
 end
 
 --#include ext/class.lua
-
-local vec2 = class()
-vec2.init=[:,...]do
-	if select('#', ...) == 0 then
-		self.x = 0
-		self.y = 0
-	else
-		self.x, self.y = ...
-	end
-end
-vec2.set = [a,b] do a.x=b.x a.y=b.y return a end
-vec2.clone = [v] vec2(v.x, v.y)
-vec2.unpack = [v] (v.x, v.y)
-vec2.__unm = [v] vec2(-v.x, -v.y)
-vec2.__add = [a,b] vec2(a.x+b.x, a.y+b.y)
-vec2.__sub = [a,b] vec2(a.x-b.x, a.y-b.y)
-vec2.__mul = [a,b] do
-	if type(a) == 'number' then
-		return vec2(a*b.x, a*b.y)
-	elseif type(b) == 'number' then
-		return vec2(a.x*b, a.y*b)
-	else
-		-- outer? inner? cross? dot ...
-		return a:dot(b)
-	end
-end
-vec2.__tostring = [v] '{'..tostring(v.x)..', '..tostring(v.y)..'}'
-vec2.__concat = string.concat
-vec2.exp = [theta] vec2(math.cos(theta), math.sin(theta))
-vec2.cross = [a,b] a.x * b.y - a.y * b.x
-vec2.dot = [a,b] a.x * b.x + a.y * b.y
-vec2.lenSq = [v] v:dot(v)
-vec2.distSq = [a,b] ((a.x-b.x)^2 + (a.y-b.y)^2)
-vec2.len = [v] math.sqrt(v:lenSq())
-vec2.unit = [v] v * (1 / math.max(1e-15, v:len()))
+--#include vec/vec2.lua
 
 local Quat = class()
 Quat.init=[:,...]do

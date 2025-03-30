@@ -1,0 +1,83 @@
+--#include ext/class.lua
+
+local vec2_getvalue=[x, dim]do
+	if type(x) == 'number' then return x end
+	if type(x) == 'table' then
+		if dim==1 then
+			x=x.x
+		elseif dim==2 then
+			x=x.y
+		else
+			x=nil
+		end
+		if type(x)~='number' then
+			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
+		end
+		return x
+	end
+	error("tried to vec2_getvalue from an unknown type "..type(x))
+end
+
+local vec2
+vec2=class{
+	init=[v,x,y]do
+		if x then
+			v:set(x,y)
+		else
+			v:set(0,0)
+		end
+	end,
+	clone=[v] vec2(v),
+	set=[v,x,y]do
+		if type(x) == 'table' then
+			v.x = x.x or x[1] or error("idk")
+			v.y = x.y or x[2] or error("idk")
+		else
+			assert(x, "idk")
+			v.x = x
+			if y then
+				v.y = y
+			else
+				v.y = x
+			end
+		end
+	end,
+	unpack=[v](v.x, v.y),
+	sum=[v] v.x + v.y,
+	product=[v] v.x * v.y,
+	clamp=[v,a,b]do
+		local mins = a
+		local maxs = b
+		if type(a) == 'table' and a.min and a.max then	
+			mins = a.min
+			maxs = a.max
+		end
+		v.x = math.clamp(v.x, vec2_getvalue(mins, 1), vec2_getvalue(maxs, 1))
+		v.y = math.clamp(v.y, vec2_getvalue(mins, 2), vec2_getvalue(maxs, 2))
+		return v
+	end,
+	map=[v,f]do
+		v.x = f(v.x, 1)
+		v.y = f(v.y, 2)
+		return v
+	end,
+	floor=[v]v:map(math.floor),
+	ceil=[v]v:map(math.ceil),
+	l1Length=[v] math.abs(v.x) + math.abs(v.y),
+	lInfLength=[v] math.max(math.abs(v.x), math.abs(v.y)),
+	dot=[v] v.x * v.x + v.y * v.y,
+	lenSq=[v] v:dot(v),
+	len=[v] math.sqrt(v:lenSq()),
+	distSq = [a,b] ((a.x-b.x)^2 + (a.y-b.y)^2),
+	unit=[v] v / math.max(1e-15, v:len()),
+	exp=[theta] vec2(math.cos(theta), math.sin(theta)),
+	cross=[a,b] a.x * b.y - a.y * b.x,	-- or :det() maybe
+	__unm=[v] vec2(-v.x, -v.y),
+	__add=[a,b] vec2(vec2_getvalue(a, 1) + vec2_getvalue(b, 1), vec2_getvalue(a, 2) + vec2_getvalue(b, 2)),
+	__sub=[a,b] vec2(vec2_getvalue(a, 1) - vec2_getvalue(b, 1), vec2_getvalue(a, 2) - vec2_getvalue(b, 2)),
+	__mul=[a,b] vec2(vec2_getvalue(a, 1) * vec2_getvalue(b, 1), vec2_getvalue(a, 2) * vec2_getvalue(b, 2)),
+	__div=[a,b] vec2(vec2_getvalue(a, 1) / vec2_getvalue(b, 1), vec2_getvalue(a, 2) / vec2_getvalue(b, 2)),
+	__eq=[a,b] a.x == b.x and a.y == b.y,
+	__tostring=[v] v.x..','..v.y,
+	__concat=string.concat,
+}
