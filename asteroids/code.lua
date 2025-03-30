@@ -1,20 +1,4 @@
-local matAddr = ffi.offsetof('RAM', 'mvMat')
-local matstack=table()
-local matpush=[]do
-	local t={}
-	for i=0,15 do
-		t[i+1] = peekl(matAddr + (i<<2))
-	end
-	matstack:insert(t)
-end
-local matpop=[]do
-	local t = matstack:remove(1)
-	if not t then return end
-	for i=0,15 do
-		pokel(matAddr + (i<<2), t[i+1])
-	end
-end
-
+--#include numo9/matstack.lua
 --#include ext/class.lua
 --#include vec/vec2.lua
 

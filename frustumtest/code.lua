@@ -1,23 +1,6 @@
 -- custom megaman mario kart sprite from : https://www.spriters-resource.com/fullview/23197/
 
-local matAddr = ffi.offsetof('RAM', 'mvMat')
-assert.eq(ffi.sizeof(ffi.cast('RAM*',0).mvMat), 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
-
-local matstack=table()
-local matpush=[]do
-	local t={}
-	for i=0,15 do
-		t[i+1] = peekl(matAddr + (i<<2))
-	end
-	matstack:insert(t)
-end
-local matpop=[]do
-	local t = matstack:remove(1)
-	if not t then return end
-	for i=0,15 do
-		pokel(matAddr + (i<<2), t[i+1])
-	end
-end
+--#include numo9/matstack.lua
 
 local range=[a,b,c]do
 	local t = table()
@@ -58,6 +41,7 @@ viewAngle=0
 spaceRHS=true
 
 update=[]do
+	matident()	-- TODO FIXME cls() should use ident matrix
 	cls()
 	local zn, zf = 1, 100
 	local zo = 10

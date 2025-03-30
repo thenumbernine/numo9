@@ -24,8 +24,8 @@ https://www.spriters-resource.com/submitter/NICKtendoDS/
 https://www.spriters-resource.com/custom_edited/mariocustoms/
 --]]
 
+--#include numo9/matstack.lua
 local userAddr = ffi.offsetof('RAM', 'userData')
-local matAddr = ffi.offsetof('RAM', 'mvMat')
 assert.eq(ffi.sizeof(ffi.cast('RAM*',0).mvMat), 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 
@@ -100,22 +100,6 @@ end
 -- [[ using userdata to push/pop palette.  single player faster, but takes a netcall so multiplayer slower.
 memcpy(userAddr, palAddr, 0x200)
 --]]
-
-local matstack=table()
-local matpush=[]do
-	local t={}
-	for i=0,15 do
-		t[i+1] = peekl(matAddr + (i<<2))
-	end
-	matstack:insert(t)
-end
-local matpop=[]do
-	local t = matstack:remove(1)
-	if not t then return end
-	for i=0,15 do
-		pokel(matAddr + (i<<2), t[i+1])
-	end
-end
 
 --[[ not helping
 -- also isn't netplay compat cuz it directly accesses app.ram
