@@ -4,20 +4,52 @@ local sprites = {
 	enemy = 1,
 	heart = 32, 
 	hearthalf = 33,
+	key = 34,
 }
 
 flagshift=table{
 	'solid',	-- 1
 }:mapi([k,i] (i-1,k)):setmetatable(nil)
 flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
-trace(getfenv(0).require 'ext.tolua'(flagshift))
-trace(getfenv(0).require 'ext.tolua'(flags))
 
 mapTypes=table{
 	[0]={name='empty'},				-- empty
 	[1]={name='solid',flags=flags.solid},	-- solid
-	[2]={name='chest',flags=flags.solid},
-	[3]={name='chest_open',flags=flags.solid},
+	[2]={
+		name='chest',
+		flags=flags.solid,
+		touch = [:, o, x, y]do
+			if o == player then
+				mset(x,y,mapTypeForName.chest_open.index)
+				player.keys += 1
+			end
+		end,
+	},
+	[3]={
+		name='chest_open',
+		flags=flags.solid,
+	},
+	[4]={
+		name='door',
+		flags=flags.solid,
+		touch = [:, o, x, y]do
+			if o == player then
+				mset(x,y,mapTypeForName.empty.index)
+			end
+		end,
+	},
+	[5]={
+		name='locked_door',
+		flags=flags.solid,
+		touch = [:, o, x, y]do
+			if o == player 
+			and o.keys > 0 
+			then
+				o.keys -= 1
+				mset(x,y,mapTypeForName.door.index)
+			end
+		end,
+	},
 	[32]={name='spawn_player'},
 	[33]={name='spawn_enemy'},
 }
@@ -80,10 +112,7 @@ Object.update=[:]do
 						if t.flags & flags.solid ~= 0 then
 							hit = true
 						end
-						-- TODO per mapType
-						if ti == mapTypeForName.chest.index then
-							mset(bx1, by1, mapTypeForName.chest_open.index)
-						end
+						t?:touch(self, bx1, by1)
 					end
 				end
 			end
@@ -127,6 +156,7 @@ end
 Player=TakesDamage:subclass()
 Player.sprite=sprites.player
 Player.maxHealth=3
+Player.keys=0
 Player.update=[:]do
 
 	self.vel:set(0,0)
@@ -148,7 +178,6 @@ Player.attackDist = 2
 Player.attackDamage = 1
 Player.attack=[:]do
 	if time() < self.attackTime then return end
-trace("attack")	
 	self.attackTime = time() + self.attackDelay
 	mainloops:insert([]do
 		elli((self.pos.x - self.attackDist)*8, (self.pos.y - self.attackDist)*8, 16*self.attackDist,16*self.attackDist, 3)
@@ -157,7 +186,6 @@ trace("attack")
 		if o ~= self then
 			local delta = o.pos - self.pos
 			if delta:lenSq() < self.attackDist^2 then
-trace("hit monster")				
 				o:takeDamage(self.attackDamage)
 			end
 		end
@@ -187,6 +215,245 @@ Enemy.touch=[:,o]do
 		player:takeDamage(1)
 	end
 end
+
+-- stole from stupid/code.lua
+range=[a,b,c]do
+	local t = table()
+	if c then
+		for x=a,b,c do t:insert(x) end
+	elseif b then
+		for x=a,b do t:insert(x) end
+	else
+		for x=1,a do t:insert(x) end
+	end
+	return t
+end
+
+-- stole from stupid/code.lua
+genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
+	targetMap.tiles = range
+	local rooms = table()
+
+	--trace("begin gen "+targetMap.name)
+
+	local max = math.floor(targetMap.size.x * targetMap.size.y / avgRoomSize)
+	for i=1,max do
+		local room = {pos=randomBoxPos(targetMap.bbox)}
+		room.bbox = box2(room.pos, room.pos)
+		rooms:insert(room)
+		targetMap.tiles[room.pos.y][room.pos.x].room = room
+	end
+
+	local modified
+	repeat
+		modified=false
+		for j,room in ipairs(rooms) do
+			local bbox = box2(room.bbox.min-1, room.bbox.max+1):clamp(targetMap.bbox)
+			local roomcorners = {room.bbox.min, room.bbox.max}
+			local corners = {bbox.min, bbox.max}
+			for i,corner in ipairs(corners) do
+				local found = false
+				for y=room.bbox.min.y,room.bbox.max.y do
+					if targetMap.tiles[y][corner.x].room then
+						found = true
+						break
+					end
+				end
+				if not found then
+					for y=room.bbox.min.y,room.bbox.max.y do
+						targetMap.tiles[y][corner.x].room = room
+					end
+					roomcorners[i].x = corner.x
+					modified = true
+				end
+
+				found = false
+				for x=room.bbox.min.x,room.bbox.max.x do
+					if targetMap.tiles[corner.y][x].room then
+						found = true
+						break
+					end
+				end
+				if not found then
+					for x=room.bbox.min.x,room.bbox.max.x do
+						targetMap.tiles[corner.y][x].room = room
+					end
+					roomcorners[i].y = corner.y
+					modified = true
+				end
+			end
+		end
+	until not modified
+
+	--clear tile rooms for reassignment
+	for y=0,targetMap.size.y-1 do
+		for x=0,targetMap.size.x-1 do
+			targetMap.tiles[y][x].room = nil
+		end
+	end
+
+	--carve out rooms
+	--console.log("carving out rooms")
+	for i=#rooms,1,-1 do
+		local room = rooms[i]
+		room.bbox.min.x+=1
+		room.bbox.min.y+=1
+
+		--our room goes from min+1 to max-1
+		--so if that distance is zero then we have no room
+		local dead = (room.bbox.min.x > room.bbox.max.x) or (room.bbox.min.y > room.bbox.max.y)
+		if dead then
+			rooms:remove(i)
+		else
+			for y=room.bbox.min.y,room.bbox.max.y do
+				for x=room.bbox.min.x,room.bbox.max.x do
+					targetMap:setTileType(x,y,tileTypes.Bricks)
+				end
+			end
+
+			--rooms
+			for y=room.bbox.min.y,room.bbox.max.y do
+				for x=room.bbox.min.x,room.bbox.max.x do
+					targetMap.tiles[y][x].room = room
+				end
+			end
+		end
+	end
+
+
+	local dimfields = {'x','y'}
+	local minmaxfields = {'min','max'}
+	--see what rooms touch other rooms
+	--trace("finding neighbors")
+	local pos = vec2()
+	for _,room in ipairs(rooms) do
+		room.neighbors = table()
+		for dim,dimfield in ipairs(dimfields) do
+			local dimnextfield = dimfields[dim%2+1]
+			for minmax,minmaxfield in ipairs(minmaxfields) do
+				local minmaxofs = minmax * 2 - 3
+				pos[dimfield] = room.bbox[minmaxfield][dimfield] + minmaxofs
+				for tmp=room.bbox.min[dimnextfield]+1,room.bbox.max[dimnextfield]-1 do
+					pos[dimnextfield]=tmp
+					--step twice to find our neighbor
+					local nextpos = vec2(pos)
+					nextpos[dimfield] += minmaxofs
+					local tile = targetMap:getTile(nextpos.x,nextpos.y)
+					if tile
+					and tile.room
+					then
+						local neighborRoom = tile.room
+						local neighborRoomIndex = assert(rooms:find(neighborRoom), "found unknown neighbor room")
+						local _, neighbor = room.neighbors:find(nil, [neighbor] neighbor.room == neighborRoom)
+						if not neighbor then
+							neighbor = {room=neighborRoom, positions=table()}
+							room.neighbors:insert(neighbor)
+						end
+						neighbor.positions:insert(vec2(pos))
+					end
+				end
+			end
+		end
+	end
+
+	--pick a random room as the start
+	--TODO start in a big room.
+	local startRoom = rooms:pickRandom()
+	local lastRoom = startRoom
+
+	local leafRooms = table()
+	local usedRooms = table{startRoom}
+
+	--trace("establishing connectivity")
+	while true do
+		local srcRoomOptions = usedRooms:filter([room]
+			--if the room has no rooms that haven't been used,then don't consider it
+			--so keep all of the neighbor's neighbors that haven't been used
+			--if self has any good neighbors then consider it
+			#room.neighbors:filter([neighborInfo]
+				not usedRooms:find(neighborInfo.room)
+			) > 0
+		)
+		if #srcRoomOptions == 0 then break end
+		local srcRoom = srcRoomOptions:pickRandom()
+
+		local leafRoomIndex = leafRooms:find(srcRoom)
+		if leafRoomIndex ~= -1 then leafRooms:remove(leafRoomIndex) end
+
+		--self is the same filter as is within the srcRoomOptions filter -=1 so if you want to cache self info, feel free
+		local neighborInfoOptions = srcRoom.neighbors:filter([neighborInfo]
+			not usedRooms:find(neighborInfo.room)
+		)
+		local neighborInfo = neighborInfoOptions:pickRandom()
+		local dstRoom = neighborInfo.room
+		lastRoom = dstRoom
+		--so find dstRoom in srcRoom.neighbors
+		local pos = neighborInfo.positions:pickRandom()
+		targetMap:setTileType(pos.x, pos.y, tileTypes.Bricks)
+		targetMap.fixedObjs:insert{
+			pos=pos,
+			type=DoorObj,
+		}
+		usedRooms:insert(dstRoom)
+		leafRooms:insert(dstRoom)
+	end
+
+	--[[
+	for (local y = 0; y < targetMap.size.y; y+=1) {
+		for (local x = 0; x < targetMap.size.x; x+=1) {
+			delete targetMap.tiles[y][x].room
+		}
+	}
+	--]]
+
+	local upstairs = {
+		type=UpStairsObj,
+		pos=pickFreeRandomFixedPos{map=targetMap, bbox=startRoom.bbox},
+		destMap=prevMapName,
+	}
+	targetMap.fixedObjs:insert(upstairs)
+	targetMap.playerStart=upstairs.pos
+	if nextMapName then
+		targetMap.fixedObjs:insert{
+			type=DownStairsObj,
+			pos=pickFreeRandomFixedPos{map=targetMap, bbox=lastRoom.bbox},
+			destMap=nextMapName,
+		}
+	else
+		--add a princess or a key or a crown or something stupid
+		targetMap.fixedObjs:insert{
+			type=MerchantObj,
+			pos=pickFreeRandomFixedPos{map=targetMap, bbox=lastRoom.bbox},
+			msg='Tee Hee! Take me back to the village',
+			onInteract=[:,player]do
+				-- so much for ES6 OOP being more useful than hacked-together original JS prototypes...
+				-- can't call super here even if self function is added to a class prototype
+				MerchantObj.onInteract(self, arguments)
+				player:adjustPoints('hp', player:stat'hpMax')
+				-- unlock the next story point
+				--TODO quests?
+				storyInfo.foundPrincess = true
+				self.remove = true
+			end,
+		}
+	end
+
+	--add treasure - after stairs so they get precedence
+	for _,room in ipairs(usedRooms) do
+		if room ~= startRoom
+		and room ~= lastRoom
+		and math.random() <= .5
+		then
+			targetMap.fixedObjs:insert{
+				type=TreasureObj,
+				pos=pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox},
+			}
+		end
+	end
+
+	--trace("end gen "+targetMap.name)
+end
+
 
 init=[]do
 	reset()	-- reset rom
@@ -218,8 +485,7 @@ update=[]do
 	end
 
 	for i=#mainloops,1,-1 do
-		local f = mainloops[i]
-		f()
+		mainloops[i]()
 		mainloops[i] = nil
 	end
 
@@ -227,6 +493,9 @@ update=[]do
 	if player then
 		for i=1,player.health do
 			spr(sprites.heart, (i-1)<<3, 248)
+		end
+		for i=1,player.keys do
+			spr(sprites.key, 248-((i-1)<<3), 248)
 		end
 	end
 
