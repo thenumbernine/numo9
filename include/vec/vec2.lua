@@ -22,7 +22,11 @@ local vec2
 vec2=class{
 	init=[v,x,y]do
 		if x then
-			v:set(x,y)
+			if y then
+				v:set(x,y)
+			else
+				v:set(x,x)
+			end
 		else
 			v:set(0,0)
 		end
