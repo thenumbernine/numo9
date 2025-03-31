@@ -30,7 +30,6 @@ viewAngle=0
 spaceRHS=true
 
 update=[]do
-	matident()	-- TODO FIXME cls() should use ident matrix
 	cls()
 	local zn, zf = 1, 100
 	local zo = 10

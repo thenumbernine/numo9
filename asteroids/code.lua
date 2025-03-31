@@ -317,7 +317,6 @@ end
 viewPos = vec2()
 viewAngle = 0
 update=[]do
-	matident()	-- TODO cls() needs matident() manually set ...
 	cls()
 	matident()
 	mattrans(128, 128)	-- screen center

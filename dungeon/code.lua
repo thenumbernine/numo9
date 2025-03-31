@@ -506,7 +506,6 @@ end
 
 local viewPos = vec2()
 update=[]do
-	matident()	-- TODO FIXME matident() before cls()
 	cls()
 	map(0,0,256,256,0,0)
 

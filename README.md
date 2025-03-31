@@ -275,7 +275,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- mapIndexOffset = global offset to shift all map indexes.
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
-- `text(str, x, y, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
+- `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = set video mode.  The current video modes are:
 	- 0 = 16bpp RGB565, needed for blending
 	- 1 = 8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow)

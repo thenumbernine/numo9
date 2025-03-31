@@ -193,14 +193,14 @@ Player.update=[:]do
 
 	--if btn(0) then self.vel.y -= speed end
 	--if btn(1) then self.vel.y += speed end
+	local speed = .15
 	if self.hitYP then
 		self.vel.x *= .1	-- friction
-		local speed = .1
 		if btn(2) then self.vel.x -= speed end
 		if btn(3) then self.vel.x += speed end
 	else
 		-- move in air? or nah, castlevania nes jumping. or nah, but constrain acceleration ...
-		local maxAirSpeed = .1
+		local maxAirSpeed = speed
 		local speed = .05
 		if btn(2) then 
 			self.vel.x -= speed 
@@ -277,28 +277,40 @@ init=[]do
 	for x=0,255 do
 		mset(x,255,mapTypeForName.solid.index)
 	end
-	mset(127,254,mapTypeForName.spawn_player.index)
 
 	local jumpHeight = 3
-	local pos = vec2(127, 255)
-	local dir = 1	-- + vs -
-	while true do
+	local nextStep
+	nextStep = [x,y,dir]do
+		if x < 0 or x > 255 or y < 0 or y > 255 then return end
+		if mget(x,y) ~= 0 then return end	-- already charted
+		mset(x,y,1)
 		-- move options?
 		-- walk in dir
 		-- jump
 		-- if last move was jump then dir can change
-		if math.random() < .1 then	-- jump 
+		if math.random() < .1 then	-- jump up
 			dir = table{-1, 1}:pickRandom()
-			pos.x += dir
-			pos.y -= jumpHeight
-			mset(pos.x,pos.y,1)
+			local nx = x + dir * math.random(1,jumpHeight)
+			local ny = y - jumpHeight
+			nextStep(nx, ny, dir)
+			-- [[
+			if math.random() < .05 then -- fork
+				dir = -dir
+				local nx = x + dir
+				local ny = y - jumpHeight
+				return nextStep(nx, ny, dir)
+			end
+			--]]
+		elseif math.random() < .1 then -- jump over
+			local nx = x + dir * math.random(1,jumpHeight)
+			nextStep(nx, y, dir)
 		else
-			pos.x += dir
-			mset(pos.x,pos.y,1)
+			x += dir
+			return nextStep(x, y, dir)
 		end
-		if pos.x < 0 or pos.x >= 255 or pos.y < 0 then break end
 	end
-
+	nextStep(127, 254, 1)
+	mset(127,254,mapTypeForName.spawn_player.index)
 
 --]]
 
@@ -323,8 +335,7 @@ end
 
 local viewPos = vec2()
 update=[]do
-	matident()	-- TODO FIXME matident() before cls()
-	cls()
+	cls(17)
 
 	if player then
 		viewPos:set(player.pos)
@@ -356,6 +367,11 @@ update=[]do
 	-- remove dead
 	for i=#objs,1,-1 do
 		if objs[i].removeMe then objs:remove(i) end
+	end
+
+	if player then
+		matident()
+		text(tostring(math.floor(player.pos.y)), 220, 0, 13, 0)
 	end
 end
 init()
