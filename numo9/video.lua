@@ -816,7 +816,6 @@ colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -829,7 +828,6 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -871,7 +869,6 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -884,7 +881,6 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -937,7 +933,6 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -950,7 +945,6 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1003,7 +997,6 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1035,7 +1028,6 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1084,7 +1076,6 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1107,7 +1098,6 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1161,7 +1151,6 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1187,7 +1176,6 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1299,7 +1287,6 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1325,7 +1312,6 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1448,7 +1434,6 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1477,7 +1462,6 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1700,7 +1684,6 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1727,7 +1710,6 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
-precision highp uint;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
