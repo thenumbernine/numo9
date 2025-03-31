@@ -170,6 +170,7 @@ end
 
 function App:initGL()
 
+	gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 1)
 	gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
 
 	--[[ getting single-buffer to work

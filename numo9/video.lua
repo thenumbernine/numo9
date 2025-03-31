@@ -1,4 +1,5 @@
 local ffi = require 'ffi'
+local op = require 'ext.op'
 local template = require 'template'
 local table = require 'ext.table'
 local class = require 'ext.class'
@@ -63,7 +64,7 @@ local texelFunc = 'texture'
 -- so I guess I need to use usampler2DRect if I want to use texelFetch
 
 -- on = use GL_*UI for our texture internal format, off = use regular non-integer
---local useSamplerUInt = false
+--local useSamplerUInt = false	-- crashes ... why. TODO.
 local useSamplerUInt = true
 
 local texInternalFormat_u8 = useSamplerUInt
@@ -75,6 +76,36 @@ local texInternalFormat_u16 = useSamplerUInt
 	and gl.GL_R16UI
 	or gl.GL_R16
 	--or gl.GL_R32F
+
+-- 'REV' means first channel first bit ... smh
+-- so even tho 5551 is on hardware since forever, it's not on ES3 or WebGL, only GL4...
+-- in case it's missing, just use single-channel R16 and do the swizzles manually
+local support5551 = op.safeindex(gl, 'GL_UNSIGNED_SHORT_1_5_5_5_REV')
+
+local internalFormat5551, format5551, type5551, glslCode5551
+if support5551 then
+	internalFormat5551 = gl.GL_RGB5_A1
+	format5551 = gl.GL_RGBA
+	type5551 = op.safeindex(gl, 'GL_UNSIGNED_SHORT_1_5_5_5_REV')
+	glslCode5551 = ''
+else
+	internalFormat5551 = gl.GL_R16UI
+	format5551 = gl.GL_RED_INTEGER
+	type5551 = gl.GL_UNSIGNED_SHORT
+
+	-- convert it here to vec4 since default UNSIGNED_SHORT_1_5_5_5_REV uses vec4
+	glslCode5551 = [[
+// assumes the uint is [0,0xffff]
+vec4 u16to5551(uint x) {
+	return vec4(
+		float(x & 0x1fu) / 31.,
+		float((x & 0x3e0u) >> 5u) / 31.,
+		float((x & 0x7c00u) >> 10u) / 31.,
+		float((x & 0x8000u) >> 15u)
+	);
+}
+]]
+end
 
 -- TODO move to gl?
 local function infoForTex(tex)
@@ -130,7 +161,9 @@ local function readTex(args)
 	else
 		dst = texelFunc..'('..texvar..', '..tc..')'
 	end
-	if args.to == 'uvec4' then
+	if args.to == 'u16to5551' then
+		dst = 'u16to5551(('..dst..').r)'
+	elseif args.to == 'uvec4' then
 		-- convert to uint, assume the source is a texture texel
 		if fragTypeForTex(args.tex) == 'uvec4' then
 			dst = 'uvec4('..dst..')'
@@ -587,11 +620,11 @@ function AppVideo:initVideo()
 		resetPalette(data)
 		self.paletteMenuTex = GLTex2D{
 			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
-			internalFormat = gl.GL_RGB5_A1,
-			format = gl.GL_RGBA,
 			width = paletteSize,
 			height = 1,
-			type = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
+			internalFormat = internalFormat5551,
+			format = format5551,
+			type = type5551,
 			wrap = {
 				s = gl.GL_CLAMP_TO_EDGE,
 				t = gl.GL_CLAMP_TO_EDGE,
@@ -683,12 +716,15 @@ function AppVideo:initVideo()
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	-- assert palleteSize is a power-of-two ...
 	local function colorIndexToFrag(tex, decl)
-		return (decl or 'fragColor')..' = '..readTex{
+		return decl..' = '..readTex{
 			tex = self.paletteRAM.tex,
 			texvar = 'paletteTex',
 			tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 			from = 'ivec2',
-			to = fragTypeForTex(tex),
+			to = support5551
+				and fragTypeForTex(tex)
+				or 'u16to5551'
+			,
 		}..';\n'
 	end
 
@@ -708,7 +744,7 @@ function AppVideo:initVideo()
 
 			-- generator properties
 			name = 'RGB',
-			colorOutput = colorIndexToFrag(self.framebufferRGB565RAM.tex)..'\n'
+			colorOutput = colorIndexToFrag(self.framebufferRGB565RAM.tex, 'fragColor')..'\n'
 				..getDrawOverrideCode'vec3',
 		},
 		-- 8bpp indexed
@@ -737,9 +773,9 @@ colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 			name = 'RGB332',
 			colorOutput = colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'
 ..getDrawOverrideCode'uvec3'..'\n'
-..template([[
+..[[
 	/*
-	palColor is  5 5 5
+	palColor was 5 5 5 (but is now vec4 normalized)
 	fragColor is 3 3 2
 	so we lose   2 2 3 bits
 	so we can dither those in ...
@@ -755,10 +791,8 @@ colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 	fragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
 	fragColor.a = uint(palColor.a * 255.);
-]],		{
-			self = self,
-			fragTypeForTex = fragTypeForTex,
-		})},
+]]
+},
 	}
 
 --[[ a wrapper to output the code
@@ -782,6 +816,8 @@ colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec2 vertex;
@@ -793,6 +829,8 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
@@ -833,6 +871,8 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec2 vertex;
@@ -844,6 +884,8 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
@@ -853,6 +895,8 @@ layout(location=0) out <?=blitFragType?> fragColor;
 uniform <?=samplerTypeForTex(framebufferRAM.tex)?> framebufferTex;
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
+<?=glslCode5551?>
+
 void main() {
 	uint colorIndex = ]]..readTex{
 		tex = self.videoModeInfo[1].framebufferRAM,
@@ -861,13 +905,14 @@ void main() {
 		from = 'vec2',
 		to = blitFragType,
 	}..[[.r;
-]]..colorIndexToFrag(self.videoModeInfo[1].framebufferRAM.tex)..[[
+]]..colorIndexToFrag(self.videoModeInfo[1].framebufferRAM.tex, 'fragColor')..[[
 }
 ]],			{
 				samplerTypeForTex = samplerTypeForTex,
 				framebufferRAM = self.videoModeInfo[1].framebufferRAM,
 				self = self,
 				blitFragType = blitFragType,
+				glslCode5551 = glslCode5551,
 			}),
 			uniforms = {
 				framebufferTex = 0,
@@ -892,6 +937,8 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = [[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec2 vertex;
@@ -903,6 +950,8 @@ void main() {
 }
 ]],
 			fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
@@ -954,6 +1003,8 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec2 vertex;
@@ -984,6 +1035,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 pixelPos;
@@ -993,6 +1046,8 @@ uniform uint colorIndex;
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 uniform vec4 drawOverrideSolid;
 
+<?=glslCode5551?>
+
 void main() {
 ]]..info.colorOutput..[[
 }
@@ -1001,6 +1056,7 @@ void main() {
 					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
+					glslCode5551 = glslCode5551,
 				}),
 				uniforms = {
 					paletteTex = 0,
@@ -1028,6 +1084,8 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec3 vertex;
@@ -1049,6 +1107,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 pixelPos;
@@ -1061,6 +1121,8 @@ uniform vec4 drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
 
+<?=glslCode5551?>
+
 void main() {
 ]]..info.colorOutput..[[
 }
@@ -1068,6 +1130,7 @@ void main() {
 					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
+					glslCode5551 = glslCode5551,
 				}),
 				uniforms = {
 					paletteTex = 0,
@@ -1098,6 +1161,8 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec2 vertex;
@@ -1122,6 +1187,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 pcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
@@ -1130,6 +1197,8 @@ in vec2 pixelPos;	// framebuffer pixel coordaintes after transform, so they real
 uniform vec4 box;	//x,y,w,h
 
 layout(location=0) out <?=fragType?> fragColor;
+
+<?=glslCode5551?>
 
 uniform bool borderOnly;
 uniform bool round;
@@ -1206,6 +1275,7 @@ void main() {
 					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					self = self,
 					samplerTypeForTex = samplerTypeForTex,
+					glslCode5551 = glslCode5551,
 				}),
 				uniforms = {
 					paletteTex = 0,
@@ -1229,6 +1299,8 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 vertex;
@@ -1253,6 +1325,8 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
@@ -1292,6 +1366,8 @@ uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
 uniform vec4 drawOverrideSolid;
 
+<?=glslCode5551?>
+
 void main() {
 <? if useSamplerUInt then ?>
 	uint colorIndex = ]]
@@ -1344,6 +1420,7 @@ void main() {
 				self = self,
 				samplerTypeForTex = samplerTypeForTex,
 				info = info,
+				glslCode5551 = glslCode5551,
 			}),
 			uniforms = {
 				sheetTex = 0,
@@ -1371,6 +1448,8 @@ void main() {
 			version = glslVersion,
 			precision = 'best',
 			vertexCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 vertex;
@@ -1398,6 +1477,8 @@ void main() {
 				frameBufferSize = frameBufferSize,
 			}),
 			fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
@@ -1437,6 +1518,8 @@ uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
 uniform vec4 drawOverrideSolid;
 
+<?=glslCode5551?>
+
 void main() {
 <? if useSamplerUInt then ?>
 	uint colorIndex = ]]
@@ -1489,6 +1572,7 @@ void main() {
 				self = self,
 				samplerTypeForTex = samplerTypeForTex,
 				info = info,
+				glslCode5551 = glslCode5551,
 			}),
 			uniforms = {
 				sheetTex = 0,
@@ -1616,6 +1700,8 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 vertex;
@@ -1641,6 +1727,8 @@ void main() {
 					frameBufferSize = frameBufferSize,
 				}),
 				fragmentCode = template([[
+precision highp uint;
+precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
@@ -1658,6 +1746,8 @@ const uint tilemapSizeX = <?=tilemapSize.x?>u;
 const uint tilemapSizeY = <?=tilemapSize.y?>u;
 
 uniform vec4 drawOverrideSolid;
+
+<?=glslCode5551?>
 
 void main() {
 #if 0	// do it in float
@@ -1781,6 +1871,7 @@ void main() {
 					glslnumber = glslnumber,
 					spriteSheetSize = spriteSheetSize,
 					tilemapSize = tilemapSize,
+					glslCode5551 = glslCode5551,
 				}),
 				uniforms = {
 					tilemapTex = 0,
@@ -1912,9 +2003,9 @@ function AppVideo:resizeRAMGPUs()
 				height = 1,
 				channels = 1,
 				ctype = 'uint16_t',
-				internalFormat = gl.GL_RGB5_A1,
-				glformat = gl.GL_RGBA,
-				gltype = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV,	-- 'REV' means first channel first bit ... smh
+				internalFormat = internalFormat5551,
+				glformat = format5551,
+				gltype = type5551,
 			}
 		end
 	end
