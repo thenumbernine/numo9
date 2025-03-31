@@ -2313,8 +2313,10 @@ end
 local mvMatCopy = ffi.new('float[16]')
 function AppVideo:clearScreen(colorIndex)
 	gl.glDisable(gl.GL_SCISSOR_TEST)
+	-- which is faster, push/pop the matrix, or reassign the uniform?
 	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
 	self.mvMat:setIdent()
+	self:mvMatToRAM()	-- need this as well
 	self:drawSolidRect(
 		0,
 		0,
@@ -2323,6 +2325,7 @@ function AppVideo:clearScreen(colorIndex)
 		colorIndex or 0)
 	gl.glEnable(gl.GL_SCISSOR_TEST)
 	ffi.copy(self.mvMat.ptr, mvMatCopy, ffi.sizeof(mvMatCopy))
+	self:mvMatToRAM()	-- need this as well
 end
 
 function AppVideo:setClipRect(x, y, w, h)
