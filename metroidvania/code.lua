@@ -383,100 +383,76 @@ init=[]do
 
 	local posinfos = table()
 	local start = (mapInRooms / 2):floor()
-	do
-		local srcroom = rooms[start.x][start.y]
-		srcroom.set = true
-		for dirindex,dir in ipairs(dirvecs) do
-			local nextpos = start + dir
-			local nextroom = rooms[nextpos.x][nextpos.y]
-			posinfos:insert{pos=nextpos}
-			srcroom.dirs[dirindex] = true
-			nextroom.prevRoom = srcroom
-			nextroom.dirs[opposite[dirindex]] = true
-			nextroom.color = advanceColor(srcroom.color)
-			--if math.random() < .5 then
-				srcroom.doors[dirindex] = keyIndex
-				nextroom.doors[opposite[dirindex]] = keyIndex
-			--end
-		end
-	end
-	while true do
-		if #posinfos == 0 then break end
+	local startroom = rooms[start.x][start.y]
+	startroom.set = true
+	posinfos:insert{pos=startroom.pos}
+	while #posinfos > 0 do
 		local posinfoindex = math.random(1, #posinfos)
 		local pos = posinfos[posinfoindex].pos
 		local srcroom = rooms[pos.x][pos.y]
-		if srcroom.set then
-			-- it's already set then someone's already moved into it, so don't bother
+		local validDirs = dirvecs:mapi([dir, dirindex, t] do
+			local nbhdpos = pos + dir
+			if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x
+			and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
+			then
+				local nextroom = rooms[nbhdpos.x][nbhdpos.y]
+				if not nextroom.set
+				and not posinfos:find(nil, [info] info.pos == nbhdpos) then
+					return {dir=dir, dirindex=dirindex}, #t+1
+				end
+			end
+		end)
+
+		if #validDirs == 0 then
+			-- remove posinfos
 			posinfos:remove(posinfoindex)
 		else
-			-- not set yet - set it and grow off of it
-			srcroom.set = true
+			-- TODO only move once so levels are longer or something
+			local p = validDirs:pickRandom()
+			local dirindex = p.dirindex
+			local dir = p.dir
+			local nbhdpos = pos + dir
+			local nextroom = rooms[nbhdpos.x][nbhdpos.y]
+			posinfos:insert{pos=nbhdpos}
+			srcroom.dirs[dirindex] = true
+			nextroom.set = true
+			nextroom.prevRoom = srcroom
+			nextroom.dirs[opposite[dirindex]] = true
+			nextroom.color = advanceColor(srcroom.color)
 
-			local validDirs = dirvecs:mapi([dir, dirindex, t] do
-				local nbhdpos = pos + dir
-				if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x
-				and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
-				then
-					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
-					if not nextroom.set
-					and not posinfos:find(nil, [info] info.pos == nbhdpos) then
-						return {dir=dir, dirindex=dirindex}, #t+1
-					end
-				end
-			end)
-
-			if #validDirs == 0 then
-				-- remove posinfos
-				posinfos:remove(posinfoindex)
+			-- monsters?
+			if math.random() < .5 then
+				-- store spawn info, spawn when screen changes
+				nextroom.spawns:insert{
+					class=Enemy,
+					pos=(nextroom.pos + .5)*roomSize,
+				}
 			else
-				-- TODO only move once so levels are longer or something
-				--local p = validDirs:pickRandom()
-				for _,p in ipairs(validDirs) do
-					local dirindex = p.dirindex
-					local dir = p.dir
-					local nbhdpos = pos + dir
-					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
-					posinfos:insert{pos=nbhdpos}
-					srcroom.dirs[dirindex] = true
-					nextroom.prevRoom = srcroom
-					nextroom.dirs[opposite[dirindex]] = true
-					nextroom.color = advanceColor(srcroom.color)
+				nextroom.spawns:insert{
+					class=Health,
+					pos=(nextroom.pos + .5)*roomSize,
+				}
+			end
 
-					-- monsters?
-					if math.random() < .5 then
-						-- store spawn info, spawn when screen changes
-						nextroom.spawns:insert{
-							class=Enemy,
-							pos=(nextroom.pos + .5)*roomSize,
-						}
-					else
-						nextroom.spawns:insert{
-							class=Health,
-							pos=(nextroom.pos + .5)*roomSize,
-						}
-					end
+			-- TODO powerups?
 
-					-- TODO powerups?
+			-- if we are making a key-door then make sure to drop a key somewhere in the .prevRoom chain
+			-- ... and it'd be nice to put the key behind the last-greatest key-door used
+			if math.random() < .5 then
 
-					-- if we are making a key-door then make sure to drop a key somewhere in the .prevRoom chain
-					-- ... and it'd be nice to put the key behind the last-greatest key-door used
-					if math.random() < .2 then
+				-- what if there's already a key-door there?
+				-- will there ever be one?
+				srcroom.doors[dirindex] = math.random(0, keyIndex)
+				nextroom.doors[opposite[dirindex]] = math.random(0, keyIndex)
 
-						-- what if there's already a key-door there?
-						-- will there ever be one?
-						srcroom.doors[dirindex] = math.random(0, keyIndex)
-						nextroom.doors[opposite[dirindex]] = math.random(0, keyIndex)
-
-						if math.random() < .2 then
-							keyIndex += 1
-							-- put the key after the next room
-							nextroom.spawns:insert{
-								class=Key,
-								pos=(nextroom.pos + .5)*roomSize,
-								keyIndex = keyIndex,
-							}
-						end
-					end
+				if math.random() < .2 then
+					keyIndex += 1
+					-- put the key after the next room
+					nextroom.spawns:insert{
+						class=Key,
+						pos=(nextroom.pos + .5)*roomSize,
+						keyIndex = keyIndex,
+					}
 				end
 			end
 		end
@@ -613,6 +589,7 @@ end
 
 local viewPos = vec2()
 local lastScreenPos = vec2(-1, -1)
+local lastRoom
 update=[]do
 	cls()
 
@@ -656,6 +633,8 @@ update=[]do
 			room.seen = true
 			
 			-- and respawn here
+			-- but TODO FIXME that means we aren't respawning when entering the room a second 
+			-- so TODO group trhe rooms and check for change in room-group
 			-- or mayb elater, keep track of the active room-group you're in
 			-- (temrinology: renmae 'rooms' to 'blocks' and rename 'room-group' to 'room')
 			if not respawnAllThisTest then
@@ -669,7 +648,6 @@ update=[]do
 					spawn:class()
 				end
 			end
-
 
 			for dirindex,dir in ipairs(dirvecs) do
 				local nbhdpos = room.pos + dir
@@ -688,7 +666,14 @@ update=[]do
 			end
 		end
 		local x, y = math.floor(player.pos.x / roomSize.x), math.floor(player.pos.y / roomSize.y)
-		reveal(rooms[x][y])
+		local roomcol = rooms[x]
+		local room = roomcol and roomcol[y]
+		if room ~= lastRoom then
+			lastRoom = room
+			-- TODO update lum based on room flood fill dist from player
+			--  ... stop at room-group boundaries
+			reveal(room)
+		end
 	end
 
 	local ulpos = viewPos - 16
