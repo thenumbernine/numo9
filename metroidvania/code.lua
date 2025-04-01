@@ -752,15 +752,15 @@ update=[]do
 
 	-- only now, erase rooms we haven't seen
 	blend(6)	-- subtract-with-constant
-	for i=0,math.floor(32/roomSize.x)-1 do
-		for j=0,math.floor(32/roomSize.y)-1 do
+	for i=0,math.floor(32/roomSize.x) do
+		for j=0,math.floor(32/roomSize.y) do
 			local room = rooms?[math.floor(ulpos.x / roomSize.x) + i]?[math.floor(ulpos.y / roomSize.y) + j]
-			if room and room.seen then
+			if room and not room.seen then
 				local negRoomColor = 0xffff
 				pokew(blendColorAddr, negRoomColor)
 				rect(
-					((math.floor(ulpos.x) + i) * roomSize.x) * 8,
-					((math.floor(ulpos.y) + j) * roomSize.y) * 8,
+					((math.floor(ulpos.x / roomSize.x) + i) * roomSize.x) * 8,
+					((math.floor(ulpos.y / roomSize.y) + j) * roomSize.y) * 8,
 					roomSize.x * 8,
 					roomSize.y * 8,
 					13)
