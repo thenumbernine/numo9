@@ -1283,14 +1283,16 @@ function App:net_memset(dst, val, len)
 	return self:memset(dst, val, len)
 end
 
-function App:net_mset(x, y, value)
+function App:net_mset(x, y, value, bankNo)
 	x = toint(x)
 	y = toint(y)
+	bankNo = tonumber(toint(bankNo))	-- or 0
 	value = ffi.cast('uint16_t', value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
+	and bankNo >= 0 and bankNo < #self.banks
 	then
-		local addr = self.tilemapRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		local addr = self.tilemapRAMs[bankNo+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		-- use poke over netplay, cuz i'm lazy.
 		if self.server then
 			local prevValue = self:peekw(addr)
@@ -1308,13 +1310,15 @@ end
 
 -------------------- LOCAL ENV API --------------------
 
-function App:mget(x, y)
+function App:mget(x, y, bankNo)
 	x = toint(x)
 	y = toint(y)
+	bankNo = tonumber(toint(bankNo))	-- or 0
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
+	and bankNo >= 0 and bankNo < #self.banks
 	then
-		local addr = self.tilemapRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		local addr = self.tilemapRAMs[bankNo+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		return self:peekw(addr)
 	end
 	-- TODO return default oob value?  or return nil?
