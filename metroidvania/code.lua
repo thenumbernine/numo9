@@ -13,8 +13,13 @@ math.randomseed(tstamp())
 --local roomSize = vec2(32,32)
 --local roomSize = vec2(16,16)
 local roomSize = vec2(8,8)
---local mapInRooms = vec2(256,256) / roomSize	-- full game
-local mapInRooms = vec2(32, 32) / roomSize
+
+local mapSize = vec2(256,256)	-- full game
+--local mapSize = vec2(64, 64)	-- 2x2 screens
+--local mapSize = vec2(32, 32)	-- 1 screen
+
+local mapInRooms = mapSize / roomSize
+
 local rooms
 local keyIndex
 local keyColors
@@ -22,7 +27,7 @@ local keyColors
 local sprites = {
 	player = 0,
 	enemy = 1,
-	heart = 32, 
+	heart = 32,
 	hearthalf = 33,
 	key = 34,
 }
@@ -38,12 +43,6 @@ mapTypes=table{
 	[2]={
 		name='chest',
 		flags=flags.solid,
-		touch = [:, o, x, y]do
-			if o == player then
-				mset(x,y,mapTypeForName.chest_open.index)
-				player.keys += 1
-			end
-		end,
 	},
 	[3]={
 		name='chest_open',
@@ -61,31 +60,18 @@ mapTypes=table{
 				local keyIndex = room.doorKey[u][v]
 				-- get the room this is in
 				-- get the key that this is
-trace('touching door keyIndex', keyIndex)				
 				if o.hasKeys[keyIndex] then
 					mset(x,y,mapTypeForName.empty.index)
 				end
 			end
 		end,
 	},
-	[5]={
-		name='locked_door',
-		flags=flags.solid,
-		touch = [:, o, x, y]do
-			if o == player 
-			and o.keys > 0 
-			then
-				o.keys -= 1
-				mset(x,y,mapTypeForName.door.index)
-			end
-		end,
-	},
 	[32]={name='spawn_player'},
 	[33]={name='spawn_enemy'},
 }
-for k,v in pairs(mapTypes) do 
-	v.index = k 
-	v.flags ??= 0 
+for k,v in pairs(mapTypes) do
+	v.index = k
+	v.flags ??= 0
 end
 mapTypeForName = mapTypes:map([v,k] (v, v.name))
 
@@ -181,7 +167,7 @@ Object.update=[:]do
 						self.hitXP = true
 					else
 						self.hitXN = true
-					end				
+					end
 					self.vel.x = 0
 				end
 			end
@@ -198,13 +184,14 @@ end
 local drawKeyColor=[x,y,keyIndex]do
 	blend(6)	-- subtract-with-constant
 	spr(Key.sprite, x-1, y-1)
+	spr(Key.sprite, x+1, y+1)
 	blend(-1)
 	spr(Key.sprite, x, y)
-	
+
 	blend(6)	-- subtract-with-constant
-	
+
 	local keyColor = keyColors[keyIndex]
-	local negKeyColor = 
+	local negKeyColor =
 		   math.floor((1 - keyColor.x) * 31)
 		| (math.floor((1 - keyColor.y) * 31) << 5)
 		| (math.floor((1 - keyColor.z) * 31) << 10)
@@ -212,9 +199,17 @@ local drawKeyColor=[x,y,keyIndex]do
 	pokew(blendColorAddr, negKeyColor)
 
 	spr(Key.sprite, x,y)
-	
+
 	blend(-1)
 end
+
+Health = Object:subclass()
+Health.sprite = 32
+Health.touch=[:,o]do
+	player.health = player.maxHealth
+	self.removeMe = true
+end
+
 
 Key = Object:subclass()
 Key.sprite = 34
@@ -247,7 +242,6 @@ end
 Player=TakesDamage:subclass()
 Player.sprite=sprites.player
 Player.maxHealth=3
-Player.keys=0
 Player.useGravity = true
 Player.init=[:,args]do
 	Player.super.init(self, args)
@@ -268,17 +262,17 @@ Player.update=[:]do
 		-- move in air? or nah, castlevania nes jumping. or nah, but constrain acceleration ...
 		local maxAirSpeed = speed
 		local speed = .05
-		if btn(2) then 
-			self.vel.x -= speed 
+		if btn(2) then
+			self.vel.x -= speed
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
-		if btn(3) then 
-			self.vel.x += speed 
+		if btn(3) then
+			self.vel.x += speed
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
 	end
 	if btn(5)
-	--and self.hitYP 
+	--and self.hitYP
 	then
 		local jumpVel = .35
 		self.vel.y = -jumpVel
@@ -349,7 +343,7 @@ end
 
 init=[]do
 	reset()	-- reset rom
-	
+
 	objs=table()
 	player = nil
 
@@ -360,12 +354,13 @@ init=[]do
 		end
 	end
 
-	rooms = range(0,mapInRooms.x-1):mapi([i] 
-		(range(0,mapInRooms.y-1):mapi([j] 
+	rooms = range(0,mapInRooms.x-1):mapi([i]
+		(range(0,mapInRooms.y-1):mapi([j]
 			({
 				pos = vec2(i,j),
 				dirs = table(),
 				doors = table(),
+				spawns = table(),
 				color = pickRandomColor(),
 			}, j)
 		), i)
@@ -378,13 +373,14 @@ init=[]do
 		vec2(1,0),
 	}
 	local opposite = {2,1,4,3}
-	
+
 	keyIndex = 0
 
 	local posinfos = table()
 	local start = (mapInRooms / 2):floor()
 	do
 		local srcroom = rooms[start.x][start.y]
+		srcroom.set = true
 		for dirindex,dir in ipairs(dirvecs) do
 			local nextpos = start + dir
 			local nextroom = rooms[nextpos.x][nextpos.y]
@@ -393,10 +389,10 @@ init=[]do
 			nextroom.prevRoom = srcroom
 			nextroom.dirs[opposite[dirindex]] = true
 			nextroom.color = advanceColor(srcroom.color)
-			if math.random() < .5 then
+			--if math.random() < .5 then
 				srcroom.doors[dirindex] = keyIndex
 				nextroom.doors[opposite[dirindex]] = keyIndex
-			end
+			--end
 		end
 	end
 	while true do
@@ -413,7 +409,7 @@ init=[]do
 
 			local validDirs = dirvecs:mapi([dir, dirindex, t] do
 				local nbhdpos = pos + dir
-				if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x 
+				if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x
 				and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
 				then
 					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
@@ -440,36 +436,51 @@ init=[]do
 					nextroom.prevRoom = srcroom
 					nextroom.dirs[opposite[dirindex]] = true
 					nextroom.color = advanceColor(srcroom.color)
-					
+
+					-- monsters?
+					if math.random() < .5 then
+						-- store spawn info, spawn when screen changes
+						nextroom.spawns:insert{
+							class=Enemy,
+							pos=(nextroom.pos + .5)*roomSize,
+						}
+					else
+						nextroom.spawns:insert{
+							class=Health,
+							pos=(nextroom.pos + .5)*roomSize,
+						}
+					end
+
+					-- TODO powerups?
+
 					-- if we are making a key-door then make sure to drop a key somewhere in the .prevRoom chain
 					-- ... and it'd be nice to put the key behind the last-greatest key-door used
 					if math.random() < .5 then
-						
+
 						-- what if there's already a key-door there?
 						-- will there ever be one?
 						srcroom.doors[dirindex] = math.random(0, keyIndex)
 						nextroom.doors[opposite[dirindex]] = math.random(0, keyIndex)
-					
-						if math.random() < .5 then 
-							keyIndex += 1 
+
+						if math.random() < .5 then
+							keyIndex += 1
 							-- put the key after the next room
-							nextroom.items ??= table()
-							--nextroom.items:insert ...
-							local key = Key{
+							nextroom.spawns:insert{
+								class=Key,
 								pos=(nextroom.pos + .5)*roomSize,
 								keyIndex = keyIndex,
 							}
-							trace('drawing key at '..key.pos)
 						end
 					end
 				end
 			end
 		end
 	end
+
 	for i=0,mapInRooms.x-1 do
 		for j=0,mapInRooms.y-1 do
 			local room = rooms[i][j]
-			
+
 			for x=0,roomSize.x-1 do
 				local dx = x + .5 - roomSize.x*.5
 				for y=0,roomSize.y-1 do
@@ -479,7 +490,7 @@ init=[]do
 					end
 				end
 			end
-		
+
 			-- [[
 			for dirindex,dir in ipairs(dirvecs) do
 				if room.dirs[dirindex] then
@@ -499,16 +510,16 @@ init=[]do
 						room.doorKey ??= {}
 						for y=0,2*w-1 do
 							local mx = math.floor(i * roomSize.x + roomSize.x * .5 + dir.x * (xmax - .5) + dir.y * (y + .5 - w))
-							local my = math.floor(j * roomSize.y + roomSize.y * .5 + dir.y * (xmax - .5) - dir.x * (y + .5 - w)) 
+							local my = math.floor(j * roomSize.y + roomSize.y * .5 + dir.y * (xmax - .5) - dir.x * (y + .5 - w))
 							room.doorKey[mx % roomSize.x] ??= {}
 							room.doorKey[mx % roomSize.x][my % roomSize.y] = doorKey
 							mset(mx, my, mapTypeForName.door.index)
 						end
 					end
 				end
-			end	
+			end
 			--]]
-		
+
 			for ofs=-1,0 do
 				mset(
 					math.floor((i + .5) * roomSize.x + ofs),
@@ -565,7 +576,8 @@ init=[]do
 		local c = pickRandomColor()
 		for i=0,keyIndex do
 			keyColors[i] = c
-			c = advanceColor(c)
+			--c = advanceColor(c)
+			c = pickRandomColor()
 		end
 	end
 end
@@ -581,12 +593,32 @@ update=[]do
 
 	local screenPos = ((viewPos-.5)/32):floor()
 
---[[
+-- [[
 	if screenPos ~= lastScreenPos then
 		lastScreenPos = screenPos
 		-- TODO reset state here
 		-- regenerate the overlay ... or not ... just draw a solid color maybe?
+		-- first destroy all spawns, i.e. keys, items, enemies
+		for _,o in ipairs(objs) do
+			if not Player:isa(o) then o.removeMe = true end
+		end
+
+		-- next respawn any for this room
+		for i=0,math.floor(32/roomSize.x)-1 do
+			for j=0,math.floor(32/roomSize.y)-1 do
+				local roomcol = rooms[math.floor(screenPos.x * 32 / roomSize.x) + i]
+				local room = roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
+				if room.spawns then
+					for _,spawn in ipairs(room.spawns) do
+						spawn:class()
+					end
+				end
+			end
+		end
 	end
+
+	local room = rooms[math.floor(player.pos.x / roomSize.x)][math.floor(player.pos.y / roomSize.y)]
+	room.seen = true
 --]]
 
 	matident()
@@ -616,20 +648,20 @@ update=[]do
 					local y = screenPos.y * 32 + j * roomSize.y + v
 					local ti = mget(x,y)
 					if ti == mapTypeForName.solid.index then
-						
-						-- white with constant blend rect works 
+
+						-- white with constant blend rect works
 						pokew(blendColorAddr, negRoomColor)
 
 						rect(x * 8, y * 8, 8, 8, 13)
 					elseif ti == mapTypeForName.door.index then
 						local keyColor = keyColors[room.doorKey[u][v]]
-						local negKeyColor = 
+						local negKeyColor =
 							   math.floor((1 - keyColor.x) * 31)
 							| (math.floor((1 - keyColor.y) * 31) << 5)
 							| (math.floor((1 - keyColor.z) * 31) << 10)
 							| 0x8000
 						pokew(blendColorAddr, negKeyColor)
-						
+
 						rect(x * 8, y * 8, 8, 8, 13)
 					end
 				end
@@ -643,6 +675,27 @@ update=[]do
 	for _,o in ipairs(objs) do
 		o:draw()
 	end
+	
+	-- only now, erase hidden rooms
+	blend(6)	-- subtract-with-constant
+	for i=0,math.floor(32/roomSize.x)-1 do
+		for j=0,math.floor(32/roomSize.y)-1 do
+			local roomcol = rooms[math.floor(screenPos.x * 32 / roomSize.x) + i]
+			local room = roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
+			if not room.seen then
+				local negRoomColor = 0xffff
+				pokew(blendColorAddr, negRoomColor)
+				rect(
+					(screenPos.x * 32 + i * roomSize.x) * 8,
+					(screenPos.y * 32 + j * roomSize.y) * 8,
+					roomSize.x * 8,
+					roomSize.y * 8,
+					13)		
+			end
+		end
+	end
+	blend(-1)
+
 	for _,o in ipairs(objs) do
 		o:update()
 	end
@@ -652,24 +705,18 @@ update=[]do
 		mainloops[i] = nil
 	end
 
-	-- draw gui
-	if player then
-		for i=1,player.health do
-			spr(sprites.heart, (i-1)<<3, 248)
-		end
-		for i=1,player.keys do
-			spr(sprites.key, 248-((i-1)<<3), 248)
-		end
-	end
-
 	-- remove dead
 	for i=#objs,1,-1 do
 		if objs[i].removeMe then objs:remove(i) end
 	end
 
+
 -- [[ gui
 	if player then
 		matident()
+		for i=1,player.health do
+			spr(sprites.heart, (i-1)<<3, 248)
+		end
 		for keyIndex,v in pairs(player.hasKeys) do
 			drawKeyColor(8 * keyIndex, 1, keyIndex)
 		end
