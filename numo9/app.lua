@@ -617,6 +617,7 @@ function App:initGL()
 		end,
 
 		-- TODO maybe make draw16Sprites a poke'd value
+		-- TODO a map() that uses a callback for permuting drawn indexes .... even if it's slow .. . make it separate
 		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites, sheetIndex)
 			if self.server then
 				tilesWide = tilesWide or 1
