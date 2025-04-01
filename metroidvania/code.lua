@@ -62,15 +62,16 @@ mapTypes=table{
 		flags=flags.solid,
 		touch = [:, o, x, y]do
 			if o == player then
-				local roomcol = rooms[math.floor(x / roomSize.x)]
-				local room = roomcol[math.floor(y / roomSize.y)]
-				local u = x % roomSize.x
-				local v = y % roomSize.y
-				local keyIndex = room.doorKey[u][v]
-				-- get the room this is in
-				-- get the key that this is
-				if o.hasKeys[keyIndex] then
-					mset(x,y,mapTypeForName.empty.index)
+				local room = rooms?[math.floor(x / roomSize.x)]?[math.floor(y / roomSize.y)]
+				if room then
+					local u = x % roomSize.x
+					local v = y % roomSize.y
+					local keyIndex = room?.doorKey[u][v]
+					-- get the room this is in
+					-- get the key that this is
+					if o.hasKeys[keyIndex] then
+						mset(x,y,mapTypeForName.empty.index)
+					end
 				end
 			end
 		end,
@@ -303,7 +304,7 @@ Player.attack=[:]do
 		elli((self.pos.x - self.attackDist)*8, (self.pos.y - self.attackDist)*8, 16*self.attackDist,16*self.attackDist, 3)
 	end)
 	for _,o in ipairs(objs) do
-		if o ~= self 
+		if o ~= self
 		and o.takeDamage
 		then
 			local delta = o.pos - self.pos
@@ -578,7 +579,7 @@ init=[]do
 	for i=1,mapInRooms.x-1 do
 		for j=1,mapInRooms.y-1 do
 			local empty = 0
-			for _,dir in ipairs(dirvecs) do		
+			for _,dir in ipairs(dirvecs) do
 				if mget(
 					(i + .5 * dir.x) * roomSize.x,
 					(j + .5 * dir.y) * roomSize.y) == 0
@@ -620,9 +621,10 @@ update=[]do
 
 	local screenPos = ((viewPos-.5)/32):floor()
 
--- [[
+--[[
 	if screenPos ~= lastScreenPos then
 		lastScreenPos = screenPos
+		
 		-- TODO reset state here
 		-- regenerate the overlay ... or not ... just draw a solid color maybe?
 		-- first destroy all spawns, i.e. keys, items, enemies
@@ -643,21 +645,39 @@ update=[]do
 			end
 		end
 	end
+--]]
 
 	do
+		local respawnAllThisTest = false
 		local reveal
 		reveal = [room]do
 			if room.seen then return end
 			room.seen = true
+			
+			-- and respawn here
+			-- or mayb elater, keep track of the active room-group you're in
+			-- (temrinology: renmae 'rooms' to 'blocks' and rename 'room-group' to 'room')
+			if not respawnAllThisTest then
+				for _,o in ipairs(objs) do
+					if not Player:isa(o) then o.removeMe = true end
+				end
+			end
+			if room.spawns then
+				for _,spawn in ipairs(room.spawns) do
+					spawn:class()
+				end
+			end
+
+
 			for dirindex,dir in ipairs(dirvecs) do
 				local nbhdpos = room.pos + dir
 				if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x
 				and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
 				then
 					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
-					if room.dirs[dirindex] 
+					if room.dirs[dirindex]
 					and not room.doors[dirindex]
-					and nextroom.dirs[opposite[dirindex]] 
+					and nextroom.dirs[opposite[dirindex]]
 					and not nextroom.doors[opposite[dirindex]]
 					then
 						reveal(rooms[nbhdpos.x][nbhdpos.y])
@@ -668,50 +688,55 @@ update=[]do
 		local x, y = math.floor(player.pos.x / roomSize.x), math.floor(player.pos.y / roomSize.y)
 		reveal(rooms[x][y])
 	end
---]]
+
+	local ulpos = viewPos - 16
 
 	matident()
-	mattrans(-screenPos.x*32*8, -screenPos.y*32*8)
+	--mattrans(-screenPos.x*32*8, -screenPos.y*32*8)
+	mattrans(-ulpos.x*8, -ulpos.y*8)
 
 	--[[ draw all
 	map(0,0,256,256,0,0)
 	--]]
 	-- [[ draw one screen
-	map(screenPos.x*32, screenPos.y*32, 32, 32, screenPos.x*32*8, screenPos.y*32*8)
+	--map(screenPos.x*32, screenPos.y*32, 32, 32, screenPos.x*32*8, screenPos.y*32*8)
+	map(math.floor(ulpos.x), math.floor(ulpos.y), 33, 33, math.floor(ulpos.x)*8, math.floor(ulpos.y)*8)
 	--]]
 	-- [[ instead of coloring per tile, solid-shade per-room
 	--blend(1)	-- average
 	--blend(2)	-- subtract
 	blend(6)	-- subtract-with-constant
-	for i=0,math.floor(32/roomSize.x)-1 do
-		for j=0,math.floor(32/roomSize.y)-1 do
-			local roomcol = rooms[math.floor(screenPos.x * 32 / roomSize.x) + i]
-			local room = roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
-			local negRoomColor = math.floor((1 - room.color.x) * 31)
-				| (math.floor((1 - room.color.y) * 31) << 5)
-				| (math.floor((1 - room.color.z) * 31) << 10)
-				| 0x8000
-			for v=0,roomSize.y-1 do
-				for u=0,roomSize.x-1 do
-					local x = screenPos.x * 32 + i * roomSize.x + u
-					local y = screenPos.y * 32 + j * roomSize.y + v
-					local ti = mget(x,y)
-					if ti == mapTypeForName.solid.index then
+	for i=0,math.floor(32/roomSize.x) do
+		for j=0,math.floor(32/roomSize.y) do
+			local room = rooms?[math.floor(ulpos.x / roomSize.x) + i]?[math.floor(ulpos.y / roomSize.y) + j]
+			if room then
+				local negRoomColor = math.floor((1 - room.color.x) * 31)
+					| (math.floor((1 - room.color.y) * 31) << 5)
+					| (math.floor((1 - room.color.z) * 31) << 10)
+					| 0x8000
+				for v=0,roomSize.y-1 do
+					for u=0,roomSize.x-1 do
+						local x = (math.floor(ulpos.x / roomSize.x) + i) * roomSize.x + u
+						local y = (math.floor(ulpos.y / roomSize.y) + j) * roomSize.y + v
+						local ti = mget(x,y)
+						if ti == mapTypeForName.solid.index then
 
-						-- white with constant blend rect works
-						pokew(blendColorAddr, negRoomColor)
+							-- white with constant blend rect works
+							pokew(blendColorAddr, negRoomColor)
 
-						rect(x * 8, y * 8, 8, 8, 13)
-					elseif ti == mapTypeForName.door.index then
-						local keyColor = keyColors[room.doorKey[u][v]]
-						local negKeyColor =
-							   math.floor((1 - keyColor.x) * 31)
-							| (math.floor((1 - keyColor.y) * 31) << 5)
-							| (math.floor((1 - keyColor.z) * 31) << 10)
-							| 0x8000
-						pokew(blendColorAddr, negKeyColor)
+							rect(x * 8, y * 8, 8, 8, 13)
+						elseif ti == mapTypeForName.door.index then
+-- if there's a door then there should be a .doorKey and a keyColor ...
+							local keyColor = keyColors[room.doorKey[u][v]]
+							local negKeyColor =
+								   math.floor((1 - keyColor.x) * 31)
+								| (math.floor((1 - keyColor.y) * 31) << 5)
+								| (math.floor((1 - keyColor.z) * 31) << 10)
+								| 0x8000
+							pokew(blendColorAddr, negKeyColor)
 
-						rect(x * 8, y * 8, 8, 8, 13)
+							rect(x * 8, y * 8, 8, 8, 13)
+						end
 					end
 				end
 			end
@@ -724,22 +749,21 @@ update=[]do
 	for _,o in ipairs(objs) do
 		o:draw()
 	end
-	
+
 	-- only now, erase rooms we haven't seen
 	blend(6)	-- subtract-with-constant
 	for i=0,math.floor(32/roomSize.x)-1 do
 		for j=0,math.floor(32/roomSize.y)-1 do
-			local roomcol = rooms[math.floor(screenPos.x * 32 / roomSize.x) + i]
-			local room = roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
-			if not room.seen then
+			local room = rooms?[math.floor(ulpos.x / roomSize.x) + i]?[math.floor(ulpos.y / roomSize.y) + j]
+			if room and room.seen then
 				local negRoomColor = 0xffff
 				pokew(blendColorAddr, negRoomColor)
 				rect(
-					(screenPos.x * 32 + i * roomSize.x) * 8,
-					(screenPos.y * 32 + j * roomSize.y) * 8,
+					((math.floor(ulpos.x) + i) * roomSize.x) * 8,
+					((math.floor(ulpos.y) + j) * roomSize.y) * 8,
 					roomSize.x * 8,
 					roomSize.y * 8,
-					13)		
+					13)
 			end
 		end
 	end
