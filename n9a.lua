@@ -212,7 +212,10 @@ or cmd == 'r' then
 		-- or what's another option ... I could have my own virtual filesystem per cartridge ... and then allow 'require' functions ... and then worry about where to mount the cartridge ...
 		-- that sounds like a much better idea.
 		-- so here's a temp fix ...
-		local includePath = path'include'
+		local includePaths = table{
+			basepath,
+			path'include',
+		}
 		local included = {}
 		local function insertIncludes(s)
 			return string.split(s, '\n'):mapi(function(l)
@@ -220,7 +223,13 @@ or cmd == 'r' then
 				if loc then
 					if included[loc] then return '' end
 					included[loc] = true
-					return insertIncludes(assert(includePath(loc):read()))
+					for _,incpath in ipairs(includePaths) do
+						local d = incpath(loc):read()
+						if d then
+							return insertIncludes(d)
+						end
+					end
+					error("couldn't find "..loc.." in include paths: "..tolua(includePaths:mapi(function(p) return p.path end)))
 				else
 					return l
 				end
