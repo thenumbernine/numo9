@@ -1,4 +1,5 @@
 --#include vec/vec2.lua
+--#include vec/vec3.lua
 --#include vec/box2.lua
 --#include ext/class.lua
 --#include ext/range.lua
@@ -271,6 +272,7 @@ end
 --local roomSize = vec2(16,16)
 local roomSize = vec2(8,8)
 local mapInRooms = vec2(256,256) / roomSize
+local rooms
 
 init=[]do
 	reset()	-- reset rom
@@ -281,12 +283,24 @@ init=[]do
 			mset(x,y,1)	-- solid
 		end
 	end
-	
-	local rooms = range(0,mapInRooms.x-1):mapi([i] 
+
+	local pickRandomColor = []
+		vec3(math.random(), math.random(), math.random()):unit()
+	local advanceColor = [v] do
+		v = v:clone()
+		v.x += .2 * (math.random() * 2 - 1)
+		v.y += .2 * (math.random() * 2 - 1)
+		v.z += .2 * (math.random() * 2 - 1)
+		v = v:map([x] math.clamp(x, 0, 1))
+		return v
+	end
+
+	rooms = range(0,mapInRooms.x-1):mapi([i] 
 		(range(0,mapInRooms.y-1):mapi([j] 
 			({
-				pos=vec2(i,j),
-				dirs=table(),
+				pos = vec2(i,j),
+				dirs = table(),
+				color = pickRandomColor(),
 			}, j)
 		), i)
 	)
@@ -299,35 +313,68 @@ init=[]do
 	}
 	local opposite = {2,1,4,3}
 
-	local start = (mapInRooms / 2):floor()
 	local nextposinfos = table()
-	for dirindex,dir in ipairs(dirvecs) do
-		local nbhdpos = start + dir
-		nextposinfos:insert{pos=nbhdpos}
-		rooms[start.x][start.y].dirs[dirindex] = true
-		rooms[nbhdpos.x][nbhdpos.y].dirs[opposite[dirindex]] = true
+	local start = (mapInRooms / 2):floor()
+	do
+		local srcroom = rooms[start.x][start.y]
+		for dirindex,dir in ipairs(dirvecs) do
+			local nextpos = start + dir
+			local nextroom = rooms[nextpos.x][nextpos.y]
+			nextposinfos:insert{pos=nextpos}
+			srcroom.dirs[dirindex] = true
+			nextroom.dirs[opposite[dirindex]] = true
+			nextroom.color = advanceColor(srcroom.color)
+		end
 	end
 	while true do
 		if #nextposinfos == 0 then break end
 		local info = nextposinfos:remove(math.random(1, #nextposinfos))
 		local pos = info.pos
-		rooms[pos.x][pos.y].set = true
+		local srcroom = rooms[pos.x][pos.y]
+		if not srcroom.set then
+			srcroom.set = true
 
-		for dirindex, dir in ipairs(dirvecs) do
-			local nbhdpos = pos + dir
-			if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x 
-			and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
-			and not rooms[nbhdpos.x][nbhdpos.y].set
-			and not nextposinfos:find(nil, [info] info.pos == nbhdpos) then
-				nextposinfos:insert{pos=nbhdpos}
-				rooms[pos.x][pos.y].dirs[dirindex] = true
-				rooms[nbhdpos.x][nbhdpos.y].dirs[opposite[dirindex]] = true
+			for dirindex, dir in ipairs(dirvecs) do
+				local nbhdpos = pos + dir
+				if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x 
+				and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
+				then
+					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
+					if not nextroom.set
+					and not nextposinfos:find(nil, [info] info.pos == nbhdpos) then
+						nextposinfos:insert{pos=nbhdpos}
+						srcroom.dirs[dirindex] = true
+						nextroom.dirs[opposite[dirindex]] = true
+						nextroom.color = advanceColor(srcroom.color)
+					end
+				end
 			end
 		end
 	end
 	for i=0,mapInRooms.x-1 do
 		for j=0,mapInRooms.y-1 do
 			local room = rooms[i][j]
+			
+			-- bake colors
+			-- how to do this without drawing every single tile ...
+			room.color12 = 
+				math.floor(room.color.x * 31)
+				| (math.floor(room.color.y * 31) << 5)
+				| (math.floor(room.color.z * 31) << 10)
+				| 0x8000
+			room.color23 = 
+				math.floor(.5 * room.color.x * 31)
+				| (math.floor(.5 * room.color.y * 31) << 5)
+				| (math.floor(.5 * room.color.z * 31) << 10)
+				| 0x8000
+			room.color15 = 
+				math.floor(.1 * room.color.x * 31)
+				| (math.floor(.1 * room.color.y * 31) << 5)
+				| (math.floor(.1 * room.color.z * 31) << 10)
+				| 0x8000
+			-- TODO still is slow ...
+			-- maybe by storing them in the tilemap somewhere ...
+
 			for x=0,roomSize.x-1 do
 				local dx = x - roomSize.x*.5
 				for y=0,roomSize.y-1 do
@@ -414,14 +461,42 @@ update=[]do
 	if player then
 		viewPos:set(player.pos)
 	end
-	
-	matident()
-	mattrans(
-		-math.floor((viewPos.x-.5)/32)*32*8,
-		-math.floor((viewPos.y-.5)/32)*32*8
-	)
 
+	local ulx = math.floor((viewPos.x-.5)/32)
+	local uly = math.floor((viewPos.y-.5)/32)
+
+	matident()
+	mattrans(-ulx*32*8, -uly*32*8)
+
+	--[[ draw all
 	map(0,0,256,256,0,0)
+	--]]
+	--[[ draw one screen
+	map(ulx*32, uly*32, 32, 32, ulx*32*8, uly*32*8)
+	--]]
+	-- [[ draw one tile at a time ... goes much slower ... tood use pal bakign to sped this up
+	local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+	local pushColor12 = peekw(palAddr+(12<<1))
+	local pushColor15 = peekw(palAddr+(15<<1))
+	local pushColor23 = peekw(palAddr+(23<<1))
+	for j=0,31 do
+		for i=0,31 do
+			local x = i + ulx * 32
+			local y = j + uly * 32
+			local roomcol = rooms[math.floor(x / roomSize.x)]
+			local room = roomcol[math.floor(y / roomSize.y)]
+
+			-- color by x and y somehow ... or by the room ... idk ...
+			pokew(palAddr+(12<<1), room.color12)
+			pokew(palAddr+(23<<1), room.color23)
+			pokew(palAddr+(15<<1), room.color15)
+			map(x, y, 32, 32, x * 8, y * 8)
+		end
+	end
+	pokew(palAddr+(12<<1), pushColor12)
+	pokew(palAddr+(15<<1), pushColor15)
+	pokew(palAddr+(23<<1), pushColor23)
+	--]]
 	for _,o in ipairs(objs) do
 		o:update()
 	end
