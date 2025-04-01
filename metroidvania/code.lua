@@ -4,6 +4,10 @@
 --#include ext/class.lua
 --#include ext/range.lua
 
+local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+local blendColorAddr = ffi.offsetof('RAM','blendColor')
+local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
+
 math.randomseed(tstamp())
 
 local sprites = {
@@ -267,7 +271,7 @@ Enemy.touch=[:,o]do
 		player:takeDamage(1)
 	end
 end
-	
+
 --local roomSize = vec2(32,32)
 --local roomSize = vec2(16,16)
 local roomSize = vec2(8,8)
@@ -374,6 +378,7 @@ init=[]do
 				| 0x8000
 			-- TODO still is slow ...
 			-- maybe by storing them in the tilemap somewhere ...
+			-- or by using blending, storing them in the spritemap, and drawing a blend overlay
 
 			for x=0,roomSize.x-1 do
 				local dx = x - roomSize.x*.5
@@ -455,6 +460,7 @@ init=[]do
 end
 
 local viewPos = vec2()
+local lastScreenPos = vec2(-1, -1)
 update=[]do
 	cls()
 
@@ -462,27 +468,76 @@ update=[]do
 		viewPos:set(player.pos)
 	end
 
-	local ulx = math.floor((viewPos.x-.5)/32)
-	local uly = math.floor((viewPos.y-.5)/32)
+	local screenPos = ((viewPos-.5)/32):floor()
+
+--[[
+	if screenPos ~= lastScreenPos then
+		lastScreenPos = screenPos
+		-- TODO reset state here
+		-- regenerate the overlay ... or not ... just draw a solid color maybe?
+	end
+--]]
 
 	matident()
-	mattrans(-ulx*32*8, -uly*32*8)
+	mattrans(-screenPos.x*32*8, -screenPos.y*32*8)
 
 	--[[ draw all
 	map(0,0,256,256,0,0)
 	--]]
-	--[[ draw one screen
-	map(ulx*32, uly*32, 32, 32, ulx*32*8, uly*32*8)
+	-- [[ draw one screen
+	map(screenPos.x*32, screenPos.y*32, 32, 32, screenPos.x*32*8, screenPos.y*32*8)
 	--]]
-	-- [[ draw one tile at a time ... goes much slower ... tood use pal bakign to sped this up
-	local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+	-- [[ instead of coloring per tile, solid-shade per-room
+	--blend(1)	-- average
+	--blend(2)	-- subtract
+	blend(6)	-- subtract-with-constant
+	for i=0,math.floor(32/roomSize.x)-1 do
+		for j=0,math.floor(32/roomSize.y)-1 do
+			local roomcol = rooms[math.floor(screenPos.x * 32 / roomSize.x) + i]
+			local room = roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
+	
+			local color = math.floor((room.color.x) * 31)
+				| (math.floor((room.color.y) * 31) << 5)
+				| (math.floor((room.color.z) * 31) << 10)
+				| 0x8000
+
+			local negColor = math.floor((1 - room.color.x) * 31)
+				| (math.floor((1 - room.color.y) * 31) << 5)
+				| (math.floor((1 - room.color.z) * 31) << 10)
+				| 0x8000
+			
+			-- white with constant blend rect works 
+			pokew(blendColorAddr, negColor)
+
+			rect(
+				(screenPos.x * 32 + i * roomSize.x) * 8,
+				(screenPos.y * 32 + j * roomSize.y) * 8,
+				roomSize.x * 8,
+				roomSize.y * 8,
+				
+				--[=[
+				color
+				--]=]
+				--[=[ negative, for subtract ...
+				-- too much white ... maybe subtract isn't working ...
+				negColor
+				--]=]
+				-- [=[ just white, and use solid color?
+				13
+				--]=]
+			)
+		end
+	end
+	blend(-1)
+	--]]
+	--[[ draw one tile at a time ... goes much slower ... tood use pal bakign to sped this up
 	local pushColor12 = peekw(palAddr+(12<<1))
 	local pushColor15 = peekw(palAddr+(15<<1))
 	local pushColor23 = peekw(palAddr+(23<<1))
 	for j=0,31 do
 		for i=0,31 do
-			local x = i + ulx * 32
-			local y = j + uly * 32
+			local x = i + screenPos.x * 32
+			local y = j + screenPos.y * 32
 			local roomcol = rooms[math.floor(x / roomSize.x)]
 			local room = roomcol[math.floor(y / roomSize.y)]
 
