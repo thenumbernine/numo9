@@ -463,6 +463,24 @@ init=[]do
 		for j=0,mapInRooms.y-1 do
 			local room = rooms[i][j]
 
+			-- [=[
+			for dirindex,dir in ipairs(dirvecs) do
+				if room.dirs[dirindex] and not room.doors[dirindex]
+				and room.dirs[opposite[dirindex]] and not room.doors[opposite[dirindex]]
+				then
+					local w = math.floor(roomSize.x*.5)-1
+					for x=-math.floor(roomSize.x*.5),math.floor(roomSize.x*.5) do
+						for y=0,2*w-1 do
+							mset(
+								math.floor((i + .5) * roomSize.x + dir.x * x + dir.y * (y + .5 - w)),
+								math.floor((j + .5) * roomSize.y + dir.y * x - dir.x * (y + .5 - w)),
+								0)
+						end
+					end
+				end
+			end
+			--]=]
+
 			for x=0,roomSize.x-1 do
 				local dx = x + .5 - roomSize.x*.5
 				for y=0,roomSize.y-1 do
@@ -556,6 +574,7 @@ init=[]do
 	-- erode but don't dissolve walls
 	for i=1,mapInRooms.x-1 do
 		for j=1,mapInRooms.y-1 do
+			-- for each 
 			local empty = 0
 			for _,dir in ipairs(dirvecs) do
 				if mget(
