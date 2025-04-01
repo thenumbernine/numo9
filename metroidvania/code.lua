@@ -10,6 +10,15 @@ local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'sprit
 
 math.randomseed(tstamp())
 
+--local roomSize = vec2(32,32)
+--local roomSize = vec2(16,16)
+local roomSize = vec2(8,8)
+--local mapInRooms = vec2(256,256) / roomSize	-- full game
+local mapInRooms = vec2(32, 32) / roomSize
+local rooms
+local keyIndex
+local keyColors
+
 local sprites = {
 	player = 0,
 	enemy = 1,
@@ -45,7 +54,17 @@ mapTypes=table{
 		flags=flags.solid,
 		touch = [:, o, x, y]do
 			if o == player then
-				mset(x,y,mapTypeForName.empty.index)
+				local roomcol = rooms[math.floor(x / roomSize.x)]
+				local room = roomcol[math.floor(y / roomSize.y)]
+				local u = x % roomSize.x
+				local v = y % roomSize.y
+				local keyIndex = room.doorKey[u][v]
+				-- get the room this is in
+				-- get the key that this is
+trace('touching door keyIndex', keyIndex)				
+				if o.hasKeys[keyIndex] then
+					mset(x,y,mapTypeForName.empty.index)
+				end
 			end
 		end,
 	},
@@ -89,9 +108,10 @@ Object.init=[:,args]do
 	self.health = self.maxHealth
 	objs:insert(self)
 end
-Object.update=[:]do
-	-- draw
+Object.draw=[:]do
 	spr(self.sprite, (self.pos.x - .5)*8, (self.pos.y - .5)*8)
+end
+Object.update=[:]do
 
 	-- move
 
@@ -169,8 +189,44 @@ Object.update=[:]do
 	end
 
 	local dt = 1/60
-	local gravity = 1
-	self.vel.y += dt * gravity
+	if self.useGravity then
+		local gravity = 1
+		self.vel.y += dt * gravity
+	end
+end
+
+local drawKeyColor=[x,y,keyIndex]do
+	blend(6)	-- subtract-with-constant
+	spr(Key.sprite, x-1, y-1)
+	blend(-1)
+	spr(Key.sprite, x, y)
+	
+	blend(6)	-- subtract-with-constant
+	
+	local keyColor = keyColors[keyIndex]
+	local negKeyColor = 
+		   math.floor((1 - keyColor.x) * 31)
+		| (math.floor((1 - keyColor.y) * 31) << 5)
+		| (math.floor((1 - keyColor.z) * 31) << 10)
+		| 0x8000
+	pokew(blendColorAddr, negKeyColor)
+
+	spr(Key.sprite, x,y)
+	
+	blend(-1)
+end
+
+Key = Object:subclass()
+Key.sprite = 34
+Key.draw=[:]do
+	drawKeyColor(
+		(self.pos.x - .5)*8, (self.pos.y - .5)*8,
+		self.keyIndex
+	)
+end
+Key.touch=[:,o]do
+	player.hasKeys[self.keyIndex]=true
+	self.removeMe = true
 end
 
 TakesDamage=Object:subclass()
@@ -192,6 +248,11 @@ Player=TakesDamage:subclass()
 Player.sprite=sprites.player
 Player.maxHealth=3
 Player.keys=0
+Player.useGravity = true
+Player.init=[:,args]do
+	Player.super.init(self, args)
+	self.hasKeys = {[0]=true}
+end
 Player.update=[:]do
 
 	--self.vel:set(0,0)
@@ -272,14 +333,25 @@ Enemy.touch=[:,o]do
 	end
 end
 
---local roomSize = vec2(32,32)
---local roomSize = vec2(16,16)
-local roomSize = vec2(8,8)
-local mapInRooms = vec2(256,256) / roomSize
-local rooms
+
+local pickRandomColor = []
+	vec3(math.random(), math.random(), math.random()):unit()
+
+local advanceColor = [v] do
+	v = v:clone()
+	v.x += .2 * (math.random() * 2 - 1)
+	v.y += .2 * (math.random() * 2 - 1)
+	v.z += .2 * (math.random() * 2 - 1)
+	v = v:map([x] math.clamp(x, 0, 1))
+	return v
+end
+
 
 init=[]do
 	reset()	-- reset rom
+	
+	objs=table()
+	player = nil
 
 -- [[ procedural level
 	for y=0,255 do
@@ -288,22 +360,12 @@ init=[]do
 		end
 	end
 
-	local pickRandomColor = []
-		vec3(math.random(), math.random(), math.random()):unit()
-	local advanceColor = [v] do
-		v = v:clone()
-		v.x += .2 * (math.random() * 2 - 1)
-		v.y += .2 * (math.random() * 2 - 1)
-		v.z += .2 * (math.random() * 2 - 1)
-		v = v:map([x] math.clamp(x, 0, 1))
-		return v
-	end
-
 	rooms = range(0,mapInRooms.x-1):mapi([i] 
 		(range(0,mapInRooms.y-1):mapi([j] 
 			({
 				pos = vec2(i,j),
 				dirs = table(),
+				doors = table(),
 				color = pickRandomColor(),
 			}, j)
 		), i)
@@ -316,40 +378,89 @@ init=[]do
 		vec2(1,0),
 	}
 	local opposite = {2,1,4,3}
+	
+	keyIndex = 0
 
-	local nextposinfos = table()
+	local posinfos = table()
 	local start = (mapInRooms / 2):floor()
 	do
 		local srcroom = rooms[start.x][start.y]
 		for dirindex,dir in ipairs(dirvecs) do
 			local nextpos = start + dir
 			local nextroom = rooms[nextpos.x][nextpos.y]
-			nextposinfos:insert{pos=nextpos}
+			posinfos:insert{pos=nextpos}
 			srcroom.dirs[dirindex] = true
+			nextroom.prevRoom = srcroom
 			nextroom.dirs[opposite[dirindex]] = true
 			nextroom.color = advanceColor(srcroom.color)
+			if math.random() < .5 then
+				srcroom.doors[dirindex] = keyIndex
+				nextroom.doors[opposite[dirindex]] = keyIndex
+			end
 		end
 	end
 	while true do
-		if #nextposinfos == 0 then break end
-		local info = nextposinfos:remove(math.random(1, #nextposinfos))
-		local pos = info.pos
+		if #posinfos == 0 then break end
+		local posinfoindex = math.random(1, #posinfos)
+		local pos = posinfos[posinfoindex].pos
 		local srcroom = rooms[pos.x][pos.y]
-		if not srcroom.set then
+		if srcroom.set then
+			-- it's already set then someone's already moved into it, so don't bother
+			posinfos:remove(posinfoindex)
+		else
+			-- not set yet - set it and grow off of it
 			srcroom.set = true
 
-			for dirindex, dir in ipairs(dirvecs) do
+			local validDirs = dirvecs:mapi([dir, dirindex, t] do
 				local nbhdpos = pos + dir
 				if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x 
 				and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
 				then
 					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
 					if not nextroom.set
-					and not nextposinfos:find(nil, [info] info.pos == nbhdpos) then
-						nextposinfos:insert{pos=nbhdpos}
-						srcroom.dirs[dirindex] = true
-						nextroom.dirs[opposite[dirindex]] = true
-						nextroom.color = advanceColor(srcroom.color)
+					and not posinfos:find(nil, [info] info.pos == nbhdpos) then
+						return {dir=dir, dirindex=dirindex}, #t+1
+					end
+				end
+			end)
+
+			if #validDirs == 0 then
+				-- remove posinfos
+				posinfos:remove(posinfoindex)
+			else
+				-- TODO only move once so levels are longer or something
+				--local p = validDirs:pickRandom()
+				for _,p in ipairs(validDirs) do
+					local dirindex = p.dirindex
+					local dir = p.dir
+					local nbhdpos = pos + dir
+					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
+					posinfos:insert{pos=nbhdpos}
+					srcroom.dirs[dirindex] = true
+					nextroom.prevRoom = srcroom
+					nextroom.dirs[opposite[dirindex]] = true
+					nextroom.color = advanceColor(srcroom.color)
+					
+					-- if we are making a key-door then make sure to drop a key somewhere in the .prevRoom chain
+					-- ... and it'd be nice to put the key behind the last-greatest key-door used
+					if math.random() < .5 then
+						
+						-- what if there's already a key-door there?
+						-- will there ever be one?
+						srcroom.doors[dirindex] = math.random(0, keyIndex)
+						nextroom.doors[opposite[dirindex]] = math.random(0, keyIndex)
+					
+						if math.random() < .5 then 
+							keyIndex += 1 
+							-- put the key after the next room
+							nextroom.items ??= table()
+							--nextroom.items:insert ...
+							local key = Key{
+								pos=(nextroom.pos + .5)*roomSize,
+								keyIndex = keyIndex,
+							}
+							trace('drawing key at '..key.pos)
+						end
 					end
 				end
 			end
@@ -359,32 +470,11 @@ init=[]do
 		for j=0,mapInRooms.y-1 do
 			local room = rooms[i][j]
 			
-			-- bake colors
-			-- how to do this without drawing every single tile ...
-			room.color12 = 
-				math.floor(room.color.x * 31)
-				| (math.floor(room.color.y * 31) << 5)
-				| (math.floor(room.color.z * 31) << 10)
-				| 0x8000
-			room.color23 = 
-				math.floor(.5 * room.color.x * 31)
-				| (math.floor(.5 * room.color.y * 31) << 5)
-				| (math.floor(.5 * room.color.z * 31) << 10)
-				| 0x8000
-			room.color15 = 
-				math.floor(.1 * room.color.x * 31)
-				| (math.floor(.1 * room.color.y * 31) << 5)
-				| (math.floor(.1 * room.color.z * 31) << 10)
-				| 0x8000
-			-- TODO still is slow ...
-			-- maybe by storing them in the tilemap somewhere ...
-			-- or by using blending, storing them in the spritemap, and drawing a blend overlay
-
 			for x=0,roomSize.x-1 do
-				local dx = x - roomSize.x*.5
+				local dx = x + .5 - roomSize.x*.5
 				for y=0,roomSize.y-1 do
-					local dy = y - roomSize.y*.5
-					if dx^2 + dy^2 < (roomSize.x*.3)^2 then
+					local dy = y + .5 - roomSize.y*.5
+					if dx^2 + dy^2 <= (roomSize.x*.4)^2 then
 						mset(i*roomSize.x+x, j*roomSize.y+y, 0)
 					end
 				end
@@ -393,25 +483,45 @@ init=[]do
 			-- [[
 			for dirindex,dir in ipairs(dirvecs) do
 				if room.dirs[dirindex] then
-					for x=0,math.ceil(roomSize.x*.5) do
-						--local w = math.floor(roomSize.x*.1)	-- good for roomSize=16
-						local w = math.floor(roomSize.x*.2)
-						for y=-w,w do
+					local xmax = math.floor(roomSize.x*.5)
+					--local w = math.floor(roomSize.x*.1)	-- good for roomSize=16
+					local w = math.floor(roomSize.x*.2)
+					for x=0,xmax do
+						for y=0,2*w-1 do
 							mset(
-								math.floor((i+.5)*roomSize.x)+dir.x*x+dir.y*y,
-								math.floor((j+.5)*roomSize.y)+dir.y*x-dir.x*y,
+								math.floor((i + .5) * roomSize.x + dir.x * x + dir.y * (y + .5 - w)),
+								math.floor((j + .5) * roomSize.y + dir.y * x - dir.x * (y + .5 - w)),
 								0)
+						end
+					end
+					local doorKey = room.doors[dirindex]
+					if doorKey then
+						room.doorKey ??= {}
+						for y=0,2*w-1 do
+							local mx = math.floor(i * roomSize.x + roomSize.x * .5 + dir.x * (xmax - .5) + dir.y * (y + .5 - w))
+							local my = math.floor(j * roomSize.y + roomSize.y * .5 + dir.y * (xmax - .5) - dir.x * (y + .5 - w)) 
+							room.doorKey[mx % roomSize.x] ??= {}
+							room.doorKey[mx % roomSize.x][my % roomSize.y] = doorKey
+							mset(mx, my, mapTypeForName.door.index)
 						end
 					end
 				end
 			end	
 			--]]
+		
+			for ofs=-1,0 do
+				mset(
+					math.floor((i + .5) * roomSize.x + ofs),
+					math.floor((j + .5) * roomSize.y + 1),
+					1
+				)
+			end
 
 		end
 	end
-	print'====='
+	trace'====='
 	for dj=0,mapInRooms.y*3-1 do
-		print(range(0,mapInRooms.x*3-1):mapi([di] do
+		trace(range(0,mapInRooms.x*3-1):mapi([di] do
 			local i = tonumber(di // 3)
 			local j = tonumber(dj // 3)
 			local u = (di % 3) - 1
@@ -419,29 +529,21 @@ init=[]do
 			local room = rooms[i][j]
 			local dirindex = dirvecs:find(nil, [dir] dir == vec2(u,v))
 			if room.dirs[dirindex] then
-				return '*'
+				return math.abs(u) > math.abs(v) and '━' or '┃'
 			elseif u == 0 and v == 0 then
-				return 'o'
+				return '╋'
 			else
 				return ' '
 			end
 		end):concat())
 	end
-	print'====='
-	
+	trace'====='
+	trace('made '..keyIndex..' keys')
+
 	local sx,sy = ((start.x + .5) * roomSize):floor():unpack()
 	mset(sx, sy, mapTypeForName.spawn_player.index)
-	do
-		--local w = 1	-- good for roomSize >= 16
-		local w = 0
-		for i=-w,w do
-			mset(sx+i, sy+1, 1)
-		end
-	end
 --]]
 
-	objs=table()
-	player = nil
 	for y=0,255 do
 		for x=0,255 do
 			local ti = mget(x,y)
@@ -456,6 +558,15 @@ init=[]do
 	end
 	if not player then
 		trace"WARNING! dind't spawn player"
+	end
+
+	keyColors = {}
+	do
+		local c = pickRandomColor()
+		for i=0,keyIndex do
+			keyColors[i] = c
+			c = advanceColor(c)
+		end
 	end
 end
 
@@ -495,63 +606,43 @@ update=[]do
 		for j=0,math.floor(32/roomSize.y)-1 do
 			local roomcol = rooms[math.floor(screenPos.x * 32 / roomSize.x) + i]
 			local room = roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
-	
-			local color = math.floor((room.color.x) * 31)
-				| (math.floor((room.color.y) * 31) << 5)
-				| (math.floor((room.color.z) * 31) << 10)
-				| 0x8000
-
-			local negColor = math.floor((1 - room.color.x) * 31)
+			local negRoomColor = math.floor((1 - room.color.x) * 31)
 				| (math.floor((1 - room.color.y) * 31) << 5)
 				| (math.floor((1 - room.color.z) * 31) << 10)
 				| 0x8000
-			
-			-- white with constant blend rect works 
-			pokew(blendColorAddr, negColor)
+			for v=0,roomSize.y-1 do
+				for u=0,roomSize.x-1 do
+					local x = screenPos.x * 32 + i * roomSize.x + u
+					local y = screenPos.y * 32 + j * roomSize.y + v
+					local ti = mget(x,y)
+					if ti == mapTypeForName.solid.index then
+						
+						-- white with constant blend rect works 
+						pokew(blendColorAddr, negRoomColor)
 
-			rect(
-				(screenPos.x * 32 + i * roomSize.x) * 8,
-				(screenPos.y * 32 + j * roomSize.y) * 8,
-				roomSize.x * 8,
-				roomSize.y * 8,
-				
-				--[=[
-				color
-				--]=]
-				--[=[ negative, for subtract ...
-				-- too much white ... maybe subtract isn't working ...
-				negColor
-				--]=]
-				-- [=[ just white, and use solid color?
-				13
-				--]=]
-			)
+						rect(x * 8, y * 8, 8, 8, 13)
+					elseif ti == mapTypeForName.door.index then
+						local keyColor = keyColors[room.doorKey[u][v]]
+						local negKeyColor = 
+							   math.floor((1 - keyColor.x) * 31)
+							| (math.floor((1 - keyColor.y) * 31) << 5)
+							| (math.floor((1 - keyColor.z) * 31) << 10)
+							| 0x8000
+						pokew(blendColorAddr, negKeyColor)
+						
+						rect(x * 8, y * 8, 8, 8, 13)
+					end
+				end
+			end
 		end
 	end
 	blend(-1)
 	--]]
-	--[[ draw one tile at a time ... goes much slower ... tood use pal bakign to sped this up
-	local pushColor12 = peekw(palAddr+(12<<1))
-	local pushColor15 = peekw(palAddr+(15<<1))
-	local pushColor23 = peekw(palAddr+(23<<1))
-	for j=0,31 do
-		for i=0,31 do
-			local x = i + screenPos.x * 32
-			local y = j + screenPos.y * 32
-			local roomcol = rooms[math.floor(x / roomSize.x)]
-			local room = roomcol[math.floor(y / roomSize.y)]
+	-- that's great, now draw all the non-map-colored things ...
 
-			-- color by x and y somehow ... or by the room ... idk ...
-			pokew(palAddr+(12<<1), room.color12)
-			pokew(palAddr+(23<<1), room.color23)
-			pokew(palAddr+(15<<1), room.color15)
-			map(x, y, 32, 32, x * 8, y * 8)
-		end
+	for _,o in ipairs(objs) do
+		o:draw()
 	end
-	pokew(palAddr+(12<<1), pushColor12)
-	pokew(palAddr+(15<<1), pushColor15)
-	pokew(palAddr+(23<<1), pushColor23)
-	--]]
 	for _,o in ipairs(objs) do
 		o:update()
 	end
@@ -576,10 +667,12 @@ update=[]do
 		if objs[i].removeMe then objs:remove(i) end
 	end
 
---[[
+-- [[ gui
 	if player then
 		matident()
-		text(tostring(math.floor(player.pos.y)), 220, 0, 13, 0)
+		for keyIndex,v in pairs(player.hasKeys) do
+			drawKeyColor(8 * keyIndex, 1, keyIndex)
+		end
 	end
 --]]
 end
