@@ -10,6 +10,15 @@ local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'sprit
 
 math.randomseed(tstamp())
 
+local dirvecs = table{
+	vec2(0,-1),
+	vec2(0,1),
+	vec2(-1,0),
+	vec2(1,0),
+}
+local opposite = {2,1,4,3}
+
+
 --local roomSize = vec2(32,32)
 --local roomSize = vec2(16,16)
 local roomSize = vec2(8,8)
@@ -294,7 +303,9 @@ Player.attack=[:]do
 		elli((self.pos.x - self.attackDist)*8, (self.pos.y - self.attackDist)*8, 16*self.attackDist,16*self.attackDist, 3)
 	end)
 	for _,o in ipairs(objs) do
-		if o ~= self then
+		if o ~= self 
+		and o.takeDamage
+		then
 			local delta = o.pos - self.pos
 			if delta:lenSq() < self.attackDist^2 then
 				o:takeDamage(self.attackDamage)
@@ -365,14 +376,6 @@ init=[]do
 			}, j)
 		), i)
 	)
-
-	local dirvecs = table{
-		vec2(0,-1),
-		vec2(0,1),
-		vec2(-1,0),
-		vec2(1,0),
-	}
-	local opposite = {2,1,4,3}
 
 	keyIndex = 0
 
@@ -455,14 +458,14 @@ init=[]do
 
 					-- if we are making a key-door then make sure to drop a key somewhere in the .prevRoom chain
 					-- ... and it'd be nice to put the key behind the last-greatest key-door used
-					if math.random() < .5 then
+					if math.random() < .2 then
 
 						-- what if there's already a key-door there?
 						-- will there ever be one?
 						srcroom.doors[dirindex] = math.random(0, keyIndex)
 						nextroom.doors[opposite[dirindex]] = math.random(0, keyIndex)
 
-						if math.random() < .5 then
+						if math.random() < .2 then
 							keyIndex += 1
 							-- put the key after the next room
 							nextroom.spawns:insert{
@@ -571,6 +574,30 @@ init=[]do
 		trace"WARNING! dind't spawn player"
 	end
 
+	-- erode but don't dissolve walls
+	for i=1,mapInRooms.x-1 do
+		for j=1,mapInRooms.y-1 do
+			local empty = 0
+			for _,dir in ipairs(dirvecs) do		
+				if mget(
+					(i + .5 * dir.x) * roomSize.x,
+					(j + .5 * dir.y) * roomSize.y) == 0
+				then
+					empty += 1
+				end
+			end
+			if empty >= 3 then
+				for u = 0,roomSize.x-1 do
+					for v=0,roomSize.y-1 do
+						mset(
+							(i - .5) * roomSize.x + u,
+							(j - .5) * roomSize.y + v, 0)
+					end
+				end
+			end
+		end
+	end
+
 	keyColors = {}
 	do
 		local c = pickRandomColor()
@@ -617,8 +644,30 @@ update=[]do
 		end
 	end
 
-	local room = rooms[math.floor(player.pos.x / roomSize.x)][math.floor(player.pos.y / roomSize.y)]
-	room.seen = true
+	do
+		local reveal
+		reveal = [room]do
+			if room.seen then return end
+			room.seen = true
+			for dirindex,dir in ipairs(dirvecs) do
+				local nbhdpos = room.pos + dir
+				if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x
+				and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
+				then
+					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
+					if room.dirs[dirindex] 
+					and not room.doors[dirindex]
+					and nextroom.dirs[opposite[dirindex]] 
+					and not nextroom.doors[opposite[dirindex]]
+					then
+						reveal(rooms[nbhdpos.x][nbhdpos.y])
+					end
+				end
+			end
+		end
+		local x, y = math.floor(player.pos.x / roomSize.x), math.floor(player.pos.y / roomSize.y)
+		reveal(rooms[x][y])
+	end
 --]]
 
 	matident()
@@ -676,7 +725,7 @@ update=[]do
 		o:draw()
 	end
 	
-	-- only now, erase hidden rooms
+	-- only now, erase rooms we haven't seen
 	blend(6)	-- subtract-with-constant
 	for i=0,math.floor(32/roomSize.x)-1 do
 		for j=0,math.floor(32/roomSize.y)-1 do
