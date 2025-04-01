@@ -62,7 +62,8 @@ mapTypes=table{
 		flags=flags.solid,
 		touch = [:, o, x, y]do
 			if o == player then
-				local room = rooms?[math.floor(x / roomSize.x)]?[math.floor(y / roomSize.y)]
+				local roomcol = rooms[math.floor(x / roomSize.x)]
+				local room = roomcol and roomcol[math.floor(y / roomSize.y)]
 				if room then
 					local u = x % roomSize.x
 					local v = y % roomSize.y
@@ -636,8 +637,8 @@ update=[]do
 		for i=0,math.floor(32/roomSize.x)-1 do
 			for j=0,math.floor(32/roomSize.y)-1 do
 				local roomcol = rooms[math.floor(screenPos.x * 32 / roomSize.x) + i]
-				local room = roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
-				if room.spawns then
+				local room = roomcol and roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
+				if room and room.spawns then
 					for _,spawn in ipairs(room.spawns) do
 						spawn:class()
 					end
@@ -658,6 +659,7 @@ update=[]do
 			-- or mayb elater, keep track of the active room-group you're in
 			-- (temrinology: renmae 'rooms' to 'blocks' and rename 'room-group' to 'room')
 			if not respawnAllThisTest then
+				respawnAllThisTest = true
 				for _,o in ipairs(objs) do
 					if not Player:isa(o) then o.removeMe = true end
 				end
@@ -708,7 +710,8 @@ update=[]do
 	blend(6)	-- subtract-with-constant
 	for i=0,math.floor(32/roomSize.x) do
 		for j=0,math.floor(32/roomSize.y) do
-			local room = rooms?[math.floor(ulpos.x / roomSize.x) + i]?[math.floor(ulpos.y / roomSize.y) + j]
+			local roomcol = rooms[math.floor(ulpos.x / roomSize.x) + i]
+			local room = roomcol and roomcol[math.floor(ulpos.y / roomSize.y) + j]
 			if room then
 				local negRoomColor = math.floor((1 - room.color.x) * 31)
 					| (math.floor((1 - room.color.y) * 31) << 5)
@@ -754,13 +757,14 @@ update=[]do
 	blend(6)	-- subtract-with-constant
 	for i=0,math.floor(32/roomSize.x) do
 		for j=0,math.floor(32/roomSize.y) do
-			local room = rooms?[math.floor(ulpos.x / roomSize.x) + i]?[math.floor(ulpos.y / roomSize.y) + j]
+			local roomcol = rooms[math.floor(ulpos.x / roomSize.x) + i]
+			local room = roomcol and roomcol[math.floor(ulpos.y / roomSize.y) + j]
 			if room and not room.seen then
 				local negRoomColor = 0xffff
 				pokew(blendColorAddr, negRoomColor)
 				rect(
-					((math.floor(ulpos.x / roomSize.x) + i) * roomSize.x) * 8,
-					((math.floor(ulpos.y / roomSize.y) + j) * roomSize.y) * 8,
+					(math.floor(ulpos.x / roomSize.x) + i) * roomSize.x * 8,
+					(math.floor(ulpos.y / roomSize.y) + j) * roomSize.y * 8,
 					roomSize.x * 8,
 					roomSize.y * 8,
 					13)
@@ -790,8 +794,10 @@ update=[]do
 		for i=1,player.health do
 			spr(sprites.heart, (i-1)<<3, 248)
 		end
+		local x = 8
 		for keyIndex,v in pairs(player.hasKeys) do
-			drawKeyColor(8 * keyIndex, 1, keyIndex)
+			drawKeyColor(x, 1, keyIndex)
+			x += 8
 		end
 	end
 --]]
