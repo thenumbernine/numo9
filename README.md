@@ -111,6 +111,8 @@ In this sense, if you are used to other fantasy consoles, their waveforms become
 ### Memory Layout
 
 ```
+RAM size: 0xa0000
+ROM size: 0x70000
 memory layout:
 - RAM -
 0x000000 - 0x020000 = framebuffer
@@ -122,19 +124,26 @@ memory layout:
 0x020048 - 0x020148 = fontWidth
 0x020148 - 0x020149 = textFgColor
 0x020149 - 0x02014a = textBgColor
-0x02014a - 0x0201ca = channels
-0x0201ca - 0x02026a = musicPlaying
-0x02026a - 0x02026e = updateCounter
-0x02026e - 0x020272 = romUpdateCounter
-0x020272 - 0x0202bb = keyPressFlags
-0x0202bb - 0x020304 = lastKeyPressFlags
-0x020304 - 0x020794 = keyHoldCounter
-0x020794 - 0x020798 = mousePos
-0x020798 - 0x02079c = mouseWheel
-0x02079c - 0x0207a0 = lastMousePos
-0x0207a0 - 0x0207a4 = lastMousePressPos
-0x0207a4 - 0x0227a4 = persistentCartridgeData
-0x0227a4 - 0x030000 = userData
+0x02014a - 0x02014d = framebufferAddr
+0x02014d - 0x020150 = spriteSheetAddr
+0x020150 - 0x020153 = tileSheetAddr
+0x020153 - 0x020156 = tilemapAddr
+0x020156 - 0x020159 = paletteAddr
+0x020159 - 0x02015c = fontAddr
+0x02015c - 0x0201dc = channels
+0x0201dc - 0x02027c = musicPlaying
+0x02027c - 0x020280 = updateCounter
+0x020280 - 0x020284 = romUpdateCounter
+0x020284 - 0x0202cd = keyPressFlags
+0x0202cd - 0x020316 = lastKeyPressFlags
+0x020316 - 0x0207a6 = keyHoldCounter
+0x0207a6 - 0x0207aa = mousePos
+0x0207aa - 0x0207ae = mouseWheel
+0x0207ae - 0x0207b2 = lastMousePos
+0x0207b2 - 0x0207b6 = lastMousePressPos
+0x0207b6 - 0x0227b6 = persistentCartridgeData
+0x0227b6 - 0x030000 = userData
+0x030000 - 0x0a0000 = bank
 - ROM -
 0x030000 - 0x040000 = spriteSheet
 0x040000 - 0x050000 = tileSheet
@@ -142,9 +151,9 @@ memory layout:
 0x070000 - 0x070200 = palette
 0x070200 - 0x070a00 = font
 0x070a00 - 0x080000 = extra
-0x080000 - 0x080400 = sfxAddrs
-0x080400 - 0x080800 = musicAddrs
-0x080800 - 0x090000 = audioData
+0x080000 - 0x080600 = sfxAddrs
+0x080600 - 0x080a00 = musicAddrs
+0x080a00 - 0x090000 = audioData
 0x090000 - 0x0a0000 = code
 system dedicated 0xa0000 of RAM
 ```
@@ -221,8 +230,10 @@ If the following functions are defined then they will be called from the virtual
 - `pokel(addr, value)` = write 4 bytes to memory.
 - `memcpy(dst, src, len)` = copy from `src` to `dst`, sized `len`.
 - `memset(dst, val, len)` = set memory in `dst` to uint8 value `val`, size in bytes `len`.  OOB ranges will copy a value of 0.
-- `mget(x, y)` = Read the uint16 from the current tilemap address at x, y.  Out of bounds coordinates return a value of 0.
-- `mset(x, y, value)` = Write a uint16 to the current tilemap address at x, y.
+- `mget(x, y, [bank=0])` = Read the uint16 from the current tilemap address at x, y.
+	Out of bounds coordinates return a value of 0.
+	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.
+- `mset(x, y, value, [bank=0])` = Write a uint16 to the current tilemap address at x, y.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
 
@@ -253,6 +264,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 		- Bits 5..9 = y coordinate " " "
 		- Bit 10 = whether to use the sprite sheet or tile sheet.
 		- Bits 11... = represent which bank to use (up to 32 addressable).
+			Bank 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and bank 0's tile sheet is relocatable with the `tileSheetAddr`, and bit #11 determines which to use.
 	- screenX, screenY = pixel location of upper-left corner of the sprite
 	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
 	- paletteIndex = a value to offset the colors by.  this can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
