@@ -442,8 +442,9 @@ init=[]do
 
 				-- what if there's already a key-door there?
 				-- will there ever be one?
-				srcroom.doors[dirindex] = math.random(0, keyIndex)
-				nextroom.doors[opposite[dirindex]] = math.random(0, keyIndex)
+				local doorKeyIndex = math.random(0, keyIndex)
+				srcroom.doors[dirindex] = doorKeyIndex
+				nextroom.doors[opposite[dirindex]] = doorKeyIndex
 
 				if math.random() < .2 then
 					keyIndex += 1
@@ -602,7 +603,7 @@ update=[]do
 --[[
 	if screenPos ~= lastScreenPos then
 		lastScreenPos = screenPos
-		
+
 		-- TODO reset state here
 		-- regenerate the overlay ... or not ... just draw a solid color maybe?
 		-- first destroy all spawns, i.e. keys, items, enemies
@@ -631,18 +632,20 @@ update=[]do
 		reveal = [room]do
 			if room.seen then return end
 			room.seen = true
-			
+
 			-- and respawn here
-			-- but TODO FIXME that means we aren't respawning when entering the room a second 
+			-- but TODO FIXME that means we aren't respawning when entering the room a second
 			-- so TODO group trhe rooms and check for change in room-group
 			-- or mayb elater, keep track of the active room-group you're in
 			-- (temrinology: renmae 'rooms' to 'blocks' and rename 'room-group' to 'room')
+			--[[
 			if not respawnAllThisTest then
 				respawnAllThisTest = true
 				for _,o in ipairs(objs) do
 					if not Player:isa(o) then o.removeMe = true end
 				end
 			end
+			--]]
 			if room.spawns then
 				for _,spawn in ipairs(room.spawns) do
 					spawn:class()
@@ -680,7 +683,7 @@ update=[]do
 
 	matident()
 	--mattrans(-screenPos.x*32*8, -screenPos.y*32*8)
-	mattrans(-ulpos.x*8, -ulpos.y*8)
+	mattrans(-math.floor(ulpos.x*8), -math.floor(ulpos.y*8))
 
 	--[[ draw all
 	map(0,0,256,256,0,0)
