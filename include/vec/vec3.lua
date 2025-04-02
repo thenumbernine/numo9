@@ -23,6 +23,7 @@ end
 -- tempting to template/generate this code ....
 local vec3
 vec3=class{
+	fields = table{'x', 'y', 'z'},
 	init=[v,x,y,z]do
 		if x then
 			v:set(x,y,z)

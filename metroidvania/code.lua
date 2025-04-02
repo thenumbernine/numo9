@@ -8,8 +8,9 @@ local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 local blendColorAddr = ffi.offsetof('RAM','blendColor')
 local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
 
-math.randomseed(tstamp())
+--math.randomseed(tstamp())
 
+-- TODO order this better? order all arrow keys better? maybe right left down up?
 local dirvecs = table{
 	vec2(0,-1),
 	vec2(0,1),
@@ -18,18 +19,22 @@ local dirvecs = table{
 }
 local opposite = {2,1,4,3}
 
+--local blockBitSize = vec2(5,5)
+local blockBitSize = vec2(4,4)
+--local blockBitSize = vec2(3,3)
 
---local roomSize = vec2(32,32)
-local roomSize = vec2(16,16)
---local roomSize = vec2(8,8)
+local blockSize = vec2(1 << blockBitSize.x, 1 << blockBitSize.y)
+local worldSize = vec2(256,256)	-- full game
+--local worldSize = vec2(64, 64)	-- 2x2 screens
+--local worldSize = vec2(32, 32)	-- 1 screen
 
-local mapSize = vec2(256,256)	-- full game
---local mapSize = vec2(64, 64)	-- 2x2 screens
---local mapSize = vec2(32, 32)	-- 1 screen
+local worldSizeInBlocks = worldSize / blockSize
 
-local mapInRooms = mapSize / roomSize
+--[[
+world.rooms
+--]]
+local world
 
-local rooms
 local keyIndex
 local keyColors
 
@@ -47,28 +52,29 @@ flagshift=table{
 flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
 
 mapTypes=table{
-	[0]={name='empty'},				-- empty
+	[0]={name='empty', flags=0},				-- empty
 	[1]={name='solid',flags=flags.solid},	-- solid
 	[2]={
-		name='chest',
+		name='dirt',
 		flags=flags.solid,
+		grows=3,	-- grass
 	},
 	[3]={
-		name='chest_open',
-		flags=flags.solid,
+		name='grass',
+		flags=0,
 	},
 	[4]={
 		name='door',
 		flags=flags.solid,
 		touch = [:, o, x, y]do
 			if o == player then
-				local roomcol = rooms[math.floor(x / roomSize.x)]
-				local room = roomcol and roomcol[math.floor(y / roomSize.y)]
-				if room then
-					local u = x % roomSize.x
-					local v = y % roomSize.y
-					local keyIndex = room?.doorKey[u][v]
-					-- get the room this is in
+				local blockcol = world.blocks[math.floor(x / blockSize.x)]
+				local block = blockcol and blockcol[math.floor(y / blockSize.y)]
+				if block then
+					local u = x % blockSize.x
+					local v = y % blockSize.y
+					local keyIndex = block?.doorKey[u][v]
+					-- get the block this is in
 					-- get the key that this is
 					if o.hasKeys[keyIndex] then
 						mset(x,y,mapTypeForName.empty.index)
@@ -77,8 +83,6 @@ mapTypes=table{
 			end
 		end,
 	},
-	[32]={name='spawn_player'},
-	[33]={name='spawn_enemy'},
 }
 for k,v in pairs(mapTypes) do
 	v.index = k
@@ -140,7 +144,7 @@ Object.update=[:]do
 					and px2 >= bx1 and px1 <= bx2
 					and py2 >= by1 and py1 <= by2
 					then
-						-- do map hit
+						-- do world hit
 						if t.flags & flags.solid ~= 0 then
 							hit = true
 						end
@@ -250,6 +254,15 @@ TakesDamage.die=[:]do
 	self.removeMe = true
 end
 
+Door = TakesDamage:subclass()
+Door.sprite = 5
+Door.maxHealth=1
+-- Door.die=[:]do end -- TODO animate opening then remove
+
+DoorHorz = Door:subclass()
+DoorVert = Door:subclass()
+
+
 Player=TakesDamage:subclass()
 Player.sprite=sprites.player
 Player.maxHealth=3
@@ -262,8 +275,17 @@ Player.update=[:]do
 
 	--self.vel:set(0,0)
 
-	--if btn(0) then self.vel.y -= speed end
-	--if btn(1) then self.vel.y += speed end
+--[[
+	if self.isFlying then
+		local speed = .15
+		self.vel *= .5
+		if btn(0) then self.vel.y -= speed end
+		if btn(1) then self.vel.y += speed end
+		if btn(2) then self.vel.x -= speed end
+		if btn(3) then self.vel.x += speed end
+	end
+--]]
+
 	local speed = .15
 	if self.hitYP then
 		self.vel.x *= .1	-- friction
@@ -361,130 +383,94 @@ init=[]do
 	objs=table()
 	player = nil
 
-	generateMap()
+	world = generateWorld()
+
+	keyColors = {}
+	do
+		local c = pickRandomColor()
+		for i=0,keyIndex do
+			keyColors[i] = c
+			--c = advanceColor(c)
+			c = pickRandomColor()
+		end
+	end
 end
 
 local viewPos = vec2()
 local lastScreenPos = vec2(-1, -1)
+local lastBlock
 local lastRoom
 update=[]do
 	cls()
 
+	if not player then
+		trace'player is dead!'
+	end
+
 	if player then
 		viewPos:set(player.pos)
-	end
 
-	local screenPos = ((viewPos-.5)/32):floor()
-
---[[
-	if screenPos ~= lastScreenPos then
-		lastScreenPos = screenPos
-
-		-- TODO reset state here
-		-- regenerate the overlay ... or not ... just draw a solid color maybe?
-		-- first destroy all spawns, i.e. keys, items, enemies
-		for _,o in ipairs(objs) do
-			if not Player:isa(o) then o.removeMe = true end
-		end
-
-		-- next respawn any for this room
-		for i=0,math.floor(32/roomSize.x)-1 do
-			for j=0,math.floor(32/roomSize.y)-1 do
-				local roomcol = rooms[math.floor(screenPos.x * 32 / roomSize.x) + i]
-				local room = roomcol and roomcol[math.floor(screenPos.y * 32 / roomSize.y) + j]
-				if room and room.spawns then
-					for _,spawn in ipairs(room.spawns) do
+		local x, y = math.floor(player.pos.x / blockSize.x), math.floor(player.pos.y / blockSize.y)
+		local blockcol = world.blocks[x]
+		local block = blockcol and blockcol[y]
+		if block ~= lastBlock then
+			local room = block.room
+			if room ~= lastRoom then
+			
+				-- unspawn old
+				-- hide old
+				if lastRoom then
+					for _,b in ipairs(lastRoom.blocks) do
+						b.seen = false
+					end
+				end
+				for _,b in ipairs(room.blocks) do
+					--[=[ spawn new
+					for _,spawn in ipairs(b.spawns) do
 						spawn:class()
 					end
+					--]=]
+					-- reveal new
+					b.seen = true
 				end
+				
+				lastRoom = room
 			end
-		end
-	end
---]]
+			lastBlock = block
 
-	do
-		local respawnAllThisTest = false
-		local reveal
-		reveal = [room]do
-			if room.seen then return end
-			room.seen = true
-
-			-- and respawn here
-			-- but TODO FIXME that means we aren't respawning when entering the room a second
-			-- so TODO group trhe rooms and check for change in room-group
-			-- or mayb elater, keep track of the active room-group you're in
-			-- (temrinology: renmae 'rooms' to 'blocks' and rename 'room-group' to 'room')
-			--[[
-			if not respawnAllThisTest then
-				respawnAllThisTest = true
-				for _,o in ipairs(objs) do
-					if not Player:isa(o) then o.removeMe = true end
-				end
-			end
-			--]]
-			if room.spawns then
-				for _,spawn in ipairs(room.spawns) do
-					spawn:class()
-				end
-			end
-
-			for dirindex,dir in ipairs(dirvecs) do
-				local nbhdpos = room.pos + dir
-				if nbhdpos.x >= 0 and nbhdpos.x < mapInRooms.x
-				and nbhdpos.y >= 0 and nbhdpos.y < mapInRooms.y
-				then
-					local nextroom = rooms[nbhdpos.x][nbhdpos.y]
-					if room.dirs[dirindex]
-					and not room.doors[dirindex]
-					and nextroom.dirs[opposite[dirindex]]
-					and not nextroom.doors[opposite[dirindex]]
-					then
-						reveal(rooms[nbhdpos.x][nbhdpos.y])
-					end
-				end
-			end
-		end
-		local x, y = math.floor(player.pos.x / roomSize.x), math.floor(player.pos.y / roomSize.y)
-		local roomcol = rooms[x]
-		local room = roomcol and roomcol[y]
-		if room ~= lastRoom then
-			lastRoom = room
-			-- TODO update lum based on room flood fill dist from player
-			--  ... stop at room-group boundaries
-			reveal(room)
+			-- TODO update lum based on block flood fill dist from player
+			--  ... stop at room boundaries
 		end
 	end
 
 	local ulpos = viewPos - 16
 
 	matident()
-	--mattrans(-screenPos.x*32*8, -screenPos.y*32*8)
 	mattrans(-math.floor(ulpos.x*8), -math.floor(ulpos.y*8))
 
 	--[[ draw all
 	map(0,0,256,256,0,0)
 	--]]
 	-- [[ draw one screen
-	--map(screenPos.x*32, screenPos.y*32, 32, 32, screenPos.x*32*8, screenPos.y*32*8)
 	map(math.floor(ulpos.x), math.floor(ulpos.y), 33, 33, math.floor(ulpos.x)*8, math.floor(ulpos.y)*8)
 	--]]
-	-- [[ instead of coloring per tile, solid-shade per-room
+	-- [[ instead of coloring per tile, solid-shade per-block
 	--blend(1)	-- average
 	--blend(2)	-- subtract
 	blend(6)	-- subtract-with-constant
-	for i=0,math.floor(32/roomSize.x) do
-		for j=0,math.floor(32/roomSize.y) do
-			local roomcol = rooms[math.floor(ulpos.x / roomSize.x) + i]
-			local room = roomcol and roomcol[math.floor(ulpos.y / roomSize.y) + j]
-			if room then
-				local negRoomColor = math.floor((1 - room.color.x) * 31)
-					| (math.floor((1 - room.color.y) * 31) << 5)
-					| (math.floor((1 - room.color.z) * 31) << 10)
+	for i=0,math.floor(32/blockSize.x) do
+		for j=0,math.floor(32/blockSize.y) do
+			local blockcol = world.blocks[math.floor(ulpos.x / blockSize.x) + i]
+			local block = blockcol and blockcol[math.floor(ulpos.y / blockSize.y) + j]
+			if block then
+				local negRoomColor = math.floor((1 - block.color.x) * 31)
+					| (math.floor((1 - block.color.y) * 31) << 5)
+					| (math.floor((1 - block.color.z) * 31) << 10)
 					| 0x8000
-				for v=0,roomSize.y-1 do
-					for u=0,roomSize.x-1 do
-						local x = (math.floor(ulpos.x / roomSize.x) + i) * roomSize.x + u
-						local y = (math.floor(ulpos.y / roomSize.y) + j) * roomSize.y + v
+				for v=0,blockSize.y-1 do
+					for u=0,blockSize.x-1 do
+						local x = (math.floor(ulpos.x / blockSize.x) + i) * blockSize.x + u
+						local y = (math.floor(ulpos.y / blockSize.y) + j) * blockSize.y + v
 						local ti = mget(x,y)
 						if ti == mapTypeForName.solid.index then
 
@@ -494,7 +480,7 @@ update=[]do
 							rect(x * 8, y * 8, 8, 8, 13)
 						elseif ti == mapTypeForName.door.index then
 -- if there's a door then there should be a .doorKey and a keyColor ...
-							local keyColor = keyColors[room.doorKey[u][v]]
+							local keyColor = keyColors[block.doorKey[u][v]]
 							local negKeyColor =
 								   math.floor((1 - keyColor.x) * 31)
 								| (math.floor((1 - keyColor.y) * 31) << 5)
@@ -517,20 +503,20 @@ update=[]do
 		o:draw()
 	end
 
-	-- only now, erase rooms we haven't seen
+	-- only now, erase world.blocks we haven't seen
 	blend(6)	-- subtract-with-constant
-	for i=0,math.floor(32/roomSize.x) do
-		for j=0,math.floor(32/roomSize.y) do
-			local roomcol = rooms[math.floor(ulpos.x / roomSize.x) + i]
-			local room = roomcol and roomcol[math.floor(ulpos.y / roomSize.y) + j]
-			if room and not room.seen then
+	for i=0,math.floor(32/blockSize.x) do
+		for j=0,math.floor(32/blockSize.y) do
+			local blockcol = world.blocks[math.floor(ulpos.x / blockSize.x) + i]
+			local block = blockcol and blockcol[math.floor(ulpos.y / blockSize.y) + j]
+			if block and not block.seen then
 				local negRoomColor = 0xffff
 				pokew(blendColorAddr, negRoomColor)
 				rect(
-					(math.floor(ulpos.x / roomSize.x) + i) * roomSize.x * 8,
-					(math.floor(ulpos.y / roomSize.y) + j) * roomSize.y * 8,
-					roomSize.x * 8,
-					roomSize.y * 8,
+					(math.floor(ulpos.x / blockSize.x) + i) * blockSize.x * 8,
+					(math.floor(ulpos.y / blockSize.y) + j) * blockSize.y * 8,
+					blockSize.x * 8,
+					blockSize.y * 8,
 					13)
 			end
 		end
@@ -555,6 +541,7 @@ update=[]do
 -- [[ gui
 	if player then
 		matident()
+		text(player.pos:clone():floor(), 200, 0)
 		for i=1,player.health do
 			spr(sprites.heart, (i-1)<<3, 248)
 		end
