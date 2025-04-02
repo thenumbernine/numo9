@@ -8,7 +8,7 @@ local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 local blendColorAddr = ffi.offsetof('RAM','blendColor')
 local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
 
---math.randomseed(tstamp())
+math.randomseed(tstamp())
 
 -- TODO order this better? order all arrow keys better? maybe right left down up?
 local dirvecs = table{
@@ -206,11 +206,12 @@ local drawKeyColor=[x,y,keyIndex]do
 	blend(6)	-- subtract-with-constant
 
 	local keyColor = keyColors[keyIndex]
-	local negKeyColor =
+	local negKeyColor = keyColor and (
 		   math.floor((1 - keyColor.x) * 31)
 		| (math.floor((1 - keyColor.y) * 31) << 5)
 		| (math.floor((1 - keyColor.z) * 31) << 10)
 		| 0x8000
+	) or 0
 	pokew(blendColorAddr, negKeyColor)
 
 	spr(Key.sprite, x,y)
@@ -417,19 +418,23 @@ update=[]do
 			local room = block.room
 			if room ~= lastRoom then
 			
-				-- unspawn old
-				-- hide old
 				if lastRoom then
+					-- unspawn old
+					for i=#objs,1,-1 do
+						if not Player:isa(objs[i]) then
+							objs[i].removeMe = true
+						end
+					end
+					-- hide old
 					for _,b in ipairs(lastRoom.blocks) do
 						b.seen = false
 					end
 				end
 				for _,b in ipairs(room.blocks) do
-					--[=[ spawn new
+					-- spawn new
 					for _,spawn in ipairs(b.spawns) do
 						spawn:class()
 					end
-					--]=]
 					-- reveal new
 					b.seen = true
 				end

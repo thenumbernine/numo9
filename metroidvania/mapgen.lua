@@ -262,6 +262,7 @@ WorldBlock.init = [:,x,y]do
 	self.walls = table()	-- index corresponds with dirvecs' index
 	self.doors = table()	-- same
 	self.color = pickRandomColor()
+	--self.doorKeys = {}		-- table for door offsets <_> has what key they are
 	-- also has fields wallx wally doorx doory ... TODO replace that with dirs[] and doors[] ? or nah? idk?
 trace('creating new WorldBlock at '..self.pos)
 end
@@ -333,7 +334,7 @@ do
 end
 
 local levelCarveDoors = [world, room] do
-	local placeDoor = [x, y, n] do
+	local placeDoor = [x, y, n, keyIndex] do
 		local n1 = n == 'x' and 'y' or 'x'
 		local halfdoorsize = math.floor(doorsize/2)
 		local doorextrusion = blockSize[n]*.5
@@ -349,8 +350,20 @@ local levelCarveDoors = [world, room] do
 					local ofsi = i - halfdoorsize
 					v[n] = src[n] + k
 					v[n1] = src[n1] + ofsi
-					-- only clear it if it's there (no creating unneeded stuff)
-					if mget(v.x, v.y) ~= 0 then
+					
+					if math.abs(k) < 4 then
+
+						local bx = math.floor(v.x/blockSize.x)
+						local by = math.floor(v.y/blockSize.y)
+						local block = world.blocks[bx][by]
+						local ofx = v.x - bx * blockSize.x
+						local ofy = v.y - by * blockSize.y
+						block.doorKey ??= {}
+						block.doorKey[ofx] ??= {}
+						block.doorKey[ofx][ofy] = keyIndex
+
+						mset(v.x, v.y, mapTypeForName.door.index)
+					else
 						mset(v.x, v.y, 0)
 					end
 				end
@@ -381,8 +394,9 @@ local levelCarveDoors = [world, room] do
 					then
 						local dv = v * blockSize
 						dv[n1] += blockSize[n1] / 2
-						placeDoor(dv.x, dv.y, n)
+						placeDoor(dv.x, dv.y, n, keyIndex)
 
+						--[[ option #1, make doors entities
 						local doorClass = assert(n == 'x' and DoorHorz or DoorVert)
 						if block.room == room then
 							local doorpos = dv:clone()
@@ -394,6 +408,9 @@ local levelCarveDoors = [world, room] do
 							doorpos[n] = doorpos[n] - 2.5
 							nbhdblock.spawns:insert{class=doorClass, pos=doorpos, keyIndex=keyIndex}
 						end
+						--]]
+						-- [[ option #2, make doors tiles ... built into placeDoor
+						--]]
 					end
 				end
 			end
@@ -575,7 +592,7 @@ local levelInitSimplexRoom = [world, room] do
 	end
 	timeprint("done")
 
---[[
+-- [[
 	local grassBlocks = table()
 	timeprint("building grass")
 	for rx=room.min.x,room.max.x do
@@ -599,7 +616,7 @@ local levelInitSimplexRoom = [world, room] do
 						and simplexNoise2D(
 							tonumber(x)/tonumber((1 << blockBitSize.x))+1001,
 							tonumber(y)/tonumber((1 << blockBitSize.y))+1001
-						) > .3
+						) > .01
 						-- and place it randomly
 						then
 							mset(x,y, grows)
@@ -612,7 +629,7 @@ local levelInitSimplexRoom = [world, room] do
 	end
 
 	local dirindexes = table()
-	for i=1,2 do dirindexes:insert((i&1)+3) end	-- add some x dir growth
+	for i=1,4 do dirindexes:insert((i&1)+3) end	-- add some x dir growth
 	for i=5,10 do dirindexes:insert((i&1)+1) end	-- add more y dir growth
 
 	for i=1,#grassBlocks * 4 do
@@ -994,7 +1011,7 @@ local generateWorld = [dir] do
 		lastblock.spawns:insert{
 			pos=(lastblock.pos + .5) * blockSize,
 			class=assert(Key),
-			keyIndex = 1,	-- what key ...
+			keyIndex=1,
 		}
 		-- and carve out area around the missileitem
 	end
@@ -1014,9 +1031,10 @@ local generateWorld = [dir] do
 			if i < numrooms then
 				assert(currentRoom, "mapBuildRoomFrom didn't return a room!")
 			end
-			keyIndex = 0
 		end
 	end
+
+	-- leave keyIndex at its max so we can generate keyColors
 
 	for _,room in ipairs(world.rooms) do
 		-- add voxels after all doors are defined (so they can carve around doors correctly
