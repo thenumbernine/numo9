@@ -20,6 +20,7 @@ end
 
 local vec2
 vec2=class{
+	fields = table{'x', 'y'},
 	init=[v,x,y]do
 		if x then
 			if y then
