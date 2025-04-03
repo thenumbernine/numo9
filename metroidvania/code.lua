@@ -8,7 +8,26 @@ local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 local blendColorAddr = ffi.offsetof('RAM','blendColor')
 local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
 
+local setBlendColor = [c] pokew(blendColorAddr, c)
+
+-- rgb [0,1]^3 vector to 5551 uint16
+local rgb_to_5551 = [v] (
+	   math.floor(v.x * 31)
+	| (math.floor(v.y * 31) << 5)
+	| (math.floor(v.z * 31) << 10)
+	| 0x8000)
+
 math.randomseed(tstamp())
+
+local mainloops=table()	-- return 'true' to preserve
+
+local wait = [delay, fn] do
+	local endTime = time() + delay
+	mainloops:insert([]do
+		if time() < endTime then return true end	-- keep waiting
+		fn()
+	end)
+end
 
 -- TODO order this better? order all arrow keys better? maybe right left down up?
 local dirvecs = table{
@@ -19,16 +38,17 @@ local dirvecs = table{
 }
 local opposite = {2,1,4,3}
 
---local blockBitSize = vec2(5,5)
-local blockBitSize = vec2(4,4)
---local blockBitSize = vec2(3,3)
+--local blockSize = vec2(32,32)
+local blockSize = vec2(16,16)
+--local blockSize = vec2(12,12)
+--local blockSize = vec2(8,8)
 
-local blockSize = vec2(1 << blockBitSize.x, 1 << blockBitSize.y)
 local worldSize = vec2(256,256)	-- full game
 --local worldSize = vec2(64, 64)	-- 2x2 screens
 --local worldSize = vec2(32, 32)	-- 1 screen
 
-local worldSizeInBlocks = worldSize / blockSize
+local worldSizeInBlocks = (worldSize / blockSize):floor()
+worldSize = worldSizeInBlocks * blockSize
 
 --[[
 world.rooms
@@ -74,8 +94,6 @@ for k,v in pairs(mapTypes) do
 end
 mapTypeForName = mapTypes:map([v,k] (v, v.name))
 
-mainloops=table()
-
 --#include ext/class.lua
 
 local mapwidth = 256
@@ -114,25 +132,25 @@ Object.update=[:]do
 		if dx ~= 0 or dy ~= 0 then
 			local nx = self.pos.x + dx
 			local ny = self.pos.y + dy
-			local px1 = nx + self.bbox.min.x
-			local py1 = ny + self.bbox.min.y
-			local px2 = nx + self.bbox.max.x
-			local py2 = ny + self.bbox.max.y
+			local pxmin = nx + self.bbox.min.x
+			local pymin = ny + self.bbox.min.y
+			local pxmax = nx + self.bbox.max.x
+			local pymax = ny + self.bbox.max.y
 			local hit
-			for by1=math.clamp(math.floor(py1), 0, mapheight-1), math.clamp(math.ceil(py2), 0, mapheight-1) do
-				for bx1=math.clamp(math.floor(px1), 0, mapwidth-1), math.clamp(math.ceil(px2), 0, mapwidth-1) do
-					local bx2, by2 = bx1 + 1, by1 + 1
-					local ti = mget(bx1, by1)
+			for bymin=math.clamp(math.floor(pymin), 0, mapheight-1), math.clamp(math.ceil(pymax), 0, mapheight-1) do
+				for bxmin=math.clamp(math.floor(pxmin), 0, mapwidth-1), math.clamp(math.ceil(pxmax), 0, mapwidth-1) do
+					local bxmax, bymax = bxmin + 1, bymin + 1
+					local ti = mget(bxmin, bymin)
 					local t = mapTypes[ti]
 					if ti ~= 0	-- just skip 'empty' ... right ... ?
 					and t
-					and px2 >= bx1 and px1 <= bx2
-					and py2 >= by1 and py1 <= by2
+					and pxmax >= bxmin and pxmin <= bxmax
+					and pymax >= bymin and pymin <= bymax
 					then
 						-- do world hit
 						local hitThis = true
-						if t?:touch(self, bx1, by1) == false then hitThis = false end
-						if self?:touchMap(bx1, by1, t, ti) == false then hitThis = false end
+						if t?:touch(self, bxmin, bymin) == false then hitThis = false end
+						if self?:touchMap(bxmin, bymin, t, ti) == false then hitThis = false end
 						-- so block solid is based on solid flag and touch result ...
 						if t.flags & flags.solid ~= 0 then
 							hit = hit or hitThis
@@ -142,10 +160,10 @@ Object.update=[:]do
 			end
 			for _,o in ipairs(objs) do
 				if o ~= self then
-					local bx1, by1 = o.pos.x + o.bbox.min.x, o.pos.y + o.bbox.min.y
-					local bx2, by2 = o.pos.x + o.bbox.max.x, o.pos.y + o.bbox.max.y
-					if px2 >= bx1 and px1 <= bx2
-					and py2 >= by1 and py1 <= by2
+					local bxmin, bymin = o.pos.x + o.bbox.min.x, o.pos.y + o.bbox.min.y
+					local bxmax, bymax = o.pos.x + o.bbox.max.x, o.pos.y + o.bbox.max.y
+					if pxmax >= bxmin and pxmin <= bxmax
+					and pymax >= bymin and pymin <= bymax
 					then
 						-- if not solid then
 						local hitThis = true
@@ -185,8 +203,9 @@ Object.update=[:]do
 	end
 end
 
-local drawKeyColor=[x,y,keyIndex]do
+local drawKeyColor=[keyIndex,x,y]do
 	blend(6)	-- subtract-with-constant
+	setBlendColor(0xffff)
 	spr(Key.sprite, x-1, y-1)
 	spr(Key.sprite, x+1, y+1)
 	blend(-1)
@@ -195,15 +214,9 @@ local drawKeyColor=[x,y,keyIndex]do
 	blend(6)	-- subtract-with-constant
 
 	local keyColor = keyColors[keyIndex]
-	local negKeyColor = keyColor and (
-		   math.floor((1 - keyColor.x) * 31)
-		| (math.floor((1 - keyColor.y) * 31) << 5)
-		| (math.floor((1 - keyColor.z) * 31) << 10)
-		| 0x8000
-	) or 0
-	pokew(blendColorAddr, negKeyColor)
+	setBlendColor(keyColor and rgb_to_5551(1 - keyColor) or 0)
 
-	spr(Key.sprite, x,y)
+	spr(Key.sprite, x, y)
 
 	blend(-1)
 end
@@ -222,8 +235,9 @@ Key=Object:subclass()
 Key.sprite = 34
 Key.draw=[:]do
 	drawKeyColor(
-		(self.pos.x - .5)*8, (self.pos.y - .5)*8,
-		self.keyIndex
+		self.keyIndex,
+		(self.pos.x - .5)*8,
+		(self.pos.y - .5)*8
 	)
 end
 Key.touch=[:,o]do
@@ -241,9 +255,9 @@ Shot.init=[:,args]do
 end
 Shot.draw=[:]do
 	drawWeapon(
+		self.weapon,
 		(self.pos.x - .5)*8,
-		(self.pos.y - .5)*8,
-		self.weapon)
+		(self.pos.y - .5)*8)
 end
 Shot.update=[:]do
 	Shot.super.update(self)
@@ -253,25 +267,40 @@ Shot.touch=[:,o]do
 	if o ~= self.shooter then 
 		if o.takeDamage then
 			o:takeDamage(self.damage)
-			self.removeMe = true	-- alwyas or only upon hit?
+			self.removeMe = true	-- always or only upon hit?
 		end
 	end
 	return false	-- 'false' means 'dont collide'
 end
+local checkBreakDoor 
+checkBreakDoor = [keyIndex, x, y] do
+	local blockcol = world.blocks[math.floor(x / blockSize.x)]
+	local block = blockcol and blockcol[math.floor(y / blockSize.y)]
+	if not block then return end
+	local u = x % blockSize.x
+	local v = y % blockSize.y
+	local blockKeyIndex = block.doorKey[u][v]
+	-- get the block this is in
+	-- get the key that this is
+	if keyIndex ~= blockKeyIndex then return end
+	mset(x,y,mapTypeForName.empty.index)
+	wait(.1, []do
+		for _,dir in ipairs(dirvecs) do
+			local ox, oy = x+dir.x, y+dir.y
+			if mget(ox, oy) == mapTypeForName.door.index then
+				checkBreakDoor(keyIndex, ox, oy)
+			end
+		end
+	end)
+	wait(3, []do
+		mset(x,y,mapTypeForName.door.index)
+	end)
+end
 Shot.touchMap = [:,x,y,t,ti] do
-	if t == mapTypeForName.door then	
-		if not Player:isa(self.shooter) then return end
-		local blockcol = world.blocks[math.floor(x / blockSize.x)]
-		local block = blockcol and blockcol[math.floor(y / blockSize.y)]
-		if not block then return end
-		local u = x % blockSize.x
-		local v = y % blockSize.y
-		local keyIndex = block?.doorKey[u][v]
-		-- get the block this is in
-		-- get the key that this is
-		-- TODO use shot's properties for unlocking
-		if not self.shooter.hasKeys[keyIndex] then return end
-		mset(x,y,mapTypeForName.empty.index)
+	if t == mapTypeForName.door 
+	and Player:isa(self.shooter) 
+	then 
+		checkBreakDoor(self.weapon, x, y)	-- conflating weapon and keyIndex once again ... one should be color, another should be attack-type
 	end
 	if t.flags & flags.solid ~= 0 then
 		self.removeMe = true
@@ -280,18 +309,27 @@ Shot.touchMap = [:,x,y,t,ti] do
 end
 
 
-drawWeapon=[x,y,weapon]do
-	local index = (math.floor(time() * 10) % 4) + (64 + 32 * weapon)
-	spr(index, x, y)
+drawWeapon=[weapon,x,y]do
+	local frame = math.floor(time() * 10) % 4
+	
+	spr(64+frame, x, y)	-- draw white
+	
+	blend(6)	-- subtract-with-constant
+	local keyColor = keyColors[weapon]
+	setBlendColor(keyColor and rgb_to_5551(1 - keyColor) or 0)
+	spr(64+frame, x, y)
+
+	blend(-1)
+	spr(96+frame, x, y)
 end
 Weapon=Object:subclass()
 Weapon.sprite = 64		-- \_ correlate these somehow or something
 Weapon.weapon = 0		-- /
 Weapon.draw = [:]do
 	drawWeapon(
+		self.weapon,
 		(self.pos.x - .5)*8,
-		(self.pos.y - .5)*8,
-		self.weapon)
+		(self.pos.y - .5)*8)
 end
 Weapon.touch=[:,o]do
 	if not Player:isa(o) then return end
@@ -334,6 +372,7 @@ Player.init=[:,args]do
 	self.hasKeys = {[0]=true}
 	self.hasWeapons = {[0]=true}
 	self.aimDir = vec2(1,0)
+	self.targetAimDir = vec2(1,0)
 end
 Player.update=[:]do
 
@@ -369,11 +408,20 @@ Player.update=[:]do
 		end
 	end
 
-	if btn(0) then self.aimDir.y -= 1 end
-	if btn(1) then self.aimDir.y += 1 end
-	if btn(2) then self.aimDir.x -= 1 end
-	if btn(3) then self.aimDir.x += 1 end
-	self.aimDir = self.aimDir:unit()
+	local targetAimDir = vec2()
+	if btn(0) then targetAimDir.y -= 1 end
+	if btn(1) then targetAimDir.y += 1 end
+	if btn(2) then targetAimDir.x -= 1 end
+	if btn(3) then targetAimDir.x += 1 end
+	if targetAimDir.x ~= 0 or targetAimDir.y ~= 0 then
+		self.targetAimDir = targetAimDir:unit()
+	end
+	if self.targetAimDir:dot(self.aimDir) < -.1 then
+		self.aimDir:set(self.targetAimDir:unpack())
+	else
+		self.aimDir += .1 * self.targetAimDir
+		self.aimDir = self.aimDir:unit()
+	end
 
 	if btn(5)
 	--and self.hitYP
@@ -382,14 +430,14 @@ Player.update=[:]do
 		self.vel.y = -jumpVel
 	end
 
+	-- switch-weapon 
+	-- TODO this can be the switch-color butotn, and another butotn for select-attack-in-skill-tree
 	if btnp(6) then
 		self.selWeapon = next(self.hasWeapons, self.selWeapon)
 			or next(self.hasWeapons)
 	end
 
 	if btn(7) then self:attack() end
-
-
 
 	Player.super.update(self)	-- draw and move
 end
@@ -477,7 +525,11 @@ init=[]do
 	keyColors = {}
 	do
 		local c = pickRandomColor()
-		for i=0,keyIndex do
+		-- make these match the sprites
+		-- or TODO render sprites with separate fg/bg and make their color with neg-blending
+		keyColors[0] = vec3(1,1,1)
+		keyColors[1] = vec3(0,0,1)
+		for i=2,keyIndex do
 			keyColors[i] = c
 			--c = advanceColor(c)
 			c = pickRandomColor()
@@ -489,6 +541,8 @@ local viewPos = vec2()
 local lastScreenPos = vec2(-1, -1)
 local lastBlock
 local lastRoom
+local fadeInRoom, fadeOutRoom
+local fadeInLevel, fadeOutLevel
 update=[]do
 	cls()
 
@@ -513,10 +567,14 @@ update=[]do
 							objs[i].removeMe = true
 						end
 					end
-					-- hide old
-					for _,b in ipairs(lastRoom.blocks) do
-						b.seen = false
+			
+					-- if we had an old fadeOutRoom then make sure its .seen is zero 
+					if fadeOutRoom then
+						for _,b in ipairs(fadeOutRoom.blocks) do b.seen = 0 end
 					end
+					-- set our fade out room
+					fadeOutRoom = lastRoom
+					fadeOutLevel = 1
 				end
 				if room then
 					for _,b in ipairs(room.blocks) do
@@ -524,9 +582,11 @@ update=[]do
 						for _,spawn in ipairs(b.spawns) do
 							spawn:class()
 						end
-						-- reveal new
-						b.seen = true
 					end
+					-- set this as our new fade-in room
+					-- (if we had a previous fade-in room then it should now be the current fade-out room)
+					fadeInRoom = room
+					fadeInLevel = 0
 				end
 				
 				lastRoom = room
@@ -536,6 +596,17 @@ update=[]do
 			-- TODO update lum based on block flood fill dist from player
 			--  ... stop at room boundaries
 		end
+	end
+
+	if fadeInRoom then
+		fadeInLevel = math.max(fadeInLevel + .05, 1)
+		for _,b in ipairs(fadeInRoom.blocks) do b.seen = fadeInLevel end
+		if fadeInLevel == 1 then fadeInRoom = nil fadeInLevel = nil end
+	end
+	if fadeOutRoom then
+		fadeOutLevel = math.max(fadeOutLevel - .05, 0)
+		for _,b in ipairs(fadeOutRoom.blocks) do b.seen = fadeOutLevel end
+		if fadeOutLevel == 0 then fadeOutRoom = nil fadeOutLevel = nil end
 	end
 
 	local ulpos = viewPos - 16
@@ -558,10 +629,7 @@ update=[]do
 			local blockcol = world.blocks[math.floor(ulpos.x / blockSize.x) + i]
 			local block = blockcol and blockcol[math.floor(ulpos.y / blockSize.y) + j]
 			if block then
-				local negRoomColor = math.floor((1 - block.color.x) * 31)
-					| (math.floor((1 - block.color.y) * 31) << 5)
-					| (math.floor((1 - block.color.z) * 31) << 10)
-					| 0x8000
+				local negRoomColor = rgb_to_5551(1 - block.color)
 				for v=0,blockSize.y-1 do
 					for u=0,blockSize.x-1 do
 						local x = (math.floor(ulpos.x / blockSize.x) + i) * blockSize.x + u
@@ -570,18 +638,13 @@ update=[]do
 						if ti == mapTypeForName.solid.index then
 
 							-- white with constant blend rect works
-							pokew(blendColorAddr, negRoomColor)
+							setBlendColor(negRoomColor)
 
 							rect(x * 8, y * 8, 8, 8, 13)
 						elseif ti == mapTypeForName.door.index then
 -- if there's a door then there should be a .doorKey and a keyColor ...
 							local keyColor = keyColors[block.doorKey[u][v]]
-							local negKeyColor =
-								   math.floor((1 - keyColor.x) * 31)
-								| (math.floor((1 - keyColor.y) * 31) << 5)
-								| (math.floor((1 - keyColor.z) * 31) << 10)
-								| 0x8000
-							pokew(blendColorAddr, negKeyColor)
+							setBlendColor(rgb_to_5551(1 - keyColor))
 
 							rect(x * 8, y * 8, 8, 8, 13)
 						end
@@ -604,9 +667,9 @@ update=[]do
 		for j=0,math.floor(32/blockSize.y) do
 			local blockcol = world.blocks[math.floor(ulpos.x / blockSize.x) + i]
 			local block = blockcol and blockcol[math.floor(ulpos.y / blockSize.y) + j]
-			if block and not block.seen then
-				local negRoomColor = 0xffff
-				pokew(blendColorAddr, negRoomColor)
+			if block then
+				local lum = 1 - block.seen
+				setBlendColor(rgb_to_5551(vec3(lum, lum, lum)))
 				rect(
 					(math.floor(ulpos.x / blockSize.x) + i) * blockSize.x * 8,
 					(math.floor(ulpos.y / blockSize.y) + j) * blockSize.y * 8,
@@ -623,8 +686,9 @@ update=[]do
 	end
 
 	for i=#mainloops,1,-1 do
-		mainloops[i]()
-		mainloops[i] = nil
+		if mainloops[i]() ~= true then
+			mainloops:remove(i)
+		end
 	end
 
 	-- remove dead
@@ -643,11 +707,11 @@ update=[]do
 		local x = 8
 		local y = 1
 		for keyIndex in pairs(player.hasKeys) do
-			drawKeyColor(x, y, keyIndex)
+			drawKeyColor(keyIndex, x, y)
 			x += 8
 		end
 		for weaponIndex in pairs(player.hasWeapons) do
-			drawWeapon(x, y, weaponIndex)
+			drawWeapon(weaponIndex, x, y)
 			x += 8
 		end
 	end
