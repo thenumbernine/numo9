@@ -262,6 +262,7 @@ WorldBlock.init = [:,x,y]do
 	self.walls = table()	-- index corresponds with dirvecs' index
 	self.doors = table()	-- same
 	self.color = pickRandomColor()
+	self.seen = 0	-- luminance
 	--self.doorKeys = {}		-- table for door offsets <_> has what key they are
 	-- also has fields wallx wally doorx doory ... TODO replace that with dirs[] and doors[] ? or nah? idk?
 trace('creating new WorldBlock at '..self.pos)
@@ -351,7 +352,7 @@ local levelCarveDoors = [world, room] do
 					v[n] = src[n] + k
 					v[n1] = src[n1] + ofsi
 					
-					if math.abs(k) < 2 then
+					if -2 <= k and k < 2 then
 
 						local bx = math.floor(v.x/blockSize.x)
 						local by = math.floor(v.y/blockSize.y)
@@ -426,8 +427,8 @@ trace('fillBlock', rx, ry, index)
 	for i=0,blockSize.x-1 do
 		for j=0,blockSize.y-1 do
 			mset(
-				i | (rx << blockBitSize.x),
-				j | (ry << blockBitSize.y),
+				i + (rx * blockSize.x),
+				j + (ry * blockSize.y),
 				index)
 		end
 	end
@@ -470,8 +471,8 @@ local levelInitSimplexRoom = [world, room] do
 				for by=0,blockSize.y-1 do
 					for bx=0,blockSize.x-1 do
 
-						local x = (rx << blockBitSize.x) | bx
-						local y = (ry << blockBitSize.y) | by
+						local x = (rx * blockSize.x) + bx
+						local y = (ry * blockSize.y) + by
 
 						local bv = vec2(bx, by)
 
@@ -614,8 +615,8 @@ local levelInitSimplexRoom = [world, room] do
 						if mget(x,y) == mapTypeForName.empty.index
 						and grows
 						and simplexNoise2D(
-							tonumber(x)/tonumber((1 << blockBitSize.x))+1001,
-							tonumber(y)/tonumber((1 << blockBitSize.y))+1001
+							tonumber(x)/tonumber(blockSize.x)+1001,
+							tonumber(y)/tonumber(blockSize.y)+1001
 						) > .01
 						-- and place it randomly
 						then
