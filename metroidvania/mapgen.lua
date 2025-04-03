@@ -351,7 +351,7 @@ local levelCarveDoors = [world, room] do
 					v[n] = src[n] + k
 					v[n1] = src[n1] + ofsi
 					
-					if math.abs(k) < 4 then
+					if math.abs(k) < 2 then
 
 						local bx = math.floor(v.x/blockSize.x)
 						local by = math.floor(v.y/blockSize.y)
@@ -1010,8 +1010,8 @@ local generateWorld = [dir] do
 		local lastblock = currentRoom.blocks:last()
 		lastblock.spawns:insert{
 			pos=(lastblock.pos + .5) * blockSize,
-			class=assert(Key),
-			keyIndex=1,
+			class=assert(Weapon),
+			weapon=1,
 		}
 		-- and carve out area around the missileitem
 	end
@@ -1051,6 +1051,12 @@ local generateWorld = [dir] do
 	-- create player ... 
 	local startBlock = room.blocks:last()
 	player = Player{pos=(startBlock.pos + .5) * blockSize}
+
+	startBlock.spawns:insert{
+		pos=player.pos + vec2(0,-2),
+		class=assert(Weapon),
+		weapon=0,
+	}
 
 	return world
 end

@@ -66,22 +66,6 @@ mapTypes=table{
 	[4]={
 		name='door',
 		flags=flags.solid,
-		touch = [:, o, x, y]do
-			if o == player then
-				local blockcol = world.blocks[math.floor(x / blockSize.x)]
-				local block = blockcol and blockcol[math.floor(y / blockSize.y)]
-				if block then
-					local u = x % blockSize.x
-					local v = y % blockSize.y
-					local keyIndex = block?.doorKey[u][v]
-					-- get the block this is in
-					-- get the key that this is
-					if o.hasKeys[keyIndex] then
-						mset(x,y,mapTypeForName.empty.index)
-					end
-				end
-			end
-		end,
 	},
 }
 for k,v in pairs(mapTypes) do
@@ -140,15 +124,19 @@ Object.update=[:]do
 					local bx2, by2 = bx1 + 1, by1 + 1
 					local ti = mget(bx1, by1)
 					local t = mapTypes[ti]
-					if t
+					if ti ~= 0	-- just skip 'empty' ... right ... ?
+					and t
 					and px2 >= bx1 and px1 <= bx2
 					and py2 >= by1 and py1 <= by2
 					then
 						-- do world hit
+						local hitThis = true
+						if t?:touch(self, bx1, by1) == false then hitThis = false end
+						if self?:touchMap(bx1, by1, t, ti) == false then hitThis = false end
+						-- so block solid is based on solid flag and touch result ...
 						if t.flags & flags.solid ~= 0 then
-							hit = true
+							hit = hit or hitThis
 						end
-						t?:touch(self, bx1, by1)
 					end
 				end
 			end
@@ -160,9 +148,10 @@ Object.update=[:]do
 					and py2 >= by1 and py1 <= by2
 					then
 						-- if not solid then
-						hit = true
-						self?:touch(o)
-						o?:touch(self)
+						local hitThis = true
+						if self?:touch(o) == false then hitThis = false end
+						if o?:touch(self) == false then hitThis = false end
+						hit = hit or hitThis
 					end
 				end
 			end
@@ -221,13 +210,15 @@ end
 
 Health = Object:subclass()
 Health.sprite = 32
+Health.health = 1
 Health.touch=[:,o]do
-	player.health = player.maxHealth
+	if not Player:isa(o) then return end
+	o.health += self.health
 	self.removeMe = true
 end
 
 
-Key = Object:subclass()
+Key=Object:subclass()
 Key.sprite = 34
 Key.draw=[:]do
 	drawKeyColor(
@@ -236,7 +227,76 @@ Key.draw=[:]do
 	)
 end
 Key.touch=[:,o]do
-	player.hasKeys[self.keyIndex]=true
+	if not Player:isa(o) then return end
+	o.hasKeys[self.keyIndex]=true
+	self.removeMe = true
+end
+
+Shot=Object:subclass()
+Shot.lifeTime = 3
+Shot.damage = 1
+Shot.init=[:,args]do
+	Shot.super.init(self, args)
+	self.endTime = time() + self.lifeTime
+end
+Shot.draw=[:]do
+	drawWeapon(
+		(self.pos.x - .5)*8,
+		(self.pos.y - .5)*8,
+		self.weapon)
+end
+Shot.update=[:]do
+	Shot.super.update(self)
+	if time() > self.endTime then self.removeMe = true end
+end
+Shot.touch=[:,o]do
+	if o ~= self.shooter then 
+		if o.takeDamage then
+			o:takeDamage(self.damage)
+			self.removeMe = true	-- alwyas or only upon hit?
+		end
+	end
+	return false	-- 'false' means 'dont collide'
+end
+Shot.touchMap = [:,x,y,t,ti] do
+	if t == mapTypeForName.door then	
+		if not Player:isa(self.shooter) then return end
+		local blockcol = world.blocks[math.floor(x / blockSize.x)]
+		local block = blockcol and blockcol[math.floor(y / blockSize.y)]
+		if not block then return end
+		local u = x % blockSize.x
+		local v = y % blockSize.y
+		local keyIndex = block?.doorKey[u][v]
+		-- get the block this is in
+		-- get the key that this is
+		-- TODO use shot's properties for unlocking
+		if not self.shooter.hasKeys[keyIndex] then return end
+		mset(x,y,mapTypeForName.empty.index)
+	end
+	if t.flags & flags.solid ~= 0 then
+		self.removeMe = true
+	end
+	return false	-- don't collide
+end
+
+
+drawWeapon=[x,y,weapon]do
+	local index = (math.floor(time() * 10) % 4) + (64 + 32 * weapon)
+	spr(index, x, y)
+end
+Weapon=Object:subclass()
+Weapon.sprite = 64		-- \_ correlate these somehow or something
+Weapon.weapon = 0		-- /
+Weapon.draw = [:]do
+	drawWeapon(
+		(self.pos.x - .5)*8,
+		(self.pos.y - .5)*8,
+		self.weapon)
+end
+Weapon.touch=[:,o]do
+	if not Player:isa(o) then return end
+	o.hasWeapons[self.weapon] = true
+	o.hasKeys[self.weapon] = true	-- TODO think through the door / key system more ...
 	self.removeMe = true
 end
 
@@ -268,9 +328,12 @@ Player=TakesDamage:subclass()
 Player.sprite=sprites.player
 Player.maxHealth=3
 Player.useGravity = true
+Player.selWeapon = 0
 Player.init=[:,args]do
 	Player.super.init(self, args)
 	self.hasKeys = {[0]=true}
+	self.hasWeapons = {[0]=true}
+	self.aimDir = vec2(1,0)
 end
 Player.update=[:]do
 
@@ -305,19 +368,34 @@ Player.update=[:]do
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
 	end
+
+	if btn(0) then self.aimDir.y -= 1 end
+	if btn(1) then self.aimDir.y += 1 end
+	if btn(2) then self.aimDir.x -= 1 end
+	if btn(3) then self.aimDir.x += 1 end
+	self.aimDir = self.aimDir:unit()
+
 	if btn(5)
 	--and self.hitYP
 	then
 		local jumpVel = .35
 		self.vel.y = -jumpVel
 	end
+
+	if btnp(6) then
+		self.selWeapon = next(self.hasWeapons, self.selWeapon)
+			or next(self.hasWeapons)
+	end
+
 	if btn(7) then self:attack() end
+
+
 
 	Player.super.update(self)	-- draw and move
 end
 
 Player.attackTime = 0
-Player.attackDelay = .3
+Player.attackDelay = .1
 Player.attackDist = 2
 --Player.attackCosAngle = .5
 Player.attackDamage = 1
@@ -327,6 +405,15 @@ Player.attack=[:]do
 	mainloops:insert([]do
 		elli((self.pos.x - self.attackDist)*8, (self.pos.y - self.attackDist)*8, 16*self.attackDist,16*self.attackDist, 3)
 	end)
+	-- [==[ projectile attack
+	Shot{
+		pos = self.pos,
+		vel = self.aimDir,
+		shooter = self,
+		weapon = self.selWeapon,
+	}
+	--]==]
+	--[==[ range attack
 	for _,o in ipairs(objs) do
 		if o ~= self
 		and o.takeDamage
@@ -337,6 +424,7 @@ Player.attack=[:]do
 			end
 		end
 	end
+	--]==]
 end
 
 Enemy=TakesDamage:subclass()
@@ -430,13 +518,15 @@ update=[]do
 						b.seen = false
 					end
 				end
-				for _,b in ipairs(room.blocks) do
-					-- spawn new
-					for _,spawn in ipairs(b.spawns) do
-						spawn:class()
+				if room then
+					for _,b in ipairs(room.blocks) do
+						-- spawn new
+						for _,spawn in ipairs(b.spawns) do
+							spawn:class()
+						end
+						-- reveal new
+						b.seen = true
 					end
-					-- reveal new
-					b.seen = true
 				end
 				
 				lastRoom = room
@@ -551,8 +641,13 @@ update=[]do
 			spr(sprites.heart, (i-1)<<3, 248)
 		end
 		local x = 8
-		for keyIndex,v in pairs(player.hasKeys) do
-			drawKeyColor(x, 1, keyIndex)
+		local y = 1
+		for keyIndex in pairs(player.hasKeys) do
+			drawKeyColor(x, y, keyIndex)
+			x += 8
+		end
+		for weaponIndex in pairs(player.hasWeapons) do
+			drawWeapon(x, y, weaponIndex)
 			x += 8
 		end
 	end
