@@ -7,7 +7,7 @@ reads:
 	blockSize, worldSizeInBlocks
 	mapTypeForName
 writes:
-	rooms
+	blocks
 	keyIndex
 	keyColors
 	...the tilemap
@@ -20,7 +20,7 @@ generateWorld=[]do
 		end
 	end
 
-	rooms = range(0,worldSizeInBlocks.x-1):mapi([i]
+	blocks = range(0,worldSizeInBlocks.x-1):mapi([i]
 		(range(0,worldSizeInBlocks.y-1):mapi([j]
 			({
 				pos = vec2(i,j),
@@ -36,19 +36,19 @@ generateWorld=[]do
 
 	local posinfos = table()
 	local start = (worldSizeInBlocks / 2):floor()
-	local startroom = rooms[start.x][start.y]
+	local startroom = blocks[start.x][start.y]
 	startroom.set = true
 	posinfos:insert{pos=startroom.pos}
 	while #posinfos > 0 do
 		local posinfoindex = math.random(1, #posinfos)
 		local pos = posinfos[posinfoindex].pos
-		local srcroom = rooms[pos.x][pos.y]
+		local srcroom = blocks[pos.x][pos.y]
 		local validDirs = dirvecs:mapi([dir, dirindex, t] do
 			local nbhdpos = pos + dir
 			if nbhdpos.x >= 0 and nbhdpos.x < worldSizeInBlocks.x
 			and nbhdpos.y >= 0 and nbhdpos.y < worldSizeInBlocks.y
 			then
-				local nextroom = rooms[nbhdpos.x][nbhdpos.y]
+				local nextroom = blocks[nbhdpos.x][nbhdpos.y]
 				if not nextroom.set
 				and not posinfos:find(nil, [info] info.pos == nbhdpos) then
 					return {dir=dir, dirindex=dirindex}, #t+1
@@ -65,7 +65,7 @@ generateWorld=[]do
 			local dirindex = p.dirindex
 			local dir = p.dir
 			local nbhdpos = pos + dir
-			local nextroom = rooms[nbhdpos.x][nbhdpos.y]
+			local nextroom = blocks[nbhdpos.x][nbhdpos.y]
 			posinfos:insert{pos=nbhdpos}
 			srcroom.dirs[dirindex] = true
 			nextroom.set = true
@@ -114,7 +114,7 @@ generateWorld=[]do
 
 	for i=0,worldSizeInBlocks.x-1 do
 		for j=0,worldSizeInBlocks.y-1 do
-			local room = rooms[i][j]
+			local room = blocks[i][j]
 
 			-- [=[
 			for dirindex,dir in ipairs(dirvecs) do
@@ -190,7 +190,7 @@ generateWorld=[]do
 			local j = tonumber(dj // 3)
 			local u = (di % 3) - 1
 			local v = (dj % 3) - 1
-			local room = rooms[i][j]
+			local room = blocks[i][j]
 			local dirindex = dirvecs:find(nil, [dir] dir == vec2(u,v))
 			if room.dirs[dirindex] then
 				return math.abs(u) > math.abs(v) and '━' or '┃'
@@ -292,32 +292,15 @@ end
 
 local World = class()
 World.init=[:]do
-	self.blocks = {}	-- blocks[x][y]
+	self.blocks = range(0,worldSizeInBlocks.x-1):mapi([i]
+		(range(0,worldSizeInBlocks.y-1):mapi([j]
+			(WorldBlock(i,j), j)
+		), i)
+	)
+
 	self.rooms = table()	-- list of rooms, rooms are collections of blocks
 	--self.startroom = start room
 end
-World.getBlock=[:,x,y,write]do
-	if x < 0 or x >= worldSizeInBlocks.x
-	or y < 0 or y >= worldSizeInBlocks.y
-	then
-		return
-	end
-	-- TODO oob test? even? nah?
-	local col = self.blocks[x]
-	if not col then
-		if not write then return end
-		col = {}
-		self.blocks[x] = col
-	end
-	local block = col[y]
-	if not block then
-		if not write then return end
-		block = WorldBlock(x,y)
-		col[y] = block
-	end
-	return block
-end
-World.getOrMakeBlock=[:,x,y] self:getBlock(x,y,true)
 
 local timeprint
 do
@@ -375,7 +358,7 @@ local levelCarveDoors = [world, room] do
 	for x=room.min.x,room.max.x+1 do
 		for y=room.min.y,room.max.y+1 do
 
-			local block = world:getBlock(x,y)
+			local block = world.blocks[x]?[y]
 			if block then
 
 				-- for each element, 'x', 'y', 'z' refers to the previous side
@@ -385,7 +368,7 @@ local levelCarveDoors = [world, room] do
 				for _,n in ipairs(vec2.fields) do
 					local nv = v:clone()
 					nv[n] -= 1
-					local nbhdblock = world:getBlock(nv:unpack())
+					local nbhdblock = world.blocks[nv.x]?[nv.y]
 
 					local n1 = n == 'x' and 'y' or 'x'
 					local keyIndex = block['door'..n]
@@ -455,7 +438,7 @@ local levelInitSimplexRoom = [world, room] do
 			-- for every room, look at the neighbors ...
 			-- if it has a neighbor on one side then
 
-			local block = world:getBlock(rx,ry)
+			local block = world.blocks[rx]?[ry]
 			if block and block.room == room then
 				local nbhdblocks = {}
 				solidWrites = 0
@@ -465,7 +448,7 @@ local levelInitSimplexRoom = [world, room] do
 					if v[n] >= 0
 					and v[n] < worldSizeInBlocks[n]
 					then
-						nbhdblocks[n] = world:getBlock(v:unpack())
+						nbhdblocks[n] = world.blocks[v.x]?[v.y]
 					end
 				end
 				for by=0,blockSize.y-1 do
@@ -520,7 +503,7 @@ local levelInitSimplexRoom = [world, room] do
 									wallblockpos[n] += nminmaxs[n]
 
 									-- first make sure there's no wall on the n'th axis
-									local wallblock = world:getBlock(wallblockpos.x, wallblockpos.y, wallblockpos.z)
+									local wallblock = world.blocks[wallblockpos.x]?[wallblockpos.y]
 									if not (wallblock and wallblock['wall'..n]) then
 										-- now make sure there are walls on its n1 and n2'th axii
 
@@ -533,7 +516,7 @@ local levelInitSimplexRoom = [world, room] do
 										local wall1blockpos = roomblockpos:clone()
 										wall1blockpos[n1] += nminmax[n1]
 
-										local wall1block = world:getBlock(wall1blockpos:unpack())
+										local wall1block = world.blocks[wall1blockpos.x]?[wall1blockpos.y]
 
 										if wall1block and wall1block['wall'..n1] then
 
@@ -603,7 +586,7 @@ local levelInitSimplexRoom = [world, room] do
 			-- for every room, look at the neighbors ...
 			-- if it has a neighbor on one side then
 
-			local block = world:getBlock(rx,ry)
+			local block = world.blocks[rx]?[ry]
 			if block and block.room == room then
 				for by=0,blockSize.y-1 do
 					for bx=0,blockSize.x-1 do
@@ -672,7 +655,7 @@ local levelInitRoom = [level] do
 			for rz=room.min.z,room.max.z do
 				local rv = vec2(rx,ry,rz)
 
-				local block = world:getBlock(rx,ry,rz)
+				local block = world.blocks[rx]?[ry]
 				if block and block.room == room then
 
 					-- for each side ...
@@ -685,7 +668,7 @@ local levelInitRoom = [level] do
 							local wallpos = vec2():set(rv)
 							wallpos[n] = wallpos[n] + m
 
-							local wallblock = world:getBlock(wallpos.x, wallpos.y, wallpos.z)
+							local wallblock = world.blocks[wallpos.x]?[wallpos.y]
 							if not wallblock or wallblock['wall'..n] then
 
 								local wallthickness = blockSize[n] / 6
@@ -782,7 +765,11 @@ local roomAddEnemies = [world, room] do
 			if not found then
 				trace("failed to find spawn point for enemy")
 			else
-				block.spawns:insert{pos=pos, class=assert(Enemy)}
+				block.spawns:insert{
+					class=assert(Enemy),
+					pos=pos,
+					selWeapon = math.random(0,room.maxKeyIndex),
+				}
 			end
 		end
 	end
@@ -819,7 +806,7 @@ trace('mapBuildRoomFrom begin')
 			nextblockpos[n] += 1
 			local nextblock
 			if nextblockpos[n] < worldSizeInBlocks[n] then
-				nextblock = world:getBlock(nextblockpos:unpack())
+				nextblock = world.blocks[nextblockpos.x]?[nextblockpos.y]
 			end
 
 			-- only if we have a wall with no door that doesn't belong to a room
@@ -845,13 +832,14 @@ trace('mapBuildRoomFrom begin')
 
 	local wall = roomwalls:pickRandom()
 	local blockPos = wall.nextpos
-	local block = world:getOrMakeBlock(blockPos:unpack())
+	local block = world.blocks[blockPos.x]?[blockPos.y]
 
 	-- put a door between them
 	if wall.minmax == 0 then
-		world:getOrMakeBlock(wall.pos:unpack())['door'..wall.axis] = keyIndex
+		-- ?[]= is an expression not a statement and therefore needs to be assigned or passed to something
+		local _ = world.blocks[wall.pos.x]?[wall.pos.y]?['door'..wall.axis] = keyIndex
 	else
-		world:getOrMakeBlock(wall.nextpos:unpack())['door'..wall.axis] = keyIndex
+		local _ = world.blocks[wall.nextpos.x]?[wall.nextpos.y]?['door'..wall.axis] = keyIndex
 	end
 
 
@@ -879,7 +867,7 @@ trace('mapBuildRoomFrom begin')
 				and nbhdpos[axis] < worldSizeInBlocks[axis]
 				then
 
-					local nbhdblock = world:getBlock(nbhdpos:unpack())
+					local nbhdblock = world.blocks[nbhdpos.x]?[nbhdpos.y]
 					if not nbhdblock
 					or nbhdblock.room == nil
 					then
@@ -888,7 +876,7 @@ trace('mapBuildRoomFrom begin')
 						else
 							-- positive, but the wall might not be there ...
 							if not nbhdblock then
-								nbhdblock = world:getOrMakeBlock(nbhdpos:unpack())
+								nbhdblock = world.blocks[nbhdpos.x]?[nbhdpos.y]
 							end
 							nbhdblock['wall'..axis] = true
 						end
@@ -921,12 +909,12 @@ trace('mapBuildRoomFrom begin')
 		blockPos = nbhdpos:clone()
 
 		-- why are we giving away rooms already owned?
-		local oldblock = world:getBlock(blockPos:unpack())
+		local oldblock = world.blocks[blockPos.x]?[blockPos.y]
 		if oldblock and oldblock.room then
 			error("ERROR -- giving away room...")
 		end
 
-		block = world:getOrMakeBlock(blockPos:unpack())
+		block = world.blocks[blockPos.x]?[blockPos.y]
 	end
 
 	return newroom
@@ -937,10 +925,10 @@ local mapAddBlockWalls = [world, block]do
 		for _,n in ipairs(vec2.fields) do
 			local wallblockpos = block.pos:clone()
 			wallblockpos[n] += minmax
-			local wallblock = world:getBlock(wallblockpos:unpack())
+			local wallblock = world.blocks[wallblockpos.x]?[wallblockpos.y]
 			local roomblockpos = block.pos:clone()
 			roomblockpos[n] += minmax * 2 - 1
-			local roomblock = world:getBlock(roomblockpos:unpack())
+			local roomblock = world.blocks[roomblockpos.x]?[roomblockpos.y]
 			-- if the rooms match then clear the wall
 			if roomblock and roomblock.room == block.room then
 				if wallblock then
@@ -948,7 +936,7 @@ local mapAddBlockWalls = [world, block]do
 				end
 			else	-- otherwise set the wall
 				if not wallblock then
-					wallblock = world:getOrMakeBlock(wallblockpos:unpack())
+					wallblock = world.blocks[wallblockpos.x]?[wallblockpos.y]
 					--if not wallblock then
 					--	error("failed to create block at pos "..tostring(wallblockpos))
 					--end
@@ -980,7 +968,7 @@ local generateWorld = [dir] do
 	-- iterate one past the max (for adding doors to the max side)
 	for y=roommin.y,roommax.y do
 		for x=roommin.x,roommax.x do
-			local block = world:getOrMakeBlock(x,y) or error("failed to get block at "..vec2(x,y))
+			local block = world.blocks[x]?[y] or error("failed to get block at "..vec2(x,y))
 			room:addblock(block)
 			mapAddBlockWalls(world, block)
 		end
@@ -992,7 +980,8 @@ local generateWorld = [dir] do
 	-- add enemies ... not in the first room
 
 	--local numrooms = 10	-- num rooms to next item
-	local numrooms = 3 -- num rooms to next item
+	--local numrooms = 3 -- num rooms to next item
+	local numrooms = 2 -- num rooms to next item
 
 	-- add rooms to missile tank
 	keyIndex = 0
@@ -1001,6 +990,7 @@ local generateWorld = [dir] do
 		for i=1,numrooms do
 			local nextRoom = mapBuildRoomFrom(world, currentRoom, keyIndex)
 			if nextRoom then
+				nextRoom.maxKeyIndex = keyIndex
 				nextRoom.color = advanceColor(currentRoom.color)
 				currentRoom = nextRoom
 				keyIndex = 0
@@ -1012,14 +1002,14 @@ local generateWorld = [dir] do
 		lastblock.spawns:insert{
 			pos=(lastblock.pos + .5) * blockSize,
 			class=assert(Weapon),
-			weapon=1,
+			weapon=keyIndex+1,
 		}
 		-- and carve out area around the missileitem
 	end
 
 	-- and rooms to next item
-	do
-		keyIndex = 1
+	while keyIndex < 5 do
+		keyIndex += 1
 		local currentRoom = assert.index(
 			world.rooms,
 			math.random(math.ceil(#world.rooms/2)),
@@ -1027,12 +1017,22 @@ local generateWorld = [dir] do
 		)
 		for i=1,numrooms do
 			local nextRoom = mapBuildRoomFrom(world, currentRoom, keyIndex)
+			nextRoom.maxKeyIndex = keyIndex
 			nextRoom.color = advanceColor(currentRoom.color)
 			currentRoom = nextRoom
 			if i < numrooms then
 				assert(currentRoom, "mapBuildRoomFrom didn't return a room!")
 			end
 		end
+	
+		-- now add a goal-item in the middle of lastblock ...
+		local lastblock = currentRoom.blocks:last()
+		lastblock.spawns:insert{
+			pos=(lastblock.pos + .5) * blockSize,
+			class=assert(Weapon),
+			weapon=keyIndex+1,
+		}
+		-- and carve out area around the missileitem
 	end
 
 	-- leave keyIndex at its max so we can generate keyColors
