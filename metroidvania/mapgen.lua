@@ -962,9 +962,9 @@ local generateWorld = [dir] do
 
 	local world = World()
 
-	local center = worldSizeInBlocks / 2	-- floor too?
-	local roomsize = vec2(2,2)	--maxWorldBlocksPerLevel / 2
-	local roommin = center - roomsize / 2
+	local center = (worldSizeInBlocks / 2):floor()
+	local roomsize = vec2(1,1)	--vec2(2,2)	--maxWorldBlocksPerLevel / 2
+	local roommin = (center - roomsize / 2):ceil()
 	local roommax = roommin + roomsize - 1
 
 	local room = WorldRoom()

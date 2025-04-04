@@ -39,8 +39,8 @@ local dirvecs = table{
 local opposite = {2,1,4,3}
 
 --local blockSize = vec2(32,32)
-local blockSize = vec2(16,16)
---local blockSize = vec2(12,12)
+--local blockSize = vec2(16,16)
+local blockSize = vec2(12,12)
 --local blockSize = vec2(8,8)
 
 local worldSize = vec2(256,256)	-- full game
@@ -549,11 +549,13 @@ Enemy.draw=[:]do
 		keyColors[self.selWeapon] or vec3(1,1,1)
 	)
 end
+--[[ should touching enemies hurt?
 Enemy.touch=[:,o]do
 	if o == player then
 		player:takeDamage(1)
 	end
 end
+--]]
 
 
 local pickRandomColor = []
@@ -694,8 +696,8 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	--blend(1)	-- average
 	--blend(2)	-- subtract
 	blend(6)	-- subtract-with-constant
-	for i=0,math.floor(32/blockSize.x) do
-		for j=0,math.floor(32/blockSize.y) do
+	for i=0,math.floor(32/blockSize.x)+1 do
+		for j=0,math.floor(32/blockSize.y)+1 do
 			local blockcol = world.blocks[math.floor(ulpos.x / blockSize.x) + i]
 			local block = blockcol and blockcol[math.floor(ulpos.y / blockSize.y) + j]
 			if block then
@@ -740,8 +742,8 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 
 	-- only now, erase world.blocks we haven't seen
 	blend(6)	-- subtract-with-constant
-	for i=0,math.floor(32/blockSize.x) do
-		for j=0,math.floor(32/blockSize.y) do
+	for i=0,math.floor(32/blockSize.x)+1 do
+		for j=0,math.floor(32/blockSize.y)+1 do
 			local blockcol = world.blocks[math.floor(ulpos.x / blockSize.x) + i]
 			local block = blockcol and blockcol[math.floor(ulpos.y / blockSize.y) + j]
 			if block then
