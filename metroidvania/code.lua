@@ -37,11 +37,12 @@ local dirvecs = table{
 	vec2(1,0),
 }
 local opposite = {2,1,4,3}
+local dirForName = {up=1, down=2, left=3, right=4}
 
 --local blockSize = vec2(32,32)
 --local blockSize = vec2(16,16)
-local blockSize = vec2(12,12)
---local blockSize = vec2(8,8)
+--local blockSize = vec2(12,12)
+local blockSize = vec2(8,8)
 
 local worldSize = vec2(256,256)	-- full game
 --local worldSize = vec2(64, 64)	-- 2x2 screens
@@ -505,15 +506,17 @@ Enemy.update=[:]do
 	if player then
 		-- give a warning
 		if not self.nextShootTime then
-			self.nextShootTime = time() + 3 + 3 * math.random()
+			self.nextShootTime = time() + 1 + 1 * math.random()
 		else
 			local f = self.nextShootTime - time()
 		
-			if 1 < f and f < 2 then
+			if .7 < f and f < 1 then
 				-- flash
-				if 1 & (time() * 20) == 1 then
+				do--if 1 & (time() * 20) == 1 then
 					local r = 2
+					blend(0)
 					elli((self.pos.x - r)*8, (self.pos.y - r)*8, 16*r,16*r, 12)
+					blend(-1)
 				end
 			elseif 0 < f and f < .3 then
 				-- shoot
@@ -606,6 +609,7 @@ local lastRoom
 local fadeInRoom, fadeOutRoom
 local fadeInLevel, fadeOutLevel
 local fadeRate = .05
+local fogLum = .5
 update=[]do
 	cls()
 
@@ -634,7 +638,7 @@ update=[]do
 					-- if we had an old fadeOutRoom then make sure its .seen is zero 
 					if fadeOutRoom then
 						for _,b in ipairs(fadeOutRoom.blocks) do 
-							b.seen = 0 
+							b.seen = fogLum
 						end
 					end
 					-- set our fade out room
@@ -656,7 +660,7 @@ update=[]do
 					fadeInRoom = room
 					fadeInLevel = 0
 					for _,b in ipairs(fadeInRoom.blocks) do
-						b.seen = 0
+						b.seen = math.min(b.seen, fogLum)
 					end
 				end
 				
@@ -676,9 +680,9 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 		if fadeInLevel == 1 then fadeInRoom = nil fadeInLevel = nil end
 	end
 	if fadeOutRoom then
-		fadeOutLevel = math.max(fadeOutLevel - fadeRate, 0)
+		fadeOutLevel = math.max(fadeOutLevel - fadeRate, fogLum)
 		for _,b in ipairs(fadeOutRoom.blocks) do b.seen = fadeOutLevel end
-		if fadeOutLevel == 0 then fadeOutRoom = nil fadeOutLevel = nil end
+		if fadeOutLevel == fogLum then fadeOutRoom = nil fadeOutLevel = nil end
 	end
 
 	local ulpos = viewPos - 16
