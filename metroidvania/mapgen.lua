@@ -768,7 +768,14 @@ local roomAddEnemies = [world, room] do
 				block.spawns:insert{
 					class=assert(Enemy),
 					pos=pos,
-					selWeapon = math.random(0,room.maxKeyIndex),
+					--[[
+					how to do enemy + color ...
+					if color absorbs ...
+					we dont want the first enemy to absorb anythign ...
+					should I separate absorb-color versus shot-color?
+					then first enemy will have no absorb-color ... and no shot color?
+					--]]
+					--selWeapon = math.random(0,room.maxKeyIndex),
 				}
 			end
 		end

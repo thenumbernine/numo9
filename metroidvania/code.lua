@@ -294,19 +294,22 @@ Shot.update=[:]do
 	if time() > self.endTime then self.removeMe = true end
 end
 Shot.touch=[:,o]do
-	if o ~= self.shooter then 
-	
+	if o ~= self.shooter 
+	and o.takeDamage 
+	then
+		local damage = self.damage
+
 		-- if shot or enemy has no color, or if they both have color and their colors don't match, then do damage
 		-- TODO damage strong/weak
-		if not self.weapon
-		or not o.selWeapon
-		or self.weapon ~= o.selWeapon
+		if self.weapon
+		and o.selWeapon
+		and self.weapon == o.selWeapon
 		then
-			if o.takeDamage then
-				o:takeDamage(self.damage)
-				self.removeMe = true	-- always or only upon hit?
-			end
+			damage *= .1
 		end
+		o:takeDamage(damage)
+		
+		self.removeMe = true	-- always or only upon hit?
 	end
 	return false	-- 'false' means 'dont collide'
 end
@@ -464,47 +467,33 @@ Player.update=[:]do
 			or next(self.hasWeapons)
 	end
 
-	if btn(7) then self:attack() end
+	if btn(7) then self:shoot() end
 
 	Player.super.update(self)	-- draw and move
 end
 
-Player.attackTime = 0
-Player.attackDelay = .1
+Player.nextShootTime = 0
+Player.shootDelay = .1
 Player.attackDist = 2
 --Player.attackCosAngle = .5
-Player.attackDamage = 1
-Player.attack=[:]do
-	if time() < self.attackTime then return end
-	self.attackTime = time() + self.attackDelay
-	mainloops:insert([]do
-		elli((self.pos.x - self.attackDist)*8, (self.pos.y - self.attackDist)*8, 16*self.attackDist,16*self.attackDist, 3)
-	end)
-	-- [==[ projectile attack
+Player.shoot=[:]do
+	if time() < self.nextShootTime then return end
+	self.nextShootTime = time() + self.shootDelay
+	--mainloops:insert([]do
+		local r = 2
+		elli((self.pos.x - r)*8, (self.pos.y - r)*8, 16*r,16*r, 3)
+	--end)
 	Shot{
 		pos = self.pos,
 		vel = self.aimDir,
 		shooter = self,
 		weapon = self.selWeapon,
 	}
-	--]==]
-	--[==[ range attack
-	for _,o in ipairs(objs) do
-		if o ~= self
-		and o.takeDamage
-		then
-			local delta = o.pos - self.pos
-			if delta:lenSq() < self.attackDist^2 then
-				o:takeDamage(self.attackDamage)
-			end
-		end
-	end
-	--]==]
 end
 
 Enemy=TakesDamage:subclass()
 Enemy.sprite=sprites.enemy
-Enemy.attackDist = 3
+Enemy.chaseDist = 5
 Enemy.speed = .05
 Enemy.selWeapon = 0
 Enemy.update=[:]do
@@ -514,9 +503,36 @@ Enemy.update=[:]do
 	-- 1) give warning (like flash or something)
 	-- 2) shoot at player
 	if player then
+		-- give a warning
+		if not self.nextShootTime then
+			self.nextShootTime = time() + 3 + 3 * math.random()
+		else
+			local f = self.nextShootTime - time()
+		
+			if 1 < f and f < 2 then
+				-- flash
+				if 1 & (time() * 20) == 1 then
+					local r = 2
+					elli((self.pos.x - r)*8, (self.pos.y - r)*8, 16*r,16*r, 12)
+				end
+			elseif 0 < f and f < .3 then
+				-- shoot
+				if 1 & (time() * 20) == 1 then
+					Shot{
+						pos = self.pos,
+						vel = .5 * (player.pos - self.pos):unit(),
+						shooter = self,
+						weapon = self.selWeapon,
+					}
+				end
+			elseif f < 0 then
+				self.nextShootTime = nil
+			end
+		end
+
 		local delta = player.pos - self.pos
 		local deltaLenSq = delta:lenSq()
-		if deltaLenSq < self.attackDist^2 then
+		if deltaLenSq < self.chaseDist^2 then
 			local dir = delta / math.max(1e-15, math.sqrt(deltaLenSq))
 			self.vel = dir * self.speed
 		end
@@ -764,7 +780,7 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 		text(player.pos:clone():floor(), 200, 0)
 		local x = 1
 		local y = 248
-		for i=1,player.health,2 do
+		for i=2,player.health,2 do
 			spr(sprites.heart, x, y)
 			x += 8
 		end
