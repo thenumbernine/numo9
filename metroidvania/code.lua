@@ -60,7 +60,7 @@ local keyColors
 
 local sprites = {
 	player = 0,
-	enemy = 1,
+	player_spec = 1,
 	heart = 32,
 	hearthalf = 33,
 	key = 34,
@@ -87,6 +87,10 @@ mapTypes=table{
 		name='door',
 		flags=flags.solid,
 	},
+	[5]={	-- purely for rendering
+		name='door_spec',
+		flags=0,
+	},
 }
 for k,v in pairs(mapTypes) do
 	v.index = k
@@ -99,6 +103,49 @@ mapTypeForName = mapTypes:map([v,k] (v, v.name))
 local mapwidth = 256
 local mapheight = 256
 objs=table()
+
+
+drawSpec=[colorSprite, specSprite, x, y, c] do
+	blend(0)	-- additive
+	spr(colorSprite, x, y)	-- draw white
+	
+	blend(6)	-- subtract-with-constant
+	setBlendColor(rgb_to_5551(1 - c))
+	spr(colorSprite, x, y)
+
+	blend(-1)
+	if specSprite then
+		spr(specSprite, x, y)
+	end
+end
+
+drawWeapon=[weapon,x,y]do
+	local frame = math.floor(time() * 10) % 4
+	drawSpec(
+		64+frame,	-- color sprite
+		96+frame,	-- spec sprite
+		x, y,
+		keyColors[weapon] or vec3(1,1,1)
+	)
+end
+
+-- hmm keys ... jury is still out
+drawKeyColor=[keyIndex,x,y]do
+	-- draw shadow
+	blend(6)	-- subtract-with-constant
+	setBlendColor(0xffff)
+	spr(Key.sprite, x-1, y-1)
+	spr(Key.sprite, x+1, y+1)
+	
+	drawSpec(
+		Key.sprite,
+		nil,
+		x, y,
+		keyColors[keyIndex] or vec3(1,1,1)
+	)
+end
+
+
 
 Object=class()
 Object.pos = vec2()
@@ -203,23 +250,6 @@ Object.update=[:]do
 	end
 end
 
-local drawKeyColor=[keyIndex,x,y]do
-	blend(6)	-- subtract-with-constant
-	setBlendColor(0xffff)
-	spr(Key.sprite, x-1, y-1)
-	spr(Key.sprite, x+1, y+1)
-	blend(-1)
-	spr(Key.sprite, x, y)
-
-	blend(6)	-- subtract-with-constant
-
-	local keyColor = keyColors[keyIndex]
-	setBlendColor(keyColor and rgb_to_5551(1 - keyColor) or 0)
-
-	spr(Key.sprite, x, y)
-
-	blend(-1)
-end
 
 Health = Object:subclass()
 Health.sprite = 32
@@ -265,9 +295,17 @@ Shot.update=[:]do
 end
 Shot.touch=[:,o]do
 	if o ~= self.shooter then 
-		if o.takeDamage then
-			o:takeDamage(self.damage)
-			self.removeMe = true	-- always or only upon hit?
+	
+		-- if shot or enemy has no color, or if they both have color and their colors don't match, then do damage
+		-- TODO damage strong/weak
+		if not self.weapon
+		or not o.selWeapon
+		or self.weapon ~= o.selWeapon
+		then
+			if o.takeDamage then
+				o:takeDamage(self.damage)
+				self.removeMe = true	-- always or only upon hit?
+			end
 		end
 	end
 	return false	-- 'false' means 'dont collide'
@@ -309,19 +347,6 @@ Shot.touchMap = [:,x,y,t,ti] do
 end
 
 
-drawWeapon=[weapon,x,y]do
-	local frame = math.floor(time() * 10) % 4
-	
-	spr(64+frame, x, y)	-- draw white
-	
-	blend(6)	-- subtract-with-constant
-	local keyColor = keyColors[weapon]
-	setBlendColor(keyColor and rgb_to_5551(1 - keyColor) or 0)
-	spr(64+frame, x, y)
-
-	blend(-1)
-	spr(96+frame, x, y)
-end
 Weapon=Object:subclass()
 Weapon.sprite = 64		-- \_ correlate these somehow or something
 Weapon.weapon = 0		-- /
@@ -364,15 +389,23 @@ DoorVert = Door:subclass()
 
 Player=TakesDamage:subclass()
 Player.sprite=sprites.player
-Player.maxHealth=3
+Player.maxHealth=7
 Player.useGravity = true
-Player.selWeapon = 0
+Player.selWeapon = 0	-- TODO separate waepon-color from weapon-level selected
 Player.init=[:,args]do
 	Player.super.init(self, args)
 	self.hasKeys = {[0]=true}
 	self.hasWeapons = {[0]=true}
 	self.aimDir = vec2(1,0)
-	self.targetAimDir = vec2(1,0)
+end
+Player.draw=[:]do
+	drawSpec(
+		0,
+		1,
+		(self.pos.x - .5) * 8,
+		(self.pos.y - .5) * 8,
+		keyColors[self.selWeapon] or vec3(1,1,1)
+	)
 end
 Player.update=[:]do
 
@@ -414,13 +447,7 @@ Player.update=[:]do
 	if btn(2) then targetAimDir.x -= 1 end
 	if btn(3) then targetAimDir.x += 1 end
 	if targetAimDir.x ~= 0 or targetAimDir.y ~= 0 then
-		self.targetAimDir = targetAimDir:unit()
-	end
-	if self.targetAimDir:dot(self.aimDir) < -.1 then
-		self.aimDir:set(self.targetAimDir:unpack())
-	else
-		self.aimDir += .1 * self.targetAimDir
-		self.aimDir = self.aimDir:unit()
+		self.aimDir = targetAimDir:unit()
 	end
 
 	if btn(5)
@@ -479,9 +506,13 @@ Enemy=TakesDamage:subclass()
 Enemy.sprite=sprites.enemy
 Enemy.attackDist = 3
 Enemy.speed = .05
+Enemy.selWeapon = 0
 Enemy.update=[:]do
 	self.vel:set(0,0)
 
+	-- TODO instead of appraoch...
+	-- 1) give warning (like flash or something)
+	-- 2) shoot at player
 	if player then
 		local delta = player.pos - self.pos
 		local deltaLenSq = delta:lenSq()
@@ -492,6 +523,15 @@ Enemy.update=[:]do
 	end
 
 	Enemy.super.update(self)
+end
+Enemy.draw=[:]do
+	drawSpec(
+		0,
+		1,
+		(self.pos.x - .5) * 8,
+		(self.pos.y - .5) * 8,
+		keyColors[self.selWeapon] or vec3(1,1,1)
+	)
 end
 Enemy.touch=[:,o]do
 	if o == player then
@@ -524,12 +564,16 @@ init=[]do
 
 	keyColors = {}
 	do
-		local c = pickRandomColor()
 		-- make these match the sprites
 		-- or TODO render sprites with separate fg/bg and make their color with neg-blending
 		keyColors[0] = vec3(1,1,1)
 		keyColors[1] = vec3(0,0,1)
-		for i=2,keyIndex do
+		keyColors[2] = vec3(0,1,0)
+		keyColors[3] = vec3(1,0,0)
+		keyColors[4] = vec3(0,0,0)
+		
+		local c = pickRandomColor()
+		for i=5,keyIndex do
 			keyColors[i] = c
 			--c = advanceColor(c)
 			c = pickRandomColor()
@@ -543,6 +587,7 @@ local lastBlock
 local lastRoom
 local fadeInRoom, fadeOutRoom
 local fadeInLevel, fadeOutLevel
+local fadeRate = .05
 update=[]do
 	cls()
 
@@ -570,11 +615,16 @@ update=[]do
 			
 					-- if we had an old fadeOutRoom then make sure its .seen is zero 
 					if fadeOutRoom then
-						for _,b in ipairs(fadeOutRoom.blocks) do b.seen = 0 end
+						for _,b in ipairs(fadeOutRoom.blocks) do 
+							b.seen = 0 
+						end
 					end
 					-- set our fade out room
 					fadeOutRoom = lastRoom
 					fadeOutLevel = 1
+					for _,b in ipairs(fadeOutRoom.blocks) do 
+						b.seen = 1 
+					end
 				end
 				if room then
 					for _,b in ipairs(room.blocks) do
@@ -587,6 +637,9 @@ update=[]do
 					-- (if we had a previous fade-in room then it should now be the current fade-out room)
 					fadeInRoom = room
 					fadeInLevel = 0
+					for _,b in ipairs(fadeInRoom.blocks) do
+						b.seen = 0
+					end
 				end
 				
 				lastRoom = room
@@ -598,13 +651,14 @@ update=[]do
 		end
 	end
 
+if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	if fadeInRoom then
-		fadeInLevel = math.max(fadeInLevel + .05, 1)
+		fadeInLevel = math.min(fadeInLevel + fadeRate, 1)
 		for _,b in ipairs(fadeInRoom.blocks) do b.seen = fadeInLevel end
 		if fadeInLevel == 1 then fadeInRoom = nil fadeInLevel = nil end
 	end
 	if fadeOutRoom then
-		fadeOutLevel = math.max(fadeOutLevel - .05, 0)
+		fadeOutLevel = math.max(fadeOutLevel - fadeRate, 0)
 		for _,b in ipairs(fadeOutRoom.blocks) do b.seen = fadeOutLevel end
 		if fadeOutLevel == 0 then fadeOutRoom = nil fadeOutLevel = nil end
 	end
@@ -647,6 +701,13 @@ update=[]do
 							setBlendColor(rgb_to_5551(1 - keyColor))
 
 							rect(x * 8, y * 8, 8, 8, 13)
+
+							-- and add a highlight ... do this after fade-out .seen?
+							blend(-1)
+							spr(
+								mapTypeForName.door_spec.index | 1024, 	-- bit 11 = use bank0's tilemap
+								x * 8, y * 8)
+							blend(6)
 						end
 					end
 				end
@@ -701,9 +762,17 @@ update=[]do
 	if player then
 		matident()
 		text(player.pos:clone():floor(), 200, 0)
-		for i=1,player.health do
-			spr(sprites.heart, (i-1)<<3, 248)
+		local x = 1
+		local y = 248
+		for i=1,player.health,2 do
+			spr(sprites.heart, x, y)
+			x += 8
 		end
+		if player.health & 1 == 1 then
+			spr(sprites.hearthalf, x, y)
+			x += 8
+		end
+		
 		local x = 8
 		local y = 1
 		for keyIndex in pairs(player.hasKeys) do

@@ -1,7 +1,5 @@
 # TODO
 
-- dif shaped key sprites for identification
-- dif shaped map blocks for art or whatever
 - map generation
 	- smooth cornered map blocks for vis ...
 	- or, I swapped out the zeta3d map gen ... it's so so ... 16 seems too big and 8 seems too small, i might npo2 the map block sizes ...
@@ -25,6 +23,14 @@
 - then dif keys correlate with dif items ... ?
 	or dif keys = weapon-color + weapon-level
 	and dif weapon skill-tree upgrades have dif levels associated with them ...
+
+- color highlight on/around the player
+- color enemies 
+- give enemies shots too ... and warnings before they shoot ...
+
+- give shots trace particles
+- give shots lighting effects on the background ... 
+- ... make a background
 
 # BUGS
 - clamp the map() render so it doesn't wrap -- we're seeing ghost rooms on edges
