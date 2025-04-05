@@ -47,7 +47,7 @@ generateWorld=[]do
 		wall-jump
 		spider-ball
 		speed-booster
-		speed-ball 
+		speed-ball
 		grappling-hook
 		double-jump
 
@@ -69,8 +69,8 @@ generateWorld=[]do
 		dive bombs you
 		grabs and pulls you
 		stands and shoots at you, and walks slowly back and forth
-	
-	
+
+
 	--]]
 
 	local posinfos = table()
@@ -122,7 +122,7 @@ generateWorld=[]do
 					nextblock.spawns:insert{
 						class=table{
 							assert(Crawler),
-							assert(Shooter),
+							--assert(Shooter),
 						}:pickRandom(),	-- TODO weighted?
 						left = math.random(2) == 2,
 						drops={
@@ -135,7 +135,7 @@ generateWorld=[]do
 					}
 				end
 			end
-			
+
 			if math.random() < .5 then
 				--[[ hide health in blocks? in monsters?
 				nextblock.spawns:insert{
@@ -360,7 +360,7 @@ local timeprint
 do
 	local lasttime
 	timeprint = [...] do
---[[		
+--[[
 		local thistime = time() / 60
 		if lasttime then
 			trace('...'..(thistime-lasttime)..' seconds')
@@ -388,7 +388,7 @@ local levelCarveDoors = [world, room] do
 					local ofsi = i - halfdoorsize
 					v[n] = src[n] + k
 					v[n1] = src[n1] + ofsi
-					
+
 					if -2 <= k and k < 2 then
 
 						local bx = math.floor(v.x/blockSize.x)
@@ -457,7 +457,7 @@ local levelCarveDoors = [world, room] do
 end
 
 local fillBlock = [rx,ry,index] do
-trace('fillBlock', rx, ry, index)	
+trace('fillBlock', rx, ry, index)
 	rx = math.floor(rx)
 	ry = math.floor(ry)
 	-- rx,ry,rz = block coordinates
@@ -521,8 +521,8 @@ local levelInitSimplexRoom = [world, room] do
 						-- single-influences
 						for ni,n in ipairs(vec2.fields) do
 							local wallindex = 5-2*ni	-- 1 = x, 2 = y ...maps to... 3 = left, 1 = up
-							if block.walls[wallindex] 
-							and bv[n] < halfWorldBlockSize[n] 
+							if block.walls[wallindex]
+							and bv[n] < halfWorldBlockSize[n]
 							then
 								local distsq
 								--if n == 2 then	--min side, n=2, that means we're the floor ...
@@ -720,7 +720,7 @@ trace('mapBuildRoomFrom begin')
 			nextblockpos[n] -= 1
 			if nextblockpos[n] >= 0 then
 				if block.walls[wallindex]
-				and not block['door'..n] 
+				and not block['door'..n]
 				then
 					roomwalls:insert{
 						pos=block.pos,
@@ -762,7 +762,7 @@ trace('mapBuildRoomFrom begin')
 	local wall = roomwalls:pickRandom()
 	local blockPos = wall.nextpos
 	local block = world.blocks[blockPos.x]?[blockPos.y]
-	if not block then 
+	if not block then
 		error("failed to create new block ... blockPos went OOB: "..blockPos)
 	end
 	assert(not block.room, "can't extend into that block, it already has a room!")
@@ -908,7 +908,7 @@ local generateWorld = [dir] do
 			mapAddBlockWalls(world, block)
 		end
 	end
-	
+
 	-- add voxels
 	--trace('roomGenVoxels',room)
 	--roomGenVoxels(world, world.startroom)
@@ -959,7 +959,7 @@ local generateWorld = [dir] do
 				assert(currentRoom, "mapBuildRoomFrom didn't return a room!")
 			end
 		end
-	
+
 		-- now add a goal-item in the middle of lastblock ...
 		local lastblock = currentRoom.blocks:last()
 		lastblock.spawns:insert{
@@ -984,7 +984,7 @@ local generateWorld = [dir] do
 
 	--colorVoxels(world)
 
-	-- create player ... 
+	-- create player ...
 	local startBlock = room.blocks:last()
 	player = Player{pos=(startBlock.pos + .5) * blockSize}
 
