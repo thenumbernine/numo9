@@ -4,6 +4,14 @@
 --#include ext/class.lua
 --#include ext/range.lua
 
+table.pickWeighted = [t]do
+	local sum = math.random() * math.max(1, table.values(t):sum())
+	for k,v in pairs(t) do
+		sum -= v
+		if sum < 0 then return k end
+	end
+end
+
 local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 local blendColorAddr = ffi.offsetof('RAM','blendColor')
 local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
@@ -257,7 +265,7 @@ Health.sprite = 32
 Health.health = 1
 Health.touch=[:,o]do
 	if not Player:isa(o) then return end
-	o.health += self.health
+	o.health = math.min(o.health + self.health, o.maxHealth)
 	self.removeMe = true
 end
 
@@ -378,17 +386,25 @@ TakesDamage.takeDamage=[:,damage]do
 	if self.health <= 0 then self:die() end
 end
 TakesDamage.die=[:]do
+	if self.drops then
+		local drop = table.pickWeighted(self.drops)
+		if drop then
+			drop.pos = self.pos
+			drop:class()
+		end
+	end
 	self.dead = true
 	self.removeMe = true
 end
 
+--[=[
 Door = TakesDamage:subclass()
 Door.sprite = 5
 Door.maxHealth=1
 -- Door.die=[:]do end -- TODO animate opening then remove
-
 DoorHorz = Door:subclass()
 DoorVert = Door:subclass()
+--]=]
 
 
 Player=TakesDamage:subclass()
@@ -429,17 +445,25 @@ Player.update=[:]do
 	local speed = .15
 	if self.hitYP then
 		self.vel.x *= .1	-- friction
-		if btn(2) then self.vel.x -= speed end
-		if btn(3) then self.vel.x += speed end
+		if btn(2) then
+			self.left = true
+			self.vel.x -= speed
+		end
+		if btn(3) then
+			self.left = false
+			self.vel.x += speed
+		end
 	else
 		-- move in air? or nah, castlevania nes jumping. or nah, but constrain acceleration ...
 		local maxAirSpeed = speed
 		local speed = .05
 		if btn(2) then
+			self.left = true
 			self.vel.x -= speed
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
 		if btn(3) then
+			self.left = false
 			self.vel.x += speed
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
@@ -452,6 +476,8 @@ Player.update=[:]do
 	if btn(3) then targetAimDir.x += 1 end
 	if targetAimDir.x ~= 0 or targetAimDir.y ~= 0 then
 		self.aimDir = targetAimDir:unit()
+	else
+		self.aimDir:set(self.left and -1 or 1, 0)
 	end
 
 	if btn(5)
@@ -492,18 +518,61 @@ Player.shoot=[:]do
 	}
 end
 
-Enemy=TakesDamage:subclass()
-Enemy.sprite=sprites.enemy
-Enemy.chaseDist = 5
-Enemy.speed = .05
-Enemy.selWeapon = 0
-Enemy.update=[:]do
+Crawler=TakesDamage:subclass()
+Crawler.useGravity=true
+Crawler.sprite=sprites.enemy	-- sprites.crawler
+Crawler.update=[:]do
+	if not self.stuckDir then
+		-- see if we are hit on a side
+		-- remember that side and walk along it
+		self.useGravity = true
+		-- TODO .hit** as bitflags of dirvecs
+		-- TODO reorder dirvecs and rerder btn()'s
+		if self.hitXP then
+			self.stuckDir = 4
+		elseif self.hitXN then
+			self.stuckDir = 3
+		elseif self.hitYP then
+			self.stuckDir = 2
+		elseif self.hitYN then
+			self.stuckDir = 1
+		end
+		if self.stuckDir then
+			self.useGravity = false
+		end
+	else
+		-- if we are stuck to a wall then walk along the wall
+		-- hmm, maybe order directions right,up,left,down, then flag 2 holds the sign, and it is ordered by angle, and it is ordered by dimension ...
+		--local nextDir = {
+			
+	end
+	local speed = .01
+	if self.hitYP then
+		-- on ground
+		if self.left then
+			self.vel:set(-speed,0)
+		else
+			self.vel:set(speed,0)
+		end
+	end
+	
+	Crawler.super.update(self)
+end
+
+Shooter=TakesDamage:subclass()
+Shooter.sprite=sprites.enemy
+Shooter.chaseDist = 5
+Shooter.speed = .05
+Shooter.selWeapon = 0
+Shooter.update=[:]do
 	self.vel:set(0,0)
 
 	-- TODO instead of appraoch...
 	-- 1) give warning (like flash or something)
 	-- 2) shoot at player
-	if player then
+	if player 
+	and player.selWeapon ~= self.selWeapon
+	then
 		-- give a warning
 		if not self.nextShootTime then
 			self.nextShootTime = time() + 1 + 1 * math.random()
@@ -541,9 +610,9 @@ Enemy.update=[:]do
 		end
 	end
 
-	Enemy.super.update(self)
+	Shooter.super.update(self)
 end
-Enemy.draw=[:]do
+Shooter.draw=[:]do
 	drawSpec(
 		0,
 		1,
@@ -553,7 +622,7 @@ Enemy.draw=[:]do
 	)
 end
 --[[ should touching enemies hurt?
-Enemy.touch=[:,o]do
+Shooter.touch=[:,o]do
 	if o == player then
 		player:takeDamage(1)
 	end
@@ -797,10 +866,12 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 		
 		local x = 8
 		local y = 1
+		--[[ TODO no more keys, just weapon colors
 		for keyIndex in pairs(player.hasKeys) do
 			drawKeyColor(keyIndex, x, y)
 			x += 8
 		end
+		--]]
 		for weaponIndex in pairs(player.hasWeapons) do
 			drawWeapon(weaponIndex, x, y)
 			x += 8
