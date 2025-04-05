@@ -37,15 +37,15 @@ local wait = [delay, fn] do
 	end)
 end
 
--- TODO order this better? order all arrow keys better? maybe right left down up?
+-- TODO order this like buttons ... right down left up ... so it's related to bitflags and so it follows exp map angle ...
 local dirvecs = table{
-	vec2(0,-1),
-	vec2(0,1),
-	vec2(-1,0),
-	vec2(1,0),
+	[0] = vec2(1,0),
+	[1] = vec2(0,1),
+	[2] = vec2(-1,0),
+	[3] = vec2(0,-1),
 }
-local opposite = {2,1,4,3}
-local dirForName = {up=1, down=2, left=3, right=4}
+local opposite = {[0]=2,3,0,1}
+local dirForName = {right=0, down=1, left=2, up=3}
 
 --local blockSize = vec2(32,32)
 --local blockSize = vec2(16,16)
@@ -335,7 +335,7 @@ checkBreakDoor = [keyIndex, x, y] do
 	if keyIndex ~= blockKeyIndex then return end
 	mset(x,y,mapTypeForName.empty.index)
 	wait(.1, []do
-		for _,dir in ipairs(dirvecs) do
+		for _,dir in pairs(dirvecs) do
 			local ox, oy = x+dir.x, y+dir.y
 			if mget(ox, oy) == mapTypeForName.door.index then
 				checkBreakDoor(keyIndex, ox, oy)
@@ -527,15 +527,14 @@ Crawler.update=[:]do
 		-- remember that side and walk along it
 		self.useGravity = true
 		-- TODO .hit** as bitflags of dirvecs
-		-- TODO reorder dirvecs and rerder btn()'s
 		if self.hitXP then
-			self.stuckDir = 4
+			self.stuckDir = 0
 		elseif self.hitXN then
-			self.stuckDir = 3
-		elseif self.hitYP then
 			self.stuckDir = 2
-		elseif self.hitYN then
+		elseif self.hitYP then
 			self.stuckDir = 1
+		elseif self.hitYN then
+			self.stuckDir = 3
 		end
 		if self.stuckDir then
 			self.useGravity = false
