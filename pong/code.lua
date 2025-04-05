@@ -350,9 +350,9 @@ local game = Game()
 
 update=[]do
 	for playerIndex,player in ipairs{game.playerA, game.playerB} do
-		if btn(0,playerIndex-1) then
+		if btn('up',playerIndex-1) then
 			player:move(-1)
-		elseif btn(1,playerIndex-1) then	
+		elseif btn('down',playerIndex-1) then	
 			player:move(1)
 		else
 			player:move(0)

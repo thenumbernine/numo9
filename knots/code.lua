@@ -247,27 +247,27 @@ update=[]do
 	end
 	redraw()
 
-	if btnp(4,0,5,5) and #snakeHist>0 then
+	if btnp('a',0,5,5) and #snakeHist>0 then
 		popSnakeHist()
 		if snake[1].crossingOver~=nil then	-- don't leave us hanging at a crossing
 			popSnakeHist()
 		end
 		return
 	end
-	if btnp(6) then
+	if btnp('x') then
 		reset()
 		return
 	end
 	if done then return end
 
 	nextDir=nil
-	if btnp(0,0,5,5) and dir ~= 1 then
+	if btnp('up',0,5,5) and dir ~= 1 then
 		nextDir=0
-	elseif btnp(1,0,5,5) and dir ~= 0 then
+	elseif btnp('down',0,5,5) and dir ~= 0 then
 		nextDir=1
-	elseif btnp(2,0,5,5) and dir ~= 3 then
+	elseif btnp('left',0,5,5) and dir ~= 3 then
 		nextDir=2
-	elseif btnp(3,0,5,5) and dir ~= 2 then
+	elseif btnp('right',0,5,5) and dir ~= 2 then
 		nextDir=3
 	end
 

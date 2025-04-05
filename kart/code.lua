@@ -2487,32 +2487,32 @@ update=[]do
 		end
 		text('Start!', x, y, colors.white, colors.black)
 		for pid=0,maxPlayers-1 do
-			if btnp(0,pid) then
+			if btnp('up',pid) then
 				menuSel-=1
 				menuSel%=maxPlayers+1
-			elseif btnp(1,pid) then
+			elseif btnp('down',pid) then
 				menuSel+=1
 				menuSel%=maxPlayers+1
-			elseif btnp(2,pid) then
+			elseif btnp('left',pid) then
 				startPlayerInfo[menuSel].kartSpriteNo-=1
 				startPlayerInfo[menuSel].kartSpriteNo%=kartSpriteCount
-			elseif btnp(3,pid) then
+			elseif btnp('right',pid) then
 				startPlayerInfo[menuSel].kartSpriteNo+=1
 				startPlayerInfo[menuSel].kartSpriteNo%=kartSpriteCount
 			end
 			if menuSel<maxPlayers then
 				-- any players left/right can toggle
-				--if btnp(2,pid) or btnp(3,pid) then
+				--if btnp('left',pid) or btnp('right',pid) then
 				--	startPlayerInfo[menuSel].active = not startPlayerInfo[menuSel].active
 				-- if any player presses a button then set them to human
-				if btnp(4,pid) or btnp(5,pid) then
+				if btnp('a',pid) or btnp('b',pid) then
 					startPlayerInfo[menuSel].active = not startPlayerInfo[menuSel].active
-				--elseif btnp(6,pid) or btnp(7,pid) then
+				--elseif btnp('x',pid) or btnp('y',pid) then
 				--	startPlayerInfo[menuSel].active = false
 				end
 			else
 				-- if any player pushes when we're on 'start' then go
-				if btnp(4,pid) or btnp(5,pid) or btnp(6,pid) or btnp(7,pid) then
+				if btnp('a',pid) or btnp('b',pid) or btnp('x',pid) or btnp('y',pid) then
 					startGame()
 				end
 			end

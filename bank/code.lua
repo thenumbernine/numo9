@@ -1039,29 +1039,29 @@ end
 
 update=[]do
 	if player then
-		if btn(0) then
+		if btn'up' then
 			player:move(dirs.up)
-		elseif btn(1) then
+		elseif btn'down' then
 			player:move(dirs.down)
-		elseif btn(2) then
+		elseif btn'left' then
 			player:move(dirs.left)
-		elseif btn(3) then
+		elseif btn'right' then
 			player:move(dirs.right)
 		else
 			player:stopMoving()
 		end
-		if btnp(7) then
+		if btnp'y' then
 			player:dropBomb()
 		end
-		if btnp(6) then
+		if btnp'x' then
 			player:die()
 		end
-		if btn(4) then
-			if btnp(2) then
+		if btn'a' then
+			if btnp'left' then
 				setLevel(level-1) loadLevelRequest=true
 				--player.blendMode=((player.blendMode or 0)-1)%9
 			end
-			if btnp(3) then
+			if btnp'right' then
 				setLevel(level+1) loadLevelRequest=true
 				--pokew(0x080a46, 0x801f)	-- set blend color to white
 				--player.blendMode=((player.blendMode or 0)+1)%9

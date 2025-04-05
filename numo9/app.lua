@@ -1068,10 +1068,10 @@ L	A/V		D		Q
 R	Z		C		W
 looks like I'm a Snes9x-default-keybinding fan.
 	--]]
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.up, {768, 1073741906, name="keyUp"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.right, {768, 1073741903, name="keyRight"})
 	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.down, {768, 1073741905, name="keyDown"})
 	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.left, {768, 1073741904, name="keyLeft"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.right, {768, 1073741903, name="keyRight"})
+	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.up, {768, 1073741906, name="keyUp"})
 	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.a, {768, ('s'):byte(), name="keyS"})
 	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.b, {768, ('x'):byte(), name="keyX"})
 	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.x, {768, ('a'):byte(), name="keyA"})

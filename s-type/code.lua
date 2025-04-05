@@ -119,11 +119,11 @@ update=[]do
 
 		local speed = 2
 		playerVelX,playerVelY = 0,0
-		if btn(0) then playerVelY -=speed end
-		if btn(1) then playerVelY +=speed end
-		if btn(2) then playerVelX -=speed end
-		if btn(3) then playerVelX +=speed end
-		if btn(7) then playerShoot(8,0) end
+		if btn'up' then playerVelY -=speed end
+		if btn'down' then playerVelY +=speed end
+		if btn'left' then playerVelX -=speed end
+		if btn'right' then playerVelX +=speed end
+		if btn'y' then playerShoot(8,0) end
 
 		playerX+=playerVelX 
 		playerY+=playerVelY

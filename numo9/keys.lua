@@ -64,10 +64,10 @@ local keyCodeNames = table{
 	'return',
 	'backspace',
 
-	'up',
+	'right',
 	'down',
 	'left',
-	'right',
+	'up',
 	'capslock',
 	'lctrl',
 	'rctrl',
@@ -105,10 +105,10 @@ assert(bit.band(firstJoypadKeyCode, 7) == 0)	-- make sure we are 8-aligned so th
 -- https://gamefaqs.gamespot.com/snes/916396-super-nintendo/faqs/5395
 -- fun fact, SNES's keys in-order are:
 -- B Y Sel Start Up Down Left Right A X L R
-local buttonNames = table{'up', 'down', 'left', 'right', 'a', 'b', 'x', 'y'}
+local buttonNames = table{'right', 'down', 'left', 'up', 'a', 'b', 'x', 'y'}
 
 -- these are single-chars in our font that correspond to button labels ... letters match, but we also have some arrow font chars ...
-local buttonSingleCharLabels = table{string.char(176), string.char(175), string.char(173), string.char(174), 'A', 'B', 'X', 'Y'}
+local buttonSingleCharLabels = table{string.char(174), string.char(175), string.char(173), string.char(176), 'A', 'B', 'X', 'Y'}
 
 -- key = name, value = 0-based index
 local buttonCodeForName = buttonNames:mapi(function(name,indexPlusOne)

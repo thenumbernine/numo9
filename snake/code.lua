@@ -102,13 +102,13 @@ Player.spawn=[:,x,y]do
 	mset(self.x,self.y,sprites.snakeUp+self.dir)
 end
 Player.getInput=[:]do
-	if btn(0,self.index) and self.dir ~= 1 then
+	if btn('up',self.index) and self.dir ~= 1 then
 		self.nextDir=0
-	elseif btn(1,self.index) and self.dir ~= 0 then
+	elseif btn('down',self.index) and self.dir ~= 0 then
 		self.nextDir=1
-	elseif btn(2,self.index) and self.dir ~= 3 then
+	elseif btn('left',self.index) and self.dir ~= 3 then
 		self.nextDir=2
-	elseif btn(3,self.index) and self.dir ~= 2 then
+	elseif btn('right',self.index) and self.dir ~= 2 then
 		self.nextDir=3
 	end
 end

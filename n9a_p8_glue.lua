@@ -6,7 +6,7 @@ tilemapAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
 framebufferAddr=ffi.offsetof('RAM', 'framebuffer')
 userDataAddr=ffi.offsetof('RAM', 'userData')
 mode(1)	-- set to 8bpp-indexed framebuffer
-p8ton9btnmap={[0]=2,3,0,1,7,5}
+p8ton9btnmap={[0]=2,0,3,1,7,5}
 p8color=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
 textx,texty=0,0

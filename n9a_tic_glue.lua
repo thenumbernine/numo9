@@ -171,9 +171,10 @@ ticbit={
 	rol=[a,b]bit.rol(a or 0, b or 0),
 	ror=[a,b]bit.ror(a or 0, b or 0),
 }
+ticton9btnmap={[0]=3,1,2,0,4,5,6,7}
 local newG = {
-	btn=[b]btn(b&7,b>>3),
-	btnp=[b,...]btnp(b&7,b>>3,...),
+	btn=[b]btn(ticton9btnmap[b&7],b>>3),
+	btnp=[b,...]btnp(ticton9btnmap[b&7],b>>3,...),
 	circ=[x,y,r,...]elli(x-r,y-r,(r<<1)+1,(r<<1)+1,...),
 	circb=[x,y,r,...]ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,...),
 	clip=clip,
