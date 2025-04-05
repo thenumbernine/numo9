@@ -520,6 +520,7 @@ Crawler=TakesDamage:subclass()
 Crawler.useGravity=true
 Crawler.sprite=sprites.enemy	-- sprites.crawler
 Crawler.update=[:]do
+	local oldPos = self.pos:clone()
 	if not self.stickDir then
 --trace('not stuck, falling...')		
 		-- make us fall
@@ -547,9 +548,10 @@ Crawler.update=[:]do
 		local moveDir = dirvecs[(self.stickDir+1)&3]
 		-- try to move ...
 		local speed = .05
-		self.vel = dirvecs[self.stickDir] + moveDir * speed
+		self.vel = .4 * dirvecs[self.stickDir] + moveDir * speed
 --trace('...with vel', self.vel)		
 		Crawler.super.update(self)
+		
 		-- ... if we couldn't move then rotate +1
 		if self.hitSide ~= 0 then
 --trace('and now hit flags', self.hitSide)		
@@ -560,9 +562,19 @@ Crawler.update=[:]do
 				self.stickDir = nextDir 
 				--local nextDir = dirvecs[nextSide]
 				--self.pos:set(stickPos - nextDir * stickDist)	
+			elseif self.hitSide & (1 << self.stickDir) ~= 0 then
+				--[[ stuck on old side -- preserve distance from wall?
+				if self.stickDir & 1 == 0 then	-- left/right
+					self.pos.y = stickPos.y - dirvecs[self.stickDir].y * stickDist
+				else							-- up/down
+					self.pos.x = stickPos.x - dirvecs[self.stickDir].x * stickDist
+				end
+				--]]	
 			end
 			self.lastAirDir = nil
 		else
+			self.pos:set(oldPos:unpack())
+			self.vel:set(0,0)
 --trace('and hit nothing, so trying to rotate around')
 		-- ... if we could move and the next move didn't touch anything then re-stick ourselves to the next wall
 			self.lastAirDir ??= self.stickDir
