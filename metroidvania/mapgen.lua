@@ -24,8 +24,8 @@ generateWorld=[]do
 		(range(0,worldSizeInBlocks.y-1):mapi([j]do
 				local block = {
 					pos = vec2(i,j),
-					dirs = table(),
-					doors = table(),
+					dirs = range(0,3):mapi([i] (false, i)),
+					doors = range(0,3):mapi([i] (false, i)),
 					spawns = table(),
 					color = pickRandomColor(),
 					seen = 0,
@@ -82,7 +82,7 @@ generateWorld=[]do
 		local posinfoindex = math.random(1, #posinfos)
 		local pos = posinfos[posinfoindex].pos
 		local srcblock = blocks[pos.x][pos.y]
-		local validDirs = dirvecs:mapi([dir, dirindex, t] do
+		local validDirs = dirvecs:map([dir, dirindex, t] do
 			local nbhdpos = pos + dir
 			if nbhdpos.x >= 0 and nbhdpos.x < worldSizeInBlocks.x
 			and nbhdpos.y >= 0 and nbhdpos.y < worldSizeInBlocks.y
@@ -179,7 +179,7 @@ generateWorld=[]do
 			local block = blocks[i][j]
 
 			-- [=[
-			for dirindex,dir in ipairs(dirvecs) do
+			for dirindex,dir in pairs(dirvecs) do
 				if block.dirs[dirindex] and not block.doors[dirindex]
 				and block.dirs[opposite[dirindex]] and not block.doors[opposite[dirindex]]
 				then
@@ -207,7 +207,7 @@ generateWorld=[]do
 			end
 
 			-- [[
-			for dirindex,dir in ipairs(dirvecs) do
+			for dirindex,dir in pairs(dirvecs) do
 				if block.dirs[dirindex] then
 					local xmax = math.floor(blockSize.x*.5)
 					--local w = math.floor(blockSize.x*.1)	-- good for blockSize=16
@@ -276,7 +276,7 @@ generateWorld=[]do
 		for j=1,worldSizeInBlocks.y-1 do
 			-- for each
 			local empty = 0
-			for _,dir in ipairs(dirvecs) do
+			for _,dir in pairs(dirvecs) do
 				if mget(
 					(i + .5 * dir.x) * blockSize.x,
 					(j + .5 * dir.y) * blockSize.y) == 0
@@ -313,8 +313,8 @@ local WorldBlock = class()
 WorldBlock.init = [:,x,y]do
 	self.pos = vec2(x,y)
 	self.spawns = table()
-	self.walls = range(4):mapi([] false)	-- index corresponds with dirvecs' index
-	self.doors = range(4):mapi([] false) 	-- same
+	self.walls = range(0,3):mapi([i] (false, i))	-- index corresponds with dirvecs' index
+	self.doors = range(0,3):mapi([i] (false, i)) 	-- same
 	self.color = pickRandomColor()
 	self.seen = 0	-- luminance
 	--self.doorKeys = {}		-- table for door offsets <_> has what key they are
@@ -609,8 +609,8 @@ local levelInitSimplexRoom = [world, room] do
 	end
 
 	local dirindexes = table()
-	for i=1,4 do dirindexes:insert((i&1)+3) end	-- add some x dir growth
-	for i=5,10 do dirindexes:insert((i&1)+1) end	-- add more y dir growth
+	for i=0,3 do dirindexes:insert((i&1)+2) end	-- add some x dir growth
+	for i=4,9 do dirindexes:insert((i&1)+0) end	-- add more y dir growth
 
 	for i=1,#grassBlocks * 4 do
 		local r = grassBlocks:remove(math.random(#grassBlocks))
