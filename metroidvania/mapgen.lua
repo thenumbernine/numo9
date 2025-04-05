@@ -40,6 +40,39 @@ generateWorld=[]do
 
 	keyIndex = 0
 
+	--[[ how about a progression of items and enemies to place in rooms ...
+	items:
+		bombs
+		high-jump
+		wall-jump
+		spider-ball
+		speed-booster
+		speed-ball 
+		grappling-hook
+		double-jump
+
+		energy tanks ... x how many
+
+		shield upgrades ... x how many
+
+		white gun (starts with?)
+		+ skiltree upgrades
+		blue gun
+		green gun
+		red gun
+		black gun
+
+	monsters:
+		crawls on ground
+		jumps on floor/ceiling
+		flies in waves back and forth
+		dive bombs you
+		grabs and pulls you
+		stands and shoots at you, and walks slowly back and forth
+	
+	
+	--]]
+
 	local posinfos = table()
 	local start = (worldSizeInBlocks / 2):floor()
 	local startblock = blocks[start.x][start.y]
@@ -80,18 +113,36 @@ generateWorld=[]do
 			nextblock.color = advanceColor(srcblock.color)
 
 			-- monsters?
-			if math.random() < .5 then
+
+			for i=1,math.random(0,3) do
 				-- store spawn info, spawn when screen changes
+				local targetPos = ((nextblock.pos + math.random())*blockSize):floor()
+				do --if mget(targetPos.x, targetPos.y) == 0 then
+					-- hmm good reason to mset() so objs dont overlap
+					nextblock.spawns:insert{
+						class=table{
+							assert(Crawler),
+							assert(Shooter),
+						}:pickRandom(),	-- TODO weighted?
+						left = math.random(2) == 2,
+						drops={
+							[{
+								class=assert(Health),
+							}] = .15,
+						},
+						pos=targetPos,
+						selWeapon = math.random(0,keyIndex),
+					}
+				end
+			end
+			
+			if math.random() < .5 then
+				--[[ hide health in blocks? in monsters?
 				nextblock.spawns:insert{
-					class=Enemy,
-					pos=(nextblock.pos + .5)*blockSize,
-					selWeapon = math.random(0,keyIndex),
-				}
-			else
-				nextblock.spawns:insert{
-					class=Health,
+					class=assert(Health),
 					pos=(nextblock.pos + .5)*blockSize,
 				}
+				--]]
 			end
 
 			-- TODO powerups?
@@ -245,51 +296,8 @@ generateWorld=[]do
 		end
 	end
 
-	--[[ merge blocks with neighboring travel but no separating doors
-	trace'begin merging rooms...'
-	do
-		local lastTime = time()
-		local merged = 0
-		local modified
-		repeat
-			flip()
-			if time() > lastTime + 1 then
-				lastTime = time()
-				trace('merged', merged)
-			end
-			modified = nil
-			for bx=0,worldSizeInBlocks.x-1 do
-				for by=0,worldSizeInBlocks.x-1 do
-					local block = blocks[bx][by]
-					assert(block.dirs, "how come there's a block without dirs...")
-					for dirindex,dir in ipairs(dirvecs) do
-						-- if there's travel and no door ...
-						if block.dirs[dirindex]
-						and not block.doors[dirindex]
-						then
-							local nbhdpos = block.pos + dir
-							local nbhdblockcol = blocks[nbhdpos.x]
-							local nbhdblock = nbhdblockcol and nbhdblockcol[nbhdpos.y]
-							if nbhdblock then
-								-- ... and the rooms match ...
-								local nbhdroom = nbhdblock.room
-								if block.room ~= nbhdroom then
-									trace('merging room at blocks', block.pos, nbhdpos)
-									-- ... then merge rooms
-									nbhdblock.room = block.room
-									block.room.blocks:append(nbhdroom.blocks)
-									merged += 1
-									modified = true
-								end
-							end
-						end
-					end
-				end
-			end
-		until not modified
-	end
-	trace'end merging rooms...'
-	--]]
+	-- TODO place enemies here only in empty places
+
 
 	return {
 		blocks = blocks,
@@ -678,7 +686,7 @@ local roomAddEnemies = [world, room] do
 				trace("failed to find spawn point for enemy")
 			else
 				block.spawns:insert{
-					class=assert(Enemy),
+					class=assert(Shooter),
 					pos=pos,
 					--[[
 					how to do enemy + color ...
