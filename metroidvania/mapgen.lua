@@ -50,6 +50,7 @@ generateWorld=[]do
 		speed-ball
 		grappling-hook
 		double-jump
+		space-jump
 
 		energy tanks ... x how many
 
@@ -113,27 +114,36 @@ generateWorld=[]do
 			nextblock.color = advanceColor(srcblock.color)
 
 			-- monsters?
-
-			for i=1,math.random(0,3) do
-				-- store spawn info, spawn when screen changes
-				local targetPos = ((nextblock.pos + math.random())*blockSize):floor()
-				do --if mget(targetPos.x, targetPos.y) == 0 then
-					-- hmm good reason to mset() so objs dont overlap
-					nextblock.spawns:insert{
-						class=table{
-							assert(Crawler),
-							--assert(Shooter),
-						}:pickRandom(),	-- TODO weighted?
-						left = math.random(2) == 2,
-						drops={
-							[{
-								class=assert(Health),
-							}] = .15,
-						},
-						pos=targetPos,
-						selWeapon = math.random(0,keyIndex),
-					}
+			-- no monsters in the start room
+			-- TODO room classifiers ... start room, save room, heal room, item room, boss room, etc 
+			if srcblock ~= startblock then	
+				for i=1,math.random(0,3) do
+					-- store spawn info, spawn when screen changes
+					local targetPos = ((nextblock.pos + math.random())*blockSize):floor()
+					do --if mget(targetPos.x, targetPos.y) == 0 then
+						-- hmm good reason to mset() so objs dont overlap
+						nextblock.spawns:insert{
+							class=table{
+								assert(Crawler),
+								--assert(Shooter),
+							}:pickRandom(),	-- TODO weighted?
+							left = math.random(2) == 2,
+							drops={
+								[{
+									class=assert(Health),
+								}] = .15,
+							},
+							pos=targetPos,
+							selWeapon = math.random(0,keyIndex),
+						}
+					end
 				end
+			else -- test enemy
+				srcblock.spawns:insert{
+					class=assert(Crawler),
+					pos=((srcblock.pos+.5)*blockSize):floor(),
+					selWeapon = math.random(0,keyIndex),
+				}
 			end
 
 			if math.random() < .5 then
@@ -149,7 +159,9 @@ generateWorld=[]do
 
 			-- if we are making a key-door then make sure to drop a key somewhere in the .prevRoom chain
 			-- ... and it'd be nice to put the key behind the last-greatest key-door used
-			if math.random() < .5 then
+			if math.random() < .5 
+			or srcblock == startblock -- always a door from the start room
+			then
 
 				-- what if there's already a key-door there?
 				-- will there ever be one?
@@ -170,6 +182,12 @@ generateWorld=[]do
 				-- no door = merge rooms
 				nextblock.room = srcblock.room
 				srcblock.room.blocks:insert(nextblock)
+			end
+
+			-- only one door out of the start room
+			if srcblock == startblock then
+				-- remove posinfos
+				posinfos:remove(posinfoindex)
 			end
 		end
 	end
@@ -267,7 +285,7 @@ generateWorld=[]do
 	trace('made '..keyIndex..' keys')
 
 	player = Player{
-		pos=((start.x + .5) * blockSize):floor(),
+		pos=((start.x + .5) * blockSize + vec2(0,3)):floor(),
 	}
 --]]
 
