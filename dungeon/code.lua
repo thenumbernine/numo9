@@ -168,11 +168,11 @@ Player.update=[:]do
 	self.vel:set(0,0)
 
 	local speed = .1
-	if btn(0) then self.vel.y -= speed end
-	if btn(1) then self.vel.y += speed end
-	if btn(2) then self.vel.x -= speed end
-	if btn(3) then self.vel.x += speed end
-	if btn(7) then self:attack() end
+	if btn'up' then self.vel.y -= speed end
+	if btn'down' then self.vel.y += speed end
+	if btn'left' then self.vel.x -= speed end
+	if btn'right' then self.vel.x += speed end
+	if btn'y' then self:attack() end
 
 	Player.super.update(self)	-- draw and move
 end

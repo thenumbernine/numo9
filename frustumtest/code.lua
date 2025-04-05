@@ -179,18 +179,18 @@ tiltUpAngle = 90:
 
 	local spd = .2
 	local rot = spaceRHS and .03 or -.03
-	if btn(0) then
+	if btn'up' then
 		player.x += spd * fwdx
 		player.y += spd * fwdy
 	end
-	if btn(1) then
+	if btn'down' then
 		player.x -= spd * fwdx
 		player.y -= spd * fwdy
 	end
-	if btn(2) then
+	if btn'left' then
 		player.angle+=rot
 	end
-	if btn(3) then
+	if btn'right' then
 		player.angle-=rot
 	end
 end

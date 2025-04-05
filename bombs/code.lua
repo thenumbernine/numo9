@@ -824,30 +824,30 @@ update=[]do
 		end
 		text('Start!', x, y)
 		for pid=0,maxPlayers-1 do
-			if btnp(0,pid) then
+			if btnp('up',pid) then
 				menuSel-=1
 				menuSel%=maxPlayers+1
-			elseif btnp(1,pid) then
+			elseif btnp('down',pid) then
 				menuSel+=1
 				menuSel%=maxPlayers+1
 			end
 			if menuSel<maxPlayers then
 				-- any players left/right can toggle
-				if btnp(2,pid) then
+				if btnp('left',pid) then
 					playersActive[menuSel]-=1
 					playersActive[menuSel]%=playerOptions.count
-				elseif btnp(3,pid) then
+				elseif btnp('right',pid) then
 					playersActive[menuSel]+=1
 					playersActive[menuSel]%=playerOptions.count
 				else
 					-- if any player presses a button then set them to human
-					if btnp(4,pid) or btnp(5,pid) or btnp(6,pid) or btnp(7,pid) then
+					if btnp('a',pid) or btnp('b',pid) or btnp('x',pid) or btnp('y',pid) then
 						playersActive[pid] = playerOptions.human
 					end
 				end
 			else
 				-- if any player pushes when we're on 'start' then go
-				if btnp(4,pid) or btnp(5,pid) or btnp(6,pid) or btnp(7,pid) then
+				if btnp('a',pid) or btnp('b',pid) or btnp('x',pid) or btnp('y',pid) then
 					matchDoneTime=nil
 					winningPlayer=nil
 					setLevel(0)
@@ -867,18 +867,17 @@ update=[]do
 		if player and not player.dead then
 			alive+=1
 			lastAlive=pid
-			if btn(0,pid) then
+			if btn('up',pid) then
 				player:move(dirs.up)
-			elseif btn(1,pid) then
+			elseif btn('down',pid) then
 				player:move(dirs.down)
-			elseif btn(2,pid) then
+			elseif btn('left',pid) then
 				player:move(dirs.left)
-			elseif btn(3,pid) then
+			elseif btn('right',pid) then
 				player:move(dirs.right)
 			else
 				player:stopMoving()
 			end
-			--if btn(7,pid) or btn(5,pid) or btn(4,pid) or btn(6,pid) then
 			if btnp(7,pid) or btnp(5,pid) or btnp(4,pid) or btnp(6,pid) then
 				player:dropBomb()
 			end

@@ -333,7 +333,7 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 |`y=24`            |`z=25`            |`0=26`            |`1=27`            |`2=28`            |`3=29`            |`4=30`            |`5=31`            |
 |`6=32`            |`7=33`            |`8=34`            |`9=35`            |`minus=36`        |`equals=37`       |`leftbracket=38`  |`rightbracket=39` |
 |`backslash=40`    |`semicolon=41`    |`quote=42`        |`backquote=43`    |`comma=44`        |`period=45`       |`slash=46`        |`space=47`        |
-|`tab=48`          |`return=49`       |`backspace=50`    |`up=51`           |`down=52`         |`left=53`         |`right=54`        |`capslock=55`     |
+|`tab=48`          |`return=49`       |`backspace=50`    |`right=51`        |`down=52`         |`left=53`         |`up=54`           |`capslock=55`     |
 |`lctrl=56`        |`rctrl=57`        |`lshift=58`       |`rshift=59`       |`lalt=60`         |`ralt=61`         |`lgui=62`         |`rgui=63`         |
 |`delete=64`       |`insert=65`       |`pageup=66`       |`pagedown=67`     |`home=68`         |`end=69`          |`mouse_left=70`   |`mouse_right=71`  |
 |`jp0_up=72`       |`jp0_down=73`     |`jp0_left=74`     |`jp0_right=75`    |`jp0_a=76`        |`jp0_b=77`        |`jp0_x=78`        |`jp0_y=79`        |
@@ -351,7 +351,7 @@ The button codes are as follows:
 
 |                  |                  |                  |                  |                  |                  |                  |                  |
 |------------------|------------------|------------------|------------------|------------------|------------------|------------------|------------------|
-|`up=0`            |`down=1`          |`left=2`          |`right=3`         |`a=4`             |`b=5`             |`x=6`             |`y=7`             |
+|`right=0`         |`down=1`          |`left=2`          |`up=3`            |`a=4`             |`b=5`             |`x=6`             |`y=7`             |
 
 - `mouseX, mouseY, scrollX, scrollY = mouse()` = get the current mouse state.  mouse x,y are in framebuffer coordinates.
 

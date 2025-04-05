@@ -191,31 +191,31 @@ Player.update=[:]do
 
 	--self.vel:set(0,0)
 
-	--if btn(0) then self.vel.y -= speed end
-	--if btn(1) then self.vel.y += speed end
+	--if btn'up' then self.vel.y -= speed end
+	--if btn'down' then self.vel.y += speed end
 	local speed = .15
 	if self.hitYP then
 		self.vel.x *= .1	-- friction
-		if btn(2) then self.vel.x -= speed end
-		if btn(3) then self.vel.x += speed end
+		if btn'left' then self.vel.x -= speed end
+		if btn'right' then self.vel.x += speed end
 	else
 		-- move in air? or nah, castlevania nes jumping. or nah, but constrain acceleration ...
 		local maxAirSpeed = speed
 		local speed = .05
-		if btn(2) then 
+		if btn'left' then 
 			self.vel.x -= speed 
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
-		if btn(3) then 
+		if btn'right' then 
 			self.vel.x += speed 
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
 	end
-	if btn(5) and self.hitYP then
+	if btn'b' and self.hitYP then
 		local jumpVel = .35
 		self.vel.y = -jumpVel
 	end
-	if btn(7) then self:attack() end
+	if btn'y' then self:attack() end
 
 	Player.super.update(self)	-- draw and move
 end

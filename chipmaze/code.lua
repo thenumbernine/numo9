@@ -4,10 +4,10 @@ mget16=[i,j]do
 end
 mset16=[i,j,m] mset(i,j,((m&0xf)<<1)|((m&0xf0)<<2))
 
-local buttons={up=0, down=1, left=2, right=3, a=4, b=5, x=6, y=7}
-local dirs={up=0, down=1, left=2, right=3}
-local oppdir={[0]=1, [1]=0, [2]=3, [3]=2}
-local dirvec={[0]={0,-1}, [1]={0,1}, [2]={-1,0}, [3]={1,0}}
+local buttons={up=3, down=1, left=2, right=0, a=4, b=5, x=6, y=7}
+local dirs={up=3, down=1, left=2, right=0}
+local oppdir=[x] x ~ 2
+local dirvec={[0]={1,0}, [1]={0,1}, [2]={-1,0}, [3]={0,-1}}
 
 -- index in the tilesheet
 local tiles={
@@ -271,7 +271,7 @@ update=[]do
 	elseif tp&tileflags.pushable ~= 0 then
 		local arrowdir = m - tiles.block_uparrow
 		if arrowdir >= 0 and arrowdir < 4 
-		and dir == oppdir[arrowdir] 
+		and dir == oppdir(arrowdir)
 		then
 			xn, yn = x,y 
 		else
@@ -316,7 +316,7 @@ update=[]do
 
 	elseif tp & tileflags.arrow ~= 0 then
 		local arrowdir = (tp >> arrowdirpropbit) & 3
-		if dir==oppdir[arrowdir] then xn,yn = x,y end
+		if dir==oppdir(arrowdir) then xn,yn = x,y end
 	end
 	
 	if xn~=x or yn~=y then

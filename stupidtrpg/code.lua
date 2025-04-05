@@ -201,7 +201,8 @@ con={
 		con.y=y
 	end,
 	write=function(s)
-		text(s,(con.x-1)<<3,(con.y-1)<<3,0xfc,0xf0)
+		rect((con.x-1)<<3,(con.y-1)<<3,#s<<3,1<<3,0xf0)	-- until text clear color gets working, manually black out background
+		text(s,(con.x-1)<<3,(con.y-1)<<3,0xfc,0xf0)	-- TODO is text clear color not working?
 		con.x+=#s
 	end,
 	clearline = function()
@@ -2360,19 +2361,19 @@ end
 Client.processCmdState=[:,state]do
 	local ch
 	repeat
-		if btnp(0) then
+		if btnp'up' then
 			ch='up'
-		elseif btnp(1) then
+		elseif btnp'down' then
 			ch='down'
-		elseif btnp(2) then
+		elseif btnp'left' then
 			ch='left'
-		elseif btnp(3) then
+		elseif btnp'right' then
 			ch='right'
-		elseif btnp(4) then
+		elseif btnp'a' then
 			ch='enter'
-		elseif btnp(5) then
+		elseif btnp'b' then
 			ch='space'
-		elseif btnp(6) then
+		elseif btnp'x' then
 			ch='e' -- equipCmdState has 'e'
 		else
 			flip()

@@ -435,21 +435,21 @@ Player.update=[:]do
 	if self.isFlying then
 		local speed = .15
 		self.vel *= .5
-		if btn(0) then self.vel.y -= speed end
-		if btn(1) then self.vel.y += speed end
-		if btn(2) then self.vel.x -= speed end
-		if btn(3) then self.vel.x += speed end
+		if btn'up' then self.vel.y -= speed end
+		if btn'down' then self.vel.y += speed end
+		if btn'left' then self.vel.x -= speed end
+		if btn'right' then self.vel.x += speed end
 	end
 --]]
 
 	local speed = .15
 	if self.hitYP then
 		self.vel.x *= .1	-- friction
-		if btn(2) then
+		if btn'left' then
 			self.left = true
 			self.vel.x -= speed
 		end
-		if btn(3) then
+		if btn'right' then
 			self.left = false
 			self.vel.x += speed
 		end
@@ -457,12 +457,12 @@ Player.update=[:]do
 		-- move in air? or nah, castlevania nes jumping. or nah, but constrain acceleration ...
 		local maxAirSpeed = speed
 		local speed = .05
-		if btn(2) then
+		if btn'left' then
 			self.left = true
 			self.vel.x -= speed
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
 		end
-		if btn(3) then
+		if btn'right' then
 			self.left = false
 			self.vel.x += speed
 			self.vel.x = math.clamp(self.vel.x, -maxAirSpeed, maxAirSpeed)
@@ -470,17 +470,17 @@ Player.update=[:]do
 	end
 
 	local targetAimDir = vec2()
-	if btn(0) then targetAimDir.y -= 1 end
-	if btn(1) then targetAimDir.y += 1 end
-	if btn(2) then targetAimDir.x -= 1 end
-	if btn(3) then targetAimDir.x += 1 end
+	if btn'up' then targetAimDir.y -= 1 end
+	if btn'down' then targetAimDir.y += 1 end
+	if btn'left' then targetAimDir.x -= 1 end
+	if btn'right' then targetAimDir.x += 1 end
 	if targetAimDir.x ~= 0 or targetAimDir.y ~= 0 then
 		self.aimDir = targetAimDir:unit()
 	else
 		self.aimDir:set(self.left and -1 or 1, 0)
 	end
 
-	if btn(5)
+	if btn'b'
 	--and self.hitYP
 	then
 		local jumpVel = .35
@@ -489,12 +489,12 @@ Player.update=[:]do
 
 	-- switch-weapon 
 	-- TODO this can be the switch-color butotn, and another butotn for select-attack-in-skill-tree
-	if btnp(6) then
+	if btnp'x' then
 		self.selWeapon = next(self.hasWeapons, self.selWeapon)
 			or next(self.hasWeapons)
 	end
 
-	if btn(7) then self:shoot() end
+	if btn'y' then self:shoot() end
 
 	Player.super.update(self)	-- draw and move
 end

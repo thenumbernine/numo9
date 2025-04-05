@@ -247,11 +247,11 @@ end
 PlayerShip = Ship:subclass()
 PlayerShip.update = [:] do
 	local fwd = vec2.exp(self.angle)
-	if btn(0,0) then self.vel += fwd * dt * self.accel self.thrust=true end
-	if btn(1,0) then self.vel -= fwd * dt * self.accel self.thrust=true end
-	if btn(2,0) then self.angle -= dt * self.rot end
-	if btn(3,0) then self.angle += dt * self.rot end
-	if btn(7,0) then self:shoot() end
+	if btn('up',0) then self.vel += fwd * dt * self.accel self.thrust=true end
+	if btn('down',0) then self.vel -= fwd * dt * self.accel self.thrust=true end
+	if btn('left',0) then self.angle -= dt * self.rot end
+	if btn('right',0) then self.angle += dt * self.rot end
+	if btn('y',0) then self:shoot() end
 
 	PlayerShip.super.update(self)
 end
