@@ -48,9 +48,9 @@ local opposite = {[0]=2,3,0,1}
 local dirForName = {right=0, down=1, left=2, up=3}
 
 --local blockSize = vec2(32,32)
---local blockSize = vec2(16,16)
+local blockSize = vec2(16,16)
 --local blockSize = vec2(12,12)
-local blockSize = vec2(8,8)
+--local blockSize = vec2(8,8)
 
 local worldSize = vec2(256,256)	-- full game
 --local worldSize = vec2(64, 64)	-- 2x2 screens
@@ -117,7 +117,7 @@ objs=table()
 drawSpec=[colorSprite, specSprite, x, y, c] do
 	blend(0)	-- additive
 	spr(colorSprite, x, y)	-- draw white
-	
+
 	blend(6)	-- subtract-with-constant
 	setBlendColor(rgb_to_5551(1 - c))
 	spr(colorSprite, x, y)
@@ -145,7 +145,7 @@ drawKeyColor=[keyIndex,x,y]do
 	setBlendColor(0xffff)
 	spr(Key.sprite, x-1, y-1)
 	spr(Key.sprite, x+1, y+1)
-	
+
 	drawSpec(
 		Key.sprite,
 		nil,
@@ -165,6 +165,7 @@ Object.init=[:,args]do
 	self.pos = self.pos:clone()
 	self.vel = self.vel:clone()
 	self.health = self.maxHealth
+	self.hitSide = 0	-- bitflags of dirvecs
 	objs:insert(self)
 end
 Object.draw=[:]do
@@ -174,10 +175,7 @@ Object.update=[:]do
 
 	-- move
 
-	self.hitXP = false
-	self.hitYP = false
-	self.hitXN = false
-	self.hitYN = false
+	self.hitSide = 0
 	for bi=0,1 do	-- move horz then vert, so we can slide on walls or something
 		local dx,dy = 0, 0
 		if bi == 0 then
@@ -235,16 +233,16 @@ Object.update=[:]do
 			else
 				if bi == 0 then
 					if self.vel.y > 0 then
-						self.hitYP = true
+						self.hitSide |= 1 << dirForName.down
 					else
-						self.hitYN = true
+						self.hitSide |= 1 << dirForName.up
 					end
 					self.vel.y = 0
 				else
 					if self.vel.x > 0 then
-						self.hitXP = true
+						self.hitSide |= 1 << dirForName.left
 					else
-						self.hitXN = true
+						self.hitSide |= 1 << dirForName.right
 					end
 					self.vel.x = 0
 				end
@@ -303,8 +301,8 @@ Shot.update=[:]do
 	if time() > self.endTime then self.removeMe = true end
 end
 Shot.touch=[:,o]do
-	if o ~= self.shooter 
-	and o.takeDamage 
+	if o ~= self.shooter
+	and o.takeDamage
 	then
 		local damage = self.damage
 
@@ -317,12 +315,12 @@ Shot.touch=[:,o]do
 			damage *= .1
 		end
 		o:takeDamage(damage)
-		
+
 		self.removeMe = true	-- always or only upon hit?
 	end
 	return false	-- 'false' means 'dont collide'
 end
-local checkBreakDoor 
+local checkBreakDoor
 checkBreakDoor = [keyIndex, x, y] do
 	local blockcol = world.blocks[math.floor(x / blockSize.x)]
 	local block = blockcol and blockcol[math.floor(y / blockSize.y)]
@@ -347,9 +345,9 @@ checkBreakDoor = [keyIndex, x, y] do
 	end)
 end
 Shot.touchMap = [:,x,y,t,ti] do
-	if t == mapTypeForName.door 
-	and Player:isa(self.shooter) 
-	then 
+	if t == mapTypeForName.door
+	and Player:isa(self.shooter)
+	then
 		checkBreakDoor(self.weapon, x, y)	-- conflating weapon and keyIndex once again ... one should be color, another should be attack-type
 	end
 	if t.flags & flags.solid ~= 0 then
@@ -443,7 +441,7 @@ Player.update=[:]do
 --]]
 
 	local speed = .15
-	if self.hitYP then
+	if self.hitSide & (1 << dirForName.down) ~= 0 then
 		self.vel.x *= .1	-- friction
 		if btn'left' then
 			self.left = true
@@ -481,13 +479,13 @@ Player.update=[:]do
 	end
 
 	if btn'b'
-	--and self.hitYP
+	--and self.hitSide & (1 << dirForName.down) ~= 0
 	then
 		local jumpVel = .35
 		self.vel.y = -jumpVel
 	end
 
-	-- switch-weapon 
+	-- switch-weapon
 	-- TODO this can be the switch-color butotn, and another butotn for select-attack-in-skill-tree
 	if btnp'x' then
 		self.selWeapon = next(self.hasWeapons, self.selWeapon)
@@ -526,15 +524,11 @@ Crawler.update=[:]do
 		-- see if we are hit on a side
 		-- remember that side and walk along it
 		self.useGravity = true
-		-- TODO .hit** as bitflags of dirvecs
-		if self.hitXP then
-			self.stuckDir = 0
-		elseif self.hitXN then
-			self.stuckDir = 2
-		elseif self.hitYP then
-			self.stuckDir = 1
-		elseif self.hitYN then
-			self.stuckDir = 3
+		for i=0,3 do
+			if self.hitSide & (1 << i) ~= 0 then
+				self.stuckDir = i
+				break
+			end
 		end
 		if self.stuckDir then
 			self.useGravity = false
@@ -543,18 +537,13 @@ Crawler.update=[:]do
 		-- if we are stuck to a wall then walk along the wall
 		-- hmm, maybe order directions right,up,left,down, then flag 2 holds the sign, and it is ordered by angle, and it is ordered by dimension ...
 		--local nextDir = {
-			
+		local nextDir = dirvecs[(self.stuckDir+1)&3]
+		local speed = .01
+		self.vel = speed * (dirvecs[self.stuckDir] + nextDir)
+
+		-- TODO walk around corners now
 	end
-	local speed = .01
-	if self.hitYP then
-		-- on ground
-		if self.left then
-			self.vel:set(-speed,0)
-		else
-			self.vel:set(speed,0)
-		end
-	end
-	
+
 	Crawler.super.update(self)
 end
 
@@ -569,7 +558,7 @@ Shooter.update=[:]do
 	-- TODO instead of appraoch...
 	-- 1) give warning (like flash or something)
 	-- 2) shoot at player
-	if player 
+	if player
 	and player.selWeapon ~= self.selWeapon
 	then
 		-- give a warning
@@ -577,7 +566,7 @@ Shooter.update=[:]do
 			self.nextShootTime = time() + 1 + 1 * math.random()
 		else
 			local f = self.nextShootTime - time()
-		
+
 			if .7 < f and f < 1 then
 				-- flash
 				do--if 1 & (time() * 20) == 1 then
@@ -660,7 +649,7 @@ init=[]do
 		keyColors[2] = vec3(0,1,0)
 		keyColors[3] = vec3(1,0,0)
 		keyColors[4] = vec3(0,0,0)
-		
+
 		local c = pickRandomColor()
 		for i=5,keyIndex do
 			keyColors[i] = c
@@ -694,7 +683,7 @@ update=[]do
 		if block ~= lastBlock then
 			local room = block.room
 			if room ~= lastRoom then
-			
+
 				if lastRoom then
 					-- unspawn old
 					for i=#objs,1,-1 do
@@ -702,18 +691,18 @@ update=[]do
 							objs[i].removeMe = true
 						end
 					end
-			
-					-- if we had an old fadeOutRoom then make sure its .seen is zero 
+
+					-- if we had an old fadeOutRoom then make sure its .seen is zero
 					if fadeOutRoom then
-						for _,b in ipairs(fadeOutRoom.blocks) do 
+						for _,b in ipairs(fadeOutRoom.blocks) do
 							b.seen = fogLum
 						end
 					end
 					-- set our fade out room
 					fadeOutRoom = lastRoom
 					fadeOutLevel = 1
-					for _,b in ipairs(fadeOutRoom.blocks) do 
-						b.seen = 1 
+					for _,b in ipairs(fadeOutRoom.blocks) do
+						b.seen = 1
 					end
 				end
 				if room then
@@ -731,7 +720,7 @@ update=[]do
 						b.seen = math.min(b.seen, fogLum)
 					end
 				end
-				
+
 				lastRoom = room
 			end
 			lastBlock = block
@@ -862,7 +851,7 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 			spr(sprites.hearthalf, x, y)
 			x += 8
 		end
-		
+
 		local x = 8
 		local y = 1
 		--[[ TODO no more keys, just weapon colors
