@@ -165,7 +165,7 @@ Object.init=[:,args]do
 	self.pos = self.pos:clone()
 	self.vel = self.vel:clone()
 	self.health = self.maxHealth
-	self.hitSide = 0	-- bitflags of dirvecs
+	self.hitSides = 0	-- bitflags of dirvecs
 	objs:insert(self)
 end
 Object.draw=[:]do
@@ -175,7 +175,7 @@ Object.update=[:]do
 
 	-- move
 
-	self.hitSide = 0
+	self.hitSides = 0
 	for bi=0,1 do	-- move horz then vert, so we can slide on walls or something
 		local dx,dy = 0, 0
 		if bi == 0 then
@@ -233,16 +233,16 @@ Object.update=[:]do
 			else
 				if bi == 0 then
 					if self.vel.y > 0 then
-						self.hitSide |= 1 << dirForName.down
+						self.hitSides |= 1 << dirForName.down
 					else
-						self.hitSide |= 1 << dirForName.up
+						self.hitSides |= 1 << dirForName.up
 					end
 					self.vel.y = 0
 				else
 					if self.vel.x > 0 then
-						self.hitSide |= 1 << dirForName.right
+						self.hitSides |= 1 << dirForName.right
 					else
-						self.hitSide |= 1 << dirForName.left
+						self.hitSides |= 1 << dirForName.left
 					end
 					self.vel.x = 0
 				end
@@ -441,7 +441,7 @@ Player.update=[:]do
 --]]
 
 	local speed = .15
-	if self.hitSide & (1 << dirForName.down) ~= 0 then
+	if self.hitSides & (1 << dirForName.down) ~= 0 then
 		self.vel.x *= .1	-- friction
 		if btn'left' then
 			self.left = true
@@ -479,7 +479,7 @@ Player.update=[:]do
 	end
 
 	if btn'b'
-	--and self.hitSide & (1 << dirForName.down) ~= 0
+	--and self.hitSides & (1 << dirForName.down) ~= 0
 	then
 		local jumpVel = .35
 		self.vel.y = -jumpVel
@@ -519,78 +519,97 @@ end
 Crawler=TakesDamage:subclass()
 Crawler.useGravity=true
 Crawler.sprite=sprites.enemy	-- sprites.crawler
+Crawler.speed = .05
 Crawler.update=[:]do
+	self.speed = player and self.selWeapon ~= player.selWeapon and .1 or .05 
+
+	local plusRot = self.left and -1 or 1
+	local minusRot = -plusRot
+
 	local oldPos = self.pos:clone()
-	if not self.stickDir then
+	if not self.stickSide then
 --trace('not stuck, falling...')		
 		-- make us fall
 		self.useGravity = true
-		self.stickDir = nil
+		self.stickSide = nil
 		-- do movement
 		Crawler.super.update(self)
 		-- see if we hit anything
 		for i=0,3 do
-			if self.hitSide & (1 << i) ~= 0 then
+			if self.hitSides & (1 << i) ~= 0 then
 				self.useGravity = false
-				self.stickDir = i
+				self.stickSide = i
 				break
 			end
 		end
---trace('... and now stuck to', self.stickDir)		
+--trace('... and now stuck to', self.stickSide)		
 		-- and if we did, I guess we will upate stuck to the wall next frame
-		self.lastAirDir = nil
+		self.lastAirSide = nil
 	else
 		-- we are stuck ...
 		local stickDist = .3	-- matches bbox radius (i think?)
 		-- find the pos where we are stuck ...
-		local stickPos = self.pos + dirvecs[self.stickDir] * stickDist
---trace('stuck on', self.stickDir,'at pos', stickPos)		
-		local moveDir = dirvecs[(self.stickDir+1)&3]
+		local stickPos = self.pos + dirvecs[self.stickSide] * stickDist
+--trace('stuck on', self.stickSide,'at pos', stickPos)		
+		local moveDir = dirvecs[(self.stickSide + plusRot) & 3]
 		-- try to move ...
-		local speed = .05
-		self.vel = .4 * dirvecs[self.stickDir] + moveDir * speed
+		self.vel = .4 * dirvecs[self.stickSide] + moveDir * self.speed
 --trace('...with vel', self.vel)		
 		Crawler.super.update(self)
 		
 		-- ... if we couldn't move then rotate +1
-		if self.hitSide ~= 0 then
---trace('and now hit flags', self.hitSide)		
+		if self.hitSides ~= 0 then
+--trace('and now hit flags', self.hitSides)		
 			-- if we hit the next side ...
-			local nextDir = (self.stickDir+1)&3
-			if self.hitSide & (1 << nextDir) ~= 0 then
+			local nextSide = (self.stickSide + plusRot) & 3
+			if self.hitSides & (1 << nextSide) ~= 0 then
 				-- try to re-stick on the next side
-				self.stickDir = nextDir 
+				self.stickSide = nextSide 
 				--local nextDir = dirvecs[nextSide]
 				--self.pos:set(stickPos - nextDir * stickDist)	
-			elseif self.hitSide & (1 << self.stickDir) ~= 0 then
+			elseif self.hitSides & (1 << self.stickSide) ~= 0 then
 				--[[ stuck on old side -- preserve distance from wall?
-				if self.stickDir & 1 == 0 then	-- left/right
-					self.pos.y = stickPos.y - dirvecs[self.stickDir].y * stickDist
+				if self.stickSide & 1 == 0 then	-- left/right
+					self.pos.y = stickPos.y - dirvecs[self.stickSide].y * stickDist
 				else							-- up/down
-					self.pos.x = stickPos.x - dirvecs[self.stickDir].x * stickDist
+					self.pos.x = stickPos.x - dirvecs[self.stickSide].x * stickDist
 				end
 				--]]	
 			end
-			self.lastAirDir = nil
+			self.lastAirSide = nil
 		else
 			self.pos:set(oldPos:unpack())
 			self.vel:set(0,0)
 --trace('and hit nothing, so trying to rotate around')
 		-- ... if we could move and the next move didn't touch anything then re-stick ourselves to the next wall
-			self.lastAirDir ??= self.stickDir
-			self.stickDir = (self.stickDir-1)&3
-			if self.stickDir == self.lastAirDir then
+			self.lastAirSide ??= self.stickSide
+			self.stickSide = (self.stickSide + minusRot)&3
+			if self.stickSide == self.lastAirSide then
 				-- just un-stick at this point
-				self.lastAirDir = nil
-				self.stickDir = nil
+				self.lastAirSide = nil
+				self.stickSide = nil
 				self.useGravity = true
 			else
 				-- reposition yourself
-				local nextDir = dirvecs[self.stickDir]
+				local nextDir = dirvecs[self.stickSide]
 				self.pos:set(stickPos - nextDir * stickDist)	
 			end
 		end
---trace('and now stuck on', self.stickDir)
+--trace('and now stuck on', self.stickSide)
+	end
+end
+Crawler.draw=[:]do
+	drawSpec(
+		0,
+		1,
+		(self.pos.x - .5) * 8,
+		(self.pos.y - .5) * 8,
+		keyColors[self.selWeapon] or vec3(1,1,1)
+	)
+end
+Crawler.touch=[:,o]do
+	if o == player then
+		player:takeDamage(1)
 	end
 end
 
@@ -656,7 +675,7 @@ Shooter.draw=[:]do
 		keyColors[self.selWeapon] or vec3(1,1,1)
 	)
 end
---[[ should touching enemies hurt?
+-- [[ should touching enemies hurt?
 Shooter.touch=[:,o]do
 	if o == player then
 		player:takeDamage(1)

@@ -119,24 +119,22 @@ generateWorld=[]do
 			if srcblock ~= startblock then	
 				for i=1,math.random(0,3) do
 					-- store spawn info, spawn when screen changes
-					local targetPos = ((nextblock.pos + math.random())*blockSize):floor()
-					do --if mget(targetPos.x, targetPos.y) == 0 then
-						-- hmm good reason to mset() so objs dont overlap
-						nextblock.spawns:insert{
-							class=table{
-								assert(Crawler),
-								--assert(Shooter),
-							}:pickRandom(),	-- TODO weighted?
-							left = math.random(2) == 2,
-							drops={
-								[{
-									class=assert(Health),
-								}] = .15,
-							},
-							pos=targetPos,
-							selWeapon = math.random(0,keyIndex),
-						}
-					end
+					-- hmm good reason to mset() so objs dont overlap
+					-- or just reposition them later
+					nextblock.spawns:insert{
+						class=table{
+							assert(Crawler),
+							--assert(Shooter),
+						}:pickRandom(),	-- TODO weighted?
+						left = math.random(2) == 2,
+						drops={
+							[{
+								class=assert(Health),
+							}] = .15,
+						},
+						pos = ((nextblock.pos + math.random())*blockSize):floor() + .5,
+						selWeapon = math.random(0,keyIndex),
+					}
 				end
 			else -- test enemy
 				srcblock.spawns:insert{
@@ -315,7 +313,25 @@ generateWorld=[]do
 	end
 
 	-- TODO place enemies here only in empty places
-
+	-- or better yet, for all enemies in spawns in blocks, move them to a free space
+	-- since the block gen didn't happen when object-placement happened
+	for i=0,worldSizeInBlocks.x-1 do
+		for j=0,worldSizeInBlocks.y-1 do
+			local block = blocks[i][j]
+			for _,s in ipairs(block.spawns) do
+				for try=1,20 do
+					local u = math.random(0,blockSize.x-1)
+					local v = math.random(0,blockSize.y-1)
+					local px = i * blockSize.x + u
+					local py = j * blockSize.y + v
+					if mget(px, py) == 0 then
+						s.pos:set(px + .5, py + .5)
+						break
+					end
+				end
+			end
+		end
+	end
 
 	return {
 		blocks = blocks,
