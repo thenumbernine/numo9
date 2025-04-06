@@ -68,7 +68,8 @@ world.rooms
 local world
 
 local keyIndex
-local keyColors
+local keyColors	-- stores vectors, i'm going away from this
+local keyColorIndexes	-- stores indexes, i'm going towards this
 
 local sprites = {
 	player = 0,
@@ -117,7 +118,16 @@ local mapheight = 256
 objs=table()
 
 
-drawSpec=[colorSprite, specSprite, x, y, c] do
+-- TODO don't do drawSpec.  do palette-shift.
+drawSpec=[colorSprite, specSprite, x, y, c, palIndex] do
+-- [[ trying not to use blend ...
+-- TODO if you do palIndex/palShift then that's gonna shift the transparent channel as well ... hmmm ...
+-- palShift is only really useful as high-bits (as it was intended)
+-- I could set aside 16 different colors specifically ... I only really need 5 at the moment ...
+spr(colorSprite, x, y, 1, 1, palIndex)
+if specSprite then spr(specSprite, x, y) end
+do return end
+--]]
 	blend(0)	-- additive
 	spr(colorSprite, x, y)	-- draw white
 
@@ -137,7 +147,8 @@ drawWeapon=[weapon,x,y]do
 		64+frame,	-- color sprite
 		96+frame,	-- spec sprite
 		x, y,
-		keyColors[weapon] or vec3(1,1,1)
+		keyColors[weapon] or vec3(1,1,1),
+		keyColorIndexes[weapon] or 0
 	)
 end
 
@@ -153,7 +164,8 @@ drawKeyColor=[keyIndex,x,y]do
 		Key.sprite,
 		nil,
 		x, y,
-		keyColors[keyIndex] or vec3(1,1,1)
+		keyColors[keyIndex] or vec3(1,1,1),
+		keyColorIndexes[keyIndex] or 0
 	)
 end
 
@@ -360,7 +372,15 @@ Shot.touchMap = [:,x,y,t,ti] do
 	return false	-- don't collide
 end
 
-
+--[[
+ok what kinds of weapons should we have ...
+	white
+	blue
+	green
+	red
+	black
+- maybe i'll just have 3 upgrades, each increases # shots, spread range, distance, damage ... idk
+--]]
 Weapon=Object:subclass()
 Weapon.sprite = 64		-- \_ correlate these somehow or something
 Weapon.weapon = 0		-- /
@@ -432,7 +452,8 @@ Player.draw=[:]do
 		1,
 		(self.pos.x - .5) * 8,
 		(self.pos.y - .5) * 8,
-		keyColors[self.selWeapon] or vec3(1,1,1)
+		keyColors[self.selWeapon] or vec3(1,1,1),
+		keyColorIndexes[self.selWeapon] or 0
 	)
 end
 Player.update=[:]do
@@ -492,7 +513,12 @@ Player.update=[:]do
 	end
 
 	if btn'b'
-	--and self.hitSides & (1 << dirForName.down) ~= 0
+	and (
+		-- we're on ground
+		self.hitSides & (1 << dirForName.down) ~= 0
+		-- ... or we have double-jump and haven't used our 2nd jump
+		-- ... or we have space-jump 
+	)
 	then
 		local jumpVel = .35
 		self.vel.y = -jumpVel
@@ -529,13 +555,16 @@ Player.shoot=[:]do
 	}
 end
 
+-- TODO Player.takesDamage have invincible time and pain reaction
+
+
 Crawler=TakesDamage:subclass()
 Crawler.useGravity=true
 Crawler.sprite=2
 Crawler.speed = .05
 Crawler.update=[:]do
 	self.angry = player and self.selWeapon ~= player.selWeapon
-	self.speed = self.angry and .15 or .05 
+	self.speed = self.angry and .15 or .03
 
 	local plusRot = self.left and -1 or 1
 	local minusRot = -plusRot
@@ -629,7 +658,8 @@ Crawler.draw=[:]do
 		nil,
 		(self.pos.x - .5) * 8,
 		(self.pos.y - .5) * 8,
-		keyColors[self.selWeapon] or vec3(1,1,1)
+		keyColors[self.selWeapon] or vec3(1,1,1),
+		keyColorIndexes[self.selWeapon] or 0
 	)
 	--]]
 end
@@ -637,7 +667,7 @@ Crawler.touch = touchDealsDamage
 
 
 Jumper=TakesDamage:subclass()
-Jumper.sprite = 0	-- TODO
+Jumper.sprite = 4
 Jumper.useGravity=true
 Jumper.update=[:]do
 	if player then
@@ -667,9 +697,37 @@ Jumper.update=[:]do
 	end
 	Jumper.super.update(self)
 end
+Jumper.draw=[:]do
+	-- [[ spec ? meh?  I need to do palette-shifting
+	drawSpec(
+		self.sprite,
+		nil,
+		(self.pos.x - .5) * 8,
+		(self.pos.y - .5) * 8,
+		keyColors[self.selWeapon] or vec3(1,1,1),
+		keyColorIndexes[self.selWeapon] or 0
+	)
+	--]]
+end
 Jumper.touch = touchDealsDamage
 
 
+-- fly back and forth and bounce off walls
+
+
+-- fly straight at player and go through walls (ghost)
+
+
+-- fly through walls and inchfwd then stop, repeat (worm boss from zelda or whatever)
+
+
+-- blocks that fall on player
+
+
+-- shoot at player ...
+-- TODO dif weapons ... 
+-- 	... shoot directly 
+-- 	... shoot in arch (and thru walls, i.e. bone toss)
 Shooter=TakesDamage:subclass()
 Shooter.sprite=sprites.enemy
 Shooter.chaseDist = 5
@@ -729,7 +787,8 @@ Shooter.draw=[:]do
 		1,
 		(self.pos.x - .5) * 8,
 		(self.pos.y - .5) * 8,
-		keyColors[self.selWeapon] or vec3(1,1,1)
+		keyColors[self.selWeapon] or vec3(1,1,1),
+		keyColorIndexes[self.selWeapon] or 0
 	)
 end
 -- [[ should touching enemies hurt?
@@ -760,18 +819,20 @@ init=[]do
 	world = generateWorld()
 
 	keyColors = {}
+	keyColorIndexes = {}
 	do
 		-- make these match the sprites
 		-- or TODO render sprites with separate fg/bg and make their color with neg-blending
-		keyColors[0] = vec3(1,1,1)
-		keyColors[1] = vec3(0,0,1)
-		keyColors[2] = vec3(0,1,0)
-		keyColors[3] = vec3(1,0,0)
-		keyColors[4] = vec3(0,0,0)
+		keyColors[0] = vec3(1,1,1)	keyColorIndexes[0] = 0
+		keyColors[1] = vec3(0,0,1)	keyColorIndexes[1] = 0x10
+		keyColors[2] = vec3(0,1,0)	keyColorIndexes[2] = 0x20
+		keyColors[3] = vec3(1,0,0)	keyColorIndexes[3] = 0x30
+		keyColors[4] = vec3(0,0,0)	keyColorIndexes[4] = 0x40
 
 		local c = pickRandomColor()
 		for i=5,keyIndex do
 			keyColors[i] = c
+			keyColorIndexes[i] = math.random(0,255)	-- TODO and set the color? maybe? idk?
 			--c = advanceColor(c)
 			c = pickRandomColor()
 		end
