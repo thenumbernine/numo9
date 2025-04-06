@@ -158,10 +158,12 @@ drawKeyColor=[keyIndex,x,y]do
 end
 
 
+local dt = 1/60
 
 Object=class()
 Object.pos = vec2()
 Object.vel = vec2()
+Object.gravity = vec2(0,1)
 Object.bbox = {min=vec2(-.3), max=vec2(.3)}
 Object.init=[:,args]do
 	for k,v in pairs(args) do self[k]=v end
@@ -206,8 +208,8 @@ Object.update=[:]do
 					then
 						-- do world hit
 						local hitThis = true
-						if t?:touch(self, bxmin, bymin) == false then hitThis = false end
-						if self?:touchMap(bxmin, bymin, t, ti) == false then hitThis = false end
+						if t.touch and t:touch(self, bxmin, bymin) == false then hitThis = false end
+						if self.touchMap and self:touchMap(bxmin, bymin, t, ti) == false then hitThis = false end
 						-- so block solid is based on solid flag and touch result ...
 						if t.flags & flags.solid ~= 0 then
 							hit = hit or hitThis
@@ -224,8 +226,8 @@ Object.update=[:]do
 					then
 						-- if not solid then
 						local hitThis = true
-						if self?:touch(o) == false then hitThis = false end
-						if o?:touch(self) == false then hitThis = false end
+						if self.touch and self:touch(o) == false then hitThis = false end
+						if o.touch and o:touch(self) == false then hitThis = false end
 						hit = hit or hitThis
 					end
 				end
@@ -253,10 +255,9 @@ Object.update=[:]do
 		end
 	end
 
-	local dt = 1/60
 	if self.useGravity then
-		local gravity = 1
-		self.vel.y += dt * gravity
+		self.vel.x += dt * self.gravity.x
+		self.vel.y += dt * self.gravity.y
 	end
 end
 
@@ -398,6 +399,12 @@ TakesDamage.die=[:]do
 	self.removeMe = true
 end
 
+local touchDealsDamage = [:,o] do
+	if o == player then
+		player:takeDamage(1)
+	end
+end
+
 --[=[
 Door = TakesDamage:subclass()
 Door.sprite = 5
@@ -476,9 +483,12 @@ Player.update=[:]do
 	if btn'left' then targetAimDir.x -= 1 end
 	if btn'right' then targetAimDir.x += 1 end
 	if targetAimDir.x ~= 0 or targetAimDir.y ~= 0 then
-		self.aimDir = targetAimDir:unit()
+		local invlen = 1 / targetAimDir:len()
+		self.aimDir.x = targetAimDir.x * invlen
+		self.aimDir.y = targetAimDir.y * invlen
 	else
-		self.aimDir:set(self.left and -1 or 1, 0)
+		self.aimDir.x = self.left and -1 or 1
+		self.aimDir.y = 0
 	end
 
 	if btn'b'
@@ -530,7 +540,7 @@ Crawler.update=[:]do
 	local plusRot = self.left and -1 or 1
 	local minusRot = -plusRot
 
-	local oldPos = self.pos:clone()
+	local oldPosX, oldPosY = self.pos.x, self.pos.y
 	if not self.stickSide then
 --trace('not stuck, falling...')		
 		-- make us fall
@@ -553,11 +563,13 @@ Crawler.update=[:]do
 		-- we are stuck ...
 		local stickDist = .3	-- matches bbox radius (i think?)
 		-- find the pos where we are stuck ...
-		local stickPos = self.pos + dirvecs[self.stickSide] * stickDist
---trace('stuck on', self.stickSide,'at pos', stickPos)		
+		local stickPosX = self.pos.x + dirvecs[self.stickSide].x * stickDist
+		local stickPosY = self.pos.y + dirvecs[self.stickSide].y * stickDist
+--trace('stuck on', self.stickSide,'at pos', stickPosX, stickPosY)		
 		local moveDir = dirvecs[(self.stickSide + plusRot) & 3]
 		-- try to move ...
-		self.vel = .4 * dirvecs[self.stickSide] + moveDir * self.speed
+		self.vel.x = .4 * dirvecs[self.stickSide].x + moveDir.x * self.speed
+		self.vel.y = .4 * dirvecs[self.stickSide].y + moveDir.y * self.speed
 --trace('...with vel', self.vel)		
 		Crawler.super.update(self)
 		
@@ -570,23 +582,25 @@ Crawler.update=[:]do
 				-- try to re-stick on the next side
 				self.stickSide = nextSide 
 				--local nextDir = dirvecs[nextSide]
-				--self.pos:set(stickPos - nextDir * stickDist)	
+				--self.pos:set(vec2(stickPosX, stickPosY) - nextDir * stickDist)	
 			elseif self.hitSides & (1 << self.stickSide) ~= 0 then
 				--[[ stuck on old side -- preserve distance from wall?
 				if self.stickSide & 1 == 0 then	-- left/right
-					self.pos.y = stickPos.y - dirvecs[self.stickSide].y * stickDist
+					self.pos.y = stickPosY - dirvecs[self.stickSide].y * stickDist
 				else							-- up/down
-					self.pos.x = stickPos.x - dirvecs[self.stickSide].x * stickDist
+					self.pos.x = stickPosX - dirvecs[self.stickSide].x * stickDist
 				end
 				--]]	
 			end
 			self.lastAirSide = nil
 		else
-			self.pos:set(oldPos:unpack())
-			self.vel:set(0,0)
+			self.pos.x = oldPosX
+			self.pos.y = oldPosY
+			self.vel.x = 0
+			self.vel.y = 0
 --trace('and hit nothing, so trying to rotate around')
 		-- ... if we could move and the next move didn't touch anything then re-stick ourselves to the next wall
-			self.lastAirSide ??= self.stickSide
+			if self.lastAirSide == nil then self.lastAirSide = self.stickSide end
 			self.stickSide = (self.stickSide + minusRot)&3
 			if self.stickSide == self.lastAirSide then
 				-- just un-stick at this point
@@ -596,7 +610,8 @@ Crawler.update=[:]do
 			else
 				-- reposition yourself
 				local nextDir = dirvecs[self.stickSide]
-				self.pos:set(stickPos - nextDir * stickDist)	
+				self.pos.x = stickPosX - nextDir.x * stickDist
+				self.pos.y = stickPosY - nextDir.y * stickDist
 			end
 		end
 --trace('and now stuck on', self.stickSide)
@@ -618,15 +633,41 @@ Crawler.draw=[:]do
 	)
 	--]]
 end
-Crawler.touch=[:,o]do
-	if o == player then
-		player:takeDamage(1)
-	end
-end
+Crawler.touch = touchDealsDamage
 
 
 Jumper=TakesDamage:subclass()
-
+Jumper.sprite = 0	-- TODO
+Jumper.useGravity=true
+Jumper.update=[:]do
+	if player then
+		self.left = player.pos.x < self.pos.x
+	else
+		self.left = math.random(2) == 2
+	end
+	
+	self.angry = player and self.selWeapon ~= player.selWeapon
+	
+	-- jump at player
+	if not self.nextJumpTime then
+		self.nextJumpTime = time() + .3
+	end
+	if time() > self.nextJumpTime then
+		if self.hitSides & (1 << dirForName.down) ~= 0 then
+			-- TODO once we're on-ground then change-frame, wait 0.2 or so, and then jump
+			local f = self.angry and .35 or .1
+			self.vel.y = -f
+			self.vel.x = self.left and -f or f
+			self.nextJumpTime = time() + (self.angry and 1.5 or 2.5)
+		end
+	else
+		if self.hitSides & (1 << dirForName.down) ~= 0 then
+			self.vel.x *= .1
+		end
+	end
+	Jumper.super.update(self)
+end
+Jumper.touch = touchDealsDamage
 
 
 Shooter=TakesDamage:subclass()
@@ -692,11 +733,7 @@ Shooter.draw=[:]do
 	)
 end
 -- [[ should touching enemies hurt?
-Shooter.touch=[:,o]do
-	if o == player then
-		player:takeDamage(1)
-	end
-end
+Shooter.touch = touchDealsDamage
 --]]
 
 
