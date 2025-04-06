@@ -298,13 +298,13 @@ generateWorld=[]do
 			--]]
 
 			-- [[ add some platforms
-			for yofs=0,blockSize.y-1,3 do
-				local alt = (yofs / 3) & 1
+			for yofs=0,blockSize.y-1,2 do
+				local alt = (yofs >> 1) & 1
 				for xofs=-1,0 do
-					local x = math.floor((i + .5) * blockSize.x + xofs + (2 * alt))
+					local x = math.floor((i + .5) * blockSize.x + xofs + (2 * alt - 1))
 					local y = math.floor(j * blockSize.y + yofs)
 					if mget(x,y) == 0 then
-						mset(x,y,1)
+						mset(x, y, mapTypeForName.solid_up.index)
 					end
 				end
 			end
