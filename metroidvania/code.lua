@@ -80,30 +80,63 @@ local sprites = {
 }
 
 flagshift=table{
-	'solid',	-- 1
+	'solid_right',	-- 1
+	'solid_down',	-- 2
+	'solid_left',	-- 4
+	'solid_up',		-- 8
 }:mapi([k,i] (i-1,k)):setmetatable(nil)
 flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
 
+flags.solid = flags.solid_up | flags.solid_down | flags.solid_left | flags.solid_right
+
+local tilemapFlags = {
+	hflip = 1 << 14,
+	vflip = 1 << 15,
+}
+
 mapTypes=table{
-	[0]={name='empty', flags=0},				-- empty
-	[1]={name='solid',flags=flags.solid},	-- solid
-	[2]={
-		name='dirt',
-		flags=flags.solid,
-		grows=3,	-- grass
+	[0] = {		-- empty
+		name = 'empty',
+		flags = 0,
 	},
-	[3]={
-		name='grass',
-		flags=0,
+	[1] = {	-- solid
+		name = 'solid',
+		flags = flags.solid,
 	},
-	[4]={
-		name='door',
-		flags=flags.solid,
+	[2] = {
+		name = 'dirt',
+		flags = flags.solid,
+		grows = 3,	-- grass
 	},
-	[5]={	-- purely for rendering
-		name='door_spec',
-		flags=0,
+	[3] = {
+		name = 'grass',
+		flags = 0,
 	},
+	[4] = {
+		name = 'door',
+		flags = flags.solid,
+	},
+	[5] = {	-- purely for rendering
+		name = 'door_spec',
+		flags = 0,
+	},
+	[6] = {	-- one-sided up (bitflags to flip down)
+		name = 'solid_up',
+		flags = flags.solid_up,
+	},
+	[7] = {	-- one-sided left (bitflags to flip right)
+		name = 'solid_left',
+		flags = flags.solid_left,
+	},
+	[6 | tilemapFlags.hflip] = {	-- one-sided up (bitflags to flip down)
+		name = 'solid_down',
+		flags = flags.solid_down,
+	},
+	[7 | tilemapFlags.vflip] = {	-- one-sided left (bitflags to flip right)
+		name = 'solid_right',
+		flags = flags.solid_right,
+	},
+
 }
 for k,v in pairs(mapTypes) do
 	v.index = k
@@ -118,27 +151,13 @@ local mapheight = 256
 objs=table()
 
 
--- TODO don't do drawSpec.  do palette-shift.
 drawSpec=[colorSprite, specSprite, x, y, c, palIndex] do
--- [[ trying not to use blend ...
--- TODO if you do palIndex/palShift then that's gonna shift the transparent channel as well ... hmmm ...
--- palShift is only really useful as high-bits (as it was intended)
--- I could set aside 16 different colors specifically ... I only really need 5 at the moment ...
-spr(colorSprite, x, y, 1, 1, palIndex)
-if specSprite then spr(specSprite, x, y) end
-do return end
---]]
-	blend(0)	-- additive
-	spr(colorSprite, x, y)	-- draw white
-
-	blend(6)	-- subtract-with-constant
-	setBlendColor(rgb_to_5551(1 - c))
-	spr(colorSprite, x, y)
-
-	blend(-1)
-	if specSprite then
-		spr(specSprite, x, y)
-	end
+	-- trying not to use blend ...
+	-- TODO if you do palIndex/palShift then that's gonna shift the transparent channel as well ... hmmm ...
+	-- palShift is only really useful as high-bits (as it was intended)
+	-- I could set aside 16 different colors specifically ... I only really need 5 at the moment ...
+	spr(colorSprite, x, y, 1, 1, palIndex)
+	if specSprite then spr(specSprite, x, y) end
 end
 
 drawWeapon=[weapon,x,y]do
@@ -223,7 +242,22 @@ Object.update=[:]do
 						if t.touch and t:touch(self, bxmin, bymin) == false then hitThis = false end
 						if self.touchMap and self:touchMap(bxmin, bymin, t, ti) == false then hitThis = false end
 						-- so block solid is based on solid flag and touch result ...
-						if t.flags & flags.solid ~= 0 then
+						
+						local targetFlag
+						if bi == 0 then	-- moving up/down
+							if dy < 0 then
+								targetFlag = flags.solid_down
+							elseif dy > 0 then
+								targetFlag = flags.solid_up
+							end
+						elseif bi == 1 then 	-- moving left/right
+							if dx < 0 then
+								targetFlag = flags.solid_left
+							elseif dx > 0 then
+								targetFlag = flags.solid_right
+							end
+						end
+						if targetFlag and t.flags & targetFlag ~= 0 then
 							hit = hit or hitThis
 						end
 					end
@@ -560,8 +594,9 @@ end
 
 Crawler=TakesDamage:subclass()
 Crawler.useGravity=true
-Crawler.sprite=2
+Crawler.sprite = 2
 Crawler.speed = .05
+Crawler.maxHealth = 3	-- TODO pain frame or something
 Crawler.update=[:]do
 	self.angry = player and self.selWeapon ~= player.selWeapon
 	self.speed = self.angry and .15 or .03
@@ -669,6 +704,7 @@ Crawler.touch = touchDealsDamage
 Jumper=TakesDamage:subclass()
 Jumper.sprite = 4
 Jumper.useGravity=true
+Jumper.maxHealth = 3	-- TOOD health depends on color?
 Jumper.update=[:]do
 	if player then
 		self.left = player.pos.x < self.pos.x
