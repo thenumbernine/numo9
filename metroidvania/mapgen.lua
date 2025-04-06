@@ -324,17 +324,21 @@ generateWorld=[]do
 					local v = math.random(0,blockSize.y-1)
 					local px = i * blockSize.x + u
 					local py = j * blockSize.y + v
-					if mget(px, py) == 0 
-					-- wall on one side
-					and (
-						mget(px+1,py) ~= 0
-						or mget(px-1,py) ~= 0
-						or mget(px,py+1) ~= 0
-						or mget(px,py-1) ~= 0
-					) then
-						s.pos:set(px + .5, py + .5)
-						-- TODO for the Crawler, stickSide should point to the side next to it
-						break
+					if mget(px, py) == 0 then
+						-- side on one side
+						local side
+						for dirindex,dir in pairs(dirvecs) do
+							if mget(px+dir.x,py+dir.y) ~= 0 then
+								side = dirindex
+								break
+							end
+						end
+						if side then
+							s.pos:set(px + .5, py + .5)
+							s.stickSide = side
+							-- TODO for the Crawler, stickSide should point to the side next to it
+							break
+						end
 					end
 				end
 			end
