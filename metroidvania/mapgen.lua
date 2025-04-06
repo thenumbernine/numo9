@@ -40,6 +40,45 @@ generateWorld=[]do
 
 	keyIndex = 0
 
+	--[[ replace 'keyIndex' stuff with this ...
+	TODO color = , 
+	then make weaponType= for whatever dif types, 
+	then make dif shaped blocks correspond with what weapon needs to unlock them ...
+	
+	what kinds of weapons should we allow per-color?
+		star =  small bombs
+		clubs =  big bombs
+		diamond = grappling block per-color? hmm
+			wall grab per color or nah? speed boost per color too or nah?
+			- and then like 3 or so dif beam types... per-color ... each color can have different ...
+			... or should i just have one single grappling and make it a sub-weapon of some certain color ...
+		spades = beam #1
+		triangle = beam #2
+		square = beam #3
+	--]]
+	local itemProgress = table{
+		-- start with white shot
+		-- ... blue shots
+		{
+			class = Weapon,
+			weapon = 1,	
+		},
+		-- ... green shots
+		{
+			class = Weapon,
+			weapon = 2,
+		},
+		-- ... red shots
+		{
+			class = Weapon,
+			weapon = 3,
+		},
+		-- .. black shots
+		{
+			class = Weapon,
+			weapon = 4,
+		},
+	}
 	--[[ how about a progression of items and enemies to place in rooms ...
 	items:
 		bombs
@@ -191,11 +230,17 @@ generateWorld=[]do
 		end
 	end
 
+
+	--[[
+	TODO room types ...
+	cave room - wind in a circle
+	spike floor rooms you have to jump across
+	--]]
 	for i=0,worldSizeInBlocks.x-1 do
 		for j=0,worldSizeInBlocks.y-1 do
 			local block = blocks[i][j]
 
-			-- [=[
+			--[=[ make some empty hallways ... TODO room type is spikes for walls / ceiling / floor or something
 			for dirindex,dir in pairs(dirvecs) do
 				if block.dirs[dirindex] and not block.doors[dirindex]
 				and block.dirs[opposite[dirindex]] and not block.doors[opposite[dirindex]]
@@ -240,9 +285,9 @@ generateWorld=[]do
 					local doorKey = block.doors[dirindex]
 					if doorKey then
 						block.doorKey ??= {}
-						for y=0,2*w-1 do
-							local mx = math.floor(i * blockSize.x + blockSize.x * .5 + dir.x * (xmax - .5) + dir.y * (y + .5 - w))
-							local my = math.floor(j * blockSize.y + blockSize.y * .5 + dir.y * (xmax - .5) - dir.x * (y + .5 - w))
+						for dh=0,2*w-1 do
+							local mx = math.floor(i * blockSize.x + blockSize.x * .5 + dir.x * (xmax - .5) + dir.y * (dh + .5 - w))
+							local my = math.floor(j * blockSize.y + blockSize.y * .5 + dir.y * (xmax - .5) - dir.x * (dh + .5 - w))
 							block.doorKey[mx % blockSize.x] ??= {}
 							block.doorKey[mx % blockSize.x][my % blockSize.y] = doorKey
 							mset(mx, my, mapTypeForName.door.index)
@@ -252,14 +297,18 @@ generateWorld=[]do
 			end
 			--]]
 
-			for ofs=-1,0 do
-				mset(
-					math.floor((i + .5) * blockSize.x + ofs),
-					math.floor((j + .5) * blockSize.y + 1),
-					1
-				)
+			-- [[ add some platforms
+			for yofs=0,blockSize.y-1,3 do
+				local alt = (yofs / 3) & 1
+				for xofs=-1,0 do
+					local x = math.floor((i + .5) * blockSize.x + xofs + (2 * alt))
+					local y = math.floor(j * blockSize.y + yofs)
+					if mget(x,y) == 0 then
+						mset(x,y,1)
+					end
+				end
 			end
-
+			--]]
 		end
 	end
 	trace'====='
@@ -328,6 +377,11 @@ generateWorld=[]do
 					if mget(px, py) == 0 then
 						-- side on one side
 						local side
+						
+						-- TODO dif spanws have dif sides they want to stick to
+						-- flying enemies = no sides (heck, walk-through-walls enemies don't even care if it's solid or not)
+						-- items = stick to floor
+						-- crawlers = stick to any wall
 						for dirindex,dir in pairs(dirvecs) do
 							if mget(px+dir.x,py+dir.y) ~= 0 then
 								side = dirindex
