@@ -4,6 +4,7 @@
 --#include ext/class.lua
 --#include ext/range.lua
 
+-- TODO move this into ext.table?
 table.pickWeighted = [t]do
 	local sum = math.random() * math.max(1, table.values(t):sum())
 	for k,v in pairs(t) do
@@ -38,6 +39,8 @@ local wait = [delay, fn] do
 end
 
 -- TODO order this like buttons ... right down left up ... so it's related to bitflags and so it follows exp map angle ...
+-- tempting to do right left down up, i.e. x+ x- y+ y-, because that extends dimensions better
+-- but as it is this way, we are 1:1 with the exponential-map, so there.
 local dirvecs = table{
 	[0] = vec2(1,0),
 	[1] = vec2(0,1),
@@ -518,10 +521,11 @@ end
 
 Crawler=TakesDamage:subclass()
 Crawler.useGravity=true
-Crawler.sprite=sprites.enemy	-- sprites.crawler
+Crawler.sprite=2
 Crawler.speed = .05
 Crawler.update=[:]do
-	self.speed = player and self.selWeapon ~= player.selWeapon and .1 or .05 
+	self.angry = player and self.selWeapon ~= player.selWeapon
+	self.speed = self.angry and .15 or .05 
 
 	local plusRot = self.left and -1 or 1
 	local minusRot = -plusRot
@@ -599,19 +603,31 @@ Crawler.update=[:]do
 	end
 end
 Crawler.draw=[:]do
+	-- [[
+	local rate = self.angry and 6 or 3
+	self.sprite = (math.floor(time() * rate) % 2) + 2
+	--Crawler.super.draw(self)
+	--]]
+	-- [[ spec ? meh?  I need to do palette-shifting
 	drawSpec(
-		0,
-		1,
+		self.sprite,
+		nil,
 		(self.pos.x - .5) * 8,
 		(self.pos.y - .5) * 8,
 		keyColors[self.selWeapon] or vec3(1,1,1)
 	)
+	--]]
 end
 Crawler.touch=[:,o]do
 	if o == player then
 		player:takeDamage(1)
 	end
 end
+
+
+Jumper=TakesDamage:subclass()
+
+
 
 Shooter=TakesDamage:subclass()
 Shooter.sprite=sprites.enemy
