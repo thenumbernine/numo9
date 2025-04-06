@@ -123,7 +123,8 @@ generateWorld=[]do
 					-- or just reposition them later
 					nextblock.spawns:insert{
 						class=table{
-							assert(Crawler),
+							--assert(Crawler),
+							assert(Jumper),
 							--assert(Shooter),
 						}:pickRandom(),	-- TODO weighted?
 						left = math.random(2) == 2,
