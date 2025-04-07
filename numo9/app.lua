@@ -1145,20 +1145,21 @@ looks like I'm a Snes9x-default-keybinding fan.
 							local r = ((t-i)/16 + .5)*2*math.pi
 							env.matrot(r)
 							local w = 3*math.exp(-((t - i + 4) / 15)^2)
-							env.matscale(w, w)
-							env.mattrans(-4, -4)
-							self:drawSolidRect(0,0,8,8, colors[(i+1)%#colors+1])
+							self:drawSolidRect(-4*w,-4*w,8*w,8*w, colors[(i+1)%#colors+1])
 							local l = t - i + 1
 							env.blend(2)	-- subtract
-							self:drawText(s:sub(l,l),1,0,0xf7,-1)
-							env.matident()
-							env.blend(2)	-- subtract
-							-- if I draw this as a sprite then I can draw as a low bpp and shift the palette ...
-							-- if I draw it as a tilemap then I can use the upper 4 bits of the tilemap entries for shifting the palette ...
-							self:drawMap(0, 0, 32, 32, 0, 0, 0, false, 1)
+							self:drawText(s:sub(l,l),-3*w,-4*w,0xf7,-1,w,w)
 							env.blend(-1)
 						end
 					end
+
+					env.matident()
+					env.blend(2)	-- subtract
+					-- if I draw this as a sprite then I can draw as a low bpp and shift the palette ...
+					-- if I draw it as a tilemap then I can use the upper 4 bits of the tilemap entries for shifting the palette ...
+					self:drawMap(0, 0, 32, 32, 0, 0, 0, false, 1)
+					env.blend(-1)
+
 					--[[ pause and watch
 					for i=0,3 do
 						env.flip()
@@ -1171,7 +1172,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 					end
 					--]]
 					-- [[
-					if bit.band(t,3) == 0 then env.flip() end
+					env.flip()
 					--]]
 				end
 				env.flip()
