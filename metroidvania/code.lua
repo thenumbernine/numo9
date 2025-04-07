@@ -212,7 +212,7 @@ Object.update=[:]do
 	-- move
 
 	self.hitSides = 0
-	for bi=0,1 do	-- move horz then vert, so we can slide on walls or something
+	for bi=0,1 do	-- move vert then horz, so we can slide on walls or something
 		local dx,dy = 0, 0
 		if bi == 0 then
 			dy = self.vel.y
@@ -222,6 +222,12 @@ Object.update=[:]do
 		if dx ~= 0 or dy ~= 0 then
 			local nx = self.pos.x + dx
 			local ny = self.pos.y + dy
+			-- old bbox
+			local oxmin = self.pos.x + self.bbox.min.x
+			local oymin = self.pos.y + self.bbox.min.y
+			local oxmax = self.pos.x + self.bbox.max.x
+			local oymax = self.pos.y + self.bbox.max.y
+			-- new bbox
 			local pxmin = nx + self.bbox.min.x
 			local pymin = ny + self.bbox.min.y
 			local pxmax = nx + self.bbox.max.x
@@ -234,31 +240,47 @@ Object.update=[:]do
 					local t = mapTypes[ti]
 					if ti ~= 0	-- just skip 'empty' ... right ... ?
 					and t
-					and pxmax >= bxmin and pxmin <= bxmax
-					and pymax >= bymin and pymin <= bymax
 					then
-						-- do world hit
-						local hitThis = true
-						if t.touch and t:touch(self, bxmin, bymin) == false then hitThis = false end
-						if self.touchMap and self:touchMap(bxmin, bymin, t, ti) == false then hitThis = false end
-						-- so block solid is based on solid flag and touch result ...
-						
-						local targetFlag
-						if bi == 0 then	-- moving up/down
-							if dy < 0 then
-								targetFlag = flags.solid_down
-							elseif dy > 0 then
-								targetFlag = flags.solid_up
+						-- if we're moving up/down and our left-right bounds touches and our up-down crosses the boundary
+						-- or if vice versa
+						if (bi == 0 and pxmax >= bxmin and pxmin <= bxmax
+							and (
+								dy < 0
+								and (oymin >= bymax and bymax >= pymin)
+								or (oymax <= bymin and bymin <= pymax)
+							)
+						)
+						or (bi == 1 and pymax >= bymin and pymin <= bymax
+							and (
+								dx < 0
+								and (oxmin >= bxmax and bxmax >= pxmin)
+								or (oxmax <= bxmin and bxmin <= pxmax)
+							)
+						)
+						then
+							-- do world hit
+							local hitThis = true
+							if t.touch and t:touch(self, bxmin, bymin) == false then hitThis = false end
+							if self.touchMap and self:touchMap(bxmin, bymin, t, ti) == false then hitThis = false end
+							-- so block solid is based on solid flag and touch result ...
+
+							local targetFlag
+							if bi == 0 then	-- moving up/down
+								if dy < 0 then
+									targetFlag = flags.solid_down
+								elseif dy > 0 then
+									targetFlag = flags.solid_up
+								end
+							elseif bi == 1 then 	-- moving left/right
+								if dx < 0 then
+									targetFlag = flags.solid_left
+								elseif dx > 0 then
+									targetFlag = flags.solid_right
+								end
 							end
-						elseif bi == 1 then 	-- moving left/right
-							if dx < 0 then
-								targetFlag = flags.solid_left
-							elseif dx > 0 then
-								targetFlag = flags.solid_right
+							if targetFlag and t.flags & targetFlag ~= 0 then
+								hit = hit or hitThis
 							end
-						end
-						if targetFlag and t.flags & targetFlag ~= 0 then
-							hit = hit or hitThis
 						end
 					end
 				end
@@ -506,7 +528,7 @@ Player.update=[:]do
 --]]
 
 	local speed = .15
-	if self.hitSides & (1 << dirForName.down) ~= 0 then
+	if true then -- self.hitSides & (1 << dirForName.down) ~= 0 then
 		self.vel.x *= .1	-- friction
 		if btn'left' then
 			self.left = true
@@ -551,10 +573,10 @@ Player.update=[:]do
 		-- we're on ground
 		self.hitSides & (1 << dirForName.down) ~= 0
 		-- ... or we have double-jump and haven't used our 2nd jump
-		-- ... or we have space-jump 
+		-- ... or we have space-jump
 	)
 	then
-		local jumpVel = .35
+		local jumpVel = .4
 		self.vel.y = -jumpVel
 	end
 
@@ -606,7 +628,7 @@ Crawler.update=[:]do
 
 	local oldPosX, oldPosY = self.pos.x, self.pos.y
 	if not self.stickSide then
---trace('not stuck, falling...')		
+--trace('not stuck, falling...')
 		-- make us fall
 		self.useGravity = true
 		self.stickSide = nil
@@ -620,7 +642,7 @@ Crawler.update=[:]do
 				break
 			end
 		end
---trace('... and now stuck to', self.stickSide)		
+--trace('... and now stuck to', self.stickSide)
 		-- and if we did, I guess we will upate stuck to the wall next frame
 		self.lastAirSide = nil
 	else
@@ -629,24 +651,24 @@ Crawler.update=[:]do
 		-- find the pos where we are stuck ...
 		local stickPosX = self.pos.x + dirvecs[self.stickSide].x * stickDist
 		local stickPosY = self.pos.y + dirvecs[self.stickSide].y * stickDist
---trace('stuck on', self.stickSide,'at pos', stickPosX, stickPosY)		
+--trace('stuck on', self.stickSide,'at pos', stickPosX, stickPosY)
 		local moveDir = dirvecs[(self.stickSide + plusRot) & 3]
 		-- try to move ...
 		self.vel.x = .4 * dirvecs[self.stickSide].x + moveDir.x * self.speed
 		self.vel.y = .4 * dirvecs[self.stickSide].y + moveDir.y * self.speed
---trace('...with vel', self.vel)		
+--trace('...with vel', self.vel)
 		Crawler.super.update(self)
-		
+
 		-- ... if we couldn't move then rotate +1
 		if self.hitSides ~= 0 then
---trace('and now hit flags', self.hitSides)		
+--trace('and now hit flags', self.hitSides)
 			-- if we hit the next side ...
 			local nextSide = (self.stickSide + plusRot) & 3
 			if self.hitSides & (1 << nextSide) ~= 0 then
 				-- try to re-stick on the next side
-				self.stickSide = nextSide 
+				self.stickSide = nextSide
 				--local nextDir = dirvecs[nextSide]
-				--self.pos:set(vec2(stickPosX, stickPosY) - nextDir * stickDist)	
+				--self.pos:set(vec2(stickPosX, stickPosY) - nextDir * stickDist)
 			elseif self.hitSides & (1 << self.stickSide) ~= 0 then
 				--[[ stuck on old side -- preserve distance from wall?
 				if self.stickSide & 1 == 0 then	-- left/right
@@ -654,7 +676,7 @@ Crawler.update=[:]do
 				else							-- up/down
 					self.pos.x = stickPosX - dirvecs[self.stickSide].x * stickDist
 				end
-				--]]	
+				--]]
 			end
 			self.lastAirSide = nil
 		else
@@ -711,9 +733,9 @@ Jumper.update=[:]do
 	else
 		self.left = math.random(2) == 2
 	end
-	
+
 	self.angry = player and self.selWeapon ~= player.selWeapon
-	
+
 	-- jump at player
 	if not self.nextJumpTime then
 		self.nextJumpTime = time() + .3
@@ -761,8 +783,8 @@ Jumper.touch = touchDealsDamage
 
 
 -- shoot at player ...
--- TODO dif weapons ... 
--- 	... shoot directly 
+-- TODO dif weapons ...
+-- 	... shoot directly
 -- 	... shoot in arch (and thru walls, i.e. bone toss)
 Shooter=TakesDamage:subclass()
 Shooter.sprite=sprites.enemy
