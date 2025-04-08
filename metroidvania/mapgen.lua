@@ -426,12 +426,10 @@ generateWorld=[]do
 	end
 
 	-- now replace all mapType==1 with 32-47 based on neighbor flags
-	local solidCount = 0
 	for j=0,worldSize.y-1 do
 		for i=0,worldSize.x-1 do
 			local ti = mget(i,j)
 			if ti == 1 then
-				solidCount+=1
 				local sideflags = 0
 				for side,dir in pairs(dirvecs) do
 					local i2, j2 = i + dir.x, j + dir.y
@@ -450,6 +448,10 @@ generateWorld=[]do
 					end
 				end
 				mset(i,j,32 + sideflags)
+				if sideflags == 0 then
+					-- TODO here count L1-dist to first empty tile
+					-- and color 64 65 66 accordingly, dither out tiles
+				end
 			end
 		end
 	end
