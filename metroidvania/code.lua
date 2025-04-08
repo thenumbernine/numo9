@@ -271,13 +271,8 @@ Shot.touch=[:,o]do
 end
 local checkBreakDoor
 checkBreakDoor = [keyIndex, x, y] do
-	local blockcol = world.blocks[math.floor(x / blockSize.x)]
-	local block = blockcol and blockcol[math.floor(y / blockSize.y)]
-	if not block then return end
-	local u = x % blockSize.x
-	local v = y % blockSize.y
-	local blockColorIndex = (mget(x,y) >> 6) & 0xf0
-	if keyColorIndexes[keyIndex] ~= blockColorIndex then return end
+	local doorColorIndex = (mget(x,y) >> 6) & 0xf0
+	if keyColorIndexes[keyIndex] ~= doorColorIndex then return end
 	mset(x,y,mapTypeForName.empty.index)
 	wait(.1, []do
 		for _,dir in pairs(dirvecs) do
@@ -292,7 +287,7 @@ checkBreakDoor = [keyIndex, x, y] do
 	end)
 end
 Shot.touchMap = [:,x,y,t,ti] do
-	if t == mapTypeForName.door
+	if ti & 0x3ff == mapTypeForName.door.index
 	and Player:isa(self.shooter)
 	then
 		checkBreakDoor(self.weapon, x, y)	-- conflating weapon and keyIndex once again ... one should be color, another should be attack-type
@@ -622,6 +617,7 @@ Jumper.update=[:]do
 		if self.hitSides & (1 << dirForName.down) ~= 0 then
 			-- TODO once we're on-ground then change-frame, wait 0.2 or so, and then jump
 			local f = self.angry and .35 or .1
+			if math.random(2) == 2 then f *= .5 end
 			self.vel.y = -f
 			self.vel.x = self.left and -f or f
 			self.nextJumpTime = time() + (self.angry and 1.5 or 2.5)
@@ -684,7 +680,7 @@ Shooter.update=[:]do
 		else
 			local f = self.nextShootTime - time()
 
-			if .7 < f and f < 1 then
+			if .3 < f and f < .6 then
 				-- flash
 				do--if 1 & (time() * 20) == 1 then
 					local r = 2
@@ -752,7 +748,7 @@ init=[]do
 	objs=table()
 	player = nil
 
-	-- decide the number of colors up front ... no more dynamic colors 
+	-- decide the number of colors up front ... no more dynamic colors
 	keyColors = {}
 	keyColorIndexes = {}
 	do
@@ -838,7 +834,7 @@ update=[]do
 						b.seen = math.min(b.seen, fogLum)
 					end
 --					roomColorIndex = room.colorIndex
---trace('roomColorIndex', roomColorIndex)				
+--trace('roomColorIndex', roomColorIndex)
 				end
 
 				lastRoom = room
