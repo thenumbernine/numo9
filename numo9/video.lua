@@ -1718,7 +1718,7 @@ in vec2 pixelPos;
 layout(location=0) out <?=fragType?> fragColor;
 
 // tilemap texture
-uniform uint mapIndexOffset;
+uniform int mapIndexOffset;
 uniform int draw16Sprites;	 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
 uniform <?=samplerTypeForTex(self.tilemapRAM.tex)?> tilemapTex;
 uniform <?=samplerTypeForTex(self.tileSheetRAM.tex)?> tileSheetTex;
@@ -1760,6 +1760,8 @@ void main() {
 		from = 'vec2',
 		to = 'uvec4',
 	}..[[.r);
+
+	tileIndex += mapIndexOffset;
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileIndexTC = ivec2(
@@ -1813,6 +1815,8 @@ void main() {
 		from = 'ivec2',
 		to = 'uvec4',
 	}..[[.r);
+
+	tileIndex += mapIndexOffset;
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileIndexTC = ivec2(

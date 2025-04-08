@@ -47,7 +47,7 @@ local dirvecs = table{
 	[2] = vec2(-1,0),
 	[3] = vec2(0,-1),
 }
-local opposite = {[0]=2,3,0,1}
+local opposite = {[0]=2,3,0,1}	-- opposite = [x]x~2
 local dirForName = {right=0, down=1, left=2, up=3}
 
 --local blockSize = vec2(32,32)
@@ -136,8 +136,11 @@ mapTypes=table{
 		name = 'solid_right',
 		flags = flags.solid_right,
 	},
-
 }
+-- tiles 32-47 are gonna be sides of solid
+for i=32,47 do
+	mapTypes[i] = mapTypes[1]
+end
 for k,v in pairs(mapTypes) do
 	v.index = k
 	v.flags ??= 0
@@ -242,12 +245,17 @@ Shot.touch=[:,o]do
 
 		-- if shot or enemy has no color, or if they both have color and their colors don't match, then do damage
 		-- TODO damage strong/weak
-		if self.weapon
-		and o.selWeapon
-		and self.weapon == o.selWeapon
-		then
-			damage *= .1
-		end
+		--[[ damage matrix
+				wh	bl	gr	re	bl
+		white	1	.5	.25	4	2
+		blue	2	1	.5	.25	4
+		green	4	2	1	.5	.25
+		red		.25	4	2	1	.5
+		black	.5	.25	4	2	1
+		--]]
+		local w1 = self.weapon or 0
+		local w2 = o.selWeapon or 0
+		damage *= 2 ^ (((w2 - w1 + 2) % 5) - 2)
 		o:takeDamage(damage)
 
 		self.removeMe = true	-- always or only upon hit?
@@ -318,7 +326,7 @@ end
 TakesDamage=Object:subclass()
 TakesDamage.maxHealth=1
 TakesDamage.takeDamageTime = 0
-TakesDamage.takeDamageInvincibleDuration = 1
+TakesDamage.takeDamageInvincibleDuration = 0
 TakesDamage.takeDamage=[:,damage]do
 	if time() < self.takeDamageTime then return end
 	self.takeDamageTime = time() + self.takeDamageInvincibleDuration
@@ -336,6 +344,7 @@ TakesDamage.die=[:]do
 	self.dead = true
 	self.removeMe = true
 end
+
 
 local touchDealsDamage = [:,o] do
 	if o == player then
@@ -358,6 +367,7 @@ Player.sprite=sprites.player
 Player.maxHealth=7
 Player.useGravity = true
 Player.selWeapon = 0	-- TODO separate waepon-color from weapon-level selected
+Player.takeDamageInvincibleDuration = 1
 Player.init=[:,args]do
 	Player.super.init(self, args)
 	self.hasKeys = {[0]=true}
@@ -365,6 +375,7 @@ Player.init=[:,args]do
 	self.aimDir = vec2(1,0)
 end
 Player.draw=[:]do
+	if time() < self.takeDamageTime and (time() * 20) & 1 == 1 then return end
 	drawSpec(
 		0,
 		1,
@@ -480,7 +491,7 @@ Crawler=TakesDamage:subclass()
 Crawler.useGravity=true
 Crawler.sprite = 2
 Crawler.speed = .05
-Crawler.maxHealth = 3	-- TODO pain frame or something
+Crawler.maxHealth = 1	-- TODO pain frame or something
 Crawler.update=[:]do
 	self.angry = player and self.selWeapon ~= player.selWeapon
 	self.speed = self.angry and .15 or .03
@@ -767,6 +778,7 @@ local fadeInRoom, fadeOutRoom
 local fadeInLevel, fadeOutLevel
 local fadeRate = .05
 local fogLum = .5
+local roomColorIndex = 0
 update=[]do
 	cls()
 
@@ -819,6 +831,8 @@ update=[]do
 					for _,b in ipairs(fadeInRoom.blocks) do
 						b.seen = math.min(b.seen, fogLum)
 					end
+					roomColorIndex = room.colorIndex
+trace('roomColorIndex', roomColorIndex)				
 				end
 
 				lastRoom = room
@@ -851,9 +865,21 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	map(0,0,256,256,0,0)
 	--]]
 	-- [[ draw one screen
-	map(math.floor(ulpos.x), math.floor(ulpos.y), 33, 33, math.floor(ulpos.x)*8, math.floor(ulpos.y)*8)
+	map(
+		math.floor(ulpos.x),
+		math.floor(ulpos.y),
+		33,
+		33,
+		math.floor(ulpos.x)*8,
+		math.floor(ulpos.y)*8,
+		-- tilemap index offset ... we can also encode the tilemap hi bit index into here, which is bits 10-13
+		--keyColorIndexes[room color] >> 6	-- since it's already << 4 and we want it << 10
+		-- THIS IS A BAD IDEA
+		-- JUST MAKE 8 OR SO DIF TILESETS, AND COLOR THEM, MUCH EASIER
+		roomColorIndex << 10 	-- for now just bleh
+	)
 	--]]
-	-- [[ instead of coloring per tile, solid-shade per-block
+	--[=[ instead of coloring per tile, solid-shade per-block ... hmm still goes slow ... hmm
 	--blend(1)	-- average
 	--blend(2)	-- subtract
 	blend(6)	-- subtract-with-constant
@@ -868,7 +894,9 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 						local x = (math.floor(ulpos.x / blockSize.x) + i) * blockSize.x + u
 						local y = (math.floor(ulpos.y / blockSize.y) + j) * blockSize.y + v
 						local ti = mget(x,y)
-						if ti == mapTypeForName.solid.index then
+						if ti == 1
+						or (ti >= 32 and ti < 48)
+						then
 
 							-- white with constant blend rect works
 							setBlendColor(negRoomColor)
@@ -894,14 +922,14 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 		end
 	end
 	blend(-1)
-	--]]
+	--]=]
 	-- that's great, now draw all the non-map-colored things ...
 
 	for _,o in ipairs(objs) do
 		o:draw()
 	end
 
-	-- only now, erase world.blocks we haven't seen
+	-- only now, erase/fade world blocks we haven't seen
 	blend(6)	-- subtract-with-constant
 	for i=0,math.floor(32/blockSize.x)+1 do
 		for j=0,math.floor(32/blockSize.y)+1 do
