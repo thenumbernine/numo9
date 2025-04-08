@@ -139,8 +139,15 @@ mapTypes=table{
 }
 -- tiles 32-47 are gonna be sides of solid
 for i=32,47 do
-	mapTypes[i] = mapTypes[1]
+	mapTypes[i] = table(mapTypes[1]):setmetatable(nil)
+	mapTypes[i].name ..= '_'..i
 end
+-- door | (1..4) << 10 is also doors of dif colors
+for i=1,4 do
+	mapTypes[4 | (i << 10)] = table(mapTypes[4]):setmetatable(nil)
+	mapTypes[4 | (i << 10)].name ..= '_'..i
+end
+
 for k,v in pairs(mapTypes) do
 	v.index = k
 	v.flags ??= 0
@@ -269,10 +276,8 @@ checkBreakDoor = [keyIndex, x, y] do
 	if not block then return end
 	local u = x % blockSize.x
 	local v = y % blockSize.y
-	local blockKeyIndex = block.doorKey[u][v]
-	-- get the block this is in
-	-- get the key that this is
-	if keyIndex ~= blockKeyIndex then return end
+	local blockColorIndex = (mget(x,y) >> 6) & 0xf0
+	if keyColorIndexes[keyIndex] ~= blockColorIndex then return end
 	mset(x,y,mapTypeForName.empty.index)
 	wait(.1, []do
 		for _,dir in pairs(dirvecs) do
@@ -747,8 +752,7 @@ init=[]do
 	objs=table()
 	player = nil
 
-	world = generateWorld()
-
+	-- decide the number of colors up front ... no more dynamic colors 
 	keyColors = {}
 	keyColorIndexes = {}
 	do
@@ -761,13 +765,15 @@ init=[]do
 		keyColors[4] = vec3(0,0,0)	keyColorIndexes[4] = 0x40
 
 		local c = pickRandomColor()
-		for i=5,keyIndex do
+		for i=5,255 do
 			keyColors[i] = c
 			keyColorIndexes[i] = math.random(0,255)	-- TODO and set the color? maybe? idk?
 			--c = advanceColor(c)
 			c = pickRandomColor()
 		end
 	end
+
+	world = generateWorld()
 end
 
 local viewPos = vec2()
@@ -778,7 +784,7 @@ local fadeInRoom, fadeOutRoom
 local fadeInLevel, fadeOutLevel
 local fadeRate = .05
 local fogLum = .5
-local roomColorIndex = 0
+--local roomColorIndex = 0
 update=[]do
 	cls()
 
@@ -831,8 +837,8 @@ update=[]do
 					for _,b in ipairs(fadeInRoom.blocks) do
 						b.seen = math.min(b.seen, fogLum)
 					end
-					roomColorIndex = room.colorIndex
-trace('roomColorIndex', roomColorIndex)				
+--					roomColorIndex = room.colorIndex
+--trace('roomColorIndex', roomColorIndex)				
 				end
 
 				lastRoom = room
@@ -861,69 +867,14 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	matident()
 	mattrans(-math.floor(ulpos.x*8), -math.floor(ulpos.y*8))
 
-	--[[ draw all
-	map(0,0,256,256,0,0)
-	--]]
-	-- [[ draw one screen
 	map(
 		math.floor(ulpos.x),
 		math.floor(ulpos.y),
 		33,
 		33,
 		math.floor(ulpos.x)*8,
-		math.floor(ulpos.y)*8,
-		-- tilemap index offset ... we can also encode the tilemap hi bit index into here, which is bits 10-13
-		--keyColorIndexes[room color] >> 6	-- since it's already << 4 and we want it << 10
-		-- THIS IS A BAD IDEA
-		-- JUST MAKE 8 OR SO DIF TILESETS, AND COLOR THEM, MUCH EASIER
-		roomColorIndex << 10 	-- for now just bleh
+		math.floor(ulpos.y)*8
 	)
-	--]]
-	--[=[ instead of coloring per tile, solid-shade per-block ... hmm still goes slow ... hmm
-	--blend(1)	-- average
-	--blend(2)	-- subtract
-	blend(6)	-- subtract-with-constant
-	for i=0,math.floor(32/blockSize.x)+1 do
-		for j=0,math.floor(32/blockSize.y)+1 do
-			local blockcol = world.blocks[math.floor(ulpos.x / blockSize.x) + i]
-			local block = blockcol and blockcol[math.floor(ulpos.y / blockSize.y) + j]
-			if block then
-				local negRoomColor = rgb_to_5551(1 - block.color)
-				for v=0,blockSize.y-1 do
-					for u=0,blockSize.x-1 do
-						local x = (math.floor(ulpos.x / blockSize.x) + i) * blockSize.x + u
-						local y = (math.floor(ulpos.y / blockSize.y) + j) * blockSize.y + v
-						local ti = mget(x,y)
-						if ti == 1
-						or (ti >= 32 and ti < 48)
-						then
-
-							-- white with constant blend rect works
-							setBlendColor(negRoomColor)
-
-							rect(x * 8, y * 8, 8, 8, 13)
-						elseif ti == mapTypeForName.door.index then
--- if there's a door then there should be a .doorKey and a keyColor ...
-							local keyColor = keyColors[block.doorKey[u][v]]
-							setBlendColor(rgb_to_5551(1 - keyColor))
-
-							rect(x * 8, y * 8, 8, 8, 13)
-
-							-- and add a highlight ... do this after fade-out .seen?
-							blend(-1)
-							spr(
-								mapTypeForName.door_spec.index | 1024, 	-- bit 11 = use bank0's tilemap
-								x * 8, y * 8)
-							blend(6)
-						end
-					end
-				end
-			end
-		end
-	end
-	blend(-1)
-	--]=]
-	-- that's great, now draw all the non-map-colored things ...
 
 	for _,o in ipairs(objs) do
 		o:draw()

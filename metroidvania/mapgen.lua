@@ -32,7 +32,7 @@ generateWorld=[]do
 				}
 				block.room = {
 					blocks = table{block},
-					colorIndex = math.random(0,255),
+					--colorIndex = math.random(0,255),
 				}
 				return block, j
 			end
@@ -284,13 +284,16 @@ generateWorld=[]do
 					end
 					local doorKey = block.doors[dirindex]
 					if doorKey then
-						block.doorKey ??= {}
 						for dh=0,2*w-1 do
 							local mx = math.floor(i * blockSize.x + blockSize.x * .5 + dir.x * (xmax - .5) + dir.y * (dh + .5 - w))
 							local my = math.floor(j * blockSize.y + blockSize.y * .5 + dir.y * (xmax - .5) - dir.x * (dh + .5 - w))
-							block.doorKey[mx % blockSize.x] ??= {}
-							block.doorKey[mx % blockSize.x][my % blockSize.y] = doorKey
-							mset(mx, my, mapTypeForName.door.index)
+							
+							mset(
+								mx, 
+								my, 
+								-- bake in color
+								mapTypeForName.door.index | (keyColorIndexes[doorKey] << 6)
+							)
 						end
 					end
 				end

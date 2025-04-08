@@ -72,8 +72,16 @@ Object.update=[:]do
 						then
 							-- do world hit
 							local hitThis = true
-							if t.touch and t:touch(self, bxmin, bymin) == false then hitThis = false end
-							if self.touchMap and self:touchMap(bxmin, bymin, t, ti) == false then hitThis = false end
+							if t.touch 
+							and t:touch(self, bxmin, bymin) == false 
+							then 
+								hitThis = false 
+							end
+							if self.touchMap 
+							and self:touchMap(bxmin, bymin, t, ti) == false 
+							then 
+								hitThis = false 
+							end
 							-- so block solid is based on solid flag and touch result ...
 
 							local targetFlag
@@ -106,8 +114,12 @@ Object.update=[:]do
 					then
 						-- if not solid then
 						local hitThis = true
-						if self.touch and self:touch(o) == false then hitThis = false end
-						if o.touch and o:touch(self) == false then hitThis = false end
+						if self.touch and self:touch(o) == false then 
+							hitThis = false 
+						end
+						if o.touch and o:touch(self) == false then 
+							hitThis = false 
+						end
 						hit = hit or hitThis
 					end
 				end
