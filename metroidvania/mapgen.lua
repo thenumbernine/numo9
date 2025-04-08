@@ -32,6 +32,7 @@ generateWorld=[]do
 				}
 				block.room = {
 					blocks = table{block},
+					colorIndex = math.random(0,255),
 				}
 				return block, j
 			end
@@ -151,7 +152,6 @@ generateWorld=[]do
 			nextblock.prevRoom = srcblock
 			nextblock.dirs[opposite[dirindex]] = true
 			nextblock.color = advanceColor(srcblock.color)
-
 			-- monsters?
 			-- no monsters in the start room
 			-- TODO room classifiers ... start room, save room, heal room, item room, boss room, etc 
@@ -396,6 +396,35 @@ generateWorld=[]do
 						end
 					end
 				end
+			end
+		end
+	end
+
+	-- now replace all mapType==1 with 32-47 based on neighbor flags
+	local solidCount = 0
+	for j=0,worldSize.y-1 do
+		for i=0,worldSize.x-1 do
+			local ti = mget(i,j)
+			if ti == 1 then
+				solidCount+=1
+				local sideflags = 0
+				for side,dir in pairs(dirvecs) do
+					local i2, j2 = i + dir.x, j + dir.y
+					local oob = i2 < 0 or j2 < 0 or i2 >= worldSize.x or j2 >= worldSize.y
+					local neighborSolid = oob	-- T or F whether you want the tiles on the map edge or not
+					if not oob then
+						local ti2 = mget(i2,j2)
+						if ti2 == 1
+						or (ti2 >= 32 and ti2 < 48)
+						then
+							neighborSolid = true
+						end
+					end
+					if not neighborSolid then
+						sideflags |= 1 << side
+					end
+				end
+				mset(i,j,32 + sideflags)
 			end
 		end
 	end
