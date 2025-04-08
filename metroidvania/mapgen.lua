@@ -42,10 +42,10 @@ generateWorld=[]do
 	keyIndex = 0
 
 	--[[ replace 'keyIndex' stuff with this ...
-	TODO color = , 
-	then make weaponType= for whatever dif types, 
+	TODO color = ,
+	then make weaponType= for whatever dif types,
 	then make dif shaped blocks correspond with what weapon needs to unlock them ...
-	
+
 	what kinds of weapons should we allow per-color?
 		star =  small bombs
 		clubs =  big bombs
@@ -62,7 +62,7 @@ generateWorld=[]do
 		-- ... blue shots
 		{
 			class = Weapon,
-			weapon = 1,	
+			weapon = 1,
 		},
 		-- ... green shots
 		{
@@ -112,6 +112,18 @@ generateWorld=[]do
 		stands and shoots at you, and walks slowly back and forth
 
 
+	hhmmmmm....
+
+
+	1) start room, is empty, has weapon-0 door
+
+	2) build N rooms (looks like old map-building method), then plop down weapon #1 ... or boss #1 ... or boss #1 then immediately after is weapon #1 ...
+		- in each of the N room leading up to it, add monsters for weapon #0
+		- maybe even do a progression of 5 new monster types for each 1 new story item/boss or something, idk.
+		- then take maybe 5 or so aux item upgrades, like health, armor, ammo, etc and scatter them in those N rooms.  hide in break-blocks.
+
+	3) then spin off a prev room, a door #1, and then repeat N rooms to weapon #2 etc
+
 	--]]
 
 	local posinfos = table()
@@ -154,19 +166,23 @@ generateWorld=[]do
 			nextblock.color = advanceColor(srcblock.color)
 			-- monsters?
 			-- no monsters in the start room
-			-- TODO room classifiers ... start room, save room, heal room, item room, boss room, etc 
-			if srcblock ~= startblock then	
+			-- TODO room classifiers ... start room, save room, heal room, item room, boss room, etc
+			if srcblock ~= startblock then
 				for i=1,math.random(0,3) do
 					-- store spawn info, spawn when screen changes
 					-- hmm good reason to mset() so objs dont overlap
 					-- or just reposition them later
 					nextblock.spawns:insert{
 						class=table{
-							--assert(Crawler),
+							assert(Crawler),
 							assert(Jumper),
-							--assert(Shooter),
+							assert(Shooter),
 						}:pickRandom(),	-- TODO weighted?
 						left = math.random(2) == 2,
+
+						-- gravity is just fo jumpers..
+						gravity = math.random(2) == 2 and vec2(0,-1) or nil,
+
 						drops={
 							[{
 								class=assert(Health),
@@ -197,7 +213,7 @@ generateWorld=[]do
 
 			-- if we are making a key-door then make sure to drop a key somewhere in the .prevRoom chain
 			-- ... and it'd be nice to put the key behind the last-greatest key-door used
-			if math.random() < .5 
+			if math.random() < .5
 			or srcblock == startblock -- always a door from the start room
 			then
 
@@ -287,10 +303,10 @@ generateWorld=[]do
 						for dh=0,2*w-1 do
 							local mx = math.floor(i * blockSize.x + blockSize.x * .5 + dir.x * (xmax - .5) + dir.y * (dh + .5 - w))
 							local my = math.floor(j * blockSize.y + blockSize.y * .5 + dir.y * (xmax - .5) - dir.x * (dh + .5 - w))
-							
+
 							mset(
-								mx, 
-								my, 
+								mx,
+								my,
 								-- bake in color
 								mapTypeForName.door.index | (keyColorIndexes[doorKey] << 6)
 							)
@@ -299,46 +315,8 @@ generateWorld=[]do
 				end
 			end
 			--]]
-
-			-- [[ add some platforms
-			for yofs=0,blockSize.y-1,2 do
-				local alt = (yofs >> 1) & 1
-				for xofs=-1,0 do
-					local x = math.floor((i + .5) * blockSize.x + xofs + (2 * alt - 1))
-					local y = math.floor(j * blockSize.y + yofs)
-					if mget(x,y) == 0 then
-						mset(x, y, mapTypeForName.solid_up.index)
-					end
-				end
-			end
-			--]]
 		end
 	end
-	trace'====='
-	for dj=0,worldSizeInBlocks.y*3-1 do
-		trace(range(0,worldSizeInBlocks.x*3-1):mapi([di] do
-			local i = tonumber(di // 3)
-			local j = tonumber(dj // 3)
-			local u = (di % 3) - 1
-			local v = (dj % 3) - 1
-			local block = blocks[i][j]
-			local dirindex = dirvecs:find(nil, [dir] dir == vec2(u,v))
-			if block.dirs[dirindex] then
-				return math.abs(u) > math.abs(v) and '━' or '┃'
-			elseif u == 0 and v == 0 then
-				return '╋'
-			else
-				return ' '
-			end
-		end):concat())
-	end
-	trace'====='
-	trace('made '..keyIndex..' keys')
-
-	player = Player{
-		pos=((start.x + .5) * blockSize + vec2(0,3)):floor(),
-	}
---]]
 
 	-- erode but don't dissolve walls
 	for i=1,worldSizeInBlocks.x-1 do
@@ -365,6 +343,50 @@ generateWorld=[]do
 		end
 	end
 
+	-- [[ add some platforms
+	for i=0,worldSizeInBlocks.x-1 do
+		for j=0,worldSizeInBlocks.y-1 do
+			local block = blocks[i][j]
+			for yofs=0,blockSize.y-1,2 do
+				local alt = (yofs >> 1) & 1
+				for xofs=-1,0 do
+					local x = math.floor((i + .5) * blockSize.x + xofs + (2 * alt - 1))
+					local y = math.floor(j * blockSize.y + yofs)
+					if mget(x,y) == 0 then
+						mset(x, y, mapTypeForName.solid_up.index)
+					end
+				end
+			end
+		end
+	end
+	--]]
+
+	trace'====='
+	for dj=0,worldSizeInBlocks.y*3-1 do
+		trace(range(0,worldSizeInBlocks.x*3-1):mapi([di] do
+			local i = tonumber(di // 3)
+			local j = tonumber(dj // 3)
+			local u = (di % 3) - 1
+			local v = (dj % 3) - 1
+			local block = blocks[i][j]
+			local dirindex = dirvecs:find(nil, [dir] dir == vec2(u,v))
+			if block.dirs[dirindex] then
+				return math.abs(u) > math.abs(v) and '━' or '┃'
+			elseif u == 0 and v == 0 then
+				return '╋'
+			else
+				return ' '
+			end
+		end):concat())
+	end
+	trace'====='
+	trace('made '..keyIndex..' keys')
+
+	player = Player{
+		pos=((start.x + .5) * blockSize + vec2(0,3)):floor(),
+	}
+--]]
+
 	-- TODO place enemies here only in empty places
 	-- or better yet, for all enemies in spawns in blocks, move them to a free space
 	-- since the block gen didn't happen when object-placement happened
@@ -380,7 +402,7 @@ generateWorld=[]do
 					if mget(px, py) == 0 then
 						-- side on one side
 						local side
-						
+
 						-- TODO dif spanws have dif sides they want to stick to
 						-- flying enemies = no sides (heck, walk-through-walls enemies don't even care if it's solid or not)
 						-- items = stick to floor

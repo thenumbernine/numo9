@@ -1490,11 +1490,12 @@ conn.receivesPerSecond = 0
 	--]==]
 
 	if thisTime > lastUpdateTime + updateIntervalInSeconds then
-		-- [[ doing this means we need to reset lastUpdateTime when resuming from the app being paused
+		--[[ Doing this means we need to reset lastUpdateTime when resuming from the app being paused
 		-- and indeed the in-console fps first readout is high (67), then drops back down to 60 consistently
+		-- Also, there's a massive fast-forward that goes on for the first second or two of the console running.
 		lastUpdateTime = lastUpdateTime + updateIntervalInSeconds
 		--]]
-		--[[ doing this means we might lose fractions of time resolution during our updates
+		-- [[ doing this means we might lose fractions of time resolution during our updates
 		-- and indeed the in-console fps bounces between 59 and 60
 		lastUpdateTime = thisTime
 		--]]
