@@ -1398,152 +1398,10 @@ void main() {
 				spriteBit = 0,
 				spriteMask = 0xFF,
 			},
-		}:useNone()
-
-		local drawTextProgram = GLProgram{
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 vertex;
-in vec2 texcoord;
-in uvec4 extra;
-out vec2 tcv;
-out vec2 pixelPos;
-flat out uvec4 extrav;
-
-uniform mat4 mvMat;
-
-const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
-
-void main() {
-	tcv = texcoord;
-	extrav = extra;
-	gl_Position = mvMat * vec4(vertex, 0., 1.);
-	pixelPos = gl_Position.xy;
-	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
-	gl_Position.xy -= 1.;
-}
-]],			{
-				glslnumber = glslnumber,
-				frameBufferSize = frameBufferSize,
-			}),
-			fragmentCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-in vec2 pixelPos;
-flat in uvec4 extrav;
-
-layout(location=0) out <?=fragType?> fragColor;
-
-// Specifies which bit to read from at the sprite.
-//  0 = read sprite low nibble.
-//  4 = read sprite high nibble.
-//  other = ???
-//uniform int spriteBit;
-
-// specifies the mask after shifting the sprite bit
-//  0x01u = 1bpp
-//  0x03u = 2bpp
-//  0x07u = 3bpp
-//  0x0Fu = 4bpp
-//  0xFFu = 8bpp
-//uniform uint spriteMask;
-
-// Specifies which colorIndex to use as transparency.
-// This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
-// If you want fully opaque then just choose an oob color index.
-//uniform uint transparentIndex;
-
-//For now this is an integer added to the 0-15 4-bits of the sprite tex.
-//You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
-//Or you can set it to low numbers and use it to offset the palette.
-//Should this be high bits? or just an offset to OR? or to add?
-//uniform uint paletteIndex;
-
-// Reads 4 bits from wherever shift location you provide.
-uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
-
-uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-
-uniform vec4 drawOverrideSolid;
-
-<?=glslCode5551?>
-
-void main() {
-<? if useSamplerUInt then ?>
-	uint colorIndex = ]]
-		..readTex{
-			tex = self.spriteSheetRAM.tex,
-			texvar = 'sheetTex',
-			tc = 'tcv',
-			from = 'vec2',
-			to = 'uvec4',
 		}
-		..[[.r;
-
-	colorIndex >>= extrav.x;				//spriteBit
-	colorIndex &= extrav.y;					//spriteMask
-	if (colorIndex == extrav.z) discard;	//transparentIndex
-	colorIndex += extrav.w;					//paletteIndex
-
-<?=info.colorOutput?>
-
-<? if fragType == 'uvec4' then ?>
-	if (fragColor.a == 0u) discard;
-<? else ?>
-	if (fragColor.a < .5) discard;
-<? end ?>
-
-<? else ?>
-
-	float colorIndexNorm = ]]
-		..readTex{
-			tex = self.spriteSheetRAM.tex,
-			texvar = 'sheetTex',
-			tc = 'tcv / vec2(textureSize(sheetTex))',
-			from = 'vec2',
-			to = 'vec4',
-		}
-..[[.r;
-	uint colorIndex = uint(colorIndexNorm * 255. + .5);
-
-	colorIndex >>= extrav.x;				//spriteBit
-	colorIndex &= extrav.y;					//spriteMask
-	if (colorIndex == extrav.z) discard;	//transparentIndex
-	colorIndex += extrav.w;					//paletteIndex
-
-<?=info.colorOutput?>
-<? end ?>
-}
-]], 		{
-				glslnumber = glslnumber,
-				fragType = fragTypeForTex(info.framebufferRAM.tex),
-				useSamplerUInt = useSamplerUInt,
-				self = self,
-				samplerTypeForTex = samplerTypeForTex,
-				info = info,
-				glslCode5551 = glslCode5551,
-			}),
-			uniforms = {
-				sheetTex = 0,
-				paletteTex = 1,
-				paletteIndex = 0,
-				transparentIndex = -1,
-				spriteBit = 0,
-				spriteMask = 0xFF,
-			},
-		}:useNone()
 
 		info.drawTextObj = GLSceneObject{
-			-- make some vertex buffers for text
-			program = drawTextProgram,
-			--program = spriteProgram,	-- why does this one mess up its text? both are identical.
+			program = spriteProgram,
 			vertexes = {
 				count = 6,
 				dim = 2,
@@ -2501,6 +2359,7 @@ function AppVideo:drawQuadTex(
 	-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
 	local vertexBuffer = sceneObj.attrs.vertex.buffer
 	local vertex = vertexBuffer.vec
+	vertex:resize(6)
 	vertex.v[0].x = x
 	vertex.v[0].y = y
 	vertex.v[1].x = x+w
@@ -2516,6 +2375,7 @@ function AppVideo:drawQuadTex(
 
 	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
 	local texcoord = texcoordBuffer.vec
+	texcoord:resize(6)
 	texcoord.v[0].x = tx
 	texcoord.v[0].y = ty
 	texcoord.v[1].x = tx+tw
@@ -2531,6 +2391,7 @@ function AppVideo:drawQuadTex(
 
 	local extraBuffer = sceneObj.attrs.extra.buffer
 	local extra = extraBuffer.vec
+	extra:resize(6)
 	extra.v[0]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
 	extra.v[1]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
 	extra.v[2]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
@@ -2641,6 +2502,7 @@ function AppVideo:drawTexTri3D(
 
 	local vertexBuffer = sceneObj.attrs.vertex.buffer
 	local vertex = vertexBuffer.vec
+	vertex:resize(3)
 	vertex.v[0].x = x1
 	vertex.v[0].y = y1
 	vertex.v[0].z = z1
@@ -2653,6 +2515,7 @@ function AppVideo:drawTexTri3D(
 
 	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
 	local texcoord = texcoordBuffer.vec
+	texcoord:resize(3)
 	texcoord.v[0].x = u1
 	texcoord.v[0].y = v1
 	texcoord.v[1].x = u2
@@ -2662,6 +2525,7 @@ function AppVideo:drawTexTri3D(
 
 	local extraBuffer = sceneObj.attrs.extra.buffer
 	local extra = extraBuffer.vec
+	extra:resize(3)
 	extra.v[0]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
 	extra.v[1]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
 	extra.v[2]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
@@ -2860,21 +2724,26 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 -- draw transparent-background text
 	local x = x0 + 1
 	y = y + 1
-
-	local sceneObj = self.drawTextObj
+	
 	paletteTex:bind(1)
 	fontTex:bind(0)
-	sceneObj:beginUpdate()
+
+	local sceneObj = self.drawTextObj
 	local w = spriteSize.x * scaleX
 	local h = spriteSize.y * scaleY
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	local tw = 1 / tonumber(texSizeInTiles.x)
 	local th = 1 / tonumber(texSizeInTiles.y)
-	local program = sceneObj.program
 
+	local vertexBuffer = sceneObj.attrs.vertex.buffer
+	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
+	local extraBuffer = sceneObj.attrs.extra.buffer
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	local texcoord = sceneObj.attrs.texcoord.buffer.vec
 	local extra = sceneObj.attrs.extra.buffer.vec
+	vertexBuffer:beginUpdate()
+	texcoordBuffer:beginUpdate()
+	extraBuffer:beginUpdate()
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
@@ -2929,8 +2798,11 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 
 		x = x + scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
 	end
+	vertexBuffer:endUpdate()
+	texcoordBuffer:endUpdate()
+	extraBuffer:endUpdate()
 
-	sceneObj:endUpdate()
+	local program = sceneObj.program
 	local programUniforms = program.uniforms
 	program:use()
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
@@ -2940,7 +2812,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 	end
 	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
+	sceneObj.geometry:draw(nil, #vertex)
 	sceneObj:disableAttrs()
 
 	return x - x0
