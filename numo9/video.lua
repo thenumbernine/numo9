@@ -41,6 +41,13 @@ local packptr = numo9_rom.packptr
 local unpackptr = numo9_rom.unpackptr
 local menuFontWidth = numo9_rom.menuFontWidth
 
+local function vec2to4(m, x, y, z)
+	return
+		m[0] * x + m[4] * y + m[12],
+		m[1] * x + m[5] * y + m[13],
+		m[2] * x + m[6] * y + m[14],
+		m[3] * x + m[7] * y + m[15]
+end
 local function vec3to4(m, x, y, z)
 	return
 		m[0] * x + m[4] * y + m[ 8] * z + m[12],
@@ -1271,14 +1278,12 @@ void main() {
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
-in vec2 vertex;
+in vec4 vertex;
 in vec2 texcoord;
 in uvec4 extra;
 out vec2 tcv;
 out vec2 pixelPos;
 flat out uvec4 extrav;
-
-uniform mat4 mvMat;
 
 const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
@@ -1286,7 +1291,7 @@ const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 void main() {
 	tcv = texcoord;
 	extrav = extra;
-	gl_Position = mvMat * vec4(vertex, 0., 1.);
+	gl_Position = vertex;
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
@@ -1408,7 +1413,7 @@ void main() {
 			program = spriteProgram,
 			vertexes = {
 				count = 6,
-				dim = 2,
+				dim = 4,
 				useVec = true,
 				usage = gl.GL_DYNAMIC_DRAW,
 			},
@@ -1456,7 +1461,7 @@ void main() {
 		info.quadSpriteObj = GLSceneObject{
 			program = spriteProgram,
 			vertexes = {
-				dim = 2,
+				dim = 4,
 				useVec = true,
 				count = 6,
 				usage = gl.GL_DYNAMIC_DRAW,
@@ -1504,7 +1509,7 @@ void main() {
 		info.triSpriteObj = GLSceneObject{
 			program = spriteProgram,
 			vertexes = {
-				dim = 3,
+				dim = 4,
 				useVec = true,
 				count = 3,
 				usage = gl.GL_DYNAMIC_DRAW,
@@ -2360,44 +2365,50 @@ function AppVideo:drawQuadTex(
 	local vertexBuffer = sceneObj.attrs.vertex.buffer
 	local vertex = vertexBuffer.vec
 	vertex:resize(6)
-	vertex.v[0].x = x
-	vertex.v[0].y = y
-	vertex.v[1].x = x+w
-	vertex.v[1].y = y
-	vertex.v[2].x = x
-	vertex.v[2].y = y+h
-	vertex.v[3].x = x
-	vertex.v[3].y = y+h
-	vertex.v[4].x = x+w
-	vertex.v[4].y = y
-	vertex.v[5].x = x+w
-	vertex.v[5].y = y+h
+	local v = vertex.v+0
+	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y)
+	v = vertex.v+1
+	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
+	v = vertex.v+2
+	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
+	v = vertex.v+3
+	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
+	v = vertex.v+4
+	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
+	v = vertex.v+5
+	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y+h)
 
 	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
 	local texcoord = texcoordBuffer.vec
 	texcoord:resize(6)
-	texcoord.v[0].x = tx
-	texcoord.v[0].y = ty
-	texcoord.v[1].x = tx+tw
-	texcoord.v[1].y = ty
-	texcoord.v[2].x = tx
-	texcoord.v[2].y = ty+th
-	texcoord.v[3].x = tx
-	texcoord.v[3].y = ty+th
-	texcoord.v[4].x = tx+tw
-	texcoord.v[4].y = ty
-	texcoord.v[5].x = tx+tw
-	texcoord.v[5].y = ty+th
+	v = texcoord.v+0
+	v.x, v.y = tx, ty
+	v = texcoord.v+1
+	v.x, v.y = tx+tw, ty
+	v = texcoord.v+2
+	v.x, v.y = tx, ty+th
+	v = texcoord.v+3
+	v.x, v.y = tx, ty+th
+	v = texcoord.v+4
+	v.x, v.y = tx+tw, ty
+	v = texcoord.v+5
+	v.x, v.y = tx+tw, ty+th
 
 	local extraBuffer = sceneObj.attrs.extra.buffer
 	local extra = extraBuffer.vec
 	extra:resize(6)
-	extra.v[0]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
-	extra.v[1]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
-	extra.v[2]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
-	extra.v[3]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
-	extra.v[4]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
-	extra.v[5]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	v = extra.v+0
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	v = extra.v+1
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	v = extra.v+2
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	v = extra.v+3
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	v = extra.v+4
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	v = extra.v+5
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
 
 	vertexBuffer
 		:bind()
@@ -2413,8 +2424,6 @@ function AppVideo:drawQuadTex(
 	local program = sceneObj.program
 	local programUniforms = program.uniforms
 	program:use()
-
-	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
@@ -2503,32 +2512,32 @@ function AppVideo:drawTexTri3D(
 	local vertexBuffer = sceneObj.attrs.vertex.buffer
 	local vertex = vertexBuffer.vec
 	vertex:resize(3)
-	vertex.v[0].x = x1
-	vertex.v[0].y = y1
-	vertex.v[0].z = z1
-	vertex.v[1].x = x2
-	vertex.v[1].y = y2
-	vertex.v[1].z = z2
-	vertex.v[2].x = x3
-	vertex.v[2].y = y3
-	vertex.v[2].z = z3
+	local v = vertex.v+0
+	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x1, y1, z1)
+	v = vertex.v+1
+	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x2, y2, z2)
+	v = vertex.v+2
+	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x3, y3, z3)
 
 	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
 	local texcoord = texcoordBuffer.vec
 	texcoord:resize(3)
-	texcoord.v[0].x = u1
-	texcoord.v[0].y = v1
-	texcoord.v[1].x = u2
-	texcoord.v[1].y = v2
-	texcoord.v[2].x = u3
-	texcoord.v[2].y = v3
+	v = texcoord.v+0
+	v.x, v.y = u1, v1
+	v = texcoord.v+1
+	v.x, v.y = u2, v2
+	v = texcoord.v+2
+	v.x, v.y = u3, v3
 
 	local extraBuffer = sceneObj.attrs.extra.buffer
 	local extra = extraBuffer.vec
 	extra:resize(3)
-	extra.v[0]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
-	extra.v[1]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
-	extra.v[2]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	v = extra.v+0
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	v = extra.v+1
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	v = extra.v+2
+	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
 
 	vertexBuffer
 		:bind()
@@ -2547,8 +2556,6 @@ function AppVideo:drawTexTri3D(
 	local program = sceneObj.program
 	local programUniforms = program.uniforms
 	program:use()
-
-	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
@@ -2753,24 +2760,18 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
 		local v
 		v = vertex:emplace_back()
-		v.x = x
-		v.y = y
+		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y)
 		v = vertex:emplace_back()
-		v.x = x+w
-		v.y = y
+		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
 		v = vertex:emplace_back()
-		v.x = x
-		v.y = y+h
+		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
 
 		v = vertex:emplace_back()
-		v.x = x
-		v.y = y+h
+		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
 		v = vertex:emplace_back()
-		v.x = x+w
-		v.y = y
+		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
 		v = vertex:emplace_back()
-		v.x = x+w
-		v.y = y+h
+		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y+h)
 
 		v = texcoord:emplace_back()
 		v.x = tx
@@ -2793,7 +2794,8 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		v.y = th
 
 		for j=0,5 do	-- TODO get divisor working
-			extra:emplace_back():set(bi, 1, 0, fgColorIndex-1)
+			local v = extra:emplace_back()
+			v.x, v.y, v.z, v.w = bi, 1, 0, fgColorIndex-1
 		end
 
 		x = x + scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
@@ -2805,7 +2807,6 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 	local program = sceneObj.program
 	local programUniforms = program.uniforms
 	program:use()
-	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
 	-- this won't be there for 8bpp indexed mode:
 	if programUniforms.drawOverrideSolid then
 		local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
