@@ -1280,8 +1280,8 @@ const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
-	extrav = extra;
 	tcv = texcoord;
+	extrav = extra;
 	gl_Position = mvMat * vec4(vertex, 0., 1.);
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
@@ -1324,8 +1324,7 @@ layout(location=0) out <?=fragType?> fragColor;
 //You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
 //Or you can set it to low numbers and use it to offset the palette.
 //Should this be high bits? or just an offset to OR? or to add?
-uniform uint paletteIndex;
-
+//uniform uint paletteIndex;
 
 // Reads 4 bits from wherever shift location you provide.
 uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
@@ -1398,21 +1397,9 @@ void main() {
 				transparentIndex = -1,
 				spriteBit = 0,
 				spriteMask = 0xFF,
-				--mvMat = self.mvMat.ptr,
 			},
-		}
+		}:useNone()
 
-		-- HMM..........
-		-- this is an identical copy of spriteProgram
-		-- except that the spriteBit is read from an attribute instead of a uniform
-		-- how can I fix all this ...
-		-- maybe I should use 1/8th steps of the x variable for the bit?
-		--  or 1/2 steps for 4bpp ... same as Pico8 and Tic80
-		-- and then floor() the inputs?
-		-- and then ... that'd make transforms a bigger mess ...
-		-- ... or maybe I should use texcoord.z as the sprite bit always ?
-		-- or use a separate spriteBit attr always?
-		-- ....HMMMMMMMMMMMM
 		local drawTextProgram = GLProgram{
 			version = glslVersion,
 			precision = 'best',
@@ -1433,9 +1420,9 @@ const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
-	tcv = texcoord.xy;
+	tcv = texcoord;
 	extrav = extra;
-	gl_Position = mvMat * vec4(vertex.xy, 0., 1.);
+	gl_Position = mvMat * vec4(vertex, 0., 1.);
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
@@ -1458,13 +1445,7 @@ layout(location=0) out <?=fragType?> fragColor;
 //  0 = read sprite low nibble.
 //  4 = read sprite high nibble.
 //  other = ???
-//flat in uint spriteBit;
-
-//For now this is an integer added to the 0-15 4-bits of the sprite tex.
-//You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
-//Or you can set it to low numbers and use it to offset the palette.
-//Should this be high bits? or just an offset to OR? or to add?
-//uniform uint paletteIndex;
+//uniform int spriteBit;
 
 // specifies the mask after shifting the sprite bit
 //  0x01u = 1bpp
@@ -1478,6 +1459,12 @@ layout(location=0) out <?=fragType?> fragColor;
 // This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
 // If you want fully opaque then just choose an oob color index.
 //uniform uint transparentIndex;
+
+//For now this is an integer added to the 0-15 4-bits of the sprite tex.
+//You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
+//Or you can set it to low numbers and use it to offset the palette.
+//Should this be high bits? or just an offset to OR? or to add?
+//uniform uint paletteIndex;
 
 // Reads 4 bits from wherever shift location you provide.
 uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
@@ -1550,13 +1537,13 @@ void main() {
 				transparentIndex = -1,
 				spriteBit = 0,
 				spriteMask = 0xFF,
-				--mvMat = self.mvMat.ptr,
 			},
-		}
+		}:useNone()
 
 		info.drawTextObj = GLSceneObject{
 			-- make some vertex buffers for text
 			program = drawTextProgram,
+			--program = spriteProgram,	-- why does this one mess up its text? both are identical.
 			vertexes = {
 				count = 6,
 				dim = 2,
@@ -1609,7 +1596,7 @@ void main() {
 			vertexes = {
 				dim = 2,
 				useVec = true,
-				count = 4,
+				count = 6,
 				usage = gl.GL_DYNAMIC_DRAW,
 			},
 			attrs = {
@@ -1617,7 +1604,7 @@ void main() {
 					buffer = {
 						dim = 2,
 						useVec = true,
-						count = 4,
+						count = 6,
 						usage = gl.GL_DYNAMIC_DRAW,
 					},
 				},
@@ -1637,7 +1624,7 @@ void main() {
 						divisor = 3,
 						--]]
 						-- [[
- 						count = 4,
+ 						count = 6,
 						--]]
 
 						dim = 4,
@@ -1647,8 +1634,8 @@ void main() {
  				},
 			},
 			geometry = {
-				mode = gl.GL_TRIANGLE_STRIP,
-				count = 4,
+				mode = gl.GL_TRIANGLES,
+				count = 6,
 			},
 		}
 
@@ -2520,8 +2507,12 @@ function AppVideo:drawQuadTex(
 	vertex.v[1].y = y
 	vertex.v[2].x = x
 	vertex.v[2].y = y+h
-	vertex.v[3].x = x+w
+	vertex.v[3].x = x
 	vertex.v[3].y = y+h
+	vertex.v[4].x = x+w
+	vertex.v[4].y = y
+	vertex.v[5].x = x+w
+	vertex.v[5].y = y+h
 
 	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
 	local texcoord = texcoordBuffer.vec
@@ -2531,8 +2522,12 @@ function AppVideo:drawQuadTex(
 	texcoord.v[1].y = ty
 	texcoord.v[2].x = tx
 	texcoord.v[2].y = ty+th
-	texcoord.v[3].x = tx+tw
+	texcoord.v[3].x = tx
 	texcoord.v[3].y = ty+th
+	texcoord.v[4].x = tx+tw
+	texcoord.v[4].y = ty
+	texcoord.v[5].x = tx+tw
+	texcoord.v[5].y = ty+th
 
 	local extraBuffer = sceneObj.attrs.extra.buffer
 	local extra = extraBuffer.vec
@@ -2540,6 +2535,8 @@ function AppVideo:drawQuadTex(
 	extra.v[1]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
 	extra.v[2]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
 	extra.v[3]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	extra.v[4]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	extra.v[5]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
 
 	vertexBuffer
 		:bind()
@@ -2828,11 +2825,7 @@ function AppVideo:drawMap(
 	self.framebufferRAM.changedSinceDraw = true
 end
 
--- TODO same inlining as I just did to :drawMenuText ...
--- draw a solid background color, then draw the text transparent
--- specify an oob bgColorIndex to draw with transparent background
--- and default x, y to the last cursor position
-function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 	x = x or 0
 	y = y or 0
 	fgColorIndex = tonumber(ffi.cast('uint8_t', fgColorIndex or self.ram.textFgColor))
@@ -2844,142 +2837,7 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	-- should font bg respect transparency/alpha?
 	-- or why even draw a background to it? let the user?
 	-- or how about use it as a separate flag?
-	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.ram.bank[0].palette[bgColorIndex])
-	if a > 0 then
-		local bgw = 0
-		for i=1,#text do
-			local ch = text:byte(i)
-			local w = scaleX * self.ram.fontWidth[ch]
-			bgw = bgw + w
-		end
-		-- TODO the ... between drawSolidRect and drawSprite is not the same...
-		self:drawSolidRect(
-			x0,
-			y,
-			bgw,
-			scaleY * spriteSize.y,
-			bgColorIndex
-		)
-	end
-
--- [[ drawQuad startup
-	if self.fontRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
-		self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
-	end
-	self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
-	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
-	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
---]]
-
--- draw transparent-background text
-	local x = x0 + 1
-	y = y + 1
-
-	local sceneObj = self.drawTextObj
-	local tex0 = self.fontRAM.tex
-	local tex1 = self.paletteRAM.tex
-	tex0:bind(0)
-	tex1:bind(1)
-	sceneObj:beginUpdate()
-	local w = spriteSize.x * scaleX
-	local h = spriteSize.y * scaleY
-	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
-	local tw = 1 / tonumber(texSizeInTiles.x)
-	local th = 1 / tonumber(texSizeInTiles.y)
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	local program = sceneObj.program
-
-	local vertex = sceneObj.attrs.vertex.buffer.vec
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
-	local extra = sceneObj.attrs.extra.buffer.vec
-	for i=1,#text do
-		local ch = text:byte(i)
-		local bi = bit.band(ch, 7)		-- get the bit offset
-		local by = bit.rshift(ch, 3)	-- get the byte offset
-		local tx = by / tonumber(texSizeInTiles.x)
-
-		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
-		local v
-		v = vertex:emplace_back()
-		v.x = x
-		v.y = y
-		v = vertex:emplace_back()
-		v.x = x+w
-		v.y = y
-		v = vertex:emplace_back()
-		v.x = x
-		v.y = y+h
-
-		v = vertex:emplace_back()
-		v.x = x
-		v.y = y+h
-		v = vertex:emplace_back()
-		v.x = x+w
-		v.y = y
-		v = vertex:emplace_back()
-		v.x = x+w
-		v.y = y+h
-
-		v = texcoord:emplace_back()
-		v.x = tx
-		v.y = 0
-		v = texcoord:emplace_back()
-		v.x = tx+tw
-		v.y = 0
-		v = texcoord:emplace_back()
-		v.x = tx
-		v.y = th
-
-		v = texcoord:emplace_back()
-		v.x = tx
-		v.y = th
-		v = texcoord:emplace_back()
-		v.x = tx+tw
-		v.y = 0
-		v = texcoord:emplace_back()
-		v.x = tx+tw
-		v.y = th
-
-		for j=0,5 do	-- TODO get divisor working
-			extra:emplace_back():set(bi, 1, 0, fgColorIndex-1)
-		end
-
-		x = x + self.ram.fontWidth[ch] * scaleX
-	end
-
-	sceneObj:endUpdate()
-	local programUniforms = program.uniforms
-	program:use()
-	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	-- this won't be there for 8bpp indexed mode:
-	if programUniforms.drawOverrideSolid then
-		gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-	end
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
-	sceneObj:disableAttrs()
-
--- [[ drawQuad shutdown
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
---]]
-
-	return x - x0
-end
-
--- same as drawText but using the menu font and palette
-function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
-	x = x or 0
-	y = y or 0
-	fgColorIndex = tonumber(ffi.cast('uint8_t', fgColorIndex or self.ram.textFgColor))
-	bgColorIndex = tonumber(ffi.cast('uint8_t', bgColorIndex or self.ram.textBgColor))
-	scaleX = scaleX or 1
-	scaleY = scaleY or 1
-	local x0 = x
-
-	-- should font bg respect transparency/alpha?
-	-- or why even draw a background to it? let the user?
-	-- or how about use it as a separate flag?
+	-- TODO this always uses the cart colors even for the menu draw routine ...
 	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.ram.bank[0].palette[bgColorIndex])
 	if a > 0 then
 		local bgw = 0
@@ -3004,17 +2862,14 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	y = y + 1
 
 	local sceneObj = self.drawTextObj
-	local tex0 = self.fontMenuTex
-	local tex1 = self.paletteMenuTex
-	tex0:bind(0)
-	tex1:bind(1)
+	paletteTex:bind(1)
+	fontTex:bind(0)
 	sceneObj:beginUpdate()
 	local w = spriteSize.x * scaleX
 	local h = spriteSize.y * scaleY
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	local tw = 1 / tonumber(texSizeInTiles.x)
 	local th = 1 / tonumber(texSizeInTiles.y)
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local program = sceneObj.program
 
 	local vertex = sceneObj.attrs.vertex.buffer.vec
@@ -3072,19 +2927,53 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 			extra:emplace_back():set(bi, 1, 0, fgColorIndex-1)
 		end
 
-		x = x + menuFontWidth * scaleX
+		x = x + scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
 	end
 
 	sceneObj:endUpdate()
 	local programUniforms = program.uniforms
 	program:use()
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	-- this won't be there for 8bpp indexed mode:
+	if programUniforms.drawOverrideSolid then
+		local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+		gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	end
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
 
 	return x - x0
+end
+
+-- TODO same inlining as I just did to :drawMenuText ...
+-- draw a solid background color, then draw the text transparent
+-- specify an oob bgColorIndex to draw with transparent background
+-- and default x, y to the last cursor position
+function AppVideo:drawText(...)
+	
+-- [[ drawQuad startup
+	if self.fontRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
+		self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
+	end
+	self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
+--]]
+
+	local result = self:drawTextCommon(self.fontRAM.tex, self.paletteRAM.tex, ...) 
+
+-- [[ drawQuad shutdown
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
+--]]
+
+	return result
+end
+
+-- same as drawText but using the menu font and palette
+function AppVideo:drawMenuText(...)
+	return self:drawTextCommon(self.fontMenuTex, self.paletteMenuTex, ...) 
 end
 
 
