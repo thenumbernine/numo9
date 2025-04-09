@@ -14,6 +14,11 @@ local GLGeometry = require 'gl.geometry'
 local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 
+require 'vec-ffi.create_vec3'{dim=4, ctype='short'}	-- vec4s_t
+require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned short'}	-- vec4us_t
+require 'vec-ffi.vec4i'
+require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned int'}	-- vec4ui_t
+
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
@@ -1264,8 +1269,10 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 vertex;
 in vec2 texcoord;
+in uvec4 extra;
 out vec2 tcv;
 out vec2 pixelPos;
+flat out uvec4 extrav;
 
 uniform mat4 mvMat;
 
@@ -1273,6 +1280,7 @@ const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
+	extrav = extra;
 	tcv = texcoord;
 	gl_Position = mvMat * vec4(vertex, 0., 1.);
 	pixelPos = gl_Position.xy;
@@ -1289,23 +1297,15 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
 in vec2 pixelPos;
+flat in uvec4 extrav;
 
 layout(location=0) out <?=fragType?> fragColor;
-
-//For now this is an integer added to the 0-15 4-bits of the sprite tex.
-//You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
-//Or you can set it to low numbers and use it to offset the palette.
-//Should this be high bits? or just an offset to OR? or to add?
-uniform uint paletteIndex;
-
-// Reads 4 bits from wherever shift location you provide.
-uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
 
 // Specifies which bit to read from at the sprite.
 //  0 = read sprite low nibble.
 //  4 = read sprite high nibble.
 //  other = ???
-uniform uint spriteBit;
+//uniform uint spriteBit;
 
 // specifies the mask after shifting the sprite bit
 //  0x01u = 1bpp
@@ -1313,12 +1313,22 @@ uniform uint spriteBit;
 //  0x07u = 3bpp
 //  0x0Fu = 4bpp
 //  0xFFu = 8bpp
-uniform uint spriteMask;
+//uniform uint spriteMask;
 
 // Specifies which colorIndex to use as transparency.
 // This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
 // If you want fully opaque then just choose an oob color index.
-uniform uint transparentIndex;
+//uniform uint transparentIndex;
+
+//For now this is an integer added to the 0-15 4-bits of the sprite tex.
+//You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
+//Or you can set it to low numbers and use it to offset the palette.
+//Should this be high bits? or just an offset to OR? or to add?
+uniform uint paletteIndex;
+
+
+// Reads 4 bits from wherever shift location you provide.
+uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
 
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
@@ -1338,11 +1348,10 @@ void main() {
 		}
 		..[[.r;
 
-	colorIndex >>= spriteBit;
-	colorIndex &= spriteMask;
-
-	if (colorIndex == transparentIndex) discard;
-	colorIndex += paletteIndex;
+	colorIndex >>= extrav.x;				//spriteBit
+	colorIndex &= extrav.y;					//spriteMask
+	if (colorIndex == extrav.z) discard;	//transparentIndex
+	colorIndex += extrav.w;					//paletteIndex
 
 <?=info.colorOutput?>
 
@@ -1364,10 +1373,12 @@ void main() {
 		}
 ..[[.r;
 	uint colorIndex = uint(colorIndexNorm * 255. + .5);
-	colorIndex >>= spriteBit;
-	colorIndex &= spriteMask;
-	if (colorIndex == transparentIndex) discard;
-	colorIndex += paletteIndex;
+
+	colorIndex >>= extrav.x;				//spriteBit
+	colorIndex &= extrav.y;					//spriteMask
+	if (colorIndex == extrav.z) discard;	//transparentIndex
+	colorIndex += extrav.w;					//paletteIndex
+
 <?=info.colorOutput?>
 <? end ?>
 }
@@ -1599,6 +1610,30 @@ void main() {
 						usage = gl.GL_DYNAMIC_DRAW,
 					},
 				},
+				extra = {
+ 					buffer = {
+						--[[ TODO would be nice
+						type = gl.GL_UNSIGNED_SHORT,
+						ctype = 'vec4us_t',
+						--]]
+						-- [[
+						type = gl.GL_UNSIGNED_INT,
+						ctype = 'vec4ui_t',
+						--]]
+
+						--[[	-- TODO would be nice
+						count = 2,
+						divisor = 3,
+						--]]
+						-- [[
+ 						count = 4,
+						--]]
+
+						dim = 4,
+ 						useVec = true,
+ 						usage = gl.GL_DYNAMIC_DRAW,
+ 					},
+ 				},
 			},
 			geometry = {
 				mode = gl.GL_TRIANGLE_STRIP,
@@ -1623,6 +1658,31 @@ void main() {
 						usage = gl.GL_DYNAMIC_DRAW,
 					},
 				},
+				extra = {
+ 					buffer = {
+						--[[ TODO would be nice
+						type = gl.GL_UNSIGNED_SHORT,
+						ctype = 'vec4us_t',
+						--]]
+						-- [[
+						type = gl.GL_UNSIGNED_INT,
+						ctype = 'vec4ui_t',
+						--]]
+
+						--[[	-- TODO would be nice
+						count = 2,
+						divisor = 3,
+						--]]
+						-- [[
+ 						count = 3,
+						--]]
+
+						dim = 4,
+ 						useVec = true,
+ 						usage = gl.GL_DYNAMIC_DRAW,
+ 					},
+ 				},
+
 			},
 			geometry = {
 				mode = gl.GL_TRIANGLES,
@@ -2245,13 +2305,13 @@ function AppVideo:drawSolidRect(
 	local program = sceneObj.program
 	local programUniforms = program.uniforms
 	program:use()
-	
+
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
 	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
 	gl.glUniform1i(programUniforms.borderOnly.loc, borderOnly or false)
 	gl.glUniform1i(programUniforms.round.loc, round or false)
 	gl.glUniform4f(programUniforms.box.loc, x, y, w, h)
-	
+
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
@@ -2296,11 +2356,11 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	local program = sceneObj.program
 	local programUniforms = program.uniforms
 	program:use()
-	
+
 	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
-	
+
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	
+
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
@@ -2327,11 +2387,11 @@ function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	local program = sceneObj.program
 	local programUniforms = program.uniforms
 	program:use()
-	
+
 	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
-	
+
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	
+
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
@@ -2441,7 +2501,8 @@ function AppVideo:drawQuadTex(
 	local sceneObj = self.quadSpriteObj
 
 	-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
-	local vertex = sceneObj.attrs.vertex.buffer.vec
+	local vertexBuffer = sceneObj.attrs.vertex.buffer
+	local vertex = vertexBuffer.vec
 	vertex.v[0].x = x
 	vertex.v[0].y = y
 	vertex.v[1].x = x+w
@@ -2450,7 +2511,9 @@ function AppVideo:drawQuadTex(
 	vertex.v[2].y = y+h
 	vertex.v[3].x = x+w
 	vertex.v[3].y = y+h
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+
+	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
+	local texcoord = texcoordBuffer.vec
 	texcoord.v[0].x = tx
 	texcoord.v[0].y = ty
 	texcoord.v[1].x = tx+tw
@@ -2460,12 +2523,22 @@ function AppVideo:drawQuadTex(
 	texcoord.v[3].x = tx+tw
 	texcoord.v[3].y = ty+th
 
-	sceneObj.attrs.vertex.buffer
+	local extraBuffer = sceneObj.attrs.extra.buffer
+	local extra = extraBuffer.vec
+	extra.v[0]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	extra.v[1]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	extra.v[2]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	extra.v[3]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+
+	vertexBuffer
 		:bind()
 		:updateData(0, vertex:getNumBytes())
-	sceneObj.attrs.texcoord.buffer
+	texcoordBuffer
 		:bind()
 		:updateData(0, texcoord:getNumBytes())
+	extraBuffer
+		:bind()
+		:updateData(0, extra:getNumBytes())
 		:unbind()
 
 	local program = sceneObj.program
@@ -2473,14 +2546,9 @@ function AppVideo:drawQuadTex(
 	program:use()
 
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	
+
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-
-	gl.glUniform1ui(programUniforms.paletteIndex.loc, paletteIndex)
-	gl.glUniform1ui(programUniforms.transparentIndex.loc, transparentIndex)
-	gl.glUniform1ui(programUniforms.spriteBit.loc, spriteBit)
-	gl.glUniform1ui(programUniforms.spriteMask.loc, spriteMask)
 
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
@@ -2563,7 +2631,8 @@ function AppVideo:drawTexTri3D(
 
 	local sceneObj = self.triSpriteObj
 
-	local vertex = sceneObj.attrs.vertex.buffer.vec
+	local vertexBuffer = sceneObj.attrs.vertex.buffer
+	local vertex = vertexBuffer.vec
 	vertex.v[0].x = x1
 	vertex.v[0].y = y1
 	vertex.v[0].z = z1
@@ -2573,7 +2642,9 @@ function AppVideo:drawTexTri3D(
 	vertex.v[2].x = x3
 	vertex.v[2].y = y3
 	vertex.v[2].z = z3
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+
+	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
+	local texcoord = texcoordBuffer.vec
 	texcoord.v[0].x = u1
 	texcoord.v[0].y = v1
 	texcoord.v[1].x = u2
@@ -2581,12 +2652,21 @@ function AppVideo:drawTexTri3D(
 	texcoord.v[2].x = u3
 	texcoord.v[2].y = v3
 
-	sceneObj.attrs.vertex.buffer
+	local extraBuffer = sceneObj.attrs.extra.buffer
+	local extra = extraBuffer.vec
+	extra.v[0]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	extra.v[1]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+	extra.v[2]:set(spriteBit, spriteMask, transparentIndex, paletteIndex)
+
+	vertexBuffer
 		:bind()
 		:updateData(0, vertex:getNumBytes())
-	sceneObj.attrs.texcoord.buffer
+	texcoordBuffer
 		:bind()
 		:updateData(0, texcoord:getNumBytes())
+	extraBuffer
+		:bind()
+		:updateData(0, extra:getNumBytes())
 		:unbind()
 	-- ... or interleave xyzuv and do one update?
 
@@ -2597,19 +2677,14 @@ function AppVideo:drawTexTri3D(
 	program:use()
 
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	
+
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-
-	gl.glUniform1ui(programUniforms.paletteIndex.loc, paletteIndex)
-	gl.glUniform1ui(programUniforms.transparentIndex.loc, transparentIndex)
-	gl.glUniform1ui(programUniforms.spriteBit.loc, spriteBit)
-	gl.glUniform1ui(programUniforms.spriteMask.loc, spriteMask)
 
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
-	
+
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
@@ -2709,14 +2784,14 @@ function AppVideo:drawMap(
 	local program = sceneObj.program
 	local programUniforms = program.uniforms
 	program:use()
-	
+
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	
+
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
 	gl.glUniform1i(programUniforms.mapIndexOffset.loc, mapIndexOffset)	-- user has to specify high-bits
-	
+
 	local draw16As0or1 = draw16Sprites and 1 or 0
 	gl.glUniform1i(programUniforms.draw16Sprites.loc, draw16As0or1)
 
@@ -2737,7 +2812,7 @@ function AppVideo:drawMap(
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
-	
+
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
