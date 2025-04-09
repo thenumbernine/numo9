@@ -841,7 +841,9 @@ precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec2 vertex;
 out vec2 tcv;
+
 uniform mat4 mvProjMat;
+
 void main() {
 	tcv = vertex;
 	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
@@ -1279,10 +1281,11 @@ void main() {
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
-in vec4 vertex;
-in vec2 texcoord;
-in uvec4 extra;
-in vec4 drawOverrideSolidAttr;
+layout(location=0) in vec4 vertex;
+layout(location=1) in vec2 texcoord;
+layout(location=2) in uvec4 extra;
+layout(location=3) in vec4 drawOverrideSolidAttr;
+
 out vec2 tcv;
 out vec2 pixelPos;
 flat out uvec4 extrav;
@@ -1417,6 +1420,7 @@ void main() {
 		info.drawTextObj = GLSceneObject{
 			program = spriteProgram,
 			vertexes = {
+				--divisor = 1,
 				count = 6,
 				dim = 4,
 				useVec = true,
@@ -1424,6 +1428,7 @@ void main() {
 			},
 			attrs = {
 				texcoord = {
+					--divisor = 1,
 					buffer = {
 						count = 6,
 						dim = 2,
@@ -1432,8 +1437,10 @@ void main() {
 					},
 				},
 				extra = {
+					--divisor = 3,
  					buffer = {
 						--[[ TODO would be nice
+						glslType = gl.GL_UNSIGNED_SHORT,
 						type = gl.GL_UNSIGNED_SHORT,
 						ctype = 'vec4us_t',
 						--]]
@@ -1442,13 +1449,7 @@ void main() {
 						ctype = 'vec4ui_t',
 						--]]
 
-						--[[	-- TODO would be nice
 						count = 2,
-						divisor = 3,
-						--]]
-						-- [[
- 						count = 6,
-						--]]
 
 						dim = 4,
  						useVec = true,
@@ -1456,10 +1457,11 @@ void main() {
  					},
  				},
 				drawOverrideSolidAttr = {
+					--divisor = 3,
 					buffer = {
 						type = gl.GL_UNSIGNED_BYTE,
 						ctype = 'vec4ub_t',
-						count = 6,
+						count = 2,
 						dim = 4,
 						useVec = true,
 						usage = gl.GL_DYNAMIC_DRAW,
@@ -1476,6 +1478,7 @@ void main() {
 		info.quadSpriteObj = GLSceneObject{
 			program = spriteProgram,
 			vertexes = {
+				--divisor = 1,
 				dim = 4,
 				useVec = true,
 				count = 6,
@@ -1483,6 +1486,7 @@ void main() {
 			},
 			attrs = {
 				texcoord = {
+					--divisor = 1,
 					buffer = {
 						dim = 2,
 						useVec = true,
@@ -1491,8 +1495,10 @@ void main() {
 					},
 				},
 				extra = {
+					--divisor = 3,
  					buffer = {
 						--[[ TODO would be nice
+						glslType = gl.GL_UNSIGNED_SHORT,
 						type = gl.GL_UNSIGNED_SHORT,
 						ctype = 'vec4us_t',
 						--]]
@@ -1501,11 +1507,10 @@ void main() {
 						ctype = 'vec4ui_t',
 						--]]
 
-						--[[	-- TODO would be nice
+						-- [[	-- TODO would be nice
 						count = 2,
-						divisor = 3,
 						--]]
-						-- [[
+						--[[
  						count = 6,
 						--]]
 
@@ -1515,10 +1520,11 @@ void main() {
  					},
  				},
 				drawOverrideSolidAttr = {
+					--divisor = 3,
 					buffer = {
 						type = gl.GL_UNSIGNED_BYTE,
 						ctype = 'vec4ub_t',
-						count = 6,
+						count = 2,
 						dim = 4,
 						useVec = true,
 						usage = gl.GL_DYNAMIC_DRAW,
@@ -1534,6 +1540,7 @@ void main() {
 		info.triSpriteObj = GLSceneObject{
 			program = spriteProgram,
 			vertexes = {
+				--divisor = 1,
 				dim = 4,
 				useVec = true,
 				count = 3,
@@ -1541,6 +1548,7 @@ void main() {
 			},
 			attrs = {
 				texcoord = {
+					--divisor = 1,
 					buffer = {
 						dim = 2,
 						useVec = true,
@@ -1549,8 +1557,10 @@ void main() {
 					},
 				},
 				extra = {
+					--divisor = 3,
  					buffer = {
 						--[[ TODO would be nice
+						glslType = gl.GL_UNSIGNED_SHORT,
 						type = gl.GL_UNSIGNED_SHORT,
 						ctype = 'vec4us_t',
 						--]]
@@ -1559,11 +1569,10 @@ void main() {
 						ctype = 'vec4ui_t',
 						--]]
 
-						--[[	-- TODO would be nice
-						count = 2,
-						divisor = 3,
+						-- [[	-- TODO would be nice
+						count = 1,
 						--]]
-						-- [[
+						--[[
  						count = 3,
 						--]]
 
@@ -1573,10 +1582,11 @@ void main() {
  					},
  				},
 				drawOverrideSolidAttr = {
+					--divisor = 3,
 					buffer = {
 						type = gl.GL_UNSIGNED_BYTE,
 						ctype = 'vec4ub_t',
-						count = 3,
+						count = 1,
 						dim = 4,
 						useVec = true,
 						usage = gl.GL_DYNAMIC_DRAW,
@@ -1598,7 +1608,7 @@ void main() {
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
-in vec2 vertex;
+layout(location=0) in vec2 vertex;
 out vec2 tcv;
 out vec2 pixelPos;
 uniform vec4 box;		//x y w h
@@ -2374,6 +2384,25 @@ function AppVideo:setBlendMode(blendMode)
 	end
 end
 
+function AppVideo:addTri(
+	sheetTex,
+	paletteTex,
+
+	-- per vtx
+	x1, y1, z1, u1, v1,
+	x2, y2, z2, u2, v2,
+	x3, y3, z3, u3, v3,
+
+	-- divisor
+	br, bg, bb, ba,
+	spriteBit,
+	spriteMask,
+	transparentIndex,
+	paletteIndex
+)
+
+end
+
 --[[
 'lower level' than 'drawQuad'
 accepts a texture as arguments, so the UI/Editor can draw with textures outside of the RAM
@@ -2388,10 +2417,10 @@ function AppVideo:drawQuadTex(
 	spriteBit,
 	spriteMask
 )
-	paletteIndex = paletteIndex or 0
-	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
+	transparentIndex = transparentIndex or -1
+	paletteIndex = paletteIndex or 0
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 
 	local sceneObj = self.quadSpriteObj
@@ -2440,7 +2469,7 @@ function AppVideo:drawQuadTex(
 
 	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
 	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
-	drawOverrideSolidAttr:resize(6) 
+	drawOverrideSolidAttr:resize(6)
 	v = drawOverrideSolidAttr.v + 0
 	for j=0,5 do
 		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255
@@ -2540,7 +2569,7 @@ function AppVideo:drawTexTri3D(
 	self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
-	
+
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 
 	local sceneObj = self.triSpriteObj
@@ -2576,12 +2605,13 @@ function AppVideo:drawTexTri3D(
 
 	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
 	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
-	drawOverrideSolidAttr:resize(6) 
+	drawOverrideSolidAttr:resize(3)
 	v = drawOverrideSolidAttr.v + 0
 	for j=0,2 do
 		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255
 		v = v + 1
 	end
+
 	vertexBuffer
 		:bind()
 		:updateData(0, vertex:getNumBytes())
@@ -2786,20 +2816,20 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 	local vertexBuffer = sceneObj.attrs.vertex.buffer
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	vertexBuffer:beginUpdate()
-	
+
 	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
 	local texcoord = sceneObj.attrs.texcoord.buffer.vec
 	texcoordBuffer:beginUpdate()
-	
+
 	local extraBuffer = sceneObj.attrs.extra.buffer
 	local extra = sceneObj.attrs.extra.buffer.vec
 	extraBuffer:beginUpdate()
-	
+
 	-- this won't be there for 8bpp indexed mode:
 	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
 	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
 	drawOverrideSolidAttrBuffer:beginUpdate()
-	
+
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
@@ -2842,7 +2872,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		v.x = tx+tw
 		v.y = th
 
-		for j=0,5 do	-- TODO get divisor working
+		for j=0,5 do
 			local v = extra:emplace_back()
 			v.x, v.y, v.z, v.w = bi, 1, 0, fgColorIndex-1
 		end
