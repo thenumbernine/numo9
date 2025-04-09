@@ -1006,9 +1006,8 @@ precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec2 vertex;
 out vec2 pixelPos;
-uniform vec3 pos0;
-uniform vec3 pos1;
-uniform mat4 mvMat;
+uniform vec4 pos0;
+uniform vec4 pos1;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
 const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
@@ -1017,10 +1016,8 @@ const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 const float lineThickness = 1.;
 
 void main() {
-	vec4 xformPos0 = mvMat * vec4(pos0, 1.);
-	vec4 xformPos1 = mvMat * vec4(pos1, 1.);
-	vec4 delta = xformPos1 - xformPos0;
-	gl_Position = xformPos0
+	vec4 delta = pos1 - pos0;
+	gl_Position = pos0
 		+ delta * vertex.x
 		+ normalize(vec4(-delta.y, delta.x, 0., 0.)) * (vertex.y - .5) * 2. * lineThickness;
 	pixelPos = gl_Position.xy;
@@ -2232,6 +2229,14 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
+local function vec3to4(m, x, y, z)
+	return 
+		m[0] * x + m[4] * y + m[ 8] * z + m[12],
+		m[1] * x + m[5] * y + m[ 9] * z + m[13],
+		m[2] * x + m[6] * y + m[10] * z + m[14],
+		m[3] * x + m[7] * y + m[11] * z + m[15]
+end
+
 function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.framebufferRAM:checkDirtyCPU()
@@ -2246,13 +2251,11 @@ function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 
 	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
 
-	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
-	gl.glUniform3f(programUniforms.pos0.loc, x1, y1, z1)
-	gl.glUniform3f(programUniforms.pos1.loc, x2, y2, z2)
+	gl.glUniform4f(programUniforms.pos0.loc, vec3to4(self.mvMat.ptr, x1, y1, z1))
+	gl.glUniform4f(programUniforms.pos1.loc, vec3to4(self.mvMat.ptr, x2, y2, z2))
 
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
