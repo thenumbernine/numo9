@@ -41,6 +41,14 @@ local packptr = numo9_rom.packptr
 local unpackptr = numo9_rom.unpackptr
 local menuFontWidth = numo9_rom.menuFontWidth
 
+local function vec3to4(m, x, y, z)
+	return
+		m[0] * x + m[4] * y + m[ 8] * z + m[12],
+		m[1] * x + m[5] * y + m[ 9] * z + m[13],
+		m[2] * x + m[6] * y + m[10] * z + m[14],
+		m[3] * x + m[7] * y + m[11] * z + m[15]
+end
+
 local function glslnumber(x)
 	local s = tostring(tonumber(x))
 	if s:find'e' then return s end
@@ -1070,16 +1078,15 @@ void main() {
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
-layout(location=0) in vec3 vertex;
+layout(location=0) in vec4 vertex;
 out vec2 pixelPos;
-uniform mat4 mvMat;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
 const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
-	gl_Position = mvMat * vec4(vertex, 1.);
+	gl_Position = vertex;
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
@@ -1118,7 +1125,7 @@ void main() {
 				},
 			},
 			vertexes = {
-				dim = 3,
+				dim = 4,
 				useVec = true,
 				count = 3,
 			},
@@ -2198,11 +2205,11 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	local vertexBuffer = sceneObj.attrs.vertex.buffer
 	local vertex = vertexBuffer:beginUpdate()
 	local v = vertex:emplace_back()
-	v.x, v.y, v.z = x1, y1, z1
+	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x1, y1, z1)
 	local v = vertex:emplace_back()
-	v.x, v.y, v.z = x2, y2, z2
+	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x2, y2, z2)
 	local v = vertex:emplace_back()
-	v.x, v.y, v.z = x3, y3, z3
+	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x3, y3, z3)
 	vertexBuffer:endUpdate()
 
 	self.paletteRAM.tex:bind(0)
@@ -2211,8 +2218,6 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	program:use()
 
 	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
-
-	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
@@ -2227,14 +2232,6 @@ end
 
 function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
-end
-
-local function vec3to4(m, x, y, z)
-	return 
-		m[0] * x + m[4] * y + m[ 8] * z + m[12],
-		m[1] * x + m[5] * y + m[ 9] * z + m[13],
-		m[2] * x + m[6] * y + m[10] * z + m[14],
-		m[3] * x + m[7] * y + m[11] * z + m[15]
 end
 
 function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
@@ -2727,7 +2724,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 -- draw transparent-background text
 	local x = x0 + 1
 	y = y + 1
-	
+
 	paletteTex:bind(1)
 	fontTex:bind(0)
 
@@ -2826,7 +2823,7 @@ end
 -- specify an oob bgColorIndex to draw with transparent background
 -- and default x, y to the last cursor position
 function AppVideo:drawText(...)
-	
+
 -- [[ drawQuad startup
 	if self.fontRAM.checkDirtyCPU then			-- some editor textures are separate of the 'hardware' and don't possess this
 		self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
@@ -2836,7 +2833,7 @@ function AppVideo:drawText(...)
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 --]]
 
-	local result = self:drawTextCommon(self.fontRAM.tex, self.paletteRAM.tex, ...) 
+	local result = self:drawTextCommon(self.fontRAM.tex, self.paletteRAM.tex, ...)
 
 -- [[ drawQuad shutdown
 	self.framebufferRAM.dirtyGPU = true
@@ -2848,7 +2845,7 @@ end
 
 -- same as drawText but using the menu font and palette
 function AppVideo:drawMenuText(...)
-	return self:drawTextCommon(self.fontMenuTex, self.paletteMenuTex, ...) 
+	return self:drawTextCommon(self.fontMenuTex, self.paletteMenuTex, ...)
 end
 
 
