@@ -472,7 +472,7 @@ glreport'before RAMGPUTex:init'
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		magFilter = args.magFilter or gl.GL_NEAREST,
 		data = ptr,	-- ptr is stored
-	}:unbind()
+	}
 -- this will fail when the menu font is being used
 --assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 	self.tex = tex
@@ -501,7 +501,6 @@ function RAMGPUTex:checkDirtyCPU()
 --assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 	tex:bind()
 		:subimage()
-		:unbind()
 	if app.inUpdateCallback then
 		fb:bind()
 	end
@@ -632,7 +631,7 @@ function AppVideo:initVideo()
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
 			data = data,
-		}:unbind()
+		}
 
 		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
 		local fontData = ffi.new('uint8_t[?]', fontInBytes)
@@ -651,7 +650,7 @@ function AppVideo:initVideo()
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
 			data = fontData,
-		}:unbind()
+		}
 
 		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
 		local size = frameBufferSize.x * frameBufferSize.y * 3
@@ -671,7 +670,7 @@ function AppVideo:initVideo()
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
 			data = data,
-		}:unbind()
+		}
 	end
 	--]=]
 
@@ -1052,19 +1051,9 @@ void main() {
 				}),
 				uniforms = {
 					paletteTex = 0,
-					--mvMat = self.mvMat.ptr,
 				},
 			},
-			texs = {self.paletteRAM.tex},
 			geometry = self.quadGeom,
-			-- glUniform()'d every frame
-			uniforms = {
-				mvMat = self.mvMat.ptr,
-				colorIndex = 0,
-				pos0 = {0, 0, 0},
-				pos1 = {8, 8, 8},
-				drawOverrideSolid = {0, 0, 0, 0},
-			},
 		}
 		assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
 
@@ -1124,15 +1113,7 @@ void main() {
 				}),
 				uniforms = {
 					paletteTex = 0,
-					--mvMat = self.mvMat.ptr,
 				},
-			},
-			texs = {self.paletteRAM.tex},
-			-- glUniform()'d every frame
-			uniforms = {
-				mvMat = self.mvMat.ptr,
-				colorIndex = 0,
-				drawOverrideSolid = {0, 0, 0, 0},
 			},
 			vertexes = {
 				dim = 3,
@@ -1269,18 +1250,9 @@ void main() {
 					paletteTex = 0,
 					borderOnly = false,
 					round = false,
-					--mvMat = self.mvMat.ptr,
 				},
 			},
-			texs = {self.paletteRAM.tex},
 			geometry = self.quadGeom,
-			-- glUniform()'d every frame
-			uniforms = {
-				mvMat = self.mvMat.ptr,
-				colorIndex = 0,
-				box = {0, 0, 8, 8},
-				drawOverrideSolid = {0, 0, 0, 0},
-			},
 		}
 
 		local spriteProgram = GLProgram{
@@ -1417,7 +1389,7 @@ void main() {
 				spriteMask = 0xFF,
 				--mvMat = self.mvMat.ptr,
 			},
-		}:useNone()
+		}
 
 		-- HMM..........
 		-- this is an identical copy of spriteProgram
@@ -1567,7 +1539,7 @@ void main() {
 				spriteMask = 0xFF,
 				--mvMat = self.mvMat.ptr,
 			},
-		}:useNone()
+		}
 
 		info.drawTextObj = GLSceneObject{
 			-- make some vertex buffers for text
@@ -1612,10 +1584,6 @@ void main() {
 --DEBUG:print('mode '..infoIndex..' quadSpriteObj')
 		info.quadSpriteObj = GLSceneObject{
 			program = spriteProgram,
-			texs = {
-				self.spriteSheetRAM.tex,
-				self.paletteRAM.tex,
-			},
 			vertexes = {
 				dim = 2,
 				useVec = true,
@@ -1636,21 +1604,10 @@ void main() {
 				mode = gl.GL_TRIANGLE_STRIP,
 				count = 4,
 			},
-			-- glUniform()'d every frame
-			uniforms = {
-				mvMat = self.mvMat.ptr,
-				box = {0, 0, 8, 8},
-				tcbox = {0, 0, 1, 1},
-				drawOverrideSolid = {0, 0, 0, 0},
-			},
 		}
 
 		info.triSpriteObj = GLSceneObject{
 			program = spriteProgram,
-			texs = {
-				self.spriteSheetRAM.tex,
-				self.paletteRAM.tex,
-			},
 			vertexes = {
 				dim = 3,
 				useVec = true,
@@ -1670,11 +1627,6 @@ void main() {
 			geometry = {
 				mode = gl.GL_TRIANGLES,
 				count = 3,
-			},
-			-- glUniform()'d every frame
-			uniforms = {
-				mvMat = self.mvMat.ptr,
-				drawOverrideSolid = {0, 0, 0, 0},
 			},
 		}
 
@@ -1864,22 +1816,9 @@ void main() {
 					tileSheetTex = 1,
 					paletteTex = 2,
 					mapIndexOffset = 0,
-					--mvMat = self.mvMat.ptr,
 				},
 			},
-			texs = {
-				self.tilemapRAM.tex,
-				self.tileSheetRAM.tex,
-				self.paletteRAM.tex,
-			},
 			geometry = self.quadGeom,
-			-- glUniform()'d every frame
-			uniforms = {
-				mvMat = self.mvMat.ptr,
-				box = {0, 0, 8, 8},
-				tcbox = {0, 0, 1, 1},
-				drawOverrideSolid = {0, 0, 0, 0},
-			},
 		}
 	end
 
@@ -1904,7 +1843,7 @@ void main() {
 			0xff,0xff,0xff, 0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe,
 		}),
 		--]]
-	}:unbind()
+	}
 
 	self:resetVideo()
 end
@@ -2102,20 +2041,16 @@ function AppVideo:resetVideo()
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		sheetRAM.tex:bind()
 			:subimage()
-			:unbind()
 		sheetRAM.dirtyCPU = false
 	end
 	self.tilemapRAM.tex:bind()
 		:subimage()
-		:unbind()
 	self.tilemapRAM.dirtyCPU = false
 	self.paletteRAM.tex:bind()
 		:subimage()
-		:unbind()
 	self.paletteRAM.dirtyCPU = false
 	self.fontRAM.tex:bind()
 		:subimage()
-		:unbind()
 	self.fontRAM.dirtyCPU = false
 	--]]
 	--[[ update later ...
@@ -2302,20 +2237,28 @@ function AppVideo:drawSolidRect(
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.quadSolidObj
-	local uniforms = sceneObj.uniforms
 
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.colorIndex = math.floor(colorIndex or 0)
-	uniforms.borderOnly = borderOnly or false
-	uniforms.round = round or false
 	if w < 0 then x,w = x+w,-w end
 	if h < 0 then y,h = y+h,-h end
-	settable(uniforms.box, x, y, w, h)
 
+	self.paletteRAM.tex:bind(0)
+	local program = sceneObj.program
+	local programUniforms = program.uniforms
+	program:use()
+	
+	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
+	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
+	gl.glUniform1i(programUniforms.borderOnly.loc, borderOnly or false)
+	gl.glUniform1i(programUniforms.round.loc, round or false)
+	gl.glUniform4f(programUniforms.box.loc, x, y, w, h)
+	
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
-	sceneObj:draw()
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
+
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
@@ -2338,22 +2281,33 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.triSolidObj
-	local uniforms = sceneObj.uniforms
 
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.colorIndex = math.floor(colorIndex)
+	local vertexBuffer = sceneObj.attrs.vertex.buffer
+	local vertex = vertexBuffer:beginUpdate()
+	local v = vertex:emplace_back()
+	v.x, v.y, v.z = x1, y1, z1
+	local v = vertex:emplace_back()
+	v.x, v.y, v.z = x2, y2, z2
+	local v = vertex:emplace_back()
+	v.x, v.y, v.z = x3, y3, z3
+	vertexBuffer:endUpdate()
 
-	local vtxGPU = sceneObj.attrs.vertex.buffer
-	local vtxCPU = vtxGPU:beginUpdate()
-	vtxCPU:emplace_back():set(x1, y1, z1)
-	vtxCPU:emplace_back():set(x2, y2, z2)
-	vtxCPU:emplace_back():set(x3, y3, z3)
-	vtxGPU:endUpdate()
-
+	self.paletteRAM.tex:bind(0)
+	local program = sceneObj.program
+	local programUniforms = program.uniforms
+	program:use()
+	
+	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
+	
+	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
+	
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
-	sceneObj:draw()
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
+
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
@@ -2368,17 +2322,26 @@ function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.lineSolidObj
-	local uniforms = sceneObj.uniforms
 
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.colorIndex = colorIndex
-	settable(uniforms.pos0, x1,y1,z1)
-	settable(uniforms.pos1, x2,y2,z2)
-
+	self.paletteRAM.tex:bind(0)
+	local program = sceneObj.program
+	local programUniforms = program.uniforms
+	program:use()
+	
+	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
+	
+	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
+	
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
-	sceneObj:draw()
+	gl.glUniform3f(programUniforms.pos0.loc, x1, y1, z1)
+	gl.glUniform3f(programUniforms.pos1.loc, x2, y2, z2)
+
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
+
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
@@ -2465,8 +2428,6 @@ doesn't care about framebuffer dirty (cuz its probably the editor framebuffer)
 function AppVideo:drawQuadTex(
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox
-	sheetTex,
-	paletteTex,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
@@ -2478,9 +2439,6 @@ function AppVideo:drawQuadTex(
 	spriteMask = spriteMask or 0xFF
 
 	local sceneObj = self.quadSpriteObj
-	local uniforms = sceneObj.uniforms
-	sceneObj.texs[1] = sheetTex
-	sceneObj.texs[2] = paletteTex
 
 	-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
 	local vertex = sceneObj.attrs.vertex.buffer.vec
@@ -2510,16 +2468,23 @@ function AppVideo:drawQuadTex(
 		:updateData(0, texcoord:getNumBytes())
 		:unbind()
 
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
-	uniforms.transparentIndex = transparentIndex
-	uniforms.spriteBit = spriteBit
-	uniforms.spriteMask = spriteMask
+	local program = sceneObj.program
+	local programUniforms = program.uniforms
+	program:use()
 
+	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
+	
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
-	sceneObj:draw()
+	gl.glUniform1ui(programUniforms.paletteIndex.loc, paletteIndex)
+	gl.glUniform1ui(programUniforms.transparentIndex.loc, transparentIndex)
+	gl.glUniform1ui(programUniforms.spriteBit.loc, spriteBit)
+	gl.glUniform1ui(programUniforms.spriteMask.loc, spriteMask)
+
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
 end
 
 --[[
@@ -2556,10 +2521,13 @@ function AppVideo:drawQuad(
 	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
+	self.paletteRAM.tex:bind(1)
+	sheetRAM.tex:bind(0)
+
 	self:drawQuadTex(
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,
-		sheetRAM.tex, self.paletteRAM.tex, paletteIndex, transparentIndex, spriteBit, spriteMask)
+		paletteIndex, transparentIndex, spriteBit, spriteMask)
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2594,8 +2562,6 @@ function AppVideo:drawTexTri3D(
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.triSpriteObj
-	sceneObj.texs[1] = sheetRAM.tex
-	sceneObj.texs[2] = self.paletteRAM.tex
 
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	vertex.v[0].x = x1
@@ -2624,20 +2590,26 @@ function AppVideo:drawTexTri3D(
 		:unbind()
 	-- ... or interleave xyzuv and do one update?
 
-	-- which is faster?
-	-- uniforms to do linear transform of a tri's coordiantes?
-	-- or writing the coords to cpu and update the buffer?
-	local uniforms = sceneObj.uniforms
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.paletteIndex = paletteIndex	-- user has to specify high-bits
-	uniforms.transparentIndex = transparentIndex
-	uniforms.spriteBit = spriteBit
-	uniforms.spriteMask = spriteMask
+	self.paletteRAM.tex:bind(1)
+	sheetRAM.tex:bind(0)
+	local program = sceneObj.program
+	local programUniforms = program.uniforms
+	program:use()
 
+	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
+	
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
-	sceneObj:draw()
+	gl.glUniform1ui(programUniforms.paletteIndex.loc, paletteIndex)
+	gl.glUniform1ui(programUniforms.transparentIndex.loc, transparentIndex)
+	gl.glUniform1ui(programUniforms.spriteBit.loc, spriteBit)
+	gl.glUniform1ui(programUniforms.spriteMask.loc, spriteMask)
+
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
+	
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
@@ -2729,35 +2701,43 @@ function AppVideo:drawMap(
 	tilesHigh = tilesHigh or 1
 	mapIndexOffset = mapIndexOffset or 0
 
+	self.paletteRAM.tex:bind(2)
+	sheetRAM.tex:bind(1)
+	self.tilemapRAM.tex:bind(0)
+
 	local sceneObj = self.quadMapObj
-	local uniforms = sceneObj.uniforms
-	sceneObj.texs[1] = self.tilemapRAM.tex
-	sceneObj.texs[2] = sheetRAM.tex
-	sceneObj.texs[3] = self.paletteRAM.tex
+	local program = sceneObj.program
+	local programUniforms = program.uniforms
+	program:use()
+	
+	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
+	
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 
-	uniforms.mvMat = self.mvMat.ptr
-	uniforms.mapIndexOffset = mapIndexOffset	-- user has to specify high-bits
-
-	settable(uniforms.tcbox,
-		tileX / tonumber(spriteSheetSizeInTiles.x),
-		tileY / tonumber(spriteSheetSizeInTiles.y),
-		tilesWide / tonumber(spriteSheetSizeInTiles.x),
-		tilesHigh / tonumber(spriteSheetSizeInTiles.y)
-	)
+	gl.glUniform1i(programUniforms.mapIndexOffset.loc, mapIndexOffset)	-- user has to specify high-bits
+	
 	local draw16As0or1 = draw16Sprites and 1 or 0
-	uniforms.draw16Sprites = draw16As0or1
-	settable(uniforms.box,
+	gl.glUniform1i(programUniforms.draw16Sprites.loc, draw16As0or1)
+
+	gl.glUniform4f(programUniforms.box.loc,
 		screenX or 0,
 		screenY or 0,
 		tilesWide * bit.lshift(spriteSize.x, draw16As0or1),
 		tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
 	)
 
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	settable(uniforms.drawOverrideSolid, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	gl.glUniform4f(programUniforms.tcbox.loc,
+		tileX / tonumber(spriteSheetSizeInTiles.x),
+		tileY / tonumber(spriteSheetSizeInTiles.y),
+		tilesWide / tonumber(spriteSheetSizeInTiles.x),
+		tilesHigh / tonumber(spriteSheetSizeInTiles.y)
+	)
 
-	sceneObj:draw()
-
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
+	
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
@@ -2902,9 +2882,6 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
-	program:useNone()
-	tex1:unbind(1)
-	tex0:unbind(0)
 
 -- [[ drawQuad shutdown
 	self.framebufferRAM.dirtyGPU = true
@@ -3040,9 +3017,6 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
-	program:useNone()
-	tex1:unbind(1)
-	tex0:unbind(0)
 
 	return x - x0
 end

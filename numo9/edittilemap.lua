@@ -147,13 +147,13 @@ function EditTilemap:update()
 	app:matscale(self.scale, self.scale)
 	app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
 
+	app.paletteMenuTex:bind(1)
+	app.checkerTex:bind(0)
 	app:drawQuadTex(
 		-1, -1,
 		2+bit.lshift(tilemapSize.x,tileBits), 2+bit.lshift(tilemapSize.y, tileBits),
 		0, 0,
-		2+mapWidth*2, 2+mapHeight*2,
-		app.checkerTex,
-		app.paletteMenuTex
+		2+mapWidth*2, 2+mapHeight*2
 	)
 
 	app:drawMap(
