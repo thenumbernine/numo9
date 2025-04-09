@@ -1422,10 +1422,10 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 vertex;
 in vec2 texcoord;
-in uint spriteBitAttr;
+in uvec4 extra;
 out vec2 tcv;
 out vec2 pixelPos;
-flat out uint spriteBit;
+flat out uvec4 extrav;
 
 uniform mat4 mvMat;
 
@@ -1434,8 +1434,8 @@ const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
 	tcv = texcoord.xy;
+	extrav = extra;
 	gl_Position = mvMat * vec4(vertex.xy, 0., 1.);
-	spriteBit = spriteBitAttr;
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
@@ -1450,23 +1450,21 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
 in vec2 pixelPos;
+flat in uvec4 extrav;
+
+layout(location=0) out <?=fragType?> fragColor;
 
 // Specifies which bit to read from at the sprite.
 //  0 = read sprite low nibble.
 //  4 = read sprite high nibble.
 //  other = ???
-flat in uint spriteBit;
-
-layout(location=0) out <?=fragType?> fragColor;
+//flat in uint spriteBit;
 
 //For now this is an integer added to the 0-15 4-bits of the sprite tex.
 //You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
 //Or you can set it to low numbers and use it to offset the palette.
 //Should this be high bits? or just an offset to OR? or to add?
-uniform uint paletteIndex;
-
-// Reads 4 bits from wherever shift location you provide.
-uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
+//uniform uint paletteIndex;
 
 // specifies the mask after shifting the sprite bit
 //  0x01u = 1bpp
@@ -1474,12 +1472,15 @@ uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
 //  0x07u = 3bpp
 //  0x0Fu = 4bpp
 //  0xFFu = 8bpp
-uniform uint spriteMask;
+//uniform uint spriteMask;
 
 // Specifies which colorIndex to use as transparency.
 // This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
 // If you want fully opaque then just choose an oob color index.
-uniform uint transparentIndex;
+//uniform uint transparentIndex;
+
+// Reads 4 bits from wherever shift location you provide.
+uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
 
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
@@ -1499,11 +1500,10 @@ void main() {
 		}
 		..[[.r;
 
-	colorIndex >>= spriteBit;
-	colorIndex &= spriteMask;
-
-	if (colorIndex == transparentIndex) discard;
-	colorIndex += paletteIndex;
+	colorIndex >>= extrav.x;				//spriteBit
+	colorIndex &= extrav.y;					//spriteMask
+	if (colorIndex == extrav.z) discard;	//transparentIndex
+	colorIndex += extrav.w;					//paletteIndex
 
 <?=info.colorOutput?>
 
@@ -1525,10 +1525,12 @@ void main() {
 		}
 ..[[.r;
 	uint colorIndex = uint(colorIndexNorm * 255. + .5);
-	colorIndex >>= spriteBit;
-	colorIndex &= spriteMask;
-	if (colorIndex == transparentIndex) discard;
-	colorIndex += paletteIndex;
+
+	colorIndex >>= extrav.x;				//spriteBit
+	colorIndex &= extrav.y;					//spriteMask
+	if (colorIndex == extrav.z) discard;	//transparentIndex
+	colorIndex += extrav.w;					//paletteIndex
+
 <?=info.colorOutput?>
 <? end ?>
 }
@@ -1570,21 +1572,30 @@ void main() {
 						usage = gl.GL_DYNAMIC_DRAW,
 					},
 				},
-				spriteBitAttr = {
-					buffer = {
-						count = 6,
-						ctype = 'uint8_t',
-						type = gl.GL_UNSIGNED_BYTE,
-						dim = 1,
-						useVec = true,
-						usage = gl.GL_DYNAMIC_DRAW,
-					},
-					type = gl.GL_UNSIGNED_BYTE,
-					dim = 1,
-					-- can divisor exceed the geometry # of vtxs?
-					--divisor = 6,	-- two triangles = 1 quad
-					--divisor = 3,
-				},
+				extra = {
+ 					buffer = {
+						--[[ TODO would be nice
+						type = gl.GL_UNSIGNED_SHORT,
+						ctype = 'vec4us_t',
+						--]]
+						-- [[
+						type = gl.GL_UNSIGNED_INT,
+						ctype = 'vec4ui_t',
+						--]]
+
+						--[[	-- TODO would be nice
+						count = 2,
+						divisor = 3,
+						--]]
+						-- [[
+ 						count = 6,
+						--]]
+
+						dim = 4,
+ 						useVec = true,
+ 						usage = gl.GL_DYNAMIC_DRAW,
+ 					},
+ 				},
 			},
 			geometry = {
 				mode = gl.GL_TRIANGLES,	-- QUADS would be nice ...
@@ -2870,9 +2881,6 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	tex0:bind(0)
 	tex1:bind(1)
 	sceneObj:beginUpdate()
-	local vertex = sceneObj.attrs.vertex.buffer.vec
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
-	local spriteBitAttr = sceneObj.attrs.spriteBitAttr.buffer.vec
 	local w = spriteSize.x * scaleX
 	local h = spriteSize.y * scaleY
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
@@ -2881,6 +2889,9 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local program = sceneObj.program
 
+	local vertex = sceneObj.attrs.vertex.buffer.vec
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	local extra = sceneObj.attrs.extra.buffer.vec
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
@@ -2929,14 +2940,9 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 		v.x = tx+tw
 		v.y = th
 
-		spriteBitAttr:emplace_back()[0] = bi
-		-- [[ TODO get divisor working
-		spriteBitAttr:emplace_back()[0] = bi
-		spriteBitAttr:emplace_back()[0] = bi
-		spriteBitAttr:emplace_back()[0] = bi
-		spriteBitAttr:emplace_back()[0] = bi
-		spriteBitAttr:emplace_back()[0] = bi
-		--]]
+		for j=0,5 do	-- TODO get divisor working
+			extra:emplace_back():set(bi, 1, 0, fgColorIndex-1)
+		end
 
 		x = x + self.ram.fontWidth[ch] * scaleX
 	end
@@ -2945,11 +2951,6 @@ function AppVideo:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scale
 	local programUniforms = program.uniforms
 	program:use()
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	gl.glUniform1i(programUniforms.sheetTex.loc, 0)
-	gl.glUniform1i(programUniforms.paletteTex.loc, 1)
-	gl.glUniform1ui(programUniforms.paletteIndex.loc, fgColorIndex-1)
-	gl.glUniform1ui(programUniforms.transparentIndex.loc, 0)
-	gl.glUniform1ui(programUniforms.spriteMask.loc, 1)
 	-- this won't be there for 8bpp indexed mode:
 	if programUniforms.drawOverrideSolid then
 		gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
@@ -3008,9 +3009,6 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	tex0:bind(0)
 	tex1:bind(1)
 	sceneObj:beginUpdate()
-	local vertex = sceneObj.attrs.vertex.buffer.vec
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
-	local spriteBitAttr = sceneObj.attrs.spriteBitAttr.buffer.vec
 	local w = spriteSize.x * scaleX
 	local h = spriteSize.y * scaleY
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
@@ -3019,6 +3017,9 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local program = sceneObj.program
 
+	local vertex = sceneObj.attrs.vertex.buffer.vec
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	local extra = sceneObj.attrs.extra.buffer.vec
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
@@ -3067,14 +3068,9 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 		v.x = tx+tw
 		v.y = th
 
-		spriteBitAttr:emplace_back()[0] = bi
-		-- [[ TODO get divisor working
-		spriteBitAttr:emplace_back()[0] = bi
-		spriteBitAttr:emplace_back()[0] = bi
-		spriteBitAttr:emplace_back()[0] = bi
-		spriteBitAttr:emplace_back()[0] = bi
-		spriteBitAttr:emplace_back()[0] = bi
-		--]]
+		for j=0,5 do	-- TODO get divisor working
+			extra:emplace_back():set(bi, 1, 0, fgColorIndex-1)
+		end
 
 		x = x + menuFontWidth * scaleX
 	end
@@ -3083,11 +3079,6 @@ function AppVideo:drawMenuText(text, x, y, fgColorIndex, bgColorIndex, scaleX, s
 	local programUniforms = program.uniforms
 	program:use()
 	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	gl.glUniform1i(programUniforms.sheetTex.loc, 0)
-	gl.glUniform1i(programUniforms.paletteTex.loc, 1)
-	gl.glUniform1ui(programUniforms.paletteIndex.loc, fgColorIndex-1)
-	gl.glUniform1ui(programUniforms.transparentIndex.loc, 0)
-	gl.glUniform1ui(programUniforms.spriteMask.loc, 1)
 	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
