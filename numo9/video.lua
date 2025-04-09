@@ -14,6 +14,7 @@ local GLGeometry = require 'gl.geometry'
 local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 
+require 'vec-ffi.vec4ub'
 require 'vec-ffi.create_vec3'{dim=4, ctype='short'}	-- vec4s_t
 require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned short'}	-- vec4us_t
 require 'vec-ffi.vec4i'
@@ -1281,9 +1282,11 @@ precision highp usampler2D;	// needed by #version 300 es
 in vec4 vertex;
 in vec2 texcoord;
 in uvec4 extra;
+in vec4 drawOverrideSolidAttr;
 out vec2 tcv;
 out vec2 pixelPos;
 flat out uvec4 extrav;
+flat out vec4 drawOverrideSolid;
 
 const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
@@ -1291,6 +1294,7 @@ const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 void main() {
 	tcv = texcoord;
 	extrav = extra;
+	drawOverrideSolid = drawOverrideSolidAttr;
 	gl_Position = vertex;
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
@@ -1307,6 +1311,7 @@ precision highp usampler2D;	// needed by #version 300 es
 in vec2 tcv;
 in vec2 pixelPos;
 flat in uvec4 extrav;
+flat in vec4 drawOverrideSolid;
 
 layout(location=0) out <?=fragType?> fragColor;
 
@@ -1340,7 +1345,7 @@ uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
 
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
-uniform vec4 drawOverrideSolid;
+//uniform vec4 drawOverrideSolid;
 
 <?=glslCode5551?>
 
@@ -1450,6 +1455,16 @@ void main() {
  						usage = gl.GL_DYNAMIC_DRAW,
  					},
  				},
+				drawOverrideSolidAttr = {
+					buffer = {
+						type = gl.GL_UNSIGNED_BYTE,
+						ctype = 'vec4ub_t',
+						count = 6,
+						dim = 4,
+						useVec = true,
+						usage = gl.GL_DYNAMIC_DRAW,
+					},
+				},
 			},
 			geometry = {
 				mode = gl.GL_TRIANGLES,	-- QUADS would be nice ...
@@ -1499,6 +1514,16 @@ void main() {
  						usage = gl.GL_DYNAMIC_DRAW,
  					},
  				},
+				drawOverrideSolidAttr = {
+					buffer = {
+						type = gl.GL_UNSIGNED_BYTE,
+						ctype = 'vec4ub_t',
+						count = 6,
+						dim = 4,
+						useVec = true,
+						usage = gl.GL_DYNAMIC_DRAW,
+					},
+				},
 			},
 			geometry = {
 				mode = gl.GL_TRIANGLES,
@@ -1547,7 +1572,16 @@ void main() {
  						usage = gl.GL_DYNAMIC_DRAW,
  					},
  				},
-
+				drawOverrideSolidAttr = {
+					buffer = {
+						type = gl.GL_UNSIGNED_BYTE,
+						ctype = 'vec4ub_t',
+						count = 3,
+						dim = 4,
+						useVec = true,
+						usage = gl.GL_DYNAMIC_DRAW,
+					},
+				},
 			},
 			geometry = {
 				mode = gl.GL_TRIANGLES,
@@ -2358,6 +2392,7 @@ function AppVideo:drawQuadTex(
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 
 	local sceneObj = self.quadSpriteObj
 
@@ -2367,15 +2402,15 @@ function AppVideo:drawQuadTex(
 	vertex:resize(6)
 	local v = vertex.v+0
 	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y)
-	v = vertex.v+1
+	v = v + 1
 	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
-	v = vertex.v+2
+	v = v + 1
 	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
-	v = vertex.v+3
+	v = v + 1
 	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
-	v = vertex.v+4
+	v = v + 1
 	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
-	v = vertex.v+5
+	v = v + 1
 	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y+h)
 
 	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
@@ -2383,32 +2418,34 @@ function AppVideo:drawQuadTex(
 	texcoord:resize(6)
 	v = texcoord.v+0
 	v.x, v.y = tx, ty
-	v = texcoord.v+1
+	v = v + 1
 	v.x, v.y = tx+tw, ty
-	v = texcoord.v+2
+	v = v + 1
 	v.x, v.y = tx, ty+th
-	v = texcoord.v+3
+	v = v + 1
 	v.x, v.y = tx, ty+th
-	v = texcoord.v+4
+	v = v + 1
 	v.x, v.y = tx+tw, ty
-	v = texcoord.v+5
+	v = v + 1
 	v.x, v.y = tx+tw, ty+th
 
 	local extraBuffer = sceneObj.attrs.extra.buffer
 	local extra = extraBuffer.vec
 	extra:resize(6)
 	v = extra.v+0
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-	v = extra.v+1
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-	v = extra.v+2
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-	v = extra.v+3
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-	v = extra.v+4
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-	v = extra.v+5
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	for j=0,5 do
+		v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+		v = v + 1
+	end
+
+	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
+	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
+	drawOverrideSolidAttr:resize(6) 
+	v = drawOverrideSolidAttr.v + 0
+	for j=0,5 do
+		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255
+		v = v + 1
+	end
 
 	vertexBuffer
 		:bind()
@@ -2419,15 +2456,12 @@ function AppVideo:drawQuadTex(
 	extraBuffer
 		:bind()
 		:updateData(0, extra:getNumBytes())
+	drawOverrideSolidAttrBuffer
+		:bind()
+		:updateData(0, drawOverrideSolidAttr:getNumBytes())
 		:unbind()
 
-	local program = sceneObj.program
-	local programUniforms = program.uniforms
-	program:use()
-
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-
+	sceneObj.program:use()
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
@@ -2506,6 +2540,8 @@ function AppVideo:drawTexTri3D(
 	self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
+	
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 
 	local sceneObj = self.triSpriteObj
 
@@ -2514,9 +2550,9 @@ function AppVideo:drawTexTri3D(
 	vertex:resize(3)
 	local v = vertex.v+0
 	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x1, y1, z1)
-	v = vertex.v+1
+	v = v + 1
 	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x2, y2, z2)
-	v = vertex.v+2
+	v = v + 1
 	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x3, y3, z3)
 
 	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
@@ -2524,21 +2560,28 @@ function AppVideo:drawTexTri3D(
 	texcoord:resize(3)
 	v = texcoord.v+0
 	v.x, v.y = u1, v1
-	v = texcoord.v+1
+	v = v + 1
 	v.x, v.y = u2, v2
-	v = texcoord.v+2
+	v = v + 1
 	v.x, v.y = u3, v3
 
 	local extraBuffer = sceneObj.attrs.extra.buffer
 	local extra = extraBuffer.vec
 	extra:resize(3)
 	v = extra.v+0
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-	v = extra.v+1
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-	v = extra.v+2
-	v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+	for j=0,2 do
+		v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+		v = v + 1
+	end
 
+	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
+	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
+	drawOverrideSolidAttr:resize(6) 
+	v = drawOverrideSolidAttr.v + 0
+	for j=0,2 do
+		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255
+		v = v + 1
+	end
 	vertexBuffer
 		:bind()
 		:updateData(0, vertex:getNumBytes())
@@ -2548,18 +2591,15 @@ function AppVideo:drawTexTri3D(
 	extraBuffer
 		:bind()
 		:updateData(0, extra:getNumBytes())
+	drawOverrideSolidAttrBuffer
+		:bind()
+		:updateData(0, drawOverrideSolidAttr:getNumBytes())
 		:unbind()
-	-- ... or interleave xyzuv and do one update?
 
 	self.paletteRAM.tex:bind(1)
 	sheetRAM.tex:bind(0)
-	local program = sceneObj.program
-	local programUniforms = program.uniforms
-	program:use()
 
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-
+	sceneObj.program:use()
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
@@ -2741,16 +2781,25 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	local tw = 1 / tonumber(texSizeInTiles.x)
 	local th = 1 / tonumber(texSizeInTiles.y)
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 
 	local vertexBuffer = sceneObj.attrs.vertex.buffer
-	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
-	local extraBuffer = sceneObj.attrs.extra.buffer
 	local vertex = sceneObj.attrs.vertex.buffer.vec
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
-	local extra = sceneObj.attrs.extra.buffer.vec
 	vertexBuffer:beginUpdate()
+	
+	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
 	texcoordBuffer:beginUpdate()
+	
+	local extraBuffer = sceneObj.attrs.extra.buffer
+	local extra = sceneObj.attrs.extra.buffer.vec
 	extraBuffer:beginUpdate()
+	
+	-- this won't be there for 8bpp indexed mode:
+	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
+	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
+	drawOverrideSolidAttrBuffer:beginUpdate()
+	
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
@@ -2798,20 +2847,19 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 			v.x, v.y, v.z, v.w = bi, 1, 0, fgColorIndex-1
 		end
 
+		for j=0,5 do
+			local v = drawOverrideSolidAttr:emplace_back()
+			v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255
+		end
+
 		x = x + scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
 	end
 	vertexBuffer:endUpdate()
 	texcoordBuffer:endUpdate()
 	extraBuffer:endUpdate()
+	drawOverrideSolidAttrBuffer:endUpdate()
 
-	local program = sceneObj.program
-	local programUniforms = program.uniforms
-	program:use()
-	-- this won't be there for 8bpp indexed mode:
-	if programUniforms.drawOverrideSolid then
-		local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-		gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-	end
+	sceneObj.program:use()
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw(nil, #vertex)
 	sceneObj:disableAttrs()
