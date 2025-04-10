@@ -1010,141 +1010,10 @@ void main() {
 	-- make output shaders per-video-mode
 	-- set them up as our app fields to use upon setVideoMode
 	for infoIndex,info in pairs(self.videoModeInfo) do
---DEBUG:print('mode '..infoIndex..' lineSolidObj')
-		info.lineSolidObj = GLSceneObject{
-			program = {
-				version = glslVersion,
-				precision = 'best',
-				vertexCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-layout(location=0) in vec2 vertex;
-out vec2 pixelPos;
-uniform vec4 pos0;
-uniform vec4 pos1;
-
-//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
-
-const float lineThickness = 1.;
-
-void main() {
-	vec4 delta = pos1 - pos0;
-	gl_Position = pos0
-		+ delta * vertex.x
-		+ normalize(vec4(-delta.y, delta.x, 0., 0.)) * (vertex.y - .5) * 2. * lineThickness;
-	pixelPos = gl_Position.xy;
-	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
-	gl_Position.xy -= 1.;
-}
-]],				{
-					glslnumber = glslnumber,
-					frameBufferSize = frameBufferSize,
-				}),
-				fragmentCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 pixelPos;
-layout(location=0) out <?=fragType?> fragColor;
-
-uniform uint colorIndex;
-uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-uniform vec4 drawOverrideSolid;
-
-<?=glslCode5551?>
-
-void main() {
-]]..info.colorOutput..[[
-}
-]],				{
-					info = info,
-					fragType = fragTypeForTex(info.framebufferRAM.tex),
-					self = self,
-					samplerTypeForTex = samplerTypeForTex,
-					glslCode5551 = glslCode5551,
-				}),
-				uniforms = {
-					paletteTex = 0,
-				},
-			},
-			geometry = self.quadGeom,
-		}
 		assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
 
-		-- TODO maybe ditch quadSolid* and dont' use uniforms to draw quads ... and just do this with prims ... idk
-		-- but quadSolid has my ellipse/border shader so ....
---DEBUG:print('mode '..infoIndex..' triSolidObj')
-		info.triSolidObj = GLSceneObject{
-			program = {
-				version = glslVersion,
-				precision = 'best',
-				vertexCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-layout(location=0) in vec4 vertex;
-out vec2 pixelPos;
-
-//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
-
-void main() {
-	gl_Position = vertex;
-	pixelPos = gl_Position.xy;
-	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
-	gl_Position.xy -= 1.;
-}
-]],				{
-					glslnumber = glslnumber,
-					frameBufferSize = frameBufferSize,
-				}),
-				fragmentCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 pixelPos;
-layout(location=0) out <?=fragType?> fragColor;
-
-uniform uint colorIndex;
-
-uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-uniform vec4 drawOverrideSolid;
-
-float sqr(float x) { return x * x; }
-
-<?=glslCode5551?>
-
-void main() {
-]]..info.colorOutput..[[
-}
-]],				{
-					fragType = fragTypeForTex(info.framebufferRAM.tex),
-					self = self,
-					samplerTypeForTex = samplerTypeForTex,
-					glslCode5551 = glslCode5551,
-				}),
-				uniforms = {
-					paletteTex = 0,
-				},
-			},
-			vertexes = {
-				usage = gl.GL_DYNAMIC_DRAW,
-				dim = 4,
-				useVec = true,
-				count = 3,
-			},
-			geometry = {
-				mode = gl.GL_TRIANGLES,
-				count = 3,
-			},
-		}
-
---DEBUG:print('mode '..infoIndex..' quadSolidObj')
-		info.quadSolidObj = GLSceneObject{
+--DEBUG:print('mode '..infoIndex..' solidObj')
+		info.solidObj = GLSceneObject{
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -1732,7 +1601,7 @@ void main() {
 
 
 	local app = self
-	
+
 	self.solidTriBuf = {
 		-- this is just like spriteTriBuf:flush except for textures differ
 		flush = function(self)
@@ -1775,7 +1644,7 @@ void main() {
 
 			-- divisor
 			x, y, w, h,
-			br, bg, bb, ba,
+			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			colorIndex, round, borderOnly
 		)
 			local sceneObj = self.sceneObj
@@ -1816,7 +1685,7 @@ void main() {
 				v.x, v.y, v.z, v.w = x, y, w, h
 
 				v = drawOverrideSolidAttr:emplace_back()
-				v.x, v.y, v.z, v.w = br, bg, bb, ba
+				v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
 
 				v = extra2Attr:emplace_back()
 				v.x, v.y, v.z, v.w = colorIndex, round, borderOnly, 0
@@ -1872,7 +1741,7 @@ void main() {
 			transparentIndex,
 			paletteIndex,
 
-			br, bg, bb, ba
+			blendSolidR, blendSolidG, blendSolidB, blendSolidA
 		)
 			local sceneObj = self.sceneObj
 			local vertex = sceneObj.attrs.vertex.buffer.vec
@@ -1884,7 +1753,7 @@ void main() {
 			if app.currentTriBuf ~= self then
 				app.currentTriBuf:flush()
 				self.currentTriBuf = self
-			end		
+			end
 			if app.lastSpriteSheetTex ~= sheetTex
 			or app.lastSpritePaletteTex ~= paletteTex
 			then
@@ -1914,7 +1783,7 @@ void main() {
 				v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
 
 				v = drawOverrideSolidAttr:emplace_back()
-				v.x, v.y, v.z, v.w = br, bg, bb, ba
+				v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
 			end
 		end,
 	}
@@ -2191,13 +2060,11 @@ function AppVideo:setVideoMode(mode)
 	if info then
 		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
-		self.lineSolidObj = info.lineSolidObj
-		self.triSolidObj = info.triSolidObj
-		self.quadSolidObj = info.quadSolidObj
+		self.solidObj = info.solidObj
 		self.spriteObj = info.spriteObj
 		self.quadMapObj = info.quadMapObj
-	
-		self.solidTriBuf.sceneObj = self.quadSolidObj
+
+		self.solidTriBuf.sceneObj = self.solidObj
 		self.spriteTriBuf.sceneObj = self.spriteObj
 	else
 		error("unknown video mode "..tostring(mode))
@@ -2327,7 +2194,7 @@ function AppVideo:drawSolidRect(
 		self.framebufferRAM:checkDirtyCPU()
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
-	
+
 	if w < 0 then x,w = x+w,-w end
 	if h < 0 then y,h = y+h,-h end
 
@@ -2385,12 +2252,16 @@ function AppVideo:drawBorderRect(
 end
 
 function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
-	self.currentTriBuf:flush()
-
-	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
-	self.framebufferRAM:checkDirtyCPU()
+	if self.paletteRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+	end
+	if self.framebufferRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.framebufferRAM:checkDirtyCPU()
+	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
-	
+
 	local v1x, v1y, v1z, v1w = vec3to4(self.mvMat.ptr, x1, y1, z1)
 	local v2x, v2y, v2z, v2w = vec3to4(self.mvMat.ptr, x2, y2, z2)
 	local v3x, v3y, v3z, v3w = vec3to4(self.mvMat.ptr, x3, y3, z3)
@@ -2405,7 +2276,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
 		math.floor(colorIndex or 0), 0, 0
 	)
-	
+
 	-- TODO get rid of this
 	self.solidTriBuf:flush()
 
@@ -2417,31 +2288,74 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
-function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
-	self.currentTriBuf:flush()
-
-	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
-	self.framebufferRAM:checkDirtyCPU()
+function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
+	if self.paletteRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+	end
+	if self.framebufferRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.framebufferRAM:checkDirtyCPU()
+	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
-	local sceneObj = self.lineSolidObj
+	local v1x, v1y, v1z, v1w = vec3to4(self.mvMat.ptr, x1, y1, z1)
+	local v2x, v2y, v2z, v2w = vec3to4(self.mvMat.ptr, x2, y2, z2)
 
-	self.paletteRAM.tex:bind(0)
-	local program = sceneObj.program
-	local programUniforms = program.uniforms
-	program:use()
+	local dx = v2x - v1x
+	local dy = v2y - v1y
+	local il = 1 / math.sqrt(dx^2 + dy^2)
+	local nx = -dy * il
+	local ny = dx * il
 
-	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
+	local lineThickness = 1
+	local xLL, yLL, zLL, wLL =
+		v1x - nx * lineThickness,
+		v1y - ny * lineThickness,
+		v1z,
+		v1w
+	local xRL, yRL, zRL, wRL =
+		v2x - nx * lineThickness,
+		v2y - ny * lineThickness,
+		v2z,
+		v2w
+	local xLR, yLR, zLR, wLR =
+		v1x + nx * lineThickness,
+		v1y + ny * lineThickness,
+		v1z,
+		v1w
+	local xRR, yRR, zRR, wRR =
+		v2x + nx * lineThickness,
+		v2y + ny * lineThickness,
+		v2z,
+		v2w
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	local blendSolidA = self.drawOverrideSolidA *  255
+	colorIndex = math.floor(colorIndex or 0)
 
-	gl.glUniform4f(programUniforms.pos0.loc, vec3to4(self.mvMat.ptr, x1, y1, z1))
-	gl.glUniform4f(programUniforms.pos1.loc, vec3to4(self.mvMat.ptr, x2, y2, z2))
+	self.solidTriBuf:addTri(
+		self.paletteRAM.tex,
+		xLL, yLL, zLL, wLL, 0, 0,
+		xRL, yRL, zRL, wRL, 1, 0,
+		xLR, yLR, zLR, wLR, 0, 1,
+		0, 0, 1, 1,
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+		colorIndex, 0, 0
+	)
 
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
-	sceneObj:disableAttrs()
+	self.solidTriBuf:addTri(
+		self.paletteRAM.tex,
+		xLR, yLR, zLR, wLR, 0, 1,
+		xRL, yRL, zRL, wRL, 1, 0,
+		xRR, yRR, zRR, wRR, 1, 1,
+		0, 0, 1, 1,
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+		colorIndex, 0, 0
+	)
+
+	-- TODO get rid of this
+	self.solidTriBuf:flush()
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2656,10 +2570,10 @@ function AppVideo:drawTexTri3D(
 	spriteMask
 )
 	sheetIndex = sheetIndex or 0
-	
+
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
-	
+
 	if sheetRAM.dirtyCPU then
 		self.currentTriBuf:flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
@@ -2673,7 +2587,7 @@ function AppVideo:drawTexTri3D(
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
-	
+
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
 	transparentIndex = transparentIndex or -1
