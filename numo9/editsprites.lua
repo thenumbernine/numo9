@@ -157,7 +157,7 @@ function EditSprites:update()
 			ssY * spriteSize.y - self.spritesheetPanOffset.y + y
 	end
 	-- draw some pattern under the spritesheet so you can tell what's transparent
-	app:flushSpriteTris()
+	app.currentTriBuf:flush()
 	gl.glScissor(x,y,w,h)
 	do
 		-- this is the framebuffer coord bounds of the spritesheet.
@@ -171,7 +171,7 @@ function EditSprites:update()
 			0, 0xFF, -1, 0)
 		-- clamp it to the viewport of the spritesheet to get the rendered region
 		-- then you can scissor-test this to get rid of the horrible texture stretching at borders from clamp_to_edge ...
-		app:flushSpriteTris()
+		app.currentTriBuf:flush()
 		gl.glScissor(x1, y1, x2-x1, y2-y1)
 	end
 	app:drawQuad(
@@ -189,7 +189,7 @@ function EditSprites:update()
 		0,		-- spriteBit
 		0xFF	-- spriteMask
 	)
-	app:flushSpriteTris()
+	app.currentTriBuf:flush()
 	gl.glScissor(0,0,frameBufferSize:unpack())
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 	local function fbToSpritesheetCoord(fbX, fbY)
@@ -249,7 +249,7 @@ function EditSprites:update()
 		self.spritesheetPanPressed = false
 	end
 
-	app:flushSpriteTris()
+	app.currentTriBuf:flush()
 	gl.glScissor(x, y, w, h)
 	-- sprite sel rect (1x1 ... 8x8)
 	-- ... also show the offset ... is that a good idea?
@@ -260,7 +260,7 @@ function EditSprites:update()
 		spriteSize.y * self.spriteSelSize.y,
 		0xfd
 	)
-	app:flushSpriteTris()
+	app.currentTriBuf:flush()
 	gl.glScissor(0, 0, frameBufferSize:unpack())
 
 	-- sprite edit area
@@ -291,7 +291,7 @@ function EditSprites:update()
 	local w = 64
 	local h = 64
 	-- draw some pattern under the sprite so you can tell what's transparent
-	app:flushSpriteTris()
+	app.currentTriBuf:flush()
 	gl.glScissor(x,y,w,h)
 	local function spriteCoordToFb(sX, sY)
 		return
@@ -308,7 +308,7 @@ function EditSprites:update()
 			0, 0, w*8, h*8,
 			0, 0xFF, -1, 0
 		)
-		app:flushSpriteTris()
+		app.currentTriBuf:flush()
 		gl.glScissor(x1, y1, x2-x1, y2-y1)
 	end
 	app:drawQuad(
@@ -326,7 +326,7 @@ function EditSprites:update()
 		self.spriteBit,							-- spriteBit
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
-	app:flushSpriteTris()
+	app.currentTriBuf:flush()
 	gl.glScissor(0, 0, frameBufferSize:unpack())
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 

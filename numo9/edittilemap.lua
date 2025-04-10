@@ -140,7 +140,7 @@ function EditTilemap:update()
 		)
 	end
 
-	app:flushSpriteTris()
+	app.currentTriBuf:flush()
 	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
 
 	app:matident()
@@ -185,7 +185,7 @@ function EditTilemap:update()
 			app:drawSolidLine(xmin, j, xmax, j, self:color(1))
 		end
 	end
-	app:flushSpriteTris()
+	app.currentTriBuf:flush()
 	gl.glScissor(0,0,frameBufferSize:unpack())
 
 	if self.pickOpen then

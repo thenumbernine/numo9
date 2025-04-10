@@ -1657,7 +1657,7 @@ print('run thread dead')
 
 		-- now run the console and editor, separately, if it's open
 		-- this way server can issue console commands while the game is running
-		self:flushSpriteTris()	-- flush before gl state change
+		self.currentTriBuf:flush()	-- flush before gl state change
 		gl.glDisable(gl.GL_BLEND)
 
 		-- if we're using menu then render to the framebufferMenuTex
@@ -1726,8 +1726,8 @@ print('run thread dead')
 					end
 				end
 			end
-		
-			self:flushSpriteTris()
+
+			self.currentTriBuf:flush()
 
 			-- restore palettes
 			self.videoModeInfo[0].lineSolidObj.texs[1] = self.paletteRAM.tex
