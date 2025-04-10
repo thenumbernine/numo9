@@ -15,10 +15,7 @@ local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
 
 require 'vec-ffi.vec4ub'
-require 'vec-ffi.create_vec3'{dim=4, ctype='short'}	-- vec4s_t
 require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned short'}	-- vec4us_t
-require 'vec-ffi.vec4i'
-require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned int'}	-- vec4ui_t
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -1417,72 +1414,48 @@ void main() {
 			},
 		}
 
---DEBUG:print('mode '..infoIndex..' quadSpriteObj')
-		info.quadSpriteObj = GLSceneObject{
+--DEBUG:print('mode '..infoIndex..' spriteObj')
+		info.spriteObj = GLSceneObject{
 			program = spriteProgram,
 			vertexes = {
-				--divisor = 1,
+				usage = gl.GL_DYNAMIC_DRAW,
 				dim = 4,
 				useVec = true,
-				--count = 0,
-				usage = gl.GL_DYNAMIC_DRAW,
 			},
 			attrs = {
 				texcoord = {
-					--divisor = 1,
 					buffer = {
+						usage = gl.GL_DYNAMIC_DRAW,
 						dim = 2,
 						useVec = true,
-						--count = 0,
-						usage = gl.GL_DYNAMIC_DRAW,
 					},
 				},
 				extra = {
+					type = gl.GL_UNSIGNED_SHORT,
 					--divisor = 3,
  					buffer = {
-						--[[ TODO would be nice
-						glslType = gl.GL_UNSIGNED_SHORT,
+ 						usage = gl.GL_DYNAMIC_DRAW,
 						type = gl.GL_UNSIGNED_SHORT,
-						ctype = 'vec4us_t',
-						--]]
-						-- [[
-						type = gl.GL_UNSIGNED_INT,
-						ctype = 'vec4ui_t',
-						--]]
-
-						-- [[	-- TODO would be nice
-						--count = 0,
-						--]]
-						--[[
- 						--count = 6,
-						--]]
-
 						dim = 4,
  						useVec = true,
- 						usage = gl.GL_DYNAMIC_DRAW,
+						ctype = 'vec4us_t',	-- I only need 16 bits to allow transparentIndex to be a value outside the typical 8 bits ... meanwhile spriteBit is only 3 bits ... tempting to use its upper bits to store transparentIndex's upper bits 
  					},
  				},
 				drawOverrideSolidAttr = {
+					type = gl.GL_UNSIGNED_BYTE,		-- I'm uploading uint8_t[4]
+					normalize = true,				-- data will be normalized to [0,1]
 					--divisor = 3,
 					buffer = {
-						--[[
-						type = gl.GL_UNSIGNED_BYTE,
-						ctype = 'vec4ub_t',
-						--]]
-						-- [[
-						type = gl.GL_UNSIGNED_INT,
-						ctype = 'vec4ui_t',
-						--]]
-						--count = 0,
+						usage = gl.GL_DYNAMIC_DRAW,
+						type = gl.GL_UNSIGNED_BYTE,	-- gl will receive uint8_t[4]
 						dim = 4,
 						useVec = true,
-						usage = gl.GL_DYNAMIC_DRAW,
+						ctype = 'vec4ub_t',			-- cpu buffer will hold vec4ub_t's
 					},
 				},
 			},
 			geometry = {
 				mode = gl.GL_TRIANGLES,
-				--count = 0,
 			},
 		}
 
@@ -1966,7 +1939,7 @@ function AppVideo:setVideoMode(mode)
 		self.lineSolidObj = info.lineSolidObj
 		self.triSolidObj = info.triSolidObj
 		self.quadSolidObj = info.quadSolidObj
-		self.quadSpriteObj = info.quadSpriteObj
+		self.spriteObj = info.spriteObj
 		self.quadMapObj = info.quadMapObj
 	else
 		error("unknown video mode "..tostring(mode))
@@ -2271,7 +2244,7 @@ function AppVideo:setBlendMode(blendMode)
 end
 
 function AppVideo:flushSpriteTris()
-	local sceneObj = self.quadSpriteObj
+	local sceneObj = self.spriteObj
 	
 	-- flush the old
 	local vertexBuffer = sceneObj.attrs.vertex.buffer
@@ -2349,7 +2322,7 @@ function AppVideo:addSpriteTri(
 	
 	br, bg, bb, ba
 )
-	local sceneObj = self.quadSpriteObj
+	local sceneObj = self.spriteObj
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	local texcoord = sceneObj.attrs.texcoord.buffer.vec
 	local extra = sceneObj.attrs.extra.buffer.vec
