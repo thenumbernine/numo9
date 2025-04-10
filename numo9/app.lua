@@ -1139,17 +1139,13 @@ looks like I'm a Snes9x-default-keybinding fan.
 						for j=0,i do	-- j = along diagonal
 							local x = bit.lshift(i-j, 3)
 							local y = bit.lshift(j, 3)
-							--env.blend(1)	-- average
 							env.matident()
 							env.mattrans(x+4, y+4)
 							local r = ((t-i)/16 + .5)*2*math.pi
 							env.matrot(r)
 							local w = 3*math.exp(-((t - i + 4) / 15)^2)
-							self:drawSolidRect(-4*w,-4*w,8*w,8*w, colors[(i+1)%#colors+1])
 							local l = t - i + 1
-							env.blend(2)	-- subtract
-							self:drawText(s:sub(l,l),-3*w,-4*w,0xf7,-1,w,w)
-							env.blend(-1)
+							self:drawText(s:sub(l,l), -3 * w, -4 * w, 0x0f, colors[(i+1)%#colors+1], w, w)
 						end
 					end
 

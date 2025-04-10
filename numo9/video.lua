@@ -1132,6 +1132,7 @@ void main() {
 				},
 			},
 			vertexes = {
+				usage = gl.GL_DYNAMIC_DRAW,
 				dim = 4,
 				useVec = true,
 				count = 3,
@@ -1151,22 +1152,31 @@ void main() {
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
-layout(location=0) in vec2 vertex;
+layout(location=0) in vec4 vertex;
+layout(location=1) in vec2 modelVertex;
+layout(location=2) in vec4 boxAttr;
+layout(location=3) in vec4 drawOverrideSolidAttr;
+layout(location=4) in ivec4 extra2Attr;	// colorIndex, round, borderOnly
+
 out vec2 pixelPos;
 out vec2 pcv;	// unnecessary except for the sake of 'round' ...
-uniform vec4 box;	//x,y,w,h
-uniform mat4 mvMat;
+flat out vec4 box;
+flat out vec4 drawOverrideSolid;
+flat out ivec4 extra2;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
 const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
 const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
-	pcv = box.xy + vertex * box.zw;	// TODO should this be after transform? but then you'd have to transform the box by mvmat in the fragment shader too ...
-	gl_Position = mvMat * vec4(pcv, 0., 1.);
+	pcv = modelVertex;	// TODO should this be after transform? but then you'd have to transform the box by mvmat in the fragment shader too ...
+	gl_Position = vertex;
 	pixelPos = gl_Position.xy;
 	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
 	gl_Position.xy -= 1.;
+	box = boxAttr;
+	drawOverrideSolid = drawOverrideSolidAttr;
+	extra2 = extra2Attr;
 }
 ]],				{
 					glslnumber = glslnumber,
@@ -1178,26 +1188,25 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 pcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
 in vec2 pixelPos;	// framebuffer pixel coordaintes after transform, so they really are framebuffer coordinates
-
-uniform vec4 box;	//x,y,w,h
+flat in vec4 box;	//x,y,w,h
+flat in vec4 drawOverrideSolid;
+flat in ivec4 extra2;	// colorIndex, round, borderOnly
 
 layout(location=0) out <?=fragType?> fragColor;
 
 <?=glslCode5551?>
 
-uniform bool borderOnly;
-uniform bool round;
-
-uniform uint colorIndex;
-
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-uniform vec4 drawOverrideSolid;
 
 float sqr(float x) { return x * x; }
 
 float lenSq(vec2 v) { return dot(v,v); }
 
 void main() {
+	uint colorIndex = extra2.x;
+	bool round = extra2.y != 0;
+	bool borderOnly = extra2.z != 0;
+
 	if (round) {
 		// midpoint-circle / Bresenham algorithm, like Tic80 uses:
 		// figure out which octant of the circle you're in
@@ -1219,9 +1228,9 @@ void main() {
 				// calculate screen space epsilon at this point
 				//float eps = abs(dFdy(pcv.y));
 				// more solid for 3D
-				float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
+				float eps = sqrt(lenSq(dFdx(pcv)) + lenSq(dFdy(pcv)));
 				//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
-				//float eps = max(abs(dFdx(pcv.x)),abs(dFdy(pcv.y)));
+				//float eps = max(abs(dFdx(pcv.x)), abs(dFdy(pcv.y)));
 				if (delta.y < by-eps && delta.y > -by+eps) discard;
 			}
 		} else {
@@ -1232,9 +1241,9 @@ void main() {
 				// calculate screen space epsilon at this point
 				//float eps = abs(dFdx(pcv.x));
 				// more solid for 3D
-				float eps = sqrt(lenSq(dFdx(pcv))+lenSq(dFdy(pcv)));
+				float eps = sqrt(lenSq(dFdx(pcv)) + lenSq(dFdy(pcv)));
 				//float eps = length(vec2(dFdx(pcv.x), dFdy(pcv.y)));
-				//float eps = max(abs(dFdx(pcv.x)),abs(dFdy(pcv.y)));
+				//float eps = max(abs(dFdx(pcv.x)), abs(dFdy(pcv.y)));
 				if (delta.x < bx-eps && delta.x > -bx+eps) discard;
 			}
 		}
@@ -1268,7 +1277,54 @@ void main() {
 					round = false,
 				},
 			},
-			geometry = self.quadGeom,
+			geometry = {
+				mode = gl.GL_TRIANGLES,
+			},
+			vertexes = {
+				usage = gl.GL_DYNAMIC_DRAW,
+				dim = 4,
+				useVec = true,
+			},
+			attrs = {
+				modelVertex = {
+					buffer = {
+						usage = gl.GL_DYNAMIC_DRAW,
+						dim = 2,
+						useVec = true,
+					},
+				},
+				boxAttr = {
+					--divisor = 3,	-- 6 honestly ...
+					buffer = {
+						usage = gl.GL_DYNAMIC_DRAW,
+						dim = 4,
+						useVec = true,
+					},
+				},
+				drawOverrideSolidAttr = {
+					type = gl.GL_UNSIGNED_BYTE,		-- I'm uploading uint8_t[4]
+					normalize = true,				-- data will be normalized to [0,1]
+					--divisor = 3,
+					buffer = {
+						usage = gl.GL_DYNAMIC_DRAW,
+						type = gl.GL_UNSIGNED_BYTE,	-- gl will receive uint8_t[4]
+						dim = 4,
+						useVec = true,
+						ctype = 'vec4ub_t',			-- cpu buffer will hold vec4ub_t's
+					},
+				},
+				extra2Attr = {
+					type = gl.GL_UNSIGNED_BYTE,
+					--divisor = 3,
+					buffer = {
+						usage = gl.GL_DYNAMIC_DRAW,
+						type = gl.GL_UNSIGNED_BYTE,
+						dim = 4,
+						useVec = true,
+						ctype = 'vec4ub_t',
+					},
+				},
+			},
 		}
 
 		local spriteProgram = GLProgram{
@@ -1676,9 +1732,12 @@ void main() {
 
 
 	local app = self
-	self.spriteTriBuf = {
+	
+	self.solidTriBuf = {
+		-- this is just like spriteTriBuf:flush except for textures differ
 		flush = function(self)
-			local sceneObj = app.spriteObj
+			local sceneObj = self.sceneObj
+			if not sceneObj then return end	-- for some calls called before this is even created ...
 
 			-- flush the old
 			local n = #sceneObj.attrs.vertex.buffer.vec
@@ -1688,12 +1747,10 @@ void main() {
 			for name,attr in pairs(sceneObj.attrs) do
 				attr.buffer:endUpdate()
 			end
-			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 
 			-- bind textures
 			-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
-			app.lastPaletteTex:bind(1)
-			app.lastSheetTex:bind(0)
+			app.lastSolidPaletteTex:bind(0)
 
 			sceneObj.geometry.count = n
 
@@ -1705,8 +1762,99 @@ void main() {
 			-- reset the vectors and store the last capacity
 			sceneObj:beginUpdate()
 
-			app.lastPaletteTex = nil
-			app.lastSheetTex = nil
+			app.lastSolidPaletteTex = nil
+		end,
+		addTri = function(
+			self,
+			paletteTex,
+
+			-- per vtx
+			x1, y1, z1, w1, u1, v1,
+			x2, y2, z2, w2, u2, v2,
+			x3, y3, z3, w3, u3, v3,
+
+			-- divisor
+			x, y, w, h,
+			br, bg, bb, ba,
+			colorIndex, round, borderOnly
+		)
+			local sceneObj = self.sceneObj
+			local vertex = sceneObj.attrs.vertex.buffer.vec
+			local modelVertex = sceneObj.attrs.modelVertex.buffer.vec
+			local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
+			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
+			local extra2Attr = sceneObj.attrs.extra2Attr.buffer.vec
+
+			-- if the textures change or the program changes
+			if app.currentTriBuf ~= self then
+				app.currentTriBuf:flush()
+				self.currentTriBuf = self
+			end
+			if app.lastSolidPaletteTex ~= paletteTex then
+				self:flush()
+				app.lastSolidPaletteTex = paletteTex
+			end
+
+			-- push
+			local v
+			v = vertex:emplace_back()
+			v.x, v.y, v.z, v.w = x1, y1, z1, w1
+			v = vertex:emplace_back()
+			v.x, v.y, v.z, v.w = x2, y2, z2, w2
+			v = vertex:emplace_back()
+			v.x, v.y, v.z, v.w = x3, y3, z3, w3
+
+			v = modelVertex:emplace_back()
+			v.x, v.y = u1, v1
+			v = modelVertex:emplace_back()
+			v.x, v.y = u2, v2
+			v = modelVertex:emplace_back()
+			v.x, v.y = u3, v3
+
+			for j=0,2 do
+				v = boxAttr:emplace_back()
+				v.x, v.y, v.z, v.w = x, y, w, h
+
+				v = drawOverrideSolidAttr:emplace_back()
+				v.x, v.y, v.z, v.w = br, bg, bb, ba
+
+				v = extra2Attr:emplace_back()
+				v.x, v.y, v.z, v.w = colorIndex, round, borderOnly, 0
+			end
+		end,
+	}
+
+	self.spriteTriBuf = {
+		flush = function(self)
+			local sceneObj = self.sceneObj
+			if not sceneObj then return end	-- for some calls called before this is even created ...
+
+			-- flush the old
+			local n = #sceneObj.attrs.vertex.buffer.vec
+			if n == 0 then return end
+
+			-- resize if capacity changed, upload
+			for name,attr in pairs(sceneObj.attrs) do
+				attr.buffer:endUpdate()
+			end
+
+			-- bind textures
+			-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+			app.lastSpritePaletteTex:bind(1)
+			app.lastSpriteSheetTex:bind(0)
+
+			sceneObj.geometry.count = n
+
+			sceneObj.program:use()
+			sceneObj:enableAndSetAttrs()
+			sceneObj.geometry:draw()
+			sceneObj:disableAttrs()
+
+			-- reset the vectors and store the last capacity
+			sceneObj:beginUpdate()
+
+			app.lastSpritePaletteTex = nil
+			app.lastSpriteSheetTex = nil
 		end,
 		addTri = function(
 			self,
@@ -1726,20 +1874,23 @@ void main() {
 
 			br, bg, bb, ba
 		)
-			local sceneObj = app.spriteObj
+			local sceneObj = self.sceneObj
 			local vertex = sceneObj.attrs.vertex.buffer.vec
 			local texcoord = sceneObj.attrs.texcoord.buffer.vec
 			local extra = sceneObj.attrs.extra.buffer.vec
 			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
 
 			-- if the textures change or the program changes
-			if app.lastSheetTex ~= sheetTex
-			or app.lastPaletteTex ~= paletteTex
-			then
+			if app.currentTriBuf ~= self then
 				app.currentTriBuf:flush()
-
-				app.lastSheetTex = sheetTex
-				app.lastPaletteTex = paletteTex
+				self.currentTriBuf = self
+			end		
+			if app.lastSpriteSheetTex ~= sheetTex
+			or app.lastSpritePaletteTex ~= paletteTex
+			then
+				self:flush()
+				app.lastSpriteSheetTex = assert.type(sheetTex, 'table')
+				app.lastSpritePaletteTex = assert.type(paletteTex, 'table')
 			end
 
 			-- push
@@ -2032,7 +2183,7 @@ function AppVideo:setVideoMode(mode)
 	if self.currentVideoMode == mode then return end
 
 	-- first time we won't have a spriteObj to flush
-	if self.spriteObj then
+	if self.currentTriBuf then
 		self.currentTriBuf:flush()	-- flush before we redefine what info.spriteObj is, which .currentTriBuf:flush() depends on
 	end
 
@@ -2045,6 +2196,9 @@ function AppVideo:setVideoMode(mode)
 		self.quadSolidObj = info.quadSolidObj
 		self.spriteObj = info.spriteObj
 		self.quadMapObj = info.quadMapObj
+	
+		self.solidTriBuf.sceneObj = self.quadSolidObj
+		self.spriteTriBuf.sceneObj = self.spriteObj
 	else
 		error("unknown video mode "..tostring(mode))
 	end
@@ -2164,14 +2318,6 @@ function AppVideo:drawSolidRect(
 	borderOnly,
 	round
 )
-	self.currentTriBuf:flush()
---[[
-	if self.solidRectTriBuf ~= self.currentTriBuf then
-		self.currentTriBuf:flush()
-		self.solidRectTriBuf = self.currentTriBuf
-	end
---]]
-
 	if self.paletteRAM.dirtyCPU then
 		self.currentTriBuf:flush()
 		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
@@ -2181,29 +2327,46 @@ function AppVideo:drawSolidRect(
 		self.framebufferRAM:checkDirtyCPU()
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
-
-	local sceneObj = self.quadSolidObj
-
+	
 	if w < 0 then x,w = x+w,-w end
 	if h < 0 then y,h = y+h,-h end
 
-	self.paletteRAM.tex:bind(0)
-	local program = sceneObj.program
-	local programUniforms = program.uniforms
-	program:use()
+	local xR = x + w
+	local yR = y + h
 
-	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
-	gl.glUniform1i(programUniforms.borderOnly.loc, borderOnly or false)
-	gl.glUniform1i(programUniforms.round.loc, round or false)
-	gl.glUniform4f(programUniforms.box.loc, x, y, w, h)
+	local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, x, y)
+	local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, xR, y)
+	local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, x, yR)
+	local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, xR, yR)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
+	local blendSolidA = self.drawOverrideSolidA *  255
+	colorIndex = math.floor(colorIndex or 0)
+	round = round and 1 or 0
+	borderOnly = borderOnly and 1 or 0
 
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
-	sceneObj:disableAttrs()
+	self.solidTriBuf:addTri(
+		self.paletteRAM.tex,
+		xLL, yLL, zLL, wLL, x, y,
+		xRL, yRL, zRL, wRL, xR, y,
+		xLR, yLR, zLR, wLR, x, yR,
+		x, y, w, h,
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+		colorIndex, round, borderOnly
+	)
+
+	self.solidTriBuf:addTri(
+		self.paletteRAM.tex,
+		xLR, yLR, zLR, wLR, x, yR,
+		xRL, yRL, zRL, wRL, xR, y,
+		xRR, yRR, zRR, wRR, xR, yR,
+		x, y, w, h,
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+		colorIndex, round, borderOnly
+	)
+
+	-- TODO get rid of this
+	self.solidTriBuf:flush()
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2227,33 +2390,24 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.framebufferRAM:checkDirtyCPU()
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
-
-	local sceneObj = self.triSolidObj
-
-	local vertexBuffer = sceneObj.attrs.vertex.buffer
-	local vertex = vertexBuffer:beginUpdate()
-	local v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x1, y1, z1)
-	local v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x2, y2, z2)
-	local v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x3, y3, z3)
-	vertexBuffer:endUpdate()
-	vertexBuffer:unbind()
-
-	self.paletteRAM.tex:bind(0)
-	local program = sceneObj.program
-	local programUniforms = program.uniforms
-	program:use()
-
-	gl.glUniform1ui(programUniforms.colorIndex.loc, math.floor(colorIndex or 0))
+	
+	local v1x, v1y, v1z, v1w = vec3to4(self.mvMat.ptr, x1, y1, z1)
+	local v2x, v2y, v2z, v2w = vec3to4(self.mvMat.ptr, x2, y2, z2)
+	local v3x, v3y, v3z, v3w = vec3to4(self.mvMat.ptr, x3, y3, z3)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
-	sceneObj:disableAttrs()
+	self.solidTriBuf:addTri(
+		self.paletteRAM.tex,
+		v1x, v1y, v1z, v1w, 0, 0,
+		v2x, v2y, v2z, v2w, 1, 0,
+		v3x, v3y, v3z, v3w, 0, 1,
+		0, 0, 1, 1,		-- do box coords matter for tris if we're not using round or solid?
+		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
+		math.floor(colorIndex or 0), 0, 0
+	)
+	
+	-- TODO get rid of this
+	self.solidTriBuf:flush()
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2401,15 +2555,18 @@ function AppVideo:drawQuadTex(
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local blendSolidA = self.drawOverrideSolidA * 255
 
+	local xR = x + w
+	local yR = y + h
+
 	local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, x, y)
-	local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, x+w, y)
-	local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, x, y+h)
-	local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, x+w, y+h)
+	local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, xR, y)
+	local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, x, yR)
+	local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, xR, yR)
 
 	local uL = tx
 	local vL = ty
-	local uR = tx+tw
-	local vR = ty+th
+	local uR = tx + tw
+	local vR = ty + th
 
 	self.spriteTriBuf:addTri(
 		sheetTex,
@@ -2499,14 +2656,10 @@ function AppVideo:drawTexTri3D(
 	spriteMask
 )
 	sheetIndex = sheetIndex or 0
-	spriteBit = spriteBit or 0
-	spriteMask = spriteMask or 0xFF
-	transparentIndex = transparentIndex or -1
-	paletteIndex = paletteIndex or 0
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-
+	
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
+	
 	if sheetRAM.dirtyCPU then
 		self.currentTriBuf:flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
@@ -2520,6 +2673,12 @@ function AppVideo:drawTexTri3D(
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
+	
+	spriteBit = spriteBit or 0
+	spriteMask = spriteMask or 0xFF
+	transparentIndex = transparentIndex or -1
+	paletteIndex = paletteIndex or 0
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 
 	local vx1, vy1, vz1, vw1 = vec3to4(self.mvMat.ptr, x1, y1, z1)
 	local vx2, vy2, vz2, vw2 = vec3to4(self.mvMat.ptr, x2, y2, z2)
@@ -2759,12 +2918,19 @@ end
 -- and default x, y to the last cursor position
 function AppVideo:drawText(...)
 
-	self.currentTriBuf:flush()
-
 -- [[ drawQuad startup
-	self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
-	self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
-	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	if self.fontRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
+	end
+	if self.paletteRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+	end
+	if self.framebufferRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 --]]
 
