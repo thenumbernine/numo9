@@ -1680,9 +1680,7 @@ print('run thread dead')
 			-- hmm , gotta split this up now ...
 			-- default draw calls will use the paletteMenuTex
 			-- and special calls will use the paletteRAM
-			self.videoModeInfo[0].lineSolidObj.texs[1] = self.paletteMenuTex
-			self.videoModeInfo[0].triSolidObj.texs[1] = self.paletteMenuTex
-			self.videoModeInfo[0].quadSolidObj.texs[1] = self.paletteMenuTex
+			self.videoModeInfo[0].solidObj.texs[1] = self.paletteMenuTex
 			-- don't override spriteObj since all its textures are provided in function args
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
@@ -1726,9 +1724,7 @@ print('run thread dead')
 			self.currentTriBuf:flush()
 
 			-- restore palettes
-			self.videoModeInfo[0].lineSolidObj.texs[1] = self.paletteRAM.tex
-			self.videoModeInfo[0].triSolidObj.texs[1] = self.paletteRAM.tex
-			self.videoModeInfo[0].quadSolidObj.texs[1] = self.paletteRAM.tex
+			self.videoModeInfo[0].solidObj.texs[1] = self.paletteRAM.tex
 			self.videoModeInfo[0].spriteObj.texs[2] = self.paletteRAM.tex
 			self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteRAM.tex
 
