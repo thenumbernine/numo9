@@ -77,6 +77,7 @@ vec2=class{
 	unit=[v] v / math.max(1e-15, v:len()),
 	exp=[theta] vec2(math.cos(theta), math.sin(theta)),
 	cross=[a,b] a.x * b.y - a.y * b.x,	-- or :det() maybe
+	cplxmul = [a,b] vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),
 	__unm=[v] vec2(-v.x, -v.y),
 	__add=[a,b] vec2(vec2_getvalue(a, 1) + vec2_getvalue(b, 1), vec2_getvalue(a, 2) + vec2_getvalue(b, 2)),
 	__sub=[a,b] vec2(vec2_getvalue(a, 1) - vec2_getvalue(b, 1), vec2_getvalue(a, 2) - vec2_getvalue(b, 2)),

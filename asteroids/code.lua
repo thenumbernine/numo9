@@ -197,13 +197,14 @@ Shot.touch=[:,other]do
 			local mom = other.vel * other:calcMass()
 			local perturb1 = vec2.exp(math.random() * 2 * math.pi) * 2000
 			local perturb2 = vec2.exp(math.random() * 2 * math.pi) * 2000
+			local expAngle = vec2.exp(other.angle)
 			for s1=-1,1,2 do
 				for s2=-1,1,2 do
 					local newmom = .25 * mom + s1 * perturb1 + s2 * perturb2
 					local piece = Rock{
-						pos = self.pos,
-						angle = math.random() * 2 * math.pi,	-- TODO conserve this too
-						rot = math.random() * 2 * 20,			-- and this?
+						pos = self.pos + (.5 * other.size) * vec2.cplxmul(vec2(s1,s2), expAngle),
+						angle = other.angle,
+						rot = math.random() * 2 * 20,	-- TODO conserve this too?
 						size = other.size == other.sizeL and other.sizeM or other.sizeS,
 					}
 					piece.vel = newmom * (1 / piece:calcMass())
