@@ -1465,8 +1465,14 @@ void main() {
 				drawOverrideSolidAttr = {
 					--divisor = 3,
 					buffer = {
+						--[[
 						type = gl.GL_UNSIGNED_BYTE,
 						ctype = 'vec4ub_t',
+						--]]
+						-- [[
+						type = gl.GL_UNSIGNED_INT,
+						ctype = 'vec4ui_t',
+						--]]
 						--count = 0,
 						dim = 4,
 						useVec = true,
@@ -2289,26 +2295,41 @@ function AppVideo:flushSpriteTris()
 	extraBuffer:endUpdate()
 	drawOverrideSolidAttrBuffer:endUpdate()
 	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-	
+
+--[[ hmm, GLBuffer:endUpdate() sets count based on capacity ...
+-- where to track the GLBuffer size, and where to track the # of elements uploaded, and do we need to track both?
+vertexBuffer.count = n
+texcoordBuffer.count = n
+extraBuffer.count = n
+drawOverrideSolidAttrBuffer.count = n
+--]]
+
 	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
 	self.lastPaletteTex:bind(1)
 	self.lastSheetTex:bind(0)
 	
-	self.lastPaletteTex = nil
-	self.lastSheetTex = nil
-
 	sceneObj.geometry.count = n
 
+--print(sceneObj.geometry.count, vertexBuffer.count, texcoordBuffer.count, extraBuffer.count, drawOverrideSolidAttrBuffer.count)
 	sceneObj.program:use()
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()		
-	
+
+--[[
+	sceneObj.program:useNone()
+	self.lastPaletteTex:unbind(1)
+	self.lastSheetTex:unbind(0)
+--]]
+
 	-- reset the vectors and store the last capacity
 	vertexBuffer:beginUpdate()
 	texcoordBuffer:beginUpdate()
 	extraBuffer:beginUpdate()
 	drawOverrideSolidAttrBuffer:beginUpdate()
+	
+	self.lastPaletteTex = nil
+	self.lastSheetTex = nil
 end
 
 function AppVideo:addSpriteTri(
@@ -2732,8 +2753,6 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 			xLR, yLR, zLR, wLR, uL, th,
 			bi, 1, 0, paletteIndex,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA)
-
-self:flushSpriteTris()
 
 		x = x + scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
 	end
