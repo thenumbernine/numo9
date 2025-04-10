@@ -1438,7 +1438,7 @@ void main() {
 						type = gl.GL_UNSIGNED_SHORT,
 						dim = 4,
  						useVec = true,
-						ctype = 'vec4us_t',	-- I only need 16 bits to allow transparentIndex to be a value outside the typical 8 bits ... meanwhile spriteBit is only 3 bits ... tempting to use its upper bits to store transparentIndex's upper bits 
+						ctype = 'vec4us_t',	-- I only need 16 bits to allow transparentIndex to be a value outside the typical 8 bits ... meanwhile spriteBit is only 3 bits ... tempting to use its upper bits to store transparentIndex's upper bits
  					},
  				},
 				drawOverrideSolidAttr = {
@@ -1673,6 +1673,103 @@ void main() {
 		}),
 		--]]
 	}
+
+
+	local app = self
+	self.spriteTriBuf = {
+		flush = function(self)
+			local sceneObj = app.spriteObj
+
+			-- flush the old
+			local n = #sceneObj.attrs.vertex.buffer.vec
+			if n == 0 then return end
+
+			-- resize if capacity changed, upload
+			for name,attr in pairs(sceneObj.attrs) do
+				attr.buffer:endUpdate()
+			end
+			gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+
+			-- bind textures
+			-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+			app.lastPaletteTex:bind(1)
+			app.lastSheetTex:bind(0)
+
+			sceneObj.geometry.count = n
+
+			sceneObj.program:use()
+			sceneObj:enableAndSetAttrs()
+			sceneObj.geometry:draw()
+			sceneObj:disableAttrs()
+
+			-- reset the vectors and store the last capacity
+			sceneObj:beginUpdate()
+
+			app.lastPaletteTex = nil
+			app.lastSheetTex = nil
+		end,
+		addTri = function(
+			self,
+			sheetTex,
+			paletteTex,
+
+			-- per vtx
+			x1, y1, z1, w1, u1, v1,
+			x2, y2, z2, w2, u2, v2,
+			x3, y3, z3, w3, u3, v3,
+
+			-- divisor
+			spriteBit,
+			spriteMask,
+			transparentIndex,
+			paletteIndex,
+
+			br, bg, bb, ba
+		)
+			local sceneObj = app.spriteObj
+			local vertex = sceneObj.attrs.vertex.buffer.vec
+			local texcoord = sceneObj.attrs.texcoord.buffer.vec
+			local extra = sceneObj.attrs.extra.buffer.vec
+			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
+
+			-- if the textures change or the program changes
+			if app.lastSheetTex ~= sheetTex
+			or app.lastPaletteTex ~= paletteTex
+			then
+				app.currentTriBuf:flush()
+
+				app.lastSheetTex = sheetTex
+				app.lastPaletteTex = paletteTex
+			end
+
+			-- push
+			local v
+			v = vertex:emplace_back()
+			v.x, v.y, v.z, v.w = x1, y1, z1, w1
+			v = vertex:emplace_back()
+			v.x, v.y, v.z, v.w = x2, y2, z2, w2
+			v = vertex:emplace_back()
+			v.x, v.y, v.z, v.w = x3, y3, z3, w3
+
+			v = texcoord:emplace_back()
+			v.x, v.y = u1, v1
+			v = texcoord:emplace_back()
+			v.x, v.y = u2, v2
+			v = texcoord:emplace_back()
+			v.x, v.y = u3, v3
+
+			for j=0,2 do
+				v = extra:emplace_back()
+				v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+
+				v = drawOverrideSolidAttr:emplace_back()
+				v.x, v.y, v.z, v.w = br, bg, bb, ba
+			end
+		end,
+	}
+
+	-- what we were rendering / what to flush if we change gl state etc
+	self.currentTriBuf = self.spriteTriBuf
 
 	self:resetVideo()
 end
@@ -1936,7 +2033,7 @@ function AppVideo:setVideoMode(mode)
 
 	-- first time we won't have a spriteObj to flush
 	if self.spriteObj then
-		self:flushSpriteTris()	-- flush before we redefine what info.spriteObj is, which flushSpriteTris depends on
+		self.currentTriBuf:flush()	-- flush before we redefine what info.spriteObj is, which .currentTriBuf:flush() depends on
 	end
 
 	local info = self.videoModeInfo[mode]
@@ -2034,6 +2131,7 @@ function AppVideo:mvMatFromRAM()
 end
 
 function AppVideo:resetFont()
+	self.currentTriBuf:flush()
 	self.fontRAM:checkDirtyGPU()
 	resetROMFont(self.ram.bank[0].font)
 	ffi.copy(self.banks.v[0].font, self.ram.bank[0].font, fontInBytes)
@@ -2066,10 +2164,22 @@ function AppVideo:drawSolidRect(
 	borderOnly,
 	round
 )
-	self:flushSpriteTris()
+	self.currentTriBuf:flush()
+--[[
+	if self.solidRectTriBuf ~= self.currentTriBuf then
+		self.currentTriBuf:flush()
+		self.solidRectTriBuf = self.currentTriBuf
+	end
+--]]
 
-	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
-	self.framebufferRAM:checkDirtyCPU()
+	if self.paletteRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+	end
+	if self.framebufferRAM.dirtyCPU then
+		self.currentTriBuf:flush()
+		self.framebufferRAM:checkDirtyCPU()
+	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	local sceneObj = self.quadSolidObj
@@ -2112,8 +2222,8 @@ function AppVideo:drawBorderRect(
 end
 
 function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
-	self:flushSpriteTris()
-	
+	self.currentTriBuf:flush()
+
 	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.framebufferRAM:checkDirtyCPU()
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
@@ -2154,8 +2264,8 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 end
 
 function AppVideo:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
-	self:flushSpriteTris()
-	
+	self.currentTriBuf:flush()
+
 	self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	self.framebufferRAM:checkDirtyCPU()
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
@@ -2189,8 +2299,8 @@ end
 
 local mvMatCopy = ffi.new('float[16]')
 function AppVideo:clearScreen(colorIndex)
-	self:flushSpriteTris()
-	
+	self.currentTriBuf:flush()
+
 	gl.glDisable(gl.GL_SCISSOR_TEST)
 	-- which is faster, push/pop the matrix, or reassign the uniform?
 	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
@@ -2208,7 +2318,7 @@ function AppVideo:clearScreen(colorIndex)
 end
 
 function AppVideo:setClipRect(x, y, w, h)
-	self:flushSpriteTris()
+	self.currentTriBuf:flush()
 
 	-- NOTICE the ram is only useful for reading, not writing, as it won't invoke a glScissor call
 	-- ... should I change that?
@@ -2226,9 +2336,9 @@ AppVideo.drawOverrideSolidG = 0
 AppVideo.drawOverrideSolidB = 0
 AppVideo.drawOverrideSolidA = 0
 function AppVideo:setBlendMode(blendMode)
-	if self.currentBlendMode == blendMode then return end	
-	
-	self:flushSpriteTris()
+	if self.currentBlendMode == blendMode then return end
+
+	self.currentTriBuf:flush()
 
 	if blendMode >= 8 then
 		blendMode = -1
@@ -2267,96 +2377,6 @@ function AppVideo:setBlendMode(blendMode)
 	self.currentBlendMode = blendMode
 end
 
-function AppVideo:flushSpriteTris()
-	local sceneObj = self.spriteObj
-	
-	-- flush the old
-	local n = #sceneObj.attrs.vertex.buffer.vec
-	if n == 0 then return end
-
-	-- resize if capacity changed, upload
-	for name,attr in pairs(sceneObj.attrs) do
-		attr.buffer:endUpdate()
-	end
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-
-	-- bind textures
-	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
-	self.lastPaletteTex:bind(1)
-	self.lastSheetTex:bind(0)
-
-	sceneObj.geometry.count = n
-
-	sceneObj.program:use()
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
-	sceneObj:disableAttrs()		
-
-	-- reset the vectors and store the last capacity
-	sceneObj:beginUpdate()
-	
-	self.lastPaletteTex = nil
-	self.lastSheetTex = nil
-end
-
-function AppVideo:addSpriteTri(
-	sheetTex,
-	paletteTex,
-
-	-- per vtx
-	x1, y1, z1, w1, u1, v1,
-	x2, y2, z2, w2, u2, v2,
-	x3, y3, z3, w3, u3, v3,
-
-	-- divisor
-	spriteBit,
-	spriteMask,
-	transparentIndex,
-	paletteIndex,
-	
-	br, bg, bb, ba
-)
-	local sceneObj = self.spriteObj
-	local vertex = sceneObj.attrs.vertex.buffer.vec
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
-	local extra = sceneObj.attrs.extra.buffer.vec
-	local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
-
-	-- if the textures change or the program changes
-	if self.lastSheetTex ~= sheetTex
-	or self.lastPaletteTex ~= paletteTex
-	then
-		self:flushSpriteTris()
-
-		self.lastSheetTex = sheetTex
-		self.lastPaletteTex = paletteTex
-	end
-
-	-- push
-	local v
-	v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = x1, y1, z1, w1
-	v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = x2, y2, z2, w2
-	v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = x3, y3, z3, w3
-
-	v = texcoord:emplace_back()
-	v.x, v.y = u1, v1
-	v = texcoord:emplace_back()
-	v.x, v.y = u2, v2
-	v = texcoord:emplace_back()
-	v.x, v.y = u3, v3
-
-	for j=0,2 do
-		v = extra:emplace_back()
-		v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-
-		v = drawOverrideSolidAttr:emplace_back()
-		v.x, v.y, v.z, v.w = br, bg, bb, ba
-	end
-end
-
 --[[
 'lower level' than 'drawQuad'
 accepts a texture as arguments, so the UI/Editor can draw with textures outside of the RAM
@@ -2391,7 +2411,7 @@ function AppVideo:drawQuadTex(
 	local uR = tx+tw
 	local vR = ty+th
 
-	self:addSpriteTri(
+	self.spriteTriBuf:addTri(
 		sheetTex,
 		paletteTex,
 		xLL, yLL, zLL, wLL, uL, vL,
@@ -2401,7 +2421,7 @@ function AppVideo:drawQuadTex(
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA
 	)
 
-	self:addSpriteTri(
+	self.spriteTriBuf:addTri(
 		sheetTex,
 		paletteTex,
 		xLR, yLR, zLR, wLR, uL, vR,
@@ -2440,15 +2460,15 @@ function AppVideo:drawQuad(
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
-		self:flushSpriteTris()
+		self.currentTriBuf:flush()
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	if self.paletteRAM.dirtyCPU then
-		self:flushSpriteTris()
+		self.currentTriBuf:flush()
 		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
-		self:flushSpriteTris()
+		self.currentTriBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
@@ -2488,24 +2508,24 @@ function AppVideo:drawTexTri3D(
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
-		self:flushSpriteTris()
+		self.currentTriBuf:flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	if self.paletteRAM.dirtyCPU then
-		self:flushSpriteTris()
+		self.currentTriBuf:flush()
 		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
-		self:flushSpriteTris()
+		self.currentTriBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
-	
+
 	local vx1, vy1, vz1, vw1 = vec3to4(self.mvMat.ptr, x1, y1, z1)
 	local vx2, vy2, vz2, vw2 = vec3to4(self.mvMat.ptr, x2, y2, z2)
 	local vx3, vy3, vz3, vw3 = vec3to4(self.mvMat.ptr, x3, y3, z3)
 
-	self:addSpriteTri(
+	self.spriteTriBuf:addTri(
 		sheetRAM.tex,
 		self.paletteRAM.tex,
 		vx1, vy1, vz1, vw1, u1, v1,
@@ -2592,8 +2612,8 @@ function AppVideo:drawMap(
 	draw16Sprites,	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
 	sheetIndex
 )
-	self:flushSpriteTris()
-	
+	self.currentTriBuf:flush()
+
 	sheetIndex = sheetIndex or 1
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
@@ -2709,7 +2729,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		local uL = by / tonumber(texSizeInTiles.x)
 		local uR = uL + tw
 
-		self:addSpriteTri(
+		self.spriteTriBuf:addTri(
 			fontTex,
 			paletteTex,
 			xLL, yLL, zLL, wLL, uL, 0,
@@ -2718,7 +2738,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 			bi, 1, 0, paletteIndex,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA)
 
-		self:addSpriteTri(
+		self.spriteTriBuf:addTri(
 			fontTex,
 			paletteTex,
 			xRL, yRL, zRL, wRL, uR, 0,
@@ -2739,7 +2759,7 @@ end
 -- and default x, y to the last cursor position
 function AppVideo:drawText(...)
 
-	self:flushSpriteTris()
+	self.currentTriBuf:flush()
 
 -- [[ drawQuad startup
 	self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
