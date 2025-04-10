@@ -45,7 +45,7 @@ function Console:init(args)
 	app:clearScreen(0xf0)
 
 	self:coolPrint('NuMo-9 ver. '..self.app.version)
-	self:coolPrint'https://github.com/thenumbernine/numo9 (c) 2024'
+	self:coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
 	self:coolPrint'...OpenResty LuaJIT'
 	self:coolPrint('...'..frameBufferSize.x..'x'..frameBufferSize.y..'x8bpp framebuffer')
 	--self:print"type help() for help" -- not really

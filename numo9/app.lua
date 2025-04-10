@@ -1651,12 +1651,13 @@ print('run thread dead')
 				end
 			end
 		else
-			-- nothign in focus , let the console know by drawing some kind of background pattern ... or meh ...
+			-- nothing in focus , let the console know by drawing some kind of background pattern ... or meh ...
 			self:clearScreen(0xf0)
 		end
 
 		-- now run the console and editor, separately, if it's open
 		-- this way server can issue console commands while the game is running
+		self:flushSpriteTris()	-- flush before gl state change
 		gl.glDisable(gl.GL_BLEND)
 
 		-- if we're using menu then render to the framebufferMenuTex
@@ -1686,7 +1687,7 @@ print('run thread dead')
 			self.videoModeInfo[0].lineSolidObj.texs[1] = self.paletteMenuTex
 			self.videoModeInfo[0].triSolidObj.texs[1] = self.paletteMenuTex
 			self.videoModeInfo[0].quadSolidObj.texs[1] = self.paletteMenuTex
-			-- don't override quadSpriteObj since all its textures are provided in function args
+			-- don't override spriteObj since all its textures are provided in function args
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
 
@@ -1725,12 +1726,14 @@ print('run thread dead')
 					end
 				end
 			end
+		
+			self:flushSpriteTris()
 
 			-- restore palettes
 			self.videoModeInfo[0].lineSolidObj.texs[1] = self.paletteRAM.tex
 			self.videoModeInfo[0].triSolidObj.texs[1] = self.paletteRAM.tex
 			self.videoModeInfo[0].quadSolidObj.texs[1] = self.paletteRAM.tex
-			self.videoModeInfo[0].quadSpriteObj.texs[2] = self.paletteRAM.tex
+			self.videoModeInfo[0].spriteObj.texs[2] = self.paletteRAM.tex
 			self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteRAM.tex
 
 			self:setFramebufferTex(self.framebufferRAM.tex)
