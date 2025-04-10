@@ -1023,15 +1023,23 @@ precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec4 vertex;
 layout(location=1) in vec2 modelVertex;
-layout(location=2) in vec4 boxAttr;
+
+/*
+.x = flags:
+	1 = round
+	2 = borderOnly
+.y = colorIndex
+*/
+layout(location=2) in uvec4 extraAttr;
+
 layout(location=3) in vec4 drawOverrideSolidAttr;
-layout(location=4) in ivec4 extra2Attr;	// colorIndex, round, borderOnly
+layout(location=4) in vec4 boxAttr;
 
 out vec2 pixelPos;
 out vec2 pcv;	// unnecessary except for the sake of 'round' ...
 flat out vec4 box;
 flat out vec4 drawOverrideSolid;
-flat out ivec4 extra2;
+flat out uvec4 extra;
 
 //instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
 const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
@@ -1045,7 +1053,7 @@ void main() {
 	gl_Position.xy -= 1.;
 	box = boxAttr;
 	drawOverrideSolid = drawOverrideSolidAttr;
-	extra2 = extra2Attr;
+	extra = extraAttr;
 }
 ]],				{
 					glslnumber = glslnumber,
@@ -1059,7 +1067,7 @@ in vec2 pcv;		// framebuffer pixel coordinates before transform , so they are sp
 in vec2 pixelPos;	// framebuffer pixel coordaintes after transform, so they really are framebuffer coordinates
 flat in vec4 box;	//x,y,w,h
 flat in vec4 drawOverrideSolid;
-flat in ivec4 extra2;	// colorIndex, round, borderOnly
+flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 
 layout(location=0) out <?=fragType?> fragColor;
 
@@ -1072,9 +1080,9 @@ float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
 
 void main() {
-	uint colorIndex = extra2.x;
-	bool round = extra2.y != 0;
-	bool borderOnly = extra2.z != 0;
+	bool round = (extra.x & 1u) != 0u;
+	bool borderOnly = (extra.x & 2u) != 0u;
+	uint colorIndex = extra.y;
 
 	if (round) {
 		// midpoint-circle / Bresenham algorithm, like Tic80 uses:
@@ -1182,7 +1190,7 @@ void main() {
 						ctype = 'vec4ub_t',			-- cpu buffer will hold vec4ub_t's
 					},
 				},
-				extra2Attr = {
+				extraAttr = {
 					type = gl.GL_UNSIGNED_BYTE,
 					--divisor = 3,
 					buffer = {
@@ -1205,12 +1213,12 @@ precision highp usampler2D;	// needed by #version 300 es
 
 layout(location=0) in vec4 vertex;
 layout(location=1) in vec2 texcoord;
-layout(location=2) in uvec4 extra;
+layout(location=2) in uvec4 extraAttr;
 layout(location=3) in vec4 drawOverrideSolidAttr;
 
 out vec2 tcv;
 out vec2 pixelPos;
-flat out uvec4 extrav;
+flat out uvec4 extra;
 flat out vec4 drawOverrideSolid;
 
 const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
@@ -1218,7 +1226,7 @@ const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
 
 void main() {
 	tcv = texcoord;
-	extrav = extra;
+	extra = extraAttr;
 	drawOverrideSolid = drawOverrideSolidAttr;
 	gl_Position = vertex;
 	pixelPos = gl_Position.xy;
@@ -1235,7 +1243,7 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
 in vec2 pixelPos;
-flat in uvec4 extrav;
+flat in uvec4 extra;
 flat in vec4 drawOverrideSolid;
 
 layout(location=0) out <?=fragType?> fragColor;
@@ -1270,8 +1278,6 @@ uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
 
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 
-//uniform vec4 drawOverrideSolid;
-
 <?=glslCode5551?>
 
 void main() {
@@ -1286,10 +1292,10 @@ void main() {
 		}
 		..[[.r;
 
-	colorIndex >>= extrav.x;				//spriteBit
-	colorIndex &= extrav.y;					//spriteMask
-	if (colorIndex == extrav.z) discard;	//transparentIndex
-	colorIndex += extrav.w;					//paletteIndex
+	colorIndex >>= extra.x;					//spriteBit
+	colorIndex &= extra.y;					//spriteMask
+	if (colorIndex == extra.z) discard;		//transparentIndex
+	colorIndex += extra.w;					//paletteIndex
 
 <?=info.colorOutput?>
 
@@ -1312,10 +1318,10 @@ void main() {
 ..[[.r;
 	uint colorIndex = uint(colorIndexNorm * 255. + .5);
 
-	colorIndex >>= extrav.x;				//spriteBit
-	colorIndex &= extrav.y;					//spriteMask
-	if (colorIndex == extrav.z) discard;	//transparentIndex
-	colorIndex += extrav.w;					//paletteIndex
+	colorIndex >>= extra.x;					//spriteBit
+	colorIndex &= extra.y;					//spriteMask
+	if (colorIndex == extra.z) discard;		//transparentIndex
+	colorIndex += extra.w;					//paletteIndex
 
 <?=info.colorOutput?>
 <? end ?>
@@ -1355,7 +1361,7 @@ void main() {
 						useVec = true,
 					},
 				},
-				extra = {
+				extraAttr = {
 					type = gl.GL_UNSIGNED_SHORT,
 					--divisor = 3,				-- TODO
  					buffer = {
@@ -1645,14 +1651,14 @@ void main() {
 			-- divisor
 			x, y, w, h,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-			colorIndex, round, borderOnly
+			drawFlags, colorIndex
 		)
 			local sceneObj = self.sceneObj
 			local vertex = sceneObj.attrs.vertex.buffer.vec
 			local modelVertex = sceneObj.attrs.modelVertex.buffer.vec
 			local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
 			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
-			local extra2Attr = sceneObj.attrs.extra2Attr.buffer.vec
+			local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
 
 			-- if the textures change or the program changes
 			if app.currentTriBuf ~= self then
@@ -1687,8 +1693,8 @@ void main() {
 				v = drawOverrideSolidAttr:emplace_back()
 				v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
 
-				v = extra2Attr:emplace_back()
-				v.x, v.y, v.z, v.w = colorIndex, round, borderOnly, 0
+				v = extraAttr:emplace_back()
+				v.x, v.y, v.z, v.w = drawFlags, colorIndex, 0, 0
 			end
 		end,
 	}
@@ -1746,7 +1752,7 @@ void main() {
 			local sceneObj = self.sceneObj
 			local vertex = sceneObj.attrs.vertex.buffer.vec
 			local texcoord = sceneObj.attrs.texcoord.buffer.vec
-			local extra = sceneObj.attrs.extra.buffer.vec
+			local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
 			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
 
 			-- if the textures change or the program changes
@@ -1779,7 +1785,7 @@ void main() {
 			v.x, v.y = u3, v3
 
 			for j=0,2 do
-				v = extra:emplace_back()
+				v = extraAttr:emplace_back()
 				v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
 
 				v = drawOverrideSolidAttr:emplace_back()
@@ -2208,9 +2214,13 @@ function AppVideo:drawSolidRect(
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local blendSolidA = self.drawOverrideSolidA *  255
+	
+	local drawFlags = bit.bor(
+		round and 1 or 0,
+		borderOnly and 2 or 0
+	)
+
 	colorIndex = math.floor(colorIndex or 0)
-	round = round and 1 or 0
-	borderOnly = borderOnly and 1 or 0
 
 	self.solidTriBuf:addTri(
 		self.paletteRAM.tex,
@@ -2219,7 +2229,8 @@ function AppVideo:drawSolidRect(
 		xLR, yLR, zLR, wLR, x, yR,
 		x, y, w, h,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-		colorIndex, round, borderOnly
+		drawFlags, 
+		colorIndex
 	)
 
 	self.solidTriBuf:addTri(
@@ -2229,7 +2240,8 @@ function AppVideo:drawSolidRect(
 		xRR, yRR, zRR, wRR, xR, yR,
 		x, y, w, h,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-		colorIndex, round, borderOnly
+		drawFlags, 
+		colorIndex
 	)
 
 	-- TODO get rid of this
@@ -2274,7 +2286,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 		v3x, v3y, v3z, v3w, 0, 1,
 		0, 0, 1, 1,		-- do box coords matter for tris if we're not using round or solid?
 		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
-		math.floor(colorIndex or 0), 0, 0
+		0, math.floor(colorIndex or 0)
 	)
 
 	-- TODO get rid of this
@@ -2341,7 +2353,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 		xLR, yLR, zLR, wLR, 0, 1,
 		0, 0, 1, 1,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-		colorIndex, 0, 0
+		0, colorIndex
 	)
 
 	self.solidTriBuf:addTri(
@@ -2351,7 +2363,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 		xRR, yRR, zRR, wRR, 1, 1,
 		0, 0, 1, 1,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-		colorIndex, 0, 0
+		0, colorIndex
 	)
 
 	-- TODO get rid of this
@@ -2538,6 +2550,8 @@ function AppVideo:drawQuad(
 		self.currentTriBuf:flush()
 		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
+	
+	-- TODO only this before we actually do the :draw()
 	if self.framebufferRAM.dirtyCPU then
 		self.currentTriBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
@@ -2552,6 +2566,7 @@ function AppVideo:drawQuad(
 		spriteBit, spriteMask, transparentIndex, paletteIndex
 	)
 
+	-- TODO only this after we actually do the :draw()
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
