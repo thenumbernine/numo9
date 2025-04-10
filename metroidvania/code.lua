@@ -270,27 +270,27 @@ Shot.touch=[:,o]do
 	return false	-- 'false' means 'dont collide'
 end
 local checkBreakDoor
-checkBreakDoor = [keyIndex, x, y] do
+checkBreakDoor = [keyIndex, x, y, origMapType] do
 	local doorColorIndex = (mget(x,y) >> 6) & 0xf0
 	if keyColorIndexes[keyIndex] ~= doorColorIndex then return end
 	mset(x,y,mapTypeForName.empty.index)
 	wait(.1, []do
 		for _,dir in pairs(dirvecs) do
 			local ox, oy = x+dir.x, y+dir.y
-			if mget(ox, oy) == mapTypeForName.door.index then
-				checkBreakDoor(keyIndex, ox, oy)
+			if mget(ox, oy) & 0x3ff == mapTypeForName.door.index then
+				checkBreakDoor(keyIndex, ox, oy, origMapType)
 			end
 		end
 	end)
 	wait(3, []do
-		mset(x,y,mapTypeForName.door.index)
+		mset(x,y,origMapType)
 	end)
 end
 Shot.touchMap = [:,x,y,t,ti] do
 	if ti & 0x3ff == mapTypeForName.door.index
 	and Player:isa(self.shooter)
 	then
-		checkBreakDoor(self.weapon, x, y)	-- conflating weapon and keyIndex once again ... one should be color, another should be attack-type
+		checkBreakDoor(self.weapon, x, y, ti)	-- conflating weapon and keyIndex once again ... one should be color, another should be attack-type
 	end
 	if t.flags & flags.solid ~= 0 then
 		self.removeMe = true

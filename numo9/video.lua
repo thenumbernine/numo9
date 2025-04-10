@@ -1417,63 +1417,6 @@ void main() {
 			},
 		}
 
-		info.drawTextObj = GLSceneObject{
-			program = spriteProgram,
-			vertexes = {
-				--divisor = 1,
-				count = 6,
-				dim = 4,
-				useVec = true,
-				usage = gl.GL_DYNAMIC_DRAW,
-			},
-			attrs = {
-				texcoord = {
-					--divisor = 1,
-					buffer = {
-						count = 6,
-						dim = 2,
-						useVec = true,
-						usage = gl.GL_DYNAMIC_DRAW,
-					},
-				},
-				extra = {
-					--divisor = 3,
- 					buffer = {
-						--[[ TODO would be nice
-						glslType = gl.GL_UNSIGNED_SHORT,
-						type = gl.GL_UNSIGNED_SHORT,
-						ctype = 'vec4us_t',
-						--]]
-						-- [[
-						type = gl.GL_UNSIGNED_INT,
-						ctype = 'vec4ui_t',
-						--]]
-
-						count = 2,
-
-						dim = 4,
- 						useVec = true,
- 						usage = gl.GL_DYNAMIC_DRAW,
- 					},
- 				},
-				drawOverrideSolidAttr = {
-					--divisor = 3,
-					buffer = {
-						type = gl.GL_UNSIGNED_BYTE,
-						ctype = 'vec4ub_t',
-						count = 2,
-						dim = 4,
-						useVec = true,
-						usage = gl.GL_DYNAMIC_DRAW,
-					},
-				},
-			},
-			geometry = {
-				mode = gl.GL_TRIANGLES,	-- QUADS would be nice ...
-				count = 6,
-			},
-		}
-
 --DEBUG:print('mode '..infoIndex..' quadSpriteObj')
 		info.quadSpriteObj = GLSceneObject{
 			program = spriteProgram,
@@ -1481,7 +1424,7 @@ void main() {
 				--divisor = 1,
 				dim = 4,
 				useVec = true,
-				count = 6,
+				--count = 0,
 				usage = gl.GL_DYNAMIC_DRAW,
 			},
 			attrs = {
@@ -1490,7 +1433,7 @@ void main() {
 					buffer = {
 						dim = 2,
 						useVec = true,
-						count = 6,
+						--count = 0,
 						usage = gl.GL_DYNAMIC_DRAW,
 					},
 				},
@@ -1508,10 +1451,10 @@ void main() {
 						--]]
 
 						-- [[	-- TODO would be nice
-						count = 2,
+						--count = 0,
 						--]]
 						--[[
- 						count = 6,
+ 						--count = 6,
 						--]]
 
 						dim = 4,
@@ -1524,7 +1467,7 @@ void main() {
 					buffer = {
 						type = gl.GL_UNSIGNED_BYTE,
 						ctype = 'vec4ub_t',
-						count = 2,
+						--count = 0,
 						dim = 4,
 						useVec = true,
 						usage = gl.GL_DYNAMIC_DRAW,
@@ -1533,69 +1476,7 @@ void main() {
 			},
 			geometry = {
 				mode = gl.GL_TRIANGLES,
-				count = 6,
-			},
-		}
-
-		info.triSpriteObj = GLSceneObject{
-			program = spriteProgram,
-			vertexes = {
-				--divisor = 1,
-				dim = 4,
-				useVec = true,
-				count = 3,
-				usage = gl.GL_DYNAMIC_DRAW,
-			},
-			attrs = {
-				texcoord = {
-					--divisor = 1,
-					buffer = {
-						dim = 2,
-						useVec = true,
-						count = 3,
-						usage = gl.GL_DYNAMIC_DRAW,
-					},
-				},
-				extra = {
-					--divisor = 3,
- 					buffer = {
-						--[[ TODO would be nice
-						glslType = gl.GL_UNSIGNED_SHORT,
-						type = gl.GL_UNSIGNED_SHORT,
-						ctype = 'vec4us_t',
-						--]]
-						-- [[
-						type = gl.GL_UNSIGNED_INT,
-						ctype = 'vec4ui_t',
-						--]]
-
-						-- [[	-- TODO would be nice
-						count = 1,
-						--]]
-						--[[
- 						count = 3,
-						--]]
-
-						dim = 4,
- 						useVec = true,
- 						usage = gl.GL_DYNAMIC_DRAW,
- 					},
- 				},
-				drawOverrideSolidAttr = {
-					--divisor = 3,
-					buffer = {
-						type = gl.GL_UNSIGNED_BYTE,
-						ctype = 'vec4ub_t',
-						count = 1,
-						dim = 4,
-						useVec = true,
-						usage = gl.GL_DYNAMIC_DRAW,
-					},
-				},
-			},
-			geometry = {
-				mode = gl.GL_TRIANGLES,
-				count = 3,
+				--count = 0,
 			},
 		}
 
@@ -2080,9 +1961,7 @@ function AppVideo:setVideoMode(mode)
 		self.triSolidObj = info.triSolidObj
 		self.quadSolidObj = info.quadSolidObj
 		self.quadSpriteObj = info.quadSpriteObj
-		self.triSpriteObj = info.triSpriteObj
 		self.quadMapObj = info.quadMapObj
-		self.drawTextObj = info.drawTextObj
 	else
 		error("unknown video mode "..tostring(mode))
 	end
@@ -2260,6 +2139,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	local v = vertex:emplace_back()
 	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x3, y3, z3)
 	vertexBuffer:endUpdate()
+	vertexBuffer:unbind()
 
 	self.paletteRAM.tex:bind(0)
 	local program = sceneObj.program
@@ -2384,23 +2264,109 @@ function AppVideo:setBlendMode(blendMode)
 	end
 end
 
-function AppVideo:addTri(
+function AppVideo:flushSpriteTris()
+	local sceneObj = self.quadSpriteObj
+	
+	-- flush the old
+	local vertexBuffer = sceneObj.attrs.vertex.buffer
+	local vertex = vertexBuffer.vec
+
+	local n = #vertex
+	if n == 0 then return end
+
+	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
+	local texcoord = texcoordBuffer.vec
+	
+	local extraBuffer = sceneObj.attrs.extra.buffer
+	local extra = extraBuffer.vec
+	
+	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
+	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
+
+	-- resize if capacity changed, upload
+	vertexBuffer:endUpdate()
+	texcoordBuffer:endUpdate()
+	extraBuffer:endUpdate()
+	drawOverrideSolidAttrBuffer:endUpdate()
+	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	
+	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+	self.lastPaletteTex:bind(1)
+	self.lastSheetTex:bind(0)
+	
+	self.lastPaletteTex = nil
+	self.lastSheetTex = nil
+
+	sceneObj.geometry.count = n
+
+	sceneObj.program:use()
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()		
+	
+	-- reset the vectors and store the last capacity
+	vertexBuffer:beginUpdate()
+	texcoordBuffer:beginUpdate()
+	extraBuffer:beginUpdate()
+	drawOverrideSolidAttrBuffer:beginUpdate()
+end
+
+function AppVideo:addSpriteTri(
 	sheetTex,
 	paletteTex,
 
 	-- per vtx
-	x1, y1, z1, u1, v1,
-	x2, y2, z2, u2, v2,
-	x3, y3, z3, u3, v3,
+	x1, y1, z1, w1, u1, v1,
+	x2, y2, z2, w2, u2, v2,
+	x3, y3, z3, w3, u3, v3,
 
 	-- divisor
-	br, bg, bb, ba,
 	spriteBit,
 	spriteMask,
 	transparentIndex,
-	paletteIndex
+	paletteIndex,
+	
+	br, bg, bb, ba
 )
+	local sceneObj = self.quadSpriteObj
+	local vertex = sceneObj.attrs.vertex.buffer.vec
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	local extra = sceneObj.attrs.extra.buffer.vec
+	local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
 
+	-- if the textures change or the program changes
+	if self.lastSheetTex ~= sheetTex
+	or self.lastPaletteTex ~= paletteTex
+	then
+		self:flushSpriteTris()
+
+		self.lastSheetTex = sheetTex
+		self.lastPaletteTex = paletteTex
+	end
+
+	-- push
+	local v
+	v = vertex:emplace_back()
+	v.x, v.y, v.z, v.w = x1, y1, z1, w1
+	v = vertex:emplace_back()
+	v.x, v.y, v.z, v.w = x2, y2, z2, w2
+	v = vertex:emplace_back()
+	v.x, v.y, v.z, v.w = x3, y3, z3, w3
+
+	v = texcoord:emplace_back()
+	v.x, v.y = u1, v1
+	v = texcoord:emplace_back()
+	v.x, v.y = u2, v2
+	v = texcoord:emplace_back()
+	v.x, v.y = u3, v3
+
+	for j=0,2 do
+		v = extra:emplace_back()
+		v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
+
+		v = drawOverrideSolidAttr:emplace_back()
+		v.x, v.y, v.z, v.w = br, bg, bb, ba
+	end
 end
 
 --[[
@@ -2410,90 +2376,56 @@ doesn't care about tex dirty (cuz its probably a tex outside RAM)
 doesn't care about framebuffer dirty (cuz its probably the editor framebuffer)
 --]]
 function AppVideo:drawQuadTex(
+	sheetTex,
+	paletteTex,
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox
-	paletteIndex,
-	transparentIndex,
 	spriteBit,
-	spriteMask
+	spriteMask,
+	transparentIndex,
+	paletteIndex
 )
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
 	transparentIndex = transparentIndex or -1
 	paletteIndex = paletteIndex or 0
+
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	local blendSolidA = self.drawOverrideSolidA * 255
 
-	local sceneObj = self.quadSpriteObj
+	local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, x, y)
+	local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, x+w, y)
+	local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, x, y+h)
+	local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, x+w, y+h)
 
-	-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
-	local vertexBuffer = sceneObj.attrs.vertex.buffer
-	local vertex = vertexBuffer.vec
-	vertex:resize(6)
-	local v = vertex.v+0
-	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y)
-	v = v + 1
-	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
-	v = v + 1
-	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
-	v = v + 1
-	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
-	v = v + 1
-	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
-	v = v + 1
-	v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y+h)
+	local uL = tx
+	local vL = ty
+	local uR = tx+tw
+	local vR = ty+th
 
-	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
-	local texcoord = texcoordBuffer.vec
-	texcoord:resize(6)
-	v = texcoord.v+0
-	v.x, v.y = tx, ty
-	v = v + 1
-	v.x, v.y = tx+tw, ty
-	v = v + 1
-	v.x, v.y = tx, ty+th
-	v = v + 1
-	v.x, v.y = tx, ty+th
-	v = v + 1
-	v.x, v.y = tx+tw, ty
-	v = v + 1
-	v.x, v.y = tx+tw, ty+th
+	self:flushSpriteTris()	-- TODO use this
 
-	local extraBuffer = sceneObj.attrs.extra.buffer
-	local extra = extraBuffer.vec
-	extra:resize(6)
-	v = extra.v+0
-	for j=0,5 do
-		v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-		v = v + 1
-	end
+	self:addSpriteTri(
+		sheetTex,
+		paletteTex,
+		xLL, yLL, zLL, wLL, uL, vL,
+		xRL, yRL, zRL, wRL, uR, vL,
+		xLR, yLR, zLR, wLR, uL, vR,
+		spriteBit, spriteMask, transparentIndex, paletteIndex,
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA
+	)
 
-	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
-	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
-	drawOverrideSolidAttr:resize(6)
-	v = drawOverrideSolidAttr.v + 0
-	for j=0,5 do
-		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255
-		v = v + 1
-	end
-
-	vertexBuffer
-		:bind()
-		:updateData(0, vertex:getNumBytes())
-	texcoordBuffer
-		:bind()
-		:updateData(0, texcoord:getNumBytes())
-	extraBuffer
-		:bind()
-		:updateData(0, extra:getNumBytes())
-	drawOverrideSolidAttrBuffer
-		:bind()
-		:updateData(0, drawOverrideSolidAttr:getNumBytes())
-		:unbind()
-
-	sceneObj.program:use()
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
-	sceneObj:disableAttrs()
+	self:addSpriteTri(
+		sheetTex,
+		paletteTex,
+		xLR, yLR, zLR, wLR, uL, vR,
+		xRL, yRL, zRL, wRL, uR, vL,
+		xRR, yRR, zRR, wRR, uR, vR,
+		spriteBit, spriteMask, transparentIndex, paletteIndex,
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA
+	)
+	
+	self:flushSpriteTris()	-- this is only here for compat reasons
 end
 
 --[[
@@ -2530,13 +2462,13 @@ function AppVideo:drawQuad(
 	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
-	self.paletteRAM.tex:bind(1)
-	sheetRAM.tex:bind(0)
-
 	self:drawQuadTex(
+		sheetRAM.tex,
+		self.paletteRAM.tex,
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,
-		paletteIndex, transparentIndex, spriteBit, spriteMask)
+		spriteBit, spriteMask, transparentIndex, paletteIndex
+	)
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2556,10 +2488,11 @@ function AppVideo:drawTexTri3D(
 	spriteMask
 )
 	sheetIndex = sheetIndex or 0
-	paletteIndex = paletteIndex or 0
-	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
+	transparentIndex = transparentIndex or -1
+	paletteIndex = paletteIndex or 0
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
@@ -2570,69 +2503,22 @@ function AppVideo:drawTexTri3D(
 	self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	self:flushSpriteTris()	-- TODO use this
+	
+	local vx1, vy1, vz1, vw1 = vec3to4(self.mvMat.ptr, x1, y1, z1)
+	local vx2, vy2, vz2, vw2 = vec3to4(self.mvMat.ptr, x2, y2, z2)
+	local vx3, vy3, vz3, vw3 = vec3to4(self.mvMat.ptr, x3, y3, z3)
 
-	local sceneObj = self.triSpriteObj
-
-	local vertexBuffer = sceneObj.attrs.vertex.buffer
-	local vertex = vertexBuffer.vec
-	vertex:resize(3)
-	local v = vertex.v+0
-	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x1, y1, z1)
-	v = v + 1
-	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x2, y2, z2)
-	v = v + 1
-	v.x, v.y, v.z, v.w = vec3to4(self.mvMat.ptr, x3, y3, z3)
-
-	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
-	local texcoord = texcoordBuffer.vec
-	texcoord:resize(3)
-	v = texcoord.v+0
-	v.x, v.y = u1, v1
-	v = v + 1
-	v.x, v.y = u2, v2
-	v = v + 1
-	v.x, v.y = u3, v3
-
-	local extraBuffer = sceneObj.attrs.extra.buffer
-	local extra = extraBuffer.vec
-	extra:resize(3)
-	v = extra.v+0
-	for j=0,2 do
-		v.x, v.y, v.z, v.w = spriteBit, spriteMask, transparentIndex, paletteIndex
-		v = v + 1
-	end
-
-	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
-	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
-	drawOverrideSolidAttr:resize(3)
-	v = drawOverrideSolidAttr.v + 0
-	for j=0,2 do
-		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255
-		v = v + 1
-	end
-
-	vertexBuffer
-		:bind()
-		:updateData(0, vertex:getNumBytes())
-	texcoordBuffer
-		:bind()
-		:updateData(0, texcoord:getNumBytes())
-	extraBuffer
-		:bind()
-		:updateData(0, extra:getNumBytes())
-	drawOverrideSolidAttrBuffer
-		:bind()
-		:updateData(0, drawOverrideSolidAttr:getNumBytes())
-		:unbind()
-
-	self.paletteRAM.tex:bind(1)
-	sheetRAM.tex:bind(0)
-
-	sceneObj.program:use()
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
-	sceneObj:disableAttrs()
+	self:addSpriteTri(
+		sheetRAM.tex,
+		self.paletteRAM.tex,
+		vx1, vy1, vz1, vw1, u1, v1,
+		vx2, vy2, vz2, vw2, u2, v2,
+		vx3, vy3, vz3, vw3, u3, v3,
+		spriteBit, spriteMask, transparentIndex, paletteIndex,
+		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255)
+	
+	self:flushSpriteTris()	-- this is only here for compat reasons
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2802,97 +2688,57 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 	local x = x0 + 1
 	y = y + 1
 
-	paletteTex:bind(1)
-	fontTex:bind(0)
-
-	local sceneObj = self.drawTextObj
 	local w = spriteSize.x * scaleX
 	local h = spriteSize.y * scaleY
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	local tw = 1 / tonumber(texSizeInTiles.x)
 	local th = 1 / tonumber(texSizeInTiles.y)
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	local blendSolidA = self.drawOverrideSolidA * 255
+	local paletteIndex = fgColorIndex - 1
 
-	local vertexBuffer = sceneObj.attrs.vertex.buffer
-	local vertex = sceneObj.attrs.vertex.buffer.vec
-	vertexBuffer:beginUpdate()
-
-	local texcoordBuffer = sceneObj.attrs.texcoord.buffer
-	local texcoord = sceneObj.attrs.texcoord.buffer.vec
-	texcoordBuffer:beginUpdate()
-
-	local extraBuffer = sceneObj.attrs.extra.buffer
-	local extra = sceneObj.attrs.extra.buffer.vec
-	extraBuffer:beginUpdate()
-
-	-- this won't be there for 8bpp indexed mode:
-	local drawOverrideSolidAttrBuffer = sceneObj.attrs.drawOverrideSolidAttr.buffer
-	local drawOverrideSolidAttr = drawOverrideSolidAttrBuffer.vec
-	drawOverrideSolidAttrBuffer:beginUpdate()
+	self:flushSpriteTris()	-- TODO use this
 
 	for i=1,#text do
 		local ch = text:byte(i)
 		local bi = bit.band(ch, 7)		-- get the bit offset
 		local by = bit.rshift(ch, 3)	-- get the byte offset
-		local tx = by / tonumber(texSizeInTiles.x)
 
-		-- using attributes runs a bit slower than using uniforms.  I can't tell without removing the 60fps cap and I'm too lazy to remove that and test it.
-		local v
-		v = vertex:emplace_back()
-		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y)
-		v = vertex:emplace_back()
-		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
-		v = vertex:emplace_back()
-		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
+		local xR = x + w
+		local yR = y + h
 
-		v = vertex:emplace_back()
-		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x, y+h)
-		v = vertex:emplace_back()
-		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y)
-		v = vertex:emplace_back()
-		v.x, v.y, v.z, v.w = vec2to4(self.mvMat.ptr, x+w, y+h)
+		local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, x, y)
+		local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, xR, y)
+		local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, x, yR)
+		local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, xR, yR)
 
-		v = texcoord:emplace_back()
-		v.x = tx
-		v.y = 0
-		v = texcoord:emplace_back()
-		v.x = tx+tw
-		v.y = 0
-		v = texcoord:emplace_back()
-		v.x = tx
-		v.y = th
+		local uL = by / tonumber(texSizeInTiles.x)
+		local uR = uL + tw
 
-		v = texcoord:emplace_back()
-		v.x = tx
-		v.y = th
-		v = texcoord:emplace_back()
-		v.x = tx+tw
-		v.y = 0
-		v = texcoord:emplace_back()
-		v.x = tx+tw
-		v.y = th
+		self:addSpriteTri(
+			fontTex,
+			paletteTex,
+			xLL, yLL, zLL, wLL, uL, 0,
+			xRL, yRL, zRL, wRL, uR, 0,
+			xLR, yLR, zLR, wLR, uL, th,
+			bi, 1, 0, paletteIndex,
+			blendSolidR, blendSolidG, blendSolidB, blendSolidA)
 
-		for j=0,5 do
-			local v = extra:emplace_back()
-			v.x, v.y, v.z, v.w = bi, 1, 0, fgColorIndex-1
-		end
+		self:addSpriteTri(
+			fontTex,
+			paletteTex,
+			xRL, yRL, zRL, wRL, uR, 0,
+			xRR, yRR, zRR, wRR, uR, th,
+			xLR, yLR, zLR, wLR, uL, th,
+			bi, 1, 0, paletteIndex,
+			blendSolidR, blendSolidG, blendSolidB, blendSolidA)
 
-		for j=0,5 do
-			local v = drawOverrideSolidAttr:emplace_back()
-			v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA*255
-		end
+self:flushSpriteTris()
 
 		x = x + scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
 	end
-	vertexBuffer:endUpdate()
-	texcoordBuffer:endUpdate()
-	extraBuffer:endUpdate()
-	drawOverrideSolidAttrBuffer:endUpdate()
 
-	sceneObj.program:use()
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw(nil, #vertex)
-	sceneObj:disableAttrs()
+	self:flushSpriteTris()	-- this is only here for compat reasons
 
 	return x - x0
 end
