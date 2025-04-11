@@ -2493,14 +2493,15 @@ update=[]do
 			elseif btnp('down',pid) then
 				menuSel+=1
 				menuSel%=maxPlayers+1
-			elseif btnp('left',pid) then
-				startPlayerInfo[menuSel].kartSpriteNo-=1
-				startPlayerInfo[menuSel].kartSpriteNo%=kartSpriteCount
-			elseif btnp('right',pid) then
-				startPlayerInfo[menuSel].kartSpriteNo+=1
-				startPlayerInfo[menuSel].kartSpriteNo%=kartSpriteCount
 			end
 			if menuSel<maxPlayers then
+				if btnp('left',pid) then
+					startPlayerInfo[menuSel].kartSpriteNo-=1
+					startPlayerInfo[menuSel].kartSpriteNo%=kartSpriteCount
+				elseif btnp('right',pid) then
+					startPlayerInfo[menuSel].kartSpriteNo+=1
+					startPlayerInfo[menuSel].kartSpriteNo%=kartSpriteCount
+				end
 				-- any players left/right can toggle
 				--if btnp('left',pid) or btnp('right',pid) then
 				--	startPlayerInfo[menuSel].active = not startPlayerInfo[menuSel].active
