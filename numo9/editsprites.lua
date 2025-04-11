@@ -164,8 +164,8 @@ function EditSprites:update()
 		local x1, y1 = spritesheetCoordToFb(0, 0)
 		local x2, y2 = spritesheetCoordToFb(spriteSheetSizeInTiles:unpack())
 		app:drawQuadTex(
-			app.checkerTex,
 			app.paletteMenuTex,
+			app.checkerTex,
 			x1, y1, x2-x1, y2-y1,
 			0, 0, w/2, h/2,
 			0, 0xFF, -1, 0)
@@ -302,8 +302,8 @@ function EditSprites:update()
 		local x1, y1 = spriteCoordToFb(0, 0)
 		local x2, y2 = spriteCoordToFb(spriteSheetSize:unpack())
 		app:drawQuadTex(
-			app.checkerTex,
 			app.paletteMenuTex,
+			app.checkerTex,
 			x1, y1, x2-x1, y2-y1,
 			0, 0, w*8, h*8,
 			0, 0xFF, -1, 0
