@@ -151,7 +151,7 @@ local function codeStrToBanks(banks, code)
 		local s = code:sub(i1+1, i2)
 		assert.le(#s, codeSize)
 		ffi.fill(bank.code, 0, codeSize)
-		ffi.copy(bank.code, s)
+		ffi.copy(bank.code, s, math.min(codeSize, #s))
 	end
 end
 
