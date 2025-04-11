@@ -1109,7 +1109,6 @@ flat out vec4 box;
 flat out vec4 scissor;
 
 void main() {
-	pixelPos = vertex.xy;
 	tcv = texcoord;
 	drawOverrideSolid = drawOverrideSolidAttr;
 	extra = extraAttr;
@@ -1125,6 +1124,15 @@ void main() {
 	);
 
 	gl_Position.xy -= 1.;
+
+	// now that we're in normalized coordinates, apply homogeneous transform, and rescale back to pixel coordinates
+	// do I want to do this to gl_Position as well?  or will that mess up my texture interpolation?   or do I care?
+	pixelPos = ((
+		gl_Position.xy / gl_Position.w
+	) * .5 + .5) * vec2(
+		<?=glslnumber(frameBufferSize.x)?>,
+		<?=glslnumber(frameBufferSize.y)?>
+	);
 }
 ]],				{
 					glslnumber = glslnumber,
@@ -1155,7 +1163,7 @@ float lenSq(vec2 v) { return dot(v,v); }
 
 void main() {
 
-#if 0
+#if 1
 	if (pixelPos.x < scissor.x ||
 		pixelPos.y < scissor.y ||
 		pixelPos.x >= scissor.x + scissor.z + 1. ||
