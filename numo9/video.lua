@@ -2132,9 +2132,6 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
 
-	-- TODO get rid of this
-	self.triBuf:flush()
-
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
@@ -2211,9 +2208,6 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 		0, 0, 1, 1
 	)
 
-	-- TODO get rid of this
-	self.triBuf:flush()
-
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
@@ -2224,9 +2218,10 @@ end
 
 local mvMatCopy = ffi.new('float[16]')
 function AppVideo:clearScreen(colorIndex)
-	self.triBuf:flush()
 
+	self.triBuf:flush()
 	gl.glDisable(gl.GL_SCISSOR_TEST)
+
 	-- which is faster, push/pop the matrix, or reassign the uniform?
 	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
 	self.mvMat:setIdent()
@@ -2237,7 +2232,10 @@ function AppVideo:clearScreen(colorIndex)
 		frameBufferSize.x,
 		frameBufferSize.y,
 		colorIndex or 0)
+
+	self.triBuf:flush()
 	gl.glEnable(gl.GL_SCISSOR_TEST)
+
 	ffi.copy(self.mvMat.ptr, mvMatCopy, ffi.sizeof(mvMatCopy))
 	self:mvMatToRAM()	-- need this as well
 end
