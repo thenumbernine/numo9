@@ -1093,6 +1093,8 @@ flat, the screen scissor bbox, because I don't want to flush and redraw every ti
 */
 layout(location=5) in vec4 scissorAttr;
 
+//GLES3 says we have at least 16 attributes to use ...
+
 // the bbox world coordinates, used with 'boxAttr' for rounding
 out vec2 tcv;
 
