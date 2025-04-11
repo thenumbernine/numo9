@@ -2089,9 +2089,6 @@ function AppVideo:drawSolidRect(
 		x, y, w, h
 	)
 
-	-- TODO get rid of this
-	self.triBuf:flush()
-
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end

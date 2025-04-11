@@ -561,7 +561,7 @@ function EditSprites:update()
 			local ry = y + bh * j
 
 			-- cheap hack to use game palette here instead of menu palette ...
-			app.videoModeInfo[0].quadSolidObj.texs[1] = paletteRAM.tex
+			app.videoModeInfo[0].solidObj.texs[1] = paletteRAM.tex
 			app:drawSolidRect(
 				rx,
 				ry,
@@ -569,7 +569,7 @@ function EditSprites:update()
 				bh,
 				paletteIndex
 			)
-			app.videoModeInfo[0].quadSolidObj.texs[1] = app.paletteMenuTex
+			app.videoModeInfo[0].solidObj.texs[1] = app.paletteMenuTex
 			-- end cheap hack
 
 			if mouseX >= rx and mouseX < rx + bw
