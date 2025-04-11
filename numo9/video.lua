@@ -1084,15 +1084,24 @@ layout(location=3) in vec4 drawOverrideSolidAttr;
 // flat, the bbox of the currently drawn quad, only used for round-rendering of solid-shader
 layout(location=4) in vec4 boxAttr;
 
+/* 
+flat, the screen scissor bbox, because I don't want to flush and redraw every time I change the scissor region.
+Should this be (u)int or float?
+float because it compares with pixelPos
+or should pixelPos be float or (u)int?  float because it varies.
+*/
+layout(location=5) in vec4 scissorAttr;
+
 // the bbox world coordinates, used with 'boxAttr' for rounding
 out vec2 tcv;
 
-// the pixel pos, in [-1,1]^2 normalized coords
+// the pixel pos, in pixel coords
 out vec2 pixelPos;
 
-flat out vec4 box;
-flat out vec4 drawOverrideSolid;
 flat out uvec4 extra;
+flat out vec4 drawOverrideSolid;
+flat out vec4 box;
+flat out vec4 scissor;
 
 void main() {
 	pixelPos = vertex.xy;
@@ -1100,6 +1109,7 @@ void main() {
 	drawOverrideSolid = drawOverrideSolidAttr;
 	extra = extraAttr;
 	box = boxAttr;
+	scissor = scissorAttr;
 
 	gl_Position = vertex;
 
@@ -1121,9 +1131,11 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
 in vec2 pixelPos;	// framebuffer pixel coordaintes after transform, so they really are framebuffer coordinates
-flat in vec4 box;	//x,y,w,h
-flat in vec4 drawOverrideSolid;
+
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
+flat in vec4 drawOverrideSolid;
+flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
+flat in vec4 scissor;	// x, y, w, h
 
 layout(location=0) out <?=fragType?> fragColor;
 
@@ -1136,6 +1148,14 @@ float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
 
 void main() {
+	
+	if (pixelPos.x < scissor.x || 
+		pixelPos.y < scissor.y ||
+		pixelPos.x >= scissor.x + scissor.z + 1. || 
+		pixelPos.y >= scissor.y + scissor.w + 1.
+	) {
+		discard;
+	}
 	uint pathway = extra.x & 3u;
 
 	// solid shading pathway
@@ -1325,6 +1345,14 @@ void main() {
 						useVec = true,
 					},
 				},
+				scissorAttr = {
+					--divisor = 3,	-- 6 honestly ...
+					buffer = {
+						usage = gl.GL_DYNAMIC_DRAW,
+						dim = 4,
+						useVec = true,
+					},
+				},		
 			},
 		}
 
@@ -1602,9 +1630,10 @@ void main() {
 			local sceneObj = self.sceneObj
 			local vertex = sceneObj.attrs.vertex.buffer.vec
 			local texcoord = sceneObj.attrs.texcoord.buffer.vec
-			local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
-			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
 			local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
+			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
+			local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
+			local scissorAttr = sceneObj.attrs.scissorAttr.buffer.vec
 
 			-- if the textures change then flush
 			if app.lastSolidPaletteTex ~= paletteTex
@@ -1640,6 +1669,9 @@ void main() {
 
 				v = boxAttr:emplace_back()
 				v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
+
+				v = scissorAttr:emplace_back()
+				v.x, v.y, v.z, v.w = app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3]
 			end
 		end,
 	}
@@ -2219,13 +2251,9 @@ end
 local mvMatCopy = ffi.new('float[16]')
 function AppVideo:clearScreen(colorIndex)
 
-	self.triBuf:flush()
-	gl.glDisable(gl.GL_SCISSOR_TEST)
-
 	-- which is faster, push/pop the matrix, or reassign the uniform?
 	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
-	self.mvMat:setIdent()
-	self:mvMatToRAM()	-- need this as well
+	self:matident()
 	self:drawSolidRect(
 		0,
 		0,
@@ -2233,24 +2261,13 @@ function AppVideo:clearScreen(colorIndex)
 		frameBufferSize.y,
 		colorIndex or 0)
 
-	self.triBuf:flush()
-	gl.glEnable(gl.GL_SCISSOR_TEST)
-
 	ffi.copy(self.mvMat.ptr, mvMatCopy, ffi.sizeof(mvMatCopy))
 	self:mvMatToRAM()	-- need this as well
 end
 
 function AppVideo:setClipRect(x, y, w, h)
 	self.triBuf:flush()
-
-	-- NOTICE the ram is only useful for reading, not writing, as it won't invoke a glScissor call
-	-- ... should I change that?
 	packptr(4, self.ram.clipRect, x, y, w, h)
-	gl.glScissor(
-		self.ram.clipRect[0],
-		self.ram.clipRect[1],
-		self.ram.clipRect[2]+1,
-		self.ram.clipRect[3]+1)
 end
 
 -- for when we blend against solid colors, these go to the shaders to output it

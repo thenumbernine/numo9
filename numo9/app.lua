@@ -1616,12 +1616,6 @@ conn.receivesPerSecond = 0
 		fb:bind()
 		self.inUpdateCallback = true	-- tell video not to set up the fb:bind() to do gfx stuff
 		gl.glViewport(0,0,frameBufferSize:unpack())
-		gl.glEnable(gl.GL_SCISSOR_TEST)
-		gl.glScissor(
-			self.ram.clipRect[0],
-			self.ram.clipRect[1],
-			self.ram.clipRect[2]+1,
-			self.ram.clipRect[3]+1)
 		-- see if we need to re-enable it ...
 		if self.ram.blendMode ~= 0xff then
 			self:setBlendMode(self.ram.blendMode)
@@ -1688,7 +1682,10 @@ print('run thread dead')
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
 
-			gl.glScissor(0,0,256,256)
+			local pushScissorX, pushScissorY, pushScissorW, pushScissorH
+				= self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
+			self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
+				= 0, 0, 255, 255
 
 			-- [[
 			-- while we're here, start us off with the current framebufferRAM contents
@@ -1736,7 +1733,12 @@ print('run thread dead')
 
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
-			-- pop matrix
+			
+			-- pop the clip rect
+			self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
+				= pushScissorX, pushScissorY, pushScissorW, pushScissorH
+
+			-- pop the matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		end
 
@@ -1830,7 +1832,6 @@ print('run thread dead')
 			self.paletteRAM:checkDirtyCPU()
 		end
 
-		gl.glDisable(gl.GL_SCISSOR_TEST)
 		gl.glViewport(0, 0, self.width, self.height)
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
