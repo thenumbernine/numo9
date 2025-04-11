@@ -140,8 +140,7 @@ function EditTilemap:update()
 		)
 	end
 
-	app.triBuf:flush()
-	gl.glScissor(mapX,mapY,mapWidth,mapHeight)
+	app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = mapX, mapY, mapWidth-1, mapHeight-1
 
 	app:matident()
 	app:mattrans(mapX, mapY)
@@ -185,8 +184,7 @@ function EditTilemap:update()
 			app:drawSolidLine(xmin, j, xmax, j, self:color(1))
 		end
 	end
-	app.triBuf:flush()
-	gl.glScissor(0,0,frameBufferSize:unpack())
+	app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = 0, 0, frameBufferSize.x-1, frameBufferSize.y-1
 
 	if self.pickOpen then
 		app:matident()
