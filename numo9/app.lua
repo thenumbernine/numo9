@@ -995,7 +995,7 @@ print('package.loaded', package.loaded)
 	local MainMenu = require 'numo9.mainmenu'
 
 	-- reset mat and clip
-	self.mvMat:setIdent()
+	self:matident()
 	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = 0, 0, 0xff, 0xff
 
 	self.editBankNo = 0
@@ -1660,6 +1660,7 @@ print('run thread dead')
 			-- push matrix
 			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 			self:matident()
+
 			-- set drawText font & pal to the UI's
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
@@ -1700,7 +1701,7 @@ print('run thread dead')
 
 			local thread = self.activeMenu.thread
 			if thread then
-				self.mvMat:setIdent()
+				self:matident()
 				if coroutine.status(thread) == 'dead' then
 					self:setMenu(nil)
 				else

@@ -168,9 +168,6 @@ function EditSprites:update()
 			x1, y1, x2-x1, y2-y1,
 			0, 0, w/2, h/2,
 			0, 0xFF, -1, 0)
-		-- clamp it to the viewport of the spritesheet to get the rendered region
-		-- then you can scissor-test this to get rid of the horrible texture stretching at borders from clamp_to_edge ...
-		app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = x1, y1, x2-x1-1, y2-y1-1
 	end
 	app:drawQuad(
 		x,		-- x
@@ -303,7 +300,6 @@ function EditSprites:update()
 			0, 0, w*8, h*8,
 			0, 0xFF, -1, 0
 		)
-		app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = x1, y1, x2-x1-1, y2-y1-1
 	end
 	app:drawQuad(
 		x,
