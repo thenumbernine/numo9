@@ -56,7 +56,6 @@ local tilemapSize = numo9_rom.tilemapSize
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
 local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize
-local packptr = numo9_rom.packptr
 local mvMatType = numo9_rom.mvMatType
 
 local numo9_keys = require 'numo9.keys'
@@ -997,7 +996,7 @@ print('package.loaded', package.loaded)
 
 	-- reset mat and clip
 	self.mvMat:setIdent()
-	packptr(4, self.ram.clipRect, 0, 0, 0xff, 0xff)
+	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = 0, 0, 0xff, 0xff
 
 	self.editBankNo = 0
 	self.editCode = EditCode{app=self}
@@ -1415,6 +1414,7 @@ function App:update()
 		--	..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
 		--	..' SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
 --DEBUG: ..' flush calls: '..self.triBuf.flushCallsPerFrame..' flushes: '..tolua(self.triBuf.flushSizes)
+-- ..' clip: ['..self.ram.clipRect[0]..', '..self.ram.clipRect[1]..', '..self.ram.clipRect[2]..', '..self.ram.clipRect[3]..']'
 		)
 --DEBUG:self.triBuf.flushCallsPerFrame = 0
 --DEBUG:self.triBuf.flushSizes = {}
@@ -1682,10 +1682,8 @@ print('run thread dead')
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
 
-			local pushScissorX, pushScissorY, pushScissorW, pushScissorH
-				= self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
-			self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
-				= 0, 0, 255, 255
+			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
+			self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = 0, 0, 0xff, 0xff
 
 			-- [[
 			-- while we're here, start us off with the current framebufferRAM contents
@@ -1721,11 +1719,13 @@ print('run thread dead')
 				end
 			end
 
+			-- flush before textures change
+			-- or don't since the addTri checks if textures have changed
+			-- but at least flush before finishing the screen render update ...
 			self.triBuf:flush()
 
 			-- restore palettes
 			self.videoModeInfo[0].solidObj.texs[1] = self.paletteRAM.tex
-			self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteRAM.tex
 
 			self:setFramebufferTex(self.framebufferRAM.tex)
 
@@ -1733,10 +1733,9 @@ print('run thread dead')
 
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
-			
+
 			-- pop the clip rect
-			self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
-				= pushScissorX, pushScissorY, pushScissorW, pushScissorH
+			self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = pushScissorX, pushScissorY, pushScissorW, pushScissorH
 
 			-- pop the matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))

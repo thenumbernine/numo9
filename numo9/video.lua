@@ -35,8 +35,6 @@ local fontInBytes = numo9_rom.fontInBytes
 local framebufferAddr = numo9_rom.framebufferAddr
 local frameBufferSize = numo9_rom.frameBufferSize
 local mvMatScale = numo9_rom.mvMatScale
-local packptr = numo9_rom.packptr
-local unpackptr = numo9_rom.unpackptr
 local menuFontWidth = numo9_rom.menuFontWidth
 
 local function vec2to4(m, x, y, z)
@@ -61,7 +59,6 @@ local function glslnumber(x)
 	return s
 end
 
--- TODO use either settable or packptr ... ?
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
 	t[i] = ...
@@ -1075,6 +1072,14 @@ for sprites:
 		You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
 		Or you can set it to low numbers and use it to offset the palette.
 		Should this be high bits? or just an offset to OR? or to add?
+
+for tilemap:
+	.x
+		bit 0/1 = render pathway = 10
+		bit 2 = on = 16x16 tiles, off = 8x8 tiles
+
+	.y = mapIndexOffset lo byte
+	.z = mapIndexOffset hi byte (2 bits worth? how many bits should the tilemap index offset care about?)
 */
 layout(location=2) in uvec4 extraAttr;
 
@@ -1084,7 +1089,7 @@ layout(location=3) in vec4 drawOverrideSolidAttr;
 // flat, the bbox of the currently drawn quad, only used for round-rendering of solid-shader
 layout(location=4) in vec4 boxAttr;
 
-/* 
+/*
 flat, the screen scissor bbox, because I don't want to flush and redraw every time I change the scissor region.
 Should this be (u)int or float?
 float because it compares with pixelPos
@@ -1092,11 +1097,11 @@ or should pixelPos be float or (u)int?  float because it varies.
 */
 layout(location=5) in vec4 scissorAttr;
 
-// the bbox world coordinates, used with 'boxAttr' for rounding
-out vec2 tcv;
-
 // the pixel pos, in pixel coords
 out vec2 pixelPos;
+
+// the bbox world coordinates, used with 'boxAttr' for rounding
+out vec2 tcv;
 
 flat out uvec4 extra;
 flat out vec4 drawOverrideSolid;
@@ -1141,6 +1146,7 @@ layout(location=0) out <?=fragType?> fragColor;
 
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
 uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
+uniform <?=samplerTypeForTex(self.tilemapRAM.tex)?> tilemapTex;
 
 <?=glslCode5551?>
 
@@ -1148,14 +1154,17 @@ float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
 
 void main() {
-	
-	if (pixelPos.x < scissor.x || 
+
+#if 0
+	if (pixelPos.x < scissor.x ||
 		pixelPos.y < scissor.y ||
-		pixelPos.x >= scissor.x + scissor.z + 1. || 
+		pixelPos.x >= scissor.x + scissor.z + 1. ||
 		pixelPos.y >= scissor.y + scissor.w + 1.
 	) {
 		discard;
 	}
+#endif
+
 	uint pathway = extra.x & 3u;
 
 	// solid shading pathway
@@ -1282,6 +1291,135 @@ void main() {
 
 <? end -- useSamplerUInt ?>
 
+	} else if (pathway == 2u) {
+
+		int mapIndexOffset = int(extra.y | (extra.z << 8));
+
+		//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
+		uint draw16Sprites = (extra.x >> 2) & 1u;
+
+		const uint tilemapSizeX = <?=tilemapSize.x?>u;
+		const uint tilemapSizeY = <?=tilemapSize.y?>u;
+
+#if 0	// do it in float
+		int tileSize = 1 << (3 + draw16Sprites);
+		float tileSizef = float(tileSize);
+		int mask = tileSize - 1;
+
+		// convert from input normalized coordinates to tilemap texel coordinates
+		// [0, tilemapSize)^2
+		vec2 tcf = vec2(
+			.5 + tcv.x * float(tilemapSizeX << draw16Sprites),
+			.5 + tcv.y * float(tilemapSizeY << draw16Sprites)
+		);
+		tcf /= tileSizef;
+
+		// convert to map texel coordinate
+		// [0, tilemapSize)^2
+		// mod 256 ? maybe?
+		// integer part of tcf
+
+		//read the tileIndex in tilemapTex at tcf
+		//tilemapTex is R16, so red channel should be 16bpp (right?)
+		// how come I don't trust that and think I'll need to switch this to RG8 ...
+		int tileIndex = int(]]..readTex{
+			tex = self.tilemapRAM.tex,
+			texvar = 'tilemapTex',
+			tc = '(floor(tcf) + .5) / vec2('..textureSize'tilemapTex'..')',
+			from = 'vec2',
+			to = 'uvec4',
+		}..[[.r);
+
+		tileIndex += mapIndexOffset;
+
+		//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
+		ivec2 tileIndexTC = ivec2(
+			tileIndex & 0x1F,				// tilemap bits 0..4
+			(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
+		);
+		int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
+
+		vec2 tcfp = tcf - floor(tcf);
+		if ((tileIndex & (1<<14)) != 0) tcfp.x = 1. - tcfp.x;	// tilemap bit 14
+		if ((tileIndex & (1<<15)) != 0) tcfp.y = 1. - tcfp.y;	// tilemap bit 15
+
+		// [0, spriteSize)^2
+		ivec2 tileTexTC = ivec2(
+			int(tcfp.x * tileSizef) ^ (tileIndexTC.x << 3),
+			int(tcfp.y * tileSizef) ^ (tileIndexTC.y << 3)
+		);
+
+		// sheetTex is R8 indexing into our palette ...
+		uint colorIndex = ]]..readTex{
+			tex = self.tileSheetRAM.tex,
+			texvar = 'sheetTex',
+			tc = 'tileTexTC',
+			from = 'ivec2',
+			to = 'uvec4',
+		}..[[.r;
+
+#else	//do it in int
+
+		// convert from input normalized coordinates to tilemap texel coordinates
+		// [0, tilemapSize)^2
+		ivec2 tci = ivec2(
+			int(tcv.x * float(tilemapSizeX << draw16Sprites)),
+			int(tcv.y * float(tilemapSizeY << draw16Sprites))
+		);
+
+		// convert to map texel coordinate
+		// [0, tilemapSize)^2
+		ivec2 tileTC = ivec2(
+			(tci.x >> (3 + draw16Sprites)) & 0xFF,
+			(tci.y >> (3 + draw16Sprites)) & 0xFF
+		);
+
+		//read the tileIndex in tilemapTex at tileTC
+		//tilemapTex is R16, so red channel should be 16bpp (right?)
+		// how come I don't trust that and think I'll need to switch this to RG8 ...
+		int tileIndex = int(]]..readTex{
+			tex = self.tilemapRAM.tex,
+			texvar = 'tilemapTex',
+			tc = 'tileTC',
+			from = 'ivec2',
+			to = 'uvec4',
+		}..[[.r);
+
+		tileIndex += mapIndexOffset;
+
+		//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
+		ivec2 tileIndexTC = ivec2(
+			tileIndex & 0x1F,				// tilemap bits 0..4
+			(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
+		);
+		int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
+		if ((tileIndex & (1<<14)) != 0) tci.x = ~tci.x;	// tilemap bit 14
+		if ((tileIndex & (1<<15)) != 0) tci.y = ~tci.y;	// tilemap bit 15
+
+		int mask = (1 << (3 + draw16Sprites)) - 1;
+		// [0, spriteSize)^2
+		ivec2 tileTexTC = ivec2(
+			(tci.x & mask) ^ (tileIndexTC.x << 3),
+			(tci.y & mask) ^ (tileIndexTC.y << 3)
+		);
+
+		// sheetTex is R8 indexing into our palette ...
+		uint colorIndex = ]]..readTex{
+			tex = self.tileSheetRAM.tex,
+			texvar = 'sheetTex',
+			tc = 'tileTexTC',
+			from = 'ivec2',
+			to = 'uvec4',
+		}..[[.r;
+
+#endif
+
+		colorIndex += uint(palHi) << 4;
+
+		<?=info.colorOutput?>
+
+		if (fragColor.a == <?=fragType == 'uvec4' and '0u' or '0.'?>) discard;
+
 	}	// pathway
 }
 ]],				{
@@ -1292,10 +1430,12 @@ void main() {
 					samplerTypeForTex = samplerTypeForTex,
 					glslCode5551 = glslCode5551,
 					useSamplerUInt = useSamplerUInt,
+					tilemapSize = tilemapSize,
 				}),
 				uniforms = {
 					paletteTex = 0,
 					sheetTex = 1,
+					tilemapTex = 2,
 				},
 			},
 			geometry = {
@@ -1314,6 +1454,17 @@ void main() {
 						useVec = true,
 					},
 				},
+				extraAttr = {
+					type = gl.GL_UNSIGNED_BYTE,
+					--divisor = 3,
+					buffer = {
+						usage = gl.GL_DYNAMIC_DRAW,
+						type = gl.GL_UNSIGNED_BYTE,
+						dim = 4,
+						useVec = true,
+						ctype = 'vec4ub_t',
+					},
+				},
 				drawOverrideSolidAttr = {
 					type = gl.GL_UNSIGNED_BYTE,		-- I'm uploading uint8_t[4]
 					normalize = true,				-- data will be normalized to [0,1]
@@ -1324,17 +1475,6 @@ void main() {
 						dim = 4,
 						useVec = true,
 						ctype = 'vec4ub_t',			-- cpu buffer will hold vec4ub_t's
-					},
-				},
-				extraAttr = {
-					type = gl.GL_UNSIGNED_BYTE,
-					--divisor = 3,
-					buffer = {
-						usage = gl.GL_DYNAMIC_DRAW,
-						type = gl.GL_UNSIGNED_BYTE,
-						dim = 4,
-						useVec = true,
-						ctype = 'vec4ub_t',
 					},
 				},
 				boxAttr = {
@@ -1352,199 +1492,8 @@ void main() {
 						dim = 4,
 						useVec = true,
 					},
-				},		
-			},
-		}
-
---DEBUG:print('mode '..infoIndex..' quadMapObj')
-		info.quadMapObj = GLSceneObject{
-			program = {
-				version = glslVersion,
-				precision = 'best',
-				vertexCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-out vec2 pixelPos;
-uniform vec4 box;		//x y w h
-uniform vec4 tcbox;		//tx ty tw th
-uniform mat4 mvMat;
-
-const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
-
-void main() {
-	tcv = tcbox.xy + vertex * tcbox.zw;
-	vec2 pc = box.xy + vertex * box.zw;
-	gl_Position = mvMat * vec4(pc, 0., 1.);
-	pixelPos = gl_Position.xy;
-	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
-	gl_Position.xy -= 1.;
-}
-]],				{
-					glslnumber = glslnumber,
-					frameBufferSize = frameBufferSize,
-				}),
-				fragmentCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-in vec2 pixelPos;
-layout(location=0) out <?=fragType?> fragColor;
-
-// tilemap texture
-uniform int mapIndexOffset;
-uniform int draw16Sprites;	 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
-uniform <?=samplerTypeForTex(self.tilemapRAM.tex)?> tilemapTex;
-uniform <?=samplerTypeForTex(self.tileSheetRAM.tex)?> tileSheetTex;
-uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-
-const uint tilemapSizeX = <?=tilemapSize.x?>u;
-const uint tilemapSizeY = <?=tilemapSize.y?>u;
-
-uniform vec4 drawOverrideSolid;
-
-<?=glslCode5551?>
-
-void main() {
-#if 0	// do it in float
-	int tileSize = 1 << (3 + draw16Sprites);
-	float tileSizef = float(tileSize);
-	int mask = tileSize - 1;
-
-	// convert from input normalized coordinates to tilemap texel coordinates
-	// [0, tilemapSize)^2
-	vec2 tcf = vec2(
-		.5 + tcv.x * float(tilemapSizeX << draw16Sprites),
-		.5 + tcv.y * float(tilemapSizeY << draw16Sprites)
-	);
-	tcf /= tileSizef;
-
-	// convert to map texel coordinate
-	// [0, tilemapSize)^2
-	// mod 256 ? maybe?
-	// integer part of tcf
-
-	//read the tileIndex in tilemapTex at tcf
-	//tilemapTex is R16, so red channel should be 16bpp (right?)
-	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	int tileIndex = int(]]..readTex{
-		tex = self.tilemapRAM.tex,
-		texvar = 'tilemapTex',
-		tc = '(floor(tcf) + .5) / vec2('..textureSize'tilemapTex'..')',
-		from = 'vec2',
-		to = 'uvec4',
-	}..[[.r);
-
-	tileIndex += mapIndexOffset;
-
-	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
-	ivec2 tileIndexTC = ivec2(
-		tileIndex & 0x1F,				// tilemap bits 0..4
-		(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
-	);
-	int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
-
-	vec2 tcfp = tcf - floor(tcf);
-	if ((tileIndex & (1<<14)) != 0) tcfp.x = 1. - tcfp.x;	// tilemap bit 14
-	if ((tileIndex & (1<<15)) != 0) tcfp.y = 1. - tcfp.y;	// tilemap bit 15
-
-	// [0, spriteSize)^2
-	ivec2 tileTexTC = ivec2(
-		int(tcfp.x * tileSizef) ^ (tileIndexTC.x << 3),
-		int(tcfp.y * tileSizef) ^ (tileIndexTC.y << 3)
-	);
-
-	// tileSheetTex is R8 indexing into our palette ...
-	uint colorIndex = ]]..readTex{
-		tex = self.tileSheetRAM.tex,
-		texvar = 'tileSheetTex',
-		tc = 'tileTexTC',
-		from = 'ivec2',
-		to = 'uvec4',
-	}..[[.r;
-
-#else	//do it in int
-
-	// convert from input normalized coordinates to tilemap texel coordinates
-	// [0, tilemapSize)^2
-	ivec2 tci = ivec2(
-		int(tcv.x * float(tilemapSizeX << draw16Sprites)),
-		int(tcv.y * float(tilemapSizeY << draw16Sprites))
-	);
-
-	// convert to map texel coordinate
-	// [0, tilemapSize)^2
-	ivec2 tileTC = ivec2(
-		(tci.x >> (3 + draw16Sprites)) & 0xFF,
-		(tci.y >> (3 + draw16Sprites)) & 0xFF
-	);
-
-	//read the tileIndex in tilemapTex at tileTC
-	//tilemapTex is R16, so red channel should be 16bpp (right?)
-	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	int tileIndex = int(]]..readTex{
-		tex = self.tilemapRAM.tex,
-		texvar = 'tilemapTex',
-		tc = 'tileTC',
-		from = 'ivec2',
-		to = 'uvec4',
-	}..[[.r);
-
-	tileIndex += mapIndexOffset;
-
-	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
-	ivec2 tileIndexTC = ivec2(
-		tileIndex & 0x1F,				// tilemap bits 0..4
-		(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
-	);
-	int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
-	if ((tileIndex & (1<<14)) != 0) tci.x = ~tci.x;	// tilemap bit 14
-	if ((tileIndex & (1<<15)) != 0) tci.y = ~tci.y;	// tilemap bit 15
-
-	int mask = (1 << (3 + draw16Sprites)) - 1;
-	// [0, spriteSize)^2
-	ivec2 tileTexTC = ivec2(
-		(tci.x & mask) ^ (tileIndexTC.x << 3),
-		(tci.y & mask) ^ (tileIndexTC.y << 3)
-	);
-
-	// tileSheetTex is R8 indexing into our palette ...
-	uint colorIndex = ]]..readTex{
-		tex = self.tileSheetRAM.tex,
-		texvar = 'tileSheetTex',
-		tc = 'tileTexTC',
-		from = 'ivec2',
-		to = 'uvec4',
-	}..[[.r;
-
-#endif
-
-
-	colorIndex += uint(palHi) << 4;
-]]..info.colorOutput..[[
-	if (fragColor.a == <?=fragType == 'uvec4' and '0u' or '0.'?>) discard;
-}
-]],				{
-					fragType = fragTypeForTex(info.framebufferRAM.tex),
-					self = self,
-					samplerTypeForTex = samplerTypeForTex,
-					glslnumber = glslnumber,
-					spriteSheetSize = spriteSheetSize,
-					tilemapSize = tilemapSize,
-					glslCode5551 = glslCode5551,
-				}),
-				uniforms = {
-					tilemapTex = 0,
-					tileSheetTex = 1,
-					paletteTex = 2,
-					mapIndexOffset = 0,
 				},
 			},
-			geometry = self.quadGeom,
 		}
 	end
 
@@ -1596,6 +1545,7 @@ void main() {
 
 			-- bind textures
 			-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+			app.lastTilemapTex:bind(2)
 			app.lastSolidSheetTex:bind(1)
 			app.lastSolidPaletteTex:bind(0)
 
@@ -1616,6 +1566,7 @@ void main() {
 			self,
 			paletteTex,
 			sheetTex,
+			tilemapTex,
 
 			-- per vtx
 			x1, y1, z1, w1, u1, v1,
@@ -1638,10 +1589,12 @@ void main() {
 			-- if the textures change then flush
 			if app.lastSolidPaletteTex ~= paletteTex
 			or app.lastSolidSheetTex ~= sheetTex
+			or app.lastTilemapTex ~= tilemapTex
 			then
 				self:flush()
 				app.lastSolidPaletteTex = paletteTex
 				app.lastSolidSheetTex = sheetTex
+				app.lastTilemapTex = tilemapTex
 			end
 
 			-- push
@@ -1946,7 +1899,6 @@ function AppVideo:setVideoMode(mode)
 		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
 		self.solidObj = info.solidObj
-		self.quadMapObj = info.quadMapObj
 
 		self.triBuf.sceneObj = self.solidObj
 	else
@@ -2102,6 +2054,7 @@ function AppVideo:drawSolidRect(
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLL, yLL, zLL, wLL, x, y,
 		xRL, yRL, zRL, wRL, xR, y,
 		xLR, yLR, zLR, wLR, x, yR,
@@ -2113,6 +2066,7 @@ function AppVideo:drawSolidRect(
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLR, yLR, zLR, wLR, x, yR,
 		xRL, yRL, zRL, wRL, xR, y,
 		xRR, yRR, zRR, wRR, xR, yR,
@@ -2156,6 +2110,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		v1x, v1y, v1z, v1w, 0, 0,
 		v2x, v2y, v2z, v2w, 1, 0,
 		v3x, v3y, v3z, v3w, 0, 1,
@@ -2221,6 +2176,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLL, yLL, zLL, wLL, 0, 0,
 		xRL, yRL, zRL, wRL, 1, 0,
 		xLR, yLR, zLR, wLR, 0, 1,
@@ -2232,6 +2188,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLR, yLR, zLR, wLR, 0, 1,
 		xRL, yRL, zRL, wRL, 1, 0,
 		xRR, yRR, zRR, wRR, 1, 1,
@@ -2265,9 +2222,9 @@ function AppVideo:clearScreen(colorIndex)
 	self:mvMatToRAM()	-- need this as well
 end
 
+-- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
 function AppVideo:setClipRect(x, y, w, h)
-	self.triBuf:flush()
-	packptr(4, self.ram.clipRect, x, y, w, h)
+	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = x, y, w, h
 end
 
 -- for when we blend against solid colors, these go to the shaders to output it
@@ -2276,12 +2233,15 @@ AppVideo.drawOverrideSolidG = 0
 AppVideo.drawOverrideSolidB = 0
 AppVideo.drawOverrideSolidA = 0
 function AppVideo:setBlendMode(blendMode)
+	if blendMode < 0 or blendMode >= 8 then
+		blendMode = -1
+	end
+
 	if self.currentBlendMode == blendMode then return end
 
 	self.triBuf:flush()
 
-	if blendMode >= 8 then
-		blendMode = -1
+	if blendMode == -1 then
 		self.drawOverrideSolidA = 0
 		gl.glDisable(gl.GL_BLEND)
 	else
@@ -2368,6 +2328,7 @@ function AppVideo:drawQuadTex(
 	self.triBuf:addTri(
 		paletteTex,
 		sheetTex,
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLL, yLL, zLL, wLL, uL, vL,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xLR, yLR, zLR, wLR, uL, vR,
@@ -2379,6 +2340,7 @@ function AppVideo:drawQuadTex(
 	self.triBuf:addTri(
 		paletteTex,
 		sheetTex,
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xRR, yRR, zRR, wRR, uR, vR,
@@ -2501,6 +2463,7 @@ function AppVideo:drawTexTri3D(
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		sheetRAM.tex,
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		vx1, vy1, vz1, vw1, u1, v1,
 		vx2, vy2, vz2, vw2, u2, v2,
 		vx3, vy3, vz3, vw3, u3, v3,
@@ -2587,57 +2550,82 @@ function AppVideo:drawMap(
 	draw16Sprites,	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
 	sheetIndex
 )
-	self.triBuf:flush()
-
 	sheetIndex = sheetIndex or 1
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
-	sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
-	self.paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
-	self.tilemapRAM:checkDirtyCPU()
-	self.framebufferRAM:checkDirtyCPU()
+	if sheetRAM.dirtyCPU then
+		self.triBuf:flush()
+		sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
+	end
+	if self.paletteRAM.dirtyCPU then
+		self.triBuf:flush()
+		self.paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
+	end
+	if self.tilemapRAM.dirtyCPU then
+		self.triBuf:flush()
+		self.tilemapRAM:checkDirtyCPU()
+	end
+	if self.framebufferRAM.dirtyCPU then
+		self.triBuf:flush()
+		self.framebufferRAM:checkDirtyCPU()
+	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
-	mapIndexOffset = mapIndexOffset or 0
-
-	self.paletteRAM.tex:bind(2)
-	sheetRAM.tex:bind(1)
-	self.tilemapRAM.tex:bind(0)
-
-	local sceneObj = self.quadMapObj
-	local program = sceneObj.program
-	local programUniforms = program.uniforms
-	program:use()
-
-	gl.glUniformMatrix4fv(programUniforms.mvMat.loc, 1, false, self.mvMat.ptr)
-
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	gl.glUniform4f(programUniforms.drawOverrideSolid.loc, blendSolidR/255, blendSolidG/255, blendSolidB/255, self.drawOverrideSolidA)
-
-	gl.glUniform1i(programUniforms.mapIndexOffset.loc, mapIndexOffset)	-- user has to specify high-bits
 
 	local draw16As0or1 = draw16Sprites and 1 or 0
-	gl.glUniform1i(programUniforms.draw16Sprites.loc, draw16As0or1)
 
-	gl.glUniform4f(programUniforms.box.loc,
-		screenX or 0,
-		screenY or 0,
-		tilesWide * bit.lshift(spriteSize.x, draw16As0or1),
-		tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
+	local xL = screenX or 0
+	local yL = screenY or 0
+	local xR = xL + tilesWide * bit.lshift(spriteSize.x, draw16As0or1)
+	local yR = yL + tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
+
+	local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, xL, yL)
+	local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, xR, yL)
+	local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, xL, yR)
+	local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, xR, yR)
+
+	local uL = tileX / tonumber(spriteSheetSizeInTiles.x)
+	local vL = tileY / tonumber(spriteSheetSizeInTiles.y)
+	local uR = uL + tilesWide / tonumber(spriteSheetSizeInTiles.x)
+	local vR = vL + tilesHigh / tonumber(spriteSheetSizeInTiles.y)
+
+	local extraX = bit.bor(
+		2,	-- tilemap pathway
+		draw16Sprites and 4 or 0
+	)
+	-- user has to specify high-bits
+	mapIndexOffset = mapIndexOffset or 0
+	local extraY = bit.band(0xff, mapIndexOffset)
+	local extraZ = bit.band(0xff, bit.rshift(mapIndexOffset, 8))
+
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	local blendSolidA = self.drawOverrideSolidA * 255
+
+	self.triBuf:addTri(
+		self.paletteRAM.tex,
+		sheetRAM.tex,
+		self.tilemapRAM.tex,	-- TODO how to access the tilemaps from higher banks?
+		xLL, yLL, zLL, wLL, uL, vL,
+		xRL, yRL, zRL, wRL, uR, vL,
+		xLR, yLR, zLR, wLR, uL, vR,
+		extraX, extraY, extraZ, 0,
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+		0, 0, 1, 1
 	)
 
-	gl.glUniform4f(programUniforms.tcbox.loc,
-		tileX / tonumber(spriteSheetSizeInTiles.x),
-		tileY / tonumber(spriteSheetSizeInTiles.y),
-		tilesWide / tonumber(spriteSheetSizeInTiles.x),
-		tilesHigh / tonumber(spriteSheetSizeInTiles.y)
+	self.triBuf:addTri(
+		self.paletteRAM.tex,
+		sheetRAM.tex,
+		self.tilemapRAM.tex,	-- TODO how to access the tilemaps from higher banks?
+		xLR, yLR, zLR, wLR, uL, vR,
+		xRL, yRL, zRL, wRL, uR, vL,
+		xRR, yRR, zRR, wRR, uR, uR,
+		extraX, extraY, extraZ, 0,
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+		0, 0, 1, 1
 	)
-
-	sceneObj:enableAndSetAttrs()
-	sceneObj.geometry:draw()
-	sceneObj:disableAttrs()
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2718,6 +2706,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		self.triBuf:addTri(
 			paletteTex,
 			fontTex,
+			self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 			xLL, yLL, zLL, wLL, uL, 0,
 			xRL, yRL, zRL, wRL, uR, 0,
 			xLR, yLR, zLR, wLR, uL, th,
@@ -2729,6 +2718,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		self.triBuf:addTri(
 			paletteTex,
 			fontTex,
+			self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 			xRL, yRL, zRL, wRL, uR, 0,
 			xRR, yRR, zRR, wRR, uR, th,
 			xLR, yLR, zLR, wLR, uL, th,
