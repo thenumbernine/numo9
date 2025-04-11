@@ -2629,7 +2629,7 @@ function AppVideo:drawMap(
 		self.tilemapRAM.tex,	-- TODO how to access the tilemaps from higher banks?
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
-		xRR, yRR, zRR, wRR, uR, uR,
+		xRR, yRR, zRR, wRR, uR, vR,
 		extraX, extraY, extraZ, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
