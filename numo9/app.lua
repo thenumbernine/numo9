@@ -1414,7 +1414,11 @@ function App:update()
 		--	..' channels active '..range(0,7):mapi(function(i) return self.ram.channels[i].flags.isPlaying end):concat' '
 		--	..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
 		--	..' SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
+--DEBUG: ..' flush calls: '..self.triBuf.flushCallsPerFrame..' flushes: '..tolua(self.triBuf.flushSizes)
 		)
+--DEBUG:self.triBuf.flushCallsPerFrame = 0
+--DEBUG:self.triBuf.flushSizes = {}
+
 		if self.server then
 			--[[
 docs say:
@@ -1427,7 +1431,7 @@ but error says:
 ... does this mean :getstats() does not work on tcp server sockets?
 			if self.server.socket then
 print('self.server.socket', self.server.socket)
-				io.write('server sock '..require'ext.tolua'(self.server.socket:getstats())..' ')
+				io.write('server sock '..tolua(self.server.socket:getstats())..' ')
 			end
 			--]]
 --[[ show server's last delta
@@ -1459,7 +1463,7 @@ self.server.numDeltasSentPerSec = 0
 self.server.numIdleChecksPerSec = 0
 			if self.server.conns[2] then
 				local conn = self.server.conns[2]
-				io.write('serverconn stats '..require'ext.tolua'{self.server.conns[2].socket:getstats()}
+				io.write('serverconn stats '..tolua{self.server.conns[2].socket:getstats()}
 					..' msgs='..#conn.toSend
 					..' sized='..#conn.toSend:concat()
 					..' send/sec='..conn.sendsPerSecond
@@ -1653,7 +1657,7 @@ print('run thread dead')
 
 		-- now run the console and editor, separately, if it's open
 		-- this way server can issue console commands while the game is running
-		self.currentTriBuf:flush()	-- flush before gl state change
+		self.triBuf:flush()	-- flush before gl state change
 		gl.glDisable(gl.GL_BLEND)
 
 		-- if we're using menu then render to the framebufferMenuTex
@@ -1681,7 +1685,6 @@ print('run thread dead')
 			-- default draw calls will use the paletteMenuTex
 			-- and special calls will use the paletteRAM
 			self.videoModeInfo[0].solidObj.texs[1] = self.paletteMenuTex
-			-- don't override spriteObj since all its textures are provided in function args
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
 
@@ -1721,11 +1724,10 @@ print('run thread dead')
 				end
 			end
 
-			self.currentTriBuf:flush()
+			self.triBuf:flush()
 
 			-- restore palettes
 			self.videoModeInfo[0].solidObj.texs[1] = self.paletteRAM.tex
-			self.videoModeInfo[0].spriteObj.texs[2] = self.paletteRAM.tex
 			self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteRAM.tex
 
 			self:setFramebufferTex(self.framebufferRAM.tex)
