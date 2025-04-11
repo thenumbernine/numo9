@@ -797,7 +797,6 @@ colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 	uint r5 = uint(palColor.r * 31.);
 	uint g5 = uint(palColor.g * 31.);
 	uint b5 = uint(palColor.b * 31.);
-	ivec2 ipixelPos = ivec2(pixelPos);
 	fragColor.r = (r5 >> 2) |
 				((g5 >> 2) << 3) |
 				((b5 >> 3) << 6);
@@ -1091,14 +1090,8 @@ layout(location=4) in vec4 boxAttr;
 
 /*
 flat, the screen scissor bbox, because I don't want to flush and redraw every time I change the scissor region.
-Should this be (u)int or float?
-float because it compares with pixelPos
-or should pixelPos be float or (u)int?  float because it varies.
 */
 layout(location=5) in vec4 scissorAttr;
-
-// the pixel pos, in pixel coords
-out vec2 pixelPos;
 
 // the bbox world coordinates, used with 'boxAttr' for rounding
 out vec2 tcv;
@@ -1124,15 +1117,6 @@ void main() {
 	);
 
 	gl_Position.xy -= 1.;
-
-	// now that we're in normalized coordinates, apply homogeneous transform, and rescale back to pixel coordinates
-	// do I want to do this to gl_Position as well?  or will that mess up my texture interpolation?   or do I care?
-	pixelPos = ((
-		gl_Position.xy / gl_Position.w
-	) * .5 + .5) * vec2(
-		<?=glslnumber(frameBufferSize.x)?>,
-		<?=glslnumber(frameBufferSize.y)?>
-	);
 }
 ]],				{
 					glslnumber = glslnumber,
@@ -1143,7 +1127,6 @@ precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
-in vec2 pixelPos;	// framebuffer pixel coordaintes after transform, so they really are framebuffer coordinates
 
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 drawOverrideSolid;
@@ -1162,16 +1145,13 @@ float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
 
 void main() {
-
-#if 1
-	if (pixelPos.x < scissor.x ||
-		pixelPos.y < scissor.y ||
-		pixelPos.x >= scissor.x + scissor.z + 1. ||
-		pixelPos.y >= scissor.y + scissor.w + 1.
+	if (gl_FragCoord.x < scissor.x ||
+		gl_FragCoord.y < scissor.y ||
+		gl_FragCoord.x >= scissor.x + scissor.z + 1. ||
+		gl_FragCoord.y >= scissor.y + scissor.w + 1.
 	) {
 		discard;
 	}
-#endif
 
 	uint pathway = extra.x & 3u;
 
