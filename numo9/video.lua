@@ -593,9 +593,6 @@ function AppVideo:initVideo()
 	self.paletteRAMs = table()
 	self.fontRAMs = table()
 	self:resizeRAMGPUs()
-	self.spriteSheetRAM = self.sheetRAMs[1]
-	self.tileSheetRAM = self.sheetRAMs[2]
-	self.tilemapRAM = self.tilemapRAMs[1]
 	self.paletteRAM = self.paletteRAMs[1]
 	self.fontRAM = self.fontRAMs[1]
 
@@ -1137,9 +1134,20 @@ flat in vec4 scissor;	// x, y, w, h
 
 layout(location=0) out <?=fragType?> fragColor;
 
+/*
+Can I get by binding everything everywhere overall?
+GLES3 GL_MAX_TEXTURE_SIZE must be at least 2048, so 2048x2048, 
+so if our textures are restricted to 256x256 then I can save 8x8 of the 256x256 texs in just one = 64 sprite/tile sheets in just one tex ...
+... but uploading would require some row interleaving ...
+... but it wouldn't if I just stored a single 256 x 2048 texture with just 8 nested textures ...
+... or it wouldn't if I just did the texture memory unraveling in-shader (and stored it as garbage in memory)
+... oh yeah I can get even more space from using a bigger format ... like 16/32-bit RGB/A textures ...
+... and that's just a single texture for GLES3, if we want to deal with multiple bound textures we have 
+	GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
+*/
 uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
-uniform <?=samplerTypeForTex(self.tilemapRAM.tex)?> tilemapTex;
+uniform <?=samplerTypeForTex(self.sheetRAMs[1].tex)?> sheetTex;
+uniform <?=samplerTypeForTex(self.tilemapRAMs[1].tex)?> tilemapTex;
 
 <?=glslCode5551?>
 
@@ -1238,7 +1246,7 @@ void main() {
 <? if useSamplerUInt then ?>
 		uint colorIndex = ]]
 				..readTex{
-					tex = self.spriteSheetRAM.tex,
+					tex = self.sheetRAMs[1].tex,
 					texvar = 'sheetTex',
 					tc = 'tcv',
 					from = 'vec2',
@@ -1263,7 +1271,7 @@ void main() {
 
 		float colorIndexNorm = ]]
 				..readTex{
-					tex = self.spriteSheetRAM.tex,
+					tex = self.sheetRAMs[1].tex,
 					texvar = 'sheetTex',
 					tc = 'tcv / vec2(textureSize(sheetTex))',
 					from = 'vec2',
@@ -1313,7 +1321,7 @@ void main() {
 		//tilemapTex is R16, so red channel should be 16bpp (right?)
 		// how come I don't trust that and think I'll need to switch this to RG8 ...
 		int tileIndex = int(]]..readTex{
-			tex = self.tilemapRAM.tex,
+			tex = self.tilemapRAMs[1].tex,
 			texvar = 'tilemapTex',
 			tc = '(floor(tcf) + .5) / vec2('..textureSize'tilemapTex'..')',
 			from = 'vec2',
@@ -1341,7 +1349,7 @@ void main() {
 
 		// sheetTex is R8 indexing into our palette ...
 		uint colorIndex = ]]..readTex{
-			tex = self.tileSheetRAM.tex,
+			tex = self.sheetRAMs[2].tex,
 			texvar = 'sheetTex',
 			tc = 'tileTexTC',
 			from = 'ivec2',
@@ -1368,7 +1376,7 @@ void main() {
 		//tilemapTex is R16, so red channel should be 16bpp (right?)
 		// how come I don't trust that and think I'll need to switch this to RG8 ...
 		int tileIndex = int(]]..readTex{
-			tex = self.tilemapRAM.tex,
+			tex = self.tilemapRAMs[1].tex,
 			texvar = 'tilemapTex',
 			tc = 'tileTC',
 			from = 'ivec2',
@@ -1395,7 +1403,7 @@ void main() {
 
 		// sheetTex is R8 indexing into our palette ...
 		uint colorIndex = ]]..readTex{
-			tex = self.tileSheetRAM.tex,
+			tex = self.sheetRAMs[2].tex,
 			texvar = 'sheetTex',
 			tc = 'tileTexTC',
 			from = 'ivec2',
@@ -1660,7 +1668,7 @@ function AppVideo:resizeRAMGPUs()
 	for i=1,numBanks do
 		--[[
 		16bpp ...
-		- 10 bits of lookup into spriteSheetRAM
+		- 10 bits of lookup into sheetRAMs
 		- 4 bits high palette nibble
 		- 1 bit hflip
 		- 1 bit vflip
@@ -1817,9 +1825,11 @@ function AppVideo:resetVideo()
 			:subimage()
 		sheetRAM.dirtyCPU = false
 	end
-	self.tilemapRAM.tex:bind()
-		:subimage()
-	self.tilemapRAM.dirtyCPU = false
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		tilemapRAM.tex:bind()
+			:subimage()
+		tilemapRAM.dirtyCPU = false
+	end
 	self.paletteRAM.tex:bind()
 		:subimage()
 	self.paletteRAM.dirtyCPU = false
@@ -1854,7 +1864,9 @@ function AppVideo:checkDirtyGPU()
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		sheetRAM:checkDirtyGPU()
 	end
-	self.tilemapRAM:checkDirtyGPU()
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		tilemapRAM:checkDirtyGPU()
+	end
 	self.paletteRAM:checkDirtyGPU()
 	self.fontRAM:checkDirtyGPU()
 	self.framebufferRAM:checkDirtyGPU()
@@ -1864,7 +1876,9 @@ function AppVideo:setDirtyCPU()
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		sheetRAM.dirtyCPU = true
 	end
-	self.tilemapRAM.dirtyCPU = true
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		tilemapRAM.dirtyCPU = true
+	end
 	self.paletteRAM.dirtyCPU = true
 	self.fontRAM.dirtyCPU = true
 	self.framebufferRAM.dirtyCPU = true
@@ -2538,7 +2552,8 @@ function AppVideo:drawMap(
 	screenY,		-- /
 	mapIndexOffset,	-- general shift to apply to all read map indexes in the tilemap
 	draw16Sprites,	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
-	sheetIndex
+	sheetIndex,		-- which sheet to use, 0 to 2*n-1 for n banks.  even are sprite-sheets, odd are tile-sheets.
+	tilemapIndex	-- which tilemap bank to use, 0 to n-1 for n banks
 )
 	sheetIndex = sheetIndex or 1
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
@@ -2551,9 +2566,11 @@ function AppVideo:drawMap(
 		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	end
-	if self.tilemapRAM.dirtyCPU then
+	tilemapIndex = tilemapIndex or 0
+	local tilemapRAM = self.tilemapRAMs[tilemapIndex+1]
+	if tilemapRAM.dirtyCPU then
 		self.triBuf:flush()
-		self.tilemapRAM:checkDirtyCPU()
+		tilemapRAM:checkDirtyCPU()
 	end
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
@@ -2596,7 +2613,7 @@ function AppVideo:drawMap(
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		sheetRAM.tex,
-		self.tilemapRAM.tex,	-- TODO how to access the tilemaps from higher banks?
+		tilemapRAM.tex,
 		xLL, yLL, zLL, wLL, uL, vL,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xLR, yLR, zLR, wLR, uL, vR,
@@ -2608,7 +2625,7 @@ function AppVideo:drawMap(
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		sheetRAM.tex,
-		self.tilemapRAM.tex,	-- TODO how to access the tilemaps from higher banks?
+		tilemapRAM.tex,
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xRR, yRR, zRR, wRR, uR, vR,

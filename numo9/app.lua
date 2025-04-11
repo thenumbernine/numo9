@@ -1530,9 +1530,9 @@ conn.receivesPerSecond = 0
 			self.sheetRAMs[2]:updateAddr(newTileSheetAddr)
 		end
 		local newTilemapAddr = self.ram.tilemapAddr:toabs()
-		if self.tilemapRAM.addr ~= newTilemapAddr then
+		if self.tilemapRAMs[1].addr ~= newTilemapAddr then
 --DEBUG:print'updating tilemapRAM addr'
-			self.tilemapRAM:updateAddr(newTilemapAddr)
+			self.tilemapRAMs[1]:updateAddr(newTilemapAddr)
 		end
 		local newPaletteAddr = self.ram.paletteAddr:toabs()
 		if self.paletteRAM.addr ~= newPaletteAddr then
@@ -1552,7 +1552,7 @@ conn.receivesPerSecond = 0
 		-- and if any sheets intersect with it then we need to copy the GPU back to CPU ... and then set the sheets' dirtyCPU flag ...
 		local spriteSheetOverlapsFramebuffer = self.sheetRAMs[1]:overlaps(self.framebufferRAM)
 		local tileSheetOverlapsFramebuffer = self.sheetRAMs[2]:overlaps(self.framebufferRAM)
-		local tilemapOverlapsFramebuffer = self.tilemapRAM:overlaps(self.framebufferRAM)
+		local tilemapOverlapsFramebuffer = self.tilemapRAMs[1]:overlaps(self.framebufferRAM)
 		local paletteOverlapsFramebuffer = self.paletteRAM:overlaps(self.framebufferRAM)
 		local fontOverlapsFramebuffer = self.fontRAM:overlaps(self.framebufferRAM)
 		if spriteSheetOverlapsFramebuffer
@@ -1565,7 +1565,7 @@ conn.receivesPerSecond = 0
 			self.framebufferRAM:checkDirtyGPU()
 			if spriteSheetOverlapsFramebuffer then self.sheetRAMs[1].dirtyCPU = true end
 			if tileSheetOverlapsFramebuffer then self.sheetRAMs[2].dirtyCPU = true end
-			if tilemapOverlapsFramebuffer then self.tilemapRAM.dirtyCPU = true end
+			if tilemapOverlapsFramebuffer then self.tilemapRAMs[1].dirtyCPU = true end
 			if paletteOverlapsFramebuffer then self.paletteRAM.dirtyCPU = true end
 			if fontOverlapsFramebuffer then self.fontRAM.dirtyCPU = true end
 		end
@@ -1947,10 +1947,12 @@ function App:poke(addr, value)
 			sheetRAM.dirtyCPU = true
 		end
 	end
-	if addr >= self.tilemapRAM.addr
-	and addr < self.tilemapRAM.addrEnd
-	then
-		self.tilemapRAM.dirtyCPU = true
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		if addr >= tilemapRAM.addr
+		and addr < tilemapRAM.addrEnd
+		then
+			tilemapRAM.dirtyCPU = true
+		end
 	end
 	-- a few options with dirtying palette entries
 	-- 1) consolidate calls, so write this separately in pokew and pokel
@@ -1988,10 +1990,12 @@ function App:pokew(addr, value)
 			sheetRAM.dirtyCPU = true
 		end
 	end
-	if addrend >= self.tilemapRAM.addr
-	and addr < self.tilemapRAM.addrEnd
-	then
-		self.tilemapRAM.dirtyCPU = true
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		if addrend >= tilemapRAM.addr
+		and addr < tilemapRAM.addrEnd
+		then
+			tilemapRAM.dirtyCPU = true
+		end
 	end
 	if addrend >= self.paletteRAM.addr
 	and addr < self.paletteRAM.addrEnd
@@ -2025,10 +2029,12 @@ function App:pokel(addr, value)
 			sheetRAM.dirtyCPU = true
 		end
 	end
-	if addrend >= self.tilemapRAM.addr
-	and addr < self.tilemapRAM.addrEnd
-	then
-		self.tilemapRAM.dirtyCPU = true
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		if addrend >= tilemapRAM.addr
+		and addr < tilemapRAM.addrEnd
+		then
+			tilemapRAM.dirtyCPU = true
+		end
 	end
 	if addrend >= self.paletteRAM.addr
 	and addr < self.paletteRAM.addrEnd
@@ -2083,10 +2089,12 @@ function App:memcpy(dst, src, len)
 			sheetRAM.dirtyCPU = true
 		end
 	end
-	if dstend >= self.tilemapRAM.addr
-	and dst < self.tilemapRAM.addrEnd
-	then
-		self.tilemapRAM.dirtyCPU = true
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		if dstend >= tilemapRAM.addr
+		and dst < tilemapRAM.addrEnd
+		then
+			tilemapRAM.dirtyCPU = true
+		end
 	end
 	if dstend >= self.paletteRAM.addr
 	and dst < self.paletteRAM.addrEnd
@@ -2151,10 +2159,12 @@ function App:memset(dst, val, len)
 			sheetRAM.dirtyCPU = true
 		end
 	end
-	if dstend >= self.tilemapRAM.addr
-	and dst < self.tilemapRAM.addrEnd
-	then
-		self.tilemapRAM.dirtyCPU = true
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		if dstend >= tilemapRAM.addr
+		and dst < tilemapRAM.addrEnd
+		then
+			tilemapRAM.dirtyCPU = true
+		end
 	end
 	if dstend >= self.paletteRAM.addr
 	and dst < self.paletteRAM.addrEnd
