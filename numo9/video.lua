@@ -1033,29 +1033,62 @@ layout(location=1) in vec2 texcoord;
 /*
 flat, flags for sprite vs solid etc:
 
+extra.x:
+	bit 0/1 =
+		00 = use solid path
+		01 = use sprite path
+		10 = use tilemap path
+
 for solid:
 	.x = flags:
-		bit 0/1:
-			00 = use solid path
-			01 = use sprite path
-			10 = use tilemap path
+		bit 0/1 = render pathway = 00
 		bit 2 = draw a solid round quad
 		bit 4 = solid shader uses borderOnly
 	.y = colorIndex
 
+for sprites:
+	.x:
+		bit 0/1 = render pathway = 01
+		bit 2 = don't use transparentIndex (on means don't test transparency at all ... set this when transparentIndex is OOB)
+		bits 3-5 = spriteBit shift
+			Specifies which bit to read from at the sprite.
+			Only needs 3 bits.
+			  (extra.x >> 3) == 0 = read sprite low nibble.
+			  (extra.x >> 3) == 4 = read sprite high nibble.
+
+	.y = spriteMask;
+		Specifies the mask after shifting the sprite bit
+		  0x01u = 1bpp
+		  0x03u = 2bpp
+		  0x07u = 3bpp
+		  0x0Fu = 4bpp
+		  0xFFu = 8bpp
+		I'm giving this all 8 bits, but honestly I could just represent it as 3 bits and calculate the mask as ((1 << mask) - 1)
+
+	.z = transparentIndex;
+		Specifies which colorIndex to use as transparency.
+		This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
+		If you want fully opaque then just choose an oob color index.
+
+	.w = paletteIndex;
+		For now this is an integer added to the 0-15 4-bits of the sprite tex.
+		You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
+		Or you can set it to low numbers and use it to offset the palette.
+		Should this be high bits? or just an offset to OR? or to add?
 */
 layout(location=2) in uvec4 extraAttr;
 
 // flat, the solid-blend color
 layout(location=3) in vec4 drawOverrideSolidAttr;
 
-// flat, the bbox of the currently drawn quad
+// flat, the bbox of the currently drawn quad, only used for round-rendering of solid-shader
 layout(location=4) in vec4 boxAttr;
+
+// the bbox world coordinates, used with 'boxAttr' for rounding
+out vec2 tcv;
 
 // the pixel pos, in [-1,1]^2 normalized coords
 out vec2 pixelPos;
-
-out vec2 tcv;
 
 flat out vec4 box;
 flat out vec4 drawOverrideSolid;
@@ -1069,13 +1102,13 @@ void main() {
 	box = boxAttr;
 
 	gl_Position = vertex;
-	
+
 	//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
 	gl_Position.xy *= vec2(
-		<?=glslnumber(2 / frameBufferSize.x)?>, 
+		<?=glslnumber(2 / frameBufferSize.x)?>,
 		<?=glslnumber(2 / frameBufferSize.y)?>
 	);
-	
+
 	gl_Position.xy -= 1.;
 }
 ]],				{
@@ -1094,87 +1127,155 @@ flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 
 layout(location=0) out <?=fragType?> fragColor;
 
+uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
+uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
+
 <?=glslCode5551?>
 
-uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-
 float sqr(float x) { return x * x; }
-
 float lenSq(vec2 v) { return dot(v,v); }
 
 void main() {
-	bool round = (extra.x & 2u) != 0u;
-	bool borderOnly = (extra.x & 4u) != 0u;
-	uint colorIndex = extra.y;
+	uint pathway = extra.x & 3u;
 
-	if (round) {
-		// midpoint-circle / Bresenham algorithm, like Tic80 uses:
-		// figure out which octant of the circle you're in
-		// then compute deltas based on if |dy| / |dx|
-		// (x/a)^2 + (y/b)^2 = 1
-		// x/a = √(1 - (y/b)^2)
-		// x = a√(1 - (y/b)^2)
-		// y = b√(1 - (x/a)^2)
-		vec2 radius = .5 * box.zw;
-		vec2 center = box.xy + radius;
-		vec2 delta = tcv - center;
-		//if (box.w < box.z) {					// idk why I was using this?
-		if (abs(delta.y) > abs(delta.x)) {		// good for doing proper ellipse borders.
-			// top/bottom quadrant
-			float by = radius.y * sqrt(1. - sqr(delta.x / radius.x));
-			if (delta.y > by || delta.y < -by) discard;
-			if (borderOnly) {
-				// TODO think this through
-				// calculate screen space epsilon at this point
-				//float eps = abs(dFdy(tcv.y));
-				// more solid for 3D
-				float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
-				//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-				//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
-				if (delta.y < by-eps && delta.y > -by+eps) discard;
+	// solid shading pathway
+	if (pathway == 0u) {
+		bool round = (extra.x & 4u) != 0u;
+		bool borderOnly = (extra.x & 8u) != 0u;
+		uint colorIndex = extra.y;
+
+		if (round) {
+			// midpoint-circle / Bresenham algorithm, like Tic80 uses:
+			// figure out which octant of the circle you're in
+			// then compute deltas based on if |dy| / |dx|
+			// (x/a)^2 + (y/b)^2 = 1
+			// x/a = √(1 - (y/b)^2)
+			// x = a√(1 - (y/b)^2)
+			// y = b√(1 - (x/a)^2)
+			vec2 radius = .5 * box.zw;
+			vec2 center = box.xy + radius;
+			vec2 delta = tcv - center;
+			//if (box.w < box.z) {					// idk why I was using this?
+			if (abs(delta.y) > abs(delta.x)) {		// good for doing proper ellipse borders.
+				// top/bottom quadrant
+				float by = radius.y * sqrt(1. - sqr(delta.x / radius.x));
+				if (delta.y > by || delta.y < -by) discard;
+				if (borderOnly) {
+					// TODO think this through
+					// calculate screen space epsilon at this point
+					//float eps = abs(dFdy(tcv.y));
+					// more solid for 3D
+					float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
+					//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
+					//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
+					if (delta.y < by-eps && delta.y > -by+eps) discard;
+				}
+			} else {
+				// left/right quadrant
+				float bx = radius.x * sqrt(1. - sqr(delta.y / radius.y));
+				if (delta.x > bx || delta.x < -bx) discard;
+				if (borderOnly) {
+					// calculate screen space epsilon at this point
+					//float eps = abs(dFdx(tcv.x));
+					// more solid for 3D
+					float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
+					//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
+					//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
+					if (delta.x < bx-eps && delta.x > -bx+eps) discard;
+				}
 			}
 		} else {
-			// left/right quadrant
-			float bx = radius.x * sqrt(1. - sqr(delta.y / radius.y));
-			if (delta.x > bx || delta.x < -bx) discard;
 			if (borderOnly) {
 				// calculate screen space epsilon at this point
-				//float eps = abs(dFdx(tcv.x));
-				// more solid for 3D
-				float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
+				//vec2 eps = abs(vec2(dFdx(tcv.x), dFdy(tcv.y)));
+				float eps = sqrt(lenSq(dFdx(tcv))+lenSq(dFdy(tcv)));
 				//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
 				//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
-				if (delta.x < bx-eps && delta.x > -bx+eps) discard;
-			}
-		}
-	} else {
-		if (borderOnly) {
-			// calculate screen space epsilon at this point
-			//vec2 eps = abs(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-			float eps = sqrt(lenSq(dFdx(tcv))+lenSq(dFdy(tcv)));
-			//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-			//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
 
-			if (tcv.x > box.x+eps
-				&& tcv.x < box.x+box.z-eps
-				&& tcv.y > box.y+eps
-				&& tcv.y < box.y+box.w-eps
-			) discard;
+				if (tcv.x > box.x+eps
+					&& tcv.x < box.x+box.z-eps
+					&& tcv.y > box.y+eps
+					&& tcv.y < box.y+box.w-eps
+				) discard;
+			}
+			// else default solid rect
 		}
-		// else default solid rect
-	}
-]]..info.colorOutput..[[
+
+<?=info.colorOutput?>
+
+	// sprite shading pathway
+	} else if (pathway == 1u) {
+
+		uint spriteBit = (extra.x >> 3) & 7u;
+		uint spriteMask = extra.y;
+		uint transparentIndex = extra.z;
+
+		// shift the oob-transparency 2nd bit up to the 8th bit,
+		// such that, setting this means `transparentIndex` will never match `colorIndex & spriteMask`;
+		transparentIndex |= (extra.x & 4u) << 6;
+
+		uint paletteIndex = extra.w;
+
+<? if useSamplerUInt then ?>
+		uint colorIndex = ]]
+				..readTex{
+					tex = self.spriteSheetRAM.tex,
+					texvar = 'sheetTex',
+					tc = 'tcv',
+					from = 'vec2',
+					to = 'uvec4',
+				}
+				..[[.r;
+
+		colorIndex >>= spriteBit;
+		colorIndex &= spriteMask;
+		if (colorIndex == transparentIndex) discard;
+		colorIndex += paletteIndex;
+
+<?=info.colorOutput?>
+
+<? if fragType == 'uvec4' then ?>
+		if (fragColor.a == 0u) discard;
+<? else ?>
+		if (fragColor.a < .5) discard;
+<? end ?>
+
+<? else -- useSamplerUInt ?>
+
+		float colorIndexNorm = ]]
+				..readTex{
+					tex = self.spriteSheetRAM.tex,
+					texvar = 'sheetTex',
+					tc = 'tcv / vec2(textureSize(sheetTex))',
+					from = 'vec2',
+					to = 'vec4',
+				}
+..[[.r;
+		uint colorIndex = uint(colorIndexNorm * 255. + .5);
+
+		colorIndex >>= spriteBit;
+		colorIndex &= spriteMask;
+		if (colorIndex == transparentIndex) discard;
+		colorIndex += paletteIndex;
+
+<?=info.colorOutput?>
+
+<? end -- useSamplerUInt ?>
+
+	}	// pathway
 }
 ]],				{
-					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					self = self,
+					info = info,
+					glslnumber = glslnumber,
+					fragType = fragTypeForTex(info.framebufferRAM.tex),
 					samplerTypeForTex = samplerTypeForTex,
 					glslCode5551 = glslCode5551,
+					useSamplerUInt = useSamplerUInt,
 				}),
 				uniforms = {
 					paletteTex = 0,
-					borderOnly = false,
-					round = false,
+					sheetTex = 1,
 				},
 			},
 			geometry = {
@@ -1190,14 +1291,6 @@ void main() {
 					buffer = {
 						usage = gl.GL_DYNAMIC_DRAW,
 						dim = 2,
-						useVec = true,
-					},
-				},
-				boxAttr = {
-					--divisor = 3,	-- 6 honestly ...
-					buffer = {
-						usage = gl.GL_DYNAMIC_DRAW,
-						dim = 4,
 						useVec = true,
 					},
 				},
@@ -1224,212 +1317,14 @@ void main() {
 						ctype = 'vec4ub_t',
 					},
 				},
-			},
-		}
-
---DEBUG:print('mode '..infoIndex..' spriteObj')
-		info.spriteObj = GLSceneObject{
-			program = {
-				version = glslVersion,
-				precision = 'best',
-				vertexCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-layout(location=0) in vec4 vertex;
-layout(location=1) in vec2 texcoord;
-
-/*
-merging sprites and solids ...
-extra.x:
-	bit 0/1 = 
-		00 = use solid path
-		01 = use sprite path
-		10 = use tilemap path
-	bit 2 = don't use transparentIndex (on means don't test transparency at all ... set this when transparentIndex is OOB)
-	bits 3-5 = spriteBit shift
-		Specifies which bit to read from at the sprite.
-		Only needs 3 bits.
-		  (extra.x >> 3) == 0 = read sprite low nibble.
-		  (extra.x >> 3) == 4 = read sprite high nibble.
-
-Specifies the mask after shifting the sprite bit
-  0x01u = 1bpp
-  0x03u = 2bpp
-  0x07u = 3bpp
-  0x0Fu = 4bpp
-  0xFFu = 8bpp
-I'm giving this all 8 bits, but honestly I could just represent it as 3 bits and calculate the mask as ((1 << mask) - 1)
-extra.y = spriteMask;
-
-Specifies which colorIndex to use as transparency.
-This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
-If you want fully opaque then just choose an oob color index.
-extra.z = transparentIndex;
-
-For now this is an integer added to the 0-15 4-bits of the sprite tex.
-You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
-Or you can set it to low numbers and use it to offset the palette.
-Should this be high bits? or just an offset to OR? or to add?
-extra.w = paletteIndex;
-*/
-layout(location=2) in uvec4 extraAttr;
-
-layout(location=3) in vec4 drawOverrideSolidAttr;
-
-out vec2 tcv;
-out vec2 pixelPos;
-flat out uvec4 extra;
-flat out vec4 drawOverrideSolid;
-
-const float frameBufferSizeX = <?=glslnumber(frameBufferSize.x)?>;
-const float frameBufferSizeY = <?=glslnumber(frameBufferSize.y)?>;
-
-void main() {
-	pixelPos = vertex.xy;
-	tcv = texcoord;
-	extra = extraAttr;
-	drawOverrideSolid = drawOverrideSolidAttr;
-
-	gl_Position = vertex;
-	gl_Position.xy *= vec2(2. / frameBufferSizeX, 2. / frameBufferSizeY);
-	gl_Position.xy -= 1.;
-}
-]],				{
-					glslnumber = glslnumber,
-					frameBufferSize = frameBufferSize,
-				}),
-				fragmentCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-in vec2 pixelPos;
-flat in uvec4 extra;
-flat in vec4 drawOverrideSolid;
-
-layout(location=0) out <?=fragType?> fragColor;
-
-uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-
-// Reads 4 bits from wherever shift location you provide.
-uniform <?=samplerTypeForTex(self.spriteSheetRAM.tex)?> sheetTex;
-
-<?=glslCode5551?>
-
-void main() {
-	uint spriteBit = (extra.x >> 3) & 7u;
-	uint spriteMask = extra.y;
-	uint transparentIndex = extra.z;
-	
-	// shift the oob-transparency 2nd bit up to the 8th bit,
-	// such that, setting this means `transparentIndex` will never match `colorIndex & spriteMask`;
-	transparentIndex |= (extra.x & 4u) << 6;
-	
-	uint paletteIndex = extra.w;
-
-<? if useSamplerUInt then ?>
-	uint colorIndex = ]]
-			..readTex{
-				tex = self.spriteSheetRAM.tex,
-				texvar = 'sheetTex',
-				tc = 'tcv',
-				from = 'vec2',
-				to = 'uvec4',
-			}
-			..[[.r;
-
-	colorIndex >>= spriteBit;
-	colorIndex &= spriteMask;
-	if (colorIndex == transparentIndex) discard;
-	colorIndex += paletteIndex;
-
-<?=info.colorOutput?>
-
-<? if fragType == 'uvec4' then ?>
-	if (fragColor.a == 0u) discard;
-<? else ?>
-	if (fragColor.a < .5) discard;
-<? end ?>
-
-<? else ?>
-
-	float colorIndexNorm = ]]
-			..readTex{
-				tex = self.spriteSheetRAM.tex,
-				texvar = 'sheetTex',
-				tc = 'tcv / vec2(textureSize(sheetTex))',
-				from = 'vec2',
-				to = 'vec4',
-			}
-..[[.r;
-	uint colorIndex = uint(colorIndexNorm * 255. + .5);
-
-	colorIndex >>= spriteBit;
-	colorIndex &= spriteMask;
-	if (colorIndex == transparentIndex) discard;
-	colorIndex += paletteIndex;
-
-<?=info.colorOutput?>
-<? end ?>
-}
-]], 			{
-					glslnumber = glslnumber,
-					fragType = fragTypeForTex(info.framebufferRAM.tex),
-					useSamplerUInt = useSamplerUInt,
-					self = self,
-					samplerTypeForTex = samplerTypeForTex,
-					info = info,
-					glslCode5551 = glslCode5551,
-				}),
-				uniforms = {
-					paletteTex = 0,
-					sheetTex = 1,
-					paletteIndex = 0,
-					transparentIndex = -1,
-					spriteBit = 0,
-					spriteMask = 0xFF,
-				},
-			},
-			vertexes = {
-				usage = gl.GL_DYNAMIC_DRAW,
-				dim = 4,
-				useVec = true,
-			},
-			attrs = {
-				texcoord = {
+				boxAttr = {
+					--divisor = 3,	-- 6 honestly ...
 					buffer = {
 						usage = gl.GL_DYNAMIC_DRAW,
-						dim = 2,
+						dim = 4,
 						useVec = true,
 					},
 				},
-				extraAttr = {
-					type = gl.GL_UNSIGNED_BYTE,
-					--divisor = 3,				-- TODO
- 					buffer = {
- 						usage = gl.GL_DYNAMIC_DRAW,
-						type = gl.GL_UNSIGNED_BYTE,
-						dim = 4,
- 						useVec = true,
-						ctype = 'vec4ub_t',	
- 					},
- 				},
-				drawOverrideSolidAttr = {
-					type = gl.GL_UNSIGNED_BYTE,		-- I'm uploading uint8_t[4]
-					normalize = true,				-- data will be normalized to [0,1]
-					--divisor = 3,
-					buffer = {
-						usage = gl.GL_DYNAMIC_DRAW,
-						type = gl.GL_UNSIGNED_BYTE,	-- gl will receive uint8_t[4]
-						dim = 4,
-						useVec = true,
-						ctype = 'vec4ub_t',			-- cpu buffer will hold vec4ub_t's
-					},
-				},
-			},
-			geometry = {
-				mode = gl.GL_TRIANGLES,
 			},
 		}
 
@@ -1651,15 +1546,20 @@ void main() {
 
 	local app = self
 
-	self.solidTriBuf = {
-		-- this is just like spriteTriBuf:flush except for textures differ
+	self.triBuf = {
+--DEBUG:flushCallsPerFrame = 0,
+--DEBUG:flushSizes = {},
 		flush = function(self)
+--DEBUG: self.flushCallsPerFrame = self.flushCallsPerFrame + 1
+
 			local sceneObj = self.sceneObj
 			if not sceneObj then return end	-- for some calls called before this is even created ...
 
 			-- flush the old
 			local n = #sceneObj.attrs.vertex.buffer.vec
 			if n == 0 then return end
+
+--DEBUG: self.flushSizes[n] = (self.flushSizes[n] or 0) + 1
 
 			-- resize if capacity changed, upload
 			for name,attr in pairs(sceneObj.attrs) do
@@ -1668,6 +1568,7 @@ void main() {
 
 			-- bind textures
 			-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+			app.lastSolidSheetTex:bind(1)
 			app.lastSolidPaletteTex:bind(0)
 
 			sceneObj.geometry.count = n
@@ -1681,98 +1582,7 @@ void main() {
 			sceneObj:beginUpdate()
 
 			app.lastSolidPaletteTex = nil
-		end,
-		addTri = function(
-			self,
-			paletteTex,
-
-			-- per vtx
-			x1, y1, z1, w1, u1, v1,
-			x2, y2, z2, w2, u2, v2,
-			x3, y3, z3, w3, u3, v3,
-
-			-- divisor
-			x, y, w, h,
-			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-			drawFlags, colorIndex
-		)
-			local sceneObj = self.sceneObj
-			local vertex = sceneObj.attrs.vertex.buffer.vec
-			local texcoord = sceneObj.attrs.texcoord.buffer.vec
-			local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
-			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
-			local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
-
-			-- if the textures change or the program changes
-			if app.currentTriBuf ~= self then
-				app.currentTriBuf:flush()
-				self.currentTriBuf = self
-			end
-			if app.lastSolidPaletteTex ~= paletteTex then
-				self:flush()
-				app.lastSolidPaletteTex = paletteTex
-			end
-
-			-- push
-			local v
-			v = vertex:emplace_back()
-			v.x, v.y, v.z, v.w = x1, y1, z1, w1
-			v = vertex:emplace_back()
-			v.x, v.y, v.z, v.w = x2, y2, z2, w2
-			v = vertex:emplace_back()
-			v.x, v.y, v.z, v.w = x3, y3, z3, w3
-
-			v = texcoord:emplace_back()
-			v.x, v.y = u1, v1
-			v = texcoord:emplace_back()
-			v.x, v.y = u2, v2
-			v = texcoord:emplace_back()
-			v.x, v.y = u3, v3
-
-			for j=0,2 do
-				v = boxAttr:emplace_back()
-				v.x, v.y, v.z, v.w = x, y, w, h
-
-				v = drawOverrideSolidAttr:emplace_back()
-				v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
-
-				v = extraAttr:emplace_back()
-				v.x, v.y, v.z, v.w = drawFlags, colorIndex, 0, 0
-			end
-		end,
-	}
-
-	self.spriteTriBuf = {
-		flush = function(self)
-			local sceneObj = self.sceneObj
-			if not sceneObj then return end	-- for some calls called before this is even created ...
-
-			-- flush the old
-			local n = #sceneObj.attrs.vertex.buffer.vec
-			if n == 0 then return end
-
-			-- resize if capacity changed, upload
-			for name,attr in pairs(sceneObj.attrs) do
-				attr.buffer:endUpdate()
-			end
-
-			-- bind textures
-			-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
-			app.lastSpriteSheetTex:bind(1)
-			app.lastSpritePaletteTex:bind(0)
-
-			sceneObj.geometry.count = n
-
-			sceneObj.program:use()
-			sceneObj:enableAndSetAttrs()
-			sceneObj.geometry:draw()
-			sceneObj:disableAttrs()
-
-			-- reset the vectors and store the last capacity
-			sceneObj:beginUpdate()
-
-			app.lastSpriteSheetTex = nil
-			app.lastSpritePaletteTex = nil
+			app.lastSolidSheetTex = nil
 		end,
 		addTri = function(
 			self,
@@ -1785,30 +1595,24 @@ void main() {
 			x3, y3, z3, w3, u3, v3,
 
 			-- divisor
-			drawFlags,
-			spriteMask,
-			transparentIndex,
-			paletteIndex,
-
-			blendSolidR, blendSolidG, blendSolidB, blendSolidA
+			extraX, extraY, extraZ, extraW,
+			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+			boxX, boxY, boxW, boxH
 		)
 			local sceneObj = self.sceneObj
 			local vertex = sceneObj.attrs.vertex.buffer.vec
 			local texcoord = sceneObj.attrs.texcoord.buffer.vec
-			local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
+			local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
 			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
+			local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
 
-			-- if the textures change or the program changes
-			if app.currentTriBuf ~= self then
-				app.currentTriBuf:flush()
-				self.currentTriBuf = self
-			end
-			if app.lastSpritePaletteTex ~= paletteTex
-			or app.lastSpriteSheetTex ~= sheetTex
+			-- if the textures change then flush
+			if app.lastSolidPaletteTex ~= paletteTex
+			or app.lastSolidSheetTex ~= sheetTex
 			then
 				self:flush()
-				app.lastSpritePaletteTex = assert.type(paletteTex, 'table')
-				app.lastSpriteSheetTex = assert.type(sheetTex, 'table')
+				app.lastSolidPaletteTex = paletteTex
+				app.lastSolidSheetTex = sheetTex
 			end
 
 			-- push
@@ -1828,17 +1632,17 @@ void main() {
 			v.x, v.y = u3, v3
 
 			for j=0,2 do
-				v = extraAttr:emplace_back()
-				v.x, v.y, v.z, v.w = drawFlags, spriteMask, transparentIndex, paletteIndex
-
 				v = drawOverrideSolidAttr:emplace_back()
 				v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
+
+				v = extraAttr:emplace_back()
+				v.x, v.y, v.z, v.w = extraX, extraY, extraZ, extraW
+
+				v = boxAttr:emplace_back()
+				v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
 			end
 		end,
 	}
-
-	-- what we were rendering / what to flush if we change gl state etc
-	self.currentTriBuf = self.spriteTriBuf
 
 	self:resetVideo()
 end
@@ -2100,9 +1904,9 @@ each video mode should uniquely ...
 function AppVideo:setVideoMode(mode)
 	if self.currentVideoMode == mode then return end
 
-	-- first time we won't have a spriteObj to flush
-	if self.currentTriBuf then
-		self.currentTriBuf:flush()	-- flush before we redefine what info.spriteObj is, which .currentTriBuf:flush() depends on
+	-- first time we won't have a solidObj to flush
+	if self.triBuf then
+		self.triBuf:flush()	-- flush before we redefine what info.solidObj is, which .triBuf:flush() depends on
 	end
 
 	local info = self.videoModeInfo[mode]
@@ -2110,11 +1914,9 @@ function AppVideo:setVideoMode(mode)
 		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
 		self.solidObj = info.solidObj
-		self.spriteObj = info.spriteObj
 		self.quadMapObj = info.quadMapObj
 
-		self.solidTriBuf.sceneObj = self.solidObj
-		self.spriteTriBuf.sceneObj = self.spriteObj
+		self.triBuf.sceneObj = self.solidObj
 	else
 		error("unknown video mode "..tostring(mode))
 	end
@@ -2201,7 +2003,7 @@ function AppVideo:mvMatFromRAM()
 end
 
 function AppVideo:resetFont()
-	self.currentTriBuf:flush()
+	self.triBuf:flush()
 	self.fontRAM:checkDirtyGPU()
 	resetROMFont(self.ram.bank[0].font)
 	ffi.copy(self.banks.v[0].font, self.ram.bank[0].font, fontInBytes)
@@ -2235,11 +2037,11 @@ function AppVideo:drawSolidRect(
 	round
 )
 	if self.paletteRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
@@ -2257,39 +2059,38 @@ function AppVideo:drawSolidRect(
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local blendSolidA = self.drawOverrideSolidA *  255
-	
+
 	local drawFlags = bit.bor(
-		1,	-- draw solid (vs sprite)
-		round and 2 or 0,
-		borderOnly and 4 or 0
+		round and 4 or 0,
+		borderOnly and 8 or 0
 	)
 
 	colorIndex = math.floor(colorIndex or 0)
 
-	self.solidTriBuf:addTri(
+	self.triBuf:addTri(
 		self.paletteRAM.tex,
+		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		xLL, yLL, zLL, wLL, x, y,
 		xRL, yRL, zRL, wRL, xR, y,
 		xLR, yLR, zLR, wLR, x, yR,
-		x, y, w, h,
+		drawFlags, colorIndex, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-		drawFlags, 
-		colorIndex
+		x, y, w, h
 	)
 
-	self.solidTriBuf:addTri(
+	self.triBuf:addTri(
 		self.paletteRAM.tex,
+		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		xLR, yLR, zLR, wLR, x, yR,
 		xRL, yRL, zRL, wRL, xR, y,
 		xRR, yRR, zRR, wRR, xR, yR,
-		x, y, w, h,
+		drawFlags, colorIndex, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-		drawFlags, 
-		colorIndex
+		x, y, w, h
 	)
 
 	-- TODO get rid of this
-	self.solidTriBuf:flush()
+	self.triBuf:flush()
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2309,11 +2110,11 @@ end
 
 function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	if self.paletteRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
@@ -2323,18 +2124,19 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 	local v3x, v3y, v3z, v3w = vec3to4(self.mvMat.ptr, x3, y3, z3)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	self.solidTriBuf:addTri(
+	self.triBuf:addTri(
 		self.paletteRAM.tex,
+		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		v1x, v1y, v1z, v1w, 0, 0,
 		v2x, v2y, v2z, v2w, 1, 0,
 		v3x, v3y, v3z, v3w, 0, 1,
-		0, 0, 1, 1,		-- do box coords matter for tris if we're not using round or solid?
+		0, math.floor(colorIndex or 0), 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
-		0, math.floor(colorIndex or 0)
+		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
 
 	-- TODO get rid of this
-	self.solidTriBuf:flush()
+	self.triBuf:flush()
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2346,11 +2148,11 @@ end
 
 function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	if self.paletteRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
@@ -2390,28 +2192,30 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	local blendSolidA = self.drawOverrideSolidA *  255
 	colorIndex = math.floor(colorIndex or 0)
 
-	self.solidTriBuf:addTri(
+	self.triBuf:addTri(
 		self.paletteRAM.tex,
+		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		xLL, yLL, zLL, wLL, 0, 0,
 		xRL, yRL, zRL, wRL, 1, 0,
 		xLR, yLR, zLR, wLR, 0, 1,
-		0, 0, 1, 1,
+		0, colorIndex, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-		0, colorIndex
+		0, 0, 1, 1
 	)
 
-	self.solidTriBuf:addTri(
+	self.triBuf:addTri(
 		self.paletteRAM.tex,
+		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		xLR, yLR, zLR, wLR, 0, 1,
 		xRL, yRL, zRL, wRL, 1, 0,
 		xRR, yRR, zRR, wRR, 1, 1,
-		0, 0, 1, 1,
+		0, colorIndex, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-		0, colorIndex
+		0, 0, 1, 1
 	)
 
 	-- TODO get rid of this
-	self.solidTriBuf:flush()
+	self.triBuf:flush()
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -2423,7 +2227,7 @@ end
 
 local mvMatCopy = ffi.new('float[16]')
 function AppVideo:clearScreen(colorIndex)
-	self.currentTriBuf:flush()
+	self.triBuf:flush()
 
 	gl.glDisable(gl.GL_SCISSOR_TEST)
 	-- which is faster, push/pop the matrix, or reassign the uniform?
@@ -2442,7 +2246,7 @@ function AppVideo:clearScreen(colorIndex)
 end
 
 function AppVideo:setClipRect(x, y, w, h)
-	self.currentTriBuf:flush()
+	self.triBuf:flush()
 
 	-- NOTICE the ram is only useful for reading, not writing, as it won't invoke a glScissor call
 	-- ... should I change that?
@@ -2462,7 +2266,7 @@ AppVideo.drawOverrideSolidA = 0
 function AppVideo:setBlendMode(blendMode)
 	if self.currentBlendMode == blendMode then return end
 
-	self.currentTriBuf:flush()
+	self.triBuf:flush()
 
 	if blendMode >= 8 then
 		blendMode = -1
@@ -2528,7 +2332,7 @@ function AppVideo:drawQuadTex(
 
 		-- if transparency is oob then flag the "don't use transparentIndex" bit
 		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
-		
+
 		-- store sprite bit shift in the next 3 bits
 		bit.lshift(spriteBit, 3)
 	)
@@ -2549,24 +2353,26 @@ function AppVideo:drawQuadTex(
 	local uR = tx + tw
 	local vR = ty + th
 
-	self.spriteTriBuf:addTri(
+	self.triBuf:addTri(
 		paletteTex,
 		sheetTex,
 		xLL, yLL, zLL, wLL, uL, vL,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xLR, yLR, zLR, wLR, uL, vR,
 		drawFlags, spriteMask, transparentIndex, paletteIndex,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+		0, 0, 1, 1
 	)
 
-	self.spriteTriBuf:addTri(
+	self.triBuf:addTri(
 		paletteTex,
 		sheetTex,
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xRR, yRR, zRR, wRR, uR, vR,
 		drawFlags, spriteMask, transparentIndex, paletteIndex,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA
+		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+		0, 0, 1, 1
 	)
 end
 
@@ -2598,17 +2404,17 @@ function AppVideo:drawQuad(
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	if self.paletteRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
-	
+
 	-- TODO only this before we actually do the :draw()
 	if self.framebufferRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
@@ -2645,15 +2451,15 @@ function AppVideo:drawTexTri3D(
 	if not sheetRAM then return end
 
 	if sheetRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	if self.paletteRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
@@ -2662,14 +2468,14 @@ function AppVideo:drawTexTri3D(
 	spriteMask = spriteMask or 0xFF
 	transparentIndex = transparentIndex or -1
 	paletteIndex = paletteIndex or 0
-	
+
 	local drawFlags = bit.bor(
 		-- bits 0/1 == 01b <=> use sprite pathway
 		1,
 
 		-- if transparency is oob then flag the "don't use transparentIndex" bit
 		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
-		
+
 		-- store sprite bit shift in the next 3 bits
 		bit.lshift(spriteBit, 3)
 	)
@@ -2680,14 +2486,15 @@ function AppVideo:drawTexTri3D(
 	local vx2, vy2, vz2, vw2 = vec3to4(self.mvMat.ptr, x2, y2, z2)
 	local vx3, vy3, vz3, vw3 = vec3to4(self.mvMat.ptr, x3, y3, z3)
 
-	self.spriteTriBuf:addTri(
+	self.triBuf:addTri(
 		self.paletteRAM.tex,
 		sheetRAM.tex,
 		vx1, vy1, vz1, vw1, u1, v1,
 		vx2, vy2, vz2, vw2, u2, v2,
 		vx3, vy3, vz3, vw3, u3, v3,
 		drawFlags, spriteMask, transparentIndex, paletteIndex,
-		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255
+		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
+		0, 0, 1, 1
 	)
 
 	self.framebufferRAM.dirtyGPU = true
@@ -2768,7 +2575,7 @@ function AppVideo:drawMap(
 	draw16Sprites,	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
 	sheetIndex
 )
-	self.currentTriBuf:flush()
+	self.triBuf:flush()
 
 	sheetIndex = sheetIndex or 1
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
@@ -2880,7 +2687,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 
 			-- transparentIndex == 0, which is in-bounds, so don't set the transparentIndex oob flag
 			0,
-			
+
 			-- store sprite bit shift in the next 3 bits
 			bit.lshift(spriteBit, 3)
 		)
@@ -2896,23 +2703,27 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		local uL = by / tonumber(texSizeInTiles.x)
 		local uR = uL + tw
 
-		self.spriteTriBuf:addTri(
+		self.triBuf:addTri(
 			paletteTex,
 			fontTex,
 			xLL, yLL, zLL, wLL, uL, 0,
 			xRL, yRL, zRL, wRL, uR, 0,
 			xLR, yLR, zLR, wLR, uL, th,
 			drawFlags, 1, 0, paletteIndex,
-			blendSolidR, blendSolidG, blendSolidB, blendSolidA)
+			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+			0, 0, 1, 1
+		)
 
-		self.spriteTriBuf:addTri(
+		self.triBuf:addTri(
 			paletteTex,
 			fontTex,
 			xRL, yRL, zRL, wRL, uR, 0,
 			xRR, yRR, zRR, wRR, uR, th,
 			xLR, yLR, zLR, wLR, uL, th,
 			drawFlags, 1, 0, paletteIndex,
-			blendSolidR, blendSolidG, blendSolidB, blendSolidA)
+			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+			0, 0, 1, 1
+		)
 
 		x = x + scaleX * (self.inMenuUpdate and menuFontWidth or self.ram.fontWidth[ch])
 	end
@@ -2928,15 +2739,15 @@ function AppVideo:drawText(...)
 
 -- [[ drawQuad startup
 	if self.fontRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	if self.paletteRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
-		self.currentTriBuf:flush()
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
