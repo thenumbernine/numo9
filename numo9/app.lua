@@ -224,17 +224,9 @@ function App:initGL()
 		print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
 	end
 
-	--[[
-	TODO use fixed-precision here ... or ... expose floating-precision poke/peeks? nahhh
-	fixed precision 8.8 like SNES Mode7 uses?
-	whatever it is, how to get it to work with my matrix_ffi library?  I could ...
-	*) use float, and convert (might have weird precision issues in some places .. then again, double I'm convinced it's safe)
-	*) make my own ffi.cdef struct with a custom mul ... use it for fixed-precision ...
-	*) use int and shift bits after the fact ... no conversion errors ...
-	float conversion one sounds best ...
-	--]]
-	self.mvMat = matrix_ffi({4,4}, 'float'):zeros():setIdent()
-	self:mvMatToRAM()
+	self.mvMat = matrix_ffi({4,4}, mvMatType):zeros()
+	self.mvMat.ptr = ffi.cast(mvMatType..'*', self.ram.mvMat)
+	self:matident()
 
 	self.blitScreenView = View()
 	self.blitScreenView.ortho = true
@@ -2251,7 +2243,6 @@ function App:loadROM(filename)
 --DEBUG:print('App:loadROM', filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
-	self:mvMatFromRAM()
 
 	-- before resizing the memory range, make sure all memory is synced, so that when we move addresses later it doesn't try to sync to CPU mem that is stale / dangling
 	self:allRAMRegionsCheckDirtyGPU()
@@ -2295,6 +2286,10 @@ function App:loadROM(filename)
 	ffi.copy(self.ram, oldram, ffi.sizeof'RAM')
 	ffi.copy(self.ram.bank, self.banks.v, ffi.sizeof'ROM' * #self.banks)
 --]]
+
+	-- every time .ram updates, this has to update as well:
+	self.mvMat.ptr = ffi.cast(mvMatType..'*', self.ram.mvMat)
+	self:matident()
 
 	self:resetROM()
 	return true

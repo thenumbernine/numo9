@@ -1076,7 +1076,6 @@ print'sending initial RAM state...'
 
 	-- [[ make sure changes in gpu are syncd with cpu...
 	app:checkDirtyGPU()
-	app:mvMatToRAM()
 	--]]
 
 	-- send a code for 'incoming RAM dump'
@@ -1311,7 +1310,6 @@ print'begin client listen loop...'
 							fontRAM:checkDirtyCPU()
 						end
 						app.fontRAMs[1]:updateAddr(app.ram.fontAddr:toabs())
-						app:mvMatFromRAM()
 						--app:resetVideo()
 						app.framebufferRAM.changedSinceDraw = true
 
