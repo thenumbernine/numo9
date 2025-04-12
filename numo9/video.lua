@@ -69,16 +69,8 @@ local function settable(t, ...)
 	settableindex(t, 1, ...)
 end
 
--- Uses integer coordinates in shader.
--- You'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
--- GL_TEXTURE_RECTANGLE isn't supported by GLES3
-local useTextureRect = false
---local useTextureRect = true
-
 local texelFunc = 'texture'
 --local texelFunc = 'texelFetch'
--- I'm getting this error really: "No matching function for call to texelFetch(usampler2D, ivec2)"
--- so I guess I need to use usampler2DRect if I want to use texelFetch
 
 -- on = use GL_*UI for our texture internal format, off = use regular non-integer
 --local useSamplerUInt = false	-- crashes ... why. TODO.
@@ -125,11 +117,7 @@ vec4 u16to5551(uint x) {
 end
 
 local function textureSize(tex)
-	if useTextureRect then	-- textureSize(gsampler2DRect) doesn't have a LOD argument
-		return 'textureSize('..tex..')'
-	else
-		return 'textureSize('..tex..', 0)'
-	end
+	return 'textureSize('..tex..', 0)'
 end
 
 --[[
@@ -145,18 +133,16 @@ local function readTex(args)
 	local texvar = args.texvar
 	local tc = args.tc
 	if args.from == 'vec2' then
-		if useTextureRect or texelFunc == 'texelFetch' then
+		if texelFunc == 'texelFetch' then
 			tc = 'ivec2(('..tc..') * vec2('..textureSize(texvar)..'))'
 		end
 	elseif args.from == 'ivec2' then
-		if not (useTextureRect or texelFunc == 'texelFetch') then
+		if texelFunc ~= 'texelFetch' then
 			tc = '(vec2('..tc..') + .5) / vec2('..textureSize(texvar)..')'
 		end
 	end
 	local dst
-	if texelFunc == 'texelFetch'
-	and not useTextureRect 	-- texelFetch(gsampler2DRect) doesn't have a LOD argument
-	then
+	if texelFunc == 'texelFetch' then
 		dst = texelFunc..'('..texvar..', '..tc..', 0)'
 	else
 		dst = texelFunc..'('..texvar..', '..tc..')'
@@ -456,9 +442,7 @@ glreport'before RAMGPUTex:init'
 	image.buffer = ffi.cast(image.format..'*', ptr)
 
 	local tex = GLTex2D{
-		target = args.target or (
-			useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil	-- nil defaults to TEXTURE_2D
-		),
+		target = args.target,
 		internalFormat = args.internalFormat or gl.GL_RGBA,
 		format = args.glformat or gl.GL_RGBA,
 		type = args.gltype or gl.GL_UNSIGNED_BYTE,
@@ -587,6 +571,19 @@ function AppVideo:initVideo()
 		GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
 
 	What are allll our textures?
+	- paletteMenuTex
+	- fontMenuTex
+	- framebufferMenuTex
+	- checkerTex
+	- RAMGPU's:
+		- framebufferRGB565RAM
+		- framebufferIndexRAM
+		- per-bank:
+			- sheetRAMs[i] ... x2 for sprites vs tiles
+			- tilemapRAMs[i]
+			- paletteRAMs[i]
+			- fontRAMs[i]
+
 	Should I just put the whole cartridge on the GPU and keep it sync'd at all times?
 	How often do I modify the cartridge anyways?
 
@@ -633,7 +630,6 @@ function AppVideo:initVideo()
 		local data = ffi.new('uint16_t[?]', 256)
 		resetPalette(data)
 		self.paletteMenuTex = GLTex2D{
-			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
 			width = paletteSize,
 			height = 1,
 			internalFormat = internalFormat5551,
@@ -652,7 +648,6 @@ function AppVideo:initVideo()
 		local fontData = ffi.new('uint8_t[?]', fontInBytes)
 		resetROMFont(fontData, 'font.png')
 		self.fontMenuTex = GLTex2D{
-			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
 			internalFormat = texInternalFormat_u8,
 			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
 			type = gl.GL_UNSIGNED_BYTE,
@@ -672,7 +667,6 @@ function AppVideo:initVideo()
 		local data = ffi.new('uint8_t[?]', size)
 		ffi.fill(data, size)
 		self.framebufferMenuTex = GLTex2D{
-			target = useTextureRect and gl.GL_TEXTURE_RECTANGLE or nil,	-- nil defaults to TEXTURE_2D
 			internalFormat = gl.GL_RGB,
 			format = gl.GL_RGB,
 			type = gl.GL_UNSIGNED_BYTE,
