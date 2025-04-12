@@ -287,7 +287,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- mapIndexOffset = global offset to shift all map indexes.
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
-	- tilemapIndex = the tilemap bank to use, default to 0.  
+	- tilemapIndex = the tilemap bank to use, default to 0.
 		TODO welp, how to swap out palette texs or fonts from high banks?  So instead of bloating the API, how about just have an 'active bank' variable in RAM somewhere, and that determines which tile sheet, tilemap, palette, font, etc to use ... or nah too restrictive? idk...
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = set video mode.  The current video modes are:
@@ -570,10 +570,10 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.
 - The reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ... this and multicart/bank and sync() function ...
-- ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.  
+- ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.
 	In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
-- If I'm going to continue with the SNES theme then I'm going to need a lot more than 64k for storing all audio.  
+- If I'm going to continue with the SNES theme then I'm going to need a lot more than 64k for storing all audio.
 	SNES just had 64k of ARAM active at a time, but for allll samples, often it could get into the MBs ...
 	What if I just had arbitrary banks, and in the editor you pick what you want to use them for ... code | sprite/tile sheets | tilemaps | audio | etc
-- <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.  
+- <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.
 	This means redoing the tiles-wide and high of the sprite and map draw functions.
