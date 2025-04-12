@@ -69,7 +69,9 @@ local function settable(t, ...)
 	settableindex(t, 1, ...)
 end
 
--- uses integer coordinates in shader.  you'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
+-- Uses integer coordinates in shader.
+-- You'd think that'd make it look more retro, but it seems shaders evolved for decades with float-only/predominant that int support is shoehorned in.
+-- GL_TEXTURE_RECTANGLE isn't supported by GLES3
 local useTextureRect = false
 --local useTextureRect = true
 
@@ -122,23 +124,6 @@ vec4 u16to5551(uint x) {
 ]]
 end
 
--- TODO move to gl?
-local function infoForTex(tex)
-	return assert.index(GLTex2D.formatInfoForInternalFormat, tex.internalFormat, "failed to find formatInfo for internalFormat")
-end
-
-local function glslPrefixForTex(tex)
-	return GLTex2D.glslPrefixForInternalType[infoForTex(tex).internalType] or ''
-end
-
-local function samplerTypeForTex(tex)
-	return glslPrefixForTex(tex)..'sampler2D'..(useTextureRect and 'Rect' or '')
-end
-
-local function fragTypeForTex(tex)
-	return glslPrefixForTex(tex)..'vec4'
-end
-
 local function textureSize(tex)
 	if useTextureRect then	-- textureSize(gsampler2DRect) doesn't have a LOD argument
 		return 'textureSize('..tex..')'
@@ -180,7 +165,7 @@ local function readTex(args)
 		dst = 'u16to5551(('..dst..').r)'
 	elseif args.to == 'uvec4' then
 		-- convert to uint, assume the source is a texture texel
-		if fragTypeForTex(args.tex) == 'uvec4' then
+		if args.tex:getGLSLFragType() == 'uvec4' then
 			dst = 'uvec4('..dst..')'
 		end
 	end
@@ -583,11 +568,29 @@ function AppVideo:initVideo()
 		height = frameBufferSize.y,
 	}:unbind()
 
-	-- create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per bank
-	-- but I am still using the texture specs for my shader creation
-	-- and my shader creation is done once
-	-- so until then, just resize them here
-	-- RAMRegions ... RAMBanks ... idk what to name this ...
+
+	--[[
+	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per bank
+	but I am still using the texture specs for my shader creation
+	and my shader creation is done once
+	so until then, just resize them here
+
+	hmm, how to reduce texture #s as much as possible
+	Can I get by binding everything everywhere overall?
+	GLES3 GL_MAX_TEXTURE_SIZE must be at least 2048, so 2048x2048,
+	so if our textures are restricted to 256x256 then I can save 8x8 of the 256x256 texs in just one = 64 sprite/tile sheets in just one tex ...
+	... but uploading would require some row interleaving ...
+	... but it wouldn't if I just stored a single 256 x 2048 texture with just 8 nested textures ...
+	... or it wouldn't if I just did the texture memory unraveling in-shader (and stored it as garbage in memory)
+	... oh yeah I can get even more space from using a bigger format ... like 16/32-bit RGB/A textures ...
+	... and that's just a single texture for GLES3, if we want to deal with multiple bound textures we have
+		GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
+
+	What are allll our textures?
+	Should I just put the whole cartridge on the GPU and keep it sync'd at all times?
+	How often do I modify the cartridge anyways?
+
+	--]]
 	self.sheetRAMs = table()
 	self.tilemapRAMs = table()
 	self.paletteRAMs = table()
@@ -733,7 +736,7 @@ function AppVideo:initVideo()
 			tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 			from = 'ivec2',
 			to = support5551
-				and fragTypeForTex(tex)
+				and tex:getGLSLFragType()
 				or 'u16to5551'
 			,
 		}..';\n'
@@ -846,7 +849,7 @@ precision highp usampler2D;	// needed by #version 300 es
 in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
-uniform <?=samplerTypeForTex(framebufferRAM.tex)?> framebufferTex;
+uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 
 void main() {
 	fragColor = ]]..readTex{
@@ -859,7 +862,6 @@ void main() {
 }
 ]],			{
 				framebufferRAM = self.videoModeInfo[0].framebufferRAM,
-				samplerTypeForTex = samplerTypeForTex,
 				blitFragType = blitFragType,
 			}),
 			uniforms = {
@@ -900,8 +902,8 @@ in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
 
-uniform <?=samplerTypeForTex(framebufferRAM.tex)?> framebufferTex;
-uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
+uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=self.paletteRAM.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
 
@@ -916,7 +918,6 @@ void main() {
 ]]..colorIndexToFrag(self.videoModeInfo[1].framebufferRAM.tex, 'fragColor')..[[
 }
 ]],			{
-				samplerTypeForTex = samplerTypeForTex,
 				framebufferRAM = self.videoModeInfo[1].framebufferRAM,
 				self = self,
 				blitFragType = blitFragType,
@@ -964,7 +965,7 @@ in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
 
-uniform <?=samplerTypeForTex(framebufferRAM.tex)?> framebufferTex;
+uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 
 void main() {
 	uint rgb332 = ]]..readTex{
@@ -981,7 +982,6 @@ void main() {
 }
 ]],			{
 				framebufferRAM = self.videoModeInfo[2].framebufferRAM,
-				samplerTypeForTex = samplerTypeForTex,
 				blitFragType = blitFragType,
 			}),
 			uniforms = {
@@ -1134,20 +1134,9 @@ flat in vec4 scissor;	// x, y, w, h
 
 layout(location=0) out <?=fragType?> fragColor;
 
-/*
-Can I get by binding everything everywhere overall?
-GLES3 GL_MAX_TEXTURE_SIZE must be at least 2048, so 2048x2048, 
-so if our textures are restricted to 256x256 then I can save 8x8 of the 256x256 texs in just one = 64 sprite/tile sheets in just one tex ...
-... but uploading would require some row interleaving ...
-... but it wouldn't if I just stored a single 256 x 2048 texture with just 8 nested textures ...
-... or it wouldn't if I just did the texture memory unraveling in-shader (and stored it as garbage in memory)
-... oh yeah I can get even more space from using a bigger format ... like 16/32-bit RGB/A textures ...
-... and that's just a single texture for GLES3, if we want to deal with multiple bound textures we have 
-	GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
-*/
-uniform <?=samplerTypeForTex(self.paletteRAM.tex)?> paletteTex;
-uniform <?=samplerTypeForTex(self.sheetRAMs[1].tex)?> sheetTex;
-uniform <?=samplerTypeForTex(self.tilemapRAMs[1].tex)?> tilemapTex;
+uniform <?=self.paletteRAM.tex:getGLSLSamplerType()?> paletteTex;
+uniform <?=self.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
+uniform <?=self.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
 
 <?=glslCode5551?>
 
@@ -1424,8 +1413,7 @@ void main() {
 					self = self,
 					info = info,
 					glslnumber = glslnumber,
-					fragType = fragTypeForTex(info.framebufferRAM.tex),
-					samplerTypeForTex = samplerTypeForTex,
+					fragType = info.framebufferRAM.tex:getGLSLFragType(),
 					glslCode5551 = glslCode5551,
 					useSamplerUInt = useSamplerUInt,
 					tilemapSize = tilemapSize,
