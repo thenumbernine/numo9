@@ -35,21 +35,24 @@ local fontInBytes = numo9_rom.fontInBytes
 local framebufferAddr = numo9_rom.framebufferAddr
 local frameBufferSize = numo9_rom.frameBufferSize
 local mvMatScale = numo9_rom.mvMatScale
+local mvMatType = numo9_rom.mvMatType
 local menuFontWidth = numo9_rom.menuFontWidth
+
+local mvMatInvScale = 1 / mvMatScale
 
 local function vec2to4(m, x, y, z)
 	return
-		m[0] * x + m[4] * y + m[12],
-		m[1] * x + m[5] * y + m[13],
-		m[2] * x + m[6] * y + m[14],
-		m[3] * x + m[7] * y + m[15]
+		(m[0] * x + m[4] * y + m[12]) * mvMatInvScale,
+		(m[1] * x + m[5] * y + m[13]) * mvMatInvScale,
+		(m[2] * x + m[6] * y + m[14]) * mvMatInvScale,
+		(m[3] * x + m[7] * y + m[15]) * mvMatInvScale
 end
 local function vec3to4(m, x, y, z)
 	return
-		m[0] * x + m[4] * y + m[ 8] * z + m[12],
-		m[1] * x + m[5] * y + m[ 9] * z + m[13],
-		m[2] * x + m[6] * y + m[10] * z + m[14],
-		m[3] * x + m[7] * y + m[11] * z + m[15]
+		(m[0] * x + m[4] * y + m[ 8] * z + m[12]) * mvMatInvScale,
+		(m[1] * x + m[5] * y + m[ 9] * z + m[13]) * mvMatInvScale,
+		(m[2] * x + m[6] * y + m[10] * z + m[14]) * mvMatInvScale,
+		(m[3] * x + m[7] * y + m[11] * z + m[15]) * mvMatInvScale
 end
 
 local function glslnumber(x)
@@ -439,6 +442,7 @@ glreport'before RAMGPUTex:init'
 	if src then	-- if we specified a src to the Image then copy it into RAM before switching Image pointers to point at RAM
 		ffi.copy(ptr, image.buffer, self.size)
 	end
+	-- TODO allow Image construction with ptr
 	image.buffer = ffi.cast(image.format..'*', ptr)
 
 	local tex = GLTex2D{
@@ -571,18 +575,25 @@ function AppVideo:initVideo()
 		GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
 
 	What are allll our textures?
-	- paletteMenuTex
-	- fontMenuTex
-	- framebufferMenuTex
-	- checkerTex
-	- RAMGPU's:
-		- framebufferRGB565RAM
-		- framebufferIndexRAM
-		- per-bank:
-			- sheetRAMs[i] ... x2 for sprites vs tiles
-			- tilemapRAMs[i]
-			- paletteRAMs[i]
-			- fontRAMs[i]
+	- paletteMenuTex			256x1		2 bytes ... GL_R16UI or GL_UNSIGNED_SHORT_1_5_5_5_REV
+	- fontMenuTex				256x8		1 byte  ... GL_R8UI
+	- checkerTex				4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
+	- framebufferMenuTex		256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
+	- framebufferRGB565RAM		256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
+	- framebufferIndexRAM		256x256		1 byte  ... GL_R8UI
+	- per-bank:
+		- sheetRAMs[i] x2		256x256		1 byte  ... GL_R8UI
+		- tilemapRAMs[i]		256x256		2 bytes ... GL_R16UI
+		- paletteRAMs[i]		256x1		2 bytes ... GL_R16UI or GL_UNSIGNED_SHORT_1_5_5_5_REV
+		- fontRAMs[i]			256x8		1 byte  ... GL_R8UI
+
+	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
+	... and make each be 256 cols wide ... and as high as there are banks ... 
+	... but if 2048 is the min size, then 256x2048 = 8 sheets worth, and if we use sprite & tilemap then that's 4 ...
+	... or I could use a 512 x 2048 tex ... and just delegate what region on the tex each sheet gets ...
+	... or why not, use all 2048 x 2048 = 64 different 256x256 sheets, and sprite/tile means 32 bank max ...
+	I could make a single GL tex, and share regions on it between different sheetRAMs ...
+	This would break with the tex.ptr == image.ptr model ... no more calling :subimage() without specifying regions ...
 
 	Should I just put the whole cartridge on the GPU and keep it sync'd at all times?
 	How often do I modify the cartridge anyways?
@@ -1960,18 +1971,6 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 end
 
 
--- convert to/from our fixed-point storage in RAM and the float matrix that the matrix library uses
-function AppVideo:mvMatToRAM()
-	for i=0,15 do
-		self.ram.mvMat[i] = self.mvMat.ptr[i] * mvMatScale
-	end
-end
-function AppVideo:mvMatFromRAM()
-	for i=0,15 do
-		self.mvMat.ptr[i] = self.ram.mvMat[i] / mvMatScale
-	end
-end
-
 function AppVideo:resetFont()
 	self.triBuf:flush()
 	self.fontRAM:checkDirtyGPU()
@@ -2014,7 +2013,6 @@ function AppVideo:drawSolidRect(
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
-	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	if w < 0 then x,w = x+w,-w end
 	if h < 0 then y,h = y+h,-h end
@@ -2022,10 +2020,10 @@ function AppVideo:drawSolidRect(
 	local xR = x + w
 	local yR = y + h
 
-	local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, x, y)
-	local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, xR, y)
-	local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, x, yR)
-	local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, xR, yR)
+	local xLL, yLL, zLL, wLL = vec2to4(self.ram.mvMat, x, y)
+	local xRL, yRL, zRL, wRL = vec2to4(self.ram.mvMat, xR, y)
+	local xLR, yLR, zLR, wLR = vec2to4(self.ram.mvMat, x, yR)
+	local xRR, yRR, zRR, wRR = vec2to4(self.ram.mvMat, xR, yR)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local blendSolidA = self.drawOverrideSolidA *  255
@@ -2086,11 +2084,10 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
-	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
-	local v1x, v1y, v1z, v1w = vec3to4(self.mvMat.ptr, x1, y1, z1)
-	local v2x, v2y, v2z, v2w = vec3to4(self.mvMat.ptr, x2, y2, z2)
-	local v3x, v3y, v3z, v3w = vec3to4(self.mvMat.ptr, x3, y3, z3)
+	local v1x, v1y, v1z, v1w = vec3to4(self.ram.mvMat, x1, y1, z1)
+	local v2x, v2y, v2z, v2w = vec3to4(self.ram.mvMat, x2, y2, z2)
+	local v3x, v3y, v3z, v3w = vec3to4(self.ram.mvMat, x3, y3, z3)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	self.triBuf:addTri(
@@ -2122,10 +2119,9 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
-	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
-	local v1x, v1y, v1z, v1w = vec3to4(self.mvMat.ptr, x1, y1, z1)
-	local v2x, v2y, v2z, v2w = vec3to4(self.mvMat.ptr, x2, y2, z2)
+	local v1x, v1y, v1z, v1w = vec3to4(self.ram.mvMat, x1, y1, z1)
+	local v2x, v2y, v2z, v2w = vec3to4(self.ram.mvMat, x2, y2, z2)
 
 	local dx = v2x - v1x
 	local dy = v2y - v1y
@@ -2191,11 +2187,11 @@ function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	return self:drawSolidLine3D(x1,y1,0,x2,y2,0,colorIndex)
 end
 
-local mvMatCopy = ffi.new('float[16]')
+local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:clearScreen(colorIndex)
 
 	-- which is faster, push/pop the matrix, or reassign the uniform?
-	ffi.copy(mvMatCopy, self.mvMat.ptr, ffi.sizeof(mvMatCopy))
+	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 	self:matident()
 	self:drawSolidRect(
 		0,
@@ -2204,8 +2200,7 @@ function AppVideo:clearScreen(colorIndex)
 		frameBufferSize.y,
 		colorIndex or 0)
 
-	ffi.copy(self.mvMat.ptr, mvMatCopy, ffi.sizeof(mvMatCopy))
-	self:mvMatToRAM()	-- need this as well
+	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end
 
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
@@ -2301,10 +2296,10 @@ function AppVideo:drawQuadTex(
 	local xR = x + w
 	local yR = y + h
 
-	local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, x, y)
-	local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, xR, y)
-	local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, x, yR)
-	local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, xR, yR)
+	local xLL, yLL, zLL, wLL = vec2to4(self.ram.mvMat, x, y)
+	local xRL, yRL, zRL, wRL = vec2to4(self.ram.mvMat, xR, y)
+	local xLR, yLR, zLR, wLR = vec2to4(self.ram.mvMat, x, yR)
+	local xRR, yRR, zRR, wRR = vec2to4(self.ram.mvMat, xR, yR)
 
 	local uL = tx
 	local vL = ty
@@ -2377,7 +2372,6 @@ function AppVideo:drawQuad(
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
-	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	self:drawQuadTex(
 		self.paletteRAM.tex,
@@ -2422,7 +2416,6 @@ function AppVideo:drawTexTri3D(
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
-	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
@@ -2442,9 +2435,9 @@ function AppVideo:drawTexTri3D(
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 
-	local vx1, vy1, vz1, vw1 = vec3to4(self.mvMat.ptr, x1, y1, z1)
-	local vx2, vy2, vz2, vw2 = vec3to4(self.mvMat.ptr, x2, y2, z2)
-	local vx3, vy3, vz3, vw3 = vec3to4(self.mvMat.ptr, x3, y3, z3)
+	local vx1, vy1, vz1, vw1 = vec3to4(self.ram.mvMat, x1, y1, z1)
+	local vx2, vy2, vz2, vw2 = vec3to4(self.ram.mvMat, x2, y2, z2)
+	local vx3, vy3, vz3, vw3 = vec3to4(self.ram.mvMat, x3, y3, z3)
 
 	self.triBuf:addTri(
 		self.paletteRAM.tex,
@@ -2558,7 +2551,6 @@ function AppVideo:drawMap(
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
-	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
@@ -2570,10 +2562,10 @@ function AppVideo:drawMap(
 	local xR = xL + tilesWide * bit.lshift(spriteSize.x, draw16As0or1)
 	local yR = yL + tilesHigh * bit.lshift(spriteSize.y, draw16As0or1)
 
-	local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, xL, yL)
-	local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, xR, yL)
-	local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, xL, yR)
-	local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, xR, yR)
+	local xLL, yLL, zLL, wLL = vec2to4(self.ram.mvMat, xL, yL)
+	local xRL, yRL, zRL, wRL = vec2to4(self.ram.mvMat, xR, yL)
+	local xLR, yLR, zLR, wLR = vec2to4(self.ram.mvMat, xL, yR)
+	local xRR, yRR, zRR, wRR = vec2to4(self.ram.mvMat, xR, yR)
 
 	local uL = tileX / tonumber(spriteSheetSizeInTiles.x)
 	local vL = tileY / tonumber(spriteSheetSizeInTiles.y)
@@ -2684,10 +2676,10 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		local xR = x + w
 		local yR = y + h
 
-		local xLL, yLL, zLL, wLL = vec2to4(self.mvMat.ptr, x, y)
-		local xRL, yRL, zRL, wRL = vec2to4(self.mvMat.ptr, xR, y)
-		local xLR, yLR, zLR, wLR = vec2to4(self.mvMat.ptr, x, yR)
-		local xRR, yRR, zRR, wRR = vec2to4(self.mvMat.ptr, xR, yR)
+		local xLL, yLL, zLL, wLL = vec2to4(self.ram.mvMat, x, y)
+		local xRL, yRL, zRL, wRL = vec2to4(self.ram.mvMat, xR, y)
+		local xLR, yLR, zLR, wLR = vec2to4(self.ram.mvMat, x, yR)
+		local xRR, yRR, zRR, wRR = vec2to4(self.ram.mvMat, xR, yR)
 
 		local uL = by / tonumber(texSizeInTiles.x)
 		local uR = uL + tw
@@ -2741,7 +2733,6 @@ function AppVideo:drawText(...)
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
-	self:mvMatFromRAM()	-- TODO mvMat dirtyCPU flag?
 --]]
 
 	local result = self:drawTextCommon(self.fontRAM.tex, self.paletteRAM.tex, ...)
@@ -2765,56 +2756,47 @@ end
 -- I'm already setting them in env so ... nah ...
 
 function AppVideo:matident()
-	self.mvMat:setIdent()
-	self:mvMatToRAM()
+	-- set-ident and scale ... 
+	self.ram.mvMat[0],  self.ram.mvMat[1],  self.ram.mvMat[2],  self.ram.mvMat[3]  = mvMatScale, 0, 0, 0
+	self.ram.mvMat[4],  self.ram.mvMat[5],  self.ram.mvMat[6],  self.ram.mvMat[7]  = 0, mvMatScale, 0, 0
+	self.ram.mvMat[8],  self.ram.mvMat[9],  self.ram.mvMat[10], self.ram.mvMat[11] = 0, 0, mvMatScale, 0
+	self.ram.mvMat[12], self.ram.mvMat[13], self.ram.mvMat[14], self.ram.mvMat[15] = 0, 0, 0, mvMatScale
 end
 
 function AppVideo:mattrans(x,y,z)
-	self:mvMatFromRAM()
 	self.mvMat:applyTranslate(x, y, z)
-	self:mvMatToRAM()
 end
 
 function AppVideo:matrot(theta, x, y, z)
-	self:mvMatFromRAM()
 	self.mvMat:applyRotate(theta, x, y, z)
-	self:mvMatToRAM()
 end
 
 function AppVideo:matscale(x, y, z)
-	self:mvMatFromRAM()
 	self.mvMat:applyScale(x, y, z)
-	self:mvMatToRAM()
 end
 
 function AppVideo:matortho(l, r, t, b, n, f)
-	self:mvMatFromRAM()
 	-- adjust from [-1,1] to [0,256]
 	-- opengl ortho matrix, which expects input space to be [-1,1]
 	self.mvMat:applyTranslate(128, 128)
 	self.mvMat:applyScale(128, 128)
 	self.mvMat:applyOrtho(l, r, t, b, n, f)
-	self:mvMatToRAM()
 end
 
 function AppVideo:matfrustum(l, r, t, b, n, f)
-	self:mvMatFromRAM()
 --	self.mvMat:applyTranslate(128, 128)
 --	self.mvMat:applyScale(128, 128)
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 	-- TODO Why is matortho a lhs transform to screen space but matfrustum a rhs transform to screen space? what did I do wrong?
 	self.mvMat:applyTranslate(128, 128)
 	self.mvMat:applyScale(128, 128)
-	self:mvMatToRAM()
 end
 
 function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-	self:mvMatFromRAM()
 	-- typically y+ is up, but in the 90s console era y- is up
 	-- also flip x+ since OpenGL uses a RHS but I want to preserve orientation of our renderer when looking down from above, so we use a LHS
 	self.mvMat:applyScale(-1, -1, 1)
 	self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-	self:mvMatToRAM()
 end
 
 return {
