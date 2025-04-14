@@ -1506,8 +1506,8 @@ conn.receivesPerSecond = 0
 		local newFramebufferAddr = self.ram.framebufferAddr:toabs()
 		if self.framebufferRAM.addr ~= newFramebufferAddr then
 --DEBUG:print'updating framebufferRAM addr'
-			self.framebufferRGB565RAM:updateAddr(newFramebufferAddr)
-			self.framebufferIndexRAM:updateAddr(newFramebufferAddr)
+			self.framebufferRAM_256x256xRGB565:updateAddr(newFramebufferAddr)
+			self.framebufferRAM_256x256x8bpp:updateAddr(newFramebufferAddr)
 		end
 
 		-- TODO how to handle these plus expandable ROM?  I could only have the first sheets relocatable?

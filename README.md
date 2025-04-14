@@ -288,12 +288,11 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
 	- tilemapIndex = the tilemap bank to use, default to 0.
-		TODO welp, how to swap out palette texs or fonts from high banks?  So instead of bloating the API, how about just have an 'active bank' variable in RAM somewhere, and that determines which tile sheet, tilemap, palette, font, etc to use ... or nah too restrictive? idk...
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = set video mode.  The current video modes are:
-	- 0 = 16bpp RGB565, needed for blending
-	- 1 = 8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow)
-	- 2 = 8bpp RGB332.
+	- 0 = 256x256x16bpp RGB565, needed for blending
+	- 1 = 256x256x8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow).
+	- 2 = 256x256x8bpp RGB332.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `blend([i])` = Set blend mode.  Default value is 0xff corresponding to no blending.  The current blend modes are:
 	- 0xff = none
@@ -577,3 +576,16 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 	What if I just had arbitrary banks, and in the editor you pick what you want to use them for ... code | sprite/tile sheets | tilemaps | audio | etc
 - <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.
 	This means redoing the tiles-wide and high of the sprite and map draw functions.
+- How to swap out palette texs or fonts from high banks?  So instead of bloating the API, how about just have an 'active bank' variable in RAM somewhere, and that determines which tile sheet, tilemap, palette, font, etc to use ... or nah too restrictive? idk...
+- For 16x16 tilemap mode, should I just `<< 1` the tile index?  Since it is basically always 2-aligned anyways?
+- More video modes maybe?
+	- 512x256x8bpp is 2:1, indexed and RGB332
+	- 512x256x4bpp is 2:1, indexed and RGB332
+	- 512x288x4bpp is 16:9 - the largest 4bpp 16:9 to fit in 128k whose width and height divides 16 ... meh stupid 16:9, why not just use 2:1 ...
+	- 640x360x4bpp is 16:9 - the largest 4bpp 16:9 to fit in 128k whose width divides 16
+	- 672x378x4bpp is 16:9 - the largest 4bpp 16:9 to fit in 128k
+	- 724x362x4bpp is 2:1 - the largest 4bpp 2:1 to fit in 128k
+	- 720x360x4bpp is 2:1 - the largest 4bpp 2:1 to fit in 128k whose width divides by 16
+	- 768x432x2bpp is 16:9 - the largest 2bpp 16:9 to fit in 128k whose width and height divides by 16
+	- 960x540x2bpp is 16:9 - the largest 2bpp 16:9 to fit in 128k
+	- 1024x512x2bpp is 2:1 - the largest 2bpp 2:1 to fit in 128k and divides 16

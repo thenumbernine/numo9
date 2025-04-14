@@ -575,17 +575,17 @@ function AppVideo:initVideo()
 		GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
 
 	What are allll our textures?
-	- paletteMenuTex			256x1		2 bytes ... GL_R16UI or GL_UNSIGNED_SHORT_1_5_5_5_REV
-	- fontMenuTex				256x8		1 byte  ... GL_R8UI
-	- checkerTex				4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
-	- framebufferMenuTex		256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
-	- framebufferRGB565RAM		256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
-	- framebufferIndexRAM		256x256		1 byte  ... GL_R8UI
+	- paletteMenuTex					256x1		2 bytes ... GL_R16UI or GL_UNSIGNED_SHORT_1_5_5_5_REV
+	- fontMenuTex						256x8		1 byte  ... GL_R8UI
+	- checkerTex						4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
+	- framebufferMenuTex				256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
+	- framebufferRAM_256x256xRGB565		256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
+	- framebufferRAM_256x256x8bpp		256x256		1 byte  ... GL_R8UI
 	- per-bank:
-		- sheetRAMs[i] x2		256x256		1 byte  ... GL_R8UI
-		- tilemapRAMs[i]		256x256		2 bytes ... GL_R16UI
-		- paletteRAMs[i]		256x1		2 bytes ... GL_R16UI or GL_UNSIGNED_SHORT_1_5_5_5_REV
-		- fontRAMs[i]			256x8		1 byte  ... GL_R8UI
+		- sheetRAMs[i] x2				256x256		1 byte  ... GL_R8UI
+		- tilemapRAMs[i]				256x256		2 bytes ... GL_R16UI
+		- paletteRAMs[i]				256x1		2 bytes ... GL_R16UI or GL_UNSIGNED_SHORT_1_5_5_5_REV
+		- fontRAMs[i]					256x8		1 byte  ... GL_R8UI
 
 	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
 	... and make each be 256 cols wide ... and as high as there are banks ... 
@@ -609,7 +609,7 @@ function AppVideo:initVideo()
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
-	self.framebufferRGB565RAM = RAMGPUTex{
+	self.framebufferRAM_256x256xRGB565 = RAMGPUTex{
 		app = self,
 		addr = framebufferAddr,
 		width = frameBufferSize.x,
@@ -622,7 +622,7 @@ function AppVideo:initVideo()
 	}
 	--]=]
 	-- [=[ framebuffer is 256 x 256 x 8bpp indexed
-	self.framebufferIndexRAM = RAMGPUTex{
+	self.framebufferRAM_256x256x8bpp = RAMGPUTex{
 		app = self,
 		addr = framebufferAddr,
 		width = frameBufferSize.x,
@@ -757,25 +757,25 @@ function AppVideo:initVideo()
 	end
 
 	self.videoModeInfo = {
-		-- 16bpp rgb565
+		-- 256x256x16bpp rgb565
 		[0]={
-			framebufferRAM = self.framebufferRGB565RAM,
+			framebufferRAM = self.framebufferRAM_256x256xRGB565,
 
 			-- generator properties
 			name = 'RGB',
-			colorOutput = colorIndexToFrag(self.framebufferRGB565RAM.tex, 'fragColor')..'\n'
+			colorOutput = colorIndexToFrag(self.framebufferRAM_256x256xRGB565.tex, 'fragColor')..'\n'
 				..getDrawOverrideCode'vec3',
 		},
-		-- 8bpp indexed
+		-- 256x256x8bpp indexed
 		{
-			framebufferRAM = self.framebufferIndexRAM,
+			framebufferRAM = self.framebufferRAM_256x256x8bpp,
 
 			-- generator properties
 			-- indexed mode can't blend so ... no draw-override
 			name = 'Index',
 			colorOutput =
 -- this part is only needed for alpha
-colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
+colorIndexToFrag(self.framebufferRAM_256x256x8bpp.tex, 'vec4 palColor')..'\n'..
 [[
 	fragColor.r = colorIndex;
 	fragColor.g = 0u;
@@ -784,13 +784,13 @@ colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'..
 	fragColor.a = uint(palColor.a * 255.);
 ]],
 		},
-		-- 8bpp rgb332
+		-- 256x256x8bpp rgb332
 		{
-			framebufferRAM = self.framebufferIndexRAM,
+			framebufferRAM = self.framebufferRAM_256x256x8bpp,
 
 			-- generator properties
 			name = 'RGB332',
-			colorOutput = colorIndexToFrag(self.framebufferIndexRAM.tex, 'vec4 palColor')..'\n'
+			colorOutput = colorIndexToFrag(self.framebufferRAM_256x256x8bpp.tex, 'vec4 palColor')..'\n'
 ..getDrawOverrideCode'uvec3'..'\n'
 ..[[
 	/*
@@ -944,7 +944,7 @@ void main() {
 		},
 	}
 
-	-- used for drawing 8bpp framebufferIndexRAM as rgb332 framebuffer to the screen
+	-- used for drawing 8bpp framebufferRAM_256x256x8bpp as rgb332 framebuffer to the screen
 --DEBUG:print'mode 2 blitScreenObj'
 	self.videoModeInfo[2].blitScreenObj = GLSceneObject{
 		program = {
@@ -1746,8 +1746,8 @@ function AppVideo:resizeRAMGPUs()
 end
 
 function AppVideo:allRAMRegionsCheckDirtyGPU()
-	self.framebufferRGB565RAM:checkDirtyGPU()
-	self.framebufferIndexRAM:checkDirtyGPU()
+	self.framebufferRAM_256x256xRGB565:checkDirtyGPU()
+	self.framebufferRAM_256x256x8bpp:checkDirtyGPU()
 	for _,ramgpu in ipairs(self.sheetRAMs) do
 		ramgpu:checkDirtyGPU()
 	end
@@ -1763,8 +1763,8 @@ function AppVideo:allRAMRegionsCheckDirtyGPU()
 end
 
 function AppVideo:allRAMRegionsCheckDirtyCPU()
-	self.framebufferRGB565RAM:checkDirtyCPU()
-	self.framebufferIndexRAM:checkDirtyCPU()
+	self.framebufferRAM_256x256xRGB565:checkDirtyCPU()
+	self.framebufferRAM_256x256x8bpp:checkDirtyCPU()
 	for _,ramgpu in ipairs(self.sheetRAMs) do
 		ramgpu:checkDirtyCPU()
 	end
@@ -1797,8 +1797,8 @@ function AppVideo:resetVideo()
 	self.ram.paletteAddr:fromabs(paletteAddr)
 	self.ram.fontAddr:fromabs(fontAddr)
 	-- and these, which are the ones that can be moved
-	self.framebufferRGB565RAM:updateAddr(framebufferAddr)
-	self.framebufferIndexRAM:updateAddr(framebufferAddr)
+	self.framebufferRAM_256x256xRGB565:updateAddr(framebufferAddr)
+	self.framebufferRAM_256x256x8bpp:updateAddr(framebufferAddr)
 	self.sheetRAMs[1]:updateAddr(spriteSheetAddr)
 	self.sheetRAMs[2]:updateAddr(tileSheetAddr)
 	self.tilemapRAMs[1]:updateAddr(tilemapAddr)
