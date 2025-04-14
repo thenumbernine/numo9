@@ -128,9 +128,6 @@ mapTypes=table{
 		name = 'solid_left',
 		flags = flags.solid_left,
 	},
-	[8] = {
-		name = 'spawn_player',
-	},
 	[6 | tilemapFlags.hflip] = {	-- one-sided up (bitflags to flip down)
 		name = 'solid_down',
 		flags = flags.solid_down,
@@ -743,6 +740,8 @@ local advanceColor = [v] do
 	return v
 end
 
+--#include mapgen.lua
+
 init=[]do
 	reset()	-- reset rom
 
@@ -770,40 +769,7 @@ init=[]do
 		end
 	end
 
-	local room = {
-		blocks = table(),
-	}
-
-	world = {
-		blocks = range(0,worldSizeInBlocks.x-1):mapi([i]
-			(range(0,worldSizeInBlocks.y-1):mapi([j]do
-					local block = {
-						pos = vec2(i,j),
-						dirs = range(0,3):mapi([i] (false, i)),
-						doors = range(0,3):mapi([i] (false, i)),
-						spawns = table(),
-						color = pickRandomColor(),
-						seen = 0,
-					}
-					block.room = room
-					room.blocks:insert(block)
-					return block, j
-				end
-			), i)
-		),
-	}
-
-	for y=0,255 do
-		for x=0,255 do
-			local ti = mget(x,y)
-			if ti == mapTypeForName.spawn_player.index then
-				player = Player{
-					pos = vec2(x,y)+.5,
-				}
-				mset(x,y,0)
-			end
-		end
-	end
+	world = generateWorld()
 end
 
 local viewPos = vec2()

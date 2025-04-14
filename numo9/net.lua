@@ -1286,10 +1286,10 @@ print'begin client listen loop...'
 						app:resizeRAMGPUs()	-- resizes # of RAMGPU objects, sets them to their default address too
 						app:setVideoMode(app.ram.videoMode)
 
-						app.framebufferRGB565RAM.dirtyCPU = true
-						app.framebufferRGB565RAM:updateAddr(app.ram.framebufferAddr:toabs())
-						app.framebufferIndexRAM.dirtyCPU = true
-						app.framebufferIndexRAM:updateAddr(app.ram.framebufferAddr:toabs())
+						app.framebufferRAM_256x256xRGB565.dirtyCPU = true
+						app.framebufferRAM_256x256xRGB565:updateAddr(app.ram.framebufferAddr:toabs())
+						app.framebufferRAM_256x256x8bpp.dirtyCPU = true
+						app.framebufferRAM_256x256x8bpp:updateAddr(app.ram.framebufferAddr:toabs())
 						for _,sheetRAM in ipairs(app.sheetRAMs) do
 							sheetRAM.dirtyCPU = true
 							sheetRAM:checkDirtyCPU()	-- and flush
