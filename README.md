@@ -579,13 +579,18 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - How to swap out palette texs or fonts from high banks?  So instead of bloating the API, how about just have an 'active bank' variable in RAM somewhere, and that determines which tile sheet, tilemap, palette, font, etc to use ... or nah too restrictive? idk...
 - For 16x16 tilemap mode, should I just `<< 1` the tile index?  Since it is basically always 2-aligned anyways?
 - More video modes maybe?
-	- 512x256x8bpp is 2:1, indexed and RGB332
-	- 512x256x4bpp is 2:1, indexed and RGB332
-	- 512x288x4bpp is 16:9 - the largest 4bpp 16:9 to fit in 128k whose width and height divides 16 ... meh stupid 16:9, why not just use 2:1 ...
-	- 640x360x4bpp is 16:9 - the largest 4bpp 16:9 to fit in 128k whose width divides 16
-	- 672x378x4bpp is 16:9 - the largest 4bpp 16:9 to fit in 128k
-	- 724x362x4bpp is 2:1 - the largest 4bpp 2:1 to fit in 128k
-	- 720x360x4bpp is 2:1 - the largest 4bpp 2:1 to fit in 128k whose width divides by 16
-	- 768x432x2bpp is 16:9 - the largest 2bpp 16:9 to fit in 128k whose width and height divides by 16
-	- 960x540x2bpp is 16:9 - the largest 2bpp 16:9 to fit in 128k
-	- 1024x512x2bpp is 2:1 - the largest 2bpp 2:1 to fit in 128k and divides 16
+	- 256x144x16bpp is 16:9 fits in 128k, width and height divides 16
+✓	- 320x200x16bpp is 8:5 fits in 128k, width divides 16
+
+✓	- 416x312x8bpp is 4:3 fits in 128k
+✓	- 512x256x8bpp is 2:1, indexed and RGB332
+✓	- 480x270x8bpp is 16:19 and fits within 128k
+✓	- 512x256x4bpp is 2:1, indexed and RGB332
+	- 512x288x4bpp is 16:9 - fits in 128k, width and height divides 16 ... meh stupid 16:9, why not just use 2:1 ...
+✓	- 672x378x4bpp is 16:9 - fits in 128k, 4bpp 16:9 to fit in 128k whose width divides 16
+✓	- 724x362x4bpp is 2:1 - fits in 128k, 4bpp 2:1 to fit in 128k
+✓	- 720x360x4bpp is 2:1 - fits in 128k, 4bpp 2:1 to fit in 128k whose width divides by 16
+
+	- 768x432x2bpp is 16:9 - fits in 128k, 2bpp 16:9 to fit in 128k whose width and height divides by 16
+✓	- 960x540x2bpp is 16:9 - fits in 128k, 2bpp 16:9 to fit in 128k
+✓	- 1024x512x2bpp is 2:1 - fits in 128k, 2bpp 2:1 to fit in 128k and divides 16
