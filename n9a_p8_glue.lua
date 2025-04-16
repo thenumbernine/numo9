@@ -26,7 +26,7 @@ p8_camera=[x,y]do
 	end
 end
 p8_clip=[x,y,w,h,rel]do
-assert(not rel, 'TODO')
+--DEBUG:assert(not rel, 'TODO')
 	if not x then
 		clip(0,0,255,255)
 	else
@@ -121,9 +121,9 @@ trace(from,to,remapping)
 end
 p8_setpalt=[c,t]do
 	c=math.floor(c)
-assert.ge(c, 0)
-assert.lt(c, 16)
-assert.type(t,'boolean')
+--DEBUG:assert.ge(c, 0)
+--DEBUG:assert.lt(c, 16)
+--DEBUG:assert.type(t,'boolean')
 	if t~=false then	-- true <-> transparent <-> clear alpha
 		pal(c, pal(c)&0x7fff)
 	else	-- false <-> opaque <-> set alpha
@@ -144,7 +144,7 @@ p8_palt=[...]do
 end
 p8peek=[addr,n]do
 	if n then
-		assert.le(n, 8192)
+--DEBUG:assert.le(n, 8192)
 		local results = {}
 		for i=1,n do
 			results[i]=p8peek(addr+i-1)
@@ -190,7 +190,7 @@ trace(('TODO peek $%x'):format(addr))
 	return 0
 end
 p8poke=[addr,value,...]do
-	assert.eq(select('#', ...), 0, 'TODO')
+--DEBUG:assert.eq(select('#', ...), 0, 'TODO')
 	if addr>=0 and addr<0x2000 then				-- sprites & sprite+tilemap shared
 		local x=(addr&0x3f)<<1		-- x coord
 		local yhi=(addr&0x1fc0)<<2	-- y coord << 8
@@ -386,7 +386,7 @@ setfenv(1, {
 	pget=[x,y]do
 		x=math.floor(x)
 		y=math.floor(y)
-		return x<0 or x>=128 or y<0 or y>=128 and 0 or pget(x,y)
+		return (x<0 or x>=128 or y<0 or y>=128) and 0 or pget(x,y)
 	end,
 	sset=[x,y,c]do
 		x=math.floor(x)
@@ -398,7 +398,7 @@ setfenv(1, {
 	sget=[x,y]do
 		x=math.floor(x)
 		y=math.floor(y)
-		return x<0 or x>=128 or y<0 or y>=128 and 0 or peek(spriteSheetAddr+((x|(y<<8))))
+		return (x<0 or x>=128 or y<0 or y>=128) and 0 or peek(spriteSheetAddr+((x|(y<<8))))
 	end,
 	rect=[x0,y0,x1,y1,c]rectb(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
 	rectfill=[x0,y0,x1,y1,c]rect(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
@@ -420,10 +420,10 @@ setfenv(1, {
 			x0,y0,x1,y1,col=...
 			col=col or p8color
 		end
-		assert.type(x0,'number')
-		assert.type(y0,'number')
-		assert.type(x1,'number')
-		assert.type(y1,'number')
+--DEBUG:assert.type(x0,'number')
+--DEBUG:assert.type(y0,'number')
+--DEBUG:assert.type(x1,'number')
+--DEBUG:assert.type(y1,'number')
 		x0=math.floor(x0)
 		y0=math.floor(y0)
 		x1=math.floor(x1)
@@ -487,17 +487,17 @@ setfenv(1, {
 		if n==1 then
 			local i=...
 			i=math.floor(i)
-assert.ge(i,0)
-assert.lt(i,256)
+--DEBUG:assert.ge(i,0)
+--DEBUG:assert.lt(i,256)
 			return sprFlags[i]
 		elseif n==2 then
 			local i,f=...
 			i=math.floor(i)
 			f=math.floor(f)
-assert.ge(i,0)
-assert.lt(i,256)
-assert.ge(f,0)
-assert.lt(f,8)
+--DEBUG:assert.ge(i,0)
+--DEBUG:assert.lt(i,256)
+--DEBUG:assert.ge(f,0)
+--DEBUG:assert.lt(f,8)
 			return (1&(sprFlags[i]>>f)) ~= 0
 		else
 			error'here'
@@ -509,18 +509,18 @@ assert.lt(f,8)
 			local i,val=...
 			i=math.floor(i)
 			val=math.floor(val)
-assert.ge(i,0)
-assert.lt(i,256)
-assert.ge(val,0)
-assert.lt(val,256)
+--DEBUG:assert.ge(i,0)
+--DEBUG:assert.lt(i,256)
+--DEBUG:assert.ge(val,0)
+--DEBUG:assert.lt(val,256)
 			sprFlags[i]=val
 		elseif n==3 then
 			local i,f,val=...
 			i=math.floor(i)
 			f=math.floor(f)
 			val=math.floor(val)
-assert.ge(i,0)
-assert.lt(i,256)
+--DEBUG:assert.ge(i,0)
+--DEBUG:assert.lt(i,256)
 			local flag=1<<f
 			local mask=~flag
 			sprFlags[i]&=mask
@@ -552,8 +552,8 @@ assert.lt(i,256)
 		tileY=math.floor(tileY)
 		tileW=math.floor(tileW or 1)
 		tileH=math.floor(tileH or 1)
-		screenX=math.floor(screenX or 0)
-		screenY=math.floor(screenY or 0)
+		screenX=math.ceil(screenX or 0)
+		screenY=math.ceil(screenY or 0)
 
 -- [=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
 -- but wait, now that I started writing blank to tile index 0 in the converted cartridge ...
@@ -578,7 +578,7 @@ assert.lt(i,256)
 
 		if camScreenX+8<0 then
 			local shift=(-8-camScreenX)>>3
-assert.ge(shift,0)
+--DEBUG:assert.ge(shift,0)
 			screenX+=shift<<3
 			camScreenX+=shift<<3
 			tileX+=shift
@@ -586,7 +586,7 @@ assert.ge(shift,0)
 		end
 		if camScreenY+8<0 then
 			local shift=(-8-camScreenY)>>3
-assert.ge(shift,0)
+--DEBUG:assert.ge(shift,0)
 			screenY+=shift<<3
 			camScreenY+=shift<<3
 			tileY+=shift
@@ -595,12 +595,12 @@ assert.ge(shift,0)
 
 		if camScreenX+(tileW<<3) > 128 then
 			local shift=(camScreenX+(tileW<<3) - 128)>>3
-assert.ge(shift,0)
+--DEBUG:assert.ge(shift,0)
 			tileW-=shift
 		end
 		if camScreenY+(tileH<<3) > 128 then
 			local shift=(camScreenY+(tileH<<3) - 128)>>3
-assert.ge(shift,0)
+--DEBUG:assert.ge(shift,0)
 			tileH-=shift
 		end
 
@@ -648,8 +648,8 @@ assert.ge(shift,0)
 	end,
 	spr=[n,x,y,w,h,flipX,flipY]do
 		n=math.floor(n)
-assert.ge(n,0)
-assert.lt(n,256)
+--DEBUG:assert.ge(n,0)
+--DEBUG:assert.lt(n,256)
 		local nx=n&0xf
 		local ny=n>>4
 		n=nx|(ny<<5)
