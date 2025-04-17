@@ -821,7 +821,7 @@ function App:initGL()
 		app = self,
 		ffi = ffi,
 		getfenv = getfenv,	-- maybe ... needed for _ENV replacement, but maybe can break out of sandbox ...
-		setfenv = setfenv,
+		setfenv = setfenv,	-- \_ fair warning, getfenv(0) breaks out of the sandbox and gets numo9's _G
 
 		-- sandboxed load
 
@@ -1600,6 +1600,12 @@ conn.receivesPerSecond = 0
 				self.ram.lastMousePressPos:set(self.ram.mousePos:unpack())
 			end
 		end
+
+		-- TODO why is this necessary for `mode(1) cls()` to clear screen in the console?
+		-- why here and not somewhere else?
+		-- and what order should it be in versus the framebufferRAM:checkDirtyCPU()?
+		-- what should resolve in what order?
+		self.triBuf:flush()
 
 		-- flush any cpu changes to gpu before updating
 		self.framebufferRAM:checkDirtyCPU()
