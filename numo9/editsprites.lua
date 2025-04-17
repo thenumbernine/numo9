@@ -157,7 +157,7 @@ function EditSprites:update()
 			ssY * spriteSize.y - self.spritesheetPanOffset.y + y
 	end
 	-- draw some pattern under the spritesheet so you can tell what's transparent
-	app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = x, y, w-1, h-1
+	app:setClipRect(x, y, w-1, h-1)
 	do
 		-- this is the framebuffer coord bounds of the spritesheet.
 		local x1, y1 = spritesheetCoordToFb(0, 0)
@@ -184,7 +184,7 @@ function EditSprites:update()
 		0,		-- spriteBit
 		0xFF	-- spriteMask
 	)
-	app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = 0, 0, frameBufferSize.x-1, frameBufferSize.y-1
+	app:setClipRect(0, 0, frameBufferSize.x-1, frameBufferSize.y-1)
 
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 	local function fbToSpritesheetCoord(fbX, fbY)
@@ -244,7 +244,7 @@ function EditSprites:update()
 		self.spritesheetPanPressed = false
 	end
 
-	app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = x, y, w-1, h-1
+	app:setClipRect(x, y, w-1, h-1)
 	-- sprite sel rect (1x1 ... 8x8)
 	-- ... also show the offset ... is that a good idea?
 	app:drawBorderRect(
@@ -254,7 +254,7 @@ function EditSprites:update()
 		spriteSize.y * self.spriteSelSize.y,
 		0xfd
 	)
-	app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = 0, 0, frameBufferSize.x-1, frameBufferSize.y-1
+	app:setClipRect(0, 0, frameBufferSize.x-1, frameBufferSize.y-1)
 
 	-- sprite edit area
 	local x = 2
@@ -284,7 +284,7 @@ function EditSprites:update()
 	local w = 64
 	local h = 64
 	-- draw some pattern under the sprite so you can tell what's transparent
-	app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = x, y, w-1, h-1
+	app:setClipRect(x, y, w-1, h-1)
 	local function spriteCoordToFb(sX, sY)
 		return
 			(sX - self.spriteSelPos.x * spriteSize.x - self.spritePanOffset.x) / tonumber(self.spriteSelSize.x * spriteSize.x) * w + x,
@@ -316,7 +316,7 @@ function EditSprites:update()
 		self.spriteBit,							-- spriteBit
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
-	app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3] = 0, 0, frameBufferSize.x-1, frameBufferSize.y-1
+	app:setClipRect(0, 0, frameBufferSize.x-1, frameBufferSize.y-1)
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 
 	-- convert x y in framebuffer space to x y in sprite window space
