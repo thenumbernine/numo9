@@ -323,11 +323,21 @@ function EditCode:update()
 							end
 						end
 						-- add tab and do indent up there
-						local tabbedText, numNewLines = self.text:sub(self.selectStart, self.selectEnd-1):gsub('\n', '\n\t')
+						local oldTabbedText = self.text:sub(self.selectStart, self.selectEnd-1)
+						local tabbedText
+						if shift then
+							tabbedText = oldTabbedText:gsub('\n\t', '\n')
+							-- if our current line starts with \t then remove that too ...
+							if tabbedText:byte(self.selectStart) == tabByte then
+								tabbedText = tabbedText:sub(2)
+							end
+						else
+							tabbedText = '\t' .. oldTabbedText:gsub('\n', '\n\t')
+						end
 						self.text = self.text:sub(1, self.selectStart-1)
-							.. '\t' .. tabbedText
+							.. tabbedText
 							.. self.text:sub(self.selectEnd)
-						self.selectEnd = self.selectEnd + numNewLines + 1
+						self.selectEnd = self.selectEnd + #tabbedText - #oldTabbedText
 						self:refreshNewlines()
 						self:refreshCursorColRowForLoc()
 					else
