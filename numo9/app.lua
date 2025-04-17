@@ -1883,6 +1883,7 @@ function App:peek(addr)
 	and addr >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -1896,6 +1897,7 @@ function App:peekw(addr)
 	and addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -1909,6 +1911,7 @@ function App:peekl(addr)
 	and addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -1923,6 +1926,7 @@ function App:poke(addr, value)
 	if addr >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
@@ -1969,6 +1973,7 @@ function App:pokew(addr, value)
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
@@ -2008,6 +2013,7 @@ function App:pokel(addr, value)
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
@@ -2068,6 +2074,7 @@ function App:memcpy(dst, src, len)
 	local touchessrc = srcend >= self.framebufferRAM.addr and src < self.framebufferRAM.addrEnd
 	local touchesdst = dstend >= self.framebufferRAM.addr and dst < self.framebufferRAM.addrEnd
 	if touchessrc or touchesdst then
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyGPU()
 		if touchesdst then
 			self.framebufferRAM.dirtyCPU = true
@@ -2138,6 +2145,7 @@ function App:memset(dst, val, len)
 	if dstend >= self.framebufferRAM.addr
 	and dst < self.framebufferRAM.addrEnd
 	then
+		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
