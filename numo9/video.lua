@@ -1615,7 +1615,7 @@ void main() {
 				v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
 
 				v = scissorAttr:emplace_back()
-				v.x, v.y, v.z, v.w = app.ram.clipRect[0], app.ram.clipRect[1], app.ram.clipRect[2], app.ram.clipRect[3]
+				v.x, v.y, v.z, v.w = app:getClipRect()
 			end
 		end,
 	}
@@ -2191,8 +2191,8 @@ local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:clearScreen(colorIndex)
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
-	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
-	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = 0, 0, 0xff, 0xff
+	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
+	self:setClipRect(0, 0, 0xff, 0xff)
 
 	self:matident()
 	self:drawSolidRect(
@@ -2202,14 +2202,18 @@ function AppVideo:clearScreen(colorIndex)
 		frameBufferSize.y,
 		colorIndex or 0)
 
-	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = pushScissorX, pushScissorY, pushScissorW, pushScissorH
+	self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end
 
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
-function AppVideo:setClipRect(x, y, w, h)
-	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = x, y, w, h
+function AppVideo:setClipRect(...)
+	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = ...
+end
+
+function AppVideo:getClipRect()
+	return self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
 end
 
 -- for when we blend against solid colors, these go to the shaders to output it

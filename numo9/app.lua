@@ -988,7 +988,7 @@ print('package.loaded', package.loaded)
 
 	-- reset mat and clip
 	self:matident()
-	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = 0, 0, 0xff, 0xff
+	self:setClipRect(0, 0, 0xff, 0xff)
 
 	self.editBankNo = 0
 	self.editCode = EditCode{app=self}
@@ -1681,8 +1681,8 @@ print('run thread dead')
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
 
-			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
-			self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = 0, 0, 0xff, 0xff
+			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
+			self:setClipRect(0, 0, 0xff, 0xff)
 
 			-- [[
 			-- while we're here, start us off with the current framebufferRAM contents
@@ -1734,7 +1734,7 @@ print('run thread dead')
 			self.inMenuUpdate = false
 
 			-- pop the clip rect
-			self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = pushScissorX, pushScissorY, pushScissorW, pushScissorH
+			self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
 
 			-- pop the matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
