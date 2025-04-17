@@ -51,7 +51,6 @@ end
 
 function EditCode:setText(text)
 	self.text = text
---		:gsub('\t', ' ')	--TODO add tab support
 	self.cursorLoc = math.clamp(self.cursorLoc, 0, #self.text)
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
@@ -59,6 +58,8 @@ end
 
 local slashRByte = ('\r'):byte()
 local newlineByte = ('\n'):byte()
+local tabByte = ('\t'):byte()
+local backspaceByte = 8
 function EditCode:refreshNewlines()
 	-- refresh newlines
 	self.newlines = table()
@@ -310,17 +311,35 @@ function EditCode:update()
 		for keycode=0,#keyCodeNames-1 do
 			if app:keyp(keycode,30,5) then
 				local ch = getAsciiForKeyCode(keycode, shift)
-				if ch then
+				if keycode == keyCodeForName.tab then
+					self:pushUndoTyping()
+					if self.selectStart ~= nil then
+						-- search the selectStart back to the start of the current line
+						while self.text:byte(self.selectStart-1) ~= newlineByte do
+							self.selectStart = self.selectStart - 1
+							if self.selectStart == 0 then
+								self.selectStart = 1
+								break
+							end
+						end
+						-- add tab and do indent up there
+						local tabbedText, numNewLines = self.text:sub(self.selectStart, self.selectEnd-1):gsub('\n', '\n\t')
+						self.text = self.text:sub(1, self.selectStart-1)
+							.. '\t' .. tabbedText
+							.. self.text:sub(self.selectEnd)
+						self.selectEnd = self.selectEnd + numNewLines + 1
+						self:refreshNewlines()
+						self:refreshCursorColRowForLoc()
+					else
+						-- just insert a tab or space character ...
+						self:addCharToText(tabByte)
+					end
+				elseif ch then
 					self:pushUndoTyping()
 					self:addCharToText(ch)
 				elseif keycode == keyCodeForName['return'] then
 					self:pushUndoTyping()
-					self:addCharToText(('\n'):byte())
-				elseif keycode == keyCodeForName.tab then
-					-- TODO add tab and do indent up there,
-					-- until then ...
-					self:pushUndoTyping()
-					self:addCharToText((' '):byte())
+					self:addCharToText(newlineByte)
 				elseif keycode == keyCodeForName.up
 				or keycode == keyCodeForName.down
 				or keycode == keyCodeForName.left
@@ -427,13 +446,13 @@ function EditCode:addCharToText(ch)
 		self:deleteSelection()
 
 		-- and if we're pressing backspace on selection then quit while you're ahead
-		if ch == 8 then ch = nil end
+		if ch == backspaceByte then ch = nil end
 	end
 
 	if ch == slashRByte then
 		ch = newlineByte	-- store \n's instead of \r's
 	end
-	if ch == 8 then
+	if ch == backspaceByte then
 		self.text = self.text:sub(1, math.max(0, self.cursorLoc - 1)) .. self.text:sub(self.cursorLoc+1)
 		self.cursorLoc = math.max(0, self.cursorLoc - 1)
 	elseif ch then
