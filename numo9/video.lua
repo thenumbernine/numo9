@@ -588,7 +588,7 @@ function AppVideo:initVideo()
 		- fontRAMs[i]					256x8		1 byte  ... GL_R8UI
 
 	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
-	... and make each be 256 cols wide ... and as high as there are banks ... 
+	... and make each be 256 cols wide ... and as high as there are banks ...
 	... but if 2048 is the min size, then 256x2048 = 8 sheets worth, and if we use sprite & tilemap then that's 4 ...
 	... or I could use a 512 x 2048 tex ... and just delegate what region on the tex each sheet gets ...
 	... or why not, use all 2048 x 2048 = 64 different 256x256 sheets, and sprite/tile means 32 bank max ...
@@ -2189,9 +2189,11 @@ end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:clearScreen(colorIndex)
-
-	-- which is faster, push/pop the matrix, or reassign the uniform?
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+
+	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3]
+	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = 0, 0, 0xff, 0xff
+
 	self:matident()
 	self:drawSolidRect(
 		0,
@@ -2199,6 +2201,8 @@ function AppVideo:clearScreen(colorIndex)
 		frameBufferSize.x,
 		frameBufferSize.y,
 		colorIndex or 0)
+
+	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = pushScissorX, pushScissorY, pushScissorW, pushScissorH
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end
@@ -2756,7 +2760,7 @@ end
 -- I'm already setting them in env so ... nah ...
 
 function AppVideo:matident()
-	-- set-ident and scale ... 
+	-- set-ident and scale ...
 	self.ram.mvMat[0],  self.ram.mvMat[1],  self.ram.mvMat[2],  self.ram.mvMat[3]  = mvMatScale, 0, 0, 0
 	self.ram.mvMat[4],  self.ram.mvMat[5],  self.ram.mvMat[6],  self.ram.mvMat[7]  = 0, mvMatScale, 0, 0
 	self.ram.mvMat[8],  self.ram.mvMat[9],  self.ram.mvMat[10], self.ram.mvMat[11] = 0, 0, mvMatScale, 0
