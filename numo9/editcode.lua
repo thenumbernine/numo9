@@ -45,6 +45,8 @@ function EditCode:init(args)
 	self.scrollY = 0
 	self.useLineNumbers = true
 	self:setText''
+	self.undoBuffer = table()
+	self.undoIndex = #self.undoBuffer
 end
 
 function EditCode:setText(text)
@@ -265,43 +267,59 @@ function EditCode:update()
 		uikey = app:key'lctrl' or app:key'rctrl'
 	end
 
-	if uikey and app:keyp'a' then
-		-- select all
-		self.selectStart = 1
-		self.selectEnd = #self.text+1	-- how did i end up using an exclusive, 1-based range ... smh
-	elseif uikey and (app:keyp'x' or app:keyp'c') then -- cut/copy
-		if self.selectStart then
-			local sel = self.text:sub(self.selectStart, self.selectEnd-1)
-			if not clip.text(sel) then
-				print'failed to copy text'
-			end
+	if uikey then
+		-- trap all uikey+keys here, throw out the ones we won't handle
+		if app:keyp'a' then						-- select-all
+			-- select all
+			self.selectStart = 1
+			self.selectEnd = #self.text+1		-- how did i end up using an exclusive, 1-based range ... smh
+		elseif app:keyp'x' or app:keyp'c' then 	-- cut/copy
+			if self.selectStart then
+				local sel = self.text:sub(self.selectStart, self.selectEnd-1)
+				if not clip.text(sel) then
+					print'failed to copy text'
+				end
 
-			if app:keyp'x' then -- cut only
-				self:deleteSelection()
-				self:refreshNewlines()
-				self:refreshCursorColRowForLoc()
+				if app:keyp'x' then -- cut only
+					self:pushUndo()
+					self:deleteSelection()
+					self:refreshNewlines()
+					self:refreshCursorColRowForLoc()
+				end
 			end
+		elseif app:keyp'v' then 				-- paste
+			local paste = clip.text()
+			if self.selectStart or paste then 
+				-- only save undo if we're (a) going to be deleting selected text with this paste or (b) going to be pasting text
+				-- if there's an empty clipboard, don't let repeated ctrl+v's stack up in the undo buffer
+				-- TODO or I can just have pushUndo check the last undo buffer and see if the text changed ... but for big text that might be slow?
+				self:pushUndo()
+			end
+			self:deleteSelection()
+			if paste then
+				self.text = self.text:sub(1, self.cursorLoc)..paste..self.text:sub(self.cursorLoc+1)
+				self.cursorLoc = self.cursorLoc + #paste
+			end
+			self:refreshNewlines()
+			self:refreshCursorColRowForLoc()
+		elseif app:keyp'z' then
+			-- ui+z = undo, shift+ui+z = redo
+			self:popUndo(shift)
 		end
-	elseif uikey and app:keyp'v' then -- paste
-		self:deleteSelection()
-		local paste = clip.text()
-		if paste then
-			self.text = self.text:sub(1, self.cursorLoc)..paste..self.text:sub(self.cursorLoc+1)
-			self.cursorLoc = self.cursorLoc + #paste
-		end
-		self:refreshNewlines()
-		self:refreshCursorColRowForLoc()
 	else
 		for keycode=0,#keyCodeNames-1 do
 			if app:keyp(keycode,30,5) then
 				local ch = getAsciiForKeyCode(keycode, shift)
 				if ch then
+					self:pushUndoTyping()
 					self:addCharToText(ch)
 				elseif keycode == keyCodeForName['return'] then
+					self:pushUndoTyping()
 					self:addCharToText(('\n'):byte())
 				elseif keycode == keyCodeForName.tab then
 					-- TODO add tab and do indent up there,
 					-- until then ...
+					self:pushUndoTyping()
 					self:addCharToText((' '):byte())
 				elseif keycode == keyCodeForName.up
 				or keycode == keyCodeForName.down
@@ -423,6 +441,49 @@ function EditCode:addCharToText(ch)
 		self.cursorLoc = math.min(#self.text, self.cursorLoc + 1)
 	end
 
+	self:refreshNewlines()
+	self:refreshCursorColRowForLoc()
+end
+
+-- push undo
+-- a separate one for typing that doesn't insert if the last insert was within a few milliseconds
+EditCode.typeUndoDelay = 1
+EditCode.lastPushUndo = -math.huge
+function EditCode:pushUndoTyping()
+	if getTime() - self.lastPushUndo < self.typeUndoDelay then return end
+	self:pushUndo()
+end
+-- and a separate call for copy/paste that always inserts into here
+function EditCode:pushUndo()
+	self.lastPushUndo = getTime()
+	-- erase subsequent undo stack
+	for i=self.undoIndex+1,#self.undoBuffer do
+		self.undoBuffer[i] = nil
+	end
+	-- add this entry and set it as the current undo location
+	self.undoBuffer:insert{text=self.text, cursorLoc=self.cursorLoc}
+	self.undoIndex = #self.undoBuffer
+end
+function EditCode:popUndo(redo)
+	-- if we are push-undo-ing from the top of the undo stack and the text doesn't match the top stack text then insert it at the top
+	-- that way if the pushUndoTyping hadn't yet recorded it and we then get a 'redo' we will go back to the top
+	if self.undoIndex == #self.undoBuffer 
+	and self.undoIndex > 0
+	and self.undoBuffer:last().text ~= self.text
+	then
+		self:pushUndo()
+	end
+	self.undoIndex = math.clamp(self.undoIndex + (redo and 1 or -1), 0, #self.undoBuffer)
+	local undo = self.undoBuffer[self.undoIndex]
+	-- test here because if it's zero then there won't be an entry ... and we should be at a blank text ...
+	if undo then
+		self.text = undo.text
+		self.cursorLoc = undo.cursorLoc
+	else
+		self.text = ''
+		self.cursorLoc = 0
+	end
+	self:clearSelect()
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
 end
