@@ -148,6 +148,10 @@ function MainMenu:updateMenuMain()
 
 	self:menuSection'system'
 
+	if self:menuButton'cart browser' then
+		app:setMenu(app.cartBrowser)
+	end
+
 	if self:menuButton'to console' then
 		app:setMenu(app.con)
 		return

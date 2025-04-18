@@ -985,6 +985,7 @@ print('package.loaded', package.loaded)
 	local EditMusic = require 'numo9.editmusic'
 	local Console = require 'numo9.console'
 	local MainMenu = require 'numo9.mainmenu'
+	local CartBrowser = require 'numo9.cartbrowser'
 
 	-- reset mat and clip
 	self:matident()
@@ -998,6 +999,7 @@ print('package.loaded', package.loaded)
 	self.editMusic = EditMusic{app=self}
 	self.con = Console{app=self}
 	self.mainMenu = MainMenu{app=self}
+	self.cartBrowser = CartBrowser{app=self}
 
 	-- load config if it exists
 	xpcall(function()
