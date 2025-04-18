@@ -336,10 +336,11 @@ function UI:update()
 		app:setFocus{
 			thread = coroutine.create(function()
 				-- do this from runFocus thread, not UI thread
-				-- TODO net_openROM ?
-				app:openROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+				app:net_openROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+				--app:runROM() ?
 			end),
 		}
+		app.isPaused = false	-- make sure the setFocus does run
 	end
 end
 
