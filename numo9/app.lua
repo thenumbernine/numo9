@@ -264,41 +264,8 @@ function App:initGL()
 		stop = function(...) return self:stop(...) end,
 		cont = function(...) return self:cont(...) end,
 		save = function(...) return self:saveROM(...) end,
-
-		open = function(...)
-			local result = table.pack(self:loadROM(...))
-
-			if self.server then
-				-- TODO consider order of events
-				-- this is goign to sendRAM to all clients
-				-- but it's executed mid-frame on the server, while server is building a command-buffer
-				-- where will deltas come into play?
-				-- how about new-frame messages too?
-				for _,serverConn in ipairs(self.server.conns) do
-					if serverConn.remote then
-						self.server:sendRAM(serverConn)
-					end
-				end
-			end
-			return result:unpack()
-		end,
-		reset = function(...)
-			local result = table.pack(self:resetROM(...))
-
-			-- TODO this or can I get by
-			-- 1) backing up the client's cartridge state upon load() then ...
-			-- 2) ... upon client reset() just copy that over?
-			-- fwiw the initial sendRAM doesn't include the cartridge state, just the RAM state ...
-			if self.server then
-				for _,serverConn in ipairs(self.server.conns) do
-					if serverConn.remote then
-						self.server:sendRAM(serverConn)
-					end
-				end
-			end
-
-			return result:unpack()
-		end,
+		open = function(...) return self:net_openROM(...) end,
+		reset = function(...) return self:net_resetROM(...) end,
 		quit = function(...) self:requestExit() end,
 
 		-- [[ this is for the console, but this means the cart can call it as well ...
@@ -834,7 +801,7 @@ function App:initGL()
 			for _,suffix in ipairs{'', '.n9', '.n9.png'} do
 				local checkfn = cmd..suffix
 				if self.fs:get(checkfn) then
-					return self:loadROM(cmd)
+					return self:openROM(cmd) -- or net_openROM?
 				end
 			end
 			--]]
@@ -1082,7 +1049,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 		thread = coroutine.create(function()
 			local env = self.env
 			-- set state to paused initially
-			-- then if we get a loadROM command it'll unpause
+			-- then if we get a openROM command it'll unpause
 			-- or if we get a setmenu command in init this will remain paused and not kick us back to console when this finishes
 			--self.isPaused = true
 			-- HOWEVER doing this makes it so starting to the console requires TWO ESCAPE (one to stop this startup) to enter the main menu ...
@@ -1178,7 +1145,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 			-- how to make it start with console open if there's no rom ...
 			-- then run our cmdline file ... ?
 			if cmdline and cmdline[1] then
-				self:loadROM(cmdline[1])
+				self:openROM(cmdline[1])	-- or what about starting a server game?  and then net_openROM?
 				self:runROM()
 			end
 
@@ -1208,6 +1175,43 @@ end
 -- when I don't want to write server cmds twice
 -- leave the :(not net_)functionName stuff for the client to also call and not worry about requesting another server refresh
 --  (tho the client shouldnt have a server and that shouldnt happen anyways)
+
+-- ok when opening a ROM, we want to send the RAM snapshot out to all clients
+function App:net_openROM(...)
+	local result = table.pack(self:openROM(...))
+
+	if self.server then
+		-- TODO consider order of events
+		-- this is going to sendRAM to all clients
+		-- but it's executed mid-frame on the server, while server is building a command-buffer
+		-- where will deltas come into play?
+		-- how about new-frame messages too?
+		for _,serverConn in ipairs(self.server.conns) do
+			if serverConn.remote then
+				self.server:sendRAM(serverConn)
+			end
+		end
+	end
+	return result:unpack()
+end
+
+function App:net_resetROM(...)
+	local result = table.pack(self:resetROM(...))
+
+	-- TODO this or can I get by
+	-- 1) backing up the client's cartridge state upon load() then ...
+	-- 2) ... upon client reset() just copy that over?
+	-- fwiw the initial sendRAM doesn't include the cartridge state, just the RAM state ...
+	if self.server then
+		for _,serverConn in ipairs(self.server.conns) do
+			if serverConn.remote then
+				self.server:sendRAM(serverConn)
+			end
+		end
+	end
+
+	return result:unpack()
+end
 
 function App:net_poke(addr, value)
 	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
@@ -2257,8 +2261,8 @@ TODO maybe ... have the editor modify the cartridge copy as well
 whoever calls this should create a runFocus coroutine to load the ROM
  so that the load only takes place in the runFocus loop and not the UI loop (which pushes and pops the modelview matrix values)
 --]]
-function App:loadROM(filename)
---DEBUG:print('App:loadROM', filename)
+function App:openROM(filename)
+--DEBUG:print('App:openROM', filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
 

@@ -66,11 +66,17 @@ function CartBrowser:update()
 		-- then run the cart ... is it a cart?
 		local selname = fileNames[self.selectedIndex]
 		if selname:match'%.n9$' then
-			-- name, or path / name ?  if path is cwd then we're fine right?
-			app:setMenu(nil)
-			app:loadROM(selname)
-			app:runROM()
-			return
+			--app:setMenu(nil)
+			-- numo9/ui's "load" says "do this from runFocus thread, not UI thread"
+			-- but if I do that here then it seems to stall after the 2nd or 3rd time until i open and close the console again ...
+			--app:setFocus{
+			--	thread = coroutine.create(function()
+					-- name, or path / name ?  if path is cwd then we're fine right?
+					-- TODO what if we're a server?  then we should do what's in numo9/app.lua's open() function, send RAM snapshot to all clients.
+					app:net_openROM(selname)
+					app:runROM()
+			--	end),
+			--}
 		end
 	end
 end
