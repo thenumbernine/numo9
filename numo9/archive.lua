@@ -20,7 +20,7 @@ local table = require 'ext.table'
 local path = require 'ext.path'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
-local zlib = require 'ffi.req' 'zlib'	-- TODO maybe ... use libzip if we're storing a compressed collection of files ... but doing this would push back the conversion of files<->ROM into the application loadROM() function ...
+local zlib = require 'ffi.req' 'zlib'	-- TODO maybe ... use libzip if we're storing a compressed collection of files ... but doing this would push back the conversion of files<->ROM into the application openROM() function ...
 
 local numo9_rom = require 'numo9.rom'
 local codeSize = numo9_rom.codeSize
