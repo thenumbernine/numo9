@@ -1172,8 +1172,8 @@ looks like I'm a Snes9x-default-keybinding fan.
 				self.sheetRAMs[2].dirtyCPU = true
 			end
 
-			-- assign to console
-			self:setMenu(self.con)
+			-- initially assign to cartBrowser
+			self:setMenu(self.cartBrowser)
 
 			-- how to make it start with console open if there's no rom ...
 			-- then run our cmdline file ... ?
@@ -1631,8 +1631,10 @@ conn.receivesPerSecond = 0
 				if coroutine.status(thread) == 'dead' then
 print('run thread dead')
 					self:setFocus(nil)
-					-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
-					self:setMenu(self.con)
+					if self.activeMenu == nil then
+						-- if the cart dies it's cuz of an exception (right?) so best to show the console (right?)
+						self:setMenu(self.con)
+					end
 				else
 					local success, msg = coroutine.resume(thread)
 					if not success then
