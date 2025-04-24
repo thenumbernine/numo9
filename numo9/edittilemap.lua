@@ -37,7 +37,7 @@ function EditTilemap:init(args)
 	self.horzFlip = false
 	self.vertFlip = false
 	self.selPalHiOffset = 0
-	self.drawMode = 'draw'	--TODO ui for this
+	self.drawMode = 'draw'
 	self.gridSpacing = 1
 	self.penSize = 1
 	self.tilePanDownPos = vec2i()
@@ -83,7 +83,7 @@ function EditTilemap:update()
 
 	-- sprite edit method
 	x = x + 16
-	self:guiRadio(x, y, {'draw', 'fill', 'dropper', 'pan'}, self.drawMode, function(result)
+	self:guiRadio(x, y, {'draw', 'fill', 'dropper', 'pan', 'select'}, self.drawMode, function(result)
 		self.drawMode = result
 	end)
 

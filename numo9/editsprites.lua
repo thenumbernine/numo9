@@ -24,10 +24,10 @@ local unpackptr = require 'numo9.rom'.unpackptr
 
 -- used by fill
 local dirs = {
-	{0,-1},
+	{1,0},
 	{0,1},
 	{-1,0},
-	{1,0},
+	{0,-1},
 }
 
 local EditSprites = require 'numo9.ui':subclass()
