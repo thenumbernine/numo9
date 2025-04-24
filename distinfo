@@ -5,13 +5,7 @@ luaArgs = {'run.lua'}
 files = {
 	-- cwd files/dirs go here
 	['.'] = {
-		'README.md',
-		'n9a.lua',
-		'n9a_p8_glue.lua',
-		'run.lua',
-		'font.png',
-		'splash.png',
-		'defaultlabel.png',
+
 		'asteroids.n9',
 		'bank.n9',
 		'bombs.n9',
@@ -33,11 +27,21 @@ files = {
 		'snake.n9',
 		'stupid.n9',
 		'stupidtrpg.n9',
+
+		'README.md',
+		'font.png',
+		'splash.png',
+		'defaultlabel.png',
 		'docpics/splash.gif',
+
+		'n9a.lua',
+		'n9a_p8_glue.lua',
+		'run.lua',
 		'numo9/app.lua',
 		'numo9/archive.lua',
 		'numo9/audio.lua',
 		'numo9/console.lua',
+		'numo9/cartbrowser.lua',
 		'numo9/editcode.lua',
 		'numo9/editmusic.lua',
 		'numo9/ui.lua',
@@ -72,41 +76,18 @@ files = {
 	},
 }
 
--- lua socket
-if ffi.os == 'OSX' then
-	files['/usr/local/share/luajit-2.1/'] = {
-		'socket.lua',
-		'ltn12.lua',
-		'mime.lua',
-		'socket',
-	}
-	files['/usr/local/lib/lua/5.1/'] = {
-		'socket',
-		'mime',
-	}
-elseif ffi.os == 'Linux' then
-	files['/usr/local/share/luajit-2.1/'] = {
-		'socket.lua',
-		'ltn12.lua',
-		'mime.lua',
-		'socket',
-	}
-	files['/usr/local/lib/lua/5.1/'] = {
-		'socket',
-		'mime',
-	}
-elseif ffi.os == 'Windows' then
-	files['${USERPROFILE}\\share\\luajit-2.1'] = {
-		'socket.lua',
-		'ltn12.lua',
-		'mime.lua',
-		'socket',
-	}
-	files['${USERPROFILE}\\lib\\luajit-2.1'] = {
-		'socket',
-		'mime',
-	}
-end
+-- lua socket ... TODO copy from dist/release/
+files['../dist/release'] = {
+	'socket.lua',
+	'ltn12.lua',
+	'mime.lua',
+	'socket',
+}
+files['../dist/release/bin/'..ffi.os..'/'..ffi.arch] = {
+	'socket',
+	'mime',
+}
+
 
 -- binary libs needed for luajit
 -- TODO how about consulting ffi/load.lua for where these are

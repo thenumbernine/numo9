@@ -2659,7 +2659,7 @@ function App:event(e)
 				-- already handled probably
 				-- TODO need a last-down for ESC (tho i'm not tracking it in the virt console key state stuff ... cuz its not supposed to be accessible by the cartridge code)
 				-- TODO why does sdl handle multiple keydowns for single keyups?
-			elseif self.activeMenu == self.mainMenu then
+			elseif self.activeMenu == self.mainMenu then		-- main menu goes to conosle
 				-- [[ go to game?
 				self:setMenu(nil)
 				self.isPaused = false
@@ -2667,7 +2667,13 @@ function App:event(e)
 					self:setMenu(self.con)
 				end
 				--]]
-			elseif self.activeMenu == self.con then
+			elseif self.activeMenu == self.cartBrowser then		-- cart browser goes to main menu
+				self:setMenu(nil)
+				self.isPaused = false
+				if not self.runFocus then
+					self:setMenu(self.mainMenu)
+				end
+			elseif self.activeMenu == self.con then				-- console goes to main menu
 				--[[ con -> editor?
 				self:setMenu(self.editCode)
 				--]]
@@ -2681,7 +2687,7 @@ function App:event(e)
 					self.mainMenu:open()
 				--]]
 				end
-			elseif self.activeMenu then
+			elseif self.activeMenu then							-- everything else goes to conosle
 				self:setMenu(nil)
 				-- [[ editor -> game?
 				if not self.server then
