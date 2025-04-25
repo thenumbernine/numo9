@@ -11,14 +11,18 @@ local clip = require 'clip'	-- clipboard support
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
 
-local rgba8888_4ch_to_5551 = require 'numo9.video'.rgba8888_4ch_to_5551	-- TODO move this
-local rgba5551_to_rgba8888_4ch = require 'numo9.video'.rgba5551_to_rgba8888_4ch
+local numo9_video = require 'numo9.video'
+local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551	-- TODO move this
+local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 
-local frameBufferSize = require 'numo9.rom'.frameBufferSize
-local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
-local spriteSize = require 'numo9.rom'.spriteSize
-local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
-local unpackptr = require 'numo9.rom'.unpackptr
+local numo9_rom = require 'numo9.rom'
+local frameBufferSize = numo9_rom.frameBufferSize
+local spriteSheetSize = numo9_rom.spriteSheetSize
+local spriteSize = numo9_rom.spriteSize
+local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local clipMax = numo9_rom.clipMax
+local unpackptr = numo9_rom.unpackptr
+
 
 -- used by fill
 local dirs = {
@@ -182,7 +186,7 @@ function EditSprites:update()
 		0,		-- spriteBit
 		0xFF	-- spriteMask
 	)
-	app:setClipRect(0, 0, frameBufferSize.x-1, frameBufferSize.y-1)
+	app:setClipRect(0, 0, clipMax, clipMax)
 
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 	local function fbToSpritesheetCoord(fbX, fbY)
@@ -252,7 +256,7 @@ function EditSprites:update()
 		spriteSize.y * self.spriteSelSize.y,
 		0xfd
 	)
-	app:setClipRect(0, 0, frameBufferSize.x-1, frameBufferSize.y-1)
+	app:setClipRect(0, 0, clipMax, clipMax)
 
 	-- sprite edit area
 	local x = 2
@@ -314,7 +318,7 @@ function EditSprites:update()
 		self.spriteBit,							-- spriteBit
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
-	app:setClipRect(0, 0, frameBufferSize.x-1, frameBufferSize.y-1)
+	app:setClipRect(0, 0, clipMax, clipMax)
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
 
 	-- convert x y in framebuffer space to x y in sprite window space

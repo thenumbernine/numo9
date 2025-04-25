@@ -52,6 +52,7 @@ local frameBufferSize = numo9_rom.frameBufferSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSizeInBits = numo9_rom.tilemapSizeInBits
 local tilemapSize = numo9_rom.tilemapSize
+local clipMax = numo9_rom.clipMax
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
 local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize
@@ -955,7 +956,7 @@ print('package.loaded', package.loaded)
 
 	-- reset mat and clip
 	self:matident()
-	self:setClipRect(0, 0, 0xff, 0xff)
+	self:setClipRect(0, 0, clipMax, clipMax)
 
 	self.editBankNo = 0
 	self.editCode = EditCode{app=self}
@@ -1689,7 +1690,7 @@ print('run thread dead')
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
 
 			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
-			self:setClipRect(0, 0, 0xff, 0xff)
+			self:setClipRect(0, 0, clipMax, clipMax)
 
 			-- [[
 			-- while we're here, start us off with the current framebufferRAM contents

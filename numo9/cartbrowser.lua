@@ -6,6 +6,9 @@ CartBrowser.selectedIndex = 0
 function CartBrowser:update()
 --	CartBrowser.super.update(self)	-- clears screen, shows the current-editor tab etc
 	local app = self.app
+
+	app:setVideoMode(0)
+
 	app:clearScreen(0xf0)
 
 	local fs = app.fs
@@ -127,7 +130,7 @@ function CartBrowser:update()
 		2) save them rgb and add a new ubershader render pathway for rgb textures
 		3) flush and use a separate shader for just this menu system
 		--]]
-		app:drawQuadTex(--RGB( TODO
+		app:drawQuadTexRGB(
 			app.paletteMenuTex,
 			self.thumbTex,
 			128, 8,

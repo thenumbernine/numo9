@@ -34,6 +34,7 @@ local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
 local fontInBytes = numo9_rom.fontInBytes
 local framebufferAddr = numo9_rom.framebufferAddr
 local frameBufferSize = numo9_rom.frameBufferSize
+local clipMax = numo9_rom.clipMax
 local mvMatScale = numo9_rom.mvMatScale
 local mvMatType = numo9_rom.mvMatType
 local menuFontWidth = numo9_rom.menuFontWidth
@@ -1882,7 +1883,7 @@ function AppVideo:resetVideo()
 	self.ram.textBgColor = 0xf0
 
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
-	self:setClipRect(0, 0, 0xff, 0xff)
+	self:setClipRect(0, 0, clipMax, clipMax)
 
 	-- hmm, this matident isn't working ,but if you put one in your init code then it does work ... why ...
 	self:matident()
@@ -2229,7 +2230,7 @@ function AppVideo:clearScreen(colorIndex)
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
 	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
-	self:setClipRect(0, 0, 0xff, 0xff)
+	self:setClipRect(0, 0, clipMax, clipMax)
 
 	self:matident()
 	self:drawSolidRect(
