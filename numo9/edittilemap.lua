@@ -16,6 +16,7 @@ local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
+local clipMax = numo9_rom.clipMax
 local unpackptr = require 'numo9.rom'.unpackptr
 
 -- used by fill
@@ -184,7 +185,7 @@ function EditTilemap:update()
 			app:drawSolidLine(xmin, j, xmax, j, self:color(1))
 		end
 	end
-	app:setClipRect(0, 0, frameBufferSize.x-1, frameBufferSize.y-1)
+	app:setClipRect(0, 0, clipMax, clipMax)
 
 	if self.pickOpen then
 		app:matident()

@@ -35,6 +35,9 @@ local tilemapSize = vec2i(
 	bit.lshift(1, tilemapSizeInBits.x),
 	bit.lshift(1, tilemapSizeInBits.y))
 
+local clipType = 'int16_t'
+local clipMax = 32767		-- idk why i'm allowing negative values
+
 --[[
 32x8 = 256 wide, 8 high, 8x 1bpp planar
 such that
@@ -373,7 +376,7 @@ local RAM = struct{
 				-- maybe I'll say rgb565 is maximum but if the user chooses they can change modes to rgb332, indexed, heck why not 4bit or 2bit ...
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 
-				{name='clipRect', type='uint16_t[4]'},
+				{name='clipRect', type=clipType..'[4]'},
 				{name='mvMat', type=mvMatType..'[16]'},
 				{name='videoMode', type='uint8_t'},
 				{name='blendMode', type='uint8_t'},
@@ -509,6 +512,8 @@ return {
 	spriteSheetSizeInTiles = spriteSheetSizeInTiles,
 	tilemapSizeInBits = tilemapSizeInBits,
 	tilemapSize = tilemapSize,
+	clipType = clipType,
+	clipMax = clipMax,
 	fontImageSize = fontImageSize,
 	fontImageSizeInTiles = fontImageSizeInTiles,
 	menuFontWidth = menuFontWidth,

@@ -61,6 +61,7 @@ local maxPlayersTotal = numo9_keys.maxPlayersTotal
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
+local clipType = numo9_rom.clipType
 
 
 -- TOOD how about a net-string?
@@ -245,10 +246,10 @@ local Numo9Cmd_clipRect = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='x', type='uint16_t'},
-		{name='y', type='uint16_t'},
-		{name='w', type='uint16_t'},
-		{name='h', type='uint16_t'},
+		{name='x', type=clipType},
+		{name='y', type=clipType},
+		{name='w', type=clipType},
+		{name='h', type=clipType},
 	},
 }
 
