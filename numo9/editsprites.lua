@@ -18,8 +18,6 @@ local frameBufferSize = require 'numo9.rom'.frameBufferSize
 local spriteSheetSize = require 'numo9.rom'.spriteSheetSize
 local spriteSize = require 'numo9.rom'.spriteSize
 local spriteSheetSizeInTiles = require 'numo9.rom'.spriteSheetSizeInTiles
-local frameBufferSizeInTiles = require 'numo9.rom'.frameBufferSizeInTiles
-local tilemapSize = require 'numo9.rom'.tilemapSize
 local unpackptr = require 'numo9.rom'.unpackptr
 
 -- used by fill

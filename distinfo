@@ -1,5 +1,4 @@
 name = 'numo9'
-luaDistVer = 'luajit'	-- luajit-openresty-2.1.0
 luaArgs = {'run.lua'}
 
 files = {
