@@ -70,10 +70,16 @@ Object.update=[:]do
 							)
 						)
 						then
+							local side = bi == 0 and (
+								dy < 0 and dirForName.down or dirForName.up
+							) or (
+								dx < 0 and dirForName.right or dirForName.left
+							)
+
 							-- do world hit
 							local hitThis = true
 							if t.touch 
-							and t:touch(self, bxmin, bymin) == false 
+							and t:touch(self, bxmin, bymin, side) == false 
 							then 
 								hitThis = false 
 							end
