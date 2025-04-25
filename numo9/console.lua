@@ -15,12 +15,8 @@ local keyCodeForName = numo9_keys.keyCodeForName
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 local numo9_rom = require 'numo9.rom'
-local paletteSize = numo9_rom.paletteSize
 local frameBufferSize = numo9_rom.frameBufferSize
-local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSize = numo9_rom.spriteSize
-local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
-local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local menuFontWidth = numo9_rom.menuFontWidth
 
 

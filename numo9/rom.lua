@@ -20,7 +20,6 @@ local tileSize = bit.lshift(1, tileSizeInBits)
 local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
 local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
 local frameBufferSizeInTilesInBits = vec2i(5, 5)
-local frameBufferSizeInBits = frameBufferSizeInTilesInBits + tileSizeInBits 
 local frameBufferSizeInTiles = vec2i(
 	bit.lshift(1, frameBufferSizeInTilesInBits.x),
 	bit.lshift(1, frameBufferSizeInTilesInBits.y))
@@ -64,7 +63,7 @@ local audioDataSize = 0xf600	-- snes had 64k dedicated to audio so :shrug: I'm l
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
 
-local userDataSize = 0xd84a
+local userDataSize = 0xd848
 
 -- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
 -- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
@@ -374,7 +373,7 @@ local RAM = struct{
 				-- maybe I'll say rgb565 is maximum but if the user chooses they can change modes to rgb332, indexed, heck why not 4bit or 2bit ...
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 
-				{name='clipRect', type='uint8_t[4]'},
+				{name='clipRect', type='uint16_t[4]'},
 				{name='mvMat', type=mvMatType..'[16]'},
 				{name='videoMode', type='uint8_t'},
 				{name='blendMode', type='uint8_t'},
@@ -506,7 +505,6 @@ return {
 	frameBufferType = frameBufferType,
 	frameBufferSize = frameBufferSize,
 	frameBufferSizeInTiles = frameBufferSizeInTiles,
-	frameBufferSizeInBits = frameBufferSizeInBits,
 	spriteSheetSize = spriteSheetSize,
 	spriteSheetSizeInTiles = spriteSheetSizeInTiles,
 	tilemapSizeInBits = tilemapSizeInBits,

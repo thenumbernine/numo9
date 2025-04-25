@@ -245,10 +245,10 @@ local Numo9Cmd_clipRect = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='x', type='uint8_t'},
-		{name='y', type='uint8_t'},
-		{name='w', type='uint8_t'},
-		{name='h', type='uint8_t'},
+		{name='x', type='uint16_t'},
+		{name='y', type='uint16_t'},
+		{name='w', type='uint16_t'},
+		{name='h', type='uint16_t'},
 	},
 }
 

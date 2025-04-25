@@ -72,6 +72,7 @@ local function settable(t, ...)
 	settableindex(t, 1, ...)
 end
 
+-- either seems to work fine
 local texelFunc = 'texture'
 --local texelFunc = 'texelFetch'
 
@@ -1412,6 +1413,42 @@ void main() {
 
 		if (fragColor.a == <?=fragType == 'uvec4' and '0u' or '0.'?>) discard;
 
+	// I had an extra pathway and I didn't know what to use it for
+	// and I needed a RGB option for the cart browser (maybe I should just use this for all the menu system and just skip on the menu-palette?)
+	} else if (pathway == 3u) {
+
+<? if useSamplerUInt then ?>
+		fragColor = ]]
+				..readTex{
+					tex = self.sheetRAMs[1].tex,
+					texvar = 'sheetTex',
+					tc = 'tcv',
+					from = 'vec2',
+					to = 'vec4',	-- uvec4
+				}
+				..[[;
+
+<? else -- useSamplerUInt ?>
+
+		fragColor = ]]
+				..readTex{
+					tex = self.sheetRAMs[1].tex,
+					texvar = 'sheetTex',
+					tc = 'tcv / vec2(textureSize(sheetTex))',
+					from = 'vec2',
+					to = 'vec4',
+				}
+..[[;
+
+<? end -- useSamplerUInt ?>
+
+// as always the range of the data is nonsense, and there's no documentation on conversion anywhere. 
+<? if fragType == 'uvec4' then ?>
+		//fragColor >>= 24;
+<? else ?>
+		//fragColor *= 1. / <?=glslnumber(bit.lshift(1, 64))?>;
+<? end ?>
+
 	}	// pathway
 }
 ]],				{
@@ -2271,6 +2308,7 @@ end
 accepts a texture as arguments, so the UI/Editor can draw with textures outside of the RAM
 doesn't care about tex dirty (cuz its probably a tex outside RAM)
 doesn't care about framebuffer dirty (cuz its probably the editor framebuffer)
+uses pathway 1
 --]]
 function AppVideo:drawQuadTex(
 	paletteTex,
@@ -2338,6 +2376,54 @@ function AppVideo:drawQuadTex(
 		0, 0, 1, 1
 	)
 end
+
+--[[
+uses pathway 3 to draw quads
+--]]
+function AppVideo:drawQuadTexRGB(
+	paletteTex,
+	sheetTex,
+	x, y, w, h,	-- quad box
+	tx, ty, tw, th	-- texcoord bbox
+)
+	local xR = x + w
+	local yR = y + h
+
+	local xLL, yLL, zLL, wLL = vec2to4(self.ram.mvMat, x, y)
+	local xRL, yRL, zRL, wRL = vec2to4(self.ram.mvMat, xR, y)
+	local xLR, yLR, zLR, wLR = vec2to4(self.ram.mvMat, x, yR)
+	local xRR, yRR, zRR, wRR = vec2to4(self.ram.mvMat, xR, yR)
+
+	local uL = tx
+	local vL = ty
+	local uR = tx + tw
+	local vR = ty + th
+
+	self.triBuf:addTri(
+		paletteTex,
+		sheetTex,
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		xLL, yLL, zLL, wLL, uL, vL,
+		xRL, yRL, zRL, wRL, uR, vL,
+		xLR, yLR, zLR, wLR, uL, vR,
+		3, 0, 0, 0,
+		0, 0, 0, 0,
+		0, 0, 1, 1
+	)
+
+	self.triBuf:addTri(
+		paletteTex,
+		sheetTex,
+		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		xLR, yLR, zLR, wLR, uL, vR,
+		xRL, yRL, zRL, wRL, uR, vL,
+		xRR, yRR, zRR, wRR, uR, vR,
+		3, 0, 0, 0,
+		0, 0, 0, 0,
+		0, 0, 1, 1
+	)
+end
+
 
 --[[
 'lower level' functionality than 'drawSprite'

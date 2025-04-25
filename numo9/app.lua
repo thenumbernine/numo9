@@ -49,7 +49,6 @@ local ROM = numo9_rom.ROM	-- define RAM, ROM, etc
 local RAM = numo9_rom.RAM
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
-local frameBufferSizeInBits = numo9_rom.frameBufferSizeInBits
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSizeInBits = numo9_rom.tilemapSizeInBits
 local tilemapSize = numo9_rom.tilemapSize
@@ -306,10 +305,10 @@ function App:initGL()
 				return
 			end
 			if self.ram.videoMode == 0 then	-- 16bpp rgb565
-				local addr = self.framebufferRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, frameBufferSizeInBits.x)), 1)
+				local addr = self.framebufferRAM.addr + 2 * (x + frameBufferSize.x * y)
 				self:net_pokew(addr, color)
 			else	-- 8bpp indexed or 8bpp rgb332
-				local addr = self.framebufferRAM.addr + bit.bor(x, bit.lshift(y, frameBufferSizeInBits.x))
+				local addr = self.framebufferRAM.addr + x + frameBufferSize.x * y
 				self:net_poke(addr, color)
 			end
 		end,
@@ -322,10 +321,10 @@ function App:initGL()
 				return 0
 			end
 			if self.ram.videoMode == 0 then	-- rgb565
-				local addr = self.framebufferRAM.addr + bit.lshift(bit.bor(x, bit.lshift(y, frameBufferSizeInBits.x)), 1)
+				local addr = self.framebufferRAM.addr + 2 * (x + frameBufferSize.x * y)
 				return self:peekw(addr)
 			else
-				local addr = self.framebufferRAM.addr + bit.bor(x, bit.lshift(y, frameBufferSizeInBits.x))
+				local addr = self.framebufferRAM.addr + x + frameBufferSize.x * y
 				return self:peek(addr)
 			end
 		end,

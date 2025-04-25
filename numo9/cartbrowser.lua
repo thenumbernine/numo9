@@ -127,7 +127,7 @@ function CartBrowser:update()
 		2) save them rgb and add a new ubershader render pathway for rgb textures
 		3) flush and use a separate shader for just this menu system
 		--]]
-		app:drawQuadTex(
+		app:drawQuadTex(--RGB( TODO
 			app.paletteMenuTex,
 			self.thumbTex,
 			128, 8,
@@ -145,6 +145,7 @@ function CartBrowser:update()
 
 	if app:keyp'return'
 	or (app:keyp'mouse_left' and mouseOverSel)
+	or app:btnp'y'
 	then
 		-- then run the cart ... is it a cart?
 		if selname:match'%.n9$' then

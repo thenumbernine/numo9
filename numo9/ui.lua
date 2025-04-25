@@ -15,7 +15,6 @@ local numo9_rom = require 'numo9.rom'
 local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
-local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
