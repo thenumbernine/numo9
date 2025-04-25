@@ -199,7 +199,7 @@ end
 
 local dt = 1/60
 
---#include objsys.lua
+--#include obj/sys.lua
 
 Health = Object:subclass()
 Health.sprite = 32
