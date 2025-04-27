@@ -709,6 +709,10 @@ function AppVideo:initVideo()
 		},
 	}
 
+	local glslVersion = require 'gl.global':get'GL_SHADING_LANGUAGE_VERSION'
+	-- TODO what if it's formatted weird?
+	glslVersion = glslVersion:gsub('%.', '')
+
 	-- desktop-GL versions ...
 	-- https://www.khronos.org/opengl/wiki/Core_Language_(GLSL)
 	--local glslVersion = '110'	-- gl 2.0
@@ -718,7 +722,7 @@ function AppVideo:initVideo()
 	--local glslVersion = '150'	-- gl 3.2
 	--local glslVersion = '330'	-- gl 3.3
 	--local glslVersion = '400'	-- gl 4.0
-	local glslVersion = '410'	-- gl 4.1	-- highest working version on my osx before it complains ...
+	--local glslVersion = '410'	-- gl 4.1	-- highest working version on my osx before it complains ...
 	--local glslVersion = '420'	-- gl 4.2
 	--local glslVersion = '430'	-- gl 4.3
 	--local glslVersion = '440'	-- gl 4.4
@@ -1107,6 +1111,8 @@ flat out vec4 drawOverrideSolid;
 flat out vec4 box;
 flat out vec4 scissor;
 
+uniform vec2 frameBufferSize;
+
 void main() {
 	tcv = texcoord;
 	drawOverrideSolid = drawOverrideSolidAttr;
@@ -1117,17 +1123,11 @@ void main() {
 	gl_Position = vertex;
 
 	//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-	gl_Position.xy *= vec2(
-		<?=glslnumber(2 / frameBufferSize.x)?>,
-		<?=glslnumber(2 / frameBufferSize.y)?>
-	);
-
+	gl_Position.xy *= 2.;
+	gl_Position.xy /= frameBufferSize;
 	gl_Position.xy -= 1.;
 }
-]],				{
-					glslnumber = glslnumber,
-					frameBufferSize = frameBufferSize,
-				}),
+]]),
 				fragmentCode = template([[
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
@@ -1465,6 +1465,7 @@ void main() {
 					paletteTex = 0,
 					sheetTex = 1,
 					tilemapTex = 2,
+					frameBufferSize = {frameBufferSize:unpack()},
 				},
 			},
 			geometry = {

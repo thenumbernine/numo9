@@ -562,7 +562,7 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 
 # Things I'm still debating ...
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
-- Right now the keypad is UP DOWN LEFT RIGHT A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
+- Right now the keypad is RIGHT DOWN LEFT UP A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
 - What's a good default keyboard configuration?  I'm going with Snes9x's.
 - Right now editor tilemap is 8x8 tiles by default ... maybe default to 16x16?
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
@@ -577,7 +577,10 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.
 	This means redoing the tiles-wide and high of the sprite and map draw functions.
 - How to swap out palette texs or fonts from high banks?  So instead of bloating the API, how about just have an 'active bank' variable in RAM somewhere, and that determines which tile sheet, tilemap, palette, font, etc to use ... or nah too restrictive? idk...
-- For 16x16 tilemap mode, should I just `<< 1` the tile index?  Since it is basically always 2-aligned anyways?
+- For 16x16 tilemap mode, should I just `<< 1` the tile index, and not store the zeroes?  Since it is basically always 2-aligned anyways?
+- Should I store the draw16x16 in its own variable in RAM?  Same for tilemap index offset, same for tilemap spritesheet bank, same for tilemap bank.
+- Should I allow 32x32 64x64 etc as well?
+- Should I allow tilemap rotations? 3 bits for orientation instead of just 2 bits for h & v flip?
 - More video modes maybe?
 	- 256x144x16bpp is 16:9 fits in 128k, width and height divides 16
 ✓	- 320x200x16bpp is 8:5 fits in 128k, width divides 16
