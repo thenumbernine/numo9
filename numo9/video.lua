@@ -1296,7 +1296,7 @@ void main() {
 		const uint tilemapSizeY = <?=tilemapSize.y?>u;
 
 #if 0	// do it in float
-		int tileSize = 1 << (3 + draw16Sprites);
+		int tileSize = 1 << (3u + draw16Sprites);
 		float tileSizef = float(tileSize);
 		int mask = tileSize - 1;
 
@@ -1364,8 +1364,8 @@ void main() {
 		// convert to map texel coordinate
 		// [0, tilemapSize)^2
 		ivec2 tileTC = ivec2(
-			(tci.x >> (3 + draw16Sprites)) & 0xFF,
-			(tci.y >> (3 + draw16Sprites)) & 0xFF
+			(tci.x >> (3u + draw16Sprites)) & 0xFF,
+			(tci.y >> (3u + draw16Sprites)) & 0xFF
 		);
 
 		//read the tileIndex in tilemapTex at tileTC
@@ -1390,7 +1390,7 @@ void main() {
 		if ((tileIndex & (1<<14)) != 0) tci.x = ~tci.x;	// tilemap bit 14
 		if ((tileIndex & (1<<15)) != 0) tci.y = ~tci.y;	// tilemap bit 15
 
-		int mask = (1 << (3 + draw16Sprites)) - 1;
+		int mask = (1 << (3u + draw16Sprites)) - 1;
 		// [0, spriteSize)^2
 		ivec2 tileTexTC = ivec2(
 			(tci.x & mask) ^ (tileIndexTC.x << 3),
@@ -1419,27 +1419,27 @@ void main() {
 	} else if (pathway == 3u) {
 
 <? if useSamplerUInt then ?>
-		fragColor = ]]
+		fragColor = <?=fragType?>(]]
 				..readTex{
 					tex = self.sheetRAMs[1].tex,
 					texvar = 'sheetTex',
 					tc = 'tcv',
 					from = 'vec2',
-					to = 'vec4',	-- uvec4
+					to = fragType,
 				}
-				..[[;
+				..[[);
 
 <? else -- useSamplerUInt ?>
 
-		fragColor = ]]
+		fragColor = <?=fragType?>(]]
 				..readTex{
 					tex = self.sheetRAMs[1].tex,
 					texvar = 'sheetTex',
 					tc = 'tcv / vec2(textureSize(sheetTex))',
 					from = 'vec2',
-					to = 'vec4',
+					to = fragType,
 				}
-..[[;
+..[[);
 
 <? end -- useSamplerUInt ?>
 
