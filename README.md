@@ -1,6 +1,6 @@
 ![splash](docpics/splash.gif)
 
-<video src='docpics/numo9 demo.mp4'/>
+<video src='docpics/numo9 demo.mp4' width=512/>
 
 [![NuMo9 Youtube Playlist](https://img.youtube.com/vi/R8FA24Iwo6w/0.jpg)](https://www.youtube.com/watch?v=R8FA24Iwo6w&list=PLvkQx1ZpORprcwfSuMEvSgGO7Kpxo44Ma)
 
