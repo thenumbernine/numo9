@@ -563,6 +563,7 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - give the UI its own font-tex just like its got its own palette
 
 # Things I'm still debating ...
+- get rid of writing and reading tmpfiles becuase AppImage doesn't like it.
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is RIGHT DOWN LEFT UP A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
 - What's a good default keyboard configuration?  I'm going with Snes9x's.
