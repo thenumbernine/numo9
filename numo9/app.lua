@@ -86,7 +86,9 @@ App.title = 'NuMo9'
 App.width = cmdline and cmdline.window and cmdline.window[1] or 720
 App.height = cmdline and cmdline.window and cmdline.window[2] or 512
 
-App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO, sdl.SDL_INIT_JOYSTICK, sdl.SDL_INIT_GAMECONTROLLER)
+App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO, sdl.SDL_INIT_JOYSTICK)
+-- if I init sdl controller then will I get double events for joystick buttons - one for joystick and one for controller?
+--, sdl.SDL_INIT_GAMECONTROLLER)
 
 -- copy in video behavior
 for k,v in pairs(numo9_video.AppVideo) do
@@ -1163,6 +1165,15 @@ looks like I'm a Snes9x-default-keybinding fan.
 		end),
 	}
 --]]
+
+	for i=0,sdl.SDL_NumJoysticks()-1 do
+		local joystick = sdl.SDL_JoystickOpen(i)
+		if joystick == ffi.null then
+			print('SDL_JoystickOpen('..i..') failed: '..require 'sdl.assert'.getError())
+		end
+	end
+
+	self:findSDLController()
 end
 
 function App:exit()
@@ -1170,6 +1181,22 @@ function App:exit()
 
 	App.super.exit(self)
 end
+
+-- The jury is out on SDL's GameController.
+-- If it is a matter of mapping & unmapping SDL Joystick devices #s then is that all the GmaeController API provides?
+-- Or does it have any unique input button types vs SDL joystick?
+-- Because I'm already gathering all button events for all joysticks...
+function App:findSDLController()
+	for i=0,sdl.SDL_NumJoysticks()-1 do
+		if sdl.SDL_IsGameController(i) then
+			self.controller = sdl.SDL_GameControllerOpen(i)
+			if self.controller == ffi.null then
+				print('SDL_GameControllerOpen('..i..') failed: '..require 'sdl.assert'.getError())
+			end
+		end
+	end
+end
+
 
 -------------------- ENV NETPLAY LAYER --------------------
 -- when I don't want to write server cmds twice
@@ -2790,6 +2817,24 @@ function App:event(e)
 	elseif e[0].type == sdl.SDL_FINGERDOWN or e[0].type == sdl.SDL_FINGERUP then
 		local press = e[0].type == sdl.SDL_FINGERDOWN
 		self:processButtonEvent(press, sdl.SDL_FINGERDOWN, e[0].tfinger.x, e[0].tfinger.y)
+
+
+	elseif e[0].type == sdl.SDL_CONTROLLERDEVICEADDED then
+		if self.controller == ffi.null then
+			self.controller = sdl.SDL_GameControllerOpen(e[0].cdevice.which)
+			if self.controller == ffi.null then
+				print('SDL_GameControllerOpen('..i..') failed: '..require 'sdl.assert'.getError())
+			end
+		end
+	elseif e[0].type == sdl.SDL_CONTROLLERDEVICEREMOVED then
+		if self.controller ~= ffi.null
+		-- if SDL_CONTROLLERDEVICEREMOVED is a dif controller than the last one opened...
+		-- ...then should I still call SDL_GameControllerClose() on it?
+		and e[0].cdevice.which == sdl.SDL_JoystickInstanceID(sdl.SDL_GameControllerGetJoystick(self.controller))
+		then
+			sdl.SDL_GameControllerClose(self.controller)
+			self:findSDLController()
+		end
 	end
 end
 
