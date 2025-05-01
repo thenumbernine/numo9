@@ -1,5 +1,6 @@
 name = 'numo9'
 luaArgs = {'run.lua'}
+AppImageCategories = 'Game'
 
 files = {
 	-- cwd files/dirs go here
@@ -20,7 +21,6 @@ files = {
 		'kart.n9',
 		'knots.n9',
 		'metroidvania.n9',
-		'moldwars.n9',
 		'pong.n9',
 		's-type.n9',
 		'snake.n9',
