@@ -75,9 +75,10 @@ function CartBrowser:update()
 		xpcall(function()
 			-- load splash tex or something
 			local srcData = assert(selfile.data)
-			-- [[ this is also in numo9/archive.lua fromCartImage ...
+			local ffi = require 'ffi'
 			local path = require 'ext.path'
-			local tmploc = path'___tmp.png'
+			-- [[ this is also in numo9/archive.lua fromCartImage ...
+			local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
 			assert(path(tmploc):write(srcData))
 			local Image = require 'image'
 			local romImage = assert(Image(tmploc.path))

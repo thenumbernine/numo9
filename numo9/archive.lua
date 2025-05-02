@@ -30,7 +30,7 @@ local musicTableSize = numo9_rom.musicTableSize
 
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
 -- so reading is from files now
-local tmploc = path'___tmp.png'
+local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
 local pngCustomKey = 'nuMO'
 --[[
 assumes 'banks' is vector<ROM>
