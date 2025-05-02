@@ -1,7 +1,7 @@
 name = 'numo9'
 luaArgs = {'run.lua'}
 AppImageCategories = 'Game'
-AppImageIcon = 'docpics/numo9 AppImage icon.png'
+AppImageIcon = 'numo9 AppImage icon.png'
 
 files = {
 	-- cwd files/dirs go here
