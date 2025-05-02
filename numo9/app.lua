@@ -102,7 +102,36 @@ end
 
 local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't provide one ...
 
-App.cfgpath = path'config.lua'
+do
+	local cfg = cmdline.config
+	if not cfg then
+		local cfgdir
+		if ffi.os == 'Linux' then
+			-- first try $XDG_CONFIG_HOME
+			cfgdir = os.getenv'XDG_CONFIG_HOME'
+			-- then try $HOME/.config
+			if not cfgdir then
+				local home = os.getenv'HOME'
+				if home then
+					cfgdir = home..'/.config'
+				end
+			end
+		elseif ffi.os == 'Windows' then
+			cfgdir = os.getenv'LOCALAPPDATA'
+			if not cfgdir then
+				local home = os.getenv'USERPROFILE'
+				if home then
+					cfgdir = home..'/.config'	-- haha where else does it go if LOCALAPPDATA is missing ...
+				end
+			end
+		elseif ffi.os == 'OSX' then
+		end
+		if not cfgdir then cfgdir = '.' end	-- nothing worked? try ./
+		cfg = cfgdir..'/numo9/config.lua'
+	end
+	App.cfgpath = path(cfg)
+	App.cfgpath:getdir():mkdir(true)
+end
 
 -- fps vars
 local lastTime = getTime()
