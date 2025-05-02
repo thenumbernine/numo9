@@ -77,6 +77,7 @@ function CartBrowser:update()
 			local srcData = assert(selfile.data)
 			local ffi = require 'ffi'
 			local path = require 'ext.path'
+
 			-- [[ this is also in numo9/archive.lua fromCartImage ...
 			local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
 			assert(path(tmploc):write(srcData))
@@ -84,6 +85,10 @@ function CartBrowser:update()
 			local romImage = assert(Image(tmploc.path))
 			tmploc:remove()
 			--]]
+			--[[
+			local romImage = require 'image.luajit.png':loadMem(srcData)
+			--]]
+
 			-- load the splash tex here
 			-- I could just create these as I need them and trust gc cleanup to dealloc them
 			-- or if dealloc isn't trustworthy (esp for GPU ram) then I could cache them here (and maybe clear the cache when the folder changes?)
