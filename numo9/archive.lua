@@ -90,11 +90,18 @@ returns vector<ROM>
 local function fromCartImage(srcData)
 	local banks = vector'ROM'
 	-- [=[ loading as an image
+
+	-- [[ from disk
 --DEBUG:assert(not tmploc:exists())
 	assert(path(tmploc):write(srcData))
 	local romImage = Image(tmploc.path)
 	tmploc:remove()
 --DEBUG:assert(not tmploc:exists())
+	--]]
+	--[[ from memory
+	local romImage = require 'image.luajit.png':loadMem(srcData)
+	--]]
+
 	-- [[ storing in png metadata
 	local banksCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
 	local banksAsStr = zlib.uncompressLua(banksCompressed)
