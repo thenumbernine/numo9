@@ -104,32 +104,32 @@ local defaultSaveFilename = 'last.n9'	-- default name of save/load if you don't 
 
 do
 	local cfg = cmdline.config
-	if not cfg then
-		local cfgdir
-		if ffi.os == 'Linux' then
-			-- first try $XDG_CONFIG_HOME
-			cfgdir = os.getenv'XDG_CONFIG_HOME'
-			-- then try $HOME/.config
-			if not cfgdir then
-				local home = os.getenv'HOME'
-				if home then
-					cfgdir = home..'/.config'
-				end
-			end
-		elseif ffi.os == 'Windows' then
-			cfgdir = os.getenv'LOCALAPPDATA'
-			if not cfgdir then
-				local home = os.getenv'USERPROFILE'
-				if home then
-					cfgdir = home..'/.config'	-- haha where else does it go if LOCALAPPDATA is missing ...
-				end
-			end
-		elseif ffi.os == 'OSX' then
+	if cfg then
+		cfg = path(cfg)
+		-- complain if it's not there?
+		-- complain here or later?
+		-- complain if its dir isn't there?
+		-- complain if mkdir to it fails?
+	else
+		local pathIfExists = function(s)
+			if not s then return end			-- if we got a nil (i.e. from os.getenv that wasn't defined) then bail
+			local p = path(s)
+			if not p:exists() then return end	-- if the dir isn't there then bail
+			return p
 		end
-		if not cfgdir then cfgdir = '.' end	-- nothing worked? try ./
-		cfg = cfgdir..'/numo9/config.lua'
+
+		local home = pathIfExists(os.getenv'HOME' or os.getenv'USERPROFILE')	-- tempted to just save this in the 'home' variable ...
+		local cfgdir = pathIfExists(os.getenv'XDG_CONFIG_HOME')
+			or (ffi.os == 'Windows' and pathIfExists(os.getenv'LOCALAPPDATA'))
+			-- special-cas for OSX, try $HOME/Library/Preferences
+			or (ffi.os == 'OSX' and home and pathIfExists(home/'Library/Preferences'))	-- use pathIfExists <=> don't make this dir if it's not there
+			--fallback further on Linux style env -- try $HOME/.config
+			-- I would put just Linux here, but it looks like in OSX enough apps write to .config/$appname/ for their stuff, so
+			or (home and home/'.config')		-- don't pathIfExists ... if the .config folder is missing then make it
+			or path'.' 							-- nothing worked? try ./
+		cfg = cfgdir/'numo9/config.lua'
 	end
-	App.cfgpath = path(cfg)
+	App.cfgpath = cfg
 	App.cfgpath:getdir():mkdir(true)
 end
 
