@@ -1,5 +1,6 @@
 name = 'numo9'
-icon= 'docpics/numo9 icon.png'
+icon = 'docpics/numo9 icon.png'
+iconOSX = 'docpics/numo9 icon.icns'
 luaArgs = {'run.lua'}
 AppImageCategories = 'Game'
 
