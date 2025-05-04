@@ -17,21 +17,7 @@ What does NuMo9 have that the competition doesn't?
 - Server can edit games in realtime.  Live game DM'ing.
 - It's strictly LuaJIT.  No compiler needed.
 
-## Build Instructions.
-
-Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.
-
-There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
-
-If you don't trust the binaries, or if you run into runtime linking problems, then you can rebuild the dependencies yourself.  All of the code required is open source. The list is as follow:
-- [luajit2 OpenResty edition](https://github.com/openresty/luajit2) tag `v2.1-20250117`.  Also you must edit `src/Makefile` and enable `XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT`, otherwise things like the `__len` metamethod won't work.
-	**Sadly** this is not default compiler settings in things like apt's `luajit` (original luajit) or `luajit2) (OpenResty luajit) packages, so neither of these packages will work.
-- [SDL2](https://github.com/libsdl-org/SDL) tag `release-2.32.4`.
-- [libpng](https://github.com/pnggroup/libpng) tag `v1.6.47`.
-	- with that I'm using [zlib](https://github.com/madler/zlib) tag `v1.3.1`
-- My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.
-
-# Hardware
+# "Hardware"
 
 ### Framebuffer
 
@@ -493,14 +479,14 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - certain string escape characters don't work
 - certain machine-specific peeks and pokes don't work
 
-# Other Fantasy Consoles / Inspiration for this:
+## Other Fantasy Consoles / Inspiration for this:
 - https://www.pico-8.com/
 - https://tic80.com/
 - https://pixelvision8.itch.io/
 - https://github.com/emmachase/Riko4
 - https://github.com/kitao/pyxel
 
-# Some SNES hardware spec docs to guide my development:
+## Some SNES hardware spec docs to guide my development:
 - https://8bitworkshop.com/blog/platforms/nintendo-nes.md.html
 - https://snes.nesdev.org/wiki/Tilemaps
 - https://www.raphnet.net/divers/retro_challenge_2019_03/qsnesdoc.html
@@ -514,6 +500,24 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - https://archive.org/details/SNESDevManual/book1/
 - https://en.wikibooks.org/wiki/Super_NES_Programming/Loading_SPC700_programs
 
+
+## Build Instructions.
+
+Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.
+
+There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
+
+If you want to rely on outside binaries, here is the list of dependencies:
+- [luajit2 OpenResty edition](https://github.com/openresty/luajit2) tag `v2.1-20250117`.  Also you must edit `src/Makefile` and enable `XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT`, otherwise things like the `__len` metamethod won't work.
+	**Sadly** this is not default compiler settings in things like apt's `luajit` (original luajit) or `luajit2) (OpenResty luajit) packages, so neither of these packages will work.
+- My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.  This too must be built by hand at the moment.
+- SDL package `apt install libsdl2-2.0.0`, or built from source [here](https://github.com/libsdl-org/SDL).  My distributable binary is tag `release-2.32.4`.
+- PNG package `apt install libpng16-16t64`, or built from source [here](https://github.com/pnggroup/libpng).  My distributable binary is tag `v1.6.47`.
+	- For building libpng, I'm building against [zlib](https://github.com/madler/zlib) tag `v1.3.1`
+
+
+
+
 # TODO
 - upon fantasy console startup the first few frames skip ...
 - waveforms
@@ -525,7 +529,7 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 	- when converting p8 to n9 music tracks that play two sfxs of different durations, I haven't finished that yet ...
 	- currently the music track data is delta encoded, but it handles new values as changes come in, so if the sfxID starts at zero then it won't be delta-encoded (unless you add an extra zero to the delta data) or alternatively (BETTER) don't add the extra zero, and instead have the music ... play on sfx ID initially?  only on non-zero vol channels? (then i have to process a whole first frame first)?  or only on isPlaying channels?  idk...
 - input
-	- mouse wheel returned in mouse() function.
+	- debate using `SDL_GAMECONTROLLER` over just `SDL_JOYSTICK`
 - menu
 	- draw mouse / touch regions
 	- transparent menu
@@ -534,7 +538,6 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
 	- sprite renderer still clips into neighboring sprites.
 - editor:
-	- add multi-bank support to editor.
 	- copy/paste on the tilemap.
 		- copy/paste tilemap entries themselves
 		- paste sprites into the tilemap, then automatically quantize their sprites and palettes.. Just need to copy most of this from my `convert-to-8x8x4bpp` repo.
@@ -595,18 +598,16 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 - Should I allow 32x32 64x64 etc as well?
 - Should I allow tilemap rotations? 3 bits for orientation instead of just 2 bits for h & v flip?
 - More video modes maybe?
-	- 256x144x16bpp is 16:9 fits in 128k, width and height divides 16
-✓	- 320x200x16bpp is 8:5 fits in 128k, width divides 16
-
-✓	- 416x312x8bpp is 4:3 fits in 128k
-✓	- 512x256x8bpp is 2:1, indexed and RGB332
-✓	- 480x270x8bpp is 16:19 and fits within 128k
-✓	- 512x256x4bpp is 2:1, indexed and RGB332
-	- 512x288x4bpp is 16:9 - fits in 128k, width and height divides 16 ... meh stupid 16:9, why not just use 2:1 ...
-✓	- 672x378x4bpp is 16:9 - fits in 128k, 4bpp 16:9 to fit in 128k whose width divides 16
-✓	- 724x362x4bpp is 2:1 - fits in 128k, 4bpp 2:1 to fit in 128k
-✓	- 720x360x4bpp is 2:1 - fits in 128k, 4bpp 2:1 to fit in 128k whose width divides by 16
-
-	- 768x432x2bpp is 16:9 - fits in 128k, 2bpp 16:9 to fit in 128k whose width and height divides by 16
-✓	- 960x540x2bpp is 16:9 - fits in 128k, 2bpp 16:9 to fit in 128k
-✓	- 1024x512x2bpp is 2:1 - fits in 128k, 2bpp 2:1 to fit in 128k and divides 16
+	- 	256x144x16bpp is 16:9 fits in 128k, width and height divides 16
+	- ✓	320x200x16bpp is 8:5 fits in 128k, width divides 16
+	- ✓	416x312x8bpp is 4:3 fits in 128k
+	- ✓	512x256x8bpp is 2:1, indexed and RGB332
+	- ✓	480x270x8bpp is 16:19 and fits within 128k
+	- ✓	512x256x4bpp is 2:1, indexed and RGB332
+	- 	512x288x4bpp is 16:9 - fits in 128k, width and height divides 16 ... meh stupid 16:9, why not just use 2:1 ...
+	- ✓	672x378x4bpp is 16:9 - fits in 128k, 4bpp 16:9 to fit in 128k whose width divides 16
+	- ✓	724x362x4bpp is 2:1 - fits in 128k, 4bpp 2:1 to fit in 128k
+	- ✓	720x360x4bpp is 2:1 - fits in 128k, 4bpp 2:1 to fit in 128k whose width divides by 16
+	- 	768x432x2bpp is 16:9 - fits in 128k, 2bpp 16:9 to fit in 128k whose width and height divides by 16
+	- ✓	960x540x2bpp is 16:9 - fits in 128k, 2bpp 16:9 to fit in 128k
+	- ✓	1024x512x2bpp is 2:1 - fits in 128k, 2bpp 2:1 to fit in 128k and divides 16
