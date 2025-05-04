@@ -19,9 +19,17 @@ What does NuMo9 have that the competition doesn't?
 
 ## Build Instructions.
 
-Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.  If you don't trust them you can rebuild and re-run your own LuaJIT.  All the code is readable and modifyable for your convenience.
+Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.
 
 There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
+
+If you don't trust the binaries, or if you run into runtime linking problems, then you can rebuild the dependencies yourself.  All of the code required is open source. The list is as follow:
+- [luajit2 OpenResty edition](https://github.com/openresty/luajit2) tag `v2.1-20250117`.  Also you must edit `src/Makefile` and enable `XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT`, otherwise things like the `__len` metamethod won't work.
+	**Sadly** this is not default compiler settings in things like apt's `luajit` (original luajit) or `luajit2) (OpenResty luajit) packages, so neither of these packages will work.
+- [SDL2](https://github.com/libsdl-org/SDL) tag `release-2.32.4`.
+- [libpng](https://github.com/pnggroup/libpng) tag `v1.6.47`.
+	- with that I'm using [zlib](https://github.com/madler/zlib) tag `v1.3.1`
+- My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.
 
 # Hardware
 
