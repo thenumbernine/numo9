@@ -371,7 +371,7 @@ trace('got crossing indexes', crossingIndexes:mapi(tostring):concat',')
 	)
 	local getOtherLink=[i]do
 		local link = snake[i]
-		local cis=assert.index(crossingIndexesForCoords,link.x..','..link.y)
+		local cis=crossingIndexesForCoords![link.x..','..link.y]
 		assert.len(cis,2)
 		if cis[1]==i then return snake[cis[2]] end
 		if cis[2]==i then return snake[cis[1]] end
@@ -511,14 +511,14 @@ trace('writhe', writhe)
 		local tripMatrix=range(n):mapi([i]do
 			local coordI = crossingCoords[i]
 			local coordIKey = coordI.x..','..coordI.y
-			local firstLinkIndexAtCrossingCoordI = assert.index(crossingIndexesForCoords[coordIKey], 1)
+			local firstLinkIndexAtCrossingCoordI = crossingIndexesForCoords[coordIKey]![1]
 			return range(n):mapi([j]do
 				local coordJ = crossingCoords[j]
 				local coordJKey = coordJ.x..','..coordJ.y
 				if i==j then
 					-- all indexes per-coord-key in crossingIndexesForCoords have the same crossing sign ...
 					-- source says sign==1 means diagonal==0 but my signs are all -1 so my trefoil knot is opposite the Zulli paper
-					local sign = assert.index(crossingSigns, firstLinkIndexAtCrossingCoordI)
+					local sign = crossingSigns![firstLinkIndexAtCrossingCoordI]
 					return sign==1 and 0 or 1
 				else
 					-- "count the # of times mod 2 we pass the i'th crossing" ...

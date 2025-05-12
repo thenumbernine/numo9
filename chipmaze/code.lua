@@ -284,12 +284,12 @@ update=[]do
 				local btp = tilePropForIndex[bm]
 				if bm == tiles.empty then
 					btp |= tileflags.pushable
-					mset16(bx, by, assert.index(tileIndexForProp, btp))
+					mset16(bx, by, tileIndexForProp![btp])
 				elseif btp & tileflags.water ~= 0 then
 					-- remove the water flag from the dest tile
 					btp &= ~tileflags.water
 					-- and lookup what tile this is
-					mset16(bx, by, assert.index(tileIndexForProp, btp))
+					mset16(bx, by, tileIndexForProp![btp])
 				-- handle blocking before arrow movement so that handling arrow doesnt let you walk over a pushable 
 				elseif btp & (
 					tileflags.solid
@@ -301,7 +301,7 @@ update=[]do
 				elseif btp & tileflags.arrow ~= 0 then
 					-- add pushable flag to the dest tile
 					btp |= tileflags.pushable
-					mset16(bx, by, assert.index(tileIndexForProp, btp))
+					mset16(bx, by, tileIndexForProp![btp])
 				else
 					error'here'
 				end
@@ -309,7 +309,7 @@ update=[]do
 				if xn ~= x or yn ~= y then
 					-- remove the pushable flag from the source tile
 					tp &= ~tileflags.pushable
-					mset16(xn, yn, assert.index(tileIndexForProp, tp))
+					mset16(xn, yn, tileIndexForProp![tp])
 				end
 			end
 		end

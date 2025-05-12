@@ -274,7 +274,7 @@ local genDungeonLevel=[avgRoomSize]do
 		if not self:wrapPos(pos) then return end
 		--local tile = mapType(pos)
 		--self.tiles[pos.y][pos.x] = tile
-		mset(pos.x,pos.y,mapType)--assert(table.pickRandom(assert.index(tileTypes,tileType.name).tileIndexes)))
+		mset(pos.x,pos.y,mapType)--assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
 		return tile
 	end
 	

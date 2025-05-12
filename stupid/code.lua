@@ -1790,7 +1790,7 @@ Map=class{
 		tileType
 	--]]
 	init=[:,args]do
-		self.name = assert.index(args, 'name')
+		self.name = args!.name
 		self.exitMap = args.exitMap
 		self.temp = args.temp
 		self.wrap = args.wrap
@@ -1800,7 +1800,7 @@ Map=class{
 		if args.playerStart then self.playerStart=vec2(args.playerStart) end
 		self.fogColor = args.fogColor
 
-		self.size = vec2(assert.index(args,'size'))
+		self.size = vec2(args!.size)
 		self.bbox = box2(vec2(), self.size-1)
 
 		local tileType = args.tileType or tileTypes.Grass
@@ -1815,7 +1815,7 @@ Map=class{
 			for x=0,self.size.x-1 do
 				tilerow[x] = tileType(vec2(x,y))
 				-- here or in setMap ?
-				mset(x,y,assert(table.pickRandom(assert.index(tileTypes,tileType.name).tileIndexes)))
+				mset(x,y,assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
 			end
 		end
 		
@@ -1864,7 +1864,7 @@ Map=class{
 		if not self:wrapPos(pos) then return end
 		local tile = tileType(pos)
 		self.tiles[pos.y][pos.x] = tile
-		mset(pos.x,pos.y,assert(table.pickRandom(assert.index(tileTypes,tileType.name).tileIndexes)))
+		mset(pos.x,pos.y,assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
 		return tile
 	end,
 	--[[
@@ -2961,14 +2961,14 @@ setMap=[args]do
 	end
 
 	--now load the map
-	thisMap = assert.index(maps, args.map, "failed to find map")
+	thisMap = maps![args.map]
 
 	-- copy the map tile types into the tilemap
 	for y=0,thisMap.size.y-1 do
 		local tilerow=thisMap.tiles[y]
 		for x=0,thisMap.size.x-1 do
 			local tile=tilerow[x]
-			mset(x,y,assert(table.pickRandom(assert.index(tileTypes,tile.name).tileIndexes)))
+			mset(x,y,assert(table.pickRandom(tileTypes![tile.name].tileIndexes)))
 		end
 	end
 
