@@ -65,7 +65,6 @@ files = {
 		'struct',
 		'vec-ffi',
 		'image',
-		'audio',
 		'gl',
 		'glapp',
 		'langfix',

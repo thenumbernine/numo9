@@ -20,9 +20,6 @@ local sdlAudioFormatForCType = require 'sdl.audio'.sdlAudioFormatForCType
 local assert = require 'ext.assert'
 local table = require 'ext.table'
 local math = require 'ext.math'
-local Audio = require 'audio'
-local AudioSource = require 'audio.source'
-local AudioBuffer = require 'audio.buffer'
 
 -- ... aka output freq aka aka 'sample rate' = number of 'sample frames' per second
 local numo9_rom = require 'numo9.rom'
