@@ -101,4 +101,17 @@ luajitLibs = {
 		'mime',
 		'ssl',
 	},
+	Windows = {
+		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
+		--'zlib',	-- or is it static linked into png already?
+		'SDL2',
+		'clip',
+		'socket',
+		'mime',
+		'ssl',
+		-- TODO this needs better organizing
+		-- and I really should separate the luaopen libs vs the luajit dlsym libs ...
+		'libcrypto-1_1-x64.dll',
+		'libssl-1_1-x64.dll',
+	},
 }
