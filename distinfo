@@ -7,7 +7,6 @@ AppImageCategories = 'Game'
 files = {
 	-- cwd files/dirs go here
 	['.'] = {
-
 		'asteroids.n9',
 		'bank.n9',
 		'bombs.n9',
@@ -56,6 +55,10 @@ files = {
 		'numo9/rom.lua',
 		'numo9/video.lua',
 	},
+}
+
+-- dependent distinfo projects
+deps = {
 	-- other paths go here
 	['..'] = table{
 		'template',
@@ -77,6 +80,7 @@ files = {
 }
 
 -- lua socket ... TODO copy from dist/release/
+-- TODO match each with its required luajitLibs, with its external libs, and put all in their own unique distinfo somewhere.  organize by project, not flat directories.
 files['../dist/release'] = {
 	'socket.lua',
 	'ltn12.lua',
@@ -97,8 +101,6 @@ luajitLibs = {
 		--'zlib',	-- or is it static linked into png already?
 		'SDL2',
 		'clip',
-		'socket',
-		'mime',
 		'ssl',
 	},
 	Windows = {
@@ -106,8 +108,6 @@ luajitLibs = {
 		--'zlib',	-- or is it static linked into png already?
 		'SDL2',
 		'clip',
-		'socket',
-		'mime',
 		'ssl',
 		-- TODO this needs better organizing
 		-- and I really should separate the luaopen libs vs the luajit dlsym libs ...
