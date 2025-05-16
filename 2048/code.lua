@@ -6,6 +6,11 @@ for i=0,255 do
 	poke(fontWidthAddr+i,8)
 end
 
+local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+for i=0,255 do
+	pokew(palAddr + (i<<1), math.random(0,65535))
+end
+
 local dirvecs = table{
 	[0] = vec2(1,0),
 	[1] = vec2(0,1),
@@ -14,6 +19,10 @@ local dirvecs = table{
 }
 
 local size = vec2(4,4)
+
+local rndb = [] math.random(0,255)
+
+local colors = {}
 
 local addNumber=[]do
 	local zeroes = table()
@@ -24,11 +33,19 @@ local addNumber=[]do
 			end
 		end
 	end
+	-- welp it shouldn't even have none to choose from in the first place ...
 	if #zeroes == 0 then
+trace'you lost'
 		msg = 'you lost'
 	end
 	local pos = zeroes:pickRandom()
 	board[pos.x][pos.y] = math.random(1,2) << 1
+--[[ here TODO don't end the game if there's any valid moves left
+	if #zeroes == 0 then
+trace'you lost'
+		msg = 'you lost'
+	end
+--]]
 end
 
 resetGame=[]do
@@ -61,6 +78,14 @@ update=[]do
 	cls()
 	for i,col in ipairs(board) do
 		for j,v in ipairs(col) do
+			colors[v] ??= rndb()
+			rect(
+				(i-1)/size.x * 256,
+				(j-1)/size.y * 256,
+				256 / size.x,
+				256 / size.y,
+				colors[v])
+
 			text(
 				tostring(v),
 				(i - 1) / size.x * 256,
@@ -73,7 +98,7 @@ update=[]do
 	end
 
 	if msg then
-		text(msg, 128, 128)
+		text(msg, 100, 128, nil, nil, 4, 4)
 		return
 	end
 
