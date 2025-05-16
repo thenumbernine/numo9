@@ -1,14 +1,30 @@
 --#include ext/range.lua
 --#include vec/vec2.lua
+--#include vec/vec3.lua
+
+-- [[
+local size = vec2(4,4)
+local fontSize = vec2(2,2)
+--]]
+--[[
+local size = vec2(8,8)
+local fontSize = vec2(1,1)
+--]]
+
 
 local fontWidthAddr = ffi.offsetof('RAM','fontWidth')
 for i=0,255 do
 	poke(fontWidthAddr+i,8)
 end
 
+local randomColor = [] do
+	local v = (vec3(math.random(), math.random(), math.random()):unit() * 31):floor()
+	return v.x | (v.y << 5) | (v.z << 10) | 0x8000
+end
+
 local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
 for i=0,255 do
-	pokew(palAddr + (i<<1), math.random(0,65535))
+	pokew(palAddr + (i<<1), randomColor())
 end
 
 local dirvecs = table{
@@ -17,8 +33,6 @@ local dirvecs = table{
 	[2] = vec2(-1,0),
 	[3] = vec2(0,-1),
 }
-
-local size = vec2(4,4)
 
 local rndb = [] math.random(0,255)
 
@@ -49,8 +63,13 @@ trace'you lost'
 end
 
 resetGame=[]do
+--[[ testing
+	board = range(size.x):mapi([] range(size.y):mapi([] 2))
+--]]
+-- [[
 	board = range(size.x):mapi([] range(size.y):mapi([] 0))
 	addNumber()
+--]]
 end
 
 local modpos = [pos]do
@@ -73,7 +92,6 @@ local setmod = [pos, value]do
 	board[pos.x][pos.y] = value
 end
 
-local fontSize = vec2(2,2)
 update=[]do
 	cls()
 	for i,col in ipairs(board) do
