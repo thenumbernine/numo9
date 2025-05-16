@@ -2,15 +2,25 @@
 --#include vec/vec2.lua
 --#include vec/vec3.lua
 
--- [[
+--[[
 local size = vec2(4,4)
 local fontSize = vec2(2,2)
 --]]
---[[
+-- [[
 local size = vec2(8,8)
 local fontSize = vec2(1,1)
 --]]
 
+--[[ powers of two
+local getNewNumber = [] math.random(1,2) << 1
+local testMerge = [a,b] a == b
+local doMerge = [a,b] a + b
+--]]
+-- [[ naturals
+local getNewNumber = [] math.random(1,2)
+local testMerge = [a,b] a == b
+local doMerge = [a,b] a + 1
+--]]
 
 local fontWidthAddr = ffi.offsetof('RAM','fontWidth')
 for i=0,255 do
@@ -23,7 +33,9 @@ local randomColor = [] do
 end
 
 local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
-for i=0,255 do
+pokew(palAddr, 0x8000)
+pokew(palAddr + 2, 0xffff)
+for i=2,255 do
 	pokew(palAddr + (i<<1), randomColor())
 end
 
@@ -36,7 +48,7 @@ local dirvecs = table{
 
 local rndb = [] math.random(0,255)
 
-local colors = {}
+local colors = {[0]=0, [1]=2}
 
 local addNumber=[]do
 	local zeroes = table()
@@ -53,7 +65,7 @@ trace'you lost'
 		msg = 'you lost'
 	end
 	local pos = zeroes:pickRandom()
-	board[pos.x][pos.y] = math.random(1,2) << 1
+	board[pos.x][pos.y] = getNewNumber()
 --[[ here TODO don't end the game if there's any valid moves left
 	if #zeroes == 0 then
 trace'you lost'
@@ -63,10 +75,10 @@ trace'you lost'
 end
 
 resetGame=[]do
--- [[ testing
+--[[ testing
 	board = range(size.x):mapi([i] range(size.y):mapi([j] 1<<math.max(i,2)))
 --]]
---[[
+-- [[
 	board = range(size.x):mapi([] range(size.y):mapi([] 0))
 	addNumber()
 --]]
@@ -96,7 +108,9 @@ update=[]do
 	cls()
 	for i,col in ipairs(board) do
 		for j,v in ipairs(col) do
-			colors[v] ??= rndb()
+			--colors[v] ??= rndb()
+			colors[v] ??= v+1
+
 			rect(
 				(i-1)/size.x * 256,
 				(j-1)/size.y * 256,
@@ -108,8 +122,8 @@ update=[]do
 				tostring(v),
 				(i - 1) / size.x * 256,
 				(j - .5) / size.y * 256,
-				nil,
-				nil,
+				1,
+				0,
 				fontSize.x,
 				fontSize.y)
 		end
@@ -138,9 +152,11 @@ update=[]do
 						for k=i-1,mink,-1 do
 							local pk = right * j - dir * k
 --trace('check dst', k, pk)
-							if getmod(pk) ~= 0 and getmod(pk) ~= srcval then break end
+							local pv = getmod(pk)
+							local canMerge = testMerge(pv, srcval)
+							if pv ~= 0 and not canMerge then break end
 							dstk = k
-							if getmod(pk) == srcval then break end	-- combine
+							if canMerge then break end	-- combine
 						end
 --trace('found', dstk)
 						if dstk then
@@ -151,14 +167,19 @@ update=[]do
 
 --trace('board[', pk, '] was', getmod(pk))
 --trace('set', pk, 'to pos', pos, 'value', getmod(pos))
-							setmod(pk, getmod(pk) + getmod(pos))
+							if getmod(pk) == 0 then
+								setmod(pk, getmod(pos))
+							else
+								setmod(pk, doMerge(getmod(pk), getmod(pos)))
+								-- if we merged then don't let the next row merge too
+								mink = dstk+1
+							end
 --trace('board[', pk, '] is', getmod(pk))
 
 --trace('board[', pos, '] was', getmod(pos))
 --trace('set', pos, 'to', 0)
 							setmod(pos, 0)
 --trace('board[', pos, '] is', getmod(pos))
-							mink = dstk+1
 						end
 					end
 				end
