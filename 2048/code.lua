@@ -63,10 +63,10 @@ trace'you lost'
 end
 
 resetGame=[]do
---[[ testing
-	board = range(size.x):mapi([] range(size.y):mapi([] 2))
+-- [[ testing
+	board = range(size.x):mapi([i] range(size.y):mapi([j] 1<<math.max(i,2)))
 --]]
--- [[
+--[[
 	board = range(size.x):mapi([] range(size.y):mapi([] 0))
 	addNumber()
 --]]
@@ -126,15 +126,16 @@ update=[]do
 			local moved
 --trace('press', i)
 			local right = dir:cplxmul(vec2(0,1))
-			for i=2,math.abs(size:dot(dir)) do
-				for j=1,math.abs(size:dot(right)) do
+			for j=1,math.abs(size:dot(right)) do
+				local mink = 1
+				for i=2,math.abs(size:dot(dir)) do
 					local pos = right * j - dir * i
 --trace('check', dir, i, j, pos, modpos(pos), getmod(pos))
 					local srcval = getmod(pos)
 					if srcval ~= 0 then
 --trace'found'
 						local dstk
-						for k=i-1,1,-1 do
+						for k=i-1,mink,-1 do
 							local pk = right * j - dir * k
 --trace('check dst', k, pk)
 							if getmod(pk) ~= 0 and getmod(pk) ~= srcval then break end
@@ -157,6 +158,7 @@ update=[]do
 --trace('set', pos, 'to', 0)
 							setmod(pos, 0)
 --trace('board[', pos, '] is', getmod(pos))
+							mink = dstk+1
 						end
 					end
 				end
