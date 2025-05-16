@@ -1,6 +1,11 @@
 --#include ext/range.lua
 --#include vec/vec2.lua
 
+local fontWidthAddr = ffi.offsetof('RAM','fontWidth')
+for i=0,255 do
+	poke(fontWidthAddr+i,8)
+end
+
 local dirvecs = table{
 	[0] = vec2(1,0),
 	[1] = vec2(0,1),
@@ -39,7 +44,7 @@ local modpos = [pos]do
 	assert.le(x, size.x)
 	assert.le(1, y)
 	assert.le(y, size.y)
-trace('modpos from='..pos..' to='..vec2(x,y))	
+--trace('modpos from='..pos..' to='..vec2(x,y))
 	return vec2(x,y)
 end
 local getmod = [pos]do
@@ -51,15 +56,15 @@ local setmod = [pos, value]do
 	board[pos.x][pos.y] = value
 end
 
-local fontSize = vec2(4,4)
+local fontSize = vec2(2,2)
 update=[]do
 	cls()
 	for i,col in ipairs(board) do
 		for j,v in ipairs(col) do
 			text(
 				tostring(v),
-				(i - .5) / size.x * 256 - .5 * fontSize.x,
-				(j - .5) / size.y * 256 - .5 * fontSize.y,
+				(i - 1) / size.x * 256,
+				(j - .5) / size.y * 256,
 				nil,
 				nil,
 				fontSize.x,
@@ -82,29 +87,31 @@ update=[]do
 				for j=1,math.abs(size:dot(right)) do
 					local pos = right * j - dir * i
 --trace('check', dir, i, j, pos, modpos(pos), getmod(pos))
-					if getmod(pos) ~= 0 then
---trace'found'						
+					local srcval = getmod(pos)
+					if srcval ~= 0 then
+--trace'found'
 						local dstk
 						for k=i-1,1,-1 do
 							local pk = right * j - dir * k
 --trace('check dst', k, pk)
-							if getmod(pk) ~= 0 then break end
+							if getmod(pk) ~= 0 and getmod(pk) ~= srcval then break end
 							dstk = k
+							if getmod(pk) == srcval then break end	-- combine
 						end
---trace('found', dstk)						
+--trace('found', dstk)
 						if dstk then
 							-- then move
 							moved = true
 							local pk = right * j - dir * dstk
---trace('moving to', pk)							
+--trace('moving to', pk)
 
 --trace('board[', pk, '] was', getmod(pk))
---trace('set', pk, 'to pos', pos, 'value', getmod(pos))							
-							setmod(pk, getmod(pos))
+--trace('set', pk, 'to pos', pos, 'value', getmod(pos))
+							setmod(pk, getmod(pk) + getmod(pos))
 --trace('board[', pk, '] is', getmod(pk))
-							
+
 --trace('board[', pos, '] was', getmod(pos))
---trace('set', pos, 'to', 0)							
+--trace('set', pos, 'to', 0)
 							setmod(pos, 0)
 --trace('board[', pos, '] is', getmod(pos))
 						end
