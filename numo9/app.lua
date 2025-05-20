@@ -904,6 +904,7 @@ print('package.searchpath', package.searchpath)
 print('package.searchers', package.searchers)
 for i,v in ipairs(package.searchers) do
 	print('package.searchers['..i..']', v)
+
 end
 print('package.path', package.path)
 print('package.cpath', package.cpath)
@@ -1203,6 +1204,19 @@ looks like I'm a Snes9x-default-keybinding fan.
 	end
 
 	self:findSDLController()
+
+	local tmp = ffi.new('GLuint[1]', 0)
+	gl.glGenQueries(1, tmp)
+	updateQuery = tmp[0]
+	updateQueryTotal = ffi.new'GLuint[1]'
+	updateQueryFrames = 0
+
+	gl.glGenQueries(1, tmp)
+	drawQuery = tmp[0]
+	drawQueryTotal = ffi.new'GLuint[1]'
+	drawQueryFrames = 0
+
+	queryTimerResult = ffi.new('GLuint[1]', 0)
 end
 
 function App:exit()
@@ -1462,7 +1476,9 @@ function App:update()
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
 		print(
-			'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
+			'update='..(updateQueryTotal[0]/updateQueryFrames*1e-6)
+			..' draw='..(drawQueryTotal[0]/drawQueryFrames*1e-6)
+			..' FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
 		--	..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
 		--	..' channels active '..range(0,7):mapi(function(i) return self.ram.channels[i].flags.isPlaying end):concat' '
 		--	..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
@@ -1472,6 +1488,11 @@ function App:update()
 		)
 --DEBUG:self.triBuf.flushCallsPerFrame = 0
 --DEBUG:self.triBuf.flushSizes = {}
+
+		updateQueryTotal[0] = 0
+		updateQueryFrames = 0
+		drawQueryTotal[0] = 0
+		drawQueryFrames = 0
 
 		if self.server then
 			--[[
@@ -1564,6 +1585,8 @@ conn.receivesPerSecond = 0
 		needUpdateCounter = 0
 
 		collectgarbage()
+
+		gl.glBeginQuery(gl.GL_TIME_ELAPSED, updateQuery)
 
 		local newFramebufferAddr = self.ram.framebufferAddr:toabs()
 		if self.framebufferRAM.addr ~= newFramebufferAddr then
@@ -1883,11 +1906,19 @@ print('run thread dead')
 		if self.activeMenu then
 			needDrawCounter = 1
 		end
+
+		gl.glEndQuery(gl.GL_TIME_ELAPSED)
+		queryTimerResult[0] = 0
+		gl.glGetQueryObjectuiv(updateQuery, gl.GL_QUERY_RESULT, queryTimerResult)
+		updateQueryTotal[0] = updateQueryTotal[0] + queryTimerResult[0]
+		updateQueryFrames = updateQueryFrames + 1
 	end
 
 	if needDrawCounter > 0 then
 		needDrawCounter = needDrawCounter - 1
 		drawsPerSecond = drawsPerSecond + 1
+
+		gl.glBeginQuery(gl.GL_TIME_ELAPSED, drawQuery)
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		if self.ram.videoMode == 1 then
@@ -1938,6 +1969,12 @@ print('run thread dead')
 		--]]
 
 		if self.activeMenu then sceneObj.texs[1] = self.framebufferRAM.tex end
+
+		gl.glEndQuery(gl.GL_TIME_ELAPSED)
+		queryTimerResult[0] = 0
+		gl.glGetQueryObjectuiv(drawQuery, gl.GL_QUERY_RESULT, queryTimerResult)
+		drawQueryTotal[0] = drawQueryTotal[0] + queryTimerResult[0]
+		drawQueryFrames = drawQueryFrames + 1
 	end
 --DEBUG:require 'gl.report' 'here'
 end
