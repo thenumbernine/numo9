@@ -19,16 +19,60 @@ What does NuMo9 have that the competition doesn't?
 
 # "Hardware"
 
+<a name='framebuffer'></a>
 ### Framebuffer
 
-Mode 0:
-Screen framebuffer is 256x256x16bpp RGB565.  This mode supports blending effects.
+- Mode 0: 256x256x16bpp RGB565.  This mode supports blending effects.
+- Mode 1: 256x256x8bpp-indexed option, mainly for compatability for other fantasy consoles.  Fun fact, in real life 80s/90s consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
+- Mode 2: 256x256x8bpp RGB332.  It looks ugly. Maybe I'll add some dithering.
+- Mode 3: 272x217x16bpp RGB565
+- Mode 4: 272x217x8bpp-indexed
+- Mode 5: 272x217x8bpp RGB332
+- Mode 6: 288x216x16bpp RGB565
+- Mode 7: 288x216x8bpp-indexed
+- Mode 8: 288x216x8bpp RGB332
+- Mode 9: 304x202x16bpp RGB565
+- Mode 10: 304x202x8bpp-indexed
+- Mode 11: 304x202x8bpp RGB332
+- Mode 12: 320x200x16bpp RGB565
+- Mode 13: 320x200x8bpp-indexed
+- Mode 14: 320x200x8bpp RGB332
+- Mode 15: 320x192x16bpp RGB565
+- Mode 16: 320x192x8bpp-indexed
+- Mode 17: 320x192x8bpp RGB332
+- Mode 18: 336x189x16bpp RGB565
+- Mode 19: 336x189x8bpp-indexed
+- Mode 20: 336x189x8bpp RGB332
+- Mode 21: 336x177x16bpp RGB565
+- Mode 22: 336x177x8bpp-indexed
+- Mode 23: 336x177x8bpp RGB332
+- Mode 24: 352x176x16bpp RGB565
+- Mode 25: 352x176x8bpp-indexed
+- Mode 26: 352x176x8bpp RGB332
+- Mode 27: 384x164x16bpp RGB565
+- Mode 28: 384x164x8bpp-indexed
+- Mode 29: 384x164x8bpp RGB332
+- Mode 30: 352x352x8bpp-indexed
+- Mode 31: 352x352x8bpp RGB332
+- Mode 32: 400x320x8bpp-indexed
+- Mode 33: 400x320x8bpp RGB332
+- Mode 34: 416x312x8bpp-indexed
+- Mode 35: 416x312x8bpp RGB332
+- Mode 36: 432x288x8bpp-indexed
+- Mode 37: 432x288x8bpp RGB332
+- Mode 38: 448x280x8bpp-indexed
+- Mode 39: 448x280x8bpp RGB332
+- Mode 40: 464x278x8bpp-indexed
+- Mode 41: 464x278x8bpp RGB332
+- Mode 42: 480x270x8bpp-indexed
+- Mode 43: 480x270x8bpp RGB332
+- Mode 44: 496x262x8bpp-indexed
+- Mode 45: 496x262x8bpp RGB332
+- Mode 46: 512x256x8bpp-indexed
+- Mode 47: 512x256x8bpp RGB332
+- Mode 48: 544x233x8bpp-indexed
+- Mode 49: 544x233x8bpp RGB332
 
-Mode 1:
-This is a 8bpp-indexed option, mainly for compatability for other fantasy consoles.  Fun fact, in real life 80s/90s consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
-
-Mode 2:
-This is 8bpp RGB332.  It looks ugly. Maybe I'll add some dithering.
 
 It's really tempting to include a hidden depth-buffer, since TIC-80 does as well.  But meh, for now nope, you have to do your own z-sorting.
 
@@ -285,10 +329,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
 	- tilemapIndex = the tilemap bank to use, default to 0.
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
-- `mode(i)` = set video mode.  The current video modes are:
-	- 0 = 256x256x16bpp RGB565, needed for blending
-	- 1 = 256x256x8bpp Indexed, not capable of blending, but capable of modifying the framebuffer palette (like the other fantasy consoles allow).
-	- 2 = 256x256x8bpp RGB332.
+- `mode(i)` = set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `blend([i])` = Set blend mode.  Default value is 0xff corresponding to no blending.  The current blend modes are:
 	- 0xff = none
@@ -597,17 +638,3 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - Should I store the draw16x16 in its own variable in RAM?  Same for tilemap index offset, same for tilemap spritesheet bank, same for tilemap bank.
 - Should I allow 32x32 64x64 etc as well?
 - Should I allow tilemap rotations? 3 bits for orientation instead of just 2 bits for h & v flip?
-- More video modes maybe?
-	- 	256x144x16bpp is 16:9 fits in 128k, width and height divides 16
-	- ✓	320x200x16bpp is 8:5 fits in 128k, width divides 16
-	- ✓	416x312x8bpp is 4:3 fits in 128k
-	- ✓	512x256x8bpp is 2:1, indexed and RGB332
-	- ✓	480x270x8bpp is 16:19 and fits within 128k
-	- ✓	512x256x4bpp is 2:1, indexed and RGB332
-	- 	512x288x4bpp is 16:9 - fits in 128k, width and height divides 16 ... meh stupid 16:9, why not just use 2:1 ...
-	- ✓	672x378x4bpp is 16:9 - fits in 128k, 4bpp 16:9 to fit in 128k whose width divides 16
-	- ✓	724x362x4bpp is 2:1 - fits in 128k, 4bpp 2:1 to fit in 128k
-	- ✓	720x360x4bpp is 2:1 - fits in 128k, 4bpp 2:1 to fit in 128k whose width divides by 16
-	- 	768x432x2bpp is 16:9 - fits in 128k, 2bpp 16:9 to fit in 128k whose width and height divides by 16
-	- ✓	960x540x2bpp is 16:9 - fits in 128k, 2bpp 16:9 to fit in 128k
-	- ✓	1024x512x2bpp is 2:1 - fits in 128k, 2bpp 2:1 to fit in 128k and divides 16

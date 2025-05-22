@@ -608,46 +608,70 @@ function AppVideo:initVideo()
 	self.paletteRAM = self.paletteRAMs[1]
 	self.fontRAM = self.fontRAMs[1]
 
-	-- this is 1:1 with videoModeInfo
+	-- this table is 1:1 with videoModeInfo
 	-- and used to create/assign unique framebufferRAMs
-	local requestedVideoModes = table{
-		-- 1:1
-		[0] = {width=256, height=256, format='RGB565'},		-- 256x256x16bpp rgb565 ... glformat = GL_RGB565
-		{width=256, height=256, format='8bppIndex'},		-- 256x256x8bpp indexed ... glformat = texInternalFormat_u8
-		{width=256, height=256, format='RGB332'},			-- 256x256x8bpp rgb332 ... glformat = texInternalFormat_u8
-	}
+	local requestedVideoModes = table()
+	local function addreq(info)
+		if #requestedVideoModes == 0
+		and not requestedVideoModes[0]
+		then
+			requestedVideoModes[0] = info
+		else
+			requestedVideoModes[#requestedVideoModes+1] = info
+		end
+	end
+
 	-- 16bpp upper bound resolution:
-	for _,format in ipairs{'RGB565', '8bppIndex', 'RGB332'} do
-		-- the 1:1 is added above ...
-		requestedVideoModes:insert{width=272, height=217, format=format}	-- 5:4
-		requestedVideoModes:insert{width=288, height=216, format=format}	-- 4:3
-		requestedVideoModes:insert{width=304, height=202, format=format}	-- 3:2
-		requestedVideoModes:insert{width=320, height=200, format=format}	-- 8:5
-		requestedVideoModes:insert{width=320, height=192, format=format}	-- 5:3
-		requestedVideoModes:insert{width=336, height=189, format=format}	-- 16:9
-		requestedVideoModes:insert{width=336, height=177, format=format}	-- 17:9
-		requestedVideoModes:insert{width=352, height=176, format=format}	-- 2:1
-		requestedVideoModes:insert{width=384, height=164, format=format}	-- 21:9
+	for _,wh in ipairs{
+		{256, 256},	-- 1:1
+		{272, 217},	-- 5:4
+		{288, 216},	-- 4:3
+		{304, 202},	-- 3:2
+		{320, 200},	-- 8:5
+		{320, 192},	-- 5:3
+		{336, 189},	-- 16:9
+		{336, 177},	-- 17:9
+		{352, 176},	-- 2:1
+		{384, 164},	-- 21:9
+	} do
+		for _,format in ipairs{'RGB565', '8bppIndex', 'RGB332'} do
+			-- the 1:1 is added above ...
+			addreq{
+				width = wh[1],
+				height = wh[2],
+				format = format,
+			}
+		end
 	end
 	-- 8bpp upper bound resolutions:
-	for _,format in ipairs{'8bppIndex', 'RGB332'} do
-		requestedVideoModes:insert{width=352, height=352, format=format}	-- 1:1
-		requestedVideoModes:insert{width=400, height=320, format=format}	-- 5:4
-		requestedVideoModes:insert{width=416, height=312, format=format}	-- 4:3
-		requestedVideoModes:insert{width=432, height=288, format=format}	-- 3:2
-		requestedVideoModes:insert{width=448, height=280, format=format}	-- 8:5
-		requestedVideoModes:insert{width=464, height=278, format=format}	-- 5:3
-		requestedVideoModes:insert{width=480, height=270, format=format}	-- 16:9
-		requestedVideoModes:insert{width=496, height=262, format=format}	-- 17:9
-		requestedVideoModes:insert{width=512, height=256, format=format}	-- 2:1
-		requestedVideoModes:insert{width=544, height=233, format=format}	-- 21:9
+	for _,wh in ipairs{
+		{352, 352},	-- 1:1
+		{400, 320},	-- 5:4
+		{416, 312},	-- 4:3
+		{432, 288},	-- 3:2
+		{448, 280},	-- 8:5
+		{464, 278},	-- 5:3
+		{480, 270},	-- 16:9
+		{496, 262},	-- 17:9
+		{512, 256},	-- 2:1
+		{544, 233},	-- 21:9
+	} do
+		for _,format in ipairs{'8bppIndex', 'RGB332'} do
+			addreq{
+				width = wh[1],
+				height = wh[2],
+				format = format,
+			}
+		end
 	end
-	-- TODO 4pp ...
+	-- TODO 4pp 2bpp 1bpp...
 
+--[[ debug
 	for i=0,#requestedVideoModes do
 		local req = requestedVideoModes[i]
 		print('mode '..i..': '..req.width..'x'..req.height..'x'..req.format)
 	end
+--]]
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 
