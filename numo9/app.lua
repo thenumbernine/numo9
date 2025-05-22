@@ -81,7 +81,7 @@ end
 
 
 local App = GLApp:subclass()
-App.version = '0.5-alpha'
+App.version = '0.7-alpha'
 App.title = 'NuMo9'
 App.width = cmdline and cmdline.window and cmdline.window[1] or 720
 App.height = cmdline and cmdline.window and cmdline.window[2] or 512
