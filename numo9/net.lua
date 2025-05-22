@@ -64,7 +64,7 @@ local deltaCompress = numo9_rom.deltaCompress
 local clipType = numo9_rom.clipType
 
 
--- TOOD how about a net-string?
+-- TODO how about a net-string?
 -- pascal-string-encoded: length then data
 -- 7 bits = single-byte length
 -- 8th bit set <-> 14 bits = single-byte length
@@ -1287,10 +1287,13 @@ print'begin client listen loop...'
 						app:resizeRAMGPUs()	-- resizes # of RAMGPU objects, sets them to their default address too
 						app:setVideoMode(app.ram.videoMode)
 
-						app.framebufferRAM_256x256xRGB565.dirtyCPU = true
-						app.framebufferRAM_256x256xRGB565:updateAddr(app.ram.framebufferAddr:toabs())
-						app.framebufferRAM_256x256x8bpp.dirtyCPU = true
-						app.framebufferRAM_256x256x8bpp:updateAddr(app.ram.framebufferAddr:toabs())
+						-- TODO this current method updates *all* GPU/CPU framebuffer textures
+						-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
+						for k,v in pairs(app.framebufferRAMs) do
+							v.dirtyCPU = true
+							v:updateAddr(app.ram.framebufferAddr:toabs())
+						end
+
 						for _,sheetRAM in ipairs(app.sheetRAMs) do
 							sheetRAM.dirtyCPU = true
 							sheetRAM:checkDirtyCPU()	-- and flush

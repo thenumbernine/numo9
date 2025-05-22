@@ -1587,8 +1587,11 @@ conn.receivesPerSecond = 0
 		local newFramebufferAddr = self.ram.framebufferAddr:toabs()
 		if self.framebufferRAM.addr ~= newFramebufferAddr then
 --DEBUG:print'updating framebufferRAM addr'
-			self.framebufferRAM_256x256xRGB565:updateAddr(newFramebufferAddr)
-			self.framebufferRAM_256x256x8bpp:updateAddr(newFramebufferAddr)
+			-- TODO this current method updates *all* GPU/CPU framebuffer textures
+			-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
+			for k,v in pairs(self.framebufferRAMs) do
+				v:updateAddr(newFramebufferAddr)
+			end
 		end
 
 		-- TODO how to handle these plus expandable ROM?  I could only have the first sheets relocatable?
