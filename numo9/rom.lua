@@ -66,7 +66,7 @@ local audioDataSize = 0xf600	-- snes had 64k dedicated to audio so :shrug: I'm l
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
 
-local userDataSize = 0xd848
+local userDataSize = 0xd846
 
 -- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
 -- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
