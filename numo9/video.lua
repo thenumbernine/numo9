@@ -621,6 +621,7 @@ function AppVideo:initVideo()
 	}
 	-- 16bpp upper bound resolution:
 	for _,format in ipairs{'RGB565', '8bppIndex', 'RGB332'} do
+		-- the 1:1 is added above ...
 		requestedVideoModes:insert{width=272, height=217, format=format}	-- 5:4
 		requestedVideoModes:insert{width=288, height=216, format=format}	-- 4:3
 		requestedVideoModes:insert{width=304, height=202, format=format}	-- 3:2
