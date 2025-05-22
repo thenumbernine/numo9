@@ -867,7 +867,6 @@ colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 			-- generator properties
 			name = 'RGB332',
 			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'
-				..getDrawOverrideCode'uvec3'..'\n'
 				..[[
 	/*
 	palColor was 5 5 5 (but is now vec4 normalized)
@@ -886,6 +885,9 @@ colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 	// only needed for quadSprite / quadMap:
 	fragColor.a = uint(palColor.a * 255.);
 ]]
+	-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
+	-- but I don't want the GLSL compiler to optimize away the attr...
+	..getDrawOverrideCode'uvec3',
 		}
 	end
 
