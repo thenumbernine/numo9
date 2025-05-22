@@ -49,7 +49,6 @@ local updateIntervalInSeconds = numo9_rom.updateIntervalInSeconds
 local ROM = numo9_rom.ROM	-- define RAM, ROM, etc
 local RAM = numo9_rom.RAM
 local spriteSize = numo9_rom.spriteSize
-local frameBufferSize = numo9_rom.frameBufferSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSizeInBits = numo9_rom.tilemapSizeInBits
 local tilemapSize = numo9_rom.tilemapSize
@@ -332,32 +331,34 @@ function App:initGL()
 			x = toint(x)
 			y = toint(y)
 			color = toint(color)
-			if x < 0 or x >= frameBufferSize.x
-			or y < 0 or y >= frameBufferSize.y
-			then
+			local fbRAM = self.framebufferRAM
+			local fbTex = fbRAM.tex
+			local width, height = fbTex.width, fbTex.height
+			if x < 0 or x >= width or y < 0 or y >= height then
 				return
 			end
-			if self.ram.videoMode == 0 then	-- 16bpp rgb565
-				local addr = self.framebufferRAM.addr + 2 * (x + frameBufferSize.x * y)
+			if fbRAM.ctype == 'uint16_t' then	-- 16bpp rgb565
+				local addr = self.framebufferRAM.addr + 2 * (x + width * y)
 				self:net_pokew(addr, color)
 			else	-- 8bpp indexed or 8bpp rgb332
-				local addr = self.framebufferRAM.addr + x + frameBufferSize.x * y
+				local addr = self.framebufferRAM.addr + x + width * y
 				self:net_poke(addr, color)
 			end
 		end,
 		pget = function(x, y)
 			x = toint(x)
 			y = toint(y)
-			if x < 0 or x >= frameBufferSize.x
-			or y < 0 or y >= frameBufferSize.y
-			then
+			local fbRAM = self.framebufferRAM
+			local fbTex = fbRAM.tex
+			local width, height = fbTex.width, fbTex.height
+			if x < 0 or x >= width or y < 0 or y >= height then
 				return 0
 			end
-			if self.ram.videoMode == 0 then	-- rgb565
-				local addr = self.framebufferRAM.addr + 2 * (x + frameBufferSize.x * y)
+			if fbRAM.ctype == 'uint16_t' then	-- 16bpp rgb565
+				local addr = self.framebufferRAM.addr + 2 * (x + width * y)
 				return self:peekw(addr)
 			else
-				local addr = self.framebufferRAM.addr + x + frameBufferSize.x * y
+				local addr = self.framebufferRAM.addr + x + width * y
 				return self:peek(addr)
 			end
 		end,
@@ -1668,6 +1669,7 @@ conn.receivesPerSecond = 0
 		end
 
 		-- update input between frames
+		local fbTex = self.framebufferRAM.tex
 		do
 			self.ram.lastMousePos:set(self.ram.mousePos:unpack())
 			sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
@@ -1678,8 +1680,8 @@ conn.receivesPerSecond = 0
 			y = y1 * (1 - y) + y2 * y
 			x = x * .5 + .5
 			y = y * .5 + .5
-			self.ram.mousePos.x = x * tonumber(frameBufferSize.x)
-			self.ram.mousePos.y = y * tonumber(frameBufferSize.y)
+			self.ram.mousePos.x = x * tonumber(fbTex.width)
+			self.ram.mousePos.y = y * tonumber(fbTex.height)
 			if self:keyp'mouse_left' then
 				self.ram.lastMousePressPos:set(self.ram.mousePos:unpack())
 			end
@@ -1697,7 +1699,7 @@ conn.receivesPerSecond = 0
 		local fb = self.fb
 		fb:bind()
 		self.inUpdateCallback = true	-- tell video not to set up the fb:bind() to do gfx stuff
-		gl.glViewport(0,0,frameBufferSize:unpack())
+		gl.glViewport(0, 0, fbTex.width, fbTex.height)
 		-- see if we need to re-enable it ...
 		if self.ram.blendMode ~= 0xff then
 			self:setBlendMode(self.ram.blendMode)
