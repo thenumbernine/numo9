@@ -1,3 +1,5 @@
+mode(1)
+
 print'Hello NuMo9'
 
 local spriteMem = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
