@@ -611,34 +611,31 @@ function AppVideo:initVideo()
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 	self.framebufferRAMs = {}
-	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
-	-- used for mode-0
-	self.framebufferRAMs._256x256xRGB565 = RAMGPUTex{
-		app = self,
-		addr = framebufferAddr,
-		width = frameBufferSize.x,
-		height = frameBufferSize.y,
-		channels = 1,
-		ctype = 'uint16_t',
+	local function makeFB(args)
+		local internalFormat = assert.index(args, 'internalFormat')
+		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
+		local gltype = args.gltype or formatInfo.types[1]	-- there are multiple, so let the caller override
+		return RAMGPUTex{
+			app = self,
+			addr = framebufferAddr,
+			width = frameBufferSize.x,
+			height = frameBufferSize.y,
+			channels = 1,
+			internalFormat = internalFormat,
+			glformat = formatInfo.format,
+			gltype = gltype,
+			ctype = assert.index(require 'gl.types'.ctypeForGLType, gltype),
+		}
+	end
+	-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
+	self.framebufferRAMs._256x256xRGB565 = makeFB{
 		internalFormat = gl.GL_RGB565,
-		glformat = gl.GL_RGB,
-		gltype = gl.GL_UNSIGNED_SHORT_5_6_5,
+		gltype = gl.GL_UNSIGNED_SHORT_5_6_5,	-- for an internalFormat there are multiple gltype's so pick this one
 	}
-	--]=]
-	-- [=[ framebuffer is 256 x 256 x 8bpp indexed
-	-- used for mode-1, mode-2
-	self.framebufferRAMs._256x256x8bpp = RAMGPUTex{
-		app = self,
-		addr = framebufferAddr,
-		width = frameBufferSize.x,
-		height = frameBufferSize.y,
-		channels = 1,
-		ctype = 'uint8_t',
+	-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
+	self.framebufferRAMs._256x256x8bpp = makeFB{
 		internalFormat = texInternalFormat_u8,
-		glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-		gltype = gl.GL_UNSIGNED_BYTE,
 	}
-	--]=]
 
 	-- keep menu/editor gfx separate of the fantasy-console
 	do
@@ -765,26 +762,26 @@ function AppVideo:initVideo()
 ]]
 	end
 
-	self.videoModeInfo = {
-		-- 256x256x16bpp rgb565
-		[0]={
-			framebufferRAM = self.framebufferRAMs._256x256xRGB565,
+	local function makeVideoModeRGB565(fbRAM)
+		return {
+			framebufferRAM = fbRAM,
 
 			-- generator properties
 			name = 'RGB',
-			colorOutput = colorIndexToFrag(self.framebufferRAMs._256x256xRGB565.tex, 'fragColor')..'\n'
+			colorOutput = colorIndexToFrag(fbRAM.tex, 'fragColor')..'\n'
 				..getDrawOverrideCode'vec3',
-		},
-		-- 256x256x8bpp indexed
-		{
-			framebufferRAM = self.framebufferRAMs._256x256x8bpp,
+		}
+	end
+	local function makeVideoMode8bppIndex(fbRAM)
+		return {
+			framebufferRAM = fbRAM,
 
 			-- generator properties
 			-- indexed mode can't blend so ... no draw-override
 			name = 'Index',
 			colorOutput =
 -- this part is only needed for alpha
-colorIndexToFrag(self.framebufferRAMs._256x256x8bpp.tex, 'vec4 palColor')..'\n'..
+colorIndexToFrag(fbRAM.tex, 'vec4 palColor')..'\n'..
 [[
 	fragColor.r = colorIndex;
 	fragColor.g = 0u;
@@ -792,16 +789,17 @@ colorIndexToFrag(self.framebufferRAMs._256x256x8bpp.tex, 'vec4 palColor')..'\n'.
 	// only needed for quadSprite / quadMap:
 	fragColor.a = uint(palColor.a * 255.);
 ]],
-		},
-		-- 256x256x8bpp rgb332
-		{
-			framebufferRAM = self.framebufferRAMs._256x256x8bpp,
+		}
+	end
+	local function makeVideoModeRGB332(fbRAM)
+		return {
+			framebufferRAM = fbRAM,
 
 			-- generator properties
 			name = 'RGB332',
-			colorOutput = colorIndexToFrag(self.framebufferRAMs._256x256x8bpp.tex, 'vec4 palColor')..'\n'
-..getDrawOverrideCode'uvec3'..'\n'
-..[[
+			colorOutput = colorIndexToFrag(fbRAM.tex, 'vec4 palColor')..'\n'
+				..getDrawOverrideCode'uvec3'..'\n'
+				..[[
 	/*
 	palColor was 5 5 5 (but is now vec4 normalized)
 	fragColor is 3 3 2
@@ -819,7 +817,15 @@ colorIndexToFrag(self.framebufferRAMs._256x256x8bpp.tex, 'vec4 palColor')..'\n'.
 	// only needed for quadSprite / quadMap:
 	fragColor.a = uint(palColor.a * 255.);
 ]]
-},
+		}
+	end
+	self.videoModeInfo = {
+		-- 256x256x16bpp rgb565
+		[0] = makeVideoModeRGB565(self.framebufferRAMs._256x256xRGB565),
+		-- 256x256x8bpp indexed
+		makeVideoMode8bppIndex(self.framebufferRAMs._256x256x8bpp),
+		-- 256x256x8bpp rgb332
+		makeVideoModeRGB332(self.framebufferRAMs._256x256x8bpp),
 	}
 
 --[[ a wrapper to output the code
