@@ -555,10 +555,7 @@ local AppVideo = {}
 -- called upon app init
 -- 'self' == app
 function AppVideo:initVideo()
-	self.fb = GLFBO{
---		width = frameBufferSize.x,
---		height = frameBufferSize.y,
-	}:unbind()
+	self.fb = GLFBO():unbind()
 
 
 	--[[
@@ -653,25 +650,9 @@ function AppVideo:initVideo()
 	end
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
-	self.framebufferRAMs = {}
-	local function makeFB(args)
-		local internalFormat = assert.index(args, 'internalFormat')
-		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
-		local gltype = args.gltype or formatInfo.types[1]	-- there are multiple, so let the caller override
-		return RAMGPUTex{
-			app = self,
-			addr = framebufferAddr,
-			width = frameBufferSize.x,
-			height = frameBufferSize.y,
-			channels = 1,
-			internalFormat = internalFormat,
-			glformat = formatInfo.format,
-			gltype = gltype,
-			ctype = assert.index(require 'gl.types'.ctypeForGLType, gltype),
-		}
-	end
 
 	-- hmm, is there any reason why like-format buffers can't use the same gl texture?
+	self.framebufferRAMs = {}
 	for i,req in pairs(requestedVideoModes) do
 		local internalFormat, gltype, suffix
 		if req.format == 'RGB565' then
@@ -691,10 +672,20 @@ function AppVideo:initVideo()
 		local key = '_'..req.width..'x'..req.height..suffix
 		local fbRAM = self.framebufferRAMs[key]
 		if not fbRAM then
-			fbRAM = makeFB{
+			local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
+			gltype = gltype or formatInfo.types[1]	-- there are multiple, so let the caller override
+			fbRAM = RAMGPUTex{
+				app = self,
+				addr = framebufferAddr,
+				width = req.width,
+				height = req.height,
+				channels = 1,
 				internalFormat = internalFormat,
+				glformat = formatInfo.format,
 				gltype = gltype,
+				ctype = assert.index(require 'gl.types'.ctypeForGLType, gltype),
 			}
+
 			self.framebufferRAMs[key] = fbRAM
 		end
 		req.framebufferRAM = fbRAM
@@ -742,6 +733,7 @@ function AppVideo:initVideo()
 		}
 
 		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
+		-- TODO about a menuBufferSize (== 256x256)
 		local size = frameBufferSize.x * frameBufferSize.y * 3
 		local data = ffi.new('uint8_t[?]', size)
 		ffi.fill(data, size)
@@ -1557,7 +1549,10 @@ void main() {
 					paletteTex = 0,
 					sheetTex = 1,
 					tilemapTex = 2,
-					frameBufferSize = {frameBufferSize:unpack()},
+					frameBufferSize = {
+						info.framebufferRAM.tex.width,
+						info.framebufferRAM.tex.height,
+					},
 				},
 			},
 			geometry = {
@@ -2336,12 +2331,13 @@ function AppVideo:clearScreen(colorIndex)
 	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
 	self:setClipRect(0, 0, clipMax, clipMax)
 
+	local fbTex = self.framebufferRAM.tex
 	self:matident()
 	self:drawSolidRect(
 		0,
 		0,
-		frameBufferSize.x,
-		frameBufferSize.y,
+		fbTex.width,
+		fbTex.height,
 		colorIndex or 0)
 
 	self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
