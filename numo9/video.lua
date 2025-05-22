@@ -614,10 +614,42 @@ function AppVideo:initVideo()
 	-- this is 1:1 with videoModeInfo
 	-- and used to create/assign unique framebufferRAMs
 	local requestedVideoModes = table{
+		-- 1:1
 		[0] = {width=256, height=256, format='RGB565'},		-- 256x256x16bpp rgb565 ... glformat = GL_RGB565
 		{width=256, height=256, format='8bppIndex'},		-- 256x256x8bpp indexed ... glformat = texInternalFormat_u8
 		{width=256, height=256, format='RGB332'},			-- 256x256x8bpp rgb332 ... glformat = texInternalFormat_u8
 	}
+	-- 16bpp upper bound resolution:
+	for _,format in ipairs{'RGB565', '8bppIndex', 'RGB332'} do
+		requestedVideoModes:insert{width=272, height=217, format=format}	-- 5:4
+		requestedVideoModes:insert{width=288, height=216, format=format}	-- 4:3
+		requestedVideoModes:insert{width=304, height=202, format=format}	-- 3:2
+		requestedVideoModes:insert{width=320, height=200, format=format}	-- 8:5
+		requestedVideoModes:insert{width=320, height=192, format=format}	-- 5:3
+		requestedVideoModes:insert{width=336, height=189, format=format}	-- 16:9
+		requestedVideoModes:insert{width=336, height=177, format=format}	-- 17:9
+		requestedVideoModes:insert{width=352, height=176, format=format}	-- 2:1
+		requestedVideoModes:insert{width=384, height=164, format=format}	-- 21:9
+	end
+	-- 8bpp upper bound resolutions:
+	for _,format in ipairs{'8bppIndex', 'RGB332'} do
+		requestedVideoModes:insert{width=352, height=352, format=format}	-- 1:1
+		requestedVideoModes:insert{width=400, height=320, format=format}	-- 5:4
+		requestedVideoModes:insert{width=416, height=312, format=format}	-- 4:3
+		requestedVideoModes:insert{width=432, height=288, format=format}	-- 3:2
+		requestedVideoModes:insert{width=448, height=280, format=format}	-- 8:5
+		requestedVideoModes:insert{width=464, height=278, format=format}	-- 5:3
+		requestedVideoModes:insert{width=480, height=270, format=format}	-- 16:9
+		requestedVideoModes:insert{width=496, height=262, format=format}	-- 17:9
+		requestedVideoModes:insert{width=512, height=256, format=format}	-- 2:1
+		requestedVideoModes:insert{width=544, height=233, format=format}	-- 21:9
+	end
+	-- TODO 4pp ...
+
+	for i=0,#requestedVideoModes do
+		local req = requestedVideoModes[i]
+		print('mode '..i..': '..req.width..'x'..req.height..'x'..req.format)
+	end
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 	self.framebufferRAMs = {}
@@ -638,6 +670,7 @@ function AppVideo:initVideo()
 		}
 	end
 
+	-- hmm, is there any reason why like-format buffers can't use the same gl texture?
 	for i,req in pairs(requestedVideoModes) do
 		local internalFormat, gltype, suffix
 		if req.format == 'RGB565' then
@@ -646,7 +679,7 @@ function AppVideo:initVideo()
 			gltype = gl.GL_UNSIGNED_SHORT_5_6_5	-- for an internalFormat there are multiple gltype's so pick this one
 			suffix = 'RGB565'
 		elseif req.format == '8bppIndex'
-		or req.format == 'RGB332' 
+		or req.format == 'RGB332'
 		then
 			-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
 			internalFormat = texInternalFormat_u8
@@ -851,7 +884,7 @@ colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 ]]
 		}
 	end
-	
+
 	self.videoModeInfo = requestedVideoModes:map(function(req)
 		local framebufferRAM = assert.index(req, 'framebufferRAM')
 		if req.format == 'RGB565' then
