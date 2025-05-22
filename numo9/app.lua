@@ -1931,9 +1931,12 @@ print('run thread dead')
 	-- every frame for us to use a proper rectangle
 		local view = self.blitScreenView
 		local orthoSize = view.orthoSize
+		local fbTex = self.framebufferRAM.tex
 		local wx, wy = self.width, self.height
-		if wx > wy then
-			local rx = wx / wy
+		local fx = wx / fbTex.width
+		local fy = wy / fbTex.height
+		if fx > fy then
+			local rx = fx / fy
 			view.projMat:setOrtho(
 				-orthoSize * (rx - 1) / 2,
 				orthoSize * (((rx - 1) / 2) + 1),
@@ -1943,7 +1946,7 @@ print('run thread dead')
 				1
 			)
 		else
-			local ry = wy / wx
+			local ry = fy / fx
 			view.projMat:setOrtho(
 				0,
 				orthoSize,
