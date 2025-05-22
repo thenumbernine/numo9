@@ -430,8 +430,10 @@ glreport'before RAMGPUTex:init'
 	local channels = assert.index(args, 'channels')
 	if channels ~= 1 then print'DANGER - non-single-channel Image!' end
 	local ctype = assert.index(args, 'ctype')
+	local ctypeSize = ffi.sizeof(ctype)
+	self.pixelSize = channels * ctypeSize
 
-	self.size = width * height * channels * ffi.sizeof(ctype)
+	self.size = width * height * channels * ctypeSize
 	self.addrEnd = self.addr + self.size
 	assert.le(self.addrEnd, app.memSize)
 	local ptr = ffi.cast('uint8_t*', app.ram) + self.addr
@@ -609,6 +611,14 @@ function AppVideo:initVideo()
 	self.paletteRAM = self.paletteRAMs[1]
 	self.fontRAM = self.fontRAMs[1]
 
+	-- this is 1:1 with videoModeInfo
+	-- and used to create/assign unique framebufferRAMs
+	local requestedVideoModes = table{
+		[0] = {width=256, height=256, format='rgb565'},		-- 256x256x16bpp rgb565 ... glformat = GL_RGB565
+		{width=256, height=256, format='index8'},			-- 256x256x8bpp indexed ... glformat = texInternalFormat_u8
+		{width=256, height=256, format='rgb332'},			-- 256x256x8bpp rgb332 ... glformat = texInternalFormat_u8
+	}
+
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 	self.framebufferRAMs = {}
 	local function makeFB(args)
@@ -627,15 +637,22 @@ function AppVideo:initVideo()
 			ctype = assert.index(require 'gl.types'.ctypeForGLType, gltype),
 		}
 	end
+	
+	-- TODO make these RAMGPU's on request by requestedVideoModes[]
 	-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
 	self.framebufferRAMs._256x256xRGB565 = makeFB{
 		internalFormat = gl.GL_RGB565,
 		gltype = gl.GL_UNSIGNED_SHORT_5_6_5,	-- for an internalFormat there are multiple gltype's so pick this one
 	}
+	requestedVideoModes[0].framebufferRAM = self.framebufferRAMs._256x256xRGB565
 	-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
 	self.framebufferRAMs._256x256x8bpp = makeFB{
 		internalFormat = texInternalFormat_u8,
 	}
+	requestedVideoModes[1].framebufferRAM = self.framebufferRAMs._256x256x8bpp
+	requestedVideoModes[2].framebufferRAM = self.framebufferRAMs._256x256x8bpp
+	-- framebuffer is 256 x 144 x 16bpp rgb565
+	--self.framebufferRAMs._256x144xRGB565
 
 	-- keep menu/editor gfx separate of the fantasy-console
 	do
@@ -762,26 +779,26 @@ function AppVideo:initVideo()
 ]]
 	end
 
-	local function makeVideoModeRGB565(fbRAM)
+	local function makeVideoModeRGB565(framebufferRAM)
 		return {
-			framebufferRAM = fbRAM,
+			framebufferRAM = framebufferRAM,
 
 			-- generator properties
 			name = 'RGB',
-			colorOutput = colorIndexToFrag(fbRAM.tex, 'fragColor')..'\n'
+			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'fragColor')..'\n'
 				..getDrawOverrideCode'vec3',
 		}
 	end
-	local function makeVideoMode8bppIndex(fbRAM)
+	local function makeVideoMode8bppIndex(framebufferRAM)
 		return {
-			framebufferRAM = fbRAM,
+			framebufferRAM = framebufferRAM,
 
 			-- generator properties
 			-- indexed mode can't blend so ... no draw-override
 			name = 'Index',
 			colorOutput =
 -- this part is only needed for alpha
-colorIndexToFrag(fbRAM.tex, 'vec4 palColor')..'\n'..
+colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 [[
 	fragColor.r = colorIndex;
 	fragColor.g = 0u;
@@ -791,13 +808,13 @@ colorIndexToFrag(fbRAM.tex, 'vec4 palColor')..'\n'..
 ]],
 		}
 	end
-	local function makeVideoModeRGB332(fbRAM)
+	local function makeVideoModeRGB332(framebufferRAM)
 		return {
-			framebufferRAM = fbRAM,
+			framebufferRAM = framebufferRAM,
 
 			-- generator properties
 			name = 'RGB332',
-			colorOutput = colorIndexToFrag(fbRAM.tex, 'vec4 palColor')..'\n'
+			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'
 				..getDrawOverrideCode'uvec3'..'\n'
 				..[[
 	/*
@@ -819,14 +836,19 @@ colorIndexToFrag(fbRAM.tex, 'vec4 palColor')..'\n'..
 ]]
 		}
 	end
-	self.videoModeInfo = {
-		-- 256x256x16bpp rgb565
-		[0] = makeVideoModeRGB565(self.framebufferRAMs._256x256xRGB565),
-		-- 256x256x8bpp indexed
-		makeVideoMode8bppIndex(self.framebufferRAMs._256x256x8bpp),
-		-- 256x256x8bpp rgb332
-		makeVideoModeRGB332(self.framebufferRAMs._256x256x8bpp),
-	}
+	
+	self.videoModeInfo = requestedVideoModes:map(function(req)
+		local framebufferRAM = assert.index(req, 'framebufferRAM')
+		if req.format == 'rgb565' then
+			return makeVideoModeRGB565(framebufferRAM)
+		elseif req.format == 'index8' then
+			return makeVideoMode8bppIndex(framebufferRAM)
+		elseif req.format == 'rgb332' then
+			return makeVideoModeRGB332(framebufferRAM)
+		else
+			error("unknown req.format "..tolua(req.format))
+		end
+	end)
 
 --[[ a wrapper to output the code
 	local origGLSceneObject = GLSceneObject
