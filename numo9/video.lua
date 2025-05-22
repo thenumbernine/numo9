@@ -554,8 +554,8 @@ local AppVideo = {}
 -- 'self' == app
 function AppVideo:initVideo()
 	self.fb = GLFBO{
-		width = frameBufferSize.x,
-		height = frameBufferSize.y,
+--		width = frameBufferSize.x,
+--		height = frameBufferSize.y,
 	}:unbind()
 
 
@@ -581,8 +581,8 @@ function AppVideo:initVideo()
 	- fontMenuTex						256x8		1 byte  ... GL_R8UI
 	- checkerTex						4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
 	- framebufferMenuTex				256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
-	- framebufferRAM_256x256xRGB565		256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
-	- framebufferRAM_256x256x8bpp		256x256		1 byte  ... GL_R8UI
+	- framebufferRAMs._256x256xRGB565	256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
+	- framebufferRAMs._256x256x8bpp		256x256		1 byte  ... GL_R8UI
 	- per-bank:
 		- sheetRAMs[i] x2				256x256		1 byte  ... GL_R8UI
 		- tilemapRAMs[i]				256x256		2 bytes ... GL_R16UI
@@ -610,8 +610,10 @@ function AppVideo:initVideo()
 	self.fontRAM = self.fontRAMs[1]
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
+	self.framebufferRAMs = {}
 	-- [=[ framebuffer is 256 x 256 x 16bpp rgb565
-	self.framebufferRAM_256x256xRGB565 = RAMGPUTex{
+	-- used for mode-0
+	self.framebufferRAMs._256x256xRGB565 = RAMGPUTex{
 		app = self,
 		addr = framebufferAddr,
 		width = frameBufferSize.x,
@@ -624,7 +626,8 @@ function AppVideo:initVideo()
 	}
 	--]=]
 	-- [=[ framebuffer is 256 x 256 x 8bpp indexed
-	self.framebufferRAM_256x256x8bpp = RAMGPUTex{
+	-- used for mode-1, mode-2
+	self.framebufferRAMs._256x256x8bpp = RAMGPUTex{
 		app = self,
 		addr = framebufferAddr,
 		width = frameBufferSize.x,
@@ -765,23 +768,23 @@ function AppVideo:initVideo()
 	self.videoModeInfo = {
 		-- 256x256x16bpp rgb565
 		[0]={
-			framebufferRAM = self.framebufferRAM_256x256xRGB565,
+			framebufferRAM = self.framebufferRAMs._256x256xRGB565,
 
 			-- generator properties
 			name = 'RGB',
-			colorOutput = colorIndexToFrag(self.framebufferRAM_256x256xRGB565.tex, 'fragColor')..'\n'
+			colorOutput = colorIndexToFrag(self.framebufferRAMs._256x256xRGB565.tex, 'fragColor')..'\n'
 				..getDrawOverrideCode'vec3',
 		},
 		-- 256x256x8bpp indexed
 		{
-			framebufferRAM = self.framebufferRAM_256x256x8bpp,
+			framebufferRAM = self.framebufferRAMs._256x256x8bpp,
 
 			-- generator properties
 			-- indexed mode can't blend so ... no draw-override
 			name = 'Index',
 			colorOutput =
 -- this part is only needed for alpha
-colorIndexToFrag(self.framebufferRAM_256x256x8bpp.tex, 'vec4 palColor')..'\n'..
+colorIndexToFrag(self.framebufferRAMs._256x256x8bpp.tex, 'vec4 palColor')..'\n'..
 [[
 	fragColor.r = colorIndex;
 	fragColor.g = 0u;
@@ -792,11 +795,11 @@ colorIndexToFrag(self.framebufferRAM_256x256x8bpp.tex, 'vec4 palColor')..'\n'..
 		},
 		-- 256x256x8bpp rgb332
 		{
-			framebufferRAM = self.framebufferRAM_256x256x8bpp,
+			framebufferRAM = self.framebufferRAMs._256x256x8bpp,
 
 			-- generator properties
 			name = 'RGB332',
-			colorOutput = colorIndexToFrag(self.framebufferRAM_256x256x8bpp.tex, 'vec4 palColor')..'\n'
+			colorOutput = colorIndexToFrag(self.framebufferRAMs._256x256x8bpp.tex, 'vec4 palColor')..'\n'
 ..getDrawOverrideCode'uvec3'..'\n'
 ..[[
 	/*
@@ -950,7 +953,7 @@ void main() {
 		},
 	}
 
-	-- used for drawing 8bpp framebufferRAM_256x256x8bpp as rgb332 framebuffer to the screen
+	-- used for drawing 8bpp framebufferRAMs._256x256x8bpp as rgb332 framebuffer to the screen
 --DEBUG:print'mode 2 blitScreenObj'
 	self.videoModeInfo[2].blitScreenObj = GLSceneObject{
 		program = {
@@ -1443,7 +1446,7 @@ void main() {
 
 <? end -- useSamplerUInt ?>
 
-// as always the range of the data is nonsense, and there's no documentation on conversion anywhere. 
+// as always the range of the data is nonsense, and there's no documentation on conversion anywhere.
 <? if fragType == 'uvec4' then ?>
 		//fragColor >>= 24;
 <? else ?>
@@ -1785,8 +1788,11 @@ function AppVideo:resizeRAMGPUs()
 end
 
 function AppVideo:allRAMRegionsCheckDirtyGPU()
-	self.framebufferRAM_256x256xRGB565:checkDirtyGPU()
-	self.framebufferRAM_256x256x8bpp:checkDirtyGPU()
+	-- TODO this current method updates *all* GPU/CPU framebuffer textures
+	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
+	for k,v in pairs(self.framebufferRAMs) do
+		v:checkDirtyGPU()
+	end
 	for _,ramgpu in ipairs(self.sheetRAMs) do
 		ramgpu:checkDirtyGPU()
 	end
@@ -1802,8 +1808,11 @@ function AppVideo:allRAMRegionsCheckDirtyGPU()
 end
 
 function AppVideo:allRAMRegionsCheckDirtyCPU()
-	self.framebufferRAM_256x256xRGB565:checkDirtyCPU()
-	self.framebufferRAM_256x256x8bpp:checkDirtyCPU()
+	-- TODO this current method updates *all* GPU/CPU framebuffer textures
+	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
+	for k,v in pairs(self.framebufferRAMs) do
+		v:checkDirtyCPU()
+	end
 	for _,ramgpu in ipairs(self.sheetRAMs) do
 		ramgpu:checkDirtyCPU()
 	end
@@ -1836,8 +1845,13 @@ function AppVideo:resetVideo()
 	self.ram.paletteAddr:fromabs(paletteAddr)
 	self.ram.fontAddr:fromabs(fontAddr)
 	-- and these, which are the ones that can be moved
-	self.framebufferRAM_256x256xRGB565:updateAddr(framebufferAddr)
-	self.framebufferRAM_256x256x8bpp:updateAddr(framebufferAddr)
+
+	-- TODO this current method updates *all* GPU/CPU framebuffer textures
+	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
+	for k,v in pairs(self.framebufferRAMs) do
+		v:updateAddr(framebufferAddr)
+	end
+
 	self.sheetRAMs[1]:updateAddr(spriteSheetAddr)
 	self.sheetRAMs[2]:updateAddr(tileSheetAddr)
 	self.tilemapRAMs[1]:updateAddr(tilemapAddr)
