@@ -44,6 +44,6 @@ for i=#cmdline,1,-1 do
 	end
 end
 
-require 'gl.setup'(cmdline.gl or 'OpenGL')
+require 'gl.setup'(cmdline.gl)
 
 return require 'numo9.app'():run()

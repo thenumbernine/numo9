@@ -654,7 +654,7 @@ function App:initGL()
 		clip = function(...)
 			local x, y, w, h
 			if select('#', ...) == 0 then
-				x, y, w, h = 0, 0, 0xff, 0xff
+				x, y, w, h = 0, 0, clipMax, clipMax
 			else
 				assert.eq(select('#', ...), 4)
 				x, y, w, h = ...

@@ -36,7 +36,7 @@ local tilemapSize = vec2i(
 	bit.lshift(1, tilemapSizeInBits.y))
 
 local clipType = 'int16_t'
-local clipMax = 32767		-- idk why i'm allowing negative values
+local clipMax = 0x7fff		-- idk why i'm allowing negative values
 
 --[[
 32x8 = 256 wide, 8 high, 8x 1bpp planar

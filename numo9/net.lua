@@ -245,7 +245,7 @@ local Numo9Cmd_clipRect = struct{
 	name = 'Numo9Cmd_clipRect',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
+		{name='type', type='int16_t'},
 		{name='x', type=clipType},
 		{name='y', type=clipType},
 		{name='w', type=clipType},
