@@ -854,7 +854,10 @@ colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 	fragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
 	fragColor.a = uint(palColor.a * 255.);
-]],
+]]
+	-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
+	-- but I don't want the GLSL compiler to optimize away the attr...
+	..getDrawOverrideCode'uvec3',
 		}
 	end
 	local function makeVideoModeRGB332(framebufferRAM)
