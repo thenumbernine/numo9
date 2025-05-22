@@ -614,9 +614,9 @@ function AppVideo:initVideo()
 	-- this is 1:1 with videoModeInfo
 	-- and used to create/assign unique framebufferRAMs
 	local requestedVideoModes = table{
-		[0] = {width=256, height=256, format='rgb565'},		-- 256x256x16bpp rgb565 ... glformat = GL_RGB565
-		{width=256, height=256, format='index8'},			-- 256x256x8bpp indexed ... glformat = texInternalFormat_u8
-		{width=256, height=256, format='rgb332'},			-- 256x256x8bpp rgb332 ... glformat = texInternalFormat_u8
+		[0] = {width=256, height=256, format='RGB565'},		-- 256x256x16bpp rgb565 ... glformat = GL_RGB565
+		{width=256, height=256, format='8bppIndex'},		-- 256x256x8bpp indexed ... glformat = texInternalFormat_u8
+		{width=256, height=256, format='RGB332'},			-- 256x256x8bpp rgb332 ... glformat = texInternalFormat_u8
 	}
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
@@ -637,20 +637,35 @@ function AppVideo:initVideo()
 			ctype = assert.index(require 'gl.types'.ctypeForGLType, gltype),
 		}
 	end
-	
-	-- TODO make these RAMGPU's on request by requestedVideoModes[]
-	-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
-	self.framebufferRAMs._256x256xRGB565 = makeFB{
-		internalFormat = gl.GL_RGB565,
-		gltype = gl.GL_UNSIGNED_SHORT_5_6_5,	-- for an internalFormat there are multiple gltype's so pick this one
-	}
-	requestedVideoModes[0].framebufferRAM = self.framebufferRAMs._256x256xRGB565
-	-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
-	self.framebufferRAMs._256x256x8bpp = makeFB{
-		internalFormat = texInternalFormat_u8,
-	}
-	requestedVideoModes[1].framebufferRAM = self.framebufferRAMs._256x256x8bpp
-	requestedVideoModes[2].framebufferRAM = self.framebufferRAMs._256x256x8bpp
+
+	for i,req in pairs(requestedVideoModes) do
+		local internalFormat, gltype, suffix
+		if req.format == 'RGB565' then
+			-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
+			internalFormat = gl.GL_RGB565
+			gltype = gl.GL_UNSIGNED_SHORT_5_6_5	-- for an internalFormat there are multiple gltype's so pick this one
+			suffix = 'RGB565'
+		elseif req.format == '8bppIndex'
+		or req.format == 'RGB332' 
+		then
+			-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
+			internalFormat = texInternalFormat_u8
+			suffix = '8bpp'
+		else
+			error("unknown req.format "..tostring(req.format))
+		end
+		local key = '_'..req.width..'x'..req.height..suffix
+		local fbRAM = self.framebufferRAMs[key]
+		if not fbRAM then
+			fbRAM = makeFB{
+				internalFormat = internalFormat,
+				gltype = gltype,
+			}
+			self.framebufferRAMs[key] = fbRAM
+		end
+		req.framebufferRAM = fbRAM
+	end
+
 	-- framebuffer is 256 x 144 x 16bpp rgb565
 	--self.framebufferRAMs._256x144xRGB565
 
@@ -839,14 +854,14 @@ colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 	
 	self.videoModeInfo = requestedVideoModes:map(function(req)
 		local framebufferRAM = assert.index(req, 'framebufferRAM')
-		if req.format == 'rgb565' then
+		if req.format == 'RGB565' then
 			return makeVideoModeRGB565(framebufferRAM)
-		elseif req.format == 'index8' then
+		elseif req.format == '8bppIndex' then
 			return makeVideoMode8bppIndex(framebufferRAM)
-		elseif req.format == 'rgb332' then
+		elseif req.format == 'RGB332' then
 			return makeVideoModeRGB332(framebufferRAM)
 		else
-			error("unknown req.format "..tolua(req.format))
+			error("unknown req.format "..tostring(req.format))
 		end
 	end)
 
