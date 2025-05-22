@@ -828,8 +828,22 @@ function AppVideo:initVideo()
 ]]
 	end
 
+--[[ a wrapper to output the code
+	local origGLSceneObject = GLSceneObject
+	local function GLSceneObject(args)
+		print'vertex'
+		print(require 'template.showcode'(args.program.vertexCode))
+		print'fragment'
+		print(require 'template.showcode'(args.program.fragmentCode))
+		print()
+		return origGLSceneObject(args)
+	end
+--]]
+
+	local blitFragType = 'vec4'	-- blit screen is always to vec4 ... right?
+
 	local function makeVideoModeRGB565(framebufferRAM)
-		return {
+		local modeObj = {
 			framebufferRAM = framebufferRAM,
 
 			-- generator properties
@@ -837,9 +851,65 @@ function AppVideo:initVideo()
 			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'fragColor')..'\n'
 				..getDrawOverrideCode'vec3',
 		}
+		-- used for drawing our 16bpp framebuffer to the screen
+--DEBUG:print'mode 0 blitScreenObj'
+		modeObj.blitScreenObj = GLSceneObject{
+			program = {
+				version = glslVersion,
+				precision = 'best',
+				vertexCode = [[
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+
+uniform mat4 mvProjMat;
+
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+				fragmentCode = template([[
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+in vec2 tcv;
+
+layout(location=0) out <?=blitFragType?> fragColor;
+uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+
+void main() {
+	fragColor = ]]..readTex{
+		tex = framebufferRAM.tex,
+		texvar = 'framebufferTex',
+		tc = 'tcv',
+		from = 'vec2',
+		to = blitFragType,
+	}..[[;
+}
+]],				{
+					framebufferRAM = framebufferRAM,
+					blitFragType = blitFragType,
+				}),
+				uniforms = {
+					framebufferTex = 0,
+				},
+			},
+			texs = {framebufferRAM.tex},
+			geometry = self.quadGeom,
+			-- glUniform()'d every frame
+			uniforms = {
+				mvProjMat = self.blitScreenView.mvProjMat.ptr,
+			},
+		}
+
+		return modeObj
 	end
+
 	local function makeVideoMode8bppIndex(framebufferRAM)
-		return {
+		local modeObj = {
 			framebufferRAM = framebufferRAM,
 
 			-- generator properties
@@ -859,9 +929,75 @@ colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 	-- but I don't want the GLSL compiler to optimize away the attr...
 	..getDrawOverrideCode'uvec3',
 		}
+
+		-- used for drawing our 8bpp indexed framebuffer to the screen
+	--DEBUG:print'mode 1 blitScreenObj'
+		modeObj.blitScreenObj = GLSceneObject{
+			program = {
+				version = glslVersion,
+				precision = 'best',
+				vertexCode = [[
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+				fragmentCode = template([[
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+in vec2 tcv;
+
+layout(location=0) out <?=blitFragType?> fragColor;
+
+uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=self.paletteRAM.tex:getGLSLSamplerType()?> paletteTex;
+
+<?=glslCode5551?>
+
+void main() {
+	uint colorIndex = ]]..readTex{
+		tex = framebufferRAM.tex,
+		texvar = 'framebufferTex',
+		tc = 'tcv',
+		from = 'vec2',
+		to = blitFragType,
+	}..[[.r;
+]]..colorIndexToFrag(framebufferRAM.tex, 'fragColor')..[[
+}
+]],				{
+					framebufferRAM = framebufferRAM,
+					self = self,
+					blitFragType = blitFragType,
+					glslCode5551 = glslCode5551,
+				}),
+				uniforms = {
+					framebufferTex = 0,
+					paletteTex = 1,
+				},
+			},
+			texs = {
+				framebufferRAM.tex,
+				self.paletteRAM.tex,
+			},
+			geometry = self.quadGeom,
+			-- glUniform()'d every frame
+			uniforms = {
+				mvProjMat = self.blitScreenView.mvProjMat.ptr,
+			},
+		}
+
+		return modeObj
 	end
+
 	local function makeVideoModeRGB332(framebufferRAM)
-		return {
+		local modeObj = {
 			framebufferRAM = framebufferRAM,
 
 			-- generator properties
@@ -889,6 +1025,69 @@ colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 	-- but I don't want the GLSL compiler to optimize away the attr...
 	..getDrawOverrideCode'uvec3',
 		}
+
+		-- used for drawing 8bpp framebufferRAMs._256x256x8bpp as rgb332 framebuffer to the screen
+--DEBUG:print'mode 2 blitScreenObj'
+		modeObj.blitScreenObj = GLSceneObject{
+			program = {
+				version = glslVersion,
+				precision = 'best',
+				vertexCode = [[
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+				fragmentCode = template([[
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+in vec2 tcv;
+
+layout(location=0) out <?=blitFragType?> fragColor;
+
+uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+
+void main() {
+	uint rgb332 = ]]..readTex{
+		tex = framebufferRAM.tex,
+		texvar = 'framebufferTex',
+		tc = 'tcv',
+		from = 'vec2',
+		to = blitFragType,
+	}..[[.r;
+	fragColor.r = float(rgb332 & 0x7u) / 7.;
+	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
+	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
+	fragColor.a = 1.;
+}
+]],				{
+					framebufferRAM = framebufferRAM,
+					blitFragType = blitFragType,
+				}),
+				uniforms = {
+					framebufferTex = 0,
+					paletteTex = 1,
+				},
+			},
+			texs = {
+				framebufferRAM.tex,
+				self.paletteRAM.tex,
+			},
+			geometry = self.quadGeom,
+			-- glUniform()'d every frame
+			uniforms = {
+				mvProjMat = self.blitScreenView.mvProjMat.ptr,
+			},
+		}
+
+		return modeObj
 	end
 
 	self.videoModeInfo = requestedVideoModes:map(function(req)
@@ -903,198 +1102,6 @@ colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
 			error("unknown req.format "..tostring(req.format))
 		end
 	end)
-
---[[ a wrapper to output the code
-	local origGLSceneObject = GLSceneObject
-	local function GLSceneObject(args)
-		print'vertex'
-		print(require 'template.showcode'(args.program.vertexCode))
-		print'fragment'
-		print(require 'template.showcode'(args.program.fragmentCode))
-		print()
-		return origGLSceneObject(args)
-	end
---]]
-
-	local blitFragType = 'vec4'	-- blit screen is always to vec4 ... right?
-
-	-- used for drawing our 16bpp framebuffer to the screen
---DEBUG:print'mode 0 blitScreenObj'
-	self.videoModeInfo[0].blitScreenObj = GLSceneObject{
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = [[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-
-uniform mat4 mvProjMat;
-
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
-			fragmentCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-
-layout(location=0) out <?=blitFragType?> fragColor;
-uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-
-void main() {
-	fragColor = ]]..readTex{
-		tex = self.videoModeInfo[0].framebufferRAM,
-		texvar = 'framebufferTex',
-		tc = 'tcv',
-		from = 'vec2',
-		to = blitFragType,
-	}..[[;
-}
-]],			{
-				framebufferRAM = self.videoModeInfo[0].framebufferRAM,
-				blitFragType = blitFragType,
-			}),
-			uniforms = {
-				framebufferTex = 0,
-			},
-		},
-		texs = {self.videoModeInfo[0].framebufferRAM},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = self.blitScreenView.mvProjMat.ptr,
-		},
-	}
-
-	-- used for drawing our 8bpp indexed framebuffer to the screen
---DEBUG:print'mode 1 blitScreenObj'
-	self.videoModeInfo[1].blitScreenObj = GLSceneObject{
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = [[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
-			fragmentCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-
-layout(location=0) out <?=blitFragType?> fragColor;
-
-uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=self.paletteRAM.tex:getGLSLSamplerType()?> paletteTex;
-
-<?=glslCode5551?>
-
-void main() {
-	uint colorIndex = ]]..readTex{
-		tex = self.videoModeInfo[1].framebufferRAM,
-		texvar = 'framebufferTex',
-		tc = 'tcv',
-		from = 'vec2',
-		to = blitFragType,
-	}..[[.r;
-]]..colorIndexToFrag(self.videoModeInfo[1].framebufferRAM.tex, 'fragColor')..[[
-}
-]],			{
-				framebufferRAM = self.videoModeInfo[1].framebufferRAM,
-				self = self,
-				blitFragType = blitFragType,
-				glslCode5551 = glslCode5551,
-			}),
-			uniforms = {
-				framebufferTex = 0,
-				paletteTex = 1,
-			},
-		},
-		texs = {
-			self.videoModeInfo[1].framebufferRAM.tex,
-			self.paletteRAM.tex,
-		},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = self.blitScreenView.mvProjMat.ptr,
-		},
-	}
-
-	-- used for drawing 8bpp framebufferRAMs._256x256x8bpp as rgb332 framebuffer to the screen
---DEBUG:print'mode 2 blitScreenObj'
-	self.videoModeInfo[2].blitScreenObj = GLSceneObject{
-		program = {
-			version = glslVersion,
-			precision = 'best',
-			vertexCode = [[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
-			fragmentCode = template([[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-
-layout(location=0) out <?=blitFragType?> fragColor;
-
-uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-
-void main() {
-	uint rgb332 = ]]..readTex{
-		tex = self.videoModeInfo[1].framebufferRAM.tex,
-		texvar = 'framebufferTex',
-		tc = 'tcv',
-		from = 'vec2',
-		to = blitFragType,
-	}..[[.r;
-	fragColor.r = float(rgb332 & 0x7u) / 7.;
-	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
-	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
-	fragColor.a = 1.;
-}
-]],			{
-				framebufferRAM = self.videoModeInfo[2].framebufferRAM,
-				blitFragType = blitFragType,
-			}),
-			uniforms = {
-				framebufferTex = 0,
-				paletteTex = 1,
-			},
-		},
-		texs = {
-			self.videoModeInfo[2].framebufferRAM.tex,
-			self.paletteRAM.tex,
-		},
-		geometry = self.quadGeom,
-		-- glUniform()'d every frame
-		uniforms = {
-			mvProjMat = self.blitScreenView.mvProjMat.ptr,
-		},
-	}
 
 	-- make output shaders per-video-mode
 	-- set them up as our app fields to use upon setVideoMode
