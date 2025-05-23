@@ -1124,6 +1124,17 @@ void main() {
 		return modeObj
 	end
 
+	local function gcd(a,b)
+		while b ~= 0 do
+			a, b = b, a % b
+		end
+		return a
+	end
+	local function reduce(a, b)
+		local c = gcd(a, b)
+		return a / c, b / c
+	end
+
 	self.videoModeInfo = requestedVideoModes:map(function(req)
 		local framebufferRAM = assert.index(req, 'framebufferRAM')
 		local info
@@ -1136,7 +1147,9 @@ void main() {
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
-		info.formatDesc = req.format
+		-- only used for the intro screen console output:
+		local w, h = reduce(req.width, req.height)
+		info.formatDesc = req.format..' '..w..':'..h
 		return info
 	end)
 
