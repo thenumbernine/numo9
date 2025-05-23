@@ -7,7 +7,7 @@ TODO somehow dialogs don't show up anymore, probably due to transparency issues
 --#include vec/box2.lua
 
 math.randomseed(tstamp())
-blendColorMem=ffi.offsetof('RAM','blendColor')
+blendColorMem=ramaddr'blendColor'
 randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
 distLInf=[a,b] math.max(math.abs(a.x-b.x),math.abs(a.y-b.y))
 distL1=[a,b] math.abs(a.x-b.x)+math.abs(a.y-b.y)

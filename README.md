@@ -276,6 +276,10 @@ If the following functions are defined then they will be called from the virtual
 - `mset(x, y, value, [bank=0])` = Write a uint16 to the current tilemap address at x, y.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
+- `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
+- `romaddr(name)` = returns the address of the ROM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('ROM', field)`.  See the ROM structure for individual field names.
+- `ramasize(name)` = returns the size the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('RAM', field)`.  See the RAM structure for individual field names.
+- `romasize(name)` = returns the size of the ROM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('ROM', field)`.  See the ROM structure for individual field names.
 
 While Pico8 has the `reload` and `cstore` functions for copying to/from RAM to ROM, and Tic80 has the `sync` function for doing similar, I am tempting myself with the idea of just using a different address range.
 But how to do this in conjunction with multiple banks, a feature that Tic80 also has, especially multiple VRAM banks.  I do like the idea of having multiple VRAM banks accessible with `spr` and `map` functions.
@@ -407,7 +411,6 @@ Mouse state is read from the local machine.  Remote connections can only send jo
 - `getfenv`
 - `setfenv`
 - `tstamp` = `os.time`
-- `ffi` = the luajit ffi library.  Probably going away soon.
 - tables:
 	- `bit` = luajit's bit library.
 	- `assert` = my [lua-ext](https://github.com/thenumbernine/lua-ext) assert object.

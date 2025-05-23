@@ -1,7 +1,7 @@
 --[[
 TODO color zero is now transparent and that's causing problems.
 --]]
-local fontWidthAddr = ffi.offsetof('RAM','fontWidth')
+local fontWidthAddr = ramaddr'fontWidth'
 for i=0,255 do
 	poke(fontWidthAddr+i,8)
 end

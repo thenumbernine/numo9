@@ -13,9 +13,9 @@ table.pickWeighted = [t]do
 	end
 end
 
-local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
-local blendColorAddr = ffi.offsetof('RAM','blendColor')
-local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
+local palAddr = ramaddr'bank' + romaddr'palette'
+local blendColorAddr = ramaddr'blendColor'
+local spriteSheetAddr = ramaddr'bank' + romaddr'spriteSheet'
 
 local setBlendColor = [c] pokew(blendColorAddr, c)
 
