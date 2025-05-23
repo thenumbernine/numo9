@@ -381,6 +381,9 @@ function MainMenu:updateMenuInput()
 							--]]
 
 							playerInfo.buttonBinds[buttonIndex] = e
+
+							-- rebuild map from events to the players & buttons
+							app:buildPlayerEventsMap()
 						end,
 					}
 				end
