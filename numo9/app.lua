@@ -1172,11 +1172,11 @@ looks like I'm a Snes9x-default-keybinding fan.
 				end
 				
 				coolPrint('NuMo-9 ver. '..self.version)
-				env.flip()
+				for i=1,30 do env.flip() end
 				coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
-				env.flip()
+				for i=1,30 do env.flip() end
 				coolPrint'...OpenResty LuaJIT w/5.2 compat'
-				env.flip()
+				for i=1,30 do env.flip() end
 				for i,v in pairs(self.videoModeInfo) do
 					coolPrint(i..'...'..v.framebufferRAM.tex.width..'x'..v.framebufferRAM.tex.height..'x'..v.formatDesc..' framebuffer')
 					env.flip()
