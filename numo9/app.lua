@@ -2839,8 +2839,9 @@ function App:event(e)
 			)
 		end
 	elseif e[0].type == sdl.SDL_MOUSEWHEEL then
-		-- TODO scale mousewheel?
-		self.ram.mouseWheel.x = self.ram.mouseWheel.x + e[0].wheel.x
+		-- TODO scale mousewheel?  flip mousewheel?
+		-- right now right = +x, down = +y
+		self.ram.mouseWheel.x = self.ram.mouseWheel.x - e[0].wheel.x
 		self.ram.mouseWheel.y = self.ram.mouseWheel.y + e[0].wheel.y
 	elseif e[0].type == sdl.SDL_JOYHATMOTION then
 		for i=0,3 do

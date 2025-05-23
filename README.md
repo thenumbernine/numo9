@@ -392,7 +392,7 @@ The button codes are as follows:
 |`right=0`         |`down=1`          |`left=2`          |`up=3`            |`a=4`             |`b=5`             |`x=6`             |`y=7`             |
 
 - `mouseX, mouseY, scrollX, scrollY = mouse()` = get the current mouse state.  mouse x,y are in framebuffer coordinates.
-
+`scrollX` is positive for right, negative for left.  `scrollY` is positive for down, negative for up.
 Mouse state is read from the local machine.  Remote connections can only send joypad input.
 
 ## other globals, maybe I'll take some out eventually:
