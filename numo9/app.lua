@@ -1676,6 +1676,7 @@ conn.receivesPerSecond = 0
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
 			local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
 			local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
+			-- TODO adjust this to correct UL corner
 			x = x1 * (1 - x) + x2 * x
 			y = y1 * (1 - y) + y2 * y
 			x = x * .5 + .5

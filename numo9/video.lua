@@ -11,8 +11,9 @@ local glreport = require 'gl.report'
 local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
-local GLProgram = require 'gl.program'
 local GLSceneObject = require 'gl.sceneobject'
+local GLTypes = require 'gl.types'
+local GLGlobal = require 'gl.global'
 
 require 'vec-ffi.vec4ub'
 require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned short'}	-- vec4us_t
@@ -84,28 +85,29 @@ local useSamplerUInt = true
 local texInternalFormat_u8 = useSamplerUInt
 	and gl.GL_R8UI	-- use this with usampler2D(Rect) ... right?
 	or gl.GL_R8	-- use this with sampler2D(Rect) ... right?
-	--or gl.GL_R32F	-- needs CPU data to be in
 
 local texInternalFormat_u16 = useSamplerUInt
 	and gl.GL_R16UI
 	or gl.GL_R16
-	--or gl.GL_R32F
 
 -- 'REV' means first channel first bit ... smh
 -- so even tho 5551 is on hardware since forever, it's not on ES3 or WebGL, only GL4...
 -- in case it's missing, just use single-channel R16 and do the swizzles manually
-local support5551 = op.safeindex(gl, 'GL_UNSIGNED_SHORT_1_5_5_5_REV')
+--local support5551 = op.safeindex(gl, 'GL_UNSIGNED_SHORT_1_5_5_5_REV')
+local support5551 = false
 
 local internalFormat5551, format5551, type5551, glslCode5551
 if support5551 then
 	internalFormat5551 = gl.GL_RGB5_A1
-	format5551 = gl.GL_RGBA
-	type5551 = op.safeindex(gl, 'GL_UNSIGNED_SHORT_1_5_5_5_REV')
+	local formatInfo = GLTex2D.formatInfoForInternalFormat[internalFormat5551]
+	format5551 = formatInfo.format
+	type5551 = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV	-- not on the list
 	glslCode5551 = ''
 else
-	internalFormat5551 = gl.GL_R16UI
-	format5551 = gl.GL_RED_INTEGER
-	type5551 = gl.GL_UNSIGNED_SHORT
+	internalFormat5551 = texInternalFormat_u16
+	local formatInfo = GLTex2D.formatInfoForInternalFormat[internalFormat5551]
+	format5551 = formatInfo.format
+	type5551 = formatInfo.types[1]	-- gl.GL_UNSIGNED_SHORT
 
 	-- convert it here to vec4 since default UNSIGNED_SHORT_1_5_5_5_REV uses vec4
 	glslCode5551 = [[
@@ -576,7 +578,7 @@ function AppVideo:initVideo()
 		GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
 
 	What are allll our textures?
-	- paletteMenuTex					256x1		2 bytes ... GL_R16UI or GL_UNSIGNED_SHORT_1_5_5_5_REV
+	- paletteMenuTex					256x1		2 bytes ... GL_R16UI
 	- fontMenuTex						256x8		1 byte  ... GL_R8UI
 	- checkerTex						4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
 	- framebufferMenuTex				256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
@@ -585,7 +587,7 @@ function AppVideo:initVideo()
 	- per-bank:
 		- sheetRAMs[i] x2				256x256		1 byte  ... GL_R8UI
 		- tilemapRAMs[i]				256x256		2 bytes ... GL_R16UI
-		- paletteRAMs[i]				256x1		2 bytes ... GL_R16UI or GL_UNSIGNED_SHORT_1_5_5_5_REV
+		- paletteRAMs[i]				256x1		2 bytes ... GL_R16UI
 		- fontRAMs[i]					256x8		1 byte  ... GL_R8UI
 
 	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
@@ -707,7 +709,7 @@ function AppVideo:initVideo()
 				internalFormat = internalFormat,
 				glformat = formatInfo.format,
 				gltype = gltype,
-				ctype = assert.index(require 'gl.types'.ctypeForGLType, gltype),
+				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
 			}
 
 			self.framebufferRAMs[key] = fbRAM
@@ -791,7 +793,7 @@ function AppVideo:initVideo()
 		},
 	}
 
-	local glslVersion = require 'gl.global':get'GL_SHADING_LANGUAGE_VERSION'
+	local glslVersion = GLGlobal:get'GL_SHADING_LANGUAGE_VERSION'
 	-- TODO what if it's formatted weird?
 	glslVersion = glslVersion:gsub('%.', '')
 
