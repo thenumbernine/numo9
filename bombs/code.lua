@@ -730,8 +730,8 @@ menuTopY=0
 
 loadLevel=[]do
 	reset()		-- reload our tilemap? or not?  this resets the font color too.
-	poke(ffi.offsetof('RAM', 'textFgColor'), 0xfc)
-	poke(ffi.offsetof('RAM', 'textBgColor'), 0xf0)
+	poke(ramaddr'textFgColor', 0xfc)
+	poke(ramaddr'textBgColor', 0xf0)
 	
 	removeAll()
 	local allBombable=table()

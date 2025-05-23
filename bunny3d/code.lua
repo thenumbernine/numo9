@@ -16,7 +16,7 @@ for _,k in ipairs(table.keys(tris)) do
 	local v=table()
 	for i=1,#s,4 do
 		local x = tonumber(s:sub(i, i+3), 16)
-		x = tonumber(ffi.cast('int16_t', x))
+		x = tonumber(int16_t(x))
 		v:insert(x / 32768 * maxabspos)
 	end
 	assert(#v%9==0)
@@ -78,14 +78,14 @@ update=[]do
 		-- FIXME - address ranges are in a state of flux ...
 		local matAddr = 0x080a04
 		--[[
-		local fwdx = ffi.cast('int32_t', peekl(matAddr + 8))
-		local fwdy = ffi.cast('int32_t', peekl(matAddr + 8+16))
-		local fwdz = ffi.cast('int32_t', peekl(matAddr + 8+32))
+		local fwdx = int32_t(peekl(matAddr + 8))
+		local fwdy = int32_t(peekl(matAddr + 8+16))
+		local fwdz = int32_t(peekl(matAddr + 8+32))
 		--]]
 		-- [[
-		local fwdx = ffi.cast('int32_t', peekl(matAddr + 32))
-		local fwdy = ffi.cast('int32_t', peekl(matAddr + 36))
-		local fwdz = ffi.cast('int32_t', peekl(matAddr + 40))
+		local fwdx = int32_t(peekl(matAddr + 32))
+		local fwdy = int32_t(peekl(matAddr + 36))
+		local fwdz = int32_t(peekl(matAddr + 40))
 		--]]
 --trace(fwdx, fwdy, fwdz)
 		drawtriorder:sort(function(a,b)

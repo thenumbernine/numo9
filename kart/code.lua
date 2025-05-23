@@ -25,9 +25,9 @@ https://www.spriters-resource.com/custom_edited/mariocustoms/
 --]]
 
 --#include numo9/matstack.lua
-local userAddr = ffi.offsetof('RAM', 'userData')
-assert.eq(ffi.sizeof(ffi.cast('RAM*',0).mvMat), 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
-local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+local userAddr = ramaddr'userData'
+assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
+local palAddr = ramaddr'bank' + romaddr'palette'
 
 local windowWidth, windowHeight = 256, 256
 
@@ -991,8 +991,8 @@ function Track:init(args)
 		itemPos[3] = 0
 	end
 
-	local l = vec3(1,1,1):normalize()
-	self.lightPos = ffi.new('float[4]', {l[1], l[2], l[3], 0})
+	--local l = vec3(1,1,1):normalize()
+	--self.lightPos = ffi.new('float[4]', {l[1], l[2], l[3], 0})
 end
 
 function Track:processTrackColor(u,v,tileIndex)

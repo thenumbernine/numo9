@@ -820,10 +820,15 @@ function App:initGL()
 		getmetatable = getmetatable,
 		setmetatable = setmetatable,
 		traceback = debug.traceback,	-- useful for threads
+		
+		-- use this in place of ffi.offsetof('RAM', field)
+		ramaddr = function(name) return ffi.offsetof('RAM', name) end,
+		romaddr = function(name) return ffi.offsetof('ROM', name) end,
+		ramsize = function(name) return ffi.sizeof(ffi.cast('RAM*', 0)[name]) end,
+		romsize = function(name) return ffi.sizeof(ffi.cast('ROM*', 0)[name]) end,
 
 		-- TODO don't let the ROM see the App...
 		app = self,
-		ffi = ffi,
 		getfenv = getfenv,	-- maybe ... needed for _ENV replacement, but maybe can break out of sandbox ...
 		setfenv = setfenv,	-- \_ fair warning, getfenv(0) breaks out of the sandbox and gets numo9's _G
 

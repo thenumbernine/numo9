@@ -22,7 +22,7 @@ local testMerge = [a,b] a == b
 local doMerge = [a,b] a + 1
 --]]
 
-local fontWidthAddr = ffi.offsetof('RAM','fontWidth')
+local fontWidthAddr = ramaddr'fontWidth'
 for i=0,255 do
 	poke(fontWidthAddr+i,8)
 end
@@ -32,7 +32,7 @@ local randomColor = [] do
 	return v.x | (v.y << 5) | (v.z << 10) | 0x8000
 end
 
-local palAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
+local palAddr = ramaddr'bank' + romaddr'palette'
 pokew(palAddr, 0x8000)
 pokew(palAddr + 2, 0xffff)
 for i=2,255 do
