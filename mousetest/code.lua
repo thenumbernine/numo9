@@ -1,3 +1,5 @@
+mode(42)
+
 local sx, sy = 1, 1
 update=[]do
 	local x, y, ssx, ssy = mouse()
