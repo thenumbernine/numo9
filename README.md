@@ -280,7 +280,7 @@ If the following functions are defined then they will be called from the virtual
 - `romaddr(name)` = returns the address of the ROM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('ROM', field)`.  See the ROM structure for individual field names.
 - `ramasize(name)` = returns the size the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('RAM', field)`.  See the RAM structure for individual field names.
 - `romasize(name)` = returns the size of the ROM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('ROM', field)`.  See the ROM structure for individual field names.
-- `int8_t, uint8_t, sint8_t, int16_t, uint16_t, sint16_t, int32_t, uint32_t, sint32_t` = If you want to cast stuff, use these `ffi.typeof`'s.
+- `int8_t, uint8_t, int8_t, int16_t, uint16_t, int16_t, int32_t, uint32_t, int32_t` = If you want to cast stuff, use these `ffi.typeof`'s.
 
 While Pico8 has the `reload` and `cstore` functions for copying to/from RAM to ROM, and Tic80 has the `sync` function for doing similar, I am tempting myself with the idea of just using a different address range.
 But how to do this in conjunction with multiple banks, a feature that Tic80 also has, especially multiple VRAM banks.  I do like the idea of having multiple VRAM banks accessible with `spr` and `map` functions.
