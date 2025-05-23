@@ -826,6 +826,15 @@ function App:initGL()
 		romaddr = function(name) return ffi.offsetof('ROM', name) end,
 		ramsize = function(name) return ffi.sizeof(ffi.cast('RAM*', 0)[name]) end,
 		romsize = function(name) return ffi.sizeof(ffi.cast('ROM*', 0)[name]) end,
+		int8_t = ffi.typeof'int8_t',
+		uint8_t = ffi.typeof'uint8_t',
+		sint8_t = ffi.typeof'sint8_t',
+		int16_t = ffi.typeof'int16_t',
+		uint16_t = ffi.typeof'uint16_t',
+		sint16_t = ffi.typeof'sint16_t',
+		int32_t = ffi.typeof'int16_t',
+		uint32_t = ffi.typeof'uint16_t',
+		sint32_t = ffi.typeof'sint16_t',
 
 		-- TODO don't let the ROM see the App...
 		app = self,
