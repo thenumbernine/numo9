@@ -22,6 +22,7 @@ local getTime = require 'ext.timer'.getTime
 local vector = require 'ffi.cpp.vector-lua'
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
+local vec2f = require 'vec-ffi.vec2f'
 local template = require 'template'
 local matrix_ffi = require 'matrix.ffi'
 local sdl = require 'sdl'
@@ -262,6 +263,9 @@ function App:initGL()
 	self.blitScreenView = View()
 	self.blitScreenView.ortho = true
 	self.blitScreenView.orthoSize = 1
+
+	self.orthoMin = vec2f()
+	self.orthoMax = vec2f()
 
 	--[[
 	when will this loop?
@@ -1674,13 +1678,8 @@ conn.receivesPerSecond = 0
 			self.ram.lastMousePos:set(self.ram.mousePos:unpack())
 			sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
-			local x = tonumber(self.screenMousePos.x) / tonumber(self.width)
-			local y = tonumber(self.screenMousePos.y) / tonumber(self.height)
-			-- TODO adjust this to correct UL corner
-			x = x1 * (1 - x) + x2 * x
-			y = y1 * (1 - y) + y2 * y
-			x = x * .5 + .5
-			y = y * .5 + .5
+			local x = tonumber(self.screenMousePos.x) / tonumber(self.width) * (self.orthoMax.x - self.orthoMin.x) + self.orthoMin.x
+			local y = tonumber(self.screenMousePos.y) / tonumber(self.height) * (self.orthoMax.y - self.orthoMin.y) + self.orthoMin.y
 			self.ram.mousePos.x = x * tonumber(fbTex.width)
 			self.ram.mousePos.y = y * tonumber(fbTex.height)
 			if self:keyp'mouse_left' then
@@ -1938,21 +1937,29 @@ print('run thread dead')
 		local fy = wy / fbTex.height
 		if fx > fy then
 			local rx = fx / fy
+			self.orthoMin.x = -orthoSize * (rx - 1) / 2
+			self.orthoMax.x = orthoSize * (((rx - 1) / 2) + 1)
+			self.orthoMax.y = orthoSize
+			self.orthoMin.y = 0
 			view.projMat:setOrtho(
-				-orthoSize * (rx - 1) / 2,
-				orthoSize * (((rx - 1) / 2) + 1),
-				orthoSize,
-				0,
+				self.orthoMin.x,
+				self.orthoMax.x,
+				self.orthoMax.y,
+				self.orthoMin.y,
 				-1,
 				1
 			)
 		else
 			local ry = fy / fx
+			self.orthoMin.x = 0
+			self.orthoMax.x = orthoSize
+			self.orthoMax.y = orthoSize * (((ry - 1) / 2) + 1)
+			self.orthoMin.y = -orthoSize * (ry - 1) / 2
 			view.projMat:setOrtho(
-				0,
-				orthoSize,
-				orthoSize * (((ry - 1) / 2) + 1),
-				-orthoSize * (ry - 1) / 2,
+				self.orthoMin.x,
+				self.orthoMax.x,
+				self.orthoMax.y,
+				self.orthoMin.y,
 				-1,
 				1
 			)
