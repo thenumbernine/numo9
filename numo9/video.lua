@@ -154,6 +154,14 @@ local function readTex(args)
 	else
 		dst = texelFunc..'('..texvar..', '..tc..')'
 	end
+
+	-- TODO this is for when args.tex is a 5551 GL_R16UI
+	-- and to's type is vec4 ...
+	--  however you can't always test for GL_R16UI because this is also tilemapRAMs when reading tileIndex ...
+	--  .. but that one's dest is uvec4 so meh
+	-- but if I set that internalFormat then args.to will become uvec4, and then this will be indistinguishble from the tilemapRAMs ...
+	-- so I would need an extra flag for "to vec4 5551"
+	-- or should I already be setting them to vec4?
 	if args.to == 'u16to5551' then
 		dst = 'u16to5551(('..dst..').r)'
 	elseif args.to == 'uvec4' then
@@ -683,8 +691,16 @@ function AppVideo:initVideo()
 		local internalFormat, gltype, suffix
 		if req.format == 'RGB565' then
 			-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
+			-- [[
 			internalFormat = gl.GL_RGB565
 			gltype = gl.GL_UNSIGNED_SHORT_5_6_5	-- for an internalFormat there are multiple gltype's so pick this one
+			--]]
+			--[[
+			-- TODO do this but in doing so the framebuffer fragment vec4 turns into a uvec4
+			-- and then the reads from u16to5551() which output vec4 no longer fit
+			-- ... hmm ...
+			internalFormat = internalFormat5551
+			--]]
 			suffix = 'RGB565'
 		elseif req.format == '8bppIndex'
 		or req.format == 'RGB332'
