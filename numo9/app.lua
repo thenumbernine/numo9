@@ -828,13 +828,13 @@ function App:initGL()
 		romsize = function(name) return ffi.sizeof(ffi.cast('ROM*', 0)[name]) end,
 		int8_t = ffi.typeof'int8_t',
 		uint8_t = ffi.typeof'uint8_t',
-		sint8_t = ffi.typeof'sint8_t',
+		int8_t = ffi.typeof'int8_t',
 		int16_t = ffi.typeof'int16_t',
 		uint16_t = ffi.typeof'uint16_t',
-		sint16_t = ffi.typeof'sint16_t',
+		int16_t = ffi.typeof'int16_t',
 		int32_t = ffi.typeof'int16_t',
 		uint32_t = ffi.typeof'uint16_t',
-		sint32_t = ffi.typeof'sint16_t',
+		int32_t = ffi.typeof'int16_t',
 
 		-- TODO don't let the ROM see the App...
 		app = self,
@@ -1125,6 +1125,69 @@ looks like I'm a Snes9x-default-keybinding fan.
 
 			if not cmdline.nosplash then
 
+				local fgColor = 0xf9
+				local bgColor --= 0xf1
+				local cursorPosX, cursorPosY = 0, 0
+				local function addChar(ch)
+					env.text(ch, cursorPosX, cursorPosY, fgColor, bgColor)
+					cursorPosX = cursorPosX + 5
+				end
+				-- TODO print with auto framebuffer copy for scroll? (pico8)
+				-- or if I use a real console text buffer then when to render it? (tic80)
+				local function coolPrint(...)
+					local ofs = 9
+					local function inc(d)
+						fgColor = bit.bor((fgColor-ofs+d)%4+ofs,0xf0)
+						--bgColor = bit.bor((self.bgColor-ofs+d)%3+ofs,0xf0)
+					end
+					inc(bit.rshift(cursorPosX,3)+bit.rshift(cursorPosY,3))
+					for i=1,select('#', ...) do
+						if i > 1 then
+							addChar('\t')
+							inc(1)
+						end
+						local s = tostring(select(i, ...))
+						for j=1,#s do
+							addChar(s:sub(j,j))
+							inc(1)
+						end
+					end
+					cursorPosX = 0
+					cursorPosY = cursorPosY + 8
+					if cursorPosY >= 256 then	-- > fbTex.height then
+						cursorPosY = cursorPosY - 8
+						local fbaddr = env.ramaddr'framebuffer'
+						pixelSize = 2
+						-- TODO reading from this should flush framebuffer gpu->cpu
+						env.memcpy(
+							fbaddr + 0, 			-- dst
+							fbaddr + pixelSize * 256 * 8,	-- src
+							pixelSize * 256 * (256 - 8))	-- len
+						-- and TODO writing to it should dirty cpu to later flush cpu->gpu
+					end
+				end
+
+				for sleep=1,60 do
+					env.flip()
+				end
+				
+				coolPrint('NuMo-9 ver. '..self.version)
+				env.flip()
+				coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
+				env.flip()
+				coolPrint'...OpenResty LuaJIT w/5.2 compat'
+				env.flip()
+				for i,v in pairs(self.videoModeInfo) do
+					coolPrint(i..'...'..v.framebufferRAM.tex.width..'x'..v.framebufferRAM.tex.height..'x'..v.formatDesc..' framebuffer')
+					env.flip()
+				end
+				--self.con:print"type help() for help" -- not really
+				env.flip()
+
+				-- flag 'needsPrompt' then write the prompt in update if it's needed
+
+--				for sleep=1,60 do env.flip() end
+
 				-- also for init, do the splash screen
 				numo9_video.resetLogoOnSheet(self.ram.bank[0].tileSheet)
 				self.sheetRAMs[2].dirtyCPU = true
@@ -1135,10 +1198,6 @@ looks like I'm a Snes9x-default-keybinding fan.
 							bit.lshift(j, 5)
 						))
 					end
-				end
-
-				for sleep=1,60 do
-					env.flip()
 				end
 
 				-- do splash screen fanfare ...

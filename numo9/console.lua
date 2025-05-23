@@ -40,14 +40,6 @@ function Console:init(args)
 	-- clear the screen every time, or save the screen every time?
 	app:clearScreen(0xf0)
 
-	self:coolPrint('NuMo-9 ver. '..self.app.version)
-	self:coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
-	self:coolPrint'...OpenResty LuaJIT'
-	self:coolPrint('...'..frameBufferSize.x..'x'..frameBufferSize.y..'x8bpp framebuffer')
-	--self:print"type help() for help" -- not really
-
-	-- flag 'needsPrompt' then write the prompt in update if it's needed
-
 	self:resetThread()
 end
 
@@ -159,35 +151,6 @@ print(...)
 		self.lines:insert(1, s)
 	end
 	--]]
-end
-
--- because everyone else is doing it
--- TODO color in console is disabled.  either add it to the buffer and use this, or just get rid of this function.
-function Console:coolPrint(...)
-	self.fgColor = 0xf9
-	--self.bgColor = 0xf1
-	local ofs = 9
-	local function inc(d)
-		self.fgColor = bit.bor((self.fgColor-ofs+d)%4+ofs,0xf0)
-		--self.bgColor = bit.bor((self.bgColor-ofs+d)%3+ofs,0xf0)
-	end
-	inc(bit.rshift(self.cursorPos.x,3)+bit.rshift(self.cursorPos.y,3))
-	local function addChar(ch)
-		self:addCharToScreen(ch)
-		inc(1)
-	end
-	for i=1,select('#', ...) do
-		if i > 1 then
-			addChar(('\t'):byte())
-		end
-		local s = tostring(select(i, ...))
-		for j=1,#s do
-			addChar(s:byte(j,j))
-		end
-	end
-	addChar(('\n'):byte())
-	self.fgColor = 0xfc
-	self.bgColor = 0xf0
 end
 
 function Console:selectHistory(dx)

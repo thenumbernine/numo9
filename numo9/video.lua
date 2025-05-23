@@ -1126,15 +1126,18 @@ void main() {
 
 	self.videoModeInfo = requestedVideoModes:map(function(req)
 		local framebufferRAM = assert.index(req, 'framebufferRAM')
+		local info
 		if req.format == 'RGB565' then
-			return makeVideoModeRGB565(framebufferRAM)
+			info = makeVideoModeRGB565(framebufferRAM)
 		elseif req.format == '8bppIndex' then
-			return makeVideoMode8bppIndex(framebufferRAM)
+			info = makeVideoMode8bppIndex(framebufferRAM)
 		elseif req.format == 'RGB332' then
-			return makeVideoModeRGB332(framebufferRAM)
+			info = makeVideoModeRGB332(framebufferRAM)
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
+		info.formatDesc = req.format
+		return info
 	end)
 
 	-- make output shaders per-video-mode
