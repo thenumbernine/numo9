@@ -820,7 +820,7 @@ function App:initGL()
 		getmetatable = getmetatable,
 		setmetatable = setmetatable,
 		traceback = debug.traceback,	-- useful for threads
-		
+
 		-- use this in place of ffi.offsetof('RAM', field)
 		ramaddr = function(name) return ffi.offsetof('RAM', name) end,
 		romaddr = function(name) return ffi.offsetof('ROM', name) end,
@@ -1092,6 +1092,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 	-- can have 3 more ... at least I've only allocated enough for 4 players worth of keys ...
 	-- and right now netplay operates by reflecting keys and draw-commands ...
 
+	self:buildPlayerEventsMap()
 
 -- setFocus has been neglected ...
 -- ... this will cause the menu to open once its done playing
@@ -1170,7 +1171,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 				for sleep=1,60 do
 					env.flip()
 				end
-				
+
 				coolPrint('NuMo-9 ver. '..self.version)
 				for i=1,30 do env.flip() end
 				coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
@@ -3002,57 +3003,154 @@ function App:processButtonEvent(down, ...)
 		-- this branch is only used in gameplay
 		-- for that reason, if we're not in the gameplay menu-state then bail
 		--if not PlayingMenu:isa(self.mainMenu) then return end
-		local etype, ex, ey = ...
-		local descLen = select('#', ...)
-		for _, playerInfo in ipairs(self.cfg.playerInfos) do
-			if playerInfo.hostPlayerIndex then
-				local playerIndex = playerInfo.hostPlayerIndex
-				-- when processing input events to virtual-joypad-events, do the multiplayer player-index-remapping
-				for buttonIndex, buttonBind in pairs(playerInfo.buttonBinds) do
-					-- special case for mouse/touch, test within a distanc
-					local match = descLen == #buttonBind
-					if match then
-						local istart = 1
-						-- special case for mouse/touch, click within radius ...
-						if etype == sdl.SDL_MOUSEBUTTONDOWN
-						or etype == sdl.SDL_FINGERDOWN
-						then
-							match = etype == buttonBind[1]
-							if match then
-								local dx = (ex - buttonBind[2]) * self.width
-								local dy = (ey - buttonBind[3]) * self.height
-								if dx*dx + dy*dy >= buttonRadius*buttonRadius then
-									match = false
-								end
-								-- skip the first 2 for values
-								istart = 4
-							end
-						end
-						if match then
-							for i=istart,descLen do
-								if select(i, ...) ~= buttonBind[i] then
-									match = false
-									break
-								end
-							end
+		-- lookup events and descriptors and their map to players and buttons in the playerEvents table
+		-- maybe todo, save one level of calls and move this into each event's unique handler (but then you'd have to move the waitingForEvent capture there too)
+		local match, buttonIndex, playerIndex
+		local etype = ...
+		local h = self.playerEvents[etype]
+		if h then
+			if etype == sdl.SDL_KEYDOWN then
+				local sym = select(2, ...)
+				h = h[sym]
+				if h then
+					buttonIndex = h.buttonIndex
+					playerIndex = h.playerIndex
+					match = true
+				end
+			elseif etype == sdl.SDL_JOYHATMOTION
+			or etype == sdl.SDL_JOYAXISMOTION
+			or etype == sdl.SDL_CONTROLLERAXISMOTION
+			then
+				local which, hat, dirbit = select(2, ...)
+				h = h[which]
+				if h then
+					h = h[hat]
+					if h then
+						h = h[dirbit]
+						if h then
+							buttonIndex = h.buttonIndex
+							playerIndex = h.playerIndex
+							match = true
 						end
 					end
-					if match then
-						local buttonCode = buttonIndex + bit.lshift(playerIndex, 3)
-						local keycode = buttonCode + firstJoypadKeyCode
-						local bi = bit.band(keycode, 7)
-						local by = bit.rshift(keycode, 3)
-						local flag = bit.lshift(1, bi)
-						local mask = bit.bnot(flag)
-						self.ram.keyPressFlags[by] = bit.bor(
-							bit.band(mask, self.ram.keyPressFlags[by]),
-							down and flag or 0
-						)
+				end
+			elseif etype == sdl.SDL_JOYBUTTONDOWN
+			or etype == sdl.SDL_CONTROLLERBUTTONDOWN
+			then
+				local which, button = select(2, ...)
+				h = h[which]
+				if h then
+					h = h[button]
+					if h then
+						buttonIndex = h.buttonIndex
+						playerIndex = h.playerIndex
+						match = true
 					end
+				end
+			elseif etype == sdl.SDL_MOUSEBUTTONDOWN
+			or e[0].type == sdl.SDL_FINGERDOWN
+			or e[0].type == sdl.SDL_FINGERUP
+			then
+				local x, y, button = select(2, ...)
+				if etype == sdl.SDL_MOUSEBUTTONDOWN then
+					h = h[button]
+				end
+				if h then
+					for _,region in ipairs(h) do
+						local dx = (x - region.x) * self.width
+						local dy = (y - region.y) * self.height
+						if dx*dx + dy*dy >= buttonRadius*buttonRadius then
+							match = false
+							buttonIndex = region.buttonIndex
+							playerIndex = region.playerIndex
+							break
+						end
+					end
+				end
+			end
+
+			if match then
+				local buttonCode = buttonIndex + bit.lshift(playerIndex, 3)
+				local keycode = buttonCode + firstJoypadKeyCode
+				local bi = bit.band(keycode, 7)
+				local by = bit.rshift(keycode, 3)
+				local flag = bit.lshift(1, bi)
+				local mask = bit.bnot(flag)
+				self.ram.keyPressFlags[by] = bit.bor(
+					bit.band(mask, self.ram.keyPressFlags[by]),
+					down and flag or 0
+				)
+			end
+		end
+	end
+end
+
+-- for perf's sake
+-- map keys etc -> event so we don't have to searh all players every time any event occurs
+-- and redo this map every time the key configs change
+function App:buildPlayerEventsMap()
+	self.playerEvents = {}
+	for _, playerInfo in ipairs(self.cfg.playerInfos) do
+		if playerInfo.hostPlayerIndex then
+			local playerIndex = playerInfo.hostPlayerIndex
+			for buttonIndex, buttonBind in pairs(playerInfo.buttonBinds) do
+				local etype = buttonBind[1]
+				self.playerEvents[etype] = self.playerEvents[etype] or {}
+				if etype == sdl.SDL_KEYDOWN then
+					local sym = buttonBind[2]
+					-- TODO warn if self.playerEvents[etype][sym] is set
+					-- SDL_KEYDOWN -> key -> press/release = trigger this player's this sym
+					self.playerEvents[etype][sym] = {
+						playerIndex = playerIndex,
+						buttonIndex = buttonIndex,
+					}
+				--elseif etype == sdl.SDL_MOUSEWHEEL then
+				elseif etype == sdl.SDL_JOYHATMOTION
+				or etype == sdl.SDL_JOYAXISMOTION
+				or etype == sdl.SDL_CONTROLLERAXISMOTION
+				then
+					local which, hat, dirbit = table.unpack(buttonBind, 2)
+					-- or which, axis, lr
+					self.playerEvents[etype][which] = self.playerEvents[etype][which] or {}
+					self.playerEvents[etype][which][hat] = self.playerEvents[etype][which][hat] or {}
+					self.playerEvents[etype][which][hat][dirbit] = {
+						playerIndex = playerIndex,
+						buttonIndex = buttonIndex,
+					}
+				elseif etype == sdl.SDL_JOYBUTTONDOWN
+				or etype == sdl.SDL_CONTROLLERBUTTONDOWN
+				then
+					local which, button = table.unpack(buttonBind, 2)
+					self.playerEvents[etype][which] = self.playerEvents[etype][which] or {}
+					self.playerEvents[etype][which][button] = {
+						playerIndex = playerIndex,
+						buttonIndex = buttonIndex,
+					}
+				elseif etype == sdl.SDL_MOUSEBUTTONDOWN then
+					local x, y, button = table.unpack(buttonBind, 2)
+					self.playerEvents[etype][button] = self.playerEvents[etype][button] or {}
+					table.insert(self.playerEvents[etype][button], {
+						playerIndex = playerIndex,
+						buttonIndex = buttonIndex,
+						x = x,
+						y = y,
+					})
+				elseif e[0].type == sdl.SDL_FINGERDOWN
+				or e[0].type == sdl.SDL_FINGERUP
+				then
+					local x, y = table.unpack(buttonBind, 2)
+					table.insert(self.playerEvents[etype], {
+						playerIndex = playerIndex,
+						buttonIndex = buttonIndex,
+						x = x,
+						y = y,
+					})
 				end
 			end
 		end
 	end
+
+
 end
 
 -- static, used by gamestate and app
