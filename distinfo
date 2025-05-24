@@ -5,7 +5,6 @@ luaArgs = {'run.lua'}
 AppImageCategories = 'Game'
 
 files = {
-	[".github/FUNDING.yml"] = "numo9/.github/FUNDING.yml",
 	["2048.n9"] = "numo9/2048.n9",
 	["README.md"] = "numo9/README.md",
 	["asteroids.n9"] = "numo9/asteroids.n9",
