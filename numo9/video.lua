@@ -809,34 +809,7 @@ function AppVideo:initVideo()
 		},
 	}
 
-	local glslVersion = GLGlobal:get'GL_SHADING_LANGUAGE_VERSION'
-	-- TODO what if it's formatted weird?
-	glslVersion = glslVersion:gsub('%.', '')
-
-	-- desktop-GL versions ...
-	-- https://www.khronos.org/opengl/wiki/Core_Language_(GLSL)
-	--local glslVersion = '110'	-- gl 2.0
-	--local glslVersion = '120'	-- gl 2.1
-	--local glslVersion = '130'	-- gl 3.0
-	--local glslVersion = '140'	-- gl 3.1	-- lowest working version on my osx before it complains that the version (too low) aren't supported ...
-	--local glslVersion = '150'	-- gl 3.2
-	--local glslVersion = '330'	-- gl 3.3
-	--local glslVersion = '400'	-- gl 4.0
-	--local glslVersion = '410'	-- gl 4.1	-- highest working version on my osx before it complains ...
-	--local glslVersion = '420'	-- gl 4.2
-	--local glslVersion = '430'	-- gl 4.3
-	--local glslVersion = '440'	-- gl 4.4
-	--local glslVersion = '450'	-- gl 4.5
-	--local glslVersion = '460'	-- gl 4.6
-
-	-- GLES versions ...
-	--local glslVersion = '100 es'
-	--local glslVersion = '300 es'
-	--local glslVersion = '310 es'
-	--local glslVersion = '320 es'
-
-	-- allow override
-	glslVersion = cmdline.glsl or glslVersion
+	local glslVersion = cmdline.glsl or 'latest'
 
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	-- assert palleteSize is a power-of-two ...
