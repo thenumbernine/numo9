@@ -84,7 +84,7 @@ deps = {
 	"vec-ffi",
 }
 
--- lua socket ... TODO copy from dist/release/
+--[[ lua socket ... TODO copy from dist/release/
 -- TODO match each with its required luajitLibs, with its external libs, and put all in their own unique distinfo somewhere.  organize by project, not flat directories.
 files['../dist/release'] = {
 	'socket.lua',
@@ -96,7 +96,7 @@ files['../dist/release/bin/'..ffi.os..'/'..ffi.arch] = {
 	'socket',
 	'mime',
 }
-
+--]]
 
 -- binary libs needed for luajit
 -- TODO how about consulting ffi/load.lua for where these are
