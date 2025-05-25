@@ -506,6 +506,10 @@ end
 
 local viewPos = vec2()
 update=[]do
+	-- hmm mode() at global level doesn't seem to work ...
+	--local w,h = 336,189 mode(18)	-- 16:9 336x189x16bpp-RGB565
+	local w,h = 480,270 mode(42)	-- 16:9 480x270x8bpp-indexed
+
 	cls()
 	map(0,0,256,256,0,0)
 

@@ -1726,6 +1726,7 @@ conn.receivesPerSecond = 0
 			if fontOverlapsFramebuffer then self.fontRAM.dirtyCPU = true end
 		end
 
+		-- erm when would this happen?
 		if self.currentVideoMode ~= self.ram.videoMode then
 			self:setVideoMode(self.ram.videoMode)
 		end
