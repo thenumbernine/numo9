@@ -1,6 +1,7 @@
 name = "numo9"
 icon = 'docpics/numo9 icon.png'
 iconOSX = 'docpics/numo9 icon.icns'
+startDir = 'numo9'
 luaArgs = {'run.lua'}
 AppImageCategories = 'Game'
 
@@ -67,7 +68,6 @@ files = {
 	["stupidtrpg.n9"] = "numo9/stupidtrpg.n9",
 }
 deps = {
-	"audio",
 	"clip",
 	"ext",
 	"ffi",
