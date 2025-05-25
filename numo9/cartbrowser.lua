@@ -98,8 +98,15 @@ function CartBrowser:update()
 			if not self.thumbTex then
 				local GLTex2D = require 'gl.tex2d'
 				local gl = require 'gl'
+				--local internalFormat = gl.GL_RGBA8I
+				local internalFormat = gl.GL_RGBA8UI
+				--local internalFormat = gl.GL_RGBA8
+				--local internalFormat = gl.GL_RGBA
 				local tex = GLTex2D{
 					image = romImage,
+					internalFormat = internalFormat,
+					format = GLTex2D.formatInfoForInternalFormat[internalFormat].format,
+					type = GLTex2D.formatInfoForInternalFormat[internalFormat].types[1],
 					wrap = {
 						s = gl.GL_CLAMP_TO_EDGE,
 						t = gl.GL_CLAMP_TO_EDGE,

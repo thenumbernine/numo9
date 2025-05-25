@@ -867,9 +867,6 @@ function AppVideo:initVideo()
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = [[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
 layout(location=0) in vec2 vertex;
 out vec2 tcv;
 
@@ -960,9 +957,6 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = [[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
 layout(location=0) in vec2 vertex;
 out vec2 tcv;
 uniform mat4 mvProjMat;
@@ -1056,9 +1050,6 @@ void main() {
 				version = glslVersion,
 				precision = 'best',
 				vertexCode = [[
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
 layout(location=0) in vec2 vertex;
 out vec2 tcv;
 uniform mat4 mvProjMat;
@@ -1477,7 +1468,7 @@ void main() {
 					from = 'vec2',
 					to = fragType,
 				}
-				..[[);
+				..[[ / 255.);
 
 	}	// pathway
 }
