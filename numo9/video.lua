@@ -78,17 +78,8 @@ end
 local texelFunc = 'texture'
 --local texelFunc = 'texelFetch'
 
--- on = use GL_*UI for our texture internal format, off = use regular non-integer
---local useSamplerUInt = false	-- crashes ... why. TODO.
-local useSamplerUInt = true
-
-local texInternalFormat_u8 = useSamplerUInt
-	and gl.GL_R8UI	-- use this with usampler2D(Rect) ... right?
-	or gl.GL_R8	-- use this with sampler2D(Rect) ... right?
-
-local texInternalFormat_u16 = useSamplerUInt
-	and gl.GL_R16UI
-	or gl.GL_R16
+local texInternalFormat_u8 = gl.GL_R8UI
+local texInternalFormat_u16 = gl.GL_R16UI
 
 -- 'REV' means first channel first bit ... smh
 -- so even tho 5551 is on hardware since forever, it's not on ES3 or WebGL, only GL4...
@@ -699,6 +690,7 @@ function AppVideo:initVideo()
 			-- TODO do this but in doing so the framebuffer fragment vec4 turns into a uvec4
 			-- and then the reads from u16to5551() which output vec4 no longer fit
 			-- ... hmm ...
+			-- ... but if I do this then the 565 hardware-blending no longer works, and I'd have to do that blending manually ...
 			internalFormat = internalFormat5551
 			--]]
 			suffix = 'RGB565'
@@ -712,11 +704,11 @@ function AppVideo:initVideo()
 			error("unknown req.format "..tostring(req.format))
 		end
 		local key = '_'..req.width..'x'..req.height..suffix
-		local fbRAM = self.framebufferRAMs[key]
-		if not fbRAM then
+		local framebufferRAM = self.framebufferRAMs[key]
+		if not framebufferRAM then
 			local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
 			gltype = gltype or formatInfo.types[1]	-- there are multiple, so let the caller override
-			fbRAM = RAMGPUTex{
+			framebufferRAM = RAMGPUTex{
 				app = self,
 				addr = framebufferAddr,
 				width = req.width,
@@ -728,9 +720,9 @@ function AppVideo:initVideo()
 				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
 			}
 
-			self.framebufferRAMs[key] = fbRAM
+			self.framebufferRAMs[key] = framebufferRAM
 		end
-		req.framebufferRAM = fbRAM
+		req.framebufferRAM = framebufferRAM
 	end
 
 	-- framebuffer is 256 x 144 x 16bpp rgb565
@@ -813,14 +805,14 @@ function AppVideo:initVideo()
 
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	-- assert palleteSize is a power-of-two ...
-	local function colorIndexToFrag(tex, decl)
+	local function colorIndexToFrag(destTex, decl, to)
 		return decl..' = '..readTex{
 			tex = self.paletteRAM.tex,
 			texvar = 'paletteTex',
 			tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 			from = 'ivec2',
-			to = support5551
-				and tex:getGLSLFragType()
+			to = to or support5551
+				and destTex:getGLSLFragType()
 				or 'u16to5551'
 			,
 		}..';\n'
@@ -835,29 +827,39 @@ function AppVideo:initVideo()
 ]]
 	end
 
---[[ a wrapper to output the code
-	local origGLSceneObject = GLSceneObject
-	local function GLSceneObject(args)
-		print'vertex'
-		print(require 'template.showcode'(args.program.vertexCode))
-		print'fragment'
-		print(require 'template.showcode'(args.program.fragmentCode))
-		print()
-		return origGLSceneObject(args)
-	end
---]]
-
 	local blitFragType = 'vec4'	-- blit screen is always to vec4 ... right?
 
 	local function makeVideoModeRGB565(framebufferRAM)
 		local modeObj = {
 			framebufferRAM = framebufferRAM,
-
-			-- generator properties
 			name = 'RGB',
+			-- [=[ internalFormat = gl.GL_RGB565
 			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'fragColor')..'\n'
-				..getDrawOverrideCode'vec3',
+				..getDrawOverrideCode'uvec3',
+			--]=]
+			--[=[ internalFormat = internalFormat5551
+			colorOutput = 'fragColor = '..readTex{
+				tex = self.paletteRAM.tex,
+				texvar = 'paletteTex',
+				tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
+				from = 'ivec2',
+				to = 'uvec4',
+			}..';\n'..[[
+
+#if 0	// if anyone needs the rgb ...
+			fragColor.a = (fragColor.r >> 15) * 0x1fu;
+			fragColor.b = (fragColor.r >> 10) & 0x1fu;
+			fragColor.g = (fragColor.r >> 5) & 0x1fu;
+			fragColor.r &= 0x1fu;
+			fragColor = (fragColor << 3) | (fragColor >> 2);
+#else	// I think I'll just save the alpha for the immediate-after glsl code alpha discard test ...
+			fragColor.a = (fragColor.r >> 15) * 0x1fu;
+#endif
+]]
+				..getDrawOverrideCode'uvec3',
+			--]=]
 		}
+
 		-- used for drawing our 16bpp framebuffer to the screen
 --DEBUG:print'mode 0 blitScreenObj'
 		modeObj.blitScreenObj = GLSceneObject{
@@ -888,6 +890,7 @@ layout(location=0) out <?=blitFragType?> fragColor;
 uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 
 void main() {
+#if 1	// internalFormat = gl.GL_RGB565
 	fragColor = ]]..readTex{
 		tex = framebufferRAM.tex,
 		texvar = 'framebufferTex',
@@ -895,6 +898,21 @@ void main() {
 		from = 'vec2',
 		to = blitFragType,
 	}..[[;
+#endif
+#if 0	// internalFormat = internalFormat5551
+	uint rgba5551 = ]]..readTex{
+		tex = framebufferRAM.tex,
+		texvar = 'framebufferTex',
+		tc = 'tcv',
+		from = 'vec2',
+		to = blitFragType,
+	}..[[.r;
+
+	fragColor.a = float(rgba5551 >> 15);
+	fragColor.b = float((rgba5551 >> 10) & 0x1fu) / 31.;
+	fragColor.g = float((rgba5551 >> 5) & 0x1fu) / 31.;
+	fragColor.r = float(rgba5551 & 0x1fu) / 31.;
+#endif
 }
 ]],				{
 					framebufferRAM = framebufferRAM,
@@ -922,10 +940,8 @@ void main() {
 			-- generator properties
 			-- indexed mode can't blend so ... no draw-override
 			name = 'Index',
-			colorOutput =
--- this part is only needed for alpha
-colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..
-[[
+			-- this part is only needed for alpha
+			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..[[
 	fragColor.r = colorIndex;
 	fragColor.g = 0u;
 	fragColor.b = 0u;
@@ -1354,7 +1370,6 @@ void main() {
 
 		uint paletteIndex = extra.w;
 
-<? if useSamplerUInt then ?>
 		uint colorIndex = ]]
 				..readTex{
 					tex = self.sheetRAMs[1].tex,
@@ -1378,28 +1393,6 @@ void main() {
 		if (fragColor.a < .5) discard;
 <? end ?>
 
-<? else -- useSamplerUInt ?>
-
-		float colorIndexNorm = ]]
-				..readTex{
-					tex = self.sheetRAMs[1].tex,
-					texvar = 'sheetTex',
-					tc = 'tcv / vec2(textureSize(sheetTex))',
-					from = 'vec2',
-					to = 'vec4',
-				}
-..[[.r;
-		uint colorIndex = uint(colorIndexNorm * 255. + .5);
-
-		colorIndex >>= spriteBit;
-		colorIndex &= spriteMask;
-		if (colorIndex == transparentIndex) discard;
-		colorIndex += paletteIndex;
-
-<?=info.colorOutput?>
-
-<? end -- useSamplerUInt ?>
-
 	} else if (pathway == 2u) {
 
 		int mapIndexOffset = int(extra.y | (extra.z << 8));
@@ -1409,65 +1402,6 @@ void main() {
 
 		const uint tilemapSizeX = <?=tilemapSize.x?>u;
 		const uint tilemapSizeY = <?=tilemapSize.y?>u;
-
-#if 0	// do it in float
-		int tileSize = 1 << (3u + draw16Sprites);
-		float tileSizef = float(tileSize);
-		int mask = tileSize - 1;
-
-		// convert from input normalized coordinates to tilemap texel coordinates
-		// [0, tilemapSize)^2
-		vec2 tcf = vec2(
-			.5 + tcv.x * float(tilemapSizeX << draw16Sprites),
-			.5 + tcv.y * float(tilemapSizeY << draw16Sprites)
-		);
-		tcf /= tileSizef;
-
-		// convert to map texel coordinate
-		// [0, tilemapSize)^2
-		// mod 256 ? maybe?
-		// integer part of tcf
-
-		//read the tileIndex in tilemapTex at tcf
-		//tilemapTex is R16, so red channel should be 16bpp (right?)
-		// how come I don't trust that and think I'll need to switch this to RG8 ...
-		int tileIndex = int(]]..readTex{
-			tex = self.tilemapRAMs[1].tex,
-			texvar = 'tilemapTex',
-			tc = '(floor(tcf) + .5) / vec2('..textureSize'tilemapTex'..')',
-			from = 'vec2',
-			to = 'uvec4',
-		}..[[.r);
-
-		tileIndex += mapIndexOffset;
-
-		//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
-		ivec2 tileIndexTC = ivec2(
-			tileIndex & 0x1F,				// tilemap bits 0..4
-			(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
-		);
-		int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
-
-		vec2 tcfp = tcf - floor(tcf);
-		if ((tileIndex & (1<<14)) != 0) tcfp.x = 1. - tcfp.x;	// tilemap bit 14
-		if ((tileIndex & (1<<15)) != 0) tcfp.y = 1. - tcfp.y;	// tilemap bit 15
-
-		// [0, spriteSize)^2
-		ivec2 tileTexTC = ivec2(
-			int(tcfp.x * tileSizef) ^ (tileIndexTC.x << 3),
-			int(tcfp.y * tileSizef) ^ (tileIndexTC.y << 3)
-		);
-
-		// sheetTex is R8 indexing into our palette ...
-		uint colorIndex = ]]..readTex{
-			tex = self.sheetRAMs[2].tex,
-			texvar = 'sheetTex',
-			tc = 'tileTexTC',
-			from = 'ivec2',
-			to = 'uvec4',
-		}..[[.r;
-
-#else	//do it in int
 
 		// convert from input normalized coordinates to tilemap texel coordinates
 		// [0, tilemapSize)^2
@@ -1521,19 +1455,20 @@ void main() {
 			to = 'uvec4',
 		}..[[.r;
 
-#endif
-
 		colorIndex += uint(palHi) << 4;
 
 		<?=info.colorOutput?>
 
-		if (fragColor.a == <?=fragType == 'uvec4' and '0u' or '0.'?>) discard;
+<? if fragType == 'uvec4' then ?>
+		if (fragColor.a == 0u) discard;
+<? else ?>
+		if (fragColor.a < .5) discard;
+<? end ?>
 
 	// I had an extra pathway and I didn't know what to use it for
 	// and I needed a RGB option for the cart browser (maybe I should just use this for all the menu system and just skip on the menu-palette?)
 	} else if (pathway == 3u) {
 
-<? if useSamplerUInt then ?>
 		fragColor = <?=fragType?>(]]
 				..readTex{
 					tex = self.sheetRAMs[1].tex,
@@ -1544,27 +1479,6 @@ void main() {
 				}
 				..[[);
 
-<? else -- useSamplerUInt ?>
-
-		fragColor = <?=fragType?>(]]
-				..readTex{
-					tex = self.sheetRAMs[1].tex,
-					texvar = 'sheetTex',
-					tc = 'tcv / vec2(textureSize(sheetTex))',
-					from = 'vec2',
-					to = fragType,
-				}
-..[[);
-
-<? end -- useSamplerUInt ?>
-
-// as always the range of the data is nonsense, and there's no documentation on conversion anywhere.
-<? if fragType == 'uvec4' then ?>
-		//fragColor >>= 24;
-<? else ?>
-		//fragColor *= 1. / <?=glslnumber(bit.lshift(1, 64))?>;
-<? end ?>
-
 	}	// pathway
 }
 ]],				{
@@ -1573,7 +1487,6 @@ void main() {
 					glslnumber = glslnumber,
 					fragType = info.framebufferRAM.tex:getGLSLFragType(),
 					glslCode5551 = glslCode5551,
-					useSamplerUInt = useSamplerUInt,
 					tilemapSize = tilemapSize,
 				}),
 				uniforms = {
