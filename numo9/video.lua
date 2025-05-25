@@ -679,6 +679,7 @@ function AppVideo:initVideo()
 	-- hmm, is there any reason why like-format buffers can't use the same gl texture?
 	self.framebufferRAMs = {}
 	for i,req in pairs(requestedVideoModes) do
+		local width, height = req.width, req.height
 		local internalFormat, gltype, suffix
 		if req.format == 'RGB565' then
 			-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
@@ -700,6 +701,18 @@ function AppVideo:initVideo()
 			-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
 			internalFormat = texInternalFormat_u8
 			suffix = '8bpp'
+			-- hmm TODO maybe
+			-- if you want blending with RGB332 then you can use GL_R3_G3_B2 ...
+			-- but it's not in GLES3/WebGL2
+		elseif req.format == '4bppIndex' then
+			internalFormat = texInternalFormat_u8
+			suffix = '4bpp'
+			-- here's where exceptions need to be made ...
+			-- hmm, so when I draw sprites, I've got to shrink coords by half their size ... ?
+			-- and then track whether we are in the lo vs hi nibble ... ?
+			-- and somehow preserve the upper/lower nibbles on the sprite edges?
+			-- maybe this is too tedious ...
+			width = bit.rshift(width, 1)
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
@@ -711,8 +724,8 @@ function AppVideo:initVideo()
 			framebufferRAM = RAMGPUTex{
 				app = self,
 				addr = framebufferAddr,
-				width = req.width,
-				height = req.height,
+				width = width,
+				height = height,
 				channels = 1,
 				internalFormat = internalFormat,
 				glformat = formatInfo.format,
@@ -1124,6 +1137,8 @@ void main() {
 			info = makeVideoMode8bppIndex(framebufferRAM)
 		elseif req.format == 'RGB332' then
 			info = makeVideoModeRGB332(framebufferRAM)
+		elseif req.format == '4bppIndex' then
+			error'TODO'
 		else
 			error("unknown req.format "..tostring(req.format))
 		end

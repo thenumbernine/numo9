@@ -139,6 +139,7 @@ splashMenuY=0
 splashInputPass=table{0,0,0,0}
 splashMenuPassX=0
 update=[]do
+	local screenw, screenh = 480, 270 mode(42)	-- 16:9 480x270x8bpp indexed
 	if inSplash then
 		while true do
 			cls(0x10)
@@ -198,10 +199,10 @@ update=[]do
 
 	-- draw scrolling screen
 	do
-		local mw = 16
-		local mh = 16
-		local ulx = x - 7
-		local uly = y - 7
+		local mw = math.ceil(screenw / 16)
+		local mh = math.ceil(screenh / 16)
+		local ulx = x - math.floor(mw / 2)
+		local uly = y - math.floor(mh / 2)
 		local dx = 0
 		local dy = 0
 		if ulx < 0 then
