@@ -7,8 +7,10 @@ function CartBrowser:update()
 --	CartBrowser.super.update(self)	-- clears screen, shows the current-editor tab etc
 	local app = self.app
 
-	app:setVideoMode(0)
-
+	-- TODO hmm
+	-- 1) carts can't just set video mode in global init, they have to every frame FIXME
+	-- 2) when they do that, if it's not a RGB565 screen, combined with this setting every frame, causes texture alignment problems FIXME
+	--app:setVideoMode(0)
 	app:clearScreen(0xf0)
 
 	local fs = app.fs

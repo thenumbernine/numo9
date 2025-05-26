@@ -72,7 +72,7 @@ function MainMenu:update()
 	-- init the tab-order for editor controls
 	self:initMenuTabs()
 
-	-- clear screen
+	-- clear screen ... or TODO just clear under the menu ...
 	app:setBlendMode(2)
 	app:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, 0xff)
 	app:setBlendMode(0xff)
