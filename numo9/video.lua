@@ -1142,6 +1142,7 @@ void main() {
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
+		info.format = req.format
 		-- only used for the intro screen console output:
 		local w, h = reduce(req.width, req.height)
 		info.formatDesc = req.format..' '..w..':'..h
