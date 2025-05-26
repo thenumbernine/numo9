@@ -112,7 +112,10 @@ function EditCode:update()
 			textareaY,
 			textareaWidth,
 			textareaHeight,
-			0xf9
+			0xf9,
+			nil,
+			nil,
+			app.paletteMenuTex
 		)
 
 		-- determine line number width while we draw line numbers
@@ -141,7 +144,10 @@ function EditCode:update()
 		textareaY,
 		textareaWidth,
 		textareaHeight,
-		0xf8
+		0xf8,
+		nil,
+		nil,
+		app.paletteMenuTex
 	)
 
 	for y=1,frameBufferSizeInTiles.y-2 do
@@ -208,7 +214,10 @@ function EditCode:update()
 			(self.cursorRow - self.scrollY) * spriteSize.y,
 			menuFontWidth,
 			spriteSize.y,
-			self:color(12)
+			self:color(12),
+			nil,
+			nil,
+			app.paletteMenuTex
 		)
 	end
 

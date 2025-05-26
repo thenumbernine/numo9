@@ -8,7 +8,7 @@ function CartBrowser:update()
 	local app = self.app
 
 	app:setVideoMode(0)
-	app:clearScreen(0xf0)
+	app:clearScreen(0xf0, app.paletteMenuTex)
 
 	local fs = app.fs
 	local mouseX, mouseY = app.ram.mousePos:unpack()

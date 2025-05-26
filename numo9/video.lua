@@ -759,7 +759,7 @@ function AppVideo:initVideo()
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
 			data = data,
-		}
+		}:unbind()
 
 		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
 		local fontData = ffi.new('uint8_t[?]', fontInBytes)
@@ -777,7 +777,7 @@ function AppVideo:initVideo()
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
 			data = fontData,
-		}
+		}:unbind()
 
 		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
 		-- TODO about a menuBufferSize (== 256x256)
@@ -797,7 +797,7 @@ function AppVideo:initVideo()
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
 			data = data,
-		}
+		}:unbind()
 	end
 	--]=]
 
@@ -2091,9 +2091,12 @@ function AppVideo:drawSolidRect(
 	h,
 	colorIndex,
 	borderOnly,
-	round
+	round,
+	paletteTex	-- override for gui - hack for menus to impose their palettes
 )
-	if self.paletteRAM.dirtyCPU then
+	if not paletteTex
+	and self.paletteRAM.dirtyCPU 
+	then
 		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
@@ -2124,7 +2127,7 @@ function AppVideo:drawSolidRect(
 	colorIndex = math.floor(colorIndex or 0)
 
 	self.triBuf:addTri(
-		self.paletteRAM.tex,
+		paletteTex or self.paletteRAM.tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLL, yLL, zLL, wLL, x, y,
@@ -2136,7 +2139,7 @@ function AppVideo:drawSolidRect(
 	)
 
 	self.triBuf:addTri(
-		self.paletteRAM.tex,
+		paletteTex or self.paletteRAM.tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLR, yLR, zLR, wLR, x, yR,
@@ -2276,7 +2279,10 @@ function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
 end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
-function AppVideo:clearScreen(colorIndex)
+function AppVideo:clearScreen(
+	colorIndex,
+	paletteTex	-- override for menu ... starting to think this should be a global somewhere...
+)
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
 	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
@@ -2289,7 +2295,11 @@ function AppVideo:clearScreen(colorIndex)
 		0,
 		fbTex.width,
 		fbTex.height,
-		colorIndex or 0)
+		colorIndex or 0,
+		nil,
+		nil,
+		paletteTex
+	)
 
 	self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
 
@@ -2500,7 +2510,8 @@ function AppVideo:drawQuad(
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
-	spriteMask
+	spriteMask,
+	paletteTex	-- override for gui
 )
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
@@ -2508,7 +2519,9 @@ function AppVideo:drawQuad(
 		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
-	if self.paletteRAM.dirtyCPU then
+	if not paletteTex
+	and self.paletteRAM.dirtyCPU
+	then
 		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
@@ -2520,7 +2533,7 @@ function AppVideo:drawQuad(
 	end
 
 	self:drawQuadTex(
-		self.paletteRAM.tex,
+		paletteTex or self.paletteRAM.tex,
 		sheetRAM.tex,
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,

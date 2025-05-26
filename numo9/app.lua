@@ -1847,17 +1847,17 @@ print('run thread dead')
 			-- hmm , gotta split this up now ...
 			-- default draw calls will use the paletteMenuTex
 			-- and special calls will use the paletteRAM
-			self.videoModeInfo[0].solidObj.texs[1] = self.paletteMenuTex
-			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
-			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
+			-- TODO this needs to be a paletteRAM replacement ...
+			--local pushPaletteRAM = self.paletteRAM 
+			--self.paletteRAM = {tex = self.paletteMenuTex}
 
 			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
 			self:setClipRect(0, 0, clipMax, clipMax)
 
-			-- [[
 			-- while we're here, start us off with the current framebufferRAM contents
 			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenObj to draw it
 			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+			-- [[
 			local view = self.blitScreenView
 			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
 			view.mvMat:setIdent()
@@ -1894,7 +1894,7 @@ print('run thread dead')
 			self.triBuf:flush()
 
 			-- restore palettes
-			self.videoModeInfo[0].solidObj.texs[1] = self.paletteRAM.tex
+			--self.paletteRAM = pushPaletteRAM
 
 			self:setFramebufferTex(self.framebufferRAM.tex)
 
@@ -1998,6 +1998,10 @@ print('run thread dead')
 		needDrawCounter = needDrawCounter - 1
 		drawsPerSecond = drawsPerSecond + 1
 
+		if self.activeMenu then
+			self:setVideoMode(0)
+		end
+
 --DEBUG(glquery):drawQuery:begin()
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
@@ -2053,7 +2057,9 @@ print('run thread dead')
 		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		if self.activeMenu then sceneObj.texs[1] = self.framebufferMenuTex end
+		if self.activeMenu then 
+			sceneObj.texs[1] = self.framebufferMenuTex 
+		end
 --]]
 
 		-- draw from framebuffer to screen
@@ -2061,8 +2067,12 @@ print('run thread dead')
 		-- [[ and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
 		--]]
-
-		if self.activeMenu then sceneObj.texs[1] = self.framebufferRAM.tex end
+		if self.activeMenu then 
+			sceneObj.texs[1] = self.framebufferRAM.tex 
+		end
+		if self.activeMenu then 
+			self:setVideoMode(self.ram.videoMode)
+		end
 
 --DEBUG(glquery):drawQueryTotal = drawQueryTotal + drawQuery:doneWithResult()
 --DEBUG(glquery):drawQueryFrames = drawQueryFrames + 1

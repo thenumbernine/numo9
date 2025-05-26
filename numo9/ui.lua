@@ -205,7 +205,10 @@ function UI:guiTextField(
 				y,
 				menuFontWidth,
 				spriteSize.y,
-				0xfc
+				0xfc,
+				nil,
+				nil,
+				app.paletteMenuTex
 			)
 		end
 
@@ -282,11 +285,14 @@ function UI:update()
 
 	self:initMenuTabs()
 
-	app:clearScreen(0xf0)
+	app:clearScreen(0xf0, app.paletteMenuTex)
 	app:drawSolidRect(
 		0, 0,	-- x,y,
 		frameBufferSize.x, spriteSize.y,	-- w, h,
-		self:color(0)
+		self:color(0),
+		nil,
+		nil,
+		app.paletteMenuTex
 	)
 
 	self:guiRadio(

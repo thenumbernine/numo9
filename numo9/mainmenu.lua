@@ -73,8 +73,15 @@ function MainMenu:update()
 	self:initMenuTabs()
 
 	-- clear screen ... or TODO just clear under the menu ...
-	app:setBlendMode(2)
-	app:drawSolidRect(0, 0, frameBufferSize.x, frameBufferSize.y, 0xff)
+	app:setBlendMode(3)
+	app:drawSolidRect(
+		0, 0, frameBufferSize.x, frameBufferSize.y,	-- x,y,w,h
+--		0,		-- colorIndex = black
+		0x13,	-- colorIndex
+		nil,	-- borderOnly
+		nil,	-- round
+		app.paletteMenuTex
+	)
 	app:setBlendMode(0xff)
 
 	-- init the menu cursor position
@@ -315,7 +322,13 @@ function MainMenu:updateMenuMultiplayer()
 					for b=0,7 do
 						local remoteJPIndexPlusOne = bit.bor(bit.lshift(j-1,3),b)+1
 						local h = conn.remoteButtonIndicator[remoteJPIndexPlusOne]*8
-						app:drawSolidRect(x+b, self.cursorY+9+8-h, 1, h, 0xf3)
+						app:drawSolidRect(
+							x+b, self.cursorY+9+8-h, 1, h, 	-- x, y, w, h
+							0xf3,	-- colorIndex
+							nil,	-- borderOnly
+							nil,	-- roun
+							app.paletteMenuTex
+						)
 						conn.remoteButtonIndicator[remoteJPIndexPlusOne] = conn.remoteButtonIndicator[remoteJPIndexPlusOne] * .99
 					end
 				end
