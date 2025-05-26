@@ -38,18 +38,6 @@ local wait = [delay, fn] do
 	end)
 end
 
--- TODO order this like buttons ... right down left up ... so it's related to bitflags and so it follows exp map angle ...
--- tempting to do right left down up, i.e. x+ x- y+ y-, because that extends dimensions better
--- but as it is this way, we are 1:1 with the exponential-map, so there.
-local dirvecs = table{
-	[0] = vec2(1,0),
-	[1] = vec2(0,1),
-	[2] = vec2(-1,0),
-	[3] = vec2(0,-1),
-}
-local opposite = {[0]=2,3,0,1}	-- opposite = [x]x~2
-local dirForName = {right=0, down=1, left=2, up=3}
-
 --local blockSize = vec2(32,32)
 local blockSize = vec2(16,16)
 --local blockSize = vec2(12,12)
