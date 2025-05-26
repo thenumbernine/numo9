@@ -17,6 +17,8 @@ local sprites = {
 	key = 66,
 	target = 68,
 	shot = 70,
+	chest = 72,
+	chest_open = 74,
 }
 
 flagshift=table{
@@ -108,6 +110,21 @@ local mapheight = 256
 Object.tileSize = vec2(2,2)	-- for 16x16
 
 
+Chest = Object:subclass()
+Chest.sprite = sprites.chest
+Chest.touch=[:,o]do
+	if self.open then return not self.open end
+	if o ~= player then return not self.open end
+	self.open = true
+	self.sprite = sprites.chest_open
+
+	-- TODO customize 
+	player.keys += self.keys or 0
+	player.gold += self.gold or 0
+
+	return false	-- don't block
+end
+
 Shot=Object:subclass()
 Shot.sprite = sprites.shot
 Shot.spriteSize = vec2(.5, .5)
@@ -165,6 +182,7 @@ Player=TakesDamage:subclass()
 Player.sprite=sprites.player
 Player.maxHealth=3
 Player.keys=0
+Player.gold=0
 Player.weapon = Pistol()
 Player.nextInputTime = -1
 Player.update=[:]do
@@ -282,6 +300,14 @@ Enemy_siren.sprite = sprites.Enemy_siren
 -- stole from stupid/code.lua
 local randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
 local genDungeonLevel=[avgRoomSize]do
+	--local val = mapTypeForName.solid.index -- | (mapTypeForName.solid.index << 16)
+	--memset(ramaddr'bank' + romaddr'tilemap', val, 256*256*2)
+	for i=0,256-1 do
+		for j=0,256-1 do
+			mset(i,j,mapTypeForName.solid.index)
+		end
+	end
+
 	avgRoomSize ??= 20
 	local targetMap = {}
 	targetMap.size = vec2(32,32)
@@ -290,6 +316,7 @@ local genDungeonLevel=[avgRoomSize]do
 			({}, j)
 		), i)
 	)
+	targetMap.fixedObjs = table()
 	targetMap.bbox = box2(vec2(), targetMap.size-1)
 	targetMap.wrapPos=[:,pos]do
 		pos.y = math.floor(pos.y)
@@ -309,8 +336,8 @@ local genDungeonLevel=[avgRoomSize]do
 	targetMap.getTile=[:,x,y]do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
-		local t = self.tiles[pos.y][pos.x]
-		t.solid = mapTypes[mget(x,y)].flags & flags.solid ~= 0
+		local t = self.tiles![pos.y]![pos.x]
+		t.solid = mapTypes![mget(x,y)].flags & flags.solid ~= 0
 		return t
 	end
 	targetMap.setTileType=[:,x,y,mapType]do
@@ -318,7 +345,7 @@ local genDungeonLevel=[avgRoomSize]do
 		if not self:wrapPos(pos) then return end
 		--local tile = mapType(pos)
 		--self.tiles[pos.y][pos.x] = tile
-		mset(pos.x,pos.y,mapType)--assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
+		mset(pos.x, pos.y, mapType)--assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
 		return tile
 	end
 
@@ -479,8 +506,16 @@ local genDungeonLevel=[avgRoomSize]do
 		lastRoom = dstRoom
 		--so find dstRoom in srcRoom.neighbors
 		local pos = neighborInfo.positions:pickRandom()
+		
 		targetMap:setTileType(pos.x, pos.y, mapTypeForName.empty.index)
-		mset(pos.x, pos.y, mapTypeForName.door.index)
+		--targetMap.fixedObjs:insert{pos=pos, type=DoorObj}	
+
+		-- TODO digraph
+		table{
+			[ [] mset(pos.x, pos.y, mapTypeForName.door.index) ] = 5,
+			[ [] mset(pos.x, pos.y, mapTypeForName.locked_door.index) ] = 1,
+		}:pickWeighted()()
+		
 		usedRooms:insert(dstRoom)
 		leafRooms:insert(dstRoom)
 	end
@@ -508,27 +543,61 @@ local genDungeonLevel=[avgRoomSize]do
 		return vec2()
 	end
 
+	local upstairs = {
+		name = 'upstairs', -- shrug
+		--type = UpStairsObj,
+		pos = pickFreeRandomFixedPos{map=targetMap, bbox=startRoom.bbox},
+		--destMap = prevMapName,
+	}
+	targetMap.fixedObjs:insert(upstairs)
+	targetMap.playerStart = upstairs.pos
 
 	--add treasure - after stairs so they get precedence
 	for _,room in ipairs(usedRooms) do
 		if room ~= startRoom
 		and room ~= lastRoom
-		and math.random() <= .5
 		then
-			local pos = pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox}
-			mset(pos.x, pos.y, mapTypeForName.chest.index)
+			local getpos = [] pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox} + .5
+			
+			table{
+				[ [] nil ] = 1,	-- nothing
+				-- key
+				[ [] Chest{
+					pos = getpos(),
+					keys = 1,	-- TODO digraph
+				}] = 1,
+				-- TODO pickWeighted in ext.table?
+				[ [] Chest{
+					pos = getpos(),
+					gold = math.random(10, 1000),
+				}] = 3,
+				-- monsters
+				[ [] Enemy_ogre{
+					pos = getpos(),
+				}] = .1,
+				[ [] Enemy_demon{
+					pos = getpos(),
+				}] = .1,
+				[ [] Enemy_siren{
+					pos = getpos(),
+				}] = .1,
+				-- TOOD weapons
+			}:pickWeighted()()
 		end
 	end
 
+	return targetMap
 	--trace("end gen "+targetMap.name)
 end
 
 
 init=[]do
 	reset()	-- reset rom
-
-	--genDungeonLevel()
-
+	-- [[
+	local map = genDungeonLevel()
+	player = Player{pos=map.playerStart + .5}
+	--]]
+	--[[
 	objs=table()
 	player = nil
 	for y=0,255 do
@@ -552,6 +621,7 @@ init=[]do
 	if not player then
 		trace"WARNING! dind't spawn player"
 	end
+	--]]
 end
 
 update=[]do
@@ -600,6 +670,8 @@ update=[]do
 			spr(sprites.key, screenw - (i<<4), screenh - 16, 2, 2)
 		end
 	end
+
+	text('$'..player.gold, screenw/2, screenh - 16, nil, nil, 2, 2)
 	
 	-- remove dead
 	for i=#objs,1,-1 do
