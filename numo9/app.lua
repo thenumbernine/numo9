@@ -1540,6 +1540,9 @@ end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function App:update()
+	-- will this hurt performance?
+	sdl.SDL_ShowCursor(self.activeMenu and 1 or 0)
+
 	App.super.update(self)
 
 	local thisTime = getTime()
