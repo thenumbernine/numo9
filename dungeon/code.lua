@@ -7,10 +7,10 @@ math.randomseed(tstamp())
 
 local sprites = {
 	player = 0,
-	enemy = 1,
-	heart = 32, 
-	hearthalf = 33,
-	key = 34,
+	enemy = 2,
+	heart = 64,
+	--hearthalf = 66,
+	key = 66,
 }
 
 flagshift=table{
@@ -20,8 +20,8 @@ flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
 
 mapTypes=table{
 	[0]={name='empty'},				-- empty
-	[1]={name='solid',flags=flags.solid},	-- solid
-	[2]={
+	[2]={name='solid',flags=flags.solid},	-- solid
+	[4]={
 		name='chest',
 		flags=flags.solid,
 		touch = [:, o, x, y]do
@@ -31,11 +31,11 @@ mapTypes=table{
 			end
 		end,
 	},
-	[3]={
+	[6]={
 		name='chest_open',
 		flags=flags.solid,
 	},
-	[4]={
+	[8]={
 		name='door',
 		flags=flags.solid,
 		touch = [:, o, x, y]do
@@ -44,24 +44,24 @@ mapTypes=table{
 			end
 		end,
 	},
-	[5]={
+	[10]={
 		name='locked_door',
 		flags=flags.solid,
 		touch = [:, o, x, y]do
-			if o == player 
-			and o.keys > 0 
+			if o == player
+			and o.keys > 0
 			then
 				o.keys -= 1
 				mset(x,y,mapTypeForName.door.index)
 			end
 		end,
 	},
-	[32]={name='spawn_player'},
-	[33]={name='spawn_enemy'},
+	[64]={name='spawn_player'},
+	[66]={name='spawn_enemy'},
 }
-for k,v in pairs(mapTypes) do 
-	v.index = k 
-	v.flags ??= 0 
+for k,v in pairs(mapTypes) do
+	v.index = k
+	v.flags ??= 0
 end
 mapTypeForName = mapTypes:map([v,k] (v, v.name))
 
@@ -86,7 +86,11 @@ Object.init=[:,args]do
 end
 Object.update=[:]do
 	-- draw
-	spr(self.sprite, (self.pos.x - .5)*8, (self.pos.y - 1)*8, 2, 2)
+	spr(
+		self.sprite,
+		(self.pos.x - .5) * 16,
+		(self.pos.y - .5) * 16,
+		2, 2)
 
 	-- move
 
@@ -186,7 +190,7 @@ Player.attack=[:]do
 	if time() < self.attackTime then return end
 	self.attackTime = time() + self.attackDelay
 	mainloops:insert([]do
-		elli((self.pos.x - self.attackDist)*8, (self.pos.y - self.attackDist)*8, 16*self.attackDist,16*self.attackDist, 3)
+		elli((self.pos.x - self.attackDist)*16, (self.pos.y - self.attackDist)*16, 32*self.attackDist, 32*self.attackDist, 3)
 	end)
 	for _,o in ipairs(objs) do
 		if o ~= self then
@@ -241,7 +245,7 @@ local genDungeonLevel=[avgRoomSize]do
 	avgRoomSize ??= 20
 	local targetMap = {}
 	targetMap.size = vec2(32,32)
-	targetMap.tiles = range(0,targetMap.size.y-1):mapi([i] 
+	targetMap.tiles = range(0,targetMap.size.y-1):mapi([i]
 		(range(0,targetMap.size.x-1):mapi([j]
 			({}, j)
 		), i)
@@ -261,7 +265,7 @@ local genDungeonLevel=[avgRoomSize]do
 			end
 		end
 		return true
-	end	
+	end
 	targetMap.getTile=[:,x,y]do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
@@ -277,7 +281,7 @@ local genDungeonLevel=[avgRoomSize]do
 		mset(pos.x,pos.y,mapType)--assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
 		return tile
 	end
-	
+
 	local rooms = table()
 
 	--trace("begin gen "+targetMap.name)
@@ -482,7 +486,7 @@ end
 
 init=[]do
 	reset()	-- reset rom
-	
+
 	--genDungeonLevel()
 
 	objs=table()
@@ -507,15 +511,15 @@ end
 local viewPos = vec2()
 update=[]do
 	-- hmm mode() at global level doesn't seem to work ...
-	local w,h = 256,256
-	--local w, h = 336, 189 mode(18)	-- 16:9 336x189x16bpp-RGB565
-	--local w, h = 480, 270 mode(42)	-- 16:9 480x270x8bpp-indexed
+	--local screenw, screenh = 256,256
+	--local screenw, screenh = 336, 189 mode(18)	-- 16:9 336x189x16bpp-RGB565
+	local screenw, screenh = 480, 270 mode(42)	-- 16:9 480x270x8bpp-indexed
 
-	cls()
-	map(0,0,256,256,0,0)
-
+	cls(4)
 	matident()
---	mattrans(-128-viewPos.x*8, -128-viewPos.y*8)
+	mattrans(screenw*.5-viewPos.x*16, screenh*.5-viewPos.y*16)
+	map(0,0,256,256,0,0,0,1)
+
 	if player then
 		viewPos:set(player.pos)
 	end
@@ -529,13 +533,15 @@ update=[]do
 		mainloops[i] = nil
 	end
 
+	matident()
+
 	-- draw gui
 	if player then
 		for i=1,player.health do
-			spr(sprites.heart, (i-1)<<3, 248)
+			spr(sprites.heart, (i-1)<<4, screenh - 16, 2, 2)
 		end
 		for i=1,player.keys do
-			spr(sprites.key, 248-((i-1)<<3), 248)
+			spr(sprites.key, screenw - (i<<4), screenh - 16, 2, 2)
 		end
 	end
 
