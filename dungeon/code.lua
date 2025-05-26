@@ -8,7 +8,10 @@ math.randomseed(tstamp())
 
 local sprites = {
 	player = 0,
-	enemy = 2,
+	Enemy_ogre = 2,
+	Enemy_demon = 4,
+	Enemy_siren = 6,
+	
 	heart = 64,
 	--hearthalf = 66,
 	key = 66,
@@ -69,8 +72,12 @@ mapTypes=table{
 			end
 		end,
 	},
+	
+	-- these match up with sprites, hmm...
 	[64]={name='spawn_player'},
-	[66]={name='spawn_enemy'},
+	[66]={name='spawn_enemy_ogre'},
+	[68]={name='spawn_enemy_demon'},
+	[70]={name='spawn_enemy_siren'},
 }
 for k,v in pairs(mapTypes) do
 	v.index = k
@@ -160,20 +167,24 @@ Player.sprite=sprites.player
 Player.maxHealth=3
 Player.keys=0
 Player.weapon = Pistol()
+Player.nextInputTime = -1
 Player.update=[:]do
 
-	self.vel:set(0,0)
+	if self.nextInputTime <= time() then 
 
-	local speed = .1
+		self.vel:set(0,0)
 
-	-- TODO how customizable should this be?
-	-- and on that matter, should games get their own custom config?
-	if btn'up' then self.vel.y -= speed end
-	if btn'down' then self.vel.y += speed end
-	if btn'left' then self.vel.x -= speed end
-	if btn'right' then self.vel.x += speed end
-	if key'mouse_left' then
-		self:attack(mousePos:unpack())
+		local speed = .1
+
+		-- TODO how customizable should this be?
+		-- and on that matter, should games get their own custom config?
+		if btn'up' then self.vel.y -= speed end
+		if btn'down' then self.vel.y += speed end
+		if btn'left' then self.vel.x -= speed end
+		if btn'right' then self.vel.x += speed end
+		if key'mouse_left' then
+			self:attack(mousePos:unpack())
+		end
 	end
 
 	Player.super.update(self)	-- draw and move
@@ -216,18 +227,35 @@ Player.attack=[:, targetX, targetY]do
 end
 
 Enemy=TakesDamage:subclass()
-Enemy.sprite=sprites.enemy
-Enemy.attackDist = 3
+Enemy.sprite=sprites.Enemy_ogre
+Enemy.chaseDist = 5
 Enemy.speed = .05
+Enemy.maxHealth = 3
 Enemy.update=[:]do
 	self.vel:set(0,0)
 
 	if player then
 		local delta = player.pos - self.pos
-		local deltaLenSq = delta:lenSq()
-		if deltaLenSq < self.attackDist^2 then
-			local dir = delta / math.max(1e-15, math.sqrt(deltaLenSq))
-			self.vel = dir * self.speed
+		local deltaLen = delta:len()
+		-- TODO and line of sight
+		-- or TODO something about spawning monsters ... idk how
+		if deltaLen < self.chaseDist then
+			delta = delta / math.max(1e-7, deltaLen)
+			local blocked
+			for i=0,deltaLen+1 do
+				local f = i + .5
+				local mposx = self.pos.x + delta.x * f
+				local mposy = self.pos.y + delta.y * f
+				local ti = mget(mposx, mposy)
+				local t = mapTypes[ti]
+				if t and bit.band(t.flags, flags.solid) ~= 0 then
+					blocked = true
+					break
+				end
+			end
+			if not blocked then
+				self.vel = delta * self.speed
+			end
 		end
 	end
 
@@ -236,8 +264,20 @@ end
 Enemy.touch=[:,o]do
 	if o == player then
 		player:takeDamage(1)
+		player.vel = (player.pos - self.pos):unit() * .5
+		player.nextInputTime = time() + .5	-- can't move for 0.5 seconds?  too harsh?
 	end
 end
+
+
+Enemy_ogre = Enemy:subclass()
+Enemy_ogre.sprite = sprites.Enemy_ogre
+
+Enemy_demon = Enemy:subclass()
+Enemy_demon.sprite = sprites.Enemy_demon
+
+Enemy_siren = Enemy:subclass()
+Enemy_siren.sprite = sprites.Enemy_siren
 
 -- stole from stupid/code.lua
 range=[a,b,c]do
@@ -510,9 +550,15 @@ init=[]do
 			if ti == mapTypeForName.spawn_player.index then
 				player = Player{pos=vec2(x,y)+.5}
 				mset(x,y,0)
-			elseif ti == mapTypeForName.spawn_enemy.index then
-				Enemy{pos=vec2(x,y)+.5}
+			elseif ti == mapTypeForName.spawn_enemy_ogre.index then
+				Enemy_ogre{pos=vec2(x,y)+.5}
 				mset(x,y,0)
+			elseif ti == mapTypeForName.spawn_enemy_demon.index then
+				Enemy_demon{pos=vec2(x,y)+.5}
+				mset(x,y,0)		
+			elseif ti == mapTypeForName.spawn_enemy_siren.index then
+				Enemy_siren{pos=vec2(x,y)+.5}
+				mset(x,y,0)		
 			end
 		end
 	end
