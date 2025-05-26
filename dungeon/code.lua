@@ -121,6 +121,10 @@ Chest.touch=[:,o]do
 	-- TODO customize 
 	player.keys += self.keys or 0
 	player.gold += self.gold or 0
+	if self.health then
+		player.health += self.health or 0
+		player.health = math.clamp(player.health, 0, player.maxHealth)
+	end
 
 	return false	-- don't block
 end
@@ -260,11 +264,11 @@ Enemy.update=[:]do
 			delta = delta / math.max(1e-7, deltaLen)
 			-- and line of sight
 			local blocked
-			for i=0,deltaLen+1 do
-				local f = i + .5
+			for i=0,deltaLen,1 do
+				local f = i
 				local mposx = self.pos.x + delta.x * f
 				local mposy = self.pos.y + delta.y * f
-				local ti = mget(mposx, mposy)
+				local ti = mget(math.floor(mposx), math.floor(mposy))
 				local t = mapTypes[ti]
 				if t and bit.band(t.flags, flags.solid) ~= 0 then
 					blocked = true
@@ -308,9 +312,9 @@ local genDungeonLevel=[avgRoomSize]do
 		end
 	end
 
-	avgRoomSize ??= 20
+	avgRoomSize ??= 30
 	local targetMap = {}
-	targetMap.size = vec2(32,32)
+	targetMap.size = vec2(64,64)	-- 256,256 ...
 	targetMap.tiles = range(0,targetMap.size.y-1):mapi([i]
 		(range(0,targetMap.size.x-1):mapi([j]
 			({}, j)
@@ -571,17 +575,24 @@ local genDungeonLevel=[avgRoomSize]do
 					pos = getpos(),
 					gold = math.random(10, 1000),
 				}] = 3,
-				-- monsters
-				[ [] Enemy_ogre{
+				[ [] Chest{
 					pos = getpos(),
-				}] = .1,
-				[ [] Enemy_demon{
-					pos = getpos(),
-				}] = .1,
-				[ [] Enemy_siren{
-					pos = getpos(),
-				}] = .1,
+					health = math.random(1, 10),
+				}] = 3,
 				-- TOOD weapons
+
+				-- TODO shopkeeper / NPCs / whatever
+				
+				-- monsters
+				[ [] range(math.random(10)):mapi([] Enemy_ogre{
+					pos = getpos(),
+				})] = 1,
+				[ [] range(math.random(10)):mapi([] Enemy_demon{
+					pos = getpos(),
+				})] = 1,
+				[ [] range(math.random(10)):mapi([] Enemy_siren{
+					pos = getpos(),
+				})] = 1,
 			}:pickWeighted()()
 		end
 	end
