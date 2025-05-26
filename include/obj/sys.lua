@@ -4,7 +4,8 @@ objs=table()
 --#include vec/vec2.lua
 
 Object=class()
-Object.tileSize = vec2(1,1)	-- tile size, override for 16x16
+Object.spriteSize = vec2(1,1)	-- tile size, override for 16x16
+Object.tileSize = vec2(1,1)		-- tile size, override for 16x16
 Object.pos = vec2()
 Object.vel = vec2()
 Object.gravity = vec2(0,1)
@@ -19,10 +20,18 @@ Object.init=[:,args]do
 end
 Object.draw=[:]do
 	spr(
-		self.sprite,
-		(self.pos.x - .5) * (self.tileSize.x * 8),
-		(self.pos.y - .5) * (self.tileSize.y * 8),
-		self.tileSize.x, self.tileSize.y)
+		self.sprite,		-- spriteIndex
+		self.pos.x * self.tileSize.x * 8 - .5 * self.tileSize.x * self.spriteSize.x * 8,-- screenX
+		self.pos.y * self.tileSize.y * 8 - .5 * self.tileSize.y * self.spriteSize.y * 8,-- screenY
+		self.tileSize.x,	-- tilesWide
+		self.tileSize.y,	-- tilesHigh
+		nil,				-- paletteIndex
+		nil,				-- transparentIndex
+		nil,				-- spriteBit
+		nil,				-- spriteMask
+		self.spriteSize.x,	-- scaleX
+		self.spriteSize.y 	-- scaleY
+	)
 end
 Object.update=[:]do
 

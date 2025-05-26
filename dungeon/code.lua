@@ -74,10 +74,10 @@ mapTypes=table{
 	},
 	
 	-- these match up with sprites, hmm...
-	[64]={name='spawn_player'},
-	[66]={name='spawn_enemy_ogre'},
-	[68]={name='spawn_enemy_demon'},
-	[70]={name='spawn_enemy_siren'},
+	[64]={name='spawn_Player'},
+	[66]={name='spawn_Enemy_ogre'},
+	[68]={name='spawn_Enemy_demon'},
+	[70]={name='spawn_Enemy_siren'},
 }
 for k,v in pairs(mapTypes) do
 	v.index = k
@@ -105,13 +105,12 @@ local mapwidth = 256
 local mapheight = 256
 
 --#include obj/sys.lua
-Object.tileSize.x = 2	-- for 16x16
-Object.tileSize.y = 2
-
+Object.tileSize = vec2(2,2)	-- for 16x16
 
 
 Shot=Object:subclass()
 Shot.sprite = sprites.shot
+Shot.spriteSize = vec2(.5, .5)
 Shot.lifeTime = 3
 Shot.damage = 1
 Shot.init=[:,args]do
@@ -226,9 +225,9 @@ Player.attack=[:, targetX, targetY]do
 --]]
 end
 
-Enemy=TakesDamage:subclass()
+Enemy = TakesDamage:subclass()
 Enemy.sprite=sprites.Enemy_ogre
-Enemy.chaseDist = 5
+Enemy.chaseDist = 15	-- largest half radius of screen
 Enemy.speed = .05
 Enemy.maxHealth = 3
 Enemy.update=[:]do
@@ -236,11 +235,12 @@ Enemy.update=[:]do
 
 	if player then
 		local delta = player.pos - self.pos
-		local deltaLen = delta:len()
-		-- TODO and line of sight
-		-- or TODO something about spawning monsters ... idk how
-		if deltaLen < self.chaseDist then
+		local deltaLenSq = delta:lenSq()
+		-- or something about spawning monsters ... idk how
+		if deltaLenSq < self.chaseDist^2 then
+			local deltaLen = math.sqrt(deltaLenSq)
 			delta = delta / math.max(1e-7, deltaLen)
+			-- and line of sight
 			local blocked
 			for i=0,deltaLen+1 do
 				local f = i + .5
@@ -278,19 +278,6 @@ Enemy_demon.sprite = sprites.Enemy_demon
 
 Enemy_siren = Enemy:subclass()
 Enemy_siren.sprite = sprites.Enemy_siren
-
--- stole from stupid/code.lua
-range=[a,b,c]do
-	local t = table()
-	if c then
-		for x=a,b,c do t:insert(x) end
-	elseif b then
-		for x=a,b do t:insert(x) end
-	else
-		for x=1,a do t:insert(x) end
-	end
-	return t
-end
 
 -- stole from stupid/code.lua
 local randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
@@ -547,16 +534,16 @@ init=[]do
 	for y=0,255 do
 		for x=0,255 do
 			local ti = mget(x,y)
-			if ti == mapTypeForName.spawn_player.index then
+			if ti == mapTypeForName.spawn_Player.index then
 				player = Player{pos=vec2(x,y)+.5}
 				mset(x,y,0)
-			elseif ti == mapTypeForName.spawn_enemy_ogre.index then
+			elseif ti == mapTypeForName.spawn_Enemy_ogre.index then
 				Enemy_ogre{pos=vec2(x,y)+.5}
 				mset(x,y,0)
-			elseif ti == mapTypeForName.spawn_enemy_demon.index then
+			elseif ti == mapTypeForName.spawn_Enemy_demon.index then
 				Enemy_demon{pos=vec2(x,y)+.5}
 				mset(x,y,0)		
-			elseif ti == mapTypeForName.spawn_enemy_siren.index then
+			elseif ti == mapTypeForName.spawn_Enemy_siren.index then
 				Enemy_siren{pos=vec2(x,y)+.5}
 				mset(x,y,0)		
 			end
