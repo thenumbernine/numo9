@@ -2,6 +2,7 @@
 --#include vec/box2.lua
 --#include ext/class.lua
 --#include ext/range.lua
+--#include ext/class.lua
 
 math.randomseed(tstamp())
 
@@ -11,16 +12,28 @@ local sprites = {
 	heart = 64,
 	--hearthalf = 66,
 	key = 66,
+	target = 68,
+	shot = 70,
 }
 
 flagshift=table{
-	'solid',	-- 1
+	'solid_right',	-- 1
+	'solid_down',	-- 2
+	'solid_left',	-- 4
+	'solid_up',		-- 8
 }:mapi([k,i] (i-1,k)):setmetatable(nil)
 flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
 
+flags.solid = flags.solid_up | flags.solid_down | flags.solid_left | flags.solid_right
+
 mapTypes=table{
-	[0]={name='empty'},				-- empty
-	[2]={name='solid',flags=flags.solid},	-- solid
+	[0]={			-- empty
+		name = 'empty',
+	},	
+	[2]={	-- solid
+		name='solid',
+		flags=flags.solid,
+	},
 	[4]={
 		name='chest',
 		flags=flags.solid,
@@ -67,86 +80,65 @@ mapTypeForName = mapTypes:map([v,k] (v, v.name))
 
 mainloops=table()
 
---#include ext/class.lua
 
+local viewPos = vec2()	-- set
+local ulPos = vec2()	-- calculated
+local mousePos = vec2()	-- mouse coords in-game
+
+local Weapon = class()
+
+local Pistol = Weapon:subclass() 
+Pistol.attack=[:,attacker,target] do
+	-- traceline, ignore attacker, see what you hit ...
+	-- or just fire projectiles?
+end
+
+-- tilemap size in tiles
 local mapwidth = 256
 local mapheight = 256
-objs=table()
 
-Object=class()
-Object.pos = vec2()
-Object.vel = vec2()
-Object.bbox = {min=vec2(-.3), max=vec2(.3)}
-Object.init=[:,args]do
-	for k,v in pairs(args) do self[k]=v end
-	self.pos = self.pos:clone()
-	self.vel = self.vel:clone()
-	self.health = self.maxHealth
-	objs:insert(self)
+--#include obj/sys.lua
+Object.tileSize.x = 2	-- for 16x16
+Object.tileSize.y = 2
+
+
+
+Shot=Object:subclass()
+Shot.sprite = sprites.shot
+Shot.lifeTime = 3
+Shot.damage = 1
+Shot.init=[:,args]do
+	Shot.super.init(self, args)
+	self.endTime = time() + self.lifeTime
 end
-Object.update=[:]do
-	-- draw
-	spr(
-		self.sprite,
-		(self.pos.x - .5) * 16,
-		(self.pos.y - .5) * 16,
-		2, 2)
-
-	-- move
-
-	for bi=0,1 do	-- move horz then vert, so we can slide on walls or something
-		local dx,dy = 0, 0
-		if bi == 0 then
-			dy = self.vel.y
-		elseif bi == 1 then
-			dx = self.vel.x
-		end
-		if dx ~= 0 or dy ~= 0 then
-			local nx = self.pos.x + dx
-			local ny = self.pos.y + dy
-			local px1 = nx + self.bbox.min.x
-			local py1 = ny + self.bbox.min.y
-			local px2 = nx + self.bbox.max.x
-			local py2 = ny + self.bbox.max.y
-			local hit
-			for by1=math.clamp(math.floor(py1), 0, mapheight-1), math.clamp(math.ceil(py2), 0, mapheight-1) do
-				for bx1=math.clamp(math.floor(px1), 0, mapwidth-1), math.clamp(math.ceil(px2), 0, mapwidth-1) do
-					local bx2, by2 = bx1 + 1, by1 + 1
-					local ti = mget(bx1, by1)
-					local t = mapTypes[ti]
-					if t
-					and px2 >= bx1 and px1 <= bx2
-					and py2 >= by1 and py1 <= by2
-					then
-						-- do map hit
-						if t.flags & flags.solid ~= 0 then
-							hit = true
-						end
-						t?:touch(self, bx1, by1)
-					end
-				end
-			end
-			for _,o in ipairs(objs) do
-				if o ~= self then
-					local bx1, by1 = o.pos.x + o.bbox.min.x, o.pos.y + o.bbox.min.y
-					local bx2, by2 = o.pos.x + o.bbox.max.x, o.pos.y + o.bbox.max.y
-					if px2 >= bx1 and px1 <= bx2
-					and py2 >= by1 and py1 <= by2
-					then
-						-- if not solid then
-						hit = true
-						self?:touch(o)
-						o?:touch(self)
-					end
-				end
-			end
-			if not hit then
-				self.pos:set(nx, ny)
-				-- TODO bomberman slide ... if you push down at a corner then push player left/right to go around it ...
-			end
-		end
+Shot.update=[:]do
+	Shot.super.update(self)
+	if time() > self.endTime then self.removeMe = true end
+end
+Shot.touch=[:,o]do
+	if o ~= self.shooter
+	and o.takeDamage
+	then
+		o:takeDamage(self.damage)
+		self.removeMe = true	-- always or only upon hit?
 	end
+	return false	-- 'false' means 'dont collide'
 end
+Shot.touchMap = [:,x,y,t,ti] do
+	if ti & 0x3ff == mapTypeForName.door.index
+	and Player:isa(self.shooter)
+	then
+--		checkBreakDoor(self.weapon, x, y, ti)	-- conflating weapon and keyIndex once again ... one should be color, another should be attack-type
+	end
+	if t.flags & flags.solid ~= 0 then
+		self.removeMe = true
+	end
+	return false	-- don't collide
+end
+
+
+
+
 
 TakesDamage=Object:subclass()
 TakesDamage.maxHealth=1
@@ -167,31 +159,43 @@ Player=TakesDamage:subclass()
 Player.sprite=sprites.player
 Player.maxHealth=3
 Player.keys=0
+Player.weapon = Pistol()
 Player.update=[:]do
 
 	self.vel:set(0,0)
 
 	local speed = .1
+
+	-- TODO how customizable should this be?
+	-- and on that matter, should games get their own custom config?
 	if btn'up' then self.vel.y -= speed end
 	if btn'down' then self.vel.y += speed end
 	if btn'left' then self.vel.x -= speed end
 	if btn'right' then self.vel.x += speed end
-	if btn'y' then self:attack() end
+	if key'mouse_left' then
+		self:attack(mousePos:unpack())
+	end
 
 	Player.super.update(self)	-- draw and move
 end
 
 Player.attackTime = 0
-Player.attackDelay = .3
+Player.attackDelay = .1
 Player.attackDist = 2
 --Player.attackCosAngle = .5
 Player.attackDamage = 1
-Player.attack=[:]do
+Player.attack=[:, targetX, targetY]do
 	if time() < self.attackTime then return end
 	self.attackTime = time() + self.attackDelay
 	mainloops:insert([]do
-		elli((self.pos.x - self.attackDist)*16, (self.pos.y - self.attackDist)*16, 32*self.attackDist, 32*self.attackDist, 3)
+		elli(
+			(self.pos.x - self.attackDist)*16,
+			(self.pos.y - self.attackDist)*16,
+			32*self.attackDist,
+			32*self.attackDist,
+			3)
 	end)
+--[[ radius damage
 	for _,o in ipairs(objs) do
 		if o ~= self then
 			local delta = o.pos - self.pos
@@ -200,6 +204,15 @@ Player.attack=[:]do
 			end
 		end
 	end
+--]]
+-- [[
+	local aimDir = (vec2(targetX, targetY) - self.pos):unit()
+	Shot{
+		pos = self.pos,
+		vel = aimDir,
+		shooter = self,
+	}
+--]]
 end
 
 Enemy=TakesDamage:subclass()
@@ -508,16 +521,17 @@ init=[]do
 	end
 end
 
-local viewPos = vec2()
 update=[]do
 	-- hmm mode() at global level doesn't seem to work ...
 	--local screenw, screenh = 256,256
 	--local screenw, screenh = 336, 189 mode(18)	-- 16:9 336x189x16bpp-RGB565
 	local screenw, screenh = 480, 270 mode(42)	-- 16:9 480x270x8bpp-indexed
 
-	cls(4)
+	cls(4)	-- how did black end up as 4?
 	matident()
-	mattrans(screenw*.5-viewPos.x*16, screenh*.5-viewPos.y*16)
+
+	ulPos:set(-screenw*.5+viewPos.x*16, -screenh*.5+viewPos.y*16)
+	mattrans(-ulPos.x, -ulPos.y)
 	map(0,0,256,256,0,0,0,1)
 
 	if player then
@@ -527,11 +541,20 @@ update=[]do
 	for _,o in ipairs(objs) do
 		o:update()
 	end
+	
+	for _,o in ipairs(objs) do
+		o:draw()
+	end
 
 	for i=#mainloops,1,-1 do
 		mainloops[i]()
 		mainloops[i] = nil
 	end
+	
+	local mx, my = mouse()
+	mousePos.x = (mx + ulPos.x) / 16
+	mousePos.y = (my + ulPos.y) / 16
+	spr(sprites.target, mousePos.x * 16 - 8, mousePos.y * 16 - 8, 2, 2)
 
 	matident()
 
@@ -544,7 +567,7 @@ update=[]do
 			spr(sprites.key, screenw - (i<<4), screenh - 16, 2, 2)
 		end
 	end
-
+	
 	-- remove dead
 	for i=#objs,1,-1 do
 		if objs[i].removeMe then objs:remove(i) end
