@@ -86,7 +86,7 @@ Object.init=[:,args]do
 end
 Object.update=[:]do
 	-- draw
-	spr(self.sprite, (self.pos.x - .5)*8, (self.pos.y - 1)*8)
+	spr(self.sprite, (self.pos.x - .5)*8, (self.pos.y - 1)*8, 2, 2)
 
 	-- move
 

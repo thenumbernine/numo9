@@ -1749,15 +1749,15 @@ conn.receivesPerSecond = 0
 		end
 
 		-- update input between frames
-		local fbTex = self.framebufferRAM.tex
 		do
 			self.ram.lastMousePos:set(self.ram.mousePos:unpack())
 			sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
 			local x = tonumber(self.screenMousePos.x) / tonumber(self.width) * (self.orthoMax.x - self.orthoMin.x) + self.orthoMin.x
 			local y = tonumber(self.screenMousePos.y) / tonumber(self.height) * (self.orthoMax.y - self.orthoMin.y) + self.orthoMin.y
-			self.ram.mousePos.x = x * tonumber(fbTex.width)
-			self.ram.mousePos.y = y * tonumber(fbTex.height)
+			local mouseFbTex = self.activeMenu and self.framebufferMenuTex or self.framebufferRAM.tex
+			self.ram.mousePos.x = x * tonumber(mouseFbTex.width)
+			self.ram.mousePos.y = y * tonumber(mouseFbTex.height)
 			if self:keyp'mouse_left' then
 				self.ram.lastMousePressPos:set(self.ram.mousePos:unpack())
 			end
@@ -1775,6 +1775,7 @@ conn.receivesPerSecond = 0
 		local fb = self.fb
 		fb:bind()
 		self.inUpdateCallback = true	-- tell video not to set up the fb:bind() to do gfx stuff
+		local fbTex = self.framebufferRAM.tex
 		gl.glViewport(0, 0, fbTex.width, fbTex.height)
 		-- see if we need to re-enable it ...
 		if self.ram.blendMode ~= 0xff then
@@ -1827,13 +1828,18 @@ print('run thread dead')
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
 
+-- do we set or not set video mode to 256x256x16bpp for the menu?
+-- if we don't then all the colors are off...
+-- if we do then the mouse is off...
+
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
---			self:setVideoMode(0)
+			self:setVideoMode(0)
+			gl.glViewport(0, 0, self.framebufferMenuTex.width, self.framebufferMenuTex.height)
 
 			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
 			-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
 			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
---			self:setFramebufferTex(self.framebufferMenuTex)
+			self:setFramebufferTex(self.framebufferMenuTex)
 
 			-- and set the palette to the editor palette ... ?
 			-- or not ...
@@ -1841,14 +1847,14 @@ print('run thread dead')
 			-- hmm , gotta split this up now ...
 			-- default draw calls will use the paletteMenuTex
 			-- and special calls will use the paletteRAM
---			self.videoModeInfo[0].solidObj.texs[1] = self.paletteMenuTex
+			self.videoModeInfo[0].solidObj.texs[1] = self.paletteMenuTex
 			-- don't override quadMapObj since it's only used for showing the map anyways, and that function doesn't let you override-back to use the in-game palette ...
 			--self.videoModeInfo[0].quadMapObj.texs[3] = self.paletteMenuTex
 
 			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
 			self:setClipRect(0, 0, clipMax, clipMax)
 
-			--[[
+			-- [[
 			-- while we're here, start us off with the current framebufferRAM contents
 			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenObj to draw it
 			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
@@ -1888,11 +1894,11 @@ print('run thread dead')
 			self.triBuf:flush()
 
 			-- restore palettes
---			self.videoModeInfo[0].solidObj.texs[1] = self.paletteRAM.tex
+			self.videoModeInfo[0].solidObj.texs[1] = self.paletteRAM.tex
 
---			self:setFramebufferTex(self.framebufferRAM.tex)
+			self:setFramebufferTex(self.framebufferRAM.tex)
 
---			self:setVideoMode(self.ram.videoMode)
+			self:setVideoMode(self.ram.videoMode)
 
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
@@ -1995,7 +2001,7 @@ print('run thread dead')
 --DEBUG(glquery):drawQuery:begin()
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
-		if self.ram.videoMode == 1 then
+		if self.videoModeInfo[self.ram.videoMode].format == '8bppIndex' then
 			self.paletteRAM:checkDirtyCPU()
 		end
 
@@ -2007,7 +2013,10 @@ print('run thread dead')
 	-- every frame for us to use a proper rectangle
 		local view = self.blitScreenView
 		local orthoSize = view.orthoSize
-		local fbTex = self.framebufferRAM.tex
+		
+		local fbTex = self.activeMenu and self.framebufferMenuTex or self.framebufferRAM.tex
+		--local fbTex = self.framebufferRAM.tex
+		
 		local wx, wy = self.width, self.height
 		local fx = wx / fbTex.width
 		local fy = wy / fbTex.height
@@ -2044,8 +2053,7 @@ print('run thread dead')
 		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-
-		--if self.activeMenu then sceneObj.texs[1] = self.framebufferMenuTex end
+		if self.activeMenu then sceneObj.texs[1] = self.framebufferMenuTex end
 --]]
 
 		-- draw from framebuffer to screen
