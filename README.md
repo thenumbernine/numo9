@@ -22,57 +22,65 @@ What does NuMo9 have that the competition doesn't?
 <a name='framebuffer'></a>
 ### Framebuffer
 
-- Mode 0: 256x256xRGB565		1:1		This mode supports blending effects.
-- Mode 1: 256x256x8bppIndex		1:1		This is mainly for compatability for other fantasy consoles.  Fun fact, in real life 80s/90s consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
-- Mode 2: 256x256xRGB332		1:1		It looks ugly. Maybe I'll add some dithering.
-- Mode 3: 272x217xRGB565		5:4
-- Mode 4: 272x217x8bppIndex		5:4
-- Mode 5: 272x217xRGB332		5:4
-- Mode 6: 288x216xRGB565		4:3
-- Mode 7: 288x216x8bppIndex		4:3
-- Mode 8: 288x216xRGB332		4:3
-- Mode 9: 304x202xRGB565		3:2
-- Mode 10: 304x202x8bppIndex	3:2
-- Mode 11: 304x202xRGB332		3:2
-- Mode 12: 320x200xRGB565		8:5
-- Mode 13: 320x200x8bppIndex	8:5
-- Mode 14: 320x200xRGB332		8:5
-- Mode 15: 320x192xRGB565		5:3
-- Mode 16: 320x192x8bppIndex	5:3
-- Mode 17: 320x192xRGB332		5:3
-- Mode 18: 336x189xRGB565		16:9
-- Mode 19: 336x189x8bppIndex	16:9
-- Mode 20: 336x189xRGB332		16:9
-- Mode 21: 336x177xRGB565		17:9
-- Mode 22: 336x177x8bppIndex	17:9
-- Mode 23: 336x177xRGB332		17:9
-- Mode 24: 352x176xRGB565		2:1
-- Mode 25: 352x176x8bppIndex	2:1
-- Mode 26: 352x176xRGB332		2:1
-- Mode 27: 384x164xRGB565		21:9
-- Mode 28: 384x164x8bppIndex	21:9
-- Mode 29: 384x164xRGB332		21:9
-- Mode 30: 352x352x8bppIndex	1:1
-- Mode 31: 352x352xRGB332		1:1
-- Mode 32: 400x320x8bppIndex	5:4
-- Mode 33: 400x320xRGB332		5:4
-- Mode 34: 416x312x8bppIndex	4:3
-- Mode 35: 416x312xRGB332		4:3
-- Mode 36: 432x288x8bppIndex	3:2
-- Mode 37: 432x288xRGB332		3:2
-- Mode 38: 448x280x8bppIndex	8:5
-- Mode 39: 448x280xRGB332		8:5
-- Mode 40: 464x278x8bppIndex	5:3
-- Mode 41: 464x278xRGB332		5:3
-- Mode 42: 480x270x8bppIndex	16:9
-- Mode 43: 480x270xRGB332		16:9
-- Mode 44: 496x262x8bppIndex	17:9
-- Mode 45: 496x262xRGB332		17:9
-- Mode 46: 512x256x8bppIndex	2:1
-- Mode 47: 512x256xRGB332		2:1
-- Mode 48: 544x233x8bppIndex	21:9
-- Mode 49: 544x233xRGB332		21:9
+|Mode| Resolution | Format    | Ratio |
+|----|------------|-----------|-------|
+|  0 | 256x256    | RGB565    |  1:1  |
+|  1 | 256x256    | 8bppIndex |  1:1  |
+|  2 | 256x256    | RGB332    |  1:1  |
+|  3 | 272x217    | RGB565    |  5:4  |
+|  4 | 272x217    | 8bppIndex |  5:4  |
+|  5 | 272x217    | RGB332    |  5:4  |
+|  6 | 288x216    | RGB565    |  4:3  |
+|  7 | 288x216    | 8bppIndex |  4:3  |
+|  8 | 288x216    | RGB332    |  4:3  |
+|  9 | 304x202    | RGB565    |  3:2  |
+| 10 | 304x202    | 8bppIndex |  3:2  |
+| 11 | 304x202    | RGB332    |  3:2  |
+| 12 | 320x200    | RGB565    |  8:5  |
+| 13 | 320x200    | 8bppIndex |  8:5  |
+| 14 | 320x200    | RGB332    |  8:5  |
+| 15 | 320x192    | RGB565    |  5:3  |
+| 16 | 320x192    | 8bppIndex |  5:3  |
+| 17 | 320x192    | RGB332    |  5:3  |
+| 18 | 336x189    | RGB565    |  16:9 |
+| 19 | 336x189    | 8bppIndex |  16:9 |
+| 20 | 336x189    | RGB332    |  16:9 |
+| 21 | 336x177    | RGB565    |  17:9 |
+| 22 | 336x177    | 8bppIndex |  17:9 |
+| 23 | 336x177    | RGB332    |  17:9 |
+| 24 | 352x176    | RGB565    |  2:1  |
+| 25 | 352x176    | 8bppIndex |  2:1  |
+| 26 | 352x176    | RGB332    |  2:1  |
+| 27 | 384x164    | RGB565    |  21:9 |
+| 28 | 384x164    | 8bppIndex |  21:9 |
+| 29 | 384x164    | RGB332    |  21:9 |
+| 30 | 352x352    | 8bppIndex |  1:1  |
+| 31 | 352x352    | RGB332    |  1:1  |
+| 32 | 400x320    | 8bppIndex |  5:4  |
+| 33 | 400x320    | RGB332    |  5:4  |
+| 34 | 416x312    | 8bppIndex |  4:3  |
+| 35 | 416x312    | RGB332    |  4:3  |
+| 36 | 432x288    | 8bppIndex |  3:2  |
+| 37 | 432x288    | RGB332    |  3:2  |
+| 38 | 448x280    | 8bppIndex |  8:5  |
+| 39 | 448x280    | RGB332    |  8:5  |
+| 40 | 464x278    | 8bppIndex |  5:3  |
+| 41 | 464x278    | RGB332    |  5:3  |
+| 42 | 480x270    | 8bppIndex |  16:9 |
+| 43 | 480x270    | RGB332    |  16:9 |
+| 44 | 496x262    | 8bppIndex |  17:9 |
+| 45 | 496x262    | RGB332    |  17:9 |
+| 46 | 512x256    | 8bppIndex |  2:1  |
+| 47 | 512x256    | RGB332    |  2:1  |
+| 48 | 544x233    | 8bppIndex |  21:9 |
+| 49 | 544x233    | RGB332    |  21:9 |
 
+Only format RGB565 supports blending effects.
+
+8bppIndex mode is mainly for compatability for other fantasy consoles of changing palettes post-framebuffer-write.
+Fun fact, in real life 80s/90s consoles didn't have framebuffers, so after-the-fact palette editing is indeed a fantasy.
+
+RGB332 looks ugly. Maybe I'll add some dithering.  It could support blending in OpenGL4 (via `GL_R3_G3_B2`) but there's no support for this in GLES3/WebGL, too bad.
 
 It's really tempting to include a hidden depth-buffer, since TIC-80 does as well.  But meh, for now nope, you have to do your own z-sorting.
 
