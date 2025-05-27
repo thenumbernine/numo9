@@ -84,35 +84,24 @@ local texInternalFormat_u16 = gl.GL_R16UI
 -- 'REV' means first channel first bit ... smh
 -- so even tho 5551 is on hardware since forever, it's not on ES3 or WebGL, only GL4...
 -- in case it's missing, just use single-channel R16 and do the swizzles manually
---local support5551 = op.safeindex(gl, 'GL_UNSIGNED_SHORT_1_5_5_5_REV')
-local support5551 = false
-
-local internalFormat5551, format5551, type5551, glslCode5551
-if support5551 then
-	internalFormat5551 = gl.GL_RGB5_A1
-	local formatInfo = GLTex2D.formatInfoForInternalFormat[internalFormat5551]
-	format5551 = formatInfo.format
-	type5551 = gl.GL_UNSIGNED_SHORT_1_5_5_5_REV	-- not on the list
-	glslCode5551 = ''
-else
-	internalFormat5551 = texInternalFormat_u16
-	local formatInfo = GLTex2D.formatInfoForInternalFormat[internalFormat5551]
-	format5551 = formatInfo.format
-	type5551 = formatInfo.types[1]	-- gl.GL_UNSIGNED_SHORT
+local internalFormat5551 = texInternalFormat_u16
+local formatInfo = GLTex2D.formatInfoForInternalFormat[internalFormat5551]
+local format5551 = formatInfo.format
+local type5551 = formatInfo.types[1]	-- gl.GL_UNSIGNED_SHORT
 
 	-- convert it here to vec4 since default UNSIGNED_SHORT_1_5_5_5_REV uses vec4
-	glslCode5551 = [[
+local glslCode5551 = [[
 // assumes the uint is [0,0xffff]
-vec4 u16to5551(uint x) {
-	return vec4(
-		float(x & 0x1fu) / 31.,
-		float((x & 0x3e0u) >> 5u) / 31.,
-		float((x & 0x7c00u) >> 10u) / 31.,
-		float((x & 0x8000u) >> 15u)
+// returns rgba in [0,0x1f]
+uvec4 u16to5551(uint x) {
+	return uvec4(
+		x & 0x1fu,
+		(x & 0x3e0u) >> 5u,
+		(x & 0x7c00u) >> 10u,
+		((x & 0x8000u) >> 15u) * 0x1fu
 	);
 }
 ]]
-end
 
 local function textureSize(tex)
 	return 'textureSize('..tex..', 0)'
@@ -818,16 +807,13 @@ function AppVideo:initVideo()
 
 	-- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 	-- assert palleteSize is a power-of-two ...
-	local function colorIndexToFrag(destTex, decl, to)
+	local function colorIndexToFrag(destTex, decl)
 		return decl..' = '..readTex{
 			tex = self.paletteRAM.tex,
 			texvar = 'paletteTex',
 			tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 			from = 'ivec2',
-			to = to or support5551
-				and destTex:getGLSLFragType()
-				or 'u16to5551'
-			,
+			to = 'u16to5551',
 		}..';\n'
 	end
 
@@ -847,8 +833,11 @@ function AppVideo:initVideo()
 			framebufferRAM = framebufferRAM,
 			name = 'RGB',
 			-- [=[ internalFormat = gl.GL_RGB565
-			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'fragColor')..'\n'
-				..getDrawOverrideCode'uvec3',
+			colorOutput = table{
+				colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor'),
+				'fragColor = vec4(ufragColor) / 31.;',
+				getDrawOverrideCode'uvec3',
+			}:concat'\n',
 			--]=]
 			--[=[ internalFormat = internalFormat5551
 			colorOutput = 'fragColor = '..readTex{
@@ -951,16 +940,19 @@ void main() {
 			-- indexed mode can't blend so ... no draw-override
 			name = 'Index',
 			-- this part is only needed for alpha
-			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'..[[
+			colorOutput = table{
+				colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor'),
+				[[
 	fragColor.r = colorIndex;
 	fragColor.g = 0u;
 	fragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
-	fragColor.a = uint(palColor.a * 255.);
-]]
+	fragColor.a = (palColor.a << 3) | (palColor.a >> 2);
+]],
 	-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
 	-- but I don't want the GLSL compiler to optimize away the attr...
-	..getDrawOverrideCode'uvec3',
+				getDrawOverrideCode'uvec3',
+			}:concat'\n',
 		}
 
 		-- used for drawing our 8bpp indexed framebuffer to the screen
@@ -999,7 +991,8 @@ void main() {
 		from = 'vec2',
 		to = blitFragType,
 	}..[[.r;
-]]..colorIndexToFrag(framebufferRAM.tex, 'fragColor')..[[
+]]..colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor')..[[
+	fragColor = vec4(ufragColor) / 31.;
 }
 ]],				{
 					framebufferRAM = framebufferRAM,
@@ -1032,24 +1025,21 @@ void main() {
 
 			-- generator properties
 			name = 'RGB332',
-			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'vec4 palColor')..'\n'
+			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor')..'\n'
 				..[[
 	/*
-	palColor was 5 5 5 (but is now vec4 normalized)
+	palColor is 5 5 5 5
 	fragColor is 3 3 2
 	so we lose   2 2 3 bits
 	so we can dither those in ...
 	*/
-	uint r5 = uint(palColor.r * 31.);
-	uint g5 = uint(palColor.g * 31.);
-	uint b5 = uint(palColor.b * 31.);
-	fragColor.r = (r5 >> 2) |
-				((g5 >> 2) << 3) |
-				((b5 >> 3) << 6);
+	fragColor.r = (palColor.r >> 2) |
+				((palColor.g >> 2) << 3) |
+				((palColor.b >> 3) << 6);
 	fragColor.g = 0u;
 	fragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
-	fragColor.a = uint(palColor.a * 255.);
+	fragColor.a = (palColor.a << 3) | (palColor.a >> 2);
 ]]
 	-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
 	-- but I don't want the GLSL compiler to optimize away the attr...
