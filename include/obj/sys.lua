@@ -10,7 +10,7 @@ Object.pos = vec2()
 Object.vel = vec2()
 Object.gravity = vec2(0,1)
 Object.bbox = {min=vec2(-.3), max=vec2(.3)}
-Object.init=[:,args]do
+Object.init=|:,args|do
 	for k,v in pairs(args) do self[k]=v end
 	self.pos = self.pos:clone()
 	self.vel = self.vel:clone()
@@ -18,7 +18,7 @@ Object.init=[:,args]do
 	self.hitSides = 0	-- bitflags of dirvecs
 	objs:insert(self)
 end
-Object.draw=[:]do
+Object.draw=|:|do
 	spr(
 		self.sprite,		-- spriteIndex
 		self.pos.x * self.tileSize.x * 8 - .5 * self.tileSize.x * self.spriteSize.x * 8,-- screenX
@@ -33,7 +33,7 @@ Object.draw=[:]do
 		self.spriteSize.y 	-- scaleY
 	)
 end
-Object.update=[:]do
+Object.update=|:|do
 
 	-- move
 

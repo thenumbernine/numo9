@@ -1,12 +1,12 @@
-mget16=[i,j]do
+mget16=|i,j|do
 	local m = mget(i,j)
 	return ((m&0x1e)>>1)|((m&0x3c0)>>2)
 end
-mset16=[i,j,m] mset(i,j,((m&0xf)<<1)|((m&0xf0)<<2))
+mset16=|i,j,m| mset(i,j,((m&0xf)<<1)|((m&0xf0)<<2))
 
 local buttons={up=3, down=1, left=2, right=0, a=4, b=5, x=6, y=7}
 local dirs={up=3, down=1, left=2, right=0}
-local oppdir=[x] x ~ 2
+local oppdir=|x| x ~ 2
 local dirvec={[0]={1,0}, [1]={0,1}, [2]={-1,0}, [3]={0,-1}}
 
 -- index in the tilesheet
@@ -76,7 +76,7 @@ local tilePropForIndex={
 	-- * goals or checkpoints underwater
 	-- * goals or checkpoints under water and over one way arrows ...
 }
-local tileIndexForProp = table.map(tilePropForIndex, [v,k](k,v)):setmetatable(nil)
+local tileIndexForProp = table.map(tilePropForIndex, |v,k|(k,v)):setmetatable(nil)
 
 local mapw, maph = 40, 30
 
@@ -97,9 +97,9 @@ local passwords = table{
 	"winc",
 	"jtcj",
 }
-local levelForPassword = passwords:mapi([pass, level](level, pass))
+local levelForPassword = passwords:mapi(|pass, level|(level, pass))
 
-restartAtCheckpoint=[]do
+restartAtCheckpoint=||do
 	-- copy the level location into location 0 ...
 	local mx = (level) % 6
 	local my = (level-mx) / 6
@@ -114,17 +114,17 @@ restartAtCheckpoint=[]do
 	dir=dirs.down
 end
 
-resetLevel=[]do
+resetLevel=||do
 	xs,ys=0,0
 	restartAtCheckpoint()
 end
 
-getpress=[]do
+getpress=||do
 	for i=0,7 do
 		if btnp(i) then return i end
 	end
 end
-waitforpress=[]do
+waitforpress=||do
 	while true do
 		flip()
 		local b = getpress()
@@ -138,13 +138,13 @@ inSplash=true
 splashMenuY=0
 splashInputPass=table{0,0,0,0}
 splashMenuPassX=0
-update=[]do
+update=||do
 	local screenw, screenh = 480, 270 mode(42)	-- 16:9 480x270x8bpp indexed
 	if inSplash then
 		while true do
 			cls(0x10)
 			local x,y = 24, 48
-			local txt=[s]do text(s,x,y,0xc,-1) y+=8 end
+			local txt=|s|do text(s,x,y,0xc,-1) y+=8 end
 			txt'ChopMaze'
 			txt'A game by Jon Moore, ported by Chris Moore'
 			txt'Push blocks over water'
@@ -170,11 +170,11 @@ update=[]do
 						y=48
 						txt'Enter the four letter password'
 						local splashInputPassStr = splashInputPass
-							:mapi([x]string.char(x+('a'):byte())):concat()
+							:mapi(|x|string.char(x+('a'):byte())):concat()
 						txt(splashInputPassStr )
 						txt((' '):rep(splashMenuPassX)..'^')
 						b = getpress()
-						local changeLetter = [d]do
+						local changeLetter = |d|do
 							splashInputPass[splashMenuPassX+1] += d
 							splashInputPass[splashMenuPassX+1] %= 26
 						end
@@ -252,7 +252,7 @@ update=[]do
 	elseif tp&tileflags.goal ~= 0 then
 		xs,ys=0,0
 		local texty=15
-		local textrow=[s] do text(s, 0, texty) texty += 8 end
+		local textrow=|s| do text(s, 0, texty) texty += 8 end
 		textrow"Contragulations!!!                          "
 		textrow"You beat this level.                        "
 		if level > levelMax then

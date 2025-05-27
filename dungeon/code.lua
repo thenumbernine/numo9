@@ -26,8 +26,8 @@ flagshift=table{
 	'solid_down',	-- 2
 	'solid_left',	-- 4
 	'solid_up',		-- 8
-}:mapi([k,i] (i-1,k)):setmetatable(nil)
-flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
+}:mapi(|k,i| (i-1,k)):setmetatable(nil)
+flags=table(flagshift):map(|v| 1<<v):setmetatable(nil)
 
 flags.solid = flags.solid_up | flags.solid_down | flags.solid_left | flags.solid_right
 
@@ -42,7 +42,7 @@ mapTypes=table{
 	[4]={
 		name='chest',
 		flags=flags.solid,
-		touch = [:, o, x, y]do
+		touch = |:, o, x, y|do
 			if o == player then
 				mset(x,y,mapTypeForName.chest_open.index)
 				player.keys += 1
@@ -56,7 +56,7 @@ mapTypes=table{
 	[8]={
 		name='door',
 		flags=flags.solid,
-		touch = [:, o, x, y]do
+		touch = |:, o, x, y|do
 			if o == player then
 				mset(x,y,mapTypeForName.empty.index)
 			end
@@ -65,7 +65,7 @@ mapTypes=table{
 	[10]={
 		name='locked_door',
 		flags=flags.solid,
-		touch = [:, o, x, y]do
+		touch = |:, o, x, y|do
 			if o == player
 			and o.keys > 0
 			then
@@ -85,7 +85,7 @@ for k,v in pairs(mapTypes) do
 	v.index = k
 	v.flags ??= 0
 end
-mapTypeForName = mapTypes:map([v,k] (v, v.name))
+mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
 mainloops=table()
 
@@ -97,7 +97,7 @@ local mousePos = vec2()	-- mouse coords in-game
 local Weapon = class()
 
 local Pistol = Weapon:subclass() 
-Pistol.attack=[:,attacker,target] do
+Pistol.attack=|:,attacker,target| do
 	-- traceline, ignore attacker, see what you hit ...
 	-- or just fire projectiles?
 end
@@ -112,7 +112,7 @@ Object.tileSize = vec2(2,2)	-- for 16x16
 
 Chest = Object:subclass()
 Chest.sprite = sprites.chest
-Chest.touch=[:,o]do
+Chest.touch=|:,o|do
 	if self.open then return not self.open end
 	if o ~= player then return not self.open end
 	self.open = true
@@ -134,15 +134,15 @@ Shot.sprite = sprites.shot
 Shot.spriteSize = vec2(.5, .5)
 Shot.lifeTime = 3
 Shot.damage = 1
-Shot.init=[:,args]do
+Shot.init=|:,args|do
 	Shot.super.init(self, args)
 	self.endTime = time() + self.lifeTime
 end
-Shot.update=[:]do
+Shot.update=|:|do
 	Shot.super.update(self)
 	if time() > self.endTime then self.removeMe = true end
 end
-Shot.touch=[:,o]do
+Shot.touch=|:,o|do
 	if o ~= self.shooter
 	and o.takeDamage
 	then
@@ -151,7 +151,7 @@ Shot.touch=[:,o]do
 	end
 	return false	-- 'false' means 'dont collide'
 end
-Shot.touchMap = [:,x,y,t,ti] do
+Shot.touchMap = |:,x,y,t,ti| do
 	if ti & 0x3ff == mapTypeForName.door.index
 	and Player:isa(self.shooter)
 	then
@@ -171,13 +171,13 @@ TakesDamage=Object:subclass()
 TakesDamage.maxHealth=1
 TakesDamage.takeDamageTime = 0
 TakesDamage.takeDamageInvincibleDuration = 1
-TakesDamage.takeDamage=[:,damage]do
+TakesDamage.takeDamage=|:,damage|do
 	if time() < self.takeDamageTime then return end
 	self.takeDamageTime = time() + self.takeDamageInvincibleDuration
 	self.health -= damage
 	if self.health <= 0 then self:die() end
 end
-TakesDamage.die=[:]do
+TakesDamage.die=|:|do
 	self.dead = true
 	self.removeMe = true
 end
@@ -189,7 +189,7 @@ Player.keys=0
 Player.gold=0
 Player.weapon = Pistol()
 Player.nextInputTime = -1
-Player.update=[:]do
+Player.update=|:|do
 
 	if self.nextInputTime <= time() then 
 
@@ -216,10 +216,10 @@ Player.attackDelay = .1
 Player.attackDist = 2
 --Player.attackCosAngle = .5
 Player.attackDamage = 1
-Player.attack=[:, targetX, targetY]do
+Player.attack=|:, targetX, targetY|do
 	if time() < self.attackTime then return end
 	self.attackTime = time() + self.attackDelay
-	mainloops:insert([]do
+	mainloops:insert(||do
 		elli(
 			(self.pos.x - self.attackDist)*16,
 			(self.pos.y - self.attackDist)*16,
@@ -252,7 +252,7 @@ Enemy.sprite=sprites.Enemy_ogre
 Enemy.chaseDist = 15	-- largest half radius of screen
 Enemy.speed = .05
 Enemy.maxHealth = 3
-Enemy.update=[:]do
+Enemy.update=|:|do
 	self.vel:set(0,0)
 
 	if player then
@@ -283,7 +283,7 @@ Enemy.update=[:]do
 
 	Enemy.super.update(self)
 end
-Enemy.touch=[:,o]do
+Enemy.touch=|:,o|do
 	if o == player then
 		player:takeDamage(1)
 		player.vel = (player.pos - self.pos):unit() * .5
@@ -302,8 +302,8 @@ Enemy_siren = Enemy:subclass()
 Enemy_siren.sprite = sprites.Enemy_siren
 
 -- stole from stupid/code.lua
-local randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
-local genDungeonLevel=[avgRoomSize]do
+local randomBoxPos=|box| vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
+local genDungeonLevel=|avgRoomSize|do
 	--local val = mapTypeForName.solid.index -- | (mapTypeForName.solid.index << 16)
 	--memset(ramaddr'bank' + romaddr'tilemap', val, 256*256*2)
 	for i=0,256-1 do
@@ -315,14 +315,14 @@ local genDungeonLevel=[avgRoomSize]do
 	avgRoomSize ??= 30
 	local targetMap = {}
 	targetMap.size = vec2(64,64)	-- 256,256 ...
-	targetMap.tiles = range(0,targetMap.size.y-1):mapi([i]
-		(range(0,targetMap.size.x-1):mapi([j]
+	targetMap.tiles = range(0,targetMap.size.y-1):mapi(|i|
+		(range(0,targetMap.size.x-1):mapi(|j|
 			({}, j)
 		), i)
 	)
 	targetMap.fixedObjs = table()
 	targetMap.bbox = box2(vec2(), targetMap.size-1)
-	targetMap.wrapPos=[:,pos]do
+	targetMap.wrapPos=|:,pos|do
 		pos.y = math.floor(pos.y)
 		pos.x = math.floor(pos.x)
 		if self.wrap then
@@ -337,14 +337,14 @@ local genDungeonLevel=[avgRoomSize]do
 		end
 		return true
 	end
-	targetMap.getTile=[:,x,y]do
+	targetMap.getTile=|:,x,y|do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
 		local t = self.tiles![pos.y]![pos.x]
 		t.solid = mapTypes![mget(x,y)].flags & flags.solid ~= 0
 		return t
 	end
-	targetMap.setTileType=[:,x,y,mapType]do
+	targetMap.setTileType=|:,x,y,mapType|do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
 		--local tile = mapType(pos)
@@ -465,7 +465,7 @@ local genDungeonLevel=[avgRoomSize]do
 					then
 						local neighborRoom = tile.room
 						local neighborRoomIndex = assert(rooms:find(neighborRoom), "found unknown neighbor room")
-						local _, neighbor = room.neighbors:find(nil, [neighbor] neighbor.room == neighborRoom)
+						local _, neighbor = room.neighbors:find(nil, |neighbor| neighbor.room == neighborRoom)
 						if not neighbor then
 							neighbor = {room=neighborRoom, positions=table()}
 							room.neighbors:insert(neighbor)
@@ -487,11 +487,11 @@ local genDungeonLevel=[avgRoomSize]do
 
 	--trace("establishing connectivity")
 	while true do
-		local srcRoomOptions = usedRooms:filter([room]
+		local srcRoomOptions = usedRooms:filter(|room|
 			--if the room has no rooms that haven't been used,then don't consider it
 			--so keep all of the neighbor's neighbors that haven't been used
 			--if self has any good neighbors then consider it
-			#room.neighbors:filter([neighborInfo]
+			#room.neighbors:filter(|neighborInfo|
 				not usedRooms:find(neighborInfo.room)
 			) > 0
 		)
@@ -502,7 +502,7 @@ local genDungeonLevel=[avgRoomSize]do
 		if leafRoomIndex ~= -1 then leafRooms:remove(leafRoomIndex) end
 
 		--self is the same filter as is within the srcRoomOptions filter -=1 so if you want to cache self info, feel free
-		local neighborInfoOptions = srcRoom.neighbors:filter([neighborInfo]
+		local neighborInfoOptions = srcRoom.neighbors:filter(|neighborInfo|
 			not usedRooms:find(neighborInfo.room)
 		)
 		local neighborInfo = neighborInfoOptions:pickRandom()
@@ -516,15 +516,15 @@ local genDungeonLevel=[avgRoomSize]do
 
 		-- TODO digraph
 		table{
-			[ [] mset(pos.x, pos.y, mapTypeForName.door.index) ] = 5,
-			[ [] mset(pos.x, pos.y, mapTypeForName.locked_door.index) ] = 1,
+			[|| mset(pos.x, pos.y, mapTypeForName.door.index)] = 5,
+			[|| mset(pos.x, pos.y, mapTypeForName.locked_door.index)] = 1,
 		}:pickWeighted()()
 		
 		usedRooms:insert(dstRoom)
 		leafRooms:insert(dstRoom)
 	end
 
-	pickFreeRandomFixedPos=[args]do
+	pickFreeRandomFixedPos=|args|do
 		local targetMap = args.map
 		local bbox = box2(args.bbox or targetMap.bbox)
 		local classify = args.classify
@@ -561,21 +561,21 @@ local genDungeonLevel=[avgRoomSize]do
 		if room ~= startRoom
 		and room ~= lastRoom
 		then
-			local getpos = [] pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox} + .5
+			local getpos = || pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox} + .5
 			
 			table{
-				[ [] nil ] = 1,	-- nothing
+				[|| nil] = 1,	-- nothing
 				-- key
-				[ [] Chest{
+				[|| Chest{
 					pos = getpos(),
 					keys = 1,	-- TODO digraph
 				}] = 1,
 				-- TODO pickWeighted in ext.table?
-				[ [] Chest{
+				[|| Chest{
 					pos = getpos(),
 					gold = math.random(10, 1000),
 				}] = 3,
-				[ [] Chest{
+				[|| Chest{
 					pos = getpos(),
 					health = math.random(1, 10),
 				}] = 3,
@@ -584,13 +584,13 @@ local genDungeonLevel=[avgRoomSize]do
 				-- TODO shopkeeper / NPCs / whatever
 				
 				-- monsters
-				[ [] range(math.random(10)):mapi([] Enemy_ogre{
+				[|| range(math.random(10)):mapi(|| Enemy_ogre{
 					pos = getpos(),
 				})] = 1,
-				[ [] range(math.random(10)):mapi([] Enemy_demon{
+				[|| range(math.random(10)):mapi(|| Enemy_demon{
 					pos = getpos(),
 				})] = 1,
-				[ [] range(math.random(10)):mapi([] Enemy_siren{
+				[|| range(math.random(10)):mapi(|| Enemy_siren{
 					pos = getpos(),
 				})] = 1,
 			}:pickWeighted()()
@@ -602,7 +602,7 @@ local genDungeonLevel=[avgRoomSize]do
 end
 
 
-init=[]do
+init=||do
 	reset()	-- reset rom
 	-- [[
 	local map = genDungeonLevel()
@@ -635,7 +635,7 @@ init=[]do
 	--]]
 end
 
-update=[]do
+update=||do
 	-- hmm mode() at global level doesn't seem to work ...
 	--local screenw, screenh = 256,256
 	--local screenw, screenh = 336, 189 mode(18)	-- 16:9 336x189x16bpp-RGB565

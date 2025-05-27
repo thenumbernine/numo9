@@ -29,7 +29,7 @@ viewAngle=0
 -- false = y+ goes on the right, and the tilemap looks flipped
 spaceRHS=true
 
-update=[]do
+update=||do
 	cls()
 	local zn, zf = 1, 100
 	local zo = 10
@@ -149,8 +149,8 @@ tiltUpAngle = 90:
 	--]]
 
 	-- [[ draw bilboard sprite
-	local depths = karts:mapi([kart]((kart.x - viewX) * fwdx + (kart.y - viewY) * fwdy))
-	local order = range(#karts):sort([a,b] depths[a] > depths[b])
+	local depths = karts:mapi(|kart|((kart.x - viewX) * fwdx + (kart.y - viewY) * fwdy))
+	local order = range(#karts):sort(|a,b| depths[a] > depths[b])
 	for _,i in ipairs(order) do
 		local kart = karts[i]
 		matpush()

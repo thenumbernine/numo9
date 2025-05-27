@@ -19,14 +19,14 @@ playerVelX,playerVelY=0,0
 nextshottime = 0
 
 playerShots=table()
-playerShoot=[playerVelX,playerVelY]do
+playerShoot=|playerVelX,playerVelY|do
 	if time() < nextshottime then return end
 	playerShots:insert{x=playerX+8,y=playerY,vx=playerVelX,vy=playerVelY}
 	nextshottime = time() + 1/10
 end
 
 local explosions = table()
-makeExplosion=[x,y]do
+makeExplosion=|x,y|do
 	explosions:insert{x=x,y=y,time=time()}
 end
 
@@ -36,7 +36,7 @@ local enemyShotTime = 1
 local enemyShotSpeed = 2
 local Enemy = {}
 Enemy.__index = Enemy
-Enemy.shootPlayer=[:]do
+Enemy.shootPlayer=|:|do
 	if time() - self.lastShotTime < enemyShotTime then return end
 	local vx = playerX - self.x
 	local vy = playerY - self.y
@@ -52,7 +52,7 @@ Enemy.shootPlayer=[:]do
 end
 
 enemies=table()
-makeEnemy=[x,y,class]do
+makeEnemy=|x,y,class|do
 	enemies:insert(setmetatable({
 		x=x,
 		y=y,
@@ -62,7 +62,7 @@ makeEnemy=[x,y,class]do
 	}, Enemy))
 end
 
-doReset=[]do
+doReset=||do
 	reset()
 	scrollX,scrollY = 0,0
 	mx,my = 0,0
@@ -83,7 +83,7 @@ end
 doReset()
 
 local scrollSpeed = .5
-update=[]do
+update=||do
 	cls()
 
 	scrollX += scrollSpeed

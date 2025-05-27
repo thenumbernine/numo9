@@ -57,7 +57,7 @@ local dirs={
 	[3]={1,0},
 }
 
-local findEmpty=[]do
+local findEmpty=||do
 	local empty=table()
 	for j=0,maph-1 do
 		for i=0,mapw-1 do
@@ -70,7 +70,7 @@ local findEmpty=[]do
 	return table.unpack(empty:pickRandom())
 end
 
-local placeFruit=[]do
+local placeFruit=||do
 	local fruitX,fruitY=findEmpty()
 	if not fruitX then	-- then the screen is full ... you mustve won ...
 		message'YOU WON ... I think'
@@ -83,16 +83,16 @@ end
 
 local lastMessageTime
 local messages=table()
-local message=[s]do
+local message=|s|do
 	messages:insert(s)
 	lastMessageTime=time()
 end
 
 local Player=class()
-Player.init=[:,index]do
+Player.init=|:,index|do
 	self.index=index
 end
-Player.spawn=[:,x,y]do
+Player.spawn=|:,x,y|do
 	self.dir=1
 	self.nextDir=1
 	self.body=table()
@@ -101,7 +101,7 @@ Player.spawn=[:,x,y]do
 	self.body:insert{x=self.x,y=self.y}
 	mset(self.x,self.y,sprites.snakeUp+self.dir)
 end
-Player.getInput=[:]do
+Player.getInput=|:|do
 	if btn('up',self.index) and self.dir ~= 1 then
 		self.nextDir=0
 	elseif btn('down',self.index) and self.dir ~= 0 then
@@ -112,7 +112,7 @@ Player.getInput=[:]do
 		self.nextDir=3
 	end
 end
-Player.update=[:]do
+Player.update=|:|do
 	mset(self.x,self.y,snakeBodies[self.dir~1][self.nextDir] or sprites.snakeBody)
 	self.dir=self.nextDir
 	local dx,dy=table.unpack(dirs[self.dir])
@@ -136,7 +136,7 @@ Player.update=[:]do
 		message('player '..self.index..' died!')
 --trace'dying'
 --trace('pos', self.x, self.y)
---trace('body', self.body:mapi([link]link.x..','..link.y):concat' ')
+--trace('body', self.body:mapi(|link|link.x..','..link.y):concat' ')
 		self:die()
 	else
 		self.body:insert(1, {x=self.x,y=self.y})
@@ -145,7 +145,7 @@ Player.update=[:]do
 	end
 end
 -- remove the player's body from the map and respawn them somewhere in the map
-Player.die=[:]do
+Player.die=|:|do
 	for _,link in ipairs(self.body) do
 		mset(link.x, link.y, sprites.empty)
 	end
@@ -161,7 +161,7 @@ end
 local players={}
 
 -- reset the whole game
-reset=[]do
+reset=||do
 	-- stall
 	for i=1,60 do flip() end
 	
@@ -188,7 +188,7 @@ reset=[]do
 end
 reset()
 
-update=[]do
+update=||do
 	cls(1)
 	map(0,0,mapw,maph,0,0)	--,0,true)
 	

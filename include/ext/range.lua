@@ -1,4 +1,4 @@
-local range=[a,b,c]do
+local range=|a,b,c|do
 	local t = table()
 	if c then
 		for x=a,b,c do t:insert(x) end

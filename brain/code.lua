@@ -15,8 +15,8 @@ flagshift=table{
 	'pushdups',	-- push will duplicate the block
 				--  pushdups | solid means if you push it then a new copy comes out in front and you stand still
 				--  pushdups | ~solid means if you push it then you move and a new copy appears under you
-}:mapi([k,i] (i-1,k)):setmetatable(nil)
-flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
+}:mapi(|k,i| (i-1,k)):setmetatable(nil)
+flags=table(flagshift):map(|v| 1<<v):setmetatable(nil)
 trace(getfenv(0).require 'ext.tolua'(flagshift))
 trace(getfenv(0).require 'ext.tolua'(flags))
 
@@ -46,22 +46,22 @@ for k,v in pairs(mapTypes) do
 	v.value = k 
 	v.flags ??= 0 
 end
-mapTypeForName = mapTypes:map([v,k] (v, v.name))
+mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
 --#include ext/class.lua
 
 objs=table()
 
 Object=class()
-Object.init=[:,args]do
+Object.init=|:,args|do
 	for k,v in pairs(args) do self[k]=v end
 	objs:insert(self)
 end
-Object.update=[:]do
+Object.update=|:|do
 	spr(self.sprite, self.x<<3, self.y<<3)
 end
 
-testMove=[x,y,dx,dy]do
+testMove=|x,y,dx,dy|do
 	local nx,ny = x + dx, y + dy
 	if nx < 0 or nx >= 32 or ny < 0 or ny >= 32 then return end
 	local ti = mget(nx,ny)
@@ -90,7 +90,7 @@ end
 
 Player=Object:subclass()
 Player.sprite=1
-Player.update=[:]do
+Player.update=|:|do
 	Player.super.update(self)
 
 	local dx,dy = self.dx, self.dy
@@ -117,7 +117,7 @@ for y=0,31 do
 		mset(32+x,32+y,mget(x,y))
 	end
 end
-reset=[]do
+reset=||do
 	youWon = nil
 	objs=table()
 	player=Player{x=16,y=16}
@@ -130,7 +130,7 @@ reset=[]do
 	end
 end
 
-update=[]do
+update=||do
 	cls()
 	map(0,0,32,32,0,0)
 	

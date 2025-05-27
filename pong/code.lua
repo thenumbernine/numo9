@@ -1,18 +1,18 @@
 --#include ext/class.lua
 
 vec2=class{
-	set=[:,x,y]do
+	set=|:,x,y|do
 		self[1]=x or 0
 		self[2]=y or 0
 		return self
 	end,
-	init=[:,...]self:set(...),
+	init=|:,...|self:set(...),
 	unpack=table.unpack,
-	dot=[a,b]a[1]*b[1]+a[2]*b[2],
-	__add=[a,b]vec2(a[1]+b[1],a[2]+b[2]),
-	__sub=[a,b]vec2(a[1]-b[1],a[2]-b[2]),
-	__mul=[a,b]vec2(a[1]*b,a[2]*b),
-	__div=[a,b]vec2(a[1]/b,a[2]/b),
+	dot=|a,b|a[1]*b[1]+a[2]*b[2],
+	__add=|a,b|vec2(a[1]+b[1],a[2]+b[2]),
+	__sub=|a,b|vec2(a[1]-b[1],a[2]-b[2]),
+	__mul=|a,b|vec2(a[1]*b,a[2]*b),
+	__div=|a,b|vec2(a[1]/b,a[2]/b),
 }
 
 local worldSize = 256	-- biggest size of the game
@@ -348,7 +348,7 @@ end
 
 local game = Game()
 
-update=[]do
+update=||do
 	for playerIndex,player in ipairs{game.playerA, game.playerB} do
 		if btn('up',playerIndex-1) then
 			player:move(-1)

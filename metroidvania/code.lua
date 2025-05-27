@@ -5,7 +5,7 @@
 --#include ext/range.lua
 
 -- TODO move this into ext.table?
-table.pickWeighted = [t]do
+table.pickWeighted = |t|do
 	local sum = math.random() * math.max(1, table.values(t):sum())
 	for k,v in pairs(t) do
 		sum -= v
@@ -17,10 +17,10 @@ local palAddr = ramaddr'bank' + romaddr'palette'
 local blendColorAddr = ramaddr'blendColor'
 local spriteSheetAddr = ramaddr'bank' + romaddr'spriteSheet'
 
-local setBlendColor = [c] pokew(blendColorAddr, c)
+local setBlendColor = |c| pokew(blendColorAddr, c)
 
 -- rgb [0,1]^3 vector to 5551 uint16
-local rgb_to_5551 = [v] (
+local rgb_to_5551 = |v| (
 	   math.floor(v.x * 31)
 	| (math.floor(v.y * 31) << 5)
 	| (math.floor(v.z * 31) << 10)
@@ -30,9 +30,9 @@ math.randomseed(tstamp())
 
 local mainloops=table()	-- return 'true' to preserve
 
-local wait = [delay, fn] do
+local wait = |delay, fn| do
 	local endTime = time() + delay
-	mainloops:insert([]do
+	mainloops:insert(||do
 		if time() < endTime then return true end	-- keep waiting
 		fn()
 	end)
@@ -84,8 +84,8 @@ flagshift=table{
 	'solid_down',	-- 2
 	'solid_left',	-- 4
 	'solid_up',		-- 8
-}:mapi([k,i] (i-1,k)):setmetatable(nil)
-flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
+}:mapi(|k,i| (i-1,k)):setmetatable(nil)
+flags=table(flagshift):map(|v| 1<<v):setmetatable(nil)
 
 flags.solid = flags.solid_up | flags.solid_down | flags.solid_left | flags.solid_right
 
@@ -155,7 +155,7 @@ for k,v in pairs(mapTypes) do
 	v.index = k
 	v.flags ??= 0
 end
-mapTypeForName = mapTypes:map([v,k] (v, v.name))
+mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
 --#include ext/class.lua
 
@@ -163,7 +163,7 @@ local mapwidth = 256
 local mapheight = 256
 
 
-drawSpec=[colorSprite, specSprite, x, y, c, palIndex] do
+drawSpec=|colorSprite, specSprite, x, y, c, palIndex| do
 	-- trying not to use blend ...
 	-- TODO if you do palIndex/palShift then that's gonna shift the transparent channel as well ... hmmm ...
 	-- palShift is only really useful as high-bits (as it was intended)
@@ -172,7 +172,7 @@ drawSpec=[colorSprite, specSprite, x, y, c, palIndex] do
 	if specSprite then spr(specSprite, x, y) end
 end
 
-drawWeapon=[weapon,x,y]do
+drawWeapon=|weapon,x,y|do
 	local frame = math.floor(time() * 10) % 4
 	drawSpec(
 		64+frame,	-- color sprite
@@ -184,7 +184,7 @@ drawWeapon=[weapon,x,y]do
 end
 
 -- hmm keys ... jury is still out
-drawKeyColor=[keyIndex,x,y]do
+drawKeyColor=|keyIndex,x,y|do
 	-- draw shadow
 	blend(6)	-- subtract-with-constant
 	setBlendColor(0xffff)
@@ -207,7 +207,7 @@ local dt = 1/60
 Health = Object:subclass()
 Health.sprite = 32
 Health.health = 1
-Health.touch=[:,o]do
+Health.touch=|:,o|do
 	if not Player:isa(o) then return end
 	o.health = math.min(o.health + self.health, o.maxHealth)
 	self.removeMe = true
@@ -217,14 +217,14 @@ end
 -- don't need this anymore, now that i'm using weapons for keys?
 Key=Object:subclass()
 Key.sprite = 34
-Key.draw=[:]do
+Key.draw=|:|do
 	drawKeyColor(
 		self.keyIndex,
 		(self.pos.x - .5)*8,
 		(self.pos.y - .5)*8
 	)
 end
-Key.touch=[:,o]do
+Key.touch=|:,o|do
 	if not Player:isa(o) then return end
 	o.hasKeys[self.keyIndex]=true
 	self.removeMe = true
@@ -233,21 +233,21 @@ end
 Shot=Object:subclass()
 Shot.lifeTime = 3
 Shot.damage = 1
-Shot.init=[:,args]do
+Shot.init=|:,args|do
 	Shot.super.init(self, args)
 	self.endTime = time() + self.lifeTime
 end
-Shot.draw=[:]do
+Shot.draw=|:|do
 	drawWeapon(
 		self.weapon,
 		(self.pos.x - .5)*8,
 		(self.pos.y - .5)*8)
 end
-Shot.update=[:]do
+Shot.update=|:|do
 	Shot.super.update(self)
 	if time() > self.endTime then self.removeMe = true end
 end
-Shot.touch=[:,o]do
+Shot.touch=|:,o|do
 	if o ~= self.shooter
 	and o.takeDamage
 	then
@@ -273,11 +273,11 @@ Shot.touch=[:,o]do
 	return false	-- 'false' means 'dont collide'
 end
 local checkBreakDoor
-checkBreakDoor = [keyIndex, x, y, origMapType] do
+checkBreakDoor = |keyIndex, x, y, origMapType| do
 	local doorColorIndex = (mget(x,y) >> 6) & 0xf0
 	if keyColorIndexes[keyIndex] ~= doorColorIndex then return end
 	mset(x,y,mapTypeForName.empty.index)
-	wait(.1, []do
+	wait(.1, ||do
 		for _,dir in pairs(dirvecs) do
 			local ox, oy = x+dir.x, y+dir.y
 			if mget(ox, oy) & 0x3ff == mapTypeForName.door.index then
@@ -285,11 +285,11 @@ checkBreakDoor = [keyIndex, x, y, origMapType] do
 			end
 		end
 	end)
-	wait(3, []do
+	wait(3, ||do
 		mset(x,y,origMapType)
 	end)
 end
-Shot.touchMap = [:,x,y,t,ti] do
+Shot.touchMap = |:,x,y,t,ti| do
 	if ti & 0x3ff == mapTypeForName.door.index
 	and Player:isa(self.shooter)
 	then
@@ -313,13 +313,13 @@ ok what kinds of weapons should we have ...
 Weapon=Object:subclass()
 Weapon.sprite = 64		-- \_ correlate these somehow or something
 Weapon.weapon = 0		-- /
-Weapon.draw = [:]do
+Weapon.draw = |:|do
 	drawWeapon(
 		self.weapon,
 		(self.pos.x - .5)*8,
 		(self.pos.y - .5)*8)
 end
-Weapon.touch=[:,o]do
+Weapon.touch=|:,o|do
 	if not Player:isa(o) then return end
 	o.hasWeapons[self.weapon] = true
 	o.hasKeys[self.weapon] = true	-- TODO think through the door / key system more ...
@@ -330,13 +330,13 @@ TakesDamage=Object:subclass()
 TakesDamage.maxHealth=1
 TakesDamage.takeDamageTime = 0
 TakesDamage.takeDamageInvincibleDuration = 0
-TakesDamage.takeDamage=[:,damage]do
+TakesDamage.takeDamage=|:,damage|do
 	if time() < self.takeDamageTime then return end
 	self.takeDamageTime = time() + self.takeDamageInvincibleDuration
 	self.health -= damage
 	if self.health <= 0 then self:die() end
 end
-TakesDamage.die=[:]do
+TakesDamage.die=|:|do
 	if self.drops then
 		local drop = table.pickWeighted(self.drops)
 		if drop then
@@ -349,7 +349,7 @@ TakesDamage.die=[:]do
 end
 
 
-local touchDealsDamage = [:,o] do
+local touchDealsDamage = |:,o| do
 	if o == player then
 		player:takeDamage(1)
 	end
@@ -371,13 +371,13 @@ Player.maxHealth=7
 Player.useGravity = true
 Player.selWeapon = 0	-- TODO separate waepon-color from weapon-level selected
 Player.takeDamageInvincibleDuration = 1
-Player.init=[:,args]do
+Player.init=|:,args|do
 	Player.super.init(self, args)
 	self.hasKeys = {[0]=true}
 	self.hasWeapons = {[0]=true}
 	self.aimDir = vec2(1,0)
 end
-Player.draw=[:]do
+Player.draw=|:|do
 	if time() < self.takeDamageTime and (time() * 20) & 1 == 1 then return end
 	drawSpec(
 		0,
@@ -388,7 +388,7 @@ Player.draw=[:]do
 		keyColorIndexes[self.selWeapon] or 0
 	)
 end
-Player.update=[:]do
+Player.update=|:|do
 
 	--self.vel:set(0,0)
 
@@ -472,10 +472,10 @@ Player.nextShootTime = 0
 Player.shootDelay = .1
 Player.attackDist = 2
 --Player.attackCosAngle = .5
-Player.shoot=[:]do
+Player.shoot=|:|do
 	if time() < self.nextShootTime then return end
 	self.nextShootTime = time() + self.shootDelay
-	--mainloops:insert([]do
+	--mainloops:insert(||do
 		local r = 2
 		elli((self.pos.x - r)*8, (self.pos.y - r)*8, 16*r,16*r, 3)
 	--end)
@@ -495,7 +495,7 @@ Crawler.useGravity=true
 Crawler.sprite = 2
 Crawler.speed = .05
 Crawler.maxHealth = 1	-- TODO pain frame or something
-Crawler.update=[:]do
+Crawler.update=|:|do
 	self.angry = player and self.selWeapon ~= player.selWeapon
 	self.speed = self.angry and .15 or .03
 
@@ -579,7 +579,7 @@ Crawler.update=[:]do
 --trace('and now stuck on', self.stickSide)
 	end
 end
-Crawler.draw=[:]do
+Crawler.draw=|:|do
 	-- [[
 	local rate = self.angry and 6 or 3
 	self.sprite = (math.floor(time() * rate) % 2) + 2
@@ -603,7 +603,7 @@ Jumper=TakesDamage:subclass()
 Jumper.sprite = 4
 Jumper.useGravity=true
 Jumper.maxHealth = 3	-- TOOD health depends on color?
-Jumper.update=[:]do
+Jumper.update=|:|do
 	if player then
 		self.left = player.pos.x < self.pos.x
 	else
@@ -632,7 +632,7 @@ Jumper.update=[:]do
 	end
 	Jumper.super.update(self)
 end
-Jumper.draw=[:]do
+Jumper.draw=|:|do
 	-- [[ spec ? meh?  I need to do palette-shifting
 	drawSpec(
 		self.sprite,
@@ -668,7 +668,7 @@ Shooter.sprite=sprites.enemy
 Shooter.chaseDist = 5
 Shooter.speed = .05
 Shooter.selWeapon = 0
-Shooter.update=[:]do
+Shooter.update=|:|do
 	self.vel:set(0,0)
 
 	-- TODO instead of appraoch...
@@ -716,7 +716,7 @@ Shooter.update=[:]do
 
 	Shooter.super.update(self)
 end
-Shooter.draw=[:]do
+Shooter.draw=|:|do
 	drawSpec(
 		0,
 		1,
@@ -731,19 +731,19 @@ Shooter.touch = touchDealsDamage
 --]]
 
 
-local pickRandomColor = []
+local pickRandomColor = ||
 	vec3(math.random(), math.random(), math.random()):unit()
 
-local advanceColor = [v] do
+local advanceColor = |v| do
 	v = v:clone()
 	v.x += .2 * (math.random() * 2 - 1)
 	v.y += .2 * (math.random() * 2 - 1)
 	v.z += .2 * (math.random() * 2 - 1)
-	v = v:map([x] math.clamp(x, 0, 1))
+	v = v:map(|x| math.clamp(x, 0, 1))
 	return v
 end
 
-init=[]do
+init=||do
 	reset()	-- reset rom
 
 	objs=table()
@@ -775,12 +775,12 @@ init=[]do
 	}
 
 	world = {
-		blocks = range(0,worldSizeInBlocks.x-1):mapi([i]
-			(range(0,worldSizeInBlocks.y-1):mapi([j]do
+		blocks = range(0,worldSizeInBlocks.x-1):mapi(|i|
+			(range(0,worldSizeInBlocks.y-1):mapi(|j|do
 					local block = {
 						pos = vec2(i,j),
-						dirs = range(0,3):mapi([i] (false, i)),
-						doors = range(0,3):mapi([i] (false, i)),
+						dirs = range(0,3):mapi(|i| (false, i)),
+						doors = range(0,3):mapi(|i| (false, i)),
 						spawns = table(),
 						color = pickRandomColor(),
 						seen = 0,
@@ -815,7 +815,7 @@ local fadeInLevel, fadeOutLevel
 local fadeRate = .05
 local fogLum = .5
 --local roomColorIndex = 0
-update=[]do
+update=||do
 	cls()
 
 	if not player then

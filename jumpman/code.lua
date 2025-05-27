@@ -15,8 +15,8 @@ local sprites = {
 
 flagshift=table{
 	'solid',	-- 1
-}:mapi([k,i] (i-1,k)):setmetatable(nil)
-flags=table(flagshift):map([v] 1<<v):setmetatable(nil)
+}:mapi(|k,i| (i-1,k)):setmetatable(nil)
+flags=table(flagshift):map(|v| 1<<v):setmetatable(nil)
 
 mapTypes=table{
 	[0]={name='empty'},				-- empty
@@ -24,7 +24,7 @@ mapTypes=table{
 	[2]={
 		name='chest',
 		flags=flags.solid,
-		touch = [:, o, x, y]do
+		touch = |:, o, x, y|do
 			if o == player then
 				mset(x,y,mapTypeForName.chest_open.index)
 				player.keys += 1
@@ -38,7 +38,7 @@ mapTypes=table{
 	[4]={
 		name='door',
 		flags=flags.solid,
-		touch = [:, o, x, y]do
+		touch = |:, o, x, y|do
 			if o == player then
 				mset(x,y,mapTypeForName.empty.index)
 			end
@@ -47,7 +47,7 @@ mapTypes=table{
 	[5]={
 		name='locked_door',
 		flags=flags.solid,
-		touch = [:, o, x, y]do
+		touch = |:, o, x, y|do
 			if o == player 
 			and o.keys > 0 
 			then
@@ -63,7 +63,7 @@ for k,v in pairs(mapTypes) do
 	v.index = k 
 	v.flags ??= 0 
 end
-mapTypeForName = mapTypes:map([v,k] (v, v.name))
+mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
 mainloops=table()
 
@@ -77,14 +77,14 @@ Object=class()
 Object.pos = vec2()
 Object.vel = vec2()
 Object.bbox = {min=vec2(-.3), max=vec2(.3)}
-Object.init=[:,args]do
+Object.init=|:,args|do
 	for k,v in pairs(args) do self[k]=v end
 	self.pos = self.pos:clone()
 	self.vel = self.vel:clone()
 	self.health = self.maxHealth
 	objs:insert(self)
 end
-Object.update=[:]do
+Object.update=|:|do
 	-- draw
 	spr(self.sprite, (self.pos.x - .5)*8, (self.pos.y - .5)*8)
 
@@ -172,13 +172,13 @@ TakesDamage=Object:subclass()
 TakesDamage.maxHealth=1
 TakesDamage.takeDamageTime = 0
 TakesDamage.takeDamageInvincibleDuration = 1
-TakesDamage.takeDamage=[:,damage]do
+TakesDamage.takeDamage=|:,damage|do
 	if time() < self.takeDamageTime then return end
 	self.takeDamageTime = time() + self.takeDamageInvincibleDuration
 	self.health -= damage
 	if self.health <= 0 then self:die() end
 end
-TakesDamage.die=[:]do
+TakesDamage.die=|:|do
 	self.dead = true
 	self.removeMe = true
 end
@@ -187,7 +187,7 @@ Player=TakesDamage:subclass()
 Player.sprite=sprites.player
 Player.maxHealth=3
 Player.keys=0
-Player.update=[:]do
+Player.update=|:|do
 
 	--self.vel:set(0,0)
 
@@ -225,10 +225,10 @@ Player.attackDelay = .3
 Player.attackDist = 2
 --Player.attackCosAngle = .5
 Player.attackDamage = 1
-Player.attack=[:]do
+Player.attack=|:|do
 	if time() < self.attackTime then return end
 	self.attackTime = time() + self.attackDelay
-	mainloops:insert([]do
+	mainloops:insert(||do
 		elli((self.pos.x - self.attackDist)*8, (self.pos.y - self.attackDist)*8, 16*self.attackDist,16*self.attackDist, 3)
 	end)
 	for _,o in ipairs(objs) do
@@ -245,7 +245,7 @@ Enemy=TakesDamage:subclass()
 Enemy.sprite=sprites.enemy
 Enemy.attackDist = 3
 Enemy.speed = .05
-Enemy.update=[:]do
+Enemy.update=|:|do
 	self.vel:set(0,0)
 
 	if player then
@@ -259,13 +259,13 @@ Enemy.update=[:]do
 
 	Enemy.super.update(self)
 end
-Enemy.touch=[:,o]do
+Enemy.touch=|:,o|do
 	if o == player then
 		player:takeDamage(1)
 	end
 end
 
-init=[]do
+init=||do
 	reset()	-- reset rom
 
 -- [[ procedural level
@@ -280,7 +280,7 @@ init=[]do
 
 	local jumpHeight = 3
 	local nextStep
-	nextStep = [x,y,dir]do
+	nextStep = |x,y,dir|do
 		if x < 0 or x > 255 or y < 0 or y > 255 then return end
 		if mget(x,y) ~= 0 then return end	-- already charted
 		mset(x,y,1)
@@ -334,7 +334,7 @@ init=[]do
 end
 
 local viewPos = vec2()
-update=[]do
+update=||do
 	cls(17)
 
 	if player then

@@ -1,7 +1,7 @@
 local m = 0
 local numModes = 50
 local sx, sy = 1, 1
-update=[]do
+update=||do
 	cls()
 	local x, y, ssx, ssy = mouse()
 	sx += ssx

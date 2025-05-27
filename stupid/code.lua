@@ -8,10 +8,10 @@ TODO somehow dialogs don't show up anymore, probably due to transparency issues
 
 math.randomseed(tstamp())
 blendColorMem=ramaddr'blendColor'
-randomBoxPos=[box] vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
-distLInf=[a,b] math.max(math.abs(a.x-b.x),math.abs(a.y-b.y))
-distL1=[a,b] math.abs(a.x-b.x)+math.abs(a.y-b.y)
-round=[x,r] math.round(x*r)/r
+randomBoxPos=|box| vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
+distLInf=|a,b| math.max(math.abs(a.x-b.x),math.abs(a.y-b.y))
+distL1=|a,b| math.abs(a.x-b.x)+math.abs(a.y-b.y)
+round=|x,r| math.round(x*r)/r
 
 
 
@@ -38,7 +38,7 @@ local p={[0]=151,160,137,91,90,15,
 local perm={}
 for i=0,511 do perm[i]=p[i & 255] end
 
-dot=[g,...]do
+dot=|g,...|do
 	local sum=0
 	for i=1,select('#', ...) do
 		sum += select(i, ...) * g[i]
@@ -46,7 +46,7 @@ dot=[g,...]do
 	return sum
 end
 
-noise=[xin,yin]do
+noise=|xin,yin|do
 	local n0, n1, n2 -- Noise contributions from the three corners
 	-- Skew the input space to determine which simplex cell we're in
 	local F2=0.5*(math.sqrt(3)-1)
@@ -120,16 +120,16 @@ local storyInfo = {}
 -- client prompt stuff
 
 popupMessage=table()
-clientMessage=[str] popupMessage:insert(1, str)
+clientMessage=|str| popupMessage:insert(1, str)
 
 clientPromptStack=table()
-closeAllPrompts=[]do
+closeAllPrompts=||do
 	while #clientPromptStack>0 do
 		clientPromptStack:last():close()
 	end
 end
 
-promptKeyCallback=[key]do
+promptKeyCallback=|key|do
 	local clientPrompt=clientPromptStack:last()
 	keyCallback=nil
 	if key=='ok' then
@@ -157,7 +157,7 @@ onclose
 --]]
 ClientPrompt=class{
 	enabled=true,
-	init=[:,options,onchoose,onselect,onclose]do
+	init=|:,options,onchoose,onselect,onclose|do
 		local divsHigh=#options
 		if divsHigh>9 then divsHigh=9 end
 		self.options=table(options)
@@ -174,13 +174,13 @@ ClientPrompt=class{
 		self:enable()
 		self:refreshContent()
 	end,
-	enable=[:]do
+	enable=|:|do
 		self.enabled=true
 	end,
-	disable=[:]do
+	disable=|:|do
 		self.enabled=false
 	end,
-	close=[:]do
+	close=|:|do
 		local promptIndex=clientPromptStack:find(self)
 		if promptIndex then
 			if promptIndex == #clientPromptStack
@@ -193,13 +193,13 @@ ClientPrompt=class{
 		--self?:onclose()
 		if self.onclose then self:onclose() end
 	end,
-	refreshPos=[:]do
+	refreshPos=|:|do
 	end,
-	refreshContent=[:]do
+	refreshContent=|:|do
 		--self?:onselect(self.options[self.index], self.index)
 		if self.onselect then self:onselect(self.options[self.index], self.index) end
 	end,
-	cycle=[:,ofs]do
+	cycle=|:,ofs|do
 		self.index+=ofs
 		self.index-=1
 		self.index%=#self.options
@@ -224,7 +224,7 @@ view={
 -- spawn classes
 
 GameObj=class{
-	init=[:,args]do
+	init=|:,args|do
 		self.pos=vec2()
 		if args.pos then
 			self.pos.x=math.floor(args.pos.x)
@@ -235,12 +235,12 @@ GameObj=class{
 		self.onInteract=args.onInteract
 		if thisMap then thisMap.objs:insert(self) end
 	end,
-	clearTile=[:]do
+	clearTile=|:|do
 		if thisMap then
 			thisMap:removeObjFromTile(self)
 		end
 	end,
-	setPos=[:,x,y]do
+	setPos=|:,x,y|do
 		self:clearTile()
 		self.pos.x=x
 		self.pos.y=y
@@ -248,7 +248,7 @@ GameObj=class{
 			thisMap:addObjToTile(self)
 		end
 	end,
-	move=[:,dx,dy]do
+	move=|:,dx,dy|do
 		local nx=math.floor(self.pos.x+dx)
 		local ny=math.floor(self.pos.y+dy)
 		if self==player and thisMap.exitMap then
@@ -297,10 +297,10 @@ GameObj=class{
 
 		self:setPos(nx,ny)
 	end,
-	postUpdate=[:]do
+	postUpdate=|:|do
 		self:applyLight()
 	end,
-	applyLight=[:]do
+	applyLight=|:|do
 		if not thisMap.fogColor then return end
 		--update fog of war
 		local lightRadius=self:getLightRadius()
@@ -309,7 +309,7 @@ GameObj=class{
 		thisMap:floodFill{
 			pos=self.pos,
 			maxDist=lightRadius,
-			callback=[tile,dist,tileObjs]do
+			callback=|tile,dist,tileObjs|do
 				local newLight=1.1-dist/lightRadius
 				tile.light=math.max(tile.light or 0, newLight)
 				if tile.solid then return false end
@@ -322,8 +322,8 @@ GameObj=class{
 			end,
 		}
 	end,
-	getLightRadius=[:]self.lightRadius,
-	draw=[:]do
+	getLightRadius=|:|self.lightRadius,
+	draw=|:|do
 		local dx=self.pos.x-view.center.x
 		local dy=self.pos.y-view.center.y
 		if thisMap.wrap then
@@ -342,7 +342,7 @@ GameObj=class{
 		ry *= tileSize.y
 		self:drawLocal(rx, ry)
 	end,
-	drawLocal=[:,rx,ry]do
+	drawLocal=|:,rx,ry|do
 		if not self.spriteIndex then return end
 		if self.angle then
 			local pivotX=rx+tileSize.x/2
@@ -365,11 +365,11 @@ ChestObj=class()
 DeadObj=GameObj:subclass{
 	spriteIndex=12,	--'objs/dead.png'
 	solid=false,
-	init=[:,args]do
+	init=|:,args|do
 		DeadObj.super.init(self,args)
 		self.life=math.random(10, 100)
 	end,
-	update=[:]do
+	update=|:|do
 		self.life-=1
 		if self.life<=0 then self.remove=true end
 	end,
@@ -391,7 +391,7 @@ BattleObj=GameObj:subclass{
 	inflictAttributes=table(),
 	attackOffsets=table{vec2(1,0)},
 	damageType='bludgeon',
-	init=[:,args]do
+	init=|:,args|do
 		BattleObj.super.init(self,args)
 		local classItems=self.items
 		self.items=table()
@@ -409,26 +409,26 @@ BattleObj=GameObj:subclass{
 		self.hp=self:stat'hpMax'
 		self.mp=self:stat'mpMax'
 	end,
-	stat=[:,field]do
+	stat=|:,field|do
 		local value=self[field]
 		local srcInfos=table()
 		srcInfos:append(
 			self.equipFields
-				:filter([equipField]self[equipField])
-				:mapi([equipField]{equip=equipField, src=self[equipField]})
+				:filter(|equipField|self[equipField])
+				:mapi(|equipField|{equip=equipField, src=self[equipField]})
 		)
 		srcInfos:append(
-			self.attributes:mapi([attribute]{attribute=true, src=attribute})
+			self.attributes:mapi(|attribute|{attribute=true, src=attribute})
 		)
 		--[[ prefix args
 		(
-			([equipField]{equip=equipField, src=self[equipField]})
+			(|equipField|{equip=equipField, src=self[equipField]})
 			->((
-				([equipField]self.equipField)
+				(|equipField|self.equipField)
 				->self.equipFields:filter	-- : operator means "insert previous indexes as 1st arg into params before passing into this function"
 				-- then the result of this is a table ... which we want a 1st arg :mapi and 2nd arg callback ...
 			):mapi),
-			([attribute]{attribute=true, src=attribute})
+			(|attribute|{attribute=true, src=attribute})
 				->self.attributes:mapi
 		)->srcInfos:append
 		--]]
@@ -442,7 +442,7 @@ BattleObj=GameObj:subclass{
 assert.eq(getmetatable(value), table)
 					--special case for attackOffsets -=1 mirror left hand on the 'y' axis
 					if field == 'attackOffsets' and srcInfo.equip == 'lhand' then
-						srcvalue=srcvalue:mapi([ofs]vec2(ofs.x,-ofs.y))
+						srcvalue=srcvalue:mapi(|ofs|vec2(ofs.x,-ofs.y))
 					end
 					value:append(srcvalue)
 				else	--strings? functions? booleans? override...
@@ -461,8 +461,8 @@ assert.eq(getmetatable(value), table)
 		end
 		return value
 	end,
-	getLightRadius=[:]self:stat'lightRadius',
-	setAttribute=[:,attrName]do
+	getLightRadius=|:|self:stat'lightRadius',
+	setAttribute=|:,attrName|do
 		self:removeAttribute(attrName)
 		PopupText{msg=attrName,pos=self.pos}
 		local attrClass=attributes[attrName]
@@ -472,30 +472,30 @@ assert.eq(getmetatable(value), table)
 			self.attributes:insert(attrClass(self))
 		end
 	end,
-	setAttributes=[:,attrNames]do
+	setAttributes=|:,attrNames|do
 		for _,attrName in ipairs(attrNames)do
 			self:setAttribute(attrName)
 		end
 	end,
-	removeAttribute=[:,attrName]do
+	removeAttribute=|:,attrName|do
 		for i=#self.attributes,1,-1 do
 			if self.attributes[i].name==attrName then
 				self.attributes:remove(i)
 			end
 		end
 	end,
-	removeAttributes=[:,attrNames]do
+	removeAttributes=|:,attrNames|do
 		for _,attrName in ipairs(attrNames) do
 			self:removeAttribute(attrName)
 		end
 	end,
-	hasAttribute=[:,attrName]do
+	hasAttribute=|:,attrName|do
 		for _,attribute in ipairs(self.attributes) do
 			if attribute.name == attrName then return true end
 		end
 		return false
 	end,
-	setEquip=[:,field,item]do
+	setEquip=|:,field,item|do
 		local currentEquip = self[field]
 		if currentEquip  then
 			self.items:insert(currentEquip)
@@ -509,14 +509,14 @@ assert.eq(getmetatable(value), table)
 		self.hp=math.min(self.hp,self:stat'hpMax')
 		self.mp=math.min(self.mp,self:stat'mpMax')
 	end,
-	canEquip=[:,field,item]do
+	canEquip=|:,field,item|do
 		if (item.type=='weapon' or item.type=='shield') and (field=='lhand' or field=='rhand') then return true end
 		if item.type=='armor' and field=='body' then return true end
 		if item.type=='helm' and field == 'head' then return true end
 		if item.type=='relic' and (field=='relic1' or field=='relic2') then return true end
 		return false
 	end,
-	postUpdate=[:]do
+	postUpdate=|:|do
 		for i=#self.attributes,1,-1 do
 			local attribute=self.attributes[i]
 			attribute:update(self)
@@ -534,7 +534,7 @@ assert.eq(getmetatable(value), table)
 		end
 		BattleObj.super.postUpdate(self)
 	end,
-	interact=[:,dx,dy]do
+	interact=|:,dx,dy|do
 		local nx=math.floor(self.pos.x+dx+thisMap.size.x)%thisMap.size.x
 		local ny=math.floor(self.pos.y+dy+thisMap.size.y)%thisMap.size.y
 		local tileObjs=thisMap:getTileObjs(nx,ny)
@@ -547,7 +547,7 @@ assert.eq(getmetatable(value), table)
 			end
 		end
 	end,
-	attack=[:,dx,dy]do
+	attack=|:,dx,dy|do
 		local angle=math.atan2(dy,dx)
 		local physAttack=self:stat'physAttack'
 		local baseDamageType=self:stat'damageType'
@@ -592,9 +592,9 @@ assert.eq(getmetatable(value), table)
 			end
 		end
 	end,
-	physHitRoll=[:,defender] math.random(100)<=self:stat'physHitChance'-defender:stat'physEvade',
-	magicHitRoll=[:,defender] math.random(100)<=self:stat'magicHitChance'-defender:stat'magicEvade',
-	adjustPoints=[:,field,amount,inflictor]do
+	physHitRoll=|:,defender| math.random(100)<=self:stat'physHitChance'-defender:stat'physEvade',
+	magicHitRoll=|:,defender| math.random(100)<=self:stat'magicHitChance'-defender:stat'magicEvade',
+	adjustPoints=|:,field,amount,inflictor|do
 		local color
 		if amount>0 then color=(0x1f<<10)|(0xf<<5) end	--rgb(0,127,255)
 		local msg=(amount>=0 and'+'or'')..amount..' '..field
@@ -613,7 +613,7 @@ assert.eq(getmetatable(value), table)
 			self:die()
 		end
 	end,
-	die=[:]do
+	die=|:|do
 		self.remove=true
 		DeadObj{pos=self.pos}
 	end,
@@ -631,14 +631,14 @@ HeroObj=BattleObj:subclass{
 	physHitChance=70,
 	physEvade=10,
 	lightRadius=10,
-	init=[:,args]do
+	init=|:,args|do
 		HeroObj.super.init(self,args)
 		self.hp=self.hpMax
 		self.mp=0
 		self.food=math.ceil(self.foodMax/2)
 		self.temp=self.nominalTemp
 	end,
-	update=[:]do
+	update=|:|do
 		self.food-=1
 		if self.food<=0 then
 			clientMessage"HUNGRY!!!"
@@ -664,7 +664,7 @@ HeroObj=BattleObj:subclass{
 			self:adjustPoints('hp',-math.ceil(self:stat'hpMax'/20))
 		end
 	end,
-	move=[:,dx,dy]do
+	move=|:,dx,dy|do
 		if not HeroObj.super.move(self,dx,dy) then
 			local tile=thisMap:getTile(self.pos:unpack())
 			if tile.playerTouch then
@@ -672,7 +672,7 @@ HeroObj=BattleObj:subclass{
 			end
 		end
 	end,
-	moveIntoObj=[:,obj]do
+	moveIntoObj=|:,obj|do
 		if obj.onInteract then
 			obj:onInteract(self)
 		else
@@ -681,7 +681,7 @@ HeroObj=BattleObj:subclass{
 			end
 		end
 	end,
-	die=[:]do
+	die=|:|do
 		clientMessage"YOU DIED"
 		setMapRequest={map='Helpless Village', dontSavePos=true}
 		self.attributes=table()
@@ -698,7 +698,7 @@ HeroObj=BattleObj:subclass{
 
 AIObj=BattleObj:subclass{
 	spriteIndex=136,--'objs/orc.png'
-	update=[:]do
+	update=|:|do
 		if not player then return end
 		local acted=self:performAction()
 		if acted then return end
@@ -747,7 +747,7 @@ AIObj=BattleObj:subclass{
 		end
 		local result=self:move(dx, dy)
 	end,
-	performAction=[:]do
+	performAction=|:|do
 		if self.hostile and distL1(player.pos,self.pos)<=1 then
 			self:attack(player.pos.x-self.pos.x,player.pos.y-self.pos.y)
 			return true
@@ -771,7 +771,7 @@ ThiefObj=MonsterObj:subclass{
 	hpMax=2,
 	physEvade=30,
 	gold=10,
-	performAction=[:]do
+	performAction=|:|do
 		if self.retreat then return end
 		if distL1(self.pos, player.pos) <= 1
 		and math.random(5)==5
@@ -793,7 +793,7 @@ TroggleObj=MonsterObj:subclass{
 	spriteIndex=132,--'objs/imp.png'
 	hpMax=4,
 	gold=4,
-	performAction=[:]do
+	performAction=|:|do
 		if distL1(self.pos,player.pos) <= 3
 		and math.random(5)==5
 		then
@@ -860,12 +860,12 @@ EnemyBoatObj=MonsterObj:subclass{
 }
 
 TownNPCObj=AIObj:subclass{
-	onInteract=[:,player]do
+	onInteract=|:,player|do
 		if self.msg then
 			clientMessage(self.msg)
 		end
 	end,
-	adjustPoints=[:,...]do
+	adjustPoints=|:,...|do
 		if select('#',...)>=3 and select(3,...)==player then
 			for _,obj in ipairs(thisMap.objs) do
 				if TownNPCObj:isa(obj) then
@@ -883,7 +883,7 @@ TownNPCObj=AIObj:subclass{
 
 HelperObj=AIObj:subclass{
 	solid=false,
-	moveTowards=[:,destX,destY]do
+	moveTowards=|:,destX,destY|do
 		local deltax = destX-self.pos.x
 		local deltay = destY-self.pos.y
 		local absdeltax = math.abs(deltax)
@@ -901,7 +901,7 @@ HelperObj=AIObj:subclass{
 		end
 		local result = self:move(dx, dy)
 	end,
-	update=[:]do
+	update=|:|do
 		if self.target then
 			if self.target.hp<=0 then
 				self.target=nil
@@ -948,7 +948,7 @@ GuardObj=TownNPCObj:subclass{
 MerchantObj=TownNPCObj:subclass{
 	spriteIndex=134,--'objs/merchant.png'
 	hpMax=10,
-	init=[:,args]do
+	init=|:,args|do
 		MerchantObj.super.init(self,args)
 		if args.store then
 			self.store=args.store
@@ -961,7 +961,7 @@ MerchantObj=TownNPCObj:subclass{
 				end
 			end
 
-			items:sort([itemA,itemB]
+			items:sort(|itemA,itemB|
 				math.abs(itemA.cost - player.gold) < math.abs(itemB.cost - player.gold)
 			)
 
@@ -972,17 +972,17 @@ MerchantObj=TownNPCObj:subclass{
 		end
 		self.msg = args.msg
 	end,
-	onInteract=[:,player]do
+	onInteract=|:,player|do
 		MerchantObj.super.onInteract(self,player)
 		local merchant=self
 		if self.store then
-			ClientPrompt({'Buy','Sell'}, [:,cmd,index]do
+			ClientPrompt({'Buy','Sell'}, |:,cmd,index|do
 				if cmd == 'Buy' then
-					local buyOptions = merchant.items:mapi([item,index] item.name.." ("..item.cost.." GP)")
+					local buyOptions = merchant.items:mapi(|item,index| item.name.." ("..item.cost.." GP)")
 					if #buyOptions == 0 then
 						clientMessage"I have nothing to sell you!"
 					else
-						ClientPrompt(buyOptions, [:,cmd, index]do
+						ClientPrompt(buyOptions, |:,cmd, index|do
 							local item = merchant.items[index]
 							--TODO 'how many?'
 							if player.gold >= item.cost then
@@ -992,7 +992,7 @@ MerchantObj=TownNPCObj:subclass{
 							else
 								clientMessage"You can't afford that!"
 							end
-						end, [:,cmd, index]do
+						end, |:,cmd, index|do
 							local item = merchant.items[index]
 							possibleEquipItem = item
 							if EquipItem:isa(item) then
@@ -1002,19 +1002,19 @@ MerchantObj=TownNPCObj:subclass{
 								if HelmItem:isa(item) then possibleEquipField = 'head' end
 								if RelicItem:isa(item) then possibleEquipField = 'relic2' end
 							end
-						end, [:]do
+						end, |:|do
 							possibleEquipField = nil
 						end)
 					end
 				elseif cmd == 'Sell' then
 					local sellScale = .5
-					local sellOptions = player.items:mapi([item, index]
+					local sellOptions = player.items:mapi(|item, index|
 						item.name.." ("..math.ceil(item.cost * sellScale).." GP)"
 					)
 					if #sellOptions == 0 then
 						clientMessage"You have nothing to sell me!"
 					else
-						ClientPrompt(sellOptions, [:,cmd,index]do
+						ClientPrompt(sellOptions, |:,cmd,index|do
 							local item = player.items[index]
 							--TODO how many?
 							player.gold += math.ceil(item.cost * sellScale)
@@ -1031,12 +1031,12 @@ MerchantObj=TownNPCObj:subclass{
 
 WarpObj=GameObj:subclass{
 	solid=true,
-	init=[:,args]do
+	init=|:,args|do
 		GameObj.super.init(self,args)
 		self.destMap = args.destMap
 		self.destPos = args.destPos
 	end,
-	onInteract=[:,player]do
+	onInteract=|:,player|do
 		setMapRequest = {map=self.destMap}
 		setMapRequest.pos = self.destPos
 	end,
@@ -1057,17 +1057,17 @@ DownStairsObj=WarpObj:subclass{
 FireWallObj=GameObj:subclass{
 	spriteIndex=70,--'objs/firewall.png'
 	lightRadius=10,
-	init=[:,args]do
+	init=|:,args|do
 		GameObj.super.init(self,args)
 		self.life = math.random(10,100)
 		self.caster = args.caster
 	end,
-	getLightRadius=[:] self.lightRadius * (math.random() * .5 + .5),
-	update=[:]do
+	getLightRadius=|:| self.lightRadius * (math.random() * .5 + .5),
+	update=|:|do
 		self.life-=1
 		if self.life <= 0 then self.remove = true end
 	end,
-	onTouch=[:,other]do
+	onTouch=|:,other|do
 		if BattleObj:isa(other) then
 			spells.Fire:useOnTarget(self.caster, other)
 		end
@@ -1087,7 +1087,7 @@ FriendlySnakeObj=HelperObj:subclass{
 }
 
 PopupObj=GameObj:subclass{
-	update=[:]do
+	update=|:|do
 		self.remove = true
 	end,
 }
@@ -1099,7 +1099,7 @@ args:
 	y
 	outlineSize
 --]]
-drawOutlineText=[args]do
+drawOutlineText=|args|do
 	for x=-1,1 do
 		for y=-1,1 do
 			text(args.text, args.x + x * args.outlineSize, args.y + y * args.outlineSize, 0xf0, -1)
@@ -1110,12 +1110,12 @@ end
 
 PopupText=PopupObj:subclass{
 	color=0x1f,	-- rgb(255,0,0)
-	init=[:,args]do
+	init=|:,args|do
 		PopupText.super.init(self,args)
 		self.msg = args.msg
 		self.color = args.color
 	end,
-	drawLocal=[:,rx,ry]do
+	drawLocal=|:,rx,ry|do
 		-- draw a circle at this location ... avg blended ... what color?
 		blend(5)	-- avg w/solid color
 		pokew(blendColorMem, self.color)
@@ -1141,7 +1141,7 @@ PopupText=PopupObj:subclass{
 --don't convert classes to self too hastily without making sure their image is precached
 --I'm using self with Spell.use() and putting all spells.url's in the image precache
 PopupSpellIcon=PopupObj:subclass{
-	init=[:,args]do
+	init=|:,args|do
 		PopupSpellIcon.super.init(self,args)
 		self.spriteIndex=args.spriteIndex
 	end,
@@ -1163,7 +1163,7 @@ DoorObj=GameObj:subclass{
 	spriteIndex=64,--url='objs/door.png'
 	solid=true,
 	blocksLight=true,
-	onInteract=[:,player]do
+	onInteract=|:,player|do
 		self.remove = true
 	end,
 }
@@ -1171,7 +1171,7 @@ DoorObj=GameObj:subclass{
 TreasureObj=GameObj:subclass{
 	spriteIndex=256,--url='objs/treasure.png'
 	solid=true,
-	onInteract=[:,player]do
+	onInteract=|:,player|do
 		local itemClass = itemClasses:pickRandom()
 
 		--store trick: spawn 100, pick the closest to the player's gp level
@@ -1250,10 +1250,10 @@ objTypes = table{
 -- attributes
 
 Attribute=class{
-	init=[:,target]do
+	init=|:,target|do
 		if self.lifeRange then self.life = math.random(table.unpack(self.lifeRange)) end
 	end,
-	update=[:,target]do
+	update=|:,target|do
 		if self.life then
 			self.life-=1
 			if self.life <= 0 then self.remove = true end
@@ -1269,7 +1269,7 @@ attributes = {
 	Attribute:subclass{
 		name = "Poison",
 		lifeRange = {10,20},
-		update=[:,target, ...]do
+		update=|:,target, ...|do
 			target:adjustPoints('hp', -math.ceil(target:stat'hpMax'/50))
 			Attribute.update(self, target, ...)
 		end,
@@ -1277,7 +1277,7 @@ attributes = {
 	Attribute:subclass{
 		name = "Regen",
 		lifeRange = {10,20},
-		update=[:,target,...]do
+		update=|:,target,...|do
 			target:adjustPoints('hp', math.ceil(target:stat'hpMax'/50))
 			Attribute.update(self, target, ...)
 		end,
@@ -1302,7 +1302,7 @@ castingInfo:
 	dontCost = override costing mp (for scrolls)
 	onCast = what to do upon casting it (for scrolls)
 --]]
-spellTargetKeyCallback=[key]do
+spellTargetKeyCallback=|key|do
 	local nx = castingInfo.target.x
 	local ny = castingInfo.target.y
 	if key=='left' then nx-=1
@@ -1330,7 +1330,7 @@ end
 Spell=class{
 	inflictAttributes = {},
 	inflictChance = 1/4,
-	clientUse=[:,args]do
+	clientUse=|:,args|do
 		--prompt the user for a target location
 		castingInfo = {}
 		castingInfo.spell = self
@@ -1367,15 +1367,15 @@ Spell=class{
 		clientMessage("choose target for spell "..castingInfo.spell.name)
 		keyCallback	= spellTargetKeyCallback
 	end,
-	canPayFor=[:,caster]do
+	canPayFor=|:,caster|do
 		if caster == player and castingInfo and castingInfo.dontCost then return true end
 		return caster.mp >= self.cost
 	end,
-	payFor=[:,caster]do
+	payFor=|:,caster|do
 		if caster == player and castingInfo and castingInfo.dontCost then return end
 		caster.mp -= self.cost
 	end,
-	use=[:,caster, pos]do
+	use=|:,caster, pos|do
 		if not self:canPayFor(caster) then
 			PopupText{msg='NO MP!', pos=caster.pos}
 			return
@@ -1396,7 +1396,7 @@ Spell=class{
 			castingInfo:onCast(caster)
 		end
 	end,
-	useOnTile=[:,caster,tile,tilePos,tileObjs]do
+	useOnTile=|:,caster,tile,tilePos,tileObjs|do
 		if self.spriteIndex then
 			 PopupSpellIcon{pos=tilePos, spriteIndex=self.spriteIndex}
 		end
@@ -1432,7 +1432,7 @@ Spell=class{
 			end
 		end
 	end,
-	useOnTarget=[:,caster, target]do
+	useOnTarget=|:,caster, target|do
 		if not self.alwaysHits and not caster:magicHitRoll(target) then
 			 PopupText{msg='MISS!',pos=target.pos}
 			return
@@ -1468,7 +1468,7 @@ spells=table{
 	{name="Heal", damage=-10, range=3, area=0, cost=3, targetSelf=true, alwaysHits=true},
 	{name="Antidote", removeAttributes={"Poison"}, range=0, area=0, cost=1, targetSelf=true, alwaysHits=true},
 	{name="Regen", inflictAttributes={"Regen"}, inflictChance=1, range=0, area=0, cost=1, targetSelf=true, alwaysHits=true},
-	{name="Blink", range=20, area=0, cost=10, targetSelf=true, useOnTile=[:,caster,tile,tilePos,tileObjs]player:setPos(tilePos:unpack())},
+	{name="Blink", range=20, area=0, cost=10, targetSelf=true, useOnTile=|:,caster,tile,tilePos,tileObjs|player:setPos(tilePos:unpack())},
 	{name="Light", range=20, area=0, cost=1, targetSelf=true, inflictAttributes={"Light"}, inflictChance=1, alwaysHits=true},
 }
 for i,spellProto in ipairs(spells) do
@@ -1568,10 +1568,10 @@ Item=class{
 		mp = 2,
 		food = .02,
 	},
-	init=[:]do
+	init=|:|do
 		if self.fieldRanges then self:applyRanges(self.fieldRanges) end
 	end,
-	applyRanges=[:,fieldRanges]do
+	applyRanges=|:,fieldRanges|do
 		for field,rangeInfo in pairs(fieldRanges)do
 			if type(rangeInfo)=='number' then
 				rangeInfo={math.ceil(rangeInfo*.75), rangeInfo}
@@ -1589,7 +1589,7 @@ Item=class{
 }
 
 UsableItem=Item:subclass{
-	use=[:]do
+	use=|:|do
 		local result
 		if self.hp then player:adjustPoints('hp', self.hp) end
 		if self.mp then player:adjustPoints('mp', self.mp) end
@@ -1604,13 +1604,13 @@ UsableItem=Item:subclass{
 			else
 				clientMessage("You learned "..self.spellTaught.name)
 				player.spells:insert(self.spellTaught)
-				player.spells:sort([a,b] a.cost < b.cost)
+				player.spells:sort(|a,b| a.cost < b.cost)
 			end
 		end
 		if self.spellUsed then
 			-- don't have the item menu remove the scroll ...
 			result='keep'
-			self.spellUsed:clientUse{dontCost=true, onCast=[]do
+			self.spellUsed:clientUse{dontCost=true, onCast=||do
 				-- instead have the scroll removed if we can pay for it
 				player.items:remove((player.items:find(self)))
 			end}
@@ -1620,7 +1620,7 @@ UsableItem=Item:subclass{
 }
 
 EquipItem=Item:subclass{
-	init=[:,...] do
+	init=|:,...| do
 		EquipItem.super.init(self, ...)
 		local name = nil
 		local area = 0
@@ -1731,8 +1731,8 @@ itemClasses = table{
 	HelmItem,
 	--relics
 	RelicItem:subclass{name='Flashlight', cost=500, lightRadius=20},
-	RelicItem:subclass{name='MPify', cost=500, mpMaxModify=[:,value] value * 2, hpMaxModify=[:,value] math.ceil(value/2) },
-	RelicItem:subclass{name='HPify', cost=500, hpMaxModify=[:,value] value * 2, mpMaxModify=[:,value] math.ceil(value/2) },
+	RelicItem:subclass{name='MPify', cost=500, mpMaxModify=|:,value| value * 2, hpMaxModify=|:,value| math.ceil(value/2) },
+	RelicItem:subclass{name='HPify', cost=500, hpMaxModify=|:,value| value * 2, mpMaxModify=|:,value| math.ceil(value/2) },
 }
 for _,spell in ipairs(spells) do
 	itemClasses:insert(UsableItem:subclass{name=spell.name..' Book', cost=100, spellTaught=spell})
@@ -1749,7 +1749,7 @@ end
 
 
 Tile=class{
-	init=[:,pos]do
+	init=|:,pos|do
 		self.pos = vec2(pos)
 	end,
 }
@@ -1789,7 +1789,7 @@ Map=class{
 		playerStart
 		tileType
 	--]]
-	init=[:,args]do
+	init=|:,args|do
 		self.name = args!.name
 		self.exitMap = args.exitMap
 		self.temp = args.temp
@@ -1828,7 +1828,7 @@ Map=class{
 	end,
 	--wraps the position if the map is a wrap map
 	--if not, returns false
-	wrapPos=[:,pos]do
+	wrapPos=|:,pos|do
 		pos.y = math.floor(pos.y)
 		pos.x = math.floor(pos.x)
 		if self.wrap then
@@ -1843,12 +1843,12 @@ Map=class{
 		end
 		return true
 	end,
-	getTile=[:,x,y]do
+	getTile=|:,x,y|do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
 		return self.tiles[pos.y][pos.x]
 	end,
-	getTileType=[:,x,y]do
+	getTileType=|:,x,y|do
 		error'TODO'	
 		--[[
 		It seems ideal to mget() this, but don't forget that only the current map is in mget memory
@@ -1859,7 +1859,7 @@ Map=class{
 			or just have the ROM one giant arbitrary blob, put a FAT somewhere, and have it point to locations for arbitray-sized tilemaps? ...  this might mean extra overhead for the FAT.
 		--]]
 	end,
-	setTileType=[:,x,y,tileType]do
+	setTileType=|:,x,y,tileType|do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
 		local tile = tileType(pos)
@@ -1873,7 +1873,7 @@ Map=class{
 		range,
 		callback
 	--]]
-	floodFill=[:,args]do
+	floodFill=|:,args|do
 		local allTiles = {}
 		local startPos = vec2(args.pos)
 		local startTile = self:getTile(startPos:unpack())
@@ -1906,14 +1906,14 @@ Map=class{
 		end
 	end,
 	
-	getTileObjs=[:,x,y]do
+	getTileObjs=|:,x,y|do
 		local pos=vec2(x,y)
 		if not self:wrapPos(pos) then return end
 		local tileObjsRow=self.tileObjs[pos.y]
 		if not tileObjsRow then return end
 		return tileObjsRow[pos.x]
 	end,
-	addObjToTile=[:,obj]do
+	addObjToTile=|:,obj|do
 		local pos=vec2(obj.pos)
 		if not self:wrapPos(pos) then return end
 		local tileObjsRow=self.tileObjs[pos.y]
@@ -1928,7 +1928,7 @@ Map=class{
 		end
 		tileObjs:insertUnique(obj)
 	end,
-	removeObjFromTile=[:,obj]do
+	removeObjFromTile=|:,obj|do
 		local pos=vec2(obj.pos)
 		if not self:wrapPos(pos) then return end
 		local tileObjsRow=self.tileObjs[pos.y]
@@ -1944,7 +1944,7 @@ Map=class{
 		end
 	end,
 	
-	pathfind=[:,start, finish]do
+	pathfind=|:,start, finish|do
 		if not self:wrapPos(start) then return end
 		if not self:wrapPos(finish) then return end
 		local srcX = start.x
@@ -2001,7 +2001,7 @@ args:
 	classify
 	bbox <- default: range
 --]]
-pickFreeRandomFixedPos=[args]do
+pickFreeRandomFixedPos=|args|do
 	local targetMap = args.map
 	local bbox = box2(args.bbox or targetMap.bbox)
 	local classify = args.classify
@@ -2033,7 +2033,7 @@ pickFreeRandomFixedPos=[args]do
 	return vec2()
 end
 
-findFixedObj=[targetMap,callback]do
+findFixedObj=|targetMap,callback|do
 	for _,fixedObj in ipairs(targetMap.fixedObjs) do
 		if callback(fixedObj) then return fixedObj end
 	end
@@ -2049,7 +2049,7 @@ args:
 	world
 	worldPos
 --]]
-genTown=[args]do
+genTown=|args|do
 	local world = args.world
 	world.fixedObjs:insert{
 		type=TownObj,
@@ -2090,7 +2090,7 @@ genTown=[args]do
 	}
 
 	local brickradius=3
-	local buildBricksAround=[pos]do
+	local buildBricksAround=|pos|do
 		local minx = pos.x - brickradius
 		local miny = pos.y - brickradius
 		local maxx = pos.x + brickradius
@@ -2115,12 +2115,12 @@ genTown=[args]do
 	local dockGuy = {
 		type=MerchantObj,
 		pos=vec2(newMap.size.x-border-brickradius-1, math.random(border+1, newMap.size.y-border-2)),
-		onInteract=[:,player]do
+		onInteract=|:,player|do
 			if not storyInfo.foundPrincess then
 				clientMessage("I'm the guy at the docks")
 			else
 				clientMessage("We're sailing for the capitol! All set?")
-				local prompt = clientPrompt({'No','Yes'}, [cmd,index]do
+				local prompt = clientPrompt({'No','Yes'}, |cmd,index|do
 					prompt:close()
 					if cmd=='Yes' then
 						--TODO make the player a boat ...
@@ -2135,10 +2135,10 @@ genTown=[args]do
 
 	local pathwidth = 1
 	local npcBrickRadius = 3
-	local findNPCPos = []
+	local findNPCPos = ||
 		pickFreeRandomFixedPos{
 			map=newMap,
-			classify=[tile] tileTypes.Grass:isa(tile),
+			classify=|tile| tileTypes.Grass:isa(tile),
 			bbox=box2(
 				 vec2(border+npcBrickRadius+1, border+npcBrickRadius+1),
 				 vec2(newMap.size.x-border-npcBrickRadius-2,newMap.size.y-border-npcBrickRadius-3)
@@ -2148,7 +2148,7 @@ genTown=[args]do
 	local storyGuy = {
 		type=MerchantObj,
 		pos=findNPCPos(),
-		onInteract=[:,player]do
+		onInteract=|:,player|do
 			if not storyInfo.foundPrincess then
 				clientMessage("They stole the princess! Follow the brick path and you'll find them!")
 			else
@@ -2165,7 +2165,7 @@ genTown=[args]do
 		local healerGuy = {
 			type=MerchantObj,
 			pos=findNPCPos(),
-			onInteract=[:,player]do
+			onInteract=|:,player|do
 				local cost = 1
 				if player.hp == player:stat'hpMax' and player.mp == player:stat'mpMax' then
 					clientMessage("Come back when you need a healin'!")
@@ -2233,7 +2233,7 @@ genTown=[args]do
 end
 
 
-genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
+genDungeonLevel=|targetMap,prevMapName,nextMapName,avgRoomSize|do
 	local rooms = table()
 
 	--trace("begin gen "+targetMap.name)
@@ -2346,7 +2346,7 @@ genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
 					then
 						local neighborRoom = tile.room
 						local neighborRoomIndex = assert(rooms:find(neighborRoom), "found unknown neighbor room")
-						local _, neighbor = room.neighbors:find(nil, [neighbor] neighbor.room == neighborRoom)
+						local _, neighbor = room.neighbors:find(nil, |neighbor| neighbor.room == neighborRoom)
 						if not neighbor then
 							neighbor = {room=neighborRoom, positions=table()}
 							room.neighbors:insert(neighbor)
@@ -2368,11 +2368,11 @@ genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
 
 	--trace("establishing connectivity")
 	while true do
-		local srcRoomOptions = usedRooms:filter([room]
+		local srcRoomOptions = usedRooms:filter(|room|
 			--if the room has no rooms that haven't been used,then don't consider it
 			--so keep all of the neighbor's neighbors that haven't been used
 			--if self has any good neighbors then consider it
-			#room.neighbors:filter([neighborInfo]
+			#room.neighbors:filter(|neighborInfo|
 				not usedRooms:find(neighborInfo.room)
 			) > 0
 		)
@@ -2383,7 +2383,7 @@ genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
 		if leafRoomIndex ~= -1 then leafRooms:remove(leafRoomIndex) end
 
 		--self is the same filter as is within the srcRoomOptions filter -=1 so if you want to cache self info, feel free
-		local neighborInfoOptions = srcRoom.neighbors:filter([neighborInfo]
+		local neighborInfoOptions = srcRoom.neighbors:filter(|neighborInfo|
 			not usedRooms:find(neighborInfo.room)
 		)
 		local neighborInfo = neighborInfoOptions:pickRandom()
@@ -2427,7 +2427,7 @@ genDungeonLevel=[targetMap,prevMapName,nextMapName,avgRoomSize]do
 			type=MerchantObj,
 			pos=pickFreeRandomFixedPos{map=targetMap, bbox=lastRoom.bbox},
 			msg='Tee Hee! Take me back to the village',
-			onInteract=[:,player]do
+			onInteract=|:,player|do
 				-- so much for ES6 OOP being more useful than hacked-together original JS prototypes...
 				-- can't call super here even if self function is added to a class prototype
 				MerchantObj.onInteract(self, arguments)
@@ -2467,7 +2467,7 @@ args:
 	worldPos
 	avgRoomSize
 --]]
-genDungeon=[args]do
+genDungeon=|args|do
 	local world = args.world
 	world.fixedObjs:insert{
 		type=TownObj,
@@ -2536,7 +2536,7 @@ args:
 start it out
 --]]
 
-drawGrassBlob=[targetMap,cx,cy,r]do
+drawGrassBlob=|targetMap,cx,cy,r|do
 	local extra = 3
 	local sr = r + extra
 	for dy=-sr,sr do
@@ -2554,7 +2554,7 @@ drawGrassBlob=[targetMap,cx,cy,r]do
 	end
 end
 
-initMaps=[]do
+initMaps=||do
 	-- randgen world
 	local worldBaseSpawnRate = .02
 	local world = Map{
@@ -2599,12 +2599,12 @@ initMaps=[]do
 	end
 	world.playerStart=townPos-vec2(1,0)
 
-	local isWeapon=[itemClass] WeaponItem:isa(itemClass)
-	local isRelic=[itemClass] RelicItem:isa(itemClass)
-	local isArmor=[itemClass] not isWeapon(itemClass) and not isRelic(itemClass) and EquipItem:isa(itemClass)	--all else
-	local isFood=[itemClass] (UsableItem:isa(itemClass) and itemClass.food) or (itemClass.fieldRanges and itemClass.fieldRanges.food)
-	local isSpell=[itemClass] UsableItem:isa(itemClass) and itemClass.spellUsed or itemClass.spellTaught
-	local isMisc=[itemClass] UsableItem:isa(itemClass) and not isFood(itemClass) and not isSpell(itemClass)
+	local isWeapon=|itemClass| WeaponItem:isa(itemClass)
+	local isRelic=|itemClass| RelicItem:isa(itemClass)
+	local isArmor=|itemClass| not isWeapon(itemClass) and not isRelic(itemClass) and EquipItem:isa(itemClass)	--all else
+	local isFood=|itemClass| (UsableItem:isa(itemClass) and itemClass.food) or (itemClass.fieldRanges and itemClass.fieldRanges.food)
+	local isSpell=|itemClass| UsableItem:isa(itemClass) and itemClass.spellUsed or itemClass.spellTaught
+	local isMisc=|itemClass| UsableItem:isa(itemClass) and not isFood(itemClass) and not isSpell(itemClass)
 
 	local town = genTown{
 		world=world,
@@ -2640,8 +2640,8 @@ initMaps=[]do
 		temp={from=70, to=40},
 	}
 
-	local townFixedObj = findFixedObj(world, [fixedObj] fixedObj.destMap == town.name)
-	local dungeonFixedObj = findFixedObj(world, [fixedObj] fixedObj.destMap == dungeon.name )
+	local townFixedObj = findFixedObj(world, |fixedObj| fixedObj.destMap == town.name)
+	local dungeonFixedObj = findFixedObj(world, |fixedObj| fixedObj.destMap == dungeon.name )
 	--now pathfind from townFixedObj.pos to dungeonFixedObj.pos, follow the path, and fill it in as brick
 	local path = world:pathfind(townFixedObj.pos, dungeonFixedObj.pos)
 	if not path then
@@ -2681,7 +2681,7 @@ initMaps=[]do
 	--and add a mountain range or two ...
 end
 
-drawTextBlock=[msgs, x, y, floatRight]do
+drawTextBlock=|msgs, x, y, floatRight|do
 	local maxWidth = 0
 	for j,msg in ipairs(msgs) do
 		maxWidth = math.max(maxWidth, text(msg, -100, -100))
@@ -2711,7 +2711,7 @@ drawTextBlock=[msgs, x, y, floatRight]do
 end
 
 showMenu=true
-draw=[]do
+draw=||do
 	if not player then return end
 
 	view.center:set(player.pos)
@@ -2844,7 +2844,7 @@ draw=[]do
 	end
 
 	if #player.attributes > 0 then
-		drawTextBlock(player.attributes:mapi([attribute] attribute.name),
+		drawTextBlock(player.attributes:mapi(|attribute| attribute.name),
 			0, screenSize.y - #player.attributes * fontSize - 8
 		)
 	end
@@ -2857,13 +2857,13 @@ draw=[]do
 	end
 
 	for i,prompt in ipairs(clientPromptStack) do
-		drawTextBlock(table.mapi(prompt.options, [option,i]
+		drawTextBlock(table.mapi(prompt.options, |option,i|
 			((prompt.index == i and '>' or ' ')..option)
 		), (i-1)<<2, ((i-1)<<2) + 8)
 	end
 end
 
-pickFreePos=[classifier]do
+pickFreePos=|classifier|do
 	for attempt=1,1000 do
 		local pos = randomBoxPos(thisMap.bbox)
 		local tile = thisMap:getTile(pos.x, pos.y)
@@ -2884,13 +2884,13 @@ pickFreePos=[classifier]do
 	return vec2()
 end
 
-updateGame=[]do
+updateGame=||do
 	if thisMap.spawn then
 		for _,spawnInfo in ipairs(thisMap.spawn) do
 			if math.random() < spawnInfo.rate and #thisMap.objs < 2000 then
 				local spawnClass = spawnInfo.type
 				local classifier = spawnClass.movesInWater
-					and ([tile] tile.water)
+					and (|tile| tile.water)
 					or nil
 				spawnClass{pos=pickFreePos(classifier)}
 			end
@@ -2941,7 +2941,7 @@ updateGame=[]do
 end
 
 
-setMap=[args]do
+setMap=|args|do
 	--if we were somewhere already...
 	if thisMap then
 		--remove player
@@ -3012,7 +3012,7 @@ end
 
 
 
-attackKeyCallback=[key]do
+attackKeyCallback=|key|do
 	keyCallback = nil
 	if key=='left' then
 		player:attack(-1, 0)
@@ -3026,7 +3026,7 @@ attackKeyCallback=[key]do
 	return true
 end
 
-interactKeyCallback=[key]do
+interactKeyCallback=|key|do
 	keyCallback = nil
 	if key=='left' then
 		player:interact(-1, 0)
@@ -3040,9 +3040,9 @@ interactKeyCallback=[key]do
 	return true
 end
 
-doEquipScreen=[]do
+doEquipScreen=||do
 	local equipPrompt
-	local refreshEquipPrompt = []do
+	local refreshEquipPrompt = ||do
 		for i,field in ipairs(player.equipFields) do
 			local s = field
 			if player[field] then s ..= ': ' .. player[field].name end
@@ -3052,17 +3052,17 @@ doEquipScreen=[]do
 	end
 	equipPrompt = ClientPrompt(
 		player.equipFields,
-		[:,cmd,index]do
+		|:,cmd,index|do
 			local equipField = player.equipFields[index]
-			local equippableItemIndexes = range(#player.items):filter([itemIndex]
+			local equippableItemIndexes = range(#player.items):filter(|itemIndex|
 				player:canEquip(equipField, player.items[itemIndex])
 			)
 			equippableItemIndexes:insert(1, 0)
 			ClientPrompt(
-				equippableItemIndexes:mapi([itemIndex]
+				equippableItemIndexes:mapi(|itemIndex|
 					itemIndex==0 and 'Nothing' or player.items[itemIndex].name
 				),
-				[:,itemName,index]do
+				|:,itemName,index|do
 					self:close()
 					local itemIndex = equippableItemIndexes[index]
 					local item = player.items[itemIndex]
@@ -3070,11 +3070,11 @@ doEquipScreen=[]do
 					player:setEquip(equipField,item)
 					refreshEquipPrompt()
 				end,
-				[:,cmd,index]do
+				|:,cmd,index|do
 					possibleEquipField = equipField
 					possibleEquipItem = player.items[equippableItemIndexes[index]]
 				end,
-				[:]do
+				|:|do
 					possibleEquipField = nil
 				end
 			)
@@ -3083,8 +3083,8 @@ doEquipScreen=[]do
 	refreshEquipPrompt()
 end
 
-doSpellScreen=[]do
-	local spells = player.spells:filter([spell]do
+doSpellScreen=||do
+	local spells = player.spells:filter(|spell|do
 		return spell:canPayFor(player)	--TODO grey out uncastable spells
 	end)
 	if #spells==0 then
@@ -3092,23 +3092,23 @@ doSpellScreen=[]do
 		return
 	end
 	ClientPrompt(
-		spells:mapi([spell] spell.name..' ('..spell.cost..')'),
-		[:,cmd,index]do
+		spells:mapi(|spell| spell.name..' ('..spell.cost..')'),
+		|:,cmd,index|do
 			closeAllPrompts()
 			spells[index]:clientUse()
 		end
 	)
 end
 
-doItemScreen=[]do
-	local items=player.items:filter([item] item.use)	--TODO grey out unusable items
+doItemScreen=||do
+	local items=player.items:filter(|item| item.use)	--TODO grey out unusable items
 	if #items==0 then
 		clientMessage("You don't have any items that you can use right now")
 		return
 	end
 	ClientPrompt(
-		items:mapi([item,index] item.name),
-		[:,cmd,index]do
+		items:mapi(|item,index| item.name),
+		|:,cmd,index|do
 			self:close()
 			local item = items[index]
 			local result = item:use(player)
@@ -3119,7 +3119,7 @@ doItemScreen=[]do
 	)
 end
 
-doMenu=[]do
+doMenu=||do
 	ClientPrompt({
 		'Pass',
 		'Attack',
@@ -3128,7 +3128,7 @@ doMenu=[]do
 		'Talk',
 		'Equip',
 		'Cheat',
-	}, [:,cmd,index]do
+	}, |:,cmd,index|do
 		-- TODO Pass doesn't pass ...
 		if cmd=='Attack' then
 			self:close()
@@ -3150,7 +3150,7 @@ doMenu=[]do
 	end)
 end
 
-defaultKeyCallback=[key]do
+defaultKeyCallback=|key|do
 	if key=='ok' then
 		doMenu()
 		return false
@@ -3166,7 +3166,7 @@ defaultKeyCallback=[key]do
 	return true
 end
 
-handleCommand=[key]do
+handleCommand=|key|do
 	if not keyCallback then keyCallback = defaultKeyCallback end
 	if keyCallback == defaultKeyCallback and #clientPromptStack>0 then keyCallback = promptKeyCallback end
 	if keyCallback(key) then
@@ -3176,7 +3176,7 @@ handleCommand=[key]do
 	end
 end
 
-cheat=[]do
+cheat=||do
 	player.gold = math.huge
 	player.hp = math.huge
 	player.hpMax = math.huge
@@ -3186,7 +3186,7 @@ cheat=[]do
 	draw()
 end
 
-update=[]do
+update=||do
 	if btnp('up', 0, 20, 5) then
 		handleCommand'up'
 	elseif btnp('down', 0, 20, 5) then
