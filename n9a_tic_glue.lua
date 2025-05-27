@@ -9,14 +9,14 @@ matAddr = ffi.offsetof('RAM', 'mvMat')
 assert.eq(ffi.sizeof(ffi.cast('RAM*',0).mvMat), 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 
 local matstack=table()
-local matpush=[]do
+local matpush=||do
 	local t={}
 	for i=0,15 do
 		t[i+1] = peekl(matAddr + (i<<2))
 	end
 	matstack:insert(t)
 end
-local matpop=[]do
+local matpop=||do
 	local t = matstack:remove(1)
 	if not t then return end
 	for i=0,15 do
@@ -31,7 +31,7 @@ borderColor=0
 mouseCursor=1
 fontParams={[0]=0,0,0,0,0,0,0,0}
 musicState={[0]=0,0,0}
-ticpeek=[addr,bits]do
+ticpeek=|addr,bits|do
 	bits=bits or 8
 	if bits==1 then
 		return (ticpeek(addr>>3)>>(addr&7))&1
@@ -91,7 +91,7 @@ ticpeek=[addr,bits]do
 trace(('TODO peek $%x'):format(addr))
 	end
 end
-ticpoke=[addr,value,bits]do
+ticpoke=|addr,value,bits|do
 	bits=bits or 8
 	assert.type(value,'number')
 	if bits==1 then
@@ -161,41 +161,41 @@ trace(('TODO poke $%x '):format(addr)..tostring(value))
 end
 -- default to 0 ... does tic80 really need this?
 ticbit={
-	band=[a,b]bit.band(a or 0, b or 0),
-	bor=[a,b]bit.bor(a or 0, b or 0),
-	bxor=[a,b]bit.bxor(a or 0, b or 0),
-	bnot=[a]bit.bnot(a or 0),
-	lshift=[a,b]bit.lshift(a or 0, b or 0),
-	rshift=[a,b]bit.rshift(a or 0, b or 0),
-	arshift=[a,b]bit.arshift(a or 0, b or 0),
-	rol=[a,b]bit.rol(a or 0, b or 0),
-	ror=[a,b]bit.ror(a or 0, b or 0),
+	band=|a,b|bit.band(a or 0, b or 0),
+	bor=|a,b|bit.bor(a or 0, b or 0),
+	bxor=|a,b|bit.bxor(a or 0, b or 0),
+	bnot=|a|bit.bnot(a or 0),
+	lshift=|a,b|bit.lshift(a or 0, b or 0),
+	rshift=|a,b|bit.rshift(a or 0, b or 0),
+	arshift=|a,b|bit.arshift(a or 0, b or 0),
+	rol=|a,b|bit.rol(a or 0, b or 0),
+	ror=|a,b|bit.ror(a or 0, b or 0),
 }
 ticton9btnmap={[0]=3,1,2,0,4,5,6,7}
 local newG = {
-	btn=[b]btn(ticton9btnmap[b&7],b>>3),
-	btnp=[b,...]btnp(ticton9btnmap[b&7],b>>3,...),
-	circ=[x,y,r,...]elli(x-r,y-r,(r<<1)+1,(r<<1)+1,...),
-	circb=[x,y,r,...]ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,...),
+	btn=|b|btn(ticton9btnmap[b&7],b>>3),
+	btnp=|b,...|btnp(ticton9btnmap[b&7],b>>3,...),
+	circ=|x,y,r,...|elli(x-r,y-r,(r<<1)+1,(r<<1)+1,...),
+	circb=|x,y,r,...|ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,...),
 	clip=clip,
 	cls=cls,
-	elli=[x,y,a,b,c]elli(x-a,y-b,(a<<1)+1,(b<<1)+1,c),
-	ellib=[x,y,a,b,c]ellib(x-a,y-b,(a<<1)+1,(b<<1)+1,c),
+	elli=|x,y,a,b,c|elli(x-a,y-b,(a<<1)+1,(b<<1)+1,c),
+	ellib=|x,y,a,b,c|ellib(x-a,y-b,(a<<1)+1,(b<<1)+1,c),
 	exit=stop,
-	fget=[i,f]do
+	fget=|i,f|do
 		i=math.floor(i)
 		f=math.floor(f)
 		return (1&((sprFlags[i] or 0)>>f))~=0
 	end,
 	--font(text x y chromakey char_width char_height fixed=false scale=1 alt=false) -> width`
-	font=[s,x,y,k,w,h,fixed,scale,alt]do
+	font=|s,x,y,k,w,h,fixed,scale,alt|do
 		if not warning_font then
 			warning_font = true
 			trace('TODO font')
 		end
 		return text(s,x,y,w*scale/8,h*scale/8)
 	end,
-	fset=[i,f,v]do
+	fset=|i,f,v|do
 		i=math.floor(i)
 		f=math.floor(f)
 		v=math.floor(v)
@@ -213,7 +213,7 @@ local newG = {
 	key=key,	-- TODO tic80<->numo9 mapping
 	keyp=keyp,	-- "
 	line=line,
-	map=[tileX,tileY,tileW,tileH,screenX,screenY,colorkey,scale,remap]do
+	map=|tileX,tileY,tileW,tileH,screenX,screenY,colorkey,scale,remap|do
 		-- https://github.com/nesbox/TIC-80/wiki/map
 		tileX=tileX or 0
 		tileY=tileY or 0
@@ -247,29 +247,29 @@ local newG = {
 			map(tileX,tileY,tileW,tileH,screenX,screenY)
 		end
 	end,
-	memcpy=[dst,src,len]do
+	memcpy=|dst,src,len|do
 		for i=0,len-1 do
 			ticpoke(dst+i,ticpeek(src+i))
 		end
 	end,
-	memset=[dst,val,len]do
+	memset=|dst,val,len|do
 		for i=0,len-1 do
 			ticpoke(dst+i,val)
 		end
 	end,
-	mget=[x,y]mget(x,y) or 0,	-- TODO what's the default for mget?
-	mset=[x,y,v]mset(x,y,v),
-	music=[]do
+	mget=|x,y|mget(x,y) or 0,	-- TODO what's the default for mget?
+	mset=|x,y,v|mset(x,y,v),
+	music=||do
 		if not warning_music then
 			warning_music = true
 			trace'TODO music'
 		end
 	end,
 	peek=ticpeek,
-	peek1=[i]ticpeek(i,1),
-	peek2=[i]ticpeek(i,2),
-	peek4=[i]ticpeek(i,4),
-	pix=[x,y,c]do
+	peek1=|i|ticpeek(i,1),
+	peek2=|i|ticpeek(i,2),
+	peek4=|i|ticpeek(i,4),
+	pix=|x,y,c|do
 		if c then
 			-- TODO pget pset?
 			x=math.floor(x)
@@ -283,7 +283,7 @@ local newG = {
 			return x<0 or x>=screenWidth or y<0 or y>=screenHeight and 0 or peek(spriteSheetAddr+((x|(y<<8))))
 		end
 	end,
-	pmem=[i,v]do
+	pmem=|i,v|do
 		if v then
 			pokel(persistentDataAddr+(i<<2),v)
 		else
@@ -291,22 +291,22 @@ local newG = {
 		end
 	end,
 	poke=ticpoke,
-	poke1=[i,v]ticpoke(i,v,1),
-	poke2=[i,v]ticpoke(i,v,2),
-	poke4=[i,v]ticpoke(i,v,4),
-	print=[s,x,y,color,fixed,scale,smallfont]do
+	poke1=|i,v|ticpoke(i,v,1),
+	poke2=|i,v|ticpoke(i,v,2),
+	poke4=|i,v|ticpoke(i,v,4),
+	print=|s,x,y,color,fixed,scale,smallfont|do
 		return text(s,x,y,scale,scale)
 	end,
 	rect=rect,
 	rectb=rectb,
 	reset=reset,
-	sfx=[]do
+	sfx=||do
 		if not warning_sfx then
 			warning_sfx = true
 			trace'TODO sfx'
 		end
 	end,
-	spr=[n,x,y,colorkey,scale,flip,rotate,w,h]do
+	spr=|n,x,y,colorkey,scale,flip,rotate,w,h|do
 		-- https://github.com/nesbox/TIC-80/wiki/spr
 		rotate = rotate or 0
 		n=math.floor(n)
@@ -334,22 +334,22 @@ local newG = {
 			spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
 		end
 	end,
-	sync=[] do
+	sync=|| do
 		if not warning_sync then
 			warning_sync=true
 			trace'TODO sync'
 		end
 	end,
-	time=[] 1000*time(),
+	time=|| 1000*time(),
 	trace=trace,
 	tri=tri,
-	trib=[] do
+	trib=|| do
 		if not warning_trib then
 			warning_trib=true
 			trace'TODO trib'
 		end
 	end,
-	textri=[x1,y1,x2,y2,x3,y3,u1,v1,u2,v2,u3,v3,use_map,transparentIndex]do
+	textri=|x1,y1,x2,y2,x3,y3,u1,v1,u2,v2,u3,v3,use_map,transparentIndex|do
 		-- https://github.com/nesbox/TIC-80/wiki/textri
 		ttri3d(
 			x1,y1,0,
@@ -362,7 +362,7 @@ local newG = {
 			nil,
 			transparentIndex)
 	end,
-	ttri=[x1, y1, x2, y2, x3, y3, u1, v1, u2, v2, u3, v3, texsrc, transparentIndex, z1, z2, z3]do
+	ttri=|x1, y1, x2, y2, x3, y3, u1, v1, u2, v2, u3, v3, texsrc, transparentIndex, z1, z2, z3|do
 		-- https://github.com/nesbox/TIC-80/wiki/ttri
 		ttri3d(
 			x1,y1,z1 or 0,
@@ -376,7 +376,7 @@ local newG = {
 			transparentIndex)
 	end,
 	tstamp=tstamp,
-	vbank=[] do
+	vbank=|| do
 		-- https://github.com/nesbox/TIC-80/wiki/vbank
 		if not warned_vbank then
 			warned_vbank = true
@@ -401,13 +401,13 @@ local newG = {
 	string=string,			-- TODO original string
 	coroutine=coroutine,	-- TODO original coroutine
 	langfix={	-- needed for langfix to work
-		idiv=[a,b] tonumber(langfix.idiv(a,b)),
+		idiv=|a,b| tonumber(langfix.idiv(a,b)),
 	},
 
-	__numo9_finished=[boot, tic, ovr, scn, bdr]do
+	__numo9_finished=|boot, tic, ovr, scn, bdr|do
 		local _ = boot?()
 		if tic then tic() end
-		update=[]do
+		update=||do
 			if tic then tic() end
 			if ovr then ovr() end
 			--if scn then scn() end
