@@ -1033,6 +1033,18 @@ void main() {
 	so we lose   2 2 3 bits
 	so we can dither those in ...
 	*/
+#if 1	// dithering
+	uvec2 ufc = uvec2(gl_FragCoord);
+	
+	// 2x2 dither matrix, for the lower 2 bits that get discarded
+	// hmm TODO should I do dither discard bitflags?
+	uint threshold = (ufc.y & 1u) | (((ufc.x ^ ufc.y) & 1u) << 1u);	// 0-3
+	
+	if ((palColor.x & 3u) > threshold) palColor.x+=4u;
+	if ((palColor.y & 3u) > threshold) palColor.y+=4u;
+	if ((palColor.z & 3u) > threshold) palColor.z+=4u;
+	palColor = clamp(palColor, 0u, 31u);
+#endif
 	fragColor.r = (palColor.r >> 2) |
 				((palColor.g >> 2) << 3) |
 				((palColor.b >> 3) << 6);
