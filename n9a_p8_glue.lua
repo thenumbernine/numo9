@@ -11,12 +11,12 @@ p8color=6
 camx,camy=0,0	-- map's layers needs an optimized pathway which needs the camera / clip info ...
 textx,texty=0,0
 lastlinex,lastlieny=0,0
-resetmat=[]do
+resetmat=||do
 	matident()
 	matscale(2,2)
 end
 resetmat()
-p8_camera=[x,y]do
+p8_camera=|x,y|do
 	resetmat()
 	if not x then
 		camx,camy=0,0
@@ -25,7 +25,7 @@ p8_camera=[x,y]do
 		camx,camy=x,y
 	end
 end
-p8_clip=[x,y,w,h,rel]do
+p8_clip=|x,y,w,h,rel|do
 --DEBUG:assert(not rel, 'TODO')
 	if not x then
 		clip(0,0,255,255)
@@ -39,7 +39,7 @@ p8_clip=[x,y,w,h,rel]do
 		clip(x<<1,y<<1,(w<<1)-1,(h<<1)-1)
 	end
 end
-p8_fillp=[p]nil
+p8_fillp=|p|fillp(p)	-- TODO swizzle the bits accordingly, pico8's is in order, I'm using the 4x4 Bayer dither-matrix
 p8palRemap={}
 p8palette={
 	0x0000,
@@ -75,7 +75,7 @@ I could collect unique streams of pal(...) calls post-pal() reset. and associate
 
 lol or i could manually write sprites to temp regions before drawing them ...
 --]]
-p8_pal=[from,to,remapping]do
+p8_pal=|from,to,remapping|do
 	if not from then
 		for i=0,15 do
 			pal(i,p8palette[i+1])
@@ -119,7 +119,7 @@ trace(from,to,remapping)
 		-- I think these just return?
 	end
 end
-p8_setpalt=[c,t]do
+p8_setpalt=|c,t|do
 	c=math.floor(c)
 --DEBUG:assert.ge(c, 0)
 --DEBUG:assert.lt(c, 16)
@@ -130,7 +130,7 @@ p8_setpalt=[c,t]do
 		pal(c, pal(c)|0x8000)
 	end
 end
-p8_palt=[...]do
+p8_palt=|...|do
 	local n=select('#',...)
 	if n<=1 then
 		-- looks like pico8 is reversing the bit order so they can be read left-to-right (but ofc then you always have to provide all 16 digits ...)
@@ -142,7 +142,7 @@ p8_palt=[...]do
 		p8_setpalt(...)
 	end
 end
-p8peek=[addr,n]do
+p8peek=|addr,n|do
 	if n then
 --DEBUG:assert.le(n, 8192)
 		local results = {}
@@ -189,7 +189,7 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 trace(('TODO peek $%x'):format(addr))
 	return 0
 end
-p8poke=[addr,value,...]do
+p8poke=|addr,value,...|do
 --DEBUG:assert.eq(select('#', ...), 0, 'TODO')
 	if addr>=0 and addr<0x2000 then				-- sprites & sprite+tilemap shared
 		local x=(addr&0x3f)<<1		-- x coord
@@ -228,30 +228,30 @@ end
 
 --[[ TODO technically ... if pico8 is fixed 32bpp ... then I should be floor(x*2^16) to both args before performing ops, then x/2^16 back afterwards.
 p8bit={
-	band=[a,b]bit.band(a or 0, b or 0),
-	bor=[a,b]bit.bor(a or 0, b or 0),
-	bxor=[a,b]bit.bxor(a or 0, b or 0),
-	bnot=[a]bit.bnot(a or 0),
-	shl=[a,b]bit.lshift(a or 0, b or 0),
-	shr=[a,b]bit.rshift(a or 0, b or 0),
-	lshr=[a,b]bit.arshift(a or 0, b or 0),
-	rotl=[a,b]bit.rol(a or 0, b or 0),
-	rotr=[a,b]bit.ror(a or 0, b or 0),
+	band=|a,b|bit.band(a or 0, b or 0),
+	bor=|a,b|bit.bor(a or 0, b or 0),
+	bxor=|a,b|bit.bxor(a or 0, b or 0),
+	bnot=|a|bit.bnot(a or 0),
+	shl=|a,b|bit.lshift(a or 0, b or 0),
+	shr=|a,b|bit.rshift(a or 0, b or 0),
+	lshr=|a,b|bit.arshift(a or 0, b or 0),
+	rotl=|a,b|bit.rol(a or 0, b or 0),
+	rotr=|a,b|bit.ror(a or 0, b or 0),
 }
 --]]
 -- [[
-bitfrom=[x]math.floor((x or 0)*2^16+.5)
-bitto=[x]((x or 0)/2^16)	-- don't re-offset.  leave 0 at 0.
+bitfrom=|x|math.floor((x or 0)*2^16+.5)
+bitto=|x|((x or 0)/2^16)	-- don't re-offset.  leave 0 at 0.
 p8bit={
-	band=[a,b]bitto(bit.band(bitfrom(a), bitfrom(b))),
-	bor=[a,b]bitto(bit.bor(bitfrom(a), bitfrom(b))),
-	bxor=[a,b]bitto(bit.bxor(bitfrom(a), bitfrom(b))),
-	bnot=[a]bitto(bit.bnot(bitfrom(a))),
-	shl=[a,b]bitto(bit.lshift(bitfrom(a), bitfrom(b))),
-	shr=[a,b]bitto(bit.rshift(bitfrom(a), bitfrom(b))),
-	lshr=[a,b]bitto(bit.arshift(bitfrom(a), bitfrom(b))),
-	rotl=[a,b]bitto(bit.rol(bitfrom(a), bitfrom(b))),
-	rotr=[a,b]bitto(bit.ror(bitfrom(a), bitfrom(b))),
+	band=|a,b|bitto(bit.band(bitfrom(a), bitfrom(b))),
+	bor=|a,b|bitto(bit.bor(bitfrom(a), bitfrom(b))),
+	bxor=|a,b|bitto(bit.bxor(bitfrom(a), bitfrom(b))),
+	bnot=|a|bitto(bit.bnot(bitfrom(a))),
+	shl=|a,b|bitto(bit.lshift(bitfrom(a), bitfrom(b))),
+	shr=|a,b|bitto(bit.rshift(bitfrom(a), bitfrom(b))),
+	lshr=|a,b|bitto(bit.arshift(bitfrom(a), bitfrom(b))),
+	rotl=|a,b|bitto(bit.rol(bitfrom(a), bitfrom(b))),
+	rotr=|a,b|bitto(bit.ror(bitfrom(a), bitfrom(b))),
 }
 --]]
 
@@ -279,17 +279,17 @@ setfenv(1, {
 
 	--min=math.min,	-- some games complain about passing nils ... is that from other parse errors? or is that really pico8 functionality?
 	--max=math.max,
-	min=[a,b]do
+	min=|a,b|do
 		if a==nil then return b end
 		if b==nil then return a end
 		return math.min(a,b)
 	end,
-	max=[a,b]do
+	max=|a,b|do
 		if a==nil then return b end
 		if b==nil then return a end
 		return math.max(a,b)
 	end,
-	mid=[a,b,c]do
+	mid=|a,b,c|do
 		if b<a then a,b=b,a end
 		if c<b then
 			b,c=c,b
@@ -299,13 +299,13 @@ setfenv(1, {
 	end,
 	flr=math.floor,
 	ceil=math.ceil,
-	cos=[x]math.cos(x*2*math.pi),
-	sin=[x]-math.sin(x*2*math.pi),
-	atan2=[x,y]math.atan2(-y,x)/(2*math.pi),
+	cos=|x|math.cos(x*2*math.pi),
+	sin=|x|-math.sin(x*2*math.pi),
+	atan2=|x,y|math.atan2(-y,x)/(2*math.pi),
 	sqrt=math.sqrt,
 	abs=math.abs,
-	sgn=[x]x<0 and -1 or 1,
-	rnd=[x]do
+	sgn=|x|x<0 and -1 or 1,
+	rnd=|x|do
 		if type(x)=='table' then
 			return table.pickRandom(x)
 		end
@@ -313,7 +313,7 @@ setfenv(1, {
 	end,
 	srand=math.randomseed,
 	add=table.insert,
-	del=[t,v]do
+	del=|t,v|do
 		for i,u in ipairs(t) do
 			if u==v then
 				table.remove(t,i)
@@ -322,29 +322,29 @@ setfenv(1, {
 		end
 	end,
 	deli=table.remove,
-	count=[t]#t,
-	pairs=[t](t==nil? (coroutine.wrap([]nil)):(pairs(t))),
-	all=[t]coroutine.wrap([]do
+	count=|t|#t,
+	pairs=|t|(t==nil? (coroutine.wrap(||nil)):(pairs(t))),
+	all=|t|coroutine.wrap(||do
 		if not t then return end
 		for _,x in ipairs(t) do
 			coroutine.yield(x)
 		end
 	end),
-	foreach=[t,f]do
+	foreach=|t,f|do
 		if not t then return end
 		for _,o in ipairs(t) do f(o) end
 	end,
 	tostr=tostring,
 	tonum=tonumber,
 	chr=string.char,
-	ord=[...]do
+	ord=|...|do
 		if select('#', ...)==3 then
 			local a,b,c=...
 			return string.byte(a,b,b+c-1)
 		end
 		return string.byte(...)
 	end,
-	sub=[...]do
+	sub=|...|do
 		local a,b,c=...
 		local tc = type(c)
 		if tc ~= 'nil' and tc ~= 'number' then
@@ -352,7 +352,7 @@ setfenv(1, {
 		end
 		return string.sub(...)
 	end,
-	split=[str,sep,num]do
+	split=|str,sep,num|do
 		if type(sep)=='number' then
 			-- "When separator is a number n, the string is split into n-character groups"
 			error"TODO"
@@ -372,41 +372,41 @@ setfenv(1, {
 	t=time,
 	time=time,
 
-	flip=[]nil,
+	flip=||nil,
 	cls=cls,
 	clip=p8_clip,
 	camera=p8_camera,
-	pset=[x,y,c]do
+	pset=|x,y,c|do
 		x=math.floor(x)
 		y=math.floor(y)
 		if x<0 or x>=128 or y<0 or y>=128 then return end
 		c=math.floor(c or p8color)
 		pset(x,y,c)
 	end,
-	pget=[x,y]do
+	pget=|x,y|do
 		x=math.floor(x)
 		y=math.floor(y)
 		return (x<0 or x>=128 or y<0 or y>=128) and 0 or pget(x,y)
 	end,
-	sset=[x,y,c]do
+	sset=|x,y,c|do
 		x=math.floor(x)
 		y=math.floor(y)
 		if x<0 or x>=128 or y<0 or y >= 128 then return end
 		c=math.floor(c or p8color)
 		poke(spriteSheetAddr+((x|(y<<8))),c)
 	end,
-	sget=[x,y]do
+	sget=|x,y|do
 		x=math.floor(x)
 		y=math.floor(y)
 		return (x<0 or x>=128 or y<0 or y>=128) and 0 or peek(spriteSheetAddr+((x|(y<<8))))
 	end,
-	rect=[x0,y0,x1,y1,c]rectb(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
-	rectfill=[x0,y0,x1,y1,c]rect(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
-	circ=[x,y,r,c]ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,c or p8color),
-	circfill=[x,y,r,c]elli(x-r,y-r,(r<<1)+1,(r<<1)+1,c or p8color),
-	oval=[x0,y0,x1,y1,c]ellib(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
-	ovalfill=[x0,y0,x1,y1,c]elli(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
-	line=[...]do
+	rect=|x0,y0,x1,y1,c|rectb(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
+	rectfill=|x0,y0,x1,y1,c|rect(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
+	circ=|x,y,r,c|ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,c or p8color),
+	circfill=|x,y,r,c|elli(x-r,y-r,(r<<1)+1,(r<<1)+1,c or p8color),
+	oval=|x0,y0,x1,y1,c|ellib(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
+	ovalfill=|x0,y0,x1,y1,c|elli(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
+	line=|...|do
 		local x0,y0,col,x1,y1=lastlinex,lastliney,p8color
 		local n=select('#',...)
 		if n==2 then
@@ -432,7 +432,7 @@ setfenv(1, {
 		line(x0,y0,x1,y1,col)
 		lastlinex,lastliney=x1,y1
 	end,
-	print=[...]do
+	print=|...|do
 		local n=select('#',...)
 		local s,x,y,c
 		if n==1 or n==2 then
@@ -456,7 +456,7 @@ setfenv(1, {
 	end,
 	pal=p8_pal,
 	palt=p8_palt,
-	btn=[...]do
+	btn=|...|do
 		if select('#', ...) == 0 then
 			local result=0
 			for i=0,5 do
@@ -472,7 +472,7 @@ setfenv(1, {
 		if pb then return btn(pb) end
 		error'here'
 	end,
-	btnp=[b, ...]do
+	btnp=|b, ...|do
 		local pb=p8ton9btnmap[b]
 		if not pb then return end
 		return btnp(pb, ...)
@@ -481,7 +481,7 @@ setfenv(1, {
 	-- TODO shouldn't all script variables be located in RAM
 	-- TODO TODO am I turning this into an emulator?
 	-- TODO TODO TODO can I implement Lua in SNES?
-	fget=[...]do
+	fget=|...|do
 		local i, f
 		local n=select('#',...)
 		if n==1 then
@@ -503,7 +503,7 @@ setfenv(1, {
 			error'here'
 		end
 	end,
-	fset=[...]do
+	fset=|...|do
 		local n=select('#',...)
 		if n==2 then
 			local i,val=...
@@ -534,20 +534,20 @@ setfenv(1, {
 			error'here'
 		end
 	end,
-	mget=[x,y]do
+	mget=|x,y|do
 		x=math.floor(x)
 		y=math.floor(y)
 		if x<0 or y<0 or x>=128 or y>=128 then return 0 end
 		local i=mget(x,y)
 		return (i&0xf)|((i>>1)&0xf0)
 	end,
-	mset=[x,y,i]do
+	mset=|x,y,i|do
 		x=math.floor(x)
 		y=math.floor(y)
 		i=math.floor(i)
 		mset(x,y,(i&0xf)|((i&0xf0)<<1))
 	end,
-	map=[tileX,tileY,screenX,screenY,tileW,tileH,layers]do
+	map=|tileX,tileY,screenX,screenY,tileW,tileH,layers|do
 		tileX=math.floor(tileX)
 		tileY=math.floor(tileY)
 		tileW=math.floor(tileW or 1)
@@ -646,7 +646,7 @@ setfenv(1, {
 			ssy+=8
 		end
 	end,
-	spr=[n,x,y,w,h,flipX,flipY]do
+	spr=|n,x,y,w,h,flipX,flipY|do
 		n=math.floor(n)
 --DEBUG:assert.ge(n,0)
 --DEBUG:assert.lt(n,256)
@@ -674,7 +674,7 @@ setfenv(1, {
 		end
 		spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
 	end,
-	sspr=[sheetX,sheetY,sheetW,sheetH,destX,destY,destW,destH,flipX,flipY]do
+	sspr=|sheetX,sheetY,sheetW,sheetH,destX,destY,destW,destH,flipX,flipY|do
 		destW = destW or sheetW
 		destH = destH or sheetH
 		if flipX then
@@ -693,21 +693,21 @@ setfenv(1, {
 			0,	-- sprite sheet ... TODO eventually for pico8 glue, use only 1 sheet, no separate sprites and tiles like tic80
 			0,-1,0,0xf)
 	end,
-	color=[c]do p8color=math.floor(c or 6) end,
+	color=|c|do p8color=math.floor(c or 6) end,
 	fillp=p8_fillp,
 
-	menuitem=[]trace'TODO menuitem',
+	menuitem=||trace'TODO menuitem',
 
 	run=run,
 	stop=stop,
-	reset=[]do
+	reset=||do
 		p8_camera()
 		p8_clip()
 		p8_pal()
 		p8_fillp(0)
 	end,
 
-	music=[n, fadeLen, mask]do
+	music=|n, fadeLen, mask|do
 		n = tonumber(n)	-- sometimes it's passed as a string ... smh
 		if n==-1 then
 			music(-1)
@@ -715,11 +715,11 @@ setfenv(1, {
 		end
 		music(n+128, 4, 4)
 	end,
-	sfx=[n,ch,ofs,len]do
+	sfx=|n,ch,ofs,len|do
 		music(n, 0, ch)	-- store pico8 waveforms as my sfx, store its sfx and music as my music
 	end,
 
-	reload=[...]do
+	reload=|...|do
 		if select('#',...)==0 then
 			reset()	-- reset entire rom->ram
 		else
@@ -727,38 +727,38 @@ setfenv(1, {
 trace('TODO reload', dst, src, len)
 		end
 	end,
-	cstore=[dst,src,len]do
+	cstore=|dst,src,len|do
 trace'TODO cstore'
 	end,
-	memcpy=[dst,src,len]do
+	memcpy=|dst,src,len|do
 		for i=0,len-1 do
 			p8poke(dst+i,p8peek(src+i))
 		end
 	end,
-	memset=[dst,val,len]do
+	memset=|dst,val,len|do
 		for i=0,len-1 do
 			p8poke(dst+i,val)
 		end
 	end,
 	peek=p8peek,
 	poke=p8poke,
-	peek2=[]error'TODO',
-	poke2=[]error'TODO',
-	peek4=[]error'TODO',
-	poke4=[]error'TODO',
+	peek2=||error'TODO',
+	poke2=||error'TODO',
+	peek4=||error'TODO',
+	poke4=||error'TODO',
 
 	-- persistent data:
-	cartdata=[]nil,
-	dget=[]0,
-	dset=[]nil,
-	serial=[]nil,
+	cartdata=||nil,
+	dget=||0,
+	dset=||nil,
+	serial=||nil,
 
-	__numo9_finished=[_init, _update, _update60, _draw]do
+	__numo9_finished=|_init, _update, _update60, _draw|do
 		_init()
 		-- pico8 needs a draw before any updates
 		if _update then _update() end
 		if _update60 then _update60() end
-		update=[]do
+		update=||do
 			if _update
 			and peek(updateCounterAddr)&1==0 -- run at 30fps
 			then

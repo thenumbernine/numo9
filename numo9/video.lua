@@ -1299,13 +1299,21 @@ void main() {
 		discard;
 	}
 
+	uvec2 uFragCoord = uvec2(gl_FragCoord);
+	uint threshold = (uFragCoord.y >> 1) & 1 
+		| ((uFragCoord.x ^ uFragCoord.y) & 2) 
+		| ((uFragCoord.y & 1) << 2)
+		| (((uFragCoord.x ^ uFragCoord.y) & 1) << 3);
+	uint dither = extra.y;
+	if ((dither & (1u << threshold)) != 0u) discard;
+
 	uint pathway = extra.x & 3u;
 
 	// solid shading pathway
 	if (pathway == 0u) {
 		bool round = (extra.x & 4u) != 0u;
 		bool borderOnly = (extra.x & 8u) != 0u;
-		uint colorIndex = extra.y;
+		uint colorIndex = (extra.x >> 8u) & 0xffu;
 
 		if (round) {
 			// midpoint-circle / Bresenham algorithm, like Tic80 uses:
@@ -1370,7 +1378,7 @@ void main() {
 	} else if (pathway == 1u) {
 
 		uint spriteBit = (extra.x >> 3) & 7u;
-		uint spriteMask = extra.y;
+		uint spriteMask = (extra.x >> 8) & 0xffu;
 		uint transparentIndex = extra.z;
 
 		// shift the oob-transparency 2nd bit up to the 8th bit,
@@ -1404,7 +1412,7 @@ void main() {
 
 	} else if (pathway == 2u) {
 
-		int mapIndexOffset = int(extra.y | (extra.z << 8));
+		int mapIndexOffset = int(extra.z);
 
 		//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
 		uint draw16Sprites = (extra.x >> 2) & 1u;
@@ -1525,14 +1533,14 @@ void main() {
 					},
 				},
 				extraAttr = {
-					type = gl.GL_UNSIGNED_BYTE,
+					type = gl.GL_UNSIGNED_SHORT,
 					--divisor = 3,
 					buffer = {
 						usage = gl.GL_DYNAMIC_DRAW,
-						type = gl.GL_UNSIGNED_BYTE,
+						type = gl.GL_UNSIGNED_SHORT,
 						dim = 4,
 						useVec = true,
-						ctype = 'vec4ub_t',
+						ctype = 'vec4us_t',
 					},
 				},
 				drawOverrideSolidAttr = {
@@ -1547,6 +1555,8 @@ void main() {
 						ctype = 'vec4ub_t',			-- cpu buffer will hold vec4ub_t's
 					},
 				},
+				-- TODO how about using divisors?
+				-- though I've heard mixed reviews on their performance...
 				boxAttr = {
 					--divisor = 3,	-- 6 honestly ...
 					buffer = {
@@ -2135,7 +2145,7 @@ function AppVideo:drawSolidRect(
 		xLL, yLL, zLL, wLL, x, y,
 		xRL, yRL, zRL, wRL, xR, y,
 		xLR, yLR, zLR, wLR, x, yR,
-		drawFlags, colorIndex, 0, 0,
+		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		x, y, w, h
 	)
@@ -2147,7 +2157,7 @@ function AppVideo:drawSolidRect(
 		xLR, yLR, zLR, wLR, x, yR,
 		xRL, yRL, zRL, wRL, xR, y,
 		xRR, yRR, zRR, wRR, xR, yR,
-		drawFlags, colorIndex, 0, 0,
+		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		x, y, w, h
 	)
@@ -2190,7 +2200,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 		v1x, v1y, v1z, v1w, 0, 0,
 		v2x, v2y, v2z, v2w, 1, 0,
 		v3x, v3y, v3z, v3w, 0, 1,
-		0, math.floor(colorIndex or 0), 0, 0,
+		bit.lshift(math.floor(colorIndex or 0), 8), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
@@ -2255,7 +2265,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 		xLL, yLL, zLL, wLL, 0, 0,
 		xRL, yRL, zRL, wRL, 1, 0,
 		xLR, yLR, zLR, wLR, 0, 1,
-		0, colorIndex, 0, 0,
+		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
@@ -2267,7 +2277,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 		xLR, yLR, zLR, wLR, 0, 1,
 		xRL, yRL, zRL, wRL, 1, 0,
 		xRR, yRR, zRR, wRR, 1, 1,
-		0, colorIndex, 0, 0,
+		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
@@ -2423,7 +2433,7 @@ function AppVideo:drawQuadTex(
 		xLL, yLL, zLL, wLL, uL, vL,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xLR, yLR, zLR, wLR, uL, vR,
-		drawFlags, spriteMask, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
@@ -2435,7 +2445,7 @@ function AppVideo:drawQuadTex(
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xRR, yRR, zRR, wRR, uR, vR,
-		drawFlags, spriteMask, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
@@ -2470,7 +2480,7 @@ function AppVideo:drawQuadTexRGB(
 		xLL, yLL, zLL, wLL, uL, vL,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xLR, yLR, zLR, wLR, uL, vR,
-		3, 0, 0, 0,
+		3, self.ram.dither, 0, 0,
 		0, 0, 0, 0,
 		0, 0, 1, 1
 	)
@@ -2482,7 +2492,7 @@ function AppVideo:drawQuadTexRGB(
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xRR, yRR, zRR, wRR, uR, vR,
-		3, 0, 0, 0,
+		3, self.ram.dither, 0, 0,
 		0, 0, 0, 0,
 		0, 0, 1, 1
 	)
@@ -2607,7 +2617,7 @@ function AppVideo:drawTexTri3D(
 		vx1, vy1, vz1, vw1, u1, v1,
 		vx2, vy2, vz2, vw2, u2, v2,
 		vx3, vy3, vz3, vw3, u3, v3,
-		drawFlags, spriteMask, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
 		0, 0, 1, 1
 	)
@@ -2733,14 +2743,13 @@ function AppVideo:drawMap(
 	local uR = uL + tilesWide / tonumber(spriteSheetSizeInTiles.x)
 	local vR = vL + tilesHigh / tonumber(spriteSheetSizeInTiles.y)
 
+	-- user has to specify high-bits
+	mapIndexOffset = mapIndexOffset or 0
 	local extraX = bit.bor(
 		2,	-- tilemap pathway
 		draw16Sprites and 4 or 0
 	)
-	-- user has to specify high-bits
-	mapIndexOffset = mapIndexOffset or 0
-	local extraY = bit.band(0xff, mapIndexOffset)
-	local extraZ = bit.band(0xff, bit.rshift(mapIndexOffset, 8))
+	local extraZ = mapIndexOffset
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local blendSolidA = self.drawOverrideSolidA * 255
@@ -2752,7 +2761,7 @@ function AppVideo:drawMap(
 		xLL, yLL, zLL, wLL, uL, vL,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xLR, yLR, zLR, wLR, uL, vR,
-		extraX, extraY, extraZ, 0,
+		extraX, self.ram.dither, extraZ, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
@@ -2764,7 +2773,7 @@ function AppVideo:drawMap(
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xRR, yRR, zRR, wRR, uR, vR,
-		extraX, extraY, extraZ, 0,
+		extraX, self.ram.dither, extraZ, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
@@ -2852,7 +2861,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 			xLL, yLL, zLL, wLL, uL, 0,
 			xRL, yRL, zRL, wRL, uR, 0,
 			xLR, yLR, zLR, wLR, uL, th,
-			drawFlags, 1, 0, paletteIndex,
+			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
 		)
@@ -2864,7 +2873,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 			xRL, yRL, zRL, wRL, uR, 0,
 			xRR, yRR, zRR, wRR, uR, th,
 			xLR, yLR, zLR, wLR, uL, th,
-			drawFlags, 1, 0, paletteIndex,
+			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
 		)

@@ -379,6 +379,13 @@ function App:initGL()
 			end
 			self:clearScreen(colorIndex)
 		end,
+		fillp = function(dither)
+			if dither then
+				return self:net_pokew(ffi.offsetof('RAM', 'dither'), dither)
+			else
+				return self:peekw(ffi.offsetof('RAM', 'dither'))
+			end
+		end,
 
 		pal = function(colorIndex, value)
 			if value then
