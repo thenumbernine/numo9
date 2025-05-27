@@ -1,5 +1,5 @@
 _G=getfenv(1)
-linfDist=[ax,ay,bx,by]do
+linfDist=|ax,ay,bx,by|do
 	return math.max(math.abs(ax-bx), math.abs(ay-by))
 end
 
@@ -52,12 +52,12 @@ seqs={
 
 objs=table()
 addList=table()
-addObj=[o]addList:insert(o)
-removeObj=[o]do
+addObj=|o|addList:insert(o)
+removeObj=|o|do
 	o:onRemove() -- set the removeMe flag
 	removeRequest=true
 end
-removeAll=[]do
+removeAll=||do
 	for _,o in ipairs(objs) do
 		o:onRemove()
 	end
@@ -69,7 +69,7 @@ end
 classmeta.__index=_G	-- obj __index looks in its class, if not there then looks into global.  This line is needed for :: setfenv(1,self) use.
 
 BaseObj=class{
-	init=[::,args]do
+	init=|::,args|do
 		scaleX,scaleY=1,1
 		removeMe=false
 		posX=0
@@ -86,8 +86,8 @@ BaseObj=class{
 		blocksExplosion=true
 	end,
 	-- in AnimatedObj in fact ...
-	update=[::]nil,
-	setPos=[::,x,y]do
+	update=|::|nil,
+	setPos=|::,x,y|do
 		posX=x
 		srcPosX=x
 		destPosX=x
@@ -95,7 +95,7 @@ BaseObj=class{
 		srcPosY=y
 		destPosY=y
 	end,
-	drawSprite=[::]do
+	drawSprite=|::|do
 		-- posX posY are tile-centered so ...
 		local x = posX * 16 - 8 * scaleX
 		local y = posY * 16 - 8 * scaleY
@@ -113,27 +113,27 @@ BaseObj=class{
 			scaleY)
 		if blendMode then blend() end
 	end,
-	isBlockingSentry=[::]isBlocking,
-	hitEdge=[::,whereX,whereY]true,
-	cannotPassThru=[::,maptype]mapType[maptype]?.cannotPassThru,
-	hitWorld=[::,whereX,whereY,typeUL,typeUR,typeLL,typeLR]
+	isBlockingSentry=|::|isBlocking,
+	hitEdge=|::,whereX,whereY|true,
+	cannotPassThru=|::,maptype|mapType[maptype]?.cannotPassThru,
+	hitWorld=|::,whereX,whereY,typeUL,typeUR,typeLL,typeLR|
 		self:cannotPassThru(typeUL)
 			or self:cannotPassThru(typeUR)
 			or self:cannotPassThru(typeLL)
 			or self:cannotPassThru(typeLR),
-	hitObject=[::,what,pushDestX,pushDestY,side]'test object',
-	startPush=[::,pusher,pushDestX,pushDestY,side]isBlocking,
-	endPush=[::,who,pushDestX,pushDestY]nil,
-	onKeyTouch=[::]nil,
-	onTouchFlames=[::]nil,
-	onGroundSunk=[::]removeObj(self),
-	onRemove=[::]do self.removeMe=true end,
+	hitObject=|::,what,pushDestX,pushDestY,side|'test object',
+	startPush=|::,pusher,pushDestX,pushDestY,side|isBlocking,
+	endPush=|::,who,pushDestX,pushDestY|nil,
+	onKeyTouch=|::|nil,
+	onTouchFlames=|::|nil,
+	onGroundSunk=|::|removeObj(self),
+	onRemove=|::|do self.removeMe=true end,
 }
 
 do
 	local super=BaseObj
 	MovableObj=BaseObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.lastMoveResponse='no move'
 			self.moveCmd=dirs.none
@@ -141,7 +141,7 @@ do
 			self.moveFracMoving=false
 			self.moveFrac=0
 		end,
-		moveIsBlocked_CheckHitWorld=[:,whereX,whereY]do
+		moveIsBlocked_CheckHitWorld=|:,whereX,whereY|do
 			return self:hitWorld(
 				whereX,whereY,
 				mapGet(whereX-.25,whereY-.25),
@@ -150,7 +150,7 @@ do
 				mapGet(whereX+.25,whereY+.25)
 			)
 		end,
-		hitWorld=[:,whereX,whereY,typeUL,typeUR,typeLL,typeLR]do
+		hitWorld=|:,whereX,whereY,typeUL,typeUR,typeLL,typeLR|do
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o~=self
@@ -173,7 +173,7 @@ do
 			end
 			return super.hitWorld(self,whereX,whereY,typeUL,typeUR,typeLL,typeLR)
 		end,
-		moveIsBlocked_CheckEdge=[:,newDestX,newDestY]do
+		moveIsBlocked_CheckEdge=|:,newDestX,newDestY|do
 			if newDestX < .25
 			or newDestY < .25
 			or newDestX > mapw - .25
@@ -183,7 +183,7 @@ do
 			end
 			return false
 		end,
-		moveIsBlocked_CheckHitObject=[:,o,cmd,newDestX,newDestY]do
+		moveIsBlocked_CheckHitObject=|:,o,cmd,newDestX,newDestY|do
 			if linfDist(o.destPosX,o.destPosY,newDestX,newDestY)>.75 then return false end
 			local response=self:hitObject(o,newDestX,newDestY,cmd)
 			if response=='stop' then return true end
@@ -192,7 +192,7 @@ do
 			end
 			return false
 		end,
-		moveIsBlocked_CheckHitObjects=[:,cmd,newDestX,newDestY]do
+		moveIsBlocked_CheckHitObjects=|:,cmd,newDestX,newDestY|do
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o ~= self
@@ -201,12 +201,12 @@ do
 				end
 			end
 		end,
-		moveIsBlocked=[:,cmd,newDestX,newDestY]do
+		moveIsBlocked=|:,cmd,newDestX,newDestY|do
 			return self:moveIsBlocked_CheckEdge(newDestX, newDestY)
 			or self:moveIsBlocked_CheckHitWorld(newDestX, newDestY)
 			or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY)
 		end,
-		doMove=[:,cmd]do
+		doMove=|:,cmd|do
 			if cmd==dirs.none then return 'no move' end
 			local newDestX=self.posX
 			local newDestY=self.posY
@@ -228,7 +228,7 @@ do
 			self.srcPosY=self.posY
 			return 'did move'
 		end,
-		update=[:]do
+		update=|:|do
 			super.update(self)
 			if self.moveFracMoving then
 				self.moveFrac+=dt*self.speed
@@ -263,10 +263,10 @@ end
 do
 	local super=MovableObj
 	PushableObj=MovableObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self, args)
 		end,
-		startPush=[:,pusher,pushDestX,pushDestY,side]do
+		startPush=|:,pusher,pushDestX,pushDestY,side|do
 			local superResult=super.startPush(self,pusher,pushDestX,pushDestY,side)
 			if not self.isBlocking then return false end
 
@@ -289,7 +289,7 @@ do
 			end
 			return superResult
 		end,
-		hitObject=[:,what,pushDestX,pushDestY,side]do
+		hitObject=|:,what,pushDestX,pushDestY,side|do
 			if what.isBlockingPushers then return 'stop' end
 			return super.hitObject(self,what,pushDestX,pushDestY,side)
 		end,
@@ -299,7 +299,7 @@ end
 do
 	local super=BaseObj
 	Cloud=BaseObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.isBlocking=false
 			self.isBlockingPushers=false
@@ -312,7 +312,7 @@ do
 			self.startTime=time()
 			self.seq=seqs.cloud
 		end,
-		update=[:]do
+		update=|:|do
 			super.update(self)
 			self:setPos(self.posX+dt*self.vel[1],self.posY+dt*self.vel[2])
 			local frac=math.min(1,(time()-self.startTime)/self.life)
@@ -327,7 +327,7 @@ end
 do
 	local super=BaseObj
 	Particle=BaseObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			self.isBlocking=false
 			self.isBlockingPushers=false
 			self.blocksExplosion=false
@@ -339,7 +339,7 @@ do
 			self.seq=args.seq or seqs.spark
 			self.blendMode=args.blendMode or 0
 		end,
-		update=[:]do
+		update=|:|do
 			super.update(self)
 			self:setPos(self.posX+dt*self.vel[1],self.posY+dt*self.vel[2])
 			local frac=math.max(0,1-(time()-self.startTime)/self.life)
@@ -354,7 +354,7 @@ end
 do
 	local super=PushableObj
 	Bomb=PushableObj:subclass{
-		init=[:,owner]do
+		init=|:,owner|do
 			super.init(self,{})
 			-- class constants / defaults:
 			self.boomTime = 0
@@ -374,7 +374,7 @@ do
 			if owner then self.ownerStandingOn=true end
 			self.seq=seqs.bomb
 		end,
-		hitObject=[:,whatWasHit,pushDestX,pushDestY,side]do
+		hitObject=|:,whatWasHit,pushDestX,pushDestY,side|do
 			if whatWasHit==self.owner
 			and self.owner
 			and self.ownerStandingOn
@@ -383,7 +383,7 @@ do
 			end
 			return super.hitObject(self,whatWasHit,pushDestX,pushDestY,side)
 		end,
-		startPush=[:,pusher,pushDestX,pushDestY,side]do
+		startPush=|:,pusher,pushDestX,pushDestY,side|do
 			if pusher==self.owner
 			and self.owner
 			and self.ownerStandingOn
@@ -392,7 +392,7 @@ do
 			end
 			return super.startPush(self,pusher,pushDestX,pushDestY,side)
 		end,
-		setFuse=[:,fuseTime]do
+		setFuse=|:,fuseTime|do
 			if self.state=='exploding'
 			or self.state=='sinking'
 			then
@@ -402,12 +402,12 @@ do
 			self.state='live'
 			self.boomTime=time()+fuseTime
 		end,
-		cannotPassThru=[:,maptype]do
+		cannotPassThru=|:,maptype|do
 			local res=super.cannotPassThru(self,maptype)
 			if not res then return false end
 			return maptype~=WATER
 		end,
-		drawSprite=[:,c,rect]do
+		drawSprite=|:,c,rect|do
 			super.drawSprite(self,c,rect)
 			if self.state=='idle'
 			or self.state=='live'
@@ -426,8 +426,8 @@ do
 				if self.blendMode then blend() end
 			end
 		end,
-		onKeyTouch=[:]removeObj(self),
-		update=[:]do
+		onKeyTouch=|:|removeObj(self),
+		update=|:|do
 			super.update(self)
 			if self.owner
 			and self.ownerStandingOn
@@ -522,9 +522,9 @@ do
 				end
 			end
 		end,
-		onGroundSunk=[:]nil,
-		onTouchFlames=[:]self:setFuse(self.chainDuration),
-		explode=[:]do
+		onGroundSunk=|:|nil,
+		onTouchFlames=|:|self:setFuse(self.chainDuration),
+		explode=|:|do
 			for i=0,9 do
 				local scale=math.random()*2
 				addObj(Cloud{
@@ -619,7 +619,7 @@ do
 			self.state='exploding'
 			self.explodingDone=time()+self.explodingDuration
 		end,
-		makeSpark=[:,x,y]do
+		makeSpark=|:,x,y|do
 			for i=0,2 do
 				local c=math.random()
 				addObj(Particle{
@@ -637,13 +637,13 @@ end
 do
 	local super=MovableObj
 	GunShot=MovableObj:subclass{
-		init=[:,owner]do
+		init=|:,owner|do
 			self.owner=owner
 			self:setPos(owner.posX, owner.posY)
 			self.seq=-1	--invis
 		end,
-		cannotPassThru=[:,maptype]mapType[maptype].blocksGunShot,
-		hitObject=[:,what,pushDestX,pushDestY,side]do
+		cannotPassThru=|:,maptype|mapType[maptype].blocksGunShot,
+		hitObject=|:,what,pushDestX,pushDestY,side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
 				what:die()
@@ -660,11 +660,11 @@ do
 	Gun=BaseObj:subclass{
 		MAD_DIST=.75,
 		FIRE_DIST=.25,
-		init=[:]do
+		init=|:|do
 			super.init(self,{})
 			self.seq=seqs.gun
 		end,
-		update=[:]do
+		update=|:|do
 			super.update(self)
 
 			self.seq=seqs.gun
@@ -706,7 +706,7 @@ do
 				end
 			end
 		end,
-		onKeyTouch=[:]do	--puff
+		onKeyTouch=|:|do	--puff
 			removeObj(self)
 		end,
 	}
@@ -715,12 +715,12 @@ end
 do
 	local super=MovableObj
 	Sentry=MovableObj:subclass{
-		init=[:]do
+		init=|:|do
 			super.init(self,{})
 			self.dir = dirs.left
 			self.seq=seqs.sentry
 		end,
-		update=[:]do
+		update=|:|do
 			--if the player moved onto us ...
 			--TODO - put self inside 'endPush' instead! no need to call it each frame
 			if linfDist(self.destPosX, self.destPosY, player.destPosX, player.destPosY) < .75 then
@@ -742,7 +742,7 @@ do
 		end,
 
 		--the sentry tried to move and hit an object...
-		hitObject=[:,what,pushDestX,pushDestY,side]do
+		hitObject=|:,what,pushDestX,pushDestY,side|do
 			if Player:isa(what) then
 				return 'move thru'	--wait for the update() test to pick up hitting the player
 			end
@@ -750,7 +750,7 @@ do
 			--return superHitObject(self, what, pushDestX, pushDestY, side)
 		end,
 
-		onKeyTouch=[:]do
+		onKeyTouch=|:|do
 			--puff
 			removeObj(self)
 		end,
@@ -760,7 +760,7 @@ end
 do
 	local super=PushableObj
 	Framer=PushableObj:subclass{
-		init=[:]do
+		init=|:|do
 			super.init(self,{})
 			self.seq=seqs.framer
 		end,
@@ -770,7 +770,7 @@ end
 do
 	local super=MovableObj
 	Player=MovableObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.dead=false
 			self.deadTime=0
@@ -779,11 +779,11 @@ do
 			self.bombBlastRadius=1
 			self.seq=seqs.playerStandDown
 		end,
-		move=[:,dir]do
+		move=|:,dir|do
 			if self.dead then return end
 			self.moveCmd=dir
 		end,
-		dropBomb=[:]do
+		dropBomb=|:|do
 			if self.dead then return end
 			if self.bombs <= 0 then return end
 			local bomb=Bomb(self)
@@ -806,10 +806,10 @@ do
 			bomb:setFuse(bomb.fuseDuration)
 			addObj(bomb)
 		end,
-		stopMoving=[:]do
+		stopMoving=|:|do
 			self.moveCmd=dirs.none
 		end,
-		update=[:]do
+		update=|:|do
 			if self.moveCmd~=dirs.none then self.dir=self.moveCmd end
 			super.update(self)
 			if not self.dead then
@@ -826,11 +826,11 @@ do
 				end
 			end
 		end,
-		getMoney=[:,money]do
+		getMoney=|:,money|do
 			self:setBombs(self.bombs+money.bombs)
 		end,
-		onTouchFlames=[:]do self:die()end,
-		die=[:]do
+		onTouchFlames=|:|do self:die()end,
+		die=|:|do
 			if self.dead then return end
 			self.seq=seqs.playerDead
 			self.dead=true
@@ -840,8 +840,8 @@ do
 			self.blockExplosion=false
 			self.moveCmd=dirs.none
 		end,
-		onGroundSunk=[:]do self:die()end,
-		setBombs=[:,bombs]do
+		onGroundSunk=|:|do self:die()end,
+		setBombs=|:,bombs|do
 			self.bombs=bombs
 		end,
 	}
@@ -850,15 +850,15 @@ end
 do
 	local super=BaseObj
 	Money=BaseObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.items=0
 			self.bombs=0
 			self.isBlocking=false
 			self.seq=seqs.money
 		end,
-		isBlockingSentry=[:]true,
-		drawSprite=[:]do
+		isBlockingSentry=|:|true,
+		drawSprite=|:|do
 			super.drawSprite(self)
 
 			if self.bombs>0 then
@@ -877,7 +877,7 @@ do
 			end
 		end,
 
-		endPush=[:,who,pushDestX,pushDestY]do
+		endPush=|:,who,pushDestX,pushDestY|do
 			if not Player:isa(who)
 			or linfDist(pushDestX,pushDestY,self.destPosX,self.destPosY) >= .5
 			then return end
@@ -894,7 +894,7 @@ end
 do
 	local super=BaseObj
 	Key=BaseObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.changeLevelTime=0
 			self.touchToEndLevelDuration=dt
@@ -904,12 +904,12 @@ do
 			self.seq=seqs.keyGrey
 			self.doFirstCheck=true
 		end,
-		show=[:]do
+		show=|:|do
 			self.inactive=false
 			self.seq=seqs.key
 		end,
 
-		endPush=[:,who,pushDestX,pushDestY]do
+		endPush=|:,who,pushDestX,pushDestY|do
 			if not Player:isa(who)
 			or self.inactive
 			or self.changeLevelTime > 0
@@ -926,7 +926,7 @@ do
 			end
 		end,
 
-		update=[:]do
+		update=|:|do
 			super.update(self)
 
 			if self.changeLevelTime > 0
@@ -943,7 +943,7 @@ do
 			end
 		end,
 
-		checkMoney=[:]do
+		checkMoney=|:|do
 			local moneyleft = 0
 			for _,o in ipairs(objs) do
 				if not o.removeMe
@@ -959,14 +959,14 @@ do
 	}
 end
 
-nextLevel=[dontComplete]do
+nextLevel=|dontComplete|do
 	--TODO if not dontComplete then set the local storage flag for this level
 	-- use -1 as our custom-level flag for builtin editor (coming soon)
 	if level>-1 then setLevel(level+1) end
 	loadLevelRequest=true
 end
 
-setLevel=[level_]do
+setLevel=|level_|do
 	level=level_
 	levelTileX=level%25
 	levelTileY=(level-levelTileX)/25*10
@@ -980,10 +980,10 @@ setLevel=[level_]do
 	end
 end
 
-mapGet=[x,y]mget(x+levelTileX,y+levelTileY)&0x3ff	-- drop the hv flip and pal-hi
-mapSet=[x,y,value]mset(x+levelTileX,y+levelTileY,value)
+mapGet=|x,y|mget(x+levelTileX,y+levelTileY)&0x3ff	-- drop the hv flip and pal-hi
+mapSet=|x,y,value|mset(x+levelTileX,y+levelTileY,value)
 
-loadLevel=[]do
+loadLevel=||do
 	reset()		-- reload our tilemap? or not?
 	removeAll()
 	for y=0,maph-1 do
@@ -1037,7 +1037,7 @@ loadLevel=[]do
 	end
 end
 
-update=[]do
+update=||do
 	if player then
 		if btn'up' then
 			player:move(dirs.up)

@@ -3,19 +3,19 @@
 --#include vec/vec2.lua
 
 local Quat = class()
-Quat.init=[:,...]do
+Quat.init=|:,...|do
 	if select('#', ...) == 0 then
 		self.x, self.y, self.z, self.w = 0, 0, 0, 1
 	else
 		self.x, self.y, self.z, self.w = ...
 	end
 end
-Quat.set = [:,o] do 
+Quat.set = |:,o| do 
 	self.x, self.y, self.z, self.w = o:unpack() 
 	return self 
 end
-Quat.unpack = [q] (q.x, q.y, q.z, q.w)
-Quat.mul = [q, r, res] do
+Quat.unpack = |q| (q.x, q.y, q.z, q.w)
+Quat.mul = |q, r, res| do
 	if not res then res = Quat() end
 	local a = (q.w + q.x) * (r.w + r.x)
 	local b = (q.z - q.y) * (r.y - r.z)
@@ -32,10 +32,10 @@ Quat.mul = [q, r, res] do
 		b + .5 * (-e - f + g + h))
 end
 Quat.__mul = Quat.mul
-Quat.__div = [a,b] a * b:conjugate() / b:lenSq()
+Quat.__div = |a,b| a * b:conjugate() / b:lenSq()
 
 Quat.epsilon = 1e-15
-Quat.toAngleAxis = [:, res] do
+Quat.toAngleAxis = |:, res| do
 	res = res or Quat()
 
 	local cosom = math.clamp(self.w, -1, 1)
@@ -55,7 +55,7 @@ Quat.toAngleAxis = [:, res] do
 end
 
 -- TODO epsilon-test this?  so no nans?
-Quat.fromAngleAxis = [:, res] do
+Quat.fromAngleAxis = |:, res| do
 	local x, y, z, theta = self:unpack()
 	local vlen = math.sqrt(x*x + y*y + z*z)
 	local costh = math.cos(theta / 2)
@@ -64,33 +64,33 @@ Quat.fromAngleAxis = [:, res] do
 	return (res or Quat()):set(x * vscale, y * vscale, z * vscale, costh)
 end
 
-Quat.xAxis = [q, res] 
+Quat.xAxis = |q, res| 
 	((res or vec3()):set(
 		1 - 2 * (q.y * q.y + q.z * q.z),
 		2 * (q.x * q.y + q.z * q.w),
 		2 * (q.x * q.z - q.w * q.y)))
 
-Quat.yAxis = [q, res]
+Quat.yAxis = |q, res|
 	((res or vec3()):set(
 		2 * (q.x * q.y - q.w * q.z),
 		1 - 2 * (q.x * q.x + q.z * q.z),
 		2 * (q.y * q.z + q.w * q.x)))
 
-Quat.zAxis = [q, res]
+Quat.zAxis = |q, res|
 		((res or vec3()):set(
 			2 * (q.x * q.z + q.w * q.y),
 			2 * (q.y * q.z - q.w * q.x),
 			1 - 2 * (q.x * q.x + q.y * q.y)))
 
-Quat.rotate = [:, v, res] do
+Quat.rotate = |:, v, res| do
 	local v4 = self * Quat(v.x, v.y, v.z, 0) * self:conjugate()
 	return (res or vec3()):set(v4.x, v4.y, v4.z)
 end
 
-Quat.conjugate = [:, res]
+Quat.conjugate = |:, res|
 	((res or Quat()):set(-self.x, -self.y, -self.z, self.w))
 
-Quat.normalize = [:, res, eps] do
+Quat.normalize = |:, res, eps| do
 	eps = eps or Quat.epsilon
 	res = res or Quat()
 	local lenSq = self:normSq()
@@ -112,7 +112,7 @@ worldSize = 128			-- one screen size
 
 local dt = 1/60
 
-drawTri = [pos, fwd, size, color] do
+drawTri = |pos, fwd, size, color| do
 	local rightx = -fwd.y
 	local righty = fwd.x
 	line(pos.x+size*fwd.x, pos.y+size*fwd.y, pos.x+size*(rightx - fwd.x), pos.y+size*(righty - fwd.y), color)
@@ -121,7 +121,7 @@ end
 
 objs = table()
 
-getViewPos = [v] do
+getViewPos = |v| do
 	local relpos = v - viewPos
 	if relpos.x < -worldSize then 
 		relpos.x += 2*worldSize
@@ -145,7 +145,7 @@ Object.angle = 0
 Object.accel = 50
 Object.rot = 5
 Object.density = 1
-Object.init=[:,args]do
+Object.init=|:,args|do
 	objs:insert(self)
 	if args then
 		for k,v in pairs(args) do self[k] = v end
@@ -153,7 +153,7 @@ Object.init=[:,args]do
 	self.pos = self.pos:clone()
 	self.vel = self.vel:clone()
 end
-Object.update=[:]do
+Object.update=|:|do
 	self.pos += dt * self.vel
 
 	self.angle %= 2 * math.pi
@@ -168,11 +168,11 @@ end
 local Shot = Object:subclass()
 Shot.speed = 300
 Shot.size = 1
-Shot.init=[:,args]do
+Shot.init=|:,args|do
 	Shot.super.init(self, args)
 	self.endTime = args?.endTime
 end
-Shot.update=[:]do
+Shot.update=|:|do
 	Shot.super.update(self)
 
 	matpush()
@@ -182,7 +182,7 @@ Shot.update=[:]do
 
 	if time() > self.endTime then self.dead = true end
 end
-Shot.touch=[:,other]do
+Shot.touch=|:,other|do
 	if other == self.shooter then return end
 
 	if Ship:isa(other) then
@@ -218,7 +218,7 @@ end
 
 Ship = Object:subclass()
 Ship.nextShootTime = 0
-Ship.update=[:]do
+Ship.update=|:|do
 	local fwd = vec2.exp(self.angle)
 	matpush()
 	mattrans(getViewPos(self.pos):unpack())
@@ -233,7 +233,7 @@ Ship.update=[:]do
 
 	Ship.super.update(self)
 end
-Ship.shoot = [:]do
+Ship.shoot = |:|do
 	if self.nextShootTime > time() then return end
 	self.nextShootTime = time() + .2
 	local fwd = vec2.exp(self.angle)
@@ -246,7 +246,7 @@ Ship.shoot = [:]do
 end
 
 PlayerShip = Ship:subclass()
-PlayerShip.update = [:] do
+PlayerShip.update = |:| do
 	local fwd = vec2.exp(self.angle)
 	if btn('up',0) then self.vel += fwd * dt * self.accel self.thrust=true end
 	if btn('down',0) then self.vel -= fwd * dt * self.accel self.thrust=true end
@@ -258,7 +258,7 @@ PlayerShip.update = [:] do
 end
 
 EnemyShip = Ship:subclass()
-EnemyShip.update = [:]do
+EnemyShip.update = |:|do
 	local toPlayer = (player.pos - self.pos):unit()
 	local fwd = vec2.exp(self.angle)
 	local sinth = toPlayer:cross(fwd)
@@ -282,8 +282,8 @@ Rock.sizeM = 10
 Rock.sizeS = 5
 Rock.size = Rock.sizeL
 Rock.color = 13
-Rock.calcMass = [:] math.pi * self.size^2 * self.density
-Rock.update=[:]do
+Rock.calcMass = |:| math.pi * self.size^2 * self.density
+Rock.update=|:|do
 	local fwd = vec2.exp(self.angle)
 
 	local rightx = -fwd.y
@@ -317,7 +317,7 @@ end
 
 viewPos = vec2()
 viewAngle = 0
-update=[]do
+update=||do
 	cls()
 	matident()
 	mattrans(128, 128)	-- screen center

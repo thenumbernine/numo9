@@ -10,7 +10,7 @@ math.randomseed(tstamp())
 
 --#include ext/class.lua
 
-getvalue=[x, dim]do
+getvalue=|x, dim|do
 	if type(x) == 'number' then return x end
 	if type(x) == 'table' then
 		x = x[dim]
@@ -24,14 +24,14 @@ end
 
 vec2=class{
 	dim=2,
-	init=[v,x,y]do
+	init=|v,x,y|do
 		if x then
 			v:set(x,y)
 		else
 			v:set(0,0)
 		end
 	end,
-	set=[v,x,y]do
+	set=|v,x,y|do
 		if type(x) == 'table' then
 			v[1] = x[1]
 			v[2] = x[2]
@@ -44,8 +44,8 @@ vec2=class{
 			end
 		end
 	end,
-	volume=[v]v[1]*v[2],
-	clamp=[v,a,b]do
+	volume=|v|v[1]*v[2],
+	clamp=|v,a,b|do
 		local mins = a
 		local maxs = b
 		if type(a) == 'table' and a.min and a.max then	
@@ -56,31 +56,31 @@ vec2=class{
 		v[2] = math.clamp(v[2], getvalue(mins, 2), getvalue(maxs, 2))
 		return v
 	end,
-	map=[v,f]do
+	map=|v,f|do
 		v[1]=f(v[1],1)
 		v[2]=f(v[2],2)
 		return v
 	end,
-	floor=[v]v:map(math.floor),
-	ceil=[v]v:map(math.ceil),
-	l1Length=[v]math.abs(v[1])+math.abs(v[2]),
-	lInfLength=[v]math.max(math.abs(v[1]),math.abs(v[2])),
-	__add=[a,b]vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
-	__sub=[a,b]vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
-	__mul=[a,b]vec2(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2)),
-	__div=[a,b]vec2(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2)),
-	__eq=[a,b]a[1]==b[1]and a[2]==b[2],
-	__tostring=[v]v[1]..','..v[2],
-	__concat=[a,b]tostring(a)..tostring(b),
+	floor=|v|v:map(math.floor),
+	ceil=|v|v:map(math.ceil),
+	l1Length=|v|math.abs(v[1])+math.abs(v[2]),
+	lInfLength=|v|math.max(math.abs(v[1]),math.abs(v[2])),
+	__add=|a,b|vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
+	__sub=|a,b|vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
+	__mul=|a,b|vec2(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2)),
+	__div=|a,b|vec2(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2)),
+	__eq=|a,b|a[1]==b[1]and a[2]==b[2],
+	__tostring=|v|v[1]..','..v[2],
+	__concat=|a,b|tostring(a)..tostring(b),
 }
 
-getminvalue=[x]do
+getminvalue=|x|do
 	if x.min then return x.min end
 	assert(x ~= nil, "getminvalue got nil value")
 	return x
 end
 
-getmaxvalue=[x]do
+getmaxvalue=|x|do
 	if x.max then return x.max end
 	assert(x ~= nil, "getmaxvalue got nil value")
 	return x
@@ -88,7 +88,7 @@ end
 
 box2=class{
 	dim=2,
-	init=[:,a,b]do
+	init=|:,a,b|do
 		if type(a) == 'table' and a.min and a.max then
 			self.min = vec2(a.min)
 			self.max = vec2(a.max)
@@ -97,7 +97,7 @@ box2=class{
 			self.max = vec2(b)
 		end
 	end,
-	stretch=[:,v]do
+	stretch=|:,v|do
 		if getmetatable(v) == box2 then
 			self:stretch(v.min)
 			self:stretch(v.max)
@@ -108,23 +108,23 @@ box2=class{
 			end
 		end
 	end,
-	size=[:]self.max-self.min,
-	floor=[:]do
+	size=|:|self.max-self.min,
+	floor=|:|do
 		self.min:floor()
 		self.max:floor()
 		return self
 	end,
-	ceil=[:]do
+	ceil=|:|do
 		self.min:ceil()
 		self.max:ceil()
 		return self
 	end,
-	clamp=[:,b]do
+	clamp=|:,b|do
 		self.min:clamp(b)
 		self.max:clamp(b)
 		return self
 	end,
-	contains=[:,v]do
+	contains=|:,v|do
 		if getmetatable(v) == box2 then
 			return self:contains(v.min) and self:contains(v.max)
 		else
@@ -137,13 +137,13 @@ box2=class{
 			return true
 		end
 	end,
-	map=[b,c]c*b:size()+b.min,
-	__add=[a,b]box2(getminvalue(a)+getminvalue(b),getmaxvalue(a)+getmaxvalue(b)),
-	__sub=[a,b]box2(getminvalue(a)-getminvalue(b),getmaxvalue(a)-getmaxvalue(b)),
-	__mul=[a,b]box2(getminvalue(a)*getminvalue(b),getmaxvalue(a)*getmaxvalue(b)),
-	__div=[a,b]box2(getminvalue(a)/getminvalue(b),getmaxvalue(a)/getmaxvalue(b)),
-	__tostring=[b]b.min..'..'..b.max,
-	__concat=[a,b]tostring(a)..tostring(b),
+	map=|b,c|c*b:size()+b.min,
+	__add=|a,b|box2(getminvalue(a)+getminvalue(b),getmaxvalue(a)+getmaxvalue(b)),
+	__sub=|a,b|box2(getminvalue(a)-getminvalue(b),getmaxvalue(a)-getmaxvalue(b)),
+	__mul=|a,b|box2(getminvalue(a)*getminvalue(b),getmaxvalue(a)*getmaxvalue(b)),
+	__div=|a,b|box2(getminvalue(a)/getminvalue(b),getmaxvalue(a)/getmaxvalue(b)),
+	__tostring=|b|b.min..'..'..b.max,
+	__concat=|a,b|tostring(a)..tostring(b),
 }
 
 dirs = {
@@ -157,7 +157,7 @@ dirs = {
 	right=vec2(1,0),
 }
 
-setFieldsByRange=[obj,fields]do
+setFieldsByRange=|obj,fields|do
 	for _,field in ipairs(fields) do
 		local range = obj[field..'Range']
 		if range then
@@ -168,9 +168,9 @@ setFieldsByRange=[obj,fields]do
 	end
 end
 
-capitalize=[s]s:sub(1,1):upper()..s:sub(2)
+capitalize=|s|s:sub(1,1):upper()..s:sub(2)
 
-serializeTable=[obj]do
+serializeTable=|obj|do
 	local lines = table()
 	lines:insert'{'
 	for _,row in ipairs(obj) do
@@ -196,7 +196,7 @@ tiletypes = {
 }
 
 con={
-	locate=[x,y]do
+	locate=|x,y|do
 		con.x=x
 		con.y=y
 	end,
@@ -216,7 +216,7 @@ Log=class{
 	index=0,
 	lines=table(),
 	size=4,
-	__call=[:,s]do
+	__call=|:,s|do
 		local lines = string.split(s, '\n')
 		for _,line in ipairs(lines) do
 			line=self.index..'> '..line
@@ -232,7 +232,7 @@ Log=class{
 			self.lines:remove(1)
 		end
 	end,
-	render=[:]do
+	render=|:|do
 		for i=1,self.size do
 			local line = self.lines[i]
 			con.locate(1, view.size[2]+i)
@@ -246,21 +246,21 @@ Log=class{
 log=Log()
 
 MapTile=class{
-	init=[:]nil,
-	isRevealed=[:]do
+	init=|:|nil,
+	isRevealed=|:|do
 		local visibleTime=-math.log(0)
 		return self.lastSeen and (game.time - self.lastSeen) < visibleTime
 	end,
-	getChar=[:]do
+	getChar=|:|do
 		return self.char or self.type.char
 	end,
-	addEnt=[:,ent]do
+	addEnt=|:,ent|do
 		if not self.ents then
 			self.ents=table()
 		end
 		self.ents:insert(ent)
 	end,
-	removeEnt=[:,ent]do
+	removeEnt=|:,ent|do
 		assert(self.ents)
 		self.ents:removeObject(ent)
 		if #self.ents == 0 then
@@ -369,7 +369,7 @@ end
 
 Battle=class{
 	radius=4,
-	init=[:,args]do
+	init=|:,args|do
 		if args.bbox then
 			self.bbox = box2(args.bbox)
 		else
@@ -398,7 +398,7 @@ Battle=class{
 		end
 		log'starting battle...'
 	end,
-	update=[:]do
+	update=|:|do
 		while not self.done do
 			self:getCurrentEnt()
 			if not self.currentEnt or self.currentEnt.client then break end
@@ -409,14 +409,14 @@ Battle=class{
 			end
 		end
 	end,
-	removeEnt=[:,ent]do
+	removeEnt=|:,ent|do
 		self.ents:removeObject(ent)
 		if self.currentEnt == ent then
 			self.index = self.index - 1
 			self:endTurn()
 		end
 	end,
-	getCurrentEnt=[:]do
+	getCurrentEnt=|:|do
 		if not self.currentEnt then
 			while true do
 				local ent = self.ents[((self.index - 1) % #self.ents) + 1]
@@ -430,7 +430,7 @@ Battle=class{
 			end
 		end
 	end,
-	enemiesOf=[:,ent]do
+	enemiesOf=|:,ent|do
 		local enemies = table()
 		for _,army in ipairs(self.armies) do
 			if army ~= ent.army then
@@ -441,7 +441,7 @@ Battle=class{
 		end
 		return enemies
 	end,
-	endTurn=[:]do
+	endTurn=|:|do
 		self.currentEnt = nil
 		local armiesForAffiliation = table()
 		for _,army in ipairs(self.armies) do
@@ -482,12 +482,12 @@ Battle=class{
 	end,
 }
 
-entsAtPos=[pos]do
+entsAtPos=|pos|do
 	if not map.bbox:contains(pos) then return table() end
 	return table(map.tiles[pos[1]][pos[2]].ents)
 end
 
-entsAtPositions=[positions]do
+entsAtPositions=|positions|do
 	local es = table()
 	for _,pos in ipairs(positions) do
 		es:append(entsAtPos(pos))
@@ -495,7 +495,7 @@ entsAtPositions=[positions]do
 	return es
 end
 
-entsWithinRadius=[pos, radius]do
+entsWithinRadius=|pos, radius|do
 	assert(pos)
 	assert(radius)
 	local mins = (pos - radius):clamp(map.bbox)
@@ -510,7 +510,7 @@ entsWithinRadius=[pos, radius]do
 	return closeEnts
 end
 
-floodFillTiles=[pos, bbox]do
+floodFillTiles=|pos, bbox|do
 	bbox = box2(bbox):clamp(map.bbox)
 	pos = vec2(table.unpack(pos))
 	local positions = table{pos}
@@ -533,12 +533,12 @@ floodFillTiles=[pos, bbox]do
 			end
 		end
 	end
-	return allpositionset:keys():map([v]
-		vec2(table.unpack(string.split(v, ','):map([x] tonumber(x))))
+	return allpositionset:keys():map(|v|
+		vec2(table.unpack(string.split(v, ','):map(|x| tonumber(x))))
 	)
 end
 
-pathSearchToPoint=[args]do
+pathSearchToPoint=|args|do
 	local bbox = assert(args.bbox)
 	local start = assert(args.src)
 	local dest = assert(args.dst)
@@ -645,7 +645,7 @@ Entity=class{
 		'armor',
 		'helmet',
 	},
-	init=[:,args]do
+	init=|:,args|do
 		assert(args.pos)
 		self.pos = vec2()
 		self.lastpos = vec2()
@@ -655,7 +655,7 @@ Entity=class{
 		assert(args.army):addEnt(self)
 		self.hp = self:stat'hpMax'
 	end,
-	delete=[:]do
+	delete=|:|do
 		self:setTile(nil)
 		if self.army then self.army:removeEnt(self) end
 		ents:removeObject(self)
@@ -663,7 +663,7 @@ Entity=class{
 			battle:removeEnt(self)
 		end
 	end,
-	addExp=[:,exp]do
+	addExp=|:,exp|do
 		assert(exp)
 		exp = math.floor(exp)
 		log(self.name..' got '..exp..' experience')
@@ -684,12 +684,12 @@ Entity=class{
 			log(self.name..' is now at level '..math.floor(self.level))
 		end
 	end,
-	getChar=[:]do
+	getChar=|:|do
 		local char = self.char
 		if self.dead then char = 'd' end
 		return char
 	end,
-	setPos=[:,pos]do
+	setPos=|:,pos|do
 		assert(pos)
 		self:setTile(nil)
 		self.lastpos:set(self.pos)
@@ -698,7 +698,7 @@ Entity=class{
 			self:setTile(map.tiles[self.pos[1]][self.pos[2]])
 		end
 	end,
-	setTile=[:,tile]do
+	setTile=|:,tile|do
 		if self.tile then
 			self.tile:removeEnt(self)
 		end
@@ -707,7 +707,7 @@ Entity=class{
 			self.tile:addEnt(self)
 		end
 	end,
-	update=[:]do
+	update=|:|do
 		if self.dead then
 			if self.battle and self.battle.currentEnt == self then
 				self:endTurn()
@@ -715,12 +715,12 @@ Entity=class{
 			return
 		end
 	end,
-	setDead=[:,dead]do
+	setDead=|:,dead|do
 		self.dead = dead
 		self.attackable = not dead
 		self:setSolid(not dead)
 	end,
-	setSolid=[:,solid]do
+	setSolid=|:,solid|do
 		self.solid = solid
 		if not self.solid then
 			self.zOrder = -1
@@ -728,7 +728,7 @@ Entity=class{
 			self.zOrder = nil
 		end
 	end,
-	walk=[:,dir]do
+	walk=|:,dir|do
 		if self.dead then return end
 		if self.battle then
 			if self.battle.currentEnt ~= self then
@@ -766,23 +766,23 @@ Entity=class{
 		end
 		return true
 	end,
-	beginBattle=[:,battle]do
+	beginBattle=|:,battle|do
 		self.battle = battle
 		self.ct = 0
 		self.hp = self:stat'hpMax'
 		self.movesLeft = 0
 	end,
-	endBattle=[:]do
+	endBattle=|:|do
 		self.battle = nil
 	end,
-	beginTurn=[:]do
+	beginTurn=|:|do
 		self.ct = 100
 		self.movesLeft = self:stat'move'
 		self.turnStartPos = vec2(table.unpack(self.pos))
 		self.acted = false
 		self.army.currentEnt = self
 	end,
-	endTurn=[:]do
+	endTurn=|:|do
 		assert(self.battle)
 		assert(self.battle.currentEnt == self)
 		self.army.currentEnt = nil
@@ -795,7 +795,7 @@ Entity=class{
 		end
 		self.battle:endTurn()
 	end,
-	stat=[:,field]do
+	stat=|:,field|do
 		assert(table.find(self.statFields,field))
 		local value = self[field]
 		assert(type(value) == 'number', "expected stat "..field.." to be a number, but got "..type(value))
@@ -814,7 +814,7 @@ Entity=class{
 		end
 		return math.floor(value)
 	end,
-	attackDir=[:,dir]do
+	attackDir=|:,dir|do
 		self.acted = true
 		if self.movesLeft ~= self:stat'move' then self.movesLeft = 0 end
 		assert(self.battle)
@@ -827,7 +827,7 @@ Entity=class{
 			end
 		end
 	end,
-	attackTarget=[:,target]do
+	attackTarget=|:,target|do
 		local hitChance = math.clamp(self:stat'hitChance' - target:stat'evade', 5, 100)
 		log(self.name..' attacks '..target.name..' with a '..hitChance..'% chance to hit')
 		if math.random(100) > hitChance then
@@ -839,10 +839,10 @@ Entity=class{
 		local dmg = math.ceil(self:stat'attack' * defense)
 		target:takeDamage(dmg, self)
 	end,
-	getExpGiven=[:]do
+	getExpGiven=|:|do
 		return self.level
 	end,
-	takeDamage=[:,dmg,inflicter]do
+	takeDamage=|:,dmg,inflicter|do
 		self.hp = math.max(self.hp - dmg, 0)
 		log(self.name..' receives '..dmg..' dmg and is at '..self.hp..' hp')
 		if self.hp == 0 then
@@ -851,21 +851,21 @@ Entity=class{
 			self:die()
 		end
 	end,
-	die=[:]do
+	die=|:|do
 		self:setDead(true)
 	end,
 }
 
 Army=class{
 	gold=0,
-	init=[:,args]do
+	init=|:,args|do
 		if args then
 			self.affiliation = args.affiliation
 		end
 		self.ents = table()
 		self.items = table()
 	end,
-	addEnt=[:,ent]do
+	addEnt=|:,ent|do
 		if ent.army then
 			ent.army:removeEnt(ent)
 		end
@@ -880,7 +880,7 @@ Army=class{
 			self.leader = ent
 		end
 	end,
-	removeEnt=[:,ent]do
+	removeEnt=|:,ent|do
 		assert(self.ents:find(ent))
 		self.ents:removeObject(ent)
 		for _,field in ipairs(ent.equipFields) do
@@ -891,16 +891,16 @@ Army=class{
 			self.leader = self.ents[1]
 		end
 	end,
-	deleteAll=[:]do
+	deleteAll=|:|do
 		assert(not self.battle, "i don't have deleting armies mid-battle done yet")
 		for i=#self.ents,1,-1 do
 			self.ents[i]:delete()
 		end
 	end,
-	addItem=[:,item]do
+	addItem=|:,item|do
 		self.items:insert(item)
 	end,
-	removeItem=[:,item]do
+	removeItem=|:,item|do
 		for _,ent in ipairs(self.ents) do
 			for _,field in ipairs(ent.equipFields) do
 				if ent[field] == item then
@@ -910,7 +910,7 @@ Army=class{
 		end
 		self.items:removeObject(item)
 	end,
-	addArmy=[:,army]do
+	addArmy=|:,army|do
 		assert(army ~= self)
 		for _,ent in ipairs(army.ents) do
 			self:addEnt(ent)
@@ -921,33 +921,33 @@ Army=class{
 			army.items:remove(i)
 		end
 	end,
-	beginBattle=[:,battle]do
+	beginBattle=|:,battle|do
 		self.battle = battle
 	end,
-	endBattle=[:]do
+	endBattle=|:|do
 		self.battle = nil
 	end,
 }
 
 ClientArmy=Army:subclass{
-	init=[:,client]do
+	init=|:,client|do
 		ClientArmy.super.init(self)
 		self.client = client
 	end,
-	addEnt=[:,ent]do
+	addEnt=|:,ent|do
 		ClientArmy.super.addEnt(self, ent)
 		ent.client = client
 	end,
-	removeEnt=[:,ent]do
+	removeEnt=|:,ent|do
 		ClientArmy.super.removeEnt(self, ent)
 		ent.client = nil
 	end,
-	beginBattle=[:,battle]do
+	beginBattle=|:,battle|do
 		ClientArmy.super.beginBattle(self, battle)
 		self.client:removeToState(Client.mainCmdState)
 		self.client:pushState(Client.battleCmdState)
 	end,
-	endBattle=[:,battle]do
+	endBattle=|:,battle|do
 		ClientArmy.super.endBattle(self, battle)
 		assert(self.client.cmdstate == Client.battleCmdState, "expected client cmdstate to be battleCmdState")
 		self.client:popState()
@@ -1042,7 +1042,7 @@ for i=1,#Unit.baseTypes do
 	Unit.baseTypes[i] = baseType
 	Unit.baseTypes[baseType.name] = baseType
 end
-Unit.init=[:,args]do
+Unit.init=|:,args|do
 	if self.baseType then
 		for _,baseField in ipairs(self.statFields) do
 			local field = baseField..'Range'
@@ -1053,7 +1053,7 @@ Unit.init=[:,args]do
 	end
 	Unit.super.init(self, args)
 end
-Unit.update=[:]do
+Unit.update=|:|do
 	Unit.super.update(self)
 	if self.dead then return end
 	if not self.client then
@@ -1068,7 +1068,7 @@ Unit.update=[:]do
 							src=self.pos,
 							dst=enemy.pos,
 							bbox=self.battle.bbox,
-							entBlocking = [ent]ent.solid and ent.army.affiliation ~= self.army.affiliation,
+							entBlocking = |ent|ent.solid and ent.army.affiliation ~= self.army.affiliation,
 						}
 						pathsForEnemies:insert{
 							enemy = enemy,
@@ -1080,7 +1080,7 @@ Unit.update=[:]do
 					self:endTurn()
 					return
 				end
-				pathsForEnemies:sort([a,b] #a.path < #b.path)
+				pathsForEnemies:sort(|a,b| #a.path < #b.path)
 				local path = pathsForEnemies[1].path
 				if path then
 					if #path > 1 then
@@ -1117,7 +1117,7 @@ Unit.update=[:]do
 					src = self.pos,
 					dst = followme.pos,
 					bbox = followBox,
-					entBlocking = [ent]ent.solid and ent.army.affiliation ~= self.army.affiliation,
+					entBlocking = |ent|ent.solid and ent.army.affiliation ~= self.army.affiliation,
 				}
 				if #path > 1 then
 					self:walk(path:remove(1).dir)
@@ -1136,7 +1136,7 @@ Unit.update=[:]do
 		self:updateFog()
 	end
 end
-Unit.updateFog=[:]do
+Unit.updateFog=|:|do
 	local radius = 4
 	local fogTiles = floodFillTiles(self.pos, box2(self.pos - radius, self.pos + radius))
 	for _,pos in ipairs(fogTiles) do
@@ -1146,11 +1146,11 @@ Unit.updateFog=[:]do
 		end
 	end
 end
-Unit.checkBattle=[:]do
+Unit.checkBattle=|:|do
 	if self.battle then return end
 	local searchRadius = 3
 	local closeEnts = entsAtPositions(floodFillTiles(self.pos, box2(self.pos-searchRadius,self.pos+searchRadius)))
-	closeEnts = closeEnts:filter([ent]
+	closeEnts = closeEnts:filter(|ent|
 		ent.canBattle
 			and not ent.dead
 			and ent.army.affiliation ~= self.army.affiliation
@@ -1161,7 +1161,7 @@ Unit.checkBattle=[:]do
 		local battlePositions
 		while true do
 			battlePositions = floodFillTiles(self.pos, battleBox)
-			local battleEnts = entsAtPositions(battlePositions):filter([ent]ent.canBattle and not ent.dead)
+			local battleEnts = entsAtPositions(battlePositions):filter(|ent|ent.canBattle and not ent.dead)
 			local stretchedBBox
 			armies = table()
 			for _,ent in ipairs(battleEnts) do
@@ -1197,7 +1197,7 @@ Unit.checkBattle=[:]do
 		end
 	end
 end
-Unit.die=[:]do
+Unit.die=|:|do
 	Unit.super.die(self)
 	local lastToDie = true
 	for _,ent in ipairs(self.army.ents) do
@@ -1242,7 +1242,7 @@ Treasure.solid = false
 Treasure.attackable = false
 Treasure.zOrder = -.5
 
-Treasure.init=[:,args]do
+Treasure.init=|:,args|do
 	Treasure.super.init(self, args)
 	if args.gold then
 		self.army.gold = self.army.gold + tonumber(args.gold)
@@ -1250,7 +1250,7 @@ Treasure.init=[:,args]do
 	self.pickupRandom = args.pickupRandom
 end
 
-Treasure.get=[:,who]do
+Treasure.get=|:,who|do
 	if self.pickupRandom then
 		for i=1,math.random(3) do
 			local item = items[math.random(#items)]
@@ -1259,7 +1259,7 @@ Treasure.get=[:,who]do
 	end
 	local gottext = table()
 	if #self.army.items > 0 then
-		gottext:insert(self.army.items:map([item]item.name):concat', ')
+		gottext:insert(self.army.items:map(|item|item.name):concat', ')
 	end
 	if self.army.gold > 0 then
 		gottext:insert(self.army.gold..' gold')
@@ -1275,28 +1275,28 @@ Treasure.get=[:,who]do
 end
 
 local Item = class()
-Item.__lt=[a,b]((items:find(getmetatable(a)) or 0)<(items:find(getmetatable(b)) or 0))
+Item.__lt=|a,b|((items:find(getmetatable(a)) or 0)<(items:find(getmetatable(b)) or 0))
 
 local Potion=Item:subclass()
 Potion.name='Potion'
 Potion.healRange = {20,30}
-Potion.init=[:,...]do
+Potion.init=|:,...|do
 	if Potion.super.init then Potion.super.init(self, ...) end
 	setFieldsByRange(self, {'heal'})
 	self.heal = math.floor(self.heal)
 	self.name = self.name .. '(+'..self.heal..')'
 end
-Potion.use=[:,who]do
+Potion.use=|:,who|do
 	who.hp = math.min(who.hp + self.heal, who:stat'hpMax')
 end
 
 local Equipment = Item:subclass{
-	init=[:,maxLevel]do
+	init=|:,maxLevel|do
 		assert(self.baseTypes, "tried to instanciate an equipment of type "..self.name.." with no basetypes")
 		local baseTypeOptions = table(self.baseTypes)
 		local modifierOptions = table(self.modifiers)
 		if maxLevel then
-			local filter = [baseType]do
+			local filter = |baseType|do
 				return not baseType.dropLevel or baseType.dropLevel <= maxLevel
 			end
 			baseTypeOptions = baseTypeOptions:filter(filter)
@@ -1426,7 +1426,7 @@ end
 
 Monster = Unit:subclass()
 Monster.wanderIdle = true
-Monster.init=[:,...]do
+Monster.init=|:,...|do
 	local smallest
 	for _,baseType in ipairs(Unit.baseTypes) do
 		local v = -math.log(baseType.weight)
@@ -1455,10 +1455,10 @@ View=class{
 	size=ViewSize,
 	bbox=box2(1, ViewSize),
 	center=(ViewSize/2):ceil(),
-	update=[:,mapCenter]do
+	update=|:,mapCenter|do
 		self.delta=mapCenter-self.center
 	end,
-	drawBorder=[:,b]do
+	drawBorder=|:,b|do
 		local mins = b.min
 		local maxs = b.max
 		for x=mins[1]+1,maxs[1]-1 do
@@ -1493,7 +1493,7 @@ View=class{
 			end
 		end
 	end,
-	fillBox=[:,b]do
+	fillBox=|:,b|do
 		b = box2(b):clamp(view.bbox)
 		for y=b.min[2],b.max[2] do
 			con.locate(b.min[1], y)
@@ -1509,7 +1509,7 @@ Client=class{
 
 WindowLine=class{
 	text='',
-	init=[:,args]do
+	init=|:,args|do
 		if type(args) == 'string' then args = {text=args} end
 		self.text = args.text
 		self.cantSelect = args.cantSelect
@@ -1518,7 +1518,7 @@ WindowLine=class{
 }
 
 Window=class{
-	init=[:,args]do
+	init=|:,args|do
 		self.fixed = args.fixed
 		self.currentLine = 1
 		self.firstLine = 1
@@ -1527,15 +1527,15 @@ Window=class{
 		self:refreshBorder()
 		self:setLines(args.lines or {})
 	end,
-	setPos=[:,pos]do
+	setPos=|:,pos|do
 		self.pos:set(assert(pos))
 		self:refreshBorder()
 	end,
-	refreshBorder=[:]do
+	refreshBorder=|:|do
 		self.border = box2(self.pos, self.pos + self.size - 1)
 	end,
-	setLines=[:,lines]do
-		self.lines = table.map(lines, [line]((WindowLine(line))))
+	setLines=|:,lines|do
+		self.lines = table.map(lines, |line|((WindowLine(line))))
 		self.textWidth = 0
 		self.selectableLines = table()
 		for index,line in ipairs(self.lines) do
@@ -1550,7 +1550,7 @@ Window=class{
 			self:refreshBorder()
 		end
 	end,
-	moveCursor=[:,ch]do
+	moveCursor=|:,ch|do
 		if #self.selectableLines == 0 then
 			self.currentLine = 1
 		else
@@ -1567,14 +1567,14 @@ Window=class{
 			end
 		end
 	end,
-	chooseCursor=[:]do
+	chooseCursor=|:|do
 		if #self.selectableLines > 0 then
 			self.currentLine = (self.currentLine - 1) % #self.selectableLines + 1
 			local line = self.selectableLines[self.currentLine]
 			if line.onSelect then line.onSelect() end
 		end
 	end,
-	draw=[:]do
+	draw=|:|do
 		view:drawBorder(self.border)
 		local box = box2(self.border.min+1, self.border.max-1)
 		view:fillBox(box)
@@ -1600,26 +1600,26 @@ Window=class{
 }
 
 DoneWindow=Window:subclass{
-	refresh=[:,text]do
+	refresh=|:,text|do
 		self:setLines{text}
 	end,
 }
 
 QuitWindow=Window:subclass{
-	init=[:,args]do
+	init=|:,args|do
 		local client = assert(args.client)
 		QuitWindow.super.init(self, args)
 		self:setLines{
 			{text='Quit?', cantSelect=true},
 			{text='-----', cantSelect=true},
-			{text='Yes', onSelect=[]reset()},
-			{text='No', onSelect=[]client:popState()},
+			{text='Yes', onSelect=||reset()},
+			{text='No', onSelect=||client:popState()},
 		}
 	end,
 }
 
 ClientBaseWindow=Window:subclass{
-	init=[:,args]do
+	init=|:,args|do
 		ClientBaseWindow.super.init(self, args)
 		self.client = assert(args.client)
 		self.army = self.client.army
@@ -1627,7 +1627,7 @@ ClientBaseWindow=Window:subclass{
 }
 
 MoveFinishedWindow=ClientBaseWindow:subclass{
-	refresh=[:]do
+	refresh=|:|do
 		local lines = table()
 		local solidfound
 		for _,e in ipairs(entsAtPos(self.client.army.currentEnt.pos)) do
@@ -1639,7 +1639,7 @@ MoveFinishedWindow=ClientBaseWindow:subclass{
 		if not solidfound then
 			lines:insert{
 				text = 'Ok',
-				onSelect = []do
+				onSelect = ||do
 					self.client.army.currentEnt.movesLeft = 0
 					self.client:popState()
 					self.client:popState()
@@ -1648,7 +1648,7 @@ MoveFinishedWindow=ClientBaseWindow:subclass{
 		end
 		lines:insert{
 			text='Cancel',
-			onSelect=[]do
+			onSelect=||do
 				local currentEnt=self.client.army.currentEnt
 				currentEnt:setPos(currentEnt.turnStartPos)
 				currentEnt.movesLeft=currentEnt:stat'move'
@@ -1661,24 +1661,24 @@ MoveFinishedWindow=ClientBaseWindow:subclass{
 }
 
 MapOptionsWindow=ClientBaseWindow:subclass{
-	init=[:,args]do
+	init=|:,args|do
 		MapOptionsWindow.super.init(self, args)
 		self:refresh()
 	end,
-	refresh=[:]do
+	refresh=|:|do
 		local lines = table()
 		lines:insert{
 			text = 'Status',
-			onSelect = []self.client:pushState(Client.armyCmdState),
+			onSelect = ||self.client:pushState(Client.armyCmdState),
 		}
 		lines:insert{
 			text = 'Inspect',
-			onSelect = []self.client:pushState(Client.inspectCmdState),
+			onSelect = ||self.client:pushState(Client.inspectCmdState),
 		}
 		if #self.client.army.ents < Client.maxArmySize then
 			lines:insert{
 				text = 'Recruit',
-				onSelect = []do
+				onSelect = ||do
 					if #self.client.army.ents < Client.maxArmySize then
 						self.client:pushState(Client.recruitCmdState)
 					end
@@ -1687,17 +1687,17 @@ MapOptionsWindow=ClientBaseWindow:subclass{
 		end
 		lines:insert{
 			text = 'Quit',
-			onSelect = []self.client:pushState(Client.quitCmdState),
+			onSelect = ||self.client:pushState(Client.quitCmdState),
 		}
 		lines:insert{
 			text = 'Done',
-			onSelect = []self.client:popState(),
+			onSelect = ||self.client:popState(),
 		}
 		self:setLines(lines)
 	end,
 }
 
-refreshWinPlayers=[client]do
+refreshWinPlayers=|client|do
 	local player = client.army.ents[client.armyWin.currentLine]
 	for _,field in ipairs{'statWin','equipWin','itemWin'} do
 		local win = client[field]
@@ -1706,14 +1706,14 @@ refreshWinPlayers=[client]do
 end
 
 ArmyWindow=ClientBaseWindow:subclass{
-	refresh=[:]do
+	refresh=|:|do
 		local lines = table()
 		for _,ent in ipairs(self.army.ents) do
 			lines:insert(ent.name)
 		end
 		self:setLines(lines)
 	end,
-	moveCursor=[:,ch]do
+	moveCursor=|:,ch|do
 		ArmyWindow.super.moveCursor(self, ch)
 		refreshWinPlayers(self.client)
 		self.client.statWin:refresh()
@@ -1732,8 +1732,8 @@ local shorthandStat={
 }
 StatWindow=ClientBaseWindow:subclass{
 	noInteraction=true,
-	refresh=[:,field,equip]do
-		local recordStats=[dest]do
+	refresh=|:,field,equip|do
+		local recordStats=|dest|do
 			local stats=table()
 			for _,field in ipairs(self.player.statFields) do
 				stats[field]=self.player:stat(field)
@@ -1778,7 +1778,7 @@ local shorthandFields={
 	helmet='\142',
 }
 EquipWindow=ClientBaseWindow:subclass{
-	refresh=[:]do
+	refresh=|:|do
 		local lines=table()
 		local width=0
 		for _,field in ipairs(self.player.equipFields) do
@@ -1800,7 +1800,7 @@ EquipWindow=ClientBaseWindow:subclass{
 	end,
 }
 
-local refreshEquipStatWin=[client]do
+local refreshEquipStatWin=|client|do
 	local item=client.itemWin.items[client.itemWin.currentLine]
 	if item then
 		local field=assert(client.itemWin.player.equipFields[client.equipWin.currentLine])
@@ -1811,13 +1811,13 @@ local refreshEquipStatWin=[client]do
 end
 
 ItemWindow=ClientBaseWindow:subclass{
-	moveCursor=[:,ch]do
+	moveCursor=|:,ch|do
 		ItemWindow.super.moveCursor(self, ch)
 		if self.client.cmdstate==Client.chooseEquipCmdState then
 			refreshEquipStatWin(self.client)
 		end
 	end,
-	chooseCursor=[:]do
+	chooseCursor=|:|do
 		ItemWindow.super.chooseCursor(self)
 		if self.client.cmdstate==Client.chooseEquipCmdState then
 			local player=client.equipWin.player
@@ -1830,7 +1830,7 @@ ItemWindow=ClientBaseWindow:subclass{
 			end
 			client.equipWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
 			client.equipWin:refresh()
-			client.itemWin:refresh([item]do
+			client.itemWin:refresh(|item|do
 				if item.equip ~= field then return false end
 				for _,p2 in ipairs(client.army.ents) do
 					if p2 ~= player then
@@ -1846,7 +1846,7 @@ ItemWindow=ClientBaseWindow:subclass{
 			refreshEquipStatWin(client)
 		end
 	end,
-	refresh=[:,filter]do
+	refresh=|:,filter|do
 		local lines=table()
 		self.items=table()
 		for _,item in ipairs(self.client.army.items) do
@@ -1870,45 +1870,45 @@ ItemWindow=ClientBaseWindow:subclass{
 }
 
 PlayerWindow=ClientBaseWindow:subclass{
-	init=[:,args]do
+	init=|:,args|do
 		PlayerWindow.super.init(self, args)
 		self:setLines{
 			{
 				text='Equip',
-				onSelect=[]self.client:pushState(Client.equipCmdState),
+				onSelect=||self.client:pushState(Client.equipCmdState),
 			},
 			{
 				text='Use',
-				onSelect=[]self.client:pushState(Client.itemCmdState),
+				onSelect=||self.client:pushState(Client.itemCmdState),
 			},
 			{
 				text='Drop',
-				onSelect=[]self.client:pushState(Client.dropItemCmdState),
+				onSelect=||self.client:pushState(Client.dropItemCmdState),
 			},
 		}
 	end,
 }
 
 BattleWindow=ClientBaseWindow:subclass{
-	refresh=[:]do
+	refresh=|:|do
 		local client=self.client
 		local currentEnt=client.army.currentEnt
 		local lines=table()
 		if currentEnt.movesLeft > 0 then
 			lines:insert{
 				text='Move',
-				onSelect=[]client:pushState(Client.battleMoveCmdState),
+				onSelect=||client:pushState(Client.battleMoveCmdState),
 			}
 		end
 		if not currentEnt.acted then
 			lines:insert{
 				text='Attack',
-				onSelect=[]client:pushState(Client.attackCmdState),
+				onSelect=||client:pushState(Client.attackCmdState),
 			}
 			if #client.army.items > 0 then
 				lines:insert{
 					text='Use',
-					onSelect=[]client:pushState(Client.itemCmdState),
+					onSelect=||client:pushState(Client.itemCmdState),
 				}
 			end
 		end
@@ -1922,7 +1922,7 @@ BattleWindow=ClientBaseWindow:subclass{
 		if getEnt then
 			lines:insert{
 				text='Get',
-				onSelect=[]do
+				onSelect=||do
 					for _,ent in ipairs(entsAtPos(currentEnt.pos)) do
 						if ent.get then
 							currentEnt.movesLeft=0
@@ -1934,19 +1934,19 @@ BattleWindow=ClientBaseWindow:subclass{
 		end
 		lines:insert{
 			text='End Turn',
-			onSelect=[]currentEnt:endTurn(),
+			onSelect=||currentEnt:endTurn(),
 		}
 		lines:insert{
 			text='Party',
-			onSelect=[]client:pushState(Client.armyCmdState),
+			onSelect=||client:pushState(Client.armyCmdState),
 		}
 		lines:insert{
 			text='Inspect',
-			onSelect=[]self.client:pushState(Client.inspectCmdState),
+			onSelect=||self.client:pushState(Client.inspectCmdState),
 		}
 		lines:insert{
 			text='Quit',
-			onSelect=[]client:pushState(Client.quitCmdState),
+			onSelect=||client:pushState(Client.quitCmdState),
 		}
 		self:setLines(lines)
 	end,
@@ -1954,32 +1954,32 @@ BattleWindow=ClientBaseWindow:subclass{
 
 local cmdPopState={
 	name='Done',
-	exec=[client,cmd,ch]client:popState(),
+	exec=|client,cmd,ch|client:popState(),
 }
 
-local makeCmdPushState=[name,state,disabled]do
+local makeCmdPushState=|name,state,disabled|do
 	assert(state)
 	return {
 		name=name,
-		exec=[:,cmd,ch]self:pushState(state),
+		exec=|:,cmd,ch|self:pushState(state),
 		disabled=disabled,
 	}
 end
 
-local makeCmdWindowMoveCursor=[winField]do
+local makeCmdWindowMoveCursor=|winField|do
 	return {
 		name='Scroll',
-		exec=[client,cmd,ch]do
+		exec=|client,cmd,ch|do
 			local win=assert(client[winField])
 			win:moveCursor(ch)
 		end,
 	}
 end
 
-local makeCmdWindowChooseCursor=[winField]do
+local makeCmdWindowChooseCursor=|winField|do
 	return {
 		name='Choose',
-		exec=[client,cmd,ch]do
+		exec=|client,cmd,ch|do
 			local win=assert(client[winField])
 			win:chooseCursor()
 		end,
@@ -1988,7 +1988,7 @@ end
 
 local cmdMove={
 	name='Move',
-	exec=[client,cmd,ch]do
+	exec=|client,cmd,ch|do
 		if not client.army.battle then
 			client.army.leader:walk(ch)
 		else
@@ -1997,7 +1997,7 @@ local cmdMove={
 	end,
 }
 
-local refreshStatusToInspect=[client]do
+local refreshStatusToInspect=|client|do
 	local ents=entsAtPos(client.inspectPos)
 	if #ents>0 then
 		local ent=ents[tstamp()%#ents+1]
@@ -2010,7 +2010,7 @@ end
 
 local cmdInspectMove={
 	name='Move',
-	exec=[client,cmd,ch]do
+	exec=|client,cmd,ch|do
 		client.inspectPos=client.inspectPos+dirs[ch]
 		refreshStatusToInspect(client)
 	end,
@@ -2024,12 +2024,12 @@ Client.inspectCmdState={
 		right=cmdInspectMove,
 		space=cmdPopState,
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		client.inspectPos=vec2(client.army.leader.pos)
 		client.statWin:setPos(vec2(1,1))
 		refreshStatusToInspect(client)
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		local viewpos=client.inspectPos-view.delta
 		if view.bbox:contains(viewpos) then
 			con.locate(table.unpack(viewpos))
@@ -2045,10 +2045,10 @@ Client.chooseEquipCmdState={
 		down=makeCmdWindowMoveCursor'itemWin',
 		space=makeCmdWindowChooseCursor'itemWin',
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		local player=client.equipWin.player
 		local field=assert(player.equipFields[client.equipWin.currentLine])
-		client.itemWin:refresh([item]do
+		client.itemWin:refresh(|item|do
 			if item.equip ~= field then return false end
 			for _,p2 in ipairs(client.army.ents) do
 				if p2 ~= player then
@@ -2066,7 +2066,7 @@ Client.chooseEquipCmdState={
 		refreshEquipStatWin(client)
 		client.itemWin:setPos(vec2(client.equipWin.border.min[1], client.equipWin.border.max[2]+1))
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		client.itemWin:draw()
 	end,
 }
@@ -2079,12 +2079,12 @@ Client.equipCmdState={
 		space=makeCmdPushState('Choose', Client.chooseEquipCmdState),
 		right=makeCmdPushState('Choose', Client.chooseEquipCmdState),
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		client.statWin:refresh()
 		client.equipWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
 		client.equipWin:refresh()
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		client.statWin:draw()
 		client.equipWin:draw()
 	end,
@@ -2096,7 +2096,7 @@ Client.itemCmdState={
 		left=cmdPopState,
 		space={
 			name='Use',
-			exec=[client,cmd,ch]do
+			exec=|client,cmd,ch|do
 				local player=client.itemWin.player
 				if #client.itemWin.items == 0 then return end
 				client.itemWin.currentLine=(client.itemWin.currentLine - 1) % #client.itemWin.items + 1
@@ -2109,11 +2109,11 @@ Client.itemCmdState={
 			end,
 		},
 	},
-	enter=[client,state]do
+	enter=|client,state|do
 		client.itemWin:setPos(vec2(1,1))
 		client.itemWin:refresh()
 	end,
-	draw=[client,state]do
+	draw=|client,state|do
 		client.itemWin:draw()
 	end,
 }
@@ -2124,7 +2124,7 @@ Client.dropItemCmdState={
 		left=cmdPopState,
 		space={
 			name='Drop',
-			exec=[client, cmd, ch]do
+			exec=|client, cmd, ch|do
 				if #client.army.items == 0 then return end
 				client.itemWin.currentLine=(client.itemWin.currentLine - 1) % #client.army.items + 1
 				local item=client.itemWin.items[client.itemWin.currentLine]
@@ -2136,11 +2136,11 @@ Client.dropItemCmdState={
 			end,
 		},
 	},
-	enter=[client,state]do
+	enter=|client,state|do
 		client.itemWin:setPos(vec2(1,1))
 		client.itemWin:refresh()
 	end,
-	draw=[client,state]do
+	draw=|client,state|do
 		client.itemWin:draw()
 	end,
 }
@@ -2152,10 +2152,10 @@ Client.playerCmdState={
 		right=makeCmdWindowChooseCursor'playerWin',
 		space=makeCmdWindowChooseCursor'playerWin',
 	},
-	enter=[client,state]do
+	enter=|client,state|do
 		client.playerWin:setPos(vec2(client.statWin.border.max[1]+3, client.statWin.border.min[2]+1))
 	end,
-	draw=[client,state]do
+	draw=|client,state|do
 		client.playerWin:draw()
 	end,
 }
@@ -2167,14 +2167,14 @@ Client.armyCmdState={
 		right=makeCmdPushState('Player', Client.playerCmdState),
 		space=makeCmdPushState('Player', Client.playerCmdState),
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		refreshWinPlayers(client)
 		client.statWin:refresh()
 		client.armyWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
 		client.armyWin:refresh()
 		game.paused=true
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		game.paused=false
 		client.statWin:draw()
 		client.armyWin:draw()
@@ -2183,7 +2183,7 @@ Client.armyCmdState={
 
 local cmdRecruit={
 	name='Recruit',
-	exec=[client, cmd, ch]do
+	exec=|client, cmd, ch|do
 		if #client.army.ents >= Client.maxArmySize then
 			log("party is full")
 		else
@@ -2215,11 +2215,11 @@ Client.recruitCmdState={
 		right=cmdRecruit,
 		space=cmdPopState,
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		client.doneWin:refresh'Cancel'
 		client.doneWin:setPos(vec2(1,1))
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		client.doneWin:draw()
 	end,
 }
@@ -2231,11 +2231,11 @@ Client.mapOptionsCmdState={
 		right=makeCmdWindowChooseCursor'mapOptionsWin',
 		space=makeCmdWindowChooseCursor'mapOptionsWin',
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		client.mapOptionsWin:setPos(vec2(1,1))
 		client.mapOptionsWin:refresh()
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		client.mapOptionsWin:refresh()
 		client.mapOptionsWin:draw()
 	end,
@@ -2252,7 +2252,7 @@ Client.mainCmdState={
 
 local cmdAttack={
 	name='Attack',
-	exec=[client, cmd, ch]do
+	exec=|client, cmd, ch|do
 		client.army.currentEnt:attackDir(ch)
 		client:popState()
 	end,
@@ -2266,11 +2266,11 @@ Client.attackCmdState={
 		right=cmdAttack,
 		space=cmdPopState,
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		client.doneWin:refresh'Cancel'
 		client.doneWin:setPos(vec2(1,1))
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		client.doneWin:draw()
 	end,
 }
@@ -2280,7 +2280,7 @@ Client.battleMoveCmdFinishedState={
 		down=makeCmdWindowMoveCursor'moveFinishedWin',
 		space=makeCmdWindowChooseCursor'moveFinishedWin',
 	},
-	draw=[client, state]do
+	draw=|client, state|do
 		client.moveFinishedWin:refresh()
 		client.moveFinishedWin:draw()
 	end,
@@ -2288,7 +2288,7 @@ Client.battleMoveCmdFinishedState={
 
 local cmdMoveDone={
 	name='Done',
-	exec=[client, cmd, ch]do
+	exec=|client, cmd, ch|do
 		client:pushState(Client.battleMoveCmdFinishedState)
 	end,
 }
@@ -2301,11 +2301,11 @@ Client.battleMoveCmdState={
 		right=cmdMove,
 		space=cmdMoveDone,
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		client.doneWin:refresh'Done'
 		client.doneWin:setPos(vec2(1,1))
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		client.doneWin:draw()
 	end,
 }
@@ -2315,10 +2315,10 @@ Client.battleCmdState={
 		down=makeCmdWindowMoveCursor'battleWin',
 		space=makeCmdWindowChooseCursor'battleWin',
 	},
-	enter=[client, state]do
+	enter=|client, state|do
 		client.battleWin:setPos(vec2(1,1))
 	end,
-	draw=[client, state]do
+	draw=|client, state|do
 		client.battleWin:refresh()
 		client.battleWin:draw()
 	end,
@@ -2330,9 +2330,9 @@ Client.quitCmdState={
 		down=makeCmdWindowMoveCursor'quitWin',
 		space=makeCmdWindowChooseCursor'quitWin',
 	},
-	draw=[client,state] client.quitWin:draw(),
+	draw=|client,state| client.quitWin:draw(),
 }
-Client.setState=[:,state]do
+Client.setState=|:,state|do
 	if self.cmdstate and self.cmdstate.exit then
 		self.cmdstate.exit(self, self.cmdstate)
 	end
@@ -2341,7 +2341,7 @@ Client.setState=[:,state]do
 		self.cmdstate.enter(self, self.cmdstate)
 	end
 end
-Client.removeToState=[:,state]do
+Client.removeToState=|:,state|do
 	assert(state)
 	if state == self.cmdstate then return end
 	local i=assert(self.cmdstack:find(state))
@@ -2350,15 +2350,15 @@ Client.removeToState=[:,state]do
 	end
 	self.cmdstate=state
 end
-Client.pushState=[:,state]do
+Client.pushState=|:,state|do
 	assert(state)
 	self.cmdstack:insert(self.cmdstate)
 	self:setState(state)
 end
-Client.popState=[:]do
+Client.popState=|:|do
 	self:setState(self.cmdstack:remove())
 end
-Client.processCmdState=[:,state]do
+Client.processCmdState=|:,state|do
 	local ch
 	repeat
 		if btnp'up' then
@@ -2394,7 +2394,7 @@ Client.processCmdState=[:,state]do
 		end
 	end
 end
-Client.init=[:]do
+Client.init=|:|do
 	self.army = ClientArmy(self)
 	self.cmdstack = table()
 	self:setState(Client.mainCmdState)
@@ -2409,7 +2409,7 @@ Client.init=[:]do
 	self.mapOptionsWin = MapOptionsWindow{client=self}
 	self.moveFinishedWin = MoveFinishedWindow{client=self}
 end
-Client.update=[:]do
+Client.update=|:|do
 	if self.cmdstate and self.cmdstate.update then
 		self.cmdstate.update(self, self.cmdstate)
 	end
@@ -2457,7 +2457,7 @@ for i=1,math.floor(map.size:volume() / 500) do
 end
 
 
-render=[]do
+render=||do
 	cls(0xf0)
 
 	if client.army.currentEnt then
@@ -2510,7 +2510,7 @@ render=[]do
 	end
 
 	local y = 1
-	local printright=[s]do
+	local printright=|s|do
 		if s then
 			con.locate(view.size[1]+2,y)
 			con.write(s)
@@ -2552,7 +2552,7 @@ render=[]do
 	log:render()
 end
 
-gameUpdate=[]do
+gameUpdate=||do
 	if not game.paused then
 		for _,ent in ipairs(ents) do
 			ent:update()
@@ -2565,7 +2565,7 @@ gameUpdate=[]do
 	render()
 end
 
-update=[]do
+update=||do
 	client:update()
 	game.time = game.time + 1
 	gameUpdate()

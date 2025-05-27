@@ -25,7 +25,7 @@ do
 		perm[i+1] = p[(i & 255) + 1]
 	end
 
-	local dot = [g, ...] do
+	local dot = |g, ...| do
 		local v = {...}
 		local sum = 0
 		for i=1,#v do
@@ -34,7 +34,7 @@ do
 		return sum
 	end
 
-	simplexNoise2D = [xin, yin] do
+	simplexNoise2D = |xin, yin| do
 		local n0, n1, n2	-- Noise contributions from the three corners
 		-- Skew the input space to determine which simplex cell we're in
 		local F2 = .5*(math.sqrt(3)-1)

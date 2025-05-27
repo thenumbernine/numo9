@@ -70,7 +70,7 @@ local numKartSheets = 4
 local kartSpriteCount = 20	-- total # kart sprites
 assert.le(kartSpriteCount, numKartSheets * numKartsPerSheet)
 
-local calcSpriteIndex=[angle, kartSpriteNo]do
+local calcSpriteIndex=|angle, kartSpriteNo|do
 	assert.le(0, kartSpriteNo)
 	assert.lt(kartSpriteNo, kartSpriteCount)
 	assert.le(0, angle)
@@ -131,7 +131,7 @@ end
 
 --#include ext/class.lua
 
-local getvalue=[x, dim]do
+local getvalue=|x, dim|do
 	if type(x)=='number' then return x end
 	if type(x)=='table' then
 		x=x[dim]
@@ -144,14 +144,14 @@ local getvalue=[x, dim]do
 end
 vec2=class{
 	dim=2,
-	init=[v,x,y]do
+	init=|v,x,y|do
 		if x then
 			v:set(x,y)
 		else
 			v:set(0,0)
 		end
 	end,
-	set=[v,x,y]do
+	set=|v,x,y|do
 		if type(x) == 'table' then
 			v[1] = x[1]
 			v[2] = x[2]
@@ -164,37 +164,37 @@ vec2=class{
 			end
 		end
 	end,
-	unpack=[v](v[1],v[2]),
-	product=[v]v[1]*v[2],
-	map=[v,f]do
+	unpack=|v|(v[1],v[2]),
+	product=|v|v[1]*v[2],
+	map=|v,f|do
 		v[1]=f(v[1],1)
 		v[2]=f(v[2],2)
 		return v
 	end,
-	dot=[a,b]a[1]*b[1]+a[2]*b[2],
-	lenSq=[v]vec2.dot(v,v),
-	length=[v]math.sqrt(vec2.lenSq(v)),
-	normalize=[v]v/vec2.length(v),
-	__unm=[a]vec2(-a[1],-a[2]),
-	__add=[a,b]vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
-	__sub=[a,b]vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
-	__mul=[a,b]vec2(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2)),
-	__div=[a,b]vec2(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2)),
-	__eq=[a,b]a[1]==b[1]and a[2]==b[2],
-	__tostring=[v]table.concat(v,','),
+	dot=|a,b|a[1]*b[1]+a[2]*b[2],
+	lenSq=|v|vec2.dot(v,v),
+	length=|v|math.sqrt(vec2.lenSq(v)),
+	normalize=|v|v/vec2.length(v),
+	__unm=|a|vec2(-a[1],-a[2]),
+	__add=|a,b|vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
+	__sub=|a,b|vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
+	__mul=|a,b|vec2(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2)),
+	__div=|a,b|vec2(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2)),
+	__eq=|a,b|a[1]==b[1]and a[2]==b[2],
+	__tostring=|v|table.concat(v,','),
 	__concat=string.concat,
 }
 
 vec3=class{
 	dim=3,
-	init=[v,x,y,z]do
+	init=|v,x,y,z|do
 		if x then
 			v:set(x,y,z)
 		else
 			v:set(0,0,0)
 		end
 	end,
-	set=[v,x,y,z]do
+	set=|v,x,y,z|do
 		if type(x)=='table' then
 			v[1]=x[1]
 			v[2]=x[2]
@@ -214,26 +214,26 @@ vec3=class{
 			end
 		end
 	end,
-	unpack=[v](v[1],v[2],v[3]),
-	product=[v]v[1]*v[2]*v[3],
-	map=[v,f]do
+	unpack=|v|(v[1],v[2],v[3]),
+	product=|v|v[1]*v[2]*v[3],
+	map=|v,f|do
 		v[1]=f(v[1],1)
 		v[2]=f(v[2],2)
 		v[3]=f(v[3],3)
 		return v
 	end,
-	dot=[a,b]a[1]*b[1]+a[2]*b[2]+a[3]*b[3],
-	lenSq=[v]vec3.dot(v,v),
-	length=[v]math.sqrt(vec3.lenSq(v)),
-	normalize=[v]v/vec3.length(v),
-	cross=[a,b]vec3(a[2]*b[3]-a[3]*b[2],a[3]*b[1]-a[1]*b[3],a[1]*b[2]-a[2]*b[1]),
-	__unm=[a]vec2(-a[1],-a[2],-a[3]),
-	__add=[a,b]vec3(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2),getvalue(a,3)+getvalue(b,3)),
-	__sub=[a,b]vec3(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2),getvalue(a,3)-getvalue(b,3)),
-	__mul=[a,b]vec3(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2),getvalue(a,3)*getvalue(b,3)),
-	__div=[a,b]vec3(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2),getvalue(a,3)/getvalue(b,3)),
-	__eq=[a,b]a[1]==b[1]and a[2]==b[2]and a[3]==b[3],
-	__tostring=[v]table.concat(v,','),
+	dot=|a,b|a[1]*b[1]+a[2]*b[2]+a[3]*b[3],
+	lenSq=|v|vec3.dot(v,v),
+	length=|v|math.sqrt(vec3.lenSq(v)),
+	normalize=|v|v/vec3.length(v),
+	cross=|a,b|vec3(a[2]*b[3]-a[3]*b[2],a[3]*b[1]-a[1]*b[3],a[1]*b[2]-a[2]*b[1]),
+	__unm=|a|vec2(-a[1],-a[2],-a[3]),
+	__add=|a,b|vec3(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2),getvalue(a,3)+getvalue(b,3)),
+	__sub=|a,b|vec3(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2),getvalue(a,3)-getvalue(b,3)),
+	__mul=|a,b|vec3(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2),getvalue(a,3)*getvalue(b,3)),
+	__div=|a,b|vec3(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2),getvalue(a,3)/getvalue(b,3)),
+	__eq=|a,b|a[1]==b[1]and a[2]==b[2]and a[3]==b[3],
+	__tostring=|v|table.concat(v,','),
 	__concat=string.concat,
 }
 
@@ -431,7 +431,7 @@ function BananaObject:init(args)
 	if args.throw then
 		self.vel = args.vel + args.dir * 20 + vec3(0,0,7)
 		self.pos = args.pos + args.dir
-		self.pos[3] = self.pos[3] + 1
+		self.pos[3] += 1
 	else
 		self.pos = args.pos - args.dir
 	end
@@ -451,12 +451,12 @@ function BananaObject:update(dt)
 				return
 			end
 		else
-			self.vel[1] = self.vel[1] + self.gravity[1] * dt
-			self.vel[2] = self.vel[2] + self.gravity[2] * dt
-			self.vel[3] = self.vel[3] + self.gravity[3] * dt
-			self.pos[1] = self.pos[1] + self.vel[1] * dt
-			self.pos[2] = self.pos[2] + self.vel[2] * dt
-			self.pos[3] = self.pos[3] + self.vel[3] * dt
+			self.vel[1] += self.gravity[1] * dt
+			self.vel[2] += self.gravity[2] * dt
+			self.vel[3] += self.gravity[3] * dt
+			self.pos[1] += self.vel[1] * dt
+			self.pos[2] += self.vel[2] * dt
+			self.pos[3] += self.vel[3] * dt
 		end
 	end
 end
@@ -931,8 +931,8 @@ function Track:init(args)
 223.93364120053, 74.520196198627, 8
 ]]
 	if self.nodes then
-		self.nodes = string.split(self.nodes, '\n'):mapi([line]do
-			local v = vec3(table.unpack(string.split(line,','):mapi([v]
+		self.nodes = string.split(self.nodes, '\n'):mapi(|line|do
+			local v = vec3(table.unpack(string.split(line,','):mapi(|v|
 				tonumber(string.trim(v))
 			)))
 			v *= .5				-- cuz they were recorded at 256x but now the track is 128x
@@ -2441,7 +2441,7 @@ for i=0,maxPlayers-1 do
 	}
 end
 
-startGame=[]do
+startGame=||do
 	inMenu=false
 
 	game = Game()
@@ -2470,7 +2470,7 @@ startGame=[]do
 end
 
 matident()	-- hmm having trouble resetting it with 'new game'...
-update=[]do
+update=||do
 	if inMenu then
 		cls(0)
 		local x,y=16,96
@@ -2536,7 +2536,7 @@ update=[]do
 	game:update(fixedDeltaTime)
 end
 
-drawPlayers=[divX, divY, ...]do
+drawPlayers=|divX, divY, ...|do
 	for i=1,select('#', ...) do
 		local playerIndex = select(i, ...)
 		if startPlayerInfo[playerIndex].active then
@@ -2600,7 +2600,7 @@ drawPlayers=[divX, divY, ...]do
 end
 
 local divsForNumPlayers = {{1,1}, {1,2}, {2,2}, {2,2}}
-draw=[conn, ...]do
+draw=|conn, ...|do
 	if not game then return end
 	cls(0)
 	-- TODO ... holds the player indexes for this conn

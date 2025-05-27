@@ -12,14 +12,14 @@ local fontSize = vec2(1,1)
 --]]
 
 --[[ powers of two
-local getNewNumber = [] math.random(1,2) << 1
-local testMerge = [a,b] a == b
-local doMerge = [a,b] a + b
+local getNewNumber = || math.random(1,2) << 1
+local testMerge = |a,b| a == b
+local doMerge = |a,b| a + b
 --]]
 -- [[ naturals
-local getNewNumber = [] math.random(1,2)
-local testMerge = [a,b] a == b
-local doMerge = [a,b] a + 1
+local getNewNumber = || math.random(1,2)
+local testMerge = |a,b| a == b
+local doMerge = |a,b| a + 1
 --]]
 
 local fontWidthAddr = ramaddr'fontWidth'
@@ -27,7 +27,7 @@ for i=0,255 do
 	poke(fontWidthAddr+i,8)
 end
 
-local randomColor = [] do
+local randomColor = || do
 	local v = (vec3(math.random(), math.random(), math.random()):unit() * 31):floor()
 	return v.x | (v.y << 5) | (v.z << 10) | 0x8000
 end
@@ -46,11 +46,11 @@ local dirvecs = table{
 	[3] = vec2(0,-1),
 }
 
-local rndb = [] math.random(0,255)
+local rndb = || math.random(0,255)
 
 local colors = {[0]=0, [1]=2}
 
-local addNumber=[]do
+local addNumber=||do
 	local zeroes = table()
 	for i,col in ipairs(board) do
 		for j,v in ipairs(col) do
@@ -74,17 +74,17 @@ trace'you lost'
 --]]
 end
 
-resetGame=[]do
+resetGame=||do
 --[[ testing
-	board = range(size.x):mapi([i] range(size.y):mapi([j] 1<<math.max(i,2)))
+	board = range(size.x):mapi(|i| range(size.y):mapi(|j| 1<<math.max(i,2)))
 --]]
 -- [[
-	board = range(size.x):mapi([] range(size.y):mapi([] 0))
+	board = range(size.x):mapi(|| range(size.y):mapi(|| 0))
 	addNumber()
 --]]
 end
 
-local modpos = [pos]do
+local modpos = |pos|do
 	local x,y = pos:unpack()
 	if x < 0 then x += size.x + 1 end
 	if y < 0 then y += size.y + 1 end
@@ -95,16 +95,16 @@ local modpos = [pos]do
 --trace('modpos from='..pos..' to='..vec2(x,y))
 	return vec2(x,y)
 end
-local getmod = [pos]do
+local getmod = |pos|do
 	pos = modpos(pos)
 	return board[pos.x][pos.y]
 end
-local setmod = [pos, value]do
+local setmod = |pos, value|do
 	pos = modpos(pos)
 	board[pos.x][pos.y] = value
 end
 
-update=[]do
+update=||do
 	cls()
 	for i,col in ipairs(board) do
 		for j,v in ipairs(col) do

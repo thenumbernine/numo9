@@ -2,7 +2,7 @@
 local x=120
 local y=80
 cls(12)
-update=[]do
+update=||do
 	-- [[ do numbers work?
     if btnp(0,0,60,6) then x+=10 end	-- right
     if btnp(1,0,60,6) then y+=10 end	-- down

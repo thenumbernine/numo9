@@ -13,19 +13,19 @@ writes:
 	...the tilemap
 --]]
 -- [====[ old system, guarantees every block is filled, but not so good at what goes where...
-generateWorld=[]do
+generateWorld=||do
 	for y=0,255 do
 		for x=0,255 do
 			mset(x,y,1)	-- solid
 		end
 	end
 
-	local blocks = range(0,worldSizeInBlocks.x-1):mapi([i]
-		(range(0,worldSizeInBlocks.y-1):mapi([j]do
+	local blocks = range(0,worldSizeInBlocks.x-1):mapi(|i|
+		(range(0,worldSizeInBlocks.y-1):mapi(|j|do
 				local block = {
 					pos = vec2(i,j),
-					dirs = range(0,3):mapi([i] (false, i)),
-					doors = range(0,3):mapi([i] (false, i)),
+					dirs = range(0,3):mapi(|i| (false, i)),
+					doors = range(0,3):mapi(|i| (false, i)),
 					spawns = table(),
 					color = pickRandomColor(),
 					seen = 0,
@@ -135,14 +135,14 @@ generateWorld=[]do
 		local posinfoindex = math.random(1, #posinfos)
 		local pos = posinfos[posinfoindex].pos
 		local srcblock = blocks[pos.x][pos.y]
-		local validDirs = dirvecs:map([dir, dirindex, t] do
+		local validDirs = dirvecs:map(|dir, dirindex, t| do
 			local nbhdpos = pos + dir
 			if nbhdpos.x >= 0 and nbhdpos.x < worldSizeInBlocks.x
 			and nbhdpos.y >= 0 and nbhdpos.y < worldSizeInBlocks.y
 			then
 				local nextblock = blocks[nbhdpos.x][nbhdpos.y]
 				if not nextblock.set
-				and not posinfos:find(nil, [info] info.pos == nbhdpos) then
+				and not posinfos:find(nil, |info| info.pos == nbhdpos) then
 					return {dir=dir, dirindex=dirindex}, #t+1
 				end
 			end
@@ -363,13 +363,13 @@ generateWorld=[]do
 
 	trace'====='
 	for dj=0,worldSizeInBlocks.y*3-1 do
-		trace(range(0,worldSizeInBlocks.x*3-1):mapi([di] do
+		trace(range(0,worldSizeInBlocks.x*3-1):mapi(|di| do
 			local i = tonumber(di // 3)
 			local j = tonumber(dj // 3)
 			local u = (di % 3) - 1
 			local v = (dj % 3) - 1
 			local block = blocks[i][j]
-			local dirindex = dirvecs:find(nil, [dir] dir == vec2(u,v))
+			local dirindex = dirvecs:find(nil, |dir| dir == vec2(u,v))
 			if block.dirs[dirindex] then
 				return math.abs(u) > math.abs(v) and '━' or '┃'
 			elseif u == 0 and v == 0 then
@@ -467,11 +467,11 @@ local doorsize = 4		-- diameter
 local doorthickness = 2	-- short axis ... not yet implemented ...
 
 local WorldBlock = class()
-WorldBlock.init = [:,x,y]do
+WorldBlock.init = |:,x,y|do
 	self.pos = vec2(x,y)
 	self.spawns = table()
-	self.walls = range(0,3):mapi([i] (false, i))	-- index corresponds with dirvecs' index
-	self.doors = range(0,3):mapi([i] (false, i)) 	-- same
+	self.walls = range(0,3):mapi(|i| (false, i))	-- index corresponds with dirvecs' index
+	self.doors = range(0,3):mapi(|i| (false, i)) 	-- same
 	self.color = pickRandomColor()
 	self.seen = 0	-- luminance
 	--self.doorKeys = {}		-- table for door offsets <_> has what key they are
@@ -479,11 +479,11 @@ trace('creating new WorldBlock at '..self.pos)
 end
 
 local WorldRoom = class()
-WorldRoom.init=[:]do
+WorldRoom.init=|:|do
 	self.blocks = table()
 trace('creating new WorldRoom')
 end
-WorldRoom.addblock=[:,block]do
+WorldRoom.addblock=|:,block|do
 	assert(not block.room, "hmm, somehow a block got added twice...")
 	block.room = self
 	self.blocks:insert(block)
@@ -502,9 +502,9 @@ end
 
 
 local World = class()
-World.init=[:]do
-	self.blocks = range(0,worldSizeInBlocks.x-1):mapi([i]
-		(range(0,worldSizeInBlocks.y-1):mapi([j]
+World.init=|:|do
+	self.blocks = range(0,worldSizeInBlocks.x-1):mapi(|i|
+		(range(0,worldSizeInBlocks.y-1):mapi(|j|
 			(WorldBlock(i,j), j)
 		), i)
 	)
@@ -516,7 +516,7 @@ end
 local timeprint
 do
 	local lasttime
-	timeprint = [...] do
+	timeprint = |...| do
 --[[
 		local thistime = time() / 60
 		if lasttime then
@@ -528,8 +528,8 @@ do
 	end
 end
 
-local levelCarveDoors = [world, room] do
-	local placeDoor = [x, y, n, keyIndex] do
+local levelCarveDoors = |world, room| do
+	local placeDoor = |x, y, n, keyIndex| do
 		local n1 = n == 'x' and 'y' or 'x'
 		local halfdoorsize = math.floor(doorsize/2)
 		local doorextrusion = blockSize[n]*.5
@@ -613,7 +613,7 @@ local levelCarveDoors = [world, room] do
 	end
 end
 
-local fillBlock = [rx,ry,index] do
+local fillBlock = |rx,ry,index| do
 trace('fillBlock', rx, ry, index)
 	rx = math.floor(rx)
 	ry = math.floor(ry)
@@ -628,7 +628,7 @@ trace('fillBlock', rx, ry, index)
 	end
 end
 
-local levelInitSimplexRoom = [world, room] do
+local levelInitSimplexRoom = |world, room| do
 	assert(world)
 	assert(room)
 
@@ -800,7 +800,7 @@ local levelInitSimplexRoom = [world, room] do
 	timeprint("done")
 end
 
-local roomGenVoxels = [world, room] do
+local roomGenVoxels = |world, room| do
 	assert(world)
 	assert(room)
 
@@ -820,7 +820,7 @@ end
 
 ------------------------------------------------ enemy gen ------------------------------------------------
 
-local roomAddEnemies = [world, room] do
+local roomAddEnemies = |world, room| do
 
 	for _,block in ipairs(room.blocks) do
 		local numspawns = 1
@@ -862,7 +862,7 @@ end
 ------------------------------------------------ world gen ------------------------------------------------
 
 -- TODO as you're building the room, constrain the area the room covers to maxWorldBlocksPerLevel ??? or forget about maxWorldBlocksPerLevel
-local mapBuildRoomFrom = [world, room, keyIndex] do
+local mapBuildRoomFrom = |world, room, keyIndex| do
 trace('mapBuildRoomFrom begin')
 	keyIndex = keyIndex or 0
 
@@ -935,8 +935,8 @@ trace('mapBuildRoomFrom begin')
 
 	local F, Finv
 	do
-		F = [x] 69/259 * math.log(x)
-		Finv = [x] math.exp(x)^(259/69)
+		F = |x| 69/259 * math.log(x)
+		Finv = |x| math.exp(x)^(259/69)
 	end
 	local roomminsize = 1
 	--local roommaxsize = 50
@@ -1011,7 +1011,7 @@ trace('mapBuildRoomFrom begin')
 	return newroom
 end
 
-local mapAddBlockWalls = [world, block]do
+local mapAddBlockWalls = |world, block|do
 	for minmax=0,1 do
 		for ni,n in ipairs(vec2.fields) do
 			local wallindex = 5-2*ni	-- 1 = x, 2 = y ...maps to... 3 = left, 1 = up
@@ -1041,7 +1041,7 @@ local mapAddBlockWalls = [world, block]do
 	end
 end
 
-local generateWorld = [dir] do
+local generateWorld = |dir| do
 
 	timeprint('generateWorld')
 

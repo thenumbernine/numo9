@@ -47,7 +47,7 @@ mattrans(0, -2.5, -1)
 local lmx, lmy = 128, 128
 
 wireframe = false
-update=[]do
+update=||do
 	cls()
 	local changed
 	local th = .05

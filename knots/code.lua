@@ -65,7 +65,7 @@ dirIndexForName={
 	left=2,
 	right=3,
 }
-dirNameForIndex=table.map(dirIndexForName,[v,k](k,v)):setmetatable(nil)
+dirNameForIndex=table.map(dirIndexForName,|v,k|(k,v)):setmetatable(nil)
 dirs={
 	[0]={0,-1},
 	[1]={0,1},
@@ -75,7 +75,7 @@ dirs={
 
 --#include ext/range.lua
 
-table.equals=[a,b]do
+table.equals=|a,b|do
 	local ka=table.keys(a)
 	local kb=table.keys(b)
 	if #ka~=#kb then return false end
@@ -86,12 +86,12 @@ table.equals=[a,b]do
 end
 
 local snakeHist=table()
-pushSnakeHist=[]do
-	snakeHist:insert(snake:mapi([s]
+pushSnakeHist=||do
+	snakeHist:insert(snake:mapi(|s|
 		(table(s):setmetatable(nil))
 	))
 end
-popSnakeHist=[]do
+popSnakeHist=||do
 	snake=snakeHist:remove()
 	local head=snake[1]
 	snakeX=head.x
@@ -100,7 +100,7 @@ popSnakeHist=[]do
 	done=false
 end
 
-reset=[]do
+reset=||do
 	knotMsg=nil
 	knotMsgTime=nil
 	knotMsgWidth=0
@@ -118,7 +118,7 @@ reset=[]do
 	snake:insert{x=snakeX,y=snakeY,dir=dir}
 end
 
-snakeCalcSprite=[i]do
+snakeCalcSprite=|i|do
 	local prevLinkDir = i>1 and snake[i-1].dir or nil
 	local link = snake[i]
 	local x=link.x
@@ -162,11 +162,11 @@ local knotNames = table{
 	'6_1', '6_2', '6_3',
 	'7_1', '7_2', '7_3', '7_4', '7_5', '7_6', '7_7',
 }
-local knotNameSet = knotNames:mapi([v](true,v)):setmetatable(nil)
+local knotNameSet = knotNames:mapi(|v|(true,v)):setmetatable(nil)
 -- per each knot we track, record the time to draw and the number of links
 local knotStats = {}
 
-redraw=[]do
+redraw=||do
 	cls(1)
 	map(0,0,w,h,0,0)
 	local prevLinkDir
@@ -210,7 +210,7 @@ redraw=[]do
 		end
 	end
 end
-snakeGet=[x,y]do
+snakeGet=|x,y|do
 	for i=#snake,1,-1 do
 		local link=snake[i]
 		if link.x==x and link.y==y then
@@ -222,11 +222,11 @@ end
 
 inSplash=true
 reset()
-update=[]do
+update=||do
 	if inSplash then
 		cls(0x10)
 		local x,y = 24, 48
-		local txt=[s]do text(s,x,y,0xc,-1) y+=8 end
+		local txt=|s|do text(s,x,y,0xc,-1) y+=8 end
 		txt'KNOTS!!!!'
 		txt'tie the snake in a knot'
 		txt'try to find all the prime knots'
@@ -343,33 +343,33 @@ update=[]do
 	end
 end
 
-classify=[]do
+classify=||do
 	-- calc knot stuff
 trace('#snake', #snake)
 	-- this is the indexes of all crossings
-	local crossingIndexes = range(#snake):filter([i]snake[i].crossingOver~=nil)
+	local crossingIndexes = range(#snake):filter(|i|snake[i].crossingOver~=nil)
 trace('got crossing indexes', crossingIndexes:mapi(tostring):concat',')
 	if #crossingIndexes & 1 == 1 then
 		trace"somehow you have an odd number of links at crossings..."
 		return
 	end
 	-- this is the indexes of the unique crossing coordinates
-	local crossingCoords = crossingIndexes:mapi([i](
+	local crossingCoords = crossingIndexes:mapi(|i|(
 		true,snake[i].x..','..snake[i].y
-	)):keys():mapi([c]do
-		local x,y=string.split(c,','):mapi([x]tonumber(x)):unpack()
+	)):keys():mapi(|c|do
+		local x,y=string.split(c,','):mapi(|x|tonumber(x)):unpack()
 		return {x=x,y=y}
 	end)
 	assert.eq(#crossingCoords<<1, #crossingIndexes)
 
 	-- key = coord string, value = table of snake link indexes
-	local crossingIndexesForCoords = crossingCoords:mapi([coord]
- 		(assert.len(crossingIndexes:filter([i]
+	local crossingIndexesForCoords = crossingCoords:mapi(|coord|
+ 		(assert.len(crossingIndexes:filter(|i|
 			snake[i].x==coord.x
 			and snake[i].y==coord.y
 		), 2), coord.x..','..coord.y)
 	)
-	local getOtherLink=[i]do
+	local getOtherLink=|i|do
 		local link = snake[i]
 		local cis=crossingIndexesForCoords![link.x..','..link.y]
 		assert.len(cis,2)
@@ -442,8 +442,8 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 	end
 	--]]
 
-	local polyToStr=[p]do
-		local s = p:keys():sort([a,b]a>b):mapi([exp,_,t]do
+	local polyToStr=|p|do
+		local s = p:keys():sort(|a,b|a>b):mapi(|exp,_,t|do
 			local o = table()
 			local v = p[exp]
 			local sign = '+'
@@ -467,7 +467,7 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 		end)
 		return #s==0 and '0' or s:concat()
 	end
-	local polyName=[p]do
+	local polyName=|p|do
 		if p:equals{															  							   [0]=1																			} then return '0_1' end
 		if p:equals{													   [-4]=-1, [-3]=1,			  [-1]=1																					} then return '3_1' end
 		if p:equals{															  			 [-2]=1,  [-1]=-1, [0]=1,  [1]=-1, [2]=1															} then return '4_1' end
@@ -484,9 +484,9 @@ trace('dir1', dirNameForIndex[dir1], 'dir2', dirNameForIndex[dir2], 'crossingSig
 		if p:equals{									 [-6]=-1, [-5]=2,  [-4]=-3, [-3]=4,  [-2]=-3, [-1]=3,  [0]=-2, [1]=1																	} then return '7_6' end
 		if p:equals{																[-3]=-1, [-2]=3,  [-1]=-3, [0]=4,  [1]=-4, [2]=3,  [3]=-2, [4]=1											} then return '7_7' end
 	end
-	local polyNameOrStr=[p]do
+	local polyNameOrStr=|p|do
 		return polyName(p)
-		or polyName(p:map([coeff,exp](coeff,-exp)))		-- t -> t^-1 ... is that right?
+		or polyName(p:map(|coeff,exp|(coeff,-exp)))		-- t -> t^-1 ... is that right?
 		or ' V(t)='..polyToStr(p)
 	end
 
@@ -508,11 +508,11 @@ trace('crossing indexes', k:concat' ')
 		end
 trace('writhe', writhe)
 
-		local tripMatrix=range(n):mapi([i]do
+		local tripMatrix=range(n):mapi(|i|do
 			local coordI = crossingCoords[i]
 			local coordIKey = coordI.x..','..coordI.y
 			local firstLinkIndexAtCrossingCoordI = crossingIndexesForCoords[coordIKey]![1]
-			return range(n):mapi([j]do
+			return range(n):mapi(|j|do
 				local coordJ = crossingCoords[j]
 				local coordJKey = coordJ.x..','..coordJ.y
 				if i==j then
@@ -548,15 +548,15 @@ end
 
 		local numStates = 1 << n
 		for i=0,numStates-1 do
-			local state = range(0,n-1):mapi([j]((i>>j)&1))
+			local state = range(0,n-1):mapi(|j|((i>>j)&1))
 			local ABs={[0]=0,[1]=0}
 			for j,statej in ipairs(state) do
 				ABs[statej]+=1
 			end
 			local A,B=ABs[0],ABs[1]
 
-			local stateMatrix=range(n):mapi([i]
-				range(n):mapi([j]do
+			local stateMatrix=range(n):mapi(|i|
+				range(n):mapi(|j|do
 					if i==j then
 						return (state[i] + tripMatrix[i][j]) & 1
 					else
@@ -565,13 +565,13 @@ end
 				end)
 			)
 
-			local m=range(n):mapi([i] table(stateMatrix[i]))
-			local swapRows=[i1,i2]do
+			local m=range(n):mapi(|i| table(stateMatrix[i]))
+			local swapRows=|i1,i2|do
 				for j=1,n do
 					m[i1][j],m[i2][j]=m[i2][j],m[i1][j]
 				end
 			end
-			local subRows=[i1,i2]do
+			local subRows=|i1,i2|do
 				for j=1,n do
 					m[i1][j]=(m[i1][j]-m[i2][j])&1
 				end
@@ -619,7 +619,7 @@ trace('state', state:concat(), 'nullity', nullity, 'A='..A, 'B='..B, 'A-B='..(A-
 				statePoly[exp]=(statePoly[exp] or 0) + coeff
 			end
 			-- multiply statePoly by `sign*t^(A-B)`
-			statePoly=statePoly:map([coeff,exp](coeff*sign,exp+A-B))
+			statePoly=statePoly:map(|coeff,exp|(coeff*sign,exp+A-B))
 trace('statePoly', polyToStr(statePoly))
 			-- add statePoly to poly
 			for exp,coeff in pairs(statePoly) do
@@ -636,13 +636,13 @@ trace('V(t) so far', polyToStr(poly))
 		-- sign = (-1)^(3*w) ... = (-1)^(2*w) * (-1)^w ... = (-1)^w
 		local sign = writhe&1==0 and 1 or -1
 		-- multiply poly by `sign*t^(-3*w)`
-		poly=poly:map([coeff,exp](coeff*sign,3*writhe-exp))
-			--:filter([coeff,exp]coeff~=0)
+		poly=poly:map(|coeff,exp|(coeff*sign,3*writhe-exp))
+			--:filter(|coeff,exp|coeff~=0)
 		for _,k in ipairs(table.keys(poly)) do if poly[k]==0 then poly[k]=nil end end
 	end
 
 	-- it's a poly of the 4th root, and looks like the powers are all 4s, so ...
-	poly=poly:map([coeff,exp](coeff,exp/4))
+	poly=poly:map(|coeff,exp|(coeff,exp/4))
 
 	local knotName = polyNameOrStr(poly)
 	knotMsg = 'len='..(#snake-1)..' knot='..knotName

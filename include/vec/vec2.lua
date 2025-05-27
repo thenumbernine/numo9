@@ -1,6 +1,6 @@
 --#include ext/class.lua
 
-local vec2_getvalue=[x, dim]do
+local vec2_getvalue=|x, dim|do
 	if type(x) == 'number' then return x end
 	if type(x) == 'table' then
 		if dim==1 then
@@ -21,7 +21,7 @@ end
 local vec2
 vec2=class{
 	fields = table{'x', 'y'},
-	init=[v,x,y]do
+	init=|v,x,y|do
 		if x then
 			if y then
 				v:set(x,y)
@@ -32,8 +32,8 @@ vec2=class{
 			v:set(0,0)
 		end
 	end,
-	clone=[v] vec2(v),
-	set=[v,x,y]do
+	clone=|v| vec2(v),
+	set=|v,x,y|do
 		if type(x) == 'table' then
 			v.x = x.x or x[1] or error("idk")
 			v.y = x.y or x[2] or error("idk")
@@ -47,10 +47,10 @@ vec2=class{
 			end
 		end
 	end,
-	unpack=[v](v.x, v.y),
-	sum=[v] v.x + v.y,
-	product=[v] v.x * v.y,
-	clamp=[v,a,b]do
+	unpack=|v|(v.x, v.y),
+	sum=|v| v.x + v.y,
+	product=|v| v.x * v.y,
+	clamp=|v,a,b|do
 		local mins = a
 		local maxs = b
 		if type(a) == 'table' and a.min and a.max then	
@@ -61,30 +61,30 @@ vec2=class{
 		v.y = math.clamp(v.y, vec2_getvalue(mins, 2), vec2_getvalue(maxs, 2))
 		return v
 	end,
-	map=[v,f]do
+	map=|v,f|do
 		v.x = f(v.x, 1)
 		v.y = f(v.y, 2)
 		return v
 	end,
-	floor=[v]v:map(math.floor),
-	ceil=[v]v:map(math.ceil),
-	l1Length=[v] math.abs(v.x) + math.abs(v.y),
-	lInfLength=[v] math.max(math.abs(v.x), math.abs(v.y)),
-	dot=[a,b] a.x * b.x + a.y * b.y,
-	lenSq=[v] v:dot(v),
-	len=[v] math.sqrt(v:lenSq()),
-	distSq = [a,b] ((a.x-b.x)^2 + (a.y-b.y)^2),
-	unit=[v] v / math.max(1e-15, v:len()),
-	exp=[theta] vec2(math.cos(theta), math.sin(theta)),
-	cross=[a,b] a.x * b.y - a.y * b.x,	-- or :det() maybe
-	cplxmul = [a,b] vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),
-	__unm=[v] vec2(-v.x, -v.y),
-	__add=[a,b] vec2(vec2_getvalue(a, 1) + vec2_getvalue(b, 1), vec2_getvalue(a, 2) + vec2_getvalue(b, 2)),
-	__sub=[a,b] vec2(vec2_getvalue(a, 1) - vec2_getvalue(b, 1), vec2_getvalue(a, 2) - vec2_getvalue(b, 2)),
-	__mul=[a,b] vec2(vec2_getvalue(a, 1) * vec2_getvalue(b, 1), vec2_getvalue(a, 2) * vec2_getvalue(b, 2)),
-	__div=[a,b] vec2(vec2_getvalue(a, 1) / vec2_getvalue(b, 1), vec2_getvalue(a, 2) / vec2_getvalue(b, 2)),
-	__eq=[a,b] a.x == b.x and a.y == b.y,
-	__tostring=[v] v.x..','..v.y,
+	floor=|v|v:map(math.floor),
+	ceil=|v|v:map(math.ceil),
+	l1Length=|v| math.abs(v.x) + math.abs(v.y),
+	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y)),
+	dot=|a,b| a.x * b.x + a.y * b.y,
+	lenSq=|v| v:dot(v),
+	len=|v| math.sqrt(v:lenSq()),
+	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2),
+	unit=|v| v / math.max(1e-15, v:len()),
+	exp=|theta| vec2(math.cos(theta), math.sin(theta)),
+	cross=|a,b| a.x * b.y - a.y * b.x,	-- or :det() maybe
+	cplxmul = |a,b| vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),
+	__unm=|v| vec2(-v.x, -v.y),
+	__add=|a,b| vec2(vec2_getvalue(a, 1) + vec2_getvalue(b, 1), vec2_getvalue(a, 2) + vec2_getvalue(b, 2)),
+	__sub=|a,b| vec2(vec2_getvalue(a, 1) - vec2_getvalue(b, 1), vec2_getvalue(a, 2) - vec2_getvalue(b, 2)),
+	__mul=|a,b| vec2(vec2_getvalue(a, 1) * vec2_getvalue(b, 1), vec2_getvalue(a, 2) * vec2_getvalue(b, 2)),
+	__div=|a,b| vec2(vec2_getvalue(a, 1) / vec2_getvalue(b, 1), vec2_getvalue(a, 2) / vec2_getvalue(b, 2)),
+	__eq=|a,b| a.x == b.x and a.y == b.y,
+	__tostring=|v| v.x..','..v.y,
 	__concat=string.concat,
 }
 

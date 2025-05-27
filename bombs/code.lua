@@ -1,4 +1,4 @@
-linfDist=[ax,ay,bx,by]do
+linfDist=|ax,ay,bx,by|do
 	return math.max(math.abs(ax-bx), math.abs(ay-by))
 end
 
@@ -20,15 +20,15 @@ mapType={
 	[STONE]={cannotPassThru=true,blocksExplosion=true},
 	[WATER]={cannotPassThru=true},
 }
-mapGet=[x,y]do
+mapGet=|x,y|do
 	if x<0 or y<0 or x>=mapw or y>=maph then return STONE end
 	return mget(math.floor(x)+levelTileX,math.floor(y)+levelTileY)&0x3ff	-- drop the hv flip and pal-hi
 end
-mapSet=[x,y,value]do
+mapSet=|x,y,value|do
 	if x<0 or y<0 or x>=mapw or y>=maph then return end
 	mset(x+levelTileX,y+levelTileY,value)
 end
-mapGetType=[x,y]mapType[mapGet(x,y)]
+mapGetType=|x,y|mapType[mapGet(x,y)]
 
 dirs={none=-1,down=0,left=1,right=2,up=3}
 vecs={[0]={0,1},{-1,0},{1,0},{0,-1}}
@@ -60,12 +60,12 @@ for i=0,mapw-1 do hiddenItems[i]={} end
 
 objs=table()
 addList=table()
-addObj=[o]addList:insert(o)
-removeObj=[o]do
+addObj=|o|addList:insert(o)
+removeObj=|o|do
 	o:onRemove() -- set the removeMe flag
 	removeRequest=true
 end
-removeAll=[]do
+removeAll=||do
 	for _,o in ipairs(objs) do
 		o:onRemove()
 	end
@@ -87,7 +87,7 @@ startPos={
 BaseObj=class{
 	bbox={-.4,-.4,.4,.4},
 	palOfs=0,
-	init=[:,args]do
+	init=|:,args|do
 		self.scaleX,self.scaleY=1,1
 		self.removeMe=false
 		self.posX=0
@@ -100,7 +100,7 @@ BaseObj=class{
 		self.blocksExplosion=true
 	end,
 	-- in AnimatedObj in fact ...
-	update=[:]do
+	update=|:|do
 		if self.noPhysics then return end
 		if self.wasTouching then
 			local xmin=self.posX+self.bbox[1]
@@ -134,7 +134,7 @@ BaseObj=class{
 			local ymin=newPosY+self.bbox[2]
 			local xmax=newPosX+self.bbox[3]
 			local ymax=newPosY+self.bbox[4]
-			local checkBox=[o,oxmin,oymin,oxmax,oymax]do
+			local checkBox=|o,oxmin,oymin,oxmax,oymax|do
 				local dxr = oxmin - xmax
 				local dxl = xmin - oxmax
 				local dyr = oymin - ymax
@@ -164,7 +164,7 @@ BaseObj=class{
 				end
 				return result
 			end
-			local checkMap=[x,y]do
+			local checkMap=|x,y|do
 				if not mapGetType(x,y).cannotPassThru then return end
 				self.contactTileX=x
 				self.contactTileY=y
@@ -205,7 +205,7 @@ BaseObj=class{
 			self.posY=newPosY
 		end
 	end,
-	touch=[:,other]do
+	touch=|:,other|do
 		if not other then return true end
 		if other==self.wasTouching
 		or self==other.wasTouching
@@ -213,11 +213,11 @@ BaseObj=class{
 		return self.isBlocking and other.doesBlock
 		or other.isBlocking and self.doesBlock
 	end,
-	setPos=[:,x,y]do
+	setPos=|:,x,y|do
 		self.posX=x
 		self.posY=y
 	end,
-	drawSprite=[:]do
+	drawSprite=|:|do
 		-- posX posY are tile-centered so ...
 		local x = self.posX * 16 - 8 * self.scaleX
 		local y = self.posY * 16 - 8 * self.scaleY
@@ -235,14 +235,14 @@ BaseObj=class{
 			self.scaleY)
 		if self.blend then blend() end
 	end,
-	onTouchFlames=[:]nil,
-	onRemove=[:]do self.removeMe=true end,
+	onTouchFlames=|:|nil,
+	onRemove=|:|do self.removeMe=true end,
 }
 
 do
 	local super=BaseObj
 	Cloud=BaseObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.doesBlock=false
 			self.isBlocking=false
@@ -256,7 +256,7 @@ do
 			self.startTime=time()
 			self.seq=seqs.cloud
 		end,
-		update=[:]do
+		update=|:|do
 			super.update(self)
 			local frac=math.min(1,(time()-self.startTime)/self.life)
 			if frac==1 then
@@ -270,7 +270,7 @@ end
 do
 	local super=BaseObj
 	Flame=BaseObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.doesBlock=false
 			self.isBlocking=false
@@ -281,14 +281,14 @@ do
 			self.seq=args.seq or seqs.spark
 			self.blend=args.blend or 0
 		end,
-		update=[:]do
+		update=|:|do
 			super.update(self)
 			if time()>=self.removeTime then
 				removeObj(self)
 				return
 			end
 		end,
-		touch=[:,other]do
+		touch=|:,other|do
 			if other and Player:isa(other) then
 				other:die()
 			end
@@ -300,7 +300,7 @@ end
 do
 	local super=BaseObj
 	Particle=BaseObj:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.doesBlock=false
 			self.isBlocking=false
@@ -314,7 +314,7 @@ do
 			self.seq=args.seq or seqs.spark
 			self.blend=args.blend or 0
 		end,
-		update=[:]do
+		update=|:|do
 			super.update(self)
 			local frac=math.max(0,1-(time()-self.startTime)/self.life)
 			if frac==0 then
@@ -328,7 +328,7 @@ end
 do
 	local super=BaseObj
 	Bomb=super:subclass{
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			-- class constants / defaults:
 			self.boomTime = 0
@@ -345,13 +345,13 @@ do
 			self.incinerator=args.incinerator
 			self.seq=self.redbomb and seqs.bomb or seqs.redbomb
 		end,
-		setFuse=[:,fuseTime]do
+		setFuse=|:,fuseTime|do
 			if self.state=='exploding' then return end
 			self.seq=self.redbomb and seqs.redbombLit or seqs.bombLit
 			self.state='live'
 			self.boomTime=time()+fuseTime
 		end,
-		update=[:]do
+		update=|:|do
 			super.update(self)
 			if self.owner
 			and self.ownerStandingOn
@@ -375,8 +375,8 @@ do
 				end
 			end
 		end,
-		onTouchFlames=[:]self:setFuse(self.chainDuration),
-		explode=[:]do
+		onTouchFlames=|:|self:setFuse(self.chainDuration),
+		explode=|:|do
 			--[[
 			for i=0,9 do
 				local scale=math.random()*2
@@ -479,14 +479,14 @@ do
 	local super=BaseObj
 	Item=super:subclass{
 		invincibleDuration=.5,
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.spawnTime=time()
 			self.isBlocking=false
 			self.doesBlock=false
 			self.blocksExplosion=true
 		end,
-		touch=[:,other]do
+		touch=|:,other|do
 			--super.touch(self,other)
 			if not other then return true end
 			if not Player:isa(other) then return end
@@ -496,12 +496,12 @@ do
 			self:setPos(-10,-10)
 			self.noPhysics=true
 		end,
-		onTouchFlames=[:]do
+		onTouchFlames=|:|do
 			if time()>self.spawnTime+self.invincibleDuration then
 				removeObj(self)
 			end
 		end,
-		respawn=[:]do
+		respawn=|:|do
 			local tries = 1
 			local newpos = {0,0}
 			while tries < 100 do
@@ -563,7 +563,7 @@ do
 		bumpDX=0,
 		bumpDY=0,
 		bumpTime=0,
-		init=[:,args]do
+		init=|:,args|do
 			super.init(self,args)
 			self.dead=false
 			self.deadTime=0
@@ -574,11 +574,11 @@ do
 			self.bombs=table()
 			self.items=table()
 		end,
-		move=[:,dir]do
+		move=|:,dir|do
 			if self.dead then return end
 			self.moveCmd=dir
 		end,
-		dropBomb=[:]do
+		dropBomb=|:|do
 			if self.dead then
 				return
 			end
@@ -608,10 +608,10 @@ do
 			bomb.wasTouching=self
 			addObj(bomb)
 		end,
-		stopMoving=[:]do
+		stopMoving=|:|do
 			self.moveCmd=dirs.none
 		end,
-		update=[:]do
+		update=|:|do
 
 			if self and self.dead and self.deadTime < time() then
 				removeObj(self)
@@ -663,7 +663,7 @@ do
 			end
 			super.update(self)
 		end,
-		touch=[:,other]do
+		touch=|:,other|do
 			if not other then
 				-- if we bumped into a second bump then stop bumping
 				if self.bumpDX~=0 or self.bumpDY~=0 then
@@ -678,8 +678,8 @@ do
 			end
 			return super.touch(self,other)
 		end,
-		onTouchFlames=[:]self:die(),
-		die=[:]do
+		onTouchFlames=|:|self:die(),
+		die=|:|do
 			if self.dead then return end
 			self.seq=seqs.playerDead
 			self.dead=true
@@ -693,14 +693,14 @@ do
 	}
 end
 
-nextLevel=[dontComplete]do
+nextLevel=|dontComplete|do
 	--TODO if not dontComplete then set the local storage flag for this level
 	-- use -1 as our custom-level flag for builtin editor (coming soon)
 	if level>-1 then setLevel(level+1) end
 	loadLevelRequest=true
 end
 
-setLevel=[level_]do
+setLevel=|level_|do
 	level=level_
 	levelTileX=level%25
 	levelTileY=(level-levelTileX)/25*10
@@ -720,15 +720,15 @@ playerOptions=table{
 	ai=2,
 	count=3,
 }
-playerOptionNames=playerOptions:map([v,k](k,v)):setmetatable(nil)
+playerOptionNames=playerOptions:map(|v,k|(k,v)):setmetatable(nil)
 playersActive=table{playerOptions.off}:rep(maxPlayers-1)
 playersActive[0]=playerOptions.human
-playerWins=table{0}:rep(maxPlayers):map([v,k](v,k-1))
+playerWins=table{0}:rep(maxPlayers):map(|v,k|(v,k-1))
 inMenu=true
 menuSel=0
 menuTopY=0
 
-loadLevel=[]do
+loadLevel=||do
 	reset()		-- reload our tilemap? or not?  this resets the font color too.
 	poke(ramaddr'textFgColor', 0xfc)
 	poke(ramaddr'textBgColor', 0xf0)
@@ -758,7 +758,7 @@ loadLevel=[]do
 		for i=1,count do
 			if #allBombable==0 then break end
 			local x,y=table.unpack(allBombable:remove())
-			hiddenItems[x][y]=[x,y]do
+			hiddenItems[x][y]=|x,y|do
 				local item=itemclass{}
 				item:setPos(x+.5,y+.5)
 				addObj(item)
@@ -790,7 +790,7 @@ loadLevel=[]do
 	end
 end
 
-update=[]do
+update=||do
 	if inMenu then
 		cls(0xf0)
 		matident()

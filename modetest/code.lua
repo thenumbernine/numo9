@@ -18,7 +18,7 @@ local resolutions = {
 	{384, 164},
 }
 
-update=[]do
+update=||do
 	cls()
 	t=time()
 

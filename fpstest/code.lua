@@ -3,7 +3,7 @@ print'fps test'
 local lastTime=0
 local frames=0
 local tileIndex=0
-function update()
+update=||do
 	frames += 1
 	local t = time()
 	local ti = math.floor(t)
