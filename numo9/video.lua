@@ -654,14 +654,30 @@ function AppVideo:initVideo()
 			}
 		end
 	end
-	-- TODO 4pp 2bpp 1bpp...
-
---[[ debug
-	for i=0,#requestedVideoModes do
-		local req = requestedVideoModes[i]
-		print('mode '..i..': '..req.width..'x'..req.height..'x'..req.format)
+	--[[ TODO 4bpp 
+	-- but there's no GL formats for 4bpp ...
+	-- and I'd do separate 4bpp at a time to an 8bpp buffer
+	-- but it looks like GL got rid of its bitmasking features (did it?)
+	for _,wh in ipairs{
+		{512, 512},
+		{560, 448},
+		{576, 432},
+		{624, 416},
+		{640, 400},
+		{656, 393},
+		{672, 378},
+		{688, 364},
+		{720, 360},
+		{768, 329},
+	} do
+		addreq{
+			width = wh[1],
+			height = wh[2],
+			format = '4bppIndex',
+		}
 	end
---]]
+	--]]
+	-- TOOD 2bpp 1bpp...
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 
@@ -694,14 +710,14 @@ function AppVideo:initVideo()
 			-- if you want blending with RGB332 then you can use GL_R3_G3_B2 ...
 			-- but it's not in GLES3/WebGL2
 		elseif req.format == '4bppIndex' then
-			internalFormat = texInternalFormat_u8
-			suffix = '4bpp'
 			-- here's where exceptions need to be made ...
 			-- hmm, so when I draw sprites, I've got to shrink coords by half their size ... ?
 			-- and then track whether we are in the lo vs hi nibble ... ?
 			-- and somehow preserve the upper/lower nibbles on the sprite edges?
 			-- maybe this is too tedious ...
-			width = bit.rshift(width, 1)
+			internalFormat = texInternalFormat_u8
+			suffix = '8bpp'	-- suffix is for the framebuffer, and we are using R8UI format
+			--width = bit.rshift(width, 1) + bit.band(width, 1)
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
@@ -1140,14 +1156,14 @@ void main() {
 		elseif req.format == 'RGB332' then
 			info = makeVideoModeRGB332(framebufferRAM)
 		elseif req.format == '4bppIndex' then
-			error'TODO'
+			return nil
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
 		info.format = req.format
 		-- only used for the intro screen console output:
 		local w, h = reduce(req.width, req.height)
-		info.formatDesc = req.format..' '..w..':'..h
+		info.formatDesc = req.width..'x'..req.height..'x'..req.format
 		return info
 	end)
 
@@ -1984,7 +2000,13 @@ each video mode should uniquely ...
 - pick / setup flags for each other shader (since RGB modes need RGB output, indexed modes need indexed output ...)
 --]]
 function AppVideo:setVideoMode(mode)
-	if self.currentVideoMode == mode then return end
+	if type(mode) == 'string' then
+		mode = self.videoModeInfos:find(nil, function(info) return info.formatDesc == mode end)
+		if not mode then
+			return false, "failed to find video mode"
+		end
+	end
+	if self.currentVideoMode == mode then return true end
 
 	-- first time we won't have a solidObj to flush
 	if self.triBuf then
@@ -2005,6 +2027,8 @@ function AppVideo:setVideoMode(mode)
 
 	self:setFramebufferTex(self.framebufferRAM.tex)
 	self.currentVideoMode = mode
+
+	return true
 end
 
 -- this is set between the VRAM tex .framebufferRAM (for draw commands that need to be reflected to the CPU)

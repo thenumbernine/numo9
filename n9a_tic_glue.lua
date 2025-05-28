@@ -1,12 +1,12 @@
-framebufferAddr=ffi.offsetof('RAM', 'framebuffer')
-spriteSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
-tileSheetAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tileSheet')
-tilemapAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
-paletteAddr=ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
-persistentDataAddr=ffi.offsetof('RAM', 'persistentCartridgeData')
-userDataAddr=ffi.offsetof('RAM', 'userData')
-matAddr = ffi.offsetof('RAM', 'mvMat')
-assert.eq(ffi.sizeof(ffi.cast('RAM*',0).mvMat), 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
+framebufferAddr=ramaddr'framebuffer'
+spriteSheetAddr=ramaddr'bank' + romaddr'spriteSheet'
+tileSheetAddr=ramaddr'bank' + romaddr'tileSheet'
+tilemapAddr=ramaddr'bank' + romaddr'tilemap'
+paletteAddr=ramaddr'bank' + romaddr'palette'
+persistentDataAddr=ramaddr'persistentCartridgeData'
+userDataAddr=ramaddr'userData'
+matAddr = ramaddr'mvMat'
+assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 
 local matstack=table()
 local matpush=||do

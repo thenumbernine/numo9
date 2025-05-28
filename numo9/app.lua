@@ -1143,6 +1143,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 				-- TODO print with auto framebuffer copy for scroll? (pico8)
 				-- or if I use a real console text buffer then when to render it? (tic80)
 				local function coolPrint(...)
+					print(...)
 					local ofs = 9
 					local function inc(d)
 						fgColor = bit.bor((fgColor-ofs+d)%4+ofs,0xf0)
@@ -1186,7 +1187,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 				coolPrint'...OpenResty LuaJIT w/5.2 compat'
 				for i=1,30 do env.flip() end
 				for i,v in pairs(self.videoModeInfo) do
-					coolPrint(i..'...'..v.framebufferRAM.tex.width..'x'..v.framebufferRAM.tex.height..'x'..v.formatDesc..' framebuffer')
+					coolPrint(i..'...'..v.formatDesc)
 					env.flip()
 				end
 				--self.con:print"type help() for help" -- not really
@@ -1503,6 +1504,8 @@ function App:connect(addr, port)
 
 	-- clear set run focus before connecting so the connection's initial update of the framebuffer etc wont get dirtied by a loseFocus() from the last runFocus
 	self:setFocus()
+
+	gl.glIndexMask(0x0000)
 
 	self.remoteClient = ClientConn{
 		app = self,

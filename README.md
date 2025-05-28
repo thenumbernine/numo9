@@ -344,7 +344,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
 	- tilemapIndex = the tilemap bank to use, default to 0.
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
-- `mode(i)` = set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.
+- `mode(i)` = Set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.  You can pass a number or the string of `${width}x${height}x${format}`.  Returns true on success, false if it failed to find the video mode description.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
 - `blend([i])` = Set blend mode.  Default value is 0xff corresponding to no blending.  The current blend modes are:
 	- 0xff = none
