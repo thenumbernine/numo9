@@ -584,14 +584,13 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- when converting p8 to n9 music tracks that play two sfxs of different durations, I haven't finished that yet ...
 	- currently the music track data is delta encoded, but it handles new values as changes come in, so if the sfxID starts at zero then it won't be delta-encoded (unless you add an extra zero to the delta data) or alternatively (BETTER) don't add the extra zero, and instead have the music ... play on sfx ID initially?  only on non-zero vol channels? (then i have to process a whole first frame first)?  or only on isPlaying channels?  idk...
 - input
-	- debate using `SDL_GAMECONTROLLER` over just `SDL_JOYSTICK`
+	- set up inputs to have multiple bindings, and a clear vs set option.
+	- then give a default binding to `SDL_GAMEPAD`.
 - menu
 	- draw mouse / touch regions
 	- transparent menu
 - graphics:
-	- relocatable framebuffer / sprite pages.  allow the framebuffer to write to the sprite sheet.
-	- multiple sprite pages, not a separate 'spriteSheet' and 'tileSheet', but just an arbitrary # of pages.
-	- sprite renderer still clips into neighboring sprites.
+	- make sure the framebuffer can write to the sprite sheet.
 - editor:
 	- copy/paste on the tilemap.
 		- copy/paste tilemap entries themselves
@@ -599,7 +598,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- ... of text / number tables
 	- flag for pen / paste / bucket fill clip-to-view-area or not
 	- tilemap bucket fill, pen size, and basically all the sam edit functionality as the sprite editor
-	- scroll to zoom
 	- sfx tab
 		- any kind of editing at all
 		- paste in wave files
@@ -623,15 +621,11 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- multiplayer persistent memory per client ... how to associate and how to secure
 	- still have some issues where temporary / single-frame cmds like map changes aren't getting reflected ...
 
-- Right now browser embedding is only done through luajit ffi emulation, which is currently unplayably slow.  Work on porting LuaJIT, or implementing a faster (web-compiled maybe?) FFI library in the web-compiled Lua.  Or see if WebVM.IO will support a GLES3-WebGL2 wrapper library.
-- package libzip as well, and auto download updated code from github.  maybe start using versions too?  everything is alpha right now so
-- Some day I should cut off cartridge access to `app`, `ffi`, etc.  I like having them around for `offsetof`'ing fields to get locations in RAM, which are subject to change while this is in alpha.  Should I introduce constant variables with the address names instead, and then hide ffi?
-- Cart browser.
 - Still need to make the draw message history to be per-connection, and need to send draw-specific commands to their specific connections.
-- give the UI its own font-tex just like its got its own palette
 
 # Things I'm still debating ...
-- get rid of writing and reading tmpfiles becuase AppImage doesn't like it.
+- Merge 'spriteSheet' and 'tileSheet' into just one... maybe.
+- Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out to be buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is RIGHT DOWN LEFT UP A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
 - What's a good default keyboard configuration?  I'm going with Snes9x's.

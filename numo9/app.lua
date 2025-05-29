@@ -1008,6 +1008,7 @@ print('package.loaded', package.loaded)
 	local EditTilemap = require 'numo9.edittilemap'
 	local EditSFX = require 'numo9.editsfx'
 	local EditMusic = require 'numo9.editmusic'
+	local EditBrushes = require 'numo9.editbrushes'
 	local Console = require 'numo9.console'
 	local MainMenu = require 'numo9.mainmenu'
 	local CartBrowser = require 'numo9.cartbrowser'
@@ -1022,6 +1023,7 @@ print('package.loaded', package.loaded)
 	self.editTilemap = EditTilemap{app=self}
 	self.editSFX = EditSFX{app=self}
 	self.editMusic = EditMusic{app=self}
+	self.editBrushes = EditBrushes{app=self}
 	self.con = Console{app=self}
 	self.mainMenu = MainMenu{app=self}
 	self.cartBrowser = CartBrowser{app=self}
