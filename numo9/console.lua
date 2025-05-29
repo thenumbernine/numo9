@@ -1,7 +1,6 @@
 --[[
 Here's where the stuff that handles the prompt and running commands goes
 --]]
-local sdl = require 'sdl'
 local class = require 'ext.class'
 local table = require 'ext.table'
 local string = require 'ext.string'

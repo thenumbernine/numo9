@@ -387,7 +387,7 @@ function MainMenu:updateMenuInput()
 						callback = function(e)
 --print('got event', require 'ext.tolua'(e))
 							-- [[ let esc clear the binding
-							if e[1] == sdl.SDL_KEYDOWN and e[2] == sdl.SDLK_ESCAPE then
+							if e[1] == sdl.SDL_EVENT_KEY_DOWN and e[2] == sdl.SDLK_ESCAPE then
 								playerInfo.buttonBinds[buttonIndex] = {}
 								return
 							end

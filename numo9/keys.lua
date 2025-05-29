@@ -153,7 +153,7 @@ local sdlSymToKeyCode = {}
 for indexPlusOne, name in ipairs(keyCodeNames) do
 --]]
 	--if indexPlusOne > lastKeyboardKeyCode then return end
-	if #name > 1 then name = name:upper() end	-- weird SDLK_ naming convention
+	name = name:upper()
 	local sdlkey = 'SDLK_'..name
 	--local sdlsym = sdl[sdlkey]
 	local sdlsym = require 'ext.op'.safeindex(sdl, sdlkey)

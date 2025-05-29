@@ -2,7 +2,6 @@
 This will be the code editor
 --]]
 local ffi = require 'ffi'
-local sdl = require 'sdl'
 local table = require 'ext.table'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime

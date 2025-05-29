@@ -14,9 +14,8 @@ end
 
 local ffi = require 'ffi'
 local sdl = require 'sdl'
-local sdlAssertZero = require 'sdl.assert'.zero
-local ctypeForSDLAudioFormat = require 'sdl.audio'.ctypeForSDLAudioFormat
-local sdlAudioFormatForCType = require 'sdl.audio'.sdlAudioFormatForCType
+local ctypeForSDLAudioFormat = require 'sdl.app'.ctypeForSDLAudioFormat
+local sdlAudioFormatForCType = require 'sdl.app'.sdlAudioFormatForCType
 local assert = require 'ext.assert'
 local table = require 'ext.table'
 local math = require 'ext.math'
@@ -133,9 +132,14 @@ function AppAudio:initAudio()
 	-- [[ trying to fix this mystery initial slowdown in sdl_queuaudio ...
 	-- maybe its caused by the intial mallocs so
 	-- lets alloc enough mem that we don't have to alloc any more
+	
+	audio.stream = sdl.SDL_OpenAudioDeviceStream(sdl.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, spec, nil, nil)
+	assert.ne(audio.stream, ffi.null, "SDL_OpenAudioDeviceStream failed")
+	sdl.SDL_ResumeAudioDevice(sdl.SDL_GetAudioStreamDevice(audio.stream))
+
 	local tmpbuf = ffi.new(audioSampleType..'['..(audioOutChannels * sampleFramesPerSecond * 2)..']')	-- 2 seconds worth
-	sdlAssertZero(sdl.SDL_QueueAudio(
-		audio.deviceID,
+	self.sdlAssert(sdl.SDL_PutAudioStream(
+		audio.stream,
 		tmpbuf,
 		ffi.sizeof(tmpbuf)
 	))
@@ -309,8 +313,8 @@ function AppAudio:updateSoundEffects()
 	if queueSize > math.floor(2 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(audioSampleType)) then return end -- 2 ticks @ 60hz ... no overflow, no skip .... still 4 second delay to start sound ...
 
 --print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
-	sdlAssertZero(sdl.SDL_QueueAudio(
-		audio.deviceID,
+	self.sdlAssert(sdl.SDL_PutAudioStream(
+		audio.stream,
 		audio.audioBuffer,
 		updateSampleFrameCount * audioOutChannels * ffi.sizeof(audioSampleType)
 	))
