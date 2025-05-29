@@ -47,7 +47,7 @@ function EditTilemap:init(args)
 	self.scale = 1
 
 	-- save these in config?
-	self.drawGrid = true
+	self.drawGrid = false
 	self.draw16Sprites = false
 end
 
