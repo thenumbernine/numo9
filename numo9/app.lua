@@ -26,7 +26,6 @@ local vec2f = require 'vec-ffi.vec2f'
 local template = require 'template'
 local matrix_ffi = require 'matrix.ffi'
 local sdl = require 'sdl'
-local sdlAssertZero = require 'sdl.assert'.zero
 local gl = require 'gl'
 local GLQuery = require 'gl.query'
 local GLApp = require 'glapp'
@@ -165,26 +164,26 @@ function App:sdlGLSetAttributes()
 	--[=[
 	-- I should be able to just call super (which sets everything ... incl doublebuffer=1) .. and then set it back to zero right?
 	App.super.sdlGLSetAttributes(self)
-	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 0))
+	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 0))
 	-- ... but no, it seems some state info (drawbuffer?) is changed immediatley upon setting GL_DOUBLEBUFFER=1,
 	-- and not when I expected it to be: when the window or the gl context is created.
 	-- and the change is permanent and is not reset when you set back GL_DOUBLEBUFFER=0
 	--]=]
 	-- [=[ maybe sdl/gl doens't forget once you set it the first time?
 	-- so here's a copy of GLApp:sdlGLSetAttributes but withotu setting double buffer ...
-	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_RED_SIZE, 8))
-	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_GREEN_SIZE, 8))
-	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_BLUE_SIZE, 8))
-	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ALPHA_SIZE, 8))
-	sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DEPTH_SIZE, 24))
-	--sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 1))	-- THE ONE LINE I CHANGED ...
+	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_RED_SIZE, 8))
+	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_GREEN_SIZE, 8))
+	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_BLUE_SIZE, 8))
+	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ALPHA_SIZE, 8))
+	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DEPTH_SIZE, 24))
+	--self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 1))	-- THE ONE LINE I CHANGED ...
 	if ffi.os == 'OSX' then
 		local version = {4, 1}
-		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MAJOR_VERSION, version[1]))
-		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MINOR_VERSION, version[2]))
-		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_PROFILE_MASK, sdl.SDL_GL_CONTEXT_PROFILE_CORE))
-		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_FLAGS, sdl.SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG))
-		sdlAssertZero(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ACCELERATED_VISUAL, 1))
+		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MAJOR_VERSION, version[1]))
+		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MINOR_VERSION, version[2]))
+		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_PROFILE_MASK, sdl.SDL_GL_CONTEXT_PROFILE_CORE))
+		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_FLAGS, sdl.SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG))
+		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ACCELERATED_VISUAL, 1))
 	end
 	--]=]
 end
@@ -999,7 +998,7 @@ print('package.loaded', package.loaded)
 
 	-- editor init
 
-	self.screenMousePos = vec2i()	-- host coordinates ... don't put this in RAM
+	self.screenMousePos = vec2f()	-- host coordinates ... don't put this in RAM
 
 	-- TODO app.editMode is the field name, app.activeMenu is the value, merge these two ...
 	self.editMode = 'code'	-- matches up with UI's editMode's
@@ -1284,12 +1283,19 @@ looks like I'm a Snes9x-default-keybinding fan.
 	}
 --]]
 
-	for i=0,sdl.SDL_NumJoysticks()-1 do
-		local joystick = sdl.SDL_JoystickOpen(i)
-		if joystick == ffi.null then
-			print('SDL_JoystickOpen('..i..') failed: '..require 'sdl.assert'.getError())
+	xpcall(function()
+		local count = ffi.new'int[1]'
+		self.sdlAssert(sdl.SDL_GetJoysticks(count))
+		self.joystickCount = count[0]
+		for i=0,self.joystickCount-1 do
+			local joystick = sdl.SDL_JoystickOpen(i)
+			if joystick == ffi.null then
+				print('SDL_JoystickOpen('..i..') failed: '..require 'sdl.assert'.getError())
+			end
 		end
-	end
+	end, function(err)
+		print(err)
+	end)
 
 	self:findSDLController()
 
@@ -1309,16 +1315,17 @@ function App:exit()
 	App.super.exit(self)
 end
 
--- The jury is out on SDL's GameController.
+-- The jury is out on SDL's Gamepad.
 -- If it is a matter of mapping & unmapping SDL Joystick devices #s then is that all the GmaeController API provides?
 -- Or does it have any unique input button types vs SDL joystick?
 -- Because I'm already gathering all button events for all joysticks...
 function App:findSDLController()
-	for i=0,sdl.SDL_NumJoysticks()-1 do
-		if sdl.SDL_IsGameController(i) then
-			self.controller = sdl.SDL_GameControllerOpen(i)
+	if not self.joystickCount then return end
+	for i=0,self.joystickCount-1 do
+		if sdl.SDL_IsGamepad(i) then
+			self.controller = sdl.SDL_OpenGamepad(i)
 			if self.controller == ffi.null then
-				print('SDL_GameControllerOpen('..i..') failed: '..require 'sdl.assert'.getError())
+				print('SDL_OpenGamepad('..i..') failed: '..require 'sdl.assert'.getError())
 			end
 		end
 	end
@@ -1551,7 +1558,11 @@ end
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function App:update()
 	-- will this hurt performance?
-	sdl.SDL_ShowCursor(self.activeMenu and 1 or 0)
+	if self.activeMenu then
+		sdl.SDL_ShowCursor()
+	else
+		sdl.SDL_HideCursor()
+	end
 
 	App.super.update(self)
 
@@ -1766,8 +1777,8 @@ conn.receivesPerSecond = 0
 			self.ram.lastMousePos:set(self.ram.mousePos:unpack())
 			sdl.SDL_GetMouseState(self.screenMousePos.s, self.screenMousePos.s+1)
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
-			local x = tonumber(self.screenMousePos.x) / tonumber(self.width) * (self.orthoMax.x - self.orthoMin.x) + self.orthoMin.x
-			local y = tonumber(self.screenMousePos.y) / tonumber(self.height) * (self.orthoMax.y - self.orthoMin.y) + self.orthoMin.y
+			local x = self.screenMousePos.x / self.width * (self.orthoMax.x - self.orthoMin.x) + self.orthoMin.x
+			local y = self.screenMousePos.y / self.height * (self.orthoMax.y - self.orthoMin.y) + self.orthoMin.y
 			local mouseFbTex = self.activeMenu and self.framebufferMenuTex or self.framebufferRAM.tex
 			self.ram.mousePos.x = x * tonumber(mouseFbTex.width)
 			self.ram.mousePos.y = y * tonumber(mouseFbTex.height)
@@ -2844,14 +2855,14 @@ function App:mouse()
 end
 
 function App:event(e)
-	if e[0].type == sdl.SDL_KEYUP
-	or e[0].type == sdl.SDL_KEYDOWN
+	if e[0].type == sdl.SDL_EVENT_KEY_UP
+	or e[0].type == sdl.SDL_EVENT_KEY_DOWN
 	then
 		local didHandleEvent = self.waitingForEvent
-		local down = e[0].type == sdl.SDL_KEYDOWN
-		self:processButtonEvent(down, sdl.SDL_KEYDOWN, e[0].key.keysym.sym)
+		local down = e[0].type == sdl.SDL_EVENT_KEY_DOWN
+		self:processButtonEvent(down, sdl.SDL_EVENT_KEY_DOWN, e[0].key.key)
 
-		local sdlsym = e[0].key.keysym.sym
+		local sdlsym = e[0].key.key
 		if down
 		and sdlsym == sdl.SDLK_ESCAPE
 		then
@@ -2929,11 +2940,11 @@ function App:event(e)
 				)
 			end
 		end
-	elseif e[0].type == sdl.SDL_MOUSEBUTTONDOWN
-	or e[0].type == sdl.SDL_MOUSEBUTTONUP
+	elseif e[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN
+	or e[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_UP
 	then
-		local down = e[0].type == sdl.SDL_MOUSEBUTTONDOWN
-		self:processButtonEvent(down, sdl.SDL_MOUSEBUTTONDOWN, tonumber(e[0].button.x)/self.width, tonumber(e[0].button.y)/self.height, e[0].button.button)
+		local down = e[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN
+		self:processButtonEvent(down, sdl.SDL_EVENT_MOUSE_BUTTON_DOWN, tonumber(e[0].button.x)/self.width, tonumber(e[0].button.y)/self.height, e[0].button.button)
 
 		local keycode
 		if e[0].button.button == sdl.SDL_BUTTON_LEFT then
@@ -2953,67 +2964,67 @@ function App:event(e)
 				down and flag or 0
 			)
 		end
-	elseif e[0].type == sdl.SDL_MOUSEWHEEL then
+	elseif e[0].type == sdl.SDL_EVENT_MOUSE_WHEEL then
 		-- TODO scale mousewheel?  flip mousewheel?
 		-- right now right = +x, down = +y
 		self.ram.mouseWheel.x = self.ram.mouseWheel.x - e[0].wheel.x
 		self.ram.mouseWheel.y = self.ram.mouseWheel.y + e[0].wheel.y
-	elseif e[0].type == sdl.SDL_JOYHATMOTION then
+	elseif e[0].type == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION then
 		for i=0,3 do
 			local dirbit = bit.lshift(1,i)
 			local press = bit.band(dirbit, e[0].jhat.value) ~= 0
-			self:processButtonEvent(press, sdl.SDL_JOYHATMOTION, e[0].jhat.which, e[0].jhat.hat, dirbit)
+			self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_HAT_MOTION, e[0].jhat.which, e[0].jhat.hat, dirbit)
 		end
-	elseif e[0].type == sdl.SDL_JOYAXISMOTION then
+	elseif e[0].type == sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION then
 		-- -1,0,1 depend on the axis press
 		local lr = math.floor(3 * (tonumber(e[0].jaxis.value) + 32768) / 65536) - 1
 		local press = lr ~= 0
 		if not press then
 			-- clear both left and right movement
-			self:processButtonEvent(press, sdl.SDL_JOYAXISMOTION, e[0].jaxis.which, e[0].jaxis.axis, -1)
-			self:processButtonEvent(press, sdl.SDL_JOYAXISMOTION, e[0].jaxis.which, e[0].jaxis.axis, 1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION, e[0].jaxis.which, e[0].jaxis.axis, -1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION, e[0].jaxis.which, e[0].jaxis.axis, 1)
 		else
 			-- set movement for the lr direction
-			self:processButtonEvent(press, sdl.SDL_JOYAXISMOTION, e[0].jaxis.which, e[0].jaxis.axis, lr)
+			self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION, e[0].jaxis.which, e[0].jaxis.axis, lr)
 		end
-	elseif e[0].type == sdl.SDL_JOYBUTTONDOWN or e[0].type == sdl.SDL_JOYBUTTONUP then
+	elseif e[0].type == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN or e[0].type == sdl.SDL_EVENT_JOYSTICK_BUTTON_UP then
 		-- e[0].jbutton.mainMenu is 0/1 for up/down, right?
-		local press = e[0].type == sdl.SDL_JOYBUTTONDOWN
-		self:processButtonEvent(press, sdl.SDL_JOYBUTTONDOWN, e[0].jbutton.which, e[0].jbutton.button)
-	elseif e[0].type == sdl.SDL_CONTROLLERAXISMOTION then
+		local press = e[0].type == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN
+		self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN, e[0].jbutton.which, e[0].jbutton.button)
+	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION then
 		-- -1,0,1 depend on the axis press
 		local lr = math.floor(3 * (tonumber(e[0].caxis.value) + 32768) / 65536) - 1
 		local press = lr ~= 0
 		if not press then
 			-- clear both left and right movement
-			self:processButtonEvent(press, sdl.SDL_CONTROLLERAXISMOTION, e[0].caxis.which, e[0].jaxis.axis, -1)
-			self:processButtonEvent(press, sdl.SDL_CONTROLLERAXISMOTION, e[0].caxis.which, e[0].jaxis.axis, 1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].caxis.which, e[0].jaxis.axis, -1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].caxis.which, e[0].jaxis.axis, 1)
 		else
 			-- set movement for the lr direction
-			self:processButtonEvent(press, sdl.SDL_CONTROLLERAXISMOTION, e[0].caxis.which, e[0].jaxis.axis, lr)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].caxis.which, e[0].jaxis.axis, lr)
 		end
-	elseif e[0].type == sdl.SDL_CONTROLLERBUTTONDOWN or e[0].type == sdl.SDL_CONTROLLERBUTTONUP then
-		local press = e[0].type == sdl.SDL_CONTROLLERBUTTONDOWN
-		self:processButtonEvent(press, sdl.SDL_CONTROLLERBUTTONDOWN, e[0].cbutton.which, e[0].cbutton.button)
-	elseif e[0].type == sdl.SDL_FINGERDOWN or e[0].type == sdl.SDL_FINGERUP then
-		local press = e[0].type == sdl.SDL_FINGERDOWN
-		self:processButtonEvent(press, sdl.SDL_FINGERDOWN, e[0].tfinger.x, e[0].tfinger.y)
+	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN or e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_UP then
+		local press = e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+		self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, e[0].cbutton.which, e[0].cbutton.button)
+	elseif e[0].type == sdl.SDL_EVENT_FINGER_DOWN or e[0].type == sdl.SDL_EVENT_FINGER_UP then
+		local press = e[0].type == sdl.SDL_EVENT_FINGER_DOWN
+		self:processButtonEvent(press, sdl.SDL_EVENT_FINGER_DOWN, e[0].tfinger.x, e[0].tfinger.y)
 
 
-	elseif e[0].type == sdl.SDL_CONTROLLERDEVICEADDED then
+	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_ADDED then
 		if self.controller == ffi.null then
-			self.controller = sdl.SDL_GameControllerOpen(e[0].cdevice.which)
+			self.controller = sdl.SDL_OpenGamepad(e[0].cdevice.which)
 			if self.controller == ffi.null then
-				print('SDL_GameControllerOpen('..i..') failed: '..require 'sdl.assert'.getError())
+				print('SDL_OpenGamepad('..i..') failed: '..require 'sdl.assert'.getError())
 			end
 		end
-	elseif e[0].type == sdl.SDL_CONTROLLERDEVICEREMOVED then
+	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_REMOVED then
 		if self.controller ~= ffi.null
-		-- if SDL_CONTROLLERDEVICEREMOVED is a dif controller than the last one opened...
-		-- ...then should I still call SDL_GameControllerClose() on it?
-		and e[0].cdevice.which == sdl.SDL_JoystickInstanceID(sdl.SDL_GameControllerGetJoystick(self.controller))
+		-- if SDL_EVENT_GAMEPAD_REMOVED is a dif controller than the last one opened...
+		-- ...then should I still call SDL_CloseGamepad() on it?
+		and e[0].cdevice.which == sdl.SDL_JoystickInstanceID(sdl.SDL_GetGamepadJoystick(self.controller))
 		then
-			sdl.SDL_GameControllerClose(self.controller)
+			sdl.SDL_CloseGamepad(self.controller)
 			self:findSDLController()
 		end
 	end
@@ -3043,7 +3054,7 @@ function App:processButtonEvent(down, ...)
 		local etype = ...
 		local h = self.playerEvents[etype]
 		if h then
-			if etype == sdl.SDL_KEYDOWN then
+			if etype == sdl.SDL_EVENT_KEY_DOWN then
 				local sym = select(2, ...)
 				h = h[sym]
 				if h then
@@ -3051,9 +3062,9 @@ function App:processButtonEvent(down, ...)
 					playerIndex = h.playerIndex
 					match = true
 				end
-			elseif etype == sdl.SDL_JOYHATMOTION
-			or etype == sdl.SDL_JOYAXISMOTION
-			or etype == sdl.SDL_CONTROLLERAXISMOTION
+			elseif etype == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION
+			or etype == sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION
+			or etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
 			then
 				local which, hat, dirbit = select(2, ...)
 				h = h[which]
@@ -3068,8 +3079,8 @@ function App:processButtonEvent(down, ...)
 						end
 					end
 				end
-			elseif etype == sdl.SDL_JOYBUTTONDOWN
-			or etype == sdl.SDL_CONTROLLERBUTTONDOWN
+			elseif etype == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN
+			or etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
 			then
 				local which, button = select(2, ...)
 				h = h[which]
@@ -3081,12 +3092,12 @@ function App:processButtonEvent(down, ...)
 						match = true
 					end
 				end
-			elseif etype == sdl.SDL_MOUSEBUTTONDOWN
-			or e[0].type == sdl.SDL_FINGERDOWN
-			or e[0].type == sdl.SDL_FINGERUP
+			elseif etype == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN
+			or e[0].type == sdl.SDL_EVENT_FINGER_DOWN
+			or e[0].type == sdl.SDL_EVENT_FINGER_UP
 			then
 				local x, y, button = select(2, ...)
-				if etype == sdl.SDL_MOUSEBUTTONDOWN then
+				if etype == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
 					h = h[button]
 				end
 				if h then
@@ -3130,7 +3141,7 @@ function App:buildPlayerEventsMap()
 			for buttonIndex, buttonBind in pairs(playerInfo.buttonBinds) do
 				local etype = buttonBind[1]
 				self.playerEvents[etype] = self.playerEvents[etype] or {}
-				if etype == sdl.SDL_KEYDOWN then
+				if etype == sdl.SDL_EVENT_KEY_DOWN then
 					local sym = buttonBind[2]
 					-- TODO warn if self.playerEvents[etype][sym] is set
 					-- SDL_KEYDOWN -> key -> press/release = trigger this player's this sym
@@ -3138,10 +3149,10 @@ function App:buildPlayerEventsMap()
 						playerIndex = playerIndex,
 						buttonIndex = buttonIndex,
 					}
-				--elseif etype == sdl.SDL_MOUSEWHEEL then
-				elseif etype == sdl.SDL_JOYHATMOTION
-				or etype == sdl.SDL_JOYAXISMOTION
-				or etype == sdl.SDL_CONTROLLERAXISMOTION
+				--elseif etype == sdl.SDL_EVENT_MOUSE_WHEEL then
+				elseif etype == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION
+				or etype == sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION
+				or etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
 				then
 					local which, hat, dirbit = table.unpack(buttonBind, 2)
 					-- or which, axis, lr
@@ -3151,8 +3162,8 @@ function App:buildPlayerEventsMap()
 						playerIndex = playerIndex,
 						buttonIndex = buttonIndex,
 					}
-				elseif etype == sdl.SDL_JOYBUTTONDOWN
-				or etype == sdl.SDL_CONTROLLERBUTTONDOWN
+				elseif etype == sdl.SDL_EVENT_JOYSTICK_BUTTONDOWN
+				or etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
 				then
 					local which, button = table.unpack(buttonBind, 2)
 					self.playerEvents[etype][which] = self.playerEvents[etype][which] or {}
@@ -3160,7 +3171,7 @@ function App:buildPlayerEventsMap()
 						playerIndex = playerIndex,
 						buttonIndex = buttonIndex,
 					}
-				elseif etype == sdl.SDL_MOUSEBUTTONDOWN then
+				elseif etype == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
 					local x, y, button = table.unpack(buttonBind, 2)
 					self.playerEvents[etype][button] = self.playerEvents[etype][button] or {}
 					table.insert(self.playerEvents[etype][button], {
@@ -3169,8 +3180,8 @@ function App:buildPlayerEventsMap()
 						x = x,
 						y = y,
 					})
-				elseif e[0].type == sdl.SDL_FINGERDOWN
-				or e[0].type == sdl.SDL_FINGERUP
+				elseif e[0].type == sdl.SDL_EVENT_FINGER_DOWN
+				or e[0].type == sdl.SDL_EVENT_FINGER_UP
 				then
 					local x, y = table.unpack(buttonBind, 2)
 					table.insert(self.playerEvents[etype], {
@@ -3204,14 +3215,14 @@ function App:getEventName(sdlEventID, a,b,c)
 		return ffi.string(sdl.SDL_GetKeyName(k))
 	end
 	return template(({
-		[sdl.SDL_JOYHATMOTION] = 'jh<?=a?> <?=b?> <?=dir(c)?>',
-		[sdl.SDL_JOYAXISMOTION] = 'ja<?=a?> <?=b?> <?=c?>',
-		[sdl.SDL_JOYBUTTONDOWN] = 'jb<?=a?> <?=b?>',
-		[sdl.SDL_CONTROLLERAXISMOTION] = 'ga<?=a?> <?=b?> <?=c?>',
-		[sdl.SDL_CONTROLLERBUTTONDOWN] = 'gb<?=a?> <?=b?>',
-		[sdl.SDL_KEYDOWN] = 'key<?=key(a)?>',
-		[sdl.SDL_MOUSEBUTTONDOWN] = 'mb<?=c?> x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
-		[sdl.SDL_FINGERDOWN] = 't x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
+		[sdl.SDL_EVENT_JOYSTICK_HAT_MOTION] = 'jh<?=a?> <?=b?> <?=dir(c)?>',
+		[sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION] = 'ja<?=a?> <?=b?> <?=c?>',
+		[sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN] = 'jb<?=a?> <?=b?>',
+		[sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION] = 'ga<?=a?> <?=b?> <?=c?>',
+		[sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN] = 'gb<?=a?> <?=b?>',
+		[sdl.SDL_EVENT_KEY_DOWN] = 'key<?=key(a)?>',
+		[sdl.SDL_EVENT_MOUSE_BUTTON_DOWN] = 'mb<?=c?> x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
+		[sdl.SDL_EVENT_FINGER_DOWN] = 't x<?=math.floor(a*100)?> y<?=math.floor(b*100)?>',
 	})[sdlEventID], {
 		a=a, b=b, c=c,
 		dir=dir, key=key,
