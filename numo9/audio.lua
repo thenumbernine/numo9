@@ -91,26 +91,17 @@ function AppAudio:initAudio()
 	desired[0].freq = sampleFramesPerSecond
 	desired[0].format = sdlAudioFormatForCType[audioSampleType]
 	desired[0].channels = audioOutChannels
-	desired[0].samples = audio.bufferSizeInSampleFrames -- in "sample frames" ... where stereo means two samples per "sample frame"
-	desired[0].size = audio.bufferSizeInBytes		-- is calculated, but I wanted to make sure my calculations matched.
+	--desired[0].samples = audio.bufferSizeInSampleFrames -- in "sample frames" ... where stereo means two samples per "sample frame"
+	--desired[0].size = audio.bufferSizeInBytes		-- is calculated, but I wanted to make sure my calculations matched.
 --DEBUG:print'desired specs:'
 --DEBUG:printSpecs(desired[0])
-	local spec = ffi.new'SDL_AudioSpec[1]'
-	audio.deviceID = sdl.SDL_OpenAudioDevice(
-		nil,	-- deviceName,	-- "Passing in a device name of NULL requests the most reasonable default"  from https://wiki.libsdl.org/SDL2/SDL_OpenAudioDevice
-		0,
-		desired,
-		spec,
-		bit.bor(
-		--[[ hmmmm ...
-			sdl.SDL_AUDIO_ALLOW_FREQUENCY_CHANGE,
-			sdl.SDL_AUDIO_ALLOW_FORMAT_CHANGE,
-			sdl.SDL_AUDIO_ALLOW_CHANNELS_CHANGE,
-			sdl.SDL_AUDIO_ALLOW_SAMPLES_CHANGE,
-		--]]
-			0
-		)
-	)
+	--local spec = ffi.new'SDL_AudioSpec[1]'	-- uhh, how do I tell desired from actual?
+	local spec = desired
+	audio.stream = sdl.SDL_OpenAudioDeviceStream(sdl.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, spec, nil, nil)
+	assert.ne(audio.stream, ffi.null, "SDL_OpenAudioDeviceStream failed")
+
+	audio.deviceID = sdl.SDL_GetAudioStreamDevice(audio.stream)
+
 --DEBUG:print('obtained spec:')
 --DEBUG:printSpecs(spec[0])
 
@@ -119,8 +110,8 @@ function AppAudio:initAudio()
 	-- I WOULD HAVE TO DO RESAMPLING AS IT PLAYS
 	assert.eq(sampleFramesPerSecond, spec[0].freq)
 	assert.eq(audioOutChannels, spec[0].channels)
-	assert.eq(audioSampleType, assert.index(ctypeForSDLAudioFormat, spec[0].format))
-	audio.bufferSizeInBytes = spec[0].size
+	assert.eq(audioSampleType, assert.index(ctypeForSDLAudioFormat, tonumber(spec[0].format)))
+	--audio.bufferSizeInBytes = spec[0].size
 	bufferSizeInSamples = audio.bufferSizeInBytes / ffi.sizeof(audioSampleType)
 	audio.bufferSizeInSampleFrames = bufferSizeInSamples / audioOutChannels
 	bufferSizeInSeconds = audio.bufferSizeInSampleFrames / sampleFramesPerSecond
@@ -132,22 +123,18 @@ function AppAudio:initAudio()
 	-- [[ trying to fix this mystery initial slowdown in sdl_queuaudio ...
 	-- maybe its caused by the intial mallocs so
 	-- lets alloc enough mem that we don't have to alloc any more
-	
-	audio.stream = sdl.SDL_OpenAudioDeviceStream(sdl.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, spec, nil, nil)
-	assert.ne(audio.stream, ffi.null, "SDL_OpenAudioDeviceStream failed")
-	sdl.SDL_ResumeAudioDevice(sdl.SDL_GetAudioStreamDevice(audio.stream))
 
 	local tmpbuf = ffi.new(audioSampleType..'['..(audioOutChannels * sampleFramesPerSecond * 2)..']')	-- 2 seconds worth
-	self.sdlAssert(sdl.SDL_PutAudioStream(
+	self.sdlAssert(sdl.SDL_PutAudioStreamData(
 		audio.stream,
 		tmpbuf,
 		ffi.sizeof(tmpbuf)
 	))
-	sdl.SDL_ClearQueuedAudio(audio.deviceID)
+	sdl.SDL_ClearAudioStream(audio.stream)
 	--]] -- hmm, didn't help ...
 
 --DEBUG:print'starting audio...'
-	sdl.SDL_PauseAudioDevice(audio.deviceID, 0)	-- pause 0 <=> play
+	sdl.SDL_ResumeAudioDevice(audio.deviceID)
 
 	self:resetAudio()
 
@@ -191,7 +178,7 @@ function AppAudio:resetAudio()
 
 	-- this is the current sample-frame index, and updates at `sampleFramesPerSecond` times per second
 	audio.sampleFrameIndex = 0
-	sdl.SDL_ClearQueuedAudio(audio.deviceID)
+	sdl.SDL_ClearAudioStream(audio.stream)
 end
 
 -- currently called every 1/60 ... I could call it every frame :shrug: a few thousand times a second
@@ -202,11 +189,12 @@ function AppAudio:updateAudio()
 	-- as is for some reason when things start, SDL will queue about 4seconds worth of samples before it starts consuming
 	-- so to fix that lag, lets periodically clear the queue
 	if self.ram.updateCounter > audio.lastQueueClear + audio.queueClearFreq then
-		local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)
+		--local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)
+		local queueSize = sdl.SDL_GetAudioStreamAvailable(audio.stream)
 		if queueSize > queueThresholdInBytes  then
 			audio.lastQueueClear = self.ram.updateCounter
 print('resetting runaway audio queue with size '..queueSize..' exceeding threshold '..queueThresholdInBytes)
-			sdl.SDL_ClearQueuedAudio(audio.deviceID)
+			sdl.SDL_ClearAudioStream(audio.stream)
 		end
 	end
 
@@ -307,13 +295,14 @@ function AppAudio:updateSoundEffects()
 --DEBUG:assert.eq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + updateIntervalInBytes)
 
 	-- don't queue if we're too full
-	local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)
+	--local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)
+	local queueSize = sdl.SDL_GetAudioStreamAvailable(audio.stream)
 	--if queueSize > queueThresholdInBytes then return end	-- queue threshold size = 5 ticks @ 60hz ... no different then just clearing the audio as I'm doing above ...
 	--if queueSize > math.floor(updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(audioSampleType)) then return end -- 1 tick @ 60hz ... no overflow, occasional skip .... still 4 second delay to start sound ...
 	if queueSize > math.floor(2 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(audioSampleType)) then return end -- 2 ticks @ 60hz ... no overflow, no skip .... still 4 second delay to start sound ...
 
 --print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
-	self.sdlAssert(sdl.SDL_PutAudioStream(
+	self.sdlAssert(sdl.SDL_PutAudioStreamData(
 		audio.stream,
 		audio.audioBuffer,
 		updateSampleFrameCount * audioOutChannels * ffi.sizeof(audioSampleType)
