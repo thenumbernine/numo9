@@ -1,6 +1,17 @@
 --[[
 By the 16-bit era, some games would store their levels lz-compessed (ex: Super Metroid)
 but some would store their levels in brushes (and then lz-compress the brushes) (ex: Super Mario World)
+
+TODO store this in the 'extra' bank location of 0xf600
+TODO TODO have 'extra', audio, all just blobs stored wherever there's space.
+
+types of brushes?
+1x1
+3x3
+4x4 or 5x5, how to handle diagonals?
+custom based on brush position?
+
+speaking of custom, I need a tile remapping for animations
 --]]
 local vec2i = require 'vec-ffi.vec2i'
 local numo9_rom = require 'numo9.rom'
