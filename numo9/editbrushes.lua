@@ -72,6 +72,7 @@ function EditBrushes:update()
 	-- title controls
 	local x,y = 128, 0
 
+	-- TODO this across here and the tilemap editor, and maybe from a memory address in the game...
 	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
 		self.draw16Sprites = not self.draw16Sprites
 	end
