@@ -8,7 +8,7 @@ update=||do
 	cls(0)
 	local freq = 1
 	local frac = math.sin(time() * freq) * .55 + .5
-	fillp( (1 << math.floor(math.clamp(frac, 0, 1) * 0x10)) - 1 )
+	fillp( (1 << math.floor(math.clamp(frac, 0, 1) * 16)) - 1 )
 	for i=0,31 do
 		rect(i<<3,0,8,256,i)
 	end
