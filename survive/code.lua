@@ -20,6 +20,12 @@ local wait = |delay, fn| do
 	end)
 end
 
+local drawBar = |x,y,w,h,f| do
+	rectb(x, y, w, h, 12)		-- white border
+	rect(x+1, y+1, w-2, h-2, 16)	-- black background
+	rect(x+1, y+1, f * (w-2), h-2, 26)	-- green bar
+end
+
 -- why doesn't obj/sys use this?
 local worldSize = vec2(256,256)	-- full game
 -- obj/sys uses this:
@@ -86,6 +92,8 @@ mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
 --#include obj/sys.lua
 
+Object.useGravity = true	-- default everything uses gravity
+
 --[[
 ok new game idea
 start in random noise level
@@ -123,7 +131,6 @@ Player.sprite = sprites.player
 Player.maxHealth = 7
 Player.food = 1		-- how long until we starve
 Player.breath = 1	-- how long can breathe
-Player.useGravity = true
 Player.takeDamageInvincibleDuration = 1
 Player.init = |:,args| do
 	Player.super.init(self, args)
@@ -135,7 +142,6 @@ Player.draw = |:| do
 	Player.super.draw(self)
 end
 Player.update = |:| do
-
 	local ti = mget(self.pos.x, self.pos.y)
 	local t = mapTypes[ti]
 	local inliquid = t?.flags & flags.liquid ~= 0
@@ -201,16 +207,6 @@ Player.update = |:| do
 		self.vel.y = -jumpVel
 	end
 
-	if btn'y' then 
-		--self:shoot() 
-		-- TODO
-		-- if we were touching a plant...
-		-- ... pull it up
-		-- hold onto it
-		-- push another button to throw it down somewhere else
-		-- push another button to eat plants
-	end
-
 	-- breath
 	if self.outside then
 		self.breath -= .1 * dt
@@ -231,9 +227,64 @@ Player.update = |:| do
 		self:takeDamage(1)
 	end
 
-	Player.super.update(self)	-- draw and move
+	Player.super.update(self)	-- move and handle touch
 
 	self.pos.x = math.clamp(self.pos.x, 0, 255.9999999)
+
+	
+	if btn'y' then 
+--trace'pressing y'	
+		if self.holding then
+--trace'holding'			
+			if btnp'y' then
+				-- on press, throw
+				self.holding.vel += .1 * self.aimDir
+				self.holding.useGravity = nil	-- clear to default = true
+				self.holding.solid = nil
+				self.holding = nil
+			end
+		else
+			--self:shoot() 
+			-- TODO
+			-- if we were touching a plant...
+			-- ... pull it up
+			-- hold onto it
+			-- push another button to throw it down somewhere else
+			-- push another button to eat plants
+			if self.pickupTouching then
+--trace'pickup touching'				
+				if not self.pickupStartTime then
+--trace'setting pickupStartTime'					
+					self.pickupStartTime = time()
+				else
+--trace'progressing pickupStartTime'
+					local pickupDuration = .5
+					
+					drawBar(
+						player.pos.x * 8 - 4,
+						player.pos.y * 8 - 16,
+						16,
+						4,
+						(time() - self.pickupStartTime) / pickupDuration
+					)
+
+					if time() > self.pickupStartTime + pickupDuration then
+--trace'picked up'
+						-- do the pick up
+						self.pickupTouching:doPickUp(self)
+					end
+				end
+			end
+		end
+	else
+		self.pickupStartTime = nil
+	end
+	if self.holding then
+		self.holding.pos = self.pos + vec2(0, -1)
+	end
+
+--trace'clearing pickupTouching'
+	self.pickupTouching = nil
 end
 
 Player.nextShootTime = 0
@@ -255,16 +306,39 @@ Player.shoot=|:|do
 	}
 end
 
-Plant = Object:subclass()	-- TakesDamage or nah?
+CanPickUp = Object:subclass()
+CanPickUp.solid = false
+CanPickUp.touch = |:, o| do
+	if o == player then
+--trace'setting pickupTouching'		
+		o.pickupTouching = self
+	end
+	return self.solid	-- don't block
+end
+CanPickUp.doPickUp = |:, o| do	-- default = hold this object
+	o.holding = self
+	self.useGravity = false
+end
+
+Plant = CanPickUp:subclass()	-- TakesDamage or nah?
 Plant.sprite = sprites.plant
-Plant.init = |:, ...| do
-	Plant.super.init(self, ...)
-	self.createTime = time()
+Plant.doPickUp = |:, o| do
+	--[[ pick this plant up
+	Plant.super.doPickUp(self, o)
+	--]]
+	-- [[ pick up a fruit obj
+	o.holding = Vegetable{
+		pos = self.pos,
+	}
+	o.holding.useGravity = false
+	o.holding.solid = false
+	self.removeMe = true
+	--]]
 end
-Plant.draw = |:| do
-	Plant.super.draw(self)
-	-- hmm TODO something with plant color and lifetime
-end
+
+Vegetable = CanPickUp:subclass()
+Vegetable.solid = true	-- veggies block by default
+Vegetable.sprite = sprites.vegetable
 
 -- TODO Player.takesDamage have invincible time and pain reaction
 
@@ -349,7 +423,7 @@ mainloops:insert(||do
 		local x = math.random(0,255)
 		local y = skyHeight[x]
 		Plant{
-			pos = vec2(x, y + .9),
+			pos = vec2(x, y + .5),
 		}
 	end)
 end)
@@ -486,11 +560,6 @@ update = || do
 			x += 8
 		end
 
-		local drawBar = |x,y,w,h,f| do
-			rectb(x, y, w, h, 12)		-- white border
-			rect(x+1, y+1, w-2, h-2, 16)	-- black background
-			rect(x+1, y+1, f * (w-2), h-2, 26)	-- green bar
-		end
 		drawBar(127, 246, 34, 10, player.breath)
 		drawBar(161, 246, 34, 10, player.food)
 	end
