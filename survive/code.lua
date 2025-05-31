@@ -20,10 +20,10 @@ local wait = |delay, fn| do
 	end)
 end
 
-local drawBar = |x,y,w,h,f| do
+local drawBar = |x,y,w,h,f,c| do
 	rectb(x, y, w, h, 12)		-- white border
 	rect(x+1, y+1, w-2, h-2, 16)	-- black background
-	rect(x+1, y+1, f * (w-2), h-2, 26)	-- green bar
+	rect(x+1, y+1, f * (w-2), h-2, c)	-- color bar
 end
 
 -- why doesn't obj/sys use this?
@@ -34,10 +34,10 @@ local mapheight = 256
 
 local sprites = {
 	player = 0,
-	plant = 1,
-	vegetable = 2,
-	heart = 32,
-	hearthalf = 33,
+	plant = 32|0,
+	vegetable = 32|1,
+	heart = 64|0,
+	hearthalf = 64|1,
 }
 
 flagshift=table{
@@ -47,6 +47,7 @@ flagshift=table{
 	'solid_up',		-- 8
 	'vapor',		-- 16
 	'liquid',		-- 32
+	'canPickUp',	-- 64
 }:mapi(|k,i| (i-1,k)):setmetatable(nil)
 flags=table(flagshift):map(|v| 1<<v):setmetatable(nil)
 
@@ -62,26 +63,58 @@ mapTypes=table{
 		name = 'empty',
 		flags = 0,
 	},
-	{
+	[1] = {
 		name = 'air',
 		flags = flags.vapor,
 	},
-	{
+	[2] = {
 		name = 'water',
 		flags = flags.liquid,
 	},	
-	{
+	[3] = {
 		name = 'stone',
 		flags = flags.solid,
 	},
-	{
+	[4] = {
 		name = 'dirt',
 		flags = flags.solid,
 	},
-	{
+	[5] = {
 		name = 'grass',
 		flags = flags.solid,
 	},
+	--[===[ hmm the present obj system only handles touch upon crossing border, not while inside tiles ...
+	[sprites.plant] = {
+		name = 'plant',
+		touch = |:, o, x, y| do
+trace'plant tile touching player'			
+			o.pickupTouching = {tile=vec2(x,y), type=self}
+			return false	-- don't block
+		end,
+		doPickUp = |:, o, x, y| do
+			-- pick-up-able tile
+			o.holding = Plant{pos=vec2(x,y)}
+			o.holding.solid = false
+			o.holding.useGravity = true
+			mset(x, y, 0)
+		end,
+	},
+	[sprites.vegetable] = {
+		name = 'vegetable',
+		touch = |:, o, x, y| do
+trace'veg tile touching player'			
+			o.pickupTouching = {tile=vec2(x,y), type=self}
+			return false	-- don't block
+		end,	
+		doPickUp = |:, o, x, y| do
+			-- pick-up-able tile
+			o.holding = Vegetable{pos=vec2(x,y)}
+			o.holding.solid = false
+			o.holding.useGravity = true
+			mset(x, y, 0)	
+		end,
+	},
+	--]===]
 }
 
 for k,v in pairs(mapTypes) do
@@ -122,7 +155,7 @@ TakesDamage.die=|:|do
 		end
 	end
 	self.dead = true
-	self.removeMe = true
+	self:remove()
 end
 
 
@@ -130,7 +163,8 @@ Player = TakesDamage:subclass()
 Player.sprite = sprites.player
 Player.maxHealth = 7
 Player.food = 1		-- how long until we starve
-Player.breath = 1	-- how long can breathe
+Player.shade = 1	-- how long can we stand the outdoor radiation
+Player.breathe = 1	-- how long we can hold our breath
 Player.takeDamageInvincibleDuration = 1
 Player.init = |:,args| do
 	Player.super.init(self, args)
@@ -207,17 +241,37 @@ Player.update = |:| do
 		self.vel.y = -jumpVel
 	end
 
-	-- breath
+	-- shade
 	if self.outside then
-		self.breath -= .1 * dt
+		self.shade -= .1 * dt
 	else
-		self.breath += 2 * dt
+		self.shade += 2 * dt
 	end
-	if self.breath < 0 then
-		self.breath = 0
+	if self.shade < 0 then
+		self.shade = 0
 		self:takeDamage(1)
-	elseif self.breath > Player.breath then
-		self.breath = Player.breath
+	elseif self.shade > Player.shade then
+		self.shade = Player.shade
+	end
+
+	-- breath
+	local ti = mget(self.pos.x, self.pos.y)
+	local t = mapTypes[ti]
+	self.breathe -= .01 * dt
+	local airBreathInc = .2
+	if t and t.flags & flags.vapor ~= 0 
+	and Player.breathe - self.breathe >= airBreathInc
+	then
+		self.breathe += airBreathInc
+		t = mapTypeForName.empty
+		ti = t.index
+		mset(self.pos.x, self.pos.y, ti)
+	end
+	if self.breathe < 0 then
+		self.breathe = 0
+		self:takeDamage(1)
+	elseif self.breathe > Player.breathe then
+		self.breathe = Player.breathe
 	end
 
 	-- food
@@ -270,13 +324,18 @@ Player.update = |:| do
 						player.pos.y * 8 - 16,
 						16,
 						4,
-						(time() - self.pickupStartTime) / pickupDuration
+						(time() - self.pickupStartTime) / pickupDuration,
+						6
 					)
 
 					if time() > self.pickupStartTime + pickupDuration then
 --trace'picked up'
 						-- do the pick up
-						self.pickupTouching:doPickUp(self)
+						if self.pickupTouching.obj then
+							self.pickupTouching.obj:doPickUp(self)
+						elseif self.pickupTouching.tile then
+							self.pickupTouching.type:doPickUp(self, self.pickupTouching.tile)
+						end
 					end
 				end
 			end
@@ -311,12 +370,21 @@ Player.shoot=|:|do
 end
 -- TODO Player.takesDamage have invincible time and pain reaction
 
+--[[
+Player.touchMap = |:, x, y, t, ti| do
+	if not t then return end
+	if t.flags & flags.canPickUp ~= 0 then
+		o.pickupTouching = {tile=vec2(x,y), type=t}
+	end
+end
+--]]
+
 CanPickUp = Object:subclass()
 CanPickUp.solid = false
 CanPickUp.touch = |:, o| do
 	if o == player then
 --trace'setting pickupTouching'		
-		o.pickupTouching = self
+		o.pickupTouching = {obj=self}
 	end
 	return self.solid	-- don't block
 end
@@ -325,8 +393,27 @@ CanPickUp.doPickUp = |:, o| do	-- default = hold this object
 	self.useGravity = false
 end
 
+-- hmm TODO ... plants as map blocks?
+-- cuz now I want map blocks that you can pick up...
 Plant = CanPickUp:subclass()	-- TakesDamage or nah?
 Plant.sprite = sprites.plant
+Plant.init = |:, args| do
+	Plant.super.init(self, args)
+	self.spriteSize = vec2(self.spriteSize)
+	self.createTime = args.createTime or time()
+end
+Plant.growDuration = 10
+Plant.update = |:| do
+	local f = math.clamp((time() - self.createTime) / self.growDuration, 0, 1)
+	self.spriteSize:set(f, f)
+	Plant.super.update(self)
+--[===[ if we want to support obj<->tile conversion
+	if f >= 1 then
+		mset(self.pos.x, self.pos.y, mapTypeForName.plant.index)
+		self:remove()
+	end
+--]===]
+end
 Plant.doPickUp = |:, o| do
 	--[[ pick this plant up
 	Plant.super.doPickUp(self, o)
@@ -337,8 +424,12 @@ Plant.doPickUp = |:, o| do
 	}
 	o.holding.useGravity = false
 	o.holding.solid = false
-	self.removeMe = true
+	self:remove()
 	--]]
+end
+Plant.remove = |:| do
+	Plant.super.remove(self)
+	plants:removeObject(plant)
 end
 
 Vegetable = CanPickUp:subclass()
@@ -351,9 +442,23 @@ Vegetable.foodGiven = .2
 Vegetable.doPressA = |:, o| do
 	o.food += self.foodGiven
 	o.food = math.min(o.food, Player.food)	-- .maxFood?
-	self.removeMe = true
+	self:remove()
 end
+Vegetable.update = |:| do
+	Vegetable.super.update(self)
 
+--[===[ if we want to support obj<->tile conversion
+	if self.solid == false then return end
+	if self.useGravity == false then return end
+	
+	if self.vel.x == 0 and self.vel.y == 0
+	and self.hitSides & (1 << dirForName.down) ~= 0
+	then
+		mset(self.pos.x, self.pos.y, mapTypeForName.vegetable.index)
+		self:remove()
+	end
+--]===]
+end
 
 --#include simplexnoise/2d.lua
 
@@ -408,17 +513,31 @@ init = || do
 			for _,c in ipairs(circles) do
 				phi -= 20 * math.max(0, 1 - (vec2(i,j) - c.pos):len() / c.radius)
 			end
+			local ti
+			if phi > 0 then
+				-- TODO phi influence random
+				ti = math.random() < .5
+					and mapTypeForName.stone.index
+					or mapTypeForName.dirt.index
+			else
+				-- TODO phi influence random
+				-- or TODO pockets of air near the ground?
+				ti = math.random() < -phi
+					and mapTypeForName.empty.index
+					or mapTypeForName.air.index
+			end
 			-- different isobars = different content ...
-			mset(i, j, 
-				phi > 0 and mapTypeForName.stone.index
-				or mapTypeForName.empty.index)
+			mset(i, j, ti)
 		end
 	end
 	
 	-- determine sky level
 	for i=0,worldSize.x-1 do
 		for j=0,worldSize.y-1 do
-			if mget(i,j) ~= mapTypeForName.empty.index then
+			local ti = mget(i,j)
+			local t = mapTypes[ti]
+			if (t?.flags ?? 0) & ~flags.vapor ~= 0	-- ignore vapor/empty
+			then
 				skyHeight[i] = j - 1
 				break
 			end
@@ -432,13 +551,19 @@ end
 -- level main loop ...
 mainloops:insert(||do
 	-- make sure there's so many plants or whatever growing in the map at any one time ...
-	plants = plants or range(20):mapi(|i|do
+	plants = plants or table()
+	if #plants < 50 then			-- grow new plants
 		local x = math.random(0,255)
 		local y = skyHeight[x]
-		Plant{
-			pos = vec2(x, y + .5),
-		}
-	end)
+		if mget(x,y+1) == mapTypeForName.dirt.index then
+			local plant = Plant{
+				pos = vec2(x, y + .5),
+				createTime = time() - math.random() * Plant.growDuration, 
+			}
+			plants:insert(plant)
+		end
+	end
+	return true	-- go again
 end)
 
 
@@ -561,7 +686,6 @@ update = || do
 -- [[ gui
 	if player then
 		matident()
-		text(player.pos:clone():floor(), 200, 0)
 		local x = 1
 		local y = 248
 		for i=2,player.health,2 do
@@ -573,8 +697,9 @@ update = || do
 			x += 8
 		end
 
-		drawBar(127, 246, 34, 10, player.breath)
-		drawBar(161, 246, 34, 10, player.food)
+		drawBar(256 - 34, 256 - 21, 34, 7, player.shade, 27)
+		drawBar(256 - 34, 256 - 14, 34, 7, player.food, 26)
+		drawBar(256 - 34, 256 - 7, 34, 7, player.breathe, 30)
 	end
 --]]
 end
