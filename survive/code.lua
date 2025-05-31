@@ -232,18 +232,23 @@ Player.update = |:| do
 	self.pos.x = math.clamp(self.pos.x, 0, 255.9999999)
 
 	
-	if btn'y' then 
+	if self.holding then
+		self.holding.pos = self.pos + vec2(0, -1)
+		if btnp'y' then
+			-- on press, throw
+			self.holding.vel += .1 * self.aimDir
+			self.holding.useGravity = nil	-- clear to default = true
+			self.holding.solid = nil
+			self.holding = nil
+		end
+		if btnp'a' then
+			-- use to eat or something
+			-- TODO callback or something
+			self.holding:doPressA(self)
+		end
+	else
+		if btn'y' then 
 --trace'pressing y'	
-		if self.holding then
---trace'holding'			
-			if btnp'y' then
-				-- on press, throw
-				self.holding.vel += .1 * self.aimDir
-				self.holding.useGravity = nil	-- clear to default = true
-				self.holding.solid = nil
-				self.holding = nil
-			end
-		else
 			--self:shoot() 
 			-- TODO
 			-- if we were touching a plant...
@@ -276,11 +281,10 @@ Player.update = |:| do
 				end
 			end
 		end
-	else
-		self.pickupStartTime = nil
 	end
-	if self.holding then
-		self.holding.pos = self.pos + vec2(0, -1)
+	
+	if not btn'y' then 
+		self.pickupStartTime = nil
 	end
 
 --trace'clearing pickupTouching'
@@ -305,6 +309,7 @@ Player.shoot=|:|do
 		weapon = self.selWeapon,
 	}
 end
+-- TODO Player.takesDamage have invincible time and pain reaction
 
 CanPickUp = Object:subclass()
 CanPickUp.solid = false
@@ -340,7 +345,15 @@ Vegetable = CanPickUp:subclass()
 Vegetable.solid = true	-- veggies block by default
 Vegetable.sprite = sprites.vegetable
 
--- TODO Player.takesDamage have invincible time and pain reaction
+-- how to eat veggies you are holding onto ...
+-- 2nd button for using item you are holding?
+Vegetable.foodGiven = .2
+Vegetable.doPressA = |:, o| do
+	o.food += self.foodGiven
+	o.food = math.min(o.food, Player.food)	-- .maxFood?
+	self.removeMe = true
+end
+
 
 --#include simplexnoise/2d.lua
 
