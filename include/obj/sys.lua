@@ -33,6 +33,9 @@ Object.draw=|:|do
 		self.spriteSize.y 	-- scaleY
 	)
 end
+Object.remove=|:|do	-- the OOP bloat begins...
+	self.removeMe=true
+end
 Object.update=|:|do
 
 	-- move
