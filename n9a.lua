@@ -221,12 +221,18 @@ or cmd == 'r' then
 			return string.split(s, '\n'):mapi(function(l)
 				local loc = l:match'^%-%-#include%s+(.*)$'
 				if loc then
-					if included[loc] then return '' end
+					if included[loc] then 
+						return l..'-- ALREADY INCLUDED'
+					end
 					included[loc] = true
 					for _,incpath in ipairs(includePaths) do
 						local d = incpath(loc):read()
 						if d then
-							return insertIncludes(d)
+							return table{
+								'----------------------- BEGIN '..loc..'-----------------------',
+								insertIncludes(d),
+								'----------------------- END '..loc..'  -----------------------',
+							}:concat'\n'
 						end
 					end
 					error("couldn't find "..loc.." in include paths: "..tolua(includePaths:mapi(function(p) return p.path end)))
