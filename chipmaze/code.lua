@@ -144,7 +144,7 @@ update=||do
 		while true do
 			cls(0x10)
 			local x,y = 24, 48
-			local txt=|s|do text(s,x,y,0xc,-1) y+=8 end
+			local txt=|s|do text(s,x,y,0xc,16) y+=8 end
 			txt'ChopMaze'
 			txt'A game by Jon Moore, ported by Chris Moore'
 			txt'Push blocks over water'
@@ -153,10 +153,10 @@ update=||do
 			txt'  Start'
 			txt'  Password'
 			local b = getpress()
-			if b == 0 then splashMenuY -= 1 end
+			if b == 3 then splashMenuY -= 1 end
 			if b == 1 then splashMenuY += 1 end
 			splashMenuY %= 2
-			text('>', x, splashMenuY*8+48+5*8, 0xc, -1)
+			text('>', x, splashMenuY*8+48+5*8, 0xc, 16)
 			if b==4 or b==5 then
 				if splashMenuY==0 then
 					-- start game
@@ -178,10 +178,10 @@ update=||do
 							splashInputPass[splashMenuPassX+1] += d
 							splashInputPass[splashMenuPassX+1] %= 26
 						end
-						if b == 0 then changeLetter(1) end
+						if b == 3 then changeLetter(1) end
 						if b == 1 then changeLetter(-1) end
 						if b == 2 then splashMenuPassX -= 1 end
-						if b == 3 then splashMenuPassX += 1 end
+						if b == 0 then splashMenuPassX += 1 end
 						if b== 4 or b==5 then
 							level = levelForPassword[splashInputPassStr] or 1
 							inSplash = false
@@ -237,9 +237,9 @@ update=||do
 	local m = mget16(xn,yn)
 	local tp = tilePropForIndex[m]
 	if tp&tileflags.water ~= 0 then
-		text("UH-OH!!! You can't swim in this game!", 15, 15)
-		text(" press JP-X to reset level...", 15, 23)
-		text(" press any other key to start at checkpoint.", 15, 31)
+		text("UH-OH!!! You can't swim in this game!", 15, 15, 12, 16)
+		text(" press JP-X to reset level...", 15, 23, 12, 16)
+		text(" press any other key to start at checkpoint.", 15, 31, 12, 16)
 		if waitforpress() == buttons.x then
 			xs,ys=0,0
 		end
@@ -252,7 +252,7 @@ update=||do
 	elseif tp&tileflags.goal ~= 0 then
 		xs,ys=0,0
 		local texty=15
-		local textrow=|s| do text(s, 0, texty) texty += 8 end
+		local textrow=|s| do text(s, 0, texty, 12, 6) texty += 8 end
 		textrow"Contragulations!!!                          "
 		textrow"You beat this level.                        "
 		if level > levelMax then

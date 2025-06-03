@@ -415,6 +415,7 @@ function EditSprites:update()
 					)
 				)
 				self:edit_poke(addr, value)
+				self.hist = nil	-- invalidate histogram
 			end
 
 			if self.spriteDrawMode == 'dropper'
@@ -580,6 +581,18 @@ function EditSprites:update()
 					local move = paletteIndex - self.paletteSelDown
 					self.paletteOffset = bit.band(0xff, self.paletteOffset - move)
 					self.paletteSelDown = bit.band(0xff, paletteIndex - move)
+				else
+					-- histogram info ... TODO when to recalculate it ...
+					if not self.hist then
+						self.hist = Quantize.buildHistogram(currentVRAM.image)
+					end
+					self:setTooltip(
+						tostring(self.hist[string.char(paletteIndex)] or 0),
+						mouseX - 12,
+						mouseY - 12,
+						12,
+						6
+					)
 				end
 			end
 		end
@@ -631,7 +644,10 @@ function EditSprites:update()
 		('%04X'):format(selColorValue), nil,
 		function(result)
 			result = tonumber(result, 16)
-			if result then self:edit_pokew(selPaletteAddr, result) end
+			if result then
+				self:edit_pokew(selPaletteAddr, result) 
+				selColorValue = result
+			end
 		end
 	)
 
@@ -642,19 +658,17 @@ function EditSprites:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
-				self:edit_pokew(selPaletteAddr,
-					bit.bor(
-						bit.band(app:peekw(selPaletteAddr), bit.bnot(0x1f)),
-						result
-					)
+				selColorValue = bit.bor(
+					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x1f)),
+					result
 				)
+				self:edit_pokew(selPaletteAddr, selColorValue)
 			end
 		end
 	)
 	self:guiSpinner(16+32, 224, function(dx)
-		self:edit_pokew(selPaletteAddr,
-			bit.bor(bit.band(selColorValue+dx,0x1f),bit.band(selColorValue,bit.bnot(0x1f)))
-		)
+		selColorValue = bit.bor(bit.band(selColorValue+dx,0x1f), bit.band(selColorValue,bit.bnot(0x1f)))
+		self:edit_pokew(selPaletteAddr, selColorValue)
 	end)
 
 	app:drawMenuText('G=', 16, 224+8, 13, -1)
@@ -664,19 +678,17 @@ function EditSprites:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
-				self:edit_pokew(selPaletteAddr,
-					bit.bor(
-						bit.band(app:peekw(selPaletteAddr), bit.bnot(0x3e0)),
-						bit.lshift(result, 5)
-					)
+				selColorValue = bit.bor(
+					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x3e0)),
+					bit.lshift(result, 5)
 				)
+				self:edit_pokew(selPaletteAddr, selColorValue)
 			end
 		end
 	)
 	self:guiSpinner(16+32, 224+8, function(dx)
-		self:edit_pokew(selPaletteAddr,
-			bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
-		)
+		selColorValue = bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
+		self:edit_pokew(selPaletteAddr, selColorValue)
 	end)
 
 	app:drawMenuText('B=', 16, 224+16, 13, -1)
@@ -686,31 +698,27 @@ function EditSprites:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
-				self:edit_pokew(selPaletteAddr,
-					bit.bor(
-						bit.band(app:peekw(selPaletteAddr), bit.bnot(0x7c00)),
-						bit.lshift(result, 10)
-					)
+				selColorValue = bit.bor(
+					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x7c00)),
+					bit.lshift(result, 10)
 				)
+				self:edit_pokew(selPaletteAddr, selColorValue)
 			end
 		end
 	)
 	self:guiSpinner(16+32, 224+16, function(dx)
-		self:edit_pokew(selPaletteAddr,
-			bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
-		)
+		selColorValue = bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
+		self:edit_pokew(selPaletteAddr, selColorValue)
 	end)
 
 	local alpha = bit.band(selColorValue,0x8000)~=0
 	if self:guiButton('A', 16, 224+24, alpha) then
 		if alpha then	-- if it was set then clear it
-			self:edit_pokew(selPaletteAddr,
-				bit.band(selColorValue, 0x7fff)
-			)
+			selColorValue = bit.band(selColorValue, 0x7fff)
+			self:edit_pokew(selPaletteAddr, selColorValue)
 		else	-- otherwise set it
-			self:edit_pokew(selPaletteAddr,
-				bit.bor(selColorValue, 0x8000)
-			)
+			selColorValue = bit.bor(selColorValue, 0x8000)
+			self:edit_pokew(selPaletteAddr, selColorValue)
 		end
 	end
 	app:drawMenuText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
@@ -786,6 +794,7 @@ print'BAKING PALETTE'
 						self:edit_poke(currentTexAddr + i + currentVRAM.image.width * j, self.paletteOffset)
 					end
 				end
+				self.hist = nil	-- invalidate histogram
 			end
 		elseif app:keyp'v' then
 			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
@@ -903,6 +912,7 @@ print('currentTexAddr', ('$%x'):format(currentTexAddr))
 						end
 					end
 				end
+				self.hist = nil
 			end
 		end
 	end
