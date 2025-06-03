@@ -1417,6 +1417,7 @@ void main() {
 		colorIndex &= spriteMask;
 		if (colorIndex == transparentIndex) discard;
 		colorIndex += paletteIndex;
+		colorIndex &= 0xFFu;
 
 <?=info.colorOutput?>
 
