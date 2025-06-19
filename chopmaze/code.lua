@@ -1,3 +1,8 @@
+-- title = chopmaze
+-- saveid = chopmaze
+-- author = Jon Moore & Chris Moore
+-- description = ChopMaze - A game by Jon Moore, ported by Chris Moore. Push blocks over water. Get through the maze.
+
 mget16=|i,j|do
 	local m = mget(i,j)
 	return ((m&0x1e)>>1)|((m&0x3c0)>>2)
