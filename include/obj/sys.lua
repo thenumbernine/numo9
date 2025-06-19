@@ -136,6 +136,7 @@ Object.update=|:|do
 					and pymax >= bymin and pymin <= bymax
 					then
 						-- if not solid then
+						-- TODO side solid flags like with map blocks, so we can have things like moving platforms
 						local hitThis = true
 						if self.touch and self:touch(o) == false then 
 							hitThis = false 
