@@ -25,6 +25,7 @@ local vec2i = require 'vec-ffi.vec2i'
 local vec2f = require 'vec-ffi.vec2f'
 local template = require 'template'
 local matrix_ffi = require 'matrix.ffi'
+local sha2 = require 'sha2'
 local sdl = require 'sdl'
 local gl = require 'gl'
 local GLQuery = require 'gl.query'
@@ -1312,6 +1313,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 end
 
 function App:exit()
+	self:writePersistent()	-- write current running rom persistent before quitting
 	self.cfgpath:write(tolua(self.cfg, {indent=true}))
 
 	App.super.exit(self)
@@ -2541,17 +2543,21 @@ function App:writePersistent()
 	--if not self.currentLoadedFilename then return end	-- should not I bother if there's no cartridge loaded? or still allow saving of persistent data if ppl are messing around on the editor?
 	self.cfg.persistent = self.cfg.persistent or {}
 
-	-- TODO this when you read cart header ... or should we put it in ROM somewhere?
-	self.cartridgeSaveID = self.cartridgeSaveID or ''--md5(self.banks.v, #self.banks * ffi.sizeof'ROM')
-
-	-- save a string up to the last non-zero value ... opposite  of C-strings
-	local len = persistentCartridgeDataSize
-	while len > 0 do
-		if self.ram.persistentCartridgeData[len-1] ~= 0 then break end
-		len = len - 1
-	end
-	if len > 0 then
-		self.cfg.persistent[self.cartridgeSaveID] = ffi.string(self.ram.persistentCartridgeData, len)
+	-- first call, there's no metainfo, so if it's not there then don't save anything
+	if self.metainfo then
+		assert(self.metainfo.saveid, "how did you get here?  in App:runROM metainfo.saveid should have been written.")
+		-- TODO this when you read cart header ... or should we put it in ROM somewhere?
+		-- save a string up to the last non-zero value ... opposite  of C-strings
+		local len = persistentCartridgeDataSize
+		while len > 0 do
+			if self.ram.persistentCartridgeData[len-1] ~= 0 then break end
+			len = len - 1
+		end
+--DEBUG:print('writePersistent self.metainfo.saveid', self.metainfo.saveid, require'ext.tolua'(ffi.string(self.ram.persistentCartridgeData, len)))
+		if len > 0 then
+			self.cfg.persistent[self.metainfo.saveid] = ffi.string(self.ram.persistentCartridgeData, len)
+		end
+		-- now where does self.cfg get written?
 	end
 end
 
@@ -2624,6 +2630,10 @@ end
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
+	
+	-- when should we write the old persist?  when opening?  when resetting?  when running?
+	self:writePersistent()
+
 	self:resetROM()
 	self:resetAudio()
 	self.isPaused = false
@@ -2633,8 +2643,31 @@ function App:runROM()
 	local env = setmetatable({}, {
 		__index = self.env,
 	})
-
+	
 	local code = self.editCode.text	-- use the editor's code as the definitive code while numo9 is running
+
+	-- reload the metadata while we're here
+	self.metainfo = {}
+	do
+		local i = 1
+		repeat
+			local from, to, line, term = code:find('^([^\r\n]*)(\r?\n)', i)
+			if not line then break end -- I guess no single-line meta tags with no code afterwards ...
+			local k, v = line:match'^%-%-%s*([^%s=]+)%s*=%s*(.-)%s*$'
+			if not k then break end
+			self.metainfo[k] = v
+			i = to + #term
+		until false
+	end
+	self.metainfo.saveid = self.metainfo.saveid or sha2.md5(ffi.string(self.banks.v, #self.banks * ffi.sizeof'ROM'))
+
+	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...
+	if self.cfg and self.cfg.persistent then
+		local saveStr = self.cfg.persistent[self.metainfo.saveid]
+		if saveStr and #saveStr > 0 then
+			ffi.copy(self.ram.persistentCartridgeData, saveStr, math.min(#saveStr, persistentCartridgeDataSize))
+		end
+	end
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()

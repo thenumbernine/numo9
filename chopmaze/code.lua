@@ -3,6 +3,8 @@
 -- author = Jon Moore & Chris Moore
 -- description = ChopMaze - A game by Jon Moore, ported by Chris Moore. Push blocks over water. Get through the maze.
 
+--#include ext/range.lua
+
 mget16=|i,j|do
 	local m = mget(i,j)
 	return ((m&0x1e)>>1)|((m&0x3c0)>>2)
@@ -89,20 +91,19 @@ level=1
 levelMax=11	-- 11 sanctioned levels
 levelMax=18	-- and another 7 custom levels
 
-local passwords = table{
-	"wywq",
-	"yhcb",
-	"hepo",
-	"gycw",
-	"hhee",
-	"ggcx",
-	"pcjl",
-	"aenn",
-	"fgun",
-	"winc",
-	"jtcj",
-}
-local levelForPassword = passwords:mapi(|pass, level|(level, pass))
+--[[
+save level info per file:
+	uint8_t level
+	uint8_t checkpoint_xy[2];
+--]]
+local numSaveFiles = 3
+-- read save info
+local savefields = table{'level','x','y'}	-- saves byte values of these in 'saveinfos[saveSlot]'
+local saveinfos = range(numSaveFiles):mapi(|i|do
+	return savefields:mapi(|name,fieldOFs|do
+		return peek(ramaddr'persistentCartridgeData' + #savefields * (i-1) + (fieldOFs-1)), name
+	end):setmetatable(nil)
+end)
 
 restartAtCheckpoint=||do
 	-- copy the level location into location 0 ...
@@ -139,10 +140,15 @@ end
 
 resetLevel()
 
+local saveSlot	-- 1-based index corresponding to saveinfos[] index
+saveState=||do
+	for fieldOfs,name in ipairs(savefields) do
+		poke(ramaddr'persistentCartridgeData' + #savefields * (saveSlot-1) + (fieldOfs-1), saveinfos[saveSlot]![name])
+	end
+end
+
 inSplash=true
 splashMenuY=0
-splashInputPass=table{0,0,0,0}
-splashMenuPassX=0
 update=||do
 	local screenw, screenh = 480, 270 mode(42)	-- 16:9 480x270x8bpp indexed
 	if inSplash then
@@ -155,48 +161,25 @@ update=||do
 			txt'Push blocks over water.'
 			txt'Get through the maze.'
 			txt''
-			txt'  Start'
-			txt'  Password'
+			for _,saveinfo in ipairs(saveinfos) do
+				txt('  '..(saveinfo.level==0 and 'New Game' or 'Level '..saveinfo.level))
+			end
 			local b = getpress()
 			if b == 3 then splashMenuY -= 1 end
 			if b == 1 then splashMenuY += 1 end
-			splashMenuY %= 2
+			splashMenuY %= #saveinfos
 			text('>', x, splashMenuY*8+48+5*8, 0xc, 16)
-			if b==4 or b==5 then
-				if splashMenuY==0 then
-					-- start game
-					inSplash = false
-					return
-				else
-					flip() -- clear keypress
-					while true do
-						cls(0x10)
-						-- password screen
-						y=48
-						txt'Enter the four letter password'
-						local splashInputPassStr = splashInputPass
-							:mapi(|x|string.char(x+('a'):byte())):concat()
-						txt(splashInputPassStr )
-						txt((' '):rep(splashMenuPassX)..'^')
-						b = getpress()
-						local changeLetter = |d|do
-							splashInputPass[splashMenuPassX+1] += d
-							splashInputPass[splashMenuPassX+1] %= 26
-						end
-						if b == 3 then changeLetter(1) end
-						if b == 1 then changeLetter(-1) end
-						if b == 2 then splashMenuPassX -= 1 end
-						if b == 0 then splashMenuPassX += 1 end
-						if b== 4 or b==5 then
-							level = levelForPassword[splashInputPassStr] or 1
-							inSplash = false
-							resetLevel()
-							return
-						end
-						splashMenuPassX %= 4
-						flip()
-					end
-				end
+			if b==4 or b==5 or b==6 or b==7 then
+				saveSlot = splashMenuY+1
+				local saveinfo = saveinfos[saveSlot]
+				level = math.max(1, saveinfo.level)
+				saveinfo.level = level
+				saveState()	-- in case we're starting new ... change it to 'level 1'
+				resetLevel()
+				xs,ys = saveinfo.x, saveinfo.y
+				restartAtCheckpoint()
+				inSplash = false
+				return
 			end
 			flip()
 		end
@@ -247,6 +230,7 @@ update=||do
 		text(" press any other key to start at checkpoint.", 15, 31, 12, 16)
 		if waitforpress() == buttons.x then
 			xs,ys=0,0
+			-- should this overwrite the save state? or nah?
 		end
 		restartAtCheckpoint()
 		return
@@ -254,6 +238,9 @@ update=||do
 		xn,yn=x,y
 	elseif tp&tileflags.checkpoint ~= 0 then
 		xs,ys=xn,yn
+		saveinfos[saveSlot].x = xs
+		saveinfos[saveSlot].y = ys
+		saveState()
 	elseif tp&tileflags.goal ~= 0 then
 		xs,ys=0,0
 		local texty=15
@@ -265,21 +252,24 @@ update=||do
 			waitforpress()
 			level=1
 		else
-			textrow("Here's the password for level "..level..":")
 			level+=1
             textrow("Get ready for level "..level.."!!!              ")
+			saveinfos[saveSlot].level = level
+			saveinfos[saveSlot].x = xs
+			saveinfos[saveSlot].y = ys
+			saveState()
 		end
 		textrow" press any key..."
 		waitforpress()
 		resetLevel()
 		return
-	
+
 	elseif tp&tileflags.pushable ~= 0 then
 		local arrowdir = m - tiles.block_uparrow
-		if arrowdir >= 0 and arrowdir < 4 
+		if arrowdir >= 0 and arrowdir < 4
 		and dir == oppdir(arrowdir)
 		then
-			xn, yn = x,y 
+			xn, yn = x,y
 		else
 			local bx = xn + dirvec[dir][1]
 			local by = yn + dirvec[dir][2]
@@ -296,7 +286,7 @@ update=||do
 					btp &= ~tileflags.water
 					-- and lookup what tile this is
 					mset16(bx, by, tileIndexForProp![btp])
-				-- handle blocking before arrow movement so that handling arrow doesnt let you walk over a pushable 
+				-- handle blocking before arrow movement so that handling arrow doesnt let you walk over a pushable
 				elseif btp & (
 					tileflags.solid
 					|tileflags.pushable
@@ -311,7 +301,7 @@ update=||do
 				else
 					error'here'
 				end
-				
+
 				if xn ~= x or yn ~= y then
 					-- remove the pushable flag from the source tile
 					tp &= ~tileflags.pushable
@@ -324,7 +314,7 @@ update=||do
 		local arrowdir = (tp >> arrowdirpropbit) & 3
 		if dir==oppdir(arrowdir) then xn,yn = x,y end
 	end
-	
+
 	if xn~=x or yn~=y then
 		x,y = xn,yn
 	end
