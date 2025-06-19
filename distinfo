@@ -82,6 +82,7 @@ deps = {
 	"template",
 	"threadmanager",
 	"vec-ffi",
+	"sha2",		-- external, in dist/release/
 }
 
 --[[ lua socket ... TODO copy from dist/release/
