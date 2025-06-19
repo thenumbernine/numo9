@@ -146,9 +146,9 @@ update=||do
 			local x,y = 24, 48
 			local txt=|s|do text(s,x,y,0xc,16) y+=8 end
 			txt'ChopMaze'
-			txt'A game by Jon Moore, ported by Chris Moore'
-			txt'Push blocks over water'
-			txt'Get through the maze'
+			txt'A game by Jon Moore, ported by Chris Moore.'
+			txt'Push blocks over water.'
+			txt'Get through the maze.'
 			txt''
 			txt'  Start'
 			txt'  Password'

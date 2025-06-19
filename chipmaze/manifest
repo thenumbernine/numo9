@@ -1,0 +1,9 @@
+title = 'chopmaze'
+author = 'Christopher Moore'
+description = [[
+ChopMaze
+- A game by Jon Moore, ported by Chris Moore.
+Push blocks over water.
+Get through the maze.
+]]
+saveid = 'chopmaze'
