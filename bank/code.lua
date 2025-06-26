@@ -23,6 +23,7 @@ sfxid={
 	step = 3,	-- and drop bomb
 	menuchange = 4,
 	getkey = 5,
+	death = 6,
 }
 
 EMPTY=0
@@ -431,15 +432,16 @@ do
 			then
 				if self.blendMode then blend(self.blendMode) end
 				spr(self.blastRadius<<1,
-					16*self.posX-4,
-					16*self.posY-4,
+					16*self.posX-8,
+					16*self.posY-8,
 					2,
 					2,
 					nil,
 					nil,
 					nil,
-					nil,
-					.5,.5)
+					nil
+					--,.5,.5
+				)
 				if self.blendMode then blend() end
 			end
 		end,
@@ -659,12 +661,12 @@ do
 			self.owner=owner
 			self:setPos(owner.posX, owner.posY)
 			self.seq=-1	--invis
+			sfx(sfxid.laser_shoot)
 		end,
 		cannotPassThru=|:,maptype|mapType[maptype].blocksGunShot,
 		hitObject=|:,what,pushDestX,pushDestY,side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
-				sfx(sfxid.collect_money)
 				what:die()
 				return 'stop'
 			end
@@ -856,6 +858,7 @@ do
 		onTouchFlames=|:|do self:die()end,
 		die=|:|do
 			if self.dead then return end
+			sfx(sfxid.death)
 			self.seq=seqs.playerDead
 			self.dead=true
 			self.deadTime=time()+2
@@ -888,15 +891,16 @@ do
 			if self.bombs>0 then
 				if self.blendMode then blend(self.blendMode) end
 				spr(self.bombs<<1,
-					16*self.posX-4,
-					16*self.posY-4,
+					16*self.posX-8,
+					16*self.posY-8,
 					2,
 					2,
 					nil,
 					nil,
 					nil,
-					nil,
-					.5,.5)
+					nil
+					--,.5,.5
+				)
 				if self.blendMode then blend() end
 			end
 		end,
