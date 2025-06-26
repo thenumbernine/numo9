@@ -2,6 +2,7 @@
 -- saveid = Bank
 -- author = Chris Moore
 -- description = Bank - collect all the money and get the key to escape!
+mode(0)
 
 --#include ext/range.lua
 
@@ -973,6 +974,7 @@ nextLevel=|dontComplete|do
 	loadLevelRequest=true
 end
 
+levelTileX, levelTileY = 0,0
 setLevel=|level_|do
 	level=level_
 	saveinfos[saveSlot].level = level
@@ -1071,10 +1073,21 @@ update=||do
 	if inSplash then
 		cls(0xf0)
 		matident()
+		mattrans(32, 32)
+		map(10,20,mapw+2,maph+3,0,0,0,true)
+		mattrans(16, 32)
+		map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
+		matident()
+		pokew(ramaddr'blendColor', 0x8000)
+		blend(5)
+		rect(0,0,256,256,0)
+		blend(-1)
 		-- splash screen
+		local s = 2
+		local sx, sy = s*5, s*8
 		local x0,y0 = 24, 48
 		local x,y= x0,y0
-		local txt=|s|do text(s, x, y, 12, 16) y += 8 end
+		local txt=|t|do text(t, x, y, nil, nil, s, s) y += sy end
 		
 		txt'BANK'
 		for _,saveinfo in ipairs(saveinfos) do
@@ -1086,7 +1099,7 @@ update=||do
 			splashMenuY += 1
 		end
 		splashMenuY %= #saveinfos
-		text('>', x0 - 8, splashMenuY*8 + y0 + 8, 12, 16)
+		text('>', x0 - sx - 3, (splashMenuY+1)*sy + y0)
 		if btnp(4)
 		or btnp(5)
 		or btnp(6)
