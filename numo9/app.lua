@@ -87,9 +87,7 @@ App.title = 'NuMo9'
 App.width = cmdline and cmdline.window and cmdline.window[1] or 720
 App.height = cmdline and cmdline.window and cmdline.window[2] or 512
 
-App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO, sdl.SDL_INIT_JOYSTICK)
--- if I init sdl controller then will I get double events for joystick buttons - one for joystick and one for controller?
---, sdl.SDL_INIT_GAMECONTROLLER)
+App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO, sdl.SDL_INIT_GAMEPAD)
 
 -- copy in video behavior
 for k,v in pairs(numo9_video.AppVideo) do
@@ -1290,12 +1288,14 @@ looks like I'm a Snes9x-default-keybinding fan.
 		local count = ffi.new'int[1]'
 		self.sdlAssert(sdl.SDL_GetJoysticks(count))
 		self.joystickCount = count[0]
+		--[[ don't need this and gamecontroller?
 		for i=0,self.joystickCount-1 do
-			local joystick = sdl.SDL_JoystickOpen(i)
+			local joystick = sdl.SDL_OpenJoystick(i)
 			if joystick == ffi.null then
-				print('SDL_JoystickOpen('..i..') failed: '..require 'sdl.assert'.getError())
+				print('SDL_OpenJoystick('..i..') failed: '..require 'sdl.assert'.getError())
 			end
 		end
+		--]]
 	end, function(err)
 		print(err)
 	end)
@@ -1878,7 +1878,7 @@ print('run thread dead')
 			-- default draw calls will use the paletteMenuTex
 			-- and special calls will use the paletteRAM
 			-- TODO this needs to be a paletteRAM replacement ...
-			--local pushPaletteRAM = self.paletteRAM 
+			--local pushPaletteRAM = self.paletteRAM
 			--self.paletteRAM = {tex = self.paletteMenuTex}
 
 			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
@@ -2047,10 +2047,10 @@ print('run thread dead')
 	-- every frame for us to use a proper rectangle
 		local view = self.blitScreenView
 		local orthoSize = view.orthoSize
-		
+
 		local fbTex = self.activeMenu and self.framebufferMenuTex or self.framebufferRAM.tex
 		--local fbTex = self.framebufferRAM.tex
-		
+
 		local wx, wy = self.width, self.height
 		local fx = wx / fbTex.width
 		local fy = wy / fbTex.height
@@ -2087,8 +2087,8 @@ print('run thread dead')
 		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		if self.activeMenu then 
-			sceneObj.texs[1] = self.framebufferMenuTex 
+		if self.activeMenu then
+			sceneObj.texs[1] = self.framebufferMenuTex
 		end
 --]]
 
@@ -2097,10 +2097,10 @@ print('run thread dead')
 		-- [[ and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
 		--]]
-		if self.activeMenu then 
-			sceneObj.texs[1] = self.framebufferRAM.tex 
+		if self.activeMenu then
+			sceneObj.texs[1] = self.framebufferRAM.tex
 		end
-		if self.activeMenu then 
+		if self.activeMenu then
 			self:setVideoMode(self.ram.videoMode)
 		end
 
@@ -2632,7 +2632,7 @@ end
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
 function App:runROM()
-	
+
 	-- when should we write the old persist?  when opening?  when resetting?  when running?
 	self:writePersistent()
 
@@ -2645,7 +2645,7 @@ function App:runROM()
 	local env = setmetatable({}, {
 		__index = self.env,
 	})
-	
+
 	local code = self.editCode.text	-- use the editor's code as the definitive code while numo9 is running
 
 	-- reload the metadata while we're here
@@ -3009,6 +3009,7 @@ function App:event(e)
 		-- right now right = +x, down = +y
 		self.ram.mouseWheel.x = self.ram.mouseWheel.x - e[0].wheel.x
 		self.ram.mouseWheel.y = self.ram.mouseWheel.y + e[0].wheel.y
+	--[[ don't double this up with game controller events ..
 	elseif e[0].type == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION then
 		for i=0,3 do
 			local dirbit = bit.lshift(1,i)
@@ -3031,21 +3032,22 @@ function App:event(e)
 		-- e[0].jbutton.mainMenu is 0/1 for up/down, right?
 		local press = e[0].type == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN
 		self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN, e[0].jbutton.which, e[0].jbutton.button)
+	--]]
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION then
 		-- -1,0,1 depend on the axis press
-		local lr = math.floor(3 * (tonumber(e[0].caxis.value) + 32768) / 65536) - 1
+		local lr = math.floor(3 * (tonumber(e[0].gaxis.value) + 32768) / 65536) - 1
 		local press = lr ~= 0
 		if not press then
 			-- clear both left and right movement
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].caxis.which, e[0].jaxis.axis, -1)
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].caxis.which, e[0].jaxis.axis, 1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].jaxis.axis, -1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].jaxis.axis, 1)
 		else
 			-- set movement for the lr direction
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].caxis.which, e[0].jaxis.axis, lr)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].jaxis.axis, lr)
 		end
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN or e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_UP then
 		local press = e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, e[0].cbutton.which, e[0].cbutton.button)
+		self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, e[0].gbutton.which, e[0].gbutton.button)
 	elseif e[0].type == sdl.SDL_EVENT_FINGER_DOWN or e[0].type == sdl.SDL_EVENT_FINGER_UP then
 		local press = e[0].type == sdl.SDL_EVENT_FINGER_DOWN
 		self:processButtonEvent(press, sdl.SDL_EVENT_FINGER_DOWN, e[0].tfinger.x, e[0].tfinger.y)
@@ -3053,7 +3055,7 @@ function App:event(e)
 
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_ADDED then
 		if self.controller == ffi.null then
-			self.controller = sdl.SDL_OpenGamepad(e[0].cdevice.which)
+			self.controller = sdl.SDL_OpenGamepad(e[0].gdevice.which)
 			if self.controller == ffi.null then
 				print('SDL_OpenGamepad('..i..') failed: '..require 'sdl.assert'.getError())
 			end
@@ -3062,7 +3064,7 @@ function App:event(e)
 		if self.controller ~= ffi.null
 		-- if SDL_EVENT_GAMEPAD_REMOVED is a dif controller than the last one opened...
 		-- ...then should I still call SDL_CloseGamepad() on it?
-		and e[0].cdevice.which == sdl.SDL_JoystickInstanceID(sdl.SDL_GetGamepadJoystick(self.controller))
+		and e[0].gdevice.which == sdl.SDL_JoystickInstanceID(sdl.SDL_GetGamepadJoystick(self.controller))
 		then
 			sdl.SDL_CloseGamepad(self.controller)
 			self:findSDLController()
@@ -3102,9 +3104,12 @@ function App:processButtonEvent(down, ...)
 					playerIndex = h.playerIndex
 					match = true
 				end
-			elseif etype == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION
+
+			elseif etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+			--[[ don't double this up with game controller events ..
+			or etype == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION
 			or etype == sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION
-			or etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+			--]]
 			then
 				local which, hat, dirbit = select(2, ...)
 				h = h[which]
@@ -3119,8 +3124,10 @@ function App:processButtonEvent(down, ...)
 						end
 					end
 				end
-			elseif etype == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN
-			or etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+			elseif etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+			--[[ don't double this up with game controller events ..
+			or etype == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN
+			--]]
 			then
 				local which, button = select(2, ...)
 				h = h[which]
@@ -3190,9 +3197,11 @@ function App:buildPlayerEventsMap()
 						buttonIndex = buttonIndex,
 					}
 				--elseif etype == sdl.SDL_EVENT_MOUSE_WHEEL then
-				elseif etype == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION
+				elseif etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+				--[[ don't double this up with game controller events ..
+				or etype == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION
 				or etype == sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION
-				or etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+				--]]
 				then
 					local which, hat, dirbit = table.unpack(buttonBind, 2)
 					-- or which, axis, lr
@@ -3202,8 +3211,10 @@ function App:buildPlayerEventsMap()
 						playerIndex = playerIndex,
 						buttonIndex = buttonIndex,
 					}
-				elseif etype == sdl.SDL_EVENT_JOYSTICK_BUTTONDOWN
-				or etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+				elseif etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+				--[[ don't double this up with game controller events ..
+				or etype == sdl.SDL_EVENT_JOYSTICK_BUTTONDOWN
+				--]]
 				then
 					local which, button = table.unpack(buttonBind, 2)
 					self.playerEvents[etype][which] = self.playerEvents[etype][which] or {}
@@ -3255,9 +3266,11 @@ function App:getEventName(sdlEventID, a,b,c)
 		return ffi.string(sdl.SDL_GetKeyName(k))
 	end
 	return template(({
+		--[[ don't double this up with game controller events ..
 		[sdl.SDL_EVENT_JOYSTICK_HAT_MOTION] = 'jh<?=a?> <?=b?> <?=dir(c)?>',
 		[sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION] = 'ja<?=a?> <?=b?> <?=c?>',
 		[sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN] = 'jb<?=a?> <?=b?>',
+		--]]
 		[sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION] = 'ga<?=a?> <?=b?> <?=c?>',
 		[sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN] = 'gb<?=a?> <?=b?>',
 		[sdl.SDL_EVENT_KEY_DOWN] = 'key<?=key(a)?>',
