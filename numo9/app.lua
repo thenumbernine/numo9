@@ -1579,17 +1579,18 @@ function App:update()
 	fpsFrames = fpsFrames + 1
 	fpsSeconds = fpsSeconds + deltaTime
 	if fpsSeconds > 1 then
-		print(''
+		if cmdline.fps then
+			print(''
 --DEBUG(glquery):..'update='..(updateQueryTotal/updateQueryFrames*1e-6)
 --DEBUG(glquery):..' draw='..(drawQueryTotal/drawQueryFrames*1e-6)..' '
-			..'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
-		--	..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
-		--	..' channels active '..range(0,7):mapi(function(i) return self.ram.channels[i].flags.isPlaying end):concat' '
-		--	..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
-		--	..' SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
+				..'FPS: '..(fpsFrames / fpsSeconds)	--	this will show you how fast a busy loop runs ... 130,000 hits/second on my machine ... should I throw in some kind of event to lighten the cpu load a bit?
+			--	..' draws/second '..drawsPerSecond	-- TODO make this single-buffered
+			--	..' channels active '..range(0,7):mapi(function(i) return self.ram.channels[i].flags.isPlaying end):concat' '
+			--	..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
+			--	..' SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
 --DEBUG: ..' flush calls: '..self.triBuf.flushCallsPerFrame..' flushes: '..tolua(self.triBuf.flushSizes)
 -- ..' clip: ['..self.ram.clipRect[0]..', '..self.ram.clipRect[1]..', '..self.ram.clipRect[2]..', '..self.ram.clipRect[3]..']'
-		)
+			)
 --DEBUG:self.triBuf.flushCallsPerFrame = 0
 --DEBUG:self.triBuf.flushSizes = {}
 
@@ -1598,7 +1599,7 @@ function App:update()
 --DEBUG(glquery):drawQueryTotal = 0
 --DEBUG(glquery):drawQueryFrames = 0
 
-		if self.server then
+			if self.server then
 			--[[
 docs say:
 	master:getstats()
@@ -1635,35 +1636,36 @@ print(
 	)
 )
 --]]
-			io.write('netcmds='..#((self.server.conns[1] or {}).cmds or {})..' ')
-			io.write('deltas/sec='..tostring(self.server.numDeltasSentPerSec)..' ')
-			io.write('idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
+				io.write('netcmds='..#((self.server.conns[1] or {}).cmds or {})..' ')
+				io.write('deltas/sec='..tostring(self.server.numDeltasSentPerSec)..' ')
+				io.write('idlechecks/sec='..tostring(self.server.numIdleChecksPerSec)..' ')
 self.server.numDeltasSentPerSec = 0
 self.server.numIdleChecksPerSec = 0
-			if self.server.conns[2] then
-				local conn = self.server.conns[2]
-				io.write('serverconn stats '..tolua{self.server.conns[2].socket:getstats()}
-					..' msgs='..#conn.toSend
-					..' sized='..#conn.toSend:concat()
-					..' send/sec='..conn.sendsPerSecond
-					..' recv/sec='..conn.receivesPerSecond
-				)
+				if self.server.conns[2] then
+					local conn = self.server.conns[2]
+					io.write('serverconn stats '..tolua{self.server.conns[2].socket:getstats()}
+						..' msgs='..#conn.toSend
+						..' sized='..#conn.toSend:concat()
+						..' send/sec='..conn.sendsPerSecond
+						..' recv/sec='..conn.receivesPerSecond
+					)
 conn.sendsPerSecond = 0
 conn.receivesPerSecond = 0
+				end
+				io.write(' conn updates: '..self.server.updateConnCount..' ')
+				self.server.updateConnCount = 0
 			end
-			io.write(' conn updates: '..self.server.updateConnCount..' ')
-			self.server.updateConnCount = 0
-		end
-		if self.remoteClient then
-			io.write('client cmdbuf size: '..self.remoteClient.cmds.size)
-		end
-		if self.server or self.remoteClient then
-			print()
-		end
+			if self.remoteClient then
+				io.write('client cmdbuf size: '..self.remoteClient.cmds.size)
+			end
+			if self.server or self.remoteClient then
+				print()
+			end
 
-		drawsPerSecond = 0
-		fpsFrames = 0
-		fpsSeconds = 0
+			drawsPerSecond = 0
+			fpsFrames = 0
+			fpsSeconds = 0
+		end
 	end
 	lastTime = thisTime	-- TODO this at end of update in case someone else needs this var
 	--]==]
@@ -2668,6 +2670,9 @@ function App:runROM()
 			ffi.copy(self.ram.persistentCartridgeData, saveStr, math.min(#saveStr, persistentCartridgeDataSize))
 		end
 	end
+
+	-- set title if it's there ...
+	sdl.SDL_SetWindowTitle(self.window, self.metainfo.title or self.title)
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()

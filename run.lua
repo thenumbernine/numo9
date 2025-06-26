@@ -42,6 +42,10 @@ for i=#cmdline,1,-1 do
 		table.remove(cmdline, i)
 		cmdline.config = table.remove(cmdline, i)
 	end
+	if cmdline[i] == '-fps' then
+		table.remove(cmdline, i)
+		cmdline.fps = true
+	end
 end
 
 require 'gl.setup'(cmdline.gl)
