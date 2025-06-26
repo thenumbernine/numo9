@@ -1158,6 +1158,7 @@ update=||do
 		if btnp'x' then
 			player:die()
 		end
+		--[[ cheat
 		if btn'a' then
 			if btnp'left' then
 				setLevel(level-1) loadLevelRequest=true
@@ -1169,6 +1170,7 @@ update=||do
 				--player.blendMode=((player.blendMode or 0)+1)%9
 			end
 		end
+		--]]
 	end
 	for _,o in ipairs(objs) do
 		if not o.removeMe then o:update() end
