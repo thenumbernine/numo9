@@ -431,16 +431,15 @@ do
 			or self.state=='live'
 			then
 				if self.blendMode then blend(self.blendMode) end
-				spr(self.blastRadius<<1,
-					16*self.posX-8,
-					16*self.posY-8,
-					2,
-					2,
+				spr(384+self.blastRadius,
+					16*self.posX-4,
+					16*self.posY-4,
+					1,
+					1,
 					nil,
 					nil,
 					nil,
 					nil
-					--,.5,.5
 				)
 				if self.blendMode then blend() end
 			end
@@ -890,16 +889,15 @@ do
 
 			if self.bombs>0 then
 				if self.blendMode then blend(self.blendMode) end
-				spr(self.bombs<<1,
-					16*self.posX-8,
-					16*self.posY-8,
-					2,
-					2,
+				spr(384+self.bombs,
+					16*self.posX-4,
+					16*self.posY-4,
+					1,
+					1,
 					nil,
 					nil,
 					nil,
 					nil
-					--,.5,.5
 				)
 				if self.blendMode then blend() end
 			end
