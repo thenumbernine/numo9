@@ -16,6 +16,15 @@ mapw,maph=10,10
 maxLevels=31
 levelstr='level ?'
 
+sfxid={
+	bomb_explode = 0,
+	collect_money = 1,
+	laser_shoot = 2,
+	step = 3,	-- and drop bomb
+	menuchange = 4,
+	getkey = 5,
+}
+
 EMPTY=0
 TREE=2
 BRICK=4
@@ -624,6 +633,7 @@ do
 				end
 			end
 
+			sfx(sfxid.bomb_explode)
 			self.state='exploding'
 			self.explodingDone=time()+self.explodingDuration
 		end,
@@ -654,6 +664,7 @@ do
 		hitObject=|:,what,pushDestX,pushDestY,side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
+				sfx(sfxid.collect_money)
 				what:die()
 				return 'stop'
 			end
@@ -794,6 +805,7 @@ do
 		dropBomb=|:|do
 			if self.dead then return end
 			if self.bombs <= 0 then return end
+			sfx(sfxid.step)
 			local bomb=Bomb(self)
 			bomb:setPos(self.destPosX,self.destPosY)
 			if bomb:moveIsBlocked_CheckEdge(self.destPosX,self.destPosY)
@@ -823,6 +835,10 @@ do
 			if not self.dead then
 				--if self.moveFracMoving then
 				local animstep = self.moveCmd~=dirs.none and time() % .5 > .25
+				if animstep ~= self.lastAnimStep then
+					sfx(sfxid.step)
+				end
+				self.lastAnimStep = animstep
 				if self.dir==dirs.up then
 					self.seq = animstep and seqs.playerStandUp2 or seqs.playerStandUp
 				elseif self.dir==dirs.left then
@@ -890,6 +906,7 @@ do
 			or linfDist(pushDestX,pushDestY,self.destPosX,self.destPosY) >= .5
 			then return end
 
+			sfx(sfxid.collect_money)
 			who:getMoney(self)
 			removeObj(self)
 			for _,o in ipairs(objs) do
@@ -925,6 +942,7 @@ do
 			then return end
 			self.changeLevelTime = time() + self.touchToEndLevelDuration
 
+			sfx(sfxid.getkey)
 			for _,o in ipairs(objs) do
 				if not o.removeMe then o:onKeyTouch() end
 			end
@@ -1095,8 +1113,10 @@ update=||do
 		end
 		if btnp'up' then
 			splashMenuY -= 1
+			sfx(sfxid.menuchange)
 		elseif btnp'down' then
 			splashMenuY += 1
+			sfx(sfxid.menuchange)
 		end
 		splashMenuY %= #saveinfos
 		text('>', x0 - sx - 3, (splashMenuY+1)*sy + y0)
@@ -1105,6 +1125,7 @@ update=||do
 		or btnp(6)
 		or btnp(7)
 		then
+			sfx(sfxid.getkey)
 			saveSlot = splashMenuY+1
 			local saveinfo = saveinfos[saveSlot]
 			level = math.max(0, saveinfo.level)
