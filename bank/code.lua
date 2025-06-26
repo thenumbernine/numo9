@@ -1,3 +1,10 @@
+-- title = Bank
+-- saveid = Bank
+-- author = Chris Moore
+-- description = Bank - collect all the money and get the key to escape!
+
+--#include ext/range.lua
+
 _G=getfenv(1)
 linfDist=|ax,ay,bx,by|do
 	return math.max(math.abs(ax-bx), math.abs(ay-by))
@@ -968,6 +975,8 @@ end
 
 setLevel=|level_|do
 	level=level_
+	saveinfos[saveSlot].level = level
+	saveState()
 	levelTileX=level%25
 	levelTileY=(level-levelTileX)/25*10
 	levelTileX*=10
@@ -1037,7 +1046,64 @@ loadLevel=||do
 	end
 end
 
+local numSaveFiles = 10
+-- read save info
+savefields = table{'level'}	-- saves byte values of these in 'saveinfos[saveSlot]'
+saveinfos = range(numSaveFiles):mapi(|i|do
+	return savefields:mapi(|name,fieldOFs|do
+		return peek(ramaddr'persistentCartridgeData' + #savefields * (i-1) + (fieldOFs-1)), name
+	end):setmetatable(nil)
+end)
+
+--local saveSlot	-- 1-based index corresponding to saveinfos[] index
+saveState=||do
+	for fieldOfs,name in ipairs(savefields) do
+		print('saving', saveSlot, fieldOfs, name)
+		poke(ramaddr'persistentCartridgeData' + #savefields * (saveSlot-1) + (fieldOfs-1), saveinfos[saveSlot]![name])
+	end
+end
+
+inSplash=true
+splashMenuY=0
+
+
 update=||do
+	if inSplash then
+		cls(0xf0)
+		matident()
+		-- splash screen
+		local x0,y0 = 24, 48
+		local x,y= x0,y0
+		local txt=|s|do text(s, x, y, 12, 16) y += 8 end
+		
+		txt'BANK'
+		for _,saveinfo in ipairs(saveinfos) do
+			txt('  '..(saveinfo.level==0 and 'New Game' or 'Level '..saveinfo.level))
+		end
+		if btnp'up' then
+			splashMenuY -= 1
+		elseif btnp'down' then
+			splashMenuY += 1
+		end
+		splashMenuY %= #saveinfos
+		text('>', x0 - 8, splashMenuY*8 + y0 + 8, 12, 16)
+		if btnp(4)
+		or btnp(5)
+		or btnp(6)
+		or btnp(7)
+		then
+			saveSlot = splashMenuY+1
+			local saveinfo = saveinfos[saveSlot]
+			level = math.max(0, saveinfo.level)
+			saveinfo.level = level
+			inSplash = false
+			
+			setLevel(level)	-- will save state
+			removeAll()
+			loadLevel()
+		end
+		return
+	end
 	if player then
 		if btn'up' then
 			player:move(dirs.up)
@@ -1119,6 +1185,6 @@ update=||do
 	end
 end
 
-setLevel(0)
-removeAll()
-if level>-1 then loadLevel() end
+--setLevel(0)
+--removeAll()
+--if level > -1 then loadLevel() end
