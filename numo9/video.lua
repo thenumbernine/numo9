@@ -2959,9 +2959,7 @@ function AppVideo:matident()
 end
 
 function AppVideo:mattrans(x,y,z)
---DEBUG:print('AppVideo:mattrans', x, y, z)
 	self.mvMat:applyTranslate(x, y, z)
---DEBUG:print('AppVideo:mattrans done')
 end
 
 function AppVideo:matrot(theta, x, y, z)
