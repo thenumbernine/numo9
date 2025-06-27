@@ -62,7 +62,7 @@ local maxPlayersTotal = numo9_keys.maxPlayersTotal
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
 local clipType = numo9_rom.clipType
-
+local mvMatType = numo9_rom.mvMatType
 
 -- TODO how about a net-string?
 -- pascal-string-encoded: length then data
@@ -106,27 +106,27 @@ end
 local maxPacketSize = 65536		-- how come right at this offset my RAM dump goes out of sync between client and server ...
 
 -- send and make sure you send everything, and error upon fail
-function send(conn, data)
---print('send', conn, '<<', data)
+local function send(conn, data)
+--DEBUG:print('send', conn, '<<', data)
 --local calls = 0
 	local i = 1
 	local n = #data
 	while true do
 		-- conn:send() successful response will be numberBytesSent, nil, nil, time
 		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
---print('send', conn, ' sending from '..i)
+--DEBUG:print('send', conn, ' sending from '..i)
 		local j = math.min(n, i + maxPacketSize-1)
 		-- If successful, the method returns the index of the last byte within [i, j] that has been sent. Notice that, if i is 1 or absent, this is effectively the total number of bytes sent. In
 		local successlen, reason, sentsofar, time = conn:send(data, i, j)
 --calls = calls + 1
---print('send', conn, '...', successlen, reason, sentsofar, time)
---print('send', conn, '...getstats()', conn:getstats())
+--DEBUG:print('send', conn, '...', successlen, reason, sentsofar, time)
+--DEBUG:print('send', conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
 			assert.ne(reason, 'wantwrite', 'socket.send failed')	-- will wantwrite get set only if res[1] is nil?
---print('send', conn, '...done sending')
+--DEBUG:print('send', conn, '...done sending')
 			i = successlen
 			if i == n then
---print('send took', calls,'calls')
+--DEBUG:print('send took', calls,'calls')
 				return successlen, reason, sentsofar, time
 			end
 			if i > n then
@@ -158,7 +158,7 @@ but maybe it's just slow? why would it be so slow to send half a MB through a lo
 --]]
 
 -- have the caller wait while we recieve a message
-function receive(conn, amount, waitduration)
+local function receive(conn, amount, waitduration)
 --if amount then print('receive waiting for', amount) end
 	local endtime = getTime() + (waitduration or math.huge)
 	local data
@@ -178,7 +178,7 @@ function receive(conn, amount, waitduration)
 --DEBUG:print('got', results:unpack())
 		data, reason = results:unpack()
 		if data and #data > 0 then
---print('got', #data, 'bytes')
+--DEBUG:print('got', #data, 'bytes')
 			if isnumber then
 				sofar = (sofar or '') .. data
 				bytesleft = bytesleft - #data
@@ -188,27 +188,31 @@ function receive(conn, amount, waitduration)
 					break
 				end
 				if bytesleft < 0 then error("how did we get here?") end
---print('...got packet of partial message')
+--DEBUG:print('...got packet of partial message')
 			else
 				-- no upper bound -- assume it's a line term
+--DEBUG:print("packet done")
 				break
 			end
 		else
 		--]]
---DEBUG:print('data len', type(data)=='string' and #data or nil)
+--DEBUG:print('data len', type(data)=='string' and #data or nil, 'reason', reason)
 			if reason == 'wantread' then
 --DEBUG:print('got wantread, calling select...')
 				socket.select(nil, {conn})
 --DEBUG:print('...done calling select')
 			else
 				if reason ~= 'timeout' then
+--DEBUG:print("reason isn't timeout ... returning failure+reason")
 					return nil, reason		-- error() ?
 				end
 				-- else continue
 				if getTime() > endtime then
+--DEBUG:print("time > endtime, failing with timeout")
 					return nil, 'timeout'
 				end
 			end
+--DEBUG:print("yielding and trying again...")
 			coroutine.yield()
 		end
 	until false
@@ -216,7 +220,7 @@ function receive(conn, amount, waitduration)
 	return data
 end
 
-function mustReceive(...)
+local function mustReceive(...)
 	local recv, reason = receive(...)
 	if not recv then error("Server waiting for handshake receive failed with error "..tostring(reason)) end
 	return recv
@@ -435,9 +439,9 @@ local Numo9Cmd_mattrans = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='x', type='float'},
-		{name='y', type='float'},
-		{name='z', type='float'},
+		{name='x', type=mvMatType},
+		{name='y', type=mvMatType},
+		{name='z', type=mvMatType},
 	},
 }
 
@@ -446,10 +450,10 @@ local Numo9Cmd_matrot = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='theta', type='float'},
-		{name='x', type='float'},
-		{name='y', type='float'},
-		{name='z', type='float'},
+		{name='theta', type=mvMatType},
+		{name='x', type=mvMatType},
+		{name='y', type=mvMatType},
+		{name='z', type=mvMatType},
 	},
 }
 
@@ -458,9 +462,9 @@ local Numo9Cmd_matscale = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='x', type='float'},
-		{name='y', type='float'},
-		{name='z', type='float'},
+		{name='x', type=mvMatType},
+		{name='y', type=mvMatType},
+		{name='z', type=mvMatType},
 	},
 }
 
@@ -469,12 +473,12 @@ local Numo9Cmd_matortho = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='l', type='float'},
-		{name='r', type='float'},
-		{name='t', type='float'},
-		{name='b', type='float'},
-		{name='n', type='float'},
-		{name='f', type='float'},
+		{name='l', type=mvMatType},
+		{name='r', type=mvMatType},
+		{name='t', type=mvMatType},
+		{name='b', type=mvMatType},
+		{name='n', type=mvMatType},
+		{name='f', type=mvMatType},
 	},
 }
 
@@ -483,12 +487,12 @@ local Numo9Cmd_matfrustum = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='l', type='float'},
-		{name='r', type='float'},
-		{name='t', type='float'},
-		{name='b', type='float'},
-		{name='n', type='float'},
-		{name='f', type='float'},
+		{name='l', type=mvMatType},
+		{name='r', type=mvMatType},
+		{name='t', type=mvMatType},
+		{name='b', type=mvMatType},
+		{name='n', type=mvMatType},
+		{name='f', type=mvMatType},
 	},
 }
 
@@ -497,15 +501,15 @@ local Numo9Cmd_matlookat = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='ex', type='float'},
-		{name='ey', type='float'},
-		{name='ez', type='float'},
-		{name='cx', type='float'},
-		{name='cy', type='float'},
-		{name='cz', type='float'},
-		{name='upx', type='float'},
-		{name='upy', type='float'},
-		{name='upz', type='float'},
+		{name='ex', type=mvMatType},
+		{name='ey', type=mvMatType},
+		{name='ez', type=mvMatType},
+		{name='cx', type=mvMatType},
+		{name='cy', type=mvMatType},
+		{name='cz', type=mvMatType},
+		{name='upx', type=mvMatType},
+		{name='upy', type=mvMatType},
+		{name='upz', type=mvMatType},
 	},
 }
 
@@ -709,8 +713,8 @@ self.sendsPerSecond = self.sendsPerSecond + 1
 				-- TODO - die and go back to connection screen ... wherever that will be
 			end
 		else
---print('server got data', data, reason)
---print('RECEIVING INPUT', string.hexdump(data))
+--DEBUG:print('server got data', data, reason)
+--DEBUG:print('RECEIVING INPUT', string.hexdump(data))
 self.receivesPerSecond = self.receivesPerSecond + 1
 
 			-- while we're here read inputs
@@ -879,7 +883,7 @@ print()
 			if prevFrameCmds.size ~= thisFrameCmds.size then
 				deltas:emplace_back()[0] = 0xfffd
 				deltas:emplace_back()[0] = thisFrameCmds.size
---print('resizing to', deltas:rbegin()[0])
+--DEBUG:print('resizing to', deltas:rbegin()[0])
 				prevFrameCmds:resize(thisFrameCmds.size)
 			end
 
@@ -1200,15 +1204,15 @@ print'begin client listen loop...'
 		while sock
 		and sock:getsockname()
 		do
---print'LISTENING...'
+--DEBUG:print'LISTENING...'
 --local receivedSize = 0
 			repeat
 				-- read our deltas 2 bytes at a time ...
 				data, reason = receive(sock, 4, 0)
---print('client got', data, reason)
+--DEBUG:print('client got', data, reason)
 				if data then
---print'CLIENT GOT DATA'
---print(string.hexdump(data, nil, 2))
+--DEBUG:print'CLIENT GOT DATA'
+--DEBUG:print(string.hexdump(data, nil, 2))
 					assert.len(data, 4)
 --receivedSize = receivedSize + 4
 					-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
@@ -1219,7 +1223,7 @@ print'begin client listen loop...'
 					if index == 0xfffd then
 						-- cmd buffer resize
 						if value ~= self.nextCmds.size then
---print('got cmdbuf resize to '..tostring(value))
+--DEBUG:print('got cmdbuf resize to '..tostring(value))
 							local oldsize = self.nextCmds.size
 							self.nextCmds:resize(value)
 							if self.nextCmds.size > oldsize then
@@ -1238,7 +1242,7 @@ print'begin client listen loop...'
 							break
 						end
 						local newsize = newcmdslen /  ffi.sizeof'Numo9Cmd'
---print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
+--DEBUG:print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 						self.cmds:resize(newsize)
 
 						local initCmds = receive(sock, newcmdslen, 10)
@@ -1262,7 +1266,7 @@ print'begin client listen loop...'
 						local ramStateCompressedSize = assert(tonumber(ffi.cast('uint32_t*', ffi.cast('char*', ramStateCompressedSizeStr))[0]))
 						local ramStateCompressed = assert(receive(sock, ramStateCompressedSize, 10))
 						local ramState = zlibUncompressLua(ramStateCompressed)
---print(string.hexdump(ramState))
+--DEBUG:print(string.hexdump(ramState))
 
 --DEBUG:require'ext.path''client_init.txt':write(string.hexdump(ramState))
 						-- and decode it
@@ -1283,6 +1287,9 @@ print'begin client listen loop...'
 						app.holdram = ffi.new('uint8_t[?]', app.memSize)
 						app.ram = ffi.cast('RAM&', app.holdram)
 						ffi.copy(app.ram, ramState, app.memSize)
+
+						-- every time .ram updates, this has to update as well:
+						app.mvMat.ptr = ffi.cast(mvMatType..'*', app.ram.mvMat)
 
 						app:resizeRAMGPUs()	-- resizes # of RAMGPU objects, sets them to their default address too
 						app:setVideoMode(app.ram.videoMode)
@@ -1317,7 +1324,7 @@ print'begin client listen loop...'
 						--app:resetVideo()
 						app.framebufferRAM.changedSinceDraw = true
 
-						--break	-- stop recv'ing and process data ... 
+						--break	-- stop recv'ing and process data ...
 						-- BAD idea, this slows the framerate down incredibly
 					else
 						local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
@@ -1354,9 +1361,10 @@ print('got uint16 index='
 
 			-- TODO send any input button changes ...
 			self.inputMsgVec:resize(0)
---print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3), 4)))
---print('PREV', string.hexdump(ffi.string(self.lastButtons, 4)))
+--DEBUG:print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3), 4)))
+--DEBUG:print('PREV', string.hexdump(ffi.string(self.lastButtons, 4)))
 			local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
+--DEBUG:print('delta compressing...')
 			deltaCompress(
 				self.lastButtons,
 				buttonPtr,
@@ -1365,23 +1373,24 @@ print('got uint16 index='
 			)
 			if self.inputMsgVec.size > 0 then
 				local data = self.inputMsgVec:dataToStr()
---print('SENDING INPUT', string.hexdump(data))
+--DEBUG:print('SENDING INPUT', string.hexdump(data))
 				send(sock, data)
 			end
+--DEBUG:print'saving last buttons...'
 			ffi.copy(self.lastButtons, buttonPtr, 4)
 
---[[
-io.write'recvcmds:'
-for i=0,self.nextCmds.size-1 do
-	io.write((' %02x'):format(self.nextCmds.v[i].type))
-end
-print()
---]]
+--DEBUG:io.write'recvcmds:'
+--DEBUG:for i=0,self.nextCmds.size-1 do
+--DEBUG:	io.write((' %02x'):format(self.nextCmds.v[i].type))
+--DEBUG:end
+--DEBUG:print()
 
 			-- now run through our command-buffer and execute its contents
+--DEBUG:print('executing net cmdbuf size', #self.cmds)
 			for i=0,self.cmds.size-1 do
 				local cmd = self.cmds.v + i
 				local cmdtype = cmd[0].type
+--DEBUG:print('executing cmd', cmdtype, netcmdNames[cmdtype])
 				if cmdtype == netcmds.refresh then
 					-- stop handling commands <-> refresh the screen
 					--break
@@ -1437,8 +1446,21 @@ print()
 				elseif cmdtype == netcmds.matident then
 					app:matident()
 				elseif cmdtype == netcmds.mattrans then
+--DEBUG:print('handling netcmd mattrans')
 					local c = cmd[0].mattrans
+--DEBUG:print('c', c)
+--DEBUG:print('c.x', c.x)
+--DEBUG:print('c.y', c.y)
+--DEBUG:print('c.z', c.z)
+--DEBUG:print('app', app)
+--DEBUG:print('app.mvMat.ctype', app.mvMat.ctype)
+--DEBUG:print('app.mvMat.ptr', app.mvMat.ptr)
+--DEBUG:for i=0,15 do
+--DEBUG:	print('mvMat['..i..'] = '..app.mvMat.ptr[i])
+--DEBUG:end
+--DEBUG:print('app.mvMat', app.mvMat)	-- why this crashing?
 					app:mattrans(c.x, c.y, c.z)
+--DEBUG:print('app:mattrans done')
 				elseif cmdtype == netcmds.matrot then
 					local c = cmd[0].matrot
 					app:matrot(c.theta, c.x, c.y, c.z)
@@ -1482,6 +1504,7 @@ print()
 				elseif cmdtype ~= 0 then
 					print("!!!WARNING!!! - got an unknown netcmd "..tostring(cmdtype))
 				end
+--DEBUG:print('...done handling netcmd')
 			end
 
 	--[[ clientlisten loop fps counter
@@ -1497,8 +1520,10 @@ print()
 			end
 	--]]
 
+--DEBUG:print('net cmd loop yield...')
 			coroutine.yield()
 		end
+--DEBUG:print('done interpreting netcmds.')
 	end, function(err)
 print('error in client listen loop', err..'\n'..debug.traceback())
 		return err..'\n'..debug.traceback()

@@ -654,7 +654,7 @@ function AppVideo:initVideo()
 			}
 		end
 	end
-	--[[ TODO 4bpp 
+	--[[ TODO 4bpp
 	-- but there's no GL formats for 4bpp ...
 	-- and I'd do separate 4bpp at a time to an 8bpp buffer
 	-- but it looks like GL got rid of its bitmasking features (did it?)
@@ -1051,11 +1051,11 @@ void main() {
 	*/
 #if 1	// dithering
 	uvec2 ufc = uvec2(gl_FragCoord);
-	
+
 	// 2x2 dither matrix, for the lower 2 bits that get discarded
 	// hmm TODO should I do dither discard bitflags?
 	uint threshold = (ufc.y & 1u) | (((ufc.x ^ ufc.y) & 1u) << 1u);	// 0-3
-	
+
 	if ((palColor.x & 3u) > threshold) palColor.x+=4u;
 	if ((palColor.y & 3u) > threshold) palColor.y+=4u;
 	if ((palColor.z & 3u) > threshold) palColor.z+=4u;
@@ -1316,8 +1316,8 @@ void main() {
 	}
 
 	uvec2 uFragCoord = uvec2(gl_FragCoord);
-	uint threshold = (uFragCoord.y >> 1) & 1 
-		| ((uFragCoord.x ^ uFragCoord.y) & 2) 
+	uint threshold = (uFragCoord.y >> 1) & 1
+		| ((uFragCoord.x ^ uFragCoord.y) & 2)
 		| ((uFragCoord.y & 1) << 2)
 		| (((uFragCoord.x ^ uFragCoord.y) & 1) << 3);
 	uint dither = extra.y;
@@ -2132,7 +2132,7 @@ function AppVideo:drawSolidRect(
 	paletteTex	-- override for gui - hack for menus to impose their palettes
 )
 	if not paletteTex
-	and self.paletteRAM.dirtyCPU 
+	and self.paletteRAM.dirtyCPU
 	then
 		self.triBuf:flush()
 		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
@@ -2959,7 +2959,9 @@ function AppVideo:matident()
 end
 
 function AppVideo:mattrans(x,y,z)
+--DEBUG:print('AppVideo:mattrans', x, y, z)
 	self.mvMat:applyTranslate(x, y, z)
+--DEBUG:print('AppVideo:mattrans done')
 end
 
 function AppVideo:matrot(theta, x, y, z)

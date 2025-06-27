@@ -58,12 +58,6 @@ function AppAudio:initAudio()
 		print('\tfreq', spec.freq)
 		print('\tformat', spec.format, ctypeForSDLAudioFormat[spec.format])
 		print('\tchannels', spec.channels)
-		print('\tsilence', spec.silence)
-		print('\tsamples', spec.samples)
-		print('\tpadding', spec.padding)
-		print('\tsize', spec.size)
-		print('\tcallback', spec.callback)
-		print('\tuserdata', spec.userdata)
 	end
 
 	local audio = {}
