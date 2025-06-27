@@ -107,26 +107,26 @@ local maxPacketSize = 65536		-- how come right at this offset my RAM dump goes o
 
 -- send and make sure you send everything, and error upon fail
 local function send(conn, data)
---DEBUG:print('send', conn, '<<', data)
---local calls = 0
+--DEBUG(@5):print('send', conn, '<<', data)
+--DEBUG(@5):local calls = 0
 	local i = 1
 	local n = #data
 	while true do
 		-- conn:send() successful response will be numberBytesSent, nil, nil, time
 		-- conn:send() failed response will be nil, 'wantwrite', numBytesSent, time
---DEBUG:print('send', conn, ' sending from '..i)
+--DEBUG(@5):print('send', conn, ' sending from '..i)
 		local j = math.min(n, i + maxPacketSize-1)
 		-- If successful, the method returns the index of the last byte within [i, j] that has been sent. Notice that, if i is 1 or absent, this is effectively the total number of bytes sent. In
 		local successlen, reason, sentsofar, time = conn:send(data, i, j)
---calls = calls + 1
---DEBUG:print('send', conn, '...', successlen, reason, sentsofar, time)
---DEBUG:print('send', conn, '...getstats()', conn:getstats())
+--DEBUG(@5):calls = calls + 1
+--DEBUG(@5):print('send', conn, '...', successlen, reason, sentsofar, time)
+--DEBUG(@5):print('send', conn, '...getstats()', conn:getstats())
 		if successlen ~= nil then
 			assert.ne(reason, 'wantwrite', 'socket.send failed')	-- will wantwrite get set only if res[1] is nil?
---DEBUG:print('send', conn, '...done sending')
+--DEBUG(@5):print('send', conn, '...done sending')
 			i = successlen
 			if i == n then
---DEBUG:print('send took', calls,'calls')
+--DEBUG(@5):print('send took', calls,'calls')
 				return successlen, reason, sentsofar, time
 			end
 			if i > n then
@@ -175,10 +175,10 @@ local function receive(conn, amount, waitduration)
 		local results = table.pack(conn:receive(
 			isnumber and math.min(bytesleft, maxPacketSize) or '*l'
 		))
---DEBUG:print('got', results:unpack())
+--DEBUG(@5):print('got', results:unpack())
 		data, reason = results:unpack()
 		if data and #data > 0 then
---DEBUG:print('got', #data, 'bytes')
+--DEBUG(@5):print('got', #data, 'bytes')
 			if isnumber then
 				sofar = (sofar or '') .. data
 				bytesleft = bytesleft - #data
@@ -188,31 +188,31 @@ local function receive(conn, amount, waitduration)
 					break
 				end
 				if bytesleft < 0 then error("how did we get here?") end
---DEBUG:print('...got packet of partial message')
+--DEBUG(@5):print('...got packet of partial message')
 			else
 				-- no upper bound -- assume it's a line term
---DEBUG:print("packet done")
+--DEBUG(@5):print("packet done")
 				break
 			end
 		else
 		--]]
---DEBUG:print('data len', type(data)=='string' and #data or nil, 'reason', reason)
+--DEBUG(@5):print('data len', type(data)=='string' and #data or nil, 'reason', reason)
 			if reason == 'wantread' then
---DEBUG:print('got wantread, calling select...')
+--DEBUG(@5):print('got wantread, calling select...')
 				socket.select(nil, {conn})
---DEBUG:print('...done calling select')
+--DEBUG(@5):print('...done calling select')
 			else
 				if reason ~= 'timeout' then
---DEBUG:print("reason isn't timeout ... returning failure+reason")
+--DEBUG(@5):print("reason isn't timeout ... returning failure+reason")
 					return nil, reason		-- error() ?
 				end
 				-- else continue
 				if getTime() > endtime then
---DEBUG:print("time > endtime, failing with timeout")
+--DEBUG(@5):print("time > endtime, failing with timeout")
 					return nil, 'timeout'
 				end
 			end
---DEBUG:print("yielding and trying again...")
+--DEBUG(@5):print("yielding and trying again...")
 			coroutine.yield()
 		end
 	until false
@@ -1204,15 +1204,15 @@ print'begin client listen loop...'
 		while sock
 		and sock:getsockname()
 		do
---DEBUG:print'LISTENING...'
+--DEBUG(@5):print'LISTENING...'
 --local receivedSize = 0
 			repeat
 				-- read our deltas 2 bytes at a time ...
 				data, reason = receive(sock, 4, 0)
---DEBUG:print('client got', data, reason)
+--DEBUG(@5):print('client got', data, reason)
 				if data then
---DEBUG:print'CLIENT GOT DATA'
---DEBUG:print(string.hexdump(data, nil, 2))
+--DEBUG(@5):print'CLIENT GOT DATA'
+--DEBUG(@5):print(string.hexdump(data, nil, 2))
 					assert.len(data, 4)
 --receivedSize = receivedSize + 4
 					-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
@@ -1223,7 +1223,7 @@ print'begin client listen loop...'
 					if index == 0xfffd then
 						-- cmd buffer resize
 						if value ~= self.nextCmds.size then
---DEBUG:print('got cmdbuf resize to '..tostring(value))
+--DEBUG(@5):print('got cmdbuf resize to '..tostring(value))
 							local oldsize = self.nextCmds.size
 							self.nextCmds:resize(value)
 							if self.nextCmds.size > oldsize then
@@ -1242,7 +1242,7 @@ print'begin client listen loop...'
 							break
 						end
 						local newsize = newcmdslen /  ffi.sizeof'Numo9Cmd'
---DEBUG:print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
+--DEBUG(@5):print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 						self.cmds:resize(newsize)
 
 						local initCmds = receive(sock, newcmdslen, 10)
@@ -1266,9 +1266,9 @@ print'begin client listen loop...'
 						local ramStateCompressedSize = assert(tonumber(ffi.cast('uint32_t*', ffi.cast('char*', ramStateCompressedSizeStr))[0]))
 						local ramStateCompressed = assert(receive(sock, ramStateCompressedSize, 10))
 						local ramState = zlibUncompressLua(ramStateCompressed)
---DEBUG:print(string.hexdump(ramState))
+--DEBUG(@5):print(string.hexdump(ramState))
 
---DEBUG:require'ext.path''client_init.txt':write(string.hexdump(ramState))
+--DEBUG(@5):require'ext.path''client_init.txt':write(string.hexdump(ramState))
 						-- and decode it
 						local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))
 
@@ -1278,10 +1278,10 @@ print'begin client listen loop...'
 						app:allRAMRegionsCheckDirtyCPU()
 
 						local newMemSize = #ramState
---DEBUG:print('newMemSize', newMemSize)
+--DEBUG(@5):print('newMemSize', newMemSize)
 						local newNumBanks = math.ceil((newMemSize - ffi.sizeof'RAM') / ffi.sizeof'ROM') + 1
---DEBUG:print('newNumBanks fraction', (newMemSize - ffi.sizeof'RAM') / ffi.sizeof'ROM' + 1)
---DEBUG:print('newNumBanks', newNumBanks)
+--DEBUG(@5):print('newNumBanks fraction', (newMemSize - ffi.sizeof'RAM') / ffi.sizeof'ROM' + 1)
+--DEBUG(@5):print('newNumBanks', newNumBanks)
 						app.banks:resize(newNumBanks)	-- hmm but idk that I use this in netplay...
 						app.memSize = newMemSize
 						app.holdram = ffi.new('uint8_t[?]', app.memSize)
@@ -1361,10 +1361,10 @@ print('got uint16 index='
 
 			-- TODO send any input button changes ...
 			self.inputMsgVec:resize(0)
---DEBUG:print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3), 4)))
---DEBUG:print('PREV', string.hexdump(ffi.string(self.lastButtons, 4)))
+--DEBUG(@5):print('KEYS', string.hexdump(ffi.string(app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3), 4)))
+--DEBUG(@5):print('PREV', string.hexdump(ffi.string(self.lastButtons, 4)))
 			local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
---DEBUG:print('delta compressing...')
+--DEBUG(@5):print('delta compressing...')
 			deltaCompress(
 				self.lastButtons,
 				buttonPtr,
@@ -1373,24 +1373,24 @@ print('got uint16 index='
 			)
 			if self.inputMsgVec.size > 0 then
 				local data = self.inputMsgVec:dataToStr()
---DEBUG:print('SENDING INPUT', string.hexdump(data))
+--DEBUG(@5):print('SENDING INPUT', string.hexdump(data))
 				send(sock, data)
 			end
---DEBUG:print'saving last buttons...'
+--DEBUG(@5):print'saving last buttons...'
 			ffi.copy(self.lastButtons, buttonPtr, 4)
 
---DEBUG:io.write'recvcmds:'
---DEBUG:for i=0,self.nextCmds.size-1 do
---DEBUG:	io.write((' %02x'):format(self.nextCmds.v[i].type))
---DEBUG:end
---DEBUG:print()
+--DEBUG(@5):io.write'recvcmds:'
+--DEBUG(@5):for i=0,self.nextCmds.size-1 do
+--DEBUG(@5):	io.write((' %02x'):format(self.nextCmds.v[i].type))
+--DEBUG(@5):end
+--DEBUG(@5):print()
 
 			-- now run through our command-buffer and execute its contents
---DEBUG:print('executing net cmdbuf size', #self.cmds)
+--DEBUG(@5):print('executing net cmdbuf size', #self.cmds)
 			for i=0,self.cmds.size-1 do
 				local cmd = self.cmds.v + i
 				local cmdtype = cmd[0].type
---DEBUG:print('executing cmd', cmdtype, netcmdNames[cmdtype])
+--DEBUG(@5):print('executing cmd', cmdtype, netcmdNames[cmdtype])
 				if cmdtype == netcmds.refresh then
 					-- stop handling commands <-> refresh the screen
 					--break
@@ -1447,21 +1447,8 @@ print('got uint16 index='
 				elseif cmdtype == netcmds.matident then
 					app:matident()
 				elseif cmdtype == netcmds.mattrans then
---DEBUG:print('handling netcmd mattrans')
 					local c = cmd[0].mattrans
---DEBUG:print('c', c)
---DEBUG:print('c.x', c.x)
---DEBUG:print('c.y', c.y)
---DEBUG:print('c.z', c.z)
---DEBUG:print('app', app)
---DEBUG:print('app.mvMat.ctype', app.mvMat.ctype)
---DEBUG:print('app.mvMat.ptr', app.mvMat.ptr)
---DEBUG:for i=0,15 do
---DEBUG:	print('mvMat['..i..'] = '..app.mvMat.ptr[i])
---DEBUG:end
---DEBUG:print('app.mvMat', app.mvMat)	-- why this crashing?
 					app:mattrans(c.x, c.y, c.z)
---DEBUG:print('app:mattrans done')
 				elseif cmdtype == netcmds.matrot then
 					local c = cmd[0].matrot
 					app:matrot(c.theta, c.x, c.y, c.z)
@@ -1485,12 +1472,15 @@ print('got uint16 index='
 					app:playMusic(c.musicID, c.musicPlayingIndex, c.channelOffset)
 				elseif cmdtype == netcmds.poke then
 					local c = cmd[0].poke
+--DEBUG:print('netcmd poke '..('$%04x'):format(c.addr), ('$%02x'):format(c.value))
 					app:poke(c.addr, c.value)
 				elseif cmdtype == netcmds.pokew then
 					local c = cmd[0].pokew
+--DEBUG:print('netcmd pokew '..('$%04x'):format(c.addr), ('$%04x'):format(c.value))
 					app:pokew(c.addr, c.value)
 				elseif cmdtype == netcmds.pokel then
 					local c = cmd[0].pokel
+--DEBUG:print('netcmd pokel '..('$%04x'):format(c.addr), ('$%08x'):format(c.value))
 					app:pokel(c.addr, c.value)
 				elseif cmdtype == netcmds.memcpy then
 					local c = cmd[0].memcpy
@@ -1505,7 +1495,7 @@ print('got uint16 index='
 				elseif cmdtype ~= 0 then
 					print("!!!WARNING!!! - got an unknown netcmd "..tostring(cmdtype))
 				end
---DEBUG:print('...done handling netcmd')
+--DEBUG(@5):print('...done handling netcmd')
 			end
 
 	--[[ clientlisten loop fps counter
@@ -1521,10 +1511,10 @@ print('got uint16 index='
 			end
 	--]]
 
---DEBUG:print('net cmd loop yield...')
+--DEBUG(@5):print('net cmd loop yield...')
 			coroutine.yield()
 		end
---DEBUG:print('done interpreting netcmds.')
+--DEBUG(@5):print('done interpreting netcmds.')
 	end, function(err)
 print('error in client listen loop', err..'\n'..debug.traceback())
 		return err..'\n'..debug.traceback()
