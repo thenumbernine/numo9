@@ -1439,7 +1439,8 @@ print('got uint16 index='
 					app:drawText(
 						ffi.string(c.text, math.min(ffi.sizeof(c.text), tonumber(ffi.C.strlen(c.text)))),
 						c.x, c.y,
-						c.fgColorIndex, c.bgColorIndex)
+						c.fgColorIndex, c.bgColorIndex,
+						c.scaleX, c.scaleY)
 				elseif cmdtype == netcmds.blendMode then
 					local c = cmd[0].blendMode
 					app:setBlendMode(c.blendMode)
