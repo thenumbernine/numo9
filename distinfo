@@ -105,14 +105,14 @@ luajitLibs = {
 	[1] = {
 		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
 		--'zlib',	-- or is it static linked into png already?
-		'SDL2',
+		'SDL3',
 		'clip',
 		'ssl',
 	},
 	Windows = {
 		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
 		--'zlib',	-- or is it static linked into png already?
-		'SDL2',
+		'SDL3',
 		'clip',
 		'ssl',
 		-- TODO this needs better organizing
