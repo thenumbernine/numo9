@@ -43,7 +43,7 @@ drawMapBorder=||do
 end
 --]]
 
-maxLevels=31
+maxLevels = 25 * 25
 levelstr='level ?'
 
 sfxid={

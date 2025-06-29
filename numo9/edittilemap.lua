@@ -136,7 +136,7 @@ function EditTilemap:update()
 		pan(-128 / self.scale, -128 / self.scale)
 	else
 		pan(
-			bit.lshift(spriteSize.x, draw16As0or1) * app.ram.mouseWheel.x,
+			-bit.lshift(spriteSize.x, draw16As0or1) * app.ram.mouseWheel.x,
 			-bit.lshift(spriteSize.y, draw16As0or1) * app.ram.mouseWheel.y
 		)
 	end
