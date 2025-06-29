@@ -80,13 +80,28 @@ TREE=2
 BRICK=4
 STONE=6
 WATER=8
-
+ARROW_RIGHT=20
+ARROW_DOWN=22
+ARROW_LEFT=24
+ARROW_UP=26
+MOVING_RIGHT=84
+MOVING_DOWN=86
+MOVING_LEFT=88
+MOVING_UP=90
 mapType={
 	[EMPTY]={},
 	[TREE]={cannotPassThru=true,drawGroundUnder=true},
 	[BRICK]={cannotPassThru=true,blocksGunShot=true,blocksExplosion=true,bombable=true},
 	[STONE]={cannotPassThru=true,blocksGunShot=true,blocksExplosion=true},
 	[WATER]={cannotPassThru=true},
+	[ARROW_RIGHT]={},
+	[ARROW_DOWN]={},
+	[ARROW_LEFT]={},
+	[ARROW_UP]={},
+	[MOVING_RIGHT]={},
+	[MOVING_DOWN]={},
+	[MOVING_LEFT]={},
+	[MOVING_UP]={},
 }
 
 dirs={none=-1,down=0,left=1,right=2,up=3}
@@ -903,6 +918,25 @@ do
 			self.moveCmd=dirs.none
 		end,
 		update=|:|do
+			if not self.dead then
+				if (time() * 60) % 30 == 0 then
+					local typeUL=mapGet(self.destPosX - .25, self.destPosY - .25)
+					local typeUR=mapGet(self.destPosX + .25, self.destPosY - .25)
+					local typeLL=mapGet(self.destPosX - .25, self.destPosY + .25)
+					local typeLR=mapGet(self.destPosX + .25, self.destPosY + .25)
+					-- TODO merge this move and btn move so we dont double move in one update ... or not?
+					-- TODO :move but withotu changing animation direction ...
+					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
+						self:move(dirs.right)
+					elseif typeUL == MOVING_DOWN and typeUR == MOVING_DOWN then
+						self:move(dirs.down)
+					elseif typeUR == MOVING_LEFT and typeLR == MOVING_LEFT then
+						self:move(dirs.left)
+					elseif typeLL == MOVING_UP and typeLR == MOVING_UP then
+						self:move(dirs.up)
+					end
+				end
+			end
 			if self.moveCmd~=dirs.none then self.dir=self.moveCmd end
 			super.update(self)
 			if not self.dead then
@@ -1098,6 +1132,14 @@ loadLevel=||do
 			or m==BRICK
 			or m==STONE
 			or m==WATER
+			or m==ARROW_RIGHT
+			or m==ARROW_DOWN
+			or m==ARROW_LEFT
+			or m==ARROW_UP
+			or m==MOVING_RIGHT
+			or m==MOVING_DOWN
+			or m==MOVING_LEFT
+			or m==MOVING_UP
 			then
 				-- map type
 			else
