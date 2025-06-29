@@ -1561,6 +1561,8 @@ end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function App:update()
+	if not self.hasFocus then return end
+
 	-- will this hurt performance?
 	if self.activeMenu then
 		sdl.SDL_ShowCursor()
@@ -2895,7 +2897,11 @@ function App:mouse()
 end
 
 function App:event(e)
-	if e[0].type == sdl.SDL_EVENT_KEY_UP
+	if e[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_GAINED then
+		self.hasFocus = true
+	elseif e[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_LOST then
+		self.hasFocus = false
+	elseif e[0].type == sdl.SDL_EVENT_KEY_UP
 	or e[0].type == sdl.SDL_EVENT_KEY_DOWN
 	then
 		local didHandleEvent = self.waitingForEvent
