@@ -13,6 +13,36 @@ end
 
 dt=1/60
 mapw,maph=10,10
+
+mapBorderTileX, mapBorderTileY, mapBorderTileW, mapBorderTileH = 10, 20, mapw + 2, maph + 3
+-- [[ dynamically drawing the border
+-- TODO this is what the Brush menu is supposed to be.
+-- TODO to finish the Brush menu you might as well switch the ROM file format to a FAT based one to have dynamic-sizes.
+drawMapBorder=||do
+	-- upper left
+	spr(1024+192, 0, 0, 4, 4)
+	-- upper right
+	spr(1024+192, 12<<4, 0, 2, 4, nil, nil, nil, nil, -1, 1)
+	-- upper
+	for x=2,10 do
+		spr(1024+196, x<<4, 0, 2, 4)
+	end
+	-- left & right
+	for y=2,11 do
+		spr(1024+256, 0, y<<4, 2, 2)
+		spr(1024+256, 12<<4, y<<4, 2, 2, nil, nil, nil, nil, -1, 1)
+	end
+	-- bottom left
+	spr(1024+320, 0, 12<<4, 2, 2)
+	-- bottom right
+	spr(1024+320, 12<<4, 12<<4, 2, 2, nil, nil, nil, nil, -1, 1)
+	-- lower
+	for x=1,10 do
+		spr(1024+322, x<<4, 12<<4, 2, 2)
+	end
+end
+--]]
+
 maxLevels=31
 levelstr='level ?'
 
@@ -83,7 +113,30 @@ removeAll=||do
 	addList=table()
 end
 
---#include ext/class.lua
+----------------------- BEGIN ext/class.lua-----------------------
+local isa=|cl,o|o.isaSet[cl]
+local classmeta = {__call=|cl,...|do
+	local o=setmetatable({},cl)
+	return o, o?:init(...)
+end}
+local class
+class=|...|do
+	local t=table(...)
+	t.super=...
+	--t.supers=table{...}
+	t.__index=t
+	t.subclass=class
+	t.isaSet=table(table{...}
+		:mapi(|cl|cl.isaSet)
+		:unpack()
+	):setmetatable(nil)
+	t.isaSet[t]=true
+	t.isa=isa
+	setmetatable(t,classmeta)
+	return t
+end
+
+----------------------- END ext/class.lua  -----------------------
 classmeta.__index=_G	-- obj __index looks in its class, if not there then looks into global.  This line is needed for :: setfenv(1,self) use.
 
 BaseObj=class{
@@ -1092,11 +1145,13 @@ splashMenuY=0
 update=||do
 	if inSplash then
 		cls(0xf0)
+
 		matident()
 		mattrans(32, 32)
-		map(10,20,mapw+2,maph+3,0,0,0,true)
+		drawMapBorder()
 		mattrans(16, 32)
 		map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
+
 		matident()
 		pokew(ramaddr'blendColor', 0x8000)
 		blend(5)
@@ -1108,7 +1163,7 @@ update=||do
 		local x0,y0 = 24, 48
 		local x,y= x0,y0
 		local txt=|t|do text(t, x, y, nil, nil, s, s) y += sy end
-		
+
 		txt'BANK'
 		for _,saveinfo in ipairs(saveinfos) do
 			txt('  '..(saveinfo.level==0 and 'New Game' or 'Level '..saveinfo.level))
@@ -1133,7 +1188,7 @@ update=||do
 			level = math.max(0, saveinfo.level)
 			saveinfo.level = level
 			inSplash = false
-			
+
 			setLevel(level)	-- will save state
 			removeAll()
 			loadLevel()
@@ -1158,7 +1213,7 @@ update=||do
 		if btnp'x' then
 			player:die()
 		end
-		--[[ cheat
+		-- [[ cheat
 		if btn'a' then
 			if btnp'left' then
 				setLevel(level-1) loadLevelRequest=true
@@ -1207,13 +1262,13 @@ update=||do
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
 	end
 
-	mattrans(32, 32)
-
 	-- draw the map border
+	mattrans(32, 32)
+	drawMapBorder()
 
-	-- draw ground first
+	-- draw ground first?
 	--map(0,20,mapw,maph,0,0,0,true)
-	map(10,20,mapw+2,maph+3,0,0,0,true)
+
 	mattrans(16, 32)
 	-- then draw map
 	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
