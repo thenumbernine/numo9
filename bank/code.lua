@@ -4,7 +4,20 @@
 -- description = Bank - collect all the money and get the key to escape!
 mode(0)
 
---#include ext/range.lua
+----------------------- BEGIN ext/range.lua-----------------------
+local range=|a,b,c|do
+	local t = table()
+	if c then
+		for x=a,b,c do t:insert(x) end
+	elseif b then
+		for x=a,b do t:insert(x) end
+	else
+		for x=1,a do t:insert(x) end
+	end
+	return t
+end
+
+----------------------- END ext/range.lua  -----------------------
 
 _G=getfenv(1)
 linfDist=|ax,ay,bx,by|do
@@ -19,6 +32,12 @@ mapBorderTileX, mapBorderTileY, mapBorderTileW, mapBorderTileH = 10, 20, mapw + 
 -- TODO this is what the Brush menu is supposed to be.
 -- TODO to finish the Brush menu you might as well switch the ROM file format to a FAT based one to have dynamic-sizes.
 drawMapBorder=||do
+	-- middle
+	for x=1,11 do
+		for y=1,11 do
+			spr(1024, x<<4, y<<4, 2, 2)
+		end
+	end
 	-- upper left
 	spr(1024+192, 0, 0, 4, 4)
 	-- upper right
@@ -715,7 +734,7 @@ do
 			self.seq=-1	--invis
 			sfx(sfxid.laser_shoot)
 		end,
-		cannotPassThru=|:,maptype|mapType[maptype].blocksGunShot,
+		cannotPassThru=|:,maptype|mapType![maptype].blocksGunShot,
 		hitObject=|:,what,pushDestX,pushDestY,side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
@@ -1216,11 +1235,11 @@ update=||do
 		-- [[ cheat
 		if btn'a' then
 			if btnp'left' then
-				setLevel(level-1) loadLevelRequest=true
+				setLevel(level-1) removeAll() loadLevel() return
 				--player.blendMode=((player.blendMode or 0)-1)%9
 			end
 			if btnp'right' then
-				setLevel(level+1) loadLevelRequest=true
+				setLevel(level+1) removeAll() loadLevel() return
 				--pokew(0x080a46, 0x801f)	-- set blend color to white
 				--player.blendMode=((player.blendMode or 0)+1)%9
 			end
