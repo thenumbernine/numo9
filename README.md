@@ -651,7 +651,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 # Things I'm still debating ...
 - Merge 'spriteSheet' and 'tileSheet' into just one... maybe.
-- Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out to be buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
+- Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out libpng's memeory pathway is buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is RIGHT DOWN LEFT UP A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
 - What's a good default keyboard configuration?  I'm going with Snes9x's.
@@ -661,7 +661,10 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.
 - The reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ... this and multicart/bank and sync() function ...
 - ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.
-	In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
+	- In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
+	- This fits with the new Brush tab, it will be variable-sized too...
+- If I make the audio data arbitrary ... and if I'm already growing banks to accomodate for oversized code ... then how far away am I from just giving every ROM a FAT into each section / multiple sections, and each section its own size?
+	Then from there I could order sprites linearly in memory, i.e. each 8x8xbpp bytes in memory is a new 8x8 sprite, and just give them a max size of 256x256 for the sake of GPU uploads... tempting....
 - If I'm going to continue with the SNES theme then I'm going to need a lot more than 64k for storing all audio.
 	SNES just had 64k of ARAM active at a time, but for allll samples, often it could get into the MBs ...
 	What if I just had arbitrary banks, and in the editor you pick what you want to use them for ... code | sprite/tile sheets | tilemaps | audio | etc
