@@ -334,6 +334,26 @@ do
 			return 'did move'
 		end,
 		update=|:|do
+			if not self.dead then
+				if (time() * 60) % 30 == 0 then
+					local typeUL=mapGet(self.destPosX - .25, self.destPosY - .25)
+					local typeUR=mapGet(self.destPosX + .25, self.destPosY - .25)
+					local typeLL=mapGet(self.destPosX - .25, self.destPosY + .25)
+					local typeLR=mapGet(self.destPosX + .25, self.destPosY + .25)
+					-- TODO merge this move and btn move so we dont double move in one update ... or not?
+					-- TODO :move but withotu changing animation direction ...
+					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
+						self:checkMoveCmd(dirs.right)
+					elseif typeUL == MOVING_DOWN and typeUR == MOVING_DOWN then
+						self:checkMoveCmd(dirs.down)
+					elseif typeUR == MOVING_LEFT and typeLR == MOVING_LEFT then
+						self:checkMoveCmd(dirs.left)
+					elseif typeLL == MOVING_UP and typeLR == MOVING_UP then
+						self:checkMoveCmd(dirs.up)
+					end
+				end
+			end
+
 			super.update(self)
 			if self.moveFracMoving then
 				self.moveFrac+=dt*self.speed
@@ -356,8 +376,11 @@ do
 				end
 			end
 
+			self:checkMoveCmd(self.moveCmd)
+		end,
+		checkMoveCmd=|:,moveCmd|do
 			if not self.moveFracMoving then
-				self.lastMoveResponse=self:doMove(self.moveCmd)
+				self.lastMoveResponse=self:doMove(moveCmd)
 			else
 				self.lastMoveResponse='no move'
 			end
@@ -918,25 +941,6 @@ do
 			self.moveCmd=dirs.none
 		end,
 		update=|:|do
-			if not self.dead then
-				if (time() * 60) % 30 == 0 then
-					local typeUL=mapGet(self.destPosX - .25, self.destPosY - .25)
-					local typeUR=mapGet(self.destPosX + .25, self.destPosY - .25)
-					local typeLL=mapGet(self.destPosX - .25, self.destPosY + .25)
-					local typeLR=mapGet(self.destPosX + .25, self.destPosY + .25)
-					-- TODO merge this move and btn move so we dont double move in one update ... or not?
-					-- TODO :move but withotu changing animation direction ...
-					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
-						self:move(dirs.right)
-					elseif typeUL == MOVING_DOWN and typeUR == MOVING_DOWN then
-						self:move(dirs.down)
-					elseif typeUR == MOVING_LEFT and typeLR == MOVING_LEFT then
-						self:move(dirs.left)
-					elseif typeLL == MOVING_UP and typeLR == MOVING_UP then
-						self:move(dirs.up)
-					end
-				end
-			end
 			if self.moveCmd~=dirs.none then self.dir=self.moveCmd end
 			super.update(self)
 			if not self.dead then
@@ -1221,11 +1225,16 @@ update=||do
 		-- splash screen
 		local s = 2
 		local sx, sy = s*5, s*8
-		local x0,y0 = 24, 48
+		local x0,y0 = 128-30*s, 64
 		local x,y= x0,y0
 		local txt=|t|do text(t, x, y, nil, nil, s, s) y += sy end
 
-		txt'BANK'
+		splashSpriteX = (((splashSpriteX or 0) + 1) % (256+32))
+		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2, splashSpriteX - 16, 24, 2, 2, nil, nil, nil, nil, -1, 1)
+		spr(seqs.bombLit, splashSpriteX - 16, 24, 2, 2)
+
+		lastTitleWidth = text('BANK', 128-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
+
 		for _,saveinfo in ipairs(saveinfos) do
 			txt('  '..(saveinfo.level==0 and 'New Game' or 'Level '..saveinfo.level))
 		end
@@ -1237,7 +1246,7 @@ update=||do
 			sfx(sfxid.menuchange)
 		end
 		splashMenuY %= #saveinfos
-		text('>', x0 - sx - 3, (splashMenuY+1)*sy + y0)
+		text('>', x0, splashMenuY*sy + y0, nil, nil, s, s)
 		if btnp(4)
 		or btnp(5)
 		or btnp(6)
