@@ -34,17 +34,17 @@ mapBorderTileX, mapBorderTileY, mapBorderTileW, mapBorderTileH = 10, 20, mapw + 
 drawMapBorder=||do
 	-- middle
 	for x=1,11 do
-		for y=1,11 do
+		for y=2,11 do
 			spr(1024, x<<4, y<<4, 2, 2)
 		end
 	end
 	-- upper left
-	spr(1024+192, 0, 0, 4, 4)
+	spr(1024+192, 0, 8, 4, 4)
 	-- upper right
-	spr(1024+192, 12<<4, 0, 2, 4, nil, nil, nil, nil, -1, 1)
+	spr(1024+192, 12<<4, 8, 2, 4, nil, nil, nil, nil, -1, 1)
 	-- upper
 	for x=2,10 do
-		spr(1024+196, x<<4, 0, 2, 4)
+		spr(1024+196, x<<4, 8, 2, 4)
 	end
 	-- left & right
 	for y=2,11 do
