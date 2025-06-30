@@ -62,6 +62,37 @@ drawMapBorder=||do
 end
 --]]
 
+--[[ using map() function, which doesnt support animiations yet ... TODO
+drawMap=||
+	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
+--]]
+-- [[ manually for animation
+drawMap=||do
+	for y=0,maph-1 do
+		for x=0,mapw-1 do
+			local tileIndex = mget(levelTileX+x, levelTileY+y)
+			if tileIndex == WATER then
+				local waterAbove = y > 0 
+					and mget(levelTileX+x, levelTileY+y-1) == WATER
+				if waterAbove then
+					tileIndex = WATER_ANIM_1
+				else
+					tileIndex = WATER_BANK_ANIM_1
+				end
+				if math.floor(time()) & 1 == 1 then tileIndex += 2 end
+			end
+			spr(
+				1024|tileIndex,
+				x<<4,
+				y<<4,
+				2,
+				2
+			)
+		end
+	end
+end
+--]]
+
 maxLevels = 25 * 25
 levelstr='level ?'
 
@@ -88,6 +119,13 @@ MOVING_RIGHT=84
 MOVING_DOWN=86
 MOVING_LEFT=88
 MOVING_UP=90
+-- used for rendering but not for storage in map
+-- TODO if someone does write this to a map, should the loadLevel() rewrite it as WATER?
+WATER_BANK_ANIM_1 = 198
+WATER_BANK_ANIM_2 = WATER_BANK_ANIM_1 + 2
+WATER_ANIM_1 = WATER_BANK_ANIM_1 + 32*2
+WATER_ANIM_2 = WATER_ANIM_1 + 2
+
 mapType={
 	[EMPTY]={},
 	[TREE]={cannotPassThru=true,drawGroundUnder=true},
@@ -1211,7 +1249,6 @@ end)
 --local saveSlot	-- 1-based index corresponding to saveinfos[] index
 saveState=||do
 	for fieldOfs,name in ipairs(savefields) do
-		print('saving', saveSlot, fieldOfs, name)
 		poke(ramaddr'persistentCartridgeData' + #savefields * (saveSlot-1) + (fieldOfs-1), saveinfos[saveSlot]![name])
 	end
 end
@@ -1228,7 +1265,7 @@ update=||do
 		mattrans(32, 32)
 		drawMapBorder()
 		mattrans(16, 32)
-		map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
+		drawMap()
 
 		matident()
 		pokew(ramaddr'blendColor', 0x8000)
@@ -1351,12 +1388,10 @@ update=||do
 	mattrans(32, 32)
 	drawMapBorder()
 
-	-- draw ground first?
-	--map(0,20,mapw,maph,0,0,0,true)
-
 	mattrans(16, 32)
-	-- then draw map
-	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
+	
+	-- draw map
+	drawMap()
 
 	for _,o in ipairs(objs) do
 		o:drawSprite()
