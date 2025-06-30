@@ -221,11 +221,16 @@ BaseObj=class{
 	isBlockingSentry=|::|isBlocking,
 	hitEdge=|::,whereX,whereY|true,
 	cannotPassThru=|::,maptype|mapType[maptype]?.cannotPassThru,
-	hitWorld=|::,whereX,whereY,typeUL,typeUR,typeLL,typeLR|
-		self:cannotPassThru(typeUL)
+	hitWorld=|::, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR| do
+		if cmd == dirs.left and whereX % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
+		if cmd == dirs.up and whereY % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
+		if cmd == dirs.right and whereX % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
+		if cmd == dirs.down and whereY % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
+		return self:cannotPassThru(typeUL)
 			or self:cannotPassThru(typeUR)
 			or self:cannotPassThru(typeLL)
-			or self:cannotPassThru(typeLR),
+			or self:cannotPassThru(typeLR)
+	end,
 	hitObject=|::,what,pushDestX,pushDestY,side|'test object',
 	startPush=|::,pusher,pushDestX,pushDestY,side|isBlocking,
 	endPush=|::,who,pushDestX,pushDestY|nil,
@@ -246,16 +251,16 @@ do
 			self.moveFracMoving=false
 			self.moveFrac=0
 		end,
-		moveIsBlocked_CheckHitWorld=|:,whereX,whereY|do
+		moveIsBlocked_CheckHitWorld=|:,cmd,whereX,whereY|do
 			return self:hitWorld(
-				whereX,whereY,
+				cmd, whereX, whereY,
 				mapGet(whereX-.25,whereY-.25),
 				mapGet(whereX+.25,whereY-.25),
 				mapGet(whereX-.25,whereY+.25),
 				mapGet(whereX+.25,whereY+.25)
 			)
 		end,
-		hitWorld=|:,whereX,whereY,typeUL,typeUR,typeLL,typeLR|do
+		hitWorld=|:, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR|do
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o~=self
@@ -276,7 +281,7 @@ do
 					end
 				end
 			end
-			return super.hitWorld(self,whereX,whereY,typeUL,typeUR,typeLL,typeLR)
+			return super.hitWorld(self, cmd, whereX,whereY,typeUL,typeUR,typeLL,typeLR)
 		end,
 		moveIsBlocked_CheckEdge=|:,newDestX,newDestY|do
 			if newDestX < .25
@@ -308,7 +313,7 @@ do
 		end,
 		moveIsBlocked=|:,cmd,newDestX,newDestY|do
 			return self:moveIsBlocked_CheckEdge(newDestX, newDestY)
-			or self:moveIsBlocked_CheckHitWorld(newDestX, newDestY)
+			or self:moveIsBlocked_CheckHitWorld(cmd, newDestX, newDestY)
 			or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY)
 		end,
 		doMove=|:,cmd|do
@@ -710,6 +715,13 @@ do
 
 					checkPosX += vecs[side][1]
 					checkPosY += vecs[side][2]
+
+					if checkPosX < 0
+					or checkPosY < 0
+					or checkPosX >= mapw
+					or checkPosY >= maph
+					then break end
+
 					local wallStopped=false
 					for ofx=0,1 do
 						for ofy=0,1 do
@@ -920,7 +932,7 @@ do
 			local bomb=Bomb(self)
 			bomb:setPos(self.destPosX,self.destPosY)
 			if bomb:moveIsBlocked_CheckEdge(self.destPosX,self.destPosY)
-			or bomb:moveIsBlocked_CheckHitWorld(self.destPosX,self.destPosY)
+			or bomb:moveIsBlocked_CheckHitWorld(dirs.none, self.destPosX,self.destPosY)
 			then return end
 			for _,o in ipairs(objs) do
 				if not o.removeMe
@@ -1283,20 +1295,22 @@ update=||do
 		if btnp'x' then
 			player:die()
 		end
-		-- [[ cheat
-		if btn'a' then
-			if btnp'left' then
-				setLevel(level-1) removeAll() loadLevel() return
-				--player.blendMode=((player.blendMode or 0)-1)%9
-			end
-			if btnp'right' then
-				setLevel(level+1) removeAll() loadLevel() return
-				--pokew(0x080a46, 0x801f)	-- set blend color to white
-				--player.blendMode=((player.blendMode or 0)+1)%9
-			end
-		end
-		--]]
 	end
+	
+	-- [[ cheat
+	if btn'a' then
+		if btnp'left' then
+			setLevel(level-1) removeAll() loadLevel() return
+			--player.blendMode=((player.blendMode or 0)-1)%9
+		end
+		if btnp'right' then
+			setLevel(level+1) removeAll() loadLevel() return
+			--pokew(0x080a46, 0x801f)	-- set blend color to white
+			--player.blendMode=((player.blendMode or 0)+1)%9
+		end
+	end
+	--]]
+
 	for _,o in ipairs(objs) do
 		if not o.removeMe then o:update() end
 	end
