@@ -863,6 +863,7 @@ do
 			self.seq=seqs.sentry
 		end,
 		update=|:|do
+			self.scaleX = (math.floor((time() * 4) & 1) << 1) - 1
 			--if the player moved onto us ...
 			--TODO - put self inside 'endPush' instead! no need to call it each frame
 			if linfDist(self.destPosX, self.destPosY, player.destPosX, player.destPosY) < .75 then
