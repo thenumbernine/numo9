@@ -98,17 +98,28 @@ function MainMenu:update()
 	end
 
 	-- handle keyboard input / tab-index stuff
-	-- TODO move this into all editors,since the tab-index stuff is in the gui functions that they all use anyways
+	-- TODO move this into all editors, since the tab-index stuff is in the gui functions that they all use anyways
+	-- keyboard up down? or player keypress up down? or both?
 	if not app.waitingForEvent then
-		if app:keyp'up' then
+		if app:keyp'up'
+		or app:btnp'up'
+		-- or gamepad up ... hmm TODO, that's not a bitflag in the fantasy console RAM ...
+		then
 			self.menuTabIndex = self.menuTabIndex - 1
 		end
-		if app:keyp'down' then
+
+		if app:keyp'down'
+		or app:btnp'down'
+		then
 			self.menuTabIndex = self.menuTabIndex + 1
 		end
-		if app:keyp('return', 15, 2) then
+
+		if app:keyp('return', 15, 2)
+		or app:btnp'b'
+		then
 			self.execMenuTab = true
 		end
+
 		if self.menuTabMax and self.menuTabMax > 0 then
 			self.menuTabIndex = self.menuTabIndex % self.menuTabMax
 		end
@@ -390,8 +401,10 @@ function MainMenu:updateMenuInput()
 					app.waitingForEvent = {
 						callback = function(e)
 --print('got event', require 'ext.tolua'(e))
-							-- [[ let esc clear the binding
-							if e[1] == sdl.SDL_EVENT_KEY_DOWN and e[2] == sdl.SDLK_ESCAPE then
+							-- [[ let esc or g.p. start clear the binding
+							if (e[1] == sdl.SDL_EVENT_KEY_DOWN and e[2] == sdl.SDLK_ESCAPE)
+							or (e[1] == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[3] == sdl.SDL_GAMEPAD_BUTTON_START)
+							then
 								playerInfo.buttonBinds[buttonIndex] = {}
 								return
 							end
@@ -401,6 +414,8 @@ function MainMenu:updateMenuInput()
 
 							-- rebuild map from events to the players & buttons
 							app:buildPlayerEventsMap()
+
+							self.menuTabIndex = self.menuTabIndex + 1
 						end,
 					}
 				end
