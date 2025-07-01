@@ -2896,7 +2896,67 @@ function App:mouse()
 		self.ram.mouseWheel.y
 end
 
+function App:toggleMenu()
+	-- special handle the escape key
+	-- game -> escape -> console
+	-- console -> escape -> editor
+	-- editor -> escape -> console
+	-- ... how to cycle back to the game without resetting it?
+	-- ... can you not issue commands while the game is loaded without resetting the game?
+	if self.activeMenu == self.mainMenu then		-- main menu goes to conosle
+		-- [[ go to game?
+		self:setMenu(nil)
+		self.isPaused = false
+		if not self.runFocus then
+			self:setMenu(self.con)
+		end
+		--]]
+	elseif self.activeMenu == self.cartBrowser then		-- cart browser goes to main menu
+		self:setMenu(nil)
+		self.isPaused = false
+		if not self.runFocus then
+			self:setMenu(self.mainMenu)
+		end
+	elseif self.activeMenu == self.con then				-- console goes to main menu
+		--[[ con -> editor?
+		self:setMenu(self.editCode)
+		--]]
+		-- [[ con -> game if it's available ?
+		if self.runFocus then
+			self:setMenu(nil)
+			self.isPaused = false
+		else
+		--]]
+		-- [[ con -> menu?
+			self.mainMenu:open()
+		--]]
+		end
+	elseif self.activeMenu then							-- everything else goes to conosle
+		self:setMenu(nil)
+		-- [[ editor -> game?
+		if not self.server then
+			-- ye ol fps behavior: console + single-player implies pause, console + multiplayer doesn't
+			-- TODO what about single-player who types 'stop()' and 'cont()' at the console?  meh, redundant cmds.
+			--  the cmds still serve a purpose in single-player for the game to use if it wan't i guess ...
+			self.isPaused = false
+			if not self.runFocus then
+				self:setMenu(self.con)
+			end
+		end
+		--]]
+	else
+		-- assume it's a game pushing esc ...
+		-- go to the menu
+		self:setMenu(nil)
+		self.mainMenu:open()
+		if not self.server then
+			self.isPaused = true
+		end
+	end
+end
+
 function App:event(e)
+	local didHandleEvent = self.waitingForEvent
 	if e[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_GAINED then
 		self.hasFocus = true
 	elseif e[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_LOST then
@@ -2904,74 +2964,20 @@ function App:event(e)
 	elseif e[0].type == sdl.SDL_EVENT_KEY_UP
 	or e[0].type == sdl.SDL_EVENT_KEY_DOWN
 	then
-		local didHandleEvent = self.waitingForEvent
 		local down = e[0].type == sdl.SDL_EVENT_KEY_DOWN
 		self:processButtonEvent(down, sdl.SDL_EVENT_KEY_DOWN, e[0].key.key)
 
 		local sdlsym = e[0].key.key
+
 		if down
 		and sdlsym == sdl.SDLK_ESCAPE
 		then
-			-- special handle the escape key
-			-- game -> escape -> console
-			-- console -> escape -> editor
-			-- editor -> escape -> console
-			-- ... how to cycle back to the game without resetting it?
-			-- ... can you not issue commands while the game is loaded without resetting the game?
-			if didHandleEvent then
+			if not didHandleEvent then
 				-- if key config is waiting for this event then let it handle it ... it'll clear the binding
 				-- already handled probably
 				-- TODO need a last-down for ESC (tho i'm not tracking it in the virt console key state stuff ... cuz its not supposed to be accessible by the cartridge code)
 				-- TODO why does sdl handle multiple keydowns for single keyups?
-			elseif self.activeMenu == self.mainMenu then		-- main menu goes to conosle
-				-- [[ go to game?
-				self:setMenu(nil)
-				self.isPaused = false
-				if not self.runFocus then
-					self:setMenu(self.con)
-				end
-				--]]
-			elseif self.activeMenu == self.cartBrowser then		-- cart browser goes to main menu
-				self:setMenu(nil)
-				self.isPaused = false
-				if not self.runFocus then
-					self:setMenu(self.mainMenu)
-				end
-			elseif self.activeMenu == self.con then				-- console goes to main menu
-				--[[ con -> editor?
-				self:setMenu(self.editCode)
-				--]]
-				-- [[ con -> game if it's available ?
-				if self.runFocus then
-					self:setMenu(nil)
-					self.isPaused = false
-				else
-				--]]
-				-- [[ con -> menu?
-					self.mainMenu:open()
-				--]]
-				end
-			elseif self.activeMenu then							-- everything else goes to conosle
-				self:setMenu(nil)
-				-- [[ editor -> game?
-				if not self.server then
-					-- ye ol fps behavior: console + single-player implies pause, console + multiplayer doesn't
-					-- TODO what about single-player who types 'stop()' and 'cont()' at the console?  meh, redundant cmds.
-					--  the cmds still serve a purpose in single-player for the game to use if it wan't i guess ...
-					self.isPaused = false
-					if not self.runFocus then
-						self:setMenu(self.con)
-					end
-				end
-				--]]
-			else
-				-- assume it's a game pushing esc ...
-				-- go to the menu
-				self:setMenu(nil)
-				self.mainMenu:open()
-				if not self.server then
-					self.isPaused = true
-				end
+				self:toggleMenu()
 			end
 		else
 			local keycode = sdlSymToKeyCode[sdlsym]
@@ -3053,11 +3059,18 @@ function App:event(e)
 		end
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN or e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_UP then
 		local press = e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, e[0].gbutton.which, e[0].gbutton.button)
+
+		if press
+		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_START
+		and not didHandleEvent
+		then
+			self:toggleMenu()
+		else
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, e[0].gbutton.which, e[0].gbutton.button)
+		end
 	elseif e[0].type == sdl.SDL_EVENT_FINGER_DOWN or e[0].type == sdl.SDL_EVENT_FINGER_UP then
 		local press = e[0].type == sdl.SDL_EVENT_FINGER_DOWN
 		self:processButtonEvent(press, sdl.SDL_EVENT_FINGER_DOWN, e[0].tfinger.x, e[0].tfinger.y)
-
 
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_ADDED then
 		if self.controller == ffi.null then
