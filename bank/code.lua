@@ -2,6 +2,7 @@
 -- saveid = Bank
 -- author = Chris Moore
 -- description = Bank - collect all the money and get the key to escape!
+-- disableMultiplayer = true
 mode(0)
 
 ----------------------- BEGIN ext/range.lua-----------------------
