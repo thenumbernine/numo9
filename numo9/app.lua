@@ -3264,8 +3264,6 @@ function App:buildPlayerEventsMap()
 			end
 		end
 	end
-
-
 end
 
 -- static, used by gamestate and app
