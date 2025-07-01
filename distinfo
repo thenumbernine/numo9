@@ -103,16 +103,16 @@ files['../dist/release/bin/'..ffi.os..'/'..ffi.arch] = {
 -- TODO how about consulting ffi/load.lua for where these are
 luajitLibs = {
 	[1] = {
-		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
-		--'zlib',	-- or is it static linked into png already?
 		'SDL3',
+		'png',
+		'zlib',
 		'clip',
 		'ssl',
 	},
 	Windows = {
-		'png',	-- TODO which dir is it pulling png from? do i need z or zlib? doen't matter, no pngs in this so far
-		--'zlib',	-- or is it static linked into png already?
 		'SDL3',
+		'png',
+		'zlib',
 		'clip',
 		'ssl',
 		-- TODO this needs better organizing
