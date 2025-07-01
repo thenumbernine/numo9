@@ -134,9 +134,13 @@ function MainMenu:updateMenuMain()
 		return
 	end
 
-	if self:menuButton'multiplayer' then
-		self:setCurrentMenu'multiplayer'
-		return
+	local disableMultiplayer = app.metainfo and app.metainfo.disableMultiplayer
+
+	if not disableMultiplayer then
+		if self:menuButton'multiplayer' then
+			self:setCurrentMenu'multiplayer'
+			return
+		end
 	end
 
 	if self:menuButton'input' then
