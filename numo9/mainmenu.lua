@@ -96,34 +96,6 @@ function MainMenu:update()
 	else	-- main and default
 		self:updateMenuMain()
 	end
-
-	-- handle keyboard input / tab-index stuff
-	-- TODO move this into all editors, since the tab-index stuff is in the gui functions that they all use anyways
-	-- keyboard up down? or player keypress up down? or both?
-	if not app.waitingForEvent then
-		if app:keyp'up'
-		or app:btnp'up'
-		-- or gamepad up ... hmm TODO, that's not a bitflag in the fantasy console RAM ...
-		then
-			self.menuTabIndex = self.menuTabIndex - 1
-		end
-
-		if app:keyp'down'
-		or app:btnp'down'
-		then
-			self.menuTabIndex = self.menuTabIndex + 1
-		end
-
-		if app:keyp('return', 15, 2)
-		or app:btnp'b'
-		then
-			self.execMenuTab = true
-		end
-
-		if self.menuTabMax and self.menuTabMax > 0 then
-			self.menuTabIndex = self.menuTabIndex % self.menuTabMax
-		end
-	end
 end
 
 function MainMenu:updateMenuMain()
@@ -429,6 +401,65 @@ function MainMenu:updateMenuInput()
 		self:setCurrentMenu'main'
 		return
 	end
+end
+
+function MainMenu:event(e)
+	local app = self.app
+
+	-- handle keyboard input / tab-index stuff
+	-- TODO move this into all editors, since the tab-index stuff is in the gui functions that they all use anyways
+	-- keyboard up down? or player keypress up down? or both?
+	if app.waitingForEvent then
+		-- then have the default App gameplay routine handle the event
+		-- but within it is waitingForEvent that will short-circuit and capture the default-gameplay-routine's encoding of differnet SDL events
+		app:handleGameplayEvent(e)
+		return
+	end
+
+	--[[ is it just my controllers that register dpad as axis motion?
+	-- or do they all?
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_UP)
+	--]]
+	-- [[
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+		and e[0].gaxis.axis == 1
+		and e[0].gaxis.value < -10000)
+	--]]
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_UP)
+	--or app:btnp'up'	-- should I use the user-configured up/down here too? meh?
+	then
+		self.menuTabIndex = self.menuTabIndex - 1
+	end
+
+	--[[
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_DOWN)
+	--]]
+	-- [[
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+		and e[0].gaxis.axis == 1
+		and e[0].gaxis.value > 10000)
+	--]]
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_DOWN)
+	--or app:btnp'down'	-- should I use the user-configured up/down here too? meh?
+	then
+		self.menuTabIndex = self.menuTabIndex + 1
+	end
+
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_RETURN)
+	--or app:btnp'b'	-- should I use the user-configured up/down here too? meh?
+	then
+		self.execMenuTab = true
+	end
+
+	if self.menuTabMax and self.menuTabMax > 0 then
+		self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+	end
+
+	-- see if we're leaving the menu
+	MainMenu.super.event(self, e)
 end
 
 return MainMenu

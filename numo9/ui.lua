@@ -10,6 +10,7 @@ local table = require 'ext.table'
 local assert = require 'ext.assert'
 local getTime = require 'ext.timer'.getTime
 local class = require 'ext.class'
+local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
 local paletteSize = numo9_rom.paletteSize
@@ -90,7 +91,7 @@ function UI:guiButton(str, x, y, isset, tooltip)
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
 	local result
-	if (mouseOver and app:keyp'mouse_left')
+	if (mouseOver and app.mouse.leftPress)
 	or (self.execMenuTab and onThisMenuItem)
 	then
 		self.menuTabIndex = self.menuTabCounter
@@ -105,9 +106,9 @@ end
 function UI:guiSpinner(x, y, cb, tooltip)
 	local app = self.app
 
-	local leftButtonDown = app:key'mouse_left'
-	local leftButtonPress = app:keyp'mouse_left'
-	local leftButtonRelease = app:keyr'mouse_left'
+	local leftButtonDown = app.mouse.leftDown
+	local leftButtonPress = app.mouse.leftPress
+	local leftButtonRelease = app.mouse.leftRelease
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	if self:guiButton('<', x, y, nil, tooltip) then
@@ -169,7 +170,7 @@ function UI:guiTextField(
 	end
 
 	-- TODO like some UIs, push enter to enable/disable editing? or nah
-	if mouseOver and app:keyp'mouse_left' then
+	if mouseOver and app.mouse.leftPress then
 		self.menuTabIndex = self.menuTabCounter
 		onThisMenuItem = true
 	end
@@ -433,6 +434,17 @@ function UI:calculateAudioSize()
 	end
 	for i=0,musicTableSize-1 do
 		self.totalAudioBytes = self.totalAudioBytes + app.ram.bank[0].musicAddrs[i].len
+	end
+end
+
+-- in any menu, press escape or gamepad start to exit menu
+function UI:event(e)
+	if (e[0].type == sdl.SDL_EVENT_KEY_DOWN
+		and e[0].key.key == sdl.SDLK_ESCAPE)
+	or (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_START)
+	then
+		self.app:toggleMenu()
 	end
 end
 

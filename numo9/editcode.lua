@@ -85,9 +85,9 @@ end
 function EditCode:update()
 	local app = self.app
 
-	local leftButtonDown = app:key'mouse_left'
-	local leftButtonPress = app:keyp'mouse_left'
-	local leftButtonRelease = app:keyr'mouse_left'
+	local leftButtonDown = app.mouse.leftDown
+	local leftButtonPress = app.mouse.leftPress
+	local leftButtonRelease = app.mouse.leftRelease
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	EditCode.super.update(self)
