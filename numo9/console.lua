@@ -225,7 +225,6 @@ function Console:update()
 	end
 end
 
-function Console:event(e)
-end
+function Console:event(e) end
 
 return Console

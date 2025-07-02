@@ -158,9 +158,9 @@ for indexPlusOne, name in ipairs(keyCodeNames) do
 	--local sdlsym = sdl[sdlkey]
 	local sdlsym = require 'ext.op'.safeindex(sdl, sdlkey)
 	if not sdlsym then
---DEBUG:print('...failed to get sdlsym for '..sdlkey)
+print('...failed to get sdlsym for '..sdlkey)
 	else
---DEBUG:print('mapping from sdlsym '..sdlsym..' to index '..(indexPlusOne-1)..' for name '..name)
+print('mapping from sdlsym '..sdlsym..' to index '..(indexPlusOne-1)..' for name '..name)
 --[[ not working
 		return indexPlusOne-1, tonumber(sdlsym)
 end):setmetatable(nil)
@@ -216,8 +216,8 @@ local keyCodeNameToAscii = {
 	rightbracket = (']'):byte(),
 	backslash = ('\\'):byte(),
 	semicolon = (';'):byte(),
-	quote = ("'"):byte(),
-	backquote = ('`'):byte(),
+	apostrophe = ("'"):byte(),
+	grave = ('`'):byte(),
 	comma = (','):byte(),
 	period = ('.'):byte(),
 	slash = ('/'):byte(),
