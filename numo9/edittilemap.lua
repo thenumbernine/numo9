@@ -56,9 +56,9 @@ function EditTilemap:update()
 
 	local draw16As0or1 = self.draw16Sprites and 1 or 0
 
-	local leftButtonDown = app:key'mouse_left'
-	local leftButtonPress = app:keyp'mouse_left'
-	local leftButtonRelease = app:keyr'mouse_left'
+	local leftButtonDown = app.mouse.leftDown
+	local leftButtonPress = app.mouse.leftPress
+	local leftButtonRelease = app.mouse.leftRelease
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local shift = app:key'lshift' or app:key'rshift'

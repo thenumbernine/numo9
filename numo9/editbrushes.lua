@@ -60,9 +60,9 @@ function EditBrushes:update()
 	local thisTileSize = vec2i(
 		bit.lshift(spriteSize.x, draw16As0or1),
 		bit.lshift(spriteSize.y, draw16As0or1))
-	local leftButtonDown = app:key'mouse_left'
-	local leftButtonPress = app:keyp'mouse_left'
-	local leftButtonRelease = app:keyr'mouse_left'
+	local leftButtonDown = app.mouse.leftDown
+	local leftButtonPress = app.mouse.leftPress
+	local leftButtonRelease = app.mouse.leftRelease
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local shift = app:key'lshift' or app:key'rshift'

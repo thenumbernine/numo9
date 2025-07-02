@@ -198,6 +198,8 @@ local function toint(x)
 end
 
 function App:initGL()
+	local Mouse = require 'glapp.mouse'
+	self.mouse = Mouse()
 
 	gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 1)
 	gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
@@ -804,7 +806,7 @@ function App:initGL()
 		btnr = function(...) return self:btnr(...) end,
 
 		-- TODO merge mouse buttons with btpn as well so you get added fnctionality of press/release detection
-		mouse = function(...) return self:mouse(...) end,
+		mouse = function(...) return self:getMouseState(...) end,
 
 		bit = bit,
 		assert = require 'ext.assert',
@@ -1562,6 +1564,12 @@ end
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function App:update()
 	if not self.hasFocus then return end
+
+	-- keep track of mouse press/release
+	-- this is separate of the fantasy-console-hardware button flags updated below
+	-- those are for games, and their press/release should be relative to game updates
+	-- while mouse is relative to App:update and is used by the UI
+	self.mouse:update()
 
 	-- will this hurt performance?
 	if self.activeMenu then
@@ -2888,7 +2896,7 @@ function App:btnr(buttonCode, player, ...)
 	return self:keyr(buttonKeyCode, ...)
 end
 
-function App:mouse()
+function App:getMouseState()
 	return
 		self.ram.mousePos.x,
 		self.ram.mousePos.y,
@@ -2956,41 +2964,73 @@ function App:toggleMenu()
 end
 
 function App:event(e)
-	local didHandleEvent = self.waitingForEvent
 	if e[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_GAINED then
 		self.hasFocus = true
+		return
 	elseif e[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_LOST then
 		self.hasFocus = false
-	elseif e[0].type == sdl.SDL_EVENT_KEY_UP
+		return
+	end
+
+	-- handle gamepad add/remove events here
+	if e[0].type == sdl.SDL_EVENT_GAMEPAD_ADDED then
+		if self.controller == ffi.null then
+			self.controller = sdl.SDL_OpenGamepad(e[0].gdevice.which)
+			if self.controller == ffi.null then
+				print('SDL_OpenGamepad('..i..') failed: '..require 'sdl.assert'.getError())
+			end
+		end
+		return
+	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_REMOVED then
+		if self.controller ~= ffi.null
+		-- if SDL_EVENT_GAMEPAD_REMOVED is a dif controller than the last one opened...
+		-- ...then should I still call SDL_CloseGamepad() on it?
+		and e[0].gdevice.which == sdl.SDL_JoystickInstanceID(sdl.SDL_GetGamepadJoystick(self.controller))
+		then
+			sdl.SDL_CloseGamepad(self.controller)
+			self:findSDLController()
+		end
+		return
+	end
+
+	-- if we're in a menu then let it capture the event
+	if self.activeMenu then
+		self.activeMenu:event(e)
+		return
+	end
+
+	-- hmm here separately handle the escape / start button?
+	-- in fact this is the same code as in UI:event()
+	if (e[0].type == sdl.SDL_EVENT_KEY_DOWN
+		and e[0].key.key == sdl.SDLK_ESCAPE)
+	or (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_START)
+	then
+		self:toggleMenu()
+		return
+	end
+
+	-- anything else goes to gameplay
+	self:handleGameplayEvent(e)
+end
+
+function App:handleGameplayEvent(e)
+	if e[0].type == sdl.SDL_EVENT_KEY_UP
 	or e[0].type == sdl.SDL_EVENT_KEY_DOWN
 	then
 		local down = e[0].type == sdl.SDL_EVENT_KEY_DOWN
 		self:processButtonEvent(down, sdl.SDL_EVENT_KEY_DOWN, e[0].key.key)
 
-		local sdlsym = e[0].key.key
-
-		if down
-		and sdlsym == sdl.SDLK_ESCAPE
-		then
-			if not didHandleEvent then
-				-- if key config is waiting for this event then let it handle it ... it'll clear the binding
-				-- already handled probably
-				-- TODO need a last-down for ESC (tho i'm not tracking it in the virt console key state stuff ... cuz its not supposed to be accessible by the cartridge code)
-				-- TODO why does sdl handle multiple keydowns for single keyups?
-				self:toggleMenu()
-			end
-		else
-			local keycode = sdlSymToKeyCode[sdlsym]
-			if keycode then
-				local bi = bit.band(keycode, 7)
-				local by = bit.rshift(keycode, 3)
-				local flag = bit.lshift(1, bi)
-				local mask = bit.bnot(flag)
-				self.ram.keyPressFlags[by] = bit.bor(
-					bit.band(mask, self.ram.keyPressFlags[by]),
-					down and flag or 0
-				)
-			end
+		local keycode = sdlSymToKeyCode[e[0].key.key]
+		if keycode then
+			local bi = bit.band(keycode, 7)
+			local by = bit.rshift(keycode, 3)
+			local flag = bit.lshift(1, bi)
+			local mask = bit.bnot(flag)
+			self.ram.keyPressFlags[by] = bit.bor(
+				bit.band(mask, self.ram.keyPressFlags[by]),
+				down and flag or 0
+			)
 		end
 	elseif e[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN
 	or e[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_UP
@@ -3051,46 +3091,23 @@ function App:event(e)
 		local press = lr ~= 0
 		if not press then
 			-- clear both left and right movement
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].jaxis.axis, -1)
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].jaxis.axis, 1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].gaxis.axis, -1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].gaxis.axis, 1)
 		else
 			-- set movement for the lr direction
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].jaxis.axis, lr)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].gaxis.axis, lr)
 		end
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN or e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_UP then
 		local press = e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-
-		if press
-		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_START
-		and not didHandleEvent
-		then
-			self:toggleMenu()
-		else
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, e[0].gbutton.which, e[0].gbutton.button)
-		end
+		self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, e[0].gbutton.which, e[0].gbutton.button)
 	elseif e[0].type == sdl.SDL_EVENT_FINGER_DOWN or e[0].type == sdl.SDL_EVENT_FINGER_UP then
 		local press = e[0].type == sdl.SDL_EVENT_FINGER_DOWN
 		self:processButtonEvent(press, sdl.SDL_EVENT_FINGER_DOWN, e[0].tfinger.x, e[0].tfinger.y)
-
-	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_ADDED then
-		if self.controller == ffi.null then
-			self.controller = sdl.SDL_OpenGamepad(e[0].gdevice.which)
-			if self.controller == ffi.null then
-				print('SDL_OpenGamepad('..i..') failed: '..require 'sdl.assert'.getError())
-			end
-		end
-	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_REMOVED then
-		if self.controller ~= ffi.null
-		-- if SDL_EVENT_GAMEPAD_REMOVED is a dif controller than the last one opened...
-		-- ...then should I still call SDL_CloseGamepad() on it?
-		and e[0].gdevice.which == sdl.SDL_JoystickInstanceID(sdl.SDL_GetGamepadJoystick(self.controller))
-		then
-			sdl.SDL_CloseGamepad(self.controller)
-			self:findSDLController()
-		end
 	end
 end
 
+-- handle the SDL event encoded as a list of ints
+-- also handles overrides for things like key-configuration
 function App:processButtonEvent(down, ...)
 	-- TODO radius per-button
 	local buttonRadius = self.width * self.cfg.screenButtonRadius
