@@ -91,7 +91,16 @@ function UI:guiButton(str, x, y, isset, tooltip)
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
 	local result
-	if (mouseOver and app.mouse.leftPress)
+	if mouseOver then
+		self.menuTabIndex = self.menuTabCounter
+	end
+
+-- ok new take
+-- I can't use app.mouse because thats updated every App:update
+-- but UI:guiButton is updated every activeMenu
+-- so I gotta use app:keyp'mouse_left'
+--	if (mouseOver and app.mouse.leftPress)
+	if (mouseOver and app:keyp'mouse_left')
 	or (self.execMenuTab and onThisMenuItem)
 	then
 		self.menuTabIndex = self.menuTabCounter
@@ -106,9 +115,16 @@ end
 function UI:guiSpinner(x, y, cb, tooltip)
 	local app = self.app
 
+--[[
 	local leftButtonDown = app.mouse.leftDown
 	local leftButtonPress = app.mouse.leftPress
 	local leftButtonRelease = app.mouse.leftRelease
+--]]
+-- [[
+	local leftButtonDown = app:key'mouse_left'
+	local leftButtonPress = app:keyp'mouse_left'
+	local leftButtonRelease = app:keyr'mouse_left'
+--]]
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	if self:guiButton('<', x, y, nil, tooltip) then
@@ -170,7 +186,8 @@ function UI:guiTextField(
 	end
 
 	-- TODO like some UIs, push enter to enable/disable editing? or nah
-	if mouseOver and app.mouse.leftPress then
+--	if mouseOver and app.mouse.leftPress then
+	if mouseOver and app:keyp'mouse_left' then
 		self.menuTabIndex = self.menuTabCounter
 		onThisMenuItem = true
 	end
@@ -439,12 +456,51 @@ end
 
 -- in any menu, press escape or gamepad start to exit menu
 function UI:event(e)
-	if (e[0].type == sdl.SDL_EVENT_KEY_DOWN
-		and e[0].key.key == sdl.SDLK_ESCAPE)
-	or (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_START)
+	--[[ is it just my controllers that register dpad as axis motion?
+	-- or do they all?
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_UP)
+	--]]
+	-- [[
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+		and e[0].gaxis.axis == 1
+		and e[0].gaxis.value < -10000)
+	--]]
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_UP)
+	--or app:btnp'up'	-- should I use the user-configured up/down here too? meh?
 	then
-		self.app:toggleMenu()
+		self.menuTabIndex = self.menuTabIndex - 1
+		if self.menuTabMax and self.menuTabMax > 0 then
+			self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+		end
+		return true
+	end
+
+	--[[
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_DOWN)
+	--]]
+	-- [[
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+		and e[0].gaxis.axis == 1
+		and e[0].gaxis.value > 10000)
+	--]]
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_DOWN)
+	--or app:btnp'down'	-- should I use the user-configured up/down here too? meh?
+	then
+		self.menuTabIndex = self.menuTabIndex + 1
+		if self.menuTabMax and self.menuTabMax > 0 then
+			self.menuTabIndex = self.menuTabIndex % self.menuTabMax
+		end
+		return true
+	end
+
+	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
+	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_RETURN)
+	--or app:btnp'b'	-- should I use the user-configured up/down here too? meh?
+	then
+		self.execMenuTab = true
+		return true
 	end
 end
 

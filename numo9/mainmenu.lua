@@ -68,7 +68,6 @@ end
 
 function MainMenu:update()
 	local app = self.app
-
 	-- init the tab-order for editor controls
 	self:initMenuTabs()
 
@@ -413,53 +412,11 @@ function MainMenu:event(e)
 		-- then have the default App gameplay routine handle the event
 		-- but within it is waitingForEvent that will short-circuit and capture the default-gameplay-routine's encoding of differnet SDL events
 		app:handleGameplayEvent(e)
-		return
+		return true
 	end
 
-	--[[ is it just my controllers that register dpad as axis motion?
-	-- or do they all?
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_UP)
-	--]]
-	-- [[
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
-		and e[0].gaxis.axis == 1
-		and e[0].gaxis.value < -10000)
-	--]]
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_UP)
-	--or app:btnp'up'	-- should I use the user-configured up/down here too? meh?
-	then
-		self.menuTabIndex = self.menuTabIndex - 1
-	end
-
-	--[[
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_DPAD_DOWN)
-	--]]
-	-- [[
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
-		and e[0].gaxis.axis == 1
-		and e[0].gaxis.value > 10000)
-	--]]
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_DOWN)
-	--or app:btnp'down'	-- should I use the user-configured up/down here too? meh?
-	then
-		self.menuTabIndex = self.menuTabIndex + 1
-	end
-
-	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
-	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_RETURN)
-	--or app:btnp'b'	-- should I use the user-configured up/down here too? meh?
-	then
-		self.execMenuTab = true
-	end
-
-	if self.menuTabMax and self.menuTabMax > 0 then
-		self.menuTabIndex = self.menuTabIndex % self.menuTabMax
-	end
-
-	-- see if we're leaving the menu
-	MainMenu.super.event(self, e)
+	-- see if we're leaving the menu or changing menu tab index
+	return MainMenu.super.event(self, e)
 end
 
 return MainMenu
