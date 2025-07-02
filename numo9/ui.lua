@@ -486,7 +486,6 @@ function UI:event(e)
 		and e[0].gaxis.value > 10000)
 	--]]
 	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_DOWN)
-	--or app:btnp'down'	-- should I use the user-configured up/down here too? meh?
 	then
 		self.menuTabIndex = self.menuTabIndex + 1
 		if self.menuTabMax and self.menuTabMax > 0 then
@@ -497,7 +496,6 @@ function UI:event(e)
 
 	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
 	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_RETURN)
-	--or app:btnp'b'	-- should I use the user-configured up/down here too? meh?
 	then
 		self.execMenuTab = true
 		return true
