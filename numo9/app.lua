@@ -1286,23 +1286,9 @@ looks like I'm a Snes9x-default-keybinding fan.
 	}
 --]]
 
-	xpcall(function()
-		local count = ffi.new'int[1]'
-		self.sdlAssert(sdl.SDL_GetJoysticks(count))
-		self.joystickCount = count[0]
-		--[[ don't need this and gamecontroller?
-		for i=0,self.joystickCount-1 do
-			local joystick = sdl.SDL_OpenJoystick(i)
-			if joystick == ffi.null then
-				print('SDL_OpenJoystick('..i..') failed: '..require 'sdl.assert'.getError())
-			end
-		end
-		--]]
-	end, function(err)
-		print(err)
-	end)
-
-	self:findSDLController()
+	-- maps from "joystick instance ID" to "SDL_Gamepad*"
+	self.controllers = {}
+	self:updateJoystickIDMap()
 
 -- webgl doesn't support these ...
 --DEBUG(glquery):updateQuery = GLQuery(gl.GL_TIME_ELAPSED)
@@ -1321,19 +1307,23 @@ function App:exit()
 	App.super.exit(self)
 end
 
--- The jury is out on SDL's Gamepad.
--- If it is a matter of mapping & unmapping SDL Joystick devices #s then is that all the GmaeController API provides?
--- Or does it have any unique input button types vs SDL joystick?
--- Because I'm already gathering all button events for all joysticks...
-function App:findSDLController()
-	if not self.joystickCount then return end
-	for i=0,self.joystickCount-1 do
-		if sdl.SDL_IsGamepad(i) then
-			self.controller = sdl.SDL_OpenGamepad(i)
-			if self.controller == ffi.null then
-				print('SDL_OpenGamepad('..i..') failed: '..require 'sdl.assert'.getError())
-			end
-		end
+--[[
+since the gdevice.which is constantly incrementing as we remove and add a controller,
+i'm going to map that back to an enumeration of my own so that your "gamepad #1" keys dont need to be rebound as "gamepad #2" when you unplug and replug the controller.
+--]]
+function App:updateJoystickIDMap()
+	self.joystickIndexForInstanceID = {}
+
+	local countptr = ffi.new'int[1]'
+	local joystickIDs = sdl.SDL_GetJoysticks(countptr)
+	if joystickIDs == ffi.null then return end
+	local count = countptr[0]
+
+	-- mapping from my internal instance ID to gdevice.which aka "joystick instance ID" in the SDL_GamepadDeviceEvent webpage
+	-- ... or do I need to be mapping from the SDL_Gamepad* pointer to the index?
+	-- gah... where's the documentation on this?  the page itself says nothing...
+	for i=0,count-1 do
+		self.joystickIndexForInstanceID[joystickIDs[i]] = i+1
 	end
 end
 
@@ -2974,22 +2964,28 @@ function App:event(e)
 
 	-- handle gamepad add/remove events here
 	if e[0].type == sdl.SDL_EVENT_GAMEPAD_ADDED then
-		if self.controller == ffi.null then
-			self.controller = sdl.SDL_OpenGamepad(e[0].gdevice.which)
-			if self.controller == ffi.null then
-				print('SDL_OpenGamepad('..i..') failed: '..require 'sdl.assert'.getError())
-			end
+		self:updateJoystickIDMap()
+		local i = e[0].gdevice.which
+--DEBUG:print('SDL_EVENT_GAMEPAD_ADDED', i)
+		local controller = sdl.SDL_OpenGamepad(i)
+		if controller == ffi.null then
+			print('SDL_OpenGamepad('..i..') failed: '..require 'sdl.assert'.getError())
+			self.controllers[i] = nil
+		else
+			self.controllers[i] = controller
+--DEBUG:print('...controller', controller)
 		end
 		return
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_REMOVED then
-		if self.controller ~= ffi.null
-		-- if SDL_EVENT_GAMEPAD_REMOVED is a dif controller than the last one opened...
-		-- ...then should I still call SDL_CloseGamepad() on it?
-		and e[0].gdevice.which == sdl.SDL_JoystickInstanceID(sdl.SDL_GetGamepadJoystick(self.controller))
-		then
-			sdl.SDL_CloseGamepad(self.controller)
-			self:findSDLController()
+		local i = e[0].gdevice.which
+		local controller = self.controllers[i]
+--DEBUG:print('SDL_EVENT_GAMEPAD_REMOVED', i, 'controller', controller)
+		if controller then
+--DEBUG:print('SDL_CloseGamepad', i)
+			sdl.SDL_CloseGamepad(controller)
+			self.controllers[i] = nil
 		end
+		self:updateJoystickIDMap()
 		return
 	end
 
@@ -3064,45 +3060,23 @@ function App:handleGameplayEvent(e)
 		-- right now right = +x, down = +y
 		self.ram.mouseWheel.x = self.ram.mouseWheel.x - e[0].wheel.x
 		self.ram.mouseWheel.y = self.ram.mouseWheel.y + e[0].wheel.y
-	--[[ don't double this up with game controller events ..
-	elseif e[0].type == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION then
-		for i=0,3 do
-			local dirbit = bit.lshift(1,i)
-			local press = bit.band(dirbit, e[0].jhat.value) ~= 0
-			self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_HAT_MOTION, e[0].jhat.which, e[0].jhat.hat, dirbit)
-		end
-	elseif e[0].type == sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION then
-		-- -1,0,1 depend on the axis press
-		local lr = math.floor(3 * (tonumber(e[0].jaxis.value) + 32768) / 65536) - 1
-		local press = lr ~= 0
-		if not press then
-			-- clear both left and right movement
-			self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION, e[0].jaxis.which, e[0].jaxis.axis, -1)
-			self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION, e[0].jaxis.which, e[0].jaxis.axis, 1)
-		else
-			-- set movement for the lr direction
-			self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION, e[0].jaxis.which, e[0].jaxis.axis, lr)
-		end
-	elseif e[0].type == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN or e[0].type == sdl.SDL_EVENT_JOYSTICK_BUTTON_UP then
-		-- e[0].jbutton.mainMenu is 0/1 for up/down, right?
-		local press = e[0].type == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN
-		self:processButtonEvent(press, sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN, e[0].jbutton.which, e[0].jbutton.button)
-	--]]
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION then
 		-- -1,0,1 depend on the axis press
 		local lr = math.floor(3 * (tonumber(e[0].gaxis.value) + 32768) / 65536) - 1
 		local press = lr ~= 0
+		local gid = self.joystickIndexForInstanceID[e[0].gaxis.which] or '?'
 		if not press then
 			-- clear both left and right movement
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].gaxis.axis, -1)
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].gaxis.axis, 1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, gid, e[0].gaxis.axis, -1)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, gid, e[0].gaxis.axis, 1)
 		else
 			-- set movement for the lr direction
-			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, e[0].gaxis.which, e[0].gaxis.axis, lr)
+			self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, gid, e[0].gaxis.axis, lr)
 		end
 	elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN or e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_UP then
 		local press = e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, e[0].gbutton.which, e[0].gbutton.button)
+		local gid = self.joystickIndexForInstanceID[e[0].gbutton.which] or '?'
+		self:processButtonEvent(press, sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, gid, e[0].gbutton.button)
 	elseif e[0].type == sdl.SDL_EVENT_FINGER_DOWN or e[0].type == sdl.SDL_EVENT_FINGER_UP then
 		local press = e[0].type == sdl.SDL_EVENT_FINGER_DOWN
 		self:processButtonEvent(press, sdl.SDL_EVENT_FINGER_DOWN, e[0].tfinger.x, e[0].tfinger.y)
@@ -3144,12 +3118,7 @@ function App:processButtonEvent(down, ...)
 					match = true
 				end
 
-			elseif etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
-			--[[ don't double this up with game controller events ..
-			or etype == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION
-			or etype == sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION
-			--]]
-			then
+			elseif etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION then
 				local which, hat, dirbit = select(2, ...)
 				h = h[which]
 				if h then
@@ -3163,11 +3132,7 @@ function App:processButtonEvent(down, ...)
 						end
 					end
 				end
-			elseif etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-			--[[ don't double this up with game controller events ..
-			or etype == sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN
-			--]]
-			then
+			elseif etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN then
 				local which, button = select(2, ...)
 				h = h[which]
 				if h then
@@ -3236,12 +3201,7 @@ function App:buildPlayerEventsMap()
 						buttonIndex = buttonIndex,
 					}
 				--elseif etype == sdl.SDL_EVENT_MOUSE_WHEEL then
-				elseif etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
-				--[[ don't double this up with game controller events ..
-				or etype == sdl.SDL_EVENT_JOYSTICK_HAT_MOTION
-				or etype == sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION
-				--]]
-				then
+				elseif etype == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION then
 					local which, hat, dirbit = table.unpack(buttonBind, 2)
 					-- or which, axis, lr
 					self.playerEvents[etype][which] = self.playerEvents[etype][which] or {}
@@ -3250,11 +3210,7 @@ function App:buildPlayerEventsMap()
 						playerIndex = playerIndex,
 						buttonIndex = buttonIndex,
 					}
-				elseif etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-				--[[ don't double this up with game controller events ..
-				or etype == sdl.SDL_EVENT_JOYSTICK_BUTTONDOWN
-				--]]
-				then
+				elseif etype == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN then
 					local which, button = table.unpack(buttonBind, 2)
 					self.playerEvents[etype][which] = self.playerEvents[etype][which] or {}
 					self.playerEvents[etype][which][button] = {
@@ -3303,11 +3259,6 @@ function App:getEventName(sdlEventID, a,b,c)
 		return ffi.string(sdl.SDL_GetKeyName(k))
 	end
 	return template(({
-		--[[ don't double this up with game controller events ..
-		[sdl.SDL_EVENT_JOYSTICK_HAT_MOTION] = 'jh<?=a?> <?=b?> <?=dir(c)?>',
-		[sdl.SDL_EVENT_JOYSTICK_AXIS_MOTION] = 'ja<?=a?> <?=b?> <?=c?>',
-		[sdl.SDL_EVENT_JOYSTICK_BUTTON_DOWN] = 'jb<?=a?> <?=b?>',
-		--]]
 		[sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION] = 'ga<?=a?> <?=b?> <?=c?>',
 		[sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN] = 'gb<?=a?> <?=b?>',
 		[sdl.SDL_EVENT_KEY_DOWN] = 'key<?=key(a)?>',
