@@ -54,8 +54,8 @@ local keyCodeNames = table{
 	'rightbracket',		-- ]
 	'backslash',		-- \
 	'semicolon',		-- ;
-	'quote',			-- '
-	'backquote',		-- `
+	'apostrophe',		-- '
+	'grave',			-- `
 	'comma',			-- ,
 	'period',			-- .
 	'slash',			-- /
@@ -158,9 +158,9 @@ for indexPlusOne, name in ipairs(keyCodeNames) do
 	--local sdlsym = sdl[sdlkey]
 	local sdlsym = require 'ext.op'.safeindex(sdl, sdlkey)
 	if not sdlsym then
-print('...failed to get sdlsym for '..sdlkey)
+--DEBUG:print('...failed to get sdlsym for '..sdlkey)
 	else
-print('mapping from sdlsym '..sdlsym..' to index '..(indexPlusOne-1)..' for name '..name)
+--DEBUG:print('mapping from sdlsym '..sdlsym..' to index '..(indexPlusOne-1)..' for name '..name)
 --[[ not working
 		return indexPlusOne-1, tonumber(sdlsym)
 end):setmetatable(nil)
