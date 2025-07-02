@@ -168,6 +168,9 @@ function EditMusic:update()
 	EditMusic.super.update(self)
 	local app = self.app
 
+	local leftButtonDown = app.mouse.leftDown
+	local leftButtonPress = app.mouse.leftPress
+	local leftButtonRelease = app.mouse.leftRelease
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local x, y = 80, 0
@@ -286,7 +289,7 @@ assert.eq(sfxTableSize, 256)
 			self.frameStart = nextFrameStart
 		end
 	else
-		if app:keyp'mouse_left' then
+		if leftButtonPress then
 			-- then move the current frame to the mouse click position ...
 			-- but frame index doesn't correlate with time, or with x position ...
 			-- hmm how about editing one channel at a time?

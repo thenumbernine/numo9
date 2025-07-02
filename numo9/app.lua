@@ -2993,12 +2993,6 @@ function App:event(e)
 		return
 	end
 
-	-- if we're in a menu then let it capture the event
-	if self.activeMenu then
-		self.activeMenu:event(e)
-		return
-	end
-
 	-- hmm here separately handle the escape / start button?
 	-- in fact this is the same code as in UI:event()
 	if (e[0].type == sdl.SDL_EVENT_KEY_DOWN
@@ -3008,6 +3002,15 @@ function App:event(e)
 	then
 		self:toggleMenu()
 		return
+	end
+
+	-- if we're in a menu then let it capture the event
+	if self.activeMenu
+	and not self.waitingForEvent
+	then
+		if self.activeMenu:event(e) then
+			return
+		end
 	end
 
 	-- anything else goes to gameplay

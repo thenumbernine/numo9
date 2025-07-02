@@ -129,12 +129,17 @@ assert.eq(sfxTableSize, 256)
 	if self:guiButton('#', self.offsetScrollX / selsfx.len * 248, 120) then
 		self.draggingScroll = true
 	end
+	
+	local leftButtonDown = app.mouse.leftDown
+	local leftButtonPress = app.mouse.leftPress
+	local leftButtonRelease = app.mouse.leftRelease
 	local mouseX, mouseY = app.ram.mousePos:unpack()
+	
 	if self.draggingScroll then
 		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
 		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, selsfx.len - 512)
 		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
-		if app:keyr'mouse_left' then
+		if leftButtonRelease then
 			self.draggingScroll = false
 		end
 	end
