@@ -15,8 +15,6 @@ function CartBrowser:update()
 	local leftButtonPress = app.mouse.leftPress
 	local leftButtonRelease = app.mouse.leftRelease
 	local mouseX, mouseY = app.ram.mousePos:unpack()
-	local lastMouseX, lastMouseY = app.ram.lastMousePos:unpack()
-	local mouseMoved = mouseX ~= lastMouseX or mouseY ~= lastMouseY
 	-- cycle through vfs and find .n9 carts in this dir and ...
 	-- ... make textures for their icons ...
 	-- ... and then have buttons on :update()
@@ -45,22 +43,19 @@ function CartBrowser:update()
 
 		-- only upon mouse-move, so keyboard can move even if the mouse is hovering over a button
 		local mouseOver = mouseX >= x and mouseX < x+w and mouseY >= y and mouseY < y+h
-		if mouseMoved and mouseOver then
-			self.menuTabIndex = self.menuTabCounter
-		end
 
 		local sel = self.menuTabIndex == self.menuTabCounter
 		if sel then
 			mouseOverSel = mouseOver
 			selname = name
 		end
-		local bgColor = sel and selBgColor or defaultBgColor
+
 		if f.isdir then 				-- dir
-			app:drawMenuText('['..name..']', x, y, fgColor, bgColor)
+			self:guiButton('['..name..']', x, y)
 		elseif name:match'%.n9$' then	-- cart file
-			app:drawMenuText('*'..name, x, y, fgColor, bgColor)
+			self:guiButton('*'..name, x, y)
 		else							-- non-cart file
-			app:drawMenuText(' '..name, x, y, fgColor, bgColor)
+			self:guiButton(' '..name, x, y)
 		end
 
 		y = y + 8
@@ -180,10 +175,13 @@ end
 
 function CartBrowser:event(e)
 	local lastMenuTabIndex = self.menuTabIndex
+
 	local result = CartBrowser.super.event(self, e)
+
 	if self.menuTabIndex ~= lastMenuTabIndex then
 		self.thumbTex = nil	-- clear it and try to regen cache next update
 	end
+
 	return result
 end
 
