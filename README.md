@@ -369,6 +369,11 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 - `matfrustum(left,right,bottom,top,near,far)` = apply frustum perspective transform.
 - `matlookat(eyeX,eyeY,eyeZ,camX,camY,camZ,upX,upY,upZ)` = transform view to position at camX,camY,camZ and look at eyeX,eyeY,eyeZ with the up vector upX,upY,upZ.
 
+## sound:
+
+- `sfx(sfxID, channel, pitch, volL, volR, loop)` = play sfx.  still WIP.
+- `music(musicID, musicPlaying, channelOffset)` = play music.  still WIP.
+
 ## input:
 
 - `key(code)`, `keyp(code, [hold], [period])`, `keyr(code)` = Returns true if the key code was pressed.

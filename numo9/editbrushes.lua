@@ -47,7 +47,7 @@ function EditBrushes:init(args)
 		end
 	end
 
-	self.pickOpen = nil
+	self.pickOpen = false
 	self.spriteSelPos = vec2i()
 	self.spriteSelSize = vec2i(1,1)
 	self.draw16Sprites = false
@@ -60,9 +60,9 @@ function EditBrushes:update()
 	local thisTileSize = vec2i(
 		bit.lshift(spriteSize.x, draw16As0or1),
 		bit.lshift(spriteSize.y, draw16As0or1))
-	local leftButtonDown = app.mouse.leftDown
-	local leftButtonPress = app.mouse.leftPress
-	local leftButtonRelease = app.mouse.leftRelease
+	local leftButtonDown = app:key'mouse_left'
+	local leftButtonPress = app:keyp'mouse_left'
+	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local shift = app:key'lshift' or app:key'rshift'
@@ -71,6 +71,11 @@ function EditBrushes:update()
 
 	-- title controls
 	local x,y = 128, 0
+
+	if self:guiButton('T', x, y, self.pickOpen, 'tile') then
+		self.pickOpen = not self.pickOpen
+	end
+	x=x+8
 
 	-- TODO this across here and the tilemap editor, and maybe from a memory address in the game...
 	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
@@ -114,9 +119,8 @@ function EditBrushes:update()
 				local uy = 16 + j * thisTileSize.y
 				local uw = thisTileSize.x
 				local uh = thisTileSize.y
-				if pass==0 then
+				if pass==1 then	-- and grid is enabled ...
 					app:drawBorderRect(ux-1, uy-1, uw+2, uh+2, self:color(10))
-					app:drawSolidRect(ux, uy, uw, uh, self:color(0))
 				else
 					local t = assert(self.stamp[i+1][j+1])
 					local tx = bit.band(t, 0x1f) * spriteSize.x					-- ux
@@ -133,13 +137,24 @@ function EditBrushes:update()
 						0,		-- spriteBit
 						0xff	-- spriteMask
 					)
-					if self.pickOpen == nil
+					if not self.pickOpen
 					and leftButtonRelease
 					and mouseX >= ux and mouseX < ux + uw
 					and mouseY >= uy and mouseY < uy + uh
 					then
-						self.pickOpen = {i, j}	-- which tile we are replacing
-						return 	-- don't handle future clicks tht would close the pick window
+						for iofs=0,self.spriteSelSize.x-1 do
+							for jofs=0,self.spriteSelSize.y-1 do
+								local dsti = i + iofs
+								local dstj = j + jofs
+								if dsti >= 0 and dstj >= 0 
+								and dsti < self.stampSize.x
+								and dstj < self.stampSize.y
+								then
+									self.stamp[dsti+1][dstj+1] = self.spriteSelPos.x + iofs + spriteSheetSizeInTiles.x * (self.spriteSelPos.y + jofs)
+								end
+							end
+						end
+						return 
 					end
 				end
 			end
@@ -195,11 +210,13 @@ function EditBrushes:update()
 				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
 				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
 			elseif leftButtonRelease then
+				--[[
 				self.stamp[self.pickOpen[1]+1][self.pickOpen[2]+1] = bit.bor(
 					self.spriteSelPos.x,
 					bit.lshift(self.spriteSelPos.y, 5)
 					-- TODO also high bits
 				)
+				--]]
 				-- TODO if there were spriteSelSize then fill in more pick neighboring tiles in the stamp
 				self.pickOpen = nil
 			end
@@ -207,7 +224,7 @@ function EditBrushes:update()
 
 		app:drawBorderRect(
 			pickX + self.spriteSelPos.x * spriteSize.x * pickW / spriteSheetSize.x,
-			pickX + self.spriteSelPos.y * spriteSize.y * pickH / spriteSheetSize.y,
+			pickY + self.spriteSelPos.y * spriteSize.y * pickH / spriteSheetSize.y,
 			spriteSize.x * self.spriteSelSize.x * pickW / spriteSheetSize.x,
 			spriteSize.y * self.spriteSelSize.y * pickH / spriteSheetSize.y,
 			self:color(13)
