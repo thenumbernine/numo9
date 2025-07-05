@@ -198,9 +198,6 @@ local function toint(x)
 end
 
 function App:initGL()
-	local Mouse = require 'glapp.mouse'
-	self.mouse = Mouse()
-
 	gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 1)
 	gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
 
@@ -1534,12 +1531,6 @@ end
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function App:update()
 	if not self.hasFocus then return end
-
-	-- keep track of mouse press/release
-	-- this is separate of the fantasy-console-hardware button flags updated below
-	-- those are for games, and their press/release should be relative to game updates
-	-- while mouse is relative to App:update and is used by the UI
-	self.mouse:update()
 
 	-- will this hurt performance?
 	if self.activeMenu then

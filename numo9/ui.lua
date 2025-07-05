@@ -95,11 +95,6 @@ function UI:guiButton(str, x, y, isset, tooltip)
 		self.menuTabIndex = self.menuTabCounter
 	end
 
--- ok new take
--- I can't use app.mouse because thats updated every App:update
--- but UI:guiButton is updated every activeMenu
--- so I gotta use app:keyp'mouse_left'
---	if (mouseOver and app.mouse.leftPress)
 	if (mouseOver and app:keyp'mouse_left')
 	or (self.execMenuTab and onThisMenuItem)
 	then
@@ -115,16 +110,9 @@ end
 function UI:guiSpinner(x, y, cb, tooltip)
 	local app = self.app
 
---[[
-	local leftButtonDown = app.mouse.leftDown
-	local leftButtonPress = app.mouse.leftPress
-	local leftButtonRelease = app.mouse.leftRelease
---]]
--- [[
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
---]]
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	if self:guiButton('<', x, y, nil, tooltip) then
@@ -186,7 +174,6 @@ function UI:guiTextField(
 	end
 
 	-- TODO like some UIs, push enter to enable/disable editing? or nah
---	if mouseOver and app.mouse.leftPress then
 	if mouseOver and app:keyp'mouse_left' then
 		self.menuTabIndex = self.menuTabCounter
 		onThisMenuItem = true
@@ -369,6 +356,7 @@ function UI:update()
 	end
 end
 
+-- TODO I changed this, now I use a separate UI palette texture, so this isnt needed.
 -- put editor palette in the last entry
 -- so that people dont touch it
 -- but still make sure they can use it
