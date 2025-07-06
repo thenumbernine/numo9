@@ -616,19 +616,13 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- currently the music track data is delta encoded, but it handles new values as changes come in, so if the sfxID starts at zero then it won't be delta-encoded (unless you add an extra zero to the delta data) or alternatively (BETTER) don't add the extra zero, and instead have the music ... play on sfx ID initially?  only on non-zero vol channels? (then i have to process a whole first frame first)?  or only on isPlaying channels?  idk...
 - input
 	- set up inputs to have multiple bindings, and a clear vs set option.
-	- then give a default binding to `SDL_GAMEPAD`.
 - menu
 	- draw mouse / touch regions
-	- transparent menu
 - graphics:
 	- make sure the framebuffer can write to the sprite sheet.
 - editor:
-	- copy/paste on the tilemap.
-		- copy/paste tilemap entries themselves
-		- paste sprites into the tilemap, then automatically quantize their sprites and palettes.. Just need to copy most of this from my `convert-to-8x8x4bpp` repo.
-		- ... of text / number tables
 	- flag for pen / paste / bucket fill clip-to-view-area or not
-	- tilemap bucket fill, pen size, and basically all the sam edit functionality as the sprite editor
+	- tilemap pen size, and basically all the same edit functionality as the sprite editor
 	- sfx tab
 		- any kind of editing at all
 		- paste in wave files
@@ -641,7 +635,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		... the other route to go that I don't want to do is always auto-reset when editing single-player, and don't auto-reset when editing multipalyer ...
 		... another option is put the RAM and ROM both in addressible memory (to get around the reload/cstore API issue), ... but then what would the editor be editing?  the current RAM state, to-be-flushed-to-ROM-upon-save (what it's doing now), or the ROM state, or what?
 - memory
-	- reset, memcpy, and the pico8 functions cstore, and reload.
+	- about reset, memcpy, and the pico8 functions cstore, and reload:
 		Real cartridge consoles just gave separate address space to the cartridges, then you just copy between your RAM and your ROM addresses.
 		Fantasy consoles seem to be keeping an extra copy of the cartridge in memory and accessing it through these functions.
 		Maybe I will put the ROM in addressible space and just have load/reset perform an initial copy from ROM to RAM space. How about ROM at 0xC00000 or so?
@@ -659,7 +653,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out libpng's memeory pathway is buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is RIGHT DOWN LEFT UP A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
-- What's a good default keyboard configuration?  I'm going with Snes9x's.
 - Right now editor tilemap is 8x8 tiles by default ... maybe default to 16x16?
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
 - matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
