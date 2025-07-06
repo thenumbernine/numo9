@@ -2610,6 +2610,7 @@ function App:runROM()
 			if not line then break end -- I guess no single-line meta tags with no code afterwards ...
 			local k, v = line:match'^%-%-%s*([^%s=]+)%s*=%s*(.-)%s*$'
 			if not k then break end
+--DEBUG:print('setting metainfo', k, v)
 			self.metainfo[k] = v
 			i = to + #term
 		until false
@@ -2626,6 +2627,19 @@ function App:runROM()
 
 	-- set title if it's there ...
 	sdl.SDL_SetWindowTitle(self.window, self.metainfo.title or self.title)
+
+	-- see if the ROM has any preferences on the editor ...
+	do
+		local v = self.metainfo['editTilemap.gridSpacing']
+		if v then
+			self.editTilemap.gridSpacing = tonumber(v) or self.editTilemap.gridSpacing
+			self.editTilemap.drawGrid = true
+		end
+		local v = self.metainfo['editTilemap.draw16Sprites']
+		if v ~= nil then	-- I'm pretty sure this still needs a string-convert
+			self.editTilemap.draw16Sprites = true
+		end
+	end
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
 	env.thread = coroutine.create(function()
