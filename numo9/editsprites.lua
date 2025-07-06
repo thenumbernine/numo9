@@ -645,7 +645,7 @@ function EditSprites:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
-				self:edit_pokew(selPaletteAddr, result) 
+				self:edit_pokew(selPaletteAddr, result)
 				selColorValue = result
 			end
 		end
