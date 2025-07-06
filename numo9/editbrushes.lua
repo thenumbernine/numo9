@@ -81,6 +81,11 @@ function EditBrushes:update()
 	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
 		self.draw16Sprites = not self.draw16Sprites
 	end
+	x=x+8
+	
+	if self:guiButton('G', x, y, self.drawGrid, 'grid') then
+		self.drawGrid = not self.drawGrid
+	end
 	
 	x, y = 0, 8
 
@@ -119,7 +124,11 @@ function EditBrushes:update()
 				local uy = 16 + j * thisTileSize.y
 				local uw = thisTileSize.x
 				local uh = thisTileSize.y
-				if pass==1 then	-- and grid is enabled ...
+				-- TODO separate grids for the 9 patch portions
+				-- and rules on duplication
+				-- hmm ... kinda like texclamp ...
+				-- or should it just be scripted?
+				if pass==1 and self.drawGrid then
 					app:drawBorderRect(ux-1, uy-1, uw+2, uh+2, self:color(10))
 				else
 					local t = assert(self.stamp[i+1][j+1])

@@ -376,7 +376,7 @@ function MainMenu:updateMenuInput()
 							if (e[1] == sdl.SDL_EVENT_KEY_DOWN and e[2] == sdl.SDLK_ESCAPE)
 							or (e[1] == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[3] == sdl.SDL_GAMEPAD_BUTTON_START)
 							then
-								playerInfo.buttonBinds[buttonIndex] = {}
+								playerInfo.buttonBinds[buttonIndex] = nil
 								return
 							end
 							--]]

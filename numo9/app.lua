@@ -1043,6 +1043,7 @@ print('package.loaded', package.loaded)
 		if t[k] == nil then t[k] = v end
 	end
 
+	local initializingConfig = not self.cfg
 	setdefault(self, 'cfg', {})
 	setdefault(self.cfg, 'volume', 255)
 
@@ -1074,8 +1075,14 @@ print('package.loaded', package.loaded)
 	for i=1,maxPlayersPerConn do
 		self.cfg.playerInfos[i].hostPlayerIndex = i-1
 	end
-	-- fake-gamepad key bindings
 	--[[
+fake-gamepad key bindings
+
+TODO maybe - wait until the first input event before setting this.
+- if it's gamepad, set to default-gamepad
+- if it's keyboard, set to default keyboard (or mouse too maybe?)
+- if it's touch, set to default touch
+
 Some default keys options:
 	Snes9x	ZSNES	LibRetro
 A	D		X		X
@@ -1086,14 +1093,21 @@ L	A/V		D		Q
 R	Z		C		W
 looks like I'm a Snes9x-default-keybinding fan.
 	--]]
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.right, {768, 1073741903, name="keyRight"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.down, {768, 1073741905, name="keyDown"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.left, {768, 1073741904, name="keyLeft"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.up, {768, 1073741906, name="keyUp"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.a, {768, ('s'):byte(), name="keyS"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.b, {768, ('x'):byte(), name="keyX"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.x, {768, ('a'):byte(), name="keyA"})
-	setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCodeForName.y, {768, ('z'):byte(), name="keyZ"})
+	-- allow the player to leave these unbound?  only set them to defaults when setting the initial cfg?
+	if initializingConfig then
+		local function setPlayer1DefaultKeyDown(buttonCode, ev)
+			ev.name = self:getEventName(table.unpack(ev))
+			setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCode, ev)
+		end
+		setPlayer1DefaultKeyDown(buttonCodeForName.right, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_RIGHT})
+		setPlayer1DefaultKeyDown(buttonCodeForName.down, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_DOWN})
+		setPlayer1DefaultKeyDown(buttonCodeForName.left, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_LEFT})
+		setPlayer1DefaultKeyDown(buttonCodeForName.up, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_UP})
+		setPlayer1DefaultKeyDown(buttonCodeForName.a, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_S})
+		setPlayer1DefaultKeyDown(buttonCodeForName.b, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_X})
+		setPlayer1DefaultKeyDown(buttonCodeForName.x, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_A})
+		setPlayer1DefaultKeyDown(buttonCodeForName.y, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_Z})
+	end
 
 	-- can have 3 more ... at least I've only allocated enough for 4 players worth of keys ...
 	-- and right now netplay operates by reflecting keys and draw-commands ...
@@ -2980,13 +2994,15 @@ function App:event(e)
 
 	-- hmm here separately handle the escape / start button?
 	-- in fact this is the same code as in UI:event()
-	if (e[0].type == sdl.SDL_EVENT_KEY_DOWN
-		and e[0].key.key == sdl.SDLK_ESCAPE)
-	or (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
-		and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_START)
-	then
-		self:toggleMenu()
-		return
+	if not self.waitingForEvent then
+		if (e[0].type == sdl.SDL_EVENT_KEY_DOWN
+			and e[0].key.key == sdl.SDLK_ESCAPE)
+		or (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+			and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_START)
+		then
+			self:toggleMenu()
+			return
+		end
 	end
 
 	-- if we're in a menu then let it capture the event
