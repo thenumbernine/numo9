@@ -453,11 +453,8 @@ do
 
 			if align and not self.moveFracMoving then
 				local moveResponse=self:doMove(side)
-				if moveResponse=='was blocked'
-				or moveResponse=='did move'
-				then
-					return true
-				end
+				if moveResponse=='did move' then return false end
+				if moveResponse=='was blocked' then return true end
 			end
 			return superResult
 		end,
