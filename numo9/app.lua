@@ -1045,6 +1045,10 @@ print('package.loaded', package.loaded)
 
 	local initializingConfig = not self.cfg
 	setdefault(self, 'cfg', {})
+
+	-- set this and only clear it once the player has pushed their first input event so we can know what kind of controller they're using
+	self.cfg.initializingConfig = initializingConfig 
+
 	setdefault(self.cfg, 'volume', 255)
 
 	-- notice on my osx, even 'localhost' and '127.0.0.1' aren't interchangeable
@@ -1075,43 +1079,7 @@ print('package.loaded', package.loaded)
 	for i=1,maxPlayersPerConn do
 		self.cfg.playerInfos[i].hostPlayerIndex = i-1
 	end
-	--[[
-fake-gamepad key bindings
-
-TODO maybe - wait until the first input event before setting this.
-- if it's gamepad, set to default-gamepad
-- if it's keyboard, set to default keyboard (or mouse too maybe?)
-- if it's touch, set to default touch
-
-Some default keys options:
-	Snes9x	ZSNES	LibRetro
-A	D		X		X
-B	C		Z		Z
-X	S		S		S
-Y	X		A		A
-L	A/V		D		Q
-R	Z		C		W
-looks like I'm a Snes9x-default-keybinding fan.
-	--]]
-	-- allow the player to leave these unbound?  only set them to defaults when setting the initial cfg?
-	if initializingConfig then
-		local function setPlayer1DefaultKeyDown(buttonCode, ev)
-			ev.name = self:getEventName(table.unpack(ev))
-			setdefault(self.cfg.playerInfos[1].buttonBinds, buttonCode, ev)
-		end
-		setPlayer1DefaultKeyDown(buttonCodeForName.right, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_RIGHT})
-		setPlayer1DefaultKeyDown(buttonCodeForName.down, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_DOWN})
-		setPlayer1DefaultKeyDown(buttonCodeForName.left, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_LEFT})
-		setPlayer1DefaultKeyDown(buttonCodeForName.up, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_UP})
-		setPlayer1DefaultKeyDown(buttonCodeForName.a, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_S})
-		setPlayer1DefaultKeyDown(buttonCodeForName.b, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_X})
-		setPlayer1DefaultKeyDown(buttonCodeForName.x, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_A})
-		setPlayer1DefaultKeyDown(buttonCodeForName.y, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_Z})
-	end
-
-	-- can have 3 more ... at least I've only allocated enough for 4 players worth of keys ...
-	-- and right now netplay operates by reflecting keys and draw-commands ...
-
+	-- allow the player to leave keys unbound?  only set them to defaults when setting the initial cfg?
 	self:buildPlayerEventsMap()
 
 -- setFocus has been neglected ...
@@ -3004,6 +2972,67 @@ function App:event(e)
 			return
 		end
 	end
+
+
+	-- now, if the player hasn't touched anything for the very first time ever,
+	-- determine what kind of default keys to give them
+	if self.cfg.initializingConfig then
+		if e[0].type == sdl.SDL_EVENT_KEY_DOWN
+		or e[0].type == sdl.SDL_EVENT_MOUSE_MOTION
+		or e[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN
+		or e[0].type == sdl.SDL_EVENT_FINGER_DOWN	-- TODO later - separate default for touch-screen?
+		then -- default to keyboard
+			self.cfg.initializingConfig = nil
+			print('initializing for keyboard...')
+--[[
+Some default keys options:
+	Snes9x	ZSNES	LibRetro
+A	D		X		X
+B	C		Z		Z
+X	S		S		S
+Y	X		A		A
+L	A/V		D		Q
+R	Z		C		W
+looks like I'm a Snes9x-default-keybinding fan.
+--]]
+			local function setPlayer1Default(buttonCode, ev)
+				ev.name = self:getEventName(table.unpack(ev))
+				self.cfg.playerInfos[1].buttonBinds[buttonCode] = ev
+			end
+			setPlayer1Default(buttonCodeForName.right, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_RIGHT})
+			setPlayer1Default(buttonCodeForName.down, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_DOWN})
+			setPlayer1Default(buttonCodeForName.left, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_LEFT})
+			setPlayer1Default(buttonCodeForName.up, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_UP})
+			setPlayer1Default(buttonCodeForName.a, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_S})
+			setPlayer1Default(buttonCodeForName.b, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_X})
+			setPlayer1Default(buttonCodeForName.x, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_A})
+			setPlayer1Default(buttonCodeForName.y, {sdl.SDL_EVENT_KEY_DOWN, sdl.SDLK_Z})
+			self:buildPlayerEventsMap()
+		elseif e[0].type == sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION
+		or e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN
+		then
+			self.cfg.initializingConfig = nil
+			print('initializing for gamepad...')
+			-- default to gamepad
+			local function setPlayer1Default(buttonCode, ev)
+				ev.name = self:getEventName(table.unpack(ev))
+				self.cfg.playerInfos[1].buttonBinds[buttonCode] = ev
+			end
+			local controllerIndex = 1
+			-- TODO is it just my controller or do most/all gamepads use axis for dpad?  i'm thinking my controller is just some cheap knockoff ...
+			setPlayer1Default(buttonCodeForName.right, {sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, controllerIndex, 0, 1})
+			setPlayer1Default(buttonCodeForName.down, {sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, controllerIndex, 1, 1})
+			setPlayer1Default(buttonCodeForName.left, {sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, controllerIndex, 0, -1})
+			setPlayer1Default(buttonCodeForName.up, {sdl.SDL_EVENT_GAMEPAD_AXIS_MOTION, controllerIndex, 1, -1})
+			setPlayer1Default(buttonCodeForName.a, {sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, controllerIndex, sdl.SDL_GAMEPAD_BUTTON_EAST})
+			setPlayer1Default(buttonCodeForName.b, {sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, controllerIndex, sdl.SDL_GAMEPAD_BUTTON_SOUTH})
+			setPlayer1Default(buttonCodeForName.x, {sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, controllerIndex, sdl.SDL_GAMEPAD_BUTTON_NORTH})
+			setPlayer1Default(buttonCodeForName.y, {sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN, controllerIndex, sdl.SDL_GAMEPAD_BUTTON_WEST})
+			self:buildPlayerEventsMap()
+		end
+	end
+	-- TODO how to handle initializing extra local players too ...
+	
 
 	-- if we're in a menu then let it capture the event
 	if self.activeMenu
