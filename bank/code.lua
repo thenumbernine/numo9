@@ -730,10 +730,8 @@ do
 						and o~=self
 						then
 							local dist=linfDist(o.destPosX, o.destPosY, checkPosX, checkPosY)
-							if Player:isa(o)
-							and dist > .75 then
-							elseif dist > .25 then
-							else
+							local safeDist = Player:isa(o) and .75 or .25
+							if dist <= safeDist then
 								o:onTouchFlames()
 								if o.blocksExplosion then
 									hit=true
