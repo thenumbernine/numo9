@@ -1047,7 +1047,7 @@ print('package.loaded', package.loaded)
 	setdefault(self, 'cfg', {})
 
 	-- set this and only clear it once the player has pushed their first input event so we can know what kind of controller they're using
-	self.cfg.initializingConfig = initializingConfig 
+	self.cfg.initializingConfig = initializingConfig
 
 	setdefault(self.cfg, 'volume', 255)
 
@@ -3032,7 +3032,7 @@ looks like I'm a Snes9x-default-keybinding fan.
 		end
 	end
 	-- TODO how to handle initializing extra local players too ...
-	
+
 
 	-- if we're in a menu then let it capture the event
 	if self.activeMenu

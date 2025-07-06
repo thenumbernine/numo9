@@ -33,8 +33,12 @@ function EditTilemap:init(args)
 	EditTilemap.super.init(self, args)
 
 	self.pickOpen = false
+	-- these are within the popup select tile window right?
 	self.spriteSelPos = vec2i()
 	self.spriteSelSize = vec2i(1,1)
+	-- and this is for copy paste in the tilemap
+	self.tileSelPos = vec2i()
+	self.tileSelSize = vec2i()
 	self.horzFlip = false
 	self.vertFlip = false
 	self.selPalHiOffset = 0
@@ -83,7 +87,7 @@ function EditTilemap:update()
 	end
 
 	-- sprite edit method
-	x = x + 16
+	x = x + 10
 	self:guiRadio(x, y, {'draw', 'fill', 'dropper', 'pan', 'select'}, self.drawMode, function(result)
 		self.drawMode = result
 	end)
@@ -153,7 +157,7 @@ function EditTilemap:update()
 		('%04X'):format(tileSelIndex), nil,
 		function(result)
 			result = tonumber(result, 16)
-			if result then 
+			if result then
 				self.spriteSelPos.x = result % spriteSheetSizeInTiles.x
 				self.spriteSelPos.y = (result - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
 				self.selPalHiOffset = bit.band(bit.rshift(result, 10), 0xf)
@@ -208,6 +212,19 @@ function EditTilemap:update()
 			app:drawSolidLine(xmin, j, xmax, j, self:color(1))
 		end
 	end
+	
+	if self.drawMode == 'select' then
+		app:drawBorderRect(
+			self.tileSelPos.x * tileSize,
+			self.tileSelPos.y * tileSize,
+			tileSize * self.tileSelSize.x,
+			tileSize * self.tileSelSize.y,
+			0xfd
+		)
+	end
+
+
+
 	app:setClipRect(0, 0, clipMax, clipMax)
 
 	if self.pickOpen then
@@ -417,6 +434,16 @@ function EditTilemap:update()
 					end
 				end
 			end
+		elseif self.drawMode == 'select' then
+			if leftButtonPress then
+				self.tileSelPos:set(fbToTileCoord(mouseX, mouseY))
+				self.tileSelPos.x = math.clamp(self.tileSelPos.x, 0, tilemapSize.x-1)
+				self.tileSelPos.y = math.clamp(self.tileSelPos.y, 0, tilemapSize.x-1)
+				self.tileSelSize:set(1,1)
+			elseif leftButtonDown then
+				self.tileSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / tileSize)
+				self.tileSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / tileSize)
+			end
 		elseif self.drawMode == 'pan' then
 			if leftButtonDown then
 				tilemapPan(leftButtonPress)
@@ -441,62 +468,41 @@ function EditTilemap:update()
 		uikey = app:key'lctrl' or app:key'rctrl'
 	end
 	if uikey then
-		local x = 0
-		local y = 0
-		--TODO cut or copy ... need to specify selection beforehand
-		if app:keyp'v' then
-			-- TODO how to specify where to paste? beforehand? or paste as overlay until you click outside the box?
-
+		local x = self.tileSelPos.x
+		local y = self.tileSelPos.y
+		local width = self.tileSelSize.x
+		local height = self.tileSelSize.y
+		if app:keyp'x' or app:keyp'c' then
+			assert(not tilemapRAM.dirtyGPU)
+			local image = tilemapRAM.image:copy{x=x, y=y, width=width, height=height}
+			-- 1-channel uint16_t image
+			local channels = 4
+			local image8bpp = Image(image.width, image.height, channels, 'uint8_t')
+			for i=0,image.width*image.height-1 do
+				image8bpp.buffer[0 + channels * i] = bit.band(0xff, image.buffer[i])
+				image8bpp.buffer[1 + channels * i] = bit.band(0xff, bit.rshift(image.buffer[i], 8))
+				image8bpp.buffer[2 + channels * i] = 0
+				image8bpp.buffer[3 + channels * i] = 0xff
+			end
+			clip.image(image8bpp)
+			if app:keyp'x' then
+				tilemapRAM.dirtyCPU = true
+				assert.eq(tilemapRAM.image.channels, 1)
+				for j=y,y+height-1 do
+					for i=x,x+width-1 do
+						self:edit_pokew(tilemapRAM.addr + bit.lshift(i + tilemapRAM.image.width * j, 1), 0)
+					end
+				end
+			end
+		elseif app:keyp'v' then
+			-- TODO how to specify where to paste? beforehand?
+			-- or paste as overlay until you click outside the box?
+			-- or use the select rect to specify ... then only paste in select mode?
 			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
 			assert(not tilemapRAM.dirtyGPU)
 			local image = clip.image()
 			if image then
-				local pasteTargetNumColors = 1024
-				local indexOffset = 0
-				-- TODO right now libclip always converts to RGBA, so I'm just quantizing to convert back
-				-- so it's mixing up the palette index order
-				-- TODO allow 1-channel support from libclip
-				if image.channels ~= 1 then
-					print('quantizing image to '..tostring(pasteTargetNumColors)..' colors')
-					assert(image.channels >= 3)	-- NOTICE it's only RGB right now ... not even alpha
-					image = image:rgb()
-					assert.eq(image.channels, 3, "image channels")
-
-					local hist
-					image, hist = Quantize.reduceColorsMedianCut{
-						image = image,
-						targetSize = pasteTargetNumColors,
-					}
-					assert.eq(image.channels, 3, "image channels")
-					-- I could use image.quantize_mediancut.applyColorMap but it doesn't use palette'd image (cuz my image library didn't support it at the time)
-					-- soo .. I'll implement indexed-apply here (TODO move this into image.quantize_mediancut, and TOOD change convert-to-8x84bpp to use paletted images)
-					local colors = table.keys(hist):sort()
-print('num colors', #colors)
-assert.le(#colors, 256, "resulting number of quantized colors")
-					local indexForColor = colors:mapi(function(color,i)	-- 0-based index
-						return i-1, color
-					end)
-					-- override colors here ...
-					local image1ch = Image(image.width, image.height, 1, 'unsigned char')
-					local srcp = image.buffer
-					local dstp = image1ch.buffer
-					for i=0,image.width*image.height-1 do
-						local key = string.char(unpackptr(3, srcp))
-						local dstIndex = indexForColor[key]
-						if not dstIndex then
-print("no index for color "..Quantize.bintohex(key))
-print('possible colors: '..require 'ext.tolua'(colors))
-							error'here'
-						end
-						dstp[0] = bit.band(0xff, dstIndex + indexOffset)
-						dstp = dstp + 1
-						srcp = srcp + image.channels
-					end
-					-- TODO proper would be to set image1ch.palette here but meh I'm just copying it on the next line anyways ...
-					image = image1ch
-				end
-				assert.eq(image.channels, 1, "image.channels")
-print'pasting image'
+				-- 4-channel uint8_t image
 				for j=0,image.height-1 do
 					for i=0,image.width-1 do
 						local destx = i + x
@@ -504,13 +510,16 @@ print'pasting image'
 						if destx >= 0 and destx < tilemapRAM.image.width
 						and desty >= 0 and desty < tilemapRAM.image.height
 						then
-							local c = image.buffer[i + image.width * j]
+							local c = 0
+							for ch=image.channels-1,0,-1 do
+								c = bit.lshift(c, 8)
+								c = bit.bor(c, image.buffer[ch + image.channels * (i + image.width * j)])
+							end
 							self:edit_pokew(tilemapRAM.addr + bit.lshift(destx + tilemapRAM.image.width * desty, 1), c)
 						end
 					end
 				end
 			end
-
 		end
 	end
 
