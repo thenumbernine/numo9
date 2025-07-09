@@ -129,7 +129,8 @@ do
 		cfg = cfgdir/'numo9/config.lua'
 	end
 	App.cfgpath = cfg
-	App.cfgpath:getdir():mkdir(true)
+	App.cfgdir = App.cfgpath:getdir()
+	App.cfgdir:mkdir(true)
 end
 
 -- fps vars
@@ -1036,7 +1037,6 @@ print('package.loaded', package.loaded)
 			..tostring(err)..'\n'
 			..debug.traceback())
 	end)
-
 
 	-- initialize config or any of its properties if they were missing
 	local function setdefault(t,k,v)
@@ -2496,7 +2496,6 @@ end
 
 function App:writePersistent()
 	--if not self.currentLoadedFilename then return end	-- should not I bother if there's no cartridge loaded? or still allow saving of persistent data if ppl are messing around on the editor?
-	self.cfg.persistent = self.cfg.persistent or {}
 
 	-- first call, there's no metainfo, so if it's not there then don't save anything
 	if self.metainfo then
@@ -2508,9 +2507,13 @@ function App:writePersistent()
 			if self.ram.persistentCartridgeData[len-1] ~= 0 then break end
 			len = len - 1
 		end
+		local saveStr = ffi.string(self.ram.persistentCartridgeData, len)
 --DEBUG:print('writePersistent self.metainfo.saveid', self.metainfo.saveid, require'ext.tolua'(ffi.string(self.ram.persistentCartridgeData, len)))
-		if len > 0 then
-			self.cfg.persistent[self.metainfo.saveid] = ffi.string(self.ram.persistentCartridgeData, len)
+		local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
+		if len == 0 then
+			cartPersistFile:remove()
+		else
+			cartPersistFile:write(saveStr)
 		end
 		-- now where does self.cfg get written?
 	end
@@ -2618,8 +2621,9 @@ function App:runROM()
 	self.metainfo.saveid = self.metainfo.saveid or sha2.md5(ffi.string(self.banks.v, #self.banks * ffi.sizeof'ROM'))
 
 	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...
-	if self.cfg and self.cfg.persistent then
-		local saveStr = self.cfg.persistent[self.metainfo.saveid]
+	local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
+	if cartPersistFile:exists() then
+		local saveStr = cartPersistFile:read()
 		if saveStr and #saveStr > 0 then
 			ffi.copy(self.ram.persistentCartridgeData, saveStr, math.min(#saveStr, persistentCartridgeDataSize))
 		end
