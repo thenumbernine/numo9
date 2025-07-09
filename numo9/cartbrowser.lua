@@ -4,6 +4,7 @@ local CartBrowser = require 'numo9.ui':subclass()
 
 function CartBrowser:update()
 --	CartBrowser.super.update(self)	-- clears screen, shows the current-editor tab etc
+	self:initMenuTabs()
 	local app = self.app
 
 	app:setVideoMode(0)
@@ -41,19 +42,18 @@ function CartBrowser:update()
 	for i,name in ipairs(fileNames) do
 		local f = fs.cwd.chs[name]
 
-		-- only upon mouse-move, so keyboard can move even if the mouse is hovering over a button
-		local mouseOver = mouseX >= x and mouseX < x+w and mouseY >= y and mouseY < y+h
-
 		local sel = self.menuTabIndex == self.menuTabCounter
 		if sel then
-			mouseOverSel = mouseOver
+			mouseOverSel = true
 			selname = name
 		end
 
 		if f.isdir then 				-- dir
 			self:guiButton('['..name..']', x, y)
 		elseif name:match'%.n9$' then	-- cart file
-			self:guiButton('*'..name, x, y)
+			if self:guiButton('*'..name, x, y) then
+				-- clicked it ...
+			end
 		else							-- non-cart file
 			self:guiButton(' '..name, x, y)
 		end
