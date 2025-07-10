@@ -5,7 +5,7 @@ local table = require 'ext.table'
 local assert = require 'ext.assert'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
-local clip = require 'clip'	-- clipboard support
+local clip = require 'numo9.clipboard'
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
 
@@ -477,14 +477,14 @@ function EditTilemap:update()
 			local image = tilemapRAM.image:copy{x=x, y=y, width=width, height=height}
 			-- 1-channel uint16_t image
 			local channels = 4
-			local image8bpp = Image(image.width, image.height, channels, 'uint8_t')
+			local imageRGBA = Image(image.width, image.height, channels, 'uint8_t')
 			for i=0,image.width*image.height-1 do
-				image8bpp.buffer[0 + channels * i] = bit.band(0xff, image.buffer[i])
-				image8bpp.buffer[1 + channels * i] = bit.band(0xff, bit.rshift(image.buffer[i], 8))
-				image8bpp.buffer[2 + channels * i] = 0
-				image8bpp.buffer[3 + channels * i] = 0xff
+				imageRGBA.buffer[0 + channels * i] = bit.band(0xff, image.buffer[i])
+				imageRGBA.buffer[1 + channels * i] = bit.band(0xff, bit.rshift(image.buffer[i], 8))
+				imageRGBA.buffer[2 + channels * i] = 0
+				imageRGBA.buffer[3 + channels * i] = 0xff
 			end
-			clip.image(image8bpp)
+			clip.image(imageRGBA)
 			if app:keyp'x' then
 				tilemapRAM.dirtyCPU = true
 				assert.eq(tilemapRAM.image.channels, 1)

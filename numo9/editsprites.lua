@@ -7,7 +7,7 @@ local assert = require 'ext.assert'
 local math = require 'ext.math'
 local table = require 'ext.table'
 local vec2i = require 'vec-ffi.vec2i'
-local clip = require 'clip'	-- clipboard support
+local clip = require 'numo9.clipboard'
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
 

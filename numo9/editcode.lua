@@ -5,7 +5,7 @@ local ffi = require 'ffi'
 local table = require 'ext.table'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
-local clip = require 'clip'	-- clipboard support
+local clip = require 'numo9.clipboard'
 
 local numo9_keys = require 'numo9.keys'
 local keyCodeNames = numo9_keys.keyCodeNames
