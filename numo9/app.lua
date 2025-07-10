@@ -2924,6 +2924,11 @@ function App:toggleMenu()
 	end
 end
 
+function App:resize()
+	App.super.resize(self)
+	needDrawCounter = drawCounterNeededToRedraw
+end
+
 function App:event(e)
 	if e[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_GAINED then
 		self.hasFocus = true
