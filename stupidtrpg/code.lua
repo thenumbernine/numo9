@@ -9,142 +9,8 @@ end
 math.randomseed(tstamp())
 
 --#include ext/class.lua
-
-getvalue=|x, dim|do
-	if type(x) == 'number' then return x end
-	if type(x) == 'table' then
-		x = x[dim]
-		if type(x) ~= 'number' then
-			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
-		end
-		return x
-	end
-	error("tried to getvalue from an unknown type "..type(x))
-end
-
-vec2=class{
-	dim=2,
-	init=|v,x,y|do
-		if x then
-			v:set(x,y)
-		else
-			v:set(0,0)
-		end
-	end,
-	set=|v,x,y|do
-		if type(x) == 'table' then
-			v[1] = x[1]
-			v[2] = x[2]
-		else
-			v[1] = x
-			if y then
-				v[2] = y
-			else
-				v[2] = x
-			end
-		end
-	end,
-	volume=|v|v[1]*v[2],
-	clamp=|v,a,b|do
-		local mins = a
-		local maxs = b
-		if type(a) == 'table' and a.min and a.max then	
-			mins = a.min
-			maxs = a.max
-		end
-		v[1] = math.clamp(v[1], getvalue(mins, 1), getvalue(maxs, 1))
-		v[2] = math.clamp(v[2], getvalue(mins, 2), getvalue(maxs, 2))
-		return v
-	end,
-	map=|v,f|do
-		v[1]=f(v[1],1)
-		v[2]=f(v[2],2)
-		return v
-	end,
-	floor=|v|v:map(math.floor),
-	ceil=|v|v:map(math.ceil),
-	l1Length=|v|math.abs(v[1])+math.abs(v[2]),
-	lInfLength=|v|math.max(math.abs(v[1]),math.abs(v[2])),
-	__add=|a,b|vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
-	__sub=|a,b|vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
-	__mul=|a,b|vec2(getvalue(a,1)*getvalue(b,1),getvalue(a,2)*getvalue(b,2)),
-	__div=|a,b|vec2(getvalue(a,1)/getvalue(b,1),getvalue(a,2)/getvalue(b,2)),
-	__eq=|a,b|a[1]==b[1]and a[2]==b[2],
-	__tostring=|v|v[1]..','..v[2],
-	__concat=|a,b|tostring(a)..tostring(b),
-}
-
-getminvalue=|x|do
-	if x.min then return x.min end
-	assert(x ~= nil, "getminvalue got nil value")
-	return x
-end
-
-getmaxvalue=|x|do
-	if x.max then return x.max end
-	assert(x ~= nil, "getmaxvalue got nil value")
-	return x
-end
-
-box2=class{
-	dim=2,
-	init=|:,a,b|do
-		if type(a) == 'table' and a.min and a.max then
-			self.min = vec2(a.min)
-			self.max = vec2(a.max)
-		else
-			self.min = vec2(a)
-			self.max = vec2(b)
-		end
-	end,
-	stretch=|:,v|do
-		if getmetatable(v) == box2 then
-			self:stretch(v.min)
-			self:stretch(v.max)
-		else
-			for i=1,self.dim do
-				self.min[i] = math.min(self.min[i], v[i])
-				self.max[i] = math.max(self.max[i], v[i])
-			end
-		end
-	end,
-	size=|:|self.max-self.min,
-	floor=|:|do
-		self.min:floor()
-		self.max:floor()
-		return self
-	end,
-	ceil=|:|do
-		self.min:ceil()
-		self.max:ceil()
-		return self
-	end,
-	clamp=|:,b|do
-		self.min:clamp(b)
-		self.max:clamp(b)
-		return self
-	end,
-	contains=|:,v|do
-		if getmetatable(v) == box2 then
-			return self:contains(v.min) and self:contains(v.max)
-		else
-			for i=1,v.dim do
-				local x = v[i]
-				if x < self.min[i] or x > self.max[i] then
-					return false
-				end
-			end
-			return true
-		end
-	end,
-	map=|b,c|c*b:size()+b.min,
-	__add=|a,b|box2(getminvalue(a)+getminvalue(b),getmaxvalue(a)+getmaxvalue(b)),
-	__sub=|a,b|box2(getminvalue(a)-getminvalue(b),getmaxvalue(a)-getmaxvalue(b)),
-	__mul=|a,b|box2(getminvalue(a)*getminvalue(b),getmaxvalue(a)*getmaxvalue(b)),
-	__div=|a,b|box2(getminvalue(a)/getminvalue(b),getmaxvalue(a)/getmaxvalue(b)),
-	__tostring=|b|b.min..'..'..b.max,
-	__concat=|a,b|tostring(a)..tostring(b),
-}
+--#include vec/vec2.lua
+--#include vec/box2.lua
 
 dirs = {
 	'up',
@@ -161,7 +27,7 @@ setFieldsByRange=|obj,fields|do
 	for _,field in ipairs(fields) do
 		local range = obj[field..'Range']
 		if range then
-			local lo, hi = table.unpack(range)
+			local lo, hi = range:unpack()
 			assert(hi >= lo, "item "..obj.name.." field "..field.." has interval "..tostring(hi)..","..tostring(lo))
 			obj[field] = math.random() * (hi - lo) + lo
 		end
@@ -235,7 +101,7 @@ Log=class{
 	render=|:|do
 		for i=1,self.size do
 			local line = self.lines[i]
-			con.locate(1, view.size[2]+i)
+			con.locate(1, view.size.y+i)
 			if line then
 				con.write(line)
 			end
@@ -273,9 +139,9 @@ map={}
 map.size=vec2(256,256)
 map.bbox=box2(1, map.size)
 map.tiles={}				-- TOOD switch to tilemap, but that means switching all positions from 1-based to 0-based
-for i=1,map.size[1] do
+for i=1,map.size.x do
 	map.tiles[i]={}
-	for j=1,map.size[2] do
+	for j=1,map.size.y do
 		local tile=MapTile()
 		tile.type=tiletypes.floor
 		map.tiles[i][j]=tile
@@ -283,14 +149,14 @@ for i=1,map.size[1] do
 end
 
 local seeds=table()
-for i=1,math.floor(map.size:volume()/13) do
+for i=1,math.floor(map.size:product()/13) do
 	local seed={
-		pos=vec2(math.random(map.size[1]), math.random(map.size[2])),
+		pos=vec2(math.random(map.size.x), math.random(map.size.y)),
 	}
-	seed.mins=vec2(table.unpack(seed.pos))
-	seed.maxs=vec2(table.unpack(seed.pos))
+	seed.mins=seed.pos:clone()
+	seed.maxs=seed.pos:clone()
 	seeds:insert(seed)
-	map.tiles[seed.pos[1]][seed.pos[2]].seed=seed
+	map.tiles[seed.pos.x][seed.pos.y].seed=seed
 end
 
 local modified
@@ -305,32 +171,32 @@ repeat
 			local found
 
 			found = nil
-			for y=seed.mins[2],seed.maxs[2] do
-				if map.tiles[corner[1]][y].seed then
+			for y=seed.mins.y,seed.maxs.y do
+				if map.tiles[corner.x][y].seed then
 					found = true
 					break
 				end
 			end
 			if not found then
-				for y=seed.mins[2],seed.maxs[2] do
-					map.tiles[corner[1]][y].seed = seed
+				for y=seed.mins.y,seed.maxs.y do
+					map.tiles[corner.x][y].seed = seed
 				end
-				seedcorners[i][1] = corner[1]
+				seedcorners[i].x = corner.x
 				modified = true
 			end
 
 			found = nil
-			for x=seed.mins[1],seed.maxs[1] do
-				if map.tiles[x][corner[2]].seed then
+			for x=seed.mins.x,seed.maxs.x do
+				if map.tiles[x][corner.y].seed then
 					found = true
 					break
 				end
 			end
 			if not found then
-				for x=seed.mins[1],seed.maxs[1] do
-					map.tiles[x][corner[2]].seed = seed
+				for x=seed.mins.x,seed.maxs.x do
+					map.tiles[x][corner.y].seed = seed
 				end
-				seedcorners[i][2] = corner[2]
+				seedcorners[i].y = corner.y
 				modified = true
 			end
 		end
@@ -339,30 +205,30 @@ until not modified
 
 for _,seed in ipairs(seeds) do
 	local size = seed.maxs - seed.mins - 1
-	if size[1] < 1 then size[1] = 1 end
-	if size[2] < 1 then size[2] = 1 end
+	if size.x < 1 then size.x = 1 end
+	if size.y < 1 then size.y = 1 end
 	local wall = vec2(
-		math.random(size[1]) + seed.mins[1],
-		math.random(size[2]) + seed.mins[2])
+		math.random(size.x) + seed.mins.x,
+		math.random(size.y) + seed.mins.y)
 
-	if seed.mins[2] > 1 then
-		for x=seed.mins[1],seed.maxs[1] do
-			if x ~= wall[1] then
-				map.tiles[x][seed.mins[2]].type = tiletypes.wall
+	if seed.mins.y > 1 then
+		for x=seed.mins.x,seed.maxs.x do
+			if x ~= wall.x then
+				map.tiles[x][seed.mins.y].type = tiletypes.wall
 			end
 		end
 	end
-	if seed.mins[1] > 1 then
-		for y=seed.mins[2],seed.maxs[2] do
-			if y ~= wall[2] then
-				map.tiles[seed.mins[1]][y].type = tiletypes.wall
+	if seed.mins.x > 1 then
+		for y=seed.mins.y,seed.maxs.y do
+			if y ~= wall.y then
+				map.tiles[seed.mins.x][y].type = tiletypes.wall
 			end
 		end
 	end
 end
 
-for x=1,map.size[1] do
-	for y=1,map.size[2] do
+for x=1,map.size.x do
+	for y=1,map.size.y do
 		map.tiles[x][y].seed = nil
 	end
 end
@@ -373,7 +239,7 @@ Battle=class{
 		if args.bbox then
 			self.bbox = box2(args.bbox)
 		else
-			self.pos=vec2(assert(args.pos))
+			self.pos=args.pos:clone()
 			self.bbox=box2(self.pos-self.radius,self.pos+self.radius):clamp(map.bbox)
 		end
 		self.armies = table(assert(args.armies))
@@ -484,7 +350,7 @@ Battle=class{
 
 entsAtPos=|pos|do
 	if not map.bbox:contains(pos) then return table() end
-	return table(map.tiles[pos[1]][pos[2]].ents)
+	return table(map.tiles[pos.x][pos.y].ents)
 end
 
 entsAtPositions=|positions|do
@@ -502,8 +368,8 @@ entsWithinRadius=|pos, radius|do
 	local maxs = (pos + radius):clamp(map.bbox)
 
 	local closeEnts = table()
-	for x=mins[1],maxs[1] do
-		for y=mins[2],maxs[2] do
+	for x=mins.x,maxs.x do
+		for y=mins.y,maxs.y do
 			closeEnts:append(entsAtPos(vec2(x,y)))
 		end
 	end
@@ -512,7 +378,7 @@ end
 
 floodFillTiles=|pos, bbox|do
 	bbox = box2(bbox):clamp(map.bbox)
-	pos = vec2(table.unpack(pos))
+	pos = pos:clone()
 	local positions = table{pos}
 	local allpositionset = table()
 	allpositionset[tostring(pos)] = true
@@ -520,9 +386,8 @@ floodFillTiles=|pos, bbox|do
 		local srcpos = positions:remove(1)
 		for _,dir in ipairs(dirs) do
 			local newpos = srcpos + dirs[dir]
-			if bbox:contains(newpos)
-			then
-				local tile = map.tiles[newpos[1]][newpos[2]]
+			if bbox:contains(newpos) then
+				local tile = map.tiles[newpos.x][newpos.y]
 				if not tile.type.solid then
 					if not allpositionset[tostring(newpos)]
 					then
@@ -546,10 +411,10 @@ pathSearchToPoint=|args|do
 	assert(bbox:contains(start))
 	assert(bbox:contains(dest))
 	local states = table{
-		{pos = vec2(table.unpack(start))}
+		{pos = start:clone()}
 	}
 	local allpositions = table()
-	allpositions[tostring(vec2(table.unpack(start)))] = true
+	allpositions[tostring(start:clone())] = true
 	local bestState
 	local bestDist
 	while bestDist ~= 0 and #states > 0 do
@@ -569,7 +434,7 @@ pathSearchToPoint=|args|do
 			if bbox:contains(newstate.pos)
 			and map.bbox:contains(newstate.pos)
 			then
-				local tile = map.tiles[newstate.pos[1]][newstate.pos[2]]
+				local tile = map.tiles[newstate.pos.x][newstate.pos.y]
 				if not tile.type.solid then
 					local blocked
 					if tile.ents then
@@ -619,11 +484,11 @@ Entity=class{
 	defense=10,
 	hitChance=75,
 	evade=5,
-	speedLevelUpRange={0, .1},
-	attackLevelUpRange={0, 1},
-	defenseLevelUpRange={0, 1},
-	hitChanceLevelUpRange={0, 1},
-	evadeLevelUpRange={0,1},
+	speedLevelUpRange=vec2(0, .1),
+	attackLevelUpRange=vec2(0, 1),
+	defenseLevelUpRange=vec2(0, 1),
+	hitChanceLevelUpRange=vec2(0, 1),
+	evadeLevelUpRange=vec2(0,1),
 	solid=true,
 	attackable=true,
 	zOrder=0,
@@ -675,7 +540,7 @@ Entity=class{
 				for _,field in ipairs(self.equipFields) do
 					local range = self[field..'LevelUpRange']
 					if range then
-						local lo, hi = table.unpack(range)
+						local lo, hi = range:unpack()
 						assert(hi >= lo, "item "..obj.name.." field "..field.." has interval "..tostring(hi)..","..tostring(lo))
 						self[field] = math.random() * (hi - lo) + lo
 					end
@@ -695,7 +560,7 @@ Entity=class{
 		self.lastpos:set(self.pos)
 		self.pos:set(pos)
 		if map.bbox:contains(self.pos) then
-			self:setTile(map.tiles[self.pos[1]][self.pos[2]])
+			self:setTile(map.tiles[self.pos.x][self.pos.y])
 		end
 	end,
 	setTile=|:,tile|do
@@ -750,7 +615,7 @@ Entity=class{
 			end
 		end
 		newpos:clamp(map.bbox)
-		local tiletype = map.tiles[newpos[1]][newpos[2]].type
+		local tiletype = map.tiles[newpos.x][newpos.y].type
 		if tiletype.solid then return end
 		for _,ent in ipairs(entsAtPos(newpos)) do
 			if ent.army.affiliation ~= self.army.affiliation
@@ -778,7 +643,7 @@ Entity=class{
 	beginTurn=|:|do
 		self.ct = 100
 		self.movesLeft = self:stat'move'
-		self.turnStartPos = vec2(table.unpack(self.pos))
+		self.turnStartPos = self.pos:clone()
 		self.acted = false
 		self.army.currentEnt = self
 	end,
@@ -1028,14 +893,14 @@ for i=1,#Unit.baseTypes do
 		local rangeField=baseField..'Range'
 		if baseType[rangeField] then
 			local min=1 - (Unit[baseField] or 0)
-			if baseType[rangeField][1] < min then baseType[rangeField][1] = min end
+			if baseType[rangeField].x < min then baseType[rangeField].x = min end
 		end
 	end
 	for _,baseField in ipairs(Unit.statFields) do
 		local field = baseField..'Range'
 		if baseType[field] then
-			if baseType[field][2] < baseType[field][1] then
-				baseType[field][2] = baseType[field][1]
+			if baseType[field].y < baseType[field].x then
+				baseType[field].y = baseType[field].x
 			end
 		end
 	end
@@ -1047,7 +912,7 @@ Unit.init=|:,args|do
 		for _,baseField in ipairs(self.statFields) do
 			local field = baseField..'Range'
 			if self[field] or self.baseType[field] then
-				self[field] = vec2(self[baseField] or 0) + vec2(self.baseType[field] or 0)
+				self[field] = (self[baseField] or vec2()) + (self.baseType[field] or vec2())
 			end
 		end
 	end
@@ -1142,7 +1007,7 @@ Unit.updateFog=|:|do
 	for _,pos in ipairs(fogTiles) do
 		for _,dir in ipairs(dirs) do
 			local ofspos = (dirs[dir] + pos):clamp(map.bbox)
-			map.tiles[ofspos[1]][ofspos[2]].lastSeen = game.time
+			map.tiles[ofspos.x][ofspos.y].lastSeen = game.time
 		end
 	end
 end
@@ -1173,7 +1038,7 @@ Unit.checkBattle=|:|do
 				end
 			end
 			local size = stretchedBBox:size()
-			for i=1,2 do
+			for _,i in ipairs(vec2.fields) do
 				local width = 2 * Battle.radius + 1
 				if size[i] < width then
 					local diff = width - size[i]
@@ -1192,7 +1057,7 @@ Unit.checkBattle=|:|do
 		for _,pos in ipairs(battlePositions) do
 			for _,dir in ipairs(dirs) do
 				local ofspos = (dirs[dir] + pos):clamp(map.bbox)
-				map.tiles[ofspos[1]][ofspos[2]].lastSeen = game.time
+				map.tiles[ofspos.x][ofspos.y].lastSeen = game.time
 			end
 		end
 	end
@@ -1279,7 +1144,7 @@ Item.__lt=|a,b|((items:find(getmetatable(a)) or 0)<(items:find(getmetatable(b)) 
 
 local Potion=Item:subclass()
 Potion.name='Potion'
-Potion.healRange = {20,30}
+Potion.healRange = vec2(20,30)
 Potion.init=|:,...|do
 	if Potion.super.init then Potion.super.init(self, ...) end
 	setFieldsByRange(self, {'heal'})
@@ -1310,10 +1175,15 @@ local Equipment = Item:subclass{
 		for _,baseField in ipairs(Entity.statFields) do
 			if table.find(self.modifierFields, baseField) then
 				local field = baseField..'Range'
+print('field', field)				
 				local range = vec2()
-				if self[field] then range = range + vec2(self[field]) end
-				if baseType[field] then range = range + vec2(baseType[field]) end
-				if modifier[field] then range = range + vec2(modifier[field]) end
+
+print('self', self[field])
+				if self[field] then range += self[field] end
+print('baseType', baseType[field])				
+				if baseType[field] then range += baseType[field] end
+print('modifier', modifier[field])				
+				if modifier[field] then range += modifier[field] end
 				self[field] = range
 			end
 		end
@@ -1333,48 +1203,48 @@ local weaponBaseTypes = {
 	{name='Bow', attackRange=45, hitChanceRange=45, dropLevel=8},
 }
 for _,weapon in ipairs(weaponBaseTypes) do
-	weapon.attackRange = { math.floor(weapon.attackRange * .75), weapon.attackRange }
-	weapon.hitChanceRange = { math.floor(weapon.hitChanceRange * .75), weapon.hitChanceRange }
+	weapon.attackRange = vec2(math.floor(weapon.attackRange * .75), weapon.attackRange)
+	weapon.hitChanceRange = vec2(math.floor(weapon.hitChanceRange * .75), weapon.hitChanceRange)
 end
 
 local weaponModifiers = {
 	{name="Plain ol'"},
-	{name='Short', attackRange={0,5}, hitChanceRange={0,10}, dropLevel=0},
-	{name='Long', attackRange={3,8}, hitChanceRange={5,15}, dropLevel=5},
-	{name='Heavy', attackRange={3,8}, hitChanceRange={5,15}, dropLevel=10},
-	{name='Bastard', attackRange={0,10}, hitChanceRange={10,20}, dropLevel=15},
-	{name='Demon', attackRange={20,20}, hitChanceRange={30,35}, dropLevel=20},
-	{name='Were', attackRange={20,25}, hitChanceRange={35,45}, dropLevel=25},
-	{name='Rune', attackRange={30,35}, hitChanceRange={40,50}, dropLevel=30},
-	{name='Dragon', attackRange={30,40}, hitChanceRange={40,50}, dropLevel=35},
-	{name='Quick', attackRange={40,45}, hitChanceRange={90,100}, dropLevel=40},
+	{name='Short', attackRange=vec2(0,5), hitChanceRange=vec2(0,10), dropLevel=0},
+	{name='Long', attackRange=vec2(3,8), hitChanceRange=vec2(5,15), dropLevel=5},
+	{name='Heavy', attackRange=vec2(3,8), hitChanceRange=vec2(5,15), dropLevel=10},
+	{name='Bastard', attackRange=vec2(0,10), hitChanceRange=vec2(10,20), dropLevel=15},
+	{name='Demon', attackRange=vec2(20,20), hitChanceRange=vec2(30,35), dropLevel=20},
+	{name='Were', attackRange=vec2(20,25), hitChanceRange=vec2(35,45), dropLevel=25},
+	{name='Rune', attackRange=vec2(30,35), hitChanceRange=vec2(40,50), dropLevel=30},
+	{name='Dragon', attackRange=vec2(30,40), hitChanceRange=vec2(40,50), dropLevel=35},
+	{name='Quick', attackRange=vec2(40,45), hitChanceRange=vec2(90,100), dropLevel=40},
 }
 
 local defenseModifiers = {
-	{name="Cloth", defenseRange={1,2}, hpMaxRange={1,2}, evadeRange={1,2}, dropLevel=0},
-	{name="Leather", defenseRange={2,3}, hpMaxRange={2,3}, evadeRange={2,3}, dropLevel=5},
-	{name="Wooden", defenseRange={3,4}, hpMaxRange={3,4}, evadeRange={3,4}, dropLevel=10},
-	{name="Chain", defenseRange={3,4}, hpMaxRange={3,4}, evadeRange={3,4}, dropLevel=15},
-	{name="Plate", defenseRange={4,6}, hpMaxRange={4,6}, evadeRange={4,6}, dropLevel=20},
-	{name="Copper", defenseRange={5,7}, hpMaxRange={5,7}, evadeRange={5,7}, dropLevel=25},
-	{name="Iron", defenseRange={7,10}, hpMaxRange={7,10}, evadeRange={7,10}, dropLevel=30},
-	{name="Bronze", defenseRange={9,13}, hpMaxRange={9,13}, evadeRange={9,13}, dropLevel=35},
-	{name="Steel", defenseRange={12,16}, hpMaxRange={12,16}, evadeRange={12,16}, dropLevel=40},
-	{name="Silver", defenseRange={15,21}, hpMaxRange={15,21}, evadeRange={15,21}, dropLevel=45},
-	{name="Gold", defenseRange={21,28}, hpMaxRange={21,28}, evadeRange={21,28}, dropLevel=50},
-	{name="Crystal", defenseRange={27,37}, hpMaxRange={27,37}, evadeRange={27,37}, dropLevel=55},
-	{name="Opal", defenseRange={36,48}, hpMaxRange={36,48}, evadeRange={36,48}, dropLevel=60},
-	{name="Platinum", defenseRange={48,64}, hpMaxRange={48,64}, evadeRange={48,64}, dropLevel=65},
-	{name="Plutonium", defenseRange={63,84}, hpMaxRange={63,84}, evadeRange={63,84}, dropLevel=70},
-	{name="Adamantium", defenseRange={82,110}, hpMaxRange={82,110}, evadeRange={82,110}, dropLevel=75},
-	{name="Potassium", defenseRange={108,145}, hpMaxRange={108,145}, evadeRange={108,145}, dropLevel=80},
-	{name="Osmium", defenseRange={143,191}, hpMaxRange={143,191}, evadeRange={143,191}, dropLevel=85},
-	{name="Holmium", defenseRange={189,252}, hpMaxRange={189,252}, evadeRange={189,252}, dropLevel=90},
-	{name="Mithril", defenseRange={249,332}, hpMaxRange={249,332}, evadeRange={249,332}, dropLevel=95},
-	{name="Aegis", defenseRange={327,437}, hpMaxRange={327,437}, evadeRange={327,437}, dropLevel=100},
-	{name="Genji", defenseRange={432,576}, hpMaxRange={432,576}, evadeRange={432,576}, dropLevel=105},
-	{name="Pro", defenseRange={569,759}, hpMaxRange={569,759}, evadeRange={569,759}, dropLevel=110},
-	{name="Diamond", defenseRange={750,1000}, hpMaxRange={750,1000}, evadeRange={750,1000}, dropLevel=115},
+	{name="Cloth", defenseRange=vec2(1,2), hpMaxRange=vec2(1,2), evadeRange=vec2(1,2), dropLevel=0},
+	{name="Leather", defenseRange=vec2(2,3), hpMaxRange=vec2(2,3), evadeRange=vec2(2,3), dropLevel=5},
+	{name="Wooden", defenseRange=vec2(3,4), hpMaxRange=vec2(3,4), evadeRange=vec2(3,4), dropLevel=10},
+	{name="Chain", defenseRange=vec2(3,4), hpMaxRange=vec2(3,4), evadeRange=vec2(3,4), dropLevel=15},
+	{name="Plate", defenseRange=vec2(4,6), hpMaxRange=vec2(4,6), evadeRange=vec2(4,6), dropLevel=20},
+	{name="Copper", defenseRange=vec2(5,7), hpMaxRange=vec2(5,7), evadeRange=vec2(5,7), dropLevel=25},
+	{name="Iron", defenseRange=vec2(7,10), hpMaxRange=vec2(7,10), evadeRange=vec2(7,10), dropLevel=30},
+	{name="Bronze", defenseRange=vec2(9,13), hpMaxRange=vec2(9,13), evadeRange=vec2(9,13), dropLevel=35},
+	{name="Steel", defenseRange=vec2(12,16), hpMaxRange=vec2(12,16), evadeRange=vec2(12,16), dropLevel=40},
+	{name="Silver", defenseRange=vec2(15,21), hpMaxRange=vec2(15,21), evadeRange=vec2(15,21), dropLevel=45},
+	{name="Gold", defenseRange=vec2(21,28), hpMaxRange=vec2(21,28), evadeRange=vec2(21,28), dropLevel=50},
+	{name="Crystal", defenseRange=vec2(27,37), hpMaxRange=vec2(27,37), evadeRange=vec2(27,37), dropLevel=55},
+	{name="Opal", defenseRange=vec2(36,48), hpMaxRange=vec2(36,48), evadeRange=vec2(36,48), dropLevel=60},
+	{name="Platinum", defenseRange=vec2(48,64), hpMaxRange=vec2(48,64), evadeRange=vec2(48,64), dropLevel=65},
+	{name="Plutonium", defenseRange=vec2(63,84), hpMaxRange=vec2(63,84), evadeRange=vec2(63,84), dropLevel=70},
+	{name="Adamantium", defenseRange=vec2(82,110), hpMaxRange=vec2(82,110), evadeRange=vec2(82,110), dropLevel=75},
+	{name="Potassium", defenseRange=vec2(108,145), hpMaxRange=vec2(108,145), evadeRange=vec2(108,145), dropLevel=80},
+	{name="Osmium", defenseRange=vec2(143,191), hpMaxRange=vec2(143,191), evadeRange=vec2(143,191), dropLevel=85},
+	{name="Holmium", defenseRange=vec2(189,252), hpMaxRange=vec2(189,252), evadeRange=vec2(189,252), dropLevel=90},
+	{name="Mithril", defenseRange=vec2(249,332), hpMaxRange=vec2(249,332), evadeRange=vec2(249,332), dropLevel=95},
+	{name="Aegis", defenseRange=vec2(327,437), hpMaxRange=vec2(327,437), evadeRange=vec2(327,437), dropLevel=100},
+	{name="Genji", defenseRange=vec2(432,576), hpMaxRange=vec2(432,576), evadeRange=vec2(432,576), dropLevel=105},
+	{name="Pro", defenseRange=vec2(569,759), hpMaxRange=vec2(569,759), evadeRange=vec2(569,759), dropLevel=110},
+	{name="Diamond", defenseRange=vec2(750,1000), hpMaxRange=vec2(750,1000), evadeRange=vec2(750,1000), dropLevel=115},
 }
 
 local Weapon = Equipment:subclass()
@@ -1407,7 +1277,7 @@ Shield.name = 'Shield'
 Shield.equip = 'shield'
 Shield.baseTypes = {
 	{name='Buckler'},
-	{name='Shield', evadeRange={5,10}},
+	{name='Shield', evadeRange=vec2(5,10)},
 }
 Shield.modifiers = defenseModifiers
 Shield.modifierFields = {'defense','evade'}
@@ -1461,23 +1331,23 @@ View=class{
 	drawBorder=|:,b|do
 		local mins = b.min
 		local maxs = b.max
-		for x=mins[1]+1,maxs[1]-1 do
-			if mins[2] >= 1 and mins[2] <= view.size[2] then
-				con.locate(x, mins[2])
+		for x=mins.x+1,maxs.x-1 do
+			if mins.y >= 1 and mins.y <= view.size.y then
+				con.locate(x, mins.y)
 				con.write'\151'	--'-'
 			end
-			if maxs[2] >= 1 and maxs[2] <= view.size[2] then
-				con.locate(x, maxs[2])
+			if maxs.y >= 1 and maxs.y <= view.size.y then
+				con.locate(x, maxs.y)
 				con.write'\156'	--'-'
 			end
 		end
-		for y=mins[2]+1,maxs[2]-1 do
-			if mins[1] >= 1 and mins[1] <= view.size[1] then
-				con.locate(mins[1], y)
+		for y=mins.y+1,maxs.y-1 do
+			if mins.x >= 1 and mins.x <= view.size.x then
+				con.locate(mins.x, y)
 				con.write'\153'	--'|'
 			end
-			if maxs[1] >= 1 and maxs[1] <= view.size[1] then
-				con.locate(maxs[1], y)
+			if maxs.x >= 1 and maxs.x <= view.size.x then
+				con.locate(maxs.x, y)
 				con.write'\154'	--'|'
 			end
 		end
@@ -1485,9 +1355,9 @@ View=class{
 		local asciicorner = {{'\150','\155'},{'\152','\157'}}
 		for x=1,2 do
 			for y=1,2 do
-				local v = vec2(minmax[x][1], minmax[y][2])
+				local v = vec2(minmax[x].x, minmax[y].y)
 				if view.bbox:contains(v) then
-					con.locate(table.unpack(v))
+					con.locate(v:unpack())
 					con.write(asciicorner[x][y])	--'+'
 				end
 			end
@@ -1495,9 +1365,9 @@ View=class{
 	end,
 	fillBox=|:,b|do
 		b = box2(b):clamp(view.bbox)
-		for y=b.min[2],b.max[2] do
-			con.locate(b.min[1], y)
-			con.write((' '):rep(b.max[1] - b.min[1] + 1))
+		for y=b.min.y,b.max.y do
+			con.locate(b.min.x, y)
+			con.write((' '):rep(b.max.x - b.min.x + 1))
 		end
 	end,
 }
@@ -1522,8 +1392,8 @@ Window=class{
 		self.fixed = args.fixed
 		self.currentLine = 1
 		self.firstLine = 1
-		self.pos = vec2(args.pos or {1,1})
-		self.size = vec2(args.size or {1,1})
+		self.pos = (args.pos or vec2(1,1)):clone()
+		self.size = (args.size or vec2(1,1)):clone()
 		self:refreshBorder()
 		self:setLines(args.lines or {})
 	end,
@@ -1562,8 +1432,8 @@ Window=class{
 			local row = self.selectableLines[self.currentLine].row
 			if row < self.firstLine then
 				self.firstLine = row
-			elseif row > self.firstLine + (self.size[2] - 3) then
-				self.firstLine = row - (self.size[2] - 3)
+			elseif row > self.firstLine + (self.size.y - 3) then
+				self.firstLine = row - (self.size.y - 3)
 			end
 		end
 	end,
@@ -1578,13 +1448,13 @@ Window=class{
 		view:drawBorder(self.border)
 		local box = box2(self.border.min+1, self.border.max-1)
 		view:fillBox(box)
-		local cursor = vec2(box.min)
+		local cursor = box.min:clone()
 		local i = self.firstLine
-		while cursor[2] < self.border.max[2]
+		while cursor.y < self.border.max.y
 		and i <= #self.lines
 		do
 			local line = self.lines[i]
-			con.locate(table.unpack(cursor))
+			con.locate(cursor:unpack())
 			if not self.noInteraction
 			and line == self.selectableLines[self.currentLine]
 			then
@@ -1593,8 +1463,8 @@ Window=class{
 				con.write' '
 			end
 			con.write(line.text)
-			cursor[2] = cursor[2] + 1
-			i = i + 1
+			cursor.y += 1
+			i += 1
 		end
 	end,
 }
@@ -1828,7 +1698,7 @@ ItemWindow=ClientBaseWindow:subclass{
 			else
 				player[field]=equip
 			end
-			client.equipWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
+			client.equipWin:setPos(vec2(client.statWin.border.max.x+1, client.statWin.border.min.y))
 			client.equipWin:refresh()
 			client.itemWin:refresh(|item|do
 				if item.equip ~= field then return false end
@@ -1841,8 +1711,8 @@ ItemWindow=ClientBaseWindow:subclass{
 				end
 				return true
 			end)
-			--client.itemWin:setPos(vec2(client.equipWin.border.max[1]+1, client.equipWin.border.min[2]))
-			client.itemWin:setPos(vec2(client.equipWin.border.min[1], client.equipWin.border.max[2]+1))
+			--client.itemWin:setPos(vec2(client.equipWin.border.max.x+1, client.equipWin.border.min.y))
+			client.itemWin:setPos(vec2(client.equipWin.border.min.x, client.equipWin.border.max.y+1))
 			refreshEquipStatWin(client)
 		end
 	end,
@@ -2025,14 +1895,14 @@ Client.inspectCmdState={
 		space=cmdPopState,
 	},
 	enter=|client, state|do
-		client.inspectPos=vec2(client.army.leader.pos)
+		client.inspectPos=client.army.leader.pos:clone()
 		client.statWin:setPos(vec2(1,1))
 		refreshStatusToInspect(client)
 	end,
 	draw=|client, state|do
 		local viewpos=client.inspectPos-view.delta
 		if view.bbox:contains(viewpos) then
-			con.locate(table.unpack(viewpos))
+			con.locate(viewpos:unpack())
 			con.write'X'
 		end
 		client.statWin:draw()
@@ -2064,7 +1934,7 @@ Client.chooseEquipCmdState={
 			client.itemWin.items:find(player[field])
 		end
 		refreshEquipStatWin(client)
-		client.itemWin:setPos(vec2(client.equipWin.border.min[1], client.equipWin.border.max[2]+1))
+		client.itemWin:setPos(vec2(client.equipWin.border.min.x, client.equipWin.border.max.y+1))
 	end,
 	draw=|client, state|do
 		client.itemWin:draw()
@@ -2081,7 +1951,7 @@ Client.equipCmdState={
 	},
 	enter=|client, state|do
 		client.statWin:refresh()
-		client.equipWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
+		client.equipWin:setPos(vec2(client.statWin.border.max.x+1, client.statWin.border.min.y))
 		client.equipWin:refresh()
 	end,
 	draw=|client, state|do
@@ -2153,7 +2023,7 @@ Client.playerCmdState={
 		space=makeCmdWindowChooseCursor'playerWin',
 	},
 	enter=|client,state|do
-		client.playerWin:setPos(vec2(client.statWin.border.max[1]+3, client.statWin.border.min[2]+1))
+		client.playerWin:setPos(vec2(client.statWin.border.max.x+3, client.statWin.border.min.y+1))
 	end,
 	draw=|client,state|do
 		client.playerWin:draw()
@@ -2170,7 +2040,7 @@ Client.armyCmdState={
 	enter=|client, state|do
 		refreshWinPlayers(client)
 		client.statWin:refresh()
-		client.armyWin:setPos(vec2(client.statWin.border.max[1]+1, client.statWin.border.min[2]))
+		client.armyWin:setPos(vec2(client.statWin.border.max.x+1, client.statWin.border.min.y))
 		client.armyWin:refresh()
 		game.paused=true
 	end,
@@ -2429,31 +2299,31 @@ client = Client()
 client.army.affiliation = 'good'
 Player{pos=(map.size/2):floor(), army=client.army}
 
-for i=1,math.floor(map.size:volume() / 131) do
+for i=1,math.floor(map.size:product() / 131) do
 	local e = Monster{
-		pos=vec2( math.random(map.size[1]), math.random(map.size[2]) ),
+		pos=vec2( math.random(map.size.x), math.random(map.size.y) ),
 		army = Army{affiliation='evil'..math.random(4)},
 	}
-	map.tiles[e.pos[1]][e.pos[2]].type = tiletypes.floor
+	map.tiles[e.pos.x][e.pos.y].type = tiletypes.floor
 end
 
-for i=1,math.floor(map.size:volume() / 262) do
+for i=1,math.floor(map.size:product() / 262) do
 	local e = Treasure{
-		pos=vec2( math.random(map.size[1]), math.random(map.size[2]) ),
+		pos=vec2( math.random(map.size.x), math.random(map.size.y) ),
 		gold = math.random(100) + 10,
 		army = Army(),
 		pickupRandom = true,
 	}
-	map.tiles[e.pos[1]][e.pos[2]].type = tiletypes.floor
+	map.tiles[e.pos.x][e.pos.y].type = tiletypes.floor
 end
 
-for i=1,math.floor(map.size:volume() / 500) do
+for i=1,math.floor(map.size:product() / 500) do
 	local e = Player{
-		pos=vec2( math.random(map.size[1]), math.random(map.size[2]) ),
+		pos=vec2( math.random(map.size.x), math.random(map.size.y) ),
 		gold = math.random(10),
 		army = Army{affiliation='good'},
 	}
-	map.tiles[e.pos[1]][e.pos[2]].type = tiletypes.floor
+	map.tiles[e.pos.x][e.pos.y].type = tiletypes.floor
 end
 
 
@@ -2467,13 +2337,13 @@ render=||do
 	end
 
 	local v = vec2()
-	for i=1,view.size[1] do
-		v[1] = view.delta[1] + i
-		for j=1,view.size[2] do
-			v[2] = view.delta[2] + j
+	for i=1,view.size.x do
+		v.x = view.delta.x + i
+		for j=1,view.size.y do
+			v.y = view.delta.y + j
 
 			if map.bbox:contains(v) then
-				local tile = map.tiles[v[1]][v[2]]
+				local tile = map.tiles[v.x][v.y]
 				if tile:isRevealed() then
 					con.locate(i,j)
 
@@ -2512,7 +2382,7 @@ render=||do
 	local y = 1
 	local printright=|s|do
 		if s then
-			con.locate(view.size[1]+2,y)
+			con.locate(view.size.x+2,y)
 			con.write(s)
 		end
 		y = y + 1
