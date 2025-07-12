@@ -46,6 +46,7 @@ files = {
 	["numo9/archive.lua"] = "numo9/numo9/archive.lua",
 	["numo9/audio.lua"] = "numo9/numo9/audio.lua",
 	["numo9/cartbrowser.lua"] = "numo9/numo9/cartbrowser.lua",
+	["numo9/clipboard.lua"] = "numo9/numo9/clipboard.lua",
 	["numo9/console.lua"] = "numo9/numo9/console.lua",
 	["numo9/editbrushes.lua"] = "numo9/numo9/editbrushes.lua",
 	["numo9/editcode.lua"] = "numo9/numo9/editcode.lua",
