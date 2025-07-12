@@ -1,6 +1,3 @@
---[[
-TODO color zero is now transparent and that's causing problems.
---]]
 local fontWidthAddr = ramaddr'fontWidth'
 for i=0,255 do
 	poke(fontWidthAddr+i,8)
@@ -11,6 +8,38 @@ math.randomseed(tstamp())
 --#include ext/class.lua
 --#include vec/vec2.lua
 --#include vec/box2.lua
+
+tilemapTiles={
+	floor = 0,
+	wall = 2,
+}
+
+sprites={
+	Player = 0,
+	Spider = 2,
+	Snake = 4,
+	Lobster = 6,
+	Cat = 8,
+	Blob = 10,
+	Imp = 12,
+	Wolf = 14,
+	Goblin = 16,
+	Dwarf = 18,
+	Human = 20,
+	Elf = 22,
+	Zombie = 24,
+	Troll = 26,
+	Gargoyle = 28,
+	Golem = 30,
+	Ogre = 1<<6,
+	Bull = 1<<6 | 2,
+	Lion = 1<<6 | 4,
+	Liger = 1<<6 | 6,
+	Giant = 1<<6 | 8,
+	Dragon = 1<<6 | 10,
+	['T-Rex'] = 1<<6 | 12,
+	Treasure = 2<<6,
+}
 
 dirs = {
 	'up',
@@ -54,10 +83,12 @@ end
 tiletypes = {
 	floor = {
 		char = '.',
+		sprite = tilemapTiles.floor | 0x400,
 	},
 	wall = {
 		char = '0',
 		solid = true,
+		sprite = tilemapTiles.wall | 0x400,
 	},
 }
 
@@ -132,6 +163,9 @@ MapTile=class{
 		if #self.ents == 0 then
 			self.ents=nil
 		end
+	end,
+	draw=|:,x,y|do
+		spr(self.type.sprite,x,y,2,2)
 	end,
 }
 
@@ -519,6 +553,8 @@ Entity=class{
 		ents:insert(self)
 		assert(args.army):addEnt(self)
 		self.hp = self:stat'hpMax'
+	
+		self.sprite = sprites![self.name]
 	end,
 	delete=|:|do
 		self:setTile(nil)
@@ -718,6 +754,9 @@ Entity=class{
 	end,
 	die=|:|do
 		self:setDead(true)
+	end,
+	draw=|:,x,y|do
+		spr(self.sprite,x,y,2,2)
 	end,
 }
 
@@ -2357,9 +2396,11 @@ render=||do
 							end
 						end
 
-						con.write(topEnt:getChar())
+						topEnt:draw(con.x * 8, con.y * 8)
+						con.x += 4
 					else
-						con.write(tile:getChar())
+						tile:draw(con.x * 8, con.y * 8)
+						con.x += 4
 					end
 				else
 					con.locate(i,j)
