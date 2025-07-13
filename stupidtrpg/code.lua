@@ -9,6 +9,7 @@ math.randomseed(tstamp())
 --#include vec/vec2.lua
 --#include vec/box2.lua
 
+mode(42)	-- 16:9 480x270x8bpp-indexed
 local screenSize = vec2(480, 270)
 
 tilemapTiles={
@@ -1219,14 +1220,10 @@ local Equipment = Item:subclass{
 		for _,baseField in ipairs(Entity.statFields) do
 			if table.find(self.modifierFields, baseField) then
 				local field = baseField..'Range'
-print('field', field)				
 				local range = vec2()
 
-print('self', self[field])
 				if self[field] then range += self[field] end
-print('baseType', baseType[field])				
 				if baseType[field] then range += baseType[field] end
-print('modifier', modifier[field])				
 				if modifier[field] then range += modifier[field] end
 				self[field] = range
 			end
@@ -2487,7 +2484,6 @@ gameUpdate=||do
 end
 
 update=||do
-	mode(42)	-- 16:9 480x270x8bpp-indexed
 	client:update()
 	game.time = game.time + 1
 	gameUpdate()
