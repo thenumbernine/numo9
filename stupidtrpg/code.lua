@@ -9,6 +9,8 @@ math.randomseed(tstamp())
 --#include vec/vec2.lua
 --#include vec/box2.lua
 
+local screenSize = vec2(480, 270)
+
 tilemapTiles={
 	floor = 0,
 	wall = 2,
@@ -98,12 +100,11 @@ con={
 		con.y=y
 	end,
 	write=function(s)
-		rect((con.x-1)<<3,(con.y-1)<<3,#s<<3,1<<3,0xf0)	-- until text clear color gets working, manually black out background
-		text(s,(con.x-1)<<3,(con.y-1)<<3,0xfc,0xf0)	-- TODO is text clear color not working?
+		text(s,(con.x-1)<<3,(con.y-1)<<3,12,16)
 		con.x+=#s
 	end,
 	clearline = function()
-		rect(con.x<<3,con.y<<3,256,8,0xf0)
+		rect(con.x<<3,con.y<<3,256,8,16)
 		con.x=1
 		con.y+=8
 	end,
@@ -117,9 +118,9 @@ Log=class{
 		local lines = string.split(s, '\n')
 		for _,line in ipairs(lines) do
 			line=self.index..'> '..line
-			while #line>32 do
-				self.lines:insert(line:sub(1,32))
-				line = line:sub(33)
+			while #line>ui.size.x do
+				self.lines:insert(line:sub(1,ui.size.x))
+				line = line:sub(ui.size.x+1)
 				self.index+=1
 			end
 			self.lines:insert(line)
@@ -132,7 +133,7 @@ Log=class{
 	render=|:|do
 		for i=1,self.size do
 			local line = self.lines[i]
-			con.locate(1, view.size.y+i)
+			con.locate(1, ui.size.y+i)
 			if line then
 				con.write(line)
 			end
@@ -756,7 +757,11 @@ Entity=class{
 		self:setDead(true)
 	end,
 	draw=|:,x,y|do
-		spr(self.sprite,x,y,2,2)
+		if self.dead then
+			spr(self.sprite,x,y,2,2, 0x20)
+		else
+			spr(self.sprite,x,y,2,2)
+		end
 	end,
 }
 
@@ -1359,33 +1364,32 @@ Monster.init=|:,...|do
 	self.army.gold = self.army.gold + (math.random(11) - 1) * 10
 end
 
-local ViewSize = vec2(32,28)
-View=class{
-	size=ViewSize,
-	bbox=box2(1, ViewSize),
-	center=(ViewSize/2):ceil(),
-	update=|:,mapCenter|do
-		self.delta=mapCenter-self.center
-	end,
+-- divide 8 cuz font size is 8
+local UISize = (screenSize/8-vec2(0,4)):floor()
+UI=class{
+	size=UISize,
+	bbox=box2(1, UISize),
+	center=(UISize/2):ceil(),
+	-- used for both game and ui
 	drawBorder=|:,b|do
 		local mins = b.min
 		local maxs = b.max
 		for x=mins.x+1,maxs.x-1 do
-			if mins.y >= 1 and mins.y <= view.size.y then
+			if mins.y >= 1 and mins.y <= ui.size.y then
 				con.locate(x, mins.y)
 				con.write'\151'	--'-'
 			end
-			if maxs.y >= 1 and maxs.y <= view.size.y then
+			if maxs.y >= 1 and maxs.y <= ui.size.y then
 				con.locate(x, maxs.y)
 				con.write'\156'	--'-'
 			end
 		end
 		for y=mins.y+1,maxs.y-1 do
-			if mins.x >= 1 and mins.x <= view.size.x then
+			if mins.x >= 1 and mins.x <= ui.size.x then
 				con.locate(mins.x, y)
 				con.write'\153'	--'|'
 			end
-			if maxs.x >= 1 and maxs.x <= view.size.x then
+			if maxs.x >= 1 and maxs.x <= ui.size.x then
 				con.locate(maxs.x, y)
 				con.write'\154'	--'|'
 			end
@@ -1395,7 +1399,7 @@ View=class{
 		for x=1,2 do
 			for y=1,2 do
 				local v = vec2(minmax[x].x, minmax[y].y)
-				if view.bbox:contains(v) then
+				if ui.bbox:contains(v) then
 					con.locate(v:unpack())
 					con.write(asciicorner[x][y])	--'+'
 				end
@@ -1403,14 +1407,32 @@ View=class{
 		end
 	end,
 	fillBox=|:,b|do
-		b = box2(b):clamp(view.bbox)
+		b = box2(b):clamp(ui.bbox)
 		for y=b.min.y,b.max.y do
 			con.locate(b.min.x, y)
 			con.write((' '):rep(b.max.x - b.min.x + 1))
 		end
 	end,
 }
-view=View()
+ui=UI()
+
+View=class()
+View.size=(screenSize/16):floor()
+View.bbox=box2(1,View.size)
+View.center = (View.size/2):ceil()
+View.update=|:,mapCenter|do
+	self.delta= mapCenter - self.center
+end
+View.drawBorder=|:,b|do
+	rectb(
+		16 * b.min.x,
+		16 * b.min.y,
+		16 * (b.max.x - b.min.x),
+		16 * (b.max.y - b.min.y),
+		12
+	)
+end
+view = View()
 
 Client=class{
 	maxArmySize=4,
@@ -1455,7 +1477,7 @@ Window=class{
 			end
 		end
 		if not self.fixed then
-			self.size = (vec2(self.textWidth + 1, #self.lines) + 2):clamp(view.bbox)
+			self.size = (vec2(self.textWidth + 1, #self.lines) + 2):clamp(ui.bbox)
 			self:refreshBorder()
 		end
 	end,
@@ -1484,9 +1506,9 @@ Window=class{
 		end
 	end,
 	draw=|:|do
-		view:drawBorder(self.border)
+		ui:drawBorder(self.border)
 		local box = box2(self.border.min+1, self.border.max-1)
-		view:fillBox(box)
+		ui:fillBox(box)
 		local cursor = box.min:clone()
 		local i = self.firstLine
 		while cursor.y < self.border.max.y
@@ -1941,8 +1963,7 @@ Client.inspectCmdState={
 	draw=|client, state|do
 		local viewpos=client.inspectPos-view.delta
 		if view.bbox:contains(viewpos) then
-			con.locate(viewpos:unpack())
-			con.write'X'
+			text('X', viewpos.x * 16 + 4, viewpos.y * 16 + 4, 12, 16)
 		end
 		client.statWin:draw()
 	end,
@@ -2384,7 +2405,7 @@ render=||do
 			if map.bbox:contains(v) then
 				local tile = map.tiles[v.x][v.y]
 				if tile:isRevealed() then
-					con.locate(i,j)
+					tile:draw(i * 16, j * 16)
 
 					local topEnt
 					if tile.ents then
@@ -2396,22 +2417,11 @@ render=||do
 							end
 						end
 
-						topEnt:draw(con.x * 8, con.y * 8)
-						con.x += 4
-					else
-						tile:draw(con.x * 8, con.y * 8)
-						con.x += 4
+						topEnt:draw(i * 16, j * 16)
 					end
-				else
-					con.locate(i,j)
-					con.write' '
 				end
-			else
-				con.locate(i,j)
-				con.write' '
 			end
 		end
-		con.clearline()
 	end
 
 	for _,battle in ipairs(battles) do
@@ -2423,7 +2433,7 @@ render=||do
 	local y = 1
 	local printright=|s|do
 		if s then
-			con.locate(view.size.x+2,y)
+			con.locate(ui.size.x+2,y)
 			con.write(s)
 		end
 		y = y + 1
@@ -2477,6 +2487,7 @@ gameUpdate=||do
 end
 
 update=||do
+	mode(42)	-- 16:9 480x270x8bpp-indexed
 	client:update()
 	game.time = game.time + 1
 	gameUpdate()
@@ -2484,3 +2495,9 @@ end
 
 -- init draw
 gameUpdate()
+
+-- why mode() makes the pink screen?
+flip()
+render()
+flip()
+render()
