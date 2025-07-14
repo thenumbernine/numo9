@@ -758,6 +758,11 @@ Entity=class{
 		self:setDead(true)
 	end,
 	draw=|:,x,y|do
+		if self.battle and self.battle.currentEnt == self
+		and (time() * 10) & 3 == 0 then
+			rect(x,y,16,16,12)
+			return
+		end
 		if self.dead then
 			spr(self.sprite,x,y,2,2, 0x20)
 		else
@@ -1008,7 +1013,10 @@ Unit.update=|:|do
 				end
 			end
 		else
-			if self.wanderIdle and math.random(4) == 4 then
+			if self.wanderIdle 
+			and math.random(4) == 4 
+			and (time() * 10) & 3 == 0
+			then
 				self:walk(dirs[math.random(#dirs)])
 			end
 		end
@@ -2289,7 +2297,7 @@ Client.popState=|:|do
 end
 Client.processCmdState=|:,state|do
 	local ch
-	repeat
+--	repeat	-- wait for input
 		if btnp'up' then
 			ch='up'
 		elseif btnp'down' then
@@ -2305,9 +2313,10 @@ Client.processCmdState=|:,state|do
 		elseif btnp'x' then
 			ch='e' -- equipCmdState has 'e'
 		else
-			flip()
+			return
+--			flip()
 		end
-	until ch
+--	until ch
 	if self.dead then
 		if self.cmdstate ~= Client.quitCmdState then
 			self:pushState(Client.quitCmdState)
