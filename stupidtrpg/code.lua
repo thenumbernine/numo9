@@ -13,8 +13,8 @@ mode(42)	-- 16:9 480x270x8bpp-indexed
 local screenSize = vec2(480, 270)
 
 tilemapTiles={
-	floor = 0,
-	wall = 2,
+	floor = 80 | 0x400,
+	wall =  0 | 0x400,
 }
 
 sprites={
@@ -86,12 +86,12 @@ end
 tiletypes = {
 	floor = {
 		char = '.',
-		sprite = tilemapTiles.floor | 0x400,
+		sprite = tilemapTiles.floor,
 	},
 	wall = {
 		char = '0',
 		solid = true,
-		sprite = tilemapTiles.wall | 0x400,
+		sprite = tilemapTiles.wall,
 	},
 }
 
@@ -105,7 +105,7 @@ con={
 		con.x+=#s
 	end,
 	clearline = function()
-		rect(con.x<<3,con.y<<3,256,8,16)
+		rect(con.x<<3,con.y<<3,screenSize.x,8,16)
 		con.x=1
 		con.y+=8
 	end,
@@ -444,7 +444,7 @@ pathSearchToPoint=|args|do
 	local start = assert(args.src)
 	local dest = assert(args.dst)
 	local entBlocking = args.entBlocking
-	assert(bbox:contains(start))
+	assert(bbox:contains(start))		-- TODO error here
 	assert(bbox:contains(dest))
 	local states = table{
 		{pos = start:clone()}
@@ -974,7 +974,7 @@ Unit.update=|:|do
 					if not enemy.dead
 					and enemy.army.affiliation ~= self.army.affiliation
 					then
-						local path, dist = pathSearchToPoint{
+						local path, dist = pathSearchToPoint{	-- TODO error pathSearchToPoint contains self.pos or enemy.pos
 							src=self.pos,
 							dst=enemy.pos,
 							bbox=self.battle.bbox,
@@ -1540,7 +1540,9 @@ QuitWindow=Window:subclass{
 		self:setLines{
 			{text='Quit?', cantSelect=true},
 			{text='-----', cantSelect=true},
-			{text='Yes', onSelect=||reset()},
+			{text='Yes', onSelect=||do
+				-- TODO exit to title or something
+			end},
 			{text='No', onSelect=||client:popState()},
 		}
 	end,
@@ -2491,9 +2493,6 @@ end
 
 -- init draw
 gameUpdate()
-
--- why mode() makes the pink screen?
-flip()
 render()
 flip()
 render()
