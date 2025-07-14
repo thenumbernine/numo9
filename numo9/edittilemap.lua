@@ -511,7 +511,8 @@ function EditTilemap:update()
 						and desty >= 0 and desty < tilemapRAM.image.height
 						then
 							local c = 0
-							for ch=image.channels-1,0,-1 do
+							local readChannels = math.min(image.channels, 2)	-- don't include alpha channel... heck only need R and G ...
+							for ch=readChannels-1,0,-1 do
 								c = bit.lshift(c, 8)
 								c = bit.bor(c, image.buffer[ch + image.channels * (i + image.width * j)])
 							end
