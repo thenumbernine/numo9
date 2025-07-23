@@ -147,6 +147,7 @@ saveState=||do
 	end
 end
 
+tx,ty = 0,0
 inSplash=true
 splashMenuY=0
 update=||do
@@ -187,10 +188,12 @@ update=||do
 
 	-- draw scrolling screen
 	do
+		tx += (x - tx) * .1
+		ty += (y - ty) * .1
 		local mw = math.ceil(screenw / 16)
 		local mh = math.ceil(screenh / 16)
-		local ulx = x - math.floor(mw / 2)
-		local uly = y - math.floor(mh / 2)
+		local ulx = tx - math.floor(mw / 2)
+		local uly = ty - math.floor(mh / 2)
 		local dx = 0
 		local dy = 0
 		if ulx < 0 then
@@ -206,7 +209,8 @@ update=||do
 			uly = maph - mh
 		end
 		map(ulx, uly, mw, mh, 0, 0, 0, true)
-		spr(dir<<1, (x-ulx)<<4, (y-uly)<<4, 2, 2)
+		spr(dir<<1, (x - ulx)*16, (y - uly)*16, 2, 2)
+		--spr(dir<<1, (tx - ulx)*16, (ty - uly)*16, 2, 2)
 	end
 
 	-- get input
