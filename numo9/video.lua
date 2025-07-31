@@ -29,6 +29,7 @@ local tilemapSize = numo9_rom.tilemapSize
 local paletteSize = numo9_rom.paletteSize
 local paletteAddr = numo9_rom.paletteAddr
 local paletteInBytes = numo9_rom.paletteInBytes
+local palettePtrType = numo9_rom.palettePtrType
 local fontAddr = numo9_rom.fontAddr
 local fontImageSize = numo9_rom.fontImageSize
 local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
@@ -549,7 +550,7 @@ function AppVideo:initVideo()
 
 
 	--[[
-	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per bank
+	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per blob
 	but I am still using the texture specs for my shader creation
 	and my shader creation is done once
 	so until then, just resize them here
@@ -572,17 +573,17 @@ function AppVideo:initVideo()
 	- framebufferMenuTex				256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
 	- framebufferRAMs._256x256xRGB565	256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
 	- framebufferRAMs._256x256x8bpp		256x256		1 byte  ... GL_R8UI
-	- per-bank:
-		- sheetRAMs[i] x2				256x256		1 byte  ... GL_R8UI
-		- tilemapRAMs[i]				256x256		2 bytes ... GL_R16UI
-		- paletteRAMs[i]				256x1		2 bytes ... GL_R16UI
-		- fontRAMs[i]					256x8		1 byte  ... GL_R8UI
+	- blobs:
+	sheet:	 	sheetRAMs[i] 			256x256		1 byte  ... GL_R8UI
+	tilemap:	tilemapRAMs[i]			256x256		2 bytes ... GL_R16UI
+	palette:	paletteRAMs[i]			256x1		2 bytes ... GL_R16UI
+	font:		fontRAMs[i]				256x8		1 byte  ... GL_R8UI
 
 	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
-	... and make each be 256 cols wide ... and as high as there are banks ...
+	... and make each be 256 cols wide ... and as high as there are blobs ...
 	... but if 2048 is the min size, then 256x2048 = 8 sheets worth, and if we use sprite & tilemap then that's 4 ...
 	... or I could use a 512 x 2048 tex ... and just delegate what region on the tex each sheet gets ...
-	... or why not, use all 2048 x 2048 = 64 different 256x256 sheets, and sprite/tile means 32 bank max ...
+	... or why not, use all 2048 x 2048 = 64 different 256x256 sheets, and sprite/tile means 32 blob max ...
 	I could make a single GL tex, and share regions on it between different sheetRAMs ...
 	This would break with the tex.ptr == image.ptr model ... no more calling :subimage() without specifying regions ...
 
@@ -1729,27 +1730,21 @@ void main() {
 	self:resetVideo()
 end
 
--- resize the # of RAMGPUs to match the # banks
+-- resize the # of RAMGPUs to match the # blobs
+-- TODO just merge RAMGPU with blobs?  though I don't want RAMGPUs for blobs other than those that are assigned to app.blobs ... (i.e. for archiving to/from cart etc)
 function AppVideo:resizeRAMGPUs()
 --DEBUG:print'AppVideo:resizeRAMGPUs'
-	local numBanks = #self.banks
-	for i=2*numBanks+1,#self.sheetRAMs do
+	local sheetBlobs = self.blobs.sheet or {}
+	for i=#sheetBlobs+1,#self.sheetRAMs do
 		self.sheetRAMs[i] = nil
 	end
-	for i=1,2*numBanks do
-		local bankNo = bit.rshift(i-1, 1)
-		local addr
-		if bit.band(i-1, 1) == 0 then
-			addr = ffi.cast('uint8_t*', self.ram.bank[bankNo].spriteSheet) - ffi.cast('uint8_t*', self.ram.v)
-		else
-			addr = ffi.cast('uint8_t*', self.ram.bank[bankNo].tileSheet) - ffi.cast('uint8_t*', self.ram.v)
-		end
+	for i,blob in ipairs(sheetBlobs) do
 		if self.sheetRAMs[i] then
-			self.sheetRAMs[i]:updateAddr(addr)
+			self.sheetRAMs[i]:updateAddr(blob.addr)
 		else
 			self.sheetRAMs[i] = RAMGPUTex{
 				app = self,
-				addr = addr,
+				addr = blob.addr,
 				width = spriteSheetSize.x,
 				height = spriteSheetSize.y,
 				channels = 1,
@@ -1761,10 +1756,11 @@ function AppVideo:resizeRAMGPUs()
 		end
 	end
 
-	for i=numBanks+1,#self.tilemapRAMs do
+	local tileMapBlobs = self.blobs.tilemap or {}
+	for i=#tileMapBlobs+1,#self.tilemapRAMs do
 		self.tilemapRAMs[i] = nil
 	end
-	for i=1,numBanks do
+	for i,blob in ipairs(tileMapBlobs) do
 		--[[
 		16bpp ...
 		- 10 bits of lookup into sheetRAMs
@@ -1774,13 +1770,12 @@ function AppVideo:resizeRAMGPUs()
 		- .... 2 bits rotate ... ? nah
 		- .... 8 bits palette offset ... ? nah
 		--]]
-		local addr = ffi.cast('uint8_t*', self.ram.bank[i-1].tilemap) - ffi.cast('uint8_t*', self.ram.v)
 		if self.tilemapRAMs[i] then
-			self.tilemapRAMs[i]:updateAddr(addr)
+			self.tilemapRAMs[i]:updateAddr(blob.addr)
 		else
 			self.tilemapRAMs[i] = RAMGPUTex{
 				app = self,
-				addr = addr,
+				addr = blob.addr,
 				width = tilemapSize.x,
 				height = tilemapSize.y,
 				channels = 1,
@@ -1792,19 +1787,19 @@ function AppVideo:resizeRAMGPUs()
 		end
 	end
 
-	for i=numBanks+1,#self.paletteRAMs do
+	local paletteBlobs = self.blobs.palette or {}
+	for i=#paletteBlobs+1,#self.paletteRAMs do
 		self.paletteRAMs[i] = nil
 	end
-	for i=1,numBanks do
---DEBUG:print('creating palette for bank #'..(i-1))
+	for i,blob in ipairs(paletteBlobs) do
+--DEBUG:print('creating palette for blob #'..(i-1))
 		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
-		local addr = ffi.cast('uint8_t*', self.ram.bank[i-1].palette) - ffi.cast('uint8_t*', self.ram.v)
 		if self.paletteRAMs[i] then
-			self.paletteRAMs[i]:updateAddr(addr)
+			self.paletteRAMs[i]:updateAddr(blob.addr)
 		else
 			self.paletteRAMs[i] = RAMGPUTex{
 				app = self,
-				addr = addr,
+				addr = blob.addr,
 				width = paletteSize,
 				height = 1,
 				channels = 1,
@@ -1816,28 +1811,28 @@ function AppVideo:resizeRAMGPUs()
 		end
 	end
 
-	for i=numBanks+1,#self.fontRAMs do
+	local fontBlobs = self.blobs.font or {}
+	for i=#fontBlobs+1,#self.fontRAMs do
 		self.fontRAMs[i] = nil
 	end
-	for i=1,numBanks do
+	for i,blob in ipairs(fontBlobs) do
 		-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
 		-- so a 256 char font will be 2048 bytes
 		-- TODO option for 2bpp etc fonts?
 		-- before I had fonts just stored as a certain 1bpp region of the sprite sheet ...
 		-- eventually have custom sized spritesheets and drawText refer to those?
 		-- or eventually just make all textures 1D and map regions of RAM, and have the tile shader use offsets for horz and vert step?
-		local addr = ffi.cast('uint8_t*', self.ram.bank[i-1].font) - ffi.cast('uint8_t*', self.ram.v)
---DEBUG:assert.ge(addr, 0)
---DEBUG:assert.lt(addr + fontInBytes, self.memSize)
---DEBUG:print('creating font for bank #'..(i-1)..' from addr '..('$%x / %d'):format(addr, addr))
+--DEBUG:assert.ge(blob.addr, 0)
+--DEBUG:assert.lt(blob.addr + fontInBytes, self.memSize)
+--DEBUG:print('creating font for blob #'..(i-1)..' from addr '..('$%x / %d'):format(blob.addr, blob.addr))
 		if self.fontRAMs[i] then
 --DEBUG:print'...updating old addr'
-			self.fontRAMs[i]:updateAddr(addr)
+			self.fontRAMs[i]:updateAddr(blob.addr)
 		else
 --DEBUG:print'...creating new obj'
 			self.fontRAMs[i] = RAMGPUTex{
 				app = self,
-				addr = addr,
+				addr = blob.addr,
 				width = fontImageSize.x,
 				height = fontImageSize.y,
 				channels = 1,
@@ -1893,7 +1888,7 @@ end
 
 function AppVideo:resetVideo()
 --DEBUG:print'App:resetVideo'
-	-- remake the textures every time the # bank changes thanks to loadRAM()
+	-- remake the textures every time the # blobs changes thanks to loadRAM()
 	self:resizeRAMGPUs()
 
 	-- flush all before resetting RAM addrs in case any are pointed to the addrs' location
@@ -1902,12 +1897,12 @@ function AppVideo:resetVideo()
 	self:allRAMRegionsCheckDirtyGPU()
 
 	-- reset these
-	self.ram.framebufferAddr:fromabs(framebufferAddr)
-	self.ram.spriteSheetAddr:fromabs(spriteSheetAddr)
-	self.ram.tileSheetAddr:fromabs(tileSheetAddr)
-	self.ram.tilemapAddr:fromabs(tilemapAddr)
-	self.ram.paletteAddr:fromabs(paletteAddr)
-	self.ram.fontAddr:fromabs(fontAddr)
+	self.ram.framebufferAddr = framebufferAddr
+	self.ram.spriteSheetAddr = spriteSheetAddr
+	self.ram.tileSheetAddr = tileSheetAddr
+	self.ram.tilemapAddr = tilemapAddr
+	self.ram.paletteAddr = paletteAddr
+	self.ram.fontAddr = fontAddr
 	-- and these, which are the ones that can be moved
 
 	-- TODO this current method updates *all* GPU/CPU framebuffer textures
@@ -1928,7 +1923,7 @@ function AppVideo:resetVideo()
 	--self.ram.videoMode = 2	-- 8bpp RGB332
 	self:setVideoMode(self.ram.videoMode)
 
-	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
+	self:copyBlobsToRAM()
 	-- [[ update now ...
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		sheetRAM.tex:bind()
@@ -2054,7 +2049,7 @@ end
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
 function AppVideo:colorSwap(from, to, x, y, w, h)
 	-- TODO SORT THIS OUT
-	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM')
+	self:copyBlobsToRAM()
 	from = math.floor(from)
 	to = math.floor(to)
 	x = math.floor(x)
@@ -2091,7 +2086,7 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
-	ffi.copy(self.banks.v[0].v, self.ram.bank, ffi.sizeof'ROM')
+	self:copyRAMToBlobs()
 	return fromFound, toFound
 end
 
@@ -2099,8 +2094,12 @@ end
 function AppVideo:resetFont()
 	self.triBuf:flush()
 	self.fontRAM:checkDirtyGPU()
-	resetROMFont(self.ram.bank[0].font)
-	ffi.copy(self.banks.v[0].font, self.ram.bank[0].font, fontInBytes)
+	local fontBlob = self.blobs.font and self.blobs.font[1]
+-- TODO ensure there's at least one?
+	if fontBlob then
+		resetROMFont(fontBlob.ramptr)
+		ffi.copy(fontBlob:getPtr(), fontBlob.ramptr, fontBlob:getSize())
+	end
 	self.fontRAM.dirtyCPU = true
 end
 
@@ -2111,8 +2110,12 @@ function AppVideo:resetGFX()
 	self:resetFont()
 
 	self.paletteRAM:checkDirtyGPU()
-	resetROMPalette(self.ram.bank[0])
-	ffi.copy(self.banks.v[0].palette, self.ram.bank[0].palette, paletteInBytes)
+	local paletteBlob = self.blobs.palette and self.blobs.palette[1]
+-- TODO ensure there's at least one?
+	if paletteBlob then
+		resetROMPalette(paletteBlob.ramptr)
+		ffi.copy(paletteBlob:getPtr(), paletteBlob.ramptr, paletteBlob:getSize())
+	end
 	self.paletteRAM.dirtyCPU = true
 end
 
@@ -2538,7 +2541,7 @@ args:
 
 sheetIndex is 0 or 1 depending on spriteSheet or tileSheet ...
 should I just have an addr here?  and cache by ptr texs?
-I was thinking of having some ROM metadata that flagged banks as dif types, and then for the VRAM banks generate GPU texs ...
+I was thinking of having some ROM metadata that flagged blobs as dif types, and then for the VRAM blobs generate GPU texs ...
 --]]
 function AppVideo:drawQuad(
 	x, y, w, h,	-- quad box
@@ -2657,7 +2660,7 @@ spriteIndex =
 	bits 0..4 = x coordinate in sprite sheet
 	bits 5..9 = y coordinate in sprite sheet
 	bit 10 = sprite sheet vs tile sheet
-	bits 11.. = bank to use for sprite/tile sheet
+	bits 11.. = blob to use for sprite/tile sheet
 tilesWide = width in tiles
 tilesHigh = height in tiles
 paletteIndex =
@@ -2723,8 +2726,8 @@ function AppVideo:drawMap(
 	screenY,		-- /
 	mapIndexOffset,	-- general shift to apply to all read map indexes in the tilemap
 	draw16Sprites,	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
-	sheetIndex,		-- which sheet to use, 0 to 2*n-1 for n banks.  even are sprite-sheets, odd are tile-sheets.
-	tilemapIndex	-- which tilemap bank to use, 0 to n-1 for n banks
+	sheetIndex,		-- which sheet to use, 0 to 2*n-1 for n blobs.  even are sprite-sheets, odd are tile-sheets.
+	tilemapIndex	-- which tilemap blob to use, 0 to n-1 for n blobs
 )
 	sheetIndex = sheetIndex or 1
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
@@ -2820,7 +2823,9 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 	-- or why even draw a background to it? let the user?
 	-- or how about use it as a separate flag?
 	-- TODO this always uses the cart colors even for the menu draw routine ...
-	local r,g,b,a = rgba5551_to_rgba8888_4ch(self.ram.bank[0].palette[bgColorIndex])
+	local paletteBlob = self.blobs.palette and self.blobs.palette[1]
+	if not paletteBlob then return end
+	local r,g,b,a = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[bgColorIndex])
 	if a > 0 then
 		local bgw = 0
 		for i=1,#text do

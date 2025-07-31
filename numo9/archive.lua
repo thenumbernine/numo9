@@ -3,7 +3,7 @@ compress/decompress cartridges
 maybe this should accept the current loaded ROM ...
 
 ok so here's a thought
-if i support multiple 'banks'
+if i support multiple 'blobs'
 or if i store the cart in a png
 why even bother convert stuff?
 why not just save it in a zip file, and let the loader target our zip data or a directory structure, like a pak file.
@@ -27,22 +27,27 @@ local codeSize = numo9_rom.codeSize
 local audioDataSize = numo9_rom.audioDataSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
+local sizeofRAMWithoutROM = num9_rom.sizeofRAMWithoutROM
+
+local numo9_blobs = require 'numo9.blobs'
+local blobClassForName = numo9_blobs.blobClassForName
+local blobsToByteArray = numo9_blobs.blobsToByteArray
+local byteArrayToBlobs = numo9_blobs.byteArrayToBlobs
+
 
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
 -- so reading is from files now
 local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
 local pngCustomKey = 'nuMO'
 --[[
-assumes 'banks' is vector<ROM>
+assumes blobs[blobClassName] = table()
 creates an Image and returns it
 --]]
-local function toCartImage(banks, labelImage)
-	assert.is(banks, vector)
-	assert.eq(banks.type, 'ROM')
-	assert.ge(#banks, 1)
+local function toCartImage(blobs, labelImage)
+	local info = blobsToByteArray(blobs)
 
-	local banksAsStr = ffi.string(banks.v, ffi.sizeof'ROM' * #banks)
-	local banksCompressed = zlib.compressLua(banksAsStr)
+	local blobsAsStr = ffi.string(info.ram.v + sizeofRAMWithoutROM, info.memSize - sizeofRAMWithoutROM)
+	local blobsCompressed = zlib.compressLua(blobsAsStr)
 
 	-- [[ storing in png metadata
 	local baseLabelImage = Image'defaultlabel.png'
@@ -70,7 +75,7 @@ local function toCartImage(banks, labelImage)
 	romImage.unknown[pngCustomKey] = {
 		-- TODO you could save the regions that are used like tic80
 		-- or you could just zlib zip the whole thing
-		data = banksCompressed,
+		data = blobsCompressed,
 	}
 	--]]
 
@@ -85,10 +90,9 @@ end
 
 --[[
 takes an Image
-returns vector<ROM>
+returns blobs[]
 --]]
 local function fromCartImage(srcData)
-	local banks = vector'ROM'
 	-- [=[ loading as an image
 
 	-- [[ from disk
@@ -103,63 +107,42 @@ local function fromCartImage(srcData)
 	--]]
 
 	-- [[ storing in png metadata
-	local banksCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
-	local banksAsStr = zlib.uncompressLua(banksCompressed)
---DEBUG:print('bank data length, decompressed: '..('0x%x'):format(#banksAsStr))
-	local numBanksNeeded = math.ceil(#banksAsStr / ffi.sizeof'ROM')
---DEBUG:print('bank data length modulo sizeof ROM: '..('0x%x'):format(#banksAsStr % ffi.sizeof'ROM'))
---DEBUG:print('banks needed: '..numBanksNeeded)
-	banks:resize(math.max(1, numBanksNeeded))
-	assert.ge(#banks * ffi.sizeof'ROM', #banksAsStr)
-	ffi.copy(banks.v, banksAsStr, #banksAsStr)
+	local blobsCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
+	local blobsAsStr = zlib.uncompressLua(blobsCompressed)
+--DEBUG:print('blob data length, decompressed: '..('0x%x'):format(#blobsAsStr))
+
+	-- pad the RAM portion
+	blobsAsStr = (' '):rep(sizeofRAMWithoutROM) .. blobsAsStr
+
+	local blobs = byteArrayToBlobs(ffi.cast('uint8_t*', blobsAsStr), #blobsAsStr)
 	--]]
-	return banks
 	--]=]
+
+	assert.index(blobs, 'code')
+	assert.len(blobs.code, 1)
+	-- assert sprite sheet as well?
+
+	return blobs
 end
 
--- convert multiple banks' code into a single string
-local function codeBanksToStr(banks)
-	assert.is(banks, vector)
-	assert.eq(banks.type, 'ROM')
-	local codePages = table()
-	for bankNo=0,#banks-1 do
-		local bank = banks.v + bankNo
-		local bankCode = ffi.string(bank.code, codeSize)
-		codePages:insert(bankCode)
-	end
-	local code = codePages:concat()
-	-- trim off trailing \0's - do it here and not per-bank to allow statements (and possibly '\0' strings) to cross the code bank boundaries
-	local codeEnd = #code
-	while codeEnd > 0 and code:byte(codeEnd) == 0 do
-		codeEnd = codeEnd - 1
-	end
-	return code:sub(1, codeEnd)
+-- convert blobs' code into a single string
+local function codeBlobsToStr(blobs)
+	assert.type(blobs, 'table')
+	assert.is(blobs.code, blobClassForName.code)
+	assert.len(blobs.code, 1)	-- hmm TODO maybe I'll turn this into a zip ... and directory structure ... gah feature creep...
+	assert.type(blobs.code[1].data, 'string')
+
+	return blobs.code[1].data
 end
 
-local function codeStrToBanks(banks, code)
-	assert.is(banks, vector)
-	assert.eq(banks.type, 'ROM')
+local function codeStrToBlobs(blobs, code)
 	assert.type(code, 'string')
-	local n = #code
---DEBUG:print('code size is', n)
-	local numBanksNeededForCode = math.ceil(n / codeSize)
---DEBUG:print('num banks needed is', numBanksNeededForCode)
-	local numBanksPrev = #banks
-	if numBanksPrev < numBanksNeededForCode then
-		banks:resize(numBanksNeededForCode)
-		ffi.fill(banks.v + numBanksPrev, ffi.sizeof'ROM' * (numBanksNeededForCode - numBanksPrev))
-	end
-	assert.ge(#banks, numBanksNeededForCode)
-	assert.le(n, codeSize * #banks)
-	for bankNo=0,#banks-1 do
-		local bank = banks.v + bankNo
-		local i1 = bankNo*codeSize
-		local i2 = (bankNo+1)*codeSize
-		local s = code:sub(i1+1, i2)
-		assert.le(#s, codeSize)
-		ffi.fill(bank.code, 0, codeSize)
-		ffi.copy(bank.code, s, math.min(codeSize, #s))
-	end
+
+	assert.type(blobs, 'table')
+	assert.is(blobs.code, blobClassForName.code)
+	assert.len(blobs.code, 1)
+
+	blobs.code[1].data = code
 end
 
 --[[
@@ -206,7 +189,7 @@ end
 return {
 	toCartImage = toCartImage,
 	fromCartImage = fromCartImage,
-	codeBanksToStr = codeBanksToStr,
-	codeStrToBanks = codeStrToBanks,
+	codeBlobsToStr = codeBlobsToStr,
+	codeStrToBlobs = codeStrToBlobs,
 	buildAudio = buildAudio,
 }
