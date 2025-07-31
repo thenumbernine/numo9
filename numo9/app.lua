@@ -36,8 +36,8 @@ local ThreadManager = require 'threadmanager'
 local numo9_archive = require 'numo9.archive'
 local fromCartImage = numo9_archive.fromCartImage
 local toCartImage = numo9_archive.toCartImage
-local codeBanksToStr = numo9_archive.codeBanksToStr
-local codeStrToBanks = numo9_archive.codeStrToBanks
+local codeBlobsToStr = numo9_archive.codeBlobsToStr
+local codeStrToBlobs = numo9_archive.codeStrToBlobs
 
 local numo9_net = require 'numo9.net'
 local Server = numo9_net.Server
@@ -58,6 +58,7 @@ local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
 local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize
 local mvMatType = numo9_rom.mvMatType
+local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -69,8 +70,10 @@ local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode
 local buttonNames = numo9_keys.buttonNames
 local buttonCodeForName = numo9_keys.buttonCodeForName
 
+local numo9_blobs = require 'numo9.blobs'
+local blobsToByteArray = numo9_blobs.blobsToByteArray
+
 local numo9_video = require 'numo9.video'
-local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 
 local function hexdump(ptr, len)
 	return string.hexdump(ffi.string(ptr, len))
@@ -96,6 +99,10 @@ end
 
 -- copy in audio behavior
 for k,v in pairs(require 'numo9.audio'.AppAudio) do
+	App[k] = v
+end
+
+for k,v in pairs(numo9_blobs.AppBlobs) do
 	App[k] = v
 end
 
@@ -206,22 +213,7 @@ function App:initGL()
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
 
-	self.memSize = ffi.sizeof'RAM'
---DEBUG:print(('memSize = 0x%0x'):format(self.memSize))
-	self.holdram = ffi.new('uint8_t[?]', self.memSize)
-	self.ram = ffi.cast('RAM&', self.holdram)
-
-	-- tic80 has a reset() function for resetting RAM data to original cartridge data
-	-- pico8 has a reset function that seems to do something different: reset the color and console state
-	-- but pico8 does support a reload() function for copying data from cartridge to RAM ... if you specify range of the whole ROM memory then it's the same (right?)
-	-- but pico8 also supports cstore(), i.e. writing to sections of a cartridge while the code is running ... now we're approaching fantasy land where you can store disk quickly - didn't happen on old Apple2's ... or in the NES case where reading was quick, the ROM was just that so there was no point to allow writing and therefore no point to address both the ROM and the ROM's copy in RAM ...
-	-- but tic80 has a sync() function for swapping out the active banks ...
-	-- with all that said, 'banks' here will be inaccessble by my api except a reset() function
-	-- and sync() function ..
-	self.banks = vector('ROM', 1)
-	-- TODO maybe ... keeping separate 'ROM' and 'RAM' space?  how should the ROM be accessible? with a 0xC00000 (SNES)?
-	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
-	-- and the editor would edit the ROM ...
+	self:initBlobs()
 
 	do
 		--DEBUG:print(RAM.code)
@@ -245,13 +237,11 @@ function App:initGL()
 			print(('0x%06x - 0x%06x = '):format(offset, offset + size)..name)
 		end
 		print'- ROM -'
-		local bankofs = ffi.offsetof('RAM', 'bank')
-		for name,ctype in ROM:fielditer() do
-			local offset = ffi.offsetof('ROM', name)
-			local size = ffi.sizeof(ctype)
-			print(('0x%06x - 0x%06x = '):format(bankofs + offset, bankofs + offset + size)..name)
+		for i=0,self.ram.blobCount-1 do
+			local blobEntry = self.ram.blobEntries + i
+			print(('0x%06x - 0x%06x = '):format(blobEntry.addr, blobEntry.addr + blobEntry.size)..name)
 		end
-		print('system dedicated '..('0x%x'):format(ffi.sizeof(self.ram))..' of RAM')
+		print('system dedicated '..('0x%x'):format(ffi.sizeof(self.holdram))..' of RAM')
 	end
 
 	self.mvMat = matrix_ffi({4,4}, mvMatType):zeros()
@@ -327,7 +317,7 @@ function App:initGL()
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(...) return self:mget(...) end,
-		mset = function(x, y, value) return self:net_mset(x, y, value) end,
+		mset = function(...) return self:net_mset(...) end,
 
 		pset = function(x, y, color)
 			x = toint(x)
@@ -1016,7 +1006,7 @@ print('package.loaded', package.loaded)
 	self:matident()
 	self:setClipRect(0, 0, clipMax, clipMax)
 
-	self.editBankNo = 0
+	self.editBankNo = 0	-- TODO now we need one of these per editor / per blob type
 	self.editCode = EditCode{app=self}
 	self.editSprites = EditSprites{app=self}
 	self.editTilemap = EditTilemap{app=self}
@@ -1179,7 +1169,7 @@ print('package.loaded', package.loaded)
 --				for sleep=1,60 do env.flip() end
 
 				-- also for init, do the splash screen
-				numo9_video.resetLogoOnSheet(self.ram.bank[0].tileSheet)
+				numo9_video.resetLogoOnSheet(self.blobs.sheet[1].ramptr)
 				self.sheetRAMs[2].dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
@@ -1235,9 +1225,12 @@ print('package.loaded', package.loaded)
 				env.flip()
 
 				-- and clear the tilemap now that we're done with it
-				ffi.fill(self.ram.bank[0].tileSheet, ffi.sizeof(self.ram.bank[0].tileSheet))
-				ffi.fill(self.ram.bank[0].tilemap, ffi.sizeof(self.ram.bank[0].tilemap))
-				self.sheetRAMs[2].dirtyCPU = true
+				local tileSheetBlob = self.blobs.sheet[2]
+				ffi.fill(tileSheetBlob.ramptr, tileSheetBlob:getSize())
+				self.sheetRAMs[2].dirtyCPU = true	-- TODO merge sheetRAMs[] and blobs.sheet[]
+
+				local tileMapBlob = self.blobs.tilemap[1]
+				ffi.fill(tileMapBlob.ramptr, tileMapBlob:getSize())
 			end
 
 			-- initially assign to cartBrowser
@@ -1393,16 +1386,16 @@ function App:net_memset(dst, val, len)
 	return self:memset(dst, val, len)
 end
 
-function App:net_mset(x, y, value, bankNo)
+function App:net_mset(x, y, value, tilemapBlobIndex)
 	x = toint(x)
 	y = toint(y)
-	bankNo = tonumber(toint(bankNo))	-- or 0
+	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))	-- or 0
 	value = ffi.cast('uint16_t', value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
-	and bankNo >= 0 and bankNo < #self.banks
+	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #(self.blobs.tilemap or {})
 	then
-		local addr = self.tilemapRAMs[bankNo+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		local addr = self.tilemapRAMs[tilemapBlobIndex+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		-- use poke over netplay, cuz i'm lazy.
 		if self.server then
 			local prevValue = self:peekw(addr)
@@ -1420,15 +1413,15 @@ end
 
 -------------------- LOCAL ENV API --------------------
 
-function App:mget(x, y, bankNo)
+function App:mget(x, y, tilemapBlobIndex)
 	x = toint(x)
 	y = toint(y)
-	bankNo = tonumber(toint(bankNo))	-- or 0
+	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))	-- or 0
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
-	and bankNo >= 0 and bankNo < #self.banks
+	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #(self.blobs.tilemap or {})
 	then
-		local addr = self.tilemapRAMs[bankNo+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		local addr = self.tilemapRAMs[tilemapBlobIndex+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		return self:peekw(addr)
 	end
 	-- TODO return default oob value?  or return nil?
@@ -1647,7 +1640,7 @@ conn.receivesPerSecond = 0
 
 --DEBUG(glquery):updateQuery:begin()
 
-		local newFramebufferAddr = self.ram.framebufferAddr:toabs()
+		local newFramebufferAddr = self.ram.framebufferAddr
 		if self.framebufferRAM.addr ~= newFramebufferAddr then
 --DEBUG:print'updating framebufferRAM addr'
 			-- TODO this current method updates *all* GPU/CPU framebuffer textures
@@ -1658,27 +1651,27 @@ conn.receivesPerSecond = 0
 		end
 
 		-- TODO how to handle these plus expandable ROM?  I could only have the first sheets relocatable?
-		local newSpriteSheetAddr = self.ram.spriteSheetAddr:toabs()
+		local newSpriteSheetAddr = self.ram.spriteSheetAddr
 		if self.sheetRAMs[1].addr ~= newSpriteSheetAddr then
 --DEBUG:print'updating sheetRAMs[1] addr'
 			self.sheetRAMs[1]:updateAddr(newSpriteSheetAddr)
 		end
-		local newTileSheetAddr = self.ram.tileSheetAddr:toabs()
+		local newTileSheetAddr = self.ram.tileSheetAddr
 		if self.sheetRAMs[2].addr ~= newTileSheetAddr then
 --DEBUG:print'updating sheetRAMs[2] addr'
 			self.sheetRAMs[2]:updateAddr(newTileSheetAddr)
 		end
-		local newTilemapAddr = self.ram.tilemapAddr:toabs()
+		local newTilemapAddr = self.ram.tilemapAddr
 		if self.tilemapRAMs[1].addr ~= newTilemapAddr then
 --DEBUG:print'updating tilemapRAM addr'
 			self.tilemapRAMs[1]:updateAddr(newTilemapAddr)
 		end
-		local newPaletteAddr = self.ram.paletteAddr:toabs()
+		local newPaletteAddr = self.ram.paletteAddr
 		if self.paletteRAM.addr ~= newPaletteAddr then
 --DEBUG:print'updating paletteRAM addr'
 			self.paletteRAM:updateAddr(newPaletteAddr)
 		end
-		local newFontAddr = self.ram.fontAddr:toabs()
+		local newFontAddr = self.ram.fontAddr
 		if self.fontRAM.addr ~= newFontAddr then
 --DEBUG:print'updating fontRAM addr'
 			self.fontRAM:updateAddr(newFontAddr)
@@ -2375,17 +2368,17 @@ end
 function App:saveROM(filename)
 --	self:checkDirtyGPU()
 
-	-- flush that back to .banks ...
+	-- flush that back to .blobs ...
 	-- ... or not? idk.  handle this by the editor?
-	--ffi.copy(self.banks.v[0].v, self.ram.bank, ffi.sizeof'ROM')
-	-- TODO self.ram vs self.banks ... editor puts .banks into .ram before editing
+	--self:copyRAMToBlobs()
+	-- TODO self.ram vs self.blobs ... editor puts .blobs into .ram before editing
 	-- or at least it used to ... now with multiplayer editing idk even ...
 
 	-- and then that to the virtual filesystem ...
 	-- and then that to the real filesystem ...
 
-	-- save code to multibanks
-	codeStrToBanks(self.banks, self.editCode.text)
+	-- save ediCode.text to self.blobs
+	codeStrToBlobs(self.blobs, self.editCode.text)
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
@@ -2397,11 +2390,7 @@ function App:saveROM(filename)
 	local basemsg = 'failed to save file '..tostring(filename)
 
 	-- TODO xpcall?
-	local success, s = xpcall(
-		toCartImage,
-		errorHandler,
-		self.banks
-	)
+	local success, s = xpcall(toCartImage, errorHandler, self.blobs)
 	if not success then
 print('save failed:', basemsg..(s or ''))
 		return nil, basemsg..(s or '')
@@ -2468,22 +2457,16 @@ function App:openROM(filename)
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
 
-	self.banks = fromCartImage(d)
-	assert.ge(#self.banks, 1)
+	self.blobs = fromCartImage(d)
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
-	self.editCode:setText(codeBanksToStr(self.banks))
+	self.editCode:setText(codeBlobsToStr(self.blobs))
 
--- [[ reallocate .ram for as many banks as the cart wants
--- should I be doing this outside of the update thread?
-	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
-	self.memSize = ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1)
---DEBUG:print(('memSize = 0x%0x'):format(self.memSize))
-	self.holdram = ffi.new('uint8_t[?]', self.memSize)
+-- [[ reallocate .ram for the carts blobs
+	local oldholdram = self.holdram
 	local oldram = self.ram
-	-- wow first time I've used references in LuaJIT, didn't know they were implemented.
-	self.ram = ffi.cast('RAM&', self.holdram)
-	ffi.copy(self.ram, oldram, ffi.sizeof'RAM')
-	ffi.copy(self.ram.bank, self.banks.v, ffi.sizeof'ROM' * #self.banks)
+	self:buildRAMFromBlobs()
+	ffi.copy(self.ram, oldram, sizeofRAMWithoutROM)
+	self:copyBlobsToRAM()
 --]]
 
 	-- every time .ram updates, this has to update as well:
@@ -2520,15 +2503,13 @@ function App:writePersistent()
 end
 
 --[[
-This resets everything from the last loaded .banks ROM into .ram
+This resets everything from the last loaded .blobs ROM into .ram
 Equivalent of loading the previous ROM again.
 That means code too - save your changes!
 --]]
 function App:resetROM()
 --DEBUG:print'App:resetROM'
-assert.eq(ffi.sizeof(self.holdram), self.memSize)
-assert.eq(self.memSize, ffi.sizeof'RAM' + ffi.sizeof'ROM' * (#self.banks - 1))
-	ffi.copy(self.ram.bank, self.banks.v[0].v, ffi.sizeof'ROM' * #self.banks)
+	self:copyBlobsToRAM()
 	self:resetVideo()
 
 	-- calling reset() live will kill all sound ...
@@ -2618,7 +2599,10 @@ function App:runROM()
 			i = to + #term
 		until false
 	end
-	self.metainfo.saveid = self.metainfo.saveid or sha2.md5(ffi.string(self.banks.v, #self.banks * ffi.sizeof'ROM'))
+	if not self.metainfo.saveid then
+		local tmpinfo = blobsToByteArray(self.blobs)
+		self.metainfo.saveid = sha2.md5(ffi.string(tmpinfo.ram.v, tmpinfo.memSize))
+	end
 
 	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...
 	local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
@@ -2928,6 +2912,8 @@ function App:resize()
 	App.super.resize(self)
 	needDrawCounter = drawCounterNeededToRedraw
 end
+
+-------------------- EVENTS --------------------
 
 function App:event(e)
 	if e[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_GAINED then

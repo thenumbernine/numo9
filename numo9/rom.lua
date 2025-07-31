@@ -15,6 +15,8 @@ local updateIntervalInSeconds = 1 / updateHz
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
 local paletteSize = 256
+local paletteType = 'uint16_t'	-- really rgba 5551 ...
+local palettePtrType = paletteType..'*'
 local tileSizeInBits = 3
 local tileSize = bit.lshift(1, tileSizeInBits)
 local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
@@ -66,7 +68,7 @@ local audioDataSize = 0xf600	-- snes had 64k dedicated to audio so :shrug: I'm l
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
 
-local userDataSize = 0xd844
+local userDataSize = 0xd83e
 
 -- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
 -- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
@@ -121,6 +123,7 @@ local SFXHeader = struct{
 	},
 }
 
+--[==[ not used anymore
 local ROM = struct{
 	name = 'ROM',
 	union = true,
@@ -208,8 +211,7 @@ local ROM = struct{
 		}},
 	},
 }
---DEBUG:print(ROM.code)
---DEBUG:print('ROM size', ffi.sizeof(ROM))
+--]==]
 
 
 --[[
@@ -336,27 +338,19 @@ local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
 -- make sure we can index all our sfx in the table
 --assert.le(sfxTableSize, maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)))
 
-local addr24_t = struct{
-	name = 'addr24_t',
-	packed = true,
+local addrType = 'uint32_t'	-- 4GB max addr
+
+local blobCountType = require 'numo9.rom'.addrType
+
+local BlobEntry = struct{
+	name = 'BlobEntry',
 	fields = {
-		{name='ofs', type='uint16_t'},
-		{name='bank', type='uint8_t'},
+		{name='type', type='uint32_t'},
+		{name='addr', type='uint32_t'},
+		{name='size', type='uint32_t'},
 	},
-	metatable = function(m)
-		function m:toabs()
-			return bit.bor(
-				bit.lshift(bit.band(self.bank, 0xff), 16),
-				bit.band(self.ofs, 0xffff)
-			)
-		end
-		function m:fromabs(addr)
-			self.bank = bit.band(bit.rshift(addr, 16), 0xff)
-			self.ofs = bit.band(addr, 0xffff)
-		end
-	end,
 }
-assert.eq(ffi.sizeof'addr24_t', 3)
+
 
 local RAM = struct{
 	name = 'RAM',
@@ -394,12 +388,12 @@ local RAM = struct{
 				-- This way they can redirect sprite/tile sheets to other (expandible) banks
 				-- Or heck why not use the framebuffer, yeah I'll allow it even though Pico8 didn't
 				-- Changes to these reflect the next vsync
-				{name='framebufferAddr', type='addr24_t'},	-- where the framebuffer is
-				{name='spriteSheetAddr', type='addr24_t'},	-- where sheet 0 is / default sheet of spr() function
-				{name='tileSheetAddr', type='addr24_t'},	-- where sheet 1 is / default sheet of map() function
-				{name='tilemapAddr', type='addr24_t'},		-- where the tilemap is / used by map() function
-				{name='paletteAddr', type='addr24_t'},		-- where the palette is / used by pal() function
-				{name='fontAddr', type='addr24_t'},			-- where the font is / sheet 2 / used by text() function
+				{name='framebufferAddr', type=addrType},	-- where the framebuffer is
+				{name='spriteSheetAddr', type=addrType},	-- where sheet 0 is / default sheet of spr() function
+				{name='tileSheetAddr', type=addrType},	-- where sheet 1 is / default sheet of map() function
+				{name='tilemapAddr', type=addrType},		-- where the tilemap is / used by map() function
+				{name='paletteAddr', type=addrType},		-- where the palette is / used by pal() function
+				{name='fontAddr', type=addrType},			-- where the font is / sheet 2 / used by text() function
 
 				-- audio state of waves that are playing
 				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
@@ -439,28 +433,19 @@ local RAM = struct{
 				-- TODO maybe ... netplay persistent data ... one set per-game, one set per-game-per-server
 				{name='userData', type='uint8_t['.. userDataSize ..']'},
 
-				-- last so it can be expandable
-				{name='bank', type='ROM[1]'},
+				-- end of RAM, beginning of ROM
+
+				{name='blobCount', type=blobCountType},
+				{name='blobEntries', type=BlobEntry},
 			},
 		}},
 	},
 }
 
-local spriteSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'spriteSheet')
-local spriteSheetInBytes = ffi.sizeof(ffi.cast('ROM*',0).spriteSheet)	--spriteSheetSize:volume() * 1
-local spriteSheetAddrEnd = spriteSheetAddr + spriteSheetInBytes
-local tileSheetAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tileSheet')
-local tileSheetInBytes = ffi.sizeof(ffi.cast('ROM*',0).tileSheet)	--spriteSheetSize:volume() * 1
-local tileSheetAddrEnd = tileSheetAddr + tileSheetInBytes
-local tilemapAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'tilemap')
-local tilemapInBytes = ffi.sizeof(ffi.cast('ROM*',0).tilemap)	--tilemapSize:volume() * 2
-local tilemapAddrEnd = tilemapAddr + tilemapInBytes
-local paletteAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'palette')
-local paletteInBytes = ffi.sizeof(ffi.cast('ROM*',0).palette)	--paletteSize * 2
-local paletteAddrEnd = paletteAddr + paletteInBytes
-local fontAddr = ffi.offsetof('RAM', 'bank') + ffi.offsetof('ROM', 'font')
-local fontInBytes = ffi.sizeof(ffi.cast('ROM*',0).font)
-local fontAddrEnd = fontAddr + fontInBytes
+local spriteSheetInBytes = spriteSheetSize:volume()
+local tilemapInBytes = tilemapSize:volume()
+local paletteInBytes = paletteSize
+local fontInBytes = fontSizeInBytes
 local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
 local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
 local framebufferAddrEnd = framebufferAddr + framebufferInBytes
@@ -470,6 +455,9 @@ local clipRectAddrEnd = clipRectAddr + clipRectInBytes
 local mvMatAddr = ffi.offsetof('RAM', 'mvMat')
 local mvMatInBytes = ffi.sizeof(mvMatType) * 16
 local mvMatAddrEnd = mvMatAddr + mvMatInBytes
+
+-- how much is RAM before the ROM starts
+local sizeofRAMWithoutROM = ffi.offsetof('RAM', 'blobCount')
 
 -- n = num args to pack
 -- also in image/luajit/image.lua
@@ -505,6 +493,8 @@ return {
 	updateIntervalInSeconds = updateIntervalInSeconds,
 
 	paletteSize = paletteSize,
+	paletteType = paletteType,
+	palettePtrType = palettePtrType,
 	spriteSize = spriteSize,
 	frameBufferType = frameBufferType,
 	frameBufferSize = frameBufferSize,
@@ -545,21 +535,10 @@ return {
 	framebufferAddr = framebufferAddr,
 	framebufferInBytes = framebufferInBytes,
 	framebufferAddrEnd = framebufferAddrEnd,
-	spriteSheetAddr = spriteSheetAddr,
 	spriteSheetInBytes = spriteSheetInBytes,
-	spriteSheetAddrEnd = spriteSheetAddrEnd,
-	tileSheetAddr = tileSheetAddr,
-	tileSheetInBytes = tileSheetInBytes,
-	tileSheetAddrEnd = tileSheetAddrEnd,
-	tilemapAddr = tilemapAddr,
 	tilemapInBytes = tilemapInBytes,
-	tilemapAddrEnd = tilemapAddrEnd,
-	paletteAddr = paletteAddr,
 	paletteInBytes = paletteInBytes,
-	paletteAddrEnd = paletteAddrEnd,
-	fontAddr = fontAddr,
 	fontInBytes = fontInBytes,
-	fontAddrEnd = fontAddrEnd,
 	-- these are not ...
 	clipRectAddr = clipRectAddr,
 	clipRectInBytes = clipRectInBytes,
@@ -568,7 +547,13 @@ return {
 	mvMatInBytes = mvMatInBytes,
 	mvMatAddrEnd = mvMatAddrEnd,
 
+	blobCountType = blobCountType,
+	BlobEntry = BlobEntry,
+
+	sizeofRAMWithoutROM = sizeofRAMWithoutROM,
+
 	packptr = packptr,
 	unpackptr = unpackptr,
 	deltaCompress = deltaCompress,
+	addrType = addrType,
 }

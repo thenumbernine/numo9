@@ -1298,29 +1298,29 @@ print'begin client listen loop...'
 						-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
 						for k,v in pairs(app.framebufferRAMs) do
 							v.dirtyCPU = true
-							v:updateAddr(app.ram.framebufferAddr:toabs())
+							v:updateAddr(app.ram.framebufferAddr)
 						end
 
 						for _,sheetRAM in ipairs(app.sheetRAMs) do
 							sheetRAM.dirtyCPU = true
 							sheetRAM:checkDirtyCPU()	-- and flush
 						end
-						app.sheetRAMs[1]:updateAddr(app.ram.spriteSheetAddr:toabs())
+						app.sheetRAMs[1]:updateAddr(app.ram.spriteSheetAddr)
 						for _,tilemapRAM in ipairs(app.tilemapRAMs) do
 							tilemapRAM.dirtyCPU = true
 							tilemapRAM:checkDirtyCPU()
 						end
-						app.tilemapRAMs[1]:updateAddr(app.ram.tilemapAddr:toabs())
+						app.tilemapRAMs[1]:updateAddr(app.ram.tilemapAddr)
 						for _,paletteRAM in ipairs(app.paletteRAMs) do
 							paletteRAM.dirtyCPU = true
 							paletteRAM:checkDirtyCPU()
 						end
-						app.paletteRAMs[1]:updateAddr(app.ram.paletteAddr:toabs())
+						app.paletteRAMs[1]:updateAddr(app.ram.paletteAddr)
 						for _,fontRAM in ipairs(app.fontRAMs) do
 							fontRAM.dirtyCPU = true
 							fontRAM:checkDirtyCPU()
 						end
-						app.fontRAMs[1]:updateAddr(app.ram.fontAddr:toabs())
+						app.fontRAMs[1]:updateAddr(app.ram.fontAddr)
 						--app:resetVideo()
 						app.framebufferRAM.changedSinceDraw = true
 
