@@ -2398,7 +2398,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 		if class.drawShutdown then class:drawShutdown(self.viewMatrix, kartSprites) end
 	end
 
--- [[ debugging - draw nodes
+--[[ debugging - draw nodes
 	if track.nodes then
 		local node = track.nodes[kart.nodeIndex]
 		if node then
@@ -2502,9 +2502,10 @@ startGame=||do
 
 	clientViewObjs = table()	-- index is not player index
 	for playerIndex=0,maxPlayers-1 do
-		if startPlayerInfo[playerIndex].type ~= playerTypeForName.none then
+		local info = startPlayerInfo[playerIndex]
+		if info.type ~= playerTypeForName.none then
 		-- TODO do we need a ClientViewObject for AI's also?
-		--if startPlayerInfo[playerIndex].type == playerTypeForName.human then
+		--if info.type == playerTypeForName.human then
 
 			local clientViewObj = ClientViewObject()
 			clientViewObj.playerIndex = playerIndex
@@ -2514,10 +2515,11 @@ startGame=||do
 			player.playerIndex = playerIndex
 			game.players[playerIndex] = player
 			player.clientViewObj = clientViewObj
+			player.playerType = info.type
 			local kart = Kart{
 				startIndex=#clientViewObjs,
 				playerIndex=playerIndex,
-				kartSpriteNo=startPlayerInfo[playerIndex].kartSpriteNo,
+				kartSpriteNo=info.kartSpriteNo,
 			}
 			player.kart = kart
 		end
@@ -2590,13 +2592,24 @@ update=||do
 
 	for playerIndex,player in pairs(game.players) do
 		local kart = player.kart
-		kart.inputUpDown = (btn('up',playerIndex) and 1 or 0) + (btn('down',playerIndex) and -1 or 0)
-		kart.inputLeftRight = (btn('right',playerIndex) and 1 or 0) + (btn('left',playerIndex) and -1 or 0)
+		
+		if player.playerType == playerTypeForName.human then
+			kart.inputUpDown = (btn('up',playerIndex) and 1 or 0) + (btn('down',playerIndex) and -1 or 0)
+			kart.inputLeftRight = (btn('right',playerIndex) and 1 or 0) + (btn('left',playerIndex) and -1 or 0)
 
-		kart.inputItem = btn('a',playerIndex)
-		kart.inputGas = btn('b',playerIndex)
-		kart.inputJumpDrift = btn('x',playerIndex)
-		kart.inputBrake = btn('y',playerIndex)
+			kart.inputItem = btn('a',playerIndex)
+			kart.inputGas = btn('b',playerIndex)
+			kart.inputJumpDrift = btn('x',playerIndex)
+			kart.inputBrake = btn('y',playerIndex)
+		elseif player.playerType == playerTypeForName.ai then
+			kart.inputItem = true
+			kart.inputGas = true
+			kart.inputJumpDrift = true
+
+			local currentNodeIndex = (kart.nodeIndex - 1) % #track.nodes + 1
+			local vecToNext = track.nodes[currentNodeIndex].vecToNext
+			kart.inputLeftRight = kart.dir[1] * vecToNext[2] - kart.dir[2] * vecToNext[1] < 0 and -1 or 1
+		end
 
 		player.kart:clientInputUpdate()
 	end
