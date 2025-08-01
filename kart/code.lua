@@ -19,7 +19,7 @@ one character uses ...
 and i'll ignore the flat and cheer sprites ...
 ... a single 256x256 sheet has 1024 tiles ... it's close to one sheet per character.
 
-sprites from 
+sprites from
 https://www.spriters-resource.com/submitter/NICKtendoDS/
 https://www.spriters-resource.com/custom_edited/mariocustoms/
 --]]
@@ -75,7 +75,7 @@ local calcSpriteIndex=|angle, kartSpriteNo|do
 	assert.lt(kartSpriteNo, kartSpriteCount)
 	assert.le(0, angle)
 	assert.lt(angle, numSpriteAngles)
-	
+
 	local kartSpriteNoInSheet = kartSpriteNo % numKartsPerSheet
 	local sheetNo = (kartSpriteNo - kartSpriteNoInSheet) / numKartsPerSheet
 	assert.ge(sheetNo, 0)
@@ -175,6 +175,7 @@ vec2=class{
 	lenSq=|v|vec2.dot(v,v),
 	length=|v|math.sqrt(vec2.lenSq(v)),
 	normalize=|v|v/vec2.length(v),
+	perp=|v|vec2(-v[2],v[1]),
 	__unm=|a|vec2(-a[1],-a[2]),
 	__add=|a,b|vec2(getvalue(a,1)+getvalue(b,1),getvalue(a,2)+getvalue(b,2)),
 	__sub=|a,b|vec2(getvalue(a,1)-getvalue(b,1),getvalue(a,2)-getvalue(b,2)),
@@ -931,7 +932,7 @@ function Track:init(args)
 223.93364120053, 74.520196198627, 8
 ]]
 	if self.nodes then
-		self.nodes = string.split(self.nodes, '\n'):mapi(|line|do
+		self.nodes = string.split(string.trim(self.nodes), '\n'):mapi(|line|do
 			local v = vec3(table.unpack(string.split(line,','):mapi(|v|
 				tonumber(string.trim(v))
 			)))
@@ -1052,25 +1053,50 @@ Kart.kartSpriteNo = 0
 Kart.reserveItemCount = 0
 
 function Kart:init(args)
+	local track = game.track
 	Kart.super.init(self, args)
 
 	self.kartSpriteNo=args.kartSpriteNo
 	local kartSpacing = 1
 	local dx = ((args.startIndex % 2) - .5) * 2 * kartSpacing
 	local dy = (args.startIndex + 1) * kartSpacing
-trace('game.track.startPos', game.track.startPos)
-trace('game.track.startDir', game.track.startDir)
-	self.pos = vec3(
-		game.track.startPos[1] - game.track.startDir[1] * dy + game.track.startDir[2] * dx,
-		game.track.startPos[2] - game.track.startDir[2] * dy - game.track.startDir[1] * dx,
-		0)
-	self.pos[3] = 0
+	-- instead of staggering the starting position, I could simply stagger the spawn-time ...
+	if track.nodes then
+		local nodeIndex = 1
+		while true do
+			local node = track.nodes[nodeIndex]
+			local prevNodeIndex = (nodeIndex - 2) % #track.nodes + 1
+			local prevNode = track.nodes[prevNodeIndex]
+			local nextNodeIndex = nodeIndex % #track.nodes + 1
+			local nextNode = track.nodes[nextNodeIndex]
+			local delta = vec2(prevNode.vecToNext:unpack(1,2))
+			local len = delta:length()
+			if dy < len then
+				local back = -delta / len
+				local rhs = back:perp()
+				local pos2d = vec2(node:unpack()) + rhs * dx + back * dy
+--trace('using node', nodeIndex, 'dy', dy, 'len', len)
+				self.pos = vec3(pos2d[1], pos2d[2], 0)
+				local dir = nextNode - prevNode
+				self.dir = vec3(dir[1], dir[2], 0):normalize()
+				break
+			end
+			dy -= len
+			nodeIndex = prevNodeIndex
+		end
+	else
+		self.pos = vec3(
+			track.startPos[1] - track.startDir[1] * dy + track.startDir[2] * dx,
+			track.startPos[2] - track.startDir[2] * dy - track.startDir[1] * dx,
+			0)
+		self.pos[3] = 0
+		self.dir = vec3(track.startDir[1], track.startDir[2], 0)	-- cart fwd dir
+	end
 --DEBUG:trace('kart.pos', self.pos)
-	self.dir = vec3(game.track.startDir[1], game.track.startDir[2], 0)	-- cart fwd dir
 --DEBUG:trace('kart.dir', self.dir)
 	self.lookDir = vec3(self.dir[1], self.dir[2], self.dir[3])	-- follow camera fwd dir
 	self.vel = vec3(0,0,0)
-	self.surfaceNormal = vec3(0,0,1)	--game.track:getNormal(self.pos[1], self.pos[2])
+	self.surfaceNormal = vec3(0,0,1)	--track:getNormal(self.pos[1], self.pos[2])
 	self.onground = true
 
 	-- stack!
@@ -2338,6 +2364,7 @@ function ClientViewObject:init()
 end
 
 function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY, viewWidth, viewHeight)
+	local track = game.track
 --[[ client update the sound
 	do
 		local speed = kart.vel:length()
@@ -2361,7 +2388,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 	viewUp[2] = 0
 	viewUp[3] = 1
 
-	game.track:draw(self.viewMatrix, viewX, viewY, viewWidth, viewHeight)
+	track:draw(self.viewMatrix, viewX, viewY, viewWidth, viewHeight)
 
 	for class,classObjs in pairs(game.objsOfClass) do
 		if class.drawInit then class:drawInit(self.viewMatrix, kartSprites) end
@@ -2371,18 +2398,34 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 		if class.drawShutdown then class:drawShutdown(self.viewMatrix, kartSprites) end
 	end
 
---[[ debugging
-	if game.track.nodes then
-		local node = game.track.nodes[self.nodeIndex]
+-- [[ debugging - draw nodes
+	if track.nodes then
+		local node = track.nodes[kart.nodeIndex]
 		if node then
 			line3d(
-				kart.pos[1] - currentCamPos[1], kart.pos[2] - currentCamPos[2], kart.pos[3] + 1 - currentCamPos[3],
-				node[1] - currentCamPos[1], node[2] - currentCamPos[2], node[3] + 1 - currentCamPos[3],
+				kart.pos[1] - currentCamPos[1],
+				kart.pos[2] - currentCamPos[2],
+				kart.pos[3] - currentCamPos[3],
+				node[1] - currentCamPos[1],
+				node[2] - currentCamPos[2],
+				node[3] - currentCamPos[3],
 				colors.white
 			)
 		end
 
-		for nodeIndex,node in ipairs(game.track.nodes) do
+		for nodeIndex,node in ipairs(track.nodes) do
+			
+			local nextNode = track.nodes[(nodeIndex % #track.nodes) + 1]
+			line3d(
+				nextNode[1] - currentCamPos[1],
+				nextNode[2] - currentCamPos[2],
+				nextNode[3] - currentCamPos[3],
+				node[1] - currentCamPos[1],
+				node[2] - currentCamPos[2],
+				node[3] - currentCamPos[3],
+				colors.white
+			)
+			
 			matpush()
 			mattrans(node[1] - currentCamPos[1], node[2] - currentCamPos[2], .1 - currentCamPos[3])
 			local length = .5
@@ -2462,9 +2505,11 @@ startGame=||do
 		if startPlayerInfo[playerIndex].type ~= playerTypeForName.none then
 		-- TODO do we need a ClientViewObject for AI's also?
 		--if startPlayerInfo[playerIndex].type == playerTypeForName.human then
+
 			local clientViewObj = ClientViewObject()
 			clientViewObj.playerIndex = playerIndex
 			clientViewObjs:insert(clientViewObj)		-- 1-based dense
+
 			local player = Player()
 			player.playerIndex = playerIndex
 			game.players[playerIndex] = player
@@ -2493,7 +2538,7 @@ update=||do
 			menuTopY = selY - 224
 		elseif selY - menuTopY < 32 then
 			menuTopY = selY - 32
-		end	
+		end
 		text('max laps: 3', 128, y-32, colors.white, -1)	-- TODO customize this
 		text('>', x-8, selY, colors.white, colors.black)
 		text('wins',x+192-16,y-12,colors.white,colors.black)
