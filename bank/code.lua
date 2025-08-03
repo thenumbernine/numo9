@@ -1333,19 +1333,19 @@ update=||do
 		end
 	end
 	
-	-- [[ cheat
-	if btn'a' then
-		if btnp'left' then
-			setLevel(level-1) removeAll() loadLevel() return
-			--player.blendMode=((player.blendMode or 0)-1)%9
-		end
-		if btnp'right' then
-			setLevel(level+1) removeAll() loadLevel() return
-			--pokew(0x080a46, 0x801f)	-- set blend color to white
-			--player.blendMode=((player.blendMode or 0)+1)%9
+	if cheat then
+		if btn'a' then
+			if btnp'left' then
+				setLevel(level-1) removeAll() loadLevel() return
+				--player.blendMode=((player.blendMode or 0)-1)%9
+			end
+			if btnp'right' then
+				setLevel(level+1) removeAll() loadLevel() return
+				--pokew(0x080a46, 0x801f)	-- set blend color to white
+				--player.blendMode=((player.blendMode or 0)+1)%9
+			end
 		end
 	end
-	--]]
 
 	for _,o in ipairs(objs) do
 		if not o.removeMe then o:update() end
