@@ -9,21 +9,21 @@ tris={
 }
 -- sets of: color x1 y1 z1 x2 y2 z2 x3 y3 z3
 local drawtris = table()
-local drawtriorder = table()
+--local drawtriorder = table()
 for _,k in ipairs(table.keys(tris)) do
 	local s = tris[k]
-	assert(#s%36==0)
+	assert.eq(#s%36,0)
 	local v=table()
 	for i=1,#s,4 do
 		local x = tonumber(s:sub(i, i+3), 16)
 		x = tonumber(int16_t(x))
 		v:insert(x / 32768 * maxabspos)
 	end
-	assert(#v%9==0)
+	assert.eq(#v%9,0)
 	for j=1,#v,9 do
 		local tri = table()
 		drawtris:insert(tri)
-		drawtriorder:insert(#drawtris)
+		--drawtriorder:insert(#drawtris)
 		tri:insert(assert(colors[k]))
 		for i=0,8 do
 			tri:insert(v[j+i])
@@ -35,11 +35,11 @@ for _,k in ipairs(table.keys(tris)) do
 	end
 end
 
---[[ ortho
+-- [[ ortho
 local r = maxabspos*1.2
-matortho(-r, r, r, -r, -100, 100)
+matortho(-r, r, r, -r, -r, r)
 --]]
--- [[ frustum
+--[[ frustum
 matfrustum(-.1, .1, .1, -.1, .1, 10)
 mattrans(0, -2.5, -1)
 --]]
@@ -88,18 +88,25 @@ update=||do
 		local fwdz = int32_t(peekl(matAddr + 40))
 		--]]
 --trace(fwdx, fwdy, fwdz)
+		--[[
 		drawtriorder:sort(function(a,b)
 			local acx, acy, acz = drawtris[a]:unpack(11)
 			local bcx, bcy, bcz = drawtris[b]:unpack(11)
 			return acx * fwdx + acy + fwdy + acz * fwdz + .0001 * a
 				 > bcx * fwdx + bcy + fwdy + bcz * fwdz + .0001 * b
 		end)
+		--]]
 	end
 	if btnp(4) or btnp(5) or btnp(6) or btnp(7) then
 		wireframe = not wireframe
 	end
+	--[[
 	for _,i in ipairs(drawtriorder) do
 		local tri = drawtris[i]
+	--]]
+	-- [[
+	for _,tri in ipairs(drawtris) do
+	--]]
 		local c,
 			x1,y1,z1,
 			x2,y2,z2,
