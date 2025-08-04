@@ -34,10 +34,8 @@ local View = require 'glapp.view'
 local ThreadManager = require 'threadmanager'
 
 local numo9_archive = require 'numo9.archive'
-local fromCartImage = numo9_archive.fromCartImage
-local toCartImage = numo9_archive.toCartImage
-local codeBlobsToStr = numo9_archive.codeBlobsToStr
-local codeStrToBlobs = numo9_archive.codeStrToBlobs
+local cartImageToBlobs = numo9_archive.cartImageToBlobs
+local blobsToCartImage = numo9_archive.blobsToCartImage
 
 local numo9_net = require 'numo9.net'
 local Server = numo9_net.Server
@@ -71,7 +69,8 @@ local buttonNames = numo9_keys.buttonNames
 local buttonCodeForName = numo9_keys.buttonCodeForName
 
 local numo9_blobs = require 'numo9.blobs'
-local blobsToByteArray = numo9_blobs.blobsToByteArray
+local blobClassForName = numo9_blobs.blobClassForName
+local blobsToStr = numo9_blobs.blobsToStr
 
 local numo9_video = require 'numo9.video'
 
@@ -2377,7 +2376,10 @@ function App:saveROM(filename)
 	-- and then that to the real filesystem ...
 
 	-- save ediCode.text to self.blobs
-	codeStrToBlobs(self.blobs, self.editCode.text)
+	if not self.blobs.code then
+		self.blobs.code = table{blobClassForName.code()}
+	end
+	self.blobs.code[1].data = self.editCode.text
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
@@ -2389,7 +2391,7 @@ function App:saveROM(filename)
 	local basemsg = 'failed to save file '..tostring(filename)
 
 	-- TODO xpcall?
-	local success, s = xpcall(toCartImage, errorHandler, self.blobs)
+	local success, s = xpcall(blobsToCartImage, errorHandler, self.blobs)
 	if not success then
 print('save failed:', basemsg..(s or ''))
 		return nil, basemsg..(s or '')
@@ -2456,9 +2458,13 @@ function App:openROM(filename)
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
 
-	self.blobs = fromCartImage(d)
+	self.blobs = cartImageToBlobs(d)
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
-	self.editCode:setText(codeBlobsToStr(self.blobs))
+	
+	if not self.blobs.code then
+		self.blobs.code = table{blobClassForName.code()}
+	end
+	self.editCode:setText(self.blobs.code[1].data)
 
 -- [[ reallocate .ram for the carts blobs
 	local oldholdram = self.holdram
@@ -2599,8 +2605,7 @@ function App:runROM()
 		until false
 	end
 	if not self.metainfo.saveid then
-		local tmpinfo = blobsToByteArray(self.blobs)
-		self.metainfo.saveid = sha2.md5(ffi.string(tmpinfo.ram.v, tmpinfo.memSize))
+		self.metainfo.saveid = sha2.md5(blobsToStr(self.blobs))
 	end
 
 	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...

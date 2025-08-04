@@ -31,8 +31,8 @@ local sizeofRAMWithoutROM = num9_rom.sizeofRAMWithoutROM
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
-local blobsToByteArray = numo9_blobs.blobsToByteArray
-local byteArrayToBlobs = numo9_blobs.byteArrayToBlobs
+local blobsToStr = numo9_blobs.blobsToStr
+local strToBlobs = numo9_blobs.strToBlobs
 
 
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
@@ -43,10 +43,8 @@ local pngCustomKey = 'nuMO'
 assumes blobs[blobClassName] = table()
 creates an Image and returns it
 --]]
-local function toCartImage(blobs, labelImage)
-	local info = blobsToByteArray(blobs)
-
-	local blobsAsStr = ffi.string(info.ram.v + sizeofRAMWithoutROM, info.memSize - sizeofRAMWithoutROM)
+local function blobsToCartImage(blobs, labelImage)
+	local blobsAsStr = blobsToStr(blobs)
 	local blobsCompressed = zlib.compressLua(blobsAsStr)
 
 	-- [[ storing in png metadata
@@ -89,21 +87,21 @@ local function toCartImage(blobs, labelImage)
 end
 
 --[[
-takes an Image
-returns blobs[]
+takes an Image of a n9 png
+returns a string of the ROM data representing the blobs
 --]]
-local function fromCartImage(srcData)
-	-- [=[ loading as an image
+local function cartImageToBlobStr(cartImgData)
+	-- loading as an image
 
 	-- [[ from disk
 --DEBUG:assert(not tmploc:exists())
-	assert(path(tmploc):write(srcData))
+	assert(path(tmploc):write(cartImgData))
 	local romImage = Image(tmploc.path)
 	tmploc:remove()
 --DEBUG:assert(not tmploc:exists())
 	--]]
 	--[[ from memory
-	local romImage = require 'image.luajit.png':loadMem(srcData)
+	local romImage = require 'image.luajit.png':loadMem(cartImgData)
 	--]]
 
 	-- [[ storing in png metadata
@@ -114,43 +112,21 @@ local function fromCartImage(srcData)
 	-- pad the RAM portion
 	blobsAsStr = (' '):rep(sizeofRAMWithoutROM) .. blobsAsStr
 
-	local blobs = byteArrayToBlobs(ffi.cast('uint8_t*', blobsAsStr), #blobsAsStr)
-	--]]
-	--]=]
+	return blobsAsStr 
+end
 
-	assert.index(blobs, 'code')
-	assert.len(blobs.code, 1)
-	-- assert sprite sheet as well?
-
+--[[
+takes an Image
+returns blobs[]
+--]]
+local function cartImageToBlobs(cartImgData)
+	local blobsAsStr = cartImageToBlobStr(cartImgData)
+	local blobs = strToBlobs(blobsAsStr)
 	return blobs
 end
 
--- convert blobs' code into a single string
-local function codeBlobsToStr(blobs)
-	assert.type(blobs, 'table')
-	if not blobs.code then
-		blobs.code = table{blobClassForName.code()}
-	else
-		assert.len(blobs.code, 1)	-- hmm TODO maybe I'll turn this into a zip ... and directory structure ... gah feature creep...
-	end
-	assert.type(blobs.code[1].data, 'string')
-
-	return blobs.code[1].data
-end
-
-local function codeStrToBlobs(blobs, code)
-	assert.type(code, 'string')
-
-	assert.type(blobs, 'table')
-	assert.is(blobs.code, blobClassForName.code)
-	assert.len(blobs.code, 1)
-
-	blobs.code[1].data = code
-end
-
 return {
-	toCartImage = toCartImage,
-	fromCartImage = fromCartImage,
-	codeBlobsToStr = codeBlobsToStr,
-	codeStrToBlobs = codeStrToBlobs,
+	blobsToCartImage = blobsToCartImage,
+	cartImageToBlobs = cartImageToBlobs,
+	cartImageToBlobStr = cartImageToBlobStr,
 }
