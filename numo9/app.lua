@@ -816,10 +816,26 @@ function App:initGL()
 		traceback = debug.traceback,	-- useful for threads
 
 		-- use this in place of ffi.offsetof('RAM', field)
-		ramaddr = function(name) return ffi.offsetof('RAM', name) end,
-		romaddr = function(name) return ffi.offsetof('ROM', name) end,
-		ramsize = function(name) return ffi.sizeof(ffi.cast('RAM*', 0)[name]) end,
-		romsize = function(name) return ffi.sizeof(ffi.cast('ROM*', 0)[name]) end,
+		ramaddr = function(name)
+			return ffi.offsetof('RAM', name)
+		end,
+		ramsize = function(name)
+			return ffi.sizeof(ffi.cast('RAM*', 0)[name])
+		end,
+		romaddr = function(name, index)
+			local blobsForType = self.blobs[name]
+			if not blobsForType then return end
+			local blob = blobsForType[index]
+			if not blob then return end
+			return blob.addr
+		end,
+		romsize = function(name, index)
+			local blobsForType = self.blobs[name]
+			if not blobsForType then return end
+			local blob = blobsForType[index]
+			if not blob then return end
+			return blob:getSize()
+		end,
 		int8_t = ffi.typeof'int8_t',
 		uint8_t = ffi.typeof'uint8_t',
 		int8_t = ffi.typeof'int8_t',
