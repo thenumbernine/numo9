@@ -42,26 +42,24 @@ local menuFontWidth = numo9_rom.menuFontWidth
 
 local mvMatInvScale = 1 / mvMatScale
 
-local function vec2to4(m, x, y, z)
+local function vec2to4(m, x, y)
+	x = tonumber(x)
+	y = tonumber(y)
 	return
 		(m[0] * x + m[4] * y + m[12]) * mvMatInvScale,
 		(m[1] * x + m[5] * y + m[13]) * mvMatInvScale,
-		(m[2] * x + m[6] * y + m[14]) * mvMatInvScale,
+		(m[2] * x + m[6] * y + m[14]) * mvMatInvScale,-- / 16777216.,
 		(m[3] * x + m[7] * y + m[15]) * mvMatInvScale
 end
 local function vec3to4(m, x, y, z)
+	x = tonumber(x)
+	y = tonumber(y)
+	z = tonumber(z)
 	return
 		(m[0] * x + m[4] * y + m[ 8] * z + m[12]) * mvMatInvScale,
 		(m[1] * x + m[5] * y + m[ 9] * z + m[13]) * mvMatInvScale,
-		(m[2] * x + m[6] * y + m[10] * z + m[14]) * mvMatInvScale,
+		(m[2] * x + m[6] * y + m[10] * z + m[14]) * mvMatInvScale,-- / 16777216.,
 		(m[3] * x + m[7] * y + m[11] * z + m[15]) * mvMatInvScale
-end
-
-local function glslnumber(x)
-	local s = tostring(tonumber(x))
-	if s:find'e' then return s end
-	if not s:find'%.' then s = s .. '.' end
-	return s
 end
 
 local function settableindex(t, i, ...)
@@ -728,7 +726,7 @@ function AppVideo:initVideo()
 			self.fbos[sizekey] = GLFBO{
 				width = req.width,
 				height = req.height,
-				useDepth = true,
+				useDepth = true, --gl.GL_DEPTH_COMPONENT32,
 			}:unbind()
 		end
 		req.fb = self.fbos[sizekey]
@@ -1531,7 +1529,6 @@ void main() {
 ]],				{
 					self = self,
 					info = info,
-					glslnumber = glslnumber,
 					fragType = info.framebufferRAM.tex:getGLSLFragType(),
 					glslCode5551 = glslCode5551,
 					tilemapSize = tilemapSize,
@@ -1638,6 +1635,12 @@ void main() {
 --DEBUG:flushSizes = {},
 		flush = function(self)
 --DEBUG: self.flushCallsPerFrame = self.flushCallsPerFrame + 1
+
+-- TODO where to put this ...
+-- in clearScreen would be nice, but that inserts a quad into this buffer ...
+-- so do I make it a special tri that clears the buffer?
+-- or what?
+gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 			local sceneObj = self.sceneObj
 			if not sceneObj then return end	-- for some calls called before this is even created ...
@@ -2334,7 +2337,7 @@ function AppVideo:clearScreen(
 	colorIndex,
 	paletteTex	-- override for menu ... starting to think this should be a global somewhere...
 )
---[[ using a quad ... might not be depth friendly
+-- [[ using a quad ... not depth friendly
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
 	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
@@ -2357,13 +2360,14 @@ function AppVideo:clearScreen(
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 --]]
--- [[ using clear for depth ... isn't guaranteeing sorting though ... hmm ...
+--[[ using clear for depth ... isn't guaranteeing sorting though ... hmm ...
+-- if we do clear color here then it'll go out of order between clearScreen() and triBuf:flush() calls
+-- so better to clear depth only?  then there's a tiny out of sync problem but probably no one will notice I hope...
 	self.triBuf:flush()
-	if paletteTex then
-		print('TODO support for paletteTex override')
-	end
+	paletteTex = paletteTex or self.paletteRAM.tex
+assert(paletteTex.data)
 	-- what does the shader do? if colorIndex is oob does it clear nothing?
-	local selColorValue = ffi.cast('uint16_t*', self.paletteRAM.tex.data)[bit.band(colorIndex, 0xff)]
+	local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[bit.band(colorIndex, 0xff)]
 	gl.glClearColor(
 		bit.band(selColorValue, 0x1f) / 0x1f,
 		bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f,

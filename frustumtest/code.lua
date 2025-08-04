@@ -149,10 +149,15 @@ tiltUpAngle = 90:
 	--]]
 
 	-- [[ draw bilboard sprite
+	--[=[
 	local depths = karts:mapi(|kart|((kart.x - viewX) * fwdx + (kart.y - viewY) * fwdy))
 	local order = range(#karts):sort(|a,b| depths[a] > depths[b])
 	for _,i in ipairs(order) do
 		local kart = karts[i]
+	--]=]
+	-- [=[ depth buffer?
+	for _,kart in ipairs(karts) do
+	--]=]
 		matpush()
 		mattrans(kart.x,kart.y, 0)
 		matscale(1/32,1/32,1/32)
