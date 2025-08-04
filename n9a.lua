@@ -21,8 +21,8 @@ local AudioWAV = require 'audio.io.wav'
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
-local resetROMPalette = numo9_video.resetROMPalette
-local resetROMFont = numo9_video.resetROMFont
+local resetBlobPalette = numo9_video.resetBlobPalette
+local resetBlobFont = numo9_video.resetBlobFont
 
 local numo9_archive = require 'numo9.archive'
 local fromCartImage = numo9_archive.fromCartImage
@@ -44,6 +44,9 @@ local audioMixChannels = numo9_rom.audioMixChannels -- TODO names ... channels f
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
+
+local numo9_blobs = require 'numo9.blobs'
+local blobClassForName = numo9_blobs.blobClassForName
 
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
 -- A4=440hz, so A[-1]=13.75hz, so C0 is 3 half-steps higher than A[-1] = 2^(3/12) * 13.75 = 16.351597831287 hz ...
@@ -96,7 +99,7 @@ if cmd == 'x' then
 
 	for blobTypeName,blobsForType in pairs(blobs) do
 		for blobNo,blob in ipairs(blobsForType) do
-			blob:saveFile(basepath, blobNo)
+			blob:saveFile(basepath, blobNo, blobs)
 		end
 	end
 
@@ -107,151 +110,23 @@ or cmd == 'r' then
 	local basepath = getbasepath(fn)
 
 	assert(basepath:isdir())
-	local banks = vector('ROM', 1)
-
-	print'loading code...'
-	if basepath'code.lua':exists() then
-		local code = assert(basepath'code.lua':read())
-		
-		-- [[ preproc here ... replace #include's with included code ...
-		-- or what's another option ... I could have my own virtual filesystem per cartridge ... and then allow 'require' functions ... and then worry about where to mount the cartridge ...
-		-- that sounds like a much better idea.
-		-- so here's a temp fix ...
-		local includePaths = table{
-			basepath,
-			path'include',
-		}
-		local included = {}
-		local function insertIncludes(s)
-			return string.split(s, '\n'):mapi(function(l)
-				local loc = l:match'^%-%-#include%s+(.*)$'
-				if loc then
-					if included[loc] then 
-						return l..'-- ALREADY INCLUDED'
-					end
-					included[loc] = true
-					for _,incpath in ipairs(includePaths) do
-						local d = incpath(loc):read()
-						if d then
-							return table{
-								'----------------------- BEGIN '..loc..'-----------------------',
-								insertIncludes(d),
-								'----------------------- END '..loc..'  -----------------------',
-							}:concat'\n'
-						end
-					end
-					error("couldn't find "..loc.." in include paths: "..tolua(includePaths:mapi(function(p) return p.path end)))
-				else
-					return l
-				end
-			end):concat'\n'
 	
+	assert(path'font.png':exists(), "failed to find the default font file!")
+
+	local blobs = {}
+	for blobTypeName,blobClass in pairs(blobClassForName) do
+		local blobsForType
+		for blobNo=1,math.huge do
+			local filepath = basepath(blobClass:getFileName(blobNo))
+			if not filepath:exists() then break end
+			local blob = blobClass:loadFile(filepath, basepath)
+			blobsForType = blobsForType or table()
+			blobsForType:insert(blob) 
 		end
-		code = insertIncludes(code)
-		--]]
-
-		codeStrToBanks(banks, code)	-- this grows the # banks
+		blobs[blobTypeName] = blobsForType
 	end
-
-	local fns = table()
-	for f in basepath:dir() do
-		local bankpath = basepath/f
-		if bankpath:isdir() then
-			local bankNo = tonumber(f.path)
-			if bankNo then
-				banks:resize(math.max(#banks, tonumber(bankNo)+1))
-			end
-		end
-	end
-
+	
 	for bankNo=0,#banks-1 do
-		local bank = banks.v + bankNo
-		local bankpath = basepath
-		if bankNo > 0 then
-			bankpath = basepath/tostring(bankNo)
-			bankpath:mkdir()
-		end
-
-		print'loading sprite sheet...'
-		if bankpath'sprite.png':exists() then
-			local image = assert(Image(bankpath'sprite.png'.path))
-			assert.eq(image.width, spriteSheetSize.x)
-			assert.eq(image.height, spriteSheetSize.y)
-			assert.eq(image.channels, 1)
-			assert(ffi.sizeof(image.format), 1)
-			ffi.copy(bank.spriteSheet, image.buffer, spriteSheetSize:volume())
-		end
-
-		print'loading tile sheet...'
-		if bankpath'tiles.png':exists() then
-			local image = assert(Image(bankpath'tiles.png'.path))
-			assert.eq(image.width, spriteSheetSize.x)
-			assert.eq(image.height, spriteSheetSize.y)
-			assert.eq(image.channels, 1)
-			assert(ffi.sizeof(image.format), 1)
-			ffi.copy(bank.tileSheet, image.buffer, spriteSheetSize:volume())
-		end
-
-		print'loading tile map...'
-		if bankpath'tilemap.png':exists() then
-			local image = assert(Image(bankpath'tilemap.png'.path))
-			assert.eq(image.width, tilemapSize.x)
-			assert.eq(image.height, tilemapSize.y)
-			assert.eq(image.channels, 3)
-			assert.eq(ffi.sizeof(image.format), 1)
-			local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
-			local imagePtr = image.buffer
-			for y=0,tilemapSize.y-1 do
-				for x=0,tilemapSize.x-1 do
-					mapPtr[0] = imagePtr[0]
-					imagePtr = imagePtr + 1
-					mapPtr = mapPtr + 1
-
-					mapPtr[0] = imagePtr[0]
-					imagePtr = imagePtr + 1
-					mapPtr = mapPtr + 1
-
-					imagePtr = imagePtr + 1
-				end
-			end
-			image:save(bankpath'tilemap.png'.path)
-		end
-
-		print'loading palette...'
-		if bankpath'pal.png':exists() then
-			local image = assert(Image(bankpath'pal.png'.path))
-			assert.eq(image.width, 16)
-			assert.eq(image.height, 16)
-			assert.eq(image.channels, 4)
-			assert.eq(ffi.sizeof(image.format), 1)
-			local imagePtr = image.buffer
-			local palPtr = bank.palette -- uint16_t*
-			for y=0,15 do
-				for x=0,15 do
-					palPtr[0] = rgba8888_4ch_to_5551(
-						imagePtr[0],
-						imagePtr[1],
-						imagePtr[2],
-						imagePtr[3]
-					)
-					palPtr = palPtr + 1
-					imagePtr = imagePtr + 4
-				end
-			end
-		else
-			-- TODO resetGFX flag for n9a to do this anyways
-			-- if pal.png doens't exist then load the default at least
-			resetROMPalette(bank)
-		end
-
-		local fontpath = path'font.png'
-		assert(fontpath:exists(), "failed to find the default font file!")
-		local bankfontpath = bankpath'font.png'
-		if bankfontpath :exists() then
-			fontpath = bankfontpath
-		end
-		resetROMFont(bank.font, fontpath.path)
-
 		print'loading sfx...'
 		do
 			local sfxs = table()
@@ -367,13 +242,26 @@ error('TODO blobs.sfx blobs.music')
 		end
 	end
 
+	if not blobs.palette then
+		-- TODO resetGFX flag for n9a to do this anyways
+		-- if pal.png doens't exist then load the default at least
+		local blob = blobClassForName.palette()
+		resetBlobPalette(blob)
+		blobs.palette = table{blob}
+	end
+	if not blobs.font then
+		local blob = blobClassForName.font()
+		resetBlobFont(blob:getPtr())
+		blobs.font = table{blob}
+	end
+
 	-- TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'
-		resetROMFont(banks.v[0].font)
+		resetBlobFont(blobs.font[1]:getPtr())
 	end
 	if extra == 'resetPal' then
-		--resetROMPalette(bank)
+		--resetBlobPalette(bank)
 	end
 
 	local labelImage

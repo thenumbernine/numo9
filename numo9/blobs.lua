@@ -1,5 +1,7 @@
 local ffi = require 'ffi'
 local table = require 'ext.table'
+local string = require 'ext.string'
+local path = require 'ext.path'
 local assert = require 'ext.assert'
 local class = require 'ext.class'
 local vector = require 'ffi.cpp.vector-lua'
@@ -18,6 +20,9 @@ local paletteType = numo9_rom.paletteType
 local paletteInBytes = numo9_rom.paletteInBytes
 local fontInBytes = numo9_rom.fontInBytes
 local fontImageSize = numo9_rom.fontImageSize 
+
+local numo9_video = require 'numo9.video'
+local resetBlobFont = numo9_video.resetBlobFont
 
 -- maps from type-index to name
 local blobClassNameForType = table{
@@ -59,6 +64,12 @@ function Blob:copyFromRAM()
 	ffi.copy(self:getPtr(), self.ramptr, self:getSize())
 end
 
+-- static method:
+function Blob:getFileName(blobNo)
+	return self.filenamePrefix..(blobNo == 1 and '' or blobNo)..self.filenameSuffix
+end
+
+
 local BlobCode = Blob:subclass()
 blobClassForName.code = BlobCode
 function BlobCode:init(data)	-- optional
@@ -71,9 +82,10 @@ function BlobCode:getSize()
 	return #self.data
 end
 BlobCode.filename = 'code$.lua'
+BlobCode.filenamePrefix = 'code'
+BlobCode.filenameSuffix = '.lua'
 function BlobCode:getFileName(blobNo)
-	assert.eq(blobNo, 1, "you have more than 1 code blob...")
-	return 'code.lua'
+	return 'code'..(blobNo == 1 and '' or blobNo)..'.lua'
 end
 function BlobCode:saveFile(basepath, blobNo)
 	print'saving code...'
@@ -85,12 +97,67 @@ function BlobCode:saveFile(basepath, blobNo)
 	--	fp:remove()
 	end
 end
+-- static method:
+function BlobCode:loadFile(filepath, basepath)
+	print'loading code...'
+	local code = assert(filepath:read())
+	
+	-- [[ preproc here ... replace #include's with included code ...
+	-- or what's another option ... I could have my own virtual filesystem per cartridge ... and then allow 'require' functions ... and then worry about where to mount the cartridge ...
+	-- that sounds like a much better idea.
+	-- so here's a temp fix ...
+	local includePaths = table{
+		basepath,
+		path'include',
+	}
+	local included = {}
+	local function insertIncludes(s)
+		return string.split(s, '\n'):mapi(function(l)
+			local loc = l:match'^%-%-#include%s+(.*)$'
+			if loc then
+				if included[loc] then 
+					return l..'-- ALREADY INCLUDED'
+				end
+				included[loc] = true
+				for _,incpath in ipairs(includePaths) do
+					local d = incpath(loc):read()
+					if d then
+						return table{
+							'----------------------- BEGIN '..loc..'-----------------------',
+							insertIncludes(d),
+							'----------------------- END '..loc..'  -----------------------',
+						}:concat'\n'
+					end
+				end
+				error("couldn't find "..loc.." in include paths: "..tolua(includePaths:mapi(function(p) return p.path end)))
+			else
+				return l
+			end
+		end):concat'\n'
+	end
+	code = insertIncludes(code)
+	--]]
+
+	return BlobCode(code)
+end
 
 
 local BlobSheet = Blob:subclass()
 blobClassForName.sheet = BlobSheet
-function BlobSheet:init(data)
-	self.image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+-- static method:
+function BlobSheet:makeImage()
+	return Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+end
+function BlobSheet:init(image)
+	if image then
+		assert.eq(image.width, spriteSheetSize.x)
+		assert.eq(image.height, spriteSheetSize.y)
+		assert.eq(image.channels, 1)
+		assert.eq(image.format, 'uint8_t')
+		self.image = image
+	else
+		self.image = self:makeImage()
+	end
 end
 function BlobSheet:getPtr()
 	return self.image + 0
@@ -98,24 +165,44 @@ end
 function BlobSheet:getSize()
 	return spriteSheetInBytes
 end
+BlobSheet.filenamePrefix = 'sheet'
+BlobSheet.filenameSuffix = '.png'
 function BlobSheet:getFileName(blobNo)
-	return 'sheet'..(blobNo-1)..'.png'
+	return 'sheet'..(blobNo == 1 and '' or blobNo)..'.png'
 end
-function BlobSheet:saveFile(basepath, blobNo)
+function BlobSheet:saveFile(basepath, blobNo, blobs)
 	print'saving sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
-	local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+	local image = self:makeImage()
 	ffi.copy(image.buffer, sheetBlob:getPtr(), self:getSize())
-	image.palette = firstPalette
+	image.palette = blobs.palette[1]:toTable()
 	image:save(basepath(self:getFileName(blobNo)).path)
+end
+-- static method:
+function BlobSheet:loadFile(filepath)
+	print'loading sprite sheet...'
+	local image = assert(Image(filepath.path))
+	return BlobSheet(image)
 end
 
 
 local BlobTileMap = Blob:subclass()
 blobClassForName.tilemap = BlobTileMap
-function BlobTileMap:init(data)
-	self.image = Image(tilemapSize.x, tilemapSize.y, 1, 'uint16_t')
+-- static method:
+function BlobTileMap:makeImage()
+	return Image(tilemapSize.x, tilemapSize.y, 1, 'uint16_t')
+end
+function BlobTileMap:init(image)
+	if image then
+		assert.eq(image.width, tilemapSize.x)
+		assert.eq(image.height, tilemapSize.y)
+		assert.eq(image.channels, 1)
+		assert.eq(image.format, 'uint16_t')
+		self.image = image
+	else
+		self.image = self:makeImage()
+	end
 end
 function BlobTileMap:getPtr()
 	return ffi.cast('uint8_t*', self.image.buffer)
@@ -123,37 +210,78 @@ end
 function BlobTileMap:getSize()
 	return tilemapInBytes
 end
+BlobTileMap.filenamePrefix = 'tilemap'
+BlobTileMap.filenameSuffix = '.png'
 function BlobTileMap:getFileName(blobNo)
-	return 'tilemap'..(blobNo-1)..'.png'
+	return 'tilemap'..(blobNo == 1 and '' or blobNo)..'.png'
 end
 function BlobTileMap:saveFile(basepath, blobNo)
 	print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
-	local image = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
-	local mapPtr = self:getPtr()
-	local imagePtr = image.buffer
+	local saveImg = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
+	local blobPtr = self:getPtr()
+	local savePtr = saveImg.buffer
 	for y=0,tilemapSize.y-1 do
 		for x=0,tilemapSize.x-1 do
-			imagePtr[0] = mapPtr[0]
-			imagePtr = imagePtr + 1
-			mapPtr = mapPtr + 1
+			savePtr[0] = blobPtr[0]
+			savePtr = savePtr + 1
+			blobPtr = blobPtr + 1
 
-			imagePtr[0] = mapPtr[0]
-			imagePtr = imagePtr + 1
-			mapPtr = mapPtr + 1
+			savePtr[0] = blobPtr[0]
+			savePtr = savePtr + 1
+			blobPtr = blobPtr + 1
 
-			imagePtr[0] = 0
-			imagePtr = imagePtr + 1
+			savePtr[0] = 0
+			savePtr = savePtr + 1
 		end
 	end
-	image:save(basepath(self:getFileName(blobNo)).path)
+	saveImg:save(basepath(self:getFileName(blobNo)).path)
+end
+-- static method:
+function BlobTileMap:loadFile(filepath)
+	print'loading tile map...'
+	local loadImg = assert(Image(filepath.path))
+	assert.eq(loadImg.width, tilemapSize.x)
+	assert.eq(loadImg.height, tilemapSize.y)
+	assert.eq(loadImg.channels, 3)
+	assert.eq(ffi.sizeof(loadImg.format), 1)
+
+	local blobImg = self:makeImage()
+	local blobPtr = ffi.cast('uint8_t*', blobImg.buffer)
+	local loadPtr = loadImg.buffer
+	for y=0,tilemapSize.y-1 do
+		for x=0,tilemapSize.x-1 do
+			blobPtr[0] = loadPtr[0]
+			loadPtr = loadPtr + 1
+			blobPtr = blobPtr + 1
+
+			blobPtr[0] = loadPtr[0]
+			loadPtr = loadPtr + 1
+			blobPtr = blobPtr + 1
+
+			loadPtr = loadPtr + 1
+		end
+	end
+	return BlobTileMap(blobImg)
 end
 
 
 local BlobPalette = Blob:subclass()
 blobClassForName.palette = BlobPalette
-function BlobPalette:init(data)
-	self.image = Image(paletteSize, 1, 1, paletteType)
+-- static method:
+function BlobPalette:makeImage()
+	return Image(paletteSize, 1, 1, paletteType)
+end
+function BlobPalette:init(image)
+	if image then
+		assert.eq(image.width, paletteSize)
+		assert.eq(image.height, 1)
+		assert.eq(image.channels, 1)
+		assert.eq(image.format, paletteType)
+		self.image = image
+	else
+		self.image = self:makeImage()
+	end
 end
 function BlobPalette:getPtr()
 	return ffi.cast('uint8_t*', self.image.buffer + 0)
@@ -161,25 +289,27 @@ end
 function BlobPalette:getSize()
 	return paletteInBytes
 end
+BlobPalette.filenamePrefix = 'palette'
+BlobPalette.filenameSuffix = '.png'
 function BlobPalette:getFileName(blobNo)
-	return 'palette'..(blobNo-1)..'.png'
+	return 'palette'..(blobNo == 1 and '' or blobNo)..'.png'
 end
 function BlobPalette:saveFile(basepath, blobNo)
 	print'saving palette...'
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
-	local image = Image(16, 16, 4, 'uint8_t')
-	local imagePtr = image.buffer
-	local palPtr = ffi.cast('uint16_t*', self:getPtr())
+	local saveImg = Image(16, 16, 4, 'uint8_t')
+	local savePtr = saveImg.buffer
+	local blobPtr = ffi.cast('uint16_t*', self:getPtr())
 	for y=0,15 do
 		for x=0,15 do
 			-- TODO packptr in numo9/app.lua
-			local r,g,b,a = rgba5551_to_rgba8888_4ch(palPtr[0])
-			imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = r,g,b,a
-			palPtr = palPtr + 1
-			imagePtr = imagePtr + 4
+			local r,g,b,a = rgba5551_to_rgba8888_4ch(blobPtr[0])
+			savePtr[0], savePtr[1], savePtr[2], savePtr[3] = r,g,b,a
+			blobPtr = blobPtr + 1
+			savePtr = savePtr + 4
 		end
 	end
-	image:save(basepath(self:getFileName(blobNo)).path)
+	saveImg:save(basepath(self:getFileName(blobNo)).path)
 end
 function BlobPalette:toTable()
 	local paletteTable = table()
@@ -190,11 +320,49 @@ function BlobPalette:toTable()
 	end
 	return paletteTable
 end
+-- static method:
+function BlobPalette:loadFile(filepath)
+	print'loading palette...'
+	local loadImg = assert(Image(filepath.path))
+	assert.eq(loadImg.width, 16)
+	assert.eq(loadImg.height, 16)
+	assert.eq(loadImg.channels, 4)
+	assert.eq(ffi.sizeof(loadImg.format), 1)
+
+	local loadPtr = loadImg.buffer
+	local blobImg = self:makeImage()
+	local blobPtr = ffi.cast('uint16_t*', blobImg.buffer)
+	for y=0,15 do
+		for x=0,15 do
+			blobPtr[0] = rgba8888_4ch_to_5551(
+				loadPtr[0],
+				loadPtr[1],
+				loadPtr[2],
+				loadPtr[3]
+			)
+			blobPtr = blobPtr + 1
+			loadPtr = loadPtr + 4
+		end
+	end
+	return BlobPalette(blobImage)
+end
+
 
 local BlobFont = Blob:subclass()
 blobClassForName.font = BlobFont
-function BlobFont:init(data)
-	self.image = Image(fontImageSize.x, fontImageSize.y, 1, 'uint8_t')
+-- static method:
+function BlobFont:makeImage()
+	return Image(fontImageSize.x, fontImageSize.y, 1, 'uint8_t')
+end
+function BlobFont:init(image)
+	if image then
+		assert.eq(image.width, fontImageSize.x)
+		assert.eq(image.height, fontImageSize.y)
+		assert.eq(image.channels, 1)
+		assert.eq(image.format, 'uint8_t')
+	else
+		self.image = self:makeImage()
+	end
 end
 function BlobFont:getPtr()
 	return self.image.buffer + 0
@@ -202,18 +370,20 @@ end
 function BlobFont:getSize()
 	return fontInBytes
 end
+BlobFont.filenamePrefix = 'font'
+BlobFont.filenameSuffix = '.png'
 function BlobFont:getFileName(blobNo)
-	return 'font'..(blobNo-1)..'.png'
+	return 'font'..(blobNo == 1 and '' or blobNo)..'.png'
 end
 function BlobFont:saveFile(basepath, blobNo)
 	print'saving font...'
-	local image = Image(256, 64, 1, 'uint8_t')
+	local saveImg = Image(256, 64, 1, 'uint8_t')
 	for xl=0,31 do
 		for yl=0,7 do
 			local ch = bit.bor(xl, bit.lshift(yl, 5))
 			for x=0,7 do
 				for y=0,7 do
-					image.buffer[
+					saveImg.buffer[
 						bit.bor(
 							x,
 							bit.lshift(xl, 3),
@@ -231,8 +401,14 @@ function BlobFont:saveFile(basepath, blobNo)
 			end
 		end
 	end
-	image.palette = {{0,0,0},{255,255,255}}
-	image:save(basepath(self:getFileName(blobNo)).path)
+	saveImg.palette = {{0,0,0},{255,255,255}}
+	saveImg:save(basepath(self:getFileName(blobNo)).path)
+end
+-- static method:
+function BlobFont:loadFile(filepath)
+	local blob = BlobFont()
+	resetBlobFont(blob:getPtr(), filepath.path)
+	return blob
 end
 
 
