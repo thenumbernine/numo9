@@ -2334,6 +2334,7 @@ function AppVideo:clearScreen(
 	colorIndex,
 	paletteTex	-- override for menu ... starting to think this should be a global somewhere...
 )
+--[[ using a quad ... might not be depth friendly
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
 	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
@@ -2355,6 +2356,22 @@ function AppVideo:clearScreen(
 	self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+--]]
+-- [[ using clear for depth ... isn't guaranteeing sorting though ... hmm ...
+	self.triBuf:flush()
+	if paletteTex then
+		print('TODO support for paletteTex override')
+	end
+	-- what does the shader do? if colorIndex is oob does it clear nothing?
+	local selColorValue = ffi.cast('uint16_t*', self.paletteRAM.tex.data)[bit.band(colorIndex, 0xff)]
+	gl.glClearColor(
+		bit.band(selColorValue, 0x1f) / 0x1f,
+		bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f,
+		bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f,
+		1)
+	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+	gl.glClearColor(.1, .2, .3, 1.)	-- default also found in 'needDrawCounter' block of App:update()
+--]]
 end
 
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
