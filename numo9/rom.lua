@@ -443,7 +443,7 @@ local RAM = struct{
 }
 
 local spriteSheetInBytes = spriteSheetSize:volume()
-local tilemapInBytes = tilemapSize:volume()
+local tilemapInBytes = tilemapSize:volume() * ffi.sizeof'uint16_t'
 local paletteInBytes = paletteSize
 local fontInBytes = fontSizeInBytes
 local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')

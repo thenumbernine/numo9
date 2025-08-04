@@ -128,8 +128,11 @@ end
 -- convert blobs' code into a single string
 local function codeBlobsToStr(blobs)
 	assert.type(blobs, 'table')
-	assert.is(blobs.code, blobClassForName.code)
-	assert.len(blobs.code, 1)	-- hmm TODO maybe I'll turn this into a zip ... and directory structure ... gah feature creep...
+	if not blobs.code then
+		blobs.code = table{blobClassForName.code()}
+	else
+		assert.len(blobs.code, 1)	-- hmm TODO maybe I'll turn this into a zip ... and directory structure ... gah feature creep...
+	end
 	assert.type(blobs.code[1].data, 'string')
 
 	return blobs.code[1].data

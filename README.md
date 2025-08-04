@@ -528,16 +528,15 @@ The unpacked contents of a `.n9` cartridge look like this:
 
 - `${cartname}/`
 - - `code.lua` = langfix-lua code for the game.
-- - `pal.png` = 16x16x 8bpp-per-channel RGBA of the palette
-- - `sprite.png` = 16x16x 8bpp-indexed sprite sheet
-- - `tiles.png` = 16x16x 8bpp-indexed tile sheet
-- - `tilemap.png` = 16x16x 8bpp-per-channel RGB of the 16bpp tilemap (only R and G are used)
 - - `label.png` = 256x256x 8bpp-per-channel RGB label to display in the preview / when viewing the file in an OS with `.n9.png` extension.
-- - `waveform${i}.wav` = sint16 / 32000 hz audio files to use as waveforms.
+- - `pal${i}.png` = 16x16x 8bpp-per-channel RGBA of the palette.
+- - `sheet${i}.png` = 16x16x 8bpp-indexed sheet for sprites or tiles.
+- - `font${i}.png` = font.
+- - `tilemap${i}.png` = 16x16x 8bpp-per-channel RGB of the 16bpp tilemap (only R and G are used)
+- - `sfx${i}.wav` = sint16 / 32000 hz audio files to use as waveforms.
 - - `music${i}.bin` = custom tracker format to use as music.  8 channels, delta-compressed.  The channel format is described in the `Numo9Channel` struct in `numo9/rom.lua`.  The delta compression specs are in `numo9/audio.lua`.
 
-If multiple banks are used, their contents are stored in `${cartname}/${bankno}/` indexed 1 through however many number of banks you use.
-For multi-bank games, the code.lua is automatically split and merged.
+If multiple blobs are used, a suffix of `${i}$ of 1 through however many number of blobs you use.
 
 ### Meta-Data
 
