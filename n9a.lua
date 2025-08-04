@@ -25,9 +25,10 @@ local resetBlobPalette = numo9_video.resetBlobPalette
 local resetBlobFont = numo9_video.resetBlobFont
 
 local numo9_archive = require 'numo9.archive'
-local cartImageToBlobStr = numo9_archive.cartImageToBlobStr
 local cartImageToBlobs = numo9_archive.cartImageToBlobs
 local blobsToCartImage = numo9_archive.blobsToCartImage
+local cartImageToBlobStr = numo9_archive.cartImageToBlobStr
+local blobStrToCartImage = numo9_archive.blobStrToCartImage
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
@@ -46,7 +47,7 @@ local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
-local blobsToStr = numo9_blobs.blobsToStr 
+local blobsToStr = numo9_blobs.blobsToStr
 
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
 -- A4=440hz, so A[-1]=13.75hz, so C0 is 3 half-steps higher than A[-1] = 2^(3/12) * 13.75 = 16.351597831287 hz ...
@@ -119,7 +120,7 @@ or cmd == 'r' then
 			if not filepath:exists() then break end
 			local blob = blobClass:loadFile(filepath, basepath)
 			blobsForType = blobsForType or table()
-			blobsForType:insert(blob) 
+			blobsForType:insert(blob)
 		end
 		blobs[blobTypeName] = blobsForType
 	end
@@ -292,13 +293,10 @@ elseif cmd == 'binton9' then
 	local basepath = getbasepath(fn)
 	local binpath = n9path:setext'bin'
 
-	local data = assert(binpath:read())
-	local banks = vector'ROM'
-	banks:resize(math.ceil(#data/ffi.sizeof'ROM'))
-	ffi.fill(banks.v, ffi.sizeof'ROM' * #banks)
-	ffi.copy(banks.v, data, #data)
+	local blobsAsStr = assert(binpath:read())
+
 	assert(path(fn):write(
-		(assert(blobsToCartImage(blobs, binpath.path)))
+		(assert(blobStrToCartImage(blobsAsStr, binpath.path)))
 	))
 
 -- TODO make this auto-detect 'x' and 'r' based on extension
