@@ -545,9 +545,6 @@ local AppVideo = {}
 -- called upon app init
 -- 'self' == app
 function AppVideo:initVideo()
-	self.fb = GLFBO():unbind()
-
-
 	--[[
 	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per bank
 	but I am still using the texture specs for my shader creation
@@ -597,6 +594,10 @@ function AppVideo:initVideo()
 	self:resizeRAMGPUs()
 	self.paletteRAM = self.paletteRAMs[1]
 	self.fontRAM = self.fontRAMs[1]
+
+	-- self.fbos['_'..width..'x'..height] = FBO with depth attachment.
+	-- for FBO's size is all that matters, right? not format right?
+	self.fbos = {}
 
 	-- this table is 1:1 with videoModeInfo
 	-- and used to create/assign unique framebufferRAMs
@@ -721,7 +722,18 @@ function AppVideo:initVideo()
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
-		local key = '_'..req.width..'x'..req.height..suffix
+
+		local sizekey = '_'..req.width..'x'..req.height
+		if not self.fbos[sizekey] then
+			self.fbos[sizekey] = GLFBO{
+				width = req.width,
+				height = req.height,
+				useDepth = true,
+			}:unbind()
+		end
+		req.fb = self.fbos[sizekey]
+
+		local key = sizekey..suffix
 		local framebufferRAM = self.framebufferRAMs[key]
 		if not framebufferRAM then
 			local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
@@ -1160,6 +1172,7 @@ void main() {
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
+		info.fb = req.fb
 		info.format = req.format
 		-- only used for the intro screen console output:
 		local w, h = reduce(req.width, req.height)
@@ -2019,6 +2032,7 @@ function AppVideo:setVideoMode(mode)
 		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
 		self.solidObj = info.solidObj
+		self.fb = info.fb
 
 		self.triBuf.sceneObj = self.solidObj
 	else
