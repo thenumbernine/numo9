@@ -64,6 +64,9 @@ local deltaCompress = numo9_rom.deltaCompress
 local clipType = numo9_rom.clipType
 local mvMatType = numo9_rom.mvMatType
 
+local numo9_blobs = require 'numo9.blobs'
+local byteArrayToBlobs = numo9_blobs.byteArrayToBlobs
+
 -- TODO how about a net-string?
 -- pascal-string-encoded: length then data
 -- 7 bits = single-byte length
@@ -1270,7 +1273,7 @@ print'begin client listen loop...'
 
 --DEBUG(@5):require'ext.path''client_init.txt':write(string.hexdump(ramState))
 						-- and decode it
-						local ptr = ffi.cast('uint8_t*', ffi.cast('char*', ramState))
+						local ptr = ffi.cast('uint8_t*', ramState)
 
 						-- flush GPU
 						-- make sure gpu changes are in cpu as well
@@ -1279,10 +1282,8 @@ print'begin client listen loop...'
 
 						local newMemSize = #ramState
 --DEBUG(@5):print('newMemSize', newMemSize)
-						local newNumBanks = math.ceil((newMemSize - ffi.sizeof'RAM') / ffi.sizeof'ROM') + 1
---DEBUG(@5):print('newNumBanks fraction', (newMemSize - ffi.sizeof'RAM') / ffi.sizeof'ROM' + 1)
---DEBUG(@5):print('newNumBanks', newNumBanks)
-						app.banks:resize(newNumBanks)	-- hmm but idk that I use this in netplay...
+						local newBlobs = byteArrayToBlobs(ptr, newMemSize)
+						app.blobs = newBlobs	-- hmm but idk that I use this in netplay...
 						app.memSize = newMemSize
 						app.holdram = ffi.new('uint8_t[?]', app.memSize)
 						app.ram = ffi.cast('RAM&', app.holdram)
