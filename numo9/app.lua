@@ -825,14 +825,14 @@ function App:initGL()
 		romaddr = function(name, index)
 			local blobsForType = self.blobs[name]
 			if not blobsForType then return end
-			local blob = blobsForType[index]
+			local blob = blobsForType[index+1]
 			if not blob then return end
 			return blob.addr
 		end,
 		romsize = function(name, index)
 			local blobsForType = self.blobs[name]
 			if not blobsForType then return end
-			local blob = blobsForType[index]
+			local blob = blobsForType[index+1]
 			if not blob then return end
 			return blob:getSize()
 		end,
