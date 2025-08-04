@@ -39,12 +39,8 @@ local strToBlobs = numo9_blobs.strToBlobs
 -- so reading is from files now
 local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
 local pngCustomKey = 'nuMO'
---[[
-assumes blobs[blobClassName] = table()
-creates an Image and returns it
---]]
-local function blobsToCartImage(blobs, labelImage)
-	local blobsAsStr = blobsToStr(blobs)
+
+local function blobStrToCartImage(blobsAsStr, labelImage)
 	local blobsCompressed = zlib.compressLua(blobsAsStr)
 
 	-- [[ storing in png metadata
@@ -116,6 +112,15 @@ local function cartImageToBlobStr(cartImgData)
 end
 
 --[[
+assumes blobs[blobClassName] = table()
+creates an Image with custom numo9 tag and returns it
+--]]
+local function blobsToCartImage(blobs, ...)
+	local blobsAsStr = blobsToStr(blobs)
+	return blobStrToCartImage(blobsAsStr, ...)
+end
+
+--[[
 takes an Image
 returns blobs[]
 --]]
@@ -128,5 +133,6 @@ end
 return {
 	blobsToCartImage = blobsToCartImage,
 	cartImageToBlobs = cartImageToBlobs,
+	blobStrToCartImage = blobStrToCartImage,
 	cartImageToBlobStr = cartImageToBlobStr,
 }
