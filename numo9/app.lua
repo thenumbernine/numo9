@@ -1006,7 +1006,6 @@ print('package.loaded', package.loaded)
 	self:matident()
 	self:setClipRect(0, 0, clipMax, clipMax)
 
-	self.editBankNo = 0	-- TODO now we need one of these per editor / per blob type
 	self.editCode = EditCode{app=self}
 	self.editSprites = EditSprites{app=self}
 	self.editTilemap = EditTilemap{app=self}
