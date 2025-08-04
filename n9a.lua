@@ -27,7 +27,7 @@ local resetROMFont = numo9_video.resetROMFont
 local numo9_archive = require 'numo9.archive'
 local fromCartImage = numo9_archive.fromCartImage
 local toCartImage = numo9_archive.toCartImage
-local codeBanksToStr = numo9_archive.codeBanksToStr
+local codeBlobsToStr = numo9_archive.codeBlobsToStr
 local codeStrToBanks = numo9_archive.codeStrToBanks
 
 local numo9_rom = require 'numo9.rom'
@@ -91,107 +91,13 @@ if cmd == 'x' then
 	assert(basepath:isdir())
 
 	print'loading cart...'
-	local banks = fromCartImage((assert(n9path:read())))
-	assert.is(banks, vector)
-	assert.eq(banks.type, 'ROM')
-	assert.ge(#banks, 1)
+	local blobs = fromCartImage((assert(n9path:read())))
+	assert.type(blobs, 'table')
 
-	for bankNo=0,#banks-1 do
-		local bank = banks.v + bankNo
-		local bankpath = basepath
-		if bankNo > 0 then
-			bankpath = basepath/tostring(bankNo)
-			bankpath:mkdir()
+	for blobTypeName,blobsForType in pairs(blobs) do
+		for blobNo,blob in ipairs(blobsForType) do
+			blob:saveFile(basepath, blobNo)
 		end
-
-		print'saving font...'
-		local image = Image(256, 64, 1, 'uint8_t')
-		for xl=0,31 do
-			for yl=0,7 do
-				local ch = bit.bor(xl, bit.lshift(yl, 5))
-				for x=0,7 do
-					for y=0,7 do
-						image.buffer[
-							bit.bor(
-								x,
-								bit.lshift(xl, 3),
-								bit.lshift(y, 8),
-								bit.lshift(yl, 11)
-							)
-						] = bit.band(bit.rshift(bank.font[
-							bit.bor(
-								x,
-								bit.band(ch, bit.bnot(7)),
-								bit.lshift(y, 8)
-							)
-						], bit.band(ch, 7)), 1)
-					end
-				end
-			end
-		end
-		image.palette = {{0,0,0},{255,255,255}}
-		image:save(bankpath'font.png'.path)
-
-		print'saving palette...'
-		-- palette: 16 x 16 x 24bpp 8bpp r g b
-		local image = Image(16, 16, 4, 'uint8_t')
-		local imagePtr = image.buffer
-		local palPtr = bank.palette -- uint16_t*
-		local palette = table()
-		for y=0,15 do
-			for x=0,15 do
-				-- TODO packptr in numo9/app.lua
-				local r,g,b,a = rgba5551_to_rgba8888_4ch(palPtr[0])
-				imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = r,g,b,a
-				palette:insert{r,g,b,a}
-				palPtr = palPtr + 1
-				imagePtr = imagePtr + 4
-			end
-		end
-		image:save(bankpath'pal.png'.path)
-
-		print'saving sprite sheet...'
-		-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
-		-- TODO save a palette'd image
-		local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
-		ffi.copy(image.buffer, bank.spriteSheet, ffi.sizeof(bank.spriteSheet))
-		image.palette = palette
-		image:save(bankpath'sprite.png'.path)
-
-		print'saving tile sheet...'
-		-- tile tex: 256 x 256 x 8bpp ... TODO needs to be indexed
-		ffi.copy(image.buffer, bank.tileSheet, ffi.sizeof(bank.tileSheet))
-		image.palette = palette
-		image:save(bankpath'tiles.png'.path)
-
-		print'saving tile map...'
-		-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
-		local image = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
-		local mapPtr = ffi.cast('uint8_t*', bank.tilemap)
-		local imagePtr = image.buffer
-		for y=0,tilemapSize.y-1 do
-			for x=0,tilemapSize.x-1 do
-				imagePtr[0] = mapPtr[0]
-				imagePtr = imagePtr + 1
-				mapPtr = mapPtr + 1
-
-				imagePtr[0] = mapPtr[0]
-				imagePtr = imagePtr + 1
-				mapPtr = mapPtr + 1
-
-				imagePtr[0] = 0
-				imagePtr = imagePtr + 1
-			end
-		end
-		image:save(bankpath'tilemap.png'.path)
-
-		-- TODO save sfx and music here
-	end
-
-	print'saving code...'
-	local code = codeBanksToStr(banks)
-	if #code > 0 then
-		assert(basepath'code.lua':write(code))
 	end
 
 elseif cmd == 'a'

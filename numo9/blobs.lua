@@ -4,14 +4,20 @@ local assert = require 'ext.assert'
 local class = require 'ext.class'
 local vector = require 'ffi.cpp.vector-lua'
 local struct = require 'struct'
+local Image = require 'image'
 
 local numo9_rom = require 'numo9.rom'
 local blobCountType = numo9_rom.blobCountType
 local BlobEntry = numo9_rom.BlobEntry
+local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
+local tilemapSize = numo9_rom.tilemapSize
 local tilemapInBytes = numo9_rom.tilemapInBytes
+local paletteSize = numo9_rom.paletteSize
+local paletteType = numo9_rom.paletteType
 local paletteInBytes = numo9_rom.paletteInBytes
 local fontInBytes = numo9_rom.fontInBytes
+local fontImageSize = numo9_rom.fontImageSize 
 
 -- maps from type-index to name
 local blobClassNameForType = table{
@@ -56,7 +62,7 @@ end
 local BlobCode = Blob:subclass()
 blobClassForName.code = BlobCode
 function BlobCode:init(data)	-- optional
-	self.data = data
+	self.data = data or ''	-- make sure it's not nil for casting ptr
 end
 function BlobCode:getPtr()
 	return ffi.cast('uint8_t*', self.data)
@@ -64,42 +70,171 @@ end
 function BlobCode:getSize()
 	return #self.data
 end
+BlobCode.filename = 'code$.lua'
+function BlobCode:getFileName(blobNo)
+	assert.eq(blobNo, 1, "you have more than 1 code blob...")
+	return 'code.lua'
+end
+function BlobCode:saveFile(basepath, blobNo)
+	print'saving code...'
+	local code = self.data
+	local fp = basepath(self:getFileName(blobNo))
+	if #code > 0 then
+		assert(fp:write(code))
+	--else
+	--	fp:remove()
+	end
+end
+
 
 local BlobSheet = Blob:subclass()
 blobClassForName.sheet = BlobSheet
 function BlobSheet:init(data)
-	-- TODO
+	self.image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+end
+function BlobSheet:getPtr()
+	return self.image + 0
 end
 function BlobSheet:getSize()
 	return spriteSheetInBytes
 end
+function BlobSheet:getFileName(blobNo)
+	return 'sheet'..(blobNo-1)..'.png'
+end
+function BlobSheet:saveFile(basepath, blobNo)
+	print'saving sheet...'
+	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
+	-- TODO save a palette'd image
+	local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+	ffi.copy(image.buffer, sheetBlob:getPtr(), self:getSize())
+	image.palette = firstPalette
+	image:save(basepath(self:getFileName(blobNo)).path)
+end
+
 
 local BlobTileMap = Blob:subclass()
 blobClassForName.tilemap = BlobTileMap
 function BlobTileMap:init(data)
-	-- TODO
+	self.image = Image(tilemapSize.x, tilemapSize.y, 1, 'uint16_t')
+end
+function BlobTileMap:getPtr()
+	return ffi.cast('uint8_t*', self.image.buffer)
 end
 function BlobTileMap:getSize()
 	return tilemapInBytes
 end
+function BlobTileMap:getFileName(blobNo)
+	return 'tilemap'..(blobNo-1)..'.png'
+end
+function BlobTileMap:saveFile(basepath, blobNo)
+	print'saving tile map...'
+	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
+	local image = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
+	local mapPtr = self:getPtr()
+	local imagePtr = image.buffer
+	for y=0,tilemapSize.y-1 do
+		for x=0,tilemapSize.x-1 do
+			imagePtr[0] = mapPtr[0]
+			imagePtr = imagePtr + 1
+			mapPtr = mapPtr + 1
+
+			imagePtr[0] = mapPtr[0]
+			imagePtr = imagePtr + 1
+			mapPtr = mapPtr + 1
+
+			imagePtr[0] = 0
+			imagePtr = imagePtr + 1
+		end
+	end
+	image:save(basepath(self:getFileName(blobNo)).path)
+end
+
 
 local BlobPalette = Blob:subclass()
 blobClassForName.palette = BlobPalette
 function BlobPalette:init(data)
-	-- TODO
+	self.image = Image(paletteSize, 1, 1, paletteType)
+end
+function BlobPalette:getPtr()
+	return ffi.cast('uint8_t*', self.image.buffer + 0)
 end
 function BlobPalette:getSize()
 	return paletteInBytes
+end
+function BlobPalette:getFileName(blobNo)
+	return 'palette'..(blobNo-1)..'.png'
+end
+function BlobPalette:saveFile(basepath, blobNo)
+	print'saving palette...'
+	-- palette: 16 x 16 x 24bpp 8bpp r g b
+	local image = Image(16, 16, 4, 'uint8_t')
+	local imagePtr = image.buffer
+	local palPtr = ffi.cast('uint16_t*', self:getPtr())
+	for y=0,15 do
+		for x=0,15 do
+			-- TODO packptr in numo9/app.lua
+			local r,g,b,a = rgba5551_to_rgba8888_4ch(palPtr[0])
+			imagePtr[0], imagePtr[1], imagePtr[2], imagePtr[3] = r,g,b,a
+			palPtr = palPtr + 1
+			imagePtr = imagePtr + 4
+		end
+	end
+	image:save(basepath(self:getFileName(blobNo)).path)
+end
+function BlobPalette:toTable()
+	local paletteTable = table()
+	local palPtr = ffi.cast('uint16_t*', self:getPtr())
+	for i=0,255 do
+		paletteTable:insert{rgba5551_to_rgba8888_4ch(palPtr[0])}
+		palPtr = palPtr + 1
+	end
+	return paletteTable
 end
 
 local BlobFont = Blob:subclass()
 blobClassForName.font = BlobFont
 function BlobFont:init(data)
-	-- TODO
+	self.image = Image(fontImageSize.x, fontImageSize.y, 1, 'uint8_t')
+end
+function BlobFont:getPtr()
+	return self.image.buffer + 0
 end
 function BlobFont:getSize()
 	return fontInBytes
 end
+function BlobFont:getFileName(blobNo)
+	return 'font'..(blobNo-1)..'.png'
+end
+function BlobFont:saveFile(basepath, blobNo)
+	print'saving font...'
+	local image = Image(256, 64, 1, 'uint8_t')
+	for xl=0,31 do
+		for yl=0,7 do
+			local ch = bit.bor(xl, bit.lshift(yl, 5))
+			for x=0,7 do
+				for y=0,7 do
+					image.buffer[
+						bit.bor(
+							x,
+							bit.lshift(xl, 3),
+							bit.lshift(y, 8),
+							bit.lshift(yl, 11)
+						)
+					] = bit.band(bit.rshift(self:getPtr()[
+						bit.bor(
+							x,
+							bit.band(ch, bit.bnot(7)),
+							bit.lshift(y, 8)
+						)
+					], bit.band(ch, 7)), 1)
+				end
+			end
+		end
+	end
+	image.palette = {{0,0,0},{255,255,255}}
+	image:save(basepath(self:getFileName(blobNo)).path)
+end
+
 
 local BlobSFX = Blob:subclass()
 blobClassForName.sfx = BlobSFX
