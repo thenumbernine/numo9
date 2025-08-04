@@ -6,7 +6,6 @@ local assert = require 'ext.assert'
 local vector = require 'ffi.cpp.vector-lua'
 
 local numo9_archive = require 'numo9.archive'
-local buildAudio = numo9_archive.buildAudio
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
@@ -159,9 +158,6 @@ function EditMusic:encodeMusicFromFrames()
 
 	-- replace the new music data
 	musics[self.selMusicIndex+1].data = newMusicData
-
-	-- and rebuild
-	buildAudio(bank, sfxs, musics)
 end
 
 function EditMusic:update()

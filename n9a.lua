@@ -29,7 +29,6 @@ local fromCartImage = numo9_archive.fromCartImage
 local toCartImage = numo9_archive.toCartImage
 local codeBanksToStr = numo9_archive.codeBanksToStr
 local codeStrToBanks = numo9_archive.codeStrToBanks
-local buildAudio = numo9_archive.buildAudio
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
@@ -457,6 +456,7 @@ or cmd == 'r' then
 				end
 			end
 
+error('TODO blobs.sfx blobs.music')
 			buildAudio(bank, sfxs, musics)
 		end
 	end

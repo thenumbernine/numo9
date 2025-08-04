@@ -324,11 +324,11 @@ function UI:update()
 		-1
 	)
 
-	-- TODO current bank vs editing ROM vs editing RAM ...
+	-- TODO current blob vs editing ROM vs editing RAM ...
 	local x = 230
 	if self:guiButton('R', x, 0, nil, 'reset RAM') then
 		app:checkDirtyGPU()
-		ffi.copy(app.ram.bank, app.banks.v[0].v, ffi.sizeof'ROM')
+		app:copyBlobsToRAM()
 		app:setDirtyCPU()
 	end
 	x=x+6
@@ -371,14 +371,14 @@ Editing will go on in RAM, for live cpu/gpu sprite/palette update's sake
 but it'll always reflect the cartridge state
 
 When the user sets the editCode to focus,
-copy from the app.banks.v[i].code to the editor,
+copy from the app.blobs.code[1].data to the editor,
 so we can use Lua string functinoality.
 
-While playing, assume .banks.v[i] has the baseline content of the game,
+While playing, assume .blobs.code[1].data has the baseline content of the game,
 and assume whatever's in .ram is dirty.
 
 But while editing, assume .ram has the baseline content of the game,
-and assume whatever's in .banks.v[i] is stale.
+and assume whatever's in .blobs.code[1].data is stale.
 
 
 HMMMMmmm
@@ -402,28 +402,48 @@ function UI:gainFocus()
 	end
 end
 
--- setters from editor that write to both .ram and .banks.v[0]
+-- setters from editor that write to both .ram and .blobs
 -- TODO how about flags in the editor for which you write to?
 
 function UI:edit_poke(addr, value)
 	local app = self.app
 	app:net_poke(addr, value)
-	addr = addr - ffi.offsetof('RAM', 'bank')
-	app.banks.v[0].v[addr] = value
+
+	-- TODO what about pokes to the blob FAT?
+	-- JUST DON'T DO THAT from the edit_poke* API (which is only called through the editor here)
+	for _,blobs in pairs(self.blobs) do
+		for _,blob in ipairs(blobs) do
+			if addr >= blob.addr and addr+1 <= blob.addr + blob:getSize() then
+				ffi.cast('uint8_t*', blob:getPtr() + (addr - blob.addr))[0] = value
+			end
+		end
+	end
 end
 
 function UI:edit_pokew(addr, value)
 	local app = self.app
 	app:net_pokew(addr, value)
-	addr = addr - ffi.offsetof('RAM', 'bank')
-	ffi.cast('uint16_t*', app.banks.v[0].v + addr)[0] = value
+	
+	for _,blobs in pairs(self.blobs) do
+		for _,blob in ipairs(blobs) do
+			if addr >= blob.addr and addr+2 <= blob.addr + blob:getSize() then
+				ffi.cast('uint16_t*', blob:getPtr() + (addr - blob.addr))[0] = value
+			end
+		end
+	end
 end
 
 function UI:edit_pokel(addr, value)
 	local app = self.app
 	app:net_pokel(addr, value)
-	addr = addr - ffi.offsetof('RAM', 'bank')
-	ffi.cast('uint32_t*', app.banks.v[0].v + addr)[0] = value
+
+	for _,blobs in pairs(self.blobs) do
+		for _,blob in ipairs(blobs) do
+			if addr >= blob.addr and addr+4 <= blob.addr + blob:getSize() then
+				ffi.cast('uint32_t*', blob:getPtr() + (addr - blob.addr))[0] = value
+			end
+		end
+	end
 end
 
 -- used by the editsfx and editmusic
@@ -434,11 +454,11 @@ local musicTableSize = numo9_rom.musicTableSize
 function UI:calculateAudioSize()
 	local app = self.app
 	self.totalAudioBytes = 0
-	for i=0,sfxTableSize-1 do
-		self.totalAudioBytes = self.totalAudioBytes + app.ram.bank[0].sfxAddrs[i].len
+	for _,blob in ipairs(self.blobs.sfx or {}) do
+		self.totalAudioBytes = self.totalAudioBytes + blob:getSize()
 	end
-	for i=0,musicTableSize-1 do
-		self.totalAudioBytes = self.totalAudioBytes + app.ram.bank[0].musicAddrs[i].len
+	for _,blob in ipairs(self.blobs.music or {}) do
+		self.totalAudioBytes = self.totalAudioBytes + blob:getSize()
 	end
 end
 
