@@ -37,6 +37,8 @@ local EditSprites = require 'numo9.ui':subclass()
 function EditSprites:init(args)
 	EditSprites.super.init(self, args)
 
+	self.sheetBlobIndex = 1
+
 	-- sprite edit mode
 	self.spriteSelPos = vec2i()	-- TODO make this texel based, not sprite based (x8 less resolution)
 	self.spriteSelSize = vec2i(1,1)
@@ -44,7 +46,6 @@ function EditSprites:init(args)
 	self.spritesheetPanDownPos = vec2i()
 	self.spritesheetPanPressed = false
 
-	self.spritesOrTiles = false
 	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
 	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
@@ -81,16 +82,10 @@ function EditSprites:update()
 	EditSprites.super.update(self)
 
 	self:guiSpinner(80, 0, function(dx)
-		app.editBankNo = math.clamp(app.editBankNo + dx, 0, #app.banks-1)
-	end, 'bank='..app.editBankNo)
-	if self:guiButton(self.spritesOrTiles and 'T' or 'S', 96, 0, false,
-		self.spritesOrTiles and 'tiles' or 'sprites'
-	) then
-		self.spritesOrTiles = not self.spritesOrTiles
-	end
+		self.sheetBlobIndex = math.clamp(self.sheetBlobIndex + dx, 1, #(app.blobs.sheet or {}))
+	end, 'blob='..self.sheetBlobIndex)
 
-	local sheetIndex = 2 * app.editBankNo + (self.spritesOrTiles and 1 or 0)
-	local currentVRAM = app.sheetRAMs[sheetIndex+1]
+	local currentVRAM = app.sheetRAMs[self.sheetBlobIndex]
 	local currentTexAddr = currentVRAM.addr
 
 	local paletteRAM = app.paletteRAMs[app.editBankNo+1]
@@ -180,7 +175,7 @@ function EditSprites:update()
 		self.spritesheetPanOffset.y,-- ty
 		w-1,						-- tw
 		h-1,						-- th
-		sheetIndex,
+		self.sheetBlobIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit
@@ -312,7 +307,7 @@ function EditSprites:update()
 		self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y,
 		self.spriteSelSize.x * spriteSize.x,
 		self.spriteSelSize.y * spriteSize.y,
-		sheetIndex,
+		self.sheetBlobIndex,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex
 		self.spriteBit,							-- spriteBit
