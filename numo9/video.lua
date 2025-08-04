@@ -237,7 +237,7 @@ local function resetLogoOnSheet(spriteSheetPtr)
 	end
 end
 
-local function resetROMFont(fontPtr, fontFilename)
+local function resetBlobFont(fontPtr, fontFilename)
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
 	local fontImg = assert(Image(fontFilename or 'font.png'), "failed to find file "..tostring(fontFilename))
@@ -376,8 +376,8 @@ local function resetPalette(ptr)	-- uint16_t*
 	end
 end
 
-local function resetROMPalette(rom)
-	resetPalette(rom.palette)
+local function resetBlobPalette(blob)
+	resetPalette(ffi.cast('uint16_t*', blob.image.buffer))
 end
 
 
@@ -769,7 +769,7 @@ function AppVideo:initVideo()
 
 		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
 		local fontData = ffi.new('uint8_t[?]', fontInBytes)
-		resetROMFont(fontData, 'font.png')
+		resetBlobFont(fontData, 'font.png')
 		self.fontMenuTex = GLTex2D{
 			internalFormat = texInternalFormat_u8,
 			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
@@ -2097,7 +2097,7 @@ function AppVideo:resetFont()
 	local fontBlob = self.blobs.font and self.blobs.font[1]
 -- TODO ensure there's at least one?
 	if fontBlob then
-		resetROMFont(fontBlob.ramptr)
+		resetBlobFont(fontBlob.ramptr)
 		ffi.copy(fontBlob:getPtr(), fontBlob.ramptr, fontBlob:getSize())
 	end
 	self.fontRAM.dirtyCPU = true
@@ -2113,7 +2113,7 @@ function AppVideo:resetGFX()
 	local paletteBlob = self.blobs.palette and self.blobs.palette[1]
 -- TODO ensure there's at least one?
 	if paletteBlob then
-		resetROMPalette(paletteBlob.ramptr)
+		resetBlobPalette(paletteBlob.ramptr)
 		ffi.copy(paletteBlob:getPtr(), paletteBlob.ramptr, paletteBlob:getSize())
 	end
 	self.paletteRAM.dirtyCPU = true
@@ -3004,8 +3004,8 @@ return {
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
 	rgb565rev_to_rgba888_3ch = rgb565rev_to_rgba888_3ch,
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
-	resetROMFont = resetROMFont,
+	resetBlobFont = resetBlobFont,
 	resetLogoOnSheet = resetLogoOnSheet,
-	resetROMPalette = resetROMPalette,
+	resetBlobPalette = resetBlobPalette,
 	AppVideo = AppVideo,
 }
