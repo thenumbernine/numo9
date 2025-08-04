@@ -25,10 +25,9 @@ local resetBlobPalette = numo9_video.resetBlobPalette
 local resetBlobFont = numo9_video.resetBlobFont
 
 local numo9_archive = require 'numo9.archive'
-local fromCartImage = numo9_archive.fromCartImage
-local toCartImage = numo9_archive.toCartImage
-local codeBlobsToStr = numo9_archive.codeBlobsToStr
-local codeStrToBanks = numo9_archive.codeStrToBanks
+local cartImageToBlobStr = numo9_archive.cartImageToBlobStr
+local cartImageToBlobs = numo9_archive.cartImageToBlobs
+local blobsToCartImage = numo9_archive.blobsToCartImage
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
@@ -47,6 +46,7 @@ local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
+local blobsToStr = numo9_blobs.blobsToStr 
 
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
 -- A4=440hz, so A[-1]=13.75hz, so C0 is 3 half-steps higher than A[-1] = 2^(3/12) * 13.75 = 16.351597831287 hz ...
@@ -94,7 +94,7 @@ if cmd == 'x' then
 	assert(basepath:isdir())
 
 	print'loading cart...'
-	local blobs = fromCartImage((assert(n9path:read())))
+	local blobs = cartImageToBlobs((assert(n9path:read())))
 	assert.type(blobs, 'table')
 
 	for blobTypeName,blobsForType in pairs(blobs) do
@@ -124,7 +124,7 @@ or cmd == 'r' then
 		blobs[blobTypeName] = blobsForType
 	end
 
-
+	-- TODO
 	for bankNo=0,#banks-1 do
 		print'loading sfx...'
 		do
@@ -269,7 +269,7 @@ error('TODO blobs.sfx blobs.music')
 	end)
 
 	print'saving cart...'
-	assert(path(fn):write(toCartImage(banks, labelImage)))
+	assert(path(fn):write(blobsToCartImage(blobs, labelImage)))
 
 	if cmd == 'r' then
 		assert(os.execute('luajit run.lua -nosplash "'..fn..'"'))
@@ -281,8 +281,10 @@ elseif cmd == 'n9tobin' then
 	local basepath = getbasepath(fn)
 	local binpath = n9path:setext'bin'
 
-	local banks = assert(fromCartImage((assert(n9path:read()))))
-	assert(binpath:write(ffi.string(banks.v, #banks * ffi.sizeof'ROM')))
+	local blobsAsStr = assert(cartImageToBlobStr(
+		(assert(n9path:read()))
+	))
+	assert(binpath:write(blobsAsStr))
 
 elseif cmd == 'binton9' then
 
@@ -296,7 +298,7 @@ elseif cmd == 'binton9' then
 	ffi.fill(banks.v, ffi.sizeof'ROM' * #banks)
 	ffi.copy(banks.v, data, #data)
 	assert(path(fn):write(
-		(assert(toCartImage(banks, binpath.path)))
+		(assert(blobsToCartImage(blobs, binpath.path)))
 	))
 
 -- TODO make this auto-detect 'x' and 'r' based on extension

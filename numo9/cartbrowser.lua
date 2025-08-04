@@ -73,7 +73,7 @@ function CartBrowser:update()
 			local ffi = require 'ffi'
 			local path = require 'ext.path'
 
-			-- [[ this is also in numo9/archive.lua fromCartImage ...
+			-- [[ this is also in numo9/archive.lua cartImageToBlobStr...
 			local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
 			assert(path(tmploc):write(srcData))
 			local Image = require 'image'

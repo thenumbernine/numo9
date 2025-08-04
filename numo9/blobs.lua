@@ -465,7 +465,7 @@ end
 
 -- reads blobs, returns resulting byte array
 -- used by buildRAMFromBlobs for allocating self.memSize, self.holdram, self.ram
--- or by toCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
+-- or by blobsToCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
 local function blobsToByteArray(blobs)
 	local allBlobs = table()
 	for blobClassName,blobsForType in ipairs(blobs:keys():sort(function(a,b)
@@ -547,6 +547,15 @@ local function byteArrayToBlobs(ptr, size)
 	return blobs
 end
 
+local function blobsToStr(blobs)
+	local info = blobsToByteArray(blobs)
+	return ffi.string(info.ram.v, info.memSize)
+end
+
+local function strToBlobs(str)
+	return byteArrayToBlobs(ffi.cast('uint8_t*', str), #str)
+end
+
 -- operates on app, reading its .blobs, writing its .memSize, .holdram, .ram
 function AppBlobs:buildRAMFromBlobs()
 	local info = blobsToByteArray(self.blobs)
@@ -580,4 +589,6 @@ return {
 	blobClassForName = blobClassForName,
 	blobsToByteArray = blobsToByteArray,
 	byteArrayToBlobs = byteArrayToBlobs,
+	blobsToStr = blobsToStr,
+	strToBlobs = strToBlobs,
 }
