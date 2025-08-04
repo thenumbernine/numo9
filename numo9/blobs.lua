@@ -87,14 +87,13 @@ BlobCode.filenameSuffix = '.lua'
 function BlobCode:getFileName(blobNo)
 	return 'code'..(blobNo == 1 and '' or blobNo)..'.lua'
 end
-function BlobCode:saveFile(basepath, blobNo)
+function BlobCode:saveFile(filepath)
 	print'saving code...'
 	local code = self.data
-	local fp = basepath(self:getFileName(blobNo))
 	if #code > 0 then
-		assert(fp:write(code))
+		assert(filepath:write(code))
 	--else
-	--	fp:remove()
+	--	filepath:remove()
 	end
 end
 -- static method:
@@ -170,14 +169,14 @@ BlobSheet.filenameSuffix = '.png'
 function BlobSheet:getFileName(blobNo)
 	return 'sheet'..(blobNo == 1 and '' or blobNo)..'.png'
 end
-function BlobSheet:saveFile(basepath, blobNo, blobs)
+function BlobSheet:saveFile(filepath, blobs)
 	print'saving sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
 	local image = self:makeImage()
 	ffi.copy(image.buffer, sheetBlob:getPtr(), self:getSize())
 	image.palette = blobs.palette[1]:toTable()
-	image:save(basepath(self:getFileName(blobNo)).path)
+	image:save(filepath.path)
 end
 -- static method:
 function BlobSheet:loadFile(filepath)
@@ -215,7 +214,7 @@ BlobTileMap.filenameSuffix = '.png'
 function BlobTileMap:getFileName(blobNo)
 	return 'tilemap'..(blobNo == 1 and '' or blobNo)..'.png'
 end
-function BlobTileMap:saveFile(basepath, blobNo)
+function BlobTileMap:saveFile(filepath)
 	print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
 	local saveImg = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
@@ -235,7 +234,7 @@ function BlobTileMap:saveFile(basepath, blobNo)
 			savePtr = savePtr + 1
 		end
 	end
-	saveImg:save(basepath(self:getFileName(blobNo)).path)
+	saveImg:save(filepath.path)
 end
 -- static method:
 function BlobTileMap:loadFile(filepath)
@@ -294,7 +293,7 @@ BlobPalette.filenameSuffix = '.png'
 function BlobPalette:getFileName(blobNo)
 	return 'palette'..(blobNo == 1 and '' or blobNo)..'.png'
 end
-function BlobPalette:saveFile(basepath, blobNo)
+function BlobPalette:saveFile(filepath)
 	print'saving palette...'
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
 	local saveImg = Image(16, 16, 4, 'uint8_t')
@@ -309,7 +308,7 @@ function BlobPalette:saveFile(basepath, blobNo)
 			savePtr = savePtr + 4
 		end
 	end
-	saveImg:save(basepath(self:getFileName(blobNo)).path)
+	saveImg:save(filepath.path)
 end
 function BlobPalette:toTable()
 	local paletteTable = table()
@@ -375,7 +374,7 @@ BlobFont.filenameSuffix = '.png'
 function BlobFont:getFileName(blobNo)
 	return 'font'..(blobNo == 1 and '' or blobNo)..'.png'
 end
-function BlobFont:saveFile(basepath, blobNo)
+function BlobFont:saveFile(filepath)
 	print'saving font...'
 	local saveImg = Image(256, 64, 1, 'uint8_t')
 	for xl=0,31 do
@@ -402,7 +401,7 @@ function BlobFont:saveFile(basepath, blobNo)
 		end
 	end
 	saveImg.palette = {{0,0,0},{255,255,255}}
-	saveImg:save(basepath(self:getFileName(blobNo)).path)
+	saveImg:save(filepath.path)
 end
 -- static method:
 function BlobFont:loadFile(filepath)

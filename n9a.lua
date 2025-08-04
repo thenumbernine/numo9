@@ -99,7 +99,7 @@ if cmd == 'x' then
 
 	for blobTypeName,blobsForType in pairs(blobs) do
 		for blobNo,blob in ipairs(blobsForType) do
-			blob:saveFile(basepath, blobNo, blobs)
+			blob:saveFile(basepath(blob:getFileName(blobNo)), blobs)
 		end
 	end
 
@@ -110,8 +110,6 @@ or cmd == 'r' then
 	local basepath = getbasepath(fn)
 
 	assert(basepath:isdir())
-	
-	assert(path'font.png':exists(), "failed to find the default font file!")
 
 	local blobs = {}
 	for blobTypeName,blobClass in pairs(blobClassForName) do
@@ -125,7 +123,8 @@ or cmd == 'r' then
 		end
 		blobs[blobTypeName] = blobsForType
 	end
-	
+
+
 	for bankNo=0,#banks-1 do
 		print'loading sfx...'
 		do
