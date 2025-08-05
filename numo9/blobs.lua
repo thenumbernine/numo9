@@ -397,6 +397,7 @@ function BlobFont:init(image)
 		assert.eq(image.height, fontImageSize.y)
 		assert.eq(image.channels, 1)
 		assert.eq(image.format, 'uint8_t')
+		self.image = image
 	else
 		self.image = self:makeImage()
 	end
@@ -443,7 +444,7 @@ function BlobFont:saveFile(filepath)
 end
 -- static method:
 function BlobFont:loadFile(filepath)
-	local blob = BlobFont()
+	local blob = self.class()
 	resetBlobFont(blob:getPtr(), filepath.path)
 	return blob
 end
@@ -619,6 +620,10 @@ print(('memSize = 0x%0x'):format(memSize))
 	ram.blobCount = numBlobs
 	for indexPlusOne,blob in ipairs(allBlobs) do
 		local index = indexPlusOne - 1
+		
+print('blob #'..index..' type='..blob.type..'/'..blob.name)
+print('\tkeys:', table.keys(blob):sort():concat', ')
+
 		local blobEntryPtr = ram.blobEntries + index
 
 		local addr = ramptr - ram.v
