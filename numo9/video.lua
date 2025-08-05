@@ -591,8 +591,6 @@ function AppVideo:initVideo()
 	self.paletteRAMs = table()
 	self.fontRAMs = table()
 	self:resizeRAMGPUs()
-	self.paletteRAM = self.paletteRAMs[1]
-	self.fontRAM = self.fontRAMs[1]
 
 	-- this table is 1:1 with videoModeInfo
 	-- and used to create/assign unique framebufferRAMs
@@ -821,7 +819,7 @@ function AppVideo:initVideo()
 	-- assert palleteSize is a power-of-two ...
 	local function colorIndexToFrag(destTex, decl)
 		return decl..' = '..readTex{
-			tex = self.paletteRAM.tex,
+			tex = self.paletteRAMs[1].tex,
 			texvar = 'paletteTex',
 			tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 			from = 'ivec2',
@@ -853,7 +851,7 @@ function AppVideo:initVideo()
 			--]=]
 			--[=[ internalFormat = internalFormat5551
 			colorOutput = 'fragColor = '..readTex{
-				tex = self.paletteRAM.tex,
+				tex = self.paletteRAMs[1].tex,
 				texvar = 'paletteTex',
 				tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 				from = 'ivec2',
@@ -991,7 +989,7 @@ in vec2 tcv;
 layout(location=0) out <?=blitFragType?> fragColor;
 
 uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=self.paletteRAM.tex:getGLSLSamplerType()?> paletteTex;
+uniform <?=self.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
 
@@ -1019,7 +1017,7 @@ void main() {
 			},
 			texs = {
 				framebufferRAM.tex,
-				self.paletteRAM.tex,
+				self.paletteRAMs[1].tex,
 			},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
@@ -1119,7 +1117,7 @@ void main() {
 			},
 			texs = {
 				framebufferRAM.tex,
-				self.paletteRAM.tex,
+				self.paletteRAMs[1].tex,
 			},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
@@ -1293,7 +1291,7 @@ flat in vec4 scissor;	// x, y, w, h
 
 layout(location=0) out <?=fragType?> fragColor;
 
-uniform <?=self.paletteRAM.tex:getGLSLSamplerType()?> paletteTex;
+uniform <?=self.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=self.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=self.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
 
@@ -1891,23 +1889,12 @@ function AppVideo:resetVideo()
 	-- and also because the first time resetVideo() is called, the video mode hasn't been set yet, os the framebufferRAM hasn't been assigned yet
 	self:allRAMRegionsCheckDirtyGPU()
 
-	assert.index(self, 'blobs')
-	assert.index(self.blobs, 'sheet', table.keys(self.blobs):mapi(function(blobsForType,name) return name..'='..#blobsForType end):concat', ')
-	assert.index(self.blobs.sheet, 1)
-	assert.index(self.blobs.sheet[1], 'addr')
-	local spriteSheetAddr = self.blobs.sheet[1].addr
-	assert.index(self.blobs.sheet, 2)
-	assert.index(self.blobs.sheet[2], 'addr')
-	local tileSheetAddr = self.blobs.sheet[2].addr
-	assert.index(self.blobs.tilemap, 1)
-	assert.index(self.blobs.tilemap[1], 'addr')
-	local tilemapAddr = self.blobs.tilemap[1].addr
-	assert.index(self.blobs.palette, 1)
-	assert.index(self.blobs.palette[1], 'addr')
-	local paletteAddr = self.blobs.palette[1].addr
-	assert.index(self.blobs.font, 1)
-	assert.index(self.blobs.font[1], 'addr')
-	local fontAddr = self.blobs.font[1].addr
+	-- TODO how should tehse work if I'm using flexible # blobs and that means not always enough?
+	local spriteSheetAddr = self.blobs.sheet[1] and self.blobs.sheet[1].addr or 0
+	local tileSheetAddr = self.blobs.sheet[2] and self.blobs.sheet[2].addr or 0
+	local tilemapAddr = self.blobs.tilemap[1] and self.blobs.tilemap[1].addr or 0
+	local paletteAddr = self.blobs.palette[1] and self.blobs.palette[1].addr or 0
+	local fontAddr = self.blobs.font[1] and self.blobs.font[1].addr or 0
 
 	-- reset these
 	self.ram.framebufferAddr = framebufferAddr
@@ -1924,11 +1911,11 @@ function AppVideo:resetVideo()
 		v:updateAddr(framebufferAddr)
 	end
 
-	self.sheetRAMs[1]:updateAddr(spriteSheetAddr)
-	self.sheetRAMs[2]:updateAddr(tileSheetAddr)
-	self.tilemapRAMs[1]:updateAddr(tilemapAddr)
-	self.paletteRAMs[1]:updateAddr(paletteAddr)
-	self.fontRAMs[1]:updateAddr(fontAddr)
+	if self.sheetRAMs[1] then self.sheetRAMs[1]:updateAddr(spriteSheetAddr) end
+	if self.sheetRAMs[2] then self.sheetRAMs[2]:updateAddr(tileSheetAddr) end
+	if self.tilemapRAMs[1] then self.tilemapRAMs[1]:updateAddr(tilemapAddr) end
+	if self.paletteRAMs[1] then self.paletteRAMs[1]:updateAddr(paletteAddr) end
+	if self.fontRAMs[1] then self.fontRAMs[1]:updateAddr(fontAddr) end
 
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
@@ -1948,12 +1935,12 @@ function AppVideo:resetVideo()
 			:subimage()
 		tilemapRAM.dirtyCPU = false
 	end
-	self.paletteRAM.tex:bind()
+	self.paletteRAMs[1].tex:bind()
 		:subimage()
-	self.paletteRAM.dirtyCPU = false
-	self.fontRAM.tex:bind()
+	self.paletteRAMs[1].dirtyCPU = false
+	self.fontRAMs[1].tex:bind()
 		:subimage()
-	self.fontRAM.dirtyCPU = false
+	self.fontRAMs[1].dirtyCPU = false
 	--]]
 	--[[ update later ...
 	self:setDirtyCPU()
@@ -1985,8 +1972,8 @@ function AppVideo:checkDirtyGPU()
 	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
 		tilemapRAM:checkDirtyGPU()
 	end
-	self.paletteRAM:checkDirtyGPU()
-	self.fontRAM:checkDirtyGPU()
+	self.paletteRAMs[1]:checkDirtyGPU()
+	self.fontRAMs[1]:checkDirtyGPU()
 	self.framebufferRAM:checkDirtyGPU()
 end
 
@@ -1997,8 +1984,8 @@ function AppVideo:setDirtyCPU()
 	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
 		tilemapRAM.dirtyCPU = true
 	end
-	self.paletteRAM.dirtyCPU = true
-	self.fontRAM.dirtyCPU = true
+	self.paletteRAMs[1].dirtyCPU = true
+	self.fontRAMs[1].dirtyCPU = true
 	self.framebufferRAM.dirtyCPU = true
 end
 
@@ -2094,8 +2081,8 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 		end
 	end
 	-- now swap palette entries
-	local fromAddr =  self.paletteRAM.addr + bit.lshift(from, 1)
-	local toAddr =  self.paletteRAM.addr + bit.lshift(to, 1)
+	local fromAddr = self.paletteRAMs[1].addr + bit.lshift(from, 1)
+	local toAddr = self.paletteRAMs[1].addr + bit.lshift(to, 1)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
@@ -2106,14 +2093,14 @@ end
 
 function AppVideo:resetFont()
 	self.triBuf:flush()
-	self.fontRAM:checkDirtyGPU()
+	self.fontRAMs[1]:checkDirtyGPU()
 	local fontBlob = self.blobs.font and self.blobs.font[1]
 -- TODO ensure there's at least one?
 	if fontBlob then
 		resetBlobFont(fontBlob.ramptr)
 		ffi.copy(fontBlob:getPtr(), fontBlob.ramptr, fontBlob:getSize())
 	end
-	self.fontRAM.dirtyCPU = true
+	self.fontRAMs[1].dirtyCPU = true
 end
 
 -- externally used ...
@@ -2122,14 +2109,14 @@ end
 function AppVideo:resetGFX()
 	self:resetFont()
 
-	self.paletteRAM:checkDirtyGPU()
+	self.paletteRAMs[1]:checkDirtyGPU()
 	local paletteBlob = self.blobs.palette and self.blobs.palette[1]
 -- TODO ensure there's at least one?
 	if paletteBlob then
 		resetPalette(paletteBlob.ramptr)
 		ffi.copy(paletteBlob:getPtr(), paletteBlob.ramptr, paletteBlob:getSize())
 	end
-	self.paletteRAM.dirtyCPU = true
+	self.paletteRAMs[1].dirtyCPU = true
 end
 
 function AppVideo:resize()
@@ -2148,10 +2135,10 @@ function AppVideo:drawSolidRect(
 	paletteTex	-- override for gui - hack for menus to impose their palettes
 )
 	if not paletteTex
-	and self.paletteRAM.dirtyCPU
+	and self.paletteRAMs[1].dirtyCPU
 	then
 		self.triBuf:flush()
-		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+		self.paletteRAMs[1]:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
@@ -2180,7 +2167,7 @@ function AppVideo:drawSolidRect(
 	colorIndex = math.floor(colorIndex or 0)
 
 	self.triBuf:addTri(
-		paletteTex or self.paletteRAM.tex,
+		paletteTex or self.paletteRAMs[1].tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLL, yLL, zLL, wLL, x, y,
@@ -2192,7 +2179,7 @@ function AppVideo:drawSolidRect(
 	)
 
 	self.triBuf:addTri(
-		paletteTex or self.paletteRAM.tex,
+		paletteTex or self.paletteRAMs[1].tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLR, yLR, zLR, wLR, x, yR,
@@ -2220,9 +2207,9 @@ function AppVideo:drawBorderRect(
 end
 
 function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
-	if self.paletteRAM.dirtyCPU then
+	if self.paletteRAMs[1].dirtyCPU then
 		self.triBuf:flush()
-		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+		self.paletteRAMs[1]:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
@@ -2235,7 +2222,7 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	self.triBuf:addTri(
-		self.paletteRAM.tex,
+		self.paletteRAMs[1].tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		v1x, v1y, v1z, v1w, 0, 0,
@@ -2255,9 +2242,9 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 end
 
 function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
-	if self.paletteRAM.dirtyCPU then
+	if self.paletteRAMs[1].dirtyCPU then
 		self.triBuf:flush()
-		self.paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+		self.paletteRAMs[1]:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
@@ -2300,7 +2287,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	colorIndex = math.floor(colorIndex or 0)
 
 	self.triBuf:addTri(
-		self.paletteRAM.tex,
+		self.paletteRAMs[1].tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLL, yLL, zLL, wLL, 0, 0,
@@ -2312,7 +2299,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	)
 
 	self.triBuf:addTri(
-		self.paletteRAM.tex,
+		self.paletteRAMs[1].tex,
 		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		xLR, yLR, zLR, wLR, 0, 1,
@@ -2573,10 +2560,10 @@ function AppVideo:drawQuad(
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	if not paletteTex
-	and self.paletteRAM.dirtyCPU
+	and self.paletteRAMs[1].dirtyCPU
 	then
 		self.triBuf:flush()
-		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+		self.paletteRAMs[1]:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 
 	-- TODO only this before we actually do the :draw()
@@ -2586,7 +2573,7 @@ function AppVideo:drawQuad(
 	end
 
 	self:drawQuadTex(
-		paletteTex or self.paletteRAM.tex,
+		paletteTex or self.paletteRAMs[1].tex,
 		sheetRAM.tex,
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,
@@ -2620,9 +2607,9 @@ function AppVideo:drawTexTri3D(
 		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
-	if self.paletteRAM.dirtyCPU then
+	if self.paletteRAMs[1].dirtyCPU then
 		self.triBuf:flush()
-		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+		self.paletteRAMs[1]:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
@@ -2652,7 +2639,7 @@ function AppVideo:drawTexTri3D(
 	local vx3, vy3, vz3, vw3 = vec3to4(self.ram.mvMat, x3, y3, z3)
 
 	self.triBuf:addTri(
-		self.paletteRAM.tex,
+		self.paletteRAMs[1].tex,
 		sheetRAM.tex,
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
 		vx1, vy1, vz1, vw1, u1, v1,
@@ -2749,9 +2736,9 @@ function AppVideo:drawMap(
 		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	end
-	if self.paletteRAM.dirtyCPU then
+	if self.paletteRAMs[1].dirtyCPU then
 		self.triBuf:flush()
-		self.paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
+		self.paletteRAMs[1]:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	end
 	tilemapIndex = tilemapIndex or 0
 	local tilemapRAM = self.tilemapRAMs[tilemapIndex+1]
@@ -2796,7 +2783,7 @@ function AppVideo:drawMap(
 	local blendSolidA = self.drawOverrideSolidA * 255
 
 	self.triBuf:addTri(
-		self.paletteRAM.tex,
+		self.paletteRAMs[1].tex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
 		xLL, yLL, zLL, wLL, uL, vL,
@@ -2808,7 +2795,7 @@ function AppVideo:drawMap(
 	)
 
 	self.triBuf:addTri(
-		self.paletteRAM.tex,
+		self.paletteRAMs[1].tex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
 		xLR, yLR, zLR, wLR, uL, vR,
@@ -2934,13 +2921,13 @@ end
 function AppVideo:drawText(...)
 
 -- [[ drawQuad startup
-	if self.fontRAM.dirtyCPU then
+	if self.fontRAMs[1].dirtyCPU then
 		self.triBuf:flush()
-		self.fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
+		self.fontRAMs[1]:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
-	if self.paletteRAM.dirtyCPU then
+	if self.paletteRAMs[1].dirtyCPU then
 		self.triBuf:flush()
-		self.paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+		self.paletteRAMs[1]:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
@@ -2948,7 +2935,7 @@ function AppVideo:drawText(...)
 	end
 --]]
 
-	local result = self:drawTextCommon(self.fontRAM.tex, self.paletteRAM.tex, ...)
+	local result = self:drawTextCommon(self.fontRAMs[1].tex, self.paletteRAMs[1].tex, ...)
 
 -- [[ drawQuad shutdown
 	self.framebufferRAM.dirtyGPU = true
