@@ -98,6 +98,7 @@ function EditSheet:update()
 
 	assert.eq(#app.paletteRAMs, #app.blobs.palette)
 	local paletteRAM = app.paletteRAMs[self.paletteBlobIndex]
+	local paletteBlob = app.blobs.palette[self.paletteBlobIndex]
 
 	-- choose spriteBit
 	app:drawMenuText(
@@ -184,7 +185,7 @@ function EditSheet:update()
 		self.spritesheetPanOffset.y,-- ty
 		w-1,						-- tw
 		h-1,						-- th
-		self.sheetBlobIndex,
+		self.sheetBlobIndex-1,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit
@@ -316,7 +317,7 @@ function EditSheet:update()
 		self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y,
 		self.spriteSelSize.x * spriteSize.x,
 		self.spriteSelSize.y * spriteSize.y,
-		self.sheetBlobIndex,
+		self.sheetBlobIndex-1,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex
 		self.spriteBit,							-- spriteBit
@@ -782,9 +783,7 @@ print'BAKING PALETTE'
 				local srcp = image.buffer
 				local dstp = rgba.buffer
 				for i=0,image.width*image.height-1 do
-					dstp[0],dstp[1],dstp[2],dstp[3] = rgba5551_to_rgba8888_4ch(
-						app.blobs.palette[self.paletteBlobIndex].ramptr[srcp[0]]
-					)
+					dstp[0],dstp[1],dstp[2],dstp[3] = rgba5551_to_rgba8888_4ch(paletteBlob.ramptr[srcp[0]])
 					dstp = dstp + 4
 					srcp = srcp + 1
 				end
@@ -837,15 +836,11 @@ print'BAKING PALETTE'
 							-- TODO build a mapping and then use 'applyColorMap' to go quicker
 							local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
 							local bestIndex = bit.band(0xff, self.paletteOffset)
-							local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(
-								app.blobs.palette[self.paletteBlobIndex].ramptr[bestIndex]
-							)
+							local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(paletteBlob.ramptr[bestIndex])
 							local bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
 							for j=1,self.pasteTargetNumColors-1 do
 								local colorIndex = bit.band(0xff, j + self.paletteOffset)
-								local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(
-									app.blobs.palette[self.paletteBlobIndex].ramptr[colorIndex]
-								)
+								local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(paletteBlob.ramptr[colorIndex])
 								local distSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
 								if distSq < bestDistSq then
 									bestDistSq = distSq
@@ -915,9 +910,7 @@ print('currentTexAddr', ('$%x'):format(currentTexAddr))
 						and desty >= 0 and desty < currentVRAM.image.height
 						then
 							local c = image.buffer[i + image.width * j]
-							local r,g,b,a = rgba5551_to_rgba8888_4ch(
-								app.blobs.palette[self.paletteBlobIndex].ramptr[c]
-							)
+							local r,g,b,a = rgba5551_to_rgba8888_4ch(paletteBlob.ramptr[c])
 							if not self.pasteTransparent or a > 0 then
 								self:edit_poke(currentTexAddr + destx + currentVRAM.image.width * desty, c)
 							end
