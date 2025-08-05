@@ -47,7 +47,6 @@ local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
-local blobsToStr = numo9_blobs.blobsToStr
 
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
 -- A4=440hz, so A[-1]=13.75hz, so C0 is 3 half-steps higher than A[-1] = 2^(3/12) * 13.75 = 16.351597831287 hz ...
@@ -215,13 +214,13 @@ print('creating default sfx '..i..' blob')
 				assert.eq(p, data + len)
 				-- build a AudioWAV here
 				local datastr = ffi.string(data, ffi.sizeof(audioSampleType) * len)
-				blobs.sfx[i] = blobClassForName.sfx(setmetatable({
+				blobs.sfx[i] = blobClassForName.sfx{
 					ctype = audioSampleType,
 					channels = 1,
 					data = datastr,
 					size = #datastr,
 					freq = audioSampleRate,
-				}, AudioWAV))
+				}
 			end
 		end
 	end
@@ -240,8 +239,9 @@ print('creating default sfx '..i..' blob')
 		labelImage = Image(basepath'label.png'.path)
 	end)
 
-	print'saving cart...'
+print'saving cart...'
 	assert(path(fn):write(blobsToCartImage(blobs, labelImage)))
+print'...done saving cart'
 
 	if cmd == 'r' then
 		assert(os.execute('luajit run.lua -nosplash "'..fn..'"'))

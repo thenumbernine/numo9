@@ -2480,7 +2480,8 @@ print('App:openROM', filename)
 
 print('loaded blobs...')
 for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)
-	return numo9_blobs.blobTypeForClassName[a] < numo9_blobs.blobTypeForClassName[b]
+	return assert.index(numo9_blobs.blobTypeForClassName, a) 
+		< assert.index(numo9_blobs.blobTypeForClassName, b)
 end)) do
 	local blobsForType = self.blobs[blobClassName]
 	print('blob type '..blobClassName..' has '..#blobsForType)
