@@ -432,8 +432,15 @@ function BlobSFX:init(wav)
 		assert.eq(wav.freq, audioSampleRate)
 		self.wav = wav
 	else
+error'BlobSFX needs wav'
 		-- TODO create a default AudioWav?
 	end
+end
+function BlobSFX:getPtr()
+	return ffi.cast('uint8_t*', self.wav.data)
+end
+function BlobSFX:getSize()
+	return self.wav.size
 end
 -- static method:
 function BlobSFX:loadFile(filepath, basepath, blobNo)
@@ -452,12 +459,20 @@ local BlobMusic = blobSubclass'music'
 BlobMusic.filenamePrefix = 'music'
 BlobMusic.filenameSuffix = '.bin'
 function BlobMusic:init(data)
+	assert.type(data, 'string')
 	self.data = data
+end
+function BlobMusic:getPtr()
+	return ffi.cast('uint8_t*', self.data)
+end
+function BlobMusic:getSize()
+	return #self.data
 end
 -- static method:
 function BlobMusic:loadFile(filepath)
 	return BlobMusic(filepath:read())
 end
+
 
 local BlobBrush = blobSubclass'brush'
 BlobBrush.filenamePrefix = 'brush'
@@ -465,6 +480,7 @@ BlobBrush.filenameSuffix = '.lua'
 function BlobBrush:init(data)
 	-- TODO
 end
+
 
 local BlobBrushMap = blobSubclass'brushmap'
 BlobBrushMap.filenamePrefix = 'brushmap'
@@ -498,6 +514,7 @@ end
 
 function AppBlobs:addBlob(blobClassName)
 	self.blobs[blobClassName] = self.blobs[blobClassName] or table()
+	local blobClass = assert.index(blobClassForName, blobClassName)
 	self.blobs[blobClassName]:insert(blobClass())
 end
 
@@ -506,9 +523,10 @@ end
 -- or by blobsToCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
 local function blobsToByteArray(blobs)
 	local allBlobs = table()
-	for blobClassName,blobsForType in ipairs(blobs:keys():sort(function(a,b)
+	for _,blobClassName in ipairs(table.keys(blobs):sort(function(a,b)
 		return blobTypeForClassName[a] < blobTypeForClassName[b]
 	end)) do
+		local blobsForType = blobs[blobClassName]
 		allBlobs:append(blobsForType)
 	end
 	local numBlobs = #allBlobs
@@ -516,7 +534,10 @@ local function blobsToByteArray(blobs)
 	-- RAM struct also includes blobCount and blobs[1], so you have to add to it blobs[#blobs-1]
 	local memSize = ffi.sizeof'RAM'
 		+ (numBlobs - 1) * ffi.sizeof(BlobEntry)
-		+ allBlobs:mapi(function(blob) return blob.size end):sum()
+		+ allBlobs:mapi(function(blob)
+assert.index(blob, 'getSize', 'name='..blob.name)
+			return blob:getSize()
+		end):sum()
 --DEBUG:print(('memSize = 0x%0x'):format(memSize))
 
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
@@ -533,9 +554,9 @@ local function blobsToByteArray(blobs)
 		local blobEntryPtr = ram.blobEntries + index
 
 		local addr = ramptr - ram.v
-		assert.ge(0, addr)
+		assert.le(0, addr)
 		assert.lt(addr, memSize)
-		blobEntryPtr.type = blob.type
+		blobEntryPtr.type = assert.type(assert.index(blobTypeForClassName, blob.type), 'number')
 		blobEntryPtr.addr = addr
 		local blobSize = blob:getSize()
 		blobEntryPtr.size = blobSize
@@ -624,6 +645,7 @@ end
 return {
 	AppBlobs = AppBlobs,
 	BlobEntry = BlobEntry,
+	blobClassNameForType = blobClassNameForType,
 	blobClassForName = blobClassForName,
 	blobsToByteArray = blobsToByteArray,
 	byteArrayToBlobs = byteArrayToBlobs,
