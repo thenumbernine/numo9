@@ -7,6 +7,7 @@ local class = require 'ext.class'
 local vector = require 'ffi.cpp.vector-lua'
 local struct = require 'struct'
 local Image = require 'image'
+local AudioWAV = require 'audio.io.wav'
 
 local numo9_rom = require 'numo9.rom'
 local blobCountType = numo9_rom.blobCountType
@@ -20,6 +21,8 @@ local paletteType = numo9_rom.paletteType
 local paletteInBytes = numo9_rom.paletteInBytes
 local fontInBytes = numo9_rom.fontInBytes
 local fontImageSize = numo9_rom.fontImageSize 
+local audioSampleType = numo9_rom.audioSampleType
+local audioSampleRate = numo9_rom.audioSampleRate
 
 local numo9_video = require 'numo9.video'
 local resetBlobFont = numo9_video.resetBlobFont
@@ -35,6 +38,7 @@ local blobClassNameForType = table{
 	'music',
 	'brush',
 	'brushmap',
+	-- TODO extra / arbitrary, for user-defined binary blobs?
 	-- TODO 'voxelmap' = voxel-map of models from some lookup table
 	-- TODO 'obj3d'
 }
@@ -66,12 +70,21 @@ end
 
 -- static method:
 function Blob:getFileName(blobNo)
+	assert.index(self, 'filenamePrefix', 'name='..self.name)
+	assert.index(self, 'filenameSuffix', 'name='..self.name)
 	return self.filenamePrefix..(blobNo == 1 and '' or blobNo)..self.filenameSuffix
 end
 
 
-local BlobCode = Blob:subclass()
-blobClassForName.code = BlobCode
+local function blobSubclass(name)
+	local subclass = Blob:subclass()
+	subclass.name = name
+	blobClassForName[subclass.name] = subclass
+	return subclass
+end
+
+
+local BlobCode = blobSubclass'code'
 function BlobCode:init(data)	-- optional
 	self.data = data or ''	-- make sure it's not nil for casting ptr
 end
@@ -141,8 +154,7 @@ function BlobCode:loadFile(filepath, basepath)
 end
 
 
-local BlobSheet = Blob:subclass()
-blobClassForName.sheet = BlobSheet
+local BlobSheet = blobSubclass'sheet'
 -- static method:
 function BlobSheet:makeImage()
 	return Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
@@ -159,7 +171,7 @@ function BlobSheet:init(image)
 	end
 end
 function BlobSheet:getPtr()
-	return self.image + 0
+	return ffi.cast('uint8_t*', self.image.buffer)
 end
 function BlobSheet:getSize()
 	return spriteSheetInBytes
@@ -186,8 +198,7 @@ function BlobSheet:loadFile(filepath)
 end
 
 
-local BlobTileMap = Blob:subclass()
-blobClassForName.tilemap = BlobTileMap
+local BlobTileMap = blobSubclass'tilemap'
 -- static method:
 function BlobTileMap:makeImage()
 	return Image(tilemapSize.x, tilemapSize.y, 1, 'uint16_t')
@@ -265,8 +276,7 @@ function BlobTileMap:loadFile(filepath)
 end
 
 
-local BlobPalette = Blob:subclass()
-blobClassForName.palette = BlobPalette
+local BlobPalette = blobSubclass'palette'
 -- static method:
 function BlobPalette:makeImage()
 	return Image(paletteSize, 1, 1, paletteType)
@@ -283,7 +293,7 @@ function BlobPalette:init(image)
 	end
 end
 function BlobPalette:getPtr()
-	return ffi.cast('uint8_t*', self.image.buffer + 0)
+	return ffi.cast('uint8_t*', self.image.buffer)
 end
 function BlobPalette:getSize()
 	return paletteInBytes
@@ -347,8 +357,7 @@ function BlobPalette:loadFile(filepath)
 end
 
 
-local BlobFont = Blob:subclass()
-blobClassForName.font = BlobFont
+local BlobFont = blobSubclass'font'
 -- static method:
 function BlobFont:makeImage()
 	return Image(fontImageSize.x, fontImageSize.y, 1, 'uint8_t')
@@ -364,7 +373,7 @@ function BlobFont:init(image)
 	end
 end
 function BlobFont:getPtr()
-	return self.image.buffer + 0
+	return ffi.cast('uint8_t*', self.image.buffer)
 end
 function BlobFont:getSize()
 	return fontInBytes
@@ -411,26 +420,55 @@ function BlobFont:loadFile(filepath)
 end
 
 
-local BlobSFX = Blob:subclass()
-blobClassForName.sfx = BlobSFX
-function BlobSFX:init(data)
-	-- TODO
+local BlobSFX = blobSubclass'sfx'
+BlobSFX.filenamePrefix = 'sfx'
+BlobSFX.filenameSuffix = '.wav'
+function BlobSFX:init(wav)
+	if wav then
+		assert.eq(wav.channels, 1)	-- waveforms / sfx are mono
+		-- TODO resample if they are different.
+		-- for now I'm just saving them in this format and being lazy
+		assert.eq(wav.ctype, audioSampleType)
+		assert.eq(wav.freq, audioSampleRate)
+		self.wav = wav
+	else
+		-- TODO create a default AudioWav?
+	end
+end
+-- static method:
+function BlobSFX:loadFile(filepath, basepath, blobNo)
+	local wav = AudioWAV():load(filepath.path)
+
+	local blobSFX = BlobSFX(wav)
+
+	local tmp = {}
+	assert(load(bankpath('waveform'..(blobNo == 1 and '' or blobNo)..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
+	blobSFX.loopOffset = tmp.loopOffset or 0
+
+	return blobSFX
 end
 
-local BlobMusic = Blob:subclass()
-blobClassForName.music = BlobMusic
+local BlobMusic = blobSubclass'music'
+BlobMusic.filenamePrefix = 'music'
+BlobMusic.filenameSuffix = '.bin'
 function BlobMusic:init(data)
-	-- TODO
+	self.data = data
+end
+-- static method:
+function BlobMusic:loadFile(filepath)
+	return BlobMusic(filepath:read())
 end
 
-local BlobBrush = Blob:subclass()
-blobClassForName.brush = BlobBrush
+local BlobBrush = blobSubclass'brush'
+BlobBrush.filenamePrefix = 'brush'
+BlobBrush.filenameSuffix = '.lua'
 function BlobBrush:init(data)
 	-- TODO
 end
 
-local BlobBrushMap = Blob:subclass()
-blobClassForName.brushmap = BlobBrushMap
+local BlobBrushMap = blobSubclass'brushmap'
+BlobBrushMap.filenamePrefix = 'brushmap'
+BlobBrushMap.filenameSuffix = '.lua'
 function BlobBrushMap:init(data)
 	-- TODO
 end
@@ -483,7 +521,7 @@ local function blobsToByteArray(blobs)
 
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
 	local holdram = ffi.new('uint8_t[?]', memSize)
-	ffi.fill(holdram+0, memSize)	-- in case it doesn't already?  for the sake of the md5 hash
+	ffi.fill(ffi.cast('uint8_t*', holdram), memSize)	-- in case it doesn't already?  for the sake of the md5 hash
 
 	-- wow first time I've used references in LuaJIT, didn't know they were implemented.
 	local ram = ffi.cast('RAM&', holdram)

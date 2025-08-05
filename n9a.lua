@@ -118,128 +118,11 @@ or cmd == 'r' then
 		for blobNo=1,math.huge do
 			local filepath = basepath(blobClass:getFileName(blobNo))
 			if not filepath:exists() then break end
-			local blob = blobClass:loadFile(filepath, basepath)
+			local blob = blobClass:loadFile(filepath, basepath, blobNo)
 			blobsForType = blobsForType or table()
 			blobsForType:insert(blob)
 		end
 		blobs[blobTypeName] = blobsForType
-	end
-
-	-- TODO
-	for bankNo=0,#banks-1 do
-		print'loading sfx...'
-		do
-			local sfxs = table()
-			local musics = table()
-
-			-- load sfx into audio memory
-			local found
-			for i=0,sfxTableSize-1 do
-				local p = bankpath('waveform'..i..'.wav')
-				if p:exists() then
-					local wav = AudioWAV():load(p.path)
-					assert.eq(wav.channels, 1)	-- waveforms / sfx are mono
-					-- TODO resample if they are different.
-					-- for now I'm just saving them in this format and being lazy
-					assert.eq(wav.ctype, audioSampleType)
-					assert.eq(wav.freq, audioSampleRate)
-					sfxs[i+1] = {data = wav.data}
-
---DEUBG:print('writing sfx', i, 'size', size)
-					local tmp = {}
-					assert(load(bankpath('waveform'..i..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
-					sfxs[i+1].loopOffset = tmp.loopOffset or 0
-
-					found = true
-				end
-			end
-			-- if there's no audio waveforms then add the defaults
-			-- i'm tempted to do this always for the first 10 waveforms, but there's always the scenario where someone has just 1 waveform and a bunch of music data and fills the ARAM, and then adding the other 9 waveforms overflows ARAM ...
-			-- but if someone has *no waveforms* then they definitely don't have any music ...
-			-- ... unless ... it's on another bank ... hmm ...
-			-- so only fill in default waveforms on bank 0 if we only have 1 bank total ...
-			if not found and #banks == 1 then
-				local amplMax, amplZero = 32767, 0
-				local function sinewave(t)
-					return math.sin(t * 2 * math.pi)
-				end
-				local function trianglewave(t)
-					--t = t + .5		-- why the buzzing noise ...
-					--t = t + .25
-					--return -(math.abs(t - math.floor(t + .5)) * 4 - 1)
-					return math.abs(math.floor(t + .5) - t) * 4 - 1
-				end
-				local function sawwave(t)
-					return (t % 1) * 2 - 1
-				end
-				local function tiltedsawwave(t)
-					t = t % 1
-					return math.min(
-						t  / (3 / 4),	-- 3:4 is our ratio of tilt lhs to rhs
-						(1 - t) * 4
-					) * 2 - 1
-				end
-				local function squarewave(t)
-					t = t % 1
-					return t > .5 and 1 or -1
-					--return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
-				end
-				local function pulsewave(t)
-					t = t % 1
-					return t > .75 and 1 or -1
-
-				end
-				local function organwave(t)
-					return (sinewave(t) + sinewave(2*t) + sinewave(.5*t))/3
-				end
-				local function noisewave(t)
-					-- too random <-> too high-pitched?  needs to be spectral noise at a certain frequency?
-					--return math.random() * 2 - 1
-					return sinewave(t)
-				end
-				local function phaserwave(t)
-					return sinewave(t) * .75 + sinewave(3*t) * .25
-				end
-				--]]
-				local wavefuncs = table{
-					trianglewave,
-					sawwave,
-					tiltedsawwave,
-					squarewave,
-					pulsewave,
-					organwave,
-					noisewave,
-					phaserwave,
-				}
-
-
-				for i,f in ipairs(wavefuncs) do
-					local len = math.ceil(audioSampleRate / waveformFreq * 2)
-					local data = ffi.new(audioSampleType..'[?]', len)
-					local p = ffi.cast(audioSampleType..'*', data)
-					local tf = 0	-- time x frequency
-					for j=0,len-1 do
-						p[0] = math.round(f(tf) * amplMax * .5) + amplZero
-						tf = tf + waveformFreq / audioSampleRate
-						p = p + 1
-					end
-					assert.eq(p, data + len)
-					sfxs[i] = {data = ffi.string(data, ffi.sizeof(audioSampleType) * len)}
-				end
-			end
-
-			-- load music tracks into audio memory
-			for i=0,musicTableSize-1 do
-				local p = bankpath('music'..i..'.bin')
-				if p:exists() then
-					musics[i+1] = {data=p:read()}
---DEUBG:print('writing music', i, 'size', size)
-				end
-			end
-
-error('TODO blobs.sfx blobs.music')
-			buildAudio(bank, sfxs, musics)
-		end
 	end
 
 	if not blobs.palette then
@@ -255,6 +138,88 @@ error('TODO blobs.sfx blobs.music')
 		blobs.font = table{blob}
 	end
 
+	-- load sfx into audio memory
+	-- if there's no audio waveforms then add the defaults
+	-- i'm tempted to do this always for the first 10 waveforms, but there's always the scenario where someone has just 1 waveform and a bunch of music data and fills the ARAM, and then adding the other 9 waveforms overflows ARAM ...
+	do
+		local amplMax, amplZero = 32767, 0
+		local function sinewave(t)
+			return math.sin(t * 2 * math.pi)
+		end
+		local function trianglewave(t)
+			--t = t + .5		-- why the buzzing noise ...
+			--t = t + .25
+			--return -(math.abs(t - math.floor(t + .5)) * 4 - 1)
+			return math.abs(math.floor(t + .5) - t) * 4 - 1
+		end
+		local function sawwave(t)
+			return (t % 1) * 2 - 1
+		end
+		local function tiltedsawwave(t)
+			t = t % 1
+			return math.min(
+				t  / (3 / 4),	-- 3:4 is our ratio of tilt lhs to rhs
+				(1 - t) * 4
+			) * 2 - 1
+		end
+		local function squarewave(t)
+			t = t % 1
+			return t > .5 and 1 or -1
+			--return (2 * math.floor(t) - math.floor(2 * t)) * 2 + 1
+		end
+		local function pulsewave(t)
+			t = t % 1
+			return t > .75 and 1 or -1
+
+		end
+		local function organwave(t)
+			return (sinewave(t) + sinewave(2*t) + sinewave(.5*t))/3
+		end
+		local function noisewave(t)
+			-- too random <-> too high-pitched?  needs to be spectral noise at a certain frequency?
+			--return math.random() * 2 - 1
+			return sinewave(t)
+		end
+		local function phaserwave(t)
+			return sinewave(t) * .75 + sinewave(3*t) * .25
+		end
+		--]]
+		local wavefuncs = table{
+			trianglewave,
+			sawwave,
+			tiltedsawwave,
+			squarewave,
+			pulsewave,
+			organwave,
+			noisewave,
+			phaserwave,
+		}
+
+	
+		if not blobs.sfx then blobs.sfx = table() end
+		for i,f in ipairs(wavefuncs) do
+			if not blobs.sfx[i] then
+				local len = math.ceil(audioSampleRate / waveformFreq * 2)
+				local data = ffi.new(audioSampleType..'[?]', len)
+				local p = ffi.cast(audioSampleType..'*', data)
+				local tf = 0	-- time x frequency
+				for j=0,len-1 do
+					p[0] = math.round(f(tf) * amplMax * .5) + amplZero
+					tf = tf + waveformFreq / audioSampleRate
+					p = p + 1
+				end
+				assert.eq(p, data + len)
+				-- build a AudioWav here
+				sfxs[i] = blobClassForName.sfx(setmetatable(AudioWav, {
+					channels = 1,
+					ctype = audioSampleType,
+					freq = audioSampleRate,
+					data = ffi.string(data, ffi.sizeof(audioSampleType) * len)
+				}))
+			end
+		end
+	end
+	
 	-- TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'
