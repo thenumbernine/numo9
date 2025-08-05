@@ -32,10 +32,10 @@ local dirs = {
 	{0,-1},
 }
 
-local EditSprites = require 'numo9.ui':subclass()
+local EditSheet = require 'numo9.ui':subclass()
 
-function EditSprites:init(args)
-	EditSprites.super.init(self, args)
+function EditSheet:init(args)
+	EditSheet.super.init(self, args)
 
 	self.sheetBlobIndex = 1
 	self.paletteBlobIndex = 1
@@ -70,7 +70,7 @@ end
 
 local selBorderColors = {0xfd,0xfc}
 
-function EditSprites:update()
+function EditSheet:update()
 	local app = self.app
 
 	local leftButtonDown = app:key'mouse_left'
@@ -80,24 +80,24 @@ function EditSprites:update()
 
 	local shift = app:key'lshift' or app:key'rshift'
 
-	EditSprites.super.update(self)
+	EditSheet.super.update(self)
 
 	self:guiSpinner(80, 0, function(dx)
 		self.sheetBlobIndex = math.clamp(self.sheetBlobIndex + dx, 1, #(app.blobs.sheet or {}))
-	end, 'blob='..self.sheetBlobIndex)
+	end, 'sheet #'..self.sheetBlobIndex)
 -- TODO +- to grow/shrink blob count
 
---[[ TODO make room for this
-	self:guiSpinner(90, 0, function(dx)
-		self.paletteBlobIndex = math.clamp(self.paletteBlobIndex + dx, 1, #(app.blobs.sheet or {}))
-	end, 'blob='..self.paletteBlobIndex)
---]]
+	self:guiSpinner(92, 0, function(dx)
+		self.paletteBlobIndex = math.clamp(self.paletteBlobIndex + dx, 1, #(app.blobs.palette or {}))
+	end, 'palette #'..self.paletteBlobIndex)
 -- TODO +- to grow/shrink blob count
 
+	assert.eq(#app.sheetRAMs, #app.blobs.sheet)
 	local currentVRAM = app.sheetRAMs[self.sheetBlobIndex]
 	local currentTexAddr = currentVRAM.addr
 
-	local paletteRAM = app.paletteRAMs[self.sheetBlobIndex]
+	assert.eq(#app.paletteRAMs, #app.blobs.palette)
+	local paletteRAM = app.paletteRAMs[self.paletteBlobIndex]
 
 	-- choose spriteBit
 	app:drawMenuText(
@@ -932,4 +932,4 @@ print('currentTexAddr', ('$%x'):format(currentTexAddr))
 	self:drawTooltip()
 end
 
-return EditSprites
+return EditSheet
