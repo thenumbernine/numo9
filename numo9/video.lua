@@ -22,15 +22,10 @@ local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
-local spriteSheetAddr = numo9_rom.spriteSheetAddr
-local tileSheetAddr = numo9_rom.tileSheetAddr
-local tilemapAddr = numo9_rom.tilemapAddr
 local tilemapSize = numo9_rom.tilemapSize
 local paletteSize = numo9_rom.paletteSize
-local paletteAddr = numo9_rom.paletteAddr
 local paletteInBytes = numo9_rom.paletteInBytes
 local palettePtrType = numo9_rom.palettePtrType
-local fontAddr = numo9_rom.fontAddr
 local fontImageSize = numo9_rom.fontImageSize
 local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
 local fontInBytes = numo9_rom.fontInBytes
@@ -1896,10 +1891,16 @@ function AppVideo:resetVideo()
 	-- do the framebuffers explicitly cuz typically 'checkDirtyGPU' just does the current one
 	-- and also because the first time resetVideo() is called, the video mode hasn't been set yet, os the framebufferRAM hasn't been assigned yet
 	self:allRAMRegionsCheckDirtyGPU()
+	
+	local spriteSheetAddr = assert.index(assert.index(assert.index(self.blobs, 'sheet'), 1), 'addr')
+	local tileSheetAddr = assert.index(assert.index(assert.index(self.blobs, 'sheet'), 2), 'addr')
+	local tilemapAddr = assert.index(assert.index(assert.index(self.blobs, 'tilemap'), 1), 'addr')
+	local paletteAddr = assert.index(assert.index(assert.index(self.blobs, 'palette'), 1), 'addr')
+	local fontAddr = assert.index(assert.index(assert.index(self.blobs, 'font'), 1), 'addr')
 
 	-- reset these
 	self.ram.framebufferAddr = framebufferAddr
-	self.ram.spriteSheetAddr = spriteSheetAddr
+	self.ram.spriteSheetAddr = spriteSheetAddr 
 	self.ram.tileSheetAddr = tileSheetAddr
 	self.ram.tilemapAddr = tilemapAddr
 	self.ram.paletteAddr = paletteAddr
