@@ -34,7 +34,8 @@ function EditMusic:init(args)
 
 	self:calculateAudioSize()
 
-	self.selMusicIndex = 0
+	self.musicBlobIndex = 1
+
 	self.startSampleFrameIndex = 0
 	self.frameStart = 1
 	self.selectedChannel = 0
@@ -48,16 +49,20 @@ end
 
 function EditMusic:refreshSelectedMusic()
 	local app = self.app
-	local selbank = app.ram.bank[app.editBankNo]
-	local selMusic = selbank.musicAddrs + self.selMusicIndex
+	if not app.blobs.music then
+		-- TODO allow +/- music blob in the UI at least
+		return
+	end
+	local selMusicBlob = app.blobs.music[self.musicBlobIndex]
+
 	local channels = ffi.new('Numo9Channel[?]', audioMixChannels)
 	local channelBytes = ffi.cast('uint8_t*', channels)
 	ffi.fill(channels, ffi.sizeof(channels))
 	local track = {
 		frames = table(),
 	}
-	local ptr = ffi.cast('uint16_t*', selbank.audioData + selMusic.addr)
-	local pend = ffi.cast('uint16_t*', selbank.audioData + selMusic.addr + selMusic.len)
+	local ptr = ffi.cast('uint16_t*', selMusicBlob.ramptr)
+	local pend = ffi.cast('uint16_t*', selMusicBlob.ramptr + selMusicBlob:getSize())
 	local nextTrack
 	if ptr < pend then
 		track.bps = ptr[0]
@@ -66,7 +71,7 @@ function EditMusic:refreshSelectedMusic()
 		while ptr < pend do
 			local frame = {}
 			track.frames:insert(frame)
-			frame.addr = ffi.cast('uint8_t*', ptr) - selbank.audioData
+			frame.addr = ffi.cast('uint8_t*', ptr) - app.ram.v
 			frame.delay = ptr[0]
 			frame.changed = table()
 			ptr = ptr + 1
@@ -139,25 +144,10 @@ function EditMusic:encodeMusicFromFrames()
 	local newMusicData = deltas:dataToStr()
 
 	local app = self.app
-	local bank = app.ram.bank[0]
 
 	-- TODO now update all the sound table to make room for this data
-	local sfxs = range(0,sfxTableSize-1):mapi(function(i)
-		local sfx = bank.sfxAddrs + i
-		return {
-			data = ffi.string(bank.audioData + sfx.addr, sfx.len),
-			loopOffset = sfx.loopOffset,
-		}
-	end)
-	local musics = range(0,musicTableSize-1):mapi(function(i)
-		local music = bank.musicAddrs + i
-		return {
-			data = ffi.string(bank.audioData + music.addr, music.len),
-		}
-	end)
-
 	-- replace the new music data
-	musics[self.selMusicIndex+1].data = newMusicData
+	app.blobs.music[self.selMusicIndex].data = newMusicData
 end
 
 function EditMusic:update()
@@ -172,8 +162,8 @@ function EditMusic:update()
 	local x, y = 80, 0
 	self:guiSpinner(x, y, function(dx)
 		stop()
-		app.editBankNo = math.clamp(app.editBankNo + dx, 0, #app.banks-1)
-	end, 'bank='..app.editBankNo)
+		self.musicBlobIndex = math.clamp(self.musicBlobIndex + dx, 1, #(app.blobs.music or {}))
+	end, 'blob='..self.musicBlobIndex)
 	x = x + 16
 
 assert.eq(sfxTableSize, 256)
@@ -200,22 +190,21 @@ assert.eq(sfxTableSize, 256)
 		self.showText = not self.showText
 	end
 
-	local selbank = app.ram.bank[app.editBankNo]
-	local selMusic = selbank.musicAddrs + self.selMusicIndex
+	local selMusicBlob = app.blobs.music[self.musicBlobIndex]
 	local musicPlaying = app.ram.musicPlaying+0
 
 	local y = 10
 
-	local endAddr = selMusic.addr + selMusic.len
-	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusic.addr, endAddr), 64, y, 0xfc, 0xf0)
+	local endAddr = selMusicBlob.addr + selMusicBlob:getSize()
+	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusicBlob.addr, endAddr), 64, y, 0xfc, 0xf0)
 
 	local playaddr = musicPlaying.addr
 	app:drawMenuText(('$%04x'):format(playaddr), 160, y, 0xfc, 0xf0)
 	y = y + 10
 
-	--local playLen = (playaddr - selMusic.addr) * secondsPerByte
+	--local playLen = (playaddr - selMusicBlob.addr) * secondsPerByte
 	local numSampleFramesPlayed = musicPlaying.sampleFrameIndex - self.startSampleFrameIndex
-	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', selbank.audioData + musicPlaying.addr)[0])
+	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', musicPlaying.addr)[0])
 	app:drawMenuText(
 		('%d frame / %.3f s'):format(
 			numSampleFramesPlayed,
@@ -382,13 +371,13 @@ assert.eq(sfxTableSize, 256)
 		y=y+8
 		for i=0,audioMixChannels-1 do
 			local channel = thisFrame.channels + i
-			local sfx = selbank.sfxAddrs + channel.sfxID
+			local sfxBlob = self.blobs.sfx[channel.sfxID+1]
 			app:drawMenuText(
 				('%1d %3d %04x %04x %04x %3d %3d %5d'):format(
 					i,
 					channel.sfxID,
-					sfx.addr,
-					sfx.addr + sfx.loopOffset,
+					sfxBlob.addr,
+					sfxBlob.addr + sfxBlob.loopOffset,
 					bit.rshift(channel.addr, pitchPrec-1),
 					channel.volume[0],
 					channel.volume[1],

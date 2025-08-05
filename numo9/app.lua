@@ -2394,10 +2394,11 @@ function App:saveROM(filename)
 	-- and then that to the real filesystem ...
 
 	-- save ediCode.text to self.blobs
-	if not self.blobs.code then
-		self.blobs.code = table{blobClassForName.code()}
+	if #self.editCode.text > 0 then
+		self.blobs.code = table{blobClassForName.code(self.editCode.text)}
+	else
+		self.blobs.code = nil
 	end
-	self.blobs.code[1].data = self.editCode.text
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
@@ -2478,11 +2479,13 @@ function App:openROM(filename)
 
 	self.blobs = cartImageToBlobs(d)
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
-	
-	if not self.blobs.code then
-		self.blobs.code = table{blobClassForName.code()}
+
+	if self.blobs.code then
+		assert.ge(#self.blobs.code, 1)
+		self.editCode:setText(self.blobs.code[1].data)
+	else
+		self.editCode:setText('')
 	end
-	self.editCode:setText(self.blobs.code[1].data)
 
 -- [[ reallocate .ram for the carts blobs
 	local oldholdram = self.holdram

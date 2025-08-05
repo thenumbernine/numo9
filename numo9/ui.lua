@@ -411,7 +411,7 @@ function UI:edit_poke(addr, value)
 
 	-- TODO what about pokes to the blob FAT?
 	-- JUST DON'T DO THAT from the edit_poke* API (which is only called through the editor here)
-	for _,blobs in pairs(self.blobs) do
+	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
 			if addr >= blob.addr and addr+1 <= blob.addr + blob:getSize() then
 				ffi.cast('uint8_t*', blob:getPtr() + (addr - blob.addr))[0] = value
@@ -424,7 +424,7 @@ function UI:edit_pokew(addr, value)
 	local app = self.app
 	app:net_pokew(addr, value)
 	
-	for _,blobs in pairs(self.blobs) do
+	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
 			if addr >= blob.addr and addr+2 <= blob.addr + blob:getSize() then
 				ffi.cast('uint16_t*', blob:getPtr() + (addr - blob.addr))[0] = value
@@ -437,7 +437,7 @@ function UI:edit_pokel(addr, value)
 	local app = self.app
 	app:net_pokel(addr, value)
 
-	for _,blobs in pairs(self.blobs) do
+	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
 			if addr >= blob.addr and addr+4 <= blob.addr + blob:getSize() then
 				ffi.cast('uint32_t*', blob:getPtr() + (addr - blob.addr))[0] = value
@@ -454,10 +454,10 @@ local musicTableSize = numo9_rom.musicTableSize
 function UI:calculateAudioSize()
 	local app = self.app
 	self.totalAudioBytes = 0
-	for _,blob in ipairs(self.blobs.sfx or {}) do
+	for _,blob in ipairs(app.blobs.sfx or {}) do
 		self.totalAudioBytes = self.totalAudioBytes + blob:getSize()
 	end
-	for _,blob in ipairs(self.blobs.music or {}) do
+	for _,blob in ipairs(app.blobs.music or {}) do
 		self.totalAudioBytes = self.totalAudioBytes + blob:getSize()
 	end
 end

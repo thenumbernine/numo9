@@ -86,7 +86,9 @@ end
 
 local BlobCode = blobSubclass'code'
 function BlobCode:init(data)	-- optional
-	self.data = data or ''	-- make sure it's not nil for casting ptr
+	assert.type(data, 'string', "BlobCode needs a non-empty string")
+	assert.gt(#data, 0, "BlobCode needs a non-empty string")
+	self.data = data
 end
 function BlobCode:getPtr()
 	return ffi.cast('uint8_t*', self.data)
@@ -491,8 +493,8 @@ end
 
 
 local blobClassForType = {}
-for blobClassIndex,blobClass in pairs(blobClassForName) do
-	blobClass.type = blobClassIndex
+for blobClassName,blobClass in pairs(blobClassForName) do
+	blobClass.type = assert.index(blobTypeForClassName, blobClassName)
 	blobClassForType[blobClass.type] = blobClass
 end
 
@@ -502,7 +504,7 @@ local AppBlobs = {}
 function AppBlobs:initBlobs()
 	self.blobs = {}
 
-	self:addBlob'code'
+	--self:addBlob'code'	-- don't init empty code blobs ...
 	self:addBlob'sheet'
 	self:addBlob'sheet'
 	self:addBlob'tilemap'
@@ -534,11 +536,11 @@ local function blobsToByteArray(blobs)
 	-- RAM struct also includes blobCount and blobs[1], so you have to add to it blobs[#blobs-1]
 	local memSize = ffi.sizeof'RAM'
 		+ (numBlobs - 1) * ffi.sizeof(BlobEntry)
-		+ allBlobs:mapi(function(blob)
+		+ (allBlobs:mapi(function(blob)
 assert.index(blob, 'getSize', 'name='..blob.name)
 			return blob:getSize()
-		end):sum()
---DEBUG:print(('memSize = 0x%0x'):format(memSize))
+		end):sum() or 0)
+print(('memSize = 0x%0x'):format(memSize))
 
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
 	local holdram = ffi.new('uint8_t[?]', memSize)
@@ -554,11 +556,13 @@ assert.index(blob, 'getSize', 'name='..blob.name)
 		local blobEntryPtr = ram.blobEntries + index
 
 		local addr = ramptr - ram.v
+		local blobSize = blob:getSize()
+		assert.lt(0, blobSize, "I don't support empty blobs, found one for type "..tostring(blob.name))
+print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize))
 		assert.le(0, addr)
 		assert.lt(addr, memSize)
-		blobEntryPtr.type = assert.type(assert.index(blobTypeForClassName, blob.type), 'number')
+		blobEntryPtr.type = blob.type
 		blobEntryPtr.addr = addr
-		local blobSize = blob:getSize()
 		blobEntryPtr.size = blobSize
 
 		local srcptr = blob:getPtr()
