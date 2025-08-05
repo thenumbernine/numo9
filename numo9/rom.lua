@@ -374,7 +374,7 @@ local RAM = struct{
 				-- end of RAM, beginning of ROM
 
 				{name='blobCount', type=blobCountType},
-				{name='blobEntries', type=BlobEntry},
+				{name='blobEntries', type='BlobEntry[1]'},
 			},
 		}},
 	},

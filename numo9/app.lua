@@ -70,6 +70,7 @@ local buttonCodeForName = numo9_keys.buttonCodeForName
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
+local blobClassNameForType = numo9_blobs.blobClassNameForType
 local blobsToStr = numo9_blobs.blobsToStr
 
 local numo9_video = require 'numo9.video'
@@ -217,7 +218,7 @@ function App:initGL()
 	do
 		--DEBUG:print(RAM.code)
 		print(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
-		print(('ROM size: 0x%x'):format(ffi.sizeof'ROM'))
+		print(('ROM size: 0x%x'):format(self.memSize - ffi.sizeof'RAM'))
 
 		--[[
 		for _,field in ipairs(ROM.fields[2].type.fields) do
@@ -238,6 +239,7 @@ function App:initGL()
 		print'- ROM -'
 		for i=0,self.ram.blobCount-1 do
 			local blobEntry = self.ram.blobEntries + i
+			local name = assert.index(blobClassNameForType, blobEntry.type)
 			print(('0x%06x - 0x%06x = '):format(blobEntry.addr, blobEntry.addr + blobEntry.size)..name)
 		end
 		print('system dedicated '..('0x%x'):format(ffi.sizeof(self.holdram))..' of RAM')

@@ -209,13 +209,15 @@ or cmd == 'r' then
 					p = p + 1
 				end
 				assert.eq(p, data + len)
-				-- build a AudioWav here
-				sfxs[i] = blobClassForName.sfx(setmetatable(AudioWav, {
-					channels = 1,
+				-- build a AudioWAV here
+				local datastr = ffi.string(data, ffi.sizeof(audioSampleType) * len)
+				blobs.sfx[i] = blobClassForName.sfx(setmetatable({
 					ctype = audioSampleType,
+					channels = 1,
+					data = datastr,
+					size = #datastr,
 					freq = audioSampleRate,
-					data = ffi.string(data, ffi.sizeof(audioSampleType) * len)
-				}))
+				}, AudioWAV))
 			end
 		end
 	end
@@ -583,7 +585,6 @@ print('toImage', name, 'width', width, 'height', height)
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
-	local sfxs = table()
 	do
 		-- [[ also in audio/test/test.lua ... consider consolidating
 		local function sinewave(t)
@@ -815,10 +816,6 @@ print('toImage', name, 'width', width, 'height', height)
 			--]]
 
 			if #sfxNotes > 0 then
-
-				-- no notes = no sound file ...
-				sfxs[sfxIndexPlusOne] = sfx
-
 				--[[
 				TODO here write out an equivalent of our "spc"-ish commands for playing back our "sfx" i mean waveforms
 				or midi-ish ... idk
