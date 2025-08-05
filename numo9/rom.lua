@@ -52,7 +52,7 @@ local fontImageSize = vec2i(fontImageSizeInTiles.x * spriteSize.x, fontImageSize
 local fontSizeInBytes = fontImageSize:volume()	-- 8 bytes per char, 256 chars
 local menuFontWidth = 5
 
-local codeSize = 0x10000	-- tic80's size ... but with my langfix shorthands like pico8 has
+local addrType = 'uint32_t'	-- 4GB max addr
 
 --local audioSampleType = 'uint8_t'
 local audioSampleType = 'int16_t'
@@ -123,96 +123,36 @@ local SFXHeader = struct{
 	},
 }
 
---[==[ not used anymore
-local ROM = struct{
-	name = 'ROM',
-	union = true,
-	fields = {
-		{name='v', type='uint8_t[1]', no_iter=true},
-		{type=struct{
-			anonymous = true,
-			packed = true,
-			fields = {
-
-				--[[
-				tempting to split up ROM/"bank" into individual unit sizes dedicated to thinks like vram etc ...
-				maybe 64k units ...
-				- spritesheet	\_ same really, just one for the tilemap and one for the sprite renderer
-				- tilesheet		/
-				- tilemap
-				- audio
-				- code
-				- misc ... where palette, font, etc would go
-
-				and then in the ROM meta-info (which I don't have yet) flag banks as VRAM or not
-				and if they're VRAM then make a texture w/dirty bits etc.
-				and then give spr() and map() an extra byte var for specifying which sheet to use.
+-- [[ audio stuff
+-- sfxs should have -start addr -loop addr (what to play next ... any addr in audio ram)
+-- so my sfx == pico8/tic80's waveforms
+-- tempting to store this all with BRR... that will reduce the size by 32/9 ~ 3.555x
+-- should I put the end-addr/length here, or should I store it as a first byte of the waveform data?
+-- put here = more space, but leaves sequences of waveforms contiguous so we can point into the lump sum of all samples without worrying about dodging other data
+-- put there = halves the space of this array.  if you want one track for hte whole of audio RAM then you only store one 'length' value.
 
 
-				... but then when specifying spr() or map() sheet,
-				should I use some internal order (0=sprite 1=tile) or should I just pass the bank?
-				Bank = more flexible, but if I choose that then how should I know which banks to associate GPU textures with?
-					and if I do a GPU tex per bank, does that throw out the idea of making the GPU tex relocatable to anywhere in memory?
+-- playback information for sfx
+-- so my music == pico8/tic80's sfx ... and rlly their music is just some small references to start loop / end loop of their sfx.
 
-				Or I should use only 2 ... one for spr() renderer, one for map() renderer, and let either be relocatable.
-				Nah.  For flexibility and for tic80 compat, I should have more than just 2, and should probably not include the font ...
-				--]]
+--[[
+music format:
+uint16_t beatsPerSecond;
+struct {
+	uint16_t beatsDelayUntilIssuingDeltaCmds;
+	struct {
+		uint8_t ofs;
+		uint8_t val;
+	} deltaCmdsPerFrame[];
+	-- ofs=0xff val=0xff represents the end of the delta-cmd frame
+	-- ofs=0xfe val=track # means jump to music track specified in the next uint16_t
+} notes[];
+--]]
+-- TODO effects and loops and stuff ...
 
-				-- [[ video stuff
-				{name='spriteSheet', type='uint8_t['..spriteSheetSize:volume()..']'},	-- 64k
-				{name='tileSheet', type='uint8_t['..spriteSheetSize:volume()..']'},		-- 64k
-				{name='tilemap', type='uint16_t['..tilemapSize:volume()..']'},			-- 128k
-
-				{name='palette', type='uint16_t['..paletteSize..']'},					-- 0.5k
-				{name='font', type='uint8_t['..fontSizeInBytes..']'},					-- 2k
-				--]]
-
-				-- I'm chopping ROM things into 64k banks
-				-- but the palette and font are small and dont fit
-				-- so their bank has lots of extra room
-				{name='extra', type='uint8_t[' .. 0xf600 .. ']'},				-- 61.5k
-
-				-- [[ audio stuff
-				-- sfxs should have -start addr -loop addr (what to play next ... any addr in audio ram)
-				-- so my sfx == pico8/tic80's waveforms
-				-- tempting to store this all with BRR... that will reduce the size by 32/9 ~ 3.555x
-				-- should I put the end-addr/length here, or should I store it as a first byte of the waveform data?
-				-- put here = more space, but leaves sequences of waveforms contiguous so we can point into the lump sum of all samples without worrying about dodging other data
-				-- put there = halves the space of this array.  if you want one track for hte whole of audio RAM then you only store one 'length' value.
-				{name='sfxAddrs', type='SFXHeader['..sfxTableSize..']'},					-- 1k
-
-				-- playback information for sfx
-				-- so my music == pico8/tic80's sfx ... and rlly their music is just some small references to start loop / end loop of their sfx.
-
-				--[[
-				music format:
-				uint16_t beatsPerSecond;
-				struct {
-					uint16_t beatsDelayUntilIssuingDeltaCmds;
-					struct {
-						uint8_t ofs;
-						uint8_t val;
-					} deltaCmdsPerFrame[];
-					-- ofs=0xff val=0xff represents the end of the delta-cmd frame
-					-- ofs=0xfe val=track # means jump to music track specified in the next uint16_t
-				} notes[];
-				--]]
-				-- TODO effects and loops and stuff ...
-				{name='musicAddrs', type='AddrLen['..musicTableSize..']'},				-- 1k
-
-				-- this is a combination of the sfx and the music data
-				-- sfx is just int16_t samples
-				-- technically I should be cutting the addrs out of the 64kb
-				{name='audioData', type='uint8_t['..audioDataSize..']'},				-- 61.5k
-				--]]
-
-				{name='code', type='uint8_t['..codeSize..']'},							-- 64k
-			},
-		}},
-	},
-}
---]==]
-
+-- this is a combination of the sfx and the music data
+-- sfx is just int16_t samples
+-- technically I should be cutting the addrs out of the 64kb
 
 --[[
 music format ...
@@ -314,8 +254,8 @@ local Numo9MusicPlaying = struct{
 	fields = {
 		{name='isPlaying', type='uint8_t'},	-- TODO flags
 		{name='musicID', type='uint8_t'},
-		{name='addr', type='uint16_t'},
-		{name='endAddr', type='uint16_t'},
+		{name='addr', type=addrType},
+		{name='endAddr', type=addrType},
 		{name='sampleFramesPerBeat', type='uint16_t'},	-- this should be sampleFramesPerSecond / musicTable[musicID].addr's first uint16_t ...
 		{name='sampleFrameIndex', type='uint32_t'},			-- which sample-frame # the music is currently on
 		{name='nextBeatSampleFrameIndex', type='uint32_t'},	-- which sample-frame # the music will next execute a beat instructions on
@@ -338,16 +278,14 @@ local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
 -- make sure we can index all our sfx in the table
 --assert.le(sfxTableSize, maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)))
 
-local addrType = 'uint32_t'	-- 4GB max addr
-
-local blobCountType = require 'numo9.rom'.addrType
+local blobCountType = addrType
 
 local BlobEntry = struct{
 	name = 'BlobEntry',
 	fields = {
 		{name='type', type='uint32_t'},
-		{name='addr', type='uint32_t'},
-		{name='size', type='uint32_t'},
+		{name='addr', type=addrType},
+		{name='size', type=addrType},
 	},
 }
 
@@ -508,7 +446,6 @@ return {
 	fontImageSize = fontImageSize,
 	fontImageSizeInTiles = fontImageSizeInTiles,
 	menuFontWidth = menuFontWidth,
-	codeSize = codeSize,
 	mvMatScale = mvMatScale,
 	keyPressFlagSize = keyPressFlagSize,
 	keyCount = keyCount,

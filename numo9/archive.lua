@@ -23,11 +23,10 @@ local Image = require 'image'
 local zlib = require 'ffi.req' 'zlib'	-- TODO maybe ... use libzip if we're storing a compressed collection of files ... but doing this would push back the conversion of files<->ROM into the application openROM() function ...
 
 local numo9_rom = require 'numo9.rom'
-local codeSize = numo9_rom.codeSize
 local audioDataSize = numo9_rom.audioDataSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
-local sizeofRAMWithoutROM = num9_rom.sizeofRAMWithoutROM
+local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
