@@ -83,12 +83,12 @@ function EditSheet:update()
 	EditSheet.super.update(self)
 
 	self:guiSpinner(80, 0, function(dx)
-		self.sheetBlobIndex = math.clamp(self.sheetBlobIndex + dx, 1, #(app.blobs.sheet or {}))
+		self.sheetBlobIndex = math.clamp(self.sheetBlobIndex + dx, 1, #app.blobs.sheet)
 	end, 'sheet #'..self.sheetBlobIndex)
 -- TODO +- to grow/shrink blob count
 
 	self:guiSpinner(92, 0, function(dx)
-		self.paletteBlobIndex = math.clamp(self.paletteBlobIndex + dx, 1, #(app.blobs.palette or {}))
+		self.paletteBlobIndex = math.clamp(self.paletteBlobIndex + dx, 1, #app.blobs.palette)
 	end, 'palette #'..self.paletteBlobIndex)
 -- TODO +- to grow/shrink blob count
 

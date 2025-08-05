@@ -76,7 +76,7 @@ function EditTilemap:update()
 	local y = 0
 
 	self:guiSpinner(x, y, function(dx)
-		self.tilemapBlobIndex = math.clamp(self.tilemapBlobIndex + dx, 1, #(app.blobs.tilemap or {}))
+		self.tilemapBlobIndex = math.clamp(self.tilemapBlobIndex + dx, 1, #app.blobs.tilemap)
 	end, 'blob='..self.tilemapBlobIndex)
 	x = x + 16
 

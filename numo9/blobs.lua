@@ -552,11 +552,18 @@ for blobClassName,blobClass in pairs(blobClassForName) do
 end
 
 
+local function makeEmptyBlobs()
+	return blobClassNameForType:mapi(function(name)
+		return table(), name
+	end):setmetatable(nil)
+end
+
+
 local AppBlobs = {}
 
 function AppBlobs:initBlobs()
 --DEBUG:print('AppBlobs:initBlobs...')
-	self.blobs = {}
+	self.blobs = makeEmptyBlobs()
 
 	--self:addBlob'code'	-- don't init empty code blobs ...
 	self:addBlob'sheet'
@@ -672,7 +679,7 @@ end
 local function byteArrayToBlobs(ptr, size)
 --DEBUG:print('byteArrayToBlobs begin...')
 	local ram = ffi.cast('RAM&', ptr)
-	local blobs = {}
+	local blobs = makeEmptyBlobs()
 	for index=0,ram.blobCount-1 do
 		local blobEntryPtr = ram.blobEntries + index
 		assert.le(0, blobEntryPtr.addr)
@@ -736,4 +743,5 @@ return {
 	byteArrayToBlobs = byteArrayToBlobs,
 	blobsToStr = blobsToStr,
 	strToBlobs = strToBlobs,
+	makeEmptyBlobs = makeEmptyBlobs,
 }
