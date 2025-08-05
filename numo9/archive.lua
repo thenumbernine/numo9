@@ -104,8 +104,9 @@ local function cartImageToBlobStr(cartImgData)
 	local blobsAsStr = zlib.uncompressLua(blobsCompressed)
 --DEBUG:print('blob data length, decompressed: '..('0x%x'):format(#blobsAsStr))
 
-	-- pad the RAM portion
-	blobsAsStr = (' '):rep(sizeofRAMWithoutROM) .. blobsAsStr
+	-- TODO pad the RAM portion
+	-- and remove it when saving?
+	--blobsAsStr = (' '):rep(sizeofRAMWithoutROM) .. blobsAsStr
 
 	return blobsAsStr 
 end

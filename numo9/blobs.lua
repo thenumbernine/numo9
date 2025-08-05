@@ -26,6 +26,8 @@ local audioSampleRate = numo9_rom.audioSampleRate
 
 local numo9_video = require 'numo9.video'
 local resetBlobFont = numo9_video.resetBlobFont
+local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
+local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
 
 -- maps from type-index to name
 local blobClassNameForType = table{
@@ -154,6 +156,10 @@ function BlobCode:loadFile(filepath, basepath)
 
 	return BlobCode(code)
 end
+-- static method:
+function BlobCode:loadBinStr(data)
+	return BlobCode(data)
+end
 
 
 local BlobSheet = blobSubclass'sheet'
@@ -195,8 +201,15 @@ end
 -- static method:
 function BlobSheet:loadFile(filepath)
 	print'loading sprite sheet...'
-	local image = assert(Image(filepath.path))
+	local image = Image(filepath.path)
 	return BlobSheet(image)
+end
+-- static method:
+function BlobSheet:loadBinStr(data)
+	local image = self:makeImage()
+	assert.eq(#data, image:getBufferSize())
+	ffi.copy(image.buffer, data, image:getBufferSize())
+	return self.class(image)
 end
 
 
@@ -275,6 +288,13 @@ function BlobTileMap:loadFile(filepath)
 		end
 	end
 	return BlobTileMap(blobImg)
+end
+-- static method:
+function BlobTileMap:loadBinStr(data)
+	local image = self:makeImage()
+	assert.eq(#data, image:getBufferSize())
+	ffi.copy(image.buffer, data, image:getBufferSize())
+	return self.class(image)
 end
 
 
@@ -357,6 +377,13 @@ function BlobPalette:loadFile(filepath)
 	end
 	return BlobPalette(blobImage)
 end
+-- static method:
+function BlobPalette:loadBinStr(data)
+	local image = self:makeImage()
+	assert.eq(#data, image:getBufferSize())
+	ffi.copy(image.buffer, data, image:getBufferSize())
+	return self.class(image)
+end
 
 
 local BlobFont = blobSubclass'font'
@@ -420,6 +447,13 @@ function BlobFont:loadFile(filepath)
 	resetBlobFont(blob:getPtr(), filepath.path)
 	return blob
 end
+-- static method:
+function BlobFont:loadBinStr(data)
+	local image = self:makeImage()
+	assert.eq(#data, image:getBufferSize())
+	ffi.copy(image.buffer, data, image:getBufferSize())
+	return self.class(image)
+end
 
 
 local BlobSFX = blobSubclass'sfx'
@@ -456,6 +490,17 @@ function BlobSFX:loadFile(filepath, basepath, blobNo)
 
 	return blobSFX
 end
+-- static method:
+function BlobSFX:loadBinStr(data)
+	return self.class{
+		ctype = audioSampleType,
+		channels = 1,
+		data = data,
+		size = #data,
+		freq = audioSampleRate,
+	}
+end
+
 
 local BlobMusic = blobSubclass'music'
 BlobMusic.filenamePrefix = 'music'
@@ -472,7 +517,11 @@ function BlobMusic:getSize()
 end
 -- static method:
 function BlobMusic:loadFile(filepath)
-	return BlobMusic(filepath:read())
+	return self.class(filepath:read())
+end
+-- static method:
+function BlobMusic:loadBinStr(data)
+	return self.class(data)
 end
 
 
@@ -480,17 +529,31 @@ local BlobBrush = blobSubclass'brush'
 BlobBrush.filenamePrefix = 'brush'
 BlobBrush.filenameSuffix = '.lua'
 function BlobBrush:init(data)
-	-- TODO
+	self.data = assert(data)
 end
-
+-- static method:
+function BlobBrush:loadFile(filepath)
+	return self.class(filepath:read())
+end
+-- static method:
+function BlobBrush:loadBinStr(data)
+	return self.class(data)
+end
 
 local BlobBrushMap = blobSubclass'brushmap'
 BlobBrushMap.filenamePrefix = 'brushmap'
 BlobBrushMap.filenameSuffix = '.lua'
 function BlobBrushMap:init(data)
-	-- TODO
+	self.data = assert(data)
 end
-
+-- static method:
+function BlobBrushMap:loadFile(filepath)
+	return self.class(filepath:read())
+end
+-- static method:
+function BlobBrushMap:loadBinStr(data)
+	return self.class(data)
+end
 
 local blobClassForType = {}
 for blobClassName,blobClass in pairs(blobClassForName) do
@@ -502,6 +565,7 @@ end
 local AppBlobs = {}
 
 function AppBlobs:initBlobs()
+print('AppBlobs:initBlobs...')
 	self.blobs = {}
 
 	--self:addBlob'code'	-- don't init empty code blobs ...
@@ -512,6 +576,7 @@ function AppBlobs:initBlobs()
 	self:addBlob'font'
 
 	self:buildRAMFromBlobs()
+print('...done AppBlobs:initBlobs')
 end
 
 function AppBlobs:addBlob(blobClassName)
@@ -524,6 +589,7 @@ end
 -- used by buildRAMFromBlobs for allocating self.memSize, self.holdram, self.ram
 -- or by blobsToCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
 local function blobsToByteArray(blobs)
+print('blobsToByteArray...')	
 	local allBlobs = table()
 	for _,blobClassName in ipairs(table.keys(blobs):sort(function(a,b)
 		return blobTypeForClassName[a] < blobTypeForClassName[b]
@@ -558,7 +624,7 @@ print(('memSize = 0x%0x'):format(memSize))
 		local addr = ramptr - ram.v
 		local blobSize = blob:getSize()
 		assert.lt(0, blobSize, "I don't support empty blobs, found one for type "..tostring(blob.name))
-print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize))
+print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize)..' type '..blob.name)
 		assert.le(0, addr)
 		assert.lt(addr, memSize)
 		blobEntryPtr.type = blob.type
@@ -585,6 +651,7 @@ print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr
 	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
 	-- and the editor would edit the ROM ...
 
+print('...done blobsToByteArray')	
 	return {
 		memSize = memSize,
 		holdram = holdram,
@@ -602,10 +669,11 @@ local function byteArrayToBlobs(ptr, size)
 		assert.le(0, blobEntryPtr.addr)
 		assert.le(blobEntryPtr.addr + blobEntryPtr.size, size)
 		local blobClass = assert.index(blobClassForType, blobEntryPtr.type)
+		local blobClassName = blobClass.name
 		local blobData = ffi.string(ram.v + blobEntryPtr.addr, blobEntryPtr.size)
-		local blob = blobClass(blobData)
-		blobs[blobEntryPtr.type] = blobs[blobEntryPtr.type] or table()
-		blobs[blobsEntryPtr.type]:insert(blob)
+		local blob = blobClass:loadBinStr(blobData)
+		blobs[blobClassName] = blobs[blobClassName] or table()
+		blobs[blobClassName]:insert(blob)
 	end
 	return blobs
 end
@@ -651,6 +719,7 @@ return {
 	BlobEntry = BlobEntry,
 	blobClassNameForType = blobClassNameForType,
 	blobClassForName = blobClassForName,
+	blobTypeForClassName = blobTypeForClassName,
 	blobsToByteArray = blobsToByteArray,
 	byteArrayToBlobs = byteArrayToBlobs,
 	blobsToStr = blobsToStr,

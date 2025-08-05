@@ -24,7 +24,6 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
 local paletteSize = numo9_rom.paletteSize
-local paletteInBytes = numo9_rom.paletteInBytes
 local palettePtrType = numo9_rom.palettePtrType
 local fontImageSize = numo9_rom.fontImageSize
 local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
