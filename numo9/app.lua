@@ -1009,7 +1009,7 @@ print('package.loaded', package.loaded)
 	self.editMode = 'code'	-- matches up with UI's editMode's
 
 	local EditCode = require 'numo9.editcode'
-	local EditSprites = require 'numo9.editsprites'
+	local EditSheet = require 'numo9.editsheet'
 	local EditTilemap = require 'numo9.edittilemap'
 	local EditSFX = require 'numo9.editsfx'
 	local EditMusic = require 'numo9.editmusic'
@@ -1023,7 +1023,7 @@ print('package.loaded', package.loaded)
 	self:setClipRect(0, 0, clipMax, clipMax)
 
 	self.editCode = EditCode{app=self}
-	self.editSprites = EditSprites{app=self}
+	self.editSheet = EditSheet{app=self}
 	self.editTilemap = EditTilemap{app=self}
 	self.editSFX = EditSFX{app=self}
 	self.editMusic = EditMusic{app=self}

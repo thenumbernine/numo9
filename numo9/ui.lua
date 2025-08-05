@@ -27,20 +27,21 @@ local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 local editModes = table{
 	'code',
-	'sprites',
+	'sheet',
 	'tilemap',
-	'brushes',
 	'sfx',
 	'music',
+	'brush',
+	--'brushmap',
 }
 
 local editFieldForMode = {
 	code = 'editCode',
-	sprites = 'editSprites',
+	sheet = 'editSheet',
 	tilemap = 'editTilemap',
 	sfx = 'editSFX',
 	music = 'editMusic',
-	brushes = 'editBrushes',
+	brush = 'editBrushes',
 }
 
 

@@ -106,9 +106,6 @@ end
 BlobCode.filename = 'code$.lua'
 BlobCode.filenamePrefix = 'code'
 BlobCode.filenameSuffix = '.lua'
-function BlobCode:getFileName(blobNo)
-	return 'code'..(blobNo == 1 and '' or blobNo)..'.lua'
-end
 function BlobCode:saveFile(filepath)
 	print'saving code...'
 	local code = self.data
@@ -187,9 +184,6 @@ function BlobSheet:getSize()
 end
 BlobSheet.filenamePrefix = 'sheet'
 BlobSheet.filenameSuffix = '.png'
-function BlobSheet:getFileName(blobNo)
-	return 'sheet'..(blobNo == 1 and '' or blobNo)..'.png'
-end
 function BlobSheet:saveFile(filepath, blobs)
 	print'saving sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
@@ -238,15 +232,12 @@ function BlobTileMap:getSize()
 end
 BlobTileMap.filenamePrefix = 'tilemap'
 BlobTileMap.filenameSuffix = '.png'
-function BlobTileMap:getFileName(blobNo)
-	return 'tilemap'..(blobNo == 1 and '' or blobNo)..'.png'
-end
 function BlobTileMap:saveFile(filepath)
 	print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
 	local saveImg = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
 	local blobPtr = self:getPtr()
-	local savePtr = saveImg.buffer
+	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
 	for y=0,tilemapSize.y-1 do
 		for x=0,tilemapSize.x-1 do
 			savePtr[0] = blobPtr[0]
@@ -271,10 +262,10 @@ function BlobTileMap:loadFile(filepath)
 	assert.eq(loadImg.height, tilemapSize.y)
 	assert.eq(loadImg.channels, 3)
 	assert.eq(ffi.sizeof(loadImg.format), 1)
+	local loadPtr = ffi.cast('uint8_t*', loadImg.buffer)
 
 	local blobImg = self:makeImage()
 	local blobPtr = ffi.cast('uint8_t*', blobImg.buffer)
-	local loadPtr = loadImg.buffer
 	for y=0,tilemapSize.y-1 do
 		for x=0,tilemapSize.x-1 do
 			blobPtr[0] = loadPtr[0]
@@ -299,6 +290,9 @@ function BlobTileMap:loadBinStr(data)
 end
 
 
+assert.eq(paletteType, 'uint16_t')
+assert.eq(paletteSize, 256)
+assert.eq(paletteInBytes, 512)
 local BlobPalette = blobSubclass'palette'
 -- static method:
 function BlobPalette:makeImage()
@@ -323,14 +317,11 @@ function BlobPalette:getSize()
 end
 BlobPalette.filenamePrefix = 'palette'
 BlobPalette.filenameSuffix = '.png'
-function BlobPalette:getFileName(blobNo)
-	return 'palette'..(blobNo == 1 and '' or blobNo)..'.png'
-end
 function BlobPalette:saveFile(filepath)
 	print'saving palette...'
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
 	local saveImg = Image(16, 16, 4, 'uint8_t')
-	local savePtr = saveImg.buffer
+	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
 	local blobPtr = ffi.cast('uint16_t*', self:getPtr())
 	for y=0,15 do
 		for x=0,15 do
@@ -360,8 +351,8 @@ function BlobPalette:loadFile(filepath)
 	assert.eq(loadImg.height, 16)
 	assert.eq(loadImg.channels, 4)
 	assert.eq(ffi.sizeof(loadImg.format), 1)
+	local loadPtr = ffi.cast('uint8_t*', loadImg.buffer)
 
-	local loadPtr = loadImg.buffer
 	local blobImg = self:makeImage()
 	local blobPtr = ffi.cast('uint16_t*', blobImg.buffer)
 	for y=0,15 do
@@ -411,9 +402,6 @@ function BlobFont:getSize()
 end
 BlobFont.filenamePrefix = 'font'
 BlobFont.filenameSuffix = '.png'
-function BlobFont:getFileName(blobNo)
-	return 'font'..(blobNo == 1 and '' or blobNo)..'.png'
-end
 function BlobFont:saveFile(filepath)
 	print'saving font...'
 	local saveImg = Image(256, 64, 1, 'uint8_t')
