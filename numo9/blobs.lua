@@ -236,8 +236,8 @@ function BlobTileMap:saveFile(filepath)
 	print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
 	local saveImg = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
-	local blobPtr = self:getPtr()
 	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
+	local blobPtr = self:getPtr()
 	for y=0,tilemapSize.y-1 do
 		for x=0,tilemapSize.x-1 do
 			savePtr[0] = blobPtr[0]
