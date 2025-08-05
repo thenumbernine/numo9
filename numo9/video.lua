@@ -2115,7 +2115,7 @@ function AppVideo:resetGFX()
 	local paletteBlob = self.blobs.palette and self.blobs.palette[1]
 -- TODO ensure there's at least one?
 	if paletteBlob then
-		resetBlobPalette(paletteBlob.ramptr)
+		resetPalette(paletteBlob.ramptr)
 		ffi.copy(paletteBlob:getPtr(), paletteBlob.ramptr, paletteBlob:getSize())
 	end
 	self.paletteRAM.dirtyCPU = true
