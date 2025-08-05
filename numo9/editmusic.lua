@@ -49,10 +49,7 @@ end
 
 function EditMusic:refreshSelectedMusic()
 	local app = self.app
-	if not app.blobs.music then
-		-- TODO allow +/- music blob in the UI at least
-		return
-	end
+	if #app.blobs.music == 0 then return end
 	local selMusicBlob = app.blobs.music[self.musicBlobIndex]
 
 	local channels = ffi.new('Numo9Channel[?]', audioMixChannels)
@@ -162,7 +159,7 @@ function EditMusic:update()
 	local x, y = 80, 0
 	self:guiSpinner(x, y, function(dx)
 		stop()
-		self.musicBlobIndex = math.clamp(self.musicBlobIndex + dx, 1, #(app.blobs.music or {}))
+		self.musicBlobIndex = math.clamp(self.musicBlobIndex + dx, 1, #app.blobs.music)
 	end, 'blob='..self.musicBlobIndex)
 	x = x + 16
 

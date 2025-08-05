@@ -1729,7 +1729,7 @@ end
 -- TODO just merge RAMGPU with blobs?  though I don't want RAMGPUs for blobs other than those that are assigned to app.blobs ... (i.e. for archiving to/from cart etc)
 function AppVideo:resizeRAMGPUs()
 --DEBUG:print'AppVideo:resizeRAMGPUs'
-	local sheetBlobs = self.blobs.sheet or {}
+	local sheetBlobs = self.blobs.sheet
 	for i=#sheetBlobs+1,#self.sheetRAMs do
 		self.sheetRAMs[i] = nil
 	end
@@ -1751,7 +1751,7 @@ function AppVideo:resizeRAMGPUs()
 		end
 	end
 
-	local tileMapBlobs = self.blobs.tilemap or {}
+	local tileMapBlobs = self.blobs.tilemap
 	for i=#tileMapBlobs+1,#self.tilemapRAMs do
 		self.tilemapRAMs[i] = nil
 	end
@@ -1782,7 +1782,7 @@ function AppVideo:resizeRAMGPUs()
 		end
 	end
 
-	local paletteBlobs = self.blobs.palette or {}
+	local paletteBlobs = self.blobs.palette
 	for i=#paletteBlobs+1,#self.paletteRAMs do
 		self.paletteRAMs[i] = nil
 	end
@@ -1806,7 +1806,7 @@ function AppVideo:resizeRAMGPUs()
 		end
 	end
 
-	local fontBlobs = self.blobs.font or {}
+	local fontBlobs = self.blobs.font
 	for i=#fontBlobs+1,#self.fontRAMs do
 		self.fontRAMs[i] = nil
 	end

@@ -1408,7 +1408,7 @@ function App:net_mset(x, y, value, tilemapBlobIndex)
 	value = ffi.cast('uint16_t', value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
-	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #(self.blobs.tilemap or {})
+	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
 	then
 		local addr = self.tilemapRAMs[tilemapBlobIndex+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		-- use poke over netplay, cuz i'm lazy.
@@ -1434,7 +1434,7 @@ function App:mget(x, y, tilemapBlobIndex)
 	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))	-- or 0
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
-	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #(self.blobs.tilemap or {})
+	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
 	then
 		local addr = self.tilemapRAMs[tilemapBlobIndex+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		return self:peekw(addr)
@@ -2490,8 +2490,7 @@ print('App:openROM', filename)
 
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 
-	if self.blobs.code then
-		assert.ge(#self.blobs.code, 1)
+	if #self.blobs.code > 0 then
 		self.editCode:setText(self.blobs.code[1].data)
 	else
 		self.editCode:setText('')

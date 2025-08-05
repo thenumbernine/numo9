@@ -148,10 +148,8 @@ it's called ...
 function AppAudio:resetAudio()
 --[[
 	for _,field in ipairs{'sfx', 'music'} do
-		if self.blobs[field] then
-			for indexPlusOne,blob in ipairs(self.blobs[field]) do
-				print(field..' #'..(indexPlusOne-1)..' addr='..blob.addr..' size='..blob:getSize())
-			end
+		for indexPlusOne,blob in ipairs(self.blobs[field]) do
+			print(field..' #'..(indexPlusOne-1)..' addr='..blob.addr..' size='..blob:getSize())
 		end
 	end
 --]]

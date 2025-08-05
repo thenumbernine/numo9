@@ -455,10 +455,10 @@ local musicTableSize = numo9_rom.musicTableSize
 function UI:calculateAudioSize()
 	local app = self.app
 	self.totalAudioBytes = 0
-	for _,blob in ipairs(app.blobs.sfx or {}) do
+	for _,blob in ipairs(app.blobs.sfx) do
 		self.totalAudioBytes = self.totalAudioBytes + blob:getSize()
 	end
-	for _,blob in ipairs(app.blobs.music or {}) do
+	for _,blob in ipairs(app.blobs.music) do
 		self.totalAudioBytes = self.totalAudioBytes + blob:getSize()
 	end
 end

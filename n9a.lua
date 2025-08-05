@@ -47,6 +47,7 @@ local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
+local makeEmptyBlobs = numo9_blobs.makeEmptyBlobs
 
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
 -- A4=440hz, so A[-1]=13.75hz, so C0 is 3 half-steps higher than A[-1] = 2^(3/12) * 13.75 = 16.351597831287 hz ...
@@ -110,7 +111,7 @@ elseif cmd == 'a' or cmd == 'r' then
 
 	assert(basepath:isdir())
 
-	local blobs = {}
+	local blobs = makeEmptyBlobs()
 	for blobTypeName,blobClass in pairs(blobClassForName) do
 		local blobsForType
 		for blobNo=1,math.huge do
@@ -125,19 +126,19 @@ print('found!')
 		blobs[blobTypeName] = blobsForType
 	end
 
-	if not blobs.palette then
+	if #blobs.palette == 0 then
 print'!!! creating default palette blob !!!'
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if pal.png doens't exist then load the default at least
 		local blob = blobClassForName.palette()
 		resetBlobPalette(blob)
-		blobs.palette = table{blob}
+		blobs.palette:insert(blob)
 	end
-	if not blobs.font then
+	if #blobs.font == 0 then
 print'creating default font blob'		
 		local blob = blobClassForName.font()
 		resetBlobFont(blob:getPtr())
-		blobs.font = table{blob}
+		blobs.font:insert(blob)
 	end
 
 	-- load sfx into audio memory
@@ -198,7 +199,6 @@ print'creating default font blob'
 		}
 
 	
-		if not blobs.sfx then blobs.sfx = table() end
 		for i,f in ipairs(wavefuncs) do
 			if not blobs.sfx[i] then
 print('creating default sfx '..i..' blob')
