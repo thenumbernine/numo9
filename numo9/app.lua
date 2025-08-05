@@ -377,9 +377,9 @@ function App:initGL()
 
 		pal = function(colorIndex, value)
 			if value then
-				return self:net_pokew(self.paletteRAM.addr + bit.lshift(colorIndex, 1), value)
+				return self:net_pokew(self.paletteRAMs[1].addr + bit.lshift(colorIndex, 1), value)
 			else
-				return self:peekw(self.paletteRAM.addr + bit.lshift(colorIndex, 1))
+				return self:peekw(self.paletteRAMs[1].addr + bit.lshift(colorIndex, 1))
 			end
 		end,
 
@@ -826,14 +826,14 @@ function App:initGL()
 		romaddr = function(name, index)
 			local blobsForType = self.blobs[name]
 			if not blobsForType then return end
-			local blob = blobsForType[index+1]
+			local blob = blobsForType[toint(index)+1]
 			if not blob then return end
 			return blob.addr
 		end,
 		romsize = function(name, index)
 			local blobsForType = self.blobs[name]
 			if not blobsForType then return end
-			local blob = blobsForType[index+1]
+			local blob = blobsForType[toint(index)+1]
 			if not blob then return end
 			return blob:getSize()
 		end,
@@ -1667,29 +1667,35 @@ conn.receivesPerSecond = 0
 
 		-- TODO how to handle these plus expandable ROM?  I could only have the first sheets relocatable?
 		local newSpriteSheetAddr = self.ram.spriteSheetAddr
-		if self.sheetRAMs[1].addr ~= newSpriteSheetAddr then
+		if self.sheetRAMs[1]
+		and self.sheetRAMs[1].addr ~= newSpriteSheetAddr
+		then
 --DEBUG:print'updating sheetRAMs[1] addr'
 			self.sheetRAMs[1]:updateAddr(newSpriteSheetAddr)
 		end
 		local newTileSheetAddr = self.ram.tileSheetAddr
-		if self.sheetRAMs[2].addr ~= newTileSheetAddr then
+		if self.sheetRAMs[2]
+		and self.sheetRAMs[2].addr ~= newTileSheetAddr
+		then
 --DEBUG:print'updating sheetRAMs[2] addr'
 			self.sheetRAMs[2]:updateAddr(newTileSheetAddr)
 		end
 		local newTilemapAddr = self.ram.tilemapAddr
-		if self.tilemapRAMs[1].addr ~= newTilemapAddr then
+		if self.tilemapRAMs[1]
+		and self.tilemapRAMs[1].addr ~= newTilemapAddr
+		then
 --DEBUG:print'updating tilemapRAM addr'
 			self.tilemapRAMs[1]:updateAddr(newTilemapAddr)
 		end
 		local newPaletteAddr = self.ram.paletteAddr
-		if self.paletteRAM.addr ~= newPaletteAddr then
+		if self.paletteRAMs[1].addr ~= newPaletteAddr then
 --DEBUG:print'updating paletteRAM addr'
-			self.paletteRAM:updateAddr(newPaletteAddr)
+			self.paletteRAMs[1]:updateAddr(newPaletteAddr)
 		end
 		local newFontAddr = self.ram.fontAddr
-		if self.fontRAM.addr ~= newFontAddr then
+		if self.fontRAMs[1].addr ~= newFontAddr then
 --DEBUG:print'updating fontRAM addr'
-			self.fontRAM:updateAddr(newFontAddr)
+			self.fontRAMs[1]:updateAddr(newFontAddr)
 		end
 
 		-- BIG TODO for feedback framebuffer
@@ -1697,11 +1703,11 @@ conn.receivesPerSecond = 0
 		-- in fact same if the framebuffer points to any of the other system RAM addresses, in case you want to draw to the fontWidth array or something ...
 		-- but we don't need to always be copying back from GPU to CPU ... only if any of the sheets overlap with it ...
 		-- and if any sheets intersect with it then we need to copy the GPU back to CPU ... and then set the sheets' dirtyCPU flag ...
-		local spriteSheetOverlapsFramebuffer = self.sheetRAMs[1]:overlaps(self.framebufferRAM)
-		local tileSheetOverlapsFramebuffer = self.sheetRAMs[2]:overlaps(self.framebufferRAM)
-		local tilemapOverlapsFramebuffer = self.tilemapRAMs[1]:overlaps(self.framebufferRAM)
-		local paletteOverlapsFramebuffer = self.paletteRAM:overlaps(self.framebufferRAM)
-		local fontOverlapsFramebuffer = self.fontRAM:overlaps(self.framebufferRAM)
+		local spriteSheetOverlapsFramebuffer = self.sheetRAMs[1] and self.sheetRAMs[1]:overlaps(self.framebufferRAM)
+		local tileSheetOverlapsFramebuffer = self.sheetRAMs[2] and self.sheetRAMs[2]:overlaps(self.framebufferRAM)
+		local tilemapOverlapsFramebuffer = self.tilemapRAMs[1] and self.tilemapRAMs[1]:overlaps(self.framebufferRAM)
+		local paletteOverlapsFramebuffer = self.paletteRAMs[1] and self.paletteRAMs[1]:overlaps(self.framebufferRAM)
+		local fontOverlapsFramebuffer = self.fontRAMs[1] and self.fontRAMs[1]:overlaps(self.framebufferRAM)
 		if spriteSheetOverlapsFramebuffer
 		or tileSheetOverlapsFramebuffer
 		or tilemapOverlapsFramebuffer
@@ -1713,8 +1719,8 @@ conn.receivesPerSecond = 0
 			if spriteSheetOverlapsFramebuffer then self.sheetRAMs[1].dirtyCPU = true end
 			if tileSheetOverlapsFramebuffer then self.sheetRAMs[2].dirtyCPU = true end
 			if tilemapOverlapsFramebuffer then self.tilemapRAMs[1].dirtyCPU = true end
-			if paletteOverlapsFramebuffer then self.paletteRAM.dirtyCPU = true end
-			if fontOverlapsFramebuffer then self.fontRAM.dirtyCPU = true end
+			if paletteOverlapsFramebuffer then self.paletteRAMs[1].dirtyCPU = true end
+			if fontOverlapsFramebuffer then self.fontRAMs[1].dirtyCPU = true end
 		end
 
 		-- erm when would this happen?
@@ -1839,8 +1845,8 @@ print('run thread dead')
 			-- default draw calls will use the paletteMenuTex
 			-- and special calls will use the paletteRAM
 			-- TODO this needs to be a paletteRAM replacement ...
-			--local pushPaletteRAM = self.paletteRAM
-			--self.paletteRAM = {tex = self.paletteMenuTex}
+			--local pushPaletteRAM = self.paletteRAMs[1]
+			--self.paletteRAMs[1] = {tex = self.paletteMenuTex}
 
 			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
 			self:setClipRect(0, 0, clipMax, clipMax)
@@ -1885,7 +1891,7 @@ print('run thread dead')
 			self.triBuf:flush()
 
 			-- restore palettes
-			--self.paletteRAM = pushPaletteRAM
+			--self.paletteRAMs[1] = pushPaletteRAM
 
 			self:setFramebufferTex(self.framebufferRAM.tex)
 
@@ -1997,7 +2003,7 @@ print('run thread dead')
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		if self.videoModeInfo[self.ram.videoMode].format == '8bppIndex' then
-			self.paletteRAM:checkDirtyCPU()
+			self.paletteRAMs[1]:checkDirtyCPU()
 		end
 
 		gl.glViewport(0, 0, self.width, self.height)
@@ -2153,15 +2159,15 @@ function App:poke(addr, value)
 	-- 1) consolidate calls, so write this separately in pokew and pokel
 	-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
 	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
-	if addr >= self.paletteRAM.addr
-	and addr < self.paletteRAM.addrEnd
+	if addr >= self.paletteRAMs[1].addr
+	and addr < self.paletteRAMs[1].addrEnd
 	then
-		self.paletteRAM.dirtyCPU = true
+		self.paletteRAMs[1].dirtyCPU = true
 	end
-	if addr >= self.fontRAM.addr
-	and addr < self.fontRAM.addrEnd
+	if addr >= self.fontRAMs[1].addr
+	and addr < self.fontRAMs[1].addrEnd
 	then
-		self.fontRAM.dirtyCPU = true
+		self.fontRAMs[1].dirtyCPU = true
 	end
 	-- TODO if we poked the code
 end
@@ -2193,15 +2199,15 @@ function App:pokew(addr, value)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if addrend >= self.paletteRAM.addr
-	and addr < self.paletteRAM.addrEnd
+	if addrend >= self.paletteRAMs[1].addr
+	and addr < self.paletteRAMs[1].addrEnd
 	then
-		self.paletteRAM.dirtyCPU = true
+		self.paletteRAMs[1].dirtyCPU = true
 	end
-	if addrend >= self.fontRAM.addr
-	and addr < self.fontRAM.addrEnd
+	if addrend >= self.fontRAMs[1].addr
+	and addr < self.fontRAMs[1].addrEnd
 	then
-		self.fontRAM.dirtyCPU = true
+		self.fontRAMs[1].dirtyCPU = true
 	end
 	-- TODO if we poked the code
 end
@@ -2233,15 +2239,15 @@ function App:pokel(addr, value)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if addrend >= self.paletteRAM.addr
-	and addr < self.paletteRAM.addrEnd
+	if addrend >= self.paletteRAMs[1].addr
+	and addr < self.paletteRAMs[1].addrEnd
 	then
-		self.paletteRAM.dirtyCPU = true
+		self.paletteRAMs[1].dirtyCPU = true
 	end
-	if addrend >= self.fontRAM.addr
-	and addr < self.fontRAM.addrEnd
+	if addrend >= self.fontRAMs[1].addr
+	and addr < self.fontRAMs[1].addrEnd
 	then
-		self.fontRAM.dirtyCPU = true
+		self.fontRAMs[1].dirtyCPU = true
 	end
 	-- TODO if we poked the code
 end
@@ -2294,15 +2300,15 @@ function App:memcpy(dst, src, len)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if dstend >= self.paletteRAM.addr
-	and dst < self.paletteRAM.addrEnd
+	if dstend >= self.paletteRAMs[1].addr
+	and dst < self.paletteRAMs[1].addrEnd
 	then
-		self.paletteRAM.dirtyCPU = true
+		self.paletteRAMs[1].dirtyCPU = true
 	end
-	if dstend >= self.fontRAM.addr
-	and dst < self.fontRAM.addrEnd
+	if dstend >= self.fontRAMs[1].addr
+	and dst < self.fontRAMs[1].addrEnd
 	then
-		self.fontRAM.dirtyCPU = true
+		self.fontRAMs[1].dirtyCPU = true
 	end
 
 	if src < 0 then
@@ -2365,15 +2371,15 @@ function App:memset(dst, val, len)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if dstend >= self.paletteRAM.addr
-	and dst < self.paletteRAM.addrEnd
+	if dstend >= self.paletteRAMs[1].addr
+	and dst < self.paletteRAMs[1].addrEnd
 	then
-		self.paletteRAM.dirtyCPU = true
+		self.paletteRAMs[1].dirtyCPU = true
 	end
-	if dstend >= self.fontRAM.addr
-	and dst < self.fontRAM.addrEnd
+	if dstend >= self.fontRAMs[1].addr
+	and dst < self.fontRAMs[1].addrEnd
 	then
-		self.fontRAM.dirtyCPU = true
+		self.fontRAMs[1].dirtyCPU = true
 	end
 end
 
@@ -2480,7 +2486,7 @@ print('App:openROM', filename)
 
 --DEBUG:print('loaded blobs...')
 --DEBUG:for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)
---DEBUG:	return assert.index(numo9_blobs.blobTypeForClassName, a) 
+--DEBUG:	return assert.index(numo9_blobs.blobTypeForClassName, a)
 --DEBUG:		< assert.index(numo9_blobs.blobTypeForClassName, b)
 --DEBUG:end)) do
 --DEBUG:	local blobsForType = self.blobs[blobClassName]

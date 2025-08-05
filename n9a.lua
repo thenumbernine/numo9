@@ -113,17 +113,13 @@ elseif cmd == 'a' or cmd == 'r' then
 
 	local blobs = makeEmptyBlobs()
 	for blobTypeName,blobClass in pairs(blobClassForName) do
-		local blobsForType
 		for blobNo=1,math.huge do
 			local filepath = basepath(blobClass:getFileName(blobNo))
 print('searching for blob type', blobTypeName, 'index', blobNo, 'filepath', filepath)
 			if not filepath:exists() then break end
 print('found!')
-			local blob = blobClass:loadFile(filepath, basepath, blobNo)
-			blobsForType = blobsForType or table()
-			blobsForType:insert(blob)
+			blobs[blobTypeName]:insert(blobClass:loadFile(filepath, basepath, blobNo))
 		end
-		blobs[blobTypeName] = blobsForType
 	end
 
 	if #blobs.palette == 0 then

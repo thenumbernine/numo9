@@ -32,7 +32,7 @@ local randomColor = || do
 	return v.x | (v.y << 5) | (v.z << 10) | 0x8000
 end
 
-local palAddr = ramaddr'bank' + romaddr'palette'
+local palAddr = romaddr'palette'
 pokew(palAddr, 0x8000)
 pokew(palAddr + 2, 0xffff)
 for i=2,255 do
