@@ -442,7 +442,7 @@ function BlobSFX:loadFile(filepath, basepath, blobNo)
 	local blobSFX = BlobSFX(wav)
 
 	local tmp = {}
-	assert(load(bankpath('waveform'..(blobNo == 1 and '' or blobNo)..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
+	assert(load(basepath('waveform'..(blobNo == 1 and '' or blobNo)..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
 	blobSFX.loopOffset = tmp.loopOffset or 0
 
 	return blobSFX
