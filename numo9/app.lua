@@ -2478,16 +2478,15 @@ print('App:openROM', filename)
 
 	self.blobs = cartImageToBlobs(d)
 
-print('loaded blobs...')
-for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)
-	return assert.index(numo9_blobs.blobTypeForClassName, a) 
-		< assert.index(numo9_blobs.blobTypeForClassName, b)
-end)) do
-	local blobsForType = self.blobs[blobClassName]
-	print('blob type '..blobClassName..' has '..#blobsForType)
-end
-print('...done loaded blobs')
-
+--DEBUG:print('loaded blobs...')
+--DEBUG:for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)
+--DEBUG:	return assert.index(numo9_blobs.blobTypeForClassName, a) 
+--DEBUG:		< assert.index(numo9_blobs.blobTypeForClassName, b)
+--DEBUG:end)) do
+--DEBUG:	local blobsForType = self.blobs[blobClassName]
+--DEBUG:	print('blob type '..blobClassName..' has '..#blobsForType)
+--DEBUG:end
+--DEBUG:print('...done loaded blobs')
 
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 
