@@ -20,9 +20,11 @@ local paletteSize = numo9_rom.paletteSize
 local paletteType = numo9_rom.paletteType
 local paletteInBytes = numo9_rom.paletteInBytes
 local fontInBytes = numo9_rom.fontInBytes
-local fontImageSize = numo9_rom.fontImageSize 
+local fontImageSize = numo9_rom.fontImageSize
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
+local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
+local loopOffsetType = numo9_rom.loopOffsetType
 
 local numo9_video = require 'numo9.video'
 local resetBlobFont = numo9_video.resetBlobFont
@@ -69,12 +71,15 @@ function Blob:copyFromRAM()
 	assert.ne(self.ramptr, ffi.null)
 	ffi.copy(self:getPtr(), self.ramptr, self:getSize())
 end
-
 -- static method:
 function Blob:getFileName(blobNo)
 	assert.index(self, 'filenamePrefix', 'name='..self.name)
 	assert.index(self, 'filenameSuffix', 'name='..self.name)
 	return self.filenamePrefix..(blobNo == 1 and '' or blobNo)..self.filenameSuffix
+end
+-- static method:
+function Blob:loadBinStr(data)
+	return self.class(data)
 end
 
 
@@ -117,7 +122,7 @@ end
 function BlobCode:loadFile(filepath, basepath)
 	print'loading code...'
 	local code = assert(filepath:read())
-	
+
 	-- [[ preproc here ... replace #include's with included code ...
 	-- or what's another option ... I could have my own virtual filesystem per cartridge ... and then allow 'require' functions ... and then worry about where to mount the cartridge ...
 	-- that sounds like a much better idea.
@@ -131,7 +136,7 @@ function BlobCode:loadFile(filepath, basepath)
 		return string.split(s, '\n'):mapi(function(l)
 			local loc = l:match'^%-%-#include%s+(.*)$'
 			if loc then
-				if included[loc] then 
+				if included[loc] then
 					return l..'-- ALREADY INCLUDED'
 				end
 				included[loc] = true
@@ -155,10 +160,6 @@ function BlobCode:loadFile(filepath, basepath)
 	--]]
 
 	return BlobCode(code)
-end
--- static method:
-function BlobCode:loadBinStr(data)
-	return BlobCode(data)
 end
 
 
@@ -457,49 +458,50 @@ function BlobFont:loadBinStr(data)
 end
 
 
+--[[
+format:
+uint32_t loopOffset
+uint16_t samples[]
+--]]
 local BlobSFX = blobSubclass'sfx'
 BlobSFX.filenamePrefix = 'sfx'
 BlobSFX.filenameSuffix = '.wav'
-function BlobSFX:init(wav)
-	if wav then
-		assert.eq(wav.channels, 1)	-- waveforms / sfx are mono
-		-- TODO resample if they are different.
-		-- for now I'm just saving them in this format and being lazy
-		assert.eq(wav.ctype, audioSampleType)
-		assert.eq(wav.freq, audioSampleRate)
-		self.wav = wav
-	else
-error'BlobSFX needs wav'
-		-- TODO create a default AudioWav?
-	end
+function BlobSFX:init(data)
+	assert.gt(#data, ffi.sizeof(loopOffsetType))		-- make sure there's room for the initial loopOffset
+	assert.eq((#data - ffi.sizeof(loopOffsetType))  % ffi.sizeof(audioSampleType), 0)	-- make sure it's sample-type-aligned
+	self.data = assert(data)
 end
 function BlobSFX:getPtr()
-	return ffi.cast('uint8_t*', self.wav.data)
+	return ffi.cast('uint8_t*', self.data)
 end
 function BlobSFX:getSize()
-	return self.wav.size
+	return #self.data
+end
+function BlobSFX:saveFile(filepath)
+	print('!!! WARNING !!! TODO BlobSFX:saveFile('..filepath..')')
 end
 -- static method:
 function BlobSFX:loadFile(filepath, basepath, blobNo)
 	local wav = AudioWAV():load(filepath.path)
 
-	local blobSFX = BlobSFX(wav)
-
 	local tmp = {}
 	assert(load(basepath('waveform'..(blobNo == 1 and '' or blobNo)..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
-	blobSFX.loopOffset = tmp.loopOffset or 0
 
-	return blobSFX
+	return self:loadWav(wav, tmp.loopOffset)
 end
 -- static method:
-function BlobSFX:loadBinStr(data)
-	return self.class{
-		ctype = audioSampleType,
-		channels = 1,
-		data = data,
-		size = #data,
-		freq = audioSampleRate,
-	}
+function BlobSFX:loadWav(wav, loopOffset)
+	assert.eq(wav.channels, 1)	-- waveforms / sfx are mono
+	-- TODO resample if they are different.
+	-- for now I'm just saving them in this format and being lazy
+	assert.eq(wav.ctype, audioSampleType)
+	assert.eq(wav.freq, audioSampleRate)
+
+	local i = ffi.new(loopOffsetType..'[1]')
+	i[0] = loopOffset or 0
+	local data = ffi.string(ffi.cast('char*', i), ffi.sizeof(loopOffsetType))
+		.. wav.data
+	return BlobSFX(data)
 end
 
 
@@ -520,10 +522,6 @@ end
 function BlobMusic:loadFile(filepath)
 	return self.class(filepath:read())
 end
--- static method:
-function BlobMusic:loadBinStr(data)
-	return self.class(data)
-end
 
 
 local BlobBrush = blobSubclass'brush'
@@ -536,10 +534,7 @@ end
 function BlobBrush:loadFile(filepath)
 	return self.class(filepath:read())
 end
--- static method:
-function BlobBrush:loadBinStr(data)
-	return self.class(data)
-end
+
 
 local BlobBrushMap = blobSubclass'brushmap'
 BlobBrushMap.filenamePrefix = 'brushmap'
@@ -551,10 +546,7 @@ end
 function BlobBrushMap:loadFile(filepath)
 	return self.class(filepath:read())
 end
--- static method:
-function BlobBrushMap:loadBinStr(data)
-	return self.class(data)
-end
+
 
 local blobClassForType = {}
 for blobClassName,blobClass in pairs(blobClassForName) do
@@ -590,7 +582,7 @@ end
 -- used by buildRAMFromBlobs for allocating self.memSize, self.holdram, self.ram
 -- or by blobsToCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
 local function blobsToByteArray(blobs)
-print('blobsToByteArray...')	
+print('blobsToByteArray...')
 	local allBlobs = table()
 	for _,blobClassName in ipairs(table.keys(blobs):sort(function(a,b)
 		return blobTypeForClassName[a] < blobTypeForClassName[b]
@@ -616,20 +608,29 @@ print(('memSize = 0x%0x'):format(memSize))
 	-- wow first time I've used references in LuaJIT, didn't know they were implemented.
 	local ram = ffi.cast('RAM&', holdram)
 
+	-- for each type, mapping to where in the FAT its blobEntries starts
+	local blobEntriesForClassName = blobClassNameForType:mapi(function(name)
+		return {
+			ptr = nil,
+			count = 0,
+		}, name
+	end)
+
 	local ramptr = ffi.cast('uint8_t*', ram.blobEntries + numBlobs)
 	ram.blobCount = numBlobs
 	for indexPlusOne,blob in ipairs(allBlobs) do
 		local index = indexPlusOne - 1
-		
-print('blob #'..index..' type='..blob.type..'/'..blob.name)
+		local blobClassName = blob.name
+
+print('blob #'..index..' type='..blob.type..'/'..blobClassName)
 print('\tkeys:', table.keys(blob):sort():concat', ')
 
 		local blobEntryPtr = ram.blobEntries + index
 
 		local addr = ramptr - ram.v
 		local blobSize = blob:getSize()
-		assert.lt(0, blobSize, "I don't support empty blobs, found one for type "..tostring(blob.name))
-print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize)..' type '..blob.name)
+		assert.lt(0, blobSize, "I don't support empty blobs, found one for type "..tostring(blobClassName))
+print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize)..' type '..blobClassName)
 		assert.le(0, addr)
 		assert.lt(addr, memSize)
 		blobEntryPtr.type = blob.type
@@ -642,6 +643,13 @@ print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr
 		blob.addr = addr
 		ffi.copy(ramptr, srcptr, blobSize)
 		ramptr = ramptr + blobSize
+
+		local blobEntriesPtr = blobEntriesForClassName[blobClassName]
+		if blobEntriesPtr.count == 0 then
+			blobEntriesPtr.ptr = blobEntryPtr	-- BlobEntry*
+			blobEntriesPtr.addr = ffi.cast('uint8_t*', blobEntryPtr) - ram.v
+		end
+		blobEntriesPtr.count = blobEntriesPtr.count + 1
 	end
 	assert.eq(ramptr, ram.v + memSize)
 
@@ -656,12 +664,13 @@ print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr
 	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
 	-- and the editor would edit the ROM ...
 
-print('...done blobsToByteArray')	
+print('...done blobsToByteArray')
 	return {
 		memSize = memSize,
 		holdram = holdram,
 		ram = ram,
 		allBlobs = allBlobs,	-- TODO instead function for building this list?
+		blobEntriesForClassName = blobEntriesForClassName,
 	}
 end
 
@@ -692,12 +701,13 @@ local function strToBlobs(str)
 	return byteArrayToBlobs(ffi.cast('uint8_t*', str), #str)
 end
 
--- operates on app, reading its .blobs, writing its .memSize, .holdram, .ram
+-- operates on app, reading its .blobs, writing its .memSize, .holdram, .ram, .blobEntriesForClassName
 function AppBlobs:buildRAMFromBlobs()
 	local info = blobsToByteArray(self.blobs)
 	self.memSize = info.memSize
 	self.holdram = info.holdram
 	self.ram = info.ram
+	self.blobEntriesForClassName = info.blobEntriesForClassName
 end
 
 function AppBlobs:copyBlobsToRAM()

@@ -113,13 +113,13 @@ local AddrLen = struct{
 	},
 }
 
--- sfx needs addr, len, and loop offset
-local SFXHeader = struct{
-	name = 'SFXHeader',
+-- sfx needs loop offset and samples
+local loopOffsetType = addrType
+local SFX = struct{
+	name = 'SFX',
 	fields = {
-		{name='addr', type='uint16_t'},
-		{name='len', type='uint16_t'},
-		{name='loopOffset', type='uint16_t'},
+		{name='loopOffset', type=loopOffsetType},
+		{name='sample', type=audioSampleType..'[1]'},
 	},
 }
 
@@ -231,7 +231,7 @@ local Numo9Channel = struct{
 		-- TODO main volume ... but why dif from just volL volR?
 		{name='echoVol', type='uint8_t['..audioOutChannels..']'},
 		{name='pitch', type='uint16_t'},	-- fixed point 4.12 multiplier
-		{name='sfxID', type='uint8_t'},		-- index in sfxAddrs[]
+		{name='sfxID', type='uint8_t'},		-- 0-based-index in blobs.sfx[]
 		--[[ TODO in struct.lua, inline anonymous types with flags aren't working?
 		{name='flags', type=struct{
 			anonymous = true,
@@ -273,6 +273,7 @@ assert.le(audioAllMixChannelsInBytes, 0xfe)	-- special codes: 0xff means frame-e
 local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
 
 -- make sure our sfx table can address all our sound ram
+-- TODO now do this at runtime since blob count is dynamic
 --assert.le(ffi.sizeof(RAM.audioData), maxrangeforsize(ffi.sizeof(RAM.sfxAddrs[0])))
 
 -- make sure we can index all our sfx in the table
@@ -493,4 +494,5 @@ return {
 	unpackptr = unpackptr,
 	deltaCompress = deltaCompress,
 	addrType = addrType,
+	loopOffsetType = loopOffsetType,
 }

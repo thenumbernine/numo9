@@ -26,7 +26,6 @@ local numo9_rom = require 'numo9.rom'
 local audioDataSize = numo9_rom.audioDataSize
 local sfxTableSize = numo9_rom.sfxTableSize
 local musicTableSize = numo9_rom.musicTableSize
-local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
@@ -103,10 +102,6 @@ local function cartImageToBlobStr(cartImgData)
 	local blobsCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
 	local blobsAsStr = zlib.uncompressLua(blobsCompressed)
 --DEBUG:print('blob data length, decompressed: '..('0x%x'):format(#blobsAsStr))
-
-	-- TODO pad the RAM portion
-	-- and remove it when saving?
-	--blobsAsStr = (' '):rep(sizeofRAMWithoutROM) .. blobsAsStr
 
 	return blobsAsStr 
 end

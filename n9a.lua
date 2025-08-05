@@ -214,7 +214,7 @@ print('creating default sfx '..i..' blob')
 				assert.eq(p, data + len)
 				-- build a AudioWAV here
 				local datastr = ffi.string(data, ffi.sizeof(audioSampleType) * len)
-				blobs.sfx[i] = blobClassForName.sfx{
+				blobs.sfx[i] = blobClassForName.sfx:loadWav{
 					ctype = audioSampleType,
 					channels = 1,
 					data = datastr,
