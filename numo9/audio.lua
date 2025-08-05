@@ -147,16 +147,11 @@ it's called ...
 --]]
 function AppAudio:resetAudio()
 --[[
-	for i=0,numo9_rom.sfxTableSize-1 do
-		local addrLen = self.ram.bank[0].sfxAddrs[i]
-		if addrLen.len > 0 then
-			print('sfx found',i,'size',addrLen.len)
-		end
-	end
-	for i=0,numo9_rom.musicTableSize-1 do
-		local addrLen = self.ram.bank[0].musicAddrs[i]
-		if addrLen.len > 0 then
-			print('music found',i,'size',addrLen.len)
+	for _,field in ipairs{'sfx', 'music'} do
+		if self.blobs[field] then
+			for indexPlusOne,blob in ipairs(self.blobs[field]) do
+				print(field..' #'..(indexPlusOne-1)..' addr='..blob.addr..' size='..blob:getSize())
+			end
 		end
 	end
 --]]
@@ -224,9 +219,12 @@ function AppAudio:updateSoundEffects()
 
 		local channel = self.ram.channels+0
 		for j=0,audioMixChannels-1 do
-			if channel.flags.isPlaying ~= 0 then
-				local sfx = self.ram.bank[0].sfxAddrs + channel.sfxID
-
+			if channel.flags.isPlaying ~= 0
+			and channel.sfxID >= 0
+			and channel.sfxID < self.blobEntriesForClassName.sfx.count
+			then
+				local sfx = self.blobEntriesForClassName.sfx.ptr + channel.sfxID
+error'TODO'
 				-- where in sfx we are currently playing
 				local sfxaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
 --DEBUG:assert.ge(sfxaddr, 0)
