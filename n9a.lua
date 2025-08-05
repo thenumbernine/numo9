@@ -126,7 +126,7 @@ print('found!')
 	end
 
 	if not blobs.palette then
-print'creating default palette blob'		
+print'!!! creating default palette blob !!!'
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if pal.png doens't exist then load the default at least
 		local blob = blobClassForName.palette()
@@ -231,6 +231,7 @@ print('creating default sfx '..i..' blob')
 		resetBlobFont(blobs.font[1]:getPtr())
 	end
 	if extra == 'resetPal' then
+		--print'!!! creating default palette blob !!!'
 		--resetBlobPalette(bank)
 	end
 

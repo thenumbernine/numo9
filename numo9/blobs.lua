@@ -31,6 +31,10 @@ local resetBlobFont = numo9_video.resetBlobFont
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
 
+local function hex(n)
+	return ('0x%x'):format(n)
+end
+
 -- maps from type-index to name
 local blobClassNameForType = table{
 	'code',		-- always only 1 of these
@@ -107,7 +111,7 @@ BlobCode.filename = 'code$.lua'
 BlobCode.filenamePrefix = 'code'
 BlobCode.filenameSuffix = '.lua'
 function BlobCode:saveFile(filepath)
-	print'saving code...'
+--DEBUG:print'saving code...'
 	local code = self.data
 	if #code > 0 then
 		assert(filepath:write(code))
@@ -117,7 +121,7 @@ function BlobCode:saveFile(filepath)
 end
 -- static method:
 function BlobCode:loadFile(filepath, basepath)
-	print'loading code...'
+--DEBUG:print'loading code...'
 	local code = assert(filepath:read())
 
 	-- [[ preproc here ... replace #include's with included code ...
@@ -185,17 +189,17 @@ end
 BlobSheet.filenamePrefix = 'sheet'
 BlobSheet.filenameSuffix = '.png'
 function BlobSheet:saveFile(filepath, blobs)
-	print'saving sheet...'
+--DEBUG:print'saving sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
 	local image = self:makeImage()
-	ffi.copy(image.buffer, sheetBlob:getPtr(), self:getSize())
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), sheetBlob:getPtr(), self:getSize())
 	image.palette = blobs.palette[1]:toTable()
 	image:save(filepath.path)
 end
 -- static method:
 function BlobSheet:loadFile(filepath)
-	print'loading sprite sheet...'
+--DEBUG:print'loading sprite sheet...'
 	local image = Image(filepath.path)
 	return BlobSheet(image)
 end
@@ -203,7 +207,7 @@ end
 function BlobSheet:loadBinStr(data)
 	local image = self:makeImage()
 	assert.eq(#data, image:getBufferSize())
-	ffi.copy(image.buffer, data, image:getBufferSize())
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
 	return self.class(image)
 end
 
@@ -233,7 +237,7 @@ end
 BlobTileMap.filenamePrefix = 'tilemap'
 BlobTileMap.filenameSuffix = '.png'
 function BlobTileMap:saveFile(filepath)
-	print'saving tile map...'
+--DEBUG:print'saving tile map...'
 	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
 	local saveImg = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
 	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
@@ -256,7 +260,7 @@ function BlobTileMap:saveFile(filepath)
 end
 -- static method:
 function BlobTileMap:loadFile(filepath)
-	print'loading tile map...'
+--DEBUG:print'loading tile map...'
 	local loadImg = assert(Image(filepath.path))
 	assert.eq(loadImg.width, tilemapSize.x)
 	assert.eq(loadImg.height, tilemapSize.y)
@@ -285,7 +289,7 @@ end
 function BlobTileMap:loadBinStr(data)
 	local image = self:makeImage()
 	assert.eq(#data, image:getBufferSize())
-	ffi.copy(image.buffer, data, image:getBufferSize())
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
 	return self.class(image)
 end
 
@@ -318,26 +322,24 @@ end
 BlobPalette.filenamePrefix = 'palette'
 BlobPalette.filenameSuffix = '.png'
 function BlobPalette:saveFile(filepath)
-	print'saving palette...'
+--DEBUG:print('BlobPalette:saveFile('..filepath..')')
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
 	local saveImg = Image(16, 16, 4, 'uint8_t')
 	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
 	local blobPtr = ffi.cast('uint16_t*', self:getPtr())
-	for y=0,15 do
-		for x=0,15 do
-			-- TODO packptr in numo9/app.lua
-			local r,g,b,a = rgba5551_to_rgba8888_4ch(blobPtr[0])
-			savePtr[0], savePtr[1], savePtr[2], savePtr[3] = r,g,b,a
-			blobPtr = blobPtr + 1
-			savePtr = savePtr + 4
-		end
+	for i=0,paletteSize-1 do
+		-- TODO packptr in numo9/app.lua
+		savePtr[0], savePtr[1], savePtr[2], savePtr[3] = rgba5551_to_rgba8888_4ch(blobPtr[0])
+--DEBUG:print('palette write entry #'..i..':', hex(savePtr[0]), hex(savePtr[1]), hex(savePtr[2]), hex(savePtr[3]), 'from read', hex(blobPtr[0]))
+		blobPtr = blobPtr + 1
+		savePtr = savePtr + 4
 	end
 	saveImg:save(filepath.path)
 end
 function BlobPalette:toTable()
 	local paletteTable = table()
 	local palPtr = ffi.cast('uint16_t*', self:getPtr())
-	for i=0,255 do
+	for i=1,paletteSize do
 		paletteTable:insert{rgba5551_to_rgba8888_4ch(palPtr[0])}
 		palPtr = palPtr + 1
 	end
@@ -345,35 +347,42 @@ function BlobPalette:toTable()
 end
 -- static method:
 function BlobPalette:loadFile(filepath)
-	print'loading palette...'
+--DEBUG:print('BlobPalette:loadFile('..filepath..')')
 	local loadImg = assert(Image(filepath.path))
 	assert.eq(loadImg.width, 16)
 	assert.eq(loadImg.height, 16)
+	assert.eq(loadImg.width * loadImg.height, paletteSize)
 	assert.eq(loadImg.channels, 4)
 	assert.eq(ffi.sizeof(loadImg.format), 1)
 	local loadPtr = ffi.cast('uint8_t*', loadImg.buffer)
 
 	local blobImg = self:makeImage()
 	local blobPtr = ffi.cast('uint16_t*', blobImg.buffer)
-	for y=0,15 do
-		for x=0,15 do
-			blobPtr[0] = rgba8888_4ch_to_5551(
-				loadPtr[0],
-				loadPtr[1],
-				loadPtr[2],
-				loadPtr[3]
-			)
-			blobPtr = blobPtr + 1
-			loadPtr = loadPtr + 4
-		end
+	for i=0,paletteSize-1 do
+		blobPtr[0] = rgba8888_4ch_to_5551(
+			loadPtr[0],
+			loadPtr[1],
+			loadPtr[2],
+			loadPtr[3]
+		)
+--DEBUG:print('palette read entry #'..i..':', hex(loadPtr[0]), hex(loadPtr[1]), hex(loadPtr[2]), hex(loadPtr[3]), 'write', hex(blobPtr[0]))
+		blobPtr = blobPtr + 1
+		loadPtr = loadPtr + 4
 	end
-	return BlobPalette(blobImage)
+	return BlobPalette(blobImg)
 end
 -- static method:
 function BlobPalette:loadBinStr(data)
+--DEBUG:print('BlobPalette:loadBinStr')
+--DEBUG:print('...data:')
+--DEBUG:print(string.hexdump(data))
 	local image = self:makeImage()
 	assert.eq(#data, image:getBufferSize())
-	ffi.copy(image.buffer, data, image:getBufferSize())
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
+--DEBUG:print('...palette:')
+--DEBUG:for i=0,paletteSize-1 do
+--DEBUG:	print(('\t%x'):format(image.buffer[i]))
+--DEBUG:end
 	return self.class(image)
 end
 
@@ -403,7 +412,7 @@ end
 BlobFont.filenamePrefix = 'font'
 BlobFont.filenameSuffix = '.png'
 function BlobFont:saveFile(filepath)
-	print'saving font...'
+--DEBUG:print'saving font...'
 	local saveImg = Image(256, 64, 1, 'uint8_t')
 	for xl=0,31 do
 		for yl=0,7 do
@@ -441,7 +450,7 @@ end
 function BlobFont:loadBinStr(data)
 	local image = self:makeImage()
 	assert.eq(#data, image:getBufferSize())
-	ffi.copy(image.buffer, data, image:getBufferSize())
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
 	return self.class(image)
 end
 
@@ -546,7 +555,7 @@ end
 local AppBlobs = {}
 
 function AppBlobs:initBlobs()
-print('AppBlobs:initBlobs...')
+--DEBUG:print('AppBlobs:initBlobs...')
 	self.blobs = {}
 
 	--self:addBlob'code'	-- don't init empty code blobs ...
@@ -557,7 +566,7 @@ print('AppBlobs:initBlobs...')
 	self:addBlob'font'
 
 	self:buildRAMFromBlobs()
-print('...done AppBlobs:initBlobs')
+--DEBUG:print('...done AppBlobs:initBlobs')
 end
 
 function AppBlobs:addBlob(blobClassName)
@@ -570,7 +579,7 @@ end
 -- used by buildRAMFromBlobs for allocating self.memSize, self.holdram, self.ram
 -- or by blobsToCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
 local function blobsToByteArray(blobs)
-print('blobsToByteArray...')
+--DEBUG:print('blobsToByteArray...')
 	local allBlobs = table()
 	for _,blobClassName in ipairs(table.keys(blobs):sort(function(a,b)
 		return blobTypeForClassName[a] < blobTypeForClassName[b]
@@ -584,7 +593,7 @@ print('blobsToByteArray...')
 	local memSize = ffi.sizeof'RAM'
 		+ (numBlobs - 1) * ffi.sizeof(BlobEntry)
 		+ (allBlobs:mapi(function(blob)
-assert.index(blob, 'getSize', 'name='..blob.name)
+			assert.index(blob, 'getSize', 'name='..blob.name)
 			return blob:getSize()
 		end):sum() or 0)
 print(('memSize = 0x%0x'):format(memSize))
@@ -610,15 +619,12 @@ print(('memSize = 0x%0x'):format(memSize))
 		local index = indexPlusOne - 1
 		local blobClassName = blob.name
 
-print('blob #'..index..' type='..blob.type..'/'..blobClassName)
-print('\tkeys:', table.keys(blob):sort():concat', ')
-
 		local blobEntryPtr = ram.blobEntries + index
 
 		local addr = ramptr - ram.v
 		local blobSize = blob:getSize()
 		assert.lt(0, blobSize, "I don't support empty blobs, found one for type "..tostring(blobClassName))
-print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize)..' type '..blobClassName)
+print('adding blob #'..index..' at addr '..hex(addr)..' - '..hex(addr + blobSize)..' type '..blob.type..'/'..blobClassName)
 		assert.le(0, addr)
 		assert.lt(addr, memSize)
 		blobEntryPtr.type = blob.type
@@ -652,7 +658,7 @@ print('adding blob at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr
 	-- and then 'save' would save the ROM to virtual-filesystem, and run() and reset() would copy the ROM to RAM
 	-- and the editor would edit the ROM ...
 
-print('...done blobsToByteArray')
+--DEBUG:print('...done blobsToByteArray')
 	return {
 		memSize = memSize,
 		holdram = holdram,
@@ -664,6 +670,7 @@ end
 
 -- convert a RAM byte array to blobs[]
 local function byteArrayToBlobs(ptr, size)
+--DEBUG:print('byteArrayToBlobs begin...')
 	local ram = ffi.cast('RAM&', ptr)
 	local blobs = {}
 	for index=0,ram.blobCount-1 do
@@ -672,11 +679,13 @@ local function byteArrayToBlobs(ptr, size)
 		assert.le(blobEntryPtr.addr + blobEntryPtr.size, size)
 		local blobClass = assert.index(blobClassForType, blobEntryPtr.type)
 		local blobClassName = blobClass.name
+--DEBUG:print('\tloading blob #'..index..' type='..blobClassName..' addr='..hex(blobEntryPtr.addr)..' size='..hex(blobEntryPtr.size))
 		local blobData = ffi.string(ram.v + blobEntryPtr.addr, blobEntryPtr.size)
 		local blob = blobClass:loadBinStr(blobData)
 		blobs[blobClassName] = blobs[blobClassName] or table()
 		blobs[blobClassName]:insert(blob)
 	end
+--DEBUG:print('...done byteArrayToBlobs')
 	return blobs
 end
 
