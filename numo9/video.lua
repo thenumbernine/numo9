@@ -1891,12 +1891,24 @@ function AppVideo:resetVideo()
 	-- do the framebuffers explicitly cuz typically 'checkDirtyGPU' just does the current one
 	-- and also because the first time resetVideo() is called, the video mode hasn't been set yet, os the framebufferRAM hasn't been assigned yet
 	self:allRAMRegionsCheckDirtyGPU()
-	
-	local spriteSheetAddr = assert.index(assert.index(assert.index(self.blobs, 'sheet'), 1), 'addr')
-	local tileSheetAddr = assert.index(assert.index(assert.index(self.blobs, 'sheet'), 2), 'addr')
-	local tilemapAddr = assert.index(assert.index(assert.index(self.blobs, 'tilemap'), 1), 'addr')
-	local paletteAddr = assert.index(assert.index(assert.index(self.blobs, 'palette'), 1), 'addr')
-	local fontAddr = assert.index(assert.index(assert.index(self.blobs, 'font'), 1), 'addr')
+
+	assert.index(self, 'blobs')
+	assert.index(self.blobs, 'sheet', table.keys(self.blobs):mapi(function(blobsForType,name) return name..'='..#blobsForType end):concat', ')
+	assert.index(self.blobs.sheet, 1)
+	assert.index(self.blobs.sheet[1], 'addr')
+	local spriteSheetAddr = self.blobs.sheet[1].addr
+	assert.index(self.blobs.sheet, 2)
+	assert.index(self.blobs.sheet[2], 'addr')
+	local tileSheetAddr = self.blobs.sheet[2].addr
+	assert.index(self.blobs.tilemap, 1)
+	assert.index(self.blobs.tilemap[1], 'addr')
+	local tilemapAddr = self.blobs.tilemap[1].addr
+	assert.index(self.blobs.palette, 1)
+	assert.index(self.blobs.palette[1], 'addr')
+	local paletteAddr = self.blobs.palette[1].addr
+	assert.index(self.blobs.font, 1)
+	assert.index(self.blobs.font[1], 'addr')
+	local fontAddr = self.blobs.font[1].addr
 
 	-- reset these
 	self.ram.framebufferAddr = framebufferAddr
