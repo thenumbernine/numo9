@@ -242,7 +242,6 @@ function App:initGL()
 			local name = assert.index(blobClassNameForType, blobEntry.type)
 			print(('0x%06x - 0x%06x = '):format(blobEntry.addr, blobEntry.addr + blobEntry.size)..name)
 		end
-		print('system dedicated '..('0x%x'):format(ffi.sizeof(self.holdram))..' of RAM')
 	end
 
 	self.mvMat = matrix_ffi({4,4}, mvMatType):zeros()
@@ -2448,7 +2447,7 @@ whoever calls this should create a runFocus coroutine to load the ROM
  so that the load only takes place in the runFocus loop and not the UI loop (which pushes and pops the modelview matrix values)
 --]]
 function App:openROM(filename)
---DEBUG:print('App:openROM', filename)
+print('App:openROM', filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
 
@@ -2478,6 +2477,17 @@ function App:openROM(filename)
 	if not d then return nil, basemsg..(msg or '') end
 
 	self.blobs = cartImageToBlobs(d)
+
+print('loaded blobs...')
+for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)
+	return numo9_blobs.blobTypeForClassName[a] < numo9_blobs.blobTypeForClassName[b]
+end)) do
+	local blobsForType = self.blobs[blobClassName]
+	print('blob type '..blobClassName..' has '..#blobsForType)
+end
+print('...done loaded blobs')
+
+
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 
 	if self.blobs.code then

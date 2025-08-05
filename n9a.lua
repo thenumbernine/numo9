@@ -104,8 +104,7 @@ if cmd == 'x' then
 		end
 	end
 
-elseif cmd == 'a'
-or cmd == 'r' then
+elseif cmd == 'a' or cmd == 'r' then
 
 	local n9path = path(fn)
 	local basepath = getbasepath(fn)
@@ -117,7 +116,9 @@ or cmd == 'r' then
 		local blobsForType
 		for blobNo=1,math.huge do
 			local filepath = basepath(blobClass:getFileName(blobNo))
+print('searching for blob type', blobTypeName, 'index', blobNo, 'filepath', filepath)
 			if not filepath:exists() then break end
+print('found!')
 			local blob = blobClass:loadFile(filepath, basepath, blobNo)
 			blobsForType = blobsForType or table()
 			blobsForType:insert(blob)
@@ -126,6 +127,7 @@ or cmd == 'r' then
 	end
 
 	if not blobs.palette then
+print'creating default palette blob'		
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if pal.png doens't exist then load the default at least
 		local blob = blobClassForName.palette()
@@ -133,6 +135,7 @@ or cmd == 'r' then
 		blobs.palette = table{blob}
 	end
 	if not blobs.font then
+print'creating default font blob'		
 		local blob = blobClassForName.font()
 		resetBlobFont(blob:getPtr())
 		blobs.font = table{blob}
@@ -199,6 +202,7 @@ or cmd == 'r' then
 		if not blobs.sfx then blobs.sfx = table() end
 		for i,f in ipairs(wavefuncs) do
 			if not blobs.sfx[i] then
+print('creating default sfx '..i..' blob')
 				local len = math.ceil(audioSampleRate / waveformFreq * 2)
 				local data = ffi.new(audioSampleType..'[?]', len)
 				local p = ffi.cast(audioSampleType..'*', data)
