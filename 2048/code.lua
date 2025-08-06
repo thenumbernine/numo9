@@ -32,7 +32,10 @@ local randomColor = || do
 	return v.x | (v.y << 5) | (v.z << 10) | 0x8000
 end
 
-local palAddr = romaddr'palette'
+assert.eq(numblobs'palette', 1)
+trace("numblobs'palette'", numblobs'palette')
+local palAddr = blobaddr'palette'
+trace('palAddr', ('0x%x'):format(palAddr))
 pokew(palAddr, 0x8000)
 pokew(palAddr + 2, 0xffff)
 for i=2,255 do

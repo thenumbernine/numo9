@@ -825,17 +825,36 @@ function App:initGL()
 		ramsize = function(name)
 			return ffi.sizeof(ffi.cast('RAM*', 0)[name])
 		end,
-		romaddr = function(name, index)
+		numblobs = function(name)
 			local blobsForType = self.blobs[name]
-			if not blobsForType then return end
-			local blob = blobsForType[toint(index)+1]
-			if not blob then return end
+			if not blobsForType then return 0 end
+			return #blobsForType
+		end,
+		blobaddr = function(name, index)
+			local blobsForType = self.blobs[name]
+			if not blobsForType then
+print("blobaddr found no blobs of type "..tostring(name))
+				return
+			end
+			index = tonumber(toint(index))
+			-- special case - addr of 1+ last blob is the last addr
+			if index == #blobsForType then
+				-- if there are no blobs of this type ...
+				if index == 0 then return 0 end	-- TODO return start of blob section for this type?
+				local blob = blobsForType[index]
+				return blob.addr + blob:getSize()
+			end
+			local blob = blobsForType[index+1]
+			if not blob then
+print("blobaddr("..tostring(name)..") couldn't find index "..tostring(index))
+				return
+			end
 			return blob.addr
 		end,
-		romsize = function(name, index)
+		blobsize = function(name, index)
 			local blobsForType = self.blobs[name]
 			if not blobsForType then return end
-			local blob = blobsForType[toint(index)+1]
+			local blob = blobsForType[tonumber(toint(index))+1]
 			if not blob then return end
 			return blob:getSize()
 		end,
@@ -2126,6 +2145,8 @@ function App:peekl(addr)
 end
 
 function App:poke(addr, value)
+	addr = toint(addr)
+	value = toint(value)
 	--addr = math.floor(addr) -- TODO just never pass floats in here or its your own fault
 	if addr < 0 or addr >= self.memSize then return end
 
@@ -2174,6 +2195,8 @@ function App:poke(addr, value)
 	-- TODO if we poked the code
 end
 function App:pokew(addr, value)
+	addr = toint(addr)
+	value = toint(value)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2214,6 +2237,8 @@ function App:pokew(addr, value)
 	-- TODO if we poked the code
 end
 function App:pokel(addr, value)
+	addr = toint(addr)
+	value = toint(value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
