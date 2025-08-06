@@ -208,6 +208,7 @@ local function toint(x)
 end
 
 function App:initGL()
+	self.mainThread = coroutine.running()
 	gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 1)
 	gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
 
@@ -2510,7 +2511,7 @@ print('App:openROM', filename)
 	if not d then return nil, basemsg..(msg or '') end
 
 	self.blobs = cartImageToBlobs(d)
-	self:fillDefaultBlobs()
+	self:buildRAMFromBlobs()
 
 --DEBUG:print('loaded blobs...')
 --DEBUG:for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)
@@ -2529,14 +2530,6 @@ print('App:openROM', filename)
 	else
 		self.editCode:setText('')
 	end
-
--- [[ reallocate .ram for the carts blobs
-	local oldholdram = self.holdram
-	local oldram = self.ram
-	self:buildRAMFromBlobs()
-	ffi.copy(self.ram, oldram, sizeofRAMWithoutROM)
-	self:copyBlobsToRAM()
---]]
 
 	-- every time .ram updates, this has to update as well:
 	self.mvMat.ptr = ffi.cast(mvMatType..'*', self.ram.mvMat)

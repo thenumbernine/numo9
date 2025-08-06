@@ -553,10 +553,42 @@ for blobClassName,blobClass in pairs(blobClassForName) do
 end
 
 
-local function makeEmptyBlobs()
-	return blobClassNameForType:mapi(function(name)
-		return table(), name
-	end):setmetatable(nil)
+--[[
+keys = each blob type-name, values = an array for each one
+TODO include holdram, ram, etc?  or nah?  cuz blobs <-> ram, right?
+--]]
+local BlobSet = class()
+function BlobSet:init()
+	for _,name in ipairs(blobClassNameForType) do
+		self[name] = table()
+	end
+end
+function BlobSet:copyToRAM()
+	for _,blobsForType in pairs(self) do
+		for _,blob in ipairs(blobsForType) do
+			blob:copyToRAM()
+		end
+	end
+end
+function BlobSet:copyFromRAM()
+	for _,blobsForType in pairs(self) do
+		for _,blob in ipairs(blobsForType) do
+			blob:copyFromRAM()
+		end
+	end
+end
+function BlobSet:assertPtrs(info)	-- info or app
+	assert.index(info, 'ram')
+	for name,blobsForType in pairs(self) do
+		for i,blob in ipairs(blobsForType) do
+			local errmsg = "blob type="..name.." index="..i
+			assert.index(blob, 'addr', errmsg)
+			assert.index(blob, 'ramptr', errmsg)
+			assert.eq(info.ram.v + blob.addr, blob.ramptr, errmsg)
+			assert.le(info.ram.v, blob.ramptr, errmsg)
+			assert.lt(blob.ramptr, info.ram.v + info.memSize, errmsg)
+		end
+	end
 end
 
 
@@ -564,8 +596,8 @@ local AppBlobs = {}
 
 function AppBlobs:initBlobs()
 --DEBUG:print('AppBlobs:initBlobs...')
-	self.blobs = makeEmptyBlobs()
-	self:fillDefaultBlobs()
+	self.blobs = BlobSet()
+	self:buildRAMFromBlobs()
 end
 
 --[[
@@ -573,7 +605,7 @@ after loading a cart, not all default blobs are present
 this fills those up, esp useful for font and palette which have default content
 but also creates the empty sheet / tilemap if they are needed
 --]]
-function AppBlobs:fillDefaultBlobs()
+function AppBlobs:buildRAMFromBlobs()
 	for name,count in pairs{
 		--code = 1,	-- don't init empty code blobs ...
 		sheet = 2,
@@ -593,7 +625,23 @@ function AppBlobs:fillDefaultBlobs()
 		end
 	end
 
-	self:buildRAMFromBlobs()
+	-- operates on app, reading its .blobs, writing its .memSize, .holdram, .ram, .blobEntriesForClassName
+	local info = blobsToByteArray(self.blobs)
+
+	self.memSize = info.memSize
+	self.holdram = info.holdram
+	self.ram = info.ram
+
+	-- here build ram ptrs from addrs
+	-- TODO really blobsToByteArray doesn't need ram, holdram, memSize at all
+	-- do this every time self.blobs or self.ram changes
+	for _,blobsForType in pairs(self.blobs) do
+		for _,blob in ipairs(blobsForType) do
+			blob.ramptr = self.ram.v + blob.addr
+		end
+	end
+
+	self.blobEntriesForClassName = info.blobEntriesForClassName
 --DEBUG:print('...done AppBlobs:initBlobs')
 end
 
@@ -661,7 +709,6 @@ print('adding blob #'..index..' at addr '..hex(addr)..' - '..hex(addr + blobSize
 
 		local srcptr = blob:getPtr()
 		assert.ne(srcptr, ffi.null)
-		blob.ramptr = ramptr
 		blob.addr = addr
 		ffi.copy(ramptr, srcptr, blobSize)
 		ramptr = ramptr + blobSize
@@ -700,7 +747,7 @@ end
 local function byteArrayToBlobs(ptr, size)
 --DEBUG:print('byteArrayToBlobs begin...')
 	local ram = ffi.cast('RAM&', ptr)
-	local blobs = makeEmptyBlobs()
+	local blobs = BlobSet()
 	for index=0,ram.blobCount-1 do
 		local blobEntryPtr = ram.blobEntries + index
 		assert.le(0, blobEntryPtr.addr)
@@ -726,31 +773,14 @@ local function strToBlobs(str)
 	return byteArrayToBlobs(ffi.cast('uint8_t*', str), #str)
 end
 
--- operates on app, reading its .blobs, writing its .memSize, .holdram, .ram, .blobEntriesForClassName
-function AppBlobs:buildRAMFromBlobs()
-	local info = blobsToByteArray(self.blobs)
-	self.memSize = info.memSize
-	self.holdram = info.holdram
-	self.ram = info.ram
-	self.blobEntriesForClassName = info.blobEntriesForClassName
-end
-
 function AppBlobs:copyBlobsToRAM()
 	assert.eq(ffi.sizeof(self.holdram), self.memSize)
-	for _,blobs in pairs(self.blobs) do
-		for _,blob in ipairs(blobs) do
-			blob:copyToRAM()
-		end
-	end
+	self.blobs:copyToRAM()
 end
 
 function AppBlobs:copyRAMToBlobs()
 	assert.eq(ffi.sizeof(self.holdram), self.memSize)
-	for _,blobs in pairs(self.blobs) do
-		for _,blob in ipairs(blobs) do
-			blob:copyFromRAM()
-		end
-	end
+	self.blobs:copyFromRAM()
 end
 
 
@@ -760,9 +790,8 @@ return {
 	blobClassNameForType = blobClassNameForType,
 	blobClassForName = blobClassForName,
 	blobTypeForClassName = blobTypeForClassName,
-	blobsToByteArray = blobsToByteArray,
 	byteArrayToBlobs = byteArrayToBlobs,
 	blobsToStr = blobsToStr,
 	strToBlobs = strToBlobs,
-	makeEmptyBlobs = makeEmptyBlobs,
+	BlobSet = BlobSet,
 }
