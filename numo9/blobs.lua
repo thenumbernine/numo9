@@ -578,11 +578,11 @@ function AppBlobs:initBlobs()
 
 	local fontBlob = self.blobs.font[1]
 	resetFont(fontBlob.ramptr)
-	ffi.copy(fontBlob:getPtr(), fontBlob.ramptr, fontBlob:getSize())
+	fontBlob:copyFromRAM()
 
 	local paletteBlob = self.blobs.palette[1]
 	resetPalette(paletteBlob.ramptr)
-	ffi.copy(paletteBlob:getPtr(), paletteBlob.ramptr, paletteBlob:getSize())
+	paletteBlob:copyFromRAM()
 end
 
 function AppBlobs:addBlob(blobClassName)
