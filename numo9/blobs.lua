@@ -592,65 +592,6 @@ function BlobSet:assertPtrs(info)	-- info or app
 end
 
 
-local AppBlobs = {}
-
-function AppBlobs:initBlobs()
---DEBUG:print('AppBlobs:initBlobs...')
-	self.blobs = BlobSet()
-	self:buildRAMFromBlobs()
-end
-
---[[
-after loading a cart, not all default blobs are present
-this fills those up, esp useful for font and palette which have default content
-but also creates the empty sheet / tilemap if they are needed
---]]
-function AppBlobs:buildRAMFromBlobs()
-	for name,count in pairs{
-		--code = 1,	-- don't init empty code blobs ...
-		sheet = 2,
-		tilemap = 1,
-		palette = 1,
-		font = 1,
-	} do
-		while #self.blobs[name] < count do
-			self:addBlob(name)
-			if name == 'font' then
-				local fontBlob = self.blobs.font:last()
-				resetFont(fontBlob:getPtr())
-			elseif name == 'palette' then
-				local paletteBlob = self.blobs.palette:last()
-				resetPalette(paletteBlob:getPtr())
-			end
-		end
-	end
-
-	-- operates on app, reading its .blobs, writing its .memSize, .holdram, .ram, .blobEntriesForClassName
-	local info = blobsToByteArray(self.blobs)
-
-	self.memSize = info.memSize
-	self.holdram = info.holdram
-	self.ram = info.ram
-
-	-- here build ram ptrs from addrs
-	-- TODO really blobsToByteArray doesn't need ram, holdram, memSize at all
-	-- do this every time self.blobs or self.ram changes
-	for _,blobsForType in pairs(self.blobs) do
-		for _,blob in ipairs(blobsForType) do
-			blob.ramptr = self.ram.v + blob.addr
-		end
-	end
-
-	self.blobEntriesForClassName = info.blobEntriesForClassName
---DEBUG:print('...done AppBlobs:initBlobs')
-end
-
-function AppBlobs:addBlob(blobClassName)
-	self.blobs[blobClassName] = self.blobs[blobClassName] or table()
-	local blobClass = assert.index(blobClassForName, blobClassName)
-	self.blobs[blobClassName]:insert(blobClass())
-end
-
 -- reads blobs, returns resulting byte array
 -- used by buildRAMFromBlobs for allocating self.memSize, self.holdram, self.ram
 -- or by blobsToCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
@@ -743,6 +684,66 @@ print('adding blob #'..index..' at addr '..hex(addr)..' - '..hex(addr + blobSize
 	}
 end
 
+
+local AppBlobs = {}
+
+function AppBlobs:initBlobs()
+--DEBUG:print('AppBlobs:initBlobs...')
+	self.blobs = BlobSet()
+	self:buildRAMFromBlobs()
+end
+
+--[[
+after loading a cart, not all default blobs are present
+this fills those up, esp useful for font and palette which have default content
+but also creates the empty sheet / tilemap if they are needed
+--]]
+function AppBlobs:buildRAMFromBlobs()
+	for name,count in pairs{
+		--code = 1,	-- don't init empty code blobs ...
+		sheet = 2,
+		tilemap = 1,
+		palette = 1,
+		font = 1,
+	} do
+		while #self.blobs[name] < count do
+			self:addBlob(name)
+			if name == 'font' then
+				local fontBlob = self.blobs.font:last()
+				resetFont(fontBlob:getPtr())
+			elseif name == 'palette' then
+				local paletteBlob = self.blobs.palette:last()
+				resetPalette(paletteBlob:getPtr())
+			end
+		end
+	end
+
+	-- operates on app, reading its .blobs, writing its .memSize, .holdram, .ram, .blobEntriesForClassName
+	local info = blobsToByteArray(self.blobs)
+
+	self.memSize = info.memSize
+	self.holdram = info.holdram
+	self.ram = info.ram
+
+	-- here build ram ptrs from addrs
+	-- TODO really blobsToByteArray doesn't need ram, holdram, memSize at all
+	-- do this every time self.blobs or self.ram changes
+	for _,blobsForType in pairs(self.blobs) do
+		for _,blob in ipairs(blobsForType) do
+			blob.ramptr = self.ram.v + blob.addr
+		end
+	end
+
+	self.blobEntriesForClassName = info.blobEntriesForClassName
+--DEBUG:print('...done AppBlobs:initBlobs')
+end
+
+-- NOTICE this desyncs the blobs and the RAM so you'll need to then call buildRAMFromBlobs
+function AppBlobs:addBlob(blobClassName)
+	self.blobs[blobClassName] = self.blobs[blobClassName] or table()
+	local blobClass = assert.index(blobClassForName, blobClassName)
+	self.blobs[blobClassName]:insert(blobClass())
+end
 -- convert a RAM byte array to blobs[]
 local function byteArrayToBlobs(ptr, size)
 --DEBUG:print('byteArrayToBlobs begin...')
