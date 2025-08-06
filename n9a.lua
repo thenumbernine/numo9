@@ -98,7 +98,7 @@ if cmd == 'x' then
 	local blobs = cartImageToBlobs((assert(n9path:read())))
 	assert.type(blobs, 'table')
 
-	for blobTypeName,blobsForType in pairs(blobs) do
+	for blobClassName,blobsForType in pairs(blobs) do
 		for blobNo,blob in ipairs(blobsForType) do
 			blob:saveFile(basepath(blob:getFileName(blobNo)), blobs)
 		end
@@ -112,13 +112,12 @@ elseif cmd == 'a' or cmd == 'r' then
 	assert(basepath:isdir())
 
 	local blobs = makeEmptyBlobs()
-	for blobTypeName,blobClass in pairs(blobClassForName) do
+	for blobClassName,blobClass in pairs(blobClassForName) do
 		for blobNo=1,math.huge do
 			local filepath = basepath(blobClass:getFileName(blobNo))
-print('searching for blob type', blobTypeName, 'index', blobNo, 'filepath', filepath)
 			if not filepath:exists() then break end
-print('found!')
-			blobs[blobTypeName]:insert(blobClass:loadFile(filepath, basepath, blobNo))
+print('loading blob #'..blobNo..' type='..blobClassName..' from file="'..filepath..'"')
+			blobs[blobClassName]:insert(blobClass:loadFile(filepath, basepath, blobNo))
 		end
 	end
 

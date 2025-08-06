@@ -27,9 +27,10 @@ local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local loopOffsetType = numo9_rom.loopOffsetType
 
 local numo9_video = require 'numo9.video'
-local resetBlobFont = numo9_video.resetBlobFont
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
+local resetFont = numo9_video.resetFont
+local resetPalette = numo9_video.resetPalette
 
 local function hex(n)
 	return ('0x%x'):format(n)
@@ -443,7 +444,7 @@ end
 -- static method:
 function BlobFont:loadFile(filepath)
 	local blob = self.class()
-	resetBlobFont(blob:getPtr(), filepath.path)
+	resetFont(blob:getPtr(), filepath.path)
 	return blob
 end
 -- static method:
@@ -574,6 +575,14 @@ function AppBlobs:initBlobs()
 
 	self:buildRAMFromBlobs()
 --DEBUG:print('...done AppBlobs:initBlobs')
+
+	local fontBlob = self.blobs.font[1]
+	resetFont(fontBlob.ramptr)
+	ffi.copy(fontBlob:getPtr(), fontBlob.ramptr, fontBlob:getSize())
+
+	local paletteBlob = self.blobs.palette[1]
+	resetPalette(paletteBlob.ramptr)
+	ffi.copy(paletteBlob:getPtr(), paletteBlob.ramptr, paletteBlob:getSize())
 end
 
 function AppBlobs:addBlob(blobClassName)

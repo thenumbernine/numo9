@@ -215,6 +215,7 @@ end
 
 -- upon boot, upload the logo to the whole sheet
 local function resetLogoOnSheet(spriteSheetPtr)
+	spriteSheetPtr = ffi.cast('uint8_t*', spriteSheetPtr)
 	local splashImg = Image'splash.png'
 	assert.eq(splashImg.channels, 1)
 	assert.eq(splashImg.width, spriteSheetSize.x)
@@ -232,7 +233,7 @@ local function resetLogoOnSheet(spriteSheetPtr)
 end
 
 assert(require 'ext.path''font.png':exists(), "failed to find the default font file!")
-local function resetBlobFont(fontPtr, fontFilename)
+local function resetFont(fontPtr, fontFilename)
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
 	local fontImg = assert(Image(fontFilename or 'font.png'), "failed to find file "..tostring(fontFilename))
@@ -281,7 +282,8 @@ end
 
 -- TODO every time App calls this, make sure its paletteRAM.dirtyCPU flag is set
 -- it would be here but this is sometimes called by n9a as well
-local function resetPalette(ptr)	-- uint16_t*
+local function resetPalette(ptr)
+	ptr = ffi.cast('uint16_t*', ptr)
 	for i,c in ipairs(
 		--[[ garbage colors
 		function(i)
@@ -370,11 +372,6 @@ local function resetPalette(ptr)	-- uint16_t*
 		ptr = ptr + 1
 	end
 end
-
-local function resetBlobPalette(blob)
-	resetPalette(ffi.cast('uint16_t*', blob.image.buffer))
-end
-
 
 --[[
 makes an image whose buffer is at a location in RAM
@@ -762,7 +759,7 @@ function AppVideo:initVideo()
 
 		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
 		local fontData = ffi.new('uint8_t[?]', fontInBytes)
-		resetBlobFont(fontData, 'font.png')
+		resetFont(fontData, 'font.png')
 		self.fontMenuTex = GLTex2D{
 			internalFormat = texInternalFormat_u8,
 			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
@@ -1898,7 +1895,7 @@ function AppVideo:resetVideo()
 
 	-- reset these
 	self.ram.framebufferAddr = framebufferAddr
-	self.ram.spriteSheetAddr = spriteSheetAddr 
+	self.ram.spriteSheetAddr = spriteSheetAddr
 	self.ram.tileSheetAddr = tileSheetAddr
 	self.ram.tilemapAddr = tilemapAddr
 	self.ram.paletteAddr = paletteAddr
@@ -2094,10 +2091,10 @@ end
 function AppVideo:resetFont()
 	self.triBuf:flush()
 	self.fontRAMs[1]:checkDirtyGPU()
-	local fontBlob = self.blobs.font and self.blobs.font[1]
+	local fontBlob = self.blobs.font[1]
 -- TODO ensure there's at least one?
 	if fontBlob then
-		resetBlobFont(fontBlob.ramptr)
+		resetFont(fontBlob.ramptr)
 		ffi.copy(fontBlob:getPtr(), fontBlob.ramptr, fontBlob:getSize())
 	end
 	self.fontRAMs[1].dirtyCPU = true
@@ -2110,7 +2107,7 @@ function AppVideo:resetGFX()
 	self:resetFont()
 
 	self.paletteRAMs[1]:checkDirtyGPU()
-	local paletteBlob = self.blobs.palette and self.blobs.palette[1]
+	local paletteBlob = self.blobs.palette[1]
 -- TODO ensure there's at least one?
 	if paletteBlob then
 		resetPalette(paletteBlob.ramptr)
@@ -3004,8 +3001,8 @@ return {
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
 	rgb565rev_to_rgba888_3ch = rgb565rev_to_rgba888_3ch,
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
-	resetBlobFont = resetBlobFont,
 	resetLogoOnSheet = resetLogoOnSheet,
-	resetBlobPalette = resetBlobPalette,
+	resetFont = resetFont,
+	resetPalette = resetPalette,
 	AppVideo = AppVideo,
 }
