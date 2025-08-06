@@ -74,6 +74,8 @@ local blobClassNameForType = numo9_blobs.blobClassNameForType
 local blobsToStr = numo9_blobs.blobsToStr
 
 local numo9_video = require 'numo9.video'
+local resetLogoOnSheet = numo9_video.resetLogoOnSheet
+
 
 local function hexdump(ptr, len)
 	return string.hexdump(ffi.string(ptr, len))
@@ -1184,7 +1186,7 @@ print('package.loaded', package.loaded)
 --				for sleep=1,60 do env.flip() end
 
 				-- also for init, do the splash screen
-				numo9_video.resetLogoOnSheet(self.blobs.sheet[1].ramptr)
+				resetLogoOnSheet(self.blobs.sheet[1].ramptr)
 				self.sheetRAMs[2].dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
