@@ -583,19 +583,18 @@ function AppBlobs:fillDefaultBlobs()
 	} do
 		while #self.blobs[name] < count do
 			self:addBlob(name)
+			if name == 'font' then
+				local fontBlob = self.blobs.font:last()
+				resetFont(fontBlob:getPtr())
+			elseif name == 'palette' then
+				local paletteBlob = self.blobs.palette:last()
+				resetPalette(paletteBlob:getPtr())
+			end
 		end
 	end
 
 	self:buildRAMFromBlobs()
 --DEBUG:print('...done AppBlobs:initBlobs')
-
-	local fontBlob = self.blobs.font[1]
-	resetFont(fontBlob.ramptr)
-	fontBlob:copyFromRAM()
-
-	local paletteBlob = self.blobs.palette[1]
-	resetPalette(paletteBlob.ramptr)
-	paletteBlob:copyFromRAM()
 end
 
 function AppBlobs:addBlob(blobClassName)
