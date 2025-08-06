@@ -2820,7 +2820,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 	-- or why even draw a background to it? let the user?
 	-- or how about use it as a separate flag?
 	-- TODO this always uses the cart colors even for the menu draw routine ...
-	local paletteBlob = self.blobs.palette and self.blobs.palette[1]
+	local paletteBlob = self.blobs.palette[1]
 	if not paletteBlob then return end
 	local r,g,b,a = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[bgColorIndex])
 	if a > 0 then

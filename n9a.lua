@@ -47,7 +47,7 @@ local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
-local makeEmptyBlobs = numo9_blobs.makeEmptyBlobs
+local BlobSet = numo9_blobs.BlobSet
 
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
 -- A4=440hz, so A[-1]=13.75hz, so C0 is 3 half-steps higher than A[-1] = 2^(3/12) * 13.75 = 16.351597831287 hz ...
@@ -111,7 +111,7 @@ elseif cmd == 'a' or cmd == 'r' then
 
 	assert(basepath:isdir())
 
-	local blobs = makeEmptyBlobs()
+	local blobs = BlobSet()
 	for blobClassName,blobClass in pairs(blobClassForName) do
 		for blobNo=1,math.huge do
 			local filepath = basepath(blobClass:getFileName(blobNo))
