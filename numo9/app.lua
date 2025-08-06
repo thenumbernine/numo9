@@ -1186,7 +1186,7 @@ print('package.loaded', package.loaded)
 --				for sleep=1,60 do env.flip() end
 
 				-- also for init, do the splash screen
-				resetLogoOnSheet(self.blobs.sheet[1].ramptr)
+				resetLogoOnSheet(self.blobs.sheet[2].ramptr)
 				self.sheetRAMs[2].dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do

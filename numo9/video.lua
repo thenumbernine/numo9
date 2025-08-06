@@ -2095,7 +2095,7 @@ function AppVideo:resetFont()
 -- TODO ensure there's at least one?
 	if fontBlob then
 		resetFont(fontBlob.ramptr)
-		ffi.copy(fontBlob:getPtr(), fontBlob.ramptr, fontBlob:getSize())
+		fontBlob:copyFromRAM()
 	end
 	self.fontRAMs[1].dirtyCPU = true
 end
@@ -2111,7 +2111,7 @@ function AppVideo:resetGFX()
 -- TODO ensure there's at least one?
 	if paletteBlob then
 		resetPalette(paletteBlob.ramptr)
-		ffi.copy(paletteBlob:getPtr(), paletteBlob.ramptr, paletteBlob:getSize())
+		paletteBlob:copyFromRAM()
 	end
 	self.paletteRAMs[1].dirtyCPU = true
 end
