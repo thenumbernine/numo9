@@ -21,8 +21,8 @@ local AudioWAV = require 'audio.io.wav'
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
-local resetBlobPalette = numo9_video.resetBlobPalette
-local resetBlobFont = numo9_video.resetBlobFont
+local resetPalette = numo9_video.resetPalette
+local resetFont = numo9_video.resetFont
 
 local numo9_archive = require 'numo9.archive'
 local cartImageToBlobs = numo9_archive.cartImageToBlobs
@@ -126,13 +126,13 @@ print'!!! creating default palette blob !!!'
 		-- TODO resetGFX flag for n9a to do this anyways
 		-- if pal.png doens't exist then load the default at least
 		local blob = blobClassForName.palette()
-		resetBlobPalette(blob)
+		resetPalette(blob:getPtr())
 		blobs.palette:insert(blob)
 	end
 	if #blobs.font == 0 then
 print'creating default font blob'		
 		local blob = blobClassForName.font()
-		resetBlobFont(blob:getPtr())
+		resetFont(blob:getPtr())
 		blobs.font:insert(blob)
 	end
 
@@ -223,11 +223,11 @@ print('creating default sfx '..i..' blob')
 	-- TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'
-		resetBlobFont(blobs.font[1]:getPtr())
+		resetFont(blobs.font[1]:getPtr())
 	end
 	if extra == 'resetPal' then
 		--print'!!! creating default palette blob !!!'
-		--resetBlobPalette(bank)
+		--resetPalette(bank)
 	end
 
 	local labelImage

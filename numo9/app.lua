@@ -2485,6 +2485,7 @@ print('App:openROM', filename)
 	if not d then return nil, basemsg..(msg or '') end
 
 	self.blobs = cartImageToBlobs(d)
+	self:fillDefaultBlobs()
 
 --DEBUG:print('loaded blobs...')
 --DEBUG:for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)

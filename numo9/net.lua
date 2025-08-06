@@ -1284,9 +1284,7 @@ print'begin client listen loop...'
 --DEBUG(@5):print('newMemSize', newMemSize)
 						local newBlobs = byteArrayToBlobs(ptr, newMemSize)
 						app.blobs = newBlobs	-- hmm but idk that I use this in netplay...
-						app.memSize = newMemSize
-						app.holdram = ffi.new('uint8_t[?]', app.memSize)
-						app.ram = ffi.cast('RAM&', app.holdram)
+						app:fillDefaultBlobs()
 						ffi.copy(app.ram, ramState, app.memSize)
 
 						-- every time .ram updates, this has to update as well:

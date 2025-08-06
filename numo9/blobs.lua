@@ -565,13 +565,26 @@ local AppBlobs = {}
 function AppBlobs:initBlobs()
 --DEBUG:print('AppBlobs:initBlobs...')
 	self.blobs = makeEmptyBlobs()
+	self:fillDefaultBlobs()
+end
 
-	--self:addBlob'code'	-- don't init empty code blobs ...
-	self:addBlob'sheet'
-	self:addBlob'sheet'
-	self:addBlob'tilemap'
-	self:addBlob'palette'
-	self:addBlob'font'
+--[[
+after loading a cart, not all default blobs are present
+this fills those up, esp useful for font and palette which have default content
+but also creates the empty sheet / tilemap if they are needed
+--]]
+function AppBlobs:fillDefaultBlobs()
+	for name,count in pairs{
+		--code = 1,	-- don't init empty code blobs ...
+		sheet = 2,
+		tilemap = 1,
+		palette = 1,
+		font = 1,
+	} do
+		while #self.blobs[name] < count do
+			self:addBlob(name)
+		end
+	end
 
 	self:buildRAMFromBlobs()
 --DEBUG:print('...done AppBlobs:initBlobs')
