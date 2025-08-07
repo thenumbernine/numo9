@@ -11,6 +11,7 @@ local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local pitchPrec = numo9_rom.pitchPrec
+local loopOffsetType = numo9_rom.loopOffsetType
 
 local audioSampleTypePtr = audioSampleType..'*'
 
@@ -20,7 +21,7 @@ function EditSFX:init(args)
 	EditSFX.super.init(self, args)
 
 	self.pitch = bit.lshift(1, pitchPrec)
-	self.selSfxIndex = 0
+	self.sfxBlobIndex = 0	-- this is 0 based.  all my other BlobIndex's are 1-based.  maybe they should be 0-based too?
 	self.offsetScrollX = 0
 	self:calculateAudioSize()
 end
@@ -46,25 +47,22 @@ function EditSFX:update()
 	local x, y = 80, 0
 	self:guiSpinner(x, y, function(dx)
 		stop()
-		app.editBankNo = math.clamp(app.editBankNo + dx, 0, #app.banks-1)
-	end, 'bank='..app.editBankNo)
-	x = x + 16
-
-	self:guiSpinner(x, y, function(dx)
-		stop()
-		self.selSfxIndex = bit.band(self.selSfxIndex + dx, 0xff)
-	end, 'sfx='..self.selSfxIndex)
+		self.sfxBlobIndex = math.clamp(self.sfxBlobIndex + dx, 0, #app.blobs.sfx-1)
+	end, 'blob='..self.sfxBlobIndex)
 	x = x + 16
 
 	app:drawMenuText('#', x, y, 0xfc, 0)
 	x = x + 6
-	self:guiTextField(x, y, 24, self, 'selSfxIndex', function(index)
+	self:guiTextField(x, y, 24, self, 'sfxBlobIndex', function(index)
 		stop()
-		self.selSfxIndex = bit.band(tonumber(index) or self.selSfxIndex, 0xff)
-	end, 'sfx='..self.selSfxIndex)
+		self.sfxBlobIndex = tonumber(index) or self.sfxBlobIndex
+	end, 'sfx='..self.sfxBlobIndex)
 
-	local selbank = app.ram.bank[app.editBankNo]
-	local selsfx = selbank.sfxAddrs + self.selSfxIndex
+	local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
+	if not sfxBlob then return end
+	local sfxLoopOffset = ffi.cast(loopOffsetType..'*', app.ram.v + sfxBlob.addr)[0]
+	local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
+
 	local channel = app.ram.channels+0
 	local isPlaying = channel.flags.isPlaying == 1
 	local secondsPerByte = 1 / (ffi.sizeof(audioSampleType) * audioOutChannels * audioSampleRate)
@@ -72,28 +70,28 @@ function EditSFX:update()
 	local xlhs = 48
 	local xrhs = 200
 
-	local endAddr = selsfx.addr + selsfx.len
-	app:drawMenuText(('mem:  $%04x-$%04x'):format(selsfx.addr, endAddr), xlhs, 10, 0xfc, 0)
+	local endAddr = sfxBlob.addr + sfxBlob:getSize()
+	app:drawMenuText(('mem:  $%04x-$%04x'):format(sfxBlob.addr, endAddr), xlhs, 10, 0xfc, 0)
 
-	local playaddr = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
-	app:drawMenuText(('@$%04x b'):format(playaddr), xrhs, 10, 0xfc, 0)
+	local offset = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
+	app:drawMenuText(('@$%04x b'):format(offset), xrhs, 10, 0xfc, 0)
 
-	local playLen = (playaddr - selsfx.addr) * secondsPerByte
+	local playLen = offset * secondsPerByte
 	app:drawMenuText(('@%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
 
-	local lengthInSeconds = selsfx.len * secondsPerByte
-	app:drawMenuText(('len:  $%04x b / %02.3fs'):format(selsfx.len, lengthInSeconds), xlhs, 18, 0xfc, 0)
+	local lengthInBytes = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
+	local lengthInSeconds = lengthInBytes * secondsPerByte
+	app:drawMenuText(('len:  $%04x b / %02.3fs'):format(lengthInBytes, lengthInSeconds), xlhs, 18, 0xfc, 0)
 
-	local loopInSeconds = selsfx.loopOffset * secondsPerByte
-	app:drawMenuText(('loop: $%04x b / %02.3fs'):format(selsfx.loopOffset, loopInSeconds), xlhs, 26, 0xfc, 0)
-
+	local loopInSeconds = sfxLoopOffset * secondsPerByte
+	app:drawMenuText(('loop: $%04x b / %02.3fs'):format(sfxLoopOffset, loopInSeconds), xlhs, 26, 0xfc, 0)
 
 	-- TODO render the wave ...
 	local prevAmpl
-	for i=0, math.min(512, math.max(0, selsfx.len - self.offsetScrollX - 2)), 2 do
+	for i=0, math.min(512, math.max(0, lengthInBytes - self.offsetScrollX - 2)), 2 do
 		local sampleOffset = self.offsetScrollX + i
-		local pastLoopOffset = sampleOffset > selsfx.loopOffset
-		local ampl = -tonumber(ffi.cast(audioSampleTypePtr, selbank.audioData + selsfx.addr + sampleOffset)[0])
+		local pastLoopOffset = sampleOffset > sfxLoopOffset
+		local ampl = -tonumber(ffi.cast(audioSampleTypePtr, sfxBlob.ramptr + ffi.sizeof(loopOffsetType) + sampleOffset)[0])
 		prevAmpl = prevAmpl or ampl
 		--[[
 		-- TODO variable thickness?
@@ -117,13 +115,13 @@ function EditSFX:update()
 		prevAmpl = ampl
 	end
 
-	local scrollMax = math.max(0, selsfx.len-512)
+	local scrollMax = math.max(0, lengthInBytes-512)
 	app:drawSolidLine(0, 120, 255, 120, 0xfc)
 	app:drawSolidLine(0, 127, 255, 127, 0xfc)
 
-	app:drawMenuText('|', (playaddr - selsfx.addr) / selsfx.len * 248, 120, 0xfc, 0)
+	app:drawMenuText('|', offset / lengthInBytes * 248, 120, 0xfc, 0)
 
-	if self:guiButton('#', self.offsetScrollX / selsfx.len * 248, 120) then
+	if self:guiButton('#', self.offsetScrollX / lengthInBytes * 248, 120) then
 		self.draggingScroll = true
 	end
 	
@@ -134,15 +132,15 @@ function EditSFX:update()
 	
 	if self.draggingScroll then
 		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
-		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, selsfx.len - 512)
+		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, lengthInBytes - 512)
 		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 		if leftButtonRelease then
 			self.draggingScroll = false
 		end
 	end
 	if isPlaying then
-		self.offsetScrollX = bit.rshift(channel.addr, pitchPrec-1) - selsfx.addr
-		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, selsfx.len - 512)
+		self.offsetScrollX = bit.rshift(channel.addr, pitchPrec-1) - sfxBlob.addr
+		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, lengthInBytes - 512)
 		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 	end
 
@@ -150,7 +148,7 @@ function EditSFX:update()
 		if isPlaying then
 			stop()
 		else
-			app:playSound(self.selSfxIndex, 0, self.pitch, nil, nil, true)
+			app:playSound(self.sfxBlobIndex, 0, self.pitch, nil, nil, true)
 		end
 	end
 
@@ -171,16 +169,16 @@ function EditSFX:update()
 		end
 	else
 		if app:key'space' then
-			app:playSound(self.selSfxIndex, 0, self.pitch, nil, nil, true)
+			app:playSound(self.sfxBlobIndex, 0, self.pitch, nil, nil, true)
 		end
 	end
 
 	if app:keyp('left', 30, 15) then
 		stop()
-		self.selSfxIndex = bit.band(self.selSfxIndex - 1, 0xff)
+		self.sfxBlobIndex = bit.band(self.sfxBlobIndex - 1, 0xff)
 	elseif app:keyp('right', 30, 15) then
 		stop()
-		self.selSfxIndex = bit.band(self.selSfxIndex + 1, 0xff)
+		self.sfxBlobIndex = bit.band(self.sfxBlobIndex + 1, 0xff)
 	end
 end
 
