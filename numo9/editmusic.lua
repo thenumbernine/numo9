@@ -31,7 +31,7 @@ function EditMusic:init(args)
 
 	self:calculateAudioSize()
 
-	self.musicBlobIndex = 1
+	self.musicBlobIndex = 0
 
 	self.startSampleFrameIndex = 0
 	self.frameStart = 1
@@ -47,7 +47,8 @@ end
 function EditMusic:refreshSelectedMusic()
 	local app = self.app
 	if #app.blobs.music == 0 then return end
-	local selMusicBlob = app.blobs.music[self.musicBlobIndex]
+	local selMusicBlob = app.blobs.music[self.musicBlobIndex+1]
+	if not selMusicBlob then return end
 
 	local channels = ffi.new('Numo9Channel[?]', audioMixChannels)
 	local channelBytes = ffi.cast('uint8_t*', channels)
@@ -141,7 +142,7 @@ function EditMusic:encodeMusicFromFrames()
 
 	-- TODO now update all the sound table to make room for this data
 	-- replace the new music data
-	app.blobs.music[self.selMusicIndex].data = newMusicData
+	app.blobs.music[self.musicBlobIndex+1].data = newMusicData
 end
 
 function EditMusic:update()
@@ -160,18 +161,12 @@ function EditMusic:update()
 	end, 'blob='..self.musicBlobIndex)
 	x = x + 16
 
-	self:guiSpinner(x, y, function(dx)
-		self.selMusicIndex = bit.band(self.selMusicIndex + dx, 0xff)
-		self:refreshSelectedMusic()
-	end, 'music='..self.selMusicIndex)
-	x = x + 16
-
 	app:drawMenuText('#', x, y, 0xfc, 0)
 	x = x + 6
-	self:guiTextField(x, y, 24, self, 'selMusicIndex', function(index)
-		self.selMusicIndex = bit.band(tonumber(index) or self.selMusicIndex, 0xff)
+	self:guiTextField(x, y, 24, self, 'musicBlobIndex', function(index)
+		self.musicBlobIndex = (tonumber(index) or self.musicBlobIndex) % #app.blobs.music
 		self:refreshSelectedMusic()
-	end, 'music='..self.selMusicIndex)
+	end, 'music='..self.musicBlobIndex)
 	x = x + 24
 
 	self:guiSpinner(x, y, function(dx)
@@ -183,7 +178,8 @@ function EditMusic:update()
 		self.showText = not self.showText
 	end
 
-	local selMusicBlob = app.blobs.music[self.musicBlobIndex]
+	local selMusicBlob = app.blobs.music[self.musicBlobIndex+1]
+	if not selMusicBlob then return end
 	local musicPlaying = app.ram.musicPlaying+0
 
 	local y = 10
@@ -391,7 +387,7 @@ function EditMusic:update()
 				app.ram.musicPlaying[i].isPlaying = 0
 			end
 		else
-			app:playMusic(self.selMusicIndex, 0)
+			app:playMusic(self.musicBlobIndex, 0)
 			self.startSampleFrameIndex = musicPlaying.sampleFrameIndex
 		end
 	end
@@ -413,16 +409,16 @@ function EditMusic:update()
 		end
 	else
 		if app:key'space' then
-			app:playMusic(self.selMusicIndex, 0)
+			app:playMusic(self.musicBlobIndex, 0)
 			self.startSampleFrameIndex = musicPlaying.sampleFrameIndex
 		end
 	end
 
 	if app:keyp('left', 30, 15) then
-		self.selMusicIndex = bit.band(self.selMusicIndex - 1, 0xff)
+		self.musicBlobIndex = (self.musicBlobIndex - 1) % #app.blobs.music
 		self:refreshSelectedMusic()
 	elseif app:keyp('right', 30, 15) then
-		self.selMusicIndex = bit.band(self.selMusicIndex + 1, 0xff)
+		self.musicBlobIndex = (self.musicBlobIndex + 1) % #app.blobs.music
 		self:refreshSelectedMusic()
 	end
 end

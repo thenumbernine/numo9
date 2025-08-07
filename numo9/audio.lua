@@ -241,11 +241,11 @@ function AppAudio:updateSoundEffects()
 						channel.flags.isPlaying = 0
 					else
 						ampl = ffi.cast(audioSampleTypePtr, self.ram.v + sfxAmplAddr)[0]
---DEBUG:print('offset', ('0x%x'):format(channel.offset),'addr', ('0x%x'):format(sfxAmplAddr), 'ampl', ('0x%04x'):format(ampl))	
+--DEBUG:print('offset', ('0x%x'):format(channel.offset),'addr', ('0x%x'):format(sfxAmplAddr), 'ampl', ('0x%04x'):format(ampl))
 
 						channel.offset = channel.offset + channel.pitch
 						local offsetOver = channel.offset - bit.lshift(sfxLen, pitchPrec-1)
---DEBUG:print('offsetOver', offsetOver)	
+--DEBUG:print('offsetOver', offsetOver)
 						if offsetOver >= 0 then
 --DEBUG:print('sfx looping over', offsetOver)
 							if channel.flags.isLooping ~= 0 then
@@ -257,7 +257,7 @@ function AppAudio:updateSoundEffects()
 								end
 --DEBUG:assert.eq(bit.band(offset, 1), 0)
 							else
---DEBUG:print('done and not looping -- stopping')								
+--DEBUG:print('done and not looping -- stopping')
 								-- TODO change to channel-0 ... should channel-0 be empty always?
 								channel.offset = 0
 								channel.flags.isPlaying = 0
@@ -324,13 +324,16 @@ end
 function AppAudio:updateMusicPlaying(musicPlaying)
 	local audio = self.audio
 	if musicPlaying.addr >= musicPlaying.endAddr then
+print('music addr past end -- stopping')
 		musicPlaying.isPlaying = 0
 		return
 	end
 	if musicPlaying.isPlaying == 0 then
+print('music no longer isPlaying -- stopping')
 		return
 	end
 	if audio.sampleFrameIndex < musicPlaying.nextBeatSampleFrameIndex then
+print('waiting for beat -- stopping')
 	--if audio.sampleFrameIndex + updateIntervalInSampleFrames < musicPlaying.nextBeatSampleFrameIndex then
 		return
 	end
@@ -357,7 +360,10 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < self.memSize)
 --DEBUG:print('GOT PLAY MUSIC', value)
 			-- play music
 			local musicBlob = self.blobs.music[value+1]
-			if not musicBlob then return end
+			if not musicBlob then
+print('music changed music - failed to find music', value)
+				return
+			end
 			musicPlaying.addr = musicBlob.addr
 			musicPlaying.endAddr = musicBlob.addr + musicBlob:getSize()
 --assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.bank[0].audioData))
@@ -510,14 +516,14 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	if sfxID == -1 then
 		channel.offset = 0
 		channel.flags.isPlaying = 0
---DEBUG:print('sfxID == -1, returning')		
+--DEBUG:print('sfxID == -1, returning')
 		return
 	end
 	sfxID = bit.band(sfxID, 0xff)
 	local sfxBlob = self.blobs.sfx[sfxID+1]
-	if not sfxBlob then 
---DEBUG:print('failed to find blob for sfx', sfxID)		
-		return 
+	if not sfxBlob then
+--DEBUG:print('failed to find blob for sfx', sfxID)
+		return
 	end
 
 --DEBUG:print('playing sound', sfxID)
@@ -581,7 +587,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	assert(musicPlaying.addr >= 0 and musicPlaying.addr < self.memSize)
 	assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= self.memSize)
 	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
-print('playing with beats/second', beatsPerSecond)
+--DEBUG:print('playing with beats/second', beatsPerSecond)
 	musicPlaying.addr = musicPlaying.addr + 2
 
 	-- audio ticks should be in sampleFramesPerSecond
