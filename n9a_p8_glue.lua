@@ -1,10 +1,10 @@
 -- some glue code needs this, might as well generate it dynamically here:
 -- NOTICE if you ever remove ffi from the cartridge API then this will break ...
 updateCounterAddr=ramaddr'updateCounter'
-spriteSheetAddr=ramaddr'bank' + romaddr'spriteSheet'
-tilemapAddr=ramaddr'bank' + romaddr'tilemap'
 framebufferAddr=ramaddr'framebuffer'
 userDataAddr=ramaddr'userData'
+spriteSheetAddr=blobaddr'sheet'
+tilemapAddr=blobaddr'tilemap'
 mode(1)	-- set to 8bpp-indexed framebuffer
 p8ton9btnmap={[0]=2,0,3,1,7,5}
 p8color=6

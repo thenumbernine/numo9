@@ -13,9 +13,9 @@ table.pickWeighted = |t|do
 	end
 end
 
-local palAddr = ramaddr'bank' + romaddr'palette'
 local blendColorAddr = ramaddr'blendColor'
-local spriteSheetAddr = ramaddr'bank' + romaddr'spriteSheet'
+local palAddr = blobaddr'palette'
+local spriteSheetAddr = blobaddr'sheet'
 
 local setBlendColor = |c| pokew(blendColorAddr, c)
 
