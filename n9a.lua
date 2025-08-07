@@ -130,7 +130,7 @@ print'!!! creating default palette blob !!!'
 		blobs.palette:insert(blob)
 	end
 	if #blobs.font == 0 then
-print'creating default font blob'		
+print'creating default font blob'
 		local blob = blobClassForName.font()
 		resetFont(blob:getPtr())
 		blobs.font:insert(blob)
@@ -193,7 +193,7 @@ print'creating default font blob'
 			phaserwave,
 		}
 
-	
+
 		for i,f in ipairs(wavefuncs) do
 			if not blobs.sfx[i] then
 print('creating default sfx '..i..' blob')
@@ -219,7 +219,7 @@ print('creating default sfx '..i..' blob')
 			end
 		end
 	end
-	
+
 	-- TODO organize this more
 	if extra == 'resetFont' then
 		print'resetting font...'

@@ -424,7 +424,7 @@ end
 function UI:edit_pokew(addr, value)
 	local app = self.app
 	app:net_pokew(addr, value)
-	
+
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
 			if addr >= blob.addr and addr+2 <= blob.addr + blob:getSize() then
