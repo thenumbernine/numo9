@@ -224,20 +224,20 @@ function AppAudio:updateSoundEffects()
 				local sfxBlob = self.blobs.sfx[channel.sfxID+1]
 				if sfxBlob then
 					local sfxLen = sfxBlob:getSize()
-					local sfxLoopOffset = ffi.cast(loopOffsetType..'*', sfxBlob.addr)[0]
+					local sfxLoopOffset = ffi.cast(loopOffsetType..'*', self.ram.v + sfxBlob.addr)[0]
 					local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
 
 					-- where in sfx we are currently playing
 					local offset = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
-	--DEBUG:assert.ge(offset, 0)
+--DEBUG:assert.ge(offset, 0)
 					local sfxAmplAddr = sfxAmplsAddr + offset
 					if sfxAmplAddr >= 0 and sfxAmplAddr < self.memSize-1 then
-						ampl = ffi.cast(audioSampleTypePtr, sfxAmplAddr)[0]
+						ampl = ffi.cast(audioSampleTypePtr, self.ram.v + sfxAmplAddr)[0]
 
 						channel.addr = channel.addr + channel.pitch
 						local offsetOver = channel.addr - bit.lshift(sfxLen, pitchPrec-1)
 						if offsetOver >= 0 then
-		--print('sfx looping over', offsetOver)
+--DEBUG:print('sfx looping over', offsetOver)
 							if channel.flags.isLooping ~= 0 then
 								if sfxLen == 0 then	-- can't modulo zero so just assign it to the start.
 									channel.addr = bit.lshift(sfxLoopOffset, pitchPrec-1)
@@ -245,7 +245,7 @@ function AppAudio:updateSoundEffects()
 									-- offset modulo length, to make sure it doesn't pass the end
 									channel.addr = (bit.lshift(sfxLoopOffset, pitchPrec-1) + offsetOver) % bit.lshift(sfx.len, pitchPrec-1)
 								end
-		--DEBUG:assert.eq(bit.band(offset, 1), 0)
+--DEBUG:assert.eq(bit.band(offset, 1), 0)
 							else
 								-- TODO change to channel-0 ... should channel-0 be empty always?
 								channel.addr = 0
@@ -410,18 +410,20 @@ assert.eq(audioMusicPlayingCount, 8)
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
 --print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.bank[0].sfxAddrs[value].addr)
 			-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
-			local sfx = self.ram.bank[0].sfxAddrs[value]
-			local sfxaddr =  sfx.addr
-			-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
-			assert.eq(bit.band(sfxaddr, 1), 0)
-			-- THEN SHIFT IT ... 11 ... which is 12 minus 1
-			-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
-			local channel = self.ram.channels[channelIndex]
-			channel.flags.isPlaying = 1
-			-- TODO looping ... looping in track music ... looping in sfx playback ... idk shrug
-			channel.flags.isLooping = 1
-			channel.addr = bit.lshift(sfxaddr, pitchPrec-1)
-			-- so the bottom 12 should be 0's at this point
+			local sfxBlob = self.blobs.sfx[value+1]
+			if sfxBlob then
+				local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
+				-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
+				assert.eq(bit.band(sfxAmplsAddr, 1), 0)
+				-- THEN SHIFT IT ... 11 ... which is 12 minus 1
+				-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
+				local channel = self.ram.channels[channelIndex]
+				channel.flags.isPlaying = 1
+				-- TODO looping ... looping in track music ... looping in sfx playback ... idk shrug
+				channel.flags.isLooping = 1
+				channel.addr = 0
+				-- so the bottom 12 should be 0's at this point
+			end
 		end
 
 		if musicPlaying.addr >= musicPlaying.endAddr-1 then
@@ -505,7 +507,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	channel.sfxID = sfxID
 	channel.flags.isPlaying = 1
 	channel.flags.isLooping = looping and 1 or 0
-	channel.addr = bit.lshift(sfxBlob.addr, pitchPrec-1)
+	channel.addr = 0
 	channel.pitch = pitch
 	channel.volume[0] = volL
 	channel.volume[1] = volR
