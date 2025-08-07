@@ -149,6 +149,16 @@ function EditMusic:update()
 	EditMusic.super.update(self)
 	local app = self.app
 
+	local function stop()
+		self.offsetScrollX = 0
+		for i=0,audioMixChannels-1 do
+			app.ram.channels[i].flags.isPlaying = 0
+		end
+		for i=0,audioMusicPlayingCount-1 do
+			app.ram.musicPlaying[i].isPlaying = 0
+		end
+	end
+
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
@@ -193,7 +203,7 @@ function EditMusic:update()
 
 	--local playLen = (playaddr - selMusicBlob.addr) * secondsPerByte
 	local numSampleFramesPlayed = musicPlaying.sampleFrameIndex - self.startSampleFrameIndex
-	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', musicPlaying.addr)[0])
+	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', app.ram.v + musicPlaying.addr)[0])
 	app:drawMenuText(
 		('%d frame / %.3f s'):format(
 			numSampleFramesPlayed,
@@ -360,14 +370,14 @@ function EditMusic:update()
 		y=y+8
 		for i=0,audioMixChannels-1 do
 			local channel = thisFrame.channels + i
-			local sfxBlob = self.blobs.sfx[channel.sfxID+1]
+			local sfxBlob = app.blobs.sfx[channel.sfxID+1]
 			app:drawMenuText(
 				('%1d %3d %04x %04x %04x %3d %3d %5d'):format(
 					i,
 					channel.sfxID,
 					sfxBlob.addr,
-					sfxBlob.addr + sfxBlob.loopOffset,
-					bit.rshift(channel.addr, pitchPrec-1),
+					sfxBlob.addr + ffi.cast('SFX*', sfxBlob.ramptr).loopOffset,
+					bit.rshift(channel.offset, pitchPrec-1),
 					channel.volume[0],
 					channel.volume[1],
 					channel.pitch
