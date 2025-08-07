@@ -79,13 +79,21 @@ local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
 local keyPressFlagSize = math.ceil(keyCount / 8)
 
--- [[ use fixed point 16:16
+-- [[ use floating point
+local mvMatType = 'float'
+local mvMatScale = 1
+--]]
+--[[ use fixed point 16:16 -- works
 local mvMatType = 'int32_t'
 local mvMatScale = 65536
 --]]
 --[[ use fixed point 24:8
 local mvMatType = 'int32_t'
 local mvMatScale = 256
+--]]
+--[[ use fixed point 32:0
+local mvMatType = 'int32_t'
+local mvMatScale = 1
 --]]
 --[[ use fixed point 12:4 -- works
 local mvMatType = 'int16_t'

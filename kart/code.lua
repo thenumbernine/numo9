@@ -1036,8 +1036,11 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 	-- [[ draw the track as tilemap
 	matpush()
 -- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
+	--mattrans(-currentCamPos[1] / 16, -currentCamPos[2] / 16, -currentCamPos[3] / 16)
 	mattrans(-currentCamPos[1], -currentCamPos[2], -currentCamPos[3])
+	--mattrans(-currentCamPos[1] * 8, -currentCamPos[2] * 8, -currentCamPos[3] * 8)
 --]=]
+	--matscale(1/(8*16), 1/(8*16), 1/(8*16))
 	matscale(1/8, 1/8, 1/8)
 --[=[ not helping
 applyprojmat()
@@ -1140,9 +1143,10 @@ end
 function Kart:setupClientView(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 	matident()
 
-	--local n=.1
-	local n=.1
-	local f=128
+	--local n = .1
+	--local f = 128
+	local n = 1
+	local f = 1e+30	-- hmm why...
 
 -- [[ this gets resolution issues the further from the origin we are
 	local viewCenterX = viewX + .5 * viewWidth

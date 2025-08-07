@@ -37,26 +37,24 @@ local menuFontWidth = numo9_rom.menuFontWidth
 
 local mvMatInvScale = 1 / mvMatScale
 
-local function vec2to4(m, x, y, z)
+local function vec2to4(m, x, y)
+	x = tonumber(x)
+	y = tonumber(y)
 	return
 		(m[0] * x + m[4] * y + m[12]) * mvMatInvScale,
 		(m[1] * x + m[5] * y + m[13]) * mvMatInvScale,
-		(m[2] * x + m[6] * y + m[14]) * mvMatInvScale,
+		(m[2] * x + m[6] * y + m[14]) * mvMatInvScale,-- / 16777216.,
 		(m[3] * x + m[7] * y + m[15]) * mvMatInvScale
 end
 local function vec3to4(m, x, y, z)
+	x = tonumber(x)
+	y = tonumber(y)
+	z = tonumber(z)
 	return
 		(m[0] * x + m[4] * y + m[ 8] * z + m[12]) * mvMatInvScale,
 		(m[1] * x + m[5] * y + m[ 9] * z + m[13]) * mvMatInvScale,
-		(m[2] * x + m[6] * y + m[10] * z + m[14]) * mvMatInvScale,
+		(m[2] * x + m[6] * y + m[10] * z + m[14]) * mvMatInvScale,-- / 16777216.,
 		(m[3] * x + m[7] * y + m[11] * z + m[15]) * mvMatInvScale
-end
-
-local function glslnumber(x)
-	local s = tostring(tonumber(x))
-	if s:find'e' then return s end
-	if not s:find'%.' then s = s .. '.' end
-	return s
 end
 
 local function settableindex(t, i, ...)
@@ -538,9 +536,6 @@ local AppVideo = {}
 -- called upon app init
 -- 'self' == app
 function AppVideo:initVideo()
-	self.fb = GLFBO():unbind()
-
-
 	--[[
 	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per blob
 	but I am still using the texture specs for my shader creation
@@ -588,6 +583,10 @@ function AppVideo:initVideo()
 	self.paletteRAMs = table()
 	self.fontRAMs = table()
 	self:resizeRAMGPUs()
+
+	-- self.fbos['_'..width..'x'..height] = FBO with depth attachment.
+	-- for FBO's size is all that matters, right? not format right?
+	self.fbos = {}
 
 	-- this table is 1:1 with videoModeInfo
 	-- and used to create/assign unique framebufferRAMs
@@ -712,7 +711,18 @@ function AppVideo:initVideo()
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
-		local key = '_'..req.width..'x'..req.height..suffix
+
+		local sizekey = '_'..req.width..'x'..req.height
+		if not self.fbos[sizekey] then
+			self.fbos[sizekey] = GLFBO{
+				width = req.width,
+				height = req.height,
+				useDepth = true, --gl.GL_DEPTH_COMPONENT32,
+			}:unbind()
+		end
+		req.fb = self.fbos[sizekey]
+
+		local key = sizekey..suffix
 		local framebufferRAM = self.framebufferRAMs[key]
 		if not framebufferRAM then
 			local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
@@ -1151,6 +1161,7 @@ void main() {
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
+		info.fb = req.fb
 		info.format = req.format
 		-- only used for the intro screen console output:
 		local w, h = reduce(req.width, req.height)
@@ -1509,7 +1520,6 @@ void main() {
 ]],				{
 					self = self,
 					info = info,
-					glslnumber = glslnumber,
 					fragType = info.framebufferRAM.tex:getGLSLFragType(),
 					glslCode5551 = glslCode5551,
 					tilemapSize = tilemapSize,
@@ -1616,6 +1626,12 @@ void main() {
 --DEBUG:flushSizes = {},
 		flush = function(self)
 --DEBUG: self.flushCallsPerFrame = self.flushCallsPerFrame + 1
+
+-- TODO where to put this ...
+-- in clearScreen would be nice, but that inserts a quad into this buffer ...
+-- so do I make it a special tri that clears the buffer?
+-- or what?
+gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 			local sceneObj = self.sceneObj
 			if not sceneObj then return end	-- for some calls called before this is even created ...
@@ -2011,6 +2027,7 @@ function AppVideo:setVideoMode(mode)
 		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
 		self.solidObj = info.solidObj
+		self.fb = info.fb
 
 		self.triBuf.sceneObj = self.solidObj
 	else
@@ -2320,6 +2337,7 @@ function AppVideo:clearScreen(
 	colorIndex,
 	paletteTex	-- override for menu ... starting to think this should be a global somewhere...
 )
+-- [[ using a quad ... not depth friendly
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
 	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
@@ -2341,6 +2359,23 @@ function AppVideo:clearScreen(
 	self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+--]]
+--[[ using clear for depth ... isn't guaranteeing sorting though ... hmm ...
+-- if we do clear color here then it'll go out of order between clearScreen() and triBuf:flush() calls
+-- so better to clear depth only?  then there's a tiny out of sync problem but probably no one will notice I hope...
+	self.triBuf:flush()
+	paletteTex = paletteTex or self.paletteRAM.tex
+assert(paletteTex.data)
+	-- what does the shader do? if colorIndex is oob does it clear nothing?
+	local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[bit.band(colorIndex, 0xff)]
+	gl.glClearColor(
+		bit.band(selColorValue, 0x1f) / 0x1f,
+		bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f,
+		bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f,
+		1)
+	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+	gl.glClearColor(.1, .2, .3, 1.)	-- default also found in 'needDrawCounter' block of App:update()
+--]]
 end
 
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
