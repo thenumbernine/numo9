@@ -25,6 +25,7 @@ local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local loopOffsetType = numo9_rom.loopOffsetType
+local mvMatType = numo9_rom.mvMatType
 
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
@@ -736,6 +737,9 @@ function AppBlobs:buildRAMFromBlobs()
 
 	self.blobEntriesForClassName = info.blobEntriesForClassName
 --DEBUG:print('...done AppBlobs:initBlobs')
+
+	-- every time .ram updates, this has to update as well:
+	self.mvMat.ptr = ffi.cast(mvMatType..'*', self.ram.mvMat)
 end
 
 -- NOTICE this desyncs the blobs and the RAM so you'll need to then call buildRAMFromBlobs

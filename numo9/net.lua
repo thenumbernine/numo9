@@ -1287,9 +1287,6 @@ print'begin client listen loop...'
 						app:buildRAMFromBlobs()
 						ffi.copy(app.ram, ramState, app.memSize)
 
-						-- every time .ram updates, this has to update as well:
-						app.mvMat.ptr = ffi.cast(mvMatType..'*', app.ram.mvMat)
-
 						app:resizeRAMGPUs()	-- resizes # of RAMGPU objects, sets them to their default address too
 						app:setVideoMode(app.ram.videoMode)
 

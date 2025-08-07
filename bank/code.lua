@@ -7,20 +7,8 @@
 -- editTilemap.draw16Sprites = true
 mode(0)
 
------------------------ BEGIN ext/range.lua-----------------------
-local range=|a,b,c|do
-	local t = table()
-	if c then
-		for x=a,b,c do t:insert(x) end
-	elseif b then
-		for x=a,b do t:insert(x) end
-	else
-		for x=1,a do t:insert(x) end
-	end
-	return t
-end
-
------------------------ END ext/range.lua  -----------------------
+--#include ext/range.lua
+--#include ext/class.lua
 
 _G=getfenv(1)
 linfDist=|ax,ay,bx,by|do
@@ -188,30 +176,6 @@ removeAll=||do
 	addList=table()
 end
 
------------------------ BEGIN ext/class.lua-----------------------
-local isa=|cl,o|o.isaSet[cl]
-local classmeta = {__call=|cl,...|do
-	local o=setmetatable({},cl)
-	return o, o?:init(...)
-end}
-local class
-class=|...|do
-	local t=table(...)
-	t.super=...
-	--t.supers=table{...}
-	t.__index=t
-	t.subclass=class
-	t.isaSet=table(table{...}
-		:mapi(|cl|cl.isaSet)
-		:unpack()
-	):setmetatable(nil)
-	t.isaSet[t]=true
-	t.isa=isa
-	setmetatable(t,classmeta)
-	return t
-end
-
------------------------ END ext/class.lua  -----------------------
 classmeta.__index=_G	-- obj __index looks in its class, if not there then looks into global.  This line is needed for :: setfenv(1,self) use.
 
 BaseObj=class{
