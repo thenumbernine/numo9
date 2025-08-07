@@ -759,9 +759,9 @@ print('toImage', name, 'width', width, 'height', height)
 		local sfxSrc = move(sections, 'sfx')
 		basepath'sfx.txt':write(sfxSrc:concat'\n'..'\n')
 		for sfxIndexPlusOne,line in ipairs(sfxSrc) do
-			local index = sfxIndexPlusOne-1
+			local sfxIndex = sfxIndexPlusOne-1
 			local sfx = {
-				index = index,
+				index = sfxIndex,
 				editorMode = tonumber(line:sub(1,2), 16),
 				duration = tonumber(line:sub(3,4), 16),
 				loopStart = tonumber(line:sub(5,6), 16),
@@ -890,8 +890,12 @@ print('toImage', name, 'width', width, 'height', height)
 				local data = playbackDeltas:dataToStr()
 --print('music'..index..'.bin')
 --print(string.hexdump(data))
-				basepath('music'..(index == 0 and '' or (index+1))..'.bin'):write(data)
+				basepath('music'..(sfxIndex == 0 and '' or (sfxIndex+1))..'.bin'):write(data)
 			end
+		end
+		for i=1,128 do
+			local f = basepath('music'..(i==1 and '' or i)..'.bin')
+			if not f:exists() then f:write'\0\0\0\0' end
 		end
 
 		--[=[ don't need to generate these here anymore...
@@ -1176,7 +1180,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 				local data = playbackDeltas:dataToStr()
 --print('music'..(musicTrackIndex + 128)..'.bin')
 --print(string.hexdump(data))
-				basepath('music'..(musicTrackIndex + 128)..'.bin'):write(data)
+				basepath('music'..(musicTrackIndex + 128 + 1)..'.bin'):write(data)
 			end
 		end
 	end
