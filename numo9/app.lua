@@ -206,6 +206,9 @@ local function toint(x)
 	--return bit.bor(x, 0)	-- seems nice but I think it rounds instead of truncates ...
 	return ffi.cast('int32_t', x)	-- use int32 so Lua has no problem with it
 end
+local function tofloat(x)
+	return ffi.cast('float', x)
+end
 
 function App:initGL()
 	self.mainThread = coroutine.running()
@@ -314,9 +317,11 @@ function App:initGL()
 		peek = function(addr) return self:peek(addr) end,
 		peekw = function(addr) return self:peekw(addr) end,
 		peekl = function(addr) return self:peekl(addr) end,
+		peekf = function(addr) return self:peekf(addr) end,
 		poke = function(addr, value) return self:net_poke(addr, value) end,
 		pokew = function(addr, value) return self:net_pokew(addr, value) end,
 		pokel = function(addr, value) return self:net_pokel(addr, value) end,
+		pokef = function(addr, value) return self:net_pokef(addr, value) end,
 		memcpy = function(...) return self:net_memcpy(...) end,
 		memset = function(...) return self:net_memset(...) end,
 
@@ -1376,7 +1381,6 @@ function App:net_poke(addr, value)
 	end
 	return self:poke(addr, value)
 end
-
 function App:net_pokew(addr, value)
 	if self.server then
 		addr = ffi.cast('uint32_t', addr)
@@ -1390,7 +1394,6 @@ function App:net_pokew(addr, value)
 	end
 	return self:pokew(addr, value)
 end
-
 function App:net_pokel(addr, value)
 	if self.server then
 		addr = ffi.cast('uint32_t', addr)
@@ -1403,6 +1406,19 @@ function App:net_pokel(addr, value)
 		end
 	end
 	return self:pokel(addr, value)
+end
+function App:net_pokef(addr, value)
+	if self.server then
+		addr = ffi.cast('float', addr)
+		value = ffi.cast('float', value)
+		if self:peekl(addr) ~= value then
+			local cmd = self.server:pushCmd().pokel
+			cmd.type = netcmds.pokel
+			cmd.addr = addr
+			cmd.value = value
+		end
+	end
+	return self:pokef(addr, value)
 end
 
 function App:net_memcpy(dst, src, len)
@@ -2150,6 +2166,20 @@ function App:peekl(addr)
 
 	return ffi.cast('uint32_t*', self.ram.v + addr)[0]
 end
+function App:peekf(addr)
+	local addrend = addr+3
+	if addr < 0 or addrend >= self.memSize then return end
+
+	if self.framebufferRAM.dirtyGPU
+	and addrend >= self.framebufferRAM.addr
+	and addr < self.framebufferRAM.addrEnd
+	then
+		self.triBuf:flush()
+		self.framebufferRAM:checkDirtyGPU()
+	end
+
+	return ffi.cast('float*', self.ram.v + addr)[0]
+end
 
 function App:poke(addr, value)
 	addr = toint(addr)
@@ -2285,6 +2315,49 @@ function App:pokel(addr, value)
 	end
 	-- TODO if we poked the code
 end
+function App:pokef(addr, value)
+	addr = toint(addr)
+	value = tofloat(value)
+	local addrend = addr+3
+	if addr < 0 or addrend >= self.memSize then return end
+
+	if addrend >= self.framebufferRAM.addr
+	and addr < self.framebufferRAM.addrEnd
+	then
+		self.triBuf:flush()
+		self.framebufferRAM:checkDirtyGPU()
+		self.framebufferRAM.dirtyCPU = true
+	end
+
+	ffi.cast('float*', self.ram.v + addr)[0] = tonumber(value)
+
+	for _,sheetRAM in ipairs(self.sheetRAMs) do
+		if addrend >= sheetRAM.addr
+		and addr < sheetRAM.addrEnd
+		then
+			sheetRAM.dirtyCPU = true
+		end
+	end
+	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
+		if addrend >= tilemapRAM.addr
+		and addr < tilemapRAM.addrEnd
+		then
+			tilemapRAM.dirtyCPU = true
+		end
+	end
+	if addrend >= self.paletteRAMs[1].addr
+	and addr < self.paletteRAMs[1].addrEnd
+	then
+		self.paletteRAMs[1].dirtyCPU = true
+	end
+	if addrend >= self.fontRAMs[1].addr
+	and addr < self.fontRAMs[1].addrEnd
+	then
+		self.fontRAMs[1].dirtyCPU = true
+	end
+	-- TODO if we poked the code
+end
+
 
 function App:memcpy(dst, src, len)
 	if len <= 0 then return end

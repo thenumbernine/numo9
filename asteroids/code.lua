@@ -321,7 +321,11 @@ update=||do
 	cls()
 	matident()
 	mattrans(128, 128)	-- screen center
+	-- [[
 	matrot(-viewAngle)
+	--]]
+	-- [[
+	--]]
 	mattrans(-viewPos.x, -viewPos.y)
 	if player then 
 		viewPos:set(player.pos)
