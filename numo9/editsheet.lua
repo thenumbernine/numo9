@@ -37,8 +37,8 @@ local EditSheet = require 'numo9.ui':subclass()
 function EditSheet:init(args)
 	EditSheet.super.init(self, args)
 
-	self.sheetBlobIndex = 1
-	self.paletteBlobIndex = 1
+	self.sheetBlobIndex = 0
+	self.paletteBlobIndex = 0
 
 	-- sprite edit mode
 	self.spriteSelPos = vec2i()	-- TODO make this texel based, not sprite based (x8 less resolution)
@@ -83,22 +83,22 @@ function EditSheet:update()
 	EditSheet.super.update(self)
 
 	self:guiSpinner(80, 0, function(dx)
-		self.sheetBlobIndex = math.clamp(self.sheetBlobIndex + dx, 1, #app.blobs.sheet)
+		self.sheetBlobIndex = math.clamp(self.sheetBlobIndex + dx, 0, #app.blobs.sheet-1)
 	end, 'sheet #'..self.sheetBlobIndex)
 -- TODO +- to grow/shrink blob count
 
 	self:guiSpinner(92, 0, function(dx)
-		self.paletteBlobIndex = math.clamp(self.paletteBlobIndex + dx, 1, #app.blobs.palette)
+		self.paletteBlobIndex = math.clamp(self.paletteBlobIndex + dx, 0, #app.blobs.palette-1)
 	end, 'palette #'..self.paletteBlobIndex)
 -- TODO +- to grow/shrink blob count
 
 	assert.eq(#app.sheetRAMs, #app.blobs.sheet)
-	local currentVRAM = app.sheetRAMs[self.sheetBlobIndex]
+	local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
 	local currentTexAddr = currentVRAM.addr
 
 	assert.eq(#app.paletteRAMs, #app.blobs.palette)
-	local paletteRAM = app.paletteRAMs[self.paletteBlobIndex]
-	local paletteBlob = app.blobs.palette[self.paletteBlobIndex]
+	local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
+	local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
 
 	-- choose spriteBit
 	app:drawMenuText(
@@ -185,7 +185,7 @@ function EditSheet:update()
 		self.spritesheetPanOffset.y,-- ty
 		w-1,						-- tw
 		h-1,						-- th
-		self.sheetBlobIndex-1,
+		self.sheetBlobIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit
@@ -317,7 +317,7 @@ function EditSheet:update()
 		self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y,
 		self.spriteSelSize.x * spriteSize.x,
 		self.spriteSelSize.y * spriteSize.y,
-		self.sheetBlobIndex-1,
+		self.sheetBlobIndex,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex
 		self.spriteBit,							-- spriteBit

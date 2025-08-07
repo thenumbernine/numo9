@@ -32,7 +32,7 @@ local EditTilemap = require 'numo9.ui':subclass()
 function EditTilemap:init(args)
 	EditTilemap.super.init(self, args)
 
-	self.tilemapBlobIndex = 1
+	self.tilemapBlobIndex = 0
 
 	self.pickOpen = false
 	-- these are within the popup select tile window right?
@@ -76,7 +76,7 @@ function EditTilemap:update()
 	local y = 0
 
 	self:guiSpinner(x, y, function(dx)
-		self.tilemapBlobIndex = math.clamp(self.tilemapBlobIndex + dx, 1, #app.blobs.tilemap)
+		self.tilemapBlobIndex = math.clamp(self.tilemapBlobIndex + dx, 0, #app.blobs.tilemap-1)
 	end, 'blob='..self.tilemapBlobIndex)
 	x = x + 16
 
@@ -119,7 +119,7 @@ function EditTilemap:update()
 		self.drawGrid = not self.drawGrid
 	end
 
-	local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex]
+	local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex+1]
 
 	local tileBits = self.draw16Sprites and 4 or 3
 	local tileSize = bit.lshift(1, tileBits)
