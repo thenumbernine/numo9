@@ -116,21 +116,19 @@ elseif cmd == 'a' or cmd == 'r' then
 		for blobNo=1,math.huge do
 			local filepath = basepath(blobClass:getFileName(blobNo))
 			if not filepath:exists() then break end
-print('loading blob #'..blobNo..' type='..blobClassName..' from file="'..filepath..'"')
+			print('loading blob #'..blobNo..' type='..blobClassName..' from file="'..filepath..'"')
 			blobs[blobClassName]:insert(blobClass:loadFile(filepath, basepath, blobNo))
 		end
 	end
 
 	if #blobs.palette == 0 then
-print'!!! creating default palette blob !!!'
 		-- TODO resetGFX flag for n9a to do this anyways
-		-- if pal.png doens't exist then load the default at least
+		-- if palette.png doens't exist then load the default at least
 		local blob = blobClassForName.palette()
 		resetPalette(blob:getPtr())
 		blobs.palette:insert(blob)
 	end
 	if #blobs.font == 0 then
-print'creating default font blob'
 		local blob = blobClassForName.font()
 		resetFont(blob:getPtr())
 		blobs.font:insert(blob)
@@ -472,7 +470,7 @@ print('toImage', name, 'width', width, 'height', height)
 	local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
 		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
 	end))
-	palImg:save(basepath'pal.png'.path)
+	palImg:save(basepath'palette.png'.path)
 
 	local gfxImg = toImage(move(sections, 'gfx'), false, 'gfx')
 	assert.eq(gfxImg.channels, 1)
@@ -482,7 +480,7 @@ print('toImage', name, 'width', width, 'height', height)
 		:clear()
 		:pasteInto{image=gfxImg, x=0, y=0}
 	gfxImg.palette = palette
-	gfxImg:save(basepath'sprite.png'.path)
+	gfxImg:save(basepath'sheet.png'.path)
 
 	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
 	local tileImage = gfxImg:clone()
@@ -493,7 +491,7 @@ print('toImage', name, 'width', width, 'height', height)
 		end
 	end
 	tileImage.palette = palette
-	tileImage:save(basepath'tiles.png'.path)
+	tileImage:save(basepath'sheet2.png'.path)
 
 	local labelSrc = move(sections, 'label')
 	if labelSrc then
@@ -1475,7 +1473,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
 			return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
 		end))
-		palImg:save(bankpath'pal.png'.path)
+		palImg:save(bankpath'palette.png'.path)
 
 		local function chunkToImage(data)
 			-- how is it stored ... raw? compressed? raw until all zeroes remain ... lol no lzw compression
@@ -1509,10 +1507,10 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		end
 
 		if chunks[1] then	-- CHUNK_TILES / bank 8
-			chunkToImage(chunks[1]):save(bankpath'tiles.png'.path)
+			chunkToImage(chunks[1]):save(bankpath'sheet2.png'.path)
 		end
 		if chunks[2] then	-- CHUNK_SPRITES / bank 8
-			chunkToImage(chunks[2]):save(bankpath'sprite.png'.path)
+			chunkToImage(chunks[2]):save(bankpath'sheet.png'.path)
 		end
 		if chunks[4] then	-- CHUNK_MAP / bank 8
 			-- copy tilemap, 0x7F7F worth of data
