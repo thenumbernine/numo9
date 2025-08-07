@@ -73,7 +73,7 @@ function EditSFX:update()
 	local endAddr = sfxBlob.addr + sfxBlob:getSize()
 	app:drawMenuText(('mem:  $%04x-$%04x'):format(sfxBlob.addr, endAddr), xlhs, 10, 0xfc, 0)
 
-	local offset = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
+	local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
 	app:drawMenuText(('@$%04x b'):format(offset), xrhs, 10, 0xfc, 0)
 
 	local playLen = offset * secondsPerByte
@@ -139,7 +139,7 @@ function EditSFX:update()
 		end
 	end
 	if isPlaying then
-		self.offsetScrollX = bit.rshift(channel.addr, pitchPrec-1) - sfxBlob.addr
+		self.offsetScrollX = bit.rshift(channel.offset, pitchPrec-1) - sfxBlob.addr
 		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, lengthInBytes - 512)
 		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 	end
