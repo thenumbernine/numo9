@@ -1,6 +1,12 @@
+-- title = 2048x2
+-- saveid = 2048x2
+-- author = Chris Moore
+-- description = 2048 but double the grid size 
+
 --#include ext/range.lua
 --#include vec/vec2.lua
 --#include vec/vec3.lua
+math.randomseed(tstamp())
 
 --[[
 local size = vec2(4,4)
@@ -74,13 +80,47 @@ trace'you lost'
 --]]
 end
 
+local saveTypeSize = 2	--peekw
+assert.le(size.x * size.y * saveTypeSize, ramsize'persistentCartridgeData')
+
+loadGame=||do
+	local nonzero = 0
+	board = table()
+	for x=1,size.x do
+		board[x] = table()
+		for y=1,size.y do
+			local val = peekw(ramaddr'persistentCartridgeData' + saveTypeSize * ((x-1) + size.x * (y-1)))
+			nonzero |= val
+			board[x][y] = val
+		end
+	end
+	return nonzero == 0
+end
+
+saveGame=||do
+	for x=1,size.x do
+		for y=1,size.y do
+			pokew(ramaddr'persistentCartridgeData' + saveTypeSize * ((x-1) + size.x * (y-1)), board[x][y])
+		end
+	end
+end
+
 resetGame=||do
 --[[ testing
 	board = range(size.x):mapi(|i| range(size.y):mapi(|j| 1<<math.max(i,2)))
 --]]
--- [[
+--[[ init
 	board = range(size.x):mapi(|| range(size.y):mapi(|| 0))
 	addNumber()
+	saveGame()
+--]]
+-- [[ read from save
+-- TODO don't do this here, do it somewhere else, and add save files
+	local init = loadGame()
+	if init then	-- new board?
+		addNumber()
+		saveGame()
+	end
 --]]
 end
 
@@ -189,6 +229,7 @@ update=||do
 --trace(board:mapi([col] col:concat','):concat'\n')
 				addNumber()
 			end
+			saveGame()
 		end
 	end
 end
