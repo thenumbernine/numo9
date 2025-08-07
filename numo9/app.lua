@@ -218,7 +218,11 @@ function App:initGL()
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
 
+	-- do this before initBlobs -> buildRAMFromBlobs
+	self.mvMat = matrix_ffi({4,4}, mvMatType):zeros()
+
 	self:initBlobs()
+	self:matident()
 
 	do
 		--DEBUG:print(RAM.code)
@@ -248,10 +252,6 @@ function App:initGL()
 			print(('0x%06x - 0x%06x = '):format(blobEntry.addr, blobEntry.addr + blobEntry.size)..name)
 		end
 	end
-
-	self.mvMat = matrix_ffi({4,4}, mvMatType):zeros()
-	self.mvMat.ptr = ffi.cast(mvMatType..'*', self.ram.mvMat)
-	self:matident()
 
 	self.blitScreenView = View()
 	self.blitScreenView.ortho = true
@@ -2537,10 +2537,7 @@ print('App:openROM', filename)
 		self.editCode:setText('')
 	end
 
-	-- every time .ram updates, this has to update as well:
-	self.mvMat.ptr = ffi.cast(mvMatType..'*', self.ram.mvMat)
 	self:matident()
-
 	self:resetROM()
 	return true
 end
