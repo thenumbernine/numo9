@@ -96,8 +96,8 @@ if cmd == 'x' then
 	assert.type(blobs, 'table')
 
 	for blobClassName,blobsForType in pairs(blobs) do
-		for blobNo,blob in ipairs(blobsForType) do
-			blob:saveFile(basepath(blob:getFileName(blobNo)), blobs)
+		for blobIndexPlusOne,blob in ipairs(blobsForType) do
+			blob:saveFile(basepath(blob:getFileName(blobIndexPlusOne-1)), blobs)
 		end
 	end
 
@@ -110,11 +110,11 @@ elseif cmd == 'a' or cmd == 'r' then
 
 	local blobs = BlobSet()
 	for blobClassName,blobClass in pairs(blobClassForName) do
-		for blobNo=1,math.huge do
-			local filepath = basepath(blobClass:getFileName(blobNo))
+		for blobIndex=0,math.huge do
+			local filepath = basepath(blobClass:getFileName(blobIndex))
 			if not filepath:exists() then break end
-			print('loading blob #'..blobNo..' type='..blobClassName..' from file="'..filepath..'"')
-			blobs[blobClassName]:insert(blobClass:loadFile(filepath, basepath, blobNo))
+			print('loading blob #'..blobIndex..' type='..blobClassName..' from file="'..filepath..'"')
+			blobs[blobClassName]:insert(blobClass:loadFile(filepath, basepath, blobIndex))
 		end
 	end
 
@@ -746,7 +746,7 @@ print('toImage', name, 'width', width, 'height', height)
 			-- TODO make these the sfx samples in-game
 			-- and then turn the sfx into whatever the playback-format is
 			AudioWAV():save{
-				filename = basepath('sfx'..(j == 1 and '' or j)..'.wav').path,
+				filename = basepath('sfx'..(j == 1 and '' or (j-1))..'.wav').path,
 				ctype = sampleType,
 				channels = 1,
 				data = waveform.data,
@@ -890,11 +890,11 @@ print('toImage', name, 'width', width, 'height', height)
 				local data = playbackDeltas:dataToStr()
 --print('music'..index..'.bin')
 --print(string.hexdump(data))
-				basepath('music'..(sfxIndex == 0 and '' or (sfxIndex+1))..'.bin'):write(data)
+				basepath('music'..(sfxIndex == 0 and '' or sfxIndex)..'.bin'):write(data)
 			end
 		end
-		for i=1,128 do
-			local f = basepath('music'..(i==1 and '' or i)..'.bin')
+		for i=0,127 do
+			local f = basepath('music'..(i==0 and '' or i)..'.bin')
 			if not f:exists() then f:write'\0\0\0\0' end
 		end
 
@@ -965,7 +965,7 @@ print('toImage', name, 'width', width, 'height', height)
 						assert.eq(p, data + samples)
 						sfx.data = data
 totalSfxSize = (totalSfxSize or 0) + samples * ffi.sizeof(sampleType)
-print('wav '..index..' size', samples * ffi.sizeof(sampleType))
+print('sfx'..index..' size', samples * ffi.sizeof(sampleType))
 						sfx.samples = samples
 						-- write data to an audio file ...
 						AudioWAV():save{
@@ -1180,7 +1180,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 				local data = playbackDeltas:dataToStr()
 --print('music'..(musicTrackIndex + 128)..'.bin')
 --print(string.hexdump(data))
-				basepath('music'..(musicTrackIndex + 128 + 1)..'.bin'):write(data)
+				basepath('music'..(musicTrackIndex + 128)..'.bin'):write(data)
 			end
 		end
 	end
