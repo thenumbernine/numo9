@@ -308,7 +308,7 @@ function AppAudio:updateSoundEffects()
 	--if queueSize > math.floor(updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(audioSampleType)) then return end -- 1 tick @ 60hz ... no overflow, occasional skip .... still 4 second delay to start sound ...
 	if queueSize > math.floor(2 * updateIntervalInSeconds * samplesPerSecond * ffi.sizeof(audioSampleType)) then return end -- 2 ticks @ 60hz ... no overflow, no skip .... still 4 second delay to start sound ...
 
---print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
+--DEBUG:print('queueing', updateSampleFrameCount, 'samples', updateSampleFrameCount/sampleFramesPerSecond , 'seconds')
 	self.sdlAssert(sdl.SDL_PutAudioStreamData(
 		audio.stream,
 		audio.audioBuffer,
@@ -350,11 +350,11 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < self.memSize)
 		local value = self.ram.v[musicPlaying.addr + 1]
 		musicPlaying.addr = musicPlaying.addr + 2
 		if index == 0xff then
---print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'delta frame done: ff ff')
 			break
 		end
 		if index == 0xfe then
---print('GOT PLAY MUSIC', value)
+--DEBUG:print('GOT PLAY MUSIC', value)
 			-- play music
 			local musicBlob = self.blobs.music[value+1]
 			if not musicBlob then return end
@@ -374,17 +374,17 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < self.memSize)
 			-- this usually comes right after a delay command ... so ... should I even bother with resetting the musicPlaying.sampleFrameIndex
 			--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 			musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
---print('loopAt sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
+--DEBUG:print('loopAt sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
 			self:updateMusicPlaying(musicPlaying)
 			return
 		end
 		--if index < 0 or index >= ffi.sizeof(self.ram.channels) then
 		if index < 0 or index >= audioAllMixChannelsInBytes then
---print('musicPlaying', musicPlayingIndex, 'got bad data')
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'got bad data')
 			musicPlaying.isPlaying = 0
 			return
 		end
---print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
+--DEBUG:print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
 
 		-- if we're setting a channel to a new sfx
 		-- then reset the channel.offset to that sfx's addr
@@ -404,22 +404,22 @@ assert.eq(audioMusicPlayingCount, 8)
 		--]]
 
 		if channelByteOffset == ffi.offsetof('Numo9Channel', 'volume') then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
 
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
 
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')
 		or channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
 		then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
 
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
---print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.bank[0].sfxAddrs[value].addr)
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.bank[0].sfxAddrs[value].addr)
 			-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
 			local sfxBlob = self.blobs.sfx[value+1]
 			if sfxBlob then
@@ -439,7 +439,7 @@ assert.eq(audioMusicPlayingCount, 8)
 		end
 
 		if musicPlaying.addr >= musicPlaying.endAddr-1 then
---print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 			musicPlaying.isPlaying = 0
 			return
 		end
@@ -448,13 +448,13 @@ assert.eq(audioMusicPlayingCount, 8)
 	end
 
 	if musicPlaying.addr >= musicPlaying.endAddr-1 then
---print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 		musicPlaying.isPlaying = 0
 	else
 		local delay = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
 		musicPlaying.addr = musicPlaying.addr + 2
 		musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
---print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
 	end
 end
 
@@ -510,13 +510,17 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	if sfxID == -1 then
 		channel.offset = 0
 		channel.flags.isPlaying = 0
+--DEBUG:print('sfxID == -1, returning')		
 		return
 	end
 	sfxID = bit.band(sfxID, 0xff)
 	local sfxBlob = self.blobs.sfx[sfxID+1]
-	if not sfxBlob then return end
+	if not sfxBlob then 
+--DEBUG:print('failed to find blob for sfx', sfxID)		
+		return 
+	end
 
---DEBUG:print'playing sound'
+--DEBUG:print('playing sound', sfxID)
 	channel.sfxID = sfxID
 	channel.flags.isPlaying = 1
 	channel.flags.isLooping = looping and 1 or 0
@@ -538,7 +542,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 -- one music at a time
 -- music tracks periodically issue sfx play commands to certain channels
 	musicID = math.floor(musicID or -1)
---print('playMusic musicID', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
+--DEBUG:print('playMusic musicID', musicID, 'musicPlayingIndex', musicPlayingIndex, 'channelOffset', channelOffset)
 	if musicID == -1 then
 		-- stop music
 		-- TODO what kind of state for the channel to specify playing or not
@@ -561,7 +565,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	-- play music
 	local musicBlob = self.blobs.music[musicID+1]
 	if not musicBlob then return end
-	if musicBlob:size() == 0 then return end
+	if musicBlob:getSize() <= ffi.sizeof(loopOffsetType) then return end
 
 	musicPlayingIndex = ffi.cast('int32_t', musicPlayingIndex) % audioMusicPlayingCount
 	channelOffset = channelOffset or 0
@@ -577,7 +581,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	assert(musicPlaying.addr >= 0 and musicPlaying.addr < self.memSize)
 	assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= self.memSize)
 	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
---print('playing with beats/second', beatsPerSecond)
+print('playing with beats/second', beatsPerSecond)
 	musicPlaying.addr = musicPlaying.addr + 2
 
 	-- audio ticks should be in sampleFramesPerSecond
@@ -589,8 +593,8 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 
 	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 	musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
---print('playMusic music wait', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
---print('playMusic sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
+--DEBUG:print('playMusic music wait', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
+--DEBUG:print('playMusic sampleFrameIndex', musicPlaying.sampleFrameIndex, 'nextBeatSampleFrameIndex',  musicPlaying.nextBeatSampleFrameIndex)
 
 	--self:setMusicPlayingToID(music)
 
