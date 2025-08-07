@@ -228,7 +228,7 @@ local Numo9Channel = struct{
 		-- this is going to be incremented by the pitch, which is 4.12 fixed so 0x1000 <=> 1:1 pitch
 		-- that means we need 12 bits to spare in this as well, it's going to be 20.12 fixed
 		-- and at that, the 20 is going to be << 1 anyways, because we're addressing int16 samples
-		{name='offset', type='uint16_t'},
+		{name='offset', type='uint32_t'},
 
 		{name='volume', type='uint8_t['..audioOutChannels..']'},	-- 0-255
 		-- TODO ADSR
