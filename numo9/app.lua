@@ -212,6 +212,8 @@ function App:initGL()
 	gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 1)
 	gl.glPixelStorei(gl.GL_UNPACK_ALIGNMENT, 1)
 
+	gl.glDepthFunc(gl.GL_LEQUAL)
+
 	--[[ getting single-buffer to work
 	gl.glDrawBuffer(gl.GL_BACK)
 	--]]
@@ -1111,7 +1113,7 @@ print('package.loaded', package.loaded)
 
 -- setFocus has been neglected ...
 -- ... this will cause the menu to open once its done playing
--- TODO I need a good boot screen or something ...
+-- boot screen or something ...
 -- [[
 	self:setFocus{
 		thread = coroutine.create(function()
@@ -1160,7 +1162,7 @@ print('package.loaded', package.loaded)
 					inc(bit.rshift(cursorPosX,3)+bit.rshift(cursorPosY,3))
 					for i=1,select('#', ...) do
 						if i > 1 then
-							addChar('\t')
+							addChar'\t'
 							inc(1)
 						end
 						local s = tostring(select(i, ...))
@@ -1175,12 +1177,12 @@ print('package.loaded', package.loaded)
 						cursorPosY = cursorPosY - 8
 						local fbaddr = env.ramaddr'framebuffer'
 						pixelSize = 2
-						-- TODO reading from this should flush framebuffer gpu->cpu
+						-- reading from this should flush framebuffer gpu->cpu
 						env.memcpy(
-							fbaddr + 0, 			-- dst
+							fbaddr + 0, 					-- dst
 							fbaddr + pixelSize * 256 * 8,	-- src
 							pixelSize * 256 * (256 - 8))	-- len
-						-- and TODO writing to it should dirty cpu to later flush cpu->gpu
+						-- and writing to it should dirty cpu to later flush cpu->gpu
 					end
 				end
 
@@ -1782,6 +1784,8 @@ conn.receivesPerSecond = 0
 			end
 		end
 
+		gl.glEnable(gl.GL_DEPTH_TEST)	-- must wrap proper triBuf:flush()'s
+
 		-- TODO why is this necessary for `mode(1) cls()` to clear screen in the console?
 		-- why here and not somewhere else?
 		-- and what order should it be in versus the framebufferRAM:checkDirtyCPU()?
@@ -1796,6 +1800,7 @@ conn.receivesPerSecond = 0
 		self.inUpdateCallback = true	-- tell video not to set up the fb:bind() to do gfx stuff
 		local fbTex = self.framebufferRAM.tex
 		gl.glViewport(0, 0, fbTex.width, fbTex.height)
+
 		-- see if we need to re-enable it ...
 		if self.ram.blendMode ~= 0xff then
 			self:setBlendMode(self.ram.blendMode)
@@ -1835,6 +1840,7 @@ print('run thread dead')
 		-- this way server can issue console commands while the game is running
 		self.triBuf:flush()	-- flush before gl state change
 		gl.glDisable(gl.GL_BLEND)
+		gl.glDisable(gl.GL_DEPTH_TEST)
 
 		-- if we're using menu then render to the framebufferMenuTex
 		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
