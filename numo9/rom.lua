@@ -62,9 +62,6 @@ local audioSampleRate = 32000
 local audioOutChannels = 2	-- 1 for mono, 2 for stereo ... # L/R samples-per-sample-frame ... there's so much conflated terms in audio programming ...
 local audioMixChannels = 8	-- # channels to play at the same time
 local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a time
-local sfxTableSize =  256	-- max number of unique sfx that a music can reference
-local musicTableSize = 256	-- max number of music tracks stored
-local audioDataSize = 0xf600	-- snes had 64k dedicated to audio so :shrug: I'm lumping in the offset tables into this.
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
 
@@ -231,7 +228,7 @@ local Numo9Channel = struct{
 		-- this is going to be incremented by the pitch, which is 4.12 fixed so 0x1000 <=> 1:1 pitch
 		-- that means we need 12 bits to spare in this as well, it's going to be 20.12 fixed
 		-- and at that, the 20 is going to be << 1 anyways, because we're addressing int16 samples
-		{name='addr', type='uint32_t'},
+		{name='addr', type='uint16_t'},
 
 		{name='volume', type='uint8_t['..audioOutChannels..']'},	-- 0-255
 		-- TODO ADSR
@@ -270,7 +267,6 @@ local Numo9MusicPlaying = struct{
 		{name='channelOffset', type='uint8_t'},		-- what # to add to all channels , module max # of channels, when playing (so dif tracks can play on dif channels at the same time)
 	},
 }
--- assert sizeof musicID >= musicTableSize - that it can represent all our music table entries
 
 -- make sure our delta compressed channels state change encoding can fit in its 8bpp messages
 -- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
@@ -279,13 +275,6 @@ local audioAllMixChannelsInBytes = ffi.sizeof'Numo9Channel' * audioMixChannels
 assert.le(audioAllMixChannelsInBytes, 0xfe)	-- special codes: 0xff means frame-end, 0xfe means track end.
 
 local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
-
--- make sure our sfx table can address all our sound ram
--- TODO now do this at runtime since blob count is dynamic
---assert.le(ffi.sizeof(RAM.audioData), maxrangeforsize(ffi.sizeof(RAM.sfxAddrs[0])))
-
--- make sure we can index all our sfx in the table
---assert.le(sfxTableSize, maxrangeforsize(ffi.sizeof(Numo9Channel.fields.sfxID.type)))
 
 local blobCountType = addrType
 
@@ -465,9 +454,6 @@ return {
 	audioOutChannels = audioOutChannels,
 	audioMusicPlayingCount = audioMusicPlayingCount,
 	audioAllMixChannelsInBytes = audioAllMixChannelsInBytes,
-	sfxTableSize = sfxTableSize,
-	musicTableSize = musicTableSize,
-	audioDataSize = audioDataSize,
 	pitchPrec = pitchPrec,
 	userDataSize = userDataSize,
 	persistentCartridgeDataSize = persistentCartridgeDataSize,

@@ -5,13 +5,11 @@ local assert = require 'ext.assert'
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
-local sfxTableSize = numo9_rom.sfxTableSize
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
-local audioDataSize = numo9_rom.audioDataSize
 local pitchPrec = numo9_rom.pitchPrec
 
 local audioSampleTypePtr = audioSampleType..'*'
@@ -52,7 +50,6 @@ function EditSFX:update()
 	end, 'bank='..app.editBankNo)
 	x = x + 16
 
-assert.eq(sfxTableSize, 256)
 	self:guiSpinner(x, y, function(dx)
 		stop()
 		self.selSfxIndex = bit.band(self.selSfxIndex + dx, 0xff)
@@ -164,10 +161,7 @@ assert.eq(sfxTableSize, 256)
 
 	-- footer
 	app:drawSolidRect(0, frameBufferSize.y - spriteSize.y, frameBufferSize.x, spriteSize.y, 0xf7, 0xf8)
-	app:drawMenuText(
-		'ARAM '..self.totalAudioBytes..'/'..audioDataSize..' '
-		..('%d%%'):format(math.floor(100*self.totalAudioBytes / audioDataSize))
-		, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
+	app:drawMenuText('ARAM '..self.totalAudioBytes, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
 
 	self:drawTooltip()
 
@@ -183,11 +177,9 @@ assert.eq(sfxTableSize, 256)
 
 	if app:keyp('left', 30, 15) then
 		stop()
-		assert.eq(sfxTableSize, 256)
 		self.selSfxIndex = bit.band(self.selSfxIndex - 1, 0xff)
 	elseif app:keyp('right', 30, 15) then
 		stop()
-		assert.eq(sfxTableSize, 256)
 		self.selSfxIndex = bit.band(self.selSfxIndex + 1, 0xff)
 	end
 end

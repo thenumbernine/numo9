@@ -11,14 +11,11 @@ local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
-local sfxTableSize = numo9_rom.sfxTableSize
-local musicTableSize = numo9_rom.musicTableSize
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
 local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
-local audioDataSize = numo9_rom.audioDataSize
 local menuFontWidth = numo9_rom.menuFontWidth
 local sampleFramesPerSecond = numo9_rom.audioSampleRate
 local pitchPrec = numo9_rom.pitchPrec
@@ -163,7 +160,6 @@ function EditMusic:update()
 	end, 'blob='..self.musicBlobIndex)
 	x = x + 16
 
-assert.eq(sfxTableSize, 256)
 	self:guiSpinner(x, y, function(dx)
 		self.selMusicIndex = bit.band(self.selMusicIndex + dx, 0xff)
 		self:refreshSelectedMusic()
@@ -402,10 +398,7 @@ assert.eq(sfxTableSize, 256)
 
 	-- footer
 	app:drawSolidRect(0, frameBufferSize.y - spriteSize.y, frameBufferSize.x, spriteSize.y, 0xf7, 0xf8)
-	app:drawMenuText(
-		'ARAM '..self.totalAudioBytes..'/'..audioDataSize..' '
-		..('%d%%'):format(math.floor(100*self.totalAudioBytes / audioDataSize))
-		, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
+	app:drawMenuText('ARAM '..self.totalAudioBytes, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
 
 	self:drawTooltip()
 
@@ -426,11 +419,9 @@ assert.eq(sfxTableSize, 256)
 	end
 
 	if app:keyp('left', 30, 15) then
-		assert.eq(sfxTableSize, 256)
 		self.selMusicIndex = bit.band(self.selMusicIndex - 1, 0xff)
 		self:refreshSelectedMusic()
 	elseif app:keyp('right', 30, 15) then
-		assert.eq(sfxTableSize, 256)
 		self.selMusicIndex = bit.band(self.selMusicIndex + 1, 0xff)
 		self:refreshSelectedMusic()
 	end
