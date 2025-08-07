@@ -222,31 +222,42 @@ function AppAudio:updateSoundEffects()
 				local ampl = 0
 
 				local sfxBlob = self.blobs.sfx[channel.sfxID+1]
-				if sfxBlob then
-					local sfxLen = sfxBlob:getSize()
+				if not sfxBlob then
+--DEBUG:print('failed to find sfxID', channel.sfxID, ' - stopping')
+					channel.offset = 0
+					channel.flags.isPlaying = 0
+				else
 					local sfxLoopOffset = ffi.cast(loopOffsetType..'*', self.ram.v + sfxBlob.addr)[0]
 					local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
+					local sfxLen = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
 
 					-- where in sfx we are currently playing
 					local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
 --DEBUG:assert.ge(offset, 0)
 					local sfxAmplAddr = sfxAmplsAddr + offset
-					if sfxAmplAddr >= 0 and sfxAmplAddr < self.memSize-1 then
+					if sfxAmplAddr < 0 or sfxAmplAddr >= self.memSize-1 then
+--DEBUG:print('sfxAmplAddr oob', ('0x%x'):format(sfxAmplAddr), ' - stopping')
+						channel.offset = 0
+						channel.flags.isPlaying = 0
+					else
 						ampl = ffi.cast(audioSampleTypePtr, self.ram.v + sfxAmplAddr)[0]
+--DEBUG:print('offset', ('0x%x'):format(channel.offset),'addr', ('0x%x'):format(sfxAmplAddr), 'ampl', ('0x%04x'):format(ampl))	
 
 						channel.offset = channel.offset + channel.pitch
 						local offsetOver = channel.offset - bit.lshift(sfxLen, pitchPrec-1)
+--DEBUG:print('offsetOver', offsetOver)	
 						if offsetOver >= 0 then
 --DEBUG:print('sfx looping over', offsetOver)
 							if channel.flags.isLooping ~= 0 then
 								if sfxLen == 0 then	-- can't modulo zero so just assign it to the start.
-									channel.offset = bit.lshift(sfxLoopOffset, pitchPrec-1)
+									channel.offset = 0
 								else
 									-- offset modulo length, to make sure it doesn't pass the end
-									channel.offset = (bit.lshift(sfxLoopOffset, pitchPrec-1) + offsetOver) % bit.lshift(sfx.len, pitchPrec-1)
+									channel.offset = offsetOver % bit.lshift(sfxLen, pitchPrec-1)
 								end
 --DEBUG:assert.eq(bit.band(offset, 1), 0)
 							else
+--DEBUG:print('done and not looping -- stopping')								
 								-- TODO change to channel-0 ... should channel-0 be empty always?
 								channel.offset = 0
 								channel.flags.isPlaying = 0
@@ -421,6 +432,7 @@ assert.eq(audioMusicPlayingCount, 8)
 				channel.flags.isPlaying = 1
 				-- TODO looping ... looping in track music ... looping in sfx playback ... idk shrug
 				channel.flags.isLooping = 1
+--DEBUG:print('changing channel sfx')
 				channel.offset = 0
 				-- so the bottom 12 should be 0's at this point
 			end
@@ -504,6 +516,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	local sfxBlob = self.blobs.sfx[sfxID+1]
 	if not sfxBlob then return end
 
+--DEBUG:print'playing sound'
 	channel.sfxID = sfxID
 	channel.flags.isPlaying = 1
 	channel.flags.isLooping = looping and 1 or 0

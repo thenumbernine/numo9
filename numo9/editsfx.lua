@@ -55,13 +55,14 @@ function EditSFX:update()
 	x = x + 6
 	self:guiTextField(x, y, 24, self, 'sfxBlobIndex', function(index)
 		stop()
-		self.sfxBlobIndex = tonumber(index) or self.sfxBlobIndex
+		self.sfxBlobIndex = (tonumber(index) or self.sfxBlobIndex) % #app.blobs.sfx
 	end, 'sfx='..self.sfxBlobIndex)
 
 	local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
 	if not sfxBlob then return end
-	local sfxLoopOffset = ffi.cast(loopOffsetType..'*', app.ram.v + sfxBlob.addr)[0]
+	local sfxLoopOffset = ffi.cast(loopOffsetType..'*', sfxBlob.ramptr)[0]
 	local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
+	local sfxLen = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
 
 	local channel = app.ram.channels+0
 	local isPlaying = channel.flags.isPlaying == 1
@@ -70,8 +71,7 @@ function EditSFX:update()
 	local xlhs = 48
 	local xrhs = 200
 
-	local endAddr = sfxBlob.addr + sfxBlob:getSize()
-	app:drawMenuText(('mem:  $%04x-$%04x'):format(sfxBlob.addr, endAddr), xlhs, 10, 0xfc, 0)
+	app:drawMenuText(('mem:  $%04x-$%04x'):format(sfxBlob.addr, sfxBlob.addr + sfxBlob:getSize()), xlhs, 10, 0xfc, 0)
 
 	local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
 	app:drawMenuText(('@$%04x b'):format(offset), xrhs, 10, 0xfc, 0)
@@ -79,16 +79,15 @@ function EditSFX:update()
 	local playLen = offset * secondsPerByte
 	app:drawMenuText(('@%02.3fs'):format(playLen), xrhs, 18, 0xfc, 0)
 
-	local lengthInBytes = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
-	local lengthInSeconds = lengthInBytes * secondsPerByte
-	app:drawMenuText(('len:  $%04x b / %02.3fs'):format(lengthInBytes, lengthInSeconds), xlhs, 18, 0xfc, 0)
+	local lengthInSeconds = sfxLen * secondsPerByte
+	app:drawMenuText(('len:  $%04x b / %02.3fs'):format(sfxLen, lengthInSeconds), xlhs, 18, 0xfc, 0)
 
 	local loopInSeconds = sfxLoopOffset * secondsPerByte
 	app:drawMenuText(('loop: $%04x b / %02.3fs'):format(sfxLoopOffset, loopInSeconds), xlhs, 26, 0xfc, 0)
 
 	-- TODO render the wave ...
 	local prevAmpl
-	for i=0, math.min(512, math.max(0, lengthInBytes - self.offsetScrollX - 2)), 2 do
+	for i=0, math.min(512, math.max(0, sfxLen - self.offsetScrollX - 2)), 2 do
 		local sampleOffset = self.offsetScrollX + i
 		local pastLoopOffset = sampleOffset > sfxLoopOffset
 		local ampl = -tonumber(ffi.cast(audioSampleTypePtr, sfxBlob.ramptr + ffi.sizeof(loopOffsetType) + sampleOffset)[0])
@@ -115,13 +114,13 @@ function EditSFX:update()
 		prevAmpl = ampl
 	end
 
-	local scrollMax = math.max(0, lengthInBytes-512)
+	local scrollMax = math.max(0, sfxLen-512)
 	app:drawSolidLine(0, 120, 255, 120, 0xfc)
 	app:drawSolidLine(0, 127, 255, 127, 0xfc)
 
-	app:drawMenuText('|', offset / lengthInBytes * 248, 120, 0xfc, 0)
+	app:drawMenuText('|', offset / sfxLen * 248, 120, 0xfc, 0)
 
-	if self:guiButton('#', self.offsetScrollX / lengthInBytes * 248, 120) then
+	if self:guiButton('#', self.offsetScrollX / sfxLen * 248, 120) then
 		self.draggingScroll = true
 	end
 	
@@ -132,15 +131,15 @@ function EditSFX:update()
 	
 	if self.draggingScroll then
 		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
-		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, lengthInBytes - 512)
+		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, sfxLen - 512)
 		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 		if leftButtonRelease then
 			self.draggingScroll = false
 		end
 	end
 	if isPlaying then
-		self.offsetScrollX = bit.rshift(channel.offset, pitchPrec-1) - sfxBlob.addr
-		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, lengthInBytes - 512)
+		self.offsetScrollX = bit.rshift(channel.offset, pitchPrec-1)
+		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, sfxLen - 512)
 		self.offsetScrollX = bit.band(self.offsetScrollX, bit.bnot(1))
 	end
 
@@ -175,10 +174,10 @@ function EditSFX:update()
 
 	if app:keyp('left', 30, 15) then
 		stop()
-		self.sfxBlobIndex = bit.band(self.sfxBlobIndex - 1, 0xff)
+		self.sfxBlobIndex = (self.sfxBlobIndex - 1) % #self.blobs.sfx
 	elseif app:keyp('right', 30, 15) then
 		stop()
-		self.sfxBlobIndex = bit.band(self.sfxBlobIndex + 1, 0xff)
+		self.sfxBlobIndex = (self.sfxBlobIndex + 1) % #self.blobs.sfx
 	end
 end
 
