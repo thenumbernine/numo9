@@ -274,9 +274,11 @@ If the following functions are defined then they will be called from the virtual
 - `peek(addr)` = read 1 byte from memory.
 - `peekw(addr)` = read 2 bytes from memory.
 - `peekl(addr)` = read 4 bytes from memory.
+- `peekf(addr)` = read 4 bytes from memory as float.
 - `poke(addr, value)` = write 1 byte to memory.
 - `pokew(addr, value)` = write 2 bytes to memory.
 - `pokel(addr, value)` = write 4 bytes to memory.
+- `pokef(addr, value)` = write 4 bytes to memory as float.
 - `memcpy(dst, src, len)` = copy from `src` to `dst`, sized `len`.
 - `memset(dst, val, len)` = set memory in `dst` to uint8 value `val`, size in bytes `len`.  OOB ranges will copy a value of 0.
 - `mget(x, y, [bank=0])` = Read the uint16 from the current tilemap address at x, y.
