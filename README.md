@@ -640,7 +640,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - Still need to make the draw message history to be per-connection, and need to send draw-specific commands to their specific connections.
 
 # Things I'm still debating ...
-- Merge 'spriteSheet' and 'tileSheet' into just one... maybe.
 - Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out libpng's memeory pathway is buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is RIGHT DOWN LEFT UP A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
@@ -652,17 +651,13 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.
 	- In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
 	- This fits with the new Brush tab, it will be variable-sized too...
-- If I make the audio data arbitrary ... and if I'm already growing banks to accomodate for oversized code ... then how far away am I from just giving every ROM a FAT into each section / multiple sections, and each section its own size?
-	Then from there I could order sprites linearly in memory, i.e. each 8x8xbpp bytes in memory is a new 8x8 sprite, and just give them a max size of 256x256 for the sake of GPU uploads... tempting....
-- If I'm going to continue with the SNES theme then I'm going to need a lot more than 64k for storing all audio.
-	SNES just had 64k of ARAM active at a time, but for allll samples, often it could get into the MBs ...
-	What if I just had arbitrary banks, and in the editor you pick what you want to use them for ... code | sprite/tile sheets | tilemaps | audio | etc
+- I could order sprites linearly in memory, i.e. each 8x8xbpp bytes in memory is a new 8x8 sprite, and just give them a max size of 256x256 for the sake of GPU uploads... tempting....
 - <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.
 	This means redoing the tiles-wide and high of the sprite and map draw functions.
 - How to swap out palette texs or fonts from high banks?  So instead of bloating the API, how about just have an 'active bank' variable in RAM somewhere, and that determines which tile sheet, tilemap, palette, font, etc to use ... or nah too restrictive? idk...
 - For 16x16 tilemap mode, should I just `<< 1` the tile index, and not store the zeroes?  Since it is basically always 2-aligned anyways?
-- Should I store the draw16x16 in its own variable in RAM?  Same for tilemap index offset, same for tilemap spritesheet bank, same for tilemap bank.
-- Should I allow 32x32 64x64 etc as well?
-- Should I allow tilemap rotations? 3 bits for orientation instead of just 2 bits for h & v flip?
-- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
+	- Should I store the draw16x16 in its own variable in RAM?  Same for tilemap index offset, same for tilemap spritesheet bank, same for tilemap bank.
+	- Should I allow 32x32 64x64 etc as well?
+	- Should I allow tilemap rotations? 3 bits for orientation instead of just 2 bits for h & v flip?
+	- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
 - I need some kind of tilemap animation state ...
