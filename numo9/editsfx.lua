@@ -123,12 +123,12 @@ function EditSFX:update()
 	if self:guiButton('#', self.offsetScrollX / sfxLen * 248, 120) then
 		self.draggingScroll = true
 	end
-	
+
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app.ram.mousePos:unpack()
-	
+
 	if self.draggingScroll then
 		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
 		self.offsetScrollX = math.clamp(self.offsetScrollX, 0, sfxLen - 512)
