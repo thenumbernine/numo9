@@ -583,6 +583,7 @@ print('toImage', name, 'width', width, 'height', height)
 		mapImg:save(basepath'tilemap.png'.path)
 	end
 
+	local sfxs = table()
 	do
 		-- [[ also in audio/test/test.lua ... consider consolidating
 		local function sinewave(t)
@@ -814,6 +815,10 @@ print('toImage', name, 'width', width, 'height', height)
 			--]]
 
 			if #sfxNotes > 0 then
+
+				-- no notes = no sound file ...
+				sfxs[sfxIndexPlusOne] = sfx
+
 				--[[
 				TODO here write out an equivalent of our "spc"-ish commands for playing back our "sfx" i mean waveforms
 				or midi-ish ... idk
