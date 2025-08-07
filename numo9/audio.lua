@@ -228,27 +228,27 @@ function AppAudio:updateSoundEffects()
 					local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
 
 					-- where in sfx we are currently playing
-					local offset = bit.lshift(bit.rshift(channel.addr, pitchPrec), 1)
+					local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
 --DEBUG:assert.ge(offset, 0)
 					local sfxAmplAddr = sfxAmplsAddr + offset
 					if sfxAmplAddr >= 0 and sfxAmplAddr < self.memSize-1 then
 						ampl = ffi.cast(audioSampleTypePtr, self.ram.v + sfxAmplAddr)[0]
 
-						channel.addr = channel.addr + channel.pitch
-						local offsetOver = channel.addr - bit.lshift(sfxLen, pitchPrec-1)
+						channel.offset = channel.offset + channel.pitch
+						local offsetOver = channel.offset - bit.lshift(sfxLen, pitchPrec-1)
 						if offsetOver >= 0 then
 --DEBUG:print('sfx looping over', offsetOver)
 							if channel.flags.isLooping ~= 0 then
 								if sfxLen == 0 then	-- can't modulo zero so just assign it to the start.
-									channel.addr = bit.lshift(sfxLoopOffset, pitchPrec-1)
+									channel.offset = bit.lshift(sfxLoopOffset, pitchPrec-1)
 								else
 									-- offset modulo length, to make sure it doesn't pass the end
-									channel.addr = (bit.lshift(sfxLoopOffset, pitchPrec-1) + offsetOver) % bit.lshift(sfx.len, pitchPrec-1)
+									channel.offset = (bit.lshift(sfxLoopOffset, pitchPrec-1) + offsetOver) % bit.lshift(sfx.len, pitchPrec-1)
 								end
 --DEBUG:assert.eq(bit.band(offset, 1), 0)
 							else
 								-- TODO change to channel-0 ... should channel-0 be empty always?
-								channel.addr = 0
+								channel.offset = 0
 								channel.flags.isPlaying = 0
 							end
 						end
@@ -324,7 +324,7 @@ function AppAudio:updateMusicPlaying(musicPlaying)
 		return
 	end
 
-	-- TODO combine this with musicPlaying.addr just like channel.addr's lower 12 bits
+	-- TODO combine this with musicPlaying.addr just like channel.offset's lower 12 bits
 	--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex
 	--musicPlaying.sampleFrameIndex = audio.sampleFrameIndex + updateIntervalInSampleFrames
 	-- ... maintain bps and try not to skip
@@ -376,7 +376,7 @@ assert(musicPlaying.addr >= 0 and musicPlaying.addr < self.memSize)
 --print( 'delta message: channelByte['..('$%02x'):format(index)..']=audioData['..('$%04x'):format(decodeStartAddr)..']='..('$%02x'):format(value))
 
 		-- if we're setting a channel to a new sfx
-		-- then reset the channel addr to that sfx's addr
+		-- then reset the channel.offset to that sfx's addr
 		-- I guess I could 'TODO when it sets the sfxID, have it set the addr as well'
 		--  but this might take some extra preparation in packaging the ROM ... I'll think about
 		local channelByteOffset = index % ffi.sizeof'Numo9Channel'
@@ -421,7 +421,7 @@ assert.eq(audioMusicPlayingCount, 8)
 				channel.flags.isPlaying = 1
 				-- TODO looping ... looping in track music ... looping in sfx playback ... idk shrug
 				channel.flags.isLooping = 1
-				channel.addr = 0
+				channel.offset = 0
 				-- so the bottom 12 should be 0's at this point
 			end
 		end
@@ -496,7 +496,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	local channel = self.ram.channels + channelIndex
 
 	if sfxID == -1 then
-		channel.addr = 0
+		channel.offset = 0
 		channel.flags.isPlaying = 0
 		return
 	end
@@ -507,7 +507,7 @@ function AppAudio:playSound(sfxID, channelIndex, pitch, volL, volR, looping)
 	channel.sfxID = sfxID
 	channel.flags.isPlaying = 1
 	channel.flags.isLooping = looping and 1 or 0
-	channel.addr = 0
+	channel.offset = 0
 	channel.pitch = pitch
 	channel.volume[0] = volL
 	channel.volume[1] = volR
