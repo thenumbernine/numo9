@@ -1,5 +1,5 @@
 mode(2)
-local paladdr=ramaddr'bank'+romaddr'palette'
+local paladdr=blobaddr'palette'
 for i=0,255 do
 	pokew(paladdr+(i<<1),i|0x8000)
 end

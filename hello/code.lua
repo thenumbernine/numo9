@@ -2,10 +2,10 @@ mode(1)
 
 print'Hello NuMo9'
 
-local spriteMem = ramaddr'bank' + romaddr'spriteSheet'
-local tileMem = ramaddr'bank' + romaddr'tileSheet'
-local mapMem = ramaddr'bank' + romaddr'tilemap'
-local palMem = ramaddr'bank' + romaddr'palette'
+local spriteMem = blobaddr'sheet'
+local tileMem = blobaddr('sheet', 1)
+local mapMem = blobaddr'tilemap'
+local palMem = blobaddr'palette'
 
 -- [=[ fill our tiles with a gradient
 for j=0,255 do

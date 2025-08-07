@@ -1,12 +1,13 @@
 framebufferAddr=ramaddr'framebuffer'
-spriteSheetAddr=ramaddr'bank' + romaddr'spriteSheet'
-tileSheetAddr=ramaddr'bank' + romaddr'tileSheet'
-tilemapAddr=ramaddr'bank' + romaddr'tilemap'
-paletteAddr=ramaddr'bank' + romaddr'palette'
 persistentDataAddr=ramaddr'persistentCartridgeData'
 userDataAddr=ramaddr'userData'
 matAddr = ramaddr'mvMat'
 assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
+
+spriteSheetAddr=blobaddr('sheet', 0)
+tileSheetAddr=blobaddr('sheet', 1)
+tilemapAddr=blobaddr'tilemap'
+paletteAddr=blobaddr'palette'
 
 local matstack=table()
 local matpush=||do

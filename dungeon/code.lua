@@ -305,7 +305,7 @@ Enemy_siren.sprite = sprites.Enemy_siren
 local randomBoxPos=|box| vec2(math.random(box.min.x,box.max.x),math.random(box.min.y,box.max.y))
 local genDungeonLevel=|avgRoomSize|do
 	--local val = mapTypeForName.solid.index -- | (mapTypeForName.solid.index << 16)
-	--memset(ramaddr'bank' + romaddr'tilemap', val, 256*256*2)
+	--memset(blobaddr'tilemap', val, 256*256*2)
 	for i=0,256-1 do
 		for j=0,256-1 do
 			mset(i,j,mapTypeForName.solid.index)
