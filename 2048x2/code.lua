@@ -228,8 +228,8 @@ update=||do
 --trace('board')
 --trace(board:mapi([col] col:concat','):concat'\n')
 				addNumber()
+				saveGame()
 			end
-			saveGame()
 		end
 	end
 end
