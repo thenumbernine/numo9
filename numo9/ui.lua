@@ -449,9 +449,6 @@ end
 
 -- used by the editsfx and editmusic
 
-local sfxTableSize = numo9_rom.sfxTableSize
-local musicTableSize = numo9_rom.musicTableSize
-
 function UI:calculateAudioSize()
 	local app = self.app
 	self.totalAudioBytes = 0
