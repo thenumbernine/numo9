@@ -289,7 +289,7 @@ If the following functions are defined then they will be called from the virtual
 - `ramsize(name)` = returns the size the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('RAM', field)`.  See the RAM structure for individual field names.
 - `numblobs(name)` = returns the count of blobs of type `name`. Index is 0-based.
 - `blobaddr(name, index)` = returns the address of the `index`'th blob of type `name`. Index is 0-based. Blob types can be: `code, sheet, tilemap, palette, font, sfx, music, brush, brushmap`.
-- `blobsize(name, index)` = returns the size of the `index`'th blob of type `name`. Index is 0-based. 
+- `blobsize(name, index)` = returns the size of the `index`'th blob of type `name`. Index is 0-based.
 - `int8_t, uint8_t, int8_t, int16_t, uint16_t, int16_t, int32_t, uint32_t, int32_t` = If you want to cast stuff, use these `ffi.typeof`'s.
 
 While Pico8 has the `reload` and `cstore` functions for copying to/from RAM to ROM, and Tic80 has the `sync` function for doing similar, I am tempting myself with the idea of just using a different address range.
