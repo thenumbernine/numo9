@@ -746,7 +746,7 @@ print('toImage', name, 'width', width, 'height', height)
 			-- TODO make these the sfx samples in-game
 			-- and then turn the sfx into whatever the playback-format is
 			AudioWAV():save{
-				filename = basepath('waveform'..(j-1)..'.wav').path,
+				filename = basepath('sfx'..(j == 1 and '' or j)..'.wav').path,
 				ctype = sampleType,
 				channels = 1,
 				data = waveform.data,
@@ -890,7 +890,7 @@ print('toImage', name, 'width', width, 'height', height)
 				local data = playbackDeltas:dataToStr()
 --print('music'..index..'.bin')
 --print(string.hexdump(data))
-				basepath('music'..index..'.bin'):write(data)
+				basepath('music'..(index == 0 and '' or (index+1))..'.bin'):write(data)
 			end
 		end
 
