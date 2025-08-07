@@ -78,10 +78,10 @@ function Blob:copyFromRAM()
 	ffi.copy(self:getPtr(), self.ramptr, self:getSize())
 end
 -- static method:
-function Blob:getFileName(blobNo)
+function Blob:getFileName(blobIndex)
 	assert.index(self, 'filenamePrefix', 'name='..self.name)
 	assert.index(self, 'filenameSuffix', 'name='..self.name)
-	return self.filenamePrefix..(blobNo == 1 and '' or blobNo)..self.filenameSuffix
+	return self.filenamePrefix..(blobIndex == 0 and '' or blobIndex)..self.filenameSuffix
 end
 -- static method:
 function Blob:loadBinStr(data)
@@ -480,11 +480,11 @@ function BlobSFX:saveFile(filepath)
 	print('!!! WARNING !!! TODO BlobSFX:saveFile('..filepath..')')
 end
 -- static method:
-function BlobSFX:loadFile(filepath, basepath, blobNo)
+function BlobSFX:loadFile(filepath, basepath, blobIndex)
 	local wav = AudioWAV():load(filepath.path)
 
 	local tmp = {}
-	assert(load(basepath('waveform'..(blobNo == 1 and '' or blobNo)..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
+	assert(load(basepath('waveform'..(blobIndex == 0 and '' or blobIndex)..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
 
 	return self:loadWav(wav, tmp.loopOffset)
 end
