@@ -86,8 +86,9 @@ function EditSheet:update()
 		self.sheetBlobIndex = math.clamp(self.sheetBlobIndex + dx, 0, #app.blobs.sheet-1)
 	end, 'sheet #'..self.sheetBlobIndex)
 -- TODO +- to grow/shrink blob count
+-- TODO input number selection
 
-	self:guiSpinner(92, 0, function(dx)
+	self:guiSpinner(96, 0, function(dx)
 		self.paletteBlobIndex = math.clamp(self.paletteBlobIndex + dx, 0, #app.blobs.palette-1)
 	end, 'palette #'..self.paletteBlobIndex)
 -- TODO +- to grow/shrink blob count
