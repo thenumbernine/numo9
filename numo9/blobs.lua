@@ -195,7 +195,7 @@ function BlobSheet:saveFile(filepath, blobs)
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
 	local image = self:makeImage()
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), sheetBlob:getPtr(), self:getSize())
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), self:getPtr(), self:getSize())
 	image.palette = blobs.palette[1]:toTable()
 	image:save(filepath.path)
 end
