@@ -54,23 +54,37 @@ drawMapBorder=||do
 end
 --]]
 
+
+local viewZNear = 1
+local viewZFar = 100
+local viewDist = mapw/2
+local viewAlt = mapw/2
+local viewTiltUpAngle = 45
+local viewAngle = -math.pi/2
+
+drawBillboardSprite=|spriteIndex, x, y, ...|do
+	matpush()
+	mattrans(x + 8, y + 8)
+	
+	-- undo camera viewAngle to make a billboard
+	matrot(viewAngle + .5 * math.pi, 0, 0, 1)
+	matrot(math.rad(-60), 1, 0, 0)
+	-- recenter
+
+	mattrans(-8, -16, 0)
+	spr(spriteIndex, 0, 0, ...)
+
+	matpop()
+end
+
 --[[ using map() function, which doesnt support animiations yet ... TODO
 drawMap=||
 	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
 --]]
 -- [[ manually for animation
 drawMap=||do
-
-	
-	local zn, zf = 1, 100
-	local zo = 10
-	local viewDist = mapw/2
-	local viewAlt = mapw/2
-	local tiltUpAngle = 45
-
 	local viewCenterX = player and player.posX + 2.5 or mapw/2 + 2.5
 	local viewCenterY = player and player.posY + 2.5 or maph/2 + 2.5
-	local viewAngle = -math.pi/2
 	local fwdx = math.cos(viewAngle)
 	local fwdy = math.sin(viewAngle)
 	local viewX = viewCenterX - viewDist * fwdx
@@ -78,13 +92,13 @@ drawMap=||do
 	local viewZ = viewAlt
 
 	matident()
-	matfrustum(-zn, zn, -zn, zn, zn, zf)
+	matfrustum(-viewZNear, viewZNear, -viewZNear, viewZNear, viewZNear, viewZFar)
 	--matscale(-1, 1, 1)	-- go from lhs to rhs coord system
 	matlookat(
 		viewX, viewY, viewZ,
-		viewX + fwdx * math.sin(math.rad(tiltUpAngle)),
-		viewY + fwdy * math.sin(math.rad(tiltUpAngle)),
-		viewZ - math.cos(math.rad(tiltUpAngle)),	-- TODO pick a 60' slope to match above
+		viewX + fwdx * math.sin(math.rad(viewTiltUpAngle)),
+		viewY + fwdy * math.sin(math.rad(viewTiltUpAngle)),
+		viewZ - math.cos(math.rad(viewTiltUpAngle)),	-- TODO pick a 60' slope to match above
 		0, 0, 1
 	)
 	
@@ -97,23 +111,20 @@ drawMap=||do
 	for y=0,maph-1 do
 		for x=0,mapw-1 do
 			local tileIndex = mget(levelTileX+x, levelTileY+y)
-			if tileIndex == WATER then
-				local waterAbove = y > 0 
-					and mget(levelTileX+x, levelTileY+y-1) == WATER
-				if waterAbove then
-					tileIndex = WATER_ANIM_1
-				else
-					tileIndex = WATER_BANK_ANIM_1
+			if tileIndex ~= EMPTY then
+				if tileIndex == WATER then
+					local waterAbove = y > 0 
+						and mget(levelTileX+x, levelTileY+y-1) == WATER
+					if waterAbove then
+						tileIndex = WATER_ANIM_1
+					else
+						tileIndex = WATER_BANK_ANIM_1
+					end
+					if math.floor(time()) & 1 == 1 then tileIndex += 2 end
 				end
-				if math.floor(time()) & 1 == 1 then tileIndex += 2 end
+				drawBillboardSprite(1024|tileIndex, x<<4, y<<4, 2, 2)
+				--spr(1024|tileIndex, x<<4, y<<4, 2, 2)
 			end
-			spr(
-				1024|tileIndex,
-				x<<4,
-				y<<4,
-				2,
-				2
-			)
 		end
 	end
 end
@@ -245,7 +256,8 @@ BaseObj=class{
 		local x = posX * 16 - 8 * scaleX
 		local y = posY * 16 - 8 * scaleY
 		if blendMode then blend(blendMode) end
-		spr(seq,	--spriteIndex,
+		drawBillboardSprite(
+			seq,	--spriteIndex,
 			x,			--screenX,
 			y,			--screenY,
 			2,			--spritesWide,
@@ -583,7 +595,8 @@ do
 			or self.state=='live'
 			then
 				if self.blendMode then blend(self.blendMode) end
-				spr(384+self.blastRadius,
+				drawBillboardSprite(
+					384+self.blastRadius,
 					16*self.posX-4,
 					16*self.posY-4,
 					1,
@@ -1047,7 +1060,8 @@ do
 
 			if self.bombs>0 then
 				if self.blendMode then blend(self.blendMode) end
-				spr(384+self.bombs,
+				drawBillboardSprite(
+					384+self.bombs,
 					16*self.posX-4,
 					16*self.posY-4,
 					1,
@@ -1158,8 +1172,8 @@ setLevel=|level_|do
 	saveinfos[saveSlot].level = level
 	saveState()
 	levelTileX=level%25
-	levelTileY=(level-levelTileX)/25*10
-	levelTileX*=10
+	levelTileY=(level-levelTileX)/25*mapw
+	levelTileX*=mapw
 	if level>-1 then
 		--TODO if level >= 0 then set the local storage current-level value to 'level'
 		levelstr='level '..tostring(level)
