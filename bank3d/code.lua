@@ -6,10 +6,66 @@
 -- editTilemap.gridSpacing = 11
 -- editTilemap.draw16Sprites = true
 mode(0)
+cheat=true
 
---#include ext/range.lua
---#include ext/class.lua
---#include numo9/matstack.lua
+----------------------- BEGIN ext/range.lua-----------------------
+local range=|a,b,c|do
+	local t = table()
+	if c then
+		for x=a,b,c do t:insert(x) end
+	elseif b then
+		for x=a,b do t:insert(x) end
+	else
+		for x=1,a do t:insert(x) end
+	end
+	return t
+end
+
+----------------------- END ext/range.lua  -----------------------
+----------------------- BEGIN ext/class.lua-----------------------
+local isa=|cl,o|o.isaSet[cl]
+local classmeta = {__call=|cl,...|do
+	local o=setmetatable({},cl)
+	return o, o?:init(...)
+end}
+local class
+class=|...|do
+	local t=table(...)
+	t.super=...
+	--t.supers=table{...}
+	t.__index=t
+	t.subclass=class
+	t.isaSet=table(table{...}
+		:mapi(|cl|cl.isaSet)
+		:unpack()
+	):setmetatable(nil)
+	t.isaSet[t]=true
+	t.isa=isa
+	setmetatable(t,classmeta)
+	return t
+end
+
+----------------------- END ext/class.lua  -----------------------
+----------------------- BEGIN numo9/matstack.lua-----------------------
+assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
+local matAddr = ramaddr'mvMat'
+local matstack=table()
+local matpush=||do
+	local t={}
+	for i=0,15 do
+		t[i+1] = peekf(matAddr + (i<<2))
+	end
+	matstack:insert(t)
+end
+local matpop=||do
+	local t = matstack:remove(1)
+	if not t then return end
+	for i=0,15 do
+		pokef(matAddr + (i<<2), t[i+1])
+	end
+end
+
+----------------------- END numo9/matstack.lua  -----------------------
 
 _G=getfenv(1)
 linfDist=|ax,ay,bx,by|do
@@ -17,7 +73,9 @@ linfDist=|ax,ay,bx,by|do
 end
 
 dt=1/60
-mapw,maph=11,11
+mapw=11
+maph=11
+mapd=6	-- z-levels?
 
 mapBorderTileX, mapBorderTileY, mapBorderTileW, mapBorderTileH = 10, 20, mapw + 2, maph + 3
 -- [[ dynamically drawing the border
@@ -111,7 +169,8 @@ drawMap=||do
 	for y=0,maph-1 do
 		for x=0,mapw-1 do
 			local tileIndex = mget(levelTileX+x, levelTileY+y)
-			if tileIndex ~= EMPTY then
+			local mt = mapType[tileIndex]
+			if mt and not mt.dontDraw then
 				if tileIndex == WATER then
 					local waterAbove = y > 0 
 						and mget(levelTileX+x, levelTileY+y-1) == WATER
@@ -122,8 +181,14 @@ drawMap=||do
 					end
 					if math.floor(time()) & 1 == 1 then tileIndex += 2 end
 				end
-				drawBillboardSprite(1024|tileIndex, x<<4, y<<4, 2, 2)
-				--spr(1024|tileIndex, x<<4, y<<4, 2, 2)
+				
+				if mt.drawBillboard then
+					drawBillboardSprite(1024|tileIndex, x<<4, y<<4, 2, 2)
+--				elseif mt.drawCube then
+--					drawCube(1024|tileIndex, x<<4, y<<4, 2, 2)
+				else
+					spr(1024|tileIndex, x<<4, y<<4, 2, 2)
+				end
 			end
 		end
 	end
@@ -164,19 +229,19 @@ WATER_ANIM_1 = WATER_BANK_ANIM_1 + 32*2
 WATER_ANIM_2 = WATER_ANIM_1 + 2
 
 mapType={
-	[EMPTY]={},
-	[TREE]={cannotPassThru=true,drawGroundUnder=true},
-	[BRICK]={cannotPassThru=true,blocksGunShot=true,blocksExplosion=true,bombable=true},
-	[STONE]={cannotPassThru=true,blocksGunShot=true,blocksExplosion=true},
-	[WATER]={cannotPassThru=true},
-	[ARROW_RIGHT]={},
-	[ARROW_DOWN]={},
-	[ARROW_LEFT]={},
-	[ARROW_UP]={},
-	[MOVING_RIGHT]={},
-	[MOVING_DOWN]={},
-	[MOVING_LEFT]={},
-	[MOVING_UP]={},
+	[EMPTY] = {dontDraw=true},
+	[TREE] = {cannotPassThru=true, drawBillboard=true},
+	[BRICK] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
+	[STONE] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
+	[WATER] = {cannotPassThru=true},
+	[ARROW_RIGHT] = {},
+	[ARROW_DOWN] = {},
+	[ARROW_LEFT] = {},
+	[ARROW_UP] = {},
+	[MOVING_RIGHT] = {},
+	[MOVING_DOWN] = {},
+	[MOVING_LEFT] = {},
+	[MOVING_UP] = {},
 }
 
 dirs={none=-1,down=0,left=1,right=2,up=3}
