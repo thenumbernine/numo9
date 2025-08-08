@@ -9,6 +9,7 @@ mode(0)
 
 --#include ext/range.lua
 --#include ext/class.lua
+--#include numo9/matstack.lua
 
 _G=getfenv(1)
 linfDist=|ax,ay,bx,by|do
@@ -59,6 +60,40 @@ drawMap=||
 --]]
 -- [[ manually for animation
 drawMap=||do
+
+	
+	local zn, zf = 1, 100
+	local zo = 10
+	local viewDist = mapw/2
+	local viewAlt = mapw/2
+	local tiltUpAngle = 45
+
+	local viewCenterX = player and player.posX + 2.5 or mapw/2 + 2.5
+	local viewCenterY = player and player.posY + 2.5 or maph/2 + 2.5
+	local viewAngle = -math.pi/2
+	local fwdx = math.cos(viewAngle)
+	local fwdy = math.sin(viewAngle)
+	local viewX = viewCenterX - viewDist * fwdx
+	local viewY = viewCenterY - viewDist * fwdy
+	local viewZ = viewAlt
+
+	matident()
+	matfrustum(-zn, zn, -zn, zn, zn, zf)
+	--matscale(-1, 1, 1)	-- go from lhs to rhs coord system
+	matlookat(
+		viewX, viewY, viewZ,
+		viewX + fwdx * math.sin(math.rad(tiltUpAngle)),
+		viewY + fwdy * math.sin(math.rad(tiltUpAngle)),
+		viewZ - math.cos(math.rad(tiltUpAngle)),	-- TODO pick a 60' slope to match above
+		0, 0, 1
+	)
+	
+	matscale(1/16,1/16,1/16)
+
+	mattrans(24, 24)
+	drawMapBorder()
+	mattrans(16, 32)
+	
 	for y=0,maph-1 do
 		for x=0,mapw-1 do
 			local tileIndex = mget(levelTileX+x, levelTileY+y)
@@ -1224,12 +1259,9 @@ update=||do
 		cls(0xf0)
 
 		matident()
-		mattrans(24, 24)
-		drawMapBorder()
-		mattrans(16, 32)
 		drawMap()
-
 		matident()
+
 		pokew(ramaddr'blendColor', 0x8000)
 		blend(5)
 		rect(0,0,256,256,0)
@@ -1346,12 +1378,7 @@ update=||do
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
 	end
 
-	-- draw the map border
-	mattrans(24, 24)
-	drawMapBorder()
-	mattrans(16, 32)
-	
-	-- draw map
+	matident()
 	drawMap()
 
 	for _,o in ipairs(objs) do
