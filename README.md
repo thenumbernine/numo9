@@ -636,8 +636,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- persistent memory per cart by checksum
 	- multiplayer persistent memory per client ... how to associate and how to secure
 	- still have some issues where temporary / single-frame cmds like map changes aren't getting reflected ...
-
-- Still need to make the draw message history to be per-connection, and need to send draw-specific commands to their specific connections.
+	- Still need to make the draw message history to be per-connection, and need to send draw-specific commands to their specific connections.
 
 # Things I'm still debating ...
 - Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out libpng's memeory pathway is buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.

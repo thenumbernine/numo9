@@ -70,7 +70,7 @@ local blobClassForName = {}
 --]]
 local Blob = class()
 function Blob:copyToRAM()
-	assert.ne(self.ramptr, ffi.null)
+	assert(self.ramptr, "failed to find ramptr for blob of type "..tostring(self.type))
 	ffi.copy(self.ramptr, self:getPtr(), self:getSize())
 end
 function Blob:copyFromRAM()
@@ -595,7 +595,7 @@ end
 
 -- reads blobs, returns resulting byte array
 -- used by buildRAMFromBlobs for allocating self.memSize, self.holdram, self.ram
--- or by blobsToCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
+-- or by blobStrToCartImage for writing out the ROM data (which is just the holdram minus the RAM struct up to blobCount)
 local function blobsToByteArray(blobs)
 --DEBUG:print('blobsToByteArray...')
 	local allBlobs = table()
@@ -722,9 +722,16 @@ function AppBlobs:buildRAMFromBlobs()
 	-- operates on app, reading its .blobs, writing its .memSize, .holdram, .ram, .blobEntriesForClassName
 	local info = blobsToByteArray(self.blobs)
 
+	local oldholdram = self.holdram
+
 	self.memSize = info.memSize
 	self.holdram = info.holdram
 	self.ram = info.ram
+	self.blobEntriesForClassName = info.blobEntriesForClassName
+
+	if oldholdram then
+		ffi.copy(self.ram.v, ffi.cast('uint8_t*', oldholdram), sizeofRAMWithoutROM)
+	end
 
 	-- here build ram ptrs from addrs
 	-- TODO really blobsToByteArray doesn't need ram, holdram, memSize at all
@@ -735,11 +742,13 @@ function AppBlobs:buildRAMFromBlobs()
 		end
 	end
 
-	self.blobEntriesForClassName = info.blobEntriesForClassName
 --DEBUG:print('...done AppBlobs:initBlobs')
 
 	-- every time .ram updates, this has to update as well:
 	self.mvMat.ptr = ffi.cast(mvMatType..'*', self.ram.mvMat)
+
+	--TODO also resize all video sheets to match blobs (or merge them someday)
+	-- and TODO also flush them
 end
 
 -- NOTICE this desyncs the blobs and the RAM so you'll need to then call buildRAMFromBlobs

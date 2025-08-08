@@ -35,6 +35,7 @@ local ThreadManager = require 'threadmanager'
 
 local numo9_archive = require 'numo9.archive'
 local cartImageToBlobs = numo9_archive.cartImageToBlobs
+local blobStrToCartImage = numo9_archive.blobStrToCartImage
 local blobsToCartImage = numo9_archive.blobsToCartImage
 
 local numo9_net = require 'numo9.net'
@@ -841,7 +842,7 @@ function App:initGL()
 		blobaddr = function(name, index)
 			local blobsForType = self.blobs[name]
 			if not blobsForType then
-print("blobaddr found no blobs of type "..tostring(name))
+--DEBUG:print("blobaddr found no blobs of type "..tostring(name))
 				return
 			end
 			index = tonumber(toint(index))
@@ -854,7 +855,7 @@ print("blobaddr found no blobs of type "..tostring(name))
 			end
 			local blob = blobsForType[index+1]
 			if not blob then
-print("blobaddr("..tostring(name)..") couldn't find index "..tostring(index))
+--DEBUG:print("blobaddr("..tostring(name)..") couldn't find index "..tostring(index))
 				return
 			end
 			return blob.addr
@@ -1539,9 +1540,9 @@ function App:connect(addr, port)
 	-- ... set the focus to the remoteClient so that its thread can handle net updates (and con won't)
 	-- TODO what happens if a remote client pushes escape to exit to its own console?  the game will go out of sync ...
 	-- how about (for now) ESC = kill connection ... sounds dramatic ... but meh?
-print('app:setFocus(remoteClient)')
+--DEBUG:print('app:setFocus(remoteClient)')
 	self:setFocus(self.remoteClient)
-assert(self.runFocus == self.remoteClient)
+	assert(self.runFocus == self.remoteClient)
 	if not self.runFocus.thread then
 		-- failed to connect?
 		self.con:print'failed to connect'
@@ -2098,6 +2099,7 @@ print('run thread dead')
 		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+
 		if self.activeMenu then
 			sceneObj.texs[1] = self.framebufferMenuTex
 		end
@@ -2111,6 +2113,7 @@ print('run thread dead')
 		if self.activeMenu then
 			sceneObj.texs[1] = self.framebufferRAM.tex
 		end
+
 		if self.activeMenu then
 			self:setVideoMode(self.ram.videoMode)
 		end
@@ -2205,6 +2208,7 @@ function App:poke(addr, value)
 		and addr < sheetRAM.addrEnd
 		then
 			-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
+			--sheetRAM:checkDirtyGPU()
 			sheetRAM.dirtyCPU = true
 		end
 	end
@@ -2212,6 +2216,7 @@ function App:poke(addr, value)
 		if addr >= tilemapRAM.addr
 		and addr < tilemapRAM.addrEnd
 		then
+			--tilemapRAM:checkDirtyGPU()
 			tilemapRAM.dirtyCPU = true
 		end
 	end
@@ -2219,15 +2224,19 @@ function App:poke(addr, value)
 	-- 1) consolidate calls, so write this separately in pokew and pokel
 	-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
 	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
-	if addr >= self.paletteRAMs[1].addr
-	and addr < self.paletteRAMs[1].addrEnd
-	then
-		self.paletteRAMs[1].dirtyCPU = true
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		if addr >= paletteRAM.addr
+		and addr < paletteRAM.addrEnd
+		then
+			paletteRAM.dirtyCPU = true
+		end
 	end
-	if addr >= self.fontRAMs[1].addr
-	and addr < self.fontRAMs[1].addrEnd
-	then
-		self.fontRAMs[1].dirtyCPU = true
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		if addr >= fontRAM.addr
+		and addr < fontRAM.addrEnd
+		then
+			fontRAM.dirtyCPU = true
+		end
 	end
 	-- TODO if we poked the code
 end
@@ -2261,15 +2270,19 @@ function App:pokew(addr, value)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if addrend >= self.paletteRAMs[1].addr
-	and addr < self.paletteRAMs[1].addrEnd
-	then
-		self.paletteRAMs[1].dirtyCPU = true
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		if addrend >= paletteRAM.addr
+		and addr < paletteRAM.addrEnd
+		then
+			paletteRAM.dirtyCPU = true
+		end
 	end
-	if addrend >= self.fontRAMs[1].addr
-	and addr < self.fontRAMs[1].addrEnd
-	then
-		self.fontRAMs[1].dirtyCPU = true
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		if addrend >= fontRAM.addr
+		and addr < fontRAM.addrEnd
+		then
+			fontRAM.dirtyCPU = true
+		end
 	end
 	-- TODO if we poked the code
 end
@@ -2303,15 +2316,19 @@ function App:pokel(addr, value)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if addrend >= self.paletteRAMs[1].addr
-	and addr < self.paletteRAMs[1].addrEnd
-	then
-		self.paletteRAMs[1].dirtyCPU = true
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		if addrend >= paletteRAM.addr
+		and addr < paletteRAM.addrEnd
+		then
+			paletteRAM.dirtyCPU = true
+		end
 	end
-	if addrend >= self.fontRAMs[1].addr
-	and addr < self.fontRAMs[1].addrEnd
-	then
-		self.fontRAMs[1].dirtyCPU = true
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		if addrend >= fontRAM.addr
+		and addr < fontRAM.addrEnd
+		then
+			fontRAM.dirtyCPU = true
+		end
 	end
 	-- TODO if we poked the code
 end
@@ -2345,15 +2362,19 @@ function App:pokef(addr, value)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if addrend >= self.paletteRAMs[1].addr
-	and addr < self.paletteRAMs[1].addrEnd
-	then
-		self.paletteRAMs[1].dirtyCPU = true
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		if addrend >= paletteRAM.addr
+		and addr < paletteRAM.addrEnd
+		then
+			paletteRAM.dirtyCPU = true
+		end
 	end
-	if addrend >= self.fontRAMs[1].addr
-	and addr < self.fontRAMs[1].addrEnd
-	then
-		self.fontRAMs[1].dirtyCPU = true
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		if addrend >= fontRAM.addr
+		and addr < fontRAM.addrEnd
+		then
+			fontRAM.dirtyCPU = true
+		end
 	end
 	-- TODO if we poked the code
 end
@@ -2407,15 +2428,19 @@ function App:memcpy(dst, src, len)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if dstend >= self.paletteRAMs[1].addr
-	and dst < self.paletteRAMs[1].addrEnd
-	then
-		self.paletteRAMs[1].dirtyCPU = true
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		if dstend >= paletteRAM.addr
+		and dst < paletteRAM.addrEnd
+		then
+			paletteRAM.dirtyCPU = true
+		end
 	end
-	if dstend >= self.fontRAMs[1].addr
-	and dst < self.fontRAMs[1].addrEnd
-	then
-		self.fontRAMs[1].dirtyCPU = true
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		if dstend >= fontRAM.addr
+		and dst < fontRAM.addrEnd
+		then
+			fontRAM.dirtyCPU = true
+		end
 	end
 
 	if src < 0 then
@@ -2478,15 +2503,19 @@ function App:memset(dst, val, len)
 			tilemapRAM.dirtyCPU = true
 		end
 	end
-	if dstend >= self.paletteRAMs[1].addr
-	and dst < self.paletteRAMs[1].addrEnd
-	then
-		self.paletteRAMs[1].dirtyCPU = true
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		if dstend >= paletteRAM.addr
+		and dst < paletteRAM.addrEnd
+		then
+			paletteRAM.dirtyCPU = true
+		end
 	end
-	if dstend >= self.fontRAMs[1].addr
-	and dst < self.fontRAMs[1].addrEnd
-	then
-		self.fontRAMs[1].dirtyCPU = true
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		if dstend >= fontRAM.addr
+		and dst < fontRAM.addrEnd
+		then
+			fontRAM.dirtyCPU = true
+		end
 	end
 end
 
@@ -2506,11 +2535,22 @@ function App:saveROM(filename)
 	-- and then that to the real filesystem ...
 
 	-- save ediCode.text to self.blobs
+	self.blobs.code = table()
 	if #self.editCode.text > 0 then
-		self.blobs.code = table{blobClassForName.code(self.editCode.text)}
-	else
-		self.blobs.code = nil
+		self.blobs.code:insert(blobClassForName.code(self.editCode.text))
 	end
+
+	-- rebuild RAM from blobs
+	self:buildRAMFromBlobs()
+	-- then reassign all pointers
+--[[ resetVideo WORKS BUT resets everything... I just want the pointers to be reset.
+	self:resetVideo()
+--]]
+-- [[
+	self:resizeRAMGPUs()
+--	self:allRAMRegionsCheckDirtyCPU()
+--	self:allRAMRegionsCheckDirtyGPU()
+--]]
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path
@@ -2521,17 +2561,20 @@ function App:saveROM(filename)
 		or defaultSaveFilename
 	local basemsg = 'failed to save file '..tostring(filename)
 
+	local blobstr = ffi.string(self.ram.v, self.memSize)
+
 	-- TODO xpcall?
-	local success, s = xpcall(blobsToCartImage, errorHandler, self.blobs)
+	local success, s = xpcall(blobStrToCartImage, errorHandler, blobstr)
+	--local success, s = xpcall(blobsToCartImage, errorHandler, self.blobs)
 	if not success then
-print('save failed:', basemsg..(s or ''))
+		print('save failed:', basemsg..(s or ''))
 		return nil, basemsg..(s or '')
 	end
 
 	-- [[ do I bother implement fs:open'w' ?
 	local f, msg = self.fs:create(filename)
 	if not f then
-print('save failed:', basemsg..' fs:create failed: '..msg)
+		print('save failed:', basemsg..' fs:create failed: '..msg)
 		return nil, basemsg..' fs:create failed: '..msg
 	end
 	f.data = s
@@ -2544,6 +2587,20 @@ print('save failed:', basemsg..' fs:create failed: '..msg)
 	end
 	--]]
 
+--debug.sethook(function() print(debug.traceback()) end, 'crl')
+--[[
+save then run is causing a segfault here:
+stack traceback:
+	numo9/app.lua:2590: in function <numo9/app.lua:2590>
+	[C]: in function 'glReadPixels'
+	numo9/video.lua:500: in function 'checkDirtyGPU'
+	numo9/video.lua:1859: in function 'allRAMRegionsCheckDirtyGPU'
+	numo9/video.lua:1903: in function 'resetVideo'
+	numo9/app.lua:2695: in function 'resetROM'
+	numo9/app.lua:2758: in function 'runROM'
+	numo9/ui.lua:339: in function <numo9/ui.lua:338>
+Segmentation fault (core dumped)
+--]]
 	return true
 end
 
@@ -2560,7 +2617,7 @@ whoever calls this should create a runFocus coroutine to load the ROM
  so that the load only takes place in the runFocus loop and not the UI loop (which pushes and pops the modelview matrix values)
 --]]
 function App:openROM(filename)
-print('App:openROM', filename)
+--DEBUG:print('App:openROM', filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
 

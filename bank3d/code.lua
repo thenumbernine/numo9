@@ -89,44 +89,44 @@ drawMapBorder=||do
 	-- middle
 	for x=1,mapw+1 do
 		for y=2,maph+1 do
-			spr(1024, x<<4, y<<4, 2, 2)
+			spr(1024, x*16, y*16, 2, 2)
 		end
 	end
 	-- upper left
 	spr(1024+192, 0, (maph-2), 4, 4)
 	-- upper right
-	spr(1024+192, (mapw+2)<<4, 8, 2, 4, nil, nil, nil, nil, -1, 1)
+	spr(1024+192, (mapw+2)*16, 8, 2, 4, nil, nil, nil, nil, -1, 1)
 	-- upper
 	for x=2,mapw do
-		spr(1024+196, x<<4, 8, 2, 4)
+		spr(1024+196, x*16, 8, 2, 4)
 	end
 	-- left & right
 	for y=2,mapw+1 do
-		spr(1024+256, 0, y<<4, 2, 2)
-		spr(1024+256, (mapw+2)<<4, y<<4, 2, 2, nil, nil, nil, nil, -1, 1)
+		spr(1024+256, 0, y*16, 2, 2)
+		spr(1024+256, (mapw+2)*16, y*16, 2, 2, nil, nil, nil, nil, -1, 1)
 	end
 	-- bottom left
-	spr(1024+320, 0, (maph+2)<<4, 2, 2)
+	spr(1024+320, 0, (maph+2)*16, 2, 2)
 	-- bottom right
-	spr(1024+320, (mapw+2)<<4, (maph+2)<<4, 2, 2, nil, nil, nil, nil, -1, 1)
+	spr(1024+320, (mapw+2)*16, (maph+2)*16, 2, 2, nil, nil, nil, nil, -1, 1)
 	-- lower
 	for x=1,mapw do
-		spr(1024+322, x<<4, (maph+2)<<4, 2, 2)
+		spr(1024+322, x*16, (maph+2)*16, 2, 2)
 	end
 end
 --]]
 
 
-local viewZNear = 1
-local viewZFar = 100
-local viewDist = mapw*.75
-local viewAlt = mapw*.75
-local viewTiltUpAngle = 45
-local viewAngle = -math.pi/2
+viewZNear = 1
+viewZFar = maph*2
+viewDist = 4 -- mapw*.75
+viewAlt = 4 -- mapw*.75
+viewTiltUpAngle = 45
+viewAngle = -math.pi/2
 
-drawBillboardSprite=|spriteIndex, x, y, ...|do
+drawBillboardSprite=|spriteIndex, x, y, z, ...|do
 	matpush()
-	mattrans(x + 8, y + 8)
+	mattrans(x + 8, y + 8, z)
 
 	-- undo camera viewAngle to make a billboard
 	matrot(viewAngle + .5 * math.pi, 0, 0, 1)
@@ -140,17 +140,17 @@ drawBillboardSprite=|spriteIndex, x, y, ...|do
 end
 
 -- spr() signature
-drawCube=|spriteIndex, x, y, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
+drawCube=|spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
 	local sheetIndex = spriteIndex >> 10
 	local spriteU = (spriteIndex & 0x1f) << 3
 	local spriteV = ((spriteIndex >> 5) & 0x1f) << 3
 	local spriteW = 16 --tilesWide << 3
 	local spriteH = 16 --tilesHigh << 3
 	matpush()
-	mattrans(x, y)
+	mattrans(x, y, z)
 	matscale(16, 16, 16)
 
-	for dim = 0,2 do
+	for dim=0,2 do
 		for side=0,1 do
 			for _,uvs in ipairs{
 				{0,0, 0,1, 1,1},
@@ -189,13 +189,16 @@ drawCube=|spriteIndex, x, y, tilesWide, tilesHigh, paletteIndex, transparentInde
 	matpop()
 end
 
-drawForFlags = |mt, ...| do
+drawForFlags = |mt, x, y, z, ...| do
 	if mt.drawBillboard then
-		drawBillboardSprite(...)
+		drawBillboardSprite(x, y, z, ...)
 	elseif mt.drawCube then
-		drawCube(...)
+		drawCube(x, y, z, ...)
 	else
-		spr(...)
+		matpush()
+		mattrans(0, 0, z)
+		spr(x, y, ...)
+		matpop()
 	end
 end
 
@@ -230,23 +233,18 @@ drawMap=||do
 	drawMapBorder()
 	mattrans(16, 32)
 
-	for y=0,maph-1 do
-		for x=0,mapw-1 do
-			local tileIndex = mget(levelTileX+x, levelTileY+y)
-			local mt = mapType[tileIndex]
-			if mt and not mt.dontDraw then
-				if tileIndex == WATER then
-					local waterAbove = y > 0
-						and mget(levelTileX+x, levelTileY+y-1) == WATER
-					if waterAbove then
+	for z=0,mapd-1 do
+		for y=0,maph-1 do
+			for x=0,mapw-1 do
+				local tileIndex = mapGet(x,y,z)
+				local mt = mapType[tileIndex]
+				if mt and not mt.dontDraw then
+					if tileIndex == WATER then
 						tileIndex = WATER_ANIM_1
-					else
-						tileIndex = WATER_BANK_ANIM_1
+						if math.floor(time()) & 1 == 1 then tileIndex += 2 end
 					end
-					if math.floor(time()) & 1 == 1 then tileIndex += 2 end
+					drawForFlags(mt, 1024|tileIndex, x*16, y*16, z*16, 2, 2)
 				end
-
-				drawForFlags(mt, 1024|tileIndex, x<<4, y<<4, 2, 2)
 			end
 		end
 	end
@@ -387,6 +385,7 @@ BaseObj=class{
 			seq,	--spriteIndex,
 			x,			--screenX,
 			y,			--screenY,
+			0,			-- z
 			2,			--spritesWide,
 			2,			--spritesHigh,
 			nil,		--paletteIndex,
@@ -731,6 +730,7 @@ do
 					384+self.blastRadius,
 					16*self.posX-4,
 					16*self.posY-4,
+					0,			-- z
 					1,
 					1,
 					nil,
@@ -1203,6 +1203,7 @@ do
 					384+self.bombs,
 					16*self.posX-4,
 					16*self.posY-4,
+					0,			-- z
 					1,
 					1,
 					nil,
@@ -1324,66 +1325,68 @@ setLevel=|level_|do
 	end
 end
 
-mapGet=|x,y|mget(x+levelTileX,y+levelTileY)&0x3ff	-- drop the hv flip and pal-hi
+mapGet=|x,y,z| mget(levelTileX + x + (z or 0) * mapw, levelTileY + y) & 0x3ff	-- drop the hv flip and pal-hi
 mapSet=|x,y,value|mset(x+levelTileX,y+levelTileY,value)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
 	mode(videoModeIndex)
 	removeAll()
-	for y=0,maph-1 do
-		for x=0,mapw-1 do
-			local posX,posY=x+.5,y+.5
-			local m = mapGet(x,y)
-			if m==EMPTY
-			or m==TREE
-			or m==BRICK
-			or m==STONE
-			or m==WATER
-			or m==ARROW_RIGHT
-			or m==ARROW_DOWN
-			or m==ARROW_LEFT
-			or m==ARROW_UP
-			or m==MOVING_RIGHT
-			or m==MOVING_DOWN
-			or m==MOVING_LEFT
-			or m==MOVING_UP
-			then
-				-- map type
-			else
-				mapSet(x,y,EMPTY)
-				if m==10 then
-					player=Player{}
-					player:setPos(posX,posY)
-					objs:insert(player)
-				elseif m==12 then
-					local key=Key{}
-					key:setPos(posX,posY)
-					objs:insert(key)
-				elseif m==14 then
-					local framer=Framer{}
-					framer:setPos(posX,posY)
-					objs:insert(framer)
-				elseif m==16 then
-					local gun=Gun{}
-					gun:setPos(posX,posY)
-					objs:insert(gun)
-				elseif m==18 then
-					local sentry=Sentry{}
-					sentry:setPos(posX,posY)
-					objs:insert(sentry)
-				elseif m>=64 and m<84 then
-					local money=Money{}
-					money.bombs=(m-64)>>1
-					money:setPos(posX,posY)
-					objs:insert(money)
-				elseif m>=128 and m<148 then
-					local bomb=Bomb()
-					bomb.blastRadius=(m-128)>>1
-					bomb:setPos(posX,posY)
-					objs:insert(bomb)
+	for z=0,mapd-1 do
+		for y=0,maph-1 do
+			for x=0,mapw-1 do
+				local posX,posY=x+.5,y+.5
+				local m = mapGet(x,y,z)
+				if m==EMPTY
+				or m==TREE
+				or m==BRICK
+				or m==STONE
+				or m==WATER
+				or m==ARROW_RIGHT
+				or m==ARROW_DOWN
+				or m==ARROW_LEFT
+				or m==ARROW_UP
+				or m==MOVING_RIGHT
+				or m==MOVING_DOWN
+				or m==MOVING_LEFT
+				or m==MOVING_UP
+				then
+					-- map type
 				else
-					trace('unknown spawn', x,y,m)
+					mapSet(x,y,EMPTY)
+					if m==10 then
+						player=Player{}
+						player:setPos(posX,posY)
+						objs:insert(player)
+					elseif m==12 then
+						local key=Key{}
+						key:setPos(posX,posY)
+						objs:insert(key)
+					elseif m==14 then
+						local framer=Framer{}
+						framer:setPos(posX,posY)
+						objs:insert(framer)
+					elseif m==16 then
+						local gun=Gun{}
+						gun:setPos(posX,posY)
+						objs:insert(gun)
+					elseif m==18 then
+						local sentry=Sentry{}
+						sentry:setPos(posX,posY)
+						objs:insert(sentry)
+					elseif m>=64 and m<84 then
+						local money=Money{}
+						money.bombs=(m-64)>>1
+						money:setPos(posX,posY)
+						objs:insert(money)
+					elseif m>=128 and m<148 then
+						local bomb=Bomb()
+						bomb.blastRadius=(m-128)>>1
+						bomb:setPos(posX,posY)
+						objs:insert(bomb)
+					else
+						trace('unknown spawn', x,y,m)
+					end
 				end
 			end
 		end
