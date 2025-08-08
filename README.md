@@ -301,7 +301,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- x1,y1,z1,x2,y2,z2,x3,y3,z3 = triangle coordinates
 - `ttri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, u1, v1, u2, v2, u3, v3, [sheetIndex=0, paletteIndex=0, transparentIndex=-1, spriteBit=0, spriteMask=0xFF])` = draw a triangle textured with a sprite/tile sheet.
 	- x1,y1,z1,x2,y2,z2,x3,y3,z3 = triangle coordinates
-	- u1,v1,u2,v2,u3,v3 = texture coordinates
+	- u1,v1,u2,v2,u3,v3 = texture coordinates, in texels.
 	- sheetIndex = sheet to use, 0 = sprite sheet, 1 = tile sheet, default 0.
 - `line(x1, y1, x2, y2, [colorIndex])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [colorIndex])` = draw line but with z / perspective.
