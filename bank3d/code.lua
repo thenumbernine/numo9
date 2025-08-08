@@ -119,8 +119,8 @@ end
 
 local viewZNear = 1
 local viewZFar = 100
-local viewDist = mapw/2
-local viewAlt = mapw/2
+local viewDist = mapw*.75
+local viewAlt = mapw*.75
 local viewTiltUpAngle = 45
 local viewAngle = -math.pi/2
 
@@ -135,6 +135,106 @@ drawBillboardSprite=|spriteIndex, x, y, ...|do
 
 	mattrans(-8, -16, 0)
 	spr(spriteIndex, 0, 0, ...)
+
+	matpop()
+end
+
+-- spr() signature
+drawCube=|spriteIndex, x, y, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
+	local sheetIndex = spriteIndex >> 10
+	local spriteU = (spriteIndex & 0x1f) << 3
+	local spriteV = ((spriteIndex >> 5) & 0x1f) << 3
+	local spriteW = 16 --tilesWide << 3
+	local spriteH = 16 --tilesHigh << 3
+	matpush()
+	mattrans(x, y)
+	matscale(16, 16, 16)
+
+	for _,face in ipairs{
+		-- z-
+		{
+			0, 0, 0, 0, 0,
+			0, 1, 0, 0, 1,
+			1, 1, 0, 1, 1,
+		},
+		{
+			1, 1, 0, 1, 1,
+			1, 0, 0, 1, 0,
+			0, 0, 0, 0, 0,
+		},	
+	
+		-- z+
+		{
+			0, 0, 1, 0, 0,
+			0, 1, 1, 0, 1,
+			1, 1, 1, 1, 1,
+		},
+		{
+			1, 1, 1, 1, 1,
+			1, 0, 1, 1, 0,
+			0, 0, 1, 0, 0,
+		},
+	
+		-- x-
+		{
+			0, 0, 0, 0, 0,
+			0, 0, 1, 0, 1,
+			0, 1, 1, 1, 1,
+		},
+		{
+			0, 1, 1, 1, 1,
+			0, 1, 0, 1, 0,
+			0, 0, 0, 0, 0,
+		},	
+	
+		-- x+
+		{
+			1, 0, 0, 0, 0,
+			1, 0, 1, 0, 1,
+			1, 1, 1, 1, 1,
+		},
+		{
+			1, 1, 1, 1, 1,
+			1, 1, 0, 1, 0,
+			1, 0, 0, 0, 0,
+		},
+	
+		-- y-
+		{
+			0, 0, 0, 0, 0,
+			0, 0, 1, 0, 1,
+			1, 0, 1, 1, 1,
+		},
+		{
+			1, 0, 1, 1, 1,
+			1, 0, 0, 1, 0,
+			0, 0, 0, 0, 0,
+		},	
+	
+		-- y+
+		{
+			0, 1, 0, 0, 0,
+			0, 1, 1, 0, 1,
+			1, 1, 1, 1, 1,
+		},
+		{
+			1, 1, 1, 1, 1,
+			1, 1, 0, 1, 0,
+			0, 1, 0, 0, 0,
+		},
+	} do
+		-- maybe I should just use spr() and transform?
+		-- have I ever tested ttri3d before?
+		ttri3d(
+			face[1], face[2], face[3],
+			face[6], face[7], face[8],
+			face[11], face[12], face[13],
+			face[4] * spriteW + spriteU, face[5] * spriteH + spriteV,
+			face[9] * spriteW + spriteU, face[10] * spriteH + spriteV,
+			face[14] * spriteW + spriteU, face[15] * spriteH + spriteV,
+			sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
+		)
+	end
 
 	matpop()
 end
@@ -188,8 +288,8 @@ drawMap=||do
 				
 				if mt.drawBillboard then
 					drawBillboardSprite(1024|tileIndex, x<<4, y<<4, 2, 2)
---				elseif mt.drawCube then
---					drawCube(1024|tileIndex, x<<4, y<<4, 2, 2)
+				elseif mt.drawCube then
+					drawCube(1024|tileIndex, x<<4, y<<4, 2, 2)
 				else
 					spr(1024|tileIndex, x<<4, y<<4, 2, 2)
 				end
@@ -1357,12 +1457,10 @@ update=||do
 		matident()
 		drawMap()
 		matident()
-
---		pokew(ramaddr'blendColor', 0x8000)
 		
-		fillp(0x8000)	--blend(5)
+		fillp(0x1fff)	--blend(5)
 -- TODO why isn't this black?
---		rect(0,0,screenSize.x,screenSize.y,0, 19)
+		rect(0,0,screenSize.x,screenSize.y,19)
 		fillp(0)		--blend(-1)
 		
 		-- splash screen
