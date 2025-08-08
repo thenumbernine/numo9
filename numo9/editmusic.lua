@@ -168,7 +168,7 @@ function EditMusic:update()
 	self:guiSpinner(x, y, function(dx)
 		stop()
 		self.musicBlobIndex = math.clamp(self.musicBlobIndex + dx, 1, #app.blobs.music)
-	end, 'blob='..self.musicBlobIndex)
+	end, 'music #'..self.musicBlobIndex)
 	x = x + 16
 
 	app:drawMenuText('#', x, y, 0xfc, 0)
@@ -176,7 +176,7 @@ function EditMusic:update()
 	self:guiTextField(x, y, 24, self, 'musicBlobIndex', function(index)
 		self.musicBlobIndex = (tonumber(index) or self.musicBlobIndex) % #app.blobs.music
 		self:refreshSelectedMusic()
-	end, 'music='..self.musicBlobIndex)
+	end, 'music #'..self.musicBlobIndex)
 	x = x + 24
 
 	self:guiSpinner(x, y, function(dx)

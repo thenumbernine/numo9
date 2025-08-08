@@ -48,7 +48,7 @@ function EditSFX:update()
 	self:guiSpinner(x, y, function(dx)
 		stop()
 		self.sfxBlobIndex = math.clamp(self.sfxBlobIndex + dx, 0, #app.blobs.sfx-1)
-	end, 'blob='..self.sfxBlobIndex)
+	end, 'sfx #'..self.sfxBlobIndex)
 	x = x + 16
 
 	app:drawMenuText('#', x, y, 0xfc, 0)
@@ -56,7 +56,7 @@ function EditSFX:update()
 	self:guiTextField(x, y, 24, self, 'sfxBlobIndex', function(index)
 		stop()
 		self.sfxBlobIndex = (tonumber(index) or self.sfxBlobIndex) % #app.blobs.sfx
-	end, 'sfx='..self.sfxBlobIndex)
+	end, 'sfx #'..self.sfxBlobIndex)
 
 	local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
 	if not sfxBlob then return end

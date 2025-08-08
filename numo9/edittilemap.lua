@@ -32,7 +32,9 @@ local EditTilemap = require 'numo9.ui':subclass()
 function EditTilemap:init(args)
 	EditTilemap.super.init(self, args)
 
+	self.sheetBlobIndex = 1
 	self.tilemapBlobIndex = 0
+	self.paletteBlobIndex = 0	-- TODO :drawMap() allow specifying palette #
 
 	self.pickOpen = false
 	-- these are within the popup select tile window right?
@@ -77,8 +79,11 @@ function EditTilemap:update()
 
 	self:guiSpinner(x, y, function(dx)
 		self.tilemapBlobIndex = math.clamp(self.tilemapBlobIndex + dx, 0, #app.blobs.tilemap-1)
-	end, 'blob='..self.tilemapBlobIndex)
+	end, 'tilemap #'..self.tilemapBlobIndex)
 	x = x + 16
+	-- TODO grow/shrink
+	-- TODO selector for palette #
+	-- TODO selector for sheet #
 
 	if self:guiButton('T', x, y, self.pickOpen, 'tile') then
 		self.pickOpen = not self.pickOpen
@@ -186,6 +191,7 @@ function EditTilemap:update()
 		2+mapWidth*2, 2+mapHeight*2
 	)
 
+	-- TODO allow specifying palette #
 	app:drawMap(
 		0,		-- upper-left index in the tile tex
 		0,
@@ -195,7 +201,7 @@ function EditTilemap:update()
 		0,		-- pixel y
 		0,		-- map index offset / high page
 		self.draw16Sprites,	-- draw 16x16 vs 8x8
-		1		-- sprite vs tile sheet
+		self.sheetBlobIndex	-- sprite vs tile sheet
 	)
 
 --self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xfc, 0)
