@@ -444,13 +444,13 @@ function EditTilemap:update()
 			end
 		elseif self.drawMode == 'select' then
 			if leftButtonPress then
-				self.tileSelPos:set(fbToTileCoord(mouseX, mouseY))
+				self.tileSelPos:set(tx, ty)
 				self.tileSelPos.x = math.clamp(self.tileSelPos.x, 0, tilemapSize.x-1)
 				self.tileSelPos.y = math.clamp(self.tileSelPos.y, 0, tilemapSize.x-1)
 				self.tileSelSize:set(1,1)
 			elseif leftButtonDown then
-				self.tileSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / tileSize)
-				self.tileSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / tileSize)
+				self.tileSelSize.x = math.ceil((math.abs(tx - self.tileSelPos.x) + 1))
+				self.tileSelSize.y = math.ceil((math.abs(ty - self.tileSelPos.y) + 1))
 			end
 		elseif self.drawMode == 'pan' then
 			if leftButtonDown then
