@@ -3010,8 +3010,10 @@ end
 function AppVideo:matortho(l, r, t, b, n, f)
 	-- adjust from [-1,1] to [0,256]
 	-- opengl ortho matrix, which expects input space to be [-1,1]
-	self.mvMat:applyTranslate(128, 128)
-	self.mvMat:applyScale(128, 128)
+	local shw = .5 * self.framebufferRAM.tex.width
+	local shh = .5 * self.framebufferRAM.tex.height
+	self.mvMat:applyTranslate(shw, shh)
+	self.mvMat:applyScale(shw, shw)
 	self.mvMat:applyOrtho(l, r, t, b, n, f)
 end
 
@@ -3020,8 +3022,10 @@ function AppVideo:matfrustum(l, r, t, b, n, f)
 --	self.mvMat:applyScale(128, 128)
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 	-- TODO Why is matortho a lhs transform to screen space but matfrustum a rhs transform to screen space? what did I do wrong?
-	self.mvMat:applyTranslate(128, 128)
-	self.mvMat:applyScale(128, 128)
+	local shw = .5 * self.framebufferRAM.tex.width
+	local shh = .5 * self.framebufferRAM.tex.height
+	self.mvMat:applyTranslate(shw, shh)
+	self.mvMat:applyScale(shw, shw)
 end
 
 function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)

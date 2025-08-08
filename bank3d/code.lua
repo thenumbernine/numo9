@@ -5,7 +5,11 @@
 -- disableMultiplayer = true
 -- editTilemap.gridSpacing = 11
 -- editTilemap.draw16Sprites = true
-mode(0)
+
+--videoModeIndex=0	screenSize={x=256, y=256}	-- 256x256xRGB565
+--videoModeIndex=42	screenSize={x=480, y=270}	-- 480x270x8bppIndex
+videoModeIndex=43	screenSize={x=480, y=270}	-- 480x270xRGB332
+mode(videoModeIndex)
 cheat=true
 
 ----------------------- BEGIN ext/range.lua-----------------------
@@ -320,7 +324,9 @@ BaseObj=class{
 		-- posX posY are tile-centered so ...
 		local x = posX * 16 - 8 * scaleX
 		local y = posY * 16 - 8 * scaleY
-		if blendMode then blend(blendMode) end
+		if blendMode then 
+			fillp(0x8000)	--blend(blendMode) 
+		end
 		drawBillboardSprite(
 			seq,	--spriteIndex,
 			x,			--screenX,
@@ -333,7 +339,9 @@ BaseObj=class{
 			nil,		--spriteMask,
 			scaleX,
 			scaleY)
-		if blendMode then blend() end
+		if blendMode then 
+			fillp(0)	--blend() 
+		end
 	end,
 	isBlockingSentry=|::|isBlocking,
 	hitEdge=|::,whereX,whereY|true,
@@ -659,7 +667,9 @@ do
 			if self.state=='idle'
 			or self.state=='live'
 			then
-				if self.blendMode then blend(self.blendMode) end
+				if self.blendMode then 
+					fillp(0x8000)	--blend(self.blendMode) 
+				end
 				drawBillboardSprite(
 					384+self.blastRadius,
 					16*self.posX-4,
@@ -671,7 +681,9 @@ do
 					nil,
 					nil
 				)
-				if self.blendMode then blend() end
+				if self.blendMode then 
+					fillp(0)	--blend() 
+				end
 			end
 		end,
 		onKeyTouch=|:|removeObj(self),
@@ -1124,7 +1136,9 @@ do
 			super.drawSprite(self)
 
 			if self.bombs>0 then
-				if self.blendMode then blend(self.blendMode) end
+				if self.blendMode then 
+					fillp(0x8000)	--blend(self.blendMode) 
+				end
 				drawBillboardSprite(
 					384+self.bombs,
 					16*self.posX-4,
@@ -1136,7 +1150,9 @@ do
 					nil,
 					nil
 				)
-				if self.blendMode then blend() end
+				if self.blendMode then 
+					fillp(0)	--blend() 
+				end
 			end
 		end,
 
@@ -1253,6 +1269,7 @@ mapSet=|x,y,value|mset(x+levelTileX,y+levelTileY,value)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
+	mode(videoModeIndex)
 	removeAll()
 	for y=0,maph-1 do
 		for x=0,mapw-1 do
@@ -1341,22 +1358,25 @@ update=||do
 		drawMap()
 		matident()
 
-		pokew(ramaddr'blendColor', 0x8000)
-		blend(5)
-		rect(0,0,256,256,0)
-		blend(-1)
+--		pokew(ramaddr'blendColor', 0x8000)
+		
+		fillp(0x8000)	--blend(5)
+-- TODO why isn't this black?
+--		rect(0,0,screenSize.x,screenSize.y,0, 19)
+		fillp(0)		--blend(-1)
+		
 		-- splash screen
 		local s = 2
 		local sx, sy = s*5, s*8
-		local x0,y0 = 128-30*s, 64
+		local x0,y0 = screenSize.x/2-30*s, 64
 		local x,y= x0,y0
 		local txt=|t|do text(t, x, y, nil, nil, s, s) y += sy end
 
-		splashSpriteX = (((splashSpriteX or 0) + 1) % (256+32))
+		splashSpriteX = (((splashSpriteX or 0) + 1) % (screenSize.x+32))
 		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2, splashSpriteX - 16, 24, 2, 2, nil, nil, nil, nil, -1, 1)
 		spr(seqs.bombLit, splashSpriteX - 16, 24, 2, 2)
 
-		lastTitleWidth = text('BANK...3D!', 128-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
+		lastTitleWidth = text('BANK...3D!', screenSize.x/2-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
 
 		for _,saveinfo in ipairs(saveinfos) do
 			txt('  '..(saveinfo.level==0 and 'New Game' or 'Level '..saveinfo.level))
@@ -1453,7 +1473,7 @@ update=||do
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
 		lastLevelStrWidth = lastLevelStrWidth or 5*7
-		lastLevelStrWidth = text(levelstr,(256-lastLevelStrWidth)/2,0,22,-1)
+		lastLevelStrWidth = text(levelstr,(screenSize.x-lastLevelStrWidth)/2,0,22,-1)
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
 	end
 
