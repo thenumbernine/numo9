@@ -2674,9 +2674,9 @@ function AppVideo:drawTexTri3D(
 		self.paletteRAMs[1].tex,
 		sheetRAM.tex,
 		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
-		vx1, vy1, vz1, vw1, u1, v1,
-		vx2, vy2, vz2, vw2, u2, v2,
-		vx3, vy3, vz3, vw3, u3, v3,
+		vx1, vy1, vz1, vw1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
+		vx2, vy2, vz2, vw2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
+		vx3, vy3, vz3, vw3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
 		0, 0, 1, 1

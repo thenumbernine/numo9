@@ -7,8 +7,8 @@
 -- editTilemap.draw16Sprites = true
 
 --videoModeIndex=0	screenSize={x=256, y=256}	-- 256x256xRGB565
---videoModeIndex=42	screenSize={x=480, y=270}	-- 480x270x8bppIndex
-videoModeIndex=43	screenSize={x=480, y=270}	-- 480x270xRGB332
+videoModeIndex=42	screenSize={x=480, y=270}	-- 480x270x8bppIndex
+--videoModeIndex=43	screenSize={x=480, y=270}	-- 480x270xRGB332
 mode(videoModeIndex)
 cheat=true
 
@@ -127,7 +127,7 @@ local viewAngle = -math.pi/2
 drawBillboardSprite=|spriteIndex, x, y, ...|do
 	matpush()
 	mattrans(x + 8, y + 8)
-	
+
 	-- undo camera viewAngle to make a billboard
 	matrot(viewAngle + .5 * math.pi, 0, 0, 1)
 	matrot(math.rad(-60), 1, 0, 0)
@@ -150,93 +150,53 @@ drawCube=|spriteIndex, x, y, tilesWide, tilesHigh, paletteIndex, transparentInde
 	mattrans(x, y)
 	matscale(16, 16, 16)
 
-	for _,face in ipairs{
-		-- z-
-		{
-			0, 0, 0, 0, 0,
-			0, 1, 0, 0, 1,
-			1, 1, 0, 1, 1,
-		},
-		{
-			1, 1, 0, 1, 1,
-			1, 0, 0, 1, 0,
-			0, 0, 0, 0, 0,
-		},	
-	
-		-- z+
-		{
-			0, 0, 1, 0, 0,
-			0, 1, 1, 0, 1,
-			1, 1, 1, 1, 1,
-		},
-		{
-			1, 1, 1, 1, 1,
-			1, 0, 1, 1, 0,
-			0, 0, 1, 0, 0,
-		},
-	
-		-- x-
-		{
-			0, 0, 0, 0, 0,
-			0, 0, 1, 0, 1,
-			0, 1, 1, 1, 1,
-		},
-		{
-			0, 1, 1, 1, 1,
-			0, 1, 0, 1, 0,
-			0, 0, 0, 0, 0,
-		},	
-	
-		-- x+
-		{
-			1, 0, 0, 0, 0,
-			1, 0, 1, 0, 1,
-			1, 1, 1, 1, 1,
-		},
-		{
-			1, 1, 1, 1, 1,
-			1, 1, 0, 1, 0,
-			1, 0, 0, 0, 0,
-		},
-	
-		-- y-
-		{
-			0, 0, 0, 0, 0,
-			0, 0, 1, 0, 1,
-			1, 0, 1, 1, 1,
-		},
-		{
-			1, 0, 1, 1, 1,
-			1, 0, 0, 1, 0,
-			0, 0, 0, 0, 0,
-		},	
-	
-		-- y+
-		{
-			0, 1, 0, 0, 0,
-			0, 1, 1, 0, 1,
-			1, 1, 1, 1, 1,
-		},
-		{
-			1, 1, 1, 1, 1,
-			1, 1, 0, 1, 0,
-			0, 1, 0, 0, 0,
-		},
-	} do
-		-- maybe I should just use spr() and transform?
-		-- have I ever tested ttri3d before?
-		ttri3d(
-			face[1], face[2], face[3],
-			face[6], face[7], face[8],
-			face[11], face[12], face[13],
-			face[4] * spriteW + spriteU, face[5] * spriteH + spriteV,
-			face[9] * spriteW + spriteU, face[10] * spriteH + spriteV,
-			face[14] * spriteW + spriteU, face[15] * spriteH + spriteV,
-			sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
-		)
+	for dim = 0,2 do
+		for side=0,1 do
+			for _,uvs in ipairs{
+				{0,0, 0,1, 1,1},
+				{1,1, 1,0, 0,0},
+			} do
+				local u1, v1, u2, v2, u3, v3 = table.unpack(uvs)
+
+				local xyz_for_uv = |u,v| do
+					if dim == 0 then
+						return side, 1 - v, u
+					elseif dim == 1 then
+						return u, side, 1 - v
+					elseif dim == 2 then
+						return u, v, side
+					end
+				end
+				local x1,y1,z1 = xyz_for_uv(u1,v1)
+				local x2,y2,z2 = xyz_for_uv(u2,v2)
+				local x3,y3,z3 = xyz_for_uv(u3,v3)
+				u1 *= spriteW v1 *= spriteH
+				u2 *= spriteW v2 *= spriteH
+				u3 *= spriteW v3 *= spriteH
+				u1 += spriteU v1 += spriteV
+				u2 += spriteU v2 += spriteV
+				u3 += spriteU v3 += spriteV
+				-- maybe I should just use spr() and transform?
+				-- have I ever tested ttri3d before?
+				ttri3d(
+					x1, y1, z1, x2, y2, z2, x3, y3, z3, u1, v1, u2, v2, u3, v3,
+					sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
+				)
+			end
+		end
 	end
 
 	matpop()
+end
+
+drawForFlags = |mt, ...| do
+	if mt.drawBillboard then
+		drawBillboardSprite(...)
+	elseif mt.drawCube then
+		drawCube(...)
+	else
+		spr(...)
+	end
 end
 
 --[[ using map() function, which doesnt support animiations yet ... TODO
@@ -263,20 +223,20 @@ drawMap=||do
 		viewZ - math.cos(math.rad(viewTiltUpAngle)),	-- TODO pick a 60' slope to match above
 		0, 0, 1
 	)
-	
+
 	matscale(1/16,1/16,1/16)
 
 	mattrans(24, 24)
 	drawMapBorder()
 	mattrans(16, 32)
-	
+
 	for y=0,maph-1 do
 		for x=0,mapw-1 do
 			local tileIndex = mget(levelTileX+x, levelTileY+y)
 			local mt = mapType[tileIndex]
 			if mt and not mt.dontDraw then
 				if tileIndex == WATER then
-					local waterAbove = y > 0 
+					local waterAbove = y > 0
 						and mget(levelTileX+x, levelTileY+y-1) == WATER
 					if waterAbove then
 						tileIndex = WATER_ANIM_1
@@ -285,14 +245,8 @@ drawMap=||do
 					end
 					if math.floor(time()) & 1 == 1 then tileIndex += 2 end
 				end
-				
-				if mt.drawBillboard then
-					drawBillboardSprite(1024|tileIndex, x<<4, y<<4, 2, 2)
-				elseif mt.drawCube then
-					drawCube(1024|tileIndex, x<<4, y<<4, 2, 2)
-				else
-					spr(1024|tileIndex, x<<4, y<<4, 2, 2)
-				end
+
+				drawForFlags(mt, 1024|tileIndex, x<<4, y<<4, 2, 2)
 			end
 		end
 	end
@@ -409,6 +363,7 @@ BaseObj=class{
 		isBlocking=true
 		isBlockingPushers=true
 		blocksExplosion=true
+		drawBillboard=true
 	end,
 	-- in AnimatedObj in fact ...
 	update=|::|nil,
@@ -424,10 +379,11 @@ BaseObj=class{
 		-- posX posY are tile-centered so ...
 		local x = posX * 16 - 8 * scaleX
 		local y = posY * 16 - 8 * scaleY
-		if blendMode then 
-			fillp(0x8000)	--blend(blendMode) 
+		if blendMode then
+			fillp(0x8000)	--blend(blendMode)
 		end
-		drawBillboardSprite(
+		drawForFlags(
+			self,
 			seq,	--spriteIndex,
 			x,			--screenX,
 			y,			--screenY,
@@ -439,8 +395,8 @@ BaseObj=class{
 			nil,		--spriteMask,
 			scaleX,
 			scaleY)
-		if blendMode then 
-			fillp(0)	--blend() 
+		if blendMode then
+			fillp(0)	--blend()
 		end
 	end,
 	isBlockingSentry=|::|isBlocking,
@@ -767,10 +723,11 @@ do
 			if self.state=='idle'
 			or self.state=='live'
 			then
-				if self.blendMode then 
-					fillp(0x8000)	--blend(self.blendMode) 
+				if self.blendMode then
+					fillp(0x8000)	--blend(self.blendMode)
 				end
-				drawBillboardSprite(
+				drawForFlags(
+					self,
 					384+self.blastRadius,
 					16*self.posX-4,
 					16*self.posY-4,
@@ -781,8 +738,8 @@ do
 					nil,
 					nil
 				)
-				if self.blendMode then 
-					fillp(0)	--blend() 
+				if self.blendMode then
+					fillp(0)	--blend()
 				end
 			end
 		end,
@@ -1131,6 +1088,8 @@ do
 		init=|:|do
 			super.init(self,{})
 			self.seq=seqs.framer
+			self.drawBillboard = false
+			self.drawCube = true
 		end,
 	}
 end
@@ -1236,10 +1195,11 @@ do
 			super.drawSprite(self)
 
 			if self.bombs>0 then
-				if self.blendMode then 
-					fillp(0x8000)	--blend(self.blendMode) 
+				if self.blendMode then
+					fillp(0x8000)	--blend(self.blendMode)
 				end
-				drawBillboardSprite(
+				drawForFlags(
+					self,
 					384+self.bombs,
 					16*self.posX-4,
 					16*self.posY-4,
@@ -1250,8 +1210,8 @@ do
 					nil,
 					nil
 				)
-				if self.blendMode then 
-					fillp(0)	--blend() 
+				if self.blendMode then
+					fillp(0)	--blend()
 				end
 			end
 		end,
@@ -1457,12 +1417,12 @@ update=||do
 		matident()
 		drawMap()
 		matident()
-		
+
 		fillp(0x1fff)	--blend(5)
 -- TODO why isn't this black?
 		rect(0,0,screenSize.x,screenSize.y,19)
 		fillp(0)		--blend(-1)
-		
+
 		-- splash screen
 		local s = 2
 		local sx, sy = s*5, s*8
@@ -1525,7 +1485,7 @@ update=||do
 			player:die()
 		end
 	end
-	
+
 	if cheat then
 		if btn'a' then
 			if btnp'left' then
