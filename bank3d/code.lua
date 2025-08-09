@@ -235,14 +235,14 @@ mapTypes={
 
 corners = table{
 	UL = vec2(-1, -1),
-	UL = vec2(1, -1),
-	LR = vec2(-1, 1),
-	RR = vec2(1, 1),
+	UR = vec2(1, -1),
+	LL = vec2(-1, 1),
+	LR = vec2(1, 1),
 }
 
 getCornerTypes = |where|
 	corners:map(|ofs,name|
-		(mapGet(where.x + ofs.x * .25, where.y + ofs.y * .25), name)
+		(mapGet(where.x + ofs.x * .25, where.y + ofs.y * .25, where.z), name)
 	)
 
 dirForName.none = -1
@@ -496,11 +496,11 @@ BaseObj=class{
 	-- in AnimatedObj in fact ...
 	update=|::|nil,
 	setPos=|::,p|do
-		if not pos then pos = vec2() end
+		if not pos then pos = vec3() end
 		pos:set(p)
-		if not srcPos then srcPos = vec2() end
+		if not srcPos then srcPos = vec3() end
 		srcPos:set(p)
-		if not destPos then destPos = vec2() end
+		if not destPos then destPos = vec3() end
 		destPos:set(p)
 	end,
 	drawSprite=|::|do
@@ -532,15 +532,35 @@ BaseObj=class{
 	isBlockingSentry=|::|isBlocking,
 	hitEdge=|::, where|true,
 	cannotPassThru=|::,mapTypeIndex|mapTypes[mapTypeIndex]?.cannotPassThru,
-	hitWorld=|::, cmd, where, typeUL, typeUR, typeLL, typeLR| do
-		if cmd == dirForName.left and where.x % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
-		if cmd == dirForName.up and where.y % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
-		if cmd == dirForName.right and where.x % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
-		if cmd == dirForName.down and where.y % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
-		return self:cannotPassThru(typeUL)
-			or self:cannotPassThru(typeUR)
-			or self:cannotPassThru(typeLL)
-			or self:cannotPassThru(typeLR)
+	hitWorld=|::, cmd, where, cornerTypes| do
+		if cmd == dirForName.left
+		and where.x % 1 == 0
+		and (cornerTypes.UL == ARROW_RIGHT or cornerTypes.LL == ARROW_RIGHT) 
+		then
+			return true
+		end
+		if cmd == dirForName.up 
+		and where.y % 1 == 0 
+		and (cornerTypes.UL == ARROW_DOWN or cornerTypes.UR == ARROW_DOWN) 
+		then
+			return true
+		end
+		if cmd == dirForName.right 
+		and where.x % 1 == 0 
+		and (cornerTypes.UR == ARROW_LEFT or cornerTypes.LR == ARROW_LEFT) 
+		then
+			return true
+		end
+		if cmd == dirForName.down 
+		and where.y % 1 == 0 
+		and (cornerTypes.LL == ARROW_UP or cornerTypes.LR == ARROW_UP) 
+		then
+			return true
+		end
+		return self:cannotPassThru(cornerTypes.UL)
+			or self:cannotPassThru(cornerTypes.UR)
+			or self:cannotPassThru(cornerTypes.LL)
+			or self:cannotPassThru(cornerTypes.LR)
 	end,
 	hitObject=|::, what, pushDest, side| 'test object',
 	startPush=|::, pusher, pushDest, side| isBlocking,
@@ -564,36 +584,24 @@ do
 		end,
 		moveIsBlocked_CheckHitWorld=|:, cmd, where| do
 			local cornerTypes = getCornerTypes(where)
-			return self:hitWorld(
-				cmd, where,
-				cornerTypes.UL,
-				cornerTypes.UR,
-				cornerTypes.LL,
-				cornerTypes.LR
-			)
+			return self:hitWorld(cmd, where, cornerTypes)
 		end,
-		hitWorld=|:, cmd, where, typeUL, typeUR, typeLL, typeLR|do
+		hitWorld=|:, cmd, where, cornerTypes| do
+			cornerTypes = table(cornerTypes)
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o~=self
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					if typeUL == WATER and (where + corners.UL * .25 - o.destPos):lInfLength() <.5 then
-						typeUL=EMPTY
-					end
-					if typeUR == WATER and (where + corners.UR * .25 - o.destPos):lInfLength() <.5 then
-						typeUR=EMPTY
-					end
-					if typeLL == WATER and (where + corners.LL * .25 - o.destPos):lInfLength() <.5 then
-						typeLL=EMPTY
-					end
-					if typeLR == WATER and (where + corners.LR * .25 - o.destPos):lInfLength() <.5 then
-						typeLR=EMPTY
+					for cornerKey, corner in pairs(corners) do
+						if cornerTypes[cornerKey] == WATER and (where + corner * .25 - o.destPos):lInfLength() <.5 then
+							cornerTypes[cornerKey] = EMPTY
+						end
 					end
 				end
 			end
-			return super.hitWorld(self, cmd, where, typeUL, typeUR, typeLL, typeLR)
+			return super.hitWorld(self, cmd, where, cornerTypes)
 		end,
 		moveIsBlocked_CheckEdge=|:,newDest|do
 			if newDest.x < .25
@@ -651,19 +659,16 @@ do
 		update=|:|do
 			if not self.dead then
 				if (time() * 60) % 30 == 0 then
-					local typeUL=mapGet(self.destPosX - .25, self.destPosY - .25, self.destPosZ)
-					local typeUR=mapGet(self.destPosX + .25, self.destPosY - .25, self.destPosZ)
-					local typeLL=mapGet(self.destPosX - .25, self.destPosY + .25, self.destPosZ)
-					local typeLR=mapGet(self.destPosX + .25, self.destPosY + .25, self.destPosZ)
+					local cornerTypes = getCornerTypes(self.destPos)
 					-- TODO merge this move and btn move so we dont double move in one update ... or not?
 					-- TODO :move but withotu changing animation direction ...
-					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
+						if cornerTypes.UL == MOVING_RIGHT and cornerTypes.LL == MOVING_RIGHT then
 						self:checkMoveCmd(dirForName.right)
-					elseif typeUL == MOVING_DOWN and typeUR == MOVING_DOWN then
+					elseif cornerTypes.UL == MOVING_DOWN and cornerTypes.UR == MOVING_DOWN then
 						self:checkMoveCmd(dirForName.down)
-					elseif typeUR == MOVING_LEFT and typeLR == MOVING_LEFT then
+					elseif cornerTypes.UR == MOVING_LEFT and cornerTypes.LR == MOVING_LEFT then
 						self:checkMoveCmd(dirForName.left)
-					elseif typeLL == MOVING_UP and typeLR == MOVING_UP then
+					elseif cornerTypes.LL == MOVING_UP and cornerTypes.LR == MOVING_UP then
 						self:checkMoveCmd(dirForName.up)
 					end
 				end
@@ -674,20 +679,18 @@ do
 				self.moveFrac+=dt*self.speed
 				if self.moveFrac>=1 then
 					self.moveFracMoving=false
-					self.posX=self.destPosX
-					self.posY=self.destPosY
+					self.pos:set(self.destPos)
 					for _,o in ipairs(objs) do
 						if not o.removeMe
 						and o ~= self
-						and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX, self.destPosY, self.destPosZ) <= .75
+						and (o.destPos - self.destPos):lInfLength() <= .75
 						then
-							o:endPush(self, self.destPosX, self.destPosY)
+							o:endPush(self, self.destPos)
 						end
 					end
 				else
 					local oneMinusMoveFrac=1 - self.moveFrac
-					self.posX=self.destPosX * self.moveFrac + self.srcPosX * oneMinusMoveFrac
-					self.posY=self.destPosY * self.moveFrac + self.srcPosY * oneMinusMoveFrac
+					self.pos = self.destPos * self.moveFrac + self.srcPos * oneMinusMoveFrac
 				end
 			end
 
@@ -709,15 +712,15 @@ do
 		init=|:,args|do
 			super.init(self, args)
 		end,
-		startPush=|:,pusher,pushDestX,pushDestY,side|do
-			local superResult=super.startPush(self,pusher,pushDestX,pushDestY,side)
+		startPush=|:, pusher, pushDest, side|do
+			local superResult = super.startPush(self, pusher, pushDest, side)
 			if not self.isBlocking then return false end
 
 			local delta=0
 			if side==dirForName.left or side==dirForName.right then
-				delta=self.destPosY-pusher.destPosY
+				delta=self.destPos.y - pusher.destPos.y
 			elseif side==dirForName.up or side==dirForName.down then
-				delta=self.destPosX-pusher.destPosX
+				delta=self.destPos.x - pusher.destPos.x
 			end
 			delta=math.abs(delta)
 			local align=delta<.25
@@ -729,9 +732,9 @@ do
 			end
 			return superResult
 		end,
-		hitObject=|:,what,pushDestX,pushDestY,side|do
+		hitObject=|:, what, pushDest, side|do
 			if what.isBlockingPushers then return 'stop' end
-			return super.hitObject(self,what,pushDestX,pushDestY,side)
+			return super.hitObject(self, what, pushDest, side)
 		end,
 	}
 end
@@ -745,19 +748,16 @@ do
 			self.isBlockingPushers=false
 			self.blocksExplosion=false
 			self.blendMode=1
-			self.vel=args.vel
+			self.vel = vec3(args.vel)
 			self.life=args.life
-			self.scaleX,self.scaleY=args.scale,args.scale
-			self:setPos(args.pos[1], args.pos[2], args.pos[3])
+			self.scale:set(args.scale)
+			self:setPos(args.pos)
 			self.startTime=time()
 			self.seq=seqs.cloud
 		end,
 		update=|:|do
 			super.update(self)
-			self:setPos(
-				self.posX + dt * self.vel[1],
-				self.posY + dt * self.vel[2],
-				self.posZ + dt * self.vel[3])
+			self:setPos(self.pos + dt * self.vel)
 			local frac=math.min(1,(time()-self.startTime)/self.life)
 			if frac==1 then
 				removeObj(self)
@@ -774,20 +774,17 @@ do
 			self.isBlocking=false
 			self.isBlockingPushers=false
 			self.blocksExplosion=false
-			self.vel=args.vel
+			self.vel = vec3(args.vel)
 			self.life=args.life
-			self.scaleX,self.scaleY=args.radius*2,args.radius*2
-			self:setPos(args.pos[1], args.pos[2], args.pos[3])
+			self.scale = vec3(args.radius*2)
+			self:setPos(args!.pos)
 			self.startTime=time()
 			self.seq=args.seq or seqs.spark
 			self.blendMode=args.blendMode or 0
 		end,
 		update=|:|do
 			super.update(self)
-			self:setPos(
-				self.posX + dt * self.vel[1],
-				self.posY + dt * self.vel[2],
-				self.posZ + dt * self.vel[3])		
+			self:setPos(self.pos + dt * self.vel)
 			local frac=math.max(0,1-(time()-self.startTime)/self.life)
 			if frac==0 then
 				removeObj(self)
@@ -820,23 +817,23 @@ do
 			if owner then self.ownerStandingOn=true end
 			self.seq=seqs.bomb
 		end,
-		hitObject=|:,whatWasHit,pushDestX,pushDestY,side|do
+		hitObject=|:, whatWasHit, pushDest, side|do
 			if whatWasHit==self.owner
 			and self.owner
 			and self.ownerStandingOn
 			then
 				return 'move thru'
 			end
-			return super.hitObject(self,whatWasHit,pushDestX,pushDestY,side)
+			return super.hitObject(self, whatWasHit, pushDest, side)
 		end,
-		startPush=|:,pusher,pushDestX,pushDestY,side|do
+		startPush=|:, pusher, pushDest, side|do
 			if pusher==self.owner
 			and self.owner
 			and self.ownerStandingOn
 			then
 				return false
 			end
-			return super.startPush(self,pusher,pushDestX,pushDestY,side)
+			return super.startPush(self, pusher, pushDest, side)
 		end,
 		setFuse=|:,fuseTime|do
 			if self.state=='exploding'
@@ -848,10 +845,10 @@ do
 			self.state='live'
 			self.boomTime=time()+fuseTime
 		end,
-		cannotPassThru=|:,maptype|do
-			local res=super.cannotPassThru(self,maptype)
+		cannotPassThru=|:,mapTypeIndex|do
+			local res=super.cannotPassThru(self,mapTypeIndex)
 			if not res then return false end
-			return maptype~=WATER
+			return mapTypeIndex~=WATER
 		end,
 		drawSprite=|:,c,rect|do
 			super.drawSprite(self,c,rect)
@@ -864,9 +861,9 @@ do
 				drawForFlags(
 					self,
 					384+self.blastRadius,
-					16*self.posX-4,
-					16*self.posY-4,
-					0,			-- z
+					16*self.pos.x-4,
+					16*self.pos.y-4,
+					16*self.pos.z,
 					1,
 					1,
 					nil,
@@ -885,7 +882,7 @@ do
 			if self.owner
 			and self.ownerStandingOn
 			then
-				if linfDist(self.destPosX, self.destPosY, self.destPosZ, self.owner.destPosX, self.owner.destPosY, self.owner.destPosZ) > .75
+				if (self.destPos - self.owner.destPos):lInfLength() > .75
 				then
 					self.ownerStandingOn=false
 				end
@@ -895,27 +892,24 @@ do
 			or self.state=='live'
 			then
 				if not self.moveFracMoving then
-					local typeUL=mapGet(self.destPosX-.25, self.destPosY-.25, self.destPosZ)
-					local typeUR=mapGet(self.destPosX+.25, self.destPosY-.25, self.destPosZ)
-					local typeLL=mapGet(self.destPosX-.25, self.destPosY+.25, self.destPosZ)
-					local typeLR=mapGet(self.destPosX+.25, self.destPosY+.25, self.destPosZ)
+					local cornerTypes = getCornerTypes(self.destPos)
 
 					for _,o in ipairs(objs)do
 						if not removeMe
 						and Bomb:isa(o)
 						and o.state=='sinking'
 						then
-							if typeUL==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX - .25, self.destPosY - .25, self.destPosZ) < .5 then typeUL=EMPTY end
-							if typeUR==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX + .25, self.destPosY - .25, self.destPosZ) < .5 then typeUR=EMPTY end
-							if typeLL==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX - .25, self.destPosY + .25, self.destPosZ) < .5 then typeLL=EMPTY end
-							if typeLR==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX + .25, self.destPosY + .25, self.destPosZ) < .5 then typeLR=EMPTY end
+							if cornerTypes.UL==WATER and (self.destPos + vec2(-.25,-.25) - o.destPos):lInfLength() < .5 then cornerTypes.UL=EMPTY end
+							if cornerTypes.UR==WATER and (self.destPos + vec2( .25,-.25) - o.destPos):lInfLength() < .5 then cornerTypes.UR=EMPTY end
+							if cornerTypes.LL==WATER and (self.destPos + vec2(-.25, .25) - o.destPos):lInfLength() < .5 then cornerTypes.LL=EMPTY end
+							if cornerTypes.LR==WATER and (self.destPos + vec2( .25, .25) - o.destPos):lInfLength() < .5 then cornerTypes.LR=EMPTY end
 						end
 					end
 
-					if typeUL==WATER
-					and typeUR==WATER
-					and typeLL==WATER
-					and typeLR==WATER
+					if cornerTypes.UL==WATER
+					and cornerTypes.UR==WATER
+					and cornerTypes.LL==WATER
+					and cornerTypes.LR==WATER
 					then
 						self.seq=seqs.bombSunk
 						self.state='sinking'
@@ -929,7 +923,7 @@ do
 			if self.state=='live' then
 				local t=time()-self.boomTime
 				local s=math.cos(2*t*math.pi)*.2+.9
-				self.scaleX,self.scaleY=s,s
+				self.scale:set(s)
 				if t>=0 then
 					self:explode()
 				end
@@ -944,29 +938,26 @@ do
 					removeObj(self)
 					for _,o in ipairs(objs)do
 						if not o.removeMe
-						and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX, self.destPosY, self.destPosZ) < .75
+						and (o.destPos - self.destPos):lInfLength() < .75
 						then
-							local typeUL=mapGet(o.destPosX - .25, o.destPosY - .25, o.destPosZ)
-							local typeUR=mapGet(o.destPosX + .25, o.destPosY - .25, o.destPosZ)
-							local typeLL=mapGet(o.destPosX - .25, o.destPosY + .25, o.destPosZ)
-							local typeLR=mapGet(o.destPosX + .25, o.destPosY + .25, o.destPosZ)
+							local cornerTypes = getCornerTypes(o.destPos)
 
 							for _,o2 in ipairs(objs)do
 								if not o2.removeMe
 								and Bomb:isa(o2)
 								and o2.state=='sinking'
 								then
-									if typeUL==WATER and linfDist(o2.destPosX, o2.destPosY, o2.destPosZ, o.destPosX - .25, o.destPosY - .25, o2.destPosZ) < .5 then typeUL=EMPTY end
-									if typeUR==WATER and linfDist(o2.destPosX, o2.destPosY, o2.destPosZ, o.destPosX + .25, o.destPosY - .25, o2.destPosZ) < .5 then typeUR=EMPTY end
-									if typeLL==WATER and linfDist(o2.destPosX, o2.destPosY, o2.destPosZ, o.destPosX - .25, o.destPosY + .25, o2.destPosZ) < .5 then typeLL=EMPTY end
-									if typeLR==WATER and linfDist(o2.destPosX, o2.destPosY, o2.destPosZ, o.destPosX + .25, o.destPosY + .25, o2.destPosZ) < .5 then typeLR=EMPTY end
+									if cornerTypes.UL==WATER and (o.destPos + vec2(-.25,-.25) - o2.destPos):lInfLength() < .5 then cornerTypes.UL=EMPTY end
+									if cornerTypes.UR==WATER and (o.destPos + vec2( .25,-.25) - o2.destPos):lInfLength() < .5 then cornerTypes.UR=EMPTY end
+									if cornerTypes.LL==WATER and (o.destPos + vec2(-.25, .25) - o2.destPos):lInfLength() < .5 then cornerTypes.LL=EMPTY end
+									if cornerTypes.LR==WATER and (o.destPos + vec2( .25, .25) - o2.destPos):lInfLength() < .5 then cornerTypes.LR=EMPTY end
 								end
 							end
 
-							if typeUL==WATER
-							and typeUR==WATER
-							and typeLL==WATER
-							and typeLR==WATER
+							if cornerTypes.UL==WATER
+							and cornerTypes.UR==WATER
+							and cornerTypes.LL==WATER
+							and cornerTypes.LR==WATER
 							then
 								o:onGroundSunk()
 							end
@@ -981,9 +972,9 @@ do
 			for i=0,9 do
 				local scale=math.random()*2
 				addObj(Cloud{
-					pos={self.posX, self.posY},
-					vel={math.random()*2-1, math.random()*2-1},
-					scale=scale+1,
+					pos=self.pos,
+					vel = vec3(math.random(), math.random(),math.random())*2-1,
+					scale = scale + 1,
 					-- TODO blending ...
 					--life=5-scale,
 					-- until then ...
@@ -992,17 +983,16 @@ do
 			end
 
 			local cantHitWorld=false
-			local fpartx=self.destPosX - math.floor(self.destPosX)
-			local fparty=self.destPosY - math.floor(self.destPosY)
-			if fpartx<.25 or fpartx>.75
-			or fparty<.25 or fparty>.75
+			local fpart=self.destPos - self.destPos:clone():floor()
+			if fpart.x<.25 or fpart.x>.75
+			or fpart.y<.25 or fpart.y>.75
+			or fpart.z<.25 or fpart.z>.75
 			then
 				cantHitWorld=true
 			end
 
 			for side=0,3 do
-				local checkPosX=self.destPosX
-				local checkPosY=self.destPosY
+				local checkPos = self.destPos:clone()
 				local len=0
 				while true do
 					local hit=false
@@ -1010,7 +1000,7 @@ do
 						if not o.removeMe
 						and o~=self
 						then
-							local dist=linfDist(o.destPosX, o.destPosY, o.destPosZ, checkPosX, checkPosY, checkPosZ)
+							local dist = (o.destPos - checkPos):lInfLength()
 							local safeDist = Player:isa(o) and .75 or .25
 							if dist <= safeDist then
 								o:onTouchFlames()
@@ -1022,7 +1012,7 @@ do
 						end
 					end
 
-					self:makeSpark(checkPosX, checkPosY)
+					self:makeSpark(checkPos)
 
 					if hit then break end
 					len+=1
@@ -1033,36 +1023,38 @@ do
 
 					checkPos += dirvecs[side]
 
-					if checkPosX < 0
-					or checkPosY < 0
-					or checkPosX >= levelSize.x
-					or checkPosY >= levelSize.y
+					if checkPos.x < 0
+					or checkPos.y < 0
+					or checkPos.x >= levelSize.x
+					or checkPos.y >= levelSize.y
 					then break end
 
 					local wallStopped=false
 					for ofx=0,1 do
 						for ofy=0,1 do
 							for ofz=0,1 do
-								local cfx=math.floor(checkPosX+ofx*.5-.25)
-								local cfy=math.floor(checkPosY+ofy*.5-.25)
-								local cfz=math.floor(checkPosZ+ofz*.5-.25)
-								local mapTypes=mapTypes[mapGet(cfx, cfy, cfz)]
-								if mapTypes and mapTypes.blocksExplosion then
+								local cfx=math.floor(checkPos.x+ofx*.5-.25)
+								local cfy=math.floor(checkPos.y+ofy*.5-.25)
+								local cfz=math.floor(checkPos.z+ofz*.5-.25)
+								local mapType=mapTypes[mapGet(cfx, cfy, cfz)]
+								if mapType and mapType.blocksExplosion then
 									if not cantHitWorld
-									and mapTypes.bombable
+									and mapType.bombable
 									then
 										local divs=1
 										for u=0,divs-1 do
 											for v=0,divs-1 do
-												local speed=0
-												addObj(Particle{
-													vel={speed*(math.random()*2-1), speed*(math.random()*2-1)},
-													pos={cfx + (u+.5)/divs, cfy + (v+.5)/divs},
-													life=math.random()*.5+.5,
-													radius=.5,
-													seq=seqs.brick,
-													blendMode=0,
-												})
+												for w=0,divs-1 do
+													local speed=0
+													addObj(Particle{
+														vel = (vec3(math.random(), math.random(), math.random()) * 2 - 1) * speed,
+														pos = cf + (vec2(u,v,w)+.5)/divs,
+														life=math.random()*.5+.5,
+														radius=.5,
+														seq=seqs.brick,
+														blendMode=0,
+													})
+												end
 											end
 										end
 										mapSet(cfx, cfy, cfz, EMPTY)
@@ -1080,12 +1072,12 @@ do
 			self.state='exploding'
 			self.explodingDone=time()+self.explodingDuration
 		end,
-		makeSpark=|:,x,y|do
+		makeSpark=|:, pos|do
 			for i=0,2 do
 				local c=math.random()
 				addObj(Particle{
-					vel={math.random()*2-1, math.random()*2-1},
-					pos={x,y},
+					vel = vec3(math.random(), math.random(), math.random())*2-1,
+					pos = pos,
 					life=.5 * (math.random() * .5 + .5),
 					radius=.25 * (math.random() + .5),
 					blendMode=0,

@@ -291,6 +291,10 @@ drawMap=||
 --]]
 -- [[ manually for animation
 drawMap=||do
+	
+	mattrans(32, 32)
+	drawMapBorder()
+	mattrans(16, 32)
 	for y=0,levelSize.y-1 do
 		for x=0,levelSize.x-1 do
 			local tileIndex = mapGet(x,y)
@@ -431,7 +435,7 @@ do
 			return self:hitWorld(cmd, where, cornerTypes)
 		end,
 		hitWorld=|:, cmd, where, cornerTypes| do
-			local cornerTypes = table(cornerTypes)
+			cornerTypes = table(cornerTypes)
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o~=self
@@ -697,8 +701,11 @@ do
 			if self.state=='idle'
 			or self.state=='live'
 			then
-				if self.blendMode then blend(self.blendMode) end
-				spr(384+self.blastRadius,
+				if self.blendMode then
+					blend(self.blendMode)
+				end
+				spr(
+					384+self.blastRadius,
 					16*self.pos.x-4,
 					16*self.pos.y-4,
 					1,
@@ -846,7 +853,7 @@ do
 						end
 					end
 
-					self:makeSpark(checkPos.x, checkPos.y)
+					self:makeSpark(checkPos)
 
 					if hit then break end
 					len+=1
@@ -866,10 +873,10 @@ do
 					local wallStopped=false
 					for cornerKey,corner in pairs(corners) do
 						local cf = (checkPos + corner * .25):floor()
-						local mt=mapTypes[mapGet(cf.x, cf.y)]
-						if mt and mt.blocksExplosion then
+						local mapType=mapTypes[mapGet(cf.x, cf.y)]
+						if mapType and mapType.blocksExplosion then
 							if not cantHitWorld
-							and mt.bombable
+							and mapType.bombable
 							then
 								local divs=1
 								for u=0,divs-1 do
@@ -898,12 +905,12 @@ do
 			self.state='exploding'
 			self.explodingDone=time()+self.explodingDuration
 		end,
-		makeSpark=|:,x,y|do
+		makeSpark=|:, pos|do
 			for i=0,2 do
 				local c=math.random()
 				addObj(Particle{
 					vel = vec2(math.random(), math.random())*2-1,
-					pos = vec2(x,y),
+					pos = pos,
 					life=.5 * (math.random() * .5 + .5),
 					radius=.25 * (math.random() + .5),
 					blendMode=0,
@@ -1360,31 +1367,28 @@ update=||do
 		cls(0xf0)
 
 		matident()
-		mattrans(32, 32)
-		drawMapBorder()
-		mattrans(16, 32)
 		drawMap()
 
 		matident()
 		pokew(ramaddr'blendColor', 0x8000)
 		blend(5)
-		rect(0,0,256,256,0)
+		rect(0,0,screenSize.x,screenSize.y,0)
 		blend(-1)
 		-- splash screen
 		local s = 2
 		local sx, sy = s*5, s*8
-		local x0,y0 = 128-30*s, 64
+		local x0,y0 = screenSize.x/2-30*s, 64
 		local x,y= x0,y0
 		local txt=|t|do
 			text(t, x, y, nil, nil, s, s)
 			y += sy
 		end
 
-		splashSpriteX = (((splashSpriteX or 0) + 1) % (256+32))
+		splashSpriteX = (((splashSpriteX or 0) + 1) % (screenSize.x+32))
 		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2, splashSpriteX - 16, 24, 2, 2, nil, nil, nil, nil, -1, 1)
 		spr(seqs.bombLit, splashSpriteX - 16, 24, 2, 2)
 
-		lastTitleWidth = text('BANK', 128-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
+		lastTitleWidth = text('BANK', screenSize.x/2-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
 
 		for _,saveinfo in ipairs(saveinfos) do
 			txt('  '..(saveinfo.level==0 and 'New Game' or 'Level '..saveinfo.level))
@@ -1481,17 +1485,11 @@ update=||do
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
 		lastLevelStrWidth = lastLevelStrWidth or 5*7
-		lastLevelStrWidth = text(levelstr,(256-lastLevelStrWidth)/2,0,22,-1)
+		lastLevelStrWidth = text(levelstr,(screenSize.x-lastLevelStrWidth)/2,0,22,-1)
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
 	end
 
-	-- draw the map border
-	mattrans(32, 32)
-	drawMapBorder()
-
-	mattrans(16, 32)
-
-	-- draw map
+	matident()
 	drawMap()
 
 	for _,o in ipairs(objs) do
