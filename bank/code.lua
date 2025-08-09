@@ -339,7 +339,7 @@ BaseObj=class{
 		local x = pos.x * 16 - 8 * scale.x
 		local y = pos.y * 16 - 8 * scale.y
 		if blendMode then blend(blendMode) end
-		spr(seq,	--spriteIndex,
+		spr(seq,		--spriteIndex,
 			x,			--screenX,
 			y,			--screenY,
 			2,			--spritesWide,
@@ -365,9 +365,9 @@ BaseObj=class{
 			or self:cannotPassThru(typeLL)
 			or self:cannotPassThru(typeLR)
 	end,
-	hitObject=|::,what,pushDestX,pushDestY,side|'test object',
-	startPush=|::,pusher,pushDestX,pushDestY,side|isBlocking,
-	endPush=|::,who,pushDestX,pushDestY|nil,
+	hitObject=|::, what, pushDest, side| 'test object',
+	startPush=|::, pusher, pushDest, side| isBlocking,
+	endPush=|::, who, pushDest| nil,
 	onKeyTouch=|::|nil,
 	onTouchFlames=|::|nil,
 	onGroundSunk=|::|removeObj(self),
@@ -427,20 +427,20 @@ do
 			end
 			return false
 		end,
-		moveIsBlocked_CheckHitObject=|:,o,cmd,newDestX,newDestY|do
-			if (o.destPos - vec2(newDestX,newDestY)):lInfLength() > .75 then return false end
-			local response=self:hitObject(o,newDestX,newDestY,cmd)
+		moveIsBlocked_CheckHitObject=|:, o, cmd, newDest|do
+			if (o.destPos - newDest):lInfLength() > .75 then return false end
+			local response=self:hitObject(o, newDest, cmd)
 			if response=='stop' then return true end
 			if response=='test object' then
-				if o:startPush(self,newDestX,newDestY,cmd) then return true end
+				if o:startPush(self, newDest, cmd) then return true end
 			end
 			return false
 		end,
-		moveIsBlocked_CheckHitObjects=|:,cmd,newDestX,newDestY|do
+		moveIsBlocked_CheckHitObjects=|:, cmd, newDest|do
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o ~= self
-				and self:moveIsBlocked_CheckHitObject(o, cmd, newDestX, newDestY) then
+				and self:moveIsBlocked_CheckHitObject(o, cmd, newDest) then
 					return true
 				end
 			end
@@ -448,7 +448,7 @@ do
 		moveIsBlocked=|:,cmd,newDest|do
 			return self:moveIsBlocked_CheckEdge(newDest)
 			or self:moveIsBlocked_CheckHitWorld(cmd, newDest)
-			or self:moveIsBlocked_CheckHitObjects(cmd, newDest.x, newDest.y)
+			or self:moveIsBlocked_CheckHitObjects(cmd, newDest)
 		end,
 		doMove=|:,cmd|do
 			if cmd==dirForName.none then return 'no move' end
@@ -500,7 +500,7 @@ do
 						and o ~= self
 						and (o.destPos - self.destPos):lInfLength() <= .75
 						then
-							o:endPush(self, self.destPos.x, self.destPos.y)
+							o:endPush(self, self.destPos)
 						end
 					end
 				else
@@ -527,8 +527,8 @@ do
 		init=|:,args|do
 			super.init(self, args)
 		end,
-		startPush=|:,pusher,pushDestX,pushDestY,side|do
-			local superResult=super.startPush(self,pusher,pushDestX,pushDestY,side)
+		startPush=|:, pusher, pushDest, side|do
+			local superResult = super.startPush(self, pusher, pushDest, side)
 			if not self.isBlocking then return false end
 
 			local delta=0
@@ -547,9 +547,9 @@ do
 			end
 			return superResult
 		end,
-		hitObject=|:,what,pushDestX,pushDestY,side|do
+		hitObject=|:, what, pushDest, side|do
 			if what.isBlockingPushers then return 'stop' end
-			return super.hitObject(self,what,pushDestX,pushDestY,side)
+			return super.hitObject(self, what, pushDest, side)
 		end,
 	}
 end
@@ -632,23 +632,23 @@ do
 			if owner then self.ownerStandingOn=true end
 			self.seq=seqs.bomb
 		end,
-		hitObject=|:,whatWasHit,pushDestX,pushDestY,side|do
+		hitObject=|:, whatWasHit, pushDest, side|do
 			if whatWasHit==self.owner
 			and self.owner
 			and self.ownerStandingOn
 			then
 				return 'move thru'
 			end
-			return super.hitObject(self,whatWasHit,pushDestX,pushDestY,side)
+			return super.hitObject(self, whatWasHit, pushDest, side)
 		end,
-		startPush=|:,pusher,pushDestX,pushDestY,side|do
+		startPush=|:, pusher, pushDest, side|do
 			if pusher==self.owner
 			and self.owner
 			and self.ownerStandingOn
 			then
 				return false
 			end
-			return super.startPush(self,pusher,pushDestX,pushDestY,side)
+			return super.startPush(self, pusher, pushDest, side)
 		end,
 		setFuse=|:,fuseTime|do
 			if self.state=='exploding'
@@ -905,7 +905,7 @@ do
 			sfx(sfxid.laser_shoot)
 		end,
 		cannotPassThru=|:,mapTypeIndex|mapType![mapTypeIndex].blocksGunShot,
-		hitObject=|:,what,pushDestX,pushDestY,side|do
+		hitObject=|:, what, pushDest, side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
 				what:die()
@@ -1003,12 +1003,12 @@ do
 		end,
 
 		--the sentry tried to move and hit an object...
-		hitObject=|:,what,pushDestX,pushDestY,side|do
+		hitObject=|:, what, pushDest, side|do
 			if Player:isa(what) then
 				return 'move thru'	--wait for the update() test to pick up hitting the player
 			end
 			return what:isBlockingSentry() and 'stop' or 'test object'
-			--return superHitObject(self, what, pushDestX, pushDestY, side)
+			--return superHitObject(self, what, pushDest, side)
 		end,
 
 		onKeyTouch=|:|do
@@ -1144,9 +1144,9 @@ do
 			end
 		end,
 
-		endPush=|:,who,pushDestX,pushDestY|do
+		endPush=|:, who, pushDest|do
 			if not Player:isa(who)
-			or (vec2(pushDestX, pushDestY) - self.destPos):lInfLength() >= .5
+			or (pushDest - self.destPos):lInfLength() >= .5
 			then return end
 
 			sfx(sfxid.collect_money)
@@ -1177,11 +1177,11 @@ do
 			self.seq=seqs.key
 		end,
 
-		endPush=|:,who,pushDestX,pushDestY|do
+		endPush=|:, who, pushDest|do
 			if not Player:isa(who)
 			or self.inactive
 			or self.changeLevelTime > 0
-			or (vec2(pushDestX, pushDestY) - self.destPos):lInfLength() >= .5
+			or (pushDest - self.destPos):lInfLength() >= .5
 			then return end
 			self.changeLevelTime = time() + self.touchToEndLevelDuration
 
