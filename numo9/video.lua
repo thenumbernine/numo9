@@ -496,7 +496,10 @@ function RAMGPUTex:checkDirtyGPU()
 		fb:bind()
 	end
 -- this will fail when the menu font is being used
---assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
+assert(tex.data)
+assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
+assert.le(0, tex.data - app.ram.v, 'tex.data')
+assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 	if not app.inUpdateCallback then
 		fb:unbind()

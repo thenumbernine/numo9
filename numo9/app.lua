@@ -2540,9 +2540,15 @@ function App:saveROM(filename)
 		self.blobs.code:insert(blobClassForName.code(self.editCode.text))
 	end
 
+	self:allRAMRegionsCheckDirtyGPU()
 	-- rebuild RAM from blobs
 	self:buildRAMFromBlobs()
-	-- then reassign all pointers
+	-- then reassign all pointers 
+	-- ... resetVideo() is similar but I don't want to reset to the default addrs
+	for _,framebufferRAM in pairs(self.framebufferRAMs) do
+		assert(not framebufferRAM.dirtyGPU)
+		framebufferRAM:updateAddr(framebufferRAM.addr)
+	end
 --[[ resetVideo WORKS BUT resets everything... I just want the pointers to be reset.
 	self:resetVideo()
 --]]
@@ -2648,6 +2654,11 @@ function App:openROM(filename)
 
 	self.blobs = cartImageToBlobs(d)
 	self:buildRAMFromBlobs()
+	-- ... resetVideo() is similar but I don't want to reset to the default addrs
+	for _,framebufferRAM in pairs(self.framebufferRAMs) do
+		assert(not framebufferRAM.dirtyGPU)
+		framebufferRAM:updateAddr(framebufferRAM.addr)
+	end
 
 --DEBUG:print('loaded blobs...')
 --DEBUG:for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)
