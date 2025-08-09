@@ -291,7 +291,7 @@ drawMap=||
 --]]
 -- [[ manually for animation
 drawMap=||do
-	
+
 	mattrans(32, 32)
 	drawMapBorder()
 	mattrans(16, 32)
@@ -383,25 +383,25 @@ BaseObj=class{
 	hitWorld=|::, cmd, where, cornerTypes| do
 		if cmd == dirForName.left
 		and where.x % 1 == 0
-		and (cornerTypes.UL == ARROW_RIGHT or cornerTypes.LL == ARROW_RIGHT) 
+		and (cornerTypes.UL == ARROW_RIGHT or cornerTypes.LL == ARROW_RIGHT)
 		then
 			return true
 		end
-		if cmd == dirForName.up 
-		and where.y % 1 == 0 
-		and (cornerTypes.UL == ARROW_DOWN or cornerTypes.UR == ARROW_DOWN) 
+		if cmd == dirForName.up
+		and where.y % 1 == 0
+		and (cornerTypes.UL == ARROW_DOWN or cornerTypes.UR == ARROW_DOWN)
 		then
 			return true
 		end
-		if cmd == dirForName.right 
-		and where.x % 1 == 0 
-		and (cornerTypes.UR == ARROW_LEFT or cornerTypes.LR == ARROW_LEFT) 
+		if cmd == dirForName.right
+		and where.x % 1 == 0
+		and (cornerTypes.UR == ARROW_LEFT or cornerTypes.LR == ARROW_LEFT)
 		then
 			return true
 		end
-		if cmd == dirForName.down 
-		and where.y % 1 == 0 
-		and (cornerTypes.LL == ARROW_UP or cornerTypes.LR == ARROW_UP) 
+		if cmd == dirForName.down
+		and where.y % 1 == 0
+		and (cornerTypes.LL == ARROW_UP or cornerTypes.LR == ARROW_UP)
 		then
 			return true
 		end
@@ -741,10 +741,13 @@ do
 						and Bomb:isa(o)
 						and o.state=='sinking'
 						then
-							if cornerTypes.UL==WATER and (self.destPos + vec2(-.25,-.25) - o.destPos):lInfLength() < .5 then cornerTypes.UL=EMPTY end
-							if cornerTypes.UR==WATER and (self.destPos + vec2( .25,-.25) - o.destPos):lInfLength() < .5 then cornerTypes.UR=EMPTY end
-							if cornerTypes.LL==WATER and (self.destPos + vec2(-.25, .25) - o.destPos):lInfLength() < .5 then cornerTypes.LL=EMPTY end
-							if cornerTypes.LR==WATER and (self.destPos + vec2( .25, .25) - o.destPos):lInfLength() < .5 then cornerTypes.LR=EMPTY end
+							for cornerKey,corner in pairs(corners) do
+								if cornerTypes[key] == WATER 
+								and (self.destPos + corner * .25 - o.destPos):lInfLength() < .5 
+								then 
+									cornerTypes[cornerKey] = EMPTY 
+								end
+							end
 						end
 					end
 
@@ -789,10 +792,13 @@ do
 								and Bomb:isa(o2)
 								and o2.state=='sinking'
 								then
-									if cornerTypes.UL==WATER and (o.destPos + vec2(-.25,-.25) - o2.destPos):lInfLength() < .5 then cornerTypes.UL=EMPTY end
-									if cornerTypes.UR==WATER and (o.destPos + vec2( .25,-.25) - o2.destPos):lInfLength() < .5 then cornerTypes.UR=EMPTY end
-									if cornerTypes.LL==WATER and (o.destPos + vec2(-.25, .25) - o2.destPos):lInfLength() < .5 then cornerTypes.LL=EMPTY end
-									if cornerTypes.LR==WATER and (o.destPos + vec2( .25, .25) - o2.destPos):lInfLength() < .5 then cornerTypes.LR=EMPTY end
+									for cornerKey,corner in pairs(corners) do
+										if cornerTypes[cornerKey] == WATER 
+										and (o.destPos + corner * .25 - o2.destPos):lInfLength() < .5 
+										then 
+											cornerTypes[cornerKey] = EMPTY 
+										end
+									end
 								end
 							end
 
