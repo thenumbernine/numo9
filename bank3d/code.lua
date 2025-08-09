@@ -76,6 +76,92 @@ linfDist=|ax,ay,bx,by|do
 	return math.max(math.abs(ax-bx), math.abs(ay-by))
 end
 
+maxLevels = 2 * 23		-- 11x11x11 levels use 121 x 11 texels, can store 2 x 23 of those on a 256x256 texture
+levelstr='level ?'
+
+sfxid={
+	bomb_explode = 0,
+	collect_money = 1,
+	laser_shoot = 2,
+	step = 3,	-- and drop bomb
+	menuchange = 4,
+	getkey = 5,
+	death = 6,
+}
+
+EMPTY=0
+TREE=2
+BRICK=4
+STONE=6
+WATER=8
+ARROW_RIGHT=20
+ARROW_DOWN=22
+ARROW_LEFT=24
+ARROW_UP=26
+MOVING_RIGHT=84
+MOVING_DOWN=86
+MOVING_LEFT=88
+MOVING_UP=90
+SLOPE_RIGHT = 148
+SLOPE_DOWN = 150
+SLOPE_LEFT = 152
+SLOPE_UP = 154
+-- used for rendering but not for storage in map
+-- TODO if someone does write this to a map, should the loadLevel() rewrite it as WATER?
+WATER_BANK_ANIM_1 = 198
+WATER_BANK_ANIM_2 = WATER_BANK_ANIM_1 + 2
+WATER_ANIM_1 = WATER_BANK_ANIM_1 + 32*2
+WATER_ANIM_2 = WATER_ANIM_1 + 2
+
+mapType={
+	[EMPTY] = {dontDraw=true},
+	[TREE] = {cannotPassThru=true, drawBillboard=true},
+	[BRICK] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
+	[STONE] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
+	[WATER] = {cannotPassThru=true},
+	[ARROW_RIGHT] = {},
+	[ARROW_DOWN] = {},
+	[ARROW_LEFT] = {},
+	[ARROW_UP] = {},
+	[MOVING_RIGHT] = {},
+	[MOVING_DOWN] = {},
+	[MOVING_LEFT] = {},
+	[MOVING_UP] = {},
+	[SLOPE_RIGHT] = {drawSlope=0},
+	[SLOPE_DOWN] = {drawSlope=1},
+	[SLOPE_LEFT] = {drawSlope=2},
+	[SLOPE_UP] = {drawSlope=3},
+}
+
+dirs={none=-1,down=0,left=1,right=2,up=3}
+vecs={[0]={0,1},{-1,0},{1,0},{0,-1}}
+seqs={
+	cloud=128,
+	brick=74,	-- irl? why not just the tilemap?
+	spark=132,	-- TODO color this red or something
+	bomb=64,
+	bombLit=66,
+	bombSunk=68,
+	money=198,
+	key=142,
+	keyGrey=192,
+	gun=194,
+	gunMad=196,
+	sentry=200,
+	sentry=202,
+	framer=136,
+	playerStandDown=256,
+	playerStandDown2=258,
+	playerStandLeft=260,
+	playerStandLeft2=262,
+	playerStandRight=264,
+	playerStandRight2=266,
+	playerStandUp=268,
+	playerStandUp2=270,
+	playerDead=206,
+}
+
+
 dt=1/60
 mapw=11
 maph=11
@@ -140,6 +226,7 @@ drawBillboardSprite=|spriteIndex, x, y, z, ...|do
 end
 
 -- spr() signature
+-- TODO make an API for mesh() or obj3d() or model() or something for storing and drawing 3D models
 drawCube=|spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
 	local sheetIndex = spriteIndex >> 10
 	local spriteU = (spriteIndex & 0x1f) << 3
@@ -179,7 +266,7 @@ drawCube=|spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentI
 				-- maybe I should just use spr() and transform?
 				-- have I ever tested ttri3d before?
 				ttri3d(
-					x1, y1, z1, x2, y2, z2, x3, y3, z3, u1, v1, u2, v2, u3, v3,
+					x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, x3, y3, z3, u3, v3,
 					sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
 				)
 			end
@@ -194,6 +281,8 @@ drawForFlags = |mt, x, y, z, ...| do
 		drawBillboardSprite(x, y, z, ...)
 	elseif mt.drawCube then
 		drawCube(x, y, z, ...)
+	elseif mt.drawSlope then
+		drawSlope(mt.drawSlope, x, y, z, ...)
 	else
 		matpush()
 		mattrans(0, 0, z)
@@ -251,82 +340,7 @@ drawMap=||do
 end
 --]]
 
-maxLevels = 25 * 25
-levelstr='level ?'
 
-sfxid={
-	bomb_explode = 0,
-	collect_money = 1,
-	laser_shoot = 2,
-	step = 3,	-- and drop bomb
-	menuchange = 4,
-	getkey = 5,
-	death = 6,
-}
-
-EMPTY=0
-TREE=2
-BRICK=4
-STONE=6
-WATER=8
-ARROW_RIGHT=20
-ARROW_DOWN=22
-ARROW_LEFT=24
-ARROW_UP=26
-MOVING_RIGHT=84
-MOVING_DOWN=86
-MOVING_LEFT=88
-MOVING_UP=90
--- used for rendering but not for storage in map
--- TODO if someone does write this to a map, should the loadLevel() rewrite it as WATER?
-WATER_BANK_ANIM_1 = 198
-WATER_BANK_ANIM_2 = WATER_BANK_ANIM_1 + 2
-WATER_ANIM_1 = WATER_BANK_ANIM_1 + 32*2
-WATER_ANIM_2 = WATER_ANIM_1 + 2
-
-mapType={
-	[EMPTY] = {dontDraw=true},
-	[TREE] = {cannotPassThru=true, drawBillboard=true},
-	[BRICK] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
-	[STONE] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
-	[WATER] = {cannotPassThru=true},
-	[ARROW_RIGHT] = {},
-	[ARROW_DOWN] = {},
-	[ARROW_LEFT] = {},
-	[ARROW_UP] = {},
-	[MOVING_RIGHT] = {},
-	[MOVING_DOWN] = {},
-	[MOVING_LEFT] = {},
-	[MOVING_UP] = {},
-}
-
-dirs={none=-1,down=0,left=1,right=2,up=3}
-vecs={[0]={0,1},{-1,0},{1,0},{0,-1}}
-seqs={
-	cloud=128,
-	brick=74,	-- irl? why not just the tilemap?
-	spark=132,	-- TODO color this red or something
-	bomb=64,
-	bombLit=66,
-	bombSunk=68,
-	money=198,
-	key=142,
-	keyGrey=192,
-	gun=194,
-	gunMad=196,
-	sentry=200,
-	sentry=202,
-	framer=136,
-	playerStandDown=256,
-	playerStandDown2=258,
-	playerStandLeft=260,
-	playerStandLeft2=262,
-	playerStandRight=264,
-	playerStandRight2=266,
-	playerStandUp=268,
-	playerStandUp2=270,
-	playerDead=206,
-}
 
 objs=table()
 addList=table()

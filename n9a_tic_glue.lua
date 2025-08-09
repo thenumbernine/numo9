@@ -353,12 +353,9 @@ local newG = {
 	textri=|x1,y1,x2,y2,x3,y3,u1,v1,u2,v2,u3,v3,use_map,transparentIndex|do
 		-- https://github.com/nesbox/TIC-80/wiki/textri
 		ttri3d(
-			x1,y1,0,
-			x2,y2,0,
-			x3,y3,0,
-			u1,v1,
-			u2,v2,
-			u3,v3,
+			x1,y1,0,u1,v1,
+			x2,y2,0,u2,v2,
+			x3,y3,0,u3,v3,
 			use_map and 1 or 0,
 			nil,
 			transparentIndex)
@@ -366,12 +363,9 @@ local newG = {
 	ttri=|x1, y1, x2, y2, x3, y3, u1, v1, u2, v2, u3, v3, texsrc, transparentIndex, z1, z2, z3|do
 		-- https://github.com/nesbox/TIC-80/wiki/ttri
 		ttri3d(
-			x1,y1,z1 or 0,
-			x2,y2,z2 or 0,
-			x3,y3,z3 or 0,
-			u1,v1,
-			u2,v2,
-			u3,v3,
+			x1, y1, z1 or 0, u1, v1,
+			x2, y2, z2 or 0, u2, v2,
+			x3, y3, z3 or 0, u3, v3,
 			texsrc,
 			nil,
 			transparentIndex)

@@ -483,17 +483,14 @@ function App:initGL()
 				cmd.z3 = z3
 				cmd.colorIndex = colorIndex
 			end
-			return self:drawSolidTri3D(x1,y1,z1,x2,y2,z2,x3,y3,z3,colorIndex)
+			return self:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 		end,
 
 		ttri3d = function(
-			x1,y1,z1,
-			x2,y2,z2,
-			x3,y3,z3,
-			u1,v1,
-			u2,v2,
-			u3,v3,
-			sheetIndex,paletteIndex,transparentIndex,spriteBit,spriteMask
+			x1, y1, z1, u1, v1, 
+			x2, y2, z2, u2, v2, 
+			x3, y3, z3, u3, v3, 
+			sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
 		)
 			if self.server then
 				local cmd = self.server:pushCmd().solidTri3D
@@ -519,7 +516,7 @@ function App:initGL()
 				cmd.spriteBit = spriteBit or 0
 				cmd.spriteMask = spriteMask or 0xFF
 			end
-			return self:drawTexTri3D(x1,y1,z1,x2,y2,z2,x3,y3,z3,u1,v1,u2,v2,u3,v3,sheetIndex,paletteIndex,transparentIndex,spriteBit,spriteMask)
+			return self:drawTexTri3D(x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, x3, y3, z3, u3, v3, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
 
 		line = function(x1,y1,x2,y2,colorIndex)

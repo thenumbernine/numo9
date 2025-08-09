@@ -1407,7 +1407,7 @@ print('got uint16 index='
 					app:drawSolidTri3D(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2, c.x3, c.y3, c.z3, c.colorIndex)
 				elseif cmdtype == netcmds.texTri3D then
 					local c = cmd[0].texTri3D
-					app:drawTexTri3D(c.x1,c.y1,c.z1,c.x2,c.y2,c.z2,c.x3,c.y3,c.z3,c.u1,c.v1,c.u2,c.v2,c.u3,c.v3,c.sheetIndex,c.paletteIndex,c.transparentIndex,c.spriteBit,c.spriteMask)
+					app:drawTexTri3D(c.x1, c.y1, c.z1, c.u1, c.v1, c.x2, c.y2, c.z2, c.u2, c.v2, c.x3, c.y3, c.z3, c.u3, c.v3, c.sheetIndex, c.paletteIndex, c.transparentIndex, c.spriteBit, c.spriteMask)
 				elseif cmdtype == netcmds.solidLine then
 					local c = cmd[0].solidLine
 					app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex)
