@@ -272,8 +272,7 @@ mapType={
 	[MOVING_UP]={},
 }
 
-dirs={none=-1,down=0,left=1,right=2,up=3}
-vecs={[0]={0,1},{-1,0},{1,0},{0,-1}}
+dirForName.none = -1
 seqs={
 	cloud=128,
 	brick=74,	-- irl? why not just the tilemap?
@@ -361,10 +360,10 @@ BaseObj=class{
 	hitEdge=|::,whereX,whereY|true,
 	cannotPassThru=|::,mapTypeIndex|mapType[mapTypeIndex]?.cannotPassThru,
 	hitWorld=|::, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR| do
-		if cmd == dirs.left and whereX % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
-		if cmd == dirs.up and whereY % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
-		if cmd == dirs.right and whereX % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
-		if cmd == dirs.down and whereY % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
+		if cmd == dirForName.left and whereX % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
+		if cmd == dirForName.up and whereY % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
+		if cmd == dirForName.right and whereX % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
+		if cmd == dirForName.down and whereY % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
 		return self:cannotPassThru(typeUL)
 			or self:cannotPassThru(typeUR)
 			or self:cannotPassThru(typeLL)
@@ -385,7 +384,7 @@ do
 		init=|:,args|do
 			super.init(self,args)
 			self.lastMoveResponse='no move'
-			self.moveCmd=dirs.none
+			self.moveCmd=dirForName.none
 			self.speed=10
 			self.moveFracMoving=false
 			self.moveFrac=0
@@ -456,11 +455,10 @@ do
 			or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY)
 		end,
 		doMove=|:,cmd|do
-			if cmd==dirs.none then return 'no move' end
+			if cmd==dirForName.none then return 'no move' end
 			local newDest = self.pos:clone()
 			if cmd >= 0 and cmd < 4 then
-				newDest.x += vecs[cmd][1] * .5
-				newDest.y += vecs[cmd][2] * .5
+				newDest += dirvecs[cmd] * .5
 			else
 				return 'no move'
 			end
@@ -484,13 +482,13 @@ do
 					-- TODO merge this move and btn move so we dont double move in one update ... or not?
 					-- TODO :move but withotu changing animation direction ...
 					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
-						self:checkMoveCmd(dirs.right)
+						self:checkMoveCmd(dirForName.right)
 					elseif typeUL == MOVING_DOWN and typeUR == MOVING_DOWN then
-						self:checkMoveCmd(dirs.down)
+						self:checkMoveCmd(dirForName.down)
 					elseif typeUR == MOVING_LEFT and typeLR == MOVING_LEFT then
-						self:checkMoveCmd(dirs.left)
+						self:checkMoveCmd(dirForName.left)
 					elseif typeLL == MOVING_UP and typeLR == MOVING_UP then
-						self:checkMoveCmd(dirs.up)
+						self:checkMoveCmd(dirForName.up)
 					end
 				end
 			end
@@ -538,9 +536,9 @@ do
 			if not self.isBlocking then return false end
 
 			local delta=0
-			if side==dirs.left or side==dirs.right then
+			if side==dirForName.left or side==dirForName.right then
 				delta=self.destPos.y - pusher.destPos.y
-			elseif side==dirs.up or side==dirs.down then
+			elseif side==dirForName.up or side==dirForName.down then
 				delta=self.destPos.x - pusher.destPos.x
 			end
 			delta=math.abs(delta)
@@ -840,8 +838,7 @@ do
 						break
 					end
 
-					checkPos.x += vecs[side][1]
-					checkPos.y += vecs[side][2]
+					checkPos += dirvecs[side]
 
 					if checkPos.x < 0
 					or checkPos.y < 0
@@ -948,18 +945,18 @@ do
 				end
 
 				if dist<self.FIRE_DIST then
-					local dir = dirs.none
+					local dir = dirForName.none
 					if diff.x < diff.y then	-- left or down
 						if diff.x < -diff.y then
-							dir = dirs.left
+							dir = dirForName.left
 						else
-							dir = dirs.down
+							dir = dirForName.down
 						end
 					else	-- up or right
 						if diff.x < -diff.y then
-							dir = dirs.up
+							dir = dirForName.up
 						else
-							dir = dirs.right
+							dir = dirForName.right
 						end
 					end
 
@@ -984,7 +981,7 @@ do
 	Sentry=MovableObj:subclass{
 		init=|:|do
 			super.init(self,{})
-			self.dir = dirs.left
+			self.dir = dirForName.left
 			self.seq=seqs.sentry
 		end,
 		update=|:|do
@@ -997,14 +994,14 @@ do
 			self.moveCmd = self.dir
 			super.update(self)
 			if self.lastMoveResponse=='was blocked' then
-				if self.dir==dirs.up then
-					self.dir=dirs.left
-				elseif self.dir==dirs.left then
-					self.dir=dirs.down
-				elseif self.dir==dirs.down then
-					self.dir=dirs.right
-				elseif self.dir==dirs.right then
-					self.dir=dirs.up
+				if self.dir==dirForName.up then
+					self.dir=dirForName.left
+				elseif self.dir==dirForName.left then
+					self.dir=dirForName.down
+				elseif self.dir==dirForName.down then
+					self.dir=dirForName.right
+				elseif self.dir==dirForName.right then
+					self.dir=dirForName.up
 				end
 			end
 		end,
@@ -1042,7 +1039,7 @@ do
 			super.init(self,args)
 			self.dead=false
 			self.deadTime=0
-			self.dir=dirs.down
+			self.dir=dirForName.down
 			self.bombs=0
 			self.bombBlastRadius=1
 			self.seq=seqs.playerStandDown
@@ -1058,7 +1055,7 @@ do
 			local bomb=Bomb(self)
 			bomb:setPos(self.destPos)
 			if bomb:moveIsBlocked_CheckEdge(self.destPos.x,self.destPos.y)
-			or bomb:moveIsBlocked_CheckHitWorld(dirs.none, self.destPos.x,self.destPos.y)
+			or bomb:moveIsBlocked_CheckHitWorld(dirForName.none, self.destPos.x,self.destPos.y)
 			then return end
 			for _,o in ipairs(objs) do
 				if not o.removeMe
@@ -1076,23 +1073,23 @@ do
 			addObj(bomb)
 		end,
 		stopMoving=|:|do
-			self.moveCmd=dirs.none
+			self.moveCmd=dirForName.none
 		end,
 		update=|:|do
-			if self.moveCmd~=dirs.none then self.dir=self.moveCmd end
+			if self.moveCmd~=dirForName.none then self.dir=self.moveCmd end
 			super.update(self)
 			if not self.dead then
 				--if self.moveFracMoving then
-				local animstep = self.moveCmd~=dirs.none and time() % .5 > .25
+				local animstep = self.moveCmd~=dirForName.none and time() % .5 > .25
 				if animstep ~= self.lastAnimStep then
 					sfx(sfxid.step)
 				end
 				self.lastAnimStep = animstep
-				if self.dir==dirs.up then
+				if self.dir==dirForName.up then
 					self.seq = animstep and seqs.playerStandUp2 or seqs.playerStandUp
-				elseif self.dir==dirs.left then
+				elseif self.dir==dirForName.left then
 					self.seq = animstep and seqs.playerStandLeft2 or seqs.playerStandLeft
-				elseif self.dir==dirs.right then
+				elseif self.dir==dirForName.right then
 					self.seq = animstep and seqs.playerStandRight2 or seqs.playerStandRight
 				else
 					self.seq = animstep and seqs.playerStandDown2 or seqs.playerStandDown
@@ -1112,7 +1109,7 @@ do
 			self.isBlocking=false
 			self.isBlockingPushers=false
 			self.blockExplosion=false
-			self.moveCmd=dirs.none
+			self.moveCmd=dirForName.none
 		end,
 		onGroundSunk=|:|do self:die()end,
 		setBombs=|:,bombs|do
@@ -1404,13 +1401,13 @@ update=||do
 	end
 	if player then
 		if btn'up' then
-			player:move(dirs.up)
+			player:move(dirForName.up)
 		elseif btn'down' then
-			player:move(dirs.down)
+			player:move(dirForName.down)
 		elseif btn'left' then
-			player:move(dirs.left)
+			player:move(dirForName.left)
 		elseif btn'right' then
-			player:move(dirs.right)
+			player:move(dirForName.right)
 		else
 			player:stopMoving()
 		end
