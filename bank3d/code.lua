@@ -72,8 +72,8 @@ end
 ----------------------- END numo9/matstack.lua  -----------------------
 
 _G=getfenv(1)
-linfDist=|ax,ay,bx,by|do
-	return math.max(math.abs(ax-bx), math.abs(ay-by))
+linfDist=|ax,ay,bx,by,cx,cy|do
+	return math.max(math.abs(ax-bx), math.abs(ay-by), math.abs(az-bz))
 end
 
 maxLevels = 2 * 23		-- 11x11x11 levels use 121 x 11 texels, can store 2 x 23 of those on a 256x256 texture
@@ -227,7 +227,7 @@ end
 
 -- spr() signature
 -- TODO make an API for mesh() or obj3d() or model() or something for storing and drawing 3D models
-drawCube=|spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
+drawObj=|tris, spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
 	local sheetIndex = spriteIndex >> 10
 	local spriteU = (spriteIndex & 0x1f) << 3
 	local spriteV = ((spriteIndex >> 5) & 0x1f) << 3
@@ -237,43 +237,56 @@ drawCube=|spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentI
 	mattrans(x, y, z)
 	matscale(16, 16, 16)
 
-	for dim=0,2 do
-		for side=0,1 do
-			for _,uvs in ipairs{
-				{0,0, 0,1, 1,1},
-				{1,1, 1,0, 0,0},
-			} do
-				local u1, v1, u2, v2, u3, v3 = table.unpack(uvs)
-
-				local xyz_for_uv = |u,v| do
-					if dim == 0 then
-						return side, 1 - v, u
-					elseif dim == 1 then
-						return u, side, 1 - v
-					elseif dim == 2 then
-						return u, v, side
-					end
-				end
-				local x1,y1,z1 = xyz_for_uv(u1,v1)
-				local x2,y2,z2 = xyz_for_uv(u2,v2)
-				local x3,y3,z3 = xyz_for_uv(u3,v3)
-				u1 *= spriteW v1 *= spriteH
-				u2 *= spriteW v2 *= spriteH
-				u3 *= spriteW v3 *= spriteH
-				u1 += spriteU v1 += spriteV
-				u2 += spriteU v2 += spriteV
-				u3 += spriteU v3 += spriteV
-				-- maybe I should just use spr() and transform?
-				-- have I ever tested ttri3d before?
-				ttri3d(
-					x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, x3, y3, z3, u3, v3,
-					sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
-				)
-			end
-		end
+	for _,tri in ipairs(tris) do
+		local 
+			x1,y1,z1,u1,v1,
+			x2,y2,z2,u2,v2,
+			x3,y3,z3,u3,v3 = table.unpack(tri)
+		-- maybe I should just use spr() and transform?
+		-- have I ever tested ttri3d before?
+		ttri3d(
+			x1, y1, z1, u1 * spriteW + spriteU, v1 * spriteH + spriteV,
+			x2, y2, z2, u2 * spriteW + spriteU, v2 * spriteH + spriteV,
+			x3, y3, z3, u3 * spriteW + spriteU, v3 * spriteH + spriteV,
+			sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
+		)
 	end
 
 	matpop()
+end
+
+cubeTris = table()
+for dim=0,2 do
+	for side=0,1 do
+		for _,uvs in ipairs{
+			{0,0, 0,1, 1,1},
+			{1,1, 1,0, 0,0},
+		} do
+			local u1, v1, u2, v2, u3, v3 = table.unpack(uvs)
+
+			local xyz_for_uv = |u,v| do
+				if dim == 0 then
+					return side, 1 - v, u
+				elseif dim == 1 then
+					return u, side, 1 - v
+				elseif dim == 2 then
+					return u, v, side
+				end
+			end
+			local x1,y1,z1 = xyz_for_uv(u1,v1)
+			local x2,y2,z2 = xyz_for_uv(u2,v2)
+			local x3,y3,z3 = xyz_for_uv(u3,v3)
+			cubeTris:insert{
+				x1,y1,z1,u1,v1,
+				x2,y2,z2,u2,v2,
+				x3,y3,z3,u3,v3,
+			}
+		end
+	end
+end
+drawCube=|...| drawObj(cubeTris, ...)
+
+drawSlope=|rotatei, spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
 end
 
 drawForFlags = |mt, x, y, z, ...| do
@@ -361,16 +374,20 @@ classmeta.__index=_G	-- obj __index looks in its class, if not there then looks 
 
 BaseObj=class{
 	init=|::,args|do
-		scaleX,scaleY=1,1
+		scaleX,scaleY,scaleZ=1,1,1
 		removeMe=false
 		posX=0
 		posY=0
+		posZ=0
 		startPosX=0
 		startPosY=0
+		startPosZ=0
 		srcPosX=0
 		srcPosY=0
+		srcPosZ=0
 		destPosX=0
 		destPosY=0
+		destPosZ=0
 		moveCmd=-1
 		isBlocking=true
 		isBlockingPushers=true
@@ -379,18 +396,22 @@ BaseObj=class{
 	end,
 	-- in AnimatedObj in fact ...
 	update=|::|nil,
-	setPos=|::,x,y|do
+	setPos=|::,x,y,z|do
 		posX=x
 		srcPosX=x
 		destPosX=x
 		posY=y
 		srcPosY=y
 		destPosY=y
+		posZ=z
+		srcPosZ=z
+		destPosZ=z
 	end,
 	drawSprite=|::|do
 		-- posX posY are tile-centered so ...
 		local x = posX * 16 - 8 * scaleX
 		local y = posY * 16 - 8 * scaleY
+		local z = posZ * 16
 		if blendMode then
 			fillp(0x8000)	--blend(blendMode)
 		end
@@ -399,7 +420,7 @@ BaseObj=class{
 			seq,	--spriteIndex,
 			x,			--screenX,
 			y,			--screenY,
-			0,			-- z
+			z,			-- z
 			2,			--spritesWide,
 			2,			--spritesHigh,
 			nil,		--paletteIndex,
@@ -445,13 +466,13 @@ do
 			self.moveFracMoving=false
 			self.moveFrac=0
 		end,
-		moveIsBlocked_CheckHitWorld=|:,cmd,whereX,whereY|do
+		moveIsBlocked_CheckHitWorld=|:,cmd,whereX,whereY,whereZ|do
 			return self:hitWorld(
 				cmd, whereX, whereY,
-				mapGet(whereX-.25,whereY-.25),
-				mapGet(whereX+.25,whereY-.25),
-				mapGet(whereX-.25,whereY+.25),
-				mapGet(whereX+.25,whereY+.25)
+				mapGet(whereX-.25,whereY-.25,whereZ),
+				mapGet(whereX+.25,whereY-.25,whereZ),
+				mapGet(whereX-.25,whereY+.25,whereZ),
+				mapGet(whereX+.25,whereY+.25,whereZ)
 			)
 		end,
 		hitWorld=|:, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR|do
@@ -461,16 +482,16 @@ do
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					if typeUL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY-.25)<.5 then
+					if typeUL==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, whereX-.25, whereY-.25, whereZ) < .5 then
 						typeUL=EMPTY
 					end
-					if typeUR==WATER and linfDist(o.destPosX,o.destPosY,whereX+.25,whereY-.25)<.5 then
+					if typeUR==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, whereX+.25, whereY-.25, whereZ) < .5 then
 						typeUR=EMPTY
 					end
-					if typeLL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY+.25)<.5 then
+					if typeLL==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, whereX-.25, whereY+.25, whereZ) < .5 then
 						typeLL=EMPTY
 					end
-					if typeLR==WATER and linfDist(o.destPosX,o.destPosY,whereX+.25,whereY+.25)<.5 then
+					if typeLR==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, whereX+.25, whereY+.25, whereZ) < .5 then
 						typeLR=EMPTY
 					end
 				end
@@ -488,7 +509,7 @@ do
 			return false
 		end,
 		moveIsBlocked_CheckHitObject=|:,o,cmd,newDestX,newDestY|do
-			if linfDist(o.destPosX,o.destPosY,newDestX,newDestY)>.75 then return false end
+			if linfDist(o.destPosX, o.destPosY, o.destPosZ, newDestX, newDestY, newDestZ)>.75 then return false end
 			local response=self:hitObject(o,newDestX,newDestY,cmd)
 			if response=='stop' then return true end
 			if response=='test object' then
@@ -505,10 +526,10 @@ do
 				end
 			end
 		end,
-		moveIsBlocked=|:,cmd,newDestX,newDestY|do
-			return self:moveIsBlocked_CheckEdge(newDestX, newDestY)
-			or self:moveIsBlocked_CheckHitWorld(cmd, newDestX, newDestY)
-			or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY)
+		moveIsBlocked=|:,cmd,newDestX,newDestY, newDestZ|do
+			return self:moveIsBlocked_CheckEdge(newDestX, newDestY, newDestZ)
+			or self:moveIsBlocked_CheckHitWorld(cmd, newDestX, newDestY, newDestZ)
+			or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY, newDestZ)
 		end,
 		doMove=|:,cmd|do
 			if cmd==dirs.none then return 'no move' end
@@ -535,10 +556,10 @@ do
 		update=|:|do
 			if not self.dead then
 				if (time() * 60) % 30 == 0 then
-					local typeUL=mapGet(self.destPosX - .25, self.destPosY - .25)
-					local typeUR=mapGet(self.destPosX + .25, self.destPosY - .25)
-					local typeLL=mapGet(self.destPosX - .25, self.destPosY + .25)
-					local typeLR=mapGet(self.destPosX + .25, self.destPosY + .25)
+					local typeUL=mapGet(self.destPosX - .25, self.destPosY - .25, self.destPosZ)
+					local typeUR=mapGet(self.destPosX + .25, self.destPosY - .25, self.destPosZ)
+					local typeLL=mapGet(self.destPosX - .25, self.destPosY + .25, self.destPosZ)
+					local typeLR=mapGet(self.destPosX + .25, self.destPosY + .25, self.destPosZ)
 					-- TODO merge this move and btn move so we dont double move in one update ... or not?
 					-- TODO :move but withotu changing animation direction ...
 					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
@@ -563,7 +584,7 @@ do
 					for _,o in ipairs(objs) do
 						if not o.removeMe
 						and o ~= self
-						and linfDist(o.destPosX, o.destPosY, self.destPosX, self.destPosY) <= .75
+						and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX, self.destPosY, self.destPosZ) <= .75
 						then
 							o:endPush(self, self.destPosX, self.destPosY)
 						end
@@ -632,13 +653,16 @@ do
 			self.vel=args.vel
 			self.life=args.life
 			self.scaleX,self.scaleY=args.scale,args.scale
-			self:setPos(args.pos[1],args.pos[2])
+			self:setPos(args.pos[1], args.pos[2], args.pos[3])
 			self.startTime=time()
 			self.seq=seqs.cloud
 		end,
 		update=|:|do
 			super.update(self)
-			self:setPos(self.posX+dt*self.vel[1],self.posY+dt*self.vel[2])
+			self:setPos(
+				self.posX + dt * self.vel[1],
+				self.posY + dt * self.vel[2],
+				self.posZ + dt * self.vel[3])
 			local frac=math.min(1,(time()-self.startTime)/self.life)
 			if frac==1 then
 				removeObj(self)
@@ -658,14 +682,17 @@ do
 			self.vel=args.vel
 			self.life=args.life
 			self.scaleX,self.scaleY=args.radius*2,args.radius*2
-			self:setPos(args.pos[1],args.pos[2])
+			self:setPos(args.pos[1], args.pos[2], args.pos[3])
 			self.startTime=time()
 			self.seq=args.seq or seqs.spark
 			self.blendMode=args.blendMode or 0
 		end,
 		update=|:|do
 			super.update(self)
-			self:setPos(self.posX+dt*self.vel[1],self.posY+dt*self.vel[2])
+			self:setPos(
+				self.posX + dt * self.vel[1],
+				self.posY + dt * self.vel[2],
+				self.posZ + dt * self.vel[3])		
 			local frac=math.max(0,1-(time()-self.startTime)/self.life)
 			if frac==0 then
 				removeObj(self)
@@ -763,7 +790,7 @@ do
 			if self.owner
 			and self.ownerStandingOn
 			then
-				if linfDist(self.destPosX, self.destPosY, self.owner.destPosX, self.owner.destPosY) > .75
+				if linfDist(self.destPosX, self.destPosY, self.destPosZ, self.owner.destPosX, self.owner.destPosY, self.owner.destPosZ) > .75
 				then
 					self.ownerStandingOn=false
 				end
@@ -773,20 +800,20 @@ do
 			or self.state=='live'
 			then
 				if not self.moveFracMoving then
-					local typeUL=mapGet(self.destPosX-.25, self.destPosY-.25)
-					local typeUR=mapGet(self.destPosX+.25, self.destPosY-.25)
-					local typeLL=mapGet(self.destPosX-.25, self.destPosY+.25)
-					local typeLR=mapGet(self.destPosX+.25, self.destPosY+.25)
+					local typeUL=mapGet(self.destPosX-.25, self.destPosY-.25, self.destPosZ)
+					local typeUR=mapGet(self.destPosX+.25, self.destPosY-.25, self.destPosZ)
+					local typeLL=mapGet(self.destPosX-.25, self.destPosY+.25, self.destPosZ)
+					local typeLR=mapGet(self.destPosX+.25, self.destPosY+.25, self.destPosZ)
 
 					for _,o in ipairs(objs)do
 						if not removeMe
 						and Bomb:isa(o)
 						and o.state=='sinking'
 						then
-							if typeUL==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX - .25, self.destPosY - .25) < .5 then typeUL=EMPTY end
-							if typeUR==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX + .25, self.destPosY - .25) < .5 then typeUR=EMPTY end
-							if typeLL==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX - .25, self.destPosY + .25) < .5 then typeLL=EMPTY end
-							if typeLR==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX + .25, self.destPosY + .25) < .5 then typeLR=EMPTY end
+							if typeUL==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX - .25, self.destPosY - .25, self.destPosZ) < .5 then typeUL=EMPTY end
+							if typeUR==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX + .25, self.destPosY - .25, self.destPosZ) < .5 then typeUR=EMPTY end
+							if typeLL==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX - .25, self.destPosY + .25, self.destPosZ) < .5 then typeLL=EMPTY end
+							if typeLR==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX + .25, self.destPosY + .25, self.destPosZ) < .5 then typeLR=EMPTY end
 						end
 					end
 
@@ -822,22 +849,22 @@ do
 					removeObj(self)
 					for _,o in ipairs(objs)do
 						if not o.removeMe
-						and linfDist(o.destPosX, o.destPosY, self.destPosX, self.destPosY) < .75
+						and linfDist(o.destPosX, o.destPosY, o.destPosZ, self.destPosX, self.destPosY, self.destPosZ) < .75
 						then
-							local typeUL=mapGet(o.destPosX - .25, o.destPosY - .25)
-							local typeUR=mapGet(o.destPosX + .25, o.destPosY - .25)
-							local typeLL=mapGet(o.destPosX - .25, o.destPosY + .25)
-							local typeLR=mapGet(o.destPosX + .25, o.destPosY + .25)
+							local typeUL=mapGet(o.destPosX - .25, o.destPosY - .25, o.destPosZ)
+							local typeUR=mapGet(o.destPosX + .25, o.destPosY - .25, o.destPosZ)
+							local typeLL=mapGet(o.destPosX - .25, o.destPosY + .25, o.destPosZ)
+							local typeLR=mapGet(o.destPosX + .25, o.destPosY + .25, o.destPosZ)
 
 							for _,o2 in ipairs(objs)do
 								if not o2.removeMe
 								and Bomb:isa(o2)
 								and o2.state=='sinking'
 								then
-									if typeUL==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX - .25, o.destPosY - .25) < .5 then typeUL=EMPTY end
-									if typeUR==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX + .25, o.destPosY - .25) < .5 then typeUR=EMPTY end
-									if typeLL==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX - .25, o.destPosY + .25) < .5 then typeLL=EMPTY end
-									if typeLR==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX + .25, o.destPosY + .25) < .5 then typeLR=EMPTY end
+									if typeUL==WATER and linfDist(o2.destPosX, o2.destPosY, o2.destPosZ, o.destPosX - .25, o.destPosY - .25, o2.destPosZ) < .5 then typeUL=EMPTY end
+									if typeUR==WATER and linfDist(o2.destPosX, o2.destPosY, o2.destPosZ, o.destPosX + .25, o.destPosY - .25, o2.destPosZ) < .5 then typeUR=EMPTY end
+									if typeLL==WATER and linfDist(o2.destPosX, o2.destPosY, o2.destPosZ, o.destPosX - .25, o.destPosY + .25, o2.destPosZ) < .5 then typeLL=EMPTY end
+									if typeLR==WATER and linfDist(o2.destPosX, o2.destPosY, o2.destPosZ, o.destPosX + .25, o.destPosY + .25, o2.destPosZ) < .5 then typeLR=EMPTY end
 								end
 							end
 
@@ -888,7 +915,7 @@ do
 						if not o.removeMe
 						and o~=self
 						then
-							local dist=linfDist(o.destPosX, o.destPosY, checkPosX, checkPosY)
+							local dist=linfDist(o.destPosX, o.destPosY, o.destPosZ, checkPosX, checkPosY, checkPosZ)
 							local safeDist = Player:isa(o) and .75 or .25
 							if dist <= safeDist then
 								o:onTouchFlames()
@@ -921,30 +948,33 @@ do
 					local wallStopped=false
 					for ofx=0,1 do
 						for ofy=0,1 do
-							local cfx=math.floor(checkPosX+ofx*.5-.25)
-							local cfy=math.floor(checkPosY+ofy*.5-.25)
-							local mapType=mapType[mapGet(cfx, cfy)]
-							if mapType and mapType.blocksExplosion then
-								if not cantHitWorld
-								and mapType.bombable
-								then
-									local divs=1
-									for u=0,divs-1 do
-										for v=0,divs-1 do
-											local speed=0
-											addObj(Particle{
-												vel={speed*(math.random()*2-1), speed*(math.random()*2-1)},
-												pos={cfx + (u+.5)/divs, cfy + (v+.5)/divs},
-												life=math.random()*.5+.5,
-												radius=.5,
-												seq=seqs.brick,
-												blendMode=0,
-											})
+							for ofz=0,1 do
+								local cfx=math.floor(checkPosX+ofx*.5-.25)
+								local cfy=math.floor(checkPosY+ofy*.5-.25)
+								local cfz=math.floor(checkPosZ+ofz*.5-.25)
+								local mapType=mapType[mapGet(cfx, cfy, cfz)]
+								if mapType and mapType.blocksExplosion then
+									if not cantHitWorld
+									and mapType.bombable
+									then
+										local divs=1
+										for u=0,divs-1 do
+											for v=0,divs-1 do
+												local speed=0
+												addObj(Particle{
+													vel={speed*(math.random()*2-1), speed*(math.random()*2-1)},
+													pos={cfx + (u+.5)/divs, cfy + (v+.5)/divs},
+													life=math.random()*.5+.5,
+													radius=.5,
+													seq=seqs.brick,
+													blendMode=0,
+												})
+											end
 										end
+										mapSet(cfx, cfy, cfz, EMPTY)
 									end
-									mapSet(cfx, cfy, EMPTY)
+									wallStopped=true
 								end
-								wallStopped=true
 							end
 						end
 					end
@@ -976,7 +1006,7 @@ do
 	GunShot=MovableObj:subclass{
 		init=|:,owner|do
 			self.owner=owner
-			self:setPos(owner.posX, owner.posY)
+			self:setPos(owner.posX, owner.posY, owner.posZ)
 			self.seq=-1	--invis
 			sfx(sfxid.laser_shoot)
 		end,
@@ -1038,7 +1068,7 @@ do
 					local response = -1
 					repeat
 						response = shot:doMove(dir)
-						shot:setPos(shot.destPosX, shot.destPosY)
+						shot:setPos(shot.destPosX, shot.destPosY, shot.destPosZ)
 					until response=='was blocked'
 					--delete ... but it's not attached, so we're safe
 				end
@@ -1062,7 +1092,7 @@ do
 			self.scaleX = (math.floor((time() * 4) & 1) << 1) - 1
 			--if the player moved onto us ...
 			--TODO - put self inside 'endPush' instead! no need to call it each frame
-			if linfDist(self.destPosX, self.destPosY, player.destPosX, player.destPosY) < .75 then
+			if linfDist(self.destPosX, self.destPosY, self.destPosZ, player.destPosX, player.destPosY, player.destPosZ) < .75 then
 				player:die()
 			end
 			self.moveCmd = self.dir
@@ -1129,15 +1159,15 @@ do
 			if self.bombs <= 0 then return end
 			sfx(sfxid.step)
 			local bomb=Bomb(self)
-			bomb:setPos(self.destPosX,self.destPosY)
-			if bomb:moveIsBlocked_CheckEdge(self.destPosX,self.destPosY)
-			or bomb:moveIsBlocked_CheckHitWorld(dirs.none, self.destPosX,self.destPosY)
+			bomb:setPos(self.destPosX, self.destPosY, self.destPosZ)
+			if bomb:moveIsBlocked_CheckEdge(self.destPosX, self.destPosY, self.destPosZ)
+			or bomb:moveIsBlocked_CheckHitWorld(dirs.none, self.destPosX, self.destPosY, self.destPosZ)
 			then return end
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and Bomb:isa(o)
 				and o.owner==self
-				and linfDist(self.destPosX,self.destPosY,o.destPosX,o.destPosY)<.25
+				and linfDist(self.destPosX, self.destPosY, self.destPosZ, o.destPosX, o.destPosY, o.destPosZ) < .25
 				and (o.state=='idle' or o.state=='live')
 				then
 					return
@@ -1233,7 +1263,7 @@ do
 
 		endPush=|:,who,pushDestX,pushDestY|do
 			if not Player:isa(who)
-			or linfDist(pushDestX,pushDestY,self.destPosX,self.destPosY) >= .5
+			or linfDist(pushDestX, pushDestY, pushDestZ, self.destPosX, self.destPosY, self.destPosZ) >= .5
 			then return end
 
 			sfx(sfxid.collect_money)
@@ -1268,7 +1298,7 @@ do
 			if not Player:isa(who)
 			or self.inactive
 			or self.changeLevelTime > 0
-			or linfDist(pushDestX,pushDestY,self.destPosX,self.destPosY) >= .5
+			or linfDist(pushDestX, pushDestY, pushDestZ, self.destPosX, self.destPosY, self.destPosZ) >= .5
 			then return end
 			self.changeLevelTime = time() + self.touchToEndLevelDuration
 
@@ -1322,15 +1352,15 @@ nextLevel=|dontComplete|do
 	loadLevelRequest=true
 end
 
-levelTileX, levelTileY = 0,0
+levelTileX, levelTileY = 0, 0
 setLevel=|level_|do
 	level=level_
 	saveinfos[saveSlot].level = level
 	saveState()
-	levelTileX=level%25
-	levelTileY=(level-levelTileX)/25*mapw
-	levelTileX*=mapw
-	if level>-1 then
+	levelTileX = (level & 1) * mapw * mapd
+	levelTileY = (level >> 1) * maph
+	levelTileX *= mapw * mapd
+	if level > -1 then
 		--TODO if level >= 0 then set the local storage current-level value to 'level'
 		levelstr='level '..tostring(level)
 	else
@@ -1339,8 +1369,8 @@ setLevel=|level_|do
 	end
 end
 
-mapGet=|x,y,z| mget(levelTileX + x + (z or 0) * mapw, levelTileY + y) & 0x3ff	-- drop the hv flip and pal-hi
-mapSet=|x,y,value|mset(x+levelTileX,y+levelTileY,value)
+mapGet=|x,y,z| mget(levelTileX + x + z * mapw, levelTileY + y) & 0x3ff	-- drop the hv flip and pal-hi
+mapSet=|x,y,z,value| mset(levelTileX + x + z * mapw, levelTileY + y, value)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
@@ -1349,7 +1379,7 @@ loadLevel=||do
 	for z=0,mapd-1 do
 		for y=0,maph-1 do
 			for x=0,mapw-1 do
-				local posX,posY=x+.5,y+.5
+				local posX,posY,posZ=x+.5,y+.5,z
 				local m = mapGet(x,y,z)
 				if m==EMPTY
 				or m==TREE
@@ -1364,42 +1394,46 @@ loadLevel=||do
 				or m==MOVING_DOWN
 				or m==MOVING_LEFT
 				or m==MOVING_UP
+				or m==SLOPE_RIGHT
+				or m==SLOPE_DOWN
+				or m==SLOPE_LEFT
+				or m==SLOPE_UP
 				then
 					-- map type
 				else
-					mapSet(x,y,EMPTY)
+					mapSet(x,y,z,EMPTY)
 					if m==10 then
 						player=Player{}
-						player:setPos(posX,posY)
+						player:setPos(posX,posY,posZ)
 						objs:insert(player)
 					elseif m==12 then
 						local key=Key{}
-						key:setPos(posX,posY)
+						key:setPos(posX,posY,posZ)
 						objs:insert(key)
 					elseif m==14 then
 						local framer=Framer{}
-						framer:setPos(posX,posY)
+						framer:setPos(posX,posY,posZ)
 						objs:insert(framer)
 					elseif m==16 then
 						local gun=Gun{}
-						gun:setPos(posX,posY)
+						gun:setPos(posX,posY,posZ)
 						objs:insert(gun)
 					elseif m==18 then
 						local sentry=Sentry{}
-						sentry:setPos(posX,posY)
+						sentry:setPos(posX,posY,posZ)
 						objs:insert(sentry)
 					elseif m>=64 and m<84 then
 						local money=Money{}
 						money.bombs=(m-64)>>1
-						money:setPos(posX,posY)
+						money:setPos(posX,posY,posZ)
 						objs:insert(money)
 					elseif m>=128 and m<148 then
 						local bomb=Bomb()
 						bomb.blastRadius=(m-128)>>1
-						bomb:setPos(posX,posY)
+						bomb:setPos(posX,posY,posZ)
 						objs:insert(bomb)
 					else
-						trace('unknown spawn', x,y,m)
+						trace('unknown spawn', x,y,z,m)
 					end
 				end
 			end
