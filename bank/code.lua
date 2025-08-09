@@ -438,9 +438,9 @@ do
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					for key, corner in pairs(corners) do
-						if cornerTypes[key] == WATER and (where + corner * .25 - o.destPos):lInfLength() <.5 then
-							cornerTypes[key] = EMPTY
+					for cornerKey, corner in pairs(corners) do
+						if cornerTypes[cornerKey] == WATER and (where + corner * .25 - o.destPos):lInfLength() <.5 then
+							cornerTypes[cornerKey] = EMPTY
 						end
 					end
 				end
@@ -864,32 +864,30 @@ do
 					then break end
 
 					local wallStopped=false
-					for ofx=0,1 do
-						for ofy=0,1 do
-							local cf = (checkPos + vec2(ofx, ofy) * .5 - .25):floor()
-							local mt=mapTypes[mapGet(cf.x, cf.y)]
-							if mt and mt.blocksExplosion then
-								if not cantHitWorld
-								and mt.bombable
-								then
-									local divs=1
-									for u=0,divs-1 do
-										for v=0,divs-1 do
-											local speed=0
-											addObj(Particle{
-												vel = (vec2(math.random(), math.random()) * 2 - 1) * speed,
-												pos = cf + (vec2(u,v)+.5)/divs,
-												life=math.random()*.5+.5,
-												radius=.5,
-												seq=seqs.brick,
-												blendMode=0,
-											})
-										end
+					for cornerKey,corner in pairs(corners) do
+						local cf = (checkPos + corner * .25):floor()
+						local mt=mapTypes[mapGet(cf.x, cf.y)]
+						if mt and mt.blocksExplosion then
+							if not cantHitWorld
+							and mt.bombable
+							then
+								local divs=1
+								for u=0,divs-1 do
+									for v=0,divs-1 do
+										local speed=0
+										addObj(Particle{
+											vel = (vec2(math.random(), math.random()) * 2 - 1) * speed,
+											pos = cf + (vec2(u,v)+.5)/divs,
+											life=math.random()*.5+.5,
+											radius=.5,
+											seq=seqs.brick,
+											blendMode=0,
+										})
 									end
-									mapSet(cf.x, cf.y, EMPTY)
 								end
-								wallStopped=true
+								mapSet(cf.x, cf.y, EMPTY)
 							end
+							wallStopped=true
 						end
 					end
 					if wallStopped then break end
