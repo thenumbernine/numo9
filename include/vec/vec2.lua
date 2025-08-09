@@ -53,7 +53,7 @@ vec2=class{
 	clamp=|v,a,b|do
 		local mins = a
 		local maxs = b
-		if type(a) == 'table' and a.min and a.max then	
+		if type(a) == 'table' and a.min and a.max then
 			mins = a.min
 			maxs = a.max
 		end
