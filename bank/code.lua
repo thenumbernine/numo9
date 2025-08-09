@@ -149,15 +149,11 @@ local dirForName = {right=0, down=1, left=2, up=3}
 
 ----------------------- END vec/vec2.lua  -----------------------
 
-_G=getfenv(1)
-linfDist=|ax,ay,bx,by|do
-	return math.max(math.abs(ax-bx), math.abs(ay-by))
-end
+_G=getfenv(1)	-- needed for :: operator
 
 dt=1/60
-mapw,maph=10,10
+mapsize = vec2(10,10)
 
-mapBorderTileX, mapBorderTileY, mapBorderTileW, mapBorderTileH = 10, 20, mapw + 2, maph + 3
 -- [[ dynamically drawing the border
 -- TODO this is what the Brush menu is supposed to be.
 -- TODO to finish the Brush menu you might as well switch the ROM file format to a FAT based one to have dynamic-sizes.
@@ -165,45 +161,45 @@ drawMapBorder=||do
 	-- middle
 	for x=1,11 do
 		for y=2,11 do
-			spr(1024, x<<4, y<<4, 2, 2)
+			spr(1024, x*16, y*16, 2, 2)
 		end
 	end
 	-- upper left
 	spr(1024+192, 0, 8, 4, 4)
 	-- upper right
-	spr(1024+192, 12<<4, 8, 2, 4, nil, nil, nil, nil, -1, 1)
+	spr(1024+192, 12*16, 8, 2, 4, nil, nil, nil, nil, -1, 1)
 	-- upper
 	for x=2,10 do
-		spr(1024+196, x<<4, 8, 2, 4)
+		spr(1024+196, x*16, 8, 2, 4)
 	end
 	-- left & right
 	for y=2,11 do
-		spr(1024+256, 0, y<<4, 2, 2)
-		spr(1024+256, 12<<4, y<<4, 2, 2, nil, nil, nil, nil, -1, 1)
+		spr(1024+256, 0, y*16, 2, 2)
+		spr(1024+256, 12*16, y*16, 2, 2, nil, nil, nil, nil, -1, 1)
 	end
 	-- bottom left
-	spr(1024+320, 0, 12<<4, 2, 2)
+	spr(1024+320, 0, 12*16, 2, 2)
 	-- bottom right
-	spr(1024+320, 12<<4, 12<<4, 2, 2, nil, nil, nil, nil, -1, 1)
+	spr(1024+320, 12*16, 12*16, 2, 2, nil, nil, nil, nil, -1, 1)
 	-- lower
 	for x=1,10 do
-		spr(1024+322, x<<4, 12<<4, 2, 2)
+		spr(1024+322, x*16, 12*16, 2, 2)
 	end
 end
 --]]
 
 --[[ using map() function, which doesnt support animiations yet ... TODO
 drawMap=||
-	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
+	map(levelTile.x,levelTile.y,mapsize.x,mapsize.y,0,0,0,true)
 --]]
 -- [[ manually for animation
 drawMap=||do
-	for y=0,maph-1 do
-		for x=0,mapw-1 do
-			local tileIndex = mget(levelTileX+x, levelTileY+y)
+	for y=0,mapsize.y-1 do
+		for x=0,mapsize.x-1 do
+			local tileIndex = mget(levelTile.x+x, levelTile.y+y)
 			if tileIndex == WATER then
 				local waterAbove = y > 0
-					and mget(levelTileX+x, levelTileY+y-1) == WATER
+					and mget(levelTile.x+x, levelTile.y+y-1) == WATER
 				if waterAbove then
 					tileIndex = WATER_ANIM_1
 				else
@@ -213,8 +209,8 @@ drawMap=||do
 			end
 			spr(
 				1024|tileIndex,
-				x<<4,
-				y<<4,
+				x*16,
+				y*16,
 				2,
 				2
 			)
@@ -357,13 +353,13 @@ BaseObj=class{
 		if blendMode then blend() end
 	end,
 	isBlockingSentry=|::|isBlocking,
-	hitEdge=|::,whereX,whereY|true,
+	hitEdge=|::, where|true,
 	cannotPassThru=|::,mapTypeIndex|mapType[mapTypeIndex]?.cannotPassThru,
-	hitWorld=|::, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR| do
-		if cmd == dirForName.left and whereX % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
-		if cmd == dirForName.up and whereY % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
-		if cmd == dirForName.right and whereX % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
-		if cmd == dirForName.down and whereY % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
+	hitWorld=|::, cmd, where, typeUL, typeUR, typeLL, typeLR| do
+		if cmd == dirForName.left and where.x % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
+		if cmd == dirForName.up and where.y % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
+		if cmd == dirForName.right and where.x % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
+		if cmd == dirForName.down and where.y % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
 		return self:cannotPassThru(typeUL)
 			or self:cannotPassThru(typeUR)
 			or self:cannotPassThru(typeLL)
@@ -389,45 +385,45 @@ do
 			self.moveFracMoving=false
 			self.moveFrac=0
 		end,
-		moveIsBlocked_CheckHitWorld=|:,cmd,whereX,whereY|do
+		moveIsBlocked_CheckHitWorld=|:, cmd, where| do
 			return self:hitWorld(
-				cmd, whereX, whereY,
-				mapGet(whereX-.25,whereY-.25),
-				mapGet(whereX+.25,whereY-.25),
-				mapGet(whereX-.25,whereY+.25),
-				mapGet(whereX+.25,whereY+.25)
+				cmd, where,
+				mapGet(where.x-.25, where.y-.25),
+				mapGet(where.x+.25, where.y-.25),
+				mapGet(where.x-.25, where.y+.25),
+				mapGet(where.x+.25, where.y+.25)
 			)
 		end,
-		hitWorld=|:, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR|do
+		hitWorld=|:, cmd, where, typeUL, typeUR, typeLL, typeLR|do
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o~=self
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					if typeUL==WATER and (o.destPos - vec2(whereX-.25,whereY-.25)):lInfLength() <.5 then
+					if typeUL==WATER and (o.destPos - vec2(where.x-.25,where.y-.25)):lInfLength() <.5 then
 						typeUL=EMPTY
 					end
-					if typeUR==WATER and (o.destPos - vec2(whereX+.25,whereY-.25)):lInfLength() <.5 then
+					if typeUR==WATER and (o.destPos - vec2(where.x+.25,where.y-.25)):lInfLength() <.5 then
 						typeUR=EMPTY
 					end
-					if typeLL==WATER and (o.destPos - vec2(whereX-.25,whereY+.25)):lInfLength() <.5 then
+					if typeLL==WATER and (o.destPos - vec2(where.x-.25,where.y+.25)):lInfLength() <.5 then
 						typeLL=EMPTY
 					end
-					if typeLR==WATER and (o.destPos - vec2(whereX+.25,whereY+.25)):lInfLength() <.5 then
+					if typeLR==WATER and (o.destPos - vec2(where.x+.25,where.y+.25)):lInfLength() <.5 then
 						typeLR=EMPTY
 					end
 				end
 			end
-			return super.hitWorld(self, cmd, whereX,whereY,typeUL,typeUR,typeLL,typeLR)
+			return super.hitWorld(self, cmd, where, typeUL, typeUR, typeLL, typeLR)
 		end,
-		moveIsBlocked_CheckEdge=|:,newDestX,newDestY|do
-			if newDestX < .25
-			or newDestY < .25
-			or newDestX > mapw - .25
-			or newDestY > maph - .25
+		moveIsBlocked_CheckEdge=|:,newDest|do
+			if newDest.x < .25
+			or newDest.y < .25
+			or newDest.x > mapsize.x - .25
+			or newDest.y > mapsize.y - .25
 			then
-				return self:hitEdge(newDestX,newDestY)
+				return self:hitEdge(newDest)
 			end
 			return false
 		end,
@@ -449,10 +445,10 @@ do
 				end
 			end
 		end,
-		moveIsBlocked=|:,cmd,newDestX,newDestY|do
-			return self:moveIsBlocked_CheckEdge(newDestX, newDestY)
-			or self:moveIsBlocked_CheckHitWorld(cmd, newDestX, newDestY)
-			or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY)
+		moveIsBlocked=|:,cmd,newDest|do
+			return self:moveIsBlocked_CheckEdge(newDest)
+			or self:moveIsBlocked_CheckHitWorld(cmd, newDest)
+			or self:moveIsBlocked_CheckHitObjects(cmd, newDest.x, newDest.y)
 		end,
 		doMove=|:,cmd|do
 			if cmd==dirForName.none then return 'no move' end
@@ -462,7 +458,7 @@ do
 			else
 				return 'no move'
 			end
-			if self:moveIsBlocked(cmd, newDest.x, newDest.y) then
+			if self:moveIsBlocked(cmd, newDest) then
 				self.moveFracMoving=false
 				return 'was blocked'
 			end
@@ -842,8 +838,8 @@ do
 
 					if checkPos.x < 0
 					or checkPos.y < 0
-					or checkPos.x >= mapw
-					or checkPos.y >= maph
+					or checkPos.x >= mapsize.x
+					or checkPos.y >= mapsize.y
 					then break end
 
 					local wallStopped=false
@@ -1054,8 +1050,8 @@ do
 			sfx(sfxid.step)
 			local bomb=Bomb(self)
 			bomb:setPos(self.destPos)
-			if bomb:moveIsBlocked_CheckEdge(self.destPos.x,self.destPos.y)
-			or bomb:moveIsBlocked_CheckHitWorld(dirForName.none, self.destPos.x,self.destPos.y)
+			if bomb:moveIsBlocked_CheckEdge(self.destPos)
+			or bomb:moveIsBlocked_CheckHitWorld(dirForName.none, self.destPos)
 			then return end
 			for _,o in ipairs(objs) do
 				if not o.removeMe
@@ -1239,14 +1235,14 @@ nextLevel=|dontComplete|do
 	loadLevelRequest=true
 end
 
-levelTileX, levelTileY = 0,0
+levelTile = vec2()
 setLevel=|level_|do
 	level=level_
 	saveinfos[saveSlot].level = level
 	saveState()
-	levelTileX=level%25
-	levelTileY=(level-levelTileX)/25*10
-	levelTileX*=10
+	levelTile.x=level%25
+	levelTile.y=(level-levelTile.x)/25*10
+	levelTile.x*=10
 	if level>-1 then
 		--TODO if level >= 0 then set the local storage current-level value to 'level'
 		levelstr='level '..tostring(level)
@@ -1256,14 +1252,14 @@ setLevel=|level_|do
 	end
 end
 
-mapGet=|x,y|mget(x+levelTileX,y+levelTileY)&0x3ff	-- drop the hv flip and pal-hi
-mapSet=|x,y,value|mset(x+levelTileX,y+levelTileY,value)
+mapGet=|x,y|mget(x+levelTile.x,y+levelTile.y)&0x3ff	-- drop the hv flip and pal-hi
+mapSet=|x,y,value|mset(x+levelTile.x,y+levelTile.y,value)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
 	removeAll()
-	for y=0,maph-1 do
-		for x=0,mapw-1 do
+	for y=0,mapsize.y-1 do
+		for x=0,mapsize.x-1 do
 			local pos = vec2(x+.5, y+.5)
 			local m = mapGet(x,y)
 			if m==EMPTY
