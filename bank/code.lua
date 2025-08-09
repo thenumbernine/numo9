@@ -563,7 +563,7 @@ do
 			self.isBlockingPushers=false
 			self.blocksExplosion=false
 			self.blendMode=1
-			self.vel=args.vel
+			self.vel = vec2(args.vel)
 			self.life=args.life
 			self.scale:set(args.scale)
 			self:setPos(args.pos)
@@ -572,7 +572,7 @@ do
 		end,
 		update=|:|do
 			super.update(self)
-			self:setPos(self.pos + dt * vec2(self.vel[1], self.vel[2]))
+			self:setPos(self.pos + dt * self.vel)
 			local frac=math.min(1,(time()-self.startTime)/self.life)
 			if frac==1 then
 				removeObj(self)
@@ -589,7 +589,7 @@ do
 			self.isBlocking=false
 			self.isBlockingPushers=false
 			self.blocksExplosion=false
-			self.vel=args.vel
+			self.vel = vec2(args.vel)
 			self.life=args.life
 			self.scale = vec2(args.radius*2)
 			self:setPos(args!.pos)
@@ -599,7 +599,7 @@ do
 		end,
 		update=|:|do
 			super.update(self)
-			self:setPos(self.pos + dt * vec2(self.vel[1], self.vel[2]))
+			self:setPos(self.pos + dt * self.vel)
 			local frac=math.max(0,1-(time()-self.startTime)/self.life)
 			if frac==0 then
 				removeObj(self)
@@ -787,8 +787,8 @@ do
 				local scale=math.random()*2
 				addObj(Cloud{
 					pos=self.pos,
-					vel={math.random()*2-1, math.random()*2-1},
-					scale=scale+1,
+					vel = vec2(math.random(), math.random())*2-1,
+					scale = scale + 1,
 					-- TODO blending ...
 					--life=5-scale,
 					-- until then ...
@@ -845,9 +845,8 @@ do
 					local wallStopped=false
 					for ofx=0,1 do
 						for ofy=0,1 do
-							local cfx=math.floor(checkPos.x+ofx*.5-.25)
-							local cfy=math.floor(checkPos.y+ofy*.5-.25)
-							local mt=mapType[mapGet(cfx, cfy)]
+							local cf = (checkPos + vec2(ofx, ofy) * .5 - .25):floor()
+							local mt=mapType[mapGet(cf.x, cf.y)]
 							if mt and mt.blocksExplosion then
 								if not cantHitWorld
 								and mt.bombable
@@ -857,8 +856,8 @@ do
 										for v=0,divs-1 do
 											local speed=0
 											addObj(Particle{
-												vel={speed*(math.random()*2-1), speed*(math.random()*2-1)},
-												pos=vec2(cfx + (u+.5)/divs, cfy + (v+.5)/divs),
+												vel = (vec2(math.random(), math.random()) * 2 - 1) * speed,
+												pos = cf + (vec2(u,v)+.5)/divs,
 												life=math.random()*.5+.5,
 												radius=.5,
 												seq=seqs.brick,
@@ -866,7 +865,7 @@ do
 											})
 										end
 									end
-									mapSet(cfx, cfy, EMPTY)
+									mapSet(cf.x, cf.y, EMPTY)
 								end
 								wallStopped=true
 							end
@@ -884,8 +883,8 @@ do
 			for i=0,2 do
 				local c=math.random()
 				addObj(Particle{
-					vel={math.random()*2-1, math.random()*2-1},
-					pos=vec2(x,y),
+					vel = vec2(math.random(), math.random())*2-1,
+					pos = vec2(x,y),
 					life=.5 * (math.random() * .5 + .5),
 					radius=.25 * (math.random() + .5),
 					blendMode=0,
@@ -1357,7 +1356,10 @@ update=||do
 		local sx, sy = s*5, s*8
 		local x0,y0 = 128-30*s, 64
 		local x,y= x0,y0
-		local txt=|t|do text(t, x, y, nil, nil, s, s) y += sy end
+		local txt=|t|do
+			text(t, x, y, nil, nil, s, s)
+			y += sy
+		end
 
 		splashSpriteX = (((splashSpriteX or 0) + 1) % (256+32))
 		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2, splashSpriteX - 16, 24, 2, 2, nil, nil, nil, nil, -1, 1)
