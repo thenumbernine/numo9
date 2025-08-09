@@ -343,15 +343,7 @@ function UI:update()
 	end
 	x=x+6
 	if self:guiButton('S', x, 0, nil, 'save') then
-		-- save rearranges addresses by updating the code blob so ...
-		app:setFocus{
-			thread = coroutine.create(function()
-				app:saveROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
-				--app:runROM()
-			end),
-		}
-		app.isPaused = false
-		-- TODO restore old setFocus?
+		app:saveROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then
