@@ -322,12 +322,8 @@ BaseObj=class{
 		scale=vec2(1,1)
 		removeMe=false
 		pos=vec2()
-		startPosX=0
-		startPosY=0
-		srcPosX=0
-		srcPosY=0
-		destPosX=0
-		destPosY=0
+		srcPos=vec2()
+		destPos=vec2()
 		moveCmd=-1
 		isBlocking=true
 		isBlockingPushers=true
@@ -335,13 +331,13 @@ BaseObj=class{
 	end,
 	-- in AnimatedObj in fact ...
 	update=|::|nil,
-	setPos=|:, p|do
-		if not self.pos then self.pos = vec2() end
-		self.pos:set(p)
-		self.srcPosX = p.x
-		self.srcPosY = p.y
-		self.destPosX = p.x
-		self.destPosY = p.y
+	setPos=|::, p|do
+		if not pos then pos = vec2() end
+		pos:set(p)
+		if not srcPos then srcPos = vec2() end
+		srcPos:set(p)
+		if not destPos then destPos = vec2() end
+		destPos:set(p)
 	end,
 	drawSprite=|::|do
 		-- pos is tile-centered so ...
@@ -363,7 +359,7 @@ BaseObj=class{
 	end,
 	isBlockingSentry=|::|isBlocking,
 	hitEdge=|::,whereX,whereY|true,
-	cannotPassThru=|::,maptype|mapType[maptype]?.cannotPassThru,
+	cannotPassThru=|::,mapTypeIndex|mapType[mapTypeIndex]?.cannotPassThru,
 	hitWorld=|::, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR| do
 		if cmd == dirs.left and whereX % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
 		if cmd == dirs.up and whereY % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
@@ -410,16 +406,16 @@ do
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					if typeUL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY-.25)<.5 then
+					if typeUL==WATER and (o.destPos - vec2(whereX-.25,whereY-.25)):lInfLength() <.5 then
 						typeUL=EMPTY
 					end
-					if typeUR==WATER and linfDist(o.destPosX,o.destPosY,whereX+.25,whereY-.25)<.5 then
+					if typeUR==WATER and (o.destPos - vec2(whereX+.25,whereY-.25)):lInfLength() <.5 then
 						typeUR=EMPTY
 					end
-					if typeLL==WATER and linfDist(o.destPosX,o.destPosY,whereX-.25,whereY+.25)<.5 then
+					if typeLL==WATER and (o.destPos - vec2(whereX-.25,whereY+.25)):lInfLength() <.5 then
 						typeLL=EMPTY
 					end
-					if typeLR==WATER and linfDist(o.destPosX,o.destPosY,whereX+.25,whereY+.25)<.5 then
+					if typeLR==WATER and (o.destPos - vec2(whereX+.25,whereY+.25)):lInfLength() <.5 then
 						typeLR=EMPTY
 					end
 				end
@@ -437,7 +433,7 @@ do
 			return false
 		end,
 		moveIsBlocked_CheckHitObject=|:,o,cmd,newDestX,newDestY|do
-			if linfDist(o.destPosX,o.destPosY,newDestX,newDestY)>.75 then return false end
+			if (o.destPos - vec2(newDestX,newDestY)):lInfLength() > .75 then return false end
 			local response=self:hitObject(o,newDestX,newDestY,cmd)
 			if response=='stop' then return true end
 			if response=='test object' then
@@ -472,21 +468,19 @@ do
 				self.moveFracMoving=false
 				return 'was blocked'
 			end
-			self.destPosX=newDest.x
-			self.destPosY=newDest.y
+			self.destPos:set(newDest)
 			self.moveFrac=0
 			self.moveFracMoving=true
-			self.srcPosX=self.pos.x
-			self.srcPosY=self.pos.y
+			self.srcPos:set(self.pos)
 			return 'did move'
 		end,
 		update=|:|do
 			if not self.dead then
 				if (time() * 60) % 30 == 0 then
-					local typeUL=mapGet(self.destPosX - .25, self.destPosY - .25)
-					local typeUR=mapGet(self.destPosX + .25, self.destPosY - .25)
-					local typeLL=mapGet(self.destPosX - .25, self.destPosY + .25)
-					local typeLR=mapGet(self.destPosX + .25, self.destPosY + .25)
+					local typeUL=mapGet(self.destPos.x - .25, self.destPos.y - .25)
+					local typeUR=mapGet(self.destPos.x + .25, self.destPos.y - .25)
+					local typeLL=mapGet(self.destPos.x - .25, self.destPos.y + .25)
+					local typeLR=mapGet(self.destPos.x + .25, self.destPos.y + .25)
 					-- TODO merge this move and btn move so we dont double move in one update ... or not?
 					-- TODO :move but withotu changing animation direction ...
 					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
@@ -506,18 +500,18 @@ do
 				self.moveFrac+=dt*self.speed
 				if self.moveFrac>=1 then
 					self.moveFracMoving=false
-					self.pos:set(self.destPosX, self.destPosY)
+					self.pos:set(self.destPos)
 					for _,o in ipairs(objs) do
 						if not o.removeMe
 						and o ~= self
-						and linfDist(o.destPosX, o.destPosY, self.destPosX, self.destPosY) <= .75
+						and (o.destPos - self.destPos):lInfLength() <= .75
 						then
-							o:endPush(self, self.destPosX, self.destPosY)
+							o:endPush(self, self.destPos.x, self.destPos.y)
 						end
 					end
 				else
 					local oneMinusMoveFrac=1 - self.moveFrac
-					self.pos = vec2(self.destPosX, self.destPosY) * self.moveFrac + vec2(self.srcPosX, self.srcPosY) * oneMinusMoveFrac
+					self.pos = self.destPos * self.moveFrac + self.srcPos * oneMinusMoveFrac
 				end
 			end
 
@@ -545,9 +539,9 @@ do
 
 			local delta=0
 			if side==dirs.left or side==dirs.right then
-				delta=self.destPosY-pusher.destPosY
+				delta=self.destPos.y - pusher.destPos.y
 			elseif side==dirs.up or side==dirs.down then
-				delta=self.destPosX-pusher.destPosX
+				delta=self.destPos.x - pusher.destPos.x
 			end
 			delta=math.abs(delta)
 			local align=delta<.25
@@ -672,10 +666,10 @@ do
 			self.state='live'
 			self.boomTime=time()+fuseTime
 		end,
-		cannotPassThru=|:,maptype|do
-			local res=super.cannotPassThru(self,maptype)
+		cannotPassThru=|:,mapTypeIndex|do
+			local res=super.cannotPassThru(self,mapTypeIndex)
 			if not res then return false end
-			return maptype~=WATER
+			return mapTypeIndex~=WATER
 		end,
 		drawSprite=|:,c,rect|do
 			super.drawSprite(self,c,rect)
@@ -702,7 +696,7 @@ do
 			if self.owner
 			and self.ownerStandingOn
 			then
-				if linfDist(self.destPosX, self.destPosY, self.owner.destPosX, self.owner.destPosY) > .75
+				if (self.destPos - self.owner.destPos):lInfLength() > .75
 				then
 					self.ownerStandingOn=false
 				end
@@ -712,20 +706,20 @@ do
 			or self.state=='live'
 			then
 				if not self.moveFracMoving then
-					local typeUL=mapGet(self.destPosX-.25, self.destPosY-.25)
-					local typeUR=mapGet(self.destPosX+.25, self.destPosY-.25)
-					local typeLL=mapGet(self.destPosX-.25, self.destPosY+.25)
-					local typeLR=mapGet(self.destPosX+.25, self.destPosY+.25)
+					local typeUL=mapGet(self.destPos.x-.25, self.destPos.y-.25)
+					local typeUR=mapGet(self.destPos.x+.25, self.destPos.y-.25)
+					local typeLL=mapGet(self.destPos.x-.25, self.destPos.y+.25)
+					local typeLR=mapGet(self.destPos.x+.25, self.destPos.y+.25)
 
 					for _,o in ipairs(objs)do
 						if not removeMe
 						and Bomb:isa(o)
 						and o.state=='sinking'
 						then
-							if typeUL==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX - .25, self.destPosY - .25) < .5 then typeUL=EMPTY end
-							if typeUR==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX + .25, self.destPosY - .25) < .5 then typeUR=EMPTY end
-							if typeLL==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX - .25, self.destPosY + .25) < .5 then typeLL=EMPTY end
-							if typeLR==WATER and linfDist(o.destPosX, o.destPosY, self.destPosX + .25, self.destPosY + .25) < .5 then typeLR=EMPTY end
+							if typeUL==WATER and (self.destPos + vec2(-.25,-.25) - o.destPos):lInfLength() < .5 then typeUL=EMPTY end
+							if typeUR==WATER and (self.destPos + vec2( .25,-.25) - o.destPos):lInfLength() < .5 then typeUR=EMPTY end
+							if typeLL==WATER and (self.destPos + vec2(-.25, .25) - o.destPos):lInfLength() < .5 then typeLL=EMPTY end
+							if typeLR==WATER and (self.destPos + vec2( .25, .25) - o.destPos):lInfLength() < .5 then typeLR=EMPTY end
 						end
 					end
 
@@ -761,22 +755,22 @@ do
 					removeObj(self)
 					for _,o in ipairs(objs)do
 						if not o.removeMe
-						and linfDist(o.destPosX, o.destPosY, self.destPosX, self.destPosY) < .75
+						and (o.destPos - self.destPos):lInfLength() < .75
 						then
-							local typeUL=mapGet(o.destPosX - .25, o.destPosY - .25)
-							local typeUR=mapGet(o.destPosX + .25, o.destPosY - .25)
-							local typeLL=mapGet(o.destPosX - .25, o.destPosY + .25)
-							local typeLR=mapGet(o.destPosX + .25, o.destPosY + .25)
+							local typeUL=mapGet(o.destPos.x - .25, o.destPos.y - .25)
+							local typeUR=mapGet(o.destPos.x + .25, o.destPos.y - .25)
+							local typeLL=mapGet(o.destPos.x - .25, o.destPos.y + .25)
+							local typeLR=mapGet(o.destPos.x + .25, o.destPos.y + .25)
 
 							for _,o2 in ipairs(objs)do
 								if not o2.removeMe
 								and Bomb:isa(o2)
 								and o2.state=='sinking'
 								then
-									if typeUL==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX - .25, o.destPosY - .25) < .5 then typeUL=EMPTY end
-									if typeUR==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX + .25, o.destPosY - .25) < .5 then typeUR=EMPTY end
-									if typeLL==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX - .25, o.destPosY + .25) < .5 then typeLL=EMPTY end
-									if typeLR==WATER and linfDist(o2.destPosX, o2.destPosY, o.destPosX + .25, o.destPosY + .25) < .5 then typeLR=EMPTY end
+									if typeUL==WATER and (o.destPos + vec2(-.25,-.25) - o2.destPos):lInfLength() < .5 then typeUL=EMPTY end
+									if typeUR==WATER and (o.destPos + vec2( .25,-.25) - o2.destPos):lInfLength() < .5 then typeUR=EMPTY end
+									if typeLL==WATER and (o.destPos + vec2(-.25, .25) - o2.destPos):lInfLength() < .5 then typeLL=EMPTY end
+									if typeLR==WATER and (o.destPos + vec2( .25, .25) - o2.destPos):lInfLength() < .5 then typeLR=EMPTY end
 								end
 							end
 
@@ -809,17 +803,15 @@ do
 			end
 
 			local cantHitWorld=false
-			local fpartx=self.destPosX - math.floor(self.destPosX)
-			local fparty=self.destPosY - math.floor(self.destPosY)
-			if fpartx<.25 or fpartx>.75
-			or fparty<.25 or fparty>.75
+			local fpart=self.destPos - self.destPos:clone():floor()
+			if fpart.x<.25 or fpart.x>.75
+			or fpart.y<.25 or fpart.y>.75
 			then
 				cantHitWorld=true
 			end
 
 			for side=0,3 do
-				local checkPosX=self.destPosX
-				local checkPosY=self.destPosY
+				local checkPos = self.destPos:clone()
 				local len=0
 				while true do
 					local hit=false
@@ -827,7 +819,7 @@ do
 						if not o.removeMe
 						and o~=self
 						then
-							local dist=linfDist(o.destPosX, o.destPosY, checkPosX, checkPosY)
+							local dist = (o.destPos - checkPos):lInfLength()
 							local safeDist = Player:isa(o) and .75 or .25
 							if dist <= safeDist then
 								o:onTouchFlames()
@@ -839,7 +831,7 @@ do
 						end
 					end
 
-					self:makeSpark(checkPosX, checkPosY)
+					self:makeSpark(checkPos.x, checkPos.y)
 
 					if hit then break end
 					len+=1
@@ -848,24 +840,24 @@ do
 						break
 					end
 
-					checkPosX += vecs[side][1]
-					checkPosY += vecs[side][2]
+					checkPos.x += vecs[side][1]
+					checkPos.y += vecs[side][2]
 
-					if checkPosX < 0
-					or checkPosY < 0
-					or checkPosX >= mapw
-					or checkPosY >= maph
+					if checkPos.x < 0
+					or checkPos.y < 0
+					or checkPos.x >= mapw
+					or checkPos.y >= maph
 					then break end
 
 					local wallStopped=false
 					for ofx=0,1 do
 						for ofy=0,1 do
-							local cfx=math.floor(checkPosX+ofx*.5-.25)
-							local cfy=math.floor(checkPosY+ofy*.5-.25)
-							local mapType=mapType[mapGet(cfx, cfy)]
-							if mapType and mapType.blocksExplosion then
+							local cfx=math.floor(checkPos.x+ofx*.5-.25)
+							local cfy=math.floor(checkPos.y+ofy*.5-.25)
+							local mt=mapType[mapGet(cfx, cfy)]
+							if mt and mt.blocksExplosion then
 								if not cantHitWorld
-								and mapType.bombable
+								and mt.bombable
 								then
 									local divs=1
 									for u=0,divs-1 do
@@ -919,7 +911,7 @@ do
 			self.seq=-1	--invis
 			sfx(sfxid.laser_shoot)
 		end,
-		cannotPassThru=|:,maptype|mapType![maptype].blocksGunShot,
+		cannotPassThru=|:,mapTypeIndex|mapType![mapTypeIndex].blocksGunShot,
 		hitObject=|:,what,pushDestX,pushDestY,side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
@@ -948,7 +940,7 @@ do
 
 			if player and not player.dead then
 				local diff = player.pos - self.pos
-				local absDiff = diff:map(math.abs)
+				local absDiff = diff:clone():map(math.abs)
 				local dist = math.min(absDiff:unpack())
 
 				if dist < self.MAD_DIST then
@@ -975,7 +967,7 @@ do
 					local response = -1
 					repeat
 						response = shot:doMove(dir)
-						shot:setPos(vec2(shot.destPosX, shot.destPosY))
+						shot:setPos(shot.destPos)
 					until response=='was blocked'
 					--delete ... but it's not attached, so we're safe
 				end
@@ -999,7 +991,7 @@ do
 			self.scale.x = (math.floor((time() * 4) & 1) << 1) - 1
 			--if the player moved onto us ...
 			--TODO - put self inside 'endPush' instead! no need to call it each frame
-			if linfDist(self.destPosX, self.destPosY, player.destPosX, player.destPosY) < .75 then
+			if (self.destPos - player.destPos):lInfLength() < .75 then
 				player:die()
 			end
 			self.moveCmd = self.dir
@@ -1064,15 +1056,15 @@ do
 			if self.bombs <= 0 then return end
 			sfx(sfxid.step)
 			local bomb=Bomb(self)
-			bomb:setPos(vec2(self.destPosX, self.destPosY))
-			if bomb:moveIsBlocked_CheckEdge(self.destPosX,self.destPosY)
-			or bomb:moveIsBlocked_CheckHitWorld(dirs.none, self.destPosX,self.destPosY)
+			bomb:setPos(self.destPos)
+			if bomb:moveIsBlocked_CheckEdge(self.destPos.x,self.destPos.y)
+			or bomb:moveIsBlocked_CheckHitWorld(dirs.none, self.destPos.x,self.destPos.y)
 			then return end
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and Bomb:isa(o)
 				and o.owner==self
-				and linfDist(self.destPosX,self.destPosY,o.destPosX,o.destPosY)<.25
+				and (self.destPos - o.destPos):lInfLength() < .25
 				and (o.state=='idle' or o.state=='live')
 				then
 					return
@@ -1161,7 +1153,7 @@ do
 
 		endPush=|:,who,pushDestX,pushDestY|do
 			if not Player:isa(who)
-			or linfDist(pushDestX,pushDestY,self.destPosX,self.destPosY) >= .5
+			or (vec2(pushDestX, pushDestY) - self.destPos):lInfLength() >= .5
 			then return end
 
 			sfx(sfxid.collect_money)
@@ -1196,7 +1188,7 @@ do
 			if not Player:isa(who)
 			or self.inactive
 			or self.changeLevelTime > 0
-			or linfDist(pushDestX,pushDestY,self.destPosX,self.destPosY) >= .5
+			or (vec2(pushDestX, pushDestY) - self.destPos):lInfLength() >= .5
 			then return end
 			self.changeLevelTime = time() + self.touchToEndLevelDuration
 
