@@ -321,8 +321,7 @@ BaseObj=class{
 	init=|::,args|do
 		scale=vec2(1,1)
 		removeMe=false
-		posX=0
-		posY=0
+		pos=vec2()
 		startPosX=0
 		startPosY=0
 		srcPosX=0
@@ -336,18 +335,18 @@ BaseObj=class{
 	end,
 	-- in AnimatedObj in fact ...
 	update=|::|nil,
-	setPos=|::,x,y|do
-		posX=x
-		srcPosX=x
-		destPosX=x
-		posY=y
-		srcPosY=y
-		destPosY=y
+	setPos=|:, p|do
+		if not self.pos then self.pos = vec2() end
+		self.pos:set(p)
+		self.srcPosX = p.x
+		self.srcPosY = p.y
+		self.destPosX = p.x
+		self.destPosY = p.y
 	end,
 	drawSprite=|::|do
-		-- posX posY are tile-centered so ...
-		local x = posX * 16 - 8 * scale.x
-		local y = posY * 16 - 8 * scale.y
+		-- pos is tile-centered so ...
+		local x = pos.x * 16 - 8 * scale.x
+		local y = pos.y * 16 - 8 * scale.y
 		if blendMode then blend(blendMode) end
 		spr(seq,	--spriteIndex,
 			x,			--screenX,
@@ -462,24 +461,23 @@ do
 		end,
 		doMove=|:,cmd|do
 			if cmd==dirs.none then return 'no move' end
-			local newDestX=self.posX
-			local newDestY=self.posY
+			local newDest = self.pos:clone()
 			if cmd >= 0 and cmd < 4 then
-				newDestX+=vecs[cmd][1] * .5
-				newDestY+=vecs[cmd][2] * .5
+				newDest.x += vecs[cmd][1] * .5
+				newDest.y += vecs[cmd][2] * .5
 			else
 				return 'no move'
 			end
-			if self:moveIsBlocked(cmd,newDestX,newDestY) then
+			if self:moveIsBlocked(cmd, newDest.x, newDest.y) then
 				self.moveFracMoving=false
 				return 'was blocked'
 			end
-			self.destPosX=newDestX
-			self.destPosY=newDestY
+			self.destPosX=newDest.x
+			self.destPosY=newDest.y
 			self.moveFrac=0
 			self.moveFracMoving=true
-			self.srcPosX=self.posX
-			self.srcPosY=self.posY
+			self.srcPosX=self.pos.x
+			self.srcPosY=self.pos.y
 			return 'did move'
 		end,
 		update=|:|do
@@ -508,8 +506,7 @@ do
 				self.moveFrac+=dt*self.speed
 				if self.moveFrac>=1 then
 					self.moveFracMoving=false
-					self.posX=self.destPosX
-					self.posY=self.destPosY
+					self.pos:set(self.destPosX, self.destPosY)
 					for _,o in ipairs(objs) do
 						if not o.removeMe
 						and o ~= self
@@ -520,8 +517,7 @@ do
 					end
 				else
 					local oneMinusMoveFrac=1 - self.moveFrac
-					self.posX=self.destPosX * self.moveFrac + self.srcPosX * oneMinusMoveFrac
-					self.posY=self.destPosY * self.moveFrac + self.srcPosY * oneMinusMoveFrac
+					self.pos = vec2(self.destPosX, self.destPosY) * self.moveFrac + vec2(self.srcPosX, self.srcPosY) * oneMinusMoveFrac
 				end
 			end
 
@@ -582,13 +578,13 @@ do
 			self.vel=args.vel
 			self.life=args.life
 			self.scale:set(args.scale)
-			self:setPos(args.pos[1],args.pos[2])
+			self:setPos(args.pos)
 			self.startTime=time()
 			self.seq=seqs.cloud
 		end,
 		update=|:|do
 			super.update(self)
-			self:setPos(self.posX+dt*self.vel[1],self.posY+dt*self.vel[2])
+			self:setPos(self.pos + dt * vec2(self.vel[1], self.vel[2]))
 			local frac=math.min(1,(time()-self.startTime)/self.life)
 			if frac==1 then
 				removeObj(self)
@@ -608,14 +604,14 @@ do
 			self.vel=args.vel
 			self.life=args.life
 			self.scale = vec2(args.radius*2)
-			self:setPos(args.pos[1],args.pos[2])
+			self:setPos(args!.pos)
 			self.startTime=time()
 			self.seq=args.seq or seqs.spark
 			self.blendMode=args.blendMode or 0
 		end,
 		update=|:|do
 			super.update(self)
-			self:setPos(self.posX+dt*self.vel[1],self.posY+dt*self.vel[2])
+			self:setPos(self.pos + dt * vec2(self.vel[1], self.vel[2]))
 			local frac=math.max(0,1-(time()-self.startTime)/self.life)
 			if frac==0 then
 				removeObj(self)
@@ -688,8 +684,8 @@ do
 			then
 				if self.blendMode then blend(self.blendMode) end
 				spr(384+self.blastRadius,
-					16*self.posX-4,
-					16*self.posY-4,
+					16*self.pos.x-4,
+					16*self.pos.y-4,
 					1,
 					1,
 					nil,
@@ -802,7 +798,7 @@ do
 			for i=0,9 do
 				local scale=math.random()*2
 				addObj(Cloud{
-					pos={self.posX, self.posY},
+					pos=self.pos,
 					vel={math.random()*2-1, math.random()*2-1},
 					scale=scale+1,
 					-- TODO blending ...
@@ -877,7 +873,7 @@ do
 											local speed=0
 											addObj(Particle{
 												vel={speed*(math.random()*2-1), speed*(math.random()*2-1)},
-												pos={cfx + (u+.5)/divs, cfy + (v+.5)/divs},
+												pos=vec2(cfx + (u+.5)/divs, cfy + (v+.5)/divs),
 												life=math.random()*.5+.5,
 												radius=.5,
 												seq=seqs.brick,
@@ -904,7 +900,7 @@ do
 				local c=math.random()
 				addObj(Particle{
 					vel={math.random()*2-1, math.random()*2-1},
-					pos={x,y},
+					pos=vec2(x,y),
 					life=.5 * (math.random() * .5 + .5),
 					radius=.25 * (math.random() + .5),
 					blendMode=0,
@@ -919,7 +915,7 @@ do
 	GunShot=MovableObj:subclass{
 		init=|:,owner|do
 			self.owner=owner
-			self:setPos(owner.posX, owner.posY)
+			self:setPos(owner.pos)
 			self.seq=-1	--invis
 			sfx(sfxid.laser_shoot)
 		end,
@@ -951,26 +947,24 @@ do
 			self.seq=seqs.gun
 
 			if player and not player.dead then
-				local diffX = player.posX - self.posX
-				local diffY = player.posY - self.posY
-				local absDiffX = math.abs(diffX)
-				local absDiffY = math.abs(diffY)
-				local dist = math.min(absDiffX, absDiffY)
+				local diff = player.pos - self.pos
+				local absDiff = diff:map(math.abs)
+				local dist = math.min(absDiff:unpack())
 
-				if dist<self.MAD_DIST then
+				if dist < self.MAD_DIST then
 					self.seq=seqs.gunMad
 				end
 
 				if dist<self.FIRE_DIST then
 					local dir = dirs.none
-					if diffX < diffY then	-- left or down
-						if diffX < -diffY then
+					if diff.x < diff.y then	-- left or down
+						if diff.x < -diff.y then
 							dir = dirs.left
 						else
 							dir = dirs.down
 						end
 					else	-- up or right
-						if diffX < -diffY then
+						if diff.x < -diff.y then
 							dir = dirs.up
 						else
 							dir = dirs.right
@@ -981,7 +975,7 @@ do
 					local response = -1
 					repeat
 						response = shot:doMove(dir)
-						shot:setPos(shot.destPosX, shot.destPosY)
+						shot:setPos(vec2(shot.destPosX, shot.destPosY))
 					until response=='was blocked'
 					--delete ... but it's not attached, so we're safe
 				end
@@ -1070,7 +1064,7 @@ do
 			if self.bombs <= 0 then return end
 			sfx(sfxid.step)
 			local bomb=Bomb(self)
-			bomb:setPos(self.destPosX,self.destPosY)
+			bomb:setPos(vec2(self.destPosX, self.destPosY))
 			if bomb:moveIsBlocked_CheckEdge(self.destPosX,self.destPosY)
 			or bomb:moveIsBlocked_CheckHitWorld(dirs.none, self.destPosX,self.destPosY)
 			then return end
@@ -1152,8 +1146,8 @@ do
 			if self.bombs>0 then
 				if self.blendMode then blend(self.blendMode) end
 				spr(384+self.bombs,
-					16*self.posX-4,
-					16*self.posY-4,
+					16*self.pos.x-4,
+					16*self.pos.y-4,
 					1,
 					1,
 					nil,
@@ -1281,7 +1275,7 @@ loadLevel=||do
 	removeAll()
 	for y=0,maph-1 do
 		for x=0,mapw-1 do
-			local posX,posY=x+.5,y+.5
+			local pos = vec2(x+.5, y+.5)
 			local m = mapGet(x,y)
 			if m==EMPTY
 			or m==TREE
@@ -1302,33 +1296,33 @@ loadLevel=||do
 				mapSet(x,y,EMPTY)
 				if m==10 then
 					player=Player{}
-					player:setPos(posX,posY)
+					player:setPos(pos)
 					objs:insert(player)
 				elseif m==12 then
 					local key=Key{}
-					key:setPos(posX,posY)
+					key:setPos(pos)
 					objs:insert(key)
 				elseif m==14 then
 					local framer=Framer{}
-					framer:setPos(posX,posY)
+					framer:setPos(pos)
 					objs:insert(framer)
 				elseif m==16 then
 					local gun=Gun{}
-					gun:setPos(posX,posY)
+					gun:setPos(pos)
 					objs:insert(gun)
 				elseif m==18 then
 					local sentry=Sentry{}
-					sentry:setPos(posX,posY)
+					sentry:setPos(pos)
 					objs:insert(sentry)
 				elseif m>=64 and m<84 then
 					local money=Money{}
 					money.bombs=(m-64)>>1
-					money:setPos(posX,posY)
+					money:setPos(pos)
 					objs:insert(money)
 				elseif m>=128 and m<148 then
 					local bomb=Bomb()
 					bomb.blastRadius=(m-128)>>1
-					bomb:setPos(posX,posY)
+					bomb:setPos(pos)
 					objs:insert(bomb)
 				else
 					trace('unknown spawn', x,y,m)
