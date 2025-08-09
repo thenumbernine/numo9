@@ -44,7 +44,86 @@ class=|...|do
 end
 
 ----------------------- END ext/class.lua  -----------------------
---#include vec/vec3.lua
+----------------------- BEGIN vec/vec3.lua-----------------------
+
+local vec3_getvalue=|x, dim|do
+	if type(x) == 'number' then return x end
+	if type(x) == 'table' then
+		if dim==1 then
+			x=x.x
+		elseif dim==2 then
+			x=x.y
+		elseif dim==3 then
+			x=x.z
+		else
+			x=nil
+		end
+		if type(x)~='number' then
+			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
+		end
+		return x
+	end
+	error("tried to vec3_getvalue from an unknown type "..type(x))
+end
+
+-- tempting to template/generate this code ....
+local vec3
+vec3=class{
+	fields = table{'x', 'y', 'z'},
+	init=|v,x,y,z|do
+		if x then
+			v:set(x,y,z)
+		else
+			v:set(0,0,0)
+		end
+	end,
+	clone=|v| vec3(v),
+	set=|v,x,y,z|do
+		if type(x) == 'table' then
+			v.x = x.x or x[1] or error("idk")
+			v.y = x.y or x[2] or error("idk")
+			v.z = x.z or x[3] or error("idk")
+		else
+			assert(x, "idk")
+			v.x = x
+			if y then
+				v.y = y
+				v.z = z or 0
+			else
+				v.y = x
+				v.z = x
+			end
+		end
+	end,
+	unpack=|v| (v.x, v.y, v.z),
+	sum=|v| v.x + v.y + v.z,
+	product=|v| v.x * v.y * v.z,
+	map=|v,f|do
+		v.x = f(v.x, 1)
+		v.y = f(v.y, 2)
+		v.z = f(v.z, 3)
+		return v
+	end,
+	floor=|v|v:map(math.floor),
+	ceil=|v|v:map(math.ceil),
+	l1Length=|v| math.abs(v.x) + math.abs(v.y) + math.abs(v.z),
+	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y), math.abs(v.z)),
+	dot=|a,b| a.x * b.x + a.y * b.y + a.z * b.z,
+	lenSq=|v| v:dot(v),
+	len=|v| math.sqrt(v:lenSq()),
+	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),
+	unit=|v| v / math.max(1e-15, v:len()),
+	__unm=|v| vec3(-v.x, -v.y, -v.z),
+	__add=|a,b| vec3(vec3_getvalue(a, 1) + vec3_getvalue(b, 1), vec3_getvalue(a, 2) + vec3_getvalue(b, 2), vec3_getvalue(a, 3) + vec3_getvalue(b, 3)),
+	__sub=|a,b| vec3(vec3_getvalue(a, 1) - vec3_getvalue(b, 1), vec3_getvalue(a, 2) - vec3_getvalue(b, 2), vec3_getvalue(a, 3) - vec3_getvalue(b, 3)),
+	__mul=|a,b| vec3(vec3_getvalue(a, 1) * vec3_getvalue(b, 1), vec3_getvalue(a, 2) * vec3_getvalue(b, 2), vec3_getvalue(a, 3) * vec3_getvalue(b, 3)),
+	__div=|a,b| vec3(vec3_getvalue(a, 1) / vec3_getvalue(b, 1), vec3_getvalue(a, 2) / vec3_getvalue(b, 2), vec3_getvalue(a, 3) / vec3_getvalue(b, 3)),
+	__eq=|a,b| a.x == b.x and a.y == b.y and a.z == b.z,
+	__tostring=|v| v.x..','..v.y..','..v.z,
+	__concat=string.concat,
+}
+
+----------------------- END vec/vec3.lua  -----------------------
 ----------------------- BEGIN vec/vec2.lua-----------------------
 
 local vec2_getvalue=|x, dim|do
@@ -245,6 +324,7 @@ getCornerTypes = |where|
 		(mapGet(where.x + ofs.x * .25, where.y + ofs.y * .25, where.z), name)
 	)
 
+local dirvecs3d = dirvecs:map(|v,k| (vec3(v.x, v.y, 0), k))
 dirForName.none = -1
 seqs={
 	cloud=128,
@@ -347,7 +427,7 @@ drawObj=|tris, spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transpa
 	matscale(16, 16, 16)
 
 	for _,tri in ipairs(tris) do
-		local 
+		local
 			x1,y1,z1,u1,v1,
 			x2,y2,z2,u2,v2,
 			x3,y3,z3,u3,v3 = table.unpack(tri)
@@ -419,8 +499,8 @@ drawMap=||
 --]]
 -- [[ manually for animation
 drawMap=||do
-	local viewCenterX = player and player.posX + 2.5 or levelSize.x/2 + 2.5
-	local viewCenterY = player and player.posY + 2.5 or levelSize.y/2 + 2.5
+	local viewCenterX = player and player.pos.x + 2.5 or levelSize.x/2 + 2.5
+	local viewCenterY = player and player.pos.y + 2.5 or levelSize.y/2 + 2.5
 	local fwdx = math.cos(viewAngle)
 	local fwdy = math.sin(viewAngle)
 	local viewX = viewCenterX - viewDist * fwdx
@@ -535,25 +615,25 @@ BaseObj=class{
 	hitWorld=|::, cmd, where, cornerTypes| do
 		if cmd == dirForName.left
 		and where.x % 1 == 0
-		and (cornerTypes.UL == ARROW_RIGHT or cornerTypes.LL == ARROW_RIGHT) 
+		and (cornerTypes.UL == ARROW_RIGHT or cornerTypes.LL == ARROW_RIGHT)
 		then
 			return true
 		end
-		if cmd == dirForName.up 
-		and where.y % 1 == 0 
-		and (cornerTypes.UL == ARROW_DOWN or cornerTypes.UR == ARROW_DOWN) 
+		if cmd == dirForName.up
+		and where.y % 1 == 0
+		and (cornerTypes.UL == ARROW_DOWN or cornerTypes.UR == ARROW_DOWN)
 		then
 			return true
 		end
-		if cmd == dirForName.right 
-		and where.x % 1 == 0 
-		and (cornerTypes.UR == ARROW_LEFT or cornerTypes.LR == ARROW_LEFT) 
+		if cmd == dirForName.right
+		and where.x % 1 == 0
+		and (cornerTypes.UR == ARROW_LEFT or cornerTypes.LR == ARROW_LEFT)
 		then
 			return true
 		end
-		if cmd == dirForName.down 
-		and where.y % 1 == 0 
-		and (cornerTypes.LL == ARROW_UP or cornerTypes.LR == ARROW_UP) 
+		if cmd == dirForName.down
+		and where.y % 1 == 0
+		and (cornerTypes.LL == ARROW_UP or cornerTypes.LR == ARROW_UP)
 		then
 			return true
 		end
@@ -642,7 +722,7 @@ do
 			if cmd==dirForName.none then return 'no move' end
 			local newDest = self.pos:clone()
 			if cmd >= 0 and cmd < 4 then
-				newDest += dirvecs[cmd] * .5
+				newDest += dirvecs3d[cmd] * .5
 			else
 				return 'no move'
 			end
@@ -1021,7 +1101,7 @@ do
 						break
 					end
 
-					checkPos += dirvecs[side]
+					checkPos += dirvecs3d[side]
 
 					if checkPos.x < 0
 					or checkPos.y < 0
@@ -1092,12 +1172,12 @@ do
 	GunShot=MovableObj:subclass{
 		init=|:,owner|do
 			self.owner=owner
-			self:setPos(owner.posX, owner.posY, owner.posZ)
+			self:setPos(owner.pos)
 			self.seq=-1	--invis
 			sfx(sfxid.laser_shoot)
 		end,
-		cannotPassThru=|:,maptype|mapTypes![maptype].blocksGunShot,
-		hitObject=|:,what,pushDestX,pushDestY,side|do
+		cannotPassThru=|:,mapTypeIndex|mapTypes![mapTypeIndex].blocksGunShot,
+		hitObject=|:, what, pushDest, side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
 				what:die()
@@ -1124,26 +1204,24 @@ do
 			self.seq=seqs.gun
 
 			if player and not player.dead then
-				local diffX = player.posX - self.posX
-				local diffY = player.posY - self.posY
-				local absDiffX = math.abs(diffX)
-				local absDiffY = math.abs(diffY)
-				local dist = math.min(absDiffX, absDiffY)
+				local diff = player.pos - self.pos
+				local absDiff = diff:clone():map(math.abs)
+				local dist = math.min(absDiff:unpack())
 
-				if dist<self.MAD_DIST then
+				if dist < self.MAD_DIST then
 					self.seq=seqs.gunMad
 				end
 
 				if dist<self.FIRE_DIST then
 					local dir = dirForName.none
-					if diffX < diffY then	-- left or down
-						if diffX < -diffY then
+					if diff.x < diff.y then	-- left or down
+						if diff.x < -diff.y then
 							dir = dirForName.left
 						else
 							dir = dirForName.down
 						end
 					else	-- up or right
-						if diffX < -diffY then
+						if diff.x < -diff.y then
 							dir = dirForName.up
 						else
 							dir = dirForName.right
@@ -1154,7 +1232,7 @@ do
 					local response = -1
 					repeat
 						response = shot:doMove(dir)
-						shot:setPos(shot.destPosX, shot.destPosY, shot.destPosZ)
+						shot:setPos(shot.destPos)
 					until response=='was blocked'
 					--delete ... but it's not attached, so we're safe
 				end
@@ -1175,10 +1253,10 @@ do
 			self.seq=seqs.sentry
 		end,
 		update=|:|do
-			self.scaleX = (math.floor((time() * 4) & 1) << 1) - 1
+			self.scale.x = (math.floor((time() * 4) & 1) << 1) - 1
 			--if the player moved onto us ...
 			--TODO - put self inside 'endPush' instead! no need to call it each frame
-			if linfDist(self.destPosX, self.destPosY, self.destPosZ, player.destPosX, player.destPosY, player.destPosZ) < .75 then
+			if (self.destPos - player.destPos):lInfLength() < .75 then
 				player:die()
 			end
 			self.moveCmd = self.dir
@@ -1197,12 +1275,12 @@ do
 		end,
 
 		--the sentry tried to move and hit an object...
-		hitObject=|:,what,pushDestX,pushDestY,side|do
+		hitObject=|:, what, pushDest, side|do
 			if Player:isa(what) then
 				return 'move thru'	--wait for the update() test to pick up hitting the player
 			end
 			return what:isBlockingSentry() and 'stop' or 'test object'
-			--return superHitObject(self, what, pushDestX, pushDestY, side)
+			--return superHitObject(self, what, pushDest, side)
 		end,
 
 		onKeyTouch=|:|do
@@ -1245,15 +1323,15 @@ do
 			if self.bombs <= 0 then return end
 			sfx(sfxid.step)
 			local bomb=Bomb(self)
-			bomb:setPos(self.destPosX, self.destPosY, self.destPosZ)
-			if bomb:moveIsBlocked_CheckEdge(self.destPosX, self.destPosY, self.destPosZ)
-			or bomb:moveIsBlocked_CheckHitWorld(dirForName.none, self.destPosX, self.destPosY, self.destPosZ)
+			bomb:setPos(self.destPos)
+			if bomb:moveIsBlocked_CheckEdge(self.destPos)
+			or bomb:moveIsBlocked_CheckHitWorld(dirForName.none, self.destPos)
 			then return end
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and Bomb:isa(o)
 				and o.owner==self
-				and linfDist(self.destPosX, self.destPosY, self.destPosZ, o.destPosX, o.destPosY, o.destPosZ) < .25
+				and (self.destPos - o.destPos):lInfLength() < .25
 				and (o.state=='idle' or o.state=='live')
 				then
 					return
@@ -1331,9 +1409,9 @@ do
 				drawForFlags(
 					self,
 					384+self.bombs,
-					16*self.posX-4,
-					16*self.posY-4,
-					0,			-- z
+					16*self.pos.x-4,
+					16*self.pos.y-4,
+					16*self.pos.z,			-- z
 					1,
 					1,
 					nil,
@@ -1347,9 +1425,9 @@ do
 			end
 		end,
 
-		endPush=|:,who,pushDestX,pushDestY|do
+		endPush=|:, who, pushDest|do
 			if not Player:isa(who)
-			or linfDist(pushDestX, pushDestY, pushDestZ, self.destPosX, self.destPosY, self.destPosZ) >= .5
+			or (pushDest - self.destPos):lInfLength() >= .5
 			then return end
 
 			sfx(sfxid.collect_money)
@@ -1380,11 +1458,11 @@ do
 			self.seq=seqs.key
 		end,
 
-		endPush=|:,who,pushDestX,pushDestY|do
+		endPush=|:, who, pushDest|do
 			if not Player:isa(who)
 			or self.inactive
 			or self.changeLevelTime > 0
-			or linfDist(pushDestX, pushDestY, pushDestZ, self.destPosX, self.destPosY, self.destPosZ) >= .5
+			or (pushDest - self.destPos):lInfLength() >= .5
 			then return end
 			self.changeLevelTime = time() + self.touchToEndLevelDuration
 
@@ -1465,7 +1543,7 @@ loadLevel=||do
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
-				local posX,posY,posZ=x+.5,y+.5,z
+				local pos = vec3(x+.5,y+.5,z)
 				local m = mapGet(x,y,z)
 				if m==EMPTY
 				or m==TREE
@@ -1490,33 +1568,33 @@ loadLevel=||do
 					mapSet(x,y,z,EMPTY)
 					if m==10 then
 						player=Player{}
-						player:setPos(posX,posY,posZ)
+						player:setPos(pos)
 						objs:insert(player)
 					elseif m==12 then
 						local key=Key{}
-						key:setPos(posX,posY,posZ)
+						key:setPos(pos)
 						objs:insert(key)
 					elseif m==14 then
 						local framer=Framer{}
-						framer:setPos(posX,posY,posZ)
+						framer:setPos(pos)
 						objs:insert(framer)
 					elseif m==16 then
 						local gun=Gun{}
-						gun:setPos(posX,posY,posZ)
+						gun:setPos(pos)
 						objs:insert(gun)
 					elseif m==18 then
 						local sentry=Sentry{}
-						sentry:setPos(posX,posY,posZ)
+						sentry:setPos(pos)
 						objs:insert(sentry)
 					elseif m>=64 and m<84 then
 						local money=Money{}
 						money.bombs=(m-64)>>1
-						money:setPos(posX,posY,posZ)
+						money:setPos(pos)
 						objs:insert(money)
 					elseif m>=128 and m<148 then
 						local bomb=Bomb()
 						bomb.blastRadius=(m-128)>>1
-						bomb:setPos(posX,posY,posZ)
+						bomb:setPos(pos)
 						objs:insert(bomb)
 					else
 						trace('unknown spawn', x,y,z,m)
@@ -1556,7 +1634,6 @@ update=||do
 		matident()
 
 		fillp(0x1fff)	--blend(5)
--- TODO why isn't this black?
 		rect(0,0,screenSize.x,screenSize.y,19)
 		fillp(0)		--blend(-1)
 
@@ -1565,7 +1642,10 @@ update=||do
 		local sx, sy = s*5, s*8
 		local x0,y0 = screenSize.x/2-30*s, 64
 		local x,y= x0,y0
-		local txt=|t|do text(t, x, y, nil, nil, s, s) y += sy end
+		local txt=|t|do
+			text(t, x, y, nil, nil, s, s)
+			y += sy
+		end
 
 		splashSpriteX = (((splashSpriteX or 0) + 1) % (screenSize.x+32))
 		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2, splashSpriteX - 16, 24, 2, 2, nil, nil, nil, nil, -1, 1)
