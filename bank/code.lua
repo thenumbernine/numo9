@@ -202,15 +202,15 @@ mapTypes={
 	[MOVING_UP] = {},
 }
 
-corners = table{
+corners2d = table{
 	UL = vec2(-1, -1),
 	UR = vec2(1, -1),
 	LL = vec2(-1, 1),
 	LR = vec2(1, 1),
 }
 
-getCornerTypes = |where|
-	corners:map(|ofs,name|
+getCornerTypes2D = |where|
+	corners2d:map(|ofs,name|
 		(mapGet(where.x + ofs.x * .25, where.y + ofs.y * .25), name)
 	)
 
@@ -431,7 +431,7 @@ do
 			self.moveFrac=0
 		end,
 		moveIsBlocked_CheckHitWorld=|:, cmd, where| do
-			local cornerTypes = getCornerTypes(where)
+			local cornerTypes = getCornerTypes2D(where)
 			return self:hitWorld(cmd, where, cornerTypes)
 		end,
 		hitWorld=|:, cmd, where, cornerTypes| do
@@ -442,7 +442,7 @@ do
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					for cornerKey, corner in pairs(corners) do
+					for cornerKey, corner in pairs(corners2d) do
 						if cornerTypes[cornerKey] == WATER and (where + corner * .25 - o.destPos):lInfLength() <.5 then
 							cornerTypes[cornerKey] = EMPTY
 						end
@@ -505,7 +505,7 @@ do
 		update=|:|do
 			if not self.dead then
 				if (time() * 60) % 30 == 0 then
-					local cornerTypes = getCornerTypes(self.destPos)
+					local cornerTypes = getCornerTypes2D(self.destPos)
 					-- TODO merge this move and btn move so we dont double move in one update ... or not?
 					-- TODO :move but withotu changing animation direction ...
 					if cornerTypes.UL == MOVING_RIGHT and cornerTypes.LL == MOVING_RIGHT then
@@ -734,18 +734,18 @@ do
 			or self.state=='live'
 			then
 				if not self.moveFracMoving then
-					local cornerTypes = getCornerTypes(self.destPos)
+					local cornerTypes = getCornerTypes2D(self.destPos)
 
 					for _,o in ipairs(objs)do
 						if not removeMe
 						and Bomb:isa(o)
 						and o.state=='sinking'
 						then
-							for cornerKey,corner in pairs(corners) do
-								if cornerTypes[key] == WATER 
-								and (self.destPos + corner * .25 - o.destPos):lInfLength() < .5 
-								then 
-									cornerTypes[cornerKey] = EMPTY 
+							for cornerKey,corner in pairs(corners2d) do
+								if cornerTypes[key] == WATER
+								and (self.destPos + corner * .25 - o.destPos):lInfLength() < .5
+								then
+									cornerTypes[cornerKey] = EMPTY
 								end
 							end
 						end
@@ -785,18 +785,18 @@ do
 						if not o.removeMe
 						and (o.destPos - self.destPos):lInfLength() < .75
 						then
-							local cornerTypes = getCornerTypes(o.destPos)
+							local cornerTypes = getCornerTypes2D(o.destPos)
 
 							for _,o2 in ipairs(objs)do
 								if not o2.removeMe
 								and Bomb:isa(o2)
 								and o2.state=='sinking'
 								then
-									for cornerKey,corner in pairs(corners) do
-										if cornerTypes[cornerKey] == WATER 
-										and (o.destPos + corner * .25 - o2.destPos):lInfLength() < .5 
-										then 
-											cornerTypes[cornerKey] = EMPTY 
+									for cornerKey,corner in pairs(corners2d) do
+										if cornerTypes[cornerKey] == WATER
+										and (o.destPos + corner * .25 - o2.destPos):lInfLength() < .5
+										then
+											cornerTypes[cornerKey] = EMPTY
 										end
 									end
 								end
@@ -877,7 +877,7 @@ do
 					then break end
 
 					local wallStopped=false
-					for cornerKey,corner in pairs(corners) do
+					for cornerKey,corner in pairs(corners2d) do
 						local cf = (checkPos + corner * .25):floor()
 						local mapType=mapTypes[mapGet(cf.x, cf.y)]
 						if mapType and mapType.blocksExplosion then
