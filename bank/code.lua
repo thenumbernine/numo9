@@ -5,7 +5,6 @@
 -- disableMultiplayer = true
 -- editTilemap.gridSpacing = 10
 -- editTilemap.draw16Sprites = true
-mode(0)
 
 ----------------------- BEGIN ext/range.lua-----------------------
 local range=|a,b,c|do
@@ -149,77 +148,12 @@ local dirForName = {right=0, down=1, left=2, up=3}
 
 ----------------------- END vec/vec2.lua  -----------------------
 
+videoModeIndex=0	screenSize=vec2(256, 256)	-- 256x256xRGB565
+mode(videoModeIndex)
+--cheat=true
+
 _G=getfenv(1)	-- needed for :: operator
 
-dt=1/60
-mapsize = vec2(10,10)
-
--- [[ dynamically drawing the border
--- TODO this is what the Brush menu is supposed to be.
--- TODO to finish the Brush menu you might as well switch the ROM file format to a FAT based one to have dynamic-sizes.
-drawMapBorder=||do
-	-- middle
-	for x=1,11 do
-		for y=2,11 do
-			spr(1024, x*16, y*16, 2, 2)
-		end
-	end
-	-- upper left
-	spr(1024+192, 0, 8, 4, 4)
-	-- upper right
-	spr(1024+192, 12*16, 8, 2, 4, nil, nil, nil, nil, -1, 1)
-	-- upper
-	for x=2,10 do
-		spr(1024+196, x*16, 8, 2, 4)
-	end
-	-- left & right
-	for y=2,11 do
-		spr(1024+256, 0, y*16, 2, 2)
-		spr(1024+256, 12*16, y*16, 2, 2, nil, nil, nil, nil, -1, 1)
-	end
-	-- bottom left
-	spr(1024+320, 0, 12*16, 2, 2)
-	-- bottom right
-	spr(1024+320, 12*16, 12*16, 2, 2, nil, nil, nil, nil, -1, 1)
-	-- lower
-	for x=1,10 do
-		spr(1024+322, x*16, 12*16, 2, 2)
-	end
-end
---]]
-
---[[ using map() function, which doesnt support animiations yet ... TODO
-drawMap=||
-	map(levelTile.x,levelTile.y,mapsize.x,mapsize.y,0,0,0,true)
---]]
--- [[ manually for animation
-drawMap=||do
-	for y=0,mapsize.y-1 do
-		for x=0,mapsize.x-1 do
-			local tileIndex = mget(levelTile.x+x, levelTile.y+y)
-			if tileIndex == WATER then
-				local waterAbove = y > 0
-					and mget(levelTile.x+x, levelTile.y+y-1) == WATER
-				if waterAbove then
-					tileIndex = WATER_ANIM_1
-				else
-					tileIndex = WATER_BANK_ANIM_1
-				end
-				if math.floor(time()) & 1 == 1 then tileIndex += 2 end
-			end
-			spr(
-				1024|tileIndex,
-				x*16,
-				y*16,
-				2,
-				2
-			)
-		end
-	end
-end
---]]
-
-maxLevels = 25 * 25
 levelstr='level ?'
 
 sfxid={
@@ -252,21 +186,33 @@ WATER_BANK_ANIM_2 = WATER_BANK_ANIM_1 + 2
 WATER_ANIM_1 = WATER_BANK_ANIM_1 + 32*2
 WATER_ANIM_2 = WATER_ANIM_1 + 2
 
-mapType={
-	[EMPTY]={},
-	[TREE]={cannotPassThru=true,drawGroundUnder=true},
-	[BRICK]={cannotPassThru=true,blocksGunShot=true,blocksExplosion=true,bombable=true},
-	[STONE]={cannotPassThru=true,blocksGunShot=true,blocksExplosion=true},
-	[WATER]={cannotPassThru=true},
-	[ARROW_RIGHT]={},
-	[ARROW_DOWN]={},
-	[ARROW_LEFT]={},
-	[ARROW_UP]={},
-	[MOVING_RIGHT]={},
-	[MOVING_DOWN]={},
-	[MOVING_LEFT]={},
-	[MOVING_UP]={},
+mapTypes={
+	[EMPTY] = {},
+	[TREE] = {cannotPassThru=true, drawGroundUnder=true},
+	[BRICK] = {cannotPassThru=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
+	[STONE] = {cannotPassThru=true, blocksGunShot=true, blocksExplosion=true},
+	[WATER] = {cannotPassThru=true},
+	[ARROW_RIGHT] = {},
+	[ARROW_DOWN] = {},
+	[ARROW_LEFT] = {},
+	[ARROW_UP] = {},
+	[MOVING_RIGHT] = {},
+	[MOVING_DOWN] = {},
+	[MOVING_LEFT] = {},
+	[MOVING_UP] = {},
 }
+
+corners = table{
+	UL = vec2(-1, -1),
+	UR = vec2(1, -1),
+	LL = vec2(-1, 1),
+	LR = vec2(1, 1),
+}
+
+getCornerTypes = |where|
+	corners:map(|ofs,name|
+		(mapGet(where.x + ofs.x * .25, where.y + ofs.y * .25), name)
+	)
 
 dirForName.none = -1
 seqs={
@@ -294,6 +240,76 @@ seqs={
 	playerStandUp2=270,
 	playerDead=206,
 }
+
+
+dt=1/60
+
+tilemapSize = vec2(256, 256)	-- tilemap size
+levelSize = vec2(10, 10)
+levelsPerSheet = (tilemapSize / levelSize):floor()
+assert.eq(levelsPerSheet.x, 25)
+assert.eq(levelsPerSheet.y, 25)
+maxLevels = levelsPerSheet:product()
+
+-- [[ dynamically drawing the border
+-- TODO this is what the Brush menu is supposed to be.
+-- TODO to finish the Brush menu you might as well switch the ROM file format to a FAT based one to have dynamic-sizes.
+drawMapBorder=||do
+	-- middle
+	for x=1,levelSize.x+1 do
+		for y=2,levelSize.y+1 do
+			spr(1024, x*16, y*16, 2, 2)
+		end
+	end
+	-- upper left
+	spr(1024+192, 0, (levelSize.y-2), 4, 4)
+	-- upper right
+	spr(1024+192, (levelSize.x+2)*16, 8, 2, 4, nil, nil, nil, nil, -1, 1)
+	-- upper
+	for x=2,levelSize.x do
+		spr(1024+196, x*16, 8, 2, 4)
+	end
+	-- left & right
+	for y=2,levelSize.x+1 do
+		spr(1024+256, 0, y*16, 2, 2)
+		spr(1024+256, (levelSize.x+2)*16, y*16, 2, 2, nil, nil, nil, nil, -1, 1)
+	end
+	-- bottom left
+	spr(1024+320, 0, (levelSize.y+2)*16, 2, 2)
+	-- bottom right
+	spr(1024+320, (levelSize.x+2)*16, (levelSize.y+2)*16, 2, 2, nil, nil, nil, nil, -1, 1)
+	-- lower
+	for x=1,levelSize.x do
+		spr(1024+322, x*16, (levelSize.y+2)*16, 2, 2)
+	end
+end
+--]]
+
+--[[ using map() function, which doesnt support animiations yet ... TODO
+drawMap=||
+	map(levelTile.x,levelTile.y,levelSize.x,levelSize.y,0,0,0,true)
+--]]
+-- [[ manually for animation
+drawMap=||do
+	for y=0,levelSize.y-1 do
+		for x=0,levelSize.x-1 do
+			local tileIndex = mapGet(x,y)
+			if tileIndex == WATER then
+				local waterAbove = y > 0
+					and mget(levelTile.x+x, levelTile.y+y-1) == WATER
+				if waterAbove then
+					tileIndex = WATER_ANIM_1
+				else
+					tileIndex = WATER_BANK_ANIM_1
+				end
+				if math.floor(time()) & 1 == 1 then tileIndex += 2 end
+			end
+			spr(1024|tileIndex, x*16, y*16, 2, 2)
+		end
+	end
+end
+--]]
+
 
 objs=table()
 addList=table()
@@ -326,7 +342,7 @@ BaseObj=class{
 	end,
 	-- in AnimatedObj in fact ...
 	update=|::|nil,
-	setPos=|::, p|do
+	setPos=|::,p|do
 		if not pos then pos = vec2() end
 		pos:set(p)
 		if not srcPos then srcPos = vec2() end
@@ -338,8 +354,11 @@ BaseObj=class{
 		-- pos is tile-centered so ...
 		local x = pos.x * 16 - 8 * scale.x
 		local y = pos.y * 16 - 8 * scale.y
-		if blendMode then blend(blendMode) end
-		spr(seq,		--spriteIndex,
+		if blendMode then
+			blend(blendMode)
+		end
+		spr(
+			seq,		--spriteIndex,
 			x,			--screenX,
 			y,			--screenY,
 			2,			--spritesWide,
@@ -350,11 +369,13 @@ BaseObj=class{
 			nil,		--spriteMask,
 			scale.x,
 			scale.y)
-		if blendMode then blend() end
+		if blendMode then
+			blend()
+		end
 	end,
 	isBlockingSentry=|::|isBlocking,
 	hitEdge=|::, where|true,
-	cannotPassThru=|::,mapTypeIndex|mapType[mapTypeIndex]?.cannotPassThru,
+	cannotPassThru=|::,mapTypeIndex|mapTypes[mapTypeIndex]?.cannotPassThru,
 	hitWorld=|::, cmd, where, typeUL, typeUR, typeLL, typeLR| do
 		if cmd == dirForName.left and where.x % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
 		if cmd == dirForName.up and where.y % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
@@ -401,16 +422,16 @@ do
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					if typeUL==WATER and (o.destPos - vec2(where.x-.25,where.y-.25)):lInfLength() <.5 then
+					if typeUL == WATER and (where + corners.UL * .25 - o.destPos):lInfLength() <.5 then
 						typeUL=EMPTY
 					end
-					if typeUR==WATER and (o.destPos - vec2(where.x+.25,where.y-.25)):lInfLength() <.5 then
+					if typeUR == WATER and (where + corners.UR * .25 - o.destPos):lInfLength() <.5 then
 						typeUR=EMPTY
 					end
-					if typeLL==WATER and (o.destPos - vec2(where.x-.25,where.y+.25)):lInfLength() <.5 then
+					if typeLL == WATER and (where + corners.LL * .25 - o.destPos):lInfLength() <.5 then
 						typeLL=EMPTY
 					end
-					if typeLR==WATER and (o.destPos - vec2(where.x+.25,where.y+.25)):lInfLength() <.5 then
+					if typeLR == WATER and (where + corners.LR * .25 - o.destPos):lInfLength() <.5 then
 						typeLR=EMPTY
 					end
 				end
@@ -420,8 +441,8 @@ do
 		moveIsBlocked_CheckEdge=|:,newDest|do
 			if newDest.x < .25
 			or newDest.y < .25
-			or newDest.x > mapsize.x - .25
-			or newDest.y > mapsize.y - .25
+			or newDest.x > levelSize.x - .25
+			or newDest.y > levelSize.y - .25
 			then
 				return self:hitEdge(newDest)
 			end
@@ -838,15 +859,15 @@ do
 
 					if checkPos.x < 0
 					or checkPos.y < 0
-					or checkPos.x >= mapsize.x
-					or checkPos.y >= mapsize.y
+					or checkPos.x >= levelSize.x
+					or checkPos.y >= levelSize.y
 					then break end
 
 					local wallStopped=false
 					for ofx=0,1 do
 						for ofy=0,1 do
 							local cf = (checkPos + vec2(ofx, ofy) * .5 - .25):floor()
-							local mt=mapType[mapGet(cf.x, cf.y)]
+							local mt=mapTypes[mapGet(cf.x, cf.y)]
 							if mt and mt.blocksExplosion then
 								if not cantHitWorld
 								and mt.bombable
@@ -903,7 +924,7 @@ do
 			self.seq=-1	--invis
 			sfx(sfxid.laser_shoot)
 		end,
-		cannotPassThru=|:,mapTypeIndex|mapType![mapTypeIndex].blocksGunShot,
+		cannotPassThru=|:,mapTypeIndex|mapTypes![mapTypeIndex].blocksGunShot,
 		hitObject=|:, what, pushDest, side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
@@ -1257,8 +1278,8 @@ mapSet=|x,y,value|mset(x+levelTile.x,y+levelTile.y,value)
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
 	removeAll()
-	for y=0,mapsize.y-1 do
-		for x=0,mapsize.x-1 do
+	for y=0,levelSize.y-1 do
+		for x=0,levelSize.x-1 do
 			local pos = vec2(x+.5, y+.5)
 			local m = mapGet(x,y)
 			if m==EMPTY

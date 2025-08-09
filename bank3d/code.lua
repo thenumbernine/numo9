@@ -6,12 +6,6 @@
 -- editTilemap.gridSpacing = 11
 -- editTilemap.draw16Sprites = true
 
---videoModeIndex=0	screenSize={x=256, y=256}	-- 256x256xRGB565
-videoModeIndex=42	screenSize={x=480, y=270}	-- 480x270x8bppIndex
---videoModeIndex=43	screenSize={x=480, y=270}	-- 480x270xRGB332
-mode(videoModeIndex)
-cheat=true
-
 ----------------------- BEGIN ext/range.lua-----------------------
 local range=|a,b,c|do
 	local t = table()
@@ -50,6 +44,110 @@ class=|...|do
 end
 
 ----------------------- END ext/class.lua  -----------------------
+--#include vec/vec3.lua
+----------------------- BEGIN vec/vec2.lua-----------------------
+
+local vec2_getvalue=|x, dim|do
+	if type(x) == 'number' then return x end
+	if type(x) == 'table' then
+		if dim==1 then
+			x=x.x
+		elseif dim==2 then
+			x=x.y
+		else
+			x=nil
+		end
+		if type(x)~='number' then
+			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
+		end
+		return x
+	end
+	error("tried to vec2_getvalue from an unknown type "..type(x))
+end
+
+local vec2
+vec2=class{
+	fields = table{'x', 'y'},
+	init=|v,x,y|do
+		if x then
+			if y then
+				v:set(x,y)
+			else
+				v:set(x,x)
+			end
+		else
+			v:set(0,0)
+		end
+	end,
+	clone=|v| vec2(v),
+	set=|v,x,y|do
+		if type(x) == 'table' then
+			v.x = x.x or x[1] or error("idk")
+			v.y = x.y or x[2] or error("idk")
+		else
+			assert(x, "idk")
+			v.x = x
+			if y then
+				v.y = y
+			else
+				v.y = x
+			end
+		end
+	end,
+	unpack=|v|(v.x, v.y),
+	sum=|v| v.x + v.y,
+	product=|v| v.x * v.y,
+	clamp=|v,a,b|do
+		local mins = a
+		local maxs = b
+		if type(a) == 'table' and a.min and a.max then
+			mins = a.min
+			maxs = a.max
+		end
+		v.x = math.clamp(v.x, vec2_getvalue(mins, 1), vec2_getvalue(maxs, 1))
+		v.y = math.clamp(v.y, vec2_getvalue(mins, 2), vec2_getvalue(maxs, 2))
+		return v
+	end,
+	map=|v,f|do
+		v.x = f(v.x, 1)
+		v.y = f(v.y, 2)
+		return v
+	end,
+	floor=|v|v:map(math.floor),
+	ceil=|v|v:map(math.ceil),
+	l1Length=|v| math.abs(v.x) + math.abs(v.y),
+	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y)),
+	dot=|a,b| a.x * b.x + a.y * b.y,
+	lenSq=|v| v:dot(v),
+	len=|v| math.sqrt(v:lenSq()),
+	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2),
+	unit=|v| v / math.max(1e-15, v:len()),
+	exp=|theta| vec2(math.cos(theta), math.sin(theta)),
+	cross=|a,b| a.x * b.y - a.y * b.x,	-- or :det() maybe
+	cplxmul = |a,b| vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),
+	__unm=|v| vec2(-v.x, -v.y),
+	__add=|a,b| vec2(vec2_getvalue(a, 1) + vec2_getvalue(b, 1), vec2_getvalue(a, 2) + vec2_getvalue(b, 2)),
+	__sub=|a,b| vec2(vec2_getvalue(a, 1) - vec2_getvalue(b, 1), vec2_getvalue(a, 2) - vec2_getvalue(b, 2)),
+	__mul=|a,b| vec2(vec2_getvalue(a, 1) * vec2_getvalue(b, 1), vec2_getvalue(a, 2) * vec2_getvalue(b, 2)),
+	__div=|a,b| vec2(vec2_getvalue(a, 1) / vec2_getvalue(b, 1), vec2_getvalue(a, 2) / vec2_getvalue(b, 2)),
+	__eq=|a,b| a.x == b.x and a.y == b.y,
+	__tostring=|v| v.x..','..v.y,
+	__concat=string.concat,
+}
+
+-- TODO order this like buttons ... right down left up ... so it's related to bitflags and so it follows exp map angle ...
+-- tempting to do right left down up, i.e. x+ x- y+ y-, because that extends dimensions better
+-- but as it is this way, we are 1:1 with the exponential-map, so there.
+local dirvecs = table{
+	[0] = vec2(1,0),
+	[1] = vec2(0,1),
+	[2] = vec2(-1,0),
+	[3] = vec2(0,-1),
+}
+local opposite = {[0]=2,3,0,1}	-- opposite = [x]x~2
+local dirForName = {right=0, down=1, left=2, up=3}
+
+----------------------- END vec/vec2.lua  -----------------------
 ----------------------- BEGIN numo9/matstack.lua-----------------------
 assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 local matAddr = ramaddr'mvMat'
@@ -71,12 +169,14 @@ end
 
 ----------------------- END numo9/matstack.lua  -----------------------
 
-_G=getfenv(1)
-linfDist=|ax,ay,bx,by,cx,cy|do
-	return math.max(math.abs(ax-bx), math.abs(ay-by), math.abs(az-bz))
-end
+--videoModeIndex=0	screenSize=vec2(256, 256)	-- 256x256xRGB565
+videoModeIndex=42	screenSize=vec2(480, 270)	-- 480x270x8bppIndex
+--videoModeIndex=43	screenSize=vec2(480, 270)	-- 480x270xRGB332
+mode(videoModeIndex)
+cheat=true
 
-maxLevels = 2 * 23		-- 11x11x11 levels use 121 x 11 texels, can store 2 x 23 of those on a 256x256 texture
+_G=getfenv(1)	-- needed for :: operator
+
 levelstr='level ?'
 
 sfxid={
@@ -113,7 +213,7 @@ WATER_BANK_ANIM_2 = WATER_BANK_ANIM_1 + 2
 WATER_ANIM_1 = WATER_BANK_ANIM_1 + 32*2
 WATER_ANIM_2 = WATER_ANIM_1 + 2
 
-mapType={
+mapTypes={
 	[EMPTY] = {dontDraw=true},
 	[TREE] = {cannotPassThru=true, drawBillboard=true},
 	[BRICK] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
@@ -133,8 +233,19 @@ mapType={
 	[SLOPE_UP] = {drawSlope=3},
 }
 
-dirs={none=-1,down=0,left=1,right=2,up=3}
-vecs={[0]={0,1},{-1,0},{1,0},{0,-1}}
+corners = table{
+	UL = vec2(-1, -1),
+	UL = vec2(1, -1),
+	LR = vec2(-1, 1),
+	RR = vec2(1, 1),
+}
+
+getCornerTypes = |where|
+	corners:map(|ofs,name|
+		(mapGet(where.x + ofs.x * .25, where.y + ofs.y * .25), name)
+	)
+
+dirForName.none = -1
 seqs={
 	cloud=128,
 	brick=74,	-- irl? why not just the tilemap?
@@ -163,50 +274,48 @@ seqs={
 
 
 dt=1/60
-mapw=11
-maph=11
-mapd=6	-- z-levels?
+levelSize = vec3(11,11,6)
+maxLevels = 2 * 23		-- 11x11x11 levels use 121 x 11 texels, can store 2 x 23 of those on a 256x256 texture
 
-mapBorderTileX, mapBorderTileY, mapBorderTileW, mapBorderTileH = 10, 20, mapw + 2, maph + 3
 -- [[ dynamically drawing the border
 -- TODO this is what the Brush menu is supposed to be.
 -- TODO to finish the Brush menu you might as well switch the ROM file format to a FAT based one to have dynamic-sizes.
 drawMapBorder=||do
 	-- middle
-	for x=1,mapw+1 do
-		for y=2,maph+1 do
+	for x=1,levelSize.x+1 do
+		for y=2,levelSize.y+1 do
 			spr(1024, x*16, y*16, 2, 2)
 		end
 	end
 	-- upper left
-	spr(1024+192, 0, (maph-2), 4, 4)
+	spr(1024+192, 0, (levelSize.y-2), 4, 4)
 	-- upper right
-	spr(1024+192, (mapw+2)*16, 8, 2, 4, nil, nil, nil, nil, -1, 1)
+	spr(1024+192, (levelSize.x+2)*16, 8, 2, 4, nil, nil, nil, nil, -1, 1)
 	-- upper
-	for x=2,mapw do
+	for x=2,levelSize.x do
 		spr(1024+196, x*16, 8, 2, 4)
 	end
 	-- left & right
-	for y=2,mapw+1 do
+	for y=2,levelSize.x+1 do
 		spr(1024+256, 0, y*16, 2, 2)
-		spr(1024+256, (mapw+2)*16, y*16, 2, 2, nil, nil, nil, nil, -1, 1)
+		spr(1024+256, (levelSize.x+2)*16, y*16, 2, 2, nil, nil, nil, nil, -1, 1)
 	end
 	-- bottom left
-	spr(1024+320, 0, (maph+2)*16, 2, 2)
+	spr(1024+320, 0, (levelSize.y+2)*16, 2, 2)
 	-- bottom right
-	spr(1024+320, (mapw+2)*16, (maph+2)*16, 2, 2, nil, nil, nil, nil, -1, 1)
+	spr(1024+320, (levelSize.x+2)*16, (levelSize.y+2)*16, 2, 2, nil, nil, nil, nil, -1, 1)
 	-- lower
-	for x=1,mapw do
-		spr(1024+322, x*16, (maph+2)*16, 2, 2)
+	for x=1,levelSize.x do
+		spr(1024+322, x*16, (levelSize.y+2)*16, 2, 2)
 	end
 end
 --]]
 
 
 viewZNear = 1
-viewZFar = maph*2
-viewDist = mapw*.75
-viewAlt = mapw*.75
+viewZFar = levelSize.y*2
+viewDist = levelSize.x*.75
+viewAlt = levelSize.x*.75
 viewTiltUpAngle = 45
 viewAngle = -math.pi/2
 
@@ -306,12 +415,12 @@ end
 
 --[[ using map() function, which doesnt support animiations yet ... TODO
 drawMap=||
-	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
+	map(levelTile.x,levelTile.y,levelSize.x,levelSize.y,0,0,0,true)
 --]]
 -- [[ manually for animation
 drawMap=||do
-	local viewCenterX = player and player.posX + 2.5 or mapw/2 + 2.5
-	local viewCenterY = player and player.posY + 2.5 or maph/2 + 2.5
+	local viewCenterX = player and player.posX + 2.5 or levelSize.x/2 + 2.5
+	local viewCenterY = player and player.posY + 2.5 or levelSize.y/2 + 2.5
 	local fwdx = math.cos(viewAngle)
 	local fwdy = math.sin(viewAngle)
 	local viewX = viewCenterX - viewDist * fwdx
@@ -335,11 +444,11 @@ drawMap=||do
 	drawMapBorder()
 	mattrans(16, 32)
 
-	for z=0,mapd-1 do
-		for y=0,maph-1 do
-			for x=0,mapw-1 do
+	for z=0,levelSize.z-1 do
+		for y=0,levelSize.y-1 do
+			for x=0,levelSize.x-1 do
 				local tileIndex = mapGet(x,y,z)
-				local mt = mapType[tileIndex]
+				local mt = mapTypes[tileIndex]
 				if mt and not mt.dontDraw then
 					if tileIndex == WATER then
 						tileIndex = WATER_ANIM_1
@@ -352,7 +461,6 @@ drawMap=||do
 	end
 end
 --]]
-
 
 
 objs=table()
@@ -374,20 +482,11 @@ classmeta.__index=_G	-- obj __index looks in its class, if not there then looks 
 
 BaseObj=class{
 	init=|::,args|do
-		scaleX,scaleY,scaleZ=1,1,1
+		scale=vec3(1,1,1)
 		removeMe=false
-		posX=0
-		posY=0
-		posZ=0
-		startPosX=0
-		startPosY=0
-		startPosZ=0
-		srcPosX=0
-		srcPosY=0
-		srcPosZ=0
-		destPosX=0
-		destPosY=0
-		destPosZ=0
+		pos=vec3()
+		srcPos=vec3()
+		destPos=vec3()
 		moveCmd=-1
 		isBlocking=true
 		isBlockingPushers=true
@@ -396,22 +495,19 @@ BaseObj=class{
 	end,
 	-- in AnimatedObj in fact ...
 	update=|::|nil,
-	setPos=|::,x,y,z|do
-		posX=x
-		srcPosX=x
-		destPosX=x
-		posY=y
-		srcPosY=y
-		destPosY=y
-		posZ=z
-		srcPosZ=z
-		destPosZ=z
+	setPos=|::,p|do
+		if not pos then pos = vec2() end
+		pos:set(p)
+		if not srcPos then srcPos = vec2() end
+		srcPos:set(p)
+		if not destPos then destPos = vec2() end
+		destPos:set(p)
 	end,
 	drawSprite=|::|do
-		-- posX posY are tile-centered so ...
-		local x = posX * 16 - 8 * scaleX
-		local y = posY * 16 - 8 * scaleY
-		local z = posZ * 16
+		-- pos is tile-centered so ...
+		local x = pos.x * 16 - 8 * scale.x
+		local y = pos.y * 16 - 8 * scale.y
+		local z = pos.z * 16
 		if blendMode then
 			fillp(0x8000)	--blend(blendMode)
 		end
@@ -427,28 +523,28 @@ BaseObj=class{
 			nil,		--transparentIndex,
 			nil,		--spriteBit,
 			nil,		--spriteMask,
-			scaleX,
-			scaleY)
+			scale.x,
+			scale.y)
 		if blendMode then
 			fillp(0)	--blend()
 		end
 	end,
 	isBlockingSentry=|::|isBlocking,
-	hitEdge=|::,whereX,whereY|true,
-	cannotPassThru=|::,maptype|mapType[maptype]?.cannotPassThru,
-	hitWorld=|::, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR| do
-		if cmd == dirs.left and whereX % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
-		if cmd == dirs.up and whereY % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
-		if cmd == dirs.right and whereX % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
-		if cmd == dirs.down and whereY % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
+	hitEdge=|::, where|true,
+	cannotPassThru=|::,mapTypeIndex|mapTypes[mapTypeIndex]?.cannotPassThru,
+	hitWorld=|::, cmd, where, typeUL, typeUR, typeLL, typeLR| do
+		if cmd == dirForName.left and where.x % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
+		if cmd == dirForName.up and where.y % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
+		if cmd == dirForName.right and where.x % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
+		if cmd == dirForName.down and where.y % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
 		return self:cannotPassThru(typeUL)
 			or self:cannotPassThru(typeUR)
 			or self:cannotPassThru(typeLL)
 			or self:cannotPassThru(typeLR)
 	end,
-	hitObject=|::,what,pushDestX,pushDestY,side|'test object',
-	startPush=|::,pusher,pushDestX,pushDestY,side|isBlocking,
-	endPush=|::,who,pushDestX,pushDestY|nil,
+	hitObject=|::, what, pushDest, side| 'test object',
+	startPush=|::, pusher, pushDest, side| isBlocking,
+	endPush=|::, who, pushDest| nil,
 	onKeyTouch=|::|nil,
 	onTouchFlames=|::|nil,
 	onGroundSunk=|::|removeObj(self),
@@ -461,96 +557,95 @@ do
 		init=|:,args|do
 			super.init(self,args)
 			self.lastMoveResponse='no move'
-			self.moveCmd=dirs.none
+			self.moveCmd=dirForName.none
 			self.speed=10
 			self.moveFracMoving=false
 			self.moveFrac=0
 		end,
-		moveIsBlocked_CheckHitWorld=|:,cmd,whereX,whereY,whereZ|do
+		moveIsBlocked_CheckHitWorld=|:, cmd, where| do
+			local cornerTypes = getCornerTypes(where)
 			return self:hitWorld(
-				cmd, whereX, whereY,
-				mapGet(whereX-.25,whereY-.25,whereZ),
-				mapGet(whereX+.25,whereY-.25,whereZ),
-				mapGet(whereX-.25,whereY+.25,whereZ),
-				mapGet(whereX+.25,whereY+.25,whereZ)
+				cmd, where,
+				cornerTypes.UL,
+				cornerTypes.UR,
+				cornerTypes.LL,
+				cornerTypes.LR
 			)
 		end,
-		hitWorld=|:, cmd, whereX, whereY, typeUL, typeUR, typeLL, typeLR|do
+		hitWorld=|:, cmd, where, typeUL, typeUR, typeLL, typeLR|do
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o~=self
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					if typeUL==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, whereX-.25, whereY-.25, whereZ) < .5 then
+					if typeUL == WATER and (where + corners.UL * .25 - o.destPos):lInfLength() <.5 then
 						typeUL=EMPTY
 					end
-					if typeUR==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, whereX+.25, whereY-.25, whereZ) < .5 then
+					if typeUR == WATER and (where + corners.UR * .25 - o.destPos):lInfLength() <.5 then
 						typeUR=EMPTY
 					end
-					if typeLL==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, whereX-.25, whereY+.25, whereZ) < .5 then
+					if typeLL == WATER and (where + corners.LL * .25 - o.destPos):lInfLength() <.5 then
 						typeLL=EMPTY
 					end
-					if typeLR==WATER and linfDist(o.destPosX, o.destPosY, o.destPosZ, whereX+.25, whereY+.25, whereZ) < .5 then
+					if typeLR == WATER and (where + corners.LR * .25 - o.destPos):lInfLength() <.5 then
 						typeLR=EMPTY
 					end
 				end
 			end
-			return super.hitWorld(self, cmd, whereX,whereY,typeUL,typeUR,typeLL,typeLR)
+			return super.hitWorld(self, cmd, where, typeUL, typeUR, typeLL, typeLR)
 		end,
-		moveIsBlocked_CheckEdge=|:,newDestX,newDestY|do
-			if newDestX < .25
-			or newDestY < .25
-			or newDestX > mapw - .25
-			or newDestY > maph - .25
+		moveIsBlocked_CheckEdge=|:,newDest|do
+			if newDest.x < .25
+			or newDest.y < .25
+			or newDest.z < .25
+			or newDest.x > levelSize.x - .25
+			or newDest.y > levelSize.y - .25
+			or newDest.z > levelSize.z - .25
 			then
-				return self:hitEdge(newDestX,newDestY)
+				return self:hitEdge(newDest)
 			end
 			return false
 		end,
-		moveIsBlocked_CheckHitObject=|:,o,cmd,newDestX,newDestY|do
-			if linfDist(o.destPosX, o.destPosY, o.destPosZ, newDestX, newDestY, newDestZ)>.75 then return false end
-			local response=self:hitObject(o,newDestX,newDestY,cmd)
+		moveIsBlocked_CheckHitObject=|:, o, cmd, newDest|do
+			if (o.destPos - newDest):lInfLength() > .75 then return false end
+			local response=self:hitObject(o, newDest, cmd)
 			if response=='stop' then return true end
 			if response=='test object' then
-				if o:startPush(self,newDestX,newDestY,cmd) then return true end
+				if o:startPush(self, newDest, cmd) then return true end
 			end
 			return false
 		end,
-		moveIsBlocked_CheckHitObjects=|:,cmd,newDestX,newDestY|do
+		moveIsBlocked_CheckHitObjects=|:, cmd, newDest|do
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o ~= self
-				and self:moveIsBlocked_CheckHitObject(o, cmd, newDestX, newDestY) then
+				and self:moveIsBlocked_CheckHitObject(o, cmd, newDest) then
 					return true
 				end
 			end
 		end,
-		moveIsBlocked=|:,cmd,newDestX,newDestY, newDestZ|do
-			return self:moveIsBlocked_CheckEdge(newDestX, newDestY, newDestZ)
-			or self:moveIsBlocked_CheckHitWorld(cmd, newDestX, newDestY, newDestZ)
-			or self:moveIsBlocked_CheckHitObjects(cmd, newDestX, newDestY, newDestZ)
+		moveIsBlocked=|:,cmd,newDest|do
+			return self:moveIsBlocked_CheckEdge(newDest)
+			or self:moveIsBlocked_CheckHitWorld(cmd, newDest)
+			or self:moveIsBlocked_CheckHitObjects(cmd, newDest)
 		end,
 		doMove=|:,cmd|do
-			if cmd==dirs.none then return 'no move' end
-			local newDestX=self.posX
-			local newDestY=self.posY
+			if cmd==dirForName.none then return 'no move' end
+			local newDest = self.pos:clone()
 			if cmd >= 0 and cmd < 4 then
-				newDestX+=vecs[cmd][1] * .5
-				newDestY+=vecs[cmd][2] * .5
+				newDest += dirvecs[cmd] * .5
 			else
 				return 'no move'
 			end
-			if self:moveIsBlocked(cmd,newDestX,newDestY) then
+			if self:moveIsBlocked(cmd, newDest) then
 				self.moveFracMoving=false
 				return 'was blocked'
 			end
-			self.destPosX=newDestX
-			self.destPosY=newDestY
+			self.destPos:set(newDest)
 			self.moveFrac=0
 			self.moveFracMoving=true
-			self.srcPosX=self.posX
-			self.srcPosY=self.posY
+			self.srcPos:set(self.pos)
 			return 'did move'
 		end,
 		update=|:|do
@@ -563,13 +658,13 @@ do
 					-- TODO merge this move and btn move so we dont double move in one update ... or not?
 					-- TODO :move but withotu changing animation direction ...
 					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
-						self:checkMoveCmd(dirs.right)
+						self:checkMoveCmd(dirForName.right)
 					elseif typeUL == MOVING_DOWN and typeUR == MOVING_DOWN then
-						self:checkMoveCmd(dirs.down)
+						self:checkMoveCmd(dirForName.down)
 					elseif typeUR == MOVING_LEFT and typeLR == MOVING_LEFT then
-						self:checkMoveCmd(dirs.left)
+						self:checkMoveCmd(dirForName.left)
 					elseif typeLL == MOVING_UP and typeLR == MOVING_UP then
-						self:checkMoveCmd(dirs.up)
+						self:checkMoveCmd(dirForName.up)
 					end
 				end
 			end
@@ -619,9 +714,9 @@ do
 			if not self.isBlocking then return false end
 
 			local delta=0
-			if side==dirs.left or side==dirs.right then
+			if side==dirForName.left or side==dirForName.right then
 				delta=self.destPosY-pusher.destPosY
-			elseif side==dirs.up or side==dirs.down then
+			elseif side==dirForName.up or side==dirForName.down then
 				delta=self.destPosX-pusher.destPosX
 			end
 			delta=math.abs(delta)
@@ -936,13 +1031,12 @@ do
 						break
 					end
 
-					checkPosX += vecs[side][1]
-					checkPosY += vecs[side][2]
+					checkPos += dirvecs[side]
 
 					if checkPosX < 0
 					or checkPosY < 0
-					or checkPosX >= mapw
-					or checkPosY >= maph
+					or checkPosX >= levelSize.x
+					or checkPosY >= levelSize.y
 					then break end
 
 					local wallStopped=false
@@ -952,10 +1046,10 @@ do
 								local cfx=math.floor(checkPosX+ofx*.5-.25)
 								local cfy=math.floor(checkPosY+ofy*.5-.25)
 								local cfz=math.floor(checkPosZ+ofz*.5-.25)
-								local mapType=mapType[mapGet(cfx, cfy, cfz)]
-								if mapType and mapType.blocksExplosion then
+								local mapTypes=mapTypes[mapGet(cfx, cfy, cfz)]
+								if mapTypes and mapTypes.blocksExplosion then
 									if not cantHitWorld
-									and mapType.bombable
+									and mapTypes.bombable
 									then
 										local divs=1
 										for u=0,divs-1 do
@@ -1010,7 +1104,7 @@ do
 			self.seq=-1	--invis
 			sfx(sfxid.laser_shoot)
 		end,
-		cannotPassThru=|:,maptype|mapType![maptype].blocksGunShot,
+		cannotPassThru=|:,maptype|mapTypes![maptype].blocksGunShot,
 		hitObject=|:,what,pushDestX,pushDestY,side|do
 			if what==self.owner then return 'move thru' end
 			if Player:isa(what) then
@@ -1049,18 +1143,18 @@ do
 				end
 
 				if dist<self.FIRE_DIST then
-					local dir = dirs.none
+					local dir = dirForName.none
 					if diffX < diffY then	-- left or down
 						if diffX < -diffY then
-							dir = dirs.left
+							dir = dirForName.left
 						else
-							dir = dirs.down
+							dir = dirForName.down
 						end
 					else	-- up or right
 						if diffX < -diffY then
-							dir = dirs.up
+							dir = dirForName.up
 						else
-							dir = dirs.right
+							dir = dirForName.right
 						end
 					end
 
@@ -1085,7 +1179,7 @@ do
 	Sentry=MovableObj:subclass{
 		init=|:|do
 			super.init(self,{})
-			self.dir = dirs.left
+			self.dir = dirForName.left
 			self.seq=seqs.sentry
 		end,
 		update=|:|do
@@ -1098,14 +1192,14 @@ do
 			self.moveCmd = self.dir
 			super.update(self)
 			if self.lastMoveResponse=='was blocked' then
-				if self.dir==dirs.up then
-					self.dir=dirs.left
-				elseif self.dir==dirs.left then
-					self.dir=dirs.down
-				elseif self.dir==dirs.down then
-					self.dir=dirs.right
-				elseif self.dir==dirs.right then
-					self.dir=dirs.up
+				if self.dir==dirForName.up then
+					self.dir=dirForName.left
+				elseif self.dir==dirForName.left then
+					self.dir=dirForName.down
+				elseif self.dir==dirForName.down then
+					self.dir=dirForName.right
+				elseif self.dir==dirForName.right then
+					self.dir=dirForName.up
 				end
 			end
 		end,
@@ -1145,7 +1239,7 @@ do
 			super.init(self,args)
 			self.dead=false
 			self.deadTime=0
-			self.dir=dirs.down
+			self.dir=dirForName.down
 			self.bombs=0
 			self.bombBlastRadius=1
 			self.seq=seqs.playerStandDown
@@ -1161,7 +1255,7 @@ do
 			local bomb=Bomb(self)
 			bomb:setPos(self.destPosX, self.destPosY, self.destPosZ)
 			if bomb:moveIsBlocked_CheckEdge(self.destPosX, self.destPosY, self.destPosZ)
-			or bomb:moveIsBlocked_CheckHitWorld(dirs.none, self.destPosX, self.destPosY, self.destPosZ)
+			or bomb:moveIsBlocked_CheckHitWorld(dirForName.none, self.destPosX, self.destPosY, self.destPosZ)
 			then return end
 			for _,o in ipairs(objs) do
 				if not o.removeMe
@@ -1179,23 +1273,23 @@ do
 			addObj(bomb)
 		end,
 		stopMoving=|:|do
-			self.moveCmd=dirs.none
+			self.moveCmd=dirForName.none
 		end,
 		update=|:|do
-			if self.moveCmd~=dirs.none then self.dir=self.moveCmd end
+			if self.moveCmd~=dirForName.none then self.dir=self.moveCmd end
 			super.update(self)
 			if not self.dead then
 				--if self.moveFracMoving then
-				local animstep = self.moveCmd~=dirs.none and time() % .5 > .25
+				local animstep = self.moveCmd~=dirForName.none and time() % .5 > .25
 				if animstep ~= self.lastAnimStep then
 					sfx(sfxid.step)
 				end
 				self.lastAnimStep = animstep
-				if self.dir==dirs.up then
+				if self.dir==dirForName.up then
 					self.seq = animstep and seqs.playerStandUp2 or seqs.playerStandUp
-				elseif self.dir==dirs.left then
+				elseif self.dir==dirForName.left then
 					self.seq = animstep and seqs.playerStandLeft2 or seqs.playerStandLeft
-				elseif self.dir==dirs.right then
+				elseif self.dir==dirForName.right then
 					self.seq = animstep and seqs.playerStandRight2 or seqs.playerStandRight
 				else
 					self.seq = animstep and seqs.playerStandDown2 or seqs.playerStandDown
@@ -1215,7 +1309,7 @@ do
 			self.isBlocking=false
 			self.isBlockingPushers=false
 			self.blockExplosion=false
-			self.moveCmd=dirs.none
+			self.moveCmd=dirForName.none
 		end,
 		onGroundSunk=|:|do self:die()end,
 		setBombs=|:,bombs|do
@@ -1352,14 +1446,14 @@ nextLevel=|dontComplete|do
 	loadLevelRequest=true
 end
 
-levelTileX, levelTileY = 0, 0
+levelTile = vec2()
 setLevel=|level_|do
 	level=level_
 	saveinfos[saveSlot].level = level
 	saveState()
-	levelTileX = (level & 1) * mapw * mapd
-	levelTileY = (level >> 1) * maph
-	levelTileX *= mapw * mapd
+	levelTile.x = (level & 1) * levelSize.x * levelSize.z
+	levelTile.y = (level >> 1) * levelSize.y
+	levelTile.x *= levelSize.x * levelSize.z
 	if level > -1 then
 		--TODO if level >= 0 then set the local storage current-level value to 'level'
 		levelstr='level '..tostring(level)
@@ -1369,16 +1463,16 @@ setLevel=|level_|do
 	end
 end
 
-mapGet=|x,y,z| mget(levelTileX + x + z * mapw, levelTileY + y) & 0x3ff	-- drop the hv flip and pal-hi
-mapSet=|x,y,z,value| mset(levelTileX + x + z * mapw, levelTileY + y, value)
+mapGet=|x,y,z| mget(levelTile.x + x + z * levelSize.x, levelTile.y + y) & 0x3ff	-- drop the hv flip and pal-hi
+mapSet=|x,y,z,value| mset(levelTile.x + x + z * levelSize.x, levelTile.y + y, value)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
-	mode(videoModeIndex)
+	mode(videoModeIndex)	-- reset() also resets the video mode ... TODO don't reset video mode? idk hmm ...
 	removeAll()
-	for z=0,mapd-1 do
-		for y=0,maph-1 do
-			for x=0,mapw-1 do
+	for z=0,levelSize.z-1 do
+		for y=0,levelSize.y-1 do
+			for x=0,levelSize.x-1 do
 				local posX,posY,posZ=x+.5,y+.5,z
 				local m = mapGet(x,y,z)
 				if m==EMPTY
@@ -1519,13 +1613,13 @@ update=||do
 	end
 	if player then
 		if btn'up' then
-			player:move(dirs.up)
+			player:move(dirForName.up)
 		elseif btn'down' then
-			player:move(dirs.down)
+			player:move(dirForName.down)
 		elseif btn'left' then
-			player:move(dirs.left)
+			player:move(dirForName.left)
 		elseif btn'right' then
-			player:move(dirs.right)
+			player:move(dirForName.right)
 		else
 			player:stopMoving()
 		end
