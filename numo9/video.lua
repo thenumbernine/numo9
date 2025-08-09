@@ -1629,13 +1629,6 @@ void main() {
 --DEBUG:flushSizes = {},
 		flush = function(self)
 --DEBUG: self.flushCallsPerFrame = self.flushCallsPerFrame + 1
-
--- TODO where to put this ...
--- in clearScreen would be nice, but that inserts a quad into this buffer ...
--- so do I make it a special tri that clears the buffer?
--- or what?
-gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
-
 			local sceneObj = self.sceneObj
 			if not sceneObj then return end	-- for some calls called before this is even created ...
 
@@ -2335,12 +2328,15 @@ function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
 	return self:drawSolidLine3D(x1,y1,0,x2,y2,0,colorIndex)
 end
 
+local clearFloat = ffi.new('float[4]')
+local clearUInt = ffi.new('GLuint[4]')
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:clearScreen(
 	colorIndex,
 	paletteTex	-- override for menu ... starting to think this should be a global somewhere...
 )
--- [[ using a quad ... not depth friendly
+	colorIndex = colorIndex or 0
+--[[ using a quad ... not depth friendly
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
 	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
@@ -2353,7 +2349,7 @@ function AppVideo:clearScreen(
 		0,
 		fbTex.width,
 		fbTex.height,
-		colorIndex or 0,
+		colorIndex,
 		nil,
 		nil,
 		paletteTex
@@ -2363,21 +2359,58 @@ function AppVideo:clearScreen(
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 --]]
---[[ using clear for depth ... isn't guaranteeing sorting though ... hmm ...
+-- [[ using clear for depth ... isn't guaranteeing sorting though ... hmm ...
 -- if we do clear color here then it'll go out of order between clearScreen() and triBuf:flush() calls
 -- so better to clear depth only?  then there's a tiny out of sync problem but probably no one will notice I hope...
 	self.triBuf:flush()
-	paletteTex = paletteTex or self.paletteRAM.tex
-assert(paletteTex.data)
-	-- what does the shader do? if colorIndex is oob does it clear nothing?
-	local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[bit.band(colorIndex, 0xff)]
-	gl.glClearColor(
-		bit.band(selColorValue, 0x1f) / 0x1f,
-		bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f,
-		bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f,
-		1)
-	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
-	gl.glClearColor(.1, .2, .3, 1.)	-- default also found in 'needDrawCounter' block of App:update()
+
+	if colorIndex < 0 or colorIndex > 255 then
+		-- TODO default color ? transparent? what to do?
+		colorIndex = 0
+	end
+
+	paletteTex = paletteTex or self.paletteRAMs[1].tex
+	assert(paletteTex.data)
+	local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[colorIndex]
+
+	-- instead of flushing back the CPU->GPU
+	-- since I'm just going to overwrite the GPU content
+	-- just clear the dirtyCPU flag here (and set dirtyGPU later)
+	self.framebufferRAM.dirtyCPU = false
+
+	local fb = self.fb
+	if not self.inUpdateCallback then
+		fb:bind()
+	end
+
+	local info = self.videoModeInfo[self.currentVideoMode]
+	if not info then
+		print'clearScreen() failed -- no video mode present!!!'
+	elseif info.format == 'RGB565' then	-- internalFormat == GL_RGB565
+		clearFloat[0] = bit.band(selColorValue, 0x1f) / 0x1f
+		clearFloat[1] = bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f
+		clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
+		clearFloat[3] = 1
+		gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
+	elseif info.format == '8bppIndex'
+	or info.format == 'RGB332'
+	then	-- internalFormat == texInternalFormat_u8 ... which is now et to G_R8UI
+		clearUInt[0] = colorIndex
+		clearUInt[1] = 0
+		clearUInt[2] = 0
+		clearUInt[3] = 0xff
+		gl.glClearBufferuiv(gl.GL_COLOR, 0, clearUInt)
+	elseif info.format == '4bppIndex' then
+		error'TODO'
+	end
+	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+
+	-- TODO don't bother with framebuffer flushing, just memset
+	if not self.inUpdateCallback then
+		fb:unbind()
+	end
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
 --]]
 end
 

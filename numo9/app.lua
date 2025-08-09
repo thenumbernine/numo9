@@ -370,7 +370,7 @@ function App:initGL()
 
 		flip = coroutine.yield,	-- simple as
 		cls = function(colorIndex)
-			colorIndex = colorIndex or 0
+			colorIndex = toint(colorIndex or 0)
 			if self.server then
 				local cmd = self.server:pushCmd().clearScreen
 				cmd.type = netcmds.clearScreen
@@ -1135,6 +1135,7 @@ print('package.loaded', package.loaded)
 
 			self:resetGFX()		-- needed to initialize UI colors
 			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
+			self:clearScreen()	-- without this, with depth test, the text console copy in coolPrint() doesn't work
 			--[[ print or so something cheesy idk
 			--for i=1,30 do env.flip() end
 			for i=0,15 do
@@ -1850,7 +1851,7 @@ print('run thread dead')
 			end
 		else
 			-- nothing in focus , let the console know by drawing some kind of background pattern ... or meh ...
-			self:clearScreen(0xf0)
+			self:clearScreen()
 		end
 
 		-- now run the console and editor, separately, if it's open
@@ -2543,7 +2544,7 @@ function App:saveROM(filename)
 	self:allRAMRegionsCheckDirtyGPU()
 	-- rebuild RAM from blobs
 	self:buildRAMFromBlobs()
-	-- then reassign all pointers 
+	-- then reassign all pointers
 	-- ... resetVideo() is similar but I don't want to reset to the default addrs
 	for _,framebufferRAM in pairs(self.framebufferRAMs) do
 		assert(not framebufferRAM.dirtyGPU)
@@ -2700,8 +2701,10 @@ function App:writePersistent()
 --DEBUG:print('writePersistent self.metainfo.saveid', self.metainfo.saveid, require'ext.tolua'(ffi.string(self.ram.persistentCartridgeData, len)))
 		local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
 		if len == 0 then
+print('clearing persist file: '..cartPersistFile)
 			cartPersistFile:remove()
 		else
+print('saving persist file: '..cartPersistFile)
 			cartPersistFile:write(saveStr)
 		end
 		-- now where does self.cfg get written?
@@ -2812,10 +2815,13 @@ function App:runROM()
 	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...
 	local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
 	if cartPersistFile:exists() then
+print('loading persist file: '..cartPersistFile)
 		local saveStr = cartPersistFile:read()
 		if saveStr and #saveStr > 0 then
 			ffi.copy(self.ram.persistentCartridgeData, saveStr, math.min(#saveStr, persistentCartridgeDataSize))
 		end
+	else
+print('no persist file to load: '..cartPersistFile)
 	end
 
 	-- set title if it's there ...

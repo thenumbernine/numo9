@@ -119,8 +119,8 @@ end
 
 viewZNear = 1
 viewZFar = maph*2
-viewDist = 4 -- mapw*.75
-viewAlt = 4 -- mapw*.75
+viewDist = mapw*.75
+viewAlt = mapw*.75
 viewTiltUpAngle = 45
 viewAngle = -math.pi/2
 
