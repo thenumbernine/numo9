@@ -140,7 +140,7 @@ function BlobCode:loadFile(filepath, basepath)
 			local loc = l:match'^%-%-#include%s+(.*)$'
 			if loc then
 				if included[loc] then
-					return l..'-- ALREADY INCLUDED'
+					return '-- ALREADY INCLUDED: '..l
 				end
 				included[loc] = true
 				for _,incpath in ipairs(includePaths) do
@@ -153,7 +153,7 @@ function BlobCode:loadFile(filepath, basepath)
 						}:concat'\n'
 					end
 				end
-				error("couldn't find "..loc.." in include paths: "..tolua(includePaths:mapi(function(p) return p.path end)))
+				error("couldn't find "..loc.." in include paths: "..require 'ext.tolua'(includePaths:mapi(function(p) return p.path end)))
 			else
 				return l
 			end
