@@ -376,15 +376,35 @@ BaseObj=class{
 	isBlockingSentry=|::|isBlocking,
 	hitEdge=|::, where|true,
 	cannotPassThru=|::,mapTypeIndex|mapTypes[mapTypeIndex]?.cannotPassThru,
-	hitWorld=|::, cmd, where, typeUL, typeUR, typeLL, typeLR| do
-		if cmd == dirForName.left and where.x % 1 == 0 and (typeUL == ARROW_RIGHT or typeLL == ARROW_RIGHT) then return true end
-		if cmd == dirForName.up and where.y % 1 == 0 and (typeUL == ARROW_DOWN or typeUR == ARROW_DOWN) then return true end
-		if cmd == dirForName.right and where.x % 1 == 0 and (typeUR == ARROW_LEFT or typeLR == ARROW_LEFT) then return true end
-		if cmd == dirForName.down and where.y % 1 == 0 and (typeLL == ARROW_UP or typeLR == ARROW_UP) then return true end
-		return self:cannotPassThru(typeUL)
-			or self:cannotPassThru(typeUR)
-			or self:cannotPassThru(typeLL)
-			or self:cannotPassThru(typeLR)
+	hitWorld=|::, cmd, where, cornerTypes| do
+		if cmd == dirForName.left
+		and where.x % 1 == 0
+		and (cornerTypes.UL == ARROW_RIGHT or cornerTypes.LL == ARROW_RIGHT) 
+		then
+			return true
+		end
+		if cmd == dirForName.up 
+		and where.y % 1 == 0 
+		and (cornerTypes.UL == ARROW_DOWN or cornerTypes.UR == ARROW_DOWN) 
+		then
+			return true
+		end
+		if cmd == dirForName.right 
+		and where.x % 1 == 0 
+		and (cornerTypes.UR == ARROW_LEFT or cornerTypes.LR == ARROW_LEFT) 
+		then
+			return true
+		end
+		if cmd == dirForName.down 
+		and where.y % 1 == 0 
+		and (cornerTypes.LL == ARROW_UP or cornerTypes.LR == ARROW_UP) 
+		then
+			return true
+		end
+		return self:cannotPassThru(cornerTypes.UL)
+			or self:cannotPassThru(cornerTypes.UR)
+			or self:cannotPassThru(cornerTypes.LL)
+			or self:cannotPassThru(cornerTypes.LR)
 	end,
 	hitObject=|::, what, pushDest, side| 'test object',
 	startPush=|::, pusher, pushDest, side| isBlocking,
@@ -407,36 +427,25 @@ do
 			self.moveFrac=0
 		end,
 		moveIsBlocked_CheckHitWorld=|:, cmd, where| do
-			return self:hitWorld(
-				cmd, where,
-				mapGet(where.x-.25, where.y-.25),
-				mapGet(where.x+.25, where.y-.25),
-				mapGet(where.x-.25, where.y+.25),
-				mapGet(where.x+.25, where.y+.25)
-			)
+			local cornerTypes = getCornerTypes(where)
+			return self:hitWorld(cmd, where, cornerTypes)
 		end,
-		hitWorld=|:, cmd, where, typeUL, typeUR, typeLL, typeLR|do
+		hitWorld=|:, cmd, where, cornerTypes| do
+			local cornerTypes = table(cornerTypes)
 			for _,o in ipairs(objs) do
 				if not o.removeMe
 				and o~=self
 				and Bomb:isa(o)
 				and o.state=='sinking'
 				then
-					if typeUL == WATER and (where + corners.UL * .25 - o.destPos):lInfLength() <.5 then
-						typeUL=EMPTY
-					end
-					if typeUR == WATER and (where + corners.UR * .25 - o.destPos):lInfLength() <.5 then
-						typeUR=EMPTY
-					end
-					if typeLL == WATER and (where + corners.LL * .25 - o.destPos):lInfLength() <.5 then
-						typeLL=EMPTY
-					end
-					if typeLR == WATER and (where + corners.LR * .25 - o.destPos):lInfLength() <.5 then
-						typeLR=EMPTY
+					for key, corner in pairs(corners) do
+						if cornerTypes[key] == WATER and (where + corner * .25 - o.destPos):lInfLength() <.5 then
+							cornerTypes[key] = EMPTY
+						end
 					end
 				end
 			end
-			return super.hitWorld(self, cmd, where, typeUL, typeUR, typeLL, typeLR)
+			return super.hitWorld(self, cmd, where, cornerTypes)
 		end,
 		moveIsBlocked_CheckEdge=|:,newDest|do
 			if newDest.x < .25
@@ -492,19 +501,16 @@ do
 		update=|:|do
 			if not self.dead then
 				if (time() * 60) % 30 == 0 then
-					local typeUL=mapGet(self.destPos.x - .25, self.destPos.y - .25)
-					local typeUR=mapGet(self.destPos.x + .25, self.destPos.y - .25)
-					local typeLL=mapGet(self.destPos.x - .25, self.destPos.y + .25)
-					local typeLR=mapGet(self.destPos.x + .25, self.destPos.y + .25)
+					local cornerTypes = getCornerTypes(self.destPos)
 					-- TODO merge this move and btn move so we dont double move in one update ... or not?
 					-- TODO :move but withotu changing animation direction ...
-					if typeUL == MOVING_RIGHT and typeLL == MOVING_RIGHT then
+					if cornerTypes.UL == MOVING_RIGHT and cornerTypes.LL == MOVING_RIGHT then
 						self:checkMoveCmd(dirForName.right)
-					elseif typeUL == MOVING_DOWN and typeUR == MOVING_DOWN then
+					elseif cornerTypes.UL == MOVING_DOWN and cornerTypes.UR == MOVING_DOWN then
 						self:checkMoveCmd(dirForName.down)
-					elseif typeUR == MOVING_LEFT and typeLR == MOVING_LEFT then
+					elseif cornerTypes.UR == MOVING_LEFT and cornerTypes.LR == MOVING_LEFT then
 						self:checkMoveCmd(dirForName.left)
-					elseif typeLL == MOVING_UP and typeLR == MOVING_UP then
+					elseif cornerTypes.LL == MOVING_UP and cornerTypes.LR == MOVING_UP then
 						self:checkMoveCmd(dirForName.up)
 					end
 				end
@@ -721,27 +727,24 @@ do
 			or self.state=='live'
 			then
 				if not self.moveFracMoving then
-					local typeUL=mapGet(self.destPos.x-.25, self.destPos.y-.25)
-					local typeUR=mapGet(self.destPos.x+.25, self.destPos.y-.25)
-					local typeLL=mapGet(self.destPos.x-.25, self.destPos.y+.25)
-					local typeLR=mapGet(self.destPos.x+.25, self.destPos.y+.25)
+					local cornerTypes = getCornerTypes(self.destPos)
 
 					for _,o in ipairs(objs)do
 						if not removeMe
 						and Bomb:isa(o)
 						and o.state=='sinking'
 						then
-							if typeUL==WATER and (self.destPos + vec2(-.25,-.25) - o.destPos):lInfLength() < .5 then typeUL=EMPTY end
-							if typeUR==WATER and (self.destPos + vec2( .25,-.25) - o.destPos):lInfLength() < .5 then typeUR=EMPTY end
-							if typeLL==WATER and (self.destPos + vec2(-.25, .25) - o.destPos):lInfLength() < .5 then typeLL=EMPTY end
-							if typeLR==WATER and (self.destPos + vec2( .25, .25) - o.destPos):lInfLength() < .5 then typeLR=EMPTY end
+							if cornerTypes.UL==WATER and (self.destPos + vec2(-.25,-.25) - o.destPos):lInfLength() < .5 then cornerTypes.UL=EMPTY end
+							if cornerTypes.UR==WATER and (self.destPos + vec2( .25,-.25) - o.destPos):lInfLength() < .5 then cornerTypes.UR=EMPTY end
+							if cornerTypes.LL==WATER and (self.destPos + vec2(-.25, .25) - o.destPos):lInfLength() < .5 then cornerTypes.LL=EMPTY end
+							if cornerTypes.LR==WATER and (self.destPos + vec2( .25, .25) - o.destPos):lInfLength() < .5 then cornerTypes.LR=EMPTY end
 						end
 					end
 
-					if typeUL==WATER
-					and typeUR==WATER
-					and typeLL==WATER
-					and typeLR==WATER
+					if cornerTypes.UL==WATER
+					and cornerTypes.UR==WATER
+					and cornerTypes.LL==WATER
+					and cornerTypes.LR==WATER
 					then
 						self.seq=seqs.bombSunk
 						self.state='sinking'
@@ -772,27 +775,24 @@ do
 						if not o.removeMe
 						and (o.destPos - self.destPos):lInfLength() < .75
 						then
-							local typeUL=mapGet(o.destPos.x - .25, o.destPos.y - .25)
-							local typeUR=mapGet(o.destPos.x + .25, o.destPos.y - .25)
-							local typeLL=mapGet(o.destPos.x - .25, o.destPos.y + .25)
-							local typeLR=mapGet(o.destPos.x + .25, o.destPos.y + .25)
+							local cornerTypes = getCornerTypes(o.destPos)
 
 							for _,o2 in ipairs(objs)do
 								if not o2.removeMe
 								and Bomb:isa(o2)
 								and o2.state=='sinking'
 								then
-									if typeUL==WATER and (o.destPos + vec2(-.25,-.25) - o2.destPos):lInfLength() < .5 then typeUL=EMPTY end
-									if typeUR==WATER and (o.destPos + vec2( .25,-.25) - o2.destPos):lInfLength() < .5 then typeUR=EMPTY end
-									if typeLL==WATER and (o.destPos + vec2(-.25, .25) - o2.destPos):lInfLength() < .5 then typeLL=EMPTY end
-									if typeLR==WATER and (o.destPos + vec2( .25, .25) - o2.destPos):lInfLength() < .5 then typeLR=EMPTY end
+									if cornerTypes.UL==WATER and (o.destPos + vec2(-.25,-.25) - o2.destPos):lInfLength() < .5 then cornerTypes.UL=EMPTY end
+									if cornerTypes.UR==WATER and (o.destPos + vec2( .25,-.25) - o2.destPos):lInfLength() < .5 then cornerTypes.UR=EMPTY end
+									if cornerTypes.LL==WATER and (o.destPos + vec2(-.25, .25) - o2.destPos):lInfLength() < .5 then cornerTypes.LL=EMPTY end
+									if cornerTypes.LR==WATER and (o.destPos + vec2( .25, .25) - o2.destPos):lInfLength() < .5 then cornerTypes.LR=EMPTY end
 								end
 							end
 
-							if typeUL==WATER
-							and typeUR==WATER
-							and typeLL==WATER
-							and typeLR==WATER
+							if cornerTypes.UL==WATER
+							and cornerTypes.UR==WATER
+							and cornerTypes.LL==WATER
+							and cornerTypes.LR==WATER
 							then
 								o:onGroundSunk()
 							end
