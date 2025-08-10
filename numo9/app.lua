@@ -228,35 +228,6 @@ function App:initGL()
 	self:initBlobs()
 	self:matident()
 
-	do
-		--DEBUG:print(RAM.code)
-		print(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
-		print(('ROM size: 0x%x'):format(self.memSize - ffi.sizeof'RAM'))
-
-		--[[
-		for _,field in ipairs(ROM.fields[2].type.fields) do
-			assert(xpcall(function()
-				assert.eq(ffi.offsetof('ROM', field.name), ffi.offsetof('RAM', field.name))
-			end, function(err)
-				return errorHandler('for field '..field.name..'\n')
-			end))
-		end
-		--]]
-		print'memory layout:'
-		print'- RAM -'
-		for name,ctype in RAM:fielditer() do	-- TODO struct iterable fields ...
-			local offset = ffi.offsetof('RAM', name)
-			local size = ffi.sizeof(ctype)
-			print(('0x%06x - 0x%06x = '):format(offset, offset + size)..name)
-		end
-		print'- ROM -'
-		for i=0,self.ram.blobCount-1 do
-			local blobEntry = self.ram.blobEntries + i
-			local name = assert.index(blobClassNameForType, blobEntry.type)
-			print(('0x%06x - 0x%06x = '):format(blobEntry.addr, blobEntry.addr + blobEntry.size)..name)
-		end
-	end
-
 	self.blitScreenView = View()
 	self.blitScreenView.ortho = true
 	self.blitScreenView.orthoSize = 1
@@ -487,9 +458,9 @@ function App:initGL()
 		end,
 
 		ttri3d = function(
-			x1, y1, z1, u1, v1, 
-			x2, y2, z2, u2, v2, 
-			x3, y3, z3, u3, v3, 
+			x1, y1, z1, u1, v1,
+			x2, y2, z2, u2, v2,
+			x3, y3, z3, u3, v3,
 			sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
 		)
 			if self.server then
@@ -1180,7 +1151,7 @@ print('package.loaded', package.loaded)
 					local fbHeight = 256
 					local pixelSize = 2
 					local charHeight = 8
-					
+
 					cursorPosX = 0
 					cursorPosY = cursorPosY + charHeight
 					if cursorPosY > fbHeight - charHeight then
@@ -1200,6 +1171,7 @@ print('package.loaded', package.loaded)
 							textRowSize)			-- len
 						-- and writing to it should dirty cpu to later flush cpu->gpu
 					end
+					env.flip()
 				end
 
 				for sleep=1,60 do
@@ -1212,15 +1184,36 @@ print('package.loaded', package.loaded)
 				for i=1,30 do env.flip() end
 				coolPrint'...OpenResty LuaJIT w/5.2 compat'
 				for i=1,30 do env.flip() end
+
+				-- [[ list screen modes? or nah?
 				for i,v in pairs(self.videoModeInfo) do
 					coolPrint(i..'...'..v.formatDesc)
-					env.flip()
 				end
+				--]]
+
+				-- [[ list RAM layout? or nah?
+				--DEBUG:print(RAM.code)
+				coolPrint(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
+				coolPrint(('ROM size: 0x%x'):format(self.memSize - ffi.sizeof'RAM'))
+				coolPrint'memory layout:'
+				coolPrint'- RAM -'
+				for name,ctype in RAM:fielditer() do	-- TODO struct iterable fields ...
+					local offset = ffi.offsetof('RAM', name)
+					local size = ffi.sizeof(ctype)
+					coolPrint(('0x%06x - 0x%06x = '):format(offset, offset + size)..name)
+				end
+				coolPrint'- ROM -'
+				for i=0,self.ram.blobCount-1 do
+					local blobEntry = self.ram.blobEntries + i
+					local name = assert.index(blobClassNameForType, blobEntry.type)
+					coolPrint(('0x%06x - 0x%06x = '):format(blobEntry.addr, blobEntry.addr + blobEntry.size)..name)
+				end
+				--]=]
+
 				--self.con:print"type help() for help" -- not really
 				env.flip()
 
 				-- flag 'needsPrompt' then write the prompt in update if it's needed
-
 --				for sleep=1,60 do env.flip() end
 
 				-- also for init, do the splash screen
