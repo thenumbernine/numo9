@@ -9,6 +9,8 @@
 [Youtube Playlist:](https://www.youtube.com/watch?v=R8FA24Iwo6w&list=PLvkQx1ZpORprcwfSuMEvSgGO7Kpxo44Ma)<br>
 [![NuMo9 Youtube Playlist](https://img.youtube.com/vi/R8FA24Iwo6w/0.jpg)](https://www.youtube.com/watch?v=R8FA24Iwo6w&list=PLvkQx1ZpORprcwfSuMEvSgGO7Kpxo44Ma)
 
+[Discord Channel](https://img.shields.io/badge/BuyMeA-Coffee-green.svg)
+
 # Fantasy Console
 
 I thought I'd make a fantasy console with all the LuaJIT binding code and libraries I have laying around.
