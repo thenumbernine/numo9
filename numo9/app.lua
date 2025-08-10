@@ -1175,17 +1175,29 @@ print('package.loaded', package.loaded)
 							inc(1)
 						end
 					end
+					-- TODO this based on current video mode
+					local fbWidth = 256
+					local fbHeight = 256
+					local pixelSize = 2
+					local charHeight = 8
+					
 					cursorPosX = 0
-					cursorPosY = cursorPosY + 8
-					if cursorPosY >= 256 then	-- > fbTex.height then
-						cursorPosY = cursorPosY - 8
+					cursorPosY = cursorPosY + charHeight
+					if cursorPosY > fbHeight - charHeight then
+						cursorPosY = cursorPosY - charHeight
 						local fbaddr = env.ramaddr'framebuffer'
-						pixelSize = 2
+						local scanlineSize = fbWidth * pixelSize
+						local textRowSize = charHeight * scanlineSize
+						local fbSize = scanlineSize * fbHeight
 						-- reading from this should flush framebuffer gpu->cpu
 						env.memcpy(
-							fbaddr + 0, 					-- dst
-							fbaddr + pixelSize * 256 * 8,	-- src
-							pixelSize * 256 * (256 - 8))	-- len
+							fbaddr,		 			-- dst
+							fbaddr + textRowSize,	-- src
+							fbSize - textRowSize)	-- len
+						env.memset(
+							fbSize - textRowSize,	-- dst
+							0,						-- val
+							textRowSize)			-- len
 						-- and writing to it should dirty cpu to later flush cpu->gpu
 					end
 				end
