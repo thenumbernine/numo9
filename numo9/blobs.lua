@@ -69,11 +69,11 @@ local blobClassForName = {}
 :getPtr() / :getSize()
 --]]
 local Blob = class()
-function Blob:copyToRAM()
+function Blob:copyToROM()
 	assert(self.ramptr, "failed to find ramptr for blob of type "..tostring(self.type))
 	ffi.copy(self.ramptr, self:getPtr(), self:getSize())
 end
-function Blob:copyFromRAM()
+function Blob:copyFromROM()
 	assert.ne(self.ramptr, ffi.null)
 	ffi.copy(self:getPtr(), self.ramptr, self:getSize())
 end
@@ -564,17 +564,17 @@ function BlobSet:init()
 		self[name] = table()
 	end
 end
-function BlobSet:copyToRAM()
+function BlobSet:copyToROM()
 	for _,blobsForType in pairs(self) do
 		for _,blob in ipairs(blobsForType) do
-			blob:copyToRAM()
+			blob:copyToROM()
 		end
 	end
 end
-function BlobSet:copyFromRAM()
+function BlobSet:copyFromROM()
 	for _,blobsForType in pairs(self) do
 		for _,blob in ipairs(blobsForType) do
-			blob:copyFromRAM()
+			blob:copyFromROM()
 		end
 	end
 end
@@ -787,14 +787,14 @@ local function strToBlobs(str)
 	return byteArrayToBlobs(ffi.cast('uint8_t*', str), #str)
 end
 
-function AppBlobs:copyBlobsToRAM()
+function AppBlobs:copyBlobsToROM()
 	assert.eq(ffi.sizeof(self.holdram), self.memSize)
-	self.blobs:copyToRAM()
+	self.blobs:copyToROM()
 end
 
 function AppBlobs:copyRAMToBlobs()
 	assert.eq(ffi.sizeof(self.holdram), self.memSize)
-	self.blobs:copyFromRAM()
+	self.blobs:copyFromROM()
 end
 
 

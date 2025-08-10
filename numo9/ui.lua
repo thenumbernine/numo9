@@ -329,7 +329,7 @@ function UI:update()
 	local x = 230
 	if self:guiButton('R', x, 0, nil, 'reset RAM') then
 		app:checkDirtyGPU()
-		app:copyBlobsToRAM()
+		app:copyBlobsToROM()
 		app:setDirtyCPU()
 	end
 	x=x+6

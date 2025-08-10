@@ -7,7 +7,7 @@ function CartBrowser:update()
 	self:initMenuTabs()
 	local app = self.app
 
-	app:setVideoMode(0)
+	app:setVideoMode(0)	-- is this needed if all menus are set to video mode 0?
 	app:clearScreen(0xf0, app.paletteMenuTex)
 
 	local fs = app.fs
@@ -38,14 +38,14 @@ function CartBrowser:update()
 	local w = 128	-- how wide .. text length? or fixed button length?
 	local h = 8
 	local mouseOverSel
-	local selname
+	local selectedFileName
 	for i,name in ipairs(fileNames) do
 		local f = fs.cwd.chs[name]
 
 		local sel = self.menuTabIndex == self.menuTabCounter
 		if sel then
 			mouseOverSel = true
-			selname = name
+			selectedFileName = name
 		end
 
 		if f.isdir then 				-- dir
@@ -61,15 +61,22 @@ function CartBrowser:update()
 		y = y + 8
 	end
 
-	local selfile = selname and fs.cwd.chs[selname]
+	local selectedFile = selectedFileName and fs.cwd.chs[selectedFileName]
+	-- if the selected file changes ...
+	if selectedFile ~= self.selectedFile then
+		-- ... then clear and reload the thumbnail texture
+		self.thumbTex = nil
+		self.selectedFile = selectedFile
+	end
+
 	if self.thumbTex == nil
-	and selname
-	and selname:match'%.n9$'
-	and selfile
+	and selectedFileName
+	and selectedFileName:match'%.n9$'
+	and selectedFile
 	then
 		xpcall(function()
 			-- load splash tex or something
-			local srcData = assert(selfile.data)
+			local srcData = assert(selectedFile.data)
 			local ffi = require 'ffi'
 			local path = require 'ext.path'
 
@@ -88,8 +95,8 @@ function CartBrowser:update()
 			-- I could just create these as I need them and trust gc cleanup to dealloc them
 			-- or if dealloc isn't trustworthy (esp for GPU ram) then I could cache them here (and maybe clear the cache when the folder changes?)
 			self.labelTexCache = self.labelTexCache or {}
-			local selfilecwd = selfile:path()
-			self.thumbTex = self.labelTexCache[selfilecwd]
+			local selectedFilePath = selectedFile:path()
+			self.thumbTex = self.labelTexCache[selectedFilePath]
 			if not self.thumbTex then
 				local GLTex2D = require 'gl.tex2d'
 				local gl = require 'gl'
@@ -109,7 +116,7 @@ function CartBrowser:update()
 					minFilter = gl.GL_NEAREST,
 					magFilter = gl.GL_NEAREST,
 				}:unbind()
-				self.labelTexCache[selfilecwd] = tex
+				self.labelTexCache[selectedFilePath] = tex
 				self.thumbTex = tex
 			end
 		end, function(err)
@@ -155,7 +162,7 @@ function CartBrowser:update()
 	or app:btnp'y'
 	then
 		-- then run the cart ... is it a cart?
-		if selname:match'%.n9$' then
+		if selectedFileName:match'%.n9$' then
 			--app:setMenu(nil)
 			-- numo9/ui's "load" says "do this from runFocus thread, not UI thread"
 			-- but if I do that here then it seems to stall after the 2nd or 3rd time until i open and close the console again ...
@@ -164,7 +171,7 @@ function CartBrowser:update()
 				thread = coroutine.create(function()
 					-- name, or path / name ?  if path is cwd then we're fine right?
 					-- TODO what if we're a server?  then we should do what's in numo9/app.lua's open() function, send RAM snapshot to all clients.
-					app:net_openROM(selname)
+					app:net_openROM(selectedFileName)
 					app:runROM()
 				end),
 			}

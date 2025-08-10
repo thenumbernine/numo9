@@ -88,7 +88,7 @@ end
 
 
 local App = GLApp:subclass()
-App.version = '0.8-alpha'
+App.version = '1.0-beta'
 App.title = 'NuMo9'
 App.width = cmdline and cmdline.window and cmdline.window[1] or 720
 App.height = cmdline and cmdline.window and cmdline.window[2] or 512
@@ -2712,10 +2712,14 @@ end
 This resets everything from the last loaded .blobs ROM into .ram
 Equivalent of loading the previous ROM again.
 That means code too - save your changes!
+
+TODO
+split this function between resetting the cartridge / system (i.e. RAM+ROM state + hardware)
+ and resetting only the ROM
 --]]
 function App:resetROM()
 --DEBUG:print'App:resetROM'
-	self:copyBlobsToRAM()
+	self:copyBlobsToROM()
 	self:resetVideo()
 
 	-- calling reset() live will kill all sound ...

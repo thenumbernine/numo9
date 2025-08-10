@@ -1932,7 +1932,7 @@ function AppVideo:resetVideo()
 	--self.ram.videoMode = 2	-- 8bpp RGB332
 	self:setVideoMode(self.ram.videoMode)
 
-	self:copyBlobsToRAM()
+	self:copyBlobsToROM()
 	-- [[ update now ...
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		sheetRAM.tex:bind()
@@ -2059,7 +2059,7 @@ end
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
 function AppVideo:colorSwap(from, to, x, y, w, h)
 	-- TODO SORT THIS OUT
-	self:copyBlobsToRAM()
+	self:copyBlobsToROM()
 	from = math.floor(from)
 	to = math.floor(to)
 	x = math.floor(x)
@@ -2108,7 +2108,7 @@ function AppVideo:resetFont()
 -- TODO ensure there's at least one?
 	if fontBlob then
 		resetFont(fontBlob.ramptr)
-		fontBlob:copyFromRAM()
+		fontBlob:copyFromROM()
 	end
 	self.fontRAMs[1].dirtyCPU = true
 end
@@ -2124,7 +2124,7 @@ function AppVideo:resetGFX()
 -- TODO ensure there's at least one?
 	if paletteBlob then
 		resetPalette(paletteBlob.ramptr)
-		paletteBlob:copyFromRAM()
+		paletteBlob:copyFromROM()
 	end
 	self.paletteRAMs[1].dirtyCPU = true
 end
