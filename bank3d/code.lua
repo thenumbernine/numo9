@@ -761,6 +761,80 @@ do
 				self.moveFracMoving=false
 				return 'was blocked'
 			end
+		
+			-- slopes
+			do
+				local cornerTypes = getCornerTypes2D(newDest)
+				-- TODO rotate corners so that right is fwd
+				local mtFrontLeft, mtFrontRight, mtBackLeft, mtBackRight
+				if cmd == dirForName.right then
+					mtFrontLeft = cornerTypes.UR
+					mtFrontRight = cornerTypes.LR
+					mtBackLeft = cornerTypes.UL
+					mtBackRight = cornerTypes.LL
+				elseif cmd == dirForName.down then
+					mtFrontLeft = cornerTypes.LL
+					mtFrontRight = cornerTypes.LR
+					mtBackLeft = cornerTypes.UR
+					mtBackRight = cornerTypes.UL
+				elseif cmd == dirForName.left then
+					mtFrontLeft = cornerTypes.UL
+					mtFrontRight = cornerTypes.LL
+					mtBackLeft = cornerTypes.LR
+					mtBackRight = cornerTypes.UR
+				elseif cmd == dirForName.up then
+					mtFrontLeft = cornerTypes.UL
+					mtFrontRight = cornerTypes.UR
+					mtBackLeft = cornerTypes.LL
+					mtBackRight = cornerTypes.LR
+				end
+				if (
+					mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP 
+					and mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP 
+				) or (
+					mtBackLeft >= SLOPE_RIGHT and mtBackLeft <= SLOPE_UP 
+					and mtBackRight >= SLOPE_RIGHT and mtBackRight <= SLOPE_UP 
+				)
+				then
+trace('hit slope', mtFrontLeft, mtFrontRight, mtBackLeft, mtBackRight)
+					if mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP 
+					and mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP 
+					then
+						if mtFrontLeft ~= mtFrontRight then
+							return 'was blocked'
+						end
+					end
+
+					local slopeType
+					if mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP then
+						slopeType = mtFrontLeft
+trace('front slopeType', slopeType)					
+					else
+						slopeType = mtBackLeft	-- and assume backleft & backright match
+trace('back slopeType', slopeType)					
+					end
+					
+					-- rotate
+					slopeType = ((slopeType - SLOPE_RIGHT) >> 1) & 3
+					slopeType += cmd
+					slopeType &= 3
+					slopeType <<= 1
+					slopeType += SLOPE_RIGHT
+trace('rot slopeType', slopeType)					
+					if slopeType == SLOPE_RIGHT then
+						-- go up half a step
+trace('inc z')						
+						newDest.z += .5
+					elseif slopeType == SLOPE_LEFT then
+						-- go down half a step
+trace('dec z')						
+						newDest.z -= .5
+					else
+						return 'was blocked'	-- TODO allow lateral movement on slopes
+					end
+				end
+			end
+
 			self.destPos:set(newDest)
 			self.moveFrac=0
 			self.moveFracMoving=true
@@ -1570,8 +1644,9 @@ setLevel=|level_|do
 	end
 end
 
-mapGet=|x,y,z| mget(levelTile.x + x + z * levelSize.x, levelTile.y + y) & 0x3ff	-- drop the hv flip and pal-hi
-mapSet=|x,y,z,value| mset(levelTile.x + x + z * levelSize.x, levelTile.y + y, value)
+floor=math.floor
+mapGet=|x,y,z| mget(levelTile.x + floor(x) + floor(z) * levelSize.x, levelTile.y + floor(y)) & 0x3ff	-- drop the hv flip and pal-hi
+mapSet=|x,y,z,value| mset(levelTile.x + floor(x) + floor(z) * levelSize.x, levelTile.y + floor(y), value)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
