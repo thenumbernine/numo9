@@ -117,7 +117,9 @@ What's a SNES-era fantasy-console without mode7?
 There are a few matrix functions that you can use to manipulate the render state:
 `matident`, `mattrans`, `matrot`, `matscale`, `matortho`, `matfrustum`, `matlookat`.
 
-I'm using 16.16 fixed precision to store the matrix components.  SNES used 8.8, so I am being generous.  I've tested with as close as 9.7 without getting too big of rounding errors, so maybe I could restrict this later, but meh.
+~~I'm using 16.16 fixed precision to store the matrix components.~~ (It is set to 32-bit floats for now until I tune the depth buffer support).
+SNES used 8.8, so I am being generous.
+I've tested with as close as 9.7 without getting too big of rounding errors, so maybe I could restrict this later, but meh.
 
 ### Audio
 
@@ -143,7 +145,7 @@ struct {
 	}[];
 }[];
 ```
-When playing music track i, the music data starts at `musicAddrs[i].addr` and ends at `musicAddrs[i].addr + musicAddrs[i].len`.
+When playing music track `i`, the music data starts at `musicAddrs[i].addr` and ends at `musicAddrs[i].addr + musicAddrs[i].len`.
 
 Each mixing channel holds the following information:
 - volume[2] for left and right output
@@ -195,17 +197,6 @@ memory layout:
 0x030040 - 0x030044 = blobCount
 0x030044 - 0x030050 = blobEntries
 ```
-
-I'm tempted to just chop this up into arbitrary 64k banks and let you expand as much as you want.
-- Then internally I could flag each bank for the editor to designate what to do with it.  Similar to TIC-80's chunks-within-banks, but for the whole bank and not just a portion.
-- Bank types could include: spritesheet (or tilesheet) (each uses 64k atm), tilemap (uses 128k atm), audio, code, etc...
-- Then in-editor the sprite-editor, tilemap-editor, audio-editor can let you add, remove, and change what the current targetted bank is.
-- Not sure where to squeeze palettes or fonts into this, or how to make them modular.
-	- Maybe I could end up like I'm already doing for audio and put an allocation-table somewhere for arbitrary chunks and not just audio chunks?
-	- Maybe I can give audio and misc chunks ATs?  Maybe ATs shoudl come with flags of what they are carrying?
-	- Maybe one giant allocation table for all of memory?  Maybe this is getting carried way ...
-	- The cart could have meta-info that the editor and file saves, but cart doesn't see, like what type of resources each page uses, or the allocation-table, or idk ...
-- Just having each bank have its own sprites, tilemaps, audio and only saving the present ones will be memory efficient enough, and keep things organized, and this is what TIC-80 does.
 
 # Language
 
@@ -585,10 +576,11 @@ Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.
 There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
 
 If you want to rely on outside binaries, here is the list of dependencies:
-- [luajit2 OpenResty edition](https://github.com/openresty/luajit2) tag `v2.1-20250117`.  Also you must edit `src/Makefile` and enable `XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT`, otherwise things like the `__len` metamethod won't work.
-	**Sadly** this is not default compiler settings in things like apt's `luajit` (original luajit) or `luajit2) (OpenResty luajit) packages, so neither of these packages will work.
-- My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.  This too must be built by hand at the moment.
-- SDL package `apt install libsdl2-2.0.0`, or built from source [here](https://github.com/libsdl-org/SDL).  My distributable binary is tag `release-2.32.4`.
+- [luajit2 OpenResty edition](https://github.com/openresty/luajit2) tag `v2.1-20250117`.
+	Also you must edit `src/Makefile` and enable `XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT`, otherwise things like the `__len` metamethod won't work.
+	**Sadly** this is not default compiler settings in luajit packages such as apt's `luajit` (original luajit) or `luajit2) (OpenResty luajit) packages, so neither of these packages will work.
+- My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.  This too must be built by hand at the moment.  I'll switch to SDL3's clipboard someday.
+- SDL package `apt install libsdl3-0`, or built from source [here](https://github.com/libsdl-org/SDL).  My distributable binary is tag `release-3.2.8`.
 - PNG package `apt install libpng16-16t64`, or built from source [here](https://github.com/pnggroup/libpng).  My distributable binary is tag `v1.6.47`.
 	- For building libpng, I'm building against [zlib](https://github.com/madler/zlib) tag `v1.3.1`
 
@@ -642,7 +634,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out libpng's memeory pathway is buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is RIGHT DOWN LEFT UP A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?
-- Right now editor tilemap is 8x8 tiles by default ... maybe default to 16x16?
 - How to organize the UX of the running game, the console, the menu, the editor, and netplay ...
 - matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.
@@ -660,3 +651,4 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- Should I allow tilemap rotations? 3 bits for orientation instead of just 2 bits for h & v flip?
 	- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
 - I need some kind of tilemap animation state ...
+- 4bpp framebuffers.  But that means merging two pixels into one, which would take a 2nd pass.  Unless there's a 4bpp hardware supported fbo format? DXT1?
