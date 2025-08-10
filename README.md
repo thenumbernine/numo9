@@ -84,7 +84,7 @@ Fun fact, in real life 80s/90s consoles didn't have framebuffers, so after-the-f
 
 RGB332 uses dithering when converting from the 5551 palette entries.  It could support blending in OpenGL4 (via `GL_R3_G3_B2`) but there's no support for this in GLES3/WebGL, too bad.  I could do blending myself with ping-pong framebuffer operations but ... so much work for such a little reward ....
 
-It's really tempting to include a hidden depth-buffer, since TIC-80 does as well.  But meh, for now nope, you have to do your own z-sorting.
+I've included a free/hidden depth buffer (like TIC-80 does), so you get free z-sorting.  It clears upon `cls()`.
 
 ### sprites / tiles
 
