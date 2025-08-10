@@ -416,14 +416,16 @@ end
 
 -- spr() signature
 -- TODO make an API for mesh() or obj3d() or model() or something for storing and drawing 3D models
-drawObj=|tris, spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
+drawObj=|tris, spriteIndex, x, y, z, rz, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
 	local sheetIndex = spriteIndex >> 10
 	local spriteU = (spriteIndex & 0x1f) << 3
 	local spriteV = ((spriteIndex >> 5) & 0x1f) << 3
 	local spriteW = 16 --tilesWide << 3
 	local spriteH = 16 --tilesHigh << 3
 	matpush()
-	mattrans(x, y, z)
+	mattrans(x + 8, y + 8, z + 8)
+	matrot(rz * math.pi * .5, 0, 0, 1)
+	mattrans(-8, -8, -8)
 	matscale(16, 16, 16)
 
 	for _,tri in ipairs(tris) do
@@ -475,19 +477,45 @@ for dim=0,2 do
 end
 drawCube=|...| drawObj(cubeTris, ...)
 
-drawSlope=|rotatei, spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
-	matpush()
-	matrot(rotatei * math.pi * .5)
-	matpop()
-end
+local slopeTris = table()
+for dim=0,2 do
+	for side=0,1 do
+		for _,uvs in ipairs{
+			{0,0, 0,1, 1,1},
+			{1,1, 1,0, 0,0},
+		} do
+			local u1, v1, u2, v2, u3, v3 = table.unpack(uvs)
 
-drawForFlags = |mt, x, y, z, ...| do
+			local xyz_for_uv = |u,v| do
+				if dim == 0 then
+					return side, 1 - v, u, u, v
+				elseif dim == 1 then
+					return u, side, 1 - v, u, v
+				elseif dim == 2 then
+					return u, v, side, u, v
+				end
+			end
+			local flatx = |x,y,z, u, v| (x, y, z * x, u, v)
+			local x1,y1,z1,u1,v1 = flatx(xyz_for_uv(u1,v1))
+			local x2,y2,z2,u2,v2 = flatx(xyz_for_uv(u2,v2))
+			local x3,y3,z3,u3,v3 = flatx(xyz_for_uv(u3,v3))
+			slopeTris:insert{
+				x1,y1,z1,u1,v1,
+				x2,y2,z2,u2,v2,
+				x3,y3,z3,u3,v3,
+			}
+		end
+	end
+end
+drawSlope=|spriteIndex, ...| drawObj(slopeTris, 1024|SLOPE_RIGHT, ...)
+
+drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 	if mt.drawBillboard then
-		drawBillboardSprite(x, y, z, ...)
+		drawBillboardSprite(spriteIndex, x, y, z, ...)
 	elseif mt.drawCube then
-		drawCube(x, y, z, ...)
+		drawCube(spriteIndex, x, y, z, 0, ...)
 	elseif mt.drawSlope then
-		drawSlope(mt.drawSlope, x, y, z, ...)
+		drawSlope(spriteIndex, x, y, z, mt.drawSlope, ...)
 	else
 		matpush()
 		mattrans(0, 0, z)
