@@ -761,7 +761,7 @@ do
 				self.moveFracMoving=false
 				return 'was blocked'
 			end
-		
+
 			-- slopes
 			do
 				local cornerTypes = getCornerTypes2D(newDest)
@@ -789,16 +789,16 @@ do
 					mtBackRight = cornerTypes.LR
 				end
 				if (
-					mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP 
-					and mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP 
+					mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP
+					and mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP
 				) or (
-					mtBackLeft >= SLOPE_RIGHT and mtBackLeft <= SLOPE_UP 
-					and mtBackRight >= SLOPE_RIGHT and mtBackRight <= SLOPE_UP 
+					mtBackLeft >= SLOPE_RIGHT and mtBackLeft <= SLOPE_UP
+					and mtBackRight >= SLOPE_RIGHT and mtBackRight <= SLOPE_UP
 				)
 				then
 trace('hit slope', mtFrontLeft, mtFrontRight, mtBackLeft, mtBackRight)
-					if mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP 
-					and mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP 
+					if mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP
+					and mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP
 					then
 						if mtFrontLeft ~= mtFrontRight then
 							return 'was blocked'
@@ -808,26 +808,26 @@ trace('hit slope', mtFrontLeft, mtFrontRight, mtBackLeft, mtBackRight)
 					local slopeType
 					if mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP then
 						slopeType = mtFrontLeft
-trace('front slopeType', slopeType)					
+trace('front slopeType', slopeType)
 					else
 						slopeType = mtBackLeft	-- and assume backleft & backright match
-trace('back slopeType', slopeType)					
+trace('back slopeType', slopeType)
 					end
-					
+
 					-- rotate
 					slopeType = ((slopeType - SLOPE_RIGHT) >> 1) & 3
-					slopeType += cmd
+					slopeType -= cmd
 					slopeType &= 3
 					slopeType <<= 1
 					slopeType += SLOPE_RIGHT
-trace('rot slopeType', slopeType)					
+trace('rot slopeType', slopeType)
 					if slopeType == SLOPE_RIGHT then
 						-- go up half a step
-trace('inc z')						
+trace('inc z')
 						newDest.z += .5
 					elseif slopeType == SLOPE_LEFT then
 						-- go down half a step
-trace('dec z')						
+trace('dec z')
 						newDest.z -= .5
 					else
 						return 'was blocked'	-- TODO allow lateral movement on slopes
