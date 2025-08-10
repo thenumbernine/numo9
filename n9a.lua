@@ -492,7 +492,7 @@ print('toImage', name, 'width', width, 'height', height)
 
 	local labelSrc = move(sections, 'label')
 	if labelSrc then
-		local labelImg = toImage(labelSrc, false, 'label')
+		local labelImg = toImage(labelSrc, false, 'label'):resize(256, 256)
 		labelImg.palette = palette
 		-- TODO FIXME is the palette off or something?
 		labelImg:rgb():save(basepath'label.png'.path)

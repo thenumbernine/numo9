@@ -134,6 +134,17 @@ function CartBrowser:update()
 		else
 			w = w * ar
 		end
+		
+		local x, y = 127, 8
+		app:drawSolidRect(
+			x - 1, y - 1,
+			w + 2, h + 2,
+			15,		-- dark grey
+			true,	-- border
+			false,	-- ellipse
+			app.paletteMenuTex
+		)
+
 		--[[
 		TODO this is going to draw the textures as if its contents are r8 palette indexed
 		however
@@ -148,7 +159,7 @@ function CartBrowser:update()
 		app:drawQuadTexRGB(
 			app.paletteMenuTex,
 			self.thumbTex,
-			128, 8,
+			x, y,
 			w, h,
 			0, 0,
 			1, 1
