@@ -843,8 +843,10 @@ trace('dec z')
 		end,
 		update=|:|do
 			if not self.dead then
+				local cornerTypes = getCornerTypes2D(self.destPos)
+
+				-- check moving platform
 				if (time() * 60) % 30 == 0 then
-					local cornerTypes = getCornerTypes2D(self.destPos)
 					-- TODO merge this move and btn move so we dont double move in one update ... or not?
 					-- TODO :move but withotu changing animation direction ...
 						if cornerTypes.UL == MOVING_RIGHT and cornerTypes.LL == MOVING_RIGHT then
@@ -855,6 +857,23 @@ trace('dec z')
 						self:checkMoveCmd(dirForName.left)
 					elseif cornerTypes.LL == MOVING_UP and cornerTypes.LR == MOVING_UP then
 						self:checkMoveCmd(dirForName.up)
+					end
+				end
+
+				-- check falling
+				-- TODO you can looney tunes run over air until you let go of run ...
+				if not self.moveFracMoving 
+				and self.pos.z >= .5
+				then
+					if cornerTypes.UL == EMPTY and cornerTypes.UR == EMPTY and cornerTypes.LL == EMPTY and cornerTypes.LR == EMPTY then
+						local newDest = self.destPos + - vec3(0, 0, .5)
+						local lowerCornerTypes = getCornerTypes2D(newDest)
+						if lowerCornerTypes.UL == EMPTY and lowerCornerTypes.UR == EMPTY and lowerCornerTypes.LL == EMPTY and lowerCornerTypes.LR == EMPTY then
+							self.destPos:set(newDest)
+							self.moveFrac=0
+							self.moveFracMoving=true
+							self.srcPos:set(self.pos)
+						end
 					end
 				end
 			end
