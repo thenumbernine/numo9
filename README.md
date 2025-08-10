@@ -2,11 +2,10 @@
 
 ![splash](docpics/splash.gif)
 
-[First game, Bank! available on Steam.  Purchase to help support development](https://store.steampowered.com/app/3844040/Bank/?beta=0)
-
+[First game, Bank! available on Steam.  Purchases help support development!](https://store.steampowered.com/app/3844040/Bank/?beta=0)<br>
 [![vid](docpics/numo9_demo.gif)](https://store.steampowered.com/app/3844040/Bank/?beta=0)
 
-[Youtube Playlist:](https://www.youtube.com/watch?v=R8FA24Iwo6w&list=PLvkQx1ZpORprcwfSuMEvSgGO7Kpxo44Ma)
+[Youtube Playlist:](https://www.youtube.com/watch?v=R8FA24Iwo6w&list=PLvkQx1ZpORprcwfSuMEvSgGO7Kpxo44Ma)<br>
 [![NuMo9 Youtube Playlist](https://img.youtube.com/vi/R8FA24Iwo6w/0.jpg)](https://www.youtube.com/watch?v=R8FA24Iwo6w&list=PLvkQx1ZpORprcwfSuMEvSgGO7Kpxo44Ma)
 
 # Fantasy Console
