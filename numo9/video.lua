@@ -1510,7 +1510,7 @@ void main() {
 	// and I needed a RGB option for the cart browser (maybe I should just use this for all the menu system and just skip on the menu-palette?)
 	} else if (pathway == 3u) {
 
-		fragColor = <?=fragType?>(]]
+		fragColor = <?=fragType?>(vec4(]]
 				..readTex{
 					tex = self.sheetRAMs[1].tex,
 					texvar = 'sheetTex',
@@ -1518,7 +1518,15 @@ void main() {
 					from = 'vec2',
 					to = fragType,
 				}
-				..[[ / 255.);
+..')'
+..(
+	--fragType == 'vec4' and
+	'/ 255.'
+	--or ''
+)
+
+
+				..[[);
 
 	}	// pathway
 }
