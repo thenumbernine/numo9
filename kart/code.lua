@@ -25,7 +25,8 @@ https://www.spriters-resource.com/custom_edited/mariocustoms/
 --]]
 
 --#include numo9/matstack.lua
-local userAddr = ramaddr'userData'
+local userAddr = blobaddr'data'
+assert.ge(blobsize'data', 512)
 assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 local palAddr = blobaddr'palette'
 

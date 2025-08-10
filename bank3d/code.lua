@@ -1273,6 +1273,7 @@ do
 												end
 											end
 										end
+trace('mapSet', cfx, cfy, cfz)										
 										mapSet(cfx, cfy, cfz, EMPTY)
 									end
 									wallStopped=true

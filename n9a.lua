@@ -34,7 +34,6 @@ local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local tilemapSize = numo9_rom.tilemapSize
-local userDataSize = numo9_rom.userDataSize
 local persistentCartridgeDataSize = numo9_rom.persistentCartridgeDataSize
 local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels -- TODO names ... channels for mixing vs output channels L R for stereo
@@ -1332,7 +1331,8 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		--]]
 	end
 
-	assert.ge(userDataSize, 0x1300, "DANGER! userData isn't large enough for Pico8")
+	-- write out our userdata blob ... TODO mechanism to request cart space without specifying empty files
+	assert(basepath'data.bin':write(('\0'):rep(0x1300)))
 
 	-- now add our glue between APIs ...
 	code = table{

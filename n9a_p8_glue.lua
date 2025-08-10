@@ -2,9 +2,10 @@
 -- NOTICE if you ever remove ffi from the cartridge API then this will break ...
 updateCounterAddr=ramaddr'updateCounter'
 framebufferAddr=ramaddr'framebuffer'
-userDataAddr=ramaddr'userData'
 spriteSheetAddr=blobaddr'sheet'
 tilemapAddr=blobaddr'tilemap'
+userDataAddr=blobaddr'data'
+assert.ge(blobsize'data', 0x1300)
 mode(1)	-- set to 8bpp-indexed framebuffer
 p8ton9btnmap={[0]=2,0,3,1,7,5}
 p8color=6

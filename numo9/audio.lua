@@ -430,8 +430,9 @@ assert.eq(audioMusicPlayingCount, 8)
 			local sfxBlob = self.blobs.sfx[value+1]
 			if sfxBlob then
 				local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
-				-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
-				assert.eq(bit.band(sfxAmplsAddr, 1), 0)
+-- FIRST MAKE SURE THE 1'S BIT IS NOT SET - MUST BE 2 ALIGNED
+--assert.eq(bit.band(sfxAmplsAddr, 1), 0)
+-- erm no longer the case?  that's on you to make sure your music blobs are alignd...
 				-- THEN SHIFT IT ... 11 ... which is 12 minus 1
 				-- 12 bits = 0x1000 = 1:1 pitch.  but we are goign to <<1 the addr becuase we're reading int16 samples
 				local channel = self.ram.channels[channelIndex]

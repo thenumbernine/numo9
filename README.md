@@ -198,9 +198,8 @@ memory layout:
 0x0207fa - 0x0207fe = lastMousePos
 0x0207fe - 0x020802 = lastMousePressPos
 0x020802 - 0x022802 = persistentCartridgeData
-0x022802 - 0x030040 = userData
-0x030040 - 0x030044 = blobCount
-0x030044 - 0x030050 = blobEntries
+0x022802 - 0x022806 = blobCount
+0x022806 - 0x022812 = blobEntries
 ```
 
 # Language
@@ -657,3 +656,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
 - I need some kind of tilemap animation state ...
 - 4bpp framebuffers.  But that means merging two pixels into one, which would take a 2nd pass.  Unless there's a 4bpp hardware supported fbo format? DXT1?
+- netplay persistent data maybe ... 
+	- one set per-game
+	- one set per-game-per-server

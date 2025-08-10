@@ -48,7 +48,7 @@ local blobClassNameForType = table{
 	'music',
 	'brush',
 	'brushmap',
-	-- TODO extra / arbitrary, for user-defined binary blobs?
+	'data',	-- binary blob
 	-- TODO 'voxelmap' = voxel-map of models from some lookup table
 	-- TODO 'obj3d'
 }
@@ -529,6 +529,12 @@ BlobBrush.filenameSuffix = '.lua'
 function BlobBrush:init(data)
 	self.data = assert(data)
 end
+function BlobBrush:getPtr()
+	return ffi.cast('uint8_t*', self.data)
+end
+function BlobBrush:getSize()
+	return #self.data
+end
 -- static method:
 function BlobBrush:loadFile(filepath)
 	return self.class(filepath:read())
@@ -541,8 +547,32 @@ BlobBrushMap.filenameSuffix = '.lua'
 function BlobBrushMap:init(data)
 	self.data = assert(data)
 end
+function BlobBrushMap:getPtr()
+	return ffi.cast('uint8_t*', self.data)
+end
+function BlobBrushMap:getSize()
+	return #self.data
+end
 -- static method:
 function BlobBrushMap:loadFile(filepath)
+	return self.class(filepath:read())
+end
+
+
+local BlobData = blobSubclass'data'
+BlobData.filenamePrefix = 'data'
+BlobData.filenameSuffix = '.bin'
+function BlobData:init(data)
+	self.data = assert(data)
+end
+function BlobData:getPtr()
+	return ffi.cast('uint8_t*', self.data)
+end
+function BlobData:getSize()
+	return #self.data
+end
+-- static method:
+function BlobData:loadFile(filepath)
 	return self.class(filepath:read())
 end
 

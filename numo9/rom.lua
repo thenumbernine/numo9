@@ -65,8 +65,6 @@ local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a t
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
 
-local userDataSize = 0xd83e
-
 -- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
 -- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
 -- tic80 metadata includes title, author, some dates..., description, some urls ...
@@ -361,13 +359,8 @@ local RAM = struct{
 				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
 
 				-- persistent data per-game
-				-- TODO align this
+				-- TODO make a blob out of this too?
 				{name='persistentCartridgeData', type='uint8_t['..persistentCartridgeDataSize..']'},
-
-				-- I needed 0x1300 of 'userData' for pico8 compat
-				-- so I thought, why put it in  RAM, why not in the cart as well, since the cart has space?
-				-- TODO maybe ... netplay persistent data ... one set per-game, one set per-game-per-server
-				{name='userData', type='uint8_t['.. userDataSize ..']'},
 
 				-- end of RAM, beginning of ROM
 
@@ -455,7 +448,6 @@ return {
 	audioMusicPlayingCount = audioMusicPlayingCount,
 	audioAllMixChannelsInBytes = audioAllMixChannelsInBytes,
 	pitchPrec = pitchPrec,
-	userDataSize = userDataSize,
 	persistentCartridgeDataSize = persistentCartridgeDataSize,
 
 	mvMatType = mvMatType,
