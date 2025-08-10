@@ -846,7 +846,9 @@ function AppVideo:initVideo()
 ]]
 	end
 
-	local blitFragType = 'vec4'	-- blit screen is always to vec4 ... right?
+	-- blit screen is always to vec4 ... right?
+	local blitFragType = 'vec4'
+	local blitFragTypeVec3 = 'vec3'
 
 	local function makeVideoModeRGB565(framebufferRAM)
 		local modeObj = {
@@ -856,7 +858,7 @@ function AppVideo:initVideo()
 			colorOutput = table{
 				colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor'),
 				'fragColor = vec4(ufragColor) / 31.;',
-				getDrawOverrideCode'uvec3',
+				getDrawOverrideCode(blitFragTypeVec3),
 			}:concat'\n',
 			--]=]
 			--[=[ internalFormat = internalFormat5551
@@ -1321,10 +1323,10 @@ void main() {
 	}
 
 	uvec2 uFragCoord = uvec2(gl_FragCoord);
-	uint threshold = (uFragCoord.y >> 1) & 1
-		| ((uFragCoord.x ^ uFragCoord.y) & 2)
-		| ((uFragCoord.y & 1) << 2)
-		| (((uFragCoord.x ^ uFragCoord.y) & 1) << 3);
+	uint threshold = (uFragCoord.y >> 1) & 1u
+		| ((uFragCoord.x ^ uFragCoord.y) & 2u)
+		| ((uFragCoord.y & 1u) << 2)
+		| (((uFragCoord.x ^ uFragCoord.y) & 1u) << 3);
 	uint dither = extra.y;
 	if ((dither & (1u << threshold)) != 0u) discard;
 
