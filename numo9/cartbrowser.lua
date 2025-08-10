@@ -171,8 +171,8 @@ function CartBrowser:update()
 				thread = coroutine.create(function()
 					-- name, or path / name ?  if path is cwd then we're fine right?
 					-- TODO what if we're a server?  then we should do what's in numo9/app.lua's open() function, send RAM snapshot to all clients.
-					app:net_openROM(selectedFileName)
-					app:runROM()
+					app:net_openCart(selectedFileName)
+					app:runCart()
 				end),
 			}
 			app.isPaused = false	-- make sure the setFocus does run

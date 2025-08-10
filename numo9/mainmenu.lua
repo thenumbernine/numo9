@@ -112,7 +112,7 @@ function MainMenu:updateMenuMain()
 
 	if self:menuButton'new game' then
 		app:setMenu(nil)
-		app:runROM()
+		app:runCart()
 		return
 	end
 

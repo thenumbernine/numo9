@@ -292,12 +292,12 @@ function App:initGL()
 		print = function(...) return self.con:print(...) end,
 		trace = _G.print,
 
-		run = function(...) return self:runROM(...) end,
+		run = function(...) return self:runCart(...) end,
 		stop = function(...) return self:stop(...) end,
 		cont = function(...) return self:cont(...) end,
-		save = function(...) return self:saveROM(...) end,
-		open = function(...) return self:net_openROM(...) end,
-		reset = function(...) return self:net_resetROM(...) end,
+		save = function(...) return self:saveCart(...) end,
+		open = function(...) return self:net_openCart(...) end,
+		reset = function(...) return self:net_resetCart(...) end,
 		quit = function(...) self:requestExit() end,
 
 		-- [[ this is for the console, but this means the cart can call it as well ...
@@ -890,7 +890,7 @@ function App:initGL()
 			for _,suffix in ipairs{'', '.n9', '.n9.png'} do
 				local checkfn = cmd..suffix
 				if self.fs:get(checkfn) then
-					return self:openROM(cmd) -- or net_openROM?
+					return self:openCart(cmd) -- or net_openCart?
 				end
 			end
 			--]]
@@ -1122,7 +1122,7 @@ print('package.loaded', package.loaded)
 		thread = coroutine.create(function()
 			local env = self.env
 			-- set state to paused initially
-			-- then if we get a openROM command it'll unpause
+			-- then if we get a openCart command it'll unpause
 			-- or if we get a setmenu command in init this will remain paused and not kick us back to console when this finishes
 			--self.isPaused = true
 			-- HOWEVER doing this makes it so starting to the console requires TWO ESCAPE (one to stop this startup) to enter the main menu ...
@@ -1294,8 +1294,8 @@ print('package.loaded', package.loaded)
 			-- how to make it start with console open if there's no rom ...
 			-- then run our cmdline file ... ?
 			if cmdline and cmdline[1] then
-				self:openROM(cmdline[1])	-- or what about starting a server game?  and then net_openROM?
-				self:runROM()
+				self:openCart(cmdline[1])	-- or what about starting a server game?  and then net_openCart?
+				self:runCart()
 			end
 
 			-- then let us run cmds
@@ -1341,8 +1341,8 @@ end
 --  (tho the client shouldnt have a server and that shouldnt happen anyways)
 
 -- ok when opening a ROM, we want to send the RAM snapshot out to all clients
-function App:net_openROM(...)
-	local result = table.pack(self:openROM(...))
+function App:net_openCart(...)
+	local result = table.pack(self:openCart(...))
 
 	if self.server then
 		-- TODO consider order of events
@@ -1359,8 +1359,8 @@ function App:net_openROM(...)
 	return result:unpack()
 end
 
-function App:net_resetROM(...)
-	local result = table.pack(self:resetROM(...))
+function App:net_resetCart(...)
+	local result = table.pack(self:resetCart(...))
 
 	-- TODO this or can I get by
 	-- 1) backing up the client's cartridge state upon load() then ...
@@ -2532,7 +2532,7 @@ end
 -------------------- ROM STATE STUFF --------------------
 
 -- save from cartridge to filesystem
-function App:saveROM(filename)
+function App:saveCart(filename)
 --	self:checkDirtyGPU()
 
 	-- flush that back to .blobs ...
@@ -2603,26 +2603,12 @@ function App:saveROM(filename)
 	end
 	--]]
 
---debug.sethook(function() print(debug.traceback()) end, 'crl')
---[[
-save then run is causing a segfault here:
-stack traceback:
-	numo9/app.lua:2590: in function <numo9/app.lua:2590>
-	[C]: in function 'glReadPixels'
-	numo9/video.lua:500: in function 'checkDirtyGPU'
-	numo9/video.lua:1859: in function 'allRAMRegionsCheckDirtyGPU'
-	numo9/video.lua:1903: in function 'resetVideo'
-	numo9/app.lua:2695: in function 'resetROM'
-	numo9/app.lua:2758: in function 'runROM'
-	numo9/ui.lua:339: in function <numo9/ui.lua:338>
-Segmentation fault (core dumped)
---]]
 	return true
 end
 
 --[[
 Load from filesystem to cartridge
-then call resetROM which loads
+then call resetCart which loads
 TODO maybe ... have the editor modify the cartridge copy as well
 (this means it wouldn't live-update palettes and sprites, since they are gathered from RAM
 	... unless I constantly copy changes across as the user edits ... maybe that's best ...)
@@ -2632,8 +2618,8 @@ TODO maybe ... have the editor modify the cartridge copy as well
 whoever calls this should create a runFocus coroutine to load the ROM
  so that the load only takes place in the runFocus loop and not the UI loop (which pushes and pops the modelview matrix values)
 --]]
-function App:openROM(filename)
---DEBUG:print('App:openROM', filename)
+function App:openCart(filename)
+--DEBUG:print('App:openCart', filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
 
@@ -2689,7 +2675,7 @@ function App:openROM(filename)
 	end
 
 	self:matident()
-	self:resetROM()
+	self:resetCart()
 	return true
 end
 
@@ -2698,7 +2684,7 @@ function App:writePersistent()
 
 	-- first call, there's no metainfo, so if it's not there then don't save anything
 	if self.metainfo then
-		assert(self.metainfo.saveid, "how did you get here?  in App:runROM metainfo.saveid should have been written.")
+		assert(self.metainfo.saveid, "how did you get here?  in App:runCart metainfo.saveid should have been written.")
 		-- TODO this when you read cart header ... or should we put it in ROM somewhere?
 		-- save a string up to the last non-zero value ... opposite  of C-strings
 		local len = persistentCartridgeDataSize
@@ -2729,8 +2715,8 @@ TODO
 split this function between resetting the cartridge / system (i.e. RAM+ROM state + hardware)
  and resetting only the ROM
 --]]
-function App:resetROM()
---DEBUG:print'App:resetROM'
+function App:resetCart()
+--DEBUG:print'App:resetCart'
 	self:copyBlobsToROM()
 	self:resetVideo()
 
@@ -2790,12 +2776,12 @@ end
 
 -- TODO ... welp what is editor editing?  the cartridge?  the virtual-filesystem disk image?
 -- once I figure that out, this should make sure the cartridge and RAM have the correct changes
-function App:runROM()
+function App:runCart()
 
 	-- when should we write the old persist?  when opening?  when resetting?  when running?
 	self:writePersistent()
 
-	self:resetROM()
+	self:resetCart()
 	self:resetAudio()
 	self.isPaused = false
 	self:setMenu(nil)

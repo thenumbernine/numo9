@@ -336,22 +336,22 @@ function UI:update()
 	if self:guiButton('\223', x, 0, nil, 'run') then
 		app:setFocus{
 			thread = coroutine.create(function()
-				app:runROM()
+				app:runCart()
 			end),
 		}
 		app.isPaused = false
 	end
 	x=x+6
 	if self:guiButton('S', x, 0, nil, 'save') then
-		app:saveROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+		app:saveCart(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then
 		app:setFocus{
 			thread = coroutine.create(function()
 				-- do this from runFocus thread, not UI thread
-				app:net_openROM(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
-				--app:runROM() ?
+				app:net_openCart(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+				--app:runCart() ?
 			end),
 		}
 		app.isPaused = false	-- make sure the setFocus does run
