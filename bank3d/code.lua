@@ -476,6 +476,9 @@ end
 drawCube=|...| drawObj(cubeTris, ...)
 
 drawSlope=|rotatei, spriteIndex, x, y, z, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
+	matpush()
+	matrot(rotatei * math.pi * .5)
+	matpop()
 end
 
 drawForFlags = |mt, x, y, z, ...| do
