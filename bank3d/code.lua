@@ -507,7 +507,7 @@ for dim=0,2 do
 		end
 	end
 end
-drawSlope=|spriteIndex, ...| drawObj(slopeTris, 1024|SLOPE_RIGHT, ...)
+drawSlope=|spriteIndex, ...| drawObj(slopeTris, 1024|STONE, ...)
 
 drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 	if mt.drawBillboard then
@@ -796,22 +796,23 @@ do
 					and mtBackRight >= SLOPE_RIGHT and mtBackRight <= SLOPE_UP
 				)
 				then
-trace('hit slope', mtFrontLeft, mtFrontRight, mtBackLeft, mtBackRight)
-					if mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP
-					and mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP
+--DEBUG:trace('hit slope', mtFrontLeft, mtFrontRight, mtBackLeft, mtBackRight)
+					if (mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP)
+					or (mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP)
 					then
 						if mtFrontLeft ~= mtFrontRight then
 							return 'was blocked'
 						end
 					end
+					-- otherwise consider this over the slope and use its back tile for detecting the slope type
 
 					local slopeType
 					if mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP then
 						slopeType = mtFrontLeft
-trace('front slopeType', slopeType)
+--DEBUG:trace('front slopeType', slopeType)
 					else
 						slopeType = mtBackLeft	-- and assume backleft & backright match
-trace('back slopeType', slopeType)
+--DEBUG:trace('back slopeType', slopeType)
 					end
 
 					-- rotate
@@ -820,18 +821,23 @@ trace('back slopeType', slopeType)
 					slopeType &= 3
 					slopeType <<= 1
 					slopeType += SLOPE_RIGHT
-trace('rot slopeType', slopeType)
+--DEBUG:trace('rot slopeType', slopeType)
 					if slopeType == SLOPE_RIGHT then
 						-- go up half a step
-trace('inc z')
+--DEBUG:trace('inc z')
 						newDest.z += .5
 					elseif slopeType == SLOPE_LEFT then
 						-- go down half a step
-trace('dec z')
+--DEBUG:trace('dec z')
 						newDest.z -= .5
 					else
 						return 'was blocked'	-- TODO allow lateral movement on slopes
 					end
+				-- if front tiles differ, one is and one isn't slope, then block
+				elseif (mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP)
+				or (mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP)
+				then
+					return 'was blocked'
 				end
 			end
 
