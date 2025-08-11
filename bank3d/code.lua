@@ -875,10 +875,25 @@ do
 						local newDest = self.destPos + - vec3(0, 0, .5)
 						local lowerCornerTypes = getCornerTypes2D(newDest)
 						if lowerCornerTypes.UL == EMPTY and lowerCornerTypes.UR == EMPTY and lowerCornerTypes.LL == EMPTY and lowerCornerTypes.LR == EMPTY then
-							self.destPos:set(newDest)
-							self.moveFrac=0
-							self.moveFracMoving=true
-							self.srcPos:set(self.pos)
+							
+							local touching
+							for _,o in ipairs(objs) do
+								if not o.removeMe
+								and o ~= self
+								and PushableObj:isa(o)	--and o.canWalkOn
+								-- TODO framers can crush money ..
+								and (o.destPos - newDest):lInfLength() <= .75
+								then
+									touching = true
+									break
+								end
+							end
+							if not touching then
+								self.destPos:set(newDest)
+								self.moveFrac=0
+								self.moveFracMoving=true
+								self.srcPos:set(self.pos)
+							end
 						end
 					end
 				end
