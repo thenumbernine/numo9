@@ -70,7 +70,7 @@ mapTypes=table{
 	[2] = {
 		name = 'water',
 		flags = flags.liquid,
-	},	
+	},
 	[3] = {
 		name = 'stone',
 		flags = flags.solid,
@@ -87,7 +87,7 @@ mapTypes=table{
 	[sprites.plant] = {
 		name = 'plant',
 		touch = |:, o, x, y| do
-trace'plant tile touching player'			
+trace'plant tile touching player'
 			o.pickupTouching = {tile=vec2(x,y), type=self}
 			return false	-- don't block
 		end,
@@ -102,16 +102,16 @@ trace'plant tile touching player'
 	[sprites.vegetable] = {
 		name = 'vegetable',
 		touch = |:, o, x, y| do
-trace'veg tile touching player'			
+trace'veg tile touching player'
 			o.pickupTouching = {tile=vec2(x,y), type=self}
 			return false	-- don't block
-		end,	
+		end,
 		doPickUp = |:, o, x, y| do
 			-- pick-up-able tile
 			o.holding = Vegetable{pos=vec2(x,y)}
 			o.holding.solid = false
 			o.holding.useGravity = true
-			mset(x, y, 0)	
+			mset(x, y, 0)
 		end,
 	},
 	--]===]
@@ -233,7 +233,7 @@ Player.update = |:| do
 		self.hitSides & (1 << dirForName.down) ~= 0
 		-- ... or we have double-jump and haven't used our 2nd jump
 		-- ... or we have space-jump
-	
+
 		or inliquid	-- swimming
 	)
 	then
@@ -259,7 +259,7 @@ Player.update = |:| do
 	local t = mapTypes[ti]
 	self.breathe -= .01 * dt
 	local airBreathInc = .2
-	if t and t.flags & flags.vapor ~= 0 
+	if t and t.flags & flags.vapor ~= 0
 	and Player.breathe - self.breathe >= airBreathInc
 	then
 		self.breathe += airBreathInc
@@ -285,7 +285,7 @@ Player.update = |:| do
 
 	self.pos.x = math.clamp(self.pos.x, 0, 255.9999999)
 
-	
+
 	if self.holding then
 		self.holding.pos = self.pos + vec2(0, -1)
 		if btnp'y' then
@@ -301,9 +301,9 @@ Player.update = |:| do
 			self.holding:doPressA(self)
 		end
 	else
-		if btn'y' then 
---trace'pressing y'	
-			--self:shoot() 
+		if btn'y' then
+--trace'pressing y'
+			--self:shoot()
 			-- TODO
 			-- if we were touching a plant...
 			-- ... pull it up
@@ -311,14 +311,14 @@ Player.update = |:| do
 			-- push another button to throw it down somewhere else
 			-- push another button to eat plants
 			if self.pickupTouching then
---trace'pickup touching'				
+--trace'pickup touching'
 				if not self.pickupStartTime then
---trace'setting pickupStartTime'					
+--trace'setting pickupStartTime'
 					self.pickupStartTime = time()
 				else
 --trace'progressing pickupStartTime'
 					local pickupDuration = .5
-					
+
 					drawBar(
 						player.pos.x * 8 - 4,
 						player.pos.y * 8 - 16,
@@ -341,8 +341,8 @@ Player.update = |:| do
 			end
 		end
 	end
-	
-	if not btn'y' then 
+
+	if not btn'y' then
 		self.pickupStartTime = nil
 	end
 
@@ -383,7 +383,7 @@ CanPickUp = Object:subclass()
 CanPickUp.solid = false
 CanPickUp.touch = |:, o| do
 	if o == player then
---trace'setting pickupTouching'		
+--trace'setting pickupTouching'
 		o.pickupTouching = {obj=self}
 	end
 	return self.solid	-- don't block
@@ -450,7 +450,7 @@ Vegetable.update = |:| do
 --[===[ if we want to support obj<->tile conversion
 	if self.solid == false then return end
 	if self.useGravity == false then return end
-	
+
 	if self.vel.x == 0 and self.vel.y == 0
 	and self.hitSides & (1 << dirForName.down) ~= 0
 	then
@@ -467,7 +467,7 @@ init = || do
 	reset()	-- reset rom
 
 	objs=table()
-	
+
 --[[ random everything
 	player = Player{
 		pos=(worldSize * .5):floor(),
@@ -487,20 +487,20 @@ init = || do
 	end
 --]]
 -- [[ give some sort of semblance of terraria caves or something idk
-	local homeRadius = 4	
+	local homeRadius = 4
 	local freq = 1/16	-- as long as 1/freq >= ground, then our ground gadient won't break our surface isobar
 	local ground = 16
 	local groundGrad = 1/4
 	player = Player{
 		pos=vec2(
-			worldSize.x * .5, 
+			worldSize.x * .5,
 			ground + 8
 		):floor(),
 	}
 	local circles = table{
 		-- dig a hole for the player to start
 		{pos=player.pos, radius=homeRadius},
-		-- also passage to surface maybe ... 
+		-- also passage to surface maybe ...
 	}:append(range(10):mapi(|i|
 		{pos=player.pos + i * vec2(2, -1), radius=2}
 	))
@@ -530,7 +530,7 @@ init = || do
 			mset(i, j, ti)
 		end
 	end
-	
+
 	-- determine sky level
 	for i=0,worldSize.x-1 do
 		for j=0,worldSize.y-1 do
@@ -543,9 +543,9 @@ init = || do
 			end
 		end
 	end
-	
+
 	-- I feel like I should be using circ() or something to draw on the tilemap...
-	
+
 --]]
 end
 -- level main loop ...
@@ -558,7 +558,7 @@ mainloops:insert(||do
 		if mget(x,y+1) == mapTypeForName.dirt.index then
 			local plant = Plant{
 				pos = vec2(x, y + .5),
-				createTime = time() - math.random() * Plant.growDuration, 
+				createTime = time() - math.random() * Plant.growDuration,
 			}
 			plants:insert(plant)
 		end
@@ -576,7 +576,7 @@ local clearColorFadeTime = 1	-- second
 local fadeToColor = |newClearColor| do
 	if newClearColor == clearColor then return end
 	clearColorFadeStart = time()
-	clearColorPrev = clearColor 
+	clearColorPrev = clearColor
 	clearColor = newClearColor
 end
 
@@ -654,16 +654,16 @@ update = || do
 				w[1] += math.random() * 1
 				w[2] += math.random() * 1
 				if w[1] < ulpos.x	-- TODO consider mode and screen tile size
-				or w[1] > ulpos.x + 33 
-				or w[2] < ulpos.y 
+				or w[1] > ulpos.x + 33
+				or w[2] < ulpos.y
 				or w[2] > ulpos.y + 33
 				then
 					w[1] = ulpos.x + 33 * math.random()
 					w[2] = ulpos.y + 33 * math.random()
 				end
 			end
-		
-			
+
+
 			fadeToColor(15)
 			player.outside = true
 		else

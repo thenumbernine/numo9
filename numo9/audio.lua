@@ -567,19 +567,19 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 		end
 		return
 	end
-	if musicID < 0 or musicID >= #self.blobs.music then 
---DEBUG:print('musicID is OOB - bailing')		
-		return 
+	if musicID < 0 or musicID >= #self.blobs.music then
+--DEBUG:print('musicID is OOB - bailing')
+		return
 	end
 
 	-- play music
 	local musicBlob = self.blobs.music[musicID+1]
-	if not musicBlob then 
---DEBUG:print('no musicBlob found - bailing')		
-		return 
+	if not musicBlob then
+--DEBUG:print('no musicBlob found - bailing')
+		return
 	end
-	if musicBlob:getSize() == 0 then 
---DEBUG:print('musicBlob is empty - bailing')		
+	if musicBlob:getSize() == 0 then
+--DEBUG:print('musicBlob is empty - bailing')
 		return
 	end
 

@@ -134,7 +134,7 @@ function CartBrowser:update()
 		else
 			w = w * ar
 		end
-		
+
 		local x, y = 127, 8
 		app:drawSolidRect(
 			x - 1, y - 1,

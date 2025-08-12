@@ -9,7 +9,6 @@ files = {
 	["2048x2.n9"] = "numo9/2048x2.n9",
 	["README.md"] = "numo9/README.md",
 	["asteroids.n9"] = "numo9/asteroids.n9",
-	["bank.n9"] = "numo9/bank.n9",
 	["bombs.n9"] = "numo9/bombs.n9",
 	["brain.n9"] = "numo9/brain.n9",
 	["btnp_test.n9"] = "numo9/btnp_test.n9",

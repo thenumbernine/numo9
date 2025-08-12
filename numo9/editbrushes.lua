@@ -15,7 +15,7 @@ speaking of custom, I need a tile remapping for animations
 
 so each brush is going to be:
 uint16_t x, y, w, h;	<- 8 bytes
-... then comes the brush info 
+... then comes the brush info
 ... do we store per-brush a {uint8_t bw, bh; uint16_t tile[bw*bh]} = 2 * 2*n bytes?
 ... or do we put this in another table, and just give the brush a uint8_t to lookup into that table?
 ... I'll do the latter for now and see how quickly it fills up.
@@ -66,7 +66,7 @@ function EditBrushes:update()
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local shift = app:key'lshift' or app:key'rshift'
-	
+
 	EditBrushes.super.update(self)
 
 	-- title controls
@@ -82,11 +82,11 @@ function EditBrushes:update()
 		self.draw16Sprites = not self.draw16Sprites
 	end
 	x=x+8
-	
+
 	if self:guiButton('G', x, y, self.drawGrid, 'grid') then
 		self.drawGrid = not self.drawGrid
 	end
-	
+
 	x, y = 0, 8
 
 	local stampSizeChanged
@@ -133,10 +133,10 @@ function EditBrushes:update()
 				else
 					local t = assert(self.stamp[i+1][j+1])
 					local tx = bit.band(t, 0x1f) * spriteSize.x					-- ux
-					local ty = bit.band(bit.rshift(t, 5), 0x1f) * spriteSize.y	-- uy 
+					local ty = bit.band(bit.rshift(t, 5), 0x1f) * spriteSize.y	-- uy
 					local tw = thisTileSize.x-1					-- uw
-					local th = thisTileSize.y-1					-- uh                
-					-- TODO h and v flip 
+					local th = thisTileSize.y-1					-- uh
+					-- TODO h and v flip
 					app:drawQuad(
 						ux, uy, uw, uh,		-- x, y, w, h
 						tx, ty, tw, th,
@@ -155,7 +155,7 @@ function EditBrushes:update()
 							for jofs=0,self.spriteSelSize.y-1 do
 								local dsti = i + iofs
 								local dstj = j + jofs
-								if dsti >= 0 and dstj >= 0 
+								if dsti >= 0 and dstj >= 0
 								and dsti < self.stampSize.x
 								and dstj < self.stampSize.y
 								then
@@ -163,7 +163,7 @@ function EditBrushes:update()
 								end
 							end
 						end
-						return 
+						return
 					end
 				end
 			end
@@ -250,4 +250,4 @@ function EditBrushes:update()
 	end
 end
 
-return EditBrushes 
+return EditBrushes

@@ -220,7 +220,7 @@ function EditTilemap:update()
 			app:drawSolidLine(xmin, j, xmax, j, self:color(1))
 		end
 	end
-	
+
 	if self.drawMode == 'select' then
 		app:drawBorderRect(
 			self.tileSelPos.x * tileSize,

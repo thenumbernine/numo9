@@ -10,9 +10,9 @@ Quat.init=|:,...|do
 		self.x, self.y, self.z, self.w = ...
 	end
 end
-Quat.set = |:,o| do 
-	self.x, self.y, self.z, self.w = o:unpack() 
-	return self 
+Quat.set = |:,o| do
+	self.x, self.y, self.z, self.w = o:unpack()
+	return self
 end
 Quat.unpack = |q| (q.x, q.y, q.z, q.w)
 Quat.mul = |q, r, res| do
@@ -64,7 +64,7 @@ Quat.fromAngleAxis = |:, res| do
 	return (res or Quat()):set(x * vscale, y * vscale, z * vscale, costh)
 end
 
-Quat.xAxis = |q, res| 
+Quat.xAxis = |q, res|
 	((res or vec3()):set(
 		1 - 2 * (q.y * q.y + q.z * q.z),
 		2 * (q.x * q.y + q.z * q.w),
@@ -123,14 +123,14 @@ objs = table()
 
 getViewPos = |v| do
 	local relpos = v - viewPos
-	if relpos.x < -worldSize then 
+	if relpos.x < -worldSize then
 		relpos.x += 2*worldSize
-	elseif relpos.x > worldSize then 
+	elseif relpos.x > worldSize then
 		relpos.x -= 2*worldSize
 	end
-	if relpos.y < -worldSize then 
+	if relpos.y < -worldSize then
 		relpos.y += 2*worldSize
-	elseif relpos.y > worldSize then 
+	elseif relpos.y > worldSize then
 		relpos.y -= 2*worldSize
 	end
 	return relpos + viewPos
@@ -327,7 +327,7 @@ update=||do
 	-- [[
 	--]]
 	mattrans(-viewPos.x, -viewPos.y)
-	if player then 
+	if player then
 		viewPos:set(player.pos)
 		viewAngle = player.angle + .5 * math.pi
 	end
