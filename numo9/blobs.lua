@@ -4,6 +4,7 @@ local string = require 'ext.string'
 local path = require 'ext.path'
 local assert = require 'ext.assert'
 local class = require 'ext.class'
+local vec2i = require 'vec-ffi.vec2i'
 local vector = require 'ffi.cpp.vector-lua'
 local struct = require 'struct'
 local Image = require 'image'
@@ -15,11 +16,8 @@ local BlobEntry = numo9_rom.BlobEntry
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetInBytes = numo9_rom.spriteSheetInBytes
 local tilemapSize = numo9_rom.tilemapSize
-local tilemapInBytes = numo9_rom.tilemapInBytes
 local paletteSize = numo9_rom.paletteSize
 local paletteType = numo9_rom.paletteType
-local paletteInBytes = numo9_rom.paletteInBytes
-local fontInBytes = numo9_rom.fontInBytes
 local fontImageSize = numo9_rom.fontImageSize
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
@@ -89,8 +87,8 @@ function Blob:loadBinStr(data)
 end
 
 
-local function blobSubclass(name)
-	local subclass = Blob:subclass()
+local function blobSubclass(name, parent)
+	local subclass = (parent or Blob):subclass()
 	subclass.name = name
 	blobClassForName[subclass.name] = subclass
 	return subclass
@@ -166,30 +164,58 @@ function BlobCode:loadFile(filepath, basepath)
 end
 
 
-local BlobSheet = blobSubclass'sheet'
+-- abstract class
+local BlobImage = Blob:subclass()
+--BlobImage.imageSize = vec2i(...)
+--BlobImage.imageType = ...
 -- static method:
-function BlobSheet:makeImage()
-	return Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+function BlobImage:makeImage()
+	local image = Image(self.imageSize.x, self.imageSize.y, 1, self.imageType)
+	ffi.fill(image.buffer, self.imageSize.x * self.imageSize.y * ffi.sizeof(self.imageType))
+	return image
 end
-function BlobSheet:init(image)
+function BlobImage:init(image)
 	if image then
-		assert.eq(image.width, spriteSheetSize.x)
-		assert.eq(image.height, spriteSheetSize.y)
+		assert.eq(image.width, self.imageSize.x)
+		assert.eq(image.height, self.imageSize.y)
 		assert.eq(image.channels, 1)
-		assert.eq(image.format, 'uint8_t')
+		assert.eq(image.format, self.imageType)
 		self.image = image
 	else
 		self.image = self:makeImage()
 	end
 end
-function BlobSheet:getPtr()
+function BlobImage:getPtr()
 	return ffi.cast('uint8_t*', self.image.buffer)
 end
-function BlobSheet:getSize()
-	return spriteSheetInBytes
+function BlobImage:getSize()
+	return self.image:getBufferSize()
 end
+function BlobImage:saveFile(filepath, blobs)
+	local image = self:makeImage()
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), self:getPtr(), self:getSize())
+	image:save(filepath.path)
+end
+-- static method:
+function BlobImage:loadFile(filepath)
+	local image = Image(filepath.path)
+	return self.class(image)
+end
+-- static method:
+function BlobImage:loadBinStr(data)
+	local image = self:makeImage()
+	assert.eq(#data, image:getBufferSize())
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
+	return self.class(image)
+end
+
+
+local BlobSheet = blobSubclass('sheet', BlobImage)
+BlobSheet.imageSize = spriteSheetSize
+BlobSheet.imageType = 'uint8_t'
 BlobSheet.filenamePrefix = 'sheet'
 BlobSheet.filenameSuffix = '.png'
+-- same but adds the palette
 function BlobSheet:saveFile(filepath, blobs)
 --DEBUG:print'saving sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
@@ -199,48 +225,15 @@ function BlobSheet:saveFile(filepath, blobs)
 	image.palette = blobs.palette[1]:toTable()
 	image:save(filepath.path)
 end
--- static method:
-function BlobSheet:loadFile(filepath)
---DEBUG:print'loading sprite sheet...'
-	local image = Image(filepath.path)
-	return BlobSheet(image)
-end
--- static method:
-function BlobSheet:loadBinStr(data)
-	local image = self:makeImage()
-	assert.eq(#data, image:getBufferSize())
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
-	return self.class(image)
-end
 
 
-local BlobTileMap = blobSubclass'tilemap'
--- static method:
-function BlobTileMap:makeImage()
-	return Image(tilemapSize.x, tilemapSize.y, 1, 'uint16_t')
-end
-function BlobTileMap:init(image)
-	if image then
-		assert.eq(image.width, tilemapSize.x)
-		assert.eq(image.height, tilemapSize.y)
-		assert.eq(image.channels, 1)
-		assert.eq(image.format, 'uint16_t')
-		self.image = image
-	else
-		self.image = self:makeImage()
-	end
-end
-function BlobTileMap:getPtr()
-	return ffi.cast('uint8_t*', self.image.buffer)
-end
-function BlobTileMap:getSize()
-	return tilemapInBytes
-end
+local BlobTileMap = blobSubclass('tilemap', BlobImage)
+BlobTileMap.imageSize = tilemapSize
+BlobTileMap.imageType = 'uint16_t'
 BlobTileMap.filenamePrefix = 'tilemap'
 BlobTileMap.filenameSuffix = '.png'
+-- swizzle / unswizzle channels
 function BlobTileMap:saveFile(filepath)
---DEBUG:print'saving tile map...'
-	-- tilemap: 256 x 256 x 16bpp ... low byte goes into ch0, high byte goes into ch1, ch2 is 0
 	local saveImg = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
 	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
 	local blobPtr = self:getPtr()
@@ -261,8 +254,8 @@ function BlobTileMap:saveFile(filepath)
 	saveImg:save(filepath.path)
 end
 -- static method:
+-- swizzle / unswizzle channels
 function BlobTileMap:loadFile(filepath)
---DEBUG:print'loading tile map...'
 	local loadImg = assert(Image(filepath.path))
 	assert.eq(loadImg.width, tilemapSize.x)
 	assert.eq(loadImg.height, tilemapSize.y)
@@ -287,44 +280,17 @@ function BlobTileMap:loadFile(filepath)
 	end
 	return BlobTileMap(blobImg)
 end
--- static method:
-function BlobTileMap:loadBinStr(data)
-	local image = self:makeImage()
-	assert.eq(#data, image:getBufferSize())
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
-	return self.class(image)
-end
 
 
 assert.eq(paletteType, 'uint16_t')
 assert.eq(paletteSize, 256)
-assert.eq(paletteInBytes, 512)
-local BlobPalette = blobSubclass'palette'
--- static method:
-function BlobPalette:makeImage()
-	return Image(paletteSize, 1, 1, paletteType)
-end
-function BlobPalette:init(image)
-	if image then
-		assert.eq(image.width, paletteSize)
-		assert.eq(image.height, 1)
-		assert.eq(image.channels, 1)
-		assert.eq(image.format, paletteType)
-		self.image = image
-	else
-		self.image = self:makeImage()
-	end
-end
-function BlobPalette:getPtr()
-	return ffi.cast('uint8_t*', self.image.buffer)
-end
-function BlobPalette:getSize()
-	return paletteInBytes
-end
+local BlobPalette = blobSubclass('palette', BlobImage)
+BlobPalette.imageSize = vec2i(paletteSize, 1)
+BlobPalette.imageType = paletteType
 BlobPalette.filenamePrefix = 'palette'
 BlobPalette.filenameSuffix = '.png'
+-- reshape image
 function BlobPalette:saveFile(filepath)
---DEBUG:print('BlobPalette:saveFile('..filepath..')')
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
 	local saveImg = Image(16, 16, 4, 'uint8_t')
 	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
@@ -332,7 +298,6 @@ function BlobPalette:saveFile(filepath)
 	for i=0,paletteSize-1 do
 		-- TODO packptr in numo9/app.lua
 		savePtr[0], savePtr[1], savePtr[2], savePtr[3] = rgba5551_to_rgba8888_4ch(blobPtr[0])
---DEBUG:print('palette write entry #'..i..':', hex(savePtr[0]), hex(savePtr[1]), hex(savePtr[2]), hex(savePtr[3]), 'from read', hex(blobPtr[0]))
 		blobPtr = blobPtr + 1
 		savePtr = savePtr + 4
 	end
@@ -348,8 +313,8 @@ function BlobPalette:toTable()
 	return paletteTable
 end
 -- static method:
+-- reshape image
 function BlobPalette:loadFile(filepath)
---DEBUG:print('BlobPalette:loadFile('..filepath..')')
 	local loadImg = assert(Image(filepath.path))
 	assert.eq(loadImg.width, 16)
 	assert.eq(loadImg.height, 16)
@@ -367,50 +332,16 @@ function BlobPalette:loadFile(filepath)
 			loadPtr[2],
 			loadPtr[3]
 		)
---DEBUG:print('palette read entry #'..i..':', hex(loadPtr[0]), hex(loadPtr[1]), hex(loadPtr[2]), hex(loadPtr[3]), 'write', hex(blobPtr[0]))
 		blobPtr = blobPtr + 1
 		loadPtr = loadPtr + 4
 	end
 	return BlobPalette(blobImg)
 end
--- static method:
-function BlobPalette:loadBinStr(data)
---DEBUG:print('BlobPalette:loadBinStr')
---DEBUG:print('...data:')
---DEBUG:print(string.hexdump(data))
-	local image = self:makeImage()
-	assert.eq(#data, image:getBufferSize())
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
---DEBUG:print('...palette:')
---DEBUG:for i=0,paletteSize-1 do
---DEBUG:	print(('\t%x'):format(image.buffer[i]))
---DEBUG:end
-	return self.class(image)
-end
 
 
-local BlobFont = blobSubclass'font'
--- static method:
-function BlobFont:makeImage()
-	return Image(fontImageSize.x, fontImageSize.y, 1, 'uint8_t')
-end
-function BlobFont:init(image)
-	if image then
-		assert.eq(image.width, fontImageSize.x)
-		assert.eq(image.height, fontImageSize.y)
-		assert.eq(image.channels, 1)
-		assert.eq(image.format, 'uint8_t')
-		self.image = image
-	else
-		self.image = self:makeImage()
-	end
-end
-function BlobFont:getPtr()
-	return ffi.cast('uint8_t*', self.image.buffer)
-end
-function BlobFont:getSize()
-	return fontInBytes
-end
+local BlobFont = blobSubclass('font', BlobImage)
+BlobFont.imageSize = fontImageSize
+BlobFont.imageType = 'uint8_t'
 BlobFont.filenamePrefix = 'font'
 BlobFont.filenameSuffix = '.png'
 function BlobFont:saveFile(filepath)
@@ -447,13 +378,6 @@ function BlobFont:loadFile(filepath)
 	local blob = self.class()
 	resetFont(blob:getPtr(), filepath.path)
 	return blob
-end
--- static method:
-function BlobFont:loadBinStr(data)
-	local image = self:makeImage()
-	assert.eq(#data, image:getBufferSize())
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
-	return self.class(image)
 end
 
 

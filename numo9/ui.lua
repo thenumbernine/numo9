@@ -343,7 +343,11 @@ function UI:update()
 	end
 	x=x+6
 	if self:guiButton('S', x, 0, nil, 'save') then
-		app:saveCart(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+		-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
+		app:saveCart(app.currentLoadedFilename)
+		-- TODO this will rearrange the blobs
+		-- so TODO it should net_resetCart as well (net_saveCart maybe?)
+		app:net_resetCart()
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then
