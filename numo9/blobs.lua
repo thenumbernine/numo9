@@ -37,16 +37,17 @@ end
 
 -- maps from type-index to name
 local blobClassNameForType = table{
-	'code',		-- always only 1 of these
 	'sheet',	-- sprite sheet, tile sheet
 	'tilemap',
 	'palette',
 	'font',
 	'sfx',
 	'music',
+	-- these go last because they are most likely to not be short/long aligned
+	'code',		-- at least 1 of these
+	'data',		-- arbitrary binary blob
 	'brush',
 	'brushmap',
-	'data',	-- binary blob
 	-- TODO 'voxelmap' = voxel-map of models from some lookup table
 	-- TODO 'obj3d'
 }

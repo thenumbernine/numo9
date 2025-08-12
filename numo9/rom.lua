@@ -311,6 +311,9 @@ local RAM = struct{
 				{name='blendColor', type='uint16_t'},
 				{name='dither', type='uint16_t'},	-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
 
+				{name='paletteBlobIndex', type='uint8_t'},	-- which palette to use for drawing commands
+				{name='fontBlobIndex', type='uint8_t'},		-- which font blob to use for text()
+
 				-- used by text() and by the console
 				-- TODO move to ROM?
 				{name='fontWidth', type='uint8_t[256]'},

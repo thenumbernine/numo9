@@ -1898,6 +1898,8 @@ function AppVideo:allRAMRegionsCheckDirtyCPU()
 	end
 end
 
+-- TODO most the time I call this after I call :copyBlobsToRAM
+-- so what should this do exactly vs what should that do?
 function AppVideo:resetVideo()
 --DEBUG:print'App:resetVideo'
 	-- remake the textures every time the # blobs changes thanks to loadRAM()
@@ -1943,6 +1945,7 @@ function AppVideo:resetVideo()
 	self:setVideoMode(self.ram.videoMode)
 
 	self:copyBlobsToROM()
+
 	-- [[ update now ...
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		sheetRAM.tex:bind()
@@ -1954,19 +1957,32 @@ function AppVideo:resetVideo()
 			:subimage()
 		tilemapRAM.dirtyCPU = false
 	end
-	self.paletteRAMs[1].tex:bind()
-		:subimage()
-	self.paletteRAMs[1].dirtyCPU = false
-	self.fontRAMs[1].tex:bind()
-		:subimage()
-	self.fontRAMs[1].dirtyCPU = false
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		paletteRAM.tex:bind()
+			:subimage()
+		paletteRAM.dirtyCPU = false
+	end
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		fontRAM.tex:bind()
+			:subimage()
+		fontRAM.dirtyCPU = false
+	end
 	--]]
 	--[[ update later ...
 	self:setDirtyCPU()
 	--]]
 
+	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
+	self:setClipRect(0, 0, clipMax, clipMax)
+
+	-- hmm, this matident isn't working ,but if you put one in your init code then it does work ... why ...
+	self:matident()
+
 	self.ram.blendMode = 0xff	-- = none
 	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
+
+	self.paletteBlobIndex = 0
+	self.fontBlobIndex = 0
 
 	for i=0,255 do
 		self.ram.fontWidth[i] = 5
@@ -1975,11 +1991,6 @@ function AppVideo:resetVideo()
 	self.ram.textFgColor = 0xfc
 	self.ram.textBgColor = 0xf0
 
-	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
-	self:setClipRect(0, 0, clipMax, clipMax)
-
-	-- hmm, this matident isn't working ,but if you put one in your init code then it does work ... why ...
-	self:matident()
 --DEBUG:print'App:resetVideo done'
 end
 
@@ -1991,8 +2002,12 @@ function AppVideo:checkDirtyGPU()
 	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
 		tilemapRAM:checkDirtyGPU()
 	end
-	self.paletteRAMs[1]:checkDirtyGPU()
-	self.fontRAMs[1]:checkDirtyGPU()
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		paletteRAM:checkDirtyGPU()
+	end
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		fontRAM:checkDirtyGPU()
+	end
 	self.framebufferRAM:checkDirtyGPU()
 end
 
@@ -2003,8 +2018,12 @@ function AppVideo:setDirtyCPU()
 	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
 		tilemapRAM.dirtyCPU = true
 	end
-	self.paletteRAMs[1].dirtyCPU = true
-	self.fontRAMs[1].dirtyCPU = true
+	for _,paletteRAM in ipairs(self.paletteRAMs) do
+		paletteRAM.dirtyCPU = true
+	end
+	for _,fontRAM in ipairs(self.fontRAMs) do
+		fontRAM.dirtyCPU = true
+	end
 	self.framebufferRAM.dirtyCPU = true
 end
 
@@ -2067,7 +2086,7 @@ end
 
 -- exchnage two colors in the palettes, and in all spritesheets,
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
-function AppVideo:colorSwap(from, to, x, y, w, h)
+function AppVideo:colorSwap(from, to, x, y, w, h, paletteIndex)
 	-- TODO SORT THIS OUT
 	self:copyBlobsToROM()
 	from = math.floor(from)
@@ -2101,8 +2120,8 @@ function AppVideo:colorSwap(from, to, x, y, w, h)
 		end
 	end
 	-- now swap palette entries
-	local fromAddr = self.paletteRAMs[1].addr + bit.lshift(from, 1)
-	local toAddr = self.paletteRAMs[1].addr + bit.lshift(to, 1)
+	local fromAddr = self.paletteRAMs[1+paletteIndex].addr + bit.lshift(from, 1)
+	local toAddr = self.paletteRAMs[1+paletteIndex].addr + bit.lshift(to, 1)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
@@ -2129,7 +2148,8 @@ end
 function AppVideo:resetGFX()
 	self:resetFont()
 
-	self.paletteRAMs[1]:checkDirtyGPU()
+	--self.paletteRAMs[1]:checkDirtyGPU()
+	self.paletteRAMs[1].dirtyGPU = false
 	local paletteBlob = self.blobs.palette[1]
 -- TODO ensure there's at least one?
 	if paletteBlob then
@@ -2154,12 +2174,18 @@ function AppVideo:drawSolidRect(
 	round,
 	paletteTex	-- override for gui - hack for menus to impose their palettes
 )
-	if not paletteTex
-	and self.paletteRAMs[1].dirtyCPU
-	then
-		self.triBuf:flush()
-		self.paletteRAMs[1]:checkDirtyCPU() -- before any GPU op that uses palette...
+	if not paletteTex then
+		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+		if not paletteRAM then
+			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		end
+		if paletteRAM.dirtyCPU then
+			self.triBuf:flush()
+			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+		end
+		paletteTex = paletteRAM.tex
 	end
+
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
@@ -2187,9 +2213,9 @@ function AppVideo:drawSolidRect(
 	colorIndex = math.floor(colorIndex or 0)
 
 	self.triBuf:addTri(
-		paletteTex or self.paletteRAMs[1].tex,
-		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		paletteTex,
+		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLL, yLL, zLL, wLL, x, y,
 		xRL, yRL, zRL, wRL, xR, y,
 		xLR, yLR, zLR, wLR, x, yR,
@@ -2199,9 +2225,9 @@ function AppVideo:drawSolidRect(
 	)
 
 	self.triBuf:addTri(
-		paletteTex or self.paletteRAMs[1].tex,
-		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		paletteTex,
+		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLR, yLR, zLR, wLR, x, yR,
 		xRL, yRL, zRL, wRL, xR, y,
 		xRR, yRR, zRR, wRR, xR, yR,
@@ -2226,11 +2252,21 @@ function AppVideo:drawBorderRect(
 	return self:drawSolidRect(x,y,w,h,colorIndex,true,...)
 end
 
-function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
-	if self.paletteRAMs[1].dirtyCPU then
-		self.triBuf:flush()
-		self.paletteRAMs[1]:checkDirtyCPU() -- before any GPU op that uses palette...
+function AppVideo:drawSolidTri3D(
+	x1, y1, z1,
+	x2, y2, z2,
+	x3, y3, z3,
+	colorIndex
+)
+	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	if not paletteRAM then
+		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	if paletteRAM.dirtyCPU then
+		self.triBuf:flush()
+		paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+	end
+	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
@@ -2242,9 +2278,9 @@ function AppVideo:drawSolidTri3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, colorIndex)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	self.triBuf:addTri(
-		self.paletteRAMs[1].tex,
-		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		paletteTex,
+		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		v1x, v1y, v1z, v1w, 0, 0,
 		v2x, v2y, v2z, v2w, 1, 0,
 		v3x, v3y, v3z, v3w, 0, 1,
@@ -2262,10 +2298,15 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 end
 
 function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
-	if self.paletteRAMs[1].dirtyCPU then
-		self.triBuf:flush()
-		self.paletteRAMs[1]:checkDirtyCPU() -- before any GPU op that uses palette...
+	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	if not paletteRAM then
+		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	if paletteRAM.dirtyCPU then
+		self.triBuf:flush()
+		paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+	end
+	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
@@ -2307,9 +2348,9 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	colorIndex = math.floor(colorIndex or 0)
 
 	self.triBuf:addTri(
-		self.paletteRAMs[1].tex,
-		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		paletteTex,
+		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLL, yLL, zLL, wLL, 0, 0,
 		xRL, yRL, zRL, wRL, 1, 0,
 		xLR, yLR, zLR, wLR, 0, 1,
@@ -2319,9 +2360,9 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	)
 
 	self.triBuf:addTri(
-		self.paletteRAMs[1].tex,
-		self.sheetRAMs[1].tex,		-- doesn't need flushed, not used ... ?
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		paletteTex,
+		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLR, yLR, zLR, wLR, 0, 1,
 		xRL, yRL, zRL, wRL, 1, 0,
 		xRR, yRR, zRR, wRR, 1, 1,
@@ -2379,7 +2420,18 @@ function AppVideo:clearScreen(
 		colorIndex = 0
 	end
 
-	paletteTex = paletteTex or self.paletteRAMs[1].tex
+	if not paletteTex then
+		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+		if not paletteRAM then
+			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		end
+		if paletteRAM.dirtyCPU then
+			self.triBuf:flush()
+			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+		end
+		paletteTex = paletteRAM.tex
+	end
+
 	assert(paletteTex.data)
 	local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[colorIndex]
 
@@ -2535,7 +2587,7 @@ function AppVideo:drawQuadTex(
 	self.triBuf:addTri(
 		paletteTex,
 		sheetTex,
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLL, yLL, zLL, wLL, uL, vL,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xLR, yLR, zLR, wLR, uL, vR,
@@ -2547,7 +2599,7 @@ function AppVideo:drawQuadTex(
 	self.triBuf:addTri(
 		paletteTex,
 		sheetTex,
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xRR, yRR, zRR, wRR, uR, vR,
@@ -2582,7 +2634,7 @@ function AppVideo:drawQuadTexRGB(
 	self.triBuf:addTri(
 		paletteTex,
 		sheetTex,
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLL, yLL, zLL, wLL, uL, vL,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xLR, yLR, zLR, wLR, uL, vR,
@@ -2594,7 +2646,7 @@ function AppVideo:drawQuadTexRGB(
 	self.triBuf:addTri(
 		paletteTex,
 		sheetTex,
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLR, yLR, zLR, wLR, uL, vR,
 		xRL, yRL, zRL, wRL, uR, vL,
 		xRR, yRR, zRR, wRR, uR, vR,
@@ -2637,11 +2689,17 @@ function AppVideo:drawQuad(
 		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
-	if not paletteTex
-	and self.paletteRAMs[1].dirtyCPU
-	then
-		self.triBuf:flush()
-		self.paletteRAMs[1]:checkDirtyCPU() 		-- before any GPU op that uses palette...
+
+	if not paletteTex then
+		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+		if not paletteRAM then
+			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		end
+		if paletteRAM.dirtyCPU then
+			self.triBuf:flush()
+			paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+		end
+		paletteTex = paletteRAM.tex
 	end
 
 	-- TODO only this before we actually do the :draw()
@@ -2651,7 +2709,7 @@ function AppVideo:drawQuad(
 	end
 
 	self:drawQuadTex(
-		paletteTex or self.paletteRAMs[1].tex,
+		paletteTex,
 		sheetRAM.tex,
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,
@@ -2682,10 +2740,17 @@ function AppVideo:drawTexTri3D(
 		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
-	if self.paletteRAMs[1].dirtyCPU then
-		self.triBuf:flush()
-		self.paletteRAMs[1]:checkDirtyCPU() 		-- before any GPU op that uses palette...
+
+	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	if not paletteRAM then
+		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	if paletteRAM.dirtyCPU then
+		self.triBuf:flush()
+		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+	end
+	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
+
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
@@ -2714,9 +2779,9 @@ function AppVideo:drawTexTri3D(
 	local vx3, vy3, vz3, vw3 = vec3to4(self.ram.mvMat, x3, y3, z3)
 
 	self.triBuf:addTri(
-		self.paletteRAMs[1].tex,
+		paletteTex,
 		sheetRAM.tex,
-		self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		vx1, vy1, vz1, vw1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
 		vx2, vy2, vz2, vw2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		vx3, vy3, vz3, vw3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
@@ -2811,10 +2876,17 @@ function AppVideo:drawMap(
 		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	end
-	if self.paletteRAMs[1].dirtyCPU then
-		self.triBuf:flush()
-		self.paletteRAMs[1]:checkDirtyCPU() 	-- before any GPU op that uses palette...
+
+	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	if not paletteRAM then
+		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	if paletteRAM.dirtyCPU then
+		self.triBuf:flush()
+		paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
+	end
+	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
+
 	tilemapIndex = tilemapIndex or 0
 	local tilemapRAM = self.tilemapRAMs[tilemapIndex+1]
 	if tilemapRAM.dirtyCPU then
@@ -2858,7 +2930,7 @@ function AppVideo:drawMap(
 	local blendSolidA = self.drawOverrideSolidA * 255
 
 	self.triBuf:addTri(
-		self.paletteRAMs[1].tex,
+		paletteTex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
 		xLL, yLL, zLL, wLL, uL, vL,
@@ -2870,7 +2942,7 @@ function AppVideo:drawMap(
 	)
 
 	self.triBuf:addTri(
-		self.paletteRAMs[1].tex,
+		paletteTex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
 		xLR, yLR, zLR, wLR, uL, vR,
@@ -2885,7 +2957,14 @@ function AppVideo:drawMap(
 	self.framebufferRAM.changedSinceDraw = true
 end
 
-function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
+function AppVideo:drawTextCommon(
+	fontTex,
+	paletteTex,
+	text,
+	x, y,
+	fgColorIndex, bgColorIndex,
+	scaleX, scaleY
+)
 	x = x or 0
 	y = y or 0
 	fgColorIndex = tonumber(ffi.cast('uint8_t', fgColorIndex or self.ram.textFgColor))
@@ -2898,9 +2977,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 	-- or why even draw a background to it? let the user?
 	-- or how about use it as a separate flag?
 	-- TODO this always uses the cart colors even for the menu draw routine ...
-	local paletteBlob = self.blobs.palette[1]
-	if not paletteBlob then return end
-	local r,g,b,a = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[bgColorIndex])
+	local r,g,b,a = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteTex.data)[bgColorIndex])
 	if a > 0 then
 		local bgw = 0
 		for i=1,#text do
@@ -2962,7 +3039,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		self.triBuf:addTri(
 			paletteTex,
 			fontTex,
-			self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+			self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 			xLL, yLL, zLL, wLL, uL, 0,
 			xRL, yRL, zRL, wRL, uR, 0,
 			xLR, yLR, zLR, wLR, uL, th,
@@ -2974,7 +3051,7 @@ function AppVideo:drawTextCommon(fontTex, paletteTex, text, x, y, fgColorIndex, 
 		self.triBuf:addTri(
 			paletteTex,
 			fontTex,
-			self.tilemapRAMs[1].tex,	-- doesn't need flushed, not used ... ?
+			self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 			xRL, yRL, zRL, wRL, uR, 0,
 			xRR, yRR, zRR, wRR, uR, th,
 			xLR, yLR, zLR, wLR, uL, th,
@@ -2994,23 +3071,34 @@ end
 -- specify an oob bgColorIndex to draw with transparent background
 -- and default x, y to the last cursor position
 function AppVideo:drawText(...)
-
 -- [[ drawQuad startup
-	if self.fontRAMs[1].dirtyCPU then
-		self.triBuf:flush()
-		self.fontRAMs[1]:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
+	local fontRAM = self.fontRAMs[1+self.ram.fontBlobIndex]
+	if not fontRAM then
+		fontRAM = assert(self.fontRAMs[1], "can't render anything if you have no fonts (how did you delete the last one?)")
 	end
-	if self.paletteRAMs[1].dirtyCPU then
+	if fontRAM.dirtyCPU then
 		self.triBuf:flush()
-		self.paletteRAMs[1]:checkDirtyCPU() 		-- before any GPU op that uses palette...
+		fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
+	local fontTex = fontRAM.tex
+
+	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	if not paletteRAM then
+		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+	end
+	if paletteRAM.dirtyCPU then
+		self.triBuf:flush()
+		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+	end
+	local paletteTex = paletteRAM.tex
+
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 --]]
 
-	local result = self:drawTextCommon(self.fontRAMs[1].tex, self.paletteRAMs[1].tex, ...)
+	local result = self:drawTextCommon(fontTex, paletteTex, ...)
 
 -- [[ drawQuad shutdown
 	self.framebufferRAM.dirtyGPU = true
