@@ -397,14 +397,14 @@ viewZFar = levelSize.y*2
 viewDist = levelSize.x*.75
 viewAlt = levelSize.x*.75
 viewTiltUpAngle = 45
-viewAngle = -math.pi/2
+viewAngle = -90
 
 drawBillboardSprite=|spriteIndex, x, y, z, ...|do
 	matpush()
 	mattrans(x + 8, y + 8, z)
 
 	-- undo camera viewAngle to make a billboard
-	matrot(viewAngle + .5 * math.pi, 0, 0, 1)
+	matrot(math.rad(viewAngle + 90), 0, 0, 1)
 	matrot(math.rad(-60), 1, 0, 0)
 	-- recenter
 
@@ -530,10 +530,10 @@ drawMap=||
 --]]
 -- [[ manually for animation
 drawMap=||do
-	local viewCenterX = player and player.pos.x + 2.5 or levelSize.x/2 + 2.5
-	local viewCenterY = player and player.pos.y + 2.5 or levelSize.y/2 + 2.5
-	local fwdx = math.cos(viewAngle)
-	local fwdy = math.sin(viewAngle)
+	local viewCenterX = player and player.pos.x or levelSize.x/2
+	local viewCenterY = player and player.pos.y or levelSize.y/2
+	local fwdx = math.cos(math.rad(viewAngle))
+	local fwdy = math.sin(math.rad(viewAngle))
 	local viewX = viewCenterX - viewDist * fwdx
 	local viewY = viewCenterY - viewDist * fwdy
 	local viewZ = viewAlt
@@ -551,7 +551,8 @@ drawMap=||do
 
 	matscale(1/16,1/16,1/16)
 
-	mattrans(24, 24)
+	--mattrans(24, 24)
+	mattrans(-16, -32)
 	drawMapBorder()
 	mattrans(16, 32)
 
@@ -624,10 +625,10 @@ BaseObj=class{
 		end
 		drawForFlags(
 			self,
-			seq,	--spriteIndex,
+			seq,		--spriteIndex,
 			x,			--screenX,
 			y,			--screenY,
-			z,			-- z
+			z,			--z
 			2,			--spritesWide,
 			2,			--spritesHigh,
 			nil,		--paletteIndex,
@@ -1456,6 +1457,7 @@ end
 do
 	local super=MovableObj
 	Player=MovableObj:subclass{
+		viewAngle=0,
 		init=|:,args|do
 			super.init(self,args)
 			self.dead=false
@@ -1836,16 +1838,26 @@ update=||do
 		return
 	end
 	if player then
-		if btn'up' then
-			player:move(dirForName.up)
-		elseif btn'down' then
-			player:move(dirForName.down)
-		elseif btn'left' then
-			player:move(dirForName.left)
-		elseif btn'right' then
-			player:move(dirForName.right)
+		if btn'b' then
+			if btnp'left' then
+				viewAngle += 90
+				viewAngle %= 360
+			elseif btnp'right' then
+				viewAngle -= 90
+				viewAngle %= 360
+			end
 		else
-			player:stopMoving()
+			if btn'up' then
+				player:move((dirForName.up + (viewAngle / 90) + 1) & 3)
+			elseif btn'down' then
+				player:move((dirForName.down + (viewAngle / 90) + 1) & 3)
+			elseif btn'left' then
+				player:move((dirForName.left + (viewAngle / 90) + 1) & 3)
+			elseif btn'right' then
+				player:move((dirForName.right + (viewAngle / 90) + 1) & 3)
+			else
+				player:stopMoving()
+			end
 		end
 		if btnp'y' then
 			player:dropBomb()
