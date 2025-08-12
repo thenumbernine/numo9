@@ -2524,6 +2524,30 @@ end
 
 -------------------- ROM STATE STUFF --------------------
 
+-- call this when you change blobs around and you wanna rebuild RAM and reset addresses
+function App:updateBlobChanges()
+	self:allRAMRegionsCheckDirtyGPU()
+	-- rebuild RAM from blobs
+	self:buildRAMFromBlobs()
+	-- then reassign all pointers
+	-- ... resetVideo() is similar but I don't want to reset to the default addrs
+	for _,framebufferRAM in pairs(self.framebufferRAMs) do
+		assert(not framebufferRAM.dirtyGPU)
+		framebufferRAM:updateAddr(framebufferRAM.addr)
+	end
+--[[ resetVideo WORKS BUT resets everything... I just want the pointers to be reset.
+	self:resetVideo()
+--]]
+-- [[
+	self:resizeRAMGPUs()
+--	self:allRAMRegionsCheckDirtyCPU()
+--	self:allRAMRegionsCheckDirtyGPU()
+--]]
+	-- net_updateBlobChanges() ... or have all updates net updates ...
+	--app:net_resetCart()
+	-- TODO here and also in numo9/ui' 'save' button -> saveCart -> updateBlobChanges
+end
+
 -- save from cartridge to filesystem
 function App:saveCart(filename)
 --	self:checkDirtyGPU()
@@ -2543,23 +2567,7 @@ function App:saveCart(filename)
 		self.blobs.code:insert(blobClassForName.code(self.editCode.text))
 	end
 
-	self:allRAMRegionsCheckDirtyGPU()
-	-- rebuild RAM from blobs
-	self:buildRAMFromBlobs()
-	-- then reassign all pointers
-	-- ... resetVideo() is similar but I don't want to reset to the default addrs
-	for _,framebufferRAM in pairs(self.framebufferRAMs) do
-		assert(not framebufferRAM.dirtyGPU)
-		framebufferRAM:updateAddr(framebufferRAM.addr)
-	end
---[[ resetVideo WORKS BUT resets everything... I just want the pointers to be reset.
-	self:resetVideo()
---]]
--- [[
-	self:resizeRAMGPUs()
---	self:allRAMRegionsCheckDirtyCPU()
---	self:allRAMRegionsCheckDirtyGPU()
---]]
+	self:updateBlobChanges()
 
 	if not select(2, path(filename):getext()) then
 		filename = path(filename):setext'n9'.path

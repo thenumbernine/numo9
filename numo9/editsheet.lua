@@ -82,9 +82,6 @@ function EditSheet:update()
 
 	EditSheet.super.update(self)
 
-	self:guiBlobSelect(80, 0, 'sheet', self, 'sheetBlobIndex')
-	self:guiBlobSelect(96, 0, 'palette', self, 'paletteBlobIndex')
-
 	assert.eq(#app.sheetRAMs, #app.blobs.sheet)
 	local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
 	local currentTexAddr = currentVRAM.addr
@@ -914,6 +911,10 @@ print('currentTexAddr', ('$%x'):format(currentTexAddr))
 			end
 		end
 	end
+
+	-- draw ui menubar last so it draws over the rest of the page
+	self:guiBlobSelect(80, 0, 'sheet', self, 'sheetBlobIndex')
+	self:guiBlobSelect(96, 0, 'palette', self, 'paletteBlobIndex')
 
 	self:drawTooltip()
 end

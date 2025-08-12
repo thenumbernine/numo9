@@ -25,6 +25,9 @@ local numo9_keys = require 'numo9.keys'
 local keyCodeNames = numo9_keys.keyCodeNames
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
+local numo9_blobs = require 'numo9.blobs'
+local blobClassForName = numo9_blobs.blobClassForName
+
 local editModes = table{
 	'code',
 	'sheet',
@@ -120,7 +123,8 @@ function UI:guiSpinner(x, y, cb, tooltip)
 		cb(-1)
 	end
 
-	x = x + spriteSize.x
+	local fontWidth = 5
+	x = x + fontWidth + 1
 	if self:guiButton('>', x, y, nil, tooltip) then
 		cb(1)
 	end
@@ -272,12 +276,62 @@ end
 
 function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 	local app = self.app
-	self:guiSpinner(x, y, function(dx)
-		t[indexKey] = math.clamp(t[indexKey] + dx, 0, #app.blobs[blobName]-1)
-		if cb then cb(dx) end
-	end, blobName..' #'..t[indexKey])
--- TODO +- to grow/shrink blob count
--- TODO input number selection
+	local popupKey = indexKey..'_popupOpen'
+	local buttonMenuTabCounter = self.menuTabCounter
+	local sel = self.menuTabIndex == buttonMenuTabCounter
+	self:guiButton('#'..t[indexKey], x, y, nil, blobName)
+	if sel then
+		t[popupKey] = true
+	end
+	if t[popupKey] then
+		local w = 25
+		local h = 15
+		app:drawBorderRect(x, y + 8, w+2, h+2, 0x0c)
+		app:drawSolidRect(x+1, y + 9, w, h, self:color(0))
+
+		self:guiSpinner(x + 2, y + 10, function(dx)
+			t[indexKey] = math.clamp(t[indexKey] + dx, 0, #app.blobs[blobName]-1)
+			if cb then cb(dx) end
+		end, blobName..' #'..t[indexKey])
+		-- TODO +- to grow/shrink blob count
+		-- TODO input number selection
+
+		local changed
+		if self:guiButton('+', x + 14, y + 10, nil) then
+			app.blobs[blobName]:insert(t[indexKey]+2, blobClassForName[blobName]())
+			t[indexKey] = t[indexKey] + 1
+			changed = true
+		end
+
+		local len = #app.blobs[blobName]
+		local min = ({
+			sheet = 2,		-- TODO don't need 2 min here, heck we don't even need 1 min.
+			font = 1,		-- debatable we need 1 of this
+			palette = 1,	-- ok we def need 1 of this
+		})[blobName] or 0
+
+		if len > min then	-- TODO if not then grey out
+			if self:guiButton('-', x + 20, y + 10, nil) then
+				app.blobs[blobName]:remove(t[indexKey]+1)
+				changed = true
+				if t[indexKey] > 0 then
+					t[indexKey] = t[indexKey] - 1
+				end
+			end
+		end
+		-- TODO controls for moving blobs in order?
+
+		if changed then
+			app:updateBlobChanges()
+			app:net_resetCart()
+		end
+	end
+
+	if self.menuTabIndex < buttonMenuTabCounter
+	or self.menuTabIndex >= self.menuTabCounter
+	then
+		t[popupKey] = false
+	end
 end
 
 function UI:setTooltip(s, x, y, fg, bg)
