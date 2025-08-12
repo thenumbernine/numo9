@@ -547,17 +547,16 @@ function EditSheet:update()
 			local rx = x + bw * i
 			local ry = y + bh * j
 
-			-- cheap hack to use game palette here instead of menu palette ...
-			app.videoModeInfo[0].solidObj.texs[1] = paletteRAM.tex
 			app:drawSolidRect(
 				rx,
 				ry,
 				bw,
 				bh,
-				paletteIndex
+				paletteIndex,
+				nil,			-- borderOnly
+				nil,			-- round
+				paletteRAM.tex	-- paletteTex
 			)
-			app.videoModeInfo[0].solidObj.texs[1] = app.paletteMenuTex
-			-- end cheap hack
 
 			if mouseX >= rx and mouseX < rx + bw
 			and mouseY >= ry and mouseY < ry + bh
@@ -565,8 +564,13 @@ function EditSheet:update()
 				if leftButtonPress then
 					if self.isPaletteSwapping then
 						-- TODO button for only swap in this screen
-						app:colorSwap(self.paletteSelIndex, paletteIndex, 0, 0, spriteSheetSize.x,
-							spriteSheetSize.y-8	-- cheap trick to avoid the font row
+						app:colorSwap(
+							self.paletteSelIndex, 	-- from
+							paletteIndex, 			-- to
+							0, 0, 					-- x, y
+							spriteSheetSize.x,		-- w
+							spriteSheetSize.y-8,	-- h ... cheap trick to avoid the font row
+							self.paletteBlobIndex
 						)
 						self.isPaletteSwapping = false
 					end

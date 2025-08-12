@@ -2086,7 +2086,7 @@ end
 
 -- exchnage two colors in the palettes, and in all spritesheets,
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
-function AppVideo:colorSwap(from, to, x, y, w, h, paletteIndex)
+function AppVideo:colorSwap(from, to, x, y, w, h, paletteBlobIndex)
 	-- TODO SORT THIS OUT
 	self:copyBlobsToROM()
 	from = math.floor(from)
@@ -2120,8 +2120,8 @@ function AppVideo:colorSwap(from, to, x, y, w, h, paletteIndex)
 		end
 	end
 	-- now swap palette entries
-	local fromAddr = self.paletteRAMs[1+paletteIndex].addr + bit.lshift(from, 1)
-	local toAddr = self.paletteRAMs[1+paletteIndex].addr + bit.lshift(to, 1)
+	local fromAddr = self.paletteRAMs[1+paletteBlobIndex].addr + bit.lshift(from, 1)
+	local toAddr = self.paletteRAMs[1+paletteBlobIndex].addr + bit.lshift(to, 1)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
