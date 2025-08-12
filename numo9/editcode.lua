@@ -94,6 +94,9 @@ function EditCode:update()
 
 	-- ui controls
 
+-- TODO multiple code blobs?
+--	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
+
 	if self:guiButton('N', 120, 0, self.useLineNumbers) then
 		self.useLineNumbers = not self.useLineNumbers
 	end

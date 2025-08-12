@@ -270,6 +270,16 @@ function UI:guiTextField(
 	return changed
 end
 
+function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
+	local app = self.app
+	self:guiSpinner(x, y, function(dx)
+		t[indexKey] = math.clamp(t[indexKey] + dx, 0, #app.blobs[blobName]-1)
+		if cb then cb(dx) end
+	end, blobName..' #'..t[indexKey])
+-- TODO +- to grow/shrink blob count
+-- TODO input number selection
+end
+
 function UI:setTooltip(s, x, y, fg, bg)
 	x = math.clamp(x, 8, frameBufferSize.x-8)
 	y = math.clamp(y, 8, frameBufferSize.y-8)
@@ -449,19 +459,6 @@ function UI:edit_pokel(addr, value)
 				ffi.cast('uint32_t*', blob:getPtr() + (addr - blob.addr))[0] = value
 			end
 		end
-	end
-end
-
--- used by the editsfx and editmusic
-
-function UI:calculateAudioSize()
-	local app = self.app
-	self.totalAudioBytes = 0
-	for _,blob in ipairs(app.blobs.sfx) do
-		self.totalAudioBytes = self.totalAudioBytes + blob:getSize()
-	end
-	for _,blob in ipairs(app.blobs.music) do
-		self.totalAudioBytes = self.totalAudioBytes + blob:getSize()
 	end
 end
 

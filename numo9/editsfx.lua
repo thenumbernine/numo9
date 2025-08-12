@@ -23,11 +23,6 @@ function EditSFX:init(args)
 	self.pitch = bit.lshift(1, pitchPrec)
 	self.sfxBlobIndex = 0	-- this is 0 based.  all my other BlobIndex's are 1-based.  maybe they should be 0-based too?
 	self.offsetScrollX = 0
-	self:calculateAudioSize()
-end
-
-function EditSFX:gainFocus()
-	self:calculateAudioSize()
 end
 
 function EditSFX:update()
@@ -45,10 +40,11 @@ function EditSFX:update()
 	end
 
 	local x, y = 80, 0
-	self:guiSpinner(x, y, function(dx)
+	
+	self:guiBlobSelect(x, y, 'sfx', self, 'sfxBlobIndex', function(dx)
 		stop()
-		self.sfxBlobIndex = math.clamp(self.sfxBlobIndex + dx, 0, #app.blobs.sfx-1)
-	end, 'sfx #'..self.sfxBlobIndex)
+	end)
+	
 	x = x + 16
 
 	app:drawMenuText('#', x, y, 0xfc, 0)
@@ -155,10 +151,6 @@ function EditSFX:update()
 	self:guiTextField(60, 136, 80, self, 'pitch', function(result)
 		self.pitch = tonumber(result) or self.pitch
 	end)
-
-	-- footer
-	app:drawSolidRect(0, frameBufferSize.y - spriteSize.y, frameBufferSize.x, spriteSize.y, 0xf7, 0xf8)
-	app:drawMenuText('ARAM '..self.totalAudioBytes, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
 
 	self:drawTooltip()
 

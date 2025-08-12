@@ -29,8 +29,6 @@ local EditMusic = require 'numo9.ui':subclass()
 function EditMusic:init(args)
 	EditMusic.super.init(self, args)
 
-	self:calculateAudioSize()
-
 	self.musicBlobIndex = 0
 
 	self.startSampleFrameIndex = 0
@@ -40,7 +38,6 @@ function EditMusic:init(args)
 end
 
 function EditMusic:gainFocus()
-	self:calculateAudioSize()
 	self:refreshSelectedMusic()
 end
 
@@ -165,10 +162,9 @@ function EditMusic:update()
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local x, y = 80, 0
-	self:guiSpinner(x, y, function(dx)
+	self:guiBlobSelect(x, y, 'music', self, 'musicBlobIndex', function(dx)
 		stop()
-		self.musicBlobIndex = math.clamp(self.musicBlobIndex + dx, 1, #app.blobs.music)
-	end, 'music #'..self.musicBlobIndex)
+	end)
 	x = x + 16
 
 	app:drawMenuText('#', x, y, 0xfc, 0)
@@ -401,10 +397,6 @@ function EditMusic:update()
 			self.startSampleFrameIndex = musicPlaying.sampleFrameIndex
 		end
 	end
-
-	-- footer
-	app:drawSolidRect(0, frameBufferSize.y - spriteSize.y, frameBufferSize.x, spriteSize.y, 0xf7, 0xf8)
-	app:drawMenuText('ARAM '..self.totalAudioBytes, 0, frameBufferSize.y - spriteSize.y, 0xfc, 0xf1)
 
 	self:drawTooltip()
 

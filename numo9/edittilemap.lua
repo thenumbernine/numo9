@@ -77,9 +77,10 @@ function EditTilemap:update()
 	local x = 80
 	local y = 0
 
-	self:guiSpinner(x, y, function(dx)
-		self.tilemapBlobIndex = math.clamp(self.tilemapBlobIndex + dx, 0, #app.blobs.tilemap-1)
-	end, 'tilemap #'..self.tilemapBlobIndex)
+	self:guiBlobSelect(x, y, 'tilemap', self, 'tilemapBlobIndex')
+	-- TODO palette spinner, and use selected palette for tilemap render
+	-- and TODO add paletteIndex to map() function
+
 	x = x + 16
 	-- TODO grow/shrink
 	-- TODO selector for palette #
