@@ -96,7 +96,11 @@ if cmd == 'x' then
 
 	for blobClassName,blobsForType in pairs(blobs) do
 		for blobIndexPlusOne,blob in ipairs(blobsForType) do
-			blob:saveFile(basepath(blob:getFileName(blobIndexPlusOne-1)), blobs)
+			blob:saveFile(
+				basepath(blob:getFileName(blobIndexPlusOne-1)),
+				blobIndex,
+				blobs
+			)
 		end
 	end
 
@@ -113,7 +117,11 @@ elseif cmd == 'a' or cmd == 'r' then
 			local filepath = basepath(blobClass:getFileName(blobIndex))
 			if not filepath:exists() then break end
 			print('loading blob #'..blobIndex..' type='..blobClassName..' from file="'..filepath..'"')
-			blobs[blobClassName]:insert(blobClass:loadFile(filepath, basepath, blobIndex))
+			assert(xpcall(function()
+				blobs[blobClassName]:insert(blobClass:loadFile(filepath, basepath, blobIndex))
+			end, function(err)
+				return filepath..':\n'..err..'\n'..debug.traceback()
+			end))
 		end
 	end
 
@@ -744,7 +752,7 @@ print('toImage', name, 'width', width, 'height', height)
 		for j,waveform in ipairs(waveforms) do
 			-- TODO make these the sfx samples in-game
 			-- and then turn the sfx into whatever the playback-format is
-			AudioWAV():save{
+			AudioWAV:save{
 				filename = basepath('sfx'..(j == 1 and '' or (j-1))..'.wav').path,
 				ctype = sampleType,
 				channels = 1,
@@ -967,7 +975,7 @@ totalSfxSize = (totalSfxSize or 0) + samples * ffi.sizeof(sampleType)
 print('sfx'..index..' size', samples * ffi.sizeof(sampleType))
 						sfx.samples = samples
 						-- write data to an audio file ...
-						AudioWAV():save{
+						AudioWAV:save{
 							filename = basepath('sfx'..index..'.wav').path,
 							ctype = sampleType,
 							channels = channels,

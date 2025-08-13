@@ -4,6 +4,8 @@ local string = require 'ext.string'
 local path = require 'ext.path'
 local assert = require 'ext.assert'
 local class = require 'ext.class'
+local tolua = require 'ext.tolua'
+local fromlua = require 'ext.fromlua'
 local vec2i = require 'vec-ffi.vec2i'
 local vector = require 'ffi.cpp.vector-lua'
 local struct = require 'struct'
@@ -21,6 +23,7 @@ local paletteType = numo9_rom.paletteType
 local fontImageSize = numo9_rom.fontImageSize
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
+local sampleType = numo9_rom.sampleType
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local loopOffsetType = numo9_rom.loopOffsetType
 local mvMatType = numo9_rom.mvMatType
@@ -77,14 +80,86 @@ function Blob:copyFromROM()
 	ffi.copy(self:getPtr(), self.ramptr, self:getSize())
 end
 -- static method:
+function Blob:buildFileName(filenamePrefix, filenameSuffix, blobIndex)
+	return filenamePrefix..(blobIndex == 0 and '' or blobIndex)..filenameSuffix
+end
+-- static method:
 function Blob:getFileName(blobIndex)
-	assert.index(self, 'filenamePrefix', 'name='..self.name)
-	assert.index(self, 'filenameSuffix', 'name='..self.name)
-	return self.filenamePrefix..(blobIndex == 0 and '' or blobIndex)..self.filenameSuffix
+	return self:buildFileName(self.filenamePrefix, self.filenameSuffix, blobIndex)
 end
 -- static method:
 function Blob:loadBinStr(data)
 	return self.class(data)
+end
+
+
+-- abstract class
+local BlobImage = Blob:subclass()
+--BlobImage.imageSize = vec2i(...)
+--BlobImage.imageType = ...
+-- static method:
+function BlobImage:makeImage()
+	local image = Image(self.imageSize.x, self.imageSize.y, 1, self.imageType)
+	ffi.fill(image.buffer, self.imageSize.x * self.imageSize.y * ffi.sizeof(self.imageType))
+	return image
+end
+function BlobImage:init(image)
+	if image then
+		assert.eq(image.width, self.imageSize.x)
+		assert.eq(image.height, self.imageSize.y)
+		assert.eq(image.channels, 1)
+		assert.eq(image.format, self.imageType)
+		self.image = image
+	else
+		self.image = self:makeImage()
+	end
+end
+function BlobImage:getPtr()
+	return ffi.cast('uint8_t*', self.image.buffer)
+end
+function BlobImage:getSize()
+	return self.image:getBufferSize()
+end
+function BlobImage:saveFile(filepath, blobIndex, blobs)
+	local image = self:makeImage()
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), self:getPtr(), self:getSize())
+	image:save(filepath.path)
+end
+-- static method:
+function BlobImage:loadFile(filepath)
+	local image = Image(filepath.path)
+	return self.class(image)
+end
+-- static method:
+function BlobImage:loadBinStr(data)
+	local image = self:makeImage()
+	assert.eq(#data, image:getBufferSize())
+	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
+	return self.class(image)
+end
+
+
+-- abstract class:
+-- tempted to merge this with Blob and just use the string's buffer for everything elses buffer ...
+local BlobDataAbs = Blob:subclass() 
+function BlobDataAbs:init(data)
+	assert.type(data, 'string', tostring(self.name).." needs a non-empty string")
+	assert.gt(#data, 0, tostring(self.name).." needs a non-empty string")
+	self.data = data
+end
+function BlobDataAbs:getPtr()
+	return ffi.cast('uint8_t*', self.data)
+end
+function BlobDataAbs:getSize()
+	return #self.data
+end
+function BlobDataAbs:saveFile(filepath, blobIndex, blobs)
+	if #self.data > 0 then
+		assert(filepath:write(self.data))
+	else
+		error("I don't support empty blobs.  idk why.  because then blob addresses are no longer unique, maybe? (the zero-sized array C problem) meh.")
+		filepath:remove()
+	end
 end
 
 
@@ -96,30 +171,9 @@ local function blobSubclass(name, parent)
 end
 
 
-local BlobCode = blobSubclass'code'
-function BlobCode:init(data)	-- optional
-	assert.type(data, 'string', "BlobCode needs a non-empty string")
-	assert.gt(#data, 0, "BlobCode needs a non-empty string")
-	self.data = data
-end
-function BlobCode:getPtr()
-	return ffi.cast('uint8_t*', self.data)
-end
-function BlobCode:getSize()
-	return #self.data
-end
-BlobCode.filename = 'code$.lua'
+local BlobCode = blobSubclass('code', BlobDataAbs)
 BlobCode.filenamePrefix = 'code'
 BlobCode.filenameSuffix = '.lua'
-function BlobCode:saveFile(filepath)
---DEBUG:print'saving code...'
-	local code = self.data
-	if #code > 0 then
-		assert(filepath:write(code))
-	--else
-	--	filepath:remove()
-	end
-end
 -- static method:
 function BlobCode:loadFile(filepath, basepath)
 --DEBUG:print'loading code...'
@@ -152,7 +206,7 @@ function BlobCode:loadFile(filepath, basepath)
 						}:concat'\n'
 					end
 				end
-				error("couldn't find "..loc.." in include paths: "..require 'ext.tolua'(includePaths:mapi(function(p) return p.path end)))
+				error("couldn't find "..loc.." in include paths: "..tolua(includePaths:mapi(function(p) return p.path end)))
 			else
 				return l
 			end
@@ -165,59 +219,13 @@ function BlobCode:loadFile(filepath, basepath)
 end
 
 
--- abstract class
-local BlobImage = Blob:subclass()
---BlobImage.imageSize = vec2i(...)
---BlobImage.imageType = ...
--- static method:
-function BlobImage:makeImage()
-	local image = Image(self.imageSize.x, self.imageSize.y, 1, self.imageType)
-	ffi.fill(image.buffer, self.imageSize.x * self.imageSize.y * ffi.sizeof(self.imageType))
-	return image
-end
-function BlobImage:init(image)
-	if image then
-		assert.eq(image.width, self.imageSize.x)
-		assert.eq(image.height, self.imageSize.y)
-		assert.eq(image.channels, 1)
-		assert.eq(image.format, self.imageType)
-		self.image = image
-	else
-		self.image = self:makeImage()
-	end
-end
-function BlobImage:getPtr()
-	return ffi.cast('uint8_t*', self.image.buffer)
-end
-function BlobImage:getSize()
-	return self.image:getBufferSize()
-end
-function BlobImage:saveFile(filepath, blobs)
-	local image = self:makeImage()
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), self:getPtr(), self:getSize())
-	image:save(filepath.path)
-end
--- static method:
-function BlobImage:loadFile(filepath)
-	local image = Image(filepath.path)
-	return self.class(image)
-end
--- static method:
-function BlobImage:loadBinStr(data)
-	local image = self:makeImage()
-	assert.eq(#data, image:getBufferSize())
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
-	return self.class(image)
-end
-
-
 local BlobSheet = blobSubclass('sheet', BlobImage)
 BlobSheet.imageSize = spriteSheetSize
 BlobSheet.imageType = 'uint8_t'
 BlobSheet.filenamePrefix = 'sheet'
 BlobSheet.filenameSuffix = '.png'
 -- same but adds the palette
-function BlobSheet:saveFile(filepath, blobs)
+function BlobSheet:saveFile(filepath, blobIndex, blobs)
 --DEBUG:print'saving sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
@@ -234,7 +242,7 @@ BlobTileMap.imageType = 'uint16_t'
 BlobTileMap.filenamePrefix = 'tilemap'
 BlobTileMap.filenameSuffix = '.png'
 -- swizzle / unswizzle channels
-function BlobTileMap:saveFile(filepath)
+function BlobTileMap:saveFile(filepath, blobIndex, blobs)
 	local saveImg = Image(tilemapSize.x, tilemapSize.x, 3, 'uint8_t')
 	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
 	local blobPtr = self:getPtr()
@@ -291,7 +299,7 @@ BlobPalette.imageType = paletteType
 BlobPalette.filenamePrefix = 'palette'
 BlobPalette.filenameSuffix = '.png'
 -- reshape image
-function BlobPalette:saveFile(filepath)
+function BlobPalette:saveFile(filepath, blobIndex, blobs)
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
 	local saveImg = Image(16, 16, 4, 'uint8_t')
 	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
@@ -345,7 +353,7 @@ BlobFont.imageSize = fontImageSize
 BlobFont.imageType = 'uint8_t'
 BlobFont.filenamePrefix = 'font'
 BlobFont.filenameSuffix = '.png'
-function BlobFont:saveFile(filepath)
+function BlobFont:saveFile(filepath, blobIndex, blobs)
 --DEBUG:print'saving font...'
 	local saveImg = Image(256, 64, 1, 'uint8_t')
 	for xl=0,31 do
@@ -387,31 +395,51 @@ format:
 uint32_t loopOffset
 uint16_t samples[]
 --]]
-local BlobSFX = blobSubclass'sfx'
+local BlobSFX = blobSubclass('sfx', BlobDataAbs)
 BlobSFX.filenamePrefix = 'sfx'
 BlobSFX.filenameSuffix = '.wav'
 function BlobSFX:init(data)
+	BlobSFX.super.init(self, data)
 	assert.gt(#data, ffi.sizeof(loopOffsetType))		-- make sure there's room for the initial loopOffset
 	assert.eq((#data - ffi.sizeof(loopOffsetType))  % ffi.sizeof(audioSampleType), 0)	-- make sure it's sample-type-aligned
-	self.data = assert(data)
 end
-function BlobSFX:getPtr()
-	return ffi.cast('uint8_t*', self.data)
+-- static method:
+function BlobSFX:getSFXDescPath(filepath, blobIndex)
+	return filepath:getdir()(
+		self:buildFileName(self.filenamePrefix..'-desc', '.txt', blobIndex)
+	)
 end
-function BlobSFX:getSize()
-	return #self.data
-end
-function BlobSFX:saveFile(filepath)
-	print('!!! WARNING !!! TODO BlobSFX:saveFile('..filepath..')')
+function BlobSFX:saveFile(filepath, blobIndex, blobs)
+	AudioWAV:save{
+		filename = filepath.path,
+		ctype = sampleType,
+		channels = 1,
+		data = self.data:sub(ffi.sizeof(loopOffsetType)+1),
+		size = #data - ffi.sizeof(loopOffsetType),
+		freq = audioSampleRate,
+	}
+	local sfxDescPath = self:getSFXDescPath(filepath, blobIndex)
+	if self.loopOffset ~= 0 then
+		sfxDescPath:write(tolua{loopOffset = self.loopOffset})
+	else
+		sfxDescPath:remove()
+	end
 end
 -- static method:
 function BlobSFX:loadFile(filepath, basepath, blobIndex)
-	local wav = AudioWAV():load(filepath.path)
+	local wav = AudioWAV:load(filepath.path)
 
-	local tmp = {}
-	assert(load(basepath('waveform'..(blobIndex == 0 and '' or blobIndex)..'.txt'):read() or '', nil, nil, tmp))()	-- crash upon syntax error
+	local loopOffset
+	local sfxDescPath = self:getSFXDescPath(filepath, blobIndex)
+	if sfxDescPath:exists() then
+		xpcall(function()
+			loopOffset = fromlua(assert(sfxDescPath:read())).loopOffset
+		end, function(err)
+			print(sfxDescPath..':\n'..err..'\n'..debug.traceback())
+		end)
+	end
 
-	return self:loadWav(wav, tmp.loopOffset)
+	return self:loadWav(wav, loopOffset)
 end
 -- static method:
 function BlobSFX:loadWav(wav, loopOffset)
