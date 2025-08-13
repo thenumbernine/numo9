@@ -412,10 +412,10 @@ end
 function BlobSFX:saveFile(filepath, blobIndex, blobs)
 	AudioWAV:save{
 		filename = filepath.path,
-		ctype = sampleType,
+		ctype = audioSampleType,
 		channels = 1,
 		data = self.data:sub(ffi.sizeof(loopOffsetType)+1),
-		size = #data - ffi.sizeof(loopOffsetType),
+		size = #self.data - ffi.sizeof(loopOffsetType),
 		freq = audioSampleRate,
 	}
 	local sfxDescPath = self:getSFXDescPath(filepath, blobIndex)

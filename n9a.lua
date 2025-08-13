@@ -96,8 +96,9 @@ if cmd == 'x' then
 
 	for blobClassName,blobsForType in pairs(blobs) do
 		for blobIndexPlusOne,blob in ipairs(blobsForType) do
+			local blobIndex = blobIndexPlusOne-1
 			blob:saveFile(
-				basepath(blob:getFileName(blobIndexPlusOne-1)),
+				basepath(blob:getFileName(blobIndex)),
 				blobIndex,
 				blobs
 			)
