@@ -419,7 +419,7 @@ function BlobSFX:saveFile(filepath, blobIndex, blobs)
 		freq = audioSampleRate,
 	}
 	local sfxDescPath = self:getSFXDescPath(filepath, blobIndex)
-	if self.loopOffset ~= 0 then
+	if self.loopOffset and self.loopOffset ~= 0 then
 		sfxDescPath:write(tolua{loopOffset = self.loopOffset})
 	else
 		sfxDescPath:remove()

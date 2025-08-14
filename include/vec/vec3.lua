@@ -48,6 +48,7 @@ vec3=class{
 				v.z = x
 			end
 		end
+		return self
 	end,
 	unpack=|v| (v.x, v.y, v.z),
 	sum=|v| v.x + v.y + v.z,
@@ -63,6 +64,7 @@ vec3=class{
 	l1Length=|v| math.abs(v.x) + math.abs(v.y) + math.abs(v.z),
 	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y), math.abs(v.z)),
 	dot=|a,b| a.x * b.x + a.y * b.y + a.z * b.z,
+	cross=|a,b| vec3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x),
 	lenSq=|v| v:dot(v),
 	len=|v| math.sqrt(v:lenSq()),
 	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),

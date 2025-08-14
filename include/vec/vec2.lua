@@ -46,6 +46,7 @@ vec2=class{
 				v.y = x
 			end
 		end
+		return self
 	end,
 	unpack=|v|(v.x, v.y),
 	sum=|v| v.x + v.y,

@@ -1,6 +1,231 @@
---#include numo9/matstack.lua
---#include ext/class.lua
---#include vec/vec2.lua
+----------------------- BEGIN numo9/matstack.lua-----------------------
+assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
+local matAddr = ramaddr'mvMat'
+local matstack=table()
+local matpush=||do
+	local t={}
+	for i=0,15 do
+		t[i+1] = peekf(matAddr + (i<<2))
+	end
+	matstack:insert(t)
+end
+local matpop=||do
+	local t = matstack:remove(1)
+	if not t then return end
+	for i=0,15 do
+		pokef(matAddr + (i<<2), t[i+1])
+	end
+end
+
+----------------------- END numo9/matstack.lua  -----------------------
+----------------------- BEGIN ext/class.lua-----------------------
+local isa=|cl,o|o.isaSet[cl]
+local classmeta = {__call=|cl,...|do
+	local o=setmetatable({},cl)
+	return o, o?:init(...)
+end}
+local class
+class=|...|do
+	local t=table(...)
+	t.super=...
+	--t.supers=table{...}
+	t.__index=t
+	t.subclass=class
+	t.isaSet=table(table{...}
+		:mapi(|cl|cl.isaSet)
+		:unpack()
+	):setmetatable(nil)
+	t.isaSet[t]=true
+	t.isa=isa
+	setmetatable(t,classmeta)
+	return t
+end
+
+----------------------- END ext/class.lua  -----------------------
+----------------------- BEGIN vec/vec2.lua-----------------------
+local vec2_getvalue=|x, dim|do
+	if type(x) == 'number' then return x end
+	if type(x) == 'table' then
+		if dim==1 then
+			x=x.x
+		elseif dim==2 then
+			x=x.y
+		else
+			x=nil
+		end
+		if type(x)~='number' then
+			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
+		end
+		return x
+	end
+	error("tried to vec2_getvalue from an unknown type "..type(x))
+end
+
+local vec2
+vec2=class{
+	fields = table{'x', 'y'},
+	init=|v,x,y|do
+		if x then
+			if y then
+				v:set(x,y)
+			else
+				v:set(x,x)
+			end
+		else
+			v:set(0,0)
+		end
+	end,
+	clone=|v| vec2(v),
+	set=|v,x,y|do
+		if type(x) == 'table' then
+			v.x = x.x or x[1] or error("idk")
+			v.y = x.y or x[2] or error("idk")
+		else
+			assert(x, "idk")
+			v.x = x
+			if y then
+				v.y = y
+			else
+				v.y = x
+			end
+		end
+		return self
+	end,
+	unpack=|v|(v.x, v.y),
+	sum=|v| v.x + v.y,
+	product=|v| v.x * v.y,
+	clamp=|v,a,b|do
+		local mins = a
+		local maxs = b
+		if type(a) == 'table' and a.min and a.max then
+			mins = a.min
+			maxs = a.max
+		end
+		v.x = math.clamp(v.x, vec2_getvalue(mins, 1), vec2_getvalue(maxs, 1))
+		v.y = math.clamp(v.y, vec2_getvalue(mins, 2), vec2_getvalue(maxs, 2))
+		return v
+	end,
+	map=|v,f|do
+		v.x = f(v.x, 1)
+		v.y = f(v.y, 2)
+		return v
+	end,
+	floor=|v|v:map(math.floor),
+	ceil=|v|v:map(math.ceil),
+	l1Length=|v| math.abs(v.x) + math.abs(v.y),
+	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y)),
+	dot=|a,b| a.x * b.x + a.y * b.y,
+	lenSq=|v| v:dot(v),
+	len=|v| math.sqrt(v:lenSq()),
+	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2),
+	unit=|v| v / math.max(1e-15, v:len()),
+	exp=|theta| vec2(math.cos(theta), math.sin(theta)),
+	cross=|a,b| a.x * b.y - a.y * b.x,	-- or :det() maybe
+	cplxmul = |a,b| vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),
+	__unm=|v| vec2(-v.x, -v.y),
+	__add=|a,b| vec2(vec2_getvalue(a, 1) + vec2_getvalue(b, 1), vec2_getvalue(a, 2) + vec2_getvalue(b, 2)),
+	__sub=|a,b| vec2(vec2_getvalue(a, 1) - vec2_getvalue(b, 1), vec2_getvalue(a, 2) - vec2_getvalue(b, 2)),
+	__mul=|a,b| vec2(vec2_getvalue(a, 1) * vec2_getvalue(b, 1), vec2_getvalue(a, 2) * vec2_getvalue(b, 2)),
+	__div=|a,b| vec2(vec2_getvalue(a, 1) / vec2_getvalue(b, 1), vec2_getvalue(a, 2) / vec2_getvalue(b, 2)),
+	__eq=|a,b| a.x == b.x and a.y == b.y,
+	__tostring=|v| v.x..','..v.y,
+	__concat=string.concat,
+}
+
+-- TODO order this like buttons ... right down left up ... so it's related to bitflags and so it follows exp map angle ...
+-- tempting to do right left down up, i.e. x+ x- y+ y-, because that extends dimensions better
+-- but as it is this way, we are 1:1 with the exponential-map, so there.
+local dirvecs = table{
+	[0] = vec2(1,0),
+	[1] = vec2(0,1),
+	[2] = vec2(-1,0),
+	[3] = vec2(0,-1),
+}
+local opposite = {[0]=2,3,0,1}	-- opposite = [x]x~2
+local dirForName = {right=0, down=1, left=2, up=3}
+
+----------------------- END vec/vec2.lua  -----------------------
+----------------------- BEGIN vec/vec3.lua-----------------------
+local vec3_getvalue=|x, dim|do
+	if type(x) == 'number' then return x end
+	if type(x) == 'table' then
+		if dim==1 then
+			x=x.x
+		elseif dim==2 then
+			x=x.y
+		elseif dim==3 then
+			x=x.z
+		else
+			x=nil
+		end
+		if type(x)~='number' then
+			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
+		end
+		return x
+	end
+	error("tried to vec3_getvalue from an unknown type "..type(x))
+end
+
+-- tempting to template/generate this code ....
+local vec3
+vec3=class{
+	fields = table{'x', 'y', 'z'},
+	init=|v,x,y,z|do
+		if x then
+			v:set(x,y,z)
+		else
+			v:set(0,0,0)
+		end
+	end,
+	clone=|v| vec3(v),
+	set=|v,x,y,z|do
+		if type(x) == 'table' then
+			v.x = x.x or x[1] or error("idk")
+			v.y = x.y or x[2] or error("idk")
+			v.z = x.z or x[3] or error("idk")
+		else
+			assert(x, "idk")
+			v.x = x
+			if y then
+				v.y = y
+				v.z = z or 0
+			else
+				v.y = x
+				v.z = x
+			end
+		end
+		return self
+	end,
+	unpack=|v| (v.x, v.y, v.z),
+	sum=|v| v.x + v.y + v.z,
+	product=|v| v.x * v.y * v.z,
+	map=|v,f|do
+		v.x = f(v.x, 1)
+		v.y = f(v.y, 2)
+		v.z = f(v.z, 3)
+		return v
+	end,
+	floor=|v|v:map(math.floor),
+	ceil=|v|v:map(math.ceil),
+	l1Length=|v| math.abs(v.x) + math.abs(v.y) + math.abs(v.z),
+	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y), math.abs(v.z)),
+	dot=|a,b| a.x * b.x + a.y * b.y + a.z * b.z,
+	lenSq=|v| v:dot(v),
+	cross=|a,b| vec3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x),
+	len=|v| math.sqrt(v:lenSq()),
+	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),
+	unit=|v| v / math.max(1e-15, v:len()),
+	__unm=|v| vec3(-v.x, -v.y, -v.z),
+	__add=|a,b| vec3(vec3_getvalue(a, 1) + vec3_getvalue(b, 1), vec3_getvalue(a, 2) + vec3_getvalue(b, 2), vec3_getvalue(a, 3) + vec3_getvalue(b, 3)),
+	__sub=|a,b| vec3(vec3_getvalue(a, 1) - vec3_getvalue(b, 1), vec3_getvalue(a, 2) - vec3_getvalue(b, 2), vec3_getvalue(a, 3) - vec3_getvalue(b, 3)),
+	__mul=|a,b| vec3(vec3_getvalue(a, 1) * vec3_getvalue(b, 1), vec3_getvalue(a, 2) * vec3_getvalue(b, 2), vec3_getvalue(a, 3) * vec3_getvalue(b, 3)),
+	__div=|a,b| vec3(vec3_getvalue(a, 1) / vec3_getvalue(b, 1), vec3_getvalue(a, 2) / vec3_getvalue(b, 2), vec3_getvalue(a, 3) / vec3_getvalue(b, 3)),
+	__eq=|a,b| a.x == b.x and a.y == b.y and a.z == b.z,
+	__tostring=|v| v.x..','..v.y..','..v.z,
+	__concat=string.concat,
+}
+
+----------------------- END vec/vec3.lua  -----------------------
 
 local Quat = class()
 Quat.init=|:,...|do
@@ -10,13 +235,33 @@ Quat.init=|:,...|do
 		self.x, self.y, self.z, self.w = ...
 	end
 end
-Quat.set = |:,o| do
-	self.x, self.y, self.z, self.w = o:unpack()
+-- static:
+Quat.fromVec3=|:,v| Quat(v.x, v.y, v.z, 0)
+Quat.set = |:,x,y,z,w| do
+	if type(x) == 'table' then
+		self.x, self.y, self.z, self.w = x:unpack()
+	else
+		self.x, self.y, self.z, self.w = x,y,z,w
+	end
 	return self
 end
+Quat.clone = |q| Quat(q.x, q.y, q.z, q.w)
 Quat.unpack = |q| (q.x, q.y, q.z, q.w)
+Quat.__add = |q,r,res| do
+	res = res or Quat()
+	return res:set(q.x + r.x, q.y + r.y, q.z + r.z, q.w + r.w)
+end
+Quat.__sub = |q,r,res| do
+	res = res or Quat()
+	return res:set(q.x - r.x, q.y - r.y, q.z - r.z, q.w - r.w)
+end
 Quat.mul = |q, r, res| do
 	if not res then res = Quat() end
+	if type(q) == 'number' then
+		return res:set(q * r.x, q * r.y, q * r.z, q * r.w)
+	elseif type(r) == 'number' then
+		return res:set(q.x * r, q.y * r, q.z * r, q.w * r)
+	end
 	local a = (q.w + q.x) * (r.w + r.x)
 	local b = (q.z - q.y) * (r.y - r.z)
 	local c = (q.x - q.w) * (r.y + r.z)
@@ -64,23 +309,30 @@ Quat.fromAngleAxis = |:, res| do
 	return (res or Quat()):set(x * vscale, y * vscale, z * vscale, costh)
 end
 
-Quat.xAxis = |q, res|
-	((res or vec3()):set(
+Quat.xAxis = |q, res| do
+	res = res or vec3()
+	res:set(
 		1 - 2 * (q.y * q.y + q.z * q.z),
 		2 * (q.x * q.y + q.z * q.w),
-		2 * (q.x * q.z - q.w * q.y)))
-
-Quat.yAxis = |q, res|
-	((res or vec3()):set(
+		2 * (q.x * q.z - q.w * q.y))
+	return res
+end
+Quat.yAxis = |q, res| do
+	res = res or vec3()
+	res:set(
 		2 * (q.x * q.y - q.w * q.z),
 		1 - 2 * (q.x * q.x + q.z * q.z),
-		2 * (q.y * q.z + q.w * q.x)))
-
-Quat.zAxis = |q, res|
-		((res or vec3()):set(
-			2 * (q.x * q.z + q.w * q.y),
-			2 * (q.y * q.z - q.w * q.x),
-			1 - 2 * (q.x * q.x + q.y * q.y)))
+		2 * (q.y * q.z + q.w * q.x))
+	return res
+end
+Quat.zAxis = |q, res| do
+	res = res or vec3()
+	res:set(
+		2 * (q.x * q.z + q.w * q.y),
+		2 * (q.y * q.z - q.w * q.x),
+		1 - 2 * (q.x * q.x + q.y * q.y))
+	return res
+end
 
 Quat.rotate = |:, v, res| do
 	local v4 = self * Quat(v.x, v.y, v.z, 0) * self:conjugate()
@@ -90,7 +342,10 @@ end
 Quat.conjugate = |:, res|
 	((res or Quat()):set(-self.x, -self.y, -self.z, self.w))
 
-Quat.normalize = |:, res, eps| do
+
+Quat.dot = |a,b| a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
+Quat.normSq = |q| Quat.dot(q,q)
+Quat.unit = |:, res, eps| do
 	eps = eps or Quat.epsilon
 	res = res or Quat()
 	local lenSq = self:normSq()
@@ -104,11 +359,21 @@ Quat.normalize = |:, res, eps| do
 		self.z * invlen,
 		self.w * invlen)
 end
+Quat.__eq=|a,b| a.x == b.x and a.y == b.y and a.z == b.z and a.w == b.w
+Quat.__tostring=|v| v.x..','..v.y..','..v.z..','..v.w
+Quat.__concat=string.concat
 
 
---worldSize = 256
-worldSize = 128			-- one screen size
---worldSize = 64		-- too small
+-- mode 0
+screenSize = vec2(256, 256)
+
+-- sphere radius in world coords
+--sphereSize = 256 / (2 * math.pi)
+--sphereSize = 128 / (2 * math.pi)
+sphereSize = 128
+--sphereSize = 64 / (2 * math.pi)
+
+sphereSizeDraw2D = 128		-- how big on the screen
 
 local dt = 1/60
 
@@ -119,29 +384,31 @@ drawTri = |pos, fwd, size, color| do
 	line(pos.x+size*fwd.x, pos.y+size*fwd.y, pos.x+size*(-rightx - fwd.x), pos.y+size*(-righty - fwd.y), color)
 end
 
-objs = table()
 
+viewPos = Quat()
+
+-- v = Quat
+-- returns vec2
 getViewPos = |v| do
-	local relpos = v - viewPos
-	if relpos.x < -worldSize then
-		relpos.x += 2*worldSize
-	elseif relpos.x > worldSize then
-		relpos.x -= 2*worldSize
-	end
-	if relpos.y < -worldSize then
-		relpos.y += 2*worldSize
-	elseif relpos.y > worldSize then
-		relpos.y -= 2*worldSize
-	end
-	return relpos + viewPos
+	v = viewPos:conjugate() * v
+	local pos = v:zAxis()
+	local pos2 = vec2(pos.x, pos.y)
+	local len2 = pos2:len()
+	if len2 < 1e-15 then return vec2() end
+	return pos2 * (
+		v.w	-- ... times v dot identity, which is v.w
+		* sphereSizeDraw2D
+		/ len2
+	)
 end
 
+objs = table()
+
 local Object = class()
-Object.pos = vec2()
-Object.vel = vec2()
+Object.pos = Quat()
+Object.vel = Quat(0,0,0,0)	-- pure-quat with vector = angular momentum
 Object.size = 5
 Object.color = 12
-Object.angle = 0
 Object.accel = 50
 Object.rot = 5
 Object.density = 1
@@ -150,19 +417,31 @@ Object.init=|:,args|do
 	if args then
 		for k,v in pairs(args) do self[k] = v end
 	end
-	self.pos = self.pos:clone()
-	self.vel = self.vel:clone()
+	self.pos = (args and args.pos or self.pos):clone()
+	self.vel = (args and args.vel or self.vel):clone()
+end
+Object.draw=|:|do end
+Object.draw3D=|:|do
+	matpush()
+	local x,y,z,th = self.pos:toAngleAxis():unpack()
+	matrot(th, x, y, z)
+	mattrans(-4, -4, sphereSize)
+	matscale(self.size / 4, self.size / 4)
+	spr(0, 0, 0, 1, 1)
+	matpop()
 end
 Object.update=|:|do
-	self.pos += dt * self.vel
-
-	self.angle %= 2 * math.pi
-	self.pos.x += worldSize
-	self.pos.y += worldSize
-	self.pos.x %= 2*worldSize
-	self.pos.y %= 2*worldSize
-	self.pos.x -= worldSize
-	self.pos.y -= worldSize
+	--[[
+	sphere radius = sphereSize in meters
+	vel is in meters ... so max dist = 2 pi sphereSize ...
+	so if vel's magnitude is distance ... then it shoulds rotate by (sphereSize * 2 pi / vel) radians
+	quat integral:
+	qdot = 1/2 w * q
+	w = (wv, 0) = angular velocity as pure-quaternion
+	--]]
+	self.pos = (self.pos + (.5 * dt / (sphereSize 
+--		* 2 * math.pi
+	)) * self.vel * self.pos):unit()
 end
 
 local Shot = Object:subclass()
@@ -172,14 +451,20 @@ Shot.init=|:,args|do
 	Shot.super.init(self, args)
 	self.endTime = args?.endTime
 end
-Shot.update=|:|do
-	Shot.super.update(self)
-
+Shot.draw=|:|do
 	matpush()
 	mattrans(getViewPos(self.pos):unpack())
 	rect(-1, -1, 3, 3, self.color)
 	matpop()
-
+end
+Shot.draw3D=|:|do
+	matpush()
+	mattrans((self.pos:zAxis() * sphereSize):unpack())
+	rect(-1, -1, 3, 3, self.color)
+	matpop()
+end
+Shot.update=|:|do
+	Shot.super.update(self)
 	if time() > self.endTime then self.dead = true end
 end
 Shot.touch=|:,other|do
@@ -195,16 +480,20 @@ Shot.touch=|:,other|do
 		if other.size > other.sizeS then
 			-- make new rocks
 			local mom = other.vel * other:calcMass()
-			local perturb1 = vec2.exp(math.random() * 2 * math.pi) * 2000
-			local perturb2 = vec2.exp(math.random() * 2 * math.pi) * 2000
-			local expAngle = vec2.exp(other.angle)
+			local perturb1 = randomVel() * 2000
+			local perturb2 = randomVel() * 2000
 			for s1=-1,1,2 do
 				for s2=-1,1,2 do
 					local newmom = .25 * mom + s1 * perturb1 + s2 * perturb2
 					local piece = Rock{
-						pos = self.pos + (.5 * other.size) * vec2.cplxmul(vec2(s1,s2), expAngle),
-						angle = other.angle,
-						rot = math.random() * 2 * 20,	-- TODO conserve this too?
+						pos = other.pos 
+							* Quat(1,0,0, s1 * .5 * other.size / (sphereSize 
+						--		* 2 * math.pi
+							)):fromAngleAxis()
+							* Quat(0,1,0, s2 * .5 * other.size / (sphereSize 
+						--		* 2 * math.pi
+							)):fromAngleAxis(),
+						--rot = math.random() * 2 * 20,	-- TODO conserve this too?	-- TODO is this used?
 						size = other.size == other.sizeL and other.sizeM or other.sizeS,
 					}
 					piece.vel = newmom * (1 / piece:calcMass())
@@ -218,60 +507,104 @@ end
 
 Ship = Object:subclass()
 Ship.nextShootTime = 0
-Ship.update=|:|do
-	local fwd = vec2.exp(self.angle)
+Ship.draw=|:|do
+	local fwd = vec2(0,-1)
 	matpush()
 	mattrans(getViewPos(self.pos):unpack())
 	drawTri(vec2(), fwd, self.size, self.color)
-
 	if self.thrust then
 		drawTri(-3 * fwd, -fwd, .5 * self.size, 9)
 	end
-	self.thrust = nil
-
 	matpop()
 
-	Ship.super.update(self)
+	Ship.super.draw(self)
+end
+Ship.draw3D=|:|do
+	matpush()
+	local x,y,z,th = self.pos:toAngleAxis():unpack()
+	matrot(th, x, y, z)
+	mattrans(-8, -8, sphereSize)
+	matscale(self.size / 4, self.size / 4)
+	spr(2, 0, 0, 2, 2)
+	if self.thrust then
+		mattrans(4, 16)
+		spr(1, 0, 0, 1, 1)
+	end
+	matpop()
 end
 Ship.shoot = |:|do
 	if self.nextShootTime > time() then return end
 	self.nextShootTime = time() + .2
-	local fwd = vec2.exp(self.angle)
 	Shot{
 		pos = self.pos:clone(),
-		vel = self.vel + Shot.speed * fwd,
+		vel = self.vel + Quat:fromVec3(self.pos:xAxis() * (Shot.speed)),
 		shooter = self,
 		endTime = time() + 1,
 	}
 end
 
+--[[
+on the sphere surface:
+x = right
+y = fwd
+z = up
+--]]
 PlayerShip = Ship:subclass()
 PlayerShip.update = |:| do
-	local fwd = vec2.exp(self.angle)
-	if btn('up',0) then self.vel += fwd * dt * self.accel self.thrust=true end
-	if btn('down',0) then self.vel -= fwd * dt * self.accel self.thrust=true end
-	if btn('left',0) then self.angle -= dt * self.rot end
-	if btn('right',0) then self.angle += dt * self.rot end
-	if btn('y',0) then self:shoot() end
+	self.thrust = nil
+	if btn('up',0) then
+		-- rotate on right axis = go fwd
+		self.vel += Quat:fromVec3(self.pos:xAxis() * (dt * self.accel))
+		self.thrust = true
+	end
+	if btn('down',0) then
+		self.vel += Quat:fromVec3(self.pos:xAxis() * (-dt * self.accel))
+		self.thrust = true
+	end
+	if btn('left',0) then
+		--[[ use inertia?
+		self.vel += Quat:fromVec3(self.pos:zAxis() * (-dt * self.rot))
+		--]]
+		-- [[ or instant turn?
+		self.pos = self.pos * Quat(0, 0, 1, -dt * self.rot):fromAngleAxis()
+		--]]
+	end
+	if btn('right',0) then
+		--[[ use inertia?
+		self.vel += Quat:fromVec3(self.pos:zAxis() * (dt * self.rot))
+		--]]
+		-- [[ or instant turn?
+		self.pos = self.pos * Quat(0, 0, 1, dt * self.rot):fromAngleAxis()
+		--]]
+	end
+	if btn('y',0) then
+		self:shoot()
+	end
 
 	PlayerShip.super.update(self)
 end
 
 EnemyShip = Ship:subclass()
+EnemyShip.thrust = true
 EnemyShip.update = |:|do
-	local toPlayer = (player.pos - self.pos):unit()
-	local fwd = vec2.exp(self.angle)
-	local sinth = toPlayer:cross(fwd)
+	local axisToPlayer = self.pos:zAxis():cross(player.pos:zAxis()):unit()
+	local dirToPlayer = self.pos:zAxis():cross(axisToPlayer):unit()
+	local dirFwd = self.pos:yAxis()
+	-- find the shortest rotation from us to player
+	-- compare its geodesic to our 'fwd' dir
+	-- turn if needed
+	local sinth = dirToPlayer:cross(dirFwd):dot(self.pos:zAxis())
 	if math.abs(sinth) < math.rad(30) then
 	elseif sinth > 0 then
-		self.angle -= dt * self.rot
+		--self.vel += Quat:fromVec3(self.pos:zAxis() * (dt * self.rot))
+		self.pos = self.pos * Quat(0, 0, 1, -dt * self.rot):fromAngleAxis()
 	elseif sinth < 0 then
-		self.angle += dt * self.rot
+		--self.vel += Quat:fromVec3(self.pos:zAxis() * (-dt * self.rot))
+		self.pos = self.pos * Quat(0, 0, 1, dt * self.rot):fromAngleAxis()
 	end
 
-	self.thrust = true
-	self.vel += fwd * dt * self.accel
-
+	self.vel += Quat:fromVec3(self.pos:xAxis() * (dt * self.accel))
+	
 	PlayerShip.super.update(self)
 end
 
@@ -283,9 +616,7 @@ Rock.sizeS = 5
 Rock.size = Rock.sizeL
 Rock.color = 13
 Rock.calcMass = |:| math.pi * self.size^2 * self.density
-Rock.update=|:|do
-	local fwd = vec2.exp(self.angle)
-
+Rock.draw=|:|do
 	local rightx = -fwd.y
 	local righty = fwd.x
 	matpush()
@@ -296,44 +627,78 @@ Rock.update=|:|do
 	line(self.size*(fwd.x-rightx), self.size*(fwd.y-righty), self.size*(fwd.x+rightx), self.size*(fwd.y+righty), self.color)
 	matpop()
 
-	Rock.super.update(self)
+	Rock.super.draw(self)
+end
+Rock.draw3D=|:|do
+	matpush()
+	local x,y,z,th = self.pos:toAngleAxis():unpack()
+	matrot(th, x, y, z)
+	mattrans(-4, -4, sphereSize)
+	matscale(self.size / 4, self.size / 4)
+	rectb(-4, -4, 8, 8, self.color)
+	matpop()
 end
 
 player = PlayerShip()
--- [[
 EnemyShip{
-	pos=vec2(50,0),
-	vel=vec2(0,30),
+	pos=Quat(1,0,0,math.pi):fromAngleAxis(),
 }
---]]
+
+-- https://math.stackexchange.com/a/1586185/206369
+randomSphereSurface = ||do
+	local phi = math.acos(2 * math.random() - 1) - math.pi / 2
+	local lambda = 2 * math.pi * math.random()
+	return math.cos(phi) * math.cos(lambda),
+		math.cos(phi) * math.sin(lambda),
+		math.sin(phi)
+end
+
+randomPos=||do
+	local x,y,z = randomSphereSurface()
+	return Quat(x,y,z, math.random() * math.pi) * Quat(0, 0, 1, math.random() * 2 * math.pi)
+end
+
+randomVel=||do
+	local x,y,z = randomSphereSurface()
+	return Quat(x,y,z,0)
+end
+
 for i=1,5 do
 	Rock{
-		pos=vec2.exp(math.random()*2*math.pi) * worldSize * .5,
-		vel=vec2.exp(math.random()*2*math.pi) * 10,
-		angle = math.random() * 2 * math.pi,
-		rot = math.random() * 2 * 20,
+		pos=randomPos(),
+		vel=randomVel() * 10,
+		rot = math.random() * 2 * 20,	-- is this used?
 	}
 end
 
-viewPos = vec2()
-viewAngle = 0
 update=||do
 	cls()
 	matident()
-	mattrans(128, 128)	-- screen center
-	-- [[
-	matrot(-viewAngle)
-	--]]
-	-- [[
-	--]]
-	mattrans(-viewPos.x, -viewPos.y)
 	if player then
 		viewPos:set(player.pos)
-		viewAngle = player.angle + .5 * math.pi
 	end
 
+	--[[ draw 2d on surface view
 	-- screen boundary for debugging
-	rectb(-worldSize,-worldSize,2*worldSize,2*worldSize,1)
+	mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
+	rectb(-sphereSize,-sphereSize,2*sphereSize,2*sphereSize,1)
+	for _,o in ipairs(objs) do
+		o:draw()
+	end
+	--]]
+	-- [[ draw 3d view
+	-- TODO lines aren't working so well with frustum
+	local zn, zf = 50, 500
+	matfrustum(-zn, zn, -zn, zn, zn, zf)
+	mattrans(0, 0, -1.5 * sphereSize)
+	do
+		local x,y,z,th = viewPos:conjugate():toAngleAxis():unpack()
+		matrot(th, x, y, z)
+	end
+	for _,o in ipairs(objs) do
+		o:draw3D()
+	end
+	--]]
 
 	for i=#objs,1,-1 do
 		local o = objs[i]
@@ -349,8 +714,8 @@ update=||do
 				local o2 = objs[i2]
 				if not o2.dead then
 					-- check touch
-					local distSq = vec2.distSq(o.pos, o2.pos)
-					if distSq < (o.size + o2.size)^2 then
+					local dist = math.acos(o.pos:zAxis():dot(o2.pos:zAxis())) * sphereSize
+					if dist < (o.size + o2.size) then
 						if o.touch then o:touch(o2) end
 						if not o.dead and not o2.dead then
 							if o2.touch then o2:touch(o) end
