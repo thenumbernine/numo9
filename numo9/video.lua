@@ -2312,8 +2312,27 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
-	local v1x, v1y, v1z, v1w = vec3to4(self.ram.mvMat, x1, y1, z1)
-	local v2x, v2y, v2z, v2w = vec3to4(self.ram.mvMat, x2, y2, z2)
+	local fbw = self.framebufferRAM.tex.width
+	local fbh = self.framebufferRAM.tex.height
+	local function homogeneous(x,y,z,w)
+		x = x / fbw * 2 - 1
+		y = y / fbh * 2 - 1
+
+		if w > 0 then
+			x = x / w
+			y = y / w
+			z = z / w
+			w = w / w
+		end
+
+		x = (x + 1) * .5 * fbw
+		y = (y + 1) * .5 * fbh
+
+		return x,y,z,w
+	end
+
+	local v1x, v1y, v1z, v1w = homogeneous(vec3to4(self.ram.mvMat, x1, y1, z1))
+	local v2x, v2y, v2z, v2w = homogeneous(vec3to4(self.ram.mvMat, x2, y2, z2))
 
 	local dx = v2x - v1x
 	local dy = v2y - v1y
@@ -2384,7 +2403,8 @@ local clearUInt = ffi.new('GLuint[4]')
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:clearScreen(
 	colorIndex,
-	paletteTex	-- override for menu ... starting to think this should be a global somewhere...
+	paletteTex,	-- override for menu ... starting to think this should be a global somewhere...
+	depthOnly
 )
 	colorIndex = colorIndex or 0
 --[[ using a quad ... not depth friendly
@@ -2433,37 +2453,41 @@ function AppVideo:clearScreen(
 	end
 
 	assert(paletteTex.data)
-	local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[colorIndex]
 
-	-- instead of flushing back the CPU->GPU
-	-- since I'm just going to overwrite the GPU content
-	-- just clear the dirtyCPU flag here (and set dirtyGPU later)
-	self.framebufferRAM.dirtyCPU = false
+	if not depthOnly then
+		-- instead of flushing back the CPU->GPU
+		-- since I'm just going to overwrite the GPU content
+		-- just clear the dirtyCPU flag here (and set dirtyGPU later)
+		self.framebufferRAM.dirtyCPU = false
+	end
 
 	local fb = self.fb
 	if not self.inUpdateCallback then
 		fb:bind()
 	end
 
-	local info = self.videoModeInfo[self.currentVideoMode]
-	if not info then
-		print'clearScreen() failed -- no video mode present!!!'
-	elseif info.format == 'RGB565' then	-- internalFormat == GL_RGB565
-		clearFloat[0] = bit.band(selColorValue, 0x1f) / 0x1f
-		clearFloat[1] = bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f
-		clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
-		clearFloat[3] = 1
-		gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
-	elseif info.format == '8bppIndex'
-	or info.format == 'RGB332'
-	then	-- internalFormat == texInternalFormat_u8 ... which is now et to G_R8UI
-		clearUInt[0] = colorIndex
-		clearUInt[1] = 0
-		clearUInt[2] = 0
-		clearUInt[3] = 0xff
-		gl.glClearBufferuiv(gl.GL_COLOR, 0, clearUInt)
-	elseif info.format == '4bppIndex' then
-		error'TODO'
+	if not depthOnly then
+		local info = self.videoModeInfo[self.currentVideoMode]
+		if not info then
+			print'clearScreen() failed -- no video mode present!!!'
+		elseif info.format == 'RGB565' then	-- internalFormat == GL_RGB565
+			local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[colorIndex]
+			clearFloat[0] = bit.band(selColorValue, 0x1f) / 0x1f
+			clearFloat[1] = bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f
+			clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
+			clearFloat[3] = 1
+			gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
+		elseif info.format == '8bppIndex'
+		or info.format == 'RGB332'
+		then	-- internalFormat == texInternalFormat_u8 ... which is now et to G_R8UI
+			clearUInt[0] = colorIndex
+			clearUInt[1] = 0
+			clearUInt[2] = 0
+			clearUInt[3] = 0xff
+			gl.glClearBufferuiv(gl.GL_COLOR, 0, clearUInt)
+		elseif info.format == '4bppIndex' then
+			error'TODO'
+		end
 	end
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
@@ -2471,8 +2495,11 @@ function AppVideo:clearScreen(
 	if not self.inUpdateCallback then
 		fb:unbind()
 	end
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+
+	if not depthOnly then
+		self.framebufferRAM.dirtyGPU = true
+		self.framebufferRAM.changedSinceDraw = true
+	end
 --]]
 end
 

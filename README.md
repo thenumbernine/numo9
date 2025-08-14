@@ -284,7 +284,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 ## graphics
 
 - `flip()` = flip the framebuffer, and wait until the next 60Hz frame to begin.
-- `cls([colorIndex])` = Clears the screen to the palette index at `color`.
+- `cls([colorIndex], [depthOnly])` = Clears the screen to the palette index at `color`.
 - `fillp([pattern])` = Sets the 16-bit 4x4 dither pattern, where 0 is fully solid and 0xffff is fully transparent.  Default is 0.  Bit values follow a Bayer dither matrix.
 - `pal(i, [value])` = If value is not provided then returns the uint16 RGBA 5551 value of the palette entry at index `i`.  If value is provided then the palette entry at `i` is set to the value.
 - `rect(x, y, w, h, [colorIndex])` = draw solid rectangle

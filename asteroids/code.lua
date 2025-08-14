@@ -1,3 +1,6 @@
+-- title = Asteroids-on-Sphere
+-- saveid = asteroids-on-sphere
+-- author = Chris Moore
 ----------------------- BEGIN numo9/matstack.lua-----------------------
 assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 local matAddr = ramaddr'mvMat'
@@ -226,7 +229,7 @@ vec3=class{
 }
 
 ----------------------- END vec/vec3.lua  -----------------------
-
+----------------------- BEGIN vec/quat.lua-----------------------
 local Quat = class()
 Quat.init=|:,...|do
 	if select('#', ...) == 0 then
@@ -363,17 +366,89 @@ Quat.__eq=|a,b| a.x == b.x and a.y == b.y and a.z == b.z and a.w == b.w
 Quat.__tostring=|v| v.x..','..v.y..','..v.z..','..v.w
 Quat.__concat=string.concat
 
+-- make a rotation from v1 to v2
+Quat.vectorRotateToAngleAxis = |v1, v2|do
+	v1 = v1:clone():unit()
+	v2 = v2:clone():unit()
+	local costh = v1:dot(v2)
+	local eps = 1e-9
+	if math.abs(costh) > 1 - eps then return 0,0,1,0 end
+	local theta = math.acos(math.clamp(costh,-1,1))
+	local v3 = v1:cross(v2):unit()
+	return v3.x, v3.y, v3.z, theta
+end
 
--- mode 0
-screenSize = vec2(256, 256)
+----------------------- END vec/quat.lua-----------------------
+math.randomseed(tstamp())
 
--- sphere radius in world coords
---sphereSize = 256 / (2 * math.pi)
---sphereSize = 128 / (2 * math.pi)
-sphereSize = 128
---sphereSize = 64 / (2 * math.pi)
+--modeIndex = 0	screenSize = vec2(256, 256)
+modeIndex = 42	screenSize = vec2(480, 270)
+mode(modeIndex)
 
-sphereSizeDraw2D = 128		-- how big on the screen
+
+-- https://math.stackexchange.com/a/1586185/206369
+randomSphereSurface = ||do
+	local phi = math.acos(2 * math.random() - 1) - math.pi / 2
+	local lambda = 2 * math.pi * math.random()
+	return math.cos(phi) * math.cos(lambda),
+		math.cos(phi) * math.sin(lambda),
+		math.sin(phi)
+end
+
+randomPos=||do
+	local x,y,z = randomSphereSurface()
+	return Quat(x,y,z, math.random() * math.pi) * Quat(0, 0, 1, math.random() * 2 * math.pi)
+end
+
+randomVel=||do
+	local x,y,z = randomSphereSurface()
+	return Quat(x,y,z,0)
+end
+
+
+
+local Sphere = class()
+function Sphere:init(args)
+	self.pos = vec3(args.pos)
+	self.radius = args!.radius
+	self.touching = table()
+end
+
+
+local spheres = table()
+
+local startSphere = Sphere{
+	pos = vec3(0,0,0),
+	--radius = 256 / (2 * math.pi),
+	--radius = 128 / (2 * math.pi),
+	radius = 128,
+	--radius = 64,
+	--radius = 64 / (2 * math.pi),
+}
+spheres:insert(startSphere)
+
+-- TODO build a maze or something
+do
+	local lastSphere = startSphere
+	local newSphere = Sphere{
+		pos = vec3(0, lastSphere.radius * 1.5, 0),
+		radius = lastSphere.radius,
+	}
+	spheres:insert(newSphere)
+end
+
+-- build touching table
+for i=1,#spheres-1 do
+	local si = spheres[i]
+	for j=i+1,#spheres do
+		local sj = spheres[j]
+		if (si.pos - sj.pos):len() < si.radius + sj.radius then
+			si.touching:insert(sj)
+			sj.touching:insert(si)
+		end
+	end
+end
+
 
 local dt = 1/60
 
@@ -386,6 +461,7 @@ end
 
 
 viewPos = Quat()
+viewSphere = startSphere
 
 -- v = Quat
 -- returns vec2
@@ -397,7 +473,7 @@ getViewPos = |v| do
 	if len2 < 1e-15 then return vec2() end
 	return pos2 * (
 		v.w	-- ... times v dot identity, which is v.w
-		* sphereSizeDraw2D
+		* (viewSphere.radius * math.pi * 2)
 		/ len2
 	)
 end
@@ -423,23 +499,25 @@ end
 Object.draw=|:|do end
 Object.draw3D=|:|do
 	matpush()
+	mattrans(self.sphere.pos:unpack())
 	local x,y,z,th = self.pos:toAngleAxis():unpack()
 	matrot(th, x, y, z)
-	mattrans(-4, -4, sphereSize)
+	mattrans(0, 0, self.sphere.radius)
 	matscale(self.size / 4, self.size / 4)
+	mattrans(-4, -4)
 	spr(0, 0, 0, 1, 1)
 	matpop()
 end
 Object.update=|:|do
 	--[[
-	sphere radius = sphereSize in meters
-	vel is in meters ... so max dist = 2 pi sphereSize ...
-	so if vel's magnitude is distance ... then it shoulds rotate by (sphereSize * 2 pi / vel) radians
+	sphere radius = self.sphere.radius in meters
+	vel is in meters ... so max dist = 2 pi self.sphere.radius ...
+	so if vel's magnitude is distance ... then it shoulds rotate by (self.sphere.radius * 2 pi / vel) radians
 	quat integral:
 	qdot = 1/2 w * q
 	w = (wv, 0) = angular velocity as pure-quaternion
 	--]]
-	self.pos = (self.pos + (.5 * dt / (sphereSize 
+	self.pos = (self.pos + (.5 * dt / (self.sphere.radius 
 --		* 2 * math.pi
 	)) * self.vel * self.pos):unit()
 end
@@ -454,13 +532,14 @@ end
 Shot.draw=|:|do
 	matpush()
 	mattrans(getViewPos(self.pos):unpack())
-	rect(-1, -1, 3, 3, self.color)
+	rect(-1, -1, 2, 2, self.color)
 	matpop()
 end
 Shot.draw3D=|:|do
 	matpush()
-	mattrans((self.pos:zAxis() * sphereSize):unpack())
-	rect(-1, -1, 3, 3, self.color)
+	mattrans(self.sphere.pos:unpack())
+	mattrans((self.pos:zAxis() * self.sphere.radius):unpack())
+	rect(-1, -1, 2, 2, self.color)
 	matpop()
 end
 Shot.update=|:|do
@@ -486,11 +565,12 @@ Shot.touch=|:,other|do
 				for s2=-1,1,2 do
 					local newmom = .25 * mom + s1 * perturb1 + s2 * perturb2
 					local piece = Rock{
+						sphere = other.sphere,
 						pos = other.pos 
-							* Quat(1,0,0, s1 * .5 * other.size / (sphereSize 
+							* Quat(1,0,0, s1 * .5 * other.size / (self.sphere.radius 
 						--		* 2 * math.pi
 							)):fromAngleAxis()
-							* Quat(0,1,0, s2 * .5 * other.size / (sphereSize 
+							* Quat(0,1,0, s2 * .5 * other.size / (self.sphere.radius
 						--		* 2 * math.pi
 							)):fromAngleAxis(),
 						--rot = math.random() * 2 * 20,	-- TODO conserve this too?	-- TODO is this used?
@@ -521,10 +601,12 @@ Ship.draw=|:|do
 end
 Ship.draw3D=|:|do
 	matpush()
+	mattrans(self.sphere.pos:unpack())
 	local x,y,z,th = self.pos:toAngleAxis():unpack()
 	matrot(th, x, y, z)
-	mattrans(-8, -8, sphereSize)
-	matscale(self.size / 4, self.size / 4)
+	mattrans(0, 0, self.sphere.radius)
+	matscale(self.size / 8, self.size / 8)
+	mattrans(-8, -8)
 	spr(2, 0, 0, 2, 2)
 	if self.thrust then
 		mattrans(4, 16)
@@ -536,6 +618,7 @@ Ship.shoot = |:|do
 	if self.nextShootTime > time() then return end
 	self.nextShootTime = time() + .2
 	Shot{
+		sphere = self.sphere,
 		pos = self.pos:clone(),
 		vel = self.vel + Quat:fromVec3(self.pos:xAxis() * (Shot.speed)),
 		shooter = self,
@@ -580,6 +663,10 @@ PlayerShip.update = |:| do
 	if btn('y',0) then
 		self:shoot()
 	end
+	if btnp'a' then
+		drawMethod += 1
+		drawMethod %= 3
+	end
 
 	PlayerShip.super.update(self)
 end
@@ -617,6 +704,7 @@ Rock.size = Rock.sizeL
 Rock.color = 13
 Rock.calcMass = |:| math.pi * self.size^2 * self.density
 Rock.draw=|:|do
+	local fwd = vec2(0,1)
 	local rightx = -fwd.y
 	local righty = fwd.x
 	matpush()
@@ -631,75 +719,139 @@ Rock.draw=|:|do
 end
 Rock.draw3D=|:|do
 	matpush()
+	mattrans(self.sphere.pos:unpack())
 	local x,y,z,th = self.pos:toAngleAxis():unpack()
 	matrot(th, x, y, z)
-	mattrans(-4, -4, sphereSize)
-	matscale(self.size / 4, self.size / 4)
-	rectb(-4, -4, 8, 8, self.color)
+	mattrans(0, 0, self.sphere.radius)
+	rectb(-self.size, -self.size, 2*self.size, 2*self.size, self.color)
 	matpop()
 end
 
-player = PlayerShip()
-EnemyShip{
-	pos=Quat(1,0,0,math.pi):fromAngleAxis(),
+
+player = PlayerShip{
+	sphere = startSphere,
 }
-
--- https://math.stackexchange.com/a/1586185/206369
-randomSphereSurface = ||do
-	local phi = math.acos(2 * math.random() - 1) - math.pi / 2
-	local lambda = 2 * math.pi * math.random()
-	return math.cos(phi) * math.cos(lambda),
-		math.cos(phi) * math.sin(lambda),
-		math.sin(phi)
-end
-
-randomPos=||do
-	local x,y,z = randomSphereSurface()
-	return Quat(x,y,z, math.random() * math.pi) * Quat(0, 0, 1, math.random() * 2 * math.pi)
-end
-
-randomVel=||do
-	local x,y,z = randomSphereSurface()
-	return Quat(x,y,z,0)
-end
+EnemyShip{
+	sphere = startSphere,
+	pos = Quat(1,0,0,math.pi):fromAngleAxis(),
+}
 
 for i=1,5 do
 	Rock{
-		pos=randomPos(),
-		vel=randomVel() * 10,
+		sphere = startSphere,
+		pos = randomPos(),
+		vel = randomVel() * 10,
 		rot = math.random() * 2 * 20,	-- is this used?
 	}
 end
 
+drawMethod = 0
 update=||do
 	cls()
 	matident()
+
+	do
+--[[ dither
+		local rows = screenSize.y
+		for y=0,rows-1 do
+			local frac = ((y+1) / rows)^(1/4)
+			fillp( (1 << math.floor(math.clamp(frac, 0, 1) * 16)) - 1 )
+			rect(0, y, screenSize.x, 1, 14)
+		end
+		fillp(0)
+--]]
+-- [[ not dither
+--]]
+	end
+	cls(nil, true)	-- depth-only. abuse of API ...
+
 	if player then
 		viewPos:set(player.pos)
 	end
 
-	--[[ draw 2d on surface view
-	-- screen boundary for debugging
-	mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
-	rectb(-sphereSize,-sphereSize,2*sphereSize,2*sphereSize,1)
-	for _,o in ipairs(objs) do
-		o:draw()
+	local viewDistScale = 1.5
+	local viewTanFov = 2
+	if drawMethod == 2 then
+		-- [[ draw 2d on surface view
+		-- screen boundary for debugging
+		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
+		rectb(-viewSphere.radius,-viewSphere.radius,2*viewSphere.radius,2*viewSphere.radius,1)
+		for _,o in ipairs(objs) do
+			o:draw()
+		end
+		--]]
+	else
+		-- [[ draw 3d view
+		-- TODO lines aren't working so well with frustum
+		
+		-- projection
+		local zn, zf = .1 * viewSphere.radius, 3 * viewSphere.radius
+		matfrustum(-zn * viewTanFov, zn * viewTanFov, -zn * viewTanFov, zn * viewTanFov, zn, zf)
+		
+		-- view
+		mattrans(0, 0, -viewDistScale * viewSphere.radius)
+		if drawMethod == 0 then
+			local x,y,z,th = viewPos:conjugate():toAngleAxis():unpack()
+			matrot(th, x, y, z)
+		end
+		mattrans(-viewSphere.pos.x, -viewSphere.pos.y, -viewSphere.pos.z)
+		
+		-- model
+		for _,o in ipairs(objs) do
+			o:draw3D()
+		end
+		--]]
 	end
-	--]]
-	-- [[ draw 3d view
-	-- TODO lines aren't working so well with frustum
-	local zn, zf = 50, 500
-	matfrustum(-zn, zn, -zn, zn, zn, zf)
-	mattrans(0, 0, -1.5 * sphereSize)
-	do
-		local x,y,z,th = viewPos:conjugate():toAngleAxis():unpack()
-		matrot(th, x, y, z)
-	end
-	for _,o in ipairs(objs) do
-		o:draw3D()
-	end
-	--]]
 
+	for _,s in ipairs(viewSphere.touching) do
+		local delta = s.pos - viewSphere.pos
+		local x,y,z,th = Quat.vectorRotateToAngleAxis(vec3(0,0,1), delta)
+		matpush()
+		matrot(th,x,y,z)
+		--[[ what's the intersection plane distance?
+		--]]
+		local dist = delta:len()	-- distance between spheres
+		local intCircDistFrac = .5 * (1 - (viewSphere.radius^2 - s.radius^2) / dist^2)
+		assert.le(0, intCircDistFrac)
+		assert.le(intCircDistFrac, 1)
+		local intCircRad = math.sqrt(viewSphere.radius^2 - (intCircDistFrac * dist)^2)
+		mattrans(0, 0, dist * intCircDistFrac)
+		ellib(-intCircRad, -intCircRad, 2*intCircRad, 2*intCircRad, 12)
+		matpop()
+	end
+
+	-- draw a circle where our sphere boundary should be
+	for _,s in ipairs(spheres) do
+		local idiv=10
+		local jdiv=10
+		local corner=|i,j|do
+			local u = i / idiv * math.pi * 2
+			local v = j / jdiv * math.pi
+			return s.radius * math.cos(u) * math.sin(v) + s.pos.x,
+					s.radius * math.sin(u) * math.sin(v) + s.pos.y,
+					s.radius * math.cos(v) + s.pos.z
+		end
+		local quad = |i1,j1, i2,j2, i3,j3, i4,j4|do
+			local x1,y1,z1 = corner(i1,j1)
+			local x2,y2,z2 = corner(i2,j2)
+			local x3,y3,z3 = corner(i3,j3)
+			local x4,y4,z4 = corner(i4,j4)
+			line3d(x1,y1,z1, x2,y2,z2, 14)
+			line3d(x2,y2,z2, x3,y3,z3, 14)
+			line3d(x3,y3,z3, x4,y4,z4, 14)
+			line3d(x4,y4,z4, x1,y1,z1, 14)
+		end
+		for i=0,idiv-1 do
+			for j=0,jdiv-1 do
+				quad(i,j, i+1,j, i+1,j+1, i,j+1)
+			end
+		end
+		-- TODO calc this properly ... based on viewTanFov, viewDistScale, and screenSize, viewSphere.radius
+		--local r = viewSphere.radius * viewDistScale / viewTanFov * 1.15
+		--ellib(screenSize.x*.5 - r, screenSize.y*.5 - r, 2*r, 2*r, 12)
+	end
+
+	-- TODO update all ... or just those on our sphere ... or just those within 2 or 3 spheres?
 	for i=#objs,1,-1 do
 		local o = objs[i]
 		-- do update
@@ -714,7 +866,7 @@ update=||do
 				local o2 = objs[i2]
 				if not o2.dead then
 					-- check touch
-					local dist = math.acos(o.pos:zAxis():dot(o2.pos:zAxis())) * sphereSize
+					local dist = math.acos(o.pos:zAxis():dot(o2.pos:zAxis())) * math.sqrt(o.sphere.radius * o2.sphere.radius)
 					if dist < (o.size + o2.size) then
 						if o.touch then o:touch(o2) end
 						if not o.dead and not o2.dead then

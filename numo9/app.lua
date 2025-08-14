@@ -340,14 +340,14 @@ function App:initGL()
 		-- graphics
 
 		flip = coroutine.yield,	-- simple as
-		cls = function(colorIndex)
+		cls = function(colorIndex, depthOnly)
 			colorIndex = toint(colorIndex or 0)
 			if self.server then
 				local cmd = self.server:pushCmd().clearScreen
 				cmd.type = netcmds.clearScreen
 				cmd.colorIndex = colorIndex
 			end
-			self:clearScreen(colorIndex)
+			self:clearScreen(colorIndex, nil, depthOnly)
 		end,
 		fillp = function(dither)
 			if dither then
