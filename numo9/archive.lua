@@ -41,7 +41,7 @@ local function blobStrToCartImage(blobsAsStr, labelImage)
 	assert.eq(baseLabelImage.channels, 4)
 	local romImage = Image(baseLabelImage.width, baseLabelImage.height, 4, 'uint8_t'):clear()
 	if labelImage then
-		labelImage = labelImage:setChannels(4)
+		labelImage = labelImage:rgba()
 		romImage:pasteInto{image=labelImage, x=math.floor((romImage.width-labelImage.width)/2), y=0}
 	end
 	--[[ paste without alpha

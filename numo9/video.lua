@@ -3263,11 +3263,6 @@ function AppVideo:screenshot()
 			return {r,g,b}
 		end)
 		image:save(fn.path)
-
-print(require'ext.string'.hexdump(ffi.string(
-	image.buffer, fbTex.width * fbTex.height
-)))
-
 	elseif info.format == 'RGB332' then
 		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
 		local srcp = fbRAM.image.buffer + 0
