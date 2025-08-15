@@ -481,17 +481,21 @@ viewSphere = startSphere
 
 -- v = Quat
 -- returns vec2
-getViewPos = |v| do
-	v = viewPos * v
+transformQuatTo2D = |v| do
+	v = viewPos:conj() * v
 	local pos = v:zAxis()
 	local pos2d = vec2(pos.x, pos.y)
 	local len2 = pos2d:len()
 	if len2 < 1e-15 then return vec2() end
-	return pos2d * (
-		v.w	-- ... times v dot identity, which is v.w
-		* (viewSphere.radius * math.pi * 2)
+	pos2d = pos2d * (
+		math.acos(pos.z) * viewSphere.radius
 		/ len2
 	)
+	mattrans(pos2d.x, pos2d.y)
+
+	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
+	local fwd = v:yAxis()
+	matrot(math.atan2(fwd.y, fwd.x))
 end
 
 objs = table()
@@ -514,10 +518,12 @@ Object.init=|:,args|do
 end
 Object.draw2D=|:|do
 	matpush()
-	mattrans(getViewPos(self.pos):unpack())
+	transformQuatTo2D(self.pos)
+	
 	matscale(self.size / 4, self.size / 4)
 	mattrans(-4, -4)
 	spr(0, 0, 0, 1, 1)
+	
 	matpop()
 end
 Object.draw3D=|:|do
@@ -526,9 +532,11 @@ Object.draw3D=|:|do
 	local x,y,z,th = self.pos:toAngleAxis():unpack()
 	matrot(th, x, y, z)
 	mattrans(0, 0, self.sphere.radius)
+	
 	matscale(self.size / 4, self.size / 4)
 	mattrans(-4, -4)
 	spr(0, 0, 0, 1, 1)
+	
 	matpop()
 end
 Object.update=|:|do
@@ -554,15 +562,19 @@ Shot.init=|:,args|do
 end
 Shot.draw2D=|:|do
 	matpush()
-	mattrans(getViewPos(self.pos):unpack())
+	transformQuatTo2D(self.pos)
+	
 	rect(-1, -1, 2, 2, self.color)
+	
 	matpop()
 end
 Shot.draw3D=|:|do
 	matpush()
 	mattrans(self.sphere.pos:unpack())
 	mattrans((self.pos:zAxis() * self.sphere.radius):unpack())
+	
 	rect(-1, -1, 2, 2, self.color)
+	
 	matpop()
 end
 Shot.update=|:|do
@@ -613,21 +625,16 @@ Ship.nextShootTime = 0
 Ship.draw2D=|:|do
 	local fwd = vec2(0,-1)
 	matpush()
-	mattrans(getViewPos(self.pos):unpack())
+	transformQuatTo2D(self.pos)
+	
+	--[[ vector
 	drawTri(vec2(), fwd, self.size, self.color)
 	if self.thrust then
 		drawTri(-3 * fwd, -fwd, .5 * self.size, 9)
 	end
-	matpop()
-
-	Ship.super.draw2D(self)
-end
-Ship.draw3D=|:|do
-	matpush()
-	mattrans(self.sphere.pos:unpack())
-	local x,y,z,th = self.pos:toAngleAxis():unpack()
-	matrot(th, x, y, z)
-	mattrans(0, 0, self.sphere.radius)
+	Ship.super.draw2D(self)	-- TODO super call outside pop...
+	--]]	
+	-- [[ sprite
 	matscale(self.size / 8, self.size / 8)
 	mattrans(-8, -8)
 	spr(2, 0, 0, 2, 2)
@@ -635,6 +642,25 @@ Ship.draw3D=|:|do
 		mattrans(4, 16)
 		spr(1, 0, 0, 1, 1)
 	end
+	--]]
+
+	matpop()
+end
+Ship.draw3D=|:|do
+	matpush()
+	mattrans(self.sphere.pos:unpack())
+	local x,y,z,th = self.pos:toAngleAxis():unpack()
+	matrot(th, x, y, z)
+	mattrans(0, 0, self.sphere.radius)
+	
+	matscale(self.size / 8, self.size / 8)
+	mattrans(-8, -8)
+	spr(2, 0, 0, 2, 2)
+	if self.thrust then
+		mattrans(4, 16)
+		spr(1, 0, 0, 1, 1)
+	end
+	
 	matpop()
 end
 Ship.shoot = |:|do
@@ -729,18 +755,22 @@ Rock.size = Rock.sizeL
 Rock.color = 13
 Rock.calcMass = |:| math.pi * self.size^2 * self.density
 Rock.draw2D=|:|do
+	matpush()
+	transformQuatTo2D(self.pos)
+	--[[ vector
 	local fwd = vec2(0,1)
 	local rightx = -fwd.y
 	local righty = fwd.x
-	matpush()
-	mattrans(getViewPos(self.pos):unpack())
 	line(self.size*(fwd.x+rightx), self.size*(fwd.y+righty), self.size*(rightx - fwd.x), self.size*(righty - fwd.y), self.color)
 	line(self.size*(rightx-fwd.x), self.size*(righty-fwd.y), self.size*(-rightx - fwd.x), self.size*(-righty - fwd.y), self.color)
 	line(self.size*(-rightx - fwd.x), self.size*(-righty - fwd.y), self.size*(fwd.x-rightx), self.size*(fwd.y-righty), self.color)
 	line(self.size*(fwd.x-rightx), self.size*(fwd.y-righty), self.size*(fwd.x+rightx), self.size*(fwd.y+righty), self.color)
+	Rock.super.draw2D(self)	-- TODO super call outside pop...
+	--]]
+	-- [[ sprite
+	rectb(-self.size, -self.size, 2*self.size, 2*self.size, self.color)
+	--]]
 	matpop()
-
-	Rock.super.draw2D(self)
 end
 Rock.draw3D=|:|do
 	matpush()
@@ -748,7 +778,9 @@ Rock.draw3D=|:|do
 	local x,y,z,th = self.pos:toAngleAxis():unpack()
 	matrot(th, x, y, z)
 	mattrans(0, 0, self.sphere.radius)
+	
 	rectb(-self.size, -self.size, 2*self.size, 2*self.size, self.color)
+	
 	matpop()
 end
 
