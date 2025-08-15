@@ -747,8 +747,8 @@ local function byteArrayToBlobs(ptr, size)
 	local blobs = BlobSet()
 	for index=0,ram.blobCount-1 do
 		local blobEntryPtr = ram.blobEntries + index
-		assert.le(0, blobEntryPtr.addr, 'blob addr is oob')
-		assert.le(blobEntryPtr.addr + blobEntryPtr.size, size, 'blob addr is oob')
+		assert.le(0, blobEntryPtr.addr, 'blob #'..index..' type '..blobEntryPtr.type..' addr is oob')
+		assert.le(blobEntryPtr.addr + blobEntryPtr.size, size, 'blob #'..index..' type '..blobEntryPtr.type..' addr is oob')
 		local blobClass = assert.index(blobClassForType, blobEntryPtr.type)
 		local blobClassName = blobClass.name
 --DEBUG:print('\tloading blob #'..index..' type='..blobClassName..' addr='..hex(blobEntryPtr.addr)..' size='..hex(blobEntryPtr.size))
