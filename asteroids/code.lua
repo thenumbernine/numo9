@@ -563,10 +563,10 @@ Object.update=|:|do
 --		* 2 * math.pi
 	)) * self.vel * self.pos):unit()
 
+	--[[ here, if from/to crosses a sphere-touch boundary then move spheres
 	local xAxis = self.pos:xAxis()
 	local yAxis = self.pos:yAxis()	-- 'fwd'
 	local zAxis = self.pos:zAxis()	-- 'up'
-	-- here, if from/to crosses a sphere-touch boundary then move spheres
 	for _,touch in ipairs(self.sphere.touching) do
 		if zAxis:dot(touch.unitDelta) > touch.cosAngle 
 		and yAxis:dot(
@@ -574,11 +574,12 @@ Object.update=|:|do
 		) > 0
 		then
 			-- .. then transfer spheres
-			self.pos = (self.pos * Quat.vectorRotate(zAxis, -touch.delta)):unit()
+			self.pos = Quat.vectorRotate(zAxis, -touch.delta) * self.pos
 			self.sphere = touch.sphere
 			break
 		end
 	end
+	--]]
 end
 
 local Shot = Object:subclass()
@@ -851,6 +852,7 @@ update=||do
 	cls(nil, true)
 
 	if player then
+		viewSphere = player.sphere
 		viewPos:set(player.pos)
 	end
 
