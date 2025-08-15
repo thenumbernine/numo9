@@ -2174,6 +2174,10 @@ function AppVideo:drawSolidRect(
 	round,
 	paletteTex	-- override for gui - hack for menus to impose their palettes
 )
+	x = tonumber(x) or 0
+	y = tonumber(y) or 0
+	w = tonumber(w) or 0
+	h = tonumber(h) or 0
 	if not paletteTex then
 		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
 		if not paletteRAM then

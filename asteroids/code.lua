@@ -280,7 +280,7 @@ Quat.mul = |q, r, res| do
 		b + .5 * (-e - f + g + h))
 end
 Quat.__mul = Quat.mul
-Quat.__div = |a,b| a * b:conjugate() / b:lenSq()
+Quat.__div = |a,b| a * b:conj() / b:lenSq()
 
 Quat.epsilon = 1e-15
 Quat.toAngleAxis = |:, res| do
@@ -338,11 +338,11 @@ Quat.zAxis = |q, res| do
 end
 
 Quat.rotate = |:, v, res| do
-	local v4 = self * Quat(v.x, v.y, v.z, 0) * self:conjugate()
+	local v4 = self * Quat(v.x, v.y, v.z, 0) * self:conj()
 	return (res or vec3()):set(v4.x, v4.y, v4.z)
 end
 
-Quat.conjugate = |:, res|
+Quat.conj = |:, res|
 	((res or Quat()):set(-self.x, -self.y, -self.z, self.w))
 
 
@@ -443,8 +443,24 @@ for i=1,#spheres-1 do
 	for j=i+1,#spheres do
 		local sj = spheres[j]
 		if (si.pos - sj.pos):len() < si.radius + sj.radius then
-			si.touching:insert(sj)
-			sj.touching:insert(si)
+			local delta = sj.pos - si.pos
+			local dist = delta:len()	-- distance between spheres
+			local intCircDist = .5 * dist * (1 - (sj.radius^2 - si.radius^2) / dist^2)
+			local intCircRad = math.sqrt(sj.radius^2 - intCircDist^2)
+			si.touching:insert{
+				sphere = sj,
+				delta = delta,
+				dist = dist,
+				intCircDist = intCircDist,
+				intCircRad = intCircRad,
+			}
+			sj.touching:insert{
+				sphere = si,
+				delta = -delta,
+				dist = dist,
+				intCircDist = dist - intCircDist,
+				intCircRad = intCircRad,
+			}
 		end
 	end
 end
@@ -466,12 +482,12 @@ viewSphere = startSphere
 -- v = Quat
 -- returns vec2
 getViewPos = |v| do
-	v = viewPos:conjugate() * v
+	v = viewPos * v
 	local pos = v:zAxis()
-	local pos2 = vec2(pos.x, pos.y)
-	local len2 = pos2:len()
+	local pos2d = vec2(pos.x, pos.y)
+	local len2 = pos2d:len()
 	if len2 < 1e-15 then return vec2() end
-	return pos2 * (
+	return pos2d * (
 		v.w	-- ... times v dot identity, which is v.w
 		* (viewSphere.radius * math.pi * 2)
 		/ len2
@@ -496,7 +512,14 @@ Object.init=|:,args|do
 	self.pos = (args and args.pos or self.pos):clone()
 	self.vel = (args and args.vel or self.vel):clone()
 end
-Object.draw=|:|do end
+Object.draw2D=|:|do
+	matpush()
+	mattrans(getViewPos(self.pos):unpack())
+	matscale(self.size / 4, self.size / 4)
+	mattrans(-4, -4)
+	spr(0, 0, 0, 1, 1)
+	matpop()
+end
 Object.draw3D=|:|do
 	matpush()
 	mattrans(self.sphere.pos:unpack())
@@ -529,7 +552,7 @@ Shot.init=|:,args|do
 	Shot.super.init(self, args)
 	self.endTime = args?.endTime
 end
-Shot.draw=|:|do
+Shot.draw2D=|:|do
 	matpush()
 	mattrans(getViewPos(self.pos):unpack())
 	rect(-1, -1, 2, 2, self.color)
@@ -587,7 +610,7 @@ end
 
 Ship = Object:subclass()
 Ship.nextShootTime = 0
-Ship.draw=|:|do
+Ship.draw2D=|:|do
 	local fwd = vec2(0,-1)
 	matpush()
 	mattrans(getViewPos(self.pos):unpack())
@@ -597,7 +620,7 @@ Ship.draw=|:|do
 	end
 	matpop()
 
-	Ship.super.draw(self)
+	Ship.super.draw2D(self)
 end
 Ship.draw3D=|:|do
 	matpush()
@@ -673,6 +696,7 @@ end
 
 EnemyShip = Ship:subclass()
 EnemyShip.thrust = true
+--[[
 EnemyShip.update = |:|do
 	local axisToPlayer = self.pos:zAxis():cross(player.pos:zAxis()):unit()
 	local dirToPlayer = self.pos:zAxis():cross(axisToPlayer):unit()
@@ -694,6 +718,7 @@ EnemyShip.update = |:|do
 	
 	PlayerShip.super.update(self)
 end
+--]]
 
 Rock = Object:subclass()
 Rock.density = 1
@@ -703,7 +728,7 @@ Rock.sizeS = 5
 Rock.size = Rock.sizeL
 Rock.color = 13
 Rock.calcMass = |:| math.pi * self.size^2 * self.density
-Rock.draw=|:|do
+Rock.draw2D=|:|do
 	local fwd = vec2(0,1)
 	local rightx = -fwd.y
 	local righty = fwd.x
@@ -715,7 +740,7 @@ Rock.draw=|:|do
 	line(self.size*(fwd.x-rightx), self.size*(fwd.y-righty), self.size*(fwd.x+rightx), self.size*(fwd.y+righty), self.color)
 	matpop()
 
-	Rock.super.draw(self)
+	Rock.super.draw2D(self)
 end
 Rock.draw3D=|:|do
 	matpush()
@@ -763,7 +788,7 @@ update=||do
 -- [[ not dither
 --]]
 	end
-	cls(nil, true)	-- depth-only. abuse of API ...
+	cls(nil, true)
 
 	if player then
 		viewPos:set(player.pos)
@@ -772,16 +797,17 @@ update=||do
 	local viewDistScale = 1.5
 	local viewTanFov = 2
 	if drawMethod == 2 then
-		-- [[ draw 2d on surface view
+		-- [[ draw2D 2d on surface view
 		-- screen boundary for debugging
 		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
-		rectb(-viewSphere.radius,-viewSphere.radius,2*viewSphere.radius,2*viewSphere.radius,1)
+		local r = viewSphere.radius * 2 * math.pi
+		ellib(-r, -r, 2*r, 2*r, 12)
 		for _,o in ipairs(objs) do
-			o:draw()
+			o:draw2D()
 		end
 		--]]
 	else
-		-- [[ draw 3d view
+		-- [[ draw3D view
 		-- TODO lines aren't working so well with frustum
 		
 		-- projection
@@ -791,7 +817,7 @@ update=||do
 		-- view
 		mattrans(0, 0, -viewDistScale * viewSphere.radius)
 		if drawMethod == 0 then
-			local x,y,z,th = viewPos:conjugate():toAngleAxis():unpack()
+			local x,y,z,th = viewPos:conj():toAngleAxis():unpack()
 			matrot(th, x, y, z)
 		end
 		mattrans(-viewSphere.pos.x, -viewSphere.pos.y, -viewSphere.pos.z)
@@ -803,19 +829,17 @@ update=||do
 		--]]
 	end
 
-	for _,s in ipairs(viewSphere.touching) do
-		local delta = s.pos - viewSphere.pos
+	for _,touch in ipairs(viewSphere.touching) do
+		local touchSphere = touch.sphere
+		local delta = touch.delta
 		local x,y,z,th = Quat.vectorRotateToAngleAxis(vec3(0,0,1), delta)
 		matpush()
 		matrot(th,x,y,z)
-		--[[ what's the intersection plane distance?
-		--]]
-		local dist = delta:len()	-- distance between spheres
-		local intCircDistFrac = .5 * (1 - (viewSphere.radius^2 - s.radius^2) / dist^2)
-		assert.le(0, intCircDistFrac)
-		assert.le(intCircDistFrac, 1)
-		local intCircRad = math.sqrt(viewSphere.radius^2 - (intCircDistFrac * dist)^2)
-		mattrans(0, 0, dist * intCircDistFrac)
+		-- what'touchSphere the intersection plane distance?
+		local dist = touch.dist
+		local intCircDist = touch.intCircDist
+		local intCircRad = touch.intCircRad
+		mattrans(0, 0, intCircDist)
 		ellib(-intCircRad, -intCircRad, 2*intCircRad, 2*intCircRad, 12)
 		matpop()
 	end
@@ -823,7 +847,7 @@ update=||do
 	-- draw a circle where our sphere boundary should be
 	for _,s in ipairs(spheres) do
 		local idiv=10
-		local jdiv=10
+		local jdiv=5
 		local corner=|i,j|do
 			local u = i / idiv * math.pi * 2
 			local v = j / jdiv * math.pi
@@ -836,10 +860,10 @@ update=||do
 			local x2,y2,z2 = corner(i2,j2)
 			local x3,y3,z3 = corner(i3,j3)
 			local x4,y4,z4 = corner(i4,j4)
-			line3d(x1,y1,z1, x2,y2,z2, 14)
-			line3d(x2,y2,z2, x3,y3,z3, 14)
-			line3d(x3,y3,z3, x4,y4,z4, 14)
-			line3d(x4,y4,z4, x1,y1,z1, 14)
+			line3d(x1,y1,z1, x2,y2,z2, 15)
+			line3d(x2,y2,z2, x3,y3,z3, 15)
+			line3d(x3,y3,z3, x4,y4,z4, 15)
+			line3d(x4,y4,z4, x1,y1,z1, 15)
 		end
 		for i=0,idiv-1 do
 			for j=0,jdiv-1 do
