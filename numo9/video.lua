@@ -1349,16 +1349,29 @@ void main() {
 			vec2 radius = .5 * box.zw;
 			vec2 center = box.xy + radius;
 			vec2 delta = tcv - center;
-			//if (box.w < box.z) {					// idk why I was using this?
-			if (abs(delta.y) > abs(delta.x)) {		// good for doing proper ellipse borders.
+			vec2 frac = delta / radius;
+
+#if 0
+			if (borderOnly) {
+				// get rid of center lines along 45 degrees...
+				// TODO ... but adding borders at the 45 degrees...
+				//float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
+				//if (dot(frac, frac) < 1. - eps) discard;
+				if (dot(frac, frac) < 1.) discard;
+			}
+#endif
+
+			if (abs(delta.y) > abs(delta.x)) {
 				// top/bottom quadrant
-				float by = radius.y * sqrt(1. - sqr(delta.x / radius.x));
+				float by = radius.y * sqrt(1. - frac.x * frac.x);
 				if (delta.y > by || delta.y < -by) discard;
 				if (borderOnly) {
 					// TODO think this through
 					// calculate screen space epsilon at this point
 					//float eps = abs(dFdy(tcv.y));
+					//float eps = abs(dFdy(tcv.x));
 					// more solid for 3D
+					// TODO ... but adding borders at the 45 degrees...
 					float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
 					//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
 					//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
@@ -1366,12 +1379,14 @@ void main() {
 				}
 			} else {
 				// left/right quadrant
-				float bx = radius.x * sqrt(1. - sqr(delta.y / radius.y));
+				float bx = radius.x * sqrt(1. - frac.y * frac.y);
 				if (delta.x > bx || delta.x < -bx) discard;
 				if (borderOnly) {
 					// calculate screen space epsilon at this point
 					//float eps = abs(dFdx(tcv.x));
+					//float eps = abs(dFdx(tcv.y));
 					// more solid for 3D
+					// TODO ... but adding borders at the 45 degrees...
 					float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
 					//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
 					//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));

@@ -377,7 +377,10 @@ Quat.vectorRotateToAngleAxis = |v1, v2|do
 	local v3 = v1:cross(v2):unit()
 	return v3.x, v3.y, v3.z, theta
 end
-
+Quat.vectorRotate=|v1,v2|do
+	local x,y,z,th = Quat.vectorRotateToAngleAxis(v1,v2)
+	return Quat(x,y,z,th):fromAngleAxis()
+end
 ----------------------- END vec/quat.lua-----------------------
 math.randomseed(tstamp())
 
@@ -412,13 +415,15 @@ function Sphere:init(args)
 	self.pos = vec3(args.pos)
 	self.radius = args!.radius
 	self.touching = table()
+	self.objs = table()			-- only attach objs to one sphere -- their .sphere -- and test all touching spheres for inter-sphere interactions
 end
 
 
 local spheres = table()
 
 local startSphere = Sphere{
-	pos = vec3(0,0,0),
+	--pos = vec3(0,0,0),
+	pos = vec3(128,0,0),
 	--radius = 256 / (2 * math.pi),
 	--radius = 128 / (2 * math.pi),
 	radius = 128,
@@ -431,7 +436,7 @@ spheres:insert(startSphere)
 do
 	local lastSphere = startSphere
 	local newSphere = Sphere{
-		pos = vec3(0, lastSphere.radius * 1.5, 0),
+		pos = lastSphere.pos + vec3(0, -lastSphere.radius * 1.5, 0),
 		radius = lastSphere.radius,
 	}
 	spheres:insert(newSphere)
@@ -445,21 +450,29 @@ for i=1,#spheres-1 do
 		if (si.pos - sj.pos):len() < si.radius + sj.radius then
 			local delta = sj.pos - si.pos
 			local dist = delta:len()	-- distance between spheres
+			local unitDelta = delta / dist
 			local intCircDist = .5 * dist * (1 - (sj.radius^2 - si.radius^2) / dist^2)
+			local midpoint = si.pos + unitDelta * intCircDist
 			local intCircRad = math.sqrt(sj.radius^2 - intCircDist^2)
 			si.touching:insert{
 				sphere = sj,
 				delta = delta,
+				unitDelta = unitDelta,
 				dist = dist,
 				intCircDist = intCircDist,
 				intCircRad = intCircRad,
+				midpoint = midpoint,
+				cosAngle = intCircDist / si.radius,
 			}
 			sj.touching:insert{
 				sphere = si,
 				delta = -delta,
+				unitDelta = -unitDelta,
 				dist = dist,
 				intCircDist = dist - intCircDist,
 				intCircRad = intCircRad,
+				midpoint = midpoint,
+				cosAngle = (dist - intCircDist) / sj.radius,
 			}
 		end
 	end
@@ -487,10 +500,7 @@ transformQuatTo2D = |v| do
 	local pos2d = vec2(pos.x, pos.y)
 	local len2 = pos2d:len()
 	if len2 < 1e-15 then return vec2() end
-	pos2d = pos2d * (
-		math.acos(pos.z) * viewSphere.radius
-		/ len2
-	)
+	pos2d *= math.acos(pos.z) * viewSphere.radius / len2
 	mattrans(pos2d.x, pos2d.y)
 
 	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
@@ -498,7 +508,6 @@ transformQuatTo2D = |v| do
 	matrot(math.atan2(fwd.y, fwd.x))
 end
 
-objs = table()
 
 local Object = class()
 Object.pos = Quat()
@@ -509,10 +518,10 @@ Object.accel = 50
 Object.rot = 5
 Object.density = 1
 Object.init=|:,args|do
-	objs:insert(self)
 	if args then
 		for k,v in pairs(args) do self[k] = v end
 	end
+	self.sphere.objs:insert(self)
 	self.pos = (args and args.pos or self.pos):clone()
 	self.vel = (args and args.vel or self.vel):clone()
 end
@@ -548,9 +557,28 @@ Object.update=|:|do
 	qdot = 1/2 w * q
 	w = (wv, 0) = angular velocity as pure-quaternion
 	--]]
-	self.pos = (self.pos + (.5 * dt / (self.sphere.radius 
+	local oldPos = self.pos
+
+	self.pos = (oldPos + (.5 * dt / (self.sphere.radius 
 --		* 2 * math.pi
 	)) * self.vel * self.pos):unit()
+
+	local xAxis = self.pos:xAxis()
+	local yAxis = self.pos:yAxis()	-- 'fwd'
+	local zAxis = self.pos:zAxis()	-- 'up'
+	-- here, if from/to crosses a sphere-touch boundary then move spheres
+	for _,touch in ipairs(self.sphere.touching) do
+		if zAxis:dot(touch.unitDelta) > touch.cosAngle 
+		and yAxis:dot(
+			touch.midpoint - self.sphere.pos
+		) > 0
+		then
+			-- .. then transfer spheres
+			self.pos = (self.pos * Quat.vectorRotate(zAxis, -touch.delta)):unit()
+			self.sphere = touch.sphere
+			break
+		end
+	end
 end
 
 local Shot = Object:subclass()
@@ -834,7 +862,7 @@ update=||do
 		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
 		local r = viewSphere.radius * 2 * math.pi
 		ellib(-r, -r, 2*r, 2*r, 12)
-		for _,o in ipairs(objs) do
+		for _,o in ipairs(viewSphere.objs) do
 			o:draw2D()
 		end
 		--]]
@@ -855,7 +883,7 @@ update=||do
 		mattrans(-viewSphere.pos.x, -viewSphere.pos.y, -viewSphere.pos.z)
 		
 		-- model
-		for _,o in ipairs(objs) do
+		for _,o in ipairs(viewSphere.objs) do
 			o:draw3D()
 		end
 		--]]
@@ -866,6 +894,7 @@ update=||do
 		local delta = touch.delta
 		local x,y,z,th = Quat.vectorRotateToAngleAxis(vec3(0,0,1), delta)
 		matpush()
+		mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
 		matrot(th,x,y,z)
 		-- what'touchSphere the intersection plane distance?
 		local dist = touch.dist
@@ -908,6 +937,7 @@ update=||do
 	end
 
 	-- TODO update all ... or just those on our sphere ... or just those within 2 or 3 spheres?
+	local objs = viewSphere.objs
 	for i=#objs,1,-1 do
 		local o = objs[i]
 		-- do update
