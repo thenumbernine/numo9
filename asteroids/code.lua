@@ -585,8 +585,14 @@ Object.update=|:|do
 		then
 			self.showIsTouching = true
 			-- [[ .. then transfer spheres
-			self.pos = self.pos * Quat.vectorRotate(zAxis, -touch.delta)
-			self.sphere = touch.sphere
+			self.pos = Quat.vectorRotate(
+				zAxis,
+				self.sphere.pos + self.sphere.radius * zAxis - touch.sphere.pos
+			) * self.pos
+			-- TODO sometimes we can get rotation about axis ... which typically doesn't exist ... hmm how to handle this ...
+			self.sphere.objs:removeObject(self)
+			self.sphere = touch!.sphere
+			self.sphere.objs:insert(self)
 			break
 			--]]
 		end
