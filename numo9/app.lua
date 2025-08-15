@@ -760,8 +760,7 @@ function App:initGL()
 			self:playMusic(musicID, musicPlayingIndex, channelOffset)
 		end,
 
-		-- this just falls back to glapp saving the OpenGL draw buffer
-		screenshot = function() return self:screenshotToFile'ss.png' end,
+		screenshot = function() self.takeScreenshot = true end,
 
 		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
 		key = function(...) return self:key(...) end,
@@ -2124,6 +2123,12 @@ print('run thread dead')
 --DEBUG(glquery):drawQueryTotal = drawQueryTotal + drawQuery:doneWithResult()
 --DEBUG(glquery):drawQueryFrames = drawQueryFrames + 1
 	end
+
+	if self.takeScreenshot then
+		self:screenshot()
+		self.takeScreenshot = nil
+	end
+
 --DEBUG:require 'gl.report' 'here'
 end
 

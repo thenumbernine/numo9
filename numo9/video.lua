@@ -2497,7 +2497,7 @@ function AppVideo:clearScreen(
 			clearFloat[3] = 1
 			gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
 		elseif info.format == '8bppIndex'
-		or info.format == 'RGB332'
+		or info.format == 'RGB332'	-- TODO RGB332 should be converted from index to RGB, right?  but with dithering too ... so far that's only done in shader for 332 ...
 		then	-- internalFormat == texInternalFormat_u8 ... which is now et to G_R8UI
 			clearUInt[0] = colorIndex
 			clearUInt[1] = 0
@@ -3211,6 +3211,85 @@ function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 	self.mvMat:applyScale(-1, -1, 1)
 	self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 end
+
+
+local path = require 'ext.path'
+local screenshotPath = path'screenshots'
+function AppVideo:getScreenShotFilename()
+	-- TODO only once upon init?
+	if not screenshotPath:exists() then
+		-- don't assert -- if it already exists the cmd will fail
+		screenshotPath:mkdir()
+	end
+
+	-- make a new subdir for each application instance ... ?
+	if not self.sessionScreenshotDir then
+		self.sessionScreenshotDir = screenshotPath/os.date'%Y.%m.%d-%H.%M.%S'
+		assert(not self.sessionScreenshotDir:exists(), "found a duplicate screenshot timestamp subdir")
+		assert(self.sessionScreenshotDir:mkdir())
+		self.screenshotIndex = 0
+	end
+
+	local fn = self.sessionScreenshotDir / ('%05d.png'):format(self.screenshotIndex)
+	self.screenshotIndex = self.screenshotIndex + 1
+	return fn
+end
+
+function AppVideo:screenshot()
+	local fn = self:getScreenShotFilename()
+	local fbRAM = self.framebufferRAM
+	fbRAM:checkDirtyGPU()
+	local fbTex = fbRAM.tex
+	local info = self.videoModeInfo[self.currentVideoMode]
+	if info.format == 'RGB565' then
+		-- convert to RGB8 first
+		local image = Image(fbTex.width, fbTex.height, 4, 'uint8_t')
+		local srcp = fbRAM.image.buffer + 0
+		local dstp = image.buffer + 0
+		for i=0,fbTex.width*fbTex.height-1 do
+			dstp[0], dstp[1], dstp[2], dstp[3] = rgba5551_to_rgba8888_4ch(srcp)
+			srcp = srcp + 1
+			dstp = dstp + 4
+		end
+		image:save(fn.path)
+	elseif info.format == '8bppIndex' then
+		local range = require 'ext.range'
+		local palImg = self.blobs.palette[1].image
+		local image = Image(fbTex.width, fbTex.height, 1, 'uint8_t')
+		ffi.copy(image.buffer, fbRAM.image.buffer, fbTex.width * fbTex.height)
+		image.palette = range(0,255):mapi(function(i)
+			local r,g,b,a = rgba5551_to_rgba8888_4ch(palImg.buffer[i])
+			--return {r,g,b,a}	-- can PNG palette handle RGB or also RGBA?
+			return {r,g,b}
+		end)
+		image:save(fn.path)
+
+print(require'ext.string'.hexdump(ffi.string(
+	image.buffer, fbTex.width * fbTex.height
+)))
+
+	elseif info.format == 'RGB332' then
+		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
+		local srcp = fbRAM.image.buffer + 0
+		local dstp = image.buffer + 0
+		for i=0,fbTex.width*fbTex.height-1 do
+			-- TODO rgb332_to_888
+			local r = bit.bor(srcp[0], 7)
+			local g = bit.band(bit.rshift(srcp[0], 3), 7)
+			local b = bit.band(bit.rshift(srcp[0], 6), 3)
+			dstp[0] = bit.bor(bit.lshift(r, 5), bit.lshift(r, 2), bit.rshift(r, 1))
+			dstp[1] = bit.bor(bit.lshift(g, 5), bit.lshift(g, 2), bit.rshift(g, 1))
+			dstp[2] = bit.bor(bit.lshift(b, 6), bit.lshift(b, 4), bit.lshift(b, 2), b)
+			srcp = srcp + 1
+			dstp = dstp + 3
+		end
+		image:save(fn.path)
+	else
+		error'here'
+	end
+	print('wrote '..fn)
+end
+
 
 return {
 	argb8888revto5551 = argb8888revto5551,

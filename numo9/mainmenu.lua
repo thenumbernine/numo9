@@ -141,6 +141,10 @@ function MainMenu:updateMenuMain()
 
 	self:menuSection'system'
 
+	if self:menuButton'screenshot' then
+		app.takeScreenshot = true
+	end
+
 	if self:menuButton'cart browser' then
 		app:setMenu(app.cartBrowser)
 	end
