@@ -3247,7 +3247,8 @@ function AppVideo:screenshot()
 		local srcp = fbRAM.image.buffer + 0
 		local dstp = image.buffer + 0
 		for i=0,fbTex.width*fbTex.height-1 do
-			dstp[0], dstp[1], dstp[2], dstp[3] = rgba5551_to_rgba8888_4ch(srcp)
+			dstp[0], dstp[1], dstp[2], dstp[3] = rgba5551_to_rgba8888_4ch(srcp[0])
+			dstp[3] = 0xff	-- hmm...
 			srcp = srcp + 1
 			dstp = dstp + 4
 		end
