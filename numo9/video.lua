@@ -2359,7 +2359,7 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	local nx = -dy * il
 	local ny = dx * il
 
-	local lineThickness = 1
+	local lineThickness = .5
 	local xLL, yLL, zLL, wLL =
 		v1x - nx * lineThickness,
 		v1y - ny * lineThickness,

@@ -559,24 +559,36 @@ Object.update=|:|do
 	--]]
 	local oldPos = self.pos
 
-	self.pos = (oldPos + (.5 * dt / (self.sphere.radius 
+	local dpos = (.5 * dt / (self.sphere.radius 
 --		* 2 * math.pi
-	)) * self.vel * self.pos):unit()
+	)) * self.vel * self.pos
+	self.pos = (oldPos + dpos):unit()
 
-	--[[ here, if from/to crosses a sphere-touch boundary then move spheres
-	local xAxis = self.pos:xAxis()
-	local yAxis = self.pos:yAxis()	-- 'fwd'
+	-- [[ here, if from/to crosses a sphere-touch boundary then move spheres
+	self.showIsTouching = false
+	local fwd = -self.pos:yAxis()	-- fwd dir ... TODO use vel dir
 	local zAxis = self.pos:zAxis()	-- 'up'
+	line3d(
+		self.sphere.pos.x + self.sphere.radius * zAxis.x, 
+		self.sphere.pos.y + self.sphere.radius * zAxis.y, 
+		self.sphere.pos.z + self.sphere.radius * zAxis.z, 
+		
+		self.sphere.pos.x + self.sphere.radius * zAxis.x + 16 * fwd.x, 
+		self.sphere.pos.y + self.sphere.radius * zAxis.y + 16 * fwd.y, 
+		self.sphere.pos.z + self.sphere.radius * zAxis.z + 16 * fwd.z,
+
+		12
+	)
 	for _,touch in ipairs(self.sphere.touching) do
 		if zAxis:dot(touch.unitDelta) > touch.cosAngle 
-		and yAxis:dot(
-			touch.midpoint - self.sphere.pos
-		) > 0
+		and fwd:dot(touch.midpoint - self.sphere.pos) > 0
 		then
-			-- .. then transfer spheres
-			self.pos = Quat.vectorRotate(zAxis, -touch.delta) * self.pos
+			self.showIsTouching = true
+			-- [[ .. then transfer spheres
+			self.pos = self.pos * Quat.vectorRotate(zAxis, -touch.delta)
 			self.sphere = touch.sphere
 			break
+			--]]
 		end
 	end
 	--]]
@@ -689,7 +701,10 @@ Ship.draw3D=|:|do
 		mattrans(4, 16)
 		spr(1, 0, 0, 1, 1)
 	end
-	
+	if self.showIsTouching then
+		rect(0,0,16,16,12+16)
+	end
+
 	matpop()
 end
 Ship.shoot = |:|do
@@ -815,7 +830,8 @@ end
 
 
 player = PlayerShip{
-	sphere = startSphere,
+	--sphere = startSphere,
+	sphere = spheres:last(),
 }
 EnemyShip{
 	sphere = startSphere,
@@ -862,8 +878,10 @@ update=||do
 		-- [[ draw2D 2d on surface view
 		-- screen boundary for debugging
 		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
+		--[=[
 		local r = viewSphere.radius * 2 * math.pi
 		ellib(-r, -r, 2*r, 2*r, 12)
+		--]=]
 		for _,o in ipairs(viewSphere.objs) do
 			o:draw2D()
 		end
@@ -922,11 +940,11 @@ update=||do
 			local x1,y1,z1 = corner(i1,j1)
 			local x2,y2,z2 = corner(i2,j2)
 			local x3,y3,z3 = corner(i3,j3)
-			local x4,y4,z4 = corner(i4,j4)
+			--local x4,y4,z4 = corner(i4,j4)
 			line3d(x1,y1,z1, x2,y2,z2, 15)
 			line3d(x2,y2,z2, x3,y3,z3, 15)
-			line3d(x3,y3,z3, x4,y4,z4, 15)
-			line3d(x4,y4,z4, x1,y1,z1, 15)
+			--line3d(x3,y3,z3, x4,y4,z4, 15)
+			--line3d(x4,y4,z4, x1,y1,z1, 15)
 		end
 		for i=0,idiv-1 do
 			for j=0,jdiv-1 do
