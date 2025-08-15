@@ -3235,8 +3235,9 @@ function AppVideo:getScreenShotFilename()
 	return fn
 end
 
-function AppVideo:screenshot()
-	local fn = self:getScreenShotFilename()
+-- overriding whats in GLApp
+function AppVideo:screenshotToFile(fn)
+	fn = path(fn).path	-- path or string -> string
 	local fbRAM = self.framebufferRAM
 	fbRAM:checkDirtyGPU()
 	local fbTex = fbRAM.tex
@@ -3247,12 +3248,13 @@ function AppVideo:screenshot()
 		local srcp = fbRAM.image.buffer + 0
 		local dstp = image.buffer + 0
 		for i=0,fbTex.width*fbTex.height-1 do
+			-- colors still seem off ...
 			dstp[0], dstp[1], dstp[2], dstp[3] = rgba5551_to_rgba8888_4ch(srcp[0])
 			dstp[3] = 0xff	-- hmm...
 			srcp = srcp + 1
 			dstp = dstp + 4
 		end
-		image:save(fn.path)
+		image:save(fn)
 	elseif info.format == '8bppIndex' then
 		local range = require 'ext.range'
 		local palImg = self.blobs.palette[1].image
@@ -3263,7 +3265,7 @@ function AppVideo:screenshot()
 			--return {r,g,b,a}	-- can PNG palette handle RGB or also RGBA?
 			return {r,g,b}
 		end)
-		image:save(fn.path)
+		image:save(fn)
 	elseif info.format == 'RGB332' then
 		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
 		local srcp = fbRAM.image.buffer + 0
@@ -3279,13 +3281,21 @@ function AppVideo:screenshot()
 			srcp = srcp + 1
 			dstp = dstp + 3
 		end
-		image:save(fn.path)
+		image:save(fn)
 	else
 		error'here'
 	end
 	print('wrote '..fn)
 end
 
+function AppVideo:screenshot()
+	self:screenshotToFile(self:getScreenShotFilename())
+end
+
+function AppVideo:screenshotLabel()
+	local base, ext = path(self.currentLoadedFilename):getext()
+	self:screenshotToFile(base..'/label.png')
+end
 
 return {
 	argb8888revto5551 = argb8888revto5551,

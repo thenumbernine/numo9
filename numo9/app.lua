@@ -761,6 +761,7 @@ function App:initGL()
 		end,
 
 		screenshot = function() self.takeScreenshot = true end,
+		screenshotLabel = function() self.takeScreenshot = 'label' end,
 
 		-- TODO tempting to do like pyxel and just remove key/keyp and only use btn/btnp, and just lump the keyboard flags in after the player joypad button flags
 		key = function(...) return self:key(...) end,
@@ -2125,7 +2126,11 @@ print('run thread dead')
 	end
 
 	if self.takeScreenshot then
-		self:screenshot()
+		if self.takeScreenshot == 'label' then
+			self:screenshotLabel()
+		else
+			self:screenshot()
+		end
 		self.takeScreenshot = nil
 	end
 
