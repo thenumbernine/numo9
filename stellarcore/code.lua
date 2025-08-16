@@ -287,9 +287,9 @@ quat.epsilon = 1e-15
 quat.toAngleAxis = |:, res| do
 	res = res or quat()
 
-	local cosom = math.clamp(self.w, -1, 1)
+	local cosangle = math.clamp(self.w, -1, 1)
 
-	local halfangle = math.acos(cosom)
+	local halfangle = math.acos(cosangle)
 	local scale = math.sin(halfangle)
 
 	if scale >= -self.epsilon and scale <= self.epsilon then
@@ -387,6 +387,24 @@ quat.vectorRotate=|v1,v2|do
 	local x,y,z,th = quat.vectorRotateToAngleAxis(v1,v2)
 	return quat(x,y,z,th):fromAngleAxis()
 end
+
+quat.matrot=|q|do
+--[[	
+	local x,y,z,th = self.pos:toAngleAxis():unpack()
+	matrot(th, x, y, z)
+--]]	
+-- [[
+	local coshalfangle = q.w	-- [-1,1] <-> cos(theta) for theta in [0, pi]
+	local sinhalfangle = math.sqrt(1 - coshalfangle^2)	-- [0,1]
+	if sinhalfangle > 1e-20 then
+		local il = 1/sinhalfangle
+		local cosangle = coshalfangle^2 - sinhalfangle^2
+		local sinangle = 2 * sinhalfangle * coshalfangle
+		matrotcs(cosangle, sinangle, q.x * il, q.y * il, q.z * il)
+	end
+--]]
+end
+
 ----------------------- END vec/quat.lua-----------------------
 math.randomseed(tstamp())
 local sqrt_1_2 = math.sqrt(.5)
@@ -497,8 +515,8 @@ transformQuatTo2D = |v| do
 	mattrans(pos2d.x, pos2d.y)
 
 	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
-	local fwd = v:yAxis()
-	matrot(math.atan2(fwd.y, fwd.x))
+	local fwd = vec2.unit(v:yAxis())
+	matrotcs(fwd.x, fwd.y, 0, 0, 1)
 end
 --]]
 --[[
@@ -514,8 +532,8 @@ transformQuatTo2D = |v| do
 	mattrans(pos2d.x, pos2d.y)
 
 	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
-	local fwd = v:yAxis()
-	matrot(math.atan2(fwd.y, fwd.x))
+	local fwd = vec2.unit(v:yAxis())
+	matrotcs(fwd.x, fwd.y)
 end
 --]]
 
@@ -549,8 +567,7 @@ end
 Object.draw3D=|:|do
 	matpush()
 	mattrans(self.sphere.pos:unpack())
-	local x,y,z,th = self.pos:toAngleAxis():unpack()
-	matrot(th, x, y, z)
+	self.pos:matrot()
 	mattrans(0, 0, self.sphere.radius)
 
 	matscale(self.size / 4, self.size / 4)
@@ -730,8 +747,8 @@ end
 Ship.draw3D=|:|do
 	matpush()
 	mattrans(self.sphere.pos:unpack())
-	local x,y,z,th = self.pos:toAngleAxis():unpack()
-	matrot(th, x, y, z)
+
+	self.pos:matrot()
 	mattrans(0, 0, self.sphere.radius)
 
 	matscale(self.size / 8, self.size / 8)
@@ -895,8 +912,7 @@ end
 Rock.draw3D=|:|do
 	matpush()
 	mattrans(self.sphere.pos:unpack())
-	local x,y,z,th = self.pos:toAngleAxis():unpack()
-	matrot(th, x, y, z)
+	self.pos:matrot()
 	mattrans(0, 0, self.sphere.radius)
 
 	rectb(-self.size, -self.size, 2*self.size, 2*self.size, self.color)
@@ -1131,8 +1147,7 @@ update=||do
 		-- view
 		mattrans(0, 0, -viewDistScale * viewSphere.radius)
 		if drawMethod == 0 then
-			local x,y,z,th = viewPos:conj():toAngleAxis():unpack()
-			matrot(th, x, y, z)
+			viewPos:conj():matrot()
 		end
 		mattrans(-viewSphere.pos.x, -viewSphere.pos.y, -viewSphere.pos.z)
 
@@ -1145,10 +1160,11 @@ update=||do
 		-- [[ draw portals as circles between spheres
 		for _,touch in ipairs(viewSphere.touching) do
 			local touchSphere = touch.sphere
-			local x,y,z,th = quat.vectorRotateToAngleAxis(vec3(0,0,1), touch.unitDelta)
 			matpush()
 			mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
-			matrot(th,x,y,z)
+			
+			quat.vectorRotate(vec3(0,0,1), touch.unitDelta):matrot()
+			
 			-- what'touchSphere the intersection plane distance?
 			local dist = touch.dist
 			local intCircDist = touch.intCircDist
