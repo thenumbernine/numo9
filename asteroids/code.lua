@@ -563,12 +563,12 @@ Object.update=|:|do
 	qdot = 1/2 w * q
 	w = (wv, 0) = angular velocity as pure-quaternion
 	--]]
-	local oldPos = self.pos
+	self.lastPos = self.pos:clone()
 
 	local dpos = (.5 * dt / (self.sphere.radius
 --		* 2 * math.pi
 	)) * self.vel * self.pos
-	self.pos = (oldPos + dpos):unit()
+	self.pos = (self.lastPos + dpos):unit()
 
 	-- [[ here, if from/to crosses a sphere-touch boundary then move spheres
 	local fwd = -self.pos:yAxis()	-- fwd dir ... TODO use vel dir
@@ -790,7 +790,7 @@ end
 
 EnemyShip = Ship:subclass()
 EnemyShip.thrust = true
---[[
+-- [[
 EnemyShip.update = |:|do
 	local axisToPlayer = self.pos:zAxis():cross(player.pos:zAxis()):unit()
 	local dirToPlayer = self.pos:zAxis():cross(axisToPlayer):unit()
@@ -825,10 +825,16 @@ Rock.touch = |:,other|do
 		-- TODO bounce
 		local mom = self.vel * self:calcMass() + other.vel * other:calcMass()
 		
-		self.vel -= mom * (.1 / self:calcMass())
+		--self.pos:set(self.lastPos)
+		--self.vel -= mom * (.1 / self:calcMass())
+		self.vel -= 2 * mom:unit() * self.vel:dot(mom:unit())
+		--self.vel *= .1
 		self.vel -= quat.fromVec3(self.pos:zAxis()) * self.vel:axis():dot(self.pos:zAxis())
 		
-		other.vel += mom * (.1 / other:calcMass())
+		--other.pos:set(other.lastPos)
+		--other.vel += mom * (.1 / other:calcMass())
+		other.vel -= 2 * mom:unit() * other.vel:dot(mom:unit())
+		--other.vel *= .1
 		other.vel -= quat.fromVec3(other.pos:zAxis()) * other.vel:axis():dot(other.pos:zAxis())
 		
 		other.health -= .1
