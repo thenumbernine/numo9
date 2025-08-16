@@ -33,8 +33,11 @@ function CartBrowser:update()
 		function(result) fs:cd(result) end
 	)
 
+	self.menuTopY = self.menuTopY or 0
+
 	y = y + 8
 	x = x + 8
+	local selY
 	local w = 128	-- how wide .. text length? or fixed button length?
 	local h = 8
 	local mouseOverSel
@@ -44,21 +47,30 @@ function CartBrowser:update()
 
 		local sel = self.menuTabIndex == self.menuTabCounter
 		if sel then
+			selY = y
 			mouseOverSel = true
 			selectedFileName = name
 		end
 
 		if f.isdir then 				-- dir
-			self:guiButton('['..name..']', x, y)
+			self:guiButton('['..name..']', x, y - self.menuTopY)
 		elseif name:match'%.n9$' then	-- cart file
-			if self:guiButton('*'..name, x, y) then
+			if self:guiButton('*'..name, x, y - self.menuTopY) then
 				-- clicked it ...
 			end
 		else							-- non-cart file
-			self:guiButton(' '..name, x, y)
+			self:guiButton(' '..name, x, y - self.menuTopY)
 		end
 
 		y = y + 8
+	end
+
+	if selY then
+		if selY - self.menuTopY > 240 then
+			self.menuTopY = selY - 240
+		elseif selY - self.menuTopY < 16 then
+			self.menuTopY = selY - 16
+		end
 	end
 
 	local selectedFile = selectedFileName and fs.cwd.chs[selectedFileName]
