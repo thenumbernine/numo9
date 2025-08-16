@@ -414,6 +414,7 @@ randomVel=||do
 end
 
 
+local nextSphereColor = 1
 
 local Sphere = class()
 Sphere.init=|:,args|do
@@ -421,6 +422,8 @@ Sphere.init=|:,args|do
 	self.radius = args!.radius
 	self.touching = table()
 	self.objs = table()			-- only attach objs to one sphere -- their .sphere -- and test all touching spheres for inter-sphere interactions
+	self.color = nextSphereColor
+	nextSphereColor += 1
 end
 Sphere.update=|:|do
 	local objs = self.objs
@@ -571,25 +574,27 @@ Object.update=|:|do
 	self.pos = (self.lastPos + dpos):unit()
 
 	-- [[ here, if from/to crosses a sphere-touch boundary then move spheres
-	local fwd = -self.pos:yAxis()	-- fwd dir ... TODO use vel dir
 	local zAxis = self.pos:zAxis()	-- 'up'
+	local velfwd = self.vel:axis():cross(zAxis) -- :unit()	-- movement dir
 	-- [=[
+	local unitvelfwd = velfwd:clone():unit()
 	self.showIsTouching = false
 	line3d(
 		self.sphere.pos.x + self.sphere.radius * zAxis.x,
 		self.sphere.pos.y + self.sphere.radius * zAxis.y,
 		self.sphere.pos.z + self.sphere.radius * zAxis.z,
 
-		self.sphere.pos.x + self.sphere.radius * zAxis.x + 16 * fwd.x,
-		self.sphere.pos.y + self.sphere.radius * zAxis.y + 16 * fwd.y,
-		self.sphere.pos.z + self.sphere.radius * zAxis.z + 16 * fwd.z,
+		self.sphere.pos.x + self.sphere.radius * zAxis.x + 16 * unitvelfwd.x,
+		self.sphere.pos.y + self.sphere.radius * zAxis.y + 16 * unitvelfwd.y,
+		self.sphere.pos.z + self.sphere.radius * zAxis.z + 16 * unitvelfwd.z,
 
 		12
 	)
 	--]=]
+	local ptOnSphere = self.sphere.pos + zAxis * self.sphere.radius
 	for _,touch in ipairs(self.sphere.touching) do
 		if zAxis:dot(touch.unitDelta) > touch.cosAngle
-		and fwd:dot(touch.midpoint - self.sphere.pos) > 0
+		and velfwd:dot(touch.midpoint - ptOnSphere) > 0
 		then
 			self.showIsTouching = true
 			-- [[ .. then transfer spheres
@@ -598,10 +603,8 @@ Object.update=|:|do
 				self.sphere.pos + self.sphere.radius * zAxis - touch.sphere.pos
 			)
 			self.pos = dpos * self.pos
-			-- [[ how to get rid of twisting ...
+			-- project out z-axis to get rid of twisting ...
 			self.vel -= quat.fromVec3(self.pos:zAxis()) * self.vel:axis():dot(self.pos:zAxis())
-			--]]
-			-- TODO sometimes we can get rotation about axis ... which typically doesn't exist ... hmm how to handle this ...
 			self.sphere.objs:removeObject(self)
 			self.sphere = touch!.sphere
 			self.sphere.objs:insert(self)
@@ -653,12 +656,12 @@ Shot.touch=|:,other|do
 	if Rock:isa(other) then
 		if other.size > other.sizeS then
 			-- make new rocks
-			local mom = other.vel * other:calcMass()
+			local angmom = other.vel * other:calcMass()
 			local perturb1 = randomVel() * 2000
 			local perturb2 = randomVel() * 2000
 			for s1=-1,1,2 do
 				for s2=-1,1,2 do
-					local newmom = .25 * mom + s1 * perturb1 + s2 * perturb2
+					local newangmom = .25 * angmom + s1 * perturb1 + s2 * perturb2
 					local piece = Rock{
 						sphere = other.sphere,
 						pos = other.pos
@@ -671,7 +674,7 @@ Shot.touch=|:,other|do
 						--rot = math.random() * 2 * 20,	-- TODO conserve this too?	-- TODO is this used?
 						size = other.size == other.sizeL and other.sizeM or other.sizeS,
 					}
-					piece.vel = newmom * (1 / piece:calcMass())
+					piece.vel = newangmom * (1 / piece:calcMass())
 				end
 			end
 		end
@@ -685,7 +688,12 @@ Ship.nextShootTime = 0
 Ship.health = 10
 Ship.init=|:,args|do
 	Ship.super.init(self, args)
-	self.maxHealth = self.health
+	self.healthMax = self.health
+end
+Ship.update = |:| do
+	self.health += .01
+	self.health = math.clamp(self.health, 0, self.healthMax)
+	Ship.super.update(self)
 end
 Ship.draw2D=|:|do
 	local fwd = vec2(0,-1)
@@ -721,14 +729,15 @@ Ship.draw3D=|:|do
 	matscale(self.size / 8, self.size / 8)
 	mattrans(-8, -8)
 	spr(2, 0, 0, 2, 2)
+	--[[
+	if self.showIsTouching then
+		rect(0,0,16,16,12+16)
+	end
+	--]]
 	if self.thrust then
 		mattrans(4, 16)
 		spr(1, 0, 0, 1, 1)
 	end
-	if self.showIsTouching then
-		rect(0,0,16,16,12+16)
-	end
-
 	matpop()
 end
 Ship.shoot = |:|do
@@ -822,22 +831,31 @@ Rock.size = Rock.sizeL
 Rock.color = 13
 Rock.touch = |:,other|do
 	if Ship:isa(other) then
+do return end
 		-- TODO bounce
-		local mom = self.vel * self:calcMass() + other.vel * other:calcMass()
-		
-		--self.pos:set(self.lastPos)
-		--self.vel -= mom * (.1 / self:calcMass())
-		self.vel -= 2 * mom:unit() * self.vel:dot(mom:unit())
-		--self.vel *= .1
-		self.vel -= quat.fromVec3(self.pos:zAxis()) * self.vel:axis():dot(self.pos:zAxis())
-		
-		--other.pos:set(other.lastPos)
-		--other.vel += mom * (.1 / other:calcMass())
-		other.vel -= 2 * mom:unit() * other.vel:dot(mom:unit())
-		--other.vel *= .1
-		other.vel -= quat.fromVec3(other.pos:zAxis()) * other.vel:axis():dot(other.pos:zAxis())
-		
-		other.health -= .1
+		local selfMass = self:calcMass()
+		local otherMass = other:calcMass()
+		local totalMass = selfMass + otherMass
+		local selfAngMom = self.vel * selfMass
+		local otherAngMom = other.vel * otherMass
+		do -- if selfAngMom:dot(otherAngMom) < 0 then
+			local totalAngMom = selfAngMom + otherAngMom
+			local totalAngMomUnit = totalAngMom:clone():unit()
+
+			--self.pos:set(self.lastPos)
+			self.vel = totalAngMom * (selfMass / totalMass)
+			--self.vel -= 2 * totalAngMomUnit * self.vel:dot(totalAngMomUnit)
+			--self.vel *= .1
+			self.vel -= quat.fromVec3(self.pos:zAxis()) * self.vel:axis():dot(self.pos:zAxis())
+			
+			--other.pos:set(other.lastPos)
+			other.vel = totalAngMom * (otherMass / totalMass)
+			--other.vel -= 2 * totalAngMomUnit * other.vel:dot(totalAngMomUnit)
+			--other.vel *= .1
+			other.vel -= quat.fromVec3(other.pos:zAxis()) * other.vel:axis():dot(other.pos:zAxis())
+			
+			other.health -= .1
+		end
 	end
 end
 Rock.draw2D=|:|do
@@ -1088,10 +1106,10 @@ update=||do
 			local x2,y2,z2 = corner(i2,j2)
 			local x3,y3,z3 = corner(i3,j3)
 			--local x4,y4,z4 = corner(i4,j4)
-			line3d(x1,y1,z1, x2,y2,z2, 15)
-			line3d(x2,y2,z2, x3,y3,z3, 15)
-			--line3d(x3,y3,z3, x4,y4,z4, 15)
-			--line3d(x4,y4,z4, x1,y1,z1, 15)
+			line3d(x1,y1,z1, x2,y2,z2, s.color)
+			line3d(x2,y2,z2, x3,y3,z3, s.color)
+			--line3d(x3,y3,z3, x4,y4,z4, s.color)
+			--line3d(x4,y4,z4, x1,y1,z1, s.color)
 		end
 		for i=0,idiv-1 do
 			for j=0,jdiv-1 do
@@ -1117,6 +1135,6 @@ update=||do
 	cls(nil, true)
 	if player then
 		matident()
-		rect(0, screenSize.y-10, player.health/player.maxHealth*screenSize.x, 10, 16+9)
+		rect(0, screenSize.y-10, player.health/player.healthMax*screenSize.x, 10, 16+9)
 	end
 end
