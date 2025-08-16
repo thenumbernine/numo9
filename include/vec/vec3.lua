@@ -48,7 +48,7 @@ vec3=class{
 				v.z = x
 			end
 		end
-		return self
+		return v
 	end,
 	unpack=|v| (v.x, v.y, v.z),
 	sum=|v| v.x + v.y + v.z,
@@ -68,7 +68,14 @@ vec3=class{
 	lenSq=|v| v:dot(v),
 	len=|v| math.sqrt(v:lenSq()),
 	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),
-	unit=|v| v / math.max(1e-15, v:len()),
+	unit=|v,res|do
+		local s = 1 / math.max(1e-15, v:len())
+		if res then
+			return res:set(v.x * s, v.y * s, v.z * s)
+		else
+			return vec3(v.x * s, v.y * s, v.z * s)
+		end
+	end,
 	__unm=|v| vec3(-v.x, -v.y, -v.z),
 	__add=|a,b| vec3(vec3_getvalue(a, 1) + vec3_getvalue(b, 1), vec3_getvalue(a, 2) + vec3_getvalue(b, 2), vec3_getvalue(a, 3) + vec3_getvalue(b, 3)),
 	__sub=|a,b| vec3(vec3_getvalue(a, 1) - vec3_getvalue(b, 1), vec3_getvalue(a, 2) - vec3_getvalue(b, 2), vec3_getvalue(a, 3) - vec3_getvalue(b, 3)),

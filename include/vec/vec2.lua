@@ -46,7 +46,7 @@ vec2=class{
 				v.y = x
 			end
 		end
-		return self
+		return v
 	end,
 	unpack=|v|(v.x, v.y),
 	sum=|v| v.x + v.y,
@@ -75,7 +75,14 @@ vec2=class{
 	lenSq=|v| v:dot(v),
 	len=|v| math.sqrt(v:lenSq()),
 	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2),
-	unit=|v| v / math.max(1e-15, v:len()),
+	unit=|v,res|do
+		local s = 1 / math.max(1e-15, v:len())
+		if res then
+			return res:set(v.x * s, v.y * s)
+		else
+			return vec2(v.x * s, v.y * s)
+		end
+	end,
 	exp=|theta| vec2(math.cos(theta), math.sin(theta)),
 	cross=|a,b| a.x * b.y - a.y * b.x,	-- or :det() maybe
 	cplxmul = |a,b| vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),

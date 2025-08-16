@@ -93,7 +93,7 @@ vec2=class{
 				v.y = x
 			end
 		end
-		return self
+		return v
 	end,
 	unpack=|v|(v.x, v.y),
 	sum=|v| v.x + v.y,
@@ -122,7 +122,14 @@ vec2=class{
 	lenSq=|v| v:dot(v),
 	len=|v| math.sqrt(v:lenSq()),
 	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2),
-	unit=|v| v / math.max(1e-15, v:len()),
+	unit=|v,res|do
+		local s = 1 / math.max(1e-15, v:len())
+		if res then
+			return res:set(v.x * s, v.y * s)
+		else
+			return vec2(v.x * s, v.y * s)
+		end
+	end,
 	exp=|theta| vec2(math.cos(theta), math.sin(theta)),
 	cross=|a,b| a.x * b.y - a.y * b.x,	-- or :det() maybe
 	cplxmul = |a,b| vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),
@@ -198,7 +205,7 @@ vec3=class{
 				v.z = x
 			end
 		end
-		return self
+		return v
 	end,
 	unpack=|v| (v.x, v.y, v.z),
 	sum=|v| v.x + v.y + v.z,
@@ -218,7 +225,14 @@ vec3=class{
 	cross=|a,b| vec3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x),
 	len=|v| math.sqrt(v:lenSq()),
 	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),
-	unit=|v| v / math.max(1e-15, v:len()),
+	unit=|v,res|do
+		local s = 1 / math.max(1e-15, v:len())
+		if res then
+			return res:set(v.x * s, v.y * s, v.z * s)
+		else
+			return vec3(v.x * s, v.y * s, v.z * s)
+		end
+	end,
 	__unm=|v| vec3(-v.x, -v.y, -v.z),
 	__add=|a,b| vec3(vec3_getvalue(a, 1) + vec3_getvalue(b, 1), vec3_getvalue(a, 2) + vec3_getvalue(b, 2), vec3_getvalue(a, 3) + vec3_getvalue(b, 3)),
 	__sub=|a,b| vec3(vec3_getvalue(a, 1) - vec3_getvalue(b, 1), vec3_getvalue(a, 2) - vec3_getvalue(b, 2), vec3_getvalue(a, 3) - vec3_getvalue(b, 3)),
@@ -259,6 +273,23 @@ quat.__sub = |q,r,res| do
 	res = res or quat()
 	return res:set(q.x - r.x, q.y - r.y, q.z - r.z, q.w - r.w)
 end
+
+quat_mul_comp=|qx,qy,qz,qw, rx,ry,rz,rw|do
+	local a = (qw + qx) * (rw + rx)
+	local b = (qz - qy) * (ry - rz)
+	local c = (qx - qw) * (ry + rz)
+	local d = (qy + qz) * (rx - rw)
+	local e = (qx + qz) * (rx + ry)
+	local f = (qx - qz) * (rx - ry)
+	local g = (qw + qy) * (rw - rz)
+	local h = (qw - qy) * (rw + rz)
+	return 
+		a - .5 * ( e + f + g + h),
+		-c + .5 * ( e - f + g - h),
+		-d + .5 * ( e - f - g + h),
+		b + .5 * (-e - f + g + h)
+end
+
 quat.mul = |q, r, res| do
 	if not res then res = quat() end
 	if type(q) == 'number' then
@@ -266,20 +297,9 @@ quat.mul = |q, r, res| do
 	elseif type(r) == 'number' then
 		return res:set(q.x * r, q.y * r, q.z * r, q.w * r)
 	end
-	local a = (q.w + q.x) * (r.w + r.x)
-	local b = (q.z - q.y) * (r.y - r.z)
-	local c = (q.x - q.w) * (r.y + r.z)
-	local d = (q.y + q.z) * (r.x - r.w)
-	local e = (q.x + q.z) * (r.x + r.y)
-	local f = (q.x - q.z) * (r.x - r.y)
-	local g = (q.w + q.y) * (r.w - r.z)
-	local h = (q.w - q.y) * (r.w + r.z)
-	return res:set(
-		a - .5 * ( e + f + g + h),
-		-c + .5 * ( e - f + g - h),
-		-d + .5 * ( e - f - g + h),
-		b + .5 * (-e - f + g + h))
+	return res:set(quat_mul_comp(q.x, q.y, q.z, q.w, r.x, r.y, r.z, r.w))
 end
+
 quat.__mul = quat.mul
 quat.__div = |a,b| a * b:conj() / b:lenSq()
 
@@ -390,7 +410,7 @@ end
 
 quat.matrot=|q|do
 --[[	
-	local x,y,z,th = self.pos:toAngleAxis():unpack()
+	local x,y,z,th = q:toAngleAxis():unpack()
 	matrot(th, x, y, z)
 --]]	
 -- [[
@@ -494,6 +514,52 @@ viewSphere = startSphere
 -- [[
 -- v = quat
 -- returns vec2
+--[=[
+do
+	local viewPosConj = quat()
+	local v2 = quat()
+	local pos = vec3()
+	local pos2d = vec2()
+	quatTo2D = |v|do
+		viewPos:conj(viewPosConj)
+		quat.mul(viewPosConj, v, v2)	-- v2 = viewPosConj * v
+		v2:zAxis(pos)
+		pos2d:set(pos.x, pos.y)
+		local len2 = pos2d:len()
+		if len2 < 1e-15 then
+			-- hmm before when I didn't return a quat but instead just bailed out, it looked better...
+			return 0, 0, quat(0,0, -sqrt_1_2, sqrt_1_2)
+		end
+		local s = math.acos(pos.z) * viewSphere.radius / len2
+		pos2d.x *= s
+		pos2d.y *= s
+		return pos2d.x, pos2d.y, v2
+	end
+end
+--]=]
+-- [=[
+do
+	local viewPosConj = quat()	-- TODO cache this
+	local v2 = quat()
+	local pos = vec3()
+	local pos2d = vec2()
+	quatTo2D = |v|do
+		viewPos:conj(viewPosConj)
+		quat.mul(viewPosConj, v, v2)
+		v2:zAxis(pos)
+		-- TODO reuse this but it's used outside so don't return it
+		pos2d:set(pos.x, pos.y)
+		local len2 = pos2d:len()
+		if len2 < 1e-15 then
+			-- hmm before when I didn't return a quat but instead just bailed out, it looked better...
+			return 0, 0, v2:set(0,0, -sqrt_1_2, sqrt_1_2)
+		end
+		pos2d *= math.acos(pos.z) * viewSphere.radius / len2
+		return pos2d.x, pos2d.y, v2
+	end
+end
+--]=]
+--[=[
 quatTo2D = |v|do
 	v = viewPos:conj() * v
 	local pos = v:zAxis()
@@ -501,22 +567,27 @@ quatTo2D = |v|do
 	local len2 = pos2d:len()
 	if len2 < 1e-15 then
 		-- hmm before when I didn't return a quat but instead just bailed out, it looked better...
-		return vec2(), quat(0,0, -sqrt_1_2, sqrt_1_2)
+		return 0, 0, quat(0,0, -sqrt_1_2, sqrt_1_2)
 	end
 	pos2d *= math.acos(pos.z) * viewSphere.radius / len2
-	return pos2d, v
+	return pos2d.x, pos2d.y, v
 end
+--]=]
 
 -- v = quat
 -- does mat transforms
-transformQuatTo2D = |v| do
-	local pos2d
-	pos2d, v = quatTo2D(v)
-	mattrans(pos2d.x, pos2d.y)
+do
+	local vy = vec3()
+	local fwd = vec2()
+	transformQuatTo2D = |v| do
+		local pos2dx, pos2dy, v = quatTo2D(v)
+		mattrans(pos2dx, pos2dy)
 
-	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
-	local fwd = vec2.unit(v:yAxis())
-	matrotcs(fwd.x, fwd.y, 0, 0, 1)
+		-- cos/sin -> atan -> cos/sin ... plz just do a matmul
+		v:yAxis(vy)
+		vec2.unit(vy, fwd)
+		matrotcs(fwd.x, fwd.y, 0, 0, 1)
+	end
 end
 --]]
 --[[
@@ -1022,6 +1093,19 @@ player = PlayerShip{
 }
 
 
+-- returns a quat of a z-rotation times an x-rotation
+quatRotZX_comp=|thz,thx|do
+	local cos_halfthz = math.cos(.5 * thz)
+	local sin_halfthz = math.sqrt(1 - cos_halfthz^2)
+	local cos_halfthx = math.cos(.5 * thx)
+	local sin_halfthx = math.sqrt(1 - cos_halfthx^2)
+	return 
+		cos_halfthz * sin_halfthx,
+		sin_halfthz * sin_halfthx,
+		sin_halfthz * cos_halfthx,
+		cos_halfthz * cos_halfthx
+end
+
 
 
 drawMethod = 2
@@ -1070,28 +1154,54 @@ update=||do
 		for _,touch in ipairs(viewSphere.touching) do
 			local touchSphere = touch.sphere
 			local delta = touch.delta
+			
 			local q1 = quat.vectorRotate(vec3(0,0,1), delta)
-			local firstpt, lastpt
+			
+			local firstptx, firstpty
+			local lastptx, lastpty
 			for i=1,n do
 				local th = 2 * math.pi * (i - .5) / n
-
+				--[=[
 				local cos_halfth = math.cos(.5 * th)
 				local sin_halfth = math.sqrt(1 - cos_halfth^2)
 				
 				local cos_halftouchangle = math.cos(.5 * touch.angle)
 				local sin_halftouchangle = math.sqrt(1 - cos_halftouchangle^2)
 				
+				--[[
 				local q2 = quat(0,0,sin_halfth, cos_halfth)
 				local q3 = quat(sin_halftouchangle,0,0,cos_halftouchangle)
+				local q23 = q2 * q3
+				--]]
+				-- [[ (z2 k + w2) * (x3 i + w3)
+				-- = (z2 k + w2) x3 i + (z2 k + w2) w3
+				-- = z2 x3 k i + w2 x3 i + z2 w3 k + w2 w3
+				-- = w2 x3 i + z2 x3 j + z2 w3 k + w2 w3
+				-- = cos_halfth sin_halftouchangle i + sin_halfth sin_halftouchangle j + sin_halfth cos_halftouchangle k + cos_halfth cos_halftouchangle
+				local q23 = quat(
+					cos_halfth * sin_halftouchangle,
+					sin_halfth * sin_halftouchangle,
+					sin_halfth * cos_halftouchangle,
+					cos_halfth * cos_halftouchangle
+				)
+				--]]
+				--]=]
+				-- [=[
+				local q23 = quat(quatRotZX_comp(th, touch.angle))
+				--]=]
 
-				local pt = quatTo2D(q1 * q2 * q3)
-				firstpt = firstpt or pt
-				if lastpt then
-					line(lastpt.x, lastpt.y, pt.x, pt.y, 12)
+				local ptx, pty = quatTo2D(q1 * q23)
+				if not firstptx then
+					firstptx = ptx
+					firstpty = pty
 				end
-				lastpt = pt
+				if lastptx then
+					line(lastptx, lastpty, ptx, pty, 12)
+				end
+				lastptx = ptx
+				lastpty = pty
 			end
-			line(lastpt.x, lastpt.y, firstpt.x, firstpt.y, 12)
+			line(lastptx, lastpty, firstptx, firstpty, 12)
 		end
 		--]]
 		-- [[ draw a circle where our sphere boundary should be
@@ -1102,36 +1212,53 @@ update=||do
 			local jdivstep = 5
 			local corner=|i,j|do
 				local u = i / idiv * math.pi * 2
+				local v = j / jdiv * math.pi
+				--[==[
 				local cos_halfu = math.cos(.5 * u)
 				local sin_halfu = math.sqrt(1 - cos_halfu^2)
 				
-				local v = j / jdiv * math.pi
 				local cos_halfv = math.cos(.5 * v)
 				local sin_halfv = math.sqrt(1 - cos_halfv^2)
 				
 				return quatTo2D(
+					--[=[
 					quat(0,0,sin_halfu, cos_halfu)
 					* quat(sin_halfv,0,0,cos_halfv)
+					--]=]
+					-- [=[ work done above
+					quat(
+						cos_halfu * sin_halfv,
+						sin_halfu * sin_halfv,
+						sin_halfu * cos_halfv,
+						cos_halfu * cos_halfv
+					)
+					--]=]
 				)
+				--]==]
+				-- [==[
+				return quatTo2D(quat(quatRotZX_comp(u, v)))
+				--]==]
 			end
 			for i=0,idiv,idivstep do
-				local prevpt = corner(i,0)
+				local prevptx, prevpty = corner(i,0)
 				for j=1,jdiv do
-					local pt = corner(i,j)
-					if prevpt:dot(pt) > 0 then
-						line(prevpt.x, prevpt.y, pt.x, pt.y, viewSphere.color)
+					local ptx, pty = corner(i,j)
+					if prevptx * ptx + prevpty * pty > 0 then
+						line(prevptx, prevpty, ptx, pty, viewSphere.color)
 					end
-					prevpt = pt
+					prevptx = ptx
+					prevpty = pty
 				end
 			end
 			for j=0,jdiv,jdivstep do
-				local prevpt = corner(0,j)
+				local prevptx, prevpty = corner(0,j)
 				for i=1,idiv do
-					local pt = corner(i,j)
-					if prevpt:dot(pt) > 0 then
-						line(prevpt.x, prevpt.y, pt.x, pt.y, viewSphere.color)
+					local ptx, pty = corner(i,j)
+					if prevptx * ptx + prevpty * pty > 0 then
+						line(prevptx, prevpty, ptx, pty, viewSphere.color)
 					end
-					prevpt = pt
+					prevptx = ptx
+					prevpty = pty
 				end
 			end
 		end
