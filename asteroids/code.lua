@@ -847,13 +847,13 @@ do return end
 			--self.vel -= 2 * totalAngMomUnit * self.vel:dot(totalAngMomUnit)
 			--self.vel *= .1
 			self.vel -= quat.fromVec3(self.pos:zAxis()) * self.vel:axis():dot(self.pos:zAxis())
-			
+
 			--other.pos:set(other.lastPos)
 			other.vel = totalAngMom * (otherMass / totalMass)
 			--other.vel -= 2 * totalAngMomUnit * other.vel:dot(totalAngMomUnit)
 			--other.vel *= .1
 			other.vel -= quat.fromVec3(other.pos:zAxis()) * other.vel:axis():dot(other.pos:zAxis())
-			
+
 			other.health -= .1
 		end
 	end
@@ -1049,6 +1049,42 @@ update=||do
 			line(lastpt.x, lastpt.y, firstpt.x, firstpt.y, 12)
 		end
 		--]]
+		-- [[ draw a circle where our sphere boundary should be
+		do
+			local idiv=60
+			local jdiv=30
+			local idivstep = 5
+			local jdivstep = 5
+			local corner=|i,j|do
+				local u = i / idiv * math.pi * 2
+				local v = j / jdiv * math.pi
+				return quatTo2D(
+					quat(0,0,1,u):fromAngleAxis()
+					* quat(1,0,0,v):fromAngleAxis()
+				)
+			end
+			for i=0,idiv,idivstep do
+				local prevpt = corner(i,0)
+				for j=1,jdiv do
+					local pt = corner(i,j)
+					if prevpt:dot(pt) > 0 then
+						line(prevpt.x, prevpt.y, pt.x, pt.y, viewSphere.color)
+					end
+					prevpt = pt
+				end
+			end
+			for j=0,jdiv,jdivstep do
+				local prevpt = corner(0,j)
+				for i=1,idiv do
+					local pt = corner(i,j)
+					if prevpt:dot(pt) > 0 then
+						line(prevpt.x, prevpt.y, pt.x, pt.y, viewSphere.color)
+					end
+					prevpt = pt
+				end
+			end
+		end
+		--]]
 	else
 		-- [[ draw3D view
 		-- TODO lines aren't working so well with frustum
@@ -1088,38 +1124,39 @@ update=||do
 			matpop()
 		end
 		--]]
+		-- [[ draw a circle where our sphere boundary should be
+		for _,s in ipairs(spheres) do
+			local idiv=10
+			local jdiv=5
+			local corner=|i,j|do
+				local u = i / idiv * math.pi * 2
+				local v = j / jdiv * math.pi
+				return s.radius * math.cos(u) * math.sin(v) + s.pos.x,
+						s.radius * math.sin(u) * math.sin(v) + s.pos.y,
+						s.radius * math.cos(v) + s.pos.z
+			end
+			local quad = |i1,j1, i2,j2, i3,j3, i4,j4|do
+				local x1,y1,z1 = corner(i1,j1)
+				local x2,y2,z2 = corner(i2,j2)
+				local x3,y3,z3 = corner(i3,j3)
+				--local x4,y4,z4 = corner(i4,j4)
+				line3d(x1,y1,z1, x2,y2,z2, s.color)
+				line3d(x2,y2,z2, x3,y3,z3, s.color)
+				--line3d(x3,y3,z3, x4,y4,z4, s.color)
+				--line3d(x4,y4,z4, x1,y1,z1, s.color)
+			end
+			for i=0,idiv-1 do
+				for j=0,jdiv-1 do
+					quad(i,j, i+1,j, i+1,j+1, i,j+1)
+				end
+			end
+			-- TODO calc this properly ... based on viewTanFov, viewDistScale, and screenSize, viewSphere.radius
+			--local r = viewSphere.radius * viewDistScale / viewTanFov * 1.15
+			--ellib(screenSize.x*.5 - r, screenSize.y*.5 - r, 2*r, 2*r, 12)
+		end
+		--]]
 	end
 
-	-- draw a circle where our sphere boundary should be
-	for _,s in ipairs(spheres) do
-		local idiv=10
-		local jdiv=5
-		local corner=|i,j|do
-			local u = i / idiv * math.pi * 2
-			local v = j / jdiv * math.pi
-			return s.radius * math.cos(u) * math.sin(v) + s.pos.x,
-					s.radius * math.sin(u) * math.sin(v) + s.pos.y,
-					s.radius * math.cos(v) + s.pos.z
-		end
-		local quad = |i1,j1, i2,j2, i3,j3, i4,j4|do
-			local x1,y1,z1 = corner(i1,j1)
-			local x2,y2,z2 = corner(i2,j2)
-			local x3,y3,z3 = corner(i3,j3)
-			--local x4,y4,z4 = corner(i4,j4)
-			line3d(x1,y1,z1, x2,y2,z2, s.color)
-			line3d(x2,y2,z2, x3,y3,z3, s.color)
-			--line3d(x3,y3,z3, x4,y4,z4, s.color)
-			--line3d(x4,y4,z4, x1,y1,z1, s.color)
-		end
-		for i=0,idiv-1 do
-			for j=0,jdiv-1 do
-				quad(i,j, i+1,j, i+1,j+1, i,j+1)
-			end
-		end
-		-- TODO calc this properly ... based on viewTanFov, viewDistScale, and screenSize, viewSphere.radius
-		--local r = viewSphere.radius * viewDistScale / viewTanFov * 1.15
-		--ellib(screenSize.x*.5 - r, screenSize.y*.5 - r, 2*r, 2*r, 12)
-	end
 
 	-- update all ... or just those on our sphere ... or just those within 2 or 3 spheres?
 	-- TODO check touch between sphere eventually. .. but that means tracking pos on multiple spheres ...
