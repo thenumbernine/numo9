@@ -239,7 +239,7 @@ Quat.init=|:,...|do
 	end
 end
 -- static:
-Quat.fromVec3=|:,v| Quat(v.x, v.y, v.z, 0)
+Quat.fromVec3=|v| Quat(v.x, v.y, v.z, 0)
 Quat.set = |:,x,y,z,w| do
 	if type(x) == 'table' then
 		self.x, self.y, self.z, self.w = x:unpack()
@@ -336,10 +336,15 @@ Quat.zAxis = |q, res| do
 		1 - 2 * (q.x * q.x + q.y * q.y))
 	return res
 end
+Quat.axis = |q, res| do
+	res = res or vec3()
+	res:set(q.x, q.y, q.z)
+	return res
+end
 
 Quat.rotate = |:, v, res| do
 	local v4 = self * Quat(v.x, v.y, v.z, 0) * self:conj()
-	return (res or vec3()):set(v4.x, v4.y, v4.z)
+	return v4:axis(res)
 end
 
 Quat.conj = |:, res|
@@ -528,11 +533,11 @@ end
 Object.draw2D=|:|do
 	matpush()
 	transformQuatTo2D(self.pos)
-	
+
 	matscale(self.size / 4, self.size / 4)
 	mattrans(-4, -4)
 	spr(0, 0, 0, 1, 1)
-	
+
 	matpop()
 end
 Object.draw3D=|:|do
@@ -541,11 +546,11 @@ Object.draw3D=|:|do
 	local x,y,z,th = self.pos:toAngleAxis():unpack()
 	matrot(th, x, y, z)
 	mattrans(0, 0, self.sphere.radius)
-	
+
 	matscale(self.size / 4, self.size / 4)
 	mattrans(-4, -4)
 	spr(0, 0, 0, 1, 1)
-	
+
 	matpop()
 end
 Object.update=|:|do
@@ -559,7 +564,7 @@ Object.update=|:|do
 	--]]
 	local oldPos = self.pos
 
-	local dpos = (.5 * dt / (self.sphere.radius 
+	local dpos = (.5 * dt / (self.sphere.radius
 --		* 2 * math.pi
 	)) * self.vel * self.pos
 	self.pos = (oldPos + dpos):unit()
@@ -569,26 +574,33 @@ Object.update=|:|do
 	local fwd = -self.pos:yAxis()	-- fwd dir ... TODO use vel dir
 	local zAxis = self.pos:zAxis()	-- 'up'
 	line3d(
-		self.sphere.pos.x + self.sphere.radius * zAxis.x, 
-		self.sphere.pos.y + self.sphere.radius * zAxis.y, 
-		self.sphere.pos.z + self.sphere.radius * zAxis.z, 
-		
-		self.sphere.pos.x + self.sphere.radius * zAxis.x + 16 * fwd.x, 
-		self.sphere.pos.y + self.sphere.radius * zAxis.y + 16 * fwd.y, 
+		self.sphere.pos.x + self.sphere.radius * zAxis.x,
+		self.sphere.pos.y + self.sphere.radius * zAxis.y,
+		self.sphere.pos.z + self.sphere.radius * zAxis.z,
+
+		self.sphere.pos.x + self.sphere.radius * zAxis.x + 16 * fwd.x,
+		self.sphere.pos.y + self.sphere.radius * zAxis.y + 16 * fwd.y,
 		self.sphere.pos.z + self.sphere.radius * zAxis.z + 16 * fwd.z,
 
 		12
 	)
 	for _,touch in ipairs(self.sphere.touching) do
-		if zAxis:dot(touch.unitDelta) > touch.cosAngle 
+		if zAxis:dot(touch.unitDelta) > touch.cosAngle
 		and fwd:dot(touch.midpoint - self.sphere.pos) > 0
 		then
 			self.showIsTouching = true
 			-- [[ .. then transfer spheres
-			self.pos = Quat.vectorRotate(
+			local dpos = Quat.vectorRotate(
 				zAxis,
 				self.sphere.pos + self.sphere.radius * zAxis - touch.sphere.pos
-			) * self.pos
+			)
+			self.pos = dpos * self.pos
+			-- [[ how to get rid of twisting ...
+			--self.vel = self.pos * self.vel * self.pos:conj()	-- nope
+			--self.vel = dpos * self.vel	-- nope
+			--self.vel -= self.pos * self.vel:dot(self.pos)
+			self.vel -= Quat.fromVec3(self.pos:zAxis()) * self.vel:axis():dot(self.pos:zAxis())
+			--]]
 			-- TODO sometimes we can get rotation about axis ... which typically doesn't exist ... hmm how to handle this ...
 			self.sphere.objs:removeObject(self)
 			self.sphere = touch!.sphere
@@ -610,18 +622,18 @@ end
 Shot.draw2D=|:|do
 	matpush()
 	transformQuatTo2D(self.pos)
-	
+
 	rect(-1, -1, 2, 2, self.color)
-	
+
 	matpop()
 end
 Shot.draw3D=|:|do
 	matpush()
 	mattrans(self.sphere.pos:unpack())
 	mattrans((self.pos:zAxis() * self.sphere.radius):unpack())
-	
+
 	rect(-1, -1, 2, 2, self.color)
-	
+
 	matpop()
 end
 Shot.update=|:|do
@@ -648,8 +660,8 @@ Shot.touch=|:,other|do
 					local newmom = .25 * mom + s1 * perturb1 + s2 * perturb2
 					local piece = Rock{
 						sphere = other.sphere,
-						pos = other.pos 
-							* Quat(1,0,0, s1 * .5 * other.size / (self.sphere.radius 
+						pos = other.pos
+							* Quat(1,0,0, s1 * .5 * other.size / (self.sphere.radius
 						--		* 2 * math.pi
 							)):fromAngleAxis()
 							* Quat(0,1,0, s2 * .5 * other.size / (self.sphere.radius
@@ -673,14 +685,14 @@ Ship.draw2D=|:|do
 	local fwd = vec2(0,-1)
 	matpush()
 	transformQuatTo2D(self.pos)
-	
+
 	--[[ vector
 	drawTri(vec2(), fwd, self.size, self.color)
 	if self.thrust then
 		drawTri(-3 * fwd, -fwd, .5 * self.size, 9)
 	end
 	Ship.super.draw2D(self)	-- TODO super call outside pop...
-	--]]	
+	--]]
 	-- [[ sprite
 	matscale(self.size / 8, self.size / 8)
 	mattrans(-8, -8)
@@ -699,7 +711,7 @@ Ship.draw3D=|:|do
 	local x,y,z,th = self.pos:toAngleAxis():unpack()
 	matrot(th, x, y, z)
 	mattrans(0, 0, self.sphere.radius)
-	
+
 	matscale(self.size / 8, self.size / 8)
 	mattrans(-8, -8)
 	spr(2, 0, 0, 2, 2)
@@ -719,7 +731,7 @@ Ship.shoot = |:|do
 	Shot{
 		sphere = self.sphere,
 		pos = self.pos:clone(),
-		vel = self.vel + Quat:fromVec3(self.pos:xAxis() * (Shot.speed)),
+		vel = self.vel + Quat.fromVec3(self.pos:xAxis() * (Shot.speed)),
 		shooter = self,
 		endTime = time() + 1,
 	}
@@ -736,16 +748,16 @@ PlayerShip.update = |:| do
 	self.thrust = nil
 	if btn('up',0) then
 		-- rotate on right axis = go fwd
-		self.vel += Quat:fromVec3(self.pos:xAxis() * (dt * self.accel))
+		self.vel += Quat.fromVec3(self.pos:xAxis() * (dt * self.accel))
 		self.thrust = true
 	end
 	if btn('down',0) then
-		self.vel += Quat:fromVec3(self.pos:xAxis() * (-dt * self.accel))
+		self.vel += Quat.fromVec3(self.pos:xAxis() * (-dt * self.accel))
 		self.thrust = true
 	end
 	if btn('left',0) then
 		--[[ use inertia?
-		self.vel += Quat:fromVec3(self.pos:zAxis() * (-dt * self.rot))
+		self.vel += Quat.fromVec3(self.pos:zAxis() * (-dt * self.rot))
 		--]]
 		-- [[ or instant turn?
 		self.pos = self.pos * Quat(0, 0, 1, -dt * self.rot):fromAngleAxis()
@@ -753,7 +765,7 @@ PlayerShip.update = |:| do
 	end
 	if btn('right',0) then
 		--[[ use inertia?
-		self.vel += Quat:fromVec3(self.pos:zAxis() * (dt * self.rot))
+		self.vel += Quat.fromVec3(self.pos:zAxis() * (dt * self.rot))
 		--]]
 		-- [[ or instant turn?
 		self.pos = self.pos * Quat(0, 0, 1, dt * self.rot):fromAngleAxis()
@@ -783,15 +795,15 @@ EnemyShip.update = |:|do
 	local sinth = dirToPlayer:cross(dirFwd):dot(self.pos:zAxis())
 	if math.abs(sinth) < math.rad(30) then
 	elseif sinth > 0 then
-		--self.vel += Quat:fromVec3(self.pos:zAxis() * (dt * self.rot))
+		--self.vel += Quat.fromVec3(self.pos:zAxis() * (dt * self.rot))
 		self.pos = self.pos * Quat(0, 0, 1, -dt * self.rot):fromAngleAxis()
 	elseif sinth < 0 then
-		--self.vel += Quat:fromVec3(self.pos:zAxis() * (-dt * self.rot))
+		--self.vel += Quat.fromVec3(self.pos:zAxis() * (-dt * self.rot))
 		self.pos = self.pos * Quat(0, 0, 1, dt * self.rot):fromAngleAxis()
 	end
 
-	self.vel += Quat:fromVec3(self.pos:xAxis() * (dt * self.accel))
-	
+	self.vel += Quat.fromVec3(self.pos:xAxis() * (dt * self.accel))
+
 	PlayerShip.super.update(self)
 end
 --]]
@@ -828,16 +840,16 @@ Rock.draw3D=|:|do
 	local x,y,z,th = self.pos:toAngleAxis():unpack()
 	matrot(th, x, y, z)
 	mattrans(0, 0, self.sphere.radius)
-	
+
 	rectb(-self.size, -self.size, 2*self.size, 2*self.size, self.color)
-	
+
 	matpop()
 end
 
 
 player = PlayerShip{
-	--sphere = startSphere,
-	sphere = spheres:last(),
+	sphere = startSphere,
+	--sphere = spheres:last(),
 }
 EnemyShip{
 	sphere = startSphere,
@@ -892,14 +904,32 @@ update=||do
 			o:draw2D()
 		end
 		--]]
+
+		--[[ TODO
+		for _,touch in ipairs(viewSphere.touching) do
+			local touchSphere = touch.sphere
+			local delta = touch.delta
+			local x,y,z,th = Quat.vectorRotateToAngleAxis(vec3(0,0,1), delta)
+			matpush()
+			mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
+			matrot(th,x,y,z)
+			-- what'touchSphere the intersection plane distance?
+			local dist = touch.dist
+			local intCircDist = touch.intCircDist
+			local intCircRad = touch.intCircRad
+			mattrans(0, 0, intCircDist)
+			--ellib(-intCircRad, -intCircRad, 2*intCircRad, 2*intCircRad, 12)
+			matpop()
+		end
+		--]]
 	else
 		-- [[ draw3D view
 		-- TODO lines aren't working so well with frustum
-		
+
 		-- projection
 		local zn, zf = .1 * viewSphere.radius, 3 * viewSphere.radius
 		matfrustum(-zn * viewTanFov, zn * viewTanFov, -zn * viewTanFov, zn * viewTanFov, zn, zf)
-		
+
 		-- view
 		mattrans(0, 0, -viewDistScale * viewSphere.radius)
 		if drawMethod == 0 then
@@ -907,28 +937,28 @@ update=||do
 			matrot(th, x, y, z)
 		end
 		mattrans(-viewSphere.pos.x, -viewSphere.pos.y, -viewSphere.pos.z)
-		
+
 		-- model
 		for _,o in ipairs(viewSphere.objs) do
 			o:draw3D()
 		end
 		--]]
-	end
 
-	for _,touch in ipairs(viewSphere.touching) do
-		local touchSphere = touch.sphere
-		local delta = touch.delta
-		local x,y,z,th = Quat.vectorRotateToAngleAxis(vec3(0,0,1), delta)
-		matpush()
-		mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
-		matrot(th,x,y,z)
-		-- what'touchSphere the intersection plane distance?
-		local dist = touch.dist
-		local intCircDist = touch.intCircDist
-		local intCircRad = touch.intCircRad
-		mattrans(0, 0, intCircDist)
-		ellib(-intCircRad, -intCircRad, 2*intCircRad, 2*intCircRad, 12)
-		matpop()
+		for _,touch in ipairs(viewSphere.touching) do
+			local touchSphere = touch.sphere
+			local delta = touch.delta
+			local x,y,z,th = Quat.vectorRotateToAngleAxis(vec3(0,0,1), delta)
+			matpush()
+			mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
+			matrot(th,x,y,z)
+			-- what'touchSphere the intersection plane distance?
+			local dist = touch.dist
+			local intCircDist = touch.intCircDist
+			local intCircRad = touch.intCircRad
+			mattrans(0, 0, intCircDist)
+			ellib(-intCircRad, -intCircRad, 2*intCircRad, 2*intCircRad, 12)
+			matpop()
+		end
 	end
 
 	-- draw a circle where our sphere boundary should be
