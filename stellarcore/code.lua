@@ -997,9 +997,13 @@ EnemyShip.update = |:|do
 		)
 	end
 
-	self.vel += quat.fromVec3(self.pos:xAxis() * (dt * self.accel))
+	local s = dt * self.accel
+	local xAxisx, xAxisy, xAxisz = quat_xAxis_comp(self.pos:unpack())
+	self.vel.x += xAxisx * s
+	self.vel.y += xAxisy * s
+	self.vel.z += xAxisz * s
 
-	PlayerShip.super.update(self)
+	EnemyShip.super.update(self)
 end
 --]]
 
