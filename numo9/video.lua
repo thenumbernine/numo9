@@ -182,7 +182,7 @@ end
 
 -- rgb565 is 16bpp
 -- result is r,g,b 8bpp
-local function rgb565rev_to_rgba888_3ch(rgb565)
+local function rgb565rev_to_rgb888_3ch(rgb565)
 	local b = bit.band(rgb565, 0x1F)
 	local g = bit.band(rgb565, 0x7E0)
 	local r = bit.band(rgb565, 0xF800)
@@ -199,6 +199,16 @@ local function rgb565rev_to_rgba888_3ch(rgb565)
 			bit.lshift(b, 3),		-- shift bit 4 to bit 7
 			bit.rshift(b, 2)		-- shift bit 4 to bit 2
 		)
+end
+
+local function rgb332_to_rgb888_3ch(rgb332)
+	local r = bit.bor(rgb332, 7)
+	local g = bit.band(bit.rshift(rgb332, 3), 7)
+	local b = bit.band(bit.rshift(rgb332, 6), 3)
+	return
+		bit.bor(bit.lshift(r, 5), bit.lshift(r, 2), bit.rshift(r, 1)),
+		bit.bor(bit.lshift(g, 5), bit.lshift(g, 2), bit.rshift(g, 1)),
+		bit.bor(bit.lshift(b, 6), bit.lshift(b, 4), bit.lshift(b, 2), b)
 end
 
 -- when I say 'reverse' i mean reversed order of bitfields
@@ -3244,15 +3254,13 @@ function AppVideo:screenshotToFile(fn)
 	local info = self.videoModeInfo[self.currentVideoMode]
 	if info.format == 'RGB565' then
 		-- convert to RGB8 first
-		local image = Image(fbTex.width, fbTex.height, 4, 'uint8_t')
+		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
 		local srcp = fbRAM.image.buffer + 0
 		local dstp = image.buffer + 0
 		for i=0,fbTex.width*fbTex.height-1 do
-			-- colors still seem off ...
-			dstp[0], dstp[1], dstp[2], dstp[3] = rgba5551_to_rgba8888_4ch(srcp[0])
-			dstp[3] = 0xff	-- hmm...
+			dstp[0], dstp[1], dstp[2] = rgb565rev_to_rgb888_3ch(srcp[0])
 			srcp = srcp + 1
-			dstp = dstp + 4
+			dstp = dstp + 3
 		end
 		image:save(fn)
 	elseif info.format == '8bppIndex' then
@@ -3271,13 +3279,7 @@ function AppVideo:screenshotToFile(fn)
 		local srcp = fbRAM.image.buffer + 0
 		local dstp = image.buffer + 0
 		for i=0,fbTex.width*fbTex.height-1 do
-			-- TODO rgb332_to_888
-			local r = bit.bor(srcp[0], 7)
-			local g = bit.band(bit.rshift(srcp[0], 3), 7)
-			local b = bit.band(bit.rshift(srcp[0], 6), 3)
-			dstp[0] = bit.bor(bit.lshift(r, 5), bit.lshift(r, 2), bit.rshift(r, 1))
-			dstp[1] = bit.bor(bit.lshift(g, 5), bit.lshift(g, 2), bit.rshift(g, 1))
-			dstp[2] = bit.bor(bit.lshift(b, 6), bit.lshift(b, 4), bit.lshift(b, 2), b)
+			dstp[0], dstp[1], dstp[2] = rgb332_to_rgb888_3ch(srcp[0])
 			srcp = srcp + 1
 			dstp = dstp + 3
 		end
@@ -3292,7 +3294,7 @@ function AppVideo:screenshot()
 	self:screenshotToFile(self:getScreenShotFilename())
 end
 
-function AppVideo:screenshotLabel()
+function AppVideo:saveLabel()
 	local base, ext = path(self.currentLoadedFilename):getext()
 	self:screenshotToFile(base..'/label.png')
 end
@@ -3300,7 +3302,7 @@ end
 return {
 	argb8888revto5551 = argb8888revto5551,
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
-	rgb565rev_to_rgba888_3ch = rgb565rev_to_rgba888_3ch,
+	rgb565rev_to_rgb888_3ch = rgb565rev_to_rgb888_3ch,
 	rgba8888_4ch_to_5551 = rgba8888_4ch_to_5551,
 	resetLogoOnSheet = resetLogoOnSheet,
 	resetFont = resetFont,
