@@ -283,7 +283,7 @@ quat_mul_comp=|qx,qy,qz,qw, rx,ry,rz,rw|do
 	local f = (qx - qz) * (rx - ry)
 	local g = (qw + qy) * (rw - rz)
 	local h = (qw - qy) * (rw + rz)
-	return 
+	return
 		a - .5 * ( e + f + g + h),
 		-c + .5 * ( e - f + g - h),
 		-d + .5 * ( e - f - g + h),
@@ -409,10 +409,10 @@ quat.vectorRotate=|v1,v2|do
 end
 
 quat.matrot=|q|do
---[[	
+--[[
 	local x,y,z,th = q:toAngleAxis():unpack()
 	matrot(th, x, y, z)
---]]	
+--]]
 -- [[
 	local coshalfangle = q.w	-- [-1,1] <-> cos(theta) for theta in [0, pi]
 	local sinhalfangle = math.sqrt(1 - coshalfangle^2)	-- [0,1]
@@ -423,6 +423,20 @@ quat.matrot=|q|do
 		matrotcs(cosangle, sinangle, q.x * il, q.y * il, q.z * il)
 	end
 --]]
+end
+
+-- returns a quat of a z-rotation times an x-rotation
+-- I did this often enough that I put it in its own method
+quatRotZX_comp=|thz,thx|do
+	local cos_halfthz = math.cos(.5 * thz)
+	local sin_halfthz = math.sqrt(1 - cos_halfthz^2)
+	local cos_halfthx = math.cos(.5 * thx)
+	local sin_halfthx = math.sqrt(1 - cos_halfthx^2)
+	return
+		cos_halfthz * sin_halfthx,
+		sin_halfthz * sin_halfthx,
+		sin_halfthz * cos_halfthx,
+		cos_halfthz * cos_halfthx
 end
 
 ----------------------- END vec/quat.lua-----------------------
@@ -511,41 +525,16 @@ end
 viewPos = quat()
 viewSphere = startSphere
 
--- [[
 -- v = quat
 -- returns vec2
---[=[
-do
-	local viewPosConj = quat()
-	local v2 = quat()
-	local pos = vec3()
-	local pos2d = vec2()
-	quatTo2D = |v|do
-		viewPos:conj(viewPosConj)
-		quat.mul(viewPosConj, v, v2)	-- v2 = viewPosConj * v
-		v2:zAxis(pos)
-		pos2d:set(pos.x, pos.y)
-		local len2 = pos2d:len()
-		if len2 < 1e-15 then
-			-- hmm before when I didn't return a quat but instead just bailed out, it looked better...
-			return 0, 0, quat(0,0, -sqrt_1_2, sqrt_1_2)
-		end
-		local s = math.acos(pos.z) * viewSphere.radius / len2
-		pos2d.x *= s
-		pos2d.y *= s
-		return pos2d.x, pos2d.y, v2
-	end
-end
---]=]
--- [=[
 do
 	local viewPosConj = quat()	-- TODO cache this
 	local v2 = quat()
 	local pos = vec3()
 	local pos2d = vec2()
-	quatTo2D = |v|do
+	quatTo2D = |vx, vy, vz, vw|do
 		viewPos:conj(viewPosConj)
-		quat.mul(viewPosConj, v, v2)
+		v2:set(quat_mul_comp(viewPosConj.x, viewPosConj.y, viewPosConj.z, viewPosConj.w, vx, vy, vz, vw))
 		v2:zAxis(pos)
 		-- TODO reuse this but it's used outside so don't return it
 		pos2d:set(pos.x, pos.y)
@@ -558,55 +547,23 @@ do
 		return pos2d.x, pos2d.y, v2
 	end
 end
---]=]
---[=[
-quatTo2D = |v|do
-	v = viewPos:conj() * v
-	local pos = v:zAxis()
-	local pos2d = vec2(pos.x, pos.y)
-	local len2 = pos2d:len()
-	if len2 < 1e-15 then
-		-- hmm before when I didn't return a quat but instead just bailed out, it looked better...
-		return 0, 0, quat(0,0, -sqrt_1_2, sqrt_1_2)
-	end
-	pos2d *= math.acos(pos.z) * viewSphere.radius / len2
-	return pos2d.x, pos2d.y, v
-end
---]=]
 
 -- v = quat
 -- does mat transforms
 do
-	local vy = vec3()
+	local yAxis = vec3()
 	local fwd = vec2()
-	transformQuatTo2D = |v| do
-		local pos2dx, pos2dy, v = quatTo2D(v)
+	transformQuatTo2D = |vx,vy,vz,vw| do
+		local pos2dx, pos2dy, v = quatTo2D(vx,vy,vz,vw)
 		mattrans(pos2dx, pos2dy)
 
 		-- cos/sin -> atan -> cos/sin ... plz just do a matmul
-		v:yAxis(vy)
-		vec2.unit(vy, fwd)
+		v:yAxis(yAxis)
+		vec2.unit(yAxis, fwd)
 		matrotcs(fwd.x, fwd.y, 0, 0, 1)
 	end
 end
---]]
---[[
--- v = quat
--- does mat transforms
-transformQuatTo2D = |v| do
-	v = viewPos:conj() * v
-	local pos = v:zAxis()
-	local pos2d = vec2(pos.x, pos.y)
-	local len2 = pos2d:len()
-	if len2 < 1e-15 then return vec2(), v end
-	pos2d *= math.acos(pos.z) * viewSphere.radius / len2
-	mattrans(pos2d.x, pos2d.y)
 
-	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
-	local fwd = vec2.unit(v:yAxis())
-	matrotcs(fwd.x, fwd.y)
-end
---]]
 
 local Object = class()
 Object.pos = quat()
@@ -627,7 +584,7 @@ Object.init=|:,args|do
 end
 Object.draw2D=|:|do
 	matpush()
-	transformQuatTo2D(self.pos)
+	transformQuatTo2D(self.pos:unpack())
 
 	matscale(self.size / 4, self.size / 4)
 	mattrans(-4, -4)
@@ -714,7 +671,7 @@ Shot.init=|:,args|do
 end
 Shot.draw2D=|:|do
 	matpush()
-	transformQuatTo2D(self.pos)
+	transformQuatTo2D(self.pos:unpack())
 
 	rect(-1, -1, 2, 2, self.color)
 
@@ -794,7 +751,7 @@ end
 Ship.draw2D=|:|do
 	local fwd = vec2(0,-1)
 	matpush()
-	transformQuatTo2D(self.pos)
+	transformQuatTo2D(self.pos:unpack())
 
 	--[[ vector
 	drawTri(vec2(), fwd, self.size, self.color)
@@ -872,7 +829,7 @@ PlayerShip.update = |:| do
 		--]]
 		-- [[ or instant turn?
 		local sin_halfth = math.sin(-.5 * dt * self.rot)
-		local cos_halfth = math.sqrt(1 - sin_halfth^2) 
+		local cos_halfth = math.sqrt(1 - sin_halfth^2)
 		self.pos *= quat(0, 0, sin_halfth, cos_halfth)
 		--]]
 	end
@@ -882,7 +839,7 @@ PlayerShip.update = |:| do
 		--]]
 		-- [[ or instant turn?
 		local sin_halfth = math.sin(.5 * dt * self.rot)
-		local cos_halfth = math.sqrt(1 - sin_halfth^2) 
+		local cos_halfth = math.sqrt(1 - sin_halfth^2)
 		self.pos *= quat(0, 0, sin_halfth, cos_halfth)
 		--]]
 	end
@@ -912,12 +869,12 @@ EnemyShip.update = |:|do
 	elseif sinth > 0 then
 		--self.vel += quat.fromVec3(self.pos:zAxis() * (dt * self.rot))
 		local sin_halfth = math.sin(-.5 * dt * self.rot)
-		local cos_halfth = math.sqrt(1 - sin_halfth^2) 
+		local cos_halfth = math.sqrt(1 - sin_halfth^2)
 		self.pos *= quat(0, 0, sin_halfth, cos_halfth)
 	elseif sinth < 0 then
 		--self.vel += quat.fromVec3(self.pos:zAxis() * (-dt * self.rot))
 		local sin_halfth = math.sin(.5 * dt * self.rot)
-		local cos_halfth = math.sqrt(1 - sin_halfth^2) 
+		local cos_halfth = math.sqrt(1 - sin_halfth^2)
 		self.pos *= quat(0, 0, sin_halfth, cos_halfth)
 	end
 
@@ -964,7 +921,7 @@ do return end
 end
 Rock.draw2D=|:|do
 	matpush()
-	transformQuatTo2D(self.pos)
+	transformQuatTo2D(self.pos:unpack())
 	--[[ vector
 	local fwd = vec2(0,1)
 	local rightx = -fwd.y
@@ -1093,21 +1050,6 @@ player = PlayerShip{
 }
 
 
--- returns a quat of a z-rotation times an x-rotation
-quatRotZX_comp=|thz,thx|do
-	local cos_halfthz = math.cos(.5 * thz)
-	local sin_halfthz = math.sqrt(1 - cos_halfthz^2)
-	local cos_halfthx = math.cos(.5 * thx)
-	local sin_halfthx = math.sqrt(1 - cos_halfthx^2)
-	return 
-		cos_halfthz * sin_halfthx,
-		sin_halfthz * sin_halfthx,
-		sin_halfthz * cos_halfthx,
-		cos_halfthz * cos_halfthx
-end
-
-
-
 drawMethod = 2
 update=||do
 	cls()
@@ -1154,43 +1096,17 @@ update=||do
 		for _,touch in ipairs(viewSphere.touching) do
 			local touchSphere = touch.sphere
 			local delta = touch.delta
-			
+
 			local q1 = quat.vectorRotate(vec3(0,0,1), delta)
-			
+
 			local firstptx, firstpty
 			local lastptx, lastpty
 			for i=1,n do
 				local th = 2 * math.pi * (i - .5) / n
-				--[=[
-				local cos_halfth = math.cos(.5 * th)
-				local sin_halfth = math.sqrt(1 - cos_halfth^2)
-				
-				local cos_halftouchangle = math.cos(.5 * touch.angle)
-				local sin_halftouchangle = math.sqrt(1 - cos_halftouchangle^2)
-				
-				--[[
-				local q2 = quat(0,0,sin_halfth, cos_halfth)
-				local q3 = quat(sin_halftouchangle,0,0,cos_halftouchangle)
-				local q23 = q2 * q3
-				--]]
-				-- [[ (z2 k + w2) * (x3 i + w3)
-				-- = (z2 k + w2) x3 i + (z2 k + w2) w3
-				-- = z2 x3 k i + w2 x3 i + z2 w3 k + w2 w3
-				-- = w2 x3 i + z2 x3 j + z2 w3 k + w2 w3
-				-- = cos_halfth sin_halftouchangle i + sin_halfth sin_halftouchangle j + sin_halfth cos_halftouchangle k + cos_halfth cos_halftouchangle
-				local q23 = quat(
-					cos_halfth * sin_halftouchangle,
-					sin_halfth * sin_halftouchangle,
-					sin_halfth * cos_halftouchangle,
-					cos_halfth * cos_halftouchangle
-				)
-				--]]
-				--]=]
-				-- [=[
-				local q23 = quat(quatRotZX_comp(th, touch.angle))
-				--]=]
 
-				local ptx, pty = quatTo2D(q1 * q23)
+				local ptx, pty = quatTo2D(
+					quat_mul_comp(q1.x, q1.y, q1.z, q1.w, quatRotZX_comp(th, touch.angle))
+				)
 				if not firstptx then
 					firstptx = ptx
 					firstpty = pty
@@ -1213,31 +1129,8 @@ update=||do
 			local corner=|i,j|do
 				local u = i / idiv * math.pi * 2
 				local v = j / jdiv * math.pi
-				--[==[
-				local cos_halfu = math.cos(.5 * u)
-				local sin_halfu = math.sqrt(1 - cos_halfu^2)
-				
-				local cos_halfv = math.cos(.5 * v)
-				local sin_halfv = math.sqrt(1 - cos_halfv^2)
-				
-				return quatTo2D(
-					--[=[
-					quat(0,0,sin_halfu, cos_halfu)
-					* quat(sin_halfv,0,0,cos_halfv)
-					--]=]
-					-- [=[ work done above
-					quat(
-						cos_halfu * sin_halfv,
-						sin_halfu * sin_halfv,
-						sin_halfu * cos_halfv,
-						cos_halfu * cos_halfv
-					)
-					--]=]
-				)
-				--]==]
-				-- [==[
-				return quatTo2D(quat(quatRotZX_comp(u, v)))
-				--]==]
+
+				return quatTo2D(quatRotZX_comp(u, v))
 			end
 			for i=0,idiv,idivstep do
 				local prevptx, prevpty = corner(i,0)
@@ -1289,9 +1182,9 @@ update=||do
 			local touchSphere = touch.sphere
 			matpush()
 			mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
-			
+
 			quat.vectorRotate(vec3(0,0,1), touch.unitDelta):matrot()
-			
+
 			-- what'touchSphere the intersection plane distance?
 			local dist = touch.dist
 			local intCircDist = touch.intCircDist
