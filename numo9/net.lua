@@ -448,17 +448,19 @@ local Numo9Cmd_mattrans = struct{
 	},
 }
 
-local Numo9Cmd_matrot = struct{
-	name = 'Numo9Cmd_matrot',
+local Numo9Cmd_matrotcs = struct{
+	name = 'Numo9Cmd_matrotcs',
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='theta', type=mvMatType},
+		{name='c', type='float'},
+		{name='s', type='float'},
 		{name='x', type=mvMatType},
 		{name='y', type=mvMatType},
 		{name='z', type=mvMatType},
 	},
 }
+
 
 local Numo9Cmd_matscale = struct{
 	name = 'Numo9Cmd_matscale',
@@ -610,7 +612,7 @@ local netCmdStructs = table{
 	Numo9Cmd_blendMode,			-- 0x0d
 	Numo9Cmd_matident,			-- 0x0e
 	Numo9Cmd_mattrans,			-- 0x0f
-	Numo9Cmd_matrot,			-- 0x10
+	Numo9Cmd_matrotcs,			-- 0x10
 	Numo9Cmd_matscale,			-- 0x11
 	Numo9Cmd_matortho,			-- 0x12
 	Numo9Cmd_matfrustum,		-- 0x13
@@ -1445,9 +1447,9 @@ print('got uint16 index='
 				elseif cmdtype == netcmds.mattrans then
 					local c = cmd[0].mattrans
 					app:mattrans(c.x, c.y, c.z)
-				elseif cmdtype == netcmds.matrot then
-					local c = cmd[0].matrot
-					app:matrot(c.theta, c.x, c.y, c.z)
+				elseif cmdtype == netcmds.matrotcs then
+					local c = cmd[0].matrotcs
+					app:matrotcs(c.c, c.s, c.x, c.y, c.z)
 				elseif cmdtype == netcmds.matscale then
 					local c = cmd[0].matscale
 					app:matscale(c.x, c.y, c.z)

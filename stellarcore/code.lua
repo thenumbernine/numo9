@@ -1,6 +1,7 @@
--- title = Asteroids-on-Sphere
--- saveid = asteroids-on-sphere
+-- title = Stellar Core
+-- saveid = stellarcore
 -- author = Chris Moore
+-- description = classic "Asteroids" but with proper spherical universes, and interconnections with neighboring universes.
 ----------------------- BEGIN numo9/matstack.lua-----------------------
 assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 local matAddr = ramaddr'mvMat'
@@ -388,6 +389,7 @@ quat.vectorRotate=|v1,v2|do
 end
 ----------------------- END vec/quat.lua-----------------------
 math.randomseed(tstamp())
+local sqrt_1_2 = math.sqrt(.5)
 
 --modeIndex = 0	screenSize = vec2(256, 256)
 modeIndex = 42	screenSize = vec2(480, 270)
@@ -481,7 +483,7 @@ quatTo2D = |v|do
 	local len2 = pos2d:len()
 	if len2 < 1e-15 then
 		-- hmm before when I didn't return a quat but instead just bailed out, it looked better...
-		return vec2(), quat(0,0,1, -.5*math.pi):fromAngleAxis()
+		return vec2(), quat(0,0, -sqrt_1_2, sqrt_1_2)
 	end
 	pos2d *= math.acos(pos.z) * viewSphere.radius / len2
 	return pos2d, v
@@ -660,17 +662,23 @@ Shot.touch=|:,other|do
 			local perturb1 = randomVel() * 2000
 			local perturb2 = randomVel() * 2000
 			for s1=-1,1,2 do
+				local half_th1 = .25 * s1 * other.size / (self.sphere.radius
+				--	* 2 * math.pi
+				)
+				local sin_half_th1 = math.sin(half_th1)
+				local cos_half_th1 = math.sqrt(1 - sin_half_th1^2)
 				for s2=-1,1,2 do
+					local half_th2 = .25 * s2 * other.size / (self.sphere.radius
+					--	* 2 * math.pi
+					)
+					local sin_half_th2 = math.sin(half_th2)
+					local cos_half_th2 = math.sqrt(1 - sin_half_th2^2)
 					local newangmom = .25 * angmom + s1 * perturb1 + s2 * perturb2
 					local piece = Rock{
 						sphere = other.sphere,
 						pos = other.pos
-							* quat(1,0,0, s1 * .5 * other.size / (self.sphere.radius
-						--		* 2 * math.pi
-							)):fromAngleAxis()
-							* quat(0,1,0, s2 * .5 * other.size / (self.sphere.radius
-						--		* 2 * math.pi
-							)):fromAngleAxis(),
+							* quat(sin_half_th1, 0, 0, cos_half_th1)
+							* quat(0, sin_half_th2, 0, cos_half_th2),
 						--rot = math.random() * 2 * 20,	-- TODO conserve this too?	-- TODO is this used?
 						size = other.size == other.sizeL and other.sizeM or other.sizeS,
 					}
@@ -775,7 +783,9 @@ PlayerShip.update = |:| do
 		self.vel += quat.fromVec3(self.pos:zAxis() * (-dt * self.rot))
 		--]]
 		-- [[ or instant turn?
-		self.pos = self.pos * quat(0, 0, 1, -dt * self.rot):fromAngleAxis()
+		local sin_halfth = math.sin(-.5 * dt * self.rot)
+		local cos_halfth = math.sqrt(1 - sin_halfth^2) 
+		self.pos *= quat(0, 0, sin_halfth, cos_halfth)
 		--]]
 	end
 	if btn('right',0) then
@@ -783,7 +793,9 @@ PlayerShip.update = |:| do
 		self.vel += quat.fromVec3(self.pos:zAxis() * (dt * self.rot))
 		--]]
 		-- [[ or instant turn?
-		self.pos = self.pos * quat(0, 0, 1, dt * self.rot):fromAngleAxis()
+		local sin_halfth = math.sin(.5 * dt * self.rot)
+		local cos_halfth = math.sqrt(1 - sin_halfth^2) 
+		self.pos *= quat(0, 0, sin_halfth, cos_halfth)
 		--]]
 	end
 	if btn('y',0) then
@@ -811,10 +823,14 @@ EnemyShip.update = |:|do
 	if math.abs(sinth) < math.rad(30) then
 	elseif sinth > 0 then
 		--self.vel += quat.fromVec3(self.pos:zAxis() * (dt * self.rot))
-		self.pos = self.pos * quat(0, 0, 1, -dt * self.rot):fromAngleAxis()
+		local sin_halfth = math.sin(-.5 * dt * self.rot)
+		local cos_halfth = math.sqrt(1 - sin_halfth^2) 
+		self.pos *= quat(0, 0, sin_halfth, cos_halfth)
 	elseif sinth < 0 then
 		--self.vel += quat.fromVec3(self.pos:zAxis() * (-dt * self.rot))
-		self.pos = self.pos * quat(0, 0, 1, dt * self.rot):fromAngleAxis()
+		local sin_halfth = math.sin(.5 * dt * self.rot)
+		local cos_halfth = math.sqrt(1 - sin_halfth^2) 
+		self.pos *= quat(0, 0, sin_halfth, cos_halfth)
 	end
 
 	self.vel += quat.fromVec3(self.pos:xAxis() * (dt * self.accel))
@@ -895,7 +911,7 @@ local buildRocks = |sphere|do
 	-- TODO don't spawn any inside any portals
 	EnemyShip{
 		sphere = sphere,
-		pos = quat(1,0,0,math.pi):fromAngleAxis(),
+		pos = quat(1,0,0,0),
 	}
 
 	for i=1,5 do
@@ -916,7 +932,9 @@ local startSphere = Sphere{
 	pos = vec3(128,0,0),
 	--radius = 256 / (2 * math.pi),
 	--radius = 128 / (2 * math.pi),
-	radius = 128,
+	--radius = 256,
+	radius = 200,
+	--radius = 128,
 	--radius = 64,
 	--radius = 64 / (2 * math.pi),
 }
@@ -926,9 +944,11 @@ spheres:insert(startSphere)
 -- TODO build a maze or something
 do
 	local lastSphere = startSphere
-	for i=1,10 do
+	for i=0,9 do
+		local newOfs = vec3()
+		newOfs[vec3.fields[(i%3)+1]] = lastSphere.radius * 1.99
 		local newSphere = Sphere{
-			pos = lastSphere.pos + vec3(0, -lastSphere.radius * 1.95, 0),
+			pos = lastSphere.pos + newOfs,
 			radius = lastSphere.radius,
 		}
 		buildRocks(newSphere)
@@ -988,7 +1008,7 @@ player = PlayerShip{
 
 
 
-drawMethod = 0
+drawMethod = 2
 update=||do
 	cls()
 	matident()
@@ -1029,16 +1049,25 @@ update=||do
 		--]]
 
 		-- [[ draw portals in 2D mode
+		--local n = 10
+		local n = 60
 		for _,touch in ipairs(viewSphere.touching) do
 			local touchSphere = touch.sphere
 			local delta = touch.delta
 			local q1 = quat.vectorRotate(vec3(0,0,1), delta)
 			local firstpt, lastpt
-			local n = 60
 			for i=1,n do
 				local th = 2 * math.pi * (i - .5) / n
-				local q2 = quat(0,0,1,th):fromAngleAxis()
-				local q3 = quat(1,0,0,touch.angle):fromAngleAxis()
+
+				local cos_halfth = math.cos(.5 * th)
+				local sin_halfth = math.sqrt(1 - cos_halfth^2)
+				
+				local cos_halftouchangle = math.cos(.5 * touch.angle)
+				local sin_halftouchangle = math.sqrt(1 - cos_halftouchangle^2)
+				
+				local q2 = quat(0,0,sin_halfth, cos_halfth)
+				local q3 = quat(sin_halftouchangle,0,0,cos_halftouchangle)
+
 				local pt = quatTo2D(q1 * q2 * q3)
 				firstpt = firstpt or pt
 				if lastpt then
@@ -1057,10 +1086,16 @@ update=||do
 			local jdivstep = 5
 			local corner=|i,j|do
 				local u = i / idiv * math.pi * 2
+				local cos_halfu = math.cos(.5 * u)
+				local sin_halfu = math.sqrt(1 - cos_halfu^2)
+				
 				local v = j / jdiv * math.pi
+				local cos_halfv = math.cos(.5 * v)
+				local sin_halfv = math.sqrt(1 - cos_halfv^2)
+				
 				return quatTo2D(
-					quat(0,0,1,u):fromAngleAxis()
-					* quat(1,0,0,v):fromAngleAxis()
+					quat(0,0,sin_halfu, cos_halfu)
+					* quat(sin_halfv,0,0,cos_halfv)
 				)
 			end
 			for i=0,idiv,idivstep do
@@ -1110,8 +1145,7 @@ update=||do
 		-- [[ draw portals as circles between spheres
 		for _,touch in ipairs(viewSphere.touching) do
 			local touchSphere = touch.sphere
-			local delta = touch.delta
-			local x,y,z,th = quat.vectorRotateToAngleAxis(vec3(0,0,1), delta)
+			local x,y,z,th = quat.vectorRotateToAngleAxis(vec3(0,0,1), touch.unitDelta)
 			matpush()
 			mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
 			matrot(th,x,y,z)

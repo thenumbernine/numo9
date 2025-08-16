@@ -3190,6 +3190,10 @@ function AppVideo:matrot(theta, x, y, z)
 	self.mvMat:applyRotate(theta, x, y, z)
 end
 
+function AppVideo:matrotcs(c, s, x, y, z)
+	self.mvMat:applyRotateCosSinUnit(c, s, x, y, z)
+end
+
 function AppVideo:matscale(x, y, z)
 	self.mvMat:applyScale(x, y, z)
 end

@@ -690,13 +690,22 @@ function App:initGL()
 			x = x or 0
 			y = y or 0
 			z = z or 1
+			local c, s = math.cos(theta), math.sin(theta)
 			if self.server then
-				local cmd = self.server:pushCmd().matrot
-				cmd.type = netcmds.matrot
-				cmd.theta, cmd.x, cmd.y, cmd.z = theta, x, y, z
+				local cmd = self.server:pushCmd().matrotcs
+				cmd.type = netcmds.matrotcs
+				cmd.c, cmd.s, cmd.x, cmd.y, cmd.z = c, s, x, y, z
 			end
-			self:matrot(theta, x, y, z)
+			self:matrotcs(c, s, x, y, z)
 		end,
+		matrotcs = function(c, s, x, y, z)
+			if self.server then
+				local cmd = self.server:pushCmd().matrotcs
+				cmd.type = netcmds.matrotcs
+				cmd.c, cmd.s, cmd.x, cmd.y, cmd.z = c, s, x, y, z
+			end
+			self:matrotcs(c, s, x, y, z)
+		end,	
 		matscale = function(x, y, z)
 			x = x or 1
 			y = y or 1

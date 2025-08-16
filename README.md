@@ -351,6 +351,7 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 - `matident()` = set the transform matrix to identity
 - `mattrans([x],[y],[z])` = translate the transform matrix by x,y,z.  Default translate is 0.
 - `matrot(theta,[x,y,z])` = rotate by theta radians on axis x,y,z.  Default axis is 0,0,1 for screen rotations.
+- `matrotcs(cosTheta, sinTheta, x,y,z)` = rotate by theta radians on axis x,y,z.  There is no default axis.  The axis provided must be unit.
 - `matscale([x],[y],[z])` = scale by x,y,z.  Default scale is 1.
 - `matortho(left,right,bottom,top,[near,far])` = apply orthographic transform.
 - `matfrustum(left,right,bottom,top,near,far)` = apply frustum perspective transform.
