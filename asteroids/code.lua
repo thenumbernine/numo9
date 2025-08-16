@@ -454,69 +454,6 @@ Sphere.update=|:|do
 	end
 end
 
-local spheres = table()
-
-local startSphere = Sphere{
-	--pos = vec3(0,0,0),
-	pos = vec3(128,0,0),
-	--radius = 256 / (2 * math.pi),
-	--radius = 128 / (2 * math.pi),
-	radius = 128,
-	--radius = 64,
-	--radius = 64 / (2 * math.pi),
-}
-spheres:insert(startSphere)
-
--- TODO build a maze or something
-do
-	local lastSphere = startSphere
-	local newSphere = Sphere{
-		pos = lastSphere.pos + vec3(0, -lastSphere.radius * 1.5, 0),
-		radius = lastSphere.radius,
-	}
-	spheres:insert(newSphere)
-end
-
--- build touching table
-for i=1,#spheres-1 do
-	local si = spheres[i]
-	for j=i+1,#spheres do
-		local sj = spheres[j]
-		if (si.pos - sj.pos):len() < si.radius + sj.radius then
-			local delta = sj.pos - si.pos
-			local dist = delta:len()	-- distance between spheres
-			local unitDelta = delta / dist
-			local intCircDist = .5 * dist * (1 - (sj.radius^2 - si.radius^2) / dist^2)
-			local midpoint = si.pos + unitDelta * intCircDist
-			local intCircRad = math.sqrt(sj.radius^2 - intCircDist^2)
-			local cosAngleI = math.clamp(intCircDist / si.radius, -1, 1)
-			local cosAngleJ = math.clamp((dist - intCircDist) / sj.radius, -1, 1)
-			si.touching:insert{
-				sphere = sj,
-				delta = delta,
-				unitDelta = unitDelta,
-				dist = dist,
-				intCircDist = intCircDist,
-				intCircRad = intCircRad,
-				midpoint = midpoint,
-				angle = math.acos(cosAngleI),
-				cosAngle = cosAngleI,
-			}
-			sj.touching:insert{
-				sphere = si,
-				delta = -delta,
-				unitDelta = -unitDelta,
-				dist = dist,
-				intCircDist = dist - intCircDist,
-				intCircRad = intCircRad,
-				midpoint = midpoint,
-				angle = math.acos(cosAngleJ),
-				cosAngle = cosAngleJ,
-			}
-		end
-	end
-end
-
 
 local dt = 1/60
 
@@ -585,6 +522,7 @@ Object.color = 12
 Object.accel = 50
 Object.rot = 5
 Object.density = 1
+Object.calcMass = |:| math.pi * self.size^2 * self.density
 Object.init=|:,args|do
 	if args then
 		for k,v in pairs(args) do self[k] = v end
@@ -633,9 +571,10 @@ Object.update=|:|do
 	self.pos = (oldPos + dpos):unit()
 
 	-- [[ here, if from/to crosses a sphere-touch boundary then move spheres
-	self.showIsTouching = false
 	local fwd = -self.pos:yAxis()	-- fwd dir ... TODO use vel dir
 	local zAxis = self.pos:zAxis()	-- 'up'
+	-- [=[
+	self.showIsTouching = false
 	line3d(
 		self.sphere.pos.x + self.sphere.radius * zAxis.x,
 		self.sphere.pos.y + self.sphere.radius * zAxis.y,
@@ -647,6 +586,7 @@ Object.update=|:|do
 
 		12
 	)
+	--]=]
 	for _,touch in ipairs(self.sphere.touching) do
 		if zAxis:dot(touch.unitDelta) > touch.cosAngle
 		and fwd:dot(touch.midpoint - self.sphere.pos) > 0
@@ -659,9 +599,6 @@ Object.update=|:|do
 			)
 			self.pos = dpos * self.pos
 			-- [[ how to get rid of twisting ...
-			--self.vel = self.pos * self.vel * self.pos:conj()	-- nope
-			--self.vel = dpos * self.vel	-- nope
-			--self.vel -= self.pos * self.vel:dot(self.pos)
 			self.vel -= quat.fromVec3(self.pos:zAxis()) * self.vel:axis():dot(self.pos:zAxis())
 			--]]
 			-- TODO sometimes we can get rotation about axis ... which typically doesn't exist ... hmm how to handle this ...
@@ -712,6 +649,7 @@ Shot.touch=|:,other|do
 			other.dead = true
 		end
 	end
+
 	if Rock:isa(other) then
 		if other.size > other.sizeS then
 			-- make new rocks
@@ -744,6 +682,11 @@ end
 
 Ship = Object:subclass()
 Ship.nextShootTime = 0
+Ship.health = 10
+Ship.init=|:,args|do
+	Ship.super.init(self, args)
+	self.maxHealth = self.health
+end
 Ship.draw2D=|:|do
 	local fwd = vec2(0,-1)
 	matpush()
@@ -872,13 +815,25 @@ end
 --]]
 
 Rock = Object:subclass()
-Rock.density = 1
 Rock.sizeL = 20
 Rock.sizeM = 10
 Rock.sizeS = 5
 Rock.size = Rock.sizeL
 Rock.color = 13
-Rock.calcMass = |:| math.pi * self.size^2 * self.density
+Rock.touch = |:,other|do
+	if Ship:isa(other) then
+		-- TODO bounce
+		local mom = self.vel * self:calcMass() + other.vel * other:calcMass()
+		
+		self.vel -= mom * (.1 / self:calcMass())
+		self.vel -= quat.fromVec3(self.pos:zAxis()) * self.vel:axis():dot(self.pos:zAxis())
+		
+		other.vel += mom * (.1 / other:calcMass())
+		other.vel -= quat.fromVec3(other.pos:zAxis()) * other.vel:axis():dot(other.pos:zAxis())
+		
+		other.health -= .1
+	end
+end
 Rock.draw2D=|:|do
 	matpush()
 	transformQuatTo2D(self.pos)
@@ -910,23 +865,104 @@ Rock.draw3D=|:|do
 end
 
 
+-- start spheres
+
+local buildRocks = |sphere|do
+	-- TODO don't spawn any inside any portals
+	EnemyShip{
+		sphere = sphere,
+		pos = quat(1,0,0,math.pi):fromAngleAxis(),
+	}
+
+	for i=1,5 do
+		Rock{
+			sphere = sphere,
+			pos = randomPos(),
+			vel = randomVel() * 10,
+			rot = math.random() * 2 * 20,	-- is this used?
+		}
+	end
+end
+
+
+local spheres = table()
+
+local startSphere = Sphere{
+	--pos = vec3(0,0,0),
+	pos = vec3(128,0,0),
+	--radius = 256 / (2 * math.pi),
+	--radius = 128 / (2 * math.pi),
+	radius = 128,
+	--radius = 64,
+	--radius = 64 / (2 * math.pi),
+}
+buildRocks(startSphere)
+spheres:insert(startSphere)
+
+-- TODO build a maze or something
+do
+	local lastSphere = startSphere
+	for i=1,10 do
+		local newSphere = Sphere{
+			pos = lastSphere.pos + vec3(0, -lastSphere.radius * 1.95, 0),
+			radius = lastSphere.radius,
+		}
+		buildRocks(newSphere)
+		spheres:insert(newSphere)
+		lastSphere = newSphere
+	end
+end
+
+-- build touching table
+for i=1,#spheres-1 do
+	local si = spheres[i]
+	for j=i+1,#spheres do
+		local sj = spheres[j]
+		if (si.pos - sj.pos):len() < si.radius + sj.radius then
+			local delta = sj.pos - si.pos
+			local dist = delta:len()	-- distance between spheres
+			local unitDelta = delta / dist
+			local intCircDist = .5 * dist * (1 - (sj.radius^2 - si.radius^2) / dist^2)
+			local midpoint = si.pos + unitDelta * intCircDist
+			local intCircRad = math.sqrt(sj.radius^2 - intCircDist^2)
+			local cosAngleI = math.clamp(intCircDist / si.radius, -1, 1)
+			local cosAngleJ = math.clamp((dist - intCircDist) / sj.radius, -1, 1)
+			si.touching:insert{
+				sphere = sj,
+				delta = delta,
+				unitDelta = unitDelta,
+				dist = dist,
+				intCircDist = intCircDist,
+				intCircRad = intCircRad,
+				midpoint = midpoint,
+				angle = math.acos(cosAngleI),
+				cosAngle = cosAngleI,
+			}
+			sj.touching:insert{
+				sphere = si,
+				delta = -delta,
+				unitDelta = -unitDelta,
+				dist = dist,
+				intCircDist = dist - intCircDist,
+				intCircRad = intCircRad,
+				midpoint = midpoint,
+				angle = math.acos(cosAngleJ),
+				cosAngle = cosAngleJ,
+			}
+		end
+	end
+end
+
+
+-- start level
+
 player = PlayerShip{
 	sphere = startSphere,
 	--sphere = spheres:last(),
 }
-EnemyShip{
-	sphere = startSphere,
-	pos = quat(1,0,0,math.pi):fromAngleAxis(),
-}
 
-for i=1,5 do
-	Rock{
-		sphere = startSphere,
-		pos = randomPos(),
-		vel = randomVel() * 10,
-		rot = math.random() * 2 * 20,	-- is this used?
-	}
-end
+
+
 
 drawMethod = 0
 update=||do
@@ -974,11 +1010,11 @@ update=||do
 			local delta = touch.delta
 			local q1 = quat.vectorRotate(vec3(0,0,1), delta)
 			local firstpt, lastpt
-			local n = 10
+			local n = 60
 			for i=1,n do
 				local th = 2 * math.pi * (i - .5) / n
 				local q2 = quat(0,0,1,th):fromAngleAxis()
-				local q3 = quat(1,0,0,touch.angle)
+				local q3 = quat(1,0,0,touch.angle):fromAngleAxis()
 				local pt = quatTo2D(q1 * q2 * q3)
 				firstpt = firstpt or pt
 				if lastpt then
@@ -1011,6 +1047,7 @@ update=||do
 		end
 		--]]
 
+		-- [[ draw portals as circles between spheres
 		for _,touch in ipairs(viewSphere.touching) do
 			local touchSphere = touch.sphere
 			local delta = touch.delta
@@ -1026,6 +1063,7 @@ update=||do
 			ellib(-intCircRad, -intCircRad, 2*intCircRad, 2*intCircRad, 12)
 			matpop()
 		end
+		--]]
 	end
 
 	-- draw a circle where our sphere boundary should be
@@ -1067,5 +1105,12 @@ update=||do
 	for _,touch in ipairs(viewSphere.touching) do
 		touch.sphere:update()
 		--objs:append(touch.sphere.objs)
+	end
+
+	-- draw gui
+	cls(nil, true)
+	if player then
+		matident()
+		rect(0, screenSize.y-10, player.health/player.maxHealth*screenSize.x, 10, 16+9)
 	end
 end
