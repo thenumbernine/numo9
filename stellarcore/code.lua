@@ -178,15 +178,15 @@ local dirForName = {right=0, down=1, left=2, up=3}
 ----------------------- END vec/vec2.lua  -----------------------
 
 -- component-based
-vec3_dot=|ax,ay,az, bx,by,bz| ax*bx + ay*by + az*bz
-vec3_cross=|ax,ay,az, bx,by,bz| (
+vec3_dot_comp=|ax,ay,az, bx,by,bz| ax*bx + ay*by + az*bz
+vec3_cross_comp=|ax,ay,az, bx,by,bz| (
 	ay*bz - az*by,
 	az*bx - ax*bz,
 	ax*by - ay*bx
 )
-vec3_len=|x,y,z|math.sqrt(x^2 + y^2 + z^2)
-vec3_unit=|x,y,z|do
-	local s = 1 / math.max(1e-15, vec3_len(x,y,z))
+vec3_len_comp=|x,y,z|math.sqrt(x^2 + y^2 + z^2)
+vec3_unit_comp=|x,y,z|do
+	local s = 1 / math.max(1e-15, vec3_len_comp(x,y,z))
 	return x*s, y*s, z*s
 end
 ----------------------- BEGIN vec/vec3.lua-----------------------
@@ -255,12 +255,12 @@ vec3=class{
 	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y), math.abs(v.z)),
 	dot=|a,b| a.x * b.x + a.y * b.y + a.z * b.z,
 	lenSq=|v| v:dot(v),
-	cross=|a,b| vec3(vec3_cross(a.x, a.y, a.z, b.x, b.y, b.z)),
+	cross=|a,b| vec3(vec3_cross_comp(a.x, a.y, a.z, b.x, b.y, b.z)),
 	len=|v| math.sqrt(v:lenSq()),
 	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),
 	unit=|v,res|do
 		local s = 1 / math.max(1e-15, v:len())
-		return res 
+		return res
 			and res:set(v.x * s, v.y * s, v.z * s)
 			or vec3(v.x * s, v.y * s, v.z * s)
 	end,
@@ -439,12 +439,12 @@ quat.__concat=string.concat
 -- assume both axii are unit already
 quat_vectorRotateUnit_comp=|ax,ay,az,bx,by,bz|do
 	local cosTheta = ax*bx + ay*by + az*bz
-	if math.abs(cosTheta) > 1 - 1e-9 then 
+	if math.abs(cosTheta) > 1 - 1e-9 then
 		return 0,0,0,1
 	end
 	local sinTheta = math.sqrt(1 - cosTheta^2)
 	local invSinTheta = 1 / sinTheta
-	local cx = (ay * bz - az * by) * invSinTheta 
+	local cx = (ay * bz - az * by) * invSinTheta
 	local cy = (az * bx - ax * bz) * invSinTheta
 	local cz = (ax * by - ay * bx) * invSinTheta
 	local sinHalfTheta = math.sqrt(.5 * (1 - cosTheta))
@@ -529,6 +529,7 @@ randomVel=||do
 end
 
 
+local gravConst = .1
 local nextSphereColor = 1
 
 local Sphere = class()
@@ -550,21 +551,42 @@ Sphere.update=|:|do
 		-- remove dead
 		if o.dead then objs:remove(i) end
 	end
-	-- do touches
+	-- do inter-object interactions (touch, forces, etc)
 	for i=1,#objs-1 do
 		local o = objs[i]
 		if not o.dead then
+			local ozx, ozy, ozz = quat_zAxis_comp(o.pos:unpack())
+			local omass = o:calcMass()
 			for i2=i+1,#objs do
 				local o2 = objs[i2]
 				if not o2.dead then
+					local o2mass = o2:calcMass()
+					local o2zx, o2zy, o2zz = quat_zAxis_comp(o2.pos:unpack())
 					-- check touch
-					local dist = math.acos(o.pos:zAxis():dot(o2.pos:zAxis())) * math.sqrt(o.sphere.radius * o2.sphere.radius)
+					local dist = math.acos(
+						vec3_dot_comp(ozx, ozy, ozz, o2zx, o2zy, o2zz)
+					) * self.radius
 					if dist < (o.size + o2.size) then
 						if o.touch then o:touch(o2) end
 						if not o.dead and not o2.dead then
 							if o2.touch then o2:touch(o) end
 						end
 						if o.dead then break end
+					end
+
+					-- apply a force towards each object ...
+					if o.useGravity and o2.useGravity then
+						local gdist = math.max(dist, .2)
+						local mu = gravConst / (gdist * gdist)
+						local rhsx, rhsy, rhsz = vec3_unit_comp(
+							vec3_cross_comp(ozx, ozy, ozz, o2zx, o2zy, o2zz)
+						)
+						o.vel.x += rhsx * mu * o2mass
+						o.vel.y += rhsy * mu * o2mass
+						o.vel.z += rhsz * mu * o2mass
+						o2.vel.x -= rhsx * mu * omass
+						o2.vel.y -= rhsy * mu * omass
+						o2.vel.z -= rhsz * mu * omass
 					end
 				end
 			end
@@ -630,6 +652,7 @@ Object.accel = 50
 Object.rot = 5
 Object.density = 1
 Object.calcMass = |:| math.pi * self.size^2 * self.density
+Object.useGravity = true
 Object.init=|:,args|do
 	if args then
 		for k,v in pairs(args) do self[k] = v end
@@ -695,16 +718,16 @@ Object.update=|:|do
 
 	-- [[ here, if from/to crosses a sphere-touch boundary then move spheres
 	local zAxisx, zAxisy, zAxisz = quat_zAxis_comp(self.pos:unpack())	-- 'up'
-	local velfwdx, velfwdy, velfwdz = vec3_cross(
+	local velfwdx, velfwdy, velfwdz = vec3_cross_comp(
 		self.vel.x, self.vel.y, self.vel.z,
 		zAxisx, zAxisy, zAxisz
 	)	-- movement dir
-	
+
 	local ptOnSpherex = self.sphere.pos.x + zAxisx * self.sphere.radius
 	local ptOnSpherey = self.sphere.pos.y + zAxisy * self.sphere.radius
 	local ptOnSpherez = self.sphere.pos.z + zAxisz * self.sphere.radius
 	-- [=[
-	local unitvelfwdx, unitvelfwdy, unitvelfwdz = vec3_unit(velfwdx, velfwdy, velfwdz)
+	local unitvelfwdx, unitvelfwdy, unitvelfwdz = vec3_unit_comp(velfwdx, velfwdy, velfwdz)
 	self.showIsTouching = false
 	line3d(
 		ptOnSpherex,
@@ -717,13 +740,13 @@ Object.update=|:|do
 	)
 	--]=]
 	for _,touch in ipairs(self.sphere.touching) do
-		if vec3_dot(
+		if vec3_dot_comp(
 			zAxisx, zAxisy, zAxisz,
 			touch.unitDelta:unpack()
 		) > touch.cosAngle then
-			if vec3_dot(
-				velfwdx, velfwdy, velfwdz, 
-				
+			if vec3_dot_comp(
+				velfwdx, velfwdy, velfwdz,
+
 				touch.midpoint.x - ptOnSpherex,
 				touch.midpoint.y - ptOnSpherey,
 				touch.midpoint.z - ptOnSpherez
@@ -733,7 +756,7 @@ Object.update=|:|do
 				local newZAxisx = ptOnSpherex - touch.sphere.pos.x
 				local newZAxisy = ptOnSpherey - touch.sphere.pos.y
 				local newZAxisz = ptOnSpherez - touch.sphere.pos.z
-				newZAxisx, newZAxisy, newZAxisz = vec3_unit(newZAxisx, newZAxisy, newZAxisz)
+				newZAxisx, newZAxisy, newZAxisz = vec3_unit_comp(newZAxisx, newZAxisy, newZAxisz)
 				local dposx, dposy, dposz, dposw = quat_vectorRotateUnit_comp(
 					zAxisx, zAxisy, zAxisz,
 					newZAxisx, newZAxisy, newZAxisz
@@ -742,17 +765,17 @@ Object.update=|:|do
 					dposx, dposy, dposz, dposw,
 					self.pos:unpack()
 				)
-				
+
 				-- project out z-axis to get rid of twisting ...
 				local zAxisx, zAxisy, zAxisz = quat_zAxis_comp(self.pos:unpack())	-- 'up'
-				local vel_dot_zAxis = vec3_dot(
+				local vel_dot_zAxis = vec3_dot_comp(
 					zAxisx, zAxisy, zAxisz,
 					self.vel:unpack()
 				)
 				self.vel.x -= zAxisx * vel_dot_zAxis
 				self.vel.y -= zAxisy * vel_dot_zAxis
 				self.vel.z -= zAxisz * vel_dot_zAxis
-				
+
 				self.sphere.objs:removeObject(self)
 				self.sphere = touch.sphere
 				self.sphere.objs:insert(self)
@@ -767,6 +790,7 @@ end
 local Shot = Object:subclass()
 Shot.speed = 300
 Shot.size = 1
+Shot.useGravity = false
 Shot.init=|:,args|do
 	Shot.super.init(self, args)
 	self.endTime = args?.endTime
@@ -913,7 +937,7 @@ end
 Ship.shoot = |:|do
 	if self.nextShootTime > time() then return end
 	self.nextShootTime = time() + 1/15
-	
+
 	local xAxisx, xAxisy, xAxisz = quat_xAxis_comp(self.pos:unpack())
 	Shot{
 		sphere = self.sphere,
@@ -960,7 +984,7 @@ PlayerShip.update = |:| do
 		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul_comp(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
-		)	
+		)
 		--]]
 	end
 	if btn('right',0) then
@@ -973,7 +997,7 @@ PlayerShip.update = |:| do
 		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul_comp(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
-		)	
+		)
 		--]]
 	end
 	if btn('y',0) then
@@ -996,20 +1020,20 @@ EnemyShip.update = |:|do
 
 	-- TODO dirToPlayer = zAxis cross (zAxis cross player_zAxis) ... double-cross-product ...
 	-- ... and then it's used a 3rd time to calculate sin(theta) ...
-	local dirToPlayerx, dirToPlayery, dirToPlayerz = vec3_unit(vec3_cross(
+	local dirToPlayerx, dirToPlayery, dirToPlayerz = vec3_unit_comp(vec3_cross_comp(
 		zAxisx, zAxisy, zAxisz,
-		vec3_cross(
+		vec3_cross_comp(
 			zAxisx, zAxisy, zAxisz,
 			quat_zAxis_comp(player.pos:unpack())
 		)
 	))
-	
+
 	-- find the shortest rotation from us to player
 	-- compare its geodesic to our 'fwd' dir
 	-- turn if needed
-	local sinth = vec3_dot(
+	local sinth = vec3_dot_comp(
 		zAxisx, zAxisy, zAxisz,
-		vec3_cross(
+		vec3_cross_comp(
 			dirToPlayerx, dirToPlayery, dirToPlayerz,
 			quat_yAxis_comp(selfPos:unpack())
 		)
@@ -1090,8 +1114,13 @@ Rock.draw2D=|:|do
 	line(self.size*(fwd.x-rightx), self.size*(fwd.y-righty), self.size*(fwd.x+rightx), self.size*(fwd.y+righty), self.color)
 	Rock.super.draw2D(self)	-- TODO super call outside pop...
 	--]]
-	-- [[ sprite
+	--[[ rect in sprite coords
 	rectb(-self.size, -self.size, 2*self.size, 2*self.size, self.color)
+	--]]
+	-- [[ sprite
+	matscale(self.size / 32, self.size / 32)
+	mattrans(-32, -32)
+	spr(64, 0, 0, 8, 8)
 	--]]
 	matpop()
 end
@@ -1328,15 +1357,12 @@ update=||do
 			end
 		end
 		--]]
-	
+
 		-- [[ draw stars?
-local oob = 0		
 		for _,star in ipairs(stars) do
 			local x, y = quatTo2D(star.pos:unpack())
-if x ~= x or y ~= y then oob += 1 end
 			rect(x, y, 1, 1, star.color)
 		end
-if time() == math.floor(time()) then print('draw', #stars - oob, 'of', #stars, 'stars') end
 		--]]
 	else
 		-- [[ draw3D view
@@ -1398,7 +1424,7 @@ if time() == math.floor(time()) then print('draw', #stars - oob, 'of', #stars, '
 				local px, py, pz = corner(i,0)
 				for j=1,jdiv do
 					local x, y, z = corner(i,j)
-					if vec3_dot(px,py,pz, x,y,z) > 0 then
+					if vec3_dot_comp(px,py,pz, x,y,z) > 0 then
 						line3d(px, py, pz, x, y, z, s.color)
 					end
 					px, py, pz = x, y, z
@@ -1408,7 +1434,7 @@ if time() == math.floor(time()) then print('draw', #stars - oob, 'of', #stars, '
 				local px, py, pz = corner(0,j)
 				for i=1,idiv do
 					local x, y, z = corner(i,j)
-					if vec3_dot(px,py,pz, x,y,z) > 0 then
+					if vec3_dot_comp(px,py,pz, x,y,z) > 0 then
 						line3d(px, py, pz, x, y, z, s.color)
 					end
 					px,py,pz = x,y,z
