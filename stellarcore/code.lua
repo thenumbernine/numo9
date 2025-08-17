@@ -1141,8 +1141,6 @@ local stars = range(2000):mapi(|| {
 		))
 	end)(),
 	--]]
-	lastx = 0,
-	lasty = 0,
 	color = math.random(1,15),
 })
 local spheres = table()
@@ -1336,8 +1334,7 @@ local oob = 0
 		for _,star in ipairs(stars) do
 			local x, y = quatTo2D(star.pos:unpack())
 if x ~= x or y ~= y then oob += 1 end
-			line(x, y, star.lastx, star.lasty, star.color)
-			star.lastx, star.lasty = x, y
+			rect(x, y, 1, 1, star.color)
 		end
 if time() == math.floor(time()) then print('draw', #stars - oob, 'of', #stars, 'stars') end
 		--]]
