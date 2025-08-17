@@ -2,6 +2,21 @@
 -- saveid = stellarcore
 -- author = Chris Moore
 -- description = classic "Asteroids" but with proper spherical universes, and interconnections with neighboring universes.
+
+----------------------- BEGIN ext/range.lua-----------------------
+local range=|a,b,c|do
+	local t = table()
+	if c then
+		for x=a,b,c do t:insert(x) end
+	elseif b then
+		for x=a,b do t:insert(x) end
+	else
+		for x=1,a do t:insert(x) end
+	end
+	return t
+end
+----------------------- END ext/range.lua-----------------------
+
 ----------------------- BEGIN numo9/matstack.lua-----------------------
 assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 local matAddr = ramaddr'mvMat'
@@ -48,6 +63,7 @@ end
 ----------------------- END ext/class.lua  -----------------------
 
 -- component based ... where to put this ...
+vec2_lenSq=|x,y|x^2+y^2
 vec2_len=|x,y|math.sqrt(x^2+y^2)
 
 ----------------------- BEGIN vec/vec2.lua-----------------------
@@ -339,6 +355,15 @@ quat.toAngleAxis = |:, res| do
 		halfangle * 2)
 end
 
+-- assumes |x,y,z|=1
+-- assumes theta in [0,2*pi)
+quat_fromAngleAxisUnit_comp=|x,y,z,theta|do
+	local cosHalfTheta = math.cos(.5 * theta)
+	local sinHalfTheta = math.sqrt(1 - cosHalfTheta^2)
+	return x * sinHalfTheta, y * sinHalfTheta, z * sinHalfTheta, cosHalfTheta
+
+end
+
 -- TODO epsilon-test this?  so no nans?
 quat.fromAngleAxis = |:, res| do
 	local x, y, z, theta = self:unpack()
@@ -491,7 +516,11 @@ end
 
 randomPos=||do
 	local x,y,z = randomSphereSurface()
-	return quat(x,y,z, math.random() * math.pi) * quat(0, 0, 1, math.random() * 2 * math.pi)
+	local qx, qy, qz, qw = quat_fromAngleAxisUnit_comp(x,y,z, math.random() * math.pi)
+	return quat_mul_comp(
+		qx, qy, qz, qw,
+		quat_fromAngleAxisUnit_comp(1, 0, 0, math.random() * 2 * math.pi)
+	)
 end
 
 randomVel=||do
@@ -558,19 +587,21 @@ viewPos = quat()
 viewSphere = startSphere
 
 -- v = quat
--- returns vec2
+-- returns x,y, qx, qy, qz, qw
+-- where x,y are the point in 2D (centered at 0,0)
+-- and q_i is the quaternion after transforming to be relative to viewPos
 quatTo2D = |vx, vy, vz, vw|do
 	vx, vy, vz, vw = quat_mul_comp(
 		-viewPos.x, -viewPos.y, -viewPos.z, viewPos.w,
 		vx, vy, vz, vw
 	)
 	local posx, posy, posz = quat_zAxis_comp(vx, vy, vz, vw)
-	local len2 = vec2_len(posx, posy)
-	if len2 < 1e-15 then
+	local len2sq = vec2_lenSq(posx, posy)
+	if len2sq < 1e-20 then
 		return 0, 0,	-- pos2d
 			0, 0, -sqrt_1_2, sqrt_1_2	-- fwd quat
 	end
-	local s = math.acos(posz) * viewSphere.radius / len2
+	local s = math.acos(posz) * viewSphere.radius / math.sqrt(len2sq)
 	return posx * s, posy * s,	-- pos2d
 		vx, vy, vz, vw	-- fwd quat
 end
@@ -583,9 +614,9 @@ transformQuatTo2D = |vx,vy,vz,vw| do
 
 	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
 	local fwdx, fwdy, fwdz = quat_yAxis_comp(vx, vy, vz, vw)
-	local len2 = vec2_len(fwdx, fwdy)
-	if len2 < 1e-15 then return end
-	local s = 1/len2
+	local len2sq = vec2_lenSq(fwdx, fwdy)
+	if len2sq < 1e-20 then return end
+	local s = 1/math.sqrt(len2sq)
 	matrotcs(fwdx * s, fwdy * s, 0, 0, 1)
 end
 
@@ -753,13 +784,13 @@ Shot.draw2D=|:|do
 	--]]
 end
 Shot.draw3D=|:|do
+	local zAxisx, zAxisy, zAxisz = quat_zAxis_comp(self.pos:unpack())
 	local sphere = self.sphere
 	local spherePos = sphere.pos
 	local sphereRadius = sphere.radius
-	local posx, posy, posz = quat_zAxis_comp(self.pos:unpack())
-	local x = spherePos.x + posx * sphereRadius
-	local y = spherePos.y + posy * sphereRadius
-	local z = spherePos.z + posz * sphereRadius
+	local pos3dx = spherePos.x + zAxisx * sphereRadius
+	local pos3dy = spherePos.y + zAxisy * sphereRadius
+	local pos3dz = spherePos.z + zAxisz * sphereRadius
 
 	--[[
 	matpush()
@@ -768,7 +799,7 @@ Shot.draw3D=|:|do
 	matpop()
 	--]]
 	-- [[
-	rect(x-1, y-1, 2, 2, self.color)	-- do we need a z for anything?
+	rect(pos3dx-1, pos3dy-1, 2, 2, self.color)	-- do we need a z for anything?
 	--]]
 
 end
@@ -882,10 +913,16 @@ end
 Ship.shoot = |:|do
 	if self.nextShootTime > time() then return end
 	self.nextShootTime = time() + 1/15
+	
+	local xAxisx, xAxisy, xAxisz = quat_xAxis_comp(self.pos:unpack())
 	Shot{
 		sphere = self.sphere,
 		pos = self.pos:clone(),
-		vel = self.vel + quat.fromVec3(self.pos:xAxis() * (Shot.speed)),
+		vel = quat(
+			self.vel.x + xAxisx * Shot.speed,
+			self.vel.y + xAxisy * Shot.speed,
+			self.vel.z + xAxisz * Shot.speed,
+			0),
 		shooter = self,
 		endTime = time() + 1,
 	}
@@ -1082,7 +1119,7 @@ local buildRocks = |sphere|do
 	for i=1,5 do
 		Rock{
 			sphere = sphere,
-			pos = randomPos(),
+			pos = quat(randomPos()),
 			vel = randomVel() * 10,
 			rot = math.random() * 2 * 20,	-- is this used?
 		}
@@ -1090,16 +1127,35 @@ local buildRocks = |sphere|do
 end
 
 
+local stars = range(2000):mapi(|| {
+	--pos = quat(randomPos()),
+	pos = quat(randomPos()) * (1 + 3 * math.random()^3),
+	--pos = quat(randomPos()) * (math.random() * 2 - 1),
+	--pos = quat(randomPos()) * math.random(),
+	--[[
+	pos = (||do
+		local x,y,z = randomSphereSurface()
+		return quat(quat_mul_comp(
+			x,y,z, math.random() * math.pi,
+			0, 0, 1, math.random() * 2 * math.pi
+		))
+	end)(),
+	--]]
+	lastx = 0,
+	lasty = 0,
+	color = math.random(1,15),
+})
 local spheres = table()
 
 local startSphere = Sphere{
-	--pos = vec3(0,0,0),
-	pos = vec3(128,0,0),
+	pos = vec3(0,0,0),
+	--pos = vec3(128,0,0),
 	--radius = 256 / (2 * math.pi),
 	--radius = 128 / (2 * math.pi),
+	--radius = 1000,	-- works
 	--radius = 256,
-	radius = 200,
-	--radius = 128,
+	radius = 200,	-- good
+	--radius = 128,	-- good
 	--radius = 64,
 	--radius = 64 / (2 * math.pi),
 }
@@ -1273,6 +1329,17 @@ update=||do
 				end
 			end
 		end
+		--]]
+	
+		-- [[ draw stars?
+local oob = 0		
+		for _,star in ipairs(stars) do
+			local x, y = quatTo2D(star.pos:unpack())
+if x ~= x or y ~= y then oob += 1 end
+			line(x, y, star.lastx, star.lasty, star.color)
+			star.lastx, star.lasty = x, y
+		end
+if time() == math.floor(time()) then print('draw', #stars - oob, 'of', #stars, 'stars') end
 		--]]
 	else
 		-- [[ draw3D view
