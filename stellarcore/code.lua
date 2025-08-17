@@ -576,8 +576,11 @@ Sphere.update=|:|do
 
 					-- apply a force towards each object ...
 					if o.useGravity and o2.useGravity then
-						local gdist = math.max(dist, 1)
-						local mu = gravConst / (gdist * gdist)
+						local midsize = .5 * (o.size + o2.size)
+						local mu = gravConst * math.min(
+							1 / (dist * dist),
+							dist / (midsize * midsize * midsize)
+						)
 						local rhsx, rhsy, rhsz = vec3_unit_comp(
 							vec3_cross_comp(ozx, ozy, ozz, o2zx, o2zy, o2zz)
 						)
@@ -1226,6 +1229,7 @@ for i=1,#spheres-1 do
 				midpoint = midpoint,
 				angle = math.acos(cosAngleI),
 				cosAngle = cosAngleI,
+				q = quat(quat_vectorRotateUnit_comp(0,0,1, unitDelta:unpack())),
 			}
 			sj.touching:insert{
 				sphere = si,
@@ -1237,6 +1241,7 @@ for i=1,#spheres-1 do
 				midpoint = midpoint,
 				angle = math.acos(cosAngleJ),
 				cosAngle = cosAngleJ,
+				q = quat(quat_vectorRotateUnit_comp(0,0,1, (-unitDelta):unpack())),
 			}
 		end
 	end
@@ -1315,7 +1320,6 @@ update=||do
 		end
 		--]]
 		-- [[ sphere background -- draw star background or something ... 
-		cls(nil, true)
 		do
 			local tri = |
 				x1,y1,u1,v1,
@@ -1361,30 +1365,28 @@ update=||do
 		--]]
 
 		-- [[ draw portals in 2D mode
-		local n = 30
+		local n = 24
 		for _,touch in ipairs(viewSphere.touching) do
 			local touchSphere = touch.sphere
-
-			local q1x, q1y, q1z, q1w = quat_vectorRotateUnit_comp(
-				0,0,1,
-				touch.unitDelta:unpack()
-			)
-
+			local angle = touch.angle
+			local q = touch.q
+			local cx, cy = quatTo2D(q:unpack())
 			local px, py = quatTo2D(
 				quat_mul_comp(
-					q1x, q1y, q1z, q1w,
-					quatRotZX_comp(0, touch.angle)
+					q.x, q.y, q.z, q.w,
+					quatRotZX_comp(0, angle)
 				)
 			)
 			for i=1,n do
-				local th = 2 * math.pi * (i - .5) / n
+				local th = 2 * math.pi * i / n
 				local x, y = quatTo2D(
 					quat_mul_comp(
-						q1x, q1y, q1z, q1w,
-						quatRotZX_comp(th, touch.angle)
+						q.x, q.y, q.z, q.w,
+						quatRotZX_comp(th, angle)
 					)
 				)
 				line(px, py, x, y, 12)
+				tri(px, py, x, y, cx, cy, 0)
 				px, py = x, y
 			end
 		end
@@ -1428,13 +1430,7 @@ update=||do
 			local touchSphere = touch.sphere
 			matpush()
 			mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
-
-			quat_matrot_comp(
-				quat_vectorRotateUnit_comp(
-					0,0,1,
-					touch.unitDelta:unpack()
-				)
-			)
+			touch.q:matrot()
 
 			-- what'touchSphere the intersection plane distance?
 			local dist = touch.dist
