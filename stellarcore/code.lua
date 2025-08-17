@@ -576,7 +576,7 @@ Sphere.update=|:|do
 
 					-- apply a force towards each object ...
 					if o.useGravity and o2.useGravity then
-						local gdist = math.max(dist, .2)
+						local gdist = math.max(dist, 1)
 						local mu = gravConst / (gdist * gdist)
 						local rhsx, rhsy, rhsz = vec3_unit_comp(
 							vec3_cross_comp(ozx, ozy, ozz, o2zx, o2zy, o2zz)
@@ -844,32 +844,22 @@ Shot.touch=|:,other|do
 	if Rock:isa(other) then
 		if other.size > other.sizeS then
 			-- make new rocks
-			local angmom = other.vel * other:calcMass()
-			local perturb1 = randomVel() * 2000
-			local perturb2 = randomVel() * 2000
-			for s1=-1,1,2 do
-				local half_th1 = .25 * s1 * other.size / (self.sphere.radius
-				--	* 2 * math.pi
-				)
-				local sin_half_th1 = math.sin(half_th1)
-				local cos_half_th1 = math.sqrt(1 - sin_half_th1^2)
-				for s2=-1,1,2 do
-					local half_th2 = .25 * s2 * other.size / (self.sphere.radius
-					--	* 2 * math.pi
-					)
-					local sin_half_th2 = math.sin(half_th2)
-					local cos_half_th2 = math.sqrt(1 - sin_half_th2^2)
-					local newangmom = .25 * angmom + s1 * perturb1 + s2 * perturb2
-					local piece = Rock{
-						sphere = other.sphere,
-						pos = other.pos
-							* quat(sin_half_th1, 0, 0, cos_half_th1)
-							* quat(0, sin_half_th2, 0, cos_half_th2),
-						--rot = math.random() * 2 * 20,	-- TODO conserve this too?	-- TODO is this used?
-						size = other.size == other.sizeL and other.sizeM or other.sizeS,
-					}
-					piece.vel = newangmom * (1 / piece:calcMass())
-				end
+			local oldvel = other.vel
+			local newrocks=7
+			for i=1,newrocks do
+				local piece = Rock{
+					sphere = other.sphere,
+					pos = other.pos
+						* quat(quatRotZX_comp(
+							2 * math.pi * i / newrocks,
+							math.random() * other.size / self.sphere.radius
+						)),
+					--rot = math.random() * 2 * 20,	-- TODO conserve this too?	-- TODO is this used?
+					size = other.size == other.sizeL
+						and (math.random(2) == 1 and other.sizeM or other.sizeS)
+						or other.sizeS,
+				}
+				piece.vel = oldvel + randomVel() * .2 * vec3_len_comp(oldvel:unpack())
 			end
 		end
 		other.dead = true
@@ -1069,9 +1059,16 @@ end
 --]]
 
 Rock = Object:subclass()
-Rock.sizeL = 20
+--[[ with 20 rocks per break this looks good but gets too slow too fast on my old crappy laptop
+Rock.sizeL = 50
 Rock.sizeM = 10
-Rock.sizeS = 5
+Rock.sizeS = 2
+--]]
+-- [[
+Rock.sizeL = 50
+Rock.sizeM = 20
+Rock.sizeS = 7
+--]]
 Rock.size = Rock.sizeL
 Rock.color = 13
 Rock.touch = |:,other|do
@@ -1282,49 +1279,9 @@ update=||do
 	local viewDistScale = 1.5
 	local viewTanFov = 2
 	if drawMethod == 2 then
-		-- [[ draw2D 2d on surface view
-		-- screen boundary for debugging
 		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
-		--[=[
-		local r = viewSphere.radius * 2 * math.pi
-		ellib(-r, -r, 2*r, 2*r, 12)
-		--]=]
-		for _,o in ipairs(viewSphere.objs) do
-			o:draw2D()
-		end
-		--]]
 
-		-- [[ draw portals in 2D mode
-		--local n = 10
-		local n = 60
-		for _,touch in ipairs(viewSphere.touching) do
-			local touchSphere = touch.sphere
-
-			local q1x, q1y, q1z, q1w = quat_vectorRotateUnit_comp(
-				0,0,1,
-				touch.unitDelta:unpack()
-			)
-
-			local px, py = quatTo2D(
-				quat_mul_comp(
-					q1x, q1y, q1z, q1w,
-					quatRotZX_comp(0, touch.angle)
-				)
-			)
-			for i=1,n do
-				local th = 2 * math.pi * (i - .5) / n
-				local x, y = quatTo2D(
-					quat_mul_comp(
-						q1x, q1y, q1z, q1w,
-						quatRotZX_comp(th, touch.angle)
-					)
-				)
-				line(px, py, x, y, 12)
-				px, py = x, y
-			end
-		end
-		--]]
-		-- [[ draw a circle where our sphere boundary should be
+		--[[ sphere background -- draw lines ... 
 		do
 			local idiv=60
 			local jdiv=30
@@ -1357,11 +1314,92 @@ update=||do
 			end
 		end
 		--]]
+		-- [[ sphere background -- draw star background or something ... 
+		cls(nil, true)
+		do
+			local tri = |
+				x1,y1,u1,v1,
+				x2,y2,u2,v2,
+				x3,y3,u3,v3
+			|do
+				local dx12 = x2 - x1
+				local dy12 = y2 - y1
+				local dx23 = x3 - x2
+				local dy23 = y3 - y2
+				if dx12 * dy23 - dx23 * dy12 > 0 then
+					ttri3d(
+						x1,y1,0,u1,v1,
+						x2,y2,0,u2,v2,
+						x3,y3,0,u3,v3)
+				end
+			end
+			local idiv=30
+			local jdiv=15
+			local corner=|i,j|do
+				local u = i / idiv
+				local v = j / jdiv
+				local x, y = quatTo2D(quatRotZX_comp(u * 2 * math.pi, v * math.pi))
+				return x, y, 256*u, 128+128*v 
+			end
+			for i=0,idiv-1 do
+				for j=0,jdiv-1 do
+					local x1,y1,u1,v1 = corner(i,j)
+					local x2,y2,u2,v2 = corner(i,j+1)
+					local x3,y3,u3,v3 = corner(i+1,j+1)
+					local x4,y4,u4,v4 = corner(i+1,j)
+					tri(
+						x1,y1,u1,v1, 
+						x2,y2,u2,v2,
+						x3,y3,u3,v3)
+					tri(
+						x3,y3,u3,v3,
+						x4,y4,u4,v4,
+						x1,y1,u1,v1)
+				end
+			end
+		end
+		--]]
+
+		-- [[ draw portals in 2D mode
+		local n = 30
+		for _,touch in ipairs(viewSphere.touching) do
+			local touchSphere = touch.sphere
+
+			local q1x, q1y, q1z, q1w = quat_vectorRotateUnit_comp(
+				0,0,1,
+				touch.unitDelta:unpack()
+			)
+
+			local px, py = quatTo2D(
+				quat_mul_comp(
+					q1x, q1y, q1z, q1w,
+					quatRotZX_comp(0, touch.angle)
+				)
+			)
+			for i=1,n do
+				local th = 2 * math.pi * (i - .5) / n
+				local x, y = quatTo2D(
+					quat_mul_comp(
+						q1x, q1y, q1z, q1w,
+						quatRotZX_comp(th, touch.angle)
+					)
+				)
+				line(px, py, x, y, 12)
+				px, py = x, y
+			end
+		end
+		--]]
 
 		-- [[ draw stars?
 		for _,star in ipairs(stars) do
 			local x, y = quatTo2D(star.pos:unpack())
 			rect(x, y, 1, 1, star.color)
+		end
+		--]]
+		
+		-- [[ draw2D 2d on surface view
+		for _,o in ipairs(viewSphere.objs) do
+			o:draw2D()
 		end
 		--]]
 	else
@@ -1447,13 +1485,15 @@ update=||do
 
 	-- update all ... or just those on our sphere ... or just those within 2 or 3 spheres?
 	-- TODO check touch between sphere eventually. .. but that means tracking pos on multiple spheres ...
-	--local objs = table()
 	viewSphere:update()
-	--objs:append(viewSphere.objs)
-	for _,touch in ipairs(viewSphere.touching) do
-		touch.sphere:update()
-		--objs:append(touch.sphere.objs)
+	-- [[ update touching spheres too (but not all spheres)
+	-- how about just every so often if at all?
+	if time() == math.floor(time()) then
+		for _,touch in ipairs(viewSphere.touching) do
+			touch.sphere:update()
+		end
 	end
+	--]]
 
 	-- draw gui
 	cls(nil, true)
