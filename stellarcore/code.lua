@@ -758,9 +758,9 @@ Object.update=|:|do
 				portal.midpoint.z - ptOnSpherez
 			) > 0 then
 				-- [[ .. then transfer spheres
-				local newZAxisx = ptOnSpherex - portal.sphere.pos.x
-				local newZAxisy = ptOnSpherey - portal.sphere.pos.y
-				local newZAxisz = ptOnSpherez - portal.sphere.pos.z
+				local newZAxisx = ptOnSpherex - portal.nextSphere.pos.x
+				local newZAxisy = ptOnSpherey - portal.nextSphere.pos.y
+				local newZAxisz = ptOnSpherez - portal.nextSphere.pos.z
 				newZAxisx, newZAxisy, newZAxisz = vec3_unit(newZAxisx, newZAxisy, newZAxisz)
 				local dposx, dposy, dposz, dposw = quat_vectorRotateUnit(
 					zAxisx, zAxisy, zAxisz,
@@ -782,7 +782,7 @@ Object.update=|:|do
 				self.vel.z -= zAxisz * vel_dot_zAxis
 
 				self.sphere.objs:removeObject(self)
-				self.sphere = portal.sphere
+				self.sphere = portal.nextSphere
 				self.sphere.objs:insert(self)
 				break
 				--]]
@@ -1171,7 +1171,7 @@ for i=1,#spheres-1 do
 			local cosAngleI = math.clamp(intCircDist / si.radius, -1, 1)
 			local cosAngleJ = math.clamp((dist - intCircDist) / sj.radius, -1, 1)
 			si.portals:insert{
-				sphere = sj,
+				nextSphere = sj,
 				delta = delta,
 				unitDelta = unitDelta,
 				dist = dist,
@@ -1183,7 +1183,7 @@ for i=1,#spheres-1 do
 				q = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
 			}
 			sj.portals:insert{
-				sphere = si,
+				nextSphere = si,
 				delta = -delta,
 				unitDelta = -unitDelta,
 				dist = dist,
@@ -1357,7 +1357,6 @@ update=||do
 		-- [[ draw portals in 2D mode
 		local n = 24
 		for _,portal in ipairs(viewSphere.portals) do
-			local touchSphere = portal.sphere
 			local angle = portal.angle
 			local q = portal.q
 			local cx, cy = quatTo2D(q:unpack())
@@ -1404,7 +1403,7 @@ update=||do
 	-- how about just every so often if at all?
 	if time() == math.floor(time()) then
 		for _,portal in ipairs(viewSphere.portals) do
-			portal.sphere:update()
+			portal.nextSphere:update()
 		end
 	end
 	--]]
