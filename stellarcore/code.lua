@@ -1083,7 +1083,34 @@ Rock.draw2D=|:|do
 end
 
 Portal = Object:subclass()
+Portal.useGravity=false
+Portal.init=|:,args|do
+	Portal.super.init(self, args)
+	self.sphere.portals:insert(self)
+end
 Portal.draw2D=|:|do
+	local n = 24
+	local angle = self.angle
+	local q = self.q
+	local cx, cy = quatTo2D(q:unpack())
+	local px, py = quatTo2D(
+		quat_mul(
+			q.x, q.y, q.z, q.w,
+			quatRotZX(0, angle)
+		)
+	)
+	for i=1,n do
+		local th = 2 * math.pi * i / n
+		local x, y = quatTo2D(
+			quat_mul(
+				q.x, q.y, q.z, q.w,
+				quatRotZX(th, angle)
+			)
+		)
+		line(px, py, x, y, 12)
+		tri(px, py, x, y, cx, cy, 0)
+		px, py = x, y
+	end
 end
 
 
@@ -1170,7 +1197,8 @@ for i=1,#spheres-1 do
 			local intCircRad = math.sqrt(sj.radius^2 - intCircDist^2)
 			local cosAngleI = math.clamp(intCircDist / si.radius, -1, 1)
 			local cosAngleJ = math.clamp((dist - intCircDist) / sj.radius, -1, 1)
-			si.portals:insert{
+			Portal{
+				sphere = si,
 				nextSphere = sj,
 				delta = delta,
 				unitDelta = unitDelta,
@@ -1182,7 +1210,8 @@ for i=1,#spheres-1 do
 				cosAngle = cosAngleI,
 				q = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
 			}
-			sj.portals:insert{
+			Portal{
+				sphere = sj,
 				nextSphere = si,
 				delta = -delta,
 				unitDelta = -unitDelta,
@@ -1350,33 +1379,6 @@ update=||do
 						x4,y4,u4,v4,
 						x1,y1,u1,v1)
 				end
-			end
-		end
-		--]]
-
-		-- [[ draw portals in 2D mode
-		local n = 24
-		for _,portal in ipairs(viewSphere.portals) do
-			local angle = portal.angle
-			local q = portal.q
-			local cx, cy = quatTo2D(q:unpack())
-			local px, py = quatTo2D(
-				quat_mul(
-					q.x, q.y, q.z, q.w,
-					quatRotZX(0, angle)
-				)
-			)
-			for i=1,n do
-				local th = 2 * math.pi * i / n
-				local x, y = quatTo2D(
-					quat_mul(
-						q.x, q.y, q.z, q.w,
-						quatRotZX(th, angle)
-					)
-				)
-				line(px, py, x, y, 12)
-				tri(px, py, x, y, cx, cy, 0)
-				px, py = x, y
 			end
 		end
 		--]]
