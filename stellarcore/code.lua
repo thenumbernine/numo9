@@ -441,6 +441,7 @@ quat.rotate = |:, v, res|res
 quat.conj = |:, res|
 	((res or quat()):set(-self.x, -self.y, -self.z, self.w))
 
+quat_lenSq=|x,y,z,w|x^2 + y^2 + z^2 + w^2
 quat_len=|x,y,z,w|math.sqrt(x^2 + y^2 + z^2 + w^2)
 
 quat.dot = |a,b| a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
@@ -510,6 +511,21 @@ quat_matrot=|x,y,z,w|do
 end
 quat.matrot=|q| quat_matrot(q:unpack())
 
+quatRotX=|th|do
+	local cos_halfth = math.cos(.5 * th)
+	local sin_halfth = math.sqrt(1 - cos_halfth^2)
+	return sin_halfth, 0, 0, cos_halfth
+end
+quatRotY=|th|do
+	local cos_halfth = math.cos(.5 * th)
+	local sin_halfth = math.sqrt(1 - cos_halfth^2)
+	return 0, sin_halfth, 0, cos_halfth
+end
+quatRotZ=|th|do
+	local cos_halfth = math.cos(.5 * th)
+	local sin_halfth = math.sqrt(1 - cos_halfth^2)
+	return 0, 0, sin_halfth, cos_halfth
+end
 -- returns a quat of a z-rotation times an x-rotation
 -- I did this often enough that I put it in its own method
 quatRotZX=|thz,thx|do
@@ -724,9 +740,9 @@ Object.update=|:|do
 	self.pos.y += dposy
 	self.pos.z += dposz
 	self.pos.w += dposw
-	local s = quat_len(self.pos:unpack())
-	if s > 1e-20 then
-		local is = 1 / s
+	local sSq = quat_lenSq(self.pos:unpack())
+	if sSq > 1e-20 then
+		local is = 1 / math.sqrt(sSq)
 		self.pos.x *= is
 		self.pos.y *= is
 		self.pos.z *= is
@@ -734,62 +750,6 @@ Object.update=|:|do
 	else
 		self.pos.x, self.pos.y, self.pos.z, self.pos.w = 0, 0, 0, 1
 	end
-
-	-- [[ here, if from/to crosses a sphere-portal boundary then move spheres
-	local zAxisx, zAxisy, zAxisz = quat_zAxis(self.pos:unpack())	-- 'up'
-	local velfwdx, velfwdy, velfwdz = vec3_cross(
-		self.vel.x, self.vel.y, self.vel.z,
-		zAxisx, zAxisy, zAxisz
-	)	-- movement dir
-
-	local ptOnSpherex = self.sphere.pos.x + zAxisx * self.sphere.radius
-	local ptOnSpherey = self.sphere.pos.y + zAxisy * self.sphere.radius
-	local ptOnSpherez = self.sphere.pos.z + zAxisz * self.sphere.radius
-	for _,portal in ipairs(self.sphere.portals) do
-		if vec3_dot(
-			zAxisx, zAxisy, zAxisz,
-			portal.unitDelta:unpack()
-		) > portal.cosAngle then
-			if vec3_dot(
-				velfwdx, velfwdy, velfwdz,
-
-				portal.midpoint.x - ptOnSpherex,
-				portal.midpoint.y - ptOnSpherey,
-				portal.midpoint.z - ptOnSpherez
-			) > 0 then
-				-- [[ .. then transfer spheres
-				local newZAxisx = ptOnSpherex - portal.nextSphere.pos.x
-				local newZAxisy = ptOnSpherey - portal.nextSphere.pos.y
-				local newZAxisz = ptOnSpherez - portal.nextSphere.pos.z
-				newZAxisx, newZAxisy, newZAxisz = vec3_unit(newZAxisx, newZAxisy, newZAxisz)
-				local dposx, dposy, dposz, dposw = quat_vectorRotateUnit(
-					zAxisx, zAxisy, zAxisz,
-					newZAxisx, newZAxisy, newZAxisz
-				)
-				self.pos.x, self.pos.y, self.pos.z, self.pos.w = quat_mul(
-					dposx, dposy, dposz, dposw,
-					self.pos:unpack()
-				)
-
-				-- project out z-axis to get rid of twisting ...
-				local zAxisx, zAxisy, zAxisz = quat_zAxis(self.pos:unpack())	-- 'up'
-				local vel_dot_zAxis = vec3_dot(
-					zAxisx, zAxisy, zAxisz,
-					self.vel:unpack()
-				)
-				self.vel.x -= zAxisx * vel_dot_zAxis
-				self.vel.y -= zAxisy * vel_dot_zAxis
-				self.vel.z -= zAxisz * vel_dot_zAxis
-
-				self.sphere.objs:removeObject(self)
-				self.sphere = portal.nextSphere
-				self.sphere.objs:insert(self)
-				break
-				--]]
-			end
-		end
-	end
-	--]]
 end
 
 local Shot = Object:subclass()
@@ -1090,13 +1050,13 @@ Portal.init=|:,args|do
 end
 Portal.draw2D=|:|do
 	local n = 24
-	local angle = self.size * self.sphere.radius	-- * 2 * math.pi
+	local angle = self.size * self.sphere.radius / (2 * math.pi)^2
 	local q = self.pos
 	local cx, cy = quatTo2D(q:unpack())
 	local px, py = quatTo2D(
 		quat_mul(
 			q.x, q.y, q.z, q.w,
-			quatRotZX(0, angle)
+			quatRotX(angle)
 		)
 	)
 	for i=1,n do
@@ -1112,9 +1072,42 @@ Portal.draw2D=|:|do
 		px, py = x, y
 	end
 end
---Portal.touch=|:,other|do
---	if Portal:isa(other) then return end
---end
+Portal.touch=|:,other|do
+	if Portal:isa(other) then return end
+	
+	local self_zAxisx, self_zAxisy, self_zAxisz = quat_zAxis(self.pos:unpack())	-- 'up'
+
+	local other_zAxisx, other_zAxisy, other_zAxisz = quat_zAxis(other.pos:unpack())	-- 'up'
+	local other_velfwdx, other_velfwdy, other_velfwdz = vec3_cross(
+		other.vel.x, other.vel.y, other.vel.z,
+		other_zAxisx, other_zAxisy, other_zAxisz
+	)	-- movement dir
+
+	-- if we're moving away then ignore
+	if vec3_dot(
+		other_velfwdx, other_velfwdy, other_velfwdz,
+		self_zAxisx, self_zAxisy, self_zAxisz
+	) < 0 then return end
+
+	-- ... then transfer spheres
+	other.pos = self.nextPortal.pos * self.pos:conj() * other.pos
+
+	-- project out z-axis to get rid of twisting ...
+	local other_zAxisx, other_zAxisy, other_zAxisz = quat_zAxis(other.pos:unpack())	-- 'up'
+	local vel_dot_zAxis = vec3_dot(
+		other_zAxisx, other_zAxisy, other_zAxisz,
+		other.vel:unpack()
+	)
+	other.vel.x -= other_zAxisx * vel_dot_zAxis
+	other.vel.y -= other_zAxisy * vel_dot_zAxis
+	other.vel.z -= other_zAxisz * vel_dot_zAxis
+
+	callbacks:insert(function()
+		other.sphere.objs:removeObject(other)
+		other.sphere = self.nextPortal.sphere
+		other.sphere.objs:insert(other)
+	end)
+end
 
 -- start spheres
 
@@ -1152,7 +1145,8 @@ local stars = range(2000):mapi(|| {
 	--]]
 	color = math.random(1,15),
 })
-local spheres = table()
+spheres = table()
+callbacks = table()
 
 local startSphere = Sphere{
 	pos = vec3(0,0,0),
@@ -1199,11 +1193,10 @@ for i=1,#spheres-1 do
 			local intCircRad = math.sqrt(sj.radius^2 - intCircDist^2)
 			local cosAngleI = math.clamp(intCircDist / si.radius, -1, 1)
 			local cosAngleJ = math.clamp((dist - intCircDist) / sj.radius, -1, 1)
-			Portal{
+			local pi = Portal{
 				sphere = si,
-				nextSphere = sj,
 				pos = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
-				size = math.acos(cosAngleI) / si.radius,
+				size = math.acos(cosAngleI) / si.radius * (2 * math.pi)^2,
 
 				delta = delta,
 				unitDelta = unitDelta,
@@ -1213,11 +1206,10 @@ for i=1,#spheres-1 do
 				midpoint = midpoint,
 				cosAngle = cosAngleI,
 			}
-			Portal{
+			local pj = Portal{
 				sphere = sj,
-				nextSphere = si,
 				pos = quat(quat_vectorRotateUnit(0,0,1, (-unitDelta):unpack())),
-				size = math.acos(cosAngleJ) / sj.radius,	-- * 2 * math.pi) ... ?
+				size = math.acos(cosAngleJ) / sj.radius * (2 * math.pi)^2,
 
 				delta = -delta,
 				unitDelta = -unitDelta,
@@ -1227,6 +1219,8 @@ for i=1,#spheres-1 do
 				midpoint = midpoint,
 				cosAngle = cosAngleJ,
 			}
+			pi.nextPortal = pj
+			pj.nextPortal = pi
 		end
 	end
 end
@@ -1409,10 +1403,15 @@ update=||do
 	-- how about just every so often if at all?
 	if time() == math.floor(time()) then
 		for _,portal in ipairs(viewSphere.portals) do
-			portal.nextSphere:update()
+			portal.nextPortal.sphere:update()
 		end
 	end
 	--]]
+
+	for i=#callbacks,1,-1 do
+		callbacks[i]()
+		callbacks[i] = nil
+	end
 
 	-- draw gui
 	cls(nil, true)
