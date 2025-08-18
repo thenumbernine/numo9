@@ -564,8 +564,8 @@ local Sphere = class()
 Sphere.init=|:,args|do
 	self.pos = vec3(args.pos)
 	self.radius = args!.radius
-	self.touching = table()
-	self.objs = table()			-- only attach objs to one sphere -- their .sphere -- and test all touching spheres for inter-sphere interactions
+	self.portals = table()
+	self.objs = table()			-- only attach objs to one sphere -- their .sphere -- and test all portals spheres for inter-sphere interactions
 	self.color = nextSphereColor
 	nextSphereColor += 1
 end
@@ -702,18 +702,6 @@ Object.draw2D=|:|do
 
 	matpop()
 end
-Object.draw3D=|:|do
-	matpush()
-	mattrans(self.sphere.pos:unpack())
-	self.pos:matrot()
-	mattrans(0, 0, self.sphere.radius)
-
-	matscale(self.size / 4, self.size / 4)
-	mattrans(-4, -4)
-	spr(0, 0, 0, 1, 1)
-
-	matpop()
-end
 Object.update=|:|do
 	--[[
 	sphere radius = self.sphere.radius in meters
@@ -747,7 +735,7 @@ Object.update=|:|do
 		self.pos.x, self.pos.y, self.pos.z, self.pos.w = 0, 0, 0, 1
 	end
 
-	-- [[ here, if from/to crosses a sphere-touch boundary then move spheres
+	-- [[ here, if from/to crosses a sphere-portal boundary then move spheres
 	local zAxisx, zAxisy, zAxisz = quat_zAxis(self.pos:unpack())	-- 'up'
 	local velfwdx, velfwdy, velfwdz = vec3_cross(
 		self.vel.x, self.vel.y, self.vel.z,
@@ -757,22 +745,22 @@ Object.update=|:|do
 	local ptOnSpherex = self.sphere.pos.x + zAxisx * self.sphere.radius
 	local ptOnSpherey = self.sphere.pos.y + zAxisy * self.sphere.radius
 	local ptOnSpherez = self.sphere.pos.z + zAxisz * self.sphere.radius
-	for _,touch in ipairs(self.sphere.touching) do
+	for _,portal in ipairs(self.sphere.portals) do
 		if vec3_dot(
 			zAxisx, zAxisy, zAxisz,
-			touch.unitDelta:unpack()
-		) > touch.cosAngle then
+			portal.unitDelta:unpack()
+		) > portal.cosAngle then
 			if vec3_dot(
 				velfwdx, velfwdy, velfwdz,
 
-				touch.midpoint.x - ptOnSpherex,
-				touch.midpoint.y - ptOnSpherey,
-				touch.midpoint.z - ptOnSpherez
+				portal.midpoint.x - ptOnSpherex,
+				portal.midpoint.y - ptOnSpherey,
+				portal.midpoint.z - ptOnSpherez
 			) > 0 then
 				-- [[ .. then transfer spheres
-				local newZAxisx = ptOnSpherex - touch.sphere.pos.x
-				local newZAxisy = ptOnSpherey - touch.sphere.pos.y
-				local newZAxisz = ptOnSpherez - touch.sphere.pos.z
+				local newZAxisx = ptOnSpherex - portal.sphere.pos.x
+				local newZAxisy = ptOnSpherey - portal.sphere.pos.y
+				local newZAxisz = ptOnSpherez - portal.sphere.pos.z
 				newZAxisx, newZAxisy, newZAxisz = vec3_unit(newZAxisx, newZAxisy, newZAxisz)
 				local dposx, dposy, dposz, dposw = quat_vectorRotateUnit(
 					zAxisx, zAxisy, zAxisz,
@@ -794,7 +782,7 @@ Object.update=|:|do
 				self.vel.z -= zAxisz * vel_dot_zAxis
 
 				self.sphere.objs:removeObject(self)
-				self.sphere = touch.sphere
+				self.sphere = portal.sphere
 				self.sphere.objs:insert(self)
 				break
 				--]]
@@ -823,26 +811,6 @@ Shot.draw2D=|:|do
 	local x, y = quatTo2D(self.pos:unpack())
 	rect(x-1, y-1, 2, 2, self.color)
 	--]]
-end
-Shot.draw3D=|:|do
-	local zAxisx, zAxisy, zAxisz = quat_zAxis(self.pos:unpack())
-	local sphere = self.sphere
-	local spherePos = sphere.pos
-	local sphereRadius = sphere.radius
-	local pos3dx = spherePos.x + zAxisx * sphereRadius
-	local pos3dy = spherePos.y + zAxisy * sphereRadius
-	local pos3dz = spherePos.z + zAxisz * sphereRadius
-
-	--[[
-	matpush()
-	mattrans(x, y, z)
-	rect(-1, -1, 2, 2, self.color)
-	matpop()
-	--]]
-	-- [[
-	rect(pos3dx-1, pos3dy-1, 2, 2, self.color)	-- do we need a z for anything?
-	--]]
-
 end
 Shot.update=|:|do
 	Shot.super.update(self)
@@ -920,22 +888,6 @@ Ship.draw2D=|:|do
 
 	matpop()
 end
-Ship.draw3D=|:|do
-	matpush()
-	mattrans(self.sphere.pos:unpack())
-
-	self.pos:matrot()
-	mattrans(0, 0, self.sphere.radius)
-
-	matscale(self.size / 8, self.size / 8)
-	mattrans(-8, -8)
-	spr(2, 0, 0, 2, 2)
-	if self.thrust then
-		mattrans(4, 16)
-		spr(1, 0, 0, 1, 1)
-	end
-	matpop()
-end
 Ship.shoot = |:|do
 	if self.nextShootTime > time() then return end
 	self.nextShootTime = time() + 1/15
@@ -1004,10 +956,6 @@ PlayerShip.update = |:| do
 	end
 	if btn('y',0) then
 		self:shoot()
-	end
-	if btnp'a' then
-		drawMethod += 1
-		drawMethod %= 3
 	end
 
 	PlayerShip.super.update(self)
@@ -1133,15 +1081,9 @@ Rock.draw2D=|:|do
 	--]]
 	matpop()
 end
-Rock.draw3D=|:|do
-	matpush()
-	mattrans(self.sphere.pos:unpack())
-	self.pos:matrot()
-	mattrans(0, 0, self.sphere.radius)
 
-	rectb(-self.size, -self.size, 2*self.size, 2*self.size, self.color)
-
-	matpop()
+Portal = Object:subclass()
+Portal.draw2D=|:|do
 end
 
 
@@ -1214,7 +1156,7 @@ do
 	end
 end
 
--- build touching table
+-- build portals table
 for i=1,#spheres-1 do
 	local si = spheres[i]
 	for j=i+1,#spheres do
@@ -1228,7 +1170,7 @@ for i=1,#spheres-1 do
 			local intCircRad = math.sqrt(sj.radius^2 - intCircDist^2)
 			local cosAngleI = math.clamp(intCircDist / si.radius, -1, 1)
 			local cosAngleJ = math.clamp((dist - intCircDist) / sj.radius, -1, 1)
-			si.touching:insert{
+			si.portals:insert{
 				sphere = sj,
 				delta = delta,
 				unitDelta = unitDelta,
@@ -1240,7 +1182,7 @@ for i=1,#spheres-1 do
 				cosAngle = cosAngleI,
 				q = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
 			}
-			sj.touching:insert{
+			sj.portals:insert{
 				sphere = si,
 				delta = -delta,
 				unitDelta = -unitDelta,
@@ -1265,7 +1207,6 @@ player = PlayerShip{
 }
 
 
-drawMethod = 2
 update=||do
 	cls()
 	matident()
@@ -1292,7 +1233,8 @@ update=||do
 
 	local viewDistScale = 1.5
 	local viewTanFov = 2
-	if drawMethod == 2 then
+	
+	do
 		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
 
 		--[[ sphere background -- draw lines ...
@@ -1414,10 +1356,10 @@ update=||do
 
 		-- [[ draw portals in 2D mode
 		local n = 24
-		for _,touch in ipairs(viewSphere.touching) do
-			local touchSphere = touch.sphere
-			local angle = touch.angle
-			local q = touch.q
+		for _,portal in ipairs(viewSphere.portals) do
+			local touchSphere = portal.sphere
+			local angle = portal.angle
+			local q = portal.q
 			local cx, cy = quatTo2D(q:unpack())
 			local px, py = quatTo2D(
 				quat_mul(
@@ -1452,89 +1394,17 @@ update=||do
 			o:draw2D()
 		end
 		--]]
-	else
-		-- [[ draw3D view
-		-- TODO lines aren't working so well with frustum
-
-		-- projection
-		local zn, zf = .1 * viewSphere.radius, 3 * viewSphere.radius
-		matfrustum(-zn * viewTanFov, zn * viewTanFov, -zn * viewTanFov, zn * viewTanFov, zn, zf)
-
-		-- view
-		mattrans(0, 0, -viewDistScale * viewSphere.radius)
-		if drawMethod == 0 then
-			quat_matrot(-viewPos.x, -viewPos.y, -viewPos.z, viewPos.w)
-		end
-		mattrans(-viewSphere.pos.x, -viewSphere.pos.y, -viewSphere.pos.z)
-
-		-- model
-		for _,o in ipairs(viewSphere.objs) do
-			o:draw3D()
-		end
-		--]]
-
-		-- [[ draw portals as circles between spheres
-		for _,touch in ipairs(viewSphere.touching) do
-			local touchSphere = touch.sphere
-			matpush()
-			mattrans(viewSphere.pos.x, viewSphere.pos.y, viewSphere.pos.z)
-			touch.q:matrot()
-
-			-- what'touchSphere the intersection plane distance?
-			local dist = touch.dist
-			local intCircDist = touch.intCircDist
-			local intCircRad = touch.intCircRad
-			mattrans(0, 0, intCircDist)
-			ellib(-intCircRad, -intCircRad, 2*intCircRad, 2*intCircRad, 12)
-			matpop()
-		end
-		--]]
-		-- [[ draw a circle where our sphere boundary should be
-		for _,s in ipairs(spheres) do
-			--local idiv,jdiv=60,30
-			--local idivstep,jdivstep = 5,5
-			local idiv,jdiv=10,5
-			local idivstep,jdivstep = 1,1
-			local corner=|i,j|do
-				local u = i / idiv * math.pi * 2
-				local v = j / jdiv * math.pi
-				return s.radius * math.cos(u) * math.sin(v) + s.pos.x,
-						s.radius * math.sin(u) * math.sin(v) + s.pos.y,
-						s.radius * math.cos(v) + s.pos.z
-			end
-			for i=0,idiv,idivstep do
-				local px, py, pz = corner(i,0)
-				for j=1,jdiv do
-					local x, y, z = corner(i,j)
-					if vec3_dot(px,py,pz, x,y,z) > 0 then
-						line3d(px, py, pz, x, y, z, s.color)
-					end
-					px, py, pz = x, y, z
-				end
-			end
-			for j=0,jdiv,jdivstep do
-				local px, py, pz = corner(0,j)
-				for i=1,idiv do
-					local x, y, z = corner(i,j)
-					if vec3_dot(px,py,pz, x,y,z) > 0 then
-						line3d(px, py, pz, x, y, z, s.color)
-					end
-					px,py,pz = x,y,z
-				end
-			end
-		end
-		--]]
 	end
 
 
 	-- update all ... or just those on our sphere ... or just those within 2 or 3 spheres?
-	-- TODO check touch between sphere eventually. .. but that means tracking pos on multiple spheres ...
+	-- TODO check portal between sphere eventually. .. but that means tracking pos on multiple spheres ...
 	viewSphere:update()
-	-- [[ update touching spheres too (but not all spheres)
+	-- [[ update portals spheres too (but not all spheres)
 	-- how about just every so often if at all?
 	if time() == math.floor(time()) then
-		for _,touch in ipairs(viewSphere.touching) do
-			touch.sphere:update()
+		for _,portal in ipairs(viewSphere.portals) do
+			portal.sphere:update()
 		end
 	end
 	--]]
