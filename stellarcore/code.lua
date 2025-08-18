@@ -63,9 +63,13 @@ end
 ----------------------- END ext/class.lua  -----------------------
 
 -- component based ... where to put this ...
-vec2_lenSq=|x,y|x^2+y^2
-vec2_len=|x,y|math.sqrt(x^2+y^2)
-
+vec2_lenSq_comp=|x,y|x^2+y^2
+vec2_len_comp=|x,y|math.sqrt(x^2+y^2)
+vec2_unit_comp=|x,y|do
+	local l = vec2_len_comp(x,y)
+	local s = 1 / math.max(1e-15, l)
+	return x*s, y*s, l
+end
 ----------------------- BEGIN vec/vec2.lua-----------------------
 local vec2_getvalue=|x, dim|do
 	if type(x) == 'number' then return x end
@@ -186,8 +190,9 @@ vec3_cross_comp=|ax,ay,az, bx,by,bz| (
 )
 vec3_len_comp=|x,y,z|math.sqrt(x^2 + y^2 + z^2)
 vec3_unit_comp=|x,y,z|do
-	local s = 1 / math.max(1e-15, vec3_len_comp(x,y,z))
-	return x*s, y*s, z*s
+	local l = vec3_len_comp(x,y,z)
+	local s = 1 / math.max(1e-15, l)
+	return x*s, y*s, z*s, l
 end
 ----------------------- BEGIN vec/vec3.lua-----------------------
 local vec3_getvalue=|x, dim|do
@@ -221,6 +226,14 @@ vec3=class{
 			v:set(0,0,0)
 		end
 	end,
+	__unm=|v| vec3(-v.x, -v.y, -v.z),
+	__add=|a,b| vec3(vec3_getvalue(a, 1) + vec3_getvalue(b, 1), vec3_getvalue(a, 2) + vec3_getvalue(b, 2), vec3_getvalue(a, 3) + vec3_getvalue(b, 3)),
+	__sub=|a,b| vec3(vec3_getvalue(a, 1) - vec3_getvalue(b, 1), vec3_getvalue(a, 2) - vec3_getvalue(b, 2), vec3_getvalue(a, 3) - vec3_getvalue(b, 3)),
+	__mul=|a,b| vec3(vec3_getvalue(a, 1) * vec3_getvalue(b, 1), vec3_getvalue(a, 2) * vec3_getvalue(b, 2), vec3_getvalue(a, 3) * vec3_getvalue(b, 3)),
+	__div=|a,b| vec3(vec3_getvalue(a, 1) / vec3_getvalue(b, 1), vec3_getvalue(a, 2) / vec3_getvalue(b, 2), vec3_getvalue(a, 3) / vec3_getvalue(b, 3)),
+	__eq=|a,b| a.x == b.x and a.y == b.y and a.z == b.z,
+	__tostring=|v| v.x..','..v.y..','..v.z,
+	__concat=string.concat,
 	clone=|v| vec3(v),
 	set=|v,x,y,z|do
 		if type(x) == 'table' then
@@ -264,14 +277,21 @@ vec3=class{
 			and res:set(v.x * s, v.y * s, v.z * s)
 			or vec3(v.x * s, v.y * s, v.z * s)
 	end,
-	__unm=|v| vec3(-v.x, -v.y, -v.z),
-	__add=|a,b| vec3(vec3_getvalue(a, 1) + vec3_getvalue(b, 1), vec3_getvalue(a, 2) + vec3_getvalue(b, 2), vec3_getvalue(a, 3) + vec3_getvalue(b, 3)),
-	__sub=|a,b| vec3(vec3_getvalue(a, 1) - vec3_getvalue(b, 1), vec3_getvalue(a, 2) - vec3_getvalue(b, 2), vec3_getvalue(a, 3) - vec3_getvalue(b, 3)),
-	__mul=|a,b| vec3(vec3_getvalue(a, 1) * vec3_getvalue(b, 1), vec3_getvalue(a, 2) * vec3_getvalue(b, 2), vec3_getvalue(a, 3) * vec3_getvalue(b, 3)),
-	__div=|a,b| vec3(vec3_getvalue(a, 1) / vec3_getvalue(b, 1), vec3_getvalue(a, 2) / vec3_getvalue(b, 2), vec3_getvalue(a, 3) / vec3_getvalue(b, 3)),
-	__eq=|a,b| a.x == b.x and a.y == b.y and a.z == b.z,
-	__tostring=|v| v.x..','..v.y..','..v.z,
-	__concat=string.concat,
+	toSpherical=|v,res|do
+		local r = v:len()
+		local theta = math.acos(v.z / r)
+		local phi = math.atan2(v.y, v.x)
+		return res
+			and res:set(r,theta,phi)
+			or vec3(r, theta, phi)
+	end,
+	fromSpherical=|v,res|do
+		local r, theta, phi = v:unpack()
+		local x = r * math.cos(phi) * math.sin(theta)
+		local y = r * math.sin(phi) * math.sin(theta)
+		local z = r * math.cos(theta)
+		return res and res:set(x,y,z) or vec3(x,y,z)
+	end,
 }
 
 ----------------------- END vec/vec3.lua  -----------------------
@@ -621,7 +641,7 @@ quatTo2D = |vx, vy, vz, vw|do
 		vx, vy, vz, vw
 	)
 	local posx, posy, posz = quat_zAxis_comp(vx, vy, vz, vw)
-	local len2sq = vec2_lenSq(posx, posy)
+	local len2sq = vec2_lenSq_comp(posx, posy)
 	if len2sq < 1e-20 then
 		return 0, 0,	-- pos2d
 			0, 0, -sqrt_1_2, sqrt_1_2	-- fwd quat
@@ -639,7 +659,7 @@ transformQuatTo2D = |vx,vy,vz,vw| do
 
 	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
 	local fwdx, fwdy, fwdz = quat_yAxis_comp(vx, vy, vz, vw)
-	local len2sq = vec2_lenSq(fwdx, fwdy)
+	local len2sq = vec2_lenSq_comp(fwdx, fwdy)
 	if len2sq < 1e-20 then return end
 	local s = 1/math.sqrt(len2sq)
 	matrotcs(fwdx * s, fwdy * s, 0, 0, 1)
@@ -729,19 +749,6 @@ Object.update=|:|do
 	local ptOnSpherex = self.sphere.pos.x + zAxisx * self.sphere.radius
 	local ptOnSpherey = self.sphere.pos.y + zAxisy * self.sphere.radius
 	local ptOnSpherez = self.sphere.pos.z + zAxisz * self.sphere.radius
-	-- [=[
-	local unitvelfwdx, unitvelfwdy, unitvelfwdz = vec3_unit_comp(velfwdx, velfwdy, velfwdz)
-	self.showIsTouching = false
-	line3d(
-		ptOnSpherex,
-		ptOnSpherey,
-		ptOnSpherez,
-		ptOnSpherex + 16 * unitvelfwdx,
-		ptOnSpherey + 16 * unitvelfwdy,
-		ptOnSpherez + 16 * unitvelfwdz,
-		12
-	)
-	--]=]
 	for _,touch in ipairs(self.sphere.touching) do
 		if vec3_dot_comp(
 			zAxisx, zAxisy, zAxisz,
@@ -754,7 +761,6 @@ Object.update=|:|do
 				touch.midpoint.y - ptOnSpherey,
 				touch.midpoint.z - ptOnSpherez
 			) > 0 then
-				self.showIsTouching = true
 				-- [[ .. then transfer spheres
 				local newZAxisx = ptOnSpherex - touch.sphere.pos.x
 				local newZAxisy = ptOnSpherey - touch.sphere.pos.y
@@ -916,11 +922,6 @@ Ship.draw3D=|:|do
 	matscale(self.size / 8, self.size / 8)
 	mattrans(-8, -8)
 	spr(2, 0, 0, 2, 2)
-	--[[
-	if self.showIsTouching then
-		rect(0,0,16,16,12+16)
-	end
-	--]]
 	if self.thrust then
 		mattrans(4, 16)
 		spr(1, 0, 0, 1, 1)
@@ -1286,7 +1287,7 @@ update=||do
 	if drawMethod == 2 then
 		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
 
-		--[[ sphere background -- draw lines ... 
+		--[[ sphere background -- draw lines ...
 		do
 			local idiv=60
 			local jdiv=30
@@ -1319,7 +1320,7 @@ update=||do
 			end
 		end
 		--]]
-		-- [[ sphere background -- draw star background or something ... 
+		-- [[ sphere background -- draw star background or something ...
 		do
 			local tri = |
 				x1,y1,u1,v1,
@@ -1330,7 +1331,7 @@ update=||do
 				local dy12 = y2 - y1
 				local dx23 = x3 - x2
 				local dy23 = y3 - y2
-				if dx12 * dy23 - dx23 * dy12 > 0 then
+				if dx12 * dy23 - dx23 * dy12 < 0 then
 					ttri3d(
 						x1,y1,0,u1,v1,
 						x2,y2,0,u2,v2,
@@ -1340,10 +1341,38 @@ update=||do
 			local idiv=30
 			local jdiv=15
 			local corner=|i,j|do
+				--[=[ grid across sphere, find tex coords
 				local u = i / idiv
 				local v = j / jdiv
 				local x, y = quatTo2D(quatRotZX_comp(u * 2 * math.pi, v * math.pi))
-				return x, y, 256*u, 128+128*v 
+				return x, y, 256*u, 128+128*v
+				--]=]
+				-- [=[ grid across screen, inverse of above
+				local x = (i / idiv - .5) * screenSize.x
+				local y = (j / jdiv - .5) * screenSize.y
+				local posxunit, posyunit, s = vec2_unit_comp(x, y)
+				local posz = math.cos(s / viewSphere.radius)
+				local len2 = math.sqrt(1 - posz^2)
+				local posx, posy = posxunit * len2, posyunit * len2
+				-- now we have z-axis, ... get lat/lon from it?
+				local v = vec3(posx, posy, posz)
+				v = viewPos:rotate(v)
+				local r, theta, phi = v:toSpherical():unpack()
+				phi %= 2 * math.pi
+				local u, v = phi / (2*math.pi) * 256, theta / math.pi * 128 + 128
+				return x, y, u, v
+				--]=]
+				--[=[ grid across screen, find sphere coords
+				local fu = i/idiv
+				local fv = j/jdiv
+				local su = (fu - .5) * screenSize.x
+				local sv = (fv - .5) * screenSize.y
+				local slen = vec2_len_comp(su, sv)
+				local axis = quat(-sv, su, 0, slen * viewSphere.radius):fromAngleAxis()
+				local pos  = viewPos:mul(axis):zAxis()
+				local r, theta, phi = pos:toSpherical():unpack()
+				return fu * screenSize.x, fv * screenSize.y, phi / (2*math.pi) * 256, theta / math.pi * 128
+				--]=]
 			end
 			for i=0,idiv-1 do
 				for j=0,jdiv-1 do
@@ -1352,7 +1381,7 @@ update=||do
 					local x3,y3,u3,v3 = corner(i+1,j+1)
 					local x4,y4,u4,v4 = corner(i+1,j)
 					tri(
-						x1,y1,u1,v1, 
+						x1,y1,u1,v1,
 						x2,y2,u2,v2,
 						x3,y3,u3,v3)
 					tri(
@@ -1398,7 +1427,7 @@ update=||do
 			rect(x, y, 1, 1, star.color)
 		end
 		--]]
-		
+
 		-- [[ draw2D 2d on surface view
 		for _,o in ipairs(viewSphere.objs) do
 			o:draw2D()
