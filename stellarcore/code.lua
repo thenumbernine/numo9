@@ -380,7 +380,7 @@ end
 -- assumes theta in [0,2*pi)
 quat_fromAngleAxisUnit=|x,y,z,theta|do
 	local cosHalfTheta = math.cos(.5 * theta)
-	local sinHalfTheta = math.sqrt(1 - cosHalfTheta^2)
+	local sinHalfTheta = math.sin(.5 * theta)
 	return x * sinHalfTheta, y * sinHalfTheta, z * sinHalfTheta, cosHalfTheta
 
 end
@@ -513,26 +513,26 @@ quat.matrot=|q| quat_matrot(q:unpack())
 
 quatRotX=|th|do
 	local cos_halfth = math.cos(.5 * th)
-	local sin_halfth = math.sqrt(1 - cos_halfth^2)
+	local sin_halfth = math.sin(.5 * th)
 	return sin_halfth, 0, 0, cos_halfth
 end
 quatRotY=|th|do
 	local cos_halfth = math.cos(.5 * th)
-	local sin_halfth = math.sqrt(1 - cos_halfth^2)
+	local sin_halfth = math.sin(.5 * th)
 	return 0, sin_halfth, 0, cos_halfth
 end
 quatRotZ=|th|do
 	local cos_halfth = math.cos(.5 * th)
-	local sin_halfth = math.sqrt(1 - cos_halfth^2)
+	local sin_halfth = math.sin(.5 * th)
 	return 0, 0, sin_halfth, cos_halfth
 end
 -- returns a quat of a z-rotation times an x-rotation
 -- I did this often enough that I put it in its own method
 quatRotZX=|thz,thx|do
 	local cos_halfthz = math.cos(.5 * thz)
-	local sin_halfthz = math.sqrt(1 - cos_halfthz^2)
+	local sin_halfthz = math.sin(.5 * thz)
 	local cos_halfthx = math.cos(.5 * thx)
-	local sin_halfthx = math.sqrt(1 - cos_halfthx^2)
+	local sin_halfthx = math.sin(.5 * thx)
 	return
 		cos_halfthz * sin_halfthx,
 		sin_halfthz * sin_halfthx,
@@ -893,8 +893,9 @@ PlayerShip.update = |:| do
 		self.vel += quat.fromVec3(self.pos:zAxis() * (-dt * self.rot))
 		--]]
 		-- [[ or instant turn?
-		local sin_halfth = math.sin(-.5 * dt * self.rot)
-		local cos_halfth = math.sqrt(1 - sin_halfth^2)
+		local th = -.5 * dt * self.rot
+		local sin_halfth = math.sin(th)
+		local cos_halfth = math.cos(th)
 		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
@@ -906,8 +907,9 @@ PlayerShip.update = |:| do
 		self.vel += quat.fromVec3(self.pos:zAxis() * (dt * self.rot))
 		--]]
 		-- [[ or instant turn?
-		local sin_halfth = math.sin(.5 * dt * self.rot)
-		local cos_halfth = math.sqrt(1 - sin_halfth^2)
+		local th = .5 * dt * self.rot
+		local sin_halfth = math.sin(th)
+		local cos_halfth = math.cos(th)
 		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
@@ -951,8 +953,9 @@ EnemyShip.update = |:|do
 	if math.abs(sinth) < math.rad(30) then
 	elseif sinth > 0 then
 		--self.vel += quat.fromVec3(selfPos:zAxis() * (dt * self.rot))
-		local sin_halfth = math.sin(-.5 * dt * self.rot)
-		local cos_halfth = math.sqrt(1 - sin_halfth^2)
+		local th = -.5 * dt * self.rot
+		local sin_halfth = math.sin(th)
+		local cos_halfth = math.cos(th)
 		-- TODO optimized mul-z-rhs
 		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
@@ -960,8 +963,9 @@ EnemyShip.update = |:|do
 		)
 	elseif sinth < 0 then
 		--self.vel += quat.fromVec3(selfPos:zAxis() * (-dt * self.rot))
-		local sin_halfth = math.sin(.5 * dt * self.rot)
-		local cos_halfth = math.sqrt(1 - sin_halfth^2)
+		local th = .5 * dt * self.rot
+		local sin_halfth = math.sin(th)
+		local cos_halfth = math.cos(th)
 		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
@@ -1287,8 +1291,9 @@ update=||do
 				local x = (i / idiv - .5) * screenSize.x
 				local y = (j / jdiv - .5) * screenSize.y
 				local posxunit, posyunit, s = vec2_unit(x, y)
-				local posz = math.cos(s / viewSphere.radius)
-				local len2 = math.sqrt(1 - posz^2)
+				local th = s / viewSphere.radius
+				local posz = math.cos(th)
+				local len2 = math.sin(th)
 				local posx, posy = posxunit * len2, posyunit * len2
 				-- now we have z-axis, ... get lat/lon from it?
 				posx, posy, posz = quat_rotate(
