@@ -1090,8 +1090,8 @@ Portal.init=|:,args|do
 end
 Portal.draw2D=|:|do
 	local n = 24
-	local angle = self.angle
-	local q = self.q
+	local angle = self.size * self.sphere.radius	-- * 2 * math.pi
+	local q = self.pos
 	local cx, cy = quatTo2D(q:unpack())
 	local px, py = quatTo2D(
 		quat_mul(
@@ -1112,7 +1112,9 @@ Portal.draw2D=|:|do
 		px, py = x, y
 	end
 end
-
+--Portal.touch=|:,other|do
+--	if Portal:isa(other) then return end
+--end
 
 -- start spheres
 
@@ -1200,28 +1202,30 @@ for i=1,#spheres-1 do
 			Portal{
 				sphere = si,
 				nextSphere = sj,
+				pos = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
+				size = math.acos(cosAngleI) / si.radius,
+
 				delta = delta,
 				unitDelta = unitDelta,
 				dist = dist,
 				intCircDist = intCircDist,
 				intCircRad = intCircRad,
 				midpoint = midpoint,
-				angle = math.acos(cosAngleI),
 				cosAngle = cosAngleI,
-				q = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
 			}
 			Portal{
 				sphere = sj,
 				nextSphere = si,
+				pos = quat(quat_vectorRotateUnit(0,0,1, (-unitDelta):unpack())),
+				size = math.acos(cosAngleJ) / sj.radius,	-- * 2 * math.pi) ... ?
+
 				delta = -delta,
 				unitDelta = -unitDelta,
 				dist = dist,
 				intCircDist = dist - intCircDist,
 				intCircRad = intCircRad,
 				midpoint = midpoint,
-				angle = math.acos(cosAngleJ),
 				cosAngle = cosAngleJ,
-				q = quat(quat_vectorRotateUnit(0,0,1, (-unitDelta):unpack())),
 			}
 		end
 	end
