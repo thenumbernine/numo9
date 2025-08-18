@@ -1189,35 +1189,17 @@ for i=1,#spheres-1 do
 			local dist = delta:len()	-- distance between spheres
 			local unitDelta = delta / dist
 			local intCircDist = .5 * dist * (1 - (sj.radius^2 - si.radius^2) / dist^2)
-			local midpoint = si.pos + unitDelta * intCircDist
-			local intCircRad = math.sqrt(sj.radius^2 - intCircDist^2)
 			local cosAngleI = math.clamp(intCircDist / si.radius, -1, 1)
 			local cosAngleJ = math.clamp((dist - intCircDist) / sj.radius, -1, 1)
 			local pi = Portal{
 				sphere = si,
 				pos = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
 				size = math.acos(cosAngleI) / si.radius * (2 * math.pi)^2,
-
-				delta = delta,
-				unitDelta = unitDelta,
-				dist = dist,
-				intCircDist = intCircDist,
-				intCircRad = intCircRad,
-				midpoint = midpoint,
-				cosAngle = cosAngleI,
 			}
 			local pj = Portal{
 				sphere = sj,
 				pos = quat(quat_vectorRotateUnit(0,0,1, (-unitDelta):unpack())),
 				size = math.acos(cosAngleJ) / sj.radius * (2 * math.pi)^2,
-
-				delta = -delta,
-				unitDelta = -unitDelta,
-				dist = dist,
-				intCircDist = dist - intCircDist,
-				intCircRad = intCircRad,
-				midpoint = midpoint,
-				cosAngle = cosAngleJ,
 			}
 			pi.nextPortal = pj
 			pj.nextPortal = pi
