@@ -63,10 +63,10 @@ end
 ----------------------- END ext/class.lua  -----------------------
 
 -- component based ... where to put this ...
-vec2_lenSq_comp=|x,y|x^2+y^2
-vec2_len_comp=|x,y|math.sqrt(x^2+y^2)
-vec2_unit_comp=|x,y|do
-	local l = vec2_len_comp(x,y)
+vec2_lenSq=|x,y|x^2+y^2
+vec2_len=|x,y|math.sqrt(x^2+y^2)
+vec2_unit=|x,y|do
+	local l = vec2_len(x,y)
 	local s = 1 / math.max(1e-15, l)
 	return x*s, y*s, l
 end
@@ -182,17 +182,23 @@ local dirForName = {right=0, down=1, left=2, up=3}
 ----------------------- END vec/vec2.lua  -----------------------
 
 -- component-based
-vec3_dot_comp=|ax,ay,az, bx,by,bz| ax*bx + ay*by + az*bz
-vec3_cross_comp=|ax,ay,az, bx,by,bz| (
+vec3_dot=|ax,ay,az, bx,by,bz| ax*bx + ay*by + az*bz
+vec3_cross=|ax,ay,az, bx,by,bz| (
 	ay*bz - az*by,
 	az*bx - ax*bz,
 	ax*by - ay*bx
 )
-vec3_len_comp=|x,y,z|math.sqrt(x^2 + y^2 + z^2)
-vec3_unit_comp=|x,y,z|do
-	local l = vec3_len_comp(x,y,z)
+vec3_len=|x,y,z|math.sqrt(x^2 + y^2 + z^2)
+vec3_unit=|x,y,z|do
+	local l = vec3_len(x,y,z)
 	local s = 1 / math.max(1e-15, l)
 	return x*s, y*s, z*s, l
+end
+vec3_toSpherical=|x,y,z|do
+	local r = vec3_len(x,y,z)
+	local theta = math.acos(z / r)
+	local phi = math.atan2(y, x)
+	return r,theta,phi
 end
 ----------------------- BEGIN vec/vec3.lua-----------------------
 local vec3_getvalue=|x, dim|do
@@ -268,7 +274,7 @@ vec3=class{
 	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y), math.abs(v.z)),
 	dot=|a,b| a.x * b.x + a.y * b.y + a.z * b.z,
 	lenSq=|v| v:dot(v),
-	cross=|a,b| vec3(vec3_cross_comp(a.x, a.y, a.z, b.x, b.y, b.z)),
+	cross=|a,b| vec3(vec3_cross(a.x, a.y, a.z, b.x, b.y, b.z)),
 	len=|v| math.sqrt(v:lenSq()),
 	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),
 	unit=|v,res|do
@@ -277,14 +283,9 @@ vec3=class{
 			and res:set(v.x * s, v.y * s, v.z * s)
 			or vec3(v.x * s, v.y * s, v.z * s)
 	end,
-	toSpherical=|v,res|do
-		local r = v:len()
-		local theta = math.acos(v.z / r)
-		local phi = math.atan2(v.y, v.x)
-		return res
-			and res:set(r,theta,phi)
-			or vec3(r, theta, phi)
-	end,
+	toSpherical=|v,res|res
+		and res:set(vec3_toSpherical(v:unpack()))
+		or vec3(vec3_toSpherical(v:unpack())),
 	fromSpherical=|v,res|do
 		local r, theta, phi = v:unpack()
 		local x = r * math.cos(phi) * math.sin(theta)
@@ -325,8 +326,8 @@ quat.__sub = |q,r,res| do
 	return res:set(q.x - r.x, q.y - r.y, q.z - r.z, q.w - r.w)
 end
 
-quat_scale_comp=|s, x,y,z,w|(x*s, y*s, z*s, w*s)	-- scale comes first
-quat_mul_comp=|qx,qy,qz,qw, rx,ry,rz,rw|do
+quat_scale=|s, x,y,z,w|(x*s, y*s, z*s, w*s)	-- scale comes first
+quat_mul=|qx,qy,qz,qw, rx,ry,rz,rw|do
 	local a = (qw + qx) * (rw + rx)
 	local b = (qz - qy) * (ry - rz)
 	local c = (qx - qw) * (ry + rz)
@@ -349,7 +350,7 @@ quat.mul = |q, r, res| do
 	elseif type(r) == 'number' then
 		return res:set(q.x * r, q.y * r, q.z * r, q.w * r)
 	end
-	return res:set(quat_mul_comp(q.x, q.y, q.z, q.w, r.x, r.y, r.z, r.w))
+	return res:set(quat_mul(q.x, q.y, q.z, q.w, r.x, r.y, r.z, r.w))
 end
 
 quat.__mul = quat.mul
@@ -377,7 +378,7 @@ end
 
 -- assumes |x,y,z|=1
 -- assumes theta in [0,2*pi)
-quat_fromAngleAxisUnit_comp=|x,y,z,theta|do
+quat_fromAngleAxisUnit=|x,y,z,theta|do
 	local cosHalfTheta = math.cos(.5 * theta)
 	local sinHalfTheta = math.sqrt(1 - cosHalfTheta^2)
 	return x * sinHalfTheta, y * sinHalfTheta, z * sinHalfTheta, cosHalfTheta
@@ -394,46 +395,53 @@ quat.fromAngleAxis = |:, res| do
 	return (res or quat()):set(x * vscale, y * vscale, z * vscale, costh)
 end
 
-quat_xAxis_comp=|x,y,z,w|(
+quat_xAxis=|x,y,z,w|(
 	1 - 2 * (y * y + z * z),
 	2 * (x * y + z * w),
 	2 * (x * z - w * y)
 )
 quat.xAxis = |q, res| res
-	and res:set(quat_xAxis_comp(q:unpack()))
-	or vec3(quat_xAxis_comp(q:unpack()))
+	and res:set(quat_xAxis(q:unpack()))
+	or vec3(quat_xAxis(q:unpack()))
 
-quat_yAxis_comp=|x,y,z,w|(
+quat_yAxis=|x,y,z,w|(
 	2 * (x * y - w * z),
 	1 - 2 * (x * x + z * z),
 	2 * (y * z + w * x)
 )
 quat.yAxis = |q, res| res
-	and res:set(quat_yAxis_comp(q:unpack()))
-	or vec3(quat_yAxis_comp(q:unpack()))
+	and res:set(quat_yAxis(q:unpack()))
+	or vec3(quat_yAxis(q:unpack()))
 
-quat_zAxis_comp=|x,y,z,w|(
+quat_zAxis=|x,y,z,w|(
 	2 * (x * z + w * y),
 	2 * (y * z - w * x),
 	1 - 2 * (x * x + y * y)
 )
 quat.zAxis = |q, res| res
-	and res:set(quat_zAxis_comp(q:unpack()))
-	or vec3(quat_zAxis_comp(q:unpack()))
+	and res:set(quat_zAxis(q:unpack()))
+	or vec3(quat_zAxis(q:unpack()))
 
 quat.axis = |q, res| res
 	and res:set(q.x, q.y, q.z)
 	or vec3(q.x, q.y, q.z)
 
-quat.rotate = |:, v, res| do
-	local v4 = self * quat(v.x, v.y, v.z, 0) * self:conj()
-	return v4:axis(res)
-end
+quat_rotate=|x, y, z, qx, qy, qz, qw|
+	quat_mul(
+		qx, qy, qz, qw,
+		quat_mul(
+			x, y, z, 0,
+			-qx, -qy, -qz, qw
+		)
+	)
+quat.rotate = |:, v, res|res
+	and res:set(quat_rotate(v.x, v.y, v.z, self:unpack()))
+	or vec3(quat_rotate(v.x, v.y, v.z, self:unpack()))
 
 quat.conj = |:, res|
 	((res or quat()):set(-self.x, -self.y, -self.z, self.w))
 
-quat_len_comp=|x,y,z,w|math.sqrt(x^2 + y^2 + z^2 + w^2)
+quat_len=|x,y,z,w|math.sqrt(x^2 + y^2 + z^2 + w^2)
 
 quat.dot = |a,b| a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w
 quat.normSq = |q| quat.dot(q,q)
@@ -457,7 +465,7 @@ quat.__concat=string.concat
 
 -- make a rotation from v1 to v2
 -- assume both axii are unit already
-quat_vectorRotateUnit_comp=|ax,ay,az,bx,by,bz|do
+quat_vectorRotateUnit=|ax,ay,az,bx,by,bz|do
 	local cosTheta = ax*bx + ay*by + az*bz
 	if math.abs(cosTheta) > 1 - 1e-9 then
 		return 0,0,0,1
@@ -491,7 +499,7 @@ quat.vectorRotate=|v1,v2|do
 	return quat(x,y,z,th):fromAngleAxis()
 end
 
-quat_matrot_comp=|x,y,z,w|do
+quat_matrot=|x,y,z,w|do
 	local coshalfangle = w	-- [-1,1] <-> cos(theta) for theta in [0, pi]
 	local sinhalfangle = math.sqrt(1 - coshalfangle^2)	-- [0,1]
 	if sinhalfangle <= 1e-20 then return end
@@ -500,11 +508,11 @@ quat_matrot_comp=|x,y,z,w|do
 	local sinangle = 2 * sinhalfangle * coshalfangle
 	matrotcs(cosangle, sinangle, x * il, y * il, z * il)
 end
-quat.matrot=|q| quat_matrot_comp(q:unpack())
+quat.matrot=|q| quat_matrot(q:unpack())
 
 -- returns a quat of a z-rotation times an x-rotation
 -- I did this often enough that I put it in its own method
-quatRotZX_comp=|thz,thx|do
+quatRotZX=|thz,thx|do
 	local cos_halfthz = math.cos(.5 * thz)
 	local sin_halfthz = math.sqrt(1 - cos_halfthz^2)
 	local cos_halfthx = math.cos(.5 * thx)
@@ -536,10 +544,10 @@ end
 
 randomPos=||do
 	local x,y,z = randomSphereSurface()
-	local qx, qy, qz, qw = quat_fromAngleAxisUnit_comp(x,y,z, math.random() * math.pi)
-	return quat_mul_comp(
+	local qx, qy, qz, qw = quat_fromAngleAxisUnit(x,y,z, math.random() * math.pi)
+	return quat_mul(
 		qx, qy, qz, qw,
-		quat_fromAngleAxisUnit_comp(1, 0, 0, math.random() * 2 * math.pi)
+		quat_fromAngleAxisUnit(1, 0, 0, math.random() * 2 * math.pi)
 	)
 end
 
@@ -575,16 +583,16 @@ Sphere.update=|:|do
 	for i=1,#objs-1 do
 		local o = objs[i]
 		if not o.dead then
-			local ozx, ozy, ozz = quat_zAxis_comp(o.pos:unpack())
+			local ozx, ozy, ozz = quat_zAxis(o.pos:unpack())
 			local omass = o:calcMass()
 			for i2=i+1,#objs do
 				local o2 = objs[i2]
 				if not o2.dead then
 					local o2mass = o2:calcMass()
-					local o2zx, o2zy, o2zz = quat_zAxis_comp(o2.pos:unpack())
+					local o2zx, o2zy, o2zz = quat_zAxis(o2.pos:unpack())
 					-- check touch
 					local dist = math.acos(
-						vec3_dot_comp(ozx, ozy, ozz, o2zx, o2zy, o2zz)
+						vec3_dot(ozx, ozy, ozz, o2zx, o2zy, o2zz)
 					) * self.radius
 					if dist < (o.size + o2.size) then
 						if o.touch then o:touch(o2) end
@@ -601,8 +609,8 @@ Sphere.update=|:|do
 							1 / (dist * dist),
 							dist / (midsize * midsize * midsize)
 						)
-						local rhsx, rhsy, rhsz = vec3_unit_comp(
-							vec3_cross_comp(ozx, ozy, ozz, o2zx, o2zy, o2zz)
+						local rhsx, rhsy, rhsz = vec3_unit(
+							vec3_cross(ozx, ozy, ozz, o2zx, o2zy, o2zz)
 						)
 						o.vel.x += rhsx * mu * o2mass
 						o.vel.y += rhsy * mu * o2mass
@@ -636,12 +644,12 @@ viewSphere = startSphere
 -- where x,y are the point in 2D (centered at 0,0)
 -- and q_i is the quaternion after transforming to be relative to viewPos
 quatTo2D = |vx, vy, vz, vw|do
-	vx, vy, vz, vw = quat_mul_comp(
+	vx, vy, vz, vw = quat_mul(
 		-viewPos.x, -viewPos.y, -viewPos.z, viewPos.w,
 		vx, vy, vz, vw
 	)
-	local posx, posy, posz = quat_zAxis_comp(vx, vy, vz, vw)
-	local len2sq = vec2_lenSq_comp(posx, posy)
+	local posx, posy, posz = quat_zAxis(vx, vy, vz, vw)
+	local len2sq = vec2_lenSq(posx, posy)
 	if len2sq < 1e-20 then
 		return 0, 0,	-- pos2d
 			0, 0, -sqrt_1_2, sqrt_1_2	-- fwd quat
@@ -658,8 +666,8 @@ transformQuatTo2D = |vx,vy,vz,vw| do
 	mattrans(pos2dx, pos2dy)
 
 	-- cos/sin -> atan -> cos/sin ... plz just do a matmul
-	local fwdx, fwdy, fwdz = quat_yAxis_comp(vx, vy, vz, vw)
-	local len2sq = vec2_lenSq_comp(fwdx, fwdy)
+	local fwdx, fwdy, fwdz = quat_yAxis(vx, vy, vz, vw)
+	local len2sq = vec2_lenSq(fwdx, fwdy)
 	if len2sq < 1e-20 then return end
 	local s = 1/math.sqrt(len2sq)
 	matrotcs(fwdx * s, fwdy * s, 0, 0, 1)
@@ -715,11 +723,11 @@ Object.update=|:|do
 	qdot = 1/2 w * q
 	w = (wv, 0) = angular velocity as pure-quaternion
 	--]]
-	local dposx, dposy, dposz, dposw = quat_scale_comp(
+	local dposx, dposy, dposz, dposw = quat_scale(
 		(.5 * dt / (self.sphere.radius
 --			* 2 * math.pi
 		)),
-		quat_mul_comp(
+		quat_mul(
 			self.vel.x, self.vel.y, self.vel.z, self.vel.w,
 			self.pos:unpack()
 		)
@@ -728,7 +736,7 @@ Object.update=|:|do
 	self.pos.y += dposy
 	self.pos.z += dposz
 	self.pos.w += dposw
-	local s = quat_len_comp(self.pos:unpack())
+	local s = quat_len(self.pos:unpack())
 	if s > 1e-20 then
 		local is = 1 / s
 		self.pos.x *= is
@@ -740,8 +748,8 @@ Object.update=|:|do
 	end
 
 	-- [[ here, if from/to crosses a sphere-touch boundary then move spheres
-	local zAxisx, zAxisy, zAxisz = quat_zAxis_comp(self.pos:unpack())	-- 'up'
-	local velfwdx, velfwdy, velfwdz = vec3_cross_comp(
+	local zAxisx, zAxisy, zAxisz = quat_zAxis(self.pos:unpack())	-- 'up'
+	local velfwdx, velfwdy, velfwdz = vec3_cross(
 		self.vel.x, self.vel.y, self.vel.z,
 		zAxisx, zAxisy, zAxisz
 	)	-- movement dir
@@ -750,11 +758,11 @@ Object.update=|:|do
 	local ptOnSpherey = self.sphere.pos.y + zAxisy * self.sphere.radius
 	local ptOnSpherez = self.sphere.pos.z + zAxisz * self.sphere.radius
 	for _,touch in ipairs(self.sphere.touching) do
-		if vec3_dot_comp(
+		if vec3_dot(
 			zAxisx, zAxisy, zAxisz,
 			touch.unitDelta:unpack()
 		) > touch.cosAngle then
-			if vec3_dot_comp(
+			if vec3_dot(
 				velfwdx, velfwdy, velfwdz,
 
 				touch.midpoint.x - ptOnSpherex,
@@ -765,19 +773,19 @@ Object.update=|:|do
 				local newZAxisx = ptOnSpherex - touch.sphere.pos.x
 				local newZAxisy = ptOnSpherey - touch.sphere.pos.y
 				local newZAxisz = ptOnSpherez - touch.sphere.pos.z
-				newZAxisx, newZAxisy, newZAxisz = vec3_unit_comp(newZAxisx, newZAxisy, newZAxisz)
-				local dposx, dposy, dposz, dposw = quat_vectorRotateUnit_comp(
+				newZAxisx, newZAxisy, newZAxisz = vec3_unit(newZAxisx, newZAxisy, newZAxisz)
+				local dposx, dposy, dposz, dposw = quat_vectorRotateUnit(
 					zAxisx, zAxisy, zAxisz,
 					newZAxisx, newZAxisy, newZAxisz
 				)
-				self.pos.x, self.pos.y, self.pos.z, self.pos.w = quat_mul_comp(
+				self.pos.x, self.pos.y, self.pos.z, self.pos.w = quat_mul(
 					dposx, dposy, dposz, dposw,
 					self.pos:unpack()
 				)
 
 				-- project out z-axis to get rid of twisting ...
-				local zAxisx, zAxisy, zAxisz = quat_zAxis_comp(self.pos:unpack())	-- 'up'
-				local vel_dot_zAxis = vec3_dot_comp(
+				local zAxisx, zAxisy, zAxisz = quat_zAxis(self.pos:unpack())	-- 'up'
+				local vel_dot_zAxis = vec3_dot(
 					zAxisx, zAxisy, zAxisz,
 					self.vel:unpack()
 				)
@@ -817,7 +825,7 @@ Shot.draw2D=|:|do
 	--]]
 end
 Shot.draw3D=|:|do
-	local zAxisx, zAxisy, zAxisz = quat_zAxis_comp(self.pos:unpack())
+	local zAxisx, zAxisy, zAxisz = quat_zAxis(self.pos:unpack())
 	local sphere = self.sphere
 	local spherePos = sphere.pos
 	local sphereRadius = sphere.radius
@@ -859,7 +867,7 @@ Shot.touch=|:,other|do
 				local piece = Rock{
 					sphere = other.sphere,
 					pos = other.pos
-						* quat(quatRotZX_comp(
+						* quat(quatRotZX(
 							2 * math.pi * i / newrocks,
 							math.random() * other.size / self.sphere.radius
 						)),
@@ -868,7 +876,7 @@ Shot.touch=|:,other|do
 						and (math.random(2) == 1 and other.sizeM or other.sizeS)
 						or other.sizeS,
 				}
-				piece.vel = oldvel + randomVel() * .2 * vec3_len_comp(oldvel:unpack())
+				piece.vel = oldvel + randomVel() * .2 * vec3_len(oldvel:unpack())
 			end
 		end
 		other.dead = true
@@ -932,7 +940,7 @@ Ship.shoot = |:|do
 	if self.nextShootTime > time() then return end
 	self.nextShootTime = time() + 1/15
 
-	local xAxisx, xAxisy, xAxisz = quat_xAxis_comp(self.pos:unpack())
+	local xAxisx, xAxisy, xAxisz = quat_xAxis(self.pos:unpack())
 	Shot{
 		sphere = self.sphere,
 		pos = self.pos:clone(),
@@ -962,7 +970,7 @@ PlayerShip.update = |:| do
 	if dy ~= 0 then
 		-- dy==+1 = rotate on right axis = go fwd
 		local s = dy * dt * self.accel
-		local xAxisx, xAxisy, xAxisz = quat_xAxis_comp(selfPos:unpack())
+		local xAxisx, xAxisy, xAxisz = quat_xAxis(selfPos:unpack())
 		self.vel.x += xAxisx * s
 		self.vel.y += xAxisy * s
 		self.vel.z += xAxisz * s
@@ -975,7 +983,7 @@ PlayerShip.update = |:| do
 		-- [[ or instant turn?
 		local sin_halfth = math.sin(-.5 * dt * self.rot)
 		local cos_halfth = math.sqrt(1 - sin_halfth^2)
-		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul_comp(
+		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
 		)
@@ -988,7 +996,7 @@ PlayerShip.update = |:| do
 		-- [[ or instant turn?
 		local sin_halfth = math.sin(.5 * dt * self.rot)
 		local cos_halfth = math.sqrt(1 - sin_halfth^2)
-		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul_comp(
+		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
 		)
@@ -1010,26 +1018,26 @@ EnemyShip.thrust = true
 -- [[
 EnemyShip.update = |:|do
 	local selfPos = self.pos
-	local zAxisx, zAxisy, zAxisz = quat_zAxis_comp(selfPos:unpack())
+	local zAxisx, zAxisy, zAxisz = quat_zAxis(selfPos:unpack())
 
 	-- TODO dirToPlayer = zAxis cross (zAxis cross player_zAxis) ... double-cross-product ...
 	-- ... and then it's used a 3rd time to calculate sin(theta) ...
-	local dirToPlayerx, dirToPlayery, dirToPlayerz = vec3_unit_comp(vec3_cross_comp(
+	local dirToPlayerx, dirToPlayery, dirToPlayerz = vec3_unit(vec3_cross(
 		zAxisx, zAxisy, zAxisz,
-		vec3_cross_comp(
+		vec3_cross(
 			zAxisx, zAxisy, zAxisz,
-			quat_zAxis_comp(player.pos:unpack())
+			quat_zAxis(player.pos:unpack())
 		)
 	))
 
 	-- find the shortest rotation from us to player
 	-- compare its geodesic to our 'fwd' dir
 	-- turn if needed
-	local sinth = vec3_dot_comp(
+	local sinth = vec3_dot(
 		zAxisx, zAxisy, zAxisz,
-		vec3_cross_comp(
+		vec3_cross(
 			dirToPlayerx, dirToPlayery, dirToPlayerz,
-			quat_yAxis_comp(selfPos:unpack())
+			quat_yAxis(selfPos:unpack())
 		)
 	)
 	if math.abs(sinth) < math.rad(30) then
@@ -1038,7 +1046,7 @@ EnemyShip.update = |:|do
 		local sin_halfth = math.sin(-.5 * dt * self.rot)
 		local cos_halfth = math.sqrt(1 - sin_halfth^2)
 		-- TODO optimized mul-z-rhs
-		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul_comp(
+		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
 		)
@@ -1046,14 +1054,14 @@ EnemyShip.update = |:|do
 		--self.vel += quat.fromVec3(selfPos:zAxis() * (-dt * self.rot))
 		local sin_halfth = math.sin(.5 * dt * self.rot)
 		local cos_halfth = math.sqrt(1 - sin_halfth^2)
-		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul_comp(
+		selfPos.x, selfPos.y, selfPos.z, selfPos.w = quat_mul(
 			selfPos.x, selfPos.y, selfPos.z, selfPos.w,
 			0, 0, sin_halfth, cos_halfth
 		)
 	end
 
 	local s = dt * self.accel
-	local xAxisx, xAxisy, xAxisz = quat_xAxis_comp(self.pos:unpack())
+	local xAxisx, xAxisy, xAxisz = quat_xAxis(self.pos:unpack())
 	self.vel.x += xAxisx * s
 	self.vel.y += xAxisy * s
 	self.vel.z += xAxisz * s
@@ -1165,7 +1173,7 @@ local stars = range(2000):mapi(|| {
 	--[[
 	pos = (||do
 		local x,y,z = randomSphereSurface()
-		return quat(quat_mul_comp(
+		return quat(quat_mul(
 			x,y,z, math.random() * math.pi,
 			0, 0, 1, math.random() * 2 * math.pi
 		))
@@ -1230,7 +1238,7 @@ for i=1,#spheres-1 do
 				midpoint = midpoint,
 				angle = math.acos(cosAngleI),
 				cosAngle = cosAngleI,
-				q = quat(quat_vectorRotateUnit_comp(0,0,1, unitDelta:unpack())),
+				q = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
 			}
 			sj.touching:insert{
 				sphere = si,
@@ -1242,7 +1250,7 @@ for i=1,#spheres-1 do
 				midpoint = midpoint,
 				angle = math.acos(cosAngleJ),
 				cosAngle = cosAngleJ,
-				q = quat(quat_vectorRotateUnit_comp(0,0,1, (-unitDelta):unpack())),
+				q = quat(quat_vectorRotateUnit(0,0,1, (-unitDelta):unpack())),
 			}
 		end
 	end
@@ -1296,7 +1304,7 @@ update=||do
 			local corner=|i,j|do
 				local u = i / idiv * math.pi * 2
 				local v = j / jdiv * math.pi
-				return quatTo2D(quatRotZX_comp(u, v))
+				return quatTo2D(quatRotZX(u, v))
 			end
 			for i=0,idiv,idivstep do
 				local px, py = corner(i,0)
@@ -1320,7 +1328,46 @@ update=||do
 			end
 		end
 		--]]
-		-- [[ sphere background -- draw star background or something ...
+		--[[ sphere background -- draw star background or something -- iterate background
+		do
+			local idiv=30
+			local jdiv=15
+			local corner=|i,j|do
+				local x = (i / idiv - .5) * screenSize.x
+				local y = (j / jdiv - .5) * screenSize.y
+				local posxunit, posyunit, s = vec2_unit(x, y)
+				local posz = math.cos(s / viewSphere.radius)
+				local len2 = math.sqrt(1 - posz^2)
+				local posx, posy = posxunit * len2, posyunit * len2
+				-- now we have z-axis, ... get lat/lon from it?
+				posx, posy, posz = quat_rotate(
+					posx, posy, posz,
+					viewPos:unpack()
+				)
+				local r, theta, phi = vec3(posx, posy, posz):toSpherical():unpack()
+				phi %= 2 * math.pi
+				local u, v = phi / (2*math.pi) * 256, theta / math.pi * 128 + 128
+				return x, y, u, v
+			end
+			for i=0,idiv-1 do
+				for j=0,jdiv-1 do
+					local x1,y1,u1,v1 = corner(i,j)
+					local x2,y2,u2,v2 = corner(i,j+1)
+					local x3,y3,u3,v3 = corner(i+1,j+1)
+					local x4,y4,u4,v4 = corner(i+1,j)
+					ttri3d(
+						x1,y1,0,u1,v1,
+						x2,y2,0,u2,v2,
+						x3,y3,0,u3,v3)
+					ttri3d(
+						x3,y3,0,u3,v3,
+						x4,y4,0,u4,v4,
+						x1,y1,0,u1,v1)
+				end
+			end
+		end
+		--]]
+		-- [[ sphere background -- draw star background or something -- iterate sphere
 		do
 			local tri = |
 				x1,y1,u1,v1,
@@ -1331,7 +1378,7 @@ update=||do
 				local dy12 = y2 - y1
 				local dx23 = x3 - x2
 				local dy23 = y3 - y2
-				if dx12 * dy23 - dx23 * dy12 < 0 then
+				if dx12 * dy23 - dx23 * dy12 > 0 then
 					ttri3d(
 						x1,y1,0,u1,v1,
 						x2,y2,0,u2,v2,
@@ -1341,38 +1388,10 @@ update=||do
 			local idiv=30
 			local jdiv=15
 			local corner=|i,j|do
-				--[=[ grid across sphere, find tex coords
 				local u = i / idiv
 				local v = j / jdiv
-				local x, y = quatTo2D(quatRotZX_comp(u * 2 * math.pi, v * math.pi))
-				return x, y, 256*u, 128+128*v
-				--]=]
-				-- [=[ grid across screen, inverse of above
-				local x = (i / idiv - .5) * screenSize.x
-				local y = (j / jdiv - .5) * screenSize.y
-				local posxunit, posyunit, s = vec2_unit_comp(x, y)
-				local posz = math.cos(s / viewSphere.radius)
-				local len2 = math.sqrt(1 - posz^2)
-				local posx, posy = posxunit * len2, posyunit * len2
-				-- now we have z-axis, ... get lat/lon from it?
-				local v = vec3(posx, posy, posz)
-				v = viewPos:rotate(v)
-				local r, theta, phi = v:toSpherical():unpack()
-				phi %= 2 * math.pi
-				local u, v = phi / (2*math.pi) * 256, theta / math.pi * 128 + 128
-				return x, y, u, v
-				--]=]
-				--[=[ grid across screen, find sphere coords
-				local fu = i/idiv
-				local fv = j/jdiv
-				local su = (fu - .5) * screenSize.x
-				local sv = (fv - .5) * screenSize.y
-				local slen = vec2_len_comp(su, sv)
-				local axis = quat(-sv, su, 0, slen * viewSphere.radius):fromAngleAxis()
-				local pos  = viewPos:mul(axis):zAxis()
-				local r, theta, phi = pos:toSpherical():unpack()
-				return fu * screenSize.x, fv * screenSize.y, phi / (2*math.pi) * 256, theta / math.pi * 128
-				--]=]
+				local x, y = quatTo2D(quatRotZX(u * 2 * math.pi, v * math.pi))
+				return x, y, 256*u, 128+128*v 
 			end
 			for i=0,idiv-1 do
 				for j=0,jdiv-1 do
@@ -1381,7 +1400,7 @@ update=||do
 					local x3,y3,u3,v3 = corner(i+1,j+1)
 					local x4,y4,u4,v4 = corner(i+1,j)
 					tri(
-						x1,y1,u1,v1,
+						x1,y1,u1,v1, 
 						x2,y2,u2,v2,
 						x3,y3,u3,v3)
 					tri(
@@ -1401,17 +1420,17 @@ update=||do
 			local q = touch.q
 			local cx, cy = quatTo2D(q:unpack())
 			local px, py = quatTo2D(
-				quat_mul_comp(
+				quat_mul(
 					q.x, q.y, q.z, q.w,
-					quatRotZX_comp(0, angle)
+					quatRotZX(0, angle)
 				)
 			)
 			for i=1,n do
 				local th = 2 * math.pi * i / n
 				local x, y = quatTo2D(
-					quat_mul_comp(
+					quat_mul(
 						q.x, q.y, q.z, q.w,
-						quatRotZX_comp(th, angle)
+						quatRotZX(th, angle)
 					)
 				)
 				line(px, py, x, y, 12)
@@ -1444,7 +1463,7 @@ update=||do
 		-- view
 		mattrans(0, 0, -viewDistScale * viewSphere.radius)
 		if drawMethod == 0 then
-			quat_matrot_comp(-viewPos.x, -viewPos.y, -viewPos.z, viewPos.w)
+			quat_matrot(-viewPos.x, -viewPos.y, -viewPos.z, viewPos.w)
 		end
 		mattrans(-viewSphere.pos.x, -viewSphere.pos.y, -viewSphere.pos.z)
 
@@ -1487,7 +1506,7 @@ update=||do
 				local px, py, pz = corner(i,0)
 				for j=1,jdiv do
 					local x, y, z = corner(i,j)
-					if vec3_dot_comp(px,py,pz, x,y,z) > 0 then
+					if vec3_dot(px,py,pz, x,y,z) > 0 then
 						line3d(px, py, pz, x, y, z, s.color)
 					end
 					px, py, pz = x, y, z
@@ -1497,7 +1516,7 @@ update=||do
 				local px, py, pz = corner(0,j)
 				for i=1,idiv do
 					local x, y, z = corner(i,j)
-					if vec3_dot_comp(px,py,pz, x,y,z) > 0 then
+					if vec3_dot(px,py,pz, x,y,z) > 0 then
 						line3d(px, py, pz, x, y, z, s.color)
 					end
 					px,py,pz = x,y,z
