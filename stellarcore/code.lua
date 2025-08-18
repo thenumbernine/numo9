@@ -317,6 +317,10 @@ quat.set = |:,x,y,z,w| do
 end
 quat.clone = |q| quat(q.x, q.y, q.z, q.w)
 quat.unpack = |q| (q.x, q.y, q.z, q.w)
+quat.__unm = |q,res|do
+	res = res or quat()
+	return quat(-q.x, -q.y, -q.z, -q.w)
+end
 quat.__add = |q,r,res| do
 	res = res or quat()
 	return res:set(q.x + r.x, q.y + r.y, q.z + r.z, q.w + r.w)
@@ -728,9 +732,7 @@ Object.update=|:|do
 	w = (wv, 0) = angular velocity as pure-quaternion
 	--]]
 	local dposx, dposy, dposz, dposw = quat_scale(
-		(.5 * dt / (self.sphere.radius
---			* 2 * math.pi
-		)),
+		.5 * dt / self.sphere.radius,
 		quat_mul(
 			self.vel.x, self.vel.y, self.vel.z, self.vel.w,
 			self.pos:unpack()
@@ -1054,7 +1056,7 @@ Portal.init=|:,args|do
 end
 Portal.draw2D=|:|do
 	local n = 24
-	local angle = self.size * self.sphere.radius / (2 * math.pi)^2
+	local angle = self.size / self.sphere.radius
 	local q = self.pos
 	local cx, cy = quatTo2D(q:unpack())
 	local px, py = quatTo2D(
@@ -1078,35 +1080,43 @@ Portal.draw2D=|:|do
 end
 Portal.touch=|:,other|do
 	if Portal:isa(other) then return end
-	
-	local self_zAxisx, self_zAxisy, self_zAxisz = quat_zAxis(self.pos:unpack())	-- 'up'
 
 	local other_zAxisx, other_zAxisy, other_zAxisz = quat_zAxis(other.pos:unpack())	-- 'up'
+
+	-- [[ if we're moving away then ignore
+	local self_zAxisx, self_zAxisy, self_zAxisz = quat_zAxis(self.pos:unpack())	-- 'up'
 	local other_velfwdx, other_velfwdy, other_velfwdz = vec3_cross(
 		other.vel.x, other.vel.y, other.vel.z,
 		other_zAxisx, other_zAxisy, other_zAxisz
 	)	-- movement dir
-
-	-- if we're moving away then ignore
 	if vec3_dot(
 		other_velfwdx, other_velfwdy, other_velfwdz,
 		self_zAxisx, self_zAxisy, self_zAxisz
 	) < 0 then return end
-
-	-- ... then transfer spheres
-	other.pos = self.nextPortal.pos * self.pos:conj() * other.pos
-
-	-- project out z-axis to get rid of twisting ...
-	local other_zAxisx, other_zAxisy, other_zAxisz = quat_zAxis(other.pos:unpack())	-- 'up'
-	local vel_dot_zAxis = vec3_dot(
-		other_zAxisx, other_zAxisy, other_zAxisz,
-		other.vel:unpack()
-	)
-	other.vel.x -= other_zAxisx * vel_dot_zAxis
-	other.vel.y -= other_zAxisy * vel_dot_zAxis
-	other.vel.z -= other_zAxisz * vel_dot_zAxis
+	--]]
 
 	callbacks:insert(function()
+		-- ... then transfer spheres
+		local nextPortalPos = self.nextPortal.pos
+		other.pos:set(quat_mul(
+			nextPortalPos.x, nextPortalPos.y, nextPortalPos.z, nextPortalPos.w,
+			quat_mul(
+				-self.pos.x, -self.pos.y, -self.pos.z, self.pos.w,
+				other.pos:unpack()
+			)
+		))
+		--other.pos *= quat(0,0,1,0)
+
+		-- project out z-axis to get rid of twisting ...
+		local other_zAxisx, other_zAxisy, other_zAxisz = quat_zAxis(other.pos:unpack())	-- 'up'
+		local vel_dot_zAxis = vec3_dot(
+			other_zAxisx, other_zAxisy, other_zAxisz,
+			other.vel:unpack()
+		)
+		other.vel.x -= other_zAxisx * vel_dot_zAxis
+		other.vel.y -= other_zAxisy * vel_dot_zAxis
+		other.vel.z -= other_zAxisz * vel_dot_zAxis
+
 		other.sphere.objs:removeObject(other)
 		other.sphere = self.nextPortal.sphere
 		other.sphere.objs:insert(other)
@@ -1198,12 +1208,12 @@ for i=1,#spheres-1 do
 			local pi = Portal{
 				sphere = si,
 				pos = quat(quat_vectorRotateUnit(0,0,1, unitDelta:unpack())),
-				size = math.acos(cosAngleI) / si.radius * (2 * math.pi)^2,
+				size = math.acos(cosAngleI) * si.radius,
 			}
 			local pj = Portal{
 				sphere = sj,
 				pos = quat(quat_vectorRotateUnit(0,0,1, (-unitDelta):unpack())),
-				size = math.acos(cosAngleJ) / sj.radius * (2 * math.pi)^2,
+				size = math.acos(cosAngleJ) * sj.radius,
 			}
 			pi.nextPortal = pj
 			pj.nextPortal = pi
@@ -1246,7 +1256,7 @@ update=||do
 
 	local viewDistScale = 1.5
 	local viewTanFov = 2
-	
+
 	do
 		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
 
@@ -1347,7 +1357,7 @@ update=||do
 				local u = i / idiv
 				local v = j / jdiv
 				local x, y = quatTo2D(quatRotZX(u * 2 * math.pi, v * math.pi))
-				return x, y, 256*u, 128+128*v 
+				return x, y, 256*u, 128+128*v
 			end
 			for i=0,idiv-1 do
 				for j=0,jdiv-1 do
@@ -1356,7 +1366,7 @@ update=||do
 					local x3,y3,u3,v3 = corner(i+1,j+1)
 					local x4,y4,u4,v4 = corner(i+1,j)
 					tri(
-						x1,y1,u1,v1, 
+						x1,y1,u1,v1,
 						x2,y2,u2,v2,
 						x3,y3,u3,v3)
 					tri(
