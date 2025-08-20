@@ -712,7 +712,7 @@ Object.init=|:,args|do
 	self.pos = (args and args.pos or self.pos):clone()
 	self.vel = (args and args.vel or self.vel):clone()
 end
-Object.draw2D=|:|do
+Object.draw=|:|do
 	matpush()
 	transformQuatTo2D(self.pos:unpack())
 
@@ -762,7 +762,7 @@ Shot.init=|:,args|do
 	Shot.super.init(self, args)
 	self.endTime = args?.endTime
 end
-Shot.draw2D=|:|do
+Shot.draw=|:|do
 	--[[
 	matpush()
 	transformQuatTo2D(self.pos:unpack())
@@ -826,7 +826,7 @@ Ship.update = |:| do
 	self.health = math.clamp(self.health, 0, self.healthMax)
 	Ship.super.update(self)
 end
-Ship.draw2D=|:|do
+Ship.draw=|:|do
 	matpush()
 	transformQuatTo2D(self.pos:unpack())
 
@@ -836,7 +836,7 @@ Ship.draw2D=|:|do
 	if self.thrust then
 		drawTri(-3 * fwd, -fwd, .5 * self.size, 9)
 	end
-	Ship.super.draw2D(self)	-- TODO super call outside pop...
+	Ship.super.draw(self)	-- TODO super call outside pop...
 	--]]
 	-- [[ sprite
 	matscale(self.size / 8, self.size / 8)
@@ -1024,7 +1024,7 @@ do return end
 		end
 	end
 end
-Rock.draw2D=|:|do
+Rock.draw=|:|do
 	matpush()
 	transformQuatTo2D(self.pos:unpack())
 	--[[ vector
@@ -1035,7 +1035,7 @@ Rock.draw2D=|:|do
 	line(self.size*(rightx-fwd.x), self.size*(righty-fwd.y), self.size*(-rightx - fwd.x), self.size*(-righty - fwd.y), self.color)
 	line(self.size*(-rightx - fwd.x), self.size*(-righty - fwd.y), self.size*(fwd.x-rightx), self.size*(fwd.y-righty), self.color)
 	line(self.size*(fwd.x-rightx), self.size*(fwd.y-righty), self.size*(fwd.x+rightx), self.size*(fwd.y+righty), self.color)
-	Rock.super.draw2D(self)	-- TODO super call outside pop...
+	Rock.super.draw(self)	-- TODO super call outside pop...
 	--]]
 	--[[ rect in sprite coords
 	rectb(-self.size, -self.size, 2*self.size, 2*self.size, self.color)
@@ -1054,7 +1054,7 @@ Portal.init=|:,args|do
 	Portal.super.init(self, args)
 	self.sphere.portals:insert(self)
 end
-Portal.draw2D=|:|do
+Portal.draw=|:|do
 	local n = 24
 	local angle = self.size / self.sphere.radius
 	local q = self.pos
@@ -1257,141 +1257,195 @@ update=||do
 	local viewDistScale = 1.5
 	local viewTanFov = 2
 
+	mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
+
+	--[[ sphere background -- draw lines ...
 	do
-		mattrans(screenSize.x / 2, screenSize.y / 2)	-- screen center
-
-		--[[ sphere background -- draw lines ...
-		do
-			local idiv=60
-			local jdiv=30
-			local idivstep = 5
-			local jdivstep = 5
-			local corner=|i,j|do
-				local u = i / idiv * math.pi * 2
-				local v = j / jdiv * math.pi
-				return quatTo2D(quatRotZX(u, v))
-			end
-			for i=0,idiv,idivstep do
-				local px, py = corner(i,0)
-				for j=1,jdiv do
-					local x, y = corner(i,j)
-					if px * x + py * y > 0 then
-						line(px, py, x, y, viewSphere.color)
-					end
-					px, py = x, y
+		local idiv=60
+		local jdiv=30
+		local idivstep = 5
+		local jdivstep = 5
+		local corner=|i,j|do
+			local u = i / idiv * math.pi * 2
+			local v = j / jdiv * math.pi
+			return quatTo2D(quatRotZX(u, v))
+		end
+		for i=0,idiv,idivstep do
+			local px, py = corner(i,0)
+			for j=1,jdiv do
+				local x, y = corner(i,j)
+				if px * x + py * y > 0 then
+					line(px, py, x, y, viewSphere.color)
 				end
-			end
-			for j=0,jdiv,jdivstep do
-				local px, py = corner(0,j)
-				for i=1,idiv do
-					local x, y = corner(i,j)
-					if px * x + py * y > 0 then
-						line(px, py, x, y, viewSphere.color)
-					end
-					px, py = x, y
-				end
+				px, py = x, y
 			end
 		end
-		--]]
-		--[[ sphere background -- draw star background or something -- iterate background
-		do
-			local idiv=30
-			local jdiv=15
-			local corner=|i,j|do
-				local x = (i / idiv - .5) * screenSize.x
-				local y = (j / jdiv - .5) * screenSize.y
-				local posxunit, posyunit, s = vec2_unit(x, y)
-				local th = s / viewSphere.radius
-				local posz = math.cos(th)
-				local len2 = math.sin(th)
-				local posx, posy = posxunit * len2, posyunit * len2
-				-- now we have z-axis, ... get lat/lon from it?
-				posx, posy, posz = quat_rotate(
-					posx, posy, posz,
-					viewPos:unpack()
-				)
-				local r, theta, phi = vec3(posx, posy, posz):toSpherical():unpack()
-				phi %= 2 * math.pi
-				local u, v = phi / (2*math.pi) * 256, theta / math.pi * 128 + 128
-				return x, y, u, v
-			end
-			for i=0,idiv-1 do
-				for j=0,jdiv-1 do
-					local x1,y1,u1,v1 = corner(i,j)
-					local x2,y2,u2,v2 = corner(i,j+1)
-					local x3,y3,u3,v3 = corner(i+1,j+1)
-					local x4,y4,u4,v4 = corner(i+1,j)
-					ttri3d(
-						x1,y1,0,u1,v1,
-						x2,y2,0,u2,v2,
-						x3,y3,0,u3,v3)
-					ttri3d(
-						x3,y3,0,u3,v3,
-						x4,y4,0,u4,v4,
-						x1,y1,0,u1,v1)
+		for j=0,jdiv,jdivstep do
+			local px, py = corner(0,j)
+			for i=1,idiv do
+				local x, y = corner(i,j)
+				if px * x + py * y > 0 then
+					line(px, py, x, y, viewSphere.color)
 				end
+				px, py = x, y
 			end
 		end
-		--]]
-		-- [[ sphere background -- draw star background or something -- iterate sphere
-		do
-			local tri = |
-				x1,y1,u1,v1,
-				x2,y2,u2,v2,
-				x3,y3,u3,v3
-			|do
-				local dx12 = x2 - x1
-				local dy12 = y2 - y1
-				local dx23 = x3 - x2
-				local dy23 = y3 - y2
-				if dx12 * dy23 - dx23 * dy12 > 0 then
-					ttri3d(
-						x1,y1,0,u1,v1,
-						x2,y2,0,u2,v2,
-						x3,y3,0,u3,v3)
-				end
-			end
-			local idiv=30
-			local jdiv=15
-			local corner=|i,j|do
-				local u = i / idiv
-				local v = j / jdiv
-				local x, y = quatTo2D(quatRotZX(u * 2 * math.pi, v * math.pi))
-				return x, y, 256*u, 128+128*v
-			end
-			for i=0,idiv-1 do
-				for j=0,jdiv-1 do
-					local x1,y1,u1,v1 = corner(i,j)
-					local x2,y2,u2,v2 = corner(i,j+1)
-					local x3,y3,u3,v3 = corner(i+1,j+1)
-					local x4,y4,u4,v4 = corner(i+1,j)
-					tri(
-						x1,y1,u1,v1,
-						x2,y2,u2,v2,
-						x3,y3,u3,v3)
-					tri(
-						x3,y3,u3,v3,
-						x4,y4,u4,v4,
-						x1,y1,u1,v1)
-				end
-			end
-		end
-		--]]
-
-		-- [[ draw stars?
-		for _,star in ipairs(stars) do
-			local x, y = quatTo2D(star.pos:unpack())
-			rect(x, y, 1, 1, star.color)
-		end
-		--]]
-
-		-- [[ draw2D 2d on surface view
-		for _,o in ipairs(viewSphere.objs) do
-			o:draw2D()
-		end
-		--]]
 	end
+	--]]
+	--[[ sphere background -- draw star background or something -- tile the screen (this'd be good for if I let you use custom shaders in carts..)
+	do
+		local idiv=30
+		local jdiv=15
+		local corner=|i,j|do
+			local x = (i / idiv - .5) * screenSize.x
+			local y = (j / jdiv - .5) * screenSize.y
+			local posxunit, posyunit, s = vec2_unit(x, y)
+			local th = s / viewSphere.radius
+			local posz = math.cos(th)
+			local len2 = math.sin(th)
+			local posx, posy = posxunit * len2, posyunit * len2
+			-- now we have z-axis, ... get lat/lon from it?
+			posx, posy, posz = quat_rotate(
+				posx, posy, posz,
+				viewPos:unpack()
+			)
+			local r, theta, phi = vec3(posx, posy, posz):toSpherical():unpack()
+			phi %= 2 * math.pi
+			local u, v = phi / (2*math.pi) * 256, theta / math.pi * 128 + 128
 
+			-- TODO convert to quat then pull towards black hole then convert back to uv
+			-- or store the from/to map or something
+
+			return x, y, u, v
+		end
+		for i=0,idiv-1 do
+			for j=0,jdiv-1 do
+				local x1,y1,u1,v1 = corner(i,j)
+				local x2,y2,u2,v2 = corner(i,j+1)
+				local x3,y3,u3,v3 = corner(i+1,j+1)
+				local x4,y4,u4,v4 = corner(i+1,j)
+				ttri3d(
+					x1,y1,0,u1,v1,
+					x2,y2,0,u2,v2,
+					x3,y3,0,u3,v3)
+				ttri3d(
+					x3,y3,0,u3,v3,
+					x4,y4,0,u4,v4,
+					x1,y1,0,u1,v1)
+			end
+		end
+	end
+	--]]
+	-- [[ sphere background -- draw star background or something -- iterate sphere
+	do
+		local tri = |
+			x1,y1,u1,v1,
+			x2,y2,u2,v2,
+			x3,y3,u3,v3
+		|do
+			local dx12 = x2 - x1
+			local dy12 = y2 - y1
+			local dx23 = x3 - x2
+			local dy23 = y3 - y2
+			if dx12 * dy23 - dx23 * dy12 > 0 then
+				ttri3d(
+					x1,y1,0,u1,v1,
+					x2,y2,0,u2,v2,
+					x3,y3,0,u3,v3)
+			end
+		end
+		local idiv=30
+		local jdiv=15
+		local corner=|i,j|do
+			local u = i / idiv
+			local v = j / jdiv
+			local x, y = quatTo2D(quatRotZX(u * 2 * math.pi, v * math.pi))
+			return x, y, 256*u, 128+128*v
+		end
+		for i=0,idiv-1 do
+			for j=0,jdiv-1 do
+				local x1,y1,u1,v1 = corner(i,j)
+				local x2,y2,u2,v2 = corner(i,j+1)
+				local x3,y3,u3,v3 = corner(i+1,j+1)
+				local x4,y4,u4,v4 = corner(i+1,j)
+				tri(
+					x1,y1,u1,v1,
+					x2,y2,u2,v2,
+					x3,y3,u3,v3)
+				tri(
+					x3,y3,u3,v3,
+					x4,y4,u4,v4,
+					x1,y1,u1,v1)
+			end
+		end
+	end
+	--]]
+
+	-- [[ draw stars?
+	for _,star in ipairs(stars) do
+		local x, y = quatTo2D(star.pos:unpack())
+		rect(x, y, 1, 1, star.color)
+	end
+	--]]
+
+	-- [[ draw 2d on surface view
+	for _,o in ipairs(viewSphere.objs) do
+		o:draw()
+	end
+	--]]
+
+	--[=[ draw polar coordinates, and distort by metric around portals
+	do
+		local grid_r_step = 30
+		local grid_rmax = 360
+		local rings = range(math.ceil(grid_rmax/grid_r_step)):mapi(||table())
+		for phi=0,359 do
+			local x,y,z,w = quat_mul(
+				viewPos.x, viewPos.y, viewPos.z, viewPos.w,
+				quatRotZ(math.rad(phi)))
+			local grid_r_index=1
+			for grid_r=1,grid_rmax do
+				local zx, zy, zz = quat_zAxis(x,y,z,w)	-- pos of the photon
+				local xx, xy, xz = quat_xAxis(x,y,z,w)	-- rot axis of ray
+				local dr = 1
+				local dphi = 0
+				for _,p in ipairs(viewSphere.portals) do
+					local R = p.size
+					local pzx, pzy, pzz = quat_zAxis(p.pos:unpack())	-- pos of portal
+					local r = math.acos(vec3_dot(zx, zy, zz, pzx, pzy, pzz)) * viewSphere.radius
+					-- what angle we're making with the r-basis on-sphere ...
+					local f = math.sqrt(1 - R / r)
+					local df = R/(2 * r * r * f)
+					local d2f = R * (3 * R - 4 * r) / (4 * r*r*r*r * f*f*f)
+					-- angle between rotation & quat-to-black-hole-axis == angle difference to the black hole
+					local pxx, pxy, pxz = vec3_unit(vec3_cross(zx, zy, zz, pzx, pzy, pzz))	-- rot axis from photon to portal
+					local p_sin_phi = vec3_dot(pzx, pzy, pzz, vec3_cross(pxx, pxy, pxz, xx, xy, xz))
+					local p_phi = math.asin(p_sin_phi)
+					--[[ geodesic
+					dr += f / r * dr * dphi				-- -conn^r_φφ dφ^2
+					dphi += -f / r * dr * dphi			-- -conn^φ_φr dφ dr
+					--]]
+					-- [[ metric
+					dr *= f
+					dphi -= p_phi/r
+					--]]
+				end
+				x,y,z,w = quat_mul(x,y,z,w, quatRotX(dr / viewSphere.radius))
+				x,y,z,w = quat_mul(x,y,z,w, quatRotZ(dphi / viewSphere.radius))
+				if grid_r % grid_r_step == 0 then
+					rings[grid_r_index]:insert{quatTo2D(x,y,z,w)}
+					grid_r_index += 1
+				end
+			end
+		end
+		for _,ring in ipairs(rings) do
+			assert.len(ring, 360)
+			for i=1,#ring-1 do
+				line(ring[i][1], ring[i][2], ring[i+1][1], ring[i+1][2], 12)
+			end
+		end
+	end
+	--]=]
 
 	-- update all ... or just those on our sphere ... or just those within 2 or 3 spheres?
 	-- TODO check portal between sphere eventually. .. but that means tracking pos on multiple spheres ...

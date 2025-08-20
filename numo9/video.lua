@@ -505,11 +505,10 @@ function RAMGPUTex:checkDirtyGPU()
 	if not app.inUpdateCallback then
 		fb:bind()
 	end
--- this will fail when the menu font is being used
-assert(tex.data)
-assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
-assert.le(0, tex.data - app.ram.v, 'tex.data')
-assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
+--DEBUG:assert(tex.data)
+--DEBUG:assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
+--DEBUG:assert.le(0, tex.data - app.ram.v, 'tex.data')
+--DEBUG:assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 	if not app.inUpdateCallback then
 		fb:unbind()
@@ -1662,6 +1661,7 @@ void main() {
 	self.triBuf = {
 --DEBUG:flushCallsPerFrame = 0,
 --DEBUG:flushSizes = {},
+--DEBUG(flushtrace): flushSizesPerTrace = {},
 		flush = function(self)
 --DEBUG: self.flushCallsPerFrame = self.flushCallsPerFrame + 1
 			local sceneObj = self.sceneObj
@@ -1672,6 +1672,8 @@ void main() {
 			if n == 0 then return end
 
 --DEBUG: self.flushSizes[n] = (self.flushSizes[n] or 0) + 1
+--DEBUG(flushtrace): local tb = debug.traceback()
+--DEBUG(flushtrace): self.flushSizesPerTrace[tb] = (self.flushSizesPerTrace[tb] or 0) + 1
 
 			-- resize if capacity changed, upload
 			for name,attr in pairs(sceneObj.attrs) do
@@ -1860,7 +1862,7 @@ function AppVideo:resizeRAMGPUs()
 		-- eventually have custom sized spritesheets and drawText refer to those?
 		-- or eventually just make all textures 1D and map regions of RAM, and have the tile shader use offsets for horz and vert step?
 --DEBUG:assert.ge(blob.addr, 0)
---DEBUG:assert.lt(blob.addr + fontInBytes, self.memSize)
+--DEBUG:assert.le(blob.addr + fontInBytes, self.memSize)
 --DEBUG:print('creating font for blob #'..(i-1)..' from addr '..('$%x / %d'):format(blob.addr, blob.addr))
 		if self.fontRAMs[i] then
 --DEBUG:print'...updating old addr'
@@ -2326,6 +2328,22 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
+local function homogeneous(sx, sy, x,y,z,w)
+	x = x / sx * 2 - 1
+	y = y / sy * 2 - 1
+
+	if w > 0 then
+		x = x / w
+		y = y / w
+		z = z / w
+		w = w / w
+	end
+
+	x = (x + 1) * .5 * sx
+	y = (y + 1) * .5 * sy
+
+	return x,y,z,w
+end
 function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
 	if not paletteRAM then
@@ -2343,25 +2361,9 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 
 	local fbw = self.framebufferRAM.tex.width
 	local fbh = self.framebufferRAM.tex.height
-	local function homogeneous(x,y,z,w)
-		x = x / fbw * 2 - 1
-		y = y / fbh * 2 - 1
 
-		if w > 0 then
-			x = x / w
-			y = y / w
-			z = z / w
-			w = w / w
-		end
-
-		x = (x + 1) * .5 * fbw
-		y = (y + 1) * .5 * fbh
-
-		return x,y,z,w
-	end
-
-	local v1x, v1y, v1z, v1w = homogeneous(vec3to4(self.ram.mvMat, x1, y1, z1))
-	local v2x, v2y, v2z, v2w = homogeneous(vec3to4(self.ram.mvMat, x2, y2, z2))
+	local v1x, v1y, v1z, v1w = homogeneous(fbw,fbh, vec3to4(self.ram.mvMat, x1, y1, z1))
+	local v2x, v2y, v2z, v2w = homogeneous(fbw,fbh, vec3to4(self.ram.mvMat, x2, y2, z2))
 
 	local dx = v2x - v1x
 	local dy = v2y - v1y
@@ -2369,25 +2371,24 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	local nx = -dy * il
 	local ny = dx * il
 
-	local lineThickness = .5
 	local xLL, yLL, zLL, wLL =
-		v1x - nx * lineThickness,
-		v1y - ny * lineThickness,
+		v1x - nx * .5,
+		v1y - ny * .5,
 		v1z,
 		v1w
 	local xRL, yRL, zRL, wRL =
-		v2x - nx * lineThickness,
-		v2y - ny * lineThickness,
+		v2x - nx * .5,
+		v2y - ny * .5,
 		v2z,
 		v2w
 	local xLR, yLR, zLR, wLR =
-		v1x + nx * lineThickness,
-		v1y + ny * lineThickness,
+		v1x + nx * .5,
+		v1y + ny * .5,
 		v1z,
 		v1w
 	local xRR, yRR, zRR, wRR =
-		v2x + nx * lineThickness,
-		v2y + ny * lineThickness,
+		v2x + nx * .5,
+		v2y + ny * .5,
 		v2z,
 		v2w
 

@@ -1603,10 +1603,12 @@ function App:update()
 			--	..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
 			--	..' SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
 --DEBUG: ..' flush calls: '..self.triBuf.flushCallsPerFrame..' flushes: '..tolua(self.triBuf.flushSizes)
+--DEBUG(flushtrace): ..' flush calls: '..self.triBuf.flushCallsPerFrame..' flushes: '..table.keys(self.triBuf.flushSizesPerTrace):sort():mapi(function(tb) return '\n'..self.triBuf.flushSizesPerTrace[tb]..' from '..tb end):concat()
 -- ..' clip: ['..self.ram.clipRect[0]..', '..self.ram.clipRect[1]..', '..self.ram.clipRect[2]..', '..self.ram.clipRect[3]..']'
 			)
 --DEBUG:self.triBuf.flushCallsPerFrame = 0
 --DEBUG:self.triBuf.flushSizes = {}
+--DEBUG(flushtrace): self.triBuf.flushSizesPerTrace = {}
 
 --DEBUG(glquery):updateQueryTotal = 0
 --DEBUG(glquery):updateQueryFrames = 0
