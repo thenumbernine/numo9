@@ -1,5 +1,13 @@
 --#include ext/class.lua
 
+vec2_lenSq=|x,y|x^2+y^2
+vec2_len=|x,y|math.sqrt(x^2+y^2)
+vec2_unit=|x,y|do
+	local l = vec2_len(x,y)
+	local s = 1 / math.max(1e-15, l)
+	return x*s, y*s, l
+end
+
 local vec2_getvalue=|x, dim|do
 	if type(x) == 'number' then return x end
 	if type(x) == 'table' then

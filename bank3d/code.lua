@@ -1326,7 +1326,7 @@ do
 			self.owner=owner
 			self:setPos(owner.pos)
 			self.seq=-1	--invis
-			sfx(sfxid.laser_shoot)
+			--sfx(sfxid.laser_shoot)
 		end,
 		cannotPassThru=|:,mapTypeIndex|mapTypes![mapTypeIndex].blocksGunShot,
 		hitObject=|:, what, pushDest, side|do
