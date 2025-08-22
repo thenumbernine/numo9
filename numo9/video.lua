@@ -3049,7 +3049,10 @@ function AppVideo:drawTextCommon(
 			y,
 			bgw,
 			scaleY * spriteSize.y,
-			bgColorIndex
+			bgColorIndex,
+			nil,	-- borderOnly
+			nil,	-- round
+			paletteTex
 		)
 	end
 

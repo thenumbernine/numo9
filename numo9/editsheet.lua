@@ -60,7 +60,7 @@ function EditSheet:init(args)
 	self.log2PalBits = 3	-- showing an 1<<3 == 8bpp image: 0-3
 	self.paletteOffset = 0	-- allow selecting this in another full-palette pic?
 
-	self.pastePreservePalette = true
+	self.pasteKeepsPalette = true
 	self.pasteTargetNumColors = 256
 	self.penSize = 1 		-- size 1 thru 5 or so
 	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
@@ -722,8 +722,8 @@ function EditSheet:update()
 	end
 	app:drawMenuText(alpha and 'opaque' or 'clear', 16+16,224+24, 13, -1)
 
-	if self:guiButton('P', 112, 32, self.pastePreservePalette, 'Paste Keeps Pal='..tostring(self.pastePreservePalette)) then
-		self.pastePreservePalette = not self.pastePreservePalette
+	if self:guiButton('P', 112, 32, self.pasteKeepsPalette, 'Paste Keeps Pal='..tostring(self.pasteKeepsPalette)) then
+		self.pasteKeepsPalette = not self.pasteKeepsPalette
 	end
 	if self:guiButton('A', 112, 42, self.pasteTransparent, 'Paste Transparent='..tostring(self.pasteTransparent)) then
 		self.pasteTransparent = not self.pasteTransparent
@@ -821,14 +821,15 @@ print'BAKING PALETTE'
 					image = image:rgb()
 					assert.eq(image.channels, 3, "image channels")
 
-					if self.pastePreservePalette then
+					if self.pasteKeepsPalette then
 						local image1ch = Image(image.width, image.height, 1, 'unsigned char')
 						local srcp = image.buffer
 						local dstp = image1ch.buffer
 						for i=0,image.width*image.height-1 do
 							-- slow way - just test every color against every color
 							-- TODO build a mapping and then use 'applyColorMap' to go quicker
-							local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
+							--local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
+							local r,g,b = srcp[0], srcp[1], srcp[2]
 							local bestIndex = bit.band(0xff, self.paletteOffset)
 							local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(paletteBlob.ramptr[bestIndex])
 							local bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2

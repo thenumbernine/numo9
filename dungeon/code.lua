@@ -1,3 +1,9 @@
+-- title = Dungeon
+-- saveid = dungeon
+-- author = Chris Moore
+-- description = idk dungeon crawler or something
+-- editTilemap.draw16Sprites = true
+
 --#include vec/vec2.lua
 --#include vec/box2.lua
 --#include ext/class.lua
