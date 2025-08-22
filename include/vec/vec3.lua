@@ -1,6 +1,10 @@
 --#include ext/class.lua
 
 -- component-based
+vec3_add=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az+bz)
+vec3_sub=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az-bz)
+vec3_neg=|x,y,z|(-x,-y,-z)
+vec3_scale=|s,x,y,z|(s*x, s*y, s*z)
 vec3_dot=|ax,ay,az, bx,by,bz| ax*bx + ay*by + az*bz
 vec3_cross=|ax,ay,az, bx,by,bz| (
 	ay*bz - az*by,

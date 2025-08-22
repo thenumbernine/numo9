@@ -662,8 +662,14 @@ function VanDeGraaffObject:draw()
 			local v1 = lineStrip[j]
 			local v2 = lineStrip[j+1]
 			line3d(
+--[=[ using world origin as view origin
+				v1[1], v1[2], v1[3],
+				v2[1], v2[2], v2[3],
+--]=]
+-- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
 				v1[1] - currentCamPos[1], v1[2] - currentCamPos[2], v1[3] - currentCamPos[3],
 				v2[1] - currentCamPos[1], v2[2] - currentCamPos[2], v2[3] - currentCamPos[3],
+--]=]
 				colors.white)
 		end
 	end
@@ -1034,6 +1040,8 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 	spr(si|0x400, viewX / s - sw * 8, viewY / s, sw, sh)	-- and again to make it wrap
 	matpop()
 
+	cls(nil, true)
+
 	-- [[ draw the track as tilemap
 	matpush()
 -- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
@@ -1144,10 +1152,10 @@ end
 function Kart:setupClientView(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 	matident()
 
-	--local n = .1
-	--local f = 128
-	local n = 1
-	local f = 1e+30	-- hmm why...
+	local n = .1
+	local f = 128
+	--local n = 1
+	--local f = 1e+30	-- hmm why...
 
 -- [[ this gets resolution issues the further from the origin we are
 	local viewCenterX = viewX + .5 * viewWidth
@@ -1264,7 +1272,12 @@ function Kart:draw(viewMatrix, kartSprites)
 	do
 		blend(1)
 		matpush()
+--[=[ using world origin as view origin
+		mattrans(self.pos[1], self.pos[2], 0)
+--]=]
+-- [=[ using 0,0,0 as view origin, and subtracting origin per-scene-object for rendering
 		mattrans(self.pos[1] - currentCamPos[1], self.pos[2] - currentCamPos[2], -currentCamPos[3])
+--]=]
 		local length = .3
 		elli(-length, -length, 2 * length, 2 * length, 0)
 		blend(-1)
@@ -2393,6 +2406,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 	viewUp[2] = 0
 	viewUp[3] = 1
 
+	cls(nil, true)
 	track:draw(self.viewMatrix, viewX, viewY, viewWidth, viewHeight)
 
 	for class,classObjs in pairs(game.objsOfClass) do
@@ -2456,6 +2470,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 	local r4 = ('%08x %08x %08x %08x'):format(peekl(matAddr+(3<<2)), peekl(matAddr+(7<<2)), peekl(matAddr+(11<<2)), peekl(matAddr+(15<<2)))
 --]]
 
+	cls(nil, true)
 	kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 
 --[[ debug - show projection matrix

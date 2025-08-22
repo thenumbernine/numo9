@@ -922,35 +922,92 @@ update=||do
 			local x,y,z,w = quat_mul(
 				viewPos.x, viewPos.y, viewPos.z, viewPos.w,
 				quatRotZ(math.rad(phi)))
+			
+			local dlambda = 1
+			local gl_u_r = 1
+			local gl_u_phi = 0
 			local grid_r_index=1
 			for grid_r=1,grid_rmax do
 				local zx, zy, zz = quat_zAxis(x,y,z,w)	-- pos of the photon
-				local xx, xy, xz = quat_xAxis(x,y,z,w)	-- rot axis of ray
-				local dr = 1
-				local dphi = 0
+				local xx, xy, xz = quat_xAxis(x,y,z,w)	-- right axis of ray
+				local yx, yy, yz = quat_yAxis(x,y,z,w)	-- fwd axis of ray
+				
+				-- convert gl_u to 3D u
+				local gl_u_r_x, gl_u_r_y, gl_u_r_z = vec3_scale(gl_u_r, yx, yy, yz)
+				local gl_u_x, gl_u_y, gl_u_z = vec3_add(
+					gl_u_r_x, gl_u_r_y, gl_u_r_z,
+					vec3_scale(gl_u_phi, vec3_neg(xx, xy, xz))	-- phi=0 is fwd, so phi=90deg is left = -right
+				)
+				-- [==[
 				for _,p in ipairs(viewSphere.portals) do
+					local a_r = 0
+					local a_phi = 0
+					
+					-- size / event-horizon
 					local R = p.size
-					local pzx, pzy, pzz = quat_zAxis(p.pos:unpack())	-- pos of portal
+					-- pos of portal
+					local pzx, pzy, pzz = quat_zAxis(p.pos:unpack())
+					-- rot axis from photon to portal (at photon)
+					local pxx, pxy, pxz = vec3_unit(vec3_cross(zx, zy, zz, pzx, pzy, pzz))
+					-- fwd axis from portal to photon (at photon)
+					local pyx, pyy, pyz = vec3_unit(vec3_cross(pzx, pzy, pzz, pxx, pxy, pxz))
+					
+					-- convert 3D u to p_u
+					local p_u_phi = vec3_dot(gl_u_x, gl_u_y, gl_u_z, vec3_neg(pxx, pxy, pxz))
+					local p_u_r = vec3_dot(gl_u_x, gl_u_y, gl_u_z, pyx, pyy, pyz)
+					local p_u_z = vec3_dot(gl_u_x, gl_u_y, gl_u_z, pzx, pzy, pzz)
+
+-- [===[
+					-- radial distance from the wormhole
 					local r = math.acos(vec3_dot(zx, zy, zz, pzx, pzy, pzz)) * viewSphere.radius
-					-- what angle we're making with the r-basis on-sphere ...
-					local f = math.sqrt(1 - R / r)
-					local df = R/(2 * r * r * f)
-					local d2f = R * (3 * R - 4 * r) / (4 * r*r*r*r * f*f*f)
 					-- angle between rotation & quat-to-black-hole-axis == angle difference to the black hole
-					local pxx, pxy, pxz = vec3_unit(vec3_cross(zx, zy, zz, pzx, pzy, pzz))	-- rot axis from photon to portal
 					local p_sin_phi = vec3_dot(pzx, pzy, pzz, vec3_cross(pxx, pxy, pxz, xx, xy, xz))
 					local p_phi = math.asin(p_sin_phi)
-					--[[ geodesic
+					--[[ Schwarzschild-anholonomic-normalized geodesic
 					dr += f / r * dr * dphi				-- -conn^r_φφ dφ^2
 					dphi += -f / r * dr * dphi			-- -conn^φ_φr dφ dr
 					--]]
-					-- [[ metric
+					--[[ Morris-Thorne geodesic
+					local l = math.sqrt(r^2 + R^2)
+					local u_l = r * p_u_r / l
+					a_phi += -l / math.sqrt(r^2 + R^2) * u_l * p_u_phi	-- Gamma^phi_l_phi
+					local dl = l * p_u_phi * p_u_phi					-- Gamma^l_phi_phi
+					--local dl = r dr / l
+					a_r += dl * l / math.sqrt(l^2 - R^2)
+					--]]				
+					--[[ Morris-Thorne but maybe l is r ...
+					a_r += r * p_u_phi * p_u_phi
+					a_phi -= r / math.sqrt(r^2 + R^2) * p_u_r * p_u_phi	-- Gamma^phi_l_phi
+					--[[ metric
 					dr *= f
 					dphi -= p_phi/r
 					--]]
+					
+					-- integrate a -> u
+					p_u_r += a_r * dlambda
+					p_u_phi += a_phi * dlambda
+--]===]
+
+					-- convert back to 3D 
+					local p_u_phi_x, p_u_phi_y, p_u_phi_z = vec3_scale(p_u_phi, vec3_neg(pxx, pxy, pxz))
+					local p_u_r_x, p_u_r_y, p_u_r_z = vec3_scale(p_u_r, pyx, pyy, pyz)
+					local p_u_z_x, p_u_z_y, p_u_z_z = vec3_scale(p_u_z, pzx, pzy, pzz)
+					gl_u_x, gl_u_y, gl_u_z = vec3_add(
+						p_u_phi_x, p_u_phi_y, p_u_phi_z,
+						vec3_add(
+							p_u_r_x, p_u_r_y, p_u_r_z,
+							p_u_z_x, p_u_z_y, p_u_z_z
+						)
+					)
+					-- and then back to quat int args
+					gl_u_r = vec3_dot(gl_u_x, gl_u_y, gl_u_z, yx, yy, yz)
+					gl_u_phi = vec3_dot(gl_u_x, gl_u_y, gl_u_z, vec3_neg(xx, xy, xz))
 				end
-				x,y,z,w = quat_mul(x,y,z,w, quatRotX(dr / viewSphere.radius))
-				x,y,z,w = quat_mul(x,y,z,w, quatRotZ(dphi / viewSphere.radius))
+				--]==]
+				-- integrate u -> pos
+				x,y,z,w = quat_mul(x,y,z,w, quatRotX(gl_u_r / viewSphere.radius * dlambda))
+				x,y,z,w = quat_mul(x,y,z,w, quatRotZ(gl_u_phi * dlambda))
+				
 				if grid_r % grid_r_step == 0 then
 					rings[grid_r_index]:insert{quatTo2D(x,y,z,w)}
 					grid_r_index += 1
