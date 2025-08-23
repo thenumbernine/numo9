@@ -143,9 +143,7 @@ end
 -- tempted to merge this with Blob and just use the string's buffer for everything elses buffer ...
 local BlobDataAbs = Blob:subclass() 
 function BlobDataAbs:init(data)
-	assert.type(data, 'string', tostring(self.name).." needs a non-empty string")
-	assert.gt(#data, 0, tostring(self.name).." needs a non-empty string")
-	self.data = data
+	self.data = data or ''
 end
 function BlobDataAbs:getPtr()
 	return ffi.cast('uint8_t*', self.data)
@@ -154,12 +152,7 @@ function BlobDataAbs:getSize()
 	return #self.data
 end
 function BlobDataAbs:saveFile(filepath, blobIndex, blobs)
-	if #self.data > 0 then
-		assert(filepath:write(self.data))
-	else
-		error("I don't support empty blobs.  idk why.  because then blob addresses are no longer unique, maybe? (the zero-sized array C problem) meh.")
-		filepath:remove()
-	end
+	assert(filepath:write(self.data))
 end
 
 
@@ -624,10 +617,9 @@ print(('memSize = 0x%0x'):format(memSize))
 
 		local addr = ramptr - ram.v
 		local blobSize = blob:getSize()
-		assert.lt(0, blobSize, "I don't support empty blobs, found one for type "..tostring(blobClassName))
 print('adding blob #'..index..' at addr '..hex(addr)..' - '..hex(addr + blobSize)..' type '..blob.type..'/'..blobClassName)
 		assert.le(0, addr)
-		assert.lt(addr, memSize)
+		assert.le(addr, memSize)
 		blobEntryPtr.type = blob.type
 		blobEntryPtr.addr = addr
 		blobEntryPtr.size = blobSize
@@ -677,19 +669,21 @@ function AppBlobs:initBlobs()
 	self:buildRAMFromBlobs()
 end
 
+local minBlobPerType = {
+	code = 1,
+	sheet = 2,		-- TODO don't need 2 min here, heck we don't even need 1 min.
+	tilemap = 1,
+	palette = 1,	-- ok we def need 1 of this
+	font = 1,		-- debatable we need 1 of this
+}
+
 --[[
 after loading a cart, not all default blobs are present
 this fills those up, esp useful for font and palette which have default content
 but also creates the empty sheet / tilemap if they are needed
 --]]
 function AppBlobs:buildRAMFromBlobs()
-	for name,count in pairs{
-		--code = 1,	-- don't init empty code blobs ...
-		sheet = 2,
-		tilemap = 1,
-		palette = 1,
-		font = 1,
-	} do
+	for name,count in pairs(minBlobPerType) do
 		while #self.blobs[name] < count do
 			self:addBlob(name)
 			if name == 'font' then
@@ -783,6 +777,7 @@ end
 
 return {
 	AppBlobs = AppBlobs,
+	minBlobPerType = minBlobPerType,
 	BlobEntry = BlobEntry,
 	blobClassNameForType = blobClassNameForType,
 	blobClassForName = blobClassForName,

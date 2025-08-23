@@ -27,6 +27,7 @@ local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
+local minBlobPerType = numo9_blobs.minBlobPerType 
 
 local editModes = table{
 	'code',
@@ -304,13 +305,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		end
 
 		local len = #app.blobs[blobName]
-		local min = ({
-			sheet = 2,		-- TODO don't need 2 min here, heck we don't even need 1 min.
-			font = 1,		-- debatable we need 1 of this
-			palette = 1,	-- ok we def need 1 of this
-		})[blobName] or 0
-
-		if len > min then	-- TODO if not then grey out
+		if len > (minBlobPerType[blobName] or 0) then	-- TODO if not then grey out the - sign?
 			if self:guiButton('-', x + 20, y + 10, nil) then
 				app.blobs[blobName]:remove(t[indexKey]+1)
 				changed = true

@@ -10,6 +10,7 @@ types of brushes?
 3x3
 4x4 or 5x5, how to handle diagonals?
 custom based on brush position?
+how about all brushes are a function, and you write it in the code? as a global. "numo9_brushes={[brushIndex] = |i,j| tilemapIndex(i,j)}"
 
 speaking of custom, I need a tile remapping for animations
 
@@ -24,6 +25,8 @@ TODO checkbox for showing entity-tables as well (objects in level)
 TODO space in RAM for all of this ... it'll be a blob like audio already is ... one more step to formless banks.
 TODO cart API for "brush-to-tilemap" , brush #, tilemap x y w h
 
+
+So how about this editor is a text editor that just shows the results as an overlay?
 --]]
 local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'

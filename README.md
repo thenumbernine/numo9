@@ -622,15 +622,22 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		... so to fix this I added a reset button on the rhs that you have to *always push* every time you edit single-player content ...
 		... the other route to go that I don't want to do is always auto-reset when editing single-player, and don't auto-reset when editing multipalyer ...
 		... another option is put the RAM and ROM both in addressible memory (to get around the reload/cstore API issue), ... but then what would the editor be editing?  the current RAM state, to-be-flushed-to-ROM-upon-save (what it's doing now), or the ROM state, or what?
+	- bug: in modes > 0, drawing on the editor blacks the screen until you stop
+	- bug: since switching to blobs, pasting preserving palette doesn't seem to pick the best colors
+		- bug: I think if you add/remove blobs enough then sometimes the blob data in the sheet editor goes out of sync ...
 - memory
 	- about reset, memcpy, and the pico8 functions cstore, and reload:
 		Real cartridge consoles just gave separate address space to the cartridges, then you just copy between your RAM and your ROM addresses.
 		Fantasy consoles seem to be keeping an extra copy of the cartridge in memory and accessing it through these functions.
 		Maybe I will put the ROM in addressible space and just have load/reset perform an initial copy from ROM to RAM space. How about ROM at 0xC00000 or so?
 		Maybe I'll think more on this as I think about spriteSheet vs tileSheet vs multiple sheets vs multiple arbitrary-purpose banks ...
+	- debating: should persistent data be its own blob?  and then have no restrictions?  this is drifting from a fantasy-console and towards just some arbitrary game resource pack format...
+	- debating: should I add a shader blob?
+	- debating: should I put the whole ROM in a single 1024x1024xRGBA8UI (minimum GLES3/WebGL2 texture size) texture, one per 4MB?  
+		And then upon RAM updates, don't upload the *whole thing*, just update the dirty region ... possibly do that immediately?
+		But what about RAM that is constantly changing?  Like Audio? Or FrameBUffer RAM?
 - netplay
 	- sending too much data / too big of delta cmds gets desyncs ... I can easily push cmds into the next frame and just give a client a single bad frame instead of desyncing them fully ...
-	- persistent memory per cart by checksum
 	- multiplayer persistent memory per client ... how to associate and how to secure
 	- still have some issues where temporary / single-frame cmds like map changes aren't getting reflected ...
 	- Still need to make the draw message history to be per-connection, and need to send draw-specific commands to their specific connections.

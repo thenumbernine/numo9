@@ -2582,12 +2582,6 @@ function App:saveCart(filename)
 	-- and then that to the virtual filesystem ...
 	-- and then that to the real filesystem ...
 
-	-- save ediCode.text to self.blobs
-	self.blobs.code = table()
-	if #self.editCode.text > 0 then
-		self.blobs.code:insert(blobClassForName.code(self.editCode.text))
-	end
-
 	self:updateBlobChanges()
 
 	if not select(2, path(filename):getext()) then
@@ -2690,11 +2684,7 @@ function App:openCart(filename)
 
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 
-	if #self.blobs.code > 0 then
-		self.editCode:setText(self.blobs.code[1].data)
-	else
-		self.editCode:setText('')
-	end
+	self.editCode:resetText()
 
 	self:matident()
 	self:resetCart()
@@ -2813,7 +2803,14 @@ function App:runCart()
 		__index = self.env,
 	})
 
-	local code = self.editCode.text	-- use the editor's code as the definitive code while numo9 is running
+	local code = self.blobs.code:mapi(function(blob, i)
+		return 
+			-- TODO this?  pro: delineation.  con: error line #s are offset
+			-- but they'll always be offset if I add more than one code blob?
+			-- but I'm not doing that yet ...
+			-- '-- blob #'..i..':\n'..
+			blob.data
+	end):concat'\n'
 
 	-- reload the metadata while we're here
 	self.metainfo = {}

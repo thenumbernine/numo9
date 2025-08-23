@@ -3,6 +3,7 @@ This will be the code editor
 --]]
 local ffi = require 'ffi'
 local table = require 'ext.table'
+local assert = require 'ext.assert'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
 local clip = require 'numo9.clipboard'
@@ -40,16 +41,32 @@ function EditCode:init(args)
 	self.scrollX = 0
 	self.scrollY = 0
 	self.useLineNumbers = true
-	self:setText''
+	
+	self:resetText()
 	self.undoBuffer = table()
 	self.undoIndex = #self.undoBuffer
 end
 
-function EditCode:setText(text)
-	self.text = text
-	self.cursorLoc = math.clamp(self.cursorLoc, 0, #self.text)
+
+
+-- external, called by app upon openCart
+function EditCode:resetText()
+	local app = self.app
+	self.codeBlobIndex = 0
+	-- update this when self.codeBlobIndex changes
+	self.currentCodeBlob = app.blobs.code[self.codeBlobIndex+1]
+	self.currentCodeBlob.data = self:getText()
+	self.cursorLoc = math.clamp(self.cursorLoc, 0, #self:getText())
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
+end
+
+-- internal
+function EditCode:setText(text)
+	self.currentCodeBlob.data = text
+end
+function EditCode:getText()
+	return self.currentCodeBlob.data
 end
 
 local slashRByte = ('\r'):byte()
@@ -60,12 +77,12 @@ function EditCode:refreshNewlines()
 	-- refresh newlines
 	self.newlines = table()
 	self.newlines:insert(0)	-- newline is [inclusive, exclusive) the range of 0-based indexes of the text per line
-	for i=1,#self.text do
-		if self.text:byte(i) == newlineByte then
+	for i=1,#self:getText() do
+		if self:getText():byte(i) == newlineByte then
 			self.newlines:insert(i)
 		end
 	end
-	self.newlines:insert(#self.text+1)	-- len+1 so that len is a valid range on the last line
+	self.newlines:insert(#self:getText()+1)	-- len+1 so that len is a valid range on the last line
 end
 
 function EditCode:refreshCursorColRowForLoc()
@@ -94,8 +111,9 @@ function EditCode:update()
 
 	-- ui controls
 
--- TODO multiple code blobs?
---	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
+	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
+	-- update this when self.codeBlobIndex changes
+	self.currentCodeBlob = app.blobs.code[self.codeBlobIndex+1]
 
 	if self:guiButton('N', 120, 0, self.useLineNumbers) then
 		self.useLineNumbers = not self.useLineNumbers
@@ -163,12 +181,12 @@ function EditCode:update()
 		-- TODO use scissors and TODO use the mv transform
 		local lineX = textareaX - self.scrollX * menuFontWidth
 		local lineY = y * spriteSize.y
-		local selLineStart = math.clamp(self.selectStart and self.selectStart or (#self.text+1), i, j)
-		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (#self.text+1), i, j)
+		local selLineStart = math.clamp(self.selectStart and self.selectStart or (#self:getText()+1), i, j)
+		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (#self:getText()+1), i, j)
 
 		if selLineStart-1 >= i then
 			lineX = lineX + app:drawMenuText(
-				self.text:sub(i, selLineStart-1),
+				self:getText():sub(i, selLineStart-1),
 				lineX,
 				lineY,
 				colors.fg,
@@ -177,7 +195,7 @@ function EditCode:update()
 		end
 		if selLineEnd-1 >= selLineStart then
 			lineX = lineX + app:drawMenuText(
-				self.text:sub(selLineStart,selLineEnd-1),
+				self:getText():sub(selLineStart,selLineEnd-1),
 				lineX,
 				lineY,
 				colors.fgSel,
@@ -186,7 +204,7 @@ function EditCode:update()
 		end
 		if j-1 >= selLineEnd then
 			lineX = lineX + app:drawMenuText(
-				self.text:sub(selLineEnd, j-1),
+				self:getText():sub(selLineEnd, j-1),
 				lineX,
 				lineY,
 				colors.fg,
@@ -228,7 +246,7 @@ function EditCode:update()
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
 	app:drawMenuText(footer, 0, frameBufferSize.y - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
-	footer = self.cursorLoc..'/'..#self.text
+	footer = self.cursorLoc..'/'..#self:getText()
 	self.footerWidth = app:drawMenuText(footer, frameBufferSize.x - (self.footerWidth or 0), frameBufferSize.y - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
 	-- handle mouse
@@ -281,10 +299,10 @@ function EditCode:update()
 		if app:keyp'a' then						-- select-all
 			-- select all
 			self.selectStart = 1
-			self.selectEnd = #self.text+1		-- how did i end up using an exclusive, 1-based range ... smh
+			self.selectEnd = #self:getText()+1		-- how did i end up using an exclusive, 1-based range ... smh
 		elseif app:keyp'x' or app:keyp'c' then 	-- cut/copy
 			if self.selectStart then
-				local sel = self.text:sub(self.selectStart, self.selectEnd-1)
+				local sel = self:getText():sub(self.selectStart, self.selectEnd-1)
 				if not clip.text(sel) then
 					print'failed to copy text'
 				end
@@ -306,7 +324,11 @@ function EditCode:update()
 			end
 			self:deleteSelection()
 			if paste then
-				self.text = self.text:sub(1, self.cursorLoc)..paste..self.text:sub(self.cursorLoc+1)
+				self:setText(
+					self:getText():sub(1, self.cursorLoc)
+					..paste
+					..self:getText():sub(self.cursorLoc+1)
+				)
 				self.cursorLoc = self.cursorLoc + #paste
 			end
 			self:refreshNewlines()
@@ -323,7 +345,7 @@ function EditCode:update()
 					self:pushUndoTyping()
 					if self.selectStart ~= nil then
 						-- search the selectStart back to the start of the current line
-						while self.text:byte(self.selectStart-1) ~= newlineByte do
+						while self:getText():byte(self.selectStart-1) ~= newlineByte do
 							self.selectStart = self.selectStart - 1
 							if self.selectStart == 0 then
 								self.selectStart = 1
@@ -331,7 +353,7 @@ function EditCode:update()
 							end
 						end
 						-- add tab and do indent up there
-						local oldTabbedText = self.text:sub(self.selectStart, self.selectEnd-1)
+						local oldTabbedText = self:getText():sub(self.selectStart, self.selectEnd-1)
 						local tabbedText
 						if shift then
 							tabbedText = oldTabbedText:gsub('\n\t', '\n')
@@ -342,9 +364,11 @@ function EditCode:update()
 						else
 							tabbedText = '\t' .. oldTabbedText:gsub('\n', '\n\t')
 						end
-						self.text = self.text:sub(1, self.selectStart-1)
+						self:setText(
+							self:getText():sub(1, self.selectStart-1)
 							.. tabbedText
-							.. self.text:sub(self.selectEnd)
+							.. self:getText():sub(self.selectEnd)
+						)
 						self.selectEnd = self.selectEnd + #tabbedText - #oldTabbedText
 						self:refreshNewlines()
 						self:refreshCursorColRowForLoc()
@@ -422,7 +446,7 @@ function EditCode:moveCursor(dx, dy)
 	self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
 
 	-- advance col left/right without bounds so we can use left/right to wrap lines
-	self.cursorLoc = math.clamp(self.cursorLoc + dx, 0, #self.text)
+	self.cursorLoc = math.clamp(self.cursorLoc + dx, 0, #self:getText())
 
 	self:refreshCursorColRowForLoc()	-- in case we did wrap lines
 end
@@ -447,7 +471,10 @@ end
 function EditCode:deleteSelection()
 	if not self.selectStart then return end
 
-	self.text = self.text:sub(1, self.selectStart-1)..self.text:sub(self.selectEnd)
+	self:setText(
+		self:getText():sub(1, self.selectStart-1)
+		..self:getText():sub(self.selectEnd)
+	)
 	if self.cursorLoc+1 >= self.selectStart and self.cursorLoc+1 < self.selectEnd then
 		self.cursorLoc = self.selectStart-1
 	elseif self.cursorLoc+1 >= self.selectEnd then
@@ -471,11 +498,18 @@ function EditCode:addCharToText(ch)
 		ch = newlineByte	-- store \n's instead of \r's
 	end
 	if ch == backspaceByte then
-		self.text = self.text:sub(1, math.max(0, self.cursorLoc - 1)) .. self.text:sub(self.cursorLoc+1)
+		self:setText(
+			self:getText():sub(1, math.max(0, self.cursorLoc - 1)) 
+			..self:getText():sub(self.cursorLoc+1)
+		)
 		self.cursorLoc = math.max(0, self.cursorLoc - 1)
 	elseif ch then
-		self.text = self.text:sub(1, self.cursorLoc) .. string.char(ch) .. self.text:sub(self.cursorLoc+1)
-		self.cursorLoc = math.min(#self.text, self.cursorLoc + 1)
+		self:setText(
+			self:getText():sub(1, self.cursorLoc) 
+			..string.char(ch)
+			..self:getText():sub(self.cursorLoc+1)
+		)
+		self.cursorLoc = math.min(#self:getText(), self.cursorLoc + 1)
 	end
 
 	self:refreshNewlines()
@@ -498,7 +532,10 @@ function EditCode:pushUndo()
 		self.undoBuffer[i] = nil
 	end
 	-- add this entry and set it as the current undo location
-	self.undoBuffer:insert{text=self.text, cursorLoc=self.cursorLoc}
+	self.undoBuffer:insert{
+		text = self:getText(),
+		cursorLoc = self.cursorLoc,
+	}
 	self.undoIndex = #self.undoBuffer
 end
 function EditCode:popUndo(redo)
@@ -506,7 +543,7 @@ function EditCode:popUndo(redo)
 	-- that way if the pushUndoTyping hadn't yet recorded it and we then get a 'redo' we will go back to the top
 	if self.undoIndex == #self.undoBuffer 
 	and self.undoIndex > 0
-	and self.undoBuffer:last().text ~= self.text
+	and self.undoBuffer:last().text ~= self:getText()
 	then
 		self:pushUndo()
 	end
@@ -514,10 +551,10 @@ function EditCode:popUndo(redo)
 	local undo = self.undoBuffer[self.undoIndex]
 	-- test here because if it's zero then there won't be an entry ... and we should be at a blank text ...
 	if undo then
-		self.text = undo.text
+		self:setText(undo.text)
 		self.cursorLoc = undo.cursorLoc
 	else
-		self.text = ''
+		self:setText''
 		self.cursorLoc = 0
 	end
 	self:clearSelect()
