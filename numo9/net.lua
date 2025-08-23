@@ -929,10 +929,11 @@ end
 print()
 --]]
 			-- how to convey change-in-sizes ...
-			-- how about storing it at the beginning of the buffer?
 			if prevFrameCmds.size ~= thisFrameCmds.size then
-				deltas:emplace_back()[0] = 0xfffd
-				deltas:emplace_back()[0] = thisFrameCmds.size
+				conn.toSend:insert(
+					ffi.string(ffi.new('uint16_t[1]', 0xfffd), 2)
+					..ffi.string(ffi.new('uint16_t[1]', thisFrameCmds.size), 2)
+				)
 --DEBUG:print('resizing to', deltas:rbegin()[0])
 				prevFrameCmds:resize(thisFrameCmds.size)
 			end
