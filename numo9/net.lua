@@ -7,7 +7,6 @@ network protocol
 server sends client:
 
 	$ffff $ffff [i:netint] ram:u8[i] <-> incoming RAM dump of size 'i'
-	$ffff $fffe <-> delta compression frame end.  let the client know it can flush the cmds (so we dont display incomplete cmds)
 	$ffff $fffd [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
 	$ffff $fffc [i:netint] <-> cmd frame will resize to 'i'
 	$ffff $fffb [i:netint] <-> TODO delta-data of size 'i' using netints as offsets ... = delta-compressed frame
@@ -960,7 +959,6 @@ print()
 					'\xff\xff\xfb\xff'
 					..to7bitstr(#deltaStr)
 					..deltaStr
-					..'\xff\xff\xfe\xff'	-- terminator is 0xfffffffe <-> delta index=0xffff, value=0xfffe
 --DEBUG:assert.eq(bit.band(#data, 1), 0, "how did I send data that wasn't 2-byte-aligned?")
 				conn.toSend:insert(data)
 			end
@@ -1309,6 +1307,11 @@ print('got uint16 index='
 							end
 						end
 
+						-- tell client that deltas are finished and to flush received cmds
+						self.cmds:resize(self.nextCmds.size)
+						ffi.copy(self.cmds.v, self.nextCmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
+						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
+
 					elseif index == 0xffff and value == 0xfffc then
 						local newsize = read7bit(sock)
 --DEBUG:print('got cmdbuf resize to '..tostring(newsize))
@@ -1344,11 +1347,6 @@ print('got uint16 index='
 						ffi.copy(self.nextCmds.v, ffi.cast('char*', initCmds), newcmdslen)
 						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 
-					elseif index == 0xffff and value == 0xfffe then
-						-- tell client that deltas are finished and to flush received cmds
-						self.cmds:resize(self.nextCmds.size)
-						ffi.copy(self.cmds.v, self.nextCmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
-						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 					elseif index == 0xffff and value == 0xffff then
 						-- new RAM dump message
 
