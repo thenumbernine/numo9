@@ -6,10 +6,10 @@ network protocol
 2) update loop
 server sends client:
 
-	$ff $ff $ff $ff [i:netint] ram:u8[i] <-> incoming RAM dump of size 'i'
-	$ff $ff $ff $fe <-> delta compression frame end.  let the client know it can flush the cmds (so we dont display incomplete cmds)
-	$ff $ff $ff $fd [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
-	$fd $ff $XX $XX <-> cmd frame will resize to $XXXX
+	$ffff $ffff [i:netint] ram:u8[i] <-> incoming RAM dump of size 'i'
+	$ffff $fffe <-> delta compression frame end.  let the client know it can flush the cmds (so we dont display incomplete cmds)
+	$ffff $fffd [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
+	$ffff $fffc [i:netint] <-> cmd frame will resize to 'i'
 	all else are delta-compressed uint16 offsets and uint16 values
 	... possible break after each 4 byte of data, whenever there's no data to be read
 
@@ -942,9 +942,9 @@ print()
 			assert.ne(bit.band(n, 1), 1, "how did we get an odd-numbered cmd buffer")
 			n = bit.rshift(n ,1)
 
-			if n >= 0xfffb then
+			if n >= 0xffff then
 				print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
-				n = 0xfffa	-- one less than our highest special code
+				n = 0xfffe	-- one less than our highest special code
 			end
 
 			local clp = ffi.cast('uint16_t*', prevFrameCmds.v)
@@ -953,7 +953,8 @@ print()
 			deltaCompress(clp, svp, n, deltas)
 
 			if deltas.size > 0 then
-				local data = deltas:dataToStr()..'\xff\xff\xfe\xff'	-- terminator is 0xfffffffe <-> delta index=0xffff, value=0xfffe
+				local data = deltas:dataToStr()
+					..'\xff\xff\xfe\xff'	-- terminator is 0xfffffffe <-> delta index=0xffff, value=0xfffe
 --DEBUG:assert.eq(bit.band(#data, 1), 0, "how did I send data that wasn't 2-byte-aligned?")
 				conn.toSend:insert(data)
 			end
