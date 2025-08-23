@@ -4,20 +4,23 @@ code editor
 local UITextArea = require 'numo9.ui.textarea'
 
 local EditCode = require 'numo9.ui':subclass()	-- the UI/editor page
+EditCode.blobType = 'code'
+EditCode.blobIndexField = 'codeBlobIndex'
+EditCode.blobField = 'currentCodeBlob'
 
 function EditCode:init(args)
 	EditCode.super.init(self, args)
 
-	self.codeBlobIndex = 0
+	self[self.blobIndexField] = 0
 
 	self.uiTextArea = UITextArea{
 		edit = self,
 		-- internal
 		setText = function(uiTextArea, text)
-			self.currentCodeBlob.data = text
+			self[self.blobField].data = text
 		end,
 		getText = function(uiTextArea)
-			return self.currentCodeBlob.data
+			return self[self.blobField].data
 		end,
 	}
 	
@@ -26,14 +29,15 @@ end
 
 -- external, called by app upon openCart
 function EditCode:refreshText()
-	self:setCodeBlobIndex(0)
+	self:setBlobIndex(0)
 	self.uiTextArea:refreshText()
 end
 
 -- called internally, upon init or when the user changes the current code blob
-function EditCode:setCodeBlobIndex(i)
-	self.codeBlobIndex = i
-	self.currentCodeBlob = self.app.blobs.code[self.codeBlobIndex+1]
+-- updates the text field to the blob associated with .blobType, .blobField, .blobIndexField
+function EditCode:setBlobIndex(i)
+	self[self.blobIndexField] = i
+	self[self.blobField] = self.app.blobs[self.blobType][self[self.blobIndexField]+1]
 end
 
 function EditCode:update()
@@ -41,7 +45,7 @@ function EditCode:update()
 	
 	-- ui controls
 
-	self:setCodeBlobIndex(self.codeBlobIndex)
+	self:setBlobIndex(self[self.blobIndexField])
 
 	if self:guiButton('N', 120, 0, self.uiTextArea.useLineNumbers) then
 		self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
@@ -52,21 +56,13 @@ function EditCode:update()
 	self:drawTooltip()
 
 	-- draw ui menubar last so it draws over the rest of the page
-	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
+	self:guiBlobSelect(80, 0, self.blobType, self, self.blobIndexField)
 end
 
 function EditCode:event(e)
 	-- don't call super, which handles arrows to change tab focus
 	-- TODO do handle it somehow
 	-- also TODO - handle key input of editor through :event() here instead of through :update()
-end
-
-local function prevNewline(s, i)
-	while i >= 0 do
-		i = i - 1
-		if s:sub(i,i) == '\n' then return i end
-	end
-	return 1
 end
 
 return EditCode
