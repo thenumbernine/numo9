@@ -2684,7 +2684,7 @@ function App:openCart(filename)
 
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 
-	self.editCode:resetText()
+	self.editCode:refreshText()
 
 	self:matident()
 	self:resetCart()

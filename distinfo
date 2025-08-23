@@ -60,6 +60,7 @@ files = {
 	["numo9/net.lua"] = "numo9/numo9/net.lua",
 	["numo9/rom.lua"] = "numo9/numo9/rom.lua",
 	["numo9/ui.lua"] = "numo9/numo9/ui.lua",
+	["numo9/ui/textarea.lua"] = "numo9/numo9/ui/textarea.lua",
 	["numo9/video.lua"] = "numo9/numo9/video.lua",
 	["pong.n9"] = "numo9/pong.n9",
 	["run.lua"] = "numo9/run.lua",
