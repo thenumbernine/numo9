@@ -112,7 +112,6 @@ function EditCode:update()
 
 	-- ui controls
 
-	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
 	self:setCodeBlobIndex(self.codeBlobIndex)
 
 	if self:guiButton('N', 120, 0, self.useLineNumbers) then
@@ -428,6 +427,9 @@ function EditCode:update()
 	end
 
 	self:drawTooltip()
+
+	-- draw ui menubar last so it draws over the rest of the page
+	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
 end
 
 function EditCode:moveCursor(dx, dy)

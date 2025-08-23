@@ -286,7 +286,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 	end
 	if t[popupKey] then
 		local w = 25
-		local h = 15
+		local h = 10
 		app:drawBorderRect(x, y + 8, w+2, h+2, 0x0c)
 		app:drawSolidRect(x+1, y + 9, w, h, self:color(0))
 
