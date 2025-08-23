@@ -1573,7 +1573,12 @@ end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function App:update()
-	if not self.hasFocus then return end
+	if not self.hasFocus then
+		-- only pause-on-lost-focus if we're not in multiplayer
+		if not self.server and not self.remoteClient then
+			return
+		end
+	end
 
 	-- will this hurt performance?
 	if self.activeMenu then
