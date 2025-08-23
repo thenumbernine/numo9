@@ -930,11 +930,11 @@ print()
 --]]
 			-- how to convey change-in-sizes ...
 			if prevFrameCmds.size ~= thisFrameCmds.size then
+--DEBUG:print('resizing to', thisFrameCmds.size)				
 				conn.toSend:insert(
-					ffi.string(ffi.new('uint16_t[1]', 0xfffd), 2)
-					..ffi.string(ffi.new('uint16_t[1]', thisFrameCmds.size), 2)
+					ffi.string(ffi.new('uint32_t[1]', 0xfffcffff), 4)
+					..to7bitstr(thisFrameCmds.size)
 				)
---DEBUG:print('resizing to', deltas:rbegin()[0])
 				prevFrameCmds:resize(thisFrameCmds.size)
 			end
 
@@ -942,9 +942,9 @@ print()
 			assert.ne(bit.band(n, 1), 1, "how did we get an odd-numbered cmd buffer")
 			n = bit.rshift(n ,1)
 
-			if n >= 0xfffc then
+			if n >= 0xfffb then
 				print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
-				n = 0xfffb	-- one less than our highest special code
+				n = 0xfffa	-- one less than our highest special code
 			end
 
 			local clp = ffi.cast('uint16_t*', prevFrameCmds.v)
@@ -1090,7 +1090,7 @@ print'creating server remote client conn...'
 
 	-- send most recent frame state
 	local frameStr = self.cmds:dataToStr()
-	local header = ffi.new('uint32_t[1]', 0xfffffffd)
+	local header = ffi.new('uint32_t[1]', 0xfffdffff)
 	serverConn.toSend:insert(
 		ffi.string(header, ffi.sizeof(header))
 		..to7bitstr(#frameStr)
@@ -1277,12 +1277,13 @@ print'begin client listen loop...'
 					local bytep = ffi.cast('uint8_t*', data)
 					local shortp = ffi.cast('uint16_t*', bytep)
 					local index, value = shortp[0], shortp[1]
-					if index == 0xfffd then
+					if index == 0xffff and value == 0xfffc then
+						local newsize = read7bit(sock)
+--DEBUG:print('got cmdbuf resize to '..tostring(newsize))
 						-- cmd buffer resize
-						if value ~= self.nextCmds.size then
---DEBUG(@5):print('got cmdbuf resize to '..tostring(value))
+						if newsize ~= self.nextCmds.size then
 							local oldsize = self.nextCmds.size
-							self.nextCmds:resize(value)
+							self.nextCmds:resize(newsize)
 							if self.nextCmds.size > oldsize then
 								-- make sure delta compression state starts with 0s
 								ffi.fill(self.nextCmds.v + oldsize, ffi.sizeof'Numo9Cmd' * (self.nextCmds.size - oldsize))
