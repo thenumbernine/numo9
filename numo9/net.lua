@@ -6,7 +6,7 @@ network protocol
 2) update loop
 server sends client:
 
-	$ff $ff $ff $ff <-> incoming RAM dump
+	$ff $ff $ff $ff [i:netint] <-> incoming RAM dump of size 'i'
 	$ff $ff $ff $fe <-> delta compression frame end.  let the client know it can flush the cmds (so we dont display incomplete cmds)
 	$fe $ff $XX $XX <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
 	$fd $ff $XX $XX <-> cmd frame will resize to $XXXX
@@ -20,17 +20,31 @@ maybe I should be encoding offsets and values dif to support larger sizes?
 
 	hmm ok on the kart game it's surpassing 64k ...
 
-TODO ... maybe ... like unicode ...
-7 bits = offsets 0-255
-8th bit set = use this 7 and next 7 = offsets 0-16383
-16th bit set = use this 7, next 7, next 7 = offsets 0-2097151 ... should be plenty ...
-... then everything is bytes ... ?  or should I send a byte for the len and then # bytes for how many?
-... but how often do we exceed 8bits?  if it's pretty often then might as well just use 16bits right?
+netint:
+	7 bits = offsets 0-255
+	8th bit set = use this 7 and next 7 = offsets 0-16383
+	16th bit set = use this 7, next 7, next 7 = offsets 0-2097151 ... should be plenty ...
+	... then everything is bytes ... ?  or should I send a byte for the len and then # bytes for how many?
+	... but how often do we exceed 8bits?  if it's pretty often then might as well just use 16bits right?
 
-how about line up all the bits of the current cmd state ... or even of the entire RAM state ... and subdivide changed bits until your ranges are so small that subdividing any further would mean representation size increases instead of decreases, and then send whatever you have.
+	how about line up all the bits of the current cmd state ... or even of the entire RAM state ... and subdivide changed bits until your ranges are so small that subdividing any further would mean representation size increases instead of decreases, and then send whatever you have.
 
 TODO I'm doubling up the net cmds sent for 2 draw conns ...
 	this is cuz the local conn receives its messages ... and theyre added to the general list ... and that combines with the per-client conn msgs ... and the per-client conn gets 2x ..
+
+
+TODO TODO TODO
+new net format ...
+
+	$00 [i:netint] data:u8[i] <- incoming RAM dump of size 'i'
+	$01 [i:netint] data:u8[i] <- send uncompressed data, for initializing the delta-compressed cmd buf
+	$02 [i:netint] deltas:u8[i] <- delta compression frame start of size 'i'
+		<- and deltas are encoded {offset:netint value:u8}
+	$03 [i:netint] <- resize cmd frame to 'i'
+
+	netnumber is as follows
+	yxxxxxxx <- xxxxxxx is the value, y is 1 to read 7 more bits, 0 to stop
+	76543210
 
 --]]
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
@@ -229,6 +243,36 @@ local function mustReceive(...)
 	return recv
 end
 
+-- TODO sending string requires an alloc, or should I do my own luasocket withut strings?
+local _7bitbuf = vector'uint8_t'
+local function to7bitstr(i)
+assert.ge(i, 0)	-- unsigned only
+	_7bitbuf:resize(0)
+	repeat
+		local n = bit.band(i, 0x7f)
+		i = bit.rshift(i, 7)
+		if i ~= 0 then n = bit.bor(n, 0x80) end
+--DEBUG:print('...7bit adding', ('$%02x'):format(n))
+		_7bitbuf:emplace_back()[0] = n
+	until i == 0
+	return ffi.string(_7bitbuf.v, #_7bitbuf)
+end
+
+-- TODO return u64's if needed?
+local function read7bit(sock)
+	local res = assert(receive(sock, 1, 10)):byte(1)
+--DEBUG:print('...7bit reading', ('$%02x'):format(res), 'result so far', ('%x'):format(res))
+	if res < 0x80 then return res end
+	res = bit.band(res, 0x7f)
+	local sh = 7
+	::loop::
+		local i = assert(receive(sock, 1, 10)):byte(1)
+		res = bit.bor(res, bit.lshift(bit.band(i, 0x7f), sh))
+--DEBUG:print('...7bit reading', ('$%02x'):format(i), 'result so far', ('%x'):format(res))
+		if i < 0x80 then return res end
+		sh = sh + 7
+	goto loop
+end
 
 
 local Numo9Cmd_base = struct{
@@ -903,6 +947,7 @@ print()
 
 			local clp = ffi.cast('uint16_t*', prevFrameCmds.v)
 			local svp = ffi.cast('uint16_t*', thisFrameCmds.v)
+			-- TODO net-delta-compress where offset values are 7 bits, or 8th bit means read another 7 bits
 			deltaCompress(clp, svp, n, deltas)
 
 			if deltas.size > 0 then
@@ -1097,10 +1142,12 @@ print'sending initial RAM state...'
 	local ramState = ffi.string(app.ram.v, app.memSize)
 --DEBUG:require'ext.path''server_init.txt':write(string.hexdump(ramState))
 	local ramStateCompressed = zlibCompressLua(ramState)
-	local ramStateCompressedSize = ffi.new'uint32_t[1]'
-	ramStateCompressedSize[0] = #ramStateCompressed
-	local ramStateCompressedSizeStr = ffi.string(ramStateCompressedSize, 4)
-	serverConn.toSend:insert(ramStateCompressedSizeStr..ramStateCompressed)
+	local sizeStr = to7bitstr(#ramStateCompressed)
+--DEBUG:print('SENDING RAM SIZE', #ramStateCompressed, 'STR', require 'ext.tolua'(sizeStr))
+	serverConn.toSend:insert(
+		sizeStr 
+		..ramStateCompressed
+	)
 end
 
 
@@ -1267,8 +1314,8 @@ print'begin client listen loop...'
 					elseif index == 0xffff and value == 0xffff then
 						-- new RAM dump message
 
-						local ramStateCompressedSizeStr = assert(receive(sock, 4, 10))
-						local ramStateCompressedSize = assert(tonumber(ffi.cast('uint32_t*', ffi.cast('char*', ramStateCompressedSizeStr))[0]))
+						local ramStateCompressedSize = read7bit(sock)
+--DEBUG:print('READING RAM SIZE', ramStateCompressedSize)
 						local ramStateCompressed = assert(receive(sock, ramStateCompressedSize, 10))
 						local ramState = zlibUncompressLua(ramStateCompressed)
 --DEBUG(@5):print(string.hexdump(ramState))
@@ -1364,8 +1411,8 @@ print('got uint16 index='
 			local buttonPtr = app.ram.keyPressFlags + bit.rshift(firstJoypadKeyCode,3)
 --DEBUG(@5):print('delta compressing...')
 			deltaCompress(
-				self.lastButtons,
-				buttonPtr,
+				self.lastButtons,	-- uint8_t*
+				buttonPtr,			-- uint8_t*
 				ffi.sizeof(self.lastButtons),
 				self.inputMsgVec
 			)
