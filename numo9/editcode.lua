@@ -3,6 +3,7 @@ This will be the code editor
 --]]
 local ffi = require 'ffi'
 local table = require 'ext.table'
+local class = require 'ext.class'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
@@ -19,7 +20,6 @@ local spriteSize = numo9_rom.spriteSize
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local menuFontWidth = numo9_rom.menuFontWidth
 
-local EditCode = require 'numo9.ui':subclass()
 
 local colors = {
 	fg = 0xfc,
@@ -31,8 +31,12 @@ local colors = {
 }
 
 
-function EditCode:init(args)
-	EditCode.super.init(self, args)
+-- subclass the other widgets or nah? idk.
+-- abstract - expects :getText() and :setText(text) to be defined -- usu for reading/writing to the active blob
+local UITextArea = class()
+
+function UITextArea:init(args)
+	self.edit = assert.index(args, 'edit')	-- points back to editCode
 
 	-- text cursor loc
 	self.cursorLoc = 0	-- 0-based index of our cursor
@@ -42,39 +46,22 @@ function EditCode:init(args)
 	self.scrollY = 0
 	self.useLineNumbers = true
 
-	self:resetText()
 	self.undoBuffer = table()
 	self.undoIndex = #self.undoBuffer
 end
 
--- external, called by app upon openCart
-function EditCode:resetText()
-	local app = self.app
-	self:setCodeBlobIndex(0)
-	self.currentCodeBlob.data = self:getText()
+-- called upon init or upon app.blobs.code external change (upon App:openCart)
+function UITextArea:resetText()
 	self.cursorLoc = math.clamp(self.cursorLoc, 0, #self:getText())
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
-end
-
-function EditCode:setCodeBlobIndex(i)
-	self.codeBlobIndex = i
-	self.currentCodeBlob = self.app.blobs.code[self.codeBlobIndex+1]
-end
-
--- internal
-function EditCode:setText(text)
-	self.currentCodeBlob.data = text
-end
-function EditCode:getText()
-	return self.currentCodeBlob.data
 end
 
 local slashRByte = ('\r'):byte()
 local newlineByte = ('\n'):byte()
 local tabByte = ('\t'):byte()
 local backspaceByte = 8
-function EditCode:refreshNewlines()
+function UITextArea:refreshNewlines()
 	-- refresh newlines
 	self.newlines = table()
 	self.newlines:insert(0)	-- newline is [inclusive, exclusive) the range of 0-based indexes of the text per line
@@ -86,7 +73,7 @@ function EditCode:refreshNewlines()
 	self.newlines:insert(#self:getText()+1)	-- len+1 so that len is a valid range on the last line
 end
 
-function EditCode:refreshCursorColRowForLoc()
+function UITextArea:refreshCursorColRowForLoc()
 	self.cursorRow = nil
 	for i=1,#self.newlines-1 do
 		local start = self.newlines[i]
@@ -100,23 +87,12 @@ function EditCode:refreshCursorColRowForLoc()
 	self.cursorCol = self.cursorLoc+1 - self.newlines[self.cursorRow]	-- 1-based  like all UI show it as
 end
 
-function EditCode:update()
-	local app = self.app
-
+function UITextArea:update()
+	local app = self.edit.app
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app.ram.mousePos:unpack()
-
-	EditCode.super.update(self)
-
-	-- ui controls
-
-	self:setCodeBlobIndex(self.codeBlobIndex)
-
-	if self:guiButton('N', 120, 0, self.useLineNumbers) then
-		self.useLineNumbers = not self.useLineNumbers
-	end
 
 	-- draw text
 	local textareaX = 0	-- offset into textarea where we start drawing text
@@ -233,7 +209,7 @@ function EditCode:update()
 			(self.cursorRow - self.scrollY) * spriteSize.y,
 			menuFontWidth,
 			spriteSize.y,
-			self:color(12),
+			12,
 			nil,
 			nil,
 			app.paletteMenuTex
@@ -302,9 +278,7 @@ function EditCode:update()
 		elseif app:keyp'x' or app:keyp'c' then 	-- cut/copy
 			if self.selectStart then
 				local sel = self:getText():sub(self.selectStart, self.selectEnd-1)
-				if not clip.text(sel) then
-					print'failed to copy text'
-				end
+				clip.text(sel)	-- error on fail
 
 				if app:keyp'x' then -- cut only
 					self:pushUndo()
@@ -425,14 +399,9 @@ function EditCode:update()
 			end
 		end
 	end
-
-	self:drawTooltip()
-
-	-- draw ui menubar last so it draws over the rest of the page
-	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
 end
 
-function EditCode:moveCursor(dx, dy)
+function UITextArea:moveCursor(dx, dy)
 	-- advance row ...
 	self.cursorRow = self.cursorRow + dy
 	if self.cursorRow < 1 then
@@ -453,24 +422,24 @@ function EditCode:moveCursor(dx, dy)
 	self:refreshCursorColRowForLoc()	-- in case we did wrap lines
 end
 
-function EditCode:clearSelect()
+function UITextArea:clearSelect()
 	self.selectStart = nil
 	self.selectEnd = nil
 	self.selectDownLoc = nil
 	self.selectCurLoc = nil
 end
-function EditCode:startSelect()
+function UITextArea:startSelect()
 	self:clearSelect()
 	self.selectDownLoc = self.cursorLoc+1
 end
-function EditCode:growSelect()
+function UITextArea:growSelect()
 	self.selectCurLoc = self.cursorLoc+1
 	self.selectStart = math.min(self.selectDownLoc, self.selectCurLoc)
 	self.selectEnd = math.max(self.selectDownLoc, self.selectCurLoc)
 end
 
 -- be sure to call self:refreshNewlines() and self:refreshCursorColRowForLoc() afterwards...
-function EditCode:deleteSelection()
+function UITextArea:deleteSelection()
 	if not self.selectStart then return end
 
 	self:setText(
@@ -485,7 +454,7 @@ function EditCode:deleteSelection()
 	self:clearSelect()
 end
 
-function EditCode:addCharToText(ch)
+function UITextArea:addCharToText(ch)
 	-- if we have selection then delete it
 	if self.selectStart
 	and self.selectEnd > self.selectStart -- end is exclusive, so this is an empty selection
@@ -520,14 +489,14 @@ end
 
 -- push undo
 -- a separate one for typing that doesn't insert if the last insert was within a few milliseconds
-EditCode.typeUndoDelay = 1
-EditCode.lastPushUndo = -math.huge
-function EditCode:pushUndoTyping()
+UITextArea.typeUndoDelay = 1
+UITextArea.lastPushUndo = -math.huge
+function UITextArea:pushUndoTyping()
 	if getTime() - self.lastPushUndo < self.typeUndoDelay then return end
 	self:pushUndo()
 end
 -- and a separate call for copy/paste that always inserts into here
-function EditCode:pushUndo()
+function UITextArea:pushUndo()
 	self.lastPushUndo = getTime()
 	-- erase subsequent undo stack
 	for i=self.undoIndex+1,#self.undoBuffer do
@@ -540,7 +509,7 @@ function EditCode:pushUndo()
 	}
 	self.undoIndex = #self.undoBuffer
 end
-function EditCode:popUndo(redo)
+function UITextArea:popUndo(redo)
 	-- if we are push-undo-ing from the top of the undo stack and the text doesn't match the top stack text then insert it at the top
 	-- that way if the pushUndoTyping hadn't yet recorded it and we then get a 'redo' we will go back to the top
 	if self.undoIndex == #self.undoBuffer
@@ -562,6 +531,60 @@ function EditCode:popUndo(redo)
 	self:clearSelect()
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
+end
+
+
+
+
+local EditCode = require 'numo9.ui':subclass()	-- the UI/editor page
+
+function EditCode:init(args)
+	EditCode.super.init(self, args)
+
+	self.codeBlobIndex = 0
+
+	self.uiTextArea = UITextArea{edit=self}
+	
+	-- internal
+	function self.uiTextArea:setText(text)
+		self.edit.currentCodeBlob.data = text
+	end
+	function self.uiTextArea:getText()
+		return self.edit.currentCodeBlob.data
+	end
+
+	self:resetText()
+end
+
+-- external, called by app upon openCart
+function EditCode:resetText()
+	self:setCodeBlobIndex(0)
+	self.uiTextArea:resetText()
+end
+
+-- called internally, upon init or when the user changes the current code blob
+function EditCode:setCodeBlobIndex(i)
+	self.codeBlobIndex = i
+	self.currentCodeBlob = self.app.blobs.code[self.codeBlobIndex+1]
+end
+
+function EditCode:update()
+	EditCode.super.update(self)
+	
+	-- ui controls
+
+	self:setCodeBlobIndex(self.codeBlobIndex)
+
+	if self:guiButton('N', 120, 0, self.uiTextArea.useLineNumbers) then
+		self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
+	end
+
+	self.uiTextArea:update()
+
+	self:drawTooltip()
+
+	-- draw ui menubar last so it draws over the rest of the page
+	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
 end
 
 function EditCode:event(e)
