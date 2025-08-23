@@ -10,8 +10,10 @@ server sends client:
 	$ffff $fffe <-> delta compression frame end.  let the client know it can flush the cmds (so we dont display incomplete cmds)
 	$ffff $fffd [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
 	$ffff $fffc [i:netint] <-> cmd frame will resize to 'i'
+	$ffff $fffb [i:netint] <-> TODO delta-data of size 'i' using netints as offsets ... = delta-compressed frame
 	all else are delta-compressed uint16 offsets and uint16 values
 	... possible break after each 4 byte of data, whenever there's no data to be read
+
 
 or how about others are # of delta-compressed messages to expect?
 and how should I delta-compresse messages ...
@@ -953,7 +955,11 @@ print()
 			deltaCompress(clp, svp, n, deltas)
 
 			if deltas.size > 0 then
-				local data = deltas:dataToStr()
+				local deltaStr = deltas:dataToStr()
+				local data = 
+					'\xff\xff\xfb\xff'
+					..to7bitstr(#deltaStr)
+					..deltaStr
 					..'\xff\xff\xfe\xff'	-- terminator is 0xfffffffe <-> delta index=0xffff, value=0xfffe
 --DEBUG:assert.eq(bit.band(#data, 1), 0, "how did I send data that wasn't 2-byte-aligned?")
 				conn.toSend:insert(data)
@@ -1275,10 +1281,35 @@ print'begin client listen loop...'
 --receivedSize = receivedSize + 4
 					-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
 
-					local bytep = ffi.cast('uint8_t*', data)
-					local shortp = ffi.cast('uint16_t*', bytep)
+					local shortp = ffi.cast('uint16_t*', data)
 					local index, value = shortp[0], shortp[1]
-					if index == 0xffff and value == 0xfffc then
+					if index == 0xffff and value == 0xfffb then
+						local deltaBufLen = read7bit(sock)
+						-- read delta frame *HERE* only
+						local deltaStr = receive(sock, deltaBufLen, 10)
+
+						local shortp = ffi.cast('uint16_t*', deltaStr)
+						for i=0,#deltaStr-1,4 do
+							local index, value = shortp[0], shortp[1]
+							shortp = shortp + 2
+							local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
+							if neededSize >= self.nextCmds.size then
+print('got uint16 index='
+	..('$%x'):format(index)
+	..' value='
+	..('$%x'):format(value)
+	..' goes in cmd-index '
+	..('$%x'):format(neededSize)
+	..' when our cmd size is just '
+	..('$%x'):format(self.nextCmds.size)
+)
+							else
+								assert(index*2 < self.nextCmds.size * ffi.sizeof'Numo9Cmd')
+								ffi.cast('uint16_t*', self.nextCmds.v)[index] = value
+							end
+						end
+
+					elseif index == 0xffff and value == 0xfffc then
 						local newsize = read7bit(sock)
 --DEBUG:print('got cmdbuf resize to '..tostring(newsize))
 						-- cmd buffer resize
@@ -1379,21 +1410,6 @@ print'begin client listen loop...'
 						--break	-- stop recv'ing and process data ...
 						-- BAD idea, this slows the framerate down incredibly
 					else
-						local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
-						if neededSize >= self.nextCmds.size then
-print('got uint16 index='
-	..('$%x'):format(index)
-	..' value='
-	..('$%x'):format(value)
-	..' goes in cmd-index '
-	..('$%x'):format(neededSize)
-	..' when our cmd size is just '
-	..('$%x'):format(self.nextCmds.size)
-)
-						else
-							assert(index*2 < self.nextCmds.size * ffi.sizeof'Numo9Cmd')
-							ffi.cast('uint16_t*', self.nextCmds.v)[index] = value
-						end
 					end
 				else
 					if reason ~= 'timeout' then
