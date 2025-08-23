@@ -6,13 +6,11 @@ network protocol
 2) update loop
 server sends client:
 
-	$ffff $ffff [i:netint] ram:u8[i] <-> incoming RAM dump of size 'i'
-	$ffff $fffd [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
-	$ffff $fffc [i:netint] <-> cmd frame will resize to 'i'
-	$ffff $fffb [i:netint] <-> TODO delta-data of size 'i' using netints as offsets ... = delta-compressed frame
-	all else are delta-compressed uint16 offsets and uint16 values
-	... possible break after each 4 byte of data, whenever there's no data to be read
-
+	$00 [i:netint] ram:u8[i] <-> incoming RAM dump of size 'i'
+	$01 [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
+	$02 [i:netint] <-> cmd frame will resize to 'i'
+	$03 [i:netint] <-> delta-data of size 'i': delta-compressed uint16 offsets and uint16 values
+							TODO using netints as offsets ... = delta-compressed frame
 
 or how about others are # of delta-compressed messages to expect?
 and how should I delta-compresse messages ...
@@ -33,20 +31,6 @@ netint:
 TODO I'm doubling up the net cmds sent for 2 draw conns ...
 	this is cuz the local conn receives its messages ... and theyre added to the general list ... and that combines with the per-client conn msgs ... and the per-client conn gets 2x ..
 
-
-TODO TODO TODO
-new net format ...
-
-	$00 [i:netint] data:u8[i] <- incoming RAM dump of size 'i'
-	$01 [i:netint] data:u8[i] <- send uncompressed data, for initializing the delta-compressed cmd buf
-	$02 [i:netint] deltas:u8[i] <- delta compression frame start of size 'i'
-		<- and deltas are encoded {offset:netint value:u8}
-	$03 [i:netint] <- resize cmd frame to 'i'
-	... break in read loop after each cmd is read?  any perf hit to worry about?
-
-	netnumber is as follows
-	yxxxxxxx <- xxxxxxx is the value, y is 1 to read 7 more bits, 0 to stop
-	76543210
 
 --]]
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
@@ -122,7 +106,8 @@ end
 
 -- https://stackoverflow.com/questions/2613734/maximum-packet-size-for-a-tcp-connection
 --local maxPacketSize = 1024	-- when sending the RAM over, small packets kill us ... starting to not trust luasocket ...
-local maxPacketSize = 65536		-- how come right at this offset my RAM dump goes out of sync between client and server ...
+--local maxPacketSize = 65536		-- how come right at this offset my RAM dump goes out of sync between client and server ...
+local maxPacketSize = 16777216
 
 -- send and make sure you send everything, and error upon fail
 local function send(conn, data)
@@ -276,6 +261,17 @@ local function read7bit(sock)
 	goto loop
 end
 
+-- these are net protocol messages
+
+local netmsgs = {
+	sendRAM = 0,
+	sendCmds = 1,
+	resizeCmds = 2,
+	deltaCmds = 3,
+}
+
+
+-- below are the state cmds that go in the cmd buf that is delta compress updated every frame
 
 local Numo9Cmd_base = struct{
 	name = 'Numo9Cmd_base',
@@ -933,7 +929,7 @@ print()
 			if prevFrameCmds.size ~= thisFrameCmds.size then
 --DEBUG:print('resizing to', thisFrameCmds.size)				
 				conn.toSend:insert(
-					ffi.string(ffi.new('uint32_t[1]', 0xfffcffff), 4)
+					string.char(netmsgs.resizeCmds)
 					..to7bitstr(thisFrameCmds.size)
 				)
 				prevFrameCmds:resize(thisFrameCmds.size)
@@ -956,7 +952,7 @@ print()
 			if deltas.size > 0 then
 				local deltaStr = deltas:dataToStr()
 				local data = 
-					'\xff\xff\xfb\xff'
+					string.char(netmsgs.deltaCmds)
 					..to7bitstr(#deltaStr)
 					..deltaStr
 --DEBUG:assert.eq(bit.band(#data, 1), 0, "how did I send data that wasn't 2-byte-aligned?")
@@ -1095,9 +1091,8 @@ print'creating server remote client conn...'
 
 	-- send most recent frame state
 	local frameStr = self.cmds:dataToStr()
-	local header = ffi.new('uint32_t[1]', 0xfffdffff)
 	serverConn.toSend:insert(
-		ffi.string(header, ffi.sizeof(header))
+		string.char(netmsgs.sendCmds)
 		..to7bitstr(#frameStr)
 		..frameStr)
 
@@ -1141,17 +1136,16 @@ print'sending initial RAM state...'
 
 	-- send a code for 'incoming RAM dump'
 	-- TODO how about another special code for resizing the cmdbuf?  so I don't have to pad the cmdbuf size at the frame beginning...
-	serverConn.toSend:insert'\xff\xff\xff\xff'
 
 	-- send back current state of the game ...
 	-- send RAM state
 	local ramState = ffi.string(app.ram.v, app.memSize)
 --DEBUG:require'ext.path''server_init.txt':write(string.hexdump(ramState))
 	local ramStateCompressed = zlibCompressLua(ramState)
-	local sizeStr = to7bitstr(#ramStateCompressed)
---DEBUG:print('SENDING RAM SIZE', #ramStateCompressed, 'STR', require 'ext.tolua'(sizeStr))
+--DEBUG:print('SENDING RAM SIZE', #ramStateCompressed, 'STR', require 'ext.tolua'(to7bitstr(#ramStateCompressed)))
 	serverConn.toSend:insert(
-		sizeStr 
+		string.char(netmsgs.sendRAM)
+		..to7bitstr(#ramStateCompressed)
 		..ramStateCompressed
 	)
 end
@@ -1269,19 +1263,18 @@ print'begin client listen loop...'
 --DEBUG(@5):print'LISTENING...'
 --local receivedSize = 0
 			repeat
-				-- read our deltas 2 bytes at a time ...
-				data, reason = receive(sock, 4, 0)
+				-- read our netmsg - 1 byte ...
+				data, reason = receive(sock, 1, 0)
 --DEBUG(@5):print('client got', data, reason)
 				if data then
 --DEBUG(@5):print'CLIENT GOT DATA'
---DEBUG(@5):print(string.hexdump(data, nil, 2))
-					assert.len(data, 4)
---receivedSize = receivedSize + 4
+--DEBUG(@5):print(string.hexdump(data, nil, 1))
+					assert.len(data, 1)
+--receivedSize = receivedSize + 1
 					-- TODO TODO while reading new frames, dont draw new frames until we've read a full frame ... or something idk
 
-					local shortp = ffi.cast('uint16_t*', data)
-					local index, value = shortp[0], shortp[1]
-					if index == 0xffff and value == 0xfffb then
+					local netmsg = data:byte()
+					if netmsg == netmsgs.deltaCmds then
 						local deltaBufLen = read7bit(sock)
 						-- read delta frame *HERE* only
 						local deltaStr = receive(sock, deltaBufLen, 10)
@@ -1312,7 +1305,7 @@ print('got uint16 index='
 						ffi.copy(self.cmds.v, self.nextCmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
 						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 
-					elseif index == 0xffff and value == 0xfffc then
+					elseif netmsg == netmsgs.resizeCmds then
 						local newsize = read7bit(sock)
 --DEBUG:print('got cmdbuf resize to '..tostring(newsize))
 						-- cmd buffer resize
@@ -1325,7 +1318,7 @@ print('got uint16 index='
 							end
 						end
 
-					elseif index == 0xffff and value == 0xfffd then
+					elseif netmsg == netmsgs.sendCmds then
 						-- cmd frame reset message
 
 						local newcmdslen = read7bit(sock)
@@ -1347,7 +1340,7 @@ print('got uint16 index='
 						ffi.copy(self.nextCmds.v, ffi.cast('char*', initCmds), newcmdslen)
 						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 
-					elseif index == 0xffff and value == 0xffff then
+					elseif netmsg == netmsgs.sendRAM then
 						-- new RAM dump message
 
 						local ramStateCompressedSize = read7bit(sock)
@@ -1408,6 +1401,7 @@ print('got uint16 index='
 						--break	-- stop recv'ing and process data ...
 						-- BAD idea, this slows the framerate down incredibly
 					else
+						print('unknown netmsg', netmsg)
 					end
 				else
 					if reason ~= 'timeout' then
