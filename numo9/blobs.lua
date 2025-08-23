@@ -141,7 +141,7 @@ end
 
 -- abstract class:
 -- tempted to merge this with Blob and just use the string's buffer for everything elses buffer ...
-local BlobDataAbs = Blob:subclass() 
+local BlobDataAbs = Blob:subclass()
 function BlobDataAbs:init(data)
 	self.data = data or ''
 end

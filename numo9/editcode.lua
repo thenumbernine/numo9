@@ -41,24 +41,25 @@ function EditCode:init(args)
 	self.scrollX = 0
 	self.scrollY = 0
 	self.useLineNumbers = true
-	
+
 	self:resetText()
 	self.undoBuffer = table()
 	self.undoIndex = #self.undoBuffer
 end
 
-
-
 -- external, called by app upon openCart
 function EditCode:resetText()
 	local app = self.app
-	self.codeBlobIndex = 0
-	-- update this when self.codeBlobIndex changes
-	self.currentCodeBlob = app.blobs.code[self.codeBlobIndex+1]
+	self:setCodeBlobIndex(0)
 	self.currentCodeBlob.data = self:getText()
 	self.cursorLoc = math.clamp(self.cursorLoc, 0, #self:getText())
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
+end
+
+function EditCode:setCodeBlobIndex(i)
+	self.codeBlobIndex = i
+	self.currentCodeBlob = self.app.blobs.code[self.codeBlobIndex+1]
 end
 
 -- internal
@@ -112,8 +113,7 @@ function EditCode:update()
 	-- ui controls
 
 	self:guiBlobSelect(80, 0, 'code', self, 'codeBlobIndex')
-	-- update this when self.codeBlobIndex changes
-	self.currentCodeBlob = app.blobs.code[self.codeBlobIndex+1]
+	self:setCodeBlobIndex(self.codeBlobIndex)
 
 	if self:guiButton('N', 120, 0, self.useLineNumbers) then
 		self.useLineNumbers = not self.useLineNumbers
@@ -316,7 +316,7 @@ function EditCode:update()
 			end
 		elseif app:keyp'v' then 				-- paste
 			local paste = clip.text()
-			if self.selectStart or paste then 
+			if self.selectStart or paste then
 				-- only save undo if we're (a) going to be deleting selected text with this paste or (b) going to be pasting text
 				-- if there's an empty clipboard, don't let repeated ctrl+v's stack up in the undo buffer
 				-- TODO or I can just have pushUndo check the last undo buffer and see if the text changed ... but for big text that might be slow?
@@ -499,13 +499,13 @@ function EditCode:addCharToText(ch)
 	end
 	if ch == backspaceByte then
 		self:setText(
-			self:getText():sub(1, math.max(0, self.cursorLoc - 1)) 
+			self:getText():sub(1, math.max(0, self.cursorLoc - 1))
 			..self:getText():sub(self.cursorLoc+1)
 		)
 		self.cursorLoc = math.max(0, self.cursorLoc - 1)
 	elseif ch then
 		self:setText(
-			self:getText():sub(1, self.cursorLoc) 
+			self:getText():sub(1, self.cursorLoc)
 			..string.char(ch)
 			..self:getText():sub(self.cursorLoc+1)
 		)
@@ -541,7 +541,7 @@ end
 function EditCode:popUndo(redo)
 	-- if we are push-undo-ing from the top of the undo stack and the text doesn't match the top stack text then insert it at the top
 	-- that way if the pushUndoTyping hadn't yet recorded it and we then get a 'redo' we will go back to the top
-	if self.undoIndex == #self.undoBuffer 
+	if self.undoIndex == #self.undoBuffer
 	and self.undoIndex > 0
 	and self.undoBuffer:last().text ~= self:getText()
 	then
@@ -560,6 +560,12 @@ function EditCode:popUndo(redo)
 	self:clearSelect()
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
+end
+
+function EditCode:event(e)
+	-- don't call super, which handles arrows to change tab focus
+	-- TODO do handle it somehow
+	-- also TODO - handle key input of editor through :event() here instead of through :update()
 end
 
 local function prevNewline(s, i)

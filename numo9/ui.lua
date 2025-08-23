@@ -27,7 +27,7 @@ local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
-local minBlobPerType = numo9_blobs.minBlobPerType 
+local minBlobPerType = numo9_blobs.minBlobPerType
 
 local editModes = table{
 	'code',

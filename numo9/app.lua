@@ -705,7 +705,7 @@ function App:initGL()
 				cmd.c, cmd.s, cmd.x, cmd.y, cmd.z = c, s, x, y, z
 			end
 			self:matrotcs(c, s, x, y, z)
-		end,	
+		end,
 		matscale = function(x, y, z)
 			x = x or 1
 			y = y or 1
@@ -2804,7 +2804,7 @@ function App:runCart()
 	})
 
 	local code = self.blobs.code:mapi(function(blob, i)
-		return 
+		return
 			-- TODO this?  pro: delineation.  con: error line #s are offset
 			-- but they'll always be offset if I add more than one code blob?
 			-- but I'm not doing that yet ...
