@@ -6,12 +6,12 @@ network protocol
 2) update loop
 server sends client:
 
-	$ff $ff $ff $ff [i:netint] <-> incoming RAM dump of size 'i'
+	$ff $ff $ff $ff [i:netint] ram:u8[i] <-> incoming RAM dump of size 'i'
 	$ff $ff $ff $fe <-> delta compression frame end.  let the client know it can flush the cmds (so we dont display incomplete cmds)
-	$fe $ff $XX $XX <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
+	$ff $ff $ff $fd [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
 	$fd $ff $XX $XX <-> cmd frame will resize to $XXXX
-
 	all else are delta-compressed uint16 offsets and uint16 values
+	... possible break after each 4 byte of data, whenever there's no data to be read
 
 or how about others are # of delta-compressed messages to expect?
 and how should I delta-compresse messages ...
@@ -41,6 +41,7 @@ new net format ...
 	$02 [i:netint] deltas:u8[i] <- delta compression frame start of size 'i'
 		<- and deltas are encoded {offset:netint value:u8}
 	$03 [i:netint] <- resize cmd frame to 'i'
+	... break in read loop after each cmd is read?  any perf hit to worry about?
 
 	netnumber is as follows
 	yxxxxxxx <- xxxxxxx is the value, y is 1 to read 7 more bits, 0 to stop
@@ -1088,12 +1089,11 @@ print'creating server remote client conn...'
 
 	-- send most recent frame state
 	local frameStr = self.cmds:dataToStr()
-	assert(#frameStr < 0xfffe, "the cmds buffer is too big -- need to fix your protocol")
-	local header = ffi.new('uint16_t[2]')
-	header[0] = 0xfffe
-	header[1] = #frameStr
-	serverConn.toSend:insert(ffi.string(ffi.cast('char*', header), 4))
-	serverConn.toSend:insert(frameStr)
+	local header = ffi.new('uint32_t[1]', 0xfffffffd)
+	serverConn.toSend:insert(
+		ffi.string(header, ffi.sizeof(header))
+		..to7bitstr(#frameStr)
+		..frameStr)
 
 	-- TODO how about put not-yet-connected in a separate list?
 	serverConn.connected = true
@@ -1256,6 +1256,10 @@ print'begin client listen loop...'
 		while sock
 		and sock:getsockname()
 		do
+
+
+
+
 --DEBUG(@5):print'LISTENING...'
 --local receivedSize = 0
 			repeat
@@ -1284,10 +1288,10 @@ print'begin client listen loop...'
 							end
 						end
 
-					elseif index == 0xfffe then
+					elseif index == 0xffff and value == 0xfffd then
 						-- cmd frame reset message
 
-						local newcmdslen = value
+						local newcmdslen = read7bit(sock)
 						if newcmdslen % ffi.sizeof'Numo9Cmd' ~= 0 then
 							--error"cmd buffer not modulo size"
 							print"!!!WARNING!!! - cmd buffer not modulo size"
@@ -1403,6 +1407,9 @@ print('got uint16 index='
 					error'conn closed'
 				end
 			until not data
+
+
+
 
 			-- TODO send any input button changes ...
 			self.inputMsgVec:resize(0)
