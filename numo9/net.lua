@@ -9,7 +9,7 @@ server sends client:
 	$00 [i:netint] ram:u8[i] <-> incoming RAM dump of size 'i'
 	$01 [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
 	$02 [i:netint] <-> cmd frame will resize to 'i'
-	$03 [i:netint] <-> delta-data of size 'i': delta-compressed netint offsets and uint8 values
+	$03 [i:netint] <-> delta-data of size 'i': delta-compressed: {netint offset, netint size, uint8[size] values}
 
 or how about others are # of delta-compressed messages to expect?
 and how should I delta-compresse messages ...
@@ -286,21 +286,31 @@ local function from7bitvec(ptr, endptr)
 	goto loop
 end
 
--- delta compress byte values and 7bit offsets
+-- delta compress: 7bitvec offset, 7bitvec size, u8[size] values
 local function deltaCompress7bit(
 	prevp,	-- previous state, of uint8_t*
 	nextp,	-- next state, of uint8_t*
 	len,	-- state length
 	dstvec	-- a vector'uint8_t' for now
 )
-	for i=0,len-1 do
-		if nextp[0] ~= prevp[0] then
+	local i = 0
+	while i < len do
+		if nextp[i] ~= prevp[i] then
+			local j = i+1
+			while j < len and nextp[j] ~= prevp[j] do
+				j=j+1
+			end
+			local size = j - i
 --DEBUG:print('delta set cmdbuf['..('$%x'):format(i)..'] = '..('$%02x'):format(nextp[0]))
-			to7bitvec(i, dstvec)
-			dstvec:emplace_back()[0] = nextp[0]
+			to7bitvec(i, dstvec)	-- offset
+			to7bitvec(size, dstvec)	-- size
+			for k=i,j-1 do
+				dstvec:emplace_back()[0] = nextp[k]
+			end
+			i=j
+		else
+			i=i+1
 		end
-		nextp=nextp+1
-		prevp=prevp+1
 	end
 end
 
@@ -1322,24 +1332,29 @@ assert.len(deltaStr, deltaBufLen)
 						local endptr = ptr + deltaBufLen
 						local cmdBufSize = self.nextCmds.size * ffi.sizeof'Numo9Cmd'
 						while ptr < endptr do
-							local index
-							index, ptr = from7bitvec(ptr, endptr)
+							local start, size
+							start, ptr = from7bitvec(ptr, endptr)
 							assert.le(ptr, endptr)
-							local value = ptr[0]
-							ptr = ptr + 1
+							size, ptr = from7bitvec(ptr, endptr)
+							assert.le(ptr, endptr)
+							for index=start,start+size-1 do
+								local value = ptr[0]
+								ptr = ptr + 1
+								assert.le(ptr, endptr)
 --DEBUG:print('delta set cmdbuf['..('$%x'):format(index)..'] = '..('$%02x'):format(value))
-							if index < 0 or index >= cmdBufSize then
-								print('got index='
-									..('$%x'):format(index)
-									..' value='
-									..('$%x'):format(value)
-									..' goes in cmd-index '
-									..('$%x'):format(math.floor(index / ffi.sizeof'Numo9Cmd'))
-									..' when our cmd size is just '
-									..('$%x'):format(self.nextCmds.size)
-								)
-							else
-								ffi.cast('uint8_t*', self.nextCmds.v)[index] = value
+								if index < 0 or index >= cmdBufSize then
+									print('got index='
+										..('$%x'):format(index)
+										..' value='
+										..('$%x'):format(value)
+										..' goes in cmd-index '
+										..('$%x'):format(math.floor(index / ffi.sizeof'Numo9Cmd'))
+										..' when our cmd size is just '
+										..('$%x'):format(self.nextCmds.size)
+									)
+								else
+									ffi.cast('uint8_t*', self.nextCmds.v)[index] = value
+								end
 							end
 						end
 --DEBUG:print'delta done'
