@@ -1887,6 +1887,9 @@ print('run thread dead')
 			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 			self:matident()
 
+			local ditherPush = self.ram.dither
+			self.ram.dither = 0
+
 			-- set drawText font & pal to the UI's
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
@@ -1971,6 +1974,7 @@ print('run thread dead')
 
 			-- pop the matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+			self.ram.dither = ditherPush
 		end
 
 		self.inUpdateCallback = false
