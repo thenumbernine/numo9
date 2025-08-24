@@ -2344,7 +2344,7 @@ local function homogeneous(sx, sy, x,y,z,w)
 
 	return x,y,z,w
 end
-function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
+function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex, thickness)
 	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
 	if not paletteRAM then
 		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
@@ -2371,24 +2371,26 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	local nx = -dy * il
 	local ny = dx * il
 
+	local halfThickness = (thickness or 1) * .5
+
 	local xLL, yLL, zLL, wLL =
-		v1x - nx * .5,
-		v1y - ny * .5,
+		v1x - nx * halfThickness,
+		v1y - ny * halfThickness,
 		v1z,
 		v1w
 	local xRL, yRL, zRL, wRL =
-		v2x - nx * .5,
-		v2y - ny * .5,
+		v2x - nx * halfThickness,
+		v2y - ny * halfThickness,
 		v2z,
 		v2w
 	local xLR, yLR, zLR, wLR =
-		v1x + nx * .5,
-		v1y + ny * .5,
+		v1x + nx * halfThickness,
+		v1y + ny * halfThickness,
 		v1z,
 		v1w
 	local xRR, yRR, zRR, wRR =
-		v2x + nx * .5,
-		v2y + ny * .5,
+		v2x + nx * halfThickness,
+		v2y + ny * halfThickness,
 		v2z,
 		v2w
 
@@ -2424,8 +2426,8 @@ function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex)
 	self.framebufferRAM.changedSinceDraw = true
 end
 
-function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex)
-	return self:drawSolidLine3D(x1,y1,0,x2,y2,0,colorIndex)
+function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex,thickness)
+	return self:drawSolidLine3D(x1,y1,0,x2,y2,0,colorIndex,thickness)
 end
 
 local clearFloat = ffi.new('float[4]')

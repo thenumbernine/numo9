@@ -490,7 +490,7 @@ function App:initGL()
 			return self:drawTexTri3D(x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, x3, y3, z3, u3, v3, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)
 		end,
 
-		line = function(x1,y1,x2,y2,colorIndex)
+		line = function(x1,y1,x2,y2,colorIndex,thickness)
 			if self.server then
 				local cmd = self.server:pushCmd().solidLine
 				cmd.type = netcmds.solidLine
@@ -499,11 +499,12 @@ function App:initGL()
 				cmd.x2 = x2
 				cmd.y2 = y2
 				cmd.colorIndex = colorIndex
+				cmd.thickness = thickness or 1
 			end
-			return self:drawSolidLine(x1,y1,x2,y2,colorIndex)
+			return self:drawSolidLine(x1,y1,x2,y2,colorIndex,thickness)
 		end,
 
-		line3d = function(x1,y1,z1,x2,y2,z2,colorIndex)
+		line3d = function(x1,y1,z1,x2,y2,z2,colorIndex,thickness)
 			if self.server then
 				local cmd = self.server:pushCmd().solidLine3D
 				cmd.type = netcmds.solidLine3D
@@ -514,8 +515,9 @@ function App:initGL()
 				cmd.y2 = y2
 				cmd.z2 = z2
 				cmd.colorIndex = colorIndex
+				cmd.thickness = thickness or 1
 			end
-			return self:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex)
+			return self:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex,thickness)
 		end,
 
 		spr = function(spriteIndex, screenX, screenY, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)

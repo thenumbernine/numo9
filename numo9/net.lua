@@ -443,6 +443,7 @@ local Numo9Cmd_solidLine = struct{
 		{name='y1', type='float'},
 		{name='x2', type='float'},
 		{name='y2', type='float'},
+		{name='thickness', type='float'},
 		{name='colorIndex', type='uint8_t'},
 	},
 }
@@ -458,6 +459,7 @@ local Numo9Cmd_solidLine3D = struct{
 		{name='x2', type='float'},
 		{name='y2', type='float'},
 		{name='z2', type='float'},
+		{name='thickness', type='float'},
 		{name='colorIndex', type='uint8_t'},
 	},
 }
@@ -1535,7 +1537,7 @@ assert.len(deltaStr, deltaBufLen)
 					app:drawTexTri3D(c.x1, c.y1, c.z1, c.u1, c.v1, c.x2, c.y2, c.z2, c.u2, c.v2, c.x3, c.y3, c.z3, c.u3, c.v3, c.sheetIndex, c.paletteIndex, c.transparentIndex, c.spriteBit, c.spriteMask)
 				elseif cmdtype == netcmds.solidLine then
 					local c = cmd[0].solidLine
-					app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex)
+					app:drawSolidLine(c.x1, c.y1, c.x2, c.y2, c.colorIndex, c.thickness)
 				elseif cmdtype == netcmds.solidLine3D then
 					local c = cmd[0].solidLine3D
 					app:drawSolidLine3D(c.x1, c.y1, c.z1, c.x2, c.y2, c.z2, c.colorIndex)

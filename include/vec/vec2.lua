@@ -1,11 +1,20 @@
 --#include ext/class.lua
-
+vec2_add=|ax,ay,bx,by|(ax+bx, ay+by)
+vec2_sub=|ax,ay,bx,by|(ax-bx, ay-by)
 vec2_lenSq=|x,y|x^2+y^2
 vec2_len=|x,y|math.sqrt(x^2+y^2)
 vec2_unit=|x,y|do
 	local l = vec2_len(x,y)
 	local s = 1 / math.max(1e-15, l)
 	return x*s, y*s, l
+end
+vec2_dot=|ax,ay,bx,by| ax*bx + ay*by
+-- cplx exp ... TODO replace vec2.exp with this
+vec2_exp=|r,theta|(r*math.cos(theta),r*math.sin(theta))
+-- cplx log
+vec2_log=|x,y|do
+	local logr = math.log((vec2_len(x,y)))
+	return logr, math.atan2(y,x)
 end
 
 local vec2_getvalue=|x, dim|do
