@@ -291,7 +291,7 @@ end
 -- TODO every time App calls this, make sure its paletteRAM.dirtyCPU flag is set
 -- it would be here but this is sometimes called by n9a as well
 local function resetPalette(ptr)
-	ptr = ffi.cast('uint16_t*', ptr)
+	ptr = ffi.cast(palettePtrType, ptr)
 	for i,c in ipairs(
 		--[[ garbage colors
 		function(i)
