@@ -9,8 +9,7 @@ server sends client:
 	$00 [i:netint] ram:u8[i] <-> incoming RAM dump of size 'i'
 	$01 [i:netint] cmds:u8[i] <-> incoming cmd frame of size $XXXX - recieve as-is, do not delta compress
 	$02 [i:netint] <-> cmd frame will resize to 'i'
-	$03 [i:netint] <-> delta-data of size 'i': delta-compressed uint16 offsets and uint16 values
-							TODO using netints as offsets ... = delta-compressed frame
+	$03 [i:netint] <-> delta-data of size 'i': delta-compressed netint offsets and uint8 values
 
 or how about others are # of delta-compressed messages to expect?
 and how should I delta-compresse messages ...
@@ -230,36 +229,81 @@ local function mustReceive(...)
 	return recv
 end
 
+local function to7bitvec(i, dstvec)
+	assert.ge(i, 0)
+	repeat
+		local n = bit.band(i, 0x7f)
+		i = bit.rshift(i, 7)
+		if i ~= 0 then n = bit.bor(n, 0x80) end
+--DEBUG:print('...7bit inserting', ('$%02x'):format(n))
+		dstvec:emplace_back()[0] = n
+	until i == 0
+end
+
 -- TODO sending string requires an alloc, or should I do my own luasocket withut strings?
 local _7bitbuf = vector'uint8_t'
 local function to7bitstr(i)
 assert.ge(i, 0)	-- unsigned only
 	_7bitbuf:resize(0)
-	repeat
-		local n = bit.band(i, 0x7f)
-		i = bit.rshift(i, 7)
-		if i ~= 0 then n = bit.bor(n, 0x80) end
---DEBUG:print('...7bit adding', ('$%02x'):format(n))
-		_7bitbuf:emplace_back()[0] = n
-	until i == 0
+	to7bitvec(i, _7bitbuf)
 	return ffi.string(_7bitbuf.v, #_7bitbuf)
 end
 
 -- TODO return u64's if needed?
 local function read7bit(sock)
 	local res = assert(receive(sock, 1, 10)):byte(1)
---DEBUG:print('...7bit reading', ('$%02x'):format(res), 'result so far', ('%x'):format(res))
+--DEBUG:print('...7bit sock reading', ('$%02x'):format(res), 'result so far', ('$%x'):format(res))
 	if res < 0x80 then return res end
 	res = bit.band(res, 0x7f)
 	local sh = 7
 	::loop::
 		local i = assert(receive(sock, 1, 10)):byte(1)
 		res = bit.bor(res, bit.lshift(bit.band(i, 0x7f), sh))
---DEBUG:print('...7bit reading', ('$%02x'):format(i), 'result so far', ('%x'):format(res))
+--DEBUG:print('...7bit sock reading', ('$%02x'):format(i), 'result so far', ('$%x'):format(res))
 		if i < 0x80 then return res end
 		sh = sh + 7
+		if sh > 64 then error("7bit encoding overflow") end
 	goto loop
 end
+
+local function from7bitvec(ptr, endptr)
+	local res = ptr[0]
+	ptr = ptr + 1
+	assert.le(ptr, endptr)
+--DEBUG:print('...7bit vec reading', ('$%02x'):format(res), 'result so far', ('$%x'):format(res))
+	if res < 0x80 then return res, ptr end
+	res = bit.band(res, 0x7f)
+	local sh = 7
+	::loop::
+		local i = ptr[0]
+		ptr = ptr + 1
+		assert.le(ptr, endptr)
+		res = bit.bor(res, bit.lshift(bit.band(i, 0x7f), sh))
+--DEBUG:print('...7bit vec reading', ('$%02x'):format(i), 'result so far', ('$%x'):format(res))
+		if i < 0x80 then return res, ptr end
+		sh = sh + 7
+		if sh > 64 then error("7bit encoding overflow") end
+	goto loop
+end
+
+-- delta compress byte values and 7bit offsets
+local function deltaCompress7bit(
+	prevp,	-- previous state, of uint8_t*
+	nextp,	-- next state, of uint8_t*
+	len,	-- state length
+	dstvec	-- a vector'uint8_t' for now
+)
+	for i=0,len-1 do
+		if nextp[0] ~= prevp[0] then
+--DEBUG:print('delta set cmdbuf['..('$%x'):format(i)..'] = '..('$%02x'):format(nextp[0]))
+			to7bitvec(i, dstvec)
+			dstvec:emplace_back()[0] = nextp[0]
+		end
+		nextp=nextp+1
+		prevp=prevp+1
+	end
+end
+
 
 -- these are net protocol messages
 
@@ -728,7 +772,7 @@ function RemoteServerConn:init(args)
 	self.cmds = vector'Numo9Cmd'			-- the per-conn cmds
 	self.thisFrameCmds = vector'Numo9Cmd'	-- the cobmined per-conn cmds + everyone cmds
 	self.prevFrameCmds = vector'Numo9Cmd'	-- the previous combined cmds
-	self.deltas = vector'uint16_t'
+	self.deltas = vector'uint8_t'
 end
 
 function RemoteServerConn:isActive()
@@ -772,7 +816,6 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 
 			-- if we're sending 4 bytes of button flag press bits ...
 			-- welp ... not many possible entries
-			-- TODO use uint8_t here instead of uint16_t
 			-- or less even?
 			-- one player = 8 keys = 1 byte = 8 bits, addresible by 3 bits.
 			-- 4 players = 32 keys = 4 bytes = 32 bits, addressible by 5 bits.
@@ -916,7 +959,6 @@ function Server:endFrame()
 			local thisFrameCmds = conn.thisFrameCmds
 			local prevFrameCmds = conn.prevFrameCmds
 			local deltas = conn.deltas
-			deltas:resize(0)
 
 --[[
 io.write'sendcmds:'
@@ -927,7 +969,7 @@ print()
 --]]
 			-- how to convey change-in-sizes ...
 			if prevFrameCmds.size ~= thisFrameCmds.size then
---DEBUG:print('resizing to', thisFrameCmds.size)				
+--DEBUG:print('resizing to', thisFrameCmds.size)
 				conn.toSend:insert(
 					string.char(netmsgs.resizeCmds)
 					..to7bitstr(thisFrameCmds.size)
@@ -935,23 +977,16 @@ print()
 				prevFrameCmds:resize(thisFrameCmds.size)
 			end
 
-			local n = math.min(thisFrameCmds.size, prevFrameCmds.size) * ffi.sizeof'Numo9Cmd'
-			assert.ne(bit.band(n, 1), 1, "how did we get an odd-numbered cmd buffer")
-			n = bit.rshift(n ,1)
-
-			if n >= 0xffff then
-				print('!!!WARNING!!! sending data more than our current delta compression protocol allows ... '..tostring(n))	-- byte limit ...
-				n = 0xfffe	-- one less than our highest special code
-			end
-
-			local clp = ffi.cast('uint16_t*', prevFrameCmds.v)
-			local svp = ffi.cast('uint16_t*', thisFrameCmds.v)
-			-- TODO net-delta-compress where offset values are 7 bits, or 8th bit means read another 7 bits
-			deltaCompress(clp, svp, n, deltas)
-
+			-- net-delta-compress, where offset values are 7-bit-vector encoded
+			deltas:resize(0)
+			deltaCompress7bit(
+				ffi.cast('uint8_t*', prevFrameCmds.v),
+				ffi.cast('uint8_t*', thisFrameCmds.v),
+				thisFrameCmds.size * ffi.sizeof'Numo9Cmd',
+				deltas)
 			if deltas.size > 0 then
 				local deltaStr = deltas:dataToStr()
-				local data = 
+				local data =
 					string.char(netmsgs.deltaCmds)
 					..to7bitstr(#deltaStr)
 					..deltaStr
@@ -1275,31 +1310,39 @@ print'begin client listen loop...'
 
 					local netmsg = data:byte()
 					if netmsg == netmsgs.deltaCmds then
+--DEBUG:print('got deltaCmds netmsg')
 						local deltaBufLen = read7bit(sock)
+--DEBUG:print('got deltaBufLen', deltaBufLen)
 						-- read delta frame *HERE* only
 						local deltaStr = receive(sock, deltaBufLen, 10)
-
-						local shortp = ffi.cast('uint16_t*', deltaStr)
-						for i=0,#deltaStr-1,4 do
-							local index, value = shortp[0], shortp[1]
-							shortp = shortp + 2
-							local neededSize = math.floor(index*2 / ffi.sizeof'Numo9Cmd')
-							if neededSize >= self.nextCmds.size then
-print('got uint16 index='
-	..('$%x'):format(index)
-	..' value='
-	..('$%x'):format(value)
-	..' goes in cmd-index '
-	..('$%x'):format(neededSize)
-	..' when our cmd size is just '
-	..('$%x'):format(self.nextCmds.size)
-)
+--DEBUG:print'got deltaStr:'
+--DEBUG:print(string.hexdump(deltaStr))
+assert.len(deltaStr, deltaBufLen)
+						local ptr = ffi.cast('uint8_t*', deltaStr)
+						local endptr = ptr + deltaBufLen
+						local cmdBufSize = self.nextCmds.size * ffi.sizeof'Numo9Cmd'
+						while ptr < endptr do
+							local index
+							index, ptr = from7bitvec(ptr, endptr)
+							assert.le(ptr, endptr)
+							local value = ptr[0]
+							ptr = ptr + 1
+--DEBUG:print('delta set cmdbuf['..('$%x'):format(index)..'] = '..('$%02x'):format(value))
+							if index < 0 or index >= cmdBufSize then
+								print('got index='
+									..('$%x'):format(index)
+									..' value='
+									..('$%x'):format(value)
+									..' goes in cmd-index '
+									..('$%x'):format(math.floor(index / ffi.sizeof'Numo9Cmd'))
+									..' when our cmd size is just '
+									..('$%x'):format(self.nextCmds.size)
+								)
 							else
-								assert(index*2 < self.nextCmds.size * ffi.sizeof'Numo9Cmd')
-								ffi.cast('uint16_t*', self.nextCmds.v)[index] = value
+								ffi.cast('uint8_t*', self.nextCmds.v)[index] = value
 							end
 						end
-
+--DEBUG:print'delta done'
 						-- tell client that deltas are finished and to flush received cmds
 						self.cmds:resize(self.nextCmds.size)
 						ffi.copy(self.cmds.v, self.nextCmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
