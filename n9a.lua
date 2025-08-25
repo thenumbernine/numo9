@@ -34,7 +34,6 @@ local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local tilemapSize = numo9_rom.tilemapSize
-local persistentCartridgeDataSize = numo9_rom.persistentCartridgeDataSize
 local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels -- TODO names ... channels for mixing vs output channels L R for stereo
 local audioSampleType = numo9_rom.audioSampleType
@@ -337,6 +336,8 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 		t[k] = nil
 		return v
 	end
+
+	basepath'persist.bin':write(('\0'):rep(0x100))
 
 	local code = move(sections, 'lua'):concat'\n'..'\n'
 	assert(basepath'origcode.lua':write(code))
@@ -1593,7 +1594,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		end
 	end
 
-	assert.ge(persistentCartridgeDataSize, 0x400, "DANGER! persistentData isn't large enough for Tic80")
+	basepath'persist.bin':write(('\0'):rep(0x400))
 
 	code = table{
 		'-- begin compat layer',

@@ -55,7 +55,6 @@ local tilemapSize = numo9_rom.tilemapSize
 local clipMax = numo9_rom.clipMax
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
-local persistentCartridgeDataSize  = numo9_rom.persistentCartridgeDataSize
 local mvMatType = numo9_rom.mvMatType
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 
@@ -2710,12 +2709,16 @@ function App:writePersistent()
 		assert(self.metainfo.saveid, "how did you get here?  in App:runCart metainfo.saveid should have been written.")
 		-- TODO this when you read cart header ... or should we put it in ROM somewhere?
 		-- save a string up to the last non-zero value ... opposite  of C-strings
-		local len = persistentCartridgeDataSize
+		local data = self.blobs.persist:mapi(function(blob)
+			blob:copyFromROM()
+			return blob.data
+		end):concat()
+		local len = #data
 		while len > 0 do
-			if self.ram.persistentCartridgeData[len-1] ~= 0 then break end
+			if data:byte(len) ~= 0 then break end
 			len = len - 1
 		end
-		local saveStr = ffi.string(self.ram.persistentCartridgeData, len)
+		local saveStr = data:sub(1,len)
 --DEBUG:print('writePersistent self.metainfo.saveid', self.metainfo.saveid, require'ext.tolua'(ffi.string(self.ram.persistentCartridgeData, len)))
 		local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
 		if len == 0 then
@@ -2847,7 +2850,19 @@ function App:runCart()
 print('loading persist file: '..cartPersistFile)
 		local saveStr = cartPersistFile:read()
 		if saveStr and #saveStr > 0 then
-			ffi.copy(self.ram.persistentCartridgeData, saveStr, math.min(#saveStr, persistentCartridgeDataSize))
+print('persist got')
+print(string.hexdump(saveStr))
+			-- persist blobs should already be in cart ROM, even if they are empty, so ...
+			local p = ffi.cast('uint8_t*', saveStr)
+			local pend = p + #saveStr
+			for i,blob in ipairs(self.blobs.persist) do
+				-- dangerous to be copying into luajit strings?  should I replace them all with byte-vectors?
+				local tocopy = math.min(blob:getSize(), pend - p)
+				ffi.copy(blob:getPtr(), p, tocopy)
+				blob:copyToROM()
+				p = p + tocopy
+				if p >= pend then break end
+			end
 		end
 	else
 print('no persist file to load: '..cartPersistFile)

@@ -1,5 +1,6 @@
 framebufferAddr=ramaddr'framebuffer'
-persistentDataAddr=ramaddr'persistentCartridgeData'
+persistentDataAddr=blobaddr'persist'
+assert.ge(blobsize'persist', 1024)
 matAddr = ramaddr'mvMat'
 assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 

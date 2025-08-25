@@ -49,6 +49,7 @@ local blobClassNameForType = table{
 	-- these go last because they are most likely to not be short/long aligned
 	'code',		-- at least 1 of these
 	'data',		-- arbitrary binary blob
+	'persist',	-- arbitrary binary blob that persists
 	'brush',
 	'brushmap',
 	-- TODO 'voxelmap' = voxel-map of models from some lookup table
@@ -153,6 +154,10 @@ function BlobDataAbs:getSize()
 end
 function BlobDataAbs:saveFile(filepath, blobIndex, blobs)
 	assert(filepath:write(self.data))
+end
+-- static method:
+function BlobDataAbs:loadFile(filepath)
+	return self.class(filepath:read())
 end
 
 
@@ -505,22 +510,17 @@ function BlobBrushMap:loadFile(filepath)
 end
 
 
-local BlobData = blobSubclass'data'
+local BlobData = blobSubclass('data', BlobDataAbs)
 BlobData.filenamePrefix = 'data'
 BlobData.filenameSuffix = '.bin'
-function BlobData:init(data)
-	self.data = assert(data)
-end
-function BlobData:getPtr()
-	return ffi.cast('uint8_t*', self.data)
-end
-function BlobData:getSize()
-	return #self.data
-end
--- static method:
-function BlobData:loadFile(filepath)
-	return self.class(filepath:read())
-end
+
+
+-- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
+-- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
+-- tic80 metadata includes title, author, some dates..., description, some urls ...
+local BlobPersist = blobSubclass('persist', BlobDataAbs)
+BlobPersist.filenamePrefix = 'persist'
+BlobPersist.filenameSuffix = '.bin'
 
 
 local blobClassForType = {}

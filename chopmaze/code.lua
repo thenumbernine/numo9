@@ -101,7 +101,7 @@ local numSaveFiles = 3
 local savefields = table{'level','x','y'}	-- saves byte values of these in 'saveinfos[saveSlot]'
 local saveinfos = range(numSaveFiles):mapi(|i|do
 	return savefields:mapi(|name,fieldOFs|do
-		return peek(ramaddr'persistentCartridgeData' + #savefields * (i-1) + (fieldOFs-1)), name
+		return peek(blobaddr'persist' + #savefields * (i-1) + (fieldOFs-1)), name
 	end):setmetatable(nil)
 end)
 
@@ -143,7 +143,7 @@ resetLevel()
 local saveSlot	-- 1-based index corresponding to saveinfos[] index
 saveState=||do
 	for fieldOfs,name in ipairs(savefields) do
-		poke(ramaddr'persistentCartridgeData' + #savefields * (saveSlot-1) + (fieldOfs-1), saveinfos[saveSlot]![name])
+		poke(blobaddr'persist' + #savefields * (saveSlot-1) + (fieldOfs-1), saveinfos[saveSlot]![name])
 	end
 end
 

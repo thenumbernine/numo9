@@ -6,6 +6,8 @@ spriteSheetAddr=blobaddr'sheet'
 tilemapAddr=blobaddr'tilemap'
 userDataAddr=blobaddr'data'
 assert.ge(blobsize'data', 0x1300)
+persistentDataAddr=blobaddr'persist'
+assert.ge(blobsize'persist', 256)
 mode(1)	-- set to 8bpp-indexed framebuffer
 p8ton9btnmap={[0]=2,0,3,1,7,5}
 p8color=6
@@ -749,10 +751,11 @@ trace'TODO cstore'
 	poke4=||error'TODO',
 
 	-- persistent data:
-	cartdata=||nil,
-	dget=||0,
-	dset=||nil,
-	serial=||nil,
+	cartdata=|id| trace('TODO cartdata('..id..') but NuMo9 puts the save id in code comments...'),
+	dget=|i| peekl(persistentDataAddr+(i<<2)) / 0x10000,
+	dset=|i,v| pokel(persistentDataAddr+(i<<2), v * 0x10000),
+
+	serial=||nil,	-- networking? hmm
 
 	__numo9_finished=|_init, _update, _update60, _draw|do
 		_init()

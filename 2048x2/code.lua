@@ -82,7 +82,7 @@ trace'you lost'
 end
 
 local saveTypeSize = 2	--peekw
-assert.le(size.x * size.y * saveTypeSize, ramsize'persistentCartridgeData')
+assert.le(size.x * size.y * saveTypeSize, blobsize'persist')
 
 loadGame=||do
 	local nonzero = 0
@@ -90,7 +90,7 @@ loadGame=||do
 	for x=1,size.x do
 		board[x] = table()
 		for y=1,size.y do
-			local val = peekw(ramaddr'persistentCartridgeData' + saveTypeSize * ((x-1) + size.x * (y-1)))
+			local val = peekw(blobaddr'persist' + saveTypeSize * ((x-1) + size.x * (y-1)))
 			nonzero |= val
 			board[x][y] = val
 		end
@@ -101,7 +101,7 @@ end
 saveGame=||do
 	for x=1,size.x do
 		for y=1,size.y do
-			pokew(ramaddr'persistentCartridgeData' + saveTypeSize * ((x-1) + size.x * (y-1)), board[x][y])
+			pokew(blobaddr'persist' + saveTypeSize * ((x-1) + size.x * (y-1)), board[x][y])
 		end
 	end
 end

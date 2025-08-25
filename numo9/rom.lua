@@ -65,11 +65,6 @@ local audioMusicPlayingCount = 8	-- how many unique music tracks can play at a t
 -- what the 1:1 point is in pitch
 local pitchPrec = 12
 
--- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
--- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
--- tic80 metadata includes title, author, some dates..., description, some urls ...
-local persistentCartridgeDataSize = 0x2000
-
 local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
 local keyPressFlagSize = math.ceil(keyCount / 8)
@@ -361,10 +356,6 @@ local RAM = struct{
 				{name='lastMousePos', type='vec2s_t'},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
 				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
 
-				-- persistent data per-game
-				-- TODO make a blob out of this too?
-				{name='persistentCartridgeData', type='uint8_t['..persistentCartridgeDataSize..']'},
-
 				-- end of RAM, beginning of ROM
 
 				{name='blobCount', type=blobCountType},
@@ -451,7 +442,6 @@ return {
 	audioMusicPlayingCount = audioMusicPlayingCount,
 	audioAllMixChannelsInBytes = audioAllMixChannelsInBytes,
 	pitchPrec = pitchPrec,
-	persistentCartridgeDataSize = persistentCartridgeDataSize,
 
 	mvMatType = mvMatType,
 

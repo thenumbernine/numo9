@@ -197,7 +197,6 @@ memory layout:
 0x0207f6 - 0x0207fa = mouseWheel
 0x0207fa - 0x0207fe = lastMousePos
 0x0207fe - 0x020802 = lastMousePressPos
-0x020802 - 0x022802 = persistentCartridgeData
 0x022802 - 0x022806 = blobCount
 0x022806 - 0x022812 = blobEntries
 ```
@@ -274,7 +273,7 @@ If the following functions are defined then they will be called from the virtual
 - `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
 - `ramsize(name)` = returns the size the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('RAM', field)`.  See the RAM structure for individual field names.
 - `numblobs(name)` = returns the count of blobs of type `name`. Index is 0-based.
-- `blobaddr(name, index)` = returns the address of the `index`'th blob of type `name`. Index is 0-based. Blob types can be: `code, sheet, tilemap, palette, font, sfx, music, brush, brushmap`.
+- `blobaddr(name, index)` = returns the address of the `index`'th blob of type `name`. Index is 0-based. Blob types can be: `sheet, tilemap, palette, font, sfx, music, code, data, persist, brush, brushmap`.
 - `blobsize(name, index)` = returns the size of the `index`'th blob of type `name`. Index is 0-based.
 - `int8_t, uint8_t, int8_t, int16_t, uint16_t, int16_t, int32_t, uint32_t, int32_t` = If you want to cast stuff, use these `ffi.typeof`'s.
 
@@ -631,7 +630,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		Fantasy consoles seem to be keeping an extra copy of the cartridge in memory and accessing it through these functions.
 		Maybe I will put the ROM in addressible space and just have load/reset perform an initial copy from ROM to RAM space. How about ROM at 0xC00000 or so?
 		Maybe I'll think more on this as I think about spriteSheet vs tileSheet vs multiple sheets vs multiple arbitrary-purpose banks ...
-	- debating: should persistent data be its own blob?  and then have no restrictions?  this is drifting from a fantasy-console and towards just some arbitrary game resource pack format...
 	- debating: should I add a shader blob?
 	- debating: should I put the whole ROM in a single 1024x1024xRGBA8UI (minimum GLES3/WebGL2 texture size) texture, one per 4MB?  
 		And then upon RAM updates, don't upload the *whole thing*, just update the dirty region ... possibly do that immediately?
@@ -664,7 +662,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
 - I need some kind of tilemap animation state ...
 - 4bpp framebuffers.  But that means merging two pixels into one, which would take a 2nd pass.  Unless there's a 4bpp hardware supported fbo format? DXT1?
-- persistent data as blobs?
 - netplay persistent data maybe ... 
 	- one set per-game
 	- one set per-game-per-server
