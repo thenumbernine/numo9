@@ -1626,7 +1626,26 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	local ptr = ffi.cast('uint8_t*', data)
 	local endptr = ptr + #data
 
+	-- put the header in another data so the addressing doesnt mess up stuff?
+	local header = data:sub(1, 0x10)
+	data = data:sub(0x10+1)
+
+	if bit.band(header:byte(6+1), 2) ~= 0 then
+		header = header .. data:sub(1, 0x200)
+		data = data:sub(0x200+1)
+	end
+
+
+
+	-- so wait
+	-- addressing of ROM starts at $8000
+	-- so is $0000-$7FFF RAM then ...
+	data = ('\0'):rep(0x8000)..data
 	basepath'data.bin':write(data)
+	basepath'rom.hex':write(string.hexdump(data))
+
+	-- put the header here in case we need it
+	basepath'data1.bin':write(header)
 
 	local code = table{
 		'-- begin compat layer',
