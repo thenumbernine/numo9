@@ -1619,6 +1619,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	local baseNameAndDir, ext = nespath:getext()
 	assert.eq(ext, 'nes')
 	local basepath = select(2, baseNameAndDir:getdir())
+	basepath.path = basepath .. '_nes' 
 	basepath:mkdir()
 	assert(basepath:isdir())
 
@@ -1642,10 +1643,18 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	basepath'data.bin':write(data)
 	basepath'rom.hex':write(string.hexdump(data))
 
-	-- put the header here in case we need it
-	basepath'data1.bin':write(header)
+	-- set aside for PPU VRAM ...
+	basepath'data1.bin':write(('\0'):rep(0x4000))
+
+	-- put the nes file header here in case we need it
+	basepath'data2.bin':write(header)
+
+	-- persistent ram of 0x2000
+	basepath'persist.bin':write(('\0'):rep(0x2000))
 
 	local code = table{
+		'-- saveid '..select(2, nespath:getdir()),
+		'',
 		'-- begin compat layer',
 		assert(path'n9a_nes_glue.lua':read()),
 		'-- end compat layer',

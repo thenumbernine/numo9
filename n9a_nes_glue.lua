@@ -5,12 +5,16 @@ https://www.patater.com/gbaguy/day2n.htm
 https://yizhang82.dev/nes-emu-overview
 https://www.nesdev.org/wiki/6502_instructions
 https://www.nesdev.org/wiki/CPU_unofficial_opcodes
+https://www.nesdev.org/wiki/PPU_memory_map
+https://www.nesdev.org/wiki/PPU_programmer_reference
 https://www.nesdev.org/obelisk-6502-guide/reference.html
-https://github.com/skilldrick/easy6502
 https://www.nesdev.org/6502_cpu.txt
+https://github.com/skilldrick/easy6502
 https://gist.github.com/1wErt3r/4048722 <- smb dis but without addresses
 https://6502disassembly.com/nes-smb/SuperMarioBros.html	<- with addresses
-https://www.nesdev.org/wiki/PPU_programmer_reference
+https://web.archive.org/web/20200129081101/http://users.telenet.be:80/kim1-6502/6502/proman.html#910
+https://www.pagetable.com/?p=410
+https://fms.komkon.org/EMUL8/NES.html
 
 registers:
 A = 8bit
@@ -28,14 +32,14 @@ $4000-$401f = APU
 $6000-$ffff = cart space
 $8000 = bank0 code starts at address
 bank1 interrupts start at $fffa
-	$fffc is the start vector
 bank2 sprites start at $0000
 --]]
 
 local hex=|i,n| (('%0'..(n or 2)..'X'):format(i))
 
 do
-	local nesheader = blobaddr('data', 1)
+	local nesheader = blobaddr('data', 2)
+	assert.ge(blobsize('data', 2), 0x10)	-- 0x10 or 0x210 if trainer present
 
 	-- read the header:
 	-- https://www.nesdev.org/wiki/INES
@@ -64,16 +68,68 @@ do
 	local bus_conflicts = (header_10 >> 5) & 1 == 1
 end
 
-local nesrom = blobaddr('data', 0)
-
-local PPUCtrlAddr = 0x2000
+local PPUControlAddr = 0x2000
 local PPUMaskAddr = 0x2001
 local PPUStatusAddr = 0x2002
+local SpriteMemAddrAddr = 0x2003
+local SpriteMemDataAddr = 0x2004
+local ScreenScrollOffsetsAddr = 0x2005
+
+local PPUMemPtr = 0	-- uint16 reg accessed via $2006/2007
+local PPUMemPtrWriteHi = false
+local PPUMemAddrAddr = 0x2006
+local PPUMemDataAddr = 0x2007
+
+-- 0x4000+ is sound registers
+local cartRAMAddr = 0x6000 -- 0x6000-0x8000 is cart ram / persistent
+local cartRAMSize = 0x2000
+local cartRAMEndAddr = cartRAMAddr + cartRAMSize 
+local NMIAddr = 0xFFFA
+local RESETAddr = 0xFFFC
+local IRQAddr = 0xFFFE
+
+local nesrom = blobaddr('data', 0)
+
+-- init persistent RAM
+local n9PersistAddr = blobaddr'persist'
+assert.ge(blobsize'persist', cartRAMSize, "NES needs more save RAM!")
+memcpy(nesrom + cartRAMAddr, n9PersistAddr, cartRAMSize)
+
+local n9PPURAMAddr = blobaddr('data', 1)
+local PPURAMSize = 0x4000
+local PPURAMMask = 0x3FFF
+assert.eq(blobsize('data', 1), PPURAMSize)
+
+local n9SheetAddr = blobaddr'sheet'
+local n9TilemapAddr = blobaddr'tilemap'
+
 local nespeek = |i,dontwrite|do
-	if i == PPUStatusAddr then
+	if i == PPUControlAddr then
+trace('PPUControl read', hex(peek(nesrom+i)))
+	elseif i == PPUMaskAddr then
+trace('PPUMask read', hex(peek(nesrom+i)))
+	elseif i == PPUStatusAddr then
+trace('PPUStatus read', hex(peek(nesrom+i)))
 		local val = peek(nesrom+i)
 		if not dontwrite then
 			poke(nesrom+i, 0)
+		end
+		return val
+	elseif i == SpriteMemAddrAddr then
+trace('SpriteMemAddr read', hex(peek(nesrom+i)))
+	elseif i == SpriteMemDataAddr then
+trace('SpriteMemData read', hex(peek(nesrom+i)))
+	elseif i == ScreenScrollOffsetsAddr then
+trace('ScreenScrollOffsets read', hex(peek(nesrom+i)))
+	elseif i == PPUMemAddrAddr then
+trace('PPUMemPtr read', hex(peek(nesrom+i)))
+	elseif i == PPUMemDataAddr then
+		local val = peek(n9PPURAMAddr+PPUMemPtr)
+trace('PPUMemData read '..hex(peek(nesrom+i))..' ... as PPU RAM addr '..hex(PPUMemPtr,4)..' val '..hex(val))
+		if not dontwrite then
+			-- inc upon read/write
+			PPUMemPtr += peek(nesrom+PPUControlAddr) & 2 == 0 and 1 or 32
+			PPUMemPtr &= PPURAMMask
 		end
 		return val
 	end
@@ -84,13 +140,89 @@ local nespeekw = |i,dontwrite|do
 	return nespeek(i,dontwrite) | (nespeek(i+1,dontwrite)<<8)
 end
 
-local dbg_nespeek=|i| nespeek(i,true)
-local dbg_nespeekw=|i| nespeekw(i,true)
-
 -- assumes i is uint16 and v is uint8
 local nespoke = |i,v|do
+	if i == PPUControlAddr then
+trace('PPUControl write', hex(v))
+	elseif i == PPUMaskAddr then
+trace('PPUMask write', hex(v))
+	elseif i == PPUStatusAddr then
+trace('PPUStatus write', hex(v))
+	elseif i == SpriteMemAddrAddr then
+trace('SpriteMemAddr write', hex(v))
+		-- inc the internal addr to the 256-byte sprite mem
+	elseif i == SpriteMemDataAddr then
+trace('SpriteMemData write', hex(v))
+	elseif i == ScreenScrollOffsetsAddr then
+trace('ScreenScrollOffsets write', hex(v))
+	elseif i == PPUMemAddrAddr then
+trace('PPUMemPtr write', hex(v))
+		if PPUMemPtrWriteHi then
+			PPUMemPtr &= 0xFF
+			PPUMemPtr |= v << 8
+			PPUMemPtrWriteHi = false
+		else
+			PPUMemPtr &= 0xFF00
+			PPUMemPtr |= v
+			PPUMemPtrWriteHi = true
+		end
+	elseif i == PPUMemDataAddr then
+trace('PPUMemData write '..hex(v)..' ... to PPU RAM '..hex(PPUMemPtr,4))
+		poke(n9PPURAMAddr+PPUMemPtr, v)
+		-- depending on where, update N9 VRAM
+		if PPUMemPtr < 0x2000 then
+			-- 0000-1000 = pattern table 0
+			-- 1000-2000 = pattern table 1
+			--[[
+			pattern table
+			each sprite is 8x8 pixels, 2bpp
+			so a sprite is 16 bytes
+			so 256 sprites fit in 1 table
+			
+			each byte is a row
+			first 8 bytes are 1bpp lo-bit
+			second 8 bytes are 1bpp hi-bit
+			--]]
+			--local tableIndex = PPUMemPtr >> 12	-- 0 or 1
+			local hi = (PPUMemPtr >> 3) & 1	-- hi bit: 0 or 1
+			local y = PPUMemPtr & 0x7
+			local sprIndex = PPUMemPtr >> 4
+			local sprX = sprIndex & 0x1F
+			local sprY = sprIndex >> 5
+			for x=0,7 do
+				local addr = n9SheetAddr + sprX + x + ((sprY + y) << 8)
+				local pix = peek(addr)
+				pix &= 1 << hi
+				pix |= ((v >> x) & 1) << hi
+				poke(addr, pix)
+			end
+			-- then the attribute-table is used as bit23 to offset these
+		elseif PPUMemPtr < 0x3000 then
+			-- 2000-23C0 name table 0
+			-- 23C0-2400 attr table 0
+			-- 2400-27C0 name table 1
+			-- 27C0-2800 attr table 1
+			-- 2800-2BC0 name table 2
+			-- 2BC0-2C00 attr table 2
+			-- 2C00-2FC0 name table 3
+			-- 2FC0-3000 attr table 3
+		elseif PPUMemPtr < 0x3F00 then
+		elseif PPUMemPtr < 0x3F20 then
+			-- 3F00-3F10 image palette
+			-- 3F10-3F20 sprite palette
+		end
+		-- inc upon read/write
+		PPUMemPtr += peek(nesrom+PPUControlAddr) & 2 == 0 and 1 or 32
+		PPUMemPtr &= PPURAMMask
+	elseif i >= cartRAMAddr and i < cartRAMEndAddr then
+		-- write it to our persistent memory
+		poke(n9PersistAddr + i - 0x6000, v)
+	end
+
 	-- handle special write sections
 	poke(nesrom+i, v)
+
+-- TODO remap addrs 0x200-0x600 to VRAM
 end
 
 -- assumes v is uint16
@@ -99,13 +231,18 @@ local nespokew = |i,v|do
 	nespoke(i+1,v>>8)
 end
 
-local A = 0	-- accumulator
-local X = 0	-- x-register
-local Y = 0	-- y-register
-local P = 0	-- process flags
-local S = 0	-- stack
-local PC = peekw(nesrom+0xFFFC)	-- process-counter
-trace('initPC = $'..hex(PC,4))
+-- used to read state without modifying (i.e. special hardware registers)
+local dbg_nespeek=|i| nespeek(i,true)
+local dbg_nespeekw=|i| nespeekw(i,true)
+
+
+
+local A = 0		-- accumulator
+local X = 0		-- x-register
+local Y = 0		-- y-register
+local P = 0		-- process flags
+local S = 0		-- stack
+local PC = 0	-- process-counter
 
 local flagC = 0x01	-- carry
 local flagZ = 0x02	-- zero
@@ -144,28 +281,24 @@ local setVN=|arg|do
 	else
 		P &= ~flagZ
 	end
-
 	-- transfer bit 7 from arg to P (this flagN)
 	P &= ~flagN
 	P |= arg & flagN
-
 	return arg	-- continue to use the arg
 end
 
 -- arg : uint8_t
 local bit0toC=|arg|do
 	-- transfer bit 0 from arg to P (this is flagC)
-	P &= ~flagCarry
-	P |= arg & flagCarry	-- carry is bit 0
-
+	P &= ~flagC
+	P |= arg & flagC	-- carry is bit 0
 	return arg	-- continue to use the arg
 end
 
 -- arg : uint8_t
 local bit7toC=|arg|do
-	P &= ~flagCarry
-	P |= (arg >> 7) & flagCarry	-- carry is bit 0
-
+	P &= ~flagC
+	P |= (arg >> 7) & flagC	-- carry is bit 0
 	return arg
 end
 
@@ -285,7 +418,7 @@ local ADCMem=|addr|ADC(nespeek(addr))
 
 local BIT=|i|do
 	-- transfer bit 6 & 7 of i to bit 6 & 7 of P
-	P &= ~flagNN
+	P &= ~flagVN
 	P |= i & flagVN
 
 	-- set flagZ based on `A & i`
@@ -347,7 +480,7 @@ local stackPopw=||do
 	--]]
 	-- [[ trust underflow won't happen
 	incS()
-	local w = netpeekw(S|0x100)
+	local w = nespeekw(S|0x100)
 	incS()
 	return w
 	--]]
@@ -499,7 +632,7 @@ local ops = {
 	-- break
 	[0x00] = ||do
 		nespokew(S, PC)
-		PC = nespeekw(0xFFFE)
+		PC = nespeekw(IRQAddr)
 		P |= flagB
 	end,	-- BRK
 	[0x20] = ||do
@@ -752,15 +885,46 @@ end
 local writebuf=''
 local write=|...| do writebuf ..= table{...}:mapi(tostring):concat'\t' end
 
+RESET=||do
+	PC = nespeekw(RESETAddr)
+end
+IRQ=||do
+	stackPushw(PC)
+	stackPush(P)
+	P |= flagI
+	PC = nespeekw(IRQAddr)
+end
+NMI=||do
+	stackPushw(PC)
+	stackPush(P)
+	P |= flagI
+	PC = nespeekw(NMIAddr)
+end
+BRK=||do
+	stackPushw(PC)
+	stackPush(P | flagB)
+	P |= flagI
+	PC = nespeekw(IRQAddr)
+end
+
+
+RESET()
+trace('initPC = $'..hex(PC,4))
+
 update=||do
-	-- start of each draw, set vblank
+	-- set at the start of vblank
 	nespoke(PPUStatusAddr, nespeek(PPUStatusAddr) | 0x80)
+	-- set before or after?
+	if nespeek(PPUControlAddr) & 0x80 == 0x80 then
+		NMI()
+	end
+
 	trace'frame'
 
 	-- TODO count cycles and break accordingly? or nah?
 	-- 1mil / 60 = 16k or so .. / avg cycles/instr = ?
 	--for i=1,1 do
-	for i=1,10 do
+	for i=1,60 do
 	--for i=1,100 do
 write(
 	'A='..hex(A)
@@ -852,10 +1016,8 @@ write'SED'
 			else
 				if op & 0x80 == 0 then	-- bit 7 not set
 					if op == 0x00 then	-- BRK
-write'BRK'						
-						nespokew(S, PC)
-						PC = nespeekw(0xFFFE)
-						P |= flagB
+write'BRK'
+						BRK()
 					elseif op == 0x20 then	-- JSR
 write('JSR'..argStrAbs())
 						local addr = readPCw()
