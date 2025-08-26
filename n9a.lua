@@ -1622,8 +1622,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		'-- title = TIC-80: '..basepath,
 		'-- saveid = '..basepath,
 		'',
-		code,
-	}:concat'\n'
+	}:append(code)
 
 	basepath'code.lua':write(code:concat'\n')
 
@@ -1681,8 +1680,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 		'-- title = NES: '..origname,
 		'-- saveid = '..basepath,
 		'',
-		code,
-	}:concat'\n'
+	}:append(code)
 
 	basepath'code.lua':write(code:concat'\n')
 

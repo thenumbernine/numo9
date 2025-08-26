@@ -49,7 +49,7 @@ do
 	local header_6 = peek(nesheader+6)
 	-- bit 0 = nametable arrangement
 	-- bit 1 = PRG RAM present at $6000-7FFF
-	if (header_6 >> 2) & 1 == 1 then 
+	if (header_6 >> 2) & 1 == 1 then
 		trace'has trainer'
 	end	-- trainer
 	-- bit 3 = alt nametable layout
@@ -83,7 +83,7 @@ local PPUMemDataAddr = 0x2007
 -- 0x4000+ is sound registers
 local cartRAMAddr = 0x6000 -- 0x6000-0x8000 is cart ram / persistent
 local cartRAMSize = 0x2000
-local cartRAMEndAddr = cartRAMAddr + cartRAMSize 
+local cartRAMEndAddr = cartRAMAddr + cartRAMSize
 local NMIAddr = 0xFFFA
 local RESETAddr = 0xFFFC
 local IRQAddr = 0xFFFE
@@ -178,7 +178,7 @@ trace('PPUMemData write '..hex(v)..' ... to PPU RAM '..hex(PPUMemPtr,4))
 			each sprite is 8x8 pixels, 2bpp
 			so a sprite is 16 bytes
 			so 256 sprites fit in 1 table
-			
+
 			each byte is a row
 			first 8 bytes are 1bpp lo-bit
 			second 8 bytes are 1bpp hi-bit
@@ -541,7 +541,7 @@ local LSRMem=|addr| nespoke(addr, LSR(nespeek(addr)))
 
 local ops = {
 	-- DONE
-	
+
 -- 0xxx:xx01
 	-- ORA, ANDA, EOR, ADC, STA, LDA, CMP, SBC
 	-- identical arg read
@@ -588,24 +588,24 @@ local ops = {
 	[0x7D] = || ADCMem(readPCw() + X),
 
 	-- STA
-	[0x81] = || STA(nespeekw((readPC() + X) & 0xFF)), 
+	[0x81] = || STA(nespeekw((readPC() + X) & 0xFF)),
 	[0x85] = || STA(readPC()),
 	-- 0x89 = NOP, STA is a mem op, can't do STA non-mem ...
-	[0x8D] = || STA(readPCw()),	
-	[0x91] = || STA(nespeekw(readPC()) + Y),	
-	[0x95] = || STA((readPC() + X) & 0xFF),	
-	[0x99] = || STA(readPCw() + Y),	
-	[0x9D] = || STA(readPCw() + X),	
+	[0x8D] = || STA(readPCw()),
+	[0x91] = || STA(nespeekw(readPC()) + Y),
+	[0x95] = || STA((readPC() + X) & 0xFF),
+	[0x99] = || STA(readPCw() + Y),
+	[0x9D] = || STA(readPCw() + X),
 
 	-- LDA
-	[0xA1] = || LDAMem(nespeekw((readPC() + X) & 0xFF)),	
-	[0xA5] = || LDAMem(readPC()),	
-	[0xA9] = || LDA(readPC()),			
-	[0xAD] = || LDAMem(readPCw()),	
-	[0xB1] = || LDAMem(nespeekw(readPC()) + Y),	
-	[0xB5] = || LDAMem((readPC() + X) & 0xFF),	
-	[0xB9] = || LDAMem(readPCw() + Y),	
-	[0xBD] = || LDAMem(readPCw() + X),	
+	[0xA1] = || LDAMem(nespeekw((readPC() + X) & 0xFF)),
+	[0xA5] = || LDAMem(readPC()),
+	[0xA9] = || LDA(readPC()),
+	[0xAD] = || LDAMem(readPCw()),
+	[0xB1] = || LDAMem(nespeekw(readPC()) + Y),
+	[0xB5] = || LDAMem((readPC() + X) & 0xFF),
+	[0xB9] = || LDAMem(readPCw() + Y),
+	[0xBD] = || LDAMem(readPCw() + X),
 
 	-- CMP
 	[0xC1] = || CMPMem(nespeekw((readPC() + X) & 0xFF)),	-- CMP
@@ -618,16 +618,16 @@ local ops = {
 	[0xDD] = || CMPMem(readPCw() + X),	-- CMP
 
 	-- SBC
-	[0xE1] = || SBCMem(nespeekw((readPC() + X) & 0xFF)),	
-	[0xE5] = || SBCMem(readPC()),	
-	[0xE9] = || SBC(readPC()), 
-	[0xED] = || SBCMem(readPCw()),				
-	[0xF1] = || SBCMem(nespeekw(readPC()) + Y),	
-	[0xF5] = || SBCMem((readPC() + X) & 0xFF),	
-	[0xF9] = || SBCMem(readPCw() + Y),			
-	[0xFD] = || SBCMem(readPCw() + X),			
+	[0xE1] = || SBCMem(nespeekw((readPC() + X) & 0xFF)),
+	[0xE5] = || SBCMem(readPC()),
+	[0xE9] = || SBC(readPC()),
+	[0xED] = || SBCMem(readPCw()),
+	[0xF1] = || SBCMem(nespeekw(readPC()) + Y),
+	[0xF5] = || SBCMem((readPC() + X) & 0xFF),
+	[0xF9] = || SBCMem(readPCw() + Y),
+	[0xFD] = || SBCMem(readPCw() + X),
 
-	
+
 -- 0xx0:0000
 	-- break
 	[0x00] = ||do
@@ -683,10 +683,10 @@ local ops = {
 	-- BIT
 	[0x24] = || BIT(nespeek(readPC())),
 	[0x2C] = || BIT(nespeek(readPCw())),
-	
+
 	-- JMP
-	[0x4C] = ||do PC = readPCw() end,	
-	[0x6C] = ||do PC = nespeekw(readPCw()) end,	
+	[0x4C] = ||do PC = readPCw() end,
+	[0x6C] = ||do PC = nespeekw(readPCw()) end,
 
 	[0x84] = || nespoke(readPC(), Y),	-- STY
 	[0x88] = ||do Y = setVN((Y - 1) & 0xFF) end,	-- DEY
@@ -705,10 +705,10 @@ local ops = {
 	[0xE4] = || doCompare(X, nespeek(readPC())),	-- CPX
 	[0xE8] = ||do X = setVN((X + 1) & 0xFF) end,	-- INX
 	[0xEC] = || doCompare(X, nespeek(readPCw())),			-- CPX
-	
+
 	[0xA2] = ||do X = setVN(readPC()) end,	-- LDX
 
-	
+
 -- 0xxx:0010
 	-- STP
 	-- 0x02 = STP
@@ -814,14 +814,14 @@ local ops = {
 	-- 0xBF = LAX
 }
 
-local argStrRel=|skipvalue| 
+local argStrRel=|skipvalue|
 	' $+'..hex(0xFF & s8(dbg_nespeek(PC)))
 	..(skipvalue and '' or ' = $'..hex(PC+1+s8(dbg_nespeek(PC)),4))
 
-local argStrImm=|| 
+local argStrImm=||
 	' #$'..hex(dbg_nespeek(PC))
 
-local argStrZP=|skipvalue| 
+local argStrZP=|skipvalue|
 	' $'..hex(dbg_nespeek(PC))
 	..(skipvalue and '' or ' = '..hex(dbg_nespeek(dbg_nespeek(PC))))
 
@@ -935,7 +935,7 @@ write(
 	..' PC='..hex(PC,4)
 	..' op='..hex(nespeek(PC))
 	..' '
-)		
+)
 		local op = readPC()
 
 		-- https://www.nesdev.org/wiki/CPU_unofficial_opcodes
@@ -946,7 +946,7 @@ write(
 		-- xxxx:xx00
 		-- control
 		if b01 == 0x00 then
-			
+
 			-- xxx1:0000
 			-- BPL, BMI, BVC, BVS, BCC, BCS, BNE, BEQ
 			if op & 0x1F == 0x10 then
@@ -957,7 +957,7 @@ write(
 
 				-- bit 5 specifies whether to test for set vs unset
 				local test = (op >> 5) & 1
-				
+
 				local shr
 				local b67 = op & 0xC0
 				if b67 == 0x00 then
@@ -1000,16 +1000,16 @@ write'SEI'
 					-- there's no SEV ...
 					-- and CLV goes where SEV should've gone
 					A = setVN(Y)	-- TYA
-write'TYA'				
+write'TYA'
 				elseif op == 0xB8 then
 					P &= ~flagV 	-- CLV
-write'CLV'				
+write'CLV'
 				elseif op == 0xD8 then
 					P &= ~flagD 	-- CLD
-write'CLD'				
+write'CLD'
 				elseif op == 0xF8 then
 					P |= flagD 	-- SED
-write'SED'				
+write'SED'
 				end
 
 			-- xxxy:yy00 for yyy != 100 and yy != 110
@@ -1043,66 +1043,66 @@ write'PHA'
 write'PLA'
 						A = setVN(stackPop()) 	-- PLA
 					elseif op == 0x24 then	-- BIT
-write('BIT'..argStrZP())	
+write('BIT'..argStrZP())
 						BIT(nespeek(readPC()))
 					elseif op == 0x2C then	-- BIT
-write('BIT'..argStrAbs())	
+write('BIT'..argStrAbs())
 						BIT(nespeek(readPCw()))
-	
+
 					-- JMP
 					elseif op == 0x4C then
 write('JMP'..argStrAbs(true))		-- Absolute ... but its jump
-						PC = readPCw() 
+						PC = readPCw()
 					elseif op == 0x6C then
 write('JMP'..
 	--argStrAbs()		-- Indirect ... but its jump
 	' $'..hex(dbg_nespeekw(PC),4)
 	..(skipvalue and '' or ' = '..hex(dbg_nespeekw(dbg_nespeekw(PC)),4))
-)						
-						PC = nespeekw(readPCw()) 
+)
+						PC = nespeekw(readPCw())
 
 					-- else 04 0C 14 1C 34 3C 44 54 5C 64 74 7C is NOP
 					end
-				
+
 				else	-- bit 7 set
 					-- these match up closely with RMW lower half i.e. op & 0x83 == 0x82
-					
+
 					-- 0x80 NOP
 					if op == 0x84 then
-write('STY'..argStrZP())						
+write('STY'..argStrZP())
 						nespoke(readPC(), Y)	-- STY
 					elseif op == 0x88 then
 write'DEY'
 						Y = setVN((Y - 1) & 0xFF) 	-- DEY
 					elseif op == 0x8C then
-write('STY'..argStrAbs())						
+write('STY'..argStrAbs())
 						nespoke(readPCw(), Y)	-- STY
 					-- 0x90 handled by the branch set
 					elseif op == 0x94 then
-write('STY'..argStrZPX())						
+write('STY'..argStrZPX())
 						nespoke((readPC() + X) & 0xFF, Y)	-- STY
 					-- 0x98 handled by SE*/CL* set
-					elseif op == 0x9C then	-- SHY 
+					elseif op == 0x9C then	-- SHY
 write'SHY -- TODO'
 					elseif op == 0xA0 then	-- LDY
-write('LDY'..argStrImm()) 						
+write('LDY'..argStrImm())
 						Y = setVN(readPC())
 					elseif op == 0xA4 then
-write('LDY'..argStrZP()) 						
+write('LDY'..argStrZP())
 						Y = setVN(nespeek(readPC())) 	-- LDY
 					elseif op == 0xA8 then
-write'TAY'						
+write'TAY'
 						Y = setVN(A) 	-- TAY
 					elseif op == 0xAC then
-write('LDY'..argStrAbs()) 						
+write('LDY'..argStrAbs())
 						Y = setVN(nespeek(readPCw())) 	-- LDY
 					-- 0xB0 = handled by branch set
 					elseif op == 0xB4 then
-write('LDY'..argStrZPX()) 						
+write('LDY'..argStrZPX())
 						Y = setVN(nespeek((readPC() + X) & 0xFF)) 	-- LDY
 					-- 0xB8 handled by SE*/CL* set
 					elseif op == 0xBC then
-write('LDY'..argStrAbsX()) 						
+write('LDY'..argStrAbsX())
 						Y = setVN(nespeek(readPCw() + X)) 	-- LDY
 					elseif op == 0xC0 then
 write('CPY'..argStrImm())
@@ -1111,7 +1111,7 @@ write('CPY'..argStrImm())
 write('CPY'..argStrZP())
 						doCompare(Y, nespeek(readPC()))	-- CPY
 					elseif op == 0xC8 then
-write'INY'						
+write'INY'
 						Y = setVN((Y + 1) & 0xFF) 	-- INY
 					elseif op == 0xCC then
 write('CPY'..argStrAbs())
@@ -1127,7 +1127,7 @@ write('CPX'..argStrImm())
 write('CPX'..argStrZP())
 						doCompare(X, nespeek(readPC()))	-- CPX
 					elseif op == 0xE8 then
-write'INX'						
+write'INX'
 						X = setVN((X + 1) & 0xFF) 	-- INX
 					elseif op == 0xEC then
 write('CPX'..argStrAbs())
@@ -1139,7 +1139,7 @@ write('CPX'..argStrAbs())
 					end
 				end
 			end
-	
+
 		else
 			-- ALU
 			if b01 == 0x01 then
@@ -1148,7 +1148,7 @@ write('CPX'..argStrAbs())
 				if b567 == 0x00 then
 write('ORA'..argStrFor234(b234))
 				elseif b567 == 0x20 then
-write('AND'..argStrFor234(b234))				
+write('AND'..argStrFor234(b234))
 				elseif b567 == 0x40 then
 write('EOR'..argStrFor234(b234))
 				elseif b567 == 0x60 then
@@ -1172,7 +1172,7 @@ write('SBC'..argStrFor234(b234))
 					arg = readPC()	-- #$00
 				else						-- non-immediate, i.e. memory
 					if b234 == 0x00 then
-						arg = nespeekw((readPC() + X) & 0xFF)	-- (indirect,X)			
+						arg = nespeekw((readPC() + X) & 0xFF)	-- (indirect,X)
 					elseif b234 == 0x04 then
 						arg = readPC()	-- $00
 					elseif b234 == 0x0C then
@@ -1186,7 +1186,7 @@ write('SBC'..argStrFor234(b234))
 					elseif b234 == 0x1C then
 						arg = (readPCw() + X) & 0xFFFF
 					end
-					
+
 					-- wait for STA do we not do the final peek above?
 					if b567 ~= 0x80 then
 						arg = nespeek(arg)
@@ -1221,7 +1221,7 @@ write('SBC'..argStrFor234(b234))
 
 				if op & 0x80 == 0 then	-- bit 7 clear
 
-					if b234 == 0x02 
+					if b234 == 0x02
 					or b234 == 0x12
 					then
 						-- 0xxx:0010
@@ -1250,18 +1250,18 @@ write('SBC'..argStrFor234(b234))
 
 						if b567 == 0x00	then -- ASL
 							arg = ASL(arg)
-write'ASL'						
+write'ASL'
 						elseif b567 == 0x20	then -- ROL
 							arg = ROL(arg)
-write'ROL'						
+write'ROL'
 						elseif b567 == 0x40	then -- LSR
 							arg = LSR(arg)
-write'LSR'						
+write'LSR'
 						elseif b567 == 0x60	then -- ROR
 							arg = ROR(arg)
-write'ROR'						
+write'ROR'
 						end
-						
+
 						if b234 == 0x0A then
 							-- immediate
 							A = arg
@@ -1270,7 +1270,7 @@ write'ROR'
 							nespoke(addr, arg)
 						end
 					end
-				
+
 				else	-- bit 7 set
 					-- 1xx0:0010
 					if b234 == 0x12 then
@@ -1279,17 +1279,17 @@ write'ROR'
 					else
 
 -- TODO TODO maybe things would be better if I separated out bit7==set first ...
-						
+
 						if b567 == 0x80 then
 							-- ST*
 							-- 0x92 is STP handled above
 							if op == 0x86 then
-write('STX'..argStrZP())					
+write('STX'..argStrZP())
 								nespoke(readPC(), X)	-- STX
 							elseif op == 0x8A then
-write'TXA'							
+write'TXA'
 								A = setVN(X) 	-- TXA
-							elseif op == 0x8E then 
+							elseif op == 0x8E then
 write('STX'..argStrAbs())
 								nespoke(readPCw(), X)	-- STX
 							elseif op == 0x96 then
@@ -1297,17 +1297,17 @@ write('STX'..argStrAbs())
 write('STX'..argStrZPY())
 							elseif op == 0x9A then
 								S = X 		-- TXS
-write'TXS'							
+write'TXS'
 							elseif op == 0x9E then
 								write'SHX'	-- SHX
-write'SHX'							
+write'SHX'
 							else
 								-- 0x82 = NOP
-write'NOP'							
+write'NOP'
 							end
 
 						elseif b567 == 0xA0 then
-							
+
 							-- LD* / T*
 							-- 0xB2 is STP handled above
 							if op == 0xA2 then
@@ -1326,7 +1326,7 @@ write('LDX'..argStrAbs())
 write('LDY'..argStrZPY())
 								X = setVN(nespeek((readPC() + Y) & 0xFF))	-- LDY
 							elseif op == 0xBA then
-write'TSX'							
+write'TSX'
 								X = setVN(S)	-- TSX
 							elseif op == 0xBE then
 write('LDX'..argStrAbsY())
@@ -1334,47 +1334,47 @@ write('LDX'..argStrAbsY())
 							end
 
 						elseif b567 == 0xC0 then
-							
+
 							-- 0xD2 = STP handled above
 							if op == 0xC6 then
 								DEC(readPC())				-- DEC
-write'DEC'							
+write'DEC'
 							elseif op == 0xCA then
 								X = setVN((X - 1) & 0xFF)	-- DEX
-write'DEX'							
+write'DEX'
 							elseif op == 0xCE then
 								DEC(readPCw())
-write'DEC'							
+write'DEC'
 							elseif op == 0xD6 then
 								DEC((readPC() + X) & 0xFF)
-write'DEC'							
+write'DEC'
 							elseif op == 0xDE then
 								DEC(readPCw() + X)
-write'DEC'							
+write'DEC'
 							else
 								-- 0xC2 = NOP
 								-- 0xDA = NOP
-write'NOP'							
+write'NOP'
 							end
 
 						elseif b567 == 0xE0 then
 							if op == 0xE6 then
 								INC(readPC())
-write'INC'							
+write'INC'
 							elseif op == 0xEE then
 								INC(readPCw())
-write'INC'							
+write'INC'
 							elseif op == 0xF6 then
 								INC((readPC() + X) & 0xFF)
-write'INC'							
+write'INC'
 							elseif op == 0xFE then
 								INC(readPCw() + X)
-write'INC'							
+write'INC'
 							else
 								-- 0xE2 = NOP
 								-- 0xEA = NOP (should be INX?)
 								-- 0xFA = NOP
-write'NOP'							
+write'NOP'
 							end
 						end
 					end
@@ -1382,7 +1382,7 @@ write'NOP'
 
 			-- unofficial
 			elseif b01 == 0x03 then
-				-- TODO 
+				-- TODO
 			end
 		end
 trace(writebuf) writebuf=''
