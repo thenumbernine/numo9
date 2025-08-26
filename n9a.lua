@@ -1649,20 +1649,91 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	local header = data:sub(1, 0x10)
 	data = data:sub(0x10+1)
 
+	local PRG_ROM_size = bit.lshift(header:byte(4+1), 14)
+print('PRG_ROM_size', ('0x%x'):format(PRG_ROM_size))
+	local CHR_ROM_size = bit.lshift(header:byte(5+1), 13)
+print('CHR_ROM_size', ('0x%x'):format(CHR_ROM_size))
 	if bit.band(header:byte(6+1), 2) ~= 0 then
 		header = header .. data:sub(1, 0x200)
 		data = data:sub(0x200+1)
 	end
 
+	assert.eq(#data, PRG_ROM_size + CHR_ROM_size, "there's some extra data idk about ...")
+	local ROM = data:sub(1, PRG_ROM_size)
+
 	-- so wait
 	-- addressing of ROM starts at $8000
 	-- so is $0000-$7FFF RAM then ...
-	data = ('\0'):rep(0x8000)..data
-	basepath'data.bin':write(data)
-	basepath'rom.hex':write(string.hexdump(data))
+	local RAMROM = ('\0'):rep(0x8000)..ROM
+	basepath'data.bin':write(RAMROM)
+	basepath'rom.hex':write(string.hexdump(RAMROM))
 
+
+	local PPURAMSize = 0x4000
+	assert.le(CHR_ROM_size, PPURAMSize)	-- assert our CHR ROM is less than VRAM size ... ?
+	local VRAM = data:sub(PRG_ROM_size+1)
 	-- set aside for PPU VRAM ...
-	basepath'data1.bin':write(('\0'):rep(0x4000))
+	VRAM = VRAM .. ('\0'):rep(PPURAMSize - #VRAM)
+	basepath'data1.bin':write(VRAM)
+
+	-- https://www.nesdev.org/wiki/PPU_palettes
+	-- from https://github.com/Gumball2415/pally/blob/main/docs/NESDev/2C02G_wiki_palette_page.txt
+	local palette = table{
+		0x626262, 0x001C95, 0x1904AC, 0x42009D, 0x61006B, 0x6E0025, 0x650500, 0x491E00, 0x223700, 0x004900, 0x004F00, 0x004816, 0x00355E, 0x000000, 0x000000, 0x000000,
+		0xABABAB, 0x0C4EDB, 0x3D2EFF, 0x7115F3, 0x9B0BB9, 0xB01262, 0xA92704, 0x894600, 0x576600, 0x237F00, 0x008900, 0x008332, 0x006D90, 0x000000, 0x000000, 0x000000,
+		0xFFFFFF, 0x57A5FF, 0x8287FF, 0xB46DFF, 0xDF60FF, 0xF863C6, 0xF8746D, 0xDE9020, 0xB3AE00, 0x81C800, 0x56D522, 0x3DD36F, 0x3EC1C8, 0x4E4E4E, 0x000000, 0x000000,
+		0xFFFFFF, 0xBEE0FF, 0xCDD4FF, 0xE0CAFF, 0xF1C4FF, 0xFCC4EF, 0xFDCACE, 0xF5D4AF, 0xE6DF9C, 0xD3E99A, 0xC2EFA8, 0xB7EFC4, 0xB6EAE5, 0xB8B8B8, 0x000000, 0x000000,
+	}:mapi(function(c)
+		local r = bit.rshift(c, 16)
+		local g = bit.band(0xFF, bit.rshift(c, 8))
+		local b = bit.band(0xFF, c)
+		return {r,g,b,0xFF}
+	end)
+	:rep(4)	-- 64 -> 256
+	-- also in p8 above
+	local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
+		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
+	end))
+	palImg:save(basepath'palette.png'.path)
+
+
+	-- copy our pictures into the sprite sheet
+	local sheetImg = Image(256, 256, 1, 'uint8_t')
+	ffi.fill(sheetImg.buffer, sheetImg:getBufferSize())
+	for i=0,0x1FFF do
+		local v = VRAM:byte(i+1)
+		-- duplicated from n9a_nes_glue.lua nespoke PPUMemPtr < 0x2000  :
+		local y = bit.band(0x7, i)					-- bits 012 = row
+		local hi = bit.band(1, bit.rshift(i, 3))	-- bit 3 = hi bit
+		local sprIndex = bit.rshift(i, 4)
+		local sprX = bit.band(0x1F, sprIndex)
+		local sprY = bit.rshift(sprIndex, 5)
+--trace('...to sprIndex='..sprIndex..' sprX='..sprX..' sprY='..sprY..' hi='..hi)
+		for x=0,7 do
+			local addr = bit.bor(
+				bit.lshift(sprX, 3),
+				x,
+				bit.lshift(
+					bit.bor(
+						bit.lshift(sprY, 3),
+						y
+					),
+					8
+				)
+			)
+			assert.ge(addr, 0)
+			--assert.lt(addr, sheetImg:getBufferSize())
+			local pix = sheetImg.buffer[addr]
+			pix = bit.band(pix, bit.bnot(bit.lshift(1, hi)))
+			pix = bit.bor(pix, bit.lshift(
+				bit.band(1, bit.rshift(v, 7 - x)),
+				hi
+			))
+			sheetImg.buffer[addr] = pix
+		end
+	end
+	sheetImg.palette = palette
+	sheetImg:save(basepath'sheet.png'.path)
 
 	-- put the nes file header here in case we need it
 	basepath'data2.bin':write(header)

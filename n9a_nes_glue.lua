@@ -106,6 +106,7 @@ assert.eq(blobsize('data', 1), PPURAMSize)
 local n9SheetAddr = blobaddr'sheet'
 local n9TilemapAddr = blobaddr'tilemap'
 
+
 local nespeek = |i,dontwrite|do
 	if i == PPUControlAddr then
 trace('PPUControl read', hex(peek(nesrom+i)))
@@ -192,12 +193,7 @@ trace('PPUMemData write '..hex(v)..' ... to PPU RAM $'..hex(PPUMemPtr,4))
 			local sprIndex = PPUMemPtr >> 4
 			local sprX = sprIndex & 0x1F
 			local sprY = sprIndex >> 5
-trace(
-	'...to sprIndex='..sprIndex
-	..' sprX='..sprX
-	..' sprY='..sprY
-	..' hi='..hi
-)
+--trace('...to sprIndex='..sprIndex..' sprX='..sprX..' sprY='..sprY..' hi='..hi)
 			for x=0,7 do
 				local addr = n9SheetAddr + ((sprX << 3) | x) + (((sprY << 3) | y) << 8)
 				local pix = peek(addr)
@@ -243,7 +239,6 @@ end
 -- used to read state without modifying (i.e. special hardware registers)
 local dbg_nespeek=|i| nespeek(i,true)
 local dbg_nespeekw=|i| nespeekw(i,true)
-
 
 
 local A = 0		-- accumulator
@@ -327,8 +322,6 @@ local doCompare=|reg,val|do
 	val = (reg - val) & 0xFF
 	setVN(val)
 end
-local CMP=|src| doCompare(A, src)
-local CMPMem=|addr| CMP(nespeek(addr))
 
 local SBC=|value|do
 	-- transfer NOT `A ~ value`'s bit 7 to P's bit 6 aka flagV
@@ -379,7 +372,6 @@ local SBC=|value|do
 	A = w & 0xFF
 	setVN(A)
 end
-local SBCMem=|addr| SBC(netpeek(addr))
 
 local ADC=|value|do
 	-- transfer NOT `A ~ value`'s bit 7 to P's bit 6 aka flagV
@@ -423,7 +415,6 @@ local ADC=|value|do
 	A = tmp & 0xFF
 	setVN(A)
 end
-local ADCMem=|addr|ADC(nespeek(addr))
 
 local BIT=|i|do
 	-- transfer bit 6 & 7 of i to bit 6 & 7 of P
@@ -449,14 +440,14 @@ local incS=||do
 	S += 1
 	if S >= 0x100 then
 		S &= 0xFF
-		trace'6502 stack underflow!'
+trace'6502 stack underflow!'
 	end
 end
 local decS=||do
 	S -= 1
 	if S < 0 then
 		S &= 0xFF
-		trace'6502 stack overflow!'
+trace'6502 stack overflow!'
 	end
 end
 
@@ -470,24 +461,24 @@ local stackPop=||do
 end
 
 local stackPushw=|w|do
-	--[[ safe
+	-- [[ safe
 	stackPush(w>>8)
 	stackPush(w&0xFF)
 	--]]
-	-- [[ trust overflow won't happen
+	--[[ trust overflow won't happen
 	decS()
 	nespokew(S|0x100, w)
 	decS()
 	--]]
 end
 local stackPopw=||do
-	--[[ safe
+	-- [[ safe
 	-- depends on | evaluating left-to-right
 	-- and langfix rewrites this as bit.bor(...)
 	-- so this depends on lua arg evaluation being left-to-right
 	return stackPop() | (stackPop() << 8)
 	--]]
-	-- [[ trust underflow won't happen
+	--[[ trust underflow won't happen
 	incS()
 	local w = nespeekw(S|0x100)
 	incS()
@@ -495,333 +486,29 @@ local stackPopw=||do
 	--]]
 end
 
--- assigns A to A | src
--- sets VN flags by result
-local ORA=|src|do A = setVN(A | src) end
-
--- assigns A to A | mem[addr]
--- sets VN flags by result
-local ORAMem=|addr| ORA(nespeek(addr))
-
--- assigns A to A & src
--- sets VN flags by result
-local ANDA=|src|do A = setVN(A & src) end
-
--- assigns A to A & mem[addr]
--- sets VN flags by result
-local ANDAMem=|addr| ANDA(nespeek(addr))
-
--- assigns A to A ~ src
--- sets VN flags by result
-local EOR=|src|do A = setVN(A ~ src) end
-local EORMem=|addr| ANDA(nespeek(addr))
-
--- stores A at addr
-local STA=|addr| nespoke(addr, A)
-
--- sets A from addr
--- sets VN flags by result
-local LDA=|src|do A = setVN(src) end
-local LDAMem=|addr| LDA(nespeek(addr))
-
--- reads C
--- shifts src left by 1, inserting old C
--- sets src's old bit7 to the new C
--- & 0xFF to treat as uint8
--- sets VN flags based on result
--- returns result
--- * I'm hoping all operations are evaluated left-to-right, since I'm reading C then writing C in dif bit op args
--- * NOTICE, no memory evaluation better modify C ...
-local ROL=|src| setVN((P & flagC) | (bit7toC(src) << 1) & 0xFF)
-local ROLMem=|addr| nespoke(addr, ROL(nespeek(addr)))
-
-local ROR=|src| setVN((P & flagC) | (bit7toC(src) << 1) & 0xFF)
-local RORMem=|addr| nespoke(addr, ROR(nespeek(addr)))
-
--- sets C to src's bit 7
--- shl once as uint8
--- sets VN flags by result
--- returns result
-local ASL=|src| setVN((bit7toC(src) << 1) & 0xFF)
-local ASLMem=|addr| nespoke(addr, ASL(nespeek(addr)))
-
-local LSR=|src| setVN(bit0toC(src) >> 1)
-local LSRMem=|addr| nespoke(addr, LSR(nespeek(addr)))
-
-local ops = {
-	-- DONE
-
--- 0xxx:xx01
-	-- ORA, ANDA, EOR, ADC, STA, LDA, CMP, SBC
-	-- identical arg read
-	-- op bits 0xE0: 0 = OR, 1 = ANDA, 2 = EOR, 3 = ADC, 4 = STA, 5 = LDA, 6 = CMP, 7 = SBC
-
-	-- ORA
-	[0x01] = || ORAMem(nespeekw((readPC() + X) & 0xFF)),	-- (indirect,X)
-	[0x05] = || ORAMem(readPC()),	-- $00
-	[0x09] = || ORA(readPC()),	-- #$00
-	[0x0D] = || ORAMem(readPCw()),
-	[0x11] = || ORAMem(nespeekw(readPC() + Y)),
-	[0x15] = || ORAMem((readPC() + X) & 0xFF),
-	[0x19] = || ORAMem(readPCw() + Y),
-	[0X1D] = || ORAMem(readPCw() + X),
-
-	-- ANDA
-	[0x21] = || ANDAMem(nespeekw((readPC() + X) & 0xFF)),
-	[0x25] = || ANDAMem(readPC()),
-	[0x29] = || ANDA(readPC()),
-	[0x2D] = || ANDAMem(readPCw()),
-	[0x31] = || ANDAMem(nespeekw(readPC() + Y)),
-	[0x35] = || ANDAMem((readPC() + X) & 0xFF),
-	[0x39] = || ANDAMem(readPCw() + Y),
-	[0X3D] = || ANDAMem(readPCw() + X),
-
-	-- EOR
-	[0x41] = || EORMem(nespeekw((readPC() + X) & 0xFF)),
-	[0x45] = || EORMem(readPC()),
-	[0x49] = || EOR(readPC()),
-	[0x4D] = || EORMem(readPCw()),
-	[0x51] = || EORMem(nespeekw(readPC() + Y)),
-	[0x55] = || EORMem((readPC() + X) & 0xFF),
-	[0x59] = || EORMem(readPCw() + Y),
-	[0x5D] = || EORMem(readPCw() + X),
-
-	-- ADC
-	[0x61] = || ADCMem(nespeekw((readPC() + X) & 0xFF)),
-	[0x65] = || ADCMem(readPC()),
-	[0x69] = || ADC(readPC()),
-	[0x6D] = || ADCMem(readPCw()),
-	[0x71] = || ADCMem(nespeekw(readPC()) + Y),
-	[0x75] = || ADCMem((readPC() + X) & 0xFF),
-	[0x79] = || ADCMem(readPCw() + Y),
-	[0x7D] = || ADCMem(readPCw() + X),
-
-	-- STA
-	[0x81] = || STA(nespeekw((readPC() + X) & 0xFF)),
-	[0x85] = || STA(readPC()),
-	-- 0x89 = NOP, STA is a mem op, can't do STA non-mem ...
-	[0x8D] = || STA(readPCw()),
-	[0x91] = || STA(nespeekw(readPC()) + Y),
-	[0x95] = || STA((readPC() + X) & 0xFF),
-	[0x99] = || STA(readPCw() + Y),
-	[0x9D] = || STA(readPCw() + X),
-
-	-- LDA
-	[0xA1] = || LDAMem(nespeekw((readPC() + X) & 0xFF)),
-	[0xA5] = || LDAMem(readPC()),
-	[0xA9] = || LDA(readPC()),
-	[0xAD] = || LDAMem(readPCw()),
-	[0xB1] = || LDAMem(nespeekw(readPC()) + Y),
-	[0xB5] = || LDAMem((readPC() + X) & 0xFF),
-	[0xB9] = || LDAMem(readPCw() + Y),
-	[0xBD] = || LDAMem(readPCw() + X),
-
-	-- CMP
-	[0xC1] = || CMPMem(nespeekw((readPC() + X) & 0xFF)),	-- CMP
-	[0xC5] = || CMPMem(readPC()),	-- CMP
-	[0xC9] = || CMP(readPC()),	-- CMP
-	[0xCD] = || CMPMem(readPCw()),	-- CMP
-	[0xD1] = || CMPMem(nespeekw(readPC()) + Y),	-- CMP
-	[0xD5] = || CMPMem((readPC() + X) & 0xFF),	-- CMP
-	[0xD9] = || CMPMem(readPCw() + Y),	-- CMP
-	[0xDD] = || CMPMem(readPCw() + X),	-- CMP
-
-	-- SBC
-	[0xE1] = || SBCMem(nespeekw((readPC() + X) & 0xFF)),
-	[0xE5] = || SBCMem(readPC()),
-	[0xE9] = || SBC(readPC()),
-	[0xED] = || SBCMem(readPCw()),
-	[0xF1] = || SBCMem(nespeekw(readPC()) + Y),
-	[0xF5] = || SBCMem((readPC() + X) & 0xFF),
-	[0xF9] = || SBCMem(readPCw() + Y),
-	[0xFD] = || SBCMem(readPCw() + X),
+RESET=||do
+	PC = nespeekw(RESETAddr)
+end
+IRQ=||do
+	stackPushw(PC)
+	stackPush(P)
+	P |= flagI
+	PC = nespeekw(IRQAddr)
+end
+NMI=||do
+	stackPushw(PC)
+	stackPush(P)
+	P |= flagI
+	PC = nespeekw(NMIAddr)
+end
+BRK=||do
+	stackPushw(PC)
+	stackPush(P | flagB)
+	P |= flagI
+	PC = nespeekw(IRQAddr)
+end
 
 
--- 0xx0:0000
-	-- break
-	[0x00] = ||do
-		nespokew(S, PC)
-		PC = nespeekw(IRQAddr)
-		P |= flagB
-	end,	-- BRK
-	[0x20] = ||do
-		local addr = readPCw()
-		stackPushw((PC - 1) & 0xFFFF)
-		PC = addr
-	end,	-- JSR
-	[0x40] = ||do
-		P = stackPop() | flagB_
-		PC = stackPopw()
-	end,	-- RTI
-	[0x60] = ||do
-		PC = stackPopw() + 1
-	end,	-- RTS
-
--- 0xx1:0000
-	-- branch-on-flag
-	-- op & 0x10 <=> branch on flag
-	-- op & 0x20: 0 means branch on flag clear, 1 means branch on flag set
-	-- missed their chance to swap V and N ... then we'd have ((op >> 6) + 6) & 7 == flag bit
-	[0x10] = ||do if P & flagN == 0 then branch() else PC += 1 end end,	-- BPL
-	[0x30] = ||do if P & flagN ~= 0 then branch() else PC += 1 end end,	-- BMI
-	[0x50] = ||do if P & flagV == 0 then branch() else PC += 1 end end,	-- BVC
-	[0x70] = ||do if P & flagV ~= 0 then branch() else PC += 1 end end,	-- BVS
-	[0x90] = ||do if P & flagC == 0 then branch() else PC += 1 end end,	-- BCC
-	[0xB0] = ||do if P & flagC ~= 0 then branch() else PC += 1 end end, -- BCS
-	[0xD0] = ||do if P & flagZ == 0 then branch() else PC += 1 end end, -- BNE
-	[0xF0] = ||do if P & flagZ ~= 0 then branch() else PC += 1 end end, -- BEQ
-
--- 0xx1:1000
-	-- CL* / SE*
-	[0x18] = ||do P &= ~flagC end,	-- CLC
-	[0x38] = ||do P |= flagC end,	-- SEC
-	[0x58] = ||do P &= ~flagI end,	-- CLI
-	[0x78] = ||do P |= flagI end,	-- SEI
-	-- there's no SEV ...
-	-- and CLV goes where SEV should've gone
-	[0xB8] = ||do P &= ~flagV end,	-- CLV
-	[0xD8] = ||do P &= ~flagD end,	-- CLD
-	[0xF8] = ||do P |= flagD end,	-- SED
-
-	-- PH* / PL*
-	[0x08] = || stackPush(P|flagB_), -- PHP
-	[0x28] = ||do P = stackPop() | flagB_ end, -- PLP
-	[0x48] = || stackPush(A),	-- PHA
-	[0x68] = ||do A = setVN(stackPop()) end,	-- PLA
-
-	-- BIT
-	[0x24] = || BIT(nespeek(readPC())),
-	[0x2C] = || BIT(nespeek(readPCw())),
-
-	-- JMP
-	[0x4C] = ||do PC = readPCw() end,
-	[0x6C] = ||do PC = nespeekw(readPCw()) end,
-
-	[0x84] = || nespoke(readPC(), Y),	-- STY
-	[0x88] = ||do Y = setVN((Y - 1) & 0xFF) end,	-- DEY
-	[0x8C] = || nespoke(readPCw(), Y),	-- STY
-	[0x94] = || nespoke((readPC() + X) & 0xFF, Y),	-- STY
-	[0xA4] = ||do Y = setVN(nespeek(readPC())) end,	-- LDY
-	[0xA8] = ||do Y = setVN(A) end,	-- TAY
-	[0xAC] = ||do Y = setVN(nespeek(readPCw())) end,	-- LDY
-	[0xB4] = ||do Y = setVN(nespeek((readPC() + X) & 0xFF)) end,	-- LDY
-	[0xBC] = ||do Y = setVN(nespeek(readPCw() + X)) end,	-- LDY
-	[0xC0] = || doCompare(Y, readPC()),						-- CPY
-	[0xC4] = || doCompare(Y, nespeek(readPC())),	-- CPY
-	[0xC8] = ||do Y = setVN((Y + 1) & 0xFF) end,	-- INY
-	[0xCC] = || doCompare(Y, nespeek(readPCw())),	-- CPY
-	[0xE0] = || doCompare(X, readPC()),	-- CPX
-	[0xE4] = || doCompare(X, nespeek(readPC())),	-- CPX
-	[0xE8] = ||do X = setVN((X + 1) & 0xFF) end,	-- INX
-	[0xEC] = || doCompare(X, nespeek(readPCw())),			-- CPX
-
-	[0xA2] = ||do X = setVN(readPC()) end,	-- LDX
-
-
--- 0xxx:0010
-	-- STP
-	-- 0x02 = STP
-	-- 0x12 = STP
-	-- 0x22 = STP
-	-- 0x32 = STP
-	-- 0x42 = STP
-	-- 0x52 = STP
-	-- 0x62 = STP
-	-- 0x72 = STP
-
--- 0xx1:1010 = NOP
-	-- 0x1A = NOP
-	-- 0x3A = NOP
-	-- 0x5A = NOP
-	-- 0x7A = NOP
-
--- 0xxx:xx10
-	-- ASL, ROL, LSR, ROR
-	-- match except op bit 5: 0 means ASL, 1 means ROL
-	-- ... no SLO, RLA, SRE, RRA ...
-
-	-- ASL
-	[0x06] = || ASLMem(readPC()),	-- $00
-	[0x0A] = ||do A = ASL(A) end,
-	[0x0E] = || ASLMem(readPCw()),
-	[0x16] = || ASLMem((readPC() + X) & 0xFF),
-	[0X1E] = || ASLMem(readPCw() + X),
-
-	-- ROL
-	[0x26] = || ROLMem(readPC()),
-	[0x2A] = ||do A = ROL(A) end,
-	[0x2E] = || ROLMem(readPCw()),
-	[0x36] = || ROLMem((readPC() + X) & 0xFF),
-	[0x3E] = || ROLMem(readPCw() + X),
-
-	-- LSR
-	[0x46] = || LSRMem(readPC()),
-	[0X4A] = ||do A = LSR(A) end,
-	[0x4E] = || LSRMem(readPCw()),
-	[0x56] = || LSRMem((readPC() + X) & 0xFF),
-	[0x5E] = || LSRMem(readPCw() + X),
-
-	-- ROR
-	[0x66] = || RORMem(readPC()),
-	[0x6A] = || do A = ROR(A) end,
-	[0x6E] = || RORMem(readPCw()),
-	[0x76] = || RORMem((readPC() + X) & 0xFF),
-	[0x7E] = || RORMem(readPCw() + X),
-
-
-	-- 0x92 = STP
-	-- 0xB2 = STP
-	-- 0xD2 = STP
-	-- 0xF2 = STP
-
-
-	-- ST*
-	-- 0x82 = NOP
-	[0x86] = || nespoke(readPC(), X),	-- STX
-	[0x8A] = ||do A = setVN(X) end,	-- TXA
-	[0x8E] = || nespoke(readPCw(), X),	-- STX
-	-- 0x92 = STP
-	[0x96] = || nespoke((readPC() + Y) & 0xFF, X),	-- STX
-	[0x9A] = ||do S = X end,		-- TXS
-	-- 0x9E	-- SHX
-
-	-- LD* / T*
-	-- 0xA2 = LDX
-	[0xA6] = ||do X = setVN(nespeek(readPC())) end,	-- LDX
-	[0xAA] = ||do X = setVN(A) end,	-- TAX
-	[0xAE] = ||do X = setVN(nespeek(readPCw())) end,	-- LDX
-	-- 0xB2 = STP
-	[0xB6] = ||do X = setVN(nespeek((readPC() + Y) & 0xFF)) end,	-- LDY
-	[0xBA] = ||do X = setVN(S) end,	-- TSX
-	[0xBE] = ||do X = setVN(nespeek(readPCw() + Y)) end,	-- LDX
-
-	-- 0xC2 = NOP
-	[0xC6] = || DEC(readPC()),	-- DEC
-	[0xCA] = ||do X = setVN((X - 1) & 0xFF) end,	-- DEX
-	[0xCE] = || DEC(readPCw()),
-	-- 0xD2 = STP
-	[0xD6] = || DEC((readPC() + X) & 0xFF),
-	-- 0xDA = NOP
-	[0xDE] = || DEC(readPCw() + X),
-
-	-- 0xE2 = NOP
-	[0xE6] = || INC(readPC()),
-	-- 0xEA = NOP
-	[0xEE] = || INC(readPCw()),
-	-- 0xF2 = STP
-	[0xF6] = || INC((readPC() + X) & 0xFF),
-	-- 0xFA = NOP
-	[0xFE] = || INC(readPCw() + X),
-
-	-- LD* / T*
-	-- 0xA3 = LAX
-	-- 0xAB = LAX
-	-- 0xAF = LAX
-	-- 0xB3 = LAX
-	-- 0xB7 = LAX
-	-- 0xBB = LAS
-	-- 0xBF = LAX
-}
 
 local argStrRel=|skipvalue|
 	' $+'..hex(0xFF & s8(dbg_nespeek(PC)))
@@ -894,57 +581,29 @@ end
 local writebuf=''
 local write=|...| do writebuf ..= table{...}:mapi(tostring):concat'\t' end
 
-RESET=||do
-	PC = nespeekw(RESETAddr)
-end
-IRQ=||do
-	stackPushw(PC)
-	stackPush(P)
-	P |= flagI
-	PC = nespeekw(IRQAddr)
-end
-NMI=||do
-	stackPushw(PC)
-	stackPush(P)
-	P |= flagI
-	PC = nespeekw(NMIAddr)
-end
-BRK=||do
-	stackPushw(PC)
-	stackPush(P | flagB)
-	P |= flagI
-	PC = nespeekw(IRQAddr)
-end
-
-
 RESET()
 trace('initPC = $'..hex(PC,4))
 
 update=||do
+
+trace'vblank'
+
 	-- set at the start of vblank
 	nespoke(PPUStatusAddr, nespeek(PPUStatusAddr) | 0x80)
+
 	-- set before or after?
 	if nespeek(PPUControlAddr) & 0x80 == 0x80 then
+trace'NMI'
 		NMI()
 	end
-
-	trace'frame'
 
 	-- TODO count cycles and break accordingly? or nah?
 	-- 1mil / 60 = 16k or so .. / avg cycles/instr = ?
 	--for i=1,1 do
-	for i=1,60 do
+	--for i=1,60 do
 	--for i=1,100 do
-write(
-	'A='..hex(A)
-	..' X='..hex(X)
-	..' Y='..hex(Y)
-	..' S='..hex(S)
-	..' P='..hex(P)
-	..' PC='..hex(PC,4)
-	..' op='..hex(nespeek(PC))
-	..' '
-)
+	for i=1,600 do
+write('A='..hex(A)..' X='..hex(X)..' Y='..hex(Y)..' S='..hex(S)..' P='..hex(P)..' PC='..hex(PC,4)..' op='..hex(nespeek(PC))..' ')
 		local op = readPC()
 
 		-- https://www.nesdev.org/wiki/CPU_unofficial_opcodes
@@ -1063,13 +722,11 @@ write('BIT'..argStrAbs())
 write('JMP'..argStrAbs(true))		-- Absolute ... but its jump
 						PC = readPCw()
 					elseif op == 0x6C then
-write('JMP'..
-	--argStrAbs()		-- Indirect ... but its jump
-	' $'..hex(dbg_nespeekw(PC),4)
-	..(skipvalue and '' or ' = '..hex(dbg_nespeekw(dbg_nespeekw(PC)),4))
-)
+--write('JMP'..argStrAbs()		-- Indirect ... but its jump
+write('JMP'..' $'..hex(dbg_nespeekw(PC),4)..(skipvalue and '' or ' = '..hex(dbg_nespeekw(dbg_nespeekw(PC)),4)))
 						PC = nespeekw(readPCw())
-
+					else
+write'NOP'
 					-- else 04 0C 14 1C 34 3C 44 54 5C 64 74 7C is NOP
 					end
 
@@ -1141,6 +798,8 @@ write'INX'
 					elseif op == 0xEC then
 write('CPX'..argStrAbs())
 						doCompare(X, nespeek(readPCw()))			-- CPX
+					else
+write'NOP'
 					-- 0xF0 handled by branch set
 					-- 0xF4 NOP
 					-- 0xF8 handled by SE*/CL*
@@ -1219,7 +878,7 @@ write('SBC'..argStrFor234(b234))
 				elseif b567 == 0xA0 then	-- A1 A5 A9 AD B1 B5 B9 BD = LDA
 					A = setVN(arg)
 				elseif b567 == 0xC0 then	-- C1 C5 C9 CD D1 D5 D9 DD = CMP
-					CMP(arg)
+					doCompare(A, arg)
 				elseif b567 == 0xE0 then	-- E1 E5 E9 ED F1 F5 F9 FD = SBC
 					SBC(arg)
 				end
@@ -1233,9 +892,11 @@ write('SBC'..argStrFor234(b234))
 					if b234 == 0x02
 					or b234 == 0x12
 					then
+write'STP'
 						-- 0xxx:0010
 						-- 02 12 22 32 42 52 62 72 = STP
 					elseif b234 == 0x1A then
+write'NOP'
 						-- 1A 3A 5A 7A = NOP
 					else
 						local arg, addr
@@ -1258,16 +919,24 @@ write('SBC'..argStrFor234(b234))
 						end
 
 						if b567 == 0x00	then -- ASL
-							arg = ASL(arg)
+							arg = setVN((bit7toC(arg) << 1) & 0xFF)
 write'ASL'
 						elseif b567 == 0x20	then -- ROL
-							arg = ROL(arg)
+							-- reads C
+							-- shifts src left by 1, inserting old C
+							-- sets src's old bit7 to the new C
+							-- & 0xFF to treat as uint8
+							-- sets VN flags based on result
+							-- returns result
+							-- * I'm hoping all operations are evaluated left-to-right, since I'm reading C then writing C in dif bit op args
+							-- * NOTICE, no memory evaluation better modify C ...
+							arg = setVN((P & flagC) | (bit7toC(arg) << 1) & 0xFF)
 write'ROL'
 						elseif b567 == 0x40	then -- LSR
-							arg = LSR(arg)
+							arg = setVN(bit0toC(arg) >> 1)
 write'LSR'
 						elseif b567 == 0x60	then -- ROR
-							arg = ROR(arg)
+							arg = setVN((P & flagC) | (bit7toC(arg) << 1) & 0xFF)
 write'ROR'
 						end
 
@@ -1275,7 +944,7 @@ write'ROR'
 							-- immediate
 							A = arg
 						else
-							-- not immediate, write back to address
+							-- not immediate, --DEBUG(asm):write back to address
 							nespoke(addr, arg)
 						end
 					end
@@ -1283,6 +952,7 @@ write'ROR'
 				else	-- bit 7 set
 					-- 1xx0:0010
 					if b234 == 0x12 then
+write'STP'
 						-- 1xx1:0010
 						-- 92 B2 D2 F2 = STP
 					else
@@ -1308,11 +978,11 @@ write('STX'..argStrZPY())
 								S = X 		-- TXS
 write'TXS'
 							elseif op == 0x9E then
-								write'SHX'	-- SHX
+								--DEBUG(asm):write'SHX'	-- SHX
 write'SHX'
 							else
-								-- 0x82 = NOP
 write'NOP'
+								-- 0x82 = NOP
 							end
 
 						elseif b567 == 0xA0 then
@@ -1361,9 +1031,9 @@ write'DEC'
 								DEC(readPCw() + X)
 write'DEC'
 							else
+write'NOP'
 								-- 0xC2 = NOP
 								-- 0xDA = NOP
-write'NOP'
 							end
 
 						elseif b567 == 0xE0 then
@@ -1380,10 +1050,10 @@ write'INC'
 								INC(readPCw() + X)
 write'INC'
 							else
+write'NOP'
 								-- 0xE2 = NOP
 								-- 0xEA = NOP (should be INX?)
 								-- 0xFA = NOP
-write'NOP'
 							end
 						end
 					end
@@ -1391,7 +1061,7 @@ write'NOP'
 
 			-- unofficial
 			elseif b01 == 0x03 then
-				-- TODO
+write'TODO op'
 			end
 		end
 trace(writebuf) writebuf=''
