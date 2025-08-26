@@ -291,6 +291,8 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 	local baseNameAndDir, ext = p8path:getext()
 	assert.eq(ext, 'p8')
 	local basepath = select(2, baseNameAndDir:getdir())
+	local origname = basepath.path
+	basepath.path = basepath.path..'_p8'
 	basepath:mkdir()
 	assert(basepath:isdir())
 
@@ -1359,6 +1361,13 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 	}:concat'\n'..'\n'
 	code = minify(code)
 
+	code = table{
+		'-- title = Pico8: '..origname,
+		'-- saveid = '..basepath,
+		'',
+		code,
+	}:concat'\n'
+
 	assert(basepath'code.lua':write(code))
 
 	if cmd == 'p8run' then
@@ -1376,6 +1385,8 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	local baseNameAndDir, ext = ticpath:getext()
 	assert.eq(ext, 'tic')
 	local basepath = select(2, baseNameAndDir:getdir())
+	local origname = basepath.path
+	basepath.path = basepath.path..'_tic'
 	basepath:mkdir()
 	assert(basepath:isdir())
 
@@ -1607,6 +1618,13 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		'__numo9_finished(BOOT, TIC, OVR, SCN, BDR)'
 	}
 
+	code = table{
+		'-- title = TIC-80: '..basepath,
+		'-- saveid = '..basepath,
+		'',
+		code,
+	}:concat'\n'
+
 	basepath'code.lua':write(code:concat'\n')
 
 	if cmd == 'ticrun' then
@@ -1619,7 +1637,8 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	local baseNameAndDir, ext = nespath:getext()
 	assert.eq(ext, 'nes')
 	local basepath = select(2, baseNameAndDir:getdir())
-	basepath.path = basepath .. '_nes' 
+	local origname = basepath.path
+	basepath.path = basepath .. '_nes'
 	basepath:mkdir()
 	assert(basepath:isdir())
 
@@ -1653,12 +1672,17 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	basepath'persist.bin':write(('\0'):rep(0x2000))
 
 	local code = table{
-		'-- saveid '..select(2, nespath:getdir()),
-		'',
 		'-- begin compat layer',
 		assert(path'n9a_nes_glue.lua':read()),
 		'-- end compat layer',
 	}
+
+	code = table{
+		'-- title = NES: '..origname,
+		'-- saveid = '..basepath,
+		'',
+		code,
+	}:concat'\n'
 
 	basepath'code.lua':write(code:concat'\n')
 
