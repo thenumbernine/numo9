@@ -69,18 +69,23 @@ local nesrom = blobaddr('data', 0)
 local PPUCtrlAddr = 0x2000
 local PPUMaskAddr = 0x2001
 local PPUStatusAddr = 0x2002
-local nespeek = |i|do
+local nespeek = |i,dontwrite|do
 	if i == PPUStatusAddr then
 		local val = peek(nesrom+i)
-		poke(nesrom+i, 0)
+		if not dontwrite then
+			poke(nesrom+i, 0)
+		end
 		return val
 	end
 	-- handle special read sections
 	return peek(nesrom+i)
 end
-local nespeekw = |i|do
-	return nespeek(i) | (nespeek(i+1)<<8)
+local nespeekw = |i,dontwrite|do
+	return nespeek(i,dontwrite) | (nespeek(i+1,dontwrite)<<8)
 end
+
+local dbg_nespeek=|i| nespeek(i,true)
+local dbg_nespeekw=|i| nespeekw(i,true)
 
 -- assumes i is uint16 and v is uint8
 local nespoke = |i,v|do
@@ -677,52 +682,52 @@ local ops = {
 }
 
 local argStrRel=|skipvalue| 
-	' $+'..hex(0xFF & s8(peek(nesrom+PC)))
-	..(skipvalue and '' or ' = $'..hex(PC+1+s8(peek(nesrom+PC)),4))
+	' $+'..hex(0xFF & s8(dbg_nespeek(PC)))
+	..(skipvalue and '' or ' = $'..hex(PC+1+s8(dbg_nespeek(PC)),4))
 
 local argStrImm=|| 
-	' #$'..hex(peek(nesrom+PC))
+	' #$'..hex(dbg_nespeek(PC))
 
 local argStrZP=|skipvalue| 
-	' $'..hex(peek(nesrom+PC))
-	..(skipvalue and '' or ' = '..hex(peek(nesrom+peek(nesrom+PC))))
+	' $'..hex(dbg_nespeek(PC))
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek(dbg_nespeek(PC))))
 
 local argStrZPX=|skipvalue|
-	' $'..hex(peek(nesrom+PC))
-	..',X = $'..hex((peek(nesrom+PC) + X) & 0xFF)
-	..(skipvalue and '' or ' = '..hex(peek(nesrom+(peek(nesrom+PC) + X) & 0xFF)))
+	' $'..hex(dbg_nespeek(PC))
+	..',X = $'..hex((dbg_nespeek(PC) + X) & 0xFF)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeek(PC) + X) & 0xFF)))
 
 local argStrZPY=|skipvalue|
-	' $'..hex(peek(nesrom+PC))
-	..',X = $'..hex((peek(nesrom+PC) + X) & 0xFF)
-	..(skipvalue and '' or ' = '..hex(peek(nesrom+(peek(nesrom+PC) + X) & 0xFF)))
+	' $'..hex(dbg_nespeek(PC))
+	..',X = $'..hex((dbg_nespeek(PC) + X) & 0xFF)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeek(PC) + X) & 0xFF)))
 
 local argStrAbs=|skipvalue|
-	' $'..hex(nespeekw(PC),4)
-	..(skipvalue and '' or ' = '..hex(peek(nesrom+nespeekw(PC))))
+	' $'..hex(dbg_nespeekw(PC),4)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek(dbg_nespeekw(PC))))
 
 local argStrAbsX=|skipvalue|
-	' $'..hex(nespeekw(PC),4)
-	..',X = $'..hex((nespeekw(PC) + X) & 0xFFFF,4)
-	..(skipvalue and '' or ' = '..hex(peek(nesrom+(nespeekw(PC) + X) & 0xFFFF)))
+	' $'..hex(dbg_nespeekw(PC),4)
+	..',X = $'..hex((dbg_nespeekw(PC) + X) & 0xFFFF,4)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeekw(PC) + X) & 0xFFFF)))
 
 local argStrAbsY=|skipvalue|
-	' $'..hex(nespeekw(PC),4)
-	..',Y = $'..hex((nespeekw(PC) + Y) & 0xFFFF,4)
-	..(skipvalue and '' or ' = '..hex(peek(nesrom+(nespeekw(PC) + Y) & 0xFFFF)))
+	' $'..hex(dbg_nespeekw(PC),4)
+	..',Y = $'..hex((dbg_nespeekw(PC) + Y) & 0xFFFF,4)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeekw(PC) + Y) & 0xFFFF)))
 
 local argStrIndZPX=|skipvalue|
-	' ($'..peek(nesrom+PC)
-	..',X) = ($'..hex(peek(nesrom+PC) + X,4)
-	..') = $'..hex(nespeekw(peek(nesrom+PC) + X),4)
-	..(skipvalue and '' or ' = '..hex(peek(nesrom+nespeekw(peek(nesrom+PC) + X))))
+	' ($'..dbg_nespeek(PC)
+	..',X) = ($'..hex(dbg_nespeek(PC) + X,4)
+	..') = $'..hex(dbg_nespeekw(dbg_nespeek(PC) + X),4)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek(dbg_nespeekw(dbg_nespeek(PC) + X))))
 
 -- should this be ($arg,Y) or ($arg),Y ? latter in https://www.nesdev.org/obelisk-6502-guide/reference.html
 local argStrIndZPY=|skipvalue|
-	' ($'..peek(nesrom+PC)
-	..',Y) = ($'..hex(peek(nesrom+PC) + Y,4)
-	..') = $'..hex(nespeekw(peek(nesrom+PC) + Y),4)
-	..(skipvalue and '' or ' = '..hex(peek(nesrom+nespeekw(peek(nesrom+PC) + Y))))
+	' ($'..dbg_nespeek(PC)
+	..',Y) = ($'..hex(dbg_nespeek(PC) + Y,4)
+	..') = $'..hex(dbg_nespeekw(dbg_nespeek(PC) + Y),4)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek(dbg_nespeekw(dbg_nespeek(PC) + Y))))
 
 local argStrFor234=|b234, ...|do
 	if b234 == 0x00 then
@@ -754,7 +759,8 @@ update=||do
 
 	-- TODO count cycles and break accordingly? or nah?
 	-- 1mil / 60 = 16k or so .. / avg cycles/instr = ?
-	for i=1,1 do
+	--for i=1,1 do
+	for i=1,10 do
 	--for i=1,100 do
 write(
 	'A='..hex(A)
@@ -846,40 +852,53 @@ write'SED'
 			else
 				if op & 0x80 == 0 then	-- bit 7 not set
 					if op == 0x00 then	-- BRK
+write'BRK'						
 						nespokew(S, PC)
 						PC = nespeekw(0xFFFE)
 						P |= flagB
 					elseif op == 0x20 then	-- JSR
+write('JSR'..argStrAbs())
 						local addr = readPCw()
 						stackPushw((PC - 1) & 0xFFFF)
 						PC = addr
 					elseif op == 0x40 then	-- RTI
+write'RTI'
 						P = stackPop() | flagB_
 						PC = stackPopw()
 					elseif op == 0x60 then	-- RTS
+write'RTS'
 						PC = stackPopw() + 1
-					
 					elseif op == 0x08 then
+write'PHP'
 						stackPush(P | flagB_) -- PHP
 					elseif op == 0x28 then
+write'PLP'
 						P = stackPop() | flagB_  -- PLP
 					elseif op == 0x48 then
+write'PHA'
 						stackPush(A)	-- PHA
 					elseif op == 0x68 then
+write'PLA'
 						A = setVN(stackPop()) 	-- PLA
-					
-					-- BIT
-					elseif op == 0x24 then
+					elseif op == 0x24 then	-- BIT
+write('BIT'..argStrZP())	
 						BIT(nespeek(readPC()))
-					elseif op == 0x2C then
+					elseif op == 0x2C then	-- BIT
+write('BIT'..argStrAbs())	
 						BIT(nespeek(readPCw()))
 	
 					-- JMP
 					elseif op == 0x4C then
+write('JMP'..argStrAbs(true))		-- Absolute ... but its jump
 						PC = readPCw() 
 					elseif op == 0x6C then
+write('JMP'..
+	--argStrAbs()		-- Indirect ... but its jump
+	' $'..hex(dbg_nespeekw(PC),4)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeekw(dbg_nespeekw(PC)),4))
+)						
 						PC = nespeekw(readPCw()) 
-					
+
 					-- else 04 0C 14 1C 34 3C 44 54 5C 64 74 7C is NOP
 					end
 				
@@ -888,17 +907,21 @@ write'SED'
 					
 					-- 0x80 NOP
 					if op == 0x84 then
+write('STY'..argStrZP())						
 						nespoke(readPC(), Y)	-- STY
 					elseif op == 0x88 then
+write'DEY'
 						Y = setVN((Y - 1) & 0xFF) 	-- DEY
 					elseif op == 0x8C then
+write('STY'..argStrAbs())						
 						nespoke(readPCw(), Y)	-- STY
 					-- 0x90 handled by the branch set
 					elseif op == 0x94 then
+write('STY'..argStrZPX())						
 						nespoke((readPC() + X) & 0xFF, Y)	-- STY
 					-- 0x98 handled by SE*/CL* set
 					elseif op == 0x9C then	-- SHY 
-						write'TODO'
+write'SHY -- TODO'
 					elseif op == 0xA0 then	-- LDY
 write('LDY'..argStrImm()) 						
 						Y = setVN(readPC())
@@ -906,6 +929,7 @@ write('LDY'..argStrImm())
 write('LDY'..argStrZP()) 						
 						Y = setVN(nespeek(readPC())) 	-- LDY
 					elseif op == 0xA8 then
+write'TAY'						
 						Y = setVN(A) 	-- TAY
 					elseif op == 0xAC then
 write('LDY'..argStrAbs()) 						
@@ -919,30 +943,37 @@ write('LDY'..argStrZPX())
 write('LDY'..argStrAbsX()) 						
 						Y = setVN(nespeek(readPCw() + X)) 	-- LDY
 					elseif op == 0xC0 then
+write('CPY'..argStrImm())
 						doCompare(Y, readPC())						-- CPY
 					elseif op == 0xC4 then
+write('CPY'..argStrZP())
 						doCompare(Y, nespeek(readPC()))	-- CPY
 					elseif op == 0xC8 then
+write'INY'						
 						Y = setVN((Y + 1) & 0xFF) 	-- INY
 					elseif op == 0xCC then
+write('CPY'..argStrAbs())
 						doCompare(Y, nespeek(readPCw()))	-- CPY
 					-- 0xD0 handled by branch set
 					-- 0xD4 = NOP
 					-- 0xD8 handled by SE*/CL* set
 					-- 0xDC = NOP
 					elseif op == 0xE0 then
+write('CPX'..argStrImm())
 						doCompare(X, readPC())	-- CPX
 					elseif op == 0xE4 then
+write('CPX'..argStrZP())
 						doCompare(X, nespeek(readPC()))	-- CPX
 					elseif op == 0xE8 then
+write'INX'						
 						X = setVN((X + 1) & 0xFF) 	-- INX
 					elseif op == 0xEC then
+write('CPX'..argStrAbs())
 						doCompare(X, nespeek(readPCw()))			-- CPX
 					-- 0xF0 handled by branch set
 					-- 0xF4 NOP
 					-- 0xF8 handled by SE*/CL*
 					-- 0xFC NOP
-					
 					end
 				end
 			end
@@ -1091,17 +1122,17 @@ write'ROR'
 							-- ST*
 							-- 0x92 is STP handled above
 							if op == 0x86 then
+write('STX'..argStrZP())					
 								nespoke(readPC(), X)	-- STX
-write'STX'							
 							elseif op == 0x8A then
-								A = setVN(X) 	-- TXA
 write'TXA'							
+								A = setVN(X) 	-- TXA
 							elseif op == 0x8E then 
+write('STX'..argStrAbs())
 								nespoke(readPCw(), X)	-- STX
-write'STX'							
 							elseif op == 0x96 then
 								nespoke((readPC() + Y) & 0xFF, X)	-- STX
-write'STX'							
+write('STX'..argStrZPY())
 							elseif op == 0x9A then
 								S = X 		-- TXS
 write'TXS'							
