@@ -10,6 +10,7 @@ https://github.com/skilldrick/easy6502
 https://www.nesdev.org/6502_cpu.txt
 https://gist.github.com/1wErt3r/4048722 <- smb dis but without addresses
 https://6502disassembly.com/nes-smb/SuperMarioBros.html	<- with addresses
+https://www.nesdev.org/wiki/PPU_programmer_reference
 
 registers:
 A = 8bit
@@ -64,10 +65,35 @@ do
 end
 
 local nesrom = blobaddr('data', 0)
-local nespeek = |i|peek(nesrom+i)
-local nespoke = |i,v|poke(nesrom+i, v)
-local nespeekw = |i|peekw(nesrom+i)
-local nespokew = |i,v|pokew(nesrom+i, v)
+
+local PPUCtrlAddr = 0x2000
+local PPUMaskAddr = 0x2001
+local PPUStatusAddr = 0x2002
+local nespeek = |i|do
+	if i == PPUStatusAddr then
+		local val = peek(nesrom+i)
+		poke(nesrom+i, 0)
+		return val
+	end
+	-- handle special read sections
+	return peek(nesrom+i)
+end
+local nespeekw = |i|do
+	return nespeek(i) | (nespeek(i+1)<<8)
+end
+
+-- assumes i is uint16 and v is uint8
+local nespoke = |i,v|do
+	-- handle special write sections
+	poke(nesrom+i, v)
+end
+
+-- assumes v is uint16
+local nespokew = |i,v|do
+	nespoke(i,v & 0xFF)
+	nespoke(i+1,v>>8)
+end
+
 local A = 0	-- accumulator
 local X = 0	-- x-register
 local Y = 0	-- y-register
@@ -650,34 +676,71 @@ local ops = {
 	-- 0xBF = LAX
 }
 
-local argStrRel=||
-	' $+'..hex(0xFF & s8(nespeek(PC)))..' = $'..hex(PC+1+s8(nespeek(PC)),4)
+local argStrRel=|skipvalue| 
+	' $+'..hex(0xFF & s8(peek(nesrom+PC)))
+	..(skipvalue and '' or ' = $'..hex(PC+1+s8(peek(nesrom+PC)),4))
 
-local argStrFor234=|b234|do
+local argStrImm=|| 
+	' #$'..hex(peek(nesrom+PC))
+
+local argStrZP=|skipvalue| 
+	' $'..hex(peek(nesrom+PC))
+	..(skipvalue and '' or ' = '..hex(peek(nesrom+peek(nesrom+PC))))
+
+local argStrZPX=|skipvalue|
+	' $'..hex(peek(nesrom+PC))
+	..',X = $'..hex((peek(nesrom+PC) + X) & 0xFF)
+	..(skipvalue and '' or ' = '..hex(peek(nesrom+(peek(nesrom+PC) + X) & 0xFF)))
+
+local argStrZPY=|skipvalue|
+	' $'..hex(peek(nesrom+PC))
+	..',X = $'..hex((peek(nesrom+PC) + X) & 0xFF)
+	..(skipvalue and '' or ' = '..hex(peek(nesrom+(peek(nesrom+PC) + X) & 0xFF)))
+
+local argStrAbs=|skipvalue|
+	' $'..hex(nespeekw(PC),4)
+	..(skipvalue and '' or ' = '..hex(peek(nesrom+nespeekw(PC))))
+
+local argStrAbsX=|skipvalue|
+	' $'..hex(nespeekw(PC),4)
+	..',X = $'..hex((nespeekw(PC) + X) & 0xFFFF,4)
+	..(skipvalue and '' or ' = '..hex(peek(nesrom+(nespeekw(PC) + X) & 0xFFFF)))
+
+local argStrAbsY=|skipvalue|
+	' $'..hex(nespeekw(PC),4)
+	..',Y = $'..hex((nespeekw(PC) + Y) & 0xFFFF,4)
+	..(skipvalue and '' or ' = '..hex(peek(nesrom+(nespeekw(PC) + Y) & 0xFFFF)))
+
+local argStrIndZPX=|skipvalue|
+	' ($'..peek(nesrom+PC)
+	..',X) = ($'..hex(peek(nesrom+PC) + X,4)
+	..') = $'..hex(nespeekw(peek(nesrom+PC) + X),4)
+	..(skipvalue and '' or ' = '..hex(peek(nesrom+nespeekw(peek(nesrom+PC) + X))))
+
+-- should this be ($arg,Y) or ($arg),Y ? latter in https://www.nesdev.org/obelisk-6502-guide/reference.html
+local argStrIndZPY=|skipvalue|
+	' ($'..peek(nesrom+PC)
+	..',Y) = ($'..hex(peek(nesrom+PC) + Y,4)
+	..') = $'..hex(nespeekw(peek(nesrom+PC) + Y),4)
+	..(skipvalue and '' or ' = '..hex(peek(nesrom+nespeekw(peek(nesrom+PC) + Y))))
+
+local argStrFor234=|b234, ...|do
 	if b234 == 0x00 then
-		return ' ($'..hex(nespeek(PC))
-			..',X) = ($'..hex((nespeek(PC) + X) & 0xFF)
-			..') = $'..hex(nespeekw((nespeek(PC) + X) & 0xFF), 4)
-			..' = '..hex(nespeek(nespeekw((nespeek(PC) + X) & 0xFF)))
-	elseif b234 == 0x02 then
-		return ' $'..hex(nespeek(PC))
-			..' = '..hex(nespeek(nespeek(PC)))
+		return argStrIndZPX(...)	-- (Indirect,X)
 	elseif b234 == 0x04 then
-		return ' $'..hex(readPCw(),4)
-			..' = '..hex(nespeek(readPCw()))
-	elseif b234 == 0x06 then
-			return ' ($'..nespeek(PC)
-				..',Y) = ($'..hex(nespeek(PC) + Y,4)
-				..') = $'..hex(nespeekw(nespeek(PC) + Y),4)
-				..' = '..hex(nespeek(nespeekw(nespeek(PC) + Y)))
+		return argStrZP(...)		-- Zero Page
 	elseif b234 == 0x08 then
-		return ' #$'..hex(nespeek(PC))
-	elseif b234 == 0x0A then
-		return ' = $'..hex(nespeek((nespeek(PC) + X) & 0xFF))
+		return argStrImm(...)		-- Immediate
 	elseif b234 == 0x0C then
-		return ' = $'..hex(nespeek((readPCw() + Y) & 0xFFFF))
-	elseif b234 == 0x0E then
-		return ' = $'..hex(nespeek((readPCw() + X) & 0xFFFF))
+		return argStrAbs(...)		-- Absolute
+	elseif b234 == 0x10 then
+		return argStrIndZPY(...)	-- (Indirect),Y
+	elseif b234 == 0x14 then
+		return argStrZPX(...)		-- Zero Page,X
+	elseif b234 == 0x18 then
+		return argStrAbsY(...)		-- Absolute,Y
+	elseif b234 == 0x1C then
+		return argStrAbsX(...)		-- Absolute,X
 	end
 end
 
@@ -685,7 +748,12 @@ local writebuf=''
 local write=|...| do writebuf ..= table{...}:mapi(tostring):concat'\t' end
 
 update=||do
+	-- start of each draw, set vblank
+	nespoke(PPUStatusAddr, nespeek(PPUStatusAddr) | 0x80)
+	trace'frame'
+
 	-- TODO count cycles and break accordingly? or nah?
+	-- 1mil / 60 = 16k or so .. / avg cycles/instr = ?
 	for i=1,1 do
 	--for i=1,100 do
 write(
@@ -727,7 +795,7 @@ write(
 write(({'BPL', 'BMI'})[test+1]..argStrRel())
 				elseif b67 == 0x40 then
 					shr = bitV
-write(({'BVC', 'BVS'})[test+1]..' $'..hex(0xFF & s8(nespeek(PC)))..' ($'..hex(PC+1+s8(nespeek(PC)),4)..')')
+write(({'BVC', 'BVS'})[test+1]..argStrRel())
 				elseif b67 == 0x80 then
 					shr = bitC
 write(({'BCC', 'BCS'})[test+1]..argStrRel())
@@ -737,10 +805,9 @@ write(({'BNE', 'BEQ'})[test+1]..argStrRel())
 				end
 
 				if (P >> shr) & 1 == test then
-					branch()
-				else
-					PC += 1
+					PC += s8(readPC())
 				end
+				PC += 1
 
 			-- xxx1:1000
 			elseif op & 0x1F == 0x18 then
@@ -833,18 +900,23 @@ write'SED'
 					elseif op == 0x9C then	-- SHY 
 						write'TODO'
 					elseif op == 0xA0 then	-- LDY
+write('LDY'..argStrImm()) 						
 						Y = setVN(readPC())
 					elseif op == 0xA4 then
+write('LDY'..argStrZP()) 						
 						Y = setVN(nespeek(readPC())) 	-- LDY
 					elseif op == 0xA8 then
 						Y = setVN(A) 	-- TAY
 					elseif op == 0xAC then
+write('LDY'..argStrAbs()) 						
 						Y = setVN(nespeek(readPCw())) 	-- LDY
 					-- 0xB0 = handled by branch set
 					elseif op == 0xB4 then
+write('LDY'..argStrZPX()) 						
 						Y = setVN(nespeek((readPC() + X) & 0xFF)) 	-- LDY
 					-- 0xB8 handled by SE*/CL* set
 					elseif op == 0xBC then
+write('LDY'..argStrAbsX()) 						
 						Y = setVN(nespeek(readPCw() + X)) 	-- LDY
 					elseif op == 0xC0 then
 						doCompare(Y, readPC())						-- CPY
@@ -880,25 +952,25 @@ write'SED'
 			if b01 == 0x01 then
 				local arg
 
-				if b567 == 0x00 then		-- 01 05 09 0D 11 15 19 1D = ORA
+				if b567 == 0x00 then
 write('ORA'..argStrFor234(b234))
-				elseif b567 == 0x20 then	-- 21 25 29 2D 31 35 39 3D = AND
+				elseif b567 == 0x20 then
 write('AND'..argStrFor234(b234))				
-				elseif b567 == 0x40 then	-- 41 45 49 4D 51 55 59 5D = EOR
+				elseif b567 == 0x40 then
 write('EOR'..argStrFor234(b234))
-				elseif b567 == 0x60 then	-- 61 65 69 6D 71 75 79 7D = ADC
+				elseif b567 == 0x60 then
 write('ADC'..argStrFor234(b234))
-				elseif b567 == 0x80 then	-- 81 85 8D 91 95 99 9D = STA
-					if b234 ~= 0x08 then	-- 89 is NOP
-write('STA'..argStrFor234(b234))
+				elseif b567 == 0x80 then
+					if b234 ~= 0x08 then
+write('STA'..argStrFor234(b234, true))
 					else
-write'NOP'					-- does this still inc the PC?
+write('NOP'..argStrFor234(b234))
 					end
-				elseif b567 == 0xA0 then	-- A1 A5 A9 AD B1 B5 B9 BD = LDA
+				elseif b567 == 0xA0 then
 write('LDA'..argStrFor234(b234))
-				elseif b567 == 0xC0 then	-- C1 C5 C9 CD D1 D5 D9 DD = CMP
+				elseif b567 == 0xC0 then
 write('CMP'..argStrFor234(b234))
-				elseif b567 == 0xE0 then	-- E1 E5 E9 ED F1 F5 F9 FD = SBC
+				elseif b567 == 0xE0 then
 write('SBC'..argStrFor234(b234))
 				end
 
@@ -908,20 +980,24 @@ write('SBC'..argStrFor234(b234))
 				else						-- non-immediate, i.e. memory
 					if b234 == 0x00 then
 						arg = nespeekw((readPC() + X) & 0xFF)	-- (indirect,X)			
-					elseif b234 == 0x02 then
-						arg = readPC()	-- $00
 					elseif b234 == 0x04 then
-						arg = readPCw()
-					elseif b234 == 0x06 then
-						arg = nespeekw(readPC() + Y)
-					elseif b234 == 0x0A then
-						arg = (readPC() + X) & 0xFF
+						arg = readPC()	-- $00
 					elseif b234 == 0x0C then
+						arg = readPCw()
+					elseif b234 == 0x10 then
+						arg = nespeekw(readPC() + Y)
+					elseif b234 == 0x14 then
+						arg = (readPC() + X) & 0xFF
+					elseif b234 == 0x18 then
 						arg = (readPCw() + Y) & 0xFFFF
-					elseif b234 == 0x0E then
+					elseif b234 == 0x1C then
 						arg = (readPCw() + X) & 0xFFFF
 					end
-					arg = nespeek(arg)
+					
+					-- wait for STA do we not do the final peek above?
+					if b567 ~= 0x80 then
+						arg = nespeek(arg)
+					end
 				end
 
 				if b567 == 0x00 then		-- 01 05 09 0D 11 15 19 1D = ORA
@@ -934,12 +1010,12 @@ write('SBC'..argStrFor234(b234))
 					ADC(arg)
 				elseif b567 == 0x80 then	-- 81 85 8D 91 95 99 9D = STA
 					if b234 ~= 0x08 then	-- 89 is NOP
-						STA(arg)
+						nespoke(arg, A)
 					else
 						-- NOP ... does it still read the arg and inc the PC?
 					end
 				elseif b567 == 0xA0 then	-- A1 A5 A9 AD B1 B5 B9 BD = LDA
-					LDA(arg)
+					A = setVN(arg)
 				elseif b567 == 0xC0 then	-- C1 C5 C9 CD D1 D5 D9 DD = CMP
 					CMP(arg)
 				elseif b567 == 0xE0 then	-- E1 E5 E9 ED F1 F5 F9 FD = SBC
@@ -1042,26 +1118,26 @@ write'NOP'
 							-- LD* / T*
 							-- 0xB2 is STP handled above
 							if op == 0xA2 then
+write('LDX'..argStrImm())
 								X = setVN(readPC()) 	-- LDX
-write'LDX'							
 							elseif op == 0xA6 then
+write('LDX'..argStrZP())
 								X = setVN(nespeek(readPC()))	-- LDX
-write'LDX'							
 							elseif op == 0xAA then
+write'TAX'
 								X = setVN(A)	-- TAX
-write'TAX'							
 							elseif op == 0xAE then
+write('LDX'..argStrAbs())
 								X = setVN(nespeek(readPCw()))	-- LDX
-write'LDX'							
 							elseif op == 0xB6 then
+write('LDY'..argStrZPY())
 								X = setVN(nespeek((readPC() + Y) & 0xFF))	-- LDY
-write'LDY'							
 							elseif op == 0xBA then
-								X = setVN(S)	-- TSX
 write'TSX'							
+								X = setVN(S)	-- TSX
 							elseif op == 0xBE then
+write('LDX'..argStrAbsY())
 								X = setVN(nespeek(readPCw() + Y))	-- LDX
-write'LDX'							
 							end
 
 						elseif b567 == 0xC0 then

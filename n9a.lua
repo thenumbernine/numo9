@@ -1635,8 +1635,6 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 		data = data:sub(0x200+1)
 	end
 
-
-
 	-- so wait
 	-- addressing of ROM starts at $8000
 	-- so is $0000-$7FFF RAM then ...
