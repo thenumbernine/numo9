@@ -10,6 +10,9 @@ for i=0,w*h-1 do
 	poke(i, math.random(0,255))
 end
 
+-- verify sheet addr write works
+local sheetAddr = blobaddr'sheet'
+
 update=||do
 	for y=0,h-1 do
 		for x=0,w-1 do
@@ -24,10 +27,15 @@ update=||do
 				di = -256
 			end
 			local i = x|(y<<8)
-			poke(i, peek((i + di) & 0xFFFF))
+			local v = peek((i + di) & 0xFFFF)
+			poke(i, v)
+			-- [=[ verify sheet addr write works
+			poke(sheetAddr + i, v)
+			--]=]
 		end
 	end
-end--]]
+end
+--]]
 -- [[ 16bpp?
 --w,h = 256,256		mode(0)		-- RGB565 1:1
 w,h = 336,189   	mode(18)	-- RGB565 16:9
