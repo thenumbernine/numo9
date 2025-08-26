@@ -1612,6 +1612,34 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	if cmd == 'ticrun' then
 		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
 	end
+
+elseif cmd == 'nes' or cmd == 'nesrun' then
+
+	local nespath = path(fn)
+	local baseNameAndDir, ext = nespath:getext()
+	assert.eq(ext, 'nes')
+	local basepath = select(2, baseNameAndDir:getdir())
+	basepath:mkdir()
+	assert(basepath:isdir())
+
+	local data = assert(nespath:read())
+	local ptr = ffi.cast('uint8_t*', data)
+	local endptr = ptr + #data
+
+	basepath'data.bin':write(data)
+
+	local code = table{
+		'-- begin compat layer',
+		assert(path'n9a_nes_glue.lua':read()),
+		'-- end compat layer',
+	}
+
+	basepath'code.lua':write(code:concat'\n')
+
+	if cmd == 'nesrun' then
+		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))
+	end
+
 else
 
 	error("unknown cmd "..tostring(cmd))

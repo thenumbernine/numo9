@@ -21,6 +21,7 @@ What does NuMo9 have that the competition doesn't?
 - Multiplayer, 4 local players per connection, up to 64 total players, unlimited observers.
 - Server can edit games in realtime.  Live game DM'ing.
 - It's strictly LuaJIT.  No compiler needed.
+- Pico8-compatible.  TIC-80 so-so.
 
 # "Hardware"
 
@@ -635,10 +636,8 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		And then upon RAM updates, don't upload the *whole thing*, just update the dirty region ... possibly do that immediately?
 		But what about RAM that is constantly changing?  Like Audio? Or FrameBUffer RAM?
 - netplay
-	- sending too much data / too big of delta cmds gets desyncs ... I can easily push cmds into the next frame and just give a client a single bad frame instead of desyncing them fully ...
 	- multiplayer persistent memory per client ... how to associate and how to secure
-	- still have some issues where temporary / single-frame cmds like map changes aren't getting reflected ...
-	- Still need to make the draw message history to be per-connection, and need to send draw-specific commands to their specific connections.
+	- I think it will help to make the draw message history to be per-connection, and to send draw-specific commands to specific connections... ? maybe?
 
 # Things I'm still debating ...
 - Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out libpng's memeory pathway is buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
