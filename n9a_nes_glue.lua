@@ -37,6 +37,8 @@ bank2 sprites start at $0000
 
 local hex=|i,n| (('%0'..(n or 2)..'X'):format(i))
 
+PPUNameTableMirrors = 0	-- 1: CIRAM A10 = PPU A11, 2: CIRAM A10 = PPU A10
+PPUNameTableAltLayout = false
 do
 	local nesheader = blobaddr('data', 2)
 	assert.ge(blobsize('data', 2), 0x10)	-- 0x10 or 0x210 if trainer present
@@ -47,12 +49,13 @@ do
 	local PRG_ROM_size = peek(nesheader+4) << 14
 	local CHR_ROM_size = peek(nesheader+5) << 13
 	local header_6 = peek(nesheader+6)
-	-- bit 0 = nametable arrangement
-	-- bit 1 = PRG RAM present at $6000-7FFF
-	if (header_6 >> 2) & 1 == 1 then
+	-- bit 01 = nametable arrangement
+	PPUNameTableMirrors = header_6 & 3
+	-- bit 2 = PRG RAM present at $6000-7FFF
+	if (header_6 >> 3) & 1 == 1 then
 		trace'has trainer'
 	end	-- trainer
-	-- bit 3 = alt nametable layout
+	PPUNameTableAltLayout = (header_6 >> 4) & 1 == 1	-- bit 4 = alt nametable layout
 	local mapper = header_6 >> 4
 	local header_7 = peek(nesheader+7)
 	-- bit 0 = VS unisystem
@@ -167,7 +170,7 @@ trace('PPUMemPtr write', hex(v))
 			PPUMemPtrWriteHi = true
 		end
 	elseif i == PPUMemDataAddr then
-trace('PPUMemData write '..hex(v)..' ... to PPU RAM '..hex(PPUMemPtr,4))
+trace('PPUMemData write '..hex(v)..' ... to PPU RAM $'..hex(PPUMemPtr,4))
 		poke(n9PPURAMAddr+PPUMemPtr, v)
 		-- depending on where, update N9 VRAM
 		if PPUMemPtr < 0x2000 then
@@ -189,10 +192,16 @@ trace('PPUMemData write '..hex(v)..' ... to PPU RAM '..hex(PPUMemPtr,4))
 			local sprIndex = PPUMemPtr >> 4
 			local sprX = sprIndex & 0x1F
 			local sprY = sprIndex >> 5
+trace(
+	'...to sprIndex='..sprIndex
+	..' sprX='..sprX
+	..' sprY='..sprY
+	..' hi='..hi
+)
 			for x=0,7 do
-				local addr = n9SheetAddr + sprX + x + ((sprY + y) << 8)
+				local addr = n9SheetAddr + ((sprX << 3) | x) + (((sprY << 3) | y) << 8)
 				local pix = peek(addr)
-				pix &= 1 << hi
+				pix &= ~(1 << hi)
 				pix |= ((v >> x) & 1) << hi
 				poke(addr, pix)
 			end
