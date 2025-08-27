@@ -15,6 +15,7 @@ https://6502disassembly.com/nes-smb/SuperMarioBros.html	<- with addresses
 https://web.archive.org/web/20200129081101/http://users.telenet.be:80/kim1-6502/6502/proman.html#910
 https://www.pagetable.com/?p=410
 https://fms.komkon.org/EMUL8/NES.html
+https://zserge.com/posts/6502/
 
 registers:
 A = 8bit
@@ -39,47 +40,54 @@ local hex=|i,n| (('%0'..(n or 2)..'X'):format(i))
 
 PPUNameTableMirrors = 0	-- 1: CIRAM A10 = PPU A11, 2: CIRAM A10 = PPU A10
 PPUNameTableAltLayout = false
-do
-	local nesheader = blobaddr('data', 2)
-	assert.ge(blobsize('data', 2), 0x10)	-- 0x10 or 0x210 if trainer present
 
-	-- read the header:
-	-- https://www.nesdev.org/wiki/INES
-	assert.eq(peekl(nesheader), 0x1A53454E)	-- "NES\n"
-	local PRG_ROM_size = peek(nesheader+4) << 14
-	local CHR_ROM_size = peek(nesheader+5) << 13
-	local header_6 = peek(nesheader+6)
-	-- bit 01 = nametable arrangement
-	PPUNameTableMirrors = header_6 & 3
-	-- bit 2 = PRG RAM present at $6000-7FFF
-	if (header_6 >> 3) & 1 == 1 then
-		trace'has trainer'
-	end	-- trainer
-	PPUNameTableAltLayout = (header_6 >> 4) & 1 == 1	-- bit 4 = alt nametable layout
-	local mapper = header_6 >> 4
-	local header_7 = peek(nesheader+7)
-	-- bit 0 = VS unisystem
-	-- bit 1 = playchoice-10 (8 KB f hint screen afer CHR data)
-	-- bit 2:3 = if equal 10b then we use NES 2.0 format
-	mapper |= header_7 & 0xF0
-	trace('mapper', mapper)
-	local PRG_RAM_size = peek(nesheader+8)
-	local NTSC_vs_PAL = peek(nesheader+9) & 1	-- and assert the rest of the bits are zero ...
-	local header_10 = peek(nesheader+10)
-	local TV = header_10 & 3	-- 0 = NTSC, 2 = PAL, 1/3 = dual compatible
-	local PRG_RAM_avail = (header_10 >> 4) & 1 == 1
-	local bus_conflicts = (header_10 >> 5) & 1 == 1
-end
+local nesheader = blobaddr('data', 2)
+assert.ge(blobsize('data', 2), 0x10)	-- 0x10 or 0x210 if trainer present
+
+-- read the header:
+-- https://www.nesdev.org/wiki/INES
+assert.eq(peekl(nesheader), 0x1A53454E)	-- "NES\n"
+local PRG_ROM_size = peek(nesheader+4) << 14
+local CHR_ROM_size = peek(nesheader+5) << 13
+local header_6 = peek(nesheader+6)
+-- bit 01 = nametable arrangement
+PPUNameTableMirrors = header_6 & 3
+-- bit 2 = PRG RAM present at $6000-7FFF
+if (header_6 >> 3) & 1 == 1 then
+	trace'has trainer'
+end	-- trainer
+PPUNameTableAltLayout = (header_6 >> 4) & 1 == 1	-- bit 4 = alt nametable layout
+local mapper = header_6 >> 4
+local header_7 = peek(nesheader+7)
+-- bit 0 = VS unisystem
+-- bit 1 = playchoice-10 (8 KB f hint screen afer CHR data)
+-- bit 2:3 = if equal 10b then we use NES 2.0 format
+mapper |= header_7 & 0xF0
+trace('mapper', mapper)
+local PRG_RAM_size = peek(nesheader+8)
+local NTSC_vs_PAL = peek(nesheader+9) & 1	-- and assert the rest of the bits are zero ...
+local header_10 = peek(nesheader+10)
+local TV = header_10 & 3	-- 0 = NTSC, 2 = PAL, 1/3 = dual compatible
+local PRG_RAM_avail = (header_10 >> 4) & 1 == 1
+local bus_conflicts = (header_10 >> 5) & 1 == 1
 
 local PPUControlAddr = 0x2000
 local PPUMaskAddr = 0x2001
 local PPUStatusAddr = 0x2002
-local SpriteMemAddrAddr = 0x2003
-local SpriteMemDataAddr = 0x2004
+
+local OAMPtr = 0
+local OAMPtrAddr = 0x2003
+local OAMRWAddr = 0x2004
+
+local OAMSize = 0x100
+local n9OAMAddr = blobaddr('data', 3)
+assert.eq(blobsize('data', 3), OAMSize)
+local OAMDMAaddr = 0x4014
+
 local ScreenScrollOffsetsAddr = 0x2005
 
 local PPUMemPtr = 0	-- uint16 reg accessed via $2006/2007
-local PPUMemPtrWriteHi = false
+local PPUMemPtrWriteHi = true	-- "high byte first"
 local PPUMemAddrAddr = 0x2006
 local PPUMemDataAddr = 0x2007
 
@@ -87,9 +95,17 @@ local PPUMemDataAddr = 0x2007
 local cartRAMAddr = 0x6000 -- 0x6000-0x8000 is cart ram / persistent
 local cartRAMSize = 0x2000
 local cartRAMEndAddr = cartRAMAddr + cartRAMSize
-local NMIAddr = 0xFFFA
-local RESETAddr = 0xFFFC
-local IRQAddr = 0xFFFE
+
+-- https://www.emulationonline.com/systems/nes/sprite-rendering/
+-- this gives an example rom , but that rom isn't even 32kb, so there is no 0xFFF*
+-- so I'll just meh it and always use the min(ROM size, 64k) minus 2 4 6 bytes
+-- https://forums.nesdev.org/viewtopic.php?t=17413
+-- a guy asks directly this question, nobody seems to answer it.
+local idk = math.min(0x8000 + PRG_ROM_size, 0x10000)
+local NMIAddr = idk - 6
+local RESETAddr = idk - 4
+local IRQAddr = idk - 2
+
 
 local nesrom = blobaddr('data', 0)
 
@@ -105,7 +121,7 @@ assert.eq(blobsize('data', 1), PPURAMSize)
 
 local n9SheetAddr = blobaddr'sheet'
 local n9TilemapAddr = blobaddr'tilemap'
-
+local n9PalAddr = blobaddr'palette'
 
 local nespeek = |i,dontwrite|do
 	if i == PPUControlAddr then
@@ -119,10 +135,13 @@ trace('PPUStatus read', hex(peek(nesrom+i)))
 			poke(nesrom+i, 0)
 		end
 		return val
-	elseif i == SpriteMemAddrAddr then
-trace('SpriteMemAddr read', hex(peek(nesrom+i)))
-	elseif i == SpriteMemDataAddr then
-trace('SpriteMemData read', hex(peek(nesrom+i)))
+	elseif i == OAMPtrAddr then
+trace('OAMPtr read', hex(peek(nesrom+i)))
+		return OAMPtr
+	elseif i == OAMRWAddr then
+		local v = peek(n9OAMAddr + OAMPtr)
+trace('OAMRW read from OAM addr '..hex(OAMPtr)..' = '..v)
+		return v
 	elseif i == ScreenScrollOffsetsAddr then
 trace('ScreenScrollOffsets read', hex(peek(nesrom+i)))
 	elseif i == PPUMemAddrAddr then
@@ -140,9 +159,7 @@ trace('PPUMemData read '..hex(peek(nesrom+i))..' ... as PPU RAM addr '..hex(PPUM
 	-- handle special read sections
 	return peek(nesrom+i)
 end
-local nespeekw = |i,dontwrite|do
-	return nespeek(i,dontwrite) | (nespeek(i+1,dontwrite)<<8)
-end
+local nespeekw = |i,dontwrite| nespeek(i,dontwrite) | (nespeek(i+1,dontwrite)<<8)
 
 -- assumes i is uint16 and v is uint8
 local nespoke = |i,v|do
@@ -152,11 +169,15 @@ trace('PPUControl write', hex(v))
 trace('PPUMask write', hex(v))
 	elseif i == PPUStatusAddr then
 trace('PPUStatus write', hex(v))
-	elseif i == SpriteMemAddrAddr then
-trace('SpriteMemAddr write', hex(v))
-		-- inc the internal addr to the 256-byte sprite mem
-	elseif i == SpriteMemDataAddr then
-trace('SpriteMemData write', hex(v))
+	elseif i == OAMPtrAddr then
+trace('OAMPtr write', hex(v))
+		OAMPtr = v
+		return
+	elseif i == OAMRWAddr then
+trace('OAMRW write '..hex(v)..' to OAM addr '..hex(OAMPtr))
+		poke(n9OAMAddr + OAMPtr, v)
+		OAMPtr = (OAMPtr + 1) & 0xFF
+		return
 	elseif i == ScreenScrollOffsetsAddr then
 trace('ScreenScrollOffsets write', hex(v))
 	elseif i == PPUMemAddrAddr then
@@ -215,10 +236,26 @@ trace('PPUMemData write '..hex(v)..' ... to PPU RAM $'..hex(PPUMemPtr,4))
 		elseif PPUMemPtr < 0x3F20 then
 			-- 3F00-3F10 image palette
 			-- 3F10-3F20 sprite palette
+
+			-- so the index in the sprite tile + attr + extra is a lookup into this table
+			-- and this table is then a lookup into the palette
+			-- hmmmmmm
+
+			-- how bout I keep the last or so 64 colors (since I have 4 copies in the 256-color palette)
+			-- as the defacto NES palette
+			-- and then upon these writes, copy the orig palette 192-256 into the used-palette 0-64 or idk sprite vs image or w/e palette 0-128
+
+			-- what should I initialize this to?
+			pokew(
+				n9PalAddr + (PPUMemPtr - 0x3F00) << 1,
+				peekw(n9PalAddr + (0xC0 + v & 0x3F)) << 1)
 		end
 		-- inc upon read/write
 		PPUMemPtr += peek(nesrom+PPUControlAddr) & 2 == 0 and 1 or 32
 		PPUMemPtr &= PPURAMMask
+	elseif i == OAMDMAaddr then
+		-- increment?
+		memcpy(n9OAMAddr, nesrom + (v << 8), OAMSize)
 	elseif i >= cartRAMAddr and i < cartRAMEndAddr then
 		-- write it to our persistent memory
 		poke(n9PersistAddr + i - 0x6000, v)
@@ -545,22 +582,24 @@ local argStrAbsY=|skipvalue|
 	..',Y = $'..hex((dbg_nespeekw(PC) + Y) & 0xFFFF,4)
 	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeekw(PC) + Y) & 0xFFFF)))
 
-local argStrIndZPX=|skipvalue|
+local argStrIZX=|skipvalue|
 	' ($'..dbg_nespeek(PC)
 	..',X) = ($'..hex(dbg_nespeek(PC) + X,4)
 	..') = $'..hex(dbg_nespeekw(dbg_nespeek(PC) + X),4)
 	..(skipvalue and '' or ' = '..hex(dbg_nespeek(dbg_nespeekw(dbg_nespeek(PC) + X))))
 
 -- should this be ($arg,Y) or ($arg),Y ? latter in https://www.nesdev.org/obelisk-6502-guide/reference.html
-local argStrIndZPY=|skipvalue|
+local argStrIZY=|skipvalue|
 	' ($'..dbg_nespeek(PC)
-	..',Y) = ($'..hex(dbg_nespeek(PC) + Y,4)
-	..') = $'..hex(dbg_nespeekw(dbg_nespeek(PC) + Y),4)
-	..(skipvalue and '' or ' = '..hex(dbg_nespeek(dbg_nespeekw(dbg_nespeek(PC) + Y))))
+	..'),Y = ($'..hex(dbg_nespeek(PC))
+	..'+Y) = $'..hex(dbg_nespeekw(dbg_nespeek(PC)),4)..'+'..hex(Y)
+	..(skipvalue and '' or ' = '..hex(
+		(dbg_nespeekw(dbg_nespeek(PC)) + Y) & 0xFFFF,4
+	))
 
 local argStrFor234=|b234, ...|do
 	if b234 == 0x00 then
-		return argStrIndZPX(...)	-- (Indirect,X)
+		return argStrIZX(...)		-- (Indirect,X)
 	elseif b234 == 0x04 then
 		return argStrZP(...)		-- Zero Page
 	elseif b234 == 0x08 then
@@ -568,7 +607,7 @@ local argStrFor234=|b234, ...|do
 	elseif b234 == 0x0C then
 		return argStrAbs(...)		-- Absolute
 	elseif b234 == 0x10 then
-		return argStrIndZPY(...)	-- (Indirect),Y
+		return argStrIZY(...)		-- (Indirect),Y
 	elseif b234 == 0x14 then
 		return argStrZPX(...)		-- Zero Page,X
 	elseif b234 == 0x18 then
@@ -601,15 +640,15 @@ trace'NMI'
 	-- 1mil / 60 = 16k or so .. / avg cycles/instr = ?
 	--for i=1,1 do
 	--for i=1,60 do
-	--for i=1,100 do
-	for i=1,600 do
+	for i=1,100 do
+	--for i=1,600 do
 write('A='..hex(A)..' X='..hex(X)..' Y='..hex(Y)..' S='..hex(S)..' P='..hex(P)..' PC='..hex(PC,4)..' op='..hex(nespeek(PC))..' ')
 		local op = readPC()
 
 		-- https://www.nesdev.org/wiki/CPU_unofficial_opcodes
 		local b01 = bit.band(op, 0x03)	-- 00 01 02 03
 		local b567 = bit.band(op, 0xE0)	-- 00 20 40 60 80 A0 C0 E0
-		local b234 = bit.band(op, 0x0E)	-- 00 04 08 0C 10 14 08 1C
+		local b234 = bit.band(op, 0x1C)	-- 00 04 08 0C 10 14 08 1C
 
 		-- xxxx:xx00
 		-- control
@@ -812,6 +851,7 @@ write'NOP'
 			-- ALU
 			if b01 == 0x01 then
 				local arg
+print('b234', b234, 'b567', b567)
 
 				if b567 == 0x00 then
 write('ORA'..argStrFor234(b234))
@@ -840,13 +880,13 @@ write('SBC'..argStrFor234(b234))
 					arg = readPC()	-- #$00
 				else						-- non-immediate, i.e. memory
 					if b234 == 0x00 then
-						arg = nespeekw((readPC() + X) & 0xFF)	-- (indirect,X)
+						arg = nespeekw((readPC() + X) & 0xFF)	-- IZX: (indirect,X)
 					elseif b234 == 0x04 then
 						arg = readPC()	-- $00
 					elseif b234 == 0x0C then
 						arg = readPCw()
 					elseif b234 == 0x10 then
-						arg = nespeekw(readPC() + Y)
+						arg = (nespeekw(readPC()) + Y) & 0xFFFF	-- IZY: (indirect),Y
 					elseif b234 == 0x14 then
 						arg = (readPC() + X) & 0xFF
 					elseif b234 == 0x18 then
@@ -1064,6 +1104,41 @@ write'NOP'
 write'TODO op'
 			end
 		end
-trace(writebuf) writebuf=''
+-- [[
+trace(writebuf)
+--]]
+--[[
+writebufy ??= 0
+text(writebuf, 0, writebufy, 0x30, 0)
+writebufy = (writebufy + 8) & 0xFF
+--]]
+writebuf=''
+	end
+
+	-- rendering OAM ...
+	cls()
+	for i=0,255,4 do
+		local addr = n9OAMAddr + i
+		local y = peek(addr)
+		local sprIndex = peek(addr + 1)
+		local attrs = peek(addr + 2)
+		local bg = attrs & 0x20 ~= 0
+		local pal = attrs & 3
+		local x = peek(addr + 3)
+		local sx, sy = 1, 1
+		if attrs & 0x80 ~= 0 then
+			sy = -1
+			y += 8
+		end
+		if attrs & 0x40 ~= 0 then
+			sx = -1
+			x += 8
+		end
+		spr(sprIndex, x, y, 1, 1,
+			pal<<2, -- palette offset
+			0, 		-- transparent index
+			nil, 	-- sprite bit
+			nil, 	-- sprite mask
+			sx, sy)
 	end
 end

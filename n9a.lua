@@ -1650,15 +1650,19 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	data = data:sub(0x10+1)
 
 	local PRG_ROM_size = bit.lshift(header:byte(4+1), 14)
-print('PRG_ROM_size', ('0x%x'):format(PRG_ROM_size))
+	print('PRG_ROM_size', ('0x%x'):format(PRG_ROM_size))
 	local CHR_ROM_size = bit.lshift(header:byte(5+1), 13)
-print('CHR_ROM_size', ('0x%x'):format(CHR_ROM_size))
+	print('CHR_ROM_size', ('0x%x'):format(CHR_ROM_size))
 	if bit.band(header:byte(6+1), 2) ~= 0 then
 		header = header .. data:sub(1, 0x200)
 		data = data:sub(0x200+1)
 	end
 
-	assert.eq(#data, PRG_ROM_size + CHR_ROM_size, "there's some extra data idk about ...")
+	if #data ~= PRG_ROM_size + CHR_ROM_size then
+		print('data excluding header size: '..#data)
+		print('PRG+CHR size '..PRG_ROM_size + CHR_ROM_size)
+		print"TODO there's some extra data idk about in the .nes file."
+	end
 	local ROM = data:sub(1, PRG_ROM_size)
 
 	-- so wait
@@ -1737,9 +1741,15 @@ print('CHR_ROM_size', ('0x%x'):format(CHR_ROM_size))
 
 	-- put the nes file header here in case we need it
 	basepath'data2.bin':write(header)
+	
+	local OAMSize = 0x100
+	local cartRAMSize = 0x2000
+
+	-- 256 bytes for PPU OAM
+	basepath'data3.bin':write(('\0'):rep(OAMSize))
 
 	-- persistent ram of 0x2000
-	basepath'persist.bin':write(('\0'):rep(0x2000))
+	basepath'persist.bin':write(('\0'):rep(cartRAMSize))
 
 	local code = table{
 		'-- begin compat layer',
