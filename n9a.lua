@@ -538,22 +538,22 @@ print('toImage', name, 'width', width, 'height', height)
 	-- map is 8bpp not 4pp
 	local mapSrc = move(sections, 'map')
 	if mapSrc then
-		local mapImg = toImage(mapSrc, true, 'map')
-		assert.eq(mapImg.channels, 1)
-		assert.eq(mapImg.width, 128)
-		assert.le(mapImg.height, 64)
+		local tilemapImg = toImage(mapSrc, true, 'map')
+		assert.eq(tilemapImg.channels, 1)
+		assert.eq(tilemapImg.width, 128)
+		assert.le(tilemapImg.height, 64)
 		-- start as 8bpp
-		mapImg = Image(256,256,1,'uint8_t')
+		tilemapImg = Image(256,256,1,'uint8_t')
 			:clear()
-			-- paste our mapImg into it (to resize without resampling)
-			:pasteInto{image=mapImg, x=0, y=0}
+			-- paste our tilemapImg into it (to resize without resampling)
+			:pasteInto{image=tilemapImg, x=0, y=0}
 			-- now grow to 16bpp
 			:combine(Image(256,256,1,'uint8_t'):clear())
 			-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
 		do
-			local p = ffi.cast('uint16_t*', mapImg.buffer)
-			for j=0,mapImg.height-1 do
-				for i=0,mapImg.width-1 do
+			local p = ffi.cast('uint16_t*', tilemapImg.buffer)
+			for j=0,tilemapImg.height-1 do
+				for i=0,tilemapImg.width-1 do
 					p[0] = bit.bor(
 						bit.band(0x0f, p[0]),
 						bit.lshift(bit.band(0xf0, p[0]), 1)
@@ -568,14 +568,14 @@ print('toImage', name, 'width', width, 'height', height)
 		so that's what's shared ... so 128 pixels of the spritesheet fit into 64 pixels of the tilesheet
 		--]]
 		do
-			local p = ffi.cast('uint16_t*', mapImg.buffer)
+			local p = ffi.cast('uint16_t*', tilemapImg.buffer)
 			for j=64,127 do
 				for i=0,63 do
 					local dstp
 					if bit.band(j, 1) == 0 then
-						dstp = p + i + mapImg.width * bit.rshift(j, 1)
+						dstp = p + i + tilemapImg.width * bit.rshift(j, 1)
 					else
-						dstp = p + i + 64 + mapImg.width * bit.rshift(j, 1)
+						dstp = p + i + 64 + tilemapImg.width * bit.rshift(j, 1)
 					end
 					local srcp = gfxImg.buffer + bit.lshift(i, 1) + gfxImg.width * j
 					dstp[0] = bit.bor(
@@ -586,9 +586,9 @@ print('toImage', name, 'width', width, 'height', height)
 			end
 		end
 		-- now grow to 24bpp
-		mapImg = mapImg:combine(Image(256,256,1,'uint8_t'):clear())
+		tilemapImg = tilemapImg:combine(Image(256,256,1,'uint8_t'):clear())
 
-		mapImg:save(basepath'tilemap.png'.path)
+		tilemapImg:save(basepath'tilemap.png'.path)
 	end
 
 	local sfxs = table()
@@ -1676,9 +1676,6 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	local PPURAMSize = 0x4000
 	assert.le(CHR_ROM_size, PPURAMSize)	-- assert our CHR ROM is less than VRAM size ... ?
 	local VRAM = data:sub(PRG_ROM_size+1)
-	-- set aside for PPU VRAM ...
-	VRAM = VRAM .. ('\0'):rep(PPURAMSize - #VRAM)
-	basepath'data1.bin':write(VRAM)
 
 	-- https://www.nesdev.org/wiki/PPU_palettes
 	-- from https://github.com/Gumball2415/pally/blob/main/docs/NESDev/2C02G_wiki_palette_page.txt
@@ -1694,17 +1691,27 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 		return {r,g,b,0xFF}
 	end)
 	:rep(4)	-- 64 -> 256
-	-- also in p8 above
+
+	-- fill in anything from VRAM
+	for i=0x3F00,math.min(#VRAM,0x3F20)-1 do
+		-- also in n9a_nes_glue.lua
+		local palindex = (i - 0x3F00)
+		--palindex &= 0xf	-- mirror? or nah?
+		palette[palindex+1] = table(palette[bit.bor(0xC0, bit.band(v, 0x3F))+1])
+	end
+
+	-- convert palette array to image ... also in p8 above
 	local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
 		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
 	end))
+	
 	palImg:save(basepath'palette.png'.path)
 
 
 	-- copy our pictures into the sprite sheet
 	local sheetImg = Image(256, 256, 1, 'uint8_t')
 	ffi.fill(sheetImg.buffer, sheetImg:getBufferSize())
-	for i=0,0x1FFF do
+	for i=0,math.min(0x2000,#VRAM)-1 do
 		local v = VRAM:byte(i+1)
 		-- duplicated from n9a_nes_glue.lua nespoke PPUMemPtr < 0x2000  :
 		local y = bit.band(0x7, i)					-- bits 012 = row
@@ -1715,18 +1722,16 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 --trace('...to sprIndex='..sprIndex..' sprX='..sprX..' sprY='..sprY..' hi='..hi)
 		for x=0,7 do
 			local addr = bit.bor(
-				bit.lshift(sprX, 3),
 				x,
+				bit.lshift(sprX, 3),
 				bit.lshift(
 					bit.bor(
-						bit.lshift(sprY, 3),
-						y
+						y,
+						bit.lshift(sprY, 3)
 					),
 					8
 				)
 			)
-			assert.ge(addr, 0)
-			--assert.lt(addr, sheetImg:getBufferSize())
 			local pix = sheetImg.buffer[addr]
 			pix = bit.band(pix, bit.bnot(bit.lshift(1, hi)))
 			pix = bit.bor(pix, bit.lshift(
@@ -1738,6 +1743,42 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	end
 	sheetImg.palette = palette
 	sheetImg:save(basepath'sheet.png'.path)
+
+	-- do ROMs come with initialized tilemaps? #CHR > 0x2000 ? 
+	local tilemapImg = Image(256, 256, 3, 'uint8_t')
+	ffi.fill(tilemapImg.buffer, tilemapImg:getBufferSize())
+	for i=0x2000,math.min(0x4000,#VRAM)-1 do
+		local v = VRAM:byte(i+1)
+
+		local tileIndex = bit.band(3, bit.rshift(i, 10))
+		local pageaddr = bit.band(0x3FF, i)
+		--if pageaddr < 960 then
+			local x = bit.band(0x1f, pageaddr)
+			local y = bit.rshift(pageaddr, 5)
+			-- 32x30 tilemap
+			tilemapImg.buffer[3 * bit.bor(
+				bit.bor(
+					x,
+					bit.lshift(bit.band(1, tileIndex), 5)
+				),
+				bit.lshift(
+					bit.bor(
+						y,
+						bit.lshift(bit.band(2, tileIndex), 4)
+					), 
+					8
+				)
+			)] = v
+		--else
+			-- attribute-flags
+		--end
+	end
+	tilemapImg:save(basepath'tilemap.png'.path)
+
+	-- only after reading whats available to NuMo9 resources, then fill to the VRAM total size and write out
+	VRAM = VRAM .. ('\0'):rep(PPURAMSize - #VRAM)
+	basepath'data1.bin':write(VRAM)
+
 
 	-- put the nes file header here in case we need it
 	basepath'data2.bin':write(header)
