@@ -37,7 +37,7 @@ bank2 sprites start at $0000
 --]]
 mode(1)	-- 256x256 8bpp indexed
 
-local hex=|i,n| (('%0'..(n or 2)..'X'):format(i))
+local hex=|i,n| (('%0'..(n or 2)..'X'):format(tonumber(i)))
 
 PPUNameTableMirrors = 0	-- 1: CIRAM A10 = PPU A11, 2: CIRAM A10 = PPU A10
 PPUNameTableAltLayout = false
@@ -192,7 +192,7 @@ trace('OAMPtr write', hex(v))
 	elseif i == OAMRWAddr then
 trace('OAMRW write '..hex(v)..' to OAM addr '..hex(OAMPtr))
 		poke(n9OAMAddr + OAMPtr, v)
-		OAMPtr = (OAMPtr + 1) & 0xFF
+		OAMPtr = uint8_t(OAMPtr + 1)
 		return
 	elseif i == PPUScrollAddr then
 trace('PPUScroll write', hex(v))
@@ -309,8 +309,8 @@ end
 
 -- assumes v is uint16
 local nespokew = |i,v|do
-	nespoke(i,v & 0xFF)
-	nespoke(i+1,v>>8)
+	nespoke(i, uint8_t(v))
+	nespoke(i+1, uint8_t(v>>8))
 end
 
 -- used to read state without modifying (i.e. special hardware registers)
@@ -383,12 +383,8 @@ local bit7toC=|arg|do
 	return arg
 end
 
--- accepts uint8, returns int8
--- TODO peek-signed and int8_t ... casting ... etc
-local s8=|x| x >= 0x80 and x - 0x100 or x
-
 -- reads offset from PC
-local branch=|offset|do PC += s8(readPC()) end
+local branch=|offset|do PC += int8_t(readPC()) end
 
 local doCompare=|reg,val|do
 	if reg >= val then
@@ -396,7 +392,7 @@ local doCompare=|reg,val|do
 	else
 		P &= ~flagC
 	end
-	val = (reg - val) & 0xFF
+	val = uint8_t(reg - val)
 	setZN(val)
 end
 
@@ -446,7 +442,7 @@ local SBC=|value|do
 			end
 		end
 	end
-	A = w & 0xFF
+	A = uint8_t(w)
 	setZN(A)
 end
 
@@ -489,7 +485,7 @@ local ADC=|value|do
 			end
 		end
 	end
-	A = tmp & 0xFF
+	A = uint8_t(tmp)
 	setZN(A)
 end
 
@@ -506,20 +502,14 @@ local BIT=|i|do
 	end
 end
 
-
--- needs to & 0xFF because setZN tests for zero value,
--- and I want it to assume input is uint8_t
--- and don't want to have to & 0xFF in setZN
-local DEC=|addr| nespoke(addr, setZN((nespeek(addr) - 1) & 0xFF))
-local INC=|addr| nespoke(addr, setZN((nespeek(addr) + 1) & 0xFF))
+local DEC=|addr| nespoke(addr, setZN(uint8_t(nespeek(addr) - 1)))
+local INC=|addr| nespoke(addr, setZN(uint8_t(nespeek(addr) + 1)))
 
 local incS=||do
-	S += 1
-	S &= 0xFF
+	S = uint8_t(S + 1)
 end
 local decS=||do
-	S -= 1
-	S &= 0xFF
+	S = uint8_t(S - 1)
 end
 
 local stackPush=|b|do
@@ -533,8 +523,8 @@ end
 
 local stackPushw=|w|do
 	-- [[ safe
-	stackPush(w>>8)
-	stackPush(w&0xFF)
+	stackPush(uint8_t(w >> 8))
+	stackPush(uint8_t(w))
 	--]]
 	--[[ trust overflow won't happen
 	decS()
@@ -582,8 +572,8 @@ end
 
 
 local argStrRel=|skipvalue|
-	' $+'..hex(0xFF & s8(dbg_nespeek(PC)))
-	..(skipvalue and '' or ' = $'..hex(PC+1+s8(dbg_nespeek(PC)),4))
+	' $+'..hex(dbg_nespeek(PC))
+	..(skipvalue and '' or ' = $'..hex(PC+1+int8_t(dbg_nespeek(PC)),4))
 
 local argStrImm=||
 	' #$'..hex(dbg_nespeek(PC))
@@ -594,13 +584,13 @@ local argStrZP=|skipvalue|
 
 local argStrZPX=|skipvalue|
 	' $'..hex(dbg_nespeek(PC))
-	..',X = $'..hex((dbg_nespeek(PC) + X) & 0xFF)
-	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeek(PC) + X) & 0xFF)))
+	..',X = $'..hex(uint8_t(dbg_nespeek(PC) + X))
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek(uint8_t(dbg_nespeek(PC) + X))))
 
 local argStrZPY=|skipvalue|
 	' $'..hex(dbg_nespeek(PC))
-	..',X = $'..hex((dbg_nespeek(PC) + X) & 0xFF)
-	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeek(PC) + X) & 0xFF)))
+	..',X = $'..hex(uint8_t(dbg_nespeek(PC) + X))
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek(uint8_t(dbg_nespeek(PC) + X))))
 
 local argStrAbs=|skipvalue|
 	' $'..hex(dbg_nespeekw(PC),4)
@@ -608,13 +598,13 @@ local argStrAbs=|skipvalue|
 
 local argStrAbsX=|skipvalue|
 	' $'..hex(dbg_nespeekw(PC),4)
-	..',X = $'..hex((dbg_nespeekw(PC) + X) & 0xFFFF,4)
-	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeekw(PC) + X) & 0xFFFF)))
+	..',X = $'..hex(uint16_t(dbg_nespeekw(PC) + X),4)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek(uint16_t(dbg_nespeekw(PC) + X))))
 
 local argStrAbsY=|skipvalue|
 	' $'..hex(dbg_nespeekw(PC),4)
-	..',Y = $'..hex((dbg_nespeekw(PC) + Y) & 0xFFFF,4)
-	..(skipvalue and '' or ' = '..hex(dbg_nespeek((dbg_nespeekw(PC) + Y) & 0xFFFF)))
+	..',Y = $'..hex(uint16_t(dbg_nespeekw(PC) + Y),4)
+	..(skipvalue and '' or ' = '..hex(dbg_nespeek(uint16_t(dbg_nespeekw(PC) + Y))))
 
 local argStrIZX=|skipvalue|
 	' ($'..dbg_nespeek(PC)
@@ -627,9 +617,7 @@ local argStrIZY=|skipvalue|
 	' ($'..dbg_nespeek(PC)
 	..'),Y = ($'..hex(dbg_nespeek(PC))
 	..'+Y) = $'..hex(dbg_nespeekw(dbg_nespeek(PC)),4)..'+'..hex(Y)
-	..(skipvalue and '' or ' = '..hex(
-		(dbg_nespeekw(dbg_nespeek(PC)) + Y) & 0xFFFF,4
-	))
+	..(skipvalue and '' or ' = '..hex(uint16_t(dbg_nespeekw(dbg_nespeek(PC)) + Y),4))
 
 local argStrFor234=|b234, ...|do
 	if b234 == 0x00 then
@@ -659,6 +647,480 @@ trace('initPC = $'..hex(PC,4))
 
 local fbAddr = ramaddr'framebuffer'
 
+cpuRun=||do
+--DEBUG(asm):write('A='..hex(A)..' X='..hex(X)..' Y='..hex(Y)..' S='..hex(S)..' P='..hex(P)..' PC='..hex(PC,4)..' op='..hex(nespeek(PC))..' ')
+	local op = readPC()
+
+	-- https://www.nesdev.org/wiki/CPU_unofficial_opcodes
+	local b01 = bit.band(op, 0x03)	-- 00 01 02 03
+	local b567 = bit.band(op, 0xE0)	-- 00 20 40 60 80 A0 C0 E0
+	local b234 = bit.band(op, 0x1C)	-- 00 04 08 0C 10 14 08 1C
+
+	-- xxxx:xx00
+	-- control
+	if b01 == 0x00 then
+
+		-- xxx1:0000
+		-- BPL, BMI, BVC, BVS, BCC, BCS, BNE, BEQ
+		if op & 0x1F == 0x10 then
+			-- branch-on-flag
+			-- op & 0x10 <=> branch on flag
+			-- op & 0x20: 0 means branch on flag clear, 1 means branch on flag set
+			-- missed their chance to swap V and N ... then we'd have ((op >> 6) + 6) & 7 == flag bit
+
+			-- bit 5 specifies whether to test for set vs unset
+			local test = (op >> 5) & 1
+
+			local shr
+			local b67 = op & 0xC0
+			if b67 == 0x00 then
+				shr = bitN
+--DEBUG(asm):write(({'BPL', 'BMI'})[test+1]..argStrRel())
+			elseif b67 == 0x40 then
+				shr = bitV
+--DEBUG(asm):write(({'BVC', 'BVS'})[test+1]..argStrRel())
+			elseif b67 == 0x80 then
+				shr = bitC
+--DEBUG(asm):write(({'BCC', 'BCS'})[test+1]..argStrRel())
+			elseif b67 == 0xC0 then
+				shr = bitZ
+--DEBUG(asm):write(({'BNE', 'BEQ'})[test+1]..argStrRel())
+			end
+
+			if (P >> shr) & 1 == test then
+				PC += int8_t(readPC())
+			end
+			PC += 1
+
+		-- xxx1:1000
+		elseif op & 0x1F == 0x18 then
+
+		-- 0xx1:1000
+			if op == 0x18 then
+				P &= ~flagC	-- CLC
+--DEBUG(asm):write'CLC'
+			elseif op == 0x38 then
+				P |= flagC	-- SEC
+--DEBUG(asm):write'SEC'
+			elseif op == 0x58 then
+				P &= ~flagI	-- CLI
+--DEBUG(asm):write'CLI'
+			elseif op == 0x78 then
+				P |= flagI 	-- SEI
+--DEBUG(asm):write'SEI'
+			elseif op == 0x98 then
+				-- TYA is here for some reason
+				-- there's no SEV ...
+				-- and CLV goes where SEV should've gone
+				A = setZN(Y)	-- TYA
+--DEBUG(asm):write'TYA'
+			elseif op == 0xB8 then
+				P &= ~flagV 	-- CLV
+--DEBUG(asm):write'CLV'
+			elseif op == 0xD8 then
+				P &= ~flagD 	-- CLD
+--DEBUG(asm):write'CLD'
+			elseif op == 0xF8 then
+				P |= flagD 	-- SED
+--DEBUG(asm):write'SED'
+			end
+
+		-- xxxy:yy00 for yyy != 100 and yy != 110
+		else
+			if op & 0x80 == 0 then	-- bit 7 not set
+				if op == 0x00 then	-- BRK
+--DEBUG(asm):write'BRK'
+					BRK()
+				elseif op == 0x20 then	-- JSR
+--DEBUG(asm):write('JSR'..argStrAbs())
+					local addr = readPCw()
+					stackPushw(uint16_t(PC - 1))
+					PC = addr
+				elseif op == 0x40 then	-- RTI
+--DEBUG(asm):write'RTI'
+					P = stackPop() | flagB_
+					PC = stackPopw()
+				elseif op == 0x60 then	-- RTS
+--DEBUG(asm):write'RTS'
+					PC = stackPopw() + 1
+				elseif op == 0x08 then
+--DEBUG(asm):write'PHP'
+					stackPush(P | flagB_) -- PHP
+				elseif op == 0x28 then
+--DEBUG(asm):write'PLP'
+					P = stackPop() | flagB_  -- PLP
+				elseif op == 0x48 then
+--DEBUG(asm):write'PHA'
+					stackPush(A)	-- PHA
+				elseif op == 0x68 then
+--DEBUG(asm):write'PLA'
+					A = setZN(stackPop()) 	-- PLA
+				elseif op == 0x24 then	-- BIT
+--DEBUG(asm):write('BIT'..argStrZP())
+					BIT(nespeek(readPC()))
+				elseif op == 0x2C then	-- BIT
+--DEBUG(asm):write('BIT'..argStrAbs())
+					BIT(nespeek(readPCw()))
+
+				-- JMP
+				elseif op == 0x4C then
+--DEBUG(asm):write('JMP'..argStrAbs(true))		-- Absolute ... but its jump
+					PC = readPCw()
+				elseif op == 0x6C then
+--DEBUG(asm):--write('JMP'..argStrAbs()		-- Indirect ... but its jump
+--DEBUG(asm):write('JMP'..' $'..hex(dbg_nespeekw(PC),4)..(skipvalue and '' or ' = '..hex(dbg_nespeekw(dbg_nespeekw(PC)),4)))
+					PC = nespeekw(readPCw())
+				else
+--DEBUG(asm):write'NOP'
+				-- else 04 0C 14 1C 34 3C 44 54 5C 64 74 7C is NOP
+				end
+
+			else	-- bit 7 set
+				-- these match up closely with RMW lower half i.e. op & 0x83 == 0x82
+
+				-- 0x80 NOP
+				if op == 0x84 then
+--DEBUG(asm):write('STY'..argStrZP())
+					nespoke(readPC(), Y)	-- STY
+				elseif op == 0x88 then
+--DEBUG(asm):write'DEY'
+					Y = setZN(uint8_t(Y - 1)) 	-- DEY
+				elseif op == 0x8C then
+--DEBUG(asm):write('STY'..argStrAbs())
+					nespoke(readPCw(), Y)	-- STY
+				-- 0x90 handled by the branch set
+				elseif op == 0x94 then
+--DEBUG(asm):write('STY'..argStrZPX())
+					nespoke(uint8_t(readPC() + X), Y)	-- STY
+				-- 0x98 handled by SE*/CL* set
+				elseif op == 0x9C then	-- SHY
+--DEBUG(asm):write'SHY -- TODO'
+				elseif op == 0xA0 then	-- LDY
+--DEBUG(asm):write('LDY'..argStrImm())
+					Y = setZN(readPC())
+				elseif op == 0xA4 then
+--DEBUG(asm):write('LDY'..argStrZP())
+					Y = setZN(nespeek(readPC())) 	-- LDY
+				elseif op == 0xA8 then
+--DEBUG(asm):write'TAY'
+					Y = setZN(A) 	-- TAY
+				elseif op == 0xAC then
+--DEBUG(asm):write('LDY'..argStrAbs())
+					Y = setZN(nespeek(readPCw())) 	-- LDY
+				-- 0xB0 = handled by branch set
+				elseif op == 0xB4 then
+--DEBUG(asm):write('LDY'..argStrZPX())
+					Y = setZN(nespeek(uint8_t(readPC() + X))) 	-- LDY
+				-- 0xB8 handled by SE*/CL* set
+				elseif op == 0xBC then
+--DEBUG(asm):write('LDY'..argStrAbsX())
+					Y = setZN(nespeek(readPCw() + X)) 	-- LDY
+				elseif op == 0xC0 then
+--DEBUG(asm):write('CPY'..argStrImm())
+					doCompare(Y, readPC())						-- CPY
+				elseif op == 0xC4 then
+--DEBUG(asm):write('CPY'..argStrZP())
+					doCompare(Y, nespeek(readPC()))	-- CPY
+				elseif op == 0xC8 then
+--DEBUG(asm):write'INY'
+					Y = setZN(uint8_t(Y + 1)) 	-- INY
+				elseif op == 0xCC then
+--DEBUG(asm):write('CPY'..argStrAbs())
+					doCompare(Y, nespeek(readPCw()))	-- CPY
+				-- 0xD0 handled by branch set
+				-- 0xD4 = NOP
+				-- 0xD8 handled by SE*/CL* set
+				-- 0xDC = NOP
+				elseif op == 0xE0 then
+--DEBUG(asm):write('CPX'..argStrImm())
+					doCompare(X, readPC())	-- CPX
+				elseif op == 0xE4 then
+--DEBUG(asm):write('CPX'..argStrZP())
+					doCompare(X, nespeek(readPC()))	-- CPX
+				elseif op == 0xE8 then
+--DEBUG(asm):write'INX'
+					X = setZN(uint8_t(X + 1)) 	-- INX
+				elseif op == 0xEC then
+--DEBUG(asm):write('CPX'..argStrAbs())
+					doCompare(X, nespeek(readPCw()))			-- CPX
+				else
+--DEBUG(asm):write'NOP'
+				-- 0xF0 handled by branch set
+				-- 0xF4 NOP
+				-- 0xF8 handled by SE*/CL*
+				-- 0xFC NOP
+				end
+			end
+		end
+
+	else
+		-- ALU
+		if b01 == 0x01 then
+			local arg
+
+			if b567 == 0x00 then
+--DEBUG(asm):write('ORA'..argStrFor234(b234))
+			elseif b567 == 0x20 then
+--DEBUG(asm):write('AND'..argStrFor234(b234))
+			elseif b567 == 0x40 then
+--DEBUG(asm):write('EOR'..argStrFor234(b234))
+			elseif b567 == 0x60 then
+--DEBUG(asm):write('ADC'..argStrFor234(b234))
+			elseif b567 == 0x80 then
+				if b234 ~= 0x08 then
+--DEBUG(asm):write('STA'..argStrFor234(b234, true))
+				else
+--DEBUG(asm):write('NOP'..argStrFor234(b234))
+				end
+			elseif b567 == 0xA0 then
+--DEBUG(asm):write('LDA'..argStrFor234(b234))
+			elseif b567 == 0xC0 then
+--DEBUG(asm):write('CMP'..argStrFor234(b234))
+			elseif b567 == 0xE0 then
+--DEBUG(asm):write('SBC'..argStrFor234(b234))
+			end
+
+
+			if b234 == 0x08 then		-- immediate
+				arg = readPC()	-- #$00
+			else						-- non-immediate, i.e. memory
+				if b234 == 0x00 then
+					arg = nespeekw(uint8_t(readPC() + X))	-- IZX: (indirect,X)
+				elseif b234 == 0x04 then
+					arg = readPC()	-- $00
+				elseif b234 == 0x0C then
+					arg = readPCw()
+				elseif b234 == 0x10 then
+					arg = uint16_t(nespeekw(readPC()) + Y)	-- IZY: (indirect),Y
+				elseif b234 == 0x14 then
+					arg = uint8_t(readPC() + X)
+				elseif b234 == 0x18 then
+					arg = uint16_t(readPCw() + Y)
+				elseif b234 == 0x1C then
+					arg = uint16_t(readPCw() + X)
+				end
+
+				-- wait for STA do we not do the final peek above?
+				if b567 ~= 0x80 then
+					arg = nespeek(arg)
+				end
+			end
+
+			if b567 == 0x00 then		-- 01 05 09 0D 11 15 19 1D = ORA
+				A = setZN(A | arg)
+			elseif b567 == 0x20 then	-- 21 25 29 2D 31 35 39 3D = AND
+				A = setZN(A & arg)
+			elseif b567 == 0x40 then	-- 41 45 49 4D 51 55 59 5D = EOR
+				A = setZN(A ~ arg)
+			elseif b567 == 0x60 then	-- 61 65 69 6D 71 75 79 7D = ADC
+				ADC(arg)
+			elseif b567 == 0x80 then	-- 81 85 8D 91 95 99 9D = STA
+				if b234 ~= 0x08 then	-- 89 is NOP
+					nespoke(arg, A)
+				else
+					-- NOP ... does it still read the arg and inc the PC?
+				end
+			elseif b567 == 0xA0 then	-- A1 A5 A9 AD B1 B5 B9 BD = LDA
+				A = setZN(arg)
+			elseif b567 == 0xC0 then	-- C1 C5 C9 CD D1 D5 D9 DD = CMP
+				doCompare(A, arg)
+			elseif b567 == 0xE0 then	-- E1 E5 E9 ED F1 F5 F9 FD = SBC
+				SBC(arg)
+			end
+
+		-- RMW
+		elseif b01 == 0x02 then
+			-- xxxx:xx10
+
+			if op & 0x80 == 0 then	-- bit 7 clear
+
+				if b234 == 0x00
+				or b234 == 0x10
+				then
+--DEBUG(asm):write'STP'
+					-- 0xxx:0010
+					-- 02 12 22 32 42 52 62 72 = STP
+				elseif b234 == 0x18 then
+--DEBUG(asm):write'NOP'
+					-- 1A 3A 5A 7A = NOP
+				else
+					local arg, addr
+					if b234 == 0x08 then
+						-- immediate
+						arg = A
+					else
+						-- not immediate, use address
+						-- (should follow same addressing as ALU, maybe merge?)
+						if b234 == 0x04 then
+							addr = readPC()
+						elseif b234 == 0x0C then
+							addr = readPCw()
+						elseif b234 == 0x14 then
+							addr = uint8_t(readPC() + X)
+						elseif b234 == 0x1C then
+							addr = uint16_t(readPCw() + X)
+						end
+						arg = nespeek(addr)
+					end
+
+					if b567 == 0x00	then -- ASL
+						arg = setZN(uint8_t(bit7toC(arg) << 1))
+--DEBUG(asm):write'ASL'
+					elseif b567 == 0x20	then -- ROL
+						-- reads C
+						-- shifts src left by 1, inserting old C
+						-- sets src's old bit7 to the new C as uint8
+						-- sets VN flags based on result
+						-- returns result
+						-- * I'm hoping all operations are evaluated left-to-right, since I'm reading C then writing C in dif bit op args
+						-- * NOTICE, no memory evaluation better modify C ...
+						arg = setZN((P & flagC) | uint8_t(bit7toC(arg) << 1))
+--DEBUG(asm):write'ROL'
+					elseif b567 == 0x40	then -- LSR
+						arg = setZN(bit0toC(arg) >> 1)
+--DEBUG(asm):write'LSR'
+					elseif b567 == 0x60	then -- ROR
+						arg = setZN((P & flagC) | uint8_t(bit7toC(arg) << 1))
+--DEBUG(asm):write'ROR'
+					end
+
+					if b234 == 0x08 then
+						-- immediate
+						A = arg
+					else
+						-- not immediate, write back to address
+						nespoke(addr, arg)
+					end
+				end
+
+			else	-- bit 7 set
+				-- 1xx0:0010
+				if b234 == 0x10 then
+--DEBUG(asm):write'STP'
+					-- 1xx1:0010
+					-- 92 B2 D2 F2 = STP
+				else
+
+-- TODO TODO maybe things would be better if I separated out bit7==set first ...
+
+					if b567 == 0x80 then
+						-- ST*
+						-- 0x92 is STP handled above
+						if op == 0x86 then
+--DEBUG(asm):write('STX'..argStrZP())
+							nespoke(readPC(), X)	-- STX
+						elseif op == 0x8A then
+--DEBUG(asm):write'TXA'
+							A = setZN(X) 	-- TXA
+						elseif op == 0x8E then
+--DEBUG(asm):write('STX'..argStrAbs())
+							nespoke(readPCw(), X)	-- STX
+						elseif op == 0x96 then
+							nespoke(uint8_t(readPC() + Y), X)	-- STX
+--DEBUG(asm):write('STX'..argStrZPY())
+						elseif op == 0x9A then
+							S = X 		-- TXS
+--DEBUG(asm):write'TXS'
+						elseif op == 0x9E then
+							error'TODO'
+							--TODO ?	-- SHX
+--DEBUG(asm):write'SHX'
+						else
+--DEBUG(asm):write'NOP'
+							-- 0x82 = NOP
+						end
+
+					elseif b567 == 0xA0 then
+
+						-- LD* / T*
+						-- 0xB2 is STP handled above
+						if op == 0xA2 then
+--DEBUG(asm):write('LDX'..argStrImm())
+							X = setZN(readPC()) 	-- LDX
+						elseif op == 0xA6 then
+--DEBUG(asm):write('LDX'..argStrZP())
+							X = setZN(nespeek(readPC()))	-- LDX
+						elseif op == 0xAA then
+--DEBUG(asm):write'TAX'
+							X = setZN(A)	-- TAX
+						elseif op == 0xAE then
+--DEBUG(asm):write('LDX'..argStrAbs())
+							X = setZN(nespeek(readPCw()))	-- LDX
+						elseif op == 0xB6 then
+--DEBUG(asm):write('LDY'..argStrZPY())
+							X = setZN(nespeek(uint8_t(readPC() + Y)))	-- LDY
+						elseif op == 0xBA then
+--DEBUG(asm):write'TSX'
+							X = setZN(S)	-- TSX
+						elseif op == 0xBE then
+--DEBUG(asm):write('LDX'..argStrAbsY())
+							X = setZN(nespeek(readPCw() + Y))	-- LDX
+						end
+
+					elseif b567 == 0xC0 then
+
+						-- 0xD2 = STP handled above
+						if op == 0xC6 then
+							DEC(readPC())				-- DEC
+--DEBUG(asm):write'DEC'
+						elseif op == 0xCA then
+							X = setZN(uint8_t(X - 1))	-- DEX
+--DEBUG(asm):write'DEX'
+						elseif op == 0xCE then
+							DEC(readPCw())
+--DEBUG(asm):write'DEC'
+						elseif op == 0xD6 then
+							DEC(uint8_t(readPC() + X))
+--DEBUG(asm):write'DEC'
+						elseif op == 0xDE then
+							DEC(readPCw() + X)
+--DEBUG(asm):write'DEC'
+						else
+--DEBUG(asm):write'NOP'
+							-- 0xC2 = NOP
+							-- 0xDA = NOP
+						end
+
+					elseif b567 == 0xE0 then
+						if op == 0xE6 then
+							INC(readPC())
+--DEBUG(asm):write'INC'
+						elseif op == 0xEE then
+							INC(readPCw())
+--DEBUG(asm):write'INC'
+						elseif op == 0xF6 then
+							INC(uint8_t(readPC() + X))
+--DEBUG(asm):write'INC'
+						elseif op == 0xFE then
+							INC(readPCw() + X)
+--DEBUG(asm):write'INC'
+						else
+--DEBUG(asm):write'NOP'
+							-- 0xE2 = NOP
+							-- 0xEA = NOP (should be INX?)
+							-- 0xFA = NOP
+						end
+					end
+				end
+			end
+
+		-- unofficial
+		elseif b01 == 0x03 then
+--DEBUG(asm):write'TODO op'
+		end
+	end
+--DEBUG(asm):-- [[
+--DEBUG(asm):trace(writebuf)
+--DEBUG(asm):--]]
+--DEBUG(asm):--[[
+--DEBUG(asm):writebufy ??= 0
+--DEBUG(asm):text(writebuf, 0, writebufy, 0x30, 0)
+--DEBUG(asm):writebufy = uint8_t(writebufy + 8)
+--DEBUG(asm):--]]
+--DEBUG(asm):writebuf=''
+
+end
+
 update=||do
 
 --DEBUG(asm):trace'vblank'
@@ -678,479 +1140,12 @@ update=||do
 	--for i=1,60 do
 	--for i=1,100 do
 	for i=1,600 do
---DEBUG(asm):write('A='..hex(A)..' X='..hex(X)..' Y='..hex(Y)..' S='..hex(S)..' P='..hex(P)..' PC='..hex(PC,4)..' op='..hex(nespeek(PC))..' ')
-		local op = readPC()
-
-		-- https://www.nesdev.org/wiki/CPU_unofficial_opcodes
-		local b01 = bit.band(op, 0x03)	-- 00 01 02 03
-		local b567 = bit.band(op, 0xE0)	-- 00 20 40 60 80 A0 C0 E0
-		local b234 = bit.band(op, 0x1C)	-- 00 04 08 0C 10 14 08 1C
-
-		-- xxxx:xx00
-		-- control
-		if b01 == 0x00 then
-
-			-- xxx1:0000
-			-- BPL, BMI, BVC, BVS, BCC, BCS, BNE, BEQ
-			if op & 0x1F == 0x10 then
-				-- branch-on-flag
-				-- op & 0x10 <=> branch on flag
-				-- op & 0x20: 0 means branch on flag clear, 1 means branch on flag set
-				-- missed their chance to swap V and N ... then we'd have ((op >> 6) + 6) & 7 == flag bit
-
-				-- bit 5 specifies whether to test for set vs unset
-				local test = (op >> 5) & 1
-
-				local shr
-				local b67 = op & 0xC0
-				if b67 == 0x00 then
-					shr = bitN
---DEBUG(asm):write(({'BPL', 'BMI'})[test+1]..argStrRel())
-				elseif b67 == 0x40 then
-					shr = bitV
---DEBUG(asm):write(({'BVC', 'BVS'})[test+1]..argStrRel())
-				elseif b67 == 0x80 then
-					shr = bitC
---DEBUG(asm):write(({'BCC', 'BCS'})[test+1]..argStrRel())
-				elseif b67 == 0xC0 then
-					shr = bitZ
---DEBUG(asm):write(({'BNE', 'BEQ'})[test+1]..argStrRel())
-				end
-
-				if (P >> shr) & 1 == test then
-					PC += s8(readPC())
-				end
-				PC += 1
-
-			-- xxx1:1000
-			elseif op & 0x1F == 0x18 then
-
-			-- 0xx1:1000
-				if op == 0x18 then
-					P &= ~flagC	-- CLC
---DEBUG(asm):write'CLC'
-				elseif op == 0x38 then
-					P |= flagC	-- SEC
---DEBUG(asm):write'SEC'
-				elseif op == 0x58 then
-					P &= ~flagI	-- CLI
---DEBUG(asm):write'CLI'
-				elseif op == 0x78 then
-					P |= flagI 	-- SEI
---DEBUG(asm):write'SEI'
-				elseif op == 0x98 then
-					-- TYA is here for some reason
-					-- there's no SEV ...
-					-- and CLV goes where SEV should've gone
-					A = setZN(Y)	-- TYA
---DEBUG(asm):write'TYA'
-				elseif op == 0xB8 then
-					P &= ~flagV 	-- CLV
---DEBUG(asm):write'CLV'
-				elseif op == 0xD8 then
-					P &= ~flagD 	-- CLD
---DEBUG(asm):write'CLD'
-				elseif op == 0xF8 then
-					P |= flagD 	-- SED
---DEBUG(asm):write'SED'
-				end
-
-			-- xxxy:yy00 for yyy != 100 and yy != 110
-			else
-				if op & 0x80 == 0 then	-- bit 7 not set
-					if op == 0x00 then	-- BRK
---DEBUG(asm):write'BRK'
-						BRK()
-					elseif op == 0x20 then	-- JSR
---DEBUG(asm):write('JSR'..argStrAbs())
-						local addr = readPCw()
-						stackPushw((PC - 1) & 0xFFFF)
-						PC = addr
-					elseif op == 0x40 then	-- RTI
---DEBUG(asm):write'RTI'
-						P = stackPop() | flagB_
-						PC = stackPopw()
-					elseif op == 0x60 then	-- RTS
---DEBUG(asm):write'RTS'
-						PC = stackPopw() + 1
-					elseif op == 0x08 then
---DEBUG(asm):write'PHP'
-						stackPush(P | flagB_) -- PHP
-					elseif op == 0x28 then
---DEBUG(asm):write'PLP'
-						P = stackPop() | flagB_  -- PLP
-					elseif op == 0x48 then
---DEBUG(asm):write'PHA'
-						stackPush(A)	-- PHA
-					elseif op == 0x68 then
---DEBUG(asm):write'PLA'
-						A = setZN(stackPop()) 	-- PLA
-					elseif op == 0x24 then	-- BIT
---DEBUG(asm):write('BIT'..argStrZP())
-						BIT(nespeek(readPC()))
-					elseif op == 0x2C then	-- BIT
---DEBUG(asm):write('BIT'..argStrAbs())
-						BIT(nespeek(readPCw()))
-
-					-- JMP
-					elseif op == 0x4C then
---DEBUG(asm):write('JMP'..argStrAbs(true))		-- Absolute ... but its jump
-						PC = readPCw()
-					elseif op == 0x6C then
---DEBUG(asm):--write('JMP'..argStrAbs()		-- Indirect ... but its jump
---DEBUG(asm):write('JMP'..' $'..hex(dbg_nespeekw(PC),4)..(skipvalue and '' or ' = '..hex(dbg_nespeekw(dbg_nespeekw(PC)),4)))
-						PC = nespeekw(readPCw())
-					else
---DEBUG(asm):write'NOP'
-					-- else 04 0C 14 1C 34 3C 44 54 5C 64 74 7C is NOP
-					end
-
-				else	-- bit 7 set
-					-- these match up closely with RMW lower half i.e. op & 0x83 == 0x82
-
-					-- 0x80 NOP
-					if op == 0x84 then
---DEBUG(asm):write('STY'..argStrZP())
-						nespoke(readPC(), Y)	-- STY
-					elseif op == 0x88 then
---DEBUG(asm):write'DEY'
-						Y = setZN((Y - 1) & 0xFF) 	-- DEY
-					elseif op == 0x8C then
---DEBUG(asm):write('STY'..argStrAbs())
-						nespoke(readPCw(), Y)	-- STY
-					-- 0x90 handled by the branch set
-					elseif op == 0x94 then
---DEBUG(asm):write('STY'..argStrZPX())
-						nespoke((readPC() + X) & 0xFF, Y)	-- STY
-					-- 0x98 handled by SE*/CL* set
-					elseif op == 0x9C then	-- SHY
---DEBUG(asm):write'SHY -- TODO'
-					elseif op == 0xA0 then	-- LDY
---DEBUG(asm):write('LDY'..argStrImm())
-						Y = setZN(readPC())
-					elseif op == 0xA4 then
---DEBUG(asm):write('LDY'..argStrZP())
-						Y = setZN(nespeek(readPC())) 	-- LDY
-					elseif op == 0xA8 then
---DEBUG(asm):write'TAY'
-						Y = setZN(A) 	-- TAY
-					elseif op == 0xAC then
---DEBUG(asm):write('LDY'..argStrAbs())
-						Y = setZN(nespeek(readPCw())) 	-- LDY
-					-- 0xB0 = handled by branch set
-					elseif op == 0xB4 then
---DEBUG(asm):write('LDY'..argStrZPX())
-						Y = setZN(nespeek((readPC() + X) & 0xFF)) 	-- LDY
-					-- 0xB8 handled by SE*/CL* set
-					elseif op == 0xBC then
---DEBUG(asm):write('LDY'..argStrAbsX())
-						Y = setZN(nespeek(readPCw() + X)) 	-- LDY
-					elseif op == 0xC0 then
---DEBUG(asm):write('CPY'..argStrImm())
-						doCompare(Y, readPC())						-- CPY
-					elseif op == 0xC4 then
---DEBUG(asm):write('CPY'..argStrZP())
-						doCompare(Y, nespeek(readPC()))	-- CPY
-					elseif op == 0xC8 then
---DEBUG(asm):write'INY'
-						Y = setZN((Y + 1) & 0xFF) 	-- INY
-					elseif op == 0xCC then
---DEBUG(asm):write('CPY'..argStrAbs())
-						doCompare(Y, nespeek(readPCw()))	-- CPY
-					-- 0xD0 handled by branch set
-					-- 0xD4 = NOP
-					-- 0xD8 handled by SE*/CL* set
-					-- 0xDC = NOP
-					elseif op == 0xE0 then
---DEBUG(asm):write('CPX'..argStrImm())
-						doCompare(X, readPC())	-- CPX
-					elseif op == 0xE4 then
---DEBUG(asm):write('CPX'..argStrZP())
-						doCompare(X, nespeek(readPC()))	-- CPX
-					elseif op == 0xE8 then
---DEBUG(asm):write'INX'
-						X = setZN((X + 1) & 0xFF) 	-- INX
-					elseif op == 0xEC then
---DEBUG(asm):write('CPX'..argStrAbs())
-						doCompare(X, nespeek(readPCw()))			-- CPX
-					else
---DEBUG(asm):write'NOP'
-					-- 0xF0 handled by branch set
-					-- 0xF4 NOP
-					-- 0xF8 handled by SE*/CL*
-					-- 0xFC NOP
-					end
-				end
-			end
-
-		else
-			-- ALU
-			if b01 == 0x01 then
-				local arg
-
-				if b567 == 0x00 then
---DEBUG(asm):write('ORA'..argStrFor234(b234))
-				elseif b567 == 0x20 then
---DEBUG(asm):write('AND'..argStrFor234(b234))
-				elseif b567 == 0x40 then
---DEBUG(asm):write('EOR'..argStrFor234(b234))
-				elseif b567 == 0x60 then
---DEBUG(asm):write('ADC'..argStrFor234(b234))
-				elseif b567 == 0x80 then
-					if b234 ~= 0x08 then
---DEBUG(asm):write('STA'..argStrFor234(b234, true))
-					else
---DEBUG(asm):write('NOP'..argStrFor234(b234))
-					end
-				elseif b567 == 0xA0 then
---DEBUG(asm):write('LDA'..argStrFor234(b234))
-				elseif b567 == 0xC0 then
---DEBUG(asm):write('CMP'..argStrFor234(b234))
-				elseif b567 == 0xE0 then
---DEBUG(asm):write('SBC'..argStrFor234(b234))
-				end
-
-
-				if b234 == 0x08 then		-- immediate
-					arg = readPC()	-- #$00
-				else						-- non-immediate, i.e. memory
-					if b234 == 0x00 then
-						arg = nespeekw((readPC() + X) & 0xFF)	-- IZX: (indirect,X)
-					elseif b234 == 0x04 then
-						arg = readPC()	-- $00
-					elseif b234 == 0x0C then
-						arg = readPCw()
-					elseif b234 == 0x10 then
-						arg = (nespeekw(readPC()) + Y) & 0xFFFF	-- IZY: (indirect),Y
-					elseif b234 == 0x14 then
-						arg = (readPC() + X) & 0xFF
-					elseif b234 == 0x18 then
-						arg = (readPCw() + Y) & 0xFFFF
-					elseif b234 == 0x1C then
-						arg = (readPCw() + X) & 0xFFFF
-					end
-
-					-- wait for STA do we not do the final peek above?
-					if b567 ~= 0x80 then
-						arg = nespeek(arg)
-					end
-				end
-
-				if b567 == 0x00 then		-- 01 05 09 0D 11 15 19 1D = ORA
-					A = setZN(A | arg)
-				elseif b567 == 0x20 then	-- 21 25 29 2D 31 35 39 3D = AND
-					A = setZN(A & arg)
-				elseif b567 == 0x40 then	-- 41 45 49 4D 51 55 59 5D = EOR
-					A = setZN(A ~ arg)
-				elseif b567 == 0x60 then	-- 61 65 69 6D 71 75 79 7D = ADC
-					ADC(arg)
-				elseif b567 == 0x80 then	-- 81 85 8D 91 95 99 9D = STA
-					if b234 ~= 0x08 then	-- 89 is NOP
-						nespoke(arg, A)
-					else
-						-- NOP ... does it still read the arg and inc the PC?
-					end
-				elseif b567 == 0xA0 then	-- A1 A5 A9 AD B1 B5 B9 BD = LDA
-					A = setZN(arg)
-				elseif b567 == 0xC0 then	-- C1 C5 C9 CD D1 D5 D9 DD = CMP
-					doCompare(A, arg)
-				elseif b567 == 0xE0 then	-- E1 E5 E9 ED F1 F5 F9 FD = SBC
-					SBC(arg)
-				end
-
-			-- RMW
-			elseif b01 == 0x02 then
-				-- xxxx:xx10
-
-				if op & 0x80 == 0 then	-- bit 7 clear
-
-					if b234 == 0x00
-					or b234 == 0x10
-					then
---DEBUG(asm):write'STP'
-						-- 0xxx:0010
-						-- 02 12 22 32 42 52 62 72 = STP
-					elseif b234 == 0x18 then
---DEBUG(asm):write'NOP'
-						-- 1A 3A 5A 7A = NOP
-					else
-						local arg, addr
-						if b234 == 0x08 then
-							-- immediate
-							arg = A
-						else
-							-- not immediate, use address
-							-- (should follow same addressing as ALU, maybe merge?)
-							if b234 == 0x04 then
-								addr = readPC()
-							elseif b234 == 0x0C then
-								addr = readPCw()
-							elseif b234 == 0x14 then
-								addr = (readPC() + X) & 0xFF
-							elseif b234 == 0x1C then
-								addr = (readPCw() + X) & 0xFFFF
-							end
-							arg = nespeek(addr)
-						end
-
-						if b567 == 0x00	then -- ASL
-							arg = setZN((bit7toC(arg) << 1) & 0xFF)
---DEBUG(asm):write'ASL'
-						elseif b567 == 0x20	then -- ROL
-							-- reads C
-							-- shifts src left by 1, inserting old C
-							-- sets src's old bit7 to the new C
-							-- & 0xFF to treat as uint8
-							-- sets VN flags based on result
-							-- returns result
-							-- * I'm hoping all operations are evaluated left-to-right, since I'm reading C then writing C in dif bit op args
-							-- * NOTICE, no memory evaluation better modify C ...
-							arg = setZN((P & flagC) | (bit7toC(arg) << 1) & 0xFF)
---DEBUG(asm):write'ROL'
-						elseif b567 == 0x40	then -- LSR
-							arg = setZN(bit0toC(arg) >> 1)
---DEBUG(asm):write'LSR'
-						elseif b567 == 0x60	then -- ROR
-							arg = setZN((P & flagC) | (bit7toC(arg) << 1) & 0xFF)
---DEBUG(asm):write'ROR'
-						end
-
-						if b234 == 0x08 then
-							-- immediate
-							A = arg
-						else
-							-- not immediate, write back to address
-							nespoke(addr, arg)
-						end
-					end
-
-				else	-- bit 7 set
-					-- 1xx0:0010
-					if b234 == 0x10 then
---DEBUG(asm):write'STP'
-						-- 1xx1:0010
-						-- 92 B2 D2 F2 = STP
-					else
-
--- TODO TODO maybe things would be better if I separated out bit7==set first ...
-
-						if b567 == 0x80 then
-							-- ST*
-							-- 0x92 is STP handled above
-							if op == 0x86 then
---DEBUG(asm):write('STX'..argStrZP())
-								nespoke(readPC(), X)	-- STX
-							elseif op == 0x8A then
---DEBUG(asm):write'TXA'
-								A = setZN(X) 	-- TXA
-							elseif op == 0x8E then
---DEBUG(asm):write('STX'..argStrAbs())
-								nespoke(readPCw(), X)	-- STX
-							elseif op == 0x96 then
-								nespoke((readPC() + Y) & 0xFF, X)	-- STX
---DEBUG(asm):write('STX'..argStrZPY())
-							elseif op == 0x9A then
-								S = X 		-- TXS
---DEBUG(asm):write'TXS'
-							elseif op == 0x9E then
-								error'TODO'
-								--TODO ?	-- SHX
---DEBUG(asm):write'SHX'
-							else
---DEBUG(asm):write'NOP'
-								-- 0x82 = NOP
-							end
-
-						elseif b567 == 0xA0 then
-
-							-- LD* / T*
-							-- 0xB2 is STP handled above
-							if op == 0xA2 then
---DEBUG(asm):write('LDX'..argStrImm())
-								X = setZN(readPC()) 	-- LDX
-							elseif op == 0xA6 then
---DEBUG(asm):write('LDX'..argStrZP())
-								X = setZN(nespeek(readPC()))	-- LDX
-							elseif op == 0xAA then
---DEBUG(asm):write'TAX'
-								X = setZN(A)	-- TAX
-							elseif op == 0xAE then
---DEBUG(asm):write('LDX'..argStrAbs())
-								X = setZN(nespeek(readPCw()))	-- LDX
-							elseif op == 0xB6 then
---DEBUG(asm):write('LDY'..argStrZPY())
-								X = setZN(nespeek((readPC() + Y) & 0xFF))	-- LDY
-							elseif op == 0xBA then
---DEBUG(asm):write'TSX'
-								X = setZN(S)	-- TSX
-							elseif op == 0xBE then
---DEBUG(asm):write('LDX'..argStrAbsY())
-								X = setZN(nespeek(readPCw() + Y))	-- LDX
-							end
-
-						elseif b567 == 0xC0 then
-
-							-- 0xD2 = STP handled above
-							if op == 0xC6 then
-								DEC(readPC())				-- DEC
---DEBUG(asm):write'DEC'
-							elseif op == 0xCA then
-								X = setZN((X - 1) & 0xFF)	-- DEX
---DEBUG(asm):write'DEX'
-							elseif op == 0xCE then
-								DEC(readPCw())
---DEBUG(asm):write'DEC'
-							elseif op == 0xD6 then
-								DEC((readPC() + X) & 0xFF)
---DEBUG(asm):write'DEC'
-							elseif op == 0xDE then
-								DEC(readPCw() + X)
---DEBUG(asm):write'DEC'
-							else
---DEBUG(asm):write'NOP'
-								-- 0xC2 = NOP
-								-- 0xDA = NOP
-							end
-
-						elseif b567 == 0xE0 then
-							if op == 0xE6 then
-								INC(readPC())
---DEBUG(asm):write'INC'
-							elseif op == 0xEE then
-								INC(readPCw())
---DEBUG(asm):write'INC'
-							elseif op == 0xF6 then
-								INC((readPC() + X) & 0xFF)
---DEBUG(asm):write'INC'
-							elseif op == 0xFE then
-								INC(readPCw() + X)
---DEBUG(asm):write'INC'
-							else
---DEBUG(asm):write'NOP'
-								-- 0xE2 = NOP
-								-- 0xEA = NOP (should be INX?)
-								-- 0xFA = NOP
-							end
-						end
-					end
-				end
-
-			-- unofficial
-			elseif b01 == 0x03 then
---DEBUG(asm):write'TODO op'
-			end
-		end
---DEBUG(asm):-- [[
---DEBUG(asm):trace(writebuf)
---DEBUG(asm):--]]
---DEBUG(asm):--[[
---DEBUG(asm):writebufy ??= 0
---DEBUG(asm):text(writebuf, 0, writebufy, 0x30, 0)
---DEBUG(asm):writebufy = (writebufy + 8) & 0xFF
---DEBUG(asm):--]]
---DEBUG(asm):writebuf=''
+		cpuRun()
 	end
 
+	-- ... clear at prerender scanline 
+	PPUStatus &= 0x1F
+	
 	-- rendering OAM ...
 	cls()
 
@@ -1170,15 +1165,6 @@ update=||do
 			local bg = attrs & 0x20 ~= 0
 			local pal = attrs & 3
 			local x = peek(addr + 3)
-			local sx, sy = 1, 1
-			if attrs & 0x80 ~= 0 then
-				sy = -1
-				y += 8
-			end
-			if attrs & 0x40 ~= 0 then
-				sx = -1
-				x += 8
-			end
 
 			if i == 0 then
 --print('drawing sprite #0 sprIndex '..hex(sprIndex)..' at x='..hex(x)..' y='..hex(y))
@@ -1213,6 +1199,15 @@ update=||do
 				end
 			end
 
+			local sx, sy = 1, 1
+			if attrs & 0x80 ~= 0 then
+				sy = -1
+				y += 8
+			end
+			if attrs & 0x40 ~= 0 then
+				sx = -1
+				x += 8
+			end
 			spr(sprIndex, x, y, 1, 1,
 				pal<<2, -- palette offset
 				0, 		-- transparent index
@@ -1220,6 +1215,11 @@ update=||do
 				nil, 	-- sprite mask
 				sx, sy)
 		end
+	end
+
+	-- do some instuctions "outside" hislopor idk?
+	for i=1,600 do
+		cpuRun()
 	end
 
 	text('A='..hex(A)..' X='..hex(X)..' Y='..hex(Y)..' S='..hex(S)..' P='..hex(P)..' PC='..hex(PC,4)..' op='..hex(nespeek(PC))..' ', 0, 0, 0x30, 0x0F)
