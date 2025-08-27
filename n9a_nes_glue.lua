@@ -1181,7 +1181,7 @@ update=||do
 			end
 
 			if i == 0 then
-print('drawing sprite 0 at ', x, y)
+--print('drawing sprite #0 sprIndex '..hex(sprIndex)..' at x='..hex(x)..' y='..hex(y))
 				-- TODO test write opacity and set the PPUStatus |= 0x40
 				local sprX = sprIndex & 0x1F
 				local sprY = (sprIndex >> 5) & 0x1F
@@ -1197,15 +1197,15 @@ print('drawing sprite 0 at ', x, y)
 							or (bg and PPUMask & 2 ~= 0)
 							or (not bg and PPUMask & 4 ~= 0)
 							then
-								
 								local sprPix = peek(n9SheetAddr + (
-									dx | (sprX << 5)
-									| (dy | (sprY << 5)) << 8
+									dx | (sprX << 3)
+									| ((dy | (sprY << 3)) << 8)
 								))
 								if sprPix ~= 0 then
-									PPUStatus |= 0x40
 									-- does the framebuffer matter?
-									--if fbAddr(sx | (sy << 8)) ~= 0 then end
+									--if fbAddr(sx | (sy << 8)) ~= 0 then 
+									PPUStatus |= 0x40
+									--end
 								end
 							end
 						end
