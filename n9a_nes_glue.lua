@@ -10,6 +10,7 @@ https://www.nesdev.org/wiki/PPU_programmer_reference
 https://www.nesdev.org/obelisk-6502-guide/reference.html
 https://www.nesdev.org/6502_cpu.txt
 https://github.com/skilldrick/easy6502
+https://github.com/EtienneMaire37/Simple-NES/tree/main/src
 https://gist.github.com/1wErt3r/4048722 <- smb dis but without addresses
 https://6502disassembly.com/nes-smb/SuperMarioBros.html	<- with addresses
 https://web.archive.org/web/20200129081101/http://users.telenet.be:80/kim1-6502/6502/proman.html#910
@@ -48,8 +49,8 @@ assert.ge(blobsize('data', 2), 0x10)	-- 0x10 or 0x210 if trainer present
 -- read the header:
 -- https://www.nesdev.org/wiki/INES
 assert.eq(peekl(nesheader), 0x1A53454E)	-- "NES\n"
-local PRG_ROM_size = peek(nesheader+4) << 14
-local CHR_ROM_size = peek(nesheader+5) << 13
+local nes_PRG_ROM_size = peek(nesheader+4) << 14
+local nes_CHR_ROM_size = peek(nesheader+5) << 13
 local header_6 = peek(nesheader+6)
 -- bit 01 = nametable arrangement
 PPUNameTableMirrors = header_6 & 3
@@ -85,9 +86,9 @@ local OAMPtr = 0
 local OAMPtrAddr = 0x2003
 local OAMRWAddr = 0x2004
 
-local OAMSize = 0x100
-local n9OAMAddr = blobaddr('data', 3)
-assert.eq(blobsize('data', 3), OAMSize)
+local OAM_RAM_size = 0x100
+local n9_OAM_addr = blobaddr('data', 3)
+assert.eq(blobsize('data', 3), OAM_RAM_size)
 local OAMDMAaddr = 0x4014
 
 local PPUScrollX = 0
@@ -95,10 +96,10 @@ local PPUScrollY = 0
 local PPUScrollAddr = 0x2005
 local PPUScrollReadX = true	-- x first, y second
 
-local PPUMemPtr = 0	-- uint16 reg accessed via $2006/2007
-local PPUMemPtrWriteHi = true	-- "high byte first"
-local PPUMemAddrAddr = 0x2006
-local PPUMemDataAddr = 0x2007
+local CHR_RAM_ptr = 0	-- uint16 reg accessed via $2006/2007
+local CHR_RAM_ptrWriteHi = true	-- "high byte first"
+local CHR_RAM_writePtr_addr = 0x2006
+local CHR_RAM_RW_addr = 0x2007
 
 -- 0x4000+ is sound registers
 local cartRAMAddr = 0x6000 -- 0x6000-0x8000 is cart ram / persistent
@@ -110,7 +111,7 @@ local cartRAMEndAddr = cartRAMAddr + cartRAMSize
 -- so I'll just meh it and always use the min(ROM size, 64k) minus 2 4 6 bytes
 -- https://forums.nesdev.org/viewtopic.php?t=17413
 -- a guy asks directly this question, nobody seems to answer it.
-local idk = math.min(0x8000 + PRG_ROM_size, 0x10000)
+local idk = math.min(0x8000 + nes_PRG_ROM_size, 0x10000)
 local NMIAddr = idk - 6
 local RESETAddr = idk - 4
 local IRQAddr = idk - 2
@@ -123,10 +124,10 @@ local n9PersistAddr = blobaddr'persist'
 assert.ge(blobsize'persist', cartRAMSize, "NES needs more save RAM!")
 memcpy(nesrom + cartRAMAddr, n9PersistAddr, cartRAMSize)
 
-local n9PPURAMAddr = blobaddr('data', 1)
-local PPURAMSize = 0x4000
-local PPURAMMask = 0x3FFF
-assert.eq(blobsize('data', 1), PPURAMSize)
+local n9_CHR_RAM_addr = blobaddr('data', 1)
+local CHR_ROM_size = 0x4000
+local CHR_ROM_addrMask = 0x3FFF
+assert.eq(blobsize('data', 1), CHR_ROM_size)
 
 local n9SheetAddr = blobaddr'sheet'
 local n9TilemapAddr = blobaddr'tilemap'
@@ -150,20 +151,20 @@ trace('PPUStatus read', hex(val))
 trace('OAMPtr read', hex(peek(nesrom+i)))
 		return OAMPtr
 	elseif i == OAMRWAddr then
-		local v = peek(n9OAMAddr + OAMPtr)
-trace('OAMRW read from OAM addr '..hex(OAMPtr)..' = '..v)
+		local v = peek(n9_OAM_addr + OAMPtr)
+trace('OAM read from OAM addr '..hex(OAMPtr)..' = '..v)
 		return v
 	elseif i == PPUScrollAddr then
 trace('PPUScroll read', hex(peek(nesrom+i)))
-	elseif i == PPUMemAddrAddr then
-trace('PPUMemPtr read', hex(peek(nesrom+i)))
-	elseif i == PPUMemDataAddr then
-		local val = peek(n9PPURAMAddr+PPUMemPtr)
-trace('PPUMemData read '..hex(peek(nesrom+i))..' ... as PPU RAM addr '..hex(PPUMemPtr,4)..' val '..hex(val))
+	elseif i == CHR_RAM_writePtr_addr then
+trace('CHR_RAM_ptr read', hex(peek(nesrom+i)))
+	elseif i == CHR_RAM_RW_addr then
+		local val = peek(n9_CHR_RAM_addr+CHR_RAM_ptr)
+trace('CHR_RAM_RW read '..hex(peek(nesrom+i))..' ... as PPU RAM addr '..hex(CHR_RAM_ptr,4)..' val '..hex(val))
 		if not dontwrite then
 			-- inc upon read/write
-			PPUMemPtr += PPUControl & 2 == 0 and 1 or 32
-			PPUMemPtr &= PPURAMMask
+			CHR_RAM_ptr += PPUControl & 2 == 0 and 1 or 32
+			CHR_RAM_ptr &= CHR_ROM_addrMask
 		end
 		return val
 	end
@@ -191,7 +192,7 @@ trace('OAMPtr write', hex(v))
 		return
 	elseif i == OAMRWAddr then
 trace('OAMRW write '..hex(v)..' to OAM addr '..hex(OAMPtr))
-		poke(n9OAMAddr + OAMPtr, v)
+		poke(n9_OAM_addr + OAMPtr, v)
 		OAMPtr = uint8_t(OAMPtr + 1)
 		return
 	elseif i == PPUScrollAddr then
@@ -203,22 +204,22 @@ trace('PPUScroll write', hex(v))
 			PPUScrollY = v | ((PPUControl & 2) << 7)
 			PPUScrollReadX = true
 		end
-	elseif i == PPUMemAddrAddr then
-trace('PPUMemPtr write', hex(v))
-		if PPUMemPtrWriteHi then
-			PPUMemPtr &= 0xFF
-			PPUMemPtr |= v << 8
-			PPUMemPtrWriteHi = false
+	elseif i == CHR_RAM_writePtr_addr then
+trace('CHR_RAM_ptr write', hex(v))
+		if CHR_RAM_ptrWriteHi then
+			CHR_RAM_ptr &= 0xFF
+			CHR_RAM_ptr |= v << 8
+			CHR_RAM_ptrWriteHi = false
 		else
-			PPUMemPtr &= 0xFF00
-			PPUMemPtr |= v
-			PPUMemPtrWriteHi = true
+			CHR_RAM_ptr &= 0xFF00
+			CHR_RAM_ptr |= v
+			CHR_RAM_ptrWriteHi = true
 		end
-	elseif i == PPUMemDataAddr then
-trace('PPUMemData write '..hex(v)..' ... to PPU RAM $'..hex(PPUMemPtr,4))
-		poke(n9PPURAMAddr+PPUMemPtr, v)
+	elseif i == CHR_RAM_RW_addr then
+trace('CHR_RAM_RW write '..hex(v)..' ... to PPU RAM $'..hex(CHR_RAM_ptr,4))
+		poke(n9_CHR_RAM_addr+CHR_RAM_ptr, v)
 		-- depending on where, update N9 VRAM
-		if PPUMemPtr < 0x2000 then
+		if CHR_RAM_ptr < 0x2000 then
 			-- 0000-1000 = pattern table 0
 			-- 1000-2000 = pattern table 1
 			--[[
@@ -231,10 +232,10 @@ trace('PPUMemData write '..hex(v)..' ... to PPU RAM $'..hex(PPUMemPtr,4))
 			first 8 bytes are 1bpp lo-bit
 			second 8 bytes are 1bpp hi-bit
 			--]]
-			--local tableIndex = PPUMemPtr >> 12	-- 0 or 1
-			local hi = (PPUMemPtr >> 3) & 1	-- hi bit: 0 or 1
-			local y = PPUMemPtr & 0x7
-			local sprIndex = PPUMemPtr >> 4
+			--local tableIndex = CHR_RAM_ptr >> 12	-- 0 or 1
+			local hi = (CHR_RAM_ptr >> 3) & 1	-- hi bit: 0 or 1
+			local y = CHR_RAM_ptr & 0x7
+			local sprIndex = CHR_RAM_ptr >> 4
 			local sprX = sprIndex & 0x1F
 			local sprY = sprIndex >> 5
 --trace('...to sprIndex='..sprIndex..' sprX='..sprX..' sprY='..sprY..' hi='..hi)
@@ -246,7 +247,7 @@ trace('PPUMemData write '..hex(v)..' ... to PPU RAM $'..hex(PPUMemPtr,4))
 				poke(addr, pix)
 			end
 			-- then the attribute-table is used as bit23 to offset these
-		elseif PPUMemPtr < 0x3000 then
+		elseif CHR_RAM_ptr < 0x3000 then
 			-- 2000-23C0 name table 0
 			-- 23C0-2400 attr table 0
 			-- 2400-27C0 name table 1
@@ -255,8 +256,9 @@ trace('PPUMemData write '..hex(v)..' ... to PPU RAM $'..hex(PPUMemPtr,4))
 			-- 2BC0-2C00 attr table 2
 			-- 2C00-2FC0 name table 3
 			-- 2FC0-3000 attr table 3
-			local tileIndex = (PPUMemPtr >> 10) & 3
-			local pageaddr = PPUMemPtr & 0x3FF
+			local i = CHR_RAM_ptr
+			local tileIndex = (i >> 10) & 3
+			local pageaddr = i & 0x3FF
 			--if pageaddr < 960 then
 				local x = pageaddr & 0x1f
 				local y = pageaddr >> 5
@@ -269,8 +271,8 @@ trace('...to nametable='..tileIndex..' x='..x..' y='..y)
 			--else
 				-- attribute-flags
 			--end
-		elseif PPUMemPtr < 0x3F00 then
-		elseif PPUMemPtr < 0x3F20 then
+		elseif CHR_RAM_ptr < 0x3F00 then
+		elseif CHR_RAM_ptr < 0x3F20 then
 			-- 3F00-3F10 image palette
 			-- 3F10-3F20 sprite palette
 
@@ -283,7 +285,7 @@ trace('...to nametable='..tileIndex..' x='..x..' y='..y)
 			-- and then upon these writes, copy the orig palette 192-256 into the used-palette 0-64 or idk sprite vs image or w/e palette 0-128
 
 			-- what should I initialize this to?
-			local palindex = (PPUMemPtr - 0x3F00)
+			local palindex = (CHR_RAM_ptr - 0x3F00)
 			--palindex &= 0xf	-- mirror? or nah?
 			pokew(
 				n9PalAddr + palindex << 1,
@@ -291,11 +293,11 @@ trace('...to nametable='..tileIndex..' x='..x..' y='..y)
 			)
 		end
 		-- inc upon read/write
-		PPUMemPtr += PPUControl & 2 == 0 and 1 or 32
-		PPUMemPtr &= PPURAMMask
+		CHR_RAM_ptr += PPUControl & 2 == 0 and 1 or 32
+		CHR_RAM_ptr &= CHR_ROM_addrMask
 	elseif i == OAMDMAaddr then
 		-- increment?
-		memcpy(n9OAMAddr, nesrom + (v << 8), OAMSize)
+		memcpy(n9_OAM_addr, nesrom + (v << 8), OAM_RAM_size)
 	elseif i >= cartRAMAddr and i < cartRAMEndAddr then
 		-- write it to our persistent memory
 		poke(n9PersistAddr + i - 0x6000, v)
@@ -1143,9 +1145,9 @@ update=||do
 		cpuRun()
 	end
 
-	-- ... clear at prerender scanline 
+	-- ... clear at prerender scanline
 	PPUStatus &= 0x1F
-	
+
 	-- rendering OAM ...
 	cls()
 
@@ -1158,7 +1160,7 @@ update=||do
 	-- is sprite rendering enabled?
 	if PPUMask & 0x10 ~= 0 then
 		for i=0,255,4 do
-			local addr = n9OAMAddr + i
+			local addr = n9_OAM_addr + i
 			local y = peek(addr)
 			local sprIndex = peek(addr + 1)
 			local attrs = peek(addr + 2)
@@ -1180,8 +1182,8 @@ update=||do
 						then
 							if sx >= 8
 							-- I think this is wrong ...
-							or (bg and PPUMask & 2 ~= 0)
-							or (not bg and PPUMask & 4 ~= 0)
+							--or (bg and PPUMask & 2 ~= 0)
+							--or (not bg and PPUMask & 4 ~= 0)
 							then
 								local sprPix = peek(n9SheetAddr + (
 									dx | (sprX << 3)
@@ -1189,8 +1191,8 @@ update=||do
 								))
 								if sprPix ~= 0 then
 									-- does the framebuffer matter?
-									--if fbAddr(sx | (sy << 8)) ~= 0 then 
-									PPUStatus |= 0x40
+									--if fbAddr(sx | (sy << 8)) ~= 0 then
+									PPUStatus |= 0x40	-- sprite 0 was hit
 									--end
 								end
 							end

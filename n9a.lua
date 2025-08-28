@@ -1649,21 +1649,21 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	local header = data:sub(1, 0x10)
 	data = data:sub(0x10+1)
 
-	local PRG_ROM_size = bit.lshift(header:byte(4+1), 14)
-	print('PRG_ROM_size', ('0x%x'):format(PRG_ROM_size))
-	local CHR_ROM_size = bit.lshift(header:byte(5+1), 13)
-	print('CHR_ROM_size', ('0x%x'):format(CHR_ROM_size))
+	local nes_PRG_ROM_size = bit.lshift(header:byte(4+1), 14)
+	print('nes_PRG_ROM_size', ('0x%x'):format(nes_PRG_ROM_size))
+	local nes_CHR_ROM_size = bit.lshift(header:byte(5+1), 13)
+	print('nes_CHR_ROM_size', ('0x%x'):format(nes_CHR_ROM_size))
 	if bit.band(header:byte(6+1), 2) ~= 0 then
 		header = header .. data:sub(1, 0x200)
 		data = data:sub(0x200+1)
 	end
 
-	if #data ~= PRG_ROM_size + CHR_ROM_size then
+	if #data ~= nes_PRG_ROM_size + nes_CHR_ROM_size then
 		print('data excluding header size: '..#data)
-		print('PRG+CHR size '..PRG_ROM_size + CHR_ROM_size)
+		print('PRG+CHR size '..nes_PRG_ROM_size + nes_CHR_ROM_size)
 		print"TODO there's some extra data idk about in the .nes file."
 	end
-	local ROM = data:sub(1, PRG_ROM_size)
+	local ROM = data:sub(1, nes_PRG_ROM_size)
 
 	-- so wait
 	-- addressing of ROM starts at $8000
@@ -1673,9 +1673,26 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	basepath'rom.hex':write(string.hexdump(RAMROM))
 
 
-	local PPURAMSize = 0x4000
-	assert.le(CHR_ROM_size, PPURAMSize)	-- assert our CHR ROM is less than VRAM size ... ?
-	local VRAM = data:sub(PRG_ROM_size+1)
+	local CHR_ROM_size = 0x4000
+	assert.le(nes_CHR_ROM_size, CHR_ROM_size)	-- assert our CHR ROM is less than VRAM size ... ?
+	local VRAM = data:sub(nes_PRG_ROM_size+1)
+
+	-- only after reading whats available to NuMo9 resources, then fill to the VRAM total size and write out
+	VRAM = VRAM .. ('\0'):rep(CHR_ROM_size - #VRAM)
+
+	-- "startup vram palette" wait does ths mean I won't find vram > 0x2000 in size?
+	-- From https://github.com/christopherpow/nes-test-roms/blob/master/blargg_ppu_tests_2005.09.15b/source/power_up_palette.asm
+	for i,v in ipairs{
+		0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00, 0x04, 0x2C,
+        0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A, 0x00, 0x02, 0x00, 0x20, 0x2C, 0x08
+	} do
+		ffi.cast('uint8_t*', VRAM)[i-1 + 0x3F00] = v
+		-- and with this, init the palette
+	end
+
+	basepath'data1.bin':write(VRAM)
+
+
 
 	-- https://www.nesdev.org/wiki/PPU_palettes
 	-- from https://github.com/Gumball2415/pally/blob/main/docs/NESDev/2C02G_wiki_palette_page.txt
@@ -1692,10 +1709,12 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	end)
 	:rep(4)	-- 64 -> 256
 
+
 	-- fill in anything from VRAM
-	for i=0x3F00,math.min(#VRAM,0x3F20)-1 do
+	for i=0x3F00,0x3F1F do
 		-- also in n9a_nes_glue.lua
 		local palindex = (i - 0x3F00)
+		local v = VRAM:byte(i+1)
 		--palindex &= 0xf	-- mirror? or nah?
 		palette[palindex+1] = table(palette[bit.bor(0xC0, bit.band(v, 0x3F))+1])
 	end
@@ -1704,14 +1723,14 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
 		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
 	end))
-	
+
 	palImg:save(basepath'palette.png'.path)
 
 
 	-- copy our pictures into the sprite sheet
 	local sheetImg = Image(256, 256, 1, 'uint8_t')
 	ffi.fill(sheetImg.buffer, sheetImg:getBufferSize())
-	for i=0,math.min(0x2000,#VRAM)-1 do
+	for i=0,0x1FFF do
 		local v = VRAM:byte(i+1)
 		-- duplicated from n9a_nes_glue.lua nespoke PPUMemPtr < 0x2000  :
 		local y = bit.band(0x7, i)					-- bits 012 = row
@@ -1744,10 +1763,10 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	sheetImg.palette = palette
 	sheetImg:save(basepath'sheet.png'.path)
 
-	-- do ROMs come with initialized tilemaps? #CHR > 0x2000 ? 
+	-- do ROMs come with initialized tilemaps? #CHR > 0x2000 ?
 	local tilemapImg = Image(256, 256, 3, 'uint8_t')
 	ffi.fill(tilemapImg.buffer, tilemapImg:getBufferSize())
-	for i=0x2000,math.min(0x4000,#VRAM)-1 do
+	for i=0x2000,0x3FFF do
 		local v = VRAM:byte(i+1)
 
 		local tileIndex = bit.band(3, bit.rshift(i, 10))
@@ -1765,7 +1784,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 					bit.bor(
 						y,
 						bit.lshift(bit.band(2, tileIndex), 4)
-					), 
+					),
 					8
 				)
 			)] = v
@@ -1775,19 +1794,14 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	end
 	tilemapImg:save(basepath'tilemap.png'.path)
 
-	-- only after reading whats available to NuMo9 resources, then fill to the VRAM total size and write out
-	VRAM = VRAM .. ('\0'):rep(PPURAMSize - #VRAM)
-	basepath'data1.bin':write(VRAM)
-
-
 	-- put the nes file header here in case we need it
 	basepath'data2.bin':write(header)
-	
-	local OAMSize = 0x100
+
+	local OAM_RAM_size = 0x100
 	local cartRAMSize = 0x2000
 
 	-- 256 bytes for PPU OAM
-	basepath'data3.bin':write(('\0'):rep(OAMSize))
+	basepath'data3.bin':write(('\0'):rep(OAM_RAM_size))
 
 	-- persistent ram of 0x2000
 	basepath'persist.bin':write(('\0'):rep(cartRAMSize))
