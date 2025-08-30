@@ -515,25 +515,17 @@ print('toImage', name, 'width', width, 'height', height)
 	local flagSrc = move(sections, 'gff')
 	local spriteFlagCode
 	if flagSrc then
---[[ save out flags?
-		local spriteFlagsImg = toImage(flagSrc, false, 'gff')
-		spriteFlagsImg:save(basepath'spriteflags.png'.path)
---]]
--- [[ or nah, just embed them in the code ...
 		flagSrc = flagSrc:concat():gsub('%s', '')	-- only hex chars
 		assert.len(flagSrc, 512)
-		spriteFlagCode = 'sprFlags={\n'
-			..range(0,15):mapi(function(j)
-				return range(0,15):mapi(function(i)
-					local index = i + 16 * j
-					local s = '0x'..flagSrc:sub(2*index+1,2*index+2)..','
-					if index==0 then s='[0]='..s end
-					return s
-				end):concat''..'\n'
-			end):concat()
-			..'}\n'
+		flagSrc = flagSrc:gsub('..', function(c)
+			return string.char((tonumber(c,16)))
+		end)
+		assert.len(flagSrc, 256)
+		-- data 1 is 256 bytes of the sprite flags
+		basepath'data1.bin':write(flagSrc)
+	else
+		basepath'data1.bin':write(('\0'):rep(256))
 	end
---]]
 
 	-- map is 8bpp not 4pp
 	local mapSrc = move(sections, 'map')
@@ -1205,9 +1197,16 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 	-- TODO try using patterns, but I think I need a legit regex library ... or parser ...
 	-- TODO for parser, functions whose arg is _ENV, or _ENV-assignment, replace with setfenv call
 	-- or if you don't want to expose setfenv then how about doing this in langfix?
-	code = string.split(code, '\n'):mapi(function(line, lineNo)
+	code = string.split(code, '\n')
+	:mapi(function(line, lineNo)
 		-- change // comments with -- comments
 		line = line:gsub('//', '--')
+
+		-- change --#include comments to something that mine doesn't pick up
+		local rest = line:match'^%-%-#include'
+		if rest then
+			line = '-- NUMO9 COMMENT INCLUDE '..rest
+		end
 
 		-- change not-equal != to ~=
 		line = line:gsub('!=', '~=')
@@ -1326,24 +1325,8 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 	end):concat'\n'
 	--]]
 
-	local LuaFixedParser = require 'langfix.parser'
-	local function minify(code)
-		-- [[ glue the code as-is
-		return code
-		--]]
-		--[[ save some space by running it through the langfix parser
-		local parser = LuaFixedParser()
-		local success, err = parser:setData(code)
-		if not success then
-			print"MINIFICATION FAILED"
-			print(parser.t:getpos()..err)
-			os.exit()
-		end
-		return assert(parser.tree:toLuaFixed())
-		--]]
-	end
-
-	-- write out our userdata blob ... TODO mechanism to request cart space without specifying empty files
+	-- write out our userdata blob ... 
+	-- TODO mechanism to request cart space without specifying empty files
 	assert(basepath'data.bin':write(('\0'):rep(0x1300)))
 
 	-- now add our glue between APIs ...
@@ -1359,7 +1342,6 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 		-- if this one global seems like a bad idea, I can always just wrap the whole thing in a function , then setfenv on the function env, and then have the function return the _init and _update (to call and set)
 		'__numo9_finished(_init, _update, _update60, _draw)'
 	}:concat'\n'..'\n'
-	code = minify(code)
 
 	code = table{
 		'-- title = Pico8: '..origname,

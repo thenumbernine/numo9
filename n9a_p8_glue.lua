@@ -4,10 +4,16 @@ updateCounterAddr=ramaddr'updateCounter'
 framebufferAddr=ramaddr'framebuffer'
 spriteSheetAddr=blobaddr'sheet'
 tilemapAddr=blobaddr'tilemap'
+
 userDataAddr=blobaddr'data'
 assert.ge(blobsize'data', 0x1300)
+
 persistentDataAddr=blobaddr'persist'
 assert.ge(blobsize'persist', 256)
+
+spriteFlagDataAddr = blobaddr('data', 1)
+assert.eq(blobsize('data', 1), 256)
+
 mode(1)	-- set to 8bpp-indexed framebuffer
 p8ton9btnmap={[0]=2,0,3,1,7,5}
 p8color=6
@@ -42,7 +48,61 @@ p8_clip=|x,y,w,h,rel|do
 		clip(x<<1,y<<1,(w<<1)-1,(h<<1)-1)
 	end
 end
-p8_fillp=|p|fillp(p)	-- TODO swizzle the bits accordingly, pico8's is in order, I'm using the 4x4 Bayer dither-matrix
+
+p8_to_n9_ditherBits={
+	[0] = 0,
+	[1] = 8,
+	[2] = 2,
+	[3] = 10,
+	[4] = 12,
+	[5] = 4,
+	[6] = 14,
+	[7] = 6,
+	[8] = 3,
+	[9] = 11,
+	[10] = 1,
+	[11] = 9,
+	[12] = 15,
+	[13] = 7,
+	[14] = 13,
+	[15] = 5,
+}
+-- pico8's fillp only works for the following commands:
+--  circ() circfill() rect() rectfill() oval() ovalfill() pset() line()
+-- (weird, you can't dither sprites?)
+-- also TODO fill pattern can be set as the decimal bits of the color of any of these functions
+-- also TODO fill pattern can be set from POKE(0x5F34) & 1 means "enable fillpattern in high bits" (what about the low bits?)
+curFillPattern=0
+useColorDecimalForFillPattern = false	-- set in poke(0x5f34)
+p8_to_n9_fillp=|p|do
+	p = tonumber(uint16_t(p))
+	local n = 0
+	for i=0,15 do
+		if p & (1 << i) ~= 0 then
+			n |= 1 << p8_to_n9_ditherBits[i]
+		end
+	end
+	return n
+end
+
+-- for the fillp-compatible functions,
+-- if their color is optional,
+-- this will set their color to the default color
+-- and get their fillp bits to either the current fillp, or color fraction bits
+getColorAndPat=|c|do
+	local p = curFillPattern
+	if c then
+		if useColorDecimalForFillPattern then
+			p = p8_to_n9_fillp((c * 0x10000) & 0xFFFF)
+		end
+	else
+		-- does setting the fill-pattern with color-bits also work on the saved default color?
+		-- (if it does then move this inside the "if useColorDecimalForFillPattern" block above)
+		c = p8color
+	end
+	return c, p
+end
+
 p8palRemap={}
 p8palette={
 	0x0000,
@@ -145,6 +205,10 @@ p8_palt=|...|do
 		p8_setpalt(...)
 	end
 end
+
+p8_sprFlagRead=|i|peek(spriteFlagDataAddr+(i&0xff))
+p8_sprFlagWrite=|i,v|poke(spriteFlagDataAddr + (i&0xff), v)
+
 p8peek=|addr,n|do
 	if n then
 --DEBUG:assert.le(n, 8192)
@@ -178,7 +242,7 @@ pico8 y 0..128 (bits 6..12) will be 0..256 (bits 8..14) for me
 		local value=peekw(tilemapAddr+addr)
 		return (value&0x0f)|((value>>1)&0xf0)
 	elseif addr>=0x3000 and addr<0x3100 then
-		return sprFlags[addr&0xff]
+		return p8_sprFlagRead(addr&0xff)
 	elseif addr>=0x4300 and addr<0x5600 then	-- user data
 		return peek(addr-0x4300+userDataAddr)
 	elseif addr>=0x6000 and addr<0x8000 then
@@ -214,9 +278,11 @@ p8poke=|addr,value,...|do
 		addr=(x<<1)|(y<<9)
 		pokew(tilemapAddr+addr,(value&0xf)|((value&0xf0)<<1))
 	elseif addr>=0x3000 and addr<0x3100 then
-		sprFlags[addr&0xff] = value
+		p8_sprFlagWrite(addr,value)
 	elseif addr>=0x4300 and addr<0x5600 then	-- user data
 		poke(addr-0x4300+userDataAddr,value)
+	elseif addr==0x5f34 then
+		useColorDecimalForFillPattern = value & 1 ~= 0
 	elseif addr>=0x6000 and addr<0x8000 then
 		-- only valid for 8bpp-indexed video mode
 		addr-=0x6000
@@ -380,15 +446,16 @@ setfenv(1, {
 	clip=p8_clip,
 	camera=p8_camera,
 	pset=|x,y,c|do
-		x=math.floor(x)
-		y=math.floor(y)
-		if x<0 or x>=128 or y<0 or y>=128 then return end
-		c=math.floor(c or p8color)
-		pset(x,y,c)
+		local c, p = getColorAndPat(c)
+		fillp(p)
+		rect(x,y,1,1,c)
+		fillp(0)
 	end,
 	pget=|x,y|do
-		x=math.floor(x)
-		y=math.floor(y)
+		-- is pget affected by camera() ?
+		-- is pset " " " ?
+		x=math.floor(x) - camx
+		y=math.floor(y) - camy
 		return (x<0 or x>=128 or y<0 or y>=128) and 0 or pget(x,y)
 	end,
 	sset=|x,y,c|do
@@ -403,25 +470,53 @@ setfenv(1, {
 		y=math.floor(y)
 		return (x<0 or x>=128 or y<0 or y>=128) and 0 or peek(spriteSheetAddr+((x|(y<<8))))
 	end,
-	rect=|x0,y0,x1,y1,c|rectb(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
-	rectfill=|x0,y0,x1,y1,c|rect(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
-	circ=|x,y,r,c|ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,c or p8color),
-	circfill=|x,y,r,c|elli(x-r,y-r,(r<<1)+1,(r<<1)+1,c or p8color),
-	oval=|x0,y0,x1,y1,c|ellib(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
-	ovalfill=|x0,y0,x1,y1,c|elli(x0,y0,x1-x0+1,y1-y0+1,c or p8color),
+	rect=|x0,y0,x1,y1,c|do
+		local c, p = getColorAndPat(c)
+		fillp(p)
+		rectb(x0,y0,x1-x0+1,y1-y0+1,c)
+		fillp(0)
+	end,
+	rectfill=|x0,y0,x1,y1,c|do
+		local c, p = getColorAndPat(c)
+		fillp(p)
+		rect(x0,y0,x1-x0+1,y1-y0+1,c)
+		fillp(0)
+	end,
+	circ=|x,y,r,c|do
+		local c, p = getColorAndPat(c)
+		fillp(p)
+		ellib(x-r,y-r,(r<<1)+1,(r<<1)+1,c)
+		fillp(0)
+	end,
+	circfill=|x,y,r,c|do
+		local c, p = getColorAndPat(c)
+		fillp(p)
+		elli(x-r,y-r,(r<<1)+1,(r<<1)+1,c)
+		fillp(0)
+	end,
+	oval=|x0,y0,x1,y1,c|do
+		local c, p = getColorAndPat(c)
+		fillp(p)
+		ellib(x0,y0,x1-x0+1,y1-y0+1,c)
+		fillp(0)
+	end,
+	ovalfill=|x0,y0,x1,y1,c|do
+		local c, p = getColorAndPat(c)
+		fillp(p)
+		elli(x0,y0,x1-x0+1,y1-y0+1,c)
+		fillp(0)
+	end,
 	line=|...|do
-		local x0,y0,col,x1,y1=lastlinex,lastliney,p8color
+		local x0,y0,c,x1,y1=lastlinex,lastliney
 		local n=select('#',...)
 		if n==2 then
 			x1,y1=...
 		elseif n==3 then
-			x1,y1,col=...
-			col=col or p8color
+			x1,y1,c=...
 		elseif n==4 then
 			x0,y0,x1,y1=...
 		elseif n==5 then
-			x0,y0,x1,y1,col=...
-			col=col or p8color
+			x0,y0,x1,y1,c=...
 		end
 --DEBUG:assert.type(x0,'number')
 --DEBUG:assert.type(y0,'number')
@@ -431,8 +526,10 @@ setfenv(1, {
 		y0=math.floor(y0)
 		x1=math.floor(x1)
 		y1=math.floor(y1)
-		col=math.floor(col)
-		line(x0,y0,x1,y1,col)
+		local c, p = getColorAndPat(c)
+		fillp(p)
+		line(x0,y0,x1,y1,c)
+		fillp(0)
 		lastlinex,lastliney=x1,y1
 	end,
 	print=|...|do
@@ -492,7 +589,7 @@ setfenv(1, {
 			i=math.floor(i)
 --DEBUG:assert.ge(i,0)
 --DEBUG:assert.lt(i,256)
-			return sprFlags[i]
+			return p8_sprFlagRead(i)
 		elseif n==2 then
 			local i,f=...
 			i=math.floor(i)
@@ -501,7 +598,7 @@ setfenv(1, {
 --DEBUG:assert.lt(i,256)
 --DEBUG:assert.ge(f,0)
 --DEBUG:assert.lt(f,8)
-			return (1&(sprFlags[i]>>f)) ~= 0
+			return (1&(p8_sprFlagRead(i)>>f)) ~= 0
 		else
 			error'here'
 		end
@@ -516,7 +613,7 @@ setfenv(1, {
 --DEBUG:assert.lt(i,256)
 --DEBUG:assert.ge(val,0)
 --DEBUG:assert.lt(val,256)
-			sprFlags[i]=val
+			p8_sprFlagWrite(i,val)
 		elseif n==3 then
 			local i,f,val=...
 			i=math.floor(i)
@@ -526,9 +623,9 @@ setfenv(1, {
 --DEBUG:assert.lt(i,256)
 			local flag=1<<f
 			local mask=~flag
-			sprFlags[i]&=mask
+			p8_sprFlagWrite(i, p8_sprFlagRead(i) & mask)
 			if val==true then
-				sprFlags[i]|=flag
+				p8_sprFlagWrite(i, p8_sprFlagRead(i) | flag)
 			elseif val == false then
 			else
 				error'here'
@@ -639,7 +736,7 @@ setfenv(1, {
 				if i>0 then
 					i=(i&0xf)|((i>>1)&0xf0)
 					if not layers
-					or sprFlags[i]&layers==layers
+					or p8_sprFlagRead(i)&layers==layers
 					then
 						map(tx,ty,1,1,ssx,ssy,0,false,0)
 					end
@@ -697,7 +794,9 @@ setfenv(1, {
 			0,-1,0,0xf)
 	end,
 	color=|c|do p8color=math.floor(c or 6) end,
-	fillp=p8_fillp,
+	fillp=|p|do
+		curFillPattern = p8_to_n9_fillp(p)
+	end,
 
 	menuitem=||trace'TODO menuitem',
 
@@ -707,7 +806,7 @@ setfenv(1, {
 		p8_camera()
 		p8_clip()
 		p8_pal()
-		p8_fillp(0)
+		p8_to_n9_fillp(0)
 	end,
 
 	music=|n, fadeLen, mask|do
