@@ -93,7 +93,8 @@ if cmd == 'x' then
 	local blobs = cartImageToBlobs((assert(n9path:read())))
 	assert.type(blobs, 'table')
 
-	for blobClassName,blobsForType in pairs(blobs) do
+	for _,blobClassName in ipairs(table.keys(blobs):sort()) do
+		local blobsForType = blobs[blobClassName]
 		for blobIndexPlusOne,blob in ipairs(blobsForType) do
 			local blobIndex = blobIndexPlusOne-1
 			blob:saveFile(
@@ -112,7 +113,8 @@ elseif cmd == 'a' or cmd == 'r' then
 	assert(basepath:isdir())
 
 	local blobs = BlobSet()
-	for blobClassName,blobClass in pairs(blobClassForName) do
+	for _,blobClassName in ipairs(table.keys(blobClassForName):sort()) do
+		local blobClass = blobClassForName[blobClassName]
 		for blobIndex=0,math.huge do
 			local filepath = basepath(blobClass:getFileName(blobIndex))
 			if not filepath:exists() then break end
