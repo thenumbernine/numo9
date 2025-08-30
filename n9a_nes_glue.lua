@@ -327,24 +327,24 @@ local P = 0		-- process flags
 local S = 0		-- stack
 local PC = 0	-- process-counter
 
-local flagC = 0x01	-- carry
-local flagZ = 0x02	-- zero
-local flagI = 0x04	-- interrupt disable
-local flagD = 0x08	-- decimal mode
-local flagB = 0x10	-- break
-local flag_ = 0x20	-- unused
-local flagV = 0x40	-- overflow
-local flagN = 0x80	-- negative
-local bitC = 0
-local bitZ = 1
-local bitI = 2
-local bitD = 3
-local bitB = 4
-local bit_ = 5
-local bitV = 6
-local bitN = 7
-local flagB_ = flagB | flag_
-local flagVN = flagV | flagN
+local P_flagC = 0x01	-- carry
+local P_flagZ = 0x02	-- zero
+local P_flagI = 0x04	-- interrupt disable
+local P_flagD = 0x08	-- decimal mode
+local P_flagB = 0x10	-- break
+local P_flag_ = 0x20	-- unused
+local P_flagV = 0x40	-- overflow
+local P_flagN = 0x80	-- negative
+local P_bitC = 0
+local P_bitZ = 1
+local P_bitI = 2
+local P_bitD = 3
+local P_bitB = 4
+local P_bit_ = 5
+local P_bitV = 6
+local P_bitN = 7
+local P_flagB_ = P_flagB | P_flag_
+local P_flagVN = P_flagV | P_flagN
 
 local readPC=||do
 	local i = nespeek(PC)
@@ -360,28 +360,28 @@ end
 -- arg : uint8_t
 local setZN=|arg|do
 	if arg == 0 then
-		P |= flagZ
+		P |= P_flagZ
 	else
-		P &= ~flagZ
+		P &= ~P_flagZ
 	end
-	-- transfer bit 7 from arg to P (this flagN)
-	P &= ~flagN
-	P |= arg & flagN
+	-- transfer bit 7 from arg to P (this P_flagN)
+	P &= ~P_flagN
+	P |= arg & P_flagN
 	return arg	-- continue to use the arg
 end
 
 -- arg : uint8_t
 local bit0toC=|arg|do
-	-- transfer bit 0 from arg to P (this is flagC)
-	P &= ~flagC
-	P |= arg & flagC	-- carry is bit 0
+	-- transfer bit 0 from arg to P (this is P_flagC)
+	P &= ~P_flagC
+	P |= arg & P_flagC	-- carry is bit 0
 	return arg	-- continue to use the arg
 end
 
 -- arg : uint8_t
 local bit7toC=|arg|do
-	P &= ~flagC
-	P |= (arg >> 7) & flagC	-- carry is bit 0
+	P &= ~P_flagC
+	P |= (arg >> 7) & P_flagC	-- carry is bit 0
 	return arg
 end
 
@@ -390,25 +390,25 @@ local branch=|offset|do PC += int8_t(readPC()) end
 
 local doCompare=|reg,val|do
 	if reg >= val then
-		P |= flagC
+		P |= P_flagC
 	else
-		P &= ~flagC
+		P &= ~P_flagC
 	end
 	val = uint8_t(reg - val)
 	setZN(val)
 end
 
 local SBC=|value|do
-	-- transfer NOT `A ~ value`'s bit 7 to P's bit 6 aka flagV
-	P &= ~flagV
+	-- transfer NOT `A ~ value`'s bit 7 to P's bit 6 aka P_flagV
+	P &= ~P_flagV
 	P |= (~(A ~ value) & 0x80) >> 1
 
 	local w
-	if P & flagD ~= 0 then
+	if P & P_flagD ~= 0 then
 		local tmp = 0xF
 			+ (A & 0xF)
 			- (value & 0xF)
-			+ (P & flagC)
+			+ (P & P_flagC)
 		if tmp < 0x10 then
 			w = 0
 			tmp -= 6
@@ -418,29 +418,29 @@ local SBC=|value|do
 		end
 		w += 0xF0 + (A & 0xF0) - (value & 0xF0)
 		if w < 0x100 then
-			P &= ~flagC
+			P &= ~P_flagC
 			if w < 0x80 then
-				P &= ~flagV
+				P &= ~P_flagV
 			end
 			w -= 0x60
 		else
-			P |= flagC
+			P |= P_flagC
 			if w >= 0x180 then
-				P &= ~flagV
+				P &= ~P_flagV
 			end
 		end
 		w += tmp
 	else
-		w = 0xFF + A - value + (P & flagC)
+		w = 0xFF + A - value + (P & P_flagC)
 		if w < 0x100 then
-			P &= ~flagC
+			P &= ~P_flagC
 			if w < 0x80 then
-				P &= ~flagV
+				P &= ~P_flagV
 			end
 		else
-			P |= flagC
+			P |= P_flagC
 			if w >= 0x180 then
-				P &= ~flagV
+				P &= ~P_flagV
 			end
 		end
 	end
@@ -449,41 +449,41 @@ local SBC=|value|do
 end
 
 local ADC=|value|do
-	-- transfer NOT `A ~ value`'s bit 7 to P's bit 6 aka flagV
-	P &= ~flagV
+	-- transfer NOT `A ~ value`'s bit 7 to P's bit 6 aka P_flagV
+	P &= ~P_flagV
 	P |= (~(A ~ value) & 0x80) >> 1
 
-	if P & flagD ~= 0 then
+	if P & P_flagD ~= 0 then
 		local tmp = (A & 0xF)
 			+ (value & 0xF)
-			+ (P & flagC)
+			+ (P & P_flagC)
 		if tmp >= 10 then
 			tmp = 0x10 | ((tmp + 6) & 0xF)
 		end
 		tmp += (A & 0xF0) + (value & 0xF0)
 		if tmp >= 160 then
-			P |= flagC
+			P |= P_flagC
 			if tmp >= 0x180 then
-				P &= ~flagV
+				P &= ~P_flagV
 			end
 			tmp += 0x60
 		else
-			P &= ~flagC
+			P &= ~P_flagC
 			if tmp < 0x80 then
-				P &= ~flagV
+				P &= ~P_flagV
 			end
 		end
 	else
-		tmp = A + value + (P & flagC)
+		tmp = A + value + (P & P_flagC)
 		if tmp >= 0x100 then
-			P |= flagC
+			P |= P_flagC
 			if tmp >= 0x180 then
-				P &= ~flagV
+				P &= ~P_flagV
 			end
 		else
-			P &= ~flagC
+			P &= ~P_flagC
 			if tmp < 0x80 then
-				P &= ~flagV
+				P &= ~P_flagV
 			end
 		end
 	end
@@ -493,14 +493,14 @@ end
 
 local BIT=|i|do
 	-- transfer bit 6 & 7 of i to bit 6 & 7 of P
-	P &= ~flagVN
-	P |= i & flagVN
+	P &= ~P_flagVN
+	P |= i & P_flagVN
 
-	-- set flagZ based on `A & i`
+	-- set P_flagZ based on `A & i`
 	if A & i ~= 0 then
-		P &= ~flagZ
+		P &= ~P_flagZ
 	else
-		P |= flagZ
+		P |= P_flagZ
 	end
 end
 
@@ -555,19 +555,19 @@ end
 IRQ=||do
 	stackPushw(PC)
 	stackPush(P)
-	P |= flagI
+	P |= P_flagI
 	PC = nespeekw(IRQAddr)
 end
 NMI=||do
 	stackPushw(PC)
 	stackPush(P)
-	P |= flagI
+	P |= P_flagI
 	PC = nespeekw(NMIAddr)
 end
 BRK=||do
 	stackPushw(PC)
-	stackPush(P | flagB)
-	P |= flagI
+	stackPush(P | P_flagB)
+	P |= P_flagI
 	PC = nespeekw(IRQAddr)
 end
 
@@ -649,7 +649,9 @@ trace('initPC = $'..hex(PC,4))
 
 local fbAddr = ramaddr'framebuffer'
 
+cycle=0
 cpuRun=||do
+	cycle+=1
 --DEBUG(asm):write('A='..hex(A)..' X='..hex(X)..' Y='..hex(Y)..' S='..hex(S)..' P='..hex(P)..' PC='..hex(PC,4)..' op='..hex(nespeek(PC))..' ')
 	local op = readPC()
 
@@ -676,16 +678,16 @@ cpuRun=||do
 			local shr
 			local b67 = op & 0xC0
 			if b67 == 0x00 then
-				shr = bitN
+				shr = P_bitN
 --DEBUG(asm):write(({'BPL', 'BMI'})[test+1]..argStrRel())
 			elseif b67 == 0x40 then
-				shr = bitV
+				shr = P_bitV
 --DEBUG(asm):write(({'BVC', 'BVS'})[test+1]..argStrRel())
 			elseif b67 == 0x80 then
-				shr = bitC
+				shr = P_bitC
 --DEBUG(asm):write(({'BCC', 'BCS'})[test+1]..argStrRel())
 			elseif b67 == 0xC0 then
-				shr = bitZ
+				shr = P_bitZ
 --DEBUG(asm):write(({'BNE', 'BEQ'})[test+1]..argStrRel())
 			end
 
@@ -699,16 +701,16 @@ cpuRun=||do
 
 		-- 0xx1:1000
 			if op == 0x18 then
-				P &= ~flagC	-- CLC
+				P &= ~P_flagC	-- CLC
 --DEBUG(asm):write'CLC'
 			elseif op == 0x38 then
-				P |= flagC	-- SEC
+				P |= P_flagC	-- SEC
 --DEBUG(asm):write'SEC'
 			elseif op == 0x58 then
-				P &= ~flagI	-- CLI
+				P &= ~P_flagI	-- CLI
 --DEBUG(asm):write'CLI'
 			elseif op == 0x78 then
-				P |= flagI 	-- SEI
+				P |= P_flagI 	-- SEI
 --DEBUG(asm):write'SEI'
 			elseif op == 0x98 then
 				-- TYA is here for some reason
@@ -717,13 +719,13 @@ cpuRun=||do
 				A = setZN(Y)	-- TYA
 --DEBUG(asm):write'TYA'
 			elseif op == 0xB8 then
-				P &= ~flagV 	-- CLV
+				P &= ~P_flagV 	-- CLV
 --DEBUG(asm):write'CLV'
 			elseif op == 0xD8 then
-				P &= ~flagD 	-- CLD
+				P &= ~P_flagD 	-- CLD
 --DEBUG(asm):write'CLD'
 			elseif op == 0xF8 then
-				P |= flagD 	-- SED
+				P |= P_flagD 	-- SED
 --DEBUG(asm):write'SED'
 			end
 
@@ -740,17 +742,17 @@ cpuRun=||do
 					PC = addr
 				elseif op == 0x40 then	-- RTI
 --DEBUG(asm):write'RTI'
-					P = stackPop() | flagB_
+					P = stackPop() | P_flagB_
 					PC = stackPopw()
 				elseif op == 0x60 then	-- RTS
 --DEBUG(asm):write'RTS'
 					PC = stackPopw() + 1
 				elseif op == 0x08 then
 --DEBUG(asm):write'PHP'
-					stackPush(P | flagB_) -- PHP
+					stackPush(P | P_flagB_) -- PHP
 				elseif op == 0x28 then
 --DEBUG(asm):write'PLP'
-					P = stackPop() | flagB_  -- PLP
+					P = stackPop() | P_flagB_  -- PLP
 				elseif op == 0x48 then
 --DEBUG(asm):write'PHA'
 					stackPush(A)	-- PHA
@@ -976,13 +978,13 @@ cpuRun=||do
 						-- returns result
 						-- * I'm hoping all operations are evaluated left-to-right, since I'm reading C then writing C in dif bit op args
 						-- * NOTICE, no memory evaluation better modify C ...
-						arg = setZN((P & flagC) | uint8_t(bit7toC(arg) << 1))
+						arg = setZN((P & P_flagC) | uint8_t(bit7toC(arg) << 1))
 --DEBUG(asm):write'ROL'
 					elseif b567 == 0x40	then -- LSR
 						arg = setZN(bit0toC(arg) >> 1)
 --DEBUG(asm):write'LSR'
 					elseif b567 == 0x60	then -- ROR
-						arg = setZN((P & flagC) | uint8_t(bit7toC(arg) << 1))
+						arg = setZN((P & P_flagC) | uint8_t(bit7toC(arg) << 1))
 --DEBUG(asm):write'ROR'
 					end
 
@@ -1124,6 +1126,23 @@ cpuRun=||do
 end
 
 update=||do
+	--[[
+	TODO
+	master clock ...
+	- every 4 cycles NTSC / 5 cycles PAL, cycle the PPU
+	- every 12 cycles NTSC / 16 cycles PAL, cycle the CPU and APU
+	ppu ...
+	- every 340 cycles, increment a scanline
+	- every so many scanlines (261 NTSC / 311 PAL),
+		- reset scanline to 0
+		- flush
+		- frame_finished
+	- for scanlines 0-239,
+		when cycle # 1-256 of this scanline (0-based)
+		do typical scanline stuff:
+		-
+	--]]
+
 
 --DEBUG(asm):trace'vblank'
 
