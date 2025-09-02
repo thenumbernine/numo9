@@ -788,8 +788,8 @@ setfenv(1, {
 			sheetH=-sheetH
 		end
 		quad(destX,destY,destW,destH,
-			sheetX/256, sheetY/256,
-			sheetW/256, sheetH/256,
+			sheetX, sheetY,
+			sheetW, sheetH,
 			0,	-- sprite sheet ... TODO eventually for pico8 glue, use only 1 sheet, no separate sprites and tiles like tic80
 			0,-1,0,0xf)
 	end,
