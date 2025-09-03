@@ -2882,6 +2882,10 @@ print('no persist file to load: '..cartPersistFile)
 		if v ~= nil then	-- I'm pretty sure this still needs a string-convert
 			self.editTilemap.draw16Sprites = true
 		end
+		local v = self.metainfo['editTilemap.sheetBlobIndex']
+		if v ~= nil then
+			self.editTilemap.sheetBlobIndex = tonumber(v)
+		end
 	end
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop
