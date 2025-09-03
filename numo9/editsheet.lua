@@ -7,9 +7,7 @@ local assert = require 'ext.assert'
 local math = require 'ext.math'
 local table = require 'ext.table'
 local vec2i = require 'vec-ffi.vec2i'
-
 require 'ffi.req' 'c.string'	-- memcmp
-
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
 
@@ -48,18 +46,18 @@ function EditSheet:init(args)
 			-- for now I'll just have one undo buffer for the current sheet
 			-- TODO palette too
 			local app = self.app
-			local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
+			local sheetRAM = app.sheetRAMs[self.sheetBlobIndex+1]
 			local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
 			return {
-				sheet = currentVRAM.image:clone(),
+				sheet = sheetRAM.image:clone(),
 				palette = paletteRAM.image:clone(),
 			}
 		end,
 		changed = function(entry)
 			local app = self.app
-			local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
+			local sheetRAM = app.sheetRAMs[self.sheetBlobIndex+1]
 			local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
-			return 0 ~= ffi.C.memcmp(entry.sheet.buffer, currentVRAM.image.buffer, currentVRAM.image:getBufferSize())
+			return 0 ~= ffi.C.memcmp(entry.sheet.buffer, sheetRAM.image.buffer, sheetRAM.image:getBufferSize())
 			or 0 ~= ffi.C.memcmp(entry.palette.buffer, paletteRAM.image.buffer, paletteRAM.image:getBufferSize())
 		end,
 	}
@@ -110,8 +108,8 @@ function EditSheet:update()
 	EditSheet.super.update(self)
 
 	assert.eq(#app.sheetRAMs, #app.blobs.sheet)
-	local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
-	local currentTexAddr = currentVRAM.addr
+	local sheetRAM = app.sheetRAMs[self.sheetBlobIndex+1]
+	local currentTexAddr = sheetRAM.addr
 
 	assert.eq(#app.paletteRAMs, #app.blobs.palette)
 	local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
@@ -456,8 +454,8 @@ function EditSheet:update()
 			elseif self.spriteDrawMode == 'draw' then
 				local tx0 = tx - math.floor(self.penSize / 2)
 				local ty0 = ty - math.floor(self.penSize / 2)
-				assert.eq(currentVRAM.image.buffer, currentVRAM.tex.data)
-				currentVRAM.tex:bind()
+				assert.eq(sheetRAM.image.buffer, sheetRAM.tex.data)
+				sheetRAM.tex:bind()
 				for dy=0,self.penSize-1 do
 					for dx=0,self.penSize-1 do
 						local tx = tx0 + dx
@@ -477,7 +475,7 @@ function EditSheet:update()
 						end
 					end
 				end
-				currentVRAM.tex:unbind()
+				sheetRAM.tex:unbind()
 			elseif self.spriteDrawMode == 'fill' then
 				local srcColor = getpixel(tx, ty)
 				if srcColor ~= self.paletteSelIndex then
@@ -616,7 +614,7 @@ function EditSheet:update()
 				else
 					-- histogram info ... TODO when to recalculate it ...
 					if not self.hist then
-						self.hist = Quantize.buildHistogram(currentVRAM.image)
+						self.hist = Quantize.buildHistogram(sheetRAM.image)
 					end
 					self:setTooltip(
 						tostring(self.hist[string.char(paletteIndex)] or 0),
@@ -806,9 +804,9 @@ function EditSheet:update()
 			-- copy the selected region in the sprite/tile sheet
 			-- TODO copy the current-edit region? wait it's the same region ...
 			-- TODO if there is such a spriteSheetRAM.dirtyGPU then flush GPU changes here ... but there's not cuz I never write to it with the GPU ...
-			assert(not currentVRAM.dirtyGPU)
-			assert(x >= 0 and y >= 0 and x + width <= currentVRAM.image.width and y + height <= currentVRAM.image.height)
-			local image = currentVRAM.image:copy{x=x, y=y, width=width, height=height}
+			assert(not sheetRAM.dirtyGPU)
+			assert(x >= 0 and y >= 0 and x + width <= sheetRAM.image.width and y + height <= sheetRAM.image.height)
+			local image = sheetRAM.image:copy{x=x, y=y, width=width, height=height}
 			if image.channels == 1 then
 print'BAKING PALETTE'
 				-- TODO move palette functionality inot Image
@@ -830,20 +828,18 @@ print'BAKING PALETTE'
 			if app:keyp'x' then
 				self.undo:push()
 				-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
-				currentVRAM.dirtyCPU = true
-				assert.eq(currentVRAM.image.channels, 1)
+				sheetRAM.dirtyCPU = true
+				assert.eq(sheetRAM.image.channels, 1)
 				for j=y,y+height-1 do
 					for i=x,x+width-1 do
-						self:edit_poke(currentTexAddr + i + currentVRAM.image.width * j, self.paletteOffset)
+						self:edit_poke(currentTexAddr + i + sheetRAM.image.width * j, self.paletteOffset)
 					end
 				end
 				self.hist = nil	-- invalidate histogram
 			end
-		elseif app:keyp'z' then
-			self:popUndo(shift)
 		elseif app:keyp'v' then
 			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
-			assert(not currentVRAM.dirtyGPU)
+			assert(not sheetRAM.dirtyGPU)
 			local image = clip.image()
 			if image then
 				self.undo:push()
@@ -948,19 +944,21 @@ print('currentTexAddr', ('$%x'):format(currentTexAddr))
 					for i=0,image.width-1 do
 						local destx = i + x
 						local desty = j + y
-						if destx >= 0 and destx < currentVRAM.image.width
-						and desty >= 0 and desty < currentVRAM.image.height
+						if destx >= 0 and destx < sheetRAM.image.width
+						and desty >= 0 and desty < sheetRAM.image.height
 						then
 							local c = image.buffer[i + image.width * j]
 							local r,g,b,a = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[c])
 							if not self.pasteTransparent or a > 0 then
-								self:edit_poke(currentTexAddr + destx + currentVRAM.image.width * desty, c)
+								self:edit_poke(currentTexAddr + destx + sheetRAM.image.width * desty, c)
 							end
 						end
 					end
 				end
 				self.hist = nil
 			end
+		elseif app:keyp'z' then
+			self:popUndo(shift)
 		end
 	end
 
@@ -981,11 +979,11 @@ function EditSheet:popUndo(redo)
 	local app = self.app
 	local undoEntry = self.undo:pop(redo)
 	if undoEntry then
-		local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
+		local sheetRAM = app.sheetRAMs[self.sheetBlobIndex+1]
 		local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
-		ffi.C.memcpy(currentVRAM.image.buffer, undoEntry.sheet.buffer, currentVRAM.image:getBufferSize())
+		ffi.C.memcpy(sheetRAM.image.buffer, undoEntry.sheet.buffer, sheetRAM.image:getBufferSize())
 		ffi.C.memcpy(paletteRAM.image.buffer, undoEntry.palette.buffer, paletteRAM.image:getBufferSize())
-		currentVRAM.dirtyCPU = true
+		sheetRAM.dirtyCPU = true
 		paletteRAM.dirtyCPU = true
 	end
 end

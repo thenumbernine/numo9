@@ -5,9 +5,12 @@ local table = require 'ext.table'
 local assert = require 'ext.assert'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
-local clip = require 'numo9.clipboard'
+require 'ffi.req' 'c.string'	-- memcmp
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
+
+local clip = require 'numo9.clipboard'
+local Undo = require 'numo9.ui.undo'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -31,6 +34,24 @@ local EditTilemap = require 'numo9.ui':subclass()
 
 function EditTilemap:init(args)
 	EditTilemap.super.init(self, args)
+
+	self.undo = Undo{
+		get = function()
+			-- for now I'll just have one undo buffer for the current sheet
+			-- TODO palette too
+			local app = self.app
+			local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex+1]
+			return {
+				tilemap = tilemapRAM.image:clone(),
+			}
+		end,
+		changed = function(entry)
+			local app = self.app
+			local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex+1]
+			return 0 ~= ffi.C.memcmp(entry.tilemap.buffer, tilemapRAM.image.buffer, tilemapRAM.image:getBufferSize())
+		end,
+	}
+
 
 	self.sheetBlobIndex = 1
 	self.tilemapBlobIndex = 0
@@ -190,6 +211,7 @@ function EditTilemap:update()
 	)
 
 	-- TODO allow specifying palette #
+	-- or until then, TODO push/pop the RAM variable that specifies palette
 	app:drawMap(
 		0,		-- upper-left index in the tile tex
 		0,
@@ -360,6 +382,7 @@ function EditTilemap:update()
 				self.vertFlip and 0x8000 or 0)
 			local texelIndex = tx + tilemapSize.x * ty
 			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+			self.undo:pushContinuous()
 			self:edit_pokew(tilemapRAM.addr + bit.lshift(texelIndex, 1), tileSelIndex)
 		end
 
@@ -492,6 +515,7 @@ function EditTilemap:update()
 			end
 			clip.image(imageRGBA)
 			if app:keyp'x' then
+				self.undo:push()
 				tilemapRAM.dirtyCPU = true
 				assert.eq(tilemapRAM.image.channels, 1)
 				for j=y,y+height-1 do
@@ -508,6 +532,7 @@ function EditTilemap:update()
 			assert(not tilemapRAM.dirtyGPU)
 			local image = clip.image()
 			if image then
+				self.undo:push()
 				-- 4-channel uint8_t image
 				for j=0,image.height-1 do
 					for i=0,image.width-1 do
@@ -527,11 +552,17 @@ function EditTilemap:update()
 					end
 				end
 			end
+		elseif app:keyp'z' then
+			self:popUndo(shift)
 		end
 	end
 
 	-- draw ui menubar last so it draws over the rest of the page
-	self:guiBlobSelect(72, 0, 'tilemap', self, 'tilemapBlobIndex')
+	self:guiBlobSelect(72, 0, 'tilemap', self, 'tilemapBlobIndex', function()
+		-- for now only one undo per tilemap at a time
+		self.undo:clear()
+	end)
+	-- the current sheetmap is purely cosmetic, so if it changes no need to push undo
 	self:guiBlobSelect(84, 0, 'sheet', self, 'sheetBlobIndex')
 	--self:guiBlobSelect(96, 0, 'palette', self, 'paletteBlobIndex')
 	-- TODO palette spinner, and use selected palette for tilemap render
@@ -539,5 +570,16 @@ function EditTilemap:update()
 
 	self:drawTooltip()
 end
+
+function EditTilemap:popUndo(redo)
+	local app = self.app
+	local undoEntry = self.undo:pop(redo)
+	if undoEntry then
+		local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex+1]
+		ffi.C.memcpy(tilemapRAM.image.buffer, undoEntry.tilemap.buffer, tilemapRAM.image:getBufferSize())
+		tilemapRAM.dirtyCPU = true
+	end
+end
+
 
 return EditTilemap
