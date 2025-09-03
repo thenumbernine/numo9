@@ -77,9 +77,6 @@ function EditTilemap:update()
 	local x = 80
 	local y = 0
 
-	self:guiBlobSelect(x, y, 'tilemap', self, 'tilemapBlobIndex')
-	-- TODO palette spinner, and use selected palette for tilemap render
-	-- and TODO add paletteIndex to map() function
 
 	x = x + 16
 	-- TODO grow/shrink
@@ -532,6 +529,13 @@ function EditTilemap:update()
 			end
 		end
 	end
+
+	-- draw ui menubar last so it draws over the rest of the page
+	self:guiBlobSelect(72, 0, 'tilemap', self, 'tilemapBlobIndex')
+	self:guiBlobSelect(84, 0, 'sheet', self, 'sheetBlobIndex')
+	--self:guiBlobSelect(96, 0, 'palette', self, 'paletteBlobIndex')
+	-- TODO palette spinner, and use selected palette for tilemap render
+	-- and TODO add paletteIndex to map() function
 
 	self:drawTooltip()
 end

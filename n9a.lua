@@ -76,6 +76,13 @@ local function getbasepath(fn)
 	error("got an unknown ext for "..tostring(fn))
 end
 
+-- assumes 'palette' is a Lua table -- the kind that are used in Image's .palette fields
+local function savePal(palette, outfn)
+	Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
+		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
+	end)):save(tostring(outfn))
+end
+
 local cmd, fn, extra = ...
 assert(cmd and fn, "expected: `n9a.lua cmd fn`")
 
@@ -477,10 +484,7 @@ print('toImage', name, 'width', width, 'height', height)
 		{0x5a, 0x6c, 0x84, 0xff},
 		{0x34, 0x3c, 0x55, 0xff},
 	}, 16*16)
-	local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
-		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
-	end))
-	palImg:save(basepath'palette.png'.path)
+	savePal(palette, basepath'palette.png')
 
 	local gfxImg = toImage(move(sections, 'gfx'), false, 'gfx')
 	assert.eq(gfxImg.channels, 1)
@@ -1481,10 +1485,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			end
 		end
 
-		local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
-			return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
-		end))
-		palImg:save(bankpath'palette.png'.path)
+		savePal(palette, bankpath'palette.png')
 
 		local function chunkToImage(data)
 			-- how is it stored ... raw? compressed? raw until all zeroes remain ... lol no lzw compression
@@ -1704,12 +1705,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	end
 
 	-- convert palette array to image ... also in p8 above
-	local palImg = Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
-		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
-	end))
-
-	palImg:save(basepath'palette.png'.path)
-
+	savePal(palette, basepath'palette.png')
 
 	-- copy our pictures into the sprite sheet
 	local sheetImg = Image(256, 256, 1, 'uint8_t')
@@ -1803,6 +1799,8 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	}:append(code)
 
 	basepath'code.lua':write(code:concat'\n')
+
+	-- TODO TODO instead, disasm the asm, and transpile it into Lua instructions.
 
 	if cmd == 'nesrun' then
 		assert(os.execute('luajit n9a.lua r "'..basepath:setext'n9'..'"'))

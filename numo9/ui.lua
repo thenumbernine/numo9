@@ -293,9 +293,8 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		self:guiSpinner(x + 2, y + 10, function(dx)
 			t[indexKey] = math.clamp(t[indexKey] + dx, 0, #app.blobs[blobName]-1)
 			if cb then cb(dx) end
-		end, blobName..' #'..t[indexKey])
-		-- TODO +- to grow/shrink blob count
-		-- TODO input number selection
+		end)
+		-- TODO input number selection?
 
 		local changed
 		if self:guiButton('+', x + 14, y + 10, nil) then
@@ -375,7 +374,7 @@ function UI:update()
 		end
 	)
 
-	local titlebar = '  '..app.editMode
+	local titlebar = app.editMode
 	app:drawMenuText(
 		titlebar,
 		#editModes*6,
