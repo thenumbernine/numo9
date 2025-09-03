@@ -9,6 +9,10 @@ Undo.lastPushTime = -math.huge
 function Undo:init(args)
 	self.get = args.get
 	self.changed = args.changed
+	self:clear()
+end
+
+function Undo:clear()
 	self.buffer = table()
 	self.index = 0
 end

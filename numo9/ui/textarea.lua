@@ -4,7 +4,9 @@ local class = require 'ext.class'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
 local getTime = require 'ext.timer'.getTime
+
 local clip = require 'numo9.clipboard'
+local Undo = require 'numo9.ui.undo'
 
 local numo9_keys = require 'numo9.keys'
 local keyCodeNames = numo9_keys.keyCodeNames
@@ -17,15 +19,13 @@ local spriteSize = numo9_rom.spriteSize
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local menuFontWidth = numo9_rom.menuFontWidth
 
-
-
 local colors = {
-	fg = 0xfc,
+	fg = 0xc,
 	bg = 0,
-	fgSel = 0xff,
-	bgSel = 0xfc,
-	fgFooter = 0xfc,
-	bgFooter = 0xf1,
+	fgSel = 0xf,
+	bgSel = 0xc,
+	fgFooter = 0xc,
+	bgFooter = 0x1,
 }
 
 
@@ -509,6 +509,7 @@ function UITextArea:popUndo(redo)
 		self:setText(undoEntry.text)
 		self.cursorLoc = undoEntry.cursorLoc
 	else
+		-- TODO should we allow this?  how about if we load a cart , should the final undo be the original cart code, or should it be a blank screen?
 		self:setText''
 		self.cursorLoc = 0
 	end
@@ -517,4 +518,4 @@ function UITextArea:popUndo(redo)
 	self:refreshCursorColRowForLoc()
 end
 
-return UITextArea 
+return UITextArea

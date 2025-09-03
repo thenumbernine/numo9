@@ -7,9 +7,14 @@ local assert = require 'ext.assert'
 local math = require 'ext.math'
 local table = require 'ext.table'
 local vec2i = require 'vec-ffi.vec2i'
-local clip = require 'numo9.clipboard'
+
+require 'ffi.req' 'c.string'	-- memcmp
+
 local Image = require 'image'
 local Quantize = require 'image.quantize_mediancut'
+
+local clip = require 'numo9.clipboard'
+local Undo = require 'numo9.ui.undo'
 
 local numo9_video = require 'numo9.video'
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551	-- TODO move this
@@ -37,6 +42,27 @@ local EditSheet = require 'numo9.ui':subclass()
 
 function EditSheet:init(args)
 	EditSheet.super.init(self, args)
+
+	self.undo = Undo{
+		get = function()
+			-- for now I'll just have one undo buffer for the current sheet
+			-- TODO palette too
+			local app = self.app
+			local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
+			local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
+			return {
+				sheet = currentVRAM.image:clone(),
+				palette = paletteRAM.image:clone(),
+			}
+		end,
+		changed = function(entry)
+			local app = self.app
+			local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
+			local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
+			return 0 ~= ffi.C.memcmp(entry.sheet.buffer, currentVRAM.image.buffer, currentVRAM.image:getBufferSize())
+			or 0 ~= ffi.C.memcmp(entry.palette.buffer, paletteRAM.image.buffer, paletteRAM.image:getBufferSize())
+		end,
+	}
 
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
@@ -412,6 +438,11 @@ function EditSheet:update()
 				)
 				self:edit_poke(addr, value)
 				self.hist = nil	-- invalidate histogram
+
+				-- TODO wait does edit_poke write to the blob?
+				-- it has to right?
+				-- if not then pushing the undo content wont matter
+				self.undo:pushContinuous()
 			end
 
 			if self.spriteDrawMode == 'dropper'
@@ -564,6 +595,7 @@ function EditSheet:update()
 			then
 				if leftButtonPress then
 					if self.isPaletteSwapping then
+						self.undo:pushContinuous()
 						-- TODO button for only swap in this screen
 						app:colorSwap(
 							self.paletteSelIndex, 	-- from
@@ -645,6 +677,7 @@ function EditSheet:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
+				self.undo:pushContinuous()
 				self:edit_pokew(selPaletteAddr, result)
 				selColorValue = result
 			end
@@ -658,6 +691,7 @@ function EditSheet:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
+				self.undo:pushContinuous()
 				selColorValue = bit.bor(
 					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x1f)),
 					result
@@ -678,6 +712,7 @@ function EditSheet:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
+				self.undo:pushContinuous()
 				selColorValue = bit.bor(
 					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x3e0)),
 					bit.lshift(result, 5)
@@ -687,6 +722,7 @@ function EditSheet:update()
 		end
 	)
 	self:guiSpinner(16+32, 224+8, function(dx)
+		self.undo:pushContinuous()
 		selColorValue = bit.bor(bit.band((selColorValue+bit.lshift(dx,5)),0x3e0),bit.band(selColorValue,bit.bnot(0x3e0)))
 		self:edit_pokew(selPaletteAddr, selColorValue)
 	end)
@@ -698,6 +734,7 @@ function EditSheet:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
+				self.undo:pushContinuous()
 				selColorValue = bit.bor(
 					bit.band(app:peekw(selPaletteAddr), bit.bnot(0x7c00)),
 					bit.lshift(result, 10)
@@ -707,12 +744,14 @@ function EditSheet:update()
 		end
 	)
 	self:guiSpinner(16+32, 224+16, function(dx)
+		self.undo:pushContinuous()
 		selColorValue = bit.bor(bit.band((selColorValue+bit.lshift(dx,10)),0x7c00),bit.band(selColorValue,bit.bnot(0x7c00)))
 		self:edit_pokew(selPaletteAddr, selColorValue)
 	end)
 
 	local alpha = bit.band(selColorValue,0x8000)~=0
 	if self:guiButton('A', 16, 224+24, alpha) then
+		self.undo:pushContinuous()
 		if alpha then	-- if it was set then clear it
 			selColorValue = bit.band(selColorValue, 0x7fff)
 			self:edit_pokew(selPaletteAddr, selColorValue)
@@ -789,6 +828,7 @@ print'BAKING PALETTE'
 			end
 			clip.image(image)
 			if app:keyp'x' then
+				self.undo:push()
 				-- image-cut ... how about setting the region to the current-palette-offset (whatever appears as zero) ?
 				currentVRAM.dirtyCPU = true
 				assert.eq(currentVRAM.image.channels, 1)
@@ -799,11 +839,14 @@ print'BAKING PALETTE'
 				end
 				self.hist = nil	-- invalidate histogram
 			end
+		elseif app:keyp'z' then
+			self:popUndo(shift)
 		elseif app:keyp'v' then
 			-- how about allowing over-paste?  same with over-draw., how about a flag to allow it or not?
 			assert(not currentVRAM.dirtyGPU)
 			local image = clip.image()
 			if image then
+				self.undo:push()
 				--[[
 				image paste options:
 				- constrain to selection vs spill over (same with drawing pen)
@@ -922,10 +965,29 @@ print('currentTexAddr', ('$%x'):format(currentTexAddr))
 	end
 
 	-- draw ui menubar last so it draws over the rest of the page
-	self:guiBlobSelect(80, 0, 'sheet', self, 'sheetBlobIndex')
-	self:guiBlobSelect(96, 0, 'palette', self, 'paletteBlobIndex')
+	self:guiBlobSelect(80, 0, 'sheet', self, 'sheetBlobIndex', function()
+		-- for now only one undo per sheet/palette at a time
+		self.undo:clear()
+	end)
+	self:guiBlobSelect(96, 0, 'palette', self, 'paletteBlobIndex', function()
+		-- for now only one undo per sheet/palette at a time
+		self.undo:clear()
+	end)
 
 	self:drawTooltip()
+end
+
+function EditSheet:popUndo(redo)
+	local app = self.app
+	local undoEntry = self.undo:pop(redo)
+	if undoEntry then
+		local currentVRAM = app.sheetRAMs[self.sheetBlobIndex+1]
+		local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
+		ffi.C.memcpy(currentVRAM.image.buffer, undoEntry.sheet.buffer, currentVRAM.image:getBufferSize())
+		ffi.C.memcpy(paletteRAM.image.buffer, undoEntry.palette.buffer, paletteRAM.image:getBufferSize())
+		currentVRAM.dirtyCPU = true
+		paletteRAM.dirtyCPU = true
+	end
 end
 
 return EditSheet
