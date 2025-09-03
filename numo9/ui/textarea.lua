@@ -18,6 +18,50 @@ local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local menuFontWidth = numo9_rom.menuFontWidth
 
 
+local Undo = class()
+
+Undo.lastPushTime = -math.huge
+function Undo:init(args)
+	self.get = args.get
+	self.changed = args.changed
+	self.buffer = table()
+	self.index = 0
+end
+
+-- and a separate call for copy/paste that always inserts into here
+function Undo:push()
+	self.lastPushTime = getTime()
+	-- erase subsequent undo stack
+	for i=self.index+1,#self.buffer do
+		self.buffer[i] = nil
+	end
+	-- add this entry and set it as the current undo location
+	self.buffer:insert(self.get())
+	self.index = #self.buffer
+end
+
+function Undo:pop(redo)
+	-- if we are push-undo-ing from the top of the undo stack and the text doesn't match the top stack text then insert it at the top
+	-- that way if the pushUndoTyping hadn't yet recorded it and we then get a 'redo' we will go back to the top
+	if self.index == #self.buffer
+	and self.index > 0
+	and self.changed(self.buffer:last())
+	then
+		self:push()
+	end
+	self.index = math.clamp(self.index + (redo and 1 or -1), 0, #self.buffer)
+	return self.buffer[self.index]
+end
+
+-- push undo
+-- a separate one for typing that doesn't insert if the last insert was within a few milliseconds
+Undo.undoDelayTime = 1
+function Undo:pushContinuous()
+	if getTime() - self.lastPushTime < self.undoDelayTime then return end
+	self:push()
+end
+
+
 local colors = {
 	fg = 0xfc,
 	bg = 0,
@@ -45,8 +89,17 @@ function UITextArea:init(args)
 	self.scrollY = 0
 	self.useLineNumbers = true
 
-	self.undoBuffer = table()
-	self.undoIndex = #self.undoBuffer
+	self.undo = Undo{
+		get = function()
+			return {
+				text = self:getText(),
+				cursorLoc = self.cursorLoc,
+			}
+		end,
+		changed = function(entry)
+			return entry.text ~= self:getText()
+		end,
+	}
 end
 
 -- called upon init or upon app.blobs.code external change (upon App:openCart)
@@ -280,7 +333,7 @@ function UITextArea:update()
 				clip.text(sel)	-- error on fail
 
 				if app:keyp'x' then -- cut only
-					self:pushUndo()
+					self.undo:push()
 					self:deleteSelection()
 					self:refreshNewlines()
 					self:refreshCursorColRowForLoc()
@@ -291,8 +344,8 @@ function UITextArea:update()
 			if self.selectStart or paste then
 				-- only save undo if we're (a) going to be deleting selected text with this paste or (b) going to be pasting text
 				-- if there's an empty clipboard, don't let repeated ctrl+v's stack up in the undo buffer
-				-- TODO or I can just have pushUndo check the last undo buffer and see if the text changed ... but for big text that might be slow?
-				self:pushUndo()
+				-- TODO or I can just have undo:push check the last undo buffer and see if the text changed ... but for big text that might be slow?
+				self.undo:push()
 			end
 			self:deleteSelection()
 			if paste then
@@ -320,7 +373,7 @@ function UITextArea:update()
 			if app:keyp(keycode,30,5) then
 				local ch = getAsciiForKeyCode(keycode, shift)
 				if keycode == keyCodeForName.tab then
-					self:pushUndoTyping()
+					self.undo:pushContinuous()
 					if self.selectStart ~= nil then
 						-- search the selectStart back to the start of the current line
 						while self:getText():byte(self.selectStart-1) ~= newlineByte do
@@ -355,10 +408,10 @@ function UITextArea:update()
 						self:addCharToText(tabByte)
 					end
 				elseif ch then
-					self:pushUndoTyping()
+					self.undo:pushContinuous()
 					self:addCharToText(ch)
 				elseif keycode == keyCodeForName['return'] then
-					self:pushUndoTyping()
+					self.undo:pushContinuous()
 					self:addCharToText(newlineByte)
 				elseif keycode == keyCodeForName.up
 				or keycode == keyCodeForName.down
@@ -492,43 +545,12 @@ function UITextArea:addCharToText(ch)
 	self:refreshCursorColRowForLoc()
 end
 
--- push undo
--- a separate one for typing that doesn't insert if the last insert was within a few milliseconds
-UITextArea.typeUndoDelay = 1
-UITextArea.lastPushUndo = -math.huge
-function UITextArea:pushUndoTyping()
-	if getTime() - self.lastPushUndo < self.typeUndoDelay then return end
-	self:pushUndo()
-end
--- and a separate call for copy/paste that always inserts into here
-function UITextArea:pushUndo()
-	self.lastPushUndo = getTime()
-	-- erase subsequent undo stack
-	for i=self.undoIndex+1,#self.undoBuffer do
-		self.undoBuffer[i] = nil
-	end
-	-- add this entry and set it as the current undo location
-	self.undoBuffer:insert{
-		text = self:getText(),
-		cursorLoc = self.cursorLoc,
-	}
-	self.undoIndex = #self.undoBuffer
-end
 function UITextArea:popUndo(redo)
-	-- if we are push-undo-ing from the top of the undo stack and the text doesn't match the top stack text then insert it at the top
-	-- that way if the pushUndoTyping hadn't yet recorded it and we then get a 'redo' we will go back to the top
-	if self.undoIndex == #self.undoBuffer
-	and self.undoIndex > 0
-	and self.undoBuffer:last().text ~= self:getText()
-	then
-		self:pushUndo()
-	end
-	self.undoIndex = math.clamp(self.undoIndex + (redo and 1 or -1), 0, #self.undoBuffer)
-	local undo = self.undoBuffer[self.undoIndex]
+	local undoEntry = self.undo:pop(redo)
 	-- test here because if it's zero then there won't be an entry ... and we should be at a blank text ...
-	if undo then
-		self:setText(undo.text)
-		self.cursorLoc = undo.cursorLoc
+	if undoEntry then
+		self:setText(undoEntry.text)
+		self.cursorLoc = undoEntry.cursorLoc
 	else
 		self:setText''
 		self.cursorLoc = 0
