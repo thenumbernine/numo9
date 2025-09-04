@@ -28,7 +28,7 @@ local matrix_ffi = require 'matrix.ffi'
 local sha2 = require 'sha2'
 local sdl = require 'sdl'
 local gl = require 'gl'
-local GLQuery = require 'gl.query'
+--DEBUG(glquery):local GLQuery = require 'gl.query'
 local GLApp = require 'glapp'
 local View = require 'glapp.view'
 local ThreadManager = require 'threadmanager'
@@ -1021,7 +1021,7 @@ print('package.loaded', package.loaded)
 	local EditTilemap = require 'numo9.edittilemap'
 	local EditSFX = require 'numo9.editsfx'
 	local EditMusic = require 'numo9.editmusic'
-	local EditBrushMap = require 'numo9.editbrushmap'
+	local EditBrushmap = require 'numo9.editbrushmap'
 	local Console = require 'numo9.console'
 	local MainMenu = require 'numo9.mainmenu'
 	local CartBrowser = require 'numo9.cartbrowser'
@@ -1035,7 +1035,7 @@ print('package.loaded', package.loaded)
 	self.editTilemap = EditTilemap{app=self}
 	self.editSFX = EditSFX{app=self}
 	self.editMusic = EditMusic{app=self}
-	self.editBrushMap = EditBrushMap{app=self}
+	self.editBrushmap = EditBrushmap{app=self}
 	self.con = Console{app=self}
 	self.mainMenu = MainMenu{app=self}
 	self.cartBrowser = CartBrowser{app=self}
@@ -2885,6 +2885,11 @@ print('no persist file to load: '..cartPersistFile)
 		local v = self.metainfo['editTilemap.sheetBlobIndex']
 		if v ~= nil then
 			self.editTilemap.sheetBlobIndex = tonumber(v)
+		end
+
+		local v = self.metainfo['editBrushmap.draw16Sprites']
+		if v ~= nil then
+			self.editBrushmap.draw16Sprites = true
 		end
 	end
 

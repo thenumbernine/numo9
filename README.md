@@ -664,3 +664,4 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - netplay persistent data maybe ... 
 	- one set per-game
 	- one set per-game-per-server
+- TODO 2D orientation ... instead of hflip vflip, one more bit and we can use two bits for rotation and one for mirror

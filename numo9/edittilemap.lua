@@ -234,10 +234,10 @@ function EditTilemap:update()
 		local ymin = math.max(0, gy-step)
 		local ymax = math.min(gy+3*step+frameBufferSize.y/self.scale, bit.lshift(tilemapSize.y, tileBits))
 		for i=xmin,xmax,step do
-			app:drawSolidLine(i, ymin, i, ymax, self:color(1))
+			app:drawSolidLine(i, ymin, i, ymax, 1)
 		end
 		for j=ymin,ymax,step do
-			app:drawSolidLine(xmin, j, xmax, j, self:color(1))
+			app:drawSolidLine(xmin, j, xmax, j, 1)
 		end
 	end
 
@@ -266,13 +266,13 @@ function EditTilemap:update()
 			pickY-1,
 			pickW+2,
 			pickH+2,
-			self:color(10))
+			10)
 		app:drawSolidRect(
 			pickX,
 			pickY,
 			pickW,
 			pickH,
-			self:color(0)
+			0
 		)
 		app:drawQuad(
 			pickX,
@@ -313,7 +313,7 @@ function EditTilemap:update()
 			pickY + self.spriteSelPos.y * spriteSize.y * pickH / spriteSheetSize.y,
 			spriteSize.x * self.spriteSelSize.x * pickW / spriteSheetSize.x,
 			spriteSize.y * self.spriteSelSize.y * pickH / spriteSheetSize.y,
-			self:color(13)
+			13
 		)
 	else
 		-- TODO allow drawing while picking window is open, like tic80 does?
@@ -557,14 +557,17 @@ function EditTilemap:update()
 		end
 	end
 
+	local x, y = 40, 0
 	-- draw ui menubar last so it draws over the rest of the page
-	self:guiBlobSelect(72, 0, 'tilemap', self, 'tilemapBlobIndex', function()
+	self:guiBlobSelect(x, y, 'tilemap', self, 'tilemapBlobIndex', function()
 		-- for now only one undo per tilemap at a time
 		self.undo:clear()
 	end)
+	x = x + 12
 	-- the current sheetmap is purely cosmetic, so if it changes no need to push undo
-	self:guiBlobSelect(84, 0, 'sheet', self, 'sheetBlobIndex')
-	--self:guiBlobSelect(96, 0, 'palette', self, 'paletteBlobIndex')
+	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
+	x = x + 12
+	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
 	-- TODO palette spinner, and use selected palette for tilemap render
 	-- and TODO add paletteIndex to map() function
 

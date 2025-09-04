@@ -35,7 +35,7 @@ local editModes = table{
 	'tilemap',
 	'sfx',
 	'music',
-	--'brush',
+	--'brush',	-- just script at the moment ...
 	'brushmap',
 }
 
@@ -46,7 +46,7 @@ local editFieldForMode = {
 	sfx = 'editSFX',
 	music = 'editMusic',
 	--brush = 'editBrushes',
-	brushmap = 'editBrushMap',
+	brushmap = 'editBrushmap',
 }
 
 
@@ -289,7 +289,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		local w = 25
 		local h = 10
 		app:drawBorderRect(x, y + 8, w+2, h+2, 0x0c)
-		app:drawSolidRect(x+1, y + 9, w, h, self:color(0))
+		app:drawSolidRect(x+1, y + 9, w, h, 0)
 
 		self:guiSpinner(x + 2, y + 10, function(dx)
 			t[indexKey] = math.clamp(t[indexKey] + dx, 0, #app.blobs[blobName]-1)
@@ -356,7 +356,7 @@ function UI:update()
 	app:drawSolidRect(
 		0, 0,	-- x,y,
 		frameBufferSize.x, spriteSize.y,	-- w, h,
-		self:color(0),
+		0,
 		nil,
 		nil,
 		app.paletteMenuTex
@@ -373,15 +373,6 @@ function UI:update()
 				app:setMenu(app[editFieldForMode[x]])
 			end
 		end
-	)
-
-	local titlebar = app.editMode
-	app:drawMenuText(
-		titlebar,
-		#editModes*6,
-		0,
-		12,
-		-1
 	)
 
 	-- TODO current blob vs editing ROM vs editing RAM ...
@@ -419,16 +410,6 @@ function UI:update()
 		}
 		app.isPaused = false	-- make sure the setFocus does run
 	end
-end
-
--- TODO I changed this, now I use a separate UI palette texture, so this isnt needed.
--- put editor palette in the last entry
--- so that people dont touch it
--- but still make sure they can use it
--- cuz honestly I'm aiming to turn the editor into a ROM itself and stash it in console 'memory'
-function UI:color(i)
-	if i == -1 then return -1 end	-- -1 for transparency meant don't use a valid color ...
-	return bit.bor(bit.band(i,0xf),0xf0)
 end
 
 --[[
