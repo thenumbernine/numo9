@@ -74,7 +74,6 @@ function EditTilemap:init(args)
 	self.tilePanPressed = false
 	self.scale = 1
 
-	-- save these in config?
 	self.drawGrid = false
 	self.draw16Sprites = false
 end
@@ -145,10 +144,12 @@ function EditTilemap:update()
 	-- draw map
 	local mapX = 0
 	local mapY = spriteSize.y
-	local mapWidthInTiles = frameBufferSizeInTiles.x
-	local mapHeightInTiles = frameBufferSizeInTiles.y
-	local mapWidth = bit.lshift(mapWidthInTiles, tileBits)
-	local mapHeight = bit.lshift(mapWidthInTiles, tileBits)
+	-- size of the map on the screen, in tiles
+	local mapSizeInTiles = vec2i(frameBufferSizeInTiles:unpack())
+	-- size of the map on the screen, in pixels
+	local mapSizeInPixels = vec2i(
+		bit.lshift(mapSizeInTiles.x, tileBits),
+		bit.lshift(mapSizeInTiles.y, tileBits))
 
 	local function pan(dx,dy)	-- dx, dy in screen coords right?
 		self.tilemapPanOffset.x = self.tilemapPanOffset.x + dx
@@ -187,7 +188,7 @@ function EditTilemap:update()
 	)
 
 
-	app:setClipRect(mapX, mapY, mapWidth-1, mapHeight-1)
+	app:setClipRect(mapX, mapY, mapSizeInPixels.x-1, mapSizeInPixels.y-1)
 
 	app:matident()
 	app:mattrans(mapX, mapY)
@@ -200,7 +201,7 @@ function EditTilemap:update()
 		-1, -1,
 		2+bit.lshift(tilemapSize.x,tileBits), 2+bit.lshift(tilemapSize.y, tileBits),
 		0, 0,
-		2+mapWidth*2, 2+mapHeight*2
+		2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
 	)
 
 	-- TODO allow specifying palette #
@@ -336,8 +337,8 @@ function EditTilemap:update()
 		local function tilemapPan(press)
 			tilemapPanHandled = true
 			if press then
-				if mouseX >= mapX and mouseX < mapX + mapWidth
-				and mouseY >= mapY and mouseY < mapY + mapHeight
+				if mouseX >= mapX and mouseX < mapX + mapSizeInPixels.x
+				and mouseY >= mapY and mouseY < mapY + mapSizeInPixels.y
 				then
 					self.tilePanDownPos:set(mouseX, mouseY)
 					self.tilePanPressed = true
@@ -395,8 +396,8 @@ function EditTilemap:update()
 		or (self.drawMode == 'fill' and shift)
 		then
 			if leftButtonPress
-			and mouseX >= mapX and mouseX < mapX + mapWidth
-			and mouseY >= mapY and mouseY < mapY + mapHeight
+			and mouseX >= mapX and mouseX < mapX + mapSizeInPixels.x
+			and mouseY >= mapY and mouseY < mapY + mapSizeInPixels.y
 			then
 				local tileSelIndex = gettile(tx, ty)
 				if tileSelIndex then
@@ -408,8 +409,8 @@ function EditTilemap:update()
 			end
 		elseif self.drawMode == 'draw' then
 			if leftButtonDown
-			and mouseX >= mapX and mouseX < mapX + mapWidth
-			and mouseY >= mapY and mouseY < mapY + mapHeight
+			and mouseX >= mapX and mouseX < mapX + mapSizeInPixels.x
+			and mouseY >= mapY and mouseY < mapY + mapSizeInPixels.y
 			and 0 <= tx and tx < tilemapSize.x
 			and 0 <= ty and ty < tilemapSize.y
 			then
@@ -426,8 +427,8 @@ function EditTilemap:update()
 			end
 		elseif self.drawMode == 'fill' then
 			if leftButtonDown
-			and mouseX >= mapX and mouseX < mapX + mapWidth
-			and mouseY >= mapY and mouseY < mapY + mapHeight
+			and mouseX >= mapX and mouseX < mapX + mapSizeInPixels.x
+			and mouseY >= mapY and mouseY < mapY + mapSizeInPixels.y
 			then
 				local srcTile = gettile(tx, ty)
 
