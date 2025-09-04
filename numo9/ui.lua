@@ -29,7 +29,11 @@ local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local minBlobPerType = numo9_blobs.minBlobPerType
 
-local editModes = table{
+
+
+local UI = class()
+
+UI.editModes = table{
 	'code',
 	'sheet',
 	'tilemap',
@@ -39,7 +43,7 @@ local editModes = table{
 	'brushmap',
 }
 
-local editFieldForMode = {
+UI.editFieldForMode = {
 	code = 'editCode',
 	sheet = 'editSheet',
 	tilemap = 'editTilemap',
@@ -49,8 +53,6 @@ local editFieldForMode = {
 	brushmap = 'editBrushmap',
 }
 
-
-local UI = class()
 
 function UI:init(args)
 	self.app = assert.index(args, 'app')
@@ -370,12 +372,12 @@ function UI:update()
 	self:guiRadio(
 		0,
 		0,
-		editModes,
+		UI.editModes,
 		app.editMode,
 		function(x)
 			app.editMode = x
-			if editFieldForMode[x] then
-				app:setMenu(app[editFieldForMode[x]])
+			if UI.editFieldForMode[x] then
+				app:setMenu(app[UI.editFieldForMode[x]])
 			end
 		end
 	)
@@ -446,7 +448,7 @@ function UI:gainFocus()
 	local app = self.app
 
 	-- if an editor tab gains focus, make sure to select it
-	for name,field in pairs(editFieldForMode) do
+	for name,field in pairs(UI.editFieldForMode) do
 		if self == app[field] then
 			app.editMode = name
 		end

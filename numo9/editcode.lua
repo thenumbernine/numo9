@@ -24,11 +24,11 @@ function EditCode:init(args)
 		end,
 	}
 	
-	self:refreshText()
+	self:onCartLoad()
 end
 
 -- external, called by app upon openCart
-function EditCode:refreshText()
+function EditCode:onCartLoad()
 	self:setBlobIndex(0)
 	self.uiTextArea:refreshText()
 end

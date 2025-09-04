@@ -19,6 +19,7 @@ local ffi = require 'ffi'
 local table = require 'ext.table'
 local math = require 'ext.math'
 local tolua = require 'ext.tolua'
+local fromlua = require 'ext.fromlua'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
 
@@ -39,6 +40,8 @@ local function drawStamp(
 	stampTilesWide, stampTilesHigh,
 	draw16Sprites
 )
+	ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
+
 	local stampTileX, stampTileY = 0, 0	-- TODO how to show select brushes? as alays in UL, or as their location in the pick screen? meh?
 	-- or TODO stampScreenX = stampTileX * tileSizeInPixels
 	-- but for the select's sake, keep the two separate
@@ -47,7 +50,7 @@ local function drawStamp(
 	local tileSizeInTiles = bit.lshift(1, draw16As0or1)
 	local tileBits = draw16Sprites and 4 or 3
 	local tileSizeInPixels = bit.lshift(1, tileBits)
-	
+
 	for tx=0,stampTilesWide-1 do
 		for ty=0,stampTilesHigh-1 do
 			local screenX = stampScreenX + tx * tileSizeInPixels
@@ -87,6 +90,15 @@ local function drawStamp(
 	ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end
 
+-- returns highest-to-lowest indexes of the selected keys found in stamps
+local function getSelIndexes(selected, stamps)
+	return table.map(selected, function(_,sel,t)
+		return assert(table.find(stamps, sel)), #t+1
+	end):sort(function(a,b)
+		return a > b
+	end)
+end
+
 
 local EditBrushmap = require 'numo9.ui':subclass()
 
@@ -111,10 +123,17 @@ function EditBrushmap:init(args)
 	self.drawGrid = false
 	self.draw16Sprites = false
 
+	self:onCartLoad()
+end
+
+function EditBrushmap:onCartLoad()
 	self.brushmapBlobIndex = 0
 	self.tilemapBlobIndex = 0
 	self.sheetBlobIndex = 1
 	self.paletteBlobIndex = 0
+
+	-- in case there's one there
+	self:readSelBrushmapBlob()
 end
 
 function EditBrushmap:update()
@@ -138,16 +157,14 @@ function EditBrushmap:update()
 		app:drawMenuText("push + on the brushmap blob select to continue", 16, 128)
 	else
 		app:matident()
-		ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
-
 		local leftButtonDown = app:key'mouse_left'
 		local leftButtonPress = app:keyp'mouse_left'
 		local leftButtonRelease = app:keyr'mouse_left'
 		local mouseX, mouseY = app.ram.mousePos:unpack()
 
-		local draw16As0or1 = draw16Sprites and 1 or 0
-		local tileSizeInTiles = bit.lshift(1, draw16As0or1)
+		local draw16As0or1 = self.draw16Sprites and 1 or 0
 		local tileBits = self.draw16Sprites and 4 or 3
+		local tileSizeInTiles = bit.lshift(1, draw16As0or1)
 		local tileSizeInPixels = bit.lshift(1, tileBits)
 
 		local shift = app:key'lshift' or app:key'rshift'
@@ -185,32 +202,7 @@ function EditBrushmap:update()
 			self.drawGrid = not self.drawGrid
 		end
 
-
-		for _,stamp in ipairs(self.stamps) do
-			drawStamp(
-				app,
-				brushes[stamp.brush],	-- might be nil
-				stamp.x * tileSizeInPixels,
-				stamp.y * tileSizeInPixels,
-				stamp.w,
-				stamp.h,
-				self.draw16Sprites
-			)
-			if self.selected[stamp] then
-				app:drawBorderRect(
-					stamp.x * tileSizeInPixels,
-					stamp.y * tileSizeInPixels,
-					stamp.w * tileSizeInPixels,
-					stamp.h * tileSizeInPixels,
-					27,
-					ni,
-					app.paletteMenuTex
-				)		
-			end
-		end
-
 		x, y = 0, 8
-
 
 		if self.pickOpen then
 			local pickX = 2 * spriteSize.x
@@ -272,8 +264,9 @@ function EditBrushmap:update()
 					stampScreenY = stampScreenY + tileSizeInPixels * self.brushPreviewSize
 				end
 			end
-		
+
 		else
+
 			local mapX = 0
 			local mapY = spriteSize.y	-- fontSize.y
 			-- size of the map on the screen, in tiles
@@ -283,24 +276,54 @@ function EditBrushmap:update()
 				bit.lshift(mapSizeInTiles.x, tileBits),
 				bit.lshift(mapSizeInTiles.y, tileBits))
 
+
+			app:matident()
+			app:mattrans(mapX, mapY)
+			app:matscale(self.scale, self.scale)
+			app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
+
+			for _,stamp in ipairs(self.stamps) do
+				drawStamp(
+					app,
+					brushes[stamp.brush],	-- might be nil
+					stamp.x * tileSizeInPixels,
+					stamp.y * tileSizeInPixels,
+					stamp.w,
+					stamp.h,
+					self.draw16Sprites
+				)
+				if self.selected[stamp] then
+					app:drawBorderRect(
+						stamp.x * tileSizeInPixels,
+						stamp.y * tileSizeInPixels,
+						stamp.w * tileSizeInPixels,
+						stamp.h * tileSizeInPixels,
+						27,
+						ni,
+						app.paletteMenuTex
+					)
+				end
+			end
+
+
 			-- only do interaction if we're not on the top UI bar ...
 			if mouseY > mapY then
 
 				local function fbToTileCoord(cx, cy)
 					return
-						(cx - mapX) / (bit.lshift(spriteSize.x, draw16As0or1) * self.scale) + self.tilemapPanOffset.x / bit.lshift(spriteSize.x, draw16As0or1),
-						(cy - mapY) / (bit.lshift(spriteSize.y, draw16As0or1) * self.scale) + self.tilemapPanOffset.y / bit.lshift(spriteSize.y, draw16As0or1)
+						((cx - mapX) / self.scale + self.tilemapPanOffset.x) / tileSizeInPixels,
+						((cy - mapY) / self.scale + self.tilemapPanOffset.y) / tileSizeInPixels
 				end
-				local tx, ty = fbToTileCoord(mouseX, mouseY)
-				tx = math.floor(tx)
-				ty = math.floor(ty)
+				local ftx, fty = fbToTileCoord(mouseX, mouseY)
+				local tx = math.floor(ftx)
+				local ty = math.floor(fty)
 
 				local tilemapPanHandled
 				local function tilemapPan(press)
 					tilemapPanHandled = true
 					if press then
-						if mouseX >= mapX and mouseX < mapX + mapWidthInPixels
-						and mouseY >= mapY and mouseY < mapY + mapHeightInPixels
+						if mouseX >= mapX and mouseX < mapX + mapSizeInPixels.x
+						and mouseY >= mapY and mouseY < mapY + mapSizeInPixels.y
 						then
 							self.tilePanDownPos:set(mouseX, mouseY)
 							self.tilePanPressed = true
@@ -351,38 +374,46 @@ function EditBrushmap:update()
 				if leftButtonPress then
 					local selUnder = table()
 					for stamp in pairs(self.selected) do
-						if stamp.x * tileSizeInPixels < mouseX
-						and mouseX < (stamp.x + stamp.w) * tileSizeInPixels 
-						and stamp.y * tileSizeInPixels < mouseY
-						and mouseY < (stamp.y + stamp.h) * tileSizeInPixels 
+						if stamp.x <= ftx and ftx < stamp.x + stamp.w
+						and stamp.y <= fty and fty < stamp.y + stamp.h
 						then
 							selUnder:insert(stamp)
 						end
 					end
-	print('#selUnder', #selUnder)
+print('#selUnder', #selUnder)
 					self.lastMoveDown:set(mouseX, mouseY)
-					local mx = math.floor(mouseX / tileSizeInPixels) 
-					local my = math.floor(mouseY / tileSizeInPixels) 
+					local mx = math.floor(mouseX / tileSizeInPixels)
+					local my = math.floor(mouseY / tileSizeInPixels)
+print('ftx', ftx, 'fty', fty)
 					if #selUnder > 0 then
 						-- check corner vs center for dragging or resizing
 						self.resizing = false
-					
+
 						for _,stamp in ipairs(selUnder) do
-							if mx >= stamp.x and mx <= stamp.x + stamp.w - 1
-							and my >= stamp.y and my <= stamp.y + stamp.h - 1
+print('checking', tolua(stamp))
+							if ftx >= stamp.x and ftx < stamp.x + stamp.w
+							and fty >= stamp.y and fty < stamp.y + stamp.h
 							then
-print('mx', mx, 'my', my, 'stamp', tolua(stamp))								
-								if mx == stamp.x or mx == stamp.x + stamp.w - 1
-								or my == stamp.y or my == stamp.y + stamp.h - 1
-								then
-									-- TODO what if it's a stamp smaller than 3x3?  
+								local nearL = math.abs(stamp.x - ftx) <= .5
+								local nearU = math.abs(stamp.y - fty) <= .5
+								local nearR = math.abs(stamp.x + stamp.w - ftx) <= .5
+								local nearD = math.abs(stamp.y + stamp.h - fty) <= .5
+								if nearL or nearR or nearU or nearD then
+print('edge', nearL, nearU, nearR, nearD)
+									if nearL or nearR then
+										self:setTooltip('-', mouseX, mouseY, 0xc)
+									elseif nearU or nearD then
+										self:setTooltip('|', mouseX, mouseY, 0xc)
+									end
+									-- TODO what if it's a stamp smaller than 3x3?
 									-- then we'll click a border no matter what ...
 									self.resizing = {
-										ulx = mx == stamp.x,
-										uly = my == stamp.y,
+										ulx = nearL,
+										uly = nearU,
 									}
 									break
 								else
+print'move'
 									-- center-click on something
 									self.resizing = false
 									break
@@ -408,13 +439,13 @@ print('resizing', tolua(self.resizing))
 							-- create
 							local stamp = {
 								brush = self.selBrushIndex,
-								x = math.round(mouseX / tileSizeInPixels),
-								y = math.round(mouseY / tileSizeInPixels),
+								x = tx,
+								y = ty,
 								w = 1,	-- default size?
 								h = 1,
 							}
 							self.stamps:insert(stamp)
-							self:refreshStampBlob()
+							self:writeSelBrushmapBlob()
 							self.selected = {}
 							self.selected[stamp] = true
 							self.resizing = {}
@@ -425,7 +456,7 @@ print('resizing', tolua(self.resizing))
 					local dy = math.trunc((mouseY - self.lastMoveDown.y) / tileSizeInPixels)
 					if dx ~= 0 or dy ~= 0 then
 						if self.resizing then
-print('resizing', tolua(self.resizing))						
+print('resizing', tolua(self.resizing))
 							for stamp in pairs(self.selected) do
 								if self.resizing.ulx then
 									stamp.x = stamp.x + dx
@@ -440,17 +471,24 @@ print('resizing', tolua(self.resizing))
 									stamp.h = math.max(1, stamp.h + dy)
 								end
 							end
-							self:refreshStampBlob()
+							self:writeSelBrushmapBlob()
 						else
 							for stamp in pairs(self.selected) do
 								stamp.x = stamp.x + dx
 								stamp.y = stamp.y + dy
 							end
-							self:refreshStampBlob()
+							self:writeSelBrushmapBlob()
 						end
 						self.lastMoveDown:set(mouseX, mouseY)
 					end
-				elseif leftButtnRelease then
+				elseif leftButtonRelease then
+					-- if any are selected then move them to the front
+					local sel = table()
+					for _,i in ipairs(getSelIndexes(self.selected, self.stamps)) do
+						sel:insert(self.stamps:remove(i))
+					end
+					self.stamps:append(sel)
+					self:writeSelBrushmapBlob()	-- order changed
 				end
 
 				if not tilemapPanHandled then
@@ -458,26 +496,27 @@ print('resizing', tolua(self.resizing))
 				end
 
 				if not self.tooltip then
-					self:setTooltip(tx..','..ty, mouseX-8, mouseY-8, 0xfc, 0)
+					self:setTooltip(tx..','..ty, mouseX-8, mouseY-8, 0xc, 0)
 				end
 			end
 		end
 
 		if app:keyp'delete' or app:keyp'backspace' then
-			for _,i in ipairs(table.map(self.selected, function(_,sel,t)
-				return assert(table.find(self.stamps, sel)), #t+1
-			end):sort(function(a,b) 
-				return a > b
-			end)) do
+			for _,i in ipairs(getSelIndexes(self.selected, self.stamps)) do
 				self.stamps:remove(i)
 			end
-			self:refreshStampBlob()
+			self:writeSelBrushmapBlob()
 			self.selected = {}
 		end
 	end
 
+	app:matident()
+
 	local x, y = 40, 0
-	self:guiBlobSelect(x, y, 'brushmap', self, 'brushmapBlobIndex')
+	self:guiBlobSelect(x, y, 'brushmap', self, 'brushmapBlobIndex', function()
+		-- assume we already wrote it as soon as a changed happened
+		self:readSelBrushmapBlob()
+	end)
 	x = x + 12
 	self:guiBlobSelect(x, y, 'tilemap', self, 'tilemapBlobIndex')
 	x = x + 12
@@ -488,11 +527,18 @@ print('resizing', tolua(self.resizing))
 	self:drawTooltip()
 end
 
-function EditBrushmap:refreshStampBlob()
+function EditBrushmap:readSelBrushmapBlob()
+	local app = self.app
+	local brushmapBlob = app.blobs.brushmap[self.brushmapBlobIndex+1]
+	if not brushmapBlob then return end
+	self.stamps = table((assert(fromlua(brushmapBlob.data))))
+end
+
+function EditBrushmap:writeSelBrushmapBlob()
 	local app = self.app
 	local brushmapBlob = app.blobs.brushmap[self.brushmapBlobIndex+1]
 	if not brushmapBlob then
-		error("WARNING trying to save brushmap when there's no brushmap blob selected")	
+		error("WARNING trying to save brushmap when there's no brushmap blob selected")
 		return
 	end
 	brushmapBlob.data = tolua(self.stamps)

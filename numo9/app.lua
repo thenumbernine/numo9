@@ -2694,7 +2694,12 @@ function App:openCart(filename)
 
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 
-	self.editCode:refreshText()
+	for _,editField in ipairs(table.values(require 'numo9.ui'.editFieldForMode):sort()) do
+		local editor = self[editField]
+		if editor and editor.onCartLoad then
+			editor:onCartLoad()
+		end
+	end
 
 	self:matident()
 	self:resetCart()
