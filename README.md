@@ -278,12 +278,13 @@ If the following functions are defined then they will be called from the virtual
 - `mset(x, y, value, [bank=0])` = Write a uint16 to the current tilemap address at x, y.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
+- `blitbrush(brushmapIndex, tilemapIndex, x, y, [w, h])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` at size `w, h`.  If size is omitted then the maximum size is used.
 - `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
 - `ramsize(name)` = returns the size the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('RAM', field)`.  See the RAM structure for individual field names.
 - `numblobs(name)` = returns the count of blobs of type `name`. Index is 0-based.
 - `blobaddr(name, index)` = returns the address of the `index`'th blob of type `name`. Index is 0-based. Blob types can be: `sheet, tilemap, palette, font, sfx, music, code, data, persist, brush, brushmap`.
 - `blobsize(name, index)` = returns the size of the `index`'th blob of type `name`. Index is 0-based.
-- `int8_t, uint8_t, int8_t, int16_t, uint16_t, int16_t, int32_t, uint32_t, int32_t` = If you want to cast stuff, use these `ffi.typeof`'s.
+- `int8_t, uint8_t, int8_t, int16_t, uint16_t, int16_t, int32_t, uint32_t, int32_t` = If you want to cast stuff, use these `ffi.typeof`'s.  Notice, these currently return `cdata` so in some cases you must still `tonumber()` them.
 
 While Pico8 has the `reload` and `cstore` functions for copying to/from RAM to ROM, and Tic80 has the `sync` function for doing similar, I am tempting myself with the idea of just using a different address range.
 But how to do this in conjunction with multiple banks, a feature that Tic80 also has, especially multiple VRAM banks.  I do like the idea of having multiple VRAM banks accessible with `spr` and `map` functions.

@@ -51,13 +51,13 @@ local function drawStamp(
 	local tileBits = draw16Sprites and 4 or 3
 	local tileSizeInPixels = bit.lshift(1, tileBits)
 
-	for tx=0,stampTilesWide-1 do
-		for ty=0,stampTilesHigh-1 do
-			local screenX = stampScreenX + tx * tileSizeInPixels
-			local screenY = stampScreenY + ty * tileSizeInPixels
+	for ofsx=0,stampTilesWide-1 do
+		for ofsy=0,stampTilesHigh-1 do
+			local screenX = stampScreenX + ofsx * tileSizeInPixels
+			local screenY = stampScreenY + ofsy * tileSizeInPixels
 			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
 			local tileIndex = brush
-				and brush(tx, ty, stampTilesWide, stampTilesHigh, stampTileX, stampTileY)
+				and brush(ofsx, ofsy, stampTilesWide, stampTilesHigh, stampTileX, stampTileY)
 				or 0
 			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
 			local orientation = bit.band(7, bit.rshift(tileIndex, 13))
