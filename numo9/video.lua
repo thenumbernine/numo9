@@ -1530,7 +1530,7 @@ void main() {
 			to = 'uvec4',
 		}..[[.r;
 
-		colorIndex += uint(palHi) << 4;
+		colorIndex += uint(palHi) << 5;
 
 		<?=info.colorOutput?>
 

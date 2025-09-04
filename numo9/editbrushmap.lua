@@ -167,7 +167,8 @@ function EditBrushmap:update()
 							-tileSizeInTexels.x / 2,
 							-tileSizeInTexels.y / 2,
 							tileSizeInTiles.x,
-							tileSizeInTiles.y)
+							tileSizeInTiles.y,
+							bit.lshift(palHi, 5))
 					end
 				end
 				brushScreenX = brushScreenX + tileSizeInTexels.x * self.brushPreviewSize
