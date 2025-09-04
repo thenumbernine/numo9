@@ -208,7 +208,7 @@ function EditSheet:update()
 	)
 	app:setClipRect(0, 0, clipMax, clipMax)
 
-	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
+	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 	local function fbToSpritesheetCoord(fbX, fbY)
 		return
 			(fbX - x + self.spritesheetPanOffset.x) / spriteSize.x,
@@ -274,7 +274,9 @@ function EditSheet:update()
 		y + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y - self.spritesheetPanOffset.y,
 		spriteSize.x * self.spriteSelSize.x,
 		spriteSize.y * self.spriteSelSize.y,
-		0xfd
+		0xd,
+		nil,
+		app.paletteMenuTex
 	)
 	app:setClipRect(0, 0, clipMax, clipMax)
 
@@ -339,7 +341,7 @@ function EditSheet:update()
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
 	app:setClipRect(0, 0, clipMax, clipMax)
-	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xfd)
+	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 
 	-- convert x y in framebuffer space to x y in sprite window space
 	local function fbToSpriteCoord(fbX, fbY)
@@ -558,7 +560,9 @@ function EditSheet:update()
 		y-1,
 		w+2,
 		h+2,
-		0xfd
+		0xd,
+		nil,
+		app.paletteMenuTex
 	)
 
 	-- log2PalBits == 3 <=> palBits == 8 <=> showing 1<<8 = 256 colors <=> showing 16 x 16 colors
@@ -639,7 +643,9 @@ function EditSheet:update()
 						ry-k,
 						bw+2*k,
 						bh+2*k,
-						selBorderColor
+						selBorderColor,
+						nil,
+						app.paletteMenuTex
 					)
 				end
 			end

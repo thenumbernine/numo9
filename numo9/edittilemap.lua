@@ -64,9 +64,8 @@ function EditTilemap:init(args)
 	-- and this is for copy paste in the tilemap
 	self.tileSelPos = vec2i()
 	self.tileSelSize = vec2i()
-	self.horzFlip = false
-	self.vertFlip = false
 	self.selPalHiOffset = 0
+	self.orientation = 0	-- 2D orientation: bit 0 = hflip bits 12 = rotation
 	self.drawMode = 'draw'
 	self.gridSpacing = 1
 	self.penSize = 1
@@ -117,20 +116,15 @@ function EditTilemap:update()
 	self:guiRadio(x, y, {'draw', 'fill', 'dropper', 'pan', 'select'}, self.drawMode, function(result)
 		self.drawMode = result
 	end)
-
 	x = x + 32
-	if self:guiButton('H', x, y, self.horzFlip, 'hflip='..tostring(self.horzFlip)) then
-		self.horzFlip = not self.horzFlip
-	end
-	x = x + 8
-
-	if self:guiButton('V', x, y, self.vertFlip, 'vflip='..tostring(self.vertFlip)) then
-		self.vertFlip = not self.vertFlip
-	end
-	x = x + 12
 
 	self:guiSpinner(x, y, function(dx)
-		self.selPalHiOffset = math.clamp(self.selPalHiOffset + dx, 0, 0xf)
+		self.orientation = bit.band(7, self.orientation + dx)
+	end, 'orient='..tostring(self.orientation))
+	x = x + 16
+
+	self:guiSpinner(x, y, function(dx)
+		self.selPalHiOffset = bit.band(7, self.selPalHiOffset + dx)
 	end, 'palhi='..self.selPalHiOffset)
 	x = x + 16
 
@@ -175,9 +169,9 @@ function EditTilemap:update()
 	local tileSelIndex = bit.bor(
 		self.spriteSelPos.x
 		+ spriteSheetSizeInTiles.x * self.spriteSelPos.y,
-		bit.lshift(bit.band(0xf, self.selPalHiOffset), 10),
-		self.horzFlip and 0x4000 or 0,
-		self.vertFlip and 0x8000 or 0)
+		bit.lshift(bit.band(7, self.selPalHiOffset), 10),
+		bit.lshift(bit.band(7, self.orientation), 13)
+	)
 	self:guiTextField(
 		210, 0, 20,
 		('%04X'):format(tileSelIndex), nil,
@@ -186,9 +180,8 @@ function EditTilemap:update()
 			if result then
 				self.spriteSelPos.x = result % spriteSheetSizeInTiles.x
 				self.spriteSelPos.y = (result - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
-				self.selPalHiOffset = bit.band(bit.rshift(result, 10), 0xf)
-				self.horzFlip = bit.band(result, 0x4000) ~= 0
-				self.vertFlip = bit.band(result, 0x8000) ~= 0
+				self.selPalHiOffset = bit.band(7, bit.rshift(result, 10))
+				self.orientation = bit.band(7, bit.rshift(result, 13))
 			end
 		end
 	)
@@ -247,7 +240,9 @@ function EditTilemap:update()
 			self.tileSelPos.y * tileSize,
 			tileSize * self.tileSelSize.x,
 			tileSize * self.tileSelSize.y,
-			0xfd
+			0xd,
+			nil,
+			app.paletteMenuTex
 		)
 	end
 
@@ -266,13 +261,19 @@ function EditTilemap:update()
 			pickY-1,
 			pickW+2,
 			pickH+2,
-			10)
+			10,
+			nil,
+			app.paletteMenuTex
+		)
 		app:drawSolidRect(
 			pickX,
 			pickY,
 			pickW,
 			pickH,
-			0
+			0,
+			nil,
+			nil,
+			app.paletteMenuTex
 		)
 		app:drawQuad(
 			pickX,
@@ -285,7 +286,7 @@ function EditTilemap:update()
 			0,
 			255,
 			255,
-			1,	-- sheetIndex
+			self.sheetBlobIndex,
 			0,
 			-1,
 			0,
@@ -313,7 +314,9 @@ function EditTilemap:update()
 			pickY + self.spriteSelPos.y * spriteSize.y * pickH / spriteSheetSize.y,
 			spriteSize.x * self.spriteSelSize.x * pickW / spriteSheetSize.x,
 			spriteSize.y * self.spriteSelSize.y * pickH / spriteSheetSize.y,
-			13
+			13,
+			nil,
+			app.paletteMenuTex
 		)
 	else
 		-- TODO allow drawing while picking window is open, like tic80 does?
@@ -377,9 +380,9 @@ function EditTilemap:update()
 			local tileSelIndex = bit.bor(
 				self.spriteSelPos.x + dx
 				+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy),
-				bit.lshift(bit.band(0xf, self.selPalHiOffset), 10),
-				self.horzFlip and 0x4000 or 0,
-				self.vertFlip and 0x8000 or 0)
+				bit.lshift(bit.band(7, self.selPalHiOffset), 10),
+				bit.lshift(bit.band(7, self.orientation), 13)
+			)
 			local texelIndex = tx + tilemapSize.x * ty
 			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
 			self.undo:pushContinuous()
@@ -399,9 +402,8 @@ function EditTilemap:update()
 				if tileSelIndex then
 					self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
 					self.spriteSelPos.y = ((tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
-					self.selPalHiOffset = bit.band(bit.lshift(tileSelIndex, 10), 0xf)
-					self.horzFlip = bit.band(tileSelIndex, 0x4000) ~= 0
-					self.vertFlip = bit.band(tileSelIndex, 0x8000) ~= 0
+					self.selPalHiOffset = bit.band(7, bit.rshift(tileSelIndex, 10))
+					self.orientation = bit.band(7, bit.rshift(tileSelIndex, 13))
 				end
 			end
 		elseif self.drawMode == 'draw' then
@@ -432,9 +434,9 @@ function EditTilemap:update()
 				local tileSelIndex = bit.bor(
 					self.spriteSelPos.x
 					+ spriteSheetSizeInTiles.x * self.spriteSelPos.y,
-					bit.lshift(bit.band(0xf, self.selPalHiOffset), 10),
-					self.horzFlip and 0x4000 or 0,
-					self.vertFlip and 0x8000 or 0)
+					bit.lshift(bit.band(7, self.selPalHiOffset), 10),
+					bit.lshift(bit.band(7, self.orientation), 13)
+				)
 
 				if srcTile ~= tileSelIndex then
 					local fillstack = table()

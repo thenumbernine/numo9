@@ -1500,9 +1500,19 @@ void main() {
 			tileIndex & 0x1F,				// tilemap bits 0..4
 			(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
 		);
-		int palHi = (tileIndex >> 10) & 0xF;	// tilemap bits 10..13
-		if ((tileIndex & (1<<14)) != 0) tci.x = ~tci.x;	// tilemap bit 14
-		if ((tileIndex & (1<<15)) != 0) tci.y = ~tci.y;	// tilemap bit 15
+		int palHi = (tileIndex >> 10) & 7;	// tilemap bits 10..12
+		int rot = (tileIndex >> 14) & 3;		// tilemap bits 14..15 = rotation
+		if (rot == 1) {
+			tci = ivec2(tci.y, ~tci.x);
+		} else if (rot == 2) {
+			tci = ivec2(tci.y, ~tci.x);
+			tci = ivec2(tci.y, ~tci.x);
+		} else if (rot == 3) {
+			tci = ivec2(tci.y, ~tci.x);
+			tci = ivec2(tci.y, ~tci.x);
+			tci = ivec2(tci.y, ~tci.x);
+		}
+		if (((tileIndex >> 13) & 1) != 0) tci.x = ~tci.x;	// tilemap bit 13 = hflip
 
 		int mask = (1 << (3u + draw16Sprites)) - 1;
 		// [0, spriteSize)^2
@@ -2605,7 +2615,7 @@ function AppVideo:drawQuadTex(
 	paletteTex,
 	sheetTex,
 	x, y, w, h,	-- quad box
-	tx, ty, tw, th,	-- texcoord bbox
+	tx, ty, tw, th,	-- texcoord bbox in [0,1]
 	spriteBit,
 	spriteMask,
 	transparentIndex,

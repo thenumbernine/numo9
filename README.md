@@ -111,9 +111,16 @@ The tilesheet is equivalent to the sprite sheet in every way except that it is i
 The tilemap is 256x256x16bpp.
 Tilemap bits:
 - 10: lookup into the tilesheet texture
-- 4: palette offset high 4 bits
-- 1: hflip
-- 1: vflip
+- 3: palette offset high 3 bits
+- 3: 2D orientation
+
+2D orientations are represented as follows:
+- 1 bit: h flip
+- 2 bits: rotation in 90 degrees
+
+If you want to h-flip, use 0b001.
+If you want to v-flip, h-flip and rotate twice, so use 0b101.
+
 
 Tilemaps can render 8x8 or 16x16 sprites.
 
@@ -657,11 +664,9 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - For 16x16 tilemap mode, should I just `<< 1` the tile index, and not store the zeroes?  Since it is basically always 2-aligned anyways?
 	- Should I store the draw16x16 in its own variable in RAM?  Same for tilemap index offset, same for tilemap spritesheet bank, same for tilemap bank.
 	- Should I allow 32x32 64x64 etc as well?
-	- Should I allow tilemap rotations? 3 bits for orientation instead of just 2 bits for h & v flip?
 	- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
 - I need some kind of tilemap animation state ...
 - 4bpp framebuffers.  But that means merging two pixels into one, which would take a 2nd pass.  Unless there's a 4bpp hardware supported fbo format? DXT1?
 - netplay persistent data maybe ... 
 	- one set per-game
 	- one set per-game-per-server
-- TODO 2D orientation ... instead of hflip vflip, one more bit and we can use two bits for rotation and one for mirror
