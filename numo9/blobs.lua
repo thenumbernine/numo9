@@ -456,59 +456,19 @@ function BlobSFX:loadWav(wav, loopOffset)
 end
 
 
-local BlobMusic = blobSubclass'music'
+local BlobMusic = blobSubclass('music', BlobDataAbs)
 BlobMusic.filenamePrefix = 'music'
 BlobMusic.filenameSuffix = '.bin'
-function BlobMusic:init(data)
-	assert.type(data, 'string')
-	self.data = data
-end
-function BlobMusic:getPtr()
-	return ffi.cast('uint8_t*', self.data)
-end
-function BlobMusic:getSize()
-	return #self.data
-end
--- static method:
-function BlobMusic:loadFile(filepath)
-	return self.class(filepath:read())
-end
 
 
-local BlobBrush = blobSubclass'brush'
+local BlobBrush = blobSubclass('brush', BlobDataAbs)
 BlobBrush.filenamePrefix = 'brush'
 BlobBrush.filenameSuffix = '.lua'
-function BlobBrush:init(data)
-	self.data = assert(data)
-end
-function BlobBrush:getPtr()
-	return ffi.cast('uint8_t*', self.data)
-end
-function BlobBrush:getSize()
-	return #self.data
-end
--- static method:
-function BlobBrush:loadFile(filepath)
-	return self.class(filepath:read())
-end
 
 
-local BlobBrushMap = blobSubclass'brushmap'
+local BlobBrushMap = blobSubclass('brushmap', BlobDataAbs)
 BlobBrushMap.filenamePrefix = 'brushmap'
 BlobBrushMap.filenameSuffix = '.lua'
-function BlobBrushMap:init(data)
-	self.data = assert(data)
-end
-function BlobBrushMap:getPtr()
-	return ffi.cast('uint8_t*', self.data)
-end
-function BlobBrushMap:getSize()
-	return #self.data
-end
--- static method:
-function BlobBrushMap:loadFile(filepath)
-	return self.class(filepath:read())
-end
 
 
 local BlobData = blobSubclass('data', BlobDataAbs)
