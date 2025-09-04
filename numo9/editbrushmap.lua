@@ -53,7 +53,7 @@ local function drawStamp(
 			local screenY = stampScreenY + ty * tileSizeInTexels.y
 			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
 			local tileIndex = brush
-				and brush(tx, ty, stampTilesWide, stampTilesHigh, stampTileX, stampTileY) 
+				and brush(tx, ty, stampTilesWide, stampTilesHigh, stampTileX, stampTileY)
 				or 0
 			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
 			local orientation = bit.band(7, bit.rshift(tileIndex, 13))
@@ -82,7 +82,7 @@ local function drawStamp(
 				bit.lshift(palHi, 5))
 		end
 	end
-	
+
 	ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end
 
@@ -97,6 +97,7 @@ function EditBrushmap:init(args)
 
 	-- stamps: index, x, y, width, height
 	self.stamps = table()
+	self.selected = table()
 
 	self.selBrushIndex = 1	-- 0-based? 1-based? this indexes into the Lua table in code so 1-based for now
 
@@ -218,12 +219,12 @@ function EditBrushmap:update()
 			local stampScreenX, stampScreenY = pickX, pickY
 			for _,brushIndex in ipairs(brushesKeys) do
 				local brush = brushes[brushIndex]
-				
+
 				drawStamp(
 					app,
 					brush,
 					stampScreenX, stampScreenY,
-					self.brushPreviewSize, self.brushPreviewSize, 
+					self.brushPreviewSize, self.brushPreviewSize,
 					self.draw16Sprites)
 
 				if brushIndex == self.selBrushIndex then
@@ -241,8 +242,9 @@ function EditBrushmap:update()
 				-- TODO left down + drag to scroll
 				if leftButtonPress then
 					self.selBrushIndex = brushIndex
+					--self.pickOpen = false	-- TODO delay past click-to-open time
 				end
-				
+
 				stampScreenX = stampScreenX + tileSizeInTexels.x * self.brushPreviewSize
 				if stampScreenX > pickW then
 					stampScreenX = 0
@@ -260,9 +262,59 @@ function EditBrushmap:update()
 			- remove ... select+delete?
 			--]]
 
+			if leftButtonDown then
+				if mouseX ~= app.ram.lastMousePressPos.x
+				or mouseY ~= app.ram.lastMousePressPos.y
+				then
+					self.mouseDragged = true
+				end
+			else
+				self.mouseDragged = false
+			end
+
 
 			if leftButtonPress then
+				local selUnder = table()
+				for _,stamp in ipairs(self.selected) do
+					if stamp.x * tileSizeInTexels.x < mouseX
+					and stamp.y * tileSizeInTexels.y < mouseY
+					and (stamp.x + stamp.w) * tileSizeInTexels.x > mouseX
+					and (stamp.y + stamp.h) * tileSizeInTexels.y > mouseY
+					then
+						selUnder:insert(stamp)
+					end
+				end
+				if #selUnder > 0 then
+					-- check corner vs center for dragging or resizing
+					self.resizing = false
+				else
+					-- pressed down on nothing ...
+					-- create, pan, or select-box?
+
+					-- create
+					local stamp = {
+						brush = self.selBrushIndex,
+						x = math.floor(mouseX / tileSizeInTexels.x),
+						y = math.floor(mouseY / tileSizeInTexels.y),
+						w = 1,	-- default size?
+						h = 1,
+					}
+					self.stamps:insert(stamp)
+					self.selected = table{stamp}
+					self.resizing = true
+				end
 			elseif leftButtonDown then
+				if self.resizing then
+					for _,stamp in ipairs(self.selected) do
+						stamp.w = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / tileSizeInTexels.x)
+						stamp.h = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / tileSizeInTexels.y)
+					end
+				else
+					for _,stamp in ipairs(self.selected) do
+						stamp.x = stamp.x + math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / tileSizeInTexels.x)
+						stamp.y = stamp.y + math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / tileSizeInTexels.y)
+					end
+				end
 			elseif leftButtnRelease then
 			end
 		end

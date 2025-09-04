@@ -299,19 +299,24 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 
 		local changed
 		if self:guiButton('+', x + 14, y + 10, nil) then
-			app.blobs[blobName]:insert(t[indexKey]+2, blobClassForName[blobName]())
-			t[indexKey] = t[indexKey] + 1
+			t[indexKey] = math.clamp(t[indexKey], 0, #app.blobs[blobName]-1)
+			if #app.blobs[blobName] == 0 then
+				app.blobs[blobName]:insert(blobClassForName[blobName]())
+				t[indexKey] = 0
+			else
+				app.blobs[blobName]:insert(t[indexKey]+1, blobClassForName[blobName]())
+				t[indexKey] = t[indexKey] + 1
+			end
 			changed = true
 		end
 
 		local len = #app.blobs[blobName]
 		if len > (minBlobPerType[blobName] or 0) then	-- TODO if not then grey out the - sign?
 			if self:guiButton('-', x + 20, y + 10, nil) then
+				t[indexKey] = math.clamp(t[indexKey], 0, #app.blobs[blobName]-1)
 				app.blobs[blobName]:remove(t[indexKey]+1)
 				changed = true
-				if t[indexKey] > 0 then
-					t[indexKey] = t[indexKey] - 1
-				end
+				t[indexKey] = t[indexKey] - 1
 			end
 		end
 		-- TODO controls for moving blobs in order?
