@@ -35,8 +35,8 @@ local editModes = table{
 	'tilemap',
 	'sfx',
 	'music',
-	'brush',
-	--'brushmap',
+	--'brush',
+	'brushmap',
 }
 
 local editFieldForMode = {
@@ -45,7 +45,8 @@ local editFieldForMode = {
 	tilemap = 'editTilemap',
 	sfx = 'editSFX',
 	music = 'editMusic',
-	brush = 'editBrushes',
+	--brush = 'editBrushes',
+	brushmap = 'editBrushMap',
 }
 
 

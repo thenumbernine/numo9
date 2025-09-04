@@ -34,10 +34,6 @@ local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
 local resetFont = numo9_video.resetFont
 local resetPalette = numo9_video.resetPalette
 
-local function hex(n)
-	return ('0x%x'):format(n)
-end
-
 -- maps from type-index to name
 local blobClassNameForType = table{
 	'sheet',	-- sprite sheet, tile sheet
@@ -48,12 +44,17 @@ local blobClassNameForType = table{
 	'music',
 	-- these go last because they are most likely to not be short/long aligned
 	'code',		-- at least 1 of these
-	'data',		-- arbitrary binary blob
-	'persist',	-- arbitrary binary blob that persists
-	'brush',
-	'brushmap',
-	-- TODO 'voxelmap' = voxel-map of models from some lookup table
-	-- TODO 'obj3d'
+	'data',		-- arbitrary binary blob. reset on reload.
+	'persist',	-- save data: arbitrary binary blob that persists
+
+	'brush',	-- TODO hmm not sure about this one, because brushes are gonna vary, they are functions that take in relx rely globalx globaly output a sheet index
+	'brushmap',	-- 'brushmap' is a collection of xywh brushes to be stamped onto the tilemap
+
+	'mesh3d', 	-- ... but what format?  xyzuv triangles ... and indexes or nah, since the video API doesn't care anyways?  or at least for compression's sake?
+	'voxelmap', -- = voxel-map of models from some lookup table
+	-- voxel map high bits = 24 possible orientations of a cube, so needs 5 bits for orientation (wow so many ...)
+	-- should voxel map be 16bit then? 11 = lookup of model, 5 = orientation?
+	-- then entries should point to objs ... and to texel shifts, right?  we dont want a zillion copies of cube ... we should point to separate obj and sheet ...
 }
 
 -- maps from name to type-index
@@ -617,7 +618,7 @@ print(('memSize = 0x%0x'):format(memSize))
 
 		local addr = ramptr - ram.v
 		local blobSize = blob:getSize()
-print('adding blob #'..index..' at addr '..hex(addr)..' - '..hex(addr + blobSize)..' type '..blob.type..'/'..blobClassName)
+print('adding blob #'..index..' at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize)..' type '..blob.type..'/'..blobClassName)
 		assert.le(0, addr)
 		assert.le(addr, memSize)
 		blobEntryPtr.type = blob.type
@@ -745,7 +746,7 @@ local function byteArrayToBlobs(ptr, size)
 		assert.le(blobEntryPtr.addr + blobEntryPtr.size, size, 'blob #'..index..' type '..blobEntryPtr.type..' addr is oob')
 		local blobClass = assert.index(blobClassForType, blobEntryPtr.type)
 		local blobClassName = blobClass.name
---DEBUG:print('\tloading blob #'..index..' type='..blobClassName..' addr='..hex(blobEntryPtr.addr)..' size='..hex(blobEntryPtr.size))
+--DEBUG:print('\tloading blob #'..index..' type='..blobClassName..' addr='..('0x%x'):format(blobEntryPtr.addr)..' size='..('0x%x'):format(blobEntryPtr.size))
 		local blobData = ffi.string(ram.v + blobEntryPtr.addr, blobEntryPtr.size)
 		local blob = blobClass:loadBinStr(blobData)
 		blobs[blobClassName] = blobs[blobClassName] or table()
