@@ -1,4 +1,6 @@
 local table = require 'ext.table'
+local gl = require 'gl'
+local GLTex2D = require 'gl.tex2d'
 
 local CartBrowser = require 'numo9.ui':subclass()
 
@@ -110,8 +112,6 @@ function CartBrowser:update()
 			local selectedFilePath = selectedFile:path()
 			self.thumbTex = self.labelTexCache[selectedFilePath]
 			if not self.thumbTex then
-				local GLTex2D = require 'gl.tex2d'
-				local gl = require 'gl'
 				--local internalFormat = gl.GL_RGBA8I
 				local internalFormat = gl.GL_RGBA8UI
 				--local internalFormat = gl.GL_RGBA8

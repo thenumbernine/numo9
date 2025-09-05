@@ -463,6 +463,12 @@ glreport'after RAMGPUTex:init'
 --DEBUG:print'RAMGPUTex:init done'
 end
 
+-- manually free GPU resources
+function RAMGPUTex:delete()
+	self.tex:delete()
+	self.tex = nil
+end
+
 function RAMGPUTex:overlaps(other)
 	return self.addr < other.addrEnd and other.addr < self.addrEnd
 end
@@ -1785,6 +1791,7 @@ function AppVideo:resizeRAMGPUs()
 --DEBUG:print'AppVideo:resizeRAMGPUs'
 	local sheetBlobs = self.blobs.sheet
 	for i=#sheetBlobs+1,#self.sheetRAMs do
+		self.sheetRAMs[i]:delete()
 		self.sheetRAMs[i] = nil
 	end
 	for i,blob in ipairs(sheetBlobs) do
@@ -1807,6 +1814,7 @@ function AppVideo:resizeRAMGPUs()
 
 	local tileMapBlobs = self.blobs.tilemap
 	for i=#tileMapBlobs+1,#self.tilemapRAMs do
+		self.tilemapRAMs[i]:delete()
 		self.tilemapRAMs[i] = nil
 	end
 	for i,blob in ipairs(tileMapBlobs) do
@@ -1838,6 +1846,7 @@ function AppVideo:resizeRAMGPUs()
 
 	local paletteBlobs = self.blobs.palette
 	for i=#paletteBlobs+1,#self.paletteRAMs do
+		self.paletteRAMs[i]:delete()
 		self.paletteRAMs[i] = nil
 	end
 	for i,blob in ipairs(paletteBlobs) do
@@ -1862,6 +1871,7 @@ function AppVideo:resizeRAMGPUs()
 
 	local fontBlobs = self.blobs.font
 	for i=#fontBlobs+1,#self.fontRAMs do
+		self.fontRAMs[i]:delete()
 		self.fontRAMs[i] = nil
 	end
 	for i,blob in ipairs(fontBlobs) do
