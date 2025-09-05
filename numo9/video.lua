@@ -3373,21 +3373,25 @@ function AppVideo:net_blitBrush(
 			and dsty >= 0 and dsty < tilemapSize.y
 			then
 				local bx, by = ofsx, ofsy
-				if bit.band(1, stampOrientation) ~= 0 then
-					bx = stampW-1-bx
-				end
 				local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
 				-- TODO if we're rotating the stamp then no more promises of ofsx ofsy vs stampx stampy ...
 				-- ... should I pass stampOrientation also to let brush definers try to fix this or nah?
 				if stampRot == 1 then
-					bx, by = stampH-1-by, bx
+					bx, by = by, stampW-1-bx
 				elseif stampRot == 2 then
-					bx, by = stampH-1-by, bx
-					bx, by = stampW-1-by, bx
+					bx, by = by, stampW-1-bx
+					bx, by = by, stampH-1-bx
 				elseif stampRot == 3 then
-					bx, by = stampH-1-by, bx
-					bx, by = stampW-1-by, bx
-					bx, by = stampH-1-by, bx
+					bx, by = by, stampW-1-bx
+					bx, by = by, stampH-1-bx
+					bx, by = by, stampW-1-bx
+				end
+				if bit.band(1, stampOrientation) ~= 0 then
+					if bit.band(stampRot, 1) == 0 then
+						bx = stampW-1-bx
+					else
+						bx = stampH-1-bx
+					end
 				end
 				local tileIndex = brush(bx, by, stampW, stampH, stampX, stampY, stampOrientation) or 0
 				local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))

@@ -37,7 +37,7 @@ local function drawStamp(
 	app,
 	brush,
 	stampScreenX, stampScreenY,
-	stampTilesWide, stampTilesHigh,
+	stampW, stampH,
 	stampOrientation,
 	draw16Sprites
 )
@@ -53,31 +53,35 @@ local function drawStamp(
 	local tileSizeInPixels = bit.lshift(1, tileBits)
 
 	local stampHFlip = bit.band(1, stampOrientation) ~= 0
-	local stampRot = bit.rshift(stampOrientation, 1)
+	local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
 
-	for ofsx=0,stampTilesWide-1 do
-		for ofsy=0,stampTilesHigh-1 do
+	for ofsx=0,stampW-1 do
+		for ofsy=0,stampH-1 do
 			local screenX = stampScreenX + ofsx * tileSizeInPixels
 			local screenY = stampScreenY + ofsy * tileSizeInPixels
 
 			local bx, by = ofsx, ofsy
-			if stampHFlip then
-				bx = stampTilesWide-1-bx
-			end
 			if stampRot == 1 then
-				bx, by = stampTilesHigh-1-by, bx
+				bx, by = by, stampW-1-bx
 			elseif stampRot == 2 then
-				bx, by = stampTilesHigh-1-by, bx
-				bx, by = stampTilesWide-1-by, bx
+				bx, by = by, stampW-1-bx
+				bx, by = by, stampH-1-bx
 			elseif stampRot == 3 then
-				bx, by = stampTilesHigh-1-by, bx
-				bx, by = stampTilesWide-1-by, bx
-				bx, by = stampTilesHigh-1-by, bx
+				bx, by = by, stampW-1-bx
+				bx, by = by, stampH-1-bx
+				bx, by = by, stampW-1-bx
+			end
+			if stampHFlip then
+				if bit.band(stampRot, 1) == 0 then
+					bx = stampW-1-bx
+				else
+					bx = stampH-1-bx
+				end
 			end
 
 			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
 			local tileIndex = brush
-				and brush(bx, by, stampTilesWide, stampTilesHigh, stampTileX, stampTileY)
+				and brush(bx, by, stampW, stampH, stampTileX, stampTileY)
 				or 0
 			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
 			local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
@@ -435,7 +439,6 @@ print('ftx', ftx, 'fty', fty)
 
 						for _,stamp in ipairs(selUnder) do
 print('checking', tolua(stamp))
-							self.orientation = stamp.orientation
 							if ftx >= stamp.x and ftx < stamp.x + stamp.w
 							and fty >= stamp.y and fty < stamp.y + stamp.h
 							then
@@ -474,6 +477,7 @@ print('resizing', tolua(self.resizing))
 							if mx >= stamp.x and mx < stamp.x + stamp.w
 							and my >= stamp.y and my < stamp.y + stamp.h
 							then
+								self.orientation = stamp.orientation
 								self.selected[stamp] = true
 							end
 						end
