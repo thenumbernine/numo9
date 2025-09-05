@@ -3406,14 +3406,6 @@ function AppVideo:net_blitBrushMap(
 --DEBUG:print('net_blitBrushMap - no brushmapBlob '..tostring(brushmapIndex)..' - bailing')
 		return
 	end
-	-- TODO TODO TODO save in binary format, not in Lua
-	local result, stamps = xpcall(function()
-		return require 'ext.fromlua'(brushmapBlob.data)
-	end, function() end)
-	if not (result and stamps) then
---DEBUG:print('net_blitBrushMap - failed to parse brushmapBlob '..tostring(brushmapIndex)..' - bailing')
-		return
-	end
 
 	local tilemapBlob = self.blobs.tilemap[tilemapIndex+1]
 	if not tilemapBlob then
@@ -3422,9 +3414,9 @@ function AppVideo:net_blitBrushMap(
 	end
 	local tilemapAddr = self.tilemapRAMs[tilemapIndex+1].addr
 
-	for _,stamp in ipairs(stamps) do
+	for _,stamp in ipairs(brushmapBlob.vec) do
 --DEBUG:print('stamp', _, require 'ext.tolua'(stamp))
-		local brush = brushes[stamp.brush]
+		local brush = brushes[tonumber(stamp.brush)]
 		if brush then
 			-- TODO early bailout of intersection test
 			for ofsy=0,stamp.h-1 do

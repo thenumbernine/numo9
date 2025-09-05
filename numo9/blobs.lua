@@ -461,14 +461,37 @@ BlobMusic.filenamePrefix = 'music'
 BlobMusic.filenameSuffix = '.bin'
 
 
+-- not yet used...
 local BlobBrush = blobSubclass('brush', BlobDataAbs)
 BlobBrush.filenamePrefix = 'brush'
 BlobBrush.filenameSuffix = '.lua'
 
 
-local BlobBrushMap = blobSubclass('brushmap', BlobDataAbs)
+local BlobBrushMap = blobSubclass'brushmap'
 BlobBrushMap.filenamePrefix = 'brushmap'
-BlobBrushMap.filenameSuffix = '.lua'
+BlobBrushMap.filenameSuffix = '.bin'
+function BlobBrushMap:init(data)
+	data = data or ''
+	assert.eq(#data % ffi.sizeof'Stamp', 0, "data is not Stamp-aligned")
+	local numStamps = #data / ffi.sizeof'Stamp'
+	self.vec = vector('Stamp', numStamps)
+	assert.len(self.vec, numStamps)
+	assert.len(data, self.vec:getNumBytes())
+	ffi.copy(self.vec.v, data, self.vec:getNumBytes())
+end
+function BlobBrushMap:getPtr()
+	return ffi.cast('uint8_t*', self.vec.v)
+end
+function BlobBrushMap:getSize()
+	return self.vec:getNumBytes()
+end
+function BlobBrushMap:saveFile(filepath, blobIndex, blobs)
+	assert(filepath:write(ffi.string(self:getPtr(), self:getSize())))
+end
+-- static method:
+function BlobBrushMap:loadFile(filepath)
+	return self.class(filepath:read())
+end
 
 
 local BlobData = blobSubclass('data', BlobDataAbs)

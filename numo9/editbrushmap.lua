@@ -110,7 +110,7 @@ function EditBrushmap:init(args)
 	self.lastMoveDown = vec2i()
 
 	-- stamps: index, x, y, width, height
-	self.stamps = table()
+	self.stamps = table()	-- table-of-Stamp cdata , each allocated individually so that vector-resizes dont mess up pointers into this table (like the selected[] table uses)
 	self.selected = {}
 
 	self.selBrushIndex = 1	-- 0-based? 1-based? this indexes into the Lua table in code so 1-based for now
@@ -285,7 +285,7 @@ function EditBrushmap:update()
 			for _,stamp in ipairs(self.stamps) do
 				drawStamp(
 					app,
-					brushes[stamp.brush],	-- might be nil
+					brushes[tonumber(stamp.brush)],	-- might be nil
 					stamp.x * tileSizeInPixels,
 					stamp.y * tileSizeInPixels,
 					stamp.w,
@@ -437,13 +437,13 @@ print('resizing', tolua(self.resizing))
 							-- create, pan, or select-box?
 
 							-- create
-							local stamp = {
+							local stamp = ffi.new('Stamp', {
 								brush = self.selBrushIndex,
 								x = tx,
 								y = ty,
 								w = 1,	-- default size?
 								h = 1,
-							}
+							})
 							self.stamps:insert(stamp)
 							self:writeSelBrushmapBlob()
 							self.selected = {}
@@ -531,7 +531,10 @@ function EditBrushmap:readSelBrushmapBlob()
 	local app = self.app
 	local brushmapBlob = app.blobs.brushmap[self.brushmapBlobIndex+1]
 	if not brushmapBlob then return end
-	self.stamps = table((assert(fromlua(brushmapBlob.data))))
+	self.stamps = table()
+	for _,stamp in ipairs(brushmapBlob.vec) do
+		self.stamps:insert(ffi.new('Stamp', stamp))	-- allocate a new Stamp so that its not pointing to memory in the blob, so if the blob vec resizes we don't lose our pointer
+	end
 end
 
 function EditBrushmap:writeSelBrushmapBlob()
@@ -541,7 +544,10 @@ function EditBrushmap:writeSelBrushmapBlob()
 		error("WARNING trying to save brushmap when there's no brushmap blob selected")
 		return
 	end
-	brushmapBlob.data = tolua(self.stamps)
+	brushmapBlob.vec:clear()
+	for _,stamp in ipairs(self.stamps) do
+		brushmapBlob.vec:emplace_back()[0] = stamp
+	end
 	-- TODO ... regen the ROM or something? idk?
 end
 

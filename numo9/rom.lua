@@ -411,6 +411,13 @@ local function deltaCompress(
 	end
 end
 
+ffi.cdef[[
+typedef struct {
+	uint16_t brush;
+	uint16_t x, y, w, h;
+} Stamp;
+]]
+
 return {
 	updateHz = updateHz,
 	updateIntervalInSeconds = updateIntervalInSeconds,
