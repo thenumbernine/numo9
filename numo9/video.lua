@@ -3333,6 +3333,14 @@ function AppVideo:net_drawBrush(
 	draw16Sprites,
 	sheetBlobIndex
 )
+	brushIndex = brushIndex or 0
+	stampScreenX = stampScreenX or 0
+	stampScreenY = stampScreenY or 0
+	stampW = stampW or 0
+	stampH = stampH or 0
+	stampOrientation = stampOrientation or 0
+	sheetBlobIndex = sheetBlobIndex or 0
+
 	local gameEnv = self.gameEnv
 	if not gameEnv then
 --DEBUG:print('net_drawBrush - no gameEnv - bailing')
