@@ -3320,6 +3320,104 @@ function AppVideo:saveLabel()
 	self:screenshotToFile(base..'/label.png')
 end
 
+
+local mvMatPush = ffi.new(mvMatType..'[16]')
+-- this is a sprite-based preview of tilemap rendering
+-- it's made to simulate blitting the brush onto the tilemap (without me writing the tiles to a GPU texture and using the shader pathway)
+function AppVideo:net_drawBrush(
+	brushIndex,
+	stampScreenX, stampScreenY,
+	stampW, stampH,
+	stampOrientation,
+	draw16Sprites
+)
+	local gameEnv = self.gameEnv
+	if not gameEnv then
+--DEBUG:print('net_drawBrush - no gameEnv - bailing')
+		return
+	end
+	local brushes = gameEnv.numo9_brushes
+	if not brushes then
+--DEBUG:print('net_drawBrush - no numo9_brushes - bailing')
+		return
+	end
+	local brush = brushes[brushIndex]
+	if not brush then 
+--DEBUG:print('net_drawBrush - numo9_brushes key '..tostring(brushIndex)..' not found - bailing')
+		return 
+	end
+
+	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+
+	local stampTileX, stampTileY = 0, 0	-- TODO how to show select brushes? as alays in UL, or as their location in the pick screen? meh?
+	-- or TODO stampScreenX = stampTileX * tileSizeInPixels
+	-- but for the select's sake, keep the two separate
+
+	local draw16As0or1 = draw16Sprites and 1 or 0
+	local tileSizeInTiles = bit.lshift(1, draw16As0or1)
+	local tileBits = draw16Sprites and 4 or 3
+	local tileSizeInPixels = bit.lshift(1, tileBits)
+
+	local stampHFlip = bit.band(1, stampOrientation) ~= 0
+	local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
+
+	for ofsx=0,stampW-1 do
+		for ofsy=0,stampH-1 do
+			local screenX = stampScreenX + ofsx * tileSizeInPixels
+			local screenY = stampScreenY + ofsy * tileSizeInPixels
+
+			local bx, by, bw, bh = ofsx, ofsy, stampW, stampH
+			if stampRot == 1 then
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+			elseif stampRot == 2 then
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+			elseif stampRot == 3 then
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+			end
+			if stampHFlip then
+				bx = bw-1-bx
+			end
+
+			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
+			local tileIndex = brush
+				and brush(bx, by, stampW, stampH, stampTileX, stampTileY)
+				or 0
+			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
+			local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
+			tileOrientation = bit.bxor(tileOrientation, bit.band(1, stampOrientation))
+			tileOrientation = bit.band(7, tileOrientation + bit.band(6, stampOrientation))
+			local spriteIndex = bit.band(0x3FF, tileIndex)	-- 10 bits
+
+			-- TODO build rotations into the sprite pathway?
+			-- it's in the tilemap pathway already ...
+			-- either way, this is just a preview for the tilemap pathway
+			-- since brushes don't render themselves, but just blit to the tilemap
+			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+			self:mattrans(
+				screenX + tileSizeInPixels / 2,
+				screenY + tileSizeInPixels / 2
+			)
+			local rot = bit.rshift(tileOrientation, 1)
+			self:matrot(rot * math.pi * .5)
+			if bit.band(tileOrientation, 1) ~= 0 then
+				self:matscale(-1, 1)
+			end
+			self:drawSprite(
+				spriteIndex,
+				-tileSizeInPixels / 2,
+				-tileSizeInPixels / 2,
+				tileSizeInTiles,
+				tileSizeInTiles,
+				bit.lshift(palHi, 5))
+		end
+	end
+
+	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+end
+
 -- these are net friendly since they are called from the game API
 function AppVideo:net_blitBrush(
 	brushIndex, tilemapIndex,

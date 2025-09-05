@@ -18,8 +18,6 @@ Brushes will just be text / Lua script defined functions if I ever make them dis
 local ffi = require 'ffi'
 local table = require 'ext.table'
 local math = require 'ext.math'
-local tolua = require 'ext.tolua'
-local fromlua = require 'ext.fromlua'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
 
@@ -27,90 +25,6 @@ local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
-local mvMatType = numo9_rom.mvMatType
-
-
-local mvMatPush = ffi.new(mvMatType..'[16]')
--- this is a sprite-based preview of tilemap rendering
--- it's made to simulate blitting the brush onto the tilemap (without me writing the tiles to a GPU texture and using the shader pathway)
-local function drawStamp(
-	app,
-	brush,
-	stampScreenX, stampScreenY,
-	stampW, stampH,
-	stampOrientation,
-	draw16Sprites
-)
-	ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
-
-	local stampTileX, stampTileY = 0, 0	-- TODO how to show select brushes? as alays in UL, or as their location in the pick screen? meh?
-	-- or TODO stampScreenX = stampTileX * tileSizeInPixels
-	-- but for the select's sake, keep the two separate
-
-	local draw16As0or1 = draw16Sprites and 1 or 0
-	local tileSizeInTiles = bit.lshift(1, draw16As0or1)
-	local tileBits = draw16Sprites and 4 or 3
-	local tileSizeInPixels = bit.lshift(1, tileBits)
-
-	local stampHFlip = bit.band(1, stampOrientation) ~= 0
-	local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
-
-	for ofsx=0,stampW-1 do
-		for ofsy=0,stampH-1 do
-			local screenX = stampScreenX + ofsx * tileSizeInPixels
-			local screenY = stampScreenY + ofsy * tileSizeInPixels
-
-			local bx, by, bw, bh = ofsx, ofsy, stampW, stampH
-			if stampRot == 1 then
-				bx, by, bw, bh = by, bw-1-bx, bh, bw
-			elseif stampRot == 2 then
-				bx, by, bw, bh = by, bw-1-bx, bh, bw
-				bx, by, bw, bh = by, bw-1-bx, bh, bw
-			elseif stampRot == 3 then
-				bx, by, bw, bh = by, bw-1-bx, bh, bw
-				bx, by, bw, bh = by, bw-1-bx, bh, bw
-				bx, by, bw, bh = by, bw-1-bx, bh, bw
-			end
-			if stampHFlip then
-				bx = bw-1-bx
-			end
-
-			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
-			local tileIndex = brush
-				and brush(bx, by, stampW, stampH, stampTileX, stampTileY)
-				or 0
-			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
-			local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
-			tileOrientation = bit.bxor(tileOrientation, bit.band(1, stampOrientation))
-			tileOrientation = bit.band(7, tileOrientation + bit.band(6, stampOrientation))
-			local spriteIndex = bit.band(0x3FF, tileIndex)	-- 10 bits
-
-			-- TODO build rotations into the sprite pathway?
-			-- it's in the tilemap pathway already ...
-			-- either way, this is just a preview for the tilemap pathway
-			-- since brushes don't render themselves, but just blit to the tilemap
-			ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-			app:mattrans(
-				screenX + tileSizeInPixels / 2,
-				screenY + tileSizeInPixels / 2
-			)
-			local rot = bit.rshift(tileOrientation, 1)
-			app:matrot(rot * math.pi * .5)
-			if bit.band(tileOrientation, 1) ~= 0 then
-				app:matscale(-1, 1)
-			end
-			app:drawSprite(
-				spriteIndex,
-				-tileSizeInPixels / 2,
-				-tileSizeInPixels / 2,
-				tileSizeInTiles,
-				tileSizeInTiles,
-				bit.lshift(palHi, 5))
-		end
-	end
-
-	ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-end
 
 -- returns highest-to-lowest indexes of the selected keys found in stamps
 local function getSelIndexes(selected, stamps)
@@ -267,11 +181,9 @@ function EditBrushmap:update()
 
 			local stampScreenX, stampScreenY = pickX, pickY
 			for _,brushIndex in ipairs(brushesKeys) do
-				local brush = brushes[brushIndex]
 
-				drawStamp(
-					app,
-					brush,
+				app:net_drawBrush(
+					brushIndex,
 					stampScreenX, stampScreenY,
 					self.brushPreviewSize, self.brushPreviewSize,
 					0,
@@ -326,16 +238,14 @@ function EditBrushmap:update()
 			app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
 
 			for _,stamp in ipairs(self.stamps) do
-				drawStamp(
-					app,
-					brushes[tonumber(stamp.brush)],	-- might be nil
+				app:net_drawBrush(
+					tonumber(stamp.brush),	-- might be nil
 					stamp.x * tileSizeInPixels,
 					stamp.y * tileSizeInPixels,
 					stamp.w,
 					stamp.h,
 					stamp.orientation,
-					self.draw16Sprites
-				)
+					self.draw16Sprites)
 				if self.selected[stamp] then
 					app:drawBorderRect(
 						stamp.x * tileSizeInPixels,
@@ -434,7 +344,7 @@ print('ftx', ftx, 'fty', fty)
 						self.resizing = false
 
 						for _,stamp in ipairs(selUnder) do
-print('checking', tolua(stamp))
+print('checking', require 'ext.tolua'(stamp))
 							if ftx >= stamp.x and ftx < stamp.x + stamp.w
 							and fty >= stamp.y and fty < stamp.y + stamp.h
 							then
@@ -464,7 +374,7 @@ print'move'
 								end
 							end
 						end
-print('resizing', tolua(self.resizing))
+print('resizing', require 'ext.tolua'(self.resizing))
 					else
 						-- pressed down but not on a selected ...
 						-- did we press down on an unselected?
@@ -501,7 +411,7 @@ print('resizing', tolua(self.resizing))
 					local dy = math.trunc((mouseY - self.lastMoveDown.y) / tileSizeInPixels)
 					if dx ~= 0 or dy ~= 0 then
 						if self.resizing then
-print('resizing', tolua(self.resizing))
+print('resizing', require 'ext.tolua'(self.resizing))
 							for stamp in pairs(self.selected) do
 								if self.resizing.ulx then
 									stamp.x = stamp.x + dx

@@ -336,6 +336,9 @@ function App:initGL()
 			end
 		end,
 
+		drawbrush = function(...)
+			return self:net_drawBrush(...)
+		end,
 		blitbrush = function(...)
 			return self:net_blitBrush(...)
 		end,
