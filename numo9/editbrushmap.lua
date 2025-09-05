@@ -60,23 +60,19 @@ local function drawStamp(
 			local screenX = stampScreenX + ofsx * tileSizeInPixels
 			local screenY = stampScreenY + ofsy * tileSizeInPixels
 
-			local bx, by = ofsx, ofsy
+			local bx, by, bw, bh = ofsx, ofsy, stampW, stampH
 			if stampRot == 1 then
-				bx, by = by, stampW-1-bx
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
 			elseif stampRot == 2 then
-				bx, by = by, stampW-1-bx
-				bx, by = by, stampH-1-bx
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
 			elseif stampRot == 3 then
-				bx, by = by, stampW-1-bx
-				bx, by = by, stampH-1-bx
-				bx, by = by, stampW-1-bx
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
+				bx, by, bw, bh = by, bw-1-bx, bh, bw
 			end
 			if stampHFlip then
-				if bit.band(stampRot, 1) == 0 then
-					bx = stampW-1-bx
-				else
-					bx = stampH-1-bx
-				end
+				bx = bw-1-bx
 			end
 
 			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
