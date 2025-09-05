@@ -355,7 +355,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
 	- tilemapIndex = the tilemap bank to use, default to 0.
-- `drawbrush(brushIndex, sx, sy, w, h, [orientation, draw16x16Sprites])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
+- `drawbrush(brushIndex, sx, sy, w, h, [orientation, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.

@@ -187,7 +187,8 @@ function EditBrushmap:update()
 					stampScreenX, stampScreenY,
 					self.brushPreviewSize, self.brushPreviewSize,
 					0,
-					self.draw16Sprites)
+					self.draw16Sprites,
+					self.sheetBlobIndex)
 
 				local stampWidthInPixels = self.brushPreviewSize * tileSizeInPixels
 				local stampHeightInPixels = self.brushPreviewSize * tileSizeInPixels

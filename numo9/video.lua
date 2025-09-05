@@ -2920,7 +2920,8 @@ function AppVideo:drawSprite(
 		paletteIndex,
 		transparentIndex,
 		spriteBit,
-		spriteMask
+		spriteMask,
+		nil	-- paletteTex ... TODO palette from 8+'th bits of paletteIndex?
 	)
 end
 
@@ -3329,7 +3330,8 @@ function AppVideo:net_drawBrush(
 	stampScreenX, stampScreenY,
 	stampW, stampH,
 	stampOrientation,
-	draw16Sprites
+	draw16Sprites,
+	sheetBlobIndex
 )
 	local gameEnv = self.gameEnv
 	if not gameEnv then
@@ -3406,12 +3408,18 @@ function AppVideo:net_drawBrush(
 				self:matscale(-1, 1)
 			end
 			self:drawSprite(
-				spriteIndex,
-				-tileSizeInPixels / 2,
-				-tileSizeInPixels / 2,
-				tileSizeInTiles,
-				tileSizeInTiles,
-				bit.lshift(palHi, 5))
+				spriteIndex + bit.lshift(sheetBlobIndex, 10), -- spriteIndex
+				-tileSizeInPixels / 2,	-- screenX
+				-tileSizeInPixels / 2,	-- screenY
+				tileSizeInTiles,		-- tilesWide
+				tileSizeInTiles,		-- tilesHigh
+				bit.lshift(palHi, 5),	-- paletteIndex
+				nil,					-- transparentIndex
+				nil,					-- spriteBit
+				nil,					-- spriteMask
+				nil,					-- scaleX
+				nil						-- scaleY
+			)
 		end
 	end
 
