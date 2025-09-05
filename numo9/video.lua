@@ -3326,11 +3326,7 @@ function AppVideo:net_blitBrush(
 	stampX, stampY, stampW, stampH,
 	cx, cy, cw, ch
 )
---DEBUG:print('net_blitBrush',
-	brushIndex, tilemapIndex,
-	stampX, stampY, stampW, stampH,
-	cx, cy, cw, ch
-)
+--DEBUG:print('net_blitBrush', brushIndex, tilemapIndex, stampX, stampY, stampW, stampH, cx, cy, cw, ch)
 	brushIndex = brushIndex or 0
 	tilemapIndex = tilemapIndex or 0
 	cx = cx or 0
@@ -3386,10 +3382,7 @@ function AppVideo:net_blitBrushMap(
 	brushmapIndex, tilemapIndex,
 	x, y, w, h
 )
---DEBUG:print('net_blitBrushMap',
-	brushmapIndex, tilemapIndex,
-	x, y, w, h
-)
+--DEBUG:print('net_blitBrushMap', brushmapIndex, tilemapIndex, x, y, w, h)
 	brushmapIndex = brushmapIndex or 0
 	tilemapIndex = tilemapIndex or 0
 	x = x or 0

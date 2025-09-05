@@ -278,8 +278,6 @@ If the following functions are defined then they will be called from the virtual
 - `mset(x, y, value, [bank=0])` = Write a uint16 to the current tilemap address at x, y.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
-- `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  Optionally you can clip the stamp to the tile range `cx, cy, cw, ch`.
-- `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, w, h])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to size `w, h` (default, use full brushmap size).
 - `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
 - `ramsize(name)` = returns the size the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('RAM', field)`.  See the RAM structure for individual field names.
 - `numblobs(name)` = returns the count of blobs of type `name`. Index is 0-based.
@@ -339,6 +337,8 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
 	- tilemapIndex = the tilemap bank to use, default to 0.
+- `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  Optionally you can clip the stamp to the tile range `cx, cy, cw, ch`.
+- `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, w, h])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to size `w, h` (default, use full brushmap size).
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = Set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.  You can pass a number or the string of `${width}x${height}x${format}`.  Returns true on success, false if it failed to find the video mode description.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
