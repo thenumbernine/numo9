@@ -41,7 +41,7 @@ numo9_brushes = {
 --]]
 }
 
-blitbrush(0, 0, 0, 0)
+blitbrushmap()
 update=||do
 	map(0,0,32,32,0,0,0,true,0)
 end

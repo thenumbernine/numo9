@@ -2121,8 +2121,9 @@ function AppVideo:setFramebufferTex(tex)
 	end
 end
 
--- exchnage two colors in the palettes, and in all spritesheets,
+-- exchange two colors in the palettes, and in all spritesheets,
 -- subject to some texture subregion (to avoid swapping bitplanes of things like the font)
+-- net-friendly
 function AppVideo:colorSwap(from, to, x, y, w, h, paletteBlobIndex)
 	-- TODO SORT THIS OUT
 	self:copyBlobsToROM()
@@ -3317,6 +3318,142 @@ end
 function AppVideo:saveLabel()
 	local base, ext = path(self.currentLoadedFilename):getext()
 	self:screenshotToFile(base..'/label.png')
+end
+
+-- these are net friendly since they are called from the game API
+function AppVideo:net_blitBrush(
+	brushIndex, tilemapIndex,
+	stampX, stampY, stampW, stampH,
+	cx, cy, cw, ch
+)
+--DEBUG:print('net_blitBrush',
+	brushIndex, tilemapIndex,
+	stampX, stampY, stampW, stampH,
+	cx, cy, cw, ch
+)
+	brushIndex = brushIndex or 0
+	tilemapIndex = tilemapIndex or 0
+	cx = cx or 0
+	cy = cy or 0
+	cw = cw or math.huge
+	ch = ch or math.huge
+
+	local gameEnv = self.gameEnv
+	if not gameEnv then
+--DEBUG:print('net_blitBrush - no gameEnv - bailing')
+		return
+	end
+	local brushes = gameEnv.numo9_brushes
+	if not brushes then
+--DEBUG:print('net_blitBrush - no numo9_brushes - bailing')
+		return
+	end
+	local brush = brushes[brushIndex]
+	if not brush then
+--DEBUG:print('net_blitBrush - no brushBlob '..tostring(brushIndex)..' - bailing')
+		return
+	end
+
+	local tilemapBlob = self.blobs.tilemap[tilemapIndex+1]
+	if not tilemapBlob then
+--DEBUG:print('net_blitBrush - no tilemapBlob '..tostring(tilemapBlob)..' - bailing')
+		return
+	end
+	local tilemapAddr = self.tilemapRAMs[tilemapIndex+1].addr
+
+	-- TODO early bailout of intersection test
+	for ofsy=0,stampH-1 do
+		for ofsx=0,stampW-1 do
+			local dstx = ofsx + stampX
+			local dsty = ofsy + stampY
+			-- in blit bounds
+			if dstx >= cx and dstx < cx + cw
+			and dsty >= cy and dsty < cy + ch
+			-- in tilemap bounds
+			and dstx >= 0 and dstx < tilemapSize.x
+			and dsty >= 0 and dsty < tilemapSize.y
+			then
+				self:net_pokew(
+					tilemapAddr + 2 * (dstx + dsty * tilemapSize.x),
+					brush(ofsx, ofsy, stampW, stampH, stampX, stampY) or 0
+				)
+			end
+		end
+	end
+end
+
+function AppVideo:net_blitBrushMap(
+	brushmapIndex, tilemapIndex,
+	x, y, w, h
+)
+--DEBUG:print('net_blitBrushMap',
+	brushmapIndex, tilemapIndex,
+	x, y, w, h
+)
+	brushmapIndex = brushmapIndex or 0
+	tilemapIndex = tilemapIndex or 0
+	x = x or 0
+	y = y or 0
+	w = w or math.huge
+	h = h or math.huge
+
+	local gameEnv = self.gameEnv
+	if not gameEnv then
+--DEBUG:print('net_blitBrushMap - no gameEnv - bailing')
+		return
+	end
+	local brushes = gameEnv.numo9_brushes
+	if not brushes then
+--DEBUG:print('net_blitBrushMap - no numo9_brushes - bailing')
+		return
+	end
+
+	local brushmapBlob = self.blobs.brushmap[brushmapIndex+1]
+	if not brushmapBlob then
+--DEBUG:print('net_blitBrushMap - no brushmapBlob '..tostring(brushmapIndex)..' - bailing')
+		return
+	end
+	-- TODO TODO TODO save in binary format, not in Lua
+	local result, stamps = xpcall(function()
+		return require 'ext.fromlua'(brushmapBlob.data)
+	end, function() end)
+	if not (result and stamps) then
+--DEBUG:print('net_blitBrushMap - failed to parse brushmapBlob '..tostring(brushmapIndex)..' - bailing')
+		return
+	end
+
+	local tilemapBlob = self.blobs.tilemap[tilemapIndex+1]
+	if not tilemapBlob then
+--DEBUG:print('net_blitBrushMap - no tilemapBlob '..tostring(tilemapBlob)..' - bailing')
+		return
+	end
+	local tilemapAddr = self.tilemapRAMs[tilemapIndex+1].addr
+
+	for _,stamp in ipairs(stamps) do
+--DEBUG:print('stamp', _, require 'ext.tolua'(stamp))
+		local brush = brushes[stamp.brush]
+		if brush then
+			-- TODO early bailout of intersection test
+			for ofsy=0,stamp.h-1 do
+				for ofsx=0,stamp.w-1 do
+					local dstx = ofsx + stamp.x
+					local dsty = ofsy + stamp.y
+					-- in blit bounds
+					if dstx >= x and dstx < x + w
+					and dsty >= y and dsty < y + h
+					-- in tilemap bounds
+					and dstx >= 0 and dstx < tilemapSize.x
+					and dsty >= 0 and dsty < tilemapSize.y
+					then
+						self:net_pokew(
+							tilemapAddr + 2 * (dstx + dsty * tilemapSize.x),
+							brush(ofsx, ofsy, stamp.w, stamp.h, stamp.x, stamp.y) or 0
+						)
+					end
+				end
+			end
+		end
+	end
 end
 
 return {

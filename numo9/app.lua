@@ -336,52 +336,11 @@ function App:initGL()
 			end
 		end,
 
-		blitbrush = function(brushmapIndex, tilemapIndex, x, y, w, h)
-			brushmapIndex = brushmapIndex or 0
-			tilemapIndex = tilemapIndex or 0
-			w = w or math.huge
-			h = h or math.huge
-
-			local gameEnv = self.gameEnv
-			if not gameEnv then return end
-			local brushes = gameEnv.numo9_brushes
-			if not brushes then return end
-
-			local brushmapBlob = self.blobs.brushmap[brushmapIndex+1]
-			if not brushmapBlob then return end
-			-- TODO TODO TODO save in binary format, not in Lua
-			local result, stamps = xpcall(function()
-				return fromlua(brushmapBlob.data)
-			end, function() end)
-			if not (result and stamps) then return end
-
-			local tilemapBlob = self.blobs.tilemap[tilemapIndex+1]
-			local tilemapAddr = self.tilemapRAMs[tilemapIndex+1].addr
-
-			for _,stamp in ipairs(stamps) do
-				local brush = brushes[stamp.brush]
-				if brush then
-					-- TODO early bailout of intersection test
-					for ofsy=0,stamp.h-1 do
-						for ofsx=0,stamp.w-1 do
-							local dstx = ofsx + stamp.x
-							local dsty = ofsy + stamp.y
-							-- in blit bounds
-							if dstx >= x and dstx < x + w
-							and dsty >= y and dsty < y + h
-							-- in tilemap bounds
-							and dstx >= 0 and dstx < tilemapSize.x
-							and dsty >= 0 and dsty < tilemapSize.y
-							then
-								self:net_pokew(
-									tilemapAddr + 2 * (dstx + dsty * tilemapSize.x),
-									brush(ofsx, ofsy, stamp.w, stamp.h, stamp.x, stamp.y) or 0
-								)
-							end
-						end
-					end
-				end
-			end
+		blitbrush = function(...)
+			return self:net_blitBrush(...)
+		end,
+		blitbrushmap = function(...)
+			return self:net_blitBrushMap(...)
 		end,
 
 		-- graphics

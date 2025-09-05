@@ -278,7 +278,8 @@ If the following functions are defined then they will be called from the virtual
 - `mset(x, y, value, [bank=0])` = Write a uint16 to the current tilemap address at x, y.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
-- `blitbrush(brushmapIndex, tilemapIndex, x, y, [w, h])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` at size `w, h`.  If size is omitted then the maximum size is used.
+- `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  Optionally you can clip the stamp to the tile range `cx, cy, cw, ch`.
+- `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, w, h])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to size `w, h` (default, use full brushmap size).
 - `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
 - `ramsize(name)` = returns the size the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('RAM', field)`.  See the RAM structure for individual field names.
 - `numblobs(name)` = returns the count of blobs of type `name`. Index is 0-based.
