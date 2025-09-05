@@ -2927,6 +2927,13 @@ print('no persist file to load: '..cartPersistFile)
 
 		if not env.update then return end
 
+		-- for consistency let's do an initial onconnect for lo as well
+		if not server then
+			if env.onconnect then
+				env.onconnect'lo'
+			end
+		end
+
 		while true do
 			coroutine.yield()
 
