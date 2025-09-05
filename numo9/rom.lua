@@ -413,10 +413,12 @@ end
 
 ffi.cdef[[
 typedef struct {
-	uint16_t brush;
+	uint16_t brush : 13;
+	uint16_t orientation : 3;
 	uint16_t x, y, w, h;
 } Stamp;
 ]]
+assert.eq(ffi.sizeof'Stamp', 10)
 
 return {
 	updateHz = updateHz,

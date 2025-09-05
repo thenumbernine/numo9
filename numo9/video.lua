@@ -3324,11 +3324,14 @@ end
 function AppVideo:net_blitBrush(
 	brushIndex, tilemapIndex,
 	stampX, stampY, stampW, stampH,
+	stampOrientation,
 	cx, cy, cw, ch
 )
 --DEBUG:print('net_blitBrush', brushIndex, tilemapIndex, stampX, stampY, stampW, stampH, cx, cy, cw, ch)
 	brushIndex = brushIndex or 0
 	tilemapIndex = tilemapIndex or 0
+	stampOrientation = stampOrientation or 0
+	-- tilemap clip region
 	cx = cx or 0
 	cy = cy or 0
 	cw = cw or math.huge
@@ -3369,9 +3372,31 @@ function AppVideo:net_blitBrush(
 			and dstx >= 0 and dstx < tilemapSize.x
 			and dsty >= 0 and dsty < tilemapSize.y
 			then
+				local bx, by = ofsx, ofsy
+				if bit.band(1, stampOrientation) ~= 0 then
+					bx = stampW-1-bx
+				end
+				local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
+				-- TODO if we're rotating the stamp then no more promises of ofsx ofsy vs stampx stampy ...
+				-- ... should I pass stampOrientation also to let brush definers try to fix this or nah?
+				if stampRot == 1 then
+					bx, by = stampH-1-by, bx
+				elseif stampRot == 2 then
+					bx, by = stampH-1-by, bx
+					bx, by = stampW-1-by, bx
+				elseif stampRot == 3 then
+					bx, by = stampH-1-by, bx
+					bx, by = stampW-1-by, bx
+					bx, by = stampH-1-by, bx
+				end
+				local tileIndex = brush(bx, by, stampW, stampH, stampX, stampY, stampOrientation) or 0
+				local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
+				tileOrientation = bit.bxor(tileOrientation, bit.band(1, stampOrientation))
+				tileOrientation = bit.band(7, tileOrientation + bit.band(6, stampOrientation))
+				tileIndex = bit.bor(bit.band(0x1fff, tileIndex), bit.lshift(tileOrientation, 13))
 				self:net_pokew(
 					tilemapAddr + 2 * (dstx + dsty * tilemapSize.x),
-					brush(ofsx, ofsy, stampW, stampH, stampX, stampY) or 0
+					tileIndex
 				)
 			end
 		end
@@ -3380,26 +3405,20 @@ end
 
 function AppVideo:net_blitBrushMap(
 	brushmapIndex, tilemapIndex,
-	x, y, w, h
+	x, y,
+	-- TODO orientation here too?
+	cx, cy, cw, ch
 )
 --DEBUG:print('net_blitBrushMap', brushmapIndex, tilemapIndex, x, y, w, h)
 	brushmapIndex = brushmapIndex or 0
-	tilemapIndex = tilemapIndex or 0
+	-- brushmap offset into the tilemap
 	x = x or 0
 	y = y or 0
-	w = w or math.huge
-	h = h or math.huge
-
-	local gameEnv = self.gameEnv
-	if not gameEnv then
---DEBUG:print('net_blitBrushMap - no gameEnv - bailing')
-		return
-	end
-	local brushes = gameEnv.numo9_brushes
-	if not brushes then
---DEBUG:print('net_blitBrushMap - no numo9_brushes - bailing')
-		return
-	end
+	-- optional brushmap clip region
+	cx = cx or 0
+	cy = cy or 0
+	cw = cw or math.huge
+	ch = ch or math.huge
 
 	local brushmapBlob = self.blobs.brushmap[brushmapIndex+1]
 	if not brushmapBlob then
@@ -3407,36 +3426,31 @@ function AppVideo:net_blitBrushMap(
 		return
 	end
 
-	local tilemapBlob = self.blobs.tilemap[tilemapIndex+1]
-	if not tilemapBlob then
---DEBUG:print('net_blitBrushMap - no tilemapBlob '..tostring(tilemapBlob)..' - bailing')
-		return
-	end
-	local tilemapAddr = self.tilemapRAMs[tilemapIndex+1].addr
-
 	for _,stamp in ipairs(brushmapBlob.vec) do
 --DEBUG:print('stamp', _, require 'ext.tolua'(stamp))
-		local brush = brushes[tonumber(stamp.brush)]
-		if brush then
-			-- TODO early bailout of intersection test
-			for ofsy=0,stamp.h-1 do
-				for ofsx=0,stamp.w-1 do
-					local dstx = ofsx + stamp.x
-					local dsty = ofsy + stamp.y
-					-- in blit bounds
-					if dstx >= x and dstx < x + w
-					and dsty >= y and dsty < y + h
-					-- in tilemap bounds
-					and dstx >= 0 and dstx < tilemapSize.x
-					and dsty >= 0 and dsty < tilemapSize.y
-					then
-						self:net_pokew(
-							tilemapAddr + 2 * (dstx + dsty * tilemapSize.x),
-							brush(ofsx, ofsy, stamp.w, stamp.h, stamp.x, stamp.y) or 0
-						)
-					end
-				end
-			end
+		local sx = stamp.x + x
+		local sy = stamp.y + y
+		if sx >= cx
+		and sx + stamp.w < cx + cw
+		and sy >= cy
+		and sy + stamp.h < cy + ch
+		then
+			self:net_blitBrush(
+				tonumber(stamp.brush),
+				tilemapIndex,
+				sx,
+				sy,
+				stamp.w,
+				stamp.h,
+				stamp.orientation,
+				-- [[ TODO properly convert from cx cy cw ch in brushmap space
+				-- to cx cy cw ch in tilemap space
+				math.max(cx + x, sx),
+				math.max(cy + y, sy),
+				math.min(cw, stamp.w),
+				math.min(ch, stamp.h)
+				--]]
+			)
 		end
 	end
 end

@@ -38,6 +38,7 @@ local function drawStamp(
 	brush,
 	stampScreenX, stampScreenY,
 	stampTilesWide, stampTilesHigh,
+	stampOrientation,
 	draw16Sprites
 )
 	ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
@@ -51,17 +52,38 @@ local function drawStamp(
 	local tileBits = draw16Sprites and 4 or 3
 	local tileSizeInPixels = bit.lshift(1, tileBits)
 
+	local stampHFlip = bit.band(1, stampOrientation) ~= 0
+	local stampRot = bit.rshift(stampOrientation, 1)
+
 	for ofsx=0,stampTilesWide-1 do
 		for ofsy=0,stampTilesHigh-1 do
 			local screenX = stampScreenX + ofsx * tileSizeInPixels
 			local screenY = stampScreenY + ofsy * tileSizeInPixels
+
+			local bx, by = ofsx, ofsy
+			if stampHFlip then
+				bx = stampTilesWide-1-bx
+			end
+			if stampRot == 1 then
+				bx, by = stampTilesHigh-1-by, bx
+			elseif stampRot == 2 then
+				bx, by = stampTilesHigh-1-by, bx
+				bx, by = stampTilesWide-1-by, bx
+			elseif stampRot == 3 then
+				bx, by = stampTilesHigh-1-by, bx
+				bx, by = stampTilesWide-1-by, bx
+				bx, by = stampTilesHigh-1-by, bx
+			end
+
 			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
 			local tileIndex = brush
-				and brush(ofsx, ofsy, stampTilesWide, stampTilesHigh, stampTileX, stampTileY)
+				and brush(bx, by, stampTilesWide, stampTilesHigh, stampTileX, stampTileY)
 				or 0
 			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
-			local orientation = bit.band(7, bit.rshift(tileIndex, 13))
-			spriteIndex = bit.band(0x3FF, tileIndex)	-- 10 bits
+			local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
+			tileOrientation = bit.bxor(tileOrientation, bit.band(1, stampOrientation))
+			tileOrientation = bit.band(7, tileOrientation + bit.band(6, stampOrientation))
+			local spriteIndex = bit.band(0x3FF, tileIndex)	-- 10 bits
 
 			-- TODO build rotations into the sprite pathway?
 			-- it's in the tilemap pathway already ...
@@ -72,9 +94,9 @@ local function drawStamp(
 				screenX + tileSizeInPixels / 2,
 				screenY + tileSizeInPixels / 2
 			)
-			local rot = bit.rshift(orientation, 1)
+			local rot = bit.rshift(tileOrientation, 1)
 			app:matrot(rot * math.pi * .5)
-			if bit.band(orientation, 1) ~= 0 then
+			if bit.band(tileOrientation, 1) ~= 0 then
 				app:matscale(-1, 1)
 			end
 			app:drawSprite(
@@ -122,6 +144,7 @@ function EditBrushmap:init(args)
 	self.scale = 1
 	self.drawGrid = false
 	self.draw16Sprites = false
+	self.orientation = 0	-- 2D orientation: bit 0 = hflip bits 12 = rotation
 
 	self:onCartLoad()
 end
@@ -201,6 +224,19 @@ function EditBrushmap:update()
 		if self:guiButton('G', x, y, self.drawGrid, 'grid') then
 			self.drawGrid = not self.drawGrid
 		end
+		x = x + 8
+
+		self:guiSpinner(x, y, function(dx)
+			self.orientation = bit.band(7, self.orientation + dx)
+			for stamp in pairs(self.selected) do
+				stamp.orientation = self.orientation
+			end
+		end, 'orient='..tostring(self.orientation))
+		if next(self.selected) then
+			self:writeSelBrushmapBlob()
+		end
+		x = x + 16
+
 
 		x, y = 0, 8
 
@@ -238,14 +274,17 @@ function EditBrushmap:update()
 					brush,
 					stampScreenX, stampScreenY,
 					self.brushPreviewSize, self.brushPreviewSize,
+					0,
 					self.draw16Sprites)
 
+				local stampWidthInPixels = self.brushPreviewSize * tileSizeInPixels
+				local stampHeightInPixels = self.brushPreviewSize * tileSizeInPixels
 				if brushIndex == self.selBrushIndex then
 					app:drawBorderRect(
 						stampScreenX,
 						stampScreenY,
-						self.brushPreviewSize * tileSizeInPixels,
-						self.brushPreviewSize * tileSizeInPixels,
+						stampWidthInPixels,
+						stampHeightInPixels,
 						27,
 						ni,
 						app.paletteMenuTex
@@ -253,9 +292,13 @@ function EditBrushmap:update()
 				end
 
 				-- TODO left down + drag to scroll
-				if leftButtonPress then
+				if leftButtonPress
+				and mouseX >= stampScreenX
+				and mouseY >= stampScreenY
+				and mouseX < stampScreenX + stampWidthInPixels
+				and mouseY < stampScreenY + stampHeightInPixels
+				then
 					self.selBrushIndex = brushIndex
-					--self.pickOpen = false	-- TODO delay past click-to-open time
 				end
 
 				stampScreenX = stampScreenX + tileSizeInPixels * self.brushPreviewSize
@@ -290,6 +333,7 @@ function EditBrushmap:update()
 					stamp.y * tileSizeInPixels,
 					stamp.w,
 					stamp.h,
+					stamp.orientation,
 					self.draw16Sprites
 				)
 				if self.selected[stamp] then
@@ -391,6 +435,7 @@ print('ftx', ftx, 'fty', fty)
 
 						for _,stamp in ipairs(selUnder) do
 print('checking', tolua(stamp))
+							self.orientation = stamp.orientation
 							if ftx >= stamp.x and ftx < stamp.x + stamp.w
 							and fty >= stamp.y and fty < stamp.y + stamp.h
 							then

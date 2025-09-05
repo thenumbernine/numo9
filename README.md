@@ -17,7 +17,7 @@ I thought I'd make a fantasy console with all the LuaJIT binding code and librar
 
 What does NuMo9 have that the competition doesn't?
 - 16-bit console era.  4-button gamepads.
-- 8bpp sprites, 8x8 or 16x16 tilemaps, "mode-7" transformations, blending.
+- 8bpp sprites, 8x8 or 16x16 tilemaps, brushmaps, "mode-7" transformations, blending.
 - Multiplayer, 4 local players per connection, up to 64 total players, unlimited observers.
 - Server can edit games in realtime.  Live game DM'ing.
 - It's strictly LuaJIT.  No compiler needed.
@@ -106,7 +106,7 @@ The last 16 palette colors are used by the UI and console.  You can use this, ho
 
 The tilesheet is equivalent to the sprite sheet in every way except that it is indexed by the tilemap.
 
-### tilemap
+### Tilemap
 
 The tilemap is 256x256x16bpp.
 Tilemap bits:
@@ -123,6 +123,24 @@ If you want to v-flip, h-flip and rotate twice, so use 0b101.
 
 
 Tilemaps can render 8x8 or 16x16 sprites.
+
+### Brushmaps
+
+Brushmaps are a collection of stamps of specified x,y,width,height, and orientation.
+Stamps are associated with a specific brush.
+Stamps are stored in memory in the following structure:
+```
+typedef struct {
+	uint16_t brush : 13;
+	uint16_t orientation : 3;
+	uint16_t x, y, w, h;
+} Stamp;
+```
+
+Brushes are currently defined as a table in the `numo9_brushes` global in code.
+`numo9_brushes` keys are indexes corresponding with the brush index.
+Values are functions that produce tileIndexes that can be blitted to the tilemap with the `blitbrush` and `blitbrushmap` functions.
+Values have the signature: `tileIndex = brush(relx, rely, stampw, stamph, stampx, stampy)`
 
 ### Mode7
 
@@ -337,8 +355,8 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
 	- tilemapIndex = the tilemap bank to use, default to 0.
-- `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  Optionally you can clip the stamp to the tile range `cx, cy, cw, ch`.
-- `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, w, h])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to size `w, h` (default, use full brushmap size).
+- `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
+- `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = Set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.  You can pass a number or the string of `${width}x${height}x${format}`.  Returns true on success, false if it failed to find the video mode description.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
@@ -641,7 +659,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		Maybe I will put the ROM in addressible space and just have load/reset perform an initial copy from ROM to RAM space. How about ROM at 0xC00000 or so?
 		Maybe I'll think more on this as I think about spriteSheet vs tileSheet vs multiple sheets vs multiple arbitrary-purpose banks ...
 	- debating: should I add a shader blob?
-	- debating: should I put the whole ROM in a single 1024x1024xRGBA8UI (minimum GLES3/WebGL2 texture size) texture, one per 4MB?  
+	- debating: should I put the whole ROM in a single 1024x1024xRGBA8UI (minimum GLES3/WebGL2 texture size) texture, one per 4MB?
 		And then upon RAM updates, don't upload the *whole thing*, just update the dirty region ... possibly do that immediately?
 		But what about RAM that is constantly changing?  Like Audio? Or FrameBUffer RAM?
 - netplay
@@ -669,6 +687,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
 - I need some kind of tilemap animation state ...
 - 4bpp framebuffers.  But that means merging two pixels into one, which would take a 2nd pass.  Unless there's a 4bpp hardware supported fbo format? DXT1?
-- netplay persistent data maybe ... 
+- netplay persistent data maybe ...
 	- one set per-game
 	- one set per-game-per-server
