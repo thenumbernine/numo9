@@ -7,30 +7,19 @@
 
 
 -- brushes defined in this table
-local _9patch = |x,y,w,h,bx,by| do
+local _9patch = |x,y,w,h,bx,by|
 	-- corners
-	if x == 0 and y == 0 then
-		return 2
-	elseif x == w-1 and y == 0 then
-		return 2 | (2 << 13)
-	elseif x == w-1 and y == h-1 then
-		return 2 | (4 << 13)
-	elseif x == 0 and y == h-1 then
-		return 2 | (6 << 13)
+	x == 0 and y == 0 and 2
+	or x == w-1 and y == 0 and 2 | (2 << 13)
+	or x == w-1 and y == h-1 and 2 | (4 << 13)
+	or x == 0 and y == h-1 and 2 | (6 << 13)
 	-- edges
-	elseif y == 0 then
-		return 4
-	elseif x == w-1 then
-		return 4 | (2 << 13)
-	elseif y == h-1 then
-		return 4 | (4 << 13)
-	elseif x == 0 then
-		return 4 | (6 << 13)
+	or y == 0 and 4
+	or x == w-1 and 4 | (2 << 13)
+	or y == h-1 and 4 | (4 << 13)
+	or x == 0 and 4 | (6 << 13)
 	-- center
-	else
-		return 6
-	end
-end
+	or 6
 numo9_brushes = {
 --[[ ex: checkerboard
 	|x,y,w,h,bx,by| do
