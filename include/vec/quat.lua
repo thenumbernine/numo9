@@ -1,4 +1,5 @@
 --#include ext/class.lua
+--#include vec/vec3.lua
 
 local quat = class()
 quat.init=|:,...|do
@@ -64,6 +65,15 @@ quat.__mul = quat.mul
 quat.__div = |a,b| a * b:conj() / b:lenSq()
 
 quat.epsilon = 1e-15
+quat_toAngleAxis = |x,y,z,w| do
+	local cosangle = math.clamp(w, -1, 1)
+	local halfangle = math.acos(cosangle)
+	local s = math.sin(halfangle)
+	local eps = quat.epsilon
+	if s >= -eps and s <= eps then return 0,0,1,0 end
+	s = 1 / s
+	return x * s, y * s, z * s, halfangle * 2
+end
 quat.toAngleAxis = |:, res| do
 	res = res or quat()
 
@@ -85,11 +95,15 @@ end
 
 -- assumes |x,y,z|=1
 -- assumes theta in [0,2*pi)
-quat_fromAngleAxisUnit=|x,y,z,theta|do
+-- put theta first so I can use stack-based vec3 operations
+quat_fromAngleAxisUnit=|theta,x,y,z|do
 	local cosHalfTheta = math.cos(.5 * theta)
 	local sinHalfTheta = math.sin(.5 * theta)
 	return x * sinHalfTheta, y * sinHalfTheta, z * sinHalfTheta, cosHalfTheta
+end
 
+quat_fromAngleAxis=|theta,x,y,z|do
+	return quat_fromAngleAxisUnit(theta,vec3_unit(x,y,z))
 end
 
 -- TODO epsilon-test this?  so no nans?

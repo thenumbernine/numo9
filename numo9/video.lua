@@ -3599,9 +3599,9 @@ function AppVideo:net_drawMesh3D(
 			local c = vtxs + i+2
 --print('drawMesh3D drawing', i, a, b, c)
 			self:drawTexTri3D(
-				tonumber(a.x), tonumber(a.y), tonumber(a.z), tonumber(a.u), tonumber(a.v),
-				tonumber(b.x), tonumber(b.y), tonumber(b.z), tonumber(b.u), tonumber(b.v),
-				tonumber(c.x), tonumber(c.y), tonumber(c.z), tonumber(c.u), tonumber(c.v),
+				a.x, a.y, a.z, a.u, a.v,
+				b.x, b.y, b.z, b.u, b.v,
+				c.x, c.y, c.z, c.u, c.v,
 				...
 			)
 		end
@@ -3611,9 +3611,9 @@ function AppVideo:net_drawMesh3D(
 			local b = vtxs + inds[i+1]
 			local c = vtxs + inds[i+2]
 			self:drawTexTri3D(
-				tonumber(a.x), tonumber(a.y), tonumber(a.z), tonumber(a.u), tonumber(a.v),
-				tonumber(b.x), tonumber(b.y), tonumber(b.z), tonumber(b.u), tonumber(b.v),
-				tonumber(c.x), tonumber(c.y), tonumber(c.z), tonumber(c.u), tonumber(c.v),
+				a.x, a.y, a.z, a.u, a.v,
+				b.x, b.y, b.z, b.u, b.v,
+				c.x, c.y, c.z, c.u, c.v,
 				...
 			)
 		end

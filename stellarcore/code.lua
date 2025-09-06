@@ -3,63 +3,8 @@
 -- author = Chris Moore
 -- description = classic "Asteroids" but with proper spherical universes, and interconnections with neighboring universes.
 
------------------------ BEGIN ext/range.lua-----------------------
-local range=|a,b,c|do
-	local t = table()
-	if c then
-		for x=a,b,c do t:insert(x) end
-	elseif b then
-		for x=a,b do t:insert(x) end
-	else
-		for x=1,a do t:insert(x) end
-	end
-	return t
-end
------------------------ END ext/range.lua-----------------------
------------------------ BEGIN numo9/matstack.lua-----------------------
-assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
-local matAddr = ramaddr'mvMat'
-local matstack=table()
-local matpush=||do
-	local t={}
-	for i=0,15 do
-		t[i+1] = peekf(matAddr + (i<<2))
-	end
-	matstack:insert(t)
-end
-local matpop=||do
-	local t = matstack:remove(1)
-	if not t then return end
-	for i=0,15 do
-		pokef(matAddr + (i<<2), t[i+1])
-	end
-end
-
------------------------ END numo9/matstack.lua  -----------------------
------------------------ BEGIN ext/class.lua-----------------------
-local isa=|cl,o|o.isaSet[cl]
-local classmeta = {__call=|cl,...|do
-	local o=setmetatable({},cl)
-	return o, o?:init(...)
-end}
-local class
-class=|...|do
-	local t=table(...)
-	t.super=...
-	--t.supers=table{...}
-	t.__index=t
-	t.subclass=class
-	t.isaSet=table(table{...}
-		:mapi(|cl|cl.isaSet)
-		:unpack()
-	):setmetatable(nil)
-	t.isaSet[t]=true
-	t.isa=isa
-	setmetatable(t,classmeta)
-	return t
-end
-
------------------------ END ext/class.lua  -----------------------
+--#include ext/range.lua
+--#include numo9/matstack.lua
 --#include vec/vec2.lua
 --#include vec/vec3.lua
 --#include vec/quat.lua
@@ -83,10 +28,10 @@ end
 
 randomPos=||do
 	local x,y,z = randomSphereSurface()
-	local qx, qy, qz, qw = quat_fromAngleAxisUnit(x,y,z, math.random() * math.pi)
+	local qx, qy, qz, qw = quat_fromAngleAxisUnit(math.random() * math.pi, x,y,z)
 	return quat_mul(
 		qx, qy, qz, qw,
-		quat_fromAngleAxisUnit(1, 0, 0, math.random() * 2 * math.pi)
+		quat_fromAngleAxisUnit(math.random() * 2 * math.pi, 1, 0, 0)
 	)
 end
 
