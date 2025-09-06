@@ -79,18 +79,18 @@ function EditBrushmap:update()
 
 	local gameEnv = app.gameEnv
 	if not gameEnv then
-		app:drawMenuText("plz run your game once to reload the code env", 16, 128)
+		app:drawMenuText("plz run your game once to reload the code env", 4, 128)
 		return
 	end
 	local brushes = gameEnv.numo9_brushes
 	if not brushes then
-		app:drawMenuText("define 'numo9_brushes' in your code to use brushes", 16, 128)
+		app:drawMenuText("define 'numo9_brushes' in your code to use brushes", 4, 128)
 		return
 	end
 
 	local brushmapBlob = app.blobs.brushmap[self.brushmapBlobIndex+1]
 	if not brushmapBlob then
-		app:drawMenuText("push + on the brushmap blob select to continue", 16, 128)
+		app:drawMenuText("push + on the brushmap blob select to continue", 4, 128)
 	else
 		app:matident()
 		local leftButtonDown = app:key'mouse_left'
