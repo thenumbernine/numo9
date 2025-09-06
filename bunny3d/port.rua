@@ -1,4 +1,5 @@
 #!/usr/bin/env rua
+local vec3d = require 'vec-ffi.vec3d'
 local meshstr = ([[
 d3e04bf31a8dddb741631f00dbe44fcd1706
 e6b440cd1dfaddb741631f00da133d261fab
@@ -715,7 +716,7 @@ local vtxs = uniquevtxstrs:mapi(|vs| do
 		))
 	end
 	assert.len(v, 3)
-	return v
+	return vec3d(table.unpack(v))
 end)
 -- get mapping from vertex string to index in vtxs
 local vtxIndexForStr = uniquevtxstrs:mapi(|vs,ip1| (ip1-1, vs)):setmetatable(nil)
@@ -725,13 +726,77 @@ for _,vtxstr in ipairs(vtxstrs) do
 	indexes:insert((assert.index(vtxIndexForStr, vtxstr)))
 end
 
+
+
+-- find volume center and offset to there
+local calcCOM=||do
+	local com = vec3d()
+	local vol = 0
+	for i=1,#indexes,3 do
+		local v1 = vtxs[1+indexes[i]]
+		local v2 = vtxs[1+indexes[i+1]]
+		local v3 = vtxs[1+indexes[i+2]]
+		local tetvol = v1:dot(v2:cross(v3)) / 6	-- det|v1, v2, v3| / 6
+		vol += tetvol
+		com += (v1 + v2 + v3) * (tetvol / 4)	-- /4 because we include (0,0,0) as a tetrahedron vertex
+	end
+	com /= vol
+	return com, vol
+end
+-- get COM
+local com, vol = calcCOM()
+print('vol', vol)
+print('com', com)
+-- offset to zero
+for i=1,#vtxs do
+	vtxs[i] = vtxs[i] - com
+end
+-- verify it's zero or close enough
+local com, vol = calcCOM()
+print('vol', vol)
+print('com', com)
+-- find backfacing tris (why are they here?)
+-- assumes the COM is zero
+local flipBackFacing=||do
+	local numBack = 0
+	for i=1,#indexes,3 do
+		local v1 = vtxs[1+indexes[i]]
+		local v2 = vtxs[1+indexes[i+1]]
+		local v3 = vtxs[1+indexes[i+2]]
+		local c = (v1+v2+v3):unit()
+		local n = (v2-v1):cross(v3-v2):unit()
+		if c:dot(n) < 0 then
+			numBack+=1
+	--print'!!! backfacing tri !!!'
+			indexes[i], indexes[i+1] = indexes[i+1], indexes[i]
+		end
+	end
+	return numBack
+end
+print('num backfacing', flipBackFacing())
+-- get COM
+local com, vol = calcCOM()
+print('vol', vol)
+print('com', com)
+-- offset to zero
+for i=1,#vtxs do
+	vtxs[i] = vtxs[i] - com
+end
+-- verify it's zero or close enough
+local com, vol = calcCOM()
+print('vol', vol)
+print('com', com)
+print('num backfacing', flipBackFacing())
+
+
+
 local o = require 'ffi.cpp.vector-lua' 'int16_t'
 o:emplace_back()[0] = #vtxs
 o:emplace_back()[0] = #indexes
 for j,vtx in ipairs(vtxs) do
 	-- TODO how about a solid-face format as well? for tri3d() ?
 	for i=0,2 do
-		o:emplace_back()[0] = vtx[1+i]
+		o:emplace_back()[0] = math.clamp(vtx.s[i], -32768, 32767)
 	end
 	-- uv
 	if j % 3 == 0 then

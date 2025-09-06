@@ -6,33 +6,6 @@ mode(42)	-- 480x270
 --#include vec/vec3.lua
 --#include vec/quat.lua
 
--- find volume center and offset to there
-local com = vec3()
-do
-	local vol = 0
-	local addr = blobaddr'mesh3d'
-	local numvtxs = peekw(addr) addr += 4
-	local s16 = ||do
-		local x = tonumber(int16_t(peekw(addr)))
-		addr += 2
-		return x
-	end
-	for i=0,numvtxs-3,3 do
-		local v1 = vec3(s16(), s16(), s16())
-		addr += 2	-- u1 v1
-		local v2 = vec3(s16(), s16(), s16())
-		addr += 2	-- u1 v1
-		local v3 = vec3(s16(), s16(), s16())
-		addr += 2	-- u1 v1
-		local tetvol = v1:dot(v2:cross(v3)) / 6	-- det|v1, v2, v3| / 6
-		vol += tetvol
-		com += (v1 + v2 + v3) * (tetvol / 4)	-- /4 because we include (0,0,0) as a tetrahedron vertex
-	end
-	com /= vol
-	trace('com', com)
-end
-
-
 local angle = quat()
 
 local lmx, lmy = 128, 128
@@ -89,7 +62,6 @@ update=||do
 	end
 
 	matscale(1/32768, 1/32768, 1/32768)
-	mattrans(-com.x, -com.y, -com.z)
 	-- TODO?  wireframe option?
 	if wireframe then
 		local color = 0xc
