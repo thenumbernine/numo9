@@ -1,13 +1,16 @@
 -- stanford bunny: https://graphics.stanford.edu/data/3Dscanrep/#bunny
 -- simplified here: https://myminifactory.github.io/Fast-Quadric-Mesh-Simplification/
 
--- [[ ortho
+-- TODO find volume center and offset to there
+
+--[[ ortho
 local r = 1.2 * 32726
 matortho(-r, r, r, -r, -r, r)
 --]]
---[[ frustum
-matfrustum(-.1, .1, .1, -.1, .1, 10)
-mattrans(0, -2.5, -1)
+-- [[ frustum
+local zn, zf = 100, 100000
+matfrustum(-zn, zn, zn, -zn, zn, zf)
+mattrans(0, 0, -.5 * zf)
 --]]
 
 local lmx, lmy = 128, 128
@@ -38,5 +41,32 @@ update=||do
 	end
 
 	-- TODO?  wireframe option?
-	mesh()
+	if wireframe then
+		local addr = blobaddr'mesh3d'
+		local numvtxs = peekw(addr) addr += 4
+		local color = 0xc
+		local thickness = .25
+		for i=0,numvtxs-3,3 do
+			local x1 = tonumber(int16_t(peekw(addr))) addr += 2
+			local y1 = tonumber(int16_t(peekw(addr))) addr += 2
+			local z1 = tonumber(int16_t(peekw(addr))) addr += 2
+			addr += 2	-- u1 v1
+
+			local x2 = tonumber(int16_t(peekw(addr))) addr += 2
+			local y2 = tonumber(int16_t(peekw(addr))) addr += 2
+			local z2 = tonumber(int16_t(peekw(addr))) addr += 2
+			addr += 2	-- u1 v1
+
+			local x3 = tonumber(int16_t(peekw(addr))) addr += 2
+			local y3 = tonumber(int16_t(peekw(addr))) addr += 2
+			local z3 = tonumber(int16_t(peekw(addr))) addr += 2
+			addr += 2	-- u1 v1
+
+			line3d(x1,y1,z1,x2,y2,z2, color, thickness)
+			line3d(x2,y2,z2,x3,y3,z3, color, thickness)
+			line3d(x3,y3,z3,x1,y1,z1, color, thickness)
+		end
+	else
+		mesh()
+	end
 end
