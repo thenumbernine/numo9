@@ -1,8 +1,10 @@
 local ffi = require 'ffi'
 local vec2i = require 'vec-ffi.vec2i'
 local quatd = require 'vec-ffi.quatd'
+
 local numo9_rom = require 'numo9.rom'
 local mvMatType = numo9_rom.mvMatType
+local clipMax = numo9_rom.clipMax
 
 local EditMesh3D = require 'numo9.ui':subclass()
 
@@ -27,6 +29,10 @@ function EditMesh3D:update()
 	local app = self.app
 
 	EditMesh3D.super.update(self)
+
+	app:drawSolidRect(0, 8, 256, 256, 9, nil, nil, app.paletteMenuTex)
+	app:clearScreen(nil, nil, true)	-- clear depth
+	app:setClipRect(0, 8, 256, 256)
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 	local dx = mouseX - self.lastMousePos.x
@@ -104,6 +110,8 @@ function EditMesh3D:update()
 
 		ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 	end
+
+	app:setClipRect(0, 0, clipMax, clipMax)
 
 	local x, y = 48, 0
 	self:guiBlobSelect(x, y, 'mesh3d', self, 'mesh3DBlobIndex')

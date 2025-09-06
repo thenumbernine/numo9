@@ -117,7 +117,7 @@ function UITextArea:update()
 			textareaY,
 			textareaWidth,
 			textareaHeight,
-			0xf9,
+			9,
 			nil,
 			nil,
 			app.paletteMenuTex
@@ -149,7 +149,7 @@ function UITextArea:update()
 		textareaY,
 		textareaWidth,
 		textareaHeight,
-		0xf8,
+		8,
 		nil,
 		nil,
 		app.paletteMenuTex

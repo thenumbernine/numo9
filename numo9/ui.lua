@@ -82,13 +82,13 @@ function UI:guiButton(str, x, y, isset, tooltip)
 
 	local fg, bg
 	if isset and onThisMenuItem then
-		fg, bg = 0xfc, 0xf9
+		fg, bg = 0xc, 9
 	elseif isset then
-		fg, bg = 0xfc, 0xf8
+		fg, bg = 0xc, 8
 	elseif onThisMenuItem then
-		fg, bg = 0xfd, 0xf9
+		fg, bg = 0xd, 9
 	else
-		fg, bg = 0xfd, 0xf8
+		fg, bg = 0xd, 8
 	end
 
 	local w = app:drawMenuText(str, x, y, fg, bg)
@@ -158,10 +158,10 @@ function UI:guiTextField(
 	tooltip,
 	fgDesel, bgDesel, fgSel, bgSel	-- fg and bg when not-selected and when selected
 )
-	fgDesel = fgDesel or 0xfd
-	bgDesel = bgDesel or 0xf8
-	fgSel = fgSel or 0xfd
-	bgSel = bgSel or 0xf9
+	fgDesel = fgDesel or 0xd
+	bgDesel = bgDesel or 8
+	fgSel = fgSel or 0xd
+	bgSel = bgSel or 9
 
 	-- TODO here ... only if we have tab-focus ... read our input.
 	-- TODO color by tab-focus or not
@@ -223,7 +223,7 @@ function UI:guiTextField(
 				y,
 				menuFontWidth,
 				spriteSize.y,
-				0xfc,
+				0xc,
 				nil,
 				nil,
 				app.paletteMenuTex
@@ -292,8 +292,8 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 	if t[popupKey] then
 		local w = 25
 		local h = 10
-		app:drawBorderRect(x, y + 8, w+2, h+2, 0x0c)
-		app:drawSolidRect(x+1, y + 9, w, h, 0)
+		app:drawBorderRect(x, y + 8, w+2, h+2, 0xc, nil, app.paletteMenuTex)
+		app:drawSolidRect(x+1, y + 9, w, h, 0, nil, nil, app.paletteMenuTex)
 
 		self:guiSpinner(x + 2, y + 10, function(dx)
 			t[indexKey] = math.clamp(t[indexKey] + dx, 0, #app.blobs[blobName]-1)
@@ -361,7 +361,7 @@ function UI:update()
 
 	self:initMenuTabs()
 
-	app:clearScreen(0xf0, app.paletteMenuTex)
+	app:clearScreen(0, app.paletteMenuTex)
 	app:drawSolidRect(
 		0, 0,	-- x,y,
 		frameBufferSize.x, spriteSize.y,	-- w, h,
