@@ -1,5 +1,6 @@
 -- stanford bunny: https://graphics.stanford.edu/data/3Dscanrep/#bunny
 -- simplified here: https://myminifactory.github.io/Fast-Quadric-Mesh-Simplification/
+mode(42)	-- 480x270
 
 --#include numo9/matstack.lua
 --#include vec/vec3.lua
@@ -41,13 +42,15 @@ update=||do
 	cls()
 	matident()
 
-	-- [[ ortho
-	local r = 1.2
+	--[[ ortho
+	local r = .75
 	matortho(-r, r, r, -r, -r, r)
 	--]]
-	--[[ frustum
-	local zn, zf = .1, 5
-	matfrustum(-zn, zn, zn, -zn, zn, zf)
+	-- [[ frustum
+	local zn, zf = .1, 2
+	matfrustum(-zn, zn, -zn, zn, zn, zf)
+	-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
+	matscale(1, -1, 1)
 	mattrans(0, 0, -.5 * zf)
 	--]]
 
@@ -90,7 +93,7 @@ update=||do
 	-- TODO?  wireframe option?
 	if wireframe then
 		local color = 0xc
-		local thickness = .25
+		local thickness = .5
 
 		local addr = blobaddr'mesh3d'
 		local numvtxs = peekw(addr) addr += 4
@@ -99,12 +102,10 @@ update=||do
 			local y1 = int16_t(peekw(addr)) addr += 2
 			local z1 = int16_t(peekw(addr)) addr += 2
 			addr += 2	-- u1 v1
-
 			local x2 = int16_t(peekw(addr)) addr += 2
 			local y2 = int16_t(peekw(addr)) addr += 2
 			local z2 = int16_t(peekw(addr)) addr += 2
 			addr += 2	-- u1 v1
-
 			local x3 = int16_t(peekw(addr)) addr += 2
 			local y3 = int16_t(peekw(addr)) addr += 2
 			local z3 = int16_t(peekw(addr)) addr += 2
