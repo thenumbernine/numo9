@@ -573,10 +573,13 @@ function BlobMesh3D:getNumIndexes()
 	return ffi.cast(meshIndexType..'*', self:getPtr())[1]
 end
 function BlobMesh3D:getVertexPtr()
-	local ptr = self:getPtr()
+	local vtxptr = ffi.cast('Vertex*', 
+		self:getPtr()
 		+ ffi.sizeof(meshIndexType) * 2	-- skip header
-	assert.le(ptr + self:getNumVertexes(), ptr + #self.data)
-	return ffi.cast('Vertex*', ptr)
+	)
+	assert.le(0, ffi.cast('uint8_t*', vtxptr + self:getNumVertexes()) - self:getPtr())
+	assert.le(ffi.cast('uint8_t*', vtxptr + self:getNumVertexes()) - self:getPtr(), #self.data)
+	return vtxptr
 end
 function BlobMesh3D:getIndexPtr()
 	local ptr = ffi.cast('uint8_t*',
@@ -584,7 +587,8 @@ function BlobMesh3D:getIndexPtr()
 		+ self:getNumVertexes()
 	) -- skip vertexes
 	local indptr = ffi.cast(meshIndexType..'*', ptr)
-	assert.eq(indptr + self:getNumIndexes(), ptr + #self.data)
+	assert.le(0, ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr())
+	assert.eq(ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
 	return indptr
 end
 

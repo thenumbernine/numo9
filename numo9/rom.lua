@@ -411,21 +411,29 @@ local function deltaCompress(
 	end
 end
 
-ffi.cdef[[
-typedef struct Stamp {
-	uint16_t brush : 13;
-	uint16_t orientation : 3;
-	uint16_t x, y, w, h;
-} Stamp;
-]]
+local Stamp = struct{
+	name = 'Stamp',
+	fields = {
+		{name='brush', type='uint16_t:13'},
+		{name='orientation', type='uint16_t:3'},
+		{name='x', type='uint16_t'},
+		{name='y', type='uint16_t'},
+		{name='w', type='uint16_t'},
+		{name='h', type='uint16_t'},
+	},
+}
 assert.eq(ffi.sizeof'Stamp', 10)
 
-ffi.cdef[[
-typedef struct Vertex {
-	int16_t x, y, z;
-	uint8_t u, v;
-} Vertex;
-]]
+local Vertex = struct{
+	name = 'Vertex',
+	fields = {
+		{name='x', type='int16_t'},
+		{name='y', type='int16_t'},
+		{name='z', type='int16_t'},
+		{name='u', type='uint8_t'},
+		{name='v', type='uint8_t'},
+	},
+}
 assert.eq(ffi.sizeof'Vertex', 8)
 local meshIndexType = 'uint16_t'
 

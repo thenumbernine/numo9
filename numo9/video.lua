@@ -3581,31 +3581,42 @@ end
 
 function AppVideo:net_drawMesh3D(
 	mesh3DIndex,
-	sheetIndex,
-	paletteIndex,
-	transparentIndex,
-	spriteBit,
-	spriteMask
+	...
 )
-	local mesh = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
+	mesh3DIndex = mesh3DIndex or 0
+
+	local mesh = self.blobs.mesh3d[mesh3DIndex+1]
 	if not mesh then return end
 
 	local vtxs = mesh:getVertexPtr()
 	local inds = mesh:getIndexPtr()
-	for i=0,mesh:getNumIndexes()-3,3 do
-		local a = vtxs + inds[i]
-		local b = vtxs + inds[i+1]
-		local c = vtxs + inds[i+2]
-		self:drawTexTri3D(
-			a.x, a.y, a.z, a.u, a.v,
-			b.x, b.y, b.z, b.u, b.v,
-			c.x, c.y, c.z, c.u, c.v,
-			sheetIndex,
-			paletteIndex,
-			transparentIndex,
-			spriteBit,
-			spriteMask
-		)
+	local numInds = mesh:getNumIndexes()
+	if numInds == 0 then	-- no indexes? just draw all vtxs
+		local numVtxs = mesh:getNumVertexes()
+		for i=0,numVtxs-3,3 do
+			local a = vtxs + i
+			local b = vtxs + i+1
+			local c = vtxs + i+2
+--print('drawMesh3D drawing', i, a, b, c)
+			self:drawTexTri3D(
+				tonumber(a.x), tonumber(a.y), tonumber(a.z), tonumber(a.u), tonumber(a.v),
+				tonumber(b.x), tonumber(b.y), tonumber(b.z), tonumber(b.u), tonumber(b.v),
+				tonumber(c.x), tonumber(c.y), tonumber(c.z), tonumber(c.u), tonumber(c.v),
+				...
+			)
+		end
+	else	-- draw indexed vertexes
+		for i=0,numInds-3,3 do
+			local a = vtxs + inds[i]
+			local b = vtxs + inds[i+1]
+			local c = vtxs + inds[i+2]
+			self:drawTexTri3D(
+				tonumber(a.x), tonumber(a.y), tonumber(a.z), tonumber(a.u), tonumber(a.v),
+				tonumber(b.x), tonumber(b.y), tonumber(b.z), tonumber(b.u), tonumber(b.v),
+				tonumber(c.x), tonumber(c.y), tonumber(c.z), tonumber(c.u), tonumber(c.v),
+				...
+			)
+		end
 	end
 end
 
