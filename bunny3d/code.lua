@@ -62,30 +62,31 @@ update=||do
 	end
 
 	matscale(1/32768, 1/32768, 1/32768)
-	-- TODO?  wireframe option?
 	if wireframe then
 		local color = 0xc
 		local thickness = .5
 
 		local addr = blobaddr'mesh3d'
-		local numvtxs = peekw(addr) addr += 4
-		for i=0,numvtxs-3,3 do
-			local x1 = int16_t(peekw(addr)) addr += 2
-			local y1 = int16_t(peekw(addr)) addr += 2
-			local z1 = int16_t(peekw(addr)) addr += 2
-			addr += 2	-- u1 v1
-			local x2 = int16_t(peekw(addr)) addr += 2
-			local y2 = int16_t(peekw(addr)) addr += 2
-			local z2 = int16_t(peekw(addr)) addr += 2
-			addr += 2	-- u1 v1
-			local x3 = int16_t(peekw(addr)) addr += 2
-			local y3 = int16_t(peekw(addr)) addr += 2
-			local z3 = int16_t(peekw(addr)) addr += 2
-			addr += 2	-- u1 v1
-
-			line3d(x1,y1,z1,x2,y2,z2, color, thickness)
-			line3d(x2,y2,z2,x3,y3,z3, color, thickness)
-			line3d(x3,y3,z3,x1,y1,z1, color, thickness)
+		local numvtxs = peekw(addr) addr += 2
+		local numinds = peekw(addr) addr += 2
+		local vtxbase = addr
+		addr += numvtxs * 8
+		for i=0,numinds-3,3 do
+			local i1 = peekw(addr) addr += 2
+			local i2 = peekw(addr) addr += 2
+			local i3 = peekw(addr) addr += 2
+			local x1 = int16_t(peekw(vtxbase + i1 * 8 + 0))
+			local y1 = int16_t(peekw(vtxbase + i1 * 8 + 2))
+			local z1 = int16_t(peekw(vtxbase + i1 * 8 + 4))
+			local x2 = int16_t(peekw(vtxbase + i2 * 8 + 0))
+			local y2 = int16_t(peekw(vtxbase + i2 * 8 + 2))
+			local z2 = int16_t(peekw(vtxbase + i2 * 8 + 4))
+			local x3 = int16_t(peekw(vtxbase + i3 * 8 + 0))
+			local y3 = int16_t(peekw(vtxbase + i3 * 8 + 2))
+			local z3 = int16_t(peekw(vtxbase + i3 * 8 + 4))
+			line3d(x1, y1, z1, x2, y2, z2, color, thickness)
+			line3d(x2, y2, z2, x3, y3, z3, color, thickness)
+			line3d(x3, y3, z3, x1, y1, z1, color, thickness)
 		end
 	else
 		mesh()
