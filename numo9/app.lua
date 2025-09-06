@@ -345,6 +345,9 @@ function App:initGL()
 		blitbrushmap = function(...)
 			return self:net_blitBrushMap(...)
 		end,
+		mesh = function(...)
+			return self:net_drawMesh3D(...)
+		end,
 
 		-- graphics
 
@@ -1032,6 +1035,7 @@ print('package.loaded', package.loaded)
 	local EditSFX = require 'numo9.editsfx'
 	local EditMusic = require 'numo9.editmusic'
 	local EditBrushmap = require 'numo9.editbrushmap'
+	local EditMesh3D = require 'numo9.editmesh3d'
 	local Console = require 'numo9.console'
 	local MainMenu = require 'numo9.mainmenu'
 	local CartBrowser = require 'numo9.cartbrowser'
@@ -1046,6 +1050,7 @@ print('package.loaded', package.loaded)
 	self.editSFX = EditSFX{app=self}
 	self.editMusic = EditMusic{app=self}
 	self.editBrushmap = EditBrushmap{app=self}
+	self.editMesh3D = EditMesh3D{app=self}
 	self.con = Console{app=self}
 	self.mainMenu = MainMenu{app=self}
 	self.cartBrowser = CartBrowser{app=self}

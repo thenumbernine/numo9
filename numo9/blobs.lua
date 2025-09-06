@@ -27,6 +27,7 @@ local sampleType = numo9_rom.sampleType
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local loopOffsetType = numo9_rom.loopOffsetType
 local mvMatType = numo9_rom.mvMatType
+local meshIndexType = numo9_rom.meshIndexType 
 
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
@@ -461,6 +462,19 @@ BlobMusic.filenamePrefix = 'music'
 BlobMusic.filenameSuffix = '.bin'
 
 
+local BlobData = blobSubclass('data', BlobDataAbs)
+BlobData.filenamePrefix = 'data'
+BlobData.filenameSuffix = '.bin'
+
+
+-- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
+-- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
+-- tic80 metadata includes title, author, some dates..., description, some urls ...
+local BlobPersist = blobSubclass('persist', BlobDataAbs)
+BlobPersist.filenamePrefix = 'persist'
+BlobPersist.filenameSuffix = '.bin'
+
+
 -- not yet used...
 local BlobBrush = blobSubclass('brush', BlobDataAbs)
 BlobBrush.filenamePrefix = 'brush'
@@ -494,17 +508,85 @@ function BlobBrushMap:loadFile(filepath)
 end
 
 
-local BlobData = blobSubclass('data', BlobDataAbs)
-BlobData.filenamePrefix = 'data'
-BlobData.filenameSuffix = '.bin'
+--[[
+mesh3D data
+especially because I'm adding voxelmap next
+mesh3D will hold...
 
+struct {
+	int16_t x, y, z;
+	uint8_t u, v;
+} Vertex;
 
--- 256 bytes for pico8, 1024 bytes for tic80 ... snes is arbitrary, 2k for SMW, 8k for Metroid / Final Fantasy, 32k for Yoshi's Island
--- how to identify unique cartridges?  pico8 uses 'cartdata' function with a 64-byte identifier, tic80 uses either `saveid:` in header or md5
--- tic80 metadata includes title, author, some dates..., description, some urls ...
-local BlobPersist = blobSubclass('persist', BlobDataAbs)
-BlobPersist.filenamePrefix = 'persist'
-BlobPersist.filenameSuffix = '.bin'
+uint16_t numVertexes
+uint16_t numIndexes
+Vertex vertexes[]
+uint16_t indexes[]
+--]]
+local BlobMesh3D = blobSubclass('mesh3d', BlobDataAbs)
+BlobMesh3D.filenamePrefix = 'mesh'
+BlobMesh3D.filenameSuffix = '.3d'
+function BlobMesh3D:init(data)
+	self.data = data 
+		or ('\0'):rep(2 * ffi.sizeof(meshIndexType))	-- # vtxs, # indexes
+--[[ data validation?
+	self.vertexes = vector'Vertex'
+	self.indexes = vector(meshIndexType)
+	if data then
+		local ptr = ffi.cast('uint8_t*', data)
+		local ptrend = ptr + #data
+		local function pop(ctype)
+			assert.le(ptr + ffi.sizeof(ctype), ptrend, "got end of file")
+			local v = fficast(ctype, ptr)[0]
+			ptr = ptr + ffi.sizeof(ctype)
+			return v
+		end
+		local numVertexes = pop(meshIndexType)
+		self.vertexes:resize(numVertexes)
+		local numIndexes = pop(meshIndexType)
+		self.indexes:resize(numIndexes)
+		for i=0,numVertexes-1 do
+			local vtx = self.vertexes.v + i
+			vtx.x = pop'int16_t'
+			vtx.y = pop'int16_t'
+			vtx.z = pop'int16_t'
+			vtx.u = pop'uint8_t'
+			vtx.v = pop'uint8_t'
+		end
+		for i=0,numIndexes-1 do
+			self.indexes.v[i] = pop(meshIndexType)
+		end
+		assert.eq(ptr, ptrend, "found extra data at end of file")
+	end
+--]]
+	
+	-- TODO validate?
+	self:getNumVertexes()
+	self:getNumIndexes()
+
+	if #self.data < 4 then self.data = ('\0'):rep(4) end
+end
+function BlobMesh3D:getNumVertexes()
+	return ffi.cast(meshIndexType..'*', self:getPtr())[0]
+end
+function BlobMesh3D:getNumIndexes()
+	return ffi.cast(meshIndexType..'*', self:getPtr())[1]
+end
+function BlobMesh3D:getVertexPtr()
+	local ptr = self:getPtr()
+		+ ffi.sizeof(meshIndexType) * 2	-- skip header
+	assert.le(ptr + self:getNumVertexes(), ptr + #self.data)
+	return ffi.cast('Vertex*', ptr)
+end
+function BlobMesh3D:getIndexPtr()
+	local ptr = ffi.cast('uint8_t*',
+		self:getVertexPtr()
+		+ self:getNumVertexes()
+	) -- skip vertexes
+	local indptr = ffi.cast(meshIndexType..'*', ptr)
+	assert.eq(indptr + self:getNumIndexes(), ptr + #self.data)
+	return indptr
+end
 
 
 local blobClassForType = {}

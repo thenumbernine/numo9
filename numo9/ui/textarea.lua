@@ -61,6 +61,7 @@ end
 
 -- called upon init or upon app.blobs.code external change (upon App:openCart)
 function UITextArea:refreshText()
+	self.undo:clear()
 	self.cursorLoc = math.clamp(self.cursorLoc, 0, #self:getText())
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()

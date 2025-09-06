@@ -412,13 +412,22 @@ local function deltaCompress(
 end
 
 ffi.cdef[[
-typedef struct {
+typedef struct Stamp {
 	uint16_t brush : 13;
 	uint16_t orientation : 3;
 	uint16_t x, y, w, h;
 } Stamp;
 ]]
 assert.eq(ffi.sizeof'Stamp', 10)
+
+ffi.cdef[[
+typedef struct Vertex {
+	int16_t x, y, z;
+	uint8_t u, v;
+} Vertex;
+]]
+assert.eq(ffi.sizeof'Vertex', 8)
+local meshIndexType = 'uint16_t'
 
 return {
 	updateHz = updateHz,
@@ -483,4 +492,6 @@ return {
 	deltaCompress = deltaCompress,
 	addrType = addrType,
 	loopOffsetType = loopOffsetType,
+
+	meshIndexType = meshIndexType,
 }

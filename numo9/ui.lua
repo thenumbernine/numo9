@@ -41,6 +41,7 @@ UI.editModes = table{
 	'music',
 	--'brush',	-- just script at the moment ...
 	'brushmap',
+	'mesh3d',
 }
 
 UI.editFieldForMode = {
@@ -51,6 +52,7 @@ UI.editFieldForMode = {
 	music = 'editMusic',
 	--brush = 'editBrushes',
 	brushmap = 'editBrushmap',
+	mesh3d = 'editMesh3D',
 }
 
 

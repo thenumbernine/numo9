@@ -3579,6 +3579,36 @@ function AppVideo:net_blitBrushMap(
 	end
 end
 
+function AppVideo:net_drawMesh3D(
+	mesh3DIndex,
+	sheetIndex,
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
+)
+	local mesh = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
+	if not mesh then return end
+
+	local vtxs = mesh:getVertexPtr()
+	local inds = mesh:getIndexPtr()
+	for i=0,mesh:getNumIndexes()-3,3 do
+		local a = vtxs + inds[i]
+		local b = vtxs + inds[i+1]
+		local c = vtxs + inds[i+2]
+		self:drawTexTri3D(
+			a.x, a.y, a.z, a.u, a.v,
+			b.x, b.y, b.z, b.u, b.v,
+			c.x, c.y, c.z, c.u, c.v,
+			sheetIndex,
+			paletteIndex,
+			transparentIndex,
+			spriteBit,
+			spriteMask
+		)
+	end
+end
+
 return {
 	argb8888revto5551 = argb8888revto5551,
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,

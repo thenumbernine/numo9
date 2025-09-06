@@ -40,7 +40,7 @@ local EditSheet = require 'numo9.ui':subclass()
 
 function EditSheet:init(args)
 	EditSheet.super.init(self, args)
-
+	
 	self.undo = Undo{
 		get = function()
 			-- for now I'll just have one undo buffer for the current sheet
@@ -62,9 +62,13 @@ function EditSheet:init(args)
 		end,
 	}
 
+	self:onCartLoad()
+end
+
+function EditSheet:onCartLoad()
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
-
+	
 	-- sprite edit mode
 	self.spriteSelPos = vec2i()	-- TODO make this texel based, not sprite based (x8 less resolution)
 	self.spriteSelSize = vec2i(1,1)
@@ -91,6 +95,8 @@ function EditSheet:init(args)
 	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 
 	self.pasteTransparent = false
+	
+	self.undo:clear()
 end
 
 local selBorderColors = {0xfd,0xfc}

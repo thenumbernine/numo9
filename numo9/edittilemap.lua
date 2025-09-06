@@ -52,7 +52,10 @@ function EditTilemap:init(args)
 		end,
 	}
 
+	self:onCartLoad()
+end
 
+function EditTilemap:onCartLoad()
 	self.sheetBlobIndex = 1
 	self.tilemapBlobIndex = 0
 	self.paletteBlobIndex = 0	-- TODO :drawMap() allow specifying palette #
@@ -76,6 +79,8 @@ function EditTilemap:init(args)
 
 	self.drawGrid = false
 	self.draw16Sprites = false
+
+	self.undo:clear()
 end
 
 function EditTilemap:update()

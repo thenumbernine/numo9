@@ -51,7 +51,6 @@ function EditBrushmap:init(args)
 
 	self.selBrushIndex = 1	-- 0-based? 1-based? this indexes into the Lua table in code so 1-based for now
 
-
 	self.tilePanDownPos = vec2i()
 	self.tilemapPanOffset = vec2d()
 	self.tilePanPressed = false
