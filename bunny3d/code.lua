@@ -7,8 +7,10 @@ mode(42)	-- 480x270
 --#include vec/quat.lua
 
 local angle = quat()
-
 local lmx, lmy = 128, 128
+
+local meshIndex = 0
+local scales = {1/2}
 
 wireframe = false
 update=||do
@@ -37,6 +39,10 @@ update=||do
 			angle:set(quat_mul(x,y,z,w, angle:unpack()))
 		end
 	end
+	if keyp'mouse_right' then
+		meshIndex += 1
+		meshIndex &= 1
+	end
 	if btn'up' then
 		local x,y,z,w = quat_fromAngleAxis(-th, 1, 0, 0)
 		angle:set(quat_mul(x,y,z,w, angle:unpack()))
@@ -62,11 +68,15 @@ update=||do
 	end
 
 	matscale(1/32768, 1/32768, 1/32768)
+	local s = scales[meshIndex]
+	if s then
+		matscale(s,s,s)
+	end
 	if wireframe then
 		local color = 0xc
 		local thickness = .5
 
-		local addr = blobaddr'mesh3d'
+		local addr = blobaddr('mesh3d', meshIndex)
 		local numvtxs = peekw(addr) addr += 2
 		local numinds = peekw(addr) addr += 2
 		local vtxbase = addr
@@ -89,6 +99,6 @@ update=||do
 			line3d(x3, y3, z3, x1, y1, z1, color, thickness)
 		end
 	else
-		mesh()
+		mesh(meshIndex)
 	end
 end

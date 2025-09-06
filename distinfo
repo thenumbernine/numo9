@@ -36,7 +36,6 @@ files = {
 	["include/vec/vec3.lua"] = "numo9/include/vec/vec3.lua",
 	["jumpman.n9"] = "numo9/jumpman.n9",
 	["kart.n9"] = "numo9/kart.n9",
-	["mariohead.n9"] = "numo9/mariohead.n9",
 	["metroidvania.n9"] = "numo9/metroidvania.n9",
 	["n9a.lua"] = "numo9/n9a.lua",
 	["n9a_p8_glue.lua"] = "numo9/n9a_p8_glue.lua",

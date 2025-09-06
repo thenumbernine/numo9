@@ -1,16 +1,28 @@
 #!/usr/bin/env rua
-local vec3d = require 'vec-ffi.vec3d'
-local meshstrs = assert(path'bunny.txt':read()):trim():split'\n':mapi(string.trim)
+local infn, outfn = ...
+assert(infn and outfn, "expected infn outfn\nex: bunny.txt mesh.3d")
 
+local vec3d = require 'vec-ffi.vec3d'
+local meshstrs = assert(path(infn):read())
+:trim()
+:split'\n':mapi(|l| do
+	local color, line = l:match('^(%x%x) (%x+)$')
+	assert(color, "expected color, line")
+	assert.eq(#line % (2*2*3*3), 0, "line should be a set of hex encoding of 9 shorts")
+	return {
+		color = tonumber(color, 16),
+		line = line:trim(),
+	}
+end)
 
 -- map from 12-hex-char vtx str to 0-based colorkey
 local colorKeyForVtxStr = {}
 -- holds sets of 12 hex chars = 1 vertex xyz in int16_t
 local vtxstrs = table()
-for colorkey=1,#meshstrs do
-	for vtxstr in meshstrs[colorkey]:gmatch(('.'):rep(12)) do
+for _,meshstr in ipairs(meshstrs) do
+	for vtxstr in meshstr.line:gmatch(('.'):rep(12)) do
 		vtxstrs:insert(vtxstr)
-		colorKeyForVtxStr[vtxstr] = colorkey-1
+		colorKeyForVtxStr[vtxstr] = meshstr.color
 	end
 end
 
@@ -120,4 +132,4 @@ for _,index in ipairs(indexes) do
 	o:emplace_back()[0] = index
 end
 assert.eq(2 + #vtxs * 4 + #indexes, #o)
-assert(path'mesh.3d':write(o:dataToStr()))
+assert(path(outfn):write(o:dataToStr()))
