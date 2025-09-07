@@ -1036,6 +1036,7 @@ print('package.loaded', package.loaded)
 	local EditMusic = require 'numo9.editmusic'
 	local EditBrushmap = require 'numo9.editbrushmap'
 	local EditMesh3D = require 'numo9.editmesh3d'
+	local EditVoxelmap = require 'numo9.editvoxelmap'
 	local Console = require 'numo9.console'
 	local MainMenu = require 'numo9.mainmenu'
 	local CartBrowser = require 'numo9.cartbrowser'
@@ -1051,6 +1052,7 @@ print('package.loaded', package.loaded)
 	self.editMusic = EditMusic{app=self}
 	self.editBrushmap = EditBrushmap{app=self}
 	self.editMesh3D = EditMesh3D{app=self}
+	self.editVoxelMap = EditVoxelmap{app=self}
 	self.con = Console{app=self}
 	self.mainMenu = MainMenu{app=self}
 	self.cartBrowser = CartBrowser{app=self}

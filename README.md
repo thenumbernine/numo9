@@ -692,3 +692,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - netplay persistent data maybe ...
 	- one set per-game
 	- one set per-game-per-server
+- add custom properties to brushmaps.
+	- maybe convert it back to a Lua data file instead of a binary file.
+	- add a key/value editor per-brush for custom properties.
+- add a way to create default cube mesh for voxelmap.

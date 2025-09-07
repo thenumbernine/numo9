@@ -11,6 +11,7 @@ local EditMesh3D = require 'numo9.ui':subclass()
 
 function EditMesh3D:init(args)
 	EditMesh3D.super.init(self, args)
+	self:onCartLoad()
 end
 
 function EditMesh3D:onCartLoad()
@@ -25,6 +26,7 @@ function EditMesh3D:onCartLoad()
 	self.scale = 1
 	self.ortho = false
 	self.angle = quatd(0,0,0,1)
+	-- TODO add 'pos' and 'orbit'
 end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')

@@ -27,7 +27,7 @@ local sampleType = numo9_rom.sampleType
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local loopOffsetType = numo9_rom.loopOffsetType
 local mvMatType = numo9_rom.mvMatType
-local meshIndexType = numo9_rom.meshIndexType 
+local meshIndexType = numo9_rom.meshIndexType
 
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
@@ -54,8 +54,13 @@ local blobClassNameForType = table{
 	'mesh3d', 	-- ... but what format?  xyzuv triangles ... and indexes or nah, since the video API doesn't care anyways?  or at least for compression's sake?
 	'voxelmap', -- = voxel-map of models from some lookup table
 	-- voxel map high bits = 24 possible orientations of a cube, so needs 5 bits for orientation (wow so many ...)
+	--  2 bits = yaw z-axis rotation, 2 bits = roll / x-axis rotation, 1 bit = yaw / y-axis rotation
 	-- should voxel map be 16bit then? 11 = lookup of model, 5 = orientation?
 	-- then entries should point to objs ... and to texel shifts, right?  we dont want a zillion copies of cube ... we should point to separate obj and sheet ...
+	-- 16bit then: 8 to lookup model, 3 to lookup texture sheet, 5 to orientate sheet?
+	-- or 32bit?  11:model, 10:sprite 3:sheet, 3:palette, 5:orientation ...
+	-- nah i won't encourage cart programmers to change sheet/palette mid-voxelmap render
+	-- 32-bit: 17:model 10:sprite 5:orientation
 }
 
 -- maps from name to type-index
@@ -527,7 +532,7 @@ local BlobMesh3D = blobSubclass('mesh3d', BlobDataAbs)
 BlobMesh3D.filenamePrefix = 'mesh'
 BlobMesh3D.filenameSuffix = '.3d'
 function BlobMesh3D:init(data)
-	self.data = data 
+	self.data = data
 		or ('\0'):rep(2 * ffi.sizeof(meshIndexType))	-- # vtxs, # indexes
 --[[ data validation?
 	self.vertexes = vector'Vertex'
@@ -559,7 +564,7 @@ function BlobMesh3D:init(data)
 		assert.eq(ptr, ptrend, "found extra data at end of file")
 	end
 --]]
-	
+
 	-- TODO validate?
 	self:getNumVertexes()
 	self:getNumIndexes()
@@ -573,7 +578,7 @@ function BlobMesh3D:getNumIndexes()
 	return ffi.cast(meshIndexType..'*', self:getPtr())[1]
 end
 function BlobMesh3D:getVertexPtr()
-	local vtxptr = ffi.cast('Vertex*', 
+	local vtxptr = ffi.cast('Vertex*',
 		self:getPtr()
 		+ ffi.sizeof(meshIndexType) * 2	-- skip header
 	)
@@ -591,6 +596,21 @@ function BlobMesh3D:getIndexPtr()
 	assert.eq(ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
 	return indptr
 end
+
+
+--[[
+format:
+typedef struct {
+	uint32_t modelIndex : 17;
+	uint32_t spriteIndex : 10;
+	uint32_t orientation : 5;	// 2: z-axis yaw, 2: x-axis roll, 1:y-axis pitch
+} VoxelBlock;
+uint32_t width, height, depth;
+VoxelBlock data[width*height*depth];
+--]]
+local BlobVoxelMap = blobSubclass('voxelmap', BlobDataAbs)
+BlobVoxelMap.filenamePrefix = 'voxelmap'
+BlobVoxelMap.filenameSuffix = '.vox'
 
 
 local blobClassForType = {}
