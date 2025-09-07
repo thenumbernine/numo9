@@ -14,13 +14,14 @@ end
 
 function EditMesh3D:onCartLoad()
 	self.mesh3DBlobIndex = 0
-	self.sheetBlobIndex = 1
+	self.sheetBlobIndex = 0	-- TODO should this default to 1 (tilemap) or 0 (spritemap) ?  or should I even keep a 1 by default around?
 	self.paletteBlobIndex = 0
 
 	self.wireframe = false
 
 	self.lastMousePos = vec2i()
 	self.scale = 1
+	self.ortho = false
 	self.angle = quatd(0,0,0,1)
 end
 
@@ -45,7 +46,17 @@ function EditMesh3D:update()
 	if mesh3DBlob then
 		ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
 		app:matident()
-		app:matortho(-1.2, 1.2, 1.2, -1.2, -1.2, 1.2)
+		if self.ortho then
+			app:matortho(-1.2, 1.2, 1.2, -1.2, -1.2, 1.2)
+			-- notice this is flipping y ... hmm TODO do that in matortho? idk...
+		else
+			local zn, zf = .1, 2
+			app:matfrustum(-zn, zn, -zn, zn, zn, zf)
+			-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
+			-- TODO matscale here or in matfrustum? hmm...
+			app:matscale(1, -1, 1)
+			app:mattrans(0, 0, -.5 * zf)
+		end
 
 		do
 			if app:key'mouse_left'
@@ -77,13 +88,13 @@ function EditMesh3D:update()
 
 			local vtxs = mesh3DBlob:getVertexPtr()
 			local inds = mesh3DBlob:getIndexPtr()
-			local numInds = mesh3DBlob:getNumIndexes()
-			if numInds == 0 then	-- no indexes? just draw all vtxs
+			local numIndexes = mesh3DBlob:getNumIndexes()
+			if numIndexes == 0 then	-- no indexes? just draw all vtxs
 				local numVtxs = mesh3DBlob:getNumVertexes()
 				for i=0,numVtxs-3,3 do
 					for j=0,2 do
-					local a = vtxs + i+j
-					local b = vtxs + i+(j+1)%3
+						local a = vtxs + i+j
+						local b = vtxs + i+(j+1)%3
 						app:drawSolidLine3D(
 							a.x, a.y, a.z,
 							b.x, b.y, b.z,
@@ -92,7 +103,7 @@ function EditMesh3D:update()
 					end
 				end
 			else	-- draw indexed vertexes
-				for i=0,numInds-3,3 do
+				for i=0,numIndexes-3,3 do
 					for j=0,2 do
 						local a = vtxs + inds[i+j]
 						local b = vtxs + inds[i+(j+1)%3]
@@ -105,7 +116,11 @@ function EditMesh3D:update()
 				end
 			end
 		else
-			app:net_drawMesh3D(self.mesh3DBlobIndex, self.sheetBlobIndex, self.paletteBlobIndex)
+			app:net_drawMesh3D(
+				self.mesh3DBlobIndex,
+				self.sheetBlobIndex,
+				self.paletteBlobIndex
+			)
 		end
 
 		ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
@@ -123,6 +138,10 @@ function EditMesh3D:update()
 
 	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
 		self.wireframe = not self.wireframe
+	end
+	x = x + 8
+	if self:guiButton(self.ortho and 'O' or 'P', x, y, self.ortho, self.ortho and 'ortho' or 'projection') then
+		self.ortho = not self.ortho
 	end
 	x = x + 8
 

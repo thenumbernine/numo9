@@ -3581,32 +3581,39 @@ end
 
 function AppVideo:net_drawMesh3D(
 	mesh3DIndex,
+	sheetIndex,
 	...
 )
 	mesh3DIndex = mesh3DIndex or 0
 
 	local mesh = self.blobs.mesh3d[mesh3DIndex+1]
-	if not mesh then return end
+	if not mesh then 
+--DEBUG:print('failed to find mesh', mesh3DIndex)	
+		return 
+	end
 
 	local vtxs = mesh:getVertexPtr()
 	local inds = mesh:getIndexPtr()
-	local numInds = mesh:getNumIndexes()
-	if numInds == 0 then	-- no indexes? just draw all vtxs
+	local numIndexes = mesh:getNumIndexes()
+	if numIndexes == 0 then	-- no indexes? just draw all vtxs
+--DEBUG:print('drawing vertexes only')		
 		local numVtxs = mesh:getNumVertexes()
 		for i=0,numVtxs-3,3 do
 			local a = vtxs + i
 			local b = vtxs + i+1
 			local c = vtxs + i+2
---print('drawMesh3D drawing', i, a, b, c)
+--DEBUG:print('drawMesh3D drawing', i, a, b, c)
 			self:drawTexTri3D(
 				a.x, a.y, a.z, a.u, a.v,
 				b.x, b.y, b.z, b.u, b.v,
 				c.x, c.y, c.z, c.u, c.v,
+				sheetIndex,
 				...
 			)
 		end
 	else	-- draw indexed vertexes
-		for i=0,numInds-3,3 do
+--DEBUG:print('drawing mesh with indexes', numIndexes)		
+		for i=0,numIndexes-3,3 do
 			local a = vtxs + inds[i]
 			local b = vtxs + inds[i+1]
 			local c = vtxs + inds[i+2]
@@ -3614,6 +3621,7 @@ function AppVideo:net_drawMesh3D(
 				a.x, a.y, a.z, a.u, a.v,
 				b.x, b.y, b.z, b.u, b.v,
 				c.x, c.y, c.z, c.u, c.v,
+				sheetIndex,
 				...
 			)
 		end
