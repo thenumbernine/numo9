@@ -87,7 +87,7 @@ function EditVoxelMap:update()
 				if k > i then
 					local ax, ay, az = corner(i)
 					local bx, by, bz = corner(j)
-					self:drawSolidLine3D(
+					app:drawSolidLine3D(
 						ax, ay, az,
 						bx, by, bz,
 						size[1], 0, 0,
@@ -98,8 +98,7 @@ function EditVoxelMap:update()
 			end
 		end
 
-		-- TODO here draw the voxelmap ...
-		self:drawVoxelMap(
+		app:drawVoxelMap(
 			self.voxelmapBlobIndex,
 			self.sheetBlobIndex,
 			self.paletteBlobIndex

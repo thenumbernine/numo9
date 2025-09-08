@@ -375,10 +375,14 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `ttri3d(x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, x3, y3, z3, u3, v3, [sheetIndex=0, paletteIndex=0, transparentIndex=-1, spriteBit=0, spriteMask=0xFF])` = draw a triangle textured with a sprite/tile sheet.
 	- x1,y1,z1,x2,y2,z2,x3,y3,z3 = triangle coordinates
 	- u1,v1,u2,v2,u3,v3 = texture coordinates, in texels.
-	- sheetIndex = sheet to use, 0 = sprite sheet, 1 = tile sheet, default 0.
+	- sheetIndex = sheet to use: 0 = sprite sheet, 1 = tile sheet, default 0.
+	- paletteIndex = same as `spr()`.
+	- transparentIndex = same as `spr()`.
+	- spriteBit = same as `spr()`.
+	- spriteMask = same as `spr()`.
 - `line(x1, y1, x2, y2, [colorIndex, thickness])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [colorIndex, thickness])` = draw line but with z / perspective.
-- `spr(spriteIndex,screenX,screenY,[tilesWide,tilesHigh,paletteIndex,transparentIndex,spriteBit,spriteMask,scaleX,scaleY])` = draw sprite
+- `spr(spriteIndex, screenX, screenY, [tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY])` = draw sprite
 	- spriteIndex = which sprite to draw.
 		- Bits 0..4 = x coordinate into the 32x32 grid of 8x8 tiles in the 256x256 sprite/tile sheet.
 		- Bits 5..9 = y coordinate " " "
@@ -387,7 +391,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 			Bank 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and bank 0's tile sheet is relocatable with the `tileSheetAddr`, and bit #11 determines which to use.
 	- screenX, screenY = pixel location of upper-left corner of the sprite
 	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
-	- paletteIndex = a value to offset the colors by.  this can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
+	- paletteIndex = a value to offset the colors by.  This can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
 	- transparentIndex = an optional color to specify as transparent.  default is -1 to disable this.
 	- spriteBit = which bitplane to draw.  default is start at bitplane 0.
 	- spriteMask = mask of which bits to use.  default is 0xFF, in binary 1111:1111, which uses all 8 bitplanes.
@@ -399,9 +403,10 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- tx, ty = sprite sheet pixel upper left corner.
 	- tw, th = sprite sheet width and height to use.
 	- sheetIndex = sheet index. 0 for sprite sheet, 1 for tile sheet.  default 1.
-	- paletteIndex = palette index offset.
-	- transparentIndex = transparent index to use.
-	- spriteBit, spriteMask = same as `spr()`
+	- paletteIndex = same as `spr()`.
+	- transparentIndex = same as `spr()`.
+	- spriteBit = same as `spr()`.
+	- spriteMask = same as `spr()`.
 - `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16x16Sprites, sheetIndex, tilemapIndex)` = draw the tilemap.
 	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 	- mapIndexOffset = global offset to shift all map indexes.

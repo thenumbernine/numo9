@@ -2801,7 +2801,10 @@ function AppVideo:drawQuad(
 		sheetRAM.tex,
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,
-		spriteBit, spriteMask, transparentIndex, paletteIndex
+		spriteBit,
+		spriteMask,
+		transparentIndex,
+		paletteIndex
 	)
 
 	-- TODO only this after we actually do the :draw()
@@ -3343,7 +3346,7 @@ local function orientationCombine(a, b)
 	-- ok I made a function for input => orientation, output => 2D matrix
 	-- then I applied it twice, and found a bitwise function that reproduces that
 	-- and here it is
-	return bit.bxor(
+	return bit.band(7, bit.bxor(
 		a,
 		b,
 		bit.lshift(bit.band(
@@ -3354,8 +3357,7 @@ local function orientationCombine(a, b)
 			b,
 			2
 		), 1)
-	)
-
+	))
 end
 
 
@@ -3616,6 +3618,9 @@ function AppVideo:drawMesh3D(
 	uofs,
 	vofs,
 	sheetIndex,
+	-- TODO terminology problem ...
+	-- this is passed on to be used as paletteIndexOffset
+	-- but it is passed in as paletteBlobIndex
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
@@ -3681,14 +3686,14 @@ function AppVideo:drawVoxelMap(
 	paletteIndex
 )
 	voxelmapIndex = voxelmapIndex or 0
-	local vox = self.blobs.vox[voxelmapIndex+1]
+	local vox = self.blobs.voxelmap[voxelmapIndex+1]
 	if not vox then
 --DEBUG:print('failed to find vox', voxelmapIndex)
 		return
 	end
 
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-	matscale(1/32768, 1/32768, 1/32768)
+	self:matscale(1/32768, 1/32768, 1/32768)
 
 	local width, height, depth = vox:getWidth(), vox:getHeight(), vox:getDepth()
 	local vptr = vox:getVoxelPtr()
