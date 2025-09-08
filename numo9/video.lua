@@ -1511,12 +1511,9 @@ void main() {
 		if (rot == 1) {
 			tci = ivec2(tci.y, ~tci.x);
 		} else if (rot == 2) {
-			tci = ivec2(tci.y, ~tci.x);
-			tci = ivec2(tci.y, ~tci.x);
+			tci = ivec2(~tci.x, ~tci.y);
 		} else if (rot == 3) {
-			tci = ivec2(tci.y, ~tci.x);
-			tci = ivec2(tci.y, ~tci.x);
-			tci = ivec2(tci.y, ~tci.x);
+			tci = ivec2(~tci.y, tci.x);
 		}
 		if (((tileIndex >> 13) & 1) != 0) {
 			tci.x = ~tci.x;	// tilemap bit 13 = hflip
@@ -3342,6 +3339,25 @@ function AppVideo:saveLabel()
 	self:screenshotToFile(base..'/label.png')
 end
 
+local function orientationCombine(a, b)
+	-- ok I made a function for input => orientation, output => 2D matrix
+	-- then I applied it twice, and found a bitwise function that reproduces that
+	-- and here it is
+	return bit.bxor(
+		a,
+		b,
+		bit.lshift(bit.band(
+			bit.bxor(
+				bit.lshift(a, 1),
+				a
+			),
+			b,
+			2
+		), 1)
+	)
+
+end
+
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
 -- this is a sprite-based preview of tilemap rendering
@@ -3411,13 +3427,15 @@ function AppVideo:drawBrush(
 			if stampHFlip ~= 0 then bx = bw-1-bx end
 
 			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
-			local tileIndex = brush
-				and brush(bx, by, bw, bh, stampTileX, stampTileY)
-				or 0
+			local tileIndex = brush and brush(bx, by, bw, bh, stampTileX, stampTileY) or 0
 			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
 			local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
-			tileOrientation = bit.bxor(tileOrientation, stampHFlip)
-			tileOrientation = bit.band(7, tileOrientation + bit.lshift(stampRot, 1))
+
+			tileOrientation = orientationCombine(stampOrientation, tileOrientation)
+
+			local tileHFlip = bit.band(1, tileOrientation)
+			local tileRot = bit.rshift(tileOrientation, 1)
+
 			local spriteIndex = bit.band(0x3FF, tileIndex)	-- 10 bits
 
 			-- TODO build rotations into the sprite pathway?
@@ -3429,9 +3447,8 @@ function AppVideo:drawBrush(
 				screenX + tileSizeInPixels / 2,
 				screenY + tileSizeInPixels / 2
 			)
-			local rot = bit.rshift(tileOrientation, 1)
-			self:matrot(rot * math.pi * .5)
-			if bit.band(tileOrientation, 1) ~= 0 then
+			self:matrot(tileRot * math.pi * .5)
+			if tileHFlip ~= 0 then
 				self:matscale(-1, 1)
 			end
 			self:drawSprite(
@@ -3522,11 +3539,17 @@ function AppVideo:blitBrush(
 					bx, by, bw, bh = by, bw-1-bx, bh, bw
 				end
 				if stampHFlip ~= 0 then bx = bw-1-bx end
+
 				local tileIndex = brush(bx, by, bw, bh, stampX, stampY, stampOrientation) or 0
 				local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
-				tileOrientation = bit.bxor(tileOrientation, stampHFlip)
-				tileOrientation = bit.band(7, tileOrientation + bit.lshift(stampRot, 1))
-				tileIndex = bit.bor(bit.band(0x1fff, tileIndex), bit.lshift(tileOrientation, 13))
+
+				tileOrientation = orientationCombine(stampOrientation, tileOrientation)
+
+				-- reconstruct
+				tileIndex = bit.bor(
+					bit.band(0x1fff, tileIndex),
+					bit.lshift(tileOrientation, 13)
+				)
 				self:net_pokew(
 					tilemapAddr + 2 * (dstx + dsty * tilemapSize.x),
 					tileIndex
