@@ -685,17 +685,41 @@ end
 
 --[[
 format:
+uint32_t width, height, depth;
 typedef struct {
 	uint32_t modelIndex : 17;
-	uint32_t spriteIndex : 10;
+	uint32_t tileXOffset: 5;
+	uint32_t tileYOffset: 5;
 	uint32_t orientation : 5;	// 2: z-axis yaw, 2: x-axis roll, 1:y-axis pitch
 } VoxelBlock;
-uint32_t width, height, depth;
 VoxelBlock data[width*height*depth];
 --]]
+local voxelmapSizeType = 'uint32_t'
 local BlobVoxelMap = blobSubclass('voxelmap', BlobDataAbs)
 BlobVoxelMap.filenamePrefix = 'voxelmap'
 BlobVoxelMap.filenameSuffix = '.vox'
+function BlobVoxelMap:init(data)
+	self.data = data or ''
+	local minsize = 3 * ffi.sizeof(voxelmapSizeType)	-- header
+	if #self.data < minsize then self.data = ('\0'):rep(minsize) end
+
+	-- validate
+	self:getWidth()
+	self:getHeight()
+	self:getDepth()
+end
+function BlobVoxelMap:getWidth()
+	return ffi.cast(voxelmapSizeType..'*', self:getPtr())[0]
+end
+function BlobVoxelMap:getHeight()
+	return ffi.cast(voxelmapSizeType..'*', self:getPtr())[1]
+end
+function BlobVoxelMap:getDepth()
+	return ffi.cast(voxelmapSizeType..'*', self:getPtr())[2]
+end
+function BlobVoxelMap:getVoxelPtr()
+	return ffi.cast('Voxel*', self:getPtr() + ffi.sizeof(voxelmapSizeType) * 3)
+end
 
 
 local blobClassForType = {}

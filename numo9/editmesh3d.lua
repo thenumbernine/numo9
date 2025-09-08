@@ -48,12 +48,6 @@ function EditMesh3D:update()
 	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
 	if mesh3DBlob then
 
-		local x, y = 0, 8
-		app:drawMenuText('#vtx:'..mesh3DBlob:getNumVertexes(), x, y)
-		y = y + 8
-		app:drawMenuText('#ind:'..mesh3DBlob:getNumIndexes(), x, y)
-		y = y + 8
-
 		-- flush before enable depth test so the flush doesn't use depth test...
 		app.triBuf:flush()
 		gl.glEnable(gl.GL_DEPTH_TEST)
@@ -130,6 +124,8 @@ function EditMesh3D:update()
 		if self.drawFaces then
 			app:net_drawMesh3D(
 				self.mesh3DBlobIndex,
+				0,	-- uofs
+				0,	-- vofs
 				self.sheetBlobIndex,
 				self.paletteBlobIndex
 			)
@@ -139,6 +135,14 @@ function EditMesh3D:update()
 		-- flush before disable depth test so the flush will use depth test...
 		app.triBuf:flush()
 		gl.glDisable(gl.GL_DEPTH_TEST)
+
+		local x, y = 0, 8
+		app:drawMenuText('#vtx:'..mesh3DBlob:getNumVertexes(), x, y)
+		y = y + 8
+		app:drawMenuText('#ind:'..mesh3DBlob:getNumIndexes(), x, y)
+		y = y + 8
+		app:drawMenuText('size:'..mesh3DBlob:getSize(), x, y)
+		y = y + 8
 	end
 
 	app:setClipRect(0, 0, clipMax, clipMax)

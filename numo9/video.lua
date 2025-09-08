@@ -3362,9 +3362,9 @@ function AppVideo:net_drawBrush(
 		return
 	end
 	local brush = brushes[brushIndex]
-	if not brush then 
+	if not brush then
 --DEBUG:print('net_drawBrush - numo9_brushes key '..tostring(brushIndex)..' not found - bailing')
-		return 
+		return
 	end
 
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
@@ -3581,22 +3581,29 @@ end
 
 function AppVideo:net_drawMesh3D(
 	mesh3DIndex,
+	uofs,
+	vofs,
 	sheetIndex,
-	...
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
 )
 	mesh3DIndex = mesh3DIndex or 0
+	uofs = uofs or 0
+	vofs = vofs or 0
 
 	local mesh = self.blobs.mesh3d[mesh3DIndex+1]
-	if not mesh then 
---DEBUG:print('failed to find mesh', mesh3DIndex)	
-		return 
+	if not mesh then
+--DEBUG:print('failed to find mesh', mesh3DIndex)
+		return
 	end
 
 	local vtxs = mesh:getVertexPtr()
 	local inds = mesh:getIndexPtr()
 	local numIndexes = mesh:getNumIndexes()
 	if numIndexes == 0 then	-- no indexes? just draw all vtxs
---DEBUG:print('drawing vertexes only')		
+--DEBUG:print('drawing vertexes only')
 		local numVtxs = mesh:getNumVertexes()
 		for i=0,numVtxs-3,3 do
 			local a = vtxs + i
@@ -3604,28 +3611,89 @@ function AppVideo:net_drawMesh3D(
 			local c = vtxs + i+2
 --DEBUG:print('drawMesh3D drawing', i, a, b, c)
 			self:drawTexTri3D(
-				a.x, a.y, a.z, a.u, a.v,
-				b.x, b.y, b.z, b.u, b.v,
-				c.x, c.y, c.z, c.u, c.v,
+				a.x, a.y, a.z, a.u + uofs, a.v + vofs,
+				b.x, b.y, b.z, b.u + uofs, b.v + vofs,
+				c.x, c.y, c.z, c.u + uofs, c.v + vofs,
 				sheetIndex,
-				...
+				paletteIndex,
+				transparentIndex,
+				spriteBit,
+				spriteMask
 			)
 		end
 	else	-- draw indexed vertexes
---DEBUG:print('drawing mesh with indexes', numIndexes)		
+--DEBUG:print('drawing mesh with indexes', numIndexes)
 		for i=0,numIndexes-3,3 do
 			local a = vtxs + inds[i]
 			local b = vtxs + inds[i+1]
 			local c = vtxs + inds[i+2]
 			self:drawTexTri3D(
-				a.x, a.y, a.z, a.u, a.v,
-				b.x, b.y, b.z, b.u, b.v,
-				c.x, c.y, c.z, c.u, c.v,
+				a.x, a.y, a.z, a.u + uofs, a.v + vofs,
+				b.x, b.y, b.z, b.u + uofs, b.v + vofs,
+				c.x, c.y, c.z, c.u + uofs, c.v + vofs,
 				sheetIndex,
-				...
+				paletteIndex,
+				transparentIndex,
+				spriteBit,
+				spriteMask
 			)
 		end
 	end
+end
+
+local mvMatPush = ffi.new(mvMatType..'[16]')
+local mvMatPush2 = ffi.new(mvMatType..'[16]')
+function AppVideo:net_drawVoxelMap(
+	voxelmapIndex,
+	sheetIndex,
+	paletteIndex
+)
+	voxelmapIndex = voxelmapIndex or 0
+	local vox = self.blobs.vox[voxelmapIndex+1]
+	if not vox then
+--DEBUG:print('failed to find vox', voxelmapIndex)
+		return
+	end
+
+	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	matscale(1/32768, 1/32768, 1/32768)
+
+	local width, height, depth = vox:getWidth(), vox:getHeight(), vox:getDepth()
+	local vptr = vox:getVoxelPtr()
+	for k=0,depth-1 do
+		for j=0,height-1 do
+			for i=0,width-1 do
+
+				-- orientation
+				ffi.copy(mvMatPush2, self.ram.mvMat, ffi.sizeof(mvMatPush2))
+				-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
+				self:matrot(vptr.rotZ * .5 * math.pi, 0, 0, 1)
+				self:matrot(vptr.rotY * .5 * math.pi, 0, 1, 0)
+				self:matrot(vptr.rotX * .5 * math.pi, 1, 0, 0)
+
+				self:net_drawMesh3D(
+					vptr.mesh3DIndex,
+					bit.lshift(vptr.tileXOffset, 3),
+					bit.lshift(vptr.tileYOffset, 3),
+					sheetIndex,
+					paletteIndex
+				)
+
+				ffi.copy(self.ram.mvMat, mvMatPush2, ffi.sizeof(mvMatPush2))
+
+				self:mattrans(32768, 0, 0)
+
+				vptr = vptr + 1
+			end
+			self:mattrans(-32768 * width, 0, 0)
+			self:mattrans(0, 32768, 0)
+		end
+		self:mattrans(0, -32768 * height, 0)
+		self:mattrans(0, 0, 32768)
+	end
+	self:mattrans(0, 0, -32768 * depth)
+
+	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end
 
 return {

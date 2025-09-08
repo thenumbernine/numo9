@@ -1523,7 +1523,7 @@ loadLevel=||do
 	end
 end
 
-local numSaveFiles = 0 -- 10
+local numSaveFiles = 10
 -- read save info
 savefields = table{'level'}	-- saves byte values of these in 'saveinfos[saveSlot]'
 saveinfos = range(numSaveFiles):mapi(|i|do

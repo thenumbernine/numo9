@@ -176,12 +176,17 @@ Both texcoords and vertexes are offset by 0.5 and scaled down by 1/256.  This wa
 
 WIP but the latest on this is going to be ...
 ```
-uint16_t width, height, depth;
-struct {
+typedef struct {
 	uint32_t mesh3DIndex : 17;	// up to 131072 unique voxel block types
-	uint32_t spriteIndex : 10;	// selector to offset texcoords in the sprite sheet, so the same mesh3d can be drawn with different textures.
+	uint32_t tileXOffset : 5;		// selector to offset texcoords in the sprite sheet, so the same mesh3d can be drawn with different textures.
+	uint32_t tileYOffset : 5;
 	uint32_t orientation : 5;	// 5 bits needed to represent all possible 24 isometric orientations of a cube.
 } Voxel;
+```
+
+```
+uint32_t width, height, depth;
+Voxel voxels[depth][height][width];
 ```
 
 The 3D orientations, like the 2D orientations, can be decomposed into bitfields:
@@ -406,7 +411,11 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `drawbrush(brushIndex, sx, sy, w, h, [orientation, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
-- `mesh(mesh3DIndex, [sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask])` = draw the specified mesh3d blob.  `sheetIndex` defaults to 0.
+- `mesh(mesh3DIndex, [uofs, vofs, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask])` = draw the specified mesh3d blob.
+	- uofs, vofs = an amount to offset u and v coordinates (which wrap), defaults to 0.
+	- sheetIndex = defaults to 0.
+	- The rest of the parameters are forwarded to `ttri3d()`.
+- `voxelmap(voxelmapIndex)` =  draw voxelmap.
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = Set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.  You can pass a number or the string of `${width}x${height}x${format}`.  Returns true on success, false if it failed to find the video mode description.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
