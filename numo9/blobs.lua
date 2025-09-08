@@ -11,6 +11,8 @@ local vector = require 'ffi.cpp.vector-lua'
 local struct = require 'struct'
 local Image = require 'image'
 local AudioWAV = require 'audio.io.wav'
+-- meh why deal with this bloat
+--local OBJLoader = require 'mesh.objloader'
 
 local numo9_rom = require 'numo9.rom'
 local blobCountType = numo9_rom.blobCountType
@@ -134,7 +136,7 @@ function BlobImage:saveFile(filepath, blobIndex, blobs)
 	image:save(filepath.path)
 end
 -- static method:
-function BlobImage:loadFile(filepath)
+function BlobImage:loadFile(filepath, basepath, blobIndex)
 	local image = Image(filepath.path)
 	return self.class(image)
 end
@@ -163,7 +165,7 @@ function BlobDataAbs:saveFile(filepath, blobIndex, blobs)
 	assert(filepath:write(self.data))
 end
 -- static method:
-function BlobDataAbs:loadFile(filepath)
+function BlobDataAbs:loadFile(filepath, basepath, blobIndex)
 	return self.class(filepath:read())
 end
 
@@ -180,7 +182,7 @@ local BlobCode = blobSubclass('code', BlobDataAbs)
 BlobCode.filenamePrefix = 'code'
 BlobCode.filenameSuffix = '.lua'
 -- static method:
-function BlobCode:loadFile(filepath, basepath)
+function BlobCode:loadFile(filepath, basepath, blobIndex)
 --DEBUG:print'loading code...'
 	local code = assert(filepath:read())
 
@@ -269,7 +271,7 @@ function BlobTileMap:saveFile(filepath, blobIndex, blobs)
 end
 -- static method:
 -- swizzle / unswizzle channels
-function BlobTileMap:loadFile(filepath)
+function BlobTileMap:loadFile(filepath, basepath, blobIndex)
 	local loadImg = assert(Image(filepath.path))
 	assert.eq(loadImg.width, tilemapSize.x)
 	assert.eq(loadImg.height, tilemapSize.y)
@@ -328,7 +330,7 @@ function BlobPalette:toTable()
 end
 -- static method:
 -- reshape image
-function BlobPalette:loadFile(filepath)
+function BlobPalette:loadFile(filepath, basepath, blobIndex)
 	local loadImg = assert(Image(filepath.path))
 	assert.eq(loadImg.width, 16)
 	assert.eq(loadImg.height, 16)
@@ -388,7 +390,7 @@ function BlobFont:saveFile(filepath, blobIndex, blobs)
 	saveImg:save(filepath.path)
 end
 -- static method:
-function BlobFont:loadFile(filepath)
+function BlobFont:loadFile(filepath, basepath, blobIndex)
 	local blob = self.class()
 	resetFont(blob:getPtr(), filepath.path)
 	return blob
@@ -508,7 +510,7 @@ function BlobBrushMap:saveFile(filepath, blobIndex, blobs)
 	assert(filepath:write(ffi.string(self:getPtr(), self:getSize())))
 end
 -- static method:
-function BlobBrushMap:loadFile(filepath)
+function BlobBrushMap:loadFile(filepath, basepath, blobIndex)
 	return self.class(filepath:read())
 end
 
@@ -529,47 +531,24 @@ Vertex vertexes[]
 uint16_t indexes[]
 --]]
 local BlobMesh3D = blobSubclass('mesh3d', BlobDataAbs)
-BlobMesh3D.filenamePrefix = 'mesh'
-BlobMesh3D.filenameSuffix = '.3d'
+BlobMesh3D.filenamePrefix = 'mesh3d'
+BlobMesh3D.filenameSuffix = '.obj'
 function BlobMesh3D:init(data)
-	self.data = data
-		or ('\0'):rep(2 * ffi.sizeof(meshIndexType))	-- # vtxs, # indexes
---[[ data validation?
-	self.vertexes = vector'Vertex'
-	self.indexes = vector(meshIndexType)
-	if data then
-		local ptr = ffi.cast('uint8_t*', data)
-		local ptrend = ptr + #data
-		local function pop(ctype)
-			assert.le(ptr + ffi.sizeof(ctype), ptrend, "got end of file")
-			local v = fficast(ctype, ptr)[0]
-			ptr = ptr + ffi.sizeof(ctype)
-			return v
-		end
-		local numVertexes = pop(meshIndexType)
-		self.vertexes:resize(numVertexes)
-		local numIndexes = pop(meshIndexType)
-		self.indexes:resize(numIndexes)
-		for i=0,numVertexes-1 do
-			local vtx = self.vertexes.v + i
-			vtx.x = pop'int16_t'
-			vtx.y = pop'int16_t'
-			vtx.z = pop'int16_t'
-			vtx.u = pop'uint8_t'
-			vtx.v = pop'uint8_t'
-		end
+	self.data = data or ''
+
+	local minsize = 2 * ffi.sizeof(meshIndexType)	-- # vtxs, # indexes
+	if #self.data < minsize then self.data = ('\0'):rep(minsize) end
+
+	-- validate...
+	local numVtxs = self:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
+	local numIndexes = self:getNumIndexes()
+	local indexes = self:getIndexPtr()
+	if numIndexes ~= 0 then
 		for i=0,numIndexes-1 do
-			self.indexes.v[i] = pop(meshIndexType)
+			assert.le(0, indexes[i])
+			assert.lt(indexes[i], numVtxs)
 		end
-		assert.eq(ptr, ptrend, "found extra data at end of file")
 	end
---]]
-
-	-- TODO validate?
-	self:getNumVertexes()
-	self:getNumIndexes()
-
-	if #self.data < 4 then self.data = ('\0'):rep(4) end
 end
 function BlobMesh3D:getNumVertexes()
 	return ffi.cast(meshIndexType..'*', self:getPtr())[0]
@@ -595,6 +574,112 @@ function BlobMesh3D:getIndexPtr()
 	assert.le(0, ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr())
 	assert.eq(ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
 	return indptr
+end
+function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
+	--[[ use mesh library objloader
+	local mesh = OBJLoader():save(filepath)
+	--]]
+	-- [[ save ourselves
+	-- x / 2^8 <=> needs 8 digits of precision
+	-- but (x + .5) / 2^8 <=> needs 9 digits of precision
+	local o = table()
+	local vtxs = self:getVertexPtr()
+	local numVtxs = self:getNumVertexes()
+	for i=0,numVtxs-1 do
+		local v = vtxs + i
+		o:insert('v '..table{v.x, v.y, v.z}:mapi(function(x)
+			return ('%.9f'):format((x + .5) / 256)
+		end):concat' ')
+	end
+	for i=0,numVtxs-1 do
+		local v = vtxs + i
+		o:insert('vt '..table{v.u, v.v}:mapi(function(x)
+			return ('%.9f'):format((x + .5) / 256)
+		end):concat' ')
+	end
+	local numIndexes = self:getNumIndexes()
+	if numIndexes == 0 then
+		for i=0,numVtxs-2,3 do
+			o:insert('f '..(i+1)..' '..(i+2)..' '..(i+3))
+		end
+	else
+		local indexes = self:getIndexPtr()
+		for i=0,numIndexes-2,3 do
+			-- convert 0-based to 1-based
+			o:insert('f '..(1+indexes[i])..' '..(1+indexes[i+1])..' '..(1+indexes[i+2]))
+		end
+	end
+	filepath:write(o:concat'\n'..'\n')
+	--]]
+end
+-- static method
+function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
+	--[[
+	local mesh = OBJLoader():load(filepath)
+	--]]
+	-- [[
+	local vs = table()
+	local vts = table()
+	local is = table()
+	for line in io.lines(tostring(filepath)) do
+		local words = string.split(string.trim(line), '%s+')
+		local lineType = words:remove(1):lower()
+		if lineType == 'v' then
+			assert.ge(#words, 2)
+			vs:insert{
+				math.floor((tonumber(words[1]) or 0) * 256),
+				math.floor((tonumber(words[2]) or 0) * 256),
+				math.floor((tonumber(words[3]) or 0) * 256)
+			}
+		elseif lineType == 'vt' then
+			assert.ge(#words, 2)
+			vts:insert{
+				math.floor((tonumber(words[1]) or 0) * 256),
+				math.floor((tonumber(words[2]) or 0) * 256)
+			}
+		elseif lineType == 'f' then
+			assert(not line:find'/', "sorry I don't support faces with /'s in them, go delete that trash right now.")
+			assert.len(words, 3, "sorry I only support triangles")
+			for i=1,3 do
+				is:insert((assert(tonumber(words[i]))))
+			end
+		else
+			print('ignoring lineType', lineType)
+		end
+	end
+
+	local o = vector'int16_t'
+	o:emplace_back()[0] = #vs
+	o:emplace_back()[0] = #is
+	assert.eq(#vs, #vts, "your vertexes and texcoords must match.  Sorry I don't do any splitting and re-merging of geometry here")
+	for i=1,#vs do
+		local v = assert.index(vs, i)
+		local vt = assert.index(vts, i)
+		o:emplace_back()[0] = v[1]
+		o:emplace_back()[0] = v[2]
+		o:emplace_back()[0] = v[3]
+		local uv = ffi.cast('uint8_t*', o:emplace_back())
+		uv[0] = vt[1]
+		uv[1] = vt[2]
+	end
+
+	local allInARow = true
+	for i,j in ipairs(is) do
+		if i ~= j then
+			allInARow = false
+			break
+		end
+	end
+	-- if indexes are sequential then don't save them
+	if allInARow then
+		o.v[1] = 0	-- clear index count
+	else
+		for _,i in ipairs(is) do
+			o:emplace_back()[0] = i-1	-- convert from 1-based to 0-based
+		end
+	end
+	return self.class(o:dataToStr())
+	--]]
 end
 
 

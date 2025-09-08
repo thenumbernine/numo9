@@ -1,4 +1,7 @@
 #!/usr/bin/env rua
+--[[
+TODO I replaced saving-as-binary with saving-as-.obj so ...
+--]]
 local infn, outfn = ...
 assert(infn and outfn, "expected infn outfn\nex: bunny.txt mesh.3d")
 

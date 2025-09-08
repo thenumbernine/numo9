@@ -90,6 +90,8 @@ RGB332 uses dithering when converting from the 5551 palette entries.  It could s
 
 I've included a free/hidden depth buffer (like TIC-80 does), so you get free z-sorting.  It clears upon `cls()`.
 
+## Blob Types:
+
 ### sprites / tiles
 
 Tiles are 8x8 pixels.
@@ -98,15 +100,23 @@ The renderer can draw the sprite bits starting at any bitplane.
 This way you can store (and edit) 8 1-bpp images in the same texture region.
 
 The sprite sheet is 256x256 pixels.  This means 32x32 instances of 8x8 sprites in a sprite sheet.  Sprites are indexed 0 through 1023.
-The palette is a set of 256 colors stored in 5551 RGBA format.  Alpha is opacity, except when drawing solid rectangle/circle/line.
-The font is stored in a 256x8 texture.  Each 8x8 tile holds 8 characters in 1bpp, one per bitplane.
 The renderer also accepts an optional color index to consider transparent in addition to the palette alpha flag.
 The renderer also accepts a palette offset used for drawing low-bpp images using various palettes.
 The last 16 palette colors are used by the UI and console.  You can use this, however it will affect the UI.
 
 The tilesheet is equivalent to the sprite sheet in every way except that it is indexed by the tilemap.
 
-### Tilemap
+### palette
+
+The palette is a set of 256 colors stored in 5551 RGBA format.
+Alpha is opacity, except when drawing solid rectangle/circle/line.
+
+### font
+
+The font is stored in a 256x8 texture.
+Each 8x8 tile holds 8 characters in 1bpp, one per bitplane.
+
+### tilemap
 
 The tilemap is 256x256x16bpp.
 Tilemap bits:
@@ -121,10 +131,9 @@ Tilemap bits:
 If you want to h-flip, use 0b001.
 If you want to v-flip, h-flip and rotate twice, so use 0b101.
 
-
 Tilemaps can render 8x8 or 16x16 sprites.
 
-### Brushmaps
+### brushmap
 
 Brushmaps are a collection of stamps of specified x,y,width,height, and orientation.
 Stamps are associated with a specific brush.
@@ -142,17 +151,46 @@ Brushes are currently defined as a table in the `numo9_brushes` global in code.
 Values are functions that produce tileIndexes that can be blitted to the tilemap with the `blitbrush` and `blitbrushmap` functions.
 Values have the signature: `tileIndex = brush(relx, rely, stampw, stamph, stampx, stampy)`
 
-### Mode7
+### mesh3d
 
-What's a SNES-era fantasy-console without mode7?
-There are a few matrix functions that you can use to manipulate the render state:
-`matident`, `mattrans`, `matrot`, `matscale`, `matortho`, `matfrustum`, `matlookat`.
+3D meshes are stored in memory in the following format:
+```
+uint16_t numVertexes, numIndexes;
+struct {
+	int16_t x, y, z;
+	int8_t u, v;
+} vertexes;
+uint16_t indexes[numIndexes];
+```
 
-~~I'm using 16.16 fixed precision to store the matrix components.~~ (It is set to 32-bit floats for now until I tune the depth buffer support).
-SNES used 8.8, so I am being generous.
-I've tested with as close as 9.7 without getting too big of rounding errors, so maybe I could restrict this later, but meh.
+The x,y,z coordinates are treated as integers.  If you want to scale down your meshes then you must make use of the Mode-7 transforms.
+
+The u,v texcoords are lookups into the sprite sheet that the mesh is rendered with.
+
+If no indexes are provided then the renderer assumes indexes are sequential spanning all vertexes.
+
+When using the `n9a.lua` tool to save and load mesh3d blobs, meshes are imported and exported as Alias Wavefront `.obj` format.
+Both texcoords and vertexes are offset by 0.5 and scaled down by 1/256.  This way texcoords are normalized and models are in a reasonable scale, for the sake of previewing in other 3D model viewers.
+
+### voxelmap
+
+WIP but the latest on this is going to be ...
+```
+uint16_t width, height, depth;
+struct {
+	uint32_t mesh3DIndex : 17;	// up to 131072 unique voxel block types
+	uint32_t spriteIndex : 10;	// selector to offset texcoords in the sprite sheet, so the same mesh3d can be drawn with different textures.
+	uint32_t orientation : 5;	// 5 bits needed to represent all possible 24 isometric orientations of a cube.
+} Voxel;
+```
+
+The 3D orientations, like the 2D orientations, can be decomposed into bitfields:
+- 2 bits = yaw rotation
+- 2 bits = roll rotation
+- 1 bit = pitch rotation
 
 ### Audio
+(note to self, split this between sfx & music blob format and the APU specs)
 
 I might undercut SNES quality when it comes to audio.
 Not only am I not much of a retro audio programmer, but the SNES happened to be an exceptional audio hardware console of its time.
@@ -188,6 +226,16 @@ Each mixing channel holds the following information:
 There are 8 mixing channels.
 
 In this sense, if you are used to other fantasy consoles, their waveforms becomes my samples and their sfx and music (tracker format audio) become my music.
+
+### Mode7
+
+What's a SNES-era fantasy-console without mode7?
+There are a few matrix functions that you can use to manipulate the render state:
+`matident`, `mattrans`, `matrot`, `matscale`, `matortho`, `matfrustum`, `matlookat`.
+
+~~I'm using 16.16 fixed precision to store the matrix components.~~ (It is set to 32-bit floats for now until I tune the depth buffer support).
+SNES used 8.8, so I am being generous.
+I've tested with as close as 9.7 without getting too big of rounding errors, so maybe I could restrict this later, but meh.
 
 ### Memory Layout
 
