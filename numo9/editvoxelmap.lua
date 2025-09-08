@@ -81,6 +81,7 @@ function EditVoxelMap:update()
 				bit.band(i, 2) ~= 0 and size[2] or 0,
 				bit.band(i, 3) ~= 0 and size[3] or 0
 		end
+
 		for i=0,7 do
 			for j=0,2 do
 				local k = bit.bxor(i, bit.lshift(1, j))
@@ -90,7 +91,6 @@ function EditVoxelMap:update()
 					app:drawSolidLine3D(
 						ax, ay, az,
 						bx, by, bz,
-						size[1], 0, 0,
 						0x31,
 						nil,
 						app.paletteMenuTex)
