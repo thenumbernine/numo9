@@ -451,6 +451,7 @@ typedef struct {
 } Voxel;
 ]]
 assert.eq(ffi.sizeof'Voxel', 4)
+local voxelmapSizeType = 'uint32_t'
 
 return {
 	updateHz = updateHz,
@@ -517,4 +518,5 @@ return {
 	loopOffsetType = loopOffsetType,
 
 	meshIndexType = meshIndexType,
+	voxelmapSizeType = voxelmapSizeType,
 }

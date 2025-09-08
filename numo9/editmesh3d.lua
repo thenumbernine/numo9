@@ -147,7 +147,7 @@ function EditMesh3D:update()
 
 	app:setClipRect(0, 0, clipMax, clipMax)
 
-	local x, y = 48, 0
+	local x, y = 50, 0
 	self:guiBlobSelect(x, y, 'mesh3d', self, 'mesh3DBlobIndex')
 	x = x + 12
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')

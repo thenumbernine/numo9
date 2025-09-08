@@ -30,6 +30,7 @@ local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local loopOffsetType = numo9_rom.loopOffsetType
 local mvMatType = numo9_rom.mvMatType
 local meshIndexType = numo9_rom.meshIndexType
+local voxelmapSizeType = numo9_rom.voxelmapSizeType
 
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
@@ -694,7 +695,6 @@ typedef struct {
 } VoxelBlock;
 VoxelBlock data[width*height*depth];
 --]]
-local voxelmapSizeType = 'uint32_t'
 local BlobVoxelMap = blobSubclass('voxelmap', BlobDataAbs)
 BlobVoxelMap.filenamePrefix = 'voxelmap'
 BlobVoxelMap.filenameSuffix = '.vox'

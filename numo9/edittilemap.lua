@@ -565,7 +565,7 @@ function EditTilemap:update()
 		end
 	end
 
-	local x, y = 48, 0
+	local x, y = 50, 0
 	-- draw ui menubar last so it draws over the rest of the page
 	self:guiBlobSelect(x, y, 'tilemap', self, 'tilemapBlobIndex', function()
 		-- for now only one undo per tilemap at a time

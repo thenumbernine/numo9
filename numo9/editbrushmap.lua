@@ -467,7 +467,7 @@ print('resizing', require 'ext.tolua'(self.resizing))
 
 	app:matident()
 
-	local x, y = 40, 0
+	local x, y = 50, 0
 	self:guiBlobSelect(x, y, 'brushmap', self, 'brushmapBlobIndex', function()
 		-- assume we already wrote it as soon as a changed happened
 		self:readSelBrushmapBlob()
