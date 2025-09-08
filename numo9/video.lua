@@ -1518,7 +1518,9 @@ void main() {
 			tci = ivec2(tci.y, ~tci.x);
 			tci = ivec2(tci.y, ~tci.x);
 		}
-		if (((tileIndex >> 13) & 1) != 0) tci.x = ~tci.x;	// tilemap bit 13 = hflip
+		if (((tileIndex >> 13) & 1) != 0) {
+			tci.x = ~tci.x;	// tilemap bit 13 = hflip
+		}
 
 		int mask = (1 << (3u + draw16Sprites)) - 1;
 		// [0, spriteSize)^2
@@ -3387,7 +3389,7 @@ function AppVideo:drawBrush(
 	local tileBits = draw16Sprites and 4 or 3
 	local tileSizeInPixels = bit.lshift(1, tileBits)
 
-	local stampHFlip = bit.band(1, stampOrientation) ~= 0
+	local stampHFlip = bit.band(1, stampOrientation)
 	local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
 
 	for ofsx=0,stampW-1 do
@@ -3406,18 +3408,16 @@ function AppVideo:drawBrush(
 				bx, by, bw, bh = by, bw-1-bx, bh, bw
 				bx, by, bw, bh = by, bw-1-bx, bh, bw
 			end
-			if stampHFlip then
-				bx = bw-1-bx
-			end
+			if stampHFlip ~= 0 then bx = bw-1-bx end
 
 			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
 			local tileIndex = brush
-				and brush(bx, by, stampW, stampH, stampTileX, stampTileY)
+				and brush(bx, by, bw, bh, stampTileX, stampTileY)
 				or 0
 			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
 			local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
-			tileOrientation = bit.bxor(tileOrientation, bit.band(1, stampOrientation))
-			tileOrientation = bit.band(7, tileOrientation + bit.band(6, stampOrientation))
+			tileOrientation = bit.bxor(tileOrientation, stampHFlip)
+			tileOrientation = bit.band(7, tileOrientation + bit.lshift(stampRot, 1))
 			local spriteIndex = bit.band(0x3FF, tileIndex)	-- 10 bits
 
 			-- TODO build rotations into the sprite pathway?
@@ -3493,6 +3493,9 @@ function AppVideo:blitBrush(
 	end
 	local tilemapAddr = self.tilemapRAMs[tilemapIndex+1].addr
 
+	local stampHFlip = bit.band(1, stampOrientation)
+	local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
+
 	-- TODO early bailout of intersection test
 	for ofsy=0,stampH-1 do
 		for ofsx=0,stampW-1 do
@@ -3505,7 +3508,6 @@ function AppVideo:blitBrush(
 			and dstx >= 0 and dstx < tilemapSize.x
 			and dsty >= 0 and dsty < tilemapSize.y
 			then
-				local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
 				-- TODO if we're rotating the stamp then no more promises of ofsx ofsy vs stampx stampy ...
 				-- ... should I pass stampOrientation also to let brush definers try to fix this or nah?
 				local bx, by, bw, bh = ofsx, ofsy, stampW, stampH
@@ -3519,13 +3521,11 @@ function AppVideo:blitBrush(
 					bx, by, bw, bh = by, bw-1-bx, bh, bw
 					bx, by, bw, bh = by, bw-1-bx, bh, bw
 				end
-				if bit.band(1, stampOrientation) ~= 0 then
-					bx = bw-1-bx
-				end
-				local tileIndex = brush(bx, by, stampW, stampH, stampX, stampY, stampOrientation) or 0
+				if stampHFlip ~= 0 then bx = bw-1-bx end
+				local tileIndex = brush(bx, by, bw, bh, stampX, stampY, stampOrientation) or 0
 				local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
-				tileOrientation = bit.bxor(tileOrientation, bit.band(1, stampOrientation))
-				tileOrientation = bit.band(7, tileOrientation + bit.band(6, stampOrientation))
+				tileOrientation = bit.bxor(tileOrientation, stampHFlip)
+				tileOrientation = bit.band(7, tileOrientation + bit.lshift(stampRot, 1))
 				tileIndex = bit.bor(bit.band(0x1fff, tileIndex), bit.lshift(tileOrientation, 13))
 				self:net_pokew(
 					tilemapAddr + 2 * (dstx + dsty * tilemapSize.x),

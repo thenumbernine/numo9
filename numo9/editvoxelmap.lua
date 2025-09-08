@@ -75,12 +75,28 @@ function EditVoxelMap:update()
 			app:mattrans(0, 0, -.5 * zf)
 		end
 
-		self:drawSolidLine3D(
-			0,0,0,
-			voxelmapBlob:getWidth(), 0, 0,
-			0x31,
-			nil,
-			app.paletteMenuTex)
+		local size = {voxelmapBlob:getWidth(), voxelmapBlob:getHeight(), voxelmapBlob:getDepth()}
+		local function corner(i)
+			return bit.band(i, 1) ~= 0 and size[1] or 0,
+				bit.band(i, 2) ~= 0 and size[2] or 0,
+				bit.band(i, 3) ~= 0 and size[3] or 0
+		end
+		for i=0,7 do
+			for j=0,2 do
+				local k = bit.bxor(i, bit.lshift(1, j))
+				if k > i then
+					local ax, ay, az = corner(i)
+					local bx, by, bz = corner(j)
+					self:drawSolidLine3D(
+						ax, ay, az,
+						bx, by, bz,
+						size[1], 0, 0,
+						0x31,
+						nil,
+						app.paletteMenuTex)
+				end
+			end
+		end
 
 		-- TODO here draw the voxelmap ...
 		self:drawVoxelMap(

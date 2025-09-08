@@ -41,24 +41,6 @@ local EditBrushmap = require 'numo9.ui':subclass()
 function EditBrushmap:init(args)
 	EditBrushmap.super.init(self, args)
 
-	self.brushPreviewSize = 3
-
-	self.lastMoveDown = vec2i()
-
-	-- stamps: index, x, y, width, height
-	self.stamps = table()	-- table-of-Stamp cdata , each allocated individually so that vector-resizes dont mess up pointers into this table (like the selected[] table uses)
-	self.selected = {}
-
-	self.selBrushIndex = 1	-- 0-based? 1-based? this indexes into the Lua table in code so 1-based for now
-
-	self.tilePanDownPos = vec2i()
-	self.tilemapPanOffset = vec2d()
-	self.tilePanPressed = false
-	self.scale = 1
-	self.drawGrid = false
-	self.draw16Sprites = false
-	self.orientation = 0	-- 2D orientation: bit 0 = hflip bits 12 = rotation
-
 	self:onCartLoad()
 end
 
@@ -485,12 +467,36 @@ end
 
 function EditBrushmap:readSelBrushmapBlob()
 	local app = self.app
-	local brushmapBlob = app.blobs.brushmap[self.brushmapBlobIndex+1]
-	if not brushmapBlob then return end
+
+	-- table-of-Stamp cdata , each allocated individually so that vector-resizes dont mess up pointers into this table (like the selected[] table uses)
 	self.stamps = table()
-	for _,stamp in ipairs(brushmapBlob.vec) do
-		self.stamps:insert(ffi.new('Stamp', stamp))	-- allocate a new Stamp so that its not pointing to memory in the blob, so if the blob vec resizes we don't lose our pointer
+
+	local brushmapBlob = app.blobs.brushmap[self.brushmapBlobIndex+1]
+	if brushmapBlob then
+		for _,stamp in ipairs(brushmapBlob.vec) do
+			self.stamps:insert(ffi.new('Stamp', stamp))	-- allocate a new Stamp so that its not pointing to memory in the blob, so if the blob vec resizes we don't lose our pointer
+		end
 	end
+
+	-- reset UI state variables while we're here
+
+	self.brushPreviewSize = 3
+
+	self.lastMoveDown = vec2i()
+
+	self.selected = {}
+
+	self.selBrushIndex = 1	-- 0-based? 1-based? this indexes into the Lua table in code so 1-based for now
+
+	self.tilePanDownPos = vec2i()
+	self.tilemapPanOffset = vec2d()
+	self.tilePanPressed = false
+	self.scale = 1
+	self.drawGrid = false
+	self.draw16Sprites = false
+	self.orientation = 0	-- 2D orientation: bit 0 = hflip bits 12 = rotation
+
+
 end
 
 function EditBrushmap:writeSelBrushmapBlob()

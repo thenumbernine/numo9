@@ -1,7 +1,6 @@
 -- title = BrushTest
 -- author = Chris Moore
 -- description = brush/brushmap test.
--- editTilemap.sheetBlobIndex = 0
 -- editTilemap.draw16Sprites = true
 -- editBrushmap.draw16Sprites = true
 
