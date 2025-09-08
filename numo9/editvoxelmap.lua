@@ -75,8 +75,15 @@ function EditVoxelMap:update()
 			app:mattrans(0, 0, -.5 * zf)
 		end
 
+		self:drawSolidLine3D(
+			0,0,0,
+			voxelmapBlob:getWidth(), 0, 0,
+			0x31,
+			nil,
+			app.paletteMenuTex)
+
 		-- TODO here draw the voxelmap ...
-		self:net_drawVoxelMap(
+		self:drawVoxelMap(
 			self.voxelmapBlobIndex,
 			self.sheetBlobIndex,
 			self.paletteBlobIndex

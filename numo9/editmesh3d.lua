@@ -104,7 +104,8 @@ function EditMesh3D:update()
 							a.x, a.y, a.z,
 							b.x, b.y, b.z,
 							color,
-							thickness)
+							thickness,
+							app.paletteMenuTex)
 					end
 				end
 			else	-- draw indexed vertexes
@@ -116,13 +117,14 @@ function EditMesh3D:update()
 							a.x, a.y, a.z,
 							b.x, b.y, b.z,
 							color,
-							thickness)
+							thickness,
+							app.paletteMenuTex)
 					end
 				end
 			end
 		end
 		if self.drawFaces then
-			app:net_drawMesh3D(
+			app:drawMesh3D(
 				self.mesh3DBlobIndex,
 				0,	-- uofs
 				0,	-- vofs

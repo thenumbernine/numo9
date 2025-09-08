@@ -107,49 +107,6 @@ function EditBrushmap:update()
 
 		local brushesKeys = table.keys(brushes):sort()
 
-		-- title controls
-		local x, y = 64, 0
-
-		self:guiButton('#'..#brushesKeys, x, y, nil, 'numo9_brushes[]')
-		x = x + 24
-
-		self:guiSpinner(x, y, function(dx)
-			self.brushPreviewSize = math.max(1, self.brushPreviewSize + dx)
-		end, 'previewSize='..tostring(self.brushPreviewSize))
-		x = x + 16
-
-		self:guiSpinner(x, y, function(dx)
-			self.selBrushIndex = math.clamp(self.selBrushIndex + dx, 1, #brushes)
-		end, 'brush='..self.selBrushIndex)
-		x = x + 16
-
-		if self:guiButton('T', x, y, self.pickOpen, 'tile') then
-			self.pickOpen = not self.pickOpen
-		end
-		x = x + 8
-
-		-- TODO this across here and the tilemap editor, and maybe from a memory address in the game...
-		if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
-			self.draw16Sprites = not self.draw16Sprites
-		end
-		x = x + 8
-
-		if self:guiButton('G', x, y, self.drawGrid, 'grid') then
-			self.drawGrid = not self.drawGrid
-		end
-		x = x + 8
-
-		self:guiSpinner(x, y, function(dx)
-			self.orientation = bit.band(7, self.orientation + dx)
-			for stamp in pairs(self.selected) do
-				stamp.orientation = self.orientation
-			end
-		end, 'orient='..tostring(self.orientation))
-		if next(self.selected) then
-			self:writeSelBrushmapBlob()
-		end
-		x = x + 16
-
 
 		x, y = 0, 8
 
@@ -181,7 +138,7 @@ function EditBrushmap:update()
 			local stampScreenX, stampScreenY = pickX, pickY
 			for _,brushIndex in ipairs(brushesKeys) do
 
-				app:net_drawBrush(
+				app:drawBrush(
 					brushIndex,
 					stampScreenX, stampScreenY,
 					self.brushPreviewSize, self.brushPreviewSize,
@@ -238,14 +195,15 @@ function EditBrushmap:update()
 			app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
 
 			for _,stamp in ipairs(self.stamps) do
-				app:net_drawBrush(
+				app:drawBrush(
 					tonumber(stamp.brush),	-- might be nil
 					stamp.x * tileSizeInPixels,
 					stamp.y * tileSizeInPixels,
 					stamp.w,
 					stamp.h,
 					stamp.orientation,
-					self.draw16Sprites)
+					self.draw16Sprites,
+					self.sheetBlobIndex)
 				if self.selected[stamp] then
 					app:drawBorderRect(
 						stamp.x * tileSizeInPixels,
@@ -478,6 +436,49 @@ print('resizing', require 'ext.tolua'(self.resizing))
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
 	x = x + 12
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
+	x = x + 12
+
+	if brushmapBlob then
+		-- title controls
+		x = x + 2
+
+		self:guiSpinner(x, y, function(dx)
+			self.brushPreviewSize = math.max(1, self.brushPreviewSize + dx)
+		end, 'previewSize='..tostring(self.brushPreviewSize))
+		x = x + 16
+
+		self:guiSpinner(x, y, function(dx)
+			self.selBrushIndex = math.clamp(self.selBrushIndex + dx, 1, #brushes)
+		end, 'brush='..self.selBrushIndex)
+		x = x + 16
+
+		if self:guiButton('T', x, y, self.pickOpen, 'tile') then
+			self.pickOpen = not self.pickOpen
+		end
+		x = x + 8
+
+		-- TODO this across here and the tilemap editor, and maybe from a memory address in the game...
+		if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
+			self.draw16Sprites = not self.draw16Sprites
+		end
+		x = x + 8
+
+		if self:guiButton('G', x, y, self.drawGrid, 'grid') then
+			self.drawGrid = not self.drawGrid
+		end
+		x = x + 8
+
+		self:guiSpinner(x, y, function(dx)
+			self.orientation = bit.band(7, self.orientation + dx)
+			for stamp in pairs(self.selected) do
+				stamp.orientation = self.orientation
+			end
+		end, 'orient='..tostring(self.orientation))
+		if next(self.selected) then
+			self:writeSelBrushmapBlob()
+		end
+		x = x + 16
+	end
 
 	self:drawTooltip()
 end

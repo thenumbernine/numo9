@@ -337,16 +337,19 @@ function App:initGL()
 		end,
 
 		drawbrush = function(...)
-			return self:net_drawBrush(...)
+			return self:drawBrush(...)
 		end,
 		blitbrush = function(...)
-			return self:net_blitBrush(...)
+			return self:blitBrush(...)
 		end,
 		blitbrushmap = function(...)
-			return self:net_blitBrushMap(...)
+			return self:blitBrushMap(...)
 		end,
 		mesh = function(...)
-			return self:net_drawMesh3D(...)
+			return self:drawMesh3D(...)
+		end,
+		voxelmap = function(...)
+			return self:drawVoxelMap(...)
 		end,
 
 		-- graphics

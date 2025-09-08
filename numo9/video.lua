@@ -2365,16 +2365,25 @@ local function homogeneous(sx, sy, x,y,z,w)
 
 	return x,y,z,w
 end
-function AppVideo:drawSolidLine3D(x1, y1, z1, x2, y2, z2, colorIndex, thickness)
-	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
-	if not paletteRAM then
-		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+function AppVideo:drawSolidLine3D(
+	x1, y1, z1,
+	x2, y2, z2,
+	colorIndex,
+	thickness,
+	paletteTex
+)
+	if not paletteTex then
+		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+		if not paletteRAM then
+			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		end
+		if paletteRAM.dirtyCPU then
+			self.triBuf:flush()
+			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+		end
+		paletteTex = paletteRAM.tex
 	end
-	if paletteRAM.dirtyCPU then
-		self.triBuf:flush()
-		paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
-	end
-	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
+
 	if self.framebufferRAM.dirtyCPU then
 		self.triBuf:flush()
 		self.framebufferRAM:checkDirtyCPU()
@@ -3335,7 +3344,7 @@ end
 local mvMatPush = ffi.new(mvMatType..'[16]')
 -- this is a sprite-based preview of tilemap rendering
 -- it's made to simulate blitting the brush onto the tilemap (without me writing the tiles to a GPU texture and using the shader pathway)
-function AppVideo:net_drawBrush(
+function AppVideo:drawBrush(
 	brushIndex,
 	stampScreenX, stampScreenY,
 	stampW, stampH,
@@ -3353,17 +3362,17 @@ function AppVideo:net_drawBrush(
 
 	local gameEnv = self.gameEnv
 	if not gameEnv then
---DEBUG:print('net_drawBrush - no gameEnv - bailing')
+--DEBUG:print('drawBrush - no gameEnv - bailing')
 		return
 	end
 	local brushes = gameEnv.numo9_brushes
 	if not brushes then
---DEBUG:print('net_drawBrush - no numo9_brushes - bailing')
+--DEBUG:print('drawBrush - no numo9_brushes - bailing')
 		return
 	end
 	local brush = brushes[brushIndex]
 	if not brush then
---DEBUG:print('net_drawBrush - numo9_brushes key '..tostring(brushIndex)..' not found - bailing')
+--DEBUG:print('drawBrush - numo9_brushes key '..tostring(brushIndex)..' not found - bailing')
 		return
 	end
 
@@ -3445,13 +3454,13 @@ function AppVideo:net_drawBrush(
 end
 
 -- these are net friendly since they are called from the game API
-function AppVideo:net_blitBrush(
+function AppVideo:blitBrush(
 	brushIndex, tilemapIndex,
 	stampX, stampY, stampW, stampH,
 	stampOrientation,
 	cx, cy, cw, ch
 )
---DEBUG:print('net_blitBrush', brushIndex, tilemapIndex, stampX, stampY, stampW, stampH, cx, cy, cw, ch)
+--DEBUG:print('blitBrush', brushIndex, tilemapIndex, stampX, stampY, stampW, stampH, cx, cy, cw, ch)
 	brushIndex = brushIndex or 0
 	tilemapIndex = tilemapIndex or 0
 	stampOrientation = stampOrientation or 0
@@ -3463,23 +3472,23 @@ function AppVideo:net_blitBrush(
 
 	local gameEnv = self.gameEnv
 	if not gameEnv then
---DEBUG:print('net_blitBrush - no gameEnv - bailing')
+--DEBUG:print('blitBrush - no gameEnv - bailing')
 		return
 	end
 	local brushes = gameEnv.numo9_brushes
 	if not brushes then
---DEBUG:print('net_blitBrush - no numo9_brushes - bailing')
+--DEBUG:print('blitBrush - no numo9_brushes - bailing')
 		return
 	end
 	local brush = brushes[brushIndex]
 	if not brush then
---DEBUG:print('net_blitBrush - no brushBlob '..tostring(brushIndex)..' - bailing')
+--DEBUG:print('blitBrush - no brushBlob '..tostring(brushIndex)..' - bailing')
 		return
 	end
 
 	local tilemapBlob = self.blobs.tilemap[tilemapIndex+1]
 	if not tilemapBlob then
---DEBUG:print('net_blitBrush - no tilemapBlob '..tostring(tilemapBlob)..' - bailing')
+--DEBUG:print('blitBrush - no tilemapBlob '..tostring(tilemapBlob)..' - bailing')
 		return
 	end
 	local tilemapAddr = self.tilemapRAMs[tilemapIndex+1].addr
@@ -3527,13 +3536,13 @@ function AppVideo:net_blitBrush(
 	end
 end
 
-function AppVideo:net_blitBrushMap(
+function AppVideo:blitBrushMap(
 	brushmapIndex, tilemapIndex,
 	x, y,
 	-- TODO orientation here too?
 	cx, cy, cw, ch
 )
---DEBUG:print('net_blitBrushMap', brushmapIndex, tilemapIndex, x, y, w, h)
+--DEBUG:print('blitBrushMap', brushmapIndex, tilemapIndex, x, y, w, h)
 	brushmapIndex = brushmapIndex or 0
 	-- brushmap offset into the tilemap
 	x = x or 0
@@ -3546,7 +3555,7 @@ function AppVideo:net_blitBrushMap(
 
 	local brushmapBlob = self.blobs.brushmap[brushmapIndex+1]
 	if not brushmapBlob then
---DEBUG:print('net_blitBrushMap - no brushmapBlob '..tostring(brushmapIndex)..' - bailing')
+--DEBUG:print('blitBrushMap - no brushmapBlob '..tostring(brushmapIndex)..' - bailing')
 		return
 	end
 
@@ -3559,7 +3568,7 @@ function AppVideo:net_blitBrushMap(
 		and sy >= cy
 		and sy + stamp.h < cy + ch
 		then
-			self:net_blitBrush(
+			self:blitBrush(
 				tonumber(stamp.brush),
 				tilemapIndex,
 				sx,
@@ -3579,7 +3588,7 @@ function AppVideo:net_blitBrushMap(
 	end
 end
 
-function AppVideo:net_drawMesh3D(
+function AppVideo:drawMesh3D(
 	mesh3DIndex,
 	uofs,
 	vofs,
@@ -3643,7 +3652,7 @@ end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
 local mvMatPush2 = ffi.new(mvMatType..'[16]')
-function AppVideo:net_drawVoxelMap(
+function AppVideo:drawVoxelMap(
 	voxelmapIndex,
 	sheetIndex,
 	paletteIndex
@@ -3671,7 +3680,7 @@ function AppVideo:net_drawVoxelMap(
 				self:matrot(vptr.rotY * .5 * math.pi, 0, 1, 0)
 				self:matrot(vptr.rotX * .5 * math.pi, 1, 0, 0)
 
-				self:net_drawMesh3D(
+				self:drawMesh3D(
 					vptr.mesh3DIndex,
 					bit.lshift(vptr.tileXOffset, 3),
 					bit.lshift(vptr.tileYOffset, 3),
