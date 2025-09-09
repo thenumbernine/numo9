@@ -155,6 +155,26 @@ drawMapBorder=||do
 end
 --]]
 
+printOBJ=|m|do
+	local v=|x| (('%.9f'):format((x * 32768 - 16384 +.5)/256))
+	for _,t in ipairs(m) do
+		for j=0,14,5 do
+			print('v '..v(t[j+1])..' '..v(t[j+2])..' '..v(t[j+3]))
+		end
+	end
+	local vt=|x| (('%.9f'):format((x * 15 + .5)/256))
+	for _,t in ipairs(m) do
+		for j=0,14,5 do
+			print('vt '..vt(t[j+4])..' '..vt(t[j+5]))
+		end
+	end
+	for i=1,#m*3,3 do
+		print('f '..i..' '..(i+1)..' '..(i+2))
+	end
+end
+
+
+
 
 viewZNear = 1
 viewZFar = levelSize.y*2
@@ -239,6 +259,9 @@ for dim=0,2 do
 		end
 	end
 end
+trace'begin cube'
+printOBJ(cubeTris)
+trace'end cube'
 drawCube=|...| drawObj(cubeTris, ...)
 
 local slopeTris = table()
@@ -271,6 +294,10 @@ for dim=0,2 do
 		end
 	end
 end
+
+trace'begin slope'
+printOBJ(slopeTris)
+trace'end slope'
 drawSlope=|spriteIndex, ...| drawObj(slopeTris, 1024|STONE, ...)
 
 drawForFlags = |mt, spriteIndex, x, y, z, ...| do
