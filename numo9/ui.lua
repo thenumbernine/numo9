@@ -313,7 +313,8 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 				blobsOfType:insert(blobClassForName[blobName]())
 				t[indexKey] = 0
 			else
-				blobsOfType:insert(t[indexKey]+1, blobClassForName[blobName]())
+				-- insert after this 0-based blob = +2
+				blobsOfType:insert(t[indexKey]+2, blobClassForName[blobName]())
 				t[indexKey] = t[indexKey] + 1
 			end
 			changed = true
