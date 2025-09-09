@@ -53,19 +53,19 @@ function EditVoxelMap:update()
 		gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 		ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
-		self.orbit:applyMatrix()
+		self.orbit:applyMatrix()	-- this scales down by 32768 for the sake f 3d model's sint16 type
 
 		local size = {voxelmapBlob:getWidth(), voxelmapBlob:getHeight(), voxelmapBlob:getDepth()}
 		local function corner(i)
-			return bit.band(i, 1) ~= 0 and size[1] or 0,
-				bit.band(i, 2) ~= 0 and size[2] or 0,
-				bit.band(i, 3) ~= 0 and size[3] or 0
+			return bit.band(i, 1) ~= 0 and size[1] * 32768 or 0,
+				bit.band(i, 2) ~= 0 and size[2] * 32768 or 0,
+				bit.band(i, 4) ~= 0 and size[3] * 32768 or 0
 		end
 
 		for i=0,7 do
-			for j=0,2 do
-				local k = bit.bxor(i, bit.lshift(1, j))
-				if k > i then
+			for b=0,2 do
+				local j = bit.bxor(i, bit.lshift(1, b))
+				if j > i then
 					local ax, ay, az = corner(i)
 					local bx, by, bz = corner(j)
 					app:drawSolidLine3D(
