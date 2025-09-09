@@ -21,6 +21,8 @@ function EditMesh3D:onCartLoad()
 
 	self.drawFaces = true
 	self.wireframe = false
+	self.tileXOffset = 0
+	self.tileYOffset = 0
 
 	self.orbit = Orbit(self.app)
 end
@@ -90,8 +92,8 @@ function EditMesh3D:update()
 			app.ram.paletteBlobIndex = self.paletteBlobIndex
 			app:drawMesh3D(
 				self.mesh3DBlobIndex,
-				0,	-- uofs
-				0,	-- vofs
+				self.tileXOffset,
+				self.tileYOffset,
 				self.sheetBlobIndex
 			)
 			app.ram.paletteBlobIndex = pushPalBlobIndex 
@@ -133,6 +135,18 @@ function EditMesh3D:update()
 		self.orbit.ortho = not self.orbit.ortho
 	end
 	x = x + 8
+
+	self:guiSpinner(x, y, function(dx)
+		self.tileXOffset = bit.band(31, self.tileXOffset + dx)
+	end, 'uofs='..self.tileXOffset)
+	x = x + 12
+
+	-- [[ TODO replace this with edittilemap's sheet tile selector
+	self:guiSpinner(x, y, function(dx)
+		self.tileYOffset = bit.band(31, self.tileYOffset + dx)
+	end, 'vofs='..self.tileYOffset)
+	x = x + 12
+
 
 	self:drawTooltip()
 end

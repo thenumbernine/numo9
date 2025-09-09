@@ -120,13 +120,13 @@ function EditVoxelMap:update()
 
 	self:guiSpinner(x, y, function(dx)
 		self.tileXOffset = bit.band(31, self.tileXOffset + dx)
-	end, 'uofs='..self.tileYOffset)
+	end, 'uofs='..self.tileXOffset)
 	x = x + 12
 
 	-- [[ TODO replace this with edittilemap's sheet tile selector
 	self:guiSpinner(x, y, function(dx)
 		self.tileYOffset = bit.band(31, self.tileYOffset + dx)
-	end, 'vofs='..self.tileXOffset)
+	end, 'vofs='..self.tileYOffset)
 	x = x + 12
 
 	self:guiSpinner(x, y, function(dx)
