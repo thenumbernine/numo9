@@ -3742,4 +3742,6 @@ return {
 	resetFont = resetFont,
 	resetPalette = resetPalette,
 	AppVideo = AppVideo,
+	vec2to4 = vec2to4,
+	vec3to4 = vec3to4,
 }
