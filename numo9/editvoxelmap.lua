@@ -91,6 +91,11 @@ function EditVoxelMap:update()
 		)
 		app.ram.paletteBlobIndex = pushPalBlobIndex
 
+		-- TODO
+		-- mouse line, intersect only with far bounding planes of the voxelmap
+		-- or intersect with march through the voxelmap
+
+
 		ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		-- flush before disable depth test so the flush will use depth test...
 		app.triBuf:flush()
@@ -165,8 +170,6 @@ function EditVoxelMap:update()
 		end, 'depth='..voxelmapBlob:getDepth())
 		x = x + 12
 	end
-
-	-- TODO selector for which mesh3D to place
 
 	self:drawTooltip()
 end

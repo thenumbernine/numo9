@@ -30,6 +30,7 @@ end
 
 function Orbit:applyMatrix()
 	local app = self.app
+	local height = 256
 	local dx, dy = self.mouseMove:unpack()
 	if app:key'mouse_left'
 	and (dx ~= 0 or dy ~= 0)
@@ -42,10 +43,14 @@ function Orbit:applyMatrix()
 			uikey = app:key'lctrl' or app:key'rctrl'
 		end
 		if shift then
-			self.scale = self.scale * math.exp(.1 * dy)
+			if self.ortho then
+				self.scale = self.scale * math.exp(.1 * dy)
+			else
+				self.pos = (self.pos - self.orbit) * math.exp(dy * -.03) + self.orbit
+			end
 		elseif uikey then
 			local dist = (self.pos - self.orbit):length()
-			self.orbit = self.orbit + self.angle:rotate(vec3d(-dx,dy,0) * (dist / 256))
+			self.orbit = self.orbit + self.angle:rotate(vec3d(-dx,dy,0) * (dist / height))
 			self.pos = self.angle:zAxis() * dist + self.orbit
 		else
 			self.angle = self.angle * quatd():fromAngleAxis(-dy,-dx, 0, 3*math.sqrt(dx^2+dy^2))

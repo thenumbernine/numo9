@@ -259,9 +259,9 @@ for dim=0,2 do
 		end
 	end
 end
-trace'begin cube'
-printOBJ(cubeTris)
-trace'end cube'
+--trace'begin cube'
+--printOBJ(cubeTris)
+--trace'end cube'
 drawCube=|...| drawObj(cubeTris, ...)
 
 local slopeTris = table()
@@ -295,9 +295,9 @@ for dim=0,2 do
 	end
 end
 
-trace'begin slope'
-printOBJ(slopeTris)
-trace'end slope'
+--trace'begin slope'
+--printOBJ(slopeTris)
+--trace'end slope'
 drawSlope=|spriteIndex, ...| drawObj(slopeTris, 1024|STONE, ...)
 
 drawForFlags = |mt, spriteIndex, x, y, z, ...| do
