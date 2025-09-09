@@ -460,6 +460,7 @@ typedef union {
 ]]
 assert.eq(ffi.sizeof'Voxel', 4)
 local voxelmapSizeType = 'uint32_t'
+local voxelMapEmptyValue = -1
 
 return {
 	updateHz = updateHz,
@@ -527,4 +528,5 @@ return {
 
 	meshIndexType = meshIndexType,
 	voxelmapSizeType = voxelmapSizeType,
+	voxelMapEmptyValue = voxelMapEmptyValue,
 }

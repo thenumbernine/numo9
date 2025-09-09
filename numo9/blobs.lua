@@ -31,6 +31,7 @@ local loopOffsetType = numo9_rom.loopOffsetType
 local mvMatType = numo9_rom.mvMatType
 local meshIndexType = numo9_rom.meshIndexType
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
+local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
@@ -708,7 +709,7 @@ function BlobVoxelMap:init(data)
 		p[1] = 1
 		p[2] = 1
 		local v = ffi.cast('Voxel*', p+3)
-		v = ffi.new'Voxel'	-- does the default struct constructor fill even bitfields with zero? why wouldn't it?
+		v[0].intval = voxelMapEmptyValue
 	end
 
 	-- validate that the header at least works

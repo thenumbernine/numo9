@@ -12,6 +12,7 @@ local numo9_rom = require 'numo9.rom'
 local mvMatType = numo9_rom.mvMatType
 local clipMax = numo9_rom.clipMax
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
+local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
@@ -86,7 +87,7 @@ function EditVoxelMap:update()
 			self.voxelmapBlobIndex,
 			self.sheetBlobIndex
 		)
-		app.ram.paletteBlobIndex = pushPalBlobIndex 
+		app.ram.paletteBlobIndex = pushPalBlobIndex
 
 		ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		-- flush before disable depth test so the flush will use depth test...
@@ -193,7 +194,7 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 						)
 					].intval
 				else
-					o:emplace_back()[0] = 0		-- default type ... of 0, right?
+					o:emplace_back()[0] = voxelMapEmptyValue		-- default type ... of 0, right?
 				end
 			end
 		end
