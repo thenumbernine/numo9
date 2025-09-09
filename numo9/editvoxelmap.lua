@@ -27,7 +27,6 @@ function EditVoxelMap:onCartLoad()
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
 
-	self.lastMousePos = vec2i()
 	self.tileXOffset = 0
 	self.tileYOffset = 0
 	self.orientation = 0
@@ -44,13 +43,6 @@ function EditVoxelMap:update()
 	app:setClipRect(0, 8, 256, 256)
 
 	self.orbit:update()
-
-	local mouseX, mouseY = app.ram.mousePos:unpack()
-	local dx = mouseX - self.lastMousePos.x
-	local dy = mouseY - self.lastMousePos.y
-	self.lastMousePos:set(mouseX, mouseY)
-	local leftButtonDown = app:key'mouse_left'
-	local shift = app:key'lshift' or app:key'rshift'
 
 	local voxelmapBlob = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 	if voxelmapBlob then
