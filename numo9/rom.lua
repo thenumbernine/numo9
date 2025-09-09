@@ -438,16 +438,24 @@ assert.eq(ffi.sizeof'Vertex', 8)
 local meshIndexType = 'uint16_t'
 
 ffi.cdef[[
-typedef struct {
-	// up to 131072 unique voxel block types
-	uint32_t mesh3DIndex : 17;
-	// selector to offset texcoords in the sprite sheet, so the same mesh3d can be drawn with different textures.
-	uint32_t tileXOffset : 5;
-	uint32_t tileYOffset : 5;
-	// 5 bits needed to represent all possible 24 isometric orientations of a cube.
-	uint32_t rotZ : 2;
-	uint32_t rotY : 1;
-	uint32_t rotX : 2;
+typedef union {
+	uint32_t intval;
+	struct {
+		uint32_t unnamed : 17;
+		uint32_t spriteIndex : 10;
+		uint32_t orientation : 5;
+	};
+	struct {
+		// up to 131072 unique voxel block types
+		uint32_t mesh3DIndex : 17;
+		// selector to offset texcoords in the sprite sheet, so the same mesh3d can be drawn with different textures.
+		uint32_t tileXOffset : 5;
+		uint32_t tileYOffset : 5;
+		// 5 bits needed to represent all possible 24 isometric orientations of a cube.
+		uint32_t rotZ : 2;
+		uint32_t rotY : 1;
+		uint32_t rotX : 2;
+	};
 } Voxel;
 ]]
 assert.eq(ffi.sizeof'Voxel', 4)

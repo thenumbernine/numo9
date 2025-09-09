@@ -1,4 +1,5 @@
 local ffi = require 'ffi'
+local assert = require 'ext.assert'
 local gl = require 'gl'
 local vector = require 'ffi.cpp.vector-lua'
 local vec2i = require 'vec-ffi.vec2i'
@@ -136,27 +137,27 @@ function EditVoxelMap:update()
 	if voxelmapBlob then
 		self:guiSpinner(x, y, function(dx)
 			self:resizeVoxelmap(
-				math.max(1, self:getWidth() + dx),
-				self:getHeight(),
-				self:getDepth()
+				math.max(1, voxelmapBlob:getWidth() + dx),
+				voxelmapBlob:getHeight(),
+				voxelmapBlob:getDepth()
 			)
 		end, 'width='..voxelmapBlob:getWidth())
 		x = x + 12
 
 		self:guiSpinner(x, y, function(dx)
 			self:resizeVoxelmap(
-				self:getWidth(),
-				math.max(1, self:getHeight() + dx),
-				self:getDepth()
+				voxelmapBlob:getWidth(),
+				math.max(1, voxelmapBlob:getHeight() + dx),
+				voxelmapBlob:getDepth()
 			)
 		end, 'height='..voxelmapBlob:getHeight())
 		x = x + 12
 
 		self:guiSpinner(x, y, function(dx)
 			self:resizeVoxelmap(
-				self:getWidth(),
-				self:getHeight(),
-				math.max(1, self:getDepth() + dx)
+				voxelmapBlob:getWidth(),
+				voxelmapBlob:getHeight(),
+				math.max(1, voxelmapBlob:getDepth() + dx)
 			)
 		end, 'depth='..voxelmapBlob:getDepth())
 		x = x + 12
@@ -168,6 +169,7 @@ function EditVoxelMap:update()
 end
 
 function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
+	local app = self.app
 	local voxelmapBlob = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 	if not voxelmapBlob then return end
 
@@ -189,9 +191,9 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 						i + voxelmapBlob:getWidth() * (
 							j + voxelmapBlob:getHeight() * k
 						)
-					]
+					].intval
 				else
-					o:emplace_back()[0] = Voxel()	-- default type ... of 0, right?
+					o:emplace_back()[0] = 0		-- default type ... of 0, right?
 				end
 			end
 		end
