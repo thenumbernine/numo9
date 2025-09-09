@@ -699,14 +699,22 @@ local BlobVoxelMap = blobSubclass('voxelmap', BlobDataAbs)
 BlobVoxelMap.filenamePrefix = 'voxelmap'
 BlobVoxelMap.filenameSuffix = '.vox'
 function BlobVoxelMap:init(data)
-	self.data = data or ''
-	local minsize = 3 * ffi.sizeof(voxelmapSizeType)	-- header
-	if #self.data < minsize then self.data = ('\0'):rep(minsize) end
+	self.data = data
+	if not self.data then
+		-- prefill with a 1x1x1
+		self.data = ('\0'):rep(3 * ffi.sizeof(voxelmapSizeType) + ffi.sizeof'Voxel')
+		local p = ffi.cast(voxelmapSizeType..'*', self.data)
+		p[0] = 1
+		p[1] = 1
+		p[2] = 1
+		local v = ffi.cast('Voxel*', p+3)
+		v = ffi.new'Voxel'	-- does the default struct constructor fill even bitfields with zero? why wouldn't it?
+	end
 
-	-- validate
-	self:getWidth()
-	self:getHeight()
-	self:getDepth()
+	-- validate that the header at least works
+	assert.gt(self:getWidth(), 0)
+	assert.gt(self:getHeight(), 0)
+	assert.gt(self:getDepth(), 0)
 end
 function BlobVoxelMap:getWidth()
 	return ffi.cast(voxelmapSizeType..'*', self:getPtr())[0]

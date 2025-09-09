@@ -5,6 +5,8 @@ local vec2i = require 'vec-ffi.vec2i'
 local vec3i = require 'vec-ffi.vec3i'
 local quatd = require 'vec-ffi.quatd'
 
+local Orbit = require 'numo9.ui.orbit'
+
 local numo9_rom = require 'numo9.rom'
 local mvMatType = numo9_rom.mvMatType
 local clipMax = numo9_rom.clipMax
@@ -30,10 +32,7 @@ function EditVoxelMap:onCartLoad()
 	self.tileYOffset = 0
 	self.orientation = 0
 
-	-- view controls
-	self.scale = 1
-	self.ortho = false
-	self.angle = quatd(0,0,0,1)
+	self.orbit = Orbit(self.app)
 end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
@@ -43,6 +42,8 @@ function EditVoxelMap:update()
 	EditVoxelMap.super.update(self)
 
 	app:setClipRect(0, 8, 256, 256)
+
+	self.orbit:update()
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 	local dx = mouseX - self.lastMousePos.x
@@ -60,20 +61,7 @@ function EditVoxelMap:update()
 		gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 		ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
-		app:matident()
-		if self.ortho then
-			local r = 1.2
-			local zn, zf = -1000, 1000
-			app:matortho(-r, r, r, -r, zn, zf)
-			-- notice this is flipping y ... hmm TODO do that in matortho? idk...
-		else
-			local zn, zf = .1, 2
-			app:matfrustum(-zn, zn, -zn, zn, zn, zf)
-			-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
-			-- TODO matscale here or in matfrustum? hmm...
-			app:matscale(1, -1, 1)
-			app:mattrans(0, 0, -.5 * zf)
-		end
+		self.orbit:applyMatrix()
 
 		local size = {voxelmapBlob:getWidth(), voxelmapBlob:getHeight(), voxelmapBlob:getDepth()}
 		local function corner(i)
@@ -108,6 +96,14 @@ function EditVoxelMap:update()
 		-- flush before disable depth test so the flush will use depth test...
 		app.triBuf:flush()
 		gl.glDisable(gl.GL_DEPTH_TEST)
+
+		local x, y = 0, 8
+		app:drawMenuText('w='..voxelmapBlob:getWidth(), x, y)
+		y = y + 8
+		app:drawMenuText('h='..voxelmapBlob:getHeight(), x, y)
+		y = y + 8
+		app:drawMenuText('d='..voxelmapBlob:getDepth(), x, y)
+		y = y + 8
 	end
 
 	app:setClipRect(0, 0, clipMax, clipMax)
@@ -120,8 +116,8 @@ function EditVoxelMap:update()
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
 	x = x + 12
 
-	if self:guiButton(self.ortho and 'O' or 'P', x, y, false, self.ortho and 'ortho' or 'projection') then
-		self.ortho = not self.ortho
+	if self:guiButton(self.orbit.ortho and 'O' or 'P', x, y, false, self.orbit.ortho and 'orbit.ortho' or 'projection') then
+		self.orbit.ortho = not self.orbit.ortho
 	end
 	x = x + 8
 

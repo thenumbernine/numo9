@@ -284,10 +284,13 @@ end
 
 function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 	local app = self.app
+	local blobsOfType = app.blobs[blobName]
 	local popupKey = indexKey..'_popupOpen'
 	local buttonMenuTabCounter = self.menuTabCounter
 	local sel = self.menuTabIndex == buttonMenuTabCounter
-	self:guiButton('#'..t[indexKey], x, y, nil, blobName)
+	self:guiButton(
+		#blobsOfType == 0 and '~' or '#'..t[indexKey],
+		x, y, nil, blobName)
 	if sel then
 		t[popupKey] = true
 	end
@@ -298,29 +301,29 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		app:drawSolidRect(x+1, y + 9, w, h, 0, nil, nil, app.paletteMenuTex)
 
 		self:guiSpinner(x + 2, y + 10, function(dx)
-			t[indexKey] = math.clamp(t[indexKey] + dx, 0, #app.blobs[blobName]-1)
+			t[indexKey] = math.clamp(t[indexKey] + dx, 0, #blobsOfType-1)
 			if cb then cb(dx) end
 		end)
 		-- TODO input number selection?
 
 		local changed
 		if self:guiButton('+', x + 14, y + 10, nil) then
-			t[indexKey] = math.clamp(t[indexKey], 0, #app.blobs[blobName]-1)
-			if #app.blobs[blobName] == 0 then
-				app.blobs[blobName]:insert(blobClassForName[blobName]())
+			t[indexKey] = math.clamp(t[indexKey], 0, #blobsOfType-1)
+			if #blobsOfType == 0 then
+				blobsOfType:insert(blobClassForName[blobName]())
 				t[indexKey] = 0
 			else
-				app.blobs[blobName]:insert(t[indexKey]+1, blobClassForName[blobName]())
+				blobsOfType:insert(t[indexKey]+1, blobClassForName[blobName]())
 				t[indexKey] = t[indexKey] + 1
 			end
 			changed = true
 		end
 
-		local len = #app.blobs[blobName]
+		local len = #blobsOfType
 		if len > (minBlobPerType[blobName] or 0) then	-- TODO if not then grey out the - sign?
 			if self:guiButton('-', x + 20, y + 10, nil) then
-				t[indexKey] = math.clamp(t[indexKey], 0, #app.blobs[blobName]-1)
-				app.blobs[blobName]:remove(t[indexKey]+1)
+				t[indexKey] = math.clamp(t[indexKey], 0, #blobsOfType-1)
+				blobsOfType:remove(t[indexKey]+1)
 				changed = true
 				t[indexKey] = t[indexKey] - 1
 			end

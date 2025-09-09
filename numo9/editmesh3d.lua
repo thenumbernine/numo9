@@ -1,7 +1,7 @@
 local ffi = require 'ffi'
 local gl = require 'gl'
-local vec2i = require 'vec-ffi.vec2i'
-local quatd = require 'vec-ffi.quatd'
+
+local Orbit = require 'numo9.ui.orbit'
 
 local numo9_rom = require 'numo9.rom'
 local mvMatType = numo9_rom.mvMatType
@@ -22,11 +22,7 @@ function EditMesh3D:onCartLoad()
 	self.drawFaces = true
 	self.wireframe = false
 
-	self.lastMousePos = vec2i()
-	self.scale = 1
-	self.ortho = false
-	self.angle = quatd(0,0,0,1)
-	-- TODO add 'pos' and 'orbit'
+	self.orbit = Orbit(self.app)
 end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
@@ -38,12 +34,7 @@ function EditMesh3D:update()
 	app:drawSolidRect(0, 8, 256, 256, 0x28, nil, nil, app.paletteMenuTex)
 	app:setClipRect(0, 8, 256, 256)
 
-	local mouseX, mouseY = app.ram.mousePos:unpack()
-	local dx = mouseX - self.lastMousePos.x
-	local dy = mouseY - self.lastMousePos.y
-	self.lastMousePos:set(mouseX, mouseY)
-	local leftButtonDown = app:key'mouse_left'
-	local shift = app:key'lshift' or app:key'rshift'
+	self.orbit:update()
 
 	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
 	if mesh3DBlob then
@@ -54,37 +45,7 @@ function EditMesh3D:update()
 		gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 		ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
-		app:matident()
-		if self.ortho then
-			local r = 1.2
-			local zn, zf = -1000, 1000
-			app:matortho(-r, r, r, -r, zn, zf)
-			-- notice this is flipping y ... hmm TODO do that in matortho? idk...
-		else
-			local zn, zf = .1, 2
-			app:matfrustum(-zn, zn, -zn, zn, zn, zf)
-			-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
-			-- TODO matscale here or in matfrustum? hmm...
-			app:matscale(1, -1, 1)
-			app:mattrans(0, 0, -.5 * zf)
-		end
-
-		do
-			if app:key'mouse_left'
-			and (dx ~= 0 or dy ~= 0)
-			then
-				if shift then
-					self.scale = self.scale * math.exp(.1 * dy)
-				else
-					self.angle = quatd():fromAngleAxis(dy, dx, 0, 3*math.sqrt(dx^2+dy^2)) * self.angle
-				end
-			end
-
-			local x,y,z,th = self.angle:toAngleAxis():unpack()
-			app:matrot(math.rad(th),x,y,z)
-		end
-
-		app:matscale(self.scale/32768, self.scale/32768, self.scale/32768)
+		self.orbit:applyMatrix()
 
 		-- draw the 3D model here
 		if self.wireframe then
@@ -165,8 +126,8 @@ function EditMesh3D:update()
 		self.wireframe = not self.wireframe
 	end
 	x = x + 8
-	if self:guiButton(self.ortho and 'O' or 'P', x, y, false, self.ortho and 'ortho' or 'projection') then
-		self.ortho = not self.ortho
+	if self:guiButton(self.orbit.ortho and 'O' or 'P', x, y, false, self.orbit.ortho and 'ortho' or 'projection') then
+		self.orbit.ortho = not self.orbit.ortho
 	end
 	x = x + 8
 
