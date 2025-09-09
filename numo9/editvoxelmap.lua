@@ -29,8 +29,10 @@ function EditVoxelMap:onCartLoad()
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
 
+	-- TODO replace this with a tile-select and a 8/16 toggle
 	self.tileXOffset = 0
 	self.tileYOffset = 0
+
 	self.orientation = 0
 
 	self.orbit = Orbit(self.app)

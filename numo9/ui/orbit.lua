@@ -39,6 +39,27 @@ function Orbit:applyMatrix()
 			self.angle = quatd():fromAngleAxis(dy, dx, 0, 3*math.sqrt(dx^2+dy^2)) * self.angle
 		end
 	end
+	local x,y,z,th = self.angle:toAngleAxis():unpack()
+
+	app:matident()
+	-- draw orientation widget
+	app:matortho(-20, 2, -2, 20, -2, 2)
+	app:matrot(math.rad(th),x,y,z)
+	app:drawSolidLine3D(
+		0, 0, 0, 1, 0, 0,
+		0x19,
+		nil,
+		app.paletteMenuTex)
+	app:drawSolidLine3D(
+		0, 0, 0, 0, 1, 0,
+		0x1a,
+		nil,
+		app.paletteMenuTex)
+	app:drawSolidLine3D(
+		0, 0, 0, 0, 0, 1,
+		0x1c,
+		nil,
+		app.paletteMenuTex)
 
 	app:matident()
 	if self.ortho then
@@ -55,9 +76,7 @@ function Orbit:applyMatrix()
 		app:mattrans(0, 0, -self.distance)
 	end
 
-	local x,y,z,th = self.angle:toAngleAxis():unpack()
 	app:matrot(math.rad(th),x,y,z)
-
 	app:matscale(self.scale/32768, self.scale/32768, self.scale/32768)
 end
 

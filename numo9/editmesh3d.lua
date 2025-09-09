@@ -21,6 +21,8 @@ function EditMesh3D:onCartLoad()
 
 	self.drawFaces = true
 	self.wireframe = false
+
+	-- TODO replace this with a tile-select and a 8/16 toggle
 	self.tileXOffset = 0
 	self.tileYOffset = 0
 
@@ -96,7 +98,7 @@ function EditMesh3D:update()
 				self.tileYOffset,
 				self.sheetBlobIndex
 			)
-			app.ram.paletteBlobIndex = pushPalBlobIndex 
+			app.ram.paletteBlobIndex = pushPalBlobIndex
 		end
 
 		ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
