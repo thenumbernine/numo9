@@ -1,9 +1,15 @@
 -- putting the orbit stuff that editmesh3d and editvoxelmap both use into here
+-- TODO tempted to make this a proper UI component i.e. it includes the viewport and clipping stuff too
 local ffi = require 'ffi'
 local class = require 'ext.class'
 local vec2i = require 'vec-ffi.vec2i'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
+local gl = require 'gl'
+
+local numo9_rom = require 'numo9.rom'
+local mvMatType = numo9_rom.mvMatType
+local clipMax = numo9_rom.clipMax
 
 local Orbit = class()
 
@@ -17,15 +23,42 @@ function Orbit:init(app)
 	self.angle = quatd(0,0,0,1)
 	self.orbit = vec3d(0,0,0)
 	self.pos = vec3d(0,0,1)
+
+	self.mvMatPush = ffi.new(mvMatType..'[16]')
 end
 
 function Orbit:update()
 	local app = self.app
+
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 	self.mouseMove:set(
 		mouseX - self.lastMousePos.x,
 		mouseY - self.lastMousePos.y)
 	self.lastMousePos:set(mouseX, mouseY)
+end
+
+function Orbit:beginDraw()
+	local app = self.app
+	app:drawSolidRect(0, 8, 256, 256, 0x28, nil, nil, app.paletteMenuTex)
+	app:setClipRect(0, 8, 256, 256)
+
+	-- flush before enable depth test so the flush doesn't use depth test...
+	app.triBuf:flush()
+	gl.glEnable(gl.GL_DEPTH_TEST)
+	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+
+	ffi.copy(self.mvMatPush, app.ram.mvMat, ffi.sizeof(self.mvMatPush))
+	self:applyMatrix()	-- this scales down by 32768 for the sake f 3d model's sint16 type
+end
+
+function Orbit:endDraw()
+	local app = self.app
+	ffi.copy(app.ram.mvMat, self.mvMatPush, ffi.sizeof(self.mvMatPush))
+	-- flush before disable depth test so the flush will use depth test...
+	app.triBuf:flush()
+	gl.glDisable(gl.GL_DEPTH_TEST)
+
+	app:setClipRect(0, 0, clipMax, clipMax)
 end
 
 function Orbit:applyMatrix()

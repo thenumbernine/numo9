@@ -2747,10 +2747,10 @@ function App:writePersistent()
 --DEBUG:print('writePersistent self.metainfo.saveid', self.metainfo.saveid, require'ext.tolua'(ffi.string(self.ram.persistentCartridgeData, len)))
 		local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
 		if len == 0 then
-print('clearing persist file: '..cartPersistFile)
+--DEBUG:print('clearing persist file: '..cartPersistFile)
 			cartPersistFile:remove()
 		else
-print('saving persist file: '..cartPersistFile)
+--DEBUG:print('saving persist file: '..cartPersistFile)
 			cartPersistFile:write(saveStr)
 		end
 		-- now where does self.cfg get written?
@@ -2872,11 +2872,11 @@ function App:runCart()
 	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...
 	local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
 	if cartPersistFile:exists() then
-print('loading persist file: '..cartPersistFile)
+--DEBUG:print('loading persist file: '..cartPersistFile)
 		local saveStr = cartPersistFile:read()
 		if saveStr and #saveStr > 0 then
-print('persist got')
-print(string.hexdump(saveStr))
+--DEBUG:print('persist got')
+--DEBUG:print(string.hexdump(saveStr))
 			-- persist blobs should already be in cart ROM, even if they are empty, so ...
 			local p = ffi.cast('uint8_t*', saveStr)
 			local pend = p + #saveStr
@@ -2890,7 +2890,7 @@ print(string.hexdump(saveStr))
 			end
 		end
 	else
-print('no persist file to load: '..cartPersistFile)
+--DEBUG:print('no persist file to load: '..cartPersistFile)
 	end
 
 	-- set title if it's there ...

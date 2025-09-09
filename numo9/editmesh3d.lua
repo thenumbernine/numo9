@@ -1,11 +1,4 @@
-local ffi = require 'ffi'
-local gl = require 'gl'
-
 local Orbit = require 'numo9.ui.orbit'
-
-local numo9_rom = require 'numo9.rom'
-local mvMatType = numo9_rom.mvMatType
-local clipMax = numo9_rom.clipMax
 
 local EditMesh3D = require 'numo9.ui':subclass()
 
@@ -29,27 +22,16 @@ function EditMesh3D:onCartLoad()
 	self.orbit = Orbit(self.app)
 end
 
-local mvMatPush = ffi.new(mvMatType..'[16]')
 function EditMesh3D:update()
 	local app = self.app
 
 	EditMesh3D.super.update(self)
 
-	app:drawSolidRect(0, 8, 256, 256, 0x28, nil, nil, app.paletteMenuTex)
-	app:setClipRect(0, 8, 256, 256)
-
 	self.orbit:update()
 
 	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
 	if mesh3DBlob then
-
-		-- flush before enable depth test so the flush doesn't use depth test...
-		app.triBuf:flush()
-		gl.glEnable(gl.GL_DEPTH_TEST)
-		gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
-
-		ffi.copy(mvMatPush, app.ram.mvMat, ffi.sizeof(mvMatPush))
-		self.orbit:applyMatrix()
+		self.orbit:beginDraw()
 
 		-- draw the 3D model here
 		if self.wireframe then
@@ -101,10 +83,7 @@ function EditMesh3D:update()
 			app.ram.paletteBlobIndex = pushPalBlobIndex
 		end
 
-		ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-		-- flush before disable depth test so the flush will use depth test...
-		app.triBuf:flush()
-		gl.glDisable(gl.GL_DEPTH_TEST)
+		self.orbit:endDraw()
 
 		local x, y = 0, 8
 		app:drawMenuText('#vtx:'..mesh3DBlob:getNumVertexes(), x, y)
@@ -114,8 +93,6 @@ function EditMesh3D:update()
 		app:drawMenuText('size:'..mesh3DBlob:getSize(), x, y)
 		y = y + 8
 	end
-
-	app:setClipRect(0, 0, clipMax, clipMax)
 
 	local x, y = 50, 0
 	self:guiBlobSelect(x, y, 'mesh3d', self, 'mesh3DBlobIndex')
