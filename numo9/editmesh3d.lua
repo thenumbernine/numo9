@@ -85,13 +85,16 @@ function EditMesh3D:update()
 			end
 		end
 		if self.drawFaces then
+			-- set the current selected palette via RAM registry to self.paletteBlobIndex
+			local pushPalBlobIndex = app.ram.paletteBlobIndex
+			app.ram.paletteBlobIndex = self.paletteBlobIndex
 			app:drawMesh3D(
 				self.mesh3DBlobIndex,
 				0,	-- uofs
 				0,	-- vofs
-				self.sheetBlobIndex,
-				self.paletteBlobIndex
+				self.sheetBlobIndex
 			)
+			app.ram.paletteBlobIndex = pushPalBlobIndex 
 		end
 
 		ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))

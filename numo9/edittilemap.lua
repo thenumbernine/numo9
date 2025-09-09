@@ -209,8 +209,9 @@ function EditTilemap:update()
 		2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
 	)
 
-	-- TODO allow specifying palette #
-	-- or until then, TODO push/pop the RAM variable that specifies palette
+	-- set the current selected palette via RAM registry to self.paletteBlobIndex
+	local pushPalBlobIndex = app.ram.paletteBlobIndex
+	app.ram.paletteBlobIndex = self.paletteBlobIndex
 	app:drawMap(
 		0,		-- upper-left index in the tile tex
 		0,
@@ -222,6 +223,7 @@ function EditTilemap:update()
 		self.draw16Sprites,	-- draw 16x16 vs 8x8
 		self.sheetBlobIndex	-- sprite vs tile sheet
 	)
+	app.ram.paletteBlobIndex = pushPalBlobIndex 
 
 --self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xfc, 0)
 	if self.drawGrid then
@@ -281,6 +283,9 @@ function EditTilemap:update()
 			nil,
 			app.paletteMenuTex
 		)
+		-- set the current selected palette via RAM registry to self.paletteBlobIndex
+		local pushPalBlobIndex = app.ram.paletteBlobIndex
+		app.ram.paletteBlobIndex = self.paletteBlobIndex
 		app:drawQuad(
 			pickX,
 			pickY,
@@ -298,6 +303,7 @@ function EditTilemap:update()
 			0,
 			0xff
 		)
+		app.ram.paletteBlobIndex = pushPalBlobIndex 
 		local spriteX = math.floor((mouseX - pickX) / pickW * spriteSheetSizeInTiles.x)
 		local spriteY = math.floor((mouseY - pickY) / pickH * spriteSheetSizeInTiles.y)
 		if spriteX >= 0 and spriteX < spriteSheetSizeInTiles.x

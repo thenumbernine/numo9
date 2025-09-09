@@ -78,11 +78,14 @@ function EditVoxelMap:update()
 			end
 		end
 
+		-- set the current selected palette via RAM registry to self.paletteBlobIndex
+		local pushPalBlobIndex = app.ram.paletteBlobIndex
+		app.ram.paletteBlobIndex = self.paletteBlobIndex
 		app:drawVoxelMap(
 			self.voxelmapBlobIndex,
-			self.sheetBlobIndex,
-			self.paletteBlobIndex
+			self.sheetBlobIndex
 		)
+		app.ram.paletteBlobIndex = pushPalBlobIndex 
 
 		ffi.copy(app.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		-- flush before disable depth test so the flush will use depth test...
