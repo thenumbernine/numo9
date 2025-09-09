@@ -1,6 +1,8 @@
 -- putting the orbit stuff that editmesh3d and editvoxelmap both use into here
+local ffi = require 'ffi'
 local class = require 'ext.class'
 local vec2i = require 'vec-ffi.vec2i'
+local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
 
 local Orbit = class()
@@ -11,10 +13,10 @@ function Orbit:init(app)
 	self.lastMousePos = vec2i()
 	self.mouseMove = vec2i()
 	self.scale = 1
-	self.distance = 1	-- projection uses this
 	self.ortho = false
 	self.angle = quatd(0,0,0,1)
-	-- TODO add 'pos' and 'orbit'
+	self.orbit = vec3d(0,0,0)
+	self.pos = vec3d(0,0,1)
 end
 
 function Orbit:update()
@@ -33,33 +35,32 @@ function Orbit:applyMatrix()
 	and (dx ~= 0 or dy ~= 0)
 	then
 		local shift = app:key'lshift' or app:key'rshift'
+		local uikey
+		if ffi.os == 'OSX' then
+			uikey = app:key'lgui' or app:key'rgui'
+		else
+			uikey = app:key'lctrl' or app:key'rctrl'
+		end
 		if shift then
 			self.scale = self.scale * math.exp(.1 * dy)
+		elseif uikey then
+			local dist = (self.pos - self.orbit):length()
+			self.orbit = self.orbit + self.angle:rotate(vec3d(-dx,dy,0) * (dist / 256))
+			self.pos = self.angle:zAxis() * dist + self.orbit
 		else
-			self.angle = quatd():fromAngleAxis(dy, dx, 0, 3*math.sqrt(dx^2+dy^2)) * self.angle
+			self.angle = self.angle * quatd():fromAngleAxis(-dy,-dx, 0, 3*math.sqrt(dx^2+dy^2))
+			self.pos = self.angle:zAxis() * (self.pos - self.orbit):length() + self.orbit
 		end
 	end
 	local x,y,z,th = self.angle:toAngleAxis():unpack()
 
 	app:matident()
 	-- draw orientation widget
-	app:matortho(-20, 2, -2, 20, -2, 2)
-	app:matrot(math.rad(th),x,y,z)
-	app:drawSolidLine3D(
-		0, 0, 0, 1, 0, 0,
-		0x19,
-		nil,
-		app.paletteMenuTex)
-	app:drawSolidLine3D(
-		0, 0, 0, 0, 1, 0,
-		0x1a,
-		nil,
-		app.paletteMenuTex)
-	app:drawSolidLine3D(
-		0, 0, 0, 0, 0, 1,
-		0x1c,
-		nil,
-		app.paletteMenuTex)
+	app:matortho(-20, 2, 20, -2, -2, 2)
+	app:matrot(-math.rad(th),x,y,z)
+	app:drawSolidLine3D(0, 0, 0, 1, 0, 0, 0x19, nil, app.paletteMenuTex)
+	app:drawSolidLine3D(0, 0, 0, 0, 1, 0, 0x1a, nil, app.paletteMenuTex)
+	app:drawSolidLine3D(0, 0, 0, 0, 0, 1, 0x1c, nil, app.paletteMenuTex)
 
 	app:matident()
 	if self.ortho then
@@ -73,10 +74,10 @@ function Orbit:applyMatrix()
 		-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
 		-- TODO matscale here or in matfrustum? hmm...
 		app:matscale(1, -1, 1)
-		app:mattrans(0, 0, -self.distance)
 	end
 
-	app:matrot(math.rad(th),x,y,z)
+	app:matrot(-math.rad(th),x,y,z)
+	app:mattrans(-self.pos.x, -self.pos.y, -self.pos.z)
 	app:matscale(self.scale/32768, self.scale/32768, self.scale/32768)
 end
 
