@@ -3728,8 +3728,31 @@ function AppVideo:drawVoxelMap(
 							m.ptr[j + 4 * i] = m.ptr[j + 4 * i] * s
 						end
 					end
-					m.ptr[3 + 4 * 3] = 1
-					self.mvMat:mul4x4(self.mvMat, m)
+					local a = self.mvMat
+					local a0, a1, a2, a3, 
+						a4, a5, a6, a7, 
+						a8, a9, a10, a11 
+						= 	a.ptr[0], a.ptr[1], a.ptr[2], a.ptr[3], 
+							a.ptr[4], a.ptr[5], a.ptr[6], a.ptr[7], 
+							a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
+					local m0, m1, m2,
+						m4, m5, m6,
+						m8, m9, m10 
+						= 	m.ptr[0], m.ptr[1], m.ptr[2],
+							m.ptr[4], m.ptr[5], m.ptr[6],
+							m.ptr[8], m.ptr[9], m.ptr[10]
+					a.ptr[0]  = a0 * m0 + a4 * m1 + a8  * m2
+					a.ptr[4]  = a0 * m4 + a4 * m5 + a8  * m6
+					a.ptr[8]  = a0 * m8 + a4 * m9 + a8  * m10
+					a.ptr[1]  = a1 * m0 + a5 * m1 + a9  * m2
+					a.ptr[5]  = a1 * m4 + a5 * m5 + a9  * m6
+					a.ptr[9]  = a1 * m8 + a5 * m9 + a9  * m10
+					a.ptr[2]  = a2 * m0 + a6 * m1 + a10 * m2
+					a.ptr[6]  = a2 * m4 + a6 * m5 + a10 * m6
+					a.ptr[10] = a2 * m8 + a6 * m9 + a10 * m10
+					a.ptr[3]  = a3 * m0 + a7 * m1 + a11 * m2
+					a.ptr[7]  = a3 * m4 + a7 * m5 + a11 * m6
+					a.ptr[11] = a3 * m8 + a7 * m9 + a11 * m10
 				else
 					-- euler-angles
 					-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
