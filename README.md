@@ -230,7 +230,7 @@ The 3D orientations, like the 2D orientations, can be decomposed into bitfields:
 |31         |3 |3 |1 |12 |
 
 The following 3D orientation representations are redundant, and will be used for special-case orientations.
-- #20 (Rz=0,Ry=1,Rx=1) is equal to #7 (Rz=3,Ry=1,Rx=0).
+- #20 (Rz=0,Ry=1,Rx=1) is equal to #7 (Rz=3,Ry=1,Rx=0), so I will instead use this for voxel-centered xyz-aligned billboard orientation.
 - #21 (Rz=1,Ry=1,Rx=1) is equal to #4 (Rz=0,Ry=1,Rx=0).
 - #22 (Rz=2,Ry=1,Rx=1) is equal to #5 (Rz=1,Ry=1,Rx=0).
 - #23 (Rz=3,Ry=1,Rx=1) is equal to #6 (Rz=2,Ry=1,Rx=0).
@@ -424,7 +424,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `ttri3d(x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, x3, y3, z3, u3, v3, [sheetIndex=0, paletteIndex=0, transparentIndex=-1, spriteBit=0, spriteMask=0xFF])` = draw a triangle textured with a sprite/tile sheet.
 	- x1,y1,z1,x2,y2,z2,x3,y3,z3 = triangle coordinates
 	- u1,v1,u2,v2,u3,v3 = texture coordinates, in texels.
-	- sheetIndex = sheet to use: 0 = sprite sheet, 1 = tile sheet, default 0.
+	- sheetIndex = sheet to use, default 0.
 	- paletteIndex = same as `spr()`.
 	- transparentIndex = same as `spr()`.
 	- spriteBit = same as `spr()`.
@@ -451,7 +451,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- w, h = pixels wide and high to draw.
 	- tx, ty = sprite sheet pixel upper left corner.
 	- tw, th = sprite sheet width and height to use.
-	- sheetIndex = sheet index. 0 for sprite sheet, 1 for tile sheet.  default 1.
+	- sheetIndex = sheet index, default 1.
 	- paletteIndex = same as `spr()`.
 	- transparentIndex = same as `spr()`.
 	- spriteBit = same as `spr()`.
@@ -460,7 +460,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 	- mapIndexOffset = global offset to shift all map indexes.
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
-	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
+	- sheetIndex = the sheet to use, default to 1.
 	- tilemapIndex = the tilemap blob index to use, default to 0.
 - `mget(x, y, [tilemapIndex=0])` = Read the uint16 from the tilemap address at x, y.
 	Out of bounds coordinates return a value of 0.

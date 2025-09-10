@@ -3705,10 +3705,38 @@ function AppVideo:drawVoxelMap(
 
 				-- orientation
 				ffi.copy(mvMatPush2, self.ram.mvMat, ffi.sizeof(mvMatPush2))
-				-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
-				self:matrot(vptr.rotZ * .5 * math.pi, 0, 0, 1)
-				self:matrot(vptr.rotY * .5 * math.pi, 0, 1, 0)
-				self:matrot(vptr.rotX * .5 * math.pi, 1, 0, 0)
+				-- there are 24 right-handed cube isometric transformations
+				-- there are 5bpp = 32 representations as bitwise Euler angles,
+				-- there are 8 redundant Euler angle orientation representations.
+				-- these are: 20, 21, 22, 23, 28, 29, 30, 31
+				if vptr.orientation == 20 then
+					-- special-case, xyz-aligned voxel-centered
+					-- so now we undo the rotation, i.e. use the rotation transpose
+					local m = require 'matrix.ffi'({4,4}, mvMatType):zeros()
+					-- transpose the 3x3
+					for i=0,2 do
+						for j=0,2 do
+							m.ptr[i + 4 * j] = self.mvMat.ptr[j + 4 * i]
+						end
+						m.ptr[3 + 4 * i] = 0
+						m.ptr[i + 4 * 3] = 0
+					end
+					-- ... and normalize cols
+					for i=0,2 do
+						local s = 1/math.sqrt(m.ptr[0 + 4 * i]^2 + m.ptr[1 + 4 * i]^2 + m.ptr[2 + 4 * i]^2)
+						for j=0,2 do
+							m.ptr[j + 4 * i] = m.ptr[j + 4 * i] * s
+						end
+					end
+					m.ptr[3 + 4 * 3] = 1
+					self.mvMat:mul4x4(self.mvMat, m)
+				else
+					-- euler-angles
+					-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
+					self:matrot(vptr.rotZ * .5 * math.pi, 0, 0, 1)
+					self:matrot(vptr.rotY * .5 * math.pi, 0, 1, 0)
+					self:matrot(vptr.rotX * .5 * math.pi, 1, 0, 0)
+				end
 
 				self:drawMesh3D(
 					vptr.mesh3DIndex,
