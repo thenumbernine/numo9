@@ -355,7 +355,7 @@ function App:initGL()
 		end,
 		vget = function(voxelmapIndex, x, y, z)
 			local vox = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
-			if not vox then return end
+			if not vox then return voxelMapEmptyValue end
 
 			x = math.floor(tonumber(x) or 0)
 			y = math.floor(tonumber(y) or 0)
