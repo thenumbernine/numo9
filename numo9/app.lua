@@ -57,6 +57,8 @@ local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
 local mvMatType = numo9_rom.mvMatType
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
+local voxelmapSizeType = numo9_rom.voxelmapSizeType
+local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -350,6 +352,66 @@ function App:initGL()
 		end,
 		voxelmap = function(...)
 			return self:drawVoxelMap(...)
+		end,
+		vget = function(voxelmapIndex, x, y, z)
+			local vox = self.blobs.voxelmap[voxelmapIndex+1]
+			if not vox then return end
+
+			-- TODO floor first so values in [-1,0] don't go to 0?
+			x = ffi.cast('int32_t', x)
+			y = ffi.cast('int32_t', y)
+			z = ffi.cast('int32_t', z)
+
+			local sx = vox:getWidth()
+			local sy = vox:getHeight()
+			local sz = vox:getDepth()
+
+			if x < 0 or x >= sx
+			or y < 0 or y >= sy
+			or z < 0 or z >= sz
+			then return voxelMapEmptyValue end
+
+			local index = x + sx * (y + sy * z)
+			--[[
+			local vptr = vox:getVoxelPtr()
+			return vptr[index].intval
+			--]]
+			return self:peekl(
+				vox.addr
+				+ 3 * ffi.sizeof(voxelmapSizeType)	-- skip header
+				+ ffi.sizeof'Voxel' * index
+			)
+		end,
+		vset = function(voxelmapIndex, x, y, z, value)
+			local vox = self.blobs.voxelmap[voxelmapIndex+1]
+			if not vox then return end
+
+			-- TODO floor first so values in [-1,0] don't go to 0?
+			x = ffi.cast('int32_t', x)
+			y = ffi.cast('int32_t', y)
+			z = ffi.cast('int32_t', z)
+
+			local sx = vox:getWidth()
+			local sy = vox:getHeight()
+			local sz = vox:getDepth()
+
+			if x < 0 or x >= sx
+			or y < 0 or y >= sy
+			or z < 0 or z >= sz
+			then return voxelMapEmptyValue end
+
+			local index = x + sx * (y + sy * z)
+			--[[
+			local vptr = vox:getVoxelPtr()
+			vptr[x + sx * (y + sy * z)].intval = value
+			--]]
+			-- [[
+			self:net_pokel(
+				vox.addr
+				+ 3 * ffi.sizeof(voxelmapSizeType)	-- skip header
+				+ ffi.sizeof'Voxel' * index
+			)
+			--]]
 		end,
 
 		-- graphics

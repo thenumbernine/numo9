@@ -343,10 +343,6 @@ If the following functions are defined then they will be called from the virtual
 - `pokef(addr, value)` = write 4 bytes to memory as float.
 - `memcpy(dst, src, len)` = copy from `src` to `dst`, sized `len`.
 - `memset(dst, val, len)` = set memory in `dst` to uint8 value `val`, size in bytes `len`.  OOB ranges will copy a value of 0.
-- `mget(x, y, [bank=0])` = Read the uint16 from the current tilemap address at x, y.
-	Out of bounds coordinates return a value of 0.
-	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.
-- `mset(x, y, value, [bank=0])` = Write a uint16 to the current tilemap address at x, y.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
 - `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
@@ -413,6 +409,10 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
 	- tilemapIndex = the tilemap bank to use, default to 0.
+- `mget(x, y, [bank=0])` = Read the uint16 from the current tilemap address at x, y.
+	Out of bounds coordinates return a value of 0.
+	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.
+- `mset(x, y, value, [bank=0])` = Write a uint16 to the current tilemap address at x, y.
 - `drawbrush(brushIndex, sx, sy, w, h, [orientation, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
@@ -421,6 +421,8 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- sheetIndex = defaults to 0.
 	- The rest of the parameters are forwarded to `ttri3d()`.
 - `voxelmap(voxelmapIndex)` =  draw voxelmap.
+- `vget(voxelmapIndex,x,y,z)` = read a uint32 value from the voxel map.
+- `vset(voxelmapIndex,x,y,z,value)` = write a uint32 value to the voxel map.
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = Set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.  You can pass a number or the string of `${width}x${height}x${format}`.  Returns true on success, false if it failed to find the video mode description.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
