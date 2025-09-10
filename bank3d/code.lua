@@ -42,11 +42,6 @@ TREE = 2
 BRICK = 4
 STONE = 6
 WATER = 8
-PLAYER_START = 10
-KEY = 12
-FRAMER = 14
-GUN = 16
-SENTRY = 18
 ARROW_RIGHT = 20
 ARROW_DOWN = 22
 ARROW_LEFT = 24
@@ -1497,40 +1492,44 @@ loadLevel=||do
 			for x=0,levelSize.x-1 do
 				local pos = vec3(x+.5,y+.5,z)
 				local m = mapGet(x,y,z)
-				if m==PLAYER_START then
+
+				-- pick out the tilemap, irregardless of the model or orientation
+				local t = m & 0x3ff
+
+				if t == 0xa then
 					player=Player{}
 					player:setPos(pos)
 					objs:insert(player)
 					mapSet(x,y,z,EMPTY)
-				elseif m==KEY then
+				elseif t == 0xc then
 					local key=Key{}
 					key:setPos(pos)
 					objs:insert(key)
 					mapSet(x,y,z,EMPTY)
-				elseif m==FRAMER then
+				elseif t == 0xe then
 					local framer=Framer{}
 					framer:setPos(pos)
 					objs:insert(framer)
 					mapSet(x,y,z,EMPTY)
-				elseif m==GUN then
+				elseif t == 0x10 then
 					local gun=Gun{}
 					gun:setPos(pos)
 					objs:insert(gun)
 					mapSet(x,y,z,EMPTY)
-				elseif m==SENTRY then
+				elseif t == 0x12 then
 					local sentry=Sentry{}
 					sentry:setPos(pos)
 					objs:insert(sentry)
 					mapSet(x,y,z,EMPTY)
-				elseif m>=64 and m<84 then
+				elseif t >= 64 and t < 84 then
 					local money=Money{}
-					money.bombs=(m-64)>>1
+					money.bombs=(t-64)>>1
 					money:setPos(pos)
 					objs:insert(money)
 					mapSet(x,y,z,EMPTY)
-				elseif m>=128 and m<148 then
+				elseif t >= 128 and t < 148 then
 					local bomb=Bomb()
-					bomb.blastRadius=(m-128)>>1
+					bomb.blastRadius=(t-128)>>1
 					bomb:setPos(pos)
 					objs:insert(bomb)
 					mapSet(x,y,z,EMPTY)

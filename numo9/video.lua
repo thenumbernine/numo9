@@ -3710,49 +3710,40 @@ function AppVideo:drawVoxelMap(
 				-- there are 8 redundant Euler angle orientation representations.
 				-- these are: 20, 21, 22, 23, 28, 29, 30, 31
 				if vptr.orientation == 20 then
-					-- special-case, xyz-aligned voxel-centered
+					-- special-case, xyz-aligned, anchored to voxel center
 					-- so now we undo the rotation, i.e. use the rotation transpose
-					local m = require 'matrix.ffi'({4,4}, mvMatType):zeros()
-					-- transpose the 3x3
-					for i=0,2 do
-						for j=0,2 do
-							m.ptr[i + 4 * j] = self.mvMat.ptr[j + 4 * i]
-						end
-						m.ptr[3 + 4 * i] = 0
-						m.ptr[i + 4 * 3] = 0
-					end
-					-- ... and normalize cols
-					for i=0,2 do
-						local s = 1/math.sqrt(m.ptr[0 + 4 * i]^2 + m.ptr[1 + 4 * i]^2 + m.ptr[2 + 4 * i]^2)
-						for j=0,2 do
-							m.ptr[j + 4 * i] = m.ptr[j + 4 * i] * s
-						end
-					end
+					-- multiply our current mvMat with its upper 3x3 transposed and normalized:
 					local a = self.mvMat
-					local a0, a1, a2, a3, 
-						a4, a5, a6, a7, 
-						a8, a9, a10, a11 
-						= 	a.ptr[0], a.ptr[1], a.ptr[2], a.ptr[3], 
-							a.ptr[4], a.ptr[5], a.ptr[6], a.ptr[7], 
-							a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
-					local m0, m1, m2,
-						m4, m5, m6,
-						m8, m9, m10 
-						= 	m.ptr[0], m.ptr[1], m.ptr[2],
-							m.ptr[4], m.ptr[5], m.ptr[6],
-							m.ptr[8], m.ptr[9], m.ptr[10]
-					a.ptr[0]  = a0 * m0 + a4 * m1 + a8  * m2
-					a.ptr[4]  = a0 * m4 + a4 * m5 + a8  * m6
-					a.ptr[8]  = a0 * m8 + a4 * m9 + a8  * m10
-					a.ptr[1]  = a1 * m0 + a5 * m1 + a9  * m2
-					a.ptr[5]  = a1 * m4 + a5 * m5 + a9  * m6
-					a.ptr[9]  = a1 * m8 + a5 * m9 + a9  * m10
-					a.ptr[2]  = a2 * m0 + a6 * m1 + a10 * m2
-					a.ptr[6]  = a2 * m4 + a6 * m5 + a10 * m6
-					a.ptr[10] = a2 * m8 + a6 * m9 + a10 * m10
-					a.ptr[3]  = a3 * m0 + a7 * m1 + a11 * m2
-					a.ptr[7]  = a3 * m4 + a7 * m5 + a11 * m6
-					a.ptr[11] = a3 * m8 + a7 * m9 + a11 * m10
+					local a0, a1, a2,  a3  = a.ptr[0], a.ptr[1], a.ptr[ 2], a.ptr[ 3]
+					local a4, a5, a6,  a7  = a.ptr[4], a.ptr[5], a.ptr[ 6], a.ptr[ 7]
+					local a8, a9, a10, a11 = a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
+
+					-- ... and normalize cols
+					local sx = 1/math.sqrt(a0^2 + a4^2 + a8^2)
+					local sy = 1/math.sqrt(a1^2 + a5^2 + a9^2)
+					local sz = 1/math.sqrt(a2^2 + a6^2 + a10^2)
+
+					a.ptr[0]  = sx * (a0 * a0 + a4 * a4 + a8  * a8)
+					a.ptr[4]  = sy * (a0 * a1 + a4 * a5 + a8  * a9)
+					a.ptr[8]  = sz * (a0 * a2 + a4 * a6 + a8  * a10)
+
+					a.ptr[1]  = sx * (a1 * a0 + a5 * a4 + a9  * a8)
+					a.ptr[5]  = sy * (a1 * a1 + a5 * a5 + a9  * a9)
+					a.ptr[9]  = sz * (a1 * a2 + a5 * a6 + a9  * a10)
+
+					a.ptr[2]  = sx * (a2 * a0 + a6 * a4 + a10 * a8)
+					a.ptr[6]  = sy * (a2 * a1 + a6 * a5 + a10 * a9)
+					a.ptr[10] = sz * (a2 * a2 + a6 * a6 + a10 * a10)
+
+					a.ptr[3]  = sx * (a3 * a0 + a7 * a4 + a11 * a8)
+					a.ptr[7]  = sy * (a3 * a1 + a7 * a5 + a11 * a9)
+					a.ptr[11] = sz * (a3 * a2 + a7 * a6 + a11 * a10)
+				elseif vptr.orientation == 21 then
+					-- TODO special case, xy-aligned, anchored to voxel center
+				elseif vptr.orientation == 22 then
+					-- TODO special case, xyz-aligned, anchored to z- center
+				elseif vptr.orientation == 23 then
+					-- TODO special case, xy-aligned, anchored to z- center
 				else
 					-- euler-angles
 					-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
