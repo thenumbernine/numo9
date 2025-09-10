@@ -1484,6 +1484,9 @@ loadLevel=||do
 			for x=0,levelSize.x-1 do
 				local pos = vec3(x+.5,y+.5,z)
 				local m = mapGet(x,y,z)
+if m ~= 0xffffffff then
+	print('load', level, x,y,z, ('%x'):format(m))
+end
 				--[=[
 				if m==EMPTY
 				or m==TREE
