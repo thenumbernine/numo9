@@ -453,8 +453,8 @@ typedef union {
 		uint32_t tileYOffset : 5;
 		// 5 bits needed to represent all possible 24 isometric orientations of a cube.
 		uint32_t rotZ : 2;
-		uint32_t rotY : 1;
-		uint32_t rotX : 2;
+		uint32_t rotY : 2;
+		uint32_t rotX : 1;
 	};
 } Voxel;
 ]]
