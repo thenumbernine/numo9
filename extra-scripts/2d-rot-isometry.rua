@@ -1,0 +1,56 @@
+#!/usr/bin/env rua
+-- how do 2D rot isometries stack ...
+local matrix = require 'matrix'
+local R90 = matrix{{0,-1},{1,0}}
+
+local applyRotHFlip=|o|do
+	local m = matrix{2,2}:eye()
+	for k=1,bit.rshift(o,1) do
+		m *= R90
+	end
+	if bit.band(1, o) ~= 0 then
+		m *= matrix{-1,1}:diag()
+	end
+	return m
+end
+
+local tileOrientMats = matrix{8}:lambda(|tileOrientPlusOne| do
+	local tileOrient = tileOrientPlusOne - 1
+	local m = applyRotHFlip(tileOrient)
+	--print('tileOrient', tileOrient)
+	--print(m)
+	--print()
+	return m
+end)
+
+local stampTileOrientMat = matrix{8,8}:lambda(|stampOrientPlusOne, tileOrientPlusOne| do
+	local stampOrient = stampOrientPlusOne - 1
+	local tileOrient = tileOrientPlusOne - 1
+	local m = applyRotHFlip(stampOrient)  * applyRotHFlip(tileOrient)
+	--print('stampOrient', stampOrient, 'tileOrient', tileOrient)
+	--print(m)
+	--print()
+	return assert(table.find(tileOrientMats, m)) - 1
+end)
+--print('stamp to tile orient map as an orientation number')
+--print(stampTileOrientMat)
+
+local procedural = matrix{8,8}:lambda(|sop1, top1| do
+	local so = sop1 - 1
+	local to = top1 - 1
+	--return ((so ~ to) & 1) | ((so - to) & 6)	-- nah it's not quite addition/subtraction
+	return so ~ to ~ (((so << 1) ~ so) & to & 2) << 1	-- (stampbit0 ~ stampbit1) & (tilebit1) => flip bit2 
+end)
+
+local growlstr = |s, n| ((' '):rep(n - #s)..s)
+print()
+print'procedural'
+print(procedural:map(|x| growlstr(x:tostring(2), 4)))
+print()
+
+print'diff'
+local diff = stampTileOrientMat - procedural
+print(diff:map(|x| growlstr(x:tostring(2), 4)))
+print()
+
+print('equal?', diff == matrix{8,8}:zeros())

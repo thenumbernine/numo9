@@ -1,0 +1,46 @@
+#!/usr/bin/env rua
+--[[
+finding all unique orientations of 5-bit representations of cube's 24 (right-handed) isometric transforms.
+for using Euler angles A = Rz * Ry * Rx
+turns out storing z:y:x as 2:1:2 only covers 20 of 24
+storing z:y:x as 2:2:1 covers all 24
+--]]
+local matrix = require 'matrix'
+local I = matrix{3,3}:eye()
+local rx = matrix{
+	{1,0,0},
+	{0,0,-1},
+	{0,1,0},
+}
+local ry = matrix{
+	{0,0,1},
+	{0,1,0},
+	{-1,0,0},
+}
+local rz = matrix{
+	{0,-1,0},
+	{1,0,0},
+	{0,0,1},
+}
+local ms = table()
+local sx = I
+for ix=0,1 do
+	local sy = I
+	for iy=0,3 do
+		local sz = I
+		for iz=0,3 do
+			local m = sz * sy * sx
+			local orientation = iz | (iy << 2) | (ix << 4)
+			local dupindex = ms:find(m)
+			if not dupindex then
+				ms:insert(m)
+			end
+print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix..'\tdup='..(dupindex and dupindex-1 or ''))
+			sz *= rz
+		end
+		sy *= ry
+	end
+	sx *= rx
+end
+print('#unique', #ms)
+for i,m in ipairs(ms) do print(i..'\n'..m) end
