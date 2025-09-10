@@ -1485,9 +1485,8 @@ setLevel=|level_|do
 	end
 end
 
-floor=math.floor
-mapGet=|x,y,z| vget(level, x, y, z)
-mapSet=|x,y,z,value| vset(level, x, y, z, value)
+mapGet=|...| vget(level, ...)
+mapSet=|...| vset(level, ...)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?

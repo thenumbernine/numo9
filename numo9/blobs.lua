@@ -3,6 +3,7 @@ local table = require 'ext.table'
 local string = require 'ext.string'
 local path = require 'ext.path'
 local assert = require 'ext.assert'
+local math = require 'ext.math'
 local class = require 'ext.class'
 local tolua = require 'ext.tolua'
 local fromlua = require 'ext.fromlua'
@@ -636,8 +637,9 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 		elseif lineType == 'vt' then
 			assert.ge(#words, 2)
 			vts:insert{
-				math.floor((tonumber(words[1]) or 0) * 256),
-				math.floor((tonumber(words[2]) or 0) * 256)
+				-- clamp so .obj texcoords [0,1] still map to [0,255] correctly
+				math.clamp(math.floor((tonumber(words[1]) or 0) * 256), 0, 255),
+				math.clamp(math.floor((tonumber(words[2]) or 0) * 256), 0, 255)
 			}
 		elseif lineType == 'f' then
 			assert(not line:find'/', "sorry I don't support faces with /'s in them, go delete that trash right now.")
