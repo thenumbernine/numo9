@@ -16,28 +16,22 @@ local Orbit = class()
 function Orbit:init(app)
 	self.app = app
 
-	self.lastMousePos = vec2i()
-	self.mouseMove = vec2i()
 	self.scale = 1
 	self.ortho = false
-	self.angle = quatd(0,0,0,1)
+	self.angle = quatd(0,0,1,0)
 	self.orbit = vec3d(0,0,0)
 	self.pos = vec3d(0,0,1)
 
 	self.mvMatPush = ffi.new(mvMatType..'[16]')
 end
 
-function Orbit:update()
+function Orbit:beginDraw()
 	local app = self.app
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
-	self.mouseMove:set(
-		mouseX - self.lastMousePos.x,
-		mouseY - self.lastMousePos.y)
-	self.lastMousePos:set(mouseX, mouseY)
-end
+	local dx = mouseX - app.ram.lastMousePos.x
+	local dy = mouseY - app.ram.lastMousePos.y
 
-function Orbit:beginDraw()
 	local app = self.app
 	app:drawSolidRect(0, 8, 256, 256, 0x28, nil, nil, app.paletteMenuTex)
 	app:setClipRect(0, 8, 256, 256)
@@ -50,7 +44,6 @@ function Orbit:beginDraw()
 	ffi.copy(self.mvMatPush, app.ram.mvMat, ffi.sizeof(self.mvMatPush))
 
 	local height = 256
-	local dx, dy = self.mouseMove:unpack()
 	if app:key'mouse_left'
 	and (dx ~= 0 or dy ~= 0)
 	then
@@ -81,7 +74,7 @@ function Orbit:beginDraw()
 	app:matident()
 	-- draw orientation widget
 	app:matortho(-20, 2, 20, -2, -2, 2)
-	app:matrot(math.rad(th),x,y,z)
+	app:matrot(-math.rad(th), x, y, z)	-- -th or +th?
 	app:drawSolidLine3D(0, 0, 0, 1, 0, 0, 0x19, nil, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 1, 0, 0x1a, nil, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 0, 1, 0x1c, nil, app.paletteMenuTex)

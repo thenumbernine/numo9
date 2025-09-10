@@ -191,8 +191,16 @@ Voxel voxels[depth][height][width];
 
 The 3D orientations, like the 2D orientations, can be decomposed into bitfields:
 - 2 bits = yaw rotation
-- 2 bits = roll rotation
-- 1 bit = pitch rotation
+- 2 bits = pitch rotation
+- 1 bit = roll rotation
+
+The editor voxelmap controls:
+- left-click and drag to place blocks.
+- right-click to delete block.
+- shift+left-click to use the dropper.
+- left-click-and-drag to rotate.
+- shift+left-click-and-drag to zoom.
+- ctrl+left-click-and-drag to pan the camera.
 
 ### Audio
 (note to self, split this between sfx & music blob format and the APU specs)

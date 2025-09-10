@@ -27,8 +27,6 @@ function EditMesh3D:update()
 
 	EditMesh3D.super.update(self)
 
-	self.orbit:update()
-
 	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
 	if mesh3DBlob then
 		self.orbit:beginDraw()

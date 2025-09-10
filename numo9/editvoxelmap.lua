@@ -102,8 +102,6 @@ function EditVoxelMap:update()
 
 	EditVoxelMap.super.update(self)
 
-	self.orbit:update()
-
 	local voxelmapBlob = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 	local mapsize = voxelmapBlob
 		and vec3d(
