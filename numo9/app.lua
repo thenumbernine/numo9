@@ -404,10 +404,13 @@ function App:initGL()
 			vptr[x + sx * (y + sy * z)].intval = value
 			--]]
 			-- [[
+			-- does mget/mset send through net? yeah cuz clients need that info for tilemap texture updates
+			-- same with voxels?  they don't have any GPU backing...
 			self:net_pokel(
 				vox.addr
 				+ 3 * ffi.sizeof(voxelmapSizeType)	-- skip header
-				+ ffi.sizeof'Voxel' * index
+				+ ffi.sizeof'Voxel' * index,
+				value
 			)
 			--]]
 		end,
@@ -2300,8 +2303,7 @@ end
 
 function App:poke(addr, value)
 	addr = toint(addr)
-	value = toint(value)
-	--addr = math.floor(addr) -- TODO just never pass floats in here or its your own fault
+	value = tonumber(ffi.cast('uint32_t', value))
 	if addr < 0 or addr >= self.memSize then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
@@ -2356,7 +2358,7 @@ function App:poke(addr, value)
 end
 function App:pokew(addr, value)
 	addr = toint(addr)
-	value = toint(value)
+	value = tonumber(ffi.cast('uint32_t', value))
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2402,7 +2404,7 @@ function App:pokew(addr, value)
 end
 function App:pokel(addr, value)
 	addr = toint(addr)
-	value = toint(value)
+	value = tonumber(ffi.cast('uint32_t', value))
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 

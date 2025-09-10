@@ -10,319 +10,11 @@
 -- editMesh3D.sheetBlobIndex = 1
 -- editVoxelmap.sheetBlobIndex = 1
 
------------------------ BEGIN ext/range.lua-----------------------
-local range=|a,b,c|do
-	local t = table()
-	if c then
-		for x=a,b,c do t:insert(x) end
-	elseif b then
-		for x=a,b do t:insert(x) end
-	else
-		for x=1,a do t:insert(x) end
-	end
-	return t
-end
-
------------------------ END ext/range.lua  -----------------------
------------------------ BEGIN ext/class.lua-----------------------
-local isa=|cl,o|o.isaSet[cl]
-local classmeta = {__call=|cl,...|do
-	local o=setmetatable({},cl)
-	return o, o?:init(...)
-end}
-local class
-class=|...|do
-	local t=table(...)
-	t.super=...
-	--t.supers=table{...}
-	t.__index=t
-	t.subclass=class
-	t.isaSet=table(table{...}
-		:mapi(|cl|cl.isaSet)
-		:unpack()
-	):setmetatable(nil)
-	t.isaSet[t]=true
-	t.isa=isa
-	setmetatable(t,classmeta)
-	return t
-end
-
------------------------ END ext/class.lua  -----------------------
------------------------ BEGIN vec/vec2.lua-----------------------
--- ALREADY INCLUDED: --#include ext/class.lua
-vec2_add=|ax,ay,bx,by|(ax+bx, ay+by)
-vec2_sub=|ax,ay,bx,by|(ax-bx, ay-by)
-vec2_lenSq=|x,y|x^2+y^2
-vec2_len=|x,y|math.sqrt(x^2+y^2)
-vec2_unit=|x,y|do
-	local l = vec2_len(x,y)
-	local s = 1 / math.max(1e-15, l)
-	return x*s, y*s, l
-end
-vec2_dot=|ax,ay,bx,by| ax*bx + ay*by
--- cplx exp ... TODO replace vec2.exp with this
-vec2_exp=|r,theta|(r*math.cos(theta),r*math.sin(theta))
--- cplx log
-vec2_log=|x,y|do
-	local logr = math.log((vec2_len(x,y)))
-	return logr, math.atan2(y,x)
-end
-
-local vec2_getvalue=|x, dim|do
-	if type(x) == 'number' then return x end
-	if type(x) == 'table' then
-		if dim==1 then
-			x=x.x
-		elseif dim==2 then
-			x=x.y
-		else
-			x=nil
-		end
-		if type(x)~='number' then
-			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
-		end
-		return x
-	end
-	error("tried to vec2_getvalue from an unknown type "..type(x))
-end
-
-local vec2
-vec2=class{
-	fields = table{'x', 'y'},
-	init=|v,x,y|do
-		if x then
-			if y then
-				v:set(x,y)
-			else
-				v:set(x,x)
-			end
-		else
-			v:set(0,0)
-		end
-	end,
-	clone=|v| vec2(v),
-	set=|v,x,y|do
-		if type(x) == 'table' then
-			v.x = x.x or x[1] or error("idk")
-			v.y = x.y or x[2] or error("idk")
-		else
-			assert(x, "idk")
-			v.x = x
-			if y then
-				v.y = y
-			else
-				v.y = x
-			end
-		end
-		return v
-	end,
-	unpack=|v|(v.x, v.y),
-	sum=|v| v.x + v.y,
-	product=|v| v.x * v.y,
-	clamp=|v,a,b|do
-		local mins = a
-		local maxs = b
-		if type(a) == 'table' and a.min and a.max then
-			mins = a.min
-			maxs = a.max
-		end
-		v.x = math.clamp(v.x, vec2_getvalue(mins, 1), vec2_getvalue(maxs, 1))
-		v.y = math.clamp(v.y, vec2_getvalue(mins, 2), vec2_getvalue(maxs, 2))
-		return v
-	end,
-	map=|v,f|do
-		v.x = f(v.x, 1)
-		v.y = f(v.y, 2)
-		return v
-	end,
-	floor=|v|v:map(math.floor),
-	ceil=|v|v:map(math.ceil),
-	l1Length=|v| math.abs(v.x) + math.abs(v.y),
-	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y)),
-	dot=|a,b| a.x * b.x + a.y * b.y,
-	lenSq=|v| v:dot(v),
-	len=|v| math.sqrt(v:lenSq()),
-	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2),
-	unit=|v,res|do
-		local s = 1 / math.max(1e-15, v:len())
-		if res then
-			return res:set(v.x * s, v.y * s)
-		else
-			return vec2(v.x * s, v.y * s)
-		end
-	end,
-	exp=|theta| vec2(math.cos(theta), math.sin(theta)),
-	cross=|a,b| a.x * b.y - a.y * b.x,	-- or :det() maybe
-	cplxmul = |a,b| vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),
-	__unm=|v| vec2(-v.x, -v.y),
-	__add=|a,b| vec2(vec2_getvalue(a, 1) + vec2_getvalue(b, 1), vec2_getvalue(a, 2) + vec2_getvalue(b, 2)),
-	__sub=|a,b| vec2(vec2_getvalue(a, 1) - vec2_getvalue(b, 1), vec2_getvalue(a, 2) - vec2_getvalue(b, 2)),
-	__mul=|a,b| vec2(vec2_getvalue(a, 1) * vec2_getvalue(b, 1), vec2_getvalue(a, 2) * vec2_getvalue(b, 2)),
-	__div=|a,b| vec2(vec2_getvalue(a, 1) / vec2_getvalue(b, 1), vec2_getvalue(a, 2) / vec2_getvalue(b, 2)),
-	__eq=|a,b| a.x == b.x and a.y == b.y,
-	__tostring=|v| v.x..','..v.y,
-	__concat=string.concat,
-}
-
--- TODO order this like buttons ... right down left up ... so it's related to bitflags and so it follows exp map angle ...
--- tempting to do right left down up, i.e. x+ x- y+ y-, because that extends dimensions better
--- but as it is this way, we are 1:1 with the exponential-map, so there.
-local dirvecs = table{
-	[0] = vec2(1,0),
-	[1] = vec2(0,1),
-	[2] = vec2(-1,0),
-	[3] = vec2(0,-1),
-}
-local opposite = {[0]=2,3,0,1}	-- opposite = [x]x~2
-local dirForName = {right=0, down=1, left=2, up=3}
-
------------------------ END vec/vec2.lua  -----------------------
------------------------ BEGIN vec/vec3.lua-----------------------
--- ALREADY INCLUDED: --#include ext/class.lua
-
--- component-based
-vec3_add=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az+bz)
-vec3_sub=|ax,ay,az,bx,by,bz|(ax+bx, ay+by, az-bz)
-vec3_neg=|x,y,z|(-x,-y,-z)
-vec3_scale=|s,x,y,z|(s*x, s*y, s*z)
-vec3_dot=|ax,ay,az, bx,by,bz| ax*bx + ay*by + az*bz
-vec3_cross=|ax,ay,az, bx,by,bz| (
-	ay*bz - az*by,
-	az*bx - ax*bz,
-	ax*by - ay*bx
-)
-vec3_len=|x,y,z|math.sqrt(x^2 + y^2 + z^2)
-vec3_unit=|x,y,z|do
-	local l = vec3_len(x,y,z)
-	local s = 1 / math.max(1e-15, l)
-	return x*s, y*s, z*s, l
-end
-vec3_toSpherical=|x,y,z|do
-	local r = vec3_len(x,y,z)
-	local theta = math.acos(z / r)
-	local phi = math.atan2(y, x)
-	return r,theta,phi
-end
-vec3_fromSpherical=|r,theta,phi|do
-	local sinTheta, cosTheta = math.sin(theta), math.cos(theta)
-	local sinPhi, cosPhi = math.sin(phi), math.cos(phi)
-	local x = r * cosPhi * sinTheta
-	local y = r * sinPhi * sinTheta
-	local z = r * cosTheta
-	return x, y, z
-end
-
-local vec3_getvalue=|x, dim|do
-	if type(x) == 'number' then return x end
-	if type(x) == 'table' then
-		if dim==1 then
-			x=x.x
-		elseif dim==2 then
-			x=x.y
-		elseif dim==3 then
-			x=x.z
-		else
-			x=nil
-		end
-		if type(x)~='number' then
-			error("expected a table of numbers, got a table with index "..dim.." of "..type(x))
-		end
-		return x
-	end
-	error("tried to vec3_getvalue from an unknown type "..type(x))
-end
-
--- tempting to template/generate this code ....
-local vec3
-vec3=class{
-	fields = table{'x', 'y', 'z'},
-	init=|v,x,y,z|do
-		if x then
-			v:set(x,y,z)
-		else
-			v:set(0,0,0)
-		end
-	end,
-	__unm=|v| vec3(-v.x, -v.y, -v.z),
-	__add=|a,b| vec3(vec3_getvalue(a, 1) + vec3_getvalue(b, 1), vec3_getvalue(a, 2) + vec3_getvalue(b, 2), vec3_getvalue(a, 3) + vec3_getvalue(b, 3)),
-	__sub=|a,b| vec3(vec3_getvalue(a, 1) - vec3_getvalue(b, 1), vec3_getvalue(a, 2) - vec3_getvalue(b, 2), vec3_getvalue(a, 3) - vec3_getvalue(b, 3)),
-	__mul=|a,b| vec3(vec3_getvalue(a, 1) * vec3_getvalue(b, 1), vec3_getvalue(a, 2) * vec3_getvalue(b, 2), vec3_getvalue(a, 3) * vec3_getvalue(b, 3)),
-	__div=|a,b| vec3(vec3_getvalue(a, 1) / vec3_getvalue(b, 1), vec3_getvalue(a, 2) / vec3_getvalue(b, 2), vec3_getvalue(a, 3) / vec3_getvalue(b, 3)),
-	__eq=|a,b| a.x == b.x and a.y == b.y and a.z == b.z,
-	__tostring=|v| v.x..','..v.y..','..v.z,
-	__concat=string.concat,
-	clone=|v| vec3(v),
-	set=|v,x,y,z|do
-		if type(x) == 'table' then
-			v.x = x.x or x[1] or error("idk")
-			v.y = x.y or x[2] or error("idk")
-			v.z = x.z or x[3] or error("idk")
-		else
-			assert(x, "idk")
-			v.x = x
-			if y then
-				v.y = y
-				v.z = z or 0
-			else
-				v.y = x
-				v.z = x
-			end
-		end
-		return v
-	end,
-	unpack=|v| (v.x, v.y, v.z),
-	sum=|v| v.x + v.y + v.z,
-	product=|v| v.x * v.y * v.z,
-	map=|v,f|do
-		v.x = f(v.x, 1)
-		v.y = f(v.y, 2)
-		v.z = f(v.z, 3)
-		return v
-	end,
-	floor=|v|v:map(math.floor),
-	ceil=|v|v:map(math.ceil),
-	l1Length=|v| math.abs(v.x) + math.abs(v.y) + math.abs(v.z),
-	lInfLength=|v| math.max(math.abs(v.x), math.abs(v.y), math.abs(v.z)),
-	dot=|a,b| a.x * b.x + a.y * b.y + a.z * b.z,
-	cross=|a,b| vec3(vec3_cross(a.x, a.y, a.z, b.x, b.y, b.z)),
-	lenSq=|v| v:dot(v),
-	len=|v| math.sqrt(v:lenSq()),
-	distSq = |a,b| ((a.x-b.x)^2 + (a.y-b.y)^2 + (a.z-b.z)^2),
-	unit=|v,res|do
-		local s = 1 / math.max(1e-15, v:len())
-		return res
-			and res:set(v.x * s, v.y * s, v.z * s)
-			or vec3(v.x * s, v.y * s, v.z * s)
-	end,
-	toSpherical=|v,res|res
-		and res:set(vec3_toSpherical(v:unpack()))
-		or vec3(vec3_toSpherical(v:unpack())),
-	fromSpherical=|v,res|res
-		and res:set(vec3_fromSpherical(v:unpack()))
-		or vec3(vec3_fromSpherical(v:unpack())),
-}
-
------------------------ END vec/vec3.lua  -----------------------
------------------------ BEGIN numo9/matstack.lua-----------------------
-assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
-local matAddr = ramaddr'mvMat'
-local matstack=table()
-local matpush=||do
-	local t={}
-	for i=0,15 do
-		t[i+1] = peekf(matAddr + (i<<2))
-	end
-	matstack:insert(t)
-end
-local matpop=||do
-	local t = matstack:remove(1)
-	if not t then return end
-	for i=0,15 do
-		pokef(matAddr + (i<<2), t[i+1])
-	end
-end
-
------------------------ END numo9/matstack.lua  -----------------------
+--#include ext/range.lua
+--#include ext/class.lua
+--#include vec/vec2.lua
+--#include vec/vec3.lua
+--#include numo9/matstack.lua
 
 --videoModeIndex=0	screenSize=vec2(256, 256)	-- 256x256xRGB565
 videoModeIndex=42	screenSize=vec2(480, 270)	-- 480x270x8bppIndex
@@ -498,7 +190,6 @@ drawBillboardSprite=|spriteIndex, x, y, z, ...|do
 end
 
 -- spr() signature
--- TODO make an API for mesh() or obj3d() or model() or something for storing and drawing 3D models
 drawObj=|tris, spriteIndex, x, y, z, rz, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
 	local sheetIndex = spriteIndex >> 10
 	local spriteU = (spriteIndex & 0x1f) << 3
@@ -558,7 +249,6 @@ for dim=0,2 do
 		end
 	end
 end
-drawCube=|...| drawObj(cubeTris, ...)
 
 local slopeTris = table()
 for dim=0,2 do
@@ -591,15 +281,50 @@ for dim=0,2 do
 	end
 end
 
-drawSlope=|spriteIndex, ...| drawObj(slopeTris, 1024|STONE, ...)
 
 drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 	if mt.drawBillboard then
 		drawBillboardSprite(spriteIndex, x, y, z, ...)
-	elseif mt.drawCube then
-		drawCube(spriteIndex, x, y, z, 0, ...)
-	elseif mt.drawSlope then
-		drawSlope(spriteIndex, x, y, z, mt.drawSlope, ...)
+	elseif mt.drawCube
+	or mt.drawSlope
+	then
+		--[[
+		drawObj(cubeTris, spriteIndex, x, y, z, 0, ...)
+		--]]
+		-- [[
+		matpush()
+		mattrans(x, y, z)
+		matscale(16, 16, 16)
+		mattrans(.5, .5, .5)
+		matscale(1/32768, 1/32768, 1/32768)
+		--[=[ TODO rotations
+		local rotZ = spriteIndex
+		matrot(rotZ * .5 * math.pi, 0, 0, 1)
+		matrot(rotY * .5 * math.pi, 0, 1, 0)
+		matrot(rotX * .5 * math.pi, 1, 0, 0)
+		--]=]
+
+		local spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY = ...
+		local meshIndex = 0 -- cube
+		local sheetIndex = spriteIndex>>10
+		if mt.drawSlope then
+			meshIndex = 1	-- slope
+			spriteIndex = 6	-- stone
+			sheetIndex = 1
+			matrot(mt.drawSlope * .5 * math.pi, 0, 0, 1)
+		end
+		mesh(
+			meshIndex,
+			(spriteIndex&0x1f)<<3,		-- uofs
+			((spriteIndex>>5)&0x1f)<<3,	-- vofs
+			sheetIndex,		-- sheetIndex
+			paletteIndex,
+			transparentIndex,
+			spriteBit,
+			spriteMask
+		)
+		matpop()
+		--]]
 	else
 		matpush()
 		mattrans(0, 0, z)
@@ -947,14 +672,14 @@ do
 
 				-- check falling
 				-- TODO you can looney tunes run over air until you let go of run ...
-				if not self.moveFracMoving 
+				if not self.moveFracMoving
 				and self.pos.z >= .5
 				then
 					if cornerTypes.UL == EMPTY and cornerTypes.UR == EMPTY and cornerTypes.LL == EMPTY and cornerTypes.LR == EMPTY then
 						local newDest = self.destPos + - vec3(0, 0, .5)
 						local lowerCornerTypes = getCornerTypes2D(newDest)
 						if lowerCornerTypes.UL == EMPTY and lowerCornerTypes.UR == EMPTY and lowerCornerTypes.LL == EMPTY and lowerCornerTypes.LR == EMPTY then
-							
+
 							local touching
 							for _,o in ipairs(objs) do
 								if not o.removeMe
