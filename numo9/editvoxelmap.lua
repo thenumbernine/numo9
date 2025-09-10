@@ -29,14 +29,10 @@ function EditVoxelMap:onCartLoad()
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
 
-	self.selMeshIndex = 0
 	self.wireframe = false
 
-	-- TODO replace this with a tile-select and a 8/16 toggle
-	self.tileXOffset = 0
-	self.tileYOffset = 0
-
-	self.orientation = 0
+	self.voxCurSel = ffi.new'Voxel'
+	self.voxCurSel.intval = 0
 
 	self.orbit = Orbit(self.app)
 	-- TODO init to max size of whatever blob is first loaded?
@@ -187,13 +183,13 @@ function EditVoxelMap:update()
 
 					-- stop at the last empty voxel
 					-- if we're oob then we're done with 'pti' as our final point inside the box
-					if not mapboxIE:contains(npti) then 
+					if not mapboxIE:contains(npti) then
 						npti = pti
-						break 
+						break
 					end
 					local v = voxelmapBlob:get(npti.x, npti.y, npti.z)
 					if v.intval ~= voxelMapEmptyValue then break end
-					
+
 					pti = npti
 				end
 
@@ -202,25 +198,25 @@ function EditVoxelMap:update()
 
 				if app:keyp'mouse_left' then
 					local shift = app:key'lshift' or app:key'rshift'
-					if shift then 
+					if shift then
 						if mapboxIE:contains(npti) then
 							local v = voxelmapBlob:get(npti:unpack())
 							if v.intval ~= voxelMapEmptyType then
-								self.selMeshIndex = v.mesh3DIndex
-								self.tileXOffset = v.tileXOffset
-								self.tileYOffset = v.tileYOffset
-								self.orientation = v.orientation
+								self.voxCurSel.mesh3DIndex = v.mesh3DIndex
+								self.voxCurSel.tileXOffset = v.tileXOffset
+								self.voxCurSel.tileYOffset = v.tileYOffset
+								self.voxCurSel.orientation = v.orientation
 							end
 						end
 					else
 						local v = voxelmapBlob:get(pti:unpack())
-						v.mesh3DIndex = self.selMeshIndex
-						v.tileXOffset = self.tileXOffset
-						v.tileYOffset = self.tileYOffset
-						v.orientation = self.orientation
+						v.mesh3DIndex = self.voxCurSel.mesh3DIndex
+						v.tileXOffset = self.voxCurSel.tileXOffset
+						v.tileYOffset = self.voxCurSel.tileYOffset
+						v.orientation = self.voxCurSel.orientation
 					end
 				end
-				
+
 				if app:keyp'mouse_right'
 				and mapboxIE:contains(npti)
 				then
@@ -259,24 +255,24 @@ function EditVoxelMap:update()
 	x = x + 8
 
 	self:guiSpinner(x, y, function(dx)
-		self.selMeshIndex = math.max(0, self.selMeshIndex + dx)
-	end, 'mesh='..self.selMeshIndex)
+		self.voxCurSel.mesh3DIndex = math.max(0, self.voxCurSel.mesh3DIndex + dx)
+	end, 'mesh='..self.voxCurSel.mesh3DIndex)
 	x = x + 12
 
 	self:guiSpinner(x, y, function(dx)
-		self.tileXOffset = bit.band(31, self.tileXOffset + dx)
-	end, 'uofs='..self.tileXOffset)
+		self.voxCurSel.tileXOffset = bit.band(31, self.voxCurSel.tileXOffset + dx)
+	end, 'uofs='..self.voxCurSel.tileXOffset)
 	x = x + 12
 
 	-- [[ TODO replace this with edittilemap's sheet tile selector
 	self:guiSpinner(x, y, function(dx)
-		self.tileYOffset = bit.band(31, self.tileYOffset + dx)
-	end, 'vofs='..self.tileYOffset)
+		self.voxCurSel.tileYOffset = bit.band(31, self.voxCurSel.tileYOffset + dx)
+	end, 'vofs='..self.voxCurSel.tileYOffset)
 	x = x + 12
 
 	self:guiSpinner(x, y, function(dx)
-		self.orientation = bit.band(31, self.orientation + dx)
-	end, 'orient='..self.orientation)
+		self.voxCurSel.orientation = bit.band(31, self.voxCurSel.orientation + dx)
+	end, 'orient='..self.voxCurSel.orientation)
 	x = x + 12
 	--]]
 
@@ -307,6 +303,17 @@ function EditVoxelMap:update()
 			)
 		end, 'depth='..mapsize.z)
 		x = x + 12
+
+		self:guiTextField(
+			188, 0, 20,
+			('%08X'):format(self.voxCurSel.intval), nil,
+			function(result)
+				result = tonumber(result, 16)
+				if result then
+					self.voxCurSel.intval = result
+				end
+			end
+		)
 	end
 
 	self:drawTooltip()

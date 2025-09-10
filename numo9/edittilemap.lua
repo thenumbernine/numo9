@@ -179,7 +179,7 @@ function EditTilemap:update()
 		bit.lshift(bit.band(7, self.orientation), 13)
 	)
 	self:guiTextField(
-		210, 0, 20,
+		202, 0, 20,
 		('%04X'):format(tileSelIndex), nil,
 		function(result)
 			result = tonumber(result, 16)
