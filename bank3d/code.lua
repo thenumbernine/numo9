@@ -179,7 +179,7 @@ drawBillboardSprite=|spriteIndex, x, y, z, ...|do
 	mattrans(x + 8, y + 8, z)
 
 	-- undo camera viewAngle to make a billboard
-	matrot(math.rad(-viewAngle + 90), 0, 0, 1)
+	matrot(math.rad(viewAngle + 90), 0, 0, 1)
 	matrot(math.rad(-60), 1, 0, 0)
 	-- recenter
 
@@ -189,122 +189,34 @@ drawBillboardSprite=|spriteIndex, x, y, z, ...|do
 	matpop()
 end
 
--- spr() signature
-drawObj=|tris, spriteIndex, x, y, z, rz, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY| do
-	local sheetIndex = spriteIndex >> 10
-	local spriteU = (spriteIndex & 0x1f) << 3
-	local spriteV = ((spriteIndex >> 5) & 0x1f) << 3
-	local spriteW = 16 --tilesWide << 3
-	local spriteH = 16 --tilesHigh << 3
-	matpush()
-	mattrans(x + 8, y + 8, z + 8)
-	matrot(rz * math.pi * .5, 0, 0, 1)
-	mattrans(-8, -8, -8)
-	matscale(16, 16, 16)
-
-	for _,tri in ipairs(tris) do
-		local
-			x1,y1,z1,u1,v1,
-			x2,y2,z2,u2,v2,
-			x3,y3,z3,u3,v3 = table.unpack(tri)
-		-- maybe I should just use spr() and transform?
-		-- have I ever tested ttri3d before?
-		ttri3d(
-			x1, y1, z1, u1 * spriteW + spriteU, v1 * spriteH + spriteV,
-			x2, y2, z2, u2 * spriteW + spriteU, v2 * spriteH + spriteV,
-			x3, y3, z3, u3 * spriteW + spriteU, v3 * spriteH + spriteV,
-			sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask
-		)
-	end
-
-	matpop()
-end
-
-cubeTris = table()
-for dim=0,2 do
-	for side=0,1 do
-		for _,uvs in ipairs{
-			{0,0, 0,1, 1,1},
-			{1,1, 1,0, 0,0},
-		} do
-			local u1, v1, u2, v2, u3, v3 = table.unpack(uvs)
-
-			local xyz_for_uv = |u,v| do
-				if dim == 0 then
-					return side, 1 - v, u
-				elseif dim == 1 then
-					return u, side, 1 - v
-				elseif dim == 2 then
-					return u, v, side
-				end
-			end
-			local x1,y1,z1 = xyz_for_uv(u1,v1)
-			local x2,y2,z2 = xyz_for_uv(u2,v2)
-			local x3,y3,z3 = xyz_for_uv(u3,v3)
-			cubeTris:insert{
-				x1,y1,z1,u1,v1,
-				x2,y2,z2,u2,v2,
-				x3,y3,z3,u3,v3,
-			}
-		end
-	end
-end
-
-local slopeTris = table()
-for dim=0,2 do
-	for side=0,1 do
-		for _,uvs in ipairs{
-			{0,0, 0,1, 1,1},
-			{1,1, 1,0, 0,0},
-		} do
-			local u1, v1, u2, v2, u3, v3 = table.unpack(uvs)
-
-			local xyz_for_uv = |u,v| do
-				if dim == 0 then
-					return side, 1 - v, u, u, v
-				elseif dim == 1 then
-					return u, side, 1 - v, u, v
-				elseif dim == 2 then
-					return u, v, side, u, v
-				end
-			end
-			local flatx = |x,y,z, u, v| (x, y, z * x, u, v)
-			local x1,y1,z1,u1,v1 = flatx(xyz_for_uv(u1,v1))
-			local x2,y2,z2,u2,v2 = flatx(xyz_for_uv(u2,v2))
-			local x3,y3,z3,u3,v3 = flatx(xyz_for_uv(u3,v3))
-			slopeTris:insert{
-				x1,y1,z1,u1,v1,
-				x2,y2,z2,u2,v2,
-				x3,y3,z3,u3,v3,
-			}
-		end
-	end
-end
-
-
 drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 	if mt.drawBillboard then
+		-- [[
 		drawBillboardSprite(spriteIndex, x, y, z, ...)
+		--]]
+		--[[
+		-- TODO use the billboard sprite / voxel pathway
+		--]]
 	elseif mt.drawCube
 	or mt.drawSlope
 	then
-		--[[
-		drawObj(cubeTris, spriteIndex, x, y, z, 0, ...)
-		--]]
-		-- [[
+		local spritesWide, spritesHigh,
+			paletteIndex, transparentIndex, spriteBit, spriteMask,
+			scaleX, scaleY
+			= ...
 		matpush()
 		mattrans(x, y, z)
 		matscale(16, 16, 16)
 		mattrans(.5, .5, .5)
 		matscale(1/32768, 1/32768, 1/32768)
-		--[=[ TODO rotations
+
+		--[=[ TODO rotations, esp passing them from the voxel info
 		local rotZ = spriteIndex
 		matrot(rotZ * .5 * math.pi, 0, 0, 1)
 		matrot(rotY * .5 * math.pi, 0, 1, 0)
 		matrot(rotX * .5 * math.pi, 1, 0, 0)
 		--]=]
 
-		local spritesWide, spritesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY = ...
 		local meshIndex = 0 -- cube
 		local sheetIndex = spriteIndex>>10
 		if mt.drawSlope then
@@ -313,6 +225,9 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 			sheetIndex = 1
 			matrot(mt.drawSlope * .5 * math.pi, 0, 0, 1)
 		end
+
+		--matscale(scaleX, scaleY, 1)
+
 		mesh(
 			meshIndex,
 			(spriteIndex&0x1f)<<3,		-- uofs
@@ -324,7 +239,6 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 			spriteMask
 		)
 		matpop()
-		--]]
 	else
 		matpush()
 		mattrans(0, 0, z)
@@ -336,8 +250,8 @@ end
 drawMap=||do
 	local viewCenterX = player and player.pos.x or levelSize.x/2
 	local viewCenterY = player and player.pos.y or levelSize.y/2
-	local fwdx = math.cos(-math.rad(viewAngle))
-	local fwdy = math.sin(-math.rad(viewAngle))
+	local fwdx = math.cos(math.rad(viewAngle))
+	local fwdy = math.sin(math.rad(viewAngle))
 	local viewX = viewCenterX - viewDist * fwdx
 	local viewY = viewCenterY - viewDist * fwdy
 	local viewZ = viewAlt
@@ -1269,6 +1183,12 @@ do
 			self.bombs=0
 			self.bombBlastRadius=1
 			self.seq=seqs.playerStandDown
+
+			-- since our coordinate system changed from lhs to rhs ...
+			-- TODO replace spr()'s with billboard drawing
+			-- then replace the scale.x offset in drawing objetcs
+			-- then maybe you can enable this in the obj renderer
+			--self.scale.x *= -1
 		end,
 		move=|:,dir|do
 			if self.dead then return end
@@ -1634,19 +1554,19 @@ update=||do
 	if player then
 		if btn'b' then
 			if btnp'left' then
-				destViewAngle -= 90
-			elseif btnp'right' then
 				destViewAngle += 90
+			elseif btnp'right' then
+				destViewAngle -= 90
 			end
 		else
 			if btn'up' then
-				player:move((dirForName.up + (destViewAngle / 90) + 1) & 3)
+				player:move((dirForName.up + (destViewAngle / 90) - 1) & 3)
 			elseif btn'down' then
-				player:move((dirForName.down + (destViewAngle / 90) + 1) & 3)
+				player:move((dirForName.down + (destViewAngle / 90) - 1) & 3)
 			elseif btn'left' then
-				player:move((dirForName.left + (destViewAngle / 90) + 1) & 3)
+				player:move((dirForName.left + (destViewAngle / 90) - 1) & 3)
 			elseif btn'right' then
-				player:move((dirForName.right + (destViewAngle / 90) + 1) & 3)
+				player:move((dirForName.right + (destViewAngle / 90) - 1) & 3)
 			else
 				player:stopMoving()
 			end
