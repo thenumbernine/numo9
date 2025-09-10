@@ -29,6 +29,9 @@ function EditVoxelMap:onCartLoad()
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
 
+	self.selMeshIndex = 0
+	self.wireframe = false
+
 	-- TODO replace this with a tile-select and a 8/16 toggle
 	self.tileXOffset = 0
 	self.tileYOffset = 0
@@ -129,6 +132,20 @@ function EditVoxelMap:update()
 		)
 		app.ram.paletteBlobIndex = pushPalBlobIndex
 
+		if self.wireframe then
+			local v = voxelmapBlob:getVoxelPtr()
+			for k=0,mapsize.z-1 do
+				for j=0,mapsize.y-1 do
+					for i=0,mapsize.x-1 do
+						if v.intval ~= voxelMapEmptyValue then
+							self:drawBox(box3d(vec3d(i,j,k),vec3d(i,j,k)+1), 0xa)
+						end
+						v = v + 1
+					end
+				end
+			end
+		end
+
 		-- TODO
 		-- mouse line, intersect only with far bounding planes of the voxelmap
 		-- or intersect with march through the voxelmap
@@ -155,7 +172,7 @@ function EditVoxelMap:update()
 			-- this could still be OOB if the user isn't mouse'd over the box ...
 		end
 		if mapbox:contains(mousePos) then
-			local pti = mousePos:map(math.floor)
+			local pti, npti = mousePos:map(math.floor)
 			-- then march through the voxelmap
 			while true do
 				-- intersect with cube [pti, pti+1]
@@ -166,18 +183,33 @@ function EditVoxelMap:update()
 					true)	-- true = inside the cube intersecting with outside
 
 				mousePos = mousePos + mouseDir * (d + 1e-5)
-				local npti = mousePos:map(math.floor)
+				npti = mousePos:map(math.floor)
 
 				-- stop at the last empty voxel
-				if not mapboxIE:contains(npti) then
-					-- ... then we're done with 'pti' as our final point inside the box
-					break
-				end
+				-- if we're oob then we're done with 'pti' as our final point inside the box
+				if not mapboxIE:contains(npti) then break end
+				local v = voxelmapBlob:get(npti.x, npti.y, npti.z)
+				if v.intval ~= voxelMapEmptyValue then break end
+				
 				pti = npti
 			end
 
-			self:drawBox(box3d(pti, pti+1), 0x1b)
-			-- now draw a cube at pti
+			-- show selection
+			self:drawBox(box3d(npti, npti+1), 0x1b)
+
+			if app:keyp'mouse_left' then
+				local v = voxelmapBlob:get(pti:unpack())
+				v.mesh3DIndex = self.selMeshIndex
+				v.tileXOffset = self.tileXOffset
+				v.tileYOffset = self.tileYOffset
+				v.orientation = self.orientation
+			end
+			if app:keyp'mouse_right'
+			and mapboxIE:contains(npti)
+			then
+				local v = voxelmapBlob:get(npti:unpack())
+				v.intval = voxelMapEmptyValue
+			end
 		end
 
 		self.orbit:endDraw()
@@ -199,10 +231,19 @@ function EditVoxelMap:update()
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
 	x = x + 12
 
+	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
+		self.wireframe = not self.wireframe
+	end
+	x = x + 8
 	if self:guiButton(self.orbit.ortho and 'O' or 'P', x, y, false, self.orbit.ortho and 'orbit.ortho' or 'projection') then
 		self.orbit.ortho = not self.orbit.ortho
 	end
 	x = x + 8
+
+	self:guiSpinner(x, y, function(dx)
+		self.selMeshIndex = math.max(0, self.selMeshIndex + dx)
+	end, 'mesh='..self.selMeshIndex)
+	x = x + 12
 
 	self:guiSpinner(x, y, function(dx)
 		self.tileXOffset = bit.band(31, self.tileXOffset + dx)

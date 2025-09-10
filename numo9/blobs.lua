@@ -729,6 +729,16 @@ end
 function BlobVoxelMap:getVoxelPtr()
 	return ffi.cast('Voxel*', self:getPtr() + ffi.sizeof(voxelmapSizeType) * 3)
 end
+function BlobVoxelMap:get(x,y,z)
+	x = math.floor(x)
+	y = math.floor(y)
+	z = math.floor(z)
+	if x < 0 or x >= self:getWidth()
+	or y < 0 or y >= self:getHeight()
+	or z < 0 or z >= self:getDepth() 
+	then return end
+	return self:getVoxelPtr() + x + self:getWidth() * (y + self:getHeight() * z)
+end
 
 
 local blobClassForType = {}

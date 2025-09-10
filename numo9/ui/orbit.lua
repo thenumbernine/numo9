@@ -95,12 +95,12 @@ function Orbit:applyMatrix()
 	app:matident()
 	-- draw orientation widget
 	app:matortho(-20, 2, 20, -2, -2, 2)
-	app:matrot(-math.rad(th),x,y,z)
+	app:matrot(math.rad(th),x,y,z)
 	app:drawSolidLine3D(0, 0, 0, 1, 0, 0, 0x19, nil, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 1, 0, 0x1a, nil, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 0, 1, 0x1c, nil, app.paletteMenuTex)
-
 	app:matident()
+
 	if self.ortho then
 		local r = 1.2
 		local zn, zf = -1000, 1000
