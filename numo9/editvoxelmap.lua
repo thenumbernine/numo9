@@ -221,6 +221,11 @@ function EditVoxelMap:update()
 					local v = voxelmapBlob:get(npti:unpack())
 					v.intval = voxelMapEmptyValue
 				end
+
+
+				if not self.tooltip then
+					self:setTooltip(npti.x..','..npti.y..','..npti.z, mouseX-8, mouseY-8, 0xfc, 0)
+				end
 			end
 		end
 

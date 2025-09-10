@@ -18,7 +18,7 @@ function Orbit:init(app)
 
 	self.scale = 1
 	self.ortho = false
-	self.angle = quatd(0,0,1,0)
+	self.angle = quatd(0,0,0,1)
 	self.orbit = vec3d(0,0,0)
 	self.pos = vec3d(0,0,1)
 

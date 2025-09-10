@@ -77,9 +77,9 @@ mapTypes={
 	[MOVING_LEFT] = {},
 	[MOVING_UP] = {},
 	[SLOPE_RIGHT] = {drawSlope=0},
-	[SLOPE_DOWN] = {drawSlope=1},
+	[SLOPE_UP] = {drawSlope=1},
 	[SLOPE_LEFT] = {drawSlope=2},
-	[SLOPE_UP] = {drawSlope=3},
+	[SLOPE_DOWN] = {drawSlope=3},
 }
 
 corners2d = table{
@@ -96,6 +96,10 @@ getCornerTypes2D = |where|
 
 local dirvecs3d = dirvecs:map(|v,k| (vec3(v.x, v.y, 0), k))
 dirForName.none = -1
+
+-- flip for our rhs 3d coord sys
+dirForName.up, dirForName.down = dirForName.down, dirForName.up
+
 seqs={
 	cloud=128,
 	brick=74,	-- irl? why not just the tilemap?
@@ -167,14 +171,15 @@ viewZFar = levelSize.y*2
 viewDist = levelSize.x*.75
 viewAlt = levelSize.x*.75
 viewTiltUpAngle = 45
-viewAngle = -90
+viewAngle = 90
+destViewAngle = viewAngle
 
 drawBillboardSprite=|spriteIndex, x, y, z, ...|do
 	matpush()
 	mattrans(x + 8, y + 8, z)
 
 	-- undo camera viewAngle to make a billboard
-	matrot(math.rad(viewAngle + 90), 0, 0, 1)
+	matrot(math.rad(-viewAngle + 90), 0, 0, 1)
 	matrot(math.rad(-60), 1, 0, 0)
 	-- recenter
 
@@ -331,15 +336,15 @@ end
 drawMap=||do
 	local viewCenterX = player and player.pos.x or levelSize.x/2
 	local viewCenterY = player and player.pos.y or levelSize.y/2
-	local fwdx = math.cos(math.rad(viewAngle))
-	local fwdy = math.sin(math.rad(viewAngle))
+	local fwdx = math.cos(-math.rad(viewAngle))
+	local fwdy = math.sin(-math.rad(viewAngle))
 	local viewX = viewCenterX - viewDist * fwdx
 	local viewY = viewCenterY - viewDist * fwdy
 	local viewZ = viewAlt
 
 	matident()
 	matfrustum(-viewZNear, viewZNear, -viewZNear, viewZNear, viewZNear, viewZFar)
-	--matscale(-1, 1, 1)	-- go from lhs to rhs coord system
+	matscale(-1, 1, 1)	-- go from lhs to rhs coord system
 	matlookat(
 		viewX, viewY, viewZ,
 		viewX + fwdx * math.sin(math.rad(viewTiltUpAngle)),
@@ -1562,6 +1567,13 @@ splashMenuY=0
 
 
 update=||do
+	local da = destViewAngle - viewAngle
+	if math.abs(da) > 1 then
+		viewAngle += da * .1
+	else
+		destViewAngle %= 360
+		viewAngle = destViewAngle
+	end
 	if inSplash then
 		cls(0xf0)
 
@@ -1622,21 +1634,19 @@ update=||do
 	if player then
 		if btn'b' then
 			if btnp'left' then
-				viewAngle += 90
-				viewAngle %= 360
+				destViewAngle -= 90
 			elseif btnp'right' then
-				viewAngle -= 90
-				viewAngle %= 360
+				destViewAngle += 90
 			end
 		else
 			if btn'up' then
-				player:move((dirForName.up + (viewAngle / 90) + 1) & 3)
+				player:move((dirForName.up + (destViewAngle / 90) + 1) & 3)
 			elseif btn'down' then
-				player:move((dirForName.down + (viewAngle / 90) + 1) & 3)
+				player:move((dirForName.down + (destViewAngle / 90) + 1) & 3)
 			elseif btn'left' then
-				player:move((dirForName.left + (viewAngle / 90) + 1) & 3)
+				player:move((dirForName.left + (destViewAngle / 90) + 1) & 3)
 			elseif btn'right' then
-				player:move((dirForName.right + (viewAngle / 90) + 1) & 3)
+				player:move((dirForName.right + (destViewAngle / 90) + 1) & 3)
 			else
 				player:stopMoving()
 			end
