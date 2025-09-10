@@ -1055,7 +1055,7 @@ print('package.loaded', package.loaded)
 	self.editMusic = EditMusic{app=self}
 	self.editBrushmap = EditBrushmap{app=self}
 	self.editMesh3D = EditMesh3D{app=self}
-	self.editVoxelMap = EditVoxelmap{app=self}
+	self.editVoxelmap = EditVoxelmap{app=self}
 	self.con = Console{app=self}
 	self.mainMenu = MainMenu{app=self}
 	self.cartBrowser = CartBrowser{app=self}
@@ -2903,10 +2903,12 @@ function App:runCart()
 			self.editTilemap.gridSpacing = tonumber(v) or self.editTilemap.gridSpacing
 			self.editTilemap.drawGrid = true
 		end
+		
 		local v = self.metainfo['editTilemap.draw16Sprites']
 		if v ~= nil then	-- I'm pretty sure this still needs a string-convert
 			self.editTilemap.draw16Sprites = true
 		end
+		
 		local v = self.metainfo['editTilemap.sheetBlobIndex']
 		if v ~= nil then
 			self.editTilemap.sheetBlobIndex = tonumber(v)
@@ -2916,6 +2918,12 @@ function App:runCart()
 		if v ~= nil then
 			self.editBrushmap.draw16Sprites = true
 		end
+	
+		local v = self.metainfo['editVoxelmap.sheetBlobIndex']
+		if v ~= nil then
+			self.editVoxelmap.sheetBlobIndex = tonumber(v)
+		end
+
 	end
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop

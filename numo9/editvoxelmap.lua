@@ -146,72 +146,73 @@ function EditVoxelMap:update()
 			end
 		end
 
-		-- TODO
-		-- mouse line, intersect only with far bounding planes of the voxelmap
-		-- or intersect with march through the voxelmap
-		-- how to get mouse line?
-		-- transform mouse coords by view matrix
 		local mouseX, mouseY = app.ram.mousePos:unpack()
-		local mousePos = self.orbit.pos + mapsize * .5
-		-- assume fov is 90°
-		local mouseDir =
-			- self.orbit.angle:zAxis()
-			+ self.orbit.angle:xAxis() * (mouseX - 128) / 128
-			+ self.orbit.angle:yAxis() * (128 - mouseY) / 128
-		-- or alternatively use the inverse of the modelview matrix... but meh ...
-		if not mapbox:contains(mousePos) then
-			-- now line intersect with the camera-facing planes of the bbox
+		if mouseY >= 8 then
+			-- mouse line, intersect only with far bounding planes of the voxelmap
+			-- or intersect with march through the voxelmap
+			-- how to get mouse line?
+			-- transform mouse coords by view matrix
+			local mousePos = self.orbit.pos + mapsize * .5
+			-- assume fov is 90°
+			local mouseDir =
+				- self.orbit.angle:zAxis()
+				+ self.orbit.angle:xAxis() * (mouseX - 128) / 128
+				- self.orbit.angle:yAxis() * (mouseY - 128) / 128
+			-- or alternatively use the inverse of the modelview matrix... but meh ...
+			if not mapbox:contains(mousePos) then
+				-- now line intersect with the camera-facing planes of the bbox
 
-			local d = lineBoxDist(
-				mapbox,
-				mousePos,
-				mouseDir)
-
---print('dists', d, dx, dy, dz)
-			mousePos = mousePos + mouseDir * (d + 1e-5)
-			-- this could still be OOB if the user isn't mouse'd over the box ...
-		end
-		if mapbox:contains(mousePos) then
-			local pti, npti = mousePos:map(math.floor)
-			-- then march through the voxelmap
-			while true do
-				-- intersect with cube [pti, pti+1]
-				local d, axis = lineBoxDist(
-					box3d(pti, pti+1),
+				local d = lineBoxDist(
+					mapbox,
 					mousePos,
-					mouseDir,
-					true)	-- true = inside the cube intersecting with outside
+					mouseDir)
 
+	--print('dists', d, dx, dy, dz)
 				mousePos = mousePos + mouseDir * (d + 1e-5)
-				npti = mousePos:map(math.floor)
+				-- this could still be OOB if the user isn't mouse'd over the box ...
+			end
+			if mapbox:contains(mousePos) then
+				local pti, npti = mousePos:map(math.floor)
+				-- then march through the voxelmap
+				while true do
+					-- intersect with cube [pti, pti+1]
+					local d, axis = lineBoxDist(
+						box3d(pti, pti+1),
+						mousePos,
+						mouseDir,
+						true)	-- true = inside the cube intersecting with outside
 
-				-- stop at the last empty voxel
-				-- if we're oob then we're done with 'pti' as our final point inside the box
-				if not mapboxIE:contains(npti) then 
-					npti = pti
-					break 
+					mousePos = mousePos + mouseDir * (d + 1e-5)
+					npti = mousePos:map(math.floor)
+
+					-- stop at the last empty voxel
+					-- if we're oob then we're done with 'pti' as our final point inside the box
+					if not mapboxIE:contains(npti) then 
+						npti = pti
+						break 
+					end
+					local v = voxelmapBlob:get(npti.x, npti.y, npti.z)
+					if v.intval ~= voxelMapEmptyValue then break end
+					
+					pti = npti
 				end
-				local v = voxelmapBlob:get(npti.x, npti.y, npti.z)
-				if v.intval ~= voxelMapEmptyValue then break end
-				
-				pti = npti
-			end
 
-			-- show selection
-			self:drawBox(box3d(npti, npti+1), 0x1b)
+				-- show selection
+				self:drawBox(box3d(npti, npti+1), 0x1b)
 
-			if app:keyp'mouse_left' then
-				local v = voxelmapBlob:get(pti:unpack())
-				v.mesh3DIndex = self.selMeshIndex
-				v.tileXOffset = self.tileXOffset
-				v.tileYOffset = self.tileYOffset
-				v.orientation = self.orientation
-			end
-			if app:keyp'mouse_right'
-			and mapboxIE:contains(npti)
-			then
-				local v = voxelmapBlob:get(npti:unpack())
-				v.intval = voxelMapEmptyValue
+				if app:keyp'mouse_left' then
+					local v = voxelmapBlob:get(pti:unpack())
+					v.mesh3DIndex = self.selMeshIndex
+					v.tileXOffset = self.tileXOffset
+					v.tileYOffset = self.tileYOffset
+					v.orientation = self.orientation
+				end
+				if app:keyp'mouse_right'
+				and mapboxIE:contains(npti)
+				then
+					local v = voxelmapBlob:get(npti:unpack())
+					v.intval = voxelMapEmptyValue
+				end
 			end
 		end
 

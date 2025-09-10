@@ -5,6 +5,7 @@
 -- disableMultiplayer = true
 -- editTilemap.gridSpacing = 11
 -- editTilemap.draw16Sprites = true
+-- editVoxelmap.sheetBlobIndex = 1
 
 --#include ext/range.lua
 --#include ext/class.lua

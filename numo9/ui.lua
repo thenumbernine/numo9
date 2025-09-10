@@ -54,7 +54,7 @@ UI.editFieldForMode = {
 	--brush = 'editBrushes',
 	brushmap = 'editBrushmap',
 	mesh3d = 'editMesh3D',
-	voxelmap = 'editVoxelMap',
+	voxelmap = 'editVoxelmap',
 }
 
 
