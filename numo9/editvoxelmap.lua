@@ -88,8 +88,8 @@ function EditVoxelMap:drawBox(box, color)
 		for b=0,2 do
 			local j = bit.bxor(i, bit.lshift(1, b))
 			if j > i then
-				local ax, ay, az = (box:corner(i) * 32768):unpack()
-				local bx, by, bz = (box:corner(j) * 32768):unpack()
+				local ax, ay, az = box:corner(i):unpack()
+				local bx, by, bz = box:corner(j):unpack()
 				app:drawSolidLine3D(
 					ax, ay, az,
 					bx, by, bz,
@@ -119,7 +119,7 @@ function EditVoxelMap:update()
 
 	if voxelmapBlob then
 		self.orbit:beginDraw()
-		app:mattrans(-32768*.5*mapsize.x, -32768*.5*mapsize.y, -32768*.5*mapsize.z)
+		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
 
 		self:drawBox(mapbox, 0x31)
 
@@ -187,7 +187,10 @@ function EditVoxelMap:update()
 
 				-- stop at the last empty voxel
 				-- if we're oob then we're done with 'pti' as our final point inside the box
-				if not mapboxIE:contains(npti) then break end
+				if not mapboxIE:contains(npti) then 
+					npti = pti
+					break 
+				end
 				local v = voxelmapBlob:get(npti.x, npti.y, npti.z)
 				if v.intval ~= voxelMapEmptyValue then break end
 				

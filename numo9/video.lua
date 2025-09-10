@@ -3693,7 +3693,9 @@ function AppVideo:drawVoxelMap(
 	end
 
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-	self:matscale(1/32768, 1/32768, 1/32768)
+	self:mattrans(.5, .5, .5)
+	local s = 32768
+	self:matscale(1/s, 1/s, 1/s)
 
 	local width, height, depth = vox:getWidth(), vox:getHeight(), vox:getDepth()
 	local vptr = vox:getVoxelPtr()
@@ -3718,17 +3720,17 @@ function AppVideo:drawVoxelMap(
 
 				ffi.copy(self.ram.mvMat, mvMatPush2, ffi.sizeof(mvMatPush2))
 
-				self:mattrans(32768, 0, 0)
+				self:mattrans(s, 0, 0)
 
 				vptr = vptr + 1
 			end
-			self:mattrans(-32768 * width, 0, 0)
-			self:mattrans(0, 32768, 0)
+			self:mattrans(-s * width, 0, 0)
+			self:mattrans(0, s, 0)
 		end
-		self:mattrans(0, -32768 * height, 0)
-		self:mattrans(0, 0, 32768)
+		self:mattrans(0, -s * height, 0)
+		self:mattrans(0, 0, s)
 	end
-	self:mattrans(0, 0, -32768 * depth)
+	self:mattrans(0, 0, -s * depth)
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end

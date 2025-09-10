@@ -48,21 +48,7 @@ function Orbit:beginDraw()
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 	ffi.copy(self.mvMatPush, app.ram.mvMat, ffi.sizeof(self.mvMatPush))
-	self:applyMatrix()	-- this scales down by 32768 for the sake f 3d model's sint16 type
-end
 
-function Orbit:endDraw()
-	local app = self.app
-	ffi.copy(app.ram.mvMat, self.mvMatPush, ffi.sizeof(self.mvMatPush))
-	-- flush before disable depth test so the flush will use depth test...
-	app.triBuf:flush()
-	gl.glDisable(gl.GL_DEPTH_TEST)
-
-	app:setClipRect(0, 0, clipMax, clipMax)
-end
-
-function Orbit:applyMatrix()
-	local app = self.app
 	local height = 256
 	local dx, dy = self.mouseMove:unpack()
 	if app:key'mouse_left'
@@ -116,7 +102,17 @@ function Orbit:applyMatrix()
 
 	app:matrot(-math.rad(th),x,y,z)
 	app:mattrans(-self.pos.x, -self.pos.y, -self.pos.z)
-	app:matscale(self.scale/32768, self.scale/32768, self.scale/32768)
+	app:matscale(self.scale, self.scale, self.scale)
+end
+
+function Orbit:endDraw()
+	local app = self.app
+	ffi.copy(app.ram.mvMat, self.mvMatPush, ffi.sizeof(self.mvMatPush))
+	-- flush before disable depth test so the flush will use depth test...
+	app.triBuf:flush()
+	gl.glDisable(gl.GL_DEPTH_TEST)
+
+	app:setClipRect(0, 0, clipMax, clipMax)
 end
 
 return Orbit
