@@ -344,7 +344,8 @@ sfxid={
 	death = 6,
 }
 
-EMPTY = 0
+EMPTY = 0xffffffff
+GROUND = 0
 TREE = 2
 BRICK = 4
 STONE = 6
@@ -375,6 +376,7 @@ WATER_ANIM_2 = WATER_ANIM_1 + 2
 
 mapTypes={
 	[EMPTY] = {dontDraw=true},
+	[GROUND] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
 	[TREE] = {cannotPassThru=true, drawBillboard=true},
 	[BRICK] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
 	[STONE] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
