@@ -1528,7 +1528,7 @@ void main() {
 
 		// sheetTex is R8 indexing into our palette ...
 		uint colorIndex = ]]..readTex{
-			tex = self.sheetRAMs[2].tex,
+			tex = self.sheetRAMs[1].tex,
 			texvar = 'sheetTex',
 			tc = 'tileTexTC',
 			from = 'ivec2',

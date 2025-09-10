@@ -2898,32 +2898,20 @@ function App:runCart()
 
 	-- see if the ROM has any preferences on the editor ...
 	do
-		local v = self.metainfo['editTilemap.gridSpacing']
-		if v then
-			self.editTilemap.gridSpacing = tonumber(v) or self.editTilemap.gridSpacing
-			self.editTilemap.drawGrid = true
+		-- TODO just search all editors?
+		for blobType,edit in pairs(require 'numo9.ui'.editFieldForMode) do
+			for _,field in ipairs{'sheetBlobIndex', 'draw16Sprites', 'gridSpacing'} do
+				local metakey = edit..'.'..field
+				local v = self.metainfo[metakey]
+				if v ~= nil then
+					xpcall(function()
+						self[edit][field] = fromlua(v)
+					end, function(err)
+						print('failed to set metakey', metakey, 'value', v)
+					end)
+				end
+			end
 		end
-		
-		local v = self.metainfo['editTilemap.draw16Sprites']
-		if v ~= nil then	-- I'm pretty sure this still needs a string-convert
-			self.editTilemap.draw16Sprites = true
-		end
-		
-		local v = self.metainfo['editTilemap.sheetBlobIndex']
-		if v ~= nil then
-			self.editTilemap.sheetBlobIndex = tonumber(v)
-		end
-
-		local v = self.metainfo['editBrushmap.draw16Sprites']
-		if v ~= nil then
-			self.editBrushmap.draw16Sprites = true
-		end
-	
-		local v = self.metainfo['editVoxelmap.sheetBlobIndex']
-		if v ~= nil then
-			self.editVoxelmap.sheetBlobIndex = tonumber(v)
-		end
-
 	end
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop

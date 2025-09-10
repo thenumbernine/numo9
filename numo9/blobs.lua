@@ -889,7 +889,7 @@ end
 
 local minBlobPerType = {
 	code = 1,
-	sheet = 2,		-- TODO don't need 2 min here, heck we don't even need 1 min.
+	sheet = 1,
 	tilemap = 1,
 	palette = 1,	-- ok we def need 1 of this
 	font = 1,		-- debatable we need 1 of this

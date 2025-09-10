@@ -47,7 +47,7 @@ end
 function EditBrushmap:onCartLoad()
 	self.brushmapBlobIndex = 0
 	self.tilemapBlobIndex = 0
-	self.sheetBlobIndex = 1
+	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
 
 	-- in case there's one there

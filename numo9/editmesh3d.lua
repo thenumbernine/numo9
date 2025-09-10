@@ -9,7 +9,7 @@ end
 
 function EditMesh3D:onCartLoad()
 	self.mesh3DBlobIndex = 0
-	self.sheetBlobIndex = 0	-- TODO should this default to 1 (tilemap) or 0 (spritemap) ?  or should I even keep a 1 by default around?
+	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
 
 	self.drawFaces = true
