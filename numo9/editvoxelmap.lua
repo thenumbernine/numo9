@@ -201,12 +201,26 @@ function EditVoxelMap:update()
 				self:drawBox(box3d(npti, npti+1), 0x1b)
 
 				if app:keyp'mouse_left' then
-					local v = voxelmapBlob:get(pti:unpack())
-					v.mesh3DIndex = self.selMeshIndex
-					v.tileXOffset = self.tileXOffset
-					v.tileYOffset = self.tileYOffset
-					v.orientation = self.orientation
+					local shift = app:key'lshift' or app:key'rshift'
+					if shift then 
+						if mapboxIE:contains(npti) then
+							local v = voxelmapBlob:get(npti:unpack())
+							if v.intval ~= voxelMapEmptyType then
+								self.selMeshIndex = v.mesh3DIndex
+								self.tileXOffset = v.tileXOffset
+								self.tileYOffset = v.tileYOffset
+								self.orientation = v.orientation
+							end
+						end
+					else
+						local v = voxelmapBlob:get(pti:unpack())
+						v.mesh3DIndex = self.selMeshIndex
+						v.tileXOffset = self.tileXOffset
+						v.tileYOffset = self.tileYOffset
+						v.orientation = self.orientation
+					end
 				end
+				
 				if app:keyp'mouse_right'
 				and mapboxIE:contains(npti)
 				then
