@@ -319,11 +319,6 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 	end
 end
 
---[[ using map() function, which doesnt support animiations yet ... TODO
-drawMap=||
-	map(levelTile.x,levelTile.y,levelSize.x,levelSize.y,0,0,0,true)
---]]
--- [[ manually for animation
 drawMap=||do
 	local viewCenterX = player and player.pos.x or levelSize.x/2
 	local viewCenterY = player and player.pos.y or levelSize.y/2
@@ -367,7 +362,6 @@ drawMap=||do
 		end
 	end
 end
---]]
 
 
 objs=table()
@@ -1464,14 +1458,10 @@ nextLevel=|dontComplete|do
 	loadLevelRequest=true
 end
 
-levelTile = vec2()
 setLevel=|level_|do
 	level=level_
 	saveinfos[saveSlot].level = level
 	saveState()
-	levelTile.x = (level & 1) * levelSize.x * levelSize.z
-	levelTile.y = (level >> 1) * levelSize.y
-	levelTile.x *= levelSize.x * levelSize.z
 	if level > -1 then
 		--TODO if level >= 0 then set the local storage current-level value to 'level'
 		levelstr='level '..tostring(level)
@@ -1482,8 +1472,8 @@ setLevel=|level_|do
 end
 
 floor=math.floor
-mapGet=|x,y,z| mget(levelTile.x + floor(x) + floor(z) * levelSize.x, levelTile.y + floor(y)) & 0x3ff	-- drop the hv flip and pal-hi
-mapSet=|x,y,z,value| mset(levelTile.x + floor(x) + floor(z) * levelSize.x, levelTile.y + floor(y), value)
+mapGet=|x,y,z| vget(level, x, y, z)
+mapSet=|x,y,z,value| vset(level, x, y, z, value)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
@@ -1494,6 +1484,7 @@ loadLevel=||do
 			for x=0,levelSize.x-1 do
 				local pos = vec3(x+.5,y+.5,z)
 				local m = mapGet(x,y,z)
+				--[=[
 				if m==EMPTY
 				or m==TREE
 				or m==BRICK
@@ -1549,6 +1540,7 @@ loadLevel=||do
 						trace('unknown spawn', x,y,z,m)
 					end
 				end
+				--]=]
 			end
 		end
 	end

@@ -354,13 +354,12 @@ function App:initGL()
 			return self:drawVoxelMap(...)
 		end,
 		vget = function(voxelmapIndex, x, y, z)
-			local vox = self.blobs.voxelmap[voxelmapIndex+1]
+			local vox = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
 			if not vox then return end
 
-			-- TODO floor first so values in [-1,0] don't go to 0?
-			x = ffi.cast('int32_t', x)
-			y = ffi.cast('int32_t', y)
-			z = ffi.cast('int32_t', z)
+			x = math.floor(tonumber(x) or 0)
+			y = math.floor(tonumber(y) or 0)
+			z = math.floor(tonumber(z) or 0)
 
 			local sx = vox:getWidth()
 			local sy = vox:getHeight()
@@ -383,13 +382,12 @@ function App:initGL()
 			)
 		end,
 		vset = function(voxelmapIndex, x, y, z, value)
-			local vox = self.blobs.voxelmap[voxelmapIndex+1]
+			local vox = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
 			if not vox then return end
 
-			-- TODO floor first so values in [-1,0] don't go to 0?
-			x = ffi.cast('int32_t', x)
-			y = ffi.cast('int32_t', y)
-			z = ffi.cast('int32_t', z)
+			x = math.floor(tonumber(x) or 0)
+			y = math.floor(tonumber(y) or 0)
+			z = math.floor(tonumber(z) or 0)
 
 			local sx = vox:getWidth()
 			local sy = vox:getHeight()

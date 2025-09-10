@@ -383,8 +383,8 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 		- Bits 0..4 = x coordinate into the 32x32 grid of 8x8 tiles in the 256x256 sprite/tile sheet.
 		- Bits 5..9 = y coordinate " " "
 		- Bit 10 = whether to use the sprite sheet or tile sheet.
-		- Bits 11... = represent which bank to use (up to 32 addressable).
-			Bank 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and bank 0's tile sheet is relocatable with the `tileSheetAddr`, and bit #11 determines which to use.
+		- Bits 11..15 = represent which sheet blob to use (up to 32 addressable).
+			Sheet 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and sheet 1's is relocatable with the `tileSheetAddr`, and bit #11 determines which to use.
 	- screenX, screenY = pixel location of upper-left corner of the sprite
 	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
 	- paletteIndex = a value to offset the colors by.  This can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
@@ -408,11 +408,11 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- mapIndexOffset = global offset to shift all map indexes.
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
 	- sheetIndex = the sheet to use.  0 = sprite, 1 = tile, default to 1.
-	- tilemapIndex = the tilemap bank to use, default to 0.
-- `mget(x, y, [bank=0])` = Read the uint16 from the current tilemap address at x, y.
+	- tilemapIndex = the tilemap blob index to use, default to 0.
+- `mget(x, y, [tilemapIndex=0])` = Read the uint16 from the tilemap address at x, y.
 	Out of bounds coordinates return a value of 0.
 	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.
-- `mset(x, y, value, [bank=0])` = Write a uint16 to the current tilemap address at x, y.
+- `mset(x, y, value, [tilemapIndex=0])` = Write a uint16 to the current tilemap address at x, y.
 - `drawbrush(brushIndex, sx, sy, w, h, [orientation, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
@@ -723,7 +723,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		Real cartridge consoles just gave separate address space to the cartridges, then you just copy between your RAM and your ROM addresses.
 		Fantasy consoles seem to be keeping an extra copy of the cartridge in memory and accessing it through these functions.
 		Maybe I will put the ROM in addressible space and just have load/reset perform an initial copy from ROM to RAM space. How about ROM at 0xC00000 or so?
-		Maybe I'll think more on this as I think about spriteSheet vs tileSheet vs multiple sheets vs multiple arbitrary-purpose banks ...
 	- debating: should I add a shader blob?
 	- debating: should I put the whole ROM in a single 1024x1024xRGBA8UI (minimum GLES3/WebGL2 texture size) texture, one per 4MB?
 		And then upon RAM updates, don't upload the *whole thing*, just update the dirty region ... possibly do that immediately?
@@ -740,13 +739,9 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - matortho and matfrustum have extra adjustments to pixel space baked into them. Yay or nay?
 - How should audio + menu system + editor work?  i have audio keep playing, and only playing audio through the editsfx/editmusic stops it.  trying to mediate editor vs live gameplay.
 - The reset button on the editor ... and editing live content vs editing cartridge content ... and editing during netplay whatsoever ... and callbacks upon editor-write for insta-spawning objects from tilemap data ... this and multicart/bank and sync() function ...
-- ROM size constraints overall, especially with respect to audio and video.  Fantasy consoles usually don't do much for letting you extend past their given single spritesheet, tilesheet, tilemap, etc.
-	- In reality cartridge games would come with multiple banks dedicated to audio or video and swap them in and out of memory at different times.  How extensible should I make my cartridges?
-	- This fits with the new Brush tab, it will be variable-sized too...
 - I could order sprites linearly in memory, i.e. each 8x8xbpp bytes in memory is a new 8x8 sprite, and just give them a max size of 256x256 for the sake of GPU uploads... tempting....
 - <8bpp interleaved instead of planar.  In fact it's tempting to get rid of the whole idea of a 2D texture and just make all textures as a giant 1D texture that the shader unravels.
 	This means redoing the tiles-wide and high of the sprite and map draw functions.
-- How to swap out palette texs or fonts from high banks?  So instead of bloating the API, how about just have an 'active bank' variable in RAM somewhere, and that determines which tile sheet, tilemap, palette, font, etc to use ... or nah too restrictive? idk...
 - For 16x16 tilemap mode, should I just `<< 1` the tile index, and not store the zeroes?  Since it is basically always 2-aligned anyways?
 	- Should I store the draw16x16 in its own variable in RAM?  Same for tilemap index offset, same for tilemap spritesheet bank, same for tilemap bank.
 	- Should I allow 32x32 64x64 etc as well?
