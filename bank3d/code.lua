@@ -243,12 +243,7 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 
 		matpop()
 	else
-		x -= scaleX * spritesWide * 4
-		y -= scaleY * spritesHigh * 4
-		matpush()
-		mattrans(0, 0, z)
-		spr(x, y, ...)
-		matpop()
+		error'TODO use drawBillboard'
 	end
 end
 
@@ -813,8 +808,8 @@ do
 				drawForFlags(
 					self,
 					384+self.blastRadius,
-					16*self.pos.x,
-					16*self.pos.y,
+					16*self.pos.x - 8,
+					16*self.pos.y - 8,
 					16*self.pos.z,
 					1,
 					1,
@@ -1294,9 +1289,9 @@ do
 				drawForFlags(
 					self,
 					384+self.bombs,
-					16*self.pos.x,
-					16*self.pos.y,
-					16*self.pos.z,			-- z
+					16*self.pos.x - 8,
+					16*self.pos.y - 8,
+					16*self.pos.z,
 					1,
 					1,
 					nil,
