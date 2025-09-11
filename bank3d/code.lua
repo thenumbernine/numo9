@@ -39,7 +39,7 @@ sfxid={
 
 EMPTY = 0xffffffff
 GROUND = 0
-TREE = 2
+TREE = 0xa0000802	-- 2, but with billboard orientation (0xa...) and quad bilboard (80...)
 BRICK = 4
 STONE = 6
 WATER = 8
@@ -258,10 +258,14 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 		local orientation = 20	-- xyz-aligned, center-anchored
 		-- TODO use xy-aligned, bottom-anchored billboards
 		local sheetIndex = spriteIndex>>10
-		drawvoxel(
+		local voxelValue = tonumber(uint32_t(
 			(spriteIndex & 0x3ff)	-- tile uv
 			| (meshIndex << 10)
-			| (orientation << 27),
+			| (orientation << 27)
+		))
+trace(('%x'):format(voxelValue))
+		drawvoxel(
+			voxelValue,
 			sheetIndex,
 			paletteIndex,
 			transparentIndex,

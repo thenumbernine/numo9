@@ -889,9 +889,9 @@ function App:initGL()
 		int16_t = ffi.typeof'int16_t',
 		uint16_t = ffi.typeof'uint16_t',
 		int16_t = ffi.typeof'int16_t',
-		int32_t = ffi.typeof'int16_t',
-		uint32_t = ffi.typeof'uint16_t',
-		int32_t = ffi.typeof'int16_t',
+		int32_t = ffi.typeof'int32_t',
+		uint32_t = ffi.typeof'uint32_t',
+		int32_t = ffi.typeof'int32_t',
 
 		-- TODO don't let the ROM see the App...
 		app = self,
