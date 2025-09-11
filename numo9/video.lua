@@ -3716,9 +3716,9 @@ function AppVideo:drawVoxel_int(vox, ...)
 		a.ptr[11] = sz * (a3 * a2 + a7 * a6 + a11 * a10)
 	elseif vox.orientation == 21 then
 		-- TODO special case, xy-aligned, anchored to voxel center
-	elseif vptr.orientation == 22 then
+	elseif vox.orientation == 22 then
 		-- TODO special case, xyz-aligned, anchored to z- center
-	elseif vptr.orientation == 23 then
+	elseif vox.orientation == 23 then
 		-- TODO special case, xy-aligned, anchored to z- center
 	else
 		-- euler-angles
@@ -3734,7 +3734,6 @@ function AppVideo:drawVoxel_int(vox, ...)
 		bit.lshift(vox.tileYOffset, 3),
 		...
 	)
-
 end
 
 -- this just draws one single voxel.  
