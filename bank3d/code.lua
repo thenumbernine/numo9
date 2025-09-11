@@ -1240,11 +1240,11 @@ do
 					sfx(sfxid.step)
 				end
 				self.lastAnimStep = animstep
-				if self.dir==dirForName.up then
+				if self.dir == (dirForName.up + math.round(viewAngle / 90) - 1) & 3 then
 					self.seq = animstep and seqs.playerStandUp2 or seqs.playerStandUp
-				elseif self.dir==dirForName.left then
+				elseif self.dir == (dirForName.left + math.round(viewAngle / 90) - 1) & 3 then
 					self.seq = animstep and seqs.playerStandLeft2 or seqs.playerStandLeft
-				elseif self.dir==dirForName.right then
+				elseif self.dir == (dirForName.right + math.round(viewAngle / 90) - 1) & 3 then
 					self.seq = animstep and seqs.playerStandRight2 or seqs.playerStandRight
 				else
 					self.seq = animstep and seqs.playerStandDown2 or seqs.playerStandDown
