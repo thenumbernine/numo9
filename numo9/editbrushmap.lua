@@ -511,6 +511,9 @@ function EditBrushmap:writeSelBrushmapBlob()
 		brushmapBlob.vec:emplace_back()[0] = stamp
 	end
 	-- TODO ... regen the ROM or something? idk?
+	-- ... yeah that's what typically happens in the editor
+	-- but doing so means invalidating all our ram ptrs ...
+	-- so for now brushmaps can't be edited live
 end
 
 return EditBrushmap

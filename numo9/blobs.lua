@@ -728,31 +728,34 @@ end
 function BlobVoxelMap:getDepth()
 	return ffi.cast(voxelmapSizeType..'*', self:getPtr())[2]
 end
-function BlobVoxelMap:getVoxelPtr()
+function BlobVoxelMap:getVoxelDataBlobPtr()
 	return ffi.cast('Voxel*', self:getPtr() + ffi.sizeof(voxelmapSizeType) * 3)
 end
-function BlobVoxelMap:getVoxelAddr()
+function BlobVoxelMap:getVoxelDataRAMPtr()
+	return ffi.cast('Voxel*', self.ramptr + ffi.sizeof(voxelmapSizeType) * 3)
+end
+function BlobVoxelMap:getVoxelDataAddr()
 	return self.addr + ffi.sizeof(voxelmapSizeType) * 3
 end
-function BlobVoxelMap:getCart(x,y,z)
+function BlobVoxelMap:getVoxelBlobPtr(x,y,z)
 	x = math.floor(x)
 	y = math.floor(y)
 	z = math.floor(z)
 	if x < 0 or x >= self:getWidth()
 	or y < 0 or y >= self:getHeight()
-	or z < 0 or z >= self:getDepth() 
+	or z < 0 or z >= self:getDepth()
 	then return end
-	return self:getVoxelPtr() + x + self:getWidth() * (y + self:getHeight() * z)
+	return self:getVoxelDataBlobPtr() + x + self:getWidth() * (y + self:getHeight() * z)
 end
-function BlobVoxelMap:getAddr(x,y,z)
+function BlobVoxelMap:getVoxelAddr(x,y,z)
 	x = math.floor(x)
 	y = math.floor(y)
 	z = math.floor(z)
 	if x < 0 or x >= self:getWidth()
 	or y < 0 or y >= self:getHeight()
-	or z < 0 or z >= self:getDepth() 
+	or z < 0 or z >= self:getDepth()
 	then return end
-	return self:getVoxelAddr() + ffi.sizeof'Voxel' * (x + self:getWidth() * (y + self:getHeight() * z))
+	return self:getVoxelDataAddr() + ffi.sizeof'Voxel' * (x + self:getWidth() * (y + self:getHeight() * z))
 end
 
 local blobClassForType = {}

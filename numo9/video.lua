@@ -3737,7 +3737,7 @@ function AppVideo:drawVoxel_int(vox, ...)
 	)
 end
 
--- this just draws one single voxel.  
+-- this just draws one single voxel.
 -- but it sets up the scale matrix first.
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:drawVoxel(
@@ -3746,7 +3746,7 @@ function AppVideo:drawVoxel(
 )
 	local vox = ffi.new'Voxel'	-- better ffi.cast/ffi.new inside here or store outside?
 	vox.intval = voxelValue or 0
-	
+
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 	self:mattrans(.5, .5, .5)
 	local s = 32768
@@ -3764,9 +3764,9 @@ function AppVideo:drawVoxelMap(
 	...
 )
 	voxelmapIndex = voxelmapIndex or 0
-	local voxmap = self.blobs.voxelmap[voxelmapIndex+1]
-	if not voxmap then
---DEBUG:print('failed to find voxmap', voxelmapIndex)
+	local voxelmap = self.blobs.voxelmap[voxelmapIndex+1]
+	if not voxelmap then
+--DEBUG:print('failed to find voxelmap', voxelmapIndex)
 		return
 	end
 
@@ -3775,13 +3775,8 @@ function AppVideo:drawVoxelMap(
 	local s = 32768
 	self:matscale(1/s, 1/s, 1/s)
 
-	local width, height, depth = voxmap:getWidth(), voxmap:getHeight(), voxmap:getDepth()
-	--[[ using the cart data
-	local vptr = voxmap:getVoxelPtr()
-	--]]
-	-- [[ using the app RAM
-	local vptr = ffi.cast('Voxel*', self.ram.v + voxmap:getVoxelAddr())
-	--]]
+	local width, height, depth = voxelmap:getWidth(), voxelmap:getHeight(), voxelmap:getDepth()
+	local vptr = voxelmap:getVoxelDataRAMPtr()
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do

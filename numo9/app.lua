@@ -357,65 +357,21 @@ function App:initGL()
 			return self:drawVoxelMap(...)
 		end,
 		vget = function(voxelmapIndex, x, y, z)
-			local vox = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
-			if not vox then return voxelMapEmptyValue end
-
-			x = math.floor(tonumber(x) or 0)
-			y = math.floor(tonumber(y) or 0)
-			z = math.floor(tonumber(z) or 0)
-
-			local sx = vox:getWidth()
-			local sy = vox:getHeight()
-			local sz = vox:getDepth()
-
-			if x < 0 or x >= sx
-			or y < 0 or y >= sy
-			or z < 0 or z >= sz
-			then return voxelMapEmptyValue end
-
-			local index = x + sx * (y + sy * z)
-			--[[
-			local vptr = vox:getVoxelPtr()
-			return vptr[index].intval
-			--]]
-			return self:peekl(
-				vox.addr
-				+ 3 * ffi.sizeof(voxelmapSizeType)	-- skip header
-				+ ffi.sizeof'Voxel' * index
-			)
+			local voxelmap = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
+			if not voxelmap then return voxelMapEmptyValue end
+			local addr = voxelmap:getVoxelAddr(x,y,z)
+			if not addr then return voxelMapEmptyValue end
+			return self:peekl(addr)
 		end,
 		vset = function(voxelmapIndex, x, y, z, value)
-			local vox = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
-			if not vox then return end
-
-			x = math.floor(tonumber(x) or 0)
-			y = math.floor(tonumber(y) or 0)
-			z = math.floor(tonumber(z) or 0)
-
-			local sx = vox:getWidth()
-			local sy = vox:getHeight()
-			local sz = vox:getDepth()
-
-			if x < 0 or x >= sx
-			or y < 0 or y >= sy
-			or z < 0 or z >= sz
-			then return voxelMapEmptyValue end
-
-			local index = x + sx * (y + sy * z)
-			--[[
-			local vptr = vox:getVoxelPtr()
-			vptr[x + sx * (y + sy * z)].intval = value
-			--]]
-			-- [[
-			-- does mget/mset send through net? yeah cuz clients need that info for tilemap texture updates
-			-- same with voxels?  they don't have any GPU backing...
-			self:net_pokel(
-				vox.addr
-				+ 3 * ffi.sizeof(voxelmapSizeType)	-- skip header
-				+ ffi.sizeof'Voxel' * index,
-				value
-			)
-			--]]
+			local voxelmap = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
+			if not voxelmap then return end
+			-- does mget/mset send through net?
+			-- yeah cuz clients need that info for tilemap texture updates
+			-- same with voxels?  they don't have any GPU backing, so not much of a need, unless we're relocating the textures or framebuffer or something ...
+			local addr = voxelmap:getVoxelAddr(x,y,z)
+			if not addr then return end
+			self:net_pokel(addr, value)
 		end,
 
 		-- graphics

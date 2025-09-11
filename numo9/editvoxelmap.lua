@@ -98,16 +98,16 @@ function EditVoxelMap:update()
 
 	EditVoxelMap.super.update(self)
 
-	local voxelmapBlob = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
-	local mapsize = voxelmapBlob
+	local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+	local mapsize = voxelmap
 		and vec3d(
-			voxelmapBlob:getWidth(),
-			voxelmapBlob:getHeight(),
-			voxelmapBlob:getDepth())
+			voxelmap:getWidth(),
+			voxelmap:getHeight(),
+			voxelmap:getDepth())
 	local mapbox = box3d(vec3d(0,0,0), mapsize)
 	local mapboxIE = box3d(vec3d(0,0,0), mapsize-1)	-- mapbox, [incl,excl), for integer testing
 
-	if voxelmapBlob then
+	if voxelmap then
 		local mouseHandled = self.orbit:beginDraw()
 		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
 
@@ -124,16 +124,16 @@ function EditVoxelMap:update()
 
 		if self.wireframe then
 			--[[ using cart data
-			local v = voxelmapBlob:getVoxelPtr()
+			local v = voxelmap:getVoxelDataBlobPtr()
 			--]]
 			-- [[ using app RAM
-			local v = ffi.cast('Voxel*', app.ram.v + voxelmapBlob:getVoxelAddr())
+			local v = voxelmap:getVoxelDataRAMPtr()
 			--]]
 			for k=0,mapsize.z-1 do
 				for j=0,mapsize.y-1 do
 					for i=0,mapsize.x-1 do
 						if v.intval ~= voxelMapEmptyValue then
-							self:drawBox(box3d(vec3d(i,j,k),vec3d(i,j,k)+1), 0xa)
+							self:drawBox(box3d(vec3d(i,j,k), vec3d(i,j,k)+1), 0xa)
 						end
 						v = v + 1
 					end
@@ -188,12 +188,17 @@ function EditVoxelMap:update()
 						npti = pti
 						break
 					end
-error'TODO'					
 					--[[ read from cart
-					local v = voxelmapBlob:get(npti.x, npti.y, npti.z)
+					local v = voxelmap:getVoxelBlobPtr(npti.x, npti.y, npti.z)
 					if v.intval ~= voxelMapEmptyValue then break end
 					--]]
 					-- [[ read from RAM
+					local vaddr = voxelmap:getVoxelAddr(npti.x, npti.y, npti.z)
+					if vaddr
+					and app:peekl(vaddr) ~= voxelMapEmptyValue
+					then
+						break
+					end
 					--]]
 
 					pti = npti
@@ -206,19 +211,28 @@ error'TODO'
 					local shift = app:key'lshift' or app:key'rshift'
 					if shift then
 						if mapboxIE:contains(npti) then
-							local v = voxelmapBlob:get(npti:unpack())
+							--[[ read from cart
+							local v = voxelmap:getVoxelBlobPtr(npti:unpack())
 							if v.intval ~= voxelMapEmptyType then
 								self.voxCurSel.intval = v.intval
 							end
+							--]]
+							-- [[
+							local vaddr = voxelmap:getVoxelAddr(npti:unpack())
+							local voxval = app:peekl(vaddr)
+							if voxval ~= voxelMapEmptyType then
+								self.voxCurSel.intval = voxval
+							end
+							--]]
 						end
 					else
 						--[[ write to cart
-						local v = voxelmapBlob:getCart(pti:unpack())
+						local v = voxelmap:getVoxelBlobPtr(pti:unpack())
 						v.intval = self.voxCurSel.intval
 						--]]
 						-- [[
-						app:net_pokel(
-							voxelmapBlob:getAddr(pti:unpack()),
+						app:edit_pokel(
+							voxelmap:getVoxelAddr(pti:unpack()),
 							self.voxCurSel.intval
 						)
 						--]]
@@ -229,15 +243,13 @@ error'TODO'
 				and mapboxIE:contains(npti)
 				then
 					--[[ write to cart
-					local v = voxelmapBlob:get(npti:unpack())
+					local v = voxelmap:get(npti:unpack())
 					v.intval = voxelMapEmptyValue
 					--]]
 					-- [[ write to RAM
-					app:net_pokel(
-						voxelmapBlob:getAddr(pti:unpack()),
+					app:edit_pokel(
+						voxelmap:getVoxelAddr(pti:unpack()),
 						voxelMapEmptyValue)
-					error'TODO'
-					end
 				end
 
 
@@ -297,7 +309,7 @@ error'TODO'
 	x = x + 12
 	--]]
 
-	if voxelmapBlob then
+	if voxelmap then
 		self:guiSpinner(x, y, function(dx)
 			self:resizeVoxelmap(
 				math.max(1, mapsize.x + dx),
@@ -342,8 +354,8 @@ end
 
 function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	local app = self.app
-	local voxelmapBlob = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
-	if not voxelmapBlob then return end
+	local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+	if not voxelmap then return end
 
 	assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof'Voxel')	-- just put everything in uint32_t
 
@@ -354,14 +366,14 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	for k=0,nz-1 do
 		for j=0,ny-1 do
 			for i=0,nx-1 do
-				if i < voxelmapBlob:getWidth()
-				and j < voxelmapBlob:getHeight()
-				and k < voxelmapBlob:getDepth()
+				if i < voxelmap:getWidth()
+				and j < voxelmap:getHeight()
+				and k < voxelmap:getDepth()
 				then
 					-- TODO or ffi.copy per-row to speed things up
-					o:emplace_back()[0] = voxelmapBlob:getVoxelPtr()[
-						i + voxelmapBlob:getWidth() * (
-							j + voxelmapBlob:getHeight() * k
+					o:emplace_back()[0] = voxelmap:getVoxelDataBlobPtr()[
+						i + voxelmap:getWidth() * (
+							j + voxelmap:getHeight() * k
 						)
 					].intval
 				else
