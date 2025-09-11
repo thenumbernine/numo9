@@ -65,7 +65,7 @@ WATER_ANIM_2 = WATER_ANIM_1 + 2
 mapTypes={
 	[EMPTY] = {dontDraw=true},
 	[GROUND] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
-	[TREE] = {cannotPassThru=true, drawBillboard=true},
+	[TREE] = {cannotPassThru=true},
 	[BRICK] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
 	[STONE] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
 	[WATER] = {cannotPassThru=true},
@@ -183,42 +183,21 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 		= ...
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
-	if mt.drawBillboard then
-		matpush()
-		mattrans(x, y, z)
-		matscale(16, 16, 16)
-		matscale(scaleX, scaleY, 1)	-- TODO recenter-then-scale?
-
-		local meshIndex = 2 -- quad, texels are [0,16]
-		if spritesWide == 1 and spritesHigh == 1 then	-- only used by numbers drawn over billboard moneybags
-			meshIndex = 3	-- quad, texels are [0,8]
-			--matscale(.5, .5, .5)	TODO move it fwd a bit
-		else
-			assert.eq(spritesWide, 2)
-			assert.eq(spritesHigh, 2)
-		end
-		local orientation = 20	-- xyz-aligned, center-anchored
-		-- TODO use xy-aligned, bottom-anchored billboards
-		local sheetIndex = spriteIndex>>10
-		drawvoxel(
-			(spriteIndex & 0x3ff)	-- tile uv
-			| (meshIndex << 10)
-			| (orientation << 27),
-			sheetIndex,
-			paletteIndex,
-			transparentIndex,
-			spriteBit,
-			spriteMask
-		)
-
-		matpop()
-	elseif mt.drawCube
+	if mt.drawCube
 	or mt.drawSlope
 	then
 		matpush()
+		--[[
 		mattrans(x, y, z)
 		matscale(16, 16, 16)
+		mattrans(.5, .5, .5)
 		matscale(scaleX, scaleY, 1)	-- TODO recenter-then-scale?
+		mattrans(-.5, -.5, -.5)
+		--]]
+		-- [[ optimized
+		mattrans(x+8-8*scaleX, y+8-8*scaleY, z)
+		matscale(16*scaleX, 16*scaleY, 16)
+		--]]
 
 		local meshIndex = 0 -- cube
 		local sheetIndex = spriteIndex>>10
@@ -243,7 +222,43 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 
 		matpop()
 	else
-		error'TODO use drawBillboard'
+		matpush()
+		--[[
+		mattrans(x, y, z)
+		matscale(16, 16, 16)
+		mattrans(.5, .5, .5)
+		matscale(scaleX, scaleY, 1)
+		mattrans(-.5, -.5, -.5)
+		--]]
+		-- [[ optimized
+		mattrans(x+8-8*scaleX, y+8-8*scaleY, z)
+		matscale(16*scaleX, 16*scaleY, 16)
+		--]]
+
+		local meshIndex = 2 -- quad, texels are [0,16]
+		if spritesWide == 1 and spritesHigh == 1 then	-- only used by numbers drawn over billboard moneybags
+			meshIndex = 3	-- quad, texels are [0,8]
+			mattrans(.25, .25, .25)
+			matscale(.5, .5, .5)	-- TODO move it fwd a bit
+		else
+			assert.eq(spritesWide, 2)
+			assert.eq(spritesHigh, 2)
+		end
+		local orientation = 20	-- xyz-aligned, center-anchored
+		-- TODO use xy-aligned, bottom-anchored billboards
+		local sheetIndex = spriteIndex>>10
+		drawvoxel(
+			(spriteIndex & 0x3ff)	-- tile uv
+			| (meshIndex << 10)
+			| (orientation << 27),
+			sheetIndex,
+			paletteIndex,
+			transparentIndex,
+			spriteBit,
+			spriteMask
+		)
+
+		matpop()
 	end
 end
 
@@ -328,7 +343,6 @@ BaseObj=class{
 		isBlocking=true
 		isBlockingPushers=true
 		blocksExplosion=true
-		drawBillboard=true
 	end,
 	-- in AnimatedObj in fact ...
 	update=|::|nil,
@@ -1169,7 +1183,6 @@ do
 		init=|:|do
 			super.init(self,{})
 			self.seq=seqs.framer
-			self.drawBillboard = false
 			self.drawCube = true
 		end,
 	}
