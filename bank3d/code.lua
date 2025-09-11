@@ -64,10 +64,10 @@ WATER_ANIM_2 = WATER_ANIM_1 + 2
 
 mapTypes={
 	[EMPTY] = {dontDraw=true},
-	[GROUND] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
-	[TREE] = {cannotPassThru=true},
-	[BRICK] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
-	[STONE] = {cannotPassThru=true, drawCube=true, blocksGunShot=true, blocksExplosion=true},
+	[GROUND] = {cannotPassThru=true, drawVoxel=true, blocksGunShot=true, blocksExplosion=true},
+	[TREE] = {cannotPassThru=true, drawVoxel=true},
+	[BRICK] = {cannotPassThru=true, drawVoxel=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
+	[STONE] = {cannotPassThru=true, drawVoxel=true, blocksGunShot=true, blocksExplosion=true},
 	[WATER] = {cannotPassThru=true},
 	[ARROW_RIGHT] = {},
 	[ARROW_DOWN] = {},
@@ -187,6 +187,41 @@ viewTiltUpAngle = 45
 viewAngle = 90
 destViewAngle = viewAngle
 
+-- because :: operator needs __index = _G to work, that means all globals get loaded into eachobject's namespace ... bad idea
+-- that means setting '_G.drawVoxel='... will set all models to voxel models
+-- that means TLDR don't use :: operator
+local drawVoxel=|
+	x, y, z,
+	scaleX, scaleY,
+	...
+	--[[
+	voxelValue,
+	sheetIndex,
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
+	--]]
+| do
+
+	matpush()
+	--[[
+	mattrans(x, y, z)
+	matscale(16, 16, 16)
+	mattrans(.5, .5, .5)
+	matscale(scaleX, scaleY, 1)	-- TODO recenter-then-scale?
+	mattrans(-.5, -.5, -.5)
+	--]]
+	-- [[ optimized
+	mattrans(x+8-8*scaleX, y+8-8*scaleY, z)
+	matscale(16*scaleX, 16*scaleY, 16)
+	--]]
+
+	drawvoxel(...)
+
+	matpop()
+end
+
 drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 	local spritesWide, spritesHigh,
 		paletteIndex, transparentIndex, spriteBit, spriteMask,
@@ -194,7 +229,7 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 		= ...
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
-	if mt.drawCube
+	if mt.drawVoxel
 	or mt.drawSlope
 	then
 		matpush()
@@ -315,14 +350,20 @@ drawMap=||do
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
-				local tileIndex = mapGet(x,y,z)
-				local mt = mapTypes[tileIndex]
-				if mt and not mt.dontDraw then
-					if tileIndex == WATER then
-						tileIndex = WATER_ANIM_1
-						if math.floor(time()) & 1 == 1 then tileIndex += 2 end
+				local voxelValue = mapGet(x,y,z)
+				local mt = mapTypes[voxelValue]
+				if voxelValue ~= EMPTY then
+					-- TODO voxelmap tile animation ...
+					if voxelValue == WATER then
+						voxelValue = WATER_ANIM_1
+						if math.floor(time()) & 1 == 1 then voxelValue += 2 end
 					end
-					drawForFlags(mt, 1024|tileIndex, x*16, y*16, z*16, 2, 2)
+					drawVoxel(
+						x*16, y*16, z*16,	-- x,y,z,
+						1, 1,				-- scaleX, scaleY
+						voxelValue,			-- voxelValue
+						1					-- sheetIndex
+					)
 				end
 			end
 		end
@@ -1197,7 +1238,7 @@ do
 		init=|:|do
 			super.init(self,{})
 			self.seq=seqs.framer
-			self.drawCube = true
+			self.drawVoxel = true
 		end,
 	}
 end
@@ -1652,8 +1693,6 @@ update=||do
 		lastLevelStrWidth = lastLevelStrWidth or 5*7
 		lastLevelStrWidth = text(levelstr,(screenSize.x-lastLevelStrWidth)/2,0,22,-1)
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
-
-		if player then text("pos="..player.pos, 0, 8) end
 	end
 
 	matident()
