@@ -43,30 +43,38 @@ function Orbit:beginDraw()
 
 	ffi.copy(self.mvMatPush, app.ram.mvMat, ffi.sizeof(self.mvMatPush))
 
+	local alt = app:key'lalt' or app:key'ralt'
+	local uikey
+	if ffi.os == 'OSX' then
+		uikey = app:key'lgui' or app:key'rgui'
+	else
+		uikey = app:key'lctrl' or app:key'rctrl'
+	end
+
+	-- block all if ctrl or alt are used
+	-- (leaving shift for the editor to use for the dropper)
+	-- TODO maybe use right mouse here (in combination with some modifier keys that the editor doesn't use ...)
+	local mouseHandled = alt or uikey
 	local height = 256
 	if app:key'mouse_left'
 	and (dx ~= 0 or dy ~= 0)
 	then
-		local shift = app:key'lshift' or app:key'rshift'
-		local uikey
-		if ffi.os == 'OSX' then
-			uikey = app:key'lgui' or app:key'rgui'
-		else
-			uikey = app:key'lctrl' or app:key'rctrl'
-		end
-		if shift then
+		-- pan
+		if uikey and alt then
+			local dist = (self.pos - self.orbit):length()
+			self.orbit = self.orbit + self.angle:rotate(vec3d(-dx,dy,0) * (dist / height))
+			self.pos = self.angle:zAxis() * dist + self.orbit
+		-- rotate
+		elseif uikey then
+			self.angle = self.angle * quatd():fromAngleAxis(-dy,-dx, 0, 3*math.sqrt(dx^2+dy^2))
+			self.pos = self.angle:zAxis() * (self.pos - self.orbit):length() + self.orbit
+		-- zoom
+		elseif alt then
 			if self.ortho then
 				self.scale = self.scale * math.exp(.1 * dy)
 			else
 				self.pos = (self.pos - self.orbit) * math.exp(dy * -.03) + self.orbit
 			end
-		elseif uikey then
-			local dist = (self.pos - self.orbit):length()
-			self.orbit = self.orbit + self.angle:rotate(vec3d(-dx,dy,0) * (dist / height))
-			self.pos = self.angle:zAxis() * dist + self.orbit
-		else
-			self.angle = self.angle * quatd():fromAngleAxis(-dy,-dx, 0, 3*math.sqrt(dx^2+dy^2))
-			self.pos = self.angle:zAxis() * (self.pos - self.orbit):length() + self.orbit
 		end
 	end
 	local x,y,z,th = self.angle:toAngleAxis():unpack()
@@ -96,6 +104,8 @@ function Orbit:beginDraw()
 	app:matrot(-math.rad(th),x,y,z)
 	app:mattrans(-self.pos.x, -self.pos.y, -self.pos.z)
 	app:matscale(self.scale, self.scale, self.scale)
+
+	return mouseHandled
 end
 
 function Orbit:endDraw()

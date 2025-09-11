@@ -29,7 +29,7 @@ function EditMesh3D:update()
 
 	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
 	if mesh3DBlob then
-		self.orbit:beginDraw()
+		local mouseHandled = self.orbit:beginDraw()
 		app:matscale(1/32768, 1/32768, 1/32768)
 
 		-- draw the 3D model here

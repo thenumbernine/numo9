@@ -108,7 +108,7 @@ function EditVoxelMap:update()
 	local mapboxIE = box3d(vec3d(0,0,0), mapsize-1)	-- mapbox, [incl,excl), for integer testing
 
 	if voxelmapBlob then
-		self.orbit:beginDraw()
+		local mouseHandled = self.orbit:beginDraw()
 		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
 
 		self:drawBox(mapbox, 0x31)
@@ -137,7 +137,9 @@ function EditVoxelMap:update()
 		end
 
 		local mouseX, mouseY = app.ram.mousePos:unpack()
-		if mouseY >= 8 then
+		if not mouseHandled
+		and mouseY >= 8
+		then
 			-- mouse line, intersect only with far bounding planes of the voxelmap
 			-- or intersect with march through the voxelmap
 			-- how to get mouse line?

@@ -243,9 +243,9 @@ The editor voxelmap controls:
 - left-click and drag to place blocks.
 - right-click to delete block.
 - shift+left-click to use the dropper.
-- left-click-and-drag to rotate.
-- shift+left-click-and-drag to zoom.
-- ctrl+left-click-and-drag to pan the camera.
+- ctrl+left-click-and-drag to rotate.
+- alt+left-click-and-drag to zoom.
+- ctrl+alt+left-click-and-drag to pan the camera.
 
 ### Audio
 (note to self, split this between sfx & music blob format and the APU specs)
