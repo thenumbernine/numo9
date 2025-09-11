@@ -23,8 +23,6 @@ videoModeIndex=42	screenSize=vec2(480, 270)	-- 480x270x8bppIndex
 mode(videoModeIndex)
 cheat=true
 
-_G=getfenv(1)	-- needed for :: operator
-
 levelstr='level ?'
 
 sfxid={
@@ -390,53 +388,53 @@ end
 classmeta.__index=_G	-- obj __index looks in its class, if not there then looks into global.  This line is needed for :: setfenv(1,self) use.
 
 BaseObj=class{
-	init=|::,args|do
-		scale=vec3(1,1,1)
-		removeMe=false
-		pos=vec3()
-		srcPos=vec3()
-		destPos=vec3()
-		moveCmd=-1
-		isBlocking=true
-		isBlockingPushers=true
-		blocksExplosion=true
+	init=|:,args|do
+		self.scale=vec3(1,1,1)
+		self.removeMe=false
+		self.pos=vec3()
+		self.srcPos=vec3()
+		self.destPos=vec3()
+		self.moveCmd=-1
+		self.isBlocking=true
+		self.isBlockingPushers=true
+		self.blocksExplosion=true
 	end,
 	-- in AnimatedObj in fact ...
-	update=|::|nil,
-	setPos=|::,p|do
-		if not pos then pos = vec3() end
-		pos:set(p)
-		if not srcPos then srcPos = vec3() end
-		srcPos:set(p)
-		if not destPos then destPos = vec3() end
-		destPos:set(p)
+	update=|:|nil,
+	setPos=|:,p|do
+		if not self.pos then self.pos = vec3() end
+		self.pos:set(p)
+		if not self.srcPos then self.srcPos = vec3() end
+		self.srcPos:set(p)
+		if not self.destPos then self.destPos = vec3() end
+		self.destPos:set(p)
 	end,
-	drawSprite=|::|do
+	drawSprite=|:|do
 		-- pos is tile-centered so ...
-		local x = pos.x * 16 - 8	-- -8 because the pos's are centered at (.5, .5, 0) to be in the middle of the voxel
-		local y = pos.y * 16 - 8
-		local z = pos.z * 16
-		if blendMode then
+		local x = self.pos.x * 16 - 8	-- -8 because the pos's are centered at (.5, .5, 0) to be in the middle of the voxel
+		local y = self.pos.y * 16 - 8
+		local z = self.pos.z * 16
+		if self.blendMode then
 			fillp(0x8000)	--blend(blendMode)
 		end
 		drawForFlags(
 			self,
-			seq,		--spriteIndex,
+			self.seq,		--spriteIndex,
 			x, y, z,
 			2, 2,		--spritesWide, spritesHigh,
 			nil,		--paletteIndex,
 			nil,		--transparentIndex,
 			nil,		--spriteBit,
 			nil,		--spriteMask,
-			scale.x, scale.y)
-		if blendMode then
+			self.scale.x, self.scale.y)
+		if self.blendMode then
 			fillp(0)	--blend()
 		end
 	end,
-	isBlockingSentry=|::|isBlocking,
-	hitEdge=|::, where|true,
-	cannotPassThru=|::,mapTypeIndex|mapTypes[mapTypeIndex]?.cannotPassThru,
-	hitWorld=|::, cmd, where, cornerTypes| do
+	isBlockingSentry=|:|self.isBlocking,
+	hitEdge=|:,where|true,
+	cannotPassThru=|:,mapTypeIndex|mapTypes[mapTypeIndex]?.cannotPassThru,
+	hitWorld=|:, cmd, where, cornerTypes| do
 		if cmd == dirForName.left
 		and where.x % 1 == 0
 		and (cornerTypes.UL == ARROW_RIGHT or cornerTypes.LL == ARROW_RIGHT)
@@ -466,13 +464,13 @@ BaseObj=class{
 			or self:cannotPassThru(cornerTypes.LL)
 			or self:cannotPassThru(cornerTypes.LR)
 	end,
-	hitObject=|::, what, pushDest, side| 'test object',
-	startPush=|::, pusher, pushDest, side| isBlocking,
-	endPush=|::, who, pushDest| nil,
-	onKeyTouch=|::|nil,
-	onTouchFlames=|::|nil,
-	onGroundSunk=|::|removeObj(self),
-	onRemove=|::|do self.removeMe=true end,
+	hitObject=|:, what, pushDest, side| 'test object',
+	startPush=|:, pusher, pushDest, side| self.isBlocking,
+	endPush=|:, who, pushDest| nil,
+	onKeyTouch=|:|nil,
+	onTouchFlames=|:|nil,
+	onGroundSunk=|:|removeObj(self),
+	onRemove=|:|do self.removeMe=true end,
 }
 
 do
