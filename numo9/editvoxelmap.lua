@@ -123,12 +123,7 @@ function EditVoxelMap:update()
 		app.ram.paletteBlobIndex = pushPalBlobIndex
 
 		if self.wireframe then
-			--[[ using cart data
-			local v = voxelmap:getVoxelDataBlobPtr()
-			--]]
-			-- [[ using app RAM
 			local v = voxelmap:getVoxelDataRAMPtr()
-			--]]
 			for k=0,mapsize.z-1 do
 				for j=0,mapsize.y-1 do
 					for i=0,mapsize.x-1 do
@@ -188,18 +183,10 @@ function EditVoxelMap:update()
 						npti = pti
 						break
 					end
-					--[[ read from cart
-					local v = voxelmap:getVoxelBlobPtr(npti.x, npti.y, npti.z)
-					if v.intval ~= voxelMapEmptyValue then break end
-					--]]
-					-- [[ read from RAM
 					local vaddr = voxelmap:getVoxelAddr(npti.x, npti.y, npti.z)
-					if vaddr
-					and app:peekl(vaddr) ~= voxelMapEmptyValue
-					then
+					if vaddr and app:peekl(vaddr) ~= voxelMapEmptyValue then
 						break
 					end
-					--]]
 
 					pti = npti
 				end
@@ -211,42 +198,22 @@ function EditVoxelMap:update()
 					local shift = app:key'lshift' or app:key'rshift'
 					if shift then
 						if mapboxIE:contains(npti) then
-							--[[ read from cart
-							local v = voxelmap:getVoxelBlobPtr(npti:unpack())
-							if v.intval ~= voxelMapEmptyType then
-								self.voxCurSel.intval = v.intval
-							end
-							--]]
-							-- [[
 							local vaddr = voxelmap:getVoxelAddr(npti:unpack())
 							local voxval = app:peekl(vaddr)
 							if voxval ~= voxelMapEmptyType then
 								self.voxCurSel.intval = voxval
 							end
-							--]]
 						end
 					else
-						--[[ write to cart
-						local v = voxelmap:getVoxelBlobPtr(pti:unpack())
-						v.intval = self.voxCurSel.intval
-						--]]
-						-- [[
 						app:edit_pokel(
 							voxelmap:getVoxelAddr(pti:unpack()),
-							self.voxCurSel.intval
-						)
-						--]]
+							self.voxCurSel.intval)
 					end
 				end
 
 				if app:keyp'mouse_right'
 				and mapboxIE:contains(npti)
 				then
-					--[[ write to cart
-					local v = voxelmap:get(npti:unpack())
-					v.intval = voxelMapEmptyValue
-					--]]
-					-- [[ write to RAM
 					app:edit_pokel(
 						voxelmap:getVoxelAddr(pti:unpack()),
 						voxelMapEmptyValue)
