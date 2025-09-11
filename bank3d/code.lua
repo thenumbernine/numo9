@@ -174,72 +174,77 @@ viewTiltUpAngle = 45
 viewAngle = 90
 destViewAngle = viewAngle
 
-drawBillboardSprite=|spriteIndex, x, y, z, ...|do
-	matpush()
-	mattrans(x + 8, y + 8, z)
-
-	-- undo camera viewAngle to make a billboard
-	matrot(math.rad(viewAngle + 90), 0, 0, 1)
-	matrot(math.rad(-60), 1, 0, 0)
-	-- recenter
-
-	mattrans(-8, -16, 0)
-	spr(spriteIndex, 0, 0, ...)
-
-	matpop()
-end
-
 drawForFlags = |mt, spriteIndex, x, y, z, ...| do
+	local spritesWide, spritesHigh,
+		paletteIndex, transparentIndex, spriteBit, spriteMask,
+		scaleX, scaleY
+		= ...
+	scaleX = scaleX or 1
+	scaleY = scaleY or 1
 	if mt.drawBillboard then
-		-- [[
-		drawBillboardSprite(spriteIndex, x, y, z, ...)
-		--]]
-		--[[
-		-- TODO use the billboard sprite / voxel pathway
-		--]]
-	elseif mt.drawCube
-	or mt.drawSlope
-	then
-		local spritesWide, spritesHigh,
-			paletteIndex, transparentIndex, spriteBit, spriteMask,
-			scaleX, scaleY
-			= ...
 		matpush()
 		mattrans(x, y, z)
 		matscale(16, 16, 16)
-		mattrans(.5, .5, .5)
-		matscale(1/32768, 1/32768, 1/32768)
+		matscale(scaleX, scaleY, 1)	-- TODO recenter-then-scale?
 
-		--[=[ TODO rotations, esp passing them from the voxel info
-		local rotZ = spriteIndex
-		matrot(rotZ * .5 * math.pi, 0, 0, 1)
-		matrot(rotY * .5 * math.pi, 0, 1, 0)
-		matrot(rotX * .5 * math.pi, 1, 0, 0)
-		--]=]
+		local meshIndex = 2 -- quad, texels are [0,16]
+		if spritesWide == 1 and spritesHigh == 1 then
+			meshIndex = 3	-- quad, texels are [0,8]
+			--matscale(.5, .5, .5)	TODO move it fwd a bit
+		else
+			assert.eq(spritesWide, 2)
+			assert.eq(spritesHigh, 2)
+		end
+		local orientation = 20	-- xyz-aligned, center-anchored
+		-- TODO use xy-aligned, bottom-anchored billboards
+--meshIndex = 0 -- quad
+--orientation = 0		
+		local sheetIndex = spriteIndex>>10
+		drawvoxel(
+			(spriteIndex & 0x3ff)	-- tile uv
+			| (meshIndex << 10)
+			| (orientation << 27),
+			sheetIndex,
+			paletteIndex,
+			transparentIndex,
+			spriteBit,
+			spriteMask
+		)	
+		
+		matpop()
+	elseif mt.drawCube
+	or mt.drawSlope
+	then
+		matpush()
+		mattrans(x, y, z)
+		matscale(16, 16, 16)
+		matscale(scaleX, scaleY, 1)	-- TODO recenter-then-scale?
 
 		local meshIndex = 0 -- cube
 		local sheetIndex = spriteIndex>>10
+		local orientation = 0
 		if mt.drawSlope then
 			meshIndex = 1	-- slope
 			spriteIndex = 6	-- stone
 			sheetIndex = 1
-			matrot(mt.drawSlope * .5 * math.pi, 0, 0, 1)
+			orientation = mt.drawSlope
 		end
 
-		--matscale(scaleX, scaleY, 1)
-
-		mesh(
-			meshIndex,
-			(spriteIndex&0x1f)<<3,		-- uofs
-			((spriteIndex>>5)&0x1f)<<3,	-- vofs
-			sheetIndex,		-- sheetIndex
+		drawvoxel(
+			(spriteIndex & 0x3ff)	-- tile uv
+			| (meshIndex << 10)
+			| (orientation << 27),
+			sheetIndex,
 			paletteIndex,
 			transparentIndex,
 			spriteBit,
 			spriteMask
 		)
+
 		matpop()
 	else
+		x -= scaleX * spritesWide * 4
+		y -= scaleY * spritesHigh * 4
 		matpush()
 		mattrans(0, 0, z)
 		spr(x, y, ...)
@@ -274,13 +279,13 @@ drawMap=||do
 	drawMapBorder()
 	mattrans(16, 32)
 
-	-- [[ draw voxelmap i.e. without animations
+	--[[ draw voxelmap i.e. without animations ... works
 	matpush()
 	matscale(16,16,16)
 	voxelmap(0, 1)
 	matpop()
 	--]]
-	--[[
+	-- [[
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
@@ -342,8 +347,8 @@ BaseObj=class{
 	end,
 	drawSprite=|::|do
 		-- pos is tile-centered so ...
-		local x = pos.x * 16 - 8 * scale.x
-		local y = pos.y * 16 - 8 * scale.y
+		local x = pos.x * 16 - 8	-- -8 because the pos's are centered at (.5, .5, 0) to be in the middle of the voxel
+		local y = pos.y * 16 - 8
 		local z = pos.z * 16
 		if blendMode then
 			fillp(0x8000)	--blend(blendMode)
@@ -351,17 +356,13 @@ BaseObj=class{
 		drawForFlags(
 			self,
 			seq,		--spriteIndex,
-			x,			--screenX,
-			y,			--screenY,
-			z,			--z
-			2,			--spritesWide,
-			2,			--spritesHigh,
+			x, y, z,
+			2, 2,		--spritesWide, spritesHigh,
 			nil,		--paletteIndex,
 			nil,		--transparentIndex,
 			nil,		--spriteBit,
 			nil,		--spriteMask,
-			scale.x,
-			scale.y)
+			scale.x, scale.y)
 		if blendMode then
 			fillp(0)	--blend()
 		end
@@ -812,8 +813,8 @@ do
 				drawForFlags(
 					self,
 					384+self.blastRadius,
-					16*self.pos.x-4,
-					16*self.pos.y-4,
+					16*self.pos.x,
+					16*self.pos.y,
 					16*self.pos.z,
 					1,
 					1,
@@ -1293,8 +1294,8 @@ do
 				drawForFlags(
 					self,
 					384+self.bombs,
-					16*self.pos.x-4,
-					16*self.pos.y-4,
+					16*self.pos.x,
+					16*self.pos.y,
 					16*self.pos.z,			-- z
 					1,
 					1,

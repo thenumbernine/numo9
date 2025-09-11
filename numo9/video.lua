@@ -3679,8 +3679,16 @@ function AppVideo:drawMesh3D(
 	end
 end
 
--- common voxel-drawing of drawVoxel and drawVoxelMap
-function AppVideo:drawVoxel_int(vox, ...)
+-- this just draws one single voxel.
+local mvMatPush = ffi.new(mvMatType..'[16]')
+local vox = ffi.new'Voxel'	-- better ffi.cast/ffi.new inside here or store outside?
+function AppVideo:drawVoxel(voxelValue, ...)
+	vox.intval = voxelValue or 0
+
+	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	self:mattrans(.5, .5, .5)
+	self:matscale(1/32768, 1/32768, 1/32768)
+
 	-- orientation
 	-- there are 24 right-handed cube isometric transformations
 	-- there are 5bpp = 32 representations as bitwise Euler angles,
@@ -3696,25 +3704,37 @@ function AppVideo:drawVoxel_int(vox, ...)
 		local a8, a9, a10, a11 = a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
 
 		-- ... and normalize cols
-		local sx = 1/math.sqrt(a0^2 + a4^2 + a8^2)
-		local sy = 1/math.sqrt(a1^2 + a5^2 + a9^2)
-		local sz = 1/math.sqrt(a2^2 + a6^2 + a10^2)
+		local lx = math.sqrt(a0 * a0 + a4 * a4 + a8  * a8 )
+		local ly = math.sqrt(a1 * a1 + a5 * a5 + a9  * a9 )
+		local lz = math.sqrt(a2 * a2 + a6 * a6 + a10 * a10)
 
-		a.ptr[0]  = sx * (a0 * a0 + a4 * a4 + a8  * a8)
-		a.ptr[4]  = sy * (a0 * a1 + a4 * a5 + a8  * a9)
-		a.ptr[8]  = sz * (a0 * a2 + a4 * a6 + a8  * a10)
+		-- diagonal:
+		a.ptr[ 0] = lx
+		a.ptr[ 5] = ly
+		a.ptr[10] = lz
+		
+		local sx = 1/lx
+		local sy = 1/ly
+		local sz = 1/lz
+		
+		-- skew:
+		local s01 = a0 * a1 + a4 * a5 + a8 * a9
+		a.ptr[1] = sx * s01
+		a.ptr[4] = sy * s01
+		
+		local s02 = a0 * a2 + a4 * a6 + a8 * a10
+		a.ptr[2] = sx * s02
+		a.ptr[8] = sz * s02
+		
+		local s12 = a1 * a2 + a5 * a6 + a9  * a10
+		a.ptr[6] = sy * s12
+		a.ptr[9] = sz * s12
 
-		a.ptr[1]  = sx * (a1 * a0 + a5 * a4 + a9  * a8)
-		a.ptr[5]  = sy * (a1 * a1 + a5 * a5 + a9  * a9)
-		a.ptr[9]  = sz * (a1 * a2 + a5 * a6 + a9  * a10)
+		-- translation: (right?  this isn't the zeroes row transpose of translation, is it?)
+		a.ptr[ 3] = sx * (a0 * a3 + a4 * a7 + a8  * a11)
+		a.ptr[ 7] = sy * (a1 * a3 + a5 * a7 + a9  * a11)
+		a.ptr[11] = sz * (a2 * a3 + a6 * a7 + a10 * a11)
 
-		a.ptr[2]  = sx * (a2 * a0 + a6 * a4 + a10 * a8)
-		a.ptr[6]  = sy * (a2 * a1 + a6 * a5 + a10 * a9)
-		a.ptr[10] = sz * (a2 * a2 + a6 * a6 + a10 * a10)
-
-		a.ptr[3]  = sx * (a3 * a0 + a7 * a4 + a11 * a8)
-		a.ptr[7]  = sy * (a3 * a1 + a7 * a5 + a11 * a9)
-		a.ptr[11] = sz * (a3 * a2 + a7 * a6 + a11 * a10)
 	elseif vox.orientation == 21 then
 		-- TODO special case, xy-aligned, anchored to voxel center
 	elseif vox.orientation == 22 then
@@ -3735,30 +3755,11 @@ function AppVideo:drawVoxel_int(vox, ...)
 		bit.lshift(vox.tileYOffset, 3),
 		...
 	)
-end
-
--- this just draws one single voxel.
--- but it sets up the scale matrix first.
-local mvMatPush = ffi.new(mvMatType..'[16]')
-function AppVideo:drawVoxel(
-	voxelValue,
-	...
-)
-	local vox = ffi.new'Voxel'	-- better ffi.cast/ffi.new inside here or store outside?
-	vox.intval = voxelValue or 0
-
-	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-	self:mattrans(.5, .5, .5)
-	local s = 32768
-	self:matscale(1/s, 1/s, 1/s)
-
-	self:drawVoxel_int(vox, ...)
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
-local mvMatPush2 = ffi.new(mvMatType..'[16]')
 function AppVideo:drawVoxelMap(
 	voxelmapIndex,
 	...
@@ -3771,31 +3772,23 @@ function AppVideo:drawVoxelMap(
 	end
 
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-	self:mattrans(.5, .5, .5)
-	local s = 32768
-	self:matscale(1/s, 1/s, 1/s)
 
 	local width, height, depth = voxelmap:getWidth(), voxelmap:getHeight(), voxelmap:getDepth()
 	local vptr = voxelmap:getVoxelDataRAMPtr()
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do
-
-				ffi.copy(mvMatPush2, self.ram.mvMat, ffi.sizeof(mvMatPush2))
-				self:drawVoxel_int(vptr[0], ...)
-				ffi.copy(self.ram.mvMat, mvMatPush2, ffi.sizeof(mvMatPush2))
-
-				self:mattrans(s, 0, 0)
-
+				self:drawVoxel(vptr[0].intval, ...)
+				self:mattrans(1, 0, 0)
 				vptr = vptr + 1
 			end
-			self:mattrans(-s * width, 0, 0)
-			self:mattrans(0, s, 0)
+			self:mattrans(-width, 0, 0)
+			self:mattrans(0, 1, 0)
 		end
-		self:mattrans(0, -s * height, 0)
-		self:mattrans(0, 0, s)
+		self:mattrans(0, -height, 0)
+		self:mattrans(0, 0, 1)
 	end
-	self:mattrans(0, 0, -s * depth)
+	self:mattrans(0, 0, -depth)
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end

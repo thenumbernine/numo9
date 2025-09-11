@@ -189,6 +189,10 @@ uint32_t width, height, depth;
 Voxel voxels[depth][height][width];
 ```
 
+The `mesh3DIndex` is the index into `mesh3d` blob list of what to render.
+Typically mesh3d's are drawn with signed int16 xyz coordinates and rely on you to rescale size accordingly.
+For voxel maps, meshes are remapped such that the coordinates [-16384, 16384] map to \[0, 1\] (i.e. divide by 32768, then add 0.5).
+
 The 3D orientations, like the 2D orientations, can be decomposed into bitfields:
 - 2 bits = yaw rotation
 - 2 bits = pitch rotation
