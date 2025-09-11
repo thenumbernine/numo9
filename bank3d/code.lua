@@ -6,6 +6,7 @@
 -- editTilemap.gridSpacing = 11
 -- editTilemap.draw16Sprites = true
 -- editTilemap.sheetBlobIndex = 1
+-- editBrushmap.draw16Sprites = true
 -- editBrushmap.sheetBlobIndex = 1
 -- editMesh3D.sheetBlobIndex = 1
 -- editVoxelmap.sheetBlobIndex = 1
@@ -131,9 +132,7 @@ dt=1/60
 levelSize = vec3(11,11,6)
 maxLevels = 2 * 23		-- 11x11x11 levels use 121 x 11 texels, can store 2 x 23 of those on a 256x256 texture
 
--- [[ dynamically drawing the border
--- TODO this is what the Brush menu is supposed to be.
--- TODO to finish the Brush menu you might as well switch the ROM file format to a FAT based one to have dynamic-sizes.
+--[[ dynamically drawing the border
 drawMapBorder=||do
 	-- middle
 	for x=1,levelSize.x+1 do
@@ -164,6 +163,44 @@ drawMapBorder=||do
 	end
 end
 --]]
+-- [[ drawing border with the brushes
+drawMapBorder=||do
+	drawbrush(0, 0, 0, levelSize.x+2, levelSize.y+2, 0, true, 1)
+end
+--]]
+numo9_brushes = {
+	-- map border as a brush
+	[0] = |x,y,w,h| do
+		if x == 0 and y == 0 then	-- upper-left
+			return 192
+		elseif x == 1 and y == 0 then
+			return 194
+		end
+		if x == w-1 and y == 0 then -- upper-right
+			return 192 | (1 << 13)
+		end
+		if x == 0 and y == h-1 then	-- lower-left
+			return 320
+		end
+		if x == w-1 and y == h-1 then -- lower-right
+			return 320 | (1 << 13)
+		end
+		if x == 0 then	-- left
+			return 256
+		end
+		if x == w-1 then	-- right
+			return 256 | (1 << 13)
+		end
+		if y == 0 then	-- top
+			return 196
+		end
+		if y == h-1 then	-- bottom
+			return 322
+		end
+		-- center
+		return 0
+	end,
+}
 
 
 viewZNear = 1
@@ -188,7 +225,7 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 		matscale(scaleX, scaleY, 1)	-- TODO recenter-then-scale?
 
 		local meshIndex = 2 -- quad, texels are [0,16]
-		if spritesWide == 1 and spritesHigh == 1 then
+		if spritesWide == 1 and spritesHigh == 1 then	-- only used by numbers drawn over billboard moneybags
 			meshIndex = 3	-- quad, texels are [0,8]
 			--matscale(.5, .5, .5)	TODO move it fwd a bit
 		else
@@ -197,8 +234,6 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 		end
 		local orientation = 20	-- xyz-aligned, center-anchored
 		-- TODO use xy-aligned, bottom-anchored billboards
---meshIndex = 0 -- quad
---orientation = 0		
 		local sheetIndex = spriteIndex>>10
 		drawvoxel(
 			(spriteIndex & 0x3ff)	-- tile uv
@@ -209,8 +244,8 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 			transparentIndex,
 			spriteBit,
 			spriteMask
-		)	
-		
+		)
+
 		matpop()
 	elseif mt.drawCube
 	or mt.drawSlope

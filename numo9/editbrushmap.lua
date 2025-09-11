@@ -70,96 +70,94 @@ function EditBrushmap:update()
 		return
 	end
 
+	local brushesKeys = table.keys(brushes):sort()
+	local leftButtonDown = app:key'mouse_left'
+	local leftButtonPress = app:keyp'mouse_left'
+	local leftButtonRelease = app:keyr'mouse_left'
+	local mouseX, mouseY = app.ram.mousePos:unpack()
+
+	local draw16As0or1 = self.draw16Sprites and 1 or 0
+	local tileBits = self.draw16Sprites and 4 or 3
+	local tileSizeInTiles = bit.lshift(1, draw16As0or1)
+	local tileSizeInPixels = bit.lshift(1, tileBits)
+
+	app:matident()
+
+	if self.pickOpen then
+		local pickX = 2 * spriteSize.x
+		local pickY = 2 * spriteSize.y
+		local pickW = frameBufferSize.x - 2 * pickX
+		local pickH = frameBufferSize.y - 2 * pickY
+		app:drawBorderRect(
+			pickX-1,
+			pickY-1,
+			pickW+2,
+			pickH+2,
+			10,
+			nil,
+			app.paletteMenuTex
+		)
+		app:drawSolidRect(
+			pickX,
+			pickY,
+			pickW,
+			pickH,
+			1,
+			nil,
+			nil,
+			app.paletteMenuTex
+		)
+
+		local stampScreenX, stampScreenY = pickX, pickY
+		for _,brushIndex in ipairs(brushesKeys) do
+
+			app:drawBrush(
+				brushIndex,
+				stampScreenX, stampScreenY,
+				self.brushPreviewSize, self.brushPreviewSize,
+				0,
+				self.draw16Sprites,
+				self.sheetBlobIndex)
+
+			local stampWidthInPixels = self.brushPreviewSize * tileSizeInPixels
+			local stampHeightInPixels = self.brushPreviewSize * tileSizeInPixels
+			if brushIndex == self.selBrushIndex then
+				app:drawBorderRect(
+					stampScreenX,
+					stampScreenY,
+					stampWidthInPixels,
+					stampHeightInPixels,
+					27,
+					ni,
+					app.paletteMenuTex
+				)
+			end
+
+			-- TODO left down + drag to scroll
+			if leftButtonPress
+			and mouseX >= stampScreenX
+			and mouseY >= stampScreenY
+			and mouseX < stampScreenX + stampWidthInPixels
+			and mouseY < stampScreenY + stampHeightInPixels
+			then
+				self.selBrushIndex = brushIndex
+			end
+
+			stampScreenX = stampScreenX + tileSizeInPixels * self.brushPreviewSize
+			if stampScreenX > pickW then
+				stampScreenX = 0
+				stampScreenY = stampScreenY + tileSizeInPixels * self.brushPreviewSize
+			end
+		end
+	end
+
 	local brushmapBlob = app.blobs.brushmap[self.brushmapBlobIndex+1]
 	if not brushmapBlob then
 		app:drawMenuText("push + on the brushmap blob select to continue", 4, 128)
 	else
-		app:matident()
-		local leftButtonDown = app:key'mouse_left'
-		local leftButtonPress = app:keyp'mouse_left'
-		local leftButtonRelease = app:keyr'mouse_left'
-		local mouseX, mouseY = app.ram.mousePos:unpack()
-
-		local draw16As0or1 = self.draw16Sprites and 1 or 0
-		local tileBits = self.draw16Sprites and 4 or 3
-		local tileSizeInTiles = bit.lshift(1, draw16As0or1)
-		local tileSizeInPixels = bit.lshift(1, tileBits)
-
-		local shift = app:key'lshift' or app:key'rshift'
-
-		local brushesKeys = table.keys(brushes):sort()
-
-
 		x, y = 0, 8
 
-		if self.pickOpen then
-			local pickX = 2 * spriteSize.x
-			local pickY = 2 * spriteSize.y
-			local pickW = frameBufferSize.x - 2 * pickX
-			local pickH = frameBufferSize.y - 2 * pickY
-			app:drawBorderRect(
-				pickX-1,
-				pickY-1,
-				pickW+2,
-				pickH+2,
-				10,
-				nil,
-				app.paletteMenuTex
-			)
-			app:drawSolidRect(
-				pickX,
-				pickY,
-				pickW,
-				pickH,
-				1,
-				nil,
-				nil,
-				app.paletteMenuTex
-			)
-
-			local stampScreenX, stampScreenY = pickX, pickY
-			for _,brushIndex in ipairs(brushesKeys) do
-
-				app:drawBrush(
-					brushIndex,
-					stampScreenX, stampScreenY,
-					self.brushPreviewSize, self.brushPreviewSize,
-					0,
-					self.draw16Sprites,
-					self.sheetBlobIndex)
-
-				local stampWidthInPixels = self.brushPreviewSize * tileSizeInPixels
-				local stampHeightInPixels = self.brushPreviewSize * tileSizeInPixels
-				if brushIndex == self.selBrushIndex then
-					app:drawBorderRect(
-						stampScreenX,
-						stampScreenY,
-						stampWidthInPixels,
-						stampHeightInPixels,
-						27,
-						ni,
-						app.paletteMenuTex
-					)
-				end
-
-				-- TODO left down + drag to scroll
-				if leftButtonPress
-				and mouseX >= stampScreenX
-				and mouseY >= stampScreenY
-				and mouseX < stampScreenX + stampWidthInPixels
-				and mouseY < stampScreenY + stampHeightInPixels
-				then
-					self.selBrushIndex = brushIndex
-				end
-
-				stampScreenX = stampScreenX + tileSizeInPixels * self.brushPreviewSize
-				if stampScreenX > pickW then
-					stampScreenX = 0
-					stampScreenY = stampScreenY + tileSizeInPixels * self.brushPreviewSize
-				end
-			end
-
-		else
+		if not self.pickOpen then
 
 			local mapX = 0
 			local mapY = spriteSize.y	-- fontSize.y
@@ -274,17 +272,17 @@ function EditBrushmap:update()
 							selUnder:insert(stamp)
 						end
 					end
-print('#selUnder', #selUnder)
+--DEBUG:print('#selUnder', #selUnder)
 					self.lastMoveDown:set(mouseX, mouseY)
 					local mx = math.floor(mouseX / tileSizeInPixels)
 					local my = math.floor(mouseY / tileSizeInPixels)
-print('ftx', ftx, 'fty', fty)
+--DEBUG:print('ftx', ftx, 'fty', fty)
 					if #selUnder > 0 then
 						-- check corner vs center for dragging or resizing
 						self.resizing = false
 
 						for _,stamp in ipairs(selUnder) do
-print('checking', require 'ext.tolua'(stamp))
+--DEBUG:print('checking', require 'ext.tolua'(stamp))
 							if ftx >= stamp.x and ftx < stamp.x + stamp.w
 							and fty >= stamp.y and fty < stamp.y + stamp.h
 							then
@@ -293,7 +291,7 @@ print('checking', require 'ext.tolua'(stamp))
 								local nearR = math.abs(stamp.x + stamp.w - ftx) <= .5
 								local nearD = math.abs(stamp.y + stamp.h - fty) <= .5
 								if nearL or nearR or nearU or nearD then
-print('edge', nearL, nearU, nearR, nearD)
+--DEBUG:print('edge', nearL, nearU, nearR, nearD)
 									if nearL or nearR then
 										self:setTooltip('-', mouseX, mouseY, 0xc)
 									elseif nearU or nearD then
@@ -307,14 +305,14 @@ print('edge', nearL, nearU, nearR, nearD)
 									}
 									break
 								else
-print'move'
+--DEBUG:print'move'
 									-- center-click on something
 									self.resizing = false
 									break
 								end
 							end
 						end
-print('resizing', require 'ext.tolua'(self.resizing))
+--DEBUG:print('resizing', require 'ext.tolua'(self.resizing))
 					else
 						-- pressed down but not on a selected ...
 						-- did we press down on an unselected?
@@ -351,7 +349,7 @@ print('resizing', require 'ext.tolua'(self.resizing))
 					local dy = math.trunc((mouseY - self.lastMoveDown.y) / tileSizeInPixels)
 					if dx ~= 0 or dy ~= 0 then
 						if self.resizing then
-print('resizing', require 'ext.tolua'(self.resizing))
+--DEBUG:print('resizing', require 'ext.tolua'(self.resizing))
 							for stamp in pairs(self.selected) do
 								if self.resizing.ulx then
 									stamp.x = stamp.x + dx
@@ -420,7 +418,7 @@ print('resizing', require 'ext.tolua'(self.resizing))
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
 	x = x + 12
 
-	if brushmapBlob then
+	do--if brushmapBlob then
 		-- title controls
 		x = x + 2
 

@@ -470,7 +470,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	Out of bounds coordinates return a value of 0.
 	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.
 - `mset(x, y, value, [tilemapIndex=0])` = Write a uint16 to the current tilemap address at x, y.
-- `drawbrush(brushIndex, sx, sy, w, h, [orientation, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
+- `drawbrush(brushIndex, screenX, screenY, tilesWide, tilesHigh, [orientation, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
 - `mesh(mesh3DIndex, [uofs, vofs, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask])` = draw the specified mesh3d blob.
