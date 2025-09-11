@@ -221,9 +221,11 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 		end
 
 		drawvoxel(
-			(spriteIndex & 0x3ff)	-- tile uv
-			| (meshIndex << 10)
-			| (orientation << 27),
+			tonumber(uint32_t(
+				(spriteIndex & 0x3ff)	-- tile uv
+				| (meshIndex << 10)
+				| (orientation << 27)
+			)),
 			sheetIndex,
 			paletteIndex,
 			transparentIndex,
@@ -263,7 +265,6 @@ drawForFlags = |mt, spriteIndex, x, y, z, ...| do
 			| (meshIndex << 10)
 			| (orientation << 27)
 		))
-trace(('%x'):format(voxelValue))
 		drawvoxel(
 			voxelValue,
 			sheetIndex,
