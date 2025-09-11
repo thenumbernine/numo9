@@ -83,6 +83,9 @@ mapTypes={
 	[SLOPE_DOWN] = {drawSlope=3},
 }
 
+--isSlope=|vox| vox & 0x7ffffff == SLOPE_RIGHT	-- because SLOPE_RIGHT is the root orientation
+isSlope=|vox| vox & 0x7fffc00 == 0x400				-- if the voxel mesh3d is the slope mesh
+
 corners2d = table{
 	UL = vec2(-1, -1),
 	UR = vec2(1, -1),
@@ -92,7 +95,11 @@ corners2d = table{
 
 getCornerTypes2D = |where|
 	corners2d:map(|ofs,name|
-		(mapGet(where.x + ofs.x * .25, where.y + ofs.y * .25, where.z), name)
+		(mapGet(
+			where.x + ofs.x * .25,
+			where.y + ofs.y * .25,
+			where.z			-- xy are half-integer, z is whole integer
+		), name)
 	)
 
 local dirvecs3d = dirvecs:map(|v,k| (vec3(v.x, v.y, 0), k))
@@ -129,7 +136,11 @@ seqs={
 
 
 dt=1/60
-levelSize = vec3(11,11,6)
+voxelmapaddr = blobaddr'voxelmap'	-- TODO update per level change
+levelSize = vec3(
+	peekl(voxelmapaddr),
+	peekl(voxelmapaddr+4),
+	peekl(voxelmapaddr+8))
 maxLevels = 2 * 23		-- 11x11x11 levels use 121 x 11 texels, can store 2 x 23 of those on a 256x256 texture
 
 numo9_brushes = {
@@ -453,7 +464,7 @@ do
 		moveIsBlocked_CheckEdge=|:,newDest|do
 			if newDest.x < .25
 			or newDest.y < .25
-			or newDest.z < 0 -- .25
+			or newDest.z < 0 -- .25	-- z is int, xy is half int
 			or newDest.x > levelSize.x - .25
 			or newDest.y > levelSize.y - .25
 			or newDest.z > levelSize.z - .25
@@ -465,9 +476,13 @@ do
 		moveIsBlocked_CheckHitObject=|:, o, cmd, newDest|do
 			if (o.destPos - newDest):lInfLength() > .75 then return false end
 			local response=self:hitObject(o, newDest, cmd)
-			if response=='stop' then return true end
+			if response=='stop' then
+				return true
+			end
 			if response=='test object' then
-				if o:startPush(self, newDest, cmd) then return true end
+				if o:startPush(self, newDest, cmd) then
+					return true
+				end
 			end
 			return false
 		end,
@@ -524,18 +539,12 @@ do
 					mtBackLeft = cornerTypes.LL
 					mtBackRight = cornerTypes.LR
 				end
-				if (
-					mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP
-					and mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP
-				) or (
-					mtBackLeft >= SLOPE_RIGHT and mtBackLeft <= SLOPE_UP
-					and mtBackRight >= SLOPE_RIGHT and mtBackRight <= SLOPE_UP
-				)
+--DEBUG:trace('mt', mtFrontLeft, mtFrontRight, mtBackLeft, mtBackRight)
+				if (isSlope(mtFrontLeft) and isSlope(mtFrontRight))
+				or (isSlope(mtBackLeft) and isSlope(mtBackRight))
 				then
 --DEBUG:trace('hit slope', mtFrontLeft, mtFrontRight, mtBackLeft, mtBackRight)
-					if (mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP)
-					or (mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP)
-					then
+					if isSlope(mtFrontLeft) or isSlope(mtFrontRight) then
 						if mtFrontLeft ~= mtFrontRight then
 							return 'was blocked'
 						end
@@ -543,7 +552,7 @@ do
 					-- otherwise consider this over the slope and use its back tile for detecting the slope type
 
 					local slopeType
-					if mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP then
+					if isSlope(mtFrontLeft) then
 						slopeType = mtFrontLeft
 --DEBUG:trace('front slopeType', slopeType)
 					else
@@ -552,11 +561,11 @@ do
 					end
 
 					-- rotate
-					slopeType = ((slopeType - SLOPE_RIGHT) >> 1) & 3
-					slopeType -= cmd
+					slopeType = (slopeType >> 27) & 3	-- pick out integer-z-rotation
+					slopeType -= cmd					-- subtract movecmd direction
 					slopeType &= 3
-					slopeType <<= 1
-					slopeType += SLOPE_RIGHT
+					slopeType <<= 27
+					slopeType |= SLOPE_RIGHT
 --DEBUG:trace('rot slopeType', slopeType)
 					if slopeType == SLOPE_RIGHT then
 						-- go up half a step
@@ -570,9 +579,7 @@ do
 						return 'was blocked'	-- TODO allow lateral movement on slopes
 					end
 				-- if front tiles differ, one is and one isn't slope, then block
-				elseif (mtFrontLeft >= SLOPE_RIGHT and mtFrontLeft <= SLOPE_UP)
-				or (mtFrontRight >= SLOPE_RIGHT and mtFrontRight <= SLOPE_UP)
-				then
+				elseif isSlope(mtFrontLeft) or isSlope(mtFrontRight) then
 					return 'was blocked'
 				end
 			end
@@ -953,7 +960,7 @@ do
 			local fpart=self.destPos - self.destPos:clone():floor()
 			if fpart.x<.25 or fpart.x>.75
 			or fpart.y<.25 or fpart.y>.75
-			or fpart.z<.25 or fpart.z>.75
+			or (fpart.z>=.25 and fpart.z<=.75)	-- TODO z is integer while xy are half-integer
 			then
 				cantHitWorld=true
 			end
@@ -1002,7 +1009,7 @@ do
 							for ofz=0,1 do
 								local cfx=math.floor(checkPos.x+ofx*.5-.25)
 								local cfy=math.floor(checkPos.y+ofy*.5-.25)
-								local cfz=math.floor(checkPos.z+ofz*.5-.25)
+								local cfz=math.floor(checkPos.z+ofz*.5+.25)	-- TODO z is integer while xy are half-integer
 								local mapType=mapTypes[mapGet(cfx, cfy, cfz)]
 								if mapType and mapType.blocksExplosion then
 									if not cantHitWorld
@@ -1015,7 +1022,7 @@ do
 													local speed=0
 													addObj(Particle{
 														vel = (vec3(math.random(), math.random(), math.random()) * 2 - 1) * speed,
-														pos = cf + (vec3(u,v,w)+.5)/divs,
+														pos = vec3(cfx,cfy,cfz) + (vec3(u,v,w)+.5)/divs,
 														life=math.random()*.5+.5,
 														radius=.5,
 														seq=seqs.brick,
@@ -1105,20 +1112,22 @@ do
 						if diff.x < -diff.y then
 							dir = dirForName.left
 						else
-							dir = dirForName.down
+							dir = dirForName.up
 						end
 					else	-- up or right
 						if diff.x < -diff.y then
-							dir = dirForName.up
+							dir = dirForName.down
 						else
 							dir = dirForName.right
 						end
 					end
+--DEBUG:trace('shot dir', dir)
 
 					local shot = GunShot(self)
 					local response = -1
 					repeat
 						response = shot:doMove(dir)
+--DEBUG:trace('shot check', shot.destPos, response)
 						shot:setPos(shot.destPos)
 					until response=='was blocked'
 					--delete ... but it's not attached, so we're safe
@@ -1200,12 +1209,6 @@ do
 			self.bombs=0
 			self.bombBlastRadius=1
 			self.seq=seqs.playerStandDown
-
-			-- since our coordinate system changed from lhs to rhs ...
-			-- TODO replace spr()'s with billboard drawing
-			-- then replace the scale.x offset in drawing objetcs
-			-- then maybe you can enable this in the obj renderer
-			--self.scale.x *= -1
 		end,
 		move=|:,dir|do
 			if self.dead then return end
@@ -1432,7 +1435,7 @@ loadLevel=||do
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
-				local pos = vec3(x+.5,y+.5,z)
+				local pos = vec3(x+.5,y+.5, z)	-- z is at min of voxel bounds
 				local m = mapGet(x,y,z)
 
 				-- pick out the tilemap, irregardless of the model or orientation
@@ -1476,6 +1479,7 @@ loadLevel=||do
 					objs:insert(bomb)
 					mapSet(x,y,z,EMPTY)
 				else
+					-- let voxels fall through
 					--trace('unknown spawn', x,y,z,m)
 				end
 			end
@@ -1643,6 +1647,8 @@ update=||do
 		lastLevelStrWidth = lastLevelStrWidth or 5*7
 		lastLevelStrWidth = text(levelstr,(screenSize.x-lastLevelStrWidth)/2,0,22,-1)
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
+
+		if player then text("pos="..player.pos, 0, 8) end
 	end
 
 	matident()
