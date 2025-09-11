@@ -205,7 +205,7 @@ function EditVoxelMap:update()
 							end
 						end
 					else
-						app:edit_pokel(
+						self:edit_pokel(
 							voxelmap:getVoxelAddr(pti:unpack()),
 							self.voxCurSel.intval)
 					end
@@ -214,11 +214,10 @@ function EditVoxelMap:update()
 				if app:keyp'mouse_right'
 				and mapboxIE:contains(npti)
 				then
-					app:edit_pokel(
-						voxelmap:getVoxelAddr(pti:unpack()),
+					self:edit_pokel(
+						voxelmap:getVoxelAddr(npti:unpack()),
 						voxelMapEmptyValue)
 				end
-
 
 				if not self.tooltip then
 					self:setTooltip(npti.x..','..npti.y..','..npti.z, mouseX-8, mouseY-8, 0xfc, 0)
@@ -351,7 +350,9 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	end
 
 	self.app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(o:dataToStr())
-	-- TODO refresh anything?
+	-- refresh changes ... (same as in UI when the guiBlobSelect changes...)
+	app:updateBlobChanges()
+	app:net_resetCart()
 end
 
 return EditVoxelMap
