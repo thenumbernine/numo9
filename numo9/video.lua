@@ -3678,17 +3678,95 @@ function AppVideo:drawMesh3D(
 	end
 end
 
+-- common voxel-drawing of drawVoxel and drawVoxelMap
+function AppVideo:drawVoxel_int(vox, ...)
+	-- orientation
+	-- there are 24 right-handed cube isometric transformations
+	-- there are 5bpp = 32 representations as bitwise Euler angles,
+	-- there are 8 redundant Euler angle orientation representations.
+	-- these are: 20, 21, 22, 23, 28, 29, 30, 31
+	if vox.orientation == 20 then
+		-- special-case, xyz-aligned, anchored to voxel center
+		-- so now we undo the rotation, i.e. use the rotation transpose
+		-- multiply our current mvMat with its upper 3x3 transposed and normalized:
+		local a = self.mvMat
+		local a0, a1, a2,  a3  = a.ptr[0], a.ptr[1], a.ptr[ 2], a.ptr[ 3]
+		local a4, a5, a6,  a7  = a.ptr[4], a.ptr[5], a.ptr[ 6], a.ptr[ 7]
+		local a8, a9, a10, a11 = a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
+
+		-- ... and normalize cols
+		local sx = 1/math.sqrt(a0^2 + a4^2 + a8^2)
+		local sy = 1/math.sqrt(a1^2 + a5^2 + a9^2)
+		local sz = 1/math.sqrt(a2^2 + a6^2 + a10^2)
+
+		a.ptr[0]  = sx * (a0 * a0 + a4 * a4 + a8  * a8)
+		a.ptr[4]  = sy * (a0 * a1 + a4 * a5 + a8  * a9)
+		a.ptr[8]  = sz * (a0 * a2 + a4 * a6 + a8  * a10)
+
+		a.ptr[1]  = sx * (a1 * a0 + a5 * a4 + a9  * a8)
+		a.ptr[5]  = sy * (a1 * a1 + a5 * a5 + a9  * a9)
+		a.ptr[9]  = sz * (a1 * a2 + a5 * a6 + a9  * a10)
+
+		a.ptr[2]  = sx * (a2 * a0 + a6 * a4 + a10 * a8)
+		a.ptr[6]  = sy * (a2 * a1 + a6 * a5 + a10 * a9)
+		a.ptr[10] = sz * (a2 * a2 + a6 * a6 + a10 * a10)
+
+		a.ptr[3]  = sx * (a3 * a0 + a7 * a4 + a11 * a8)
+		a.ptr[7]  = sy * (a3 * a1 + a7 * a5 + a11 * a9)
+		a.ptr[11] = sz * (a3 * a2 + a7 * a6 + a11 * a10)
+	elseif vox.orientation == 21 then
+		-- TODO special case, xy-aligned, anchored to voxel center
+	elseif vptr.orientation == 22 then
+		-- TODO special case, xyz-aligned, anchored to z- center
+	elseif vptr.orientation == 23 then
+		-- TODO special case, xy-aligned, anchored to z- center
+	else
+		-- euler-angles
+		-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
+		self:matrot(vox.rotZ * .5 * math.pi, 0, 0, 1)
+		self:matrot(vox.rotY * .5 * math.pi, 0, 1, 0)
+		self:matrot(vox.rotX * .5 * math.pi, 1, 0, 0)
+	end
+
+	self:drawMesh3D(
+		vox.mesh3DIndex,
+		bit.lshift(vox.tileXOffset, 3),
+		bit.lshift(vox.tileYOffset, 3),
+		...
+	)
+
+end
+
+-- this just draws one single voxel.  
+-- but it sets up the scale matrix first.
+local mvMatPush = ffi.new(mvMatType..'[16]')
+function AppVideo:drawVoxel(
+	voxelValue,
+	...
+)
+	local vox = ffi.new'Voxel'	-- better ffi.cast/ffi.new inside here or store outside?
+	vox.intval = voxelValue or 0
+	
+	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	self:mattrans(.5, .5, .5)
+	local s = 32768
+	self:matscale(1/s, 1/s, 1/s)
+
+	self:drawVoxel_int(vox, ...)
+
+	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+end
+
 local mvMatPush = ffi.new(mvMatType..'[16]')
 local mvMatPush2 = ffi.new(mvMatType..'[16]')
 function AppVideo:drawVoxelMap(
 	voxelmapIndex,
-	sheetIndex,
-	paletteIndex
+	...
 )
 	voxelmapIndex = voxelmapIndex or 0
-	local vox = self.blobs.voxelmap[voxelmapIndex+1]
-	if not vox then
---DEBUG:print('failed to find vox', voxelmapIndex)
+	local voxmap = self.blobs.voxelmap[voxelmapIndex+1]
+	if not voxmap then
+--DEBUG:print('failed to find voxmap', voxelmapIndex)
 		return
 	end
 
@@ -3697,69 +3775,14 @@ function AppVideo:drawVoxelMap(
 	local s = 32768
 	self:matscale(1/s, 1/s, 1/s)
 
-	local width, height, depth = vox:getWidth(), vox:getHeight(), vox:getDepth()
-	local vptr = vox:getVoxelPtr()
+	local width, height, depth = voxmap:getWidth(), voxmap:getHeight(), voxmap:getDepth()
+	local vptr = voxmap:getVoxelPtr()
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do
 
-				-- orientation
 				ffi.copy(mvMatPush2, self.ram.mvMat, ffi.sizeof(mvMatPush2))
-				-- there are 24 right-handed cube isometric transformations
-				-- there are 5bpp = 32 representations as bitwise Euler angles,
-				-- there are 8 redundant Euler angle orientation representations.
-				-- these are: 20, 21, 22, 23, 28, 29, 30, 31
-				if vptr.orientation == 20 then
-					-- special-case, xyz-aligned, anchored to voxel center
-					-- so now we undo the rotation, i.e. use the rotation transpose
-					-- multiply our current mvMat with its upper 3x3 transposed and normalized:
-					local a = self.mvMat
-					local a0, a1, a2,  a3  = a.ptr[0], a.ptr[1], a.ptr[ 2], a.ptr[ 3]
-					local a4, a5, a6,  a7  = a.ptr[4], a.ptr[5], a.ptr[ 6], a.ptr[ 7]
-					local a8, a9, a10, a11 = a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
-
-					-- ... and normalize cols
-					local sx = 1/math.sqrt(a0^2 + a4^2 + a8^2)
-					local sy = 1/math.sqrt(a1^2 + a5^2 + a9^2)
-					local sz = 1/math.sqrt(a2^2 + a6^2 + a10^2)
-
-					a.ptr[0]  = sx * (a0 * a0 + a4 * a4 + a8  * a8)
-					a.ptr[4]  = sy * (a0 * a1 + a4 * a5 + a8  * a9)
-					a.ptr[8]  = sz * (a0 * a2 + a4 * a6 + a8  * a10)
-
-					a.ptr[1]  = sx * (a1 * a0 + a5 * a4 + a9  * a8)
-					a.ptr[5]  = sy * (a1 * a1 + a5 * a5 + a9  * a9)
-					a.ptr[9]  = sz * (a1 * a2 + a5 * a6 + a9  * a10)
-
-					a.ptr[2]  = sx * (a2 * a0 + a6 * a4 + a10 * a8)
-					a.ptr[6]  = sy * (a2 * a1 + a6 * a5 + a10 * a9)
-					a.ptr[10] = sz * (a2 * a2 + a6 * a6 + a10 * a10)
-
-					a.ptr[3]  = sx * (a3 * a0 + a7 * a4 + a11 * a8)
-					a.ptr[7]  = sy * (a3 * a1 + a7 * a5 + a11 * a9)
-					a.ptr[11] = sz * (a3 * a2 + a7 * a6 + a11 * a10)
-				elseif vptr.orientation == 21 then
-					-- TODO special case, xy-aligned, anchored to voxel center
-				elseif vptr.orientation == 22 then
-					-- TODO special case, xyz-aligned, anchored to z- center
-				elseif vptr.orientation == 23 then
-					-- TODO special case, xy-aligned, anchored to z- center
-				else
-					-- euler-angles
-					-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
-					self:matrot(vptr.rotZ * .5 * math.pi, 0, 0, 1)
-					self:matrot(vptr.rotY * .5 * math.pi, 0, 1, 0)
-					self:matrot(vptr.rotX * .5 * math.pi, 1, 0, 0)
-				end
-
-				self:drawMesh3D(
-					vptr.mesh3DIndex,
-					bit.lshift(vptr.tileXOffset, 3),
-					bit.lshift(vptr.tileYOffset, 3),
-					sheetIndex,
-					paletteIndex
-				)
-
+				self:drawVoxel_int(vptr[0], ...)
 				ffi.copy(self.ram.mvMat, mvMatPush2, ffi.sizeof(mvMatPush2))
 
 				self:mattrans(s, 0, 0)

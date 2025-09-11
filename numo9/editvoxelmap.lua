@@ -53,26 +53,22 @@ local function lineBoxDist(box, linePt, lineDir, inside)
 	-- line intersect with the outer walls of a cube
 	local d = math.huge
 	local axis
-	local dx = lineDir.x > 0 ~= inside
-		and axisAlignedPlaneLineIntersectParam(0, box.min.x, -1, linePt, lineDir)
-		or axisAlignedPlaneLineIntersectParam(0, box.max.x, 1, linePt, lineDir)
-	if dx > 0 then
-		axis = 0
-		d = math.min(d, dx)
-	end
-	local dy = lineDir.y > 0 ~= inside
-		and axisAlignedPlaneLineIntersectParam(1, box.min.y, -1, linePt, lineDir)
-		or axisAlignedPlaneLineIntersectParam(1, box.max.y, 1, linePt, lineDir)
-	if dy > 0 then
-		axis = 1
-		d = math.min(d, dy)
-	end
-	local dz = lineDir.z > 0 ~= inside
-		and axisAlignedPlaneLineIntersectParam(2, box.min.z, -1, linePt, lineDir)
-		or axisAlignedPlaneLineIntersectParam(2, box.max.z, 1, linePt, lineDir)
-	if dz > 0 then
-		axis = 2
-		d = math.min(d, dz)
+	for i=0,2 do
+		local j = (i+1)%3
+		local k = (j+1)%3
+		local dxi = lineDir.s[i] > 0 ~= inside
+			and axisAlignedPlaneLineIntersectParam(i, box.min.s[i], -1, linePt, lineDir)
+			or axisAlignedPlaneLineIntersectParam(i, box.max.s[i], 1, linePt, lineDir)
+		if dxi > 0 then
+			local ptj = linePt.s[j] + lineDir.s[j] * dxi
+			local ptk = linePt.s[k] + lineDir.s[k] * dxi
+			if box.min.s[j] <= ptj and ptj <= box.max.s[j]
+			and box.min.s[k] <= ptk and ptk <= box.max.s[k]
+			then
+				axis = i
+				d = math.min(d, dxi)
+			end
+		end
 	end
 	return d, axis
 end

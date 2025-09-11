@@ -350,6 +350,9 @@ function App:initGL()
 		mesh = function(...)
 			return self:drawMesh3D(...)
 		end,
+		drawvoxel = function(...)
+			return self:drawVoxel(...)
+		end,
 		voxelmap = function(...)
 			return self:drawVoxelMap(...)
 		end,
