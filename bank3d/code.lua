@@ -132,42 +132,6 @@ dt=1/60
 levelSize = vec3(11,11,6)
 maxLevels = 2 * 23		-- 11x11x11 levels use 121 x 11 texels, can store 2 x 23 of those on a 256x256 texture
 
---[[ dynamically drawing the border
-drawMapBorder=||do
-	-- middle
-	for x=1,levelSize.x+1 do
-		for y=2,levelSize.y+1 do
-			spr(1024, x*16, y*16, 2, 2)
-		end
-	end
-	-- upper left
-	spr(1024+192, 0, (levelSize.y-2), 4, 4)
-	-- upper right
-	spr(1024+192, (levelSize.x+2)*16, 8, 2, 4, nil, nil, nil, nil, -1, 1)
-	-- upper
-	for x=2,levelSize.x do
-		spr(1024+196, x*16, 8, 2, 4)
-	end
-	-- left & right
-	for y=2,levelSize.x+1 do
-		spr(1024+256, 0, y*16, 2, 2)
-		spr(1024+256, (levelSize.x+2)*16, y*16, 2, 2, nil, nil, nil, nil, -1, 1)
-	end
-	-- bottom left
-	spr(1024+320, 0, (levelSize.y+2)*16, 2, 2)
-	-- bottom right
-	spr(1024+320, (levelSize.x+2)*16, (levelSize.y+2)*16, 2, 2, nil, nil, nil, nil, -1, 1)
-	-- lower
-	for x=1,levelSize.x do
-		spr(1024+322, x*16, (levelSize.y+2)*16, 2, 2)
-	end
-end
---]]
--- [[ drawing border with the brushes
-drawMapBorder=||do
-	drawbrush(0, 0, 0, levelSize.x+2, levelSize.y+2, 0, true, 1)
-end
---]]
 numo9_brushes = {
 	-- map border as a brush
 	[0] = |x,y,w,h| do
@@ -198,7 +162,8 @@ numo9_brushes = {
 			return 322
 		end
 		-- center
-		return 0
+		--return 0	-- ground
+		return 324	-- empty
 	end,
 }
 
@@ -310,9 +275,9 @@ drawMap=||do
 	matscale(1/16,1/16,1/16)
 
 	--mattrans(24, 24)
-	mattrans(-16, -32)
-	drawMapBorder()
-	mattrans(16, 32)
+	-- TODO don't use this, it's a 2D facade of a 3D wall border.  just make a voxelmap of the wall or something.
+	-- TODO voxelbrushmap?  tempting...
+	drawbrush(0, -16, -16, levelSize.x+2, levelSize.y+2, 0, true, 1)
 
 	--[[ draw voxelmap i.e. without animations ... works
 	matpush()
@@ -320,7 +285,7 @@ drawMap=||do
 	voxelmap(0, 1)
 	matpop()
 	--]]
-	-- [[
+	-- [[ draw one voxel at a time, esp for water animation
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
