@@ -123,7 +123,12 @@ function EditVoxelMap:update()
 		app.ram.paletteBlobIndex = pushPalBlobIndex
 
 		if self.wireframe then
+			--[[ using cart data
 			local v = voxelmapBlob:getVoxelPtr()
+			--]]
+			-- [[ using app RAM
+			local v = ffi.cast('Voxel*', app.ram.v + voxelmapBlob:getVoxelAddr())
+			--]]
 			for k=0,mapsize.z-1 do
 				for j=0,mapsize.y-1 do
 					for i=0,mapsize.x-1 do
@@ -183,8 +188,13 @@ function EditVoxelMap:update()
 						npti = pti
 						break
 					end
+error'TODO'					
+					--[[ read from cart
 					local v = voxelmapBlob:get(npti.x, npti.y, npti.z)
 					if v.intval ~= voxelMapEmptyValue then break end
+					--]]
+					-- [[ read from RAM
+					--]]
 
 					pti = npti
 				end
@@ -198,26 +208,36 @@ function EditVoxelMap:update()
 						if mapboxIE:contains(npti) then
 							local v = voxelmapBlob:get(npti:unpack())
 							if v.intval ~= voxelMapEmptyType then
-								self.voxCurSel.mesh3DIndex = v.mesh3DIndex
-								self.voxCurSel.tileXOffset = v.tileXOffset
-								self.voxCurSel.tileYOffset = v.tileYOffset
-								self.voxCurSel.orientation = v.orientation
+								self.voxCurSel.intval = v.intval
 							end
 						end
 					else
-						local v = voxelmapBlob:get(pti:unpack())
-						v.mesh3DIndex = self.voxCurSel.mesh3DIndex
-						v.tileXOffset = self.voxCurSel.tileXOffset
-						v.tileYOffset = self.voxCurSel.tileYOffset
-						v.orientation = self.voxCurSel.orientation
+						--[[ write to cart
+						local v = voxelmapBlob:getCart(pti:unpack())
+						v.intval = self.voxCurSel.intval
+						--]]
+						-- [[
+						app:net_pokel(
+							voxelmapBlob:getAddr(pti:unpack()),
+							self.voxCurSel.intval
+						)
+						--]]
 					end
 				end
 
 				if app:keyp'mouse_right'
 				and mapboxIE:contains(npti)
 				then
+					--[[ write to cart
 					local v = voxelmapBlob:get(npti:unpack())
 					v.intval = voxelMapEmptyValue
+					--]]
+					-- [[ write to RAM
+					app:net_pokel(
+						voxelmapBlob:getAddr(pti:unpack()),
+						voxelMapEmptyValue)
+					error'TODO'
+					end
 				end
 
 

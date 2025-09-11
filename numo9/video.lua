@@ -34,6 +34,7 @@ local clipMax = numo9_rom.clipMax
 local mvMatScale = numo9_rom.mvMatScale
 local mvMatType = numo9_rom.mvMatType
 local menuFontWidth = numo9_rom.menuFontWidth
+local voxelmapSizeType = numo9_rom.voxelmapSizeType
 
 local mvMatInvScale = 1 / mvMatScale
 
@@ -3775,7 +3776,12 @@ function AppVideo:drawVoxelMap(
 	self:matscale(1/s, 1/s, 1/s)
 
 	local width, height, depth = voxmap:getWidth(), voxmap:getHeight(), voxmap:getDepth()
+	--[[ using the cart data
 	local vptr = voxmap:getVoxelPtr()
+	--]]
+	-- [[ using the app RAM
+	local vptr = ffi.cast('Voxel*', self.ram.v + voxmap:getVoxelAddr())
+	--]]
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do

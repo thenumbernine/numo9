@@ -274,6 +274,13 @@ drawMap=||do
 	drawMapBorder()
 	mattrans(16, 32)
 
+	-- [[ draw voxelmap i.e. without animations
+	matpush()
+	matscale(16,16,16)
+	voxelmap(0, 1)
+	matpop()
+	--]]
+	--[[
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
@@ -289,6 +296,7 @@ drawMap=||do
 			end
 		end
 	end
+	--]]
 end
 
 
