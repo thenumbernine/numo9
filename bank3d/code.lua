@@ -62,10 +62,10 @@ WATER_ANIM_2 = WATER_ANIM_1 + 2
 
 mapTypes={
 	[EMPTY] = {dontDraw=true},
-	[GROUND] = {cannotPassThru=true, drawVoxel=true, blocksGunShot=true, blocksExplosion=true},
-	[TREE] = {cannotPassThru=true, drawVoxel=true},
-	[BRICK] = {cannotPassThru=true, drawVoxel=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
-	[STONE] = {cannotPassThru=true, drawVoxel=true, blocksGunShot=true, blocksExplosion=true},
+	[GROUND] = {cannotPassThru=true, blocksGunShot=true, blocksExplosion=true},
+	[TREE] = {cannotPassThru=true},
+	[BRICK] = {cannotPassThru=true, blocksGunShot=true, blocksExplosion=true, bombable=true},
+	[STONE] = {cannotPassThru=true, blocksGunShot=true, blocksExplosion=true},
 	[WATER] = {cannotPassThru=true},
 	[ARROW_RIGHT] = {},
 	[ARROW_DOWN] = {},
@@ -75,10 +75,10 @@ mapTypes={
 	[MOVING_DOWN] = {},
 	[MOVING_LEFT] = {},
 	[MOVING_UP] = {},
-	[SLOPE_RIGHT] = {drawSlope=0},
-	[SLOPE_UP] = {drawSlope=1},
-	[SLOPE_LEFT] = {drawSlope=2},
-	[SLOPE_DOWN] = {drawSlope=3},
+	[SLOPE_RIGHT] = {},
+	[SLOPE_UP] = {},
+	[SLOPE_LEFT] = {},
+	[SLOPE_DOWN] = {},
 }
 
 --isSlope=|vox| vox & 0x7ffffff == SLOPE_RIGHT	-- because SLOPE_RIGHT is the root orientation
@@ -185,9 +185,6 @@ viewTiltUpAngle = 45
 viewAngle = 90
 destViewAngle = viewAngle
 
--- because :: operator needs __index = _G to work, that means all globals get loaded into eachobject's namespace ... bad idea
--- that means setting '_G.drawVoxel='... will set all models to voxel models
--- that means TLDR don't use :: operator
 local drawVoxel=|
 	x, y, z,
 	scaleX, scaleY,
@@ -218,97 +215,6 @@ local drawVoxel=|
 	drawvoxel(...)
 
 	matpop()
-end
-
-drawForFlags = |mt, spriteIndex, x, y, z, ...| do
-	local spritesWide, spritesHigh,
-		paletteIndex, transparentIndex, spriteBit, spriteMask,
-		scaleX, scaleY
-		= ...
-	scaleX = scaleX or 1
-	scaleY = scaleY or 1
-	if mt.drawVoxel
-	or mt.drawSlope
-	then
-		matpush()
-		--[[
-		mattrans(x, y, z)
-		matscale(16, 16, 16)
-		mattrans(.5, .5, .5)
-		matscale(scaleX, scaleY, 1)	-- TODO recenter-then-scale?
-		mattrans(-.5, -.5, -.5)
-		--]]
-		-- [[ optimized
-		mattrans(x+8-8*scaleX, y+8-8*scaleY, z)
-		matscale(16*scaleX, 16*scaleY, 16)
-		--]]
-
-		local meshIndex = 0 -- cube
-		local sheetIndex = spriteIndex>>10
-		local orientation = 0
-		if mt.drawSlope then
-			meshIndex = 1	-- slope
-			spriteIndex = 6	-- stone
-			sheetIndex = 1
-			orientation = mt.drawSlope
-		end
-
-		drawvoxel(
-			tonumber(uint32_t(
-				(spriteIndex & 0x3ff)	-- tile uv
-				| (meshIndex << 10)
-				| (orientation << 27)
-			)),
-			sheetIndex,
-			paletteIndex,
-			transparentIndex,
-			spriteBit,
-			spriteMask
-		)
-
-		matpop()
-	else
-		matpush()
-		--[[
-		mattrans(x, y, z)
-		matscale(16, 16, 16)
-		mattrans(.5, .5, .5)
-		matscale(scaleX, scaleY, 1)
-		mattrans(-.5, -.5, -.5)
-		--]]
-		-- [[ optimized
-		mattrans(x+8-8*scaleX, y+8-8*scaleY, z)
-		matscale(16*scaleX, 16*scaleY, 16)
-		--]]
-
-		local meshIndex = 2 -- quad, texels are [0,16]
-		if spritesWide == 1 and spritesHigh == 1 then	-- only used by numbers drawn over billboard moneybags
-			meshIndex = 3	-- quad, texels are [0,8]
-			mattrans(.25, .25, .25)
-			matscale(.5, .5, .5)	-- TODO move it fwd a bit
-		else
-			assert.eq(spritesWide, 2)
-			assert.eq(spritesHigh, 2)
-		end
-		local orientation = 20	-- xyz-aligned, center-anchored
-		-- TODO use xy-aligned, bottom-anchored billboards
-		local sheetIndex = spriteIndex>>10
-		local voxelValue = tonumber(uint32_t(
-			(spriteIndex & 0x3ff)	-- tile uv
-			| (meshIndex << 10)
-			| (orientation << 27)
-		))
-		drawvoxel(
-			voxelValue,
-			sheetIndex,
-			paletteIndex,
-			transparentIndex,
-			spriteBit,
-			spriteMask
-		)
-
-		matpop()
-	end
 end
 
 drawMap=||do
@@ -385,8 +291,6 @@ removeAll=||do
 	addList=table()
 end
 
-classmeta.__index=_G	-- obj __index looks in its class, if not there then looks into global.  This line is needed for :: setfenv(1,self) use.
-
 BaseObj=class{
 	init=|:,args|do
 		self.scale=vec3(1,1,1)
@@ -417,16 +321,16 @@ BaseObj=class{
 		if self.blendMode then
 			fillp(0x8000)	--blend(blendMode)
 		end
-		drawForFlags(
-			self,
-			self.seq,		--spriteIndex,
-			x, y, z,
-			2, 2,		--spritesWide, spritesHigh,
-			nil,		--paletteIndex,
-			nil,		--transparentIndex,
-			nil,		--spriteBit,
-			nil,		--spriteMask,
-			self.scale.x, self.scale.y)
+		drawVoxel(
+			x,y,z,
+			self.scale.x, self.scale.y,
+			self.seq | (
+				self.drawCube
+				and (0 << 10)		-- cube
+				or ((2 << 10)		-- quad, 16x16 texcoord area
+					| (20 << 27))	-- billboard
+			)
+		)
 		if self.blendMode then
 			fillp(0)	--blend()
 		end
@@ -635,58 +539,25 @@ do
 			return 'did move'
 		end,
 		update=|:|do
-			if not self.dead then
-				local cornerTypes = getCornerTypes2D(self.destPos)
+			local cornerTypes = getCornerTypes2D(self.destPos)
 
-				-- check moving platform
-				if (time() * 60) % 30 == 0 then
-					-- TODO merge this move and btn move so we dont double move in one update ... or not?
-					-- TODO :move but withotu changing animation direction ...
-						if cornerTypes.UL == MOVING_RIGHT and cornerTypes.LL == MOVING_RIGHT then
-						self:checkMoveCmd(dirForName.right)
-					elseif cornerTypes.UL == MOVING_DOWN and cornerTypes.UR == MOVING_DOWN then
-						self:checkMoveCmd(dirForName.down)
-					elseif cornerTypes.UR == MOVING_LEFT and cornerTypes.LR == MOVING_LEFT then
-						self:checkMoveCmd(dirForName.left)
-					elseif cornerTypes.LL == MOVING_UP and cornerTypes.LR == MOVING_UP then
-						self:checkMoveCmd(dirForName.up)
-					end
-				end
-
-				-- check falling
-				-- TODO you can looney tunes run over air until you let go of run ...
-				if not self.moveFracMoving
-				and self.pos.z >= .5
-				then
-					if cornerTypes.UL == EMPTY and cornerTypes.UR == EMPTY and cornerTypes.LL == EMPTY and cornerTypes.LR == EMPTY then
-						local newDest = self.destPos + - vec3(0, 0, .5)
-						local lowerCornerTypes = getCornerTypes2D(newDest)
-						if lowerCornerTypes.UL == EMPTY and lowerCornerTypes.UR == EMPTY and lowerCornerTypes.LL == EMPTY and lowerCornerTypes.LR == EMPTY then
-
-							local touching
-							for _,o in ipairs(objs) do
-								if not o.removeMe
-								and o ~= self
-								and PushableObj:isa(o)	--and o.canWalkOn
-								-- TODO framers can crush money ..
-								and (o.destPos - newDest):lInfLength() <= .75
-								then
-									touching = true
-									break
-								end
-							end
-							if not touching then
-								self.destPos:set(newDest)
-								self.moveFrac=0
-								self.moveFracMoving=true
-								self.srcPos:set(self.pos)
-							end
-						end
-					end
+			-- check moving floor
+			if (time() * 60) % 30 == 0 then
+				-- TODO merge this move and btn move so we dont double move in one update ... or not?
+				-- TODO :move but withotu changing animation direction ...
+					if cornerTypes.UL == MOVING_RIGHT and cornerTypes.LL == MOVING_RIGHT then
+					self:checkMoveCmd(dirForName.right)
+				elseif cornerTypes.UL == MOVING_DOWN and cornerTypes.UR == MOVING_DOWN then
+					self:checkMoveCmd(dirForName.down)
+				elseif cornerTypes.UR == MOVING_LEFT and cornerTypes.LR == MOVING_LEFT then
+					self:checkMoveCmd(dirForName.left)
+				elseif cornerTypes.LL == MOVING_UP and cornerTypes.LR == MOVING_UP then
+					self:checkMoveCmd(dirForName.up)
 				end
 			end
 
 			super.update(self)
+
 			if self.moveFracMoving then
 				self.moveFrac+=dt*self.speed
 				if self.moveFrac>=1 then
@@ -703,6 +574,37 @@ do
 				else
 					local oneMinusMoveFrac=1 - self.moveFrac
 					self.pos = self.destPos * self.moveFrac + self.srcPos * oneMinusMoveFrac
+				end
+			end
+
+			-- check falling
+			-- TODO you can looney tunes run over air until you let go of run ...
+			if not self.moveFracMoving
+			and self.pos.z >= .5
+			then
+				if cornerTypes.UL == EMPTY and cornerTypes.UR == EMPTY and cornerTypes.LL == EMPTY and cornerTypes.LR == EMPTY then
+					local newDest = self.destPos - vec3(0, 0, .5)
+					local lowerCornerTypes = getCornerTypes2D(newDest)
+					if lowerCornerTypes.UL == EMPTY and lowerCornerTypes.UR == EMPTY and lowerCornerTypes.LL == EMPTY and lowerCornerTypes.LR == EMPTY then
+						local touching
+						for _,o in ipairs(objs) do
+							if not o.removeMe
+							and o ~= self
+							and PushableObj:isa(o)	--and o.canWalkOn
+							-- TODO framers can crush money ..
+							and (o.destPos - newDest):lInfLength() <= .75
+							then
+								touching = true
+								break
+							end
+						end
+						if not touching then
+							self.destPos:set(newDest)
+							self.moveFrac=0
+							self.moveFracMoving=true
+							self.srcPos:set(self.pos)
+						end
+					end
 				end
 			end
 
@@ -876,7 +778,7 @@ do
 					16*self.pos.z,
 					1,
 					1,
-					384|self.blastRadius
+					self.blastRadius|384
 					|(3<<10)	-- quad with 8x8 texel region
 					|(20<<27)	-- billboard
 				)
@@ -1232,8 +1134,8 @@ do
 	Framer=PushableObj:subclass{
 		init=|:|do
 			super.init(self,{})
-			self.seq=seqs.framer
-			self.drawVoxel = true
+			self.seq = seqs.framer
+			self.drawCube = true
 		end,
 	}
 end
@@ -1349,7 +1251,7 @@ do
 					16*self.pos.z,
 					1,
 					1,
-					384|self.bombs
+					self.bombs|384
 					|(3<<10)	-- quad with 8x8 texel region
 					|(20<<27)	-- billboard
 				)
