@@ -81,8 +81,8 @@ mapTypes={
 	[SLOPE_DOWN] = {},
 }
 
---isSlope=|vox| vox & 0x7ffffff == SLOPE_RIGHT	-- because SLOPE_RIGHT is the root orientation
-isSlope=|vox| vox & 0x7fffc00 == 0x400				-- if the voxel mesh3d is the slope mesh
+--isSlope=|vox| ((vox or EMPTY) & 0x7ffffff == SLOPE_RIGHT)	-- because SLOPE_RIGHT is the root orientation
+isSlope=|vox| ((vox or EMPTY) & 0x7fffc00 == 0x400)				-- if the voxel mesh3d is the slope mesh
 
 corners2d = table{
 	UL = vec2(-1, -1),
@@ -101,10 +101,15 @@ getCornerTypes2D = |where|
 	)
 
 local dirvecs3d = dirvecs:map(|v,k| (vec3(v.x, v.y, 0), k))
+dirvecs3d[4] = vec3(0,0,1)
+dirvecs3d[5] = vec3(0,0,-1)
 dirForName.none = -1
 
 -- flip for our rhs 3d coord sys
 dirForName.up, dirForName.down = dirForName.down, dirForName.up
+-- all the sudden 'up' means something different...
+dirForName.rise = 4
+dirForName.fall = 5
 
 seqs={
 	cloud=128,
@@ -451,7 +456,7 @@ do
 		doMove=|:,cmd|do
 			if cmd==dirForName.none then return 'no move' end
 			local newDest = self.pos:clone()
-			if cmd >= 0 and cmd < 4 then
+			if cmd >= 0 and cmd < 6 then
 				newDest += dirvecs3d[cmd] * .5
 			else
 				return 'no move'
@@ -1056,17 +1061,17 @@ do
 
 				if dist<self.FIRE_DIST then
 					local dir = dirForName.none
-					if diff.x < diff.y then	-- left or down
-						if diff.x < -diff.y then
-							dir = dirForName.left
-						else
-							dir = dirForName.up
+					if absDiff.x > absDiff.y then
+						if absDiff.x > absDiff.z then	-- use x
+							dir = diff.x < 0 and dirForName.left or dirForName.right
+						else	-- use z
+							dir = diff.z < 0 and dirForName.fall or dirForName.rise
 						end
-					else	-- up or right
-						if diff.x < -diff.y then
-							dir = dirForName.down
-						else
-							dir = dirForName.right
+					else
+						if absDiff.y > absDiff.z then 	-- use y
+							dir = diff.y < 0 and dirForName.down or dirForName.up
+						else	-- use z
+							dir = diff.z < 0 and dirForName.fall or dirForName.rise
 						end
 					end
 --DEBUG:trace('shot dir', dir)
