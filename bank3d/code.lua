@@ -176,8 +176,8 @@ numo9_brushes = {
 			return 322
 		end
 		-- center
-		--return 0	-- ground
-		return 324	-- empty
+		return 0	-- ground
+		--return 324	-- empty
 	end,
 }
 

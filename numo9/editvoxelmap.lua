@@ -313,6 +313,24 @@ function EditVoxelMap:update()
 				end
 			end
 		)
+
+		local moveSpeed = .03
+		if app:key'w' then
+			self.orbit.pos = self.orbit.pos - self.orbit.angle:zAxis() * moveSpeed
+			self.orbit.orbit = self.orbit.orbit - self.orbit.angle:zAxis() * moveSpeed
+		end
+		if app:key's' then
+			self.orbit.pos = self.orbit.pos + self.orbit.angle:zAxis() * moveSpeed
+			self.orbit.orbit = self.orbit.orbit + self.orbit.angle:zAxis() * moveSpeed
+		end
+		if app:key'a' then
+			self.orbit.pos = self.orbit.pos - self.orbit.angle:xAxis() * moveSpeed
+			self.orbit.orbit = self.orbit.orbit - self.orbit.angle:xAxis() * moveSpeed
+		end
+		if app:key'd' then
+			self.orbit.pos = self.orbit.pos + self.orbit.angle:xAxis() * moveSpeed
+			self.orbit.orbit = self.orbit.orbit + self.orbit.angle:xAxis() * moveSpeed
+		end	
 	end
 
 	self:drawTooltip()
