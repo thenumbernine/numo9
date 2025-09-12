@@ -1043,7 +1043,12 @@ do
 			if player and not player.dead then
 				local diff = player.pos - self.pos
 				local absDiff = diff:clone():map(math.abs)
-				local dist = math.min(absDiff:unpack())
+
+				local dist = math.max(
+					math.min(absDiff.x, absDiff.y),
+					math.min(absDiff.x, absDiff.z),
+					math.min(absDiff.y, absDiff.z)
+				)
 
 				if dist < self.MAD_DIST then
 					self.seq=seqs.gunMad
