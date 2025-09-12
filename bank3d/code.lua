@@ -913,7 +913,7 @@ do
 				cantHitWorld=true
 			end
 
-			for side=0,3 do
+			for side=0,5 do
 				local checkPos = self.destPos:clone()
 				local len=0
 				while true do
