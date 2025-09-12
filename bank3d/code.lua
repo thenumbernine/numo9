@@ -870,18 +870,15 @@ do
 				if self.blendMode then
 					fillp(0x8000)	--blend(self.blendMode)
 				end
-				drawForFlags(
-					self,
-					384+self.blastRadius,
+				drawVoxel(
 					16*self.pos.x - 8,
 					16*self.pos.y - 8,
 					16*self.pos.z,
 					1,
 					1,
-					nil,
-					nil,
-					nil,
-					nil
+					384|self.blastRadius
+					|(3<<10)	-- quad with 8x8 texel region
+					|(20<<27)	-- billboard
 				)
 				if self.blendMode then
 					fillp(0)	--blend()
@@ -1346,18 +1343,15 @@ do
 				if self.blendMode then
 					fillp(0x8000)	--blend(self.blendMode)
 				end
-				drawForFlags(
-					self,
-					384+self.bombs,
+				drawVoxel(
 					16*self.pos.x - 8,
 					16*self.pos.y - 8,
 					16*self.pos.z,
 					1,
 					1,
-					nil,
-					nil,
-					nil,
-					nil
+					384|self.bombs
+					|(3<<10)	-- quad with 8x8 texel region
+					|(20<<27)	-- billboard
 				)
 				if self.blendMode then
 					fillp(0)	--blend()
