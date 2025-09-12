@@ -3712,20 +3712,20 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		a.ptr[ 0] = lx
 		a.ptr[ 5] = ly
 		a.ptr[10] = lz
-		
+
 		local sx = 1/lx
 		local sy = 1/ly
 		local sz = 1/lz
-		
+
 		-- skew:
 		local s01 = a0 * a1 + a4 * a5 + a8 * a9
 		a.ptr[1] = sx * s01
 		a.ptr[4] = sy * s01
-		
+
 		local s02 = a0 * a2 + a4 * a6 + a8 * a10
 		a.ptr[2] = sx * s02
 		a.ptr[8] = sz * s02
-		
+
 		local s12 = a1 * a2 + a5 * a6 + a9  * a10
 		a.ptr[6] = sy * s12
 		a.ptr[9] = sz * s12

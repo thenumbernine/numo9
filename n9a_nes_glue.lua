@@ -1200,7 +1200,7 @@ trace'NMI'
 
 	-- ... clear at prerender scanline
 	PPUSTATUS &= ~(PPUSTATUS_flagSpriteOverflow | PPUSTATUS_flagSprite0Hit | PPUSTATUS_flagVBlank)
-	
+
 	for i=1,600 do
 		cpuRun()
 	end

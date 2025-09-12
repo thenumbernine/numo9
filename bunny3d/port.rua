@@ -86,7 +86,7 @@ end
 -- find backfacing tris (why are they here?)
 -- assumes the COM is zero
 local flipBackFacing=||do
-	-- TODO 
+	-- TODO
 	-- it's not a sphere
 	-- so the best way is consensus, by ensuring that our orientation matches our neighbors
 	local com = calcCOM()

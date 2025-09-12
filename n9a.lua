@@ -1331,7 +1331,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 	end):concat'\n'
 	--]]
 
-	-- write out our userdata blob ... 
+	-- write out our userdata blob ...
 	-- TODO mechanism to request cart space without specifying empty files
 	assert(basepath'data.bin':write(('\0'):rep(0x1300)))
 

@@ -23,7 +23,7 @@ function EditCode:init(args)
 			return self[self.blobField].data
 		end,
 	}
-	
+
 	self:onCartLoad()
 end
 
@@ -42,7 +42,7 @@ end
 
 function EditCode:update()
 	EditCode.super.update(self)
-	
+
 	-- ui controls
 
 	self:setBlobIndex(self[self.blobIndexField])

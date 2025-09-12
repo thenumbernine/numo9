@@ -106,8 +106,8 @@ end
 
 
 -- https://stackoverflow.com/questions/2613734/maximum-packet-size-for-a-tcp-connection
---local maxPacketSize = 1024	-- when sending the RAM over, small packets kill us ... starting to not trust luasocket ...
---local maxPacketSize = 65536		-- how come right at this offset my RAM dump goes out of sync between client and server ...
+--local maxPacketSize = 1024
+--local maxPacketSize = 65536
 local maxPacketSize = 16777216
 
 -- send and make sure you send everything, and error upon fail

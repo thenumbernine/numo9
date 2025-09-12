@@ -867,7 +867,7 @@ update=||do
 			local x,y,z,w = quat_mul(
 				viewPos.x, viewPos.y, viewPos.z, viewPos.w,
 				quatRotZ(math.rad(phi)))
-			
+
 			local dlambda = 1
 			local gl_u_r = 1
 			local gl_u_phi = 0
@@ -876,7 +876,7 @@ update=||do
 				local zx, zy, zz = quat_zAxis(x,y,z,w)	-- pos of the photon
 				local xx, xy, xz = quat_xAxis(x,y,z,w)	-- right axis of ray
 				local yx, yy, yz = quat_yAxis(x,y,z,w)	-- fwd axis of ray
-				
+
 				-- convert gl_u to 3D u
 				local gl_u_r_x, gl_u_r_y, gl_u_r_z = vec3_scale(gl_u_r, yx, yy, yz)
 				local gl_u_x, gl_u_y, gl_u_z = vec3_add(
@@ -887,7 +887,7 @@ update=||do
 				for _,p in ipairs(viewSphere.portals) do
 					local a_r = 0
 					local a_phi = 0
-					
+
 					-- size / event-horizon
 					local R = p.size
 					-- pos of portal
@@ -896,7 +896,7 @@ update=||do
 					local pxx, pxy, pxz = vec3_unit(vec3_cross(zx, zy, zz, pzx, pzy, pzz))
 					-- fwd axis from portal to photon (at photon)
 					local pyx, pyy, pyz = vec3_unit(vec3_cross(pzx, pzy, pzz, pxx, pxy, pxz))
-					
+
 					-- convert 3D u to p_u
 					local p_u_phi = vec3_dot(gl_u_x, gl_u_y, gl_u_z, vec3_neg(pxx, pxy, pxz))
 					local p_u_r = vec3_dot(gl_u_x, gl_u_y, gl_u_z, pyx, pyy, pyz)
@@ -919,7 +919,7 @@ update=||do
 					local dl = l * p_u_phi * p_u_phi					-- Gamma^l_phi_phi
 					--local dl = r dr / l
 					a_r += dl * l / math.sqrt(l^2 - R^2)
-					--]]				
+					--]]
 					--[[ Morris-Thorne but maybe l is r ...
 					a_r += r * p_u_phi * p_u_phi
 					a_phi -= r / math.sqrt(r^2 + R^2) * p_u_r * p_u_phi	-- Gamma^phi_l_phi
@@ -927,13 +927,13 @@ update=||do
 					dr *= f
 					dphi -= p_phi/r
 					--]]
-					
+
 					-- integrate a -> u
 					p_u_r += a_r * dlambda
 					p_u_phi += a_phi * dlambda
 --]===]
 
-					-- convert back to 3D 
+					-- convert back to 3D
 					local p_u_phi_x, p_u_phi_y, p_u_phi_z = vec3_scale(p_u_phi, vec3_neg(pxx, pxy, pxz))
 					local p_u_r_x, p_u_r_y, p_u_r_z = vec3_scale(p_u_r, pyx, pyy, pyz)
 					local p_u_z_x, p_u_z_y, p_u_z_z = vec3_scale(p_u_z, pzx, pzy, pzz)
@@ -952,7 +952,7 @@ update=||do
 				-- integrate u -> pos
 				x,y,z,w = quat_mul(x,y,z,w, quatRotX(gl_u_r / viewSphere.radius * dlambda))
 				x,y,z,w = quat_mul(x,y,z,w, quatRotZ(gl_u_phi * dlambda))
-				
+
 				if grid_r % grid_r_step == 0 then
 					rings[grid_r_index]:insert{quatTo2D(x,y,z,w)}
 					grid_r_index += 1

@@ -223,7 +223,7 @@ function EditTilemap:update()
 		self.draw16Sprites,	-- draw 16x16 vs 8x8
 		self.sheetBlobIndex	-- sprite vs tile sheet
 	)
-	app.ram.paletteBlobIndex = pushPalBlobIndex 
+	app.ram.paletteBlobIndex = pushPalBlobIndex
 
 --self:setTooltip(self.tilemapPanOffset..' x'..self.scale, mouseX-8, mouseY-8, 0xfc, 0)
 	if self.drawGrid then
@@ -303,7 +303,7 @@ function EditTilemap:update()
 			0,
 			0xff
 		)
-		app.ram.paletteBlobIndex = pushPalBlobIndex 
+		app.ram.paletteBlobIndex = pushPalBlobIndex
 		local spriteX = math.floor((mouseX - pickX) / pickW * spriteSheetSizeInTiles.x)
 		local spriteY = math.floor((mouseY - pickY) / pickH * spriteSheetSizeInTiles.y)
 		if spriteX >= 0 and spriteX < spriteSheetSizeInTiles.x

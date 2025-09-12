@@ -40,11 +40,11 @@ function EditSFX:update()
 	end
 
 	local x, y = 80, 0
-	
+
 	self:guiBlobSelect(x, y, 'sfx', self, 'sfxBlobIndex', function(dx)
 		stop()
 	end)
-	
+
 	x = x + 16
 
 	app:drawMenuText('#', x, y, 0xfc, 0)
