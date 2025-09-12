@@ -27,14 +27,19 @@ local blobClassForName = numo9_blobs.blobClassForName
 local blobsToStr = numo9_blobs.blobsToStr
 local strToBlobs = numo9_blobs.strToBlobs
 
+local numo9_rom = require 'numo9.rom'
+local addSig = numo9_rom.addSig
+local removeSig = numo9_rom.removeSig
+
 
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
 -- so reading is from files now
 local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
 local pngCustomKey = 'nuMO'
 
-local function blobStrToCartImage(blobsAsStr, labelImage)
-	local blobsCompressed = zlib.compressLua(blobsAsStr)
+
+local function blobStrWithSigToCartImage(blobsAsStrWithSig, labelImage)
+	local blobsCompressed = zlib.compressLua(blobsAsStrWithSig)
 
 	-- [[ storing in png metadata
 	local baseLabelImage = Image'defaultlabel.png'
@@ -79,7 +84,7 @@ end
 takes an Image of a n9 png
 returns a string of the ROM data representing the blobs
 --]]
-local function cartImageToBlobStr(cartImgData)
+local function cartImageToBlobStrWithSig(cartImgData)
 	-- loading as an image
 
 	-- [[ from disk
@@ -95,10 +100,19 @@ local function cartImageToBlobStr(cartImgData)
 
 	-- [[ storing in png metadata
 	local blobsCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
-	local blobsAsStr = zlib.uncompressLua(blobsCompressed)
+	local blobsAsStrWithSig = zlib.uncompressLua(blobsCompressed)
 --DEBUG:print('blob data length, decompressed: '..('0x%x'):format(#blobsAsStr))
+	return blobsAsStrWithSig
+end
 
+local function cartImageToBlobStr(cartImgData)
+	local blobsAsStr = removeSig(cartImageToBlobStrWithSig(cartImgData))
 	return blobsAsStr
+end
+
+local function blobStrToCartImage(blobsAsStr, ...)
+	local blobsAsStrWithSig = addSig(blobsAsStr)
+	return blobStrWithSigToCartImage(blobsAsStrWithSig, ...)
 end
 
 --[[
@@ -121,8 +135,14 @@ local function cartImageToBlobs(cartImgData)
 end
 
 return {
-	blobsToCartImage = blobsToCartImage,
-	cartImageToBlobs = cartImageToBlobs,
+	-- base case functions
+	-- rw without stripping sig used by n9tobin/binton9
+	blobStrWithSigToCartImage = blobStrWithSigToCartImage,
+	cartImageToBlobStrWithSig = cartImageToBlobStrWithSig,
+	-- used by n9a and netplay:
 	blobStrToCartImage = blobStrToCartImage,
 	cartImageToBlobStr = cartImageToBlobStr,
+	-- common functions:
+	blobsToCartImage = blobsToCartImage,
+	cartImageToBlobs = cartImageToBlobs,
 }

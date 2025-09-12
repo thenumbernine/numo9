@@ -62,6 +62,8 @@ local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
 local clipType = numo9_rom.clipType
 local mvMatType = numo9_rom.mvMatType
+local addSig = numo9_rom.addSig
+local removeSig = numo9_rom.removeSig
 
 local numo9_blobs = require 'numo9.blobs'
 local byteArrayToBlobs = numo9_blobs.byteArrayToBlobs
@@ -1188,7 +1190,7 @@ print'sending initial RAM state...'
 	-- send RAM state
 	local ramState = ffi.string(app.ram.v, app.memSize)
 --DEBUG:require'ext.path''server_init.txt':write(string.hexdump(ramState))
-	local ramStateCompressed = zlibCompressLua(ramState)
+	local ramStateCompressed = zlibCompressLua(addSig(ramState))
 --DEBUG:print('SENDING RAM SIZE', #ramStateCompressed, 'STR', require 'ext.tolua'(to7bitstr(#ramStateCompressed)))
 	serverConn.toSend:insert(
 		string.char(netmsgs.sendRAM)
@@ -1406,7 +1408,7 @@ assert.len(deltaStr, deltaBufLen)
 						local ramStateCompressedSize = read7bit(sock)
 --DEBUG:print('READING RAM SIZE', ramStateCompressedSize)
 						local ramStateCompressed = assert(receive(sock, ramStateCompressedSize, 10))
-						local ramState = zlibUncompressLua(ramStateCompressed)
+						local ramState = removeSig(zlibUncompressLua(ramStateCompressed))
 --DEBUG(@5):print(string.hexdump(ramState))
 
 --DEBUG(@5):require'ext.path''client_init.txt':write(string.hexdump(ramState))

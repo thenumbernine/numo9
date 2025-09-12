@@ -25,10 +25,10 @@ local resetPalette = numo9_video.resetPalette
 local resetFont = numo9_video.resetFont
 
 local numo9_archive = require 'numo9.archive'
+local blobStrWithSigToCartImage = numo9_archive.blobStrWithSigToCartImage
+local cartImageToBlobStrWithSig = numo9_archive.cartImageToBlobStrWithSig
 local cartImageToBlobs = numo9_archive.cartImageToBlobs
 local blobsToCartImage = numo9_archive.blobsToCartImage
-local cartImageToBlobStr = numo9_archive.cartImageToBlobStr
-local blobStrToCartImage = numo9_archive.blobStrToCartImage
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
@@ -260,10 +260,10 @@ elseif cmd == 'n9tobin' then
 	local basepath = getbasepath(fn)
 	local binpath = n9path:setext'bin'
 
-	local blobsAsStr = assert(cartImageToBlobStr(
+	local blobsAsStrWithSig = assert(cartImageToBlobStrWithSig(
 		(assert(n9path:read()))
 	))
-	assert(binpath:write(blobsAsStr))
+	assert(binpath:write(blobsAsStrWithSig))
 
 elseif cmd == 'binton9' then
 
@@ -271,10 +271,10 @@ elseif cmd == 'binton9' then
 	local basepath = getbasepath(fn)
 	local binpath = n9path:setext'bin'
 
-	local blobsAsStr = assert(binpath:read())
+	local blobsAsStrWithSig = assert(binpath:read())
 
 	assert(path(fn):write(
-		(assert(blobStrToCartImage(blobsAsStr, binpath.path)))
+		(assert(blobStrWithSigToCartImage(blobsAsStrWithSig)))
 	))
 
 -- TODO make this auto-detect 'x' and 'r' based on extension

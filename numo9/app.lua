@@ -44,6 +44,7 @@ local ClientConn = numo9_net.ClientConn
 local netcmds = numo9_net.netcmds
 
 local numo9_rom = require 'numo9.rom'
+local versionStr = numo9_rom.versionStr
 local updateHz = numo9_rom.updateHz
 local updateIntervalInSeconds = numo9_rom.updateIntervalInSeconds
 local ROM = numo9_rom.ROM	-- define RAM, ROM, etc
@@ -89,7 +90,6 @@ end
 
 
 local App = GLApp:subclass()
-App.version = '1.0-beta'
 App.title = 'NuMo9'
 App.width = cmdline and cmdline.window and cmdline.window[1] or 720
 App.height = cmdline and cmdline.window and cmdline.window[2] or 512
@@ -189,9 +189,9 @@ function App:sdlGLSetAttributes()
 	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DEPTH_SIZE, 24))
 	--self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 1))	-- THE ONE LINE I CHANGED ...
 	if ffi.os == 'OSX' then
-		local version = {4, 1}
-		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MAJOR_VERSION, version[1]))
-		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MINOR_VERSION, version[2]))
+		local glVersion = {4, 1}
+		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MAJOR_VERSION, glVersion[1]))
+		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MINOR_VERSION, glVersion[2]))
 		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_PROFILE_MASK, sdl.SDL_GL_CONTEXT_PROFILE_CORE))
 		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_FLAGS, sdl.SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG))
 		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ACCELERATED_VISUAL, 1))
@@ -1230,7 +1230,7 @@ print('package.loaded', package.loaded)
 					env.flip()
 				end
 
-				coolPrint('NuMo-9 ver. '..self.version)
+				coolPrint('NuMo-9 ver. '..versionStr)
 				for i=1,30 do env.flip() end
 				coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
 				for i=1,30 do env.flip() end
@@ -1269,8 +1269,8 @@ print('package.loaded', package.loaded)
 --				for sleep=1,60 do env.flip() end
 
 				-- also for init, do the splash screen
-				resetLogoOnSheet(self.blobs.sheet[2].ramptr)
-				self.sheetRAMs[2].dirtyCPU = true
+				resetLogoOnSheet(self.blobs.sheet[1].ramptr)
+				self.sheetRAMs[1].dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
 						env.mset(i, j, bit.bor(
@@ -1304,7 +1304,7 @@ print('package.loaded', package.loaded)
 					env.blend(2)	-- subtract
 					-- if I draw this as a sprite then I can draw as a low bpp and shift the palette ...
 					-- if I draw it as a tilemap then I can use the upper 4 bits of the tilemap entries for shifting the palette ...
-					self:drawMap(0, 0, 32, 32, 0, 0, 0, false, 1)
+					self:drawMap(0, 0, 32, 32, 0, 0, 0, false, 0)
 					env.blend(-1)
 
 					--[[ pause and watch
@@ -1325,9 +1325,9 @@ print('package.loaded', package.loaded)
 				env.flip()
 
 				-- and clear the tilemap now that we're done with it
-				local tileSheetBlob = self.blobs.sheet[2]
+				local tileSheetBlob = self.blobs.sheet[1]
 				ffi.fill(tileSheetBlob.ramptr, tileSheetBlob:getSize())
-				self.sheetRAMs[2].dirtyCPU = true	-- TODO merge sheetRAMs[] and blobs.sheet[]
+				self.sheetRAMs[1].dirtyCPU = true	-- TODO merge sheetRAMs[] and blobs.sheet[]
 
 				local tileMapBlob = self.blobs.tilemap[1]
 				ffi.fill(tileMapBlob.ramptr, tileMapBlob:getSize())

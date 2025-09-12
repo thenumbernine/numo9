@@ -9,6 +9,42 @@ local struct = require 'struct'
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 
+
+local version = table{1,1,0}
+local versionSig = version:mapi(function(x) return string.char(x) end):concat()
+local versionStr = version:mapi(function(x) return tostring(x) end):concat'.'
+
+local numo9FileSig = 'NuMo9'
+
+-- [[ signature add & remove
+assert.len(numo9FileSig, 5)
+assert.len(versionSig, 3)
+
+local function addSig(s)
+	return numo9FileSig..versionSig..s
+end
+
+local function removeSig(s)
+	assert.eq(s:sub(1,5), numo9FileSig, "Cartridge Signature Mismatch!")
+	local gotVerSig = s:sub(6,8)
+	if gotVerSig ~= versionSig then
+		local function hex(s)
+			return s:gsub('.', function(c)
+				return ('%02X'):format(c:byte())
+			end)
+		end
+		print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+		print('!!! WARNING              !!!')
+		print('!!! SIGNATURES DIFFER    !!!')
+		print('!!! CONSOLE:   '..hex(versionSig)..'    !!!')
+		print('!!! CARTRIDGE: '..hex(gotVerSig)..'    !!!')
+		print('!!! PROCEED WITH CAUTION !!!')
+		print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+	end
+	return s:sub(9)
+end
+--]]
+
 local updateHz = 60
 local updateIntervalInSeconds = 1 / updateHz
 
@@ -464,6 +500,11 @@ local voxelmapSizeType = 'uint32_t'
 local voxelMapEmptyValue = 0xffffffff
 
 return {
+	version = version,
+	versionStr = versionStr,
+	addSig = addSig,
+	removeSig = removeSig,
+
 	updateHz = updateHz,
 	updateIntervalInSeconds = updateIntervalInSeconds,
 
