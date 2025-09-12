@@ -793,6 +793,11 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- But also have profile info that can be shared, per-game per-user but shared inter-server.
 	- I think it will help to make the draw message history to be per-connection, and to send draw-specific commands to specific connections... ? maybe?
 	- While sprite sheets and tilemaps and palettes do update over netplay when the server edits them, the new blobs do not yet.  Maybe sound doesn't either.  TODO fix this.
+- voxelmap
+	- Add in xz-align-only billboard orientations.  Add in bottom-anchor billboard orientations.
+	- I don't think live editing works for voxelmaps at the moment.
+	- Cache the mesh and draw the whole thing using `drawMesh3D`, and maybe separate out the billboard components since they will have to be updated every draw.
+		Then rebuild the cache every time a voxel changes.  Maybe partition into 32x32's like Minecraft.
 
 # Things I'm still debating ...
 - Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out libpng's memeory pathway is buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
