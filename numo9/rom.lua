@@ -53,7 +53,7 @@ local keyCodeNames = require 'numo9.keys'.keyCodeNames
 local paletteSize = 256
 local paletteType = 'uint16_t'	-- really rgba 5551 ...
 local palettePtrType = paletteType..'*'
-local tileSizeInBits = 3
+local tileSizeInBits = 3						-- TODO names or purpose?  no more 'tiles vs sprites'.  this is 1D vs sprites vars are 2D ... ???
 local tileSize = bit.lshift(1, tileSizeInBits)
 local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
 local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
@@ -511,6 +511,7 @@ return {
 	paletteSize = paletteSize,
 	paletteType = paletteType,
 	palettePtrType = palettePtrType,
+	tileSizeInBits = tileSizeInBits,
 	spriteSize = spriteSize,
 	frameBufferType = frameBufferType,
 	frameBufferSize = frameBufferSize,

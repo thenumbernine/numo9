@@ -17,14 +17,20 @@ local TileSelect = class()
 --[[
 args:
 	edit = points to the editor panel using this ui
-	used for:
-	- edit.app to point back to the app
-	- edit.paletteBlobIndex if present for determining what palette to use ... 
-	- edit.sheetBlobIndex if present for which sheet to use
+		used for:
+		- edit.app to point back to the app
+		- edit.paletteBlobIndex if present for determining what palette to use ...
+		- edit.sheetBlobIndex if present for which sheet to use
+	onSetTile (optional)
+		set this for a callback when .spriteSelPos changes.
+
+TODO 'allowRect' since tilemap select allows a rectangle-box-select for stamping multiple tiles,
+ meanwhile mesh3d and voxelmap just need a coordinate for offsetting mesh texture coordiantes.
 --]]
 function TileSelect:init(args)
 	self.edit = assert.index(args, 'edit')
-	
+	self.onSetTile = args.onSetTile
+
 	self.pickOpen = false			-- if this is open or not
 	self.spriteSelPos = vec2i()
 	self.spriteSelSize = vec2i(1,1)
@@ -104,6 +110,9 @@ function TileSelect:doPopup()
 			-- TODO rect select
 			self.spriteSelPos:set(spriteX, spriteY)
 			self.spriteSelSize:set(1, 1)
+			if self.onSetTile then
+				self:onSetTile()
+			end
 		elseif leftButtonDown then
 			self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
 			self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
@@ -125,4 +134,4 @@ function TileSelect:doPopup()
 	return true
 end
 
-return TileSelect 
+return TileSelect

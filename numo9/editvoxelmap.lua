@@ -5,6 +5,7 @@ local vec3d = require 'vec-ffi.vec3d'
 local box3d = require 'vec-ffi.box3d'
 
 local Orbit = require 'numo9.ui.orbit'
+local TileSelect = require 'numo9.ui.tilesel'
 
 local numo9_rom = require 'numo9.rom'
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
@@ -33,6 +34,15 @@ function EditVoxelMap:onCartLoad()
 
 	self.voxCurSel = ffi.new'Voxel'
 	self.voxCurSel.intval = 0
+
+	self.tileSel = TileSelect{
+		edit = self,
+		onSetTile = function()
+			-- update the voxCurSel tile XY
+			self.voxCurSel.tileXOffset = self.tileSel.spriteSelPos.x
+			self.voxCurSel.tileYOffset = self.tileSel.spriteSelPos.y
+		end,
+	}
 
 	self.orbit = Orbit(self.app)
 	-- TODO init to max size of whatever blob is first loaded?
@@ -107,8 +117,9 @@ function EditVoxelMap:update()
 	local mapbox = box3d(vec3d(0,0,0), mapsize)
 	local mapboxIE = box3d(vec3d(0,0,0), mapsize-1)	-- mapbox, [incl,excl), for integer testing
 
+	local mouseHandled
 	if voxelmap then
-		local mouseHandled = self.orbit:beginDraw()
+		mouseHandled = self.orbit:beginDraw()
 		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
 
 		self:drawBox(mapbox, 0x31)
@@ -135,7 +146,10 @@ function EditVoxelMap:update()
 				end
 			end
 		end
+	end
 
+	if not self.tileSel:doPopup()
+	and voxelmap then
 		local mouseX, mouseY = app.ram.mousePos:unpack()
 		if not mouseHandled
 		and mouseY >= 8
@@ -258,22 +272,13 @@ function EditVoxelMap:update()
 	end, 'mesh='..self.voxCurSel.mesh3DIndex)
 	x = x + 12
 
-	self:guiSpinner(x, y, function(dx)
-		self.voxCurSel.tileXOffset = bit.band(31, self.voxCurSel.tileXOffset + dx)
-	end, 'uofs='..self.voxCurSel.tileXOffset)
-	x = x + 12
-
-	-- [[ TODO replace this with edittilemap's sheet tile selector
-	self:guiSpinner(x, y, function(dx)
-		self.voxCurSel.tileYOffset = bit.band(31, self.voxCurSel.tileYOffset + dx)
-	end, 'vofs='..self.voxCurSel.tileYOffset)
-	x = x + 12
+	self.tileSel:button(x,y)
+	x = x + 8
 
 	self:guiSpinner(x, y, function(dx)
 		self.voxCurSel.orientation = bit.band(31, self.voxCurSel.orientation + dx)
 	end, 'orient='..self.voxCurSel.orientation)
 	x = x + 12
-	--]]
 
 	if voxelmap then
 		self:guiSpinner(x, y, function(dx)
@@ -330,7 +335,7 @@ function EditVoxelMap:update()
 		if app:key'd' then
 			self.orbit.pos = self.orbit.pos + self.orbit.angle:xAxis() * moveSpeed
 			self.orbit.orbit = self.orbit.orbit + self.orbit.angle:xAxis() * moveSpeed
-		end	
+		end
 	end
 
 	self:drawTooltip()
