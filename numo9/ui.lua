@@ -338,8 +338,11 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		-- TODO controls for moving blobs in order?
 
 		if changed then
-			app:updateBlobChanges()
-			app:net_resetCart()
+			-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
+			app.threads:addMainLoopCall(function()
+				app:updateBlobChanges()
+				app:net_resetCart()
+			end)
 		end
 	end
 

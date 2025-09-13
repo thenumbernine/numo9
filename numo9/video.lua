@@ -501,34 +501,35 @@ end
 -- TODO is this only applicable for framebufferRAM?
 -- if anything else has a dirty GPU ... it'd have to be because the framebuffer was rendering to it
 -- and right now, the fb is only outputting to framebufferRAM ...
+-- NOTICE any time you call checkDirtyGPU on a framebufferRAM that is,
+-- you will need to do it from outside the inUpdateCallback
 function RAMGPUTex:checkDirtyGPU()
-glreport'checkDirtyGPU begin'
 	if not self.dirtyGPU then return end
 	assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
 	-- assert that fb is bound to framebufferRAM ...
 	local app = self.app
 	local tex = self.tex
 	local image = self.image
-	local fb = app.fb
+	local fb =
+		-- only for framebufferRAMs,
+		-- they have dif size from sprite sheets etc and might want their own fraembuffeers ...
+		-- ... honestly same for palettes right?
+		-- well esp fbRAMs theres will be bigger than the default fb size of 256x256
+		self.fb or
+		-- ... nope that didn't fix it
+		app.fb
 	if not app.inUpdateCallback then
 		fb:bind()
-glreport'checkDirtyGPU after fb:bind()'
 	end
 --DEBUG:assert(tex.data)
 --DEBUG:assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 --DEBUG:assert.le(0, tex.data - app.ram.v, 'tex.data')
 --DEBUG:assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
-	
--- TODO gl error when we change palette => regen blobs, through framebufferRAMs => checkDirtyGPU
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
-glreport'checkDirtyGPU after glReadPixels'
-	
 	if not app.inUpdateCallback then
 		fb:unbind()
-glreport'checkDirtyGPU after fb:unbind()'
 	end
 	self.dirtyGPU = false
-glreport'checkDirtyGPU end'
 end
 
 --[[
@@ -1190,6 +1191,14 @@ void main() {
 		else
 			error("unknown req.format "..tostring(req.format))
 		end
+
+		-- hmm this is becoming a mess ...
+		-- link the fbRAM to its respective .fb so that , when we checkDirtyGPU and have to readPixels, it can use its own
+		-- hmmmm
+		-- can I just make one giant framebuffer and use it everywhere?
+		-- or do I have to make one per screen mode's framebuffer?
+		framebufferRAM.fb = req.fb
+
 		info.fb = req.fb
 		info.format = req.format
 		-- only used for the intro screen console output:
@@ -1919,30 +1928,23 @@ function AppVideo:resizeRAMGPUs()
 end
 
 function AppVideo:allRAMRegionsCheckDirtyGPU()
-glreport'allRAMRegionsCheckDirtyGPU begin'
 	-- TODO this current method updates *all* GPU/CPU framebuffer textures
 	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
 	for k,v in pairs(self.framebufferRAMs) do
 		v:checkDirtyGPU()
-glreport'allRAMRegionsCheckDirtyGPU after framebufferRAMs checkDirtyGPU'
 	end
 	for _,ramgpu in ipairs(self.sheetRAMs) do
 		ramgpu:checkDirtyGPU()
-glreport'allRAMRegionsCheckDirtyGPU after sheetRAMs checkDirtyGPU'
 	end
 	for _,ramgpu in ipairs(self.tilemapRAMs) do
 		ramgpu:checkDirtyGPU()
-glreport'allRAMRegionsCheckDirtyGPU after tilemapRAMs checkDirtyGPU'
 	end
 	for _,ramgpu in ipairs(self.paletteRAMs) do
 		ramgpu:checkDirtyGPU()
-glreport'allRAMRegionsCheckDirtyGPU after paletteRAMs checkDirtyGPU'
 	end
 	for _,ramgpu in ipairs(self.fontRAMs) do
 		ramgpu:checkDirtyGPU()
-glreport'allRAMRegionsCheckDirtyGPU after fontRAMs checkDirtyGPU'
 	end
-glreport'allRAMRegionsCheckDirtyGPU end'
 end
 
 function AppVideo:allRAMRegionsCheckDirtyCPU()

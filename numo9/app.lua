@@ -2198,7 +2198,7 @@ print('run thread dead')
 		self.takeScreenshot = nil
 	end
 
---DEBUG:require 'gl.report' 'here'
+	glreport'here'
 end
 
 -------------------- MEMORY PEEK/POKE (and draw dirty bits) --------------------
@@ -2598,10 +2598,12 @@ end
 -------------------- ROM STATE STUFF --------------------
 
 -- call this when you change blobs around and you wanna rebuild RAM and reset addresses
+-- NOTICE only call this from outside the inUpdateCallback
+-- in fact, any time you call checkDirtyGPU on a framebufferRAM that is,
+-- you will need to do it from outside the inUpdateCallback
+-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
 function App:updateBlobChanges()
-glreport'updateBlobChanges begin'
 	self:allRAMRegionsCheckDirtyGPU()
-glreport'updateBlobChanges after allRAMRegionsCheckDirtyGPU'
 	-- rebuild RAM from blobs
 	self:buildRAMFromBlobs()
 	-- then reassign all pointers
