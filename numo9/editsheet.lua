@@ -197,6 +197,8 @@ function EditSheet:update()
 			0, 0, w/2, h/2,
 			0, 0xFF, -1, 0)
 	end
+	local pushPalBlobIndex = app.ram.paletteBlobIndex
+	app.ram.paletteBlobIndex = self.paletteBlobIndex
 	app:drawQuad(
 		x,		-- x
 		y,		-- y
@@ -212,6 +214,7 @@ function EditSheet:update()
 		0,		-- spriteBit
 		0xFF	-- spriteMask
 	)
+	app.ram.paletteBlobIndex = pushPalBlobIndex
 	app:setClipRect(0, 0, clipMax, clipMax)
 
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
@@ -331,6 +334,8 @@ function EditSheet:update()
 			0, 0xFF, -1, 0
 		)
 	end
+	local pushPalBlobIndex = app.ram.paletteBlobIndex
+	app.ram.paletteBlobIndex = self.paletteBlobIndex
 	app:drawQuad(
 		x,
 		y,
@@ -346,6 +351,7 @@ function EditSheet:update()
 		self.spriteBit,							-- spriteBit
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
+	app.ram.paletteBlobIndex = pushPalBlobIndex
 	app:setClipRect(0, 0, clipMax, clipMax)
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 

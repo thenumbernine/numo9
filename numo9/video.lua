@@ -520,6 +520,11 @@ function RAMGPUTex:checkDirtyGPU()
 		app.fb
 	if not app.inUpdateCallback then
 		fb:bind()
+	else
+		if app.fb ~= fb then
+			app.fb:unbind()
+			fb:bind()
+		end
 	end
 --DEBUG:assert(tex.data)
 --DEBUG:assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
@@ -528,6 +533,11 @@ function RAMGPUTex:checkDirtyGPU()
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 	if not app.inUpdateCallback then
 		fb:unbind()
+	else
+		if app.fb ~= fb then
+			fb:unbind()
+			app.fb:bind()
+		end
 	end
 	self.dirtyGPU = false
 end

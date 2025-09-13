@@ -374,11 +374,12 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 
 	self.app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(o:dataToStr())
 	-- refresh changes ... (same as in UI when the guiBlobSelect changes...)
-	app.threads:addMainLoopCall(function()
+	-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
+	--app.threads:addMainLoopCall(function()
 		-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
 		app:updateBlobChanges()
 		app:net_resetCart()
-	end)
+	--end)
 end
 
 return EditVoxelMap

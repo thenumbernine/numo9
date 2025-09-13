@@ -1355,6 +1355,7 @@ print('package.loaded', package.loaded)
 
 			-- yield before quit in case initCmd or load has a better runFocus and we dont need to end-thread and drop to console
 			coroutine.yield()
+
 		end),
 	}
 --]]
@@ -1827,13 +1828,13 @@ conn.receivesPerSecond = 0
 			if fontOverlapsFramebuffer then self.fontRAMs[1].dirtyCPU = true end
 		end
 
+		-- update threadpool, clients or servers
+		self.threads:update()
+
 		-- erm when would this happen?
 		if self.currentVideoMode ~= self.ram.videoMode then
 			self:setVideoMode(self.ram.videoMode)
 		end
-
-		-- update threadpool, clients or servers
-		self.threads:update()
 
 		-- [[ where should I even put this?  in here to make sure runs once per frame
 		-- outside the 1/60 block to make sure it runs as often as possible?
@@ -2782,6 +2783,8 @@ split this function between resetting the cartridge / system (i.e. RAM+ROM state
 function App:resetCart()
 --DEBUG:print'App:resetCart'
 	self:copyBlobsToROM()
+
+	-- NOTICE this sets the video mode to 0 ...
 	self:resetVideo()
 
 	-- calling reset() live will kill all sound ...

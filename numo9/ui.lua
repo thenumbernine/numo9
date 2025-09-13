@@ -339,9 +339,15 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 
 		if changed then
 			-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
+			-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
 			app.threads:addMainLoopCall(function()
 				app:updateBlobChanges()
-				app:net_resetCart()
+				-- NOTICE DONT DO THIS
+				-- it sets the vidoe mode to 0 permanently!
+				-- but that hides the editor bug
+				app:copyBlobsToROM()
+				app:resetVideo()
+				-- whats going on?!?!?
 			end)
 		end
 	end
