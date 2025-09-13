@@ -852,7 +852,7 @@ print(('memSize = 0x%0x'):format(memSize))
 
 		local addr = ramptr - ram.v
 		local blobSize = blob:getSize()
-print('adding blob #'..index..' at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize)..' type '..blob.type..'/'..blobClassName)
+--DEBUG:print('adding blob #'..index..' at addr '..('0x%x'):format(addr)..' - '..('0x%x'):format(addr + blobSize)..' type '..blob.type..'/'..blobClassName)
 		assert.le(0, addr)
 		assert.le(addr, memSize)
 		blobEntryPtr.type = blob.type

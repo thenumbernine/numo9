@@ -2604,7 +2604,6 @@ end
 -- you will need to do it from outside the inUpdateCallback
 -- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
 function App:updateBlobChanges()
-	self:allRAMRegionsCheckDirtyGPU()
 	-- rebuild RAM from blobs
 	self:buildRAMFromBlobs()
 	-- then reassign all pointers
@@ -2639,6 +2638,7 @@ function App:saveCart(filename)
 	-- and then that to the virtual filesystem ...
 	-- and then that to the real filesystem ...
 
+	self:allRAMRegionsCheckDirtyGPU()
 	self:updateBlobChanges()
 
 	if not select(2, path(filename):getext()) then

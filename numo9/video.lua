@@ -504,6 +504,7 @@ end
 -- NOTICE any time you call checkDirtyGPU on a framebufferRAM that is,
 -- you will need to do it from outside the inUpdateCallback
 function RAMGPUTex:checkDirtyGPU()
+glreport'checkDirtyGPU begin'
 	if not self.dirtyGPU then return end
 	assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
 	-- assert that fb is bound to framebufferRAM ...
@@ -520,10 +521,13 @@ function RAMGPUTex:checkDirtyGPU()
 		app.fb
 	if not app.inUpdateCallback then
 		fb:bind()
+glreport'checkDirtyGPU after fb:bind'
 	else
 		if app.fb ~= fb then
 			app.fb:unbind()
+glreport'checkDirtyGPU after app.fb:unbind'
 			fb:bind()
+glreport'checkDirtyGPU after fb:bind'
 		end
 	end
 --DEBUG:assert(tex.data)
@@ -531,15 +535,22 @@ function RAMGPUTex:checkDirtyGPU()
 --DEBUG:assert.le(0, tex.data - app.ram.v, 'tex.data')
 --DEBUG:assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
+--DEBUG:print('fb size', fb.width, fb.height)
+--DEBUG:print('glReadPixels', 0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
+glreport'checkDirtyGPU after glReadPixels'
 	if not app.inUpdateCallback then
 		fb:unbind()
+glreport'checkDirtyGPU after fb:unbind'
 	else
 		if app.fb ~= fb then
 			fb:unbind()
+glreport'checkDirtyGPU after fb:unbind'
 			app.fb:bind()
+glreport'checkDirtyGPU after app.fb:bind'
 		end
 	end
 	self.dirtyGPU = false
+glreport'checkDirtyGPU end'
 end
 
 --[[
@@ -1937,12 +1948,7 @@ function AppVideo:resizeRAMGPUs()
 --DEBUG:print'AppVideo:resizeRAMGPUs done'
 end
 
-function AppVideo:allRAMRegionsCheckDirtyGPU()
-	-- TODO this current method updates *all* GPU/CPU framebuffer textures
-	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
-	for k,v in pairs(self.framebufferRAMs) do
-		v:checkDirtyGPU()
-	end
+function AppVideo:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 	for _,ramgpu in ipairs(self.sheetRAMs) do
 		ramgpu:checkDirtyGPU()
 	end
@@ -1955,6 +1961,15 @@ function AppVideo:allRAMRegionsCheckDirtyGPU()
 	for _,ramgpu in ipairs(self.fontRAMs) do
 		ramgpu:checkDirtyGPU()
 	end
+end
+
+function AppVideo:allRAMRegionsCheckDirtyGPU()
+	-- TODO this current method updates *all* GPU/CPU framebuffer textures
+	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
+	for k,v in pairs(self.framebufferRAMs) do
+		v:checkDirtyGPU()
+	end
+	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 end
 
 function AppVideo:allRAMRegionsCheckDirtyCPU()

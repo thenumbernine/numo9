@@ -377,8 +377,20 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
 	--app.threads:addMainLoopCall(function()
 		-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
+
+		-- [[ here and in numo9/ui.lua
+		--app:allRAMRegionsCheckDirtyGPU()
+		-- but flushing framebuffer GPU causes problems....
+		-- so just flush all others
+		app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
+		-- and just clear the framebuffers'
+		for k,v in pairs(app.framebufferRAMs) do
+			v.dirtyGPU = false
+		end
+		--]]
+
 		app:updateBlobChanges()
-		app:net_resetCart()
+		app:resetVideo()
 	--end)
 end
 

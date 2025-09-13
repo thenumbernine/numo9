@@ -30,7 +30,6 @@ local blobClassForName = numo9_blobs.blobClassForName
 local minBlobPerType = numo9_blobs.minBlobPerType
 
 
-
 local UI = class()
 
 UI.editModes = table{
@@ -331,7 +330,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 				t[indexKey] = math.clamp(t[indexKey], 0, #blobsOfType-1)
 				blobsOfType:remove(t[indexKey]+1)
 				changed = true
-				t[indexKey] = t[indexKey] - 1
+				t[indexKey] = math.clamp(t[indexKey] - 1, 0, #blobsOfType-1)
 				handled = true
 			end
 		end
@@ -340,7 +339,17 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		if changed then
 			-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
 			-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
-			app.threads:addMainLoopCall(function()
+			--app.threads:addMainLoopCall(function()
+
+				-- [[ here and in numo9/editvoxelmap.lua
+				--app:allRAMRegionsCheckDirtyGPU()
+				app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
+				-- just clear framebuffers
+				for k,v in pairs(app.framebufferRAMs) do
+					v.dirtyGPU = false
+				end
+				--]]
+
 				app:updateBlobChanges()
 				-- NOTICE DONT DO THIS
 				-- it sets the vidoe mode to 0 permanently!
@@ -348,7 +357,11 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 				app:copyBlobsToROM()
 				app:resetVideo()
 				-- whats going on?!?!?
-			end)
+				-- ok so setting videoMode=0 is what stops the graphics flicker
+				-- because that just causes more problems
+				-- and thats the need for addMainLoopCall
+				-- cuz within the inUpdateCallback block the vid mode gets pushed/popped
+			--end)
 		end
 	end
 
