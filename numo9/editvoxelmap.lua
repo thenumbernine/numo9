@@ -114,8 +114,8 @@ function EditVoxelMap:update()
 			voxelmap:getWidth(),
 			voxelmap:getHeight(),
 			voxelmap:getDepth())
-	local mapbox = box3d(vec3d(0,0,0), mapsize)
-	local mapboxIE = box3d(vec3d(0,0,0), mapsize-1)	-- mapbox, [incl,excl), for integer testing
+	local mapbox = mapsize and box3d(vec3d(0,0,0), mapsize)
+	local mapboxIE = mapsize and box3d(vec3d(0,0,0), mapsize-1)	-- mapbox, [incl,excl), for integer testing
 
 	local mouseHandled
 	if voxelmap then
