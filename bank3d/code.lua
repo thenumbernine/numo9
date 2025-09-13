@@ -93,7 +93,7 @@ corners2d = table{
 
 getCornerTypes2D = |where|
 	corners2d:map(|ofs,name|
-		(vget(level,
+		(mapGet(
 			where.x + ofs.x * .25,
 			where.y + ofs.y * .25,
 			where.z			-- xy are half-integer, z is whole integer
@@ -254,7 +254,7 @@ drawMap=||do
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
-				local voxelValue = vget(level,x,y,z)
+				local voxelValue = mapGet(x,y,z)
 				local mt = mapTypes[voxelValue]
 				if voxelValue ~= EMPTY then
 					-- TODO voxelmap tile animation ...
@@ -953,7 +953,7 @@ do
 								local cfx=math.floor(checkPos.x+ofx*.5-.25)
 								local cfy=math.floor(checkPos.y+ofy*.5-.25)
 								local cfz=math.floor(checkPos.z+ofz*.5+.25)	-- TODO z is integer while xy are half-integer
-								local mapType=mapTypes[vget(level, cfx, cfy, cfz)]
+								local mapType=mapTypes[mapGet(cfx, cfy, cfz)]
 								if mapType and mapType.blocksExplosion then
 									if not cantHitWorld
 									and mapType.bombable
@@ -974,7 +974,7 @@ do
 												end
 											end
 										end
-										vset(level, cfx, cfy, cfz, EMPTY)
+										mapSet(cfx, cfy, cfz, EMPTY)
 									end
 									wallStopped=true
 								end
@@ -1378,6 +1378,9 @@ setLevel=|level_|do
 	end
 end
 
+mapGet=|...| vget(level, ...)
+mapSet=|...| vset(level, ...)
+
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
 	mode(videoModeIndex)	-- reset() also resets the video mode ... TODO don't reset video mode? idk hmm ...
@@ -1386,7 +1389,7 @@ loadLevel=||do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
 				local pos = vec3(x+.5,y+.5, z)	-- z is at min of voxel bounds
-				local m = vget(level,x,y,z)
+				local m = mapGet(x,y,z)
 
 				-- pick out the tilemap, irregardless of the model or orientation
 				local t = m & 0x3ff
@@ -1395,39 +1398,39 @@ loadLevel=||do
 					player=Player{}
 					player:setPos(pos)
 					objs:insert(player)
-					vset(level,x,y,z,EMPTY)
+					mapSet(x,y,z,EMPTY)
 				elseif t == 0xc then
 					local key=Key{}
 					key:setPos(pos)
 					objs:insert(key)
-					vset(level,x,y,z,EMPTY)
+					mapSet(x,y,z,EMPTY)
 				elseif t == 0xe then
 					local framer=Framer{}
 					framer:setPos(pos)
 					objs:insert(framer)
-					vset(level,x,y,z,EMPTY)
+					mapSet(x,y,z,EMPTY)
 				elseif t == 0x10 then
 					local gun=Gun{}
 					gun:setPos(pos)
 					objs:insert(gun)
-					vset(level,x,y,z,EMPTY)
+					mapSet(x,y,z,EMPTY)
 				elseif t == 0x12 then
 					local sentry=Sentry{}
 					sentry:setPos(pos)
 					objs:insert(sentry)
-					vset(level,x,y,z,EMPTY)
+					mapSet(x,y,z,EMPTY)
 				elseif t >= 64 and t < 84 then
 					local money=Money{}
 					money.bombs=(t-64)>>1
 					money:setPos(pos)
 					objs:insert(money)
-					vset(level,x,y,z,EMPTY)
+					mapSet(x,y,z,EMPTY)
 				elseif t >= 128 and t < 148 then
 					local bomb=Bomb()
 					bomb.blastRadius=(t-128)>>1
 					bomb:setPos(pos)
 					objs:insert(bomb)
-					vset(level,x,y,z,EMPTY)
+					mapSet(x,y,z,EMPTY)
 				else
 					-- let voxels fall through
 					--trace('unknown spawn', x,y,z,m)
