@@ -208,13 +208,17 @@ function EditVoxelMap:update()
 				-- show selection
 				self:drawBox(box3d(npti, npti+1), 0x1b)
 
+				-- only on click?
+				-- or how about mousedown as well?
+				-- but only when the voxel changes?
+				-- tough to make it not just keep stacking towards the view ...
 				if app:keyp'mouse_left' then
 					local shift = app:key'lshift' or app:key'rshift'
 					if shift then
 						if mapboxIE:contains(npti) then
 							local vaddr = voxelmap:getVoxelAddr(npti:unpack())
 							local voxval = app:peekl(vaddr)
-							if voxval ~= voxelMapEmptyType then
+							if voxval ~= voxelMapEmptyValue then
 								self.voxCurSel.intval = voxval
 							end
 						end
