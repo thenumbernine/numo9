@@ -22,7 +22,7 @@ args:
 		- edit.paletteBlobIndex if present for determining what palette to use ...
 		- edit.sheetBlobIndex if present for which sheet to use
 	onSetTile (optional)
-		set this for a callback when .spriteSelPos changes.
+		set this for a callback when .pos changes.
 
 TODO 'allowRect' since tilemap select allows a rectangle-box-select for stamping multiple tiles,
  meanwhile mesh3d and voxelmap just need a coordinate for offsetting mesh texture coordiantes.
@@ -32,8 +32,8 @@ function TileSelect:init(args)
 	self.onSetTile = args.onSetTile
 
 	self.pickOpen = false			-- if this is open or not
-	self.spriteSelPos = vec2i()
-	self.spriteSelSize = vec2i(1,1)
+	self.pos = vec2i()
+	self.size = vec2i(1,1)
 end
 
 function TileSelect:button(x, y)
@@ -108,24 +108,24 @@ function TileSelect:doPopup()
 	then
 		if leftButtonPress then
 			-- TODO rect select
-			self.spriteSelPos:set(spriteX, spriteY)
-			self.spriteSelSize:set(1, 1)
+			self.pos:set(spriteX, spriteY)
+			self.size:set(1, 1)
 			if self.onSetTile then
 				self:onSetTile()
 			end
 		elseif leftButtonDown then
-			self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
-			self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
+			self.size.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
+			self.size.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
 		elseif leftButtonRelease then
 			self.pickOpen = false
 		end
 	end
 
 	app:drawBorderRect(
-		pickX + self.spriteSelPos.x * spriteSize.x * pickW / spriteSheetSize.x,
-		pickY + self.spriteSelPos.y * spriteSize.y * pickH / spriteSheetSize.y,
-		spriteSize.x * self.spriteSelSize.x * pickW / spriteSheetSize.x,
-		spriteSize.y * self.spriteSelSize.y * pickH / spriteSheetSize.y,
+		pickX + self.pos.x * spriteSize.x * pickW / spriteSheetSize.x,
+		pickY + self.pos.y * spriteSize.y * pickH / spriteSheetSize.y,
+		spriteSize.x * self.size.x * pickW / spriteSheetSize.x,
+		spriteSize.y * self.size.y * pickH / spriteSheetSize.y,
 		13,
 		nil,
 		app.paletteMenuTex

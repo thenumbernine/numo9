@@ -165,8 +165,8 @@ function EditTilemap:update()
 
 
 	local tileSelIndex = bit.bor(
-		self.tileSel.spriteSelPos.x
-		+ spriteSheetSizeInTiles.x * self.tileSel.spriteSelPos.y,
+		self.tileSel.pos.x
+		+ spriteSheetSizeInTiles.x * self.tileSel.pos.y,
 		bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 		bit.lshift(bit.band(7, self.orientation), 13)
 	)
@@ -176,8 +176,8 @@ function EditTilemap:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
-				self.tileSel.spriteSelPos.x = result % spriteSheetSizeInTiles.x
-				self.tileSel.spriteSelPos.y = (result - self.tileSel.spriteSelPos.x) / spriteSheetSizeInTiles.x
+				self.tileSel.pos.x = result % spriteSheetSizeInTiles.x
+				self.tileSel.pos.y = (result - self.tileSel.pos.x) / spriteSheetSizeInTiles.x
 				self.selPalHiOffset = bit.band(7, bit.rshift(result, 10))
 				self.orientation = bit.band(7, bit.rshift(result, 13))
 			end
@@ -308,8 +308,8 @@ function EditTilemap:update()
 			then return end
 
 			local tileSelIndex = bit.bor(
-				self.tileSel.spriteSelPos.x + dx
-				+ spriteSheetSizeInTiles.x * (self.tileSel.spriteSelPos.y + dy),
+				self.tileSel.pos.x + dx
+				+ spriteSheetSizeInTiles.x * (self.tileSel.pos.y + dy),
 				bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 				bit.lshift(bit.band(7, self.orientation), 13)
 			)
@@ -330,8 +330,8 @@ function EditTilemap:update()
 			then
 				local tileSelIndex = gettile(tx, ty)
 				if tileSelIndex then
-					self.tileSel.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
-					self.tileSel.spriteSelPos.y = ((tileSelIndex - self.tileSel.spriteSelPos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
+					self.tileSel.pos.x = tileSelIndex % spriteSheetSizeInTiles.x
+					self.tileSel.pos.y = ((tileSelIndex - self.tileSel.pos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
 					self.selPalHiOffset = bit.band(7, bit.rshift(tileSelIndex, 10))
 					self.orientation = bit.band(7, bit.rshift(tileSelIndex, 13))
 				end
@@ -346,9 +346,9 @@ function EditTilemap:update()
 				local tx0 = tx -- - math.floor(self.penSize / 2)
 				local ty0 = ty -- - math.floor(self.penSize / 2)
 				local step = 1 + draw16As0or1
-				for dy=0,self.tileSel.spriteSelSize.y-1,step do -- self.penSize-1 do
+				for dy=0,self.tileSel.size.y-1,step do -- self.penSize-1 do
 					local ty = ty0 + bit.rshift(dy, draw16As0or1)
-					for dx=0,self.tileSel.spriteSelSize.x-1,step do -- self.penSize-1 do
+					for dx=0,self.tileSel.size.x-1,step do -- self.penSize-1 do
 						local tx = tx0 + bit.rshift(dx, draw16As0or1)
 						puttile(tx,ty, dx,dy)
 					end
@@ -362,8 +362,8 @@ function EditTilemap:update()
 				local srcTile = gettile(tx, ty)
 
 				local tileSelIndex = bit.bor(
-					self.tileSel.spriteSelPos.x
-					+ spriteSheetSizeInTiles.x * self.tileSel.spriteSelPos.y,
+					self.tileSel.pos.x
+					+ spriteSheetSizeInTiles.x * self.tileSel.pos.y,
 					bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 					bit.lshift(bit.band(7, self.orientation), 13)
 				)
@@ -381,10 +381,10 @@ function EditTilemap:update()
 							and ty1 >= 0 and ty1 < tilemapSize.y
 							--]]
 							--[[ constrain to current selection
-							if  tx1 >= self.tileSel.spriteSelPos.x * spriteSize.x
-							and ty1 >= self.tileSel.spriteSelPos.y * spriteSize.y
-							and tx1 < (self.tileSel.spriteSelPos.x + self.tileSel.spriteSelSize.x) * spriteSize.x
-							and ty1 < (self.tileSel.spriteSelPos.y + self.tileSel.spriteSelSize.y) * spriteSize.y
+							if  tx1 >= self.tileSel.pos.x * spriteSize.x
+							and ty1 >= self.tileSel.pos.y * spriteSize.y
+							and tx1 < (self.tileSel.pos.x + self.tileSel.size.x) * spriteSize.x
+							and ty1 < (self.tileSel.pos.y + self.tileSel.size.y) * spriteSize.y
 							--]]
 							and gettile(tx1, ty1) == srcTile
 							then

@@ -39,8 +39,8 @@ function EditVoxelMap:onCartLoad()
 		edit = self,
 		onSetTile = function()
 			-- update the voxCurSel tile XY
-			self.voxCurSel.tileXOffset = self.tileSel.spriteSelPos.x
-			self.voxCurSel.tileYOffset = self.tileSel.spriteSelPos.y
+			self.voxCurSel.tileXOffset = self.tileSel.pos.x
+			self.voxCurSel.tileYOffset = self.tileSel.pos.y
 		end,
 	}
 
