@@ -1832,7 +1832,15 @@ conn.receivesPerSecond = 0
 		self.threads:update()
 
 		-- erm when would this happen?
-		if self.currentVideoMode ~= self.ram.videoMode then
+		if self.activeMenu then
+			-- hmm, for some reason, when the editor is open,
+			-- flipping the video mode to its console-state then back to 0 for editor 
+			-- causes editor flickering ...
+			-- ... but if I set it to 0 here then no editor flicker.
+			-- but will this cause framebuffer problesm with the runtime?
+			-- esp noticable in netplay when framebuffer might hold game state?
+			self:setVideoMode(0)
+		else
 			self:setVideoMode(self.ram.videoMode)
 		end
 
@@ -2638,6 +2646,9 @@ function App:saveCart(filename)
 	-- and then that to the virtual filesystem ...
 	-- and then that to the real filesystem ...
 
+	-- copy everything back to RAM before saving
+	-- but wait, that still wont make a difference right?
+	-- cuz if its in RAM, that wont affect the cart ROM ...
 	self:allRAMRegionsCheckDirtyGPU()
 	self:updateBlobChanges()
 
@@ -2696,9 +2707,32 @@ function App:openCart(filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
 
-	-- before resizing the memory range, make sure all memory is synced, so that when we move addresses later it doesn't try to sync to CPU mem that is stale / dangling
+	--[[ before resizing the memory range, make sure all memory is synced, so that when we move addresses later it doesn't try to sync to CPU mem that is stale / dangling
 	self:allRAMRegionsCheckDirtyGPU()
 	self:allRAMRegionsCheckDirtyCPU()
+	--]]
+	-- [[ can I just clear?  if i'm loading new data then no need to copy back
+	for k,v in pairs(self.framebufferRAMs) do
+		v.dirtyCPU = false
+		v.dirtyGPU = false
+	end
+	for _,ramgpu in ipairs(self.sheetRAMs) do
+		ramgpu.dirtyCPU = false
+		ramgpu.dirtyGPU = false
+	end
+	for _,ramgpu in ipairs(self.tilemapRAMs) do
+		ramgpu.dirtyCPU = false
+		ramgpu.dirtyGPU = false
+	end
+	for _,ramgpu in ipairs(self.paletteRAMs) do
+		ramgpu.dirtyCPU = false
+		ramgpu.dirtyGPU = false
+	end
+	for _,ramgpu in ipairs(self.fontRAMs) do
+		ramgpu.dirtyCPU = false
+		ramgpu.dirtyGPU = false
+	end
+	--]]
 
 	filename = filename or defaultSaveFilename
 	self.con:print('loading', filename)

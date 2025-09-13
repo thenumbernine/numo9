@@ -354,7 +354,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 				-- NOTICE DONT DO THIS
 				-- it sets the vidoe mode to 0 permanently!
 				-- but that hides the editor bug
-				app:copyBlobsToROM()
+				--app:copyBlobsToROM()
 				app:resetVideo()
 				-- whats going on?!?!?
 				-- ok so setting videoMode=0 is what stops the graphics flicker

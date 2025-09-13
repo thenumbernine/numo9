@@ -742,11 +742,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- For building libpng, I'm building against [zlib](https://github.com/madler/zlib) tag `v1.3.1`
 
 
-# BUGS
-- in modes > 0, drawing on the editor blacks the screen until you stop.
-	- if you create then destroy a palette blob then it starts working fine again ...
-- since switching to blobs, pasting preserving palette doesn't seem to pick the best colors
-
 # TODO
 - upon fantasy console startup the first few frames skip ...
 - waveforms
