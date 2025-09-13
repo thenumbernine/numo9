@@ -269,7 +269,20 @@ function App:initGL()
 		stop = function(...) return self:stop(...) end,
 		cont = function(...) return self:cont(...) end,
 		save = function(...) return self:saveCart(...) end,
-		open = function(...) return self:net_openCart(...) end,
+		open = function(...)
+			--[[ TODO return the result would be nice
+			return self:net_openCart(...)
+			--]]
+			-- [[ instead
+			local args = table.pack(...)
+			local result
+			self.threads:addMainLoopCall(function()
+				result = self:net_openCart(args:unpack())
+			end)
+			coroutine.yield() -- once is enough right?
+			return result
+			--]]
+		end,
 		reset = function(...) return self:net_resetCart(...) end,
 		quit = function(...) self:requestExit() end,
 
@@ -1387,6 +1400,7 @@ end
 --  (tho the client shouldnt have a server and that shouldnt happen anyways)
 
 -- ok when opening a ROM, we want to send the RAM snapshot out to all clients
+-- TODO this also seems it can't be called from inside inUpdateCallback
 function App:net_openCart(...)
 	local result = table.pack(self:openCart(...))
 
