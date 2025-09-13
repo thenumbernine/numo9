@@ -50,12 +50,14 @@ function TileSelect:doPopup()
 
 	if not self.pickOpen then return false end
 
+	-- TODO should this go here or in the caller:
+	app:matident()
+
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
-	app:matident()
 	local pickX = 2 * spriteSize.x
 	local pickY = 2 * spriteSize.y
 	local pickW = frameBufferSize.x - 2 * pickX

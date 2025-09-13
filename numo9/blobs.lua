@@ -825,7 +825,7 @@ local function blobsToByteArray(blobs)
 			assert.index(blob, 'getSize', 'name='..blob.name)
 			return blob:getSize()
 		end):sum() or 0)
-print(('memSize = 0x%0x'):format(memSize))
+--DEBUG:print(('memSize = 0x%0x'):format(memSize))
 
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
 	local holdram = ffi.new('uint8_t[?]', memSize)
