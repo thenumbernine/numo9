@@ -1,5 +1,4 @@
 local ffi = require 'ffi'
-local gl = require 'gl'
 local math = require 'ext.math'
 local table = require 'ext.table'
 local assert = require 'ext.assert'
@@ -7,20 +6,18 @@ local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
 require 'ffi.req' 'c.string'	-- memcmp
 local Image = require 'image'
-local Quantize = require 'image.quantize_mediancut'
 
 local clip = require 'numo9.clipboard'
 local Undo = require 'numo9.ui.undo'
+local TileSelect = require 'numo9.ui.tilesel'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
-local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
 local clipMax = numo9_rom.clipMax
-local unpackptr = require 'numo9.rom'.unpackptr
 
 -- used by fill
 local dirs = {
@@ -60,10 +57,8 @@ function EditTilemap:onCartLoad()
 	self.tilemapBlobIndex = 0
 	self.paletteBlobIndex = 0	-- TODO :drawMap() allow specifying palette #
 
-	self.pickOpen = false
-	-- these are within the popup select tile window right?
-	self.spriteSelPos = vec2i()
-	self.spriteSelSize = vec2i(1,1)
+	self.tileSel = TileSelect{edit=self}
+
 	-- and this is for copy paste in the tilemap
 	self.tileSelPos = vec2i()
 	self.tileSelSize = vec2i()
@@ -90,7 +85,6 @@ function EditTilemap:update()
 
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
-	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app.ram.mousePos:unpack()
 
 	local shift = app:key'lshift' or app:key'rshift'
@@ -107,9 +101,7 @@ function EditTilemap:update()
 	-- TODO selector for palette #
 	-- TODO selector for sheet #
 
-	if self:guiButton('T', x, y, self.pickOpen, 'tile') then
-		self.pickOpen = not self.pickOpen
-	end
+	self.tileSel:button(x,y)
 	x = x + 8
 	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
 		self.draw16Sprites = not self.draw16Sprites
@@ -173,8 +165,8 @@ function EditTilemap:update()
 
 
 	local tileSelIndex = bit.bor(
-		self.spriteSelPos.x
-		+ spriteSheetSizeInTiles.x * self.spriteSelPos.y,
+		self.tileSel.spriteSelPos.x
+		+ spriteSheetSizeInTiles.x * self.tileSel.spriteSelPos.y,
 		bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 		bit.lshift(bit.band(7, self.orientation), 13)
 	)
@@ -184,8 +176,8 @@ function EditTilemap:update()
 		function(result)
 			result = tonumber(result, 16)
 			if result then
-				self.spriteSelPos.x = result % spriteSheetSizeInTiles.x
-				self.spriteSelPos.y = (result - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
+				self.tileSel.spriteSelPos.x = result % spriteSheetSizeInTiles.x
+				self.tileSel.spriteSelPos.y = (result - self.tileSel.spriteSelPos.x) / spriteSheetSizeInTiles.x
 				self.selPalHiOffset = bit.band(7, bit.rshift(result, 10))
 				self.orientation = bit.band(7, bit.rshift(result, 13))
 			end
@@ -254,83 +246,9 @@ function EditTilemap:update()
 		)
 	end
 
-
-
 	app:setClipRect(0, 0, clipMax, clipMax)
 
-	if self.pickOpen then
-		app:matident()
-		local pickX = 2 * spriteSize.x
-		local pickY = 2 * spriteSize.y
-		local pickW = frameBufferSize.x - 2 * pickX
-		local pickH = frameBufferSize.y - 2 * pickY
-		app:drawBorderRect(
-			pickX-1,
-			pickY-1,
-			pickW+2,
-			pickH+2,
-			10,
-			nil,
-			app.paletteMenuTex
-		)
-		app:drawSolidRect(
-			pickX,
-			pickY,
-			pickW,
-			pickH,
-			0,
-			nil,
-			nil,
-			app.paletteMenuTex
-		)
-		-- set the current selected palette via RAM registry to self.paletteBlobIndex
-		local pushPalBlobIndex = app.ram.paletteBlobIndex
-		app.ram.paletteBlobIndex = self.paletteBlobIndex
-		app:drawQuad(
-			pickX,
-			pickY,
-			pickW,
-			pickH,
-			-- TODO scrollable pick area ... hmm ...
-			-- or TODO use the same scrollable pick area for the sprite editor and the tile editor
-			0,
-			0,
-			255,
-			255,
-			self.sheetBlobIndex,
-			0,
-			-1,
-			0,
-			0xff
-		)
-		app.ram.paletteBlobIndex = pushPalBlobIndex
-		local spriteX = math.floor((mouseX - pickX) / pickW * spriteSheetSizeInTiles.x)
-		local spriteY = math.floor((mouseY - pickY) / pickH * spriteSheetSizeInTiles.y)
-		if spriteX >= 0 and spriteX < spriteSheetSizeInTiles.x
-		and spriteY >= 0 and spriteY < spriteSheetSizeInTiles.y
-		then
-			if leftButtonPress then
-				-- TODO rect select
-				self.spriteSelPos:set(spriteX, spriteY)
-				self.spriteSelSize:set(1, 1)
-			elseif leftButtonDown then
-				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
-				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
-			elseif leftButtonRelease then
-				self.pickOpen = false
-			end
-		end
-
-		app:drawBorderRect(
-			pickX + self.spriteSelPos.x * spriteSize.x * pickW / spriteSheetSize.x,
-			pickY + self.spriteSelPos.y * spriteSize.y * pickH / spriteSheetSize.y,
-			spriteSize.x * self.spriteSelSize.x * pickW / spriteSheetSize.x,
-			spriteSize.y * self.spriteSelSize.y * pickH / spriteSheetSize.y,
-			13,
-			nil,
-			app.paletteMenuTex
-		)
-	else
+	if not self.tileSel:doPopup() then
 		-- TODO allow drawing while picking window is open, like tic80 does?
 		-- maybe ... then i should disable the auto-close-on-select ...
 		-- and I should also resize the pick tile area
@@ -390,8 +308,8 @@ function EditTilemap:update()
 			then return end
 
 			local tileSelIndex = bit.bor(
-				self.spriteSelPos.x + dx
-				+ spriteSheetSizeInTiles.x * (self.spriteSelPos.y + dy),
+				self.tileSel.spriteSelPos.x + dx
+				+ spriteSheetSizeInTiles.x * (self.tileSel.spriteSelPos.y + dy),
 				bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 				bit.lshift(bit.band(7, self.orientation), 13)
 			)
@@ -412,8 +330,8 @@ function EditTilemap:update()
 			then
 				local tileSelIndex = gettile(tx, ty)
 				if tileSelIndex then
-					self.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
-					self.spriteSelPos.y = ((tileSelIndex - self.spriteSelPos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
+					self.tileSel.spriteSelPos.x = tileSelIndex % spriteSheetSizeInTiles.x
+					self.tileSel.spriteSelPos.y = ((tileSelIndex - self.tileSel.spriteSelPos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
 					self.selPalHiOffset = bit.band(7, bit.rshift(tileSelIndex, 10))
 					self.orientation = bit.band(7, bit.rshift(tileSelIndex, 13))
 				end
@@ -428,9 +346,9 @@ function EditTilemap:update()
 				local tx0 = tx -- - math.floor(self.penSize / 2)
 				local ty0 = ty -- - math.floor(self.penSize / 2)
 				local step = 1 + draw16As0or1
-				for dy=0,self.spriteSelSize.y-1,step do -- self.penSize-1 do
+				for dy=0,self.tileSel.spriteSelSize.y-1,step do -- self.penSize-1 do
 					local ty = ty0 + bit.rshift(dy, draw16As0or1)
-					for dx=0,self.spriteSelSize.x-1,step do -- self.penSize-1 do
+					for dx=0,self.tileSel.spriteSelSize.x-1,step do -- self.penSize-1 do
 						local tx = tx0 + bit.rshift(dx, draw16As0or1)
 						puttile(tx,ty, dx,dy)
 					end
@@ -444,8 +362,8 @@ function EditTilemap:update()
 				local srcTile = gettile(tx, ty)
 
 				local tileSelIndex = bit.bor(
-					self.spriteSelPos.x
-					+ spriteSheetSizeInTiles.x * self.spriteSelPos.y,
+					self.tileSel.spriteSelPos.x
+					+ spriteSheetSizeInTiles.x * self.tileSel.spriteSelPos.y,
 					bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 					bit.lshift(bit.band(7, self.orientation), 13)
 				)
@@ -463,10 +381,10 @@ function EditTilemap:update()
 							and ty1 >= 0 and ty1 < tilemapSize.y
 							--]]
 							--[[ constrain to current selection
-							if  tx1 >= self.spriteSelPos.x * spriteSize.x
-							and ty1 >= self.spriteSelPos.y * spriteSize.y
-							and tx1 < (self.spriteSelPos.x + self.spriteSelSize.x) * spriteSize.x
-							and ty1 < (self.spriteSelPos.y + self.spriteSelSize.y) * spriteSize.y
+							if  tx1 >= self.tileSel.spriteSelPos.x * spriteSize.x
+							and ty1 >= self.tileSel.spriteSelPos.y * spriteSize.y
+							and tx1 < (self.tileSel.spriteSelPos.x + self.tileSel.spriteSelSize.x) * spriteSize.x
+							and ty1 < (self.tileSel.spriteSelPos.y + self.tileSel.spriteSelSize.y) * spriteSize.y
 							--]]
 							and gettile(tx1, ty1) == srcTile
 							then
