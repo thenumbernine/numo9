@@ -742,7 +742,10 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- For building libpng, I'm building against [zlib](https://github.com/madler/zlib) tag `v1.3.1`
 
 
-
+# BUGS
+- in modes > 0, drawing on the editor blacks the screen until you stop.
+	- if you create then destroy a palette blob then it starts working fine again ...
+- since switching to blobs, pasting preserving palette doesn't seem to pick the best colors
 
 # TODO
 - upon fantasy console startup the first few frames skip ...
@@ -776,9 +779,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		... so to fix this I added a reset button on the rhs that you have to *always push* every time you edit single-player content ...
 		... the other route to go that I don't want to do is always auto-reset when editing single-player, and don't auto-reset when editing multipalyer ...
 		... another option is put the RAM and ROM both in addressible memory (to get around the reload/cstore API issue), ... but then what would the editor be editing?  the current RAM state, to-be-flushed-to-ROM-upon-save (what it's doing now), or the ROM state, or what?
-	- bug: in modes > 0, drawing on the editor blacks the screen until you stop
-	- bug: since switching to blobs, pasting preserving palette doesn't seem to pick the best colors
-		- bug: I think if you add/remove blobs enough then sometimes the blob data in the sheet editor goes out of sync ...
 - memory
 	- about reset, memcpy, and the pico8 functions cstore, and reload:
 		Real cartridge consoles just gave separate address space to the cartridges, then you just copy between your RAM and your ROM addresses.
@@ -801,6 +801,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		Then rebuild the cache every time a voxel changes.  Maybe partition into 32x32's like Minecraft.
 
 # Things I'm still debating ...
+- `open()` from console doesn't reset.  You have to `open()` then `run()`.  Wait is this a bug or is this correct behavior?
 - Get rid of writing and reading tmpfiles becuase AppImage doesn't like it... then again, I went and added PNG memory IO to image, and it turns out libpng's memeory pathway is buggy/incomplete wrt custom tags (unlike the disk IO pathway), so maybe we're stuck with a tmp file.
 - Right now netplay is just reflecting server draw commands and input buttons.  Should I support separate render screens as well, so that players in the same game can watch separate things?  Then maybe turn this into a giant MMO console?
 - Right now the keypad is RIGHT DOWN LEFT UP A B X Y ... should I add L R as well, to be like SNES?  Should I add L2 R2?  Should I add start/select?

@@ -269,20 +269,7 @@ function App:initGL()
 		stop = function(...) return self:stop(...) end,
 		cont = function(...) return self:cont(...) end,
 		save = function(...) return self:saveCart(...) end,
-		open = function(...)
-			--[[ TODO return the result would be nice
-			return self:net_openCart(...)
-			--]]
-			-- [[ instead
-			local args = table.pack(...)
-			local result
-			self.threads:addMainLoopCall(function()
-				result = self:net_openCart(args:unpack())
-			end)
-			coroutine.yield() -- once is enough right?
-			return result
-			--]]
-		end,
+		open = function(...) return self:net_openCart(...) end,
 		reset = function(...) return self:net_resetCart(...) end,
 		quit = function(...) self:requestExit() end,
 
@@ -1400,7 +1387,6 @@ end
 --  (tho the client shouldnt have a server and that shouldnt happen anyways)
 
 -- ok when opening a ROM, we want to send the RAM snapshot out to all clients
--- TODO this also seems it can't be called from inside inUpdateCallback
 function App:net_openCart(...)
 	local result = table.pack(self:openCart(...))
 
@@ -2735,22 +2721,8 @@ function App:openCart(filename)
 	if not d then return nil, basemsg..(msg or '') end
 
 	self.blobs = cartImageToBlobs(d)
-	self:buildRAMFromBlobs()
-	-- ... resetVideo() is similar but I don't want to reset to the default addrs
-	for _,framebufferRAM in pairs(self.framebufferRAMs) do
-		assert(not framebufferRAM.dirtyGPU)
-		framebufferRAM:updateAddr(framebufferRAM.addr)
-	end
 
---DEBUG:print('loaded blobs...')
---DEBUG:for _,blobClassName in ipairs(table.keys(self.blobs):sort(function(a,b)
---DEBUG:	return assert.index(numo9_blobs.blobTypeForClassName, a)
---DEBUG:		< assert.index(numo9_blobs.blobTypeForClassName, b)
---DEBUG:end)) do
---DEBUG:	local blobsForType = self.blobs[blobClassName]
---DEBUG:	print('blob type '..blobClassName..' has '..#blobsForType)
---DEBUG:end
---DEBUG:print('...done loaded blobs')
+	self:updateBlobChanges()
 
 	self.currentLoadedFilename = filename	-- last loaded cartridge - display this somewhere
 
@@ -2763,6 +2735,7 @@ function App:openCart(filename)
 
 	self:matident()
 	self:resetCart()
+
 	return true
 end
 
