@@ -101,7 +101,7 @@ local function cartImageToBlobStrWithSig(cartImgData)
 	-- [[ storing in png metadata
 	local blobsCompressed = assert.index(romImage.unknown or {}, pngCustomKey, "couldn't find png custom chunk").data
 	local blobsAsStrWithSig = zlib.uncompressLua(blobsCompressed)
---DEBUG:print('blob data length, decompressed: '..('0x%x'):format(#blobsAsStr))
+--DEBUG:print('blob data length, decompressed: '..('0x%x'):format(#blobsAsStrWithSig))
 	return blobsAsStrWithSig
 end
 

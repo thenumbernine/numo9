@@ -28,6 +28,7 @@ local matrix_ffi = require 'matrix.ffi'
 local sha2 = require 'sha2'
 local sdl = require 'sdl'
 local gl = require 'gl'
+local glreport = require 'gl.report'
 --DEBUG(glquery):local GLQuery = require 'gl.query'
 local GLApp = require 'glapp'
 local View = require 'glapp.view'
@@ -2598,7 +2599,9 @@ end
 
 -- call this when you change blobs around and you wanna rebuild RAM and reset addresses
 function App:updateBlobChanges()
+glreport'updateBlobChanges begin'
 	self:allRAMRegionsCheckDirtyGPU()
+glreport'updateBlobChanges after allRAMRegionsCheckDirtyGPU'
 	-- rebuild RAM from blobs
 	self:buildRAMFromBlobs()
 	-- then reassign all pointers
@@ -2765,7 +2768,7 @@ function App:writePersistent()
 			len = len - 1
 		end
 		local saveStr = data:sub(1,len)
---DEBUG:print('writePersistent self.metainfo.saveid', self.metainfo.saveid, require'ext.tolua'(ffi.string(self.ram.persistentCartridgeData, len)))
+--DEBUG:print('writePersistent self.metainfo.saveid', self.metainfo.saveid, require'ext.tolua'(saveStr))
 		local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')
 		if len == 0 then
 --DEBUG:print('clearing persist file: '..cartPersistFile)

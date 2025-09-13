@@ -502,6 +502,7 @@ end
 -- if anything else has a dirty GPU ... it'd have to be because the framebuffer was rendering to it
 -- and right now, the fb is only outputting to framebufferRAM ...
 function RAMGPUTex:checkDirtyGPU()
+glreport'checkDirtyGPU begin'
 	if not self.dirtyGPU then return end
 	assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
 	-- assert that fb is bound to framebufferRAM ...
@@ -511,16 +512,23 @@ function RAMGPUTex:checkDirtyGPU()
 	local fb = app.fb
 	if not app.inUpdateCallback then
 		fb:bind()
+glreport'checkDirtyGPU after fb:bind()'
 	end
 --DEBUG:assert(tex.data)
 --DEBUG:assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 --DEBUG:assert.le(0, tex.data - app.ram.v, 'tex.data')
 --DEBUG:assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
+	
+-- TODO gl error when we change palette => regen blobs, through framebufferRAMs => checkDirtyGPU
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
+glreport'checkDirtyGPU after glReadPixels'
+	
 	if not app.inUpdateCallback then
 		fb:unbind()
+glreport'checkDirtyGPU after fb:unbind()'
 	end
 	self.dirtyGPU = false
+glreport'checkDirtyGPU end'
 end
 
 --[[
@@ -1796,8 +1804,10 @@ function AppVideo:resizeRAMGPUs()
 	end
 	for i,blob in ipairs(sheetBlobs) do
 		if self.sheetRAMs[i] then
+--DEBUG:print('sheetRAMs '..i..' updateAddr')
 			self.sheetRAMs[i]:updateAddr(blob.addr)
 		else
+--DEBUG:print('sheetRAMs '..i..' ctor')
 			self.sheetRAMs[i] = RAMGPUTex{
 				app = self,
 				addr = blob.addr,
@@ -1828,8 +1838,10 @@ function AppVideo:resizeRAMGPUs()
 		- .... 8 bits palette offset ... ? nah
 		--]]
 		if self.tilemapRAMs[i] then
+--DEBUG:print('tilemapRAMs '..i..' updateAddr')
 			self.tilemapRAMs[i]:updateAddr(blob.addr)
 		else
+--DEBUG:print('tilemapRAMs '..i..' ctor')
 			self.tilemapRAMs[i] = RAMGPUTex{
 				app = self,
 				addr = blob.addr,
@@ -1850,11 +1862,12 @@ function AppVideo:resizeRAMGPUs()
 		self.paletteRAMs[i] = nil
 	end
 	for i,blob in ipairs(paletteBlobs) do
---DEBUG:print('creating palette for blob #'..(i-1))
 		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 		if self.paletteRAMs[i] then
+--DEBUG:print('paletteRAMs '..i..' updateAddr')
 			self.paletteRAMs[i]:updateAddr(blob.addr)
 		else
+--DEBUG:print('paletteRAMs '..i..' ctor')
 			self.paletteRAMs[i] = RAMGPUTex{
 				app = self,
 				addr = blob.addr,
@@ -1906,23 +1919,30 @@ function AppVideo:resizeRAMGPUs()
 end
 
 function AppVideo:allRAMRegionsCheckDirtyGPU()
+glreport'allRAMRegionsCheckDirtyGPU begin'
 	-- TODO this current method updates *all* GPU/CPU framebuffer textures
 	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
 	for k,v in pairs(self.framebufferRAMs) do
 		v:checkDirtyGPU()
+glreport'allRAMRegionsCheckDirtyGPU after framebufferRAMs checkDirtyGPU'
 	end
 	for _,ramgpu in ipairs(self.sheetRAMs) do
 		ramgpu:checkDirtyGPU()
+glreport'allRAMRegionsCheckDirtyGPU after sheetRAMs checkDirtyGPU'
 	end
 	for _,ramgpu in ipairs(self.tilemapRAMs) do
 		ramgpu:checkDirtyGPU()
+glreport'allRAMRegionsCheckDirtyGPU after tilemapRAMs checkDirtyGPU'
 	end
 	for _,ramgpu in ipairs(self.paletteRAMs) do
 		ramgpu:checkDirtyGPU()
+glreport'allRAMRegionsCheckDirtyGPU after paletteRAMs checkDirtyGPU'
 	end
 	for _,ramgpu in ipairs(self.fontRAMs) do
 		ramgpu:checkDirtyGPU()
+glreport'allRAMRegionsCheckDirtyGPU after fontRAMs checkDirtyGPU'
 	end
+glreport'allRAMRegionsCheckDirtyGPU end'
 end
 
 function AppVideo:allRAMRegionsCheckDirtyCPU()
