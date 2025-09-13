@@ -294,6 +294,9 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 	if sel then
 		t[popupKey] = true
 	end
+
+	local handled
+
 	if t[popupKey] then
 		local w = 25
 		local h = 10
@@ -303,6 +306,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		self:guiSpinner(x + 2, y + 10, function(dx)
 			t[indexKey] = math.clamp(t[indexKey] + dx, 0, #blobsOfType-1)
 			if cb then cb(dx) end
+			handled = true
 		end)
 		-- TODO input number selection?
 
@@ -318,6 +322,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 				t[indexKey] = t[indexKey] + 1
 			end
 			changed = true
+			handled = true
 		end
 
 		local len = #blobsOfType
@@ -327,6 +332,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 				blobsOfType:remove(t[indexKey]+1)
 				changed = true
 				t[indexKey] = t[indexKey] - 1
+				handled = true
 			end
 		end
 		-- TODO controls for moving blobs in order?
@@ -342,6 +348,8 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 	then
 		t[popupKey] = false
 	end
+
+	return handled
 end
 
 function UI:setTooltip(s, x, y, fg, bg)

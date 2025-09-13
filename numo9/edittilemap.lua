@@ -490,11 +490,16 @@ function EditTilemap:update()
 	end
 
 	local x, y = 50, 0
+
 	-- draw ui menubar last so it draws over the rest of the page
+	-- TODO put this first for blocking subsequent click fallthroughs
+	--		or put it last for drawing over the display
+	-- 		or put it first + use depth buffer for both ...
 	self:guiBlobSelect(x, y, 'tilemap', self, 'tilemapBlobIndex', function()
 		-- for now only one undo per tilemap at a time
 		self.undo:clear()
 	end)
+
 	x = x + 12
 	-- the current sheetmap is purely cosmetic, so if it changes no need to push undo
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
