@@ -1831,18 +1831,7 @@ conn.receivesPerSecond = 0
 		-- update threadpool, clients or servers
 		self.threads:update()
 
-		-- erm when would this happen?
-		if self.activeMenu then
-			-- hmm, for some reason, when the editor is open,
-			-- flipping the video mode to its console-state then back to 0 for editor 
-			-- causes editor flickering ...
-			-- ... but if I set it to 0 here then no editor flicker.
-			-- but will this cause framebuffer problesm with the runtime?
-			-- esp noticable in netplay when framebuffer might hold game state?
-			self:setVideoMode(0)
-		else
-			self:setVideoMode(self.ram.videoMode)
-		end
+		self:setVideoMode(self.ram.videoMode)
 
 		-- [[ where should I even put this?  in here to make sure runs once per frame
 		-- outside the 1/60 block to make sure it runs as often as possible?

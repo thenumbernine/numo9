@@ -2146,7 +2146,14 @@ function AppVideo:setVideoMode(mode)
 		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
 		self.solidObj = info.solidObj
+
+		if self.inUpdateCallback then
+			self.fb:unbind()
+		end
 		self.fb = info.fb
+		if self.inUpdateCallback then
+			self.fb:bind()
+		end
 
 		self.triBuf.sceneObj = self.solidObj
 	else
