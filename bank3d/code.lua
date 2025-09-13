@@ -93,7 +93,7 @@ corners2d = table{
 
 getCornerTypes2D = |where|
 	corners2d:map(|ofs,name|
-		(mapGet(
+		(vget(level,
 			where.x + ofs.x * .25,
 			where.y + ofs.y * .25,
 			where.z			-- xy are half-integer, z is whole integer
@@ -139,11 +139,6 @@ seqs={
 
 
 dt=1/60
-voxelmapaddr = blobaddr'voxelmap'	-- TODO update per level change
-levelSize = vec3(
-	peekl(voxelmapaddr),
-	peekl(voxelmapaddr+4),
-	peekl(voxelmapaddr+8))
 maxLevels = 2 * 23		-- 11x11x11 levels use 121 x 11 texels, can store 2 x 23 of those on a 256x256 texture
 
 numo9_brushes = {
@@ -183,9 +178,9 @@ numo9_brushes = {
 
 
 viewZNear = 1
-viewZFar = levelSize.y*2
-viewDist = levelSize.x*.75
-viewAlt = levelSize.x*.75
+viewZFar = 11*2
+viewDist = 11*.75
+viewAlt = 11*.75
 viewTiltUpAngle = 45
 viewAngle = 90
 destViewAngle = viewAngle
@@ -259,7 +254,7 @@ drawMap=||do
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
-				local voxelValue = mapGet(x,y,z)
+				local voxelValue = vget(level,x,y,z)
 				local mt = mapTypes[voxelValue]
 				if voxelValue ~= EMPTY then
 					-- TODO voxelmap tile animation ...
@@ -958,7 +953,7 @@ do
 								local cfx=math.floor(checkPos.x+ofx*.5-.25)
 								local cfy=math.floor(checkPos.y+ofy*.5-.25)
 								local cfz=math.floor(checkPos.z+ofz*.5+.25)	-- TODO z is integer while xy are half-integer
-								local mapType=mapTypes[mapGet(cfx, cfy, cfz)]
+								local mapType=mapTypes[vget(level, cfx, cfy, cfz)]
 								if mapType and mapType.blocksExplosion then
 									if not cantHitWorld
 									and mapType.bombable
@@ -979,7 +974,7 @@ do
 												end
 											end
 										end
-										mapSet(cfx, cfy, cfz, EMPTY)
+										vset(level, cfx, cfy, cfz, EMPTY)
 									end
 									wallStopped=true
 								end
@@ -1364,8 +1359,16 @@ end
 
 setLevel=|level_|do
 	level=level_
-	saveinfos[saveSlot].level = level
-	saveState()
+	voxelmapaddr = blobaddr('voxelmap', level)
+	levelSize = vec3(
+		peekl(voxelmapaddr),
+		peekl(voxelmapaddr+4),
+		peekl(voxelmapaddr+8))
+	-- for the demo this isn't set
+	if saveSlot then
+		saveinfos[saveSlot].level = level
+		saveState()
+	end
 	if level > -1 then
 		--TODO if level >= 0 then set the local storage current-level value to 'level'
 		levelstr='level '..tostring(level)
@@ -1375,9 +1378,6 @@ setLevel=|level_|do
 	end
 end
 
-mapGet=|...| vget(level, ...)
-mapSet=|...| vset(level, ...)
-
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
 	mode(videoModeIndex)	-- reset() also resets the video mode ... TODO don't reset video mode? idk hmm ...
@@ -1386,7 +1386,7 @@ loadLevel=||do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
 				local pos = vec3(x+.5,y+.5, z)	-- z is at min of voxel bounds
-				local m = mapGet(x,y,z)
+				local m = vget(level,x,y,z)
 
 				-- pick out the tilemap, irregardless of the model or orientation
 				local t = m & 0x3ff
@@ -1395,39 +1395,39 @@ loadLevel=||do
 					player=Player{}
 					player:setPos(pos)
 					objs:insert(player)
-					mapSet(x,y,z,EMPTY)
+					vset(level,x,y,z,EMPTY)
 				elseif t == 0xc then
 					local key=Key{}
 					key:setPos(pos)
 					objs:insert(key)
-					mapSet(x,y,z,EMPTY)
+					vset(level,x,y,z,EMPTY)
 				elseif t == 0xe then
 					local framer=Framer{}
 					framer:setPos(pos)
 					objs:insert(framer)
-					mapSet(x,y,z,EMPTY)
+					vset(level,x,y,z,EMPTY)
 				elseif t == 0x10 then
 					local gun=Gun{}
 					gun:setPos(pos)
 					objs:insert(gun)
-					mapSet(x,y,z,EMPTY)
+					vset(level,x,y,z,EMPTY)
 				elseif t == 0x12 then
 					local sentry=Sentry{}
 					sentry:setPos(pos)
 					objs:insert(sentry)
-					mapSet(x,y,z,EMPTY)
+					vset(level,x,y,z,EMPTY)
 				elseif t >= 64 and t < 84 then
 					local money=Money{}
 					money.bombs=(t-64)>>1
 					money:setPos(pos)
 					objs:insert(money)
-					mapSet(x,y,z,EMPTY)
+					vset(level,x,y,z,EMPTY)
 				elseif t >= 128 and t < 148 then
 					local bomb=Bomb()
 					bomb.blastRadius=(t-128)>>1
 					bomb:setPos(pos)
 					objs:insert(bomb)
-					mapSet(x,y,z,EMPTY)
+					vset(level,x,y,z,EMPTY)
 				else
 					-- let voxels fall through
 					--trace('unknown spawn', x,y,z,m)
@@ -1607,6 +1607,6 @@ update=||do
 	end
 end
 
---setLevel(0)
+setLevel(0)
 --removeAll()
 --if level > -1 then loadLevel() end
