@@ -743,6 +743,9 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 
 # TODO
+- compat breaking:
+	- rename `map` to `tilemap` cuz honestly `map` can be so many things
+	- change tilemap's default sheet from 1 to 0
 - upon fantasy console startup the first few frames skip ...
 - waveforms
 	- BRR

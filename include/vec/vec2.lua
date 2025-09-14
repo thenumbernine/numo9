@@ -52,10 +52,10 @@ vec2=class{
 	clone=|v| vec2(v),
 	set=|v,x,y|do
 		if type(x) == 'table' then
-			v.x = x.x or x[1] or error("idk")
-			v.y = x.y or x[2] or error("idk")
+			v.x = x.x or x[1] or error("can't read x coord")
+			v.y = x.y or x[2] or error("can't read y coord")
 		else
-			assert(x, "idk")
+			assert(x, "can't read set input")
 			v.x = x
 			if y then
 				v.y = y

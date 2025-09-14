@@ -74,11 +74,11 @@ vec3=class{
 	clone=|v| vec3(v),
 	set=|v,x,y,z|do
 		if type(x) == 'table' then
-			v.x = x.x or x[1] or error("idk")
-			v.y = x.y or x[2] or error("idk")
-			v.z = x.z or x[3] or error("idk")
+			v.x = x.x or x[1] or error("can't read x coord")
+			v.y = x.y or x[2] or error("can't read y coord")
+			v.z = x.z or x[3] or error("can't read z coord")
 		else
-			assert(x, "idk")
+			assert(x, "can't read set input")
 			v.x = x
 			if y then
 				v.y = y
@@ -93,6 +93,18 @@ vec3=class{
 	unpack=|v| (v.x, v.y, v.z),
 	sum=|v| v.x + v.y + v.z,
 	product=|v| v.x * v.y * v.z,
+	clamp=|v,a,b|do
+		local mins = a
+		local maxs = b
+		if type(a) == 'table' and a.min and a.max then
+			mins = a.min
+			maxs = a.max
+		end
+		v.x = math.clamp(v.x, vec3_getvalue(mins, 1), vec3_getvalue(maxs, 1))
+		v.y = math.clamp(v.y, vec3_getvalue(mins, 2), vec3_getvalue(maxs, 2))
+		v.z = math.clamp(v.z, vec3_getvalue(mins, 3), vec3_getvalue(maxs, 3))
+		return v
+	end,
 	map=|v,f|do
 		v.x = f(v.x, 1)
 		v.y = f(v.y, 2)
