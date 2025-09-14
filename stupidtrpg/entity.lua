@@ -1,3 +1,128 @@
+entsAtPos=|pos|do
+	if not map.bbox:contains(pos) then return table() end
+	return table(map.tiles[pos.x][pos.y].ents)
+end
+
+entsAtPositions=|positions|do
+	local es = table()
+	for _,pos in ipairs(positions) do
+		es:append(entsAtPos(pos))
+	end
+	return es
+end
+
+entsWithinRadius=|pos, radius|do
+	assert(pos)
+	assert(radius)
+	local mins = (pos - radius):clamp(map.bbox)
+	local maxs = (pos + radius):clamp(map.bbox)
+
+	local closeEnts = table()
+	for x=mins.x,maxs.x do
+		for y=mins.y,maxs.y do
+			closeEnts:append(entsAtPos(vec2(x,y)))
+		end
+	end
+	return closeEnts
+end
+
+floodFillTiles=|pos, bbox|do
+	bbox = box2(bbox):clamp(map.bbox)
+	pos = pos:clone()
+	local positions = table{pos}
+	local allpositionset = table()
+	allpositionset[tostring(pos)] = true
+	while #positions > 0 do
+		local srcpos = positions:remove(1)
+		for _,dir in ipairs(dirs) do
+			local newpos = srcpos + dirs[dir]
+			if bbox:contains(newpos) then
+				local tile = map.tiles[newpos.x][newpos.y]
+				if not tile.type.solid then
+					if not allpositionset[tostring(newpos)]
+					then
+						positions:insert(newpos)
+						allpositionset[tostring(newpos)] = true
+					end
+				end
+			end
+		end
+	end
+	return allpositionset:keys():map(|v|
+		vec2(table.unpack(string.split(v, ','):map(|x| tonumber(x))))
+	)
+end
+
+pathSearchToPoint=|args|do
+	local bbox = assert(args.bbox)
+	local start = assert(args.src)
+	local dest = assert(args.dst)
+	local entBlocking = args.entBlocking
+	assert(bbox:contains(start))		-- TODO error here
+	assert(bbox:contains(dest))
+	local states = table{
+		{pos = start:clone()}
+	}
+	local allpositions = table()
+	allpositions[tostring(start:clone())] = true
+	local bestState
+	local bestDist
+	while bestDist ~= 0 and #states > 0 do
+		local laststate = states:remove(1)
+		for _,dir in ipairs(dirs) do
+			local newstate = {
+				pos = laststate.pos + dirs[dir],
+				laststate = laststate,
+				dir = dir,
+			}
+			local dist = (newstate.pos - dest):l1Length()
+			if not bestDist or dist < bestDist then
+				bestDist = dist
+				bestState = newstate
+				if bestDist == 0 then break end
+			end
+			if bbox:contains(newstate.pos)
+			and map.bbox:contains(newstate.pos)
+			then
+				local tile = map.tiles[newstate.pos.x][newstate.pos.y]
+				if not tile.type.solid then
+					local blocked
+					if tile.ents then
+						for _,ent in ipairs(tile.ents) do
+							if entBlocking(ent) then
+								blocked = true
+								break
+							end
+						end
+					end
+					if not blocked
+					and not allpositions[tostring(newstate.pos)]
+					then
+						states:insert(newstate)
+						allpositions[tostring(newstate.pos)] = true
+					end
+				end
+			end
+		end
+	end
+	local path
+	if bestState then
+		path = table()
+		local state = bestState
+		while state do
+			path:insert(1, state)
+			state = state.laststate
+		end
+		for i=1,#path-1 do
+			path[i].dir = path[i+1].dir
+		end
+		path[#path].dir = nil
+		path:remove()
+	end
+	return path, bestDist
+end
+
+
 Entity=class{
 	name='Entity',
 	ct=0,
