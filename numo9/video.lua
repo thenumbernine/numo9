@@ -3800,22 +3800,12 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		self:matrotcs(0, -1, 1, 0, 0)
 		-- now rotate the z-axis to point at the view z
 
-		--[[
-		local a = self.mvMat
-		local a0, a1, a2,  a3  = a.ptr[0], a.ptr[1], a.ptr[ 2], a.ptr[ 3]
-		local a4, a5, a6,  a7  = a.ptr[4], a.ptr[5], a.ptr[ 6], a.ptr[ 7]
-		local a8, a9, a10, a11 = a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
-
-		-- ... and normalize cols
-		local lz = math.sqrt(a2 * a2 + a6 * a6 + a10 * a10)
-		--]]
-
 		-- find the angle/axis to the view and rotate by that
-		self:matrot(
-			math.atan2(
-				a.ptr[2],
-				a.ptr[10]
-			),
+		local a = self.mvMat
+		local s = 1/math.sqrt(a.ptr[2]^2 + a.ptr[10]^2)
+		self:matrotcs(
+			s * a.ptr[10],
+			s * a.ptr[2],
 			0, 1, 0
 		)
 
