@@ -3772,6 +3772,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		local sz = 1/lz
 
 		-- skew:
+		--[[
 		local s01 = a0 * a1 + a4 * a5 + a8 * a9
 		a.ptr[1] = sx * s01
 		a.ptr[4] = sy * s01
@@ -3783,6 +3784,10 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		local s12 = a1 * a2 + a5 * a6 + a9  * a10
 		a.ptr[6] = sy * s12
 		a.ptr[9] = sz * s12
+		--]]
+		-- [[ is this the same?  only if the basis is orthogonal ... not if a skew-transform has been applied ...
+		a.ptr[1], a.ptr[2], a.ptr[4], a.ptr[6], a.ptr[8], a.ptr[9] = 0, 0, 0, 0, 0, 0
+		--]]
 
 		-- translation: (right?  this isn't the zeroes row transpose of translation, is it?)
 		a.ptr[ 3] = sx * (a0 * a3 + a4 * a7 + a8  * a11)
@@ -3790,7 +3795,30 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		a.ptr[11] = sz * (a2 * a3 + a6 * a7 + a10 * a11)
 
 	elseif vox.orientation == 21 then
-		-- TODO special case, xy-aligned, anchored to voxel center
+		-- TODO special case, xy-aligned, z axis still maintained, anchored to voxel center
+
+		self:matrotcs(0, -1, 1, 0, 0)
+		-- now rotate the z-axis to point at the view z
+
+		--[[
+		local a = self.mvMat
+		local a0, a1, a2,  a3  = a.ptr[0], a.ptr[1], a.ptr[ 2], a.ptr[ 3]
+		local a4, a5, a6,  a7  = a.ptr[4], a.ptr[5], a.ptr[ 6], a.ptr[ 7]
+		local a8, a9, a10, a11 = a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
+
+		-- ... and normalize cols
+		local lz = math.sqrt(a2 * a2 + a6 * a6 + a10 * a10)
+		--]]
+
+		-- find the angle/axis to the view and rotate by that
+		self:matrot(
+			math.atan2(
+				a.ptr[2],
+				a.ptr[10]
+			),
+			0, 1, 0
+		)
+
 	elseif vox.orientation == 22 then
 		-- TODO special case, xyz-aligned, anchored to z- center
 	elseif vox.orientation == 23 then

@@ -236,7 +236,7 @@ The 3D orientations, like the 2D orientations, can be decomposed into bitfields:
 
 The following 3D orientation representations are redundant, and will be used for special-case orientations.
 - #20 (Rz=0,Ry=1,Rx=1) is equal to #7 (Rz=3,Ry=1,Rx=0), so I will instead use this for voxel-centered xyz-aligned billboard orientation.
-- #21 (Rz=1,Ry=1,Rx=1) is equal to #4 (Rz=0,Ry=1,Rx=0).
+- #21 (Rz=1,Ry=1,Rx=1) is equal to #4 (Rz=0,Ry=1,Rx=0). so I will instead use this for voxel-centered xy-aligned billboard orientation.
 - #22 (Rz=2,Ry=1,Rx=1) is equal to #5 (Rz=1,Ry=1,Rx=0).
 - #23 (Rz=3,Ry=1,Rx=1) is equal to #6 (Rz=2,Ry=1,Rx=0).
 - #28 (Rz=0,Ry=3,Rx=1) is equal to #13 (Rz=1,Ry=3,Rx=0).
