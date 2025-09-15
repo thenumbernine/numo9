@@ -3798,12 +3798,12 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		-- TODO special case, xy-aligned, z axis still maintained, anchored to voxel center
 		local a = self.mvMat
 		local x, y = a.ptr[6], a.ptr[2]
+		local l = 1/math.sqrt(x^2 + y^2)
 
 		self:matrotcs(0, -1, 1, 0, 0)
 		-- now rotate the z-axis to point at the view z
 
 		-- find the angle/axis to the view and rotate by that
-		local l = 1/math.sqrt(x^2 + y^2)
 		self:matrotcs(l * x, l * y, 0, 1, 0)
 
 --[[
@@ -3820,9 +3820,20 @@ function AppVideo:drawVoxel(voxelValue, ...)
 	else
 		-- euler-angles
 		-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
-		self:matrot(vox.rotZ * .5 * math.pi, 0, 0, 1)
-		self:matrot(vox.rotY * .5 * math.pi, 0, 1, 0)
-		self:matrot(vox.rotX * .5 * math.pi, 1, 0, 0)
+		-- TODO which is fastest?  cis calc vs for-loop vs if-else vs table
+		local c, s
+		
+		c, s = 1, 0
+		for i=0,vox.rotZ-1 do c, s = -s, c end
+		self:matrotcs(c, s, 0, 0, 1)
+		
+		c, s = 1, 0
+		for i=0,vox.rotY-1 do c, s = -s, c end
+		self:matrotcs(c, s, 0, 1, 0)
+		
+		c, s = 1, 0
+		for i=0,vox.rotX-1 do c, s = -s, c end
+		self:matrotcs(c, s, 1, 0, 0)
 	end
 
 	self:drawMesh3D(
