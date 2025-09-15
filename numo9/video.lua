@@ -3796,18 +3796,22 @@ function AppVideo:drawVoxel(voxelValue, ...)
 
 	elseif vox.orientation == 21 then
 		-- TODO special case, xy-aligned, z axis still maintained, anchored to voxel center
+		local a = self.mvMat
+		local x, y = a.ptr[6], a.ptr[2]
 
 		self:matrotcs(0, -1, 1, 0, 0)
 		-- now rotate the z-axis to point at the view z
 
 		-- find the angle/axis to the view and rotate by that
-		local a = self.mvMat
-		local s = 1/math.sqrt(a.ptr[2]^2 + a.ptr[10]^2)
-		self:matrotcs(
-			s * a.ptr[10],
-			s * a.ptr[2],
-			0, 1, 0
-		)
+		local l = 1/math.sqrt(x^2 + y^2)
+		self:matrotcs(l * x, l * y, 0, 1, 0)
+
+--[[
+[[c, 0, s, 0],
+[-s, 0, c, 0],
+[0, -1, 0, 0],
+[0, 0, 0, 1]]
+--]]
 
 	elseif vox.orientation == 22 then
 		-- TODO special case, xyz-aligned, anchored to z- center
@@ -3860,8 +3864,7 @@ function AppVideo:drawVoxelMap(
 		self:mattrans(0, -height, 0)
 		self:mattrans(0, 0, 1)
 	end
-	self:mattrans(0, 0, -depth)
-
+--	self:mattrans(0, 0, -depth)
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 end
 
