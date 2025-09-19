@@ -625,30 +625,32 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 	local vts = table()
 	local is = table()
 	for line in io.lines(tostring(filepath)) do
-		local words = string.split(string.trim(line), '%s+')
-		local lineType = words:remove(1):lower()
-		if lineType == 'v' then
-			assert.ge(#words, 2)
-			vs:insert{
-				math.floor((tonumber(words[1]) or 0) * 256),
-				math.floor((tonumber(words[2]) or 0) * 256),
-				math.floor((tonumber(words[3]) or 0) * 256)
-			}
-		elseif lineType == 'vt' then
-			assert.ge(#words, 2)
-			vts:insert{
-				-- clamp so .obj texcoords [0,1] still map to [0,255] correctly
-				math.clamp(math.floor((tonumber(words[1]) or 0) * 256), 0, 255),
-				math.clamp(math.floor((tonumber(words[2]) or 0) * 256), 0, 255)
-			}
-		elseif lineType == 'f' then
-			assert(not line:find'/', "sorry I don't support faces with /'s in them, go delete that trash right now.")
-			assert.len(words, 3, "sorry I only support triangles")
-			for i=1,3 do
-				is:insert((assert(tonumber(words[i]))))
+		if not line:match'^%s*#' then
+			local words = string.split(string.trim(line), '%s+')
+			local lineType = words:remove(1):lower()
+			if lineType == 'v' then
+				assert.ge(#words, 2)
+				vs:insert{
+					math.floor((tonumber(words[1]) or 0) * 256),
+					math.floor((tonumber(words[2]) or 0) * 256),
+					math.floor((tonumber(words[3]) or 0) * 256)
+				}
+			elseif lineType == 'vt' then
+				assert.ge(#words, 2)
+				vts:insert{
+					-- clamp so .obj texcoords [0,1] still map to [0,255] correctly
+					math.clamp(math.floor((tonumber(words[1]) or 0) * 256), 0, 255),
+					math.clamp(math.floor((tonumber(words[2]) or 0) * 256), 0, 255)
+				}
+			elseif lineType == 'f' then
+				assert(not line:find'/', "sorry I don't support faces with /'s in them, go delete that trash right now.")
+				assert.len(words, 3, "sorry I only support triangles")
+				for i=1,3 do
+					is:insert((assert(tonumber(words[i]))))
+				end
+			else
+				print('ignoring lineType', lineType)
 			end
-		else
-			print('ignoring lineType', lineType)
 		end
 	end
 
