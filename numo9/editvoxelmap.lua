@@ -246,7 +246,8 @@ function EditVoxelMap:update()
 		self.orbit:endDraw()
 
 		-- TODO should this go here or in the caller:
-		app:matident()
+		--app:matident()
+		ffi.copy(app.ram.mvMat, app.editorProjMatPush, ffi.sizeof(app.editorProjMatPush))
 
 		local x, y = 0, 8
 		app:drawMenuText('w='..mapsize.x, x, y)
@@ -258,7 +259,8 @@ function EditVoxelMap:update()
 	end
 
 	-- TODO should this go here or in the caller:
-	app:matident()
+	--app:matident()
+	ffi.copy(app.ram.mvMat, app.editorProjMatPush, ffi.sizeof(app.editorProjMatPush))
 
 	local x, y = 50, 0
 	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex')

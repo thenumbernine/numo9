@@ -51,7 +51,8 @@ function TileSelect:doPopup()
 	if not self.pickOpen then return false end
 
 	-- TODO should this go here or in the caller:
-	app:matident()
+	--app:matident()
+	ffi.copy(app.ram.mvMat, app.editorProjMatPush, ffi.sizeof(app.editorProjMatPush))
 
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'

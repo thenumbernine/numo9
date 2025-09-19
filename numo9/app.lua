@@ -249,6 +249,8 @@ function App:initGL()
 	self.ram.updateCounter = 0
 	self.ram.romUpdateCounter = 0
 
+	self.editorProjMatPush = ffi.new(mvMatType..'[16]')
+
 	-- TODO soooo tempting to treat 'app' as a global
 	-- It would cut down on *all* these glue functions
 	self.env = {
@@ -2076,7 +2078,7 @@ print('run thread dead')
 		ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 		self:matident()
 		-- [=[ similar to above but with dif mat operations
-	
+
 		-- same as framebufferMenuTex, but honestly, get rid of that
 		local editorWidth = 256
 		local editorHeight = 256
@@ -2114,6 +2116,9 @@ print('run thread dead')
 				1
 			)
 		end
+
+		-- here's the editor's projection mat.  reset back to this for editor resetting.
+		ffi.copy(self.editorProjMatPush, self.ram.mvMat, ffi.sizeof(self.editorProjMatPush))
 
 		--]=]
 

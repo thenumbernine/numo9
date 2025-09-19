@@ -81,7 +81,8 @@ function EditBrushmap:update()
 	local tileSizeInTiles = bit.lshift(1, draw16As0or1)
 	local tileSizeInPixels = bit.lshift(1, tileBits)
 
-	app:matident()
+	--app:matident()
+	ffi.copy(app.ram.mvMat, app.editorProjMatPush, ffi.sizeof(app.editorProjMatPush))
 
 	if self.pickOpen then
 		local pickX = 2 * spriteSize.x
@@ -169,7 +170,9 @@ function EditBrushmap:update()
 				bit.lshift(mapSizeInTiles.y, tileBits))
 
 
-			app:matident()
+			--app:matident()
+			ffi.copy(app.ram.mvMat, app.editorProjMatPush, ffi.sizeof(app.editorProjMatPush))
+
 			app:mattrans(mapX, mapY)
 			app:matscale(self.scale, self.scale)
 			app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
@@ -403,7 +406,8 @@ function EditBrushmap:update()
 		end
 	end
 
-	app:matident()
+	--app:matident()
+	ffi.copy(app.ram.mvMat, app.editorProjMatPush, ffi.sizeof(app.editorProjMatPush))
 
 	local x, y = 50, 0
 	self:guiBlobSelect(x, y, 'brushmap', self, 'brushmapBlobIndex', function()
