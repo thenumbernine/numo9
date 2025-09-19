@@ -1920,103 +1920,6 @@ print('run thread dead')
 		gl.glDisable(gl.GL_BLEND)
 		gl.glDisable(gl.GL_DEPTH_TEST)
 
-		-- if we're using menu then render to the framebufferMenuTex
-		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
-		if self.activeMenu then
-			-- push matrix
-			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-			self:matident()
-
-			local ditherPush = self.ram.dither
-			self.ram.dither = 0
-
-			-- set drawText font & pal to the UI's
-			-- TODO not using this for drawText anymore so meh who still uses it?
-			self.inMenuUpdate = true
-
--- do we set or not set video mode to 256x256x16bpp for the menu?
--- if we don't then all the colors are off...
--- if we do then the mouse is off...
-
-			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
-			self:setVideoMode(0)
-			gl.glViewport(0, 0, self.framebufferMenuTex.width, self.framebufferMenuTex.height)
-
-			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
-			-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
-			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
-			self:setFramebufferTex(self.framebufferMenuTex)
-
-			-- and set the palette to the editor palette ... ?
-			-- or not ...
-			-- TODO or not for when we want to show the game palette stuff ...
-			-- hmm , gotta split this up now ...
-			-- default draw calls will use the paletteMenuTex
-			-- and special calls will use the paletteRAM
-			-- TODO this needs to be a paletteRAM replacement ...
-			--local pushPaletteRAM = self.paletteRAMs[1]
-			--self.paletteRAMs[1] = {tex = self.paletteMenuTex}
-
-			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
-			self:setClipRect(0, 0, clipMax, clipMax)
-
-			-- while we're here, start us off with the current framebufferRAM contents
-			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenObj to draw it
-			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
-			-- [[
-			local view = self.blitScreenView
-			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
-			view.mvMat:setIdent()
-			view.mvProjMat:mul4x4(view.projMat, view.mvMat)
-			local sceneObj = self.blitScreenObj
-			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-			sceneObj:draw()
-			--]]
-
-			local thread = self.activeMenu.thread
-			if thread then
-				self:matident()
-				if coroutine.status(thread) == 'dead' then
-					self:setMenu(nil)
-				else
-					local success, msg = coroutine.resume(thread)
-					if not success then
-						if thread == self.con.thread then
-							print'CONSOLE THREAD ERROR'
-						end
-						print(msg)
-						print(debug.traceback(thread))
-						if thread == self.con.thread then
-							self.con:resetThread()	-- this could become a negative feedback loop...
-						end
-						self.con:print(msg)
-					end
-				end
-			end
-
-			-- flush before textures change
-			-- or don't since the addTri checks if textures have changed
-			-- but at least flush before finishing the screen render update ...
-			self.triBuf:flush()
-
-			-- restore palettes
-			--self.paletteRAMs[1] = pushPaletteRAM
-
-			self:setFramebufferTex(self.framebufferRAM.tex)
-
-			self:setVideoMode(self.ram.videoMode)
-
-			-- set drawText font & pal to the ROM's
-			self.inMenuUpdate = false
-
-			-- pop the clip rect
-			self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
-
-			-- pop the matrix
-			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-			self.ram.dither = ditherPush
-		end
-
 		self.inUpdateCallback = false
 		fb:unbind()
 
@@ -2093,21 +1996,14 @@ print('run thread dead')
 			needDrawCounter = drawCounterNeededToRedraw
 		end
 
-		if self.activeMenu then
-			needDrawCounter = 1
-		end
-
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
 	end
 
+	local needSwap
 	if needDrawCounter > 0 then
 		needDrawCounter = needDrawCounter - 1
 		drawsPerSecond = drawsPerSecond + 1
-
-		if self.activeMenu then
-			self:setVideoMode(0)
-		end
 
 --DEBUG(glquery):drawQuery:begin()
 
@@ -2120,13 +2016,12 @@ print('run thread dead')
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
+		local fbTex = self.framebufferRAM.tex
+
 	-- [[ redo ortho projection matrix
 	-- every frame for us to use a proper rectangle
 		local view = self.blitScreenView
 		local orthoSize = view.orthoSize
-
-		local fbTex = self.activeMenu and self.framebufferMenuTex or self.framebufferRAM.tex
-		--local fbTex = self.framebufferRAM.tex
 
 		local wx, wy = self.width, self.height
 		local fx = wx / fbTex.width
@@ -2160,29 +2055,143 @@ print('run thread dead')
 				1
 			)
 		end
+	--]]
+
 		view.mvMat:setIdent()
-		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+		view.mvProjMat:copy(view.projMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 
-		if self.activeMenu then
-			sceneObj.texs[1] = self.framebufferMenuTex
-		end
---]]
-
 		-- draw from framebuffer to screen
 		sceneObj:draw()
+
+		needSwap = true
+	end
+
+	-- if we're using menu then render to the framebufferMenuTex
+	-- ... and don't mess with the VRAM or any draw calls that would reflect on it
+	if self.activeMenu then
+		needSwap = true
+		-- push matrix
+		ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+		self:matident()
+		-- [=[ similar to above but with dif mat operations
+	
+		-- same as framebufferMenuTex, but honestly, get rid of that
+		local editorWidth = 256
+		local editorHeight = 256
+		local orthoSize = 256
+
+		local wx, wy = self.width, self.height
+		local fx = wx / editorWidth
+		local fy = wy / editorHeight
+		if fx > fy then
+			local rx = fx / fy
+			local orthoMinx = -orthoSize * (rx - 1) / 2
+			local orthoMaxx = orthoSize * (((rx - 1) / 2) + 1)
+			local orthoMaxy = orthoSize
+			local orthoMiny = 0
+			self:matortho(
+				orthoMinx,
+				orthoMaxx,
+				orthoMaxy,
+				orthoMiny,
+				-1,
+				1
+			)
+		else
+			local ry = fy / fx
+			local orthoMinx = 0
+			local orthoMaxx = orthoSize
+			local orthoMaxy = orthoSize * (((ry - 1) / 2) + 1)
+			local orthoMiny = -orthoSize * (ry - 1) / 2
+			self:matortho(
+				orthoMinx,
+				orthoMaxx,
+				orthoMaxy,
+				orthoMiny,
+				-1,
+				1
+			)
+		end
+
+		--]=]
+
+		local ditherPush = self.ram.dither
+		self.ram.dither = 0
+
+		-- set drawText font & pal to the UI's
+		-- TODO not using this for drawText anymore so meh who still uses it?
+		self.inMenuUpdate = true
+
+-- do we set or not set video mode to 256x256x16bpp for the menu?
+-- if we don't then all the colors are off...
+-- if we do then the mouse is off...
+
+		-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
+		gl.glViewport(0, 0, self.width, self.height)
+
+		-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
+		-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
+		-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
+
+		-- and set the palette to the editor palette ... ?
+		-- or not ...
+		-- TODO or not for when we want to show the game palette stuff ...
+		-- hmm , gotta split this up now ...
+		-- default draw calls will use the paletteMenuTex
+		-- and special calls will use the paletteRAM
+		-- TODO this needs to be a paletteRAM replacement ...
+		--local pushPaletteRAM = self.paletteRAMs[1]
+		--self.paletteRAMs[1] = {tex = self.paletteMenuTex}
+
+		local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
+		self:setClipRect(0, 0, clipMax, clipMax)
+
+		-- while we're here, start us off with the current framebufferRAM contents
+		-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenObj to draw it
+		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+
+		local thread = self.activeMenu.thread
+		if thread then
+			if coroutine.status(thread) == 'dead' then
+				self:setMenu(nil)
+			else
+				local success, msg = coroutine.resume(thread)
+				if not success then
+					if thread == self.con.thread then
+						print'CONSOLE THREAD ERROR'
+					end
+					print(msg)
+					print(debug.traceback(thread))
+					if thread == self.con.thread then
+						self.con:resetThread()	-- this could become a negative feedback loop...
+					end
+					self.con:print(msg)
+				end
+			end
+		end
+
+		-- flush before textures change
+		-- or don't since the addTri checks if textures have changed
+		-- but at least flush before finishing the screen render update ...
+		self.triBuf:flush()
+
+		-- set drawText font & pal to the ROM's
+		self.inMenuUpdate = false
+
+		-- pop the clip rect
+		self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
+
+		-- pop the matrix
+		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+		self.ram.dither = ditherPush
+	end
+
+	if needSwap then
 		-- [[ and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
 		--]]
-		if self.activeMenu then
-			sceneObj.texs[1] = self.framebufferRAM.tex
-		end
-
-		if self.activeMenu then
-			self:setVideoMode(self.ram.videoMode)
-		end
-
 --DEBUG(glquery):drawQueryTotal = drawQueryTotal + drawQuery:doneWithResult()
 --DEBUG(glquery):drawQueryFrames = drawQueryFrames + 1
 	end
