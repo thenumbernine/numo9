@@ -560,7 +560,8 @@ function BlobMesh3D:init(data)
 print'loading mesh'
 	-- track which tris are on each side / can be occluded
 	-- track which sides are fully covered in tris / will occlude
-	self.trisPerSide = table()
+	local range = require 'ext.range'
+	self.trisPerSide = range(6):mapi(function() return table() end)
 	local vtxs = self:getVertexPtr()
 	for i,j,k,ti in self:triIter() do
 		local bounds = box3i(
@@ -575,7 +576,6 @@ print'loading mesh'
 			for negflag=0,1 do
 				local sign = 1 - 2 * negflag
 				local sideIndex = bit.bor(negflag, bit.lshift(axis, 1)) + 1
-				self.trisPerSide[sideIndex] = table()
 				if bounds.min.s[axis] == sign * 16384
 				and bounds.max.s[axis] == sign * 16384
 				and -16384 <= bounds.min.s[axis1] and bounds.min.s[axis1] <= 16384
@@ -602,6 +602,7 @@ print('tri', ti, 'is on side', axis, sign)
 			local c = vec3d(vk.x, vk.y, vk.z) / 32768
 			local len = (b - a):cross(c - b):norm()
 			local area = math.abs(len * .5)
+print('tri', a, b, c, 'area', area)			
 			totalArea = totalArea + area
 		end
 print('side', sideIndex,' has area', totalArea)
