@@ -8,6 +8,8 @@ local class = require 'ext.class'
 local tolua = require 'ext.tolua'
 local fromlua = require 'ext.fromlua'
 local vec2i = require 'vec-ffi.vec2i'
+local vec3i = require 'vec-ffi.vec3i'
+local box3i = require 'vec-ffi.box3i'
 local vector = require 'ffi.cpp.vector-lua'
 local struct = require 'struct'
 local Image = require 'image'
@@ -552,6 +554,40 @@ function BlobMesh3D:init(data)
 			assert.lt(indexes[i], numVtxs)
 		end
 	end
+
+--[[ TODO here and upon modification ...
+	-- track which tris are on each side / can be occluded
+	-- track which sides are fully covered in tris / will occlude
+	self.trisPerSide = table()
+	local vtxs = self:getVertexPtr()
+	for i,j,k in self:triIter() do
+		local bounds = box3i(
+			vec3i(0x7fffffff, 0x7fffffff, 0x7fffffff),
+			vec3i(-0x80000000, -0x80000000, -0x80000000))
+		local v = vtxs+i bounds:stretch(vec3i(v.x, v.y, v.z))
+		local v = vtxs+j bounds:stretch(vec3i(v.x, v.y, v.z))
+		local v = vtxs+k bounds:stretch(vec3i(v.x, v.y, v.z))
+		for axis=0,2 do
+			local axis1 = (axis + 1) % 3
+			local axis2 = (axis + 2) % 3
+			self.trisPerSide[axis] = table()
+			for sign=-1,1,2 do
+				self.trisPerSide[axis][sign] = table()
+				if bounds.min.s[axis] == sign * 16384
+				and bounds.max.s[axis] == sign * 16384
+				and -16384 <= bounds.min.s[axis1] and bounds.min.s[axis1] <= 16384
+				and -16384 <= bounds.min.s[axis2] and bounds.min.s[axis2] <= 16384
+				then
+					-- TODO then our box is all within one side
+print('tri', i, j, k, 'is on side', axis, sign)
+					self.trisPerSide[axis][sign]:insert{i,j,k}	-- or TODO how about the tri #? so we can know to occlude it?
+					-- TODO check that the other two axii are *within* +-16384
+					-- then last do a check for if the whole face is covered, i.e. sum of tri areas is 16384^2
+				end
+			end
+		end
+	end
+--]]
 end
 function BlobMesh3D:getNumVertexes()
 	return ffi.cast(meshIndexType..'*', self:getPtr())[0]
@@ -577,6 +613,22 @@ function BlobMesh3D:getIndexPtr()
 	assert.le(0, ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr())
 	assert.eq(ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
 	return indptr
+end
+function BlobMesh3D:triIter()
+	return coroutine.wrap(function()
+		local numIndexes = self:getNumIndexes()
+		if numIndexes == 0 then
+			local numVtxs = self:getNumVertexes()
+			for i=0,numVtxs-1,3 do
+				coroutine.yield(i, i+1, i+2)
+			end
+		else
+			local indexes = self:getIndexPtr()
+			for i=0,numIndexes-1,3 do
+				coroutine.yield(indexes[i], indexes[i+1], indexes[i+2])
+			end
+		end
+	end)
 end
 function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 	--[[ use mesh library objloader
