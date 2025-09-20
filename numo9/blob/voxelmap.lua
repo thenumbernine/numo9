@@ -1,9 +1,21 @@
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
+local vector = require 'ffi.cpp.vector-lua'
+local vec3i = require 'vec-ffi.vec3i'
 
 local numo9_rom = require 'numo9.rom'
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
+
+-- also in numo9/video.lua
+-- but this doesn't have mvMatInvScale
+-- and it doesn't return w, only x y z
+local function vec3to3(m, x, y, z)
+	return
+		(m[0] * x + m[4] * y + m[ 8] * z + m[12]),
+		(m[1] * x + m[5] * y + m[ 9] * z + m[13]),
+		(m[2] * x + m[6] * y + m[10] * z + m[14])
+end
 
 local BlobDataAbs = require 'numo9.blob.dataabs'
 
@@ -40,6 +52,12 @@ function BlobVoxelMap:init(data)
 	assert.gt(self:getWidth(), 0)
 	assert.gt(self:getHeight(), 0)
 	assert.gt(self:getDepth(), 0)
+
+	self.billboardXYZVoxels = vector'vec3i_t'	-- type 20
+	self.billboardXYVoxels = vector'vec3i_t'	-- type 21
+	self.triVtxs = vector'Vertex_16_16'	-- x y z u v: int16_t
+	-- can't do this yet, not until .ramptr is defined
+	--self:rebuildMesh()
 end
 
 function BlobVoxelMap:getWidth()
@@ -86,6 +104,94 @@ function BlobVoxelMap:getVoxelAddr(x,y,z)
 	or z < 0 or z >= self:getDepth()
 	then return end
 	return self:getVoxelDataAddr() + ffi.sizeof'Voxel' * (x + self:getWidth() * (y + self:getHeight() * z))
+end
+
+--[[
+app = used to search list of mesh3d blobs
+--]]
+function BlobVoxelMap:rebuildMesh(app)
+	self.billboardXYZVoxels:resize(0)
+	self.billboardXYVoxels:resize(0)
+	self.triVtxs:resize(0)
+
+	local width, height, depth= self:getWidth(), self:getHeight(), self:getDepth()
+	-- which to build this off of?
+	-- RAMPtr since thats what AppVideo:drawVoxelMap() uses
+	-- but that means it wont be present upon init() ...
+	local matrix_ffi = require 'matrix.ffi'
+	local m = matrix_ffi({4,4}, 'double'):zeros()
+	local vptr = assert(self:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
+	for k=0,depth-1 do
+		for j=0,height-1 do
+			for i=0,width-1 do
+				if vptr[0].intval ~= voxelMapEmptyValue then
+					m:setTranslate(i+.5, j+.5, k+.5)
+					m:applyScale(1/32768, 1/32768, 1/32768)
+
+					if vptr[0].orientation == 20 then
+						self.billboardXYZVoxels:emplace_back()[0]:set(i,j,k)
+					elseif vptr[0].orientation == 21 then
+						self.billboardXYVoxels:emplace_back()[0]:set(i,j,k)
+					elseif vptr[0].orientation == 22 then
+						-- TODO
+					elseif vptr[0].orientation == 23 then
+						-- TODO
+					else
+						local c, s
+
+						c, s = 1, 0
+						for i=0,vptr[0].rotZ-1 do c, s = -s, c end
+						m:applyRotateCosSinUnit(c, s, 0, 0, 1)
+
+						c, s = 1, 0
+						for i=0,vptr[0].rotY-1 do c, s = -s, c end
+						m:applyRotateCosSinUnit(c, s, 0, 1, 0)
+
+						c, s = 1, 0
+						for i=0,vptr[0].rotX-1 do c, s = -s, c end
+						m:applyRotateCosSinUnit(c, s, 1, 0, 0)
+
+						local mesh3DIndex = vptr[0].mesh3DIndex
+						local uofs = bit.lshift(vox.tileXOffset, 3)
+						local vofs = bit.lshift(vox.tileYOffset, 3)
+
+						local mesh = app.blobs.mesh3d[mesh3DIndex+1]
+						if mesh then
+
+							-- emplace_back() and resize() one by one is slow...
+							local numVtxs = self:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
+							local numIndexes = mesh:getNumIndexes()
+							local vtx = self.triVtxs:iend()
+							local numTriVtxs = numIndexes == 0 and numVtxs or numIndexes
+assert.eq(numTriVtxs % 3, 0)
+							self.triVtxs:resize(#self.triVtxs + numTriVtxs)
+
+							for i,j,k in mesh:triIter() do
+								local vi = vtxs + i
+								local vj = vtxs + j
+								local vk = vtxs + k
+
+								vtx.x, vtx.y, vtx.z = vec3to3(m.ptr, a.x, a.y, a.z)
+								vtx.u, vtx.v = a.u + uofs, a.v + vofs
+								vtx = vtx + 1
+
+								vtx.x, vtx.y, vtx.z = vec3to3(b.x, b.y, b.z)
+								vtx.u, vtx.v = b.u + uofs, b.v + vofs
+								vtx = vtx + 1
+
+								vtx.x, vtx.y, vtx.z = vec3to3(c.x, c.y, c.z)
+								vtx.u, vtx.v = c.u + uofs, c.v + vofs
+								vtx = vtx + 1
+							end
+
+							assert.eq(vtx, self.triVtxs:iend())
+						end
+					end
+				end
+				vptr = vptr + 1
+			end
+		end
+	end
 end
 
 return BlobVoxelMap

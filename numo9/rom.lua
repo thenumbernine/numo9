@@ -460,6 +460,7 @@ local Stamp = struct{
 }
 assert.eq(ffi.sizeof'Stamp', 10)
 
+-- used by the mesh file format
 local Vertex = struct{
 	name = 'Vertex',
 	fields = {
@@ -472,6 +473,19 @@ local Vertex = struct{
 }
 assert.eq(ffi.sizeof'Vertex', 8)
 local meshIndexType = 'uint16_t'
+
+-- used by the voxelmap, since sometimes uv get offset past the 256 limit by the voxelmap's uofs vofs and I want them to interpolate correctly
+local Vertex_16_16 = struct{
+	name = 'Vertex_16_16',
+	fields = {
+		{name='x', type='int16_t'},
+		{name='y', type='int16_t'},
+		{name='z', type='int16_t'},
+		{name='u', type='int16_t'},
+		{name='v', type='int16_t'},
+	},
+}
+assert.eq(ffi.sizeof'Vertex_16_16', 10)
 
 ffi.cdef[[
 typedef union {

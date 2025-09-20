@@ -7,6 +7,8 @@ local vector = require 'ffi.cpp.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
 local vec3d = require 'vec-ffi.vec3d'
 local box3i = require 'vec-ffi.box3i'
+-- meh why deal with this bloat
+--local OBJLoader = require 'mesh.objloader'
 
 local numo9_rom = require 'numo9.rom'
 local meshIndexType = numo9_rom.meshIndexType
@@ -96,13 +98,13 @@ print'loading mesh'
 			local c = vec3d(vk.x, vk.y, vk.z) / 32768
 			local len = (b - a):cross(c - b):norm()
 			local area = math.abs(len * .5)
---DEBUG:print('tri', a, b, c, 'area', area)			
+--DEBUG:print('tri', a, b, c, 'area', area)
 			totalArea = totalArea + area
 		end
 --DEBUG:print('side', sideIndex,' has area', totalArea)
 		local eps = 1e-3
 		if totalArea >= 1 - eps then
---DEBUG:print('side', sideIndex, 'is fully covered')			
+--DEBUG:print('side', sideIndex, 'is fully covered')
 			self.sidesOccluded[sideIndex] = true
 		end
 	end

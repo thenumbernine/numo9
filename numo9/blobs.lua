@@ -2,10 +2,6 @@ local ffi = require 'ffi'
 local table = require 'ext.table'
 local assert = require 'ext.assert'
 local class = require 'ext.class'
-local vector = require 'ffi.cpp.vector-lua'
-local struct = require 'struct'
--- meh why deal with this bloat
---local OBJLoader = require 'mesh.objloader'
 
 local numo9_rom = require 'numo9.rom'
 local BlobEntry = numo9_rom.BlobEntry
@@ -60,8 +56,6 @@ local blobClassForName = {
 	mesh3d = require 'numo9.blob.mesh3d',
 	voxelmap = require 'numo9.blob.voxelmap',
 }
-
-
 
 
 -- maps from name to type-index

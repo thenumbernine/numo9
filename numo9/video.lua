@@ -48,6 +48,9 @@ local function vec2to4(m, x, y)
 		(m[2] * x + m[6] * y + m[14]) * mvMatInvScale,-- / 16777216.,
 		(m[3] * x + m[7] * y + m[15]) * mvMatInvScale
 end
+
+-- also in numo9/blob/voxelmap.lua
+-- but this has tonumber and mvMatInvScale
 local function vec3to4(m, x, y, z)
 	x = tonumber(x)
 	y = tonumber(y)
@@ -3758,42 +3761,21 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		local a4, a5, a6,  a7  = a.ptr[4], a.ptr[5], a.ptr[ 6], a.ptr[ 7]
 		local a8, a9, a10, a11 = a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
 
-		-- ... and normalize cols
+		-- normalize cols
 		local lx = math.sqrt(a0 * a0 + a4 * a4 + a8  * a8 )
 		local ly = math.sqrt(a1 * a1 + a5 * a5 + a9  * a9 )
 		local lz = math.sqrt(a2 * a2 + a6 * a6 + a10 * a10)
 
-		-- diagonal:
-		a.ptr[ 0] = lx
-		a.ptr[ 5] = ly
-		a.ptr[10] = lz
+		-- set diagonal:
+		a.ptr[ 0], a.ptr[ 5], a.ptr[10] = lx, ly, lz
 
-		local sx = 1/lx
-		local sy = 1/ly
-		local sz = 1/lz
-
-		-- skew:
-		--[[
-		local s01 = a0 * a1 + a4 * a5 + a8 * a9
-		a.ptr[1] = sx * s01
-		a.ptr[4] = sy * s01
-
-		local s02 = a0 * a2 + a4 * a6 + a8 * a10
-		a.ptr[2] = sx * s02
-		a.ptr[8] = sz * s02
-
-		local s12 = a1 * a2 + a5 * a6 + a9  * a10
-		a.ptr[6] = sy * s12
-		a.ptr[9] = sz * s12
-		--]]
-		-- [[ is this the same?  only if the basis is orthogonal ... not if a skew-transform has been applied ...
+		-- set skew:
 		a.ptr[1], a.ptr[2], a.ptr[4], a.ptr[6], a.ptr[8], a.ptr[9] = 0, 0, 0, 0, 0, 0
-		--]]
 
-		-- translation: (right?  this isn't the zeroes row transpose of translation, is it?)
-		a.ptr[ 3] = sx * (a0 * a3 + a4 * a7 + a8  * a11)
-		a.ptr[ 7] = sy * (a1 * a3 + a5 * a7 + a9  * a11)
-		a.ptr[11] = sz * (a2 * a3 + a6 * a7 + a10 * a11)
+		-- set translation:
+		a.ptr[ 3] = (a0 * a3 + a4 * a7 + a8  * a11) / lx
+		a.ptr[ 7] = (a1 * a3 + a5 * a7 + a9  * a11) / ly
+		a.ptr[11] = (a2 * a3 + a6 * a7 + a10 * a11) / lz
 
 	elseif vox.orientation == 21 then
 		-- TODO special case, xy-aligned, z axis still maintained, anchored to voxel center
@@ -3807,7 +3789,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		-- find the angle/axis to the view and rotate by that
 		self:matrotcs(l * x, l * y, 0, 1, 0)
 
---[[
+--[[ TODO just apply it:
 [[c, 0, s, 0],
 [-s, 0, c, 0],
 [0, -1, 0, 0],
