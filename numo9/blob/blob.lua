@@ -5,8 +5,10 @@ local assert = require 'ext.assert'
 --[[
 .type = int = class static member
 .addr
+.addrEnd
 .ramptr = app.ram.v + blob.addr
-:getPtr() / :getSize()
+:getPtr()
+:getSize() (TODO make this just .size since it shouldn't ever change, even though it is varies per-class)
 --]]
 local Blob = class()
 

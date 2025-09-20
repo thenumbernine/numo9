@@ -868,7 +868,7 @@ function App:initGL()
 				-- if there are no blobs of this type ...
 				if index == 0 then return 0 end	-- TODO return start of blob section for this type?
 				local blob = blobsForType[index]
-				return blob.addr + blob:getSize()
+				return blob.addrEnd
 			end
 			local blob = blobsForType[index+1]
 			if not blob then
@@ -2308,7 +2308,7 @@ function App:poke(addr, value)
 	-- and then just cycle all blobs and flag here
 	for _,voxelmap in ipairs(self.blobs.voxelmap) do
 		if addr >= voxelmap.addr
-		and addr < voxelmap.addr + voxelmap:getSize()
+		and addr < voxelmap.addrEnd
 		then
 			voxelmap.dirtyCPU = true
 		end
@@ -2363,7 +2363,7 @@ function App:pokew(addr, value)
 	-- and then just cycle all blobs and flag here
 	for _,voxelmap in ipairs(self.blobs.voxelmap) do
 		if addrend >= voxelmap.addr
-		and addr < voxelmap.addr + voxelmap:getSize()
+		and addr < voxelmap.addrEnd
 		then
 			voxelmap.dirtyCPU = true
 		end
@@ -2418,7 +2418,7 @@ function App:pokel(addr, value)
 	-- and then just cycle all blobs and flag here
 	for _,voxelmap in ipairs(self.blobs.voxelmap) do
 		if addrend >= voxelmap.addr
-		and addr < voxelmap.addr + voxelmap:getSize()
+		and addr < voxelmap.addrEnd
 		then
 			voxelmap.dirtyCPU = true
 		end
@@ -2473,7 +2473,7 @@ function App:pokef(addr, value)
 	-- and then just cycle all blobs and flag here
 	for _,voxelmap in ipairs(self.blobs.voxelmap) do
 		if addrend >= voxelmap.addr
-		and addr < voxelmap.addr + voxelmap:getSize()
+		and addr < voxelmap.addrEnd
 		then
 			voxelmap.dirtyCPU = true
 		end
@@ -2547,7 +2547,7 @@ function App:memcpy(dst, src, len)
 	-- and then just cycle all blobs and flag here
 	for _,voxelmap in ipairs(self.blobs.voxelmap) do
 		if dstend >= voxelmap.addr
-		and dst < voxelmap.addr + voxelmap:getSize()
+		and dst < voxelmap.addrEnd
 		then
 			voxelmap.dirtyCPU = true
 		end
@@ -2631,7 +2631,7 @@ function App:memset(dst, val, len)
 	-- and then just cycle all blobs and flag here
 	for _,voxelmap in ipairs(self.blobs.voxelmap) do
 		if dstend >= voxelmap.addr
-		and dst < voxelmap.addr + voxelmap:getSize()
+		and dst < voxelmap.addrEnd
 		then
 			voxelmap.dirtyCPU = true
 		end

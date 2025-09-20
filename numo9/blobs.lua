@@ -167,6 +167,7 @@ local function blobsToByteArray(blobs)
 		local srcptr = blob:getPtr()
 		assert.ne(srcptr, ffi.null)
 		blob.addr = addr
+		blob.addrEnd = blob.addr + blobSize
 		ffi.copy(ramptr, srcptr, blobSize)
 		ramptr = ramptr + blobSize
 

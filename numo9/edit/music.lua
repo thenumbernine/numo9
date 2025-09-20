@@ -190,7 +190,7 @@ function EditMusic:update()
 
 	local y = 10
 
-	local endAddr = selMusicBlob.addr + selMusicBlob:getSize()
+	local endAddr = selMusicBlob.addrEnd
 	app:drawMenuText(('mem: $%04x-$%04x'):format(selMusicBlob.addr, endAddr), 64, y, 0xfc, 0xf0)
 
 	local playaddr = musicPlaying.addr

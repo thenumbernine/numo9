@@ -365,7 +365,7 @@ print('music changed music - failed to find music', value)
 				return
 			end
 			musicPlaying.addr = musicBlob.addr
-			musicPlaying.endAddr = musicBlob.addr + musicBlob:getSize()
+			musicPlaying.endAddr = musicBlob.addrEnd
 --assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.bank[0].audioData))
 --assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= ffi.sizeof(self.ram.bank[0].audioData))
 			local beatsPerSecond = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
@@ -593,7 +593,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 
 	-- keep our head counter here
 	local audio = self.audio
-	musicPlaying.endAddr = musicBlob.addr + musicBlob:getSize()
+	musicPlaying.endAddr = musicBlob.addrEnd
 	assert(musicPlaying.addr >= 0 and musicPlaying.addr < self.memSize)
 	assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= self.memSize)
 	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]

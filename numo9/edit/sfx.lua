@@ -67,7 +67,7 @@ function EditSFX:update()
 	local xlhs = 48
 	local xrhs = 200
 
-	app:drawMenuText(('mem:  $%04x-$%04x'):format(sfxBlob.addr, sfxBlob.addr + sfxBlob:getSize()), xlhs, 10, 0xfc, 0)
+	app:drawMenuText(('mem:  $%04x-$%04x'):format(sfxBlob.addr, sfxBlob.addrEnd), xlhs, 10, 0xfc, 0)
 
 	local offset = bit.lshift(bit.rshift(channel.offset, pitchPrec), 1)
 	app:drawMenuText(('@$%04x b'):format(offset), xrhs, 10, 0xfc, 0)

@@ -504,7 +504,7 @@ function UI:edit_poke(addr, value)
 	-- JUST DON'T DO THAT from the edit_poke* API (which is only called through the editor here)
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
-			if addr >= blob.addr and addr+1 <= blob.addr + blob:getSize() then
+			if addr >= blob.addr and addr+1 <= blob.addrEnd then
 				ffi.cast('uint8_t*', blob:getPtr() + (addr - blob.addr))[0] = value
 			end
 		end
@@ -517,7 +517,7 @@ function UI:edit_pokew(addr, value)
 
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
-			if addr >= blob.addr and addr+2 <= blob.addr + blob:getSize() then
+			if addr >= blob.addr and addr+2 <= blob.addrEnd then
 				ffi.cast('uint16_t*', blob:getPtr() + (addr - blob.addr))[0] = value
 			end
 		end
@@ -530,7 +530,7 @@ function UI:edit_pokel(addr, value)
 
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
-			if addr >= blob.addr and addr+4 <= blob.addr + blob:getSize() then
+			if addr >= blob.addr and addr+4 <= blob.addrEnd then
 				ffi.cast('uint32_t*', blob:getPtr() + (addr - blob.addr))[0] = value
 			end
 		end
