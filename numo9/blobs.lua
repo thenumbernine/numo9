@@ -9,6 +9,7 @@ local tolua = require 'ext.tolua'
 local fromlua = require 'ext.fromlua'
 local vec2i = require 'vec-ffi.vec2i'
 local vec3i = require 'vec-ffi.vec3i'
+local vec3d = require 'vec-ffi.vec3d'
 local box3i = require 'vec-ffi.box3i'
 local vector = require 'ffi.cpp.vector-lua'
 local struct = require 'struct'
@@ -555,12 +556,13 @@ function BlobMesh3D:init(data)
 		end
 	end
 
---[[ TODO here and upon modification ...
+-- [[ here and upon modification ...
+print'loading mesh'
 	-- track which tris are on each side / can be occluded
 	-- track which sides are fully covered in tris / will occlude
 	self.trisPerSide = table()
 	local vtxs = self:getVertexPtr()
-	for i,j,k in self:triIter() do
+	for i,j,k,ti in self:triIter() do
 		local bounds = box3i(
 			vec3i(0x7fffffff, 0x7fffffff, 0x7fffffff),
 			vec3i(-0x80000000, -0x80000000, -0x80000000))
@@ -570,21 +572,42 @@ function BlobMesh3D:init(data)
 		for axis=0,2 do
 			local axis1 = (axis + 1) % 3
 			local axis2 = (axis + 2) % 3
-			self.trisPerSide[axis] = table()
-			for sign=-1,1,2 do
-				self.trisPerSide[axis][sign] = table()
+			for negflag=0,1 do
+				local sign = 1 - 2 * negflag
+				local sideIndex = bit.bor(negflag, bit.lshift(axis, 1)) + 1
+				self.trisPerSide[sideIndex] = table()
 				if bounds.min.s[axis] == sign * 16384
 				and bounds.max.s[axis] == sign * 16384
 				and -16384 <= bounds.min.s[axis1] and bounds.min.s[axis1] <= 16384
 				and -16384 <= bounds.min.s[axis2] and bounds.min.s[axis2] <= 16384
 				then
 					-- TODO then our box is all within one side
-print('tri', i, j, k, 'is on side', axis, sign)
-					self.trisPerSide[axis][sign]:insert{i,j,k}	-- or TODO how about the tri #? so we can know to occlude it?
+print('tri', ti, 'is on side', axis, sign)
+					self.trisPerSide[sideIndex]:insert(ti)
 					-- TODO check that the other two axii are *within* +-16384
 					-- then last do a check for if the whole face is covered, i.e. sum of tri areas is 16384^2
 				end
 			end
+		end
+	end
+	self.sidesOccluded = {}
+	for sideIndex,tris in ipairs(self.trisPerSide) do
+		local totalArea = 0
+		for _,tri in ipairs(tris) do
+			local i,j,k = self:getTriIndexes(tri)
+			local vi, vj, vk = vtxs+i, vtxs+j, vtxs+k
+			-- vec3i or vec3d? scale or no?
+			local a = vec3d(vi.x, vi.y, vi.z) / 32768
+			local b = vec3d(vj.x, vj.y, vj.z) / 32768
+			local c = vec3d(vk.x, vk.y, vk.z) / 32768
+			local len = (b - a):cross(c - b):norm()
+			local area = math.abs(len * .5)
+			totalArea = totalArea + area
+		end
+print('side', sideIndex,' has area', totalArea)
+		local eps = 1e-3
+		if totalArea >= 1 - eps then
+print('side', sideIndex, 'is fully covered')			
 		end
 	end
 --]]
@@ -620,15 +643,24 @@ function BlobMesh3D:triIter()
 		if numIndexes == 0 then
 			local numVtxs = self:getNumVertexes()
 			for i=0,numVtxs-1,3 do
-				coroutine.yield(i, i+1, i+2)
+				coroutine.yield(i, i+1, i+2, i/3)
 			end
 		else
 			local indexes = self:getIndexPtr()
 			for i=0,numIndexes-1,3 do
-				coroutine.yield(indexes[i], indexes[i+1], indexes[i+2])
+				coroutine.yield(indexes[i], indexes[i+1], indexes[i+2], i/3)
 			end
 		end
 	end)
+end
+function BlobMesh3D:getTriIndexes(i)	-- i is 0-based
+	local numIndexes = self:getNumIndexes()
+	if numIndexes == 0 then
+		return 3*i, 3*i+1, 3*i+2
+	else
+		local indexes = self:getIndexPtr()
+		return indexes[3*i], indexes[3*i+1], indexes[3*i+2]
+	end
 end
 function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 	--[[ use mesh library objloader
