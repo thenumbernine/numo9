@@ -793,10 +793,11 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- I think it will help to make the draw message history to be per-connection, and to send draw-specific commands to specific connections... ? maybe?
 	- While sprite sheets and tilemaps and palettes do update over netplay when the server edits them, the new blobs do not yet.  Maybe sound doesn't either.  TODO fix this.
 - voxelmap
-	- Add in xz-align-only billboard orientations.  Add in bottom-anchor billboard orientations.
-	- I don't think live editing works for voxelmaps at the moment.
-	- Cache the mesh and draw the whole thing using `drawMesh3D`, and maybe separate out the billboard components since they will have to be updated every draw.
-		Then rebuild the cache every time a voxel changes.  Maybe partition into 32x32's like Minecraft.
+	- Add in bottom-anchor billboard orientations.
+	- mesh cache, maybe partition into 32x32's like Minecraft.
+- merge RAMs / RAMGPU with Blobs (esp subclass of BlobImage)
+	- then make all blobs use the dirtyCPU flag when poking their address
+	- replace Blob:getSize() with just .size, since size shouldn't be changing.
 
 # Things I'm still debating ...
 - `open()` from console doesn't reset.  You have to `open()` then `run()`.  Wait is this a bug or is this correct behavior?

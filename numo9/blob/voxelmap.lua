@@ -56,7 +56,7 @@ function BlobVoxelMap:init(data)
 	self.billboardXYZVoxels = vector'vec3i_t'	-- type 20
 	self.billboardXYVoxels = vector'vec3i_t'	-- type 21
 	self.triVtxs = vector'Vertex_16_16'	-- x y z u v: int16_t
-	self.meshNeedsRebuild = true
+	self.dirtyCPU = true
 	-- can't do this yet, not until .ramptr is defined
 	--self:rebuildMesh()
 end
@@ -111,8 +111,8 @@ end
 app = used to search list of mesh3d blobs
 --]]
 function BlobVoxelMap:rebuildMesh(app)
-	if not self.meshNeedsRebuild then return end
-	self.meshNeedsRebuild = false
+	if not self.dirtyCPU then return end
+	self.dirtyCPU = false
 
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)

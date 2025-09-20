@@ -2304,6 +2304,15 @@ function App:poke(addr, value)
 			fontRAM.dirtyCPU = true
 		end
 	end
+	-- TODO merge the above with their respective blobs
+	-- and then just cycle all blobs and flag here
+	for _,voxelmap in ipairs(self.blobs.voxelmap) do
+		if addr >= voxelmap.addr
+		and addr < voxelmap.addr + voxelmap:getSize()
+		then
+			voxelmap.dirtyCPU = true
+		end
+	end
 	-- TODO if we poked the code
 end
 function App:pokew(addr, value)
@@ -2350,6 +2359,15 @@ function App:pokew(addr, value)
 			fontRAM.dirtyCPU = true
 		end
 	end
+	-- TODO merge the above with their respective blobs
+	-- and then just cycle all blobs and flag here
+	for _,voxelmap in ipairs(self.blobs.voxelmap) do
+		if addrend >= voxelmap.addr
+		and addr < voxelmap.addr + voxelmap:getSize()
+		then
+			voxelmap.dirtyCPU = true
+		end
+	end	
 	-- TODO if we poked the code
 end
 function App:pokel(addr, value)
@@ -2396,6 +2414,15 @@ function App:pokel(addr, value)
 			fontRAM.dirtyCPU = true
 		end
 	end
+	-- TODO merge the above with their respective blobs
+	-- and then just cycle all blobs and flag here
+	for _,voxelmap in ipairs(self.blobs.voxelmap) do
+		if addrend >= voxelmap.addr
+		and addr < voxelmap.addr + voxelmap:getSize()
+		then
+			voxelmap.dirtyCPU = true
+		end
+	end	
 	-- TODO if we poked the code
 end
 function App:pokef(addr, value)
@@ -2442,9 +2469,17 @@ function App:pokef(addr, value)
 			fontRAM.dirtyCPU = true
 		end
 	end
+	-- TODO merge the above with their respective blobs
+	-- and then just cycle all blobs and flag here
+	for _,voxelmap in ipairs(self.blobs.voxelmap) do
+		if addrend >= voxelmap.addr
+		and addr < voxelmap.addr + voxelmap:getSize()
+		then
+			voxelmap.dirtyCPU = true
+		end
+	end	
 	-- TODO if we poked the code
 end
-
 
 function App:memcpy(dst, src, len)
 	if len <= 0 then return end
@@ -2506,6 +2541,15 @@ function App:memcpy(dst, src, len)
 		and dst < fontRAM.addrEnd
 		then
 			fontRAM.dirtyCPU = true
+		end
+	end
+	-- TODO merge the above with their respective blobs
+	-- and then just cycle all blobs and flag here
+	for _,voxelmap in ipairs(self.blobs.voxelmap) do
+		if dstend >= voxelmap.addr
+		and dst < voxelmap.addr + voxelmap:getSize()
+		then
+			voxelmap.dirtyCPU = true
 		end
 	end
 
@@ -2581,6 +2625,15 @@ function App:memset(dst, val, len)
 		and dst < fontRAM.addrEnd
 		then
 			fontRAM.dirtyCPU = true
+		end
+	end
+	-- TODO merge the above with their respective blobs
+	-- and then just cycle all blobs and flag here
+	for _,voxelmap in ipairs(self.blobs.voxelmap) do
+		if dstend >= voxelmap.addr
+		and dst < voxelmap.addr + voxelmap:getSize()
+		then
+			voxelmap.dirtyCPU = true
 		end
 	end
 end
