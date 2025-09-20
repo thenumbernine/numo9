@@ -1055,14 +1055,14 @@ print('package.loaded', package.loaded)
 	-- TODO app.editMode is the field name, app.activeMenu is the value, merge these two ...
 	self.editMode = 'code'	-- matches up with UI's editMode's
 
-	local EditCode = require 'numo9.editcode'
-	local EditSheet = require 'numo9.editsheet'
-	local EditTilemap = require 'numo9.edittilemap'
-	local EditSFX = require 'numo9.editsfx'
-	local EditMusic = require 'numo9.editmusic'
-	local EditBrushmap = require 'numo9.editbrushmap'
-	local EditMesh3D = require 'numo9.editmesh3d'
-	local EditVoxelmap = require 'numo9.editvoxelmap'
+	local EditCode = require 'numo9.edit.code'
+	local EditSheet = require 'numo9.edit.sheet'
+	local EditTilemap = require 'numo9.edit.tilemap'
+	local EditSFX = require 'numo9.edit.sfx'
+	local EditMusic = require 'numo9.edit.music'
+	local EditBrushmap = require 'numo9.edit.brushmap'
+	local EditMesh3D = require 'numo9.edit.mesh3d'
+	local EditVoxelmap = require 'numo9.edit.voxelmap'
 	local Console = require 'numo9.console'
 	local MainMenu = require 'numo9.mainmenu'
 	local CartBrowser = require 'numo9.cartbrowser'
