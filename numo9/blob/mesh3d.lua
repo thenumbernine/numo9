@@ -57,7 +57,8 @@ print'loading mesh'
 	-- track which tris are on each side / can be occluded
 	-- track which sides are fully covered in tris / will occlude
 	local range = require 'ext.range'
-	self.trisPerSide = range(6):mapi(function() return table() end)
+	local trisPerSide = range(6):mapi(function() return table() end)
+	self.sideForTriIndex = {}
 	local vtxs = self:getVertexPtr()
 	for i,j,k,ti in self:triIter() do
 		local bounds = box3i(
@@ -79,7 +80,8 @@ print'loading mesh'
 				then
 					-- TODO then our box is all within one side
 --DEBUG:print('tri', ti, 'is on side', axis, sign)
-					self.trisPerSide[sideIndex]:insert(ti)
+					trisPerSide[sideIndex]:insert(ti)
+					self.sideForTriIndex[ti] = sideIndex
 					-- TODO check that the other two axii are *within* +-16384
 					-- then last do a check for if the whole face is covered, i.e. sum of tri areas is 16384^2
 				end
@@ -87,10 +89,10 @@ print'loading mesh'
 		end
 	end
 	self.sidesOccluded = {}
-	for sideIndex,tris in ipairs(self.trisPerSide) do
+	for sideIndex,tris in ipairs(trisPerSide) do
 		local totalArea = 0
-		for _,tri in ipairs(tris) do
-			local i,j,k = self:getTriIndexes(tri)
+		for _,triIndex in ipairs(tris) do
+			local i,j,k = self:getTriIndexes(triIndex)
 			local vi, vj, vk = vtxs+i, vtxs+j, vtxs+k
 			-- vec3i or vec3d? scale or no? scaled for now cuz i'm lazy
 			local a = vec3d(vi.x, vi.y, vi.z) / 32768

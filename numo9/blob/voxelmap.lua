@@ -124,7 +124,9 @@ function BlobVoxelMap:rebuildMesh(app)
 	-- but that means it wont be present upon init() ...
 	local matrix_ffi = require 'matrix.ffi'
 	local m = matrix_ffi({4,4}, 'double'):zeros()
-	local vptr = assert(self:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
+	local voxels = assert(self:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
+	local vptr = voxels
+	local occludedCount = 0
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do
@@ -171,29 +173,58 @@ assert.eq(numTriVtxs % 3, 0)
 							local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
 
 							-- resize first then offest back in case we get a resize ...
-							self.triVtxs:resize(#self.triVtxs + numTriVtxs)
-							local dstVtx = self.triVtxs:iend() - numTriVtxs
+							self.triVtxs:reserve(#self.triVtxs + numTriVtxs)
 
-							for ai,bi,ci in mesh:triIter() do
-								local a = srcVtxs + ai
-								local b = srcVtxs + bi
-								local c = srcVtxs + ci
+							for ai,bi,ci,ti in mesh:triIter() do
 
-								dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, a.x, a.y, a.z)
-								dstVtx.u, dstVtx.v = a.u + uofs, a.v + vofs
-								dstVtx = dstVtx + 1
+								-- see if this face is aligned to an AABB
+								-- see if its neighbors face is occluding on that AABB
+								-- if both are true then skip
+								local occluded
+								local side = mesh.sideForTriIndex[ti]
+								if side then
+									-- offet into 'side'
+									local sign = 1 - 2 * bit.band(1, (side-1))
+									local axis = bit.rshift(side - 1, 1)
+									local nbhd = vec3i(i,j,k)
+									nbhd.s[axis] = nbhd.s[axis] + sign
+									if nbhd.x >= 0 and nbhd.x < width
+									and nbhd.y >= 0 and nbhd.y < height
+									and nbhd.z >= 0 and nbhd.z < depth
+									then
+										-- if it occludes the opposite side then skip this tri
+										local nbhdVox = voxels[nbhd.x + width * (nbhd.y + height * nbhd.z)]
+										local nbhdmesh = app.blobs.mesh3d[nbhdVox.mesh3DIndex+1]
+										if nbhdmesh then
+											local oppSide = bit.bxor(1, (side-1)) + 1
+											occluded = nbhdmesh.sidesOccluded[oppSide]
+										end
+									end
+								end
 
-								dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, b.x, b.y, b.z)
-								dstVtx.u, dstVtx.v = b.u + uofs, b.v + vofs
-								dstVtx = dstVtx + 1
+								if occluded then
+									occludedCount = occludedCount + 1
+								else
+									local a = srcVtxs + ai
+									local b = srcVtxs + bi
+									local c = srcVtxs + ci
 
-								dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, c.x, c.y, c.z)
-								dstVtx.u, dstVtx.v = c.u + uofs, c.v + vofs
-								dstVtx = dstVtx + 1
+									local dstVtx = self.triVtxs:emplace_back()
+									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, a.x, a.y, a.z)
+									dstVtx.u, dstVtx.v = a.u + uofs, a.v + vofs
+									dstVtx = dstVtx + 1
+
+									local dstVtx = self.triVtxs:emplace_back()
+									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, b.x, b.y, b.z)
+									dstVtx.u, dstVtx.v = b.u + uofs, b.v + vofs
+									dstVtx = dstVtx + 1
+
+									local dstVtx = self.triVtxs:emplace_back()
+									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, c.x, c.y, c.z)
+									dstVtx.u, dstVtx.v = c.u + uofs, c.v + vofs
+									dstVtx = dstVtx + 1
+								end
 							end
-
--- how to pointer-compare without using its contents-compare ...
---DEBUG:assert.eq(ffi.cast('uint8_t*', dstVtx), ffi.cast('uint8_t*', self.triVtxs:iend()))
 						end
 					end
 				end
@@ -201,6 +232,9 @@ assert.eq(numTriVtxs % 3, 0)
 			end
 		end
 	end
+
+	print('created', #self.triVtxs/3, 'tris')
+	print('occluded', occludedCount, 'tris')
 end
 
 return BlobVoxelMap
