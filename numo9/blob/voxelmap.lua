@@ -56,6 +56,7 @@ function BlobVoxelMap:init(data)
 	self.billboardXYZVoxels = vector'vec3i_t'	-- type 20
 	self.billboardXYVoxels = vector'vec3i_t'	-- type 21
 	self.triVtxs = vector'Vertex_16_16'	-- x y z u v: int16_t
+	self.meshNeedsRebuild = true
 	-- can't do this yet, not until .ramptr is defined
 	--self:rebuildMesh()
 end
@@ -110,6 +111,9 @@ end
 app = used to search list of mesh3d blobs
 --]]
 function BlobVoxelMap:rebuildMesh(app)
+	if not self.meshNeedsRebuild then return end
+	self.meshNeedsRebuild = false
+
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 	self.triVtxs:resize(0)
@@ -124,34 +128,35 @@ function BlobVoxelMap:rebuildMesh(app)
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do
-				if vptr[0].intval ~= voxelMapEmptyValue then
+				local vox = vptr[0]
+				if vox.intval ~= voxelMapEmptyValue then
 					m:setTranslate(i+.5, j+.5, k+.5)
 					m:applyScale(1/32768, 1/32768, 1/32768)
 
-					if vptr[0].orientation == 20 then
+					if vox.orientation == 20 then
 						self.billboardXYZVoxels:emplace_back()[0]:set(i,j,k)
-					elseif vptr[0].orientation == 21 then
+					elseif vox.orientation == 21 then
 						self.billboardXYVoxels:emplace_back()[0]:set(i,j,k)
-					elseif vptr[0].orientation == 22 then
+					elseif vox.orientation == 22 then
 						-- TODO
-					elseif vptr[0].orientation == 23 then
+					elseif vox.orientation == 23 then
 						-- TODO
 					else
 						local c, s
 
 						c, s = 1, 0
-						for i=0,vptr[0].rotZ-1 do c, s = -s, c end
+						for i=0,vox.rotZ-1 do c, s = -s, c end
 						m:applyRotateCosSinUnit(c, s, 0, 0, 1)
 
 						c, s = 1, 0
-						for i=0,vptr[0].rotY-1 do c, s = -s, c end
+						for i=0,vox.rotY-1 do c, s = -s, c end
 						m:applyRotateCosSinUnit(c, s, 0, 1, 0)
 
 						c, s = 1, 0
-						for i=0,vptr[0].rotX-1 do c, s = -s, c end
+						for i=0,vox.rotX-1 do c, s = -s, c end
 						m:applyRotateCosSinUnit(c, s, 1, 0, 0)
 
-						local mesh3DIndex = vptr[0].mesh3DIndex
+						local mesh3DIndex = vox.mesh3DIndex
 						local uofs = bit.lshift(vox.tileXOffset, 3)
 						local vofs = bit.lshift(vox.tileYOffset, 3)
 
@@ -159,32 +164,36 @@ function BlobVoxelMap:rebuildMesh(app)
 						if mesh then
 
 							-- emplace_back() and resize() one by one is slow...
-							local numVtxs = self:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
+							local numVtxs = mesh:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
 							local numIndexes = mesh:getNumIndexes()
-							local vtx = self.triVtxs:iend()
 							local numTriVtxs = numIndexes == 0 and numVtxs or numIndexes
 assert.eq(numTriVtxs % 3, 0)
+							local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
+
+							-- resize first then offest back in case we get a resize ...
 							self.triVtxs:resize(#self.triVtxs + numTriVtxs)
+							local dstVtx = self.triVtxs:iend() - numTriVtxs
 
-							for i,j,k in mesh:triIter() do
-								local vi = vtxs + i
-								local vj = vtxs + j
-								local vk = vtxs + k
+							for ai,bi,ci in mesh:triIter() do
+								local a = srcVtxs + ai
+								local b = srcVtxs + bi
+								local c = srcVtxs + ci
 
-								vtx.x, vtx.y, vtx.z = vec3to3(m.ptr, a.x, a.y, a.z)
-								vtx.u, vtx.v = a.u + uofs, a.v + vofs
-								vtx = vtx + 1
+								dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, a.x, a.y, a.z)
+								dstVtx.u, dstVtx.v = a.u + uofs, a.v + vofs
+								dstVtx = dstVtx + 1
 
-								vtx.x, vtx.y, vtx.z = vec3to3(b.x, b.y, b.z)
-								vtx.u, vtx.v = b.u + uofs, b.v + vofs
-								vtx = vtx + 1
+								dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, b.x, b.y, b.z)
+								dstVtx.u, dstVtx.v = b.u + uofs, b.v + vofs
+								dstVtx = dstVtx + 1
 
-								vtx.x, vtx.y, vtx.z = vec3to3(c.x, c.y, c.z)
-								vtx.u, vtx.v = c.u + uofs, c.v + vofs
-								vtx = vtx + 1
+								dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, c.x, c.y, c.z)
+								dstVtx.u, dstVtx.v = c.u + uofs, c.v + vofs
+								dstVtx = dstVtx + 1
 							end
 
-							assert.eq(vtx, self.triVtxs:iend())
+-- how to pointer-compare without using its contents-compare ...
+--DEBUG:assert.eq(ffi.cast('uint8_t*', dstVtx), ffi.cast('uint8_t*', self.triVtxs:iend()))
 						end
 					end
 				end

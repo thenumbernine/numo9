@@ -3841,6 +3841,42 @@ function AppVideo:drawVoxelMap(
 		return
 	end
 
+-- [====[ using the voxelmap mesh
+	-- TODO invalidate upon dirty flag set
+	voxelmap:rebuildMesh(self)
+
+	local vtxs = voxelmap.triVtxs
+	for i=0,#vtxs-1,3 do
+		local a = vtxs.v + i
+		local b = vtxs.v + i+1
+		local c = vtxs.v + i+2
+		self:drawTexTri3D(
+			a.x, a.y, a.z, a.u, a.v,
+			b.x, b.y, b.z, b.u, b.v,
+			c.x, c.y, c.z, c.u, c.v,
+			...
+		)
+	end
+
+	-- for now just pass the billboard voxels on to drawVoxel
+	-- TODO optimize maybe? idk?
+	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	local vptr = voxelmap:getVoxelDataRAMPtr()
+	local width, height, depth = voxelmap:getWidth(), voxelmap:getHeight(), voxelmap:getDepth()
+	for j=0,#voxelmap.billboardXYZVoxels-1 do
+		local i = voxelmap.billboardXYZVoxels.v[j]
+		self:mattrans(i.x, i.y, i.z)
+		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, ...)
+		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+	end
+	for j=0,#voxelmap.billboardXYVoxels-1 do
+		local i = voxelmap.billboardXYVoxels.v[j]
+		self:mattrans(i.x, i.y, i.z)
+		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, ...)
+		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+	end
+--]====]
+--[====[ drawing individual meshes
 	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
 	local width, height, depth = voxelmap:getWidth(), voxelmap:getHeight(), voxelmap:getDepth()
@@ -3862,6 +3898,7 @@ function AppVideo:drawVoxelMap(
 	end
 --	self:mattrans(0, 0, -depth)
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+--]====]
 end
 
 return {
