@@ -1667,14 +1667,6 @@ function App:update()
 
 			if self.server then
 			--[[
-docs say:
-	master:getstats()
-	client:getstats()
-	server:getstats()
-but error says:
-	self.server.socket	tcp{server}: 0x119b958e8
-	./numo9/app.lua:923: calling 'getstats' on bad self (tcp{client} expected)
-... does this mean :getstats() does not work on tcp server sockets?
 			if self.server.socket then
 print('self.server.socket', self.server.socket)
 				io.write('server sock '..tolua(self.server.socket:getstats())..' ')

@@ -35,6 +35,7 @@ local mvMatScale = numo9_rom.mvMatScale
 local mvMatType = numo9_rom.mvMatType
 local menuFontWidth = numo9_rom.menuFontWidth
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
+local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue 
 
 local mvMatInvScale = 1 / mvMatScale
 
@@ -3865,7 +3866,9 @@ function AppVideo:drawVoxelMap(
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do
-				self:drawVoxel(vptr[0].intval, ...)
+				if vptr[0].intval ~= voxelMapEmptyValue then
+					self:drawVoxel(vptr[0].intval, ...)
+				end
 				self:mattrans(1, 0, 0)
 				vptr = vptr + 1
 			end
