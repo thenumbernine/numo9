@@ -271,9 +271,8 @@ assert.eq(numTriVtxs % 3, 0)
 			end
 		end
 	end
-
-	print('created', #self.triVtxs/3, 'tris')
-	print('occluded', occludedCount, 'tris')
+--DEBUG:print('created', #self.triVtxs/3, 'tris')
+--DEBUG:print('occluded', occludedCount, 'tris')
 end
 
 return BlobVoxelMap

@@ -30,6 +30,8 @@ function EditVoxelMap:onCartLoad()
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
 
+	self.drawMode = 'draw'
+	self.rectDown = nil
 	self.wireframe = false
 
 	self.voxCurSel = ffi.new'Voxel'
@@ -212,9 +214,9 @@ function EditVoxelMap:update()
 				-- or how about mousedown as well?
 				-- but only when the voxel changes?
 				-- tough to make it not just keep stacking towards the view ...
-				if app:keyp'mouse_left' then
-					local shift = app:key'lshift' or app:key'rshift'
-					if shift then
+				local shift = app:key'lshift' or app:key'rshift'
+				if shift then
+					if app:key'mouse_left' then
 						if mapboxIE:contains(npti) then
 							local vaddr = voxelmap:getVoxelAddr(npti:unpack())
 							local voxval = app:peekl(vaddr)
@@ -222,11 +224,37 @@ function EditVoxelMap:update()
 								self.voxCurSel.intval = voxval
 							end
 						end
-					else
-						self:edit_pokel(
-							voxelmap:getVoxelAddr(pti:unpack()),
-							self.voxCurSel.intval)
 					end
+				else
+					if self.drawMode == 'draw' then
+						if app:keyp'mouse_left' then
+							self:edit_pokel(
+								voxelmap:getVoxelAddr(pti:unpack()),
+								self.voxCurSel.intval)
+						end
+					elseif self.drawMode == 'rect' then
+						if app:keyp'mouse_left' then
+							self.rectDown = pti:clone()
+						elseif app:keyr'mouse_left' then
+							if self.rectDown then
+								for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
+									for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
+										for i=math.min(self.rectDown.x,pti.x),math.max(self.rectDown.x,pti.x) do
+											local addr = voxelmap:getVoxelAddr(i,j,k)
+											if addr then	 -- TODO clamp bounds
+												self:edit_pokel(addr, self.voxCurSel.intval)
+											end
+										end
+									end
+								end
+							end
+							self.rectDown = nil
+						end
+					end
+				end
+
+				if self.rectDown then
+					self:drawBox(box3d(self.rectDown, pti+1), 0x1b)
 				end
 
 				if app:keyp'mouse_right'
@@ -260,34 +288,40 @@ function EditVoxelMap:update()
 	-- TODO should this go here or in the caller:
 	app:matident()
 
-	local x, y = 50, 0
+	local x, y = 48, 0
 	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex')
-	x = x + 12
+	x = x + 11
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
-	x = x + 12
+	x = x + 11
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
-	x = x + 12
+	x = x + 11
 
 	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
 		self.wireframe = not self.wireframe
 	end
-	x = x + 8
+	x = x + 6
 	if self:guiButton(self.orbit.ortho and 'O' or 'P', x, y, false, self.orbit.ortho and 'orbit.ortho' or 'projection') then
 		self.orbit.ortho = not self.orbit.ortho
 	end
-	x = x + 8
+	x = x + 6
 
 	self:guiSpinner(x, y, function(dx)
 		self.voxCurSel.mesh3DIndex = math.max(0, self.voxCurSel.mesh3DIndex + dx)
 	end, 'mesh='..self.voxCurSel.mesh3DIndex)
-	x = x + 12
+	x = x + 11
 
 	self.tileSel:button(x,y)
-	x = x + 8
+	x = x + 6
 
 	self:guiSpinner(x, y, function(dx)
 		self.voxCurSel.orientation = bit.band(31, self.voxCurSel.orientation + dx)
 	end, 'orient='..self.voxCurSel.orientation)
+	x = x + 12
+
+	-- tools ... maybe I should put these somewhere else
+	self:guiRadio(x, y, {'draw', 'rect'}, self.drawMode, function(result)
+		self.drawMode = result
+	end)
 	x = x + 12
 
 	if voxelmap then
@@ -298,7 +332,7 @@ function EditVoxelMap:update()
 				mapsize.z
 			)
 		end, 'width='..mapsize.x)
-		x = x + 12
+		x = x + 11
 
 		self:guiSpinner(x, y, function(dx)
 			self:resizeVoxelmap(
@@ -307,7 +341,7 @@ function EditVoxelMap:update()
 				mapsize.z
 			)
 		end, 'height='..mapsize.y)
-		x = x + 12
+		x = x + 11
 
 		self:guiSpinner(x, y, function(dx)
 			self:resizeVoxelmap(
@@ -316,10 +350,10 @@ function EditVoxelMap:update()
 				math.max(1, mapsize.z + dx)
 			)
 		end, 'depth='..mapsize.z)
-		x = x + 12
+		x = x + 11
 
 		self:guiTextField(
-			188, 0, 20,
+			189, 0, 20,
 			('%08X'):format(self.voxCurSel.intval), nil,
 			function(result)
 				result = tonumber(result, 16)

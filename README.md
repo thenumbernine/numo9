@@ -798,6 +798,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - merge RAMs / RAMGPU with Blobs (esp subclass of BlobImage)
 	- then make all blobs use the dirtyCPU flag when poking their address
 	- replace Blob:getSize() with just .size, since size shouldn't be changing.
+- some weird bug when pasting into sheet a pic with transparency ...
 
 # Things I'm still debating ...
 - `open()` from console doesn't reset.  You have to `open()` then `run()`.  Wait is this a bug or is this correct behavior?
