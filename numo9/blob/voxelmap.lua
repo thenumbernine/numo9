@@ -26,22 +26,22 @@ local function rotateSideByOrientation(sideIndex, rotZ, rotY, rotX)
 	local sign = bit.band(1, sideIndex) == 1 and -1 or 1
 	local axis = bit.rshift(sideIndex, 1)
 	-- rot z is x->y, y->-x
-	for i=0,rotZ-1 do
-		if axis ~= 2 then
+	if axis ~= 2 then
+		for i=0,rotZ-1 do
 			axis = 1 - axis	-- 0,1
 			if axis == 0 then sign = -sign end
 		end
 	end
 	-- rot y is z->x, x->-z
-	for i=0,rotY-1 do
-		if axis ~= 1 then
+	if axis ~= 1 then
+		for i=0,rotY-1 do
 			axis = 2 - axis	-- 0,2
 			if axis == 2 then sign = -sign end
 		end
 	end
 	-- rot x is y->z, z->-y
-	for i=0,rotX-1 do
-		if axis ~= 0 then
+	if axis ~= 0 then
+		for i=0,rotX-1 do
 			axis = 3 - axis	-- 1,2
 			if axis == 1 then sign = -sign end
 		end
