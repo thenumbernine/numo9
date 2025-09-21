@@ -52,8 +52,7 @@ function BlobMesh3D:init(data)
 		end
 	end
 
--- [[ here and upon modification ...
-print'loading mesh'
+	-- [[ here and upon modification ...
 	-- track which tris are on each side / can be occluded
 	-- track which sides are fully covered in tris / will occlude
 	local range = require 'ext.range'
@@ -114,7 +113,7 @@ print'loading mesh'
 			self.sidesOccluded[sideIndex] = true
 		end
 	end
---]]
+	--]]
 end
 
 function BlobMesh3D:getNumVertexes()
@@ -244,6 +243,8 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 				for i=1,3 do
 					is:insert((assert(tonumber(words[i]))))
 				end
+			elseif lineType == 'usemtl' then
+			elseif lineType == 'mtllib' then
 			else
 				print('ignoring lineType', lineType)
 			end
