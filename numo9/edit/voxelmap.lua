@@ -329,7 +329,7 @@ function EditVoxelMap:update()
 			end
 		)
 
-		local moveSpeed = .03
+		local moveSpeed = .3
 		if app:key'w' then
 			self.orbit.pos = self.orbit.pos - self.orbit.angle:zAxis() * moveSpeed
 			self.orbit.orbit = self.orbit.orbit - self.orbit.angle:zAxis() * moveSpeed

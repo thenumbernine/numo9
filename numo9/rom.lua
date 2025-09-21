@@ -474,18 +474,18 @@ local Vertex = struct{
 assert.eq(ffi.sizeof'Vertex', 8)
 local meshIndexType = 'uint16_t'
 
--- used by the voxelmap, since sometimes uv get offset past the 256 limit by the voxelmap's uofs vofs and I want them to interpolate correctly
-local Vertex_16_16 = struct{
-	name = 'Vertex_16_16',
+-- used by the voxelmap, cached mesh that is sent to drawTris later
+local VertexFloat = struct{
+	name = 'VertexFloat',
 	fields = {
-		{name='x', type='int16_t'},
-		{name='y', type='int16_t'},
-		{name='z', type='int16_t'},
-		{name='u', type='int16_t'},
-		{name='v', type='int16_t'},
+		{name='x', type='float'},
+		{name='y', type='float'},
+		{name='z', type='float'},
+		{name='u', type='float'},
+		{name='v', type='float'},
 	},
 }
-assert.eq(ffi.sizeof'Vertex_16_16', 10)
+assert.eq(ffi.sizeof'VertexFloat', 20)
 
 ffi.cdef[[
 typedef union {

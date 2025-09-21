@@ -57,7 +57,7 @@ print'loading mesh'
 	-- track which tris are on each side / can be occluded
 	-- track which sides are fully covered in tris / will occlude
 	local range = require 'ext.range'
-	local trisPerSide = range(6):mapi(function() return table() end)
+	local trisPerSide = range(6):mapi(function(i) return table(), i-1 end)
 	self.sideForTriIndex = {}
 	local vtxs = self:getVertexPtr()
 	for i,j,k,ti in self:triIter() do
@@ -72,7 +72,10 @@ print'loading mesh'
 			local axis2 = (axis + 2) % 3
 			for negflag=0,1 do
 				local sign = 1 - 2 * negflag
-				local sideIndex = bit.bor(negflag, bit.lshift(axis, 1)) + 1
+				-- sideIndex is 0-5
+				-- bit 0 = negative direction bit
+				-- bits 1:2 = 0-2 for xyz, which direction the side is facing
+				local sideIndex = bit.bor(negflag, bit.lshift(axis, 1))
 				if bounds.min.s[axis] == sign * 16384
 				and bounds.max.s[axis] == sign * 16384
 				and -16384 <= bounds.min.s[axis1] and bounds.min.s[axis1] <= 16384
@@ -89,7 +92,8 @@ print'loading mesh'
 		end
 	end
 	self.sidesOccluded = {}
-	for sideIndex,tris in ipairs(trisPerSide) do
+	for sideIndex=0,5 do
+		local tris = trisPerSide[sideIndex]
 		local totalArea = 0
 		for _,triIndex in ipairs(tris) do
 			local i,j,k = self:getTriIndexes(triIndex)
@@ -209,7 +213,7 @@ end
 
 -- static method
 function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
-	--[[
+	--[[ bloated
 	local mesh = OBJLoader():load(filepath)
 	--]]
 	-- [[
