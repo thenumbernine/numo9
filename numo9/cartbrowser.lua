@@ -112,15 +112,12 @@ function CartBrowser:update()
 			local selectedFilePath = selectedFile:path()
 			self.thumbTex = self.labelTexCache[selectedFilePath]
 			if not self.thumbTex then
-				--local internalFormat = gl.GL_RGBA8I
-				local internalFormat = gl.GL_RGBA8UI
-				--local internalFormat = gl.GL_RGBA8
-				--local internalFormat = gl.GL_RGBA
 				local tex = GLTex2D{
 					image = romImage,
-					internalFormat = internalFormat,
-					format = GLTex2D.formatInfoForInternalFormat[internalFormat].format,
-					type = GLTex2D.formatInfoForInternalFormat[internalFormat].types[1],
+					--internalFormat = gl.GL_RGBA8I,
+					internalFormat = gl.GL_RGBA8UI,
+					--internalFormat = gl.GL_RGBA8,
+					--internalFormat = gl.GL_RGBA,
 					wrap = {
 						s = gl.GL_CLAMP_TO_EDGE,
 						t = gl.GL_CLAMP_TO_EDGE,
