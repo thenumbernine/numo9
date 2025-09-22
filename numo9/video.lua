@@ -773,7 +773,9 @@ function AppVideo:initVideo()
 				width = req.width,
 				height = req.height,
 				useDepth = true, --gl.GL_DEPTH_COMPONENT32,
-			}:unbind()
+			}
+			:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
+			:unbind()
 			self.fbos[sizeKey] = fb
 		end
 		req.fb = fb
@@ -785,7 +787,18 @@ function AppVideo:initVideo()
 				width = width,
 				height = height,
 				-- rgb = normal xyz, a = depth ... honestly I could just use the depth-buffer ... maybe I should ...
-				internalFormat = gl.GL_RGBA,
+				--internalFormat = gl.GL_RGBA,
+				internalFormat = gl.GL_RGBA32F,
+				-- should be automatic:
+				format = gl.GL_RGBA,
+				type = gl.GL_FLOAT,
+
+				minFilter = gl.GL_NEAREST,
+				magFilter = gl.GL_NEAREST,
+				wrap = {
+					s = gl.GL_CLAMP_TO_EDGE,
+					t = gl.GL_CLAMP_TO_EDGE,
+				},
 			}:unbind()
 			self.framebufferNormalTexs[sizeKey] = normalTex
 
@@ -924,6 +937,21 @@ function AppVideo:initVideo()
 ]]
 	end
 
+	-- this string can include template code that uses only vars that appear in all of makeVideoMode* template vars
+	local useLightingCode = [[
+		// TODO lighting variables:
+		const vec3 lightDir = vec3(0.96225044864938, 0.19245008972988, 0.19245008972988);
+		const float ambient = .3;
+
+		vec4 normalAndDepth = texture(framebufferNormalTex, tcv);
+		vec3 normal = normalAndDepth.xyz * 2. - 1.;
+		//float depth = normalAndDepth.w;
+		float lum = max(ambient, abs(dot(normal, lightDir)));
+		fragColor.xyz *= lum;
+// debugging: show normalmap:
+//fragColor.xyz = normalAndDepth.xyz * .5 + .5;
+]]
+
 	-- blit screen is always to vec4 ... right?
 	local blitFragType = 'vec4'
 	local blitFragTypeVec3 = 'vec3'
@@ -988,6 +1016,9 @@ precision highp usampler2D;	// needed by #version 300 es
 in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
+
+uniform bool useLighting;
+
 uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
@@ -1015,6 +1046,10 @@ void main() {
 	fragColor.g = float((rgba5551 >> 5) & 0x1fu) / 31.;
 	fragColor.r = float(rgba5551 & 0x1fu) / 31.;
 #endif
+
+	if (useLighting) {
+		]]..useLightingCode..[[
+	}
 }
 ]],				{
 					framebufferRAM = framebufferRAM,
@@ -1088,6 +1123,8 @@ in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
 
+uniform bool useLighting;
+
 uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
@@ -1104,6 +1141,10 @@ void main() {
 	}..[[.r;
 ]]..colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor')..[[
 	fragColor = vec4(ufragColor) / 31.;
+
+	if (useLighting) {
+		]]..useLightingCode..[[
+	}
 }
 ]],				{
 					framebufferRAM = framebufferRAM,
@@ -1197,6 +1238,8 @@ in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
 
+uniform bool useLighting;
+
 uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
@@ -1212,6 +1255,10 @@ void main() {
 	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
 	fragColor.a = 1.;
+
+	if (useLighting) {
+		]]..useLightingCode..[[
+	}
 }
 ]],				{
 					framebufferRAM = framebufferRAM,
@@ -1382,6 +1429,8 @@ flat out vec4 drawOverrideSolid;
 flat out vec4 box;
 flat out vec4 scissor;
 
+out vec3 vertexv;
+
 uniform vec2 frameBufferSize;
 
 void main() {
@@ -1397,6 +1446,8 @@ void main() {
 	gl_Position.xy *= 2.;
 	gl_Position.xy /= frameBufferSize;
 	gl_Position.xy -= 1.;
+
+	vertexv = gl_Position.xyz;
 }
 ]]),
 				fragmentCode = template([[
@@ -1409,6 +1460,8 @@ flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 drawOverrideSolid;
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 flat in vec4 scissor;	// x, y, w, h
+
+in vec3 vertexv;
 
 layout(location=0) out <?=fragType?> fragColor;
 layout(location=1) out vec4 fragNormal;
@@ -1423,12 +1476,14 @@ float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
 
 void main() {
+	bool plzDiscard = false;
+
 	if (gl_FragCoord.x < scissor.x ||
 		gl_FragCoord.y < scissor.y ||
 		gl_FragCoord.x >= scissor.x + scissor.z + 1. ||
 		gl_FragCoord.y >= scissor.y + scissor.w + 1.
 	) {
-		discard;
+		plzDiscard = true;
 	}
 
 	uvec2 uFragCoord = uvec2(gl_FragCoord);
@@ -1437,7 +1492,7 @@ void main() {
 		| ((uFragCoord.y & 1u) << 2)
 		| (((uFragCoord.x ^ uFragCoord.y) & 1u) << 3);
 	uint dither = extra.y;
-	if ((dither & (1u << threshold)) != 0u) discard;
+	if ((dither & (1u << threshold)) != 0u) plzDiscard = true;
 
 	uint pathway = extra.x & 3u;
 
@@ -1465,15 +1520,15 @@ void main() {
 				// get rid of center lines along 45 degrees...
 				// TODO ... but adding borders at the 45 degrees...
 				//float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
-				//if (dot(frac, frac) < 1. - eps) discard;
-				if (dot(frac, frac) < 1.) discard;
+				//if (dot(frac, frac) < 1. - eps) plzDiscard = true;
+				if (dot(frac, frac) < 1.) plzDiscard = true;
 			}
 #endif
 
 			if (abs(delta.y) > abs(delta.x)) {
 				// top/bottom quadrant
 				float by = radius.y * sqrt(1. - frac.x * frac.x);
-				if (delta.y > by || delta.y < -by) discard;
+				if (delta.y > by || delta.y < -by) plzDiscard = true;
 				if (borderOnly) {
 					// TODO think this through
 					// calculate screen space epsilon at this point
@@ -1484,12 +1539,12 @@ void main() {
 					float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
 					//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
 					//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
-					if (delta.y < by-eps && delta.y > -by+eps) discard;
+					if (delta.y < by-eps && delta.y > -by+eps) plzDiscard = true;
 				}
 			} else {
 				// left/right quadrant
 				float bx = radius.x * sqrt(1. - frac.y * frac.y);
-				if (delta.x > bx || delta.x < -bx) discard;
+				if (delta.x > bx || delta.x < -bx) plzDiscard = true;
 				if (borderOnly) {
 					// calculate screen space epsilon at this point
 					//float eps = abs(dFdx(tcv.x));
@@ -1499,7 +1554,7 @@ void main() {
 					float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
 					//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
 					//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
-					if (delta.x < bx-eps && delta.x > -bx+eps) discard;
+					if (delta.x < bx-eps && delta.x > -bx+eps) plzDiscard = true;
 				}
 			}
 		} else {
@@ -1514,7 +1569,7 @@ void main() {
 					&& tcv.x < box.x+box.z-eps
 					&& tcv.y > box.y+eps
 					&& tcv.y < box.y+box.w-eps
-				) discard;
+				) plzDiscard = true;
 			}
 			// else default solid rect
 		}
@@ -1546,16 +1601,16 @@ void main() {
 
 		colorIndex >>= spriteBit;
 		colorIndex &= spriteMask;
-		if (colorIndex == transparentIndex) discard;
+		if (colorIndex == transparentIndex) plzDiscard = true;
 		colorIndex += paletteIndex;
 		colorIndex &= 0xFFu;
 
 <?=info.colorOutput?>
 
 <? if fragType == 'uvec4' then ?>
-		if (fragColor.a == 0u) discard;
+		if (fragColor.a == 0u) plzDiscard = true;
 <? else ?>
-		if (fragColor.a < .5) discard;
+		if (fragColor.a < .5) plzDiscard = true;
 <? end ?>
 
 	} else if (pathway == 2u) {
@@ -1634,9 +1689,9 @@ void main() {
 		<?=info.colorOutput?>
 
 <? if fragType == 'uvec4' then ?>
-		if (fragColor.a == 0u) discard;
+		if (fragColor.a == 0u) plzDiscard = true;
 <? else ?>
-		if (fragColor.a < .5) discard;
+		if (fragColor.a < .5) plzDiscard = true;
 <? end ?>
 
 	// I had an extra pathway and I didn't know what to use it for
@@ -1663,15 +1718,55 @@ void main() {
 
 	}	// pathway
 
-	fragNormal = vec4(
-		// TODO this is where separating projection from modelview matrcies is useful ...
-		// ... I could just pass in a single flat attr instead of recalculating it every fragment ...
-		// ... I still can ... will the slowdown from added attributes be worth the speedup from fragment calcs?
-		normalize(cross(dFdx(gl_FragCoord.xyz), dFdy(gl_FragCoord.xyz))) * .5 + .5,
-		// TODO just use the depth buffer as a texture instead of re-copying it here?
-		//  if I did I'd get more bits of precision ...
-		//  but this is easier/lazier.
-		gl_FragDepth);
+	// TODO lighting variables:
+	const float spriteNormalExhaggeration = .03125;
+	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
+
+
+#if 0	// normal from flat sided objs
+	fragNormal.xyz = cross(dFdx(vertexv.xyz), dFdy(vertexv.xyz));
+#else	// normal from sprites
+
+	// https://en.wikipedia.org/wiki/Grayscale#Luma_coding_in_video_systems
+	const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
+	//const vec3 greyscale = vec3(.299, .587, .114);	// Y'UV
+	//const vec3 greyscale = vec3(.2627, .678, .0593);	// HDR TV
+
+	// calculate this before any discards ... or can we?
+	// TODO better ... calculate this from magfilter=linear lookup for the texture (and do color magfilter=nearest) ... or can we?)
+	float fragLum = dot(fragColor.xyz, greyscale);
+
+	mat3 spriteBasis;
+	spriteBasis[0] = normalize(vec3(1., 0., spriteNormalExhaggeration * dFdx(fragLum)));
+	spriteBasis[1] = normalize(vec3(0., 1., spriteNormalExhaggeration * dFdx(fragLum)));
+	spriteBasis[2] = normalize(cross(spriteBasis[0], spriteBasis[1]));
+	spriteBasis[0] = normalize(cross(spriteBasis[1], spriteBasis[2]));
+
+	mat3 modelBasis;
+	modelBasis[0] = normalize(dFdx(vertexv.xyz));	// d(vertex)/dFragCoord.x
+	modelBasis[1] = normalize(dFdy(vertexv.xyz));	// d(vertex)/dFragCoord.y
+	modelBasis[2] = normalize(cross(modelBasis[0], modelBasis[1]));	// or should I use normalScreenExhaggeration here?
+	modelBasis[0] = normalize(cross(modelBasis[1], modelBasis[2]));
+
+//modelBasis = modelBasis * transpose(spriteBasis);
+//modelBasis = modelBasis * spriteBasis;
+modelBasis = transpose(spriteBasis) * modelBasis;
+//modelBasis = spriteBasis * modelBasis;
+
+fragNormal.xyz = modelBasis[2];
+
+#endif
+
+	fragNormal.z *= normalScreenExhaggeration;
+	fragNormal.xyz = normalize(fragNormal.xyz);
+
+	// TODO just use the depth buffer as a texture instead of re-copying it here?
+	//  if I did I'd get more bits of precision ...
+	//  but this is easier/lazier.
+	fragNormal.w = vertexv.z;
+
+	// only discard last, so my dFdx/dFdy's get proper values (right? or does it matter?)
+	if (plzDiscard) discard;
 }
 ]],				{
 					self = self,
@@ -2099,6 +2194,9 @@ function AppVideo:resetVideo()
 	if self.paletteRAMs[1] then self.paletteRAMs[1]:updateAddr(paletteAddr) end
 	if self.fontRAMs[1] then self.fontRAMs[1]:updateAddr(fontAddr) end
 
+	-- on by default? or off?
+	self.ram.useHardwareLighting = 1
+
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
 	--self.ram.videoMode = 1	-- 8bpp indexed
@@ -2249,6 +2347,10 @@ function AppVideo:setFramebufferTex(tex)
 		fb:bind()
 	end
 	fb:setColorAttachmentTex2D(tex.id, 0, tex.target)
+
+local normalTex = assert.index(self, 'framebufferNormalTex')
+fb:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
+
 	local res,err = fb.check()
 	if not res then
 		print(err)
@@ -2477,6 +2579,7 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
+-- this function is only used with drawing lines at the moment...
 local function homogeneous(sx, sy, x,y,z,w)
 	x = x / sx * 2 - 1
 	y = y / sy * 2 - 1
@@ -2485,7 +2588,7 @@ local function homogeneous(sx, sy, x,y,z,w)
 		x = x / w
 		y = y / w
 		z = z / w
-		w = w / w
+		w = 1	-- w = w / w
 	end
 
 	x = (x + 1) * .5 * sx
@@ -2520,8 +2623,8 @@ function AppVideo:drawSolidLine3D(
 	local fbw = self.framebufferRAM.tex.width
 	local fbh = self.framebufferRAM.tex.height
 
-	local v1x, v1y, v1z, v1w = homogeneous(fbw,fbh, vec3to4(self.ram.mvMat, x1, y1, z1))
-	local v2x, v2y, v2z, v2w = homogeneous(fbw,fbh, vec3to4(self.ram.mvMat, x2, y2, z2))
+	local v1x, v1y, v1z, v1w = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x1, y1, z1))
+	local v2x, v2y, v2z, v2w = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x2, y2, z2))
 
 	local dx = v2x - v1x
 	local dy = v2y - v1y

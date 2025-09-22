@@ -300,11 +300,14 @@ There are a few matrix functions that you can use to manipulate the render state
 SNES used 8.8, so I am being generous.
 I've tested with as close as 9.7 without getting too big of rounding errors, so maybe I could restrict this later, but meh.
 
+### screen-space lighting
+
+Set `useHardwareLighting` to nonzero to get free screen-space lighting.  Or maybe I'll just have it on always.  Still working on this one.
+TODO here, also have RAM vars for light pos, color, ambient, normalmap exhaggeration, spritemap exhaggeration.
+
 ### Memory Layout
 
 ```
-RAM size: 0xa0000
-ROM size: 0x70000
 memory layout:
 - RAM -
 0x000000 - 0x020000 = framebuffer
@@ -312,30 +315,33 @@ memory layout:
 0x020008 - 0x020048 = mvMat
 0x020048 - 0x020049 = videoMode
 0x020049 - 0x02004a = blendMode
-0x02004a - 0x02004c = blendColor
-0x02004c - 0x02004e = dither
-0x02004e - 0x02014e = fontWidth
-0x02014e - 0x02014f = textFgColor
-0x02014f - 0x020150 = textBgColor
-0x020150 - 0x020154 = framebufferAddr
-0x020154 - 0x020158 = spriteSheetAddr
-0x020158 - 0x02015c = tileSheetAddr
-0x02015c - 0x020160 = tilemapAddr
-0x020160 - 0x020164 = paletteAddr
-0x020164 - 0x020168 = fontAddr
-0x020168 - 0x0201e8 = channels
-0x0201e8 - 0x0202c8 = musicPlaying
-0x0202c8 - 0x0202cc = updateCounter
-0x0202cc - 0x0202d0 = romUpdateCounter
-0x0202d0 - 0x020319 = keyPressFlags
-0x020319 - 0x020362 = lastKeyPressFlags
-0x020362 - 0x0207f2 = keyHoldCounter
-0x0207f2 - 0x0207f6 = mousePos
-0x0207f6 - 0x0207fa = mouseWheel
-0x0207fa - 0x0207fe = lastMousePos
-0x0207fe - 0x020802 = lastMousePressPos
-0x022802 - 0x022806 = blobCount
-0x022806 - 0x022812 = blobEntries
+0x02004a - 0x02004c = useHardwareLighting
+0x02004c - 0x02004e = blendColor
+0x02004e - 0x020050 = dither
+0x020050 - 0x020051 = paletteBlobIndex
+0x020051 - 0x020052 = fontBlobIndex
+0x020052 - 0x020152 = fontWidth
+0x020152 - 0x020153 = textFgColor
+0x020153 - 0x020154 = textBgColor
+0x020154 - 0x020158 = framebufferAddr
+0x020158 - 0x02015c = spriteSheetAddr
+0x02015c - 0x020160 = tileSheetAddr
+0x020160 - 0x020164 = tilemapAddr
+0x020164 - 0x020168 = paletteAddr
+0x020168 - 0x02016c = fontAddr
+0x02016c - 0x0201ec = channels
+0x0201ec - 0x0202cc = musicPlaying
+0x0202cc - 0x0202d0 = updateCounter
+0x0202d0 - 0x0202d4 = romUpdateCounter
+0x0202d4 - 0x02031d = keyPressFlags
+0x02031d - 0x020366 = lastKeyPressFlags
+0x020366 - 0x0207f6 = keyHoldCounter
+0x0207f6 - 0x0207fa = mousePos
+0x0207fa - 0x0207fe = mouseWheel
+0x0207fe - 0x020802 = lastMousePos
+0x020802 - 0x020806 = lastMousePressPos
+0x020806 - 0x02080a = blobCount
+0x02080a - 0x020816 = blobEntries
 ```
 
 # Language
@@ -798,6 +804,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- replace Blob:getSize() with just .size, since size shouldn't be changing.
 - some weird bug when pasting into sheet a pic with an image with transparency, seems to glitch/stall ...
 - some weird bug where when I switch to picking format/type by internalFormat using the gl.tex* ctor it gives me glErrors, when doing it manaully in the ctor args is working fine ...
+- bug where the volume isn't saving (what else isn't saving?)
 
 # Things I'm still debating ...
 - `open()` from console doesn't reset.  You have to `open()` then `run()`.  Wait is this a bug or is this correct behavior?

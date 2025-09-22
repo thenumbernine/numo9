@@ -1962,6 +1962,7 @@ print('run thread dead')
 			view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 			local sceneObj = self.blitScreenObj
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 			sceneObj:draw()
 			--]]
 
@@ -2156,6 +2157,7 @@ print('run thread dead')
 		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+		sceneObj.uniforms.useLighting = self.activeMenu and 0 or self.ram.useHardwareLighting
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.framebufferMenuTex
@@ -2182,6 +2184,24 @@ print('run thread dead')
 	end
 
 	if self.takeScreenshot then
+
+local tex = self.framebufferNormalTex
+local w = tex.width
+local h = tex.height
+local ptr = ffi.new('float[?]', w*h*4)
+tex:toCPU(ptr)
+local ranges = range(4):mapi(function() return {min=math.huge, max=-math.huge} end)
+for i=0,w*h*4-1,4 do
+	for j=1,4 do
+		local v = ptr[i+j-1]
+		ranges[j].min = math.min(ranges[j].min, v)
+		ranges[j].max = math.max(ranges[j].max, v)
+		print(v)
+	end
+end
+print('ranges', tolua(ranges))
+os.exit()
+
 		if self.takeScreenshot == 'label' then
 			self:saveLabel()
 		else
@@ -2369,7 +2389,7 @@ function App:pokew(addr, value)
 		then
 			voxelmap.dirtyCPU = true
 		end
-	end	
+	end
 	-- TODO if we poked the code
 end
 function App:pokel(addr, value)
@@ -2424,7 +2444,7 @@ function App:pokel(addr, value)
 		then
 			voxelmap.dirtyCPU = true
 		end
-	end	
+	end
 	-- TODO if we poked the code
 end
 function App:pokef(addr, value)
@@ -2479,7 +2499,7 @@ function App:pokef(addr, value)
 		then
 			voxelmap.dirtyCPU = true
 		end
-	end	
+	end
 	-- TODO if we poked the code
 end
 

@@ -1,0 +1,7 @@
+#!/usr/bin/env rua
+-- run this from numo9's root dor where all the carts are
+for f in path:dir() do
+	if f.path:match'%.n9$' then
+		print(os.exec('luajit n9a.lua a '..f))
+	end
+end

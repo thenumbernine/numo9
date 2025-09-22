@@ -10,7 +10,7 @@ local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 
 
-local version = table{1,1,0}
+local version = table{1,1,1}
 local versionSig = version:mapi(function(x) return string.char(x) end):concat()
 local versionStr = version:mapi(function(x) return tostring(x) end):concat'.'
 
@@ -339,6 +339,9 @@ local RAM = struct{
 				{name='mvMat', type=mvMatType..'[16]'},
 				{name='videoMode', type='uint8_t'},
 				{name='blendMode', type='uint8_t'},
+
+				{name='useHardwareLighting', type='uint16_t'},	-- 1 bit, but 16 for alignemnt
+
 				{name='blendColor', type='uint16_t'},
 				{name='dither', type='uint16_t'},	-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
 
