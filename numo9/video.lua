@@ -784,9 +784,15 @@ function AppVideo:initVideo()
 			normalTex = GLTex2D{
 				width = width,
 				height = height,
-				internalFormat = gl.GL_RGB,
+				-- rgb = normal xyz, a = depth ... honestly I could just use the depth-buffer ... maybe I should ...
+				internalFormat = gl.GL_RGBA,
 			}:unbind()
 			self.framebufferNormalTexs[sizeKey] = normalTex
+
+			-- if normalTex and fb are init'd at the same time, i.e. their cache tables use matching keys, then this shouldn't happen any more often than necessary:
+			fb:bind()
+				:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
+				:unbind()
 		end
 
 		local sizeAndFormatKey = sizeKey..'x'..suffix
@@ -1258,8 +1264,10 @@ void main() {
 	for infoIndex,info in pairs(self.videoModeInfo) do
 		assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
 
---DEBUG:print('mode '..infoIndex..' solidObj')
-		info.solidObj = GLSceneObject{
+		-- my one and only shader for drawing to FBO (at the moment)
+		-- I picked an uber-shader over separate shaders/states, idk how perf will change, so far good by a small but noticeable % (10%-20% or so)
+--DEBUG:print('mode '..infoIndex..' drawObj')
+		info.drawObj = GLSceneObject{
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -1382,6 +1390,7 @@ flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border c
 flat in vec4 scissor;	// x, y, w, h
 
 layout(location=0) out <?=fragType?> fragColor;
+layout(location=1) out vec4 fragNormal;
 
 uniform <?=self.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=self.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
@@ -1632,6 +1641,16 @@ void main() {
 				..[[);
 
 	}	// pathway
+
+	fragNormal = vec4(
+		// TODO this is where separating projection from modelview matrcies is useful ...
+		// ... I could just pass in a single flat attr instead of recalculating it every fragment ...
+		// ... I still can ... will the slowdown from added attributes be worth the speedup from fragment calcs?
+		normalize(cross(dFdx(gl_FragCoord.xyz), dFdy(gl_FragCoord.xyz))) * .5 + .5,
+		// TODO just use the depth buffer as a texture instead of re-copying it here?
+		//  if I did I'd get more bits of precision ...
+		//  but this is easier/lazier.
+		gl_FragDepth);
 }
 ]],				{
 					self = self,
@@ -1829,6 +1848,8 @@ void main() {
 			v = texcoord:emplace_back()
 			v.x, v.y = u3, v3
 
+			local clipX, clipY, clipW, clipH = app:getClipRect()
+
 			for j=0,2 do
 				v = drawOverrideSolidAttr:emplace_back()
 				v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
@@ -1840,7 +1861,7 @@ void main() {
 				v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
 
 				v = scissorAttr:emplace_back()
-				v.x, v.y, v.z, v.w = app:getClipRect()
+				v.x, v.y, v.z, v.w = clipX, clipY, clipW, clipH
 			end
 		end,
 	}
@@ -2161,16 +2182,16 @@ function AppVideo:setVideoMode(mode)
 	end
 	if self.currentVideoMode == mode then return true end
 
-	-- first time we won't have a solidObj to flush
+	-- first time we won't have a drawObj to flush
 	if self.triBuf then
-		self.triBuf:flush()	-- flush before we redefine what info.solidObj is, which .triBuf:flush() depends on
+		self.triBuf:flush()	-- flush before we redefine what info.drawObj is, which .triBuf:flush() depends on
 	end
 
 	local info = self.videoModeInfo[mode]
 	if info then
 		self.framebufferRAM = info.framebufferRAM
 		self.blitScreenObj = info.blitScreenObj
-		self.solidObj = info.solidObj
+		self.drawObj = info.drawObj
 
 		if self.inUpdateCallback then
 			self.fb:unbind()
@@ -2180,7 +2201,7 @@ function AppVideo:setVideoMode(mode)
 			self.fb:bind()
 		end
 
-		self.triBuf.sceneObj = self.solidObj
+		self.triBuf.sceneObj = self.drawObj
 	else
 		error("unknown video mode "..tostring(mode))
 	end
