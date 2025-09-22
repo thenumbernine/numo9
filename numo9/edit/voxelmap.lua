@@ -384,7 +384,7 @@ function EditVoxelMap:update()
 			self.orbit.pos = self.orbit.pos + self.orbit.angle:yAxis() * moveSpeed
 			self.orbit.orbit = self.orbit.orbit + self.orbit.angle:yAxis() * moveSpeed
 		end
-		if app:key'v' then
+		if app:key'c' then
 			self.orbit.pos = self.orbit.pos - self.orbit.angle:yAxis() * moveSpeed
 			self.orbit.orbit = self.orbit.orbit - self.orbit.angle:yAxis() * moveSpeed
 		end
@@ -436,7 +436,7 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 		-- so just flush all others
 		app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 		-- and just clear the framebuffers'
-		for k,v in pairs(app.framebufferRAMs) do
+		for _,v in pairs(app.framebufferRAMs) do
 			v.dirtyGPU = false
 		end
 		--]]

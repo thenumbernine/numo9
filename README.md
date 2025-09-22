@@ -792,13 +792,11 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- But also have profile info that can be shared, per-game per-user but shared inter-server.
 	- I think it will help to make the draw message history to be per-connection, and to send draw-specific commands to specific connections... ? maybe?
 	- While sprite sheets and tilemaps and palettes do update over netplay when the server edits them, the new blobs do not yet.  Maybe sound doesn't either.  TODO fix this.
-- voxelmap
-	- Add in bottom-anchor billboard orientations.
-	- mesh cache, maybe partition into 32x32's like Minecraft.
+- should I split the voxelmap mesh cache into 32x32 partitions like Minecraft?
 - merge RAMs / RAMGPU with Blobs (esp subclass of BlobImage)
 	- then make all blobs use the dirtyCPU flag when poking their address
 	- replace Blob:getSize() with just .size, since size shouldn't be changing.
-- some weird bug when pasting into sheet a pic with transparency ...
+- some weird bug when pasting into sheet a pic with an image with transparency, seems to glitch/stall ...
 
 # Things I'm still debating ...
 - `open()` from console doesn't reset.  You have to `open()` then `run()`.  Wait is this a bug or is this correct behavior?
@@ -817,6 +815,12 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- Should I allow 32x32 64x64 etc as well?
 	- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
 - I need some kind of tilemap animation state ...
+	- for tilemaps `map()` renderer, you can replace it with distinct `spr()` calls, and customize them based on `time()`.  ugly but effective.
+	- for brushmaps, the `numo9_brushes` array can be populated with functions that make use of `time()` (and whatever other globals you'd like to use).
+	- for voxelmaps, so far your best bet is to
+		- You can periodically `poke()` the texcoords of the mesh3d blobs that are used as voxels ... though this will change all instances of the mesh3d that are used, not just in the voxelmap ...
+		- or modify the voxelmap's `tiileXOffset/tileYOffset`, but changing the voxelmap will cause a cached-mesh regeneration at the next voxelmap-render, which can be slow.
+		- or you can regenerate your own voxelmap mesh / list-of-used-tiles, and then manually draw/animate them yourself using `drawvoxel` (the same idea as replacing your `map()` calls with individual `spr()` calls).
 - 4bpp framebuffers.  But that means merging two pixels into one, which would take a 2nd pass.  Unless there's a 4bpp hardware supported fbo format? DXT1?
 - netplay persistent data maybe ...
 	- one set per-game
@@ -824,4 +828,13 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - add custom properties to brushmaps.
 	- maybe convert it back to a Lua data file instead of a binary file.
 	- add a key/value editor per-brush for custom properties.
-- add a way to create default cube mesh for voxelmap.
+- add a way to create default cube/slope/billboard meshes for voxelmap?  maybe as an extra script?
+- video modes / framebuffers...
+	- SSAO?
+	- pickbuffer?
+	- should I allocate every mode's fbo tex up front, or only on request?
+	- should I allow for framebuffers bigger than the "fantasy console"'s 128kb limit?  i.e. through fbo relocation / using a data-blob thats bigger?
+		- should I allow custom sizes?
+		- should I allow no buffer / native resolution?  (then you can't do fbo tex effects / normalmap / pickmap)
+			- native res for editor only?
+

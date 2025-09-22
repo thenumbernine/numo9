@@ -345,7 +345,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 				--app:allRAMRegionsCheckDirtyGPU()
 				app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 				-- just clear framebuffers
-				for k,v in pairs(app.framebufferRAMs) do
+				for _,v in pairs(app.framebufferRAMs) do
 					v.dirtyGPU = false
 				end
 				--]]

@@ -1757,7 +1757,7 @@ conn.receivesPerSecond = 0
 --DEBUG:print'updating framebufferRAM addr'
 			-- TODO this current method updates *all* GPU/CPU framebuffer textures
 			-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
-			for k,v in pairs(self.framebufferRAMs) do
+			for _,v in pairs(self.framebufferRAMs) do
 				v:updateAddr(newFramebufferAddr)
 			end
 		end
@@ -2746,7 +2746,7 @@ function App:openCart(filename)
 	self:allRAMRegionsCheckDirtyCPU()
 	--]]
 	-- [[ can I just clear?  if i'm loading new data then no need to copy back
-	for k,v in pairs(self.framebufferRAMs) do
+	for _,v in pairs(self.framebufferRAMs) do
 		v.dirtyCPU = false
 		v.dirtyGPU = false
 	end
