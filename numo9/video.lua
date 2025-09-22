@@ -83,6 +83,8 @@ local texInternalFormat_u16 = gl.GL_R16UI
 -- so even tho 5551 is on hardware since forever, it's not on ES3 or WebGL, only GL4...
 -- in case it's missing, just use single-channel R16 and do the swizzles manually
 local internalFormat5551 = texInternalFormat_u16
+local format5551 = GLTex2D.formatInfoForInternalFormat[internalFormat5551].format
+local type5551 = GLTex2D.formatInfoForInternalFormat[internalFormat5551].types[1]   -- gl.GL_UNSIGNED_SHORT
 
 	-- convert it here to vec4 since default UNSIGNED_SHORT_1_5_5_5_REV uses vec4
 local glslCode5551 = [[
@@ -405,8 +407,8 @@ args:
 	Tex ctor:
 	target (optional)
 	internalFormat
-	gltype (optional)
-	glformat (optional)
+	gltype
+	glformat
 	wrap
 	magFilter
 	minFilter
@@ -445,8 +447,8 @@ glreport'before RAMGPUTex:init'
 	local tex = GLTex2D{
 		target = args.target,
 		internalFormat = args.internalFormat or gl.GL_RGBA,
-		format = args.glformat,	-- glformat==nil will fall back to the format of the internalFormat
-		type = args.gltype,		-- gltype==nil will fall back to the type of the internalFormat
+		format = args.glformat or gl.GL_RGBA,
+		type = args.gltype or gl.GL_UNSIGNED_BYTE,
 
 		width = width,
 		height = height,
@@ -791,11 +793,12 @@ function AppVideo:initVideo()
 		local framebufferRAM = self.framebufferRAMs[sizeAndFormatKey]
 		-- this shares between 8bppIndexed (R8UI) and RGB322 (R8UI)
 		if not framebufferRAM then
+			local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
+			gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
 			-- is specified for GL_UNSIGNED_SHORT_5_6_5.
 			-- otherwise falls back to default based on internalFormat
 			-- set this here so we can determine .ctype for the ctor.
 			-- TODO determine ctype = GLTypes.ctypeForGLType in RAMGPU ctor?)
-			gltype = gltype or GLTex2D.formatInfoForInternalFormat[internalFormat].types[1]
 			framebufferRAM = RAMGPUTex{
 				app = self,
 				addr = framebufferAddr,
@@ -803,6 +806,7 @@ function AppVideo:initVideo()
 				height = height,
 				channels = 1,
 				internalFormat = internalFormat,
+				glformat = formatInfo.format,
 				gltype = gltype,
 				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
 			}
@@ -826,6 +830,8 @@ function AppVideo:initVideo()
 			width = paletteSize,
 			height = 1,
 			internalFormat = internalFormat5551,
+			format = format5551,
+			type = type5551,
 			wrap = {
 				s = gl.GL_CLAMP_TO_EDGE,
 				t = gl.GL_CLAMP_TO_EDGE,
@@ -840,6 +846,8 @@ function AppVideo:initVideo()
 		resetFont(fontData, 'font.png')
 		self.fontMenuTex = GLTex2D{
 			internalFormat = texInternalFormat_u8,
+			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+			type = gl.GL_UNSIGNED_BYTE,
 			width = fontImageSize.x,
 			height = fontImageSize.y,
 			wrap = {
@@ -1863,6 +1871,8 @@ function AppVideo:resizeRAMGPUs()
 				channels = 1,
 				ctype = 'uint8_t',
 				internalFormat = texInternalFormat_u8,
+				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+				gltype = gl.GL_UNSIGNED_BYTE,
 			}
 		end
 	end
@@ -1895,6 +1905,8 @@ function AppVideo:resizeRAMGPUs()
 				channels = 1,
 				ctype = 'uint16_t',
 				internalFormat = texInternalFormat_u16,
+				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
+				gltype = gl.GL_UNSIGNED_SHORT,
 			}
 		end
 	end
@@ -1919,6 +1931,8 @@ function AppVideo:resizeRAMGPUs()
 				channels = 1,
 				ctype = 'uint16_t',
 				internalFormat = internalFormat5551,
+				glformat = format5551,
+				gltype = type5551,
 			}
 		end
 	end
@@ -1951,6 +1965,8 @@ function AppVideo:resizeRAMGPUs()
 				channels = 1,
 				ctype = 'uint8_t',
 				internalFormat = texInternalFormat_u8,
+				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+				gltype = gl.GL_UNSIGNED_BYTE,
 			}
 		end
 	end
