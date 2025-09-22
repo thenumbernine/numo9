@@ -794,6 +794,7 @@ function AppVideo:initVideo()
 				:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
 				:unbind()
 		end
+		req.framebufferNormalTex = assert(normalTex)
 
 		local sizeAndFormatKey = sizeKey..'x'..suffix
 		local framebufferRAM = self.framebufferRAMs[sizeAndFormatKey]
@@ -927,9 +928,10 @@ function AppVideo:initVideo()
 	local blitFragType = 'vec4'
 	local blitFragTypeVec3 = 'vec3'
 
-	local function makeVideoModeRGB565(framebufferRAM)
+	local function makeVideoModeRGB565(framebufferRAM, framebufferNormalTex)
 		local modeObj = {
 			framebufferRAM = framebufferRAM,
+			framebufferNormalTex = assert(framebufferNormalTex),
 			name = 'RGB',
 			-- [=[ internalFormat = gl.GL_RGB565
 			colorOutput = table{
@@ -979,6 +981,7 @@ void main() {
 }
 ]],
 				fragmentCode = template([[
+precision highp sampler2D;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -986,6 +989,7 @@ in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
 uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
 void main() {
 #if 1	// internalFormat = gl.GL_RGB565
@@ -1014,13 +1018,18 @@ void main() {
 }
 ]],				{
 					framebufferRAM = framebufferRAM,
+					framebufferNormalTex = framebufferNormalTex,
 					blitFragType = blitFragType,
 				}),
 				uniforms = {
 					framebufferTex = 0,
+					framebufferNormalTex = 1,
 				},
 			},
-			texs = {framebufferRAM.tex},
+			texs = {
+				framebufferRAM.tex,
+				framebufferNormalTex,
+			},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
 			uniforms = {
@@ -1031,9 +1040,10 @@ void main() {
 		return modeObj
 	end
 
-	local function makeVideoMode8bppIndex(framebufferRAM)
+	local function makeVideoMode8bppIndex(framebufferRAM, framebufferNormalTex)
 		local modeObj = {
 			framebufferRAM = framebufferRAM,
+			framebufferNormalTex = assert(framebufferNormalTex),
 
 			-- generator properties
 			-- indexed mode can't blend so ... no draw-override
@@ -1070,6 +1080,7 @@ void main() {
 }
 ]],
 				fragmentCode = template([[
+precision highp sampler2D;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1078,6 +1089,7 @@ in vec2 tcv;
 layout(location=0) out <?=blitFragType?> fragColor;
 
 uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
@@ -1095,17 +1107,20 @@ void main() {
 }
 ]],				{
 					framebufferRAM = framebufferRAM,
+					framebufferNormalTex = framebufferNormalTex,
 					self = self,
 					blitFragType = blitFragType,
 					glslCode5551 = glslCode5551,
 				}),
 				uniforms = {
 					framebufferTex = 0,
-					paletteTex = 1,
+					framebufferNormalTex = 1,
+					paletteTex = 2,
 				},
 			},
 			texs = {
 				framebufferRAM.tex,
+				framebufferNormalTex,
 				self.paletteRAMs[1].tex,
 			},
 			geometry = self.quadGeom,
@@ -1118,9 +1133,10 @@ void main() {
 		return modeObj
 	end
 
-	local function makeVideoModeRGB332(framebufferRAM)
+	local function makeVideoModeRGB332(framebufferRAM, framebufferNormalTex)
 		local modeObj = {
 			framebufferRAM = framebufferRAM,
+			framebufferNormalTex = assert(framebufferNormalTex),
 
 			-- generator properties
 			name = 'RGB332',
@@ -1173,6 +1189,7 @@ void main() {
 }
 ]],
 				fragmentCode = template([[
+precision highp sampler2D;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1181,6 +1198,7 @@ in vec2 tcv;
 layout(location=0) out <?=blitFragType?> fragColor;
 
 uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
 void main() {
 	uint rgb332 = ]]..readTex{
@@ -1197,16 +1215,17 @@ void main() {
 }
 ]],				{
 					framebufferRAM = framebufferRAM,
+					framebufferNormalTex = framebufferNormalTex,
 					blitFragType = blitFragType,
 				}),
 				uniforms = {
 					framebufferTex = 0,
-					paletteTex = 1,
+					framebufferNormalTex = 1,
 				},
 			},
 			texs = {
 				framebufferRAM.tex,
-				self.paletteRAMs[1].tex,
+				framebufferNormalTex,
 			},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
@@ -1231,13 +1250,14 @@ void main() {
 
 	self.videoModeInfo = requestedVideoModes:map(function(req)
 		local framebufferRAM = assert.index(req, 'framebufferRAM')
+		local framebufferNormalTex = assert.index(req, 'framebufferNormalTex')
 		local info
 		if req.format == 'RGB565' then
-			info = makeVideoModeRGB565(framebufferRAM)
+			info = makeVideoModeRGB565(framebufferRAM, framebufferNormalTex)
 		elseif req.format == '8bppIndex' then
-			info = makeVideoMode8bppIndex(framebufferRAM)
+			info = makeVideoMode8bppIndex(framebufferRAM, framebufferNormalTex)
 		elseif req.format == 'RGB332' then
-			info = makeVideoModeRGB332(framebufferRAM)
+			info = makeVideoModeRGB332(framebufferRAM, framebufferNormalTex)
 		elseif req.format == '4bppIndex' then
 			return nil
 		else
@@ -1250,6 +1270,7 @@ void main() {
 		-- can I just make one giant framebuffer and use it everywhere?
 		-- or do I have to make one per screen mode's framebuffer?
 		framebufferRAM.fb = req.fb
+		-- don't bother do the same with framebufferNormalTex cuz it isn't a RAMGPU / doesn't have address space
 
 		info.fb = req.fb
 		info.format = req.format
@@ -2189,7 +2210,8 @@ function AppVideo:setVideoMode(mode)
 
 	local info = self.videoModeInfo[mode]
 	if info then
-		self.framebufferRAM = info.framebufferRAM
+		self.framebufferRAM = assert.index(info, 'framebufferRAM')
+		self.framebufferNormalTex = assert.index(info, 'framebufferNormalTex')
 		self.blitScreenObj = info.blitScreenObj
 		self.drawObj = info.drawObj
 
@@ -2206,6 +2228,7 @@ function AppVideo:setVideoMode(mode)
 		error("unknown video mode "..tostring(mode))
 	end
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
+	self.blitScreenObj.texs[2] = assert.index(self, 'framebufferNormalTex')
 
 	self:setFramebufferTex(self.framebufferRAM.tex)
 	self.currentVideoMode = mode

@@ -2159,6 +2159,7 @@ print('run thread dead')
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.framebufferMenuTex
+			-- TODO what should I bind texs[2], i.e. the normalTex to?
 		end
 --]]
 
@@ -2169,6 +2170,7 @@ print('run thread dead')
 		--]]
 		if self.activeMenu then
 			sceneObj.texs[1] = self.framebufferRAM.tex
+			sceneObj.texs[2] = assert.index(self, 'framebufferNormalTex')
 		end
 
 		if self.activeMenu then
