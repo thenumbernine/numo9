@@ -2,6 +2,8 @@
 --#include ext/range.lua
 --#include vec/vec2.lua
 
+math.randomseed(tstamp())
+
 dt = 1/60
 screenSize = vec2(256, 256)
 
@@ -46,6 +48,8 @@ local planes = table{
 }
 
 local epsilon = 1e-7
+
+points = 0
 
 cursorSpeed = 60
 cursorX = screenSize.x / 2
@@ -237,6 +241,7 @@ update=||do
 					local cb = bMass * invDenom
 					a.vel.x = a.vel.x * ca + b.vel.x * cb
 					a.vel.y = a.vel.y * ca + b.vel.y * cb
+					points += 2 * a.index
 					a.index += 1
 					break
 				end
@@ -262,4 +267,6 @@ update=||do
 			end
 		end
 	end
+
+	text(tostring(points))
 end
