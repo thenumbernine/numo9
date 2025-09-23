@@ -636,6 +636,9 @@ function AppVideo:initVideo()
 	self.fontRAMs = table()
 	self:resizeRAMGPUs()
 
+	-- off by default
+	self.ram.useHardwareLighting = 0
+
 	-- self.fbos['_'..width..'x'..height] = FBO with depth attachment.
 	-- for FBO's size is all that matters, right? not format right?
 	self.fbos = {}
@@ -794,7 +797,8 @@ function AppVideo:initVideo()
 				type = gl.GL_FLOAT,
 
 				minFilter = gl.GL_NEAREST,
-				magFilter = gl.GL_NEAREST,
+				--magFilter = gl.GL_NEAREST,
+				magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
 				wrap = {
 					s = gl.GL_CLAMP_TO_EDGE,
 					t = gl.GL_CLAMP_TO_EDGE,
@@ -940,14 +944,15 @@ function AppVideo:initVideo()
 	-- this string can include template code that uses only vars that appear in all of makeVideoMode* template vars
 	local useLightingCode = [[
 		// TODO lighting variables:
-		const vec3 lightDir = vec3(0.96225044864938, 0.19245008972988, 0.19245008972988);
-		const float ambient = .3;
+		const vec3 lightDir = vec3(0.19245008972988, 0.96225044864938, 0.19245008972988);
+		const vec3 lightAmbientColor = vec3(.4, .4, .4);
+		const vec3 lightDiffuseColor = vec3(.6, .5, .4);
 
 		vec4 normalAndDepth = texture(framebufferNormalTex, tcv);
 		vec3 normal = normalAndDepth.xyz * 2. - 1.;
 		//float depth = normalAndDepth.w;
-		float lum = max(ambient, abs(dot(normal, lightDir)));
-		fragColor.xyz *= lum;
+		vec3 lightValue = lightAmbientColor + lightDiffuseColor * abs(dot(normal, lightDir));
+		fragColor.xyz *= lightValue;
 // debugging: show normalmap:
 //fragColor.xyz = normalAndDepth.xyz * .5 + .5;
 ]]
@@ -1747,6 +1752,8 @@ void main() {
 	// calculate this before any discards ... or can we?
 	// TODO better ... calculate this from magfilter=linear lookup for the texture (and do color magfilter=nearest) ... or can we?)
 	float fragLum = dot(fragColor.xyz, greyscale);
+	// if we are going to discard then make sure the sprite bumpmap falls off ...
+	if (plzDiscard) fragLum = -1.;
 
 	//glsl matrix index access is based on columns
 	//so its index notation is reversed from math index notation.
@@ -1767,7 +1774,6 @@ void main() {
 	//modelBasis = spriteBasis * transpose(modelBasis);
 	//fragNormal.xyz = transpose(modelBasis)[2];
 	fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
-
 #endif
 
 	fragNormal.z *= normalScreenExhaggeration;
@@ -1778,7 +1784,7 @@ void main() {
 	//  but this is easier/lazier.
 	fragNormal.w = vertexv.z;
 
-	// only discard last, so my dFdx/dFdy's get proper values (right? or does it matter?)
+	// only discard last, so I can make sure to zero dFdx/dFdy's when I'm going to discard (right? or does it matter? does it do that anyways?)
 	if (plzDiscard) discard;
 }
 ]],				{
@@ -2207,9 +2213,6 @@ function AppVideo:resetVideo()
 	if self.paletteRAMs[1] then self.paletteRAMs[1]:updateAddr(paletteAddr) end
 	if self.fontRAMs[1] then self.fontRAMs[1]:updateAddr(fontAddr) end
 
-	-- on by default? or off?
-	self.ram.useHardwareLighting = 1
-
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
 	--self.ram.videoMode = 1	-- 8bpp indexed
@@ -2360,9 +2363,6 @@ function AppVideo:setFramebufferTex(tex)
 		fb:bind()
 	end
 	fb:setColorAttachmentTex2D(tex.id, 0, tex.target)
-
-local normalTex = assert.index(self, 'framebufferNormalTex')
-fb:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
 
 	local res,err = fb.check()
 	if not res then

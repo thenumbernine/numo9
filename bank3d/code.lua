@@ -21,6 +21,7 @@
 videoModeIndex=42	screenSize=vec2(480, 270)	-- 480x270x8bppIndex
 --videoModeIndex=43	screenSize=vec2(480, 270)	-- 480x270xRGB332
 mode(videoModeIndex)
+pokew(ramaddr'useHardwareLighting', 1)
 cheat=true
 
 levelstr='level ?'
@@ -1384,6 +1385,7 @@ mapSet=|...| vset(level, ...)
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
 	mode(videoModeIndex)	-- reset() also resets the video mode ... TODO don't reset video mode? idk hmm ...
+	pokew(ramaddr'useHardwareLighting', 1)
 	removeAll()
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
