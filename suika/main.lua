@@ -74,6 +74,7 @@ update=||do
 	-- find smallest timestep until intersection
 	local remainingDt = dt
 	local tries = 0
+	local stuckSteps = 0
 	repeat
 		tries += 1
 		-- determine maximum step before collision
@@ -103,6 +104,7 @@ update=||do
 			end
 		end
 		-- test sphere/sphere collisions
+		-- TODO when pieces merge, they can cause it to lock up in here via constant stepDt==0 evaoluation ...
 		for i=1,#pieces-1 do
 			local a = pieces[i]
 			for j=i+1,#pieces do
@@ -181,9 +183,18 @@ update=||do
 			end
 		end
 
+		if stepDt > 0 then
+			stuckSteps = 0
+		else
+			stuckSteps += 1
+		end
+
 		remainingDt -= stepDt
-	until remainingDt == 0
+	until remainingDt == 0 
+	-- or tries > 10 -- insted of just testing tries
+--	or stuckSteps > 5	-- count # of successive steps that we didn't go anywhere, and break after a few too many
 --trace('integration took', tries, 'tries')
+	-- if we did have 5 steps at stepDt==0 then something is stuck and something is wrong ...
 
 	-- now integrate grvity
 	for _,piece in ipairs(pieces) do
