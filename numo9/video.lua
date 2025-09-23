@@ -1475,6 +1475,18 @@ uniform <?=self.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
 float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
 
+//create an orthonormal basis from two vectors
+// the second, normalized, is used as the 'y' column
+// the third is the normalized cross of 'a' and 'b'.
+// the first is the cross of the 2nd and 3rd
+mat3 onb(vec3 a, vec3 b) {
+	mat3 m;
+	m[1] = normalize(b);
+	m[2] = normalize(cross(a, m[1]));
+	m[0] = normalize(cross(m[1], m[2]));
+	return m;
+}
+
 void main() {
 	bool plzDiscard = false;
 
@@ -1736,24 +1748,25 @@ void main() {
 	// TODO better ... calculate this from magfilter=linear lookup for the texture (and do color magfilter=nearest) ... or can we?)
 	float fragLum = dot(fragColor.xyz, greyscale);
 
-	mat3 spriteBasis;
-	spriteBasis[0] = normalize(vec3(1., 0., spriteNormalExhaggeration * dFdx(fragLum)));
-	spriteBasis[1] = normalize(vec3(0., 1., spriteNormalExhaggeration * dFdx(fragLum)));
-	spriteBasis[2] = normalize(cross(spriteBasis[0], spriteBasis[1]));
-	spriteBasis[0] = normalize(cross(spriteBasis[1], spriteBasis[2]));
+	//glsl matrix index access is based on columns
+	//so its index notation is reversed from math index notation.
+	// spriteBasis[j][i] = spriteBasis_ij = d(fragLum)/d(fragCoord_j)
+	mat3 spriteBasis = onb(
+		vec3(1., 0., spriteNormalExhaggeration * dFdx(fragLum)),
+		vec3(0., 1., spriteNormalExhaggeration * dFdx(fragLum)));
 
-	mat3 modelBasis;
-	modelBasis[0] = normalize(dFdx(vertexv.xyz));	// d(vertex)/dFragCoord.x
-	modelBasis[1] = normalize(dFdy(vertexv.xyz));	// d(vertex)/dFragCoord.y
-	modelBasis[2] = normalize(cross(modelBasis[0], modelBasis[1]));	// or should I use normalScreenExhaggeration here?
-	modelBasis[0] = normalize(cross(modelBasis[1], modelBasis[2]));
+	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
+	mat3 modelBasis = onb(
+		dFdx(vertexv.xyz),	// d(vertex)/dFragCoord.x
+		dFdy(vertexv.xyz));	// d(vertex)/dFragCoord.y
 
-//modelBasis = modelBasis * transpose(spriteBasis);
-//modelBasis = modelBasis * spriteBasis;
-modelBasis = transpose(spriteBasis) * modelBasis;
-//modelBasis = spriteBasis * modelBasis;
-
-fragNormal.xyz = modelBasis[2];
+	//result should be d(fragLum)/d(vertex_j)
+	// = d(fragLum)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
+	// = d(fragLum)/d(fragCoord_k) * inv(d(vertex_j)/d(fragCoord_k))
+	// = spriteBasis * transpose(modelBasis)
+	//modelBasis = spriteBasis * transpose(modelBasis);
+	//fragNormal.xyz = transpose(modelBasis)[2];
+	fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
 
 #endif
 
