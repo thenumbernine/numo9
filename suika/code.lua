@@ -63,7 +63,7 @@ update=||do
 		makeNextPiece()
 	end
 
-	cursorX = math.clamp(cursorX, 0, screenSize.x)
+	cursorX = math.clamp(cursorX, nextPiece:getRadius(), screenSize.x - nextPiece:getRadius())
 	nextPiece.pos.x = cursorX
 	nextPiece:draw()
 
@@ -184,16 +184,11 @@ update=||do
 --trace('hit pieces', collision.pieceIndex, collision.pieceIndex2)				
 				local a = pieces[collision.pieceIndex]
 				local b = pieces[collision.pieceIndex2]
-				if a.index == b.index then
-					pieces:remove(collision.pieceIndex2)
-					a.index += 1
-				else
-					local deltaPos = b.pos - a.pos	-- from a towards b
-					local deltaVel = b.vel - a.vel	-- b's vel from a's perspective
-					local normal = deltaPos:unit()
-					a.vel += normal * deltaVel:dot(normal) * (1 + restitution)
-					b.vel -= normal * deltaVel:dot(normal) * (1 + restitution)
-				end
+				local deltaPos = b.pos - a.pos	-- from a towards b
+				local deltaVel = b.vel - a.vel	-- b's vel from a's perspective
+				local normal = deltaPos:unit()
+				a.vel += normal * deltaVel:dot(normal) * (1 + restitution)
+				b.vel -= normal * deltaVel:dot(normal) * (1 + restitution)
 			end
 		end
 
@@ -212,10 +207,41 @@ update=||do
 		for _,plane in ipairs(planes) do
 			local planeDist = plane.normal:dot(piece.pos) + plane.negDist
 			if -piece:getRadius() + epsilon < planeDist and planeDist < piece:getRadius() - epsilon then
+				-- if we're going into the plane then zero the normal component
 				if piece.vel:dot(plane.normal) < 0 then
-					piece.vel:set(0,0)
+					piece.vel -= plane.normal * piece.vel:dot(plane.normal)
 				end
 				piece.vel += plane.normal * penalty
+			end
+		end
+	end
+	for i=#pieces-1,1,-1 do
+		local a = pieces[i]
+		for j=#pieces,i+1,-1 do
+			local b = pieces[j]
+			local delta = b.pos - a.pos
+			local distSq = delta:lenSq()
+			if distSq <= (a:getRadius() + b:getRadius() + 2)^2 then
+				if a.index == b.index then
+					pieces:remove(j)
+					a.pos = .5 * (a.pos + b.pos)
+					a.vel = .5 * (a.vel + b.vel)
+					a.index += 1
+					break
+				end
+				-- otherwise ... still apply a penalty force to them
+				if distSq > 0 then
+					local dist = math.sqrt(distSq)
+					local normal = delta / dist	-- is b's collision normal
+					if -a.vel:dot(normal) < 0 then
+						a.vel -= normal * a.vel:dot(normal)
+					end
+					a.vel -= normal * penalty
+					if b.vel:dot(normal) < 0 then
+						b.vel -= normal * b.vel:dot(normal)
+					end
+					b.vel += normal * penalty
+				end
 			end
 		end
 	end
