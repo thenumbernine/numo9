@@ -8,6 +8,7 @@ vec2_unit=|x,y|do
 	local s = 1 / math.max(1e-15, l)
 	return x*s, y*s, l
 end
+vec2_scale=|s,x,y|(s*x, s*y)
 vec2_dot=|ax,ay,bx,by| ax*bx + ay*by
 -- cplx exp ... TODO replace vec2.exp with this
 vec2_exp=|r,theta|(r*math.cos(theta),r*math.sin(theta))
