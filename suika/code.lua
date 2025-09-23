@@ -6,12 +6,13 @@
 --#include ext/range.lua
 --#include vec/vec2.lua
 
---dt = 1/60
-dt = 1/30
+dt = 1/60
 screenSize = vec2(256, 256)
 
-radiusForIndex=range(10):mapi(|i| 2*i + 10)
+radiusForIndex=range(10):mapi(|i| 5*i)
 colorForIndex=range(10):mapi(|i| i + 1)
+
+density = 1
 
 Piece=class()
 Piece.init=|:,args|do
@@ -21,6 +22,7 @@ Piece.init=|:,args|do
 end
 Piece.getRadius=|:| radiusForIndex[self.index]
 Piece.getColor=|:| colorForIndex[self.index]
+Piece.getMass=|:| density * math.pi * self:getRadius()^2
 Piece.draw=|:|do
 	local radius = self:getRadius()
 	local x,y,w,h = 
@@ -40,7 +42,7 @@ makeNextPiece=||do
 end
 makeNextPiece()
 
-local grav = vec2(0, 60)
+local grav = vec2(0, 120)
 local planes = table{
 	{normal=vec2(1,0), negDist=-vec2(1,0):dot(vec2(0,0))},
 	{normal=vec2(-1,0), negDist=-vec2(-1,0):dot(vec2(screenSize.x,0))},
@@ -184,11 +186,13 @@ update=||do
 --trace('hit pieces', collision.pieceIndex, collision.pieceIndex2)				
 				local a = pieces[collision.pieceIndex]
 				local b = pieces[collision.pieceIndex2]
+				local aMass = a:getMass()
+				local bMass = b:getMass()
 				local deltaPos = b.pos - a.pos	-- from a towards b
-				local deltaVel = b.vel - a.vel	-- b's vel from a's perspective
+				local deltaMom = b.vel * bMass - a.vel * aMass	-- b's vel from a's perspective
 				local normal = deltaPos:unit()
-				a.vel += normal * deltaVel:dot(normal) * (1 + restitution)
-				b.vel -= normal * deltaVel:dot(normal) * (1 + restitution)
+				a.vel += normal * deltaMom:dot(normal) * (1 + restitution) / aMass
+				b.vel -= normal * deltaMom:dot(normal) * (1 + restitution) / bMass
 			end
 		end
 
