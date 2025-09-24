@@ -585,13 +585,153 @@ end
 -- I'd call it 'App' but that might be confusing because it's not really App.
 local AppVideo = {}
 
+local VideoMode = class()
+
+function VideoMode:init(args)
+	self.app = args.app
+	self.width = args.width
+	self.height = args.height
+	self.format = args.format
+
+	self.formatDesc = self.width..'x'..self.height..'x'..self.format
+end
+
+function VideoMode:buildFramebuffers()
+	local app = self.app
+
+	local width, height = self.width, self.height
+	local internalFormat, gltype, suffix
+	if self.format == 'RGB565' then
+		-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
+		-- [[
+		internalFormat = gl.GL_RGB565
+		gltype = gl.GL_UNSIGNED_SHORT_5_6_5	-- for an internalFormat there are multiple gltype's so pick this one
+		--]]
+		--[[
+		-- TODO do this but in doing so the framebuffer fragment vec4 turns into a uvec4
+		-- and then the reads from u16to5551() which output vec4 no longer fit
+		-- ... hmm ...
+		-- ... but if I do this then the 565 hardware-blending no longer works, and I'd have to do that blending manually ...
+		internalFormat = internalFormat5551
+		--]]
+		suffix = 'RGB565'
+	elseif self.format == '8bppIndex'
+	or self.format == 'RGB332'
+	then
+		-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
+		internalFormat = texInternalFormat_u8
+		suffix = '8bpp'
+		-- hmm TODO maybe
+		-- if you want blending with RGB332 then you can use GL_R3_G3_B2 ...
+		-- but it's not in GLES3/WebGL2
+	elseif self.format == '4bppIndex' then
+		-- here's where exceptions need to be made ...
+		-- hmm, so when I draw sprites, I've got to shrink coords by half their size ... ?
+		-- and then track whether we are in the lo vs hi nibble ... ?
+		-- and somehow preserve the upper/lower nibbles on the sprite edges?
+		-- maybe this is too tedious ...
+		internalFormat = texInternalFormat_u8
+		suffix = '8bpp'	-- suffix is for the framebuffer, and we are using R8UI format
+		--width = bit.rshift(width, 1) + bit.band(width, 1)
+	else
+		error("unknown self.format "..tostring(self.format))
+	end
+
+	-- I'm making one FBO per size.
+	-- Should I be making one FBO per internalFormat?
+	local sizeKey = '_'..self.width..'x'..self.height
+	local fb = app.fbos[sizeKey]
+	if not fb then
+		fb = GLFBO{
+			width = self.width,
+			height = self.height,
+			useDepth = true, --gl.GL_DEPTH_COMPONENT32,
+		}
+		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
+		:unbind()
+		app.fbos[sizeKey] = fb
+	end
+	self.fb = fb
+
+	-- make a FBO normalmap per size.  Don't store it in fantasy-console "hardware" RAM just yet.  For now it's just going to be accessible by a single switch in RAM.
+	local normalTex = app.framebufferNormalTexs[sizeKey]
+	if not normalTex then
+		normalTex = GLTex2D{
+			width = width,
+			height = height,
+			-- rgb = normal xyz, a = depth ... honestly I could just use the depth-buffer ... maybe I should ...
+			--internalFormat = gl.GL_RGBA,
+			internalFormat = gl.GL_RGBA32F,
+			-- should be automatic:
+			format = gl.GL_RGBA,
+			type = gl.GL_FLOAT,
+
+			minFilter = gl.GL_NEAREST,
+			--magFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+		}:unbind()
+		app.framebufferNormalTexs[sizeKey] = normalTex
+
+		-- if normalTex and fb are init'd at the same time, i.e. their cache tables use matching keys, then this shouldn't happen any more often than necessary:
+		fb:bind()
+			:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
+			:unbind()
+	end
+	self.framebufferNormalTex = assert(normalTex)
+	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects?
+
+	local sizeAndFormatKey = sizeKey..'x'..suffix
+	local framebufferRAM = app.framebufferRAMs[sizeAndFormatKey]
+	-- this shares between 8bppIndexed (R8UI) and RGB322 (R8UI)
+	if not framebufferRAM then
+		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
+		gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
+		-- is specified for GL_UNSIGNED_SHORT_5_6_5.
+		-- otherwise falls back to default based on internalFormat
+		-- set this here so we can determine .ctype for the ctor.
+		-- TODO determine ctype = GLTypes.ctypeForGLType in RAMGPU ctor?)
+		framebufferRAM = RAMGPUTex{
+			app = app,
+			addr = framebufferAddr,
+			width = width,
+			height = height,
+			channels = 1,
+			internalFormat = internalFormat,
+			glformat = formatInfo.format,
+			gltype = gltype,
+			ctype = assert.index(GLTypes.ctypeForGLType, gltype),
+		}
+
+		app.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
+	end
+	self.framebufferRAM = framebufferRAM
+
+
+	-- hmm this is becoming a mess ...
+	-- link the fbRAM to its respective .fb so that , when we checkDirtyGPU and have to readPixels, it can use its own
+	-- hmmmm
+	-- can I just make one giant framebuffer and use it everywhere?
+	-- or do I have to make one per screen mode's framebuffer?
+	self.framebufferRAM.fb = self.fb
+	-- don't bother do the same with framebufferNormalTex cuz it isn't a RAMGPU / doesn't have address space
+end
+
+
 -- maybe this should be its own file?
 -- maybe I'll merge RAMGPU with BlobImage ... and then make framebuffer a blob of its own (nahhhh ...) and then I won't need this to be its own file?
 function AppVideo:initVideoModes()
 	-- the videoModes table holds video mode info
 	-- I chose a few fixed-size common aspect-ratio modes based on what fits in 128k and is tile-aligned
 	self.videoModes = table()
-	local function addVideoModeFormat(modeObj)
+
+	local function addVideoModeFormat(args)
+		args.app = self
+		local modeObj = VideoMode(args)
+		-- zero-based insert
 		if #self.videoModes == 0
 		and not self.videoModes[0]
 		then
@@ -666,15 +806,23 @@ function AppVideo:initVideoModes()
 			format = '4bppIndex',
 		}
 	end
+	-- ... but that means GL output writing to multiple bytes per single pixel ...
+	-- I could do it with a 2nd pass to combine bit output ...
 	--]]
-	-- TODO 2bpp 1bpp... but that means GL output writing to multiple bytes per single pixel ... I could do it with a 2nd pass to combine bit output ... 
+	-- TODO 2bpp 1bpp
+
 
 	-- hmm, is there any reason why like-format buffers can't use the same gl texture?
 	-- also, is there any reason I'm building all modes up front?  why not wait until they are requested?
+
+	-- self.fbos['_'..width..'x'..height] = FBO with depth attachment.
+	-- for FBO's size is all that matters, right? not format right?
+	self.fbos = {}
+
 	self.framebufferRAMs = {}
 	self.framebufferNormalTexs = {}
-	for _,mode in ipairs(self.videoModes:keys():sort()) do
-		self:buildFramebuffersForMode(mode)
+	for _,modeIndex in ipairs(self.videoModes:keys():sort()) do
+		self.videoModes[modeIndex]:buildFramebuffers()
 	end
 
 
@@ -725,12 +873,9 @@ function AppVideo:initVideoModes()
 	local blitFragTypeVec3 = 'vec3'
 
 	local function makeVideoModeRGB565(modeObj)
-		local framebufferRAM = modeObj.framebufferRAM
-		local framebufferNormalTex = modeObj.framebufferNormalTex
-
 		-- [=[ internalFormat = gl.GL_RGB565
 		modeObj.colorOutput = table{
-			colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor'),
+			colorIndexToFrag(modeObj.framebufferRAM.tex, 'uvec4 ufragColor'),
 			'fragColor = vec4(ufragColor) / 31.;',
 			getDrawOverrideCode(blitFragTypeVec3),
 		}:concat'\n'
@@ -785,13 +930,13 @@ layout(location=0) out <?=blitFragType?> fragColor;
 
 uniform bool useLighting;
 
-uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=modeObj.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=modeObj.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
 void main() {
 #if 1	// internalFormat = gl.GL_RGB565
 	fragColor = ]]..readTex{
-		tex = framebufferRAM.tex,
+		tex = modeObj.framebufferRAM.tex,
 		texvar = 'framebufferTex',
 		tc = 'tcv',
 		from = 'vec2',
@@ -800,7 +945,7 @@ void main() {
 #endif
 #if 0	// internalFormat = internalFormat5551
 	uint rgba5551 = ]]..readTex{
-		tex = framebufferRAM.tex,
+		tex = modeObj.framebufferRAM.tex,
 		texvar = 'framebufferTex',
 		tc = 'tcv',
 		from = 'vec2',
@@ -818,8 +963,7 @@ void main() {
 	}
 }
 ]],				{
-					framebufferRAM = framebufferRAM,
-					framebufferNormalTex = framebufferNormalTex,
+					modeObj = modeObj,
 					blitFragType = blitFragType,
 				}),
 				uniforms = {
@@ -828,8 +972,8 @@ void main() {
 				},
 			},
 			texs = {
-				framebufferRAM.tex,
-				framebufferNormalTex,
+				modeObj.framebufferRAM.tex,
+				modeObj.framebufferNormalTex,
 			},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
@@ -842,13 +986,10 @@ void main() {
 	end
 
 	local function makeVideoMode8bppIndex(modeObj)
-		local framebufferRAM = modeObj.framebufferRAM
-		local framebufferNormalTex = modeObj.framebufferNormalTex
-
 		-- indexed mode can't blend so ... no draw-override
 		-- this part is only needed for alpha
 		modeObj.colorOutput = table{
-			colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor'),
+			colorIndexToFrag(modeObj.framebufferRAM.tex, 'uvec4 palColor'),
 			[[
 	fragColor.r = colorIndex;
 	fragColor.g = 0u;
@@ -887,21 +1028,21 @@ layout(location=0) out <?=blitFragType?> fragColor;
 
 uniform bool useLighting;
 
-uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
-uniform <?=self.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
+uniform <?=modeObj.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=modeObj.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
 
 void main() {
 	uint colorIndex = ]]..readTex{
-		tex = framebufferRAM.tex,
+		tex = modeObj.framebufferRAM.tex,
 		texvar = 'framebufferTex',
 		tc = 'tcv',
 		from = 'vec2',
 		to = blitFragType,
 	}..[[.r;
-]]..colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor')..[[
+]]..colorIndexToFrag(modeObj.framebufferRAM.tex, 'uvec4 ufragColor')..[[
 	fragColor = vec4(ufragColor) / 31.;
 
 	if (useLighting) {
@@ -909,9 +1050,8 @@ void main() {
 	}
 }
 ]],				{
-					framebufferRAM = framebufferRAM,
-					framebufferNormalTex = framebufferNormalTex,
-					self = self,
+					modeObj = modeObj,
+					app = self,
 					blitFragType = blitFragType,
 					glslCode5551 = glslCode5551,
 				}),
@@ -922,8 +1062,8 @@ void main() {
 				},
 			},
 			texs = {
-				framebufferRAM.tex,
-				framebufferNormalTex,
+				modeObj.framebufferRAM.tex,
+				modeObj.framebufferNormalTex,
 				self.paletteRAMs[1].tex,
 			},
 			geometry = self.quadGeom,
@@ -935,10 +1075,7 @@ void main() {
 	end
 
 	local function makeVideoModeRGB332(modeObj)
-		local framebufferRAM = modeObj.framebufferRAM
-		local framebufferNormalTex = modeObj.framebufferNormalTex
-
-		modeObj.colorOutput = colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor')..'\n'
+		modeObj.colorOutput = colorIndexToFrag(modeObj.framebufferRAM.tex, 'uvec4 palColor')..'\n'
 				..[[
 	/*
 	palColor is 5 5 5 5
@@ -996,12 +1133,12 @@ layout(location=0) out <?=blitFragType?> fragColor;
 
 uniform bool useLighting;
 
-uniform <?=framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=modeObj.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=modeObj.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
 void main() {
 	uint rgb332 = ]]..readTex{
-		tex = framebufferRAM.tex,
+		tex = modeObj.framebufferRAM.tex,
 		texvar = 'framebufferTex',
 		tc = 'tcv',
 		from = 'vec2',
@@ -1017,8 +1154,7 @@ void main() {
 	}
 }
 ]],				{
-					framebufferRAM = framebufferRAM,
-					framebufferNormalTex = framebufferNormalTex,
+					modeObj = modeObj,
 					blitFragType = blitFragType,
 				}),
 				uniforms = {
@@ -1027,8 +1163,8 @@ void main() {
 				},
 			},
 			texs = {
-				framebufferRAM.tex,
-				framebufferNormalTex,
+				modeObj.framebufferRAM.tex,
+				modeObj.framebufferNormalTex,
 			},
 			geometry = self.quadGeom,
 			-- glUniform()'d every frame
@@ -1063,18 +1199,6 @@ void main() {
 		else
 			error("unknown modeObj.format "..tostring(modeObj.format))
 		end
-
-		-- hmm this is becoming a mess ...
-		-- link the fbRAM to its respective .fb so that , when we checkDirtyGPU and have to readPixels, it can use its own
-		-- hmmmm
-		-- can I just make one giant framebuffer and use it everywhere?
-		-- or do I have to make one per screen mode's framebuffer?
-		modeObj.framebufferRAM.fb = modeObj.fb
-		-- don't bother do the same with framebufferNormalTex cuz it isn't a RAMGPU / doesn't have address space
-
-		-- only used for the intro screen console output:
-		local w, h = reduce(modeObj.width, modeObj.height)
-		modeObj.formatDesc = modeObj.width..'x'..modeObj.height..'x'..modeObj.format
 	end
 
 	-- make output shaders per-video-mode
@@ -1587,126 +1711,6 @@ void main() {
 			},
 		}
 	end
-
-
-
-end
-
-function AppVideo:buildFramebuffersForMode(mode)
-	assert.type(mode, 'number')
-	local modeObj = self.videoModes[mode]
-
-	modeObj.formatDesc = modeObj.width..'x'..modeObj.height..'x'..modeObj.format
-
-	local width, height = modeObj.width, modeObj.height
-	local internalFormat, gltype, suffix
-	if modeObj.format == 'RGB565' then
-		-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
-		-- [[
-		internalFormat = gl.GL_RGB565
-		gltype = gl.GL_UNSIGNED_SHORT_5_6_5	-- for an internalFormat there are multiple gltype's so pick this one
-		--]]
-		--[[
-		-- TODO do this but in doing so the framebuffer fragment vec4 turns into a uvec4
-		-- and then the reads from u16to5551() which output vec4 no longer fit
-		-- ... hmm ...
-		-- ... but if I do this then the 565 hardware-blending no longer works, and I'd have to do that blending manually ...
-		internalFormat = internalFormat5551
-		--]]
-		suffix = 'RGB565'
-	elseif modeObj.format == '8bppIndex'
-	or modeObj.format == 'RGB332'
-	then
-		-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
-		internalFormat = texInternalFormat_u8
-		suffix = '8bpp'
-		-- hmm TODO maybe
-		-- if you want blending with RGB332 then you can use GL_R3_G3_B2 ...
-		-- but it's not in GLES3/WebGL2
-	elseif modeObj.format == '4bppIndex' then
-		-- here's where exceptions need to be made ...
-		-- hmm, so when I draw sprites, I've got to shrink coords by half their size ... ?
-		-- and then track whether we are in the lo vs hi nibble ... ?
-		-- and somehow preserve the upper/lower nibbles on the sprite edges?
-		-- maybe this is too tedious ...
-		internalFormat = texInternalFormat_u8
-		suffix = '8bpp'	-- suffix is for the framebuffer, and we are using R8UI format
-		--width = bit.rshift(width, 1) + bit.band(width, 1)
-	else
-		error("unknown modeObj.format "..tostring(modeObj.format))
-	end
-
-	-- I'm making one FBO per size.  Should I be making one FBO per destination color buffer texture internalFormat?
-	local sizeKey = '_'..modeObj.width..'x'..modeObj.height
-	local fb = self.fbos[sizeKey]
-	if not fb then
-		fb = GLFBO{
-			width = modeObj.width,
-			height = modeObj.height,
-			useDepth = true, --gl.GL_DEPTH_COMPONENT32,
-		}
-		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
-		:unbind()
-		self.fbos[sizeKey] = fb
-	end
-	modeObj.fb = fb
-
-	-- make a FBO normalmap per size.  Don't store it in fantasy-console "hardware" RAM just yet.  For now it's just going to be accessible by a single switch in RAM.
-	local normalTex = self.framebufferNormalTexs[sizeKey]
-	if not normalTex then
-		normalTex = GLTex2D{
-			width = width,
-			height = height,
-			-- rgb = normal xyz, a = depth ... honestly I could just use the depth-buffer ... maybe I should ...
-			--internalFormat = gl.GL_RGBA,
-			internalFormat = gl.GL_RGBA32F,
-			-- should be automatic:
-			format = gl.GL_RGBA,
-			type = gl.GL_FLOAT,
-
-			minFilter = gl.GL_NEAREST,
-			--magFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
-			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
-			},
-		}:unbind()
-		self.framebufferNormalTexs[sizeKey] = normalTex
-
-		-- if normalTex and fb are init'd at the same time, i.e. their cache tables use matching keys, then this shouldn't happen any more often than necessary:
-		fb:bind()
-			:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
-			:unbind()
-	end
-	modeObj.framebufferNormalTex = assert(normalTex)
-	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects?
-
-	local sizeAndFormatKey = sizeKey..'x'..suffix
-	local framebufferRAM = self.framebufferRAMs[sizeAndFormatKey]
-	-- this shares between 8bppIndexed (R8UI) and RGB322 (R8UI)
-	if not framebufferRAM then
-		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
-		gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
-		-- is specified for GL_UNSIGNED_SHORT_5_6_5.
-		-- otherwise falls back to default based on internalFormat
-		-- set this here so we can determine .ctype for the ctor.
-		-- TODO determine ctype = GLTypes.ctypeForGLType in RAMGPU ctor?)
-		framebufferRAM = RAMGPUTex{
-			app = self,
-			addr = framebufferAddr,
-			width = width,
-			height = height,
-			channels = 1,
-			internalFormat = internalFormat,
-			glformat = formatInfo.format,
-			gltype = gltype,
-			ctype = assert.index(GLTypes.ctypeForGLType, gltype),
-		}
-
-		self.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
-	end
-	modeObj.framebufferRAM = framebufferRAM
 end
 
 
@@ -1766,10 +1770,6 @@ function AppVideo:initVideo()
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 
-
-	-- self.fbos['_'..width..'x'..height] = FBO with depth attachment.
-	-- for FBO's size is all that matters, right? not format right?
-	self.fbos = {}
 
 	-- keep menu/editor gfx separate of the fantasy-console
 	do
@@ -1846,7 +1846,7 @@ function AppVideo:initVideo()
 
 	-- building mode info needs quadGeom to be created
 	self:initVideoModes()
-	
+
 	-- for the editor
 
 	-- a pattern for transparencies
@@ -2291,7 +2291,9 @@ each video mode should uniquely ...
 --]]
 function AppVideo:setVideoMode(mode)
 	if type(mode) == 'string' then
-		mode = self.videoModes:find(nil, function(modeObj) return modeObj.formatDesc == mode end)
+		mode = self.videoModes:find(nil, function(modeObj)
+			return modeObj.formatDesc == mode
+		end)
 		if not mode then
 			return false, "failed to find video mode"
 		end
