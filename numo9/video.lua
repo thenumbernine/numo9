@@ -2011,6 +2011,15 @@ function AppVideo:triBuf_addTri(
 		self.lastTilemapTex = tilemapTex
 	end
 
+
+	if self.mvMatDirty then
+		sceneObj.program
+			:use()
+			:setUniform('mvMat', self.ram.mvMat)
+			:useNone()
+		self.mvMatDirty = false
+	end
+
 	-- push
 	local v
 	v = vertex:emplace_back()
@@ -2374,7 +2383,7 @@ function AppVideo:setVideoMode(modeIndex)
 	end
 
 	self.triBuf_sceneObj = self.drawObj
-	self:onMvMatChange()
+	self.mvMatDirty = true	-- the drawObj changed so make sure it refreshes its mvMat
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
 	self.blitScreenObj.texs[2] = assert.index(self, 'framebufferNormalTex')
@@ -2385,14 +2394,6 @@ function AppVideo:setVideoMode(modeIndex)
 	self.currentVideoModeIndex = modeIndex
 
 	return true
-end
-
-function AppVideo:onMvMatChange()
-	if not self.triBuf_sceneObj then return end
-	self.triBuf_sceneObj.program
-		:use()
-		:setUniform('mvMat', self.ram.mvMat)
-		:useNone()
 end
 
 --[[
@@ -3473,41 +3474,36 @@ end
 -- I'm already setting them in env so ... nah ...
 
 function AppVideo:matident()
+	self.mvMatDirty = true
 	-- set-ident and scale ...
-	self:triBuf_flush()
 	self.ram.mvMat[0],  self.ram.mvMat[1],  self.ram.mvMat[2],  self.ram.mvMat[3]  = mvMatScale, 0, 0, 0
 	self.ram.mvMat[4],  self.ram.mvMat[5],  self.ram.mvMat[6],  self.ram.mvMat[7]  = 0, mvMatScale, 0, 0
 	self.ram.mvMat[8],  self.ram.mvMat[9],  self.ram.mvMat[10], self.ram.mvMat[11] = 0, 0, mvMatScale, 0
 	self.ram.mvMat[12], self.ram.mvMat[13], self.ram.mvMat[14], self.ram.mvMat[15] = 0, 0, 0, mvMatScale
-	self:onMvMatChange()
 end
 
 function AppVideo:mattrans(...)
-	self:triBuf_flush()
-	self.mvMat:applyTranslate(...)
-	self:onMvMatChange()
+	self.mvMatDirty = true
+	return self.mvMat:applyTranslate(...)
 end
 
 function AppVideo:matrot(...)
-	self:triBuf_flush()
-	self.mvMat:applyRotate(...)
-	self:onMvMatChange()
+	self.mvMatDirty = true
+	return self.mvMat:applyRotate(...)
 end
 
 function AppVideo:matrotcs(...)
-	self:triBuf_flush()
-	self.mvMat:applyRotateCosSinUnit(...)
-	self:onMvMatChange()
+	self.mvMatDirty = true
+	return self.mvMat:applyRotateCosSinUnit(...)
 end
 
 function AppVideo:matscale(...)
-	self:triBuf_flush()
-	self.mvMat:applyScale(...)
-	self:onMvMatChange()
+	self.mvMatDirty = true
+	return self.mvMat:applyScale(...)
 end
 
 function AppVideo:matortho(l, r, t, b, n, f)
-	self:triBuf_flush()
+	self.mvMatDirty = true
 	
 	local modeObj = self.currentVideoMode
 
@@ -3519,30 +3515,28 @@ function AppVideo:matortho(l, r, t, b, n, f)
 
 	-- input is vertex in [l,r]x[b,t]x[n,f] coords, output is [-1,1]^3 coords
 	-- applyOrtho is for OpenGL ortho matrix, which expects output space to be [-1,1]
-	self.mvMat:applyOrtho(l, r, t, b, n, f)
-	
-	self:onMvMatChange()
+	return self.mvMat:applyOrtho(l, r, t, b, n, f)
 end
 
 -- TODO get this working with native-resolution mode
 function AppVideo:matfrustum(l, r, t, b, n, f)
-	self:triBuf_flush()
+	self.mvMatDirty = true
+
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 	local modeObj = self.currentVideoMode
 	local shw = .5 * modeObj.width
 	local shh = .5 * modeObj.height
 	self.mvMat:applyTranslate(shw, shh)
-	self.mvMat:applyScale(shw, shw)
-	self:onMvMatChange()
+	return self.mvMat:applyScale(shw, shw)
 end
 
 function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-	self:triBuf_flush()
+	self.mvMatDirty = true
+
 	-- typically y+ is up, but in the 90s console era y- is up
 	-- also flip x+ since OpenGL uses a RHS but I want to preserve orientation of our renderer when looking down from above, so we use a LHS
 	self.mvMat:applyScale(-1, -1, 1)
-	self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-	self:onMvMatChange()
+	return self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 end
 
 

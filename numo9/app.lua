@@ -2306,16 +2306,12 @@ function App:poke(addr, value)
 	end
 
 	-- write out tris using the mvMat before it changes
-	local mvMatChanged = addr >= mvMatAddr and addr < mvMatAddrEnd
-	if mvMatChanged then
+	if addr >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
+		self.mvMatDirty = true
 	end
 
 	self.ram.v[addr] = tonumber(value)
-
-	if mvMatChanged then
-		self:onMvMatChange()
-	end
 
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
@@ -2380,16 +2376,12 @@ function App:pokew(addr, value)
 	end
 
 	-- write out tris using the mvMat before it changes
-	local mvMatChanged = addrend >= mvMatAddr and addr < mvMatAddrEnd
-	if mvMatChanged then
+	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
+		self.mvMatDirty = true
 	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
-
-	if mvMatChanged then
-		self:onMvMatChange()
-	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2445,16 +2437,12 @@ function App:pokel(addr, value)
 	end
 
 	-- write out tris using the mvMat before it changes
-	local mvMatChanged = addrend >= mvMatAddr and addr < mvMatAddrEnd
-	if mvMatChanged then
+	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
+		self.mvMatDirty = true
 	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
-	
-	if mvMatChanged then
-		self:onMvMatChange()
-	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2510,16 +2498,12 @@ function App:pokef(addr, value)
 	end
 
 	-- write out tris using the mvMat before it changes
-	local mvMatChanged = addrend >= mvMatAddr and addr < mvMatAddrEnd
-	if mvMatChanged then
+	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
+		self.mvMatDirty = true
 	end
 
 	ffi.cast('float*', self.ram.v + addr)[0] = tonumber(value)
-
-	if mvMatChanged then
-		self:onMvMatChange()
-	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2596,9 +2580,9 @@ function App:memcpy(dst, src, len)
 	end
 
 	-- write out tris using the mvMat before it changes
-	local mvMatChanged = dstend >= mvMatAddr and dst < mvMatAddrEnd
-	if mvMatChanged then
+	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
 		self:triBuf_flush()
+		self.mvMatDirty = true
 	end
 
 	do
@@ -2621,10 +2605,6 @@ function App:memcpy(dst, src, len)
 				ffi.fill(self.ram.v + rdst, rlen)
 			end
 		end
-	end
-
-	if mvMatChanged then
-		self:onMvMatChange()
 	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
@@ -2693,16 +2673,12 @@ function App:memset(dst, val, len)
 	end
 
 	-- write out tris using the mvMat before it changes
-	local mvMatChanged = dstend >= mvMatAddr and dst < mvMatAddrEnd
-	if mvMatChanged then
+	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
 		self:triBuf_flush()
+		self.mvMatDirty = true
 	end
 
 	ffi.fill(self.ram.v + dst, len, val)
-
-	if mvMatChanged then
-		self:onMvMatChange()
-	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if dstend >= sheetRAM.addr
