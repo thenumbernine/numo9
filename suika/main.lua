@@ -5,7 +5,14 @@
 math.randomseed(tstamp())
 
 dt = 1/60
+-- [[
+mode'480x270x8bppIndex' -- do string setters not work?
+screenSize = vec2(480, 270)
+--]]
+--[[
+mode(0)
 screenSize = vec2(256, 256)
+--]]
 
 radiusForIndex = |i| 5*i
 colorForIndex = |i| 0xFF & (i + 1)

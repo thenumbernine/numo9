@@ -2381,14 +2381,7 @@ each video mode should uniquely ...
 - pick / setup flags for each other shader (since RGB modes need RGB output, indexed modes need indexed output ...)
 --]]
 function AppVideo:setVideoMode(modeIndex)
-	if type(modeIndex) == 'string' then
-		modeIndex = self.videoModes:find(nil, function(modeObj)
-			return modeObj.formatDesc == modeIndex
-		end)
-		if not modeIndex then
-			return false, "failed to find video mode"
-		end
-	end
+	assert.type(modeIndex, 'number')
 	if self.currentVideoModeIndex == modeIndex then return true end
 
 	-- first time we won't have a drawObj to flush

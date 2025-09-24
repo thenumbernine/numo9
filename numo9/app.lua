@@ -665,9 +665,19 @@ function App:initGL()
 			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
 
-		mode = function(videoModeIndex)
+		mode = function(modeIndex)
+			if type(modeIndex) == 'string' then
+				modeIndex = self.videoModes:find(nil, function(modeObj)
+					return modeObj.formatDesc == modeIndex
+				end)
+				if not modeIndex then
+					return false, "failed to find video mode"
+				end
+			end
+
+			-- just poke here so mode is set next frame
 			-- for net play's sake ,how about just doing a peek/poke?
-			self:net_poke(ffi.offsetof('RAM', 'videoMode'), videoModeIndex)
+			self:net_poke(ffi.offsetof('RAM', 'videoMode'), modeIndex)
 		end,
 
 		clip = function(...)
