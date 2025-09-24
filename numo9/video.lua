@@ -1966,7 +1966,14 @@ function AppVideo:triBuf_flush()
 
 	sceneObj.geometry.count = n
 
-	sceneObj.program:use()
+	local program = sceneObj.program
+	program:use()
+	
+	if self.mvMatDirty then
+		program:setUniform('mvMat', self.ram.mvMat)
+		self.mvMatDirty = false
+	end
+
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
@@ -2009,15 +2016,6 @@ function AppVideo:triBuf_addTri(
 		self.lastSolidPaletteTex = paletteTex
 		self.lastSolidSheetTex = sheetTex
 		self.lastTilemapTex = tilemapTex
-	end
-
-
-	if self.mvMatDirty then
-		sceneObj.program
-			:use()
-			:setUniform('mvMat', self.ram.mvMat)
-			:useNone()
-		self.mvMatDirty = false
 	end
 
 	-- push
@@ -2751,30 +2749,7 @@ function AppVideo:clearScreen(
 	depthOnly
 )
 	colorIndex = colorIndex or 0
---[[ using a quad ... not depth friendly
-	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-
-	local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
-	self:setClipRect(0, 0, clipMax, clipMax)
-
-	local fbTex = self.framebufferRAM.tex
-	self:matident()
-	self:drawSolidRect(
-		0,
-		0,
-		fbTex.width,
-		fbTex.height,
-		colorIndex,
-		nil,
-		nil,
-		paletteTex
-	)
-
-	self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
-
-	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
---]]
--- [[ using clear for depth ... isn't guaranteeing sorting though ... hmm ...
+-- using clear for depth ... isn't guaranteeing sorting though ... hmm ...
 -- if we do clear color here then it'll go out of order between clearScreen() and triBuf_flush() calls
 -- so better to clear depth only?  then there's a tiny out of sync problem but probably no one will notice I hope...
 	self:triBuf_flush()
@@ -2847,7 +2822,6 @@ function AppVideo:clearScreen(
 		self.framebufferRAM.dirtyGPU = true
 		self.framebufferRAM.changedSinceDraw = true
 	end
---]]
 end
 
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)

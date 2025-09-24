@@ -57,10 +57,10 @@ local tilemapSize = numo9_rom.tilemapSize
 local clipMax = numo9_rom.clipMax
 local keyPressFlagSize = numo9_rom.keyPressFlagSize
 local keyCount = numo9_rom.keyCount
-local mvMatType = numo9_rom.mvMatType
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
+local mvMatType = numo9_rom.mvMatType
 local mvMatAddr = numo9_rom.mvMatAddr 
 local mvMatAddrEnd = numo9_rom.mvMatAddrEnd
 
