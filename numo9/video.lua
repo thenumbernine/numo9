@@ -1519,6 +1519,17 @@ void main() {
 		bool borderOnly = (extra.x & 8u) != 0u;
 		uint colorIndex = (extra.x >> 8u) & 0xffu;
 
+		// TODO think this through
+		// calculate screen space epsilon at this point
+		//float eps = abs(dFdy(tcv.y));
+		//float eps = abs(dFdy(tcv.x));
+		// more solid for 3D
+		// TODO ... but adding borders at the 45 degrees...
+		float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
+		//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
+		//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
+
+
 		if (round) {
 			// midpoint-circle / Bresenham algorithm, like Tic80 uses:
 			// figure out which octant of the circle you're in
@@ -1532,30 +1543,11 @@ void main() {
 			vec2 delta = tcv - center;
 			vec2 frac = delta / radius;
 
-#if 0
-			if (borderOnly) {
-				// get rid of center lines along 45 degrees...
-				// TODO ... but adding borders at the 45 degrees...
-				//float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
-				//if (dot(frac, frac) < 1. - eps) plzDiscard = true;
-				if (dot(frac, frac) < 1.) plzDiscard = true;
-			}
-#endif
-
 			if (abs(delta.y) > abs(delta.x)) {
 				// top/bottom quadrant
 				float by = radius.y * sqrt(1. - frac.x * frac.x);
 				if (delta.y > by || delta.y < -by) plzDiscard = true;
 				if (borderOnly) {
-					// TODO think this through
-					// calculate screen space epsilon at this point
-					//float eps = abs(dFdy(tcv.y));
-					//float eps = abs(dFdy(tcv.x));
-					// more solid for 3D
-					// TODO ... but adding borders at the 45 degrees...
-					float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
-					//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-					//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
 					if (delta.y < by-eps && delta.y > -by+eps) plzDiscard = true;
 				}
 			} else {
@@ -1563,25 +1555,11 @@ void main() {
 				float bx = radius.x * sqrt(1. - frac.y * frac.y);
 				if (delta.x > bx || delta.x < -bx) plzDiscard = true;
 				if (borderOnly) {
-					// calculate screen space epsilon at this point
-					//float eps = abs(dFdx(tcv.x));
-					//float eps = abs(dFdx(tcv.y));
-					// more solid for 3D
-					// TODO ... but adding borders at the 45 degrees...
-					float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
-					//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-					//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
 					if (delta.x < bx-eps && delta.x > -bx+eps) plzDiscard = true;
 				}
 			}
 		} else {
 			if (borderOnly) {
-				// calculate screen space epsilon at this point
-				//vec2 eps = abs(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-				float eps = sqrt(lenSq(dFdx(tcv))+lenSq(dFdy(tcv)));
-				//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-				//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
-
 				if (tcv.x > box.x+eps
 					&& tcv.x < box.x+box.z-eps
 					&& tcv.y > box.y+eps
