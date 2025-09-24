@@ -1214,11 +1214,6 @@ layout(location=3) in vec4 drawOverrideSolidAttr;
 // flat, the bbox of the currently drawn quad, only used for round-rendering of solid-shader
 layout(location=4) in vec4 boxAttr;
 
-/*
-flat, the screen scissor bbox, because I don't want to flush and redraw every time I change the scissor region.
-*/
-layout(location=5) in vec4 scissorAttr;
-
 //GLES3 says we have at least 16 attributes to use ...
 
 // the bbox world coordinates, used with 'boxAttr' for rounding
@@ -1227,7 +1222,6 @@ out vec2 tcv;
 flat out uvec4 extra;
 flat out vec4 drawOverrideSolid;
 flat out vec4 box;
-flat out vec4 scissor;
 
 out vec3 vertexv;
 
@@ -1239,7 +1233,6 @@ void main() {
 	drawOverrideSolid = drawOverrideSolidAttr;
 	extra = extraAttr;
 	box = boxAttr;
-	scissor = scissorAttr;
 
 	gl_Position = mvMat * vec4(vertex, 1.);
 
@@ -1260,7 +1253,6 @@ in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sp
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 drawOverrideSolid;
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
-flat in vec4 scissor;	// x, y, w, h
 
 in vec3 vertexv;
 
@@ -1270,6 +1262,7 @@ layout(location=1) out vec4 fragNormal;
 uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
+uniform vec4 scissor;
 
 <?=glslCode5551?>
 
@@ -1627,14 +1620,6 @@ void main() {
 					useVec = true,
 				},
 			},
-			scissorAttr = {
-				--divisor = 3,	-- 6 honestly ...
-				buffer = {
-					usage = gl.GL_DYNAMIC_DRAW,
-					dim = 4,
-					useVec = true,
-				},
-			},
 		},
 	}
 end
@@ -1968,10 +1953,16 @@ function AppVideo:triBuf_flush()
 
 	local program = sceneObj.program
 	program:use()
-	
+
 	if self.mvMatDirty then
 		program:setUniform('mvMat', self.ram.mvMat)
 		self.mvMatDirty = false
+	end
+	if self.clipRectDirty then
+		gl.glUniform4f(
+			program.uniforms.scissor.loc,
+			self:getClipRect())
+		self.clipRectDirty = false
 	end
 
 	sceneObj:enableAndSetAttrs()
@@ -2006,7 +1997,6 @@ function AppVideo:triBuf_addTri(
 	local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
 	local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
 	local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
-	local scissorAttr = sceneObj.attrs.scissorAttr.buffer.vec
 
 	if self.lastSolidPaletteTex ~= paletteTex
 	or self.lastSolidSheetTex ~= sheetTex
@@ -2034,8 +2024,6 @@ function AppVideo:triBuf_addTri(
 	v = texcoord:emplace_back()
 	v.x, v.y = u3, v3
 
-	local clipX, clipY, clipW, clipH = self:getClipRect()
-
 	for j=0,2 do
 		v = drawOverrideSolidAttr:emplace_back()
 		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
@@ -2045,9 +2033,6 @@ function AppVideo:triBuf_addTri(
 
 		v = boxAttr:emplace_back()
 		v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
-
-		v = scissorAttr:emplace_back()
-		v.x, v.y, v.z, v.w = clipX, clipY, clipW, clipH
 	end
 end
 
@@ -2382,6 +2367,7 @@ function AppVideo:setVideoMode(modeIndex)
 
 	self.triBuf_sceneObj = self.drawObj
 	self.mvMatDirty = true	-- the drawObj changed so make sure it refreshes its mvMat
+	self.clipRectDirty = true
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
 	self.blitScreenObj.texs[2] = assert.index(self, 'framebufferNormalTex')
@@ -2671,7 +2657,7 @@ function AppVideo:drawSolidLine3D(
 	local fbw = self.framebufferRAM.tex.width
 	local fbh = self.framebufferRAM.tex.height
 
---[[ TODO inverse transform [1,0,0,1] and [0,1,0,1] to find out dx and dy ... 
+--[[ TODO inverse transform [1,0,0,1] and [0,1,0,1] to find out dx and dy ...
 	local v1x, v1y, v1z, v1w = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x1, y1, z1))
 	local v2x, v2y, v2z, v2w = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x2, y2, z2))
 	local dx = v2x - v1x
@@ -2827,6 +2813,7 @@ end
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
 function AppVideo:setClipRect(...)
 	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = ...
+	self.clipRectDirty = true
 end
 
 function AppVideo:getClipRect()
@@ -3478,7 +3465,7 @@ end
 
 function AppVideo:matortho(l, r, t, b, n, f)
 	self.mvMatDirty = true
-	
+
 	local modeObj = self.currentVideoMode
 
 	-- input is [0,2]^2 x [-1,1] coords, output is [0,mode.width] x [0,mode.height] x [-1,1] coords

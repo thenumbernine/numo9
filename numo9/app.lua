@@ -61,8 +61,10 @@ local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local mvMatType = numo9_rom.mvMatType
-local mvMatAddr = numo9_rom.mvMatAddr 
+local mvMatAddr = numo9_rom.mvMatAddr
 local mvMatAddrEnd = numo9_rom.mvMatAddrEnd
+local clipRectAddr = numo9_rom.clipRectAddr
+local clipRectAddrEnd = numo9_rom.clipRectAddrEnd
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -2310,6 +2312,10 @@ function App:poke(addr, value)
 		self:triBuf_flush()
 		self.mvMatDirty = true
 	end
+	if addr >= clipRectAddr and addr < clipRectAddrEnd then
+		self:triBuf_flush()
+		self.clipRectDirty = true
+	end
 
 	self.ram.v[addr] = tonumber(value)
 
@@ -2380,6 +2386,10 @@ function App:pokew(addr, value)
 		self:triBuf_flush()
 		self.mvMatDirty = true
 	end
+	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
+		self:triBuf_flush()
+		self.clipRectDirty = true
+	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
 
@@ -2441,6 +2451,10 @@ function App:pokel(addr, value)
 		self:triBuf_flush()
 		self.mvMatDirty = true
 	end
+	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
+		self:triBuf_flush()
+		self.clipRectDirty = true
+	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
 
@@ -2501,6 +2515,10 @@ function App:pokef(addr, value)
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
 		self.mvMatDirty = true
+	end
+	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
+		self:triBuf_flush()
+		self.clipRectDirty = true
 	end
 
 	ffi.cast('float*', self.ram.v + addr)[0] = tonumber(value)
@@ -2583,6 +2601,10 @@ function App:memcpy(dst, src, len)
 	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
 		self:triBuf_flush()
 		self.mvMatDirty = true
+	end
+	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
+		self:triBuf_flush()
+		self.clipRectDirty = true
 	end
 
 	do
@@ -2676,6 +2698,10 @@ function App:memset(dst, val, len)
 	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
 		self:triBuf_flush()
 		self.mvMatDirty = true
+	end
+	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
+		self:triBuf_flush()
+		self.clipRectDirty = true
 	end
 
 	ffi.fill(self.ram.v + dst, len, val)
