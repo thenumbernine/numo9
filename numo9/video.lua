@@ -1774,6 +1774,10 @@ function AppVideo:initVideoModes()
 
 		-- TODO however ... for projection matrix operations ... maybe I want the mode to pretend it is smaller?
 		-- mehh... or thats a bad idea ... so frustrating...
+		-- but TODO don't do this *and* matortho/matfrustum, or at least keep matfrustum for the texture output
+		-- because using a sized-down size for frustum gives us weird FOV errors.
+		self.width = 480	-- for matortho/matfrustum
+		self.height = math.ceil(self.width / app.width * app.height)
 	end
 	function nativeMode:onAppResize()
 		self.built = false
@@ -2376,23 +2380,23 @@ each video mode should uniquely ...
 - pick the blit SceneObj
 - pick / setup flags for each other shader (since RGB modes need RGB output, indexed modes need indexed output ...)
 --]]
-function AppVideo:setVideoMode(mode)
-	if type(mode) == 'string' then
-		mode = self.videoModes:find(nil, function(modeObj)
-			return modeObj.formatDesc == mode
+function AppVideo:setVideoMode(modeIndex)
+	if type(modeIndex) == 'string' then
+		modeIndex = self.videoModes:find(nil, function(modeObj)
+			return modeObj.formatDesc == modeIndex
 		end)
-		if not mode then
+		if not modeIndex then
 			return false, "failed to find video mode"
 		end
 	end
-	if self.currentVideoMode == mode then return true end
+	if self.currentVideoModeIndex == modeIndex then return true end
 
 	-- first time we won't have a drawObj to flush
 	if self.triBuf then
 		self.triBuf:flush()	-- flush before we redefine what modeObj.drawObj is, which .triBuf:flush() depends on
 	end
 
-	local modeObj = self.videoModes[mode]
+	local modeObj = self.videoModes[modeIndex]
 	if modeObj then
 		modeObj:build()
 
@@ -2411,13 +2415,15 @@ function AppVideo:setVideoMode(mode)
 
 		self.triBuf.sceneObj = self.drawObj
 	else
-		error("unknown video mode "..tostring(mode))
+		error("unknown video mode "..tostring(modeIndex))
 	end
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
 	self.blitScreenObj.texs[2] = assert.index(self, 'framebufferNormalTex')
 
 	self:setFramebufferTex(self.framebufferRAM.tex)
-	self.currentVideoMode = mode
+
+	self.currentVideoMode = modeObj
+	self.currentVideoModeIndex = modeIndex
 
 	return true
 end
@@ -2845,7 +2851,7 @@ function AppVideo:clearScreen(
 	end
 
 	if not depthOnly then
-		local modeObj = self.videoModes[self.currentVideoMode]
+		local modeObj = self.currentVideoMode
 		if not modeObj then
 			print'clearScreen() failed -- no video mode present!!!'
 		else
@@ -3560,8 +3566,10 @@ end
 function AppVideo:matortho(l, r, t, b, n, f)
 	-- adjust from [-1,1] to [0,256]
 	-- opengl ortho matrix, which expects input space to be [-1,1]
-	local shw = .5 * self.framebufferRAM.tex.width
-	local shh = .5 * self.framebufferRAM.tex.height
+	-- ugly hack: use the video mode obj for ortho sizes (cuz native-size can use a fake-size for tricking matortho so the font size stays the same...)
+	local modeObj = self.currentVideoMode
+	local shw = .5 * modeObj.width
+	local shh = .5 * modeObj.height
 	self.mvMat:applyTranslate(shw, shh)
 	self.mvMat:applyScale(shw, shw)
 	self.mvMat:applyOrtho(l, r, t, b, n, f)
@@ -3572,8 +3580,10 @@ function AppVideo:matfrustum(l, r, t, b, n, f)
 --	self.mvMat:applyScale(128, 128)
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 	-- TODO Why is matortho a lhs transform to screen space but matfrustum a rhs transform to screen space? what did I do wrong?
-	local shw = .5 * self.framebufferRAM.tex.width
-	local shh = .5 * self.framebufferRAM.tex.height
+	-- ugly hack: use the framebuffer tex for the frustum sizes (cuz usign the fake-size set for the ui/font will cause frustum FOV errors)
+	local modeObj = self.framebufferRAM.tex
+	local shw = .5 * modeObj.width
+	local shh = .5 * modeObj.height
 	self.mvMat:applyTranslate(shw, shh)
 	self.mvMat:applyScale(shw, shw)
 end
@@ -3614,7 +3624,7 @@ function AppVideo:screenshotToFile(fn)
 	local fbRAM = self.framebufferRAM
 	fbRAM:checkDirtyGPU()
 	local fbTex = fbRAM.tex
-	local modeObj = self.videoModes[self.currentVideoMode]
+	local modeObj = self.currentVideoMode
 	modeObj:build()
 	if modeObj.format == 'RGB565' then
 		-- convert to RGB8 first

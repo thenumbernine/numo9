@@ -7,8 +7,8 @@ math.randomseed(tstamp())
 dt = 1/60
 screenSize = vec2(256, 256)
 
-radiusForIndex=range(10):mapi(|i| 5*i)
-colorForIndex=range(10):mapi(|i| i + 1)
+radiusForIndex = |i| 5*i
+colorForIndex = |i| 0xFF & (i + 1)
 
 density = 1
 
@@ -18,8 +18,8 @@ Piece.init=|:,args|do
 	self.pos = vec2(screenSize.x/2, 0)
 	self.vel = vec2(0,0)
 end
-Piece.getRadius=|:| radiusForIndex[self.index]
-Piece.getColor=|:| colorForIndex[self.index]
+Piece.getRadius=|:| radiusForIndex(self.index)
+Piece.getColor=|:| colorForIndex(self.index)
 Piece.getMass=|:| density * math.pi * self:getRadius()^2
 Piece.draw=|:|do
 	local radius = self:getRadius()
@@ -51,7 +51,7 @@ local epsilon = 1e-7
 
 points = 0
 
-cursorSpeed = 60
+cursorSpeed = 120
 cursorX = screenSize.x / 2
 update=||do
 	cls()
@@ -61,12 +61,22 @@ update=||do
 	if btn'right' then
 		cursorX += cursorSpeed * dt
 	end
+	if btnp'up' then
+		mattrans(0, cursorSpeed * dt, 0)
+	end
+	if btnp'down' then
+		mattrans(0, -cursorSpeed * dt, 0)
+	end
 	if btnp'b' then
 		makeNextPiece()
 	end
 
 	cursorX = math.clamp(cursorX, nextPiece:getRadius(), screenSize.x - nextPiece:getRadius())
 	nextPiece.pos.x = cursorX
+
+	line(1,0,0,screenSize.y,12)
+	line(1,screenSize.y,screenSize.x,screenSize.y,12)
+	line(screenSize.x,screenSize.y,screenSize.x,0,12)
 
 	for _,piece in ipairs(pieces) do
 		piece:draw()
