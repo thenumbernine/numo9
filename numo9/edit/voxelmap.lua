@@ -345,6 +345,10 @@ function EditVoxelMap:update()
 		self.orbit.ortho = not self.orbit.ortho
 	end
 	x = x + 6
+	if self:guiButton('L', x, y, false, 'light='..tostring(app.menuUseLighting)) then
+		app.menuUseLighting = not app.menuUseLighting
+	end
+	x = x + 6
 
 	self:guiSpinner(x, y, function(dx)
 		self.voxCurSel.mesh3DIndex = math.max(0, self.voxCurSel.mesh3DIndex + dx)

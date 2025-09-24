@@ -2169,7 +2169,11 @@ print('run thread dead')
 		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		sceneObj.uniforms.useLighting = self.activeMenu and 0 or self.ram.useHardwareLighting
+		if self.activeMenu then
+			sceneObj.uniforms.useLighting = self.menuUseLighting and 1 or 0
+		else
+			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
+		end
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.framebufferMenuTex
