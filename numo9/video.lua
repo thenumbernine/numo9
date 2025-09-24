@@ -1771,13 +1771,6 @@ function AppVideo:initVideoModes()
 		self.height = app.height
 		self.formatDesc = self.width..'x'..self.height..'x'..self.format
 		VideoMode.build(self)
-
-		-- TODO however ... for projection matrix operations ... maybe I want the mode to pretend it is smaller?
-		-- mehh... or thats a bad idea ... so frustrating...
-		-- but TODO don't do this *and* matortho/matfrustum, or at least keep matfrustum for the texture output
-		-- because using a sized-down size for frustum gives us weird FOV errors.
-		self.width = 480	-- for matortho/matfrustum
-		self.height = math.ceil(self.width / app.width * app.height)
 	end
 	function nativeMode:onAppResize()
 		self.built = false
@@ -3540,41 +3533,40 @@ function AppVideo:matident()
 	self.ram.mvMat[12], self.ram.mvMat[13], self.ram.mvMat[14], self.ram.mvMat[15] = 0, 0, 0, mvMatScale
 end
 
-function AppVideo:mattrans(x,y,z)
-	self.mvMat:applyTranslate(x, y, z)
+function AppVideo:mattrans(...)
+	return self.mvMat:applyTranslate(...)
 end
 
-function AppVideo:matrot(theta, x, y, z)
-	self.mvMat:applyRotate(theta, x, y, z)
+function AppVideo:matrot(...)
+	return self.mvMat:applyRotate(...)
 end
 
-function AppVideo:matrotcs(c, s, x, y, z)
-	self.mvMat:applyRotateCosSinUnit(c, s, x, y, z)
+function AppVideo:matrotcs(...)
+	return self.mvMat:applyRotateCosSinUnit(...)
 end
 
-function AppVideo:matscale(x, y, z)
-	self.mvMat:applyScale(x, y, z)
+function AppVideo:matscale(...)
+	return self.mvMat:applyScale(...)
 end
 
 function AppVideo:matortho(l, r, t, b, n, f)
-	-- adjust from [-1,1] to [0,256]
-	-- opengl ortho matrix, which expects input space to be [-1,1]
-	-- ugly hack: use the video mode obj for ortho sizes (cuz native-size can use a fake-size for tricking matortho so the font size stays the same...)
 	local modeObj = self.currentVideoMode
-	local shw = .5 * modeObj.width
-	local shh = .5 * modeObj.height
-	self.mvMat:applyTranslate(shw, shh)
-	self.mvMat:applyScale(shw, shw)
+
+	-- input is [0,2]^2 x [-1,1] coords, output is [0,mode.width] x [0,mode.height] x [-1,1] coords
+	self.mvMat:applyScale(.5 * modeObj.width, .5 * modeObj.height)
+
+	-- input is [-1,1]^3 coords, output is [0,2]^2 x [-1,1] coords
+	self.mvMat:applyTranslate(1, 1)
+
+	-- input is vertex in [l,r]x[b,t]x[n,f] coords, output is [-1,1]^3 coords
+	-- applyOrtho is for OpenGL ortho matrix, which expects output space to be [-1,1]
 	self.mvMat:applyOrtho(l, r, t, b, n, f)
 end
 
+-- TODO get this working with native-resolution mode
 function AppVideo:matfrustum(l, r, t, b, n, f)
---	self.mvMat:applyTranslate(128, 128)
---	self.mvMat:applyScale(128, 128)
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
-	-- TODO Why is matortho a lhs transform to screen space but matfrustum a rhs transform to screen space? what did I do wrong?
-	-- ugly hack: use the framebuffer tex for the frustum sizes (cuz usign the fake-size set for the ui/font will cause frustum FOV errors)
-	local modeObj = self.framebufferRAM.tex
+	local modeObj = self.currentVideoMode
 	local shw = .5 * modeObj.width
 	local shh = .5 * modeObj.height
 	self.mvMat:applyTranslate(shw, shh)

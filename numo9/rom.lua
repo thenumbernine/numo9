@@ -338,7 +338,6 @@ local RAM = struct{
 				{name='clipRect', type=clipType..'[4]'},
 				{name='mvMat', type=mvMatType..'[16]'},
 				{name='videoMode', type='uint8_t'},
-				-- TODO do I also store the current video mode resolution? hmm...
 
 				{name='blendMode', type='uint8_t'},
 

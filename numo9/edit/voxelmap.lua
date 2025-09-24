@@ -1,5 +1,6 @@
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
+local table = require 'ext.table'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3d = require 'vec-ffi.vec3d'
 local box3d = require 'vec-ffi.box3d'
@@ -250,6 +251,46 @@ function EditVoxelMap:update()
 							end
 							self.rectDown = nil
 						end
+					elseif self.drawMode == 'fill' then
+						if app:keyp'mouse_left' then
+							local dirs = table{
+								vec3d(1,0,0),
+								vec3d(-1,0,0),
+								vec3d(0,1,0),
+								vec3d(0,-1,0),
+								vec3d(0,0,1),
+								vec3d(0,0,-1),
+							}
+							local addr = voxelmap:getVoxelAddr(npti.x, npti.y, npti.z)
+							if addr then
+								local srcColor = app:peekl(addr)
+								if srcColor ~= voxelMapEmptyValue
+								and srcColor ~= self.voxCurSel.intval
+								then
+									local fillstack = table()
+
+									local addr = voxelmap:getVoxelAddr(npti:unpack())
+									if addr then
+										self:edit_pokel(addr, self.voxCurSel.intval)
+									end
+
+									fillstack:insert(npti:clone())
+									while #fillstack > 0 do
+										local pt = fillstack:remove()
+										for _,dir in ipairs(dirs) do
+											local pt2 = pt + dir
+											local addr = voxelmap:getVoxelAddr(pt2:unpack())
+											if addr	-- addr won't exist if it's oob
+											and app:peekl(addr) == srcColor
+											then
+												self:edit_pokel(addr, self.voxCurSel.intval)
+												fillstack:insert(pt2)
+											end
+										end
+									end
+								end
+							end
+						end
 					end
 				end
 
@@ -319,10 +360,10 @@ function EditVoxelMap:update()
 	x = x + 12
 
 	-- tools ... maybe I should put these somewhere else
-	self:guiRadio(x, y, {'draw', 'rect'}, self.drawMode, function(result)
+	self:guiRadio(x, y, {'draw', 'rect', 'fill'}, self.drawMode, function(result)
 		self.drawMode = result
 	end)
-	x = x + 12
+	x = x + 18
 
 	if voxelmap then
 		self:guiSpinner(x, y, function(dx)
