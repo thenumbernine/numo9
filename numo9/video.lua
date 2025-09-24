@@ -588,10 +588,7 @@ local AppVideo = {}
 local VideoMode = class()
 
 function VideoMode:init(args)
-	self.app = args.app
-	self.width = args.width
-	self.height = args.height
-	self.format = args.format
+	for k,v in pairs(args) do self[k] = v end
 
 	self.formatDesc = self.width..'x'..self.height..'x'..self.format
 end
@@ -603,10 +600,6 @@ function VideoMode:build()
 	-- see if its already built
 	if self.built then return end
 
-print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-print('!!! building video mode '..self.formatDesc..' !!!')
-print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-
 	self:buildFramebuffers()
 	self:buildColorOutputAndBlitScreenObj()
 	self:buildUberShader()
@@ -616,6 +609,12 @@ end
 
 function VideoMode:buildFramebuffers()
 	local app = self.app
+
+	-- push and pop any currently-bound FBO
+	-- this can happen if a runThread calls mode()
+	if app.inUpdateCallback then
+		app.fb:unbind()
+	end
 
 	local width, height = self.width, self.height
 	local internalFormat, gltype, suffix
@@ -658,7 +657,7 @@ function VideoMode:buildFramebuffers()
 	-- I'm making one FBO per size.
 	-- Should I be making one FBO per internalFormat?
 	local sizeKey = '_'..self.width..'x'..self.height
-	local fb = app.fbos[sizeKey]
+	local fb = not self.useNativeOutput and app.fbos[sizeKey]
 	if not fb then
 		fb = GLFBO{
 			width = self.width,
@@ -667,12 +666,14 @@ function VideoMode:buildFramebuffers()
 		}
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
 		:unbind()
-		app.fbos[sizeKey] = fb
+		if not self.useNativeOutput then
+			app.fbos[sizeKey] = fb
+		end
 	end
 	self.fb = fb
 
 	-- make a FBO normalmap per size.  Don't store it in fantasy-console "hardware" RAM just yet.  For now it's just going to be accessible by a single switch in RAM.
-	local normalTex = app.framebufferNormalTexs[sizeKey]
+	local normalTex = not self.useNativeOutput and app.framebufferNormalTexs[sizeKey]
 	if not normalTex then
 		normalTex = GLTex2D{
 			width = width,
@@ -692,18 +693,21 @@ function VideoMode:buildFramebuffers()
 				t = gl.GL_CLAMP_TO_EDGE,
 			},
 		}:unbind()
-		app.framebufferNormalTexs[sizeKey] = normalTex
 
 		-- if normalTex and fb are init'd at the same time, i.e. their cache tables use matching keys, then this shouldn't happen any more often than necessary:
 		fb:bind()
 			:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
 			:unbind()
+
+		if not not self.useNativeOutput then
+			app.framebufferNormalTexs[sizeKey] = normalTex
+		end
 	end
 	self.framebufferNormalTex = assert(normalTex)
 	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects?
 
 	local sizeAndFormatKey = sizeKey..'x'..suffix
-	local framebufferRAM = app.framebufferRAMs[sizeAndFormatKey]
+	local framebufferRAM = not self.useNativeOutput and app.framebufferRAMs[sizeAndFormatKey]
 	-- this shares between 8bppIndexed (R8UI) and RGB322 (R8UI)
 	if not framebufferRAM then
 		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
@@ -712,19 +716,34 @@ function VideoMode:buildFramebuffers()
 		-- otherwise falls back to default based on internalFormat
 		-- set this here so we can determine .ctype for the ctor.
 		-- TODO determine ctype = GLTypes.ctypeForGLType in RAMGPU ctor?)
-		framebufferRAM = RAMGPUTex{
-			app = app,
-			addr = framebufferAddr,
-			width = width,
-			height = height,
-			channels = 1,
-			internalFormat = internalFormat,
-			glformat = formatInfo.format,
-			gltype = gltype,
-			ctype = assert.index(GLTypes.ctypeForGLType, gltype),
-		}
 
-		app.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
+		if self.useNativeOutput then
+			-- make a fake-wrapper that doesn't connect to the address space and does nothing for flushing to/from CPU
+			framebufferRAM = RAMGPUTex{
+				app = app,
+				addr = framebufferAddr,
+				width = width,
+				height = height,
+				channels = 1,
+				internalFormat = internalFormat,
+				glformat = formatInfo.format,
+				gltype = gltype,
+				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
+			}
+		else
+			framebufferRAM = RAMGPUTex{
+				app = app,
+				addr = framebufferAddr,
+				width = width,
+				height = height,
+				channels = 1,
+				internalFormat = internalFormat,
+				glformat = formatInfo.format,
+				gltype = gltype,
+				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
+			}
+			app.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
+		end
 	end
 	self.framebufferRAM = framebufferRAM
 
@@ -736,6 +755,10 @@ function VideoMode:buildFramebuffers()
 	-- or do I have to make one per screen mode's framebuffer?
 	self.framebufferRAM.fb = self.fb
 	-- don't bother do the same with framebufferNormalTex cuz it isn't a RAMGPU / doesn't have address space
+
+	if app.inUpdateCallback then
+		app.fb:bind()
+	end
 end
 
 
@@ -1708,6 +1731,17 @@ function AppVideo:initVideoModes()
 	-- I could do it with a 2nd pass to combine bit output ...
 	--]]
 	-- TODO 2bpp 1bpp
+
+
+	-- [[ hmmmmm native-resolution?
+	self.videoModes[-1] = VideoMode{
+		app = self,
+		width = self.width,
+		height = self.height,
+		format = 'RGBA',
+		useNativeOutput = true,	-- i.e. don't cache or use cached fbo's, cleanup, allow resize, etc.
+	}
+	--]]
 
 
 
