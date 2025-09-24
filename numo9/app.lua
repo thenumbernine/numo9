@@ -1801,11 +1801,11 @@ conn.receivesPerSecond = 0
 		-- in fact same if the framebuffer points to any of the other system RAM addresses, in case you want to draw to the fontWidth array or something ...
 		-- but we don't need to always be copying back from GPU to CPU ... only if any of the sheets overlap with it ...
 		-- and if any sheets intersect with it then we need to copy the GPU back to CPU ... and then set the sheets' dirtyCPU flag ...
-		local spriteSheetOverlapsFramebuffer = self.sheetRAMs[1] and self.sheetRAMs[1]:overlaps(self.framebufferRAM)
-		local tileSheetOverlapsFramebuffer = self.sheetRAMs[2] and self.sheetRAMs[2]:overlaps(self.framebufferRAM)
-		local tilemapOverlapsFramebuffer = self.tilemapRAMs[1] and self.tilemapRAMs[1]:overlaps(self.framebufferRAM)
-		local paletteOverlapsFramebuffer = self.paletteRAMs[1] and self.paletteRAMs[1]:overlaps(self.framebufferRAM)
-		local fontOverlapsFramebuffer = self.fontRAMs[1] and self.fontRAMs[1]:overlaps(self.framebufferRAM)
+		local spriteSheetOverlapsFramebuffer = self.sheetRAMs[1] self.framebufferRAM:overlaps(self.sheetRAMs[1])
+		local tileSheetOverlapsFramebuffer = self.sheetRAMs[2] self.framebufferRAM:overlaps(self.sheetRAMs[2])
+		local tilemapOverlapsFramebuffer = self.tilemapRAMs[1] self.framebufferRAM:overlaps(self.tilemapRAMs[1])
+		local paletteOverlapsFramebuffer = self.paletteRAMs[1] self.framebufferRAM:overlaps(self.paletteRAMs[1])
+		local fontOverlapsFramebuffer = self.fontRAMs[1] self.framebufferRAM:overlaps(self.fontRAMs[1])
 		if spriteSheetOverlapsFramebuffer
 		or tileSheetOverlapsFramebuffer
 		or tilemapOverlapsFramebuffer

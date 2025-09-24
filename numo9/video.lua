@@ -651,7 +651,7 @@ function VideoMode:buildFramebuffers()
 		suffix = '8bpp'	-- suffix is for the framebuffer, and we are using R8UI format
 		--width = bit.rshift(width, 1) + bit.band(width, 1)
 	else
-		error("unknown self.format "..tostring(self.format))
+		error("unknown format "..tostring(self.format))
 	end
 
 	-- I'm making one FBO per size.
@@ -710,26 +710,43 @@ function VideoMode:buildFramebuffers()
 	local framebufferRAM = not self.useNativeOutput and app.framebufferRAMs[sizeAndFormatKey]
 	-- this shares between 8bppIndexed (R8UI) and RGB322 (R8UI)
 	if not framebufferRAM then
-		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
-		gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
 		-- is specified for GL_UNSIGNED_SHORT_5_6_5.
 		-- otherwise falls back to default based on internalFormat
 		-- set this here so we can determine .ctype for the ctor.
 		-- TODO determine ctype = GLTypes.ctypeForGLType in RAMGPU ctor?)
+		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
+		gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
 
+	
 		if self.useNativeOutput then
 			-- make a fake-wrapper that doesn't connect to the address space and does nothing for flushing to/from CPU
-			framebufferRAM = RAMGPUTex{
-				app = app,
-				addr = framebufferAddr,
+			framebufferRAM = setmetatable({}, RAMGPUTex)
+
+			local ctype = assert.index(GLTypes.ctypeForGLType, gltype)
+			local image = Image(width, height, 1, ctype)
+			framebufferRAM.image = image
+
+			framebufferRAM.tex = GLTex2D{
+				internalFormat = internalFormat,
+				format = formatInfo.format,
+				type = gltype,
+
 				width = width,
 				height = height,
-				channels = 1,
-				internalFormat = internalFormat,
-				glformat = formatInfo.format,
-				gltype = gltype,
-				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
+				wrap = {
+					s = gl.GL_CLAMP_TO_EDGE,
+					t = gl.GL_CLAMP_TO_EDGE,
+				},
+				minFilter = gl.GL_NEAREST,
+				magFilter = gl.GL_NEAREST,
+				data = ffi.cast('uint8_t*', image.buffer),
 			}
+
+			function framebufferRAM:delete() return false end	-- :delete() is called on sheet/font/palette RAMGPU's between cart loading/unloading
+			function framebufferRAM:overlaps() return false end
+			function framebufferRAM:checkDirtyCPU() end
+			function framebufferRAM:checkDirtyGPU() end
+			function framebufferRAM:updateAddr(newaddr) end
 		else
 			framebufferRAM = RAMGPUTex{
 				app = app,
@@ -742,6 +759,7 @@ function VideoMode:buildFramebuffers()
 				gltype = gltype,
 				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
 			}
+	
 			app.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
 		end
 	end
@@ -814,7 +832,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj()
 --	elseif self.format == '4bppIndex' then
 --		return nil
 	else
-		error("unknown VideoMode format "..tostring(self.format))
+		error("unknown format "..tostring(self.format))
 	end
 end
 
@@ -1733,14 +1751,24 @@ function AppVideo:initVideoModes()
 	-- TODO 2bpp 1bpp
 
 
-	-- [[ hmmmmm native-resolution?
-	self.videoModes[-1] = VideoMode{
+	--[[ hmmmmm native-resolution?  but requires lots of work-arounds for address-space , framebuffer, etc
+	local nativeMode = VideoMode{
 		app = self,
 		width = self.width,
 		height = self.height,
-		format = 'RGBA',
-		useNativeOutput = true,	-- i.e. don't cache or use cached fbo's, cleanup, allow resize, etc.
+		format = 'RGB565',
+		
+		-- i.e. don't cache or use cached fbo's, cleanup, allow resize, etc.
+		-- ... hmm, how long before I just let the user pick any mode they want ...
+		useNativeOutput = true,
 	}
+	self.videoModes[255] = nativeMode
+	local app = self
+	function nativeMode:build()
+		self.width = app.width
+		self.height = app.height
+		return VideoMode.build(self)
+	end
 	--]]
 
 
