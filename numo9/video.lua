@@ -1954,120 +1954,116 @@ function AppVideo:initVideo()
 		--]]
 	}
 
-
-	local app = self
-
-	self.triBuf = {
---DEBUG:flushCallsPerFrame = 0,
---DEBUG:flushSizes = {},
---DEBUG(flushtrace): flushSizesPerTrace = {},
-		flush = function(self)
---DEBUG: self.flushCallsPerFrame = self.flushCallsPerFrame + 1
-			local sceneObj = self.sceneObj
-			if not sceneObj then return end	-- for some calls called before this is even created ...
-
-			-- flush the old
-			local n = #sceneObj.attrs.vertex.buffer.vec
-			if n == 0 then return end
-
---DEBUG: self.flushSizes[n] = (self.flushSizes[n] or 0) + 1
---DEBUG(flushtrace): local tb = debug.traceback()
---DEBUG(flushtrace): self.flushSizesPerTrace[tb] = (self.flushSizesPerTrace[tb] or 0) + 1
-
-			-- resize if capacity changed, upload
-			for name,attr in pairs(sceneObj.attrs) do
-				attr.buffer:endUpdate()
-			end
-
-			-- bind textures
-			-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
-			app.lastTilemapTex:bind(2)
-			app.lastSolidSheetTex:bind(1)
-			app.lastSolidPaletteTex:bind(0)
-
-			sceneObj.geometry.count = n
-
-			sceneObj.program:use()
-			sceneObj:enableAndSetAttrs()
-			sceneObj.geometry:draw()
-			sceneObj:disableAttrs()
-
-			-- reset the vectors and store the last capacity
-			sceneObj:beginUpdate()
-
-			app.lastSolidPaletteTex = nil
-			app.lastSolidSheetTex = nil
-		end,
-		addTri = function(
-			self,
-			paletteTex,
-			sheetTex,
-			tilemapTex,
-
-			-- per vtx
-			x1, y1, z1, w1, u1, v1,
-			x2, y2, z2, w2, u2, v2,
-			x3, y3, z3, w3, u3, v3,
-
-			-- divisor
-			extraX, extraY, extraZ, extraW,
-			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
-			boxX, boxY, boxW, boxH
-		)
-			local sceneObj = self.sceneObj
-			local vertex = sceneObj.attrs.vertex.buffer.vec
-			local texcoord = sceneObj.attrs.texcoord.buffer.vec
-			local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
-			local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
-			local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
-			local scissorAttr = sceneObj.attrs.scissorAttr.buffer.vec
-
-			-- if the textures change then flush
-			if app.lastSolidPaletteTex ~= paletteTex
-			or app.lastSolidSheetTex ~= sheetTex
-			or app.lastTilemapTex ~= tilemapTex
-			then
-				self:flush()
-				app.lastSolidPaletteTex = paletteTex
-				app.lastSolidSheetTex = sheetTex
-				app.lastTilemapTex = tilemapTex
-			end
-
-			-- push
-			local v
-			v = vertex:emplace_back()
-			v.x, v.y, v.z, v.w = x1, y1, z1, w1
-			v = vertex:emplace_back()
-			v.x, v.y, v.z, v.w = x2, y2, z2, w2
-			v = vertex:emplace_back()
-			v.x, v.y, v.z, v.w = x3, y3, z3, w3
-
-			v = texcoord:emplace_back()
-			v.x, v.y = u1, v1
-			v = texcoord:emplace_back()
-			v.x, v.y = u2, v2
-			v = texcoord:emplace_back()
-			v.x, v.y = u3, v3
-
-			local clipX, clipY, clipW, clipH = app:getClipRect()
-
-			for j=0,2 do
-				v = drawOverrideSolidAttr:emplace_back()
-				v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
-
-				v = extraAttr:emplace_back()
-				v.x, v.y, v.z, v.w = extraX, extraY, extraZ, extraW
-
-				v = boxAttr:emplace_back()
-				v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
-
-				v = scissorAttr:emplace_back()
-				v.x, v.y, v.z, v.w = clipX, clipY, clipW, clipH
-			end
-		end,
-	}
-
 	self:resetVideo()
+
+--DEBUG:self.triBuf_flushCallsPerFrame = 0
+--DEBUG:self.triBuf_flushSizes = {}
+--DEBUG(flushtrace): self.triBuf_flushSizesPerTrace = {}
+end
+
+function AppVideo:triBuf_flush()
+--DEBUG: self.triBuf_flushCallsPerFrame = self.triBuf_flushCallsPerFrame + 1
+	local sceneObj = self.triBuf_sceneObj
+	if not sceneObj then return end	-- for some calls called before this is even created ...
+
+	-- flush the old
+	local n = #sceneObj.attrs.vertex.buffer.vec
+	if n == 0 then return end
+
+--DEBUG: self.triBuf_flushSizes[n] = (self.triBuf_flushSizes[n] or 0) + 1
+--DEBUG(flushtrace): local tb = debug.traceback()
+--DEBUG(flushtrace): self.triBuf_flushSizesPerTrace[tb] = (self.triBuf_flushSizesPerTrace[tb] or 0) + 1
+
+	-- resize if capacity changed, upload
+	for name,attr in pairs(sceneObj.attrs) do
+		attr.buffer:endUpdate()
+	end
+
+	-- bind textures
+	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+	self.lastTilemapTex:bind(2)
+	self.lastSolidSheetTex:bind(1)
+	self.lastSolidPaletteTex:bind(0)
+
+	sceneObj.geometry.count = n
+
+	sceneObj.program:use()
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+	sceneObj:disableAttrs()
+
+	-- reset the vectors and store the last capacity
+	sceneObj:beginUpdate()
+
+	self.lastSolidPaletteTex = nil
+	self.lastSolidSheetTex = nil
+end
+
+function AppVideo:triBuf_addTri(
+	paletteTex,
+	sheetTex,
+	tilemapTex,
+
+	-- per vtx
+	x1, y1, z1, w1, u1, v1,
+	x2, y2, z2, w2, u2, v2,
+	x3, y3, z3, w3, u3, v3,
+
+	-- divisor
+	extraX, extraY, extraZ, extraW,
+	blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+	boxX, boxY, boxW, boxH
+)
+	local sceneObj = self.triBuf_sceneObj
+	local vertex = sceneObj.attrs.vertex.buffer.vec
+	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
+	local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
+	local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
+	local scissorAttr = sceneObj.attrs.scissorAttr.buffer.vec
+
+	-- if the textures change then flush
+	if self.lastSolidPaletteTex ~= paletteTex
+	or self.lastSolidSheetTex ~= sheetTex
+	or self.lastTilemapTex ~= tilemapTex
+	then
+		self:triBuf_flush()
+		self.lastSolidPaletteTex = paletteTex
+		self.lastSolidSheetTex = sheetTex
+		self.lastTilemapTex = tilemapTex
+	end
+
+	-- push
+	local v
+	v = vertex:emplace_back()
+	v.x, v.y, v.z, v.w = x1, y1, z1, w1
+	v = vertex:emplace_back()
+	v.x, v.y, v.z, v.w = x2, y2, z2, w2
+	v = vertex:emplace_back()
+	v.x, v.y, v.z, v.w = x3, y3, z3, w3
+
+	v = texcoord:emplace_back()
+	v.x, v.y = u1, v1
+	v = texcoord:emplace_back()
+	v.x, v.y = u2, v2
+	v = texcoord:emplace_back()
+	v.x, v.y = u3, v3
+
+	local clipX, clipY, clipW, clipH = self:getClipRect()
+
+	for j=0,2 do
+		v = drawOverrideSolidAttr:emplace_back()
+		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
+
+		v = extraAttr:emplace_back()
+		v.x, v.y, v.z, v.w = extraX, extraY, extraZ, extraW
+
+		v = boxAttr:emplace_back()
+		v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
+
+		v = scissorAttr:emplace_back()
+		v.x, v.y, v.z, v.w = clipX, clipY, clipW, clipH
+	end
 end
 
 -- resize the # of RAMGPUs to match the # blobs
@@ -2378,9 +2374,7 @@ function AppVideo:setVideoMode(modeIndex)
 	if self.currentVideoModeIndex == modeIndex then return true end
 
 	-- first time we won't have a drawObj to flush
-	if self.triBuf then
-		self.triBuf:flush()	-- flush before we redefine what modeObj.drawObj is, which .triBuf:flush() depends on
-	end
+	self:triBuf_flush()	-- flush before we redefine what modeObj.drawObj is, which :triBuf_flush() depends on
 
 	local modeObj = self.videoModes[modeIndex]
 	if modeObj then
@@ -2399,7 +2393,7 @@ function AppVideo:setVideoMode(modeIndex)
 			self.fb:bind()
 		end
 
-		self.triBuf.sceneObj = self.drawObj
+		self.triBuf_sceneObj = self.drawObj
 	else
 		error("unknown video mode "..tostring(modeIndex))
 	end
@@ -2486,7 +2480,7 @@ end
 
 
 function AppVideo:resetFont()
-	self.triBuf:flush()
+	self:triBuf_flush()
 	self.fontRAMs[1]:checkDirtyGPU()
 	local fontBlob = self.blobs.font[1]
 -- TODO ensure there's at least one?
@@ -2539,14 +2533,14 @@ function AppVideo:drawSolidRect(
 			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
 		if paletteRAM.dirtyCPU then
-			self.triBuf:flush()
+			self:triBuf_flush()
 			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 		end
 		paletteTex = paletteRAM.tex
 	end
 
 	if self.framebufferRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
@@ -2571,7 +2565,7 @@ function AppVideo:drawSolidRect(
 
 	colorIndex = math.floor(colorIndex or 0)
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2583,7 +2577,7 @@ function AppVideo:drawSolidRect(
 		x, y, w, h
 	)
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2622,12 +2616,12 @@ function AppVideo:drawSolidTri3D(
 		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 	if self.framebufferRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
@@ -2636,7 +2630,7 @@ function AppVideo:drawSolidTri3D(
 	local v3x, v3y, v3z, v3w = vec3to4(self.ram.mvMat, x3, y3, z3)
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2686,14 +2680,14 @@ function AppVideo:drawSolidLine3D(
 			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
 		if paletteRAM.dirtyCPU then
-			self.triBuf:flush()
+			self:triBuf_flush()
 			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 		end
 		paletteTex = paletteRAM.tex
 	end
 
 	if self.framebufferRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
@@ -2736,7 +2730,7 @@ function AppVideo:drawSolidLine3D(
 	local blendSolidA = self.drawOverrideSolidA *  255
 	colorIndex = math.floor(colorIndex or 0)
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2748,7 +2742,7 @@ function AppVideo:drawSolidLine3D(
 		0, 0, 1, 1
 	)
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2801,9 +2795,9 @@ function AppVideo:clearScreen(
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 --]]
 -- [[ using clear for depth ... isn't guaranteeing sorting though ... hmm ...
--- if we do clear color here then it'll go out of order between clearScreen() and triBuf:flush() calls
+-- if we do clear color here then it'll go out of order between clearScreen() and triBuf_flush() calls
 -- so better to clear depth only?  then there's a tiny out of sync problem but probably no one will notice I hope...
-	self.triBuf:flush()
+	self:triBuf_flush()
 
 	if colorIndex < 0 or colorIndex > 255 then
 		-- TODO default color ? transparent? what to do?
@@ -2816,7 +2810,7 @@ function AppVideo:clearScreen(
 			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
 		if paletteRAM.dirtyCPU then
-			self.triBuf:flush()
+			self:triBuf_flush()
 			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 		end
 		paletteTex = paletteRAM.tex
@@ -2897,7 +2891,7 @@ function AppVideo:setBlendMode(blendMode)
 
 	if self.currentBlendMode == blendMode then return end
 
-	self.triBuf:flush()
+	self:triBuf_flush()
 
 	if blendMode == -1 then
 		self.drawOverrideSolidA = 0
@@ -2984,7 +2978,7 @@ function AppVideo:drawQuadTex(
 	local uR = tx + tw
 	local vR = ty + th
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2996,7 +2990,7 @@ function AppVideo:drawQuadTex(
 		0, 0, 1, 1
 	)
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -3031,7 +3025,7 @@ function AppVideo:drawQuadTexRGB(
 	local uR = tx + tw
 	local vR = ty + th
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -3043,7 +3037,7 @@ function AppVideo:drawQuadTexRGB(
 		0, 0, 1, 1
 	)
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -3086,7 +3080,7 @@ function AppVideo:drawQuad(
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		sheetRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
 
@@ -3096,7 +3090,7 @@ function AppVideo:drawQuad(
 			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
 		if paletteRAM.dirtyCPU then
-			self.triBuf:flush()
+			self:triBuf_flush()
 			paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 		end
 		paletteTex = paletteRAM.tex
@@ -3104,7 +3098,7 @@ function AppVideo:drawQuad(
 
 	-- TODO only this before we actually do the :draw()
 	if self.framebufferRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
@@ -3138,7 +3132,7 @@ function AppVideo:drawTexTri3D(
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
 
@@ -3147,13 +3141,13 @@ function AppVideo:drawTexTri3D(
 		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 
 	if self.framebufferRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
@@ -3179,7 +3173,7 @@ function AppVideo:drawTexTri3D(
 	local vx2, vy2, vz2, vw2 = vec3to4(self.ram.mvMat, x2, y2, z2)
 	local vx3, vy3, vz3, vw3 = vec3to4(self.ram.mvMat, x3, y3, z3)
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		sheetRAM.tex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -3275,7 +3269,7 @@ function AppVideo:drawMap(
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	end
 
@@ -3284,7 +3278,7 @@ function AppVideo:drawMap(
 		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	end
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
@@ -3292,11 +3286,11 @@ function AppVideo:drawMap(
 	tilemapIndex = tilemapIndex or 0
 	local tilemapRAM = self.tilemapRAMs[tilemapIndex+1]
 	if tilemapRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		tilemapRAM:checkDirtyCPU()
 	end
 	if self.framebufferRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
@@ -3331,7 +3325,7 @@ function AppVideo:drawMap(
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local blendSolidA = self.drawOverrideSolidA * 255
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
@@ -3343,7 +3337,7 @@ function AppVideo:drawMap(
 		0, 0, 1, 1
 	)
 
-	self.triBuf:addTri(
+	self:triBuf_addTri(
 		paletteTex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
@@ -3441,7 +3435,7 @@ function AppVideo:drawTextCommon(
 		local uL = by / tonumber(texSizeInTiles.x)
 		local uR = uL + tw
 
-		self.triBuf:addTri(
+		self:triBuf_addTri(
 			paletteTex,
 			fontTex,
 			self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -3453,7 +3447,7 @@ function AppVideo:drawTextCommon(
 			0, 0, 1, 1
 		)
 
-		self.triBuf:addTri(
+		self:triBuf_addTri(
 			paletteTex,
 			fontTex,
 			self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -3482,7 +3476,7 @@ function AppVideo:drawText(...)
 		fontRAM = assert(self.fontRAMs[1], "can't render anything if you have no fonts (how did you delete the last one?)")
 	end
 	if fontRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	local fontTex = fontRAM.tex
@@ -3492,13 +3486,13 @@ function AppVideo:drawText(...)
 		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	local paletteTex = paletteRAM.tex
 
 	if self.framebufferRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 --]]
@@ -4104,7 +4098,7 @@ function AppVideo:drawVoxelMap(
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
 
@@ -4113,7 +4107,7 @@ function AppVideo:drawVoxelMap(
 		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
 	end
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
@@ -4121,7 +4115,7 @@ function AppVideo:drawVoxelMap(
 	local tilemapTex = self.lastTilemapTex or self.tilemapRAMs[1].tex	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 
 	if self.framebufferRAM.dirtyCPU then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
@@ -4160,7 +4154,7 @@ function AppVideo:drawVoxelMap(
 		local vx2, vy2, vz2, vw2 = vec3to4(self.ram.mvMat, b.x, b.y, b.z)
 		local vx3, vy3, vz3, vw3 = vec3to4(self.ram.mvMat, c.x, c.y, c.z)
 
-		self.triBuf:addTri(
+		self:triBuf_addTri(
 			paletteTex,
 			sheetRAM.tex,
 			tilemapTex,

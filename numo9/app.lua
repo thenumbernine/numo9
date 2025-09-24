@@ -1663,13 +1663,13 @@ function App:update()
 			--	..' channels active '..range(0,7):mapi(function(i) return self.ram.channels[i].flags.isPlaying end):concat' '
 			--	..' tracks active '..range(0,7):mapi(function(i) return self.ram.musicPlaying[i].isPlaying end):concat' '
 			--	..' SDL_GetQueuedAudioSize', sdl.SDL_GetQueuedAudioSize(self.audio.deviceID)
---DEBUG: ..' flush calls: '..self.triBuf.flushCallsPerFrame..' flushes: '..tolua(self.triBuf.flushSizes)
---DEBUG(flushtrace): ..' flush calls: '..self.triBuf.flushCallsPerFrame..' flushes: '..table.keys(self.triBuf.flushSizesPerTrace):sort():mapi(function(tb) return '\n'..self.triBuf.flushSizesPerTrace[tb]..' from '..tb end):concat()
+--DEBUG: ..' flush calls: '..self.triBuf_flushCallsPerFrame..' flushes: '..tolua(self.triBuf_flushSizes)
+--DEBUG(flushtrace): ..' flush calls: '..self.triBuf_flushCallsPerFrame..' flushes: '..table.keys(self.triBuf_flushSizesPerTrace):sort():mapi(function(tb) return '\n'..self.triBuf_flushSizesPerTrace[tb]..' from '..tb end):concat()
 -- ..' clip: ['..self.ram.clipRect[0]..', '..self.ram.clipRect[1]..', '..self.ram.clipRect[2]..', '..self.ram.clipRect[3]..']'
 			)
---DEBUG:self.triBuf.flushCallsPerFrame = 0
---DEBUG:self.triBuf.flushSizes = {}
---DEBUG(flushtrace): self.triBuf.flushSizesPerTrace = {}
+--DEBUG:self.triBuf_flushCallsPerFrame = 0
+--DEBUG:self.triBuf_flushSizes = {}
+--DEBUG(flushtrace): self.triBuf_flushSizesPerTrace = {}
 
 --DEBUG(glquery):updateQueryTotal = 0
 --DEBUG(glquery):updateQueryFrames = 0
@@ -1871,7 +1871,7 @@ conn.receivesPerSecond = 0
 		-- why here and not somewhere else?
 		-- and what order should it be in versus the framebufferRAM:checkDirtyCPU()?
 		-- what should resolve in what order?
-		self.triBuf:flush()
+		self:triBuf_flush()
 
 		-- flush any cpu changes to gpu before updating
 		self.framebufferRAM:checkDirtyCPU()
@@ -1919,7 +1919,7 @@ print('run thread dead')
 
 		-- now run the console and editor, separately, if it's open
 		-- this way server can issue console commands while the game is running
-		self.triBuf:flush()	-- flush before gl state change
+		self:triBuf_flush()	-- flush before gl state change
 		gl.glDisable(gl.GL_BLEND)
 		gl.glDisable(gl.GL_DEPTH_TEST)
 
@@ -2001,7 +2001,7 @@ print('run thread dead')
 			-- flush before textures change
 			-- or don't since the addTri checks if textures have changed
 			-- but at least flush before finishing the screen render update ...
-			self.triBuf:flush()
+			self:triBuf_flush()
 
 			-- restore palettes
 			--self.paletteRAMs[1] = pushPaletteRAM
@@ -2240,7 +2240,7 @@ function App:peek(addr)
 	and addr >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -2254,7 +2254,7 @@ function App:peekw(addr)
 	and addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -2268,7 +2268,7 @@ function App:peekl(addr)
 	and addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -2282,7 +2282,7 @@ function App:peekf(addr)
 	and addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
@@ -2298,7 +2298,7 @@ function App:poke(addr, value)
 	if addr >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
@@ -2362,7 +2362,7 @@ function App:pokew(addr, value)
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
@@ -2417,7 +2417,7 @@ function App:pokel(addr, value)
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
@@ -2472,7 +2472,7 @@ function App:pokef(addr, value)
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
@@ -2546,7 +2546,7 @@ function App:memcpy(dst, src, len)
 	local touchessrc = srcend >= self.framebufferRAM.addr and src < self.framebufferRAM.addrEnd
 	local touchesdst = dstend >= self.framebufferRAM.addr and dst < self.framebufferRAM.addrEnd
 	if touchessrc or touchesdst then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		if touchesdst then
 			self.framebufferRAM.dirtyCPU = true
@@ -2630,7 +2630,7 @@ function App:memset(dst, val, len)
 	if dstend >= self.framebufferRAM.addr
 	and dst < self.framebufferRAM.addrEnd
 	then
-		self.triBuf:flush()
+		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
