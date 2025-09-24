@@ -23,6 +23,7 @@ local menuFontWidth = numo9_rom.menuFontWidth
 
 local numo9_keys = require 'numo9.keys'
 local keyCodeNames = numo9_keys.keyCodeNames
+local keyCodeForName = numo9_keys.keyCodeForName
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 local numo9_blobs = require 'numo9.blobs'
@@ -216,8 +217,13 @@ function UI:guiTextField(
 
 	local w = app:drawMenuText(str, x, y, fg, bg)
 
+-- TODO TODO fix ui
+-- enter is captured in :event() to set execMenuTab and thats why it's not getting read here / in any ui's (but is in game)
+-- (but so does gamepad set execMenuTab  but do we want both to 'ok' the text field? maybe?)
 	local enter
 	if onThisMenuItem then
+		enter = self.execMenuTab
+		self.execMenuTab = false -- clear once read
 		if getTime() % 1 < .5 then
 			app:drawSolidRect(
 				x + self.textFieldCursorLoc * menuFontWidth,
@@ -235,13 +241,12 @@ function UI:guiTextField(
 		local shift = app:key'lshift' or app:key'rshift'
 
 		-- handle input here ...
+		-- TODO with events?
 		for keycode=0,#keyCodeNames-1 do
 			if app:keyp(keycode,30,5) then
 				local ch = getAsciiForKeyCode(keycode, shift)
 				if ch then
-					if ch == 10 or ch == 13 then
-						enter = true
-					elseif ch == 8 then
+					if keycode == keyCodeForName.backspace then
 						self.currentEditValue = self.currentEditValue:sub(1, self.textFieldCursorLoc - 1) .. self.currentEditValue:sub(self.textFieldCursorLoc+1)
 						self.textFieldCursorLoc = math.max(0, self.textFieldCursorLoc - 1)
 					elseif ch then
@@ -577,6 +582,9 @@ function UI:event(e)
 		return true
 	end
 
+	-- TODO this is blocking 'return's in the text editors in the menu ...
+	-- tempting to switch all ui controls over to :event()'s
+	-- tempting to just use a tree based ui ... and give them event-capturing and bubble in and out and everything
 	if (e[0].type == sdl.SDL_EVENT_GAMEPAD_BUTTON_DOWN and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_SOUTH)
 	or (e[0].type == sdl.SDL_EVENT_KEY_DOWN and e[0].key.key == sdl.SDLK_RETURN)
 	then
