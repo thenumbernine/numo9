@@ -15,9 +15,6 @@ local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 
-local numo9_video = require 'numo9.video'
-local vec3to4 = numo9_video.vec3to4
-
 
 local EditVoxelMap = require 'numo9.ui':subclass()
 

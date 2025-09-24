@@ -61,6 +61,8 @@ local mvMatType = numo9_rom.mvMatType
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
+local mvMatAddr = numo9_rom.mvMatAddr 
+local mvMatAddrEnd = numo9_rom.mvMatAddrEnd
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -2303,7 +2305,17 @@ function App:poke(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	-- write out tris using the mvMat before it changes
+	local mvMatChanged = addr >= mvMatAddr and addr < mvMatAddrEnd
+	if mvMatChanged then
+		self:triBuf_flush()
+	end
+
 	self.ram.v[addr] = tonumber(value)
+
+	if mvMatChanged then
+		self:onMvMatChange()
+	end
 
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
@@ -2367,7 +2379,17 @@ function App:pokew(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	-- write out tris using the mvMat before it changes
+	local mvMatChanged = addrend >= mvMatAddr and addr < mvMatAddrEnd
+	if mvMatChanged then
+		self:triBuf_flush()
+	end
+
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
+
+	if mvMatChanged then
+		self:onMvMatChange()
+	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2422,7 +2444,17 @@ function App:pokel(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	-- write out tris using the mvMat before it changes
+	local mvMatChanged = addrend >= mvMatAddr and addr < mvMatAddrEnd
+	if mvMatChanged then
+		self:triBuf_flush()
+	end
+
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
+	
+	if mvMatChanged then
+		self:onMvMatChange()
+	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2477,7 +2509,17 @@ function App:pokef(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	-- write out tris using the mvMat before it changes
+	local mvMatChanged = addrend >= mvMatAddr and addr < mvMatAddrEnd
+	if mvMatChanged then
+		self:triBuf_flush()
+	end
+
 	ffi.cast('float*', self.ram.v + addr)[0] = tonumber(value)
+
+	if mvMatChanged then
+		self:onMvMatChange()
+	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2553,6 +2595,38 @@ function App:memcpy(dst, src, len)
 		end
 	end
 
+	-- write out tris using the mvMat before it changes
+	local mvMatChanged = dstend >= mvMatAddr and dst < mvMatAddrEnd
+	if mvMatChanged then
+		self:triBuf_flush()
+	end
+
+	do
+		local rsrc, rdst, rlen = src, dst, len
+		if not (-rsrc <= rlen) then
+			if rsrc < 0 then
+				ffi.fill(self.ram.v + rdst, math.min(-rsrc, rlen))
+				rdst = rdst - rsrc
+				rlen = rlen + rsrc
+				rsrc = 0
+			end
+			local copyLen = math.min(rlen, self.memSize - rsrc)
+			ffi.copy(self.ram.v + rdst, self.ram.v + rsrc, copyLen)
+			rlen = rlen - copyLen
+			rdst = rdst + copyLen
+			rsrc = rsrc + copyLen
+			if rlen > 0 then
+			-- at this point, rsrc should be at the end of memory.  if it's not then we would've returned in the last line
+--DEBUG:assert.eq(rsrc, self.memSize)
+				ffi.fill(self.ram.v + rdst, rlen)
+			end
+		end
+	end
+
+	if mvMatChanged then
+		self:onMvMatChange()
+	end
+
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if dstend >= sheetRAM.addr
 		and dst < sheetRAM.addrEnd
@@ -2590,23 +2664,6 @@ function App:memcpy(dst, src, len)
 			voxelmap.dirtyCPU = true
 		end
 	end
-
-	if src < 0 then
-		ffi.fill(self.ram.v + dst, math.min(-src, len))
-		if -src <= len then return end
-		dst = dst - src
-		len = len + src
-		src = 0
-	end
-	local copyLen = math.min(len, self.memSize - src)
-	ffi.copy(self.ram.v + dst, self.ram.v + src, copyLen)
-	len = len - copyLen
-	dst = dst + copyLen
-	src = src + copyLen
-	if len <= 0 then return end
-	-- at this point, src should be at the end of memory.  if it's not then we would've returned in the last line
---DEBUG:assert.eq(src, self.memSize)
-	ffi.fill(self.ram.v + dst, len)
 end
 
 function App:memset(dst, val, len)
@@ -2635,7 +2692,17 @@ function App:memset(dst, val, len)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	-- write out tris using the mvMat before it changes
+	local mvMatChanged = dstend >= mvMatAddr and dst < mvMatAddrEnd
+	if mvMatChanged then
+		self:triBuf_flush()
+	end
+
 	ffi.fill(self.ram.v + dst, len, val)
+
+	if mvMatChanged then
+		self:onMvMatChange()
+	end
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if dstend >= sheetRAM.addr
