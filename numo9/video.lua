@@ -600,9 +600,18 @@ end
 only on request, build the framebuffers, shaders, etc
 --]]
 function VideoMode:build()
+	-- see if its already built
+	if self.built then return end
+
+print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+print('!!! building video mode '..self.formatDesc..' !!!')
+print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
 	self:buildFramebuffers()
 	self:buildColorOutputAndBlitScreenObj()
 	self:buildUberShader()
+
+	self.built = true
 end
 
 function VideoMode:buildFramebuffers()
@@ -902,7 +911,7 @@ end
 
 function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
 	local app = self.app
-	
+
 	-- indexed mode can't blend so ... no draw-override
 	-- this part is only needed for alpha
 	self.colorOutput = table{
@@ -1096,7 +1105,7 @@ function VideoMode:buildUberShader()
 	local app = self.app
 
 	-- now that we have our .colorOutput defined,
-	-- make our output shader 
+	-- make our output shader
 	-- TODO this also expects the following to be already defined:
 	-- app.paletteRAMs[1], app.sheetRAMs[1], app.tilemapRAMs[1]
 
@@ -1701,6 +1710,9 @@ function AppVideo:initVideoModes()
 	-- TODO 2bpp 1bpp
 
 
+
+	-- The following are caches used by the videomodes and get populated per calls to VideoMode:build()
+
 	-- hmm, is there any reason why like-format buffers can't use the same gl texture?
 	-- also, is there any reason I'm building all modes up front?  why not wait until they are requested?
 
@@ -1712,9 +1724,6 @@ function AppVideo:initVideoModes()
 	--self.framebufferRAMs._256x144xRGB565
 	self.framebufferRAMs = {}
 	self.framebufferNormalTexs = {}
-	for _,modeIndex in ipairs(self.videoModes:keys():sort()) do
-		self.videoModes[modeIndex]:build()
-	end
 end
 
 
@@ -1722,7 +1731,7 @@ end
 -- 'self' == app
 function AppVideo:initVideo()
 	self.glslVersion = cmdline.glsl or 'latest'
-	
+
 	--[[
 	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per blob
 	but I am still using the texture specs for my shader creation
@@ -2313,6 +2322,8 @@ function AppVideo:setVideoMode(mode)
 
 	local modeObj = self.videoModes[mode]
 	if modeObj then
+		modeObj:build()
+
 		self.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
 		self.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
 		self.blitScreenObj = modeObj.blitScreenObj
@@ -2765,23 +2776,26 @@ function AppVideo:clearScreen(
 		local modeObj = self.videoModes[self.currentVideoMode]
 		if not modeObj then
 			print'clearScreen() failed -- no video mode present!!!'
-		elseif modeObj.format == 'RGB565' then	-- internalFormat == GL_RGB565
-			local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[colorIndex]
-			clearFloat[0] = bit.band(selColorValue, 0x1f) / 0x1f
-			clearFloat[1] = bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f
-			clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
-			clearFloat[3] = 1
-			gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
-		elseif modeObj.format == '8bppIndex'
-		or modeObj.format == 'RGB332'	-- TODO RGB332 should be converted from index to RGB, right?  but with dithering too ... so far that's only done in shader for 332 ...
-		then	-- internalFormat == texInternalFormat_u8 ... which is now et to G_R8UI
-			clearUInt[0] = colorIndex
-			clearUInt[1] = 0
-			clearUInt[2] = 0
-			clearUInt[3] = 0xff
-			gl.glClearBufferuiv(gl.GL_COLOR, 0, clearUInt)
-		elseif modeObj.format == '4bppIndex' then
-			error'TODO'
+		else
+			modeObj:build()
+			if modeObj.format == 'RGB565' then	-- internalFormat == GL_RGB565
+				local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[colorIndex]
+				clearFloat[0] = bit.band(selColorValue, 0x1f) / 0x1f
+				clearFloat[1] = bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f
+				clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
+				clearFloat[3] = 1
+				gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
+			elseif modeObj.format == '8bppIndex'
+			or modeObj.format == 'RGB332'	-- TODO RGB332 should be converted from index to RGB, right?  but with dithering too ... so far that's only done in shader for 332 ...
+			then	-- internalFormat == texInternalFormat_u8 ... which is now et to G_R8UI
+				clearUInt[0] = colorIndex
+				clearUInt[1] = 0
+				clearUInt[2] = 0
+				clearUInt[3] = 0xff
+				gl.glClearBufferuiv(gl.GL_COLOR, 0, clearUInt)
+			elseif modeObj.format == '4bppIndex' then
+				error'TODO'
+			end
 		end
 	end
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
@@ -3529,6 +3543,7 @@ function AppVideo:screenshotToFile(fn)
 	fbRAM:checkDirtyGPU()
 	local fbTex = fbRAM.tex
 	local modeObj = self.videoModes[self.currentVideoMode]
+	modeObj:build()
 	if modeObj.format == 'RGB565' then
 		-- convert to RGB8 first
 		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
