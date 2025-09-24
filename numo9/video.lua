@@ -699,7 +699,7 @@ function VideoMode:buildFramebuffers()
 			:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
 			:unbind()
 
-		if not not self.useNativeOutput then
+		if not self.useNativeOutput then
 			app.framebufferNormalTexs[sizeKey] = normalTex
 		end
 	end
@@ -717,10 +717,12 @@ function VideoMode:buildFramebuffers()
 		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
 		gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
 
-	
+
 		if self.useNativeOutput then
 			-- make a fake-wrapper that doesn't connect to the address space and does nothing for flushing to/from CPU
 			framebufferRAM = setmetatable({}, RAMGPUTex)
+			framebufferRAM.addr = 0
+			framebufferRAM.addrEnd = 0
 
 			local ctype = assert.index(GLTypes.ctypeForGLType, gltype)
 			local image = Image(width, height, 1, ctype)
@@ -759,7 +761,7 @@ function VideoMode:buildFramebuffers()
 				gltype = gltype,
 				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
 			}
-	
+
 			app.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
 		end
 	end
@@ -1751,13 +1753,13 @@ function AppVideo:initVideoModes()
 	-- TODO 2bpp 1bpp
 
 
-	--[[ hmmmmm native-resolution?  but requires lots of work-arounds for address-space , framebuffer, etc
+	-- [[ hmmmmm native-resolution?  but requires lots of work-arounds for address-space , framebuffer, etc
 	local nativeMode = VideoMode{
 		app = self,
 		width = self.width,
 		height = self.height,
 		format = 'RGB565',
-		
+
 		-- i.e. don't cache or use cached fbo's, cleanup, allow resize, etc.
 		-- ... hmm, how long before I just let the user pick any mode they want ...
 		useNativeOutput = true,
@@ -1767,7 +1769,15 @@ function AppVideo:initVideoModes()
 	function nativeMode:build()
 		self.width = app.width
 		self.height = app.height
-		return VideoMode.build(self)
+		self.formatDesc = self.width..'x'..self.height..'x'..self.format
+		VideoMode.build(self)
+
+		-- TODO however ... for projection matrix operations ... maybe I want the mode to pretend it is smaller?
+		-- mehh... or thats a bad idea ... so frustrating...
+	end
+	function nativeMode:onAppResize()
+		self.built = false
+		self:build()
 	end
 	--]]
 

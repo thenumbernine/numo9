@@ -3311,6 +3311,11 @@ end
 function App:resize()
 	App.super.resize(self)
 	needDrawCounter = drawCounterNeededToRedraw
+
+	-- hack for the native-resolution videomode:
+	for _,modeObj in pairs(self.videoModes) do
+		if modeObj.onAppResize then modeObj:onAppResize() end
+	end
 end
 
 -------------------- EVENTS --------------------
