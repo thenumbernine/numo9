@@ -856,7 +856,6 @@ function AppVideo:initVideo()
 	local function makeVideoModeRGB565(modeObj)
 		local framebufferRAM = modeObj.framebufferRAM
 		local framebufferNormalTex = modeObj.framebufferNormalTex
-		modeObj.name = 'RGB'
 		-- [=[ internalFormat = gl.GL_RGB565
 		modeObj.colorOutput = table{
 			colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor'),
@@ -885,7 +884,7 @@ function AppVideo:initVideo()
 ]]
 			..getDrawOverrideCode'uvec3',
 		--]=]
-		
+
 		-- used for drawing our 16bpp framebuffer to the screen
 --DEBUG:print'mode 0 blitScreenObj'
 		modeObj.blitScreenObj = GLSceneObject{
@@ -975,7 +974,6 @@ void main() {
 		framebufferNormalTex = modeObj.framebufferNormalTex
 
 		-- indexed mode can't blend so ... no draw-override
-		modeObj.name = 'Index'
 		-- this part is only needed for alpha
 		modeObj.colorOutput = table{
 			colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor'),
@@ -1068,7 +1066,6 @@ void main() {
 		local framebufferRAM = modeObj.framebufferRAM
 		local framebufferNormalTex = modeObj.framebufferNormalTex
 
-		modeObj.name = 'RGB332'
 		modeObj.colorOutput = colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor')..'\n'
 				..[[
 	/*
@@ -1180,7 +1177,7 @@ void main() {
 		return a / c, b / c
 	end
 
-	-- populate videoModes with shaders 
+	-- populate videoModes with shaders
 	for _,mode in ipairs(self.videoModes:keys()) do
 		local modeObj = self.videoModes[mode]
 		if modeObj.format == 'RGB565' then
