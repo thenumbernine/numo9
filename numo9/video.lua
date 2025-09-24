@@ -3135,10 +3135,8 @@ function AppVideo:drawTexTri3D(
 	spriteMask
 )
 	sheetIndex = sheetIndex or 0
-
 	local sheetRAM = self.sheetRAMs[sheetIndex+1]
 	if not sheetRAM then return end
-
 	if sheetRAM.dirtyCPU then
 		self.triBuf:flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
@@ -4089,7 +4087,11 @@ end
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:drawVoxelMap(
 	voxelmapIndex,
-	...
+	sheetIndex,
+	paletteIndex,
+	transparentIndex,
+	spriteBit,
+	spriteMask
 )
 	voxelmapIndex = voxelmapIndex or 0
 	local voxelmap = self.blobs.voxelmap[voxelmapIndex+1]
@@ -4098,22 +4100,81 @@ function AppVideo:drawVoxelMap(
 		return
 	end
 
--- [====[ using the voxelmap mesh
+	sheetIndex = sheetIndex or 0
+	local sheetRAM = self.sheetRAMs[sheetIndex+1]
+	if not sheetRAM then return end
+	if sheetRAM.dirtyCPU then
+		self.triBuf:flush()
+		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
+	end
+
+	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	if not paletteRAM then
+		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+	end
+	if paletteRAM.dirtyCPU then
+		self.triBuf:flush()
+		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
+	end
+	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
+
+	local tilemapTex = self.lastTilemapTex or self.tilemapRAMs[1].tex	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+
+	if self.framebufferRAM.dirtyCPU then
+		self.triBuf:flush()
+		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+	end
+
+	spriteBit = spriteBit or 0
+	spriteMask = spriteMask or 0xFF
+	transparentIndex = transparentIndex or -1
+	paletteIndex = paletteIndex or 0
+
 	-- TODO invalidate upon dirty flag set
 	voxelmap:rebuildMesh(self)
+
+	-- also in drawTexTri3D:
+	local drawFlags = bit.bor(
+		-- bits 0/1 == 01b <=> use sprite pathway:
+		1,
+		-- if transparency is oob then flag the "don't use transparentIndex" bit:
+		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
+		-- store sprite bit shift in the next 3 bits:
+		bit.lshift(spriteBit, 3),
+
+		bit.lshift(spriteMask, 8)
+	)
+	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+	local blendSolidA = self.drawOverrideSolidA * 255
+
+	local us = 1 / tonumber(spriteSheetSize.x)	-- or .y ... scale-down from integer to [0,1] texcoord
 
 	local vtxs = voxelmap.triVtxs
 	for i=0,#vtxs-1,3 do
 		local a = vtxs.v + i
 		local b = vtxs.v + i+1
 		local c = vtxs.v + i+2
-		self:drawTexTri3D(
-			a.x, a.y, a.z, a.u, a.v,
-			b.x, b.y, b.z, b.u, b.v,
-			c.x, c.y, c.z, c.u, c.v,
-			...
+
+		-- TODO maybe I should do matrix stuff on the GPU?
+		local vx1, vy1, vz1, vw1 = vec3to4(self.ram.mvMat, a.x, a.y, a.z)
+		local vx2, vy2, vz2, vw2 = vec3to4(self.ram.mvMat, b.x, b.y, b.z)
+		local vx3, vy3, vz3, vw3 = vec3to4(self.ram.mvMat, c.x, c.y, c.z)
+
+		self.triBuf:addTri(
+			paletteTex,
+			sheetRAM.tex,
+			tilemapTex,
+			vx1, vy1, vz1, vw1, a.u * us, a.v * us,
+			vx2, vy2, vz2, vw2, b.u * us, b.v * us,
+			vx3, vy3, vz3, vw3, c.u * us, c.v * us,
+			drawFlags, self.ram.dither, transparentIndex, paletteIndex,
+			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
+			0, 0, 1, 1
 		)
 	end
+
+	self.framebufferRAM.dirtyGPU = true
+	self.framebufferRAM.changedSinceDraw = true
 
 	-- for now just pass the billboard voxels on to drawVoxel
 	-- TODO optimize maybe? idk?
@@ -4123,39 +4184,25 @@ function AppVideo:drawVoxelMap(
 	for j=0,#voxelmap.billboardXYZVoxels-1 do
 		local i = voxelmap.billboardXYZVoxels.v[j]
 		self:mattrans(i.x, i.y, i.z)
-		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, ...)
+		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval,
+			sheetIndex,
+			paletteIndex,
+			transparentIndex,
+			spriteBit,
+			spriteMask)
 		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 	end
 	for j=0,#voxelmap.billboardXYVoxels-1 do
 		local i = voxelmap.billboardXYVoxels.v[j]
 		self:mattrans(i.x, i.y, i.z)
-		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, ...)
+		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval,
+			sheetIndex,
+			paletteIndex,
+			transparentIndex,
+			spriteBit,
+			spriteMask)
 		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 	end
---]====]
---[====[ drawing individual meshes
-	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-
-	local width, height, depth = voxelmap:getWidth(), voxelmap:getHeight(), voxelmap:getDepth()
-	local vptr = voxelmap:getVoxelDataRAMPtr()
-	for k=0,depth-1 do
-		for j=0,height-1 do
-			for i=0,width-1 do
-				if vptr[0].intval ~= voxelMapEmptyValue then
-					self:drawVoxel(vptr[0].intval, ...)
-				end
-				self:mattrans(1, 0, 0)
-				vptr = vptr + 1
-			end
-			self:mattrans(-width, 0, 0)
-			self:mattrans(0, 1, 0)
-		end
-		self:mattrans(0, -height, 0)
-		self:mattrans(0, 0, 1)
-	end
---	self:mattrans(0, 0, -depth)
-	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
---]====]
 end
 
 return {
