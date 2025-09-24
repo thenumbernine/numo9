@@ -23,7 +23,7 @@ Piece.getColor=|:| colorForIndex[self.index]
 Piece.getMass=|:| density * math.pi * self:getRadius()^2
 Piece.draw=|:|do
 	local radius = self:getRadius()
-	local x,y,w,h = 
+	local x,y,w,h =
 		self.pos.x-radius,
 		self.pos.y-radius,
 		2*radius,
@@ -67,20 +67,21 @@ update=||do
 
 	cursorX = math.clamp(cursorX, nextPiece:getRadius(), screenSize.x - nextPiece:getRadius())
 	nextPiece.pos.x = cursorX
-	nextPiece:draw()
 
 	for _,piece in ipairs(pieces) do
 		piece:draw()
 	end
 
+	-- draw next piece last on top of everything else
+	nextPiece:draw()
+
 --trace'begin integration'
 	-- update system as a whole ...
 	-- find smallest timestep until intersection
 	local remainingDt = dt
-	local tries = 0
-	local stuckSteps = 0
+	local collisionTries = 0
 	repeat
-		tries += 1
+		collisionTries += 1
 		-- determine maximum step before collision
 		local stepDt = remainingDt
 		local collisionPiece, collisionPiece2, collisionPlane
@@ -94,11 +95,11 @@ update=||do
 				local denom = piece.vel:dot(plane.normal)
 				local planeDist = plane.normal:dot(piece.pos) + plane.negDist
 				if math.abs(denom) >= epsilon
-				and piece.vel:dot(plane.normal) < 0 
+				and piece.vel:dot(plane.normal) < -epsilon
 				then
 					-- if our movestep touches the wall within [0,dt] ...
 					local wallDt = (piece:getRadius() - planeDist) / denom
-					if wallDt >= 0 and wallDt < stepDt then	
+					if wallDt >= 0 and wallDt < stepDt then
 						stepDt = wallDt
 						collisionPiece = piece
 						collisionPiece2 = nil
@@ -144,7 +145,7 @@ update=||do
 				end
 			end
 		end
-	
+
 --trace('integrating', stepDt, '#pieces', #pieces)
 		-- now integrate
 		for _,piece in ipairs(pieces) do
@@ -157,7 +158,7 @@ update=||do
 		if collisionPiece then
 			local restitution = .1
 			if collisionPlane then
---trace('hit wall', collision.normal, collision.dist)				
+--trace('hit wall', collision.normal, collision.dist)
 				local piece = collisionPiece
 				local plane = collisionPlane
 				local normal = plane.normal
@@ -166,7 +167,7 @@ update=||do
 				piece.vel.x -= normal.x * dv
 				piece.vel.y -= normal.y * dv
 			else
---trace('hit pieces', collision.pieceIndex, collision.pieceIndex2)				
+--trace('hit pieces', collision.pieceIndex, collision.pieceIndex2)
 				local a = collisionPiece
 				local b = collisionPiece2
 				local aMass = a:getMass()
@@ -176,7 +177,7 @@ update=||do
 				local bmomx, bmomy = vec2_scale(bMass, b.vel.x, b.vel.y)
 				local dmomx, dmomy = vec2_sub(bmomx, bmomy, amomx, amomy)	-- b's vel from a's perspective
 				local normalx, normaly = vec2_unit(dposx, dposy)
-				
+
 				local dv = vec2_dot(normalx, normaly, dmomx, dmomy) * (1 + restitution)
 				local dav = -dv / aMass
 				local dbv = dv / bMass
@@ -187,18 +188,18 @@ update=||do
 			end
 		end
 
-		if stepDt > 0 then
-			stuckSteps = 0
-		else
-			stuckSteps += 1
-		end
+		-- ok so in most best integrators we'd resolve all collisions before proceeding...
+		-- meh, I don't want things to get stuck, and I'm too lazy to do the full proper static forces solver
+		-- make sure we advance 10% of whats left and let the penalty force take care of the rest.
+		stepDt = math.max(remainingDt * .1, stepDt)
 
 		remainingDt -= stepDt
-	until remainingDt == 0 
-	-- or tries > 10 -- insted of just testing tries
---	or stuckSteps > 5	-- count # of successive steps that we didn't go anywhere, and break after a few too many
---trace('integration took', tries, 'tries')
+	until remainingDt == 0
+	-- or collisionTries > 10 -- insted of just testing tries
+--trace('integration took', collisionTries, 'tries')
 	-- if we did have 5 steps at stepDt==0 then something is stuck and something is wrong ...
+	triesTextWidth = triesTextWidth or 0
+	triesTextWidth = text(tostring(collisionTries), screenSize.x - triesTextWidth, 0)
 
 	-- now integrate grvity
 	for _,piece in ipairs(pieces) do
