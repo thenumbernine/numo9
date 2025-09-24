@@ -1139,10 +1139,11 @@ function VideoMode:buildUberShader()
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = template([[
+precision highp sampler2D;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
-layout(location=0) in vec4 vertex;
+layout(location=0) in vec3 vertex;
 
 /*
 This is the texcoord for sprite shaders.
@@ -1240,7 +1241,7 @@ void main() {
 	box = boxAttr;
 	scissor = scissorAttr;
 
-	gl_Position = mvMat * vertex;
+	gl_Position = mvMat * vec4(vertex, 1.);
 
 	//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
 	gl_Position.xy *= 2.;
@@ -1582,7 +1583,7 @@ void main() {
 		},
 		vertexes = {
 			usage = gl.GL_DYNAMIC_DRAW,
-			dim = 4,
+			dim = 3,
 			useVec = true,
 		},
 		attrs = {
@@ -1983,9 +1984,9 @@ function AppVideo:triBuf_addTri(
 	tilemapTex,
 
 	-- per vtx
-	x1, y1, z1, w1, u1, v1,
-	x2, y2, z2, w2, u2, v2,
-	x3, y3, z3, w3, u3, v3,
+	x1, y1, z1, u1, v1,
+	x2, y2, z2, u2, v2,
+	x3, y3, z3, u3, v3,
 
 	-- divisor
 	extraX, extraY, extraZ, extraW,
@@ -2013,11 +2014,11 @@ function AppVideo:triBuf_addTri(
 	-- push
 	local v
 	v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = x1, y1, z1, w1
+	v.x, v.y, v.z = x1, y1, z1
 	v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = x2, y2, z2, w2
+	v.x, v.y, v.z = x2, y2, z2
 	v = vertex:emplace_back()
-	v.x, v.y, v.z, v.w = x3, y3, z3, w3
+	v.x, v.y, v.z = x3, y3, z3
 
 	v = texcoord:emplace_back()
 	v.x, v.y = u1, v1
@@ -2550,9 +2551,9 @@ function AppVideo:drawSolidRect(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x, y, 0, 1, x, y,
-		xR, y, 0, 1, xR, y,
-		x, yR, 0, 1, x, yR,
+		x,  y,  0, x,  y,
+		xR, y,  0, xR, y,
+		x,  yR, 0, x,  yR,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		x, y, w, h
@@ -2562,9 +2563,9 @@ function AppVideo:drawSolidRect(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x, yR, 0, 1, x, yR,
-		xR, y, 0, 1, xR, y,
-		xR, yR, 0, 1, xR, yR,
+		x,  yR, 0, x,  yR,
+		xR, y,  0, xR, y,
+		xR, yR, 0, xR, yR,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		x, y, w, h
@@ -2611,9 +2612,9 @@ function AppVideo:drawSolidTri3D(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x1, y1, z1, 1, 0, 0,
-		x2, y2, z2, 1, 1, 0,
-		x3, y3, z3, 1, 0, 1,
+		x1, y1, z1, 0, 0,
+		x2, y2, z2, 1, 0,
+		x3, y3, z3, 0, 1,
 		bit.lshift(math.floor(colorIndex or 0), 8), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
@@ -2712,9 +2713,9 @@ function AppVideo:drawSolidLine3D(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		xLL, yLL, zLL, 1, 0, 0,
-		xRL, yRL, zRL, 1, 1, 0,
-		xLR, yLR, zLR, 1, 0, 1,
+		xLL, yLL, zLL, 0, 0,
+		xRL, yRL, zRL, 1, 0,
+		xLR, yLR, zLR, 0, 1,
 		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
@@ -2724,9 +2725,9 @@ function AppVideo:drawSolidLine3D(
 		paletteTex,
 		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		xLR, yLR, zLR, 1, 0, 1,
-		xRL, yRL, zRL, 1, 1, 0,
-		xRR, yRR, zRR, 1, 1, 1,
+		xLR, yLR, zLR, 0, 1,
+		xRL, yRL, zRL, 1, 0,
+		xRR, yRR, zRR, 1, 1,
 		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
@@ -2955,9 +2956,9 @@ function AppVideo:drawQuadTex(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x, y, 0, 1, uL, vL,
-		xR, y, 0, 1, uR, vL,
-		x, yR, 0, 1, uL, vR,
+		x,  y,  0, uL, vL,
+		xR, y,  0, uR, vL,
+		x,  yR, 0, uL, vR,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
@@ -2967,9 +2968,9 @@ function AppVideo:drawQuadTex(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x, yR, 0, 1, uL, vR,
-		xR, y, 0, 1, uR, vL,
-		xR, yR, 0, 1, uR, vR,
+		x,  yR, 0, uL, vR,
+		xR, y,  0, uR, vL,
+		xR, yR, 0, uR, vR,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
@@ -2997,9 +2998,9 @@ function AppVideo:drawQuadTexRGB(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x, y, 0, 1, uL, vL,
-		xR, y, 0, 1, uR, vL,
-		x, yR, 0, 1, uL, vR,
+		x,  y,  0, uL, vL,
+		xR, y,  0, uR, vL,
+		x,  yR, 0, uL, vR,
 		3, self.ram.dither, 0, 0,
 		0, 0, 0, 0,
 		0, 0, 1, 1
@@ -3009,9 +3010,9 @@ function AppVideo:drawQuadTexRGB(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x, yR, 0, 1, uL, vR,
-		xR, y, 0, 1, uR, vL,
-		xR, yR, 0, 1, uR, vR,
+		x,  yR, 0, uL, vR,
+		xR, y,  0, uR, vL,
+		xR, yR, 0, uR, vR,
 		3, self.ram.dither, 0, 0,
 		0, 0, 0, 0,
 		0, 0, 1, 1
@@ -3141,9 +3142,9 @@ function AppVideo:drawTexTri3D(
 		paletteTex,
 		sheetRAM.tex,
 		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x1, y1, z1, 1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
-		x2, y2, z2, 1, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
-		x3, y3, z3, 1, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
+		x1, y1, z1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
+		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
+		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
 		0, 0, 1, 1
@@ -3288,9 +3289,9 @@ function AppVideo:drawMap(
 		paletteTex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
-		xL, yL, 0, 1, uL, vL,
-		xR, yL, 0, 1, uR, vL,
-		xL, yR, 0, 1, uL, vR,
+		xL, yL, 0, uL, vL,
+		xR, yL, 0, uR, vL,
+		xL, yR, 0, uL, vR,
 		extraX, self.ram.dither, extraZ, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
@@ -3300,9 +3301,9 @@ function AppVideo:drawMap(
 		paletteTex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
-		xL, yR, 0, 1, uL, vR,
-		xR, yL, 0, 1, uR, vL,
-		xR, yR, 0, 1, uR, vR,
+		xL, yR, 0, uL, vR,
+		xR, yL, 0, uR, vL,
+		xR, yR, 0, uR, vR,
 		extraX, self.ram.dither, extraZ, 0,
 		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
@@ -3393,9 +3394,9 @@ function AppVideo:drawTextCommon(
 			paletteTex,
 			fontTex,
 			self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-			x, y, 0, 1, uL, 0,
-			xR, y, 0, 1, uR, 0,
-			x, yR, 0, 1, uL, th,
+			x,  y,  0, uL, 0,
+			xR, y,  0, uR, 0,
+			x,  yR, 0, uL, th,
 			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
@@ -3405,9 +3406,9 @@ function AppVideo:drawTextCommon(
 			paletteTex,
 			fontTex,
 			self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-			xR, y, 0, 1, uR, 0,
-			xR, yR, 0, 1, uR, th,
-			x, yR, 0, 1, uL, th,
+			xR, y,  0, uR, 0,
+			xR, yR, 0, uR, th,
+			x,  yR, 0, uL, th,
 			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
@@ -4073,6 +4074,7 @@ function AppVideo:drawVoxelMap(
 		self:triBuf_flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
+	local sheetTex = sheetRAM.tex
 
 	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
 	if not paletteRAM then
@@ -4123,11 +4125,11 @@ function AppVideo:drawVoxelMap(
 
 		self:triBuf_addTri(
 			paletteTex,
-			sheetRAM.tex,
+			sheetTex,
 			tilemapTex,
-			a.x, a.y, a.z, 1, a.u * us, a.v * us,
-			b.x, b.y, b.z, 1, b.u * us, b.v * us,
-			c.x, c.y, c.z, 1, c.u * us, c.v * us,
+			a.x, a.y, a.z, a.u * us, a.v * us,
+			b.x, b.y, b.z, b.u * us, b.v * us,
+			c.x, c.y, c.z, c.u * us, c.v * us,
 			drawFlags, self.ram.dither, transparentIndex, paletteIndex,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
