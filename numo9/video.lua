@@ -585,66 +585,11 @@ end
 -- I'd call it 'App' but that might be confusing because it's not really App.
 local AppVideo = {}
 
--- called upon app init
--- 'self' == app
-function AppVideo:initVideo()
-	--[[
-	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per blob
-	but I am still using the texture specs for my shader creation
-	and my shader creation is done once
-	so until then, just resize them here
-
-	hmm, how to reduce texture #s as much as possible
-	Can I get by binding everything everywhere overall?
-	GLES3 GL_MAX_TEXTURE_SIZE must be at least 2048, so 2048x2048,
-	so if our textures are restricted to 256x256 then I can save 8x8 of the 256x256 texs in just one = 64 sprite/tile sheets in just one tex ...
-	... but uploading would require some row interleaving ...
-	... but it wouldn't if I just stored a single 256 x 2048 texture with just 8 nested textures ...
-	... or it wouldn't if I just did the texture memory unraveling in-shader (and stored it as garbage in memory)
-	... oh yeah I can get even more space from using a bigger format ... like 16/32-bit RGB/A textures ...
-	... and that's just a single texture for GLES3, if we want to deal with multiple bound textures we have
-		GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
-
-	What are allll our textures?
-	- paletteMenuTex					256x1		2 bytes ... GL_R16UI
-	- fontMenuTex						256x8		1 byte  ... GL_R8UI
-	- checkerTex						4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
-	- framebufferMenuTex				256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
-	- framebufferRAMs._256x256xRGB565	256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
-	- framebufferRAMs._256x256x8bpp		256x256		1 byte  ... GL_R8UI
-	- blobs:
-	sheet:	 	sheetRAMs[i] 			256x256		1 byte  ... GL_R8UI
-	tilemap:	tilemapRAMs[i]			256x256		2 bytes ... GL_R16UI
-	palette:	paletteRAMs[i]			256x1		2 bytes ... GL_R16UI
-	font:		fontRAMs[i]				256x8		1 byte  ... GL_R8UI
-
-	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
-	... and make each be 256 cols wide ... and as high as there are blobs ...
-	... but if 2048 is the min size, then 256x2048 = 8 sheets worth, and if we use sprite & tilemap then that's 4 ...
-	... or I could use a 512 x 2048 tex ... and just delegate what region on the tex each sheet gets ...
-	... or why not, use all 2048 x 2048 = 64 different 256x256 sheets, and sprite/tile means 32 blob max ...
-	I could make a single GL tex, and share regions on it between different sheetRAMs ...
-	This would break with the tex.ptr == image.ptr model ... no more calling :subimage() without specifying regions ...
-
-	Should I just put the whole cartridge on the GPU and keep it sync'd at all times?
-	How often do I modify the cartridge anyways?
-
-	--]]
-	self.sheetRAMs = table()
-	self.tilemapRAMs = table()
-	self.paletteRAMs = table()
-	self.fontRAMs = table()
-	self:resizeRAMGPUs()
-
-	-- off by default
-	self.ram.useHardwareLighting = 0
-
-	-- self.fbos['_'..width..'x'..height] = FBO with depth attachment.
-	-- for FBO's size is all that matters, right? not format right?
-	self.fbos = {}
-
-	-- this table is 1:1 with videoModes
-	-- and used to create/assign unique framebufferRAMs
+-- maybe this should be its own file?
+-- maybe I'll merge RAMGPU with BlobImage ... and then make framebuffer a blob of its own (nahhhh ...) and then I won't need this to be its own file?
+function AppVideo:initVideoModes()
+	-- the videoModes table holds video mode info
+	-- I chose a few fixed-size common aspect-ratio modes based on what fits in 128k and is tile-aligned
 	self.videoModes = table()
 	local function addVideoModeFormat(modeObj)
 		if #self.videoModes == 0
@@ -722,93 +667,19 @@ function AppVideo:initVideo()
 		}
 	end
 	--]]
-	-- TOOD 2bpp 1bpp...
-
-	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
+	-- TODO 2bpp 1bpp... but that means GL output writing to multiple bytes per single pixel ... I could do it with a 2nd pass to combine bit output ... 
 
 	-- hmm, is there any reason why like-format buffers can't use the same gl texture?
 	-- also, is there any reason I'm building all modes up front?  why not wait until they are requested?
 	self.framebufferRAMs = {}
 	self.framebufferNormalTexs = {}
-	for _,mode in ipairs(self.videoModes:keys()) do
+	for _,mode in ipairs(self.videoModes:keys():sort()) do
 		self:buildFramebuffersForMode(mode)
 	end
 
+
 	-- framebuffer is 256 x 144 x 16bpp rgb565
 	--self.framebufferRAMs._256x144xRGB565
-
-	-- keep menu/editor gfx separate of the fantasy-console
-	do
-		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
-		local data = ffi.new('uint16_t[?]', 256)
-		resetPalette(data)
-		self.paletteMenuTex = GLTex2D{
-			width = paletteSize,
-			height = 1,
-			internalFormat = internalFormat5551,
-			format = format5551,
-			type = type5551,
-			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
-			},
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_NEAREST,
-			data = data,
-		}:unbind()
-
-		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
-		local fontData = ffi.new('uint8_t[?]', fontInBytes)
-		resetFont(fontData, 'font.png')
-		self.fontMenuTex = GLTex2D{
-			internalFormat = texInternalFormat_u8,
-			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-			type = gl.GL_UNSIGNED_BYTE,
-			width = fontImageSize.x,
-			height = fontImageSize.y,
-			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
-			},
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_NEAREST,
-			data = fontData,
-		}:unbind()
-
-		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
-		-- TODO about a menuBufferSize (== 256x256)
-		local size = frameBufferSize.x * frameBufferSize.y * 3
-		local data = ffi.new('uint8_t[?]', size)
-		ffi.fill(data, size)
-		self.framebufferMenuTex = GLTex2D{
-			internalFormat = gl.GL_RGB,
-			format = gl.GL_RGB,
-			type = gl.GL_UNSIGNED_BYTE,
-			width = frameBufferSize.x,
-			height = frameBufferSize.y,
-			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
-			},
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_NEAREST,
-			data = data,
-		}:unbind()
-	end
-	--]=]
-
-	self.quadGeom = GLGeometry{
-		mode = gl.GL_TRIANGLE_STRIP,
-		vertexes = {
-			data = {
-				0, 0,
-				1, 0,
-				0, 1,
-				1, 1,
-			},
-			dim = 2,
-		},
-	}
 
 	local glslVersion = cmdline.glsl or 'latest'
 
@@ -856,6 +727,7 @@ function AppVideo:initVideo()
 	local function makeVideoModeRGB565(modeObj)
 		local framebufferRAM = modeObj.framebufferRAM
 		local framebufferNormalTex = modeObj.framebufferNormalTex
+
 		-- [=[ internalFormat = gl.GL_RGB565
 		modeObj.colorOutput = table{
 			colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor'),
@@ -971,7 +843,7 @@ void main() {
 
 	local function makeVideoMode8bppIndex(modeObj)
 		local framebufferRAM = modeObj.framebufferRAM
-		framebufferNormalTex = modeObj.framebufferNormalTex
+		local framebufferNormalTex = modeObj.framebufferNormalTex
 
 		-- indexed mode can't blend so ... no draw-override
 		-- this part is only needed for alpha
@@ -1178,7 +1050,7 @@ void main() {
 	end
 
 	-- populate videoModes with shaders
-	for _,mode in ipairs(self.videoModes:keys()) do
+	for _,mode in ipairs(self.videoModes:keys():sort()) do
 		local modeObj = self.videoModes[mode]
 		if modeObj.format == 'RGB565' then
 			makeVideoModeRGB565(modeObj)
@@ -1716,6 +1588,265 @@ void main() {
 		}
 	end
 
+
+
+end
+
+function AppVideo:buildFramebuffersForMode(mode)
+	assert.type(mode, 'number')
+	local modeObj = self.videoModes[mode]
+
+	modeObj.formatDesc = modeObj.width..'x'..modeObj.height..'x'..modeObj.format
+
+	local width, height = modeObj.width, modeObj.height
+	local internalFormat, gltype, suffix
+	if modeObj.format == 'RGB565' then
+		-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
+		-- [[
+		internalFormat = gl.GL_RGB565
+		gltype = gl.GL_UNSIGNED_SHORT_5_6_5	-- for an internalFormat there are multiple gltype's so pick this one
+		--]]
+		--[[
+		-- TODO do this but in doing so the framebuffer fragment vec4 turns into a uvec4
+		-- and then the reads from u16to5551() which output vec4 no longer fit
+		-- ... hmm ...
+		-- ... but if I do this then the 565 hardware-blending no longer works, and I'd have to do that blending manually ...
+		internalFormat = internalFormat5551
+		--]]
+		suffix = 'RGB565'
+	elseif modeObj.format == '8bppIndex'
+	or modeObj.format == 'RGB332'
+	then
+		-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
+		internalFormat = texInternalFormat_u8
+		suffix = '8bpp'
+		-- hmm TODO maybe
+		-- if you want blending with RGB332 then you can use GL_R3_G3_B2 ...
+		-- but it's not in GLES3/WebGL2
+	elseif modeObj.format == '4bppIndex' then
+		-- here's where exceptions need to be made ...
+		-- hmm, so when I draw sprites, I've got to shrink coords by half their size ... ?
+		-- and then track whether we are in the lo vs hi nibble ... ?
+		-- and somehow preserve the upper/lower nibbles on the sprite edges?
+		-- maybe this is too tedious ...
+		internalFormat = texInternalFormat_u8
+		suffix = '8bpp'	-- suffix is for the framebuffer, and we are using R8UI format
+		--width = bit.rshift(width, 1) + bit.band(width, 1)
+	else
+		error("unknown modeObj.format "..tostring(modeObj.format))
+	end
+
+	-- I'm making one FBO per size.  Should I be making one FBO per destination color buffer texture internalFormat?
+	local sizeKey = '_'..modeObj.width..'x'..modeObj.height
+	local fb = self.fbos[sizeKey]
+	if not fb then
+		fb = GLFBO{
+			width = modeObj.width,
+			height = modeObj.height,
+			useDepth = true, --gl.GL_DEPTH_COMPONENT32,
+		}
+		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
+		:unbind()
+		self.fbos[sizeKey] = fb
+	end
+	modeObj.fb = fb
+
+	-- make a FBO normalmap per size.  Don't store it in fantasy-console "hardware" RAM just yet.  For now it's just going to be accessible by a single switch in RAM.
+	local normalTex = self.framebufferNormalTexs[sizeKey]
+	if not normalTex then
+		normalTex = GLTex2D{
+			width = width,
+			height = height,
+			-- rgb = normal xyz, a = depth ... honestly I could just use the depth-buffer ... maybe I should ...
+			--internalFormat = gl.GL_RGBA,
+			internalFormat = gl.GL_RGBA32F,
+			-- should be automatic:
+			format = gl.GL_RGBA,
+			type = gl.GL_FLOAT,
+
+			minFilter = gl.GL_NEAREST,
+			--magFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+		}:unbind()
+		self.framebufferNormalTexs[sizeKey] = normalTex
+
+		-- if normalTex and fb are init'd at the same time, i.e. their cache tables use matching keys, then this shouldn't happen any more often than necessary:
+		fb:bind()
+			:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
+			:unbind()
+	end
+	modeObj.framebufferNormalTex = assert(normalTex)
+	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects?
+
+	local sizeAndFormatKey = sizeKey..'x'..suffix
+	local framebufferRAM = self.framebufferRAMs[sizeAndFormatKey]
+	-- this shares between 8bppIndexed (R8UI) and RGB322 (R8UI)
+	if not framebufferRAM then
+		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
+		gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
+		-- is specified for GL_UNSIGNED_SHORT_5_6_5.
+		-- otherwise falls back to default based on internalFormat
+		-- set this here so we can determine .ctype for the ctor.
+		-- TODO determine ctype = GLTypes.ctypeForGLType in RAMGPU ctor?)
+		framebufferRAM = RAMGPUTex{
+			app = self,
+			addr = framebufferAddr,
+			width = width,
+			height = height,
+			channels = 1,
+			internalFormat = internalFormat,
+			glformat = formatInfo.format,
+			gltype = gltype,
+			ctype = assert.index(GLTypes.ctypeForGLType, gltype),
+		}
+
+		self.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
+	end
+	modeObj.framebufferRAM = framebufferRAM
+end
+
+
+-- called upon app init
+-- 'self' == app
+function AppVideo:initVideo()
+	--[[
+	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per blob
+	but I am still using the texture specs for my shader creation
+	and my shader creation is done once
+	so until then, just resize them here
+
+	hmm, how to reduce texture #s as much as possible
+	Can I get by binding everything everywhere overall?
+	GLES3 GL_MAX_TEXTURE_SIZE must be at least 2048, so 2048x2048,
+	so if our textures are restricted to 256x256 then I can save 8x8 of the 256x256 texs in just one = 64 sprite/tile sheets in just one tex ...
+	... but uploading would require some row interleaving ...
+	... but it wouldn't if I just stored a single 256 x 2048 texture with just 8 nested textures ...
+	... or it wouldn't if I just did the texture memory unraveling in-shader (and stored it as garbage in memory)
+	... oh yeah I can get even more space from using a bigger format ... like 16/32-bit RGB/A textures ...
+	... and that's just a single texture for GLES3, if we want to deal with multiple bound textures we have
+		GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
+
+	What are allll our textures?
+	- paletteMenuTex					256x1		2 bytes ... GL_R16UI
+	- fontMenuTex						256x8		1 byte  ... GL_R8UI
+	- checkerTex						4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
+	- framebufferMenuTex				256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
+	- framebufferRAMs._256x256xRGB565	256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
+	- framebufferRAMs._256x256x8bpp		256x256		1 byte  ... GL_R8UI
+	- blobs:
+	sheet:	 	sheetRAMs[i] 			256x256		1 byte  ... GL_R8UI
+	tilemap:	tilemapRAMs[i]			256x256		2 bytes ... GL_R16UI
+	palette:	paletteRAMs[i]			256x1		2 bytes ... GL_R16UI
+	font:		fontRAMs[i]				256x8		1 byte  ... GL_R8UI
+
+	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
+	... and make each be 256 cols wide ... and as high as there are blobs ...
+	... but if 2048 is the min size, then 256x2048 = 8 sheets worth, and if we use sprite & tilemap then that's 4 ...
+	... or I could use a 512 x 2048 tex ... and just delegate what region on the tex each sheet gets ...
+	... or why not, use all 2048 x 2048 = 64 different 256x256 sheets, and sprite/tile means 32 blob max ...
+	I could make a single GL tex, and share regions on it between different sheetRAMs ...
+	This would break with the tex.ptr == image.ptr model ... no more calling :subimage() without specifying regions ...
+
+	Should I just put the whole cartridge on the GPU and keep it sync'd at all times?
+	How often do I modify the cartridge anyways?
+
+	--]]
+	self.sheetRAMs = table()
+	self.tilemapRAMs = table()
+	self.paletteRAMs = table()
+	self.fontRAMs = table()
+	self:resizeRAMGPUs()
+
+	-- off by default
+	self.ram.useHardwareLighting = 0
+
+	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
+
+
+	-- self.fbos['_'..width..'x'..height] = FBO with depth attachment.
+	-- for FBO's size is all that matters, right? not format right?
+	self.fbos = {}
+
+	-- keep menu/editor gfx separate of the fantasy-console
+	do
+		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
+		local data = ffi.new('uint16_t[?]', 256)
+		resetPalette(data)
+		self.paletteMenuTex = GLTex2D{
+			width = paletteSize,
+			height = 1,
+			internalFormat = internalFormat5551,
+			format = format5551,
+			type = type5551,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			data = data,
+		}:unbind()
+
+		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
+		local fontData = ffi.new('uint8_t[?]', fontInBytes)
+		resetFont(fontData, 'font.png')
+		self.fontMenuTex = GLTex2D{
+			internalFormat = texInternalFormat_u8,
+			format = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
+			type = gl.GL_UNSIGNED_BYTE,
+			width = fontImageSize.x,
+			height = fontImageSize.y,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			data = fontData,
+		}:unbind()
+
+		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
+		-- TODO about a menuBufferSize (== 256x256)
+		local size = frameBufferSize.x * frameBufferSize.y * 3
+		local data = ffi.new('uint8_t[?]', size)
+		ffi.fill(data, size)
+		self.framebufferMenuTex = GLTex2D{
+			internalFormat = gl.GL_RGB,
+			format = gl.GL_RGB,
+			type = gl.GL_UNSIGNED_BYTE,
+			width = frameBufferSize.x,
+			height = frameBufferSize.y,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			data = data,
+		}:unbind()
+	end
+	--]=]
+
+	self.quadGeom = GLGeometry{
+		mode = gl.GL_TRIANGLE_STRIP,
+		vertexes = {
+			data = {
+				0, 0,
+				1, 0,
+				0, 1,
+				1, 1,
+			},
+			dim = 2,
+		},
+	}
+
+	-- building mode info needs quadGeom to be created
+	self:initVideoModes()
+	
 	-- for the editor
 
 	-- a pattern for transparencies
@@ -1853,124 +1984,6 @@ void main() {
 	}
 
 	self:resetVideo()
-end
-
-function AppVideo:buildFramebuffersForMode(mode)
-	assert.type(mode, 'number')
-	local modeObj = self.videoModes[mode]
-
-	modeObj.formatDesc = modeObj.width..'x'..modeObj.height..'x'..modeObj.format
-
-	local width, height = modeObj.width, modeObj.height
-	local internalFormat, gltype, suffix
-	if modeObj.format == 'RGB565' then
-		-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
-		-- [[
-		internalFormat = gl.GL_RGB565
-		gltype = gl.GL_UNSIGNED_SHORT_5_6_5	-- for an internalFormat there are multiple gltype's so pick this one
-		--]]
-		--[[
-		-- TODO do this but in doing so the framebuffer fragment vec4 turns into a uvec4
-		-- and then the reads from u16to5551() which output vec4 no longer fit
-		-- ... hmm ...
-		-- ... but if I do this then the 565 hardware-blending no longer works, and I'd have to do that blending manually ...
-		internalFormat = internalFormat5551
-		--]]
-		suffix = 'RGB565'
-	elseif modeObj.format == '8bppIndex'
-	or modeObj.format == 'RGB332'
-	then
-		-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
-		internalFormat = texInternalFormat_u8
-		suffix = '8bpp'
-		-- hmm TODO maybe
-		-- if you want blending with RGB332 then you can use GL_R3_G3_B2 ...
-		-- but it's not in GLES3/WebGL2
-	elseif modeObj.format == '4bppIndex' then
-		-- here's where exceptions need to be made ...
-		-- hmm, so when I draw sprites, I've got to shrink coords by half their size ... ?
-		-- and then track whether we are in the lo vs hi nibble ... ?
-		-- and somehow preserve the upper/lower nibbles on the sprite edges?
-		-- maybe this is too tedious ...
-		internalFormat = texInternalFormat_u8
-		suffix = '8bpp'	-- suffix is for the framebuffer, and we are using R8UI format
-		--width = bit.rshift(width, 1) + bit.band(width, 1)
-	else
-		error("unknown modeObj.format "..tostring(modeObj.format))
-	end
-
-	-- I'm making one FBO per size.  Should I be making one FBO per destination color buffer texture internalFormat?
-	local sizeKey = '_'..modeObj.width..'x'..modeObj.height
-	local fb = self.fbos[sizeKey]
-	if not fb then
-		fb = GLFBO{
-			width = modeObj.width,
-			height = modeObj.height,
-			useDepth = true, --gl.GL_DEPTH_COMPONENT32,
-		}
-		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
-		:unbind()
-		self.fbos[sizeKey] = fb
-	end
-	modeObj.fb = fb
-
-	-- make a FBO normalmap per size.  Don't store it in fantasy-console "hardware" RAM just yet.  For now it's just going to be accessible by a single switch in RAM.
-	local normalTex = self.framebufferNormalTexs[sizeKey]
-	if not normalTex then
-		normalTex = GLTex2D{
-			width = width,
-			height = height,
-			-- rgb = normal xyz, a = depth ... honestly I could just use the depth-buffer ... maybe I should ...
-			--internalFormat = gl.GL_RGBA,
-			internalFormat = gl.GL_RGBA32F,
-			-- should be automatic:
-			format = gl.GL_RGBA,
-			type = gl.GL_FLOAT,
-
-			minFilter = gl.GL_NEAREST,
-			--magFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
-			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
-			},
-		}:unbind()
-		self.framebufferNormalTexs[sizeKey] = normalTex
-
-		-- if normalTex and fb are init'd at the same time, i.e. their cache tables use matching keys, then this shouldn't happen any more often than necessary:
-		fb:bind()
-			:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
-			:unbind()
-	end
-	modeObj.framebufferNormalTex = assert(normalTex)
-
-	local sizeAndFormatKey = sizeKey..'x'..suffix
-	local framebufferRAM = self.framebufferRAMs[sizeAndFormatKey]
-	-- this shares between 8bppIndexed (R8UI) and RGB322 (R8UI)
-	if not framebufferRAM then
-		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
-		gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
-		-- is specified for GL_UNSIGNED_SHORT_5_6_5.
-		-- otherwise falls back to default based on internalFormat
-		-- set this here so we can determine .ctype for the ctor.
-		-- TODO determine ctype = GLTypes.ctypeForGLType in RAMGPU ctor?)
-		framebufferRAM = RAMGPUTex{
-			app = self,
-			addr = framebufferAddr,
-			width = width,
-			height = height,
-			channels = 1,
-			internalFormat = internalFormat,
-			glformat = formatInfo.format,
-			gltype = gltype,
-			ctype = assert.index(GLTypes.ctypeForGLType, gltype),
-		}
-
-		self.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
-	end
-	modeObj.framebufferRAM = framebufferRAM
-
-	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects.
 end
 
 -- resize the # of RAMGPUs to match the # blobs
