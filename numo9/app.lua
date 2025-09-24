@@ -2307,17 +2307,17 @@ function App:poke(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	self.ram.v[addr] = tonumber(value)
+
 	-- write out tris using the mvMat before it changes
 	if addr >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
-		self.mvMatDirty = true
+		self:onMvMatChange()
 	end
 	if addr >= clipRectAddr and addr < clipRectAddrEnd then
 		self:triBuf_flush()
-		self.clipRectDirty = true
+		self:onClipRectChange()
 	end
-
-	self.ram.v[addr] = tonumber(value)
 
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
@@ -2381,17 +2381,17 @@ function App:pokew(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
+
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
-		self.mvMatDirty = true
+		self:onMvMatChange()
 	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:triBuf_flush()
-		self.clipRectDirty = true
+		self:onClipRectChange()
 	end
-
-	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2446,17 +2446,17 @@ function App:pokel(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
+
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
-		self.mvMatDirty = true
+		self:onMvMatChange()
 	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:triBuf_flush()
-		self.clipRectDirty = true
+		self:onClipRectChange()
 	end
-
-	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2511,17 +2511,17 @@ function App:pokef(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	ffi.cast('float*', self.ram.v + addr)[0] = tonumber(value)
+
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:triBuf_flush()
-		self.mvMatDirty = true
+		self:onMvMatChange()
 	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:triBuf_flush()
-		self.clipRectDirty = true
+		self:onClipRectChange()
 	end
-
-	ffi.cast('float*', self.ram.v + addr)[0] = tonumber(value)
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if addrend >= sheetRAM.addr
@@ -2597,38 +2597,6 @@ function App:memcpy(dst, src, len)
 		end
 	end
 
-	-- write out tris using the mvMat before it changes
-	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
-		self:triBuf_flush()
-		self.mvMatDirty = true
-	end
-	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
-		self:triBuf_flush()
-		self.clipRectDirty = true
-	end
-
-	do
-		local rsrc, rdst, rlen = src, dst, len
-		if not (-rsrc <= rlen) then
-			if rsrc < 0 then
-				ffi.fill(self.ram.v + rdst, math.min(-rsrc, rlen))
-				rdst = rdst - rsrc
-				rlen = rlen + rsrc
-				rsrc = 0
-			end
-			local copyLen = math.min(rlen, self.memSize - rsrc)
-			ffi.copy(self.ram.v + rdst, self.ram.v + rsrc, copyLen)
-			rlen = rlen - copyLen
-			rdst = rdst + copyLen
-			rsrc = rsrc + copyLen
-			if rlen > 0 then
-			-- at this point, rsrc should be at the end of memory.  if it's not then we would've returned in the last line
---DEBUG:assert.eq(rsrc, self.memSize)
-				ffi.fill(self.ram.v + rdst, rlen)
-			end
-		end
-	end
-
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if dstend >= sheetRAM.addr
 		and dst < sheetRAM.addrEnd
@@ -2666,6 +2634,36 @@ function App:memcpy(dst, src, len)
 			voxelmap.dirtyCPU = true
 		end
 	end
+
+
+-- TODO this after the memset ... so ... get rid of its 'return's
+	-- write out tris using the mvMat before it changes
+	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
+		self:triBuf_flush()
+		self:onMvMatChange()
+	end
+	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
+		self:triBuf_flush()
+		self:onClipRectChange()
+	end
+
+
+	if src < 0 then
+		ffi.fill(self.ram.v + dst, math.min(-src, len))
+		if -src <= len then return end
+		dst = dst - src
+		len = len + src
+		src = 0
+	end
+	local copyLen = math.min(len, self.memSize - src)
+	ffi.copy(self.ram.v + dst, self.ram.v + src, copyLen)
+	len = len - copyLen
+	dst = dst + copyLen
+	src = src + copyLen
+	if len <= 0 then return end
+	-- at this point, src should be at the end of memory.  if it's not then we would've returned in the last line
+--DEBUG:assert.eq(src, self.memSize)
+	ffi.fill(self.ram.v + dst, len)
 end
 
 function App:memset(dst, val, len)
@@ -2694,17 +2692,17 @@ function App:memset(dst, val, len)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
+	ffi.fill(self.ram.v + dst, len, val)
+
 	-- write out tris using the mvMat before it changes
 	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
 		self:triBuf_flush()
-		self.mvMatDirty = true
+		self:onMvMatChange()
 	end
 	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
 		self:triBuf_flush()
-		self.clipRectDirty = true
+		self:onClipRectChange()
 	end
-
-	ffi.fill(self.ram.v + dst, len, val)
 
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if dstend >= sheetRAM.addr
