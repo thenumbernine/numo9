@@ -1865,7 +1865,7 @@ conn.receivesPerSecond = 0
 			end
 		end
 
-		gl.glEnable(gl.GL_DEPTH_TEST)	-- must wrap proper triBuf:flush()'s
+		gl.glEnable(gl.GL_DEPTH_TEST)	-- must wrap proper triBuf_flush()'s
 
 		-- TODO why is this necessary for `mode(1) cls()` to clear screen in the console?
 		-- why here and not somewhere else?

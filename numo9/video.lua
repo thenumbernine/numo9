@@ -2022,7 +2022,6 @@ function AppVideo:triBuf_addTri(
 	local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
 	local scissorAttr = sceneObj.attrs.scissorAttr.buffer.vec
 
-	-- if the textures change then flush
 	if self.lastSolidPaletteTex ~= paletteTex
 	or self.lastSolidSheetTex ~= sheetTex
 	or self.lastTilemapTex ~= tilemapTex
