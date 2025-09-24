@@ -643,16 +643,16 @@ function AppVideo:initVideo()
 	-- for FBO's size is all that matters, right? not format right?
 	self.fbos = {}
 
-	-- this table is 1:1 with videoModeInfo
+	-- this table is 1:1 with videoModes
 	-- and used to create/assign unique framebufferRAMs
-	self.videoModeFormats = table()
-	local function addVideoModeFormat(info)
-		if #self.videoModeFormats == 0
-		and not self.videoModeFormats[0]
+	self.videoModes = table()
+	local function addVideoModeFormat(modeObj)
+		if #self.videoModes == 0
+		and not self.videoModes[0]
 		then
-			self.videoModeFormats[0] = info
+			self.videoModes[0] = modeObj
 		else
-			self.videoModeFormats[#self.videoModeFormats+1] = info
+			self.videoModes[#self.videoModes+1] = modeObj
 		end
 	end
 
@@ -730,7 +730,7 @@ function AppVideo:initVideo()
 	-- also, is there any reason I'm building all modes up front?  why not wait until they are requested?
 	self.framebufferRAMs = {}
 	self.framebufferNormalTexs = {}
-	for _,mode in ipairs(self.videoModeFormats:keys()) do
+	for _,mode in ipairs(self.videoModes:keys()) do
 		self:buildFramebuffersForMode(mode)
 	end
 
@@ -853,41 +853,39 @@ function AppVideo:initVideo()
 	local blitFragType = 'vec4'
 	local blitFragTypeVec3 = 'vec3'
 
-	local function makeVideoModeRGB565(framebufferRAM, framebufferNormalTex)
-		local modeObj = {
-			framebufferRAM = framebufferRAM,
-			framebufferNormalTex = assert(framebufferNormalTex),
-			name = 'RGB',
-			-- [=[ internalFormat = gl.GL_RGB565
-			colorOutput = table{
-				colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor'),
-				'fragColor = vec4(ufragColor) / 31.;',
-				getDrawOverrideCode(blitFragTypeVec3),
-			}:concat'\n',
-			--]=]
-			--[=[ internalFormat = internalFormat5551
-			colorOutput = 'fragColor = '..readTex{
-				tex = self.paletteRAMs[1].tex,
-				texvar = 'paletteTex',
-				tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
-				from = 'ivec2',
-				to = 'uvec4',
-			}..';\n'..[[
+	local function makeVideoModeRGB565(modeObj)
+		local framebufferRAM = modeObj.framebufferRAM
+		local framebufferNormalTex = modeObj.framebufferNormalTex
+		modeObj.name = 'RGB'
+		-- [=[ internalFormat = gl.GL_RGB565
+		modeObj.colorOutput = table{
+			colorIndexToFrag(framebufferRAM.tex, 'uvec4 ufragColor'),
+			'fragColor = vec4(ufragColor) / 31.;',
+			getDrawOverrideCode(blitFragTypeVec3),
+		}:concat'\n'
+		--]=]
+		--[=[ internalFormat = internalFormat5551
+		modeObj.colorOutput = 'fragColor = '..readTex{
+			tex = self.paletteRAMs[1].tex,
+			texvar = 'paletteTex',
+			tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
+			from = 'ivec2',
+			to = 'uvec4',
+		}..';\n'..[[
 
 #if 0	// if anyone needs the rgb ...
-			fragColor.a = (fragColor.r >> 15) * 0x1fu;
-			fragColor.b = (fragColor.r >> 10) & 0x1fu;
-			fragColor.g = (fragColor.r >> 5) & 0x1fu;
-			fragColor.r &= 0x1fu;
-			fragColor = (fragColor << 3) | (fragColor >> 2);
+		fragColor.a = (fragColor.r >> 15) * 0x1fu;
+		fragColor.b = (fragColor.r >> 10) & 0x1fu;
+		fragColor.g = (fragColor.r >> 5) & 0x1fu;
+		fragColor.r &= 0x1fu;
+		fragColor = (fragColor << 3) | (fragColor >> 2);
 #else	// I think I'll just save the alpha for the immediate-after glsl code alpha discard test ...
-			fragColor.a = (fragColor.r >> 15) * 0x1fu;
+		fragColor.a = (fragColor.r >> 15) * 0x1fu;
 #endif
 ]]
-				..getDrawOverrideCode'uvec3',
-			--]=]
-		}
-
+			..getDrawOverrideCode'uvec3',
+		--]=]
+		
 		-- used for drawing our 16bpp framebuffer to the screen
 --DEBUG:print'mode 0 blitScreenObj'
 		modeObj.blitScreenObj = GLSceneObject{
@@ -972,18 +970,16 @@ void main() {
 		return modeObj
 	end
 
-	local function makeVideoMode8bppIndex(framebufferRAM, framebufferNormalTex)
-		local modeObj = {
-			framebufferRAM = framebufferRAM,
-			framebufferNormalTex = assert(framebufferNormalTex),
+	local function makeVideoMode8bppIndex(modeObj)
+		local framebufferRAM = modeObj.framebufferRAM
+		framebufferNormalTex = modeObj.framebufferNormalTex
 
-			-- generator properties
-			-- indexed mode can't blend so ... no draw-override
-			name = 'Index',
-			-- this part is only needed for alpha
-			colorOutput = table{
-				colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor'),
-				[[
+		-- indexed mode can't blend so ... no draw-override
+		modeObj.name = 'Index'
+		-- this part is only needed for alpha
+		modeObj.colorOutput = table{
+			colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor'),
+			[[
 	fragColor.r = colorIndex;
 	fragColor.g = 0u;
 	fragColor.b = 0u;
@@ -992,9 +988,8 @@ void main() {
 ]],
 	-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
 	-- but I don't want the GLSL compiler to optimize away the attr...
-				getDrawOverrideCode'uvec3',
-			}:concat'\n',
-		}
+			getDrawOverrideCode'uvec3',
+		}:concat'\n'
 
 		-- used for drawing our 8bpp indexed framebuffer to the screen
 	--DEBUG:print'mode 1 blitScreenObj'
@@ -1067,18 +1062,14 @@ void main() {
 				mvProjMat = self.blitScreenView.mvProjMat.ptr,
 			},
 		}
-
-		return modeObj
 	end
 
-	local function makeVideoModeRGB332(framebufferRAM, framebufferNormalTex)
-		local modeObj = {
-			framebufferRAM = framebufferRAM,
-			framebufferNormalTex = assert(framebufferNormalTex),
+	local function makeVideoModeRGB332(modeObj)
+		local framebufferRAM = modeObj.framebufferRAM
+		local framebufferNormalTex = modeObj.framebufferNormalTex
 
-			-- generator properties
-			name = 'RGB332',
-			colorOutput = colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor')..'\n'
+		modeObj.name = 'RGB332'
+		modeObj.colorOutput = colorIndexToFrag(framebufferRAM.tex, 'uvec4 palColor')..'\n'
 				..[[
 	/*
 	palColor is 5 5 5 5
@@ -1106,10 +1097,9 @@ void main() {
 	// only needed for quadSprite / quadMap:
 	fragColor.a = (palColor.a << 3) | (palColor.a >> 2);
 ]]
-	-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
-	-- but I don't want the GLSL compiler to optimize away the attr...
-	..getDrawOverrideCode'uvec3',
-		}
+			-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
+			-- but I don't want the GLSL compiler to optimize away the attr...
+			..getDrawOverrideCode'uvec3'
 
 		-- used for drawing 8bpp framebufferRAMs._256x256x8bpp as rgb332 framebuffer to the screen
 --DEBUG:print'mode 2 blitScreenObj'
@@ -1177,8 +1167,6 @@ void main() {
 				mvProjMat = self.blitScreenView.mvProjMat.ptr,
 			},
 		}
-
-		return modeObj
 	end
 
 	local function gcd(a,b)
@@ -1192,20 +1180,19 @@ void main() {
 		return a / c, b / c
 	end
 
-	self.videoModeInfo = self.videoModeFormats:map(function(req)
-		local framebufferRAM = assert.index(req, 'framebufferRAM')
-		local framebufferNormalTex = assert.index(req, 'framebufferNormalTex')
-		local info
-		if req.format == 'RGB565' then
-			info = makeVideoModeRGB565(framebufferRAM, framebufferNormalTex)
-		elseif req.format == '8bppIndex' then
-			info = makeVideoMode8bppIndex(framebufferRAM, framebufferNormalTex)
-		elseif req.format == 'RGB332' then
-			info = makeVideoModeRGB332(framebufferRAM, framebufferNormalTex)
-		elseif req.format == '4bppIndex' then
+	-- populate videoModes with shaders 
+	for _,mode in ipairs(self.videoModes:keys()) do
+		local modeObj = self.videoModes[mode]
+		if modeObj.format == 'RGB565' then
+			makeVideoModeRGB565(modeObj)
+		elseif modeObj.format == '8bppIndex' then
+			makeVideoMode8bppIndex(modeObj)
+		elseif modeObj.format == 'RGB332' then
+			makeVideoModeRGB332(modeObj)
+		elseif modeObj.format == '4bppIndex' then
 			return nil
 		else
-			error("unknown req.format "..tostring(req.format))
+			error("unknown modeObj.format "..tostring(modeObj.format))
 		end
 
 		-- hmm this is becoming a mess ...
@@ -1213,26 +1200,23 @@ void main() {
 		-- hmmmm
 		-- can I just make one giant framebuffer and use it everywhere?
 		-- or do I have to make one per screen mode's framebuffer?
-		framebufferRAM.fb = req.fb
+		modeObj.framebufferRAM.fb = modeObj.fb
 		-- don't bother do the same with framebufferNormalTex cuz it isn't a RAMGPU / doesn't have address space
 
-		info.fb = req.fb
-		info.format = req.format
 		-- only used for the intro screen console output:
-		local w, h = reduce(req.width, req.height)
-		info.formatDesc = req.width..'x'..req.height..'x'..req.format
-		return info
-	end)
+		local w, h = reduce(modeObj.width, modeObj.height)
+		modeObj.formatDesc = modeObj.width..'x'..modeObj.height..'x'..modeObj.format
+	end
 
 	-- make output shaders per-video-mode
 	-- set them up as our app fields to use upon setVideoMode
-	for infoIndex,info in pairs(self.videoModeInfo) do
+	for infoIndex,modeObj in pairs(self.videoModes) do
 		assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
 
 		-- my one and only shader for drawing to FBO (at the moment)
 		-- I picked an uber-shader over separate shaders/states, idk how perf will change, so far good by a small but noticeable % (10%-20% or so)
 --DEBUG:print('mode '..infoIndex..' drawObj')
-		info.drawObj = GLSceneObject{
+		modeObj.drawObj = GLSceneObject{
 			program = {
 				version = glslVersion,
 				precision = 'best',
@@ -1461,7 +1445,7 @@ void main() {
 			// else default solid rect
 		}
 
-<?=info.colorOutput?>
+<?=modeObj.colorOutput?>
 
 	// sprite shading pathway
 	} else if (pathway == 1u) {
@@ -1492,7 +1476,7 @@ void main() {
 		colorIndex += paletteIndex;
 		colorIndex &= 0xFFu;
 
-<?=info.colorOutput?>
+<?=modeObj.colorOutput?>
 
 <? if fragType == 'uvec4' then ?>
 		if (fragColor.a == 0u) plzDiscard = true;
@@ -1573,7 +1557,7 @@ void main() {
 
 		colorIndex += uint(palHi) << 5;
 
-		<?=info.colorOutput?>
+		<?=modeObj.colorOutput?>
 
 <? if fragType == 'uvec4' then ?>
 		if (fragColor.a == 0u) plzDiscard = true;
@@ -1659,8 +1643,8 @@ void main() {
 }
 ]],				{
 					self = self,
-					info = info,
-					fragType = info.framebufferRAM.tex:getGLSLFragType(),
+					modeObj = modeObj,
+					fragType = modeObj.framebufferRAM.tex:getGLSLFragType(),
 					glslCode5551 = glslCode5551,
 					tilemapSize = tilemapSize,
 				}),
@@ -1669,8 +1653,8 @@ void main() {
 					sheetTex = 1,
 					tilemapTex = 2,
 					frameBufferSize = {
-						info.framebufferRAM.tex.width,
-						info.framebufferRAM.tex.height,
+						modeObj.framebufferRAM.tex.width,
+						modeObj.framebufferRAM.tex.height,
 					},
 				},
 			},
@@ -1876,11 +1860,13 @@ end
 
 function AppVideo:buildFramebuffersForMode(mode)
 	assert.type(mode, 'number')
-	local req = self.videoModeFormats[mode]
+	local modeObj = self.videoModes[mode]
 
-	local width, height = req.width, req.height
+	modeObj.formatDesc = modeObj.width..'x'..modeObj.height..'x'..modeObj.format
+
+	local width, height = modeObj.width, modeObj.height
 	local internalFormat, gltype, suffix
-	if req.format == 'RGB565' then
+	if modeObj.format == 'RGB565' then
 		-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
 		-- [[
 		internalFormat = gl.GL_RGB565
@@ -1894,8 +1880,8 @@ function AppVideo:buildFramebuffersForMode(mode)
 		internalFormat = internalFormat5551
 		--]]
 		suffix = 'RGB565'
-	elseif req.format == '8bppIndex'
-	or req.format == 'RGB332'
+	elseif modeObj.format == '8bppIndex'
+	or modeObj.format == 'RGB332'
 	then
 		-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
 		internalFormat = texInternalFormat_u8
@@ -1903,7 +1889,7 @@ function AppVideo:buildFramebuffersForMode(mode)
 		-- hmm TODO maybe
 		-- if you want blending with RGB332 then you can use GL_R3_G3_B2 ...
 		-- but it's not in GLES3/WebGL2
-	elseif req.format == '4bppIndex' then
+	elseif modeObj.format == '4bppIndex' then
 		-- here's where exceptions need to be made ...
 		-- hmm, so when I draw sprites, I've got to shrink coords by half their size ... ?
 		-- and then track whether we are in the lo vs hi nibble ... ?
@@ -1913,23 +1899,23 @@ function AppVideo:buildFramebuffersForMode(mode)
 		suffix = '8bpp'	-- suffix is for the framebuffer, and we are using R8UI format
 		--width = bit.rshift(width, 1) + bit.band(width, 1)
 	else
-		error("unknown req.format "..tostring(req.format))
+		error("unknown modeObj.format "..tostring(modeObj.format))
 	end
 
 	-- I'm making one FBO per size.  Should I be making one FBO per destination color buffer texture internalFormat?
-	local sizeKey = '_'..req.width..'x'..req.height
+	local sizeKey = '_'..modeObj.width..'x'..modeObj.height
 	local fb = self.fbos[sizeKey]
 	if not fb then
 		fb = GLFBO{
-			width = req.width,
-			height = req.height,
+			width = modeObj.width,
+			height = modeObj.height,
 			useDepth = true, --gl.GL_DEPTH_COMPONENT32,
 		}
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
 		:unbind()
 		self.fbos[sizeKey] = fb
 	end
-	req.fb = fb
+	modeObj.fb = fb
 
 	-- make a FBO normalmap per size.  Don't store it in fantasy-console "hardware" RAM just yet.  For now it's just going to be accessible by a single switch in RAM.
 	local normalTex = self.framebufferNormalTexs[sizeKey]
@@ -1959,7 +1945,7 @@ function AppVideo:buildFramebuffersForMode(mode)
 			:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
 			:unbind()
 	end
-	req.framebufferNormalTex = assert(normalTex)
+	modeObj.framebufferNormalTex = assert(normalTex)
 
 	local sizeAndFormatKey = sizeKey..'x'..suffix
 	local framebufferRAM = self.framebufferRAMs[sizeAndFormatKey]
@@ -1985,7 +1971,7 @@ function AppVideo:buildFramebuffersForMode(mode)
 
 		self.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
 	end
-	req.framebufferRAM = framebufferRAM
+	modeObj.framebufferRAM = framebufferRAM
 
 	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects.
 end
@@ -2295,7 +2281,7 @@ each video mode should uniquely ...
 --]]
 function AppVideo:setVideoMode(mode)
 	if type(mode) == 'string' then
-		mode = self.videoModeInfos:find(nil, function(info) return info.formatDesc == mode end)
+		mode = self.videoModes:find(nil, function(modeObj) return modeObj.formatDesc == mode end)
 		if not mode then
 			return false, "failed to find video mode"
 		end
@@ -2304,20 +2290,20 @@ function AppVideo:setVideoMode(mode)
 
 	-- first time we won't have a drawObj to flush
 	if self.triBuf then
-		self.triBuf:flush()	-- flush before we redefine what info.drawObj is, which .triBuf:flush() depends on
+		self.triBuf:flush()	-- flush before we redefine what modeObj.drawObj is, which .triBuf:flush() depends on
 	end
 
-	local info = self.videoModeInfo[mode]
-	if info then
-		self.framebufferRAM = assert.index(info, 'framebufferRAM')
-		self.framebufferNormalTex = assert.index(info, 'framebufferNormalTex')
-		self.blitScreenObj = info.blitScreenObj
-		self.drawObj = info.drawObj
+	local modeObj = self.videoModes[mode]
+	if modeObj then
+		self.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
+		self.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
+		self.blitScreenObj = modeObj.blitScreenObj
+		self.drawObj = modeObj.drawObj
 
 		if self.inUpdateCallback then
 			self.fb:unbind()
 		end
-		self.fb = info.fb
+		self.fb = modeObj.fb
 		if self.inUpdateCallback then
 			self.fb:bind()
 		end
@@ -2340,7 +2326,7 @@ This is set between the VRAM tex .framebufferRAM (for draw commands that need to
 and the menu tex .framebufferMenuTex (for those that don't).
 It's only used for switching between app.framebufferRAM.tex and app.framebufferMenuTex
 It is used for setting the framebuffer's attachment0, which is the color attachment.
-(other attachments are set upon app.fb == app.videoModeInfo.fb's creation)
+(other attachments are set upon app.fb == app.videoModes.fb's creation)
 --]]
 function AppVideo:setFramebufferTex(tex)
 	local fb = self.fb
@@ -2758,25 +2744,25 @@ function AppVideo:clearScreen(
 	end
 
 	if not depthOnly then
-		local info = self.videoModeInfo[self.currentVideoMode]
-		if not info then
+		local modeObj = self.videoModes[self.currentVideoMode]
+		if not modeObj then
 			print'clearScreen() failed -- no video mode present!!!'
-		elseif info.format == 'RGB565' then	-- internalFormat == GL_RGB565
+		elseif modeObj.format == 'RGB565' then	-- internalFormat == GL_RGB565
 			local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[colorIndex]
 			clearFloat[0] = bit.band(selColorValue, 0x1f) / 0x1f
 			clearFloat[1] = bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f
 			clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
 			clearFloat[3] = 1
 			gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
-		elseif info.format == '8bppIndex'
-		or info.format == 'RGB332'	-- TODO RGB332 should be converted from index to RGB, right?  but with dithering too ... so far that's only done in shader for 332 ...
+		elseif modeObj.format == '8bppIndex'
+		or modeObj.format == 'RGB332'	-- TODO RGB332 should be converted from index to RGB, right?  but with dithering too ... so far that's only done in shader for 332 ...
 		then	-- internalFormat == texInternalFormat_u8 ... which is now et to G_R8UI
 			clearUInt[0] = colorIndex
 			clearUInt[1] = 0
 			clearUInt[2] = 0
 			clearUInt[3] = 0xff
 			gl.glClearBufferuiv(gl.GL_COLOR, 0, clearUInt)
-		elseif info.format == '4bppIndex' then
+		elseif modeObj.format == '4bppIndex' then
 			error'TODO'
 		end
 	end
@@ -3524,8 +3510,8 @@ function AppVideo:screenshotToFile(fn)
 	local fbRAM = self.framebufferRAM
 	fbRAM:checkDirtyGPU()
 	local fbTex = fbRAM.tex
-	local info = self.videoModeInfo[self.currentVideoMode]
-	if info.format == 'RGB565' then
+	local modeObj = self.videoModes[self.currentVideoMode]
+	if modeObj.format == 'RGB565' then
 		-- convert to RGB8 first
 		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
 		local srcp = fbRAM.image.buffer + 0
@@ -3536,7 +3522,7 @@ function AppVideo:screenshotToFile(fn)
 			dstp = dstp + 3
 		end
 		image:save(fn)
-	elseif info.format == '8bppIndex' then
+	elseif modeObj.format == '8bppIndex' then
 		local range = require 'ext.range'
 		local palImg = self.blobs.palette[1].image
 		local image = Image(fbTex.width, fbTex.height, 1, 'uint8_t')
@@ -3547,7 +3533,7 @@ function AppVideo:screenshotToFile(fn)
 			return {r,g,b}
 		end)
 		image:save(fn)
-	elseif info.format == 'RGB332' then
+	elseif modeObj.format == 'RGB332' then
 		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
 		local srcp = fbRAM.image.buffer + 0
 		local dstp = image.buffer + 0

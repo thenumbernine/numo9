@@ -665,9 +665,9 @@ function App:initGL()
 			return self:drawText(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 		end,		-- (text, x, y, fgColorIndex, bgColorIndex)
 
-		mode = function(videoMode)
+		mode = function(videoModeIndex)
 			-- for net play's sake ,how about just doing a peek/poke?
-			self:net_poke(ffi.offsetof('RAM', 'videoMode'), videoMode)
+			self:net_poke(ffi.offsetof('RAM', 'videoMode'), videoModeIndex)
 		end,
 
 		clip = function(...)
@@ -1239,7 +1239,8 @@ print('package.loaded', package.loaded)
 				for i=1,30 do env.flip() end
 
 				-- [[ list screen modes? or nah?
-				for i,v in pairs(self.videoModeInfo) do
+				for _,i in ipairs(self.videoModes:keys():sort()) do
+					local v = self.videoModes[i]
 					coolPrint(i..'...'..v.formatDesc)
 				end
 				--]]
@@ -2105,7 +2106,8 @@ print('run thread dead')
 --DEBUG(glquery):drawQuery:begin()
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
-		if self.videoModeInfo[self.ram.videoMode].format == '8bppIndex' then
+		local videoModeObj = self.videoModes[self.ram.videoMode]
+		if videoModeObj and videoModeObj.format == '8bppIndex' then
 			self.paletteRAMs[1]:checkDirtyCPU()
 		end
 
