@@ -2022,6 +2022,7 @@ print('run thread dead')
 
 			-- pop the matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+			self:onMvMatChange()
 			self.ram.dither = ditherPush
 		end
 
@@ -2311,11 +2312,9 @@ function App:poke(addr, value)
 
 	-- write out tris using the mvMat before it changes
 	if addr >= mvMatAddr and addr < mvMatAddrEnd then
-		self:triBuf_flush()
 		self:onMvMatChange()
 	end
 	if addr >= clipRectAddr and addr < clipRectAddrEnd then
-		self:triBuf_flush()
 		self:onClipRectChange()
 	end
 
@@ -2385,11 +2384,9 @@ function App:pokew(addr, value)
 
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
-		self:triBuf_flush()
 		self:onMvMatChange()
 	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
-		self:triBuf_flush()
 		self:onClipRectChange()
 	end
 
@@ -2450,11 +2447,9 @@ function App:pokel(addr, value)
 
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
-		self:triBuf_flush()
 		self:onMvMatChange()
 	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
-		self:triBuf_flush()
 		self:onClipRectChange()
 	end
 
@@ -2515,11 +2510,9 @@ function App:pokef(addr, value)
 
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
-		self:triBuf_flush()
 		self:onMvMatChange()
 	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
-		self:triBuf_flush()
 		self:onClipRectChange()
 	end
 
@@ -2597,6 +2590,39 @@ function App:memcpy(dst, src, len)
 		end
 	end
 
+	do
+		local rsrc, rdst, rlen = src, dst, len
+		if rsrc < 0 then
+			ffi.fill(self.ram.v + rdst, math.min(-rsrc, rlen))
+		end
+		if not (rsrc < 0 and -rsrc <= rlen) then
+			if rsrc < 0 then
+				rdst = rdst - rsrc
+				rlen = rlen + rsrc
+				rsrc = 0
+			end
+			local copyLen = math.min(rlen, self.memSize - rsrc)
+			ffi.copy(self.ram.v + rdst, self.ram.v + rsrc, copyLen)
+			rlen = rlen - copyLen
+			rdst = rdst + copyLen
+			rsrc = rsrc + copyLen
+			if rlen > 0 then
+				-- at this point, rsrc should be at the end of memory.
+				-- if it's not then we would've failed the prev if-cond in the last line
+--DEBUG:assert.eq(rsrc, self.memSize)
+				ffi.fill(self.ram.v + rdst, rlen)
+			end
+		end
+	end
+
+	-- write out tris using the mvMat before it changes
+	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
+		self:onMvMatChange()
+	end
+	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
+		self:onClipRectChange()
+	end
+
 	for _,sheetRAM in ipairs(self.sheetRAMs) do
 		if dstend >= sheetRAM.addr
 		and dst < sheetRAM.addrEnd
@@ -2634,36 +2660,6 @@ function App:memcpy(dst, src, len)
 			voxelmap.dirtyCPU = true
 		end
 	end
-
-
--- TODO this after the memset ... so ... get rid of its 'return's
-	-- write out tris using the mvMat before it changes
-	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
-		self:triBuf_flush()
-		self:onMvMatChange()
-	end
-	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
-		self:triBuf_flush()
-		self:onClipRectChange()
-	end
-
-
-	if src < 0 then
-		ffi.fill(self.ram.v + dst, math.min(-src, len))
-		if -src <= len then return end
-		dst = dst - src
-		len = len + src
-		src = 0
-	end
-	local copyLen = math.min(len, self.memSize - src)
-	ffi.copy(self.ram.v + dst, self.ram.v + src, copyLen)
-	len = len - copyLen
-	dst = dst + copyLen
-	src = src + copyLen
-	if len <= 0 then return end
-	-- at this point, src should be at the end of memory.  if it's not then we would've returned in the last line
---DEBUG:assert.eq(src, self.memSize)
-	ffi.fill(self.ram.v + dst, len)
 end
 
 function App:memset(dst, val, len)
@@ -2696,11 +2692,9 @@ function App:memset(dst, val, len)
 
 	-- write out tris using the mvMat before it changes
 	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
-		self:triBuf_flush()
 		self:onMvMatChange()
 	end
 	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
-		self:triBuf_flush()
 		self:onClipRectChange()
 	end
 

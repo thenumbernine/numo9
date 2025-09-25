@@ -1951,7 +1951,22 @@ function AppVideo:triBuf_flush()
 
 	sceneObj.geometry.count = n
 
-	sceneObj.program:use()
+	local program = sceneObj.program
+	program:use()
+--[[ flush mvMat changes upon tri flush
+-- TODO won't this risk the new mvMat getting used for old tris?
+-- yes in fact that's what happens...
+	if self.mvMatDirty then
+		program:setUniform('mvMat', self.ram.mvMat)
+		self.mvMatDirty = false
+	end
+	if self.clipRectDirty then
+		gl.glUniform4f(
+			program.uniforms.scissor.loc,
+			self:getClipRect())
+		self.clipRectDirty = false
+	end
+--]]
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
@@ -1962,23 +1977,6 @@ function AppVideo:triBuf_flush()
 	self.lastSolidPaletteTex = nil
 	self.lastSolidSheetTex = nil
 end
-
--- TODO this here? or on flush() or on addTri()?
-function AppVideo:onMvMatChange()
-	if not self.triBuf_sceneObj then return end
-	self.triBuf_sceneObj.program
-		:use()
-		:setUniform('mvMat', self.ram.mvMat)
-		:useNone()
-end
-function AppVideo:onClipRectChange()
-	if not self.triBuf_sceneObj then return end
-	local program = self.triBuf_sceneObj.program
-	program:use()
-	gl.glUniform4f(program.uniforms.scissor.loc, self:getClipRect())
-	program:useNone()
-end
-
 
 function AppVideo:triBuf_addTri(
 	paletteTex,
@@ -2012,6 +2010,24 @@ function AppVideo:triBuf_addTri(
 		self.lastTilemapTex = tilemapTex
 	end
 
+-- [[ upload mvMat to GPU before adding new tris ...
+	local program = sceneObj.program
+	if self.mvMatDirty or self.clipRectDirty then
+		program:use()
+		if self.mvMatDirty then
+			program:setUniform('mvMat', self.ram.mvMat)
+			self.mvMatDirty = false
+		end
+		if self.clipRectDirty then
+			gl.glUniform4f(
+				program.uniforms.scissor.loc,
+				self:getClipRect())
+			self.clipRectDirty = false
+		end
+		program:useNone()
+	end
+--]]
+
 	-- push
 	local v
 	v = vertex:emplace_back()
@@ -2038,6 +2054,39 @@ function AppVideo:triBuf_addTri(
 		v = boxAttr:emplace_back()
 		v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
 	end
+end
+
+function AppVideo:onMvMatChange()
+-- [[ update later
+	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current mvMat
+	self.mvMatDirty = true
+--]]
+--[[ update mvMat immediately ... might cause redundant updates ...
+	if not self.triBuf_sceneObj then return end
+	self:triBuf_flush()	-- flush old with their old mvMat
+	local program = self.triBuf_sceneObj.program
+	program
+		:use()
+		:setUniform('mvMat', self.ram.mvMat)
+		:useNone()
+--]]
+end
+
+function AppVideo:onClipRectChange()
+-- [[ update later
+	self:triBuf_flush()
+	self.clipRectDirty = true
+--]]
+--[[
+	if not self.triBuf_sceneObj then return end
+	self:triBuf_flush()	-- flush old with their old mvMat
+	local program = self.triBuf_sceneObj.program
+	program:use()
+	gl.glUniform4f(
+		program.uniforms.scissor.loc,
+		self:getClipRect())
+	program:useNone()
+--]]
 end
 
 -- resize the # of RAMGPUs to match the # blobs
@@ -2816,7 +2865,6 @@ end
 
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
 function AppVideo:setClipRect(...)
-	self:triBuf_flush()
 	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = ...
 	self:onClipRectChange()
 end
@@ -3440,7 +3488,6 @@ end
 -- I'm already setting them in env so ... nah ...
 
 function AppVideo:matident()
-	self:triBuf_flush()
 	-- set-ident and scale ...
 	self.ram.mvMat[0],  self.ram.mvMat[1],  self.ram.mvMat[2],  self.ram.mvMat[3]  = mvMatScale, 0, 0, 0
 	self.ram.mvMat[4],  self.ram.mvMat[5],  self.ram.mvMat[6],  self.ram.mvMat[7]  = 0, mvMatScale, 0, 0
@@ -3450,32 +3497,26 @@ function AppVideo:matident()
 end
 
 function AppVideo:mattrans(...)
-	self:triBuf_flush()
 	self.mvMat:applyTranslate(...)
 	self:onMvMatChange()
 end
 
 function AppVideo:matrot(...)
-	self:triBuf_flush()
 	self.mvMat:applyRotate(...)
 	self:onMvMatChange()
 end
 
 function AppVideo:matrotcs(...)
-	self:triBuf_flush()
 	self.mvMat:applyRotateCosSinUnit(...)
 	self:onMvMatChange()
 end
 
 function AppVideo:matscale(...)
-	self:triBuf_flush()
 	self.mvMat:applyScale(...)
 	self:onMvMatChange()
 end
 
 function AppVideo:matortho(l, r, t, b, n, f)
-	self:triBuf_flush()
-
 	local modeObj = self.currentVideoMode
 
 	-- input is [0,2]^2 x [-1,1] coords, output is [0,mode.width] x [0,mode.height] x [-1,1] coords
@@ -3493,8 +3534,6 @@ end
 
 -- TODO get this working with native-resolution mode
 function AppVideo:matfrustum(l, r, t, b, n, f)
-	self:triBuf_flush()
-
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 	local modeObj = self.currentVideoMode
 	local shw = .5 * modeObj.width
@@ -3506,13 +3545,11 @@ function AppVideo:matfrustum(l, r, t, b, n, f)
 end
 
 function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-	self:triBuf_flush()
-
 	-- typically y+ is up, but in the 90s console era y- is up
 	-- also flip x+ since OpenGL uses a RHS but I want to preserve orientation of our renderer when looking down from above, so we use a LHS
 	self.mvMat:applyScale(-1, -1, 1)
 	self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-	
+
 	self:onMvMatChange()
 end
 
@@ -3697,6 +3734,7 @@ function AppVideo:drawBrush(
 			-- either way, this is just a preview for the tilemap pathway
 			-- since brushes don't render themselves, but just blit to the tilemap
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+			--self:onMvMatChange() ... but it gets set in mattrans also ...
 			self:mattrans(
 				screenX + tileSizeInPixels / 2,
 				screenY + tileSizeInPixels / 2
@@ -3722,6 +3760,7 @@ function AppVideo:drawBrush(
 	end
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+	self:onMvMatChange()
 end
 
 -- these are net friendly since they are called from the game API
@@ -4020,6 +4059,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 	)
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+	self:onMvMatChange()
 end
 
 local mvMatPush = ffi.new(mvMatType..'[16]')
@@ -4089,7 +4129,6 @@ function AppVideo:drawVoxelMap(
 	local us = 1 / tonumber(spriteSheetSize.x)	-- or .y ... scale-down from integer to [0,1] texcoord
 
 	local vtxs = voxelmap.triVtxs
---[[
 	for i=0,#vtxs-1,3 do
 		local a = vtxs.v + i
 		local b = vtxs.v + i+1
@@ -4107,60 +4146,6 @@ function AppVideo:drawVoxelMap(
 			0, 0, 1, 1
 		)
 	end
---]]
--- [[
-	do
-		local sceneObj = self.triBuf_sceneObj
-		local vertex = sceneObj.attrs.vertex.buffer.vec
-		local texcoord = sceneObj.attrs.texcoord.buffer.vec
-		local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
-		local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
-		local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
-
-		if self.lastSolidPaletteTex ~= paletteTex
-		or self.lastSolidSheetTex ~= sheetTex
-		or self.lastTilemapTex ~= tilemapTex
-		then
-			self:triBuf_flush()
-			self.lastSolidPaletteTex = paletteTex
-			self.lastSolidSheetTex = sheetTex
-			self.lastTilemapTex = tilemapTex
-		end
-
-		for i=0,#vtxs-1,3 do
-			local a = vtxs.v + i
-			local b = vtxs.v + i+1
-			local c = vtxs.v + i+2
-
-			-- push
-			local v
-			v = vertex:emplace_back()
-			v.x, v.y, v.z = a.x, a.y, a.z
-			v = vertex:emplace_back()
-			v.x, v.y, v.z = b.x, b.y, b.z
-			v = vertex:emplace_back()
-			v.x, v.y, v.z = c.x, c.y, c.z
-
-			v = texcoord:emplace_back()
-			v.x, v.y = a.u * us, a.v * us
-			v = texcoord:emplace_back()
-			v.x, v.y = b.u * us, b.v * us
-			v = texcoord:emplace_back()
-			v.x, v.y = c.u * us, c.v * us
-		end
-
-		for i=0,#vtxs-1 do
-			v = drawOverrideSolidAttr:emplace_back()
-			v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
-
-			v = extraAttr:emplace_back()
-			v.x, v.y, v.z, v.w = drawFlags, self.ram.dither, transparentIndex, paletteIndex
-
-			v = boxAttr:emplace_back()
-			v.x, v.y, v.z, v.w = 0, 0, 1, 1
-		end
-	end
---]]
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
@@ -4180,6 +4165,7 @@ function AppVideo:drawVoxelMap(
 			spriteBit,
 			spriteMask)
 		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+		self:onMvMatChange()
 	end
 	for j=0,#voxelmap.billboardXYVoxels-1 do
 		local i = voxelmap.billboardXYVoxels.v[j]
@@ -4191,6 +4177,7 @@ function AppVideo:drawVoxelMap(
 			spriteBit,
 			spriteMask)
 		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+		self:onMvMatChange()
 	end
 end
 
