@@ -4,7 +4,9 @@ local table = require 'ext.table'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3d = require 'vec-ffi.vec3d'
 local box3d = require 'vec-ffi.box3d'
+local Image = require 'image'
 
+local clip = require 'numo9.clipboard'
 local Orbit = require 'numo9.ui.orbit'
 local TileSelect = require 'numo9.ui.tilesel'
 
@@ -30,6 +32,7 @@ function EditVoxelMap:onCartLoad()
 
 	self.drawMode = 'draw'
 	self.rectDown = nil
+	self.rectUp = nil
 	self.wireframe = false
 
 	self.voxCurSel = ffi.new'Voxel'
@@ -233,6 +236,7 @@ function EditVoxelMap:update()
 					elseif self.drawMode == 'rect' then
 						if app:keyp'mouse_left' then
 							self.rectDown = pti:clone()
+							self.rectUp = pti:clone()
 						elseif app:keyr'mouse_left' then
 							if self.rectDown then
 								for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
@@ -247,6 +251,17 @@ function EditVoxelMap:update()
 								end
 							end
 							self.rectDown = nil
+							self.rectUp = nil
+						elseif app:key'mouse_left' then
+							self.rectUp = pti:clone()
+						end
+					elseif self.drawMode == 'select' then
+						if app:keyp'mouse_left' then
+							self.rectDown = pti:clone()
+							self.rectUp = pti:clone()
+						elseif app:keyr'mouse_left' then
+						elseif app:key'mouse_left' then
+							self.rectUp = pti:clone()
 						end
 					elseif self.drawMode == 'fill' then
 						if app:keyp'mouse_left' then
@@ -291,8 +306,8 @@ function EditVoxelMap:update()
 					end
 				end
 
-				if self.rectDown then
-					self:drawBox(box3d(self.rectDown, pti+1), 0x1b)
+				if self.rectDown and self.rectUp then
+					self:drawBox(box3d(self.rectDown, self.rectUp+1), 0x1b)
 				end
 
 				if app:keyp'mouse_right'
@@ -361,10 +376,10 @@ function EditVoxelMap:update()
 	x = x + 12
 
 	-- tools ... maybe I should put these somewhere else
-	self:guiRadio(x, y, {'draw', 'rect', 'fill'}, self.drawMode, function(result)
+	self:guiRadio(x, y, {'draw', 'rect', 'fill', 'select'}, self.drawMode, function(result)
 		self.drawMode = result
 	end)
-	x = x + 18
+	x = x + 25
 
 	if voxelmap then
 		self:guiSpinner(x, y, function(dx)
@@ -429,6 +444,97 @@ function EditVoxelMap:update()
 		if app:key'c' then
 			self.orbit.pos = self.orbit.pos - self.orbit.angle:yAxis() * moveSpeed
 			self.orbit.orbit = self.orbit.orbit - self.orbit.angle:yAxis() * moveSpeed
+		end
+	end
+
+	local uikey
+	if ffi.os == 'OSX' then
+		uikey = app:key'lgui' or app:key'rgui'
+	else
+		uikey = app:key'lctrl' or app:key'rctrl'
+	end
+	if uikey then
+		if app:keyp'x' or app:keyp'c' then
+			if self.rectDown and self.rectUp then
+				local min = vec3d(
+					math.min(self.rectUp.x, self.rectDown.x),
+					math.min(self.rectUp.y, self.rectDown.y),
+					math.min(self.rectUp.z, self.rectDown.z))
+				local max = vec3d(
+					math.max(self.rectUp.x, self.rectDown.x),
+					math.max(self.rectUp.y, self.rectDown.y),
+					math.max(self.rectUp.z, self.rectDown.z))
+				local size = max - min + 1
+				local o = vector'uint32_t'
+				o:emplace_back()[0] = size.x
+				o:emplace_back()[0] = size.y
+				o:emplace_back()[0] = size.z
+				for z=0,size.z-1 do
+					for y=0,size.y-1 do
+						for x=0,size.x-1 do
+							local v = voxelmap:getVoxelBlobPtr(x + min.x, y + min.y, z + min.z)
+							o:emplace_back()[0] = v and v.intval or voxelMapEmptyValue
+						end
+					end
+				end
+				-- now encode it in an image ...
+				local w = math.ceil(math.sqrt(#o))	
+				local h = math.ceil(#o / w)
+				local img = Image(w, h, 4, 'uint8_t')
+				ffi.fill(img.buffer, img:getBufferSize())
+				ffi.copy(img.buffer, o.v, #o * ffi.sizeof'uint32_t')
+				clip.image(img)
+				if app:keyp'x' then
+					for z=0,size.z-1 do
+						for y=0,size.y-1 do
+							for x=0,size.x-1 do
+								local addr = voxelmap:getVoxelAddr(x + min.x, y + min.y, z + min.z)
+								if addr then	 -- TODO clamp bounds
+									self:edit_pokel(addr, voxelMapEmptyValue)
+								end
+							end
+						end
+					end
+				end
+			end
+		elseif app:keyp'v' then
+			local min = vec3d(
+				math.min(self.rectUp.x, self.rectDown.x),
+				math.min(self.rectUp.y, self.rectDown.y),
+				math.min(self.rectUp.z, self.rectDown.z))
+			local max = vec3d(
+				math.max(self.rectUp.x, self.rectDown.x),
+				math.max(self.rectUp.y, self.rectDown.y),
+				math.max(self.rectUp.z, self.rectDown.z))
+			local cb = function()
+				local image = clip.image()
+				if not image then return end
+				if image.channels ~= 4 then
+					print('paste got an image with invalid channels', image.channels)
+					return
+				end
+				if image:getBufferSize() < 3 * ffi.sizeof'uint32_t' then	-- make sure the header is at least there
+					print('paste got an image with not enough buffer size', image:getBufferSize())
+					return
+				end
+				local p = ffi.cast('uint32_t*', image.buffer)
+				local sx, sy, sz = p[0], p[1], p[2]
+				if ffi.sizeof'uint32_t' * (3 + sx * sy * sz) > image:getBufferSize() then
+					print('paste got a bad sized image: '..sx..', '..sy..', '..sz..' versus its buffer size '..image:getBufferSize())
+					return
+				end
+				for z=0,sz-1 do
+					for y=0,sy-1 do
+						for x=0,sx-1 do
+							local addr = voxelmap:getVoxelAddr(x + min.x, y + min.y, z + min.z)
+							if addr then	 -- TODO clamp bounds
+								self:edit_pokel(addr, p[3 + x + sx * (y + sy * z)])
+							end
+						end
+					end
+				end
+			end
+			cb()
 		end
 	end
 

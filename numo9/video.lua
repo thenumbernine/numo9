@@ -2717,6 +2717,7 @@ function AppVideo:drawSolidLine3D(
 	local fbw = self.framebufferRAM.tex.width
 	local fbh = self.framebufferRAM.tex.height
 
+	local m = self.ram.mvMat + 0
 --[[ TODO inverse transform [1,0,0,1] and [0,1,0,1] to find out dx and dy ...
 	local v1x, v1y, v1z, v1w = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x1, y1, z1))
 	local v2x, v2y, v2z, v2w = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x2, y2, z2))
@@ -2726,9 +2727,38 @@ function AppVideo:drawSolidLine3D(
 	local nx = -dy * il
 	local ny = dx * il
 --]]
--- [[ until then (lazy)
-	local nxx, nxy, nxz = 1, 0, 0
-	local nyx, nyy, nyz = 0, 1, 0
+--[[
+	local im = self.mvMat:inv4x4()
+	local nxx, nxy, nxz = im.ptr[0], im.ptr[4], im.ptr[8]
+	--local nxx, nxy, nxz = im.ptr[0], im.ptr[1], im.ptr[2]
+	--local nyx, nyy, nyz = im.ptr[1], im.ptr[5], im.ptr[9]
+	local il = 1 / math.sqrt(nxx^2 + nxy^2 + nxz^2)
+	nxx, nxy, nxz = nxx * il, nxy * il, nxz * il
+	local nyx, nyy, nyz = -nxy, nxx, nxz
+--]]
+-- [[ or instead of inverse-transform, just transpose-transform the upper 3x3
+	--local d3x = x2 - x1
+	--local d3y = y2 - y1
+	--local d3z = z2 - z1
+	local lx = math.sqrt(m[0]^2 + m[1]^2 + m[2 ]^2)
+	local ly = math.sqrt(m[4]^2 + m[5]^2 + m[6 ]^2)
+	--local lz = math.sqrt(m[8]^2 + m[9]^2 + m[10]^2)	
+	--local dx = (d3x * m[0] + d3y * m[1] + d3z * m[2]) / lx
+	--local dy = (d3x * m[3] + d3y * m[4] + d3z * m[5]) / ly
+	--local dz = (d3x * m[6] + d3y * m[1] + d3z * m[2]) / lz
+	local nxx, nxy, nxz = m[0] / lx, m[1] / lx, m[2] / lx
+	local nyx, nyy, nyz = m[4] / ly, m[5] / ly, m[6] / ly
+--]]
+--[[ or fwd, not inv?
+	local lx = math.sqrt(m[0]^2 + m[4]^2 + m[8 ]^2)
+	local ly = math.sqrt(m[1]^2 + m[5]^2 + m[9 ]^2)
+	local lz = math.sqrt(m[2]^2 + m[6]^2 + m[10]^2)	
+	local nxx, nxy, nxz = m[0] / lx, m[4] / lx, m[8] / lx
+	local nyx, nyy, nyz = m[1] / ly, m[5] / ly, m[9] / ly
+--]]
+--[[ until then (lazy)
+	local nxx, nxy, nxz = 2 / 256, 0, 0
+	local nyx, nyy, nyz = 0, 2 / 256, 0
 --]]
 
 	local halfThickness = (thickness or 1) * .5
