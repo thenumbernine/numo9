@@ -7,6 +7,7 @@ local box3d = require 'vec-ffi.box3d'
 local Image = require 'image'
 
 local clip = require 'numo9.clipboard'
+local Undo = require 'numo9.ui.undo'
 local Orbit = require 'numo9.ui.orbit'
 local TileSelect = require 'numo9.ui.tilesel'
 
@@ -22,6 +23,28 @@ local EditVoxelMap = require 'numo9.ui':subclass()
 
 function EditVoxelMap:init(args)
 	EditVoxelMap.super.init(self, args)
+
+	self.undo = Undo{
+		get = function()
+			-- for now I'll just have one undo buffer for the current sheet
+			-- TODO palette too
+			local app = self.app
+			local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+			local voxelmapData = ffi.new('uint8_t[?]', #voxelmap.data)
+			ffi.copy(voxelmapData, voxelmap.data, #voxelmap.data)
+			return {
+				data = voxelmapData,
+				size = #voxelmap.data,
+			}
+		end,
+		changed = function(entry)
+			local app = self.app
+			local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
+			if #voxelmap.data ~= entry.size then return true end
+			return 0 ~= ffi.C.memcmp(entry.data, voxelmap.data, entry.size)
+		end,
+	}
+
 	self:onCartLoad()
 end
 
@@ -51,6 +74,8 @@ function EditVoxelMap:onCartLoad()
 	-- TODO init to max size of whatever blob is first loaded?
 	-- and refresh on blob change?
 	self.orbit.pos.z = 5
+
+	self.undo:clear()
 end
 
 local function planeLineIntersectParam(planePt, planeN, linePt, lineDir)
@@ -110,6 +135,8 @@ function EditVoxelMap:update()
 	local app = self.app
 
 	EditVoxelMap.super.update(self)
+
+	local shift = app:key'lshift' or app:key'rshift'
 
 	local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 	local mapsize = voxelmap
@@ -215,7 +242,6 @@ function EditVoxelMap:update()
 				-- or how about mousedown as well?
 				-- but only when the voxel changes?
 				-- tough to make it not just keep stacking towards the view ...
-				local shift = app:key'lshift' or app:key'rshift'
 				if shift then
 					if app:key'mouse_left' then
 						if mapboxIE:contains(npti) then
@@ -229,6 +255,7 @@ function EditVoxelMap:update()
 				else
 					if self.drawMode == 'draw' then
 						if app:keyp'mouse_left' then
+							self.undo:pushContinuous()
 							self:edit_pokel(
 								voxelmap:getVoxelAddr(pti:unpack()),
 								self.voxCurSel.intval)
@@ -238,6 +265,7 @@ function EditVoxelMap:update()
 							self.rectDown = pti:clone()
 							self.rectUp = pti:clone()
 						elseif app:keyr'mouse_left' then
+							self.undo:push()
 							if self.rectDown then
 								for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
 									for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
@@ -279,6 +307,8 @@ function EditVoxelMap:update()
 								if srcColor ~= voxelMapEmptyValue
 								and srcColor ~= self.voxCurSel.intval
 								then
+									self.undo:push()
+
 									local fillstack = table()
 
 									local addr = voxelmap:getVoxelAddr(npti:unpack())
@@ -342,7 +372,9 @@ function EditVoxelMap:update()
 	app:matident()
 
 	local x, y = 48, 0
-	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex')
+	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
+		self.undo:clear()
+	end)
 	x = x + 11
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
 	x = x + 11
@@ -478,13 +510,14 @@ function EditVoxelMap:update()
 					end
 				end
 				-- now encode it in an image ...
-				local w = math.ceil(math.sqrt(#o))	
+				local w = math.ceil(math.sqrt(#o))
 				local h = math.ceil(#o / w)
 				local img = Image(w, h, 4, 'uint8_t')
 				ffi.fill(img.buffer, img:getBufferSize())
 				ffi.copy(img.buffer, o.v, #o * ffi.sizeof'uint32_t')
 				clip.image(img)
 				if app:keyp'x' then
+					self.undo:push()
 					for z=0,size.z-1 do
 						for y=0,size.y-1 do
 							for x=0,size.x-1 do
@@ -523,6 +556,7 @@ function EditVoxelMap:update()
 					print('paste got a bad sized image: '..sx..', '..sy..', '..sz..' versus its buffer size '..image:getBufferSize())
 					return
 				end
+				self.undo:push()
 				for z=0,sz-1 do
 					for y=0,sy-1 do
 						for x=0,sx-1 do
@@ -535,6 +569,8 @@ function EditVoxelMap:update()
 				end
 			end
 			cb()
+		elseif app:keyp'z' then
+			self:popUndo(shift)
 		end
 	end
 
@@ -545,6 +581,8 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	local app = self.app
 	local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 	if not voxelmap then return end
+
+	self.undo:push()
 
 	assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof'Voxel')	-- just put everything in uint32_t
 
@@ -573,6 +611,12 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	end
 
 	self.app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(o:dataToStr())
+
+	self:refreshVoxelMaps()
+end
+
+function EditVoxelMap:refreshVoxelMaps()
+	local app = self.app
 	-- refresh changes ... (same as in UI when the guiBlobSelect changes...)
 	-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
 	--app.threads:addMainLoopCall(function()
@@ -592,6 +636,14 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 		app:updateBlobChanges()
 		app:resetVideo()
 	--end)
+end
+
+function EditVoxelMap:popUndo(redo)
+	local app = self.app
+	local entry = self.undo:pop(redo)
+	if not entry then return end
+	app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(ffi.string(entry.data, entry.size))
+	self:refreshVoxelMaps()
 end
 
 return EditVoxelMap
