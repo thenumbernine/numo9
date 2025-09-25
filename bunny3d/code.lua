@@ -26,6 +26,7 @@ update=||do
 	local zn, zf = .1, 2
 	local ar = tonumber(peekw(ramaddr'screenWidth')) / tonumber(peekw(ramaddr'screenHeight'))
 	matfrustum(-ar*zn, ar*zn, -zn, zn, zn, zf)
+	--matfrustum(-zn, zn, -zn/ar, zn/ar, zn, zf)
 	-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
 	matscale(1, -1, 1)
 	mattrans(0, 0, -.5 * zf)

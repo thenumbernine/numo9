@@ -18,9 +18,10 @@
 --#include numo9/matstack.lua
 --#include numo9/screen.lua
 
-videoMode='256x256xRGB565'
+--videoMode='256x256xRGB565'
 --videoMode='480x270x8bppIndex'
 --videoMode='480x270xRGB332'
+videoMode='Native_RGB565'
 mode(videoMode)
 pokew(ramaddr'useHardwareLighting', 1)
 cheat=true
@@ -229,8 +230,7 @@ drawMap=||do
 	local viewZ = viewAlt
 
 	matident()
-	local screenWidth, screenHeight = getScreenSize()
-	local ar = screenWidth / screenHeight
+	local ar = getAspectRatio()
 	matfrustum(-ar * viewZNear, ar * viewZNear, -viewZNear, viewZNear, viewZNear, viewZFar)
 	matscale(-1, 1, 1)	-- go from lhs to rhs coord system
 	matlookat(
@@ -1464,6 +1464,7 @@ end
 inSplash=true
 splashMenuY=0
 
+local screenTextWidth = 480
 
 update=||do
 	local da = destViewAngle - viewAngle
@@ -1485,21 +1486,22 @@ update=||do
 		rect(0,0,screenWidth,screenHeight,19)
 		fillp(0)		--blend(-1)
 
+		matortho(0, screenTextWidth, 0, screenTextWidth * screenHeight / screenWidth)
 		-- splash screen
 		local s = 2
 		local sx, sy = s*5, s*8
-		local x0,y0 = screenWidth/2-30*s, 64
+		local x0,y0 = screenTextWidth/2-30*s, 64
 		local x,y= x0,y0
 		local txt=|t|do
 			text(t, x, y, nil, nil, s, s)
 			y += sy
 		end
 
-		splashSpriteX = (((splashSpriteX or 0) + 1) % (screenWidth+32))
+		splashSpriteX = (((splashSpriteX or 0) + 1) % (screenTextWidth+32))
 		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2, splashSpriteX - 16, 24, 2, 2, nil, nil, nil, nil, -1, 1)
 		spr(seqs.bombLit, splashSpriteX - 16, 24, 2, 2)
 
-		lastTitleWidth = text('BANK...3D!', screenWidth/2-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
+		lastTitleWidth = text('BANK...3D!', screenTextWidth/2-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
 
 		for _,saveinfo in ipairs(saveinfos) do
 			txt('  '..(saveinfo.level==0 and 'New Game' or 'Level '..saveinfo.level))
@@ -1600,11 +1602,12 @@ update=||do
 
 	cls(0xf0)
 	matident()
+	matortho(0, screenTextWidth, 0, screenTextWidth * screenHeight / screenWidth)
 
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
 		lastLevelStrWidth = lastLevelStrWidth or 5*7
-		lastLevelStrWidth = text(levelstr,(screenWidth-lastLevelStrWidth)/2,0,22,-1)
+		lastLevelStrWidth = text(levelstr,(screenTextWidth-lastLevelStrWidth)/2,0,22,-1)
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
 	end
 

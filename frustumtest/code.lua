@@ -57,10 +57,10 @@ update=||do
 	local ar = w / h
 
 	-- doing this requires frustum to scale with (w/h, 1) to remain centered
-	--matfrustum(-ar * zn, ar * zn, -zn, zn, zn, zf)
+	matfrustum(-ar * zn, ar * zn, -zn, zn, zn, zf)
 	
 	-- doing this requires frustum to scale with (1, h/w) to remain centered
-	matfrustum(-zn, zn, -zn / ar, zn / ar, zn, zf)
+	--matfrustum(-zn, zn, -zn / ar, zn / ar, zn, zf)
 	
 	-- go from lhs to rhs coord system (??) since usu x+ is right and y+ is *DOWN* ... maybe I should be putting this in matfrustum?
 	-- this is to match opengl convention, but I don't think I'll move it into the numo9 API since I want frustum to match the numo9 y+ down 90s-console convention

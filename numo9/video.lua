@@ -1573,8 +1573,9 @@ void main() {
 				sheetTex = 1,
 				tilemapTex = 2,
 				invHalfFrameBufferSize = {
-					2 / self.framebufferRAM.tex.width,
-					2 / self.framebufferRAM.tex.height,
+					-- init this to the init 256x256 res
+					2 / tonumber(frameBufferSize.x),
+					2 / tonumber(frameBufferSize.y),
 				},
 			},
 		},
@@ -1756,7 +1757,7 @@ function AppVideo:initVideoModes()
 			-- or maybe I shouldn't be reassigning it to begin with?
 			--[[
 			self:build()
-			
+
 			self.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
 			self.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
 			self.blitScreenObj = modeObj.blitScreenObj
@@ -2039,11 +2040,11 @@ function AppVideo:triBuf_addTri(
 				self:getClipRect())
 			self.clipRectDirty = false
 		end
-		if self.framebufferSizeUniformDirty then
+		if self.frameBufferSizeUniformDirty then
 			gl.glUniform2f(
 				program.uniforms.invHalfFrameBufferSize.loc,
-				2 / self.currentVideoMode.width,
-				2 / self.currentVideoMode.height)
+				2 / self.ram.screenWidth,
+				2 / self.ram.screenHeight)
 		end
 		program:useNone()
 	end
@@ -3547,15 +3548,16 @@ function AppVideo:matfrustum(l, r, t, b, n, f)
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 
 	local shw, shh = .5 * self.ram.screenWidth, .5 * self.ram.screenHeight
-	
-	-- This undos the ndc -> window transform that I'm about to apply
+
+	-- This undos the ndc -> window transform that I'm about to apply in the drawObj vertex shader
 	self.mvMat:applyScale(shw, shh)
 
-	-- hmm why?  
+	-- hmm why?
 	-- because I always use width/height * +-znear for frustum left/right
-	--self.mvMat:applyTranslate(shw/shh, 1)
+	self.mvMat:applyTranslate(shw/shh, 1)
 	-- if I use height/width * +-znear for frustum top/bottom instead then I have to do this:
-	self.mvMat:applyTranslate(1, shh/shw)
+	--self.mvMat:applyTranslate(1, shh/shw)
+	--self.mvMat:applyTranslate(1, 1)
 
 	self:onMvMatChange()
 end
