@@ -1747,7 +1747,9 @@ function AppVideo:initVideoModes()
 	end
 	function nativeMode:onAppResize()
 		self.built = false
-		self:build()
+		if self == app.currentVideoMode then
+			self:build()
+		end
 	end
 	--]]
 
@@ -3504,11 +3506,9 @@ function AppVideo:matscale(...)
 end
 
 function AppVideo:matortho(l, r, t, b, n, f)
-	local modeObj = self.currentVideoMode
-
 	-- input is [0,2]^2 x [-1,1] coords
 	-- output is [0,mode.width] x [0,mode.height] x [-1,1] coords
-	self.mvMat:applyScale(.5 * modeObj.width, .5 * modeObj.height)
+	self.mvMat:applyScale(.5 * self.ram.screenWidth, .5 * self.ram.screenHeight)
 
 	-- input is [-1,1]^3 coords
 	-- output is [0,2]^2 x [-1,1] coords
@@ -3524,16 +3524,13 @@ end
 
 -- TODO get this working with native-resolution mode
 function AppVideo:matfrustum(l, r, t, b, n, f)
-	local modeObj = self.currentVideoMode
-
 	-- input should be [-a*z, a*z] x [-b*z,b*z] x [zn,zf]
 	-- output should be [-1, 1]^3 x [-zf,-zn]
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 
 	-- This undos the ndc -> window transform that I'm about to apply
-	local shw = .5 * modeObj.width
-	local shh = .5 * modeObj.height
-	self.mvMat:applyScale(shw, shw)
+	self.mvMat:applyScale(.5 * self.ram.screenWidth, .5 * self.ram.screenHeight)
+
 	self.mvMat:applyTranslate(1, 1)
 
 	self:onMvMatChange()

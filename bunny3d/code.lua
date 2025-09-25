@@ -1,6 +1,7 @@
 -- stanford bunny: https://graphics.stanford.edu/data/3Dscanrep/#bunny
 -- simplified here: https://myminifactory.github.io/Fast-Quadric-Mesh-Simplification/
-mode(42)	-- 480x270
+--mode(42)	-- 480x270
+mode(255)	-- native output
 
 --#include numo9/matstack.lua
 --#include vec/vec3.lua
@@ -23,7 +24,8 @@ update=||do
 	--]]
 	-- [[ frustum
 	local zn, zf = .1, 2
-	matfrustum(-zn, zn, -zn, zn, zn, zf)
+	local ar = tonumber(peekw(ramaddr'screenWidth')) / tonumber(peekw(ramaddr'screenHeight'))
+	matfrustum(-ar*zn, ar*zn, -zn, zn, zn, zf)
 	-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
 	matscale(1, -1, 1)
 	mattrans(0, 0, -.5 * zf)
