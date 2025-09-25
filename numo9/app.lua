@@ -1213,9 +1213,8 @@ print('package.loaded', package.loaded)
 							inc(1)
 						end
 					end
-					-- TODO this based on current video mode
-					local fbWidth = 256
-					local fbHeight = 256
+					local fbWidth = self.ram.screenWidth
+					local fbHeight = self.ram.screenHeight
 					local pixelSize = 2
 					local charHeight = 8
 

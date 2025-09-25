@@ -56,12 +56,17 @@ local palettePtrType = paletteType..'*'
 local tileSizeInBits = 3						-- TODO names or purpose?  no more 'tiles vs sprites'.  this is 1D vs sprites vars are 2D ... ???
 local tileSize = bit.lshift(1, tileSizeInBits)
 local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
+
+-- [[ TODO framebuffer has since become more flexible, more video modes, etc.
+-- some of these like 'frameBufferSize' are now obsolete
 local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
 local frameBufferSizeInTilesInBits = vec2i(5, 5)
 local frameBufferSizeInTiles = vec2i(
 	bit.lshift(1, frameBufferSizeInTilesInBits.x),
 	bit.lshift(1, frameBufferSizeInTilesInBits.y))
 local frameBufferSize = vec2i(frameBufferSizeInTiles.x * spriteSize.x, frameBufferSizeInTiles.y * spriteSize.y)
+--]]
+
 local spriteSheetSizeInTilesInBits = vec2i(5, 5)
 local spriteSheetSizeInTiles = spriteSheetSizeInTilesInBits + tileSizeInBits
 local spriteSheetSizeInTiles = vec2i(
@@ -338,6 +343,10 @@ local RAM = struct{
 				{name='clipRect', type=clipType..'[4]'},
 				{name='mvMat', type=mvMatType..'[16]'},
 				{name='videoMode', type='uint8_t'},
+
+				-- TODO do I really need this?  yes for the native-res video-mode?  but really? hmm...
+				{name='screenWidth', type='uint16_t'},	-- fantasy-console resolution width & height
+				{name='screenHeight', type='uint16_t'},	-- maybe I should have a single address where you poke and peek requested values like this from, like NES PPU?
 
 				{name='blendMode', type='uint8_t'},
 

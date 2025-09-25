@@ -8,6 +8,7 @@ local assert = require 'ext.assert'
 local Image = require 'image'
 local gl = require 'gl'
 local glreport = require 'gl.report'
+local glnumber = require 'gl.number'
 local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
@@ -37,7 +38,7 @@ local menuFontWidth = numo9_rom.menuFontWidth
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
-local mvMatInvScale = 1 / mvMatScale
+assert.eq(mvMatType, 'float', "TODO if this changes then update the mvMat uniform")
 
 local function settableindex(t, i, ...)
 	if select('#', ...) == 0 then return end
@@ -596,7 +597,7 @@ function VideoMode:buildFramebuffers()
 	local width, height = self.width, self.height
 	local internalFormat, gltype, suffix
 	if self.format == 'RGB565' then
-		-- framebuffer is 256 x 256 x 16bpp rgb565 -- used for mode-0
+		-- framebuffer is 16bpp rgb565 -- used for mode-0
 		-- [[
 		internalFormat = gl.GL_RGB565
 		gltype = gl.GL_UNSIGNED_SHORT_5_6_5	-- for an internalFormat there are multiple gltype's so pick this one
@@ -612,7 +613,7 @@ function VideoMode:buildFramebuffers()
 	elseif self.format == '8bppIndex'
 	or self.format == 'RGB332'
 	then
-		-- framebuffer is 256 x 256 x 8bpp indexed -- used for mode-1, mode-2
+		-- framebuffer is 8bpp indexed -- used for mode-1, mode-2
 		internalFormat = texInternalFormat_u8
 		suffix = '8bpp'
 		-- hmm TODO maybe
@@ -1225,7 +1226,7 @@ flat out vec4 box;
 
 out vec3 vertexv;
 
-uniform vec2 frameBufferSize;
+uniform vec2 invHalfFrameBufferSize;
 uniform mat4 mvMat;
 
 void main() {
@@ -1234,16 +1235,18 @@ void main() {
 	extra = extraAttr;
 	box = boxAttr;
 
-	gl_Position = mvMat * vec4(vertex, 1.);
+	gl_Position = (mvMat * vec4(vertex, 1.)) * <?=glnumber(1/mvMatScale)?>;
 
 	//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-	gl_Position.xy *= 2.;
-	gl_Position.xy /= frameBufferSize;
+	gl_Position.xy *= invHalfFrameBufferSize;
 	gl_Position.xy -= 1.;
 
 	vertexv = gl_Position.xyz;
 }
-]]),
+]],			{
+				glnumber = glnumber,
+				mvMatScale = mvMatScale,
+			}),
 			fragmentCode = template([[
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
@@ -1565,9 +1568,9 @@ void main() {
 				paletteTex = 0,
 				sheetTex = 1,
 				tilemapTex = 2,
-				frameBufferSize = {
-					self.framebufferRAM.tex.width,
-					self.framebufferRAM.tex.height,
+				invHalfFrameBufferSize = {
+					2 / self.framebufferRAM.tex.width,
+					2 / self.framebufferRAM.tex.height,
 				},
 			},
 		},
@@ -1735,7 +1738,12 @@ function AppVideo:initVideoModes()
 		self.width = app.width
 		self.height = app.height
 		self.formatDesc = self.width..'x'..self.height..'x'..self.format
+
 		VideoMode.build(self)
+
+		app.ram.screenWidth = self.width
+		app.ram.screenHeight = self.height
+		app:onFrameBufferSizeChange()
 	end
 	function nativeMode:onAppResize()
 		self.built = false
@@ -1954,20 +1962,6 @@ function AppVideo:triBuf_flush()
 
 	local program = sceneObj.program
 	program:use()
---[[ flush mvMat changes upon tri flush
--- TODO won't this risk the new mvMat getting used for old tris?
--- yes in fact that's what happens...
-	if self.mvMatDirty then
-		program:setUniform('mvMat', self.ram.mvMat)
-		self.mvMatDirty = false
-	end
-	if self.clipRectDirty then
-		gl.glUniform4f(
-			program.uniforms.scissor.loc,
-			self:getClipRect())
-		self.clipRectDirty = false
-	end
---]]
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
@@ -2011,7 +2005,7 @@ function AppVideo:triBuf_addTri(
 		self.lastTilemapTex = tilemapTex
 	end
 
--- [[ upload mvMat to GPU before adding new tris ...
+	-- upload mvMat to GPU before adding new tris ...
 	local program = sceneObj.program
 	if self.mvMatDirty or self.clipRectDirty then
 		program:use()
@@ -2025,9 +2019,14 @@ function AppVideo:triBuf_addTri(
 				self:getClipRect())
 			self.clipRectDirty = false
 		end
+		if self.framebufferSizeUniformDirty then
+			gl.glUniform2f(
+				program.uniforms.invHalfFrameBufferSize.loc,
+				2 / self.currentVideoMode.width,
+				2 / self.currentVideoMode.height)
+		end
 		program:useNone()
 	end
---]]
 
 	-- push
 	local v
@@ -2058,36 +2057,18 @@ function AppVideo:triBuf_addTri(
 end
 
 function AppVideo:onMvMatChange()
--- [[ update later
 	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current mvMat
 	self.mvMatDirty = true
---]]
---[[ update mvMat immediately ... might cause redundant updates ...
-	if not self.triBuf_sceneObj then return end
-	self:triBuf_flush()	-- flush old with their old mvMat
-	local program = self.triBuf_sceneObj.program
-	program
-		:use()
-		:setUniform('mvMat', self.ram.mvMat)
-		:useNone()
---]]
 end
 
 function AppVideo:onClipRectChange()
--- [[ update later
 	self:triBuf_flush()
 	self.clipRectDirty = true
---]]
---[[
-	if not self.triBuf_sceneObj then return end
-	self:triBuf_flush()	-- flush old with their old mvMat
-	local program = self.triBuf_sceneObj.program
-	program:use()
-	gl.glUniform4f(
-		program.uniforms.scissor.loc,
-		self:getClipRect())
-	program:useNone()
---]]
+end
+
+function AppVideo:onFrameBufferSizeChange()
+	self:triBuf_flush()
+	self.frameBufferSizeUniformDirty = true
 end
 
 -- resize the # of RAMGPUs to match the # blobs
@@ -2422,6 +2403,7 @@ function AppVideo:setVideoMode(modeIndex)
 	self.triBuf_sceneObj = self.drawObj
 	self:onMvMatChange()	-- the drawObj changed so make sure it refreshes its mvMat
 	self:onClipRectChange()
+	self:onFrameBufferSizeChange()
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
 	self.blitScreenObj.texs[2] = assert.index(self, 'framebufferNormalTex')
@@ -2430,6 +2412,9 @@ function AppVideo:setVideoMode(modeIndex)
 
 	self.currentVideoMode = modeObj
 	self.currentVideoModeIndex = modeIndex
+
+	self.ram.screenWidth = modeObj.width
+	self.ram.screenHeight = modeObj.height
 
 	return true
 end
@@ -2865,6 +2850,7 @@ function AppVideo:clearScreen(
 end
 
 -- w, h is inclusive, right?  meaning for [0,256)^2 you should call (0,0,255,255)
+-- NOTICE I chose [incl,excl) at first so that I could represent it with bytes for 256x256 screen, but now that I've got bigger screens, meh no point.
 function AppVideo:setClipRect(...)
 	self.ram.clipRect[0], self.ram.clipRect[1], self.ram.clipRect[2], self.ram.clipRect[3] = ...
 	self:onClipRectChange()
@@ -3520,13 +3506,16 @@ end
 function AppVideo:matortho(l, r, t, b, n, f)
 	local modeObj = self.currentVideoMode
 
-	-- input is [0,2]^2 x [-1,1] coords, output is [0,mode.width] x [0,mode.height] x [-1,1] coords
+	-- input is [0,2]^2 x [-1,1] coords
+	-- output is [0,mode.width] x [0,mode.height] x [-1,1] coords
 	self.mvMat:applyScale(.5 * modeObj.width, .5 * modeObj.height)
 
-	-- input is [-1,1]^3 coords, output is [0,2]^2 x [-1,1] coords
+	-- input is [-1,1]^3 coords
+	-- output is [0,2]^2 x [-1,1] coords
 	self.mvMat:applyTranslate(1, 1)
 
-	-- input is vertex in [l,r]x[b,t]x[n,f] coords, output is [-1,1]^3 coords
+	-- input is vertex in [l,r]x[b,t]x[n,f] coords
+	-- output is [-1,1]^3 coords
 	-- applyOrtho is for OpenGL ortho matrix, which expects output space to be [-1,1]
 	self.mvMat:applyOrtho(l, r, t, b, n, f)
 
@@ -3535,12 +3524,17 @@ end
 
 -- TODO get this working with native-resolution mode
 function AppVideo:matfrustum(l, r, t, b, n, f)
-	self.mvMat:applyFrustum(l, r, t, b, n, f)
 	local modeObj = self.currentVideoMode
+
+	-- input should be [-a*z, a*z] x [-b*z,b*z] x [zn,zf]
+	-- output should be [-1, 1]^3 x [-zf,-zn]
+	self.mvMat:applyFrustum(l, r, t, b, n, f)
+
+	-- This undos the ndc -> window transform that I'm about to apply
 	local shw = .5 * modeObj.width
 	local shh = .5 * modeObj.height
-	self.mvMat:applyTranslate(shw, shh)
 	self.mvMat:applyScale(shw, shw)
+	self.mvMat:applyTranslate(1, 1)
 
 	self:onMvMatChange()
 end

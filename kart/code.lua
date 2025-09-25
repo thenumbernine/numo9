@@ -834,7 +834,7 @@ local CloudItem = Item:subclass()
 CloudItem.count = 10
 
 function CloudItem:use(kart)
-	local plop = kart.pos - kart.dir * 1.5
+	local plop = kart.pos + kart.dir * 1.5 * (kart.inputUpDown > 0 and 1 or -1)
 	plop[3] = plop[3] + .5
 	self.objectClass{pos=plop}
 end

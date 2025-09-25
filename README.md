@@ -846,4 +846,4 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- should I allow no buffer / native resolution?  (then you can't do fbo tex effects / normalmap / pickmap)
 			- native res for editor only?
 - voxelmap is still being copied from CPU mesh-cache to CPU draw tri buffer every frame ...
-	- I should just give it its own GLArrayBuffers
+	- I should just give it its own GLArrayBuffers.
