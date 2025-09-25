@@ -1732,12 +1732,12 @@ function AppVideo:initVideoModes()
 		-- ... hmm, how long before I just let the user pick any mode they want ...
 		useNativeOutput = true,
 	}
+	nativeMode.formatDesc = 'Native_'..nativeMode.format
 	self.videoModes[255] = nativeMode
 	local app = self
 	function nativeMode:build()
 		self.width = app.width
 		self.height = app.height
-		self.formatDesc = self.width..'x'..self.height..'x'..self.format
 
 		VideoMode.build(self)
 
@@ -3542,10 +3542,16 @@ function AppVideo:matfrustum(l, r, t, b, n, f)
 	-- output should be [-1, 1]^3 x [-zf,-zn]
 	self.mvMat:applyFrustum(l, r, t, b, n, f)
 
+	local shw, shh = .5 * self.ram.screenWidth, .5 * self.ram.screenHeight
+	
 	-- This undos the ndc -> window transform that I'm about to apply
-	self.mvMat:applyScale(.5 * self.ram.screenWidth, .5 * self.ram.screenHeight)
+	self.mvMat:applyScale(shw, shh)
 
-	self.mvMat:applyTranslate(1, 1)
+	-- hmm why?  
+	-- because I always use width/height * +-znear for frustum left/right
+	--self.mvMat:applyTranslate(shw/shh, 1)
+	-- if I use height/width * +-znear for frustum top/bottom instead then I have to do this:
+	self.mvMat:applyTranslate(1, shh/shw)
 
 	self:onMvMatChange()
 end

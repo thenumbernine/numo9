@@ -1,8 +1,16 @@
 -- custom megaman mario kart sprite from : https://www.spriters-resource.com/fullview/23197/
 
 --#include numo9/matstack.lua
+--#include numo9/screen.lua
 --#include ext/range.lua
 
+local zn, zf = 1, 100
+local zo = 10
+local viewDist = 2
+local viewAlt = 2
+
+local modeIndex = 0
+local modes = range(0,49):append{255}
 
 -- divided into 180'.  flip the sprite to get the other 180'
 local spriteIndexForAngle = {
@@ -20,10 +28,10 @@ for i=1,10 do
 	}
 end
 local player = karts[1]
-player.x = 0
-player.y = 0
-player.angle = 0
-viewAngle=0
+player.angle = math.pi / 4
+player.x = viewDist * math.cos(player.angle)
+player.y = viewDist * math.sin(player.angle)
+viewAngle = player.angle
 
 -- true = y+ goes on the left, and the tilemap looks like it does in the editor
 -- false = y+ goes on the right, and the tilemap looks flipped
@@ -31,11 +39,6 @@ spaceRHS=true
 
 update=||do
 	cls()
-	local zn, zf = 1, 100
-	local zo = 10
-	local viewDist = 2
-	local viewAlt = 2
-
 	local viewAngle = player.angle
 	local fwdx = math.cos(viewAngle)
 	local fwdy = math.sin(viewAngle)
@@ -49,7 +52,16 @@ update=||do
 	--]]
 	-- [==[ frustum
 	--projection
-	matfrustum(-zn, zn, -zn, zn, zn, zf)
+	local w, h = getScreenSize()
+	text('mode '..modes[modeIndex+1]..': '..w..'x'..h, 0, 0)
+	local ar = w / h
+
+	-- doing this requires frustum to scale with (w/h, 1) to remain centered
+	--matfrustum(-ar * zn, ar * zn, -zn, zn, zn, zf)
+	
+	-- doing this requires frustum to scale with (1, h/w) to remain centered
+	matfrustum(-zn, zn, -zn / ar, zn / ar, zn, zf)
+	
 	-- go from lhs to rhs coord system (??) since usu x+ is right and y+ is *DOWN* ... maybe I should be putting this in matfrustum?
 	-- this is to match opengl convention, but I don't think I'll move it into the numo9 API since I want frustum to match the numo9 y+ down 90s-console convention
 	if spaceRHS then
@@ -197,5 +209,15 @@ tiltUpAngle = 90:
 	end
 	if btn'right' then
 		player.angle-=rot
+	end
+	if btnp'a' then
+		modeIndex += 1
+		modeIndex %= #modes
+		mode(modes[modeIndex+1])
+	end
+	if btnp'b' then
+		modeIndex -= 1
+		modeIndex %= #modes
+		mode(modes[modeIndex+1])
 	end
 end

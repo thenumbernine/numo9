@@ -1,7 +1,7 @@
 -- stanford bunny: https://graphics.stanford.edu/data/3Dscanrep/#bunny
 -- simplified here: https://myminifactory.github.io/Fast-Quadric-Mesh-Simplification/
---mode(42)	-- 480x270
-mode(255)	-- native output
+--mode'480x270x8bppIndex'
+mode'Native_RGB565'
 
 --#include numo9/matstack.lua
 --#include vec/vec3.lua

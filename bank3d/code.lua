@@ -16,11 +16,12 @@
 --#include vec/vec2.lua
 --#include vec/vec3.lua
 --#include numo9/matstack.lua
+--#include numo9/screen.lua
 
---videoModeIndex=0	screenSize=vec2(256, 256)	-- 256x256xRGB565
-videoModeIndex=42	screenSize=vec2(480, 270)	-- 480x270x8bppIndex
---videoModeIndex=43	screenSize=vec2(480, 270)	-- 480x270xRGB332
-mode(videoModeIndex)
+videoMode='256x256xRGB565'
+--videoMode='480x270x8bppIndex'
+--videoMode='480x270xRGB332'
+mode(videoMode)
 pokew(ramaddr'useHardwareLighting', 1)
 cheat=true
 
@@ -228,7 +229,9 @@ drawMap=||do
 	local viewZ = viewAlt
 
 	matident()
-	matfrustum(-viewZNear, viewZNear, -viewZNear, viewZNear, viewZNear, viewZFar)
+	local screenWidth, screenHeight = getScreenSize()
+	local ar = screenWidth / screenHeight
+	matfrustum(-ar * viewZNear, ar * viewZNear, -viewZNear, viewZNear, viewZNear, viewZFar)
 	matscale(-1, 1, 1)	-- go from lhs to rhs coord system
 	matlookat(
 		viewX, viewY, viewZ,
@@ -1384,7 +1387,7 @@ mapSet=|...| vset(level, ...)
 
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
-	mode(videoModeIndex)	-- reset() also resets the video mode ... TODO don't reset video mode? idk hmm ...
+	mode(videoMode)	-- reset() also resets the video mode ... TODO don't reset video mode? idk hmm ...
 	pokew(ramaddr'useHardwareLighting', 1)
 	removeAll()
 	for z=0,levelSize.z-1 do
@@ -1464,6 +1467,7 @@ splashMenuY=0
 
 update=||do
 	local da = destViewAngle - viewAngle
+	local screenWidth, screenHeight = getScreenSize()
 	if math.abs(da) > 1 then
 		viewAngle += da * .1
 	else
@@ -1478,24 +1482,24 @@ update=||do
 		matident()
 
 		fillp(0x1fff)	--blend(5)
-		rect(0,0,screenSize.x,screenSize.y,19)
+		rect(0,0,screenWidth,screenHeight,19)
 		fillp(0)		--blend(-1)
 
 		-- splash screen
 		local s = 2
 		local sx, sy = s*5, s*8
-		local x0,y0 = screenSize.x/2-30*s, 64
+		local x0,y0 = screenWidth/2-30*s, 64
 		local x,y= x0,y0
 		local txt=|t|do
 			text(t, x, y, nil, nil, s, s)
 			y += sy
 		end
 
-		splashSpriteX = (((splashSpriteX or 0) + 1) % (screenSize.x+32))
+		splashSpriteX = (((splashSpriteX or 0) + 1) % (screenWidth+32))
 		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2, splashSpriteX - 16, 24, 2, 2, nil, nil, nil, nil, -1, 1)
 		spr(seqs.bombLit, splashSpriteX - 16, 24, 2, 2)
 
-		lastTitleWidth = text('BANK...3D!', screenSize.x/2-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
+		lastTitleWidth = text('BANK...3D!', screenWidth/2-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
 
 		for _,saveinfo in ipairs(saveinfos) do
 			txt('  '..(saveinfo.level==0 and 'New Game' or 'Level '..saveinfo.level))
@@ -1600,7 +1604,7 @@ update=||do
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
 		lastLevelStrWidth = lastLevelStrWidth or 5*7
-		lastLevelStrWidth = text(levelstr,(screenSize.x-lastLevelStrWidth)/2,0,22,-1)
+		lastLevelStrWidth = text(levelstr,(screenWidth-lastLevelStrWidth)/2,0,22,-1)
 		--text('blendMode='..tostring(player.blendMode),0,8,22,-1)
 	end
 
