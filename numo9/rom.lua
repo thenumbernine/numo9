@@ -478,19 +478,6 @@ local Vertex = struct{
 assert.eq(ffi.sizeof'Vertex', 8)
 local meshIndexType = 'uint16_t'
 
--- used by the voxelmap, cached mesh that is sent to drawTris later
-local VertexFloat = struct{
-	name = 'VertexFloat',
-	fields = {
-		{name='x', type='float'},
-		{name='y', type='float'},
-		{name='z', type='float'},
-		{name='u', type='float'},
-		{name='v', type='float'},
-	},
-}
-assert.eq(ffi.sizeof'VertexFloat', 20)
-
 ffi.cdef[[
 typedef union {
 	uint32_t intval;

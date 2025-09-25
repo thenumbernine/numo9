@@ -2,8 +2,11 @@ local ffi = require 'ffi'
 local assert = require 'ext.assert'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
+local vec2f = require 'vec-ffi.vec2f'
+local vec3f = require 'vec-ffi.vec3f'
 
 local numo9_rom = require 'numo9.rom'
+local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
@@ -89,7 +92,10 @@ function BlobVoxelMap:init(data)
 
 	self.billboardXYZVoxels = vector'vec3i_t'	-- type 20
 	self.billboardXYVoxels = vector'vec3i_t'	-- type 21
-	self.triVtxs = vector'VertexFloat'
+
+	self.vertexes = vector'vec3f_t'
+	self.texcoords = vector'vec2f_t'
+
 	self.dirtyCPU = true
 	-- can't do this yet, not until .ramptr is defined
 	--self:rebuildMesh()
@@ -150,7 +156,8 @@ function BlobVoxelMap:rebuildMesh(app)
 
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
-	self.triVtxs:resize(0)
+	self.vertexes:resize(0)
+	self.texcoords:resize(0)
 
 	local width, height, depth= self:getWidth(), self:getHeight(), self:getDepth()
 	-- which to build this off of?
@@ -205,7 +212,8 @@ assert.eq(numTriVtxs % 3, 0)
 							local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
 
 							-- resize first then offest back in case we get a resize ...
-							self.triVtxs:reserve(#self.triVtxs + numTriVtxs)
+							self.vertexes:reserve(#self.vertexes + numTriVtxs)
+							self.texcoords:reserve(#self.texcoords + numTriVtxs)
 
 							for ai,bi,ci,ti in mesh:triIter() do
 
@@ -246,22 +254,25 @@ assert.eq(numTriVtxs % 3, 0)
 									occludedCount = occludedCount + 1
 								else
 									local srcv = srcVtxs + ai
-									local dstVtx = self.triVtxs:emplace_back()
+									local dstVtx = self.vertexes:emplace_back()
 									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									dstVtx.u, dstVtx.v = srcv.u + uofs, srcv.v + vofs
-									dstVtx = dstVtx + 1
+									local dstTC = self.texcoords:emplace_back()
+									dstTC.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+									dstTC.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
 
 									local srcv = srcVtxs + bi
-									local dstVtx = self.triVtxs:emplace_back()
+									local dstVtx = self.vertexes:emplace_back()
 									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									dstVtx.u, dstVtx.v = srcv.u + uofs, srcv.v + vofs
-									dstVtx = dstVtx + 1
+									local dstTC = self.texcoords:emplace_back()
+									dstTC.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+									dstTC.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
 
 									local srcv = srcVtxs + ci
-									local dstVtx = self.triVtxs:emplace_back()
+									local dstVtx = self.vertexes:emplace_back()
 									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									dstVtx.u, dstVtx.v = srcv.u + uofs, srcv.v + vofs
-									dstVtx = dstVtx + 1
+									local dstTC = self.texcoords:emplace_back()
+									dstTC.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+									dstTC.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
 								end
 							end
 						end
@@ -271,7 +282,7 @@ assert.eq(numTriVtxs % 3, 0)
 			end
 		end
 	end
---DEBUG:print('created', #self.triVtxs/3, 'tris')
+--DEBUG:print('created', #self.vertexes/3, 'tris')
 --DEBUG:print('occluded', occludedCount, 'tris')
 end
 

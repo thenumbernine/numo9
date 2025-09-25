@@ -4126,26 +4126,96 @@ function AppVideo:drawVoxelMap(
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local blendSolidA = self.drawOverrideSolidA * 255
 
-	local us = 1 / tonumber(spriteSheetSize.x)	-- or .y ... scale-down from integer to [0,1] texcoord
-
-	local vtxs = voxelmap.triVtxs
-	for i=0,#vtxs-1,3 do
-		local a = vtxs.v + i
-		local b = vtxs.v + i+1
-		local c = vtxs.v + i+2
+	--[[
+	local srcVtxs = voxelmap.vertexes
+	local srcTCs = voxelmap.texcoords
+	for i=0,#srcVtxs-1,3 do
+		local va = srcVtxs.v + i
+		local vb = srcVtxs.v + i+1
+		local vc = srcVtxs.v + i+2
+		local ta = srcTCs.v + i
+		local tb = srcTCs.v + i+1
+		local tc = srcTCs.v + i+2
 
 		self:triBuf_addTri(
 			paletteTex,
 			sheetTex,
 			tilemapTex,
-			a.x, a.y, a.z, a.u * us, a.v * us,
-			b.x, b.y, b.z, b.u * us, b.v * us,
-			c.x, c.y, c.z, c.u * us, c.v * us,
+			va.x, va.y, va.z, ta.x, ta.y,
+			vb.x, vb.y, vb.z, tb.x, tb.y,
+			vc.x, vc.y, vc.z, tc.x, tc.y,
 			drawFlags, self.ram.dither, transparentIndex, paletteIndex,
 			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
 		)
 	end
+	--]]
+	-- [[ idk that I see much benefit from inlininig this ...
+	do
+		local sceneObj = self.triBuf_sceneObj
+
+		if self.lastSolidPaletteTex ~= paletteTex
+		or self.lastSolidSheetTex ~= sheetTex
+		or self.lastTilemapTex ~= tilemapTex
+		then
+			self:triBuf_flush()
+			self.lastSolidPaletteTex = paletteTex
+			self.lastSolidSheetTex = sheetTex
+			self.lastTilemapTex = tilemapTex
+		end
+
+		-- upload mvMat and clipRect to GPU before adding new tris ...
+		local program = sceneObj.program
+		if self.mvMatDirty or self.clipRectDirty then
+			program:use()
+			if self.mvMatDirty then
+				program:setUniform('mvMat', self.ram.mvMat)
+				self.mvMatDirty = false
+			end
+			if self.clipRectDirty then
+				gl.glUniform4f(
+					program.uniforms.scissor.loc,
+					self:getClipRect())
+				self.clipRectDirty = false
+			end
+			program:useNone()
+		end
+
+		local srcVtxs = voxelmap.vertexes
+		local srcTCs = voxelmap.texcoords
+
+		local n = #srcVtxs
+assert.eq(#srcVtxs, #srcTCs)
+
+		-- TODO interleave the GL arrays?  they always say "SOA > AOS" wrt GPU perf, but they dont talk about extra penalty of multiple resizes for dynamic sized data ...
+		local dstVtxs = sceneObj.attrs.vertex.buffer.vec
+		local dstTCs = sceneObj.attrs.texcoord.buffer.vec
+assert.eq(srcVtxs.type, dstVtxs.type, "looks like you have to update your voxelmap vertex type to match the gl array useVec type")
+assert.eq(srcTCs.type, dstTCs.type, "looks like you have to update your voxelmap vertex type to match the gl array useVec type")
+
+		dstVtxs:resize(#dstVtxs + n)
+		dstTCs:resize(#dstTCs + n)
+		local dstVtx = dstVtxs:iend() - n
+		local dstTC = dstTCs:iend() - n
+
+		ffi.copy(dstVtx, srcVtxs.v, ffi.sizeof'vec3f_t' * n)
+		ffi.copy(dstTC, srcTCs.v, ffi.sizeof'vec2f_t' * n)
+
+		local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
+		local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
+		local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
+		for i=0,n-1 do
+			v = drawOverrideSolidAttr:emplace_back()
+			v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
+
+			v = extraAttr:emplace_back()
+			v.x, v.y, v.z, v.w = drawFlags, self.ram.dither, transparentIndex, paletteIndex
+
+			v = boxAttr:emplace_back()
+			v.x, v.y, v.z, v.w = 0, 0, 1, 1
+		end
+	end
+	--]]
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
