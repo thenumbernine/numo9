@@ -1266,6 +1266,7 @@ uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
 uniform vec4 scissor;
+uniform vec2 invHalfFrameBufferSize;
 
 <?=glslCode5551?>
 
@@ -1511,7 +1512,10 @@ void main() {
 
 
 #if 0	// normal from flat sided objs
-	fragNormal.xyz = cross(dFdx(vertexv.xyz), dFdy(vertexv.xyz));
+	fragNormal.xyz = cross(
+		dFdx(vertexv.xyz),
+		dFdy(vertexv.xyz)
+	) * 128. * invHalfFrameBufferSize.x;
 #else	// normal from sprites
 
 	// https://en.wikipedia.org/wiki/Grayscale#Luma_coding_in_video_systems
@@ -1529,8 +1533,8 @@ void main() {
 	//so its index notation is reversed from math index notation.
 	// spriteBasis[j][i] = spriteBasis_ij = d(fragLum)/d(fragCoord_j)
 	mat3 spriteBasis = onb(
-		vec3(1., 0., spriteNormalExhaggeration * dFdx(fragLum)),
-		vec3(0., 1., spriteNormalExhaggeration * dFdx(fragLum)));
+		vec3(1., 0., dFdx(fragLum) * spriteNormalExhaggeration * 128. * invHalfFrameBufferSize.x),
+		vec3(0., 1., dFdx(fragLum) * spriteNormalExhaggeration * 128. * invHalfFrameBufferSize.x));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
 	mat3 modelBasis = onb(
