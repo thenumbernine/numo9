@@ -1208,11 +1208,11 @@ for tilemap:
 */
 layout(location=2) in uvec4 extraAttr;
 
-// flat, the solid-blend color
-layout(location=3) in vec4 drawOverrideSolidAttr;
-
 // flat, the bbox of the currently drawn quad, only used for round-rendering of solid-shader
-layout(location=4) in vec4 boxAttr;
+layout(location=3) in vec4 boxAttr;
+
+// flat, the solid-blend color
+layout(location=4) in vec4 drawOverrideSolidAttr;
 
 //GLES3 says we have at least 16 attributes to use ...
 
@@ -1587,6 +1587,7 @@ void main() {
 					useVec = true,
 				},
 			},
+			-- 8 bytes = 32 bit so I can use memset?
 			extraAttr = {
 				type = gl.GL_UNSIGNED_SHORT,
 				--divisor = 3,
@@ -1598,6 +1599,16 @@ void main() {
 					ctype = 'vec4us_t',
 				},
 			},
+			-- 16 bytes =  128-bit ...
+			boxAttr = {
+				--divisor = 3,	-- 6 honestly ...
+				buffer = {
+					usage = gl.GL_DYNAMIC_DRAW,
+					dim = 4,
+					useVec = true,
+				},
+			},
+			-- 4 bytes = 32 bit so I can use memset
 			drawOverrideSolidAttr = {
 				type = gl.GL_UNSIGNED_BYTE,		-- I'm uploading uint8_t[4]
 				normalize = true,				-- data will be normalized to [0,1]
@@ -1608,16 +1619,6 @@ void main() {
 					dim = 4,
 					useVec = true,
 					ctype = 'vec4ub_t',			-- cpu buffer will hold vec4ub_t's
-				},
-			},
-			-- TODO how about using divisors?
-			-- though I've heard mixed reviews on their performance...
-			boxAttr = {
-				--divisor = 3,	-- 6 honestly ...
-				buffer = {
-					usage = gl.GL_DYNAMIC_DRAW,
-					dim = 4,
-					useVec = true,
 				},
 			},
 		},
@@ -4184,7 +4185,7 @@ function AppVideo:drawVoxelMap(
 		local srcVtxs = voxelmap.vertexes
 		local srcTCs = voxelmap.texcoords
 
-		local n = #srcVtxs
+		local srcLen = #srcVtxs
 assert.eq(#srcVtxs, #srcTCs)
 
 		-- TODO interleave the GL arrays?  they always say "SOA > AOS" wrt GPU perf, but they dont talk about extra penalty of multiple resizes for dynamic sized data ...
@@ -4192,26 +4193,39 @@ assert.eq(#srcVtxs, #srcTCs)
 		local dstTCs = sceneObj.attrs.texcoord.buffer.vec
 assert.eq(srcVtxs.type, dstVtxs.type, "looks like you have to update your voxelmap vertex type to match the gl array useVec type")
 assert.eq(srcTCs.type, dstTCs.type, "looks like you have to update your voxelmap vertex type to match the gl array useVec type")
+--assert.eq(#dstVtxs, #dstTCs, "hmm triBuf array sizes should never go out of sync")
+		local dstLen = #dstVtxs
+		local writeOfs = dstLen
 
-		dstVtxs:resize(#dstVtxs + n)
-		dstTCs:resize(#dstTCs + n)
-		local dstVtx = dstVtxs:iend() - n
-		local dstTC = dstTCs:iend() - n
+		dstVtxs:resize(dstLen + srcLen)
+		local dstVtxPtr = dstVtxs.v + writeOfs
+		ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof'vec3f_t' * srcLen)
 
-		ffi.copy(dstVtx, srcVtxs.v, ffi.sizeof'vec3f_t' * n)
-		ffi.copy(dstTC, srcTCs.v, ffi.sizeof'vec2f_t' * n)
+		dstTCs:resize(dstLen + srcLen)
+		local dstTCPtr = dstTCs.v + writeOfs
+		ffi.copy(dstTCPtr, srcTCs.v, ffi.sizeof'vec2f_t' * srcLen)
 
 		local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
+		extraAttr:resize(dstLen + srcLen)
+		local extraPtr = extraAttr.v + writeOfs
+
 		local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
+		drawOverrideSolidAttr:resize(dstLen + srcLen)
+		local drawOverrideSolidPtr = drawOverrideSolidAttr.v + writeOfs
+
 		local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
-		for i=0,n-1 do
-			v = drawOverrideSolidAttr:emplace_back()
+		boxAttr:resize(dstLen + srcLen)
+		local boxPtr = boxAttr.v + writeOfs
+
+		-- hmm, memset ... but for arbitrary size?  like a modular memcpy?  does it exist or nah?
+		for i=0,srcLen-1 do
+			v = drawOverrideSolidPtr + i
 			v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
 
-			v = extraAttr:emplace_back()
+			v = extraPtr + i
 			v.x, v.y, v.z, v.w = drawFlags, self.ram.dither, transparentIndex, paletteIndex
 
-			v = boxAttr:emplace_back()
+			v = boxPtr + i
 			v.x, v.y, v.z, v.w = 0, 0, 1, 1
 		end
 	end
