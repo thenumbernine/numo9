@@ -1748,7 +1748,21 @@ function AppVideo:initVideoModes()
 	function nativeMode:onAppResize()
 		self.built = false
 		if self == app.currentVideoMode then
+			-- and when we rebuild we gotta reassign the stuff from our video mode to app...
+			-- or maybe I shouldn't be reassigning it to begin with?
+			--[[
 			self:build()
+			
+			self.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
+			self.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
+			self.blitScreenObj = modeObj.blitScreenObj
+			self.drawObj = modeObj.drawObj
+			self.fb = modeObj.fb
+			--]]
+			-- [[ lazy
+			app:setVideoMode(0)
+			app:setVideoMode(255)
+			--]]
 		end
 	end
 	--]]
