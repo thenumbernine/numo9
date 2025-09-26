@@ -11,7 +11,6 @@ local glreport = require 'gl.report'
 local glnumber = require 'gl.number'
 local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
-local GLSampler = require 'gl.sampler'
 local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local GLTypes = require 'gl.types'
@@ -775,10 +774,10 @@ local function colorIndexToFrag(app, destTex, decl)
 end
 
 -- and here's our blend solid-color option...
-local function getDrawOverrideCode(vec3)
+local function getDrawOverrideCode(vec3, varname)
 	return [[
 	if (drawOverrideSolid.a > 0.) {
-		fragColor.rgb = ]]..vec3..[[(drawOverrideSolid.rgb);
+		]]..varname..[[.rgb = ]]..vec3..[[(drawOverrideSolid.rgb);
 	}
 ]]
 end
@@ -821,14 +820,17 @@ end
 function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 	local app = self.app
 	-- [=[ internalFormat = gl.GL_RGB565
-	self.colorOutput = table{
-		colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 ufragColor'),
-		'fragColor = vec4(ufragColor) / 31.;',
-		getDrawOverrideCode(blitFragTypeVec3),
+	self.colorIndexToFragColorCode = table{
+'vec4 colorIndexToFragColor(uint colorIndex) {',
+	colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 ufragColor'),
+'	vec4 resultFragColor = vec4(ufragColor) / 31.;',
+	getDrawOverrideCode(blitFragTypeVec3, 'resultFragColor'),
+'	return resultFragColor;',
+'}',
 	}:concat'\n'
 	--]=]
 	--[=[ internalFormat = internalFormat5551
-	self.colorOutput = 'fragColor = '..readTex{
+	self.colorIndexToFragColorCode = 'fragColor = '..readTex{
 		tex = app.paletteRAMs[1].tex,
 		texvar = 'paletteTex',
 		tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
@@ -846,7 +848,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 		fragColor.a = (fragColor.r >> 15) * 0x1fu;
 #endif
 ]]
-		..getDrawOverrideCode'uvec3',
+		..getDrawOverrideCode('uvec3', 'fragColor'),
 	--]=]
 
 	-- used for drawing our 16bpp framebuffer to the screen
@@ -937,18 +939,24 @@ function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
 
 	-- indexed mode can't blend so ... no draw-override
 	-- this part is only needed for alpha
-	self.colorOutput = table{
-		colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 palColor'),
-		[[
-	fragColor.r = colorIndex;
-	fragColor.g = 0u;
-	fragColor.b = 0u;
+	self.colorIndexToFragColorCode = table{
+'uvec4 colorIndexToFragColor(uint colorIndex) {',
+	colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 palColor'),
+	[[
+	uvec4 resultFragColor;
+	resultFragColor.r = colorIndex;
+	resultFragColor.g = 0u;
+	resultFragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
-	fragColor.a = (palColor.a << 3) | (palColor.a >> 2);
+	resultFragColor.a = (palColor.a << 3) | (palColor.a >> 2);
 ]],
 -- hmm, idk what to do with drawOverrideSolid in 8bppIndex
 -- but I don't want the GLSL compiler to optimize away the attr...
-		getDrawOverrideCode'uvec3',
+	getDrawOverrideCode('uvec3', 'resultFragColor'),
+[[
+	return resultFragColor;
+}
+]]
 	}:concat'\n'
 
 	-- used for drawing our 8bpp indexed framebuffer to the screen
@@ -1025,8 +1033,10 @@ end
 
 function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 	local app = self.app
-	self.colorOutput = colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 palColor')..'\n'
-			..[[
+	self.colorIndexToFragColorCode = table{
+'uvec4 colorIndexToFragColor(uint colorIndex) {',
+	colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 palColor')..'\n',
+[[
 	/*
 	palColor is 5 5 5 5
 	fragColor is 3 3 2
@@ -1045,17 +1055,23 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 	if ((palColor.z & 3u) > threshold) palColor.z+=4u;
 	palColor = clamp(palColor, 0u, 31u);
 #endif
-	fragColor.r = (palColor.r >> 2) |
+	uvec4 resultFragColor;
+	resultFragColor.r = (palColor.r >> 2) |
 				((palColor.g >> 2) << 3) |
 				((palColor.b >> 3) << 6);
-	fragColor.g = 0u;
-	fragColor.b = 0u;
+	resultFragColor.g = 0u;
+	resultFragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
-	fragColor.a = (palColor.a << 3) | (palColor.a >> 2);
-]]
-		-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
-		-- but I don't want the GLSL compiler to optimize away the attr...
-		..getDrawOverrideCode'uvec3'
+	resultFragColor.a = (palColor.a << 3) | (palColor.a >> 2);
+]],
+	-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
+	-- but I don't want the GLSL compiler to optimize away the attr...
+	getDrawOverrideCode('uvec3', 'resultFragColor'),
+[[
+	return resultFragColor;
+}
+]],
+}:concat'\n'
 
 	-- used for drawing 8bpp framebufferRAMs._256x256x8bpp as rgb332 framebuffer to the screen
 --DEBUG:print'mode 2 blitScreenObj'
@@ -1127,7 +1143,7 @@ end
 function VideoMode:buildUberShader()
 	local app = self.app
 
-	-- now that we have our .colorOutput defined,
+	-- now that we have our .colorIndexToFragColorCode defined,
 	-- make our output shader
 	-- TODO this also expects the following to be already defined:
 	-- app.paletteRAMs[1], app.sheetRAMs[1], app.tilemapRAMs[1]
@@ -1268,7 +1284,6 @@ layout(location=1) out vec4 fragNormal;
 uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
-uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetLinearSampler;
 uniform vec4 scissor;
 
 <?=glslCode5551?>
@@ -1292,6 +1307,8 @@ mat3 onb(vec3 a, vec3 b) {
 const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 //const vec3 greyscale = vec3(.299, .587, .114);	// Y'UV
 //const vec3 greyscale = vec3(.2627, .678, .0593);	// HDR TV
+
+<?=modeObj.colorIndexToFragColorCode?>
 
 void main() {
 	bool plzDiscard = false;
@@ -1371,7 +1388,7 @@ void main() {
 			// else default solid rect
 		}
 
-<?=modeObj.colorOutput?>
+		fragColor = colorIndexToFragColor(colorIndex);
 
 		bumpHeight = dot(fragColor.xyz, greyscale);
 
@@ -1404,7 +1421,7 @@ void main() {
 		colorIndex += paletteIndex;
 		colorIndex &= 0xFFu;
 
-<?=modeObj.colorOutput?>
+		fragColor = colorIndexToFragColor(colorIndex);
 
 <? if fragType == 'uvec4' then ?>
 		if (fragColor.a == 0u) plzDiscard = true;
@@ -1414,8 +1431,23 @@ void main() {
 
 		//TODO doing blended lighting isn't as simple as just using a magfilter-linear sampler ...
 		//I've got to do manual sampling based on palette lookup and uv fractional part
-
+#if 1
 		bumpHeight = dot(fragColor.xyz, greyscale);
+#else
+		{
+			vec2 size = textureSize(sheetTex, 0);
+			vec2 stc = tcv.xy * size; 
+			vec2 ftc = floor(stc);
+
+			vec2 fpart = ftc - stc;
+
+			vec2 tcdelta = vec2(1., 1.) / size; 
+			vec2 ntc = ftc *= tcdelta;
+
+			//ok ntc has our new texcoord
+			//fpart is the x/y lerp between ntc and ntc + delta.x/y
+		}
+#endif
 
 	} else if (pathway == 2u) {
 
@@ -1490,7 +1522,7 @@ void main() {
 
 		colorIndex += uint(palHi) << 5;
 
-<?=modeObj.colorOutput?>
+		fragColor = colorIndexToFragColor(colorIndex);
 
 <? if fragType == 'uvec4' then ?>
 		if (fragColor.a == 0u) plzDiscard = true;
@@ -1586,7 +1618,6 @@ void main() {
 				paletteTex = 0,
 				sheetTex = 1,
 				tilemapTex = 2,
-				sheetLinearSampler = 3,
 			},
 		},
 		geometry = {
@@ -1804,20 +1835,6 @@ end
 function AppVideo:initVideo()
 	self.glslVersion = cmdline.glsl or 'latest'
 
-	-- for lighting, I want to magFilter=LINEAR read the sheet tex greyscale for bumpmap
-	-- (and if I ever add mipmapping, do minFilter=LINEAR too)
-	-- but I still want magFilter=NEAREST for reading color
-	-- so ....
-	self.linearSampler = GLSampler{
-		-- if I don't set a parameter then does it not override?  I get the feeling no ... that the whole state of the sampler is used, even if you haven't set a parameter.
-		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
-		minFilter = gl.GL_NEAREST,
-		magFilter = gl.GL_LINEAR,
-	}
-
 	--[[
 	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per blob
 	but I am still using the texture specs for my shader creation
@@ -1998,8 +2015,6 @@ function AppVideo:triBuf_flush()
 
 	-- bind textures
 	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
-	self.linearSampler:bind(3)
-	self.lastSheetTex:bind(3)
 	self.lastTilemapTex:bind(2)
 	self.lastSheetTex:bind(1)
 	self.lastPaletteTex:bind(0)
