@@ -1286,6 +1286,8 @@ uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
 uniform vec4 scissor;
 
+uniform vec2 invHalfFrameBufferSize;
+
 <?=glslCode5551?>
 
 float sqr(float x) { return x * x; }
@@ -1310,7 +1312,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 
 <?=modeObj.colorIndexToFragColorCode?>
 
-<?=fragType?> solidShading() {
+<?=fragType?> solidShading(vec2 tc) {
 	bool round = (extra.x & 4u) != 0u;
 	bool borderOnly = (extra.x & 8u) != 0u;
 	uint colorIndex = (extra.x >> 8u) & 0xffu;
@@ -1320,13 +1322,13 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 
 	// TODO think this through
 	// calculate screen space epsilon at this point
-	//float eps = abs(dFdy(tcv.y));
-	//float eps = abs(dFdy(tcv.x));
+	//float eps = abs(dFdy(tc.y));
+	//float eps = abs(dFdy(tc.x));
 	// more solid for 3D
 	// TODO ... but adding borders at the 45 degrees...
-	float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
-	//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-	//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
+	float eps = sqrt(lenSq(dFdx(tc)) + lenSq(dFdy(tc)));
+	//float eps = length(vec2(dFdx(tc.x), dFdy(tc.y)));
+	//float eps = max(abs(dFdx(tc.x)), abs(dFdy(tc.y)));
 
 	if (round) {
 		// midpoint-circle / Bresenham algorithm, like Tic80 uses:
@@ -1338,7 +1340,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 		// y = b√(1 - (x/a)^2)
 		vec2 radius = .5 * box.zw;
 		vec2 center = box.xy + radius;
-		vec2 delta = tcv - center;
+		vec2 delta = tc - center;
 		vec2 frac = delta / radius;
 
 		if (abs(delta.y) > abs(delta.x)) {
@@ -1358,10 +1360,10 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 		}
 	} else {
 		if (borderOnly) {
-			if (tcv.x > box.x+eps
-				&& tcv.x < box.x+box.z-eps
-				&& tcv.y > box.y+eps
-				&& tcv.y < box.y+box.w-eps
+			if (tc.x > box.x+eps
+				&& tc.x < box.x+box.z-eps
+				&& tc.y > box.y+eps
+				&& tc.y < box.y+box.w-eps
 			) plzDiscard = true;
 		}
 		// else default solid rect
@@ -1377,7 +1379,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	return resultColor;
 }
 
-<?=fragType?> spriteShading() {
+<?=fragType?> spriteShading(vec2 tc) {
 	uint spriteBit = (extra.x >> 3) & 7u;
 	uint spriteMask = (extra.x >> 8) & 0xffu;
 	uint transparentIndex = extra.z;
@@ -1392,7 +1394,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 		..readTex{
 			tex = app.sheetRAMs[1].tex,
 			texvar = 'sheetTex',
-			tc = 'tcv',
+			tc = 'tc',
 			from = 'vec2',
 			to = 'uvec4',
 		}..[[.r;
@@ -1415,7 +1417,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	return resultColor;
 }
 
-<?=fragType?> tilemapShading() {
+<?=fragType?> tilemapShading(vec2 tc) {
 	int mapIndexOffset = int(extra.z);
 
 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
@@ -1427,8 +1429,8 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	// convert from input normalized coordinates to tilemap texel coordinates
 	// [0, tilemapSize)^2
 	ivec2 tci = ivec2(
-		int(tcv.x * float(tilemapSizeX << draw16Sprites)),
-		int(tcv.y * float(tilemapSizeY << draw16Sprites))
+		int(tc.x * float(tilemapSizeX << draw16Sprites)),
+		int(tc.y * float(tilemapSizeY << draw16Sprites))
 	);
 
 	// convert to map texel coordinate
@@ -1490,12 +1492,12 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	return colorIndexToFragColor(colorIndex);
 }
 
-<?=fragType?> directShading() {
+<?=fragType?> directShading(vec2 tc) {
 	return <?=fragType?>(vec4(]]
 			..readTex{
 				tex = app.sheetRAMs[1].tex,
 				texvar = 'sheetTex',
-				tc = 'tcv',
+				tc = 'tc',
 				from = 'vec2',
 				to = fragType,
 			}
@@ -1533,14 +1535,14 @@ void main() {
 	// solid shading pathway
 	if (pathway == 0u) {
 
-		fragColor = solidShading();
+		fragColor = solidShading(tcv);
 
 		bumpHeight = dot(fragColor.xyz, greyscale);
 
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 
-		fragColor = spriteShading();
+		fragColor = spriteShading(tcv);
 
 		//TODO doing blended lighting isn't as simple as just using a magfilter-linear sampler ...
 		//I've got to do manual sampling based on palette lookup and uv fractional part
@@ -1549,22 +1551,35 @@ void main() {
 #else
 		{
 			vec2 size = textureSize(sheetTex, 0);
-			vec2 stc = tcv.xy * size; 
+			vec2 stc = tcv.xy * size;
 			vec2 ftc = floor(stc);
 
-			vec2 fpart = ftc - stc;
+			vec2 fp = ftc - stc;
+			vec2 ifp = 1. - fp;
 
-			vec2 tcdelta = vec2(1., 1.) / size; 
-			vec2 ntc = ftc * tcdelta;
+			vec2 tcdelta = vec2(1., 1.) / size;
+			vec2 ntc = (ftc + .5) * tcdelta;
 
 			//ok ntc has our new texcoord
-			//fpart is the x/y lerp between ntc and ntc + delta.x/y
+			//fp is the x/y lerp between ntc and ntc + delta.x/y
+
+			// TODO if it's uvec4 then ... I gotta ... scale down? by what?
+			float heightLL = dot(spriteShading(ntc).xyz, greyscale);
+			float heightRL = dot(spriteShading(ntc + vec2(tcdelta.x, 0.)).xyz, greyscale);
+			float heightLR = dot(spriteShading(ntc + vec2(0., tcdelta.y)).xyz, greyscale);
+			float heightRR = dot(spriteShading(ntc + tcdelta).xyz, greyscale);
+
+			bumpHeight =
+				ifp.x * ifp.y * heightLL
+				+ ifp.x * fp.y * heightLR
+				+ fp.x * ifp.y * heightRL
+				+ fp.x * fp.y * heightRR;
 		}
 #endif
 
 	} else if (pathway == 2u) {
 
-		fragColor = tilemapShading();
+		fragColor = tilemapShading(tcv);
 
 		bumpHeight = dot(fragColor.xyz, greyscale);
 
@@ -1572,7 +1587,7 @@ void main() {
 	// and I needed a RGB option for the cart browser (maybe I should just use this for all the menu system and just skip on the menu-palette?)
 	} else if (pathway == 3u) {
 
-		fragColor = directShading();
+		fragColor = directShading(tcv);
 
 		bumpHeight = dot(fragColor.xyz, greyscale);
 
@@ -1589,13 +1604,13 @@ void main() {
 // lighting:
 
 	// TODO lighting variables:
-	const float spriteNormalExhaggeration = .03125;
+	const float spriteNormalExhaggeration = .03125;	// .03125 looks good on 480x270
 	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
 
 #if 0	// normal from flat sided objs
 	fragNormal.xyz = cross(
-		dFdx(vertexv.xyz),
-		dFdy(vertexv.xyz)
+		dFdx(vertexv.xyz) * 240. * invHalfFrameBufferSize.x,
+		dFdy(vertexv.xyz) * 240. * invHalfFrameBufferSize.y
 	);
 #else	// normal from sprites
 
@@ -1609,8 +1624,8 @@ void main() {
 	//so its index notation is reversed from math index notation.
 	// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
 	mat3 spriteBasis = onb(
-		vec3(1., 0., dFdx(bumpHeight)),
-		vec3(0., 1., dFdx(bumpHeight)));
+		vec3(1., 0., dFdx(bumpHeight) * 240. * invHalfFrameBufferSize.x),
+		vec3(0., 1., dFdx(bumpHeight) * 240. * invHalfFrameBufferSize.y));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
 	mat3 modelBasis = onb(
