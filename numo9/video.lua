@@ -38,6 +38,7 @@ local menuFontWidth = numo9_rom.menuFontWidth
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
+local mvMatInvScale = 1 / mvMatScale
 assert.eq(mvMatType, 'float', "TODO if this changes then update the mvMat uniform")
 
 local function settableindex(t, i, ...)
@@ -1235,7 +1236,7 @@ void main() {
 	extra = extraAttr;
 	box = boxAttr;
 
-	gl_Position = (mvMat * vec4(vertex, 1.)) * <?=glnumber(1/mvMatScale)?>;
+	gl_Position = (mvMat * vec4(vertex, 1.)) * <?=glnumber(mvMatInvScale)?>;
 
 	//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
 	gl_Position.xy *= invHalfFrameBufferSize;
@@ -1245,7 +1246,7 @@ void main() {
 }
 ]],			{
 				glnumber = glnumber,
-				mvMatScale = mvMatScale,
+				mvMatInvScale = mvMatInvScale,
 			}),
 			fragmentCode = template([[
 precision highp isampler2D;
@@ -2673,6 +2674,19 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
+local mvMatPush = ffi.new(mvMatType..'[16]')
+
+local function vec3to4(m, x, y, z)
+	x = tonumber(x)
+	y = tonumber(y)
+	z = tonumber(z)
+	return
+		(m[0] * x + m[4] * y + m[ 8] * z + m[12]) * mvMatInvScale,
+		(m[1] * x + m[5] * y + m[ 9] * z + m[13]) * mvMatInvScale,
+		(m[2] * x + m[6] * y + m[10] * z + m[14]) * mvMatInvScale,
+		(m[3] * x + m[7] * y + m[11] * z + m[15]) * mvMatInvScale
+end
+
 -- this function is only used with drawing lines at the moment...
 local function homogeneous(sx, sy, x,y,z,w)
 	x = x / sx * 2 - 1
@@ -2682,14 +2696,14 @@ local function homogeneous(sx, sy, x,y,z,w)
 		x = x / w
 		y = y / w
 		z = z / w
-		w = 1	-- w = w / w
 	end
 
 	x = (x + 1) * .5 * sx
 	y = (y + 1) * .5 * sy
 
-	return x,y,z,w
+	return x,y,z
 end
+
 function AppVideo:drawSolidLine3D(
 	x1, y1, z1,
 	x2, y2, z2,
@@ -2714,71 +2728,42 @@ function AppVideo:drawSolidLine3D(
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
-	local fbw = self.framebufferRAM.tex.width
-	local fbh = self.framebufferRAM.tex.height
+	-- ok how to perturb input vertex going through a frustum projection such that the output is only +1 in the x or y direction?
+	-- meh, forget it, just do the transform on CPU and use an identity matrix
+	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	self:matident()
 
-	local m = self.ram.mvMat + 0
---[[ TODO inverse transform [1,0,0,1] and [0,1,0,1] to find out dx and dy ...
-	local v1x, v1y, v1z, v1w = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x1, y1, z1))
-	local v2x, v2y, v2z, v2w = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x2, y2, z2))
+	local fbw = tonumber(self.ram.screenWidth)
+	local fbh = tonumber(self.ram.screenHeight)
+
+	-- inverse transform [1,0,0,1] and [0,1,0,1] to find out dx and dy ...
+	local v1x, v1y, v1z = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x1, y1, z1))
+	local v2x, v2y, v2z = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x2, y2, z2))
 	local dx = v2x - v1x
 	local dy = v2y - v1y
 	local il = 1 / math.sqrt(dx^2 + dy^2)
 	local nx = -dy * il
 	local ny = dx * il
---]]
---[[
-	local im = self.mvMat:inv4x4()
-	local nxx, nxy, nxz = im.ptr[0], im.ptr[4], im.ptr[8]
-	--local nxx, nxy, nxz = im.ptr[0], im.ptr[1], im.ptr[2]
-	--local nyx, nyy, nyz = im.ptr[1], im.ptr[5], im.ptr[9]
-	local il = 1 / math.sqrt(nxx^2 + nxy^2 + nxz^2)
-	nxx, nxy, nxz = nxx * il, nxy * il, nxz * il
-	local nyx, nyy, nyz = -nxy, nxx, nxz
---]]
--- [[ or instead of inverse-transform, just transpose-transform the upper 3x3
-	--local d3x = x2 - x1
-	--local d3y = y2 - y1
-	--local d3z = z2 - z1
-	local lx = math.sqrt(m[0]^2 + m[1]^2 + m[2 ]^2)
-	local ly = math.sqrt(m[4]^2 + m[5]^2 + m[6 ]^2)
-	--local lz = math.sqrt(m[8]^2 + m[9]^2 + m[10]^2)	
-	--local dx = (d3x * m[0] + d3y * m[1] + d3z * m[2]) / lx
-	--local dy = (d3x * m[3] + d3y * m[4] + d3z * m[5]) / ly
-	--local dz = (d3x * m[6] + d3y * m[1] + d3z * m[2]) / lz
-	local nxx, nxy, nxz = m[0] / lx, m[1] / lx, m[2] / lx
-	local nyx, nyy, nyz = m[4] / ly, m[5] / ly, m[6] / ly
---]]
---[[ or fwd, not inv?
-	local lx = math.sqrt(m[0]^2 + m[4]^2 + m[8 ]^2)
-	local ly = math.sqrt(m[1]^2 + m[5]^2 + m[9 ]^2)
-	local lz = math.sqrt(m[2]^2 + m[6]^2 + m[10]^2)	
-	local nxx, nxy, nxz = m[0] / lx, m[4] / lx, m[8] / lx
-	local nyx, nyy, nyz = m[1] / ly, m[5] / ly, m[9] / ly
---]]
---[[ until then (lazy)
-	local nxx, nxy, nxz = 2 / 256, 0, 0
-	local nyx, nyy, nyz = 0, 2 / 256, 0
---]]
 
 	local halfThickness = (thickness or 1) * .5
 
 	local xLL, yLL, zLL =
-		x1 - (nxx + nyx) * halfThickness,
-		y1 - (nxy + nyy) * halfThickness,
-		z1 - (nxz + nyz) * halfThickness
+		v1x - nx * halfThickness,
+		v1y - ny * halfThickness,
+		v1z
 	local xRL, yRL, zRL =
-		x2 - (nxx + nyx) * halfThickness,
-		y2 - (nxy + nyy) * halfThickness,
-		z2 - (nxz + nyz) * halfThickness
+		v2x - nx * halfThickness,
+		v2y - ny * halfThickness,
+		v2z
 	local xLR, yLR, zLR =
-		x1 + (nxx + nyx) * halfThickness,
-		y1 + (nxy + nyy) * halfThickness,
-		z1 + (nxz + nyz) * halfThickness
+		v1x + nx * halfThickness,
+		v1y + ny * halfThickness,
+		v1z
 	local xRR, yRR, zRR =
-		x2 + (nxx + nyx) * halfThickness,
-		y2 + (nxy + nyy) * halfThickness,
-		z2 + (nxz + nyz) * halfThickness
+		v2x + nx * halfThickness,
+		v2y + ny * halfThickness,
+		v2z
+
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	local blendSolidA = self.drawOverrideSolidA *  255
@@ -2810,6 +2795,9 @@ function AppVideo:drawSolidLine3D(
 
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
+
+	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
+	self:onMvMatChange()
 end
 
 function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex,thickness)
@@ -2818,7 +2806,6 @@ end
 
 local clearFloat = ffi.new('float[4]')
 local clearUInt = ffi.new('GLuint[4]')
-local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:clearScreen(
 	colorIndex,
 	paletteTex,	-- override for menu ... starting to think this should be a global somewhere...
