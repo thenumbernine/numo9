@@ -1310,6 +1310,203 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 
 <?=modeObj.colorIndexToFragColorCode?>
 
+<?=fragType?> solidShading() {
+	bool round = (extra.x & 4u) != 0u;
+	bool borderOnly = (extra.x & 8u) != 0u;
+	uint colorIndex = (extra.x >> 8u) & 0xffu;
+	<?=fragType?> resultColor = colorIndexToFragColor(colorIndex);
+
+	bool plzDiscard = false;
+
+	// TODO think this through
+	// calculate screen space epsilon at this point
+	//float eps = abs(dFdy(tcv.y));
+	//float eps = abs(dFdy(tcv.x));
+	// more solid for 3D
+	// TODO ... but adding borders at the 45 degrees...
+	float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
+	//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
+	//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
+
+	if (round) {
+		// midpoint-circle / Bresenham algorithm, like Tic80 uses:
+		// figure out which octant of the circle you're in
+		// then compute deltas based on if |dy| / |dx|
+		// (x/a)^2 + (y/b)^2 = 1
+		// x/a = √(1 - (y/b)^2)
+		// x = a√(1 - (y/b)^2)
+		// y = b√(1 - (x/a)^2)
+		vec2 radius = .5 * box.zw;
+		vec2 center = box.xy + radius;
+		vec2 delta = tcv - center;
+		vec2 frac = delta / radius;
+
+		if (abs(delta.y) > abs(delta.x)) {
+			// top/bottom quadrant
+			float by = radius.y * sqrt(1. - frac.x * frac.x);
+			if (delta.y > by || delta.y < -by) plzDiscard = true;
+			if (borderOnly) {
+				if (delta.y < by-eps && delta.y > -by+eps) plzDiscard = true;
+			}
+		} else {
+			// left/right quadrant
+			float bx = radius.x * sqrt(1. - frac.y * frac.y);
+			if (delta.x > bx || delta.x < -bx) plzDiscard = true;
+			if (borderOnly) {
+				if (delta.x < bx-eps && delta.x > -bx+eps) plzDiscard = true;
+			}
+		}
+	} else {
+		if (borderOnly) {
+			if (tcv.x > box.x+eps
+				&& tcv.x < box.x+box.z-eps
+				&& tcv.y > box.y+eps
+				&& tcv.y < box.y+box.w-eps
+			) plzDiscard = true;
+		}
+		// else default solid rect
+	}
+
+	if (plzDiscard) {
+<? if fragType == 'uvec4' then ?>
+		resultColor.a = 0u;
+<? else ?>
+		resultColor.a = 0.;
+<? end ?>
+	}
+	return resultColor;
+}
+
+<?=fragType?> spriteShading() {
+	uint spriteBit = (extra.x >> 3) & 7u;
+	uint spriteMask = (extra.x >> 8) & 0xffu;
+	uint transparentIndex = extra.z;
+
+	// shift the oob-transparency 2nd bit up to the 8th bit,
+	// such that, setting this means `transparentIndex` will never match `colorIndex & spriteMask`;
+	transparentIndex |= (extra.x & 4u) << 6;
+
+	uint paletteIndex = extra.w;
+
+	uint colorIndex = ]]
+		..readTex{
+			tex = app.sheetRAMs[1].tex,
+			texvar = 'sheetTex',
+			tc = 'tcv',
+			from = 'vec2',
+			to = 'uvec4',
+		}..[[.r;
+
+	colorIndex >>= spriteBit;
+	colorIndex &= spriteMask;
+	bool plzDiscard = false;
+	if (colorIndex == transparentIndex) plzDiscard = true;
+	colorIndex += paletteIndex;
+	colorIndex &= 0xFFu;
+
+	<?=fragType?> resultColor = colorIndexToFragColor(colorIndex);
+	if (plzDiscard) {
+<? if fragType == 'uvec4' then ?>
+		resultColor.a = 0u;
+<? else ?>
+		resultColor.a = 0.;
+<? end ?>
+	}
+	return resultColor;
+}
+
+<?=fragType?> tilemapShading() {
+	int mapIndexOffset = int(extra.z);
+
+	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
+	uint draw16Sprites = (extra.x >> 2) & 1u;
+
+	const uint tilemapSizeX = <?=tilemapSize.x?>u;
+	const uint tilemapSizeY = <?=tilemapSize.y?>u;
+
+	// convert from input normalized coordinates to tilemap texel coordinates
+	// [0, tilemapSize)^2
+	ivec2 tci = ivec2(
+		int(tcv.x * float(tilemapSizeX << draw16Sprites)),
+		int(tcv.y * float(tilemapSizeY << draw16Sprites))
+	);
+
+	// convert to map texel coordinate
+	// [0, tilemapSize)^2
+	ivec2 tileTC = ivec2(
+		(tci.x >> (3u + draw16Sprites)) & 0xFF,
+		(tci.y >> (3u + draw16Sprites)) & 0xFF
+	);
+
+	//read the tileIndex in tilemapTex at tileTC
+	//tilemapTex is R16, so red channel should be 16bpp (right?)
+	// how come I don't trust that and think I'll need to switch this to RG8 ...
+	int tileIndex = int(]]..readTex{
+			tex = app.tilemapRAMs[1].tex,
+			texvar = 'tilemapTex',
+			tc = 'tileTC',
+			from = 'ivec2',
+			to = 'uvec4',
+		}..[[.r);
+
+	tileIndex += mapIndexOffset;
+
+	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
+	ivec2 tileIndexTC = ivec2(
+		tileIndex & 0x1F,				// tilemap bits 0..4
+		(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
+	);
+	int palHi = (tileIndex >> 10) & 7;	// tilemap bits 10..12
+	int rot = (tileIndex >> 14) & 3;		// tilemap bits 14..15 = rotation
+	if (rot == 1) {
+		tci = ivec2(tci.y, ~tci.x);
+	} else if (rot == 2) {
+		tci = ivec2(~tci.x, ~tci.y);
+	} else if (rot == 3) {
+		tci = ivec2(~tci.y, tci.x);
+	}
+	if (((tileIndex >> 13) & 1) != 0) {
+		tci.x = ~tci.x;	// tilemap bit 13 = hflip
+	}
+
+	int mask = (1 << (3u + draw16Sprites)) - 1;
+	// [0, spriteSize)^2
+	ivec2 tileTexTC = ivec2(
+		(tci.x & mask) ^ (tileIndexTC.x << 3),
+		(tci.y & mask) ^ (tileIndexTC.y << 3)
+	);
+
+	// sheetTex is R8 indexing into our palette ...
+	uint colorIndex = ]]..readTex{
+			tex = app.sheetRAMs[1].tex,
+			texvar = 'sheetTex',
+			tc = 'tileTexTC',
+			from = 'ivec2',
+			to = 'uvec4',
+		}..[[.r;
+
+	colorIndex += uint(palHi) << 5;
+
+	return colorIndexToFragColor(colorIndex);
+}
+
+<?=fragType?> directShading() {
+	return <?=fragType?>(vec4(]]
+			..readTex{
+				tex = app.sheetRAMs[1].tex,
+				texvar = 'sheetTex',
+				tc = 'tcv',
+				from = 'vec2',
+				to = fragType,
+			}
+..')'
+..(
+	--fragType == 'vec4' and
+	'/ 255.'
+	--or ''
+)..[[);
+}
+
 void main() {
 	bool plzDiscard = false;
 
@@ -1335,99 +1532,15 @@ void main() {
 
 	// solid shading pathway
 	if (pathway == 0u) {
-		bool round = (extra.x & 4u) != 0u;
-		bool borderOnly = (extra.x & 8u) != 0u;
-		uint colorIndex = (extra.x >> 8u) & 0xffu;
 
-		// TODO think this through
-		// calculate screen space epsilon at this point
-		//float eps = abs(dFdy(tcv.y));
-		//float eps = abs(dFdy(tcv.x));
-		// more solid for 3D
-		// TODO ... but adding borders at the 45 degrees...
-		float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
-		//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
-		//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
-
-		if (round) {
-			// midpoint-circle / Bresenham algorithm, like Tic80 uses:
-			// figure out which octant of the circle you're in
-			// then compute deltas based on if |dy| / |dx|
-			// (x/a)^2 + (y/b)^2 = 1
-			// x/a = √(1 - (y/b)^2)
-			// x = a√(1 - (y/b)^2)
-			// y = b√(1 - (x/a)^2)
-			vec2 radius = .5 * box.zw;
-			vec2 center = box.xy + radius;
-			vec2 delta = tcv - center;
-			vec2 frac = delta / radius;
-
-			if (abs(delta.y) > abs(delta.x)) {
-				// top/bottom quadrant
-				float by = radius.y * sqrt(1. - frac.x * frac.x);
-				if (delta.y > by || delta.y < -by) plzDiscard = true;
-				if (borderOnly) {
-					if (delta.y < by-eps && delta.y > -by+eps) plzDiscard = true;
-				}
-			} else {
-				// left/right quadrant
-				float bx = radius.x * sqrt(1. - frac.y * frac.y);
-				if (delta.x > bx || delta.x < -bx) plzDiscard = true;
-				if (borderOnly) {
-					if (delta.x < bx-eps && delta.x > -bx+eps) plzDiscard = true;
-				}
-			}
-		} else {
-			if (borderOnly) {
-				if (tcv.x > box.x+eps
-					&& tcv.x < box.x+box.z-eps
-					&& tcv.y > box.y+eps
-					&& tcv.y < box.y+box.w-eps
-				) plzDiscard = true;
-			}
-			// else default solid rect
-		}
-
-		fragColor = colorIndexToFragColor(colorIndex);
+		fragColor = solidShading();
 
 		bumpHeight = dot(fragColor.xyz, greyscale);
 
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 
-		uint spriteBit = (extra.x >> 3) & 7u;
-		uint spriteMask = (extra.x >> 8) & 0xffu;
-		uint transparentIndex = extra.z;
-
-		// shift the oob-transparency 2nd bit up to the 8th bit,
-		// such that, setting this means `transparentIndex` will never match `colorIndex & spriteMask`;
-		transparentIndex |= (extra.x & 4u) << 6;
-
-		uint paletteIndex = extra.w;
-
-		uint colorIndex = ]]
-			..readTex{
-				tex = app.sheetRAMs[1].tex,
-				texvar = 'sheetTex',
-				tc = 'tcv',
-				from = 'vec2',
-				to = 'uvec4',
-			}
-			..[[.r;
-
-		colorIndex >>= spriteBit;
-		colorIndex &= spriteMask;
-		if (colorIndex == transparentIndex) plzDiscard = true;
-		colorIndex += paletteIndex;
-		colorIndex &= 0xFFu;
-
-		fragColor = colorIndexToFragColor(colorIndex);
-
-<? if fragType == 'uvec4' then ?>
-		if (fragColor.a == 0u) plzDiscard = true;
-<? else ?>
-		if (fragColor.a < .5) plzDiscard = true;
-<? end ?>
+		fragColor = spriteShading();
 
 		//TODO doing blended lighting isn't as simple as just using a magfilter-linear sampler ...
 		//I've got to do manual sampling based on palette lookup and uv fractional part
@@ -1442,7 +1555,7 @@ void main() {
 			vec2 fpart = ftc - stc;
 
 			vec2 tcdelta = vec2(1., 1.) / size; 
-			vec2 ntc = ftc *= tcdelta;
+			vec2 ntc = ftc * tcdelta;
 
 			//ok ntc has our new texcoord
 			//fpart is the x/y lerp between ntc and ntc + delta.x/y
@@ -1451,84 +1564,7 @@ void main() {
 
 	} else if (pathway == 2u) {
 
-		int mapIndexOffset = int(extra.z);
-
-		//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
-		uint draw16Sprites = (extra.x >> 2) & 1u;
-
-		const uint tilemapSizeX = <?=tilemapSize.x?>u;
-		const uint tilemapSizeY = <?=tilemapSize.y?>u;
-
-		// convert from input normalized coordinates to tilemap texel coordinates
-		// [0, tilemapSize)^2
-		ivec2 tci = ivec2(
-			int(tcv.x * float(tilemapSizeX << draw16Sprites)),
-			int(tcv.y * float(tilemapSizeY << draw16Sprites))
-		);
-
-		// convert to map texel coordinate
-		// [0, tilemapSize)^2
-		ivec2 tileTC = ivec2(
-			(tci.x >> (3u + draw16Sprites)) & 0xFF,
-			(tci.y >> (3u + draw16Sprites)) & 0xFF
-		);
-
-		//read the tileIndex in tilemapTex at tileTC
-		//tilemapTex is R16, so red channel should be 16bpp (right?)
-		// how come I don't trust that and think I'll need to switch this to RG8 ...
-		int tileIndex = int(]]..readTex{
-		tex = app.tilemapRAMs[1].tex,
-		texvar = 'tilemapTex',
-		tc = 'tileTC',
-		from = 'ivec2',
-		to = 'uvec4',
-	}..[[.r);
-
-		tileIndex += mapIndexOffset;
-
-		//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
-		ivec2 tileIndexTC = ivec2(
-			tileIndex & 0x1F,				// tilemap bits 0..4
-			(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
-		);
-		int palHi = (tileIndex >> 10) & 7;	// tilemap bits 10..12
-		int rot = (tileIndex >> 14) & 3;		// tilemap bits 14..15 = rotation
-		if (rot == 1) {
-			tci = ivec2(tci.y, ~tci.x);
-		} else if (rot == 2) {
-			tci = ivec2(~tci.x, ~tci.y);
-		} else if (rot == 3) {
-			tci = ivec2(~tci.y, tci.x);
-		}
-		if (((tileIndex >> 13) & 1) != 0) {
-			tci.x = ~tci.x;	// tilemap bit 13 = hflip
-		}
-
-		int mask = (1 << (3u + draw16Sprites)) - 1;
-		// [0, spriteSize)^2
-		ivec2 tileTexTC = ivec2(
-			(tci.x & mask) ^ (tileIndexTC.x << 3),
-			(tci.y & mask) ^ (tileIndexTC.y << 3)
-		);
-
-		// sheetTex is R8 indexing into our palette ...
-		uint colorIndex = ]]..readTex{
-		tex = app.sheetRAMs[1].tex,
-		texvar = 'sheetTex',
-		tc = 'tileTexTC',
-		from = 'ivec2',
-		to = 'uvec4',
-	}..[[.r;
-
-		colorIndex += uint(palHi) << 5;
-
-		fragColor = colorIndexToFragColor(colorIndex);
-
-<? if fragType == 'uvec4' then ?>
-		if (fragColor.a == 0u) plzDiscard = true;
-<? else ?>
-		if (fragColor.a < .5) plzDiscard = true;
-<? end ?>
+		fragColor = tilemapShading();
 
 		bumpHeight = dot(fragColor.xyz, greyscale);
 
@@ -1536,25 +1572,19 @@ void main() {
 	// and I needed a RGB option for the cart browser (maybe I should just use this for all the menu system and just skip on the menu-palette?)
 	} else if (pathway == 3u) {
 
-		fragColor = <?=fragType?>(vec4(]]
-			..readTex{
-				tex = app.sheetRAMs[1].tex,
-				texvar = 'sheetTex',
-				tc = 'tcv',
-				from = 'vec2',
-				to = fragType,
-			}
-..')'
-..(
-	--fragType == 'vec4' and
-	'/ 255.'
-	--or ''
-)
-			..[[);
+		fragColor = directShading();
 
 		bumpHeight = dot(fragColor.xyz, greyscale);
 
 	}	// pathway
+
+
+<? if fragType == 'uvec4' then ?>
+	if (fragColor.a == 0u) plzDiscard = true;
+<? else ?>
+	if (fragColor.a < .5) plzDiscard = true;
+<? end ?>
+
 
 // lighting:
 
