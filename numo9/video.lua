@@ -4034,10 +4034,26 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		local lz = math.sqrt(a2 * a2 + a6 * a6 + a10 * a10)
 
 		-- set diagonal:
-		a.ptr[ 0], a.ptr[ 5], a.ptr[10] = lx, ly, lz
+		a.ptr[0], a.ptr[5], a.ptr[10] = lx, ly, lz
 
 		-- set skew:
+		--[[ assuming skew is orthogonal already (and if I'm applying a frustum transform to the matrix, then it is not ...)
 		a.ptr[1], a.ptr[2], a.ptr[4], a.ptr[6], a.ptr[8], a.ptr[9] = 0, 0, 0, 0, 0, 0
+		--]]
+		-- [[ for non-orthogonal skew (but still based on the fact we are assuming the upper-left 3x3 is skew-symmetric, which, with a frustum transform, it is not...)
+		local sx = 1/lx
+		local sy = 1/ly
+		local sz = 1/lz
+		local s01 = a0 * a1 + a4 * a5 + a8 * a9
+		a.ptr[1] = sx * s01
+		a.ptr[4] = sy * s01
+		local s02 = a0 * a2 + a4 * a6 + a8 * a10
+		a.ptr[2] = sx * s02
+		a.ptr[8] = sz * s02
+		local s12 = a1 * a2 + a5 * a6 + a9  * a10
+		a.ptr[6] = sy * s12
+		a.ptr[9] = sz * s12
+		--]]
 
 		-- set translation:
 		a.ptr[ 3] = (a0 * a3 + a4 * a7 + a8  * a11) / lx
