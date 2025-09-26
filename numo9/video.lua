@@ -1516,7 +1516,7 @@ void main() {
 	fragNormal.xyz = cross(
 		dFdx(vertexv.xyz),
 		dFdy(vertexv.xyz)
-	) * 128. * invHalfFrameBufferSize.x;
+	);// * 128. * invHalfFrameBufferSize.x;
 #else	// normal from sprites
 
 	// https://en.wikipedia.org/wiki/Grayscale#Luma_coding_in_video_systems
@@ -1529,22 +1529,23 @@ void main() {
 	float fragLum = dot(fragColor.xyz, greyscale);
 	// if we are going to discard then make sure the sprite bumpmap falls off ...
 	if (plzDiscard) fragLum = -1.;
+	float bumpHeight = fragLum * spriteNormalExhaggeration;
 
 	//glsl matrix index access is based on columns
 	//so its index notation is reversed from math index notation.
-	// spriteBasis[j][i] = spriteBasis_ij = d(fragLum)/d(fragCoord_j)
+	// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
 	mat3 spriteBasis = onb(
-		vec3(1., 0., dFdx(fragLum) * spriteNormalExhaggeration * 128. * invHalfFrameBufferSize.x),
-		vec3(0., 1., dFdx(fragLum) * spriteNormalExhaggeration * 128. * invHalfFrameBufferSize.x));
+		vec3(1., 0., dFdx(bumpHeight)),// * 128. * invHalfFrameBufferSize.x),
+		vec3(0., 1., dFdx(bumpHeight)));// * 128. * invHalfFrameBufferSize.x));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
 	mat3 modelBasis = onb(
 		dFdx(vertexv.xyz),	// d(vertex)/dFragCoord.x
 		dFdy(vertexv.xyz));	// d(vertex)/dFragCoord.y
 
-	//result should be d(fragLum)/d(vertex_j)
-	// = d(fragLum)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
-	// = d(fragLum)/d(fragCoord_k) * inv(d(vertex_j)/d(fragCoord_k))
+	//result should be d(bumpHeight)/d(vertex_j)
+	// = d(bumpHeight)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
+	// = d(bumpHeight)/d(fragCoord_k) * inv(d(vertex_j)/d(fragCoord_k))
 	// = spriteBasis * transpose(modelBasis)
 	//modelBasis = spriteBasis * transpose(modelBasis);
 	//fragNormal.xyz = transpose(modelBasis)[2];
@@ -2584,7 +2585,7 @@ function AppVideo:drawSolidRect(
 	local yR = y + h
 
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	local blendSolidA = self.drawOverrideSolidA *  255
+	local blendSolidA = self.drawOverrideSolidA * 255
 
 	local drawFlags = bit.bor(
 		round and 4 or 0,
