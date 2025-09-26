@@ -805,6 +805,9 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - some weird bug when pasting into sheet a pic with an image with transparency, seems to glitch/stall ...
 - some weird bug where when I switch to picking format/type by internalFormat using the gl.tex* ctor it gives me glErrors, when doing it manaully in the ctor args is working fine ...
 - when putting the mvMat on the GPU, I ruined my ability to draw lines i.e. get the 2D horz vector correctly ... meh.
+- change editor to use native-resolution.
+	- then the UI will need to be fixed since the layout is the mode-0 res.  
+		- maybe use [Lua-Gui](https://github.com/thenumbernine/lua-gui).  This will fix all the event handling and bubbling and such.
 
 # Things I'm still debating ...
 - `open()` from console doesn't reset.  You have to `open()` then `run()`.  Wait is this a bug or is this correct behavior?

@@ -4,6 +4,7 @@ local table = require 'ext.table'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3d = require 'vec-ffi.vec3d'
 local box3d = require 'vec-ffi.box3d'
+local quatd = require 'vec-ffi.quatd'
 local Image = require 'image'
 
 local clip = require 'numo9.clipboard'
@@ -133,6 +134,7 @@ end
 
 function EditVoxelMap:update()
 	local app = self.app
+	local orbit = self.orbit
 
 	EditVoxelMap.super.update(self)
 
@@ -149,7 +151,7 @@ function EditVoxelMap:update()
 
 	local mouseHandled
 	if voxelmap then
-		mouseHandled = self.orbit:beginDraw()
+		mouseHandled = orbit:beginDraw()
 		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
 
 		self:drawBox(mapbox, 0x31)
@@ -188,12 +190,12 @@ function EditVoxelMap:update()
 			-- or intersect with march through the voxelmap
 			-- how to get mouse line?
 			-- transform mouse coords by view matrix
-			local mousePos = self.orbit.pos + mapsize * .5
+			local mousePos = orbit.pos + mapsize * .5
 			-- assume fov is 90°
 			local mouseDir =
-				- self.orbit.angle:zAxis()
-				+ self.orbit.angle:xAxis() * (mouseX - 128) / 128
-				- self.orbit.angle:yAxis() * (mouseY - 128) / 128
+				- orbit.angle:zAxis()
+				+ orbit.angle:xAxis() * (mouseX - 128) / 128
+				- orbit.angle:yAxis() * (mouseY - 128) / 128
 			-- or alternatively use the inverse of the modelview matrix... but meh ...
 			if not mapbox:contains(mousePos) then
 				-- now line intersect with the camera-facing planes of the bbox
@@ -354,7 +356,7 @@ function EditVoxelMap:update()
 			end
 		end
 
-		self.orbit:endDraw()
+		orbit:endDraw()
 
 		-- TODO should this go here or in the caller:
 		app:matident()
@@ -385,8 +387,8 @@ function EditVoxelMap:update()
 		self.wireframe = not self.wireframe
 	end
 	x = x + 6
-	if self:guiButton(self.orbit.ortho and 'O' or 'P', x, y, false, self.orbit.ortho and 'orbit.ortho' or 'projection') then
-		self.orbit.ortho = not self.orbit.ortho
+	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'orbit.ortho' or 'projection') then
+		orbit.ortho = not orbit.ortho
 	end
 	x = x + 6
 	if self:guiButton('L', x, y, false, 'light='..tostring(app.menuUseLighting)) then
@@ -452,31 +454,59 @@ function EditVoxelMap:update()
 			end
 		)
 
+		-- wasd should have been esdf ...
+		-- home row!
 		local moveSpeed = .3
 		if app:key'w' then
-			self.orbit.pos = self.orbit.pos - self.orbit.angle:zAxis() * moveSpeed
-			self.orbit.orbit = self.orbit.orbit - self.orbit.angle:zAxis() * moveSpeed
+			orbit.pos = orbit.pos - orbit.angle:zAxis() * moveSpeed
+			orbit.orbit = orbit.orbit - orbit.angle:zAxis() * moveSpeed
 		end
 		if app:key's' then
-			self.orbit.pos = self.orbit.pos + self.orbit.angle:zAxis() * moveSpeed
-			self.orbit.orbit = self.orbit.orbit + self.orbit.angle:zAxis() * moveSpeed
+			orbit.pos = orbit.pos + orbit.angle:zAxis() * moveSpeed
+			orbit.orbit = orbit.orbit + orbit.angle:zAxis() * moveSpeed
 		end
 		if app:key'a' then
-			self.orbit.pos = self.orbit.pos - self.orbit.angle:xAxis() * moveSpeed
-			self.orbit.orbit = self.orbit.orbit - self.orbit.angle:xAxis() * moveSpeed
+			orbit.pos = orbit.pos - orbit.angle:xAxis() * moveSpeed
+			orbit.orbit = orbit.orbit - orbit.angle:xAxis() * moveSpeed
 		end
 		if app:key'd' then
-			self.orbit.pos = self.orbit.pos + self.orbit.angle:xAxis() * moveSpeed
-			self.orbit.orbit = self.orbit.orbit + self.orbit.angle:xAxis() * moveSpeed
+			orbit.pos = orbit.pos + orbit.angle:xAxis() * moveSpeed
+			orbit.orbit = orbit.orbit + orbit.angle:xAxis() * moveSpeed
+		end
+		if app:key'q' then
+			orbit.pos = orbit.pos + orbit.angle:yAxis() * moveSpeed
+			orbit.orbit = orbit.orbit + orbit.angle:yAxis() * moveSpeed
 		end
 		if app:key'e' then
-			self.orbit.pos = self.orbit.pos + self.orbit.angle:yAxis() * moveSpeed
-			self.orbit.orbit = self.orbit.orbit + self.orbit.angle:yAxis() * moveSpeed
+			orbit.pos = orbit.pos - orbit.angle:yAxis() * moveSpeed
+			orbit.orbit = orbit.orbit - orbit.angle:yAxis() * moveSpeed
 		end
-		if app:key'c' then
-			self.orbit.pos = self.orbit.pos - self.orbit.angle:yAxis() * moveSpeed
-			self.orbit.orbit = self.orbit.orbit - self.orbit.angle:yAxis() * moveSpeed
+	
+		local turnSpeed = 3
+		if app:key'i' then
+			orbit.angle = orbit.angle * quatd():fromAngleAxis(1, 0, 0, turnSpeed)
+			orbit.orbit = orbit.pos - orbit.angle:zAxis() * (orbit.pos - orbit.orbit):length()
 		end
+		if app:key'k' then
+			orbit.angle = orbit.angle * quatd():fromAngleAxis(-1, 0, 0, turnSpeed)
+			orbit.orbit = orbit.pos - orbit.angle:zAxis() * (orbit.pos - orbit.orbit):length()
+		end
+		if app:key'j' then
+			orbit.angle = orbit.angle * quatd():fromAngleAxis(0, 1, 0, turnSpeed)
+			orbit.orbit = orbit.pos - orbit.angle:zAxis() * (orbit.pos - orbit.orbit):length()
+		end
+		if app:key'l' then
+			orbit.angle = orbit.angle * quatd():fromAngleAxis(0, -1, 0, turnSpeed)
+			orbit.orbit = orbit.pos - orbit.angle:zAxis() * (orbit.pos - orbit.orbit):length()
+		end
+		if app:key'u' then
+			orbit.angle = orbit.angle * quatd():fromAngleAxis(0, 0, 1, turnSpeed)
+			orbit.orbit = orbit.pos - orbit.angle:zAxis() * (orbit.pos - orbit.orbit):length()
+		end
+		if app:key'o' then
+			orbit.angle = orbit.angle * quatd():fromAngleAxis(0, 0, -1, turnSpeed)
+			orbit.orbit = orbit.pos - orbit.angle:zAxis() * (orbit.pos - orbit.orbit):length()
+		end	
 	end
 
 	local uikey
