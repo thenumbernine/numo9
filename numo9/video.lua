@@ -2737,8 +2737,8 @@ function AppVideo:drawSolidLine3D(
 	local fbh = tonumber(self.ram.screenHeight)
 
 	-- inverse transform [1,0,0,1] and [0,1,0,1] to find out dx and dy ...
-	local v1x, v1y, v1z = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x1, y1, z1))
-	local v2x, v2y, v2z = homogeneous(fbw, fbh, vec3to4(self.ram.mvMat, x2, y2, z2))
+	local v1x, v1y, v1z = homogeneous(fbw, fbh, vec3to4(mvMatPush, x1, y1, z1))
+	local v2x, v2y, v2z = homogeneous(fbw, fbh, vec3to4(mvMatPush, x2, y2, z2))
 	local dx = v2x - v1x
 	local dy = v2y - v1y
 	local il = 1 / math.sqrt(dx^2 + dy^2)
