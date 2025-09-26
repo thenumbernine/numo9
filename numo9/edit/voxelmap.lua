@@ -251,6 +251,8 @@ function EditVoxelMap:update()
 							local voxval = app:peekl(vaddr)
 							if voxval ~= voxelMapEmptyValue then
 								self.voxCurSel.intval = voxval
+								self.tileSel.pos.x = self.voxCurSel.tileXOffset
+								self.tileSel.pos.y = self.voxCurSel.tileYOffset
 							end
 						end
 					end
@@ -450,6 +452,8 @@ function EditVoxelMap:update()
 				result = tonumber(result, 16)
 				if result then
 					self.voxCurSel.intval = result
+					self.tileSel.pos.x = self.voxCurSel.tileXOffset
+					self.tileSel.pos.y = self.voxCurSel.tileYOffset
 				end
 			end
 		)
