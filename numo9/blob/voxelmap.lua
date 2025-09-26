@@ -221,6 +221,15 @@ assert.eq(numTriVtxs % 3, 0)
 								-- see if its neighbors face is occluding on that AABB
 								-- if both are true then skip
 								local occluded
+
+								-- TODO
+								-- transparency
+								-- hmm
+								-- I'd say "check every used texel for trnsparency and don't occulde if any are transparent"
+								-- but nothing's to stop from shifting palettes later
+								-- hmmmmmmm
+
+
 -- [[
 								local sideIndex = mesh.sideForTriIndex[ti]
 								if sideIndex then
