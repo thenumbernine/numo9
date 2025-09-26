@@ -11,6 +11,7 @@ local glreport = require 'gl.report'
 local glnumber = require 'gl.number'
 local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
+local GLSampler = require 'gl.sampler'
 local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local GLTypes = require 'gl.types'
@@ -1249,6 +1250,7 @@ void main() {
 				mvMatInvScale = mvMatInvScale,
 			}),
 			fragmentCode = template([[
+precision highp sampler2D;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
 
@@ -1266,8 +1268,8 @@ layout(location=1) out vec4 fragNormal;
 uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
+uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetLinearSampler;
 uniform vec4 scissor;
-uniform vec2 invHalfFrameBufferSize;
 
 <?=glslCode5551?>
 
@@ -1285,6 +1287,11 @@ mat3 onb(vec3 a, vec3 b) {
 	m[0] = normalize(cross(m[1], m[2]));
 	return m;
 }
+
+// https://en.wikipedia.org/wiki/Grayscale#Luma_coding_in_video_systems
+const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
+//const vec3 greyscale = vec3(.299, .587, .114);	// Y'UV
+//const vec3 greyscale = vec3(.2627, .678, .0593);	// HDR TV
 
 void main() {
 	bool plzDiscard = false;
@@ -1307,6 +1314,8 @@ void main() {
 
 	uint pathway = extra.x & 3u;
 
+	float bumpHeight = 0.;
+
 	// solid shading pathway
 	if (pathway == 0u) {
 		bool round = (extra.x & 4u) != 0u;
@@ -1322,7 +1331,6 @@ void main() {
 		float eps = sqrt(lenSq(dFdx(tcv)) + lenSq(dFdy(tcv)));
 		//float eps = length(vec2(dFdx(tcv.x), dFdy(tcv.y)));
 		//float eps = max(abs(dFdx(tcv.x)), abs(dFdy(tcv.y)));
-
 
 		if (round) {
 			// midpoint-circle / Bresenham algorithm, like Tic80 uses:
@@ -1365,6 +1373,8 @@ void main() {
 
 <?=modeObj.colorOutput?>
 
+		bumpHeight = dot(fragColor.xyz, greyscale);
+
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 
@@ -1401,6 +1411,11 @@ void main() {
 <? else ?>
 		if (fragColor.a < .5) plzDiscard = true;
 <? end ?>
+
+		//TODO doing blended lighting isn't as simple as just using a magfilter-linear sampler ...
+		//I've got to do manual sampling based on palette lookup and uv fractional part
+
+		bumpHeight = dot(fragColor.xyz, greyscale);
 
 	} else if (pathway == 2u) {
 
@@ -1483,6 +1498,8 @@ void main() {
 		if (fragColor.a < .5) plzDiscard = true;
 <? end ?>
 
+		bumpHeight = dot(fragColor.xyz, greyscale);
+
 	// I had an extra pathway and I didn't know what to use it for
 	// and I needed a RGB option for the cart browser (maybe I should just use this for all the menu system and just skip on the menu-palette?)
 	} else if (pathway == 3u) {
@@ -1501,42 +1518,37 @@ void main() {
 	'/ 255.'
 	--or ''
 )
-
-
 			..[[);
 
+		bumpHeight = dot(fragColor.xyz, greyscale);
+
 	}	// pathway
+
+// lighting:
 
 	// TODO lighting variables:
 	const float spriteNormalExhaggeration = .03125;
 	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
 
-
 #if 0	// normal from flat sided objs
 	fragNormal.xyz = cross(
 		dFdx(vertexv.xyz),
 		dFdy(vertexv.xyz)
-	);// * 128. * invHalfFrameBufferSize.x;
+	);
 #else	// normal from sprites
 
-	// https://en.wikipedia.org/wiki/Grayscale#Luma_coding_in_video_systems
-	const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
-	//const vec3 greyscale = vec3(.299, .587, .114);	// Y'UV
-	//const vec3 greyscale = vec3(.2627, .678, .0593);	// HDR TV
-
 	// calculate this before any discards ... or can we?
-	// TODO better ... calculate this from magfilter=linear lookup for the texture (and do color magfilter=nearest) ... or can we?)
-	float fragLum = dot(fragColor.xyz, greyscale);
+	// calculate this from magfilter=linear lookup for the texture (and do color magfilter=nearest) ... or can we?)
 	// if we are going to discard then make sure the sprite bumpmap falls off ...
-	if (plzDiscard) fragLum = -1.;
-	float bumpHeight = fragLum * spriteNormalExhaggeration;
+	if (plzDiscard) bumpHeight = -1.;
+	bumpHeight *= spriteNormalExhaggeration;
 
 	//glsl matrix index access is based on columns
 	//so its index notation is reversed from math index notation.
 	// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
 	mat3 spriteBasis = onb(
-		vec3(1., 0., dFdx(bumpHeight)),// * 128. * invHalfFrameBufferSize.x),
-		vec3(0., 1., dFdx(bumpHeight)));// * 128. * invHalfFrameBufferSize.x));
+		vec3(1., 0., dFdx(bumpHeight)),
+		vec3(0., 1., dFdx(bumpHeight)));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
 	mat3 modelBasis = onb(
@@ -1574,11 +1586,7 @@ void main() {
 				paletteTex = 0,
 				sheetTex = 1,
 				tilemapTex = 2,
-				invHalfFrameBufferSize = {
-					-- init this to the init 256x256 res
-					2 / tonumber(frameBufferSize.x),
-					2 / tonumber(frameBufferSize.y),
-				},
+				sheetLinearSampler = 3,
 			},
 		},
 		geometry = {
@@ -1634,7 +1642,6 @@ void main() {
 		},
 	}
 end
-
 
 
 
@@ -1796,6 +1803,20 @@ end
 -- 'self' == app
 function AppVideo:initVideo()
 	self.glslVersion = cmdline.glsl or 'latest'
+
+	-- for lighting, I want to magFilter=LINEAR read the sheet tex greyscale for bumpmap
+	-- (and if I ever add mipmapping, do minFilter=LINEAR too)
+	-- but I still want magFilter=NEAREST for reading color
+	-- so ....
+	self.linearSampler = GLSampler{
+		-- if I don't set a parameter then does it not override?  I get the feeling no ... that the whole state of the sampler is used, even if you haven't set a parameter.
+		wrap = {
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
+		minFilter = gl.GL_NEAREST,
+		magFilter = gl.GL_LINEAR,
+	}
 
 	--[[
 	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per blob
@@ -1977,9 +1998,11 @@ function AppVideo:triBuf_flush()
 
 	-- bind textures
 	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+	self.linearSampler:bind(3)
+	self.lastSheetTex:bind(3)
 	self.lastTilemapTex:bind(2)
-	self.lastSolidSheetTex:bind(1)
-	self.lastSolidPaletteTex:bind(0)
+	self.lastSheetTex:bind(1)
+	self.lastPaletteTex:bind(0)
 
 	sceneObj.geometry.count = n
 
@@ -1989,11 +2012,12 @@ function AppVideo:triBuf_flush()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
 
+
 	-- reset the vectors and store the last capacity
 	sceneObj:beginUpdate()
 
-	self.lastSolidPaletteTex = nil
-	self.lastSolidSheetTex = nil
+	self.lastPaletteTex = nil
+	self.lastSheetTex = nil
 end
 
 function AppVideo:triBuf_addTri(
@@ -2018,13 +2042,13 @@ function AppVideo:triBuf_addTri(
 	local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
 	local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
 
-	if self.lastSolidPaletteTex ~= paletteTex
-	or self.lastSolidSheetTex ~= sheetTex
+	if self.lastPaletteTex ~= paletteTex
+	or self.lastSheetTex ~= sheetTex
 	or self.lastTilemapTex ~= tilemapTex
 	then
 		self:triBuf_flush()
-		self.lastSolidPaletteTex = paletteTex
-		self.lastSolidSheetTex = sheetTex
+		self.lastPaletteTex = paletteTex
+		self.lastSheetTex = sheetTex
 		self.lastTilemapTex = tilemapTex
 	end
 
@@ -2596,7 +2620,7 @@ function AppVideo:drawSolidRect(
 
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x,  y,  0, x,  y,
 		xR, y,  0, xR, y,
@@ -2608,7 +2632,7 @@ function AppVideo:drawSolidRect(
 
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x,  yR, 0, x,  yR,
 		xR, y,  0, xR, y,
@@ -2657,7 +2681,7 @@ function AppVideo:drawSolidTri3D(
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x1, y1, z1, 0, 0,
 		x2, y2, z2, 1, 0,
@@ -2772,7 +2796,7 @@ function AppVideo:drawSolidLine3D(
 
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLL, yLL, zLL, 0, 0,
 		xRL, yRL, zRL, 1, 0,
@@ -2784,7 +2808,7 @@ function AppVideo:drawSolidLine3D(
 
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSolidSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLR, yLR, zLR, 0, 1,
 		xRL, yRL, zRL, 1, 0,
@@ -4206,13 +4230,13 @@ function AppVideo:drawVoxelMap(
 	do
 		local sceneObj = self.triBuf_sceneObj
 
-		if self.lastSolidPaletteTex ~= paletteTex
-		or self.lastSolidSheetTex ~= sheetTex
+		if self.lastPaletteTex ~= paletteTex
+		or self.lastSheetTex ~= sheetTex
 		or self.lastTilemapTex ~= tilemapTex
 		then
 			self:triBuf_flush()
-			self.lastSolidPaletteTex = paletteTex
-			self.lastSolidSheetTex = sheetTex
+			self.lastPaletteTex = paletteTex
+			self.lastSheetTex = sheetTex
 			self.lastTilemapTex = tilemapTex
 		end
 
