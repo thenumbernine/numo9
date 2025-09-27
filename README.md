@@ -853,17 +853,19 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - BlobDataAbs storing stuff in strings might be a bad idea, might be better to switch to vectors ... LuaJIT does some caching or something I bet ... not good to modify them in-place ...
 
 
+- I just realized treating Lua strings like they are mutable data might be a bad idea.
 - convert all BlobDataAbs' .data that are Lua strings to a `uint8_t[]`'s
 	- Blob
 		- BrushMap
 		- VoxelMap
-		- DataAbs
-			- Brush
-			- Code
-			- Data
+		- DataAbs	<- all these use mutable strings for data ... 
+			- Brush	<- not even used
+			- Code	<- this is at least safely handled
+			- Data	<- never touched
+			- Persist	<- never touched
+				- TODO the rest of these might modify strings in-place, which is bad.
 			- Mesh3D
 			- Music
-			- Persist
 			- SFX
 		- Image
 			- Font
