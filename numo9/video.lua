@@ -782,7 +782,6 @@ local function getDrawOverrideCode(vec3, varname)
 ]]
 end
 
---[==[
 -- this string can include template code that uses only vars that appear in all of makeVideoMode* template vars
 local useLightingCode = [[
 		// TODO lighting variables:
@@ -798,10 +797,6 @@ local useLightingCode = [[
 // debugging: show normalmap:
 //fragColor.xyz = normalAndDepth.xyz * .5 + .5;
 ]]
---]==]
--- [==[ debugging - no lighting
-local useLightingCode = ''
---]==]
 
 -- blit screen is always to vec4 ... right?
 local blitFragType = 'vec4'
@@ -1291,8 +1286,6 @@ uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
 uniform vec4 scissor;
 
-uniform vec2 invHalfFrameBufferSize;
-
 <?=glslCode5551?>
 
 float sqr(float x) { return x * x; }
@@ -1547,60 +1540,30 @@ void main() {
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 
-#if 1	// prove LERP works
+		fragColor = spriteShading(tcv);
 
-		vec2 size = vec2(256., 256.);// = textureSize(sheetTex, 0);
+#if 0	// bump height based on sprite sheet sampler which is NEAREST:
+		bumpHeight = dot(fragColor.xyz, greyscale);
+#else	// linear sampler in-shader for bump height / lighting only:
+		vec2 size = textureSize(sheetTex, 0);
 		vec2 stc = tcv.xy * size - .5;
 		vec2 ftc = floor(stc);
 		vec2 fp = fract(stc);
 
-		vec4 fragColorLL = spriteShading((ftc + vec2(0.5, 0.5)) / size);
-		vec4 fragColorRL = spriteShading((ftc + vec2(1.5, 0.5)) / size);
-		vec4 fragColorLR = spriteShading((ftc + vec2(0.5, 1.5)) / size);
-		vec4 fragColorRR = spriteShading((ftc + vec2(1.5, 1.5)) / size);
+		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0.5, 0.5)) / size);
+		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1.5, 0.5)) / size);
+		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0.5, 1.5)) / size);
+		<?=fragType?> fragColorRR = spriteShading((ftc + vec2(1.5, 1.5)) / size);
 
-		fragColor = mix(
-			mix(fragColorLL, fragColorRL, fp.x),
-			mix(fragColorLR, fragColorRR, fp.x), fp.y
+		float bumpHeightLL = dot(fragColorLL.xyz, greyscale);
+		float bumpHeightRL = dot(fragColorRL.xyz, greyscale);
+		float bumpHeightLR = dot(fragColorLR.xyz, greyscale);
+		float bumpHeightRR = dot(fragColorRR.xyz, greyscale);
+
+		bumpHeight = mix(
+			mix(bumpHeightLL, bumpHeightRL, fp.x),
+			mix(bumpHeightLR, bumpHeightRR, fp.x), fp.y
 		);
-
-		bumpHeight = dot(fragColor.xyz, greyscale);
-
-#else
-		fragColor = spriteShading(tcv);
-
-		//TODO doing blended lighting isn't as simple as just using a magfilter-linear sampler ...
-		//I've got to do manual sampling based on palette lookup and uv fractional part
-#if 0
-		bumpHeight = dot(fragColor.xyz, greyscale);
-#else
-		{
-			vec2 size = vec2(256., 256.);//textureSize(sheetTex, 0);
-			vec2 stc = tcv.xy * size;
-			vec2 ftc = floor(stc);
-
-			vec2 fp = ftc - stc;
-			vec2 ifp = 1. - fp;
-
-			vec2 tcdelta = vec2(1., 1.) / size;
-			vec2 ntc = (ftc + .5) * tcdelta;
-
-			//ok ntc has our new texcoord
-			//fp is the x/y lerp between ntc and ntc + delta.x/y
-
-			// TODO if it's uvec4 then ... I gotta ... scale down? by what?
-			float heightLL = dot(spriteShading(ntc).xyz, greyscale);
-			float heightRL = dot(spriteShading(ntc + vec2(tcdelta.x, 0.)).xyz, greyscale);
-			float heightLR = dot(spriteShading(ntc + vec2(0., tcdelta.y)).xyz, greyscale);
-			float heightRR = dot(spriteShading(ntc + tcdelta).xyz, greyscale);
-
-			bumpHeight =
-				ifp.x * ifp.y * heightLL
-				+ ifp.x * fp.y * heightLR
-				+ fp.x * ifp.y * heightRL
-				+ fp.x * fp.y * heightRR;
-		}
-#endif
 #endif
 
 	} else if (pathway == 2u) {
@@ -1630,25 +1593,23 @@ void main() {
 // lighting:
 
 	// TODO lighting variables:
-	//const float spriteNormalExhaggeration = .03125;	// .03125 looks good on 480x270
+	const float spriteNormalExhaggeration = 8.;//.03125;	// .03125 looks good on 480x270
 	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
-
-float spriteNormalExhaggeration = 1. //.03125
-	/ (invHalfFrameBufferSize.x * invHalfFrameBufferSize.y * 480. * 480.);
 
 #if 0	// normal from flat sided objs
 	fragNormal.xyz = cross(
 		dFdx(vertexv.xyz),
 		dFdy(vertexv.xyz)
 	);
-#elif 1	// debugging sprite normal
+#elif 0	// show sprite normals only
 	if (plzDiscard) bumpHeight = -1.;
 	bumpHeight *= spriteNormalExhaggeration;
 	mat3 spriteBasis = onb(
 		vec3(1., 0., dFdx(bumpHeight)),
 		vec3(0., 1., dFdx(bumpHeight)));
 	fragNormal.xyz = spriteBasis[2];
-#else	// normal from sprites
+
+#else	// rotate sprite normals onto frag normal plane
 
 	// calculate this before any discards ... or can we?
 	// calculate this from magfilter=linear lookup for the texture (and do color magfilter=nearest) ... or can we?)
