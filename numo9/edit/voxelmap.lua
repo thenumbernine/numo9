@@ -646,30 +646,7 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 
 	self.app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(o:dataToStr())
 
-	self:refreshVoxelMaps()
-end
-
-function EditVoxelMap:refreshVoxelMaps()
-	local app = self.app
-	-- refresh changes ... (same as in UI when the guiBlobSelect changes...)
-	-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
-	--app.threads:addMainLoopCall(function()
-		-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
-
-		-- [[ here and in numo9/ui.lua
-		--app:allRAMRegionsCheckDirtyGPU()
-		-- but flushing framebuffer GPU causes problems....
-		-- so just flush all others
-		app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
-		-- and just clear the framebuffers'
-		for _,v in pairs(app.framebufferRAMs) do
-			v.dirtyGPU = false
-		end
-		--]]
-
-		app:updateBlobChanges()
-		app:resetVideo()
-	--end)
+	self:updateBlobChanges()
 end
 
 function EditVoxelMap:popUndo(redo)
@@ -677,7 +654,7 @@ function EditVoxelMap:popUndo(redo)
 	local entry = self.undo:pop(redo)
 	if not entry then return end
 	app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(ffi.string(entry.data, entry.size))
-	self:refreshVoxelMaps()
+	self:updateBlobChanges()
 end
 
 return EditVoxelMap

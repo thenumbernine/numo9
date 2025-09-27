@@ -28,7 +28,7 @@ function BlobBrushMap:getSize()
 end
 
 function BlobBrushMap:saveFile(filepath, blobIndex, blobs)
-	assert(filepath:write(ffi.string(self:getPtr(), self:getSize())))
+	assert(filepath:write(self:toBinStr()))
 end
 
 -- static method:

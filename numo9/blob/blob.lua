@@ -37,4 +37,8 @@ function Blob:loadBinStr(data)
 	return self.class(data)
 end
 
+function Blob:toBinStr()
+	return ffi.string(self:getPtr(), self:getSize())
+end
+
 return Blob

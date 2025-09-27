@@ -593,4 +593,29 @@ function UI:event(e)
 	end
 end
 
+-- editor calsl this when it replaces a blob
+-- TODO straighten out this vs App:updateBlobChanges ...
+function UI:updateBlobChanges()
+	local app = self.app
+	-- refresh changes ... (same as in UI when the guiBlobSelect changes...)
+	-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
+	--app.threads:addMainLoopCall(function()
+		-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
+
+		-- [[ here and in numo9/ui.lua
+		--app:allRAMRegionsCheckDirtyGPU()
+		-- but flushing framebuffer GPU causes problems....
+		-- so just flush all others
+		app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
+		-- and just clear the framebuffers'
+		for _,v in pairs(app.framebufferRAMs) do
+			v.dirtyGPU = false
+		end
+		--]]
+
+		app:updateBlobChanges()
+		app:resetVideo()
+	--end)
+end
+
 return UI
