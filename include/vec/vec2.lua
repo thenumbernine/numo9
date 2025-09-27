@@ -110,7 +110,7 @@ vec2=class{
 	__mul=|a,b| vec2(vec2_getvalue(a, 1) * vec2_getvalue(b, 1), vec2_getvalue(a, 2) * vec2_getvalue(b, 2)),
 	__div=|a,b| vec2(vec2_getvalue(a, 1) / vec2_getvalue(b, 1), vec2_getvalue(a, 2) / vec2_getvalue(b, 2)),
 	__eq=|a,b| a.x == b.x and a.y == b.y,
-	__tostring=|v| v.x..','..v.y,
+	__tostring=|v| '{'..v.x..','..v.y..'}',
 	__concat=string.concat,
 }
 

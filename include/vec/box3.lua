@@ -67,6 +67,6 @@ box3=class{
 	__sub=|a,b|box3(box3_getminvalue(a)-box3_getminvalue(b),box3_getmaxvalue(a)-box3_getmaxvalue(b)),
 	__mul=|a,b|box3(box3_getminvalue(a)*box3_getminvalue(b),box3_getmaxvalue(a)*box3_getmaxvalue(b)),
 	__div=|a,b|box3(box3_getminvalue(a)/box3_getminvalue(b),box3_getmaxvalue(a)/box3_getmaxvalue(b)),
-	__tostring=|b|b.min..'..'..b.max,
+	__tostring=|b| '{'..b.min..','..b.max..'}',
 	__concat=|a,b|tostring(a)..tostring(b),
 }

@@ -69,7 +69,7 @@ vec3=class{
 	__mul=|a,b| vec3(vec3_getvalue(a, 1) * vec3_getvalue(b, 1), vec3_getvalue(a, 2) * vec3_getvalue(b, 2), vec3_getvalue(a, 3) * vec3_getvalue(b, 3)),
 	__div=|a,b| vec3(vec3_getvalue(a, 1) / vec3_getvalue(b, 1), vec3_getvalue(a, 2) / vec3_getvalue(b, 2), vec3_getvalue(a, 3) / vec3_getvalue(b, 3)),
 	__eq=|a,b| a.x == b.x and a.y == b.y and a.z == b.z,
-	__tostring=|v| v.x..','..v.y..','..v.z,
+	__tostring=|v| '{'..v.x..','..v.y..','..v.z..'}',
 	__concat=string.concat,
 	clone=|v| vec3(v),
 	set=|v,x,y,z|do
