@@ -432,8 +432,8 @@ glreport'before RAMGPUTex:init'
 		width = width,
 		height = height,
 		wrap = args.wrap or { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
+			s = gl.GL_CLAMP,
+			t = gl.GL_CLAMP,
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		magFilter = args.magFilter or gl.GL_NEAREST,
@@ -668,8 +668,8 @@ function VideoMode:buildFramebuffers()
 			--magFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
 			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
+				s = gl.GL_CLAMP,
+				t = gl.GL_CLAMP,
 			},
 		}:unbind()
 
@@ -715,8 +715,8 @@ function VideoMode:buildFramebuffers()
 				width = width,
 				height = height,
 				wrap = {
-					s = gl.GL_CLAMP_TO_EDGE,
-					t = gl.GL_CLAMP_TO_EDGE,
+					s = gl.GL_CLAMP,
+					t = gl.GL_CLAMP,
 				},
 				minFilter = gl.GL_NEAREST,
 				magFilter = gl.GL_NEAREST,
@@ -782,6 +782,7 @@ local function getDrawOverrideCode(vec3, varname)
 ]]
 end
 
+--[==[
 -- this string can include template code that uses only vars that appear in all of makeVideoMode* template vars
 local useLightingCode = [[
 		// TODO lighting variables:
@@ -797,6 +798,10 @@ local useLightingCode = [[
 // debugging: show normalmap:
 //fragColor.xyz = normalAndDepth.xyz * .5 + .5;
 ]]
+--]==]
+-- [==[ debugging - no lighting
+local useLightingCode = ''
+--]==]
 
 -- blit screen is always to vec4 ... right?
 local blitFragType = 'vec4'
@@ -1542,15 +1547,35 @@ void main() {
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 
+#if 1	// prove LERP works
+
+		vec2 size = vec2(256., 256.);// = textureSize(sheetTex, 0);
+		vec2 stc = tcv.xy * size - .5;
+		vec2 ftc = floor(stc);
+		vec2 fp = fract(stc);
+
+		vec4 fragColorLL = spriteShading((ftc + vec2(0.5, 0.5)) / size);
+		vec4 fragColorRL = spriteShading((ftc + vec2(1.5, 0.5)) / size);
+		vec4 fragColorLR = spriteShading((ftc + vec2(0.5, 1.5)) / size);
+		vec4 fragColorRR = spriteShading((ftc + vec2(1.5, 1.5)) / size);
+
+		fragColor = mix(
+			mix(fragColorLL, fragColorRL, fp.x),
+			mix(fragColorLR, fragColorRR, fp.x), fp.y
+		);
+
+		bumpHeight = dot(fragColor.xyz, greyscale);
+
+#else
 		fragColor = spriteShading(tcv);
 
 		//TODO doing blended lighting isn't as simple as just using a magfilter-linear sampler ...
 		//I've got to do manual sampling based on palette lookup and uv fractional part
-#if 1
+#if 0
 		bumpHeight = dot(fragColor.xyz, greyscale);
 #else
 		{
-			vec2 size = textureSize(sheetTex, 0);
+			vec2 size = vec2(256., 256.);//textureSize(sheetTex, 0);
 			vec2 stc = tcv.xy * size;
 			vec2 ftc = floor(stc);
 
@@ -1575,6 +1600,7 @@ void main() {
 				+ fp.x * ifp.y * heightRL
 				+ fp.x * fp.y * heightRR;
 		}
+#endif
 #endif
 
 	} else if (pathway == 2u) {
@@ -1604,14 +1630,24 @@ void main() {
 // lighting:
 
 	// TODO lighting variables:
-	const float spriteNormalExhaggeration = .03125;	// .03125 looks good on 480x270
+	//const float spriteNormalExhaggeration = .03125;	// .03125 looks good on 480x270
 	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
+
+float spriteNormalExhaggeration = 1. //.03125
+	/ (invHalfFrameBufferSize.x * invHalfFrameBufferSize.y * 480. * 480.);
 
 #if 0	// normal from flat sided objs
 	fragNormal.xyz = cross(
-		dFdx(vertexv.xyz) * 240. * invHalfFrameBufferSize.x,
-		dFdy(vertexv.xyz) * 240. * invHalfFrameBufferSize.y
+		dFdx(vertexv.xyz),
+		dFdy(vertexv.xyz)
 	);
+#elif 1	// debugging sprite normal
+	if (plzDiscard) bumpHeight = -1.;
+	bumpHeight *= spriteNormalExhaggeration;
+	mat3 spriteBasis = onb(
+		vec3(1., 0., dFdx(bumpHeight)),
+		vec3(0., 1., dFdx(bumpHeight)));
+	fragNormal.xyz = spriteBasis[2];
 #else	// normal from sprites
 
 	// calculate this before any discards ... or can we?
@@ -1624,8 +1660,8 @@ void main() {
 	//so its index notation is reversed from math index notation.
 	// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
 	mat3 spriteBasis = onb(
-		vec3(1., 0., dFdx(bumpHeight) * 240. * invHalfFrameBufferSize.x),
-		vec3(0., 1., dFdx(bumpHeight) * 240. * invHalfFrameBufferSize.y));
+		vec3(1., 0., dFdx(bumpHeight)),
+		vec3(0., 1., dFdx(bumpHeight)));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
 	mat3 modelBasis = onb(
@@ -1946,8 +1982,8 @@ function AppVideo:initVideo()
 			format = format5551,
 			type = type5551,
 			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
+				s = gl.GL_CLAMP,
+				t = gl.GL_CLAMP,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
@@ -1964,8 +2000,8 @@ function AppVideo:initVideo()
 			width = fontImageSize.x,
 			height = fontImageSize.y,
 			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
+				s = gl.GL_CLAMP,
+				t = gl.GL_CLAMP,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
@@ -1984,8 +2020,8 @@ function AppVideo:initVideo()
 			width = frameBufferSize.x,
 			height = frameBufferSize.y,
 			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
+				s = gl.GL_CLAMP,
+				t = gl.GL_CLAMP,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
