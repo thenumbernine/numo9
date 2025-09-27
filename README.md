@@ -851,3 +851,22 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - voxelmap is still being copied from CPU mesh-cache to CPU draw tri buffer every frame ...
 	- I should just give it its own GLArrayBuffers.
 - BlobDataAbs storing stuff in strings might be a bad idea, might be better to switch to vectors ... LuaJIT does some caching or something I bet ... not good to modify them in-place ...
+
+
+- convert all BlobDataAbs' .data that are Lua strings to a `uint8_t[]`'s
+	- Blob
+		- BrushMap
+		- VoxelMap
+		- DataAbs
+			- Brush
+			- Code
+			- Data
+			- Mesh3D
+			- Music
+			- Persist
+			- SFX
+		- Image
+			- Font
+			- Palette
+			- Sheet
+			- Tilemap

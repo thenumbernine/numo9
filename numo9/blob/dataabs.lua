@@ -17,13 +17,4 @@ function BlobDataAbs:getSize()
 	return #self.data
 end
 
-function BlobDataAbs:saveFile(filepath, blobIndex, blobs)
-	assert(filepath:write(self.data))
-end
-
--- static method:
-function BlobDataAbs:loadFile(filepath, basepath, blobIndex)
-	return self.class(filepath:read())
-end
-
 return BlobDataAbs

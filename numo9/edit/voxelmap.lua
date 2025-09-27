@@ -31,18 +31,15 @@ function EditVoxelMap:init(args)
 			-- TODO palette too
 			local app = self.app
 			local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
-			local voxelmapData = ffi.new('uint8_t[?]', #voxelmap.data)
-			ffi.copy(voxelmapData, voxelmap.data, #voxelmap.data)
 			return {
-				data = voxelmapData,
-				size = #voxelmap.data,
+				data = voxelmap:toBinStr(),
 			}
 		end,
 		changed = function(entry)
 			local app = self.app
 			local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
-			if #voxelmap.data ~= entry.size then return true end
-			return 0 ~= ffi.C.memcmp(entry.data, voxelmap.data, entry.size)
+			local voxelmapData = voxelmap:toBinStr()
+			return voxelmapData ~= entry.data
 		end,
 	}
 
@@ -653,7 +650,7 @@ function EditVoxelMap:popUndo(redo)
 	local app = self.app
 	local entry = self.undo:pop(redo)
 	if not entry then return end
-	app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(ffi.string(entry.data, entry.size))
+	app.blobs.voxelmap[self.voxelmapBlobIndex+1] = blobClassForName.voxelmap(entry.data)
 	self:updateBlobChanges()
 end
 

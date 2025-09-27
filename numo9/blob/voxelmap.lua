@@ -5,6 +5,8 @@ local vec3i = require 'vec-ffi.vec3i'
 local vec2f = require 'vec-ffi.vec2f'
 local vec3f = require 'vec-ffi.vec3f'
 
+local Blob = require 'numo9.blob.blob'
+
 local numo9_rom = require 'numo9.rom'
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
@@ -54,8 +56,6 @@ local function rotateSideByOrientation(sideIndex, rotZ, rotY, rotX)
 		bit.lshift(axis, 1))
 end
 
-local BlobDataAbs = require 'numo9.blob.dataabs'
-
 --[[
 format:
 uint32_t width, height, depth;
@@ -67,22 +67,23 @@ typedef struct {
 } VoxelBlock;
 VoxelBlock data[width*height*depth];
 --]]
-local BlobVoxelMap = BlobDataAbs:subclass()
+local BlobVoxelMap = Blob:subclass()
 
 BlobVoxelMap.filenamePrefix = 'voxelmap'
 BlobVoxelMap.filenameSuffix = '.vox'
 
+assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof'Voxel')
 function BlobVoxelMap:init(data)
-	self.data = data
-	if not self.data then
-		-- prefill with a 1x1x1
-		self.data = ('\0'):rep(3 * ffi.sizeof(voxelmapSizeType) + ffi.sizeof'Voxel')
-		local p = ffi.cast(voxelmapSizeType..'*', self.data)
-		p[0] = 1
-		p[1] = 1
-		p[2] = 1
-		local v = ffi.cast('Voxel*', p+3)
-		v[0].intval = voxelMapEmptyValue
+	self.vec = vector'Voxel'	-- use .intptr for the first x y z entries
+	local minsize = ffi.sizeof'Voxel' * 3
+	if not data or #data < minsize then
+		self.vec:emplace_back()[0].intval = 1
+		self.vec:emplace_back()[0].intval = 1
+		self.vec:emplace_back()[0].intval = 1
+		self.vec:emplace_back()[0].intval = voxelMapEmptyValue
+	else
+		self.vec:resize(math.ceil(#data / ffi.sizeof'Voxel'))
+		ffi.copy(self.vec.v, data, #data)
 	end
 
 	-- validate that the header at least works
@@ -101,20 +102,28 @@ function BlobVoxelMap:init(data)
 	--self:rebuildMesh()
 end
 
+function BlobVoxelMap:getPtr()
+	return ffi.cast('uint8_t*', self.vec.v)
+end
+
+function BlobVoxelMap:getSize()
+	return self.vec:getNumBytes()
+end
+
 function BlobVoxelMap:getWidth()
-	return ffi.cast(voxelmapSizeType..'*', self:getPtr())[0]
+	return self.vec.v[0].intval
 end
 
 function BlobVoxelMap:getHeight()
-	return ffi.cast(voxelmapSizeType..'*', self:getPtr())[1]
+	return self.vec.v[1].intval
 end
 
 function BlobVoxelMap:getDepth()
-	return ffi.cast(voxelmapSizeType..'*', self:getPtr())[2]
+	return self.vec.v[2].intval
 end
 
 function BlobVoxelMap:getVoxelDataBlobPtr()
-	return ffi.cast('Voxel*', self:getPtr() + ffi.sizeof(voxelmapSizeType) * 3)
+	return self.vec.v + 3
 end
 
 function BlobVoxelMap:getVoxelDataRAMPtr()

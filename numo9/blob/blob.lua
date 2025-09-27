@@ -8,7 +8,14 @@ local assert = require 'ext.assert'
 .addrEnd
 .ramptr = app.ram.v + blob.addr
 :getPtr()
-:getSize() (TODO make this just .size since it shouldn't ever change, even though it is varies per-class)
+:getSize()
+NOTICE -
+	getPtr and getSize are functions because some blobs have vectors underlying
+	but really this is a bad idea.
+	whenever a blob size changes its addresses go out of sync with the RAM mapping
+	so it's better to either ...
+		- never resize blobs
+		- or every time you do, rebuild the RAM
 --]]
 local Blob = class()
 
@@ -39,6 +46,15 @@ end
 
 function Blob:toBinStr()
 	return ffi.string(self:getPtr(), self:getSize())
+end
+
+function Blob:saveFile(filepath, blobIndex, blobs)
+	assert(filepath:write(self:toBinStr()))
+end
+
+-- static method:
+function Blob:loadFile(filepath, basepath, blobIndex)
+	return self.class(filepath:read())
 end
 
 return Blob

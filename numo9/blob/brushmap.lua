@@ -27,13 +27,4 @@ function BlobBrushMap:getSize()
 	return self.vec:getNumBytes()
 end
 
-function BlobBrushMap:saveFile(filepath, blobIndex, blobs)
-	assert(filepath:write(self:toBinStr()))
-end
-
--- static method:
-function BlobBrushMap:loadFile(filepath, basepath, blobIndex)
-	return self.class(filepath:read())
-end
-
 return BlobBrushMap
