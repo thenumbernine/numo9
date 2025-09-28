@@ -112,11 +112,10 @@ function Orbit:endDraw()
 	local app = self.app
 	ffi.copy(app.ram.mvMat, self.mvMatPush, ffi.sizeof(self.mvMatPush))
 	app:onMvMatChange()
+	app:setClipRect(0, 0, clipMax, clipMax)
 	-- flush before disable depth test so the flush will use depth test...
 	app:triBuf_flush()
 	gl.glDisable(gl.GL_DEPTH_TEST)
-
-	app:setClipRect(0, 0, clipMax, clipMax)
 end
 
 return Orbit

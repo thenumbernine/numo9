@@ -62,6 +62,7 @@ function TileSelect:doPopup()
 	local pickY = 2 * spriteSize.y
 	local pickW = frameBufferSize.x - 2 * pickX
 	local pickH = frameBufferSize.y - 2 * pickY
+
 	app:drawBorderRect(
 		pickX-1,
 		pickY-1,
@@ -76,11 +77,12 @@ function TileSelect:doPopup()
 		pickY,
 		pickW,
 		pickH,
-		0,
+		1,
 		nil,
 		nil,
 		app.paletteMenuTex
 	)
+
 	-- set the current selected palette via RAM registry to self.paletteBlobIndex
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = edit.paletteBlobIndex or 0

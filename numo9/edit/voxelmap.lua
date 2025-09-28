@@ -371,6 +371,8 @@ function EditVoxelMap:update()
 
 	-- TODO should this go here or in the caller:
 	app:matident()
+-- TODO why ddo I need this here (and not in orbit:endDraw()) or else the editor menu bar gets blacked out?
+app:setClipRect(0, 0, 9999, 9999)
 
 	local x, y = 48, 0
 	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
@@ -482,7 +484,7 @@ function EditVoxelMap:update()
 			orbit.pos = orbit.pos - orbit.angle:yAxis() * moveSpeed
 			orbit.orbit = orbit.orbit - orbit.angle:yAxis() * moveSpeed
 		end
-	
+
 		local turnSpeed = 3
 		if app:key'i' then
 			orbit.angle = orbit.angle * quatd():fromAngleAxis(1, 0, 0, turnSpeed)
@@ -507,7 +509,7 @@ function EditVoxelMap:update()
 		if app:key'o' then
 			orbit.angle = orbit.angle * quatd():fromAngleAxis(0, 0, -1, turnSpeed)
 			orbit.orbit = orbit.pos - orbit.angle:zAxis() * (orbit.pos - orbit.orbit):length()
-		end	
+		end
 	end
 
 	local uikey
