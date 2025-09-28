@@ -13,6 +13,8 @@ local Orbit = require 'numo9.ui.orbit'
 local TileSelect = require 'numo9.ui.tilesel'
 
 local numo9_rom = require 'numo9.rom'
+local spriteSize = numo9_rom.spriteSize
+local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
@@ -67,6 +69,32 @@ function EditVoxelMap:onCartLoad()
 			self.voxCurSel.tileYOffset = self.tileSel.pos.y
 		end,
 	}
+	local editor = self
+	local app = self.app
+	function self.tileSel:drawSelected(winX, winY, winW, winH)
+		local colorIndex = 0x1f
+		local thickness = nil
+		local function tc(vtx)
+			return
+				winX + winW * (tonumber(vtx.u + bit.lshift(editor.voxCurSel.tileXOffset, 3)) + .5) / tonumber(spriteSheetSize.x),
+				winY + winH * (tonumber(vtx.v + bit.lshift(editor.voxCurSel.tileYOffset, 3)) + .5) / tonumber(spriteSheetSize.y)
+		end
+		-- draw the texcoords offset by the voxCurSel.tileXOffset etc
+		local mesh3DIndex = editor.voxCurSel.mesh3DIndex
+		local mesh = app.blobs.mesh3d[mesh3DIndex+1]
+		if not mesh then
+			TileSelect.drawSelected(self, winX, winY, winW, winH)
+		end
+		local vtxs = mesh:getVertexPtr()
+		for i,j,k,ti in mesh:triIter() do
+			local u1, v1 = tc(vtxs + i)
+			local u2, v2 = tc(vtxs + j)
+			local u3, v3 = tc(vtxs + k)
+			app:drawSolidLine(u1, v1, u2, v2, colorIndex, thickness, app.paletteMenuTex)
+			app:drawSolidLine(u2, v2, u3, v3, colorIndex, thickness, app.paletteMenuTex)
+			app:drawSolidLine(u3, v3, u1, v1, colorIndex, thickness, app.paletteMenuTex)
+		end
+	end
 
 	self.orbit = Orbit(self.app)
 	-- TODO init to max size of whatever blob is first loaded?

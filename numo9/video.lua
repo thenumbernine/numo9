@@ -2882,8 +2882,8 @@ function AppVideo:drawSolidLine3D(
 	self:onMvMatChange()
 end
 
-function AppVideo:drawSolidLine(x1,y1,x2,y2,colorIndex,thickness)
-	return self:drawSolidLine3D(x1,y1,0,x2,y2,0,colorIndex,thickness)
+function AppVideo:drawSolidLine(x1, y1, x2, y2, colorIndex, thickness, paletteTex)
+	return self:drawSolidLine3D(x1, y1, 0, x2, y2, 0, colorIndex, thickness, paletteTex)
 end
 
 local clearFloat = ffi.new('float[4]')
