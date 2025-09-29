@@ -92,6 +92,7 @@ function Orbit:beginDraw()
 	-- TODO what a mess I've created ...
 	local m = math.min(app.width, app.height)
 	app:mattrans((app.width / m - 1) * .5, (app.height / m - 1) * .5)
+	app:matscale(m / app.width, m / app.height)
 
 	if self.ortho then
 		local r = 1.2

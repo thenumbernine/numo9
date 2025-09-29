@@ -220,11 +220,10 @@ function EditVoxelMap:update()
 			-- transform mouse coords by view matrix
 			local mousePos = orbit.pos + mapsize * .5
 			-- assume fov is 90°
-			local m = math.min(app.width, app.height)
 			local mouseDir =
 				- orbit.angle:zAxis()
-				+ orbit.angle:xAxis() * (mouseX - 128) / 128 / (app.width / m)
-				- orbit.angle:yAxis() * (mouseY - 128) / 128 / (app.height / m)
+				+ orbit.angle:xAxis() * (mouseX - 128) / 128
+				- orbit.angle:yAxis() * (mouseY - 128) / 128
 			-- or alternatively use the inverse of the modelview matrix... but meh ...
 			if not mapbox:contains(mousePos) then
 				-- now line intersect with the camera-facing planes of the bbox
