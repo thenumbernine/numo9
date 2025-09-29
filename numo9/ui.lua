@@ -177,7 +177,7 @@ function UI:guiTextField(
 
 	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
 	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
-	
+
 	local mouseOver =
 		mouseX >= x and mouseX < x+w
 		and mouseY >= y and mouseY < y+h
@@ -479,6 +479,12 @@ end
 
 function UI:edit_poke(addr, value)
 	local app = self.app
+	value = ffi.cast('uint8_t', value)
+
+	-- this is done in net_poke but not in app:poke
+	-- I would move it to app:poke but there are some resources that depend on poking same-value memory to initialize (like the mvMat uniform shader upload)
+	if app:peek(addr) == value then return end
+
 	app:net_poke(addr, value)
 
 	-- TODO what about pokes to the blob FAT?
@@ -494,7 +500,13 @@ end
 
 function UI:edit_pokew(addr, value)
 	local app = self.app
+	value = ffi.cast('uint16_t', value)
+
 	app:net_pokew(addr, value)
+
+	-- this is done in net_poke but not in app:poke
+	-- I would move it to app:poke but there are some resources that depend on poking same-value memory to initialize (like the mvMat uniform shader upload)
+	if app:peekw(addr) == value then return end
 
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
@@ -507,6 +519,12 @@ end
 
 function UI:edit_pokel(addr, value)
 	local app = self.app
+	value = ffi.cast('uint32_t', value)
+
+	-- this is done in net_poke but not in app:poke
+	-- I would move it to app:poke but there are some resources that depend on poking same-value memory to initialize (like the mvMat uniform shader upload)
+	if app:peekl(addr) == value then return end
+
 	app:net_pokel(addr, value)
 
 	for _,blobs in pairs(app.blobs) do
