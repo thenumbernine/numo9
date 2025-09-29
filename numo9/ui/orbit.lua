@@ -18,9 +18,9 @@ function Orbit:init(app)
 
 	self.scale = 1
 	self.ortho = false
-	self.angle = quatd(0,0,0,1)
+	self.angle = quatd():fromAngleAxis(1, 0, 0, 30)
 	self.orbit = vec3d(0,0,0)
-	self.pos = vec3d(0,0,1)
+	self.pos = self.angle:zAxis() * 1.5 + self.orbit
 
 	self.mvMatPush = ffi.new(mvMatType..'[16]')
 end
