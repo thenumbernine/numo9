@@ -341,31 +341,7 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		-- TODO controls for moving blobs in order?
 
 		if changed then
-			-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
-			-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
-			--app.threads:addMainLoopCall(function()
-
-				-- [[ here and in numo9/editvoxelmap.lua
-				--app:allRAMRegionsCheckDirtyGPU()
-				app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
-				-- just clear framebuffers
-				for _,v in pairs(app.framebufferRAMs) do
-					v.dirtyGPU = false
-				end
-				--]]
-
-				app:updateBlobChanges()
-				-- NOTICE DONT DO THIS
-				-- it sets the vidoe mode to 0 permanently!
-				-- but that hides the editor bug
-				--app:copyBlobsToROM()
-				app:resetVideo()
-				-- whats going on?!?!?
-				-- ok so setting videoMode=0 is what stops the graphics flicker
-				-- because that just causes more problems
-				-- and thats the need for addMainLoopCall
-				-- cuz within the inUpdateCallback block the vid mode gets pushed/popped
-			--end)
+			self:updateBlobChanges()
 		end
 	end
 
@@ -598,24 +574,21 @@ end
 function UI:updateBlobChanges()
 	local app = self.app
 	-- refresh changes ... (same as in UI when the guiBlobSelect changes...)
-	-- TODO MAKE THIS CALLBACK NOT NECESSARY ... BUT HOW
-	--app.threads:addMainLoopCall(function()
-		-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
+	-- do this in main loop and outside inUpdateCallback so that framebufferRAM's checkDirtyGPU's can use the right framebuffer (and not the currently bound one)
 
-		-- [[ here and in numo9/ui.lua
-		--app:allRAMRegionsCheckDirtyGPU()
-		-- but flushing framebuffer GPU causes problems....
-		-- so just flush all others
-		app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
-		-- and just clear the framebuffers'
-		for _,v in pairs(app.framebufferRAMs) do
-			v.dirtyGPU = false
-		end
-		--]]
+	--app:allRAMRegionsCheckDirtyGPU()
+	-- but flushing framebuffer GPU causes problems....
+	-- so just flush all others
+	app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
+	-- and just clear the framebuffers'
+	for _,v in pairs(app.framebufferRAMs) do
+		v.dirtyGPU = false
+	end
 
-		app:updateBlobChanges()
-		app:resetVideo()
-	--end)
+	--app:copyBlobsToROM()
+	app:updateBlobChanges()
+
+	app:resetVideo()
 end
 
 return UI

@@ -2202,6 +2202,13 @@ end
 -- ... where to put this ... in video, app, or ui?
 function App:matMenuReset()
 	self:matident()
+-- [[
+	if self.width > self.height then
+		self:mattrans((self.width - self.height) / 2, 0)
+	else
+		self:mattrans(0, (self.height - self.width) / 2)
+	end
+--]]
 	self:matscale(self.width / self.menuSizeInSprites.x, self.height / self.menuSizeInSprites.y)
 end
 
@@ -3361,7 +3368,7 @@ function App:resize()
 	-- hack for the native-resolution videomode:
 	local nativeMode = self.videoModes[255]
 	if nativeMode then
-		nativeMode.built = false
+		nativeMode:destroy()
 		if nativeMode == self.currentVideoMode then
 			-- and when we rebuild we gotta reassign the stuff from our video mode to app...
 			-- or maybe I shouldn't be reassigning it to begin with?
@@ -3384,6 +3391,8 @@ function App:resize()
 	-- also resize the menu framebuffer
 	-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
 	if self.framebufferMenuTex then
+		self.framebufferMenuTex:delete()
+
 		local size = self.width * self.height * 3
 		local data = ffi.new('uint8_t[?]', size)
 		ffi.fill(data, size)

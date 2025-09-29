@@ -760,6 +760,22 @@ function VideoMode:buildFramebuffers()
 	end
 end
 
+-- / delete ... used with nativemode to recreate its resources every time the screen resizes
+function VideoMode:destroy()
+	self.built = false
+	if self.fb then
+		self.fb:delete()
+		self.fb = nil
+	end
+	if self.framebufferNormalTex then
+		self.framebufferNormalTex:delete()
+		self.framebufferNormalTex = nil
+	end
+	if self.framebufferRAM then
+		self.framebufferRAM:delete()
+		self.framebufferRAM = nil
+	end
+end
 
 -- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
 -- assert palleteSize is a power-of-two ...
