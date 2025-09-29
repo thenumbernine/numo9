@@ -2097,6 +2097,18 @@ print('run thread dead')
 		needDrawCounter = needDrawCounter - 1
 		drawsPerSecond = drawsPerSecond + 1
 
+
+-- TODO put this somewhere else?
+-- TODO does it even work?
+-- linear filter when using hardware lighting
+if self.lastSheetTex then
+	self.lastSheetTex
+		:bind()
+		:setParameter(gl.GL_TEXTURE_MAG_FILTER, self.ram.useHardwareLighting ~= 0 and gl.GL_LINEAR or gl.GL_NEAREST)
+		:unbind()
+end
+
+
 		if self.activeMenu then
 			self:setVideoMode(255)
 		end

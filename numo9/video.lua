@@ -641,10 +641,32 @@ function VideoMode:buildFramebuffers()
 		fb = GLFBO{
 			width = self.width,
 			height = self.height,
+			--[[ using depth renderbuffer ... maybe once upon a time this was faster when you didnt need to access the texture
 			useDepth = true, --gl.GL_DEPTH_COMPONENT32,
+			--]]
 		}
-		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
-		:unbind()
+
+		-- [[ using depth texture
+		self.framebufferDepthTex = GLTex2D{
+			internalFormat = gl.GL_DEPTH_COMPONENT,
+			width = self.width,
+			height = self.height,
+			format = gl.GL_DEPTH_COMPONENT,
+			type = gl.GL_FLOAT,
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			wrap = {
+				s = gl.GL_REPEAT,
+				t = gl.GL_REPEAT,
+			},
+		}
+		gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, self.framebufferDepthTex.id, 0)
+		self.framebufferDepthTex:unbind()
+		--]]
+
+		fb:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
+		fb:unbind()
+
 		if not self.useNativeOutput then
 			app.fbos[sizeKey] = fb
 		end
@@ -766,6 +788,10 @@ function VideoMode:delete()
 	if self.fb then
 		self.fb:delete()
 		self.fb = nil
+	end
+	if self.framebufferDepthTex then
+		self.framebufferDepthTex:delete()
+		self.framebufferDepthTex = nil
 	end
 	if self.framebufferNormalTex then
 		self.framebufferNormalTex:delete()
@@ -1558,7 +1584,7 @@ void main() {
 
 		fragColor = spriteShading(tcv);
 
-#if 0	// bump height based on sprite sheet sampler which is NEAREST:
+#if 1	// bump height based on sprite sheet sampler which is NEAREST:
 		bumpHeight = dot(fragColor.xyz, greyscale);
 #else	// linear sampler in-shader for bump height / lighting only:
 		vec2 size = textureSize(sheetTex, 0);
@@ -2022,6 +2048,32 @@ function AppVideo:initVideo()
 		}),
 		--]]
 	}
+
+
+
+--[[ ok shadowmapping ...
+	local shadowTex = GLTex2D{
+		internalFormat = gl.GL_DEPTH_COMPONENT,
+		width = 256,
+		height = 256,
+		format = gl.GL_DEPTH_COMPONENT,
+		type = gl.GL_FLOAT,
+		minFilter = gl.GL_NEAREST,
+		magFilter = gl.GL_NEAREST,
+		wrap = {
+			-- TODO necessary? or switch to clamp?
+			gl.GL_REPEAT,
+			gl.GL_REPEAT,
+		},
+	}
+--]]
+-- but we can also just use the depth render component for the FBO right?
+-- and just draw the scene ... yes ...
+-- so why not use the FBO's RenderBuffer (that is in gl/fbo.lua) ?
+-- because https://www.reddit.com/r/opengl/comments/3l5smn/renderbuffer_v_texture/
+-- RenderBuffer = hardware-only, Texture = use later (i.e. for lighting)
+
+
 
 	self:resetVideo()
 
