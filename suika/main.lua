@@ -15,18 +15,24 @@ screenSize = vec2(256, 256)
 --]]
 
 radiusForIndex = |i| 5*i
+--[[ random colors?
 colorForIndex = |i| 0xFF & (i + 1)
+--]]
+-- [[ or just one color regardless of size ...
+colorForIndex = |i, pieceClass| pieceClass == 1 and 13 or 16
+--]]
 
 density = 1
 
 Piece=class()
 Piece.init=|:,args|do
 	self.index = args!.index
+	self.pieceClass = args!.pieceClass
 	self.pos = vec2(screenSize.x/2, 0)
 	self.vel = vec2(0,0)
 end
 Piece.getRadius=|:| radiusForIndex(self.index)
-Piece.getColor=|:| colorForIndex(self.index)
+Piece.getColor=|:| colorForIndex(self.index, self.pieceClass)
 Piece.getMass=|:| density * math.pi * self:getRadius()^2
 Piece.draw=|:|do
 	local radius = self:getRadius()
@@ -43,7 +49,10 @@ end
 pieces = table()
 makeNextPiece=||do
 	pieces:insert(nextPiece)
-	nextPiece = Piece{index=math.random(1,5)}
+	nextPiece = Piece{
+		index = math.random(1,5),
+		pieceClass = math.random(0,1) * 2 - 1,
+	}
 end
 makeNextPiece()
 
@@ -248,7 +257,9 @@ update=||do
 			local dposx, dposy = vec2_sub(b.pos.x, b.pos.y, a.pos.x, a.pos.y)
 			local distSq = vec2_lenSq(dposx, dposy)
 			if distSq <= (a:getRadius() + b:getRadius() + 2)^2 then
-				if a.index == b.index then
+				if a.index == b.index
+				and a.pieceClass == b.pieceClass
+				then
 					pieces:remove(j)
 					a.pos.x = .5 * (a.pos.x + b.pos.x)
 					a.pos.y = .5 * (a.pos.y + b.pos.y)
