@@ -285,12 +285,23 @@ function EditVoxelMap:update()
 						end
 					end
 				else
+					-- draw = place blocks per click
 					if self.drawMode == 'draw' then
 						if app:keyp'mouse_left' then
 							self.undo:pushContinuous()
 							self:edit_pokel(
 								voxelmap:getVoxelAddr(pti:unpack()),
 								self.voxCurSel.intval)
+						end
+					-- paint = draw on surface per mousedown
+					elseif self.drawMode == 'paint' then
+						if app:key'mouse_left' then
+							if mapboxIE:contains(npti) then
+								self.undo:pushContinuous()
+								self:edit_pokel(
+									voxelmap:getVoxelAddr(npti:unpack()),
+									self.voxCurSel.intval)
+							end
 						end
 					elseif self.drawMode == 'rect' then
 						if app:keyp'mouse_left' then
@@ -443,8 +454,18 @@ self:guiSetClipRect(0, 0, 256, 256)
 	x = x + 12
 
 	-- tools ... maybe I should put these somewhere else
-	self:guiRadio(x, y, {'draw', 'rect', 'fill', 'select'}, self.drawMode, function(result)
-		self.drawMode = result
+	self:guiRadio(x, y, {
+		self.drawMode == 'draw' and 'draw' or 'paint',	-- TODO cycle sub-list per-click on it
+		'rect', 'fill', 'select'
+	}, self.drawMode, function(result)
+		-- TODO sublist:
+		if result == 'draw' then
+			self.drawMode = 'paint'
+		elseif result == 'paint' then
+			self.drawMode = 'draw'
+		else
+			self.drawMode = result
+		end
 	end)
 	x = x + 25
 
