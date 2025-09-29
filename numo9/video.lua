@@ -760,8 +760,8 @@ function VideoMode:buildFramebuffers()
 	end
 end
 
--- / delete ... used with nativemode to recreate its resources every time the screen resizes
-function VideoMode:destroy()
+-- used with nativemode to recreate its resources every time the screen resizes
+function VideoMode:delete()
 	self.built = false
 	if self.fb then
 		self.fb:delete()

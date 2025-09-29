@@ -401,7 +401,7 @@ function EditVoxelMap:update()
 	-- TODO should this go here or in the caller:
 	app:matMenuReset()
 -- TODO why ddo I need this here (and not in orbit:endDraw()) or else the editor menu bar gets blacked out?
-app:setClipRect(0, 0, 9999, 9999)
+self:guiSetClipRect(0, 0, 9999, 9999)
 
 	local x, y = 48, 0
 	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()

@@ -34,7 +34,7 @@ function Orbit:beginDraw()
 
 	local app = self.app
 	app:drawSolidRect(0, 8, 256, 256, 0x28, nil, nil, app.paletteMenuTex)
-	app:setClipRect(0, 8, 256, 256)
+--self:guiSetClipRect(0, 8, 256, 256)
 
 	-- flush before enable depth test so the flush doesn't use depth test...
 	app:triBuf_flush()
@@ -112,7 +112,7 @@ function Orbit:endDraw()
 	local app = self.app
 	ffi.copy(app.ram.mvMat, self.mvMatPush, ffi.sizeof(self.mvMatPush))
 	app:onMvMatChange()
-	app:setClipRect(0, 0, clipMax, clipMax)
+--self:guiSetClipRect(0, 0, clipMax, clipMax)
 	-- flush before disable depth test so the flush will use depth test...
 	app:triBuf_flush()
 	gl.glDisable(gl.GL_DEPTH_TEST)

@@ -3368,7 +3368,7 @@ function App:resize()
 	-- hack for the native-resolution videomode:
 	local nativeMode = self.videoModes[255]
 	if nativeMode then
-		nativeMode:destroy()
+		nativeMode:delete()
 		if nativeMode == self.currentVideoMode then
 			-- and when we rebuild we gotta reassign the stuff from our video mode to app...
 			-- or maybe I shouldn't be reassigning it to begin with?

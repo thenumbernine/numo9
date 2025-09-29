@@ -591,4 +591,15 @@ function UI:updateBlobChanges()
 	app:resetVideo()
 end
 
+-- hmm...
+function UI:guiSetClipRect(x,y,w,h)
+	local app = self.app
+	local x2, y2 = x+w, y+h
+	
+	local sx1, sy1 = app:transform(x, y)
+	local sx2, sy2 = app:transform(x2, y2)
+
+	app:setClipRect(x, y, x2-x, y2-y)
+end
+
 return UI

@@ -185,7 +185,7 @@ function EditSheet:update()
 			ssY * spriteSize.y - self.spritesheetPanOffset.y + y
 	end
 	-- draw some pattern under the spritesheet so you can tell what's transparent
-	app:setClipRect(x, y, w-1, h-1)
+	self:guiSetClipRect(x, y, w-1, h-1)
 	do
 		-- this is the framebuffer coord bounds of the spritesheet.
 		local x1, y1 = spritesheetCoordToFb(0, 0)
@@ -215,7 +215,7 @@ function EditSheet:update()
 		0xFF	-- spriteMask
 	)
 	app.ram.paletteBlobIndex = pushPalBlobIndex
-	app:setClipRect(0, 0, clipMax, clipMax)
+	self:guiSetClipRect(0, 0, clipMax, clipMax)
 
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 	local function fbToSpritesheetCoord(fbX, fbY)
@@ -275,7 +275,7 @@ function EditSheet:update()
 		self.spritesheetPanPressed = false
 	end
 
-	app:setClipRect(x, y, w-1, h-1)
+	self:guiSetClipRect(x, y, w-1, h-1)
 	-- sprite sel rect (1x1 ... 8x8)
 	-- ... also show the offset ... is that a good idea?
 	app:drawBorderRect(
@@ -287,7 +287,7 @@ function EditSheet:update()
 		nil,
 		app.paletteMenuTex
 	)
-	app:setClipRect(0, 0, clipMax, clipMax)
+	self:guiSetClipRect(0, 0, clipMax, clipMax)
 
 	-- sprite edit area
 	local x = 2
@@ -317,7 +317,7 @@ function EditSheet:update()
 	local w = 64
 	local h = 64
 	-- draw some pattern under the sprite so you can tell what's transparent
-	app:setClipRect(x, y, w-1, h-1)
+	self:guiSetClipRect(x, y, w-1, h-1)
 	local function spriteCoordToFb(sX, sY)
 		return
 			(sX - self.spriteSelPos.x * spriteSize.x - self.spritePanOffset.x) / tonumber(self.spriteSelSize.x * spriteSize.x) * w + x,
@@ -352,7 +352,7 @@ function EditSheet:update()
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
 	app.ram.paletteBlobIndex = pushPalBlobIndex
-	app:setClipRect(0, 0, clipMax, clipMax)
+	self:guiSetClipRect(0, 0, clipMax, clipMax)
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 
 	-- convert x y in framebuffer space to x y in sprite window space
