@@ -863,18 +863,93 @@ end
 
 -- this string can include template code that uses only vars that appear in all of makeVideoMode* template vars
 local useLightingCode = [[
-		// TODO lighting variables:
-		const vec3 lightDir = vec3(0.19245008972988, 0.96225044864938, 0.19245008972988);
-		const vec3 lightAmbientColor = vec3(.4, .4, .4);
-		const vec3 lightDiffuseColor = vec3(.6, .5, .4);
 
-		vec4 normalAndDepth = texture(framebufferNormalTex, tcv);
-		vec3 normal = normalAndDepth.xyz * 2. - 1.;
-		//float depth = normalAndDepth.w;
-		vec3 lightValue = lightAmbientColor + lightDiffuseColor * abs(dot(normal, lightDir));
-		fragColor.xyz *= lightValue;
-// debugging: show normalmap:
-//fragColor.xyz = normalAndDepth.xyz * .5 + .5;
+// TODO lighting variables:
+const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
+const vec3 lightAmbientColor = vec3(.4, .4, .4);
+const vec3 lightDiffuseColor = vec3(.6, .5, .4);
+
+const float ssaoStrength = 0.07;
+const float ssaoOffset = 18.0;
+const float ssaoFalloff = 0.000002;		
+const float ssaoSampleRadius = .1;	//.006;
+
+// these are the random vectors inside a unit hemisphere facing z+
+#define ssaoNumSamples 16
+const vec3[ssaoNumSamples] ssaoRandomVectors = {
+	vec3(0.58841258486248, 0.39770493127433, 0.18020748345621),
+	vec3(-0.055272473410801, 0.35800974374131, 0.15028358974804),
+	vec3(0.3199885122024, -0.57765628483213, 0.19344714028561),
+	vec3(-0.71177536281716, 0.65982751624885, 0.16661179472317),
+	vec3(0.6591556369125, 0.25301657986158, 0.65350042181301),
+	vec3(0.37855701974814, 0.013090583813782, 0.71111037617741),
+	vec3(0.53098955685005, 0.39114666484126, 0.29796836757796),
+	vec3(-0.27445479803038, 0.28177659836742, 0.89415105823562),
+	vec3(0.030042725676812, 0.3941820959086, 0.099681999794761),
+	vec3(-0.60144625790746, 0.6112734005649, 0.3676468627808),
+	vec3(0.72396342749209, 0.35994756762253, 0.30828171680103),
+	vec3(-0.8082345863749, 0.13633528834184, 0.32199773139527),
+	vec3(0.49667204075871, 0.12506306502285, 0.65431856367262),
+	vec3(-0.086390931280017, 0.5832061191173, 0.29234165779378),
+	vec3(-0.24610823044055, 0.77791376069684, 0.57363108026349),
+	vec3(-0.194238481883, 0.01011984889981, 0.88466521192798),
+};
+
+void doLighting() {
+
+	vec4 normalAndDepth = texture(framebufferNormalTex, tcv);
+	vec3 normal = normalAndDepth.xyz;
+
+#if 0 // debugging: show normalmap:
+	fragColor.xyz = normalAndDepth.xyz * .5 + .5;
+	return;
+#endif
+
+#if 1 // bumpmap lighting
+	vec3 lightValue = lightAmbientColor 
+		+ lightDiffuseColor * abs(dot(normal, lightDir));
+	fragColor.xyz *= lightValue;
+return;
+#endif
+
+	float depth = normalAndDepth.w;
+	
+	// current fragment in [0,1]^2 screen coords x [0,1] depth coord
+	vec3 origin = vec3(tcv.xy, depth);
+
+	// TODO just save float buffer? faster?
+	vec3 rvec = normalize((texture(noiseTex, tcv * ssaoOffset).xyz * 2.) - vec3(1.));
+
+	vec3 tangent = normalize(rvec - normal * dot(rvec, normal));
+	vec3 bitangent = cross(tangent, normal);
+	mat3 tangentMatrix = mat3(tangent, bitangent, normal);
+
+	float ssaoOccludedSamples = 0.;
+	for (int i = 0; i < ssaoNumSamples; ++i) {
+		// rotate random hemisphere vector into our tangent space
+		// but this is still in [0,1]^2 screen coords x [0,1] depth coord, right?
+		vec3 samplePt = (tangentMatrix * ssaoRandomVectors[i]) 
+			* ssaoSampleRadius
+			+ origin;
+
+		// TODO multiply by projection matrix
+		// TODO divide by 'w' ... ?
+		//samplePt /= samplePt.z;
+		// TODO clip
+		// now get sample depth at this point
+
+		vec4 occluderFragment = texture(
+			framebufferNormalTex,
+			samplePt.xy
+		);
+		float depthDifference = depth - occluderFragment.w;
+		ssaoOccludedSamples += step(ssaoFalloff, depthDifference) 
+			* (1. - dot(occluderFragment.xyz, normal))
+			* (1. - smoothstep(ssaoFalloff, ssaoStrength, depthDifference));
+	}
+
+	fragColor.xyz *= 1. - ssaoOccludedSamples / float(ssaoNumSamples);
+}
 ]]
 
 -- blit screen is always to vec4 ... right?
@@ -960,6 +1035,9 @@ uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
+
+]]..useLightingCode..[[
 
 void main() {
 #if 1	// internalFormat = gl.GL_RGB565
@@ -987,21 +1065,24 @@ void main() {
 #endif
 
 	if (useLighting) {
-		]]..useLightingCode..[[
+		doLighting();
 	}
 }
 ]],			{
+				app = app,
 				self = self,
 				blitFragType = blitFragType,
 			}),
 			uniforms = {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
+				noiseTex = 2,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
+			app.noiseTex,
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -1066,6 +1147,7 @@ uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
@@ -1086,6 +1168,7 @@ void main() {
 	}
 }
 ]],			{
+				app = app,
 				self = self,
 				app = app,
 				blitFragType = blitFragType,
@@ -1094,13 +1177,15 @@ void main() {
 			uniforms = {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
-				paletteTex = 2,
+				noiseTex = 2,
+				paletteTex = 3,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
-			app.paletteRAMs[1].tex,
+			app.noiseTex,
+			app.paletteRAMs[1].tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -1180,6 +1265,7 @@ uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 
 void main() {
 	uint rgb332 = ]]..readTex{
@@ -1199,17 +1285,20 @@ void main() {
 	}
 }
 ]],			{
+				app = app,
 				self = self,
 				blitFragType = blitFragType,
 			}),
 			uniforms = {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
+				noiseTex = 2,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
+			app.noiseTex,
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -1744,7 +1833,8 @@ void main() {
 	// TODO just use the depth buffer as a texture instead of re-copying it here?
 	//  if I did I'd get more bits of precision ...
 	//  but this is easier/lazier.
-	fragNormal.w = vertexv.z;
+	//fragNormal.w = vertexv.z;
+	fragNormal.w = gl_FragDepth;
 
 	// only discard last, so I can make sure to zero dFdx/dFdy's when I'm going to discard (right? or does it matter? does it do that anyways?)
 	if (plzDiscard) discard;
@@ -2107,7 +2197,28 @@ function AppVideo:initVideo()
 			0xff,0xff,0xff, 0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe,
 		}),
 		--]]
-	}
+	}:unbind()
+
+	-- a noise tex, maybe using for SSAO
+	do
+		local image = Image(256, 256, 3, 'uint8_t')
+		for i=0,image:getBufferSize()-1 do
+			image.buffer[i] = math.random(0,255)
+		end
+		self.noiseTex = GLTex2D{
+			type = gl.GL_UNSIGNED_BYTE,
+			format = gl.GL_RGB,
+			internalFormat = gl.GL_RGB,
+			magFilter = gl.GL_NEAREST,
+			minFilter = gl.GL_NEAREST,
+			wrap = {
+				s = gl.GL_REPEAT,
+				t = gl.GL_REPEAT,
+			},
+			image = image,
+		}:unbind()
+	end
+
 
 	self:resetVideo()
 
