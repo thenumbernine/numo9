@@ -17,7 +17,8 @@ function CartBrowser:update()
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
-	local mouseX, mouseY = app.ram.mousePos:unpack()
+	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
 	-- cycle through vfs and find .n9 carts in this dir and ...
 	-- ... make textures for their icons ...
 	-- ... and then have buttons on :update()

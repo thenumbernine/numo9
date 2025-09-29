@@ -107,7 +107,8 @@ function EditSheet:update()
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
-	local mouseX, mouseY = app.ram.mousePos:unpack()
+	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
 
 	local shift = app:key'lshift' or app:key'rshift'
 

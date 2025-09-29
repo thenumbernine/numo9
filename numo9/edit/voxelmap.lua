@@ -207,7 +207,8 @@ function EditVoxelMap:update()
 
 	if not self.tileSel:doPopup()
 	and voxelmap then
-		local mouseX, mouseY = app.ram.mousePos:unpack()
+		local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
+		local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
 		if not mouseHandled
 		and mouseY >= 8
 		then

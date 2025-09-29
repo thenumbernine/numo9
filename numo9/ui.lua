@@ -95,14 +95,12 @@ function UI:guiButton(str, x, y, isset, tooltip)
 	local w = app:drawMenuText(str, x, y, fg, bg)
 	local h = spriteSize.y
 
-	local mouseX, mouseY = app.ram.mousePos:unpack()
-
-	local scrX1, scrY1 = app:transform(x, y)
-	local scrX2, scrY2 = app:transform(x+w, y+h)
+	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
 
 	local mouseOver =
-		mouseX >= scrX1 and mouseX < scrX2
-		and mouseY >= scrY1 and mouseY < scrY2
+		mouseX >= x and mouseX < x+w
+		and mouseY >= y and mouseY < y+h
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
@@ -177,14 +175,12 @@ function UI:guiTextField(
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
 
-	local mouseX, mouseY = app.ram.mousePos:unpack()
+	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
 	
-	local scrX1, scrY1 = app:transform(x, y)
-	local scrX2, scrY2 = app:transform(x+w, y+h)
-
 	local mouseOver =
-		mouseX >= scrX1 and mouseX < scrX2
-		and mouseY >= scrY1 and mouseY < scrY2
+		mouseX >= x and mouseX < x+w
+		and mouseY >= y and mouseY < y+h
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
@@ -383,17 +379,11 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 end
 
 function UI:setTooltip(s, mouseX, mouseY, fg, bg)
+	-- TODO clamp to menu space max, which is setup in the menu transform in numo9/app.lua
 	local app = self.app
--- true for native-res video mode
-assert.eq(app.fb.width, app.width)
-assert.eq(app.fb.height, app.height)
-	mouseX = math.clamp(mouseX, 8, app.fb.width-8)
-	mouseY = math.clamp(mouseY, 8, app.fb.height-8)
-	-- inverse-transform from framebuffer coords to menu coords
-	-- TODO make this operation in-place
-	local inv = self.app.mvMat:inv4x4()
-	local x, y = app:transform(mouseX, mouseY, 0, 1, inv.ptr)
-	self.tooltip = {s, x, y, fg, bg}
+	mouseX = math.clamp(mouseX, 8, 256-8)
+	mouseY = math.clamp(mouseY, 8, 256-8)
+	self.tooltip = {s, mouseX, mouseY, fg, bg}
 end
 
 function UI:drawTooltip()

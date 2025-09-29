@@ -123,7 +123,8 @@ function EditSFX:update()
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
-	local mouseX, mouseY = app.ram.mousePos:unpack()
+	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
 
 	if self.draggingScroll then
 		self.offsetScrollX = math.floor(mouseX / 248 * scrollMax)
