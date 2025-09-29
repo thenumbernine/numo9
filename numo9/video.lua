@@ -2763,6 +2763,20 @@ local function homogeneous(sx, sy, x,y,z,w)
 	return x,y,z
 end
 
+function AppVideo:transform(x,y,z,w, m)
+	x = tonumber(x)
+	y = tonumber(y)
+	z = tonumber(z) or 0
+	w = tonumber(w) or 1
+	m = m or self.ram.mvMat
+	x,y,z,w =
+		(m[0] * x + m[4] * y + m[ 8] * z + m[12] * w) * mvMatInvScale,
+		(m[1] * x + m[5] * y + m[ 9] * z + m[13] * w) * mvMatInvScale,
+		(m[2] * x + m[6] * y + m[10] * z + m[14] * w) * mvMatInvScale,
+		(m[3] * x + m[7] * y + m[11] * z + m[15] * w) * mvMatInvScale
+	return homogeneous(self.ram.screenWidth, self.ram.screenHeight, x,y,z,w)
+end
+
 function AppVideo:drawSolidLine3D(
 	x1, y1, z1,
 	x2, y2, z2,

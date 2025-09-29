@@ -15,7 +15,6 @@ local sdl = require 'sdl'
 local numo9_rom = require 'numo9.rom'
 local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
-local frameBufferSize = numo9_rom.frameBufferSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
@@ -94,11 +93,16 @@ function UI:guiButton(str, x, y, isset, tooltip)
 	end
 
 	local w = app:drawMenuText(str, x, y, fg, bg)
+	local h = spriteSize.y
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
+
+	local scrX1, scrY1 = app:transform(x, y)
+	local scrX2, scrY2 = app:transform(x+w, y+h)
+
 	local mouseOver =
-		mouseX >= x and mouseX < x + w
-		and mouseY >= y and mouseY < y + spriteSize.y
+		mouseX >= scrX1 and mouseX < scrX2
+		and mouseY >= scrY1 and mouseY < scrY2
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
@@ -120,13 +124,6 @@ function UI:guiButton(str, x, y, isset, tooltip)
 end
 
 function UI:guiSpinner(x, y, cb, tooltip)
-	local app = self.app
-
-	local leftButtonDown = app:key'mouse_left'
-	local leftButtonPress = app:keyp'mouse_left'
-	local leftButtonRelease = app:keyr'mouse_left'
-	local mouseX, mouseY = app.ram.mousePos:unpack()
-
 	if self:guiButton('<', x, y, nil, tooltip) then
 		cb(-1)
 	end
@@ -165,6 +162,8 @@ function UI:guiTextField(
 	fgSel = fgSel or 0xd
 	bgSel = bgSel or 9
 
+	h = spriteSize.y
+
 	-- TODO here ... only if we have tab-focus ... read our input.
 	-- TODO color by tab-focus or not
 	-- TODO can i share any code with editcode.lua ?  or nah, too much for editing a single field?
@@ -179,9 +178,13 @@ function UI:guiTextField(
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
 
 	local mouseX, mouseY = app.ram.mousePos:unpack()
+	
+	local scrX1, scrY1 = app:transform(x, y)
+	local scrX2, scrY2 = app:transform(x+w, y+h)
+
 	local mouseOver =
-		mouseX >= x and mouseX < x + w
-		and mouseY >= y and mouseY < y + spriteSize.y
+		mouseX >= scrX1 and mouseX < scrX2
+		and mouseY >= scrY1 and mouseY < scrY2
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
@@ -379,9 +382,17 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 	return handled
 end
 
-function UI:setTooltip(s, x, y, fg, bg)
-	x = math.clamp(x, 8, frameBufferSize.x-8)
-	y = math.clamp(y, 8, frameBufferSize.y-8)
+function UI:setTooltip(s, mouseX, mouseY, fg, bg)
+	local app = self.app
+-- true for native-res video mode
+assert.eq(app.fb.width, app.width)
+assert.eq(app.fb.height, app.height)
+	mouseX = math.clamp(mouseX, 8, app.fb.width-8)
+	mouseY = math.clamp(mouseY, 8, app.fb.height-8)
+	-- inverse-transform from framebuffer coords to menu coords
+	-- TODO make this operation in-place
+	local inv = self.app.mvMat:inv4x4()
+	local x, y = app:transform(mouseX, mouseY, 0, 1, inv.ptr)
 	self.tooltip = {s, x, y, fg, bg}
 end
 
@@ -405,7 +416,7 @@ function UI:update()
 	app:clearScreen(0, app.paletteMenuTex)
 	app:drawSolidRect(
 		0, 0,	-- x,y,
-		frameBufferSize.x, spriteSize.y,	-- w, h,
+		app.fb.width, app.fb.height,	-- w, h,
 		0,
 		nil,
 		nil,

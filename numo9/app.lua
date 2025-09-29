@@ -1931,7 +1931,6 @@ print('run thread dead')
 		if self.activeMenu then
 			-- push matrix
 			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-			self:matident()
 
 			local ditherPush = self.ram.dither
 			self.ram.dither = 0
@@ -1947,6 +1946,7 @@ print('run thread dead')
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
 			self:setVideoMode(255)
 			gl.glViewport(0, 0, self.framebufferMenuTex.width, self.framebufferMenuTex.height)
+			self:matident()
 
 			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
 			-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
