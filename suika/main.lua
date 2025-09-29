@@ -252,27 +252,59 @@ update=||do
 	end
 	for i=#pieces-1,1,-1 do
 		local a = pieces[i]
+		local aRadius = a:getRadius()
 		for j=#pieces,i+1,-1 do
 			local b = pieces[j]
+			local bRadius = b:getRadius()
 			local dposx, dposy = vec2_sub(b.pos.x, b.pos.y, a.pos.x, a.pos.y)
 			local distSq = vec2_lenSq(dposx, dposy)
-			if distSq <= (a:getRadius() + b:getRadius() + 2)^2 then
-				if a.index == b.index
-				and a.pieceClass == b.pieceClass
-				then
-					pieces:remove(j)
-					a.pos.x = .5 * (a.pos.x + b.pos.x)
-					a.pos.y = .5 * (a.pos.y + b.pos.y)
-					local aMass = a:getMass()
-					local bMass = b:getMass()
-					local invDenom = 1 / (aMass + bMass)
-					local ca = aMass * invDenom
-					local cb = bMass * invDenom
-					a.vel.x = a.vel.x * ca + b.vel.x * cb
-					a.vel.y = a.vel.y * ca + b.vel.y * cb
-					points += 2 * a.index
-					a.index += 1
-					break
+			if distSq <= (aRadius + bRadius + 2)^2 then
+				if a.index == b.index then
+					if a.pieceClass == b.pieceClass then
+						pieces:remove(j)
+						a.pos.x = .5 * (a.pos.x + b.pos.x)
+						a.pos.y = .5 * (a.pos.y + b.pos.y)
+						local aMass = a:getMass()
+						local bMass = b:getMass()
+						local invDenom = 1 / (aMass + bMass)
+						local ca = aMass * invDenom
+						local cb = bMass * invDenom
+						a.vel.x = a.vel.x * ca + b.vel.x * cb
+						a.vel.y = a.vel.y * ca + b.vel.y * cb
+						points += 2 * a.index
+						a.index += 1
+						break
+					else
+						-- same size, opposite color ... break?
+						-- but if they both break then they will break forever to smallest-size (cuz their broken pieces sizes will match)
+						--[[
+						local cx = .5 * (a.pos.x + b.pos.x)
+						local cy = .5 * (a.pos.y + b.pos.y)
+						
+						local invDist = 1 / math.sqrt(distSq)
+						local nx = dposx * invDist
+						local ny = dposy * invDist
+						
+						a.index -= 1
+						b.index -= 1
+						--]]
+						-- [[ so just breka one.  at random? color trumps?  maybe we need 3 colors that are cyclic...
+						if a.index == 1 and b.index == 1 then
+							assert.gt(j, i)
+							pieces:remove(j)
+							pieces:remove(i)
+return
+						else
+							if math.random(0,1) == 0 then
+								a.index -= 1
+								a.index = math.max(a.index, 1)
+							else
+								b.index -= 1
+								b.index = math.max(b.index, 1)
+							end
+						end
+						--]]
+					end
 				end
 				-- otherwise ... still apply a penalty force to them
 				if distSq > 0 then

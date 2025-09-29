@@ -1,30 +1,17 @@
---mode(0)
---mode(1)
---mode(2)
---mode(36)
--- TODO bug in ellipse drawing x's
+--#include ext/range.lua
 
 -- i could store resolution in the RAM, but nah, just rtfm
-local resolutions = {
-	[0] = {256, 256},
-	{272, 217},
-	{288, 216},
-	{304, 202},
-	{320, 200},
-	{320, 192},
-	{336, 189},
-	{336, 177},
-	{352, 176},
-	{384, 164},
-}
+local modes = range(0,49):append{255}
 
 update=||do
 	cls()
 	t=time()
 
-	local m = tonumber((t % (3 * (#resolutions+1))) // 1)
-	mode(m)
-	local w, h = table.unpack(resolutions[tonumber(m // 3)])
+	local m = tonumber((t % #modes) // 1)
+	mode(modes[m+1])
+	local w, h = 
+		peekw(ramaddr'screenWidth'),
+		peekw(ramaddr'screenHeight')
 
 	local x1, y1 = 
 		w * (math.cos(t * .4) * .5 + .5),
@@ -45,10 +32,10 @@ update=||do
 	local xmid = .5 * (x1 + x2)
 	local ymid = .5 * (y1 + y2)
 	
-	local w, h = text('mode '..m, -999, -999)
+	local w, h = text('mode '..modes[m+1], -999, -999)
 	mattrans(xmid, ymid)
 	matrot(t)
 	mattrans(- .5 * w, - 4)
-	text('mode '..m)
+	text('mode '..modes[m+1])
 	matident()
 end

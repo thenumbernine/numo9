@@ -1185,6 +1185,8 @@ uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
+		
+]]..useLightingCode..[[
 
 void main() {
 	uint colorIndex = ]]..readTex{
@@ -1198,7 +1200,7 @@ void main() {
 	fragColor = vec4(ufragColor) / 31.;
 
 	if (useLighting) {
-		]]..useLightingCode..[[
+		doLighting();
 	}
 }
 ]],			{
@@ -1301,6 +1303,8 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 
+]]..useLightingCode..[[
+
 void main() {
 	uint rgb332 = ]]..readTex{
 	tex = self.framebufferRAM.tex,
@@ -1315,7 +1319,7 @@ void main() {
 	fragColor.a = 1.;
 
 	if (useLighting) {
-		]]..useLightingCode..[[
+		doLighting();
 	}
 }
 ]],			{
