@@ -238,6 +238,7 @@ function App:initGL()
 	self.blitScreenView.ortho = true
 	self.blitScreenView.orthoSize = 1
 
+	self.menuSizeInSprites = vec2f()
 	self.orthoMin = vec2f()
 	self.orthoMax = vec2f()
 
@@ -1972,8 +1973,9 @@ print('run thread dead')
 
 			local thread = self.activeMenu.thread
 			if thread then
-				self:matident()
-				self:matscale(self.width / 256, self.height / 256)
+				self.menuSizeInSprites.y = 256
+				self.menuSizeInSprites.x = 256 * self.width / self.height
+				self:matMenuReset()
 
 				if coroutine.status(thread) == 'dead' then
 					self:setMenu(nil)
@@ -2213,6 +2215,12 @@ os.exit()
 	end
 
 	glreport'here'
+end
+
+-- ... where to put this ... in video, app, or ui?
+function App:matMenuReset()
+	self:matident()
+	self:matscale(self.width / self.menuSizeInSprites.x, self.height / self.menuSizeInSprites.y)
 end
 
 -------------------- MEMORY PEEK/POKE (and draw dirty bits) --------------------

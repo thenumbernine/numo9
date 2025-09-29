@@ -19,7 +19,6 @@ local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551	-- TODO move this
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 
 local numo9_rom = require 'numo9.rom'
-local frameBufferSize = numo9_rom.frameBufferSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles

@@ -387,7 +387,7 @@ function EditVoxelMap:update()
 		orbit:endDraw()
 
 		-- TODO should this go here or in the caller:
-		app:matident()
+		app:matMenuReset()
 
 		local x, y = 0, 8
 		app:drawMenuText('w='..mapsize.x, x, y)
@@ -399,7 +399,7 @@ function EditVoxelMap:update()
 	end
 
 	-- TODO should this go here or in the caller:
-	app:matident()
+	app:matMenuReset()
 -- TODO why ddo I need this here (and not in orbit:endDraw()) or else the editor menu bar gets blacked out?
 app:setClipRect(0, 0, 9999, 9999)
 

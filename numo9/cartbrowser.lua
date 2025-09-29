@@ -9,7 +9,6 @@ function CartBrowser:update()
 	self:initMenuTabs()
 	local app = self.app
 
-	app:setVideoMode(0)	-- is this needed if all menus are set to video mode 0?
 	app:clearScreen(0xf0, app.paletteMenuTex)
 
 	local fs = app.fs
@@ -117,6 +116,7 @@ function CartBrowser:update()
 				local internalFormat = gl.GL_RGBA8UI
 				--local internalFormat = gl.GL_RGBA8
 				--local internalFormat = gl.GL_RGBA
+				-- TODO don't cache the GPU buffer, just cache the CPU buffer and allocate one GPU buffer and re-upload it ...
 				local tex = GLTex2D{
 					image = romImage,
 					internalFormat = internalFormat,

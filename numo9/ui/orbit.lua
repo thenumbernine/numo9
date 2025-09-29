@@ -79,14 +79,14 @@ function Orbit:beginDraw()
 	end
 	local x,y,z,th = self.angle:toAngleAxis():unpack()
 
-	app:matident()
+	app:matMenuReset()
 	-- draw orientation widget
 	app:matortho(-20, 2, 20, -2, -2, 2)
 	app:matrot(-math.rad(th), x, y, z)	-- -th or +th?
 	app:drawSolidLine3D(0, 0, 0, 1, 0, 0, 0x19, nil, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 1, 0, 0x1a, nil, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 0, 1, 0x1c, nil, app.paletteMenuTex)
-	app:matident()
+	app:matMenuReset()
 
 	if self.ortho then
 		local r = 1.2

@@ -51,7 +51,7 @@ function TileSelect:doPopup()
 	if not self.pickOpen then return false end
 
 	-- TODO should this go here or in the caller:
-	app:matident()
+	app:matMenuReset()
 
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'

@@ -188,7 +188,7 @@ function EditTilemap:update()
 
 	app:setClipRect(mapX, mapY, mapSizeInPixels.x-1, mapSizeInPixels.y-1)
 
-	app:matident()
+	app:matMenuReset()
 	app:mattrans(mapX, mapY)
 	app:matscale(self.scale, self.scale)
 	app:mattrans(-self.tilemapPanOffset.x, -self.tilemapPanOffset.y)
@@ -421,7 +421,7 @@ function EditTilemap:update()
 		end
 	end
 
-	app:matident()
+	app:matMenuReset()
 
 	local uikey
 	if ffi.os == 'OSX' then
