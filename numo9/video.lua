@@ -866,8 +866,10 @@ local useLightingCode = [[
 
 // TODO lighting variables:
 const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
-const vec3 lightAmbientColor = vec3(.4, .4, .4);
-const vec3 lightDiffuseColor = vec3(.6, .5, .4);
+const vec3 lightAmbientColor = vec3(.3, .3, .3);
+const vec3 lightDiffuseColor = vec3(1., 1., 1.);
+const float lightSpecularShininess = 30.;
+const vec3 lightSpecularColor = vec3(1., 1., 1.);
 
 const float ssaoStrength = 0.07;
 const float ssaoOffset = 18.0;
@@ -905,9 +907,19 @@ void doLighting() {
 	return;
 #endif
 
-#if 0 // bumpmap lighting
-	vec3 lightValue = lightAmbientColor
-		+ lightDiffuseColor * abs(dot(normal, lightDir));
+#if 1 // apply bumpmap lighting
+	vec3 lightValue = max(
+		lightAmbientColor,
+		lightDiffuseColor * abs(dot(normal, lightDir))
+		// maybe you just can't do specular lighting in [0,1]^3 space ...
+		// maybe I should be doing inverse-frustum-projection stuff here
+		// hmmmmmmmmmm
+		// I really don't want to split projection and modelview matrices ...
+		+ lightSpecularColor * pow(
+			abs(reflect(normal, lightDir).z),
+			lightSpecularShininess
+		)
+	);
 	fragColor.xyz *= lightValue;
 #endif
 
@@ -1752,7 +1764,7 @@ void main() {
 #else
 		fragColor = spriteShading(tcv);
 
-#if 1	// bump height based on sprite sheet sampler which is NEAREST:
+#if 0	// bump height based on sprite sheet sampler which is NEAREST:
 		bumpHeight = dot(fragColor.xyz, greyscale);
 #else	// linear sampler in-shader for bump height / lighting only:
 		vec2 size = textureSize(sheetTex, 0);
@@ -1804,7 +1816,7 @@ void main() {
 // lighting:
 
 	// TODO lighting variables:
-	const float spriteNormalExhaggeration = 8.;//.03125;	// .03125 looks good on 480x270
+	const float spriteNormalExhaggeration = 8.;
 	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
 
 #if 0	// normal from flat sided objs
