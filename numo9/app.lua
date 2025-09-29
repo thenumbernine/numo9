@@ -2271,6 +2271,8 @@ function App:poke(addr, value)
 	addr = toint(addr)
 	value = tonumber(ffi.cast('uint32_t', value))
 	if addr < 0 or addr >= self.memSize then return end
+	local ptr = self.ram.v + addr
+	if ptr[0] == value then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
 	if addr >= self.framebufferRAM.addr
@@ -2281,7 +2283,7 @@ function App:poke(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
-	self.ram.v[addr] = tonumber(value)
+	ptr[0] = value
 
 	-- write out tris using the mvMat before it changes
 	if addr >= mvMatAddr and addr < mvMatAddrEnd then
@@ -2344,6 +2346,8 @@ function App:pokew(addr, value)
 	value = tonumber(ffi.cast('uint32_t', value))
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
+	local ptr = ffi.cast('uint16_t*', self.ram.v + addr)
+	if ptr[0] == value then return end
 
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
@@ -2353,7 +2357,7 @@ function App:pokew(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
-	ffi.cast('uint16_t*', self.ram.v + addr)[0] = tonumber(value)
+	ptr[0] = value
 
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
@@ -2407,6 +2411,8 @@ function App:pokel(addr, value)
 	value = tonumber(ffi.cast('uint32_t', value))
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
+	local ptr = ffi.cast('uint32_t*', self.ram.v + addr)
+	if ptr[0] == value then return end
 
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
@@ -2416,7 +2422,7 @@ function App:pokel(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
-	ffi.cast('uint32_t*', self.ram.v + addr)[0] = tonumber(value)
+	ptr[0] = value
 
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
@@ -2470,6 +2476,8 @@ function App:pokef(addr, value)
 	value = tofloat(value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
+	local ptr = ffi.cast('float*', self.ram.v + addr)
+	if ptr[0] == value then return end
 
 	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
@@ -2479,7 +2487,7 @@ function App:pokef(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
-	ffi.cast('float*', self.ram.v + addr)[0] = tonumber(value)
+	ptr[0] = value
 
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
