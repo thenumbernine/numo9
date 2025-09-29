@@ -185,7 +185,6 @@ function EditTilemap:update()
 		end
 	)
 
-
 	self:guiSetClipRect(mapX, mapY, mapSizeInPixels.x-1, mapSizeInPixels.y-1)
 
 	app:matMenuReset()
@@ -247,7 +246,9 @@ function EditTilemap:update()
 		)
 	end
 
-	self:guiSetClipRect(0, 0, clipMax, clipMax)
+	-- since when is clipMax having problems?
+	--self:guiSetClipRect(0, 0, clipMax, clipMax)
+	self:guiSetClipRect(0, 0, 256, 256)
 
 	if not self.tileSel:doPopup() then
 		-- TODO allow drawing while picking window is open, like tic80 does?

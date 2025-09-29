@@ -2126,8 +2126,8 @@ print('run thread dead')
 		local fy = wy / fbTex.height
 		if fx > fy then
 			local rx = fx / fy
-			self.orthoMin.x = -orthoSize * (rx - 1) / 2
-			self.orthoMax.x = orthoSize * (((rx - 1) / 2) + 1)
+			self.orthoMin.x = -orthoSize * (rx - 1) * .5
+			self.orthoMax.x = orthoSize * (((rx - 1) * .5) + 1)
 			self.orthoMax.y = orthoSize
 			self.orthoMin.y = 0
 			view.projMat:setOrtho(
@@ -2142,8 +2142,8 @@ print('run thread dead')
 			local ry = fy / fx
 			self.orthoMin.x = 0
 			self.orthoMax.x = orthoSize
-			self.orthoMax.y = orthoSize * (((ry - 1) / 2) + 1)
-			self.orthoMin.y = -orthoSize * (ry - 1) / 2
+			self.orthoMax.y = orthoSize * (((ry - 1) * .5) + 1)
+			self.orthoMin.y = -orthoSize * (ry - 1) * .5
 			view.projMat:setOrtho(
 				self.orthoMin.x,
 				self.orthoMax.x,
@@ -2202,13 +2202,8 @@ end
 -- ... where to put this ... in video, app, or ui?
 function App:matMenuReset()
 	self:matident()
--- [[
-	if self.width > self.height then
-		self:mattrans((self.width - self.height) / 2, 0)
-	else
-		self:mattrans(0, (self.height - self.width) / 2)
-	end
---]]
+	local m = math.min(self.width, self.height)
+	self:mattrans((self.width - m) * .5, (self.height - m) * .5)
 	self:matscale(self.width / self.menuSizeInSprites.x, self.height / self.menuSizeInSprites.y)
 end
 

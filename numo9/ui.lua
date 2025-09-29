@@ -594,11 +594,8 @@ end
 -- hmm...
 function UI:guiSetClipRect(x,y,w,h)
 	local app = self.app
-	local x2, y2 = x+w, y+h
-	
 	local sx1, sy1 = app:transform(x, y)
-	local sx2, sy2 = app:transform(x2, y2)
-
+	local sx2, sy2 = app:transform(x + w, y + h)
 	app:setClipRect(sx1, sy1, sx2-sx1, sy2-y)
 end
 

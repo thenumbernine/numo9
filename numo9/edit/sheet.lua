@@ -215,7 +215,10 @@ function EditSheet:update()
 		0xFF	-- spriteMask
 	)
 	app.ram.paletteBlobIndex = pushPalBlobIndex
-	self:guiSetClipRect(0, 0, clipMax, clipMax)
+
+	-- since when is clipMax having problems?
+	--self:guiSetClipRect(0, 0, clipMax, clipMax)
+	self:guiSetClipRect(0, 0, 256, 256)
 
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 	local function fbToSpritesheetCoord(fbX, fbY)
@@ -287,7 +290,10 @@ function EditSheet:update()
 		nil,
 		app.paletteMenuTex
 	)
-	self:guiSetClipRect(0, 0, clipMax, clipMax)
+	
+	-- since when is clipMax having problems?
+	--self:guiSetClipRect(0, 0, clipMax, clipMax)
+	self:guiSetClipRect(0, 0, 256, 256)
 
 	-- sprite edit area
 	local x = 2
@@ -352,7 +358,11 @@ function EditSheet:update()
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
 	app.ram.paletteBlobIndex = pushPalBlobIndex
-	self:guiSetClipRect(0, 0, clipMax, clipMax)
+	
+	-- since when is clipMax having problems?
+	--self:guiSetClipRect(0, 0, clipMax, clipMax)
+	self:guiSetClipRect(0, 0, 256, 256)
+	
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 
 	-- convert x y in framebuffer space to x y in sprite window space

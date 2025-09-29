@@ -73,7 +73,7 @@ function EditVoxelMap:onCartLoad()
 	local app = self.app
 	function self.tileSel:drawSelected(winX, winY, winW, winH)
 		local colorIndex = 0x1f
-		local thickness = nil
+		local thickness = math.max(1, app.width / 256)
 		local function tc(vtx)
 			return
 				winX + winW * (tonumber(vtx.u + bit.lshift(editor.voxCurSel.tileXOffset, 3)) + .5) / tonumber(spriteSheetSize.x),
@@ -140,6 +140,7 @@ end
 -- assumes we're already scaled down by 32768
 function EditVoxelMap:drawBox(box, color)
 	local app = self.app
+	local thickness = math.max(1, app.width / 256)
 	for i=0,7 do
 		for b=0,2 do
 			local j = bit.bxor(i, bit.lshift(1, b))
@@ -150,7 +151,7 @@ function EditVoxelMap:drawBox(box, color)
 					ax, ay, az,
 					bx, by, bz,
 					color,
-					nil,
+					thickness,
 					app.paletteMenuTex)
 			end
 		end
@@ -162,6 +163,9 @@ function EditVoxelMap:update()
 	local orbit = self.orbit
 
 	EditVoxelMap.super.update(self)
+
+	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
 
 	local shift = app:key'lshift' or app:key'rshift'
 
@@ -207,8 +211,6 @@ function EditVoxelMap:update()
 
 	if not self.tileSel:doPopup()
 	and voxelmap then
-		local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
-		local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
 		if not mouseHandled
 		and mouseY >= 8
 		then
@@ -218,10 +220,11 @@ function EditVoxelMap:update()
 			-- transform mouse coords by view matrix
 			local mousePos = orbit.pos + mapsize * .5
 			-- assume fov is 90°
+			local m = math.min(app.width, app.height)
 			local mouseDir =
 				- orbit.angle:zAxis()
-				+ orbit.angle:xAxis() * (mouseX - 128) / 128
-				- orbit.angle:yAxis() * (mouseY - 128) / 128
+				+ orbit.angle:xAxis() * (mouseX - 128) / 128 / (app.width / m)
+				- orbit.angle:yAxis() * (mouseY - 128) / 128 / (app.height / m)
 			-- or alternatively use the inverse of the modelview matrix... but meh ...
 			if not mapbox:contains(mousePos) then
 				-- now line intersect with the camera-facing planes of the bbox
@@ -401,7 +404,8 @@ function EditVoxelMap:update()
 	-- TODO should this go here or in the caller:
 	app:matMenuReset()
 -- TODO why ddo I need this here (and not in orbit:endDraw()) or else the editor menu bar gets blacked out?
-self:guiSetClipRect(0, 0, 9999, 9999)
+--self:guiSetClipRect(0, 0, 9999, 9999)
+self:guiSetClipRect(0, 0, 256, 256)
 
 	local x, y = 48, 0
 	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
