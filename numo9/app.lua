@@ -2176,7 +2176,7 @@ print('run thread dead')
 		--]]
 		if self.activeMenu then
 			sceneObj.texs[1] = self.framebufferRAM.tex
-			sceneObj.texs[2] = assert.index(self, 'framebufferNormalTex')
+			sceneObj.texs[2] = self.framebufferNormalTex
 		end
 
 		if self.activeMenu then
@@ -2188,24 +2188,6 @@ print('run thread dead')
 	end
 
 	if self.takeScreenshot then
-
-local tex = self.framebufferNormalTex
-local w = tex.width
-local h = tex.height
-local ptr = ffi.new('float[?]', w*h*4)
-tex:toCPU(ptr)
-local ranges = range(4):mapi(function() return {min=math.huge, max=-math.huge} end)
-for i=0,w*h*4-1,4 do
-	for j=1,4 do
-		local v = ptr[i+j-1]
-		ranges[j].min = math.min(ranges[j].min, v)
-		ranges[j].max = math.max(ranges[j].max, v)
-		print(v)
-	end
-end
-print('ranges', tolua(ranges))
-os.exit()
-
 		if self.takeScreenshot == 'label' then
 			self:saveLabel()
 		else
