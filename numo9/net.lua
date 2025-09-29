@@ -1423,6 +1423,7 @@ assert.len(deltaStr, deltaBufLen)
 						local newMemSize = #ramState
 --DEBUG(@5):print('newMemSize', newMemSize)
 						local newBlobs = byteArrayToBlobs(ptr, newMemSize)
+						if app.blobs then app.blobs:delete() end	-- free resources before creating new blobs
 						app.blobs = newBlobs	-- hmm but idk that I use this in netplay...
 						app:buildRAMFromBlobs()
 						ffi.copy(app.ram, ramState, app.memSize)

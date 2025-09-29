@@ -75,28 +75,44 @@ keys = each blob type-name, values = an array for each one
 TODO include holdram, ram, etc?  or nah?  cuz blobs <-> ram, right?
 --]]
 local BlobSet = class()
+
 function BlobSet:init()
 	for _,name in ipairs(blobClassNameForType) do
 		self[name] = table()
 	end
 end
+
+function BlobSet:delete()
+	for _,name in ipairs(blobClassNameForType) do
+		local blobsForType = self[name]
+		for _,blob in ipairs(blobsForType) do
+			if blob.delete then blob:delete() end
+		end
+	end
+end
+
 function BlobSet:copyToROM()
-	for _,blobsForType in pairs(self) do
+	for _,name in ipairs(blobClassNameForType) do
+		local blobsForType = self[name]
 		for _,blob in ipairs(blobsForType) do
 			blob:copyToROM()
 		end
 	end
 end
+
 function BlobSet:copyFromROM()
-	for _,blobsForType in pairs(self) do
+	for _,name in ipairs(blobClassNameForType) do
+		local blobsForType = self[name]
 		for _,blob in ipairs(blobsForType) do
 			blob:copyFromROM()
 		end
 	end
 end
+
 function BlobSet:assertPtrs(info)	-- info or app
 	assert.index(info, 'ram')
-	for name,blobsForType in pairs(self) do
+	for _,name in ipairs(blobClassNameForType) do
+		local blobsForType = self[name]
 		for i,blob in ipairs(blobsForType) do
 			local errmsg = "blob type="..name.." index="..i
 			assert.index(blob, 'addr', errmsg)
@@ -224,7 +240,8 @@ this fills those up, esp useful for font and palette which have default content
 but also creates the empty sheet / tilemap if they are needed
 --]]
 function AppBlobs:buildRAMFromBlobs()
-	for name,count in pairs(minBlobPerType) do
+	for _,name in ipairs(table.keys(minBlobPerType):sort()) do
+		local count = minBlobPerType[name]
 		while #self.blobs[name] < count do
 			self:addBlob(name)
 			if name == 'font' then
@@ -254,7 +271,8 @@ function AppBlobs:buildRAMFromBlobs()
 	-- here build ram ptrs from addrs
 	-- TODO really blobsToByteArray doesn't need ram, holdram, memSize at all
 	-- do this every time self.blobs or self.ram changes
-	for _,blobsForType in pairs(self.blobs) do
+	for _,name in ipairs(blobClassNameForType) do
+		local blobsForType = self.blobs[name]
 		for _,blob in ipairs(blobsForType) do
 			blob.ramptr = self.ram.v + blob.addr
 		end

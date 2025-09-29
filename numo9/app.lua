@@ -2873,6 +2873,7 @@ function App:openCart(filename)
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
 
+	if self.blobs then self.blobs:delete() end	-- free resources before creating new blobs
 	self.blobs = cartImageToBlobs(d)
 
 	self:updateBlobChanges()
