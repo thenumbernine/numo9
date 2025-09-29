@@ -1619,6 +1619,26 @@ void main() {
 	// sprite shading pathway
 	} else if (pathway == 1u) {
 
+#if 0	// color and bump height LINEAR ... gotta do it here, can't do it in mag filter texture because it's a u8 texture (TODO change to a GL_RED texture?  but then no promises on the value having 8 bits (but it's 2025, who am I kidding, it'll have 8 bits))
+
+		vec2 size = textureSize(sheetTex, 0);
+		vec2 stc = tcv.xy * size - .5;
+		vec2 ftc = floor(stc);
+		vec2 fp = fract(stc);
+
+		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0.5, 0.5)) / size);
+		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1.5, 0.5)) / size);
+		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0.5, 1.5)) / size);
+		<?=fragType?> fragColorRR = spriteShading((ftc + vec2(1.5, 1.5)) / size);
+
+		fragColor = mix(
+			mix(fragColorLL, fragColorRL, fp.x),
+			mix(fragColorLR, fragColorRR, fp.x), fp.y
+		);
+		
+		bumpHeight = dot(fragColor.xyz, greyscale);
+
+#else
 		fragColor = spriteShading(tcv);
 
 #if 1	// bump height based on sprite sheet sampler which is NEAREST:
@@ -1643,6 +1663,7 @@ void main() {
 			mix(bumpHeightLL, bumpHeightRL, fp.x),
 			mix(bumpHeightLR, bumpHeightRR, fp.x), fp.y
 		);
+#endif
 #endif
 
 	} else if (pathway == 2u) {
@@ -2260,6 +2281,13 @@ function AppVideo:resizeRAMGPUs()
 				gltype = gl.GL_UNSIGNED_BYTE,
 			}
 		end
+--[[ hmm how come setting the magFilter to LINEAR screws everything up?  cuz its a u8 texture ...
+-- meanwhile I can do the bilinear filtering manually in the shader ...
+		self.sheetRAMs[i].tex
+			:bind()
+			:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST) --gl.GL_LINEAR)
+			:unbind()
+--]]	
 	end
 
 	local tileMapBlobs = self.blobs.tilemap
