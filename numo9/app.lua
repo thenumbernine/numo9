@@ -1945,7 +1945,7 @@ print('run thread dead')
 -- if we do then the mouse is off...
 
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
-			self:setVideoMode(0)
+			self:setVideoMode(255)
 			gl.glViewport(0, 0, self.framebufferMenuTex.width, self.framebufferMenuTex.height)
 
 			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
@@ -1953,17 +1953,7 @@ print('run thread dead')
 			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
 			self:setFramebufferTex(self.framebufferMenuTex)
 
-			-- and set the palette to the editor palette ... ?
-			-- or not ...
-			-- TODO or not for when we want to show the game palette stuff ...
-			-- hmm , gotta split this up now ...
-			-- default draw calls will use the paletteMenuTex
-			-- and special calls will use the paletteRAM
-			-- TODO this needs to be a paletteRAM replacement ...
-			--local pushPaletteRAM = self.paletteRAMs[1]
-			--self.paletteRAMs[1] = {tex = self.paletteMenuTex}
-
-			local pushScissorX, pushScissorY, pushScissorW, pushScissorH = self:getClipRect()
+			local pushClipX, pushClipY, pushClipW, pushClipH = self:getClipRect()
 			self:setClipRect(0, 0, clipMax, clipMax)
 
 			-- while we're here, start us off with the current framebufferRAM contents
@@ -1983,6 +1973,8 @@ print('run thread dead')
 			local thread = self.activeMenu.thread
 			if thread then
 				self:matident()
+				self:matscale(self.width / 256, self.height / 256)
+
 				if coroutine.status(thread) == 'dead' then
 					self:setMenu(nil)
 				else
@@ -2001,23 +1993,13 @@ print('run thread dead')
 				end
 			end
 
-			-- flush before textures change
-			-- or don't since the addTri checks if textures have changed
-			-- but at least flush before finishing the screen render update ...
-			self:triBuf_flush()
-
-			-- restore palettes
-			--self.paletteRAMs[1] = pushPaletteRAM
-
-			self:setFramebufferTex(self.framebufferRAM.tex)
-
 			self:setVideoMode(self.ram.videoMode)
 
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
 
 			-- pop the clip rect
-			self:setClipRect(pushScissorX, pushScissorY, pushScissorW, pushScissorH)
+			self:setClipRect(pushClipX, pushClipY, pushClipW, pushClipH)
 
 			-- pop the matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
@@ -2114,7 +2096,7 @@ print('run thread dead')
 		drawsPerSecond = drawsPerSecond + 1
 
 		if self.activeMenu then
-			self:setVideoMode(0)
+			self:setVideoMode(255)
 		end
 
 --DEBUG(glquery):drawQuery:begin()
@@ -3387,8 +3369,49 @@ function App:resize()
 	needDrawCounter = drawCounterNeededToRedraw
 
 	-- hack for the native-resolution videomode:
-	for _,modeObj in pairs(self.videoModes) do
-		if modeObj.onAppResize then modeObj:onAppResize() end
+	local nativeMode = self.videoModes[255]
+	if nativeMode then
+		nativeMode.built = false
+		if nativeMode == self.currentVideoMode then
+			-- and when we rebuild we gotta reassign the stuff from our video mode to app...
+			-- or maybe I shouldn't be reassigning it to begin with?
+			--[[
+			nativeMode:build()
+
+			nativeMode.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
+			nativeMode.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
+			nativeMode.blitScreenObj = modeObj.blitScreenObj
+			nativeMode.drawObj = modeObj.drawObj
+			nativeMode.fb = modeObj.fb
+			--]]
+			-- [[ lazy
+			self:setVideoMode(0)
+			self:setVideoMode(255)
+			--]]
+		end
+	end
+
+	-- also resize the menu framebuffer
+	-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
+	if self.framebufferMenuTex then
+		local size = self.width * self.height * 3
+		local data = ffi.new('uint8_t[?]', size)
+		ffi.fill(data, size)
+		local GLTex2D = require 'gl.tex2d'
+		self.framebufferMenuTex = GLTex2D{
+			internalFormat = gl.GL_RGB,
+			format = gl.GL_RGB,
+			type = gl.GL_UNSIGNED_BYTE,
+			width = self.width,
+			height = self.height,
+			wrap = {
+				s = gl.GL_CLAMP,
+				t = gl.GL_CLAMP,
+			},
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			data = data,
+		}:unbind()
 	end
 end
 

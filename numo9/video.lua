@@ -1832,29 +1832,7 @@ function AppVideo:initVideoModes()
 		app.ram.screenHeight = self.height
 		app:onFrameBufferSizeChange()
 	end
-	function nativeMode:onAppResize()
-		self.built = false
-		if self == app.currentVideoMode then
-			-- and when we rebuild we gotta reassign the stuff from our video mode to app...
-			-- or maybe I shouldn't be reassigning it to begin with?
-			--[[
-			self:build()
-
-			self.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
-			self.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
-			self.blitScreenObj = modeObj.blitScreenObj
-			self.drawObj = modeObj.drawObj
-			self.fb = modeObj.fb
-			--]]
-			-- [[ lazy
-			app:setVideoMode(0)
-			app:setVideoMode(255)
-			--]]
-		end
-	end
 	--]]
-
-
 
 	-- The following are caches used by the videomodes and get populated per calls to VideoMode:build()
 
@@ -1970,16 +1948,15 @@ function AppVideo:initVideo()
 		}:unbind()
 
 		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
-		-- TODO about a menuBufferSize (== 256x256)
-		local size = frameBufferSize.x * frameBufferSize.y * 3
+		local size = self.width * self.height * 3
 		local data = ffi.new('uint8_t[?]', size)
 		ffi.fill(data, size)
 		self.framebufferMenuTex = GLTex2D{
 			internalFormat = gl.GL_RGB,
 			format = gl.GL_RGB,
 			type = gl.GL_UNSIGNED_BYTE,
-			width = frameBufferSize.x,
-			height = frameBufferSize.y,
+			width = self.width,
+			height = self.height,
 			wrap = {
 				s = gl.GL_CLAMP,
 				t = gl.GL_CLAMP,
