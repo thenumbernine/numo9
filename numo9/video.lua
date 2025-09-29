@@ -871,7 +871,7 @@ const vec3 lightDiffuseColor = vec3(.6, .5, .4);
 
 const float ssaoStrength = 0.07;
 const float ssaoOffset = 18.0;
-const float ssaoFalloff = 0.000002;		
+const float ssaoFalloff = 0.000002;
 const float ssaoSampleRadius = .1;	//.006;
 
 // these are the random vectors inside a unit hemisphere facing z+
@@ -905,30 +905,44 @@ void doLighting() {
 	return;
 #endif
 
-#if 1 // bumpmap lighting
-	vec3 lightValue = lightAmbientColor 
+#if 0 // bumpmap lighting
+	vec3 lightValue = lightAmbientColor
 		+ lightDiffuseColor * abs(dot(normal, lightDir));
 	fragColor.xyz *= lightValue;
-return;
 #endif
 
+#if 0	// working on SSAO ...
+
 	float depth = normalAndDepth.w;
-	
+
 	// current fragment in [0,1]^2 screen coords x [0,1] depth coord
 	vec3 origin = vec3(tcv.xy, depth);
 
 	// TODO just save float buffer? faster?
-	vec3 rvec = normalize((texture(noiseTex, tcv * ssaoOffset).xyz * 2.) - vec3(1.));
+	// TODO should this random vec be in 3D or 2D?
+	vec3 rvec = texture(noiseTex, tcv * ssaoOffset).xyz;
+	rvec.z = 0.;
+	rvec = normalize(rvec.xyz * 2. - 1.);
+
+#if 0 // debugging: show rvec
+	fragColor.xyz = rvec.xyz * .5 + .5;
+	return;
+#endif
 
 	vec3 tangent = normalize(rvec - normal * dot(rvec, normal));
 	vec3 bitangent = cross(tangent, normal);
 	mat3 tangentMatrix = mat3(tangent, bitangent, normal);
 
-	float ssaoOccludedSamples = 0.;
+#if 0 // debugging: show tangent
+	fragColor.xyz = tangent.xyz * .5 + .5;
+	return;
+#endif
+
+	float numOccluded = 0.;
 	for (int i = 0; i < ssaoNumSamples; ++i) {
 		// rotate random hemisphere vector into our tangent space
 		// but this is still in [0,1]^2 screen coords x [0,1] depth coord, right?
-		vec3 samplePt = (tangentMatrix * ssaoRandomVectors[i]) 
+		vec3 samplePt = (tangentMatrix * ssaoRandomVectors[i])
 			* ssaoSampleRadius
 			+ origin;
 
@@ -938,17 +952,25 @@ return;
 		// TODO clip
 		// now get sample depth at this point
 
-		vec4 occluderFragment = texture(
+		vec4 sampleNormalAndDepth = texture(
 			framebufferNormalTex,
 			samplePt.xy
 		);
-		float depthDifference = depth - occluderFragment.w;
-		ssaoOccludedSamples += step(ssaoFalloff, depthDifference) 
-			* (1. - dot(occluderFragment.xyz, normal))
-			* (1. - smoothstep(ssaoFalloff, ssaoStrength, depthDifference));
+		float sampleDepth = sampleNormalAndDepth.w;
+		float depthDiff = depth - sampleDepth;
+		if (depthDiff < ssaoSampleRadius) {
+			numOccluded += step(sampleDepth, depth);
+		}
+//		numOccluded += step(ssaoFalloff, depthDiff)
+//			* (1. - smoothstep(ssaoFalloff, ssaoStrength, depthDiff));
+//			* (1. - dot(sampleNormalAndDepth.xyz, normal))
 	}
 
-	fragColor.xyz *= 1. - ssaoOccludedSamples / float(ssaoNumSamples);
+// debugging to see ssao only ... all white ... hmm
+//fragColor.xyz = vec3(1., 1., 1.);
+	fragColor.xyz *= 1. - numOccluded / float(ssaoNumSamples);
+
+#endif
 }
 ]]
 
@@ -1724,7 +1746,7 @@ void main() {
 			mix(fragColorLL, fragColorRL, fp.x),
 			mix(fragColorLR, fragColorRR, fp.x), fp.y
 		);
-		
+
 		bumpHeight = dot(fragColor.xyz, greyscale);
 
 #else
@@ -2398,7 +2420,7 @@ function AppVideo:resizeRAMGPUs()
 			:bind()
 			:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST) --gl.GL_LINEAR)
 			:unbind()
---]]	
+--]]
 	end
 
 	local tileMapBlobs = self.blobs.tilemap
