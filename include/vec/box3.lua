@@ -52,13 +52,18 @@ box3=class{
 		self.max:clamp(b)
 		return self
 	end,
-	contains=|:,v|do
-		if getmetatable(v)==box3 then
-			return self:contains(v.min) and self:contains(v.max)
-		else
-			if v.x < self.min.x or v.x > self.max.x then return false end
-			if v.y < self.min.y or v.y > self.max.y then return false end
-			if v.z < self.min.z or v.z > self.max.z then return false end
+	contains=|:,x,y,z|do
+		if getmetatable(x) == box3 then
+			return self:contains(x.min) and self:contains(x.max)
+		elseif type(x) == 'table' then
+			if x.x < self.min.x or x.x > self.max.x then return false end
+			if x.y < self.min.y or x.y > self.max.y then return false end
+			if x.z < self.min.z or x.z > self.max.z then return false end
+			return true
+		elseif type(x) == 'number' then
+			if x < self.min.x or x > self.max.x then return false end
+			if y < self.min.y or y > self.max.y then return false end
+			if z < self.min.z or z > self.max.z then return false end
 			return true
 		end
 	end,
