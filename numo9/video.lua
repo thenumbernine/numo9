@@ -432,8 +432,8 @@ glreport'before RAMGPUTex:init'
 		width = width,
 		height = height,
 		wrap = args.wrap or { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP,
-			t = gl.GL_CLAMP,
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
 		magFilter = args.magFilter or gl.GL_NEAREST,
@@ -641,28 +641,7 @@ function VideoMode:buildFramebuffers()
 		fb = GLFBO{
 			width = self.width,
 			height = self.height,
-			--[[ using depth renderbuffer ... maybe once upon a time this was faster when you didnt need to access the texture
-			useDepth = true, --gl.GL_DEPTH_COMPONENT32,
-			--]]
 		}
-
-		-- [[ using depth texture
-		self.framebufferDepthTex = GLTex2D{
-			internalFormat = gl.GL_DEPTH_COMPONENT,
-			width = self.width,
-			height = self.height,
-			format = gl.GL_DEPTH_COMPONENT,
-			type = gl.GL_FLOAT,
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_NEAREST,
-			wrap = {
-				s = gl.GL_REPEAT,
-				t = gl.GL_REPEAT,
-			},
-		}
-		gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, self.framebufferDepthTex.id, 0)
-		self.framebufferDepthTex:unbind()
-		--]]
 
 		fb:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
 		fb:unbind()
@@ -673,16 +652,37 @@ function VideoMode:buildFramebuffers()
 	end
 	self.fb = fb
 
+	-- make a depth tex per size
+	local depthTex = not self.useNativeOutput and app.framebufferDepthTexs[sizeKey]
+	if not depthTex then
+		fb:bind()
+		depthTex = GLTex2D{
+			internalFormat = gl.GL_DEPTH_COMPONENT,
+			width = self.width,
+			height = self.height,
+			format = gl.GL_DEPTH_COMPONENT,
+			type = gl.GL_FLOAT,
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+		}
+		gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, depthTex.id, 0)
+		depthTex:unbind()
+		fb:unbind()
+	end
+	self.framebufferDepthTex = depthTex
+
+	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects?
 	-- make a FBO normalmap per size.  Don't store it in fantasy-console "hardware" RAM just yet.  For now it's just going to be accessible by a single switch in RAM.
 	local normalTex = not self.useNativeOutput and app.framebufferNormalTexs[sizeKey]
 	if not normalTex then
 		normalTex = GLTex2D{
 			width = width,
 			height = height,
-			-- rgb = normal xyz, a = depth ... honestly I could just use the depth-buffer ... maybe I should ...
-			--internalFormat = gl.GL_RGBA,
 			internalFormat = gl.GL_RGBA32F,
-			-- should be automatic:
 			format = gl.GL_RGBA,
 			type = gl.GL_FLOAT,
 
@@ -690,8 +690,8 @@ function VideoMode:buildFramebuffers()
 			--magFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
 			wrap = {
-				s = gl.GL_CLAMP,
-				t = gl.GL_CLAMP,
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
 			},
 		}:unbind()
 
@@ -705,7 +705,40 @@ function VideoMode:buildFramebuffers()
 		end
 	end
 	self.framebufferNormalTex = assert(normalTex)
-	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects?
+
+-- we have a scene depth tex, color tex, normal tex ...
+-- now for shadows we have to get the depth buffer from a light perspective
+-- we can draw this at the same time as we draw our scene, and produce two different depth maps
+-- - 1 for the scene's typical depth testing
+-- - 1 for the light's depth
+-- then in our final blitScreen pass, we can lookup light depth info to render shadows
+-- ... hmm ... but we have to depth-test to two different buffers ... 
+-- ... how can we do that using GL's builtin depth-testing ... unless we could read and write , or just use a MIN blend ...
+-- Google says to use geometry shaders and gl_Layers, but these are GL4 level functions, and I want to try to keep this GL3 / GLES3 / WebGL2 capable ...
+--[=[
+	local lightDepthTex = not self.useNativeOutput and app.framebufferLightDepthTexs[sizeKey]
+	if not lightDepthTex then
+		fb:bind()
+		lightDepthTex = GLTex2D{
+			internalFormat = gl.GL_DEPTH_COMPONENT,
+			width = self.width,
+			height = self.height,
+			format = gl.GL_DEPTH_COMPONENT,
+			type = gl.GL_FLOAT,
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+		}
+		gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, lightDepthTex.id, 0)
+		lightDepthTex:unbind()
+		fb:unbind()
+	end
+	self.framebufferLightDepthTex = lightDepthTex
+--]=]
+
 
 	local sizeAndFormatKey = sizeKey..'x'..suffix
 	local framebufferRAM = not self.useNativeOutput and app.framebufferRAMs[sizeAndFormatKey]
@@ -737,8 +770,8 @@ function VideoMode:buildFramebuffers()
 				width = width,
 				height = height,
 				wrap = {
-					s = gl.GL_CLAMP,
-					t = gl.GL_CLAMP,
+					s = gl.GL_CLAMP_TO_EDGE,
+					t = gl.GL_CLAMP_TO_EDGE,
 				},
 				minFilter = gl.GL_NEAREST,
 				magFilter = gl.GL_NEAREST,
@@ -1889,6 +1922,8 @@ function AppVideo:initVideoModes()
 	--self.framebufferRAMs._256x144xRGB565
 	self.framebufferRAMs = {}
 	self.framebufferNormalTexs = {}
+	self.framebufferDepthTexs = {}
+	self.framebufferLightDepthTexs = {}
 end
 
 
@@ -1963,8 +1998,8 @@ function AppVideo:initVideo()
 			format = format5551,
 			type = type5551,
 			wrap = {
-				s = gl.GL_CLAMP,
-				t = gl.GL_CLAMP,
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
@@ -1981,8 +2016,8 @@ function AppVideo:initVideo()
 			width = fontImageSize.x,
 			height = fontImageSize.y,
 			wrap = {
-				s = gl.GL_CLAMP,
-				t = gl.GL_CLAMP,
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
@@ -2000,8 +2035,8 @@ function AppVideo:initVideo()
 			width = self.width,
 			height = self.height,
 			wrap = {
-				s = gl.GL_CLAMP,
-				t = gl.GL_CLAMP,
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
@@ -2048,32 +2083,6 @@ function AppVideo:initVideo()
 		}),
 		--]]
 	}
-
-
-
---[[ ok shadowmapping ...
-	local shadowTex = GLTex2D{
-		internalFormat = gl.GL_DEPTH_COMPONENT,
-		width = 256,
-		height = 256,
-		format = gl.GL_DEPTH_COMPONENT,
-		type = gl.GL_FLOAT,
-		minFilter = gl.GL_NEAREST,
-		magFilter = gl.GL_NEAREST,
-		wrap = {
-			-- TODO necessary? or switch to clamp?
-			gl.GL_REPEAT,
-			gl.GL_REPEAT,
-		},
-	}
---]]
--- but we can also just use the depth render component for the FBO right?
--- and just draw the scene ... yes ...
--- so why not use the FBO's RenderBuffer (that is in gl/fbo.lua) ?
--- because https://www.reddit.com/r/opengl/comments/3l5smn/renderbuffer_v_texture/
--- RenderBuffer = hardware-only, Texture = use later (i.e. for lighting)
-
-
 
 	self:resetVideo()
 

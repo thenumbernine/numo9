@@ -3411,8 +3411,8 @@ function App:resize()
 			width = self.width,
 			height = self.height,
 			wrap = {
-				s = gl.GL_CLAMP,
-				t = gl.GL_CLAMP,
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
 			},
 			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_NEAREST,
