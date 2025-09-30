@@ -2956,7 +2956,7 @@ end
 -- returns the function to run the code
 function App:loadCmd(cmd, source, env)
 	-- Lua is wrapping [string "  "] around my source always ...
-	return self.loadenv.load(cmd, source, 't', env or self.env)
+	return self.loadenv.load(cmd, source, 't', env or self.gameEnv or self.env)
 end
 
 --[[
