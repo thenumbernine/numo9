@@ -850,6 +850,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 			- native res for editor only?
 - voxelmap is still being copied from CPU mesh-cache to CPU draw tri buffer every frame ...
 	- I should just give it its own GLArrayBuffers.
+	- without it, even memcpy'ing the prepared voxelmap mesh has a very large random range of performance (depending on cache alignment issues i guess???)
 - BlobDataAbs storing stuff in strings might be a bad idea, might be better to switch to vectors ... LuaJIT does some caching or something I bet ... not good to modify them in-place ...
 
 
