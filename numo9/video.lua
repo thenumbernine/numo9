@@ -484,10 +484,11 @@ function VideoMode:buildFramebuffers()
 			},
 		}:unbind()
 
-		-- if normalTex and fb are init'd at the same time, i.e. their cache tables use matching keys, then this shouldn't happen any more often than necessary:
+-- [[ if normalTex and fb are init'd at the same time, i.e. their cache tables use matching keys, then this shouldn't happen any more often than necessary:
 		fb:bind()
 			:setColorAttachmentTex2D(normalTex.id, 1, normalTex.target)
 			:unbind()
+--]]
 
 		if not self.useNativeOutput then
 			app.framebufferNormalTexs[sizeKey] = normalTex
@@ -544,7 +545,6 @@ function VideoMode:buildFramebuffers()
 		local formatInfo = assert.index(GLTex2D.formatInfoForInternalFormat, internalFormat)
 		gltype = gltype or formatInfo.types[1]  -- there are multiple, so let the caller override
 
-
 		if self.useNativeOutput then
 			-- make a fake-wrapper that doesn't connect to the address space and does nothing for flushing to/from CPU
 			framebufferRAM = setmetatable({}, RAMGPUTex)
@@ -594,6 +594,12 @@ function VideoMode:buildFramebuffers()
 	end
 	self.framebufferRAM = framebufferRAM
 
+-- [[ do this here?
+-- wait aren't the fb's shared between video modes?
+	fb:bind()
+		:setColorAttachmentTex2D(framebufferRAM.tex.id, 0, framebufferRAM.tex.target)
+		:unbind()
+--]]
 
 	-- hmm this is becoming a mess ...
 	-- link the fbRAM to its respective .fb so that , when we checkDirtyGPU and have to readPixels, it can use its own
@@ -1147,7 +1153,7 @@ function VideoMode:buildUberShader()
 
 	-- my one and only shader for drawing to FBO (at the moment)
 	-- I picked an uber-shader over separate shaders/states, idk how perf will change, so far good by a small but noticeable % (10%-20% or so)
---DEBUG:print('mode '..modeIndex..' drawObj')
+--DEBUG:print('mode '..self.formatDesc..' drawObj')
 	self.drawObj = GLSceneObject{
 		program = {
 			version = app.glslVersion,
@@ -1826,7 +1832,7 @@ function AppVideo:initVideoModes()
 
 
 	-- [[ hmmmmm native-resolution?  but requires lots of work-arounds for address-space , framebuffer, etc
-	local nativeMode = VideoMode{
+	local videoModeNative = VideoMode{
 		app = self,
 		width = self.width,
 		height = self.height,
@@ -1836,10 +1842,10 @@ function AppVideo:initVideoModes()
 		-- ... hmm, how long before I just let the user pick any mode they want ...
 		useNativeOutput = true,
 	}
-	nativeMode.formatDesc = 'Native_'..nativeMode.format
-	self.videoModes[255] = nativeMode
+	videoModeNative.formatDesc = 'Native_'..videoModeNative.format
+	self.videoModes[255] = videoModeNative
 	local app = self
-	function nativeMode:build()
+	function videoModeNative:build()
 		self.width = app.width
 		self.height = app.height
 
@@ -1895,7 +1901,6 @@ function AppVideo:initVideo()
 	- paletteMenuTex					256x1		2 bytes ... GL_R16UI
 	- fontMenuTex						256x8		1 byte  ... GL_R8UI
 	- checkerTex						4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
-	- framebufferMenuTex				256x256		3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
 	- framebufferRAMs._256x256xRGB565	256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
 	- framebufferRAMs._256x256x8bpp		256x256		1 byte  ... GL_R8UI
 	- blobs:
@@ -1960,25 +1965,6 @@ function AppVideo:initVideo()
 			magFilter = gl.GL_NEAREST,
 			data = fontData,
 		}:unbind()
-
-		-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
-		local size = self.width * self.height * 3
-		local data = ffi.new('uint8_t[?]', size)
-		ffi.fill(data, size)
-		self.framebufferMenuTex = GLTex2D{
-			internalFormat = gl.GL_RGB,
-			format = gl.GL_RGB,
-			type = gl.GL_UNSIGNED_BYTE,
-			width = self.width,
-			height = self.height,
-			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
-			},
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_NEAREST,
-			data = data,
-		}:unbind()
 	end
 	--]=]
 
@@ -2041,12 +2027,11 @@ function AppVideo:initVideo()
 		}:unbind()
 	end
 
-
-	self:resetVideo()
-
 --DEBUG:self.triBuf_flushCallsPerFrame = 0
 --DEBUG:self.triBuf_flushSizes = {}
 --DEBUG(flushtrace): self.triBuf_flushSizesPerTrace = {}
+
+	self:resetVideo()
 end
 
 function AppVideo:triBuf_flush()
@@ -2187,8 +2172,8 @@ function AppVideo:onFrameBufferSizeChange()
 	self.frameBufferSizeUniformDirty = true
 end
 
--- resize the # of RAMGPUs to match the # blobs
--- TODO just merge RAMGPU with blobs?  though I don't want RAMGPUs for blobs other than those that are assigned to app.blobs ... (i.e. for archiving to/from cart etc)
+-- build RAMGPU's of BlobImage's if they aren't already there
+-- update their address if they are there
 function AppVideo:resizeRAMGPUs()
 --DEBUG:print'AppVideo:resizeRAMGPUs'
 	for _,blob in ipairs(self.blobs.sheet) do
@@ -2385,18 +2370,37 @@ function AppVideo:setVideoMode(modeIndex)
 	end
 	modeObj:build()
 
-	self.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
-	self.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
+	self.framebufferRAM = modeObj.framebufferRAM
+	self.framebufferNormalTex = modeObj.framebufferNormalTex
 	self.blitScreenObj = modeObj.blitScreenObj
 	self.drawObj = modeObj.drawObj
 
+	-- [[ unbind-if-necessary, switch, rebind-if-necessary
 	if self.inUpdateCallback then
 		self.fb:unbind()
 	end
+
 	self.fb = modeObj.fb
+
 	if self.inUpdateCallback then
 		self.fb:bind()
 	end
+	--]]
+	-- [[ bind-if-necessary, update color attachment, unbind-if-necessary
+	if not self.inUpdateCallback then
+		self.fb:bind()
+	end
+	self.fb:setColorAttachmentTex2D(self.framebufferRAM.tex.id, 0, self.framebufferRAM.tex.target)
+
+	local res,err = self.fb.check()
+	if not res then
+		print(err)
+		print(debug.traceback())
+	end
+	if not self.inUpdateCallback then
+		self.fb:unbind()
+	end
+	--]]
 
 	self.triBuf_sceneObj = self.drawObj
 	self:onMvMatChange()	-- the drawObj changed so make sure it refreshes its mvMat
@@ -2404,9 +2408,7 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onFrameBufferSizeChange()
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
-	self.blitScreenObj.texs[2] = assert.index(self, 'framebufferNormalTex')
-
-	self:setFramebufferTex(self.framebufferRAM.tex)
+	self.blitScreenObj.texs[2] = self.framebufferNormalTex
 
 	self.currentVideoMode = modeObj
 	self.currentVideoModeIndex = modeIndex
@@ -2415,30 +2417,6 @@ function AppVideo:setVideoMode(modeIndex)
 	self.ram.screenHeight = modeObj.height
 
 	return true
-end
-
---[[
-This is set between the VRAM tex .framebufferRAM (for draw commands that need to be reflected to the CPU)
-and the menu tex .framebufferMenuTex (for those that don't).
-It's only used for switching between app.framebufferRAM.tex and app.framebufferMenuTex
-It is used for setting the framebuffer's attachment0, which is the color attachment.
-(other attachments are set upon app.fb == app.videoModes.fb's creation)
---]]
-function AppVideo:setFramebufferTex(tex)
-	local fb = self.fb
-	if not self.inUpdateCallback then
-		fb:bind()
-	end
-	fb:setColorAttachmentTex2D(tex.id, 0, tex.target)
-
-	local res,err = fb.check()
-	if not res then
-		print(err)
-		print(debug.traceback())
-	end
-	if not self.inUpdateCallback then
-		fb:unbind()
-	end
 end
 
 -- exchange two colors in the palettes, and in all spritesheets,

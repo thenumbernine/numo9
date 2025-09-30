@@ -225,7 +225,12 @@ local AppBlobs = {}
 function AppBlobs:initBlobs()
 --DEBUG:print('AppBlobs:initBlobs...')
 	self.blobs = BlobSet()
+
+	-- this will populate the minimum # of blobs as well
 	self:buildRAMFromBlobs()
+
+	-- this will build GPU stuff for BlobImage's
+	self:resizeRAMGPUs()
 end
 
 local minBlobPerType = {

@@ -10,7 +10,7 @@ local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 
 
-local version = table{1,1,1}
+local version = table{1,1,2}
 local versionSig = version:mapi(function(x) return string.char(x) end):concat()
 local versionStr = version:mapi(function(x) return tostring(x) end):concat'.'
 

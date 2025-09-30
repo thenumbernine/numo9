@@ -232,7 +232,6 @@ function App:initGL()
 	self.mvMat = matrix_ffi({4,4}, mvMatType):zeros()
 
 	self:initBlobs()
-	self:matident()
 
 	self.blitScreenView = View()
 	self.blitScreenView.ortho = true
@@ -1032,7 +1031,6 @@ print('package.path', package.path)
 print('package.cpath', package.cpath)
 print('package.loaded', package.loaded)
 --]]
-
 
 	self:initVideo()
 
@@ -1864,7 +1862,7 @@ conn.receivesPerSecond = 0
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
 			local x = self.screenMousePos.x / self.width * (self.orthoMax.x - self.orthoMin.x) + self.orthoMin.x
 			local y = self.screenMousePos.y / self.height * (self.orthoMax.y - self.orthoMin.y) + self.orthoMin.y
-			local mouseFbTex = self.activeMenu and self.framebufferMenuTex or self.framebufferRAM.tex
+			local mouseFbTex = self.activeMenu and self.videoModes[255].framebufferRAM.tex or self.framebufferRAM.tex
 			self.ram.mousePos.x = x * tonumber(mouseFbTex.width)
 			self.ram.mousePos.y = y * tonumber(mouseFbTex.height)
 			if self:keyp'mouse_left' then
@@ -1933,31 +1931,29 @@ print('run thread dead')
 		-- if we're using menu then render to the framebufferMenuTex
 		-- ... and don't mess with the VRAM or any draw calls that would reflect on it
 		if self.activeMenu then
+			local ditherPush = self.ram.dither
+			self.ram.dither = 0
+
 			-- push matrix
 			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
 
-			local ditherPush = self.ram.dither
-			self.ram.dither = 0
+			-- push clip rect
+			local pushClipX, pushClipY, pushClipW, pushClipH = self:getClipRect()
 
 			-- set drawText font & pal to the UI's
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
 
--- do we set or not set video mode to 256x256x16bpp for the menu?
--- if we don't then all the colors are off...
--- if we do then the mouse is off...
-
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
 			self:setVideoMode(255)
-			gl.glViewport(0, 0, self.framebufferMenuTex.width, self.framebufferMenuTex.height)
-			self:matident()
+
+			gl.glViewport(0, 0, self.framebufferRAM.tex.width, self.framebufferRAM.tex.height)
 
 			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
 			-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
 			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
-			self:setFramebufferTex(self.framebufferMenuTex)
 
-			local pushClipX, pushClipY, pushClipW, pushClipH = self:getClipRect()
+			self:matident()
 			self:setClipRect(0, 0, clipMax, clipMax)
 
 			-- while we're here, start us off with the current framebufferRAM contents
@@ -2000,6 +1996,10 @@ print('run thread dead')
 
 			self:setVideoMode(self.ram.videoMode)
 
+			-- necessary or nah?
+			local fbTex = self.framebufferRAM.tex
+			gl.glViewport(0, 0, fbTex.width, fbTex.height)
+
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
 
@@ -2009,6 +2009,8 @@ print('run thread dead')
 			-- pop the matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 			self:onMvMatChange()
+
+			-- pop ram dither
 			self.ram.dither = ditherPush
 		end
 
@@ -2100,18 +2102,6 @@ print('run thread dead')
 		needDrawCounter = needDrawCounter - 1
 		drawsPerSecond = drawsPerSecond + 1
 
-
---[[ TODO put this somewhere else?
--- TODO does it even work?
--- linear filter when using hardware lighting
-if self.lastSheetTex then
-	self.lastSheetTex
-		:bind()
-		:setParameter(gl.GL_TEXTURE_MAG_FILTER, self.ram.useHardwareLighting ~= 0 and gl.GL_LINEAR or gl.GL_NEAREST)
-		:unbind()
-end
---]]
-
 		if self.activeMenu then
 			self:setVideoMode(255)
 		end
@@ -2133,7 +2123,7 @@ end
 		local view = self.blitScreenView
 		local orthoSize = view.orthoSize
 
-		local fbTex = self.activeMenu and self.framebufferMenuTex or self.framebufferRAM.tex
+		local fbTex = self.activeMenu and self.videoModes[255].framebufferRAM.tex or self.framebufferRAM.tex
 		--local fbTex = self.framebufferRAM.tex
 
 		local wx, wy = self.width, self.height
@@ -2179,7 +2169,7 @@ end
 		end
 
 		if self.activeMenu then
-			sceneObj.texs[1] = self.framebufferMenuTex
+			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
 			-- TODO what should I bind texs[2], i.e. the normalTex to?
 		end
 --]]
@@ -3382,51 +3372,26 @@ function App:resize()
 	needDrawCounter = drawCounterNeededToRedraw
 
 	-- hack for the native-resolution videomode:
-	local nativeMode = self.videoModes[255]
-	if nativeMode then
-		nativeMode:delete()
-		if nativeMode == self.currentVideoMode then
+	local videoModeNative = self.videoModes[255]
+	if videoModeNative then
+		videoModeNative:delete()
+		if videoModeNative == self.currentVideoMode then
 			-- and when we rebuild we gotta reassign the stuff from our video mode to app...
 			-- or maybe I shouldn't be reassigning it to begin with?
 			--[[
-			nativeMode:build()
+			videoModeNative:build()
 
-			nativeMode.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
-			nativeMode.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
-			nativeMode.blitScreenObj = modeObj.blitScreenObj
-			nativeMode.drawObj = modeObj.drawObj
-			nativeMode.fb = modeObj.fb
+			videoModeNative.framebufferRAM = assert.index(modeObj, 'framebufferRAM')
+			videoModeNative.framebufferNormalTex = assert.index(modeObj, 'framebufferNormalTex')
+			videoModeNative.blitScreenObj = modeObj.blitScreenObj
+			videoModeNative.drawObj = modeObj.drawObj
+			videoModeNative.fb = modeObj.fb
 			--]]
 			-- [[ lazy
 			self:setVideoMode(0)
 			self:setVideoMode(255)
 			--]]
 		end
-	end
-
-	-- also resize the menu framebuffer
-	-- framebuffer for the editor ... doesn't have a mirror in RAM, so it doesn't cause the net state to go out of sync
-	if self.framebufferMenuTex then
-		self.framebufferMenuTex:delete()
-
-		local size = self.width * self.height * 3
-		local data = ffi.new('uint8_t[?]', size)
-		ffi.fill(data, size)
-		local GLTex2D = require 'gl.tex2d'
-		self.framebufferMenuTex = GLTex2D{
-			internalFormat = gl.GL_RGB,
-			format = gl.GL_RGB,
-			type = gl.GL_UNSIGNED_BYTE,
-			width = self.width,
-			height = self.height,
-			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
-			},
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_NEAREST,
-			data = data,
-		}:unbind()
 	end
 end
 
