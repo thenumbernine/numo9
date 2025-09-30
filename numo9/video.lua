@@ -7,17 +7,17 @@ local math = require 'ext.math'
 local assert = require 'ext.assert'
 local Image = require 'image'
 local gl = require 'gl'
-local glreport = require 'gl.report'
 local glnumber = require 'gl.number'
 local GLFBO = require 'gl.fbo'
 local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local GLTypes = require 'gl.types'
-local GLGlobal = require 'gl.global'
 
 require 'vec-ffi.vec4ub'
 require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned short'}	-- vec4us_t
+
+local RAMGPUTex = require 'numo9.ramgpu'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -30,26 +30,13 @@ local fontImageSize = numo9_rom.fontImageSize
 local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
 local fontInBytes = numo9_rom.fontInBytes
 local framebufferAddr = numo9_rom.framebufferAddr
-local frameBufferSize = numo9_rom.frameBufferSize
 local clipMax = numo9_rom.clipMax
 local mvMatScale = numo9_rom.mvMatScale
 local mvMatType = numo9_rom.mvMatType
 local menuFontWidth = numo9_rom.menuFontWidth
-local voxelmapSizeType = numo9_rom.voxelmapSizeType
-local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
 local mvMatInvScale = 1 / mvMatScale
 assert.eq(mvMatType, 'float', "TODO if this changes then update the mvMat uniform")
-
-local function settableindex(t, i, ...)
-	if select('#', ...) == 0 then return end
-	t[i] = ...
-	settableindex(t, i+1, select(2, ...))
-end
-
-local function settable(t, ...)
-	settableindex(t, 1, ...)
-end
 
 -- either seems to work fine
 local texelFunc = 'texture'
@@ -79,10 +66,6 @@ uvec4 u16to5551(uint x) {
 }
 ]]
 
-local function textureSize(tex)
-	return 'textureSize('..tex..', 0)'
-end
-
 --[[
 args:
 	texvar = glsl var name
@@ -97,11 +80,11 @@ local function readTex(args)
 	local tc = args.tc
 	if args.from == 'vec2' then
 		if texelFunc == 'texelFetch' then
-			tc = 'ivec2(('..tc..') * vec2('..textureSize(texvar)..'))'
+			tc = 'ivec2(('..tc..') * vec2(textureSize('..texvar..', 0)))'
 		end
 	elseif args.from == 'ivec2' then
 		if texelFunc ~= 'texelFetch' then
-			tc = '(vec2('..tc..') + .5) / vec2('..textureSize(texvar)..')'
+			tc = '(vec2('..tc..') + .5) / vec2(textureSize('..texvar..', 0))'
 		end
 	end
 	local dst
@@ -113,9 +96,9 @@ local function readTex(args)
 
 	-- TODO this is for when args.tex is a 5551 GL_R16UI
 	-- and to's type is vec4 ...
-	--  however you can't always test for GL_R16UI because this is also tilemapRAMs when reading tileIndex ...
+	--  however you can't always test for GL_R16UI because this is also BlobTilemap.ramgpu when reading tileIndex ...
 	--  .. but that one's dest is uvec4 so meh
-	-- but if I set that internalFormat then args.to will become uvec4, and then this will be indistinguishble from the tilemapRAMs ...
+	-- but if I set that internalFormat then args.to will become uvec4, and then this will be indistinguishble from the BlobTilemap.ramgpu...
 	-- so I would need an extra flag for "to vec4 5551"
 	-- or should I already be setting them to vec4?
 	if args.to == 'u16to5551' then
@@ -362,200 +345,6 @@ local function resetPalette(ptr)
 		ptr[0] = c
 		ptr = ptr + 1
 	end
-end
-
---[[
-makes an image whose buffer is at a location in RAM
-makes a GLTex2D that goes with that image
-provides dirty/flushing functions
---]]
-local RAMGPUTex = class()
-
---[[
-args:
-	app = app
-	addr = where in RAM
-
-	Image ctor:
-	width
-	height
-	channels
-	ctype
-	src (optional)
-
-	Tex ctor:
-	target (optional)
-	internalFormat
-	gltype
-	glformat
-	wrap
-	magFilter
-	minFilter
---]]
-function RAMGPUTex:init(args)
---DEBUG:print'RAMGPUTex:init begin'
-glreport'before RAMGPUTex:init'
-	local app = assert.index(args, 'app')
-	self.app = app
-	self.addr = assert.index(args, 'addr')
-	assert.ge(self.addr, 0)
-	local width = assert(tonumber(assert.index(args, 'width')))
-	local height = assert(tonumber(assert.index(args, 'height')))
-	local channels = assert.index(args, 'channels')
-	if channels ~= 1 then print'DANGER - non-single-channel Image!' end
-	local ctype = assert.index(args, 'ctype')
-	local ctypeSize = ffi.sizeof(ctype)
-	self.pixelSize = channels * ctypeSize
-
-	self.size = width * height * channels * ctypeSize
-	self.addrEnd = self.addr + self.size
-	assert.le(self.addrEnd, app.memSize)
-	local ptr = ffi.cast('uint8_t*', app.ram) + self.addr
-	local src = args.src
-
---DEBUG:print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.size))
-
-	local image = Image(width, height, channels, ctype, src)
-	self.image = image
-	if src then	-- if we specified a src to the Image then copy it into RAM before switching Image pointers to point at RAM
-		ffi.copy(ptr, image.buffer, self.size)
-	end
-	-- TODO allow Image construction with ptr
-	image.buffer = ffi.cast(image.format..'*', ptr)
-
-	local tex = GLTex2D{
-		target = args.target,
-		internalFormat = args.internalFormat or gl.GL_RGBA,
-		format = args.glformat or gl.GL_RGBA,
-		type = args.gltype or gl.GL_UNSIGNED_BYTE,
-
-		width = width,
-		height = height,
-		wrap = args.wrap or { -- texture_rectangle doens't support repeat ...
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
-		minFilter = args.minFilter or gl.GL_NEAREST,
-		magFilter = args.magFilter or gl.GL_NEAREST,
-		data = ptr,	-- ptr is stored
-	}
--- this will fail when the menu font is being used
---assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
-	self.tex = tex
-glreport'after RAMGPUTex:init'
---DEBUG:print'RAMGPUTex:init done'
-end
-
--- manually free GPU resources
-function RAMGPUTex:delete()
-	self.tex:delete()
-	self.tex = nil
-end
-
-function RAMGPUTex:overlaps(other)
-	return self.addr < other.addrEnd and other.addr < self.addrEnd
-end
-
--- TODO gonna subclass this soon ...
--- assumes it is being called from within the render loop
-function RAMGPUTex:checkDirtyCPU()
-	if not self.dirtyCPU then return end
-	-- we should never get in a state where both CPU and GPU are dirty
-	-- if someone is about to write to one then it shoudl test the other and flush it if it's dirty, then set the one
-	assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
-	local app = self.app
-	local tex = self.tex
-	local fb = app.fb
-	if app.inUpdateCallback then
-		fb:unbind()
-	end
--- this will fail when the menu font is being used
---assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
-	tex:bind()
-		:subimage()
-	if app.inUpdateCallback then
-		fb:bind()
-	end
-	self.dirtyCPU = false
-	self.changedSinceDraw = true	-- only used by framebufferRAM, if its GPU state ever changes, to let the app know to draw it again
-end
-
--- TODO is this only applicable for framebufferRAM?
--- if anything else has a dirty GPU ... it'd have to be because the framebuffer was rendering to it
--- and right now, the fb is only outputting to framebufferRAM ...
--- NOTICE any time you call checkDirtyGPU on a framebufferRAM that is,
--- you will need to do it from outside the inUpdateCallback
-function RAMGPUTex:checkDirtyGPU()
-glreport'checkDirtyGPU begin'
-	if not self.dirtyGPU then return end
-	assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
-	-- assert that fb is bound to framebufferRAM ...
-	local app = self.app
-	local tex = self.tex
-	local image = self.image
-	local fb =
-		-- only for framebufferRAMs,
-		-- they have dif size from sprite sheets etc and might want their own fraembuffeers ...
-		-- ... honestly same for palettes right?
-		-- well esp fbRAMs theres will be bigger than the default fb size of 256x256
-		self.fb or
-		-- ... nope that didn't fix it
-		app.fb
-	if not app.inUpdateCallback then
-		fb:bind()
-glreport'checkDirtyGPU after fb:bind'
-	else
-		if app.fb ~= fb then
-			app.fb:unbind()
-glreport'checkDirtyGPU after app.fb:unbind'
-			fb:bind()
-glreport'checkDirtyGPU after fb:bind'
-		end
-	end
---DEBUG:assert(tex.data)
---DEBUG:assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
---DEBUG:assert.le(0, tex.data - app.ram.v, 'tex.data')
---DEBUG:assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
-	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
---DEBUG:print('fb size', fb.width, fb.height)
---DEBUG:print('glReadPixels', 0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
-glreport'checkDirtyGPU after glReadPixels'
-	if not app.inUpdateCallback then
-		fb:unbind()
-glreport'checkDirtyGPU after fb:unbind'
-	else
-		if app.fb ~= fb then
-			fb:unbind()
-glreport'checkDirtyGPU after fb:unbind'
-			app.fb:bind()
-glreport'checkDirtyGPU after app.fb:bind'
-		end
-	end
-	self.dirtyGPU = false
-glreport'checkDirtyGPU end'
-end
-
---[[
-sync CPU and GPU mem then move and flag cpu-dirty so the next cycle will update
---]]
-function RAMGPUTex:updateAddr(newaddr)
---DEBUG:print'checkDirtyGPU'
-	self:checkDirtyGPU()	-- only the framebuffer has this
---DEBUG:print'checkDirtyCPU'
-	self:checkDirtyCPU()
--- clamp or allow OOB? or error?  or what?
-	newaddr = math.clamp(bit.bor(0, newaddr), 0, self.app.memSize - self.size)
---DEBUG:print(('new addr: $%x'):format(newaddr))
-	self.addr = newaddr
---DEBUG:print('self.addr', self.addr)
---DEBUG:print('self.size', self.size)
-	self.addrEnd = newaddr + self.size
---DEBUG:print('self.addrEnd', self.addrEnd)
-	self.tex.data = ffi.cast('uint8_t*', self.app.ram.v) + self.addr
---DEBUG:print('self.tex.data', self.tex.data)
-	self.image.buffer = ffi.cast(self.image.format..'*', self.tex.data)
---DEBUG:print('self.image.buffer', self.image.buffer)
-	self.dirtyCPU = true
 end
 
 
@@ -844,7 +633,7 @@ end
 -- assert palleteSize is a power-of-two ...
 local function colorIndexToFrag(app, destTex, decl)
 	return decl..' = '..readTex{
-		tex = app.paletteRAMs[1].tex,
+		tex = app.blobs.palette[1].ramgpu.tex,
 		texvar = 'paletteTex',
 		tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 		from = 'ivec2',
@@ -1019,7 +808,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 	--]=]
 	--[=[ internalFormat = internalFormat5551
 	self.colorIndexToFragColorCode = 'fragColor = '..readTex{
-		tex = app.paletteRAMs[1].tex,
+		tex = app.blobs.palette[1].ramgpu.tex,
 		texvar = 'paletteTex',
 		tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
 		from = 'ivec2',
@@ -1182,7 +971,7 @@ uniform bool useLighting;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
-uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
+uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
 		
@@ -1221,7 +1010,7 @@ void main() {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
 			app.noiseTex,
-			app.paletteRAMs[1].tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
+			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -1352,7 +1141,7 @@ function VideoMode:buildUberShader()
 	-- now that we have our .colorIndexToFragColorCode defined,
 	-- make our output shader
 	-- TODO this also expects the following to be already defined:
-	-- app.paletteRAMs[1], app.sheetRAMs[1], app.tilemapRAMs[1]
+	-- app.blobs.palette[1], app.blobs.sheet[1], app.blobs.tilemap[1]
 
 	assert(math.log(paletteSize, 2) % 1 == 0)	-- make sure our palette is a power-of-two
 
@@ -1487,9 +1276,9 @@ in vec3 vertexv;
 layout(location=0) out <?=fragType?> fragColor;
 layout(location=1) out vec4 fragNormal;
 
-uniform <?=app.paletteRAMs[1].tex:getGLSLSamplerType()?> paletteTex;
-uniform <?=app.sheetRAMs[1].tex:getGLSLSamplerType()?> sheetTex;
-uniform <?=app.tilemapRAMs[1].tex:getGLSLSamplerType()?> tilemapTex;
+uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
+uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
+uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 uniform vec4 scissor;
 
 <?=glslCode5551?>
@@ -1596,7 +1385,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 
 	uint colorIndex = ]]
 		..readTex{
-			tex = app.sheetRAMs[1].tex,
+			tex = app.blobs.sheet[1].ramgpu.tex,
 			texvar = 'sheetTex',
 			tc = 'tc',
 			from = 'vec2',
@@ -1648,7 +1437,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	//tilemapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
 	int tileIndex = int(]]..readTex{
-			tex = app.tilemapRAMs[1].tex,
+			tex = app.blobs.tilemap[1].ramgpu.tex,
 			texvar = 'tilemapTex',
 			tc = 'tileTC',
 			from = 'ivec2',
@@ -1684,7 +1473,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 
 	// sheetTex is R8 indexing into our palette ...
 	uint colorIndex = ]]..readTex{
-			tex = app.sheetRAMs[1].tex,
+			tex = app.blobs.sheet[1].ramgpu.tex,
 			texvar = 'sheetTex',
 			tc = 'tileTexTC',
 			from = 'ivec2',
@@ -1699,7 +1488,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 <?=fragType?> directShading(vec2 tc) {
 	return <?=fragType?>(vec4(]]
 			..readTex{
-				tex = app.sheetRAMs[1].tex,
+				tex = app.blobs.sheet[1].ramgpu.tex,
 				texvar = 'sheetTex',
 				tc = 'tc',
 				from = 'vec2',
@@ -2110,27 +1899,22 @@ function AppVideo:initVideo()
 	- framebufferRAMs._256x256xRGB565	256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
 	- framebufferRAMs._256x256x8bpp		256x256		1 byte  ... GL_R8UI
 	- blobs:
-	sheet:	 	sheetRAMs[i] 			256x256		1 byte  ... GL_R8UI
-	tilemap:	tilemapRAMs[i]			256x256		2 bytes ... GL_R16UI
-	palette:	paletteRAMs[i]			256x1		2 bytes ... GL_R16UI
-	font:		fontRAMs[i]				256x8		1 byte  ... GL_R8UI
+	sheet:	 	BlobSheet 				256x256		1 byte  ... GL_R8UI
+	tilemap:	BlobTilemap				256x256		2 bytes ... GL_R16UI
+	palette:	BlobPalette				256x1		2 bytes ... GL_R16UI
+	font:		BlobFont				256x8		1 byte  ... GL_R8UI
 
 	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
 	... and make each be 256 cols wide ... and as high as there are blobs ...
 	... but if 2048 is the min size, then 256x2048 = 8 sheets worth, and if we use sprite & tilemap then that's 4 ...
 	... or I could use a 512 x 2048 tex ... and just delegate what region on the tex each sheet gets ...
 	... or why not, use all 2048 x 2048 = 64 different 256x256 sheets, and sprite/tile means 32 blob max ...
-	I could make a single GL tex, and share regions on it between different sheetRAMs ...
+	I could make a single GL tex, and share regions on it between different BlobSheet's...
 	This would break with the tex.ptr == image.ptr model ... no more calling :subimage() without specifying regions ...
 
 	Should I just put the whole cartridge on the GPU and keep it sync'd at all times?
 	How often do I modify the cartridge anyways?
-
 	--]]
-	self.sheetRAMs = table()
-	self.tilemapRAMs = table()
-	self.paletteRAMs = table()
-	self.fontRAMs = table()
 	self:resizeRAMGPUs()
 
 	-- off by default
@@ -2407,146 +2191,33 @@ end
 -- TODO just merge RAMGPU with blobs?  though I don't want RAMGPUs for blobs other than those that are assigned to app.blobs ... (i.e. for archiving to/from cart etc)
 function AppVideo:resizeRAMGPUs()
 --DEBUG:print'AppVideo:resizeRAMGPUs'
-	local sheetBlobs = self.blobs.sheet
-	for i=#sheetBlobs+1,#self.sheetRAMs do
-		self.sheetRAMs[i]:delete()
-		self.sheetRAMs[i] = nil
+	for _,blob in ipairs(self.blobs.sheet) do
+		blob:buildRAMGPU(self)
 	end
-	for i,blob in ipairs(sheetBlobs) do
-		if self.sheetRAMs[i] then
---DEBUG:print('sheetRAMs '..i..' updateAddr')
-			self.sheetRAMs[i]:updateAddr(blob.addr)
-		else
---DEBUG:print('sheetRAMs '..i..' ctor')
-			self.sheetRAMs[i] = RAMGPUTex{
-				app = self,
-				addr = blob.addr,
-				width = spriteSheetSize.x,
-				height = spriteSheetSize.y,
-				channels = 1,
-				ctype = 'uint8_t',
-				internalFormat = texInternalFormat_u8,
-				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-				gltype = gl.GL_UNSIGNED_BYTE,
-			}
-		end
---[[ hmm how come setting the magFilter to LINEAR screws everything up?  cuz its a u8 texture ...
--- meanwhile I can do the bilinear filtering manually in the shader ...
-		self.sheetRAMs[i].tex
-			:bind()
-			:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST) --gl.GL_LINEAR)
-			:unbind()
---]]
+	for _,blob in ipairs(self.blobs.tilemap) do
+		blob:buildRAMGPU(self)
 	end
-
-	local tileMapBlobs = self.blobs.tilemap
-	for i=#tileMapBlobs+1,#self.tilemapRAMs do
-		self.tilemapRAMs[i]:delete()
-		self.tilemapRAMs[i] = nil
+	for _,blob in ipairs(self.blobs.palette) do
+		blob:buildRAMGPU(self)
 	end
-	for i,blob in ipairs(tileMapBlobs) do
-		--[[
-		16bpp ...
-		- 10 bits of lookup into sheetRAMs
-		- 4 bits high palette nibble
-		- 1 bit hflip
-		- 1 bit vflip
-		- .... 2 bits rotate ... ? nah
-		- .... 8 bits palette offset ... ? nah
-		--]]
-		if self.tilemapRAMs[i] then
---DEBUG:print('tilemapRAMs '..i..' updateAddr')
-			self.tilemapRAMs[i]:updateAddr(blob.addr)
-		else
---DEBUG:print('tilemapRAMs '..i..' ctor')
-			self.tilemapRAMs[i] = RAMGPUTex{
-				app = self,
-				addr = blob.addr,
-				width = tilemapSize.x,
-				height = tilemapSize.y,
-				channels = 1,
-				ctype = 'uint16_t',
-				internalFormat = texInternalFormat_u16,
-				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u16].format,
-				gltype = gl.GL_UNSIGNED_SHORT,
-			}
-		end
-	end
-
-	local paletteBlobs = self.blobs.palette
-	for i=#paletteBlobs+1,#self.paletteRAMs do
-		self.paletteRAMs[i]:delete()
-		self.paletteRAMs[i] = nil
-	end
-	for i,blob in ipairs(paletteBlobs) do
-		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
-		if self.paletteRAMs[i] then
---DEBUG:print('paletteRAMs '..i..' updateAddr')
-			self.paletteRAMs[i]:updateAddr(blob.addr)
-		else
---DEBUG:print('paletteRAMs '..i..' ctor')
-			self.paletteRAMs[i] = RAMGPUTex{
-				app = self,
-				addr = blob.addr,
-				width = paletteSize,
-				height = 1,
-				channels = 1,
-				ctype = 'uint16_t',
-				internalFormat = internalFormat5551,
-				glformat = format5551,
-				gltype = type5551,
-			}
-		end
-	end
-
-	local fontBlobs = self.blobs.font
-	for i=#fontBlobs+1,#self.fontRAMs do
-		self.fontRAMs[i]:delete()
-		self.fontRAMs[i] = nil
-	end
-	for i,blob in ipairs(fontBlobs) do
-		-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
-		-- so a 256 char font will be 2048 bytes
-		-- TODO option for 2bpp etc fonts?
-		-- before I had fonts just stored as a certain 1bpp region of the sprite sheet ...
-		-- eventually have custom sized spritesheets and drawText refer to those?
-		-- or eventually just make all textures 1D and map regions of RAM, and have the tile shader use offsets for horz and vert step?
---DEBUG:assert.ge(blob.addr, 0)
---DEBUG:assert.le(blob.addr + fontInBytes, self.memSize)
---DEBUG:print('creating font for blob #'..(i-1)..' from addr '..('$%x / %d'):format(blob.addr, blob.addr))
-		if self.fontRAMs[i] then
---DEBUG:print'...updating old addr'
-			self.fontRAMs[i]:updateAddr(blob.addr)
-		else
---DEBUG:print'...creating new obj'
-			self.fontRAMs[i] = RAMGPUTex{
-				app = self,
-				addr = blob.addr,
-				width = fontImageSize.x,
-				height = fontImageSize.y,
-				channels = 1,
-				ctype = 'uint8_t',
-				internalFormat = texInternalFormat_u8,
-				glformat = GLTex2D.formatInfoForInternalFormat[texInternalFormat_u8].format,
-				gltype = gl.GL_UNSIGNED_BYTE,
-			}
-		end
+	for _,blob in ipairs(self.blobs.font) do
+		blob:buildRAMGPU(self)
 	end
 --DEBUG:print'AppVideo:resizeRAMGPUs done'
 end
 
 function AppVideo:allRAMRegionsExceptFramebufferCheckDirtyGPU()
-	for _,ramgpu in ipairs(self.sheetRAMs) do
-		ramgpu:checkDirtyGPU()
+	for _,blob in ipairs(self.blobs.sheet) do
+		blob.ramgpu:checkDirtyGPU()
 	end
-	for _,ramgpu in ipairs(self.tilemapRAMs) do
-		ramgpu:checkDirtyGPU()
+	for _,blob in ipairs(self.blobs.tilemap) do
+		blob.ramgpu:checkDirtyGPU()
 	end
-	for _,ramgpu in ipairs(self.paletteRAMs) do
-		ramgpu:checkDirtyGPU()
+	for _,blob in ipairs(self.blobs.palette) do
+		blob.ramgpu:checkDirtyGPU()
 	end
-	for _,ramgpu in ipairs(self.fontRAMs) do
-		ramgpu:checkDirtyGPU()
+	for _,blob in ipairs(self.blobs.font) do
+		blob.ramgpu:checkDirtyGPU()
 	end
 end
 
@@ -2559,24 +2230,23 @@ function AppVideo:allRAMRegionsCheckDirtyGPU()
 	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 end
 
+-- flush anything from gpu to cpu
+-- TODO this is duplciating the above
+-- but it only flushes the *current* framebuffer
+-- TODO when is each used???
+function AppVideo:checkDirtyGPU()
+	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
+	self.framebufferRAM:checkDirtyGPU()
+end
+
+
 function AppVideo:allRAMRegionsCheckDirtyCPU()
 	-- TODO this current method updates *all* GPU/CPU framebuffer textures
 	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
 	for _,v in pairs(self.framebufferRAMs) do
 		v:checkDirtyCPU()
 	end
-	for _,ramgpu in ipairs(self.sheetRAMs) do
-		ramgpu:checkDirtyCPU()
-	end
-	for _,ramgpu in ipairs(self.tilemapRAMs) do
-		ramgpu:checkDirtyCPU()
-	end
-	for _,ramgpu in ipairs(self.paletteRAMs) do
-		ramgpu:checkDirtyCPU()
-	end
-	for _,ramgpu in ipairs(self.fontRAMs) do
-		ramgpu:checkDirtyCPU()
-	end
+	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 end
 
 -- TODO most the time I call this after I call :copyBlobsToRAM
@@ -2612,11 +2282,16 @@ function AppVideo:resetVideo()
 		v:updateAddr(framebufferAddr)
 	end
 
-	if self.sheetRAMs[1] then self.sheetRAMs[1]:updateAddr(spriteSheetAddr) end
-	if self.sheetRAMs[2] then self.sheetRAMs[2]:updateAddr(tileSheetAddr) end
-	if self.tilemapRAMs[1] then self.tilemapRAMs[1]:updateAddr(tilemapAddr) end
-	if self.paletteRAMs[1] then self.paletteRAMs[1]:updateAddr(paletteAddr) end
-	if self.fontRAMs[1] then self.fontRAMs[1]:updateAddr(fontAddr) end
+	local sheetRAM = self.blobs.sheet[1].ramgpu
+	if sheetRAM then sheetRAM:updateAddr(spriteSheetAddr) end
+	local tileSheetRAM = self.blobs.sheet[2].ramgpu
+	if tileSheetRAM then tileSheetRAM:updateAddr(tileSheetAddr) end
+	local tilemapRAM = self.blobs.tilemap[1].ramgpu
+	if tilemapRAM then tilemapRAM:updateAddr(tilemapAddr) end
+	local paletteRAM = self.blobs.palette[1].ramgpu
+	if paletteRAM then paletteRAM:updateAddr(paletteAddr) end
+	local fontRAM = self.blobs.font[1].ramgpu
+	if fontRAM then fontRAM:updateAddr(fontAddr) end
 
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
@@ -2627,25 +2302,25 @@ function AppVideo:resetVideo()
 	self:copyBlobsToROM()
 
 	-- [[ update now ...
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		sheetRAM.tex:bind()
+	for _,blob in ipairs(self.blobs.sheet) do
+		blob.ramgpu.tex:bind()
 			:subimage()
-		sheetRAM.dirtyCPU = false
+		blob.ramgpu.dirtyCPU = false
 	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		tilemapRAM.tex:bind()
+	for _,blob in ipairs(self.blobs.tilemap) do
+		blob.ramgpu.tex:bind()
 			:subimage()
-		tilemapRAM.dirtyCPU = false
+		blob.ramgpu.dirtyCPU = false
 	end
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		paletteRAM.tex:bind()
+	for _,blob in ipairs(self.blobs.palette) do
+		blob.ramgpu.tex:bind()
 			:subimage()
-		paletteRAM.dirtyCPU = false
+		blob.ramgpu.dirtyCPU = false
 	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		fontRAM.tex:bind()
+	for _,blob in ipairs(self.blobs.font) do
+		blob.ramgpu.tex:bind()
 			:subimage()
-		fontRAM.dirtyCPU = false
+		blob.ramgpu.dirtyCPU = false
 	end
 	--]]
 	--[[ update later ...
@@ -2674,36 +2349,20 @@ function AppVideo:resetVideo()
 --DEBUG:print'App:resetVideo done'
 end
 
--- flush anything from gpu to cpu
-function AppVideo:checkDirtyGPU()
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		sheetRAM:checkDirtyGPU()
-	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		tilemapRAM:checkDirtyGPU()
-	end
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		paletteRAM:checkDirtyGPU()
-	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		fontRAM:checkDirtyGPU()
-	end
-	self.framebufferRAM:checkDirtyGPU()
-end
-
 function AppVideo:setDirtyCPU()
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		sheetRAM.dirtyCPU = true
+	for _,blob in ipairs(self.blobs.sheet) do
+		blob.ramgpu.dirtyCPU = true
 	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		tilemapRAM.dirtyCPU = true
+	for _,blob in ipairs(self.blobs.tilemap) do
+		blob.ramgpu.dirtyCPU = true
 	end
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		paletteRAM.dirtyCPU = true
+	for _,blob in ipairs(self.blobs.palette) do
+		blob.ramgpu.dirtyCPU = true
 	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		fontRAM.dirtyCPU = true
+	for _,blob in ipairs(self.blobs.font) do
+		blob.ramgpu.dirtyCPU = true
 	end
+	-- only dirties the current framebuffer (is ok?)
 	self.framebufferRAM.dirtyCPU = true
 end
 
@@ -2802,8 +2461,8 @@ function AppVideo:colorSwap(from, to, x, y, w, h, paletteBlobIndex)
 	local fromFound = 0
 	local toFound = 0
 	-- TODO option for only swap in a specific sheet/addr
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		local base = sheetRAM.addr
+	for _,blob in ipairs(self.blobs.sheet) do
+		local base = blob.ramgpu.addr
 		for j=y,y+h-1 do
 			for i=x,x+w-1 do
 				local addr = base + i + spriteSheetSize.x * j
@@ -2819,8 +2478,8 @@ function AppVideo:colorSwap(from, to, x, y, w, h, paletteBlobIndex)
 		end
 	end
 	-- now swap palette entries
-	local fromAddr = self.paletteRAMs[1+paletteBlobIndex].addr + bit.lshift(from, 1)
-	local toAddr = self.paletteRAMs[1+paletteBlobIndex].addr + bit.lshift(to, 1)
+	local fromAddr = self.blobs.palette[1+paletteBlobIndex].addr + bit.lshift(from, 1)
+	local toAddr = self.blobs.palette[1+paletteBlobIndex].addr + bit.lshift(to, 1)
 	local oldFromValue = self:peekw(fromAddr)
 	self:net_pokew(fromAddr, self:peekw(toAddr))
 	self:net_pokew(toAddr, oldFromValue)
@@ -2831,14 +2490,18 @@ end
 
 function AppVideo:resetFont()
 	self:triBuf_flush()
-	self.fontRAMs[1]:checkDirtyGPU()
 	local fontBlob = self.blobs.font[1]
--- TODO ensure there's at least one?
-	if fontBlob then
-		resetFont(fontBlob.ramptr)
-		fontBlob:copyFromROM()
-	end
-	self.fontRAMs[1].dirtyCPU = true
+	-- TODO ensure there's at least one?
+	if not fontBlob then return end
+	fontBlob.ramgpu:checkDirtyGPU()
+	
+	-- TODO ... this updates the font in RAM
+	resetFont(fontBlob.ramptr)
+	-- ... and this overwrites the RAM from the ROM ...
+	-- ??? 
+	-- shouldn't this be "copyToROM" ?
+	fontBlob:copyFromROM()
+	fontBlob.ramgpu.dirtyCPU = true
 end
 
 -- externally used ...
@@ -2847,15 +2510,15 @@ end
 function AppVideo:resetGFX()
 	self:resetFont()
 
-	--self.paletteRAMs[1]:checkDirtyGPU()
-	self.paletteRAMs[1].dirtyGPU = false
+	--self.blobs.palette[1].ramgpu:checkDirtyGPU()
+	self.blobs.palette[1].ramgpu.dirtyGPU = false
 	local paletteBlob = self.blobs.palette[1]
 -- TODO ensure there's at least one?
 	if paletteBlob then
 		resetPalette(paletteBlob.ramptr)
 		paletteBlob:copyFromROM()
 	end
-	self.paletteRAMs[1].dirtyCPU = true
+	self.blobs.palette[1].ramgpu.dirtyCPU = true
 end
 
 function AppVideo:resize()
@@ -2878,9 +2541,9 @@ function AppVideo:drawSolidRect(
 	w = tonumber(w) or 0
 	h = tonumber(h) or 0
 	if not paletteTex then
-		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+		local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 		if not paletteRAM then
-			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+			paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
 		if paletteRAM.dirtyCPU then
 			self:triBuf_flush()
@@ -2912,8 +2575,8 @@ function AppVideo:drawSolidRect(
 
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x,  y,  0, x,  y,
 		xR, y,  0, xR, y,
 		x,  yR, 0, x,  yR,
@@ -2924,8 +2587,8 @@ function AppVideo:drawSolidRect(
 
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x,  yR, 0, x,  yR,
 		xR, y,  0, xR, y,
 		xR, yR, 0, xR, yR,
@@ -2956,9 +2619,9 @@ function AppVideo:drawSolidTri3D(
 	x3, y3, z3,
 	colorIndex
 )
-	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 	if not paletteRAM then
-		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -2973,8 +2636,8 @@ function AppVideo:drawSolidTri3D(
 	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x1, y1, z1, 0, 0,
 		x2, y2, z2, 1, 0,
 		x3, y3, z3, 0, 1,
@@ -3062,9 +2725,9 @@ function AppVideo:drawSolidLine3D(
 	paletteTex
 )
 	if not paletteTex then
-		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+		local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 		if not paletteRAM then
-			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+			paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
 		if paletteRAM.dirtyCPU then
 			self:triBuf_flush()
@@ -3121,8 +2784,8 @@ function AppVideo:drawSolidLine3D(
 
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLL, yLL, zLL, 0, 0,
 		xRL, yRL, zRL, 1, 0,
 		xLR, yLR, zLR, 0, 1,
@@ -3133,8 +2796,8 @@ function AppVideo:drawSolidLine3D(
 
 	self:triBuf_addTri(
 		paletteTex,
-		self.lastSheetTex or self.sheetRAMs[1].tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		xLR, yLR, zLR, 0, 1,
 		xRL, yRL, zRL, 1, 0,
 		xRR, yRR, zRR, 1, 1,
@@ -3173,9 +2836,9 @@ function AppVideo:clearScreen(
 	end
 
 	if not paletteTex then
-		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+		local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 		if not paletteRAM then
-			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+			paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
 		if paletteRAM.dirtyCPU then
 			self:triBuf_flush()
@@ -3345,7 +3008,7 @@ function AppVideo:drawQuadTex(
 	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
-		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x,  y,  0, uL, vL,
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
@@ -3357,7 +3020,7 @@ function AppVideo:drawQuadTex(
 	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
-		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x,  yR, 0, uL, vR,
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
@@ -3387,7 +3050,7 @@ function AppVideo:drawQuadTexRGB(
 	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
-		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x,  y,  0, uL, vL,
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
@@ -3399,7 +3062,7 @@ function AppVideo:drawQuadTexRGB(
 	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
-		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x,  yR, 0, uL, vR,
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
@@ -3436,7 +3099,7 @@ function AppVideo:drawQuad(
 	spriteMask,
 	paletteTex	-- override for gui
 )
-	local sheetRAM = self.sheetRAMs[sheetIndex+1]
+	local sheetRAM = self.blobs.sheet[sheetIndex+1].ramgpu
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -3444,9 +3107,9 @@ function AppVideo:drawQuad(
 	end
 
 	if not paletteTex then
-		local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+		local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 		if not paletteRAM then
-			paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+			paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
 		if paletteRAM.dirtyCPU then
 			self:triBuf_flush()
@@ -3488,16 +3151,16 @@ function AppVideo:drawTexTri3D(
 	spriteMask
 )
 	sheetIndex = sheetIndex or 0
-	local sheetRAM = self.sheetRAMs[sheetIndex+1]
+	local sheetRAM = self.blobs.sheet[sheetIndex+1].ramgpu
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
 		self:triBuf_flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
 
-	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 	if not paletteRAM then
-		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -3531,7 +3194,7 @@ function AppVideo:drawTexTri3D(
 	self:triBuf_addTri(
 		paletteTex,
 		sheetRAM.tex,
-		self.lastTilemapTex or self.tilemapRAMs[1].tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		x1, y1, z1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
@@ -3621,16 +3284,16 @@ function AppVideo:drawMap(
 	tilemapIndex	-- which tilemap blob to use, 0 to n-1 for n blobs
 )
 	sheetIndex = sheetIndex or 1
-	local sheetRAM = self.sheetRAMs[sheetIndex+1]
+	local sheetRAM = self.blobs.sheet[sheetIndex+1].ramgpu
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
 		self:triBuf_flush()
 		sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
 	end
 
-	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 	if not paletteRAM then
-		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -3639,7 +3302,7 @@ function AppVideo:drawMap(
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 
 	tilemapIndex = tilemapIndex or 0
-	local tilemapRAM = self.tilemapRAMs[tilemapIndex+1]
+	local tilemapRAM = self.blobs.tilemap[tilemapIndex+1].ramgpu
 	if tilemapRAM.dirtyCPU then
 		self:triBuf_flush()
 		tilemapRAM:checkDirtyCPU()
@@ -3783,7 +3446,7 @@ function AppVideo:drawTextCommon(
 		self:triBuf_addTri(
 			paletteTex,
 			fontTex,
-			self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+			self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 			x,  y,  0, uL, 0,
 			xR, y,  0, uR, 0,
 			x,  yR, 0, uL, th,
@@ -3795,7 +3458,7 @@ function AppVideo:drawTextCommon(
 		self:triBuf_addTri(
 			paletteTex,
 			fontTex,
-			self.lastTilemapTex or self.tilemapRAMs[1].tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+			self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 			xR, y,  0, uR, 0,
 			xR, yR, 0, uR, th,
 			x,  yR, 0, uL, th,
@@ -3816,9 +3479,9 @@ end
 -- and default x, y to the last cursor position
 function AppVideo:drawText(...)
 -- [[ drawQuad startup
-	local fontRAM = self.fontRAMs[1+self.ram.fontBlobIndex]
+	local fontRAM = self.blobs.font[1+self.ram.fontBlobIndex].ramgpu
 	if not fontRAM then
-		fontRAM = assert(self.fontRAMs[1], "can't render anything if you have no fonts (how did you delete the last one?)")
+		fontRAM = assert(self.blobs.font[1].ramgpu, "can't render anything if you have no fonts (how did you delete the last one?)")
 	end
 	if fontRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -3826,9 +3489,9 @@ function AppVideo:drawText(...)
 	end
 	local fontTex = fontRAM.tex
 
-	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 	if not paletteRAM then
-		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -4186,7 +3849,7 @@ function AppVideo:blitBrush(
 --DEBUG:print('blitBrush - no tilemapBlob '..tostring(tilemapBlob)..' - bailing')
 		return
 	end
-	local tilemapAddr = self.tilemapRAMs[tilemapIndex+1].addr
+	local tilemapAddr = tilemapBlob.addr
 
 	local stampHFlip = bit.band(1, stampOrientation)
 	local stampRot = bit.band(3, bit.rshift(stampOrientation, 1))
@@ -4480,7 +4143,7 @@ function AppVideo:drawVoxelMap(
 	end
 
 	sheetIndex = sheetIndex or 0
-	local sheetRAM = self.sheetRAMs[sheetIndex+1]
+	local sheetRAM = self.blobs.sheet[sheetIndex+1].ramgpu
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -4488,9 +4151,9 @@ function AppVideo:drawVoxelMap(
 	end
 	local sheetTex = sheetRAM.tex
 
-	local paletteRAM = self.paletteRAMs[1+self.ram.paletteBlobIndex]
+	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
 	if not paletteRAM then
-		paletteRAM = assert(self.paletteRAMs[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -4498,7 +4161,7 @@ function AppVideo:drawVoxelMap(
 	end
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 
-	local tilemapTex = self.lastTilemapTex or self.tilemapRAMs[1].tex	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+	local tilemapTex = self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 
 	if self.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -4666,6 +4329,11 @@ assert.eq(srcTCs.type, dstTCs.type, "looks like you have to update your voxelmap
 end
 
 return {
+	texInternalFormat_u8 = texInternalFormat_u8,
+	texInternalFormat_u16 = texInternalFormat_u16,
+	internalFormat5551 = internalFormat5551,
+	format5551 = format5551,
+	type5551 = type5551,
 	argb8888revto5551 = argb8888revto5551,
 	rgba5551_to_rgba8888_4ch = rgba5551_to_rgba8888_4ch,
 	rgb565rev_to_rgb888_3ch = rgb565rev_to_rgb888_3ch,

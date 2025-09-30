@@ -37,14 +37,14 @@ function EditTilemap:init(args)
 			-- for now I'll just have one undo buffer for the current sheet
 			-- TODO palette too
 			local app = self.app
-			local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex+1]
+			local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 			return {
 				tilemap = tilemapRAM.image:clone(),
 			}
 		end,
 		changed = function(entry)
 			local app = self.app
-			local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex+1]
+			local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 			return 0 ~= ffi.C.memcmp(entry.tilemap.buffer, tilemapRAM.image.buffer, tilemapRAM.image:getBufferSize())
 		end,
 	}
@@ -134,7 +134,7 @@ function EditTilemap:update()
 		self.drawGrid = not self.drawGrid
 	end
 
-	local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex+1]
+	local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 
 	local tileBits = self.draw16Sprites and 4 or 3
 	local tileSize = bit.lshift(1, tileBits)
@@ -517,7 +517,7 @@ function EditTilemap:popUndo(redo)
 	local app = self.app
 	local undoEntry = self.undo:pop(redo)
 	if undoEntry then
-		local tilemapRAM = app.tilemapRAMs[self.tilemapBlobIndex+1]
+		local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
 		ffi.C.memcpy(tilemapRAM.image.buffer, undoEntry.tilemap.buffer, tilemapRAM.image:getBufferSize())
 		tilemapRAM.dirtyCPU = true
 	end

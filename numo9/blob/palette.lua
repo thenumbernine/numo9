@@ -3,6 +3,7 @@ local assert = require 'ext.assert'
 local table = require 'ext.table'
 local vec2i = require 'vec-ffi.vec2i'
 local Image = require 'image'
+local gl = require 'gl'
 
 local numo9_rom = require 'numo9.rom'
 local paletteType = numo9_rom.paletteType
@@ -11,6 +12,7 @@ local paletteSize = numo9_rom.paletteSize
 local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
+local internalFormat5551 = numo9_video.internalFormat5551
 
 local BlobImage = require 'numo9.blob.image'
 
@@ -20,8 +22,10 @@ assert.eq(paletteSize, 256)
 
 local BlobPalette = BlobImage:subclass()
 
+-- palette is 256 x 1 x 16 bpp (5:5:5:1)
 BlobPalette.imageSize = vec2i(paletteSize, 1)
 BlobPalette.imageType = paletteType
+BlobPalette.internalFormat = internalFormat5551
 
 BlobPalette.filenamePrefix = 'palette'
 BlobPalette.filenameSuffix = '.png'

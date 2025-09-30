@@ -402,9 +402,9 @@ function App:initGL()
 
 		pal = function(colorIndex, value)
 			if value then
-				return self:net_pokew(self.paletteRAMs[1].addr + bit.lshift(colorIndex, 1), value)
+				return self:net_pokew(self.blobs.palette[1].ramgpu.addr + bit.lshift(colorIndex, 1), value)
 			else
-				return self:peekw(self.paletteRAMs[1].addr + bit.lshift(colorIndex, 1))
+				return self:peekw(self.blobs.palette[1].ramgpu.addr + bit.lshift(colorIndex, 1))
 			end
 		end,
 
@@ -1286,7 +1286,7 @@ print('package.loaded', package.loaded)
 
 				-- also for init, do the splash screen
 				resetLogoOnSheet(self.blobs.sheet[1].ramptr)
-				self.sheetRAMs[1].dirtyCPU = true
+				self.blobs.sheet[1].ramgpu.dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
 						env.mset(i, j, bit.bor(
@@ -1341,12 +1341,13 @@ print('package.loaded', package.loaded)
 				env.flip()
 
 				-- and clear the tilemap now that we're done with it
-				local tileSheetBlob = self.blobs.sheet[1]
-				ffi.fill(tileSheetBlob.ramptr, tileSheetBlob:getSize())
-				self.sheetRAMs[1].dirtyCPU = true	-- TODO merge sheetRAMs[] and blobs.sheet[]
+				local sheetBlob = self.blobs.sheet[1]
+				ffi.fill(sheetBlob.ramptr, sheetBlob:getSize())
+				sheetBlob.ramgpu.dirtyCPU = true
 
-				local tileMapBlob = self.blobs.tilemap[1]
-				ffi.fill(tileMapBlob.ramptr, tileMapBlob:getSize())
+				local tilemapBlob = self.blobs.tilemap[1]
+				ffi.fill(tilemapBlob.ramptr, tilemapBlob:getSize())
+				tilemapBlob.ramgpu.dirtyCPU = true
 			end
 
 			-- initially assign to cartBrowser
@@ -1523,7 +1524,8 @@ function App:net_mset(x, y, value, tilemapBlobIndex)
 	and y >= 0 and y < tilemapSize.y
 	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
 	then
-		local addr = self.tilemapRAMs[tilemapBlobIndex+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		local addr = self.blobs.tilemap[tilemapBlobIndex+1].ramgpu.addr	-- use the relocatable address
+			+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		-- use poke over netplay, cuz i'm lazy.
 		if self.server then
 			local prevValue = self:peekw(addr)
@@ -1549,7 +1551,8 @@ function App:mget(x, y, tilemapBlobIndex)
 	and y >= 0 and y < tilemapSize.y
 	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
 	then
-		local addr = self.tilemapRAMs[tilemapBlobIndex+1].addr + bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		local addr = self.blobs.tilemap[tilemapBlobIndex+1].ramgpu.addr	-- use the relocatable address
+			+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		return self:peekw(addr)
 	end
 	-- TODO return default oob value?  or return nil?
@@ -1778,36 +1781,36 @@ conn.receivesPerSecond = 0
 		end
 
 		-- TODO how to handle these plus expandable ROM?  I could only have the first sheets relocatable?
+		-- TODO testing for .ramgpu's existence was only in half of these, maybe I don't need that test?
 		local newSpriteSheetAddr = self.ram.spriteSheetAddr
-		if self.sheetRAMs[1]
-		and self.sheetRAMs[1].addr ~= newSpriteSheetAddr
-		then
---DEBUG:print'updating sheetRAMs[1] addr'
-			self.sheetRAMs[1]:updateAddr(newSpriteSheetAddr)
+		local sheetRAM = self.blobs.sheet[1].ramgpu
+		if sheetRAM and sheetRAM.addr ~= newSpriteSheetAddr then
+--DEBUG:print'updating blobs.sheet[1].ramgpu addr'
+			sheetRAM:updateAddr(newSpriteSheetAddr)
 		end
 		local newTileSheetAddr = self.ram.tileSheetAddr
-		if self.sheetRAMs[2]
-		and self.sheetRAMs[2].addr ~= newTileSheetAddr
-		then
---DEBUG:print'updating sheetRAMs[2] addr'
-			self.sheetRAMs[2]:updateAddr(newTileSheetAddr)
+		local tileSheetRAM = self.blobs.sheet[2].ramgpu
+		if tileSheetRAM and tileSheetRAM.addr ~= newTileSheetAddr then
+--DEBUG:print'updating blobs.sheet[2].ramgpu addr'
+			tileSheetRAM:updateAddr(newTileSheetAddr)
 		end
 		local newTilemapAddr = self.ram.tilemapAddr
-		if self.tilemapRAMs[1]
-		and self.tilemapRAMs[1].addr ~= newTilemapAddr
-		then
+		local tilemapRAM = self.blobs.tilemap[1].ramgpu
+		if tilemapRAM and tilemapRAM.addr ~= newTilemapAddr then
 --DEBUG:print'updating tilemapRAM addr'
-			self.tilemapRAMs[1]:updateAddr(newTilemapAddr)
+			tilemapRAM:updateAddr(newTilemapAddr)
 		end
 		local newPaletteAddr = self.ram.paletteAddr
-		if self.paletteRAMs[1].addr ~= newPaletteAddr then
+		local paletteRAM = self.blobs.palette[1].ramgpu
+		if paletteRAM and paletteRAM.addr ~= newPaletteAddr then
 --DEBUG:print'updating paletteRAM addr'
-			self.paletteRAMs[1]:updateAddr(newPaletteAddr)
+			paletteRAM:updateAddr(newPaletteAddr)
 		end
 		local newFontAddr = self.ram.fontAddr
-		if self.fontRAMs[1].addr ~= newFontAddr then
+		local fontRAM = self.blobs.font[1].ramgpu
+		if fontRAM and fontRAM.addr ~= newFontAddr then
 --DEBUG:print'updating fontRAM addr'
-			self.fontRAMs[1]:updateAddr(newFontAddr)
+			fontRAM:updateAddr(newFontAddr)
 		end
 
 		-- BIG TODO for feedback framebuffer
@@ -1815,11 +1818,11 @@ conn.receivesPerSecond = 0
 		-- in fact same if the framebuffer points to any of the other system RAM addresses, in case you want to draw to the fontWidth array or something ...
 		-- but we don't need to always be copying back from GPU to CPU ... only if any of the sheets overlap with it ...
 		-- and if any sheets intersect with it then we need to copy the GPU back to CPU ... and then set the sheets' dirtyCPU flag ...
-		local spriteSheetOverlapsFramebuffer = self.sheetRAMs[1] self.framebufferRAM:overlaps(self.sheetRAMs[1])
-		local tileSheetOverlapsFramebuffer = self.sheetRAMs[2] self.framebufferRAM:overlaps(self.sheetRAMs[2])
-		local tilemapOverlapsFramebuffer = self.tilemapRAMs[1] self.framebufferRAM:overlaps(self.tilemapRAMs[1])
-		local paletteOverlapsFramebuffer = self.paletteRAMs[1] self.framebufferRAM:overlaps(self.paletteRAMs[1])
-		local fontOverlapsFramebuffer = self.fontRAMs[1] self.framebufferRAM:overlaps(self.fontRAMs[1])
+		local spriteSheetOverlapsFramebuffer = self.framebufferRAM:overlaps(sheetRAM)
+		local tileSheetOverlapsFramebuffer = self.framebufferRAM:overlaps(tileSheetRAM)
+		local tilemapOverlapsFramebuffer = self.framebufferRAM:overlaps(tilemapRAM)
+		local paletteOverlapsFramebuffer = self.framebufferRAM:overlaps(paletteRAM)
+		local fontOverlapsFramebuffer = self.framebufferRAM:overlaps(fontRAM)
 		if spriteSheetOverlapsFramebuffer
 		or tileSheetOverlapsFramebuffer
 		or tilemapOverlapsFramebuffer
@@ -1828,11 +1831,11 @@ conn.receivesPerSecond = 0
 		then
 --DEBUG:print'syncing framebuffer'
 			self.framebufferRAM:checkDirtyGPU()
-			if spriteSheetOverlapsFramebuffer then self.sheetRAMs[1].dirtyCPU = true end
-			if tileSheetOverlapsFramebuffer then self.sheetRAMs[2].dirtyCPU = true end
-			if tilemapOverlapsFramebuffer then self.tilemapRAMs[1].dirtyCPU = true end
-			if paletteOverlapsFramebuffer then self.paletteRAMs[1].dirtyCPU = true end
-			if fontOverlapsFramebuffer then self.fontRAMs[1].dirtyCPU = true end
+			if spriteSheetOverlapsFramebuffer then sheetRAM.dirtyCPU = true end
+			if tileSheetOverlapsFramebuffer then tileSheetRAM.dirtyCPU = true end
+			if tilemapOverlapsFramebuffer then tilemapRAM.dirtyCPU = true end
+			if paletteOverlapsFramebuffer then paletteRAM.dirtyCPU = true end
+			if fontOverlapsFramebuffer then fontRAM.dirtyCPU = true end
 		end
 
 		-- update threadpool, clients or servers
@@ -2098,7 +2101,7 @@ print('run thread dead')
 		drawsPerSecond = drawsPerSecond + 1
 
 
--- TODO put this somewhere else?
+--[[ TODO put this somewhere else?
 -- TODO does it even work?
 -- linear filter when using hardware lighting
 if self.lastSheetTex then
@@ -2107,7 +2110,7 @@ if self.lastSheetTex then
 		:setParameter(gl.GL_TEXTURE_MAG_FILTER, self.ram.useHardwareLighting ~= 0 and gl.GL_LINEAR or gl.GL_NEAREST)
 		:unbind()
 end
-
+--]]
 
 		if self.activeMenu then
 			self:setVideoMode(255)
@@ -2118,7 +2121,7 @@ end
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		local videoModeObj = self.videoModes[self.ram.videoMode]
 		if videoModeObj and videoModeObj.format == '8bppIndex' then
-			self.paletteRAMs[1]:checkDirtyCPU()
+			self.blobs.palette[1].ramgpu:checkDirtyCPU()
 		end
 
 		gl.glViewport(0, 0, self.width, self.height)
@@ -2305,44 +2308,50 @@ function App:poke(addr, value)
 
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		if addr >= sheetRAM.addr
-		and addr < sheetRAM.addrEnd
+	for _,blob in ipairs(self.blobs.sheet) do
+		-- use ramgpu since it is the relocatable address
+		if addr >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
 			-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
-			--sheetRAM:checkDirtyGPU()
-			sheetRAM.dirtyCPU = true
+			--blob.ramgpu:checkDirtyGPU()
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		if addr >= tilemapRAM.addr
-		and addr < tilemapRAM.addrEnd
+	for _,blob in ipairs(self.blobs.tilemap) do
+		-- use ramgpu since it is the relocatable address
+		if addr >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			--tilemapRAM:checkDirtyGPU()
-			tilemapRAM.dirtyCPU = true
+			--blob.ramgpu:checkDirtyGPU()
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
 	-- a few options with dirtying palette entries
 	-- 1) consolidate calls, so write this separately in pokew and pokel
 	-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
 	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		if addr >= paletteRAM.addr
-		and addr < paletteRAM.addrEnd
+	for _,blob in ipairs(self.blobs.palette) do
+		-- use ramgpu since it is the relocatable address
+		if addr >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			paletteRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		if addr >= fontRAM.addr
-		and addr < fontRAM.addrEnd
+	for _,blob in ipairs(self.blobs.font) do
+		-- use ramgpu since it is the relocatable address
+		if addr >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			fontRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
 	-- TODO merge the above with their respective blobs
 	-- and then just cycle all blobs and flag here
 	for _,voxelmap in ipairs(self.blobs.voxelmap) do
+		-- TODO allow voxelmap to have relocatable addresses?
+		-- merge BlobImage ramgpu into BlobImage and rename this field to 'relocAddr' and 'relocAddrEnd' ?
 		if addr >= voxelmap.addr
 		and addr < voxelmap.addrEnd
 		then
@@ -2375,32 +2384,32 @@ function App:pokew(addr, value)
 		self:onClipRectChange()
 	end
 
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		if addrend >= sheetRAM.addr
-		and addr < sheetRAM.addrEnd
+	for _,blob in ipairs(self.blobs.sheet) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			sheetRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		if addrend >= tilemapRAM.addr
-		and addr < tilemapRAM.addrEnd
+	for _,blob in ipairs(self.blobs.tilemap) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			tilemapRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		if addrend >= paletteRAM.addr
-		and addr < paletteRAM.addrEnd
+	for _,blob in ipairs(self.blobs.palette) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			paletteRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		if addrend >= fontRAM.addr
-		and addr < fontRAM.addrEnd
+	for _,blob in ipairs(self.blobs.font) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			fontRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
 	-- TODO merge the above with their respective blobs
@@ -2438,32 +2447,32 @@ function App:pokel(addr, value)
 		self:onClipRectChange()
 	end
 
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		if addrend >= sheetRAM.addr
-		and addr < sheetRAM.addrEnd
+	for _,blob in ipairs(self.blobs.sheet) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			sheetRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		if addrend >= tilemapRAM.addr
-		and addr < tilemapRAM.addrEnd
+	for _,blob in ipairs(self.blobs.tilemap) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			tilemapRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		if addrend >= paletteRAM.addr
-		and addr < paletteRAM.addrEnd
+	for _,blob in ipairs(self.blobs.palette) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			paletteRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		if addrend >= fontRAM.addr
-		and addr < fontRAM.addrEnd
+	for _,blob in ipairs(self.blobs.font) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			fontRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
 	-- TODO merge the above with their respective blobs
@@ -2501,32 +2510,32 @@ function App:pokef(addr, value)
 		self:onClipRectChange()
 	end
 
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		if addrend >= sheetRAM.addr
-		and addr < sheetRAM.addrEnd
+	for _,blob in ipairs(self.blobs.sheet) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			sheetRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		if addrend >= tilemapRAM.addr
-		and addr < tilemapRAM.addrEnd
+	for _,blob in ipairs(self.blobs.tilemap) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			tilemapRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		if addrend >= paletteRAM.addr
-		and addr < paletteRAM.addrEnd
+	for _,blob in ipairs(self.blobs.palette) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			paletteRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		if addrend >= fontRAM.addr
-		and addr < fontRAM.addrEnd
+	for _,blob in ipairs(self.blobs.font) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
 		then
-			fontRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
 	-- TODO merge the above with their respective blobs
@@ -2608,32 +2617,32 @@ function App:memcpy(dst, src, len)
 		self:onClipRectChange()
 	end
 
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		if dstend >= sheetRAM.addr
-		and dst < sheetRAM.addrEnd
+	for _,blob in ipairs(self.blobs.sheet) do
+		if dstend >= blob.ramgpu.addr
+		and dst < blob.ramgpu.addrEnd
 		then
-			sheetRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		if dstend >= tilemapRAM.addr
-		and dst < tilemapRAM.addrEnd
+	for _,blob in ipairs(self.blobs.tilemap) do
+		if dstend >= blob.ramgpu.addr
+		and dst < blob.ramgpu.addrEnd
 		then
-			tilemapRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		if dstend >= paletteRAM.addr
-		and dst < paletteRAM.addrEnd
+	for _,blob in ipairs(self.blobs.palette) do
+		if dstend >= blob.ramgpu.addr
+		and dst < blob.ramgpu.addrEnd
 		then
-			paletteRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		if dstend >= fontRAM.addr
-		and dst < fontRAM.addrEnd
+	for _,blob in ipairs(self.blobs.font) do
+		if dstend >= blob.ramgpu.addr
+		and dst < blob.ramgpu.addrEnd
 		then
-			fontRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
 	-- TODO merge the above with their respective blobs
@@ -2683,32 +2692,32 @@ function App:memset(dst, val, len)
 		self:onClipRectChange()
 	end
 
-	for _,sheetRAM in ipairs(self.sheetRAMs) do
-		if dstend >= sheetRAM.addr
-		and dst < sheetRAM.addrEnd
+	for _,blob in ipairs(self.blobs.sheet) do
+		if dstend >= blob.ramgpu.addr
+		and dst < blob.ramgpu.addrEnd
 		then
-			sheetRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,tilemapRAM in ipairs(self.tilemapRAMs) do
-		if dstend >= tilemapRAM.addr
-		and dst < tilemapRAM.addrEnd
+	for _,blob in ipairs(self.blobs.tilemap) do
+		if dstend >= blob.ramgpu.addr
+		and dst < blob.ramgpu.addrEnd
 		then
-			tilemapRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,paletteRAM in ipairs(self.paletteRAMs) do
-		if dstend >= paletteRAM.addr
-		and dst < paletteRAM.addrEnd
+	for _,blob in ipairs(self.blobs.palette) do
+		if dstend >= blob.ramgpu.addr
+		and dst < blob.ramgpu.addrEnd
 		then
-			paletteRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
-	for _,fontRAM in ipairs(self.fontRAMs) do
-		if dstend >= fontRAM.addr
-		and dst < fontRAM.addrEnd
+	for _,blob in ipairs(self.blobs.font) do
+		if dstend >= blob.ramgpu.addr
+		and dst < blob.ramgpu.addrEnd
 		then
-			fontRAM.dirtyCPU = true
+			blob.ramgpu.dirtyCPU = true
 		end
 	end
 	-- TODO merge the above with their respective blobs
@@ -2834,21 +2843,21 @@ function App:openCart(filename)
 		v.dirtyCPU = false
 		v.dirtyGPU = false
 	end
-	for _,ramgpu in ipairs(self.sheetRAMs) do
-		ramgpu.dirtyCPU = false
-		ramgpu.dirtyGPU = false
+	for _,blob in ipairs(self.blobs.sheet) do
+		blob.ramgpu.dirtyCPU = false
+		blob.ramgpu.dirtyGPU = false
 	end
-	for _,ramgpu in ipairs(self.tilemapRAMs) do
-		ramgpu.dirtyCPU = false
-		ramgpu.dirtyGPU = false
+	for _,blob in ipairs(self.blobs.tilemap) do
+		blob.ramgpu.dirtyCPU = false
+		blob.ramgpu.dirtyGPU = false
 	end
-	for _,ramgpu in ipairs(self.paletteRAMs) do
-		ramgpu.dirtyCPU = false
-		ramgpu.dirtyGPU = false
+	for _,blob in ipairs(self.blobs.palette) do
+		blob.ramgpu.dirtyCPU = false
+		blob.ramgpu.dirtyGPU = false
 	end
-	for _,ramgpu in ipairs(self.fontRAMs) do
-		ramgpu.dirtyCPU = false
-		ramgpu.dirtyGPU = false
+	for _,blob in ipairs(self.blobs.font) do
+		blob.ramgpu.dirtyCPU = false
+		blob.ramgpu.dirtyGPU = false
 	end
 	--]]
 
@@ -2873,8 +2882,7 @@ function App:openCart(filename)
 	--]]
 	if not d then return nil, basemsg..(msg or '') end
 
-	if self.blobs then self.blobs:delete() end	-- free resources before creating new blobs
-	self.blobs = cartImageToBlobs(d)
+	self:setBlobs(cartImageToBlobs(d))
 
 	self:updateBlobChanges()
 

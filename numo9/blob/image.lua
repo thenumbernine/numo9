@@ -1,9 +1,18 @@
+require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
 local vec2i = require 'vec-ffi.vec2i'
 local Image = require 'image'
+local gl = require 'gl'
+local GLTex2D = require 'gl.tex2d'
+
+local RAMGPUTex = require 'numo9.ramgpu'
 
 local Blob = require 'numo9.blob.blob'
+
+local numo9_rom = require 'numo9.rom'
+local spriteSheetSize = numo9_rom.spriteSheetSize
+
 
 -- abstract class
 local BlobImage = Blob:subclass()
@@ -58,5 +67,37 @@ function BlobImage:loadBinStr(data)
 	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
 	return self.class(image)
 end
+
+function BlobImage:buildRAMGPU(app)
+	if self.ramgpu then
+--DEBUG:print('BlobImage:buildRAMGPU '..self.name..' updating addr')
+		self.ramgpu:updateAddr(self.addr)
+		return
+	end
+
+	local formatInfo = GLTex2D.formatInfoForInternalFormat[self.internalFormat]
+
+--DEBUG:print('BlobImage:buildRAMGPU '..self.name..' creating new')
+	self.ramgpu = RAMGPUTex{
+		app = app,
+		addr = self.addr,
+		width = self.imageSize.x,
+		height = self.imageSize.y,
+		channels = 1,
+		ctype = self.imageType,
+		internalFormat = self.internalFormat,
+		glformat = formatInfo.format,
+		gltype = formatInfo.types[1],
+	}
+end
+
+function BlobImage:delete()
+	if self.ramgpu then
+		self.ramgpu:delete()
+		self.ramgpu = nil
+	end
+end
+
+BlobImage.__gc = BlobImage.delete
 
 return BlobImage

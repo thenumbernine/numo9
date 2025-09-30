@@ -45,8 +45,8 @@ function EditSheet:init(args)
 			-- for now I'll just have one undo buffer for the current sheet
 			-- TODO palette too
 			local app = self.app
-			local sheetRAM = app.sheetRAMs[self.sheetBlobIndex+1]
-			local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
+			local sheetRAM = app.blobs.sheet[self.sheetBlobIndex+1].ramgpu
+			local paletteRAM = app.blobs.palette[self.paletteBlobIndex+1].ramgpu
 			return {
 				sheet = sheetRAM.image:clone(),
 				palette = paletteRAM.image:clone(),
@@ -54,8 +54,8 @@ function EditSheet:init(args)
 		end,
 		changed = function(entry)
 			local app = self.app
-			local sheetRAM = app.sheetRAMs[self.sheetBlobIndex+1]
-			local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
+			local sheetRAM = app.blobs.sheet[self.sheetBlobIndex+1].ramgpu
+			local paletteRAM = app.blobs.palette[self.paletteBlobIndex+1].ramgpu
 			return 0 ~= ffi.C.memcmp(entry.sheet.buffer, sheetRAM.image.buffer, sheetRAM.image:getBufferSize())
 			or 0 ~= ffi.C.memcmp(entry.palette.buffer, paletteRAM.image.buffer, paletteRAM.image:getBufferSize())
 		end,
@@ -113,13 +113,15 @@ function EditSheet:update()
 
 	EditSheet.super.update(self)
 
-	assert.eq(#app.sheetRAMs, #app.blobs.sheet)
-	local sheetRAM = app.sheetRAMs[self.sheetBlobIndex+1]
-	local currentTexAddr = sheetRAM.addr
+	local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
+	local sheetRAM = sheetBlob.ramgpu
+	-- use the ramgpu's addr which can be relocated?  or use the blob's addr?
+	-- I'm using the blob addr at the moment, since it is related to the permanent state of the cart/blob.
+	local currentSheetAddr = sheetBlob.addr
+	--local currentSheetAddr = sheetRAM.addr	-- use this to see whatever the "fantasy hardware" is seeing at present
 
-	assert.eq(#app.paletteRAMs, #app.blobs.palette)
-	local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
 	local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
+	local paletteRAM = paletteBlob.ramgpu
 
 	-- choose spriteBit
 	app:drawMenuText(
@@ -427,7 +429,7 @@ function EditSheet:update()
 				-- let's subtract it
 				local texelIndex = tx + spriteSheetSize.x * ty
 				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-				local addr = currentTexAddr + texelIndex
+				local addr = currentSheetAddr + texelIndex
 				return bit.band(
 					0xff,
 					self.paletteOffset
@@ -444,7 +446,7 @@ function EditSheet:update()
 
 				local texelIndex = tx + spriteSheetSize.x * ty
 				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-				local addr = currentTexAddr + texelIndex
+				local addr = currentSheetAddr + texelIndex
 				local value = bit.bor(
 					bit.band(
 						bit.bnot(mask),
@@ -860,7 +862,7 @@ print'BAKING PALETTE'
 				assert.eq(sheetRAM.image.channels, 1)
 				for j=y,y+height-1 do
 					for i=x,x+width-1 do
-						self:edit_poke(currentTexAddr + i + sheetRAM.image.width * j, self.paletteOffset)
+						self:edit_poke(currentSheetAddr + i + sheetRAM.image.width * j, self.paletteOffset)
 					end
 				end
 				self.hist = nil	-- invalidate histogram
@@ -967,7 +969,7 @@ print('possible colors: '..require 'ext.tolua'(colors))
 				end
 				assert.eq(image.channels, 1, "image.channels")
 print'pasting image'
-print('currentTexAddr', ('$%x'):format(currentTexAddr))
+print('currentSheetAddr', ('$%x'):format(currentSheetAddr))
 				for j=0,image.height-1 do
 					for i=0,image.width-1 do
 						local destx = i + x
@@ -978,7 +980,7 @@ print('currentTexAddr', ('$%x'):format(currentTexAddr))
 							local c = image.buffer[i + image.width * j]
 							local r,g,b,a = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[c])
 							if not self.pasteTransparent or a > 0 then
-								self:edit_poke(currentTexAddr + destx + sheetRAM.image.width * desty, c)
+								self:edit_poke(currentSheetAddr + destx + sheetRAM.image.width * desty, c)
 							end
 						end
 					end
@@ -1007,8 +1009,8 @@ function EditSheet:popUndo(redo)
 	local app = self.app
 	local undoEntry = self.undo:pop(redo)
 	if undoEntry then
-		local sheetRAM = app.sheetRAMs[self.sheetBlobIndex+1]
-		local paletteRAM = app.paletteRAMs[self.paletteBlobIndex+1]
+		local sheetRAM = app.blobs.sheet[self.sheetBlobIndex+1].ramgpu
+		local paletteRAM = app.blobs.palette[self.paletteBlobIndex+1].ramgpu
 		ffi.C.memcpy(sheetRAM.image.buffer, undoEntry.sheet.buffer, sheetRAM.image:getBufferSize())
 		ffi.C.memcpy(paletteRAM.image.buffer, undoEntry.palette.buffer, paletteRAM.image:getBufferSize())
 		sheetRAM.dirtyCPU = true

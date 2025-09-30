@@ -872,3 +872,5 @@ If you want to rely on outside binaries, here is the list of dependencies:
 			- Palette
 			- Sheet
 			- Tilemap
+
+- `app.framebufferRAMs` builds as you set more video modes.  how about clearing app.framebufferRAMs between cart open's?

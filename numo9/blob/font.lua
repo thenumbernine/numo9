@@ -1,10 +1,12 @@
 local Image = require 'image'
+local gl = require 'gl'
 
 local numo9_rom = require 'numo9.rom'
 local fontImageSize = numo9_rom.fontImageSize
 
 local numo9_video = require 'numo9.video'
 local resetFont = numo9_video.resetFont
+local texInternalFormat_u8 = numo9_video.texInternalFormat_u8
 
 local BlobImage = require 'numo9.blob.image'
 
@@ -12,6 +14,14 @@ local BlobFont = BlobImage:subclass()
 
 BlobFont.imageSize = fontImageSize
 BlobFont.imageType = 'uint8_t'
+BlobFont.internalFormat = texInternalFormat_u8
+-- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
+-- so a 256 char font will be 2048 bytes
+-- TODO option for 2bpp etc fonts?
+-- before I had fonts just stored as a certain 1bpp region of the sprite sheet ...
+-- eventually have custom sized spritesheets and drawText refer to those?
+-- or eventually just make all textures 1D and map regions of RAM, and have the tile shader use offsets for horz and vert step?
+
 
 BlobFont.filenamePrefix = 'font'
 BlobFont.filenameSuffix = '.png'

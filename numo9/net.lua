@@ -1423,41 +1423,38 @@ assert.len(deltaStr, deltaBufLen)
 						local newMemSize = #ramState
 --DEBUG(@5):print('newMemSize', newMemSize)
 						local newBlobs = byteArrayToBlobs(ptr, newMemSize)
-						if app.blobs then app.blobs:delete() end	-- free resources before creating new blobs
-						app.blobs = newBlobs	-- hmm but idk that I use this in netplay...
+						app:setBlobs(newBlobs)	-- hmm but idk that I use this in netplay...
 						app:buildRAMFromBlobs()
 						ffi.copy(app.ram, ramState, app.memSize)
 
 						app:resizeRAMGPUs()	-- resizes # of RAMGPU objects, sets them to their default address too
 						app:setVideoMode(app.ram.videoMode)
 
-						-- TODO this current method updates *all* GPU/CPU framebuffer textures
-						-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
 						for _,v in pairs(app.framebufferRAMs) do
 							v.dirtyCPU = true
 							v:updateAddr(app.ram.framebufferAddr)
 						end
 
-						for _,sheetRAM in ipairs(app.sheetRAMs) do
-							sheetRAM.dirtyCPU = true
-							sheetRAM:checkDirtyCPU()	-- and flush
+						for _,blob in ipairs(app.blobs.sheet) do
+							blob.ramgpu.dirtyCPU = true
+							blob.ramgpu:checkDirtyCPU()	-- and flush
 						end
-						app.sheetRAMs[1]:updateAddr(app.ram.spriteSheetAddr)
-						for _,tilemapRAM in ipairs(app.tilemapRAMs) do
-							tilemapRAM.dirtyCPU = true
-							tilemapRAM:checkDirtyCPU()
+						app.blobs.sheet[1].ramgpu:updateAddr(app.ram.spriteSheetAddr)
+						for _,blob in ipairs(app.blobs.tilemap) do
+							blob.ramgpu.dirtyCPU = true
+							blob.ramgpu:checkDirtyCPU()
 						end
-						app.tilemapRAMs[1]:updateAddr(app.ram.tilemapAddr)
-						for _,paletteRAM in ipairs(app.paletteRAMs) do
-							paletteRAM.dirtyCPU = true
-							paletteRAM:checkDirtyCPU()
+						app.blobs.tilemap[1].ramgpu:updateAddr(app.ram.tilemapAddr)
+						for _,blob in ipairs(app.blobs.palette) do
+							blob.ramgpu.dirtyCPU = true
+							blob.ramgpu:checkDirtyCPU()
 						end
-						app.paletteRAMs[1]:updateAddr(app.ram.paletteAddr)
-						for _,fontRAM in ipairs(app.fontRAMs) do
-							fontRAM.dirtyCPU = true
-							fontRAM:checkDirtyCPU()
+						app.blobs.palette[1].ramgpu:updateAddr(app.ram.paletteAddr)
+						for _,blob in ipairs(app.blobs.font) do
+							blob.ramgpu.dirtyCPU = true
+							blob.ramgpu:checkDirtyCPU()
 						end
-						app.fontRAMs[1]:updateAddr(app.ram.fontAddr)
+						app.blobs.font[1].ramgpu:updateAddr(app.ram.fontAddr)
 						--app:resetVideo()
 						app.framebufferRAM.changedSinceDraw = true
 

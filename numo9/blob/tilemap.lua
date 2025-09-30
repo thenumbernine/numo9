@@ -1,17 +1,32 @@
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
 local Image = require 'image'
+local gl = require 'gl'
 
 local numo9_rom = require 'numo9.rom'
 local tilemapSize = numo9_rom.tilemapSize
 
-local BlobImage = require 'numo9.blob.image'
+local numo9_video = require 'numo9.video'
+local texInternalFormat_u16 = numo9_video.texInternalFormat_u16
 
+local BlobImage = require 'numo9.blob.image'
 
 local BlobTileMap = BlobImage:subclass()
 
 BlobTileMap.imageSize = tilemapSize
 BlobTileMap.imageType = 'uint16_t'
+BlobTileMap.internalFormat = texInternalFormat_u16
+--BlobTileMap.gltype = gl.GL_UNSIGNED_SHORT == formatInfo.types[1]
+--[[
+16bpp ...
+- 10 bits of lookup into BlobSheet
+- 4 bits high palette nibble
+- 1 bit hflip
+- 1 bit vflip
+- .... 2 bits rotate ... ? nah
+- .... 8 bits palette offset ... ? nah
+--]]
+
 
 BlobTileMap.filenamePrefix = 'tilemap'
 BlobTileMap.filenameSuffix = '.png'

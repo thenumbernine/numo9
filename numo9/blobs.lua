@@ -82,6 +82,7 @@ function BlobSet:init()
 	end
 end
 
+--[[ idk that I ever need this, when there is :setBlobs() to only delete whats necessary and hand the rest off
 function BlobSet:delete()
 	for _,name in ipairs(blobClassNameForType) do
 		local blobsForType = self[name]
@@ -90,6 +91,7 @@ function BlobSet:delete()
 		end
 	end
 end
+--]]
 
 function BlobSet:copyToROM()
 	for _,name in ipairs(blobClassNameForType) do
@@ -333,6 +335,26 @@ function AppBlobs:copyRAMToBlobs()
 	self.blobs:copyFromROM()
 end
 
+-- when you overwrite the blobs, make sure to retain as many RAMGPUTex's as possible to cut down on GL resource ctor/dtor'ing
+--  especially since some of those are probably bound mid-update when this will be getting called by console open() or netcmd reset ...
+function AppBlobs:setBlobs(blobs)
+	local oldblobs = self.blobs
+	self.blobs = blobs
+	for name,oldBlobsForType in pairs(oldblobs) do
+		local newBlobsForType = self.blobs[name]
+		for i,newBlob in ipairs(newBlobsForType) do
+			local oldBlob = oldBlobsForType[i]
+			if oldBlob then
+				newBlob.ramgpu = oldBlob.ramgpu
+			end
+		end
+		-- only delete old blobs' GPU resource that aren't being handed off
+		for i=#newBlobsForType+1,#oldBlobsForType do
+			oldBlobsForType[i]:delete()
+		end
+		-- TODO allocate newBlobs' GPU resources here too? or nah wait upon request?
+	end
+end
 
 return {
 	AppBlobs = AppBlobs,
