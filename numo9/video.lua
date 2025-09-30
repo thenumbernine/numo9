@@ -974,7 +974,7 @@ uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
-		
+
 ]]..useLightingCode..[[
 
 void main() {
@@ -2494,31 +2494,25 @@ function AppVideo:resetFont()
 	-- TODO ensure there's at least one?
 	if not fontBlob then return end
 	fontBlob.ramgpu:checkDirtyGPU()
-	
-	-- TODO ... this updates the font in RAM
 	resetFont(fontBlob.ramptr)
-	-- ... and this overwrites the RAM from the ROM ...
-	-- ??? 
-	-- shouldn't this be "copyToROM" ?
-	fontBlob:copyFromROM()
+	fontBlob:copyToROM()
 	fontBlob.ramgpu.dirtyCPU = true
 end
 
 -- externally used ...
 -- this re-inserts the font and default palette
--- and copies those changes back into the cartridge too (stupid idea of keeping two copies of the cartridge in RAM and ROM ...)
+-- and copies those changes back into the cartridge too
 function AppVideo:resetGFX()
 	self:resetFont()
 
-	--self.blobs.palette[1].ramgpu:checkDirtyGPU()
-	self.blobs.palette[1].ramgpu.dirtyGPU = false
+	-- reset palette
 	local paletteBlob = self.blobs.palette[1]
 -- TODO ensure there's at least one?
-	if paletteBlob then
-		resetPalette(paletteBlob.ramptr)
-		paletteBlob:copyFromROM()
-	end
-	self.blobs.palette[1].ramgpu.dirtyCPU = true
+	if not paletteBlob then return end
+	paletteBlob.ramgpu.dirtyGPU = false
+	resetPalette(paletteBlob.ramptr)
+	paletteBlob:copyToROM()
+	paletteBlob.ramgpu.dirtyCPU = true
 end
 
 function AppVideo:resize()
