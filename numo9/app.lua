@@ -65,6 +65,8 @@ local mvMatAddr = numo9_rom.mvMatAddr
 local mvMatAddrEnd = numo9_rom.mvMatAddrEnd
 local clipRectAddr = numo9_rom.clipRectAddr
 local clipRectAddrEnd = numo9_rom.clipRectAddrEnd
+local blendColorAddr = numo9_rom.blendColorAddr
+local blendColorAddrEnd = numo9_rom.blendColorAddrEnd
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -2295,6 +2297,9 @@ function App:poke(addr, value)
 	if addr >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
+	if addr >= blendColorAddr and addr < blendColorAddrEnd then
+		self:onBlendColorChange()
+	end
 
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
@@ -2373,6 +2378,9 @@ function App:pokew(addr, value)
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
+	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
+		self:onBlendColorChange()
+	end
 
 	for _,blob in ipairs(self.blobs.sheet) do
 		if addrend >= blob.ramgpu.addr
@@ -2436,6 +2444,9 @@ function App:pokel(addr, value)
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
+	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
+		self:onBlendColorChange()
+	end
 
 	for _,blob in ipairs(self.blobs.sheet) do
 		if addrend >= blob.ramgpu.addr
@@ -2498,6 +2509,9 @@ function App:pokef(addr, value)
 	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
+	end
+	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
+		self:onBlendColorChange()
 	end
 
 	for _,blob in ipairs(self.blobs.sheet) do
@@ -2606,6 +2620,9 @@ function App:memcpy(dst, src, len)
 	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
+	if dstend >= blendColorAddr and dst < blendColorAddrEnd then
+		self:onBlendColorChange()
+	end
 
 	for _,blob in ipairs(self.blobs.sheet) do
 		if dstend >= blob.ramgpu.addr
@@ -2680,6 +2697,9 @@ function App:memset(dst, val, len)
 	end
 	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
 		self:onClipRectChange()
+	end
+	if dstend >= blendColorAddr and dst < blendColorAddrEnd then
+		self:onBlendColorChange()
 	end
 
 	for _,blob in ipairs(self.blobs.sheet) do

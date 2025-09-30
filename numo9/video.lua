@@ -650,8 +650,8 @@ end
 -- and here's our blend solid-color option...
 local function getDrawOverrideCode(vec3, varname)
 	return [[
-	if (drawOverrideSolid.a > 0.) {
-		]]..varname..[[.rgb = ]]..vec3..[[(drawOverrideSolid.rgb);
+	if (blendColorSolidv.a > 0.) {
+		]]..varname..[[.rgb = ]]..vec3..[[(blendColorSolidv.rgb);
 	}
 ]]
 end
@@ -939,7 +939,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
 	// only needed for quadSprite / quadMap:
 	resultFragColor.a = (palColor.a << 3) | (palColor.a >> 2);
 ]],
--- hmm, idk what to do with drawOverrideSolid in 8bppIndex
+-- hmm, idk what to do with blendColorSolid in 8bppIndex
 -- but I don't want the GLSL compiler to optimize away the attr...
 	getDrawOverrideCode('uvec3', 'resultFragColor'),
 [[
@@ -1059,7 +1059,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 	// only needed for quadSprite / quadMap:
 	resultFragColor.a = (palColor.a << 3) | (palColor.a >> 2);
 ]],
-	-- hmm, idk what to do with drawOverrideSolid in 8bppIndex
+	-- hmm, idk what to do with blendColorSolid in 8bppIndex
 	-- but I don't want the GLSL compiler to optimize away the attr...
 	getDrawOverrideCode('uvec3', 'resultFragColor'),
 [[
@@ -1231,26 +1231,24 @@ layout(location=2) in uvec4 extraAttr;
 // flat, the bbox of the currently drawn quad, only used for round-rendering of solid-shader
 layout(location=3) in vec4 boxAttr;
 
-// flat, the solid-blend color
-layout(location=4) in vec4 drawOverrideSolidAttr;
-
 //GLES3 says we have at least 16 attributes to use ...
 
 // the bbox world coordinates, used with 'boxAttr' for rounding
 out vec2 tcv;
 
 flat out uvec4 extra;
-flat out vec4 drawOverrideSolid;
+flat out vec4 blendColorSolidv;
 flat out vec4 box;
 
 out vec3 vertexv;
 
 uniform vec2 invHalfFrameBufferSize;
 uniform mat4 mvMat;
+uniform vec4 blendColorSolid;
 
 void main() {
 	tcv = texcoord;
-	drawOverrideSolid = drawOverrideSolidAttr;
+	blendColorSolidv = blendColorSolid;
 	extra = extraAttr;
 	box = boxAttr;
 
@@ -1274,7 +1272,7 @@ precision highp usampler2D;	// needed by #version 300 es
 in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
 
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
-flat in vec4 drawOverrideSolid;
+flat in vec4 blendColorSolidv;
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 
 in vec3 vertexv;
@@ -1285,7 +1283,7 @@ layout(location=1) out vec4 fragNormal;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
-uniform vec4 scissor;
+uniform vec4 clipRect;
 
 <?=glslCode5551?>
 
@@ -1511,10 +1509,10 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 void main() {
 	bool plzDiscard = false;
 
-	if (gl_FragCoord.x < scissor.x ||
-		gl_FragCoord.y < scissor.y ||
-		gl_FragCoord.x >= scissor.x + scissor.z + 1. ||
-		gl_FragCoord.y >= scissor.y + scissor.w + 1.
+	if (gl_FragCoord.x < clipRect.x ||
+		gl_FragCoord.y < clipRect.y ||
+		gl_FragCoord.x >= clipRect.x + clipRect.z + 1. ||
+		gl_FragCoord.y >= clipRect.y + clipRect.w + 1.
 	) {
 		plzDiscard = true;
 	}
@@ -1722,23 +1720,9 @@ void main() {
 					useVec = true,
 				},
 			},
-			-- 4 bytes = 32 bit so I can use memset
-			drawOverrideSolidAttr = {
-				type = gl.GL_UNSIGNED_BYTE,		-- I'm uploading uint8_t[4]
-				normalize = true,				-- data will be normalized to [0,1]
-				--divisor = 3,
-				buffer = {
-					usage = gl.GL_DYNAMIC_DRAW,
-					type = gl.GL_UNSIGNED_BYTE,	-- gl will receive uint8_t[4]
-					dim = 4,
-					useVec = true,
-					ctype = 'vec4ub_t',			-- cpu buffer will hold vec4ub_t's
-				},
-			},
 		},
 	}
 end
-
 
 
 -- maybe this should be its own file?
@@ -2074,6 +2058,61 @@ function AppVideo:triBuf_flush()
 	self.lastSheetTex = nil
 end
 
+-- setup texture state and uniforms
+function AppVideo:triBuf_prepAddTri(
+	paletteTex,
+	sheetTex,
+	tilemapTex
+)
+	if self.lastPaletteTex ~= paletteTex
+	or self.lastSheetTex ~= sheetTex
+	or self.lastTilemapTex ~= tilemapTex
+	then
+		self:triBuf_flush()
+		self.lastPaletteTex = paletteTex
+		self.lastSheetTex = sheetTex
+		self.lastTilemapTex = tilemapTex
+	end
+
+	-- upload uniforms to GPU before adding new tris ...
+	local program = self.triBuf_sceneObj.program
+	if self.mvMatDirty
+	or self.clipRectDirty
+	or self.blendColorDirty
+	or self.frameBufferSizeUniformDirty
+	then
+		program:use()
+		if self.mvMatDirty then
+			program:setUniform('mvMat', self.ram.mvMat)
+			self.mvMatDirty = false
+		end
+		if self.clipRectDirty then
+			gl.glUniform4f(
+				program.uniforms.clipRect.loc,
+				self:getClipRect())
+			self.clipRectDirty = false
+		end
+		if self.blendColorDirty then
+			local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
+			local blendSolidA = self.blendColorA * 255
+			gl.glUniform4f(
+				program.uniforms.blendColorSolid.loc,
+				blendSolidR/255,
+				blendSolidG/255,
+				blendSolidB/255,
+				blendSolidA/255)
+			self.blendColorDirty = false
+		end
+		if self.frameBufferSizeUniformDirty then
+			gl.glUniform2f(
+				program.uniforms.invHalfFrameBufferSize.loc,
+				2 / self.ram.screenWidth,
+				2 / self.ram.screenHeight)
+		end
+		program:useNone()
+	end
+end
+
 function AppVideo:triBuf_addTri(
 	paletteTex,
 	sheetTex,
@@ -2086,48 +2125,15 @@ function AppVideo:triBuf_addTri(
 
 	-- divisor
 	extraX, extraY, extraZ, extraW,
-	blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 	boxX, boxY, boxW, boxH
 )
 	local sceneObj = self.triBuf_sceneObj
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	local texcoord = sceneObj.attrs.texcoord.buffer.vec
 	local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
-	local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
 	local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
 
-	if self.lastPaletteTex ~= paletteTex
-	or self.lastSheetTex ~= sheetTex
-	or self.lastTilemapTex ~= tilemapTex
-	then
-		self:triBuf_flush()
-		self.lastPaletteTex = paletteTex
-		self.lastSheetTex = sheetTex
-		self.lastTilemapTex = tilemapTex
-	end
-
-	-- upload mvMat to GPU before adding new tris ...
-	local program = sceneObj.program
-	if self.mvMatDirty or self.clipRectDirty then
-		program:use()
-		if self.mvMatDirty then
-			program:setUniform('mvMat', self.ram.mvMat)
-			self.mvMatDirty = false
-		end
-		if self.clipRectDirty then
-			gl.glUniform4f(
-				program.uniforms.scissor.loc,
-				self:getClipRect())
-			self.clipRectDirty = false
-		end
-		if self.frameBufferSizeUniformDirty then
-			gl.glUniform2f(
-				program.uniforms.invHalfFrameBufferSize.loc,
-				2 / self.ram.screenWidth,
-				2 / self.ram.screenHeight)
-		end
-		program:useNone()
-	end
+	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
 
 	-- push
 	local v
@@ -2146,9 +2152,6 @@ function AppVideo:triBuf_addTri(
 	v.x, v.y = u3, v3
 
 	for j=0,2 do
-		v = drawOverrideSolidAttr:emplace_back()
-		v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
-
 		v = extraAttr:emplace_back()
 		v.x, v.y, v.z, v.w = extraX, extraY, extraZ, extraW
 
@@ -2165,6 +2168,14 @@ end
 function AppVideo:onClipRectChange()
 	self:triBuf_flush()
 	self.clipRectDirty = true
+end
+
+-- call this when ram.blendColor changes
+-- or when self.blendColorA changes
+-- or upon setVideoMode
+function AppVideo:onBlendColorChange()
+	self:triBuf_flush()
+	self.blendColorDirty = true
 end
 
 function AppVideo:onFrameBufferSizeChange()
@@ -2278,6 +2289,9 @@ function AppVideo:resetVideo()
 	local fontRAM = self.blobs.font[1].ramgpu
 	if fontRAM then fontRAM:updateAddr(fontAddr) end
 
+	-- set 255 mode first so that it has resources (cuz App:update() needs them for the menu)
+	self:setVideoMode(255)
+
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
 	--self.ram.videoMode = 1	-- 8bpp indexed
@@ -2320,6 +2334,7 @@ function AppVideo:resetVideo()
 
 	self.ram.blendMode = 0xff	-- = none
 	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
+	self:onBlendColorChange()
 
 	self.paletteBlobIndex = 0
 	self.fontBlobIndex = 0
@@ -2405,6 +2420,7 @@ function AppVideo:setVideoMode(modeIndex)
 	self.triBuf_sceneObj = self.drawObj
 	self:onMvMatChange()	-- the drawObj changed so make sure it refreshes its mvMat
 	self:onClipRectChange()
+	self:onBlendColorChange()
 	self:onFrameBufferSizeChange()
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
@@ -2535,9 +2551,6 @@ function AppVideo:drawSolidRect(
 	local xR = x + w
 	local yR = y + h
 
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	local blendSolidA = self.drawOverrideSolidA * 255
-
 	local drawFlags = bit.bor(
 		round and 4 or 0,
 		borderOnly and 8 or 0
@@ -2553,7 +2566,6 @@ function AppVideo:drawSolidRect(
 		xR, y,  0, xR, y,
 		x,  yR, 0, x,  yR,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		x, y, w, h
 	)
 
@@ -2565,7 +2577,6 @@ function AppVideo:drawSolidRect(
 		xR, y,  0, xR, y,
 		xR, yR, 0, xR, yR,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		x, y, w, h
 	)
 
@@ -2605,7 +2616,6 @@ function AppVideo:drawSolidTri3D(
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
 	self:triBuf_addTri(
 		paletteTex,
 		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2614,7 +2624,6 @@ function AppVideo:drawSolidTri3D(
 		x2, y2, z2, 1, 0,
 		x3, y3, z3, 0, 1,
 		bit.lshift(math.floor(colorIndex or 0), 8), self.ram.dither, 0, 0,
-		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
 
@@ -2749,9 +2758,6 @@ function AppVideo:drawSolidLine3D(
 		v2y + ny * halfThickness,
 		v2z
 
-
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	local blendSolidA = self.drawOverrideSolidA *  255
 	colorIndex = math.floor(colorIndex or 0)
 
 	self:triBuf_addTri(
@@ -2762,7 +2768,6 @@ function AppVideo:drawSolidLine3D(
 		xRL, yRL, zRL, 1, 0,
 		xLR, yLR, zLR, 0, 1,
 		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
 
@@ -2774,7 +2779,6 @@ function AppVideo:drawSolidLine3D(
 		xRL, yRL, zRL, 1, 0,
 		xRR, yRR, zRR, 1, 1,
 		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
 
@@ -2884,10 +2888,7 @@ function AppVideo:getClipRect()
 end
 
 -- for when we blend against solid colors, these go to the shaders to output it
-AppVideo.drawOverrideSolidR = 0
-AppVideo.drawOverrideSolidG = 0
-AppVideo.drawOverrideSolidB = 0
-AppVideo.drawOverrideSolidA = 0
+AppVideo.blendColorA = 0
 function AppVideo:setBlendMode(blendMode)
 	if blendMode < 0 or blendMode >= 8 then
 		blendMode = -1
@@ -2898,7 +2899,8 @@ function AppVideo:setBlendMode(blendMode)
 	self:triBuf_flush()
 
 	if blendMode == -1 then
-		self.drawOverrideSolidA = 0
+		self.blendColorA = 0
+		self:onBlendColorChange()
 		gl.glDisable(gl.GL_BLEND)
 	else
 
@@ -2913,7 +2915,8 @@ function AppVideo:setBlendMode(blendMode)
 		end
 
 	-- [[ TODO this here or this in the draw commands?
-		self.drawOverrideSolidA = bit.band(blendMode, 4) == 0 and 0 or 0xff	-- > 0 means we're using draw-override
+		self.blendColorA = bit.band(blendMode, 4) == 0 and 0 or 0xff	-- > 0 means we're using draw-override
+		self:onBlendColorChange()
 	--]]
 		local ca = 1
 		local half = bit.band(blendMode, 1) ~= 0
@@ -2966,9 +2969,6 @@ function AppVideo:drawQuadTex(
 		bit.lshift(spriteBit, 3)
 	)
 
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	local blendSolidA = self.drawOverrideSolidA * 255
-
 	local xR = x + w
 	local yR = y + h
 
@@ -2985,7 +2985,6 @@ function AppVideo:drawQuadTex(
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
 
@@ -2997,7 +2996,6 @@ function AppVideo:drawQuadTex(
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
 end
@@ -3027,7 +3025,6 @@ function AppVideo:drawQuadTexRGB(
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
 		3, self.ram.dither, 0, 0,
-		0, 0, 0, 0,
 		0, 0, 1, 1
 	)
 
@@ -3039,7 +3036,6 @@ function AppVideo:drawQuadTexRGB(
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
 		3, self.ram.dither, 0, 0,
-		0, 0, 0, 0,
 		0, 0, 1, 1
 	)
 end
@@ -3161,8 +3157,6 @@ function AppVideo:drawTexTri3D(
 		bit.lshift(spriteBit, 3)
 	)
 
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-
 	self:triBuf_addTri(
 		paletteTex,
 		sheetRAM.tex,
@@ -3171,7 +3165,6 @@ function AppVideo:drawTexTri3D(
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
-		blendSolidR, blendSolidG, blendSolidB, self.drawOverrideSolidA * 255,
 		0, 0, 1, 1
 	)
 
@@ -3307,9 +3300,6 @@ function AppVideo:drawMap(
 	)
 	local extraZ = mapIndexOffset
 
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	local blendSolidA = self.drawOverrideSolidA * 255
-
 	self:triBuf_addTri(
 		paletteTex,
 		sheetRAM.tex,
@@ -3318,7 +3308,6 @@ function AppVideo:drawMap(
 		xR, yL, 0, uR, vL,
 		xL, yR, 0, uL, vR,
 		extraX, self.ram.dither, extraZ, 0,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
 
@@ -3330,7 +3319,6 @@ function AppVideo:drawMap(
 		xR, yL, 0, uR, vL,
 		xR, yR, 0, uR, vR,
 		extraX, self.ram.dither, extraZ, 0,
-		blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 		0, 0, 1, 1
 	)
 
@@ -3389,8 +3377,6 @@ function AppVideo:drawTextCommon(
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	local tw = 1 / tonumber(texSizeInTiles.x)
 	local th = 1 / tonumber(texSizeInTiles.y)
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	local blendSolidA = self.drawOverrideSolidA * 255
 	local paletteIndex = fgColorIndex - 1
 
 	for i=1,#text do
@@ -3423,7 +3409,6 @@ function AppVideo:drawTextCommon(
 			xR, y,  0, uR, 0,
 			x,  yR, 0, uL, th,
 			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
-			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
 		)
 
@@ -3435,7 +3420,6 @@ function AppVideo:drawTextCommon(
 			xR, yR, 0, uR, th,
 			x,  yR, 0, uL, th,
 			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
-			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
 		)
 
@@ -4159,8 +4143,6 @@ function AppVideo:drawVoxelMap(
 
 		bit.lshift(spriteMask, 8)
 	)
-	local blendSolidR, blendSolidG, blendSolidB = rgba5551_to_rgba8888_4ch(self.ram.blendColor)
-	local blendSolidA = self.drawOverrideSolidA * 255
 
 	--[[
 	local srcVtxs = voxelmap.vertexes
@@ -4181,7 +4163,6 @@ function AppVideo:drawVoxelMap(
 			vb.x, vb.y, vb.z, tb.x, tb.y,
 			vc.x, vc.y, vc.z, tc.x, tc.y,
 			drawFlags, self.ram.dither, transparentIndex, paletteIndex,
-			blendSolidR, blendSolidG, blendSolidB, blendSolidA,
 			0, 0, 1, 1
 		)
 	end
@@ -4190,32 +4171,7 @@ function AppVideo:drawVoxelMap(
 	do
 		local sceneObj = self.triBuf_sceneObj
 
-		if self.lastPaletteTex ~= paletteTex
-		or self.lastSheetTex ~= sheetTex
-		or self.lastTilemapTex ~= tilemapTex
-		then
-			self:triBuf_flush()
-			self.lastPaletteTex = paletteTex
-			self.lastSheetTex = sheetTex
-			self.lastTilemapTex = tilemapTex
-		end
-
-		-- upload mvMat and clipRect to GPU before adding new tris ...
-		local program = sceneObj.program
-		if self.mvMatDirty or self.clipRectDirty then
-			program:use()
-			if self.mvMatDirty then
-				program:setUniform('mvMat', self.ram.mvMat)
-				self.mvMatDirty = false
-			end
-			if self.clipRectDirty then
-				gl.glUniform4f(
-					program.uniforms.scissor.loc,
-					self:getClipRect())
-				self.clipRectDirty = false
-			end
-			program:useNone()
-		end
+		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
 
 		local srcVtxs = voxelmap.vertexes
 		local srcTCs = voxelmap.texcoords
@@ -4244,19 +4200,12 @@ assert.eq(srcTCs.type, dstTCs.type, "looks like you have to update your voxelmap
 		extraAttr:resize(dstLen + srcLen)
 		local extraPtr = extraAttr.v + writeOfs
 
-		local drawOverrideSolidAttr = sceneObj.attrs.drawOverrideSolidAttr.buffer.vec
-		drawOverrideSolidAttr:resize(dstLen + srcLen)
-		local drawOverrideSolidPtr = drawOverrideSolidAttr.v + writeOfs
-
 		local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
 		boxAttr:resize(dstLen + srcLen)
 		local boxPtr = boxAttr.v + writeOfs
 
 		-- hmm, memset ... but for arbitrary size?  like a modular memcpy?  does it exist or nah?
 		for i=0,srcLen-1 do
-			v = drawOverrideSolidPtr + i
-			v.x, v.y, v.z, v.w = blendSolidR, blendSolidG, blendSolidB, blendSolidA
-
 			v = extraPtr + i
 			v.x, v.y, v.z, v.w = drawFlags, self.ram.dither, transparentIndex, paletteIndex
 

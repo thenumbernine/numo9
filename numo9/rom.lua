@@ -427,6 +427,9 @@ local clipRectAddrEnd = clipRectAddr + clipRectInBytes
 local mvMatAddr = ffi.offsetof('RAM', 'mvMat')
 local mvMatInBytes = ffi.sizeof(mvMatType) * 16
 local mvMatAddrEnd = mvMatAddr + mvMatInBytes
+local blendColorAddr = ffi.offsetof('RAM', 'blendColor')
+local blendColorInBytes = ffi.sizeof'uint16_t'
+local blendColorAddrEnd = blendColorAddr + blendColorInBytes
 
 -- how much is RAM before the ROM starts
 local sizeofRAMWithoutROM = ffi.offsetof('RAM', 'blobCount')
@@ -571,6 +574,9 @@ return {
 	mvMatAddr = mvMatAddr,
 	mvMatInBytes = mvMatInBytes,
 	mvMatAddrEnd = mvMatAddrEnd,
+	blendColorAddr = blendColorAddr,
+	blendColorInBytes = blendColorInBytes,
+	blendColorAddrEnd = blendColorAddrEnd,
 
 	blobCountType = blobCountType,
 	BlobEntry = BlobEntry,

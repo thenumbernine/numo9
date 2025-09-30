@@ -94,8 +94,13 @@ function BlobVoxelMap:init(data)
 	self.billboardXYZVoxels = vector'vec3i_t'	-- type 20
 	self.billboardXYVoxels = vector'vec3i_t'	-- type 21
 
+	-- should I AoS this?  everyone always says "never use AoS on the GPU!!!" but ... thats a few less vector-resizes (which are slow for me under my current lua implementation) ...
 	self.vertexes = vector'vec3f_t'
 	self.texcoords = vector'vec2f_t'
+	--[[ TODO, and then just keep your own GLArrayBuffer and just copy it over
+	self.extraAttrs = vector'vec4us_t'
+	self.boxAttrs = vector'vec4f_t'
+	--]]
 
 	self.dirtyCPU = true
 	-- can't do this yet, not until .ramptr is defined
@@ -165,6 +170,7 @@ function BlobVoxelMap:rebuildMesh(app)
 
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
+
 	self.vertexes:resize(0)
 	self.texcoords:resize(0)
 
