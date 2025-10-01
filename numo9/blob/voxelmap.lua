@@ -1,3 +1,4 @@
+require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
 local vector = require 'ffi.cpp.vector-lua'
@@ -94,13 +95,7 @@ function BlobVoxelMap:init(data)
 	self.billboardXYZVoxels = vector'vec3i_t'	-- type 20
 	self.billboardXYVoxels = vector'vec3i_t'	-- type 21
 
-	-- should I AoS this?  everyone always says "never use AoS on the GPU!!!" but ... thats a few less vector-resizes (which are slow for me under my current lua implementation) ...
-	self.vertexes = vector'vec3f_t'
-	self.texcoords = vector'vec2f_t'
-	--[[ TODO, and then just keep your own GLArrayBuffer and just copy it over
-	self.extraAttrs = vector'vec4us_t'
-	self.boxAttrs = vector'vec4f_t'
-	--]]
+	self.vertexBufCPU = vector'Numo9Vertex'
 
 	self.dirtyCPU = true
 	-- can't do this yet, not until .ramptr is defined
@@ -171,8 +166,30 @@ function BlobVoxelMap:rebuildMesh(app)
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 
-	self.vertexes:resize(0)
-	self.texcoords:resize(0)
+	self.vertexBufCPU:resize(0)
+
+	-- ok here I shoot myself in the foot just a bit
+	-- cuz now that I'm baking extra flags, 
+	-- that means I can no longer update the voxelmap spriteBit, spriteMask, transparentIndex, paletteIndex,
+	-- not without rebuilding the whole mesh
+	-- but even before it meant recalculating extra every time we draw so *shrug* I don't miss it
+	-- maybe those should all be uniforms anyways?
+	local spriteBit = 0
+	local spriteMask = 0xFF
+	local transparentIndex = -1
+	local paletteIndex = 0
+
+	-- also in drawTexTri3D:
+	local drawFlags = bit.bor(
+		-- bits 0/1 == 01b <=> use sprite pathway:
+		1,
+		-- if transparency is oob then flag the "don't use transparentIndex" bit:
+		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
+		-- store sprite bit shift in the next 3 bits:
+		bit.lshift(spriteBit, 3),
+
+		bit.lshift(spriteMask, 8)
+	)
 
 	local width, height, depth= self:getWidth(), self:getHeight(), self:getDepth()
 	-- which to build this off of?
@@ -227,8 +244,7 @@ assert.eq(numTriVtxs % 3, 0)
 							local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
 
 							-- resize first then offest back in case we get a resize ...
-							self.vertexes:reserve(#self.vertexes + numTriVtxs)
-							self.texcoords:reserve(#self.texcoords + numTriVtxs)
+							self.vertexBufCPU:reserve(#self.vertexBufCPU + numTriVtxs)
 
 							for ai,bi,ci,ti in mesh:triIter() do
 
@@ -278,25 +294,28 @@ assert.eq(numTriVtxs % 3, 0)
 									occludedCount = occludedCount + 1
 								else
 									local srcv = srcVtxs + ai
-									local dstVtx = self.vertexes:emplace_back()
-									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									local dstTC = self.texcoords:emplace_back()
-									dstTC.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-									dstTC.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									local dstVtx = self.vertexBufCPU:emplace_back()
+									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
+									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
+									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
 									local srcv = srcVtxs + bi
-									local dstVtx = self.vertexes:emplace_back()
-									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									local dstTC = self.texcoords:emplace_back()
-									dstTC.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-									dstTC.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									local dstVtx = self.vertexBufCPU:emplace_back()
+									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
+									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
+									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
 									local srcv = srcVtxs + ci
-									local dstVtx = self.vertexes:emplace_back()
-									dstVtx.x, dstVtx.y, dstVtx.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									local dstTC = self.texcoords:emplace_back()
-									dstTC.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-									dstTC.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									local dstVtx = self.vertexBufCPU:emplace_back()
+									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
+									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
+									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 								end
 							end
 						end
@@ -308,6 +327,14 @@ assert.eq(numTriVtxs % 3, 0)
 	end
 --DEBUG:print('created', #self.vertexes/3, 'tris')
 --DEBUG:print('occluded', occludedCount, 'tris')
+
+	-- while we're here, allocate or resize our GPU buffer ...
 end
+
+function BlobVoxelMap:delete()
+	
+end
+
+BlobVoxelMap.__gc = BlobVoxelMap.delete
 
 return BlobVoxelMap

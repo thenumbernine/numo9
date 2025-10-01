@@ -5,10 +5,12 @@ local table = require 'ext.table'
 local class = require 'ext.class'
 local math = require 'ext.math'
 local assert = require 'ext.assert'
+local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local gl = require 'gl'
 local glnumber = require 'gl.number'
 local GLFBO = require 'gl.fbo'
+local GLArrayBuffer = require 'gl.arraybuffer'
 local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
@@ -65,6 +67,17 @@ uvec4 u16to5551(uint x) {
 	);
 }
 ]]
+
+local struct = require 'struct'
+local Numo9Vertex = struct{
+	name = 'Numo9Vertex',
+	fields = {
+		{name='vertex', type='vec3f_t'},
+		{name='texcoord', type='vec2f_t'},
+		{name='extra', type='vec4us_t'},
+		{name='box', type='vec4f_t'},
+	},
+}
 
 --[[
 args:
@@ -1685,40 +1698,40 @@ void main() {
 		},
 		geometry = {
 			mode = gl.GL_TRIANGLES,
-		},
-		vertexes = {
-			usage = gl.GL_DYNAMIC_DRAW,
-			dim = 3,
-			useVec = true,
+			count = 0,
 		},
 		attrs = {
+			vertex = {
+				type = gl.GL_FLOAT,
+				size = 3,	-- 'dim' in buffer
+				buffer = app.vertexBufGPU,
+				stride = ffi.sizeof'Numo9Vertex',
+				offset = ffi.offsetof('Numo9Vertex', 'vertex'),
+			},
 			texcoord = {
-				buffer = {
-					usage = gl.GL_DYNAMIC_DRAW,
-					dim = 2,
-					useVec = true,
-				},
+				type = gl.GL_FLOAT,
+				size = 2,
+				buffer = app.vertexBufGPU,
+				stride = ffi.sizeof'Numo9Vertex',
+				offset = ffi.offsetof('Numo9Vertex', 'texcoord'),
 			},
 			-- 8 bytes = 32 bit so I can use memset?
 			extraAttr = {
 				type = gl.GL_UNSIGNED_SHORT,
+				size = 4,
 				--divisor = 3,
-				buffer = {
-					usage = gl.GL_DYNAMIC_DRAW,
-					type = gl.GL_UNSIGNED_SHORT,
-					dim = 4,
-					useVec = true,
-					ctype = 'vec4us_t',
-				},
+				buffer = app.vertexBufGPU,
+				stride = ffi.sizeof'Numo9Vertex',
+				offset = ffi.offsetof('Numo9Vertex', 'extra'),
 			},
 			-- 16 bytes =  128-bit ...
 			boxAttr = {
+				size = 4,
+				type = gl.GL_FLOAT,
 				--divisor = 3,	-- 6 honestly ...
-				buffer = {
-					usage = gl.GL_DYNAMIC_DRAW,
-					dim = 4,
-					useVec = true,
-				},
+				buffer = app.vertexBufGPU,
+				stride = ffi.sizeof'Numo9Vertex',
+				offset = ffi.offsetof('Numo9Vertex', 'box'),
 			},
 		},
 	}
@@ -1858,7 +1871,6 @@ function AppVideo:initVideoModes()
 	self.framebufferLightDepthTexs = {}
 end
 
-
 -- called upon app init
 -- 'self' == app
 function AppVideo:initVideo()
@@ -1911,6 +1923,14 @@ function AppVideo:initVideo()
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 
+	-- TODO would be nice to have a 'useVec' sort of thing per shader for interleaved arrays like this ...
+	-- this is here and in farmgame/app.lua
+	self.vertexBufCPU = vector'Numo9Vertex'
+	self.vertexBufGPU = GLArrayBuffer{
+		size = ffi.sizeof'Numo9Vertex' * self.vertexBufCPU.capacity,
+		data = self.vertexBufCPU.v,
+		usage = gl.GL_DYNAMIC_DRAW,
+	}:unbind()
 
 	-- keep menu/editor gfx separate of the fantasy-console
 	do
@@ -2024,17 +2044,18 @@ function AppVideo:triBuf_flush()
 	if not sceneObj then return end	-- for some calls called before this is even created ...
 
 	-- flush the old
-	local n = #sceneObj.attrs.vertex.buffer.vec
+	local n = #self.vertexBufCPU
 	if n == 0 then return end
 
 --DEBUG: self.triBuf_flushSizes[n] = (self.triBuf_flushSizes[n] or 0) + 1
 --DEBUG(flushtrace): local tb = debug.traceback()
 --DEBUG(flushtrace): self.triBuf_flushSizesPerTrace[tb] = (self.triBuf_flushSizesPerTrace[tb] or 0) + 1
 
-	-- resize if capacity changed, upload
+	--[[ resize if capacity changed, upload
 	for name,attr in pairs(sceneObj.attrs) do
 		attr.buffer:endUpdate()
 	end
+	--]]
 
 	-- bind textures
 	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
@@ -2046,13 +2067,26 @@ function AppVideo:triBuf_flush()
 
 	local program = sceneObj.program
 	program:use()
+
+	self.vertexBufGPU:bind()
+	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
+		self.vertexBufGPU:setData{
+			data = self.vertexBufCPU.v,
+			count = self.vertexBufCPU.capacity,
+			size = ffi.sizeof(self.vertexBufCPU.type) * self.vertexBufCPU.capacity,
+		}
+	else
+--DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
+		self.vertexBufGPU:updateData(0, self.vertexBufCPU:getNumBytes())
+	end
+
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	sceneObj:disableAttrs()
 
-
 	-- reset the vectors and store the last capacity
-	sceneObj:beginUpdate()
+	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
+	self.vertexBufCPU:resize(0)
 
 	self.lastPaletteTex = nil
 	self.lastSheetTex = nil
@@ -2128,6 +2162,7 @@ function AppVideo:triBuf_addTri(
 	boxX, boxY, boxW, boxH
 )
 	local sceneObj = self.triBuf_sceneObj
+	
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	local texcoord = sceneObj.attrs.texcoord.buffer.vec
 	local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
@@ -2137,27 +2172,23 @@ function AppVideo:triBuf_addTri(
 
 	-- push
 	local v
-	v = vertex:emplace_back()
-	v.x, v.y, v.z = x1, y1, z1
-	v = vertex:emplace_back()
-	v.x, v.y, v.z = x2, y2, z2
-	v = vertex:emplace_back()
-	v.x, v.y, v.z = x3, y3, z3
-
-	v = texcoord:emplace_back()
-	v.x, v.y = u1, v1
-	v = texcoord:emplace_back()
-	v.x, v.y = u2, v2
-	v = texcoord:emplace_back()
-	v.x, v.y = u3, v3
-
-	for j=0,2 do
-		v = extraAttr:emplace_back()
-		v.x, v.y, v.z, v.w = extraX, extraY, extraZ, extraW
-
-		v = boxAttr:emplace_back()
-		v.x, v.y, v.z, v.w = boxX, boxY, boxW, boxH
-	end
+	v = self.vertexBufCPU:emplace_back()
+	v.vertex.x, v.vertex.y, v.vertex.z = x1, y1, z1
+	v.texcoord.x, v.texcoord.y = u1, v1
+	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
+	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
+	
+	v = self.vertexBufCPU:emplace_back()
+	v.vertex.x, v.vertex.y, v.vertex.z = x2, y2, z2
+	v.texcoord.x, v.texcoord.y = u2, v2
+	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
+	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
+	
+	v = self.vertexBufCPU:emplace_back()
+	v.vertex.x, v.vertex.y, v.vertex.z = x3, y3, z3
+	v.texcoord.x, v.texcoord.y = u3, v3
+	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
+	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
 end
 
 function AppVideo:onMvMatChange()
@@ -4085,11 +4116,7 @@ end
 local mvMatPush = ffi.new(mvMatType..'[16]')
 function AppVideo:drawVoxelMap(
 	voxelmapIndex,
-	sheetIndex,
-	paletteIndex,
-	transparentIndex,
-	spriteBit,
-	spriteMask
+	sheetIndex
 )
 	voxelmapIndex = voxelmapIndex or 0
 	local voxelmap = self.blobs.voxelmap[voxelmapIndex+1]
@@ -4124,94 +4151,26 @@ function AppVideo:drawVoxelMap(
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
-	spriteBit = spriteBit or 0
-	spriteMask = spriteMask or 0xFF
-	transparentIndex = transparentIndex or -1
-	paletteIndex = paletteIndex or 0
-
 	-- TODO invalidate upon dirty flag set
 	voxelmap:rebuildMesh(self)
 
-	-- also in drawTexTri3D:
-	local drawFlags = bit.bor(
-		-- bits 0/1 == 01b <=> use sprite pathway:
-		1,
-		-- if transparency is oob then flag the "don't use transparentIndex" bit:
-		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
-		-- store sprite bit shift in the next 3 bits:
-		bit.lshift(spriteBit, 3),
-
-		bit.lshift(spriteMask, 8)
-	)
-
-	--[[
-	local srcVtxs = voxelmap.vertexes
-	local srcTCs = voxelmap.texcoords
-	for i=0,#srcVtxs-1,3 do
-		local va = srcVtxs.v + i
-		local vb = srcVtxs.v + i+1
-		local vc = srcVtxs.v + i+2
-		local ta = srcTCs.v + i
-		local tb = srcTCs.v + i+1
-		local tc = srcTCs.v + i+2
-
-		self:triBuf_addTri(
-			paletteTex,
-			sheetTex,
-			tilemapTex,
-			va.x, va.y, va.z, ta.x, ta.y,
-			vb.x, vb.y, vb.z, tb.x, tb.y,
-			vc.x, vc.y, vc.z, tc.x, tc.y,
-			drawFlags, self.ram.dither, transparentIndex, paletteIndex,
-			0, 0, 1, 1
-		)
-	end
-	--]]
-	-- [[ idk that I see much benefit from inlininig this ...
+	-- [[ 
 	do
 		local sceneObj = self.triBuf_sceneObj
 
+		-- setup textures and uniforms
 		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
 
-		local srcVtxs = voxelmap.vertexes
-		local srcTCs = voxelmap.texcoords
-
+		local srcVtxs = voxelmap.vertexBufCPU
 		local srcLen = #srcVtxs
-assert.eq(#srcVtxs, #srcTCs)
 
-		-- TODO interleave the GL arrays?  they always say "SOA > AOS" wrt GPU perf, but they dont talk about extra penalty of multiple resizes for dynamic sized data ...
-		local dstVtxs = sceneObj.attrs.vertex.buffer.vec
-		local dstTCs = sceneObj.attrs.texcoord.buffer.vec
-assert.eq(srcVtxs.type, dstVtxs.type, "looks like you have to update your voxelmap vertex type to match the gl array useVec type")
-assert.eq(srcTCs.type, dstTCs.type, "looks like you have to update your voxelmap vertex type to match the gl array useVec type")
---assert.eq(#dstVtxs, #dstTCs, "hmm triBuf array sizes should never go out of sync")
+		local dstVtxs = self.vertexBufCPU
 		local dstLen = #dstVtxs
 		local writeOfs = dstLen
 
 		dstVtxs:resize(dstLen + srcLen)
 		local dstVtxPtr = dstVtxs.v + writeOfs
-		ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof'vec3f_t' * srcLen)
-
-		dstTCs:resize(dstLen + srcLen)
-		local dstTCPtr = dstTCs.v + writeOfs
-		ffi.copy(dstTCPtr, srcTCs.v, ffi.sizeof'vec2f_t' * srcLen)
-
-		local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
-		extraAttr:resize(dstLen + srcLen)
-		local extraPtr = extraAttr.v + writeOfs
-
-		local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
-		boxAttr:resize(dstLen + srcLen)
-		local boxPtr = boxAttr.v + writeOfs
-
-		-- hmm, memset ... but for arbitrary size?  like a modular memcpy?  does it exist or nah?
-		for i=0,srcLen-1 do
-			v = extraPtr + i
-			v.x, v.y, v.z, v.w = drawFlags, self.ram.dither, transparentIndex, paletteIndex
-
-			v = boxPtr + i
-			v.x, v.y, v.z, v.w = 0, 0, 1, 1
-		end
+		ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof'Numo9Vertex' * srcLen)
 	end
 	--]]
 
@@ -4226,24 +4185,14 @@ assert.eq(srcTCs.type, dstTCs.type, "looks like you have to update your voxelmap
 	for j=0,#voxelmap.billboardXYZVoxels-1 do
 		local i = voxelmap.billboardXYZVoxels.v[j]
 		self:mattrans(i.x, i.y, i.z)
-		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval,
-			sheetIndex,
-			paletteIndex,
-			transparentIndex,
-			spriteBit,
-			spriteMask)
+		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, sheetIndex)
 		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		self:onMvMatChange()
 	end
 	for j=0,#voxelmap.billboardXYVoxels-1 do
 		local i = voxelmap.billboardXYVoxels.v[j]
 		self:mattrans(i.x, i.y, i.z)
-		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval,
-			sheetIndex,
-			paletteIndex,
-			transparentIndex,
-			spriteBit,
-			spriteMask)
+		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, sheetIndex)
 		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 		self:onMvMatChange()
 	end

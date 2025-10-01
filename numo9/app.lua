@@ -2768,6 +2768,13 @@ function App:updateBlobChanges()
 	-- net_updateBlobChanges() ... or have all updates net updates ...
 	--app:net_resetCart()
 	-- TODO here and also in numo9/ui' 'save' button -> saveCart -> updateBlobChanges
+
+	-- while we're here, if we resizeRAMGPU's / resize GPU resources of blobs
+	-- first off we want to flush tris, I'm just gonna assume we already have
+	-- but second, if any textures are stored in the triBuf state and are deleted then I should clear those here
+	self.lastPaletteTex = nil
+	self.lastSheetTex = nil
+	self.lastTilemapTex = nil
 end
 
 -- save from cartridge to filesystem

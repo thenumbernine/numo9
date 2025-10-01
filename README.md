@@ -485,7 +485,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- sheetIndex = defaults to 0.
 	- The rest of the parameters are forwarded to `ttri3d()`.
 - `drawvoxel(voxelCode, [sheetIndex, ...])` = draw a single voxel.  `voxelCode` is the uint32 value that is typically stored in a voxelmap.    Additional arguments are forwarded to `mesh`, starting with `sheetIndex`.
-- `voxelmap(voxelmapIndex, [sheetIndex, ...])` =  draw voxelmap.  Additional arguments are forwarded to `mesh`, starting with `sheetIndex`.
+- `voxelmap(voxelmapIndex, sheetIndex)` =  draw voxelmap.
 - `vget(voxelmapIndex,x,y,z)` = read a uint32 value from the voxel map.
 - `vset(voxelmapIndex,x,y,z,value)` = write a uint32 value to the voxel map.
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
