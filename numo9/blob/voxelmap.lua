@@ -1,10 +1,15 @@
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
+local table = require 'ext.table'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
 local vec2f = require 'vec-ffi.vec2f'
 local vec3f = require 'vec-ffi.vec3f'
+local gl = require 'gl'
+local GLArrayBuffer = require 'gl.arraybuffer'
+local GLVertexArray = require 'gl.vertexarray'
+local GLAttribute = require 'gl.attribute'
 
 local Blob = require 'numo9.blob.blob'
 
@@ -169,7 +174,7 @@ function BlobVoxelMap:rebuildMesh(app)
 	self.vertexBufCPU:resize(0)
 
 	-- ok here I shoot myself in the foot just a bit
-	-- cuz now that I'm baking extra flags, 
+	-- cuz now that I'm baking extra flags,
 	-- that means I can no longer update the voxelmap spriteBit, spriteMask, transparentIndex, paletteIndex,
 	-- not without rebuilding the whole mesh
 	-- but even before it meant recalculating extra every time we draw so *shrug* I don't miss it
@@ -327,12 +332,84 @@ assert.eq(numTriVtxs % 3, 0)
 	end
 --DEBUG:print('created', #self.vertexes/3, 'tris')
 --DEBUG:print('occluded', occludedCount, 'tris')
+end
 
-	-- while we're here, allocate or resize our GPU buffer ...
+-- needs triBuf_prepAddTri to be called beforehand
+function BlobVoxelMap:drawMesh(app)
+	if #self.vertexBufCPU == 0 then return end
+
+--[[ hmm why aren't things working ....
+	app.lastTilemapTex:bind(2)
+	app.lastSheetTex:bind(1)
+	app.lastPaletteTex:bind(0)
+	
+	app:triBuf_prepAddTri(app.lastPaletteTex, app.lastSheetTex, app.lastTilemapTex)
+--]]
+
+	local sceneObj = app.triBuf_sceneObj
+	local program = sceneObj.program
+	program:use()
+
+	if not self.vertexBufGPU then
+		self.vertexBufGPU = GLArrayBuffer{
+			size = ffi.sizeof'Numo9Vertex' * self.vertexBufCPU.capacity,
+			data = self.vertexBufCPU.v,
+			usage = gl.GL_DYNAMIC_DRAW,
+		}
+	else
+		self.vertexBufGPU:bind()
+	end
+
+	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
+		self.vertexBufGPU:setData{
+			data = self.vertexBufCPU.v,
+			count = self.vertexBufCPU.capacity,
+			size = ffi.sizeof'Numo9Vertex' * self.vertexBufCPU.capacity,
+		}
+	else
+--DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
+		self.vertexBufGPU:updateData(0, self.vertexBufCPU:getNumBytes())
+	end
+
+	if not self.vao then
+		self.vao = GLVertexArray{
+			program = program,
+			attrs = table.map(sceneObj.attrs, function(attr)
+				--[[
+				local newattr = GLAttribute(attr)
+				newattr.buffer = self.vertexBufGPU
+				return newattr
+				--]]
+				-- [[
+				local newattr = setmetatable({}, GLAttribute)
+				for k,v in pairs(attr) do newattr[k] = v end
+				newattr.buffer = self.vertexBufGPU
+				return newattr
+				--]]
+			end),
+		}
+	end
+	--sceneObj:enableAndSetAttrs()
+	self.vao:bind()
+
+	sceneObj.geometry:draw()
+	
+	--sceneObj:disableAttrs()
+	self.vao:unbind()
+
+	-- reset the vectors and store the last capacity
+	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
 end
 
 function BlobVoxelMap:delete()
-	
+	if self.vertexBufGPU then
+		self.vertexBufGPU:delete()
+		self.vertexBufGPU = nil
+	end
+	if self.vao then
+		self.vao:delete()
+		self.vao = nil
+	end
 end
 
 BlobVoxelMap.__gc = BlobVoxelMap.delete

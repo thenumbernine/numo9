@@ -2073,7 +2073,7 @@ function AppVideo:triBuf_flush()
 		self.vertexBufGPU:setData{
 			data = self.vertexBufCPU.v,
 			count = self.vertexBufCPU.capacity,
-			size = ffi.sizeof(self.vertexBufCPU.type) * self.vertexBufCPU.capacity,
+			size = ffi.sizeof'Numo9Vertex' * self.vertexBufCPU.capacity,
 		}
 	else
 --DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
@@ -2088,6 +2088,7 @@ function AppVideo:triBuf_flush()
 	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
 	self.vertexBufCPU:resize(0)
 
+-- ??? TODO not this because it's forcing more flushes?
 	self.lastPaletteTex = nil
 	self.lastSheetTex = nil
 end
@@ -2162,7 +2163,7 @@ function AppVideo:triBuf_addTri(
 	boxX, boxY, boxW, boxH
 )
 	local sceneObj = self.triBuf_sceneObj
-	
+
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	local texcoord = sceneObj.attrs.texcoord.buffer.vec
 	local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
@@ -2177,13 +2178,13 @@ function AppVideo:triBuf_addTri(
 	v.texcoord.x, v.texcoord.y = u1, v1
 	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
-	
+
 	v = self.vertexBufCPU:emplace_back()
 	v.vertex.x, v.vertex.y, v.vertex.z = x2, y2, z2
 	v.texcoord.x, v.texcoord.y = u2, v2
 	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
-	
+
 	v = self.vertexBufCPU:emplace_back()
 	v.vertex.x, v.vertex.y, v.vertex.z = x3, y3, z3
 	v.texcoord.x, v.texcoord.y = u3, v3
@@ -4153,14 +4154,14 @@ function AppVideo:drawVoxelMap(
 
 	-- TODO invalidate upon dirty flag set
 	voxelmap:rebuildMesh(self)
+	
+	-- setup textures and uniforms
 
-	-- [[ 
+	-- [[ draw by copying into buffers in AppVideo here
 	do
-		local sceneObj = self.triBuf_sceneObj
-
-		-- setup textures and uniforms
+		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
 		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
-
+		
 		local srcVtxs = voxelmap.vertexBufCPU
 		local srcLen = #srcVtxs
 
@@ -4172,6 +4173,12 @@ function AppVideo:drawVoxelMap(
 		local dstVtxPtr = dstVtxs.v + writeOfs
 		ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof'Numo9Vertex' * srcLen)
 	end
+	--]]
+	--[[ draw using blob/voxelmap's own GPU buffer
+	-- ... never seems to go that fast
+	self:triBuf_flush()
+	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)	-- make sure textures are set
+	voxelmap:drawMesh(self)
 	--]]
 
 	self.framebufferRAM.dirtyGPU = true
