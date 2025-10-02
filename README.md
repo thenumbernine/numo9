@@ -875,3 +875,5 @@ If you want to rely on outside binaries, here is the list of dependencies:
 			- Tilemap
 
 - `app.framebufferRAMs` builds as you set more video modes.  how about clearing app.framebufferRAMs between cart open's?
+
+- draw API, those four vars that always end up in the 'extra' attribute: paletteIndex, transparentIndex, spriteBit, spriteMask ... they are rarely used ... make them uniforms?
