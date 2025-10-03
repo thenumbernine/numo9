@@ -30,7 +30,6 @@ update=||do
 	--matfrustum(-zn, zn, -zn/ar, zn/ar, zn, zf)
 	-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
 	matident()
-	matscale(1, -1, 1)
 	mattrans(0, 0, -.5 * zf)
 	--]]
 
