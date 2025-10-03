@@ -102,9 +102,7 @@ function UITextArea:update()
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
-	local mouseX, mouseY = app:invTransform(
-		-1 + 2 * tonumber(app.ram.mousePos.x) / tonumber(app.ram.screenWidth),
-		1 - 2 * tonumber(app.ram.mousePos.y) / tonumber(app.ram.screenHeight))
+	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 
 	-- draw text
 	local textareaX = 0	-- offset into textarea where we start drawing text

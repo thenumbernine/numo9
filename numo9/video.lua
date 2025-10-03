@@ -2703,45 +2703,39 @@ local function mat4x4mul(m, x, y, z, w, scale)
 		(m[3] * x + m[7] * y + m[11] * z + m[15] * w) * scale
 end
 
--- TODO ... mvMat? projMat? scale?
-local function vec3to4(m, x, y, z)
-	error'TODO'
-	return mat4x4mul(m, x, y, z, 1, mvMatInvScale)
-end
-
 -- this function is only used with drawing lines at the moment...
-local function homogeneous(sx, sy, x,y,z,w)
-	x = x / sx * 2 - 1
-	y = y / sy * 2 - 1
-
+local function homogeneous(x,y,z,w)
 	if w > 0 then
 		x = x / w
 		y = y / w
 		z = z / w
 	end
-
-	x = (x + 1) * .5 * sx
-	y = (y + 1) * .5 * sy
-
-	return x,y,z
+	return x,y,z,1
 end
 
--- transform from world coords to screen coords (including projection, including homogeneous transform)
+-- transform from world coords to screen coords (including projection, including homogeneous transform, including screen-space coordinates)
 function AppVideo:transform(x,y,z,w, projMat, mvMat)
 	projMat = projMat or self.ram.projMat
 	mvMat = mvMat or self.ram.mvMat
 	x,y,z,w = mat4x4mul(mvMat, x,y,z,w, mvMatInvScale)
 	x,y,z,w = mat4x4mul(projMat, x,y,z,w)
-	return homogeneous(self.ram.screenWidth, self.ram.screenHeight, x,y,z,w)
+	x,y,z,w = homogeneous(x,y,z,w)
+	-- normalized coords to screen-space coords (and y-flip?)
+	x = (x + 1) * .5 * self.ram.screenWidth
+	y = (-y + 1) * .5 * self.ram.screenHeight
+	return x,y,z,w
 end
 
--- inverse-transform from framebuffer coords to menu coords
+-- inverse-transform from framebuffer/screen coords to menu coords
 function AppVideo:invTransform(x,y,z)
-	-- TODO first inverse-homogeneous-transform?
 	x = tonumber(x)
 	y = tonumber(y)
 	z = tonumber(z) or 0
 	local w = 1
+	-- screen-space coords to normalized-device coords (and y-flip?)
+	x = -1 + 2 * x / tonumber(self.ram.screenWidth)
+	y = 1 - 2 * y / tonumber(self.ram.screenHeight)
+	-- normalized-device coords to homogeneous inv transform? or nah?
 	-- TODO transform accepts 'm' mvType[16] override, but this operates on 4x4 matrix.ffi types...
 	-- TODO make this operation in-place
 	local mvInv = self.mvMat:inv4x4()
