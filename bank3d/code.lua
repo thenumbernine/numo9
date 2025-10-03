@@ -180,10 +180,10 @@ numo9_brushes = {
 }
 
 
-viewZNear = 1
-viewZFar = 11*2
-viewDist = 11*.75
-viewAlt = 11*.75
+viewZNear = .01
+viewZFar = 100
+viewDist = 4.5
+viewAlt = 4.5
 viewTiltUpAngle = 45
 viewAngle = 90
 destViewAngle = viewAngle
@@ -207,7 +207,7 @@ drawMap=||do
 	local fwdy = math.sin(math.rad(viewAngle))
 	local viewX = viewCenterX - viewDist * fwdx
 	local viewY = viewCenterY - viewDist * fwdy
-	local viewZ = viewAlt
+	local viewZ = (player and player.pos.z or 0) + viewAlt
 
 	matident()
 	matident(1)
