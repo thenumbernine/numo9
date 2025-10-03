@@ -25,7 +25,7 @@ function BlobCode:loadFile(filepath, basepath, blobIndex)
 	local included = {}
 	local function insertIncludes(s)
 		return string.split(s, '\n'):mapi(function(l)
-			local loc = l:match'^%-%-#include%s+(.*)$'
+			local loc = l:match'^%-%-#include%s+(.-)%s*$'
 			if loc then
 				if included[loc] then
 					return '-- ALREADY INCLUDED: '..l

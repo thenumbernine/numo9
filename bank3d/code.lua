@@ -230,9 +230,15 @@ drawMap=||do
 	local viewZ = viewAlt
 
 	matident()
+	matident(1)
 	local ar = getAspectRatio()
-	matfrustum(-ar * viewZNear, ar * viewZNear, -viewZNear, viewZNear, viewZNear, viewZFar)
-	matscale(-1, 1, 1)	-- go from lhs to rhs coord system
+	matfrustum(
+		-ar * viewZNear,
+		ar * viewZNear,
+		-viewZNear,
+		viewZNear,
+		viewZNear,
+		viewZFar)
 	matlookat(
 		viewX, viewY, viewZ,
 		viewX + fwdx * math.sin(math.rad(viewTiltUpAngle)),
@@ -1486,6 +1492,7 @@ update=||do
 		rect(0,0,screenWidth,screenHeight,19)
 		fillp(0)		--blend(-1)
 
+		matident(1)
 		matortho(0, screenTextWidth, 0, screenTextWidth * screenHeight / screenWidth)
 		-- splash screen
 		local s = 2
@@ -1602,6 +1609,7 @@ update=||do
 
 	cls(0xf0)
 	matident()
+	matident(1)
 	matortho(0, screenTextWidth, 0, screenTextWidth * screenHeight / screenWidth)
 
 	if player then

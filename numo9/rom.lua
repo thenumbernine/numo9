@@ -111,35 +111,35 @@ local keyCount = #keyCodeNames
 local keyPressFlagSize = math.ceil(keyCount / 8)
 
 -- [[ use floating point
-local mvMatType = 'float'
+local matType = 'float'
 local mvMatScale = 1
 --]]
 --[[ use fixed point 16:16 -- works
-local mvMatType = 'int32_t'
+local matType = 'int32_t'
 local mvMatScale = 65536
 --]]
 --[[ use fixed point 24:8
-local mvMatType = 'int32_t'
+local matType = 'int32_t'
 local mvMatScale = 256
 --]]
 --[[ use fixed point 32:0
-local mvMatType = 'int32_t'
+local matType = 'int32_t'
 local mvMatScale = 1
 --]]
 --[[ use fixed point 12:4 -- works
-local mvMatType = 'int16_t'
+local matType = 'int16_t'
 local mvMatScale = 16
 --]]
 --[[ use fixed point 10:6 -- works
-local mvMatType = 'int16_t'
+local matType = 'int16_t'
 local mvMatScale = 64
 --]]
 --[[ use fixed point 9:7 -- works
-local mvMatType = 'int16_t'
+local matType = 'int16_t'
 local mvMatScale = 128
 --]]
 --[[ use fixed point 8:8 like the old SNES Mode7 ... NOT WORKING
-local mvMatType = 'int16_t'
+local matType = 'int16_t'
 local mvMatScale = 256
 --]]
 
@@ -341,7 +341,11 @@ local RAM = struct{
 				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
 
 				{name='clipRect', type=clipType..'[4]'},
-				{name='mvMat', type=mvMatType..'[16]'},
+
+				-- TODO [2][4][4] plz
+				{name='mvMat', type=matType..'[16]'},
+				{name='projMat', type=matType..'[16]'},
+
 				{name='videoMode', type='uint8_t'},
 
 				-- TODO do I really need this?  yes for the native-res video-mode?  but really? hmm...
@@ -425,8 +429,11 @@ local clipRectAddr = ffi.offsetof('RAM', 'clipRect')
 local clipRectInBytes = ffi.sizeof'uint8_t' * 4
 local clipRectAddrEnd = clipRectAddr + clipRectInBytes
 local mvMatAddr = ffi.offsetof('RAM', 'mvMat')
-local mvMatInBytes = ffi.sizeof(mvMatType) * 16
+local mvMatInBytes = ffi.sizeof(matType) * 16
 local mvMatAddrEnd = mvMatAddr + mvMatInBytes
+local projMatAddr = ffi.offsetof('RAM', 'projMat')
+local projMatInBytes = ffi.sizeof(matType) * 16
+local projMatAddrEnd = projMatAddr + projMatInBytes
 local blendColorAddr = ffi.offsetof('RAM', 'blendColor')
 local blendColorInBytes = ffi.sizeof'uint16_t'
 local blendColorAddrEnd = blendColorAddr + blendColorInBytes
@@ -543,6 +550,7 @@ return {
 	fontImageSizeInTiles = fontImageSizeInTiles,
 	menuFontWidth = menuFontWidth,
 	mvMatScale = mvMatScale,
+	matType = matType,
 	keyPressFlagSize = keyPressFlagSize,
 	keyCount = keyCount,
 
@@ -553,8 +561,6 @@ return {
 	audioMusicPlayingCount = audioMusicPlayingCount,
 	audioAllMixChannelsInBytes = audioAllMixChannelsInBytes,
 	pitchPrec = pitchPrec,
-
-	mvMatType = mvMatType,
 
 	ROM = ROM,
 	RAM = RAM,
@@ -574,6 +580,9 @@ return {
 	mvMatAddr = mvMatAddr,
 	mvMatInBytes = mvMatInBytes,
 	mvMatAddrEnd = mvMatAddrEnd,
+	projMatAddr = projMatAddr,
+	projMatInBytes = projMatInBytes,
+	projMatAddrEnd = projMatAddrEnd,
 	blendColorAddr = blendColorAddr,
 	blendColorInBytes = blendColorInBytes,
 	blendColorAddrEnd = blendColorAddrEnd,

@@ -103,7 +103,11 @@ vec2=class{
 			return vec2(v.x * s, v.y * s)
 		end
 	end,
+
+	-- these slightly break compat with vec2_exp and vec2_log above which are like cplx exp and log
 	exp=|theta| vec2(math.cos(theta), math.sin(theta)),
+	angle=|v| math.atan2(v.y, v.x),
+
 	cross=|a,b| a.x * b.y - a.y * b.x,	-- or :det() maybe
 	cplxmul = |a,b| vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x),
 	__unm=|v| vec2(-v.x, -v.y),

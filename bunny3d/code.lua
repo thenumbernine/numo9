@@ -16,18 +16,20 @@ local scales = {1/2}
 wireframe = false
 update=||do
 	cls()
-	matident()
 
 	--[[ ortho
 	local r = .75
+	matident(1)
 	matortho(-r, r, r, -r, -r, r)
 	--]]
 	-- [[ frustum
 	local zn, zf = .1, 2
 	local ar = tonumber(peekw(ramaddr'screenWidth')) / tonumber(peekw(ramaddr'screenHeight'))
+	matident(1)
 	matfrustum(-ar*zn, ar*zn, -zn, zn, zn, zf)
 	--matfrustum(-zn, zn, -zn/ar, zn/ar, zn, zf)
 	-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
+	matident()
 	matscale(1, -1, 1)
 	mattrans(0, 0, -.5 * zf)
 	--]]

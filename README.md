@@ -294,11 +294,12 @@ In this sense, if you are used to other fantasy consoles, their waveforms become
 
 What's a SNES-era fantasy-console without mode7?
 There are a few matrix functions that you can use to manipulate the render state:
-`matident`, `mattrans`, `matrot`, `matscale`, `matortho`, `matfrustum`, `matlookat`.
+`matident`, `mattrans`, `matrot`, `matscale`, `matlookat`, `matortho`, `matfrustum`.
 
 ~~I'm using 16.16 fixed precision to store the matrix components.~~ (It is set to 32-bit floats for now until I tune the depth buffer support).
 SNES used 8.8, so I am being generous.
 I've tested with as close as 9.7 without getting too big of rounding errors, so maybe I could restrict this later, but meh.
+And then I got an itch to add HD2D so yeah next I had to separate projection and modelview, and now it's probably going to be floating point for good.
 
 ### screen-space lighting
 
@@ -506,14 +507,14 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 
 ## mode7:
 
-- `matident()` = set the transform matrix to identity
-- `mattrans([x],[y],[z])` = translate the transform matrix by x,y,z.  Default translate is 0.
-- `matrot(theta,[x,y,z])` = rotate by theta radians on axis x,y,z.  Default axis is 0,0,1 for screen rotations.
-- `matrotcs(cosTheta, sinTheta, x,y,z)` = rotate by theta radians on axis x,y,z.  There is no default axis.  The axis provided must be unit.
-- `matscale([x],[y],[z])` = scale by x,y,z.  Default scale is 1.
-- `matortho(left,right,bottom,top,[near,far])` = apply orthographic transform.
-- `matfrustum(left,right,bottom,top,near,far)` = apply frustum perspective transform.
-- `matlookat(eyeX,eyeY,eyeZ,camX,camY,camZ,upX,upY,upZ)` = transform view to position at camX,camY,camZ and look at eyeX,eyeY,eyeZ with the up vector upX,upY,upZ.
+- `matident(matrix)` = set the transform matrix to identity.  `matrix` is 0 for the modelview matrix, 1 for the projection matrix, default is 0.
+- `mattrans([x],[y],[z],[matrix])` = translate the transform matrix by x,y,z.  Default translate is 0.  `matrix default is 0 for modelview.
+- `matrot(theta,[x,y,z],[matrix])` = rotate by theta radians on axis x,y,z.  Default axis is 0,0,1 for screen rotations.  `matrix default is 0 for modelview.
+- `matrotcs(cosTheta, sinTheta, x,y,z,[matrix])` = rotate by theta radians on axis x,y,z.  There is no default axis.  The axis provided must be unit.  `matrix default is 0 for modelview.
+- `matscale([x],[y],[z],[matrix])` = scale by x,y,z.  Default scale is 1.  `matrix default is 0 for modelview.
+- `matlookat(eyeX,eyeY,eyeZ,camX,camY,camZ,upX,upY,upZ,[matrix])` = transform view to position at camX,camY,camZ and look at eyeX,eyeY,eyeZ with the up vector upX,upY,upZ.  `matrix default is 0 for modelview.
+- `matortho(left,right,bottom,top,[near,far],[matrix])` = apply orthographic transform.  `matrix default is 1 for projection.
+- `matfrustum(left,right,bottom,top,near,far,[matrix])` = apply frustum perspective transform.  `matrix default is 1 for projection.
 
 ## sound:
 

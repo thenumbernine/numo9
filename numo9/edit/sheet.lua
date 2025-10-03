@@ -106,8 +106,9 @@ function EditSheet:update()
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
-	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
-	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
+	local mouseX, mouseY = app:invTransform(
+		-1 + 2 * tonumber(app.ram.mousePos.x) / tonumber(app.ram.screenWidth),
+		1 - 2 * tonumber(app.ram.mousePos.y) / tonumber(app.ram.screenHeight))
 
 	local shift = app:key'lshift' or app:key'rshift'
 
@@ -292,7 +293,7 @@ function EditSheet:update()
 		nil,
 		app.paletteMenuTex
 	)
-	
+
 	-- since when is clipMax having problems?
 	--self:guiSetClipRect(0, 0, clipMax, clipMax)
 	self:guiSetClipRect(0, 0, 256, 256)
@@ -360,11 +361,11 @@ function EditSheet:update()
 		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
 	)
 	app.ram.paletteBlobIndex = pushPalBlobIndex
-	
+
 	-- since when is clipMax having problems?
 	--self:guiSetClipRect(0, 0, clipMax, clipMax)
 	self:guiSetClipRect(0, 0, 256, 256)
-	
+
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 
 	-- convert x y in framebuffer space to x y in sprite window space

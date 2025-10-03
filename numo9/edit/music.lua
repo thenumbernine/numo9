@@ -159,8 +159,9 @@ function EditMusic:update()
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
-	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
-	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
+	local mouseX, mouseY = app:invTransform(
+		-1 + 2 * tonumber(app.ram.mousePos.x) / tonumber(app.ram.screenWidth),
+		1 - 2 * tonumber(app.ram.mousePos.y) / tonumber(app.ram.screenHeight))
 
 	local x, y = 80, 0
 	self:guiBlobSelect(x, y, 'music', self, 'musicBlobIndex', function(dx)

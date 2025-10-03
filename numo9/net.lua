@@ -61,7 +61,7 @@ local maxPlayersTotal = numo9_keys.maxPlayersTotal
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
 local clipType = numo9_rom.clipType
-local mvMatType = numo9_rom.mvMatType
+local matType = numo9_rom.matType
 local addSig = numo9_rom.addSig
 local removeSig = numo9_rom.removeSig
 
@@ -534,6 +534,7 @@ local Numo9Cmd_matident = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
+		{name='matrixIndex', type='uint8_t'},
 	},
 }
 
@@ -542,9 +543,10 @@ local Numo9Cmd_mattrans = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='x', type=mvMatType},
-		{name='y', type=mvMatType},
-		{name='z', type=mvMatType},
+		{name='x', type=matType},
+		{name='y', type=matType},
+		{name='z', type=matType},
+		{name='matrixIndex', type='uint8_t'},
 	},
 }
 
@@ -555,9 +557,10 @@ local Numo9Cmd_matrotcs = struct{
 		{name='type', type='uint8_t'},
 		{name='c', type='float'},
 		{name='s', type='float'},
-		{name='x', type=mvMatType},
-		{name='y', type=mvMatType},
-		{name='z', type=mvMatType},
+		{name='x', type=matType},
+		{name='y', type=matType},
+		{name='z', type=matType},
+		{name='matrixIndex', type='uint8_t'},
 	},
 }
 
@@ -567,9 +570,10 @@ local Numo9Cmd_matscale = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='x', type=mvMatType},
-		{name='y', type=mvMatType},
-		{name='z', type=mvMatType},
+		{name='x', type=matType},
+		{name='y', type=matType},
+		{name='z', type=matType},
+		{name='matrixIndex', type='uint8_t'},
 	},
 }
 
@@ -578,12 +582,13 @@ local Numo9Cmd_matortho = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='l', type=mvMatType},
-		{name='r', type=mvMatType},
-		{name='t', type=mvMatType},
-		{name='b', type=mvMatType},
-		{name='n', type=mvMatType},
-		{name='f', type=mvMatType},
+		{name='l', type=matType},
+		{name='r', type=matType},
+		{name='t', type=matType},
+		{name='b', type=matType},
+		{name='n', type=matType},
+		{name='f', type=matType},
+		{name='matrixIndex', type='uint8_t'},
 	},
 }
 
@@ -592,12 +597,13 @@ local Numo9Cmd_matfrustum = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='l', type=mvMatType},
-		{name='r', type=mvMatType},
-		{name='t', type=mvMatType},
-		{name='b', type=mvMatType},
-		{name='n', type=mvMatType},
-		{name='f', type=mvMatType},
+		{name='l', type=matType},
+		{name='r', type=matType},
+		{name='b', type=matType},
+		{name='t', type=matType},
+		{name='n', type=matType},
+		{name='f', type=matType},
+		{name='matrixIndex', type='uint8_t'},
 	},
 }
 
@@ -606,15 +612,16 @@ local Numo9Cmd_matlookat = struct{
 	packed = true,
 	fields = {
 		{name='type', type='uint8_t'},
-		{name='ex', type=mvMatType},
-		{name='ey', type=mvMatType},
-		{name='ez', type=mvMatType},
-		{name='cx', type=mvMatType},
-		{name='cy', type=mvMatType},
-		{name='cz', type=mvMatType},
-		{name='upx', type=mvMatType},
-		{name='upy', type=mvMatType},
-		{name='upz', type=mvMatType},
+		{name='ex', type=matType},
+		{name='ey', type=matType},
+		{name='ez', type=matType},
+		{name='cx', type=matType},
+		{name='cy', type=matType},
+		{name='cz', type=matType},
+		{name='upx', type=matType},
+		{name='upy', type=matType},
+		{name='upz', type=matType},
+		{name='matrixIndex', type='uint8_t'},
 	},
 }
 
@@ -1568,25 +1575,26 @@ assert.len(deltaStr, deltaBufLen)
 					local c = cmd[0].blendMode
 					app:setBlendMode(c.blendMode)
 				elseif cmdtype == netcmds.matident then
-					app:matident()
+					local c = cmd[0].matident
+					app:matident(c.matrixIndex)
 				elseif cmdtype == netcmds.mattrans then
 					local c = cmd[0].mattrans
-					app:mattrans(c.x, c.y, c.z)
+					app:mattrans(c.x, c.y, c.z, c.matrixIndex)
 				elseif cmdtype == netcmds.matrotcs then
 					local c = cmd[0].matrotcs
-					app:matrotcs(c.c, c.s, c.x, c.y, c.z)
+					app:matrotcs(c.c, c.s, c.x, c.y, c.z, c.matrixIndex)
 				elseif cmdtype == netcmds.matscale then
 					local c = cmd[0].matscale
-					app:matscale(c.x, c.y, c.z)
+					app:matscale(c.x, c.y, c.z, c.matrixIndex)
 				elseif cmdtype == netcmds.matortho then
 					local c = cmd[0].matortho
-					app:matortho(c.l, c.r, c.t, c.b, c.n, c.f)
+					app:matortho(c.l, c.r, c.b, c.t, c.n, c.f, c.matrixIndex)
 				elseif cmdtype == netcmds.matfrustum then
 					local c = cmd[0].matfrustum
-					app:matfrustum(c.l, c.r, c.t, c.b, c.n, c.f)
+					app:matfrustum(c.l, c.r, c.b, c.t, c.n, c.f, c.matrixIndex)
 				elseif cmdtype == netcmds.matlookat then
 					local c = cmd[0].matlookat
-					app:matlookat(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz)
+					app:matlookat(c.ex, c.ey, c.ez, c.cx, c.cy, c.cz, c.upx, c.upy, c.upz, c.matrixIndex)
 				elseif cmdtype == assert(netcmds.sfx) then
 					local c = cmd[0].sfx
 					app:playSound(c.sfxID, c.channelIndex, c.pitch, c.volL, c.volR, c.looping ~= 0)

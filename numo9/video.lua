@@ -33,12 +33,12 @@ local fontImageSizeInTiles = numo9_rom.fontImageSizeInTiles
 local fontInBytes = numo9_rom.fontInBytes
 local framebufferAddr = numo9_rom.framebufferAddr
 local clipMax = numo9_rom.clipMax
-local mvMatScale = numo9_rom.mvMatScale
-local mvMatType = numo9_rom.mvMatType
 local menuFontWidth = numo9_rom.menuFontWidth
+local mvMatScale = numo9_rom.mvMatScale
+local matType = numo9_rom.matType
 
 local mvMatInvScale = 1 / mvMatScale
-assert.eq(mvMatType, 'float', "TODO if this changes then update the mvMat uniform")
+assert.eq(matType, 'float', "TODO if this changes then update the projMat and mvMat uniforms")
 
 -- either seems to work fine
 local texelFunc = 'texture'
@@ -1255,8 +1255,7 @@ flat out vec4 box;
 
 out vec3 vertexv;
 
-uniform vec2 invHalfFrameBufferSize;
-uniform mat4 mvMat;
+uniform mat4 projMat, mvMat;
 uniform vec4 blendColorSolid;
 
 void main() {
@@ -1265,11 +1264,7 @@ void main() {
 	extra = extraAttr;
 	box = boxAttr;
 
-	gl_Position = (mvMat * vec4(vertex, 1.)) * <?=glnumber(mvMatInvScale)?>;
-
-	//instead of a projection matrix, here I'm going to convert from framebuffer pixel coordinates to GL homogeneous coordinates.
-	gl_Position.xy *= invHalfFrameBufferSize;
-	gl_Position.xy -= 1.;
+	gl_Position = (projMat * (mvMat * vec4(vertex, 1.))) * <?=glnumber(mvMatInvScale)?>;
 
 	vertexv = gl_Position.xyz;
 }
@@ -2112,6 +2107,7 @@ function AppVideo:triBuf_prepAddTri(
 	-- upload uniforms to GPU before adding new tris ...
 	local program = self.triBuf_sceneObj.program
 	if self.mvMatDirty
+	or self.projMatDirty
 	or self.clipRectDirty
 	or self.blendColorDirty
 	or self.frameBufferSizeUniformDirty
@@ -2120,6 +2116,10 @@ function AppVideo:triBuf_prepAddTri(
 		if self.mvMatDirty then
 			program:setUniform('mvMat', self.ram.mvMat)
 			self.mvMatDirty = false
+		end
+		if self.projMatDirty then
+			program:setUniform('projMat', self.ram.projMat)
+			self.projMatDirty = false
 		end
 		if self.clipRectDirty then
 			gl.glUniform4f(
@@ -2139,10 +2139,13 @@ function AppVideo:triBuf_prepAddTri(
 			self.blendColorDirty = false
 		end
 		if self.frameBufferSizeUniformDirty then
+			--[[ TOOD this isn't used yet, but I suspect it will be
+			-- don't delete just yet ...
 			gl.glUniform2f(
 				program.uniforms.invHalfFrameBufferSize.loc,
 				2 / self.ram.screenWidth,
 				2 / self.ram.screenHeight)
+			--]]
 		end
 		program:useNone()
 	end
@@ -2195,6 +2198,11 @@ end
 function AppVideo:onMvMatChange()
 	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current mvMat
 	self.mvMatDirty = true
+end
+
+function AppVideo:onProjMatChange()
+	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current mvMat
+	self.projMatDirty = true
 end
 
 function AppVideo:onClipRectChange()
@@ -2321,13 +2329,18 @@ function AppVideo:resetVideo()
 	local fontRAM = self.blobs.font[1].ramgpu
 	if fontRAM then fontRAM:updateAddr(fontAddr) end
 
-	-- set 255 mode first so that it has resources (cuz App:update() needs them for the menu)
-	self:setVideoMode(255)
 
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
 	self.ram.videoMode = 0	-- 16bpp RGB565
 	--self.ram.videoMode = 1	-- 8bpp indexed
 	--self.ram.videoMode = 2	-- 8bpp RGB332
+
+	-- set 255 mode first so that it has resources (cuz App:update() needs them for the menu)
+	self:setVideoMode(255)
+
+assert(self.videoModes[255])
+
+	-- then set to 0 for our default game env
 	self:setVideoMode(self.ram.videoMode)
 
 	self:copyBlobsToROM()
@@ -2449,8 +2462,21 @@ function AppVideo:setVideoMode(modeIndex)
 	end
 	--]]
 
+	self.ram.screenWidth = modeObj.width
+	self.ram.screenHeight = modeObj.height
+
+	self.mvMat:setIdent()
+	-- for setting video mode should I initialize the projection matrix to its default ortho screen every time?
+	-- sure.
+	self.projMat:setOrtho(
+		0, self.ram.screenWidth,
+		self.ram.screenHeight, 0,
+		-1000, 1000
+	) -- and we will set onProjMatChange next...
+
 	self.triBuf_sceneObj = self.drawObj
 	self:onMvMatChange()	-- the drawObj changed so make sure it refreshes its mvMat
+	self:onProjMatChange()
 	self:onClipRectChange()
 	self:onBlendColorChange()
 	self:onFrameBufferSizeChange()
@@ -2460,9 +2486,6 @@ function AppVideo:setVideoMode(modeIndex)
 
 	self.currentVideoMode = modeObj
 	self.currentVideoModeIndex = modeIndex
-
-	self.ram.screenWidth = modeObj.width
-	self.ram.screenHeight = modeObj.height
 
 	return true
 end
@@ -2667,17 +2690,23 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
-local mvMatPush = ffi.new(mvMatType..'[16]')
-
-local function vec3to4(m, x, y, z)
+local function mat4x4mul(m, x, y, z, w, scale)
 	x = tonumber(x)
 	y = tonumber(y)
-	z = tonumber(z)
+	z = tonumber(z) or 0
+	w = tonumber(w) or 1
+	scale = tonumber(scale) or 1	-- put mvMatInvScale here
 	return
-		(m[0] * x + m[4] * y + m[ 8] * z + m[12]) * mvMatInvScale,
-		(m[1] * x + m[5] * y + m[ 9] * z + m[13]) * mvMatInvScale,
-		(m[2] * x + m[6] * y + m[10] * z + m[14]) * mvMatInvScale,
-		(m[3] * x + m[7] * y + m[11] * z + m[15]) * mvMatInvScale
+		(m[0] * x + m[4] * y + m[ 8] * z + m[12] * w) * scale,
+		(m[1] * x + m[5] * y + m[ 9] * z + m[13] * w) * scale,
+		(m[2] * x + m[6] * y + m[10] * z + m[14] * w) * scale,
+		(m[3] * x + m[7] * y + m[11] * z + m[15] * w) * scale
+end
+
+-- TODO ... mvMat? projMat? scale?
+local function vec3to4(m, x, y, z)
+	error'TODO'
+	return mat4x4mul(m, x, y, z, 1, mvMatInvScale)
 end
 
 -- this function is only used with drawing lines at the moment...
@@ -2697,18 +2726,12 @@ local function homogeneous(sx, sy, x,y,z,w)
 	return x,y,z
 end
 
--- transform from world coords to screen coords (including homogeneous transform)
-function AppVideo:transform(x,y,z,w, m)
-	x = tonumber(x)
-	y = tonumber(y)
-	z = tonumber(z) or 0
-	w = tonumber(w) or 1
-	m = m or self.ram.mvMat
-	x,y,z,w =
-		(m[0] * x + m[4] * y + m[ 8] * z + m[12] * w) * mvMatInvScale,
-		(m[1] * x + m[5] * y + m[ 9] * z + m[13] * w) * mvMatInvScale,
-		(m[2] * x + m[6] * y + m[10] * z + m[14] * w) * mvMatInvScale,
-		(m[3] * x + m[7] * y + m[11] * z + m[15] * w) * mvMatInvScale
+-- transform from world coords to screen coords (including projection, including homogeneous transform)
+function AppVideo:transform(x,y,z,w, projMat, mvMat)
+	projMat = projMat or self.ram.projMat
+	mvMat = mvMat or self.ram.mvMat
+	x,y,z,w = mat4x4mul(mvMat, x,y,z,w, mvMatInvScale)
+	x,y,z,w = mat4x4mul(projMat, x,y,z,w)
 	return homogeneous(self.ram.screenWidth, self.ram.screenHeight, x,y,z,w)
 end
 
@@ -2721,14 +2744,17 @@ function AppVideo:invTransform(x,y,z)
 	local w = 1
 	-- TODO transform accepts 'm' mvType[16] override, but this operates on 4x4 matrix.ffi types...
 	-- TODO make this operation in-place
-	local inv = self.mvMat:inv4x4()
-	local m = inv.ptr
-	return
-		(m[0] * x + m[4] * y + m[ 8] * z + m[12] * w) * mvMatInvScale,
-		(m[1] * x + m[5] * y + m[ 9] * z + m[13] * w) * mvMatInvScale,
-		(m[2] * x + m[6] * y + m[10] * z + m[14] * w) * mvMatInvScale,
-		(m[3] * x + m[7] * y + m[11] * z + m[15] * w) * mvMatInvScale
+	local mvInv = self.mvMat:inv4x4()
+	local mvInvPtr = mvInv.ptr
+	local projInv = self.projMat:inv4x4()
+	local projInvPtr = projInv.ptr
+	x,y,z,w = mat4x4mul(projInvPtr, x, y, z, w)
+	x,y,z,w = mat4x4mul(mvInvPtr, x,y,z,w, mvMatScale)
+	return x,y,z,w
 end
+
+local mvMatPush = ffi.new(matType..'[16]')
+local projMatPush = ffi.new(matType..'[16]')
 
 function AppVideo:drawSolidLine3D(
 	x1, y1, z1,
@@ -2754,17 +2780,9 @@ function AppVideo:drawSolidLine3D(
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
-	-- ok how to perturb input vertex going through a frustum projection such that the output is only +1 in the x or y direction?
-	-- meh, forget it, just do the transform on CPU and use an identity matrix
-	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
-	self:matident()
-
-	local fbw = tonumber(self.ram.screenWidth)
-	local fbh = tonumber(self.ram.screenHeight)
-
 	-- inverse transform [1,0,0,1] and [0,1,0,1] to find out dx and dy ...
-	local v1x, v1y, v1z = homogeneous(fbw, fbh, vec3to4(mvMatPush, x1, y1, z1))
-	local v2x, v2y, v2z = homogeneous(fbw, fbh, vec3to4(mvMatPush, x2, y2, z2))
+	local v1x, v1y, v1z = self:transform(x1, y1, z1)
+	local v2x, v2y, v2z = self:transform(x1, y1, z1)
 	local dx = v2x - v1x
 	local dy = v2y - v1y
 	local il = 1 / math.sqrt(dx^2 + dy^2)
@@ -2791,6 +2809,13 @@ function AppVideo:drawSolidLine3D(
 		v2z
 
 	colorIndex = math.floor(colorIndex or 0)
+
+	-- ok how to perturb input vertex going through a frustum projection such that the output is only +1 in the x or y direction?
+	-- meh, forget it, just do the transform on CPU and use an identity matrix
+	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	self:matident()
+	ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
+	self:matident(1)
 
 	self:triBuf_addTri(
 		paletteTex,
@@ -2819,6 +2844,8 @@ function AppVideo:drawSolidLine3D(
 
 	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 	self:onMvMatChange()
+	ffi.copy(self.ram.projMat, projMatPush, ffi.sizeof(projMatPush))
+	self:onProjMatChange()
 end
 
 function AppVideo:drawSolidLine(x1, y1, x2, y2, colorIndex, thickness, paletteTex)
@@ -3513,80 +3540,93 @@ end
 -- should I set defaults here as well?
 -- I'm already setting them in env so ... nah ...
 
-function AppVideo:matident()
+function AppVideo:matident(matrixIndex)
+	matrixIndex = tonumber(matrixIndex) or 0
+	local matPtr = matrixIndex == 0 and self.ram.mvMat or self.ram.projMat
+	local scale = matrixIndex == 0 and mvMatScale or 1
 	-- set-ident and scale ...
-	self.ram.mvMat[0],  self.ram.mvMat[1],  self.ram.mvMat[2],  self.ram.mvMat[3]  = mvMatScale, 0, 0, 0
-	self.ram.mvMat[4],  self.ram.mvMat[5],  self.ram.mvMat[6],  self.ram.mvMat[7]  = 0, mvMatScale, 0, 0
-	self.ram.mvMat[8],  self.ram.mvMat[9],  self.ram.mvMat[10], self.ram.mvMat[11] = 0, 0, mvMatScale, 0
-	self.ram.mvMat[12], self.ram.mvMat[13], self.ram.mvMat[14], self.ram.mvMat[15] = 0, 0, 0, mvMatScale
+	matPtr[0],  matPtr[1],  matPtr[2],  matPtr[3]  = scale, 0, 0, 0
+	matPtr[4],  matPtr[5],  matPtr[6],  matPtr[7]  = 0, scale, 0, 0
+	matPtr[8],  matPtr[9],  matPtr[10], matPtr[11] = 0, 0, scale, 0
+	matPtr[12], matPtr[13], matPtr[14], matPtr[15] = 0, 0, 0, scale
 	self:onMvMatChange()
 end
 
-function AppVideo:mattrans(...)
-	self.mvMat:applyTranslate(...)
-	self:onMvMatChange()
+function AppVideo:mattrans(x, y, z, matrixIndex)
+	matrixIndex = tonumber(matrixIndex) or 0
+	if matrixIndex == 0 then
+		self.mvMat:applyTranslate(x, y, z)
+		self:onMvMatChange()
+	else
+		self.projMat:applyTranslate(x, y, z)
+		self:onProjMatChange()
+	end
 end
 
-function AppVideo:matrot(...)
-	self.mvMat:applyRotate(...)
-	self:onMvMatChange()
+function AppVideo:matrot(theta, x, y, z, matrixIndex)
+	matrixIndex = tonumber(matrixIndex) or 0
+	if matrixIndex == 0 then
+		self.mvMat:applyRotate(theta, x, y, z)
+		self:onMvMatChange()
+	else
+		self.projMat:applyRotate(theta, x, y, z)
+		self:onProjMatChange()
+	end
 end
 
-function AppVideo:matrotcs(...)
-	self.mvMat:applyRotateCosSinUnit(...)
-	self:onMvMatChange()
+function AppVideo:matrotcs(c, s, x, y, z, matrixIndex)
+	matrixIndex = tonumber(matrixIndex) or 0
+	if matrixIndex == 0 then
+		self.mvMat:applyRotateCosSinUnit(c, s, x, y, z)
+		self:onMvMatChange()
+	else
+		self.projMat:applyRotateCosSinUnit(c, s, x, y, z)
+		self:onProjMatChange()
+	end
 end
 
-function AppVideo:matscale(...)
-	self.mvMat:applyScale(...)
-	self:onMvMatChange()
+function AppVideo:matscale(x, y, z, matrixIndex)
+	matrixIndex = tonumber(matrixIndex) or 0
+	if matrixIndex == 0 then
+		self.mvMat:applyScale(x, y, z)
+		self:onMvMatChange()
+	else
+		self.projMat:applyScale(x, y, z)
+		self:onProjMatChange()
+	end
 end
 
-function AppVideo:matortho(l, r, t, b, n, f)
-	-- input is [0,2]^2 x [-1,1] coords
-	-- output is [0,mode.width] x [0,mode.height] x [-1,1] coords
-	self.mvMat:applyScale(.5 * self.ram.screenWidth, .5 * self.ram.screenHeight)
-
-	-- input is [-1,1]^3 coords
-	-- output is [0,2]^2 x [-1,1] coords
-	self.mvMat:applyTranslate(1, 1)
-
-	-- input is vertex in [l,r]x[b,t]x[n,f] coords
-	-- output is [-1,1]^3 coords
-	-- applyOrtho is for OpenGL ortho matrix, which expects output space to be [-1,1]
-	self.mvMat:applyOrtho(l, r, t, b, n, f)
-
-	self:onMvMatChange()
+function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz, matrixIndex)
+	matrixIndex = tonumber(matrixIndex) or 0
+	if matrixIndex == 0 then
+		self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+		self:onMvMatChange()
+	else
+		self.projMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+		self:onProjMatChange()
+	end
 end
 
--- TODO get this working with native-resolution mode
-function AppVideo:matfrustum(l, r, t, b, n, f)
-	-- input should be [-a*z, a*z] x [-b*z,b*z] x [zn,zf]
-	-- output should be [-1, 1]^3 x [-zf,-zn]
-	self.mvMat:applyFrustum(l, r, t, b, n, f)
-
-	local shw, shh = .5 * self.ram.screenWidth, .5 * self.ram.screenHeight
-
-	-- This undos the ndc -> window transform that I'm about to apply in the drawObj vertex shader
-	self.mvMat:applyScale(shw, shh)
-
-	-- hmm why?
-	-- because I always use width/height * +-znear for frustum left/right
-	self.mvMat:applyTranslate(shw/shh, 1)
-	-- if I use height/width * +-znear for frustum top/bottom instead then I have to do this:
-	--self.mvMat:applyTranslate(1, shh/shw)
-	--self.mvMat:applyTranslate(1, 1)
-
-	self:onMvMatChange()
+function AppVideo:matortho(l, r, t, b, n, f, matrixIndex)
+	matrixIndex = tonumber(matrixIndex) or 1	-- default projection
+	if matrixIndex == 0 then
+		self.mvMat:applyOrtho(l, r, t, b, n, f)
+		self:onMvMatChange()
+	else
+		self.projMat:applyOrtho(l, r, t, b, n, f)
+		self:onProjMatChange()
+	end
 end
 
-function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-	-- typically y+ is up, but in the 90s console era y- is up
-	-- also flip x+ since OpenGL uses a RHS but I want to preserve orientation of our renderer when looking down from above, so we use a LHS
-	self.mvMat:applyScale(-1, -1, 1)
-	self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-
-	self:onMvMatChange()
+function AppVideo:matfrustum(l, r, b, t, n, f, matrixIndex)
+	matrixIndex = tonumber(matrixIndex) or 1	-- default projection
+	if matrixIndex == 0 then
+		self.mvMat:applyFrustum(l, r, b, t, n, f)
+		self:onMvMatChange()
+	else
+		self.projMat:applyFrustum(l, r, b, t, n, f)
+		self:onProjMatChange()
+	end
 end
 
 
@@ -3686,7 +3726,7 @@ local function orientationCombine(a, b)
 end
 
 
-local mvMatPush = ffi.new(mvMatType..'[16]')
+local mvMatPush = ffi.new(matType..'[16]')
 -- this is a sprite-based preview of tilemap rendering
 -- it's made to simulate blitting the brush onto the tilemap (without me writing the tiles to a GPU texture and using the shader pathway)
 function AppVideo:drawBrush(
@@ -4006,7 +4046,7 @@ function AppVideo:drawMesh3D(
 end
 
 -- this just draws one single voxel.
-local mvMatPush = ffi.new(mvMatType..'[16]')
+local mvMatPush = ffi.new(matType..'[16]')
 local vox = ffi.new'Voxel'	-- better ffi.cast/ffi.new inside here or store outside?
 function AppVideo:drawVoxel(voxelValue, ...)
 	vox.intval = voxelValue or 0
@@ -4114,7 +4154,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 	self:onMvMatChange()
 end
 
-local mvMatPush = ffi.new(mvMatType..'[16]')
+local mvMatPush = ffi.new(matType..'[16]')
 function AppVideo:drawVoxelMap(
 	voxelmapIndex,
 	sheetIndex
@@ -4154,14 +4194,14 @@ function AppVideo:drawVoxelMap(
 
 	-- TODO invalidate upon dirty flag set
 	voxelmap:rebuildMesh(self)
-	
+
 	-- setup textures and uniforms
 
 	-- [[ draw by copying into buffers in AppVideo here
 	do
 		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
 		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
-		
+
 		local srcVtxs = voxelmap.vertexBufCPU
 		local srcLen = #srcVtxs
 

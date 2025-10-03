@@ -6,7 +6,7 @@ local class = require 'ext.class'
 local numo9_rom = require 'numo9.rom'
 local BlobEntry = numo9_rom.BlobEntry
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
-local mvMatType = numo9_rom.mvMatType
+local matType = numo9_rom.matType
 
 local numo9_video = require 'numo9.video'
 local resetFont = numo9_video.resetFont
@@ -288,7 +288,8 @@ function AppBlobs:buildRAMFromBlobs()
 --DEBUG:print('...done AppBlobs:initBlobs')
 
 	-- every time .ram updates, this has to update as well:
-	self.mvMat.ptr = ffi.cast(mvMatType..'*', self.ram.mvMat)
+	self.mvMat.ptr = ffi.cast(matType..'*', self.ram.mvMat)
+	self.projMat.ptr = ffi.cast(matType..'*', self.ram.projMat)
 
 	--TODO also resize all video sheets to match blobs (or merge them someday)
 	-- and TODO also flush them

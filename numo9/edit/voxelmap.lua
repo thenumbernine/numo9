@@ -164,8 +164,9 @@ function EditVoxelMap:update()
 
 	EditVoxelMap.super.update(self)
 
-	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
-	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
+	local mouseX, mouseY = app:invTransform(
+		-1 + 2 * tonumber(app.ram.mousePos.x) / tonumber(app.ram.screenWidth),
+		1 - 2 * tonumber(app.ram.mousePos.y) / tonumber(app.ram.screenHeight))
 
 	local shift = app:key'lshift' or app:key'rshift'
 

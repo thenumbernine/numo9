@@ -60,9 +60,11 @@ local keyCount = numo9_rom.keyCount
 local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
-local mvMatType = numo9_rom.mvMatType
+local matType = numo9_rom.matType
 local mvMatAddr = numo9_rom.mvMatAddr
 local mvMatAddrEnd = numo9_rom.mvMatAddrEnd
+local projMatAddr = numo9_rom.projMatAddr
+local projMatAddrEnd = numo9_rom.projMatAddrEnd
 local clipRectAddr = numo9_rom.clipRectAddr
 local clipRectAddrEnd = numo9_rom.clipRectAddrEnd
 local blendColorAddr = numo9_rom.blendColorAddr
@@ -231,7 +233,8 @@ function App:initGL()
 	--]]
 
 	-- do this before initBlobs -> buildRAMFromBlobs
-	self.mvMat = matrix_ffi({4,4}, mvMatType):zeros()
+	self.mvMat = matrix_ffi({4,4}, matType):zeros()
+	self.projMat = matrix_ffi({4,4}, matType):zeros()
 
 	self:initBlobs()
 
@@ -724,80 +727,96 @@ function App:initGL()
 		-- me cheating and exposing opengl modelview matrix functions:
 		-- matident mattrans matrot matscale matortho matfrustum matlookat
 		-- matrix math because i'm cheating
-		matident = function()
+		matident = function(matrixIndex)
+			matrixIndex = tonumber(matrixIndex) or 0
 			if self.server then
 				local cmd = self.server:pushCmd().matident
 				cmd.type = netcmds.matident
+				cmd.matrixIndex = matrixIndex
 			end
-			self:matident()
+			self:matident(matrixIndex)
 		end,
-		mattrans = function(x, y, z)
+		mattrans = function(x, y, z, matrixIndex)
 			x = x or 0
 			y = y or 0
 			z = z or 0
+			matrixIndex = tonumber(matrixIndex) or 0
 			if self.server then
 				local cmd = self.server:pushCmd().mattrans
 				cmd.type = netcmds.mattrans
 				cmd.x, cmd.y, cmd.z = x, y, z
+				cmd.matrixIndex = matrixIndex
 			end
-			self:mattrans(x, y, z)
+			self:mattrans(x, y, z, matrixIndex)
 		end,
-		matrot = function(theta, x, y, z)
+		matrot = function(theta, x, y, z, matrixIndex)
 			x = x or 0
 			y = y or 0
 			z = z or 1
+			matrixIndex = tonumber(matrixIndex) or 0
 			local c, s = math.cos(theta), math.sin(theta)
 			if self.server then
 				local cmd = self.server:pushCmd().matrotcs
 				cmd.type = netcmds.matrotcs
 				cmd.c, cmd.s, cmd.x, cmd.y, cmd.z = c, s, x, y, z
+				cmd.matrixIndex = matrixIndex
 			end
-			self:matrotcs(c, s, x, y, z)
+			self:matrotcs(c, s, x, y, z, matrixIndex)
 		end,
-		matrotcs = function(c, s, x, y, z)
+		matrotcs = function(c, s, x, y, z, matrixIndex)
+			matrixIndex = tonumber(matrixIndex) or 0
 			if self.server then
 				local cmd = self.server:pushCmd().matrotcs
 				cmd.type = netcmds.matrotcs
 				cmd.c, cmd.s, cmd.x, cmd.y, cmd.z = c, s, x, y, z
+				cmd.matrixIndex = matrixIndex
 			end
-			self:matrotcs(c, s, x, y, z)
+			self:matrotcs(c, s, x, y, z, matrixIndex)
 		end,
-		matscale = function(x, y, z)
+		matscale = function(x, y, z, matrixIndex)
 			x = x or 1
 			y = y or 1
 			z = z or 1
+			matrixIndex = tonumber(matrixIndex) or 0
 			if self.server then
 				local cmd = self.server:pushCmd().matscale
 				cmd.type = netcmds.matscale
 				cmd.x, cmd.y, cmd.z = x, y, z
+				cmd.matrixIndex = matrixIndex
 			end
-			self:matscale(x, y, z)
+			self:matscale(x, y, z, matrixIndex)
 		end,
-		matortho = function(l, r, t, b, n, f)
-			n = n or -1000
-			f = f or 1000
-			if self.server then
-				local cmd = self.server:pushCmd().matortho
-				cmd.type = netcmds.matortho
-				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
-			end
-			self:matortho(l, r, t, b, n, f)
-		end,
-		matfrustum = function(l, r, t, b, n, f)
-			if self.server then
-				local cmd = self.server:pushCmd().matfrustum
-				cmd.type = netcmds.matfrustum
-				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
-			end
-			self:matfrustum(l, r, t, b, n, f)
-		end,
-		matlookat = function(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+		matlookat = function(ex, ey, ez, cx, cy, cz, upx, upy, upz, matrixIndex)
+			matrixIndex = tonumber(matrixIndex) or 0
 			if self.server then
 				local cmd = self.server:pushCmd().matlookat
 				cmd.type = netcmds.matlookat
 				cmd.ex, cmd.ey, cmd.ez, cmd.cx, cmd.cy, cmd.cz, cmd.upx, cmd.upy, cmd.upz = ex, ey, ez, cx, cy, cz, upx, upy, upz
+				cmd.matrixIndex = matrixIndex
 			end
-			self:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+			self:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz, matrixIndex)
+		end,
+		matortho = function(l, r, t, b, n, f, matrixIndex)
+			n = n or -1000
+			f = f or 1000
+			matrixIndex = tonumber(matrixIndex) or 1
+			if self.server then
+				local cmd = self.server:pushCmd().matortho
+				cmd.type = netcmds.matortho
+				cmd.l, cmd.r, cmd.t, cmd.b, cmd.n, cmd.f = l, r, t, b, n, f
+				cmd.matrixIndex = matrixIndex
+			end
+			self:matortho(l, r, t, b, n, f, matrixIndex)
+		end,
+		matfrustum = function(l, r, b, t, n, f, matrixIndex)
+			matrixIndex = tonumber(matrixIndex) or 1
+			if self.server then
+				local cmd = self.server:pushCmd().matfrustum
+				cmd.type = netcmds.matfrustum
+				cmd.l, cmd.r, cmd.b, cmd.t, cmd.n, cmd.f = l, r, b, t, n, f
+				cmd.matrixIndex = matrixIndex
+			end
+			self:matfrustum(l, r, b, t, n, f, matrixIndex)
 		end,
 
 		sfx = function(sfxID, channelIndex, pitch, volL, volR, looping)
@@ -1634,7 +1653,8 @@ end
 
 -------------------- MAIN UPDATE CALLBACK --------------------
 
-local mvMatPush = ffi.new(mvMatType..'[16]')
+local mvMatPush = ffi.new(matType..'[16]')
+local projMatPush = ffi.new(matType..'[16]')
 function App:update()
 	if not self.hasFocus then
 		-- only pause-on-lost-focus if we're not in multiplayer
@@ -1864,9 +1884,14 @@ conn.receivesPerSecond = 0
 			local x1, x2, y1, y2, z1, z2 = self.blitScreenView:getBounds(self.width / self.height)
 			local x = self.screenMousePos.x / self.width * (self.orthoMax.x - self.orthoMin.x) + self.orthoMin.x
 			local y = self.screenMousePos.y / self.height * (self.orthoMax.y - self.orthoMin.y) + self.orthoMin.y
-			local mouseFbTex = self.activeMenu and self.videoModes[255].framebufferRAM.tex or self.framebufferRAM.tex
-			self.ram.mousePos.x = x * tonumber(mouseFbTex.width)
-			self.ram.mousePos.y = y * tonumber(mouseFbTex.height)
+			if self.activeMenu then
+				self.ram.mousePos.x = x * self.width
+				self.ram.mousePos.y = y * self.height
+			else
+				local mouseFbTex = self.framebufferRAM.tex
+				self.ram.mousePos.x = x * mouseFbTex.width
+				self.ram.mousePos.y = y * mouseFbTex.height
+			end
 			if self:keyp'mouse_left' then
 				self.ram.lastMousePressPos:set(self.ram.mousePos:unpack())
 			end
@@ -1938,6 +1963,7 @@ print('run thread dead')
 
 			-- push matrix
 			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+			ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
 
 			-- push clip rect
 			local pushClipX, pushClipY, pushClipW, pushClipH = self:getClipRect()
@@ -1956,6 +1982,7 @@ print('run thread dead')
 			-- and maybe the draw commands will do some extra gpu->cpu flushing of the VRAM framebufferRAM, but meh, it still won't change them.
 
 			self:matident()
+			self:matident(1)
 			self:setClipRect(0, 0, clipMax, clipMax)
 
 			-- while we're here, start us off with the current framebufferRAM contents
@@ -2011,6 +2038,8 @@ print('run thread dead')
 			-- pop the matrix
 			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
 			self:onMvMatChange()
+			ffi.copy(self.ram.projMat, projMatPush, ffi.sizeof(projMatPush))
+			self:onProjMatChange()
 
 			-- pop ram dither
 			self.ram.dither = ditherPush
@@ -2135,13 +2164,13 @@ print('run thread dead')
 			local rx = fx / fy
 			self.orthoMin.x = -orthoSize * (rx - 1) * .5
 			self.orthoMax.x = orthoSize * (((rx - 1) * .5) + 1)
-			self.orthoMax.y = orthoSize
 			self.orthoMin.y = 0
+			self.orthoMax.y = orthoSize
 			view.projMat:setOrtho(
 				self.orthoMin.x,
 				self.orthoMax.x,
-				self.orthoMax.y,
 				self.orthoMin.y,
+				self.orthoMax.y,
 				-1,
 				1
 			)
@@ -2149,13 +2178,13 @@ print('run thread dead')
 			local ry = fy / fx
 			self.orthoMin.x = 0
 			self.orthoMax.x = orthoSize
-			self.orthoMax.y = orthoSize * (((ry - 1) * .5) + 1)
 			self.orthoMin.y = -orthoSize * (ry - 1) * .5
+			self.orthoMax.y = orthoSize * (((ry - 1) * .5) + 1)
 			view.projMat:setOrtho(
 				self.orthoMin.x,
 				self.orthoMax.x,
-				self.orthoMax.y,
 				self.orthoMin.y,
+				self.orthoMax.y,
 				-1,
 				1
 			)
@@ -2208,7 +2237,11 @@ end
 
 -- ... where to put this ... in video, app, or ui?
 function App:matMenuReset()
-	self:matident()
+	self:matident(0)
+	self:matident(1)
+	self:matortho(
+		0, self.ram.screenWidth,
+		self.ram.screenHeight, 0)
 	local m = math.min(self.width, self.height)
 	self:mattrans((self.width - m) * .5, (self.height - m) * .5)
 	self:matscale(self.width / self.menuSizeInSprites.x, self.height / self.menuSizeInSprites.y)
@@ -2294,6 +2327,9 @@ function App:poke(addr, value)
 	if addr >= mvMatAddr and addr < mvMatAddrEnd then
 		self:onMvMatChange()
 	end
+	if addr >= projMatAddr and addr < projMatAddrEnd then
+		self:onProjMatChange()
+	end
 	if addr >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
@@ -2375,6 +2411,9 @@ function App:pokew(addr, value)
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:onMvMatChange()
 	end
+	if addrend >= projMatAddr and addr < projMatAddrEnd then
+		self:onProjMatChange()
+	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
@@ -2441,6 +2480,9 @@ function App:pokel(addr, value)
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:onMvMatChange()
 	end
+	if addrend >= projMatAddr and addr < projMatAddrEnd then
+		self:onProjMatChange()
+	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
@@ -2506,6 +2548,9 @@ function App:pokef(addr, value)
 	-- write out tris using the mvMat before it changes
 	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
 		self:onMvMatChange()
+	end
+	if addrend >= projMatAddr and addr < projMatAddrEnd then
+		self:onProjMatChange()
 	end
 	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
@@ -2617,6 +2662,9 @@ function App:memcpy(dst, src, len)
 	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
 		self:onMvMatChange()
 	end
+	if dstend >= projMatAddr and dst < projMatAddrEnd then
+		self:onProjMatChange()
+	end
 	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
@@ -2694,6 +2742,9 @@ function App:memset(dst, val, len)
 	-- write out tris using the mvMat before it changes
 	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
 		self:onMvMatChange()
+	end
+	if dstend >= projMatAddr and dst < projMatAddrEnd then
+		self:onProjMatChange()
 	end
 	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
 		self:onClipRectChange()

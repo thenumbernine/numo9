@@ -95,8 +95,9 @@ function UI:guiButton(str, x, y, isset, tooltip)
 	local w = app:drawMenuText(str, x, y, fg, bg)
 	local h = spriteSize.y
 
-	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
-	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
+	local mouseX, mouseY = app:invTransform(
+		-1 + 2 * tonumber(app.ram.mousePos.x) / tonumber(app.ram.screenWidth),
+		1 - 2 * tonumber(app.ram.mousePos.y) / tonumber(app.ram.screenHeight))
 
 	local mouseOver =
 		mouseX >= x and mouseX < x+w
@@ -175,8 +176,9 @@ function UI:guiTextField(
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
 
-	local mouseFBX, mouseFBY = app.ram.mousePos:unpack()
-	local mouseX, mouseY = app:invTransform(mouseFBX, mouseFBY)
+	local mouseX, mouseY = app:invTransform(
+		-1 + 2 * tonumber(app.ram.mousePos.x) / tonumber(app.ram.screenWidth),
+		1 - 2 * tonumber(app.ram.mousePos.y) / tonumber(app.ram.screenHeight))
 
 	local mouseOver =
 		mouseX >= x and mouseX < x+w
