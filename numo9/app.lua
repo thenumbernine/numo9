@@ -2250,6 +2250,7 @@ end
 -------------------- MEMORY PEEK/POKE (and draw dirty bits) --------------------
 
 function App:peek(addr)
+	addr = toint(addr)
 	if addr < 0 or addr >= self.memSize then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
@@ -2265,6 +2266,7 @@ function App:peek(addr)
 	return self.ram.v[addr]
 end
 function App:peekw(addr)
+	addr = toint(addr)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2279,6 +2281,7 @@ function App:peekw(addr)
 	return ffi.cast('uint16_t*', self.ram.v + addr)[0]
 end
 function App:peekl(addr)
+	addr = toint(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2293,6 +2296,7 @@ function App:peekl(addr)
 	return ffi.cast('uint32_t*', self.ram.v + addr)[0]
 end
 function App:peekf(addr)
+	addr = toint(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 

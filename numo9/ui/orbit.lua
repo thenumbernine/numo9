@@ -24,6 +24,7 @@ function Orbit:init(app)
 
 	-- have to store as a memeber becuase it is used from beginDraw to endDraw
 	self.mvMatPush = ffi.new(matType..'[16]')
+	self.projMatPush = ffi.new(matType..'[16]')
 end
 
 function Orbit:beginDraw()
@@ -43,6 +44,7 @@ function Orbit:beginDraw()
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 	ffi.copy(self.mvMatPush, app.ram.mvMat, ffi.sizeof(self.mvMatPush))
+	ffi.copy(self.projMatPush, app.ram.projMat, ffi.sizeof(self.projMatPush))
 
 	local alt = app:key'lalt' or app:key'ralt'
 	local uikey
@@ -80,9 +82,12 @@ function Orbit:beginDraw()
 	end
 	local x,y,z,th = self.angle:toAngleAxis():unpack()
 
+	local ar = app.width / app.height
+
 	-- draw orientation widget
 	app:matident()
-	app:matortho(-20, 2, 20, -2, -2, 2)
+	app:matident(1)
+	app:matortho(-20, 2, ar * 40 - 20, -2, -2, 2)
 	app:matrot(-math.rad(th), x, y, z)	-- -th or +th?
 	local thickness = math.max(1, app.width / 256)
 	app:drawSolidLine3D(0, 0, 0, 1, 0, 0, 0x19, thickness, app.paletteMenuTex)
@@ -95,17 +100,26 @@ function Orbit:beginDraw()
 	app:mattrans((app.width / m - 1) * .5, (app.height / m - 1) * .5)
 	app:matscale(m / app.width, m / app.height)
 
+	app:matident()
+	app:matident(1)
 	if self.ortho then
 		local r = 1.2
 		local zn, zf = -1000, 1000
-		app:matortho(-r, r, r, -r, zn, zf)
+		app:matortho(
+			-ar * r,
+			ar * r,
+			-r,
+			r,
+			zn, zf)
 		-- notice this is flipping y ... hmm TODO do that in matortho? idk...
 	else
 		local zn, zf = .1, 1000
-		app:matfrustum(-zn, zn, -zn, zn, zn, zf)
-		-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
-		-- TODO matscale here or in matfrustum? hmm...
-		app:matscale(1, -1, 1)
+		app:matfrustum(
+			-ar * zn,
+			ar * zn,
+			-zn,
+			zn,
+			zn, zf)
 	end
 
 	app:matrot(-math.rad(th),x,y,z)
@@ -117,6 +131,8 @@ end
 
 function Orbit:endDraw()
 	local app = self.app
+	ffi.copy(app.ram.projMat, self.projMatPush, ffi.sizeof(self.projMatPush))
+	app:onProjMatChange()
 	ffi.copy(app.ram.mvMat, self.mvMatPush, ffi.sizeof(self.mvMatPush))
 	app:onMvMatChange()
 --self:guiSetClipRect(0, 0, clipMax, clipMax)

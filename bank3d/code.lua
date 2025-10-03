@@ -1493,7 +1493,7 @@ update=||do
 		fillp(0)		--blend(-1)
 
 		matident(1)
-		matortho(0, screenTextWidth, 0, screenTextWidth * screenHeight / screenWidth)
+		matortho(0, screenTextWidth, screenTextWidth * screenHeight / screenWidth, 0)
 		-- splash screen
 		local s = 2
 		local sx, sy = s*5, s*8
@@ -1610,7 +1610,7 @@ update=||do
 	cls(0xf0)
 	matident()
 	matident(1)
-	matortho(0, screenTextWidth, 0, screenTextWidth * screenHeight / screenWidth)
+	matortho(0, screenTextWidth, screenTextWidth * screenHeight / screenWidth, 0)
 
 	if player then
 		text(tostring(player.bombs)..' bombs',0,0,22,-1)
