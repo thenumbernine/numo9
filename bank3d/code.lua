@@ -192,31 +192,11 @@ local drawVoxel=|
 	x, y, z,
 	scaleX, scaleY,
 	...
-	--[[
-	voxelValue,
-	sheetIndex,
-	paletteIndex,
-	transparentIndex,
-	spriteBit,
-	spriteMask
-	--]]
 | do
-
 	matpush()
-	--[[
-	mattrans(x, y, z)
-	matscale(16, 16, 16)
-	mattrans(.5, .5, .5)
-	matscale(scaleX, scaleY, 1)	-- TODO recenter-then-scale?
-	mattrans(-.5, -.5, -.5)
-	--]]
-	-- [[ optimized
 	mattrans(x+8-8*scaleX, y+8-8*scaleY, z)
 	matscale(16*scaleX, 16*scaleY, 16)
-	--]]
-
 	drawvoxel(...)
-
 	matpop()
 end
 
@@ -247,7 +227,7 @@ drawMap=||do
 		0, 0, 1
 	)
 
-	matscale(1/16,1/16,1/16)
+	matscale(1/16, 1/16, 1/16)
 
 	--mattrans(24, 24)
 	-- TODO don't use this, it's a 2D facade of a 3D wall border.  just make a voxelmap of the wall or something.
@@ -303,15 +283,15 @@ end
 
 BaseObj=class{
 	init=|:,args|do
-		self.scale=vec3(1,1,1)
-		self.removeMe=false
-		self.pos=vec3()
-		self.srcPos=vec3()
-		self.destPos=vec3()
-		self.moveCmd=-1
-		self.isBlocking=true
-		self.isBlockingPushers=true
-		self.blocksExplosion=true
+		self.scale = vec3(1,1,1)
+		self.removeMe = false
+		self.pos = vec3()
+		self.srcPos = vec3()
+		self.destPos = vec3()
+		self.moveCmd = -1
+		self.isBlocking = true
+		self.isBlockingPushers = true
+		self.blocksExplosion = true
 	end,
 	-- in AnimatedObj in fact ...
 	update=|:|nil,
@@ -897,7 +877,7 @@ do
 		onTouchFlames=|:|self:setFuse(self.chainDuration),
 		explode=|:|do
 			for i=0,9 do
-				local scale=math.random()*2
+				local scale = math.random()*2
 				addObj(Cloud{
 					pos=self.pos,
 					vel = vec3(math.random(), math.random(),math.random())*2-1,
