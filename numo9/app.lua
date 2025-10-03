@@ -1248,11 +1248,11 @@ print('package.loaded', package.loaded)
 						local fbSize = scanlineSize * fbHeight
 						-- reading from this should flush framebuffer gpu->cpu
 						env.memcpy(
-							fbaddr,		 			-- dst
-							fbaddr + textRowSize,	-- src
+							fbaddr + textRowSize,	-- dst
+							fbaddr,		 			-- src
 							fbSize - textRowSize)	-- len
 						env.memset(
-							fbSize - textRowSize,	-- dst
+							fbaddr,					-- dst
 							0,						-- val
 							textRowSize)			-- len
 						-- and writing to it should dirty cpu to later flush cpu->gpu
