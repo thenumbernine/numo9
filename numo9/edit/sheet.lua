@@ -195,8 +195,7 @@ function EditSheet:update()
 			app.paletteMenuTex,
 			app.checkerTex,
 			x1, y1, x2-x1, y2-y1,
-			0, 0, w/2, h/2,
-			0, 0xFF, -1, 0)
+			0, 0, w/2, h/2)
 	end
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
@@ -337,17 +336,12 @@ function EditSheet:update()
 			app.paletteMenuTex,
 			app.checkerTex,
 			x1, y1, x2-x1, y2-y1,
-			0, 0, w*8, h*8,
-			0, 0xFF, -1, 0
-		)
+			0, 0, w*8, h*8)
 	end
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
 	app:drawQuad(
-		x,
-		y,
-		w,
-		h,
+		x, y, w, h,
 		self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x,
 		self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y,
 		self.spriteSelSize.x * spriteSize.x,

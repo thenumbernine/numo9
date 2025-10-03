@@ -197,7 +197,7 @@ function EditTilemap:update()
 		-1, -1,
 		2+bit.lshift(tilemapSize.x,tileBits), 2+bit.lshift(tilemapSize.y, tileBits),
 		0, 0,
-		2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
+		1, 1 --2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
 	)
 
 	-- set the current selected palette via RAM registry to self.paletteBlobIndex

@@ -171,10 +171,8 @@ function CartBrowser:update()
 		app:drawQuadTexRGB(
 			app.paletteMenuTex,
 			self.thumbTex,
-			x, y,
-			w, h,
-			0, 0,
-			1, 1
+			x, y, w, h,	-- x y w h
+			0, 0, 1, 1	-- tx ty tw th
 		)
 	end
 

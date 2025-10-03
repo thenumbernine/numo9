@@ -1029,7 +1029,12 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 --	gl.glDisable(gl.GL_DEPTH_TEST)
 	local viewTheta = -math.atan2(viewMatrix[1][2], viewMatrix[1][1])
 	local viewU = viewTheta / (2 * math.pi)
+
 	matpush()
+	matpush(1)
+
+	matident(1)
+	matortho(0, 256, 256, 0)
 	matident()
 	local skyScale = viewWidth / windowWidth
 	local s = 2 * skyScale
@@ -1038,6 +1043,8 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 	mattrans(viewU * sw * 8, 0)
 	spr(si|0x400, viewX / s, viewY / s, sw, sh)			-- draw sky
 	spr(si|0x400, viewX / s - sw * 8, viewY / s, sw, sh)	-- and again to make it wrap
+
+	matpop(1)
 	matpop()
 
 	cls(nil, true)
@@ -1150,38 +1157,17 @@ function Kart:clientInputUpdate()
 end
 
 function Kart:setupClientView(aspectRatio, viewX, viewY, viewWidth, viewHeight)
-	matident()
-
 	local n = .1
 	local f = 128
-	--local n = 1
-	--local f = 1e+30	-- hmm why...
 
--- [[ this gets resolution issues the further from the origin we are
-	local viewCenterX = viewX + .5 * viewWidth
-	local viewCenterY = viewY + .5 * viewHeight
-	mattrans(viewCenterX - 128, viewCenterY - 128)
-	matfrustum(-n,n,-n,n,n,f)
-	local s = viewWidth / windowWidth
-	matscale(s, s)
---[=[
-trace()
-trace('frustum:')
-trace(('%d %d %d %d'):format(ram.mvMat[0], ram.mvMat[4], ram.mvMat[8], ram.mvMat[12]))
-trace(('%d %d %d %d'):format(ram.mvMat[1], ram.mvMat[5], ram.mvMat[9], ram.mvMat[13]))
-trace(('%d %d %d %d'):format(ram.mvMat[2], ram.mvMat[6], ram.mvMat[10], ram.mvMat[14]))
-trace(('%d %d %d %d'):format(ram.mvMat[3], ram.mvMat[7], ram.mvMat[11], ram.mvMat[15]))
---]=]
---[=[ not helping
-for i=0,15 do
-	projmat[i+1] = ram.mvMat[i]
-end
-matident()
---]=]
+	matident(1)
+-- [[ frustum
+	matfrustum(n,-n,-n,n,n,f)
 --]]
---[[ ortho works fine at all positions
-	matortho(-10,10,-10,10,-1000,1000)
+--[[ ortho
+	matortho(10,-10,-10,10,-1000,1000)
 --]]
+	matident()
 
 	-- [[
 	local camHDist = 2.5 local camVDist = 2.5
@@ -1229,7 +1215,6 @@ matrot(math.rad(60), 1, 0, 0)			-- view inv angle
 matrot(-angle, 0, 0, 1)					-- view inv angle
 mattrans(-posx,-posy,-3)				-- view inv pos
 --]]
-
 end
 
 Kart.drawRadius = .75
@@ -1378,6 +1363,8 @@ Kart.lakituCenterY = -.1
 
 function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 	matident()
+	matident(1)
+	matortho(0, 256, 256, 0)
 	-- inverse-transform ortho so that [0,256]^2 lines up with the view rect
 	--matortho(viewX, viewX + viewWidth, viewY, viewY + viewHeight)
 	mattrans(viewX, viewY)
@@ -2433,7 +2420,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 		end
 
 		for nodeIndex,node in ipairs(track.nodes) do
-			
+
 			local nextNode = track.nodes[(nodeIndex % #track.nodes) + 1]
 			line3d(
 				nextNode[1] - currentCamPos[1],
@@ -2444,7 +2431,7 @@ function ClientViewObject:drawScene(kart, aspectRatio, kartSprites, viewX, viewY
 				node[3] - currentCamPos[3],
 				colors.white
 			)
-			
+
 			matpush()
 			mattrans(node[1] - currentCamPos[1], node[2] - currentCamPos[2], .1 - currentCamPos[3])
 			local length = .5
@@ -2546,13 +2533,14 @@ startGame=||do
 	end
 end
 
-matident()	-- hmm having trouble resetting it with 'new game'...
 local menuTopY=0
 local menuSel = 0
 update=||do
 	if inMenu then
 		cls(0)
 		matident()
+		matident(1)
+		matortho(0, 256, 256, 0)
 		mattrans(0, -menuTopY)
 		local x,y=16,96
 		local selY = y+16*menuSel
@@ -2612,7 +2600,7 @@ update=||do
 
 	for playerIndex,player in pairs(game.players) do
 		local kart = player.kart
-		
+
 		if player.playerType == playerTypeForName.human then
 			kart.inputUpDown = (btn('up',playerIndex) and 1 or 0) + (btn('down',playerIndex) and -1 or 0)
 			kart.inputLeftRight = (btn('right',playerIndex) and 1 or 0) + (btn('left',playerIndex) and -1 or 0)

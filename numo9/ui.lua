@@ -612,7 +612,11 @@ function UI:guiSetClipRect(x,y,w,h)
 	local app = self.app
 	local sx1, sy1 = app:transform(x, y)
 	local sx2, sy2 = app:transform(x + w, y + h)
-	app:setClipRect(sx1, sy1, sx2-sx1, sy2-y)
+	-- flip y
+	sy1, sy2 =
+		app.ram.screenHeight - 1 - sy2,
+		app.ram.screenHeight - 1 - sy1
+	app:setClipRect(sx1, sy1, sx2 - sx1, sy2 - sy1)
 end
 
 return UI

@@ -1292,6 +1292,7 @@ uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 uniform vec4 clipRect;
+//uniform vec2 frameBufferSize;
 
 <?=glslCode5551?>
 
@@ -1515,15 +1516,15 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 }
 
 void main() {
-	bool plzDiscard = false;
-
 	if (gl_FragCoord.x < clipRect.x ||
 		gl_FragCoord.y < clipRect.y ||
 		gl_FragCoord.x >= clipRect.x + clipRect.z + 1. ||
 		gl_FragCoord.y >= clipRect.y + clipRect.w + 1.
 	) {
-		plzDiscard = true;
+		discard;
 	}
+
+	bool plzDiscard = false;
 
 	uvec2 uFragCoord = uvec2(gl_FragCoord);
 	uint threshold = (uFragCoord.y >> 1) & 1u
@@ -2138,15 +2139,15 @@ function AppVideo:triBuf_prepAddTri(
 				blendSolidA/255)
 			self.blendColorDirty = false
 		end
+		--[[ TODO not sure just yet
 		if self.frameBufferSizeUniformDirty then
-			--[[ TOOD this isn't used yet, but I suspect it will be
-			-- don't delete just yet ...
 			gl.glUniform2f(
-				program.uniforms.invHalfFrameBufferSize.loc,
-				2 / self.ram.screenWidth,
-				2 / self.ram.screenHeight)
-			--]]
+				program.uniforms.frameBufferSize.loc,
+				self.ram.screenWidth,
+				self.ram.screenHeight)
+			self.frameBufferSizeUniformDirty = false
 		end
+		--]]
 		program:useNone()
 	end
 end
@@ -3001,15 +3002,15 @@ function AppVideo:drawQuadTex(
 	sheetTex,
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox in [0,1]
-	spriteBit,
-	spriteMask,
+	paletteIndex,
 	transparentIndex,
-	paletteIndex
+	spriteBit,
+	spriteMask
 )
+	paletteIndex = paletteIndex or 0
+	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
-	transparentIndex = transparentIndex or -1
-	paletteIndex = paletteIndex or 0
 
 	local drawFlags = bit.bor(
 		-- bits 0/1 == 01b <=> use sprite pathway
@@ -3150,11 +3151,10 @@ function AppVideo:drawQuad(
 		sheetRAM.tex,
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,
-		spriteBit,
-		spriteMask,
+		paletteIndex,
 		transparentIndex,
-		paletteIndex
-	)
+		spriteBit,
+		spriteMask)
 
 	-- TODO only this after we actually do the :draw()
 	self.framebufferRAM.dirtyGPU = true

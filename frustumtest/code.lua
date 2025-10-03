@@ -33,10 +33,6 @@ player.x = viewDist * math.cos(player.angle)
 player.y = viewDist * math.sin(player.angle)
 viewAngle = player.angle
 
--- true = y+ goes on the left, and the tilemap looks like it does in the editor
--- false = y+ goes on the right, and the tilemap looks flipped
-spaceRHS=true
-
 update=||do
 	cls()
 	local viewAngle = player.angle
@@ -56,17 +52,8 @@ update=||do
 	text('mode '..modes[modeIndex+1]..': '..w..'x'..h, 0, 0)
 	local ar = w / h
 
-	-- doing this requires frustum to scale with (w/h, 1) to remain centered
+	matident(1)
 	matfrustum(-ar * zn, ar * zn, -zn, zn, zn, zf)
-	
-	-- doing this requires frustum to scale with (1, h/w) to remain centered
-	--matfrustum(-zn, zn, -zn / ar, zn / ar, zn, zf)
-	
-	-- go from lhs to rhs coord system (??) since usu x+ is right and y+ is *DOWN* ... maybe I should be putting this in matfrustum?
-	-- this is to match opengl convention, but I don't think I'll move it into the numo9 API since I want frustum to match the numo9 y+ down 90s-console convention
-	if spaceRHS then
-		matscale(-1, 1, 1)
-	end
 
 --[[
 8388608, 0, 0, 8388608
@@ -195,7 +182,7 @@ tiltUpAngle = 90:
 	--]]
 
 	local spd = .2
-	local rot = spaceRHS and .03 or -.03
+	local rot = .03
 	if btn'up' then
 		player.x += spd * fwdx
 		player.y += spd * fwdy
