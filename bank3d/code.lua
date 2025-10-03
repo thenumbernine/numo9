@@ -769,8 +769,8 @@ do
 					1,
 					1,
 					self.blastRadius|384
-					|(3<<10)	-- quad with 8x8 texel region
-					|(20<<27)	-- billboard
+					| (3 << 10)	-- quad with 8x8 texel region
+					| (20 << 27)	-- billboard
 				)
 				if self.blendMode then
 					fillp(0)	--blend()
@@ -1247,8 +1247,8 @@ do
 					1,
 					1,
 					self.bombs|384
-					|(3<<10)	-- quad with 8x8 texel region
-					|(20<<27)	-- billboard
+					| (3 << 10)	-- quad with 8x8 texel region
+					| (20 << 27)	-- billboard
 				)
 				if self.blendMode then
 					fillp(0)	--blend()

@@ -87,18 +87,12 @@ function Orbit:beginDraw()
 	-- draw orientation widget
 	app:matident()
 	app:matident(1)
-	app:matortho(-20, 2, ar * 40 - 20, -2, -2, 2)
+	app:matortho(-(22 * ar - 2), 2, -20, 2)
 	app:matrot(-math.rad(th), x, y, z)	-- -th or +th?
 	local thickness = math.max(1, app.width / 256)
 	app:drawSolidLine3D(0, 0, 0, 1, 0, 0, 0x19, thickness, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 1, 0, 0x1a, thickness, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 0, 1, 0x1c, thickness, app.paletteMenuTex)
-
-	app:matident()
-	-- TODO what a mess I've created ...
-	local m = math.min(app.width, app.height)
-	app:mattrans((app.width / m - 1) * .5, (app.height / m - 1) * .5)
-	app:matscale(m / app.width, m / app.height)
 
 	app:matident()
 	app:matident(1)

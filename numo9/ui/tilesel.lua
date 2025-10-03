@@ -130,7 +130,7 @@ function TileSelect:doPopup()
 end
 
 function TileSelect:drawSelected(winX, winY, winW, winH)
-	local app = edit.app
+	local app = self.edit.app
 	app:drawBorderRect(
 		winX + winW * self.pos.x * spriteSize.x / spriteSheetSize.x,
 		winY + winH * self.pos.y * spriteSize.y / spriteSheetSize.y,

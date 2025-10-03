@@ -2775,14 +2775,17 @@ function AppVideo:drawSolidLine3D(
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
-	-- inverse transform [1,0,0,1] and [0,1,0,1] to find out dx and dy ...
+	-- fwd-transform into screen coords and just offset by this many pixels
 	local v1x, v1y, v1z = self:transform(x1, y1, z1)
-	local v2x, v2y, v2z = self:transform(x1, y1, z1)
+	local v2x, v2y, v2z = self:transform(x2, y2, z2)
 	local dx = v2x - v1x
 	local dy = v2y - v1y
 	local il = 1 / math.sqrt(dx^2 + dy^2)
 	local nx = -dy * il
 	local ny = dx * il
+	-- clamp?  etc? idk?
+	v1z = 0
+	v2z = 0
 
 	local halfThickness = (thickness or 1) * .5
 
@@ -2811,6 +2814,7 @@ function AppVideo:drawSolidLine3D(
 	self:matident()
 	ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
 	self:matident(1)
+	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, -1e-7, 1 + 1e-7)
 
 	self:triBuf_addTri(
 		paletteTex,
