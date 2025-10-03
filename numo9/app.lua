@@ -2827,9 +2827,9 @@ function App:updateBlobChanges()
 	-- while we're here, if we resizeRAMGPU's / resize GPU resources of blobs
 	-- first off we want to flush tris, I'm just gonna assume we already have
 	-- but second, if any textures are stored in the triBuf state and are deleted then I should clear those here
-	self.lastPaletteTex = nil
-	self.lastSheetTex = nil
-	self.lastTilemapTex = nil
+	self.lastPaletteTex = self.blobs.palette[1].ramgpu.tex
+	self.lastSheetTex = self.blobs.sheet[1].ramgpu.tex
+	self.lastTilemapTex = self.blobs.tilemap[1].ramgpu.tex
 end
 
 -- save from cartridge to filesystem
