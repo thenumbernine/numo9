@@ -679,10 +679,10 @@ const vec3 lightDiffuseColor = vec3(1., 1., 1.);
 const float lightSpecularShininess = 30.;
 const vec3 lightSpecularColor = vec3(1., 1., 1.);
 
-const float ssaoStrength = 0.07;
 const float ssaoOffset = 18.0;
-const float ssaoFalloff = 0.000002;
-const float ssaoSampleRadius = .1;	//.006;
+//const float ssaoStrength = 0.07;
+//const float ssaoFalloff = 0.000002;
+const float ssaoSampleRadius = .05;
 
 uniform mat4 projMat;
 
@@ -733,6 +733,8 @@ void doLighting() {
 #endif
 
 #if 1	// working on SSAO ...
+
+	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
 	float depth = normalAndDepth.w;
 
 	// current fragment in [-1,1]^2 screen coords x [0,1] depth coord
@@ -758,14 +760,11 @@ void doLighting() {
 	return;
 #endif
 
-	//float depthwc = depth * projMat[2][2] + projMat[3][2];
-
 	float numOccluded = 0.;
 	for (int i = 0; i < ssaoNumSamples; ++i) {
 		// rotate random hemisphere vector into our tangent space
 		// but this is still in [-1,1]^2 screen coords x [0,1] depth coord, right?
 		vec3 samplePt = tangentMatrix * ssaoRandomVectors[i]
-			// / depthwc
 			* ssaoSampleRadius
 			+ origin;
 
@@ -1665,7 +1664,7 @@ void main() {
 	//fragNormal.xyz = transpose(modelBasis)[2];
 	fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
 #endif
-	
+
 	// TODO why ...
 	fragNormal.xy = -fragNormal.xy;
 
@@ -4111,7 +4110,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		-- now rotate the z-axis to point at the view z
 
 		-- find the angle/axis to the view and rotate by that
-		self:matrotcs(l * x, l * y, 0, 1, 0)
+		self:matrotcs(l * x, -l * y, 0, 1, 0)
 
 --[[ TODO just apply it:
 [[c, 0, s, 0],
