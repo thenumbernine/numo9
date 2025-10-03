@@ -107,6 +107,7 @@ function EditSheet:update()
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
+	local lastMousePressX, lastMousePressY = app:invTransform(app.ram.lastMousePressPos:unpack())
 
 	local shift = app:key'lshift' or app:key'rshift'
 
@@ -264,8 +265,8 @@ function EditSheet:update()
 				self.spriteSelSize:set(1,1)
 				self.spritePanOffset:set(0,0)
 			elseif leftButtonDown then
-				self.spriteSelSize.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
-				self.spriteSelSize.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
+				self.spriteSelSize.x = math.ceil((math.abs(mouseX - lastMousePressX) + 1) / spriteSize.x)
+				self.spriteSelSize.y = math.ceil((math.abs(mouseY - lastMousePressY) + 1) / spriteSize.y)
 			end
 		elseif self.spritesheetEditMode == 'pan'  then
 			if leftButtonDown then

@@ -57,6 +57,7 @@ function TileSelect:doPopup()
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
+	local lastMousePressX, lastMousePressY = app:invTransform(app.ram.lastMousePressPos:unpack())
 
 	local winX = 2 * spriteSize.x
 	local winY = 2 * spriteSize.y
@@ -118,8 +119,8 @@ function TileSelect:doPopup()
 				self:onSetTile()
 			end
 		elseif leftButtonDown then
-			self.size.x = math.ceil((math.abs(mouseX - app.ram.lastMousePressPos.x) + 1) / spriteSize.x)
-			self.size.y = math.ceil((math.abs(mouseY - app.ram.lastMousePressPos.y) + 1) / spriteSize.y)
+			self.size.x = math.ceil((math.abs(mouseX - lastMousePressX) + 1) / spriteSize.x)
+			self.size.y = math.ceil((math.abs(mouseY - lastMousePressY) + 1) / spriteSize.y)
 		elseif leftButtonRelease then
 			self.pickOpen = false
 		end

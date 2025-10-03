@@ -30,9 +30,8 @@ end
 function Orbit:beginDraw()
 	local app = self.app
 
-	local mouseX, mouseY = app.ram.mousePos:unpack()
-	local dx = mouseX - app.ram.lastMousePos.x
-	local dy = mouseY - app.ram.lastMousePos.y
+	local dx = app.ram.mousePos.x - app.ram.lastMousePos.x
+	local dy = app.ram.mousePos.y - app.ram.lastMousePos.y
 
 	local app = self.app
 	app:drawSolidRect(0, 8, 256, 256, 0x28, nil, nil, app.paletteMenuTex)
