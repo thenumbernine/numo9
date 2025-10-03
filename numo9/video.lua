@@ -683,6 +683,7 @@ const float ssaoOffset = 18.0;
 //const float ssaoStrength = 0.07;
 //const float ssaoFalloff = 0.000002;
 const float ssaoSampleRadius = .05;
+const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
 
 uniform mat4 projMat;
 
@@ -733,7 +734,6 @@ void doLighting() {
 #endif
 
 #if 1	// working on SSAO ...
-
 	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
 	float depth = normalAndDepth.w;
 
@@ -754,11 +754,6 @@ void doLighting() {
 	vec3 tangent = normalize(rvec - normal * dot(rvec, normal));
 	vec3 bitangent = cross(tangent, normal);
 	mat3 tangentMatrix = mat3(tangent, bitangent, normal);
-
-#if 0 // debugging: show tangent
-	fragColor.xyz = tangent.xyz * .5 + .5;
-	return;
-#endif
 
 	float numOccluded = 0.;
 	for (int i = 0; i < ssaoNumSamples; ++i) {
@@ -786,7 +781,7 @@ void doLighting() {
 
 // debugging to see ssao only ... all white ... hmm
 //fragColor.xyz = vec3(1., 1., 1.);
-	fragColor.xyz *= 1. - numOccluded / float(ssaoNumSamples);
+	fragColor.xyz *= 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
 #endif
 }
 ]]
