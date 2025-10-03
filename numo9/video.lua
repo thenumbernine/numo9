@@ -4105,7 +4105,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		local x, y = a.ptr[6], a.ptr[2]
 		local l = 1/math.sqrt(x^2 + y^2)
 
-		self:matrotcs(0, -1, 1, 0, 0)
+		self:matrotcs(0, -1, -1, 0, 0)
 		-- now rotate the z-axis to point at the view z
 
 		-- find the angle/axis to the view and rotate by that
