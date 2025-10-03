@@ -236,6 +236,8 @@ function App:initGL()
 	self.mvMat = matrix_ffi({4,4}, matType):zeros()
 	self.projMat = matrix_ffi({4,4}, matType):zeros()
 
+	self.menuUseLighting = false
+
 	self:initBlobs()
 
 	self.blitScreenView = View()
@@ -1996,6 +1998,7 @@ print('run thread dead')
 			local sceneObj = self.blitScreenObj
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
+			sceneObj.uniforms.projMat = projMatPush
 			sceneObj:draw()
 			--]]
 
@@ -2194,10 +2197,12 @@ print('run thread dead')
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 		if self.activeMenu then
+			-- menu controls, esp edit voxelmap
 			sceneObj.uniforms.useLighting = self.menuUseLighting and 1 or 0
 		else
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 		end
+		sceneObj.uniforms.projMat = self.ram.projMat
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex

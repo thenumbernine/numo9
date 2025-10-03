@@ -684,6 +684,8 @@ const float ssaoOffset = 18.0;
 const float ssaoFalloff = 0.000002;
 const float ssaoSampleRadius = .1;	//.006;
 
+uniform mat4 projMat;
+
 // these are the random vectors inside a unit hemisphere facing z+
 #define ssaoNumSamples 16
 const vec3[ssaoNumSamples] ssaoRandomVectors = {
@@ -706,7 +708,6 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 };
 
 void doLighting() {
-
 	vec4 normalAndDepth = texture(framebufferNormalTex, tcv);
 	vec3 normal = normalAndDepth.xyz;
 
@@ -731,12 +732,11 @@ void doLighting() {
 	fragColor.xyz *= lightValue;
 #endif
 
-#if 0	// working on SSAO ...
-
+#if 1	// working on SSAO ...
 	float depth = normalAndDepth.w;
 
-	// current fragment in [0,1]^2 screen coords x [0,1] depth coord
-	vec3 origin = vec3(tcv.xy, depth);
+	// current fragment in [-1,1]^2 screen coords x [0,1] depth coord
+	vec3 origin = vec3(tcv.xy * 2. - 1., depth);
 
 	// TODO just save float buffer? faster?
 	// TODO should this random vec be in 3D or 2D?
@@ -758,28 +758,27 @@ void doLighting() {
 	return;
 #endif
 
+	//float depthwc = depth * projMat[2][2] + projMat[3][2];
+
 	float numOccluded = 0.;
 	for (int i = 0; i < ssaoNumSamples; ++i) {
 		// rotate random hemisphere vector into our tangent space
-		// but this is still in [0,1]^2 screen coords x [0,1] depth coord, right?
-		vec3 samplePt = (tangentMatrix * ssaoRandomVectors[i])
+		// but this is still in [-1,1]^2 screen coords x [0,1] depth coord, right?
+		vec3 samplePt = tangentMatrix * ssaoRandomVectors[i]
+			// / depthwc
 			* ssaoSampleRadius
 			+ origin;
 
-		// TODO multiply by projection matrix
-		// TODO divide by 'w' ... ?
-		//samplePt /= samplePt.z;
-		// TODO clip
-		// now get sample depth at this point
+		// TODO multiply by projection matrix?
 
 		vec4 sampleNormalAndDepth = texture(
 			framebufferNormalTex,
-			samplePt.xy
+			samplePt.xy * .5 + .5
 		);
 		float sampleDepth = sampleNormalAndDepth.w;
-		float depthDiff = depth - sampleDepth;
-		if (depthDiff < ssaoSampleRadius) {
-			numOccluded += step(sampleDepth, depth);
+		float depthDiff = samplePt.z - sampleDepth;
+		if (depthDiff > ssaoSampleRadius) {
+			numOccluded += step(sampleDepth, samplePt.z);
 		}
 //		numOccluded += step(ssaoFalloff, depthDiff)
 //			* (1. - smoothstep(ssaoFalloff, ssaoStrength, depthDiff));
@@ -789,7 +788,6 @@ void doLighting() {
 // debugging to see ssao only ... all white ... hmm
 //fragColor.xyz = vec3(1., 1., 1.);
 	fragColor.xyz *= 1. - numOccluded / float(ssaoNumSamples);
-
 #endif
 }
 ]]
@@ -1630,6 +1628,7 @@ void main() {
 		dFdx(vertexv.xyz),
 		dFdy(vertexv.xyz)
 	);
+
 #elif 0	// show sprite normals only
 	if (plzDiscard) bumpHeight = -1.;
 	bumpHeight *= spriteNormalExhaggeration;
@@ -1666,6 +1665,9 @@ void main() {
 	//fragNormal.xyz = transpose(modelBasis)[2];
 	fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
 #endif
+	
+	// TODO why ...
+	fragNormal.xy = -fragNormal.xy;
 
 	fragNormal.z *= normalScreenExhaggeration;
 	fragNormal.xyz = normalize(fragNormal.xyz);
@@ -1673,8 +1675,8 @@ void main() {
 	// TODO just use the depth buffer as a texture instead of re-copying it here?
 	//  if I did I'd get more bits of precision ...
 	//  but this is easier/lazier.
-	//fragNormal.w = vertexv.z;
-	fragNormal.w = gl_FragDepth;
+	fragNormal.w = vertexv.z;
+	//fragNormal.w = gl_FragDepth;
 
 	// only discard last, so I can make sure to zero dFdx/dFdy's when I'm going to discard (right? or does it matter? does it do that anyways?)
 	if (plzDiscard) discard;
