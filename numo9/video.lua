@@ -672,12 +672,12 @@ end
 -- this string can include template code that uses only vars that appear in all of makeVideoMode* template vars
 local useLightingCode = [[
 
-// TODO lighting variables:
+// TODO lighting variables in RAM:
 const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
 const vec3 lightAmbientColor = vec3(.3, .3, .3);
 const vec3 lightDiffuseColor = vec3(1., 1., 1.);
 const float lightSpecularShininess = 30.;
-const vec3 lightSpecularColor = vec3(1., 1., 1.);
+const vec3 lightSpecularColor = vec3(.5, .5, .5);
 
 const float ssaoOffset = 18.0;
 //const float ssaoStrength = 0.07;
@@ -726,7 +726,7 @@ void doLighting() {
 		// hmmmmmmmmmm
 		// I really don't want to split projection and modelview matrices ...
 		+ lightSpecularColor * pow(
-			abs(reflect(normal, lightDir).z),
+			abs(reflect(lightDir, normal).z),
 			lightSpecularShininess
 		)
 	);
