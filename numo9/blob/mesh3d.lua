@@ -52,7 +52,7 @@ function BlobMesh3D:init(data)
 		end
 	end
 
-	-- [[ here and upon modification ...
+	-- [[ here and TODO upon modification ...
 	-- track which tris are on each side / can be occluded
 	-- track which sides are fully covered in tris / will occlude
 	local range = require 'ext.range'
@@ -226,9 +226,9 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 			if lineType == 'v' then
 				assert.ge(#words, 2)
 				vs:insert{
-					math.floor((tonumber(words[1]) or 0) * 256),
-					math.floor((tonumber(words[2]) or 0) * 256),
-					math.floor((tonumber(words[3]) or 0) * 256)
+					math.clamp(math.floor((tonumber(words[1]) or 0) * 256), -32768, 32767),
+					math.clamp(math.floor((tonumber(words[2]) or 0) * 256), -32768, 32767),
+					math.clamp(math.floor((tonumber(words[3]) or 0) * 256), -32768, 32767),
 				}
 			elseif lineType == 'vt' then
 				assert.ge(#words, 2)
