@@ -2183,6 +2183,20 @@ function AppVideo:triBuf_prepAddTri(
 	end
 end
 
+local function calcNormalForTri(
+	x1, y1, z1,
+	x2, y2, z2,
+	x3, y3, z3
+)
+	local dax, day, daz = x2 - x1, y2 - y1, z2 - z1
+	local dbx, dby, dbz = x3 - x2, y3 - y2, z3 - z2
+	-- don't bother normalize it, the shader will
+	return
+		day * dbz - daz * dby,
+		daz * dbx - dax * dbz,
+		dax * dby - day * dbx
+end
+
 function AppVideo:triBuf_addTri(
 	paletteTex,
 	sheetTex,
@@ -2194,22 +2208,10 @@ function AppVideo:triBuf_addTri(
 	x3, y3, z3, u3, v3,
 
 	-- divisor
-	--normalX, normalY, normalZ,
+	normalX, normalY, normalZ,
 	extraX, extraY, extraZ, extraW,
 	boxX, boxY, boxW, boxH
 )
--- [[ TODO this in the caller eventually
-local dax, day, daz = x2 - x1, y2 - y1, z2 - z1
-local dbx, dby, dbz = x3 - x2, y3 - y2, z3 - z2
-normalX = day * dbz - daz * dby
-normalY = daz * dbx - dax * dbz
-normalZ = dax * dby - day * dbx
-local normalInvLen = 1 / math.max(1e-7, math.sqrt(normalX^2 + normalY^2 + normalZ^2))
-normalX = normalX * normalInvLen
-normalY = normalY * normalInvLen
-normalZ = normalZ * normalInvLen
---]]
-
 	local sceneObj = self.triBuf_sceneObj
 
 	local vertex = sceneObj.attrs.vertex.buffer.vec
@@ -2669,6 +2671,7 @@ function AppVideo:drawSolidRect(
 		x,  y,  0, x,  y,
 		xR, y,  0, xR, y,
 		x,  yR, 0, x,  yR,
+		0, 0, 1,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
 		x, y, w, h
 	)
@@ -2680,6 +2683,7 @@ function AppVideo:drawSolidRect(
 		x,  yR, 0, x,  yR,
 		xR, y,  0, xR, y,
 		xR, yR, 0, xR, yR,
+		0, 0, 1,
 		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
 		x, y, w, h
 	)
@@ -2720,6 +2724,11 @@ function AppVideo:drawSolidTri3D(
 		self.framebufferRAM:checkDirtyCPU()
 	end
 
+	local normalX, normalY, normalZ = calcNormalForTri(
+		x1, y1, z1,
+		x2, y2, z2,
+		x3, y3, z3
+	)
 	self:triBuf_addTri(
 		paletteTex,
 		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2727,6 +2736,7 @@ function AppVideo:drawSolidTri3D(
 		x1, y1, z1, 0, 0,
 		x2, y2, z2, 1, 0,
 		x3, y3, z3, 0, 1,
+		normalX, normalY, normalZ,
 		bit.lshift(math.floor(colorIndex or 0), 8), self.ram.dither, 0, 0,
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
@@ -2864,6 +2874,12 @@ function AppVideo:drawSolidLine3D(
 	self:matident(1)
 	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, -1e-7, 1 + 1e-7)
 
+	local normalX, normalY, normalZ = calcNormalForTri(
+		xLL, yLL, zLL,
+		xRL, yRL, zRL,
+		xLR, yLR, zLR
+	)
+
 	self:triBuf_addTri(
 		paletteTex,
 		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
@@ -2871,6 +2887,7 @@ function AppVideo:drawSolidLine3D(
 		xLL, yLL, zLL, 0, 0,
 		xRL, yRL, zRL, 1, 0,
 		xLR, yLR, zLR, 0, 1,
+		normalX, normalY, normalZ,
 		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
 		0, 0, 1, 1
 	)
@@ -2882,6 +2899,7 @@ function AppVideo:drawSolidLine3D(
 		xLR, yLR, zLR, 0, 1,
 		xRL, yRL, zRL, 1, 0,
 		xRR, yRR, zRR, 1, 1,
+		normalX, normalY, normalZ,
 		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
 		0, 0, 1, 1
 	)
@@ -3090,6 +3108,7 @@ function AppVideo:drawQuadTex(
 		x,  y,  0, uL, vL,
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
+		0, 0, 1,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		0, 0, 1, 1
 	)
@@ -3101,6 +3120,7 @@ function AppVideo:drawQuadTex(
 		x,  yR, 0, uL, vR,
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
+		0, 0, 1,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		0, 0, 1, 1
 	)
@@ -3130,6 +3150,7 @@ function AppVideo:drawQuadTexRGB(
 		x,  y,  0, uL, vL,
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
+		0, 0, 1,
 		3, self.ram.dither, 0, 0,
 		0, 0, 1, 1
 	)
@@ -3141,6 +3162,7 @@ function AppVideo:drawQuadTexRGB(
 		x,  yR, 0, uL, vR,
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
+		0, 0, 1,
 		3, self.ram.dither, 0, 0,
 		0, 0, 1, 1
 	)
@@ -3262,6 +3284,11 @@ function AppVideo:drawTexTri3D(
 		bit.lshift(spriteBit, 3)
 	)
 
+	local normalX, normalY, normalZ = calcNormalForTri(
+		x1, y1, z1,
+		x2, y2, z2,
+		x3, y3, z3
+	)
 	self:triBuf_addTri(
 		paletteTex,
 		sheetRAM.tex,
@@ -3269,6 +3296,7 @@ function AppVideo:drawTexTri3D(
 		x1, y1, z1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
+		normalX, normalY, normalZ,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
 		0, 0, 1, 1
 	)
@@ -3412,6 +3440,7 @@ function AppVideo:drawMap(
 		xL, yL, 0, uL, vL,
 		xR, yL, 0, uR, vL,
 		xL, yR, 0, uL, vR,
+		0, 0, 1,
 		extraX, self.ram.dither, extraZ, 0,
 		0, 0, 1, 1
 	)
@@ -3423,6 +3452,7 @@ function AppVideo:drawMap(
 		xL, yR, 0, uL, vR,
 		xR, yL, 0, uR, vL,
 		xR, yR, 0, uR, vR,
+		0, 0, 1,
 		extraX, self.ram.dither, extraZ, 0,
 		0, 0, 1, 1
 	)
@@ -3513,6 +3543,7 @@ function AppVideo:drawTextCommon(
 			x,  y,  0, uL, 0,
 			xR, y,  0, uR, 0,
 			x,  yR, 0, uL, th,
+			0, 0, 1,
 			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
 			0, 0, 1, 1
 		)
@@ -3524,6 +3555,7 @@ function AppVideo:drawTextCommon(
 			xR, y,  0, uR, 0,
 			xR, yR, 0, uR, th,
 			x,  yR, 0, uL, th,
+			0, 0, 1,
 			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
 			0, 0, 1, 1
 		)
