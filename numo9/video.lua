@@ -74,6 +74,7 @@ local Numo9Vertex = struct{
 	fields = {
 		{name='vertex', type='vec3f_t'},
 		{name='texcoord', type='vec2f_t'},
+		{name='normal', type='vec3f_t'},
 		{name='extra', type='vec4us_t'},
 		{name='box', type='vec4f_t'},
 	},
@@ -661,10 +662,10 @@ local function colorIndexToFrag(app, destTex, decl)
 end
 
 -- and here's our blend solid-color option...
-local function getDrawOverrideCode(vec3, varname)
+local function getBlendSolidColorCode(vec3, varname)
 	return [[
-	if (blendColorSolidv.a > 0.) {
-		]]..varname..[[.rgb = ]]..vec3..[[(blendColorSolidv.rgb);
+	if (blendColorSolid.a > 0.) {
+		]]..varname..[[.rgb = ]]..vec3..[[(blendColorSolid.rgb);
 	}
 ]]
 end
@@ -812,7 +813,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 'vec4 colorIndexToFragColor(uint colorIndex) {',
 	colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 ufragColor'),
 '	vec4 resultFragColor = vec4(ufragColor) / 31.;',
-	getDrawOverrideCode(blitFragTypeVec3, 'resultFragColor'),
+	getBlendSolidColorCode(blitFragTypeVec3, 'resultFragColor'),
 '	return resultFragColor;',
 '}',
 	}:concat'\n'
@@ -836,7 +837,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 		fragColor.a = (fragColor.r >> 15) * 0x1fu;
 #endif
 ]]
-		..getDrawOverrideCode('uvec3', 'fragColor'),
+		..getBlendSolidColorCode('uvec3', 'fragColor'),
 	--]=]
 
 	-- used for drawing our 16bpp framebuffer to the screen
@@ -946,7 +947,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
 ]],
 -- hmm, idk what to do with blendColorSolid in 8bppIndex
 -- but I don't want the GLSL compiler to optimize away the attr...
-	getDrawOverrideCode('uvec3', 'resultFragColor'),
+	getBlendSolidColorCode('uvec3', 'resultFragColor'),
 [[
 	return resultFragColor;
 }
@@ -1066,7 +1067,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 ]],
 	-- hmm, idk what to do with blendColorSolid in 8bppIndex
 	-- but I don't want the GLSL compiler to optimize away the attr...
-	getDrawOverrideCode('uvec3', 'resultFragColor'),
+	getBlendSolidColorCode('uvec3', 'resultFragColor'),
 [[
 	return resultFragColor;
 }
@@ -1177,6 +1178,8 @@ This is the model-space coord (within box min/max) for solid/round shaders.
 */
 layout(location=1) in vec2 texcoord;
 
+layout(location=2) in vec3 normal;
+
 /*
 flat, flags for sprite vs solid etc:
 
@@ -1231,28 +1234,28 @@ for tilemap:
 	.y = mapIndexOffset lo byte
 	.z = mapIndexOffset hi byte (2 bits worth? how many bits should the tilemap index offset care about?)
 */
-layout(location=2) in uvec4 extraAttr;
+layout(location=3) in uvec4 extraAttr;
 
 // flat, the bbox of the currently drawn quad, only used for round-rendering of solid-shader
-layout(location=3) in vec4 boxAttr;
+// TODO just use texcoord?
+layout(location=4) in vec4 boxAttr;
 
 //GLES3 says we have at least 16 attributes to use ...
 
 // the bbox world coordinates, used with 'boxAttr' for rounding
 out vec2 tcv;
 
+flat out vec3 normalv;
 flat out uvec4 extra;
-flat out vec4 blendColorSolidv;
 flat out vec4 box;
 
 out vec3 vertexv;
 
 uniform mat4 projMat, mvMat;
-uniform vec4 blendColorSolid;
 
 void main() {
 	tcv = texcoord;
-	blendColorSolidv = blendColorSolid;
+	normalv = normalize((projMat * (mvMat * vec4(normal, 0.))).xyz);
 	extra = extraAttr;
 	box = boxAttr;
 
@@ -1271,8 +1274,8 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
 
+flat in vec3 normalv;
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
-flat in vec4 blendColorSolidv;
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 
 in vec3 vertexv;
@@ -1283,6 +1286,8 @@ layout(location=1) out vec4 fragNormal;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
+
+uniform vec4 blendColorSolid;
 uniform vec4 clipRect;
 //uniform vec2 frameBufferSize;
 
@@ -1290,6 +1295,34 @@ uniform vec4 clipRect;
 
 float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
+
+//create an orthornomal basis from one vector that is normalized
+mat3 onb1(vec3 n) {
+	mat3 m;
+	m[2] = n;
+	vec3 x = vec3(0., n.z, -n.y); // cross(n, vec3(1., 0., 0.));
+	vec3 y = vec3(-n.z, 0., n.x); // cross(n, vec3(0., 1., 0.));
+	vec3 z = vec3(n.y, -n.x, 0.); // cross(n, vec3(0., 0., 1.));
+	float x2 = dot(x,x);
+	float y2 = dot(y,y);
+	float z2 = dot(z,z);
+	if (x2 > y2) {
+		if (x2 > z2) {
+			m[0] = x;
+		} else {
+			m[0] = z;
+		}
+	} else {
+		if (y2 > z2) {
+			m[0] = y;
+		} else {
+			m[0] = z;
+		}
+	}
+	m[0] = normalize(m[0]);
+	m[1] = cross(m[2], m[0]);	// should be unit enough
+	return m;
+}
 
 //create an orthonormal basis from two vectors
 // the second, normalized, is used as the 'y' column
@@ -1618,10 +1651,7 @@ void main() {
 	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
 
 #if 0	// normal from flat sided objs
-	fragNormal.xyz = cross(
-		dFdx(vertexv.xyz),
-		dFdy(vertexv.xyz)
-	);
+	fragNormal.xyz = normalv;
 
 #elif 0	// show sprite normals only
 	if (plzDiscard) bumpHeight = -1.;
@@ -1647,9 +1677,7 @@ void main() {
 		vec3(0., 1., dFdx(bumpHeight)));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
-	mat3 modelBasis = onb(
-		dFdx(vertexv.xyz),	// d(vertex)/dFragCoord.x
-		dFdy(vertexv.xyz));	// d(vertex)/dFragCoord.y
+	mat3 modelBasis = onb1(normalv);
 
 	//result should be d(bumpHeight)/d(vertex_j)
 	// = d(bumpHeight)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
@@ -1706,6 +1734,13 @@ void main() {
 				buffer = app.vertexBufGPU,
 				stride = ffi.sizeof'Numo9Vertex',
 				offset = ffi.offsetof('Numo9Vertex', 'texcoord'),
+			},
+			normal = {
+				type = gl.GL_FLOAT,
+				size = 3,
+				buffer = app.vertexBufGPU,
+				stride = ffi.sizeof'Numo9Vertex',
+				offset = ffi.offsetof('Numo9Vertex', 'normal'),
 			},
 			-- 8 bytes = 32 bit so I can use memset?
 			extraAttr = {
@@ -2159,13 +2194,27 @@ function AppVideo:triBuf_addTri(
 	x3, y3, z3, u3, v3,
 
 	-- divisor
+	--normalX, normalY, normalZ,
 	extraX, extraY, extraZ, extraW,
 	boxX, boxY, boxW, boxH
 )
+-- [[ TODO this in the caller eventually
+local dax, day, daz = x2 - x1, y2 - y1, z2 - z1
+local dbx, dby, dbz = x3 - x2, y3 - y2, z3 - z2
+normalX = day * dbz - daz * dby
+normalY = daz * dbx - dax * dbz
+normalZ = dax * dby - day * dbx
+local normalInvLen = 1 / math.max(1e-7, math.sqrt(normalX^2 + normalY^2 + normalZ^2))
+normalX = normalX * normalInvLen
+normalY = normalY * normalInvLen
+normalZ = normalZ * normalInvLen
+--]]
+
 	local sceneObj = self.triBuf_sceneObj
 
 	local vertex = sceneObj.attrs.vertex.buffer.vec
 	local texcoord = sceneObj.attrs.texcoord.buffer.vec
+	local normal = sceneObj.attrs.normal.buffer.vec
 	local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
 	local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
 
@@ -2176,18 +2225,21 @@ function AppVideo:triBuf_addTri(
 	v = self.vertexBufCPU:emplace_back()
 	v.vertex.x, v.vertex.y, v.vertex.z = x1, y1, z1
 	v.texcoord.x, v.texcoord.y = u1, v1
+	v.normal.x, v.normal.y, v.normal.z = normalX, normalY, normalZ
 	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
 
 	v = self.vertexBufCPU:emplace_back()
 	v.vertex.x, v.vertex.y, v.vertex.z = x2, y2, z2
 	v.texcoord.x, v.texcoord.y = u2, v2
+	v.normal.x, v.normal.y, v.normal.z = normalX, normalY, normalZ
 	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
 
 	v = self.vertexBufCPU:emplace_back()
 	v.vertex.x, v.vertex.y, v.vertex.z = x3, y3, z3
 	v.texcoord.x, v.texcoord.y = u3, v3
+	v.normal.x, v.normal.y, v.normal.z = normalX, normalY, normalZ
 	v.extra.x, v.extra.y, v.extra.z, v.extra.w = extraX, extraY, extraZ, extraW
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
 end

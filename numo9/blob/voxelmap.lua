@@ -4,7 +4,6 @@ local assert = require 'ext.assert'
 local table = require 'ext.table'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
-local vec2f = require 'vec-ffi.vec2f'
 local vec3f = require 'vec-ffi.vec3f'
 local gl = require 'gl'
 local GLArrayBuffer = require 'gl.arraybuffer'
@@ -298,27 +297,40 @@ assert.eq(numTriVtxs % 3, 0)
 								if occluded then
 									occludedCount = occludedCount + 1
 								else
-									local srcv = srcVtxs + ai
+									local va = srcVtxs + ai
+									local vb = srcVtxs + bi
+									local vc = srcVtxs + ci
+
+									-- only used for normal so vec3f because accuracy doesn't matter
+									local apos = vec3f(va.x, va.y, va.z)
+									local bpos = vec3f(vb.x, vb.y, vb.z)
+									local cpos = vec3f(vc.x, vc.y, vc.z)
+									local normal = (cpos - bpos):cross(bpos - apos):unit()
+
+									local srcv = va
 									local dstVtx = self.vertexBufCPU:emplace_back()
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									dstVtx.normal = normal
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
-									local srcv = srcVtxs + bi
+									local srcv = vb
 									local dstVtx = self.vertexBufCPU:emplace_back()
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									dstVtx.normal = normal
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
-									local srcv = srcVtxs + ci
+									local srcv = vc
 									local dstVtx = self.vertexBufCPU:emplace_back()
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+									dstVtx.normal = normal
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 								end
@@ -342,7 +354,7 @@ function BlobVoxelMap:drawMesh(app)
 	app.lastTilemapTex:bind(2)
 	app.lastSheetTex:bind(1)
 	app.lastPaletteTex:bind(0)
-	
+
 	app:triBuf_prepAddTri(app.lastPaletteTex, app.lastSheetTex, app.lastTilemapTex)
 --]]
 
@@ -393,7 +405,7 @@ function BlobVoxelMap:drawMesh(app)
 	self.vao:bind()
 
 	sceneObj.geometry:draw()
-	
+
 	--sceneObj:disableAttrs()
 	self.vao:unbind()
 

@@ -177,7 +177,9 @@ function Console:update()
 
 	-- if a game is running, overlay the console on the top
 	-- otherwise give it full screen
-	local maxLines = app.runFocus and 5 or 30
+	--local maxLines = app.runFocus and 5 or 30
+	-- or just always show it over everything
+	local maxLines = 30
 
 	local shownLines = math.min(#self.lines, maxLines)
 	app:setBlendMode(3)
