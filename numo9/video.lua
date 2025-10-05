@@ -2787,11 +2787,9 @@ function AppVideo:invTransform(x,y,z)
 	-- TODO transform accepts 'm' mvType[16] override, but this operates on 4x4 matrix.ffi types...
 	-- TODO make this operation in-place
 	mvInv:copy(self.mvMat):applyInv4x4()
-	local mvInvPtr = mvInv.ptr
 	projInv:copy(self.projMat):applyInv4x4()
-	local projInvPtr = projInv.ptr
-	x,y,z,w = mat4x4mul(projInvPtr, x, y, z, w)
-	x,y,z,w = mat4x4mul(mvInvPtr, x,y,z,w, mvMatScale)
+	x,y,z,w = mat4x4mul(projInv.ptr, x, y, z, w)
+	x,y,z,w = mat4x4mul(mvInv.ptr, x,y,z,w, mvMatScale)
 	return x,y,z,w
 end
 
@@ -2830,9 +2828,6 @@ function AppVideo:drawSolidLine3D(
 	local il = 1 / math.sqrt(dx^2 + dy^2)
 	local nx = -dy * il
 	local ny = dx * il
-	-- clamp?  etc? idk?
-	v1z = 0
-	v2z = 0
 
 	local halfThickness = (thickness or 1) * .5
 
@@ -2861,7 +2856,7 @@ function AppVideo:drawSolidLine3D(
 	self:matident()
 	ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
 	self:matident(1)
-	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, -1e-7, 1 + 1e-7)
+	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, 1, -1)
 
 	local normalX, normalY, normalZ = calcNormalForTri(
 		xLL, yLL, zLL,
