@@ -855,9 +855,8 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - voxelmap is still being copied from CPU mesh-cache to CPU draw tri buffer every frame ...
 	- I should just give it its own GLArrayBuffers.
 	- without it, even memcpy'ing the prepared voxelmap mesh has a very large random range of performance (depending on cache alignment issues i guess???)
+
 - BlobDataAbs storing stuff in strings might be a bad idea, might be better to switch to vectors ... LuaJIT does some caching or something I bet ... not good to modify them in-place ...
-
-
 - I just realized treating Lua strings like they are mutable data might be a bad idea.
 - convert all BlobDataAbs' .data that are Lua strings to a `uint8_t[]`'s
 	- Blob
@@ -881,3 +880,19 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - `app.framebufferRAMs` builds as you set more video modes.  how about clearing app.framebufferRAMs between cart open's?
 
 - draw API, those four vars that always end up in the 'extra' attribute: paletteIndex, transparentIndex, spriteBit, spriteMask ... they are rarely used ... make them uniforms?
+
+- lighting:
+	- turn the 'useHardwarweLighting' into bitflags:
+		- normal-lighting
+		- bumpmapping from sprites
+		- SSAO
+	- add SSAO vars to RAM
+	- fix the dFdx glitch on sprites
+	- get a single directional light working
+		- then get multiple
+		- sized buffer/viewport smaller than typical view fo
+		- just draw twice brah (or n+1 times for n lights)
+		- then add light vars to RAM (that means max # of lights)
+		- should I support cubemap lights? or only directional? cubemap light is just 6 direcitonal anyways so no need I guess
+		- how many dynamic shadowmap-based lights do modern games have?
+		- (maybe I didn't need to separate projMat and mvMat after all ...)

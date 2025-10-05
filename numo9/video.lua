@@ -1349,8 +1349,6 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	uint colorIndex = (extra.x >> 8u) & 0xffu;
 	<?=fragType?> resultColor = colorIndexToFragColor(colorIndex);
 
-	bool plzDiscard = false;
-
 	// TODO think this through
 	// calculate screen space epsilon at this point
 	//float eps = abs(dFdy(tc.y));
@@ -1377,16 +1375,16 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 		if (abs(delta.y) > abs(delta.x)) {
 			// top/bottom quadrant
 			float by = radius.y * sqrt(1. - frac.x * frac.x);
-			if (delta.y > by || delta.y < -by) plzDiscard = true;
+			if (delta.y > by || delta.y < -by) discard;
 			if (borderOnly) {
-				if (delta.y < by-eps && delta.y > -by+eps) plzDiscard = true;
+				if (delta.y < by-eps && delta.y > -by+eps) discard;
 			}
 		} else {
 			// left/right quadrant
 			float bx = radius.x * sqrt(1. - frac.y * frac.y);
-			if (delta.x > bx || delta.x < -bx) plzDiscard = true;
+			if (delta.x > bx || delta.x < -bx) discard;
 			if (borderOnly) {
-				if (delta.x < bx-eps && delta.x > -bx+eps) plzDiscard = true;
+				if (delta.x < bx-eps && delta.x > -bx+eps) discard;
 			}
 		}
 	} else {
@@ -1395,18 +1393,11 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 				&& tc.x < box.x+box.z-eps
 				&& tc.y > box.y+eps
 				&& tc.y < box.y+box.w-eps
-			) plzDiscard = true;
+			) discard;
 		}
 		// else default solid rect
 	}
 
-	if (plzDiscard) {
-<? if fragType == 'uvec4' then ?>
-		resultColor.a = 0u;
-<? else ?>
-		resultColor.a = 0.;
-<? end ?>
-	}
 	return resultColor;
 }
 
@@ -1432,13 +1423,15 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 
 	colorIndex >>= spriteBit;
 	colorIndex &= spriteMask;
-	bool plzDiscard = false;
-	if (colorIndex == transparentIndex) plzDiscard = true;
+
+	// if you discard based on alpha here then the bilinear interpolation that samples this 4x will cause unnecessary discards
+	bool forceTransparent = colorIndex == transparentIndex;
+
 	colorIndex += paletteIndex;
 	colorIndex &= 0xFFu;
 
 	<?=fragType?> resultColor = colorIndexToFragColor(colorIndex);
-	if (plzDiscard) {
+	if (forceTransparent) {
 <? if fragType == 'uvec4' then ?>
 		resultColor.a = 0u;
 <? else ?>
@@ -1549,19 +1542,17 @@ void main() {
 		discard;
 	}
 
-	bool plzDiscard = false;
-
 	uvec2 uFragCoord = uvec2(gl_FragCoord);
 	uint threshold = (uFragCoord.y >> 1) & 1u
 		| ((uFragCoord.x ^ uFragCoord.y) & 2u)
 		| ((uFragCoord.y & 1u) << 2)
 		| (((uFragCoord.x ^ uFragCoord.y) & 1u) << 3);
 	uint dither = extra.y;
-	if ((dither & (1u << threshold)) != 0u) plzDiscard = true;
+	if ((dither & (1u << threshold)) != 0u) discard;
 
 	uint pathway = extra.x & 3u;
 
-	float bumpHeight = 0.;
+	float bumpHeight = -1.;
 
 	// solid shading pathway
 	if (pathway == 0u) {
@@ -1638,9 +1629,9 @@ void main() {
 
 
 <? if fragType == 'uvec4' then ?>
-	if (fragColor.a == 0u) plzDiscard = true;
+	if (fragColor.a == 0u) disscard;
 <? else ?>
-	if (fragColor.a < .5) plzDiscard = true;
+	if (fragColor.a < .5) discard;
 <? end ?>
 
 
@@ -1654,7 +1645,6 @@ void main() {
 	fragNormal.xyz = normalv;
 
 #elif 0	// show sprite normals only
-	if (plzDiscard) bumpHeight = -1.;
 	bumpHeight *= spriteNormalExhaggeration;
 	mat3 spriteBasis = onb(
 		vec3(1., 0., dFdx(bumpHeight)),
@@ -1666,7 +1656,6 @@ void main() {
 	// calculate this before any discards ... or can we?
 	// calculate this from magfilter=linear lookup for the texture (and do color magfilter=nearest) ... or can we?)
 	// if we are going to discard then make sure the sprite bumpmap falls off ...
-	if (plzDiscard) bumpHeight = -1.;
 	bumpHeight *= spriteNormalExhaggeration;
 
 	//glsl matrix index access is based on columns
@@ -1699,9 +1688,6 @@ void main() {
 	//  but this is easier/lazier.
 	fragNormal.w = vertexv.z;
 	//fragNormal.w = gl_FragDepth;
-
-	// only discard last, so I can make sure to zero dFdx/dFdy's when I'm going to discard (right? or does it matter? does it do that anyways?)
-	if (plzDiscard) discard;
 }
 ]],			{
 				app = app,
