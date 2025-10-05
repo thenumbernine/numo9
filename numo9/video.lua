@@ -4322,5 +4322,6 @@ return {
 	resetLogoOnSheet = resetLogoOnSheet,
 	resetFont = resetFont,
 	resetPalette = resetPalette,
+	calcNormalForTri = calcNormalForTri,
 	AppVideo = AppVideo,
 }

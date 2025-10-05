@@ -195,6 +195,9 @@ function BlobVoxelMap:rebuildMesh(app)
 		bit.lshift(spriteMask, 8)
 	)
 
+	local numo9_video = require 'numo9.video'
+	local calcNormalForTri = numo9_video.calcNormalForTri
+
 	local width, height, depth= self:getWidth(), self:getHeight(), self:getDepth()
 	-- which to build this off of?
 	-- RAMPtr since thats what AppVideo:drawVoxelMap() uses
@@ -204,6 +207,7 @@ function BlobVoxelMap:rebuildMesh(app)
 	local voxels = assert(self:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
 	local vptr = voxels
 	local occludedCount = 0
+
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do
@@ -244,7 +248,7 @@ function BlobVoxelMap:rebuildMesh(app)
 							local numVtxs = mesh:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
 							local numIndexes = mesh:getNumIndexes()
 							local numTriVtxs = numIndexes == 0 and numVtxs or numIndexes
-assert.eq(numTriVtxs % 3, 0)
+--DEBUG:assert.eq(numTriVtxs % 3, 0)
 							local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
 
 							-- resize first then offest back in case we get a resize ...
@@ -294,6 +298,7 @@ assert.eq(numTriVtxs % 3, 0)
 								end
 --]]
 
+-- [[ has all the slowdown ...
 								if occluded then
 									occludedCount = occludedCount + 1
 								else
@@ -301,18 +306,18 @@ assert.eq(numTriVtxs % 3, 0)
 									local vb = srcVtxs + bi
 									local vc = srcVtxs + ci
 
-									-- only used for normal so vec3f because accuracy doesn't matter
-									local apos = vec3f(va.x, va.y, va.z)
-									local bpos = vec3f(vb.x, vb.y, vb.z)
-									local cpos = vec3f(vc.x, vc.y, vc.z)
-									local normal = (cpos - bpos):cross(bpos - apos):unit()
+									local normalX, normalY, normalZ = calcNormalForTri(
+										va.x, va.y, va.z,
+										vb.x, vb.y, vb.z,
+										vc.x, vc.y, vc.z
+									)
 
 									local srcv = va
 									local dstVtx = self.vertexBufCPU:emplace_back()
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal = normal
+									dstVtx.normal.x, dstVtx.normal.y, dstVtx.normal.z = normalX, normalY, normalZ
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
@@ -321,7 +326,7 @@ assert.eq(numTriVtxs % 3, 0)
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal = normal
+									dstVtx.normal.x, dstVtx.normal.y, dstVtx.normal.z = normalX, normalY, normalZ
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
@@ -330,10 +335,11 @@ assert.eq(numTriVtxs % 3, 0)
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal = normal
+									dstVtx.normal.x, dstVtx.normal.y, dstVtx.normal.z = normalX, normalY, normalZ
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 								end
+--]]
 							end
 						end
 					end
