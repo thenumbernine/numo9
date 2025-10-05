@@ -743,9 +743,10 @@ Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.
 There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
 
 If you want to rely on outside binaries, here is the list of dependencies:
-- [luajit2 OpenResty edition](https://github.com/openresty/luajit2) tag `v2.1-20250117`.
+- [LuaJIT](https://github.com/LuaJIT/LuaJIT) tag `v2.1.0-beta3`.
 	Also you must edit `src/Makefile` and enable `XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT`, otherwise things like the `__len` metamethod won't work.
-	**Sadly** this is not default compiler settings in luajit packages such as apt's `luajit` (original luajit) or `luajit2) (OpenResty luajit) packages, so neither of these packages will work.
+	**Sadly** this is not default compiler settings in luajit packages such as apt's `luajit` (original LuaJIT) or `luajit2) (OpenResty LuaJIT) packages, so neither of these packages will work.
+	(I used to promote OpenResty's LuaJIT but lately it has had wild variations in performance that seem to be determined at app launch, while vanilla LuaJIT does not have this problem.)
 - My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.  This too must be built by hand at the moment.  I'll switch to SDL3's clipboard someday.
 - SDL package `apt install libsdl3-0`, or built from source [here](https://github.com/libsdl-org/SDL).  My distributable binary is tag `release-3.2.8`.
 - PNG package `apt install libpng16-16t64`, or built from source [here](https://github.com/pnggroup/libpng).  My distributable binary is tag `v1.6.47`.

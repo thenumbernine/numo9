@@ -2772,6 +2772,9 @@ function AppVideo:transform(x,y,z,w, projMat, mvMat)
 end
 
 -- inverse-transform from framebuffer/screen coords to menu coords
+local matrix_ffi = require 'matrix.ffi'
+local mvInv = matrix_ffi({4,4}, matType):zeros()
+local projInv = matrix_ffi({4,4}, matType):zeros()
 function AppVideo:invTransform(x,y,z)
 	x = tonumber(x)
 	y = tonumber(y)
@@ -2783,9 +2786,9 @@ function AppVideo:invTransform(x,y,z)
 	-- normalized-device coords to homogeneous inv transform? or nah?
 	-- TODO transform accepts 'm' mvType[16] override, but this operates on 4x4 matrix.ffi types...
 	-- TODO make this operation in-place
-	local mvInv = self.mvMat:inv4x4()
+	mvInv:copy(self.mvMat):applyInv4x4()
 	local mvInvPtr = mvInv.ptr
-	local projInv = self.projMat:inv4x4()
+	projInv:copy(self.projMat):applyInv4x4()
 	local projInvPtr = projInv.ptr
 	x,y,z,w = mat4x4mul(projInvPtr, x, y, z, w)
 	x,y,z,w = mat4x4mul(mvInvPtr, x,y,z,w, mvMatScale)
