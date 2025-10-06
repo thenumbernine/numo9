@@ -446,7 +446,10 @@ function VideoMode:buildFramebuffers()
 			height = self.height,
 		}
 
-		fb:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
+		fb:setDrawBuffers(
+			gl.GL_COLOR_ATTACHMENT0,	-- fragColor
+			gl.GL_COLOR_ATTACHMENT1,	-- fragNormal
+			gl.GL_COLOR_ATTACHMENT2)	-- fragPos
 		fb:unbind()
 
 		if not self.useNativeOutput then
@@ -509,6 +512,34 @@ function VideoMode:buildFramebuffers()
 		end
 	end
 	self.framebufferNormalTex = assert(normalTex)
+
+	local posTex = not self.useNativeOutput and app.framebufferPosTexs[sizeKey]
+	if not posTex then
+		posTex = GLTex2D{
+			width = width,
+			height = height,
+			internalFormat = gl.GL_RGB32F,
+			format = gl.GL_RGB,
+			type = gl.GL_FLOAT,
+
+			minFilter = gl.GL_NEAREST,
+			--magFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+		}:unbind()
+
+		fb:bind()
+			:setColorAttachmentTex2D(posTex.id, 2, posTex.target)
+			:unbind()
+
+		if not self.useNativeOutput then
+			app.framebufferPosTexs[sizeKey] = posTex
+		end
+	end
+	self.framebufferPosTex = assert(posTex)
 
 -- we have a scene depth tex, color tex, normal tex ...
 -- now for shadows we have to get the depth buffer from a light perspective
@@ -642,6 +673,10 @@ function VideoMode:delete()
 	if self.framebufferNormalTex then
 		self.framebufferNormalTex:delete()
 		self.framebufferNormalTex = nil
+	end
+	if self.framebufferPosTex then
+		self.framebufferPosTex:delete()
+		self.framebufferPosTex = nil
 	end
 	if self.framebufferRAM then
 		self.framebufferRAM:delete()
@@ -870,6 +905,7 @@ uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 
 ]]..useLightingCode..[[
@@ -911,12 +947,14 @@ void main() {
 			uniforms = {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
-				noiseTex = 2,
+				framebufferPosTex = 2,
+				noiseTex = 3,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
+			self.framebufferPosTex,
 			app.noiseTex,
 		},
 		geometry = app.quadGeom,
@@ -982,6 +1020,7 @@ uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
@@ -1014,13 +1053,15 @@ void main() {
 			uniforms = {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
-				noiseTex = 2,
-				paletteTex = 3,
+				framebufferPosTex = 2,
+				noiseTex = 3,
+				paletteTex = 4,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
+			self.framebufferPosTex,
 			app.noiseTex,
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
@@ -1102,6 +1143,7 @@ uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 
 ]]..useLightingCode..[[
@@ -1131,12 +1173,14 @@ void main() {
 			uniforms = {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
-				noiseTex = 2,
+				framebufferPosTex = 2,
+				noiseTex = 3,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
+			self.framebufferPosTex,
 			app.noiseTex,
 		},
 		geometry = app.quadGeom,
@@ -1249,7 +1293,8 @@ flat out vec3 normalv;
 flat out uvec4 extra;
 flat out vec4 box;
 
-out vec3 vertexv;
+out vec3 viewCoordv;
+out vec3 worldCoordv;
 
 uniform mat4 projMat, mvMat;
 
@@ -1259,9 +1304,11 @@ void main() {
 	extra = extraAttr;
 	box = boxAttr;
 
-	gl_Position = (projMat * (mvMat * vec4(vertex, 1.))) * <?=glnumber(mvMatInvScale)?>;
+	vec4 worldCoord = mvMat * vec4(vertex, 1.) * <?=glnumber(mvMatInvScale)?>;
+	worldCoordv.xyz = worldCoord.xyz;
 
-	vertexv = gl_Position.xyz;
+	gl_Position = projMat * worldCoord;
+	viewCoordv = gl_Position.xyz;
 }
 ]],			{
 				glnumber = glnumber,
@@ -1278,10 +1325,12 @@ flat in vec3 normalv;
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 
-in vec3 vertexv;
+in vec3 viewCoordv;
+in vec3 worldCoordv;
 
 layout(location=0) out <?=fragType?> fragColor;
-layout(location=1) out vec4 fragNormal;
+layout(location=1) out vec4 fragNormal;	// normal xyz, viewCoord.z
+layout(location=2) out vec3 fragPos;	// worldCoord.xyz
 
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
@@ -1638,6 +1687,11 @@ void main() {
 <? end ?>
 
 
+// position
+
+	fragPos.xyz = worldCoordv.xyz;
+
+
 // lighting:
 
 	// TODO lighting variables:
@@ -1689,7 +1743,7 @@ void main() {
 	// TODO just use the depth buffer as a texture instead of re-copying it here?
 	//  if I did I'd get more bits of precision ...
 	//  but this is easier/lazier.
-	fragNormal.w = vertexv.z;
+	fragNormal.w = viewCoordv.z;
 	//fragNormal.w = gl_FragDepth;
 }
 ]],			{
@@ -1883,6 +1937,7 @@ function AppVideo:initVideoModes()
 	--self.framebufferRAMs._256x144xRGB565
 	self.framebufferRAMs = {}
 	self.framebufferNormalTexs = {}
+	self.framebufferPosTexs = {}
 	self.framebufferDepthTexs = {}
 	self.framebufferLightDepthTexs = {}
 end
@@ -2046,6 +2101,11 @@ function AppVideo:initVideo()
 			image = image,
 		}:unbind()
 	end
+
+	-- now allocate a GL_TEXTURE_CUBE_ARRAY for our point lights
+	-- and a GL_TEXTURE_2D_ARRAY for our directional lights
+	-- size is lightmap resolution x max # of lights
+
 
 --DEBUG:self.triBuf_flushCallsPerFrame = 0
 --DEBUG:self.triBuf_flushSizes = {}
@@ -2472,6 +2532,7 @@ function AppVideo:setVideoMode(modeIndex)
 
 	self.framebufferRAM = modeObj.framebufferRAM
 	self.framebufferNormalTex = modeObj.framebufferNormalTex
+	self.framebufferPosTex = modeObj.framebufferPosTex
 	self.blitScreenObj = modeObj.blitScreenObj
 	self.drawObj = modeObj.drawObj
 
@@ -2523,6 +2584,7 @@ function AppVideo:setVideoMode(modeIndex)
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
 	self.blitScreenObj.texs[2] = self.framebufferNormalTex
+	self.blitScreenObj.texs[3] = self.framebufferPosTex
 
 	self.currentVideoMode = modeObj
 	self.currentVideoModeIndex = modeIndex
