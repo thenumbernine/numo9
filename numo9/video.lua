@@ -41,7 +41,7 @@ assert.eq(matType, 'float', "TODO if this changes then update the modelMat, view
 
 
 local vec2i = require 'vec-ffi.vec2i'
-local dirLightMapSize = vec2i(256, 256)
+local dirLightMapSize = vec2i(2048, 2048)
 local useDirectionalShadowmaps = true	-- can't turn off or it'll break stuff so *shrug*
 local ident4x4 = matrix_ffi({4,4}, matType):eye()
 
@@ -676,6 +676,7 @@ end
 local useLightingCode = [[
 
 // TODO lighting variables in RAM:
+// these are tied to the bump-mapping only right now...
 const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
 const vec3 lightAmbientColor = vec3(.3, .3, .3);
 const vec3 lightDiffuseColor = vec3(1., 1., 1.);
@@ -753,7 +754,13 @@ void doLighting() {
 		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).x
 			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
 
-		if (lightClipCoord.z < lightBufferDepth * lightClipCoord.w + 0.1) {
+// zero gets depth alias stripes
+// nonzero is dependent on the scene
+// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
+//const float lightDepthTestEpsilon = 0.;		// not enough
+//const float lightDepthTestEpsilon = 0.0001;	// not enough
+const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+		if (lightClipCoord.z < (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w) {
 			// in light
 			fragColor.xyz *= 1.2;
 		} else {
@@ -766,7 +773,8 @@ void doLighting() {
 	}
 #endif
 
-#if 1	// SSAO
+
+#if 0	// SSAO
 	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
 	float depth = normalAndDepth.w;
 
@@ -1295,7 +1303,7 @@ layout(location=4) in vec4 boxAttr;
 // the bbox world coordinates, used with 'boxAttr' for rounding
 out vec2 tcv;
 
-flat out vec3 normalv;
+flat out vec3 clipNormalv;
 flat out uvec4 extra;
 flat out vec4 box;
 
@@ -1306,7 +1314,7 @@ uniform mat4 modelMat, viewMat, projMat;
 
 void main() {
 	tcv = texcoord;
-	normalv = normalize((projMat * (viewMat * (modelMat * vec4(normal, 0.)))).xyz);
+	clipNormalv = normalize((projMat * (viewMat * (modelMat * vec4(normal, 0.)))).xyz);
 	extra = extraAttr;
 	box = boxAttr;
 
@@ -1328,7 +1336,7 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
 
-flat in vec3 normalv;
+flat in vec3 clipNormalv;
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 
@@ -1706,7 +1714,7 @@ void main() {
 	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
 
 #if 0	// normal from flat sided objs
-	fragNormal.xyz = normalv;
+	fragNormal.xyz = clipNormalv;
 
 #elif 0	// show sprite normals only
 	bumpHeight *= spriteNormalExhaggeration;
@@ -1730,7 +1738,7 @@ void main() {
 		vec3(0., 1., dFdx(bumpHeight)));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
-	mat3 modelBasis = onb1(normalv);
+	mat3 modelBasis = onb1(clipNormalv);
 
 	//result should be d(bumpHeight)/d(vertex_j)
 	// = d(bumpHeight)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
@@ -2148,10 +2156,10 @@ function AppVideo:initVideo()
 		--]]
 		-- 32 is half width, 24 is half length
 		self.lightView.angle = 
-			--quatd():fromAngleAxis(0, 0, 1, 45)
-			quatd():fromAngleAxis(1, 0, 0, 60)
+			quatd():fromAngleAxis(0, 0, 1, 45)
+			* quatd():fromAngleAxis(1, 0, 0, 60)
 		self.lightView.orbit:set(32, 24, 0)
-		self.lightView.pos = self.lightView.orbit + 32 * self.lightView.angle:zAxis()
+		self.lightView.pos = self.lightView.orbit + 40 * self.lightView.angle:zAxis()
 		self.lightView:setup(self.lightDepthTex.width / self.lightDepthTex.height)
 
 		self.lightmapFB = GLFBO{
