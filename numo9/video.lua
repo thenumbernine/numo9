@@ -468,7 +468,7 @@ function VideoMode:buildFramebuffers()
 	if not depthTex then
 		fb:bind()
 		depthTex = GLTex2D{
-			internalFormat = gl.GL_DEPTH_COMPONENT32F,
+			internalFormat = gl.GL_DEPTH_COMPONENT,
 			width = self.width,
 			height = self.height,
 			format = gl.GL_DEPTH_COMPONENT,
@@ -545,44 +545,6 @@ function VideoMode:buildFramebuffers()
 		end
 	end
 	self.framebufferPosTex = assert(posTex)
-
--- we have a scene depth tex, color tex, normal tex ...
--- now for shadows we have to get the depth buffer from a light perspective
--- we can draw this at the same time as we draw our scene, and produce two different depth maps
--- - 1 for the scene's typical depth testing
--- - 1 for the light's depth
--- then in our final blitScreen pass, we can lookup light depth info to render shadows
--- ... hmm ... but we have to depth-test to two different buffers ...
--- ... how can we do that using GL's builtin depth-testing ... unless we could read and write , or just use a MIN blend ...
--- Google says to use geometry shaders and gl_Layers, but these are GL4 level functions, and I want to try to keep this GL3 / GLES3 / WebGL2 capable ...
--- maybe I do have to render the whole scene twice ...
--- but that'd mean in carts calling draw() twice ... or worse, update() twice ...
--- these were also introduced in GLES 3.2 ... also glEnablei could do this with a GL_MIN blend on the depth component, that's only in 3.2 also ...
--- I want to target GLES3.0 ... hmm ...
---[=[
-	local lightDepthTex = not self.useNativeOutput and app.framebufferLightDepthTexs[sizeKey]
-	if not lightDepthTex then
-		fb:bind()
-		lightDepthTex = GLTex2D{
-			internalFormat = gl.GL_DEPTH_COMPONENT,
-			width = self.width,
-			height = self.height,
-			format = gl.GL_DEPTH_COMPONENT,
-			type = gl.GL_FLOAT,
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_NEAREST,
-			wrap = {
-				s = gl.GL_CLAMP_TO_EDGE,
-				t = gl.GL_CLAMP_TO_EDGE,
-			},
-		}
-		gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, lightDepthTex.id, 0)
-		lightDepthTex:unbind()
-		fb:unbind()
-	end
-	self.framebufferLightDepthTex = lightDepthTex
---]=]
-
 
 	local sizeAndFormatKey = sizeKey..'x'..suffix
 	local framebufferRAM = not self.useNativeOutput and app.framebufferRAMs[sizeAndFormatKey]
@@ -781,14 +743,12 @@ void doLighting() {
 #if 1	// shadow map
 	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
 	vec4 lightClipCoord = lightMvProjMat * worldCoord;
+	bool inShadow = true;
 	if (lightClipCoord.w > 0.
 		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz)) 
 		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
 	) {
 		vec3 lightNDCCoord = lightClipCoord.xyz / lightClipCoord.w;
-#if 0	// debug - highlight whole lightmap volume regardless of depth
-		fragColor.xyz *= 1.2;
-#else
 		// in bounds
 		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).x
 			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
@@ -802,14 +762,13 @@ void doLighting() {
 			// in shadow
 			fragColor.xyz *= .3;	//dir light ambient
 		}
-#endif	
 	} else {
 		// in shadow
 		fragColor.xyz *= .3;	//dir light ambient
 	}
 #endif
 
-#if 0	// SSAO
+#if 1	// SSAO
 	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
 	float depth = normalAndDepth.w;
 
@@ -2160,7 +2119,7 @@ function AppVideo:initVideo()
 		self.lightDepthTex = GLTex2D{
 			width = dirLightMapSize.x,
 			height = dirLightMapSize.y,
-			internalFormat = gl.GL_DEPTH_COMPONENT32F,
+			internalFormat = gl.GL_DEPTH_COMPONENT,
 			format = gl.GL_DEPTH_COMPONENT,
 			type = gl.GL_FLOAT,
 			minFilter = gl.GL_NEAREST,
