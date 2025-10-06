@@ -686,8 +686,7 @@ const vec3 lightSpecularColor = vec3(.5, .5, .5);
 const float ssaoOffset = 18.0;
 //const float ssaoStrength = 0.07;
 //const float ssaoFalloff = 0.000002;
-//const float ssaoSampleRadius = .05;
-const float ssaoSampleRadius = .5;
+const float ssaoSampleRadius = .05;
 const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
 
 // used for SSAO lighting, not used for projection
@@ -695,7 +694,8 @@ uniform mat4 drawViewMat;
 uniform mat4 drawProjMat;
 
 // used for directional lighting
-uniform mat4 lightMvProjMat;
+uniform mat4 lightViewMat;
+uniform mat4 lightProjMat;
 
 // these are the random vectors inside a unit hemisphere facing z+
 #define ssaoNumSamples 16
@@ -719,22 +719,25 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 };
 
 void doLighting() {
-	vec3 worldNormal = texture(framebufferNormalTex, tcv).xyz;
-
-#if 0 // debugging: show normalmap:
-	fragColor.xyz = worldNormal * .5 + .5;
-	return;
-#endif
+	vec4 worldNormal = vec4(texture(framebufferNormalTex, tcv).xyz, 0.);
+vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
+	vec4 viewNormal = drawViewMat * worldNormal;
+	vec4 clipNormal = drawProjMat * viewNormal;
 
 	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
 	vec4 viewCoord = drawViewMat * worldCoord;
 	vec4 clipCoord = drawProjMat * viewCoord;
 
+#if 0 // debugging: show normalmap:
+	fragColor.xyz = normalizedWorldNormal * .5 + .5;
+	return;
+#endif
+
 	vec3 lightValue = lightAmbientColor;
 
 #if 0	// shadow map
 	bool inLight = false;
-	vec4 lightClipCoord = lightMvProjMat * worldCoord;
+	vec4 lightClipCoord = lightProjMat * lightViewProjMat * worldCoord;
 	if (lightClipCoord.w > 0.
 		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz)) 
 		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
@@ -762,19 +765,21 @@ const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 
 	if (inLight) {
 #if 1 // bump mapping
+		vec3 lightDir = normalize(-lightViewMat[3].xyz - worldCoord.xyz);
+		vec3 viewDir = normalize(-drawViewMat[3].xyz - worldCoord.xyz);
 
 		// TODO how to determine lightDir based on the light transform?
-		const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
+		//const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
 
 		// apply bumpmap lighting
 		lightValue += 
-			lightDiffuseColor * abs(dot(worldNormal, lightDir))
+			lightDiffuseColor * abs(dot(normalizedWorldNormal, lightDir))
 			// maybe you just can't do specular lighting in [0,1]^3 space ...
 			// maybe I should be doing inverse-frustum-projection stuff here
 			// hmmmmmmmmmm
 			// I really don't want to split projection and modelview matrices ...
 			+ lightSpecularColor * pow(
-				abs(reflect(lightDir, worldNormal).z),
+				abs(dot(viewDir, reflect(lightDir, normalizedWorldNormal))),
 				lightSpecularShininess
 			);
 #else	// plain
@@ -783,63 +788,54 @@ const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 	}
 
 
+#if 0	// SSAO
+	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
+	float depth = clipCoord.z;
 
-#if 1	// SSAO
+vec3 normalizedClipNormal = normalize(clipNormal.xyz);
+
+	// current fragment in [-1,1]^2 screen coords x [0,1] depth coord
+	vec3 origin = vec3(tcv.xy * 2. - 1., depth);
+
 	// TODO just save float buffer? faster?
 	// TODO should this random vec be in 3D or 2D?
 	vec3 rvec = texture(noiseTex, tcv * ssaoOffset).xyz;
 	rvec.z = 0.;
-	rvec = normalize(rvec.xyz * 2. - 1.);
+	rvec.xy = normalize(rvec.xy * 2. - 1.);
 
-#if 0 // debugging: show rvec
-	fragColor.xyz = rvec.xyz * .5 + .5;
-	return;
-#endif
-
-	//TODO calc in world coords, not clip coords ... ?
-	vec3 clipNormal = (drawProjMat * (drawViewMat * vec4(worldNormal, 0.))).xyz;
-
-	vec3 tangent = normalize(rvec - clipNormal * dot(rvec, clipNormal));
-	vec3 bitangent = cross(tangent, clipNormal);
-	mat3 tangentMatrix = mat3(tangent, bitangent, clipNormal);
+	vec3 tangent = normalize(rvec - normalizedClipNormal * dot(rvec, normalizedClipNormal));
+	vec3 bitangent = cross(tangent, normalizedClipNormal);
+	mat3 tangentMatrix = mat3(tangent, bitangent, normalizedClipNormal);
 
 	float numOccluded = 0.;
 	for (int i = 0; i < ssaoNumSamples; ++i) {
 		// rotate random hemisphere vector into our tangent space
 		// but this is still in [-1,1]^2 screen coords x [0,1] depth coord, right?
-		vec3 sampleWorldCoord = worldCoord.xyz
-			+ tangentMatrix * ssaoRandomVectors[i] * ssaoSampleRadius;
+		vec3 samplePt = tangentMatrix * ssaoRandomVectors[i]
+			* ssaoSampleRadius
+			+ origin;
 
-		vec4 sampleViewCoord = drawViewMat * vec4(sampleWorldCoord, 1.);
-		vec4 sampleClipCoord = drawProjMat * sampleViewCoord;
-
-		// TODO multiply by projection matrix?
-
-		vec4 worldCoordInBufferAtSample = vec4(
-			texture(
-				framebufferPosTex,
-				sampleClipCoord.xy / sampleClipCoord.w * .5 + .5
-			).xyz,
-			1.);
-
-		vec4 viewCoordFromWorldCoordInBufferAtSample = drawViewMat * worldCoordInBufferAtSample;
-
-		float depthDiff = sampleViewCoord.z 
-			- viewCoordFromWorldCoordInBufferAtSample.z;
+		float bufferClipDepthAtSample = (
+			drawProjMat 
+			* drawViewMat 
+			* vec4(
+				texture(
+					framebufferPosTex,
+					samplePt.xy * .5 + .5
+				).xyz,
+				1.
+			)
+		).z;
+		float depthDiff = samplePt.z - bufferClipDepthAtSample;
 		if (depthDiff > ssaoSampleRadius) {
-			numOccluded += 1.;
-			//numOccluded += step(viewCoordFromWorldCoordInBufferAtSample.z, sampleViewCoord.z);
+			numOccluded += step(bufferClipDepthAtSample, samplePt.z);
 		}
-//		numOccluded += step(ssaoFalloff, depthDiff)
-//			* (1. - smoothstep(ssaoFalloff, ssaoStrength, depthDiff));
-//			* (1. - dot(sampleWorldNormalAndClipDepth.xyz, clipNormal))
 	}
 
-	lightValue.xyz *= 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
+	lightValue *= 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
 #endif
 
 	fragColor.xyz *= lightValue;
-
 }
 ]]
 
@@ -1330,7 +1326,7 @@ uniform mat4 modelMat, viewMat, projMat;
 
 void main() {
 	tcv = texcoord;
-	worldNormalv = normalize(modelMat * vec4(normal, 0.)).xyz;
+	worldNormalv = (modelMat * vec4(normal, 0.)).xyz;
 	extra = extraAttr;
 	box = boxAttr;
 
@@ -1376,7 +1372,8 @@ uniform vec4 clipRect;
 float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
 
-//create an orthornomal basis from one vector that is normalized
+//create an orthornomal basis from one vector 
+// assumes 'n' is normalized
 mat3 onb1(vec3 n) {
 	mat3 m;
 	m[2] = n;
@@ -1408,7 +1405,7 @@ mat3 onb1(vec3 n) {
 // the second, normalized, is used as the 'y' column
 // the third is the normalized cross of 'a' and 'b'.
 // the first is the cross of the 2nd and 3rd
-mat3 onb(vec3 a, vec3 b) {
+mat3 onb2(vec3 a, vec3 b) {
 	mat3 m;
 	m[1] = normalize(b);
 	m[2] = normalize(cross(a, m[1]));
@@ -1728,11 +1725,11 @@ void main() {
 	const float spriteNormalExhaggeration = 8.;
 
 #if 0	// normal from flat sided objs
-	fragNormal = normalize(worldNormalv);
+	fragNormal = worldNormalv;
 
 #elif 0	// show sprite normals only
 	bumpHeight *= spriteNormalExhaggeration;
-	mat3 spriteBasis = onb(
+	mat3 spriteBasis = onb2(
 		vec3(1., 0., dFdx(bumpHeight)),
 		vec3(0., 1., dFdx(bumpHeight)));
 
@@ -1749,12 +1746,12 @@ void main() {
 	//glsl matrix index access is based on columns
 	//so its index notation is reversed from math index notation.
 	// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
-	mat3 spriteBasis = onb(
+	mat3 spriteBasis = onb2(
 		vec3(1., 0., dFdx(bumpHeight)),
 		vec3(0., 1., dFdx(bumpHeight)));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
-	mat3 modelBasis = onb1(worldNormalv);
+	mat3 modelBasis = onb1(normalize(worldNormalv));
 
 //TODO now transform the bumpmap coord into the worldnormal basis
 // probably involves an inverse view or something idk
