@@ -110,38 +110,7 @@ local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
 local keyPressFlagSize = math.ceil(keyCount / 8)
 
--- [[ use floating point
 local matType = 'float'
-local mvMatScale = 1
---]]
---[[ use fixed point 16:16 -- works
-local matType = 'int32_t'
-local mvMatScale = 65536
---]]
---[[ use fixed point 24:8
-local matType = 'int32_t'
-local mvMatScale = 256
---]]
---[[ use fixed point 32:0
-local matType = 'int32_t'
-local mvMatScale = 1
---]]
---[[ use fixed point 12:4 -- works
-local matType = 'int16_t'
-local mvMatScale = 16
---]]
---[[ use fixed point 10:6 -- works
-local matType = 'int16_t'
-local mvMatScale = 64
---]]
---[[ use fixed point 9:7 -- works
-local matType = 'int16_t'
-local mvMatScale = 128
---]]
---[[ use fixed point 8:8 like the old SNES Mode7 ... NOT WORKING
-local matType = 'int16_t'
-local mvMatScale = 256
---]]
 
 -- instead of a 'length' i could store an 'end-addr'
 local AddrLen = struct{
@@ -342,8 +311,9 @@ local RAM = struct{
 
 				{name='clipRect', type=clipType..'[4]'},
 
-				-- TODO [2][4][4] plz
-				{name='mvMat', type=matType..'[16]'},
+				-- TODO [3][4][4] plz
+				{name='modelMat', type=matType..'[16]'},
+				{name='viewMat', type=matType..'[16]'},
 				{name='projMat', type=matType..'[16]'},
 
 				{name='videoMode', type='uint8_t'},
@@ -428,9 +398,12 @@ local framebufferAddrEnd = framebufferAddr + framebufferInBytes
 local clipRectAddr = ffi.offsetof('RAM', 'clipRect')
 local clipRectInBytes = ffi.sizeof'uint8_t' * 4
 local clipRectAddrEnd = clipRectAddr + clipRectInBytes
-local mvMatAddr = ffi.offsetof('RAM', 'mvMat')
-local mvMatInBytes = ffi.sizeof(matType) * 16
-local mvMatAddrEnd = mvMatAddr + mvMatInBytes
+local modelMatAddr = ffi.offsetof('RAM', 'modelMat')
+local modelMatInBytes = ffi.sizeof(matType) * 16
+local modelMatAddrEnd = modelMatAddr + modelMatInBytes
+local viewMatAddr = ffi.offsetof('RAM', 'viewMat')
+local viewMatInBytes = ffi.sizeof(matType) * 16
+local viewMatAddrEnd = viewMatAddr + viewMatInBytes
 local projMatAddr = ffi.offsetof('RAM', 'projMat')
 local projMatInBytes = ffi.sizeof(matType) * 16
 local projMatAddrEnd = projMatAddr + projMatInBytes
@@ -549,7 +522,6 @@ return {
 	fontImageSize = fontImageSize,
 	fontImageSizeInTiles = fontImageSizeInTiles,
 	menuFontWidth = menuFontWidth,
-	mvMatScale = mvMatScale,
 	matType = matType,
 	keyPressFlagSize = keyPressFlagSize,
 	keyCount = keyCount,
@@ -577,9 +549,12 @@ return {
 	clipRectAddr = clipRectAddr,
 	clipRectInBytes = clipRectInBytes,
 	clipRectAddrEnd = clipRectAddrEnd,
-	mvMatAddr = mvMatAddr,
-	mvMatInBytes = mvMatInBytes,
-	mvMatAddrEnd = mvMatAddrEnd,
+	modelMatAddr = modelMatAddr,
+	modelMatInBytes = modelMatInBytes,
+	modelMatAddrEnd = modelMatAddrEnd,
+	viewMatAddr = viewMatAddr,
+	viewMatInBytes = viewMatInBytes,
+	viewMatAddrEnd = viewMatAddrEnd,
 	projMatAddr = projMatAddr,
 	projMatInBytes = projMatInBytes,
 	projMatAddrEnd = projMatAddrEnd,

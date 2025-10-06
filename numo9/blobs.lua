@@ -288,7 +288,8 @@ function AppBlobs:buildRAMFromBlobs()
 --DEBUG:print('...done AppBlobs:initBlobs')
 
 	-- every time .ram updates, this has to update as well:
-	self.mvMat.ptr = ffi.cast(matType..'*', self.ram.mvMat)
+	self.modelMat.ptr = ffi.cast(matType..'*', self.ram.modelMat)
+	self.viewMat.ptr = ffi.cast(matType..'*', self.ram.viewMat)
 	self.projMat.ptr = ffi.cast(matType..'*', self.ram.projMat)
 
 	--TODO also resize all video sheets to match blobs (or merge them someday)

@@ -296,12 +296,11 @@ What's a SNES-era fantasy-console without mode7?
 There are a few matrix functions that you can use to manipulate the render state:
 `matident`, `mattrans`, `matrot`, `matscale`, `matlookat`, `matortho`, `matfrustum`.
 
-~~I'm using 16.16 fixed precision to store the matrix components.~~ (It is set to 32-bit floats for now until I tune the depth buffer support).
-SNES used 8.8, so I am being generous.
-I've tested with as close as 9.7 without getting too big of rounding errors, so maybe I could restrict this later, but meh.
-And then I got an itch to add HD2D so yeah next I had to separate projection and modelview, and now it's probably going to be floating point for good.
+### HD2D
 
-### screen-space lighting
+Right now it has SSAO.
+
+Light Maps soon.
 
 Set `useHardwareLighting` to nonzero to get free screen-space lighting.  Or maybe I'll just have it on always.  Still working on this one.
 TODO here, also have RAM vars for light pos, color, ambient, normalmap exhaggeration, spritemap exhaggeration.
@@ -313,39 +312,40 @@ memory layout:
 - RAM -
 0x000000 - 0x020000 = framebuffer
 0x020000 - 0x020008 = clipRect
-0x020008 - 0x020048 = mvMat
-0x020048 - 0x020088 = projMat
-0x020088 - 0x020089 = videoMode
-0x020089 - 0x02008b = screenWidth
-0x02008b - 0x02008d = screenHeight
-0x02008d - 0x02008e = blendMode
-0x02008e - 0x020090 = useHardwareLighting
-0x020090 - 0x020092 = blendColor
-0x020092 - 0x020094 = dither
-0x020094 - 0x020095 = paletteBlobIndex
-0x020095 - 0x020096 = fontBlobIndex
-0x020096 - 0x020196 = fontWidth
-0x020196 - 0x020197 = textFgColor
-0x020197 - 0x020198 = textBgColor
-0x020198 - 0x02019c = framebufferAddr
-0x02019c - 0x0201a0 = spriteSheetAddr
-0x0201a0 - 0x0201a4 = tileSheetAddr
-0x0201a4 - 0x0201a8 = tilemapAddr
-0x0201a8 - 0x0201ac = paletteAddr
-0x0201ac - 0x0201b0 = fontAddr
-0x0201b0 - 0x020230 = channels
-0x020230 - 0x020310 = musicPlaying
-0x020310 - 0x020314 = updateCounter
-0x020314 - 0x020318 = romUpdateCounter
-0x020318 - 0x020361 = keyPressFlags
-0x020361 - 0x0203aa = lastKeyPressFlags
-0x0203aa - 0x02083a = keyHoldCounter
-0x02083a - 0x02083e = mousePos
-0x02083e - 0x020842 = mouseWheel
-0x020842 - 0x020846 = lastMousePos
-0x020846 - 0x02084a = lastMousePressPos
-0x02084a - 0x02084e = blobCount
-0x02084e - 0x02085a = blobEntries
+0x020008 - 0x020048 = modelMat
+0x020048 - 0x020088 = viewMat
+0x020088 - 0x0200c8 = projMat
+0x0200c8 - 0x0200c9 = videoMode
+0x0200c9 - 0x0200cb = screenWidth
+0x0200cb - 0x0200cd = screenHeight
+0x0200cd - 0x0200ce = blendMode
+0x0200ce - 0x0200d0 = useHardwareLighting
+0x0200d0 - 0x0200d2 = blendColor
+0x0200d2 - 0x0200d4 = dither
+0x0200d4 - 0x0200d5 = paletteBlobIndex
+0x0200d5 - 0x0200d6 = fontBlobIndex
+0x0200d6 - 0x0201d6 = fontWidth
+0x0201d6 - 0x0201d7 = textFgColor
+0x0201d7 - 0x0201d8 = textBgColor
+0x0201d8 - 0x0201dc = framebufferAddr
+0x0201dc - 0x0201e0 = spriteSheetAddr
+0x0201e0 - 0x0201e4 = tileSheetAddr
+0x0201e4 - 0x0201e8 = tilemapAddr
+0x0201e8 - 0x0201ec = paletteAddr
+0x0201ec - 0x0201f0 = fontAddr
+0x0201f0 - 0x020270 = channels
+0x020270 - 0x020350 = musicPlaying
+0x020350 - 0x020354 = updateCounter
+0x020354 - 0x020358 = romUpdateCounter
+0x020358 - 0x0203a1 = keyPressFlags
+0x0203a1 - 0x0203ea = lastKeyPressFlags
+0x0203ea - 0x02087a = keyHoldCounter
+0x02087a - 0x02087e = mousePos
+0x02087e - 0x020882 = mouseWheel
+0x020882 - 0x020886 = lastMousePos
+0x020886 - 0x02088a = lastMousePressPos
+0x02088a - 0x02088e = blobCount
+0x02088e - 0x02089a = blobEntries
 ```
 
 # Language
@@ -510,14 +510,14 @@ Constant-color blending functions use the RGB555 value stored in `blendColor` of
 
 ## mode7:
 
-- `matident(matrix)` = set the transform matrix to identity.  `matrix` is 0 for the modelview matrix, 1 for the projection matrix, default is 0.
-- `mattrans([x],[y],[z],[matrix])` = translate the transform matrix by x,y,z.  Default translate is 0.  `matrix default is 0 for modelview.
-- `matrot(theta,[x,y,z],[matrix])` = rotate by theta radians on axis x,y,z.  Default axis is 0,0,1 for screen rotations.  `matrix default is 0 for modelview.
-- `matrotcs(cosTheta, sinTheta, x,y,z,[matrix])` = rotate by theta radians on axis x,y,z.  There is no default axis.  The axis provided must be unit.  `matrix default is 0 for modelview.
-- `matscale([x],[y],[z],[matrix])` = scale by x,y,z.  Default scale is 1.  `matrix default is 0 for modelview.
-- `matlookat(eyeX,eyeY,eyeZ,camX,camY,camZ,upX,upY,upZ,[matrix])` = transform view to position at camX,camY,camZ and look at eyeX,eyeY,eyeZ with the up vector upX,upY,upZ.  `matrix default is 0 for modelview.
-- `matortho(left,right,bottom,top,[near,far],[matrix])` = apply orthographic transform.  `matrix default is 1 for projection.
-- `matfrustum(left,right,bottom,top,near,far,[matrix])` = apply frustum perspective transform.  `matrix default is 1 for projection.
+- `matident(matrix)` = set the transform matrix to identity.  `matrix` is 0 for the model matrix, 1 for the view matrix, 2 for the projection matrix, default is 0.
+- `mattrans([x],[y],[z],[matrix])` = translate the transform matrix by x,y,z.  Default translate is 0.  `matrix` default is 0 for model.
+- `matrot(theta,[x,y,z],[matrix])` = rotate by theta radians on axis x,y,z.  Default axis is 0,0,1 for screen rotations.  `matrix` default is 0 for model.
+- `matrotcs(cosTheta, sinTheta, x,y,z,[matrix])` = rotate by theta radians on axis x,y,z.  There is no default axis.  The axis provided must be unit.  `matrix` default is 0 for model.
+- `matscale([x],[y],[z],[matrix])` = scale by x,y,z.  Default scale is 1.  `matrix` default is 0 for model.
+- `matlookat(eyeX,eyeY,eyeZ,camX,camY,camZ,upX,upY,upZ,[matrix])` = transform view to position at camX,camY,camZ and look at eyeX,eyeY,eyeZ with the up vector upX,upY,upZ.  `matrix` default is ` for view.
+- `matortho(left,right,bottom,top,[near,far],[matrix])` = apply orthographic transform.  `matrix` default is 2 for projection.
+- `matfrustum(left,right,bottom,top,near,far,[matrix])` = apply frustum perspective transform.  `matrix` default is 2 for projection.
 
 ## sound:
 
@@ -809,7 +809,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- replace Blob:getSize() with just .size, since size shouldn't be changing.
 - some weird bug when pasting into sheet a pic with an image with transparency, seems to glitch/stall ...
 - some weird bug where when I switch to picking format/type by internalFormat using the gl.tex* ctor it gives me glErrors, when doing it manaully in the ctor args is working fine ...
-- when putting the mvMat on the GPU, I ruined my ability to draw lines i.e. get the 2D horz vector correctly ... meh.
 - change editor to use native-resolution.
 	- then the UI will need to be fixed since the layout is the mode-0 res.  
 		- maybe use [Lua-Gui](https://github.com/thenumbernine/lua-gui).  This will fix all the event handling and bubbling and such.
@@ -896,6 +895,5 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- then add light vars to RAM (that means max # of lights)
 		- should I support cubemap lights? or only directional? cubemap light is just 6 direcitonal anyways so no need I guess
 		- how many dynamic shadowmap-based lights do modern games have?
-		- (maybe I didn't need to separate projMat and mvMat after all ...)
 
 - double check SSAO hemisphere alignment to normal / make sure you're using the world coords or view coords or something.

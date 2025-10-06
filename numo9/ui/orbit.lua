@@ -23,7 +23,8 @@ function Orbit:init(app)
 	self.pos = self.angle:zAxis() * 1.5 + self.orbit
 
 	-- have to store as a memeber becuase it is used from beginDraw to endDraw
-	self.mvMatPush = ffi.new(matType..'[16]')
+	self.modelMatPush = ffi.new(matType..'[16]')
+	self.viewMatPush = ffi.new(matType..'[16]')
 	self.projMatPush = ffi.new(matType..'[16]')
 end
 
@@ -42,7 +43,8 @@ function Orbit:beginDraw()
 	gl.glEnable(gl.GL_DEPTH_TEST)
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
-	ffi.copy(self.mvMatPush, app.ram.mvMat, ffi.sizeof(self.mvMatPush))
+	ffi.copy(self.modelMatPush, app.ram.modelMat, ffi.sizeof(self.modelMatPush))
+	ffi.copy(self.viewMatPush, app.ram.viewMat, ffi.sizeof(self.viewMatPush))
 	ffi.copy(self.projMatPush, app.ram.projMat, ffi.sizeof(self.projMatPush))
 
 	local alt = app:key'lalt' or app:key'ralt'
@@ -86,8 +88,9 @@ function Orbit:beginDraw()
 	-- draw orientation widget
 	app:matident()
 	app:matident(1)
+	app:matident(2)
 	app:matortho(-(22 * ar - 2), 2, -20, 2)
-	app:matrot(-math.rad(th), x, y, z)	-- -th or +th?
+	app:matrot(-math.rad(th), x, y, z, 1)	-- -th or +th?
 	local thickness = math.max(1, app.width / 256)
 	app:drawSolidLine3D(0, 0, 0, 1, 0, 0, 0x19, thickness, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 1, 0, 0x1a, thickness, app.paletteMenuTex)
@@ -95,6 +98,7 @@ function Orbit:beginDraw()
 
 	app:matident()
 	app:matident(1)
+	app:matident(2)
 	if self.ortho then
 		local r = 1.2
 		local zn, zf = -1000, 1000
@@ -115,19 +119,21 @@ function Orbit:beginDraw()
 			zn, zf)
 	end
 
-	app:matrot(-math.rad(th),x,y,z)
-	app:mattrans(-self.pos.x, -self.pos.y, -self.pos.z)
-	app:matscale(self.scale, self.scale, self.scale)
+	app:matrot(-math.rad(th),x,y,z, 1)
+	app:mattrans(-self.pos.x, -self.pos.y, -self.pos.z, 1)
+	app:matscale(self.scale, self.scale, self.scale, 1)
 
 	return mouseHandled
 end
 
 function Orbit:endDraw()
 	local app = self.app
+	ffi.copy(app.ram.modelMat, self.modelMatPush, ffi.sizeof(self.modelMatPush))
+	app:onModelMatChange()
+	ffi.copy(app.ram.viewMat, self.viewMatPush, ffi.sizeof(self.viewMatPush))
+	app:onViewMatChange()
 	ffi.copy(app.ram.projMat, self.projMatPush, ffi.sizeof(self.projMatPush))
 	app:onProjMatChange()
-	ffi.copy(app.ram.mvMat, self.mvMatPush, ffi.sizeof(self.mvMatPush))
-	app:onMvMatChange()
 --self:guiSetClipRect(0, 0, clipMax, clipMax)
 	-- flush before disable depth test so the flush will use depth test...
 	app:triBuf_flush()

@@ -18,16 +18,15 @@ local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
 -- also in numo9/video.lua
--- but this doesn't have mvMatInvScale
--- and it doesn't return w, only x y z
+-- but it doesn't calc / return w, only x y z
 local function vec3to3(m, x, y, z)
 	x = tonumber(x)
 	y = tonumber(y)
 	z = tonumber(z)
 	return
-		(m[0] * x + m[4] * y + m[ 8] * z + m[12]),
-		(m[1] * x + m[5] * y + m[ 9] * z + m[13]),
-		(m[2] * x + m[6] * y + m[10] * z + m[14])
+		m[0] * x + m[4] * y + m[ 8] * z + m[12],
+		m[1] * x + m[5] * y + m[ 9] * z + m[13],
+		m[2] * x + m[6] * y + m[10] * z + m[14]
 end
 
 -- rotZ, rotY, rotX are from Voxel type, so they are from 1-2 bits in size, each representing Euler-angles 90-degree rotation

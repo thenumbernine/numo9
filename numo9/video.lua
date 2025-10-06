@@ -16,6 +16,7 @@ local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local GLTypes = require 'gl.types'
 
+local matrix_ffi = require 'matrix.ffi'
 require 'vec-ffi.vec4ub'
 require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned short'}	-- vec4us_t
 
@@ -34,17 +35,15 @@ local fontInBytes = numo9_rom.fontInBytes
 local framebufferAddr = numo9_rom.framebufferAddr
 local clipMax = numo9_rom.clipMax
 local menuFontWidth = numo9_rom.menuFontWidth
-local mvMatScale = numo9_rom.mvMatScale
 local matType = numo9_rom.matType
 
-local mvMatInvScale = 1 / mvMatScale
-assert.eq(matType, 'float', "TODO if this changes then update the projMat and mvMat uniforms")
+assert.eq(matType, 'float', "TODO if this changes then update the modelMat, viewMat, projMat uniforms")
 
 
 local vec2i = require 'vec-ffi.vec2i'
 local dirLightMapSize = vec2i(256, 256)
-local useDirectionalShadowmaps = true
-
+local useDirectionalShadowmaps = true	-- can't turn off or it'll break stuff so *shrug*
+local ident4x4 = matrix_ffi({4,4}, matType):eye()
 
 -- either seems to work fine
 local texelFunc = 'texture'
@@ -727,8 +726,10 @@ const float ssaoOffset = 18.0;
 const float ssaoSampleRadius = .05;
 const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
 
+// used for SSAO lighting, not used for projection
 uniform mat4 projMat;
 
+// used for directional lighting
 uniform mat4 lightMvProjMat;
 
 // these are the random vectors inside a unit hemisphere facing z+
@@ -777,7 +778,7 @@ void doLighting() {
 	fragColor.xyz *= lightValue;
 #endif
 
-#if 1	// fake shadowmap
+#if 0	// fake shadowmap
 	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
 	if (all(lessThanEqual(vec3(0., 0., -1000.), worldCoord.xyz))
 		&& all(lessThanEqual(worldCoord.xyz, vec3(1000., 1000., 1000.)))
@@ -1345,27 +1346,28 @@ flat out vec3 normalv;
 flat out uvec4 extra;
 flat out vec4 box;
 
-out vec3 viewCoordv;
+out vec3 clipCoordv;
 out vec3 worldCoordv;
 
-uniform mat4 projMat, mvMat;
+uniform mat4 modelMat, viewMat, projMat;
 
 void main() {
 	tcv = texcoord;
-	normalv = normalize((projMat * (mvMat * vec4(normal, 0.))).xyz);
+	normalv = normalize((projMat * (viewMat * (modelMat * vec4(normal, 0.)))).xyz);
 	extra = extraAttr;
 	box = boxAttr;
 
-	vec4 worldCoord = mvMat * vec4(vertex, 1.) * <?=glnumber(mvMatInvScale)?>;
+	vec4 worldCoord = modelMat * vec4(vertex, 1.);
 	worldCoordv.xyz = worldCoord.xyz;
 
-	gl_Position = projMat * worldCoord;
-	viewCoordv = gl_Position.xyz;
+	vec4 viewCoord = viewMat * worldCoord;
+
+	gl_Position = projMat * viewCoord;
+	// TODO is this technically "clipCoord"?  because clipping is to [-1,1]^3 volume, which is post-homogeneous transform.
+	//  so what's the name of the coordinate system post-projMat but pre-homogeneous-transform?  "projection/projected coordinates" ?
+	clipCoordv = gl_Position.xyz;
 }
-]],			{
-				glnumber = glnumber,
-				mvMatInvScale = mvMatInvScale,
-			}),
+]]),
 			fragmentCode = template([[
 precision highp sampler2D;
 precision highp isampler2D;
@@ -1377,11 +1379,11 @@ flat in vec3 normalv;
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 
-in vec3 viewCoordv;
+in vec3 clipCoordv;
 in vec3 worldCoordv;
 
 layout(location=0) out <?=fragType?> fragColor;
-layout(location=1) out vec4 fragNormal;	// normal xyz, viewCoord.z
+layout(location=1) out vec4 fragNormal;	// normal xyz, clipCoord.z
 layout(location=2) out vec3 fragPos;	// worldCoord.xyz
 
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
@@ -1795,7 +1797,7 @@ void main() {
 	// TODO just use the depth buffer as a texture instead of re-copying it here?
 	//  if I did I'd get more bits of precision ...
 	//  but this is easier/lazier.
-	fragNormal.w = viewCoordv.z;
+	fragNormal.w = clipCoordv.z;
 	//fragNormal.w = gl_FragDepth;
 }
 ]],			{
@@ -2264,14 +2266,16 @@ function AppVideo:triBuf_flush()
 
 		gl.glViewport(0, 0, self.lightmapFB.width, self.lightmapFB.height)
 
+		program:setUniform('modelMat', ident4x4.ptr)
+		program:setUniform('viewMat', self.lightView.mvMat.ptr)
 		program:setUniform('projMat', self.lightView.projMat.ptr)
-		program:setUniform('mvMat', self.lightView.mvMat.ptr)
 		gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
 
 		sceneObj.geometry:draw()
 
+		program:setUniform('modelMat', self.ram.modelMat)
+		program:setUniform('viewMat', self.ram.viewMat)
 		program:setUniform('projMat', self.ram.projMat)
-		program:setUniform('mvMat', self.ram.mvMat)
 		gl.glUniform4f(program.uniforms.clipRect.loc, self:getClipRect())
 
 		gl.glViewport(0, 0, self.fb.width, self.fb.height)
@@ -2311,16 +2315,21 @@ function AppVideo:triBuf_prepAddTri(
 
 	-- upload uniforms to GPU before adding new tris ...
 	local program = self.triBuf_sceneObj.program
-	if self.mvMatDirty
+	if self.modelMatDirty
+	or self.viewMatDirty
 	or self.projMatDirty
 	or self.clipRectDirty
 	or self.blendColorDirty
 	or self.frameBufferSizeUniformDirty
 	then
 		program:use()
-		if self.mvMatDirty then
-			program:setUniform('mvMat', self.ram.mvMat)
-			self.mvMatDirty = false
+		if self.modelMatDirty then
+			program:setUniform('modelMat', self.ram.modelMat)
+			self.modelMatDirty = false
+		end
+		if self.viewMatDirty then
+			program:setUniform('viewMat', self.ram.viewMat)
+			self.viewMatDirty = false
 		end
 		if self.projMatDirty then
 			program:setUniform('projMat', self.ram.projMat)
@@ -2419,13 +2428,18 @@ function AppVideo:triBuf_addTri(
 	v.box.x, v.box.y, v.box.z, v.box.w = boxX, boxY, boxW, boxH
 end
 
-function AppVideo:onMvMatChange()
-	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current mvMat
-	self.mvMatDirty = true
+function AppVideo:onModelMatChange()
+	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current modelMat
+	self.modelMatDirty = true
+end
+
+function AppVideo:onViewMatChange()
+	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current viewMat
+	self.viewMatDirty = true
 end
 
 function AppVideo:onProjMatChange()
-	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current mvMat
+	self:triBuf_flush()	-- make sure the current tri buf is drawn with the current projMat
 	self.projMatDirty = true
 end
 
@@ -2598,8 +2612,11 @@ assert(self.videoModes[255])
 	-- 4 uint8 bytes: x, y, w, h ... width and height are inclusive so i can do 0 0 ff ff and get the whole screen
 	self:setClipRect(0, 0, clipMax, clipMax)
 
-	-- hmm, this matident isn't working ,but if you put one in your init code then it does work ... why ...
 	self:matident()
+	self:matident(1)
+	self:matident(2)
+	-- default ortho
+	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, -1000, 1000)
 
 	self.ram.blendMode = 0xff	-- = none
 	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
@@ -2690,7 +2707,8 @@ function AppVideo:setVideoMode(modeIndex)
 	self.ram.screenWidth = modeObj.width
 	self.ram.screenHeight = modeObj.height
 
-	self.mvMat:setIdent()
+	self.modelMat:setIdent()
+	self.viewMat:setIdent()
 	-- for setting video mode should I initialize the projection matrix to its default ortho screen every time?
 	-- sure.
 	self.projMat:setOrtho(
@@ -2700,7 +2718,8 @@ function AppVideo:setVideoMode(modeIndex)
 	) -- and we will set onProjMatChange next...
 
 	self.triBuf_sceneObj = self.drawObj
-	self:onMvMatChange()	-- the drawObj changed so make sure it refreshes its mvMat
+	self:onModelMatChange()	-- the drawObj changed so make sure it refreshes its modelMat
+	self:onViewMatChange()
 	self:onProjMatChange()
 	self:onClipRectChange()
 	self:onBlendColorChange()
@@ -2924,17 +2943,16 @@ function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
 	return self:drawSolidTri3D(x1, y1, 0, x2, y2, 0, x3, y3, 0, colorIndex)
 end
 
-local function mat4x4mul(m, x, y, z, w, scale)
+local function mat4x4mul(m, x, y, z, w)
 	x = tonumber(x)
 	y = tonumber(y)
 	z = tonumber(z) or 0
 	w = tonumber(w) or 1
-	scale = tonumber(scale) or 1	-- put mvMatInvScale here
 	return
-		(m[0] * x + m[4] * y + m[ 8] * z + m[12] * w) * scale,
-		(m[1] * x + m[5] * y + m[ 9] * z + m[13] * w) * scale,
-		(m[2] * x + m[6] * y + m[10] * z + m[14] * w) * scale,
-		(m[3] * x + m[7] * y + m[11] * z + m[15] * w) * scale
+		m[0] * x + m[4] * y + m[ 8] * z + m[12] * w,
+		m[1] * x + m[5] * y + m[ 9] * z + m[13] * w,
+		m[2] * x + m[6] * y + m[10] * z + m[14] * w,
+		m[3] * x + m[7] * y + m[11] * z + m[15] * w
 end
 
 -- this function is only used with drawing lines at the moment...
@@ -2948,10 +2966,12 @@ local function homogeneous(x,y,z,w)
 end
 
 -- transform from world coords to screen coords (including projection, including homogeneous transform, including screen-space coordinates)
-function AppVideo:transform(x,y,z,w, projMat, mvMat)
+function AppVideo:transform(x,y,z,w, projMat, modelMat, viewMat)
+	modelMat = modelMat or self.ram.modelMat
+	viewMat = viewMat or self.ram.viewMat
 	projMat = projMat or self.ram.projMat
-	mvMat = mvMat or self.ram.mvMat
-	x,y,z,w = mat4x4mul(mvMat, x,y,z,w, mvMatInvScale)
+	x,y,z,w = mat4x4mul(modelMat, x,y,z,w)
+	x,y,z,w = mat4x4mul(viewMat, x,y,z,w)
 	x,y,z,w = mat4x4mul(projMat, x,y,z,w)
 	x,y,z,w = homogeneous(x,y,z,w)
 	-- normalized coords to screen-space coords (and y-flip?)
@@ -2961,8 +2981,8 @@ function AppVideo:transform(x,y,z,w, projMat, mvMat)
 end
 
 -- inverse-transform from framebuffer/screen coords to menu coords
-local matrix_ffi = require 'matrix.ffi'
-local mvInv = matrix_ffi({4,4}, matType):zeros()
+local modelInv = matrix_ffi({4,4}, matType):zeros()
+local viewInv = matrix_ffi({4,4}, matType):zeros()
 local projInv = matrix_ffi({4,4}, matType):zeros()
 function AppVideo:invTransform(x,y,z)
 	x = tonumber(x)
@@ -2975,14 +2995,17 @@ function AppVideo:invTransform(x,y,z)
 	-- normalized-device coords to homogeneous inv transform? or nah?
 	-- TODO transform accepts 'm' mvType[16] override, but this operates on 4x4 matrix.ffi types...
 	-- TODO make this operation in-place
-	mvInv:copy(self.mvMat):applyInv4x4()
+	modelInv:copy(self.modelMat):applyInv4x4()
+	viewInv:copy(self.viewMat):applyInv4x4()
 	projInv:copy(self.projMat):applyInv4x4()
 	x,y,z,w = mat4x4mul(projInv.ptr, x, y, z, w)
-	x,y,z,w = mat4x4mul(mvInv.ptr, x,y,z,w, mvMatScale)
+	x,y,z,w = mat4x4mul(viewInv.ptr, x,y,z,w)
+	x,y,z,w = mat4x4mul(modelInv.ptr, x,y,z,w)
 	return x,y,z,w
 end
 
-local mvMatPush = ffi.new(matType..'[16]')
+local modelMatPush = ffi.new(matType..'[16]')
+local viewMatPush = ffi.new(matType..'[16]')
 local projMatPush = ffi.new(matType..'[16]')
 
 function AppVideo:drawSolidLine3D(
@@ -3041,11 +3064,13 @@ function AppVideo:drawSolidLine3D(
 
 	-- ok how to perturb input vertex going through a frustum projection such that the output is only +1 in the x or y direction?
 	-- meh, forget it, just do the transform on CPU and use an identity matrix
-	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
 	self:matident()
-	ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
+	ffi.copy(viewMatPush, self.ram.viewMat, ffi.sizeof(viewMatPush))
 	self:matident(1)
-	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, 1, -1)
+	ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
+	self:matident(2)
+	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, 1, -1)	-- 1, -1 maps to ident depth range
 
 	local normalX, normalY, normalZ = calcNormalForTri(
 		xLL, yLL, zLL,
@@ -3080,8 +3105,10 @@ function AppVideo:drawSolidLine3D(
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 
-	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-	self:onMvMatChange()
+	ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
+	self:onModelMatChange()
+	ffi.copy(self.ram.viewMat, viewMatPush, ffi.sizeof(viewMatPush))
+	self:onViewMatChange()
 	ffi.copy(self.ram.projMat, projMatPush, ffi.sizeof(projMatPush))
 	self:onProjMatChange()
 end
@@ -3809,21 +3836,26 @@ end
 
 function AppVideo:matident(matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
-	local matPtr = matrixIndex == 0 and self.ram.mvMat or self.ram.projMat
-	local scale = matrixIndex == 0 and mvMatScale or 1
-	-- set-ident and scale ...
-	matPtr[0],  matPtr[1],  matPtr[2],  matPtr[3]  = scale, 0, 0, 0
-	matPtr[4],  matPtr[5],  matPtr[6],  matPtr[7]  = 0, scale, 0, 0
-	matPtr[8],  matPtr[9],  matPtr[10], matPtr[11] = 0, 0, scale, 0
-	matPtr[12], matPtr[13], matPtr[14], matPtr[15] = 0, 0, 0, scale
-	self:onMvMatChange()
+	if matrixIndex == 0 then
+		self.modelMat:setIdent()
+		self:onModelMatChange()
+	elseif matrixIndex == 1 then
+		self.viewMat:setIdent()
+		self:onViewMatChange()
+	else
+		self.projMat:setIdent()
+		self:onProjMatChange()
+	end
 end
 
 function AppVideo:mattrans(x, y, z, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.mvMat:applyTranslate(x, y, z)
-		self:onMvMatChange()
+		self.modelMat:applyTranslate(x, y, z)
+		self:onModelMatChange()
+	elseif matrixIndex == 1 then
+		self.viewMat:applyTranslate(x, y, z)
+		self:onViewMatChange()
 	else
 		self.projMat:applyTranslate(x, y, z)
 		self:onProjMatChange()
@@ -3833,8 +3865,11 @@ end
 function AppVideo:matrot(theta, x, y, z, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.mvMat:applyRotate(theta, x, y, z)
-		self:onMvMatChange()
+		self.modelMat:applyRotate(theta, x, y, z)
+		self:onModelMatChange()
+	elseif matrixIndex == 1 then
+		self.viewMat:applyRotate(theta, x, y, z)
+		self:onViewMatChange()
 	else
 		self.projMat:applyRotate(theta, x, y, z)
 		self:onProjMatChange()
@@ -3844,8 +3879,11 @@ end
 function AppVideo:matrotcs(c, s, x, y, z, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.mvMat:applyRotateCosSinUnit(c, s, x, y, z)
-		self:onMvMatChange()
+		self.modelMat:applyRotateCosSinUnit(c, s, x, y, z)
+		self:onModelMatChange()
+	elseif matrixIndex == 1 then
+		self.viewMat:applyRotateCosSinUnit(c, s, x, y, z)
+		self:onViewMatChange()
 	else
 		self.projMat:applyRotateCosSinUnit(c, s, x, y, z)
 		self:onProjMatChange()
@@ -3855,8 +3893,11 @@ end
 function AppVideo:matscale(x, y, z, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.mvMat:applyScale(x, y, z)
-		self:onMvMatChange()
+		self.modelMat:applyScale(x, y, z)
+		self:onModelMatChange()
+	elseif matrixIndex == 1 then
+		self.viewMat:applyScale(x, y, z)
+		self:onViewMatChange()
 	else
 		self.projMat:applyScale(x, y, z)
 		self:onProjMatChange()
@@ -3864,10 +3905,13 @@ function AppVideo:matscale(x, y, z, matrixIndex)
 end
 
 function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz, matrixIndex)
-	matrixIndex = tonumber(matrixIndex) or 0
+	matrixIndex = tonumber(matrixIndex) or 1
 	if matrixIndex == 0 then
-		self.mvMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
-		self:onMvMatChange()
+		self.modelMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+		self:onModelMatChange()
+	elseif matrixIndex == 1 then
+		self.viewMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+		self:onViewMatChange()
 	else
 		self.projMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 		self:onProjMatChange()
@@ -3875,10 +3919,13 @@ function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz, matrixIndex)
 end
 
 function AppVideo:matortho(l, r, t, b, n, f, matrixIndex)
-	matrixIndex = tonumber(matrixIndex) or 1	-- default projection
+	matrixIndex = tonumber(matrixIndex) or 2	-- default projection
 	if matrixIndex == 0 then
-		self.mvMat:applyOrtho(l, r, t, b, n, f)
-		self:onMvMatChange()
+		self.modelMat:applyOrtho(l, r, t, b, n, f)
+		self:onModelMatChange()
+	elseif matrixIndex == 1 then
+		self.viewMat:applyOrtho(l, r, t, b, n, f)
+		self:onViewMatChange()
 	else
 		self.projMat:applyOrtho(l, r, t, b, n, f)
 		self:onProjMatChange()
@@ -3886,10 +3933,13 @@ function AppVideo:matortho(l, r, t, b, n, f, matrixIndex)
 end
 
 function AppVideo:matfrustum(l, r, b, t, n, f, matrixIndex)
-	matrixIndex = tonumber(matrixIndex) or 1	-- default projection
+	matrixIndex = tonumber(matrixIndex) or 2	-- default projection
 	if matrixIndex == 0 then
-		self.mvMat:applyFrustum(l, r, b, t, n, f)
-		self:onMvMatChange()
+		self.modelMat:applyFrustum(l, r, b, t, n, f)
+		self:onModelMatChange()
+	elseif matrixIndex == 1 then
+		self.viewMat:applyFrustum(l, r, b, t, n, f)
+		self:onViewMatChange()
 	else
 		self.projMat:applyFrustum(l, r, b, t, n, f)
 		self:onProjMatChange()
@@ -3993,7 +4043,7 @@ local function orientationCombine(a, b)
 end
 
 
-local mvMatPush = ffi.new(matType..'[16]')
+local modelMatPush = ffi.new(matType..'[16]')
 -- this is a sprite-based preview of tilemap rendering
 -- it's made to simulate blitting the brush onto the tilemap (without me writing the tiles to a GPU texture and using the shader pathway)
 function AppVideo:drawBrush(
@@ -4028,7 +4078,7 @@ function AppVideo:drawBrush(
 		return
 	end
 
-	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
 
 	local stampTileX, stampTileY = 0, 0	-- TODO how to show select brushes? as alays in UL, or as their location in the pick screen? meh?
 	-- or TODO stampScreenX = stampTileX * tileSizeInPixels
@@ -4076,8 +4126,8 @@ function AppVideo:drawBrush(
 			-- it's in the tilemap pathway already ...
 			-- either way, this is just a preview for the tilemap pathway
 			-- since brushes don't render themselves, but just blit to the tilemap
-			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-			--self:onMvMatChange() ... but it gets set in mattrans also ...
+			ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
+			--self:onModelMatChange() ... but it gets set in mattrans also ...
 			self:mattrans(
 				screenX + tileSizeInPixels / 2,
 				screenY + tileSizeInPixels / 2
@@ -4102,8 +4152,8 @@ function AppVideo:drawBrush(
 		end
 	end
 
-	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-	self:onMvMatChange()
+	ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
+	self:onModelMatChange()
 end
 
 -- these are net friendly since they are called from the game API
@@ -4313,12 +4363,12 @@ function AppVideo:drawMesh3D(
 end
 
 -- this just draws one single voxel.
-local mvMatPush = ffi.new(matType..'[16]')
+local modelMatPush = ffi.new(matType..'[16]')
 local vox = ffi.new'Voxel'	-- better ffi.cast/ffi.new inside here or store outside?
 function AppVideo:drawVoxel(voxelValue, ...)
 	vox.intval = voxelValue or 0
 
-	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
 	self:mattrans(.5, .5, .5)
 	self:matscale(1/32768, 1/32768, 1/32768)
 
@@ -4330,48 +4380,47 @@ function AppVideo:drawVoxel(voxelValue, ...)
 	if vox.orientation == 20 then
 		-- special-case, xyz-aligned, anchored to voxel center
 		-- so now we undo the rotation, i.e. use the rotation transpose
-		-- multiply our current mvMat with its upper 3x3 transposed and normalized:
-		local a = self.mvMat
-		local a0, a1, a2,  a3  = a.ptr[0], a.ptr[1], a.ptr[ 2], a.ptr[ 3]
-		local a4, a5, a6,  a7  = a.ptr[4], a.ptr[5], a.ptr[ 6], a.ptr[ 7]
-		local a8, a9, a10, a11 = a.ptr[8], a.ptr[9], a.ptr[10], a.ptr[11]
+		-- multiply our current modelMat with the viewMat's upper 3x3 transposed and normalized:
+		local v = self.viewMat
+		local v0, v1, v2,  v3  = v.ptr[0], v.ptr[1], v.ptr[ 2], v.ptr[ 3]
+		local v4, v5, v6,  v7  = v.ptr[4], v.ptr[5], v.ptr[ 6], v.ptr[ 7]
+		local v8, v9, v10, v11 = v.ptr[8], v.ptr[9], v.ptr[10], v.ptr[11]
 
 		-- normalize cols
-		local lx = math.sqrt(a0 * a0 + a4 * a4 + a8  * a8 )
-		local ly = math.sqrt(a1 * a1 + a5 * a5 + a9  * a9 )
-		local lz = math.sqrt(a2 * a2 + a6 * a6 + a10 * a10)
+		local ilvx = 1 / math.sqrt(v0 * v0 + v4 * v4 + v8  * v8 )
+		local ilvy = 1 / math.sqrt(v1 * v1 + v5 * v5 + v9  * v9 )
+		local ilvz = 1 / math.sqrt(v2 * v2 + v6 * v6 + v10 * v10)
 
-		-- set diagonal:
-		a.ptr[0], a.ptr[5], a.ptr[10] = lx, ly, lz
+		-- multiply
+		local m = self.modelMat
+		local m0, m1, m2,  m3  = m.ptr[0], m.ptr[1], m.ptr[ 2], m.ptr[ 3]
+		local m4, m5, m6,  m7  = m.ptr[4], m.ptr[5], m.ptr[ 6], m.ptr[ 7]
+		local m8, m9, m10, m11 = m.ptr[8], m.ptr[9], m.ptr[10], m.ptr[11]
 
-		-- set skew:
-		--[[ assuming skew is orthogonal already (and if I'm applying a frustum transform to the matrix, then it is not ...)
-		a.ptr[1], a.ptr[2], a.ptr[4], a.ptr[6], a.ptr[8], a.ptr[9] = 0, 0, 0, 0, 0, 0
-		--]]
-		-- [[ for non-orthogonal skew (but still based on the fact we are assuming the upper-left 3x3 is skew-symmetric, which, with a frustum transform, it is not...)
-		local sx = 1/lx
-		local sy = 1/ly
-		local sz = 1/lz
-		local s01 = a0 * a1 + a4 * a5 + a8 * a9
-		a.ptr[1] = sx * s01
-		a.ptr[4] = sy * s01
-		local s02 = a0 * a2 + a4 * a6 + a8 * a10
-		a.ptr[2] = sx * s02
-		a.ptr[8] = sz * s02
-		local s12 = a1 * a2 + a5 * a6 + a9  * a10
-		a.ptr[6] = sy * s12
-		a.ptr[9] = sz * s12
-		--]]
+		-- x axis
+		m.ptr[0] = (v0 * m0 + v4 * m4 + v8  * m8) * ilvx
+		m.ptr[4] = (v1 * m0 + v5 * m4 + v9  * m8) * ilvy
+		m.ptr[8] = (v2 * m0 + v6 * m4 + v10 * m8) * ilvz
+
+		-- y axis
+		m.ptr[1] = (v0 * m1 + v4 * m5 + v8  * m9) * ilvx
+		m.ptr[5] = (v1 * m1 + v5 * m5 + v9  * m9) * ilvy
+		m.ptr[9] = (v2 * m1 + v6 * m5 + v10 * m9) * ilvz
+
+		-- z axis
+		m.ptr[ 2] = (v0 * m2 + v4 * m6 + v8  * m10) * ilvx
+		m.ptr[ 6] = (v1 * m2 + v5 * m6 + v9  * m10) * ilvy
+		m.ptr[10] = (v2 * m2 + v6 * m6 + v10 * m10) * ilvz
 
 		-- set translation:
-		a.ptr[ 3] = (a0 * a3 + a4 * a7 + a8  * a11) / lx
-		a.ptr[ 7] = (a1 * a3 + a5 * a7 + a9  * a11) / ly
-		a.ptr[11] = (a2 * a3 + a6 * a7 + a10 * a11) / lz
+		m.ptr[ 3] = (v0 * m3 + v4 * m7 + v8  * m11) * ilvx
+		m.ptr[ 7] = (v1 * m3 + v5 * m7 + v9  * m11) * ilvy
+		m.ptr[11] = (v2 * m3 + v6 * m7 + v10 * m11) * ilvz
 
 	elseif vox.orientation == 21 then
 		-- TODO special case, xy-aligned, z axis still maintained, anchored to voxel center
-		local a = self.mvMat
-		local x, y = a.ptr[6], a.ptr[2]
+		local v = self.viewMat
+		local x, y = v.ptr[6], v.ptr[2]
 		local l = 1/math.sqrt(x^2 + y^2)
 
 		self:matrotcs(0, -1, -1, 0, 0)
@@ -4417,11 +4466,11 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		...
 	)
 
-	ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-	self:onMvMatChange()
+	ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
+	self:onModelMatChange()
 end
 
-local mvMatPush = ffi.new(matType..'[16]')
+local modelMatPush = ffi.new(matType..'[16]')
 function AppVideo:drawVoxelMap(
 	voxelmapIndex,
 	sheetIndex
@@ -4493,22 +4542,22 @@ function AppVideo:drawVoxelMap(
 
 	-- for now just pass the billboard voxels on to drawVoxel
 	-- TODO optimize maybe? idk?
-	ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+	ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
 	local vptr = voxelmap:getVoxelDataRAMPtr()
 	local width, height, depth = voxelmap:getWidth(), voxelmap:getHeight(), voxelmap:getDepth()
 	for j=0,#voxelmap.billboardXYZVoxels-1 do
 		local i = voxelmap.billboardXYZVoxels.v[j]
 		self:mattrans(i.x, i.y, i.z)
 		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, sheetIndex)
-		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-		self:onMvMatChange()
+		ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
+		self:onModelMatChange()
 	end
 	for j=0,#voxelmap.billboardXYVoxels-1 do
 		local i = voxelmap.billboardXYVoxels.v[j]
 		self:mattrans(i.x, i.y, i.z)
 		self:drawVoxel(vptr[i.x + width * (i.y + height * i.z)].intval, sheetIndex)
-		ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-		self:onMvMatChange()
+		ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
+		self:onModelMatChange()
 	end
 end
 

@@ -61,8 +61,10 @@ local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local matType = numo9_rom.matType
-local mvMatAddr = numo9_rom.mvMatAddr
-local mvMatAddrEnd = numo9_rom.mvMatAddrEnd
+local modelMatAddr = numo9_rom.modelMatAddr
+local modelMatAddrEnd = numo9_rom.modelMatAddrEnd
+local viewMatAddr = numo9_rom.viewMatAddr
+local viewMatAddrEnd = numo9_rom.viewMatAddrEnd
 local projMatAddr = numo9_rom.projMatAddr
 local projMatAddrEnd = numo9_rom.projMatAddrEnd
 local clipRectAddr = numo9_rom.clipRectAddr
@@ -233,7 +235,8 @@ function App:initGL()
 	--]]
 
 	-- do this before initBlobs -> buildRAMFromBlobs
-	self.mvMat = matrix_ffi({4,4}, matType):zeros()
+	self.modelMat = matrix_ffi({4,4}, matType):zeros()
+	self.viewMat = matrix_ffi({4,4}, matType):zeros()
 	self.projMat = matrix_ffi({4,4}, matType):zeros()
 
 	self.menuUseLighting = false
@@ -789,7 +792,7 @@ function App:initGL()
 			self:matscale(x, y, z, matrixIndex)
 		end,
 		matlookat = function(ex, ey, ez, cx, cy, cz, upx, upy, upz, matrixIndex)
-			matrixIndex = tonumber(matrixIndex) or 0
+			matrixIndex = tonumber(matrixIndex) or 1
 			if self.server then
 				local cmd = self.server:pushCmd().matlookat
 				cmd.type = netcmds.matlookat
@@ -801,7 +804,7 @@ function App:initGL()
 		matortho = function(l, r, t, b, n, f, matrixIndex)
 			n = n or -1000
 			f = f or 1000
-			matrixIndex = tonumber(matrixIndex) or 1
+			matrixIndex = tonumber(matrixIndex) or 2
 			if self.server then
 				local cmd = self.server:pushCmd().matortho
 				cmd.type = netcmds.matortho
@@ -811,7 +814,7 @@ function App:initGL()
 			self:matortho(l, r, t, b, n, f, matrixIndex)
 		end,
 		matfrustum = function(l, r, b, t, n, f, matrixIndex)
-			matrixIndex = tonumber(matrixIndex) or 1
+			matrixIndex = tonumber(matrixIndex) or 2
 			if self.server then
 				local cmd = self.server:pushCmd().matfrustum
 				cmd.type = netcmds.matfrustum
@@ -1104,8 +1107,14 @@ print('package.loaded', package.loaded)
 	local CartBrowser = require 'numo9.cartbrowser'
 
 	-- reset mat and clip
+	-- TODO is this necessary?
 	self:matident()
+	self:matident(1)
+	self:matident(2)
+	-- default ortho
+	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, -1000, 1000)
 	self:setClipRect(0, 0, clipMax, clipMax)
+
 
 	self.editCode = EditCode{app=self}
 	self.editSheet = EditSheet{app=self}
@@ -1655,7 +1664,8 @@ end
 
 -------------------- MAIN UPDATE CALLBACK --------------------
 
-local mvMatPush = ffi.new(matType..'[16]')
+local modelMatPush = ffi.new(matType..'[16]')
+local viewMatPush = ffi.new(matType..'[16]')
 local projMatPush = ffi.new(matType..'[16]')
 function App:update()
 	if not self.hasFocus then
@@ -1964,7 +1974,8 @@ print('run thread dead')
 			self.ram.dither = 0
 
 			-- push matrix
-			ffi.copy(mvMatPush, self.ram.mvMat, ffi.sizeof(mvMatPush))
+			ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
+			ffi.copy(viewMatPush, self.ram.viewMat, ffi.sizeof(viewMatPush))
 			ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
 
 			-- push clip rect
@@ -1985,6 +1996,7 @@ print('run thread dead')
 
 			self:matident()
 			self:matident(1)
+			self:matident(2)
 			self:setClipRect(0, 0, clipMax, clipMax)
 
 			-- while we're here, start us off with the current framebufferRAM contents
@@ -1995,7 +2007,9 @@ print('run thread dead')
 			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
 			view.mvMat:setIdent()
 			view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+
 			local sceneObj = self.blitScreenObj
+-- TODO blitScreenObj just needs mvMat and projMat, not mvProjMat and projMat
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 			sceneObj.uniforms.projMat = projMatPush
@@ -2040,8 +2054,10 @@ print('run thread dead')
 			self:setClipRect(pushClipX, pushClipY, pushClipW, pushClipH)
 
 			-- pop the matrix
-			ffi.copy(self.ram.mvMat, mvMatPush, ffi.sizeof(mvMatPush))
-			self:onMvMatChange()
+			ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
+			self:onModelMatChange()
+			ffi.copy(self.ram.viewMat, viewMatPush, ffi.sizeof(viewMatPush))
+			self:onViewMatChange()
 			ffi.copy(self.ram.projMat, projMatPush, ffi.sizeof(projMatPush))
 			self:onProjMatChange()
 
@@ -2161,6 +2177,7 @@ print('run thread dead')
 		local fbTex = self.activeMenu and self.videoModes[255].framebufferRAM.tex or self.framebufferRAM.tex
 		--local fbTex = self.framebufferRAM.tex
 
+-- TODO this but with math.min would look at lot cleaner
 		local wx, wy = self.width, self.height
 		local fx = wx / fbTex.width
 		local fy = wy / fbTex.height
@@ -2246,6 +2263,7 @@ end
 function App:matMenuReset()
 	self:matident(0)
 	self:matident(1)
+	self:matident(2)
 	self:matortho(
 		0, self.ram.screenWidth,
 		self.ram.screenHeight, 0)
@@ -2334,9 +2352,12 @@ function App:poke(addr, value)
 
 	self.ram.v[addr] = value
 
-	-- write out tris using the mvMat before it changes
-	if addr >= mvMatAddr and addr < mvMatAddrEnd then
-		self:onMvMatChange()
+	-- write out tris using the modelMat,viewMat,projMat before they change
+	if addr >= modelMatAddr and addr < modelMatAddrEnd then
+		self:onModelMatChange()
+	end
+	if addr >= viewMatAddr and addr < viewMatAddrEnd then
+		self:onViewMatChange()
 	end
 	if addr >= projMatAddr and addr < projMatAddrEnd then
 		self:onProjMatChange()
@@ -2418,9 +2439,12 @@ function App:pokew(addr, value)
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = value
 
-	-- write out tris using the mvMat before it changes
-	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
-		self:onMvMatChange()
+	-- write out tris using the modelMat,viewMat,projMat before they change
+	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
+		self:onModelMatChange()
+	end
+	if addrend >= viewMatAddr and addr < viewMatAddrEnd then
+		self:onViewMatChange()
 	end
 	if addrend >= projMatAddr and addr < projMatAddrEnd then
 		self:onProjMatChange()
@@ -2487,9 +2511,12 @@ function App:pokel(addr, value)
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = value
 
-	-- write out tris using the mvMat before it changes
-	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
-		self:onMvMatChange()
+	-- write out tris using the modelMat,viewMat,projMat before they change
+	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
+		self:onModelMatChange()
+	end
+	if addrend >= viewMatAddr and addr < viewMatAddrEnd then
+		self:onViewMatChange()
 	end
 	if addrend >= projMatAddr and addr < projMatAddrEnd then
 		self:onProjMatChange()
@@ -2556,9 +2583,12 @@ function App:pokef(addr, value)
 
 	ffi.cast('float*', self.ram.v + addr)[0] = value
 
-	-- write out tris using the mvMat before it changes
-	if addrend >= mvMatAddr and addr < mvMatAddrEnd then
-		self:onMvMatChange()
+	-- write out tris using the modelMat,viewMat,projMat before they change
+	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
+		self:onModelMatChange()
+	end
+	if addrend >= viewMatAddr and addr < viewMatAddrEnd then
+		self:onViewMatChange()
 	end
 	if addrend >= projMatAddr and addr < projMatAddrEnd then
 		self:onProjMatChange()
@@ -2669,9 +2699,12 @@ function App:memcpy(dst, src, len)
 		end
 	end
 
-	-- write out tris using the mvMat before it changes
-	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
-		self:onMvMatChange()
+	-- write out tris using the modelMat,viewMat,projMat before they change
+	if dstend >= modelMatAddr and dst < modelMatAddrEnd then
+		self:onModelMatChange()
+	end
+	if dstend >= viewMatAddr and dst < viewMatAddrEnd then
+		self:onViewMatChange()
 	end
 	if dstend >= projMatAddr and dst < projMatAddrEnd then
 		self:onProjMatChange()
@@ -2750,9 +2783,12 @@ function App:memset(dst, val, len)
 
 	ffi.fill(self.ram.v + dst, len, val)
 
-	-- write out tris using the mvMat before it changes
-	if dstend >= mvMatAddr and dst < mvMatAddrEnd then
-		self:onMvMatChange()
+	-- write out tris using the modelMat,viewMat,projMat before they change
+	if dstend >= modelMatAddr and dst < modelMatAddrEnd then
+		self:onModelMatChange()
+	end
+	if dstend >= viewMatAddr and dst < viewMatAddrEnd then
+		self:onViewMatChange()
 	end
 	if dstend >= projMatAddr and dst < projMatAddrEnd then
 		self:onProjMatChange()
@@ -2975,6 +3011,10 @@ function App:openCart(filename)
 	end
 
 	self:matident()
+	self:matident(1)
+	self:matident(2)
+	-- default ortho
+	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, -1000, 1000)
 	self:resetCart()
 
 	return true
