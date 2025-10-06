@@ -1999,6 +1999,7 @@ print('run thread dead')
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 			sceneObj.uniforms.projMat = projMatPush
+			sceneObj.uniforms.lightMvProjMat = self.lightView.mvProjMat.ptr
 			sceneObj:draw()
 			--]]
 
@@ -2203,6 +2204,7 @@ print('run thread dead')
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 		end
 		sceneObj.uniforms.projMat = self.ram.projMat
+		sceneObj.uniforms.lightMvProjMat = self.lightView.mvProjMat.ptr
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex

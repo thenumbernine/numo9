@@ -897,3 +897,5 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- should I support cubemap lights? or only directional? cubemap light is just 6 direcitonal anyways so no need I guess
 		- how many dynamic shadowmap-based lights do modern games have?
 		- (maybe I didn't need to separate projMat and mvMat after all ...)
+
+- double check SSAO hemisphere alignment to normal / make sure you're using the world coords or view coords or something.

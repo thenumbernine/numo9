@@ -40,6 +40,12 @@ local matType = numo9_rom.matType
 local mvMatInvScale = 1 / mvMatScale
 assert.eq(matType, 'float', "TODO if this changes then update the projMat and mvMat uniforms")
 
+
+local vec2i = require 'vec-ffi.vec2i'
+local dirLightMapSize = vec2i(256, 256)
+local useDirectionalShadowmaps = true
+
+
 -- either seems to work fine
 local texelFunc = 'texture'
 --local texelFunc = 'texelFetch'
@@ -723,6 +729,8 @@ const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded
 
 uniform mat4 projMat;
 
+uniform mat4 lightMvProjMat;
+
 // these are the random vectors inside a unit hemisphere facing z+
 #define ssaoNumSamples 16
 const vec3[ssaoNumSamples] ssaoRandomVectors = {
@@ -767,6 +775,41 @@ void doLighting() {
 		)
 	);
 	fragColor.xyz *= lightValue;
+#endif
+
+#if 1	// fake shadowmap
+	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
+	if (all(lessThanEqual(vec3(0., 0., -1000.), worldCoord.xyz))
+		&& all(lessThanEqual(worldCoord.xyz, vec3(1000., 1000., 1000.)))
+	) {
+		// in light
+		fragColor.xyz *= 1.2;
+	} else {
+		// in shadow
+		fragColor.xyz *= .3;	//dir light ambient
+	}
+#endif
+#if 0	// shadow map
+	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
+	vec4 lightViewCoord = lightMvProjMat * worldCoord;
+	vec3 lightNDCCoord = lightViewCoord.xyz / lightViewCoord.w;
+	if (all(lessThanEqual(vec3(-1., -1., -1.), lightNDCCoord)) 
+		&& all(lessThanEqual(lightNDCCoord, vec3(1., 1., 1.)))
+	) {
+		// in bounds
+		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).r
+			* 2. - 1.;	// convert from [0,1] to depthrange
+		if (lightBufferDepth < lightNDCCoord.z) {
+			// in light
+			fragColor.xyz *= 1.2;
+		} else {
+			// in shadow
+			fragColor.xyz *= .3;	//dir light ambient
+		}
+	} else {
+		// in shadow
+		fragColor.xyz *= .3;	//dir light ambient
+	}
 #endif
 
 #if 1	// working on SSAO ...
@@ -906,7 +949,8 @@ uniform bool useLighting;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
+uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;	// for SSAO
+uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 ]]..useLightingCode..[[
 
@@ -949,6 +993,7 @@ void main() {
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				noiseTex = 3,
+				lightDepthTex = 4,
 			},
 		},
 		texs = {
@@ -956,6 +1001,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.noiseTex,
+			app.lightDepthTex,
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -1022,6 +1068,7 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
+uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
@@ -1055,7 +1102,8 @@ void main() {
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				noiseTex = 3,
-				paletteTex = 4,
+				lightDepthTex = 4,
+				paletteTex = 5,
 			},
 		},
 		texs = {
@@ -1063,6 +1111,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.noiseTex,
+			app.lightDepthTex,
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
 		geometry = app.quadGeom,
@@ -1145,6 +1194,7 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
+uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 ]]..useLightingCode..[[
 
@@ -1175,6 +1225,7 @@ void main() {
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				noiseTex = 3,
+				lightDepthTex = 4,
 			},
 		},
 		texs = {
@@ -1182,6 +1233,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.noiseTex,
+			app.lightDepthTex,
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -2102,10 +2154,52 @@ function AppVideo:initVideo()
 		}:unbind()
 	end
 
-	-- now allocate a GL_TEXTURE_CUBE_ARRAY for our point lights
-	-- and a GL_TEXTURE_2D_ARRAY for our directional lights
-	-- size is lightmap resolution x max # of lights
+	if useDirectionalShadowmaps then
+		-- now allocate a GL_TEXTURE_CUBE_ARRAY for our point lights
+		-- and a GL_TEXTURE_2D_ARRAY for our directional lights
+		-- size is lightmap resolution x max # of lights
+		-- lets just do a single directional light for starters
+		self.lightDepthTex = GLTex2D{
+			width = dirLightMapSize.x,
+			height = dirLightMapSize.y,
+			internalFormat = gl.GL_DEPTH_COMPONENT,
+			format = gl.GL_DEPTH_COMPONENT,
+			type = gl.GL_FLOAT,
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+		}:unbind()
 
+		local quatd = require 'vec-ffi.quatd'
+		local View = require 'glapp.view'
+		self.lightView = View()
+		-- lightmap has to encompass the visible scene so *shrug* how big to make it
+		-- too big = blobbing up lightmap texels
+		-- too small = a directional spotlight
+		-- aha hence "CSM" technique ... which is basically, multiple ortho dir lights of different ortho volume sizes.
+		self.lightView.ortho = true
+		-- this has gotta be game dependent ...
+		self.lightView.orthoSize = 20
+		self.lightView.znear = -1000
+		self.lightView.zfar = 1000
+		self.lightView.angle = 
+			quatd():fromAngleAxis(1, 0, 0, 45)
+			* quatd():fromAngleAxis(0, 1, 0, 45)
+		-- TODO setup View .pos and .angle here, or whenever the light moves
+		self.lightView:setup(self.lightDepthTex.width / self.lightDepthTex.height)
+
+		self.lightmapFB = GLFBO{
+			width = dirLightMapSize.x,
+			height = dirLightMapSize.y,
+		}
+		self.lightDepthTex:unbind()
+		gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, self.lightDepthTex.id, 0)
+		self.lightDepthTex:unbind()
+		self.lightmapFB:unbind()
+	end
 
 --DEBUG:self.triBuf_flushCallsPerFrame = 0
 --DEBUG:self.triBuf_flushSizes = {}
@@ -2158,6 +2252,36 @@ function AppVideo:triBuf_flush()
 
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
+
+	if useDirectionalShadowmaps then
+		-- now - if we're using light - also draw the geom to the lightmap
+		-- that means updating uniforms every render regardless ...
+		if self.inUpdateCallback then
+			-- should always be true
+			self.fb:unbind()
+		end
+		self.lightmapFB:bind()
+
+		gl.glViewport(0, 0, self.lightmapFB.width, self.lightmapFB.height)
+
+		program:setUniform('projMat', self.lightView.projMat.ptr)
+		program:setUniform('mvMat', self.lightView.mvMat.ptr)
+		gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
+
+		sceneObj.geometry:draw()
+
+		program:setUniform('projMat', self.ram.projMat)
+		program:setUniform('mvMat', self.ram.mvMat)
+		gl.glUniform4f(program.uniforms.clipRect.loc, self:getClipRect())
+
+		gl.glViewport(0, 0, self.fb.width, self.fb.height)
+		
+		self.lightmapFB:unbind()
+		if self.inUpdateCallback then
+			self.fb:bind()
+		end
+	end
+
 	sceneObj:disableAttrs()
 
 	-- reset the vectors and store the last capacity
@@ -3038,9 +3162,25 @@ function AppVideo:clearScreen(
 	end
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
-	-- TODO don't bother with framebuffer flushing, just memset
-	if not self.inUpdateCallback then
+	if useDirectionalShadowmaps then
+		-- ok now switch framebuffers to the shadow framebuffer
+		-- depth-only or depth-and-color doesn't matter, both ways the lightmap gets cleared
+		-- TODO only do this N-many frames to save on perf
 		fb:unbind()
+
+		self.lightmapFB:bind()
+		gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+		self.lightmapFB:unbind()
+
+		-- done - rebind the framebuffer if necessary
+		if self.inUpdateCallback then
+			fb:bind()
+		end
+	else
+		-- alternatively if we're not also drawing to our lightmap then we don't always need to unbind the fb
+		if not self.inUpdateCallback then
+			fb:bind()
+		end
 	end
 
 	if not depthOnly then
