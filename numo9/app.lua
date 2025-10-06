@@ -2006,13 +2006,13 @@ print('run thread dead')
 			local view = self.blitScreenView
 			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
 			view.mvMat:setIdent()
-			view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+			view.mvProjMat:copy(view.projMat)
 
 			local sceneObj = self.blitScreenObj
 -- TODO blitScreenObj just needs mvMat and projMat, not mvProjMat and projMat
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
-			sceneObj.uniforms.projMat = projMatPush
+			sceneObj.uniforms.drawProjMat = projMatPush
 			sceneObj.uniforms.lightMvProjMat = self.lightView.mvProjMat.ptr
 			sceneObj:draw()
 			--]]
@@ -2211,7 +2211,7 @@ print('run thread dead')
 			)
 		end
 		view.mvMat:setIdent()
-		view.mvProjMat:mul4x4(view.projMat, view.mvMat)
+		view.mvProjMat:copy(view.projMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 		if self.activeMenu then
@@ -2220,12 +2220,11 @@ print('run thread dead')
 		else
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 		end
-		sceneObj.uniforms.projMat = self.ram.projMat
+		sceneObj.uniforms.drawProjMat = self.ram.projMat
 		sceneObj.uniforms.lightMvProjMat = self.lightView.mvProjMat.ptr
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
-			-- TODO what should I bind texs[2], i.e. the normalTex to?
 		end
 --]]
 
@@ -2336,6 +2335,7 @@ function App:peekf(addr)
 	return ffi.cast('float*', self.ram.v + addr)[0]
 end
 
+local useHardwareLightingAddr = ffi.offsetof('RAM', 'useHardwareLighting')
 function App:poke(addr, value)
 	addr = toint(addr)
 	value = tonumber(ffi.cast('uint32_t', value))
@@ -2348,6 +2348,9 @@ function App:poke(addr, value)
 		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
+	end
+	if addr == useHardwareLightingAddr then
+		self:triBuf_flush()
 	end
 
 	self.ram.v[addr] = value
@@ -2436,6 +2439,9 @@ function App:pokew(addr, value)
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
+	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
+		self:triBuf_flush()
+	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = value
 
@@ -2508,6 +2514,9 @@ function App:pokel(addr, value)
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
+	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
+		self:triBuf_flush()
+	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = value
 
@@ -2579,6 +2588,9 @@ function App:pokef(addr, value)
 		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
+	end
+	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
+		self:triBuf_flush()
 	end
 
 	ffi.cast('float*', self.ram.v + addr)[0] = value
@@ -2672,6 +2684,9 @@ function App:memcpy(dst, src, len)
 		if touchesdst then
 			self.framebufferRAM.dirtyCPU = true
 		end
+	end
+	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddr then
+		self:triBuf_flush()
 	end
 
 	do
@@ -2779,6 +2794,9 @@ function App:memset(dst, val, len)
 		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
+	end
+	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddr then
+		self:triBuf_flush()
 	end
 
 	ffi.fill(self.ram.v + dst, len, val)

@@ -897,3 +897,9 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- how many dynamic shadowmap-based lights do modern games have?
 
 - double check SSAO hemisphere alignment to normal / make sure you're using the world coords or view coords or something.
+
+- fc ram light flags:
+	- sprite bumpmaps in the normalmap
+	- use ssao
+	- use shadowmaps 
+- and more lightmap ram vars .... a lot to tune ...

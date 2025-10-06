@@ -468,7 +468,7 @@ function VideoMode:buildFramebuffers()
 	if not depthTex then
 		fb:bind()
 		depthTex = GLTex2D{
-			internalFormat = gl.GL_DEPTH_COMPONENT,
+			internalFormat = gl.GL_DEPTH_COMPONENT32F,
 			width = self.width,
 			height = self.height,
 			format = gl.GL_DEPTH_COMPONENT,
@@ -727,7 +727,7 @@ const float ssaoSampleRadius = .05;
 const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
 
 // used for SSAO lighting, not used for projection
-uniform mat4 projMat;
+uniform mat4 drawProjMat;
 
 // used for directional lighting
 uniform mat4 lightMvProjMat;
@@ -778,42 +778,38 @@ void doLighting() {
 	fragColor.xyz *= lightValue;
 #endif
 
-#if 0	// fake shadowmap
+#if 1	// shadow map
 	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
-	if (all(lessThanEqual(vec3(0., 0., -1000.), worldCoord.xyz))
-		&& all(lessThanEqual(worldCoord.xyz, vec3(1000., 1000., 1000.)))
+	vec4 lightClipCoord = lightMvProjMat * worldCoord;
+	if (lightClipCoord.w > 0.
+		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz)) 
+		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
 	) {
-		// in light
+		vec3 lightNDCCoord = lightClipCoord.xyz / lightClipCoord.w;
+#if 0	// debug - highlight whole lightmap volume regardless of depth
 		fragColor.xyz *= 1.2;
-	} else {
-		// in shadow
-		fragColor.xyz *= .3;	//dir light ambient
-	}
-#endif
-#if 0	// shadow map
-	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
-	vec4 lightViewCoord = lightMvProjMat * worldCoord;
-	vec3 lightNDCCoord = lightViewCoord.xyz / lightViewCoord.w;
-	if (all(lessThanEqual(vec3(-1., -1., -1.), lightNDCCoord)) 
-		&& all(lessThanEqual(lightNDCCoord, vec3(1., 1., 1.)))
-	) {
+#else
 		// in bounds
-		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).r
-			* 2. - 1.;	// convert from [0,1] to depthrange
-		if (lightBufferDepth < lightNDCCoord.z) {
+		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).x
+			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
+
+		//if (lightNDCCoord.z < lightBufferDepth + 0.01) {
+		//if (lightNDCCoord.z * lightClipCoord.w < lightBufferDepth * lightClipCoord.w + 0.01) {
+		if (lightClipCoord.z < lightBufferDepth * lightClipCoord.w + 0.1) {
 			// in light
 			fragColor.xyz *= 1.2;
 		} else {
 			// in shadow
 			fragColor.xyz *= .3;	//dir light ambient
 		}
+#endif	
 	} else {
 		// in shadow
 		fragColor.xyz *= .3;	//dir light ambient
 	}
 #endif
 
-#if 1	// working on SSAO ...
+#if 0	// SSAO
 	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
 	float depth = normalAndDepth.w;
 
@@ -2164,7 +2160,7 @@ function AppVideo:initVideo()
 		self.lightDepthTex = GLTex2D{
 			width = dirLightMapSize.x,
 			height = dirLightMapSize.y,
-			internalFormat = gl.GL_DEPTH_COMPONENT,
+			internalFormat = gl.GL_DEPTH_COMPONENT32F,
 			format = gl.GL_DEPTH_COMPONENT,
 			type = gl.GL_FLOAT,
 			minFilter = gl.GL_NEAREST,
@@ -2182,22 +2178,31 @@ function AppVideo:initVideo()
 		-- too big = blobbing up lightmap texels
 		-- too small = a directional spotlight
 		-- aha hence "CSM" technique ... which is basically, multiple ortho dir lights of different ortho volume sizes.
-		self.lightView.ortho = true
+		--self.lightView.ortho = true
 		-- this has gotta be game dependent ...
-		self.lightView.orthoSize = 20
-		self.lightView.znear = -1000
-		self.lightView.zfar = 1000
+		--self.lightView.znear = -100
+		--self.lightView.zfar = 200
+		--self.lightView.znear = -30
+		--self.lightView.zfar = 30
+		self.lightView.znear = 1
+		self.lightView.zfar = 200
+		-- 32 is half width, 24 is half length
+		--self.lightView.orthoSize = 40
+		--self.lightView.orthoSize = 5
 		self.lightView.angle = 
-			quatd():fromAngleAxis(1, 0, 0, 45)
-			* quatd():fromAngleAxis(0, 1, 0, 45)
-		-- TODO setup View .pos and .angle here, or whenever the light moves
+			--quatd():fromAngleAxis(0, 0, 1, 45)
+			quatd():fromAngleAxis(1, 0, 0, 60)
+		self.lightView.orbit:set(32, 24, 0)
+		--self.lightView.orbit:set(0, 0, 0)
+		self.lightView.pos = self.lightView.orbit + 32 * self.lightView.angle:zAxis()
 		self.lightView:setup(self.lightDepthTex.width / self.lightDepthTex.height)
 
 		self.lightmapFB = GLFBO{
 			width = dirLightMapSize.x,
 			height = dirLightMapSize.y,
 		}
-		self.lightDepthTex:unbind()
+		self.lightmapFB:bind()
+		self.lightDepthTex:bind()
 		gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, self.lightDepthTex.id, 0)
 		self.lightDepthTex:unbind()
 		self.lightmapFB:unbind()
@@ -2255,7 +2260,9 @@ function AppVideo:triBuf_flush()
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 
-	if useDirectionalShadowmaps then
+	if useDirectionalShadowmaps
+	and self.ram.useHardwareLighting ~= 0
+	then
 		-- now - if we're using light - also draw the geom to the lightmap
 		-- that means updating uniforms every render regardless ...
 		if self.inUpdateCallback then
@@ -2278,8 +2285,9 @@ function AppVideo:triBuf_flush()
 		program:setUniform('projMat', self.ram.projMat)
 		gl.glUniform4f(program.uniforms.clipRect.loc, self:getClipRect())
 
-		gl.glViewport(0, 0, self.fb.width, self.fb.height)
-		
+		--gl.glViewport(0, 0, self.fb.width, self.fb.height)
+		gl.glViewport(0, 0, self.ram.screenWidth, self.ram.screenHeight)
+
 		self.lightmapFB:unbind()
 		if self.inUpdateCallback then
 			self.fb:bind()
@@ -3189,7 +3197,9 @@ function AppVideo:clearScreen(
 	end
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
-	if useDirectionalShadowmaps then
+	if useDirectionalShadowmaps 
+	and self.ram.useHardwareLighting ~= 0
+	then
 		-- ok now switch framebuffers to the shadow framebuffer
 		-- depth-only or depth-and-color doesn't matter, both ways the lightmap gets cleared
 		-- TODO only do this N-many frames to save on perf
