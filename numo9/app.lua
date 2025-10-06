@@ -2012,6 +2012,7 @@ print('run thread dead')
 -- TODO blitScreenObj just needs mvMat and projMat, not mvProjMat and projMat
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
+			sceneObj.uniforms.drawViewMat = viewMatPush
 			sceneObj.uniforms.drawProjMat = projMatPush
 			sceneObj.uniforms.lightMvProjMat = self.lightView.mvProjMat.ptr
 			sceneObj:draw()
@@ -2220,6 +2221,7 @@ print('run thread dead')
 		else
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 		end
+		sceneObj.uniforms.drawViewMat = self.ram.viewMat
 		sceneObj.uniforms.drawProjMat = self.ram.projMat
 		sceneObj.uniforms.lightMvProjMat = self.lightView.mvProjMat.ptr
 

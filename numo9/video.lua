@@ -41,7 +41,8 @@ assert.eq(matType, 'float', "TODO if this changes then update the modelMat, view
 
 
 local vec2i = require 'vec-ffi.vec2i'
-local dirLightMapSize = vec2i(2048, 2048)
+local dirLightMapSize = vec2i(64, 64)
+--local dirLightMapSize = vec2i(2048, 2048)	-- 16 texels/voxel * 64 voxels = 1024 texels across the whole scene
 local useDirectionalShadowmaps = true	-- can't turn off or it'll break stuff so *shrug*
 local ident4x4 = matrix_ffi({4,4}, matType):eye()
 
@@ -494,7 +495,7 @@ function VideoMode:buildFramebuffers()
 			width = width,
 			height = height,
 			internalFormat = gl.GL_RGBA32F,
-			format = gl.GL_RGBA,
+			format = gl.GL_RGB,
 			type = gl.GL_FLOAT,
 
 			minFilter = gl.GL_NEAREST,
@@ -677,7 +678,6 @@ local useLightingCode = [[
 
 // TODO lighting variables in RAM:
 // these are tied to the bump-mapping only right now...
-const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
 const vec3 lightAmbientColor = vec3(.3, .3, .3);
 const vec3 lightDiffuseColor = vec3(1., 1., 1.);
 const float lightSpecularShininess = 30.;
@@ -686,10 +686,12 @@ const vec3 lightSpecularColor = vec3(.5, .5, .5);
 const float ssaoOffset = 18.0;
 //const float ssaoStrength = 0.07;
 //const float ssaoFalloff = 0.000002;
-const float ssaoSampleRadius = .05;
+//const float ssaoSampleRadius = .05;
+const float ssaoSampleRadius = .5;
 const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
 
 // used for SSAO lighting, not used for projection
+uniform mat4 drawViewMat;
 uniform mat4 drawProjMat;
 
 // used for directional lighting
@@ -717,34 +719,22 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 };
 
 void doLighting() {
-	vec4 normalAndDepth = texture(framebufferNormalTex, tcv);
-	vec3 normal = normalAndDepth.xyz;
+	vec3 worldNormal = texture(framebufferNormalTex, tcv).xyz;
 
 #if 0 // debugging: show normalmap:
-	fragColor.xyz = normalAndDepth.xyz * .5 + .5;
+	fragColor.xyz = worldNormal * .5 + .5;
 	return;
 #endif
 
-#if 1 // apply bumpmap lighting
-	vec3 lightValue = max(
-		lightAmbientColor,
-		lightDiffuseColor * abs(dot(normal, lightDir))
-		// maybe you just can't do specular lighting in [0,1]^3 space ...
-		// maybe I should be doing inverse-frustum-projection stuff here
-		// hmmmmmmmmmm
-		// I really don't want to split projection and modelview matrices ...
-		+ lightSpecularColor * pow(
-			abs(reflect(lightDir, normal).z),
-			lightSpecularShininess
-		)
-	);
-	fragColor.xyz *= lightValue;
-#endif
-
-#if 1	// shadow map
 	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
+	vec4 viewCoord = drawViewMat * worldCoord;
+	vec4 clipCoord = drawProjMat * viewCoord;
+
+	vec3 lightValue = lightAmbientColor;
+
+#if 0	// shadow map
+	bool inLight = false;
 	vec4 lightClipCoord = lightMvProjMat * worldCoord;
-	bool inShadow = true;
 	if (lightClipCoord.w > 0.
 		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz)) 
 		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
@@ -760,27 +750,41 @@ void doLighting() {
 //const float lightDepthTestEpsilon = 0.;		// not enough
 //const float lightDepthTestEpsilon = 0.0001;	// not enough
 const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+		
+		// TODO normal test here as well?
 		if (lightClipCoord.z < (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w) {
-			// in light
-			fragColor.xyz *= 1.2;
-		} else {
-			// in shadow
-			fragColor.xyz *= .3;	//dir light ambient
+			inLight = true;
 		}
-	} else {
-		// in shadow
-		fragColor.xyz *= .3;	//dir light ambient
 	}
+#else
+	const bool inLight = true;
 #endif
 
+	if (inLight) {
+#if 1 // bump mapping
 
-#if 0	// SSAO
-	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
-	float depth = normalAndDepth.w;
+		// TODO how to determine lightDir based on the light transform?
+		const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
 
-	// current fragment in [-1,1]^2 screen coords x [0,1] depth coord
-	vec3 origin = vec3(tcv.xy * 2. - 1., depth);
+		// apply bumpmap lighting
+		lightValue += 
+			lightDiffuseColor * abs(dot(worldNormal, lightDir))
+			// maybe you just can't do specular lighting in [0,1]^3 space ...
+			// maybe I should be doing inverse-frustum-projection stuff here
+			// hmmmmmmmmmm
+			// I really don't want to split projection and modelview matrices ...
+			+ lightSpecularColor * pow(
+				abs(reflect(lightDir, worldNormal).z),
+				lightSpecularShininess
+			);
+#else	// plain
+		lightValue += vec3(.9, .9, .9);
+#endif
+	}
 
+
+
+#if 1	// SSAO
 	// TODO just save float buffer? faster?
 	// TODO should this random vec be in 3D or 2D?
 	vec3 rvec = texture(noiseTex, tcv * ssaoOffset).xyz;
@@ -792,38 +796,50 @@ const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 	return;
 #endif
 
-	vec3 tangent = normalize(rvec - normal * dot(rvec, normal));
-	vec3 bitangent = cross(tangent, normal);
-	mat3 tangentMatrix = mat3(tangent, bitangent, normal);
+	//TODO calc in world coords, not clip coords ... ?
+	vec3 clipNormal = (drawProjMat * (drawViewMat * vec4(worldNormal, 0.))).xyz;
+
+	vec3 tangent = normalize(rvec - clipNormal * dot(rvec, clipNormal));
+	vec3 bitangent = cross(tangent, clipNormal);
+	mat3 tangentMatrix = mat3(tangent, bitangent, clipNormal);
 
 	float numOccluded = 0.;
 	for (int i = 0; i < ssaoNumSamples; ++i) {
 		// rotate random hemisphere vector into our tangent space
 		// but this is still in [-1,1]^2 screen coords x [0,1] depth coord, right?
-		vec3 samplePt = tangentMatrix * ssaoRandomVectors[i]
-			* ssaoSampleRadius
-			+ origin;
+		vec3 sampleWorldCoord = worldCoord.xyz
+			+ tangentMatrix * ssaoRandomVectors[i] * ssaoSampleRadius;
+
+		vec4 sampleViewCoord = drawViewMat * vec4(sampleWorldCoord, 1.);
+		vec4 sampleClipCoord = drawProjMat * sampleViewCoord;
 
 		// TODO multiply by projection matrix?
 
-		vec4 sampleNormalAndDepth = texture(
-			framebufferNormalTex,
-			samplePt.xy * .5 + .5
-		);
-		float sampleDepth = sampleNormalAndDepth.w;
-		float depthDiff = samplePt.z - sampleDepth;
+		vec4 worldCoordInBufferAtSample = vec4(
+			texture(
+				framebufferPosTex,
+				sampleClipCoord.xy / sampleClipCoord.w * .5 + .5
+			).xyz,
+			1.);
+
+		vec4 viewCoordFromWorldCoordInBufferAtSample = drawViewMat * worldCoordInBufferAtSample;
+
+		float depthDiff = sampleViewCoord.z 
+			- viewCoordFromWorldCoordInBufferAtSample.z;
 		if (depthDiff > ssaoSampleRadius) {
-			numOccluded += step(sampleDepth, samplePt.z);
+			numOccluded += 1.;
+			//numOccluded += step(viewCoordFromWorldCoordInBufferAtSample.z, sampleViewCoord.z);
 		}
 //		numOccluded += step(ssaoFalloff, depthDiff)
 //			* (1. - smoothstep(ssaoFalloff, ssaoStrength, depthDiff));
-//			* (1. - dot(sampleNormalAndDepth.xyz, normal))
+//			* (1. - dot(sampleWorldNormalAndClipDepth.xyz, clipNormal))
 	}
 
-// debugging to see ssao only ... all white ... hmm
-//fragColor.xyz = vec3(1., 1., 1.);
-	fragColor.xyz *= 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
+	lightValue.xyz *= 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
 #endif
+
+	fragColor.xyz *= lightValue;
+
 }
 ]]
 
@@ -1303,7 +1319,7 @@ layout(location=4) in vec4 boxAttr;
 // the bbox world coordinates, used with 'boxAttr' for rounding
 out vec2 tcv;
 
-flat out vec3 clipNormalv;
+flat out vec3 worldNormalv;
 flat out uvec4 extra;
 flat out vec4 box;
 
@@ -1314,12 +1330,12 @@ uniform mat4 modelMat, viewMat, projMat;
 
 void main() {
 	tcv = texcoord;
-	clipNormalv = normalize((projMat * (viewMat * (modelMat * vec4(normal, 0.)))).xyz);
+	worldNormalv = normalize(modelMat * vec4(normal, 0.)).xyz;
 	extra = extraAttr;
 	box = boxAttr;
 
 	vec4 worldCoord = modelMat * vec4(vertex, 1.);
-	worldCoordv.xyz = worldCoord.xyz;
+	worldCoordv = worldCoord.xyz;
 
 	vec4 viewCoord = viewMat * worldCoord;
 
@@ -1336,7 +1352,7 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;		// framebuffer pixel coordinates before transform , so they are sprite texels
 
-flat in vec3 clipNormalv;
+flat in vec3 worldNormalv;
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 
@@ -1344,7 +1360,7 @@ in vec3 clipCoordv;
 in vec3 worldCoordv;
 
 layout(location=0) out <?=fragType?> fragColor;
-layout(location=1) out vec4 fragNormal;	// normal xyz, clipCoord.z
+layout(location=1) out vec3 fragNormal;	// worldNormal.xyz
 layout(location=2) out vec3 fragPos;	// worldCoord.xyz
 
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
@@ -1704,24 +1720,24 @@ void main() {
 
 // position
 
-	fragPos.xyz = worldCoordv.xyz;
-
+	fragPos = worldCoordv;
 
 // lighting:
 
 	// TODO lighting variables:
 	const float spriteNormalExhaggeration = 8.;
-	const float normalScreenExhaggeration = 1.;	// apply here or in the blitscreen shader?
 
 #if 0	// normal from flat sided objs
-	fragNormal.xyz = clipNormalv;
+	fragNormal = normalize(worldNormalv);
 
 #elif 0	// show sprite normals only
 	bumpHeight *= spriteNormalExhaggeration;
 	mat3 spriteBasis = onb(
 		vec3(1., 0., dFdx(bumpHeight)),
 		vec3(0., 1., dFdx(bumpHeight)));
-	fragNormal.xyz = spriteBasis[2];
+
+	// TODO transform from viewCoords to worldCoords by the inverse-view matrix
+	fragNormal = spriteBasis[2];
 
 #else	// rotate sprite normals onto frag normal plane
 
@@ -1738,28 +1754,20 @@ void main() {
 		vec3(0., 1., dFdx(bumpHeight)));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
-	mat3 modelBasis = onb1(clipNormalv);
+	mat3 modelBasis = onb1(worldNormalv);
+
+//TODO now transform the bumpmap coord into the worldnormal basis
+// probably involves an inverse view or something idk
+// (how about I cache/calc the bumpmap tangent space on tex, then no need to use dFdx)
 
 	//result should be d(bumpHeight)/d(vertex_j)
 	// = d(bumpHeight)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
 	// = d(bumpHeight)/d(fragCoord_k) * inv(d(vertex_j)/d(fragCoord_k))
 	// = spriteBasis * transpose(modelBasis)
 	//modelBasis = spriteBasis * transpose(modelBasis);
-	//fragNormal.xyz = transpose(modelBasis)[2];
-	fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
+	//fragNormal = transpose(modelBasis)[2];
+	fragNormal = (modelBasis * transpose(spriteBasis))[2];
 #endif
-
-	// TODO why ...
-	fragNormal.xy = -fragNormal.xy;
-
-	fragNormal.z *= normalScreenExhaggeration;
-	fragNormal.xyz = normalize(fragNormal.xyz);
-
-	// TODO just use the depth buffer as a texture instead of re-copying it here?
-	//  if I did I'd get more bits of precision ...
-	//  but this is easier/lazier.
-	fragNormal.w = clipCoordv.z;
-	//fragNormal.w = gl_FragDepth;
 }
 ]],			{
 				app = app,
