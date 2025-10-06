@@ -753,8 +753,6 @@ void doLighting() {
 		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).x
 			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
 
-		//if (lightNDCCoord.z < lightBufferDepth + 0.01) {
-		//if (lightNDCCoord.z * lightClipCoord.w < lightBufferDepth * lightClipCoord.w + 0.01) {
 		if (lightClipCoord.z < lightBufferDepth * lightClipCoord.w + 0.1) {
 			// in light
 			fragColor.xyz *= 1.2;
@@ -2137,22 +2135,22 @@ function AppVideo:initVideo()
 		-- too big = blobbing up lightmap texels
 		-- too small = a directional spotlight
 		-- aha hence "CSM" technique ... which is basically, multiple ortho dir lights of different ortho volume sizes.
-		--self.lightView.ortho = true
 		-- this has gotta be game dependent ...
-		--self.lightView.znear = -100
-		--self.lightView.zfar = 200
-		--self.lightView.znear = -30
-		--self.lightView.zfar = 30
+		--[[ frustum light / spotlight
 		self.lightView.znear = 1
 		self.lightView.zfar = 200
+		--]]
+		-- [[ ortho light / directional light
+		self.lightView.ortho = true
+		self.lightView.znear = -4
+		self.lightView.zfar = 64
+		self.lightView.orthoSize = 40
+		--]]
 		-- 32 is half width, 24 is half length
-		--self.lightView.orthoSize = 40
-		--self.lightView.orthoSize = 5
 		self.lightView.angle = 
 			--quatd():fromAngleAxis(0, 0, 1, 45)
 			quatd():fromAngleAxis(1, 0, 0, 60)
 		self.lightView.orbit:set(32, 24, 0)
-		--self.lightView.orbit:set(0, 0, 0)
 		self.lightView.pos = self.lightView.orbit + 32 * self.lightView.angle:zAxis()
 		self.lightView:setup(self.lightDepthTex.width / self.lightDepthTex.height)
 
