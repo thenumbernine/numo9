@@ -1571,6 +1571,9 @@ void main() {
 		vec2 ftc = floor(stc);
 		vec2 fp = fract(stc);
 
+		// TODO make sure this doesn't go over the sprite edge ...
+		// but how to tell how big the sprite is?
+		// hmm I could use the 'box' to store the texcoord boundary ...
 		<?=fragType?> fragColorLL = spriteShading((ftc + vec2(0.5, 0.5)) / size);
 		<?=fragType?> fragColorRL = spriteShading((ftc + vec2(1.5, 0.5)) / size);
 		<?=fragType?> fragColorLR = spriteShading((ftc + vec2(0.5, 1.5)) / size);
