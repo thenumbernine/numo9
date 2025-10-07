@@ -2224,6 +2224,14 @@ print('run thread dead')
 		end
 		sceneObj.uniforms.drawViewMat = self.ram.viewMat
 		sceneObj.uniforms.drawProjMat = self.ram.projMat
+print('drawing scene, viewMat')
+print(self.viewMat)
+print('in ram')
+for i=0,15 do
+	io.write(' ',self.ram.viewMat[i])
+	if bit.band(i, 3) == 3 then print() end
+end
+print()
 		sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
 		sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
 

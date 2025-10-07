@@ -697,6 +697,11 @@ uniform mat4 drawProjMat;
 uniform mat4 lightViewMat;
 uniform mat4 lightProjMat;
 
+// or just pass the position ...
+vec3 getViewMatPos(mat4 m) {
+	return inverse(m)[3].xyz;
+}
+
 // these are the random vectors inside a unit hemisphere facing z+
 #define ssaoNumSamples 16
 const vec3[ssaoNumSamples] ssaoRandomVectors = {
@@ -747,12 +752,12 @@ vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).x
 			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
 
-// zero gets depth alias stripes
-// nonzero is dependent on the scene
-// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
-//const float lightDepthTestEpsilon = 0.;		// not enough
-//const float lightDepthTestEpsilon = 0.0001;	// not enough
-const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+		// zero gets depth alias stripes
+		// nonzero is dependent on the scene
+		// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
+		//const float lightDepthTestEpsilon = 0.;		// not enough
+		//const float lightDepthTestEpsilon = 0.0001;	// not enough
+		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 		
 		// TODO normal test here as well?
 		if (lightClipCoord.z < (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w) {
@@ -763,23 +768,21 @@ const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 	const bool inLight = true;
 #endif
 
-	if (inLight) {
-#if 1 // bump mapping
-		vec3 lightDir = normalize(-lightViewMat[3].xyz - worldCoord.xyz);
-		vec3 viewDir = normalize(-drawViewMat[3].xyz - worldCoord.xyz);
 
-		// TODO how to determine lightDir based on the light transform?
-		//const vec3 lightDir = vec3(0.19245008972988, 0.19245008972988, 0.96225044864938);
+	if (inLight) {
+#if 1 // diffuse & specular with the world space surface normal
+		vec3 lightDir = normalize(getViewMatPos(lightViewMat) - worldCoord.xyz);
+		vec3 viewDir = normalize(getViewMatPos(drawViewMat) - worldCoord.xyz);
 
 		// apply bumpmap lighting
 		lightValue += 
-			lightDiffuseColor * abs(dot(normalizedWorldNormal, lightDir))
+			lightDiffuseColor * abs(dot(lightDir, normalizedWorldNormal))
 			// maybe you just can't do specular lighting in [0,1]^3 space ...
 			// maybe I should be doing inverse-frustum-projection stuff here
 			// hmmmmmmmmmm
 			// I really don't want to split projection and modelview matrices ...
 			+ lightSpecularColor * pow(
-				abs(dot(viewDir, reflect(lightDir, normalizedWorldNormal))),
+				abs(dot(viewDir, reflect(-lightDir, normalizedWorldNormal))),
 				lightSpecularShininess
 			);
 #else	// plain
@@ -790,12 +793,12 @@ const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 
 #if 0	// SSAO
 	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
-	float depth = clipCoord.z;
+	float clipDepth = clipCoord.z;
 
-vec3 normalizedClipNormal = normalize(clipNormal.xyz);
+	vec3 normalizedClipNormal = normalize(clipNormal.xyz);
 
-	// current fragment in [-1,1]^2 screen coords x [0,1] depth coord
-	vec3 origin = vec3(tcv.xy * 2. - 1., depth);
+	// current fragment in [-1,1]^2 screen coords x clipDepth
+	vec3 origin = vec3(tcv.xy * 2. - 1., clipDepth);
 
 	// TODO just save float buffer? faster?
 	// TODO should this random vec be in 3D or 2D?
@@ -810,7 +813,7 @@ vec3 normalizedClipNormal = normalize(clipNormal.xyz);
 	float numOccluded = 0.;
 	for (int i = 0; i < ssaoNumSamples; ++i) {
 		// rotate random hemisphere vector into our tangent space
-		// but this is still in [-1,1]^2 screen coords x [0,1] depth coord, right?
+		// but this is still in [-1,1]^2 screen coords x clipDepth, right?
 		vec3 samplePt = tangentMatrix * ssaoRandomVectors[i]
 			* ssaoSampleRadius
 			+ origin;
@@ -1723,25 +1726,18 @@ void main() {
 
 	// TODO lighting variables:
 	const float spriteNormalExhaggeration = 8.;
+	bumpHeight *= spriteNormalExhaggeration;
 
-#if 0	// normal from flat sided objs
+#if 1	// normal from flat sided objs
 	fragNormal = worldNormalv;
 
 #elif 0	// show sprite normals only
-	bumpHeight *= spriteNormalExhaggeration;
-	mat3 spriteBasis = onb2(
-		vec3(1., 0., dFdx(bumpHeight)),
-		vec3(0., 1., dFdx(bumpHeight)));
-
 	// TODO transform from viewCoords to worldCoords by the inverse-view matrix
-	fragNormal = spriteBasis[2];
+	fragNormal = normalize(cross(
+		vec3(1., 0., dFdx(bumpHeight)),
+		vec3(0., 1., dFdx(bumpHeight))));
 
 #else	// rotate sprite normals onto frag normal plane
-
-	// calculate this before any discards ... or can we?
-	// calculate this from magfilter=linear lookup for the texture (and do color magfilter=nearest) ... or can we?)
-	// if we are going to discard then make sure the sprite bumpmap falls off ...
-	bumpHeight *= spriteNormalExhaggeration;
 
 	//glsl matrix index access is based on columns
 	//so its index notation is reversed from math index notation.
@@ -2290,6 +2286,18 @@ function AppVideo:triBuf_prepAddTri(
 		self.lastSheetTex = sheetTex
 		self.lastTilemapTex = tilemapTex
 	end
+
+
+print('triBuf_prepAddTri useHardwareLighting='..self.ram.useHardwareLighting)
+print(self.viewMat)
+print('in ram')
+for i=0,15 do
+	io.write(' ',self.ram.viewMat[i])
+	if bit.band(i, 3) == 3 then print() end
+end
+print(debug.traceback())
+print()
+
 
 	-- upload uniforms to GPU before adding new tris ...
 	local program = self.triBuf_sceneObj.program
