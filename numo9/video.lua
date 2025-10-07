@@ -41,9 +41,10 @@ assert.eq(matType, 'float', "TODO if this changes then update the modelMat, view
 
 
 local vec2i = require 'vec-ffi.vec2i'
-local dirLightMapSize = vec2i(64, 64)
+local dirLightMapSize = vec2i(256, 256)	-- for 16x16 tiles, 16 tiles wide, so 8 tile radius
 --local dirLightMapSize = vec2i(2048, 2048)	-- 16 texels/voxel * 64 voxels = 1024 texels across the whole scene
 local useDirectionalShadowmaps = true	-- can't turn off or it'll break stuff so *shrug*
+
 local ident4x4 = matrix_ffi({4,4}, matType):eye()
 
 -- either seems to work fine
@@ -531,8 +532,8 @@ function VideoMode:buildFramebuffers()
 			type = gl.GL_FLOAT,
 
 			minFilter = gl.GL_NEAREST,
-			--magFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
+			magFilter = gl.GL_NEAREST,
+			--magFilter = gl.GL_LINEAR,	-- maybe take off some sharp edges of the lighting?
 			wrap = {
 				s = gl.GL_CLAMP_TO_EDGE,
 				t = gl.GL_CLAMP_TO_EDGE,
@@ -685,69 +686,36 @@ const vec3 lightDiffuseColor = vec3(1., 1., 1.);
 const float lightSpecularShininess = 30.;
 const vec3 lightSpecularColor = vec3(.5, .5, .5);
 
-const float ssaoOffset = 18.0;
-//const float ssaoStrength = 0.07;
-//const float ssaoFalloff = 0.000002;
-const float ssaoSampleRadius = .05;
-const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
-
-// used for SSAO lighting, not used for projection
-uniform mat4 drawViewMat;
-uniform mat4 drawProjMat;
-
-// used for directional lighting
-uniform mat4 lightViewMat;
+uniform mat4 lightViewMat;	// used for light depth coord transform, and for determining the light pos
 uniform mat4 lightProjMat;
+uniform mat4 drawViewMat;	// used for determining the view position
 
-// or just pass the position ...
+// TODO do this and upload as uniform
 vec3 getViewMatPos(mat4 m) {
 	return inverse(m)[3].xyz;
 }
 
-// these are the random vectors inside a unit hemisphere facing z+
-#define ssaoNumSamples 8
-const vec3[ssaoNumSamples] ssaoRandomVectors = {
-	vec3(0.58841258486248, 0.39770493127433, 0.18020748345621),
-	vec3(-0.055272473410801, 0.35800974374131, 0.15028358974804),
-	vec3(0.3199885122024, -0.57765628483213, 0.19344714028561),
-	vec3(-0.71177536281716, 0.65982751624885, 0.16661179472317),
-	vec3(0.6591556369125, 0.25301657986158, 0.65350042181301),
-	vec3(0.37855701974814, 0.013090583813782, 0.71111037617741),
-	vec3(0.53098955685005, 0.39114666484126, 0.29796836757796),
-	vec3(-0.27445479803038, 0.28177659836742, 0.89415105823562),
-#if 0
-	vec3(0.030042725676812, 0.3941820959086, 0.099681999794761),
-	vec3(-0.60144625790746, 0.6112734005649, 0.3676468627808),
-	vec3(0.72396342749209, 0.35994756762253, 0.30828171680103),
-	vec3(-0.8082345863749, 0.13633528834184, 0.32199773139527),
-	vec3(0.49667204075871, 0.12506306502285, 0.65431856367262),
-	vec3(-0.086390931280017, 0.5832061191173, 0.29234165779378),
-	vec3(-0.24610823044055, 0.77791376069684, 0.57363108026349),
-	vec3(-0.194238481883, 0.01011984889981, 0.88466521192798),
-#endif
-};
-
 void doLighting(vec3 worldNormal) {
 	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
-	vec4 viewNormal = drawViewMat * vec4(worldNormal, 0.);
-	vec4 clipNormal = drawProjMat * viewNormal;
 
 	vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
-	float clipDepth = worldCoordAndClipDepth.w; 
 	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
-	vec4 viewCoord = drawViewMat * worldCoord;
-	vec4 clipCoord = drawProjMat * viewCoord;
 
 #if 0 // debugging: show normalmap:
-	fragColor.xyz = normalizedWorldNormal * .5 + .5;
-	return;
+fragColor.xyz = normalizedWorldNormal * .5 + .5;
+return;
+#endif
+
+#if 1	// debugging - show ssao tex
+fragColor.xyz = texture(ssaoCalcTex, tcv).xyz;
+return;
 #endif
 
 	vec3 lightValue = lightAmbientColor;
 
 #if 0	// shadow map
 	bool inLight = false;
-	vec4 lightClipCoord = lightProjMat * lightViewMat * worldCoord;
+	vec4 lightClipCoord = lightProjMat * (lightViewMat * worldCoord);
 	if (lightClipCoord.w > 0.
 		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
 		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
@@ -757,12 +725,28 @@ void doLighting(vec3 worldNormal) {
 		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).x
 			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
 
+//lightBufferDepth = -lightBufferDepth;	//???
+
 		// zero gets depth alias stripes
 		// nonzero is dependent on the scene
 		// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
 		//const float lightDepthTestEpsilon = 0.;		// not enough
 		//const float lightDepthTestEpsilon = 0.0001;	// not enough
 		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+
+#if 0	// debug show the light buffer
+fragColor.xyz = vec3(.5 + lightBufferDepth, .5, .5 - lightBufferDepth);
+return;
+#endif
+#if 0	// debug show the light clip depth
+fragColor.xyz = vec3(.5 + lightClipCoord.z, .5, .5 - lightClipCoord.z);
+return;
+#endif
+#if 1	// debug show the light clip depth
+float delta = lightClipCoord.z - (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w;
+fragColor.xyz = vec3(.5 + delta, .5, .5 - delta);
+return;
+#endif
 
 		// TODO normal test here as well?
 		if (lightClipCoord.z < (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w) {
@@ -795,40 +779,7 @@ void doLighting(vec3 worldNormal) {
 #endif
 	}
 
-
-#if 1	// SSAO
-	vec3 normalizedClipNormal = normalize(clipNormal.xyz);
-
-	// current fragment in [-1,1]^2 screen coords x clipDepth
-	vec3 origin = vec3(tcv.xy * 2. - 1., clipDepth);
-
-	// TODO just save float buffer? faster?
-	// TODO should this random vec be in 3D or 2D?
-	vec3 rvec = texture(noiseTex, tcv * ssaoOffset).xyz;
-	rvec.z = 0.;
-	rvec.xy = normalize(rvec.xy * 2. - 1.);
-
-	vec3 tangent = normalize(rvec - normalizedClipNormal * dot(rvec, normalizedClipNormal));
-	vec3 bitangent = cross(tangent, normalizedClipNormal);
-	mat3 tangentMatrix = mat3(tangent, bitangent, normalizedClipNormal);
-
-	float numOccluded = 0.;
-	for (int i = 0; i < ssaoNumSamples; ++i) {
-		// rotate random hemisphere vector into our tangent space
-		// but this is still in [-1,1]^2 screen coords x clipDepth, right?
-		vec3 samplePt = tangentMatrix * ssaoRandomVectors[i]
-			* ssaoSampleRadius
-			+ origin;
-
-		float bufferClipDepthAtSample = texture(framebufferPosTex, samplePt.xy * .5 + .5).w;
-		float depthDiff = samplePt.z - bufferClipDepthAtSample;
-		if (depthDiff > ssaoSampleRadius) {
-			numOccluded += step(bufferClipDepthAtSample, samplePt.z);
-		}
-	}
-
-	lightValue *= 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
-#endif
+	lightValue *= texture(ssaoCalcTex, tcv).r;
 
 	fragColor.xyz *= lightValue;
 }
@@ -920,8 +871,8 @@ uniform bool useLighting;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;	// for SSAO
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
+uniform <?=app.ssaoCalcTex:getGLSLSamplerType()?> ssaoCalcTex;
 
 ]]..useLightingCode..[[
 
@@ -965,16 +916,16 @@ void main() {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
-				noiseTex = 3,
-				lightDepthTex = 4,
+				lightDepthTex = 3,
+				ssaoCalcTex = 4,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
-			app.noiseTex,
 			app.lightDepthTex,
+			app.ssaoCalcTex,
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -1040,8 +991,8 @@ uniform bool useLighting;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
+uniform <?=app.ssaoCalcTex:getGLSLSamplerType()?> ssaoCalcTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
@@ -1076,8 +1027,8 @@ void main() {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
-				noiseTex = 3,
-				lightDepthTex = 4,
+				lightDepthTex = 3,
+				ssaoCalcTex = 4,
 				paletteTex = 5,
 			},
 		},
@@ -1085,8 +1036,8 @@ void main() {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
-			app.noiseTex,
 			app.lightDepthTex,
+			app.ssaoCalcTex,
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
 		geometry = app.quadGeom,
@@ -1168,7 +1119,7 @@ uniform bool useLighting;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
+uniform <?=app.ssaoCalcTex:getGLSLSamplerType()?> ssaoCalcTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 ]]..useLightingCode..[[
@@ -1201,16 +1152,16 @@ void main() {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
-				noiseTex = 3,
-				lightDepthTex = 4,
+				lightDepthTex = 3,
+				ssaoCalcTex = 4,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
-			app.noiseTex,
 			app.lightDepthTex,
+			app.ssaoCalcTex,
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -2102,7 +2053,8 @@ function AppVideo:initVideo()
 		--]]
 	}:unbind()
 
-	-- a noise tex, maybe using for SSAO
+	-- a noise tex, using for SSAO
+	-- TODO only two compoents are needed, and need pre-normalized would be nice, but storing in gl_rgb is nice too...
 	do
 		local image = Image(256, 256, 3, 'uint8_t')
 		for i=0,image:getBufferSize()-1 do
@@ -2149,15 +2101,15 @@ function AppVideo:initVideo()
 		-- too small = a directional spotlight
 		-- aha hence "CSM" technique ... which is basically, multiple ortho dir lights of different ortho volume sizes.
 		-- this has gotta be game dependent ...
-		--[[ frustum light / spotlight
+		-- [[ frustum light / spotlight
 		self.lightView.znear = 1
 		self.lightView.zfar = 200
 		--]]
-		-- [[ ortho light / directional light
+		--[[ ortho light / directional light
 		self.lightView.ortho = true
 		self.lightView.znear = -4
 		self.lightView.zfar = 64
-		self.lightView.orthoSize = 40
+		self.lightView.orthoSize = 8
 		--]]
 		-- 32 is half width, 24 is half length
 		self.lightView.angle =
@@ -2178,11 +2130,179 @@ function AppVideo:initVideo()
 		self.lightmapFB:unbind()
 	end
 
+	-- [[ SSAO framebuffer, 
+	-- do this before video modes built so we can attach the tex to video modes' blitScreenObj
+	-- downsample gbuffer into here for ssao calcs and use that tex to render to the final scene
+	self.ssaoFB = GLFBO{
+		width = 256,
+		height = 256,
+	}
+	
+	self.ssaoCalcTex = GLTex2D{
+		width = self.ssaoFB.width,
+		height = self.ssaoFB.height,
+		--[[ honestly if SSAO only stores a single scalar of how occluded a scene is, just store it in GL_R8
+		internalFormat = gl.GL_R8,
+		format = gl.GL_RED,
+		type = gl.GL_UNSIGNED_BYTE,
+		--]]
+		-- [[ I think fb color tarets have to be rgb or rgba, but not gl_r8 or gl_r32f? idk... double check plz.
+		internalFormat = gl.GL_RGBA32F,
+		format = gl.GL_RGBA,
+		type = gl.GL_FLOAT,
+		--]]
+		minFilter = gl.GL_NEAREST,
+		magFilter = gl.GL_LINEAR,
+		wrap = {
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
+	}
+	self.ssaoFB
+		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:setColorAttachmentTex2D(self.ssaoCalcTex.id, 0, self.ssaoCalcTex.target)
+		:unbind()
+	self.ssaoCalcTex:unbind()
+--]]
+
+
+	self:resetVideo()
+
+
+-- [[ more SSAO 
+	-- do this after resetting video so that we have a videoMode object
+	self.ssaoBlitObj = GLSceneObject{
+		program = {
+			version = self.glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+
+out vec2 tcv;
+
+void main() {
+	tcv = vertex;
+	gl_Position = vec4(
+		vertex.xy * 2. - 1.,
+		0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+in vec2 tcv;
+
+layout(location=0) out vec4 fragColor;
+
+uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
+uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
+uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
+
+uniform vec2 ssaoTCOffset;
+
+const float ssaoSampleRadius = .05;
+const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
+
+// these are the random vectors inside a unit hemisphere facing z+
+#define ssaoNumSamples 8
+const vec3[ssaoNumSamples] ssaoRandomVectors = {
+	vec3(0.58841258486248, 0.39770493127433, 0.18020748345621),
+	vec3(-0.055272473410801, 0.35800974374131, 0.15028358974804),
+	vec3(0.3199885122024, -0.57765628483213, 0.19344714028561),
+	vec3(-0.71177536281716, 0.65982751624885, 0.16661179472317),
+	vec3(0.6591556369125, 0.25301657986158, 0.65350042181301),
+	vec3(0.37855701974814, 0.013090583813782, 0.71111037617741),
+	vec3(0.53098955685005, 0.39114666484126, 0.29796836757796),
+	vec3(-0.27445479803038, 0.28177659836742, 0.89415105823562),
+#if 0
+	vec3(0.030042725676812, 0.3941820959086, 0.099681999794761),
+	vec3(-0.60144625790746, 0.6112734005649, 0.3676468627808),
+	vec3(0.72396342749209, 0.35994756762253, 0.30828171680103),
+	vec3(-0.8082345863749, 0.13633528834184, 0.32199773139527),
+	vec3(0.49667204075871, 0.12506306502285, 0.65431856367262),
+	vec3(-0.086390931280017, 0.5832061191173, 0.29234165779378),
+	vec3(-0.24610823044055, 0.77791376069684, 0.57363108026349),
+	vec3(-0.194238481883, 0.01011984889981, 0.88466521192798),
+#endif
+};
+
+// used for SSAO lighting, not used for projection
+uniform mat4 drawViewMat;
+uniform mat4 drawProjMat;
+
+void main() {
+	vec4 worldNormal = texture(framebufferNormalTex, tcv);
+	// no lighting on this fragment
+	if (worldNormal.w == 0.) {
+		fragColor = vec4(1., 1., 1., 1.);
+		return;
+	}
+	
+	float clipDepth = texture(framebufferPosTex, tcv).w;
+
+	vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
+	vec4 clipNormal = drawProjMat * viewNormal;
+	vec3 normalizedClipNormal = normalize(clipNormal.xyz);
+
+	// current fragment in [-1,1]^2 screen coords x clipDepth
+	vec3 origin = vec3(tcv.xy * 2. - 1., clipDepth);
+
+	// TODO just save float buffer? faster?
+	// TODO should this random vec be in 3D or 2D?
+	vec3 rvec = texture(noiseTex, tcv + ssaoTCOffset).xyz;
+	rvec.z = 0.;
+	rvec.xy = normalize(rvec.xy * 2. - 1.);
+
+	vec3 tangent = normalize(rvec - normalizedClipNormal * dot(rvec, normalizedClipNormal));
+	vec3 bitangent = cross(tangent, normalizedClipNormal);
+	mat3 tangentMatrix = mat3(tangent, bitangent, normalizedClipNormal);
+
+	float numOccluded = 0.;
+	for (int i = 0; i < ssaoNumSamples; ++i) {
+		// rotate random hemisphere vector into our tangent space
+		// but this is still in [-1,1]^2 screen coords x clipDepth, right?
+		vec3 samplePt = tangentMatrix * ssaoRandomVectors[i]
+			* ssaoSampleRadius
+			+ origin;
+
+		float bufferClipDepthAtSample = texture(framebufferPosTex, samplePt.xy * .5 + .5).w;
+		float depthDiff = samplePt.z - bufferClipDepthAtSample;
+		if (depthDiff > ssaoSampleRadius) {
+			numOccluded += step(bufferClipDepthAtSample, samplePt.z);
+		}
+	}
+
+	float fragLum = 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
+	fragColor = vec4(fragLum, fragLum, fragLum, 1.);
+}
+]],			{
+				app = self,
+				videoMode = self.currentVideoMode,
+			}),
+			uniforms = {
+				framebufferNormalTex = 0,
+				framebufferPosTex = 1,
+				noiseTex = 2,
+			},
+		},
+		texs = {
+			self.framebufferNormalTex,
+			self.framebufferPosTex,
+			self.noiseTex,
+		},
+		-- sceneobj's uniforms are uploaded each :draw() so store here, update later
+		uniforms = {
+			ssaoTCOffset = {0, 0},
+		},
+		geometry = self.quadGeom,
+	}
+	--]]
+
 --DEBUG:self.triBuf_flushCallsPerFrame = 0
 --DEBUG:self.triBuf_flushSizes = {}
 --DEBUG(flushtrace): self.triBuf_flushSizesPerTrace = {}
-
-	self:resetVideo()
 end
 
 function AppVideo:triBuf_flush()
@@ -4566,6 +4686,26 @@ function AppVideo:drawVoxelMap(
 		ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
 		self:onModelMatChange()
 	end
+end
+
+function AppVideo:updateSSAOCalcTex()
+	assert(not self.inUpdateCallback)
+	self.ssaoFB:bind()
+	gl.glViewport(0, 0, self.ssaoFB.width, self.ssaoFB.height)
+
+	local videoMode = self.currentVideoMode
+
+	local sceneObj = self.ssaoBlitObj
+	sceneObj.texs[1] = videoMode.framebufferNormalTex
+	sceneObj.texs[2] = videoMode.framebufferPosTex
+	sceneObj.uniforms.ssaoTCOffset[1] = math.random()
+	sceneObj.uniforms.ssaoTCOffset[2] = math.random()
+	sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
+	sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
+
+	sceneObj:draw()
+
+	self.ssaoFB:unbind()
 end
 
 return {

@@ -2016,7 +2016,6 @@ print('run thread dead')
 			view.mvProjMat:copy(view.projMat)
 
 			local sceneObj = self.blitScreenObj
--- TODO blitScreenObj just needs mvMat and projMat, not mvProjMat and projMat
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 			sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
 			sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
@@ -2153,6 +2152,8 @@ print('run thread dead')
 		if self.activeMenu then
 			needDrawCounter = 1
 		end
+
+		self:updateSSAOCalcTex()
 
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
