@@ -895,7 +895,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- bumpmapping from sprites
 		- SSAO
 	- add SSAO vars to RAM
-	- fix the dFdx glitch on sprites
 	- get a single directional light working
 		- then get multiple
 		- sized buffer/viewport smaller than typical view fo
@@ -911,3 +910,4 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- use ssao
 	- use shadowmaps 
 - and more lightmap ram vars .... a lot to tune ...
+- settings config to disable each of the lightmap features
