@@ -527,7 +527,7 @@ function VideoMode:buildFramebuffers()
 		posTex = GLTex2D{
 			width = width,
 			height = height,
-			-- 4th component holds clip-coord z, since SSAO needs to sample that a lot 
+			-- 4th component holds clip-coord z, since SSAO needs to sample that a lot
 			internalFormat = gl.GL_RGBA32F,
 			format = gl.GL_RGBA,
 			type = gl.GL_FLOAT,
@@ -783,7 +783,7 @@ return;
 #if 1	// single sample
 	lightValue *= texture(ssaoTex, tcv).x;
 #endif
-#if 0 //multiple pyramid levels? 
+#if 0 //multiple pyramid levels?
 	// or does this just make more tearing at poly edges?
 	lightValue *= <?=glnumber(1/3)?> * (
 		texture(ssaoTex, tcv, 0).x
@@ -2143,12 +2143,23 @@ function AppVideo:initVideo()
 		self.lightmapFB:unbind()
 	end
 
-	-- [[ SSAO framebuffer, 
+	-- [[ SSAO framebuffer,
 	-- do this before video modes built so we can attach the tex to video modes' blitScreenObj
+	--
+	-- TODO
+	-- Google AI is retarded.
+	-- No Google, it is not a good idea to downsample the SSAO buffer.  It makes tearing appear at edges' lighting.
+	-- No it is not a good idea to blend it with past SSAO buffers, that makes ghosting and TV-static effects.
+	-- The best I found was just 1 texture, rendered with only its info, no blurring, no past iterations, no miplevels, no other resolutions.
+	-- and use it in the final pass.
+	-- so TODO you can replace ssaoPingPong with just a tex and a fbo.
+	-- but meh it does package the two into one class well.
+	--
 	-- downsample gbuffer into here for ssao calcs and use that tex to render to the final scene
 	-- TODO blending multiple buffers together doesn't seem to make that much of a difference
 	-- 	but it does cause ghosting and tearing at edges.  so..
 	self.ssaoPingPong = GLPingPong{
+		numBuffers = 1,	-- just for the fbo + tex
 		--[[ too small and its ugly, too big and its slow
 		-- I was using native res before
 		width = 256,
@@ -2158,9 +2169,9 @@ function AppVideo:initVideo()
 		width = 512,
 		height = 512,
 		--]]
-		-- [[ TODO just use native res.
-		width = 1024,
-		height = 1024,
+		-- [[ just use native res.
+		width = self.width,
+		height = self.height,
 		--]]
 		--[[ honestly if SSAO only stores a single scalar of how occluded a scene is, just store it in GL_R8
 		internalFormat = gl.GL_R8,
@@ -2191,7 +2202,7 @@ function AppVideo:initVideo()
 	self:resetVideo()
 
 
--- [[ more SSAO 
+-- [[ more SSAO
 	-- do this after resetting video so that we have a videoMode object
 	self.ssaoBlitObj = GLSceneObject{
 		program = {
@@ -2221,9 +2232,13 @@ layout(location=0) out vec4 fragColor;
 uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
+#if 0
 uniform <?=app.ssaoPingPong:cur():getGLSLSamplerType()?> ssaoPrevTex;
+#endif
 
+#if 0
 uniform vec2 ssaoTCOffset;
+#endif
 
 const float ssaoSampleTCScale = 18.;
 const float ssaoSampleRadius = .05;
@@ -2263,7 +2278,7 @@ void main() {
 		fragColor = vec4(1., 1., 1., 1.);
 		return;
 	}
-	
+
 	float clipDepth = texture(framebufferPosTex, tcv).w;
 
 	vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
@@ -2275,7 +2290,9 @@ void main() {
 
 	// TODO just save float buffer? faster?
 	// TODO should this random vec be in 3D or 2D?
-	vec3 rvec = texture(noiseTex, (tcv + ssaoTCOffset) * ssaoSampleTCScale).xyz;
+	vec3 rvec = texture(noiseTex, (tcv
+			//+ ssaoTCOffset
+		) * ssaoSampleTCScale).xyz;
 	rvec.z = 0.;
 	rvec.xy = normalize(rvec.xy * 2. - 1.);
 
@@ -2326,20 +2343,20 @@ void main() {
 				framebufferNormalTex = 0,
 				framebufferPosTex = 1,
 				noiseTex = 2,
-				ssaoPrevTex = 3,
-				ssaoTCOffset = {0,0},
+				--ssaoPrevTex = 3,
+				--ssaoTCOffset = {0,0},
 			},
 		},
 		texs = {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			self.noiseTex,
-			self.ssaoPingPong:cur(),
+			--self.ssaoPingPong:cur(),
 		},
 		-- sceneobj's uniforms are uploaded each :draw() so store here, update later
-		uniforms = {
+--		uniforms = {
 --			ssaoTCOffset = {0, 0},
-		},
+--		},
 		geometry = self.quadGeom,
 	}
 	--]]
@@ -4734,20 +4751,59 @@ end
 
 function AppVideo:updateSSAOCalcTex()
 	assert(not self.inUpdateCallback)
-	
-	self.ssaoPingPong:swap()
-	self.ssaoPingPong.fbo
-		:bind()
-		:setColorAttachmentTex2D(self.ssaoPingPong:cur().id)
 
-	gl.glViewport(0, 0, self.ssaoPingPong.width, self.ssaoPingPong.height)
+	local ssaoPP = self.ssaoPingPong
+	local ssaoFB = ssaoPP.fbo
+	if self.width ~= ssaoFB.width
+	or self.height ~= ssaoFB.height
+	then
+		-- delete the old tex
+		ssaoPP.hist[1]:delete()
+
+		-- realloc a new tex
+		ssaoPP.hist[1] = GLTex2D{
+			width = self.width,
+			height = self.height,
+			internalFormat = gl.GL_RGBA32F,
+			format = gl.GL_RGBA,
+			type = gl.GL_FLOAT,
+			minFilter = gl.GL_NEAREST,
+			magFilter = gl.GL_NEAREST,
+			wrap = {
+				s = gl.GL_CLAMP_TO_EDGE,
+				t = gl.GL_CLAMP_TO_EDGE,
+			},
+		}:unbind()
+
+		-- update all refs
+		self.blitScreenObj.texs[5] = ssaoPP:cur()	-- I guess it oculdb e on native's old blitScreenObj and native could clear the old one to make a new one during its resize code?
+		for _,videoMode in pairs(self.videoModes) do
+			if videoMode.blitScreenObj then
+				videoMode.blitScreenObj.texs[5] = ssaoPP:cur()
+			end
+		end
+
+		-- and resize the fbo stored size
+		ssaoFB.width = self.width
+		ssaoFB.height = self.height
+		ssaoPP.width = self.width
+		ssaoPP.height = self.height
+	end
+
+
+	ssaoPP:swap()
+	ssaoFB
+		:bind()
+		:setColorAttachmentTex2D(ssaoPP:cur().id)
+
+	gl.glViewport(0, 0, ssaoPP.width, ssaoPP.height)
 
 	local videoMode = self.currentVideoMode
 
 	local sceneObj = self.ssaoBlitObj
 	sceneObj.texs[1] = videoMode.framebufferNormalTex
 	sceneObj.texs[2] = videoMode.framebufferPosTex
-	sceneObj.texs[4] = self.ssaoPingPong:prev()
+--	sceneObj.texs[4] = ssaoPP:prev()
 -- gives it a bad static look
 --	sceneObj.uniforms.ssaoTCOffset[1] = math.random()
 --	sceneObj.uniforms.ssaoTCOffset[2] = math.random()
@@ -4756,11 +4812,14 @@ function AppVideo:updateSSAOCalcTex()
 
 	sceneObj:draw()
 
-	self.ssaoPingPong.fbo:unbind()
-	self.ssaoPingPong:cur()
+	ssaoFB:unbind()
+
+--[[ doesn't seem to help
+	ssaoPP:cur()
 		:bind()
 		:generateMipmap()
 		:unbind()
+--]]
 end
 
 return {
