@@ -494,8 +494,9 @@ function VideoMode:buildFramebuffers()
 		normalTex = GLTex2D{
 			width = width,
 			height = height,
+			-- 4th component holds 'useHardwareLighting' for this geom at this fragment
 			internalFormat = gl.GL_RGBA32F,
-			format = gl.GL_RGB,
+			format = gl.GL_RGBA,
 			type = gl.GL_FLOAT,
 
 			minFilter = gl.GL_NEAREST,
@@ -524,8 +525,9 @@ function VideoMode:buildFramebuffers()
 		posTex = GLTex2D{
 			width = width,
 			height = height,
-			internalFormat = gl.GL_RGB32F,
-			format = gl.GL_RGB,
+			-- 4th component holds clip-coord z, since SSAO needs to sample that a lot 
+			internalFormat = gl.GL_RGBA32F,
+			format = gl.GL_RGBA,
 			type = gl.GL_FLOAT,
 
 			minFilter = gl.GL_NEAREST,
@@ -703,7 +705,7 @@ vec3 getViewMatPos(mat4 m) {
 }
 
 // these are the random vectors inside a unit hemisphere facing z+
-#define ssaoNumSamples 16
+#define ssaoNumSamples 8
 const vec3[ssaoNumSamples] ssaoRandomVectors = {
 	vec3(0.58841258486248, 0.39770493127433, 0.18020748345621),
 	vec3(-0.055272473410801, 0.35800974374131, 0.15028358974804),
@@ -713,6 +715,7 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 	vec3(0.37855701974814, 0.013090583813782, 0.71111037617741),
 	vec3(0.53098955685005, 0.39114666484126, 0.29796836757796),
 	vec3(-0.27445479803038, 0.28177659836742, 0.89415105823562),
+#if 0
 	vec3(0.030042725676812, 0.3941820959086, 0.099681999794761),
 	vec3(-0.60144625790746, 0.6112734005649, 0.3676468627808),
 	vec3(0.72396342749209, 0.35994756762253, 0.30828171680103),
@@ -721,15 +724,17 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 	vec3(-0.086390931280017, 0.5832061191173, 0.29234165779378),
 	vec3(-0.24610823044055, 0.77791376069684, 0.57363108026349),
 	vec3(-0.194238481883, 0.01011984889981, 0.88466521192798),
+#endif
 };
 
-void doLighting() {
-	vec4 worldNormal = vec4(texture(framebufferNormalTex, tcv).xyz, 0.);
-vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
-	vec4 viewNormal = drawViewMat * worldNormal;
+void doLighting(vec3 worldNormal) {
+	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
+	vec4 viewNormal = drawViewMat * vec4(worldNormal, 0.);
 	vec4 clipNormal = drawProjMat * viewNormal;
 
-	vec4 worldCoord = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
+	vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
+	float clipDepth = worldCoordAndClipDepth.w; 
+	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
 	vec4 viewCoord = drawViewMat * worldCoord;
 	vec4 clipCoord = drawProjMat * viewCoord;
 
@@ -742,7 +747,7 @@ vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 
 #if 0	// shadow map
 	bool inLight = false;
-	vec4 lightClipCoord = lightProjMat * lightViewProjMat * worldCoord;
+	vec4 lightClipCoord = lightProjMat * lightViewMat * worldCoord;
 	if (lightClipCoord.w > 0.
 		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
 		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
@@ -791,10 +796,7 @@ vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 	}
 
 
-#if 0	// SSAO
-	// currently this is the depth before homogeneous transform, so it'll all negative for frustum projections
-	float clipDepth = clipCoord.z;
-
+#if 1	// SSAO
 	vec3 normalizedClipNormal = normalize(clipNormal.xyz);
 
 	// current fragment in [-1,1]^2 screen coords x clipDepth
@@ -818,17 +820,7 @@ vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 			* ssaoSampleRadius
 			+ origin;
 
-		float bufferClipDepthAtSample = (
-			drawProjMat
-			* drawViewMat
-			* vec4(
-				texture(
-					framebufferPosTex,
-					samplePt.xy * .5 + .5
-				).xyz,
-				1.
-			)
-		).z;
+		float bufferClipDepthAtSample = texture(framebufferPosTex, samplePt.xy * .5 + .5).w;
 		float depthDiff = samplePt.z - bufferClipDepthAtSample;
 		if (depthDiff > ssaoSampleRadius) {
 			numOccluded += step(bufferClipDepthAtSample, samplePt.z);
@@ -922,6 +914,7 @@ in vec2 tcv;
 layout(location=0) out <?=blitFragType?> fragColor;
 
 // use lighting whatsoever in the final pass?
+// do it per-fragment
 uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
@@ -957,8 +950,10 @@ void main() {
 	fragColor.r = float(rgba5551 & 0x1fu) / 31.;
 #endif
 
-	if (useLighting) {
-		doLighting();
+	// .w holds lighting flag
+	vec4 worldNormal = texture(framebufferNormalTex, tcv);
+	if (worldNormal.w > 0.) {
+		doLighting(worldNormal.xyz);
 	}
 }
 ]],			{
@@ -1064,8 +1059,10 @@ void main() {
 ]]..colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 ufragColor')..[[
 	fragColor = vec4(ufragColor) / 31.;
 
-	if (useLighting) {
-		doLighting();
+	// .w holds lighting flag
+	vec4 worldNormal = texture(framebufferNormalTex, tcv);
+	if (worldNormal.w > 0.) {
+		doLighting(worldNormal.xyz);
 	}
 }
 ]],			{
@@ -1189,8 +1186,10 @@ void main() {
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
 	fragColor.a = 1.;
 
-	if (useLighting) {
-		doLighting();
+	// .w holds lighting flag
+	vec4 worldNormal = texture(framebufferNormalTex, tcv);
+	if (worldNormal.w > 0.) {
+		doLighting(worldNormal.xyz);
 	}
 }
 ]],			{
@@ -1323,7 +1322,7 @@ flat out vec3 worldNormalv;
 flat out uvec4 extra;
 flat out vec4 box;
 
-out vec3 clipCoordv;
+out float clipDepth;
 out vec3 worldCoordv;
 
 uniform mat4 modelMat, viewMat, projMat;
@@ -1342,7 +1341,7 @@ void main() {
 	gl_Position = projMat * viewCoord;
 	// TODO is this technically "clipCoord"?  because clipping is to [-1,1]^3 volume, which is post-homogeneous transform.
 	//  so what's the name of the coordinate system post-projMat but pre-homogeneous-transform?  "projection/projected coordinates" ?
-	clipCoordv = gl_Position.xyz;
+	clipDepth = gl_Position.z;
 }
 ]]),
 			fragmentCode = template([[
@@ -1356,12 +1355,12 @@ flat in vec3 worldNormalv;
 flat in uvec4 extra;	// flags (round, borderOnly), colorIndex
 flat in vec4 box;		// x, y, w, h in world coordinates, used for round / border calculations
 
-in vec3 clipCoordv;
+in float clipDepth;
 in vec3 worldCoordv;
 
 layout(location=0) out <?=fragType?> fragColor;
-layout(location=1) out vec3 fragNormal;	// worldNormal.xyz
-layout(location=2) out vec3 fragPos;	// worldCoord.xyz
+layout(location=1) out vec4 fragNormal;	// worldNormal.xyz, w=useHardwareLighting
+layout(location=2) out vec4 fragPos;	// worldCoord.xyz, w=clipCoord.z
 
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
@@ -1369,6 +1368,7 @@ uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 
 uniform vec4 blendColorSolid;
 uniform vec4 clipRect;
+uniform bool useHardwareLighting;
 //uniform vec2 frameBufferSize;
 
 <?=glslCode5551?>
@@ -1721,7 +1721,7 @@ void main() {
 
 // position
 
-	fragPos = worldCoordv;
+	fragPos = vec4(worldCoordv, clipDepth);
 
 // lighting:
 
@@ -1729,12 +1729,12 @@ void main() {
 	const float spriteNormalExhaggeration = 8.;
 	bumpHeight *= spriteNormalExhaggeration;
 
-#if 1	// normal from flat sided objs
-	fragNormal = worldNormalv;
+#if 0	// normal from flat sided objs
+	fragNormal.xyz = worldNormalv;
 
 #elif 0	// show sprite normals only
 	// TODO transform from viewCoords to worldCoords by the inverse-view matrix
-	fragNormal = normalize(cross(
+	fragNormal.xyz = normalize(cross(
 		vec3(1., 0., dFdx(bumpHeight)),
 		vec3(0., 1., dFdx(bumpHeight))));
 
@@ -1759,9 +1759,12 @@ void main() {
 	// = d(bumpHeight)/d(fragCoord_k) * inv(d(vertex_j)/d(fragCoord_k))
 	// = spriteBasis * transpose(modelBasis)
 	//modelBasis = spriteBasis * transpose(modelBasis);
-	//fragNormal = transpose(modelBasis)[2];
-	fragNormal = (modelBasis * transpose(spriteBasis))[2];
+	//fragNormal.xyz = transpose(modelBasis)[2];
+	fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
 #endif
+
+	// save per-fragment whether lighting is enabled or not
+	fragNormal.w = useHardwareLighting ? 1. : 0.;
 }
 ]],			{
 				app = app,
@@ -2312,6 +2315,7 @@ function AppVideo:triBuf_prepAddTri(
 	or self.projMatDirty
 	or self.clipRectDirty
 	or self.blendColorDirty
+	or self.useHardwareLightingDirty
 	or self.frameBufferSizeUniformDirty
 	then
 		program:use()
@@ -2343,6 +2347,10 @@ function AppVideo:triBuf_prepAddTri(
 				blendSolidB/255,
 				blendSolidA/255)
 			self.blendColorDirty = false
+		end
+		if self.useHardwareLightingDirty then
+			self.useHardwareLightingDirty = false
+			gl.glUniform1i(program.uniforms.useHardwareLighting.loc, self.ram.useHardwareLighting)
 		end
 		--[[ TODO not sure just yet
 		if self.frameBufferSizeUniformDirty then
@@ -2438,6 +2446,11 @@ end
 function AppVideo:onClipRectChange()
 	self:triBuf_flush()
 	self.clipRectDirty = true
+end
+
+function AppVideo:onUseHardwareLightingChange()
+	self:triBuf_flush()
+	self.useHardwareLightingDirty = true
 end
 
 -- call this when ram.blendColor changes

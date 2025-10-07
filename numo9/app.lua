@@ -242,8 +242,6 @@ function App:initGL()
 	self.drawViewMatForLighting = matrix_ffi({4,4}, matType):zeros()
 	self.drawProjMatForLighting = matrix_ffi({4,4}, matType):zeros()
 
-	self.menuUseLighting = false
-
 	self:initBlobs()
 
 	self.blitScreenView = View()
@@ -2020,7 +2018,6 @@ print('run thread dead')
 			local sceneObj = self.blitScreenObj
 -- TODO blitScreenObj just needs mvMat and projMat, not mvProjMat and projMat
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 			sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
 			sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
 			sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
@@ -2030,6 +2027,7 @@ print('run thread dead')
 
 			local thread = self.activeMenu.thread
 			if thread then
+
 				self.menuSizeInSprites.y = 256
 				self.menuSizeInSprites.x = 256 * self.width / self.height
 				self:matMenuReset()
@@ -2225,14 +2223,6 @@ print('run thread dead')
 		view.mvProjMat:copy(view.projMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		if self.activeMenu then
-			-- menu controls, esp edit voxelmap
-			-- TODO drawViewMatForLighting goes by self.ram.useHardwareLighting to determine capture so
-			--  maybe I hsould be pushign/popping self.ram.useHardwareLighting as well?
-			sceneObj.uniforms.useLighting = self.menuUseLighting and 1 or 0
-		else
-			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
-		end
 		sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
 		sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
 		sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
@@ -2359,6 +2349,7 @@ function App:peekf(addr)
 end
 
 local useHardwareLightingAddr = ffi.offsetof('RAM', 'useHardwareLighting')
+
 function App:poke(addr, value)
 	addr = toint(addr)
 	value = tonumber(ffi.cast('uint32_t', value))
@@ -2373,7 +2364,7 @@ function App:poke(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 	if addr == useHardwareLightingAddr then
-		self:triBuf_flush()
+		self:onUseHardwareLightingChange()
 	end
 
 	self.ram.v[addr] = value
@@ -2463,7 +2454,7 @@ function App:pokew(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
-		self:triBuf_flush()
+		self:onUseHardwareLightingChange()
 	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = value
@@ -2538,7 +2529,7 @@ function App:pokel(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
-		self:triBuf_flush()
+		self:onUseHardwareLightingChange()
 	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = value
@@ -2613,7 +2604,7 @@ function App:pokef(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
-		self:triBuf_flush()
+		self:onUseHardwareLightingChange()
 	end
 
 	ffi.cast('float*', self.ram.v + addr)[0] = value
@@ -2709,7 +2700,7 @@ function App:memcpy(dst, src, len)
 		end
 	end
 	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddr then
-		self:triBuf_flush()
+		self:onUseHardwareLightingChange()
 	end
 
 	do
@@ -2819,7 +2810,7 @@ function App:memset(dst, val, len)
 		self.framebufferRAM.dirtyCPU = true
 	end
 	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddr then
-		self:triBuf_flush()
+		self:onUseHardwareLightingChange()
 	end
 
 	ffi.fill(self.ram.v + dst, len, val)

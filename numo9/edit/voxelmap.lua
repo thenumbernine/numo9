@@ -49,6 +49,7 @@ function EditVoxelMap:init(args)
 end
 
 function EditVoxelMap:onCartLoad()
+	self.menuUseLighting = false
 	self.voxelmapBlobIndex = 0
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
@@ -213,6 +214,13 @@ function EditVoxelMap:update()
 		if not mouseHandled
 		and mouseY >= 8
 		then
+			local pushUseHardwareLighting = self.ram.useHardwareLighting
+			self.ram.useHardwareLighting = self.menuUseLighting and 1 or 0
+			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
+				self:onUseHardwareLightingChange()
+			end
+
+
 			-- mouse line, intersect only with far bounding planes of the voxelmap
 			-- or intersect with march through the voxelmap
 			-- how to get mouse line?
@@ -394,6 +402,11 @@ function EditVoxelMap:update()
 					self:setTooltip(npti.x..','..npti.y..','..npti.z, mouseX-8, mouseY-8, 0xfc, 0)
 				end
 			end
+		
+			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
+				self.ram.useHardwareLighting = pushUseHardwareLighting
+				self:onUseHardwareLightingChange()
+			end
 		end
 
 		orbit:endDraw()
@@ -434,8 +447,8 @@ self:guiSetClipRect(0, 0, 256, 256)
 		orbit.ortho = not orbit.ortho
 	end
 	x = x + 6
-	if self:guiButton('L', x, y, false, 'light='..tostring(app.menuUseLighting)) then
-		app.menuUseLighting = not app.menuUseLighting
+	if self:guiButton('L', x, y, false, 'light='..tostring(self.menuUseLighting)) then
+		self.menuUseLighting = not self.menuUseLighting
 	end
 	x = x + 6
 
