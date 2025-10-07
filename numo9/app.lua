@@ -239,6 +239,9 @@ function App:initGL()
 	self.viewMat = matrix_ffi({4,4}, matType):zeros()
 	self.projMat = matrix_ffi({4,4}, matType):zeros()
 
+	self.drawViewMatForLighting = matrix_ffi({4,4}, matType):zeros()
+	self.drawProjMatForLighting = matrix_ffi({4,4}, matType):zeros()
+
 	self.menuUseLighting = false
 
 	self:initBlobs()
@@ -1647,7 +1650,7 @@ function App:connect(addr, port)
 	-- how about (for now) ESC = kill connection ... sounds dramatic ... but meh?
 --DEBUG:print('app:setFocus(remoteClient)')
 	self:setFocus(self.remoteClient)
-	assert(self.runFocus == self.remoteClient)
+	assert.eq(self.runFocus, self.remoteClient)
 	if not self.runFocus.thread then
 		-- failed to connect?
 		self.con:print'failed to connect'
@@ -1657,7 +1660,7 @@ function App:connect(addr, port)
 		self.remoteClient = nil
 		return nil, 'failed to connect'
 	end
-assert(coroutine.status(self.runFocus.thread) ~= 'dead')
+assert.ne(coroutine.status(self.runFocus.thread), 'dead')
 	self:setMenu(nil)
 	return true
 end
@@ -1797,6 +1800,12 @@ conn.receivesPerSecond = 0
 	if needUpdateCounter > 0 then
 		-- TODO decrement to use framedrops
 		needUpdateCounter = 0
+
+		-- clear this every render frame
+		-- then when we draw tris, on first tri with lighting, copy the view mat into drawViewMatForLighting and set this
+		self.haveCapturedDrawMatsForLightingThisFrame = false
+		self.drawViewMatForLighting:setIdent()
+		self.drawProjMatForLighting:setIdent()
 
 		collectgarbage()
 
@@ -2012,8 +2021,8 @@ print('run thread dead')
 -- TODO blitScreenObj just needs mvMat and projMat, not mvProjMat and projMat
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
-			sceneObj.uniforms.drawViewMat = viewMatPush
-			sceneObj.uniforms.drawProjMat = projMatPush
+			sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
+			sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
 			sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
 			sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
 			sceneObj:draw()
@@ -2218,25 +2227,30 @@ print('run thread dead')
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 		if self.activeMenu then
 			-- menu controls, esp edit voxelmap
+			-- TODO drawViewMatForLighting goes by self.ram.useHardwareLighting to determine capture so
+			--  maybe I hsould be pushign/popping self.ram.useHardwareLighting as well?
 			sceneObj.uniforms.useLighting = self.menuUseLighting and 1 or 0
 		else
 			sceneObj.uniforms.useLighting = self.ram.useHardwareLighting
 		end
-		sceneObj.uniforms.drawViewMat = self.ram.viewMat
-		sceneObj.uniforms.drawProjMat = self.ram.projMat
-print('drawing scene, viewMat')
-print(self.viewMat)
-print('in ram')
-for i=0,15 do
-	io.write(' ',self.ram.viewMat[i])
-	if bit.band(i, 3) == 3 then print() end
-end
-print()
+		sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
+		sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
 		sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
 		sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
 
+--DEBUG(lighting):print('drawing final scene')
+--DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
+--DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
+
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
+		else
+			if sceneObj.texs[6] ~= 0 then
+				-- update the palette bound when drawing the 8bppIndex screen
+				-- which palette to use? first?  extra RAM var to specify?
+				-- how about whatevers selected as the active palette at end of frame?
+				sceneObj.texs[6] = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu.tex
+			end
 		end
 --]]
 
@@ -2244,13 +2258,10 @@ print()
 		sceneObj:draw()
 		-- [[ and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
+
 		--]]
 		if self.activeMenu then
 			sceneObj.texs[1] = self.framebufferRAM.tex
-			sceneObj.texs[2] = self.framebufferNormalTex
-		end
-
-		if self.activeMenu then
 			self:setVideoMode(self.ram.videoMode)
 		end
 

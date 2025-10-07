@@ -744,7 +744,7 @@ vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 	bool inLight = false;
 	vec4 lightClipCoord = lightProjMat * lightViewProjMat * worldCoord;
 	if (lightClipCoord.w > 0.
-		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz)) 
+		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
 		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
 	) {
 		vec3 lightNDCCoord = lightClipCoord.xyz / lightClipCoord.w;
@@ -758,7 +758,7 @@ vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 		//const float lightDepthTestEpsilon = 0.;		// not enough
 		//const float lightDepthTestEpsilon = 0.0001;	// not enough
 		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
-		
+
 		// TODO normal test here as well?
 		if (lightClipCoord.z < (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w) {
 			inLight = true;
@@ -775,7 +775,7 @@ vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 		vec3 viewDir = normalize(getViewMatPos(drawViewMat) - worldCoord.xyz);
 
 		// apply bumpmap lighting
-		lightValue += 
+		lightValue +=
 			lightDiffuseColor * abs(dot(lightDir, normalizedWorldNormal))
 			// maybe you just can't do specular lighting in [0,1]^3 space ...
 			// maybe I should be doing inverse-frustum-projection stuff here
@@ -819,8 +819,8 @@ vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 			+ origin;
 
 		float bufferClipDepthAtSample = (
-			drawProjMat 
-			* drawViewMat 
+			drawProjMat
+			* drawViewMat
 			* vec4(
 				texture(
 					framebufferPosTex,
@@ -921,6 +921,7 @@ in vec2 tcv;
 
 layout(location=0) out <?=blitFragType?> fragColor;
 
+// use lighting whatsoever in the final pass?
 uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
@@ -1375,7 +1376,7 @@ uniform vec4 clipRect;
 float sqr(float x) { return x * x; }
 float lenSq(vec2 v) { return dot(v,v); }
 
-//create an orthornomal basis from one vector 
+//create an orthornomal basis from one vector
 // assumes 'n' is normalized
 mat3 onb1(vec3 n) {
 	mat3 m;
@@ -2156,7 +2157,7 @@ function AppVideo:initVideo()
 		self.lightView.orthoSize = 40
 		--]]
 		-- 32 is half width, 24 is half length
-		self.lightView.angle = 
+		self.lightView.angle =
 			quatd():fromAngleAxis(0, 0, 1, 45)
 			* quatd():fromAngleAxis(1, 0, 0, 60)
 		self.lightView.orbit:set(32, 24, 0)
@@ -2287,17 +2288,22 @@ function AppVideo:triBuf_prepAddTri(
 		self.lastTilemapTex = tilemapTex
 	end
 
+	-- do this either first or last prepAddTri of the frame when useHardwareLighting is set
+	if useDirectionalShadowmaps
+	and self.ram.useHardwareLighting ~= 0
+	then
+--DEBUG(lighting):print'tri useHardwareLighting viewMat'
+--DEBUG(lighting):for i=0,15 do
+--DEBUG(lighting):	io.write(' ', self.ram.viewMat[i])
+--DEBUG(lighting):end
+--DEBUG(lighting):print()
 
-print('triBuf_prepAddTri useHardwareLighting='..self.ram.useHardwareLighting)
-print(self.viewMat)
-print('in ram')
-for i=0,15 do
-	io.write(' ',self.ram.viewMat[i])
-	if bit.band(i, 3) == 3 then print() end
-end
-print(debug.traceback())
-print()
-
+		if not self.haveCapturedDrawMatsForLightingThisFrame then
+			self.haveCapturedDrawMatsForLightingThisFrame = true
+			ffi.copy(self.drawViewMatForLighting.ptr, self.ram.viewMat, ffi.sizeof(matType) * 16)
+			ffi.copy(self.drawProjMatForLighting.ptr, self.ram.projMat, ffi.sizeof(matType) * 16)
+		end
+	end
 
 	-- upload uniforms to GPU before adding new tris ...
 	local program = self.triBuf_sceneObj.program
@@ -3175,7 +3181,7 @@ function AppVideo:clearScreen(
 	end
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
-	if useDirectionalShadowmaps 
+	if useDirectionalShadowmaps
 	and self.ram.useHardwareLighting ~= 0
 	then
 		-- ok now switch framebuffers to the shadow framebuffer
