@@ -302,8 +302,15 @@ Right now it has SSAO.
 
 Light Maps soon.
 
-Set `useHardwareLighting` to nonzero to get free screen-space lighting.  Or maybe I'll just have it on always.  Still working on this one.
+Set `useHardwareLighting` to nonzero to get free screen-space lighting.
+
 TODO here, also have RAM vars for light pos, color, ambient, normalmap exhaggeration, spritemap exhaggeration.
+
+Alright, adding this and lightmaps is why I went and split the matrix operations into `0=model, 1=view, 2=projection`.
+With that said, now to use lighting you must:
+- 1) keep `useHardwareLighting` turned on during all your lighting draw.
+- 2) *do not change your view matrix during this time*.  Lighting is postprocessed and added into the color buffer, and it needs a fixed view transform to do the lighting calcs.  So the first view matrix you are using during your frame update is the only one you get.
+	Maybe later I'll split it up into flushing lighting calcs so as soon as you change your view or change the `useHardwareLighting` flag it'll calc and flush to the dest buffer, so that you can do multiple lighting scenes and views per frame, but meh for now.
 
 ### Memory Layout
 
