@@ -16,9 +16,10 @@
 I thought I'd make a fantasy console with all the LuaJIT binding code and libraries I have laying around.
 
 What does NuMo9 have that the competition doesn't?
+- HD2D!!!!!!!!  Free SSAO and lightmaps for all your 3D games ... so far.
 - 16-bit console era.  4-button gamepads.
 - 8bpp sprites, 8x8 or 16x16 tilemaps, brushmaps, blending.
-- "Mode-7" transformations, "Super-FX" 3D meshes and voxelmaps.
+- "Mode-7" transformations, "Super-FX" 3D meshes and ***VOXELMAPS***.
 - Multiplayer, 4 local players per connection, up to 64 total players, unlimited observers.
 - Server can edit games in realtime.  Live game DM'ing.
 - It's strictly LuaJIT.  No compiler needed.

@@ -714,7 +714,7 @@ return;
 
 	vec3 lightValue = lightAmbientColor;
 
-#if 0	// shadow map
+#if 1	// enable shadow map
 	bool inLight = false;
 	vec4 lightClipCoord = lightProjMat * (lightViewMat * worldCoord);
 	if (lightClipCoord.w > 0.
@@ -743,7 +743,7 @@ return;
 fragColor.xyz = vec3(.5 + lightClipCoord.z, .5, .5 - lightClipCoord.z);
 return;
 #endif
-#if 1	// debug show the light clip depth
+#if 0	// debug show the light clip depth
 float delta = lightClipCoord.z - (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w;
 fragColor.xyz = vec3(.5 + delta, .5, .5 - delta);
 return;
