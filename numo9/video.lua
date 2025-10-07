@@ -15,6 +15,7 @@ local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local GLTypes = require 'gl.types'
+local GLPingPong = require 'gl.pingpong'
 
 local matrix_ffi = require 'matrix.ffi'
 require 'vec-ffi.vec4ub'
@@ -706,8 +707,8 @@ fragColor.xyz = normalizedWorldNormal * .5 + .5;
 return;
 #endif
 
-#if 1	// debugging - show ssao tex
-fragColor.xyz = texture(ssaoCalcTex, tcv).xyz;
+#if 0	// debugging - show ssao tex
+fragColor.xyz = vec3(1., 1., 1.) * texture(ssaoTex, tcv).x;
 return;
 #endif
 
@@ -779,7 +780,17 @@ return;
 #endif
 	}
 
-	lightValue *= texture(ssaoCalcTex, tcv).r;
+#if 1	// single sample
+	lightValue *= texture(ssaoTex, tcv).x;
+#endif
+#if 0 //multiple pyramid levels? 
+	// or does this just make more tearing at poly edges?
+	lightValue *= <?=glnumber(1/3)?> * (
+		texture(ssaoTex, tcv, 0).x
+		+ texture(ssaoTex, tcv, 1).x
+		+ texture(ssaoTex, tcv, 2).x
+	);
+#endif
 
 	fragColor.xyz *= lightValue;
 }
@@ -872,7 +883,7 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
-uniform <?=app.ssaoCalcTex:getGLSLSamplerType()?> ssaoCalcTex;
+uniform <?=app.ssaoPingPong:cur():getGLSLSamplerType()?> ssaoTex;
 
 ]]..useLightingCode..[[
 
@@ -911,13 +922,14 @@ void main() {
 				app = app,
 				self = self,
 				blitFragType = blitFragType,
+				glnumber = glnumber,
 			}),
 			uniforms = {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				lightDepthTex = 3,
-				ssaoCalcTex = 4,
+				ssaoTex = 4,
 			},
 		},
 		texs = {
@@ -925,7 +937,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.lightDepthTex,
-			app.ssaoCalcTex,
+			app.ssaoPingPong:cur(),
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -992,7 +1004,7 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
-uniform <?=app.ssaoCalcTex:getGLSLSamplerType()?> ssaoCalcTex;
+uniform <?=app.ssaoPongPong:cur():getGLSLSamplerType()?> ssaoTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
@@ -1019,8 +1031,8 @@ void main() {
 ]],			{
 				app = app,
 				self = self,
-				app = app,
 				blitFragType = blitFragType,
+				glnumber = glnumber,
 				glslCode5551 = glslCode5551,
 			}),
 			uniforms = {
@@ -1028,7 +1040,7 @@ void main() {
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				lightDepthTex = 3,
-				ssaoCalcTex = 4,
+				ssaoTex = 4,
 				paletteTex = 5,
 			},
 		},
@@ -1037,7 +1049,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.lightDepthTex,
-			app.ssaoCalcTex,
+			app.ssaoPingPong:cur(),
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
 		geometry = app.quadGeom,
@@ -1119,7 +1131,7 @@ uniform bool useLighting;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.ssaoCalcTex:getGLSLSamplerType()?> ssaoCalcTex;
+uniform <?=app.ssaoPingPong:cur():getGLSLSamplerType()?> ssaoTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 ]]..useLightingCode..[[
@@ -1147,13 +1159,14 @@ void main() {
 				app = app,
 				self = self,
 				blitFragType = blitFragType,
+				glnumber = glnumber,
 			}),
 			uniforms = {
 				framebufferTex = 0,
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				lightDepthTex = 3,
-				ssaoCalcTex = 4,
+				ssaoTex = 4,
 			},
 		},
 		texs = {
@@ -1161,7 +1174,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.lightDepthTex,
-			app.ssaoCalcTex,
+			app.ssaoPingPong:cur(),
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -2133,14 +2146,22 @@ function AppVideo:initVideo()
 	-- [[ SSAO framebuffer, 
 	-- do this before video modes built so we can attach the tex to video modes' blitScreenObj
 	-- downsample gbuffer into here for ssao calcs and use that tex to render to the final scene
-	self.ssaoFB = GLFBO{
+	-- TODO blending multiple buffers together doesn't seem to make that much of a difference
+	-- 	but it does cause ghosting and tearing at edges.  so..
+	self.ssaoPingPong = GLPingPong{
+		--[[ too small and its ugly, too big and its slow
+		-- I was using native res before
 		width = 256,
 		height = 256,
-	}
-	
-	self.ssaoCalcTex = GLTex2D{
-		width = self.ssaoFB.width,
-		height = self.ssaoFB.height,
+		--]]
+		--[[
+		width = 512,
+		height = 512,
+		--]]
+		-- [[ TODO just use native res.
+		width = 1024,
+		height = 1024,
+		--]]
 		--[[ honestly if SSAO only stores a single scalar of how occluded a scene is, just store it in GL_R8
 		internalFormat = gl.GL_R8,
 		format = gl.GL_RED,
@@ -2152,17 +2173,18 @@ function AppVideo:initVideo()
 		type = gl.GL_FLOAT,
 		--]]
 		minFilter = gl.GL_NEAREST,
-		magFilter = gl.GL_LINEAR,
+		magFilter = gl.GL_NEAREST,
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
 		},
 	}
-	self.ssaoFB
+	-- TODO put setDrawBuffers init in gl.pingpong ... when you dont provide a fbo?
+	--  or is it even needed for single-color-attachment fbos?
+	self.ssaoPingPong.fbo
+		:bind()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
-		:setColorAttachmentTex2D(self.ssaoCalcTex.id, 0, self.ssaoCalcTex.target)
 		:unbind()
-	self.ssaoCalcTex:unbind()
 --]]
 
 
@@ -2199,9 +2221,11 @@ layout(location=0) out vec4 fragColor;
 uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
+uniform <?=app.ssaoPingPong:cur():getGLSLSamplerType()?> ssaoPrevTex;
 
 uniform vec2 ssaoTCOffset;
 
+const float ssaoSampleTCScale = 18.;
 const float ssaoSampleRadius = .05;
 const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
 
@@ -2251,7 +2275,7 @@ void main() {
 
 	// TODO just save float buffer? faster?
 	// TODO should this random vec be in 3D or 2D?
-	vec3 rvec = texture(noiseTex, tcv + ssaoTCOffset).xyz;
+	vec3 rvec = texture(noiseTex, (tcv + ssaoTCOffset) * ssaoSampleTCScale).xyz;
 	rvec.z = 0.;
 	rvec.xy = normalize(rvec.xy * 2. - 1.);
 
@@ -2274,27 +2298,47 @@ void main() {
 		}
 	}
 
-	float fragLum = 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
-	fragColor = vec4(fragLum, fragLum, fragLum, 1.);
+	float lum = 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
+
+#if 0
+	// I'm starting to think oldLum doesn't matter so much at all
+	float oldLum = texture(ssaoPrevTex, tcv
+		// offset by half a texel to get more blurring
+		+ vec2(<?=glnumber(.5 / width)?>, <?=glnumber(.5 / height)?>)
+	).x;
+
+	// too much oldLum and it blurs and gets ghosting effects when you turn the view
+	// too little + permuting and it looks like TV static
+	// so keep it low and no permuting?
+	lum = mix(lum, oldLum, .2);
+#endif
+
+	fragColor = vec4(lum, 1., 1., 1.);
 }
 ]],			{
 				app = self,
 				videoMode = self.currentVideoMode,
+				glnumber = glnumber,
+				width = self.ssaoPingPong.width,
+				height = self.ssaoPingPong.height,
 			}),
 			uniforms = {
 				framebufferNormalTex = 0,
 				framebufferPosTex = 1,
 				noiseTex = 2,
+				ssaoPrevTex = 3,
+				ssaoTCOffset = {0,0},
 			},
 		},
 		texs = {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			self.noiseTex,
+			self.ssaoPingPong:cur(),
 		},
 		-- sceneobj's uniforms are uploaded each :draw() so store here, update later
 		uniforms = {
-			ssaoTCOffset = {0, 0},
+--			ssaoTCOffset = {0, 0},
 		},
 		geometry = self.quadGeom,
 	}
@@ -4690,22 +4734,33 @@ end
 
 function AppVideo:updateSSAOCalcTex()
 	assert(not self.inUpdateCallback)
-	self.ssaoFB:bind()
-	gl.glViewport(0, 0, self.ssaoFB.width, self.ssaoFB.height)
+	
+	self.ssaoPingPong:swap()
+	self.ssaoPingPong.fbo
+		:bind()
+		:setColorAttachmentTex2D(self.ssaoPingPong:cur().id)
+
+	gl.glViewport(0, 0, self.ssaoPingPong.width, self.ssaoPingPong.height)
 
 	local videoMode = self.currentVideoMode
 
 	local sceneObj = self.ssaoBlitObj
 	sceneObj.texs[1] = videoMode.framebufferNormalTex
 	sceneObj.texs[2] = videoMode.framebufferPosTex
-	sceneObj.uniforms.ssaoTCOffset[1] = math.random()
-	sceneObj.uniforms.ssaoTCOffset[2] = math.random()
+	sceneObj.texs[4] = self.ssaoPingPong:prev()
+-- gives it a bad static look
+--	sceneObj.uniforms.ssaoTCOffset[1] = math.random()
+--	sceneObj.uniforms.ssaoTCOffset[2] = math.random()
 	sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
 	sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
 
 	sceneObj:draw()
 
-	self.ssaoFB:unbind()
+	self.ssaoPingPong.fbo:unbind()
+	self.ssaoPingPong:cur()
+		:bind()
+		:generateMipmap()
+		:unbind()
 end
 
 return {

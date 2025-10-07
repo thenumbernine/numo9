@@ -2236,6 +2236,7 @@ print('run thread dead')
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
 		else
+			sceneObj.texs[4] = self.ssaoPingPong:cur()
 			if sceneObj.texs[6] ~= 0 then
 				-- update the palette bound when drawing the 8bppIndex screen
 				-- which palette to use? first?  extra RAM var to specify?
