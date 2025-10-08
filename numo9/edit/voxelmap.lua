@@ -214,9 +214,9 @@ function EditVoxelMap:update()
 		if not mouseHandled
 		and mouseY >= 8
 		then
-			local pushUseHardwareLighting = self.ram.useHardwareLighting
-			self.ram.useHardwareLighting = self.menuUseLighting and 1 or 0
-			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
+			local pushUseHardwareLighting = app.ram.useHardwareLighting
+			app.ram.useHardwareLighting = self.menuUseLighting and 1 or 0
+			if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
 				self:onUseHardwareLightingChange()
 			end
 
@@ -403,8 +403,8 @@ function EditVoxelMap:update()
 				end
 			end
 		
-			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
-				self.ram.useHardwareLighting = pushUseHardwareLighting
+			if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
+				app.ram.useHardwareLighting = pushUseHardwareLighting
 				self:onUseHardwareLightingChange()
 			end
 		end
