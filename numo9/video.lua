@@ -714,7 +714,7 @@ return;
 
 	vec3 lightValue = lightAmbientColor;
 
-#if 1	// enable shadow map
+#if 0	// enable shadow map
 	bool inLight = false;
 	vec4 lightClipCoord = lightProjMat * (lightViewMat * worldCoord);
 	if (lightClipCoord.w > 0.
