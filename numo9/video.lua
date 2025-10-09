@@ -5,6 +5,11 @@ local table = require 'ext.table'
 local class = require 'ext.class'
 local math = require 'ext.math'
 local assert = require 'ext.assert'
+local matrix_ffi = require 'matrix.ffi'
+local vec2f = require 'vec-ffi.vec2f'
+local vec3f = require 'vec-ffi.vec3f'
+local vec4f = require 'vec-ffi.vec4f'
+local vec4us = require 'vec-ffi.vec4us'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local gl = require 'gl'
@@ -16,10 +21,6 @@ local GLGeometry = require 'gl.geometry'
 local GLSceneObject = require 'gl.sceneobject'
 local GLTypes = require 'gl.types'
 local GLPingPong = require 'gl.pingpong'
-
-local matrix_ffi = require 'matrix.ffi'
-require 'vec-ffi.vec4ub'
-require 'vec-ffi.create_vec3'{dim=4, ctype='unsigned short'}	-- vec4us_t
 
 local RAMGPUTex = require 'numo9.ramgpu'
 

@@ -4,7 +4,8 @@ local assert = require 'ext.assert'
 local table = require 'ext.table'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
-local vec3f = require 'vec-ffi.vec3f'
+local vec4us = require 'vec-ffi.vec4us'
+local matrix_ffi = require 'matrix.ffi'
 local gl = require 'gl'
 local GLArrayBuffer = require 'gl.arraybuffer'
 local GLVertexArray = require 'gl.vertexarray'
@@ -195,12 +196,16 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 		bit.lshift(spriteMask, 8)
 	)
 
+	local extra = vec4us(
+		drawFlags,
+		0,	-- dither ... can't use it with meshes anymore, sad.
+		transparentIndex,
+		paletteIndex)
 
 	local width, height, depth= self:getWidth(), self:getHeight(), self:getDepth()
 	-- which to build this off of?
 	-- RAMPtr since thats what AppVideo:drawVoxelMap() uses
 	-- but that means it wont be present upon init() ...
-	local matrix_ffi = require 'matrix.ffi'
 	local m = matrix_ffi({4,4}, 'double'):zeros()
 	local voxels = assert(self:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
 	local vptr = voxels
@@ -286,7 +291,6 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									and nbhd.y >= 0 and nbhd.y < height
 									and nbhd.z >= 0 and nbhd.z < depth
 									then
-
 										-- if it occludes the opposite side then skip this tri
 										local nbhdVox = voxels[nbhd.x + width * (nbhd.y + height * nbhd.z)]
 										local nbhdmesh = app.blobs.mesh3d[nbhdVox.mesh3DIndex+1]
@@ -316,7 +320,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
 									dstVtx.normal = normal
-									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
+									dstVtx.extra = extra
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
 									local srcv = vb
@@ -325,7 +329,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
 									dstVtx.normal = normal
-									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
+									dstVtx.extra = extra
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
 									local srcv = vc
@@ -334,7 +338,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
 									dstVtx.normal = normal
-									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
+									dstVtx.extra = extra
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 								end
 --]]
