@@ -4832,5 +4832,6 @@ return {
 	resetFont = resetFont,
 	resetPalette = resetPalette,
 	calcNormalForTri = calcNormalForTri,
+	Numo9Vertex = Numo9Vertex,
 	AppVideo = AppVideo,
 }

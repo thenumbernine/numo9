@@ -45,8 +45,11 @@ function BlobMesh3D:init(data)
 	local numVtxs = self:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
 	local numIndexes = self:getNumIndexes()
 	local indexes = self:getIndexPtr()
+	local vtxs = self:getVertexPtr()
 
-	-- TODO rebuild triList if the RAM gets changed ...
+	-- TODO rebuild all this if the RAM gets changed ...
+	
+	-- [[ cache tri list
 	self.triList = vector'vec3i_t'	-- store our vtx index list here
 	if numIndexes ~= 0 then
 		for i=0,numIndexes-1 do
@@ -61,6 +64,32 @@ function BlobMesh3D:init(data)
 			self.triList:emplace_back():set(i, i+1, i+2)
 		end
 	end
+	--]]
+
+	-- [[ cache surface normals
+	local numo9_video = require 'numo9.video'
+	local calcNormalForTri = numo9_video.calcNormalForTri
+	local Numo9Vertex = numo9_video.Numo9Vertex
+	self.normalList = vector'vec3f_t'
+	assert.eq(
+		self.normalList.type,
+		select(2, table.find(Numo9Vertex.fields, nil, function(field)
+			return field.name == 'normal'
+		end)).type
+	)
+	for ti=0,#self.triList-1 do
+		local i,j,k = self.triList.v[ti]:unpack()
+		local vi = vtxs + i
+		local vj = vtxs + j
+		local vk = vtxs + k
+		local nx, ny, nz = calcNormalForTri(
+			vi.x, vi.y, vi.z,
+			vj.x, vj.y, vj.z,
+			vk.x, vk.y, vk.z
+		)
+		self.normalList:emplace_back():set(nx, ny, nz)
+	end
+	--]]
 
 	-- [[ here and TODO upon modification ...
 	-- track which tris are on each side / can be occluded
@@ -68,7 +97,6 @@ function BlobMesh3D:init(data)
 	local range = require 'ext.range'
 	local trisPerSide = range(6):mapi(function(i) return table(), i-1 end)
 	self.sideForTriIndex = {}
-	local vtxs = self:getVertexPtr()
 	for ti=0,#self.triList-1 do
 		local i,j,k = self.triList.v[ti]:unpack()
 		local bounds = box3i(

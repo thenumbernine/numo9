@@ -195,8 +195,6 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 		bit.lshift(spriteMask, 8)
 	)
 
-	local numo9_video = require 'numo9.video'
-	local calcNormalForTri = numo9_video.calcNormalForTri
 
 	local width, height, depth= self:getWidth(), self:getHeight(), self:getDepth()
 	-- which to build this off of?
@@ -208,6 +206,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 	local vptr = voxels
 	local occludedCount = 0
 
+	local nbhd = vec3i()
 	for k=0,depth-1 do
 		for j=0,height-1 do
 			for i=0,width-1 do
@@ -281,7 +280,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									local sign = 1 - 2 * bit.band(1, sideIndex)
 									local axis = bit.rshift(sideIndex, 1)
 
-									local nbhd = vec3i(i,j,k)
+									nbhd:set(i,j,k)
 									nbhd.s[axis] = nbhd.s[axis] + sign
 									if nbhd.x >= 0 and nbhd.x < width
 									and nbhd.y >= 0 and nbhd.y < height
@@ -309,18 +308,14 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									local vb = srcVtxs + bi
 									local vc = srcVtxs + ci
 
-									local normalX, normalY, normalZ = calcNormalForTri(
-										va.x, va.y, va.z,
-										vb.x, vb.y, vb.z,
-										vc.x, vc.y, vc.z
-									)
+									local normal = mesh.normalList.v[ti]
 
 									local srcv = va
 									local dstVtx = self.vertexBufCPU:emplace_back()
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal.x, dstVtx.normal.y, dstVtx.normal.z = normalX, normalY, normalZ
+									dstVtx.normal = normal
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
@@ -329,7 +324,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal.x, dstVtx.normal.y, dstVtx.normal.z = normalX, normalY, normalZ
+									dstVtx.normal = normal
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
@@ -338,7 +333,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
 									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal.x, dstVtx.normal.y, dstVtx.normal.z = normalX, normalY, normalZ
+									dstVtx.normal = normal
 									dstVtx.extra.x, dstVtx.extra.y, dstVtx.extra.z, dstVtx.extra.w = drawFlags, app.ram.dither, transparentIndex, paletteIndex
 									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 								end
