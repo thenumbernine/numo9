@@ -247,19 +247,14 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 
 						local mesh = app.blobs.mesh3d[vptr.mesh3DIndex+1]
 						if mesh then
-
-							-- emplace_back() and resize() one by one is slow...
-							local numVtxs = mesh:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
-							local numIndexes = mesh:getNumIndexes()
-							local numTriVtxs = numIndexes == 0 and numVtxs or numIndexes
---DEBUG:assert.eq(numTriVtxs % 3, 0)
 							local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
 
 							-- resize first then offest back in case we get a resize ...
-							self.vertexBufCPU:reserve(#self.vertexBufCPU + numTriVtxs)
+							self.vertexBufCPU:reserve(#self.vertexBufCPU + #mesh.triList)
 
 							for ti=0,#mesh.triList-1 do
-								local ai,bi,ci = mesh.triList.v[ti]:unpack()
+								local tri = mesh.triList.v[ti]
+								local ai, bi, ci = tri.x, tri.y, tri.z
 
 								-- see if this face is aligned to an AABB
 								-- see if its neighbors face is occluding on that AABB
@@ -285,7 +280,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 									local sign = 1 - 2 * bit.band(1, sideIndex)
 									local axis = bit.rshift(sideIndex, 1)
 
-									nbhd:set(i,j,k)
+									nbhd.x, nbhd.y, nbhd.z = i,j,k
 									nbhd.s[axis] = nbhd.s[axis] + sign
 									if nbhd.x >= 0 and nbhd.x < width
 									and nbhd.y >= 0 and nbhd.y < height
