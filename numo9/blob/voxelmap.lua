@@ -212,9 +212,20 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 	local vptr = voxels
 	local occludedCount = 0
 
+local lastTime = os.time()
+
 	local nbhd = vec3i()
 	for k=0,depth-1 do
 		for j=0,height-1 do
+
+local thisTime = os.time()
+if thisTime ~= lastTime then
+	local pos = j + height * k
+	local total = depth * height
+	print(('...%f%%'):format(100 * pos / total))
+	lastTime = thisTime
+end
+
 			for i=0,width-1 do
 				if vptr.intval ~= voxelMapEmptyValue then
 					m:setTranslate(i+.5, j+.5, k+.5)
@@ -235,7 +246,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 						2 c=-1 s= 0
 						3 c= 0 s=-1
 						--]]
-						
+
 						if vptr.rotZ == 1 then
 							--[[
 							[ m0 m4 m8  m12] [ 0 -1 0 0 ]
@@ -356,7 +367,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 --]]
 
 -- 10s slowdown still present in here:
--- [[ 
+-- [[
 								if occluded then
 									occludedCount = occludedCount + 1
 								else

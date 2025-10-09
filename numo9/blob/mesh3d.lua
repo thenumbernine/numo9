@@ -48,7 +48,7 @@ function BlobMesh3D:init(data)
 	local vtxs = self:getVertexPtr()
 
 	-- TODO rebuild all this if the RAM gets changed ...
-	
+
 	-- [[ cache tri list
 	self.triList = vector'vec3i_t'	-- store our vtx index list here
 	if numIndexes ~= 0 then

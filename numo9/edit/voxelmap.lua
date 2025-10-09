@@ -218,7 +218,7 @@ function EditVoxelMap:update()
 			local pushUseHardwareLighting = app.ram.useHardwareLighting
 			app.ram.useHardwareLighting = self.menuUseLighting and 1 or 0
 			if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
-				self:onUseHardwareLightingChange()
+				app:onUseHardwareLightingChange()
 			end
 
 
