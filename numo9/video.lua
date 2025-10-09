@@ -4567,20 +4567,20 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		-- so now we undo the rotation, i.e. use the rotation transpose
 		-- multiply our current modelMat with the viewMat's upper 3x3 transposed and normalized:
 		local v = self.viewMat
-		local v0, v1, v2,  v3  = v.ptr[0], v.ptr[1], v.ptr[ 2], v.ptr[ 3]
-		local v4, v5, v6,  v7  = v.ptr[4], v.ptr[5], v.ptr[ 6], v.ptr[ 7]
-		local v8, v9, v10, v11 = v.ptr[8], v.ptr[9], v.ptr[10], v.ptr[11]
+		local v0, v1, v2  = v.ptr[0], v.ptr[1], v.ptr[ 2]
+		local v4, v5, v6  = v.ptr[4], v.ptr[5], v.ptr[ 6]
+		local v8, v9, v10 = v.ptr[8], v.ptr[9], v.ptr[10]
 
-		-- normalize cols
+		-- normalize rows
 		local ilvx = 1 / math.sqrt(v0 * v0 + v4 * v4 + v8  * v8 )
 		local ilvy = 1 / math.sqrt(v1 * v1 + v5 * v5 + v9  * v9 )
 		local ilvz = 1 / math.sqrt(v2 * v2 + v6 * v6 + v10 * v10)
 
 		-- multiply
 		local m = self.modelMat
-		local m0, m1, m2,  m3  = m.ptr[0], m.ptr[1], m.ptr[ 2], m.ptr[ 3]
-		local m4, m5, m6,  m7  = m.ptr[4], m.ptr[5], m.ptr[ 6], m.ptr[ 7]
-		local m8, m9, m10, m11 = m.ptr[8], m.ptr[9], m.ptr[10], m.ptr[11]
+		local m0, m1, m2  = m.ptr[0], m.ptr[1], m.ptr[ 2]
+		local m4, m5, m6  = m.ptr[4], m.ptr[5], m.ptr[ 6]
+		local m8, m9, m10 = m.ptr[8], m.ptr[9], m.ptr[10]
 
 		-- x axis
 		m.ptr[0] = (v0 * m0 + v4 * m4 + v8  * m8) * ilvx
@@ -4596,11 +4596,6 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		m.ptr[ 2] = (v0 * m2 + v4 * m6 + v8  * m10) * ilvx
 		m.ptr[ 6] = (v1 * m2 + v5 * m6 + v9  * m10) * ilvy
 		m.ptr[10] = (v2 * m2 + v6 * m6 + v10 * m10) * ilvz
-
-		-- set translation:
-		m.ptr[ 3] = (v0 * m3 + v4 * m7 + v8  * m11) * ilvx
-		m.ptr[ 7] = (v1 * m3 + v5 * m7 + v9  * m11) * ilvy
-		m.ptr[11] = (v2 * m3 + v6 * m7 + v10 * m11) * ilvz
 
 	elseif vox.orientation == 21 then
 		-- TODO special case, xy-aligned, z axis still maintained, anchored to voxel center

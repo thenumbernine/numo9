@@ -207,6 +207,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 	-- RAMPtr since thats what AppVideo:drawVoxelMap() uses
 	-- but that means it wont be present upon init() ...
 	local m = matrix_ffi({4,4}, 'double'):zeros()
+	local mp = m.ptr
 	local voxels = assert(self:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
 	local vptr = voxels
 	local occludedCount = 0
@@ -228,19 +229,75 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 					elseif vptr.orientation == 23 then
 						-- TODO
 					else
-						local c, s
+						--[[
+						0 c= 1 s= 0
+						1 c= 0 s= 1
+						2 c=-1 s= 0
+						3 c= 0 s=-1
+						--]]
+						
+						if vptr.rotZ == 1 then
+							--[[
+							[ m0 m4 m8  m12] [ 0 -1 0 0 ]
+							[ m1 m5 m9  m13] [ 1  0 0 0 ]
+							[ m2 m6 m10 m14] [ 0  0 1 0 ]
+							[ m3 m7 m11 m15] [ 0  0 0 1 ]
+							--]]
+							mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
+							= mp[4], mp[5], mp[6], -mp[0], -mp[1], -mp[2]
+						elseif vptr.rotZ == 2 then
+							--[[
+							[ m0 m4 m8  m12] [ -1  0 0 0 ]
+							[ m1 m5 m9  m13] [  0 -1 0 0 ]
+							[ m2 m6 m10 m14] [  0  0 1 0 ]
+							[ m3 m7 m11 m15] [  0  0 0 1 ]
+							--]]
+							mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
+							= -mp[0], -mp[1], -mp[2], -mp[4], -mp[5], -mp[6]
+						elseif vptr.rotZ == 3 then
+							--[[
+							[ m0 m4 m8  m12] [  0 1 0 0 ]
+							[ m1 m5 m9  m13] [ -1 0 0 0 ]
+							[ m2 m6 m10 m14] [  0 0 1 0 ]
+							[ m3 m7 m11 m15] [  0 0 0 1 ]
+							--]]
+							mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
+							= -mp[4], -mp[5], -mp[6], mp[0], mp[1], mp[2]
+						end
 
-						c, s = 1, 0
-						for i=0,vptr.rotZ-1 do c, s = -s, c end
-						m:applyRotateCosSinUnit(c, s, 0, 0, 1)
+						if vptr.rotY == 1 then
+							--[[
+							[ m0 m4 m8  m12] [  0 0 1 0 ]
+							[ m1 m5 m9  m13] [  0 1 0 0 ]
+							[ m2 m6 m10 m14] [ -1 0 0 0 ]
+							[ m3 m7 m11 m15] [  0 0 0 1 ]
+							--]]
+							mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
+							= -mp[8], -mp[9], -mp[10], mp[0], mp[1], mp[2]
+						elseif vptr.rotY == 2 then
+							mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
+							= -mp[0], -mp[1], -mp[2], -mp[8], -mp[9], -mp[10]
+						elseif vptr.rotY == 3 then
+							mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
+							= mp[8], mp[9], mp[10], -mp[0], -mp[1], -mp[2]
+						end
 
-						c, s = 1, 0
-						for i=0,vptr.rotY-1 do c, s = -s, c end
-						m:applyRotateCosSinUnit(c, s, 0, 1, 0)
-
-						c, s = 1, 0
-						for i=0,vptr.rotX-1 do c, s = -s, c end
-						m:applyRotateCosSinUnit(c, s, 1, 0, 0)
+						if vptr.rotX == 1 then
+							--[[
+							[ m0 m4 m8  m12] [ 1 0  0 0 ]
+							[ m1 m5 m9  m13] [ 0 0 -1 0 ]
+							[ m2 m6 m10 m14] [ 0 1  0 0 ]
+							[ m3 m7 m11 m15] [ 0 0  0 1 ]
+							--]]
+							mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
+							= mp[12], mp[13], mp[14], -mp[0], -mp[1], -mp[2]
+						elseif vptr.rotX == 2 then
+							mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
+							= -mp[0], -mp[1], -mp[2], -mp[12], -mp[13], -mp[14]
+						elseif vptr.rotX == 3 then
+							mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
+							= -mp[12], -mp[13], -mp[14], mp[0], mp[1], mp[2]
+						end
 
 						local uofs = bit.lshift(vptr.tileXOffset, 3)
 						local vofs = bit.lshift(vptr.tileYOffset, 3)
