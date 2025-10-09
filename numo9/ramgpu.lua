@@ -90,7 +90,7 @@ glreport'before RAMGPUTex:init'
 		--minFilter = args.minFilter or gl.GL_LINEAR_MIPMAP_LINEAR,
 		--minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
 		magFilter = args.magFilter or gl.GL_NEAREST,
-		--magFilter = args.magFilter or gl.GL_LINEAR,
+		--magFilter = gl.GL_LINEAR,
 		data = ptr,	-- ptr is stored
 		--generateMipmap = true,
 	}

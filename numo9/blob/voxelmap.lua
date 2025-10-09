@@ -164,6 +164,7 @@ app = used to search list of mesh3d blobs
 --]]
 function BlobVoxelMap:rebuildMesh(app)
 	if not self.dirtyCPU then return end
+select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 	self.dirtyCPU = false
 
 	self.billboardXYZVoxels:resize(0)
@@ -253,7 +254,8 @@ function BlobVoxelMap:rebuildMesh(app)
 							-- resize first then offest back in case we get a resize ...
 							self.vertexBufCPU:reserve(#self.vertexBufCPU + numTriVtxs)
 
-							for ai,bi,ci,ti in mesh:triIter() do
+							for ti=0,#mesh.triList-1 do
+								local ai,bi,ci = mesh.triList.v[ti]:unpack()
 
 								-- see if this face is aligned to an AABB
 								-- see if its neighbors face is occluding on that AABB
@@ -268,6 +270,7 @@ function BlobVoxelMap:rebuildMesh(app)
 								-- hmmmmmmm
 
 
+-- occluding takes our build time from 84s to 10s
 -- [[
 								local sideIndex = mesh.sideForTriIndex[ti]
 								if sideIndex then
@@ -297,7 +300,8 @@ function BlobVoxelMap:rebuildMesh(app)
 								end
 --]]
 
--- [[ has all the slowdown ...
+-- 10s slowdown still present in here:
+-- [[ 
 								if occluded then
 									occludedCount = occludedCount + 1
 								else
@@ -347,6 +351,7 @@ function BlobVoxelMap:rebuildMesh(app)
 			end
 		end
 	end
+end))
 --DEBUG:print('created', #self.vertexes/3, 'tris')
 --DEBUG:print('occluded', occludedCount, 'tris')
 end

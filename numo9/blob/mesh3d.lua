@@ -45,10 +45,20 @@ function BlobMesh3D:init(data)
 	local numVtxs = self:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
 	local numIndexes = self:getNumIndexes()
 	local indexes = self:getIndexPtr()
+
+	-- TODO rebuild triList if the RAM gets changed ...
+	self.triList = vector'vec3i_t'	-- store our vtx index list here
 	if numIndexes ~= 0 then
 		for i=0,numIndexes-1 do
 			assert.le(0, indexes[i])
 			assert.lt(indexes[i], numVtxs)
+		end
+		for i=0,numIndexes-3,3 do
+			self.triList:emplace_back():set(indexes[i], indexes[i+1], indexes[i+2])
+		end
+	else
+		for i=0,numVtxs-3,3 do
+			self.triList:emplace_back():set(i, i+1, i+2)
 		end
 	end
 
@@ -59,7 +69,8 @@ function BlobMesh3D:init(data)
 	local trisPerSide = range(6):mapi(function(i) return table(), i-1 end)
 	self.sideForTriIndex = {}
 	local vtxs = self:getVertexPtr()
-	for i,j,k,ti in self:triIter() do
+	for ti=0,#self.triList-1 do
+		local i,j,k = self.triList.v[ti]:unpack()
 		local bounds = box3i(
 			vec3i(0x7fffffff, 0x7fffffff, 0x7fffffff),
 			vec3i(-0x80000000, -0x80000000, -0x80000000))
@@ -143,23 +154,6 @@ function BlobMesh3D:getIndexPtr()
 	assert.le(0, ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr())
 	assert.eq(ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
 	return indptr
-end
-
-function BlobMesh3D:triIter()
-	return coroutine.wrap(function()
-		local numIndexes = self:getNumIndexes()
-		if numIndexes == 0 then
-			local numVtxs = self:getNumVertexes()
-			for i=0,numVtxs-1,3 do
-				coroutine.yield(i, i+1, i+2, i/3)
-			end
-		else
-			local indexes = self:getIndexPtr()
-			for i=0,numIndexes-1,3 do
-				coroutine.yield(indexes[i], indexes[i+1], indexes[i+2], i/3)
-			end
-		end
-	end)
 end
 
 function BlobMesh3D:getTriIndexes(i)	-- i is 0-based

@@ -87,7 +87,8 @@ function EditVoxelMap:onCartLoad()
 			TileSelect.drawSelected(self, winX, winY, winW, winH)
 		end
 		local vtxs = mesh:getVertexPtr()
-		for i,j,k,ti in mesh:triIter() do
+		for ti=0,#mesh.triList-1 do
+			local i,j,k = mesh.triList.v[ti]:unpack()
 			local u1, v1 = tc(vtxs + i)
 			local u2, v2 = tc(vtxs + j)
 			local u3, v3 = tc(vtxs + k)
