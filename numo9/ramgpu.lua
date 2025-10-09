@@ -87,8 +87,12 @@ glreport'before RAMGPUTex:init'
 			t = gl.GL_CLAMP_TO_EDGE,
 		},
 		minFilter = args.minFilter or gl.GL_NEAREST,
+		--minFilter = args.minFilter or gl.GL_LINEAR_MIPMAP_LINEAR,
+		--minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
 		magFilter = args.magFilter or gl.GL_NEAREST,
+		--magFilter = args.magFilter or gl.GL_LINEAR,
 		data = ptr,	-- ptr is stored
+		--generateMipmap = true,
 	}
 -- this will fail when the menu font is being used
 --assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
@@ -128,6 +132,7 @@ function RAMGPUTex:checkDirtyCPU()
 --assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
 	tex:bind()
 		:subimage()
+		--:generateMipmap()
 	if app.inUpdateCallback then
 		fb:bind()
 	end

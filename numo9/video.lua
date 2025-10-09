@@ -2769,7 +2769,7 @@ assert(self.videoModes[255])
 
 	self:copyBlobsToROM()
 
-	-- [[ update now ...
+	--[[ update now ...
 	for _,blob in ipairs(self.blobs.sheet) do
 		blob.ramgpu.tex:bind()
 			:subimage()
@@ -2791,7 +2791,25 @@ assert(self.videoModes[255])
 		blob.ramgpu.dirtyCPU = false
 	end
 	--]]
-	--[[ update later ...
+	-- [[ update now but with checkDirtyCPU
+	for _,blob in ipairs(self.blobs.sheet) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+	for _,blob in ipairs(self.blobs.tilemap) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+	for _,blob in ipairs(self.blobs.palette) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+	for _,blob in ipairs(self.blobs.font) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+	--]]
+	--[[ update later ... TODO except framebuffer or nah?
 	self:setDirtyCPU()
 	--]]
 

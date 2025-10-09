@@ -943,19 +943,6 @@ function App:initGL()
 		-- sandboxed load
 
 		load = function(cmd, ...)
-			-- ok so ... load() is Lua's load()
-			-- but in pico8 and tic80, `load` is also the console command for loading carts
-			-- which is where my open() function comes in
-			-- but sometimes I forget,
-			--[[ so for moments like those, I'm tempted to have a check here to see if the file exists, and then just do an open() instead if it does ...
-			for _,suffix in ipairs{'', '.n9', '.n9.png'} do
-				local checkfn = cmd..suffix
-				if self.fs:get(checkfn) then
-					return self:openCart(cmd) -- or net_openCart?
-				end
-			end
-			--]]
-
 			return self:loadCmd(cmd, ...)
 			--return self:loadCmd(cmd, source, self.gameEnv)  -- should it use the game's env, or the app's default env? or should it be an arg?
 		end,
@@ -3107,8 +3094,11 @@ end
 
 -- returns the function to run the code
 function App:loadCmd(cmd, source, env)
+-- langfix is slow... esp for big scripts...
+return select(2, require 'ext.timer'('App:loadCmd', function()
 	-- Lua is wrapping [string "  "] around my source always ...
 	return self.loadenv.load(cmd, source, 't', env or self.gameEnv or self.env)
+end))
 end
 
 --[[
