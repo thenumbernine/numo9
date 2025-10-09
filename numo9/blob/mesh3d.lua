@@ -106,7 +106,7 @@ function BlobMesh3D:init(data)
 		local tris = trisPerSide[sideIndex]
 		local totalArea = 0
 		for _,triIndex in ipairs(tris) do
-			local i,j,k = self:getTriIndexes(triIndex)
+			local i,j,k = self.triList.v[triIndex]:unpack()
 			local vi, vj, vk = vtxs+i, vtxs+j, vtxs+k
 			-- vec3i or vec3d? scale or no? scaled for now cuz i'm lazy
 			local a = vec3d(vi.x, vi.y, vi.z) / 32768
@@ -156,16 +156,6 @@ function BlobMesh3D:getIndexPtr()
 	return indptr
 end
 
-function BlobMesh3D:getTriIndexes(i)	-- i is 0-based
-	local numIndexes = self:getNumIndexes()
-	if numIndexes == 0 then
-		return 3*i, 3*i+1, 3*i+2
-	else
-		local indexes = self:getIndexPtr()
-		return indexes[3*i], indexes[3*i+1], indexes[3*i+2]
-	end
-end
-
 function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 	--[[ use mesh library objloader
 	local mesh = OBJLoader():save(filepath)
@@ -188,17 +178,9 @@ function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 			return ('%.9f'):format((x + .5) / 256)
 		end):concat' ')
 	end
-	local numIndexes = self:getNumIndexes()
-	if numIndexes == 0 then
-		for i=0,numVtxs-2,3 do
-			o:insert('f '..(i+1)..' '..(i+2)..' '..(i+3))
-		end
-	else
-		local indexes = self:getIndexPtr()
-		for i=0,numIndexes-2,3 do
-			-- convert 0-based to 1-based
-			o:insert('f '..(1+indexes[i])..' '..(1+indexes[i+1])..' '..(1+indexes[i+2]))
-		end
+	for ti=0,#self.triList-1 do
+		local i,j,k = self.triList.v[ti]:unpack()
+		o:insert('f '..i..' '..j..' '..k)
 	end
 	filepath:write(o:concat'\n'..'\n')
 	--]]
