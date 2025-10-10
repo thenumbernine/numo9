@@ -17,6 +17,7 @@ local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
+local matType = numo9_rom.matType
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
@@ -191,8 +192,21 @@ function EditVoxelMap:update()
 			app:onUseHardwareLightingChange()
 		end
 
-
 		local mouseHandled = orbit:beginDraw()
+
+		-- also clear this to force the next view to be the one that the lighting uses
+		-- which is the editor's orbit view
+		--- And do it here *AFTER* oribt:beginDraw and not *BEFORE*
+		-- because orbit does a pre pass for the XYZ widget which is an ortho display,
+		-- and if you set this before ortho:beginDraw then that'll get caputred by the lighting instead of the scene's view mat
+		--self.haveCapturedDrawMatsForLightingThisFrame = false
+		-- nope that doesnt even work
+		-- meh just force it here.
+		app.haveCapturedDrawMatsForLightingThisFrame = true
+		ffi.copy(app.drawViewMatForLighting.ptr, app.ram.viewMat, ffi.sizeof(matType) * 16)
+		ffi.copy(app.drawProjMatForLighting.ptr, app.ram.projMat, ffi.sizeof(matType) * 16)
+
+
 		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
 
 		self:drawBox(mapbox, 0x31)

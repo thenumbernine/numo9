@@ -2017,10 +2017,15 @@ print('run thread dead')
 
 				-- reset the view and proj matrices that lighting captures
 				-- in case we're illuminating objs in the menu, i.e. voxelmap editor
+				-- TODO
+				-- the only place I'm even using ligthign in the menus is the voxelmap editor
+				-- and the way things are, it has to manually upload thse matrices
+				-- so this code is really unnecessary
+				--[[
 				self.haveCapturedDrawMatsForLightingThisFrame = false
 				self.drawViewMatForLighting:setIdent()
 				self.drawProjMatForLighting:setIdent()
-
+				--]]
 
 				if coroutine.status(thread) == 'dead' then
 					self:setMenu(nil)
@@ -2144,7 +2149,7 @@ print('run thread dead')
 			needDrawCounter = 1
 		end
 
-		self:updateSSAOCalcTex()
+		self:updateLigthCalcText()
 
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
@@ -2216,15 +2221,14 @@ print('run thread dead')
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 
-
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
 		else
-			if sceneObj.texs[6] ~= 0 then
+			if sceneObj.texs[3] ~= 0 then
 				-- update the palette bound when drawing the 8bppIndex screen
 				-- which palette to use? first?  extra RAM var to specify?
 				-- how about whatevers selected as the active palette at end of frame?
-				sceneObj.texs[6] = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu.tex
+				sceneObj.texs[3] = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu.tex
 			end
 		end
 --]]

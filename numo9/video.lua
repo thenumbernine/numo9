@@ -776,9 +776,6 @@ layout(location=0) out <?=blitFragType?> fragColor;
 uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
-uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
 
 ]]..useLightingCode..[[
@@ -818,17 +815,11 @@ void main() {
 			}),
 			uniforms = {
 				framebufferTex = 0,
-				framebufferNormalTex = 1,
-				framebufferPosTex = 2,
-				lightDepthTex = 3,
-				calcLightTex = 4,
+				calcLightTex = 1,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
-			self.framebufferNormalTex,
-			self.framebufferPosTex,
-			app.lightDepthTex,
 			app.calcLightPP:cur(),
 		},
 		geometry = app.quadGeom,
@@ -893,9 +884,6 @@ layout(location=0) out <?=blitFragType?> fragColor;
 uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
-uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 uniform <?=app.ssaoPongPong:cur():getGLSLSamplerType()?> calcLightTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
@@ -925,18 +913,12 @@ void main() {
 			}),
 			uniforms = {
 				framebufferTex = 0,
-				framebufferNormalTex = 1,
-				framebufferPosTex = 2,
-				lightDepthTex = 3,
-				calcLightTex = 4,
-				paletteTex = 5,
+				calcLightTex = 1,
+				paletteTex = 2,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
-			self.framebufferNormalTex,
-			self.framebufferPosTex,
-			app.lightDepthTex,
 			app.calcLightPP:cur(),
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
@@ -1017,10 +999,7 @@ layout(location=0) out <?=blitFragType?> fragColor;
 uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
-uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
-uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 ]]..useLightingCode..[[
 
@@ -1047,10 +1026,7 @@ void main() {
 			}),
 			uniforms = {
 				framebufferTex = 0,
-				framebufferNormalTex = 1,
-				framebufferPosTex = 2,
-				lightDepthTex = 3,
-				calcLightTex = 4,
+				calcLightTex = 1,
 			},
 		},
 		texs = {
@@ -2122,7 +2098,7 @@ const vec3 lightSpecularColor = vec3(.5, .5, .5);
 uniform mat4 lightViewMat;	// used for light depth coord transform, and for determining the light pos
 uniform mat4 lightProjMat;
 uniform mat4 drawViewMat;	// used by SSAO
-uniform mat4 drawProjMat;	// used by ... 
+uniform mat4 drawProjMat;	// used by ...
 uniform mat4 drawProjInvMat;	// needed by SSAO for transforming from framebuffer coords back to view coords
 
 uniform vec3 lightViewPos;
@@ -2871,8 +2847,6 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onFrameBufferSizeChange()
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
-	self.blitScreenObj.texs[2] = self.framebufferNormalTex
-	self.blitScreenObj.texs[3] = self.framebufferPosTex
 
 	self.currentVideoMode = modeObj
 	self.currentVideoModeIndex = modeIndex
@@ -4703,7 +4677,7 @@ function AppVideo:drawVoxelMap(
 	end
 end
 
-function AppVideo:updateSSAOCalcTex()
+function AppVideo:updateLigthCalcText()
 	assert(not self.inUpdateCallback)
 
 	local calcLightPP = self.calcLightPP
@@ -4730,10 +4704,10 @@ function AppVideo:updateSSAOCalcTex()
 		}:unbind()
 
 		-- update all refs
-		self.blitScreenObj.texs[5] = calcLightPP:cur()	-- I guess it oculdb e on native's old blitScreenObj and native could clear the old one to make a new one during its resize code?
+		self.blitScreenObj.texs[2] = calcLightPP:cur()	-- I guess it oculdb e on native's old blitScreenObj and native could clear the old one to make a new one during its resize code?
 		for _,videoMode in pairs(self.videoModes) do
 			if videoMode.blitScreenObj then
-				videoMode.blitScreenObj.texs[5] = calcLightPP:cur()
+				videoMode.blitScreenObj.texs[2] = calcLightPP:cur()
 			end
 		end
 
@@ -4757,7 +4731,7 @@ function AppVideo:updateSSAOCalcTex()
 	local sceneObj = self.calcLightBlitObj
 	sceneObj.texs[1] = videoMode.framebufferNormalTex
 	sceneObj.texs[2] = videoMode.framebufferPosTex
-	
+
 	sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
 	sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
 
@@ -4771,9 +4745,10 @@ function AppVideo:updateSSAOCalcTex()
 	self.calcLight_DrawProjInvMat:inv4x4(self.drawProjMatForLighting)
 	sceneObj.uniforms.drawProjInvMat = self.calcLight_DrawProjInvMat.ptr
 
---DEBUG(lighting):print('drawing final scene')
+--DEBUG(lighting):print('drawing lighting')
 --DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
 --DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
+--DEBUG(lighting):print()
 
 	sceneObj:draw()
 
