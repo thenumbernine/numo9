@@ -2328,6 +2328,13 @@ void main() {
 		float bufferClipDepthAtSample = texture(framebufferPosTex, sampleNDCCoord.xy * .5 + .5).w;
 		float depthDiff = sampleClipCoord.z - bufferClipDepthAtSample;
 		if (depthDiff < ssaoSampleRadius) {
+			// TODO TODO TODO numOccluded += 1 should give us default behavior
+			// BUT ITS GIVING US INVERSE BEHAVIOR
+			// So find out why
+			// And maybe it'd help to guanratee normals are facing normal
+			// SO ADD BACKFACE CULLING
+			// BUT THAT MEANS CHANGING SPRITE-SCALE TO SPRITE-H/VFLIP AND KEEPING SCALE POSITIVE FOR HANDEDNESS' SAKE
+			// AND FOR BOTH 2D Y-DOWN AND 3D Y-UP TO BOTH USE THE SAME CULLING, NOW YOU NEED TO PUT THE 2D CAMERA ON THE OPPOSITE SIDE OF THE WORLD COORDINATE PLANE.
 			numOccluded += step(bufferClipDepthAtSample, sampleClipCoord.z);
 		}
 	}
