@@ -692,10 +692,8 @@ uniform mat4 lightViewMat;	// used for light depth coord transform, and for dete
 uniform mat4 lightProjMat;
 uniform mat4 drawViewMat;	// used for determining the view position
 
-// TODO do this and upload as uniform
-vec3 getViewMatPos(mat4 m) {
-	return inverse(m)[3].xyz;
-}
+uniform vec3 lightViewPos;
+uniform vec3 drawViewPos;
 
 void doLighting(vec3 worldNormal) {
 	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
@@ -762,8 +760,8 @@ return;
 
 	if (inLight) {
 #if 1 // diffuse & specular with the world space surface normal
-		vec3 lightDir = normalize(getViewMatPos(lightViewMat) - worldCoord.xyz);
-		vec3 viewDir = normalize(getViewMatPos(drawViewMat) - worldCoord.xyz);
+		vec3 lightDir = normalize(lightViewPos - worldCoord.xyz);
+		vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
 
 		// apply bumpmap lighting
 		lightValue +=
@@ -2142,6 +2140,13 @@ function AppVideo:initVideo()
 		gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, self.lightDepthTex.id, 0)
 		self.lightDepthTex:unbind()
 		self.lightmapFB:unbind()
+
+		-- lightview / lighting needs the light view pos and the draw view pos.
+		-- for the light view pos, we can just copy it from lightView itself (until I start giving the cart author more control of the lighting)
+		local vec3f = require 'vec-ffi.vec3f'
+		self.lightViewPos = vec3f()
+		-- for the draw view, I will have to extract it from the matrix ...
+		self.drawViewInvMat = ident4x4:clone()
 	end
 
 	-- [[ SSAO framebuffer,
@@ -2197,6 +2202,8 @@ function AppVideo:initVideo()
 		:bind()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:unbind()
+
+	self.ssaoDrawProjInvMat = ident4x4:clone()
 --]]
 
 
@@ -2271,6 +2278,7 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 // used for SSAO lighting, not used for projection
 uniform mat4 drawViewMat;
 uniform mat4 drawProjMat;
+uniform mat4 drawProjInvMat;
 
 void main() {
 	vec4 worldNormal = texture(framebufferNormalTex, tcv);
@@ -4801,6 +4809,9 @@ function AppVideo:updateSSAOCalcTex()
 --	sceneObj.uniforms.ssaoTCOffset[2] = math.random()
 	sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
 	sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
+	self.ssaoDrawProjInvMat:inv4x4(self.drawProjMatForLighting)
+	sceneObj.uniforms.drawProjInvMat = self.ssaoDrawProjInvMat.ptr
+
 
 	sceneObj:draw()
 
