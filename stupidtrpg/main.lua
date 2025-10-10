@@ -8,9 +8,9 @@ math.randomseed(tstamp())
 --#include ext/class.lua
 --#include vec/vec2.lua
 --#include vec/box2.lua
+--#include numo9/screen.lua
 
 mode(42)	-- 16:9 480x270x8bpp-indexed
-local screenSize = vec2(480, 270)
 
 tilemapTiles={
 	floor = 80 | 0x400,
@@ -105,7 +105,8 @@ con={
 		con.x+=#s
 	end,
 	clearline = function()
-		rect(con.x<<3,con.y<<3,screenSize.x,8,16)
+		local w, h= getScreenSize()
+		rect(con.x<<3,con.y<<3,w,8,16)
 		con.x=1
 		con.y+=8
 	end,

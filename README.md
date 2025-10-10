@@ -924,3 +924,8 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - while we're changing spr()'s API, also move those 4 properties (bit, mask, transparent, palette-offset) to the back behind hflip/vflip/scale flags
 	- adding hflip & vflip might mean merging tilemap and spritemap render paths
 - rename flip to yield()
+
+TODO cart status:
+- dithertest.n9 is broken
+- hello.n9 is broken
+- stupidtrpg.n9 is broken (tho sometimes it shows text)

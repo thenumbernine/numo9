@@ -1,5 +1,6 @@
 -- divide 8 cuz font size is 8
-local UISize = (screenSize/8-vec2(0,4)):floor()
+local w, h = getScreenSize()
+local UISize = (vec2(w,h)/8-vec2(0,4)):floor()
 UI=class{
 	size=UISize,
 	bbox=box2(1, UISize),

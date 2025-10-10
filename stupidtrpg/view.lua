@@ -1,5 +1,6 @@
 View=class()
-View.size=(screenSize/16):floor()
+local w, h = getScreenSize()
+View.size=(vec2(w,h)/16):floor()
 View.bbox=box2(1,View.size)
 View.center = (View.size/2):ceil()
 View.update=|:,mapCenter|do
