@@ -818,7 +818,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - some weird bug when pasting into sheet a pic with an image with transparency, seems to glitch/stall ...
 - some weird bug where when I switch to picking format/type by internalFormat using the gl.tex* ctor it gives me glErrors, when doing it manaully in the ctor args is working fine ...
 - change editor to use native-resolution.
-	- then the UI will need to be fixed since the layout is the mode-0 res.  
+	- then the UI will need to be fixed since the layout is the mode-0 res.
 		- maybe use [Lua-Gui](https://github.com/thenumbernine/lua-gui).  This will fix all the event handling and bubbling and such.
 
 # Things I'm still debating ...
@@ -870,7 +870,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- Blob
 		- BrushMap
 		- VoxelMap
-		- DataAbs	<- all these use mutable strings for data ... 
+		- DataAbs	<- all these use mutable strings for data ...
 			- Brush	<- not even used
 			- Code	<- this is at least safely handled
 			- Data	<- never touched
@@ -909,16 +909,18 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - fc ram light flags:
 	- sprite bumpmaps in the normalmap
 	- use ssao
-	- use shadowmaps 
+	- use shadowmaps
 - and more lightmap ram vars .... a lot to tune ...
 - settings config to disable each of the lightmap features
 
 - langfix is typically negligible, but it's giving me roughly 1 second per 10,000 lines of code .......
 
 - voxelmap editor mouse rays from out of the volume don't choose border voxels correctly.
-- TODO introduce backface culling.
+- TODO introduce backface culling.... ???
 	- render flipped sprites with hflip/vflip flag so flipping their vertexes doesnt cull them.
-	- render 2D trad-console viewports with z reversed so that rendering a y-flip scene doesn't cull everything.
+	- render 2D trad-console viewports with z reversed so that rendering a y-flip scene doesn't cull everything....
+	... eh that wont change the front vs back face being cw vs ccw... but by putting the view on the other side of the plane, it is flipping x as well, so it'd be a whole dif 2D coordinate system ...
+	... have to think on this more.
 - while we're changing spr()'s API, also move those 4 properties (bit, mask, transparent, palette-offset) to the back behind hflip/vflip/scale flags
 	- adding hflip & vflip might mean merging tilemap and spritemap render paths
 - rename flip to yield()

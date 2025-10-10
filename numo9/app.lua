@@ -2224,7 +2224,7 @@ print('run thread dead')
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
 		else
-			if sceneObj.texs[3] ~= 0 then
+			if sceneObj.texs[3] then
 				-- update the palette bound when drawing the 8bppIndex screen
 				-- which palette to use? first?  extra RAM var to specify?
 				-- how about whatevers selected as the active palette at end of frame?
@@ -2337,7 +2337,15 @@ function App:peekf(addr)
 	return ffi.cast('float*', self.ram.v + addr)[0]
 end
 
+-- TODO better way to find sizeof fields? or better way in struct to pick fields by their name?
 local useHardwareLightingAddr = ffi.offsetof('RAM', 'useHardwareLighting')
+local useHardwareLightingAddrEnd = useHardwareLightingAddr + ffi.sizeof(
+	select(2, table.find(numo9_rom.RAM.fields[2].type.fields, nil, function(field) return field.name == 'useHardwareLighting' end)).type
+)
+local ditherAddr = ffi.offsetof('RAM', 'dither')
+local ditherAddrEnd = ditherAddr + ffi.sizeof(
+	select(2, table.find(numo9_rom.RAM.fields[2].type.fields, nil, function(field) return field.name == 'dither' end)).type
+)
 
 function App:poke(addr, value)
 	addr = toint(addr)
@@ -2351,9 +2359,6 @@ function App:poke(addr, value)
 		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
-	end
-	if addr == useHardwareLightingAddr then
-		self:onUseHardwareLightingChange()
 	end
 
 	self.ram.v[addr] = value
@@ -2373,6 +2378,12 @@ function App:poke(addr, value)
 	end
 	if addr >= blendColorAddr and addr < blendColorAddrEnd then
 		self:onBlendColorChange()
+	end
+	if addr >= ditherAddr and addr < ditherAddrEnd then
+		self:onDitherChange()
+	end
+	if addr >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
+		self:onUseHardwareLightingChange()
 	end
 
 	-- TODO none of the others happen period, only the palette texture
@@ -2442,9 +2453,6 @@ function App:pokew(addr, value)
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
-	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
-		self:onUseHardwareLightingChange()
-	end
 
 	ffi.cast('uint16_t*', self.ram.v + addr)[0] = value
 
@@ -2463,6 +2471,12 @@ function App:pokew(addr, value)
 	end
 	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
 		self:onBlendColorChange()
+	end
+	if addrend >= ditherAddr and addr < ditherAddrEnd then
+		self:onDitherChange()
+	end
+	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
+		self:onUseHardwareLightingChange()
 	end
 
 	for _,blob in ipairs(self.blobs.sheet) do
@@ -2517,9 +2531,6 @@ function App:pokel(addr, value)
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
-	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
-		self:onUseHardwareLightingChange()
-	end
 
 	ffi.cast('uint32_t*', self.ram.v + addr)[0] = value
 
@@ -2538,6 +2549,12 @@ function App:pokel(addr, value)
 	end
 	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
 		self:onBlendColorChange()
+	end
+	if addrend >= ditherAddr and addr < ditherAddrEnd then
+		self:onDitherChange()
+	end
+	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
+		self:onUseHardwareLightingChange()
 	end
 
 	for _,blob in ipairs(self.blobs.sheet) do
@@ -2592,9 +2609,6 @@ function App:pokef(addr, value)
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
-	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddr then
-		self:onUseHardwareLightingChange()
-	end
 
 	ffi.cast('float*', self.ram.v + addr)[0] = value
 
@@ -2613,6 +2627,12 @@ function App:pokef(addr, value)
 	end
 	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
 		self:onBlendColorChange()
+	end
+	if addrend >= ditherAddr and addr < ditherAddrEnd then
+		self:onDitherChange()
+	end
+	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
+		self:onUseHardwareLightingChange()
 	end
 
 	for _,blob in ipairs(self.blobs.sheet) do
@@ -2688,9 +2708,6 @@ function App:memcpy(dst, src, len)
 			self.framebufferRAM.dirtyCPU = true
 		end
 	end
-	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddr then
-		self:onUseHardwareLightingChange()
-	end
 
 	do
 		local rsrc, rdst, rlen = src, dst, len
@@ -2732,6 +2749,12 @@ function App:memcpy(dst, src, len)
 	end
 	if dstend >= blendColorAddr and dst < blendColorAddrEnd then
 		self:onBlendColorChange()
+	end
+	if dstend >= ditherAddr and dst < ditherAddrEnd then
+		self:onDitherChange()
+	end
+	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddrEnd then
+		self:onUseHardwareLightingChange()
 	end
 
 	for _,blob in ipairs(self.blobs.sheet) do
@@ -2798,9 +2821,6 @@ function App:memset(dst, val, len)
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
-	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddr then
-		self:onUseHardwareLightingChange()
-	end
 
 	ffi.fill(self.ram.v + dst, len, val)
 
@@ -2819,6 +2839,12 @@ function App:memset(dst, val, len)
 	end
 	if dstend >= blendColorAddr and dst < blendColorAddrEnd then
 		self:onBlendColorChange()
+	end
+	if dstend >= ditherAddr and dst < ditherAddrEnd then
+		self:onDitherChange()
+	end
+	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddrEnd then
+		self:onUseHardwareLightingChange()
 	end
 
 	for _,blob in ipairs(self.blobs.sheet) do

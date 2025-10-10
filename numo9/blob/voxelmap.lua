@@ -198,7 +198,7 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 
 	local extra = vec4us(
 		drawFlags,
-		0,	-- dither ... can't use it with meshes anymore, sad.
+		0,
 		transparentIndex,
 		paletteIndex)
 

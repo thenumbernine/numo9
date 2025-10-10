@@ -1091,7 +1091,7 @@ for solid:
 		bit 0/1 = render pathway = 00
 		bit 2 = draw a solid round quad
 		bit 4 = solid shader uses borderOnly
-	.y = colorIndex
+		bits 8-15 = colorIndex
 
 for sprites:
 	.x:
@@ -1103,14 +1103,14 @@ for sprites:
 			  (extra.x >> 3) == 0 = read sprite low nibble.
 			  (extra.x >> 3) == 4 = read sprite high nibble.
 
-	.y = spriteMask;
-		Specifies the mask after shifting the sprite bit
-		  0x01u = 1bpp
-		  0x03u = 2bpp
-		  0x07u = 3bpp
-		  0x0Fu = 4bpp
-		  0xFFu = 8bpp
-		I'm giving this all 8 bits, but honestly I could just represent it as 3 bits and calculate the mask as ((1 << mask) - 1)
+		bits 8-15 = spriteMask;
+			Specifies the mask after shifting the sprite bit
+			  0x01u = 1bpp
+			  0x03u = 2bpp
+			  0x07u = 3bpp
+			  0x0Fu = 4bpp
+			  0xFFu = 8bpp
+			I'm giving this all 8 bits, but honestly I could just represent it as 3 bits and calculate the mask as ((1 << mask) - 1)
 
 	.z = transparentIndex;
 		Specifies which colorIndex to use as transparency.
@@ -1128,8 +1128,7 @@ for tilemap:
 		bit 0/1 = render pathway = 10
 		bit 2 = on = 16x16 tiles, off = 8x8 tiles
 
-	.y = mapIndexOffset lo byte
-	.z = mapIndexOffset hi byte (2 bits worth? how many bits should the tilemap index offset care about?)
+	.z = mapIndexOffset
 */
 layout(location=3) in uvec4 extraAttr;
 
@@ -1190,9 +1189,10 @@ uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 
-uniform vec4 blendColorSolid;
 uniform vec4 clipRect;
 uniform bool useHardwareLighting;
+uniform vec4 blendColorSolid;
+uniform uint dither;
 //uniform vec2 frameBufferSize;
 
 <?=glslCode5551?>
@@ -1452,7 +1452,7 @@ void main() {
 		| ((uFragCoord.x ^ uFragCoord.y) & 2u)
 		| ((uFragCoord.y & 1u) << 2)
 		| (((uFragCoord.x ^ uFragCoord.y) & 1u) << 3);
-	uint dither = extra.y;
+
 	if ((dither & (1u << threshold)) != 0u) discard;
 
 	uint pathway = extra.x & 3u;
@@ -1537,7 +1537,7 @@ void main() {
 
 
 <? if fragType == 'uvec4' then ?>
-	if (fragColor.a == 0u) disscard;
+	if (fragColor.a == 0u) discard;
 <? else ?>
 	if (fragColor.a < .5) discard;
 <? end ?>
@@ -2224,12 +2224,13 @@ return;
 
 
 
-
-
 #if 1	// SSAO:
 
 	vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
 	vec3 normalizedViewNormal = normalize(viewNormal.xyz);
+
+	// make sure normal is pointing towards the view, i.e. z+
+	if (normalizedViewNormal.z < 0.) normalizedViewNormal = -normalizedViewNormal;
 
 	vec4 viewCoord = drawViewMat * worldCoord;
 
@@ -2260,15 +2261,9 @@ return;
 		vec4 sampleClipCoord = drawProjMat * vec4(sampleViewCoord, 1.);
 		vec4 sampleNDCCoord = sampleClipCoord / sampleClipCoord.w;
 		float bufferClipDepthAtSample = texture(framebufferPosTex, sampleNDCCoord.xy * .5 + .5).w;
+
 		float depthDiff = sampleClipCoord.z - bufferClipDepthAtSample;
 		if (depthDiff < ssaoSampleRadius) {
-			// TODO TODO TODO numOccluded += 1 should give us default behavior
-			// BUT ITS GIVING US INVERSE BEHAVIOR
-			// So find out why
-			// And maybe it'd help to guanratee normals are facing normal
-			// SO ADD BACKFACE CULLING
-			// BUT THAT MEANS CHANGING SPRITE-SCALE TO SPRITE-H/VFLIP AND KEEPING SCALE POSITIVE FOR HANDEDNESS' SAKE
-			// AND FOR BOTH 2D Y-DOWN AND 3D Y-UP TO BOTH USE THE SAME CULLING, NOW YOU NEED TO PUT THE 2D CAMERA ON THE OPPOSITE SIDE OF THE WORLD COORDINATE PLANE.
 			numOccluded += step(bufferClipDepthAtSample, sampleClipCoord.z);
 		}
 	}
@@ -2435,6 +2430,7 @@ function AppVideo:triBuf_prepAddTri(
 	or self.projMatDirty
 	or self.clipRectDirty
 	or self.blendColorDirty
+	or self.ditherDirty
 	or self.useHardwareLightingDirty
 	or self.frameBufferSizeUniformDirty
 	then
@@ -2467,6 +2463,10 @@ function AppVideo:triBuf_prepAddTri(
 				blendSolidB/255,
 				blendSolidA/255)
 			self.blendColorDirty = false
+		end
+		if self.ditherDirty then
+			gl.glUniform1ui(program.uniforms.dither.loc, self.ram.dither)
+			self.ditherDirty = false
 		end
 		if self.useHardwareLightingDirty then
 			self.useHardwareLightingDirty = false
@@ -2579,6 +2579,11 @@ end
 function AppVideo:onBlendColorChange()
 	self:triBuf_flush()
 	self.blendColorDirty = true
+end
+
+function AppVideo:onDitherChange()
+	self:triBuf_flush()
+	self.ditherDirty = true
 end
 
 function AppVideo:onFrameBufferSizeChange()
@@ -2743,6 +2748,9 @@ assert(self.videoModes[255])
 	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
 	self:onBlendColorChange()
 
+	self.ram.dither = 0
+	self:onDitherChange()
+
 	self.paletteBlobIndex = 0
 	self.fontBlobIndex = 0
 
@@ -2844,6 +2852,7 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onProjMatChange()
 	self:onClipRectChange()
 	self:onBlendColorChange()
+	self:onDitherChange()
 	self:onFrameBufferSizeChange()
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
@@ -2985,7 +2994,7 @@ function AppVideo:drawSolidRect(
 		xR, y,  0, xR, y,
 		x,  yR, 0, x,  yR,
 		0, 0, 1,
-		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
+		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), 0, 0, 0,
 		x, y, w, h
 	)
 
@@ -2997,7 +3006,7 @@ function AppVideo:drawSolidRect(
 		xR, y,  0, xR, y,
 		xR, yR, 0, xR, yR,
 		0, 0, 1,
-		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), self.ram.dither, 0, 0,
+		bit.bor(drawFlags, bit.lshift(colorIndex, 8)), 0, 0, 0,
 		x, y, w, h
 	)
 
@@ -3050,7 +3059,7 @@ function AppVideo:drawSolidTri3D(
 		x2, y2, z2, 1, 0,
 		x3, y3, z3, 0, 1,
 		normalX, normalY, normalZ,
-		bit.lshift(math.floor(colorIndex or 0), 8), self.ram.dither, 0, 0,
+		bit.lshift(math.floor(colorIndex or 0), 8), 0, 0, 0,
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
 
@@ -3205,7 +3214,7 @@ function AppVideo:drawSolidLine3D(
 		xRL, yRL, zRL, 1, 0,
 		xLR, yLR, zLR, 0, 1,
 		normalX, normalY, normalZ,
-		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
+		bit.lshift(colorIndex, 8), 0, 0, 0,
 		0, 0, 1, 1
 	)
 
@@ -3217,7 +3226,7 @@ function AppVideo:drawSolidLine3D(
 		xRL, yRL, zRL, 1, 0,
 		xRR, yRR, zRR, 1, 1,
 		normalX, normalY, normalZ,
-		bit.lshift(colorIndex, 8), self.ram.dither, 0, 0,
+		bit.lshift(colorIndex, 8), 0, 0, 0,
 		0, 0, 1, 1
 	)
 
@@ -3446,7 +3455,7 @@ function AppVideo:drawQuadTex(
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
 		0, 0, 1,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteIndex,
 		0, 0, 1, 1
 	)
 
@@ -3458,7 +3467,7 @@ function AppVideo:drawQuadTex(
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
 		0, 0, 1,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteIndex,
 		0, 0, 1, 1
 	)
 end
@@ -3488,7 +3497,7 @@ function AppVideo:drawQuadTexRGB(
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
 		0, 0, 1,
-		3, self.ram.dither, 0, 0,
+		3, 0, 0, 0,
 		0, 0, 1, 1
 	)
 
@@ -3500,7 +3509,7 @@ function AppVideo:drawQuadTexRGB(
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
 		0, 0, 1,
-		3, self.ram.dither, 0, 0,
+		3, 0, 0, 0,
 		0, 0, 1, 1
 	)
 end
@@ -3634,7 +3643,7 @@ function AppVideo:drawTexTri3D(
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
 		normalX, normalY, normalZ,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), self.ram.dither, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteIndex,
 		0, 0, 1, 1
 	)
 
@@ -3778,7 +3787,7 @@ function AppVideo:drawMap(
 		xR, yL, 0, uR, vL,
 		xL, yR, 0, uL, vR,
 		0, 0, 1,
-		extraX, self.ram.dither, extraZ, 0,
+		extraX, 0, extraZ, 0,
 		0, 0, 1, 1
 	)
 
@@ -3790,7 +3799,7 @@ function AppVideo:drawMap(
 		xR, yL, 0, uR, vL,
 		xR, yR, 0, uR, vR,
 		0, 0, 1,
-		extraX, self.ram.dither, extraZ, 0,
+		extraX, 0, extraZ, 0,
 		0, 0, 1, 1
 	)
 
@@ -3881,7 +3890,7 @@ function AppVideo:drawTextCommon(
 			xR, y,  0, uR, 0,
 			x,  yR, 0, uL, th,
 			0, 0, 1,
-			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
+			bit.bor(drawFlags, 0x100), 0, 0, paletteIndex,
 			0, 0, 1, 1
 		)
 
@@ -3893,7 +3902,7 @@ function AppVideo:drawTextCommon(
 			xR, yR, 0, uR, th,
 			x,  yR, 0, uL, th,
 			0, 0, 1,
-			bit.bor(drawFlags, 0x100), self.ram.dither, 0, paletteIndex,
+			bit.bor(drawFlags, 0x100), 0, 0, paletteIndex,
 			0, 0, 1, 1
 		)
 

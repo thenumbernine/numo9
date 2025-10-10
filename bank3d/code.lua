@@ -23,7 +23,6 @@
 --videoMode='480x270xRGB332'
 videoMode='Native_RGB565'
 mode(videoMode)
-pokew(ramaddr'useHardwareLighting', 1)
 cheat=true
 
 levelstr='level ?'
@@ -211,6 +210,8 @@ drawMap=||do
 
 	matident()
 	matident(1)
+	matident(2)
+
 	local ar = getAspectRatio()
 	matfrustum(
 		-ar * viewZNear,
@@ -227,6 +228,8 @@ drawMap=||do
 		0, 0, 1
 	)
 
+	pokew(ramaddr'useHardwareLighting', 1)
+
 	matscale(1/16, 1/16, 1/16)
 
 	--mattrans(24, 24)
@@ -234,13 +237,16 @@ drawMap=||do
 	-- TODO voxelbrushmap?  tempting...
 	drawbrush(0, -16, -16, levelSize.x+2, levelSize.y+2, 0, true, 1)
 
-	--[[ draw voxelmap i.e. without animations ... works
+	-- [[ draw voxelmap i.e. without animations ... works
 	matpush()
 	matscale(16,16,16)
 	voxelmap(0, 1)
 	matpop()
 	--]]
-	-- [[ draw one voxel at a time, esp for water animation
+	--[[ draw one voxel at a time, esp for water animation
+	-- ... goes horribly slow, because drawing the whole thing uses the cached mesh
+	-- how about TODO copying over the animation so the mesh doesn't change?
+	-- or TODO a new feature for animated tilemaps / spritesheets :thinking: hmm
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
 			for x=0,levelSize.x-1 do
@@ -263,6 +269,8 @@ drawMap=||do
 		end
 	end
 	--]]
+
+	pokew(ramaddr'useHardwareLighting', 0)
 end
 
 
@@ -1374,7 +1382,6 @@ mapSet=|...| vset(level, ...)
 loadLevel=||do
 	reset()		-- reload our tilemap? or not?
 	mode(videoMode)	-- reset() also resets the video mode ... TODO don't reset video mode? idk hmm ...
-	pokew(ramaddr'useHardwareLighting', 1)
 	removeAll()
 	for z=0,levelSize.z-1 do
 		for y=0,levelSize.y-1 do
@@ -1465,14 +1472,18 @@ update=||do
 		cls(0xf0)
 
 		matident()
+		matident(1)
+		matident(2)
 		drawMap()
 		matident()
+		matident(1)
+		matident(2)
 
 		fillp(0x1fff)	--blend(5)
-		rect(0,0,screenWidth,screenHeight,19)
+		rect(-1,-1,2,2,19)
 		fillp(0)		--blend(-1)
 
-		matident(1)
+		matident(2)
 		matortho(0, screenTextWidth, screenTextWidth * screenHeight / screenWidth, 0)
 		-- splash screen
 		local s = 2
@@ -1590,6 +1601,7 @@ update=||do
 	cls(0xf0)
 	matident()
 	matident(1)
+	matident(2)
 	matortho(0, screenTextWidth, screenTextWidth * screenHeight / screenWidth, 0)
 
 	if player then
@@ -1600,11 +1612,16 @@ update=||do
 	end
 
 	matident()
+	matident(1)
+	matident(2)
+
 	drawMap()
 
+	pokew(ramaddr'useHardwareLighting', 1)
 	for _,o in ipairs(objs) do
 		o:drawSprite()
 	end
+	pokew(ramaddr'useHardwareLighting', 0)
 end
 
 setLevel(0)
