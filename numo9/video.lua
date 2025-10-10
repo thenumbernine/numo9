@@ -3178,9 +3178,9 @@ function AppVideo:invTransform(x,y,z)
 	-- normalized-device coords to homogeneous inv transform? or nah?
 	-- TODO transform accepts 'm' mvType[16] override, but this operates on 4x4 matrix.ffi types...
 	-- TODO make this operation in-place
-	modelInv:copy(self.modelMat):applyInv4x4()
-	viewInv:copy(self.viewMat):applyInv4x4()
-	projInv:copy(self.projMat):applyInv4x4()
+	modelInv:inv4x4(self.modelMat)
+	viewInv:inv4x4(self.viewMat)
+	projInv:inv4x4(self.projMat)
 	x,y,z,w = mat4x4mul(projInv.ptr, x, y, z, w)
 	x,y,z,w = mat4x4mul(viewInv.ptr, x,y,z,w)
 	x,y,z,w = mat4x4mul(modelInv.ptr, x,y,z,w)

@@ -895,13 +895,14 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- bumpmapping from sprites
 		- SSAO
 	- add SSAO vars to RAM
-	- get a single directional light working
+	- get a single directional light working (CHECK)
 		- then get multiple
 		- sized buffer/viewport smaller than typical view fo
 		- just draw twice brah (or n+1 times for n lights)
 		- then add light vars to RAM (that means max # of lights)
 		- should I support cubemap lights? or only directional? cubemap light is just 6 direcitonal anyways so no need I guess
 		- how many dynamic shadowmap-based lights do modern games have?
+		- .... smh why not just do this all in screen-space?  and no shadows or at least marched shadows in the depth buffer...
 
 - double check SSAO hemisphere alignment to normal / make sure you're using the world coords or view coords or something.
 
@@ -914,8 +915,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 - langfix is typically negligible, but it's giving me roughly 1 second per 10,000 lines of code .......
 
-- I broke editor's useLighting, proly cuz of view-matrix being cached and which does it use the scenes or the editors?
-- also SSAO is def buggy.  I'm doing it in NDC when I shoudl do it in view coords (requiring an inverse projection matrix)
+- SSAO is def buggy.  I'm doing it in NDC when I shoudl do it in view coords (requiring an inverse projection matrix)
 - voxelmap editor mouse rays from out of the volume don't choose border voxels correctly.
 - TODO introduce backface culling.
 	- render flipped sprites with hflip/vflip flag so flipping their vertexes doesnt cull them.
