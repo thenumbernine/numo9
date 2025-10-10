@@ -9,6 +9,10 @@ local zo = 10
 local viewDist = 2
 local viewAlt = 2
 
+local useLighting = 0	-- nah
+
+math.randomseed(tstamp())
+
 local modeIndex = 0
 local modes = range(0,49):append{255}
 
@@ -43,16 +47,21 @@ update=||do
 	local viewZ = viewAlt
 
 	matident()
+	matident(1)
+	matident(2)
+	local w, h = getScreenSize()
+	matortho(0, w, h, 0)
 	--[[ ortho
 	matortho(-zo,zo,-zo,zo)
 	--]]
 	-- [==[ frustum
 	--projection
-	local w, h = getScreenSize()
 	text('mode '..modes[modeIndex+1]..': '..w..'x'..h, 0, 0)
 	local ar = w / h
 
+	matident()
 	matident(1)
+	matident(2)
 	matfrustum(-ar * zn, ar * zn, -zn, zn, zn, zf)
 
 --[[
@@ -68,12 +77,12 @@ update=||do
 		-- rot on x axis so now x+ is right and y+ is forward
 		-- by default the view is looking along the z axis , and I'm using XY as my drawing coordinates (cuz that's what the map() and spr() use), so Z is up/down by the renderer.
 		-- so I have to tilt up to look along the Y+ plane
-	matrot(math.rad(tiltUpAngle), 1, 0, 0)
+	matrot(math.rad(tiltUpAngle), 1, 0, 0, 1)
 		-- inv-rot by our viewAngle around
 		-- add an extra rot of 90' on z axis to put x+ forward.  now we can use exp(i*viewAngle) for our forward vector.
-	matrot(-(viewAngle + .5*math.pi), 0, 0, 1)
+	matrot(-(viewAngle + .5*math.pi), 0, 0, 1, 1)
 	-- inverse-translate
-	mattrans(-viewX, -viewY, -viewZ)
+	mattrans(-viewX, -viewY, -viewZ, 1)
 --[[
 tilUpAngle = 70:
 0, -8388608, 0, 8388608
@@ -115,6 +124,8 @@ tiltUpAngle = 90:
 	-- modelspace translate
 	-- modelspace rotate
 	--]==]
+
+	poke(ramaddr'useHardwareLighting', useLighting)
 
 	--[[ should be centered in [-10,10]^2 ortho or in FOV=45' at z=10 frustum
 	ellib(-5,-5,10,10,0xfc)
@@ -180,6 +191,8 @@ tiltUpAngle = 90:
 		matpop()
 	end
 	--]]
+	
+	poke(ramaddr'useHardwareLighting', 0)
 
 	local spd = .2
 	local rot = .03

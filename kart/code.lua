@@ -27,7 +27,6 @@ https://www.spriters-resource.com/custom_edited/mariocustoms/
 --#include numo9/matstack.lua
 local userAddr = blobaddr'data'
 assert.ge(blobsize'data', 512)
-assert.eq(ramsize'mvMat', 16*4, "expected mvmat to be 32bit")	-- need to assert this for my peek/poke push/pop. need to peek/poke vs writing to app.ram directly so it is net-reflected.
 local palAddr = blobaddr'palette'
 
 local windowWidth, windowHeight = 256, 256
@@ -1032,10 +1031,12 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 
 	matpush()
 	matpush(1)
+	matpush(2)
 
-	matident(1)
-	matortho(0, 256, 256, 0)
 	matident()
+	matident(1)
+	matident(2)
+	matortho(0, 256, 256, 0)
 	local skyScale = viewWidth / windowWidth
 	local s = 2 * skyScale
 	matscale(s, s)
@@ -1044,6 +1045,7 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 	spr(si|0x400, viewX / s, viewY / s, sw, sh)			-- draw sky
 	spr(si|0x400, viewX / s - sw * 8, viewY / s, sw, sh)	-- and again to make it wrap
 
+	matpop(2)
 	matpop(1)
 	matpop()
 
@@ -1160,14 +1162,15 @@ function Kart:setupClientView(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 	local n = .1
 	local f = 128
 
+	matident()
 	matident(1)
+	matident(2)
 -- [[ frustum
 	matfrustum(n,-n,-n,n,n,f)
 --]]
 --[[ ortho
 	matortho(10,-10,-10,10,-1000,1000)
 --]]
-	matident()
 
 	-- [[
 	local camHDist = 2.5 local camVDist = 2.5
@@ -1364,6 +1367,7 @@ Kart.lakituCenterY = -.1
 function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 	matident()
 	matident(1)
+	matident(2)
 	matortho(0, 256, 256, 0)
 	-- inverse-transform ortho so that [0,256]^2 lines up with the view rect
 	--matortho(viewX, viewX + viewWidth, viewY, viewY + viewHeight)
@@ -2540,6 +2544,7 @@ update=||do
 		cls(0)
 		matident()
 		matident(1)
+		matident(2)
 		matortho(0, 256, 256, 0)
 		mattrans(0, -menuTopY)
 		local x,y=16,96

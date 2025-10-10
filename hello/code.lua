@@ -15,6 +15,8 @@ for j=0,255 do
 end
 --]=]
 function update()
+	local w = peekw(ramaddr'screenWidth')
+	local h = peekw(ramaddr'screenHeight')
 
 	-- every three seconds ...
 	if time()%4>3 then
@@ -27,6 +29,12 @@ function update()
 	end
 
 -- [=[ fill our map with random tiles
+
+	matident()
+	matident(1)
+	matident(2)
+	matortho(0, w, h, 0)
+
 	--[[ all?
 	for j=0,31 do
 		for i=0,31 do
@@ -66,7 +74,7 @@ function update()
 	local x2=x+r*cx
 	local y1=y-r*cy
 	local y2=y+r*cy
-	
+
 	local f = ({
 		elli, ellib, rect, rectb
 	})[math.floor(time()%4)+1]
@@ -75,6 +83,10 @@ function update()
 	)
 
 	matident()
+	matident(1)
+	matident(2)
+	matortho(0, w, h, 0)
+
 	mattrans(x2,y2)
 	matrot(t, 0, 0, 1)
 	text(
@@ -84,7 +96,6 @@ function update()
 		0, -- bg
 		1.5, 3 -- sx sy
 	)
-	matident()
 end
 
 do return 42 end

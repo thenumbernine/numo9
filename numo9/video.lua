@@ -884,7 +884,7 @@ layout(location=0) out <?=blitFragType?> fragColor;
 uniform bool useLighting;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=app.ssaoPongPong:cur():getGLSLSamplerType()?> calcLightTex;
+uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
@@ -1833,9 +1833,6 @@ function AppVideo:initVideo()
 	--]]
 	self:resizeRAMGPUs()
 
-	-- off by default
-	self.ram.useHardwareLighting = 0
-
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 
 	-- TODO would be nice to have a 'useVec' sort of thing per shader for interleaved arrays like this ...
@@ -2750,6 +2747,9 @@ assert(self.videoModes[255])
 
 	self.ram.dither = 0
 	self:onDitherChange()
+
+	self.ram.useHardwareLighting = 0
+	self:onUseHardwareLightingChange()
 
 	self.paletteBlobIndex = 0
 	self.fontBlobIndex = 0

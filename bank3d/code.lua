@@ -27,6 +27,8 @@ cheat=true
 
 levelstr='level ?'
 
+useLighting=0	-- nahhh
+
 sfxid={
 	bomb_explode = 0,
 	collect_money = 1,
@@ -228,7 +230,7 @@ drawMap=||do
 		0, 0, 1
 	)
 
-	pokew(ramaddr'useHardwareLighting', 1)
+	pokew(ramaddr'useHardwareLighting', useLighting)
 
 	matscale(1/16, 1/16, 1/16)
 
@@ -1617,7 +1619,7 @@ update=||do
 
 	drawMap()
 
-	pokew(ramaddr'useHardwareLighting', 1)
+	pokew(ramaddr'useHardwareLighting', useLighting)
 	for _,o in ipairs(objs) do
 		o:drawSprite()
 	end

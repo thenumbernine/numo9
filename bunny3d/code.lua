@@ -25,13 +25,16 @@ update=||do
 	-- [[ frustum
 	local zn, zf = .1, 2
 	local ar = tonumber(peekw(ramaddr'screenWidth')) / tonumber(peekw(ramaddr'screenHeight'))
+	matident()
 	matident(1)
+	matident(2)
 	matfrustum(-ar*zn, ar*zn, -zn, zn, zn, zf)
 	--matfrustum(-zn, zn, -zn/ar, zn/ar, zn, zf)
 	-- fun fact, swapping top and bottom isn't the same as scaling y axis by -1  ...
-	matident()
 	mattrans(0, 0, -.5 * zf)
 	--]]
+
+	--poke(ramaddr'useHardwareLighting', 1)
 
 	local th = .05
 	local mx, my = mouse()
@@ -105,4 +108,6 @@ update=||do
 	else
 		mesh(meshIndex)
 	end
+
+	--poke(ramaddr'useHardwareLighting', 0)
 end
