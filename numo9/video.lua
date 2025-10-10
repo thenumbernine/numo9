@@ -2249,8 +2249,9 @@ uniform vec2 ssaoTCOffset;
 #endif
 
 const float ssaoSampleTCScale = 18.;
-const float ssaoSampleRadius = .05;
-const float ssaoInfluence = .8;	// 1 = 100% = you'll see black in fully-occluded points
+//const float ssaoSampleRadius = .05;	// in ndcCoords this is fine
+const float ssaoSampleRadius = 1.;	// trying for world coords or view coords ... 
+const float ssaoInfluence = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 
 // these are the random vectors inside a unit hemisphere facing z+
 #define ssaoNumSamples 8
@@ -2288,14 +2289,20 @@ void main() {
 		return;
 	}
 
-	float clipDepth = texture(framebufferPosTex, tcv).w;
-
 	vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
-	vec4 clipNormal = drawProjMat * viewNormal;
-	vec3 normalizedClipNormal = normalize(clipNormal.xyz);
+	vec3 normalizedViewNormal = normalize(viewNormal.xyz);
+
+	vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
+	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
+	float clipDepth = worldCoordAndClipDepth.w;
+	vec4 viewCoord = drawViewMat * worldCoord;
+
+	// clipCoord = drawProjMat * viewCoord
+	// ndcCoord = homogeneous(clipCoord)
+	// ndcCoord should == tcv.xy * 2. - 1. .......
 
 	// current fragment in [-1,1]^2 screen coords x clipDepth
-	vec3 origin = vec3(tcv.xy * 2. - 1., clipDepth);
+	//vec3 viewCoord = vec3(tcv.xy * 2. - 1., clipDepth);
 
 	// TODO just save float buffer? faster?
 	// TODO should this random vec be in 3D or 2D?
@@ -2305,22 +2312,23 @@ void main() {
 	rvec.z = 0.;
 	rvec.xy = normalize(rvec.xy * 2. - 1.);
 
-	vec3 tangent = normalize(rvec - normalizedClipNormal * dot(rvec, normalizedClipNormal));
-	vec3 bitangent = cross(tangent, normalizedClipNormal);
-	mat3 tangentMatrix = mat3(tangent, bitangent, normalizedClipNormal);
+	// frame in view coordinates
+	vec3 tangent = normalize(rvec - normalizedViewNormal * dot(rvec, normalizedViewNormal));
+	vec3 bitangent = cross(tangent, normalizedViewNormal);
+	mat3 tangentMatrix = mat3(tangent, bitangent, normalizedViewNormal);
 
 	float numOccluded = 0.;
 	for (int i = 0; i < ssaoNumSamples; ++i) {
 		// rotate random hemisphere vector into our tangent space
 		// but this is still in [-1,1]^2 screen coords x clipDepth, right?
-		vec3 samplePt = tangentMatrix * ssaoRandomVectors[i]
-			* ssaoSampleRadius
-			+ origin;
+		vec3 sampleViewCoord = viewCoord.xyz + tangentMatrix * (ssaoRandomVectors[i] * ssaoSampleRadius);
 
-		float bufferClipDepthAtSample = texture(framebufferPosTex, samplePt.xy * .5 + .5).w;
-		float depthDiff = samplePt.z - bufferClipDepthAtSample;
-		if (depthDiff > ssaoSampleRadius) {
-			numOccluded += step(bufferClipDepthAtSample, samplePt.z);
+		vec4 sampleClipCoord = drawProjMat * vec4(sampleViewCoord, 1.);
+		vec4 sampleNDCCoord = sampleClipCoord / sampleClipCoord.w;
+		float bufferClipDepthAtSample = texture(framebufferPosTex, sampleNDCCoord.xy * .5 + .5).w;
+		float depthDiff = sampleClipCoord.z - bufferClipDepthAtSample;
+		if (depthDiff < ssaoSampleRadius) {
+			numOccluded += step(bufferClipDepthAtSample, sampleClipCoord.z);
 		}
 	}
 
