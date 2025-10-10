@@ -882,7 +882,7 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
-uniform <?=app.ssaoPingPong:cur():getGLSLSamplerType()?> ssaoTex;
+uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> ssaoTex;
 
 ]]..useLightingCode..[[
 
@@ -936,7 +936,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.lightDepthTex,
-			app.ssaoPingPong:cur(),
+			app.calcLightPP:cur(),
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -1048,7 +1048,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.lightDepthTex,
-			app.ssaoPingPong:cur(),
+			app.calcLightPP:cur(),
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
 		geometry = app.quadGeom,
@@ -1130,7 +1130,7 @@ uniform bool useLighting;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.ssaoPingPong:cur():getGLSLSamplerType()?> ssaoTex;
+uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> ssaoTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 ]]..useLightingCode..[[
@@ -1173,7 +1173,7 @@ void main() {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			app.lightDepthTex,
-			app.ssaoPingPong:cur(),
+			app.calcLightPP:cur(),
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -2149,7 +2149,7 @@ function AppVideo:initVideo()
 		self.drawViewInvMat = ident4x4:clone()
 	end
 
-	-- [[ SSAO framebuffer,
+	-- [[ deferred lighting framebuffer,
 	-- do this before video modes built so we can attach the tex to video modes' blitScreenObj
 	--
 	-- TODO
@@ -2158,37 +2158,19 @@ function AppVideo:initVideo()
 	-- No it is not a good idea to blend it with past SSAO buffers, that makes ghosting and TV-static effects.
 	-- The best I found was just 1 texture, rendered with only its info, no blurring, no past iterations, no miplevels, no other resolutions.
 	-- and use it in the final pass.
-	-- so TODO you can replace ssaoPingPong with just a tex and a fbo.
+	-- so TODO you can replace calcLightPP with just a tex and a fbo.
 	-- but meh it does package the two into one class well.
 	--
 	-- downsample gbuffer into here for ssao calcs and use that tex to render to the final scene
 	-- TODO blending multiple buffers together doesn't seem to make that much of a difference
 	-- 	but it does cause ghosting and tearing at edges.  so..
-	self.ssaoPingPong = GLPingPong{
+	self.calcLightPP = GLPingPong{
 		numBuffers = 1,	-- just for the fbo + tex
-		--[[ too small and its ugly, too big and its slow
-		-- I was using native res before
-		width = 256,
-		height = 256,
-		--]]
-		--[[
-		width = 512,
-		height = 512,
-		--]]
-		-- [[ just use native res.
 		width = self.width,
 		height = self.height,
-		--]]
-		--[[ honestly if SSAO only stores a single scalar of how occluded a scene is, just store it in GL_R8
-		internalFormat = gl.GL_R8,
-		format = gl.GL_RED,
-		type = gl.GL_UNSIGNED_BYTE,
-		--]]
-		-- [[ I think fb color tarets have to be rgb or rgba, but not gl_r8 or gl_r32f? idk... double check plz.
 		internalFormat = gl.GL_RGBA32F,
 		format = gl.GL_RGBA,
 		type = gl.GL_FLOAT,
-		--]]
 		minFilter = gl.GL_NEAREST,
 		magFilter = gl.GL_NEAREST,
 		wrap = {
@@ -2198,21 +2180,21 @@ function AppVideo:initVideo()
 	}
 	-- TODO put setDrawBuffers init in gl.pingpong ... when you dont provide a fbo?
 	--  or is it even needed for single-color-attachment fbos?
-	self.ssaoPingPong.fbo
+	self.calcLightPP.fbo
 		:bind()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:unbind()
 
-	self.ssaoDrawProjInvMat = ident4x4:clone()
+	self.calcLight_DrawProjInvMat = ident4x4:clone()
 --]]
 
 
 	self:resetVideo()
 
 
--- [[ more SSAO
+-- [[ more deferred lighting
 	-- do this after resetting video so that we have a videoMode object
-	self.ssaoBlitObj = GLSceneObject{
+	self.calcLightBlitObj = GLSceneObject{
 		program = {
 			version = self.glslVersion,
 			precision = 'best',
@@ -2240,13 +2222,6 @@ layout(location=0) out vec4 fragColor;
 uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
-#if 0
-uniform <?=app.ssaoPingPong:cur():getGLSLSamplerType()?> ssaoPrevTex;
-#endif
-
-#if 0
-uniform vec2 ssaoTCOffset;
-#endif
 
 const float ssaoSampleTCScale = 18.;
 //const float ssaoSampleRadius = .05;	// in ndcCoords this is fine
@@ -2306,9 +2281,7 @@ void main() {
 
 	// TODO just save float buffer? faster?
 	// TODO should this random vec be in 3D or 2D?
-	vec3 rvec = texture(noiseTex, (tcv
-			//+ ssaoTCOffset
-		) * ssaoSampleTCScale).xyz;
+	vec3 rvec = texture(noiseTex, tcv * ssaoSampleTCScale).xyz;
 	rvec.z = 0.;
 	rvec.xy = normalize(rvec.xy * 2. - 1.);
 
@@ -2341,46 +2314,26 @@ void main() {
 
 	float lum = 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
 
-#if 0
-	// I'm starting to think oldLum doesn't matter so much at all
-	float oldLum = texture(ssaoPrevTex, tcv
-		// offset by half a texel to get more blurring
-		+ vec2(<?=glnumber(.5 / width)?>, <?=glnumber(.5 / height)?>)
-	).x;
-
-	// too much oldLum and it blurs and gets ghosting effects when you turn the view
-	// too little + permuting and it looks like TV static
-	// so keep it low and no permuting?
-	lum = mix(lum, oldLum, .2);
-#endif
-
 	fragColor = vec4(lum, 1., 1., 1.);
 }
 ]],			{
 				app = self,
 				videoMode = self.currentVideoMode,
 				glnumber = glnumber,
-				width = self.ssaoPingPong.width,
-				height = self.ssaoPingPong.height,
+				width = self.calcLightPP.width,
+				height = self.calcLightPP.height,
 			}),
 			uniforms = {
 				framebufferNormalTex = 0,
 				framebufferPosTex = 1,
 				noiseTex = 2,
-				--ssaoPrevTex = 3,
-				--ssaoTCOffset = {0,0},
 			},
 		},
 		texs = {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			self.noiseTex,
-			--self.ssaoPingPong:cur(),
 		},
-		-- sceneobj's uniforms are uploaded each :draw() so store here, update later
---		uniforms = {
---			ssaoTCOffset = {0, 0},
---		},
 		geometry = self.quadGeom,
 	}
 	--]]
@@ -4767,16 +4720,16 @@ end
 function AppVideo:updateSSAOCalcTex()
 	assert(not self.inUpdateCallback)
 
-	local ssaoPP = self.ssaoPingPong
-	local ssaoFB = ssaoPP.fbo
-	if self.width ~= ssaoFB.width
-	or self.height ~= ssaoFB.height
+	local calcLightPP = self.calcLightPP
+	local calcLightFB = calcLightPP.fbo
+	if self.width ~= calcLightFB.width
+	or self.height ~= calcLightFB.height
 	then
 		-- delete the old tex
-		ssaoPP.hist[1]:delete()
+		calcLightPP.hist[1]:delete()
 
 		-- realloc a new tex
-		ssaoPP.hist[1] = GLTex2D{
+		calcLightPP.hist[1] = GLTex2D{
 			width = self.width,
 			height = self.height,
 			internalFormat = gl.GL_RGBA32F,
@@ -4791,49 +4744,46 @@ function AppVideo:updateSSAOCalcTex()
 		}:unbind()
 
 		-- update all refs
-		self.blitScreenObj.texs[5] = ssaoPP:cur()	-- I guess it oculdb e on native's old blitScreenObj and native could clear the old one to make a new one during its resize code?
+		self.blitScreenObj.texs[5] = calcLightPP:cur()	-- I guess it oculdb e on native's old blitScreenObj and native could clear the old one to make a new one during its resize code?
 		for _,videoMode in pairs(self.videoModes) do
 			if videoMode.blitScreenObj then
-				videoMode.blitScreenObj.texs[5] = ssaoPP:cur()
+				videoMode.blitScreenObj.texs[5] = calcLightPP:cur()
 			end
 		end
 
 		-- and resize the fbo stored size
-		ssaoFB.width = self.width
-		ssaoFB.height = self.height
-		ssaoPP.width = self.width
-		ssaoPP.height = self.height
+		calcLightFB.width = self.width
+		calcLightFB.height = self.height
+		calcLightPP.width = self.width
+		calcLightPP.height = self.height
 	end
 
 
-	ssaoPP:swap()
-	ssaoFB
+	calcLightPP:swap()
+	calcLightFB
 		:bind()
-		:setColorAttachmentTex2D(ssaoPP:cur().id)
+		:setColorAttachmentTex2D(calcLightPP:cur().id)
 
-	gl.glViewport(0, 0, ssaoPP.width, ssaoPP.height)
+	gl.glViewport(0, 0, calcLightPP.width, calcLightPP.height)
 
 	local videoMode = self.currentVideoMode
 
-	local sceneObj = self.ssaoBlitObj
+	local sceneObj = self.calcLightBlitObj
 	sceneObj.texs[1] = videoMode.framebufferNormalTex
 	sceneObj.texs[2] = videoMode.framebufferPosTex
---	sceneObj.texs[4] = ssaoPP:prev()
--- gives it a bad static look
---	sceneObj.uniforms.ssaoTCOffset[1] = math.random()
---	sceneObj.uniforms.ssaoTCOffset[2] = math.random()
+--	sceneObj.texs[4] = calcLightPP:prev()
 	sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
 	sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
-	self.ssaoDrawProjInvMat:inv4x4(self.drawProjMatForLighting)
-	sceneObj.uniforms.drawProjInvMat = self.ssaoDrawProjInvMat.ptr
+	self.calcLight_DrawProjInvMat:inv4x4(self.drawProjMatForLighting)
+	sceneObj.uniforms.drawProjInvMat = self.calcLight_DrawProjInvMat.ptr
 
 
 	sceneObj:draw()
 
-	ssaoFB:unbind()
+	calcLightFB:unbind()
 
 --[[ doesn't seem to help
-	ssaoPP:cur()
+	calcLightPP:cur()
 		:bind()
 		:generateMipmap()
 		:unbind()

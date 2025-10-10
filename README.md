@@ -915,7 +915,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 - langfix is typically negligible, but it's giving me roughly 1 second per 10,000 lines of code .......
 
-- SSAO is def buggy.  I'm doing it in NDC when I shoudl do it in view coords (requiring an inverse projection matrix)
 - voxelmap editor mouse rays from out of the volume don't choose border voxels correctly.
 - TODO introduce backface culling.
 	- render flipped sprites with hflip/vflip flag so flipping their vertexes doesnt cull them.
