@@ -681,117 +681,14 @@ end
 -- this string can include template code that uses only vars that appear in all of makeVideoMode* template vars
 local useLightingCode = [[
 
-// TODO lighting variables in RAM:
-// these are tied to the bump-mapping only right now...
-const vec3 lightAmbientColor = vec3(.3, .3, .3);
-const vec3 lightDiffuseColor = vec3(1., 1., 1.);
-const float lightSpecularShininess = 30.;
-const vec3 lightSpecularColor = vec3(.5, .5, .5);
+void doLighting() {
 
-uniform mat4 lightViewMat;	// used for light depth coord transform, and for determining the light pos
-uniform mat4 lightProjMat;
-uniform mat4 drawViewMat;	// used for determining the view position
-
-uniform vec3 lightViewPos;
-uniform vec3 drawViewPos;
-
-void doLighting(vec3 worldNormal) {
-	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
-
-	vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
-	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
-
-#if 0 // debugging: show normalmap:
-fragColor.xyz = normalizedWorldNormal * .5 + .5;
+#if 0	// debugging - show calcLight tex
+fragColor.xyz = texture(calcLightTex, tcv).xyz;
 return;
 #endif
 
-#if 0	// debugging - show ssao tex
-fragColor.xyz = vec3(1., 1., 1.) * texture(ssaoTex, tcv).x;
-return;
-#endif
-
-	vec3 lightValue = lightAmbientColor;
-
-#if 0	// enable shadow map
-	bool inLight = false;
-	vec4 lightClipCoord = lightProjMat * (lightViewMat * worldCoord);
-	if (lightClipCoord.w > 0.
-		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
-		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
-	) {
-		vec3 lightNDCCoord = lightClipCoord.xyz / lightClipCoord.w;
-		// in bounds
-		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).x
-			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
-
-//lightBufferDepth = -lightBufferDepth;	//???
-
-		// zero gets depth alias stripes
-		// nonzero is dependent on the scene
-		// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
-		//const float lightDepthTestEpsilon = 0.;		// not enough
-		//const float lightDepthTestEpsilon = 0.0001;	// not enough
-		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
-
-#if 0	// debug show the light buffer
-fragColor.xyz = vec3(.5 + lightBufferDepth, .5, .5 - lightBufferDepth);
-return;
-#endif
-#if 0	// debug show the light clip depth
-fragColor.xyz = vec3(.5 + lightClipCoord.z, .5, .5 - lightClipCoord.z);
-return;
-#endif
-#if 0	// debug show the light clip depth
-float delta = lightClipCoord.z - (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w;
-fragColor.xyz = vec3(.5 + delta, .5, .5 - delta);
-return;
-#endif
-
-		// TODO normal test here as well?
-		if (lightClipCoord.z < (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w) {
-			inLight = true;
-		}
-	}
-#else
-	const bool inLight = true;
-#endif
-
-
-	if (inLight) {
-#if 1 // diffuse & specular with the world space surface normal
-		vec3 lightDir = normalize(lightViewPos - worldCoord.xyz);
-		vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
-
-		// apply bumpmap lighting
-		lightValue +=
-			lightDiffuseColor * abs(dot(lightDir, normalizedWorldNormal))
-			// maybe you just can't do specular lighting in [0,1]^3 space ...
-			// maybe I should be doing inverse-frustum-projection stuff here
-			// hmmmmmmmmmm
-			// I really don't want to split projection and modelview matrices ...
-			+ lightSpecularColor * pow(
-				abs(dot(viewDir, reflect(-lightDir, normalizedWorldNormal))),
-				lightSpecularShininess
-			);
-#else	// plain
-		lightValue += vec3(.9, .9, .9);
-#endif
-	}
-
-#if 1	// single sample
-	lightValue *= texture(ssaoTex, tcv).x;
-#endif
-#if 0 //multiple pyramid levels?
-	// or does this just make more tearing at poly edges?
-	lightValue *= <?=glnumber(1/3)?> * (
-		texture(ssaoTex, tcv, 0).x
-		+ texture(ssaoTex, tcv, 1).x
-		+ texture(ssaoTex, tcv, 2).x
-	);
-#endif
-
-	fragColor.xyz *= lightValue;
+	fragColor.xyz *= texture(calcLightTex, tcv).xyz;
 }
 ]]
 
@@ -882,7 +779,7 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
-uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> ssaoTex;
+uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
 
 ]]..useLightingCode..[[
 
@@ -911,11 +808,7 @@ void main() {
 	fragColor.r = float(rgba5551 & 0x1fu) / 31.;
 #endif
 
-	// .w holds lighting flag
-	vec4 worldNormal = texture(framebufferNormalTex, tcv);
-	if (worldNormal.w > 0.) {
-		doLighting(worldNormal.xyz);
-	}
+	doLighting();
 }
 ]],			{
 				app = app,
@@ -928,7 +821,7 @@ void main() {
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				lightDepthTex = 3,
-				ssaoTex = 4,
+				calcLightTex = 4,
 			},
 		},
 		texs = {
@@ -1003,7 +896,7 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
-uniform <?=app.ssaoPongPong:cur():getGLSLSamplerType()?> ssaoTex;
+uniform <?=app.ssaoPongPong:cur():getGLSLSamplerType()?> calcLightTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
@@ -1021,11 +914,7 @@ void main() {
 ]]..colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 ufragColor')..[[
 	fragColor = vec4(ufragColor) / 31.;
 
-	// .w holds lighting flag
-	vec4 worldNormal = texture(framebufferNormalTex, tcv);
-	if (worldNormal.w > 0.) {
-		doLighting(worldNormal.xyz);
-	}
+	doLighting();
 }
 ]],			{
 				app = app,
@@ -1039,7 +928,7 @@ void main() {
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				lightDepthTex = 3,
-				ssaoTex = 4,
+				calcLightTex = 4,
 				paletteTex = 5,
 			},
 		},
@@ -1130,7 +1019,7 @@ uniform bool useLighting;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> ssaoTex;
+uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 ]]..useLightingCode..[[
@@ -1148,11 +1037,7 @@ void main() {
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
 	fragColor.a = 1.;
 
-	// .w holds lighting flag
-	vec4 worldNormal = texture(framebufferNormalTex, tcv);
-	if (worldNormal.w > 0.) {
-		doLighting(worldNormal.xyz);
-	}
+	doLighting();
 }
 ]],			{
 				app = app,
@@ -1165,7 +1050,7 @@ void main() {
 				framebufferNormalTex = 1,
 				framebufferPosTex = 2,
 				lightDepthTex = 3,
-				ssaoTex = 4,
+				calcLightTex = 4,
 			},
 		},
 		texs = {
@@ -2221,11 +2106,31 @@ layout(location=0) out vec4 fragColor;
 
 uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
+
+// used by SSAO
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
 
+
+
+// TODO lighting variables in RAM:
+// these are tied to the bump-mapping only right now...
+const vec3 lightAmbientColor = vec3(.3, .3, .3);
+const vec3 lightDiffuseColor = vec3(1., 1., 1.);
+const float lightSpecularShininess = 30.;
+const vec3 lightSpecularColor = vec3(.5, .5, .5);
+
+uniform mat4 lightViewMat;	// used for light depth coord transform, and for determining the light pos
+uniform mat4 lightProjMat;
+uniform mat4 drawViewMat;	// used by SSAO
+uniform mat4 drawProjMat;	// used by ... 
+uniform mat4 drawProjInvMat;	// needed by SSAO for transforming from framebuffer coords back to view coords
+
+uniform vec3 lightViewPos;
+uniform vec3 drawViewPos;
+
+
 const float ssaoSampleTCScale = 18.;
-//const float ssaoSampleRadius = .05;	// in ndcCoords this is fine
-const float ssaoSampleRadius = 1.;	// trying for world coords or view coords ... 
+const float ssaoSampleRadius = 1.;	// this is in world coordinates, so it's gonna change per-game
 const float ssaoInfluence = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 
 // these are the random vectors inside a unit hemisphere facing z+
@@ -2251,25 +2156,105 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 #endif
 };
 
-// used for SSAO lighting, not used for projection
-uniform mat4 drawViewMat;
-uniform mat4 drawProjMat;
-uniform mat4 drawProjInvMat;
-
 void main() {
+	fragColor = vec4(1., 1., 1., 1.);
+
 	vec4 worldNormal = texture(framebufferNormalTex, tcv);
 	// no lighting on this fragment
-	if (worldNormal.w == 0.) {
-		fragColor = vec4(1., 1., 1., 1.);
-		return;
-	}
+	if (worldNormal.w == 0.) return;
 
-	vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
-	vec3 normalizedViewNormal = normalize(viewNormal.xyz);
+
+	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
 
 	vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
 	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
 	float clipDepth = worldCoordAndClipDepth.w;
+
+#if 0 // debugging: show normalmap:
+fragColor.xyz = normalizedWorldNormal * .5 + .5;
+return;
+#endif
+
+
+
+	vec3 lightValue = lightAmbientColor;
+
+#if 0	// enable shadow map
+	bool inLight = false;
+	vec4 lightClipCoord = lightProjMat * (lightViewMat * worldCoord);
+	if (lightClipCoord.w > 0.
+		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
+		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
+	) {
+		vec3 lightNDCCoord = lightClipCoord.xyz / lightClipCoord.w;
+		// in bounds
+		float lightBufferDepth = texture(lightDepthTex, lightNDCCoord.xy * .5 + .5).x
+			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
+
+//lightBufferDepth = -lightBufferDepth;	//???
+
+		// zero gets depth alias stripes
+		// nonzero is dependent on the scene
+		// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
+		//const float lightDepthTestEpsilon = 0.;		// not enough
+		//const float lightDepthTestEpsilon = 0.0001;	// not enough
+		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+
+#if 0	// debug show the light buffer
+fragColor.xyz = vec3(.5 + lightBufferDepth, .5, .5 - lightBufferDepth);
+return;
+#endif
+#if 0	// debug show the light clip depth
+fragColor.xyz = vec3(.5 + lightClipCoord.z, .5, .5 - lightClipCoord.z);
+return;
+#endif
+#if 0	// debug show the light clip depth
+float delta = lightClipCoord.z - (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w;
+fragColor.xyz = vec3(.5 + delta, .5, .5 - delta);
+return;
+#endif
+
+		// TODO normal test here as well?
+		if (lightClipCoord.z < (lightBufferDepth + lightDepthTestEpsilon) * lightClipCoord.w) {
+			inLight = true;
+		}
+	}
+#else
+	const bool inLight = true;
+#endif
+
+
+	if (inLight) {
+#if 1 // diffuse & specular with the world space surface normal
+		vec3 lightDir = normalize(lightViewPos - worldCoord.xyz);
+		vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
+
+		// apply bumpmap lighting
+		lightValue +=
+			lightDiffuseColor * abs(dot(lightDir, normalizedWorldNormal))
+			// maybe you just can't do specular lighting in [0,1]^3 space ...
+			// maybe I should be doing inverse-frustum-projection stuff here
+			// hmmmmmmmmmm
+			// I really don't want to split projection and modelview matrices ...
+			+ lightSpecularColor * pow(
+				abs(dot(viewDir, reflect(-lightDir, normalizedWorldNormal))),
+				lightSpecularShininess
+			);
+#else	// plain
+		lightValue += vec3(.9, .9, .9);
+#endif
+	}
+
+
+
+
+
+
+#if 1	// SSAO:
+
+	vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
+	vec3 normalizedViewNormal = normalize(viewNormal.xyz);
+
 	vec4 viewCoord = drawViewMat * worldCoord;
 
 	// clipCoord = drawProjMat * viewCoord
@@ -2313,8 +2298,9 @@ void main() {
 	}
 
 	float lum = 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
+#endif
 
-	fragColor = vec4(lum, 1., 1., 1.);
+	fragColor.xyz *= lum;
 }
 ]],			{
 				app = self,
@@ -4771,12 +4757,23 @@ function AppVideo:updateSSAOCalcTex()
 	local sceneObj = self.calcLightBlitObj
 	sceneObj.texs[1] = videoMode.framebufferNormalTex
 	sceneObj.texs[2] = videoMode.framebufferPosTex
---	sceneObj.texs[4] = calcLightPP:prev()
+	
+	sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
+	sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
+
+	self.lightViewPos:set(self.lightView.pos:unpack())
+	sceneObj.uniforms.lightViewPos = self.lightViewPos.s
+	self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
+	sceneObj.uniforms.drawViewPos = self.drawViewInvMat.ptr + 12	-- access the translation part of the inverse = the view pos
+
 	sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
 	sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
 	self.calcLight_DrawProjInvMat:inv4x4(self.drawProjMatForLighting)
 	sceneObj.uniforms.drawProjInvMat = self.calcLight_DrawProjInvMat.ptr
 
+--DEBUG(lighting):print('drawing final scene')
+--DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
+--DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
 
 	sceneObj:draw()
 

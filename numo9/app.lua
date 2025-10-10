@@ -2004,15 +2004,6 @@ print('run thread dead')
 
 			local sceneObj = self.blitScreenObj
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-			sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
-			sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
-			sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
-			sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
-
-			self.lightViewPos:set(self.lightView.pos:unpack())
-			sceneObj.uniforms.lightViewPos = self.lightViewPos.s
-			self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
-			sceneObj.uniforms.drawViewPos = self.drawViewInvMat.ptr + 12	-- access the translation part of the inverse = the view pos
 
 			sceneObj:draw()
 			--]]
@@ -2224,20 +2215,7 @@ print('run thread dead')
 		view.mvProjMat:copy(view.projMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
-		sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
-		sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
-		sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
 
-		-- setup light view pos and draw view pos for lighting
-		self.lightViewPos:set(self.lightView.pos:unpack())
-		sceneObj.uniforms.lightViewPos = self.lightViewPos.s
-		self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
-		sceneObj.uniforms.drawViewPos = self.drawViewInvMat.ptr + 12	-- access the translation part of the inverse = the view pos
-
---DEBUG(lighting):print('drawing final scene')
---DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
---DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
