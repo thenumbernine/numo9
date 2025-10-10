@@ -2018,6 +2018,13 @@ print('run thread dead')
 				self.menuSizeInSprites.x = 256 * self.width / self.height
 				self:matMenuReset()
 
+				-- reset the view and proj matrices that lighting captures
+				-- in case we're illuminating objs in the menu, i.e. voxelmap editor
+				self.haveCapturedDrawMatsForLightingThisFrame = false
+				self.drawViewMatForLighting:setIdent()
+				self.drawProjMatForLighting:setIdent()
+
+
 				if coroutine.status(thread) == 'dead' then
 					self:setMenu(nil)
 				else

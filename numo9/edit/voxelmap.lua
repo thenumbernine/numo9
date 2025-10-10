@@ -179,9 +179,20 @@ function EditVoxelMap:update()
 	local mapbox = mapsize and box3d(vec3d(0,0,0), mapsize)
 	local mapboxIE = mapsize and box3d(vec3d(0,0,0), mapsize-1)	-- mapbox, [incl,excl), for integer testing
 
-	local mouseHandled
-	if voxelmap then
-		mouseHandled = orbit:beginDraw()
+
+	if not self.tileSel:doPopup()
+	and voxelmap then
+
+		-- init lighting before beginDraw() so that beginDraw can set the lightings draw-view-mat
+
+		local pushUseHardwareLighting = app.ram.useHardwareLighting
+		app.ram.useHardwareLighting = self.menuUseLighting and 1 or 0
+		if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
+			app:onUseHardwareLightingChange()
+		end
+
+
+		local mouseHandled = orbit:beginDraw()
 		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
 
 		self:drawBox(mapbox, 0x31)
@@ -208,19 +219,10 @@ function EditVoxelMap:update()
 				end
 			end
 		end
-	end
 
-	if not self.tileSel:doPopup()
-	and voxelmap then
 		if not mouseHandled
 		and mouseY >= 8
 		then
-			local pushUseHardwareLighting = app.ram.useHardwareLighting
-			app.ram.useHardwareLighting = self.menuUseLighting and 1 or 0
-			if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
-				app:onUseHardwareLightingChange()
-			end
-
 
 			-- mouse line, intersect only with far bounding planes of the voxelmap
 			-- or intersect with march through the voxelmap
@@ -403,11 +405,11 @@ function EditVoxelMap:update()
 					self:setTooltip(npti.x..','..npti.y..','..npti.z, mouseX-8, mouseY-8, 0xfc, 0)
 				end
 			end
-		
-			if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
-				app.ram.useHardwareLighting = pushUseHardwareLighting
-				app:onUseHardwareLightingChange()
-			end
+		end
+
+		if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
+			app.ram.useHardwareLighting = pushUseHardwareLighting
+			app:onUseHardwareLightingChange()
 		end
 
 		orbit:endDraw()
