@@ -1,0 +1,139 @@
+#!/usr/bin/env rua
+--[[
+This is specific to numo9, so it's going to make 256x256 atlases with no padding/wrapping border, and the positiosn will snap to 8 (the numo9 sprite size)
+Instead of sizing up (like my texture-atlas tool does), this will just grow to new sheets.
+--]]
+require 'vec-ffi'
+local Image = require 'image'
+
+local tileSize = 8
+local sheetSize = 256
+local tilesPerSheet = sheetSize / tileSize
+
+local srcChannels
+local srcFormat
+local srcdir = path(cmdline.dir)
+local srcs = table()
+for f in srcdir:dir() do
+	if f.path:match'%.png$' then
+		print('reading ', f)
+		local img = Image(f.path)
+		-- TODO store Image size as vec2i?  there would be a lot of dependent repos to change ...
+		local size = vec2i(img.width, img.height)
+		local sizeInTiles = vec2i(
+			math.ceil(img.width / tileSize),
+			math.ceil(img.height / tileSize))
+		if sizeInTiles.x > tilesPerSheet
+		or sizeInTiles.y > tilesPerSheet
+		then
+			error("image is too big: "..f.." with size "..size)
+		end
+		if srcChannels == nil then
+			srcChannels = img.channels
+			srcFormat = img.format
+		else
+			assert.eq(srcChannels, img.channels)
+			assert.eq(srcFormat, img.format)
+		end
+		srcs:insert{
+			img = img,
+			f = f,
+			size = size,
+			sizeInTiles = sizeInTiles,
+			volume = size:volume(),
+		}
+	end
+end
+srcs:sort(|a,b| a.volume > b.volume)
+
+local dsts = table()
+
+local canPlace = |src, dst, x, y| do
+	for i=0,src.sizeInTiles.x-1 do
+		for j=0,src.sizeInTiles.y-1 do
+			if dst.full[1 + x+i + tilesPerSheet*(y+j)] then
+				return false
+			end
+		end
+	end
+	return true
+end
+
+local findDst = |src| do
+	while true do
+		for dstIndex,dst in ipairs(dsts) do
+			for x=0,tilesPerSheet-src.sizeInTiles.x do
+				for y=0,tilesPerSheet-src.sizeInTiles.y do
+					if canPlace(src, dst, x,y) then
+
+						-- isnt blocked:
+						src.placePos = vec2i(x,y)
+						print('placing', src.f, 'in sheet', dstIndex, 'at tile', src.placePos)
+						dst.placed:insert(src)
+						for i=0,src.sizeInTiles.x-1 do
+							for j=0,src.sizeInTiles.y-1 do
+								dst.full[1 + x+i + tilesPerSheet*(y+j)] = src
+							end
+						end			
+						return
+					end
+
+					-- is blocked -- continue
+				end
+			end
+		end
+
+		-- if can't find ...
+		dsts:insert{
+			-- TODO instead, store the largest rect at this location, and size them down as you place sheets (only O(n^2) searches required)
+			full = {},
+			placed = table(),	-- table of placed sprites
+		}
+	end
+end
+
+for _,src in ipairs(srcs) do
+	print('placing', src.f)
+	findDst(src)
+end
+
+local dstdir = srcdir / 'atlas'
+dstdir:mkdir()
+for dstIndex,dst in ipairs(dsts) do
+	print('saving dst', dstIndex)
+	if cmdline.rgb then
+		-- [[ using rgb
+		local dstimg = Image(sheetSize, sheetSize, 3, 'uint8_t')
+		ffi.fill(dstimg.buffer, dstimg:getBufferSize())
+		for _,src in ipairs(dst.placed) do
+			dstimg:pasteInto{
+				image = src.img:rgb(),
+				x = src.placePos.x * tileSize,
+				y = src.placePos.y * tileSize,
+			}
+		end
+		--]]
+		dstimg:save(dstdir('sheet'..(dstIndex==1 and '' or dstIndex-1)..'.png').path)
+	else
+		-- [[ using palette
+		local dstimg = Image(sheetSize, sheetSize, srcChannels, srcFormat)
+		ffi.fill(dstimg.buffer, dstimg:getBufferSize())
+		for _,src in ipairs(dst.placed) do
+			dstimg.palette = src.img.palette
+			dstimg:pasteInto{
+				image = src.img,
+				x = src.placePos.x * tileSize,
+				y = src.placePos.y * tileSize,
+			}
+		end
+		--]]
+		dstimg:save(dstdir('sheet'..(dstIndex==1 and '' or dstIndex-1)..'.png').path)
+	end
+end
+
+print('saving legend...')
+dstdir'atlas.lua':write(
+	tolua(
+		dsts:mapi(|dst| table(dst, {img=false}))
+	)
+)

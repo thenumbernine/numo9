@@ -929,3 +929,5 @@ TODO cart status:
 - dithertest.n9 is broken
 - hello.n9 is broken
 - stupidtrpg.n9 is broken (tho sometimes it shows text)
+
+- change scripts from .lua to .rua becuase technically they're not .lua ...
