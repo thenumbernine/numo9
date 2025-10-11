@@ -17,6 +17,12 @@ local numo9_rom = require 'numo9.rom'
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
+local Voxel = numo9_rom.Voxel
+
+
+local uint8_t_p = ffi.typeof'uint8_t*'
+local Voxel_p = ffi.typeof('$*', Voxel)
+
 
 -- also in numo9/video.lua
 -- but it doesn't calc / return w, only x y z
@@ -107,7 +113,7 @@ function BlobVoxelMap:init(data)
 end
 
 function BlobVoxelMap:getPtr()
-	return ffi.cast('uint8_t*', self.vec.v)
+	return ffi.cast(uint8_t_p, self.vec.v)
 end
 
 function BlobVoxelMap:getSize()
@@ -131,7 +137,7 @@ function BlobVoxelMap:getVoxelDataBlobPtr()
 end
 
 function BlobVoxelMap:getVoxelDataRAMPtr()
-	return ffi.cast('Voxel*', self.ramptr + ffi.sizeof(voxelmapSizeType) * 3)
+	return ffi.cast(Voxel_p, self.ramptr + ffi.sizeof(voxelmapSizeType) * 3)
 end
 
 function BlobVoxelMap:getVoxelDataAddr()

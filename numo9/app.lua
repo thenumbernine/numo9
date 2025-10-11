@@ -48,7 +48,6 @@ local numo9_rom = require 'numo9.rom'
 local versionStr = numo9_rom.versionStr
 local updateHz = numo9_rom.updateHz
 local updateIntervalInSeconds = numo9_rom.updateIntervalInSeconds
-local ROM = numo9_rom.ROM	-- define RAM, ROM, etc
 local RAM = numo9_rom.RAM
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
@@ -92,8 +91,16 @@ local numo9_video = require 'numo9.video'
 local resetLogoOnSheet = numo9_video.resetLogoOnSheet
 
 
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
+local uint16_t = ffi.typeof'uint16_t'
+local uint16_t_p = ffi.typeof'uint16_t*'
 local int32_t = ffi.typeof'int32_t'
+local uint32_t = ffi.typeof'uint32_t'
+local uint32_t_p = ffi.typeof'uint32_t*'
 local float = ffi.typeof'float'
+local float_p = ffi.typeof'float*'
+local RAM_p = ffi.typeof('$*', RAM)
 
 
 local function hexdump(ptr, len)
@@ -409,9 +416,9 @@ function App:initGL()
 		end,
 		fillp = function(dither)
 			if dither then
-				return self:net_pokew(ffi.offsetof('RAM', 'dither'), dither)
+				return self:net_pokew(ffi.offsetof(RAM, 'dither'), dither)
 			else
-				return self:peekw(ffi.offsetof('RAM', 'dither'))
+				return self:peekw(ffi.offsetof(RAM, 'dither'))
 			end
 		end,
 
@@ -697,7 +704,7 @@ function App:initGL()
 
 			-- just poke here so mode is set next frame
 			-- for net play's sake ,how about just doing a peek/poke?
-			self:net_poke(ffi.offsetof('RAM', 'videoMode'), modeIndex)
+			self:net_poke(ffi.offsetof(RAM, 'videoMode'), modeIndex)
 		end,
 
 		clip = function(...)
@@ -890,12 +897,12 @@ function App:initGL()
 		setmetatable = setmetatable,
 		traceback = debug.traceback,	-- useful for threads
 
-		-- use this in place of ffi.offsetof('RAM', field)
+		-- use this in place of ffi.offsetof(RAM, field)
 		ramaddr = function(name)
-			return ffi.offsetof('RAM', name)
+			return ffi.offsetof(RAM, name)
 		end,
 		ramsize = function(name)
-			return ffi.sizeof(ffi.cast('RAM*', 0)[name])
+			return ffi.sizeof(ffi.cast(RAM_p, 0)[name])
 		end,
 		numblobs = function(name)
 			local blobsForType = self.blobs[name]
@@ -940,7 +947,6 @@ function App:initGL()
 		uint32_t = ffi.typeof'uint32_t',
 		int32_t = ffi.typeof'int32_t',
 
-		-- TODO don't let the ROM see the App...
 		app = self,
 		getfenv = getfenv,	-- maybe ... needed for _ENV replacement, but maybe can break out of sandbox ...
 		setfenv = setfenv,	-- \_ fair warning, getfenv(0) breaks out of the sandbox and gets numo9's _G
@@ -1284,12 +1290,12 @@ print('package.loaded', package.loaded)
 
 				-- [[ list RAM layout? or nah?
 				--DEBUG:print(RAM.code)
-				coolPrint(('RAM size: 0x%x'):format(ffi.sizeof'RAM'))
-				coolPrint(('ROM size: 0x%x'):format(self.memSize - ffi.sizeof'RAM'))
+				coolPrint(('RAM size: 0x%x'):format(ffi.sizeof(RAM)))
+				coolPrint(('ROM size: 0x%x'):format(self.memSize - ffi.sizeof(RAM)))
 				coolPrint'memory layout:'
 				coolPrint'- RAM -'
 				for name,ctype in RAM:fielditer() do	-- TODO struct iterable fields ...
-					local offset = ffi.offsetof('RAM', name)
+					local offset = ffi.offsetof(RAM, name)
 					local size = ffi.sizeof(ctype)
 					coolPrint(('0x%06x - 0x%06x = '):format(offset, offset + size)..name)
 				end
@@ -1467,8 +1473,8 @@ function App:net_poke(addr, value)
 	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
 	if self.server then
 		-- spare us reocurring messages
-		addr = ffi.cast('uint32_t', addr)
-		value = ffi.cast('uint8_t', value)
+		addr = ffi.cast(uint32_t, addr)
+		value = ffi.cast(uint8_t, value)
 		if self:peek(addr) ~= value then
 			local cmd = self.server:pushCmd().poke
 			cmd.type = netcmds.poke
@@ -1480,8 +1486,8 @@ function App:net_poke(addr, value)
 end
 function App:net_pokew(addr, value)
 	if self.server then
-		addr = ffi.cast('uint32_t', addr)
-		value = ffi.cast('uint16_t', value)
+		addr = ffi.cast(uint32_t, addr)
+		value = ffi.cast(uint16_t, value)
 		if self:peekw(addr) ~= value then
 			local cmd = self.server:pushCmd().pokew
 			cmd.type = netcmds.pokew
@@ -1493,8 +1499,8 @@ function App:net_pokew(addr, value)
 end
 function App:net_pokel(addr, value)
 	if self.server then
-		addr = ffi.cast('uint32_t', addr)
-		value = ffi.cast('uint32_t', value)
+		addr = ffi.cast(uint32_t, addr)
+		value = ffi.cast(uint32_t, value)
 		if self:peekl(addr) ~= value then
 			local cmd = self.server:pushCmd().pokel
 			cmd.type = netcmds.pokel
@@ -1506,8 +1512,8 @@ function App:net_pokel(addr, value)
 end
 function App:net_pokef(addr, value)
 	if self.server then
-		addr = ffi.cast('float', addr)
-		value = ffi.cast('float', value)
+		addr = ffi.cast(uint32_t, addr)
+		value = ffi.cast(float, value)
 		if self:peekl(addr) ~= value then
 			local cmd = self.server:pushCmd().pokel
 			cmd.type = netcmds.pokel
@@ -1542,7 +1548,7 @@ function App:net_mset(x, y, value, tilemapBlobIndex)
 	x = toint(x)
 	y = toint(y)
 	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))	-- or 0
-	value = ffi.cast('uint16_t', value)
+	value = ffi.cast(uint16_t, value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
 	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
@@ -1720,7 +1726,7 @@ print'DELTA'
 print(
 	string.hexdump(
 		ffi.string(
-			ffi.cast('char*', self.server.conns[1].deltas.v),
+			ffi.cast(uint8_t_p, self.server.conns[1].deltas.v),
 			#self.server.conns[1].deltas * ffi.sizeof(self.server.conns[1].deltas.type)
 		), nil, 2
 	)
@@ -1731,8 +1737,8 @@ print'STATE'
 print(
 	string.hexdump(
 		ffi.string(
-			ffi.cast('char*', self.server.conns[1].cmds.v),
-			#self.server.conns[1].cmds * ffi.sizeof'Numo9Cmd'
+			ffi.cast(uint8_t_p, self.server.conns[1].cmds.v),
+			#self.server.conns[1].cmds * ffi.sizeof(Numo9Cmd)
 		), nil, 2
 	)
 )
@@ -2126,7 +2132,7 @@ print('run thread dead')
 				end
 				holdptr = holdptr + 1
 			end
---DEBUG:assert.eq(ffi.cast('uint8_t*', holdptr), ffi.cast('uint8_t*', self.ram.keyHoldCounter) + ffi.sizeof(self.ram.keyHoldCounter))
+--DEBUG:assert.eq(ffi.cast(uint8_t_p, holdptr), ffi.cast(uint8_t_p, self.ram.keyHoldCounter) + ffi.sizeof(self.ram.keyHoldCounter))
 		end
 
 		-- copy last key buffer to key buffer here after update()
@@ -2309,7 +2315,7 @@ function App:peekw(addr)
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
-	return ffi.cast('uint16_t*', self.ram.v + addr)[0]
+	return ffi.cast(uint16_t_p, self.ram.v + addr)[0]
 end
 function App:peekl(addr)
 	addr = toint(addr)
@@ -2324,7 +2330,7 @@ function App:peekl(addr)
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
-	return ffi.cast('uint32_t*', self.ram.v + addr)[0]
+	return ffi.cast(uint32_t_p, self.ram.v + addr)[0]
 end
 function App:peekf(addr)
 	addr = toint(addr)
@@ -2339,22 +2345,22 @@ function App:peekf(addr)
 		self.framebufferRAM:checkDirtyGPU()
 	end
 
-	return ffi.cast('float*', self.ram.v + addr)[0]
+	return ffi.cast(float_p, self.ram.v + addr)[0]
 end
 
 -- TODO better way to find sizeof fields? or better way in struct to pick fields by their name?
-local useHardwareLightingAddr = ffi.offsetof('RAM', 'useHardwareLighting')
+local useHardwareLightingAddr = ffi.offsetof(RAM, 'useHardwareLighting')
 local useHardwareLightingAddrEnd = useHardwareLightingAddr + ffi.sizeof(
 	select(2, table.find(numo9_rom.RAM.fields[2].type.fields, nil, function(field) return field.name == 'useHardwareLighting' end)).type
 )
-local ditherAddr = ffi.offsetof('RAM', 'dither')
+local ditherAddr = ffi.offsetof(RAM, 'dither')
 local ditherAddrEnd = ditherAddr + ffi.sizeof(
 	select(2, table.find(numo9_rom.RAM.fields[2].type.fields, nil, function(field) return field.name == 'dither' end)).type
 )
 
 function App:poke(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast('uint32_t', value))
+	value = tonumber(ffi.cast(uint32_t, value))
 	if addr < 0 or addr >= self.memSize then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
@@ -2447,7 +2453,7 @@ function App:poke(addr, value)
 end
 function App:pokew(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast('uint32_t', value))
+	value = tonumber(ffi.cast(uint32_t, value))
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2459,7 +2465,7 @@ function App:pokew(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
-	ffi.cast('uint16_t*', self.ram.v + addr)[0] = value
+	ffi.cast(uint16_t_p, self.ram.v + addr)[0] = value
 
 	-- write out tris using the modelMat,viewMat,projMat before they change
 	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
@@ -2525,7 +2531,7 @@ function App:pokew(addr, value)
 end
 function App:pokel(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast('uint32_t', value))
+	value = tonumber(ffi.cast(uint32_t, value))
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2537,7 +2543,7 @@ function App:pokel(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
-	ffi.cast('uint32_t*', self.ram.v + addr)[0] = value
+	ffi.cast(uint32_t_p, self.ram.v + addr)[0] = value
 
 	-- write out tris using the modelMat,viewMat,projMat before they change
 	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
@@ -2615,7 +2621,7 @@ function App:pokef(addr, value)
 		self.framebufferRAM.dirtyCPU = true
 	end
 
-	ffi.cast('float*', self.ram.v + addr)[0] = value
+	ffi.cast(float_p, self.ram.v + addr)[0] = value
 
 	-- write out tris using the modelMat,viewMat,projMat before they change
 	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
@@ -3229,7 +3235,7 @@ function App:runCart()
 --DEBUG:print('persist got')
 --DEBUG:print(string.hexdump(saveStr))
 			-- persist blobs should already be in cart ROM, even if they are empty, so ...
-			local p = ffi.cast('uint8_t*', saveStr)
+			local p = ffi.cast(uint8_t_p, saveStr)
 			local pend = p + #saveStr
 			for i,blob in ipairs(self.blobs.persist) do
 				-- dangerous to be copying into luajit strings?  should I replace them all with byte-vectors?

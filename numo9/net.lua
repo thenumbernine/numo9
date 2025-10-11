@@ -70,6 +70,7 @@ local byteArrayToBlobs = numo9_blobs.byteArrayToBlobs
 
 
 local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
 local uint8_t_4 = ffi.typeof'uint8_t[4]'
 
 
@@ -836,7 +837,7 @@ self.receivesPerSecond = self.receivesPerSecond + 1
 			-- while we're here read inputs
 			-- TODO do this here or in the server's updateCoroutine?  or do I have too mnay needless coroutines?
 
-			local bytep = ffi.cast('uint8_t*', ffi.cast('char*', data))
+			local bytep = ffi.cast(uint8_t_p, data)
 			local index, value = bytep[0], bytep[1]
 
 			-- if we're sending 4 bytes of button flag press bits ...
@@ -1005,8 +1006,8 @@ print()
 			-- net-delta-compress, where offset values are 7-bit-vector encoded
 			deltas:resize(0)
 			deltaCompress7bit(
-				ffi.cast('uint8_t*', prevFrameCmds.v),
-				ffi.cast('uint8_t*', thisFrameCmds.v),
+				ffi.cast(uint8_t_p, prevFrameCmds.v),
+				ffi.cast(uint8_t_p, thisFrameCmds.v),
 				thisFrameCmds.size * ffi.sizeof(Numo9Cmd),
 				deltas)
 			if deltas.size > 0 then
@@ -1343,7 +1344,7 @@ print'begin client listen loop...'
 --DEBUG:print'got deltaStr:'
 --DEBUG:print(string.hexdump(deltaStr))
 assert.len(deltaStr, deltaBufLen)
-						local ptr = ffi.cast('uint8_t*', deltaStr)
+						local ptr = ffi.cast(uint8_t_p, deltaStr)
 						local endptr = ptr + deltaBufLen
 						local cmdBufSize = self.nextCmds.size * ffi.sizeof(Numo9Cmd)
 						while ptr < endptr do
@@ -1368,7 +1369,7 @@ assert.len(deltaStr, deltaBufLen)
 										..('$%x'):format(self.nextCmds.size)
 									)
 								else
-									ffi.cast('uint8_t*', self.nextCmds.v)[index] = value
+									ffi.cast(uint8_t_p, self.nextCmds.v)[index] = value
 								end
 							end
 						end
@@ -1406,11 +1407,11 @@ assert.len(deltaStr, deltaBufLen)
 
 						local initCmds = receive(sock, newcmdslen, 10)
 						assert.len(initCmds, newcmdslen)
-						ffi.copy(self.cmds.v, ffi.cast('char*', initCmds), newcmdslen)
+						ffi.copy(self.cmds.v, ffi.cast(uint8_t_p, initCmds), newcmdslen)
 
 						-- and do nextCmds too
 						self.nextCmds:resize(newsize)
-						ffi.copy(self.nextCmds.v, ffi.cast('char*', initCmds), newcmdslen)
+						ffi.copy(self.nextCmds.v, ffi.cast(uint8_t_p, initCmds), newcmdslen)
 						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 
 					elseif netmsg == netmsgs.sendRAM then
@@ -1424,7 +1425,7 @@ assert.len(deltaStr, deltaBufLen)
 
 --DEBUG(@5):require'ext.path''client_init.txt':write(string.hexdump(ramState))
 						-- and decode it
-						local ptr = ffi.cast('uint8_t*', ramState)
+						local ptr = ffi.cast(uint8_t_p, ramState)
 
 						-- flush GPU
 						-- make sure gpu changes are in cpu as well

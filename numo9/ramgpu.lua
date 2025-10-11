@@ -15,6 +15,8 @@ local gl = require 'gl'
 local GLTex2D = require 'gl.tex2d'
 local glreport = require 'gl.report'
 
+local uint8_t_p = ffi.typeof'uint8_t*'
+
 --[[
 makes an image whose buffer is at a location in RAM
 makes a GLTex2D that goes with that image
@@ -61,7 +63,7 @@ glreport'before RAMGPUTex:init'
 	self.size = width * height * channels * ctypeSize
 	self.addrEnd = self.addr + self.size
 	assert.le(self.addrEnd, app.memSize)
-	local ptr = ffi.cast('uint8_t*', app.ram) + self.addr
+	local ptr = ffi.cast(uint8_t_p, app.ram) + self.addr
 	local src = args.src
 
 --DEBUG:print(('RAMGPU 0x%x - 0x%x (size 0x%x)'):format(self.addr, self.addrEnd, self.size))
@@ -96,7 +98,7 @@ glreport'before RAMGPUTex:init'
 		--generateMipmap = true,
 	}
 -- this will fail when the menu font is being used
---assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
+--assert.eq(tex.data, ffi.cast(uint8_t_p, self.image.buffer))
 	self.tex = tex
 glreport'after RAMGPUTex:init'
 --DEBUG:print'RAMGPUTex:init done'
@@ -130,7 +132,7 @@ function RAMGPUTex:checkDirtyCPU()
 		fb:unbind()
 	end
 -- this will fail when the menu font is being used
---assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
+--assert.eq(tex.data, ffi.cast(uint8_t_p, self.image.buffer))
 	tex:bind()
 		:subimage()
 		--:generateMipmap()
@@ -174,7 +176,7 @@ glreport'checkDirtyGPU after fb:bind'
 		end
 	end
 --DEBUG:assert(tex.data)
---DEBUG:assert.eq(tex.data, ffi.cast('uint8_t*', self.image.buffer))
+--DEBUG:assert.eq(tex.data, ffi.cast(uint8_t_p, self.image.buffer))
 --DEBUG:assert.le(0, tex.data - app.ram.v, 'tex.data')
 --DEBUG:assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
@@ -212,7 +214,7 @@ function RAMGPUTex:updateAddr(newaddr)
 --DEBUG:print('self.size', self.size)
 	self.addrEnd = newaddr + self.size
 --DEBUG:print('self.addrEnd', self.addrEnd)
-	self.tex.data = ffi.cast('uint8_t*', self.app.ram.v) + self.addr
+	self.tex.data = ffi.cast(uint8_t_p, self.app.ram.v) + self.addr
 --DEBUG:print('self.tex.data', self.tex.data)
 	local formatp = ffi.typeof('$*', self.image.format)
 	self.image.buffer = ffi.cast(formatp, self.tex.data)

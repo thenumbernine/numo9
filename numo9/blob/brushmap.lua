@@ -4,6 +4,10 @@ local vector = require 'ffi.cpp.vector-lua'
 
 local Blob = require 'numo9.blob.blob'
 
+
+local uint8_t_p = ffi.typeof'uint8_t*'
+
+
 local BlobBrushMap = Blob:subclass()
 
 BlobBrushMap.filenamePrefix = 'brushmap'
@@ -20,7 +24,7 @@ function BlobBrushMap:init(data)
 end
 
 function BlobBrushMap:getPtr()
-	return ffi.cast('uint8_t*', self.vec.v)
+	return ffi.cast(uint8_t_p, self.vec.v)
 end
 
 function BlobBrushMap:getSize()

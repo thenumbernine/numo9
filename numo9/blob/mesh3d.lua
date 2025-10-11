@@ -12,8 +12,14 @@ local box3i = require 'vec-ffi.box3i'
 
 local numo9_rom = require 'numo9.rom'
 local meshIndexType = numo9_rom.meshIndexType
+local Vertex = numo9_rom.Vertex
 
 local BlobDataAbs = require 'numo9.blob.dataabs'
+
+
+local uint8_t_p = ffi.typeof'uint8_t*'
+local Vertex_p = ffi.typeof('$*', Vertex)
+
 
 --[[
 mesh3D data
@@ -164,23 +170,23 @@ function BlobMesh3D:getNumIndexes()
 end
 
 function BlobMesh3D:getVertexPtr()
-	local vtxptr = ffi.cast('Vertex*',
+	local vtxptr = ffi.cast(Vertex_p,
 		self:getPtr()
 		+ ffi.sizeof(meshIndexType) * 2	-- skip header
 	)
-	assert.le(0, ffi.cast('uint8_t*', vtxptr + self:getNumVertexes()) - self:getPtr())
-	assert.le(ffi.cast('uint8_t*', vtxptr + self:getNumVertexes()) - self:getPtr(), #self.data)
+	assert.le(0, ffi.cast(uint8_t_p, vtxptr + self:getNumVertexes()) - self:getPtr())
+	assert.le(ffi.cast(uint8_t_p, vtxptr + self:getNumVertexes()) - self:getPtr(), #self.data)
 	return vtxptr
 end
 
 function BlobMesh3D:getIndexPtr()
-	local ptr = ffi.cast('uint8_t*',
+	local ptr = ffi.cast(uint8_t_p,
 		self:getVertexPtr()
 		+ self:getNumVertexes()
 	) -- skip vertexes
 	local indptr = ffi.cast(meshIndexType..'*', ptr)
-	assert.le(0, ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr())
-	assert.eq(ffi.cast('uint8_t*', indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
+	assert.le(0, ffi.cast(uint8_t_p, indptr + self:getNumIndexes()) - self:getPtr())
+	assert.eq(ffi.cast(uint8_t_p, indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
 	return indptr
 end
 
@@ -265,7 +271,7 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 		o:emplace_back()[0] = v[1]
 		o:emplace_back()[0] = v[2]
 		o:emplace_back()[0] = v[3]
-		local uv = ffi.cast('uint8_t*', o:emplace_back())
+		local uv = ffi.cast(uint8_t_p, o:emplace_back())
 		uv[0] = vt[1]
 		uv[1] = vt[2]
 	end

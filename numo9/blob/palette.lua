@@ -17,7 +17,13 @@ local internalFormat5551 = numo9_video.internalFormat5551
 local BlobImage = require 'numo9.blob.image'
 
 
-assert.eq(paletteType, ffi.typeof'uint16_t')
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
+local uint16_t = ffi.typeof'uint16_t'
+local uint16_t_p = ffi.typeof'uint16_t*'
+
+
+assert.eq(paletteType, ffi.typeof(uint16_t))
 assert.eq(paletteSize, 256)
 
 local BlobPalette = BlobImage:subclass()
@@ -33,9 +39,9 @@ BlobPalette.filenameSuffix = '.png'
 -- reshape image
 function BlobPalette:saveFile(filepath, blobIndex, blobs)
 	-- palette: 16 x 16 x 24bpp 8bpp r g b
-	local saveImg = Image(16, 16, 4, 'uint8_t')
-	local savePtr = ffi.cast('uint8_t*', saveImg.buffer)
-	local blobPtr = ffi.cast('uint16_t*', self:getPtr())
+	local saveImg = Image(16, 16, 4, uint8_t)
+	local savePtr = ffi.cast(uint8_t_p, saveImg.buffer)
+	local blobPtr = ffi.cast(uint16_t_p, self:getPtr())
 	for i=0,paletteSize-1 do
 		-- TODO packptr in numo9/app.lua
 		savePtr[0], savePtr[1], savePtr[2], savePtr[3] = rgba5551_to_rgba8888_4ch(blobPtr[0])
@@ -47,7 +53,7 @@ end
 
 function BlobPalette:toTable()
 	local paletteTable = table()
-	local palPtr = ffi.cast('uint16_t*', self:getPtr())
+	local palPtr = ffi.cast(uint16_t_p, self:getPtr())
 	for i=1,paletteSize do
 		paletteTable:insert{rgba5551_to_rgba8888_4ch(palPtr[0])}
 		palPtr = palPtr + 1
@@ -64,10 +70,10 @@ function BlobPalette:loadFile(filepath, basepath, blobIndex)
 	assert.eq(loadImg.width * loadImg.height, paletteSize)
 	assert.eq(loadImg.channels, 4)
 	assert.eq(ffi.sizeof(loadImg.format), 1)
-	local loadPtr = ffi.cast('uint8_t*', loadImg.buffer)
+	local loadPtr = ffi.cast(uint8_t_p, loadImg.buffer)
 
 	local blobImg = self:makeImage()
-	local blobPtr = ffi.cast('uint16_t*', blobImg.buffer)
+	local blobPtr = ffi.cast(uint16_t_p, blobImg.buffer)
 	for i=0,paletteSize-1 do
 		blobPtr[0] = rgba8888_4ch_to_5551(
 			loadPtr[0],

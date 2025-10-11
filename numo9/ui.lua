@@ -29,6 +29,12 @@ local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local minBlobPerType = numo9_blobs.minBlobPerType
 
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
+local uint16_t = ffi.typeof'uint16_t'
+local uint16_t_p = ffi.typeof'uint16_t*'
+local uint32_t = ffi.typeof'uint32_t'
+local uint32_t_p = ffi.typeof'uint32_t*'
 
 local UI = class()
 
@@ -477,7 +483,7 @@ end
 
 function UI:edit_poke(addr, value)
 	local app = self.app
-	value = ffi.cast('uint8_t', value)
+	value = ffi.cast(uint8_t, value)
 
 	-- this is done in net_poke but not in app:poke
 	-- I would move it to app:poke but there are some resources that depend on poking same-value memory to initialize (like the mvMat uniform shader upload)
@@ -490,7 +496,7 @@ function UI:edit_poke(addr, value)
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
 			if addr >= blob.addr and addr+1 <= blob.addrEnd then
-				ffi.cast('uint8_t*', blob:getPtr() + (addr - blob.addr))[0] = value
+				ffi.cast(uint8_t_p, blob:getPtr() + (addr - blob.addr))[0] = value
 			end
 		end
 	end
@@ -498,7 +504,7 @@ end
 
 function UI:edit_pokew(addr, value)
 	local app = self.app
-	value = ffi.cast('uint16_t', value)
+	value = ffi.cast(uint16_t, value)
 
 	app:net_pokew(addr, value)
 
@@ -509,7 +515,7 @@ function UI:edit_pokew(addr, value)
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
 			if addr >= blob.addr and addr+2 <= blob.addrEnd then
-				ffi.cast('uint16_t*', blob:getPtr() + (addr - blob.addr))[0] = value
+				ffi.cast(uint16_t_p, blob:getPtr() + (addr - blob.addr))[0] = value
 			end
 		end
 	end
@@ -517,7 +523,7 @@ end
 
 function UI:edit_pokel(addr, value)
 	local app = self.app
-	value = ffi.cast('uint32_t', value)
+	value = ffi.cast(uint32_t, value)
 
 	-- this is done in net_poke but not in app:poke
 	-- I would move it to app:poke but there are some resources that depend on poking same-value memory to initialize (like the mvMat uniform shader upload)
@@ -528,7 +534,7 @@ function UI:edit_pokel(addr, value)
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
 			if addr >= blob.addr and addr+4 <= blob.addrEnd then
-				ffi.cast('uint32_t*', blob:getPtr() + (addr - blob.addr))[0] = value
+				ffi.cast(uint32_t_p, blob:getPtr() + (addr - blob.addr))[0] = value
 			end
 		end
 	end

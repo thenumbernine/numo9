@@ -24,6 +24,9 @@ local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 
 
+local uint32_t_p = ffi.typeof'uint32_t*'
+
+
 local EditVoxelMap = require 'numo9.ui':subclass()
 
 function EditVoxelMap:init(args)
@@ -666,7 +669,7 @@ self:guiSetClipRect(0, 0, 256, 256)
 					print('paste got an image with not enough buffer size', image:getBufferSize())
 					return
 				end
-				local p = ffi.cast('uint32_t*', image.buffer)
+				local p = ffi.cast(uint32_t_p, image.buffer)
 				local sx, sy, sz = p[0], p[1], p[2]
 				if ffi.sizeof'uint32_t' * (3 + sx * sy * sz) > image:getBufferSize() then
 					print('paste got a bad sized image: '..sx..', '..sy..', '..sz..' versus its buffer size '..image:getBufferSize())

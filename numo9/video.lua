@@ -43,7 +43,10 @@ local matArrType = numo9_rom.matArrType
 local Voxel = numo9_rom.Voxel
 
 
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
 local uint8_t_arr = ffi.typeof'uint8_t[?]'
+local uint16_t_p = ffi.typeof'uint16_t*'
 local uint16_t_arr = ffi.typeof'uint16_t[?]'
 local float = ffi.typeof'float'
 local float_4 = ffi.typeof'float[4]'
@@ -221,7 +224,7 @@ end
 
 -- upon boot, upload the logo to the whole sheet
 local function resetLogoOnSheet(spriteSheetPtr)
-	spriteSheetPtr = ffi.cast('uint8_t*', spriteSheetPtr)
+	spriteSheetPtr = ffi.cast(uint8_t_p, spriteSheetPtr)
 	local splashImg = Image'splash.png'
 	assert.eq(splashImg.channels, 1)
 	assert.eq(splashImg.width, spriteSheetSize.x)
@@ -595,7 +598,7 @@ function VideoMode:buildFramebuffers()
 				},
 				minFilter = gl.GL_NEAREST,
 				magFilter = gl.GL_NEAREST,
-				data = ffi.cast('uint8_t*', image.buffer),
+				data = ffi.cast(uint8_t_p, image.buffer),
 			}
 
 			function framebufferRAM:delete() return false end	-- :delete() is called on sheet/font/palette RAMGPU's between cart loading/unloading
@@ -1923,7 +1926,7 @@ function AppVideo:initVideo()
 		image = Image(2,2,3,'uint8_t', {0xf0,0xf0,0xf0,0xfc,0xfc,0xfc,0xfc,0xfc,0xfc,0xf0,0xf0,0xf0}),
 		--]]
 		-- [[ gradient
-		image = Image(4,4,3,'uint8_t', {
+		image = Image(4,4,3,uint8_t, {
 			0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 0xff,0xff,0xff,
 			0xfd,0xfd,0xfd, 0xfe,0xfe,0xfe, 0xff,0xff,0xff, 0xf0,0xf0,0xf0,
 			0xfe,0xfe,0xfe, 0xff,0xff,0xff, 0xf0,0xf0,0xf0, 0xfd,0xfd,0xfd,
@@ -1935,7 +1938,7 @@ function AppVideo:initVideo()
 	-- a noise tex, using for SSAO
 	-- TODO only two compoents are needed, and need pre-normalized would be nice, but storing in gl_rgb is nice too...
 	do
-		local image = Image(256, 256, 3, 'uint8_t')
+		local image = Image(256, 256, 3, uint8_t)
 		for i=0,image:getBufferSize()-1 do
 			image.buffer[i] = math.random(0,255)
 		end
@@ -3305,7 +3308,7 @@ function AppVideo:clearScreen(
 		else
 			modeObj:build()
 			if modeObj.format == 'RGB565' then	-- internalFormat == GL_RGB565
-				local selColorValue = ffi.cast('uint16_t*', paletteTex.data)[colorIndex]
+				local selColorValue = ffi.cast(uint16_t_p, paletteTex.data)[colorIndex]
 				clearFloat[0] = bit.band(selColorValue, 0x1f) / 0x1f
 				clearFloat[1] = bit.band(bit.rshift(selColorValue, 5), 0x1f) / 0x1f
 				clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
@@ -3826,8 +3829,8 @@ function AppVideo:drawTextCommon(
 )
 	x = x or 0
 	y = y or 0
-	fgColorIndex = tonumber(ffi.cast('uint8_t', fgColorIndex or self.ram.textFgColor))
-	bgColorIndex = tonumber(ffi.cast('uint8_t', bgColorIndex or self.ram.textBgColor))
+	fgColorIndex = tonumber(ffi.cast(uint8_t, fgColorIndex or self.ram.textFgColor))
+	bgColorIndex = tonumber(ffi.cast(uint8_t, bgColorIndex or self.ram.textBgColor))
 	scaleX = scaleX or 1
 	scaleY = scaleY or 1
 	local x0 = x
@@ -4118,7 +4121,7 @@ function AppVideo:screenshotToFile(fn)
 	modeObj:build()
 	if modeObj.format == 'RGB565' then
 		-- convert to RGB8 first
-		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
+		local image = Image(fbTex.width, fbTex.height, 3, uint8_t)
 		local srcp = fbRAM.image.buffer + 0
 		local dstp = image.buffer + 0
 		for i=0,fbTex.width*fbTex.height-1 do
@@ -4130,7 +4133,7 @@ function AppVideo:screenshotToFile(fn)
 	elseif modeObj.format == '8bppIndex' then
 		local range = require 'ext.range'
 		local palImg = self.blobs.palette[1].image
-		local image = Image(fbTex.width, fbTex.height, 1, 'uint8_t')
+		local image = Image(fbTex.width, fbTex.height, 1, uint8_t)
 		ffi.copy(image.buffer, fbRAM.image.buffer, fbTex.width * fbTex.height)
 		image.palette = range(0,255):mapi(function(i)
 			local r,g,b,a = rgba5551_to_rgba8888_4ch(palImg.buffer[i])
@@ -4139,7 +4142,7 @@ function AppVideo:screenshotToFile(fn)
 		end)
 		image:save(fn)
 	elseif modeObj.format == 'RGB332' then
-		local image = Image(fbTex.width, fbTex.height, 3, 'uint8_t')
+		local image = Image(fbTex.width, fbTex.height, 3, uint8_t)
 		local srcp = fbRAM.image.buffer + 0
 		local dstp = image.buffer + 0
 		for i=0,fbTex.width*fbTex.height-1 do

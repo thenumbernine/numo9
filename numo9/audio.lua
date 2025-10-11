@@ -312,7 +312,7 @@ function AppAudio:updateSoundEffects()
 	--[[ update all at once and let the beats fall where they may
 	audio.sampleFrameIndex = audio.sampleFrameIndex + updateSampleFrameCount
 	--]]
---DEBUG:assert.eq(ffi.cast('char*', p), ffi.cast('char*', audio.audioBuffer) + updateIntervalInBytes)
+--DEBUG:assert.eq(ffi.cast(uint8_t_p, p), ffi.cast(uint8_t_p, audio.audioBuffer) + updateIntervalInBytes)
 
 	-- don't queue if we're too full
 	--local queueSize = sdl.SDL_GetQueuedAudioSize(audio.deviceID)

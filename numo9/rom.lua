@@ -464,7 +464,7 @@ local Vertex = struct{
 		{name='v', type='uint8_t'},
 	},
 }
-assert.eq(ffi.sizeof'Vertex', 8)
+assert.eq(ffi.sizeof(Vertex), 8)
 local meshIndexType = 'uint16_t'
 
 ffi.cdef[[
@@ -572,6 +572,8 @@ return {
 	loopOffsetType = loopOffsetType,
 
 	Stamp = Stamp,
+
+	Vertex = Vertex,
 
 	meshIndexType = meshIndexType,
 	voxelmapSizeType = voxelmapSizeType,

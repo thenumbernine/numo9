@@ -8,7 +8,9 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local numo9_video = require 'numo9.video'
 local texInternalFormat_u8 = numo9_video.texInternalFormat_u8
 
+
 local uint8_t_p = ffi.typeof'uint8_t*'
+
 
 local BlobSheet = BlobImage:subclass()
 

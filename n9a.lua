@@ -91,7 +91,7 @@ end
 
 -- assumes 'palette' is a Lua table -- the kind that are used in Image's .palette fields
 local function savePal(palette, outfn)
-	Image(16, 16, 4, 'uint8_t', range(0,16*16*4-1):mapi(function(i)
+	Image(16, 16, 4, uint8_t, range(0,16*16*4-1):mapi(function(i)
 		return palette[bit.rshift(i,2)+1][bit.band(i,3)+1]
 	end)):save(tostring(outfn))
 end
@@ -439,7 +439,7 @@ print('replacing', string.bytes(k):concat',', string.bytes(p8):concat',')
 		local height = #ls
 print('toImage', name, 'width', width, 'height', height)
 --print(require 'ext.tolua'(ls))
-		local image = Image(width, height, 1, 'uint8_t'):clear()
+		local image = Image(width, height, 1, uint8_t):clear()
 		-- for now output 4bpp -> 8bpp
 		for j=0,height-1 do
 			local srcrow = ls[j+1]
@@ -503,7 +503,7 @@ print('toImage', name, 'width', width, 'height', height)
 	assert.eq(gfxImg.channels, 1)
 	assert.eq(gfxImg.width, 128)
 	assert.le(gfxImg.height, 128)  -- how come the jelpi.p8 cartridge I exported from pico-8-edu.com has only 127 rows of gfx?
-	gfxImg = Image(256,256,1,'uint8_t')
+	gfxImg = Image(256,256,1,uint8_t)
 		:clear()
 		:pasteInto{image=gfxImg, x=0, y=0}
 	gfxImg.palette = palette
@@ -554,12 +554,12 @@ print('toImage', name, 'width', width, 'height', height)
 		assert.eq(tilemapImg.width, 128)
 		assert.le(tilemapImg.height, 64)
 		-- start as 8bpp
-		tilemapImg = Image(256,256,1,'uint8_t')
+		tilemapImg = Image(256,256,1,uint8_t)
 			:clear()
 			-- paste our tilemapImg into it (to resize without resampling)
 			:pasteInto{image=tilemapImg, x=0, y=0}
 			-- now grow to 16bpp
-			:combine(Image(256,256,1,'uint8_t'):clear())
+			:combine(Image(256,256,1,uint8_t):clear())
 			-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
 		do
 			local p = ffi.cast(uint16_t_p, tilemapImg.buffer)
@@ -597,7 +597,7 @@ print('toImage', name, 'width', width, 'height', height)
 			end
 		end
 		-- now grow to 24bpp
-		tilemapImg = tilemapImg:combine(Image(256,256,1,'uint8_t'):clear())
+		tilemapImg = tilemapImg:combine(Image(256,256,1,uint8_t):clear())
 
 		tilemapImg:save(basepath'tilemap.png'.path)
 	end
@@ -1504,7 +1504,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 
 		local function chunkToImage(data)
 			-- how is it stored ... raw? compressed? raw until all zeroes remain ... lol no lzw compression
-			local subimg = Image(128, 128, 1, 'uint8_t'):clear()
+			local subimg = Image(128, 128, 1, uint8_t):clear()
 			local ptr = ffi.cast(uint8_t_p, data)
 			assert(#data <= subimg.width * subimg.height)
 			for i=0,#data-1 do
@@ -1526,7 +1526,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 				subimg.buffer[destindex] = bit.band(ptr[i], 0xf)
 				subimg.buffer[destindex+1] = bit.rshift(ptr[i], 4)
 			end
-			local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, 'uint8_t')
+			local image = Image(spriteSheetSize.x, spriteSheetSize.y, 1, uint8_t)
 				:clear()
 				:pasteInto{image=subimg, x=0, y=0}
 			image.palette = palette
@@ -1544,7 +1544,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			local srcw, srch = 240, 136
 			assert.ge(tilemapSize.x, srcw)
 			assert.ge(tilemapSize.y, srch)
-			local image = Image(tilemapSize.x, tilemapSize.y, 3, 'uint8_t'):clear()
+			local image = Image(tilemapSize.x, tilemapSize.y, 3, uint8_t):clear()
 			local data = chunks[4]
 			local ptr = ffi.cast(uint8_t_p, data)
 			for i=0,#data-1 do
@@ -1723,7 +1723,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	savePal(palette, basepath'palette.png')
 
 	-- copy our pictures into the sprite sheet
-	local sheetImg = Image(256, 256, 1, 'uint8_t')
+	local sheetImg = Image(256, 256, 1, uint8_t)
 	ffi.fill(sheetImg.buffer, sheetImg:getBufferSize())
 	for i=0,0x1FFF do
 		local v = VRAM:byte(i+1)
@@ -1759,7 +1759,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	sheetImg:save(basepath'sheet.png'.path)
 
 	-- do ROMs come with initialized tilemaps? #CHR > 0x2000 ?
-	local tilemapImg = Image(256, 256, 3, 'uint8_t')
+	local tilemapImg = Image(256, 256, 3, uint8_t)
 	ffi.fill(tilemapImg.buffer, tilemapImg:getBufferSize())
 	for i=0x2000,0x3FFF do
 		local v = VRAM:byte(i+1)
