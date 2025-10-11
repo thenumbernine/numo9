@@ -1624,22 +1624,22 @@ void main() {
 				type = gl.GL_FLOAT,
 				size = 3,	-- 'dim' in buffer
 				buffer = app.vertexBufGPU,
-				stride = ffi.sizeof'Numo9Vertex',
-				offset = ffi.offsetof('Numo9Vertex', 'vertex'),
+				stride = ffi.sizeof(Numo9Vertex),
+				offset = ffi.offsetof(Numo9Vertex, 'vertex'),
 			},
 			texcoord = {
 				type = gl.GL_FLOAT,
 				size = 2,
 				buffer = app.vertexBufGPU,
-				stride = ffi.sizeof'Numo9Vertex',
-				offset = ffi.offsetof('Numo9Vertex', 'texcoord'),
+				stride = ffi.sizeof(Numo9Vertex),
+				offset = ffi.offsetof(Numo9Vertex, 'texcoord'),
 			},
 			normal = {
 				type = gl.GL_FLOAT,
 				size = 3,
 				buffer = app.vertexBufGPU,
-				stride = ffi.sizeof'Numo9Vertex',
-				offset = ffi.offsetof('Numo9Vertex', 'normal'),
+				stride = ffi.sizeof(Numo9Vertex),
+				offset = ffi.offsetof(Numo9Vertex, 'normal'),
 			},
 			-- 8 bytes = 32 bit so I can use memset?
 			extraAttr = {
@@ -1647,8 +1647,8 @@ void main() {
 				size = 4,
 				--divisor = 3,
 				buffer = app.vertexBufGPU,
-				stride = ffi.sizeof'Numo9Vertex',
-				offset = ffi.offsetof('Numo9Vertex', 'extra'),
+				stride = ffi.sizeof(Numo9Vertex),
+				offset = ffi.offsetof(Numo9Vertex, 'extra'),
 			},
 			-- 16 bytes =  128-bit ...
 			boxAttr = {
@@ -1656,8 +1656,8 @@ void main() {
 				type = gl.GL_FLOAT,
 				--divisor = 3,	-- 6 honestly ...
 				buffer = app.vertexBufGPU,
-				stride = ffi.sizeof'Numo9Vertex',
-				offset = ffi.offsetof('Numo9Vertex', 'box'),
+				stride = ffi.sizeof(Numo9Vertex),
+				offset = ffi.offsetof(Numo9Vertex, 'box'),
 			},
 		},
 	}
@@ -1849,9 +1849,9 @@ function AppVideo:initVideo()
 
 	-- TODO would be nice to have a 'useVec' sort of thing per shader for interleaved arrays like this ...
 	-- this is here and in farmgame/app.lua
-	self.vertexBufCPU = vector'Numo9Vertex'
+	self.vertexBufCPU = vector(Numo9Vertex)
 	self.vertexBufGPU = GLArrayBuffer{
-		size = ffi.sizeof'Numo9Vertex' * self.vertexBufCPU.capacity,
+		size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
 		data = self.vertexBufCPU.v,
 		usage = gl.GL_DYNAMIC_DRAW,
 	}:unbind()
@@ -1923,7 +1923,7 @@ function AppVideo:initVideo()
 		minFilter = gl.GL_NEAREST,
 		--minFilter = gl.GL_NEAREST_MIPMAP_NEAREST,		-- doesn't work so well with alpha channesl
 		--[[ checkerboard
-		image = Image(2,2,3,'uint8_t', {0xf0,0xf0,0xf0,0xfc,0xfc,0xfc,0xfc,0xfc,0xfc,0xf0,0xf0,0xf0}),
+		image = Image(2,2,3,uint8_t, {0xf0,0xf0,0xf0,0xfc,0xfc,0xfc,0xfc,0xfc,0xfc,0xf0,0xf0,0xf0}),
 		--]]
 		-- [[ gradient
 		image = Image(4,4,3,uint8_t, {
@@ -2344,7 +2344,7 @@ function AppVideo:triBuf_flush()
 		self.vertexBufGPU:setData{
 			data = self.vertexBufCPU.v,
 			count = self.vertexBufCPU.capacity,
-			size = ffi.sizeof'Numo9Vertex' * self.vertexBufCPU.capacity,
+			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
 		}
 	else
 --DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
@@ -4664,7 +4664,7 @@ function AppVideo:drawVoxelMap(
 
 		dstVtxs:resize(dstLen + srcLen)
 		local dstVtxPtr = dstVtxs.v + writeOfs
-		ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof'Numo9Vertex' * srcLen)
+		ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
 	end
 	--]]
 	--[[ draw using blob/voxelmap's own GPU buffer

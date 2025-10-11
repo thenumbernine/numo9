@@ -24,6 +24,8 @@ local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 
 
+local uint8_t = ffi.typeof'uint8_t'
+local uint32_t = ffi.typeof'uint32_t'
 local uint32_t_p = ffi.typeof'uint32_t*'
 
 
@@ -631,9 +633,9 @@ self:guiSetClipRect(0, 0, 256, 256)
 				-- now encode it in an image ...
 				local w = math.ceil(math.sqrt(#o))
 				local h = math.ceil(#o / w)
-				local img = Image(w, h, 4, 'uint8_t')
+				local img = Image(w, h, 4, uint8_t)
 				ffi.fill(img.buffer, img:getBufferSize())
-				ffi.copy(img.buffer, o.v, #o * ffi.sizeof'uint32_t')
+				ffi.copy(img.buffer, o.v, #o * ffi.sizeof(uint32_t))
 				clip.image(img)
 				if app:keyp'x' then
 					self.undo:push()
@@ -665,13 +667,13 @@ self:guiSetClipRect(0, 0, 256, 256)
 					print('paste got an image with invalid channels', image.channels)
 					return
 				end
-				if image:getBufferSize() < 3 * ffi.sizeof'uint32_t' then	-- make sure the header is at least there
+				if image:getBufferSize() < 3 * ffi.sizeof(uint32_t) then	-- make sure the header is at least there
 					print('paste got an image with not enough buffer size', image:getBufferSize())
 					return
 				end
 				local p = ffi.cast(uint32_t_p, image.buffer)
 				local sx, sy, sz = p[0], p[1], p[2]
-				if ffi.sizeof'uint32_t' * (3 + sx * sy * sz) > image:getBufferSize() then
+				if ffi.sizeof(uint32_t) * (3 + sx * sy * sz) > image:getBufferSize() then
 					print('paste got a bad sized image: '..sx..', '..sy..', '..sz..' versus its buffer size '..image:getBufferSize())
 					return
 				end

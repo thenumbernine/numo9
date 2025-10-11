@@ -19,6 +19,10 @@ local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
 local clipMax = numo9_rom.clipMax
 
+
+local uint8_t = ffi.typeof'uint8_t'
+
+
 -- used by fill
 local dirs = {
 	{0,-1},
@@ -439,7 +443,7 @@ function EditTilemap:update()
 			local image = tilemapRAM.image:copy{x=x, y=y, width=width, height=height}
 			-- 1-channel uint16_t image
 			local channels = 4
-			local imageRGBA = Image(image.width, image.height, channels, 'uint8_t')
+			local imageRGBA = Image(image.width, image.height, channels, uint8_t)
 			for i=0,image.width*image.height-1 do
 				imageRGBA.buffer[0 + channels * i] = bit.band(0xff, image.buffer[i])
 				imageRGBA.buffer[1 + channels * i] = bit.band(0xff, bit.rshift(image.buffer[i], 8))

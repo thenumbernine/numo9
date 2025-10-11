@@ -28,6 +28,8 @@ local unpackptr = numo9_rom.unpackptr
 local palettePtrType = numo9_rom.palettePtrType
 
 
+local uint8_t = ffi.typeof'uint8_t'
+
 -- used by fill
 local dirs = {
 	{1,0},
@@ -836,7 +838,7 @@ function EditSheet:update()
 print'BAKING PALETTE'
 				-- TODO move palette functionality inot Image
 				-- TODO offset palette by current bits / shift?
-				local rgba = Image(image.width, image.height, 4, 'unsigned char')
+				local rgba = Image(image.width, image.height, 4, uint8_t)
 				local srcp = image.buffer
 				local dstp = rgba.buffer
 				for i=0,image.width*image.height-1 do
@@ -890,7 +892,7 @@ print'BAKING PALETTE'
 					assert.eq(image.channels, 3, "image channels")
 
 					if self.pasteKeepsPalette then
-						local image1ch = Image(image.width, image.height, 1, 'unsigned char')
+						local image1ch = Image(image.width, image.height, 1, uint8_t)
 						local srcp = image.buffer
 						local dstp = image1ch.buffer
 						for i=0,image.width*image.height-1 do
@@ -931,7 +933,7 @@ print'BAKING PALETTE'
 							return i-1, color
 						end)
 						-- override colors here ...
-						local image1ch = Image(image.width, image.height, 1, 'unsigned char')
+						local image1ch = Image(image.width, image.height, 1, uint8_t)
 						local srcp = image.buffer
 						local dstp = image1ch.buffer
 						for i=0,image.width*image.height-1 do

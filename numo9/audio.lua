@@ -32,7 +32,8 @@ local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local pitchPrec = numo9_rom.pitchPrec
 local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 local loopOffsetType = numo9_rom.loopOffsetType
-
+local Numo9MusicPlaying = numo9_rom.Numo9MusicPlaying
+local Numo9Channel = numo9_rom.Numo9Channel
 
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
@@ -44,6 +45,7 @@ local int32_t_arr = ffi.typeof'int32_t[?]'
 local audioSamplePtrType = ffi.typeof('$*', audioSampleType)
 local audioSampleArrType = ffi.typeof('$[?]', audioSampleType)
 local loopOffsetPtrType = ffi.typeof('$*', loopOffsetType)
+local SDL_AudioSpec = ffi.typeof'SDL_AudioSpec'
 local SDL_AudioSpec_1 = ffi.typeof'SDL_AudioSpec[1]'
 
 
@@ -92,7 +94,7 @@ function AppAudio:initAudio()
 --DEBUG:print('audioSampleType', audioSampleType)
 	audio.bufferSizeInBytes = bufferSizeInSamples * ffi.sizeof(audioSampleType)
 --DEBUG:print('bufferSizeInBytes', audio.bufferSizeInBytes)
-	ffi.fill(desired, ffi.sizeof'SDL_AudioSpec')
+	ffi.fill(desired, ffi.sizeof(SDL_AudioSpec))
 	desired[0].freq = sampleFramesPerSecond
 	desired[0].format = assert.index(sdlAudioFormatForCType, tostring(audioSampleType))
 	desired[0].channels = audioOutChannels
@@ -168,7 +170,7 @@ function AppAudio:resetAudio()
 	local audio = self.audio
 
 	ffi.fill(self.ram.channels, audioAllMixChannelsInBytes)
-	ffi.fill(self.ram.musicPlaying, ffi.sizeof'Numo9MusicPlaying' * audioMusicPlayingCount)
+	ffi.fill(self.ram.musicPlaying, ffi.sizeof(Numo9MusicPlaying) * audioMusicPlayingCount)
 
 	-- this is to keep 1:1 with romUpdateCounter
 	-- or not and just assume we're getting called once per update anyways
@@ -409,8 +411,8 @@ print('music changed music - failed to find music', value)
 		-- then reset the channel.offset to that sfx's addr
 		-- I guess I could 'TODO when it sets the sfxID, have it set the addr as well'
 		--  but this might take some extra preparation in packaging the ROM ... I'll think about
-		local channelByteOffset = index % ffi.sizeof'Numo9Channel'
-		local channelIndex = (index - channelByteOffset) / ffi.sizeof'Numo9Channel'
+		local channelByteOffset = index % ffi.sizeof(Numo9Channel)
+		local channelIndex = (index - channelByteOffset) / ffi.sizeof(Numo9Channel)
 		-- 7 cuz max # playing tracks is 8
 assert.eq(audioMusicPlayingCount, 8)
 		channelIndex = bit.band(7, channelIndex + musicPlaying.channelOffset)

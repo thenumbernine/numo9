@@ -32,6 +32,9 @@ local addSig = numo9_rom.addSig
 local removeSig = numo9_rom.removeSig
 
 
+local uint8_t = ffi.typeof'uint8_t'
+
+
 -- TODO image io is tied to file rw because so many image format libraries are also tied to file rw...
 -- so reading is from files now
 local tmploc = ffi.os == 'Windows' and path'___tmp.png' or path'/tmp/__tmp.png'
@@ -44,7 +47,7 @@ local function blobStrWithSigToCartImage(blobsAsStrWithSig, labelImage)
 	-- [[ storing in png metadata
 	local baseLabelImage = Image'defaultlabel.png'
 	assert.eq(baseLabelImage.channels, 4)
-	local romImage = Image(baseLabelImage.width, baseLabelImage.height, 4, 'uint8_t'):clear()
+	local romImage = Image(baseLabelImage.width, baseLabelImage.height, 4, uint8_t):clear()
 	if labelImage then
 		labelImage = labelImage:rgba()
 		romImage:pasteInto{image=labelImage, x=math.floor((romImage.width-labelImage.width)/2), y=0}

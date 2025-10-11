@@ -19,6 +19,9 @@ local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local Voxel = numo9_rom.Voxel
 
+local numo9_video = require 'numo9.video'
+local Numo9Vertex = numo9_video.Numo9Vertex
+
 
 local uint8_t_p = ffi.typeof'uint8_t*'
 local Voxel_p = ffi.typeof('$*', Voxel)
@@ -83,17 +86,17 @@ local BlobVoxelMap = Blob:subclass()
 BlobVoxelMap.filenamePrefix = 'voxelmap'
 BlobVoxelMap.filenameSuffix = '.vox'
 
-assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof'Voxel')
+assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof(Voxel))
 function BlobVoxelMap:init(data)
-	self.vec = vector'Voxel'	-- use .intptr for the first x y z entries
-	local minsize = ffi.sizeof'Voxel' * 3
+	self.vec = vector(Voxel)	-- use .intptr for the first x y z entries
+	local minsize = ffi.sizeof(Voxel) * 3
 	if not data or #data < minsize then
 		self.vec:emplace_back()[0].intval = 1
 		self.vec:emplace_back()[0].intval = 1
 		self.vec:emplace_back()[0].intval = 1
 		self.vec:emplace_back()[0].intval = voxelMapEmptyValue
 	else
-		self.vec:resize(math.ceil(#data / ffi.sizeof'Voxel'))
+		self.vec:resize(math.ceil(#data / ffi.sizeof(Voxel)))
 		ffi.copy(self.vec.v, data, #data)
 	end
 
@@ -102,10 +105,10 @@ function BlobVoxelMap:init(data)
 	assert.gt(self:getHeight(), 0)
 	assert.gt(self:getDepth(), 0)
 
-	self.billboardXYZVoxels = vector'vec3i_t'	-- type 20
-	self.billboardXYVoxels = vector'vec3i_t'	-- type 21
+	self.billboardXYZVoxels = vector(vec3i)	-- type 20
+	self.billboardXYVoxels = vector(vec3i)	-- type 21
 
-	self.vertexBufCPU = vector'Numo9Vertex'
+	self.vertexBufCPU = vector(Numo9Vertex)
 
 	self.dirtyCPU = true
 	-- can't do this yet, not until .ramptr is defined
@@ -163,7 +166,7 @@ function BlobVoxelMap:getVoxelAddr(x,y,z)
 	or y < 0 or y >= self:getHeight()
 	or z < 0 or z >= self:getDepth()
 	then return end
-	return self:getVoxelDataAddr() + ffi.sizeof'Voxel' * (x + self:getWidth() * (y + self:getHeight() * z))
+	return self:getVoxelDataAddr() + ffi.sizeof(Voxel) * (x + self:getWidth() * (y + self:getHeight() * z))
 end
 
 --[[
@@ -435,14 +438,13 @@ function BlobVoxelMap:drawMesh(app)
 
 	app:triBuf_prepAddTri(app.lastPaletteTex, app.lastSheetTex, app.lastTilemapTex)
 --]]
-
 	local sceneObj = app.triBuf_sceneObj
 	local program = sceneObj.program
 	program:use()
 
 	if not self.vertexBufGPU then
 		self.vertexBufGPU = GLArrayBuffer{
-			size = ffi.sizeof'Numo9Vertex' * self.vertexBufCPU.capacity,
+			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
 			data = self.vertexBufCPU.v,
 			usage = gl.GL_DYNAMIC_DRAW,
 		}
@@ -454,7 +456,7 @@ function BlobVoxelMap:drawMesh(app)
 		self.vertexBufGPU:setData{
 			data = self.vertexBufCPU.v,
 			count = self.vertexBufCPU.capacity,
-			size = ffi.sizeof'Numo9Vertex' * self.vertexBufCPU.capacity,
+			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
 		}
 	else
 --DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)

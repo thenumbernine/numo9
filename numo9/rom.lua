@@ -11,6 +11,12 @@ local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 
 
+local uint8_t = ffi.typeof'uint8_t'
+local int16_t = ffi.typeof'int16_t'
+local uint16_t = ffi.typeof'uint16_t'
+local uint32_t = ffi.typeof'uint32_t'
+
+
 local version = table{1,2,0}
 local versionSig = version:mapi(function(x) return string.char(x) end):concat()
 local versionStr = version:mapi(function(x) return tostring(x) end):concat'.'
@@ -271,7 +277,7 @@ local Numo9MusicPlaying = struct{
 -- make sure our delta compressed channels state change encoding can fit in its 8bpp messages
 -- make sure our 0xff end-of-frame signal will not overlap the delta-compression messages
 -- make sure our 0xfe end-of-track signal will not overlap the delta-compression messages
-local audioAllMixChannelsInBytes = ffi.sizeof'Numo9Channel' * audioMixChannels
+local audioAllMixChannelsInBytes = ffi.sizeof(Numo9Channel) * audioMixChannels
 assert.le(audioAllMixChannelsInBytes, 0xfe)	-- special codes: 0xff means frame-end, 0xfe means track end.
 
 local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
@@ -386,30 +392,30 @@ local RAM = struct{
 }
 
 local spriteSheetInBytes = spriteSheetSize:volume()
-local tilemapInBytes = tilemapSize:volume() * ffi.sizeof'uint16_t'
+local tilemapInBytes = tilemapSize:volume() * ffi.sizeof(uint16_t)
 local paletteInBytes = paletteSize * ffi.sizeof(paletteType)
 local fontInBytes = fontSizeInBytes
-local framebufferAddr = ffi.offsetof('RAM', 'framebuffer')
+local framebufferAddr = ffi.offsetof(RAM, 'framebuffer')
 local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
 local framebufferAddrEnd = framebufferAddr + framebufferInBytes
-local clipRectAddr = ffi.offsetof('RAM', 'clipRect')
-local clipRectInBytes = ffi.sizeof'uint8_t' * 4
+local clipRectAddr = ffi.offsetof(RAM, 'clipRect')
+local clipRectInBytes = ffi.sizeof(uint8_t) * 4
 local clipRectAddrEnd = clipRectAddr + clipRectInBytes
-local modelMatAddr = ffi.offsetof('RAM', 'modelMat')
+local modelMatAddr = ffi.offsetof(RAM, 'modelMat')
 local modelMatInBytes = ffi.sizeof(matArrType)
 local modelMatAddrEnd = modelMatAddr + modelMatInBytes
-local viewMatAddr = ffi.offsetof('RAM', 'viewMat')
+local viewMatAddr = ffi.offsetof(RAM, 'viewMat')
 local viewMatInBytes = ffi.sizeof(matArrType)
 local viewMatAddrEnd = viewMatAddr + viewMatInBytes
-local projMatAddr = ffi.offsetof('RAM', 'projMat')
+local projMatAddr = ffi.offsetof(RAM, 'projMat')
 local projMatInBytes = ffi.sizeof(matArrType)
 local projMatAddrEnd = projMatAddr + projMatInBytes
-local blendColorAddr = ffi.offsetof('RAM', 'blendColor')
-local blendColorInBytes = ffi.sizeof'uint16_t'
+local blendColorAddr = ffi.offsetof(RAM, 'blendColor')
+local blendColorInBytes = ffi.sizeof(uint16_t)
 local blendColorAddrEnd = blendColorAddr + blendColorInBytes
 
 -- how much is RAM before the ROM starts
-local sizeofRAMWithoutROM = ffi.offsetof('RAM', 'blobCount')
+local sizeofRAMWithoutROM = ffi.offsetof(RAM, 'blobCount')
 
 -- n = num args to pack
 -- also in image/luajit/image.lua
@@ -445,27 +451,27 @@ local Stamp = struct{
 	fields = {
 		{name='brush', type='uint16_t:13'},
 		{name='orientation', type='uint16_t:3'},
-		{name='x', type='uint16_t'},
-		{name='y', type='uint16_t'},
-		{name='w', type='uint16_t'},
-		{name='h', type='uint16_t'},
+		{name='x', type=uint16_t},
+		{name='y', type=uint16_t},
+		{name='w', type=uint16_t},
+		{name='h', type=uint16_t},
 	},
 }
-assert.eq(ffi.sizeof'Stamp', 10)
+assert.eq(ffi.sizeof(Stamp), 10)
 
 -- used by the mesh file format
 local Vertex = struct{
 	name = 'Vertex',
 	fields = {
-		{name='x', type='int16_t'},
-		{name='y', type='int16_t'},
-		{name='z', type='int16_t'},
-		{name='u', type='uint8_t'},
-		{name='v', type='uint8_t'},
+		{name='x', type=int16_t},
+		{name='y', type=int16_t},
+		{name='z', type=int16_t},
+		{name='u', type=uint8_t},
+		{name='v', type=uint8_t},
 	},
 }
 assert.eq(ffi.sizeof(Vertex), 8)
-local meshIndexType = 'uint16_t'
+local meshIndexType = uint16_t
 
 ffi.cdef[[
 typedef union {
@@ -491,7 +497,7 @@ typedef union {
 ]]
 local Voxel = ffi.typeof'Voxel'
 assert.eq(ffi.sizeof(Voxel), 4)
-local voxelmapSizeType = ffi.typeof'uint32_t'
+local voxelmapSizeType = uint32_t
 local voxelMapEmptyValue = 0xffffffff
 
 return {
@@ -532,6 +538,8 @@ return {
 	audioMusicPlayingCount = audioMusicPlayingCount,
 	audioAllMixChannelsInBytes = audioAllMixChannelsInBytes,
 	pitchPrec = pitchPrec,
+	Numo9Channel = Numo9Channel,
+	Numo9MusicPlaying = Numo9MusicPlaying,
 
 	RAM = RAM,
 

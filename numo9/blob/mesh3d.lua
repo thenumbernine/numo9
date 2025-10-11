@@ -5,6 +5,7 @@ local table = require 'ext.table'
 local math = require 'ext.math'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
+local vec3f = require 'vec-ffi.vec3f'
 local vec3d = require 'vec-ffi.vec3d'
 local box3i = require 'vec-ffi.box3i'
 -- meh why deal with this bloat
@@ -18,8 +19,9 @@ local BlobDataAbs = require 'numo9.blob.dataabs'
 
 
 local uint8_t_p = ffi.typeof'uint8_t*'
+local int16_t = ffi.typeof'int16_t'
 local Vertex_p = ffi.typeof('$*', Vertex)
-
+local meshIndexPtrType = ffi.typeof('$*', meshIndexType)
 
 --[[
 mesh3D data
@@ -56,7 +58,7 @@ function BlobMesh3D:init(data)
 	-- TODO rebuild all this if the RAM gets changed ...
 
 	-- [[ cache tri list
-	self.triList = vector'vec3i_t'	-- store our vtx index list here
+	self.triList = vector(vec3i)	-- store our vtx index list here
 	if numIndexes ~= 0 then
 		for i=0,numIndexes-1 do
 			assert.le(0, indexes[i])
@@ -76,7 +78,7 @@ function BlobMesh3D:init(data)
 	local numo9_video = require 'numo9.video'
 	local calcNormalForTri = numo9_video.calcNormalForTri
 	local Numo9Vertex = numo9_video.Numo9Vertex
-	self.normalList = vector'vec3f_t'
+	self.normalList = vector(vec3f)
 	assert.eq(
 		self.normalList.type,
 		ffi.typeof(select(2, table.find(Numo9Vertex.fields, nil, function(field)
@@ -162,11 +164,11 @@ function BlobMesh3D:init(data)
 end
 
 function BlobMesh3D:getNumVertexes()
-	return ffi.cast(meshIndexType..'*', self:getPtr())[0]
+	return ffi.cast(meshIndexPtrType, self:getPtr())[0]
 end
 
 function BlobMesh3D:getNumIndexes()
-	return ffi.cast(meshIndexType..'*', self:getPtr())[1]
+	return ffi.cast(meshIndexPtrType, self:getPtr())[1]
 end
 
 function BlobMesh3D:getVertexPtr()
@@ -184,7 +186,7 @@ function BlobMesh3D:getIndexPtr()
 		self:getVertexPtr()
 		+ self:getNumVertexes()
 	) -- skip vertexes
-	local indptr = ffi.cast(meshIndexType..'*', ptr)
+	local indptr = ffi.cast(meshIndexPtrType, ptr)
 	assert.le(0, ffi.cast(uint8_t_p, indptr + self:getNumIndexes()) - self:getPtr())
 	assert.eq(ffi.cast(uint8_t_p, indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
 	return indptr
@@ -261,7 +263,7 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 		end
 	end
 
-	local o = vector'int16_t'
+	local o = vector(int16_t)
 	o:emplace_back()[0] = #vs
 	o:emplace_back()[0] = #is
 	assert.eq(#vs, #vts, "your vertexes and texcoords must match.  Sorry I don't do any splitting and re-merging of geometry here")
