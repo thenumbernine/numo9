@@ -47,15 +47,15 @@ local updateIntervalInSeconds = 1 / updateHz
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
 local paletteSize = 256
-local paletteType = 'uint16_t'	-- really rgba 5551 ...
-local palettePtrType = paletteType..'*'
+local paletteType = ffi.typeof'uint16_t'	-- really rgba 5551 ...
+local palettePtrType = ffi.typeof('$*', paletteType)
 local tileSizeInBits = 3						-- TODO names or purpose?  no more 'tiles vs sprites'.  this is 1D vs sprites vars are 2D ... ???
 local tileSize = bit.lshift(1, tileSizeInBits)
 local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
 
 -- [[ TODO framebuffer has since become more flexible, more video modes, etc.
 -- some of these like 'frameBufferSize' are now obsolete
-local frameBufferType = 'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
+local frameBufferType = ffi.typeof'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
 local frameBufferSizeInTilesInBits = vec2i(5, 5)
 local frameBufferSizeInTiles = vec2i(
 	bit.lshift(1, frameBufferSizeInTilesInBits.x),
@@ -74,7 +74,7 @@ local tilemapSize = vec2i(
 	bit.lshift(1, tilemapSizeInBits.x),
 	bit.lshift(1, tilemapSizeInBits.y))
 
-local clipType = 'int16_t'
+local clipType = ffi.typeof'int16_t'
 local clipMax = 0x7fff		-- idk why i'm allowing negative values
 
 --[[
@@ -89,10 +89,10 @@ local fontImageSize = vec2i(fontImageSizeInTiles.x * spriteSize.x, fontImageSize
 local fontSizeInBytes = fontImageSize:volume()	-- 8 bytes per char, 256 chars
 local menuFontWidth = 5
 
-local addrType = 'uint32_t'	-- 4GB max addr
+local addrType = ffi.typeof'uint32_t'	-- 4GB max addr
 
---local audioSampleType = 'uint8_t'
-local audioSampleType = 'int16_t'
+--local audioSampleType = ffi.typeof'uint8_t'
+local audioSampleType = ffi.typeof'int16_t'
 --local audioSampleRate = 22050
 local audioSampleRate = 32000
 --local audioSampleRate = 44100
@@ -106,7 +106,8 @@ local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
 local keyPressFlagSize = math.ceil(keyCount / 8)
 
-local matType = 'float'
+local matType = ffi.typeof'float'
+local matArrType = ffi.typeof('$[16]', matType)
 
 -- instead of a 'length' i could store an 'end-addr'
 local AddrLen = struct{
@@ -123,7 +124,7 @@ local SFX = struct{
 	name = 'SFX',
 	fields = {
 		{name='loopOffset', type=loopOffsetType},
-		{name='sample', type=audioSampleType..'[1]'},
+		{name='sample', type=ffi.typeof('$[1]', audioSampleType)},
 	},
 }
 
@@ -303,14 +304,14 @@ local RAM = struct{
 				-- but how would we properly emulate our non-sprite graphics without one?
 				-- maybe I'll do rgb332+dithering to save space ...
 				-- maybe I'll say rgb565 is maximum but if the user chooses they can change modes to rgb332, indexed, heck why not 4bit or 2bit ...
-				{name='framebuffer', type=frameBufferType..'['..frameBufferSize:volume()..']'},
+				{name='framebuffer', type=ffi.typeof('$['..frameBufferSize:volume()..']', frameBufferType)},
 
-				{name='clipRect', type=clipType..'[4]'},
+				{name='clipRect', type=ffi.typeof('$[4]', clipType)},
 
 				-- TODO [3][4][4] plz
-				{name='modelMat', type=matType..'[16]'},
-				{name='viewMat', type=matType..'[16]'},
-				{name='projMat', type=matType..'[16]'},
+				{name='modelMat', type=matArrType},
+				{name='viewMat', type=matArrType},
+				{name='projMat', type=matArrType},
 
 				{name='videoMode', type='uint8_t'},
 
@@ -395,13 +396,13 @@ local clipRectAddr = ffi.offsetof('RAM', 'clipRect')
 local clipRectInBytes = ffi.sizeof'uint8_t' * 4
 local clipRectAddrEnd = clipRectAddr + clipRectInBytes
 local modelMatAddr = ffi.offsetof('RAM', 'modelMat')
-local modelMatInBytes = ffi.sizeof(matType) * 16
+local modelMatInBytes = ffi.sizeof(matArrType)
 local modelMatAddrEnd = modelMatAddr + modelMatInBytes
 local viewMatAddr = ffi.offsetof('RAM', 'viewMat')
-local viewMatInBytes = ffi.sizeof(matType) * 16
+local viewMatInBytes = ffi.sizeof(matArrType)
 local viewMatAddrEnd = viewMatAddr + viewMatInBytes
 local projMatAddr = ffi.offsetof('RAM', 'projMat')
-local projMatInBytes = ffi.sizeof(matType) * 16
+local projMatInBytes = ffi.sizeof(matArrType)
 local projMatAddrEnd = projMatAddr + projMatInBytes
 local blendColorAddr = ffi.offsetof('RAM', 'blendColor')
 local blendColorInBytes = ffi.sizeof'uint16_t'
@@ -489,7 +490,7 @@ typedef union {
 } Voxel;
 ]]
 assert.eq(ffi.sizeof'Voxel', 4)
-local voxelmapSizeType = 'uint32_t'
+local voxelmapSizeType = ffi.typeof'uint32_t'
 local voxelMapEmptyValue = 0xffffffff
 
 return {
@@ -503,7 +504,7 @@ return {
 
 	paletteSize = paletteSize,
 	paletteType = paletteType,
-	palettePtrType = palettePtrType,
+	palettePtrType = palettePtrType,	-- TODO dont need to save this
 	tileSizeInBits = tileSizeInBits,
 	spriteSize = spriteSize,
 	frameBufferType = frameBufferType,
@@ -519,6 +520,7 @@ return {
 	fontImageSizeInTiles = fontImageSizeInTiles,
 	menuFontWidth = menuFontWidth,
 	matType = matType,
+	matArrType = matArrType,
 	keyPressFlagSize = keyPressFlagSize,
 	keyCount = keyCount,
 

@@ -20,6 +20,12 @@ local assert = require 'ext.assert'
 local table = require 'ext.table'
 local math = require 'ext.math'
 
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
+local int16_t = ffi.typeof'int16_t'
+local uint16_t_p = ffi.typeof'uint16_t*'
+local int32_t = ffi.typeof'int32_t'
+
 -- ... aka output freq aka aka 'sample rate' = number of 'sample frames' per second
 local numo9_rom = require 'numo9.rom'
 local updateHz = numo9_rom.updateHz
@@ -33,7 +39,9 @@ local pitchPrec = numo9_rom.pitchPrec
 local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 local loopOffsetType = numo9_rom.loopOffsetType
 
-local audioSampleTypePtr = audioSampleType..'*'
+local audioSampleTypePtr = ffi.typeof('$*', audioSampleType)
+local audioSampleArrType = ffi.typeof('$[?]', audioSampleType)
+
 local updateIntervalInSampleFrames = math.ceil(updateIntervalInSeconds * sampleFramesPerSecond)
 local updateIntervalInSamples = updateIntervalInSampleFrames * audioOutChannels
 local updateIntervalInBytes =  updateIntervalInSamples * ffi.sizeof(audioSampleType)
@@ -44,8 +52,8 @@ local updateIntervalInBytes =  updateIntervalInSamples * ffi.sizeof(audioSampleT
 local samplesPerSecond = sampleFramesPerSecond * audioOutChannels
 local sampleFramesPerAppUpdate = math.ceil(sampleFramesPerSecond * updateIntervalInSeconds)			-- SDL docs terminology: 1 "sample frame" = 1 amplitude-quantity over a minimum discrete time interval across all output channels
 local samplesPerAppUpdate = sampleFramesPerAppUpdate * audioOutChannels	-- ... while a "sample frame" contains "sample"s  x the number of output channels
-local amplZero = assert.index({uint8_t=128, int16_t=0}, audioSampleType)
-local amplMax = assert.index({uint8_t=127, int16_t=32767}, audioSampleType)
+local amplZero = assert.index({[tostring(uint8_t)]=128, [tostring(int16_t)]=0}, tostring(audioSampleType))
+local amplMax = assert.index({[tostring(uint8_t)]=127, [tostring(int16_t)]=32767}, tostring(audioSampleType))
 
 
 -- put all audio-specific app stuff here
@@ -81,7 +89,7 @@ function AppAudio:initAudio()
 --DEBUG:print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	ffi.fill(desired, ffi.sizeof'SDL_AudioSpec')
 	desired[0].freq = sampleFramesPerSecond
-	desired[0].format = sdlAudioFormatForCType[audioSampleType]
+	desired[0].format = sdlAudioFormatForCType[tostring(audioSampleType)]
 	desired[0].channels = audioOutChannels
 	--desired[0].samples = audio.bufferSizeInSampleFrames -- in "sample frames" ... where stereo means two samples per "sample frame"
 	--desired[0].size = audio.bufferSizeInBytes		-- is calculated, but I wanted to make sure my calculations matched.
@@ -110,13 +118,13 @@ function AppAudio:initAudio()
 --DEBUG:print('got bufferSizeInSeconds', bufferSizeInSeconds)
 	--audio.audioBufferLength = math.ceil(audio.bufferSizeInBytes / ffi.sizeof(audioSampleType))
 	audio.audioBufferLength = updateIntervalInSamples
-	audio.audioBuffer = ffi.new(audioSampleType..'[?]', audio.audioBufferLength)
+	audio.audioBuffer = audioSampleArrType(audio.audioBufferLength)
 
 	-- [[ trying to fix this mystery initial slowdown in sdl_queuaudio ...
 	-- maybe its caused by the intial mallocs so
 	-- lets alloc enough mem that we don't have to alloc any more
 
-	local tmpbuf = ffi.new(audioSampleType..'['..(audioOutChannels * sampleFramesPerSecond * 2)..']')	-- 2 seconds worth
+	local tmpbuf = audioSampleArrType(audioOutChannels * sampleFramesPerSecond * 2)	-- 2 seconds worth
 	self.sdlAssert(sdl.SDL_PutAudioStreamData(
 		audio.stream,
 		tmpbuf,
@@ -368,11 +376,11 @@ print('music changed music - failed to find music', value)
 			musicPlaying.endAddr = musicBlob.addrEnd
 --assert(musicPlaying.addr >= 0 and musicPlaying.addr < ffi.sizeof(self.ram.bank[0].audioData))
 --assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= ffi.sizeof(self.ram.bank[0].audioData))
-			local beatsPerSecond = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
+			local beatsPerSecond = ffi.cast(uint16_t_p, self.ram.v + musicPlaying.addr)[0]
 			musicPlaying.sampleFramesPerBeat = sampleFramesPerSecond / beatsPerSecond
 			musicPlaying.addr = musicPlaying.addr + 2
 
-			local delay = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
+			local delay = ffi.cast(uint16_t_p, self.ram.v + musicPlaying.addr)[0]
 			musicPlaying.addr = musicPlaying.addr + 2
 
 			--self:setMusicPlayingToMusic(music)
@@ -406,7 +414,7 @@ assert.eq(audioMusicPlayingCount, 8)
 		channelPtr[index] = value
 		--]]
 		-- [[ play using our modulo channel size
-		ffi.cast('uint8_t*', self.ram.channels + channelIndex)[channelByteOffset] = value
+		ffi.cast(uint8_t_p, self.ram.channels + channelIndex)[channelByteOffset] = value
 		--]]
 
 		if channelByteOffset == ffi.offsetof('Numo9Channel', 'volume') then
@@ -458,7 +466,7 @@ assert.eq(audioMusicPlayingCount, 8)
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'addr finished sfx')
 		musicPlaying.isPlaying = 0
 	else
-		local delay = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
+		local delay = ffi.cast(uint16_t_p, self.ram.v + musicPlaying.addr)[0]
 		musicPlaying.addr = musicPlaying.addr + 2
 		musicPlaying.nextBeatSampleFrameIndex = math.floor(musicPlaying.sampleFrameIndex + delay * musicPlaying.sampleFramesPerBeat)
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'delay', delay, 'from',  musicPlaying.sampleFrameIndex, 'to', musicPlaying.nextBeatSampleFrameIndex)
@@ -468,7 +476,7 @@ end
 --[[ nah don't do this here, do it in updateSoundEffects inter-sample-update
 function AppAudio:updateMusic()
 	local audio = self.audio
-	local channelPtr = ffi.cast('uint8_t*', self.ram.channels)
+	local channelPtr = ffi.cast(uint8_t_p, self.ram.channels)
 
 	local musicPlaying = self.ram.musicPlaying+0
 	for musicPlayingIndex=0,audioMusicPlayingCount-1 do
@@ -583,7 +591,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 		return
 	end
 
-	musicPlayingIndex = ffi.cast('int32_t', musicPlayingIndex) % audioMusicPlayingCount
+	musicPlayingIndex = ffi.cast(int32_t, musicPlayingIndex) % audioMusicPlayingCount
 	channelOffset = channelOffset or 0
 
 	local musicPlaying = self.ram.musicPlaying + musicPlayingIndex
@@ -596,7 +604,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	musicPlaying.endAddr = musicBlob.addrEnd
 	assert(musicPlaying.addr >= 0 and musicPlaying.addr < self.memSize)
 	assert(musicPlaying.endAddr >= 0 and musicPlaying.endAddr <= self.memSize)
-	local beatsPerSecond = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
+	local beatsPerSecond = ffi.cast(uint16_t_p, self.ram.v + musicPlaying.addr)[0]
 --DEBUG:print('playing with beats/second', beatsPerSecond)
 	musicPlaying.addr = musicPlaying.addr + 2
 
@@ -604,7 +612,7 @@ function AppAudio:playMusic(musicID, musicPlayingIndex, channelOffset)
 	-- so `1 / beatsPerSecond` seconds = `sampleFramesPerSecond / beatsPerSecond` sampleFrames
 	musicPlaying.sampleFramesPerBeat = sampleFramesPerSecond / beatsPerSecond
 
-	local delay = ffi.cast('uint16_t*', self.ram.v + musicPlaying.addr)[0]
+	local delay = ffi.cast(uint16_t_p, self.ram.v + musicPlaying.addr)[0]
 	musicPlaying.addr = musicPlaying.addr + 2
 
 	musicPlaying.sampleFrameIndex = audio.sampleFrameIndex

@@ -14,6 +14,9 @@ local numo9_rom = require 'numo9.rom'
 local spriteSheetSize = numo9_rom.spriteSheetSize
 
 
+local uint8_t_p = ffi.typeof'uint8_t*'
+
+
 -- abstract class
 local BlobImage = Blob:subclass()
 
@@ -41,7 +44,7 @@ function BlobImage:init(image)
 end
 
 function BlobImage:getPtr()
-	return ffi.cast('uint8_t*', self.image.buffer)
+	return ffi.cast(uint8_t_p, self.image.buffer)
 end
 
 function BlobImage:getSize()
@@ -50,7 +53,7 @@ end
 
 function BlobImage:saveFile(filepath, blobIndex, blobs)
 	local image = self:makeImage()
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), self:getPtr(), self:getSize())
+	ffi.copy(ffi.cast(uint8_t_p, image.buffer), self:getPtr(), self:getSize())
 	image:save(filepath.path)
 end
 
@@ -64,7 +67,7 @@ end
 function BlobImage:loadBinStr(data)
 	local image = self:makeImage()
 	assert.eq(#data, image:getBufferSize())
-	ffi.copy(ffi.cast('uint8_t*', image.buffer), data, image:getBufferSize())
+	ffi.copy(ffi.cast(uint8_t_p, image.buffer), data, image:getBufferSize())
 	return self.class(image)
 end
 

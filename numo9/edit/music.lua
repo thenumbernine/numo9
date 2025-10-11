@@ -22,7 +22,12 @@ local pitchPrec = numo9_rom.pitchPrec
 local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 
-local audioSampleTypePtr = audioSampleType..'*'
+local uint8_t_p = ffi.typeof'uint8_t*'
+local uint16_t_1 = ffi.typeof'uint16_t[1]'
+local uint16_t_p = ffi.typeof'uint16_t*'
+local SFX_p = ffi.typeof'SFX*'
+local Numo9ChannelArr = ffi.typeof'Numo9Channel[?]'
+
 
 local EditMusic = require 'numo9.ui':subclass()
 
@@ -47,14 +52,14 @@ function EditMusic:refreshSelectedMusic()
 	local selMusicBlob = app.blobs.music[self.musicBlobIndex+1]
 	if not selMusicBlob then return end
 
-	local channels = ffi.new('Numo9Channel[?]', audioMixChannels)
-	local channelBytes = ffi.cast('uint8_t*', channels)
+	local channels = Numo9ChannelArr(audioMixChannels)
+	local channelBytes = ffi.cast(uint8_t_p, channels)
 	ffi.fill(channels, ffi.sizeof(channels))
 	local track = {
 		frames = table(),
 	}
-	local ptr = ffi.cast('uint16_t*', selMusicBlob.ramptr)
-	local pend = ffi.cast('uint16_t*', selMusicBlob.ramptr + selMusicBlob:getSize())
+	local ptr = ffi.cast(uint16_t_p, selMusicBlob.ramptr)
+	local pend = ffi.cast(uint16_t_p, selMusicBlob.ramptr + selMusicBlob:getSize())
 	local nextTrack
 	if ptr < pend then
 		track.bps = ptr[0]
@@ -63,7 +68,7 @@ function EditMusic:refreshSelectedMusic()
 		while ptr < pend do
 			local frame = {}
 			track.frames:insert(frame)
-			frame.addr = ffi.cast('uint8_t*', ptr) - app.ram.v
+			frame.addr = ffi.cast(uint8_t_p, ptr) - app.ram.v
 			frame.delay = ptr[0]
 			frame.changed = table()
 			ptr = ptr + 1
@@ -71,7 +76,7 @@ function EditMusic:refreshSelectedMusic()
 
 			-- reading a frame
 			while true do
-				local bp = ffi.cast('uint8_t*', ptr)
+				local bp = ffi.cast(uint8_t_p, ptr)
 				local offset = bp[0]
 				local value = bp[1]
 				ptr = ptr + 1
@@ -89,7 +94,7 @@ function EditMusic:refreshSelectedMusic()
 				if ptr >= pend then break end
 			end
 
-			frame.channels = ffi.new('Numo9Channel[?]', audioMixChannels)
+			frame.channels = Numo9ChannelArr(audioMixChannels)
 			ffi.copy(frame.channels, channels, audioAllMixChannelsInBytes)
 
 			if track.nextTrack then break end	-- done
@@ -103,10 +108,10 @@ end
 function EditMusic:encodeMusicFromFrames()
 	local track = self.selectedTrack
 	if not track then return end
-	local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+	local prevSoundState = Numo9ChannelArr(audioMixChannels)
 	local deltas = vector'uint8_t'
-	local short = ffi.new'uint16_t[1]'
-	local byte = ffi.cast('uint8_t*', short)
+	local short = uint16_t_1()
+	local byte = ffi.cast(uint8_t_p, short)
 	short[0] = track.bps
 	deltas:push_back(byte[0])
 	deltas:push_back(byte[1])
@@ -120,8 +125,8 @@ function EditMusic:encodeMusicFromFrames()
 
 		-- insert deltas
 		deltaCompress(
-			ffi.cast('uint8_t*', prevSoundState),
-			ffi.cast('uint8_t*', frame.channels),
+			ffi.cast(uint8_t_p, prevSoundState),
+			ffi.cast(uint8_t_p, frame.channels),
 			audioAllMixChannelsInBytes,
 			deltas
 		)
@@ -199,7 +204,7 @@ function EditMusic:update()
 
 	--local playLen = (playaddr - selMusicBlob.addr) * secondsPerByte
 	local numSampleFramesPlayed = musicPlaying.sampleFrameIndex - self.startSampleFrameIndex
-	local beatsPerSecond = tonumber(ffi.cast('uint16_t*', app.ram.v + musicPlaying.addr)[0])
+	local beatsPerSecond = tonumber(ffi.cast(uint16_t_p, app.ram.v + musicPlaying.addr)[0])
 	app:drawMenuText(
 		('%d frame / %.3f s'):format(
 			numSampleFramesPlayed,
@@ -235,10 +240,10 @@ function EditMusic:update()
 					frame.delay = tonumber(result) or frame.delay
 				end)
 				x = x + menuFontWidth * 4
-				for i=0,ffi.sizeof'Numo9Channel'-1 do
-					local by = i + ffi.sizeof'Numo9Channel' * self.selectedChannel
+				for i=0,ffi.sizeof(Numo9Channel)-1 do
+					local by = i + ffi.sizeof(Numo9Channel) * self.selectedChannel
 					local changed = frame.changed[by]
-					local ptr = ffi.cast('uint8_t*', frame.channels) + by
+					local ptr = ffi.cast(uint8_t_p, frame.channels) + by
 					local v = ptr[0]
 					local xi = x + (2 * menuFontWidth + 2) * (i-1)
 					self:guiTextField(
@@ -372,7 +377,7 @@ function EditMusic:update()
 					i,
 					channel.sfxID,
 					sfxBlob.addr,
-					sfxBlob.addr + ffi.cast('SFX*', sfxBlob.ramptr).loopOffset,
+					sfxBlob.addr + ffi.cast(SFX_p, sfxBlob.ramptr).loopOffset,
 					bit.rshift(channel.offset, pitchPrec-1),
 					channel.volume[0],
 					channel.volume[1],

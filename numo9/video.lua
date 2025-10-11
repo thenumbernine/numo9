@@ -6,6 +6,7 @@ local class = require 'ext.class'
 local math = require 'ext.math'
 local assert = require 'ext.assert'
 local matrix_ffi = require 'matrix.ffi'
+local vec2i = require 'vec-ffi.vec2i'
 local vec2f = require 'vec-ffi.vec2f'
 local vec3f = require 'vec-ffi.vec3f'
 local vec4f = require 'vec-ffi.vec4f'
@@ -38,11 +39,14 @@ local framebufferAddr = numo9_rom.framebufferAddr
 local clipMax = numo9_rom.clipMax
 local menuFontWidth = numo9_rom.menuFontWidth
 local matType = numo9_rom.matType
+local matArrType = numo9_rom.matArrType
 
-assert.eq(matType, 'float', "TODO if this changes then update the modelMat, viewMat, projMat uniforms")
+
+local float = ffi.typeof'float'
+
+assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms")
 
 
-local vec2i = require 'vec-ffi.vec2i'
 local dirLightMapSize = vec2i(256, 256)	-- for 16x16 tiles, 16 tiles wide, so 8 tile radius
 --local dirLightMapSize = vec2i(2048, 2048)	-- 16 texels/voxel * 64 voxels = 1024 texels across the whole scene
 local useDirectionalShadowmaps = true	-- can't turn off or it'll break stuff so *shrug*
@@ -3132,9 +3136,9 @@ function AppVideo:invTransform(x,y,z)
 	return x,y,z,w
 end
 
-local modelMatPush = ffi.new(matType..'[16]')
-local viewMatPush = ffi.new(matType..'[16]')
-local projMatPush = ffi.new(matType..'[16]')
+local modelMatPush = matArrType()
+local viewMatPush = matArrType()
+local projMatPush = matArrType()
 
 function AppVideo:drawSolidLine3D(
 	x1, y1, z1,
@@ -4173,7 +4177,7 @@ local function orientationCombine(a, b)
 end
 
 
-local modelMatPush = ffi.new(matType..'[16]')
+local modelMatPush = matArrType()
 -- this is a sprite-based preview of tilemap rendering
 -- it's made to simulate blitting the brush onto the tilemap (without me writing the tiles to a GPU texture and using the shader pathway)
 function AppVideo:drawBrush(
@@ -4493,7 +4497,7 @@ function AppVideo:drawMesh3D(
 end
 
 -- this just draws one single voxel.
-local modelMatPush = ffi.new(matType..'[16]')
+local modelMatPush = matArrType()
 local vox = ffi.new'Voxel'	-- better ffi.cast/ffi.new inside here or store outside?
 function AppVideo:drawVoxel(voxelValue, ...)
 	vox.intval = voxelValue or 0
@@ -4595,7 +4599,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 	self:onModelMatChange()
 end
 
-local modelMatPush = ffi.new(matType..'[16]')
+local modelMatPush = matArrType()
 function AppVideo:drawVoxelMap(
 	voxelmapIndex,
 	sheetIndex

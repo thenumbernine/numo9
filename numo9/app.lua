@@ -61,6 +61,7 @@ local sizeofRAMWithoutROM = numo9_rom.sizeofRAMWithoutROM
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local matType = numo9_rom.matType
+local matArrType = numo9_rom.matArrType
 local modelMatAddr = numo9_rom.modelMatAddr
 local modelMatAddrEnd = numo9_rom.modelMatAddrEnd
 local viewMatAddr = numo9_rom.viewMatAddr
@@ -1652,9 +1653,9 @@ end
 
 -------------------- MAIN UPDATE CALLBACK --------------------
 
-local modelMatPush = ffi.new(matType..'[16]')
-local viewMatPush = ffi.new(matType..'[16]')
-local projMatPush = ffi.new(matType..'[16]')
+local modelMatPush = matArrType()
+local viewMatPush = matArrType()
+local projMatPush = matArrType()
 function App:update()
 	if not self.hasFocus then
 		-- only pause-on-lost-focus if we're not in multiplayer

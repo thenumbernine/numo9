@@ -72,7 +72,8 @@ glreport'before RAMGPUTex:init'
 		ffi.copy(ptr, image.buffer, self.size)
 	end
 	-- TODO allow Image construction with ptr
-	image.buffer = ffi.cast(image.format..'*', ptr)
+	local formatp = ffi.typeof('$*', image.format)
+	image.buffer = ffi.cast(formatp, ptr)
 
 	local tex = GLTex2D{
 		target = args.target,
@@ -213,7 +214,8 @@ function RAMGPUTex:updateAddr(newaddr)
 --DEBUG:print('self.addrEnd', self.addrEnd)
 	self.tex.data = ffi.cast('uint8_t*', self.app.ram.v) + self.addr
 --DEBUG:print('self.tex.data', self.tex.data)
-	self.image.buffer = ffi.cast(self.image.format..'*', self.tex.data)
+	local formatp = ffi.typeof('$*', self.image.format)
+	self.image.buffer = ffi.cast(formatp, self.tex.data)
 --DEBUG:print('self.image.buffer', self.image.buffer)
 	self.dirtyCPU = true
 end

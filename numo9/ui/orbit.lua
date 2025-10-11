@@ -8,7 +8,7 @@ local quatd = require 'vec-ffi.quatd'
 local gl = require 'gl'
 
 local numo9_rom = require 'numo9.rom'
-local matType = numo9_rom.matType
+local matArrType = numo9_rom.matArrType
 local clipMax = numo9_rom.clipMax
 
 local Orbit = class()
@@ -23,9 +23,9 @@ function Orbit:init(app)
 	self.pos = self.angle:zAxis() * 1.5 + self.orbit
 
 	-- have to store as a memeber becuase it is used from beginDraw to endDraw
-	self.modelMatPush = ffi.new(matType..'[16]')
-	self.viewMatPush = ffi.new(matType..'[16]')
-	self.projMatPush = ffi.new(matType..'[16]')
+	self.modelMatPush = matArrType
+	self.viewMatPush = matArrType
+	self.projMatPush = matArrType
 end
 
 function Orbit:beginDraw()

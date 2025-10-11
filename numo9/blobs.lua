@@ -12,6 +12,14 @@ local numo9_video = require 'numo9.video'
 local resetFont = numo9_video.resetFont
 local resetPalette = numo9_video.resetPalette
 
+
+local uint8_t_p = ffi.typeof'uint8_t*'
+local uint8_t_arr = ffi.typeof'uint8_t[?]'
+local matPtrType = ffi.typeof('$*', matType)
+local RAM = ffi.typeof'RAM'
+local RAM_ref = ffi.typeof'RAM&'
+
+
 -- maps from type-index to name
 local blobClassNameForType = table{
 	'sheet',	-- sprite sheet, tile sheet
@@ -142,7 +150,7 @@ local function blobsToByteArray(blobs)
 	local numBlobs = #allBlobs
 
 	-- RAM struct also includes blobCount and blobs[1], so you have to add to it blobs[#blobs-1]
-	local memSize = ffi.sizeof'RAM'
+	local memSize = ffi.sizeof(RAM)
 		+ (numBlobs - 1) * ffi.sizeof(BlobEntry)
 		+ (allBlobs:mapi(function(blob)
 			assert.index(blob, 'getSize', 'name='..blob.name)
@@ -151,11 +159,11 @@ local function blobsToByteArray(blobs)
 --DEBUG:print(('memSize = 0x%0x'):format(memSize))
 
 	-- if you don't keep track of this ptr then luajit will deallocate the ram ...
-	local holdram = ffi.new('uint8_t[?]', memSize)
-	ffi.fill(ffi.cast('uint8_t*', holdram), memSize)	-- in case it doesn't already?  for the sake of the md5 hash
+	local holdram = uint8_t_arr(memSize)
+	ffi.fill(ffi.cast(uint8_t_p, holdram), memSize)	-- in case it doesn't already?  for the sake of the md5 hash
 
 	-- wow first time I've used references in LuaJIT, didn't know they were implemented.
-	local ram = ffi.cast('RAM&', holdram)
+	local ram = ffi.cast(RAM_ref, holdram)
 
 	-- for each type, mapping to where in the FAT its blobEntries starts
 	local blobEntriesForClassName = blobClassNameForType:mapi(function(name)
@@ -165,7 +173,7 @@ local function blobsToByteArray(blobs)
 		}, name
 	end)
 
-	local ramptr = ffi.cast('uint8_t*', ram.blobEntries + numBlobs)
+	local ramptr = ffi.cast(uint8_t_p, ram.blobEntries + numBlobs)
 	ram.blobCount = numBlobs
 	for indexPlusOne,blob in ipairs(allBlobs) do
 		local index = indexPlusOne - 1
@@ -192,7 +200,7 @@ local function blobsToByteArray(blobs)
 		local blobEntriesPtr = blobEntriesForClassName[blobClassName]
 		if blobEntriesPtr.count == 0 then
 			blobEntriesPtr.ptr = blobEntryPtr	-- BlobEntry*
-			blobEntriesPtr.addr = ffi.cast('uint8_t*', blobEntryPtr) - ram.v
+			blobEntriesPtr.addr = ffi.cast(uint8_t_p, blobEntryPtr) - ram.v
 		end
 		blobEntriesPtr.count = blobEntriesPtr.count + 1
 	end
@@ -272,7 +280,7 @@ function AppBlobs:buildRAMFromBlobs()
 	self.blobEntriesForClassName = info.blobEntriesForClassName
 
 	if oldholdram then
-		ffi.copy(self.ram.v, ffi.cast('uint8_t*', oldholdram), sizeofRAMWithoutROM)
+		ffi.copy(self.ram.v, ffi.cast(uint8_t_p, oldholdram), sizeofRAMWithoutROM)
 	end
 
 	-- here build ram ptrs from addrs
@@ -288,9 +296,9 @@ function AppBlobs:buildRAMFromBlobs()
 --DEBUG:print('...done AppBlobs:initBlobs')
 
 	-- every time .ram updates, this has to update as well:
-	self.modelMat.ptr = ffi.cast(matType..'*', self.ram.modelMat)
-	self.viewMat.ptr = ffi.cast(matType..'*', self.ram.viewMat)
-	self.projMat.ptr = ffi.cast(matType..'*', self.ram.projMat)
+	self.modelMat.ptr = ffi.cast(matPtrType, self.ram.modelMat)
+	self.viewMat.ptr = ffi.cast(matPtrType, self.ram.viewMat)
+	self.projMat.ptr = ffi.cast(matPtrType, self.ram.projMat)
 
 	--TODO also resize all video sheets to match blobs (or merge them someday)
 	-- and TODO also flush them
@@ -305,7 +313,7 @@ end
 -- convert a RAM byte array to blobs[]
 local function byteArrayToBlobs(ptr, size)
 --DEBUG:print('byteArrayToBlobs begin...')
-	local ram = ffi.cast('RAM&', ptr)
+	local ram = ffi.cast(RAM_ref, ptr)
 	local blobs = BlobSet()
 	for index=0,ram.blobCount-1 do
 		local blobEntryPtr = ram.blobEntries + index
@@ -329,7 +337,7 @@ local function blobsToStr(blobs)
 end
 
 local function strToBlobs(str)
-	return byteArrayToBlobs(ffi.cast('uint8_t*', str), #str)
+	return byteArrayToBlobs(ffi.cast(uint8_t_p, str), #str)
 end
 
 function AppBlobs:copyBlobsToROM()
@@ -357,7 +365,10 @@ function AppBlobs:setBlobs(blobs)
 		end
 		-- only delete old blobs' GPU resource that aren't being handed off
 		for i=#newBlobsForType+1,#oldBlobsForType do
-			oldBlobsForType[i]:delete()
+			local oldblob = oldBlobsForType[i]
+			if oldblob.delete then
+				oldblob:delete()
+			end
 		end
 		-- TODO allocate newBlobs' GPU resources here too? or nah wait upon request?
 	end

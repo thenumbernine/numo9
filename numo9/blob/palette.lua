@@ -17,7 +17,7 @@ local internalFormat5551 = numo9_video.internalFormat5551
 local BlobImage = require 'numo9.blob.image'
 
 
-assert.eq(paletteType, 'uint16_t')
+assert.eq(paletteType, ffi.typeof'uint16_t')
 assert.eq(paletteSize, 256)
 
 local BlobPalette = BlobImage:subclass()

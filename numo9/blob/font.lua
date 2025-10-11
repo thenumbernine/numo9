@@ -1,3 +1,4 @@
+local ffi = require 'ffi'
 local Image = require 'image'
 local gl = require 'gl'
 
@@ -10,10 +11,14 @@ local texInternalFormat_u8 = numo9_video.texInternalFormat_u8
 
 local BlobImage = require 'numo9.blob.image'
 
+
+local uint8_t = ffi.typeof'uint8_t'
+
+
 local BlobFont = BlobImage:subclass()
 
 BlobFont.imageSize = fontImageSize
-BlobFont.imageType = 'uint8_t'
+BlobFont.imageType = uint8_t
 BlobFont.internalFormat = texInternalFormat_u8
 -- font is gonna be stored planar, 8bpp, 8 chars per 8x8 sprite per-bitplane
 -- so a 256 char font will be 2048 bytes
@@ -28,7 +33,7 @@ BlobFont.filenameSuffix = '.png'
 
 function BlobFont:saveFile(filepath, blobIndex, blobs)
 --DEBUG:print'saving font...'
-	local saveImg = Image(256, 64, 1, 'uint8_t')
+	local saveImg = Image(256, 64, 1, uint8_t)
 	for xl=0,31 do
 		for yl=0,7 do
 			local ch = bit.bor(xl, bit.lshift(yl, 5))

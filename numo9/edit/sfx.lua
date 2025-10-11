@@ -13,7 +13,9 @@ local audioMusicPlayingCount = numo9_rom.audioMusicPlayingCount
 local pitchPrec = numo9_rom.pitchPrec
 local loopOffsetType = numo9_rom.loopOffsetType
 
-local audioSampleTypePtr = audioSampleType..'*'
+
+local audioSamplePtrType = ffi.typeof('$*', audioSampleType)
+local loopOffsetPtrType = ffi.typeof('$*', loopOffsetType)
 
 local EditSFX = require 'numo9.ui':subclass()
 
@@ -56,7 +58,7 @@ function EditSFX:update()
 
 	local sfxBlob = app.blobs.sfx[self.sfxBlobIndex+1]
 	if not sfxBlob then return end
-	local sfxLoopOffset = ffi.cast(loopOffsetType..'*', sfxBlob.ramptr)[0]
+	local sfxLoopOffset = ffi.cast(loopOffsetPtrType, sfxBlob.ramptr)[0]
 	local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
 	local sfxLen = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
 
@@ -86,7 +88,7 @@ function EditSFX:update()
 	for i=0, math.min(512, math.max(0, sfxLen - self.offsetScrollX - 2)), 2 do
 		local sampleOffset = self.offsetScrollX + i
 		local pastLoopOffset = sampleOffset > sfxLoopOffset
-		local ampl = -tonumber(ffi.cast(audioSampleTypePtr, sfxBlob.ramptr + ffi.sizeof(loopOffsetType) + sampleOffset)[0])
+		local ampl = -tonumber(ffi.cast(audioSamplePtrType, sfxBlob.ramptr + ffi.sizeof(loopOffsetType) + sampleOffset)[0])
 		prevAmpl = prevAmpl or ampl
 		--[[
 		-- TODO variable thickness?
