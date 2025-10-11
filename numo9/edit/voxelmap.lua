@@ -618,7 +618,7 @@ self:guiSetClipRect(0, 0, 256, 256)
 					math.max(self.rectUp.y, self.rectDown.y),
 					math.max(self.rectUp.z, self.rectDown.z))
 				local size = max - min + 1
-				local o = vector'uint32_t'
+				local o = vector(uint32_t)
 				o:emplace_back()[0] = size.x
 				o:emplace_back()[0] = size.y
 				o:emplace_back()[0] = size.z

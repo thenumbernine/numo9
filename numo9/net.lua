@@ -249,7 +249,7 @@ local function to7bitvec(i, dstvec)
 end
 
 -- TODO sending string requires an alloc, or should I do my own luasocket withut strings?
-local _7bitbuf = vector'uint8_t'
+local _7bitbuf = vector(uint8_t)
 local function to7bitstr(i)
 assert.ge(i, 0)	-- unsigned only
 	_7bitbuf:resize(0)
@@ -299,7 +299,7 @@ local function deltaCompress7bit(
 	prevp,	-- previous state, of uint8_t*
 	nextp,	-- next state, of uint8_t*
 	len,	-- state length
-	dstvec	-- a vector'uint8_t' for now
+	dstvec	-- a vector(uint8_t) for now
 )
 	local i = 0
 	while i < len do

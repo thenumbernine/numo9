@@ -109,7 +109,7 @@ function EditMusic:encodeMusicFromFrames()
 	local track = self.selectedTrack
 	if not track then return end
 	local prevSoundState = Numo9ChannelArr(audioMixChannels)
-	local deltas = vector'uint8_t'
+	local deltas = vector(uint8_t)
 	local short = uint16_t_1()
 	local byte = ffi.cast(uint8_t_p, short)
 	short[0] = track.bps
