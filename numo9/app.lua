@@ -2132,7 +2132,7 @@ print('run thread dead')
 		self.ram.mouseWheel.x = 0
 		self.ram.mouseWheel.y = 0
 
---print('press flags', (ffi.string(self.ram.lastKeyPressFlags, keyPressFlagSize):gsub('.', function(ch) return ('%02x'):format(ch:byte()) end)))
+--print('press flags', string.hex(ffi.string(self.ram.lastKeyPressFlags, keyPressFlagSize)))
 --print('mouse_left', self:key'mouse_left')
 
 		-- do this every frame or only on updates?
