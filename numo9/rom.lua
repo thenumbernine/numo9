@@ -5,6 +5,7 @@ should I jsut call this something like 'util' ?
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
 local table = require 'ext.table'
+local string = require 'ext.string'
 local struct = require 'struct'
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
@@ -28,16 +29,11 @@ local function removeSig(s)
 	assert.eq(s:sub(1,5), numo9FileSig, "Cartridge Signature Mismatch!")
 	local gotVerSig = s:sub(6,8)
 	if gotVerSig ~= versionSig then
-		local function hex(s)
-			return s:gsub('.', function(c)
-				return ('%02X'):format(c:byte())
-			end)
-		end
 		print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 		print('!!! WARNING              !!!')
 		print('!!! SIGNATURES DIFFER    !!!')
-		print('!!! CONSOLE:   '..hex(versionSig)..'    !!!')
-		print('!!! CARTRIDGE: '..hex(gotVerSig)..'    !!!')
+		print('!!! CONSOLE:   '..string.hex(versionSig)..'    !!!')
+		print('!!! CARTRIDGE: '..string.hex(gotVerSig)..'    !!!')
 		print('!!! PROCEED WITH CAUTION !!!')
 		print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 	end

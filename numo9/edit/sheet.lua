@@ -6,6 +6,7 @@ local gl = require 'gl'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
 local table = require 'ext.table'
+local string = require 'ext.string'
 local vec2i = require 'vec-ffi.vec2i'
 require 'ffi.req' 'c.string'	-- memcmp
 local Image = require 'image'
@@ -937,7 +938,7 @@ print'BAKING PALETTE'
 							local key = string.char(unpackptr(3, srcp))
 							local dstIndex = indexForColor[key]
 							if not dstIndex then
-print("no index for color "..Quantize.bintohex(key))
+print("no index for color "..string.hex(key))
 print('possible colors: '..require 'ext.tolua'(colors))
 								error'here'
 							end
