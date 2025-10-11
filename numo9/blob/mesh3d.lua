@@ -73,9 +73,9 @@ function BlobMesh3D:init(data)
 	self.normalList = vector'vec3f_t'
 	assert.eq(
 		self.normalList.type,
-		select(2, table.find(Numo9Vertex.fields, nil, function(field)
+		ffi.typeof(select(2, table.find(Numo9Vertex.fields, nil, function(field)
 			return field.name == 'normal'
-		end)).type
+		end)).type)
 	)
 	for ti=0,#self.triList-1 do
 		local i,j,k = self.triList.v[ti]:unpack()
