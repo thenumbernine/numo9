@@ -931,3 +931,6 @@ TODO cart status:
 - stupidtrpg.n9 is broken (tho sometimes it shows text)
 
 - change scripts from .lua to .rua becuase technically they're not .lua ...
+
+- I was just taught how I can use ffitypes to make pointers and arrays from other ffitypes, so no more storing ffitypes as strings
+	- now to replace 'struct' lib with luajit introspection
