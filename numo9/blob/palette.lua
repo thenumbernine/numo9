@@ -23,7 +23,7 @@ local uint16_t = ffi.typeof'uint16_t'
 local uint16_t_p = ffi.typeof'uint16_t*'
 
 
-assert.eq(paletteType, ffi.typeof(uint16_t))
+assert.eq(paletteType, uint16_t)
 assert.eq(paletteSize, 256)
 
 local BlobPalette = BlobImage:subclass()

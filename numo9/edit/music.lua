@@ -11,7 +11,6 @@ local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
-local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
@@ -22,6 +21,7 @@ local pitchPrec = numo9_rom.pitchPrec
 local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 
 
+local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
 local uint16_t_1 = ffi.typeof'uint16_t[1]'
 local uint16_t_p = ffi.typeof'uint16_t*'

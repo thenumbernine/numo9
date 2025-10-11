@@ -1667,6 +1667,9 @@ end
 -- maybe this should be its own file?
 -- maybe I'll merge RAMGPU with BlobImage ... and then make framebuffer a blob of its own (nahhhh ...) and then I won't need this to be its own file?
 function AppVideo:initVideoModes()
+--DEBUG:self.triBuf_flushCallsPerFrame = 0
+--DEBUG:self.triBuf_flushSizes = {}
+--DEBUG(flushtrace): self.triBuf_flushSizesPerTrace = {}
 	-- I chose a few fixed-size common aspect-ratio modes based on what fits in 128k and is tile-aligned
 	self.videoModes = table()
 
@@ -2303,10 +2306,6 @@ return;
 		geometry = self.quadGeom,
 	}
 	--]]
-
---DEBUG:self.triBuf_flushCallsPerFrame = 0
---DEBUG:self.triBuf_flushSizes = {}
---DEBUG(flushtrace): self.triBuf_flushSizesPerTrace = {}
 end
 
 function AppVideo:triBuf_flush()

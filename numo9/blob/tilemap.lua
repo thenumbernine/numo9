@@ -14,12 +14,13 @@ local BlobImage = require 'numo9.blob.image'
 
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
+local uint16_t = ffi.typeof'uint16_t'
 
 
 local BlobTileMap = BlobImage:subclass()
 
 BlobTileMap.imageSize = tilemapSize
-BlobTileMap.imageType = ffi.typeof'uint16_t'
+BlobTileMap.imageType = uint16_t
 BlobTileMap.internalFormat = texInternalFormat_u16
 --BlobTileMap.gltype = gl.GL_UNSIGNED_SHORT == formatInfo.types[1]
 --[[

@@ -115,15 +115,6 @@ local keyPressFlagSize = math.ceil(keyCount / 8)
 local matType = ffi.typeof'float'
 local matArrType = ffi.typeof('$[16]', matType)
 
--- instead of a 'length' i could store an 'end-addr'
-local AddrLen = struct{
-	name = 'AddrLen',
-	fields = {
-		{name='addr', type='uint16_t'},
-		{name='len', type='uint16_t'},
-	},
-}
-
 -- sfx needs loop offset and samples
 local loopOffsetType = addrType
 local SFX = struct{

@@ -440,7 +440,7 @@ assert.eq(audioMusicPlayingCount, 8)
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
 
 		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
---DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value, 'addr', self.ram.bank[0].sfxAddrs[value].addr)
+--DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value) --, 'addr' used to be here... I forgot how to calculate whatever it was
 			-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
 			local sfxBlob = self.blobs.sfx[value+1]
 			if sfxBlob then
