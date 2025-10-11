@@ -68,6 +68,11 @@ local removeSig = numo9_rom.removeSig
 local numo9_blobs = require 'numo9.blobs'
 local byteArrayToBlobs = numo9_blobs.byteArrayToBlobs
 
+
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_4 = ffi.typeof'uint8_t[4]'
+
+
 -- TODO how about a net-string?
 -- pascal-string-encoded: length then data
 -- 7 bits = single-byte length
@@ -748,12 +753,11 @@ local Numo9Cmd = struct{
 	end)),
 }
 
-assert.eq(bit.band(ffi.sizeof'Numo9Cmd', 1), 0, "for now sizeof(Numo9Cmd) should be even")
 --[[ want to see the netcmd struct sizes?
 for i,cmdtype in ipairs(netCmdStructs) do
 	print(ffi.sizeof(cmdtype), netcmdNames[i])
 end
-print(ffi.sizeof'Numo9Cmd', 'Numo9Cmd')
+print(ffi.sizeof(Numo9Cmd), (Numo9Cmd))
 os.exit()
 --]]
 
@@ -790,10 +794,10 @@ function RemoteServerConn:init(args)
 	self.toSend = table()
 
 	-- keep per-conn send frames for stuff done in draw() per-connection
-	self.cmds = vector'Numo9Cmd'			-- the per-conn cmds
-	self.thisFrameCmds = vector'Numo9Cmd'	-- the cobmined per-conn cmds + everyone cmds
-	self.prevFrameCmds = vector'Numo9Cmd'	-- the previous combined cmds
-	self.deltas = vector'uint8_t'
+	self.cmds = vector(Numo9Cmd)			-- the per-conn cmds
+	self.thisFrameCmds = vector(Numo9Cmd)	-- the cobmined per-conn cmds + everyone cmds
+	self.prevFrameCmds = vector(Numo9Cmd)	-- the previous combined cmds
+	self.deltas = vector(uint8_t)
 end
 
 function RemoteServerConn:isActive()
@@ -888,7 +892,7 @@ function LocalServerConn:init(args)
 	self.playerInfos = assert.index(args, 'playerInfos')
 
 	-- this exists only so pushCmd can give back a dummy buffer for the loopback connection when doing env.draw() locally
-	self.cmds = vector'Numo9Cmd'
+	self.cmds = vector(Numo9Cmd)
 end
 
 
@@ -949,7 +953,7 @@ TODO console cursor location ... if we're exposing print() then we should also p
 	-- 1) a list of all commands issued
 	-- 2) a delta-compression between this list and the previous frame list
 	-- and then every frame I'll send off delta-compressed stuff to the connected clients
-	self.cmds = vector'Numo9Cmd'
+	self.cmds = vector(Numo9Cmd)
 
 	app.threads:add(self.updateCoroutine, self)
 	app.threads:add(self.newConnListenCoroutine, self)
@@ -974,8 +978,8 @@ function Server:endFrame()
 		if conn.remote then
 			-- which is faster, a memcpy here or one per cmd when the cmds are issued?
 			conn.thisFrameCmds:resize(self.cmds.size + conn.cmds.size)
-			ffi.copy(conn.thisFrameCmds.v, self.cmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
-			ffi.copy(conn.thisFrameCmds.v + self.cmds.size, conn.cmds.v, ffi.sizeof'Numo9Cmd' * conn.cmds.size)
+			ffi.copy(conn.thisFrameCmds.v, self.cmds.v, ffi.sizeof(Numo9Cmd) * self.cmds.size)
+			ffi.copy(conn.thisFrameCmds.v + self.cmds.size, conn.cmds.v, ffi.sizeof(Numo9Cmd) * conn.cmds.size)
 
 			local thisFrameCmds = conn.thisFrameCmds
 			local prevFrameCmds = conn.prevFrameCmds
@@ -1003,7 +1007,7 @@ print()
 			deltaCompress7bit(
 				ffi.cast('uint8_t*', prevFrameCmds.v),
 				ffi.cast('uint8_t*', thisFrameCmds.v),
-				thisFrameCmds.size * ffi.sizeof'Numo9Cmd',
+				thisFrameCmds.size * ffi.sizeof(Numo9Cmd),
 				deltas)
 			if deltas.size > 0 then
 				local deltaStr = deltas:dataToStr()
@@ -1017,7 +1021,7 @@ print()
 
 			--[[
 			conn.prevFrameCmds:resize(conn.thisFrameCmds.size)
-			ffi.copy(conn.prevFrameCmds.v, conn.thisFrameCmds.v, ffi.sizeof'Numo9Cmd' * conn.thisFrameCmds.size)
+			ffi.copy(conn.prevFrameCmds.v, conn.thisFrameCmds.v, ffi.sizeof(Numo9Cmd) * conn.thisFrameCmds.size)
 			--]]
 			-- [[
 			conn.prevFrameCmds, conn.thisFrameCmds = conn.thisFrameCmds, conn.prevFrameCmds
@@ -1033,7 +1037,7 @@ function Server:pushCmd()
 	else
 		ptr = self.cmds:emplace_back()
 	end
-	ffi.fill(ptr, ffi.sizeof'Numo9Cmd')	-- clear upon resize to make sure cl and sv both start with zeroes for their delta-compression
+	ffi.fill(ptr, ffi.sizeof(Numo9Cmd))	-- clear upon resize to make sure cl and sv both start with zeroes for their delta-compression
 	return ptr
 end
 
@@ -1230,16 +1234,16 @@ function ClientConn:init(args)
 	local con = app.con
 	assert.index(args, 'playerInfos')
 
-	self.cmds = vector'Numo9Cmd'
+	self.cmds = vector(Numo9Cmd)
 	-- store netcmds here as they are being processed and before the final flush cmd is received
 	-- this way we dont draw half-complete sprites etc
-	self.nextCmds = vector'Numo9Cmd'
+	self.nextCmds = vector(Numo9Cmd)
 
 	-- send only joypad keys
 	-- the server will overwrite whatever player position with it
-	self.lastButtons = ffi.new'uint8_t[4]'	-- flag of our joypad keypresses
+	self.lastButtons = uint8_t_4()	-- flag of our joypad keypresses
 	ffi.fill(self.lastButtons, ffi.sizeof(self.lastButtons))
-	self.inputMsgVec = vector'uint8_t'	-- for sending cmds to server
+	self.inputMsgVec = vector(uint8_t)	-- for sending cmds to server
 
 	con:print('ClientConn connecting to addr',args.addr,'port',args.port)
 	local sock, reason = socket.connect(args.addr, args.port)
@@ -1341,7 +1345,7 @@ print'begin client listen loop...'
 assert.len(deltaStr, deltaBufLen)
 						local ptr = ffi.cast('uint8_t*', deltaStr)
 						local endptr = ptr + deltaBufLen
-						local cmdBufSize = self.nextCmds.size * ffi.sizeof'Numo9Cmd'
+						local cmdBufSize = self.nextCmds.size * ffi.sizeof(Numo9Cmd)
 						while ptr < endptr do
 							local start, size
 							start, ptr = from7bitvec(ptr, endptr)
@@ -1359,7 +1363,7 @@ assert.len(deltaStr, deltaBufLen)
 										..' value='
 										..('$%x'):format(value)
 										..' goes in cmd-index '
-										..('$%x'):format(math.floor(index / ffi.sizeof'Numo9Cmd'))
+										..('$%x'):format(math.floor(index / ffi.sizeof(Numo9Cmd)))
 										..' when our cmd size is just '
 										..('$%x'):format(self.nextCmds.size)
 									)
@@ -1371,7 +1375,7 @@ assert.len(deltaStr, deltaBufLen)
 --DEBUG:print'delta done'
 						-- tell client that deltas are finished and to flush received cmds
 						self.cmds:resize(self.nextCmds.size)
-						ffi.copy(self.cmds.v, self.nextCmds.v, ffi.sizeof'Numo9Cmd' * self.cmds.size)
+						ffi.copy(self.cmds.v, self.nextCmds.v, ffi.sizeof(Numo9Cmd) * self.cmds.size)
 						--break	-- stop recv'ing and process data ... BAD idea, this slows the framerate down incredibly
 
 					elseif netmsg == netmsgs.resizeCmds then
@@ -1383,7 +1387,7 @@ assert.len(deltaStr, deltaBufLen)
 							self.nextCmds:resize(newsize)
 							if self.nextCmds.size > oldsize then
 								-- make sure delta compression state starts with 0s
-								ffi.fill(self.nextCmds.v + oldsize, ffi.sizeof'Numo9Cmd' * (self.nextCmds.size - oldsize))
+								ffi.fill(self.nextCmds.v + oldsize, ffi.sizeof(Numo9Cmd) * (self.nextCmds.size - oldsize))
 							end
 						end
 
@@ -1391,12 +1395,12 @@ assert.len(deltaStr, deltaBufLen)
 						-- cmd frame reset message
 
 						local newcmdslen = read7bit(sock)
-						if newcmdslen % ffi.sizeof'Numo9Cmd' ~= 0 then
+						if newcmdslen % ffi.sizeof(Numo9Cmd) ~= 0 then
 							--error"cmd buffer not modulo size"
 							print"!!!WARNING!!! - cmd buffer not modulo size"
 							break
 						end
-						local newsize = newcmdslen /  ffi.sizeof'Numo9Cmd'
+						local newsize = newcmdslen /  ffi.sizeof(Numo9Cmd)
 --DEBUG(@5):print('got init cmd buffer of size '..newcmdslen..' bytes / '..newsize..' cmds')
 						self.cmds:resize(newsize)
 

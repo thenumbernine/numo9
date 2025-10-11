@@ -4,12 +4,15 @@ local fromlua = require 'ext.fromlua'
 local tolua = require 'ext.tolua'
 local AudioWAV = require 'audio.io.wav'
 
+local BlobDataAbs = require 'numo9.blob.dataabs'
+
 local numo9_rom = require 'numo9.rom'
 local audioSampleType = numo9_rom.audioSampleType
 local audioSampleRate = numo9_rom.audioSampleRate
 local loopOffsetType = numo9_rom.loopOffsetType
 
-local BlobDataAbs = require 'numo9.blob.dataabs'
+local char_p = ffi.typeof'char*'
+local loopOffsetType_1 = ffi.typeof('$[1]', loopOffsetType)
 
 --[[
 format:
@@ -76,9 +79,9 @@ function BlobSFX:loadWav(wav, loopOffset)
 	assert.eq(wav.ctype, audioSampleType)
 	assert.eq(wav.freq, audioSampleRate)
 
-	local i = ffi.new(loopOffsetType..'[1]')
+	local i = loopOffsetType_1()
 	i[0] = loopOffset or 0
-	local data = ffi.string(ffi.cast('char*', i), ffi.sizeof(loopOffsetType))
+	local data = ffi.string(ffi.cast(char_p, i), ffi.sizeof(loopOffsetType))
 		.. wav.data
 	return BlobSFX(data)
 end

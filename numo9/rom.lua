@@ -489,7 +489,8 @@ typedef union {
 	};
 } Voxel;
 ]]
-assert.eq(ffi.sizeof'Voxel', 4)
+local Voxel = ffi.typeof'Voxel'
+assert.eq(ffi.sizeof(Voxel), 4)
 local voxelmapSizeType = ffi.typeof'uint32_t'
 local voxelMapEmptyValue = 0xffffffff
 
@@ -570,7 +571,10 @@ return {
 	addrType = addrType,
 	loopOffsetType = loopOffsetType,
 
+	Stamp = Stamp,
+
 	meshIndexType = meshIndexType,
 	voxelmapSizeType = voxelmapSizeType,
 	voxelMapEmptyValue = voxelMapEmptyValue,
+	Voxel = Voxel,
 }

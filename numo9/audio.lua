@@ -20,12 +20,6 @@ local assert = require 'ext.assert'
 local table = require 'ext.table'
 local math = require 'ext.math'
 
-local uint8_t = ffi.typeof'uint8_t'
-local uint8_t_p = ffi.typeof'uint8_t*'
-local int16_t = ffi.typeof'int16_t'
-local uint16_t_p = ffi.typeof'uint16_t*'
-local int32_t = ffi.typeof'int32_t'
-
 -- ... aka output freq aka aka 'sample rate' = number of 'sample frames' per second
 local numo9_rom = require 'numo9.rom'
 local updateHz = numo9_rom.updateHz
@@ -39,8 +33,19 @@ local pitchPrec = numo9_rom.pitchPrec
 local audioAllMixChannelsInBytes = numo9_rom.audioAllMixChannelsInBytes
 local loopOffsetType = numo9_rom.loopOffsetType
 
+
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
+local int16_t = ffi.typeof'int16_t'
+local uint16_t_p = ffi.typeof'uint16_t*'
+local int32_t = ffi.typeof'int32_t'
+local int32_arr = ffi.typeof'int32_t[?]'
+
 local audioSampleTypePtr = ffi.typeof('$*', audioSampleType)
 local audioSampleArrType = ffi.typeof('$[?]', audioSampleType)
+local loopOffsetPtrType = ffi.typeof('$*', loopOffsetType)
+local SDL_AudioSpec_1 = ffi.typeof'SDL_AudioSpec[1]'
+
 
 local updateIntervalInSampleFrames = math.ceil(updateIntervalInSeconds * sampleFramesPerSecond)
 local updateIntervalInSamples = updateIntervalInSampleFrames * audioOutChannels
@@ -69,7 +74,7 @@ function AppAudio:initAudio()
 	local audio = {}
 	self.audio = audio
 
-	local desired = ffi.new'SDL_AudioSpec[1]'
+	local desired = SDL_AudioSpec_1()
 
 	-- smaller is better I think?  since SDL queues indefnitely, this is more like a lower bound of sorts
 	--local bufferSizeInSeconds = updateIntervalInSeconds * 4	-- don't do this if you're clearing the queue every frame ... pick a different queue clear frequency ....
@@ -95,7 +100,7 @@ function AppAudio:initAudio()
 	--desired[0].size = audio.bufferSizeInBytes		-- is calculated, but I wanted to make sure my calculations matched.
 --DEBUG:print'desired specs:'
 --DEBUG:printSpecs(desired[0])
-	--local spec = ffi.new'SDL_AudioSpec[1]'	-- uhh, how do I tell desired from actual?
+	--local spec = SDL_AudioSpec_1()	-- uhh, how do I tell desired from actual?
 	local spec = desired
 	audio.stream = sdl.SDL_OpenAudioDeviceStream(sdl.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, spec, nil, nil)
 	assert.ne(audio.stream, ffi.null, "SDL_OpenAudioDeviceStream failed")
@@ -197,7 +202,7 @@ print('resetting runaway audio queue with size '..queueSize..' exceeding thresho
 	self:updateSoundEffects()
 end
 
-local tmpOut = ffi.new('int32_t[?]', audioOutChannels)
+local tmpOut = int32_arr(audioOutChannels)
 function AppAudio:updateSoundEffects()
 	local audio = self.audio
 	local masterVolFrac = self.cfg.volume / 255
@@ -235,7 +240,7 @@ function AppAudio:updateSoundEffects()
 					channel.offset = 0
 					channel.flags.isPlaying = 0
 				else
-					local sfxLoopOffset = ffi.cast(loopOffsetType..'*', self.ram.v + sfxBlob.addr)[0]
+					local sfxLoopOffset = ffi.cast(loopOffsetPtrType, self.ram.v + sfxBlob.addr)[0]
 					local sfxAmplsAddr = sfxBlob.addr + ffi.sizeof(loopOffsetType)
 					local sfxLen = sfxBlob:getSize() - ffi.sizeof(loopOffsetType)
 

@@ -25,6 +25,7 @@ local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local frameBufferSize = numo9_rom.frameBufferSize
 local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
+local Stamp = numo9_rom.Stamp
 
 -- returns highest-to-lowest indexes of the selected keys found in stamps
 local function getSelIndexes(selected, stamps)
@@ -331,13 +332,13 @@ function EditBrushmap:update()
 							-- create, pan, or select-box?
 
 							-- create
-							local stamp = ffi.new('Stamp', {
+							local stamp = Stamp{
 								brush = self.selBrushIndex,
 								x = tx,
 								y = ty,
 								w = 1,	-- default size?
 								h = 1,
-							})
+							}
 							self.stamps:insert(stamp)
 							self:writeSelBrushmapBlob()
 							self.selected = {}
@@ -473,7 +474,7 @@ function EditBrushmap:readSelBrushmapBlob()
 	local brushmapBlob = app.blobs.brushmap[self.brushmapBlobIndex+1]
 	if brushmapBlob then
 		for _,stamp in ipairs(brushmapBlob.vec) do
-			self.stamps:insert(ffi.new('Stamp', stamp))	-- allocate a new Stamp so that its not pointing to memory in the blob, so if the blob vec resizes we don't lose our pointer
+			self.stamps:insert(Stamp(stamp))	-- allocate a new Stamp so that its not pointing to memory in the blob, so if the blob vec resizes we don't lose our pointer
 		end
 	end
 

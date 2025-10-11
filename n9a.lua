@@ -44,6 +44,19 @@ local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local BlobSet = numo9_blobs.BlobSet
 
+
+local int8_t = ffi.typeof'int8_t'
+local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_p = ffi.typeof'uint8_t*'
+local int16_t = ffi.typeof'int16_t'
+local uint16_t_1 = ffi.typeof'uint16_t[1]'
+local uint16_t_p = ffi.typeof'uint16_t*'
+local audioSampleArrType = ffi.typeof('$[?]', audioSampleType)
+local audioSamplePtrType = ffi.typeof('$*', audioSampleType)
+local Numo9Channel = ffi.typeof'Numo9Channel'
+local Numo9Channel_arr = ffi.typeof'Numo9Channel[?]'
+
+
 -- freq is pitch=0 <=> C0, pitch=63 <=> D#5 ... lots of inaudible low notes, not many high ones ...
 -- A4=440hz, so A[-1]=13.75hz, so C0 is 3 half-steps higher than A[-1] = 2^(3/12) * 13.75 = 16.351597831287 hz ...
 local chromastep = 2^(1/12)
@@ -209,8 +222,8 @@ elseif cmd == 'a' or cmd == 'r' then
 			if not blobs.sfx[i] then
 print('creating default sfx '..i..' blob')
 				local len = math.ceil(audioSampleRate / waveformFreq * 2)
-				local data = ffi.new(audioSampleType..'[?]', len)
-				local p = ffi.cast(audioSampleType..'*', data)
+				local data = audioSampleArrType(len)
+				local p = ffi.cast(audioSamplePtrType, data)
 				local tf = 0	-- time x frequency
 				for j=0,len-1 do
 					p[0] = math.round(f(tf) * amplMax * .5) + amplZero
@@ -549,7 +562,7 @@ print('toImage', name, 'width', width, 'height', height)
 			:combine(Image(256,256,1,'uint8_t'):clear())
 			-- and now modify all the entries to go from pico8's 8bit addressing tiles to my 10bit addressing tiles ...
 		do
-			local p = ffi.cast('uint16_t*', tilemapImg.buffer)
+			local p = ffi.cast(uint16_t_p, tilemapImg.buffer)
 			for j=0,tilemapImg.height-1 do
 				for i=0,tilemapImg.width-1 do
 					p[0] = bit.bor(
@@ -566,7 +579,7 @@ print('toImage', name, 'width', width, 'height', height)
 		so that's what's shared ... so 128 pixels of the spritesheet fit into 64 pixels of the tilesheet
 		--]]
 		do
-			local p = ffi.cast('uint16_t*', tilemapImg.buffer)
+			local p = ffi.cast(uint16_t_p, tilemapImg.buffer)
 			for j=64,127 do
 				for i=0,63 do
 					local dstp
@@ -661,9 +674,11 @@ print('toImage', name, 'width', width, 'height', height)
 		--local sampleFramesPerSecond = 32000
 		--local sampleFramesPerSecond = 44100
 		local sampleFramesPerSecond = audioSampleRate	-- 32000
-		--local sampleType, amplMax, amplZero = 'uint8_t', 127, 128
-		local sampleType, amplMax, amplZero = 'int16_t', 32767, 0
+		--local sampleType, amplMax, amplZero = uint8_t, 127, 128
+		local sampleType, amplMax, amplZero = int16_t, 32767, 0
 		assert.eq(sampleType, audioSampleType)
+		local sampleArrType = ffi.typeof('$[?]', sampleType)
+		local samplePtrType = ffi.typeof('$*', sampleType)
 		local sampleFrameInSeconds = 1 / sampleFramesPerSecond
 		-- https://www.lexaloffle.com/bbs/?pid=79335#p
 		-- "The sample rate of exported audio is 22,050 Hz. It looks like 1 tick is 183 samples. 1 quarter note was 10,980 samples. That's 120.4918 BPM."
@@ -705,8 +720,8 @@ print('toImage', name, 'width', width, 'height', height)
 		--]=]
 		:mapi(function(waveform)
 			-- change from uint8_t to int26_t and change from 22050 to 32000
-			local data = ffi.new(sampleType..'[?]', sampleFramesPerNoteBase)
-			local p = ffi.cast(sampleType..'*', data)
+			local data = sampleArrType(sampleFramesPerNoteBase)
+			local p = ffi.cast(samplePtrType, data)
 			for i=0,sampleFramesPerNoteBase-1 do
 				-- hmm original frequency convert is too high
 				-- original ... / 8 as I'm doing in 'waveformFreq' is too low ...
@@ -719,7 +734,7 @@ print('toImage', name, 'width', width, 'height', height)
 				local function uint8_to_int16(x)
 					--return (tonumber(x) - 128) / 128 * 32768
 					return (tonumber(x) - 128) / 127 * 32767
-					--return tonumber(ffi.cast('int8_t', x)) / 127 * 32767
+					--return tonumber(ffi.cast(int8_t, x)) / 127 * 32767
 				end
 				p[0] = uint8_to_int16(waveform[j0] * (1 - f) + waveform[j1] * f)
 				--p[0] = uint8_to_int16(waveform[j0])
@@ -738,8 +753,8 @@ print('toImage', name, 'width', width, 'height', height)
 			-- now that we loop waveforms thorughout the note, no need ot constrain the waveform size to the note size
 			-- inf act, better to constrain it to an integer power of its wavelength
 			local len = math.ceil(audioSampleRate / waveformFreq * 2)
-			local data = ffi.new(sampleType..'[?]', len)
-			local p = ffi.cast(sampleType..'*', data)
+			local data = sampleArrType(len)
+			local p = ffi.cast(samplePtrType, data)
 			--local tf = .25	-- time x frequency
 			local tf = 0	-- time x frequency
 			for i=0,len-1 do
@@ -831,17 +846,17 @@ print('toImage', name, 'width', width, 'height', height)
 				Time to define a SPC-ish MIDI-ish format of my own ...
 				or maybe I'll just use MIDI?  but MIDI has no samples and then I'd have to map MIDI instruments to samples.
 				--]]
-				local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+				local prevSoundState = Numo9Channel_arr(audioMixChannels)
 				ffi.fill(prevSoundState, audioAllMixChannelsInBytes)
-				local soundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+				local soundState = Numo9Channel_arr(audioMixChannels)
 				ffi.fill(soundState, audioAllMixChannelsInBytes)
 
-				local playbackDeltas = vector'uint8_t'
-				local short = ffi.new'uint16_t[1]'
-				local byte = ffi.cast('uint8_t*', short)
-				short[0] = 120 / math.max(1, sfx.duration)	-- bps
-				playbackDeltas:push_back(byte[0])
-				playbackDeltas:push_back(byte[1])
+				local playbackDeltas = vector(uint8_t)
+				local tmpshort = uint16_t_1()
+				local tmpbyte = ffi.cast(uint8_t_p, tmpshort)
+				tmpshort[0] = 120 / math.max(1, sfx.duration)	-- bps
+				playbackDeltas:push_back(tmpbyte[0])
+				playbackDeltas:push_back(tmpbyte[1])
 				local lastNoteIndex = 1
 				for noteIndex,note in ipairs(sfxNotes) do
 					do --if note.volume > 0 then
@@ -860,15 +875,15 @@ print('toImage', name, 'width', width, 'height', height)
 
 						-- insert wait time in beats
 						-- how to distingish this from deltas?  start-frame or end-frame message?
-						short[0] = noteIndex == #sfx.notes and 0 or noteIndex - lastNoteIndex
+						tmpshort[0] = noteIndex == #sfx.notes and 0 or noteIndex - lastNoteIndex
 						lastNoteIndex = noteIndex
-						playbackDeltas:emplace_back()[0] = byte[0]
-						playbackDeltas:emplace_back()[0] = byte[1]
+						playbackDeltas:emplace_back()[0] = tmpbyte[0]
+						playbackDeltas:emplace_back()[0] = tmpbyte[1]
 
 						-- insert delta
 						deltaCompress(
-							ffi.cast('uint8_t*', prevSoundState),
-							ffi.cast('uint8_t*', soundState),
+							ffi.cast(uint8_t_p, prevSoundState),
+							ffi.cast(uint8_t_p, soundState),
 							audioAllMixChannelsInBytes,
 							playbackDeltas
 						)
@@ -882,7 +897,7 @@ print('toImage', name, 'width', width, 'height', height)
 									or soundState[i].volume[1] > 0)
 								and soundState[i].sfxID == 0
 								then
-									playbackDeltas:emplace_back()[0] = ffi.offsetof('Numo9Channel', 'sfxID') + i * ffi.sizeof'Numo9Channel'
+									playbackDeltas:emplace_back()[0] = ffi.offsetof(Numo9Channel, 'sfxID') + i * ffi.sizeof(Numo9Channel)
 									playbackDeltas:emplace_back()[0] = 0
 								end
 							end
@@ -918,8 +933,8 @@ print('toImage', name, 'width', width, 'height', height)
 					local sampleFramesPerNote = sampleFramesPerNoteBase * duration
 					local sampleFrames = sampleFramesPerNote * #sfxNotes
 					local samples = sampleFrames * channels
-					local data = ffi.new(sampleType..'[?]', samples)
-					local p = ffi.cast(sampleType..'*', data)
+					local data = sampleArrType(samples)
+					local p = ffi.cast(samplePtrType, data)
 					local wi = 0
 					local tf = 0	-- time x frequency
 					local tryagain = false
@@ -1075,14 +1090,14 @@ print("total SFX data size if I'd use BRR: "..(
 				return (assert.index(sfxs, id+1))
 			end)
 			if #musicSfxs > 0 then
-				local prevSoundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+				local prevSoundState = Numo9Channel_arr(audioMixChannels)
 				ffi.fill(prevSoundState, audioAllMixChannelsInBytes)
-				local soundState = ffi.new('Numo9Channel[?]', audioMixChannels)
+				local soundState = Numo9Channel_arr(audioMixChannels)
 				ffi.fill(soundState, audioAllMixChannelsInBytes)
 
-				local playbackDeltas = vector'uint8_t'
-				local short = ffi.new'uint16_t[1]'
-				local byte = ffi.cast('uint8_t*', short)
+				local playbackDeltas = vector(uint8_t)
+				local tmpshort = uint16_t_1()
+				local tmpbyte = ffi.cast(uint8_t_p, tmpshort)
 				local durations = musicSfxs:mapi(function(sfx) return sfx.duration end)
 				local sortedDurations = table(durations):sort()
 				for beatIndex=1,#sortedDurations-1 do
@@ -1103,9 +1118,9 @@ print('durations '..sortedDurations:concat' ')
 					end
 				end
 				--]]
-				short[0] = 120 / math.max(1, musicSfxs[1].duration)	-- bps
-				playbackDeltas:push_back(byte[0])
-				playbackDeltas:push_back(byte[1])
+				tmpshort[0] = 120 / math.max(1, musicSfxs[1].duration)	-- bps
+				playbackDeltas:push_back(tmpbyte[0])
+				playbackDeltas:push_back(tmpbyte[1])
 				--[[ will all music sfx have the same # of notes?
 				-- maybe I shouldn't be deleting notes ...
 				for _,sfx in ipairs(musicSfxs) do
@@ -1140,15 +1155,15 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 					if changed then
 						-- insert wait time in beats
 						-- how to distingish this from deltas?  start-frame or end-frame message?
-						short[0] = beatIndex == #musicSfxs[1].notes-1 and 0 or beatIndex - lastNoteIndex
+						tmpshort[0] = beatIndex == #musicSfxs[1].notes-1 and 0 or beatIndex - lastNoteIndex
 						lastNoteIndex = beatIndex
-						playbackDeltas:emplace_back()[0] = byte[0]
-						playbackDeltas:emplace_back()[0] = byte[1]
+						playbackDeltas:emplace_back()[0] = tmpbyte[0]
+						playbackDeltas:emplace_back()[0] = tmpbyte[1]
 
 						-- insert delta
 						deltaCompress(
-							ffi.cast('uint8_t*', prevSoundState),
-							ffi.cast('uint8_t*', soundState),
+							ffi.cast(uint8_t_p, prevSoundState),
+							ffi.cast(uint8_t_p, soundState),
 							audioAllMixChannelsInBytes,
 							playbackDeltas
 						)
@@ -1162,7 +1177,7 @@ assert.eq(#musicSfxs[1].notes, 34)	-- all always have 32, then i added one with 
 									or soundState[i].volume[1] > 0)
 								and soundState[i].sfxID == 0
 								then
-									playbackDeltas:emplace_back()[0] = ffi.offsetof('Numo9Channel', 'sfxID') + i * ffi.sizeof'Numo9Channel'
+									playbackDeltas:emplace_back()[0] = ffi.offsetof(Numo9Channel, 'sfxID') + i * ffi.sizeof(Numo9Channel)
 									playbackDeltas:emplace_back()[0] = 0
 								end
 							end
@@ -1379,7 +1394,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 	assert(basepath:isdir())
 
 	local data = assert(ticpath:read())
-	local ptr = ffi.cast('uint8_t*', data)
+	local ptr = ffi.cast(uint8_t_p, data)
 	local endptr = ptr + #data
 	local ticbanks = {}	-- ticbanks[0-7][chunkType]
 	while ptr < endptr do
@@ -1390,7 +1405,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			ticbanks[bankNo] = bank
 		end
 		local chunkType = bit.band(ptr[0], 0x1f)
-		local chunkSize = ffi.cast('uint16_t*', ptr+1)[0]
+		local chunkSize = ffi.cast(uint16_t_p, ptr+1)[0]
 		ptr = ptr + 4
 		if ptr >= endptr then break end
 		if bank[chunkType] then
@@ -1490,7 +1505,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		local function chunkToImage(data)
 			-- how is it stored ... raw? compressed? raw until all zeroes remain ... lol no lzw compression
 			local subimg = Image(128, 128, 1, 'uint8_t'):clear()
-			local ptr = ffi.cast('uint8_t*', data)
+			local ptr = ffi.cast(uint8_t_p, data)
 			assert(#data <= subimg.width * subimg.height)
 			for i=0,#data-1 do
 				-- extract as 4bpp
@@ -1531,7 +1546,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 			assert.ge(tilemapSize.y, srch)
 			local image = Image(tilemapSize.x, tilemapSize.y, 3, 'uint8_t'):clear()
 			local data = chunks[4]
-			local ptr = ffi.cast('uint8_t*', data)
+			local ptr = ffi.cast(uint8_t_p, data)
 			for i=0,#data-1 do
 				-- change from 240x136 to 256x256
 				local x = i % srcw
@@ -1627,7 +1642,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	assert(basepath:isdir())
 
 	local data = assert(nespath:read())
-	local ptr = ffi.cast('uint8_t*', data)
+	local ptr = ffi.cast(uint8_t_p, data)
 	local endptr = ptr + #data
 
 	-- put the header in another data so the addressing doesnt mess up stuff?
@@ -1671,7 +1686,7 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 		0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00, 0x04, 0x2C,
         0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A, 0x00, 0x02, 0x00, 0x20, 0x2C, 0x08
 	} do
-		ffi.cast('uint8_t*', VRAM)[i-1 + 0x3F00] = v
+		ffi.cast(uint8_t_p, VRAM)[i-1 + 0x3F00] = v
 		-- and with this, init the palette
 	end
 

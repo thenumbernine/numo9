@@ -40,12 +40,17 @@ local clipMax = numo9_rom.clipMax
 local menuFontWidth = numo9_rom.menuFontWidth
 local matType = numo9_rom.matType
 local matArrType = numo9_rom.matArrType
+local Voxel = numo9_rom.Voxel
 
 
+local uint8_t_arr = ffi.typeof'uint8_t[?]'
+local uint16_t_arr = ffi.typeof'uint16_t[?]'
 local float = ffi.typeof'float'
+local float_4 = ffi.typeof'float[4]'
+local GLuint_4 = ffi.typeof'GLuint[4]'
+
 
 assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms")
-
 
 local dirLightMapSize = vec2i(256, 256)	-- for 16x16 tiles, 16 tiles wide, so 8 tile radius
 --local dirLightMapSize = vec2i(2048, 2048)	-- 16 texels/voxel * 64 voxels = 1024 texels across the whole scene
@@ -1851,7 +1856,7 @@ function AppVideo:initVideo()
 	-- keep menu/editor gfx separate of the fantasy-console
 	do
 		-- palette is 256 x 1 x 16 bpp (5:5:5:1)
-		local data = ffi.new('uint16_t[?]', 256)
+		local data = uint16_t_arr(256)
 		resetPalette(data)
 		self.paletteMenuTex = GLTex2D{
 			width = paletteSize,
@@ -1869,7 +1874,7 @@ function AppVideo:initVideo()
 		}:unbind()
 
 		-- font is 256 x 8 x 8 bpp, each 8x8 in each bitplane is a unique letter
-		local fontData = ffi.new('uint8_t[?]', fontInBytes)
+		local fontData = uint8_t_arr(fontInBytes)
 		resetFont(fontData, 'font.png')
 		self.fontMenuTex = GLTex2D{
 			internalFormat = texInternalFormat_u8,
@@ -3249,8 +3254,8 @@ function AppVideo:drawSolidLine(x1, y1, x2, y2, colorIndex, thickness, paletteTe
 	return self:drawSolidLine3D(x1, y1, 0, x2, y2, 0, colorIndex, thickness, paletteTex)
 end
 
-local clearFloat = ffi.new('float[4]')
-local clearUInt = ffi.new('GLuint[4]')
+local clearFloat = float_4()
+local clearUInt = GLuint_4()
 function AppVideo:clearScreen(
 	colorIndex,
 	paletteTex,	-- override for menu ... starting to think this should be a global somewhere...
@@ -4498,7 +4503,7 @@ end
 
 -- this just draws one single voxel.
 local modelMatPush = matArrType()
-local vox = ffi.new'Voxel'	-- better ffi.cast/ffi.new inside here or store outside?
+local vox = Voxel()	-- better ffi.cast/ffi.new inside here or store outside?
 function AppVideo:drawVoxel(voxelValue, ...)
 	vox.intval = voxelValue or 0
 

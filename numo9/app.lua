@@ -92,6 +92,10 @@ local numo9_video = require 'numo9.video'
 local resetLogoOnSheet = numo9_video.resetLogoOnSheet
 
 
+local int32_t = ffi.typeof'int32_t'
+local float = ffi.typeof'float'
+
+
 local function hexdump(ptr, len)
 	return string.hexdump(ffi.string(ptr, len))
 end
@@ -215,13 +219,13 @@ end
 -- don't gl swap every frame - only do after draws
 function App:postUpdate() end
 
--- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast('int') ? ffi.new('int') ? bit.bor(0) ?
+-- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast(int) ? int() ? bit.bor(0) ?
 local function toint(x)
 	--return bit.bor(x, 0)	-- seems nice but I think it rounds instead of truncates ...
-	return ffi.cast('int32_t', x)	-- use int32 so Lua has no problem with it
+	return ffi.cast(int32_t, x)	-- use int32 so Lua has no problem with it
 end
 local function tofloat(x)
-	return ffi.cast('float', x)
+	return ffi.cast(float, x)
 end
 
 function App:initGL()
@@ -1271,7 +1275,7 @@ print('package.loaded', package.loaded)
 				coolPrint'...OpenResty LuaJIT w/5.2 compat'
 				for i=1,30 do env.flip() end
 
-				-- [[ list screen modes? or nah?
+				--[[ list screen modes? or nah?
 				for _,i in ipairs(self.videoModes:keys():sort()) do
 					local v = self.videoModes[i]
 					coolPrint(i..'...'..v.formatDesc)

@@ -18,6 +18,7 @@ local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local matType = numo9_rom.matType
+local Voxel = numo9_rom.Voxel
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
@@ -60,7 +61,7 @@ function EditVoxelMap:onCartLoad()
 	self.rectUp = nil
 	self.wireframe = false
 
-	self.voxCurSel = ffi.new'Voxel'
+	self.voxCurSel = Voxel()
 	self.voxCurSel.intval = 0
 
 	self.tileSel = TileSelect{
@@ -699,7 +700,7 @@ function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 
 	self.undo:push()
 
-	assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof'Voxel')	-- just put everything in uint32_t
+	assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof(Voxel))	-- just put everything in uint32_t
 
 	local o = vector(voxelmapSizeType)
 	o:emplace_back()[0] = nx
