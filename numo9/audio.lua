@@ -39,9 +39,9 @@ local uint8_t_p = ffi.typeof'uint8_t*'
 local int16_t = ffi.typeof'int16_t'
 local uint16_t_p = ffi.typeof'uint16_t*'
 local int32_t = ffi.typeof'int32_t'
-local int32_arr = ffi.typeof'int32_t[?]'
+local int32_t_arr = ffi.typeof'int32_t[?]'
 
-local audioSampleTypePtr = ffi.typeof('$*', audioSampleType)
+local audioSamplePtrType = ffi.typeof('$*', audioSampleType)
 local audioSampleArrType = ffi.typeof('$[?]', audioSampleType)
 local loopOffsetPtrType = ffi.typeof('$*', loopOffsetType)
 local SDL_AudioSpec_1 = ffi.typeof'SDL_AudioSpec[1]'
@@ -94,7 +94,7 @@ function AppAudio:initAudio()
 --DEBUG:print('bufferSizeInBytes', audio.bufferSizeInBytes)
 	ffi.fill(desired, ffi.sizeof'SDL_AudioSpec')
 	desired[0].freq = sampleFramesPerSecond
-	desired[0].format = sdlAudioFormatForCType[tostring(audioSampleType)]
+	desired[0].format = assert.index(sdlAudioFormatForCType, tostring(audioSampleType))
 	desired[0].channels = audioOutChannels
 	--desired[0].samples = audio.bufferSizeInSampleFrames -- in "sample frames" ... where stereo means two samples per "sample frame"
 	--desired[0].size = audio.bufferSizeInBytes		-- is calculated, but I wanted to make sure my calculations matched.
@@ -202,7 +202,7 @@ print('resetting runaway audio queue with size '..queueSize..' exceeding thresho
 	self:updateSoundEffects()
 end
 
-local tmpOut = int32_arr(audioOutChannels)
+local tmpOut = int32_t_arr(audioOutChannels)
 function AppAudio:updateSoundEffects()
 	local audio = self.audio
 	local masterVolFrac = self.cfg.volume / 255
@@ -253,7 +253,7 @@ function AppAudio:updateSoundEffects()
 						channel.offset = 0
 						channel.flags.isPlaying = 0
 					else
-						ampl = ffi.cast(audioSampleTypePtr, self.ram.v + sfxAmplAddr)[0]
+						ampl = ffi.cast(audioSamplePtrType, self.ram.v + sfxAmplAddr)[0]
 --DEBUG:print('offset', ('0x%x'):format(channel.offset),'addr', ('0x%x'):format(sfxAmplAddr), 'ampl', ('0x%04x'):format(ampl))
 
 						channel.offset = channel.offset + channel.pitch
