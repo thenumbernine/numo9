@@ -51,6 +51,7 @@ local uint16_t_arr = ffi.typeof'uint16_t[?]'
 local float = ffi.typeof'float'
 local float_4 = ffi.typeof'float[4]'
 local GLuint_4 = ffi.typeof'GLuint[4]'
+local matPtrType = ffi.typeof('$*', matType)
 
 
 assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms")
@@ -3984,7 +3985,7 @@ function AppVideo:matident(matrixIndex)
 	elseif matrixIndex == 1 then
 		self.viewMat:setIdent()
 		self:onViewMatChange()
-	else
+	elseif matrixIndex == 2 then
 		self.projMat:setIdent()
 		self:onProjMatChange()
 	end
@@ -4798,8 +4799,8 @@ print()
 	sceneObj.uniforms.ssaoInfluence = self.ram.ssaoInfluence
 
 
-	self.lightViewMat.ptr = self.ram.lightViewMat
-	self.lightProjMat.ptr = self.ram.lightProjMat
+	self.lightViewMat.ptr = ffi.cast(matPtrType, self.ram.lightViewMat)
+	self.lightProjMat.ptr = ffi.cast(matPtrType, self.ram.lightProjMat)
 
 	self.lightViewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
 	sceneObj.uniforms.lightViewProjMat = self.lightViewProjMat.ptr
