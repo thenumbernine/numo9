@@ -1137,8 +1137,8 @@ void main() {
 	worldCoordv = worldCoord.xyz;
 
 	vec4 viewCoord = viewMat * worldCoord;
-
 	gl_Position = projMat * viewCoord;
+
 	// TODO is this technically "clipCoord"?  because clipping is to [-1,1]^3 volume, which is post-homogeneous transform.
 	//  so what's the name of the coordinate system post-projMat but pre-homogeneous-transform?  "projection/projected coordinates" ?
 	clipDepth = gl_Position.z;
@@ -1943,6 +1943,7 @@ function AppVideo:initVideo()
 			},
 		}:unbind()
 
+		-- NOTICE the only reason this is here is to calc the mvProjMat and then in resetVideo it gets copied into ram.lightMat
 		local quatd = require 'vec-ffi.quatd'
 		local View = require 'glapp.view'
 		self.lightView = View()
@@ -1968,6 +1969,8 @@ function AppVideo:initVideo()
 		self.lightView.orbit:set(32, 24, 0)
 		self.lightView.pos = self.lightView.orbit + 40 * self.lightView.angle:zAxis()
 		self.lightView:setup(self.lightDepthTex.width / self.lightDepthTex.height)
+		assert.eq(self.lightView.mvProjMat.ctype, ffi.typeof'float')
+		-- end lightView that is only used on resetVideo to reset lightViewMat and lightProjMat
 
 		self.lightmapFB = GLFBO{
 			width = dirLightMapSize.x,
@@ -1983,8 +1986,13 @@ function AppVideo:initVideo()
 		-- for the light view pos, we can just copy it from lightView itself (until I start giving the cart author more control of the lighting)
 		local vec3f = require 'vec-ffi.vec3f'
 		self.lightViewPos = vec3f()
-		-- for the draw view, I will have to extract it from the matrix ...
-		self.drawViewInvMat = ident4x4:clone()
+
+		-- temp buf used for holding the combination of light view+proj
+		self.lightViewMat = ident4x4:clone()	-- \_ have their pointers relocated to ram
+		self.lightProjMat = ident4x4:clone()	-- /
+		self.lightViewProjMat = ident4x4:clone()
+		self.lightViewInvMat = ident4x4:clone()	-- \_ used especially for extracting position
+		self.drawViewInvMat = ident4x4:clone()	-- /
 	end
 
 	-- [[ deferred lighting framebuffer,
@@ -2344,8 +2352,8 @@ function AppVideo:triBuf_flush()
 		gl.glViewport(0, 0, self.lightmapFB.width, self.lightmapFB.height)
 
 		program:setUniform('modelMat', ident4x4.ptr)
-		program:setUniform('viewMat', self.lightView.mvMat.ptr)
-		program:setUniform('projMat', self.lightView.projMat.ptr)
+		program:setUniform('viewMat', self.ram.lightViewMat)
+		program:setUniform('projMat', self.ram.lightProjMat)
 		gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
 
 		sceneObj.geometry:draw()
@@ -2761,6 +2769,9 @@ function AppVideo:resetVideo()
 
 	self.ram.ssaoSampleRadius = 1
 	self.ram.ssaoInfluence = 1
+
+	ffi.copy(self.ram.lightViewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
+	ffi.copy(self.ram.lightProjMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
 
 --DEBUG:print'App:resetVideo done'
 end
@@ -4786,10 +4797,16 @@ print()
 	sceneObj.uniforms.ssaoSampleRadius = self.ram.ssaoSampleRadius
 	sceneObj.uniforms.ssaoInfluence = self.ram.ssaoInfluence
 
-	sceneObj.uniforms.lightViewProjMat = self.lightView.mvProjMat.ptr
 
-	self.lightViewPos:set(self.lightView.pos:unpack())
-	sceneObj.uniforms.lightViewPos = self.lightViewPos.s
+	self.lightViewMat.ptr = self.ram.lightViewMat
+	self.lightProjMat.ptr = self.ram.lightProjMat
+
+	self.lightViewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
+	sceneObj.uniforms.lightViewProjMat = self.lightViewProjMat.ptr
+
+	self.lightViewInvMat:inv4x4(self.lightViewMat)
+	sceneObj.uniforms.lightViewPos = self.lightViewInvMat.ptr + 12
+
 	self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
 	sceneObj.uniforms.drawViewPos = self.drawViewInvMat.ptr + 12	-- access the translation part of the inverse = the view pos
 

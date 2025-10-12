@@ -380,6 +380,8 @@ local RAM = struct{
 				{name='ssaoSampleRadius', type=float},
 				{name='ssaoInfluence', type=float},
 
+				{name='lightViewMat', type=matArrType},	-- lighting view+proj combined into one
+				{name='lightProjMat', type=matArrType},	-- lighting view+proj combined into one
 
 				-- end of RAM, beginning of ROM
 
