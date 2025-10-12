@@ -15,6 +15,7 @@ local uint8_t = ffi.typeof'uint8_t'
 local int16_t = ffi.typeof'int16_t'
 local uint16_t = ffi.typeof'uint16_t'
 local uint32_t = ffi.typeof'uint32_t'
+local float = ffi.typeof'float'
 
 
 local version = table{1,2,0}
@@ -53,7 +54,7 @@ local updateIntervalInSeconds = 1 / updateHz
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
 local paletteSize = 256
-local paletteType = ffi.typeof'uint16_t'	-- really rgba 5551 ...
+local paletteType = uint16_t	-- really rgba 5551 ...
 local palettePtrType = ffi.typeof('$*', paletteType)
 local tileSizeInBits = 3						-- TODO names or purpose?  no more 'tiles vs sprites'.  this is 1D vs sprites vars are 2D ... ???
 local tileSize = bit.lshift(1, tileSizeInBits)
@@ -61,7 +62,7 @@ local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
 
 -- [[ TODO framebuffer has since become more flexible, more video modes, etc.
 -- some of these like 'frameBufferSize' are now obsolete
-local frameBufferType = ffi.typeof'uint16_t'	-- make this the size of the largest size of any of our framebuffer modes
+local frameBufferType = uint16_t	-- make this the size of the largest size of any of our framebuffer modes
 local frameBufferSizeInTilesInBits = vec2i(5, 5)
 local frameBufferSizeInTiles = vec2i(
 	bit.lshift(1, frameBufferSizeInTilesInBits.x),
@@ -80,7 +81,7 @@ local tilemapSize = vec2i(
 	bit.lshift(1, tilemapSizeInBits.x),
 	bit.lshift(1, tilemapSizeInBits.y))
 
-local clipType = ffi.typeof'int16_t'
+local clipType = int16_t
 local clipMax = 0x7fff		-- idk why i'm allowing negative values
 
 --[[
@@ -95,10 +96,10 @@ local fontImageSize = vec2i(fontImageSizeInTiles.x * spriteSize.x, fontImageSize
 local fontSizeInBytes = fontImageSize:volume()	-- 8 bytes per char, 256 chars
 local menuFontWidth = 5
 
-local addrType = ffi.typeof'uint32_t'	-- 4GB max addr
+local addrType = uint32_t	-- 4GB max addr
 
---local audioSampleType = ffi.typeof'uint8_t'
-local audioSampleType = ffi.typeof'int16_t'
+--local audioSampleType = uint8_t
+local audioSampleType = int16_t
 --local audioSampleRate = 22050
 local audioSampleRate = 32000
 --local audioSampleRate = 44100
@@ -112,7 +113,7 @@ local keyCount = #keyCodeNames
 -- number of bytes to represent all bits of the keypress buffer
 local keyPressFlagSize = math.ceil(keyCount / 8)
 
-local matType = ffi.typeof'float'
+local matType = float
 local matArrType = ffi.typeof('$[16]', matType)
 
 -- sfx needs loop offset and samples
@@ -225,15 +226,15 @@ local Numo9Channel = struct{
 		-- this is going to be incremented by the pitch, which is 4.12 fixed so 0x1000 <=> 1:1 pitch
 		-- that means we need 12 bits to spare in this as well, it's going to be 20.12 fixed
 		-- and at that, the 20 is going to be << 1 anyways, because we're addressing int16 samples
-		{name='offset', type='uint32_t'},
+		{name='offset', type=uint32_t},
 
 		{name='volume', type='uint8_t['..audioOutChannels..']'},	-- 0-255
 		-- TODO ADSR
 		-- TODO effect flags ... key ... pitch-modulation ... noise ... echo ...
 		-- TODO main volume ... but why dif from just volL volR?
 		{name='echoVol', type='uint8_t['..audioOutChannels..']'},
-		{name='pitch', type='uint16_t'},	-- fixed point 4.12 multiplier
-		{name='sfxID', type='uint8_t'},		-- 0-based-index in blobs.sfx[]
+		{name='pitch', type=uint16_t},	-- fixed point 4.12 multiplier
+		{name='sfxID', type=uint8_t},		-- 0-based-index in blobs.sfx[]
 		--[[ TODO in struct.lua, inline anonymous types with flags aren't working?
 		{name='flags', type=struct{
 			anonymous = true,
@@ -243,10 +244,10 @@ local Numo9Channel = struct{
 		}},
 		--]]
 		-- [[
-		{name='flags', type='Numo9ChannelFlags'},
+		{name='flags', type=Numo9ChannelFlags},
 		--]]
-		{name='echoStartAddr', type='uint8_t'},
-		{name='echoDelay', type='uint8_t'},
+		{name='echoStartAddr', type=uint8_t},
+		{name='echoDelay', type=uint8_t},
 	},
 }
 
@@ -254,14 +255,14 @@ local Numo9Channel = struct{
 local Numo9MusicPlaying = struct{
 	name = 'Numo9MusicPlaying',
 	fields = {
-		{name='isPlaying', type='uint8_t'},	-- TODO flags
-		{name='musicID', type='uint8_t'},
+		{name='isPlaying', type=uint8_t},	-- TODO flags
+		{name='musicID', type=uint8_t},
 		{name='addr', type=addrType},
 		{name='endAddr', type=addrType},
-		{name='sampleFramesPerBeat', type='uint16_t'},	-- this should be sampleFramesPerSecond / musicTable[musicID].addr's first uint16_t ...
-		{name='sampleFrameIndex', type='uint32_t'},			-- which sample-frame # the music is currently on
-		{name='nextBeatSampleFrameIndex', type='uint32_t'},	-- which sample-frame # the music will next execute a beat instructions on
-		{name='channelOffset', type='uint8_t'},		-- what # to add to all channels , module max # of channels, when playing (so dif tracks can play on dif channels at the same time)
+		{name='sampleFramesPerBeat', type=uint16_t},	-- this should be sampleFramesPerSecond / musicTable[musicID].addr's first uint16_t ...
+		{name='sampleFrameIndex', type=uint32_t},			-- which sample-frame # the music is currently on
+		{name='nextBeatSampleFrameIndex', type=uint32_t},	-- which sample-frame # the music will next execute a beat instructions on
+		{name='channelOffset', type=uint8_t},		-- what # to add to all channels , module max # of channels, when playing (so dif tracks can play on dif channels at the same time)
 	},
 }
 
@@ -271,14 +272,12 @@ local Numo9MusicPlaying = struct{
 local audioAllMixChannelsInBytes = ffi.sizeof(Numo9Channel) * audioMixChannels
 assert.le(audioAllMixChannelsInBytes, 0xfe)	-- special codes: 0xff means frame-end, 0xfe means track end.
 
-local function maxrangeforsize(s) return bit.lshift(1, bit.lshift(s, 3)) end
-
 local blobCountType = addrType
 
 local BlobEntry = struct{
 	name = 'BlobEntry',
 	fields = {
-		{name='type', type='uint32_t'},
+		{name='type', type=uint32_t},
 		{name='addr', type=addrType},
 		{name='size', type=addrType},
 	},
@@ -310,28 +309,28 @@ local RAM = struct{
 				{name='viewMat', type=matArrType},
 				{name='projMat', type=matArrType},
 
-				{name='videoMode', type='uint8_t'},
+				{name='videoMode', type=uint8_t},
 
 				-- TODO do I really need this?  yes for the native-res video-mode?  but really? hmm...
-				{name='screenWidth', type='uint16_t'},	-- fantasy-console resolution width & height
-				{name='screenHeight', type='uint16_t'},	-- maybe I should have a single address where you poke and peek requested values like this from, like NES PPU?
+				{name='screenWidth', type=uint16_t},	-- fantasy-console resolution width & height
+				{name='screenHeight', type=uint16_t},	-- maybe I should have a single address where you poke and peek requested values like this from, like NES PPU?
 
-				{name='blendMode', type='uint8_t'},
+				{name='blendMode', type=uint8_t},
 
-				{name='useHardwareLighting', type='uint16_t'},	-- 1 bit, but 16 for alignemnt
+				{name='useHardwareLighting', type=uint16_t},	-- 1 bit, but 16 for alignemnt
 
-				{name='blendColor', type='uint16_t'},
-				{name='dither', type='uint16_t'},	-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
+				{name='blendColor', type=uint16_t},
+				{name='dither', type=uint16_t},	-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
 
-				{name='paletteBlobIndex', type='uint8_t'},	-- which palette to use for drawing commands
-				{name='fontBlobIndex', type='uint8_t'},		-- which font blob to use for text()
+				{name='paletteBlobIndex', type=uint8_t},	-- which palette to use for drawing commands
+				{name='fontBlobIndex', type=uint8_t},		-- which font blob to use for text()
 
 				-- used by text() and by the console
 				-- TODO move to ROM?
 				{name='fontWidth', type='uint8_t[256]'},
 
-				{name='textFgColor', type='uint8_t'},
-				{name='textBgColor', type='uint8_t'},
+				{name='textFgColor', type=uint8_t},
+				{name='textBgColor', type=uint8_t},
 
 				-- Store VRAM addrs here, and let the user point them wherever
 				-- This way they can redirect sprite/tile sheets to other (expandible) banks
@@ -345,14 +344,14 @@ local RAM = struct{
 				{name='fontAddr', type=addrType},			-- where the font is / sheet 2 / used by text() function
 
 				-- audio state of waves that are playing
-				{name='channels', type='Numo9Channel['..audioMixChannels..']'},
+				{name='channels', type=ffi.typeof('$['..audioMixChannels..']', Numo9Channel)},
 
 				-- audio state of music tracks executing instructions to play dif waves at dif times
-				{name='musicPlaying', type='Numo9MusicPlaying['..audioMusicPlayingCount..']'},
+				{name='musicPlaying', type=ffi.typeof('$['..audioMusicPlayingCount..']', Numo9MusicPlaying)},
 
 				-- timer
-				{name='updateCounter', type='uint32_t'},	-- how many updates() overall, i.e. system clock
-				{name='romUpdateCounter', type='uint32_t'},	-- how many updates() for the current ROM.  reset upon run()
+				{name='updateCounter', type=uint32_t},	-- how many updates() overall, i.e. system clock
+				{name='romUpdateCounter', type=uint32_t},	-- how many updates() for the current ROM.  reset upon run()
 
 				-- keyboard
 
@@ -368,15 +367,15 @@ local RAM = struct{
 				-- TODO maybe maybe ... pretend it is "done in hardware" and just move it outside of RAM ...
 				{name='keyHoldCounter', type='uint16_t['..keyCount..']'},
 
-				{name='mousePos', type='vec2s_t'},			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
-				{name='mouseWheel', type='vec2s_t'},		-- mousewheel accum for this frame
-				{name='lastMousePos', type='vec2s_t'},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
-				{name='lastMousePressPos', type='vec2s_t'},	-- " " at last mouse press.  Same question...
+				{name='mousePos', type=vec2s},			-- frambuffer coordinates ... should these be [0,255] FBO constrained or should it allow out of FBO coordinates?
+				{name='mouseWheel', type=vec2s},		-- mousewheel accum for this frame
+				{name='lastMousePos', type=vec2s},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
+				{name='lastMousePressPos', type=vec2s},	-- " " at last mouse press.  Same question...
 
 				-- end of RAM, beginning of ROM
 
 				{name='blobCount', type=blobCountType},
-				{name='blobEntries', type='BlobEntry[1]'},
+				{name='blobEntries', type=ffi.typeof('$[1]', BlobEntry)},
 			},
 		}},
 	},
@@ -421,6 +420,8 @@ local function unpackptr(n, p)
 	return p[0], unpackptr(n-1, p+1)
 end
 
+-- used with music and with netplay inputs
+-- (netplay commands now use deltaCompress7bit)
 local function deltaCompress(
 	prevp,	-- previous state, of T*
 	nextp,	-- next state, of T*

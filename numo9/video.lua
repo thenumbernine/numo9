@@ -690,8 +690,18 @@ local function getBlendSolidColorCode(vec3, varname)
 ]]
 end
 
--- this string can include template code that uses only vars that appear in all of makeVideoMode* template vars
-local useLightingCode = [[
+-- this string can include template code that appears in all of them
+local blitScreenCommonCode = [[
+precision highp sampler2D;
+precision highp isampler2D;
+precision highp usampler2D;	// needed by #version 300 es
+
+in vec2 tcv;
+
+layout(location=0) out <?=blitFragType?> fragColor;
+
+uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
 
 void doLighting() {
 
@@ -766,31 +776,14 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 			vertexCode = [[
 layout(location=0) in vec2 vertex;
 out vec2 tcv;
-
 uniform mat4 mvProjMat;
-
 void main() {
 	tcv = vertex;
 	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
 }
 ]],
-			fragmentCode = template([[
-precision highp sampler2D;
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-
-layout(location=0) out <?=blitFragType?> fragColor;
-
-// use lighting whatsoever in the final pass?
-// do it per-fragment
-uniform bool useLighting;
-
-uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
-
-]]..useLightingCode..[[
+			fragmentCode = template(
+blitScreenCommonCode..[[
 
 void main() {
 #if 1	// internalFormat = gl.GL_RGB565
@@ -884,24 +877,12 @@ void main() {
 	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
 }
 ]],
-				fragmentCode = template([[
-precision highp sampler2D;
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
+			fragmentCode = template(
+blitScreenCommonCode..[[
 
-in vec2 tcv;
-
-layout(location=0) out <?=blitFragType?> fragColor;
-
-uniform bool useLighting;
-
-uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
 <?=glslCode5551?>
-
-]]..useLightingCode..[[
 
 void main() {
 	uint colorIndex = ]]..readTex{
@@ -999,21 +980,8 @@ void main() {
 	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
 }
 ]],
-			fragmentCode = template([[
-precision highp sampler2D;
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-
-layout(location=0) out <?=blitFragType?> fragColor;
-
-uniform bool useLighting;
-
-uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
-uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
-
-]]..useLightingCode..[[
+			fragmentCode = template(
+blitScreenCommonCode..[[
 
 void main() {
 	uint rgb332 = ]]..readTex{
@@ -1043,9 +1011,6 @@ void main() {
 		},
 		texs = {
 			self.framebufferRAM.tex,
-			self.framebufferNormalTex,
-			self.framebufferPosTex,
-			app.lightDepthTex,
 			app.calcLightPP:cur(),
 		},
 		geometry = app.quadGeom,
@@ -2094,10 +2059,8 @@ layout(location=0) out vec4 fragColor;
 
 uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-
-// used by SSAO
-uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;
-
+uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;	// used by SSAO
+uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 
 // TODO lighting variables in RAM:
@@ -2167,7 +2130,7 @@ return;
 
 	vec3 lightValue = lightAmbientColor;
 
-#if 0	// enable shadow map
+#if 1	// enable shadow map
 	bool inLight = false;
 	vec4 lightClipCoord = lightProjMat * (lightViewMat * worldCoord);
 	if (lightClipCoord.w > 0.
@@ -2296,12 +2259,14 @@ return;
 				framebufferNormalTex = 0,
 				framebufferPosTex = 1,
 				noiseTex = 2,
+				lightDepthTex = 3,
 			},
 		},
 		texs = {
 			self.framebufferNormalTex,
 			self.framebufferPosTex,
 			self.noiseTex,
+			self.lightDepthTex,
 		},
 		geometry = self.quadGeom,
 	}

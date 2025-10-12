@@ -424,22 +424,22 @@ assert.eq(audioMusicPlayingCount, 8)
 		ffi.cast(uint8_t_p, self.ram.channels + channelIndex)[channelByteOffset] = value
 		--]]
 
-		if channelByteOffset == ffi.offsetof('Numo9Channel', 'volume') then
+		if channelByteOffset == ffi.offsetof(Numo9Channel, 'volume') then
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volL', value)
-		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'volume')+1 then
+		elseif channelByteOffset == ffi.offsetof(Numo9Channel, 'volume')+1 then
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'volR', value)
 
-		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol') then
+		elseif channelByteOffset == ffi.offsetof(Numo9Channel, 'echoVol') then
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolL', value)
-		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'echoVol')+1 then
+		elseif channelByteOffset == ffi.offsetof(Numo9Channel, 'echoVol')+1 then
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'echoVolR', value)
 
-		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')
-		or channelByteOffset == ffi.offsetof('Numo9Channel', 'pitch')+1
+		elseif channelByteOffset == ffi.offsetof(Numo9Channel, 'pitch')
+		or channelByteOffset == ffi.offsetof(Numo9Channel, 'pitch')+1
 		then
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'pitch', self.ram.channels[channelIndex].pitch)
 
-		elseif channelByteOffset == ffi.offsetof('Numo9Channel', 'sfxID') then
+		elseif channelByteOffset == ffi.offsetof(Numo9Channel, 'sfxID') then
 --DEBUG:print('musicPlaying', musicPlayingIndex, 'channel', channelIndex, 'sfxID', value) --, 'addr' used to be here... I forgot how to calculate whatever it was
 			-- NOTICE THIS IS THAT WEIRD SPLIT FORMAT SOO ...
 			local sfxBlob = self.blobs.sfx[value+1]
