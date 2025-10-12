@@ -1,6 +1,13 @@
 #!/usr/bin/env luajit
 
--- [=====[ thanks very much to https://github.com/CapsAdmin/NattLua/blob/master/nattlua/other/jit_options.lua
+--[=====[ thanks very much to https://github.com/CapsAdmin/NattLua/blob/master/nattlua/other/jit_options.lua
+-- BUT FOR SOME REASON
+-- ever since converting my ffi.new, typeof, sizeof, offsetof from strings to type-objects
+-- mixed with this
+-- and only at certain points in the code
+-- i will get random sporadic rare segfaults
+-- only when this is enabled.
+-- what could be causing the problem?
 do
 	local jit = _G.jit
 	local table_insert = _G.table.insert
