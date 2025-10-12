@@ -2022,8 +2022,6 @@ function AppVideo:initVideo()
 		:bind()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:unbind()
-
-	self.calcLight_lightProjInvMat = ident4x4:clone()
 --]]
 
 	-- set 255 mode first so that it has resources (cuz App:update() needs them for the menu)
@@ -2067,19 +2065,16 @@ uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;	// used by SSAO
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 
-// TODO lighting variables in RAM:
-// these are tied to the bump-mapping only right now...
-const vec3 lightAmbientColor = vec3(.4, .3, .2);
-const vec3 lightDiffuseColor = vec3(1., 1., 1.);
-const float lightSpecularShininess = 30.;
-const vec3 lightSpecularColor = vec3(.6, .5, .4);
-const float ssaoSampleTCScale = 18.;
-const float ssaoSampleRadius = 1.;	// this is in world coordinates, so it's gonna change per-game
-const float ssaoInfluence = 1.;	// 1 = 100% = you'll see black in fully-occluded points
+// lighting variables in RAM:
+uniform vec3 lightAmbientColor;// = vec3(.4, .3, .2);
+uniform vec3 lightDiffuseColor;// = vec3(1., 1., 1.);
+uniform vec4 lightSpecularColor;// = vec3(.6, .5, .4, 30.);	// w = shininess
+uniform float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
+uniform float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 
-uniform mat4 lightViewMat;	// used for light depth coord transform, and for determining the light pos
-uniform mat4 lightProjMat;
-uniform mat4 lightProjInvMat;	// using this (possibly unnecessarily) in the lightmap calcs.
+const float ssaoSampleTCScale = 18.;	// ? meh
+
+uniform mat4 lightViewProjMat;	// used for light depth coord transform, and for determining the light pos
 uniform mat4 drawViewMat;	// used by SSAO
 uniform mat4 drawProjMat;	// used by ...
 
@@ -2140,7 +2135,7 @@ return;
 
 #if 1	// enable shadow map
 	bool inLight = false;
-	vec4 lightClipCoord = lightProjMat * (lightViewMat * worldCoord);
+	vec4 lightClipCoord = lightViewProjMat * worldCoord;
 	// frustum test before homogeneous transform
 	if (lightClipCoord.w > 0.
 		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
@@ -2195,9 +2190,9 @@ return;
 			// maybe I should be doing inverse-frustum-projection stuff here
 			// hmmmmmmmmmm
 			// I really don't want to split projection and modelview matrices ...
-			+ lightSpecularColor * pow(
+			+ lightSpecularColor.xyz * pow(
 				abs(dot(viewDir, reflect(-lightDir, normalizedWorldNormal))),
-				lightSpecularShininess
+				lightSpecularColor.w
 			);
 #else	// plain
 		fragColor.xyz += vec3(.9, .9, .9);
@@ -2274,6 +2269,18 @@ return;
 			self.lightDepthTex,
 		},
 		geometry = self.quadGeom,
+
+		-- TODO don't use this
+		-- these are set every frame
+		-- but I"m using these because I'm lazy
+		-- instead just call glUniform yourself.
+		uniforms = {
+			lightAmbientColor = {.4, .3, .2},
+			lightDiffuseColor = {1, 1, 1},
+			lightSpecularColor = {.6, .5, .4, 30 / 255},
+			ssaoSampleRadius = 1,
+			ssaoInfluence = 1,
+		},
 	}
 	--]]
 end
@@ -2734,8 +2741,26 @@ function AppVideo:resetVideo()
 		self.ram.fontWidth[i] = 5
 	end
 
-	self.ram.textFgColor = 0xfc
-	self.ram.textBgColor = 0xf0
+	self.ram.textFgColor = 12
+	self.ram.textBgColor = 0
+
+
+	-- init light vars
+	self.ram.lightAmbientColor[0] = .4 * 255
+	self.ram.lightAmbientColor[1] = .3 * 255
+	self.ram.lightAmbientColor[2] = .2 * 255
+
+	self.ram.lightDiffuseColor[0] = 255
+	self.ram.lightDiffuseColor[1] = 255
+	self.ram.lightDiffuseColor[2] = 255
+
+	self.ram.lightSpecularColor[0] = .6 * 255
+	self.ram.lightSpecularColor[1] = .5 * 255
+	self.ram.lightSpecularColor[2] = .4 * 255
+	self.ram.lightSpecularColor[2] = 30
+
+	self.ram.ssaoSampleRadius = 1
+	self.ram.ssaoInfluence = 1
 
 --DEBUG:print'App:resetVideo done'
 end
@@ -4742,11 +4767,26 @@ print()
 	--sceneObj.texs[3] = self.noiseTex
 	--sceneObj.texs[4] = self.lightDepthTex
 
-	sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
-	sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
 
-	self.calcLight_lightProjInvMat:inv4x4(self.lightView.projMat)
-	sceneObj.uniforms.lightProjInvMat = self.calcLight_lightProjInvMat.ptr
+	-- TODO just set the uniform, don't store it, but i'm lazy
+
+	sceneObj.uniforms.lightAmbientColor[1] = tonumber(self.ram.lightAmbientColor[0]) / 255
+	sceneObj.uniforms.lightAmbientColor[2] = tonumber(self.ram.lightAmbientColor[1]) / 255
+	sceneObj.uniforms.lightAmbientColor[3] = tonumber(self.ram.lightAmbientColor[2]) / 255
+
+	sceneObj.uniforms.lightDiffuseColor[1] = tonumber(self.ram.lightDiffuseColor[0]) / 255
+	sceneObj.uniforms.lightDiffuseColor[2] = tonumber(self.ram.lightDiffuseColor[1]) / 255
+	sceneObj.uniforms.lightDiffuseColor[3] = tonumber(self.ram.lightDiffuseColor[2]) / 255
+
+	sceneObj.uniforms.lightSpecularColor[1] = tonumber(self.ram.lightSpecularColor[0]) / 255
+	sceneObj.uniforms.lightSpecularColor[2] = tonumber(self.ram.lightSpecularColor[1]) / 255
+	sceneObj.uniforms.lightSpecularColor[3] = tonumber(self.ram.lightSpecularColor[2]) / 255
+	sceneObj.uniforms.lightSpecularColor[4] = tonumber(self.ram.lightSpecularColor[3])	-- use as is, don't divide
+
+	sceneObj.uniforms.ssaoSampleRadius = self.ram.ssaoSampleRadius
+	sceneObj.uniforms.ssaoInfluence = self.ram.ssaoInfluence
+
+	sceneObj.uniforms.lightViewProjMat = self.lightView.mvProjMat.ptr
 
 	self.lightViewPos:set(self.lightView.pos:unpack())
 	sceneObj.uniforms.lightViewPos = self.lightViewPos.s

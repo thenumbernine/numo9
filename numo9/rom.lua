@@ -12,6 +12,7 @@ local vec2i = require 'vec-ffi.vec2i'
 
 
 local uint8_t = ffi.typeof'uint8_t'
+local uint8_t_4 = ffi.typeof'uint8_t[4]'
 local int16_t = ffi.typeof'int16_t'
 local uint16_t = ffi.typeof'uint16_t'
 local uint32_t = ffi.typeof'uint32_t'
@@ -317,8 +318,6 @@ local RAM = struct{
 
 				{name='blendMode', type=uint8_t},
 
-				{name='useHardwareLighting', type=uint16_t},	-- 1 bit, but 16 for alignemnt
-
 				{name='blendColor', type=uint16_t},
 				{name='dither', type=uint16_t},	-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
 
@@ -371,6 +370,16 @@ local RAM = struct{
 				{name='mouseWheel', type=vec2s},		-- mousewheel accum for this frame
 				{name='lastMousePos', type=vec2s},		-- ... " " last frame.  Should these be in RAM?  Or should they be a byproduct of the environment <-> the delta is in RAM?
 				{name='lastMousePressPos', type=vec2s},	-- " " at last mouse press.  Same question...
+
+
+				-- lighting block ...
+				{name='useHardwareLighting', type=uint16_t},	-- 1 bit, but 16 for alignemnt
+				{name='lightAmbientColor', type=uint8_t_4},	-- just rgb is used, but there's 4 for alignment
+				{name='lightDiffuseColor', type=uint8_t_4},	-- or "albedo" or whatever.  alpha is ignored.
+				{name='lightSpecularColor', type=uint8_t_4},	-- alpha holds shininess, un-normalized.
+				{name='ssaoSampleRadius', type=float},
+				{name='ssaoInfluence', type=float},
+
 
 				-- end of RAM, beginning of ROM
 
