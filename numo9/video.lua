@@ -55,8 +55,10 @@ local GLuint_4 = ffi.typeof'GLuint[4]'
 
 assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms")
 
-local dirLightMapSize = vec2i(256, 256)	-- for 16x16 tiles, 16 tiles wide, so 8 tile radius
---local dirLightMapSize = vec2i(2048, 2048)	-- 16 texels/voxel * 64 voxels = 1024 texels across the whole scene
+--local dirLightMapSize = vec2i(256, 256)	-- for 16x16 tiles, 16 tiles wide, so 8 tile radius
+--local dirLightMapSize = vec2i(512, 512)
+--local dirLightMapSize = vec2i(1024, 1024)
+local dirLightMapSize = vec2i(2048, 2048)	-- 16 texels/voxel * 64 voxels = 1024 texels across the whole scene
 local useDirectionalShadowmaps = true	-- can't turn off or it'll break stuff so *shrug*
 
 local ident4x4 = matrix_ffi({4,4}, matType):eye()
@@ -1121,7 +1123,9 @@ flat out vec4 box;
 out float clipDepth;
 out vec3 worldCoordv;
 
-uniform mat4 modelMat, viewMat, projMat;
+uniform mat4 modelMat;
+uniform mat4 viewMat;
+uniform mat4 projMat;
 
 void main() {
 	tcv = texcoord;
@@ -1928,7 +1932,7 @@ function AppVideo:initVideo()
 		self.lightDepthTex = GLTex2D{
 			width = dirLightMapSize.x,
 			height = dirLightMapSize.y,
-			internalFormat = gl.GL_DEPTH_COMPONENT,
+			internalFormat = gl.GL_DEPTH_COMPONENT32F,
 			format = gl.GL_DEPTH_COMPONENT,
 			type = gl.GL_FLOAT,
 			minFilter = gl.GL_NEAREST,
@@ -1947,15 +1951,15 @@ function AppVideo:initVideo()
 		-- too small = a directional spotlight
 		-- aha hence "CSM" technique ... which is basically, multiple ortho dir lights of different ortho volume sizes.
 		-- this has gotta be game dependent ...
-		-- [[ frustum light / spotlight
+		--[[ frustum light / spotlight
 		self.lightView.znear = 1
 		self.lightView.zfar = 200
 		--]]
-		--[[ ortho light / directional light
+		-- [[ ortho light / directional light
 		self.lightView.ortho = true
 		self.lightView.znear = -4
 		self.lightView.zfar = 64
-		self.lightView.orthoSize = 8
+		self.lightView.orthoSize = 32
 		--]]
 		-- 32 is half width, 24 is half length
 		self.lightView.angle =
@@ -2019,7 +2023,7 @@ function AppVideo:initVideo()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:unbind()
 
-	self.calcLight_DrawProjInvMat = ident4x4:clone()
+	self.calcLight_lightProjInvMat = ident4x4:clone()
 --]]
 
 	-- set 255 mode first so that it has resources (cuz App:update() needs them for the menu)
@@ -2075,9 +2079,9 @@ const float ssaoInfluence = 1.;	// 1 = 100% = you'll see black in fully-occluded
 
 uniform mat4 lightViewMat;	// used for light depth coord transform, and for determining the light pos
 uniform mat4 lightProjMat;
+uniform mat4 lightProjInvMat;	// using this (possibly unnecessarily) in the lightmap calcs.
 uniform mat4 drawViewMat;	// used by SSAO
 uniform mat4 drawProjMat;	// used by ...
-uniform mat4 drawProjInvMat;	// needed by SSAO for transforming from framebuffer coords back to view coords
 
 uniform vec3 lightViewPos;
 uniform vec3 drawViewPos;
@@ -2106,6 +2110,13 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = vec3[ssaoNumSamples](
 );
 
 void main() {
+#if 0	// debug - show the lightmap
+float l = texture(lightDepthTex, tcv).x;
+fragColor = vec4(l, l * 10., 1. - l * 100., .0);	// tell debug compositer to use this color here.
+return;
+#endif
+
+
 	vec4 worldNormal = texture(framebufferNormalTex, tcv);
 	// no lighting on this fragment
 	if (worldNormal.w == 0.) {
@@ -2124,22 +2135,22 @@ void main() {
 fragColor.xyz = normalizedWorldNormal * .5 + .5;
 return;
 #endif
-	
+
 	fragColor = vec4(lightAmbientColor, 1.);
 
-#if 0	// enable shadow map
+#if 1	// enable shadow map
 	bool inLight = false;
 	vec4 lightClipCoord = lightProjMat * (lightViewMat * worldCoord);
+	// frustum test before homogeneous transform
 	if (lightClipCoord.w > 0.
 		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
 		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
 	) {
 		vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
-		// in bounds
-		float lightBufferDepth = texture(lightDepthTex, lightNDCoord.xy * .5 + .5).x
-			* 2. - 1.;	// convert from [0,1] to depthrange [-1,1]
-		lightBufferDepth = -lightBufferDepth;	//???
+		vec3 lightND01Coord = lightNDCoord * .5 + .5;
 
+		// in bounds
+		float lightBufferDepth = texture(lightDepthTex, lightND01Coord.xy).x;
 
 		// zero gets depth alias stripes
 		// nonzero is dependent on the scene
@@ -2149,24 +2160,21 @@ return;
 		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 
 #if 0	// debug show the light buffer
-fragColor.xyz = vec3(.5 + lightBufferDepth, .5, .5 - lightBufferDepth);
-fragColor.w = 0.;	// tell debug compositer to use this color here.
+fragColor = vec4(lightBufferDepth, .5, 1. - lightBufferDepth, 0.);	// tell debug compositer to use this color here.
 return;
 #endif
 #if 0	// debug show the light clip depth
-fragColor.xyz = vec3(.5 + lightNDCoord.z, .5, .5 - lightNDCoord.z);
-fragColor.w = 0.;	// tell debug compositer to use this color here.
+fragColor = vec4(lightND01Coord.z, .5, 1. - lightND01Coord.z, 0.);	// tell debug compositer to use this color here.
 return;
 #endif
-#if 1	// debug show the light clip depth
-float delta = lightNDCoord.z - (lightBufferDepth + lightDepthTestEpsilon);
-fragColor.xyz = vec3(.5 + delta, .5, .5 - delta);
-fragColor.w = 0.;	// tell debug compositer to use this color here.
+#if 0	// debug show the light clip depth
+float delta = lightND01Coord.z - (lightBufferDepth + lightDepthTestEpsilon);
+fragColor = vec4(.5 + delta, .5, .5 - delta, 0.);	// tell debug compositer to use this color here.
 return;
 #endif
 
 		// TODO normal test here as well?
-		if (lightNDCoord.z < (lightBufferDepth + lightDepthTestEpsilon)) {
+		if (lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon)) {
 			inLight = true;
 		}
 	}
@@ -4657,6 +4665,28 @@ end
 function AppVideo:updateLightCalcText()
 	assert(not self.inUpdateCallback)
 
+--[=[ trying to read the depth buffer
+-- seems harder to read the depth buffer than to debug shadowmap lighting calculations.
+tempLightCPU = tempLightCPU or ffi.new('float[?]', dirLightMapSize.x * dirLightMapSize.y)
+-- [[
+self.lightmapFB:bind()
+--gl.glReadBuffers(gl.GL_NONE)	-- glReadBuffers, when is this needed?
+gl.glReadPixels(0, 0, dirLightMapSize.x, dirLightMapSize.y, gl.GL_DEPTH_COMPONENT, gl.GL_FLOAT, tempLightCPU)
+self.lightmapFB:unbind()
+--]]
+--[[
+self.lightDepthTex:toCPU(tempLightCPU)
+--]]
+print()
+for y=0,self.lightDepthTex.height-1 do
+	for x=0,self.lightDepthTex.width-1 do
+		io.write(' ', tempLightCPU[x + self.lightDepthTex.width * y])
+	end
+	print()
+end
+print()
+--]=]
+
 	local calcLightPP = self.calcLightPP
 	local calcLightFB = calcLightPP.fbo
 	if self.width ~= calcLightFB.width
@@ -4708,11 +4738,15 @@ function AppVideo:updateLightCalcText()
 	local sceneObj = self.calcLightBlitObj
 	sceneObj.texs[1] = videoMode.framebufferNormalTex
 	sceneObj.texs[2] = videoMode.framebufferPosTex
-	sceneObj.texs[3] = self.noiseTex
-	sceneObj.texs[4] = self.lightDepthTex
+	-- these dont change:
+	--sceneObj.texs[3] = self.noiseTex
+	--sceneObj.texs[4] = self.lightDepthTex
 
 	sceneObj.uniforms.lightViewMat = self.lightView.mvMat.ptr
 	sceneObj.uniforms.lightProjMat = self.lightView.projMat.ptr
+
+	self.calcLight_lightProjInvMat:inv4x4(self.lightView.projMat)
+	sceneObj.uniforms.lightProjInvMat = self.calcLight_lightProjInvMat.ptr
 
 	self.lightViewPos:set(self.lightView.pos:unpack())
 	sceneObj.uniforms.lightViewPos = self.lightViewPos.s
@@ -4721,8 +4755,6 @@ function AppVideo:updateLightCalcText()
 
 	sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
 	sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
-	self.calcLight_DrawProjInvMat:inv4x4(self.drawProjMatForLighting)
-	sceneObj.uniforms.drawProjInvMat = self.calcLight_DrawProjInvMat.ptr
 
 --DEBUG(lighting):print('drawing lighting')
 --DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)

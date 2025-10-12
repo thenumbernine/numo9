@@ -2358,42 +2358,38 @@ local ditherAddrEnd = ditherAddr + ffi.sizeof(
 	select(2, table.find(numo9_rom.RAM.fields[2].type.fields, nil, function(field) return field.name == 'dither' end)).type
 )
 
-function App:poke(addr, value)
-	addr = toint(addr)
-	value = tonumber(ffi.cast(uint32_t, value))
-	if addr < 0 or addr >= self.memSize then return end
-
+function App:prePoke(addr, addrend)
 	-- if we're writing to a dirty area then flush it to cpu
-	if addr >= self.framebufferRAM.addr
+	if addrend >= self.framebufferRAM.addr
 	and addr < self.framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyGPU()
 		self.framebufferRAM.dirtyCPU = true
 	end
+end
 
-	self.ram.v[addr] = value
-
+function App:postPoke(addr, addrend)
 	-- write out tris using the modelMat,viewMat,projMat before they change
-	if addr >= modelMatAddr and addr < modelMatAddrEnd then
+	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
 		self:onModelMatChange()
 	end
-	if addr >= viewMatAddr and addr < viewMatAddrEnd then
+	if addrend >= viewMatAddr and addr < viewMatAddrEnd then
 		self:onViewMatChange()
 	end
-	if addr >= projMatAddr and addr < projMatAddrEnd then
+	if addrend >= projMatAddr and addr < projMatAddrEnd then
 		self:onProjMatChange()
 	end
-	if addr >= clipRectAddr and addr < clipRectAddrEnd then
+	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
 		self:onClipRectChange()
 	end
-	if addr >= blendColorAddr and addr < blendColorAddrEnd then
+	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
 		self:onBlendColorChange()
 	end
-	if addr >= ditherAddr and addr < ditherAddrEnd then
+	if addrend >= ditherAddr and addr < ditherAddrEnd then
 		self:onDitherChange()
 	end
-	if addr >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
+	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
 		self:onUseHardwareLightingChange()
 	end
 
@@ -2401,7 +2397,7 @@ function App:poke(addr, value)
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
 	for _,blob in ipairs(self.blobs.sheet) do
 		-- use ramgpu since it is the relocatable address
-		if addr >= blob.ramgpu.addr
+		if addrend >= blob.ramgpu.addr
 		and addr < blob.ramgpu.addrEnd
 		then
 			-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
@@ -2411,7 +2407,7 @@ function App:poke(addr, value)
 	end
 	for _,blob in ipairs(self.blobs.tilemap) do
 		-- use ramgpu since it is the relocatable address
-		if addr >= blob.ramgpu.addr
+		if addrend >= blob.ramgpu.addr
 		and addr < blob.ramgpu.addrEnd
 		then
 			--blob.ramgpu:checkDirtyGPU()
@@ -2424,7 +2420,7 @@ function App:poke(addr, value)
 	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
 	for _,blob in ipairs(self.blobs.palette) do
 		-- use ramgpu since it is the relocatable address
-		if addr >= blob.ramgpu.addr
+		if addrend >= blob.ramgpu.addr
 		and addr < blob.ramgpu.addrEnd
 		then
 			blob.ramgpu.dirtyCPU = true
@@ -2432,7 +2428,7 @@ function App:poke(addr, value)
 	end
 	for _,blob in ipairs(self.blobs.font) do
 		-- use ramgpu since it is the relocatable address
-		if addr >= blob.ramgpu.addr
+		if addrend >= blob.ramgpu.addr
 		and addr < blob.ramgpu.addrEnd
 		then
 			blob.ramgpu.dirtyCPU = true
@@ -2443,13 +2439,25 @@ function App:poke(addr, value)
 	for _,voxelmap in ipairs(self.blobs.voxelmap) do
 		-- TODO allow voxelmap to have relocatable addresses?
 		-- merge BlobImage ramgpu into BlobImage and rename this field to 'relocAddr' and 'relocAddrEnd' ?
-		if addr >= voxelmap.addr
+		if addrend >= voxelmap.addr
 		and addr < voxelmap.addrEnd
 		then
 			voxelmap.dirtyCPU = true
 		end
 	end
 	-- TODO if we poked the code
+end
+
+function App:poke(addr, value)
+	addr = toint(addr)
+	value = tonumber(ffi.cast(uint32_t, value))
+	if addr < 0 or addr >= self.memSize then return end
+
+	self:prePoke(addr, addr)
+
+	self.ram.v[addr] = value
+
+	self:postPoke(addr, addr)
 end
 function App:pokew(addr, value)
 	addr = toint(addr)
@@ -2457,77 +2465,11 @@ function App:pokew(addr, value)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if addrend >= self.framebufferRAM.addr
-	and addr < self.framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
-		self.framebufferRAM.dirtyCPU = true
-	end
+	self:prePoke(addr, addrend)
 
 	ffi.cast(uint16_t_p, self.ram.v + addr)[0] = value
 
-	-- write out tris using the modelMat,viewMat,projMat before they change
-	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
-		self:onModelMatChange()
-	end
-	if addrend >= viewMatAddr and addr < viewMatAddrEnd then
-		self:onViewMatChange()
-	end
-	if addrend >= projMatAddr and addr < projMatAddrEnd then
-		self:onProjMatChange()
-	end
-	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
-		self:onClipRectChange()
-	end
-	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
-		self:onBlendColorChange()
-	end
-	if addrend >= ditherAddr and addr < ditherAddrEnd then
-		self:onDitherChange()
-	end
-	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
-		self:onUseHardwareLightingChange()
-	end
-
-	for _,blob in ipairs(self.blobs.sheet) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.tilemap) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.palette) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.font) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	-- TODO merge the above with their respective blobs
-	-- and then just cycle all blobs and flag here
-	for _,voxelmap in ipairs(self.blobs.voxelmap) do
-		if addrend >= voxelmap.addr
-		and addr < voxelmap.addrEnd
-		then
-			voxelmap.dirtyCPU = true
-		end
-	end
-	-- TODO if we poked the code
+	self:postPoke(addr, addrend)
 end
 function App:pokel(addr, value)
 	addr = toint(addr)
@@ -2535,77 +2477,11 @@ function App:pokel(addr, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if addrend >= self.framebufferRAM.addr
-	and addr < self.framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
-		self.framebufferRAM.dirtyCPU = true
-	end
+	self:prePoke(addr, addrend)
 
 	ffi.cast(uint32_t_p, self.ram.v + addr)[0] = value
 
-	-- write out tris using the modelMat,viewMat,projMat before they change
-	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
-		self:onModelMatChange()
-	end
-	if addrend >= viewMatAddr and addr < viewMatAddrEnd then
-		self:onViewMatChange()
-	end
-	if addrend >= projMatAddr and addr < projMatAddrEnd then
-		self:onProjMatChange()
-	end
-	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
-		self:onClipRectChange()
-	end
-	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
-		self:onBlendColorChange()
-	end
-	if addrend >= ditherAddr and addr < ditherAddrEnd then
-		self:onDitherChange()
-	end
-	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
-		self:onUseHardwareLightingChange()
-	end
-
-	for _,blob in ipairs(self.blobs.sheet) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.tilemap) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.palette) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.font) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	-- TODO merge the above with their respective blobs
-	-- and then just cycle all blobs and flag here
-	for _,voxelmap in ipairs(self.blobs.voxelmap) do
-		if addrend >= voxelmap.addr
-		and addr < voxelmap.addrEnd
-		then
-			voxelmap.dirtyCPU = true
-		end
-	end
-	-- TODO if we poked the code
+	self:postPoke(addr, addrend)
 end
 function App:pokef(addr, value)
 	addr = toint(addr)
@@ -2613,77 +2489,11 @@ function App:pokef(addr, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if addrend >= self.framebufferRAM.addr
-	and addr < self.framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
-		self.framebufferRAM.dirtyCPU = true
-	end
+	self:prePoke(addr, addrend)
 
 	ffi.cast(float_p, self.ram.v + addr)[0] = value
 
-	-- write out tris using the modelMat,viewMat,projMat before they change
-	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
-		self:onModelMatChange()
-	end
-	if addrend >= viewMatAddr and addr < viewMatAddrEnd then
-		self:onViewMatChange()
-	end
-	if addrend >= projMatAddr and addr < projMatAddrEnd then
-		self:onProjMatChange()
-	end
-	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
-		self:onClipRectChange()
-	end
-	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
-		self:onBlendColorChange()
-	end
-	if addrend >= ditherAddr and addr < ditherAddrEnd then
-		self:onDitherChange()
-	end
-	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
-		self:onUseHardwareLightingChange()
-	end
-
-	for _,blob in ipairs(self.blobs.sheet) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.tilemap) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.palette) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.font) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	-- TODO merge the above with their respective blobs
-	-- and then just cycle all blobs and flag here
-	for _,voxelmap in ipairs(self.blobs.voxelmap) do
-		if addrend >= voxelmap.addr
-		and addr < voxelmap.addrEnd
-		then
-			voxelmap.dirtyCPU = true
-		end
-	end
-	-- TODO if we poked the code
+	self:postPoke(addr, addrend)
 end
 
 function App:memcpy(dst, src, len)
@@ -2710,6 +2520,7 @@ function App:memcpy(dst, src, len)
 	if srcend < 0 or src >= self.memSize
 	then return end
 
+	-- pre-poke
 	local touchessrc = srcend >= self.framebufferRAM.addr and src < self.framebufferRAM.addrEnd
 	local touchesdst = dstend >= self.framebufferRAM.addr and dst < self.framebufferRAM.addrEnd
 	if touchessrc or touchesdst then
@@ -2745,66 +2556,7 @@ function App:memcpy(dst, src, len)
 		end
 	end
 
-	-- write out tris using the modelMat,viewMat,projMat before they change
-	if dstend >= modelMatAddr and dst < modelMatAddrEnd then
-		self:onModelMatChange()
-	end
-	if dstend >= viewMatAddr and dst < viewMatAddrEnd then
-		self:onViewMatChange()
-	end
-	if dstend >= projMatAddr and dst < projMatAddrEnd then
-		self:onProjMatChange()
-	end
-	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
-		self:onClipRectChange()
-	end
-	if dstend >= blendColorAddr and dst < blendColorAddrEnd then
-		self:onBlendColorChange()
-	end
-	if dstend >= ditherAddr and dst < ditherAddrEnd then
-		self:onDitherChange()
-	end
-	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddrEnd then
-		self:onUseHardwareLightingChange()
-	end
-
-	for _,blob in ipairs(self.blobs.sheet) do
-		if dstend >= blob.ramgpu.addr
-		and dst < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.tilemap) do
-		if dstend >= blob.ramgpu.addr
-		and dst < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.palette) do
-		if dstend >= blob.ramgpu.addr
-		and dst < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.font) do
-		if dstend >= blob.ramgpu.addr
-		and dst < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	-- TODO merge the above with their respective blobs
-	-- and then just cycle all blobs and flag here
-	for _,voxelmap in ipairs(self.blobs.voxelmap) do
-		if dstend >= voxelmap.addr
-		and dst < voxelmap.addrEnd
-		then
-			voxelmap.dirtyCPU = true
-		end
-	end
+	self:postPoke(dst, dstend)
 end
 
 function App:memset(dst, val, len)
@@ -2825,76 +2577,11 @@ function App:memset(dst, val, len)
 --DEBUG:assert.ge(dst, 0)
 --DEBUG:assert.ge(dstend, 0)
 
-	if dstend >= self.framebufferRAM.addr
-	and dst < self.framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
-		self.framebufferRAM.dirtyCPU = true
-	end
+	self:prePoke(dst, dstend)
 
 	ffi.fill(self.ram.v + dst, len, val)
 
-	-- write out tris using the modelMat,viewMat,projMat before they change
-	if dstend >= modelMatAddr and dst < modelMatAddrEnd then
-		self:onModelMatChange()
-	end
-	if dstend >= viewMatAddr and dst < viewMatAddrEnd then
-		self:onViewMatChange()
-	end
-	if dstend >= projMatAddr and dst < projMatAddrEnd then
-		self:onProjMatChange()
-	end
-	if dstend >= clipRectAddr and dst < clipRectAddrEnd then
-		self:onClipRectChange()
-	end
-	if dstend >= blendColorAddr and dst < blendColorAddrEnd then
-		self:onBlendColorChange()
-	end
-	if dstend >= ditherAddr and dst < ditherAddrEnd then
-		self:onDitherChange()
-	end
-	if dstend >= useHardwareLightingAddr and dst < useHardwareLightingAddrEnd then
-		self:onUseHardwareLightingChange()
-	end
-
-	for _,blob in ipairs(self.blobs.sheet) do
-		if dstend >= blob.ramgpu.addr
-		and dst < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.tilemap) do
-		if dstend >= blob.ramgpu.addr
-		and dst < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.palette) do
-		if dstend >= blob.ramgpu.addr
-		and dst < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.font) do
-		if dstend >= blob.ramgpu.addr
-		and dst < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	-- TODO merge the above with their respective blobs
-	-- and then just cycle all blobs and flag here
-	for _,voxelmap in ipairs(self.blobs.voxelmap) do
-		if dstend >= voxelmap.addr
-		and dst < voxelmap.addrEnd
-		then
-			voxelmap.dirtyCPU = true
-		end
-	end
+	self:postPoke(dsd, dstend)
 end
 
 -------------------- ROM STATE STUFF --------------------

@@ -23,9 +23,9 @@ function Orbit:init(app)
 	self.pos = self.angle:zAxis() * 1.5 + self.orbit
 
 	-- have to store as a memeber becuase it is used from beginDraw to endDraw
-	self.modelMatPush = matArrType
-	self.viewMatPush = matArrType
-	self.projMatPush = matArrType
+	self.modelMatPush = matArrType()
+	self.viewMatPush = matArrType()
+	self.projMatPush = matArrType()
 end
 
 function Orbit:beginDraw()

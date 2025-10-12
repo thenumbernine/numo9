@@ -1,13 +1,8 @@
 #!/usr/bin/env luajit
 
 --[=====[ thanks very much to https://github.com/CapsAdmin/NattLua/blob/master/nattlua/other/jit_options.lua
--- BUT FOR SOME REASON
--- ever since converting my ffi.new, typeof, sizeof, offsetof from strings to type-objects
--- mixed with this
--- and only at certain points in the code
--- i will get random sporadic rare segfaults
--- only when this is enabled.
--- what could be causing the problem?
+-- ... but for some reason I will get random sporadic rare segfaults only when this is enabled.
+-- so I'm leaving it commented out for now until I can safely tune it better.
 do
 	local jit = _G.jit
 	local table_insert = _G.table.insert
@@ -19,6 +14,7 @@ do
 		maxrecord = 4000, -- Max number of of recorded IR instructions.
 		maxirconst = 500, -- Max number of of IR constants of a trace.
 		maxside = 100, -- Max number of of side traces of a root trace.
+-- I was warned this could be the problem causing segfaults:
 		maxsnap = 500, -- Max number of of snapshots for a trace.
 		minstitch = 0, -- Min number of of IR ins for a stitched trace.
 		--
@@ -68,6 +64,7 @@ do
 		maxrecord = 50000,
 		maxirconst = 8000,
 		maxside = 100,
+-- I was warned this could be the problem causing segfaults:
 		maxsnap = 100,
 		hotloop = 5,
 		hotexit = 100,

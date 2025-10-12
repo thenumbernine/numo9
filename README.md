@@ -760,6 +760,12 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - PNG package `apt install libpng16-16t64`, or built from source [here](https://github.com/pnggroup/libpng).  My distributable binary is tag `v1.6.47`.
 	- For building libpng, I'm building against [zlib](https://github.com/madler/zlib) tag `v1.3.1`
 
+## Thanks
+
+- Sonoro1234 for his fork of `lfs_ffi`
+- BastardFerret for helping me get the linux build to work.
+- CapsAdmin for helping me get the OSX build to work.
+
 
 # TODO
 - compat breaking:
@@ -904,8 +910,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- how many dynamic shadowmap-based lights do modern games have?
 		- .... smh why not just do this all in screen-space?  and no shadows or at least marched shadows in the depth buffer...
 
-- double check SSAO hemisphere alignment to normal / make sure you're using the world coords or view coords or something.
-
 - fc ram light flags:
 	- sprite bumpmaps in the normalmap
 	- use ssao
@@ -932,8 +936,6 @@ TODO cart status:
 
 - change scripts from .lua to .rua becuase technically they're not .lua ...
 
-- I was just taught how I can use ffitypes to make pointers and arrays from other ffitypes, so no more storing ffitypes as strings
-	- now to replace 'struct' lib with luajit introspection
-	- also I introduced a crash in audio around when it loops music the first time so *shrug*
+- eventually replace 'struct' lib with luajit introspection
 
-- shadows are broken since i moved it to deferred-lighting.
+- maybe add a voxelmap swap just like i have a palette color swap, it is so useful
