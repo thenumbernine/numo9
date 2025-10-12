@@ -690,8 +690,19 @@ local function getBlendSolidColorCode(vec3, varname)
 ]]
 end
 
+-- I could just make a vertex shader obj of its own and link to the other programs but meh
+local blitScreenVertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]]
+
 -- this string can include template code that appears in all of them
-local blitScreenCommonCode = [[
+local blitScreenFragHeader = [[
 precision highp sampler2D;
 precision highp isampler2D;
 precision highp usampler2D;	// needed by #version 300 es
@@ -773,17 +784,9 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 		program = {
 			version = app.glslVersion,
 			precision = 'best',
-			vertexCode = [[
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
+			vertexCode = blitScreenVertexCode,
 			fragmentCode = template(
-blitScreenCommonCode..[[
+blitScreenFragHeader..[[
 
 void main() {
 #if 1	// internalFormat = gl.GL_RGB565
@@ -868,17 +871,9 @@ function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
 		program = {
 			version = app.glslVersion,
 			precision = 'best',
-			vertexCode = [[
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
+			vertexCode = blitScreenVertexCode,
 			fragmentCode = template(
-blitScreenCommonCode..[[
+blitScreenFragHeader..[[
 
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
@@ -971,17 +966,9 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 		program = {
 			version = app.glslVersion,
 			precision = 'best',
-			vertexCode = [[
-layout(location=0) in vec2 vertex;
-out vec2 tcv;
-uniform mat4 mvProjMat;
-void main() {
-	tcv = vertex;
-	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
-}
-]],
+			vertexCode = blitScreenVertexCode,
 			fragmentCode = template(
-blitScreenCommonCode..[[
+blitScreenFragHeader..[[
 
 void main() {
 	uint rgb332 = ]]..readTex{
@@ -1448,7 +1435,7 @@ void main() {
 
 #if 0	// color and bump height LINEAR ... gotta do it here, can't do it in mag filter texture because it's a u8 texture (TODO change to a GL_RED texture?  but then no promises on the value having 8 bits (but it's 2025, who am I kidding, it'll have 8 bits))
 
-		vec2 size = textureSize(sheetTex, 0);
+		vec2 size = vec2(textureSize(sheetTex, 0));
 		vec2 stc = tcv.xy * size - .5;
 		vec2 ftc = floor(stc);
 		vec2 fp = fract(stc);
@@ -1474,7 +1461,7 @@ void main() {
 #if 0	// bump height based on sprite sheet sampler which is NEAREST:
 		bumpHeight = dot(fragColor.xyz, greyscale);
 #else	// linear sampler in-shader for bump height / lighting only:
-		vec2 size = textureSize(sheetTex, 0);
+		vec2 size = vec2(textureSize(sheetTex, 0));
 		vec2 stc = tcv.xy * size - .5;
 		vec2 ftc = floor(stc);
 		vec2 fp = fract(stc);
@@ -2026,6 +2013,10 @@ function AppVideo:initVideo()
 	self.calcLight_DrawProjInvMat = ident4x4:clone()
 --]]
 
+	-- set 255 mode first so that it has resources (cuz App:update() needs them for the menu)
+	self:setVideoMode(255)
+assert(self.videoModes[255])
+
 
 	self:resetVideo()
 
@@ -2086,7 +2077,7 @@ const float ssaoInfluence = 1.;	// 1 = 100% = you'll see black in fully-occluded
 
 // these are the random vectors inside a unit hemisphere facing z+
 #define ssaoNumSamples 8
-const vec3[ssaoNumSamples] ssaoRandomVectors = {
+const vec3[ssaoNumSamples] ssaoRandomVectors = vec3[ssaoNumSamples](
 	vec3(0.58841258486248, 0.39770493127433, 0.18020748345621),
 	vec3(-0.055272473410801, 0.35800974374131, 0.15028358974804),
 	vec3(0.3199885122024, -0.57765628483213, 0.19344714028561),
@@ -2094,7 +2085,7 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 	vec3(0.6591556369125, 0.25301657986158, 0.65350042181301),
 	vec3(0.37855701974814, 0.013090583813782, 0.71111037617741),
 	vec3(0.53098955685005, 0.39114666484126, 0.29796836757796),
-	vec3(-0.27445479803038, 0.28177659836742, 0.89415105823562),
+	vec3(-0.27445479803038, 0.28177659836742, 0.89415105823562)
 #if 0
 	vec3(0.030042725676812, 0.3941820959086, 0.099681999794761),
 	vec3(-0.60144625790746, 0.6112734005649, 0.3676468627808),
@@ -2103,9 +2094,9 @@ const vec3[ssaoNumSamples] ssaoRandomVectors = {
 	vec3(0.49667204075871, 0.12506306502285, 0.65431856367262),
 	vec3(-0.086390931280017, 0.5832061191173, 0.29234165779378),
 	vec3(-0.24610823044055, 0.77791376069684, 0.57363108026349),
-	vec3(-0.194238481883, 0.01011984889981, 0.88466521192798),
+	vec3(-0.194238481883, 0.01011984889981, 0.88466521192798)
 #endif
-};
+);
 
 void main() {
 	fragColor = vec4(1., 1., 1., 1.);
@@ -2675,11 +2666,6 @@ function AppVideo:resetVideo()
 	self.ram.videoMode = 0	-- 16bpp RGB565
 	--self.ram.videoMode = 1	-- 8bpp indexed
 	--self.ram.videoMode = 2	-- 8bpp RGB332
-
-	-- set 255 mode first so that it has resources (cuz App:update() needs them for the menu)
-	self:setVideoMode(255)
-
-assert(self.videoModes[255])
 
 	-- then set to 0 for our default game env
 	self:setVideoMode(self.ram.videoMode)

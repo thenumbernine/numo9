@@ -1,4 +1,18 @@
-mode(1)
+-- hmm only mode 0 is working for this .... why?
+mode(0)
+--mode(1)
+--mode(2)
+--mode(3)
+
+local w = peekw(ramaddr'screenWidth')
+local h = peekw(ramaddr'screenHeight')
+trace('w, h', w, h)
+-- [[
+matident()
+matident(1)
+matident(2)
+matortho(0, w, h, 0)
+--]]
 
 print'Hello NuMo9'
 
@@ -8,8 +22,8 @@ local mapMem = blobaddr'tilemap'
 local palMem = blobaddr'palette'
 
 -- [=[ fill our tiles with a gradient
-for j=0,255 do
-	for i=0,255 do
+for j=0,h-1 do
+	for i=0,w-1 do
 		poke(tileMem + (i|(j<<8)), (i+j)%240)
 	end
 end
@@ -30,10 +44,12 @@ function update()
 
 -- [=[ fill our map with random tiles
 
+-- [[
 	matident()
 	matident(1)
 	matident(2)
 	matortho(0, w, h, 0)
+--]]
 
 	--[[ all?
 	for j=0,31 do
@@ -82,6 +98,7 @@ function update()
 		math.floor(50 * t)
 	)
 
+-- [[
 	matident()
 	matident(1)
 	matident(2)
@@ -89,6 +106,7 @@ function update()
 
 	mattrans(x2,y2)
 	matrot(t, 0, 0, 1)
+--]]	
 	text(
 		'HelloWorld', -- str
 		0, 0,        -- x y
