@@ -2741,8 +2741,8 @@ function AppVideo:resetVideo()
 		self.ram.fontWidth[i] = 5
 	end
 
-	self.ram.textFgColor = 12
-	self.ram.textBgColor = 0
+	self.ram.textFgColor = 0xfc
+	self.ram.textBgColor = 0xf0
 
 
 	-- init light vars
