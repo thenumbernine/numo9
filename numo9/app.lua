@@ -2160,7 +2160,7 @@ print('run thread dead')
 			needDrawCounter = 1
 		end
 
-		self:updateLigthCalcText()
+		self:updateLightCalcText()
 
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1

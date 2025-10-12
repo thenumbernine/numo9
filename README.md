@@ -935,3 +935,5 @@ TODO cart status:
 - I was just taught how I can use ffitypes to make pointers and arrays from other ffitypes, so no more storing ffitypes as strings
 	- now to replace 'struct' lib with luajit introspection
 	- also I introduced a crash in audio around when it loops music the first time so *shrug*
+
+- shadows are broken since i moved it to deferred-lighting.
