@@ -1,6 +1,7 @@
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
+local class = require 'ext.class'
 local table = require 'ext.table'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
@@ -39,6 +40,7 @@ local function vec3to3(m, x, y, z)
 		m[2] * x + m[6] * y + m[10] * z + m[14]
 end
 
+
 -- rotZ, rotY, rotX are from Voxel type, so they are from 1-2 bits in size, each representing Euler-angles 90-degree rotation
 local function rotateSideByOrientation(sideIndex, rotZ, rotY, rotX)
 	-- use a table or something, or flip bits
@@ -69,6 +71,304 @@ local function rotateSideByOrientation(sideIndex, rotZ, rotY, rotX)
 		sign < 0 and 1 or 0,
 		bit.lshift(axis, 1))
 end
+
+
+local function shiftDownAndRoundUp(x, bits)
+	local y = bit.rshift(x, bits)
+	local mask = bit.lshift(1, bits) - 1
+	if bit.band(x, mask) ~= 0 then y = y + 1 end
+	return y
+end
+
+
+
+local Chunk = class()
+
+-- static member
+Chunk.bitsize = vec3i(5, 5, 5)
+Chunk.size = Chunk.bitsize:map(function(x) return bit.lshift(1, x) end)
+Chunk.bitmask = Chunk.size - 1
+Chunk.volume = Chunk.size:volume()	-- same as 1 << bitsize:sum() (if i had a :sum() function...)
+
+local VoxelChunkVolumeArr = ffi.typeof('$['..Chunk.volume..']', Voxel)
+
+function Chunk:init(args)
+	local voxelmap = assert(args.voxelmap)
+	self.voxelmap = voxelmap
+
+	-- chunk position, in Chunk.size units
+	self.chunkPos = vec3i((assert.index(args, 'chunkPos')))
+
+	-- for now don't store data in chunks, just meshes.
+	--[[
+	self.v = ffi.new(VoxelChunkVolumeArr, self.volume)
+	ffi.fill(self.v, ffi.sizeof(VoxelChunkVolumeArr), -1)	-- fills with 0xff, right?
+	--]]
+
+	local volume = self.volume
+	self.vertexBufCPU = vector(Numo9Vertex)
+end
+
+local tmpMat = matrix_ffi({4,4}, 'float'):zeros()
+function Chunk:rebuildMesh(app)
+	self.vertexBufCPU:resize(0)
+
+	-- ok here I shoot myself in the foot just a bit
+	-- cuz now that I'm baking extra flags,
+	-- that means I can no longer update the voxelmap spriteBit, spriteMask, transparentIndex, paletteIndex,
+	-- not without rebuilding the whole mesh
+	-- but even before it meant recalculating extra every time we draw so *shrug* I don't miss it
+	-- maybe those should all be uniforms anyways?
+	local spriteBit = 0
+	local spriteMask = 0xFF
+	local transparentIndex = -1
+	local paletteIndex = 0
+
+	-- also in drawTexTri3D:
+	local drawFlags = bit.bor(
+		-- bits 0/1 == 01b <=> use sprite pathway:
+		1,
+		-- if transparency is oob then flag the "don't use transparentIndex" bit:
+		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
+		-- store sprite bit shift in the next 3 bits:
+		bit.lshift(spriteBit, 3),
+
+		bit.lshift(spriteMask, 8)
+	)
+
+	local extra = vec4us(
+		drawFlags,
+		0,
+		transparentIndex,
+		paletteIndex)
+
+	local voxelmapSize = self.voxelmap:getVoxelSize()
+print('voxelmapSize', voxelmapSize)
+	-- which to build this off of?
+	-- RAMPtr since thats what AppVideo:drawVoxelMap() uses
+	-- but that means it wont be present upon init() ...
+	local mp = tmpMat.ptr
+	local voxels = assert(self.voxelmap:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
+	local occludedCount = 0
+
+	local ci, cj, ck = self.chunkPos:unpack()
+print('cpos', ci, cj, ck)
+
+	local nbhd = vec3i()
+	for k=0,Chunk.size.z-1 do
+		local vk = bit.bor(k, bit.lshift(ck, Chunk.bitsize.z))
+		if vk < voxelmapSize.z then
+			for j=0,Chunk.size.y-1 do
+				local vj = bit.bor(j, bit.lshift(cj, Chunk.bitsize.y))
+				if vj < voxelmapSize.y then
+
+					-- at least traverse rows
+					local vptr = voxels + (bit.lshift(ci, Chunk.bitsize.x) + voxelmapSize.x * (vj + voxelmapSize.y * vk))
+
+					for i=0,Chunk.size.x-1 do
+						local vi = bit.bor(i, bit.lshift(ci, Chunk.bitsize.x))
+
+--print('cpos', ci, cj, ck, 'pos', i, j, k, 'vpos', vi, vj, vk)
+
+						-- lookup each voxel
+						--local vptr = voxels + (vi + voxelmapSize.x * (vj + voxelmapSize.y * vk))
+
+						-- chunks can extend beyond the voxelmap when it isnt chunk-aligned in size
+						if vi < voxelmapSize.x
+						and vptr.intval ~= voxelMapEmptyValue
+						then
+							tmpMat:setTranslate(vi+.5, vj+.5, vk+.5)
+							tmpMat:applyScale(1/32768, 1/32768, 1/32768)
+
+							if vptr.orientation == 20 then
+								self.voxelmap.billboardXYZVoxels:emplace_back()[0]:set(vi,vj,vk)
+							elseif vptr.orientation == 21 then
+								self.voxelmap.billboardXYVoxels:emplace_back()[0]:set(vi,vj,vk)
+							elseif vptr.orientation == 22 then
+								-- TODO
+							elseif vptr.orientation == 23 then
+								-- TODO
+							else
+								--[[
+								0 c= 1 s= 0
+								1 c= 0 s= 1
+								2 c=-1 s= 0
+								3 c= 0 s=-1
+								--]]
+
+								if vptr.rotZ == 1 then
+									--[[
+									[ m0 m4 m8  m12] [ 0 -1 0 0 ]
+									[ m1 m5 m9  m13] [ 1  0 0 0 ]
+									[ m2 m6 m10 m14] [ 0  0 1 0 ]
+									[ m3 m7 m11 m15] [ 0  0 0 1 ]
+									--]]
+									mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
+									= mp[4], mp[5], mp[6], -mp[0], -mp[1], -mp[2]
+								elseif vptr.rotZ == 2 then
+									--[[
+									[ m0 m4 m8  m12] [ -1  0 0 0 ]
+									[ m1 m5 m9  m13] [  0 -1 0 0 ]
+									[ m2 m6 m10 m14] [  0  0 1 0 ]
+									[ m3 m7 m11 m15] [  0  0 0 1 ]
+									--]]
+									mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
+									= -mp[0], -mp[1], -mp[2], -mp[4], -mp[5], -mp[6]
+								elseif vptr.rotZ == 3 then
+									--[[
+									[ m0 m4 m8  m12] [  0 1 0 0 ]
+									[ m1 m5 m9  m13] [ -1 0 0 0 ]
+									[ m2 m6 m10 m14] [  0 0 1 0 ]
+									[ m3 m7 m11 m15] [  0 0 0 1 ]
+									--]]
+									mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
+									= -mp[4], -mp[5], -mp[6], mp[0], mp[1], mp[2]
+								end
+
+								if vptr.rotY == 1 then
+									--[[
+									[ m0 m4 m8  m12] [  0 0 1 0 ]
+									[ m1 m5 m9  m13] [  0 1 0 0 ]
+									[ m2 m6 m10 m14] [ -1 0 0 0 ]
+									[ m3 m7 m11 m15] [  0 0 0 1 ]
+									--]]
+									mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
+									= -mp[8], -mp[9], -mp[10], mp[0], mp[1], mp[2]
+								elseif vptr.rotY == 2 then
+									mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
+									= -mp[0], -mp[1], -mp[2], -mp[8], -mp[9], -mp[10]
+								elseif vptr.rotY == 3 then
+									mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
+									= mp[8], mp[9], mp[10], -mp[0], -mp[1], -mp[2]
+								end
+
+								if vptr.rotX == 1 then
+									--[[
+									[ m0 m4 m8  m12] [ 1 0  0 0 ]
+									[ m1 m5 m9  m13] [ 0 0 -1 0 ]
+									[ m2 m6 m10 m14] [ 0 1  0 0 ]
+									[ m3 m7 m11 m15] [ 0 0  0 1 ]
+									--]]
+									mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
+									= mp[12], mp[13], mp[14], -mp[0], -mp[1], -mp[2]
+								elseif vptr.rotX == 2 then
+									mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
+									= -mp[0], -mp[1], -mp[2], -mp[12], -mp[13], -mp[14]
+								elseif vptr.rotX == 3 then
+									mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
+									= -mp[12], -mp[13], -mp[14], mp[0], mp[1], mp[2]
+								end
+
+								local uofs = bit.lshift(vptr.tileXOffset, 3)
+								local vofs = bit.lshift(vptr.tileYOffset, 3)
+
+								local mesh = app.blobs.mesh3d[vptr.mesh3DIndex+1]
+								if mesh then
+									local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
+
+									-- resize first then offest back in case we get a resize ...
+									self.vertexBufCPU:reserve(#self.vertexBufCPU + #mesh.triList)
+
+									for ti=0,#mesh.triList-1 do
+										local tri = mesh.triList.v[ti]
+										local ai, bi, ci = tri.x, tri.y, tri.z
+
+										-- see if this face is aligned to an AABB
+										-- see if its neighbors face is occluding on that AABB
+										-- if both are true then skip
+										local occluded
+
+										-- TODO
+										-- transparency
+										-- hmm
+										-- I'd say "check every used texel for trnsparency and don't occulde if any are transparent"
+										-- but nothing's to stop from shifting palettes later
+										-- hmmmmmmm
+
+
+		-- occluding takes our build time from 84s to 10s
+		-- [[
+										local sideIndex = mesh.sideForTriIndex[ti]
+										if sideIndex then
+											-- TODO TODO sides need to be influenced by orientation too ...
+											sideIndex = rotateSideByOrientation(sideIndex, vptr.rotZ, vptr.rotY, vptr.rotX)
+
+											-- offet into 'sideIndex'
+											local sign = 1 - 2 * bit.band(1, sideIndex)
+											local axis = bit.rshift(sideIndex, 1)
+
+											nbhd.x, nbhd.y, nbhd.z = vi,vj,vk
+											nbhd.s[axis] = nbhd.s[axis] + sign
+											if nbhd.x >= 0 and nbhd.x < voxelmapSize.x
+											and nbhd.y >= 0 and nbhd.y < voxelmapSize.y
+											and nbhd.z >= 0 and nbhd.z < voxelmapSize.z
+											then
+												-- if it occludes the opposite side then skip this tri
+												local nbhdVox = voxels[nbhd.x + voxelmapSize.x * (nbhd.y + voxelmapSize.y * nbhd.z)]
+												local nbhdmesh = app.blobs.mesh3d[nbhdVox.mesh3DIndex+1]
+												if nbhdmesh then
+													local oppositeSideIndex = bit.bxor(1, sideIndex)
+													oppositeSideIndex = rotateSideByOrientation(oppositeSideIndex, nbhdVox.rotZ, nbhdVox.rotY, nbhdVox.rotX)
+													occluded = nbhdmesh.sidesOccluded[oppositeSideIndex]
+												end
+											end
+										end
+		--]]
+
+		-- 10s slowdown still present in here:
+		-- [[
+										if occluded then
+											occludedCount = occludedCount + 1
+										else
+											local va = srcVtxs + ai
+											local vb = srcVtxs + bi
+											local vc = srcVtxs + ci
+
+											local normal = mesh.normalList.v[ti]
+
+											local srcv = va
+											local dstVtx = self.vertexBufCPU:emplace_back()
+											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
+											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx.normal = normal
+											dstVtx.extra = extra
+											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
+
+											local srcv = vb
+											local dstVtx = self.vertexBufCPU:emplace_back()
+											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
+											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx.normal = normal
+											dstVtx.extra = extra
+											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
+
+											local srcv = vc
+											local dstVtx = self.vertexBufCPU:emplace_back()
+											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
+											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
+											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
+											dstVtx.normal = normal
+											dstVtx.extra = extra
+											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
+										end
+		--]]
+									end
+								end
+							end
+						end
+						vptr = vptr + 1
+					end
+				end
+			end
+		end
+	end
+--DEBUG:print('created', #self.vertexBufCPU/3, 'tris')
+--DEBUG:print('occluded', occludedCount, 'tris')
+end
+
+
 
 --[[
 format:
@@ -108,11 +408,65 @@ function BlobVoxelMap:init(data)
 	self.billboardXYZVoxels = vector(vec3i)	-- type 20
 	self.billboardXYVoxels = vector(vec3i)	-- type 21
 
-	self.vertexBufCPU = vector(Numo9Vertex)
 
 	self.dirtyCPU = true
-	-- can't do this yet, not until .ramptr is defined
+	-- can't build the mesh yet, not until .ramptr is defined
 	--self:rebuildMesh()
+
+	-- TODO instead of storing ... three times in memory:
+	-- 	- once as the blob from the cart file
+	--	- once in RAM
+	--	- once in the chunks
+	-- how about just storing it in RAM and chunks only?
+	-- For one, because the archiver wants the data continuous in :getPtr() ...
+	-- how to work around this ...
+	local voxptr = self:getVoxelDataBlobPtr()
+
+	-- 0-based, index from interleaving chunkPos with self:voxelSizeInChunks()
+	self.chunks = {}
+	local voxelmapSize = self:getVoxelSize()
+	local sizeInChunks = self:getVoxelSizeInChunks()
+	local sizeInChunksRoundDown = self:getVoxelSize():map(function(x,i)
+		return bit.rshift(x, Chunk.bitsize.s[i])
+	end)
+	-- create the chunks
+	do
+		local chunkIndex = 0
+		for ck=0,sizeInChunks.z-1 do
+			for cj=0,sizeInChunks.y-1 do
+				for ci=0,sizeInChunks.x-1 do
+					local chunk = Chunk{
+						voxelmap = self,
+						chunkPos = vec3i(ci,cj,ck),
+					}
+					self.chunks[chunkIndex] = chunk
+
+					-- for now don't store data in chunks, just meshes.
+					--[[ can't always do this ...
+					ffi.copy(chunk.v, voxptr + chunkIndex * Chunk.volume, ffi.sizeof(VoxelChunkVolumeArr))
+					--]]
+					--[[
+					for k=0,Chunk.size.z-1 do
+						for j=0,Chunk.size.y-1 do
+							for i=0,Chunk.size.x-1 do
+								-- voxelmap index:
+								local vi = bit.bor(i, bit.lshift(ci, Chunk.bitsize.x))
+								local vj = bit.bor(j, bit.lshift(cj, Chunk.bitsize.y))
+								local vk = bit.bor(k, bit.lshift(ck, Chunk.bitsize.z))
+								-- copy block by block
+								-- TODO maybe ffi.copy by row eventually
+								chunk.v[i + Chunk.size.x * (j + Chunk.size.y * k)]
+									= voxptr[vi + voxelmapSize.x * (vj + voxelmapSize.y * vk)]
+							end
+						end
+					end
+					--]]
+
+					chunkIndex = chunkIndex + 1
+				end
+			end
+		end
+	end
 end
 
 function BlobVoxelMap:getPtr()
@@ -123,6 +477,7 @@ function BlobVoxelMap:getSize()
 	return self.vec:getNumBytes()
 end
 
+-- get size by the blob, not the RAM...
 function BlobVoxelMap:getWidth()
 	return self.vec.v[0].intval
 end
@@ -133,6 +488,18 @@ end
 
 function BlobVoxelMap:getDepth()
 	return self.vec.v[2].intval
+end
+
+function BlobVoxelMap:getVoxelSize()
+	return vec3i(self:getWidth(), self:getHeight(), self:getDepth())
+end
+
+function BlobVoxelMap:getVoxelSizeInChunks()
+	local size = self:getVoxelSize()
+	return vec3i(
+		shiftDownAndRoundUp(size.x, Chunk.bitsize.x),
+		shiftDownAndRoundUp(size.y, Chunk.bitsize.y),
+		shiftDownAndRoundUp(size.z, Chunk.bitsize.z))
 end
 
 function BlobVoxelMap:getVoxelDataBlobPtr()
@@ -180,253 +547,23 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 
-	self.vertexBufCPU:resize(0)
-
-	-- ok here I shoot myself in the foot just a bit
-	-- cuz now that I'm baking extra flags,
-	-- that means I can no longer update the voxelmap spriteBit, spriteMask, transparentIndex, paletteIndex,
-	-- not without rebuilding the whole mesh
-	-- but even before it meant recalculating extra every time we draw so *shrug* I don't miss it
-	-- maybe those should all be uniforms anyways?
-	local spriteBit = 0
-	local spriteMask = 0xFF
-	local transparentIndex = -1
-	local paletteIndex = 0
-
-	-- also in drawTexTri3D:
-	local drawFlags = bit.bor(
-		-- bits 0/1 == 01b <=> use sprite pathway:
-		1,
-		-- if transparency is oob then flag the "don't use transparentIndex" bit:
-		(transparentIndex < 0 or transparentIndex >= 256) and 4 or 0,
-		-- store sprite bit shift in the next 3 bits:
-		bit.lshift(spriteBit, 3),
-
-		bit.lshift(spriteMask, 8)
-	)
-
-	local extra = vec4us(
-		drawFlags,
-		0,
-		transparentIndex,
-		paletteIndex)
-
-	local width, height, depth= self:getWidth(), self:getHeight(), self:getDepth()
-	-- which to build this off of?
-	-- RAMPtr since thats what AppVideo:drawVoxelMap() uses
-	-- but that means it wont be present upon init() ...
-	local m = matrix_ffi({4,4}, 'double'):zeros()
-	local mp = m.ptr
-	local voxels = assert(self:getVoxelDataRAMPtr(), 'BlobVoxelMap rebuildMesh .ramptr missing')
-	local vptr = voxels
-	local occludedCount = 0
-
 local lastTime = os.time()
 
-	local nbhd = vec3i()
-	for k=0,depth-1 do
-		for j=0,height-1 do
+	self.chunkVolume = self:getVoxelSizeInChunks():volume()
+	for chunkIndex=0,self.chunkVolume-1 do
 
 local thisTime = os.time()
 if thisTime ~= lastTime then
-	local pos = j + height * k
-	local total = depth * height
-	print(('...%f%%'):format(100 * pos / total))
+	print(('...%f%%'):format(100 * chunkIndex / self.chunkVolume))
 	lastTime = thisTime
 end
 
-			for i=0,width-1 do
-				if vptr.intval ~= voxelMapEmptyValue then
-					m:setTranslate(i+.5, j+.5, k+.5)
-					m:applyScale(1/32768, 1/32768, 1/32768)
-
-					if vptr.orientation == 20 then
-						self.billboardXYZVoxels:emplace_back()[0]:set(i,j,k)
-					elseif vptr.orientation == 21 then
-						self.billboardXYVoxels:emplace_back()[0]:set(i,j,k)
-					elseif vptr.orientation == 22 then
-						-- TODO
-					elseif vptr.orientation == 23 then
-						-- TODO
-					else
-						--[[
-						0 c= 1 s= 0
-						1 c= 0 s= 1
-						2 c=-1 s= 0
-						3 c= 0 s=-1
-						--]]
-
-						if vptr.rotZ == 1 then
-							--[[
-							[ m0 m4 m8  m12] [ 0 -1 0 0 ]
-							[ m1 m5 m9  m13] [ 1  0 0 0 ]
-							[ m2 m6 m10 m14] [ 0  0 1 0 ]
-							[ m3 m7 m11 m15] [ 0  0 0 1 ]
-							--]]
-							mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
-							= mp[4], mp[5], mp[6], -mp[0], -mp[1], -mp[2]
-						elseif vptr.rotZ == 2 then
-							--[[
-							[ m0 m4 m8  m12] [ -1  0 0 0 ]
-							[ m1 m5 m9  m13] [  0 -1 0 0 ]
-							[ m2 m6 m10 m14] [  0  0 1 0 ]
-							[ m3 m7 m11 m15] [  0  0 0 1 ]
-							--]]
-							mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
-							= -mp[0], -mp[1], -mp[2], -mp[4], -mp[5], -mp[6]
-						elseif vptr.rotZ == 3 then
-							--[[
-							[ m0 m4 m8  m12] [  0 1 0 0 ]
-							[ m1 m5 m9  m13] [ -1 0 0 0 ]
-							[ m2 m6 m10 m14] [  0 0 1 0 ]
-							[ m3 m7 m11 m15] [  0 0 0 1 ]
-							--]]
-							mp[0], mp[1], mp[2], mp[4], mp[5], mp[6]
-							= -mp[4], -mp[5], -mp[6], mp[0], mp[1], mp[2]
-						end
-
-						if vptr.rotY == 1 then
-							--[[
-							[ m0 m4 m8  m12] [  0 0 1 0 ]
-							[ m1 m5 m9  m13] [  0 1 0 0 ]
-							[ m2 m6 m10 m14] [ -1 0 0 0 ]
-							[ m3 m7 m11 m15] [  0 0 0 1 ]
-							--]]
-							mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
-							= -mp[8], -mp[9], -mp[10], mp[0], mp[1], mp[2]
-						elseif vptr.rotY == 2 then
-							mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
-							= -mp[0], -mp[1], -mp[2], -mp[8], -mp[9], -mp[10]
-						elseif vptr.rotY == 3 then
-							mp[0], mp[1], mp[2], mp[8], mp[9], mp[10]
-							= mp[8], mp[9], mp[10], -mp[0], -mp[1], -mp[2]
-						end
-
-						if vptr.rotX == 1 then
-							--[[
-							[ m0 m4 m8  m12] [ 1 0  0 0 ]
-							[ m1 m5 m9  m13] [ 0 0 -1 0 ]
-							[ m2 m6 m10 m14] [ 0 1  0 0 ]
-							[ m3 m7 m11 m15] [ 0 0  0 1 ]
-							--]]
-							mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
-							= mp[12], mp[13], mp[14], -mp[0], -mp[1], -mp[2]
-						elseif vptr.rotX == 2 then
-							mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
-							= -mp[0], -mp[1], -mp[2], -mp[12], -mp[13], -mp[14]
-						elseif vptr.rotX == 3 then
-							mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
-							= -mp[12], -mp[13], -mp[14], mp[0], mp[1], mp[2]
-						end
-
-						local uofs = bit.lshift(vptr.tileXOffset, 3)
-						local vofs = bit.lshift(vptr.tileYOffset, 3)
-
-						local mesh = app.blobs.mesh3d[vptr.mesh3DIndex+1]
-						if mesh then
-							local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
-
-							-- resize first then offest back in case we get a resize ...
-							self.vertexBufCPU:reserve(#self.vertexBufCPU + #mesh.triList)
-
-							for ti=0,#mesh.triList-1 do
-								local tri = mesh.triList.v[ti]
-								local ai, bi, ci = tri.x, tri.y, tri.z
-
-								-- see if this face is aligned to an AABB
-								-- see if its neighbors face is occluding on that AABB
-								-- if both are true then skip
-								local occluded
-
-								-- TODO
-								-- transparency
-								-- hmm
-								-- I'd say "check every used texel for trnsparency and don't occulde if any are transparent"
-								-- but nothing's to stop from shifting palettes later
-								-- hmmmmmmm
-
-
--- occluding takes our build time from 84s to 10s
--- [[
-								local sideIndex = mesh.sideForTriIndex[ti]
-								if sideIndex then
-									-- TODO TODO sides need to be influenced by orientation too ...
-									sideIndex = rotateSideByOrientation(sideIndex, vptr.rotZ, vptr.rotY, vptr.rotX)
-
-									-- offet into 'sideIndex'
-									local sign = 1 - 2 * bit.band(1, sideIndex)
-									local axis = bit.rshift(sideIndex, 1)
-
-									nbhd.x, nbhd.y, nbhd.z = i,j,k
-									nbhd.s[axis] = nbhd.s[axis] + sign
-									if nbhd.x >= 0 and nbhd.x < width
-									and nbhd.y >= 0 and nbhd.y < height
-									and nbhd.z >= 0 and nbhd.z < depth
-									then
-										-- if it occludes the opposite side then skip this tri
-										local nbhdVox = voxels[nbhd.x + width * (nbhd.y + height * nbhd.z)]
-										local nbhdmesh = app.blobs.mesh3d[nbhdVox.mesh3DIndex+1]
-										if nbhdmesh then
-											local oppositeSideIndex = bit.bxor(1, sideIndex)
-											oppositeSideIndex = rotateSideByOrientation(oppositeSideIndex, nbhdVox.rotZ, nbhdVox.rotY, nbhdVox.rotX)
-											occluded = nbhdmesh.sidesOccluded[oppositeSideIndex]
-										end
-									end
-								end
---]]
-
--- 10s slowdown still present in here:
--- [[
-								if occluded then
-									occludedCount = occludedCount + 1
-								else
-									local va = srcVtxs + ai
-									local vb = srcVtxs + bi
-									local vc = srcVtxs + ci
-
-									local normal = mesh.normalList.v[ti]
-
-									local srcv = va
-									local dstVtx = self.vertexBufCPU:emplace_back()
-									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal = normal
-									dstVtx.extra = extra
-									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
-
-									local srcv = vb
-									local dstVtx = self.vertexBufCPU:emplace_back()
-									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal = normal
-									dstVtx.extra = extra
-									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
-
-									local srcv = vc
-									local dstVtx = self.vertexBufCPU:emplace_back()
-									dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(m.ptr, srcv.x, srcv.y, srcv.z)
-									dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
-									dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
-									dstVtx.normal = normal
-									dstVtx.extra = extra
-									dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
-								end
---]]
-							end
-						end
-					end
-				end
-				vptr = vptr + 1
-			end
-		end
+		self.chunks[chunkIndex]:rebuildMesh(app)
 	end
 end))
---DEBUG:print('created', #self.vertexes/3, 'tris')
---DEBUG:print('occluded', occludedCount, 'tris')
 end
 
+--[====[ I don't think I'll bring this back until it is in the Chunk class
 -- needs triBuf_prepAddTri to be called beforehand
 function BlobVoxelMap:drawMesh(app)
 	if #self.vertexBufCPU == 0 then return end
@@ -505,5 +642,6 @@ function BlobVoxelMap:delete()
 end
 
 BlobVoxelMap.__gc = BlobVoxelMap.delete
+--]====]
 
 return BlobVoxelMap

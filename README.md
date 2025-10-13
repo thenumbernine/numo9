@@ -253,6 +253,8 @@ The editor voxelmap controls:
 - alt+left-click-and-drag to zoom.
 - ctrl+alt+left-click-and-drag to pan the camera.
 
+Voxelmap mesh generation is currently stored in chunks, however the voxel data itself is still in one giant `[z][y][x]` blob in RAM.
+
 ### Audio
 (note to self, split this between sfx & music blob format and the APU specs)
 
@@ -949,3 +951,5 @@ TODO cart status:
 	Instead I should push objects that can apply undo/redo changes, this will use much less memory.
 
 - ANOTHER BIG TODO - voxelmap into chunks, so you dont rebuild the whole thing every modification.
+
+- I need to rebuild luajit-vanilla under debootstrap so I can release it instead of luajit-openresty, because of weird perfomance problesm of openresty

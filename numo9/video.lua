@@ -4678,16 +4678,19 @@ function AppVideo:drawVoxelMap(
 		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
 		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
 
-		local srcVtxs = voxelmap.vertexBufCPU
-		local srcLen = #srcVtxs
+		for i=0,voxelmap.chunkVolume-1 do
+			local chunk = voxelmap.chunks[i]
+			local srcVtxs = chunk.vertexBufCPU
+			local srcLen = #srcVtxs
 
-		local dstVtxs = self.vertexBufCPU
-		local dstLen = #dstVtxs
-		local writeOfs = dstLen
+			local dstVtxs = self.vertexBufCPU
+			local dstLen = #dstVtxs
+			local writeOfs = dstLen
 
-		dstVtxs:resize(dstLen + srcLen)
-		local dstVtxPtr = dstVtxs.v + writeOfs
-		ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+			dstVtxs:resize(dstLen + srcLen)
+			local dstVtxPtr = dstVtxs.v + writeOfs
+			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+		end
 	end
 	--]]
 	--[[ draw using blob/voxelmap's own GPU buffer
