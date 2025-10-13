@@ -854,18 +854,12 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - netplay persistent data maybe ...
 	- one set per-game
 	- one set per-game-per-server
-- add custom properties to brushmaps.
-	- maybe convert it back to a Lua data file instead of a binary file.
-	- add a key/value editor per-brush for custom properties.
+
 - add a way to create default cube/slope/billboard meshes for voxelmap?  maybe as an extra script?
 - video modes / framebuffers...
-	- SSAO?
 	- pickbuffer?
-	- should I allocate every mode's fbo tex up front, or only on request?
 	- should I allow for framebuffers bigger than the "fantasy console"'s 128kb limit?  i.e. through fbo relocation / using a data-blob thats bigger?
 		- should I allow custom sizes?
-		- should I allow no buffer / native resolution?  (then you can't do fbo tex effects / normalmap / pickmap)
-			- native res for editor only?
 - voxelmap is still being copied from CPU mesh-cache to CPU draw tri buffer every frame ...
 	- I should just give it its own GLArrayBuffers.
 	- without it, even memcpy'ing the prepared voxelmap mesh has a very large random range of performance (depending on cache alignment issues i guess???)
@@ -900,7 +894,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- normal-lighting
 		- bumpmapping from sprites
 		- SSAO
-	- add SSAO vars to RAM
+		- use shadowmaps
 	- get a single directional light working (CHECK)
 		- then get multiple
 		- sized buffer/viewport smaller than typical view fo
@@ -910,16 +904,8 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- how many dynamic shadowmap-based lights do modern games have?
 		- .... smh why not just do this all in screen-space?  and no shadows or at least marched shadows in the depth buffer...
 
-- fc ram light flags:
-	- sprite bumpmaps in the normalmap
-	- use ssao
-	- use shadowmaps
-- and more lightmap ram vars .... a lot to tune ...
-- settings config to disable each of the lightmap features
-
 - langfix is typically negligible, but it's giving me roughly 1 second per 10,000 lines of code .......
 
-- voxelmap editor mouse rays from out of the volume don't choose border voxels correctly.
 - TODO introduce backface culling.... ???
 	- render flipped sprites with hflip/vflip flag so flipping their vertexes doesnt cull them.
 	- render 2D trad-console viewports with z reversed so that rendering a y-flip scene doesn't cull everything....
@@ -944,5 +930,14 @@ TODO cart status:
 	- proly with a modal dialog
 	- when will I give up and just use my lua-gui library?
 
-- shadows wont cast on sprites?
 - editor voxelmap shadows dont work, meh.
+
+- entity key/value 3D editor with
+	- one key will tell either how to draw or one per sprite, tilemap, brush, brushmap, mesh3d, voxelmap
+	- one key, like 'pos', will denote the position, as comma-sep or space-sep vector or something
+		- can be 2D or 3D
+	- one key like 'size' for size.  2D or 3D.  size is only used in 2D for brushmap atm. maybe I'll do 3D voxelbrushmap someday.
+	- and the rest is all on the user
+	- then add some panels for "overlay with tilemap / brushmap / voxelmap"  so as you edit you can calibrate positions etc.
+	- This is turning into a scenegraph tab.
+

@@ -271,7 +271,7 @@ function EditVoxelMap:update()
 			end
 			if mapbox:contains(mousePos) then
 				local npti = mousePos:map(math.floor)
-				local pti
+				local pti = npti:clone()
 				-- then march through the voxelmap
 				while true do
 					local vaddr = voxelmap:getVoxelAddr(npti.x, npti.y, npti.z)
@@ -294,7 +294,7 @@ function EditVoxelMap:update()
 					-- stop at the last empty voxel
 					-- if we're oob then we're done with 'pti' as our final point inside the box
 					if not mapboxIE:contains(npti) then
-						npti = pti
+						npti = pti:clone()
 						break
 					end
 				end
