@@ -274,7 +274,7 @@ function EditVoxelMap:update()
 				local pti = npti:clone()
 				-- then march through the voxelmap
 				while true do
-					local vaddr = voxelmap:getVoxelAddr(npti.x, npti.y, npti.z)
+					local vaddr = voxelmap:getVoxelAddr(npti:unpack())
 					if vaddr and app:peekl(vaddr) ~= voxelMapEmptyValue then
 						break
 					end
@@ -310,11 +310,13 @@ function EditVoxelMap:update()
 					if app:key'mouse_left' then
 						if mapboxIE:contains(npti) then
 							local vaddr = voxelmap:getVoxelAddr(npti:unpack())
-							local voxval = app:peekl(vaddr)
-							if voxval ~= voxelMapEmptyValue then
-								self.voxCurSel.intval = voxval
-								self.tileSel.pos.x = self.voxCurSel.tileXOffset
-								self.tileSel.pos.y = self.voxCurSel.tileYOffset
+							if vaddr then
+								local voxval = app:peekl(vaddr)
+								if voxval ~= voxelMapEmptyValue then
+									self.voxCurSel.intval = voxval
+									self.tileSel.pos.x = self.voxCurSel.tileXOffset
+									self.tileSel.pos.y = self.voxCurSel.tileYOffset
+								end
 							end
 						end
 					end
@@ -323,18 +325,21 @@ function EditVoxelMap:update()
 					if self.drawMode == 'draw' then
 						if app:keyp'mouse_left' then
 							self.undo:pushContinuous()
-							self:edit_pokel(
-								voxelmap:getVoxelAddr(pti:unpack()),
-								self.voxCurSel.intval)
+							local addr = voxelmap:getVoxelAddr(pti:unpack())
+							-- can pti be oob?
+							if addr then
+								self:edit_pokel(addr, self.voxCurSel.intval)
+							end
 						end
 					-- paint = draw on surface per mousedown
 					elseif self.drawMode == 'paint' then
 						if app:key'mouse_left' then
 							if mapboxIE:contains(npti) then
-								self.undo:pushContinuous()
-								self:edit_pokel(
-									voxelmap:getVoxelAddr(npti:unpack()),
-									self.voxCurSel.intval)
+								local addr = voxelmap:getVoxelAddr(npti:unpack())
+								if addr then
+									self.undo:pushContinuous()
+									self:edit_pokel(addr, self.voxCurSel.intval)
+								end
 							end
 						end
 					elseif self.drawMode == 'rect' then
@@ -378,7 +383,7 @@ function EditVoxelMap:update()
 								vec3d(0,0,1),
 								vec3d(0,0,-1),
 							}
-							local addr = voxelmap:getVoxelAddr(npti.x, npti.y, npti.z)
+							local addr = voxelmap:getVoxelAddr(npti:unpack())
 							if addr then
 								local srcColor = app:peekl(addr)
 								if srcColor ~= voxelMapEmptyValue
@@ -388,10 +393,7 @@ function EditVoxelMap:update()
 
 									local fillstack = table()
 
-									local addr = voxelmap:getVoxelAddr(npti:unpack())
-									if addr then
-										self:edit_pokel(addr, self.voxCurSel.intval)
-									end
+									self:edit_pokel(addr, self.voxCurSel.intval)
 
 									fillstack:insert(npti:clone())
 									while #fillstack > 0 do
@@ -420,9 +422,10 @@ function EditVoxelMap:update()
 				if app:keyp'mouse_right'
 				and mapboxIE:contains(npti)
 				then
-					self:edit_pokel(
-						voxelmap:getVoxelAddr(npti:unpack()),
-						voxelMapEmptyValue)
+					local addr = voxelmap:getVoxelAddr(npti:unpack())
+					if addr then
+						self:edit_pokel(addr, voxelMapEmptyValue)
+					end
 				end
 
 				if not self.tooltip then
