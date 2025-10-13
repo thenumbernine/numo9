@@ -250,6 +250,8 @@ function EditTilemap:update()
 	end
 
 	-- since when is clipMax having problems?
+	-- TODO FIXME since guiSeetClipRect uses the matrix state ...
+	app:matMenuReset()
 	--self:guiSetClipRect(0, 0, clipMax, clipMax)
 	self:guiSetClipRect(0, 0, 256, 256)
 

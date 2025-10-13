@@ -614,6 +614,7 @@ function UI:updateBlobChanges()
 end
 
 -- hmm...
+-- TODO this will bug if it's not the matrix from matMenuReset
 function UI:guiSetClipRect(x,y,w,h)
 	local app = self.app
 	local sx1, sy1 = app:transform(x, y)

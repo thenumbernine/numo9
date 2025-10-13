@@ -945,3 +945,4 @@ TODO cart status:
 	- when will I give up and just use my lua-gui library?
 
 - shadows wont cast on sprites?
+- editor voxelmap shadows dont work, meh.
