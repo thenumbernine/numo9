@@ -762,14 +762,13 @@ function App:initGL()
 			y = y or 0
 			z = z or 1
 			matrixIndex = tonumber(matrixIndex) or 0
-			local c, s = math.cos(theta), math.sin(theta)
 			if self.server then
-				local cmd = self.server:pushCmd().matrotcs
-				cmd.type = netcmds.matrotcs
-				cmd.c, cmd.s, cmd.x, cmd.y, cmd.z = c, s, x, y, z
+				local cmd = self.server:pushCmd().matrot
+				cmd.type = netcmds.matrot
+				cmd.theta, cmd.x, cmd.y, cmd.z = theta, x, y, z
 				cmd.matrixIndex = matrixIndex
 			end
-			self:matrotcs(c, s, x, y, z, matrixIndex)
+			self:matrot(theta, x, y, z, matrixIndex)
 		end,
 		matrotcs = function(c, s, x, y, z, matrixIndex)
 			matrixIndex = tonumber(matrixIndex) or 0

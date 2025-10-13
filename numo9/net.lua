@@ -556,6 +556,19 @@ local Numo9Cmd_mattrans = struct{
 	},
 }
 
+local Numo9Cmd_matrot = struct{
+	name = 'Numo9Cmd_matrot',
+	packed = true,
+	fields = {
+		{name='type', type='uint8_t'},
+		{name='theta', type='float'},
+		{name='x', type=matType},
+		{name='y', type=matType},
+		{name='z', type=matType},
+		{name='matrixIndex', type='uint8_t'},
+	},
+}
+
 local Numo9Cmd_matrotcs = struct{
 	name = 'Numo9Cmd_matrotcs',
 	packed = true,
@@ -725,18 +738,19 @@ local netCmdStructs = table{
 	Numo9Cmd_blendMode,			-- 0x0d
 	Numo9Cmd_matident,			-- 0x0e
 	Numo9Cmd_mattrans,			-- 0x0f
-	Numo9Cmd_matrotcs,			-- 0x10
-	Numo9Cmd_matscale,			-- 0x11
-	Numo9Cmd_matortho,			-- 0x12
-	Numo9Cmd_matfrustum,		-- 0x13
-	Numo9Cmd_matlookat,			-- 0x14
-	Numo9Cmd_sfx,				-- 0x15
-	Numo9Cmd_music,				-- 0x16
-	Numo9Cmd_poke,				-- 0x17
-	Numo9Cmd_pokew,				-- 0x18
-	Numo9Cmd_pokel,				-- 0x19
-	Numo9Cmd_memcpy,			-- 0x1a
-	Numo9Cmd_memset,			-- 0x1b
+	Numo9Cmd_matrot,			-- 0x10
+	Numo9Cmd_matrotcs,			-- 0x11
+	Numo9Cmd_matscale,			-- 0x12
+	Numo9Cmd_matortho,			-- 0x13
+	Numo9Cmd_matfrustum,		-- 0x14
+	Numo9Cmd_matlookat,			-- 0x15
+	Numo9Cmd_sfx,				-- 0x16
+	Numo9Cmd_music,				-- 0x17
+	Numo9Cmd_poke,				-- 0x18
+	Numo9Cmd_pokew,				-- 0x19
+	Numo9Cmd_pokel,				-- 0x1a
+	Numo9Cmd_memcpy,			-- 0x1b
+	Numo9Cmd_memset,			-- 0x1c
 }
 local netcmdNames = netCmdStructs:mapi(function(cmdtype)
 	return assert((cmdtype.name:match'^Numo9Cmd_(.*)$'))
@@ -1585,6 +1599,9 @@ assert.len(deltaStr, deltaBufLen)
 				elseif cmdtype == netcmds.mattrans then
 					local c = cmd[0].mattrans
 					app:mattrans(c.x, c.y, c.z, c.matrixIndex)
+				elseif cmdtype == netcmds.matrot then
+					local c = cmd[0].matrot
+					app:matrot(c.theta, c.x, c.y, c.z, c.matrixIndex)
 				elseif cmdtype == netcmds.matrotcs then
 					local c = cmd[0].matrotcs
 					app:matrotcs(c.c, c.s, c.x, c.y, c.z, c.matrixIndex)

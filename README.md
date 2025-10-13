@@ -931,11 +931,17 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - rename flip to yield()
 
 TODO cart status:
-- hello.n9 is broken
+- hello.n9 is broken, but only for mode(1), and other mode(1) carts work fine.  hmmmmmm.
 - stupidtrpg.n9 is broken (tho sometimes it shows text)
 
 - change scripts from .lua to .rua becuase technically they're not .lua ...
 
 - eventually replace 'struct' lib with luajit introspection
+	- find a good introspection way to get the sizeof a struct field
+	- find a good luajit ctype-object way to specify bitfield types (proly wont happen)
 
-- maybe add a voxelmap swap just like i have a palette color swap, it is so useful
+- maybe add a voxelmap swap just like i have a palette color swap, it is so useful.
+	- proly with a modal dialog
+	- when will I give up and just use my lua-gui library?
+
+- shadows wont cast on sprites?
