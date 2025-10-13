@@ -91,6 +91,12 @@ function EditTilemap:update()
 	local leftButtonPress = app:keyp'mouse_left'
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 
+	-- hmm without this the panning starts to drift
+	-- TODO fix all this coordinate conversion stuff someday
+	mouseX = math.floor(mouseX)
+	mouseY = math.floor(mouseY)
+
+
 	local shift = app:key'lshift' or app:key'rshift'
 
 	EditTilemap.super.update(self)
