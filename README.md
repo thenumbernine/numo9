@@ -928,11 +928,15 @@ TODO cart status:
 	- find a good introspection way to get the sizeof a struct field
 	- find a good luajit ctype-object way to specify bitfield types (proly wont happen)
 
-- maybe add a voxelmap swap just like i have a palette color swap, it is so useful.
+- maybe add a voxelmap index swap just like i have a palette color swap, it is so useful.
 	- proly with a modal dialog
 	- when will I give up and just use my lua-gui library?
 
 - editor voxelmap shadows dont work, meh.
+
+- if you poke the voxelmap resource size, the Fantasy Console will warn you "nuh uh uh" and then do nothing.  I dno't allow size resizing at the moment.
+
+- If you poke anything in a mesh3d, nothing ever happens.  I don't support any kind of mesh3d refreshing yet, they are just static for now.
 
 - entity key/value 3D editor with
 	- one key will tell either how to draw or one per sprite, tilemap, brush, brushmap, mesh3d, voxelmap
@@ -949,7 +953,5 @@ TODO cart status:
 
 - BIG TODO - undo buffer pushing the whole blob only works for small blobs.
 	Instead I should push objects that can apply undo/redo changes, this will use much less memory.
-
-- ANOTHER BIG TODO - voxelmap into chunks, so you dont rebuild the whole thing every modification.
 
 - I need to rebuild luajit-vanilla under debootstrap so I can release it instead of luajit-openresty, because of weird perfomance problesm of openresty
