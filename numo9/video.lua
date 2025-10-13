@@ -2324,6 +2324,13 @@ function AppVideo:triBuf_flush()
 	local program = sceneObj.program
 	program:use()
 
+--[[ DEBUG - view the scene from the light's perspective
+-- so I can tell why some unshadowed things arent being seen ...
+	if self.ram.useHardwareLighting == 0 then return end
+	program:setUniform('viewMat', self.ram.lightViewMat)
+	program:setUniform('projMat', self.ram.lightProjMat)
+--]]
+
 	self.vertexBufGPU:bind()
 	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
 		self.vertexBufGPU:setData{
@@ -2352,14 +2359,14 @@ function AppVideo:triBuf_flush()
 
 		gl.glViewport(0, 0, self.lightmapFB.width, self.lightmapFB.height)
 
-		program:setUniform('modelMat', ident4x4.ptr)
+		-- don't change the model matrix, that way models are transformed to world properly
 		program:setUniform('viewMat', self.ram.lightViewMat)
 		program:setUniform('projMat', self.ram.lightProjMat)
 		gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
 
 		sceneObj.geometry:draw()
 
-		program:setUniform('modelMat', self.ram.modelMat)
+		-- restore
 		program:setUniform('viewMat', self.ram.viewMat)
 		program:setUniform('projMat', self.ram.projMat)
 		gl.glUniform4f(program.uniforms.clipRect.loc, self:getClipRect())
