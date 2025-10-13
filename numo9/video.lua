@@ -4668,7 +4668,6 @@ function AppVideo:drawVoxelMap(
 		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
-	-- TODO invalidate upon dirty flag set
 	voxelmap:rebuildMesh(self)
 
 	-- setup textures and uniforms

@@ -25,6 +25,7 @@ local Numo9Vertex = numo9_video.Numo9Vertex
 
 
 local uint8_t_p = ffi.typeof'uint8_t*'
+local int32_t = ffi.typeof'int32_t'
 local Voxel_p = ffi.typeof('$*', Voxel)
 
 
@@ -107,10 +108,16 @@ function Chunk:init(args)
 
 	local volume = self.volume
 	self.vertexBufCPU = vector(Numo9Vertex)
+
+	-- says the mesh needs to be rebuilt
+	self.dirtyCPU = true
 end
 
 local tmpMat = matrix_ffi({4,4}, 'float'):zeros()
 function Chunk:rebuildMesh(app)
+	if not self.dirtyCPU then return end
+	self.dirtyCPU = false
+
 	self.vertexBufCPU:resize(0)
 
 	-- ok here I shoot myself in the foot just a bit
@@ -143,7 +150,7 @@ function Chunk:rebuildMesh(app)
 		paletteIndex)
 
 	local voxelmapSize = self.voxelmap:getVoxelSize()
-print('voxelmapSize', voxelmapSize)
+
 	-- which to build this off of?
 	-- RAMPtr since thats what AppVideo:drawVoxelMap() uses
 	-- but that means it wont be present upon init() ...
@@ -152,7 +159,6 @@ print('voxelmapSize', voxelmapSize)
 	local occludedCount = 0
 
 	local ci, cj, ck = self.chunkPos:unpack()
-print('cpos', ci, cj, ck)
 
 	local nbhd = vec3i()
 	for k=0,Chunk.size.z-1 do
@@ -409,7 +415,6 @@ function BlobVoxelMap:init(data)
 	self.billboardXYVoxels = vector(vec3i)	-- type 21
 
 
-	self.dirtyCPU = true
 	-- can't build the mesh yet, not until .ramptr is defined
 	--self:rebuildMesh()
 
@@ -422,19 +427,22 @@ function BlobVoxelMap:init(data)
 	-- how to work around this ...
 	local voxptr = self:getVoxelDataBlobPtr()
 
+	-- says that some chunk's mesh needs to be rebuilt
+	self.dirtyCPU = true
+
 	-- 0-based, index from interleaving chunkPos with self:voxelSizeInChunks()
 	self.chunks = {}
 	local voxelmapSize = self:getVoxelSize()
-	local sizeInChunks = self:getVoxelSizeInChunks()
-	local sizeInChunksRoundDown = self:getVoxelSize():map(function(x,i)
-		return bit.rshift(x, Chunk.bitsize.s[i])
-	end)
+
+	-- need to update this if the size ever changes...
+	self.sizeInChunks = self:getVoxelSizeInChunks()
+
 	-- create the chunks
 	do
 		local chunkIndex = 0
-		for ck=0,sizeInChunks.z-1 do
-			for cj=0,sizeInChunks.y-1 do
-				for ci=0,sizeInChunks.x-1 do
+		for ck=0,self.sizeInChunks.z-1 do
+			for cj=0,self.sizeInChunks.y-1 do
+				for ci=0,self.sizeInChunks.x-1 do
 					local chunk = Chunk{
 						voxelmap = self,
 						chunkPos = vec3i(ci,cj,ck),
@@ -541,9 +549,9 @@ app = used to search list of mesh3d blobs
 --]]
 function BlobVoxelMap:rebuildMesh(app)
 	if not self.dirtyCPU then return end
-select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 	self.dirtyCPU = false
 
+select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 
@@ -561,6 +569,50 @@ end
 		self.chunks[chunkIndex]:rebuildMesh(app)
 	end
 end))
+end
+
+local warnedAboutTouchingSize
+
+-- touchAddrStart, touchAddrEnd are inclusive
+function BlobVoxelMap:onTouchRAM(touchAddrStart, touchAddrEnd, app)
+	--if (0, 2) touches-inclusive (addr, addrend) then
+	local voxelStartAddr = self.addr + ffi.sizeof(voxelmapSizeType) * 3
+	local sizeAddrEnd = voxelStartAddr - 1	-- -1 for inclusive range
+	if touchAddrEnd >= self.addr and touchAddrStart <= sizeAddrEnd then
+		-- size was touched ... rebuild everything
+if not warnedAboutTouchingSize then
+	warnedAboutTouchingSize = true
+	print("I don't support live changing voxelmap chunk sizes.  Changing this to a value exceeding the limit of RAM could have devastating consequences.")
+end
+		return
+	end
+
+	local width, height, depth = self:getWidth(), self:getHeight(), self:getDepth()
+
+	-- TODO since data is stored [z][y][x] across the whole voxelmap, i could look for rows that touch
+	-- this is me being lazy though
+	for touchAddr=touchAddrStart,touchAddrEnd do
+		-- get the chunk index
+		-- flag it as dirty
+		-- TODO floor vs cast as int? which is faster?
+		local voxelIndex = ffi.cast(int32_t, (touchAddr - voxelStartAddr) / ffi.sizeof(Voxel))
+		local tmp = voxelIndex
+		local vi = tmp % width
+		tmp = ffi.cast(int32_t, tmp / width)
+		local vj = tmp % height
+		tmp = ffi.cast(int32_t, tmp / height)
+		local vk = tmp
+
+		local ci = bit.rshift(vi, Chunk.bitsize.x)
+		local cj = bit.rshift(vj, Chunk.bitsize.y)
+		local ck = bit.rshift(vk, Chunk.bitsize.z)
+
+		local chunkIndex = ci + self.sizeInChunks.x * (cj + self.sizeInChunks.y * ck)
+		local chunk = self.chunks[chunkIndex]
+
+		chunk.dirtyCPU = true
+		self.dirtyCPU = true
+	end
 end
 
 --[====[ I don't think I'll bring this back until it is in the Chunk class

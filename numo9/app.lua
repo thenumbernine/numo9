@@ -2454,7 +2454,7 @@ function App:postPoke(addr, addrend)
 		if addrend >= voxelmap.addr
 		and addr < voxelmap.addrEnd
 		then
-			voxelmap.dirtyCPU = true
+			voxelmap:onTouchRAM(addr, addrend, self)
 		end
 	end
 	-- TODO if we poked the code
