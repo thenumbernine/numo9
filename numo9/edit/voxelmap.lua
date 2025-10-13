@@ -61,6 +61,8 @@ function EditVoxelMap:onCartLoad()
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
 
+	self.moveSpeed = .3
+
 	self.drawMode = 'draw'
 	self.rectDown = nil
 	self.rectUp = nil
@@ -547,30 +549,29 @@ self:guiSetClipRect(0, 0, 256, 256)
 
 		-- wasd should have been esdf ...
 		-- home row!
-		local moveSpeed = .3
 		if app:key'w' then
-			orbit.pos = orbit.pos - orbit.angle:zAxis() * moveSpeed
-			orbit.orbit = orbit.orbit - orbit.angle:zAxis() * moveSpeed
+			orbit.pos = orbit.pos - orbit.angle:zAxis() * self.moveSpeed
+			orbit.orbit = orbit.orbit - orbit.angle:zAxis() * self.moveSpeed
 		end
 		if app:key's' then
-			orbit.pos = orbit.pos + orbit.angle:zAxis() * moveSpeed
-			orbit.orbit = orbit.orbit + orbit.angle:zAxis() * moveSpeed
+			orbit.pos = orbit.pos + orbit.angle:zAxis() * self.moveSpeed
+			orbit.orbit = orbit.orbit + orbit.angle:zAxis() * self.moveSpeed
 		end
 		if app:key'a' then
-			orbit.pos = orbit.pos - orbit.angle:xAxis() * moveSpeed
-			orbit.orbit = orbit.orbit - orbit.angle:xAxis() * moveSpeed
+			orbit.pos = orbit.pos - orbit.angle:xAxis() * self.moveSpeed
+			orbit.orbit = orbit.orbit - orbit.angle:xAxis() * self.moveSpeed
 		end
 		if app:key'd' then
-			orbit.pos = orbit.pos + orbit.angle:xAxis() * moveSpeed
-			orbit.orbit = orbit.orbit + orbit.angle:xAxis() * moveSpeed
+			orbit.pos = orbit.pos + orbit.angle:xAxis() * self.moveSpeed
+			orbit.orbit = orbit.orbit + orbit.angle:xAxis() * self.moveSpeed
 		end
 		if app:key'q' then
-			orbit.pos = orbit.pos + orbit.angle:yAxis() * moveSpeed
-			orbit.orbit = orbit.orbit + orbit.angle:yAxis() * moveSpeed
+			orbit.pos = orbit.pos + orbit.angle:yAxis() * self.moveSpeed
+			orbit.orbit = orbit.orbit + orbit.angle:yAxis() * self.moveSpeed
 		end
 		if app:key'e' then
-			orbit.pos = orbit.pos - orbit.angle:yAxis() * moveSpeed
-			orbit.orbit = orbit.orbit - orbit.angle:yAxis() * moveSpeed
+			orbit.pos = orbit.pos - orbit.angle:yAxis() * self.moveSpeed
+			orbit.orbit = orbit.orbit - orbit.angle:yAxis() * self.moveSpeed
 		end
 
 		local turnSpeed = 3
@@ -692,6 +693,12 @@ self:guiSetClipRect(0, 0, 256, 256)
 			cb()
 		elseif app:keyp'z' then
 			self:popUndo(shift)
+		end
+	end
+
+	for ch = 1,10 do
+		if app:keyp( string.char(('0'):byte() + (ch % 10)) ) then
+			self.moveSpeed = 10 ^ ((ch - 5) / 4)
 		end
 	end
 

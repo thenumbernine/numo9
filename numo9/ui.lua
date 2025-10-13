@@ -295,14 +295,32 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 	local popupKey = indexKey..'_popupOpen'
 	local buttonMenuTabCounter = self.menuTabCounter
 	local sel = self.menuTabIndex == buttonMenuTabCounter
+
+	local handled
+
+--[[ just show selected blob #
 	self:guiButton(
 		#blobsOfType == 0 and '~' or '#'..t[indexKey],
 		x, y, nil, blobName)
+--]]
+-- [[ allow editing it
+	if self:guiTextField(
+		x, y, 12,
+		t[indexKey], nil,
+		function(newValue)
+			t[indexKey] = math.clamp(newValue, 0, #blobsOfType-1)
+			if cb then cb(dx) end
+			handled = true
+		end,
+		blobName)
+	then
+		-- ??
+	end
+--]]
+
 	if sel then
 		t[popupKey] = true
 	end
-
-	local handled
 
 	if t[popupKey] then
 		local w = 25
