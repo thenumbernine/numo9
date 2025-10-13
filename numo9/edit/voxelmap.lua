@@ -17,7 +17,7 @@ local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
-local matType = numo9_rom.matType
+local matArrType = numo9_rom.matArrType
 local Voxel = numo9_rom.Voxel
 
 local numo9_blobs = require 'numo9.blobs'
@@ -211,8 +211,8 @@ function EditVoxelMap:update()
 		-- nope that doesnt even work
 		-- meh just force it here.
 		app.haveCapturedDrawMatsForLightingThisFrame = true
-		ffi.copy(app.drawViewMatForLighting.ptr, app.ram.viewMat, ffi.sizeof(matType) * 16)
-		ffi.copy(app.drawProjMatForLighting.ptr, app.ram.projMat, ffi.sizeof(matType) * 16)
+		ffi.copy(app.drawViewMatForLighting.ptr, app.ram.viewMat, ffi.sizeof(matArrType))
+		ffi.copy(app.drawProjMatForLighting.ptr, app.ram.projMat, ffi.sizeof(matArrType))
 
 
 		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
