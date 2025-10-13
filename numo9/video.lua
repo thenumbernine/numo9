@@ -2286,7 +2286,7 @@ return;
 		uniforms = {
 			lightAmbientColor = {.4, .3, .2},
 			lightDiffuseColor = {1, 1, 1},
-			lightSpecularColor = {.6, .5, .4, 30 / 255},
+			lightSpecularColor = {.6, .5, .4, 30},
 			ssaoSampleRadius = 1,
 			ssaoInfluence = 1,
 		},
@@ -2777,7 +2777,7 @@ function AppVideo:resetVideo()
 	self.ram.lightSpecularColor[0] = .6 * 255
 	self.ram.lightSpecularColor[1] = .5 * 255
 	self.ram.lightSpecularColor[2] = .4 * 255
-	self.ram.lightSpecularColor[2] = 30
+	self.ram.lightSpecularColor[3] = 30
 
 	self.ram.ssaoSampleRadius = 1
 	self.ram.ssaoInfluence = 1
