@@ -591,7 +591,7 @@ end
 
 	-- TODO since data is stored [z][y][x] across the whole voxelmap, i could look for rows that touch
 	-- this is me being lazy though
-	for touchAddr=touchAddrStart,touchAddrEnd do
+	for touchAddr=tonumber(touchAddrStart),tonumber(touchAddrEnd) do
 		-- get the chunk index
 		-- flag it as dirty
 		-- TODO floor vs cast as int? which is faster?
@@ -607,7 +607,7 @@ end
 		local cj = bit.rshift(vj, Chunk.bitsize.y)
 		local ck = bit.rshift(vk, Chunk.bitsize.z)
 
-		local chunkIndex = ci + self.sizeInChunks.x * (cj + self.sizeInChunks.y * ck)
+		local chunkIndex = tonumber(ci + self.sizeInChunks.x * (cj + self.sizeInChunks.y * ck))
 		local chunk = self.chunks[chunkIndex]
 
 		chunk.dirtyCPU = true
