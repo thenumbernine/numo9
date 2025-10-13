@@ -270,9 +270,17 @@ function EditVoxelMap:update()
 				-- this could still be OOB if the user isn't mouse'd over the box ...
 			end
 			if mapbox:contains(mousePos) then
-				local pti, npti = mousePos:map(math.floor)
+				local npti = mousePos:map(math.floor)
+				local pti
 				-- then march through the voxelmap
 				while true do
+					local vaddr = voxelmap:getVoxelAddr(npti.x, npti.y, npti.z)
+					if vaddr and app:peekl(vaddr) ~= voxelMapEmptyValue then
+						break
+					end
+
+					pti = npti
+
 					-- intersect with cube [pti, pti+1]
 					local d, axis = lineBoxDist(
 						box3d(pti, pti+1),
@@ -289,12 +297,6 @@ function EditVoxelMap:update()
 						npti = pti
 						break
 					end
-					local vaddr = voxelmap:getVoxelAddr(npti.x, npti.y, npti.z)
-					if vaddr and app:peekl(vaddr) ~= voxelMapEmptyValue then
-						break
-					end
-
-					pti = npti
 				end
 
 				-- show selection
