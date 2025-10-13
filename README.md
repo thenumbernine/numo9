@@ -947,3 +947,5 @@ TODO cart status:
 
 - BIG TODO - undo buffer pushing the whole blob only works for small blobs.
 	Instead I should push objects that can apply undo/redo changes, this will use much less memory.
+
+- ANOTHER BIG TODO - voxelmap into chunks, so you dont rebuild the whole thing every modification.
