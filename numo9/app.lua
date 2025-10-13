@@ -61,16 +61,6 @@ local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local matType = numo9_rom.matType
 local matArrType = numo9_rom.matArrType
-local modelMatAddr = numo9_rom.modelMatAddr
-local modelMatAddrEnd = numo9_rom.modelMatAddrEnd
-local viewMatAddr = numo9_rom.viewMatAddr
-local viewMatAddrEnd = numo9_rom.viewMatAddrEnd
-local projMatAddr = numo9_rom.projMatAddr
-local projMatAddrEnd = numo9_rom.projMatAddrEnd
-local clipRectAddr = numo9_rom.clipRectAddr
-local clipRectAddrEnd = numo9_rom.clipRectAddrEnd
-local blendColorAddr = numo9_rom.blendColorAddr
-local blendColorAddrEnd = numo9_rom.blendColorAddrEnd
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -2348,16 +2338,6 @@ function App:peekf(addr)
 	return ffi.cast(float_p, self.ram.v + addr)[0]
 end
 
--- TODO better way to find sizeof fields? or better way in struct to pick fields by their name?
-local useHardwareLightingAddr = ffi.offsetof(RAM, 'useHardwareLighting')
-local useHardwareLightingAddrEnd = useHardwareLightingAddr + ffi.sizeof(
-	select(2, table.find(numo9_rom.RAM.fields[2].type.fields, nil, function(field) return field.name == 'useHardwareLighting' end)).type
-)
-local ditherAddr = ffi.offsetof(RAM, 'dither')
-local ditherAddrEnd = ditherAddr + ffi.sizeof(
-	select(2, table.find(numo9_rom.RAM.fields[2].type.fields, nil, function(field) return field.name == 'dither' end)).type
-)
-
 function App:prePoke(addr, addrend)
 	-- if we're writing to a dirty area then flush it to cpu
 	if addrend >= self.framebufferRAM.addr
@@ -2368,6 +2348,36 @@ function App:prePoke(addr, addrend)
 		self.framebufferRAM.dirtyCPU = true
 	end
 end
+
+-- TODO better way to find sizeof fields? or better way in struct to pick fields by their name?
+-- can you do this with ffi.sizeof?  find the sizeof a field (without segfaulting from a lookkup of null's field, like we do in C) ?
+local function getRAMFieldType(fieldName)
+	return ffi.sizeof(
+		select(2,
+			table.find(
+				numo9_rom.RAM.fields[2].type.fields, 
+				nil,
+				function(field)
+					return field.name == fieldName
+				end)
+		).type
+	)
+end
+
+local function getRAMAddrRange(fieldName)
+	local addr = ffi.offsetof(RAM, fieldName)
+	local addrend = addr + getRAMFieldType(fieldName)
+	return addr, addrend
+end
+
+local modelMatAddr, modelMatAddrEnd = getRAMAddrRange'modelMat'
+local viewMatAddr, viewMatAddrEnd = getRAMAddrRange'viewMat'
+local projMatAddr, projMatAddrEnd = getRAMAddrRange'projMat'
+local clipRectAddr, clipRectAddrEnd = getRAMAddrRange'clipRect'
+local blendColorAddr, blendColorAddrEnd = getRAMAddrRange'blendColor'
+local ditherAddr, ditherAddrEnd = getRAMAddrRange'dither'
+local useHardwareLightingAddr, useHardwareLightingAddrEnd = getRAMAddrRange'useHardwareLighting'
+local spriteNormalExhaggerationAddr, spriteNormalExhaggerationAddrEnd = getRAMAddrRange'spriteNormalExhaggeration'
 
 function App:postPoke(addr, addrend)
 	-- write out tris using the modelMat,viewMat,projMat before they change
@@ -2391,6 +2401,9 @@ function App:postPoke(addr, addrend)
 	end
 	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
 		self:onUseHardwareLightingChange()
+	end
+	if addrend >= spriteNormalExhaggerationAddr and addr < spriteNormalExhaggerationAddrEnd then
+		self:onSpriteNormalExhaggerationChange()
 	end
 
 	-- TODO none of the others happen period, only the palette texture

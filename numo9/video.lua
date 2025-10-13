@@ -1173,6 +1173,8 @@ uniform vec4 blendColorSolid;
 uniform uint dither;
 //uniform vec2 frameBufferSize;
 
+uniform float spriteNormalExhaggeration = 8.;
+
 <?=glslCode5551?>
 
 float sqr(float x) { return x * x; }
@@ -1527,8 +1529,6 @@ void main() {
 
 // lighting:
 
-	// TODO lighting variables:
-	const float spriteNormalExhaggeration = 8.;
 	bumpHeight *= spriteNormalExhaggeration;
 
 #if 0	// normal from flat sided objs
@@ -2426,6 +2426,7 @@ function AppVideo:triBuf_prepAddTri(
 	or self.blendColorDirty
 	or self.ditherDirty
 	or self.useHardwareLightingDirty
+	or self.spriteNormalExhaggerationDirty
 	or self.frameBufferSizeUniformDirty
 	then
 		program:use()
@@ -2465,6 +2466,10 @@ function AppVideo:triBuf_prepAddTri(
 		if self.useHardwareLightingDirty then
 			self.useHardwareLightingDirty = false
 			gl.glUniform1i(program.uniforms.useHardwareLighting.loc, self.ram.useHardwareLighting)
+		end
+		if self.spriteNormalExhaggerationDirty then
+			self.spriteNormalExhaggerationDirty = false
+			gl.glUniform1f(program.uniforms.spriteNormalExhaggeration.loc, self.ram.spriteNormalExhaggeration)
 		end
 		--[[ TODO not sure just yet
 		if self.frameBufferSizeUniformDirty then
@@ -2579,6 +2584,12 @@ function AppVideo:onDitherChange()
 	self:triBuf_flush()
 	self.ditherDirty = true
 end
+
+function AppVideo:onSpriteNormalExhaggerationChange()
+	self:triBuf_flush()
+	self.spriteNormalExhaggerationDirty = true
+end
+
 
 function AppVideo:onFrameBufferSizeChange()
 	self:triBuf_flush()
@@ -2770,6 +2781,9 @@ function AppVideo:resetVideo()
 
 	self.ram.ssaoSampleRadius = 1
 	self.ram.ssaoInfluence = 1
+	
+	self.ram.spriteNormalExhaggeration = 8
+	self:onSpriteNormalExhaggerationChange()
 
 	ffi.copy(self.ram.lightViewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
 	ffi.copy(self.ram.lightProjMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
@@ -2866,6 +2880,7 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onClipRectChange()
 	self:onBlendColorChange()
 	self:onDitherChange()
+	self:onSpriteNormalExhaggerationChange()
 	self:onFrameBufferSizeChange()
 
 	self.blitScreenObj.texs[1] = self.framebufferRAM.tex

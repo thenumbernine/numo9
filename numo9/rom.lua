@@ -379,6 +379,7 @@ local RAM = struct{
 				{name='lightSpecularColor', type=uint8_t_4},	-- alpha holds shininess, un-normalized.
 				{name='ssaoSampleRadius', type=float},
 				{name='ssaoInfluence', type=float},
+				{name='spriteNormalExhaggeration', type=float},	-- float or byte or who cares?
 
 				{name='lightViewMat', type=matArrType},	-- lighting view+proj combined into one
 				{name='lightProjMat', type=matArrType},	-- lighting view+proj combined into one
@@ -399,21 +400,6 @@ local fontInBytes = fontSizeInBytes
 local framebufferAddr = ffi.offsetof(RAM, 'framebuffer')
 local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
 local framebufferAddrEnd = framebufferAddr + framebufferInBytes
-local clipRectAddr = ffi.offsetof(RAM, 'clipRect')
-local clipRectInBytes = ffi.sizeof(uint8_t) * 4
-local clipRectAddrEnd = clipRectAddr + clipRectInBytes
-local modelMatAddr = ffi.offsetof(RAM, 'modelMat')
-local modelMatInBytes = ffi.sizeof(matArrType)
-local modelMatAddrEnd = modelMatAddr + modelMatInBytes
-local viewMatAddr = ffi.offsetof(RAM, 'viewMat')
-local viewMatInBytes = ffi.sizeof(matArrType)
-local viewMatAddrEnd = viewMatAddr + viewMatInBytes
-local projMatAddr = ffi.offsetof(RAM, 'projMat')
-local projMatInBytes = ffi.sizeof(matArrType)
-local projMatAddrEnd = projMatAddr + projMatInBytes
-local blendColorAddr = ffi.offsetof(RAM, 'blendColor')
-local blendColorInBytes = ffi.sizeof(uint16_t)
-local blendColorAddrEnd = blendColorAddr + blendColorInBytes
 
 -- how much is RAM before the ROM starts
 local sizeofRAMWithoutROM = ffi.offsetof(RAM, 'blobCount')
@@ -554,22 +540,6 @@ return {
 	tilemapInBytes = tilemapInBytes,
 	paletteInBytes = paletteInBytes,
 	fontInBytes = fontInBytes,
-	-- these are not ...
-	clipRectAddr = clipRectAddr,
-	clipRectInBytes = clipRectInBytes,
-	clipRectAddrEnd = clipRectAddrEnd,
-	modelMatAddr = modelMatAddr,
-	modelMatInBytes = modelMatInBytes,
-	modelMatAddrEnd = modelMatAddrEnd,
-	viewMatAddr = viewMatAddr,
-	viewMatInBytes = viewMatInBytes,
-	viewMatAddrEnd = viewMatAddrEnd,
-	projMatAddr = projMatAddr,
-	projMatInBytes = projMatInBytes,
-	projMatAddrEnd = projMatAddrEnd,
-	blendColorAddr = blendColorAddr,
-	blendColorInBytes = blendColorInBytes,
-	blendColorAddrEnd = blendColorAddrEnd,
 
 	blobCountType = blobCountType,
 	BlobEntry = BlobEntry,
