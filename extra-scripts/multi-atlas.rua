@@ -14,37 +14,50 @@ local srcChannels
 local srcFormat
 local srcdir = path(cmdline.dir)
 local srcs = table()
+
+local srcfs = table()
 for f in srcdir:dir() do
 	if f.path:match'%.png$' then
-		print('reading ', f)
-		local img = Image(f.path)
-		-- TODO store Image size as vec2i?  there would be a lot of dependent repos to change ...
-		local size = vec2i(img.width, img.height)
-		local sizeInTiles = vec2i(
-			math.ceil(img.width / tileSize),
-			math.ceil(img.height / tileSize))
-		if sizeInTiles.x > tilesPerSheet
-		or sizeInTiles.y > tilesPerSheet
-		then
-			error("image is too big: "..f.." with size "..size)
-		end
-		if srcChannels == nil then
-			srcChannels = img.channels
-			srcFormat = img.format
-		else
-			assert.eq(srcChannels, img.channels)
-			assert.eq(srcFormat, img.format)
-		end
-		srcs:insert{
-			img = img,
-			f = f,
-			size = size,
-			sizeInTiles = sizeInTiles,
-			volume = size:volume(),
-		}
+		srcfs:insert(f)
 	end
 end
-srcs:sort(|a,b| a.volume > b.volume)
+srcfs:sort(|a,b| a.path < b.path)
+for _,f in ipairs(srcfs) do
+	print('reading ', f)
+	local img = Image(srcdir(f).path)
+	-- TODO store Image size as vec2i?  there would be a lot of dependent repos to change ...
+	local size = vec2i(img.width, img.height)
+	local sizeInTiles = vec2i(
+		math.ceil(img.width / tileSize),
+		math.ceil(img.height / tileSize))
+	if sizeInTiles.x > tilesPerSheet
+	or sizeInTiles.y > tilesPerSheet
+	then
+		error("image is too big: "..f.." with size "..size)
+	end
+	if srcChannels == nil then
+		srcChannels = img.channels
+		srcFormat = img.format
+	else
+		assert.eq(srcChannels, img.channels)
+		assert.eq(srcFormat, img.format)
+	end
+	srcs:insert{
+		img = img,
+		f = f,
+		size = size,
+		sizeInTiles = sizeInTiles,
+		volume = size:volume(),
+	}
+end
+
+local sort = cmdline.sort or 'volume'
+if sort == 'none' then
+elseif sort == 'volume' then
+	srcs:sort(|a,b| a.volume > b.volume)
+else
+	error("I don't know how to sort by", sort)
+end
 
 local dsts = table()
 
@@ -62,8 +75,8 @@ end
 local findDst = |src| do
 	while true do
 		for dstIndex,dst in ipairs(dsts) do
-			for x=0,tilesPerSheet-src.sizeInTiles.x do
-				for y=0,tilesPerSheet-src.sizeInTiles.y do
+			for y=0,tilesPerSheet-src.sizeInTiles.y do
+				for x=0,tilesPerSheet-src.sizeInTiles.x do
 					if canPlace(src, dst, x,y) then
 
 						-- isnt blocked:
