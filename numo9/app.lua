@@ -2008,6 +2008,15 @@ print('run thread dead')
 			sceneObj:draw()
 			--]]
 
+
+			-- push / pop lighting
+			local pushUseHardwareLighting = self.ram.useHardwareLighting
+			self.ram.useHardwareLighting = 0	-- off by default in menu
+			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
+				self:onUseHardwareLightingChange()
+			end
+
+
 			local thread = self.activeMenu.thread
 			if thread then
 
@@ -2027,6 +2036,8 @@ print('run thread dead')
 				self.drawProjMatForLighting:setIdent()
 				--]]
 
+				-- TODO should I turn off lighting for these draws too?
+
 				if coroutine.status(thread) == 'dead' then
 					self:setMenu(nil)
 				else
@@ -2044,6 +2055,14 @@ print('run thread dead')
 					end
 				end
 			end
+
+
+			-- pop lighting
+			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
+				self.ram.useHardwareLighting = pushUseHardwareLighting
+				self:onUseHardwareLightingChange()
+			end
+
 
 			self:setVideoMode(self.ram.videoMode)
 
@@ -2354,7 +2373,7 @@ local function getRAMFieldType(fieldName)
 	return ffi.sizeof(
 		select(2,
 			table.find(
-				numo9_rom.RAM.fields[2].type.fields, 
+				numo9_rom.RAM.fields[2].type.fields,
 				nil,
 				function(field)
 					return field.name == fieldName

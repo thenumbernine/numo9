@@ -1967,7 +1967,7 @@ function AppVideo:initVideo()
 		self.lightView.angle =
 			quatd():fromAngleAxis(0, 0, 1, 45)
 			* quatd():fromAngleAxis(1, 0, 0, 60)
-		self.lightView.orbit:set(32, 24, 0)
+		self.lightView.orbit:set(24, 24, 0)
 		self.lightView.pos = self.lightView.orbit + 40 * self.lightView.angle:zAxis()
 		self.lightView:setup(self.lightDepthTex.width / self.lightDepthTex.height)
 		assert.eq(self.lightView.mvProjMat.ctype, ffi.typeof'float')
@@ -2419,8 +2419,8 @@ function AppVideo:triBuf_prepAddTri(
 
 		if not self.haveCapturedDrawMatsForLightingThisFrame then
 			self.haveCapturedDrawMatsForLightingThisFrame = true
-			ffi.copy(self.drawViewMatForLighting.ptr, self.ram.viewMat, ffi.sizeof(matType) * 16)
-			ffi.copy(self.drawProjMatForLighting.ptr, self.ram.projMat, ffi.sizeof(matType) * 16)
+			ffi.copy(self.drawViewMatForLighting.ptr, self.ram.viewMat, ffi.sizeof(matArrType))
+			ffi.copy(self.drawProjMatForLighting.ptr, self.ram.projMat, ffi.sizeof(matArrType))
 		end
 	end
 
@@ -4841,18 +4841,13 @@ print()
 --DEBUG(lighting):print('drawing lighting')
 --DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
 --DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
+--DEBUG(lighting):print('lighting lightView\n'..self.lightViewMat)
+--DEBUG(lighting):print('lighting lightProj\n'..self.lightProjMat)
 --DEBUG(lighting):print()
 
 	sceneObj:draw()
 
 	calcLightFB:unbind()
-
---[[ doesn't seem to help
-	calcLightPP:cur()
-		:bind()
-		:generateMipmap()
-		:unbind()
---]]
 end
 
 return {

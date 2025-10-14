@@ -192,8 +192,7 @@ function EditVoxelMap:update()
 	if not self.tileSel:doPopup()
 	and voxelmap then
 
-		-- init lighting before beginDraw() so that beginDraw can set the lightings draw-view-mat
-
+		-- init lighting before beginDraw() so that we get the clear depth call that will clear the lighting as well
 		local pushUseHardwareLighting = app.ram.useHardwareLighting
 		app.ram.useHardwareLighting = self.menuUseLighting and 1 or 0
 		if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
@@ -201,6 +200,14 @@ function EditVoxelMap:update()
 		end
 
 		local mouseHandled = orbit:beginDraw()
+
+
+		-- view or not view?
+		-- as a view mat means that the lighting covers it all
+		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z, 1)
+
+
+		-- TODO push and pop lighting vars?
 
 		-- also clear this to force the next view to be the one that the lighting uses
 		-- which is the editor's orbit view
@@ -214,8 +221,10 @@ function EditVoxelMap:update()
 		ffi.copy(app.drawViewMatForLighting.ptr, app.ram.viewMat, ffi.sizeof(matArrType))
 		ffi.copy(app.drawProjMatForLighting.ptr, app.ram.projMat, ffi.sizeof(matArrType))
 
+		-- force capture draw view and proj for lighting
+		-- (same as just ffi.copy?)
+		app:triBuf_prepAddTri(app.lastPaletteTex, app.lastSheetTex, app.lastTilemapTex)
 
-		app:mattrans(-.5*mapsize.x, -.5*mapsize.y, -.5*mapsize.z)
 
 		self:drawBox(mapbox, 0x31)
 

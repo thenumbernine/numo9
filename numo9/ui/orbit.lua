@@ -38,10 +38,10 @@ function Orbit:beginDraw()
 	app:drawSolidRect(0, 8, 256, 256, 0x28, nil, nil, app.paletteMenuTex)
 --self:guiSetClipRect(0, 8, 256, 256)
 
-	-- flush before enable depth test so the flush doesn't use depth test...
-	app:triBuf_flush()
+	-- use video's clear so it clears the light depth buf as well (when lighting is enabled)
+	-- also clearScreen will flush tris
+	app:clearScreen(nil, nil, true)
 	gl.glEnable(gl.GL_DEPTH_TEST)
-	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 	ffi.copy(self.modelMatPush, app.ram.modelMat, ffi.sizeof(self.modelMatPush))
 	ffi.copy(self.viewMatPush, app.ram.viewMat, ffi.sizeof(self.viewMatPush))
@@ -81,7 +81,6 @@ function Orbit:beginDraw()
 			end
 		end
 	end
-	local x,y,z,th = self.angle:toAngleAxis():unpack()
 
 	local ar = app.width / app.height
 
@@ -90,7 +89,11 @@ function Orbit:beginDraw()
 	app:matident(1)
 	app:matident(2)
 	app:matortho(-(22 * ar - 2), 2, -20, 2)
+
+	-- TODO why does my quat lib use degrees? smh
+	local x,y,z,th = self.angle:toAngleAxis():unpack()
 	app:matrot(-math.rad(th), x, y, z, 1)	-- -th or +th?
+
 	local thickness = math.max(1, app.width / 256)
 	app:drawSolidLine3D(0, 0, 0, 1, 0, 0, 0x19, thickness, app.paletteMenuTex)
 	app:drawSolidLine3D(0, 0, 0, 0, 1, 0, 0x1a, thickness, app.paletteMenuTex)

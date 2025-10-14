@@ -955,3 +955,14 @@ TODO cart status:
 	Instead I should push objects that can apply undo/redo changes, this will use much less memory.
 
 - I need to rebuild luajit-vanilla under debootstrap so I can release it instead of luajit-openresty, because of weird perfomance problesm of openresty
+
+
+voxelmap editor fixes:
+- voxelmap rect select right-click to rect-delete
+- voxelmap rect and select , better preview of region
+- voxelmap paint vs draw should only toggle when you're already selected that radio button
+- voxelmap fill should toggle between 2D suraces and 3D
+- extrude hilite / select cursor box by just 1/16th or so
+- preview window for meshes
+- preview window for orientations
+- option for select to auto-orient according to your view direction (like minecraft and stairs)
