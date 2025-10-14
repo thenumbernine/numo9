@@ -398,6 +398,8 @@ end
 function UI:update()
 	local app = self.app
 
+	local handled
+
 	self:initMenuTabs()
 
 	app:matMenuReset()
@@ -413,7 +415,7 @@ function UI:update()
 		app.paletteMenuTex
 	)
 
-	self:guiRadio(
+	if self:guiRadio(
 		0,
 		0,
 		UI.editModes,
@@ -424,17 +426,21 @@ function UI:update()
 				app:setMenu(app[UI.editFieldForMode[x]])
 			end
 		end
-	)
+	) then
+		handled = true
+	end
 
 	-- TODO current blob vs editing ROM vs editing RAM ...
 	local x = 230
 	if self:guiButton('R', x, 0, nil, 'reset RAM') then
+		handled = true
 		app:checkDirtyGPU()
 		app:copyBlobsToROM()
 		app:setDirtyCPU()
 	end
 	x=x+6
 	if self:guiButton('\223', x, 0, nil, 'run') then
+		handled = true
 		app:setFocus{
 			thread = coroutine.create(function()
 				app:runCart()
@@ -444,6 +450,7 @@ function UI:update()
 	end
 	x=x+6
 	if self:guiButton('S', x, 0, nil, 'save') then
+		handled = true
 		-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
 		app:saveCart(app.currentLoadedFilename)
 		-- TODO this will rearrange the blobs
@@ -452,6 +459,7 @@ function UI:update()
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then
+		handled = true
 		app:setFocus{
 			thread = coroutine.create(function()
 				-- do this from runFocus thread, not UI thread
@@ -461,6 +469,8 @@ function UI:update()
 		}
 		app.isPaused = false	-- make sure the setFocus does run
 	end
+
+	return handled
 end
 
 --[[
@@ -510,8 +520,6 @@ function UI:edit_poke(addr, value)
 	-- I would move it to app:poke but there are some resources that depend on poking same-value memory to initialize (like the mvMat uniform shader upload)
 	if app:peek(addr) == value then return end
 
-	app:net_poke(addr, value)
-
 	-- TODO what about pokes to the blob FAT?
 	-- JUST DON'T DO THAT from the edit_poke* API (which is only called through the editor here)
 	for _,blobs in pairs(app.blobs) do
@@ -521,13 +529,13 @@ function UI:edit_poke(addr, value)
 			end
 		end
 	end
+
+	app:net_poke(addr, value)
 end
 
 function UI:edit_pokew(addr, value)
 	local app = self.app
 	value = ffi.cast(uint16_t, value)
-
-	app:net_pokew(addr, value)
 
 	-- this is done in net_poke but not in app:poke
 	-- I would move it to app:poke but there are some resources that depend on poking same-value memory to initialize (like the mvMat uniform shader upload)
@@ -540,6 +548,8 @@ function UI:edit_pokew(addr, value)
 			end
 		end
 	end
+
+	app:net_pokew(addr, value)
 end
 
 function UI:edit_pokel(addr, value)
@@ -550,8 +560,6 @@ function UI:edit_pokel(addr, value)
 	-- I would move it to app:poke but there are some resources that depend on poking same-value memory to initialize (like the mvMat uniform shader upload)
 	if app:peekl(addr) == value then return end
 
-	app:net_pokel(addr, value)
-
 	for _,blobs in pairs(app.blobs) do
 		for _,blob in ipairs(blobs) do
 			if addr >= blob.addr and addr+4 <= blob.addrEnd then
@@ -559,6 +567,8 @@ function UI:edit_pokel(addr, value)
 			end
 		end
 	end
+
+	app:net_pokel(addr, value)
 end
 
 -- in any menu, press escape or gamepad start to exit menu

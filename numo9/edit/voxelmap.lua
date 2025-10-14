@@ -174,7 +174,7 @@ function EditVoxelMap:update()
 	local orbit = self.orbit
 
 	-- this is going to draw the menu
-	EditVoxelMap.super.update(self)
+	local handled = EditVoxelMap.super.update(self)
 
 	self:guiSetClipRect(-1000, 8, 3000, 248)
 
@@ -314,202 +314,204 @@ function EditVoxelMap:update()
 				-- show selection
 				self:drawBox(box3d(npti, npti+1), 0x1b)
 
-				-- only on click?
-				-- or how about mousedown as well?
-				-- but only when the voxel changes?
-				-- tough to make it not just keep stacking towards the view ...
-				if shift then
-					if app:key'mouse_left' then
-						if mapboxIE:contains(npti) then
-							local vaddr = voxelmap:getVoxelAddr(npti:unpack())
-							if vaddr then
-								local voxval = app:peekl(vaddr)
-								if voxval ~= voxelMapEmptyValue then
-									self.voxCurSel.intval = voxval
-									self.tileSel.pos.x = self.voxCurSel.tileXOffset
-									self.tileSel.pos.y = self.voxCurSel.tileYOffset
+				if not handled then
+					-- only on click?
+					-- or how about mousedown as well?
+					-- but only when the voxel changes?
+					-- tough to make it not just keep stacking towards the view ...
+					if shift then
+						if app:key'mouse_left' then
+							if mapboxIE:contains(npti) then
+								local vaddr = voxelmap:getVoxelAddr(npti:unpack())
+								if vaddr then
+									local voxval = app:peekl(vaddr)
+									if voxval ~= voxelMapEmptyValue then
+										self.voxCurSel.intval = voxval
+										self.tileSel.pos.x = self.voxCurSel.tileXOffset
+										self.tileSel.pos.y = self.voxCurSel.tileYOffset
+									end
 								end
 							end
 						end
-					end
-				else
-					-- draw = place blocks per click
-					if self.drawMode == 'draw' then
+					else
+						-- draw = place blocks per click
+						if self.drawMode == 'draw' then
 
-						-- right click to destroy single tile
-						if app:keyp'mouse_right'
-						and mapboxIE:contains(npti)
-						then
-							local addr = voxelmap:getVoxelAddr(npti:unpack())
-							if addr then
-								self.undo:pushContinuous()
-								self:edit_pokel(addr, voxelMapEmptyValue)
-							end
-						end
-
-						if app:keyp'mouse_left' then
-							self.undo:pushContinuous()
-							local addr = voxelmap:getVoxelAddr(pti:unpack())
-							-- can pti be oob?
-							if addr then
-								self:edit_pokel(addr, self.voxCurSel.intval)
-							end
-						end
-					-- paint = draw on surface per mousedown
-					elseif self.drawMode == 'paint' then
-
-						-- right click to destroy single tile ... ? or not?
-						if app:keyp'mouse_right'
-						and mapboxIE:contains(npti)
-						then
-							local addr = voxelmap:getVoxelAddr(npti:unpack())
-							if addr then
-								self.undo:pushContinuous()
-								self:edit_pokel(addr, voxelMapEmptyValue)
-							end
-						end
-
-						if app:key'mouse_left' then
-							if mapboxIE:contains(npti) then
+							-- right click to destroy single tile
+							if app:keyp'mouse_right'
+							and mapboxIE:contains(npti)
+							then
 								local addr = voxelmap:getVoxelAddr(npti:unpack())
 								if addr then
 									self.undo:pushContinuous()
-									self:edit_pokel(addr, self.voxCurSel.intval)
+									self:edit_pokel(addr, voxelMapEmptyValue)
 								end
 							end
-						end
-					elseif self.drawMode == 'rect' then
 
-						-- right click to destroy rectangular region
-						-- don't push left and right at the same time ....
-						if app:keyp'mouse_right' then
-							-- use npti to dig one tile into the voxel
-							self.rectDown = npti:clone()
-							self.rectUp = npti:clone()
-						elseif app:keyr'mouse_right' then
-							self.undo:push()
-							if self.rectDown then
-								for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
-									for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
-										for i=math.min(self.rectDown.x,pti.x),math.max(self.rectDown.x,pti.x) do
-											local addr = voxelmap:getVoxelAddr(i,j,k)
-											if addr then	 -- TODO clamp bounds
-												self:edit_pokel(addr, voxMapEmptyValue)
-											end
-										end
-									end
-								end
-							end
-							self.rectDown = nil
-							self.rectUp = nil
-						elseif app:key'mouse_right' then
-							self.rectUp = pti:clone()
-						end
-
-						if app:keyp'mouse_left' then
-							-- use pti to build on the surface
-							self.rectDown = pti:clone()
-							self.rectUp = pti:clone()
-						elseif app:keyr'mouse_left' then
-							self.undo:push()
-							if self.rectDown then
-								for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
-									for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
-										for i=math.min(self.rectDown.x,pti.x),math.max(self.rectDown.x,pti.x) do
-											local addr = voxelmap:getVoxelAddr(i,j,k)
-											if addr then	 -- TODO clamp bounds
-												self:edit_pokel(addr, self.voxCurSel.intval)
-											end
-										end
-									end
-								end
-							end
-							self.rectDown = nil
-							self.rectUp = nil
-						elseif app:key'mouse_left' then
-							self.rectUp = pti:clone()
-						end
-					elseif self.drawMode == 'select' then
-
-						-- right click to destroy rectangular region
-						-- same as rect
-						-- don't push left and right at the same time ....
-						if app:keyp'mouse_right' then
-							-- use npti to dig one tile into the voxel
-							self.rectDown = npti:clone()
-							self.rectUp = npti:clone()
-						elseif app:keyr'mouse_right' then
-							self.undo:push()
-							if self.rectDown then
-								for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
-									for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
-										for i=math.min(self.rectDown.x,pti.x),math.max(self.rectDown.x,pti.x) do
-											local addr = voxelmap:getVoxelAddr(i,j,k)
-											if addr then	 -- TODO clamp bounds
-												self:edit_pokel(addr, voxMapEmptyValue)
-											end
-										end
-									end
-								end
-							end
-							self.rectDown = nil
-							self.rectUp = nil
-						elseif app:key'mouse_right' then
-							self.rectUp = pti:clone()
-						end
-
-						if app:keyp'mouse_left' then
-							self.rectDown = pti:clone()
-							self.rectUp = pti:clone()
-						elseif app:keyr'mouse_left' then
-						elseif app:key'mouse_left' then
-							self.rectUp = pti:clone()
-						end
-					elseif self.drawMode == 'fill' then
-
-						-- right click to destroy single tile
-						if app:keyp'mouse_right'
-						and mapboxIE:contains(npti)
-						then
-							local addr = voxelmap:getVoxelAddr(npti:unpack())
-							if addr then
+							if app:keyp'mouse_left' then
 								self.undo:pushContinuous()
-								self:edit_pokel(addr, voxelMapEmptyValue)
-							end
-						end
-
-						if app:keyp'mouse_left' then
-							local dirs = table{
-								vec3d(1,0,0),
-								vec3d(-1,0,0),
-								vec3d(0,1,0),
-								vec3d(0,-1,0),
-								vec3d(0,0,1),
-								vec3d(0,0,-1),
-							}
-							local addr = voxelmap:getVoxelAddr(npti:unpack())
-							if addr then
-								local srcColor = app:peekl(addr)
-								if srcColor ~= voxelMapEmptyValue
-								and srcColor ~= self.voxCurSel.intval
-								then
-									self.undo:push()
-
-									local fillstack = table()
-
+								local addr = voxelmap:getVoxelAddr(pti:unpack())
+								-- can pti be oob?
+								if addr then
 									self:edit_pokel(addr, self.voxCurSel.intval)
+								end
+							end
+						-- paint = draw on surface per mousedown
+						elseif self.drawMode == 'paint' then
 
-									fillstack:insert(npti:clone())
-									while #fillstack > 0 do
-										local pt = fillstack:remove()
-										for _,dir in ipairs(dirs) do
-											local pt2 = pt + dir
-											local addr = voxelmap:getVoxelAddr(pt2:unpack())
-											if addr	-- addr won't exist if it's oob
-											and app:peekl(addr) == srcColor
-											then
-												self:edit_pokel(addr, self.voxCurSel.intval)
-												fillstack:insert(pt2)
+							-- right click to destroy single tile ... ? or not?
+							if app:keyp'mouse_right'
+							and mapboxIE:contains(npti)
+							then
+								local addr = voxelmap:getVoxelAddr(npti:unpack())
+								if addr then
+									self.undo:pushContinuous()
+									self:edit_pokel(addr, voxelMapEmptyValue)
+								end
+							end
+
+							if app:key'mouse_left' then
+								if mapboxIE:contains(npti) then
+									local addr = voxelmap:getVoxelAddr(npti:unpack())
+									if addr then
+										self.undo:pushContinuous()
+										self:edit_pokel(addr, self.voxCurSel.intval)
+									end
+								end
+							end
+						elseif self.drawMode == 'rect' then
+
+							-- right click to destroy rectangular region
+							-- don't push left and right at the same time ....
+							if app:keyp'mouse_right' then
+								-- use npti to dig one tile into the voxel
+								self.rectDown = npti:clone()
+								self.rectUp = npti:clone()
+							elseif app:keyr'mouse_right' then
+								self.undo:push()
+								if self.rectDown then
+									for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
+										for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
+											for i=math.min(self.rectDown.x,pti.x),math.max(self.rectDown.x,pti.x) do
+												local addr = voxelmap:getVoxelAddr(i,j,k)
+												if addr then	 -- TODO clamp bounds
+													self:edit_pokel(addr, voxelMapEmptyValue)
+												end
+											end
+										end
+									end
+								end
+								self.rectDown = nil
+								self.rectUp = nil
+							elseif app:key'mouse_right' then
+								self.rectUp = pti:clone()
+							end
+
+							if app:keyp'mouse_left' then
+								-- use pti to build on the surface
+								self.rectDown = pti:clone()
+								self.rectUp = pti:clone()
+							elseif app:keyr'mouse_left' then
+								self.undo:push()
+								if self.rectDown then
+									for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
+										for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
+											for i=math.min(self.rectDown.x,pti.x),math.max(self.rectDown.x,pti.x) do
+												local addr = voxelmap:getVoxelAddr(i,j,k)
+												if addr then	 -- TODO clamp bounds
+													self:edit_pokel(addr, self.voxCurSel.intval)
+												end
+											end
+										end
+									end
+								end
+								self.rectDown = nil
+								self.rectUp = nil
+							elseif app:key'mouse_left' then
+								self.rectUp = pti:clone()
+							end
+						elseif self.drawMode == 'select' then
+
+							-- right click to destroy rectangular region
+							-- same as rect
+							-- don't push left and right at the same time ....
+							if app:keyp'mouse_right' then
+								-- use npti to dig one tile into the voxel
+								self.rectDown = npti:clone()
+								self.rectUp = npti:clone()
+							elseif app:keyr'mouse_right' then
+								self.undo:push()
+								if self.rectDown then
+									for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
+										for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
+											for i=math.min(self.rectDown.x,pti.x),math.max(self.rectDown.x,pti.x) do
+												local addr = voxelmap:getVoxelAddr(i,j,k)
+												if addr then	 -- TODO clamp bounds
+													self:edit_pokel(addr, voxelMapEmptyValue)
+												end
+											end
+										end
+									end
+								end
+								self.rectDown = nil
+								self.rectUp = nil
+							elseif app:key'mouse_right' then
+								self.rectUp = pti:clone()
+							end
+
+							if app:keyp'mouse_left' then
+								self.rectDown = pti:clone()
+								self.rectUp = pti:clone()
+							elseif app:keyr'mouse_left' then
+							elseif app:key'mouse_left' then
+								self.rectUp = pti:clone()
+							end
+						elseif self.drawMode == 'fill' then
+
+							-- right click to destroy single tile
+							if app:keyp'mouse_right'
+							and mapboxIE:contains(npti)
+							then
+								local addr = voxelmap:getVoxelAddr(npti:unpack())
+								if addr then
+									self.undo:pushContinuous()
+									self:edit_pokel(addr, voxelMapEmptyValue)
+								end
+							end
+
+							if app:keyp'mouse_left' then
+								local dirs = table{
+									vec3d(1,0,0),
+									vec3d(-1,0,0),
+									vec3d(0,1,0),
+									vec3d(0,-1,0),
+									vec3d(0,0,1),
+									vec3d(0,0,-1),
+								}
+								local addr = voxelmap:getVoxelAddr(npti:unpack())
+								if addr then
+									local srcColor = app:peekl(addr)
+									if srcColor ~= voxelMapEmptyValue
+									and srcColor ~= self.voxCurSel.intval
+									then
+										self.undo:push()
+
+										local fillstack = table()
+
+										self:edit_pokel(addr, self.voxCurSel.intval)
+
+										fillstack:insert(npti:clone())
+										while #fillstack > 0 do
+											local pt = fillstack:remove()
+											for _,dir in ipairs(dirs) do
+												local pt2 = pt + dir
+												local addr = voxelmap:getVoxelAddr(pt2:unpack())
+												if addr	-- addr won't exist if it's oob
+												and app:peekl(addr) == srcColor
+												then
+													self:edit_pokel(addr, self.voxCurSel.intval)
+													fillstack:insert(pt2)
+												end
 											end
 										end
 									end
@@ -557,12 +559,7 @@ function EditVoxelMap:update()
 		y = y + 8
 	end
 
-	-- TODO should this go here or in the caller:
 	self:guiSetClipRect(0, 0, 256, 256)
-	app:matMenuReset()
--- TODO why ddo I need this here (and not in orbit:endDraw()) or else the editor menu bar gets blacked out?
---self:guiSetClipRect(0, 0, 9999, 9999)
-self:guiSetClipRect(0, 0, 256, 256)
 
 	local x, y = 48, 0
 	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
@@ -814,6 +811,11 @@ self:guiSetClipRect(0, 0, 256, 256)
 
 	self:drawTooltip()
 end
+
+--[[ TODO just use lua.gui ... gui scenegraph ...
+function EditVoxelMap:event(e)
+end
+--]]
 
 function EditVoxelMap:resizeVoxelmap(nx, ny, nz)
 	local app = self.app
