@@ -2788,7 +2788,7 @@ function AppVideo:resetVideo()
 
 	self.ram.ssaoSampleRadius = 1
 	self.ram.ssaoInfluence = 1
-	
+
 	self.ram.spriteNormalExhaggeration = 8
 	self:onSpriteNormalExhaggerationChange()
 
@@ -4677,6 +4677,7 @@ function AppVideo:drawVoxelMap(
 		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
 		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
 
+		--[=[ copy each chunk into the draw buffer
 		for i=0,voxelmap.chunkVolume-1 do
 			local chunk = voxelmap.chunks[i]
 			local srcVtxs = chunk.vertexBufCPU
@@ -4690,6 +4691,19 @@ function AppVideo:drawVoxelMap(
 			local dstVtxPtr = dstVtxs.v + writeOfs
 			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
 		end
+		--]=]
+		-- [=[ copy the master list into the draw buffer
+		local srcVtxs = voxelmap.vertexBufCPU
+		local srcLen = #srcVtxs
+
+		local dstVtxs = self.vertexBufCPU
+		local dstLen = #dstVtxs
+		local writeOfs = dstLen
+
+		dstVtxs:resize(dstLen + srcLen)
+		local dstVtxPtr = dstVtxs.v + writeOfs
+		ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+		--]=]
 	end
 	--]]
 	--[[ draw using blob/voxelmap's own GPU buffer

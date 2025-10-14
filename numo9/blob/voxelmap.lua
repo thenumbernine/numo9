@@ -126,6 +126,8 @@ function Chunk:init(args)
 
 	local volume = self.volume
 	self.vertexBufCPU = vector(Numo9Vertex)
+	self.billboardXYZVoxels = vector(vec3i)	-- type 20
+	self.billboardXYVoxels = vector(vec3i)	-- type 21
 
 	-- says the mesh needs to be rebuilt
 	self.dirtyCPU = true
@@ -137,6 +139,8 @@ function Chunk:rebuildMesh(app)
 	self.dirtyCPU = false
 
 	self.vertexBufCPU:resize(0)
+	self.billboardXYZVoxels:resize(0)
+	self.billboardXYVoxels:resize(0)
 
 	-- ok here I shoot myself in the foot just a bit
 	-- cuz now that I'm baking extra flags,
@@ -201,9 +205,9 @@ function Chunk:rebuildMesh(app)
 							tmpMat:applyScale(1/32768, 1/32768, 1/32768)
 
 							if vptr.orientation == 20 then
-								self.voxelmap.billboardXYZVoxels:emplace_back()[0]:set(vi,vj,vk)
+								self.billboardXYZVoxels:emplace_back()[0]:set(vi,vj,vk)
 							elseif vptr.orientation == 21 then
-								self.voxelmap.billboardXYVoxels:emplace_back()[0]:set(vi,vj,vk)
+								self.billboardXYVoxels:emplace_back()[0]:set(vi,vj,vk)
 							elseif vptr.orientation == 22 then
 							elseif vptr.orientation == 23 then
 							elseif vptr.orientation == 28 then
@@ -430,6 +434,9 @@ function BlobVoxelMap:init(data)
 	assert.gt(self:getHeight(), 0)
 	assert.gt(self:getDepth(), 0)
 
+	-- after any chunk goes dirty rebuild it, then rebuild the master list so I just have to do one copy into the draw buffer
+	-- or TODO if I do use GPU resources then meh dont bother use a master list, right? cuz gpu multiple draws should be fast enough and an extra CPU copy would be slower right?
+	self.vertexBufCPU = vector(Numo9Vertex)
 	self.billboardXYZVoxels = vector(vec3i)	-- type 20
 	self.billboardXYVoxels = vector(vec3i)	-- type 21
 
@@ -572,6 +579,7 @@ function BlobVoxelMap:rebuildMesh(app)
 	self.dirtyCPU = false
 
 select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
+	self.vertexBufCPU:resize(0)
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 
@@ -588,6 +596,53 @@ end
 		self.chunks[chunkIndex]:rebuildMesh(app)
 	end
 end))
+
+	-- [[ now that all chunks have been rebuilt, rebuild our master list
+	-- optional TODO if I switch to GPU then dont do this master list, just use individual GPU buffers
+	for i=0,self.chunkVolume-1 do
+		do
+			local chunk = self.chunks[i]
+			local srcVtxs = chunk.vertexBufCPU
+			local srcLen = #srcVtxs
+
+			local dstVtxs = self.vertexBufCPU
+			local dstLen = #dstVtxs
+			local writeOfs = dstLen
+
+			dstVtxs:resize(dstLen + srcLen)
+			local dstVtxPtr = dstVtxs.v + writeOfs
+			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+		end
+
+		do
+			local chunk = self.chunks[i]
+			local srcVtxs = chunk.billboardXYZVoxels
+			local srcLen = #srcVtxs
+
+			local dstVtxs = self.billboardXYZVoxels
+			local dstLen = #dstVtxs
+			local writeOfs = dstLen
+
+			dstVtxs:resize(dstLen + srcLen)
+			local dstVtxPtr = dstVtxs.v + writeOfs
+			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+		end
+
+		do
+			local chunk = self.chunks[i]
+			local srcVtxs = chunk.billboardXYVoxels
+			local srcLen = #srcVtxs
+
+			local dstVtxs = self.billboardXYVoxels
+			local dstLen = #dstVtxs
+			local writeOfs = dstLen
+
+			dstVtxs:resize(dstLen + srcLen)
+			local dstVtxPtr = dstVtxs.v + writeOfs
+			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+		end
+	end
+	--]]
 end
 
 local warnedAboutTouchingSize
