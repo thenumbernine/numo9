@@ -187,21 +187,16 @@ function Chunk:rebuildMesh(app)
 				local vj = bit.bor(j, bit.lshift(cj, Chunk.bitsize.y))
 				if vj < voxelmapSize.y then
 
-					-- at least traverse rows
+					-- traverse cols
 					local vptr = voxels + (bit.lshift(ci, Chunk.bitsize.x) + voxelmapSize.x * (vj + voxelmapSize.y * vk))
-
 					for i=0,Chunk.size.x-1 do
 						local vi = bit.bor(i, bit.lshift(ci, Chunk.bitsize.x))
-
 --DEBUG:print('cpos', ci, cj, ck, 'pos', i, j, k, 'vpos', vi, vj, vk)
 
-						-- lookup each voxel
-						--local vptr = voxels + (vi + voxelmapSize.x * (vj + voxelmapSize.y * vk))
-
 						-- chunks can extend beyond the voxelmap when it isnt chunk-aligned in size
-						if vi < voxelmapSize.x
-						and vptr.intval ~= voxelMapEmptyValue
-						then
+						if vi >= voxelmapSize.x then break end
+
+						if vptr.intval ~= voxelMapEmptyValue then
 							tmpMat:setTranslate(vi+.5, vj+.5, vk+.5)
 							tmpMat:applyScale(1/32768, 1/32768, 1/32768)
 
@@ -210,9 +205,11 @@ function Chunk:rebuildMesh(app)
 							elseif vptr.orientation == 21 then
 								self.voxelmap.billboardXYVoxels:emplace_back()[0]:set(vi,vj,vk)
 							elseif vptr.orientation == 22 then
-								-- TODO
 							elseif vptr.orientation == 23 then
-								-- TODO
+							elseif vptr.orientation == 28 then
+							elseif vptr.orientation == 29 then
+							elseif vptr.orientation == 30 then
+							elseif vptr.orientation == 31 then
 							else
 								--[[
 								0 c= 1 s= 0
@@ -274,14 +271,14 @@ function Chunk:rebuildMesh(app)
 									[ m2 m6 m10 m14] [ 0 1  0 0 ]
 									[ m3 m7 m11 m15] [ 0 0  0 1 ]
 									--]]
-									mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
-									= mp[12], mp[13], mp[14], -mp[0], -mp[1], -mp[2]
-								elseif vptr.rotX == 2 then
-									mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
-									= -mp[0], -mp[1], -mp[2], -mp[12], -mp[13], -mp[14]
+									mp[4], mp[5], mp[6], mp[8], mp[9], mp[10]
+									= mp[8], mp[9], mp[10], -mp[4], -mp[5], -mp[6]
+								elseif vptr.rotX == 6 then
+									mp[4], mp[5], mp[6], mp[8], mp[9], mp[10]
+									= -mp[4], -mp[5], -mp[6], -mp[8], -mp[9], -mp[10]
 								elseif vptr.rotX == 3 then
-									mp[0], mp[1], mp[2], mp[12], mp[13], mp[14]
-									= -mp[12], -mp[13], -mp[14], mp[0], mp[1], mp[2]
+									mp[4], mp[5], mp[6], mp[8], mp[9], mp[10]
+									= -mp[8], -mp[9], -mp[10], mp[4], mp[5], mp[6]
 								end
 
 								local uofs = bit.lshift(vptr.tileXOffset, 3)
@@ -332,6 +329,12 @@ function Chunk:rebuildMesh(app)
 												if nbhdmesh
 												and nbhdVox.orientation ~= 20
 												and nbhdVox.orientation ~= 21
+												and nbhdVox.orientation ~= 22
+												and nbhdVox.orientation ~= 23
+												and nbhdVox.orientation ~= 28
+												and nbhdVox.orientation ~= 29
+												and nbhdVox.orientation ~= 30
+												and nbhdVox.orientation ~= 31
 												then
 													local oppositeSideIndex = bit.bxor(1, sideIndex)
 													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][nbhdVox.orientation+1]
@@ -452,6 +455,7 @@ function BlobVoxelMap:init(data)
 
 	-- need to update this if the size ever changes...
 	self.sizeInChunks = self:getVoxelSizeInChunks()
+	self.chunkVolume = self.sizeInChunks:volume()
 
 	-- create the chunks
 	do
@@ -573,7 +577,6 @@ select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 
 local lastTime = os.time()
 
-	self.chunkVolume = self:getVoxelSizeInChunks():volume()
 	for chunkIndex=0,self.chunkVolume-1 do
 
 local thisTime = os.time()
