@@ -176,7 +176,7 @@ function EditVoxelMap:update()
 	-- this is going to draw the menu
 	EditVoxelMap.super.update(self)
 
-	self:guiSetClipRect(0, 8, 256, 248)
+	self:guiSetClipRect(-1000, 8, 3000, 248)
 
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 

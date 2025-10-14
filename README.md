@@ -966,3 +966,4 @@ voxelmap editor fixes:
 - option for select to auto-orient according to your view direction (like minecraft and stairs)
 - when clicking the blob sel dropdown, the mouse goes through to the editor aka voxelmap edit input
 - when clicking save load etc the mouse goes through to the editor aka voxelmap edit input
+- 'paint' vs 'draw' resets when you select to another tool
