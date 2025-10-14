@@ -46,4 +46,4 @@ for sideIndex=0,5 do
 	allrotsides:insert(rotsides)
 end
 print'-- [sideIndex+1][orientation+1] = rotated sideIndex'
-print('rotateSideByOrientation = '..tolua(allrotsides))
+print('local rotateSideByOrientation = '..tolua(allrotsides))

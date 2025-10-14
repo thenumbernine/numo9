@@ -22,9 +22,10 @@ local rz = matrix{
 	{1,0,0},
 	{0,0,1},
 }
-local rs = table{rx, ry, rz}
+local baseRots = table{rx, ry, rz}
 
-local ms = table()
+local uniqueRots = table()
+local rots = table()	-- all orientation rotations, should be 32
 local sx = I
 for ix=0,1 do
 	local sy = I
@@ -32,10 +33,11 @@ for ix=0,1 do
 		local sz = I
 		for iz=0,3 do
 			local m = sz * sy * sx
+			rots:insert(m)
 			local orientation = iz | (iy << 2) | (ix << 4)
-			local dupindex = ms:find(m)
+			local dupindex = uniqueRots:find(m)
 			if not dupindex then
-				ms:insert(m)
+				uniqueRots:insert(m)
 			end
 print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix..'\tdup='..(dupindex and dupindex-1 or ''))
 			sz *= rz
@@ -45,20 +47,19 @@ print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix..'\tdup='..(
 	sx *= rx
 end
 
-print('#unique', #ms)
-path'rot3ds.rua':write('return '..tolua(ms))
---[[ show orientations
-for i,m in ipairs(ms) do print(i..'\n'..m) end
---]]
+print('#unique', #uniqueRots)
+
+-- save for side-rotation-table.rua
+path'rot3ds.rua':write('return '..tolua(rots))
 
 -- now for each orientation, left-apply a rotate-x, rotate-y, rotate-z and see where we get
 -- such that applying a column 4x should bring you back to the start (but never before 4x)
 print()
 print'-- indexed[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation'
-print'orientationRotations = {'
-for i,m in ipairs(ms) do
+print'local orientationRotations = {'
+for i,m in ipairs(rots) do
 	local allinds = table()
-	for j,r in ipairs(rs) do
+	for j,r in ipairs(baseRots) do
 		local m2 = m
 		local rotinds = table()
 		allinds:insert(rotinds)
@@ -67,7 +68,7 @@ for i,m in ipairs(ms) do
 			if k == 4 then
 				assert.eq(m, m2)
 			else
-				local index = assert(ms:find(m2)) - 1
+				local index = assert(rots:find(m2)) - 1
 				rotinds:insert(index)
 			end
 		end
@@ -77,11 +78,11 @@ end
 print'}'
 
 local invOrientations = table()
-for i,m in ipairs(ms) do
-	local invIndex = assert(ms:find((m:inv()))) - 1
+for i,m in ipairs(rots) do
+	local invIndex = assert(rots:find((m:inv()))) - 1
 	invOrientations:insert(invIndex)
 end
 print()
 print'-- inverse orientation for orientation'
 print'-- [orientation+1] = rotated orientation'
-print('orientationInv = '..tolua(invOrientations))
+print('local orientationInv = '..tolua(invOrientations))
