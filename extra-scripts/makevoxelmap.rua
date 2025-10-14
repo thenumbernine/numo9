@@ -1,0 +1,21 @@
+#!/usr/bin/env rua
+--[[
+writes a voxelmap file for specified size
+--]]
+
+local outfn, x, y, z = ...
+assert(outfn and x and y and z, "expected outfile.vox x y z")
+x = assert(tonumber(x), "couldn't understand "..tostring(x))
+y = assert(tonumber(y), "couldn't understand "..tostring(y))
+z = assert(tonumber(z), "couldn't understand "..tostring(z))
+
+local n = 3 + x * y * z
+local v = ffi.new('uint32_t[?]', n)
+v[0] = x
+v[1] = y
+v[2] = z
+for i=3,n-1 do
+	v[i] = 0xffffffff
+end
+
+assert(path(outfn):write(ffi.string(v, ffi.sizeof'uint32_t' * n)))
