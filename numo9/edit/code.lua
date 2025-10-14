@@ -59,11 +59,7 @@ function EditCode:update()
 	app:matident(0)
 	app:matident(1)
 	app:matident(2)
-	app:matortho(
-		0, app.ram.screenWidth,
-		app.ram.screenHeight, 0)
-	--local m = math.min(app.width, app.height)
-	--app:mattrans((app.width - m) * .5, (app.height - m) * .5)
+	app:matortho(0, app.ram.screenWidth, app.ram.screenHeight, 0)
 	app:matscale(app.width / app.menuSizeInSprites.x, app.height / app.menuSizeInSprites.y)
 	--]]
 

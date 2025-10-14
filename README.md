@@ -968,3 +968,5 @@ voxelmap editor fixes:
 - when clicking the blob sel dropdown, the mouse goes through to the editor aka voxelmap edit input
 - when clicking save load etc the mouse goes through to the editor aka voxelmap edit input
 - 'paint' vs 'draw' resets when you select to another tool
+
+- lighting in editor is still messed up.  esp when you push 'save' for some reason, thats the only time the light matrix updates.

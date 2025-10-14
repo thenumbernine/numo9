@@ -1663,6 +1663,10 @@ function App:update()
 		end
 	end
 
+	-- alright so how to keep the cpu from using 100% but keep the framerate high?
+	-- impossible?
+	sdl.SDL_Delay(10)
+
 	-- will this hurt performance?
 	if self.activeMenu then
 		sdl.SDL_ShowCursor()

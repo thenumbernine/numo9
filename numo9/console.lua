@@ -14,7 +14,6 @@ local keyCodeForName = numo9_keys.keyCodeForName
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 local numo9_rom = require 'numo9.rom'
-local frameBufferSize = numo9_rom.frameBufferSize
 local spriteSize = numo9_rom.spriteSize
 local menuFontWidth = numo9_rom.menuFontWidth
 
@@ -23,6 +22,11 @@ local Console = class()
 
 function Console:init(args)
 	self.app = assert(args.app)
+
+	-- defaults, but stretch the width to match the aspect ratio
+	-- and maybe a console font zoom size, or a menu font zoom size, idk
+	self.width = 256
+	self.height = 256
 
 	self:reset()
 
@@ -83,19 +87,19 @@ function Console:offsetCursor(dx, dy)
 	self.cursorPos.y = self.cursorPos.y + dy
 
 	while self.cursorPos.x < 0 do
-		self.cursorPos.x = self.cursorPos.x + frameBufferSize.x
+		self.cursorPos.x = self.cursorPos.x + self.width
 		self.cursorPos.y = self.cursorPos.y - spriteSize.y
 	end
-	while self.cursorPos.x >= frameBufferSize.x do
-		self.cursorPos.x = self.cursorPos.x - frameBufferSize.x
+	while self.cursorPos.x >= self.width do
+		self.cursorPos.x = self.cursorPos.x - self.width
 		self.cursorPos.y = self.cursorPos.y + spriteSize.y
 	end
 
 	while self.cursorPos.y < 0 do
-		self.cursorPos.y = self.cursorPos.y + frameBufferSize.y
+		self.cursorPos.y = self.cursorPos.y + self.height
 	end
-	while self.cursorPos.y >= frameBufferSize.y do
-		self.cursorPos.y = self.cursorPos.y - frameBufferSize.y
+	while self.cursorPos.y >= self.height do
+		self.cursorPos.y = self.cursorPos.y - self.height
 	end
 end
 
@@ -141,7 +145,7 @@ print(...)
 	self.lines:insert(1, s)
 	--]]
 	-- [[ chop lines up
-	local maxcol = math.floor(tonumber(frameBufferSize.x) / menuFontWidth)
+	local maxcol = math.floor(self.width / menuFontWidth)
 	while #s > maxcol do
 		self.lines:insert(1, s:sub(1,maxcol))
 		s = s:sub(maxcol+1)
@@ -175,6 +179,27 @@ end
 function Console:update()
 	local app = self.app
 
+
+	local ar = tonumber(app.ram.screenWidth) / tonumber(app.ram.screenHeight)
+	self.height = 256
+	self.width = self.height * ar
+
+
+	-- [[ same as matMenuReset but without the translate
+	-- aligns things to the left
+	-- also in numo9/edit/code.lua's :update
+	local app = self.app
+	local ar = app.ram.screenWidth / app.ram.screenHeight
+	app:matident(0)
+	app:matident(1)
+	app:matident(2)
+	app:matortho(
+		0, app.ram.screenWidth,
+		app.ram.screenHeight, 0)
+	app:matscale(app.width / app.menuSizeInSprites.x, app.height / app.menuSizeInSprites.y)
+	--]]
+
+
 	-- if a game is running, overlay the console on the top
 	-- otherwise give it full screen
 	--local maxLines = app.runFocus and 5 or 30
@@ -183,12 +208,12 @@ function Console:update()
 
 	local shownLines = math.min(#self.lines, maxLines)
 	app:setBlendMode(3)
-	app:drawSolidRect(0, 0, frameBufferSize.x, shownLines * spriteSize.y, 0xf0)
+	app:drawSolidRect(0, 0, self.width, shownLines * spriteSize.y, 0xf0)
 	app:setBlendMode(0xff)
 
 	self.cursorPos.x = 0
 	self.cursorPos.y = 0
-	local maxcol = math.floor(tonumber(frameBufferSize.x) / menuFontWidth)
+	local maxcol = math.floor(self.width / menuFontWidth)
 	for i=shownLines,1,-1 do
 		local l = self.lines[i]
 		--[[ hmm TODO split up lines in display, or split them up when adding them?
@@ -225,6 +250,8 @@ function Console:update()
 			end
 		end
 	end
+
+	app:matMenuReset()
 end
 
 function Console:event(e) end
