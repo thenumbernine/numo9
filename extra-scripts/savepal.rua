@@ -1,0 +1,18 @@
+#!/usr/bin/env rua
+
+-- script for saving a palette table (in image .palette) to a 16x16 image
+-- also in n9a.lua ... maybe consolidate?
+
+local Image = require 'image'
+
+local infn, outfn = ...
+assert(infn and outfn, "expected savepal infile.png outfile.png")
+
+local function savePal(palette, outfn)
+	Image(16, 16, 4, uint8_t, range(0,16*16*4-1):mapi(function(i)
+		local ch = bit.band(i,3)
+		return palette[bit.rshift(i,2)+1]?[ch+1] or (ch == 3 and 255 or 0)
+	end)):save(tostring(outfn))
+end
+
+savePal(Image(infn)!.palette, outfn)
