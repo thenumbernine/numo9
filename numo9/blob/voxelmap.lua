@@ -583,6 +583,8 @@ function BlobVoxelMap:onTouchRAM(touchAddrStart, touchAddrEnd, app)
 if not warnedAboutTouchingSize then
 	warnedAboutTouchingSize = true
 	print("I don't support live changing voxelmap chunk sizes.  Changing this to a value exceeding the limit of RAM could have devastating consequences.")
+	print(debug.traceback())
+	print()
 end
 		return
 	end

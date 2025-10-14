@@ -22,6 +22,8 @@ local rz = matrix{
 	{1,0,0},
 	{0,0,1},
 }
+local rs = table{rx, ry, rz}
+
 local ms = table()
 local sx = I
 for ix=0,1 do
@@ -42,5 +44,33 @@ print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix..'\tdup='..(
 	end
 	sx *= rx
 end
+
 print('#unique', #ms)
+--[[ show orientations
 for i,m in ipairs(ms) do print(i..'\n'..m) end
+--]]
+
+-- now for each orientation, left-apply a rotate-x, rotate-y, rotate-z and see where we get
+-- such that applying a column 4x should bring you back to the start (but never before 4x)
+print()
+print'-- indexed[orientation (1-based)][rx ry rz][angle in 90 degree increments] = 0-based orientation'
+print'rotTable = {'
+for i,m in ipairs(ms) do
+	local allinds = table()
+	for j,r in ipairs(rs) do
+		local m2 = m
+		local rotinds = table()
+		allinds:insert(rotinds)
+		for k=1,4 do
+			m2 = r * m2
+			if k == 4 then
+				assert.eq(m, m2)
+			else
+				local index = assert(ms:find(m2))
+				rotinds:insert(index)
+			end
+		end
+	end
+	print('\t'..tolua(allinds, {indent=false})..',')
+end
+print'}'
