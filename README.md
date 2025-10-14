@@ -958,11 +958,11 @@ TODO cart status:
 
 
 voxelmap editor fixes:
-- voxelmap rect select right-click to rect-delete
 - voxelmap rect and select , better preview of region
-- voxelmap paint vs draw should only toggle when you're already selected that radio button
 - voxelmap fill should toggle between 2D suraces and 3D
 - extrude hilite / select cursor box by just 1/16th or so
 - preview window for meshes
 - preview window for orientations
 - option for select to auto-orient according to your view direction (like minecraft and stairs)
+- when clicking the blob sel dropdown, the mouse goes through to the editor aka voxelmap edit input
+- when clicking save load etc the mouse goes through to the editor aka voxelmap edit input
