@@ -177,7 +177,7 @@ function Chunk:rebuildMesh(app)
 	local occludedCount = 0
 
 	local ci, cj, ck = self.chunkPos:unpack()
-print('chunk', ci, cj, ck)
+--DEBUG:print('chunk', ci, cj, ck)
 
 	local nbhd = vec3i()
 	for k=0,Chunk.size.z-1 do
@@ -193,7 +193,7 @@ print('chunk', ci, cj, ck)
 					for i=0,Chunk.size.x-1 do
 						local vi = bit.bor(i, bit.lshift(ci, Chunk.bitsize.x))
 
---print('cpos', ci, cj, ck, 'pos', i, j, k, 'vpos', vi, vj, vk)
+--DEBUG:print('cpos', ci, cj, ck, 'pos', i, j, k, 'vpos', vi, vj, vk)
 
 						-- lookup each voxel
 						--local vptr = voxels + (vi + voxelmapSize.x * (vj + voxelmapSize.y * vk))
@@ -311,8 +311,6 @@ print('chunk', ci, cj, ck)
 										-- hmmmmmmm
 
 
-		-- occluding takes our build time from 84s to 10s
-		-- [[
 										local sideIndex = mesh.sideForTriIndex[ti]
 										if sideIndex then
 											-- TODO TODO sides need to be influenced by orientation too ...
@@ -331,23 +329,17 @@ print('chunk', ci, cj, ck)
 												-- if it occludes the opposite side then skip this tri
 												local nbhdVox = voxels[nbhd.x + voxelmapSize.x * (nbhd.y + voxelmapSize.y * nbhd.z)]
 												local nbhdmesh = app.blobs.mesh3d[nbhdVox.mesh3DIndex+1]
-												if nbhdmesh then
-													-- [[
+												if nbhdmesh
+												and nbhdVox.orientation ~= 20
+												and nbhdVox.orientation ~= 21
+												then
 													local oppositeSideIndex = bit.bxor(1, sideIndex)
-													local nbhdInvOrientation = orientationInv[nbhdVox.orientation+1]
-													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][nbhdInvOrientation+1]
+													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][nbhdVox.orientation+1]
 													occluded = nbhdmesh.sidesOccluded[oppositeSideIndex]
-													--]]
-													--[[
-													occluded = true
-													--]]
 												end
 											end
 										end
-		--]]
 
-		-- 10s slowdown still present in here:
-		-- [[
 										if occluded then
 											occludedCount = occludedCount + 1
 										else
@@ -384,7 +376,6 @@ print('chunk', ci, cj, ck)
 											dstVtx.extra = extra
 											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 										end
-		--]]
 									end
 								end
 							end
@@ -395,8 +386,8 @@ print('chunk', ci, cj, ck)
 			end
 		end
 	end
-print('created', #self.vertexBufCPU/3, 'tris')
-print('occluded', occludedCount, 'tris')
+--DEBUG:print('created', #self.vertexBufCPU/3, 'tris')
+--DEBUG:print('occluded', occludedCount, 'tris')
 end
 
 
