@@ -46,6 +46,7 @@ print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix..'\tdup='..(
 end
 
 print('#unique', #ms)
+path'rot3ds.rua':write('return '..tolua(ms))
 --[[ show orientations
 for i,m in ipairs(ms) do print(i..'\n'..m) end
 --]]
@@ -53,8 +54,8 @@ for i,m in ipairs(ms) do print(i..'\n'..m) end
 -- now for each orientation, left-apply a rotate-x, rotate-y, rotate-z and see where we get
 -- such that applying a column 4x should bring you back to the start (but never before 4x)
 print()
-print'-- indexed[orientation (1-based)][rx ry rz][angle in 90 degree increments] = 0-based orientation'
-print'rotTable = {'
+print'-- indexed[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation'
+print'orientationRotations = {'
 for i,m in ipairs(ms) do
 	local allinds = table()
 	for j,r in ipairs(rs) do
@@ -66,7 +67,7 @@ for i,m in ipairs(ms) do
 			if k == 4 then
 				assert.eq(m, m2)
 			else
-				local index = assert(ms:find(m2))
+				local index = assert(ms:find(m2)) - 1
 				rotinds:insert(index)
 			end
 		end
@@ -74,3 +75,13 @@ for i,m in ipairs(ms) do
 	print('\t'..tolua(allinds, {indent=false})..',')
 end
 print'}'
+
+local invOrientations = table()
+for i,m in ipairs(ms) do
+	local invIndex = assert(ms:find((m:inv()))) - 1
+	invOrientations:insert(invIndex)
+end
+print()
+print'-- inverse orientation for orientation'
+print'-- [orientation+1] = rotated orientation'
+print('orientationInv = '..tolua(invOrientations))

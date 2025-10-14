@@ -41,37 +41,48 @@ local function vec3to3(m, x, y, z)
 		m[2] * x + m[6] * y + m[10] * z + m[14]
 end
 
+-- inverse orientation for orientation
+-- [orientation+1] = rotated orientation
+local orientationInv = {0, 3, 2, 1, 12, 19, 6, 23, 8, 9, 10, 11, 4, 21, 14, 17, 22, 15, 18, 5, 20, 13, 16, 7}
 
--- rotZ, rotY, rotX are from Voxel type, so they are from 1-2 bits in size, each representing Euler-angles 90-degree rotation
-local function rotateSideByOrientation(sideIndex, rotZ, rotY, rotX)
-	-- use a table or something, or flip bits
-	local sign = bit.band(1, sideIndex) == 1 and -1 or 1
-	local axis = bit.rshift(sideIndex, 1)
-	-- rot z is x->y, y->-x
-	if axis ~= 2 then
-		for i=0,rotZ-1 do
-			axis = 1 - axis	-- 0,1
-			if axis == 0 then sign = -sign end
-		end
-	end
-	-- rot y is z->x, x->-z
-	if axis ~= 1 then
-		for i=0,rotY-1 do
-			axis = 2 - axis	-- 0,2
-			if axis == 2 then sign = -sign end
-		end
-	end
-	-- rot x is y->z, z->-y
-	if axis ~= 0 then
-		for i=0,rotX-1 do
-			axis = 3 - axis	-- 1,2
-			if axis == 1 then sign = -sign end
-		end
-	end
-	return bit.bor(
-		sign < 0 and 1 or 0,
-		bit.lshift(axis, 1))
-end
+-- [sideIndex+1][orientation+1] = rotated sideIndex 
+local rotateSideByOrientation = {
+	{0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 1, 3, 0, 2},
+	{1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 0, 2, 1, 3},
+	{2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 4, 4, 4, 4, 5, 5, 5, 5},
+	{3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 5, 5, 5, 5, 4, 4, 4, 4},
+	{4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 3, 0, 2, 1, 3, 0, 2, 1},
+	{5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 2, 1, 3, 0, 2, 1, 3, 0}
+}
+
+-- orientation rotations for the upper 5 rotation bits of the voxel
+-- indexed[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation
+orientationRotations = {
+	{{16, 10, 22},{4, 8, 12},{1, 2, 3}},
+	{{13, 9, 5},{17, 11, 23},{2, 3, 0}},
+	{{20, 8, 18},{14, 10, 6},{3, 0, 1}},
+	{{7, 11, 15},{21, 9, 19},{0, 1, 2}},
+	{{17, 14, 21},{8, 12, 0},{5, 6, 7}},
+	{{1, 13, 9},{18, 15, 22},{6, 7, 4}},
+	{{23, 12, 19},{2, 14, 10},{7, 4, 5}},
+	{{11, 15, 3},{20, 13, 16},{4, 5, 6}},
+	{{18, 2, 20},{12, 0, 4},{9, 10, 11}},
+	{{5, 1, 13},{19, 3, 21},{10, 11, 8}},
+	{{22, 0, 16},{6, 2, 14},{11, 8, 9}},
+	{{15, 3, 7},{23, 1, 17},{8, 9, 10}},
+	{{19, 6, 23},{0, 4, 8},{13, 14, 15}},
+	{{9, 5, 1},{16, 7, 20},{14, 15, 12}},
+	{{21, 4, 17},{10, 6, 2},{15, 12, 13}},
+	{{3, 7, 11},{22, 5, 18},{12, 13, 14}},
+	{{10, 22, 0},{7, 20, 13},{17, 18, 19}},
+	{{14, 21, 4},{11, 23, 1},{18, 19, 16}},
+	{{2, 20, 8},{15, 22, 5},{19, 16, 17}},
+	{{6, 23, 12},{3, 21, 9},{16, 17, 18}},
+	{{8, 18, 2},{13, 16, 7},{21, 22, 23}},
+	{{4, 17, 14},{9, 19, 3},{22, 23, 20}},
+	{{0, 16, 10},{5, 18, 15},{23, 20, 21}},
+	{{12, 19, 6},{1, 17, 11},{20, 21, 22}},
+}
 
 
 local function shiftDownAndRoundUp(x, bits)
@@ -159,6 +170,7 @@ function Chunk:rebuildMesh(app)
 	local occludedCount = 0
 
 	local ci, cj, ck = self.chunkPos:unpack()
+print('chunk', ci, cj, ck)
 
 	local nbhd = vec3i()
 	for k=0,Chunk.size.z-1 do
@@ -297,7 +309,7 @@ function Chunk:rebuildMesh(app)
 										local sideIndex = mesh.sideForTriIndex[ti]
 										if sideIndex then
 											-- TODO TODO sides need to be influenced by orientation too ...
-											sideIndex = rotateSideByOrientation(sideIndex, vptr.rotZ, vptr.rotY, vptr.rotX)
+											sideIndex = rotateSideByOrientation[sideIndex+1][vptr.orientation+1]
 
 											-- offet into 'sideIndex'
 											local sign = 1 - 2 * bit.band(1, sideIndex)
@@ -313,9 +325,15 @@ function Chunk:rebuildMesh(app)
 												local nbhdVox = voxels[nbhd.x + voxelmapSize.x * (nbhd.y + voxelmapSize.y * nbhd.z)]
 												local nbhdmesh = app.blobs.mesh3d[nbhdVox.mesh3DIndex+1]
 												if nbhdmesh then
+													-- [[
 													local oppositeSideIndex = bit.bxor(1, sideIndex)
-													oppositeSideIndex = rotateSideByOrientation(oppositeSideIndex, nbhdVox.rotZ, nbhdVox.rotY, nbhdVox.rotX)
+													local nbhdInvOrientation = orientationInv[nbhdVox.orientation+1]
+													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][nbhdInvOrientation+1]
 													occluded = nbhdmesh.sidesOccluded[oppositeSideIndex]
+													--]]
+													--[[
+													occluded = true
+													--]]
 												end
 											end
 										end
@@ -370,8 +388,8 @@ function Chunk:rebuildMesh(app)
 			end
 		end
 	end
---DEBUG:print('created', #self.vertexBufCPU/3, 'tris')
---DEBUG:print('occluded', occludedCount, 'tris')
+print('created', #self.vertexBufCPU/3, 'tris')
+print('occluded', occludedCount, 'tris')
 end
 
 
