@@ -14,9 +14,7 @@ local keyCodeForName = numo9_keys.keyCodeForName
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 local numo9_rom = require 'numo9.rom'
-local frameBufferSize = numo9_rom.frameBufferSize
 local spriteSize = numo9_rom.spriteSize
-local frameBufferSizeInTiles = numo9_rom.frameBufferSizeInTiles
 local menuFontWidth = numo9_rom.menuFontWidth
 
 local colors = {
@@ -104,11 +102,15 @@ function UITextArea:update()
 	local leftButtonRelease = app:keyr'mouse_left'
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 
+	local ar = tonumber(app.ram.screenWidth) / tonumber(app.ram.screenHeight)
+	local height = 256 --
+	local width = height * ar
+
 	-- draw text
 	local textareaX = 0	-- offset into textarea where we start drawing text
 	local textareaY = spriteSize.y
-	local textareaWidth = frameBufferSize.x
-	local textareaHeight = frameBufferSize.y - 2*spriteSize.y
+	local textareaWidth = width
+	local textareaHeight = height - 2*spriteSize.y
 
 	if self.useLineNumbers then
 		-- clear the background incl line numbers
@@ -124,7 +126,7 @@ function UITextArea:update()
 		)
 
 		-- determine line number width while we draw line numbers
-		for y=1,frameBufferSizeInTiles.y-2 do
+		for y=1,height/spriteSize.y-2 do
 			if y + self.scrollY < 1
 			or y + self.scrollY >= #self.newlines
 			then break end
@@ -155,7 +157,7 @@ function UITextArea:update()
 		app.paletteMenuTex
 	)
 
-	for y=1,frameBufferSizeInTiles.y-2 do
+	for y=1,height/spriteSize.y-2 do
 		if y + self.scrollY < 1
 		or y + self.scrollY >= #self.newlines
 		then break end
@@ -201,8 +203,8 @@ function UITextArea:update()
 	-- if you want variable font width then TODO store cursor x and y pixel as well as row and col
 	if self.cursorRow < self.scrollY+1 then
 		self.scrollY = math.max(0, self.cursorRow-1)
-	elseif self.cursorRow - (frameBufferSizeInTiles.y-2) > self.scrollY then
-		self.scrollY = math.max(0, self.cursorRow - (frameBufferSizeInTiles.y-2))
+	elseif self.cursorRow - (height/spriteSize.y-2) > self.scrollY then
+		self.scrollY = math.max(0, self.cursorRow - (height/spriteSize.y-2))
 	end
 	local textAreaWidthInLetters = math.ceil(textareaWidth / menuFontWidth)
 	if self.cursorCol < self.scrollX+1 then
@@ -229,10 +231,10 @@ function UITextArea:update()
 	-- footer
 
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
-	app:drawMenuText(footer, 0, frameBufferSize.y - spriteSize.y, colors.fgFooter, colors.bgFooter)
+	app:drawMenuText(footer, 0, height - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
 	footer = self.cursorLoc..'/'..#self:getText()
-	self.footerWidth = app:drawMenuText(footer, frameBufferSize.x - (self.footerWidth or 0), frameBufferSize.y - spriteSize.y, colors.fgFooter, colors.bgFooter)
+	self.footerWidth = app:drawMenuText(footer, width - (self.footerWidth or 0), height - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
 	-- handle mouse
 

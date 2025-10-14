@@ -51,7 +51,26 @@ function EditCode:update()
 		self.uiTextArea.useLineNumbers = not self.uiTextArea.useLineNumbers
 	end
 
+	-- for the text editor, align to the left
+	-- TODO this isnt needed if I just make the text editor rect customizable
+	-- [[ same as matMenuReset but without the translate
+	local app = self.app
+	local ar = app.ram.screenWidth / app.ram.screenHeight
+	app:matident(0)
+	app:matident(1)
+	app:matident(2)
+	app:matortho(
+		0, app.ram.screenWidth,
+		app.ram.screenHeight, 0)
+	--local m = math.min(app.width, app.height)
+	--app:mattrans((app.width - m) * .5, (app.height - m) * .5)
+	app:matscale(app.width / app.menuSizeInSprites.x, app.height / app.menuSizeInSprites.y)
+	--]]
+
 	self.uiTextArea:update()
+
+
+	app:matMenuReset()
 
 	self:drawTooltip()
 

@@ -400,10 +400,13 @@ function UI:update()
 
 	self:initMenuTabs()
 
+	app:matMenuReset()
+
 	app:clearScreen(0, app.paletteMenuTex)
 	app:drawSolidRect(
 		0, 0,	-- x,y,
-		app.fb.width, app.fb.height,	-- w, h,
+		--app.fb.width, app.fb.height,	-- w, h,
+		app.ram.screenWidth, app.ram.screenHeight,	-- w, h,
 		0,
 		nil,
 		nil,

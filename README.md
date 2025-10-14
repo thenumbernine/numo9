@@ -956,6 +956,7 @@ TODO cart status:
 
 - I need to rebuild luajit-vanilla under debootstrap so I can release it instead of luajit-openresty, because of weird perfomance problesm of openresty
 
+- code edit page: ctrl+left and ctrl+right
 
 voxelmap editor fixes:
 - voxelmap rect and select , better preview of region

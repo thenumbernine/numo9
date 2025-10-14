@@ -520,7 +520,16 @@ function EditVoxelMap:update()
 				end
 
 				if self.rectDown and self.rectUp then
-					self:drawBox(box3d(self.rectDown, self.rectUp+1), 0x1b)
+					self:drawBox(box3d(
+						vec3d(
+							math.min(self.rectDown.x, self.rectUp.x),
+							math.min(self.rectDown.y, self.rectUp.y),
+							math.min(self.rectDown.z, self.rectUp.z)),
+						vec3d(
+							math.max(self.rectDown.x, self.rectUp.x)+1,
+							math.max(self.rectDown.y, self.rectUp.y)+1,
+							math.max(self.rectDown.z, self.rectUp.z)+1)
+					), 0x1b)
 				end
 
 				if not self.tooltip then
