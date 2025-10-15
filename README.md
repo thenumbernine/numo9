@@ -972,3 +972,5 @@ voxelmap editor fixes:
 - lighting in editor is still messed up.  esp when you push 'save' for some reason, thats the only time the light matrix updates.
 
 - mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
+
+- part of cart code markup should be what palettes to save what sheets with

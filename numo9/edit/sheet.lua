@@ -918,47 +918,16 @@ print'BAKING PALETTE'
 						end
 						image = image1ch
 					else
-						local hist
-						image, hist = Quantize.reduceColorsMedianCut{
-							image = image,
-							targetSize = self.pasteTargetNumColors,
-						}
-						assert.eq(image.channels, 3, "image channels")
-						-- I could use image.quantize_mediancut.applyColorMap but it doesn't use palette'd image (cuz my image library didn't support it at the time)
-						-- soo .. I'll implement indexed-apply here (TODO move this into image.quantize_mediancut, and TOOD change convert-to-8x84bpp to use paletted images)
-						local colors = table.keys(hist):sort()
-						print('num colors', #colors)
-						assert.le(#colors, 256, "resulting number of quantized colors")
-						local indexForColor = colors:mapi(function(color,i)	-- 0-based index
-							return i-1, color
-						end)
-						-- override colors here ...
-						local image1ch = Image(image.width, image.height, 1, uint8_t)
-						local srcp = image.buffer
-						local dstp = image1ch.buffer
-						for i=0,image.width*image.height-1 do
-							local key = string.char(unpackptr(3, srcp))
-							local dstIndex = indexForColor[key]
-							if not dstIndex then
-print("no index for color "..string.hex(key))
-print('possible colors: '..require 'ext.tolua'(colors))
-								error'here'
-							end
-							dstp[0] = bit.band(0xff, dstIndex + self.paletteOffset)
-							dstp = dstp + 1
-							srcp = srcp + image.channels
-						end
-						-- TODO proper would be to set image1ch.palette here but meh I'm just copying it on the next line anyways ...
-						image = image1ch
-						assert.eq(image.channels, 1, "image.channels")
-						for i,color in ipairs(colors) do
+						image1ch = image:toIndexed()
+
+						for i,color in ipairs(image.palette) do
 							self:edit_pokew(
 								paletteRAM.addr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
 								rgba8888_4ch_to_5551(
-									color:byte(1),
-									color:byte(2),
-									color:byte(3),
-									0xff
+									color[1],
+									color[2],
+									color[3],
+									0xff	-- ?
 								)
 							)
 						end

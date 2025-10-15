@@ -131,11 +131,8 @@ for dstIndex,dst in ipairs(dsts) do
 		end
 		--]]
 
-		if cmdline.quantize then
-			dstimg = require 'image.quantize_mediancut'.reduceColorsMedianCut{
-				image = dstimg,
-				targetSize = 256,
-			}
+		if cmdline.indexed then
+			dstimg = dstimg:toIndexed()
 		end
 
 		dstimg:save(dstdir('sheet'..(dstIndex==1 and '' or dstIndex-1)..'.png').path)
