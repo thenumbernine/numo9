@@ -456,15 +456,15 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- spriteMask = same as `spr()`.
 - `line(x1, y1, x2, y2, [colorIndex, thickness])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [colorIndex, thickness])` = draw line but with z / perspective.
-- `spr(spriteIndex, screenX, screenY, [tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY])` = draw sprite
+- `spr(spriteIndex, [screenX, screenY, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY])` = draw sprite
 	- spriteIndex = which sprite to draw.
 		- Bits 0..4 = x coordinate into the 32x32 grid of 8x8 tiles in the 256x256 sprite/tile sheet.
 		- Bits 5..9 = y coordinate " " "
 		- Bit 10 = whether to use the sprite sheet or tile sheet.
 		- Bits 11..15 = represent which sheet blob to use (up to 32 addressable).
 			Sheet 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and sheet 1's is relocatable with the `tileSheetAddr`, and bit #11 determines which to use.
-	- screenX, screenY = pixel location of upper-left corner of the sprite
-	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.
+	- screenX, screenY = pixel location of upper-left corner of the sprite.  Default is 0,0.
+	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.  Default is 1x1.
 	- paletteIndex = a value to offset the colors by.  This can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
 	- transparentIndex = an optional color to specify as transparent.  default is -1 to disable this.
 	- spriteBit = which bitplane to draw.  default is start at bitplane 0.
@@ -970,3 +970,5 @@ voxelmap editor fixes:
 - 'paint' vs 'draw' resets when you select to another tool
 
 - lighting in editor is still messed up.  esp when you push 'save' for some reason, thats the only time the light matrix updates.
+
+- mesh gen occlusion bug: sloped tiles are occluding the side of their slope...

@@ -3718,6 +3718,8 @@ function AppVideo:drawSprite(
 	scaleX,
 	scaleY
 )
+	screenX = screenX or 0
+	screenY = screenY or 0
 	tilesWide = tilesWide or 1
 	tilesHigh = tilesHigh or 1
 	scaleX = scaleX or 1

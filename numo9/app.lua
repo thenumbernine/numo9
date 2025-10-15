@@ -580,6 +580,8 @@ function App:initGL()
 				-- TODO I'm calculating default values twice ...
 				-- TODO move the server netcmd stuff into a separate intermediate function
 				-- TODO same with all the drawSolidRect stuff
+				screenX = screenX or 0
+				screenY = screenY or 0
 				tilesWide = tilesWide or 1
 				tilesHigh = tilesHigh or 1
 				scaleX = scaleX or 1
