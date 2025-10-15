@@ -51,10 +51,14 @@ for _,f in ipairs(srcfs) do
 	}
 end
 
-local sort = cmdline.sort or 'volume'
+local sort = cmdline.sort or 'volumeMax'
 if sort == 'none' then
-elseif sort == 'volume' then
+elseif sort == 'volumeMax' then
 	srcs:sort(|a,b| a.volume > b.volume)
+elseif sort == 'volumeMin' then
+	srcs:sort(|a,b| a.volume < b.volume)
+elseif sort == 'widthMin' then
+	srcs:sort(|a,b| a.img.width < b.img.width)
 else
 	error("I don't know how to sort by", sort)
 end
@@ -87,7 +91,7 @@ local findDst = |src| do
 							for j=0,src.sizeInTiles.y-1 do
 								dst.full[1 + x+i + tilesPerSheet*(y+j)] = src
 							end
-						end			
+						end
 						return
 					end
 
@@ -126,6 +130,14 @@ for dstIndex,dst in ipairs(dsts) do
 			}
 		end
 		--]]
+
+		if cmdline.quantize then
+			dstimg = require 'image.quantize_mediancut'.reduceColorsMedianCut{
+				image = dstimg,
+				targetSize = 256,
+			}
+		end
+
 		dstimg:save(dstdir('sheet'..(dstIndex==1 and '' or dstIndex-1)..'.png').path)
 	else
 		-- [[ using palette
@@ -147,6 +159,12 @@ end
 print('saving legend...')
 dstdir'atlas.lua':write(
 	tolua(
-		dsts:mapi(|dst| table(dst, {img=false}))
+		dsts:mapi(|dst|
+			table.mapi(dst.placed, |placed| {
+				placePos = {placed.placePos:unpack()},
+				sizeInTiles = {placed.sizeInTiles:unpack()},
+				f = tostring(placed.f),
+			})
+		)
 	)
 )
