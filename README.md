@@ -421,6 +421,7 @@ If the following functions are defined then they will be called from the virtual
 - `pokef(addr, value)` = write 4 bytes to memory as float.
 - `memcpy(dst, src, len)` = copy from `src` to `dst`, sized `len`.
 - `memset(dst, val, len)` = set memory in `dst` to uint8 value `val`, size in bytes `len`.  OOB ranges will copy a value of 0.
+- `strcpy(src, len)` = copies RAM into a Lua string and returns it.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
 - `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
@@ -974,3 +975,5 @@ voxelmap editor fixes:
 - mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
 
 - part of cart code markup should be what palettes to save what sheets with
+
+- bounds check strcpy

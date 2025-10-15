@@ -315,6 +315,11 @@ function App:initGL()
 		pokef = function(addr, value) return self:net_pokef(addr, value) end,
 		memcpy = function(...) return self:net_memcpy(...) end,
 		memset = function(...) return self:net_memset(...) end,
+		strcpy = function(...)
+			-- does this need a netcmd? nah?
+			-- it doesnt change RAM state so nah?
+			return self:strcpy(...)
+		end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		mget = function(...) return self:mget(...) end,
@@ -2362,6 +2367,7 @@ function App:peekf(addr)
 	return ffi.cast(float_p, self.ram.v + addr)[0]
 end
 
+-- addr and addrend are both inclusive
 function App:prePoke(addr, addrend)
 	-- if we're writing to a dirty area then flush it to cpu
 	if addrend >= self.framebufferRAM.addr
@@ -2596,6 +2602,25 @@ function App:memcpy(dst, src, len)
 	self:postPoke(dst, dstend)
 end
 
+function App:strcpy(addr, len)
+	self:prePoke(addr, addr + len - 1)
+
+	local prefix, suffix
+	if addr < 0 then
+		prefix = ('\0'):rep(-addr)
+		len += addr
+		addr = 0
+	end
+	if addr + len > self.memSize then
+		suffix = ('\0'):rep(addr + len - self.memSize)
+		len = self.memSize - addr
+	end
+	local s = ffi.string(self.ram.v + addr, len)
+	if prefix then s = prefix .. s end
+	if suffix then s = s .. suffix end
+	return s
+end
+
 function App:memset(dst, val, len)
 	if len <= 0 then return end
 
@@ -2610,7 +2635,7 @@ function App:memset(dst, val, len)
 		if len <= 0 then return end
 	end
 
-	local dstend = dst + len
+	local dstend = dst + len - 1
 --DEBUG:assert.ge(dst, 0)
 --DEBUG:assert.ge(dstend, 0)
 
