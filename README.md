@@ -962,7 +962,7 @@ TODO cart status:
 voxelmap editor fixes:
 - voxelmap rect and select , better preview of region
 - extrude hilite / select cursor box by just 1/16th or so
-- preview window for meshes
+- preview window for meshes like I have for tiles and brushes
 - preview window for orientations
 - option for select to auto-orient according to your view direction (like minecraft and stairs)
 - when clicking the blob sel dropdown, the mouse goes through to the editor aka voxelmap edit input
