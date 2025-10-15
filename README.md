@@ -975,5 +975,3 @@ voxelmap editor fixes:
 - mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
 
 - part of cart code markup should be what palettes to save what sheets with
-
-- bounds check strcpy

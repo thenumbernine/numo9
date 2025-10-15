@@ -1,6 +1,7 @@
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
 local table = require 'ext.table'
+local math = require 'ext.math'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3d = require 'vec-ffi.vec3d'
 local box3d = require 'vec-ffi.box3d'
@@ -268,6 +269,8 @@ function EditVoxelMap:update()
 				- orbit.angle:zAxis()
 				+ orbit.angle:xAxis() * (mouseX - 128) / 128
 				- orbit.angle:yAxis() * (mouseY - 128) / 128
+
+			local surfaceDir
 			-- or alternatively use the inverse of the modelview matrix... but meh ...
 			if not mapbox:contains(mousePos) then
 				-- now line intersect with the camera-facing planes of the bbox
@@ -290,6 +293,8 @@ function EditVoxelMap:update()
 					if vaddr and app:peekl(vaddr) ~= voxelMapEmptyValue then
 						break
 					end
+
+					surfaceDir = pti - npti
 
 					pti = npti
 
@@ -517,6 +522,76 @@ function EditVoxelMap:update()
 									end
 								end
 							end
+						elseif self.drawMode == 'surfacefill' then
+							-- right click to destroy single tile
+							if app:keyp'mouse_right'
+							and mapboxIE:contains(npti)
+							then
+								local addr = voxelmap:getVoxelAddr(npti:unpack())
+								if addr then
+									self.undo:pushContinuous()
+									self:edit_pokel(addr, voxelMapEmptyValue)
+								end
+							end
+
+							if app:keyp'mouse_left' then
+								-- figure out what side of the cube we're on ...
+								-- try to get the surface normal pointing back at the player, i.e. prev cube minus next cube pos
+								-- needs to know what side you clicked on
+								local dirs = table{
+									vec3d(1,0,0),
+									vec3d(-1,0,0),
+									vec3d(0,1,0),
+									vec3d(0,-1,0),
+									vec3d(0,0,1),
+									vec3d(0,0,-1),
+								}
+								if surfaceDir.x ~= 0 then
+									dirs:remove(1)
+									dirs:remove(1)
+								elseif surfaceDir.y ~= 0 then
+									dirs:remove(3)
+									dirs:remove(3)
+								elseif surfaceDir.z ~= 0 then
+									dirs:remove(5)
+									dirs:remove(5)
+								end
+								assert.len(dirs, 4)
+								local addr = voxelmap:getVoxelAddr(npti:unpack())
+								if addr then
+									local srcColor = app:peekl(addr)
+									if srcColor ~= voxelMapEmptyValue
+									and srcColor ~= self.voxCurSel.intval
+									then
+										self.undo:push()
+
+										local fillstack = table()
+
+										self:edit_pokel(addr, self.voxCurSel.intval)
+
+										fillstack:insert(npti:clone())
+										while #fillstack > 0 do
+											local pt = fillstack:remove()
+											for _,dir in ipairs(dirs) do
+												local pt2 = pt + dir
+												
+												local nbhdAddr = voxelmap:getVoxelAddr((pt2 + delta):unpack())
+												if not nbhdAddr	-- oob means no addr means empty, so crawl along this surface
+												or app:peekl(nbhdAddr) == voxelMapEmptyValue -- is really empty value
+												then
+													local addr = voxelmap:getVoxelAddr(pt2:unpack())
+													if addr	-- addr won't exist if it's oob
+													and app:peekl(addr) == srcColor
+													then
+														self:edit_pokel(addr, self.voxCurSel.intval)
+														fillstack:insert(pt2)
+													end
+												end
+											end
+										end
+									end
+								end
+							end
 						end
 					end
 				end
@@ -600,7 +675,9 @@ function EditVoxelMap:update()
 	-- tools ... maybe I should put these somewhere else
 	self:guiRadio(x, y, {
 		self.drawMode == 'draw' and 'draw' or 'paint',	-- TODO cycle sub-list per-click on it
-		'rect', 'fill', 'select'
+		'rect',
+		self.drawMode == 'fill' and 'fill' or 'surfacefill',
+		'select'
 	}, self.drawMode, function(result)
 		-- TODO sublist:
 		if result == 'draw' and self.drawMode == 'draw' then
