@@ -114,9 +114,9 @@ local dstdir = srcdir / 'atlas'
 dstdir:mkdir()
 for dstIndex,dst in ipairs(dsts) do
 	print('saving dst', dstIndex)
-	if cmdline.rgb then
+	if cmdline.rgb or cmdline.rgba then
 		-- [[ using rgb
-		local dstimg = Image(sheetSize, sheetSize, 3, 'uint8_t')
+		local dstimg = Image(sheetSize, sheetSize, cmdline.rgba and 4 or 3, 'uint8_t')
 		ffi.fill(dstimg.buffer, dstimg:getBufferSize())
 		for _,src in ipairs(dst.placed) do
 			dstimg:pasteInto{
