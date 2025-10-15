@@ -30,6 +30,16 @@ local uint32_t = ffi.typeof'uint32_t'
 local uint32_t_p = ffi.typeof'uint32_t*'
 
 
+-- 1- based but key matches typical sideIndex which is 0-based
+local dirsForSide = table{
+	vec3d(1,0,0),
+	vec3d(-1,0,0),
+	vec3d(0,1,0),
+	vec3d(0,-1,0),
+	vec3d(0,0,1),
+	vec3d(0,0,-1),
+}
+
 local EditVoxelMap = require 'numo9.ui':subclass()
 
 function EditVoxelMap:init(args)
@@ -129,6 +139,7 @@ local function lineBoxDist(box, linePt, lineDir, inside)
 	-- line intersect with the outer walls of a cube
 	local d = math.huge
 	local axis
+	local plusMinusNormal
 	for i=0,2 do
 		local j = (i+1)%3
 		local k = (j+1)%3
@@ -142,11 +153,20 @@ local function lineBoxDist(box, linePt, lineDir, inside)
 			and box.min.s[k] <= ptk and ptk <= box.max.s[k]
 			then
 				axis = i
+				plusMinusNormal = dxi > 0 and 1 or 0
 				d = math.min(d, dxi)
 			end
 		end
 	end
-	return d, axis
+	-- same as in mesh3d and voxelmap
+	-- sideIndex is 0-5
+	-- bit 0 = negative direction bit
+	-- bits 1:2 = 0-2 for xyz, which direction the side is facing
+	local sideIndex
+	if axis then
+		sideIndex = bit.bor(bit.lshift(axis, 1), plusMinusNormal)
+	end
+	return d, sideIndex
 end
 
 -- assumes we're already scaled down by 32768
@@ -270,12 +290,13 @@ function EditVoxelMap:update()
 				+ orbit.angle:xAxis() * (mouseX - 128) / 128
 				- orbit.angle:yAxis() * (mouseY - 128) / 128
 
-			local surfaceDir
+			local sideIndex
 			-- or alternatively use the inverse of the modelview matrix... but meh ...
 			if not mapbox:contains(mousePos) then
 				-- now line intersect with the camera-facing planes of the bbox
 
-				local d = lineBoxDist(
+				local d
+				d, sideIndex = lineBoxDist(
 					mapbox,
 					mousePos,
 					mouseDir)
@@ -294,12 +315,11 @@ function EditVoxelMap:update()
 						break
 					end
 
-					surfaceDir = pti - npti
-
 					pti = npti
 
 					-- intersect with cube [pti, pti+1]
-					local d, axis = lineBoxDist(
+					local d
+					d, sideIndex = lineBoxDist(
 						box3d(pti, pti+1),
 						mousePos,
 						mouseDir,
@@ -485,14 +505,6 @@ function EditVoxelMap:update()
 							end
 
 							if app:keyp'mouse_left' then
-								local dirs = table{
-									vec3d(1,0,0),
-									vec3d(-1,0,0),
-									vec3d(0,1,0),
-									vec3d(0,-1,0),
-									vec3d(0,0,1),
-									vec3d(0,0,-1),
-								}
 								local addr = voxelmap:getVoxelAddr(npti:unpack())
 								if addr then
 									local srcColor = app:peekl(addr)
@@ -508,7 +520,7 @@ function EditVoxelMap:update()
 										fillstack:insert(npti:clone())
 										while #fillstack > 0 do
 											local pt = fillstack:remove()
-											for _,dir in ipairs(dirs) do
+											for _,dir in ipairs(dirsForSide) do
 												local pt2 = pt + dir
 												local addr = voxelmap:getVoxelAddr(pt2:unpack())
 												if addr	-- addr won't exist if it's oob
@@ -538,53 +550,50 @@ function EditVoxelMap:update()
 								-- figure out what side of the cube we're on ...
 								-- try to get the surface normal pointing back at the player, i.e. prev cube minus next cube pos
 								-- needs to know what side you clicked on
-								local dirs = table{
-									vec3d(1,0,0),
-									vec3d(-1,0,0),
-									vec3d(0,1,0),
-									vec3d(0,-1,0),
-									vec3d(0,0,1),
-									vec3d(0,0,-1),
-								}
-								if surfaceDir.x ~= 0 then
+								-- these dirs match sideIndex in mesh3d and voxelmap except that sideIndex is 0-based
+								local dirs = table(dirsForSide)
+								if sideIndex == 0 or sideIndex == 1 then
 									dirs:remove(1)
 									dirs:remove(1)
-								elseif surfaceDir.y ~= 0 then
+								elseif sideIndex == 2 or sideIndex == 3  then
 									dirs:remove(3)
 									dirs:remove(3)
-								elseif surfaceDir.z ~= 0 then
+								elseif sideIndex == 4 or sideIndex == 5 then
 									dirs:remove(5)
 									dirs:remove(5)
 								end
-								assert.len(dirs, 4)
-								local addr = voxelmap:getVoxelAddr(npti:unpack())
-								if addr then
-									local srcColor = app:peekl(addr)
-									if srcColor ~= voxelMapEmptyValue
-									and srcColor ~= self.voxCurSel.intval
-									then
-										self.undo:push()
+								if #dirs ~= 4 then
+									print("somehow removed too many dirs, must have a weird sideIndex: "..sideIndex)
+								else
+									local addr = voxelmap:getVoxelAddr(npti:unpack())
+									if addr then
+										local srcColor = app:peekl(addr)
+										if srcColor ~= voxelMapEmptyValue
+										and srcColor ~= self.voxCurSel.intval
+										then
+											self.undo:push()
 
-										local fillstack = table()
+											local fillstack = table()
 
-										self:edit_pokel(addr, self.voxCurSel.intval)
+											self:edit_pokel(addr, self.voxCurSel.intval)
 
-										fillstack:insert(npti:clone())
-										while #fillstack > 0 do
-											local pt = fillstack:remove()
-											for _,dir in ipairs(dirs) do
-												local pt2 = pt + dir
-												
-												local nbhdAddr = voxelmap:getVoxelAddr((pt2 + delta):unpack())
-												if not nbhdAddr	-- oob means no addr means empty, so crawl along this surface
-												or app:peekl(nbhdAddr) == voxelMapEmptyValue -- is really empty value
-												then
-													local addr = voxelmap:getVoxelAddr(pt2:unpack())
-													if addr	-- addr won't exist if it's oob
-													and app:peekl(addr) == srcColor
+											fillstack:insert(npti:clone())
+											while #fillstack > 0 do
+												local pt = fillstack:remove()
+												for _,dir in ipairs(dirs) do
+													local pt2 = pt + dir
+
+													local nbhdAddr = voxelmap:getVoxelAddr((pt2 + dirsForSide[1+sideIndex]):unpack())
+													if not nbhdAddr	-- oob means no addr means empty, so crawl along this surface
+													or app:peekl(nbhdAddr) == voxelMapEmptyValue -- is really empty value
 													then
-														self:edit_pokel(addr, self.voxCurSel.intval)
-														fillstack:insert(pt2)
+														local addr = voxelmap:getVoxelAddr(pt2:unpack())
+														if addr	-- addr won't exist if it's oob
+														and app:peekl(addr) == srcColor
+														then
+															self:edit_pokel(addr, self.voxCurSel.intval)
+															fillstack:insert(pt2)
+														end
 													end
 												end
 											end
@@ -684,6 +693,10 @@ function EditVoxelMap:update()
 			self.drawMode = 'paint'
 		elseif result == 'paint' and self.drawMode == 'paint' then
 			self.drawMode = 'draw'
+		elseif result == 'fill' and self.drawMode == 'fill' then
+			self.drawMode = 'surfacefill'
+		elseif result == 'surfacefill' and self.drawMode == 'surfacefill' then
+			self.drawMode = 'fill'
 		else
 			self.drawMode = result
 		end

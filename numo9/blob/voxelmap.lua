@@ -609,9 +609,10 @@ end))
 			local dstLen = #dstVtxs
 			local writeOfs = dstLen
 
+--DEBUG:assert.eq(srcVtxs.type, dstVtxs.type)
 			dstVtxs:resize(dstLen + srcLen)
 			local dstVtxPtr = dstVtxs.v + writeOfs
-			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(srcVtxs.type) * srcLen)
 		end
 
 		do
@@ -623,9 +624,10 @@ end))
 			local dstLen = #dstVtxs
 			local writeOfs = dstLen
 
+--DEBUG:assert.eq(srcVtxs.type, dstVtxs.type)
 			dstVtxs:resize(dstLen + srcLen)
 			local dstVtxPtr = dstVtxs.v + writeOfs
-			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(srcVtxs.type) * srcLen)
 		end
 
 		do
@@ -637,9 +639,10 @@ end))
 			local dstLen = #dstVtxs
 			local writeOfs = dstLen
 
+--DEBUG:assert.eq(srcVtxs.type, dstVtxs.type)
 			dstVtxs:resize(dstLen + srcLen)
 			local dstVtxPtr = dstVtxs.v + writeOfs
-			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(Numo9Vertex) * srcLen)
+			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(srcVtxs.type) * srcLen)
 		end
 	end
 	--]]

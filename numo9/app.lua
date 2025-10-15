@@ -2608,7 +2608,7 @@ function App:strcpy(addr, len)
 	local prefix, suffix
 	if addr < 0 then
 		prefix = ('\0'):rep(-addr)
-		len += addr
+		len = len + addr
 		addr = 0
 	end
 	if addr + len > self.memSize then
