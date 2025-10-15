@@ -120,7 +120,7 @@ for dstIndex,dst in ipairs(dsts) do
 		ffi.fill(dstimg.buffer, dstimg:getBufferSize())
 		for _,src in ipairs(dst.placed) do
 			dstimg:pasteInto{
-				image = src.img:rgb(),
+				image = cmdline.rgba and src.img:rgba() or src.img:rgb(),
 				x = src.placePos.x * tileSize,
 				y = src.placePos.y * tileSize,
 			}
