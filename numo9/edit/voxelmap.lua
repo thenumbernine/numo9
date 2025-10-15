@@ -139,22 +139,33 @@ local function lineBoxDist(box, linePt, lineDir, inside)
 	-- line intersect with the outer walls of a cube
 	local d = math.huge
 	local axis
-	local plusMinusNormal
+	local sideNormalSignFlag
 	for i=0,2 do
 		local j = (i+1)%3
 		local k = (j+1)%3
-		local dxi = lineDir.s[i] > 0 ~= inside
-			and axisAlignedPlaneLineIntersectParam(i, box.min.s[i], -1, linePt, lineDir)
-			or axisAlignedPlaneLineIntersectParam(i, box.max.s[i], 1, linePt, lineDir)
-		if dxi > 0 then
+
+		local planeDist, planeNormalOnAxis
+		if lineDir.s[i] > 0 ~= inside then
+			planeDist = box.min.s[i]
+			planeNormalOnAxis = -1
+		else
+			planeDist = box.max.s[i]
+			planeNormalOnAxis = 1
+		end
+		local dxi = axisAlignedPlaneLineIntersectParam(i, planeDist, planeNormalOnAxis, linePt, lineDir)
+		if dxi > 0 and dxi < d then
 			local ptj = linePt.s[j] + lineDir.s[j] * dxi
 			local ptk = linePt.s[k] + lineDir.s[k] * dxi
 			if box.min.s[j] <= ptj and ptj <= box.max.s[j]
 			and box.min.s[k] <= ptk and ptk <= box.max.s[k]
 			then
 				axis = i
-				plusMinusNormal = dxi > 0 and 1 or 0
-				d = math.min(d, dxi)
+				-- why is it sometimes thinking a down-pointing line intersects the bottom when it hits the top of a cube?
+				--  Maybe I'm not considering 'inside' when I should be?
+				--sideNormalSignFlag = planeNormalOnAxis < 0 and 1 or 0
+				-- maybe using lineDir is better, yup
+				sideNormalSignFlag = lineDir.s[i] > 0 and 1 or 0
+				d = dxi
 			end
 		end
 	end
@@ -164,7 +175,7 @@ local function lineBoxDist(box, linePt, lineDir, inside)
 	-- bits 1:2 = 0-2 for xyz, which direction the side is facing
 	local sideIndex
 	if axis then
-		sideIndex = bit.bor(bit.lshift(axis, 1), plusMinusNormal)
+		sideIndex = bit.bor(bit.lshift(axis, 1), sideNormalSignFlag)
 	end
 	return d, sideIndex
 end
@@ -173,12 +184,21 @@ end
 function EditVoxelMap:drawBox(box, color)
 	local app = self.app
 	local thickness = math.max(1, app.width / 256)
+	local epsilon = 1/32
 	for i=0,7 do
 		for b=0,2 do
 			local j = bit.bxor(i, bit.lshift(1, b))
 			if j > i then
+				-- why did I say bit set = min?
+				-- looks like mesh lib uses :corner so dont change it
 				local ax, ay, az = box:corner(i):unpack()
+				if bit.band(i, 1) == 0 then ax = ax + epsilon else ax = ax - epsilon end
+				if bit.band(i, 2) == 0 then ay = ay + epsilon else ay = ay - epsilon end
+				if bit.band(i, 4) == 0 then az = az + epsilon else az = az - epsilon end
 				local bx, by, bz = box:corner(j):unpack()
+				if bit.band(j, 1) == 0 then bx = bx + epsilon else bx = bx - epsilon end
+				if bit.band(j, 2) == 0 then by = by + epsilon else by = by - epsilon end
+				if bit.band(j, 4) == 0 then bz = bz + epsilon else bz = bz - epsilon end
 				app:drawSolidLine3D(
 					ax, ay, az,
 					bx, by, bz,
@@ -547,6 +567,7 @@ function EditVoxelMap:update()
 							end
 
 							if app:keyp'mouse_left' then
+								print('surfaceFill with sideIndex', sideIndex)
 								-- figure out what side of the cube we're on ...
 								-- try to get the surface normal pointing back at the player, i.e. prev cube minus next cube pos
 								-- needs to know what side you clicked on
