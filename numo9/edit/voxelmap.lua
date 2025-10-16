@@ -261,7 +261,7 @@ function EditVoxelMap:update()
 		local winX = 2 * spriteSize.x - (menuCoordW - 256) * .5
 		local winY = 2 * spriteSize.y
 
-		local mouseHandled = self.meshPickOrbit:handleInput()
+		handled = self.meshPickOrbit:handleInput() or handled
 
 		app:drawBorderRect(
 			winX-1,
@@ -410,7 +410,7 @@ function EditVoxelMap:update()
 							self:setTooltip(tostring(index), mouseX-8, mouseY-8, 0xfc, 0)
 						end
 
-						if not mouseHandled then
+						if not handled then
 
 							-- TODO I'm getting double-clicks always
 							-- is it because keyp doesn't get refreshed as often as menu updates do?
@@ -434,6 +434,7 @@ function EditVoxelMap:update()
 								-- why this doens't work? proly cuz before i had this outside the mouse region test block....
 								--app.editMesh3D.mesh3DBlobIndex = self.meshPickVoxel.mesh3DIndex
 								app.editMesh3D.mesh3DBlobIndex = self.voxCurSel.mesh3DIndex
+								handled = true
 								return
 							end
 
@@ -445,6 +446,7 @@ function EditVoxelMap:update()
 								else
 									self.meshPickOpen = false	-- close mesh-pick on click too?  or?
 								end
+								handled = true
 							end
 						end
 					end
@@ -468,7 +470,7 @@ function EditVoxelMap:update()
 			app:onUseHardwareLightingChange()
 		end
 
-		local mouseHandled = orbit:beginDraw()
+		handled = orbit:beginDraw() or handled
 
 
 		-- view or not view?
@@ -520,7 +522,7 @@ function EditVoxelMap:update()
 			end
 		end
 
-		if not mouseHandled
+		if not handled 
 		and mouseY >= 16
 		then
 
