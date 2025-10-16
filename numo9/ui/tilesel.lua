@@ -64,8 +64,9 @@ function TileSelect:doPopup()
 	-- use menu coords which are odd and determined by matMenuReset
 	-- height is 256, width is aspect ratio proportional
 	-- TODO is it this or size / min(something)? 
-	local ar = app.width / app.height
-	local winW = math.floor(256 * ar) - 2 * winX
+	--local ar = app.width / app.height
+	--local winW = math.floor(256 * ar) - 2 * winX
+	local winW = 256 - 2 * winX
 	local winH = 256 - 2 * winY
 
 	app:drawBorderRect(

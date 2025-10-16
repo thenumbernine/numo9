@@ -85,6 +85,7 @@ function EditVoxelMap:onCartLoad()
 	self.voxCurSel.intval = 0
 
 	self.meshPickOpen = false
+	self.meshPickOrbit = Orbit(self.app)
 
 	self.tileSel = TileSelect{
 		edit = self,
@@ -221,6 +222,7 @@ function EditVoxelMap:update()
 	-- this is going to draw the menu
 	local handled = EditVoxelMap.super.update(self)
 
+	app:matMenuReset()
 	self:guiSetClipRect(-1000, 16, 3000, 240)
 
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
@@ -236,10 +238,12 @@ function EditVoxelMap:update()
 	local mapbox = mapsize and box3d(vec3d(0,0,0), mapsize)
 	local mapboxIE = mapsize and box3d(vec3d(0,0,0), mapsize-1)	-- mapbox, [incl,excl), for integer testing
 
-	if self.meshPickOpen then
+	if self.tileSel:doPopup() then
+		-- handled in doPopup()
+	elseif self.meshPickOpen then
 		-- use menu coords which are odd and determined by matMenuReset
 		-- height is 256, width is aspect ratio proportional
-		-- TODO is it this or size / min(something)? 
+		-- TODO is it this or size / min(something)?
 		local ar = app.width / app.height
 		local menuCoordH = 256
 		local menuCoordW = math.floor(menuCoordH * ar)
@@ -250,7 +254,7 @@ function EditVoxelMap:update()
 		local winX = 2 * spriteSize.x - (menuCoordW - 256) * .5
 		local winY = 2 * spriteSize.y
 
-		self.orbit:handleInput()
+		self.meshPickOrbit:handleInput()
 
 		app:drawBorderRect(
 			winX-1,
@@ -289,7 +293,7 @@ function EditVoxelMap:update()
 		local maxcols = 10
 		local maxrows = math.floor(maxcols / ar)
 		local meshPreviewH = math.floor(256 / maxrows)
-		local meshPreviewW = meshPreviewH 
+		local meshPreviewW = meshPreviewH
 		--]]
 		-- [[
 		local maxrows = 6
@@ -302,10 +306,10 @@ function EditVoxelMap:update()
 				local mesh3DIndex = col + maxcols * row
 				if mesh3DIndex < #app.blobs.mesh3d then
 					app:triBuf_flush()
-					
+
 					app:setClipRect(-1000, -1000, 3000, 3000)
 					--self:guiSetClipRect(-1000, -1000, 3000, 3000)
-					
+
 					gl.glViewport(
 						-- winX but without the left offset
 						app.width * ((2 * spriteSize.x + col * meshPreviewW) / menuCoordW),
@@ -341,21 +345,25 @@ function EditVoxelMap:update()
 			--]]
 					if self.voxCurSel.mesh3DIndex == mesh3DIndex then
 						local epsilon = 1e-2
-						app:drawBorderRect(-1 + epsilon, -1 + epsilon, 2 - 2 * epsilon, 2 -2 * epsilon, 10, 4, app.paletteMenuTex)
+						app:drawBorderRect(-1 + epsilon, -1 + epsilon, 2 - 2 * epsilon, 2 -2 * epsilon, 10, nil, app.paletteMenuTex)
 					end
 
-					-- by here the coords will be [-w,w]^3 clip-coords
+					--[[
 					local zn, zf = .1, 1000
 					app:matfrustum(
 						-zn, zn,
 						-zn, zn,
 						zn, zf)
+					--]]
+					-- [[
+					app:matortho(-1, 1, -1, 1, -100, 100)
+					--]]
 
 					app:matscale(1/32768, 1/32768, 1/32768)
 					app:mattrans(0, 0, -1, 1)	-- 1 = view transform
 
 					-- TODO why does my quat lib use degrees? smh
-					local x,y,z,th = self.orbit.angle:toAngleAxis():unpack()
+					local x,y,z,th = self.meshPickOrbit.angle:toAngleAxis():unpack()
 					app:matrot(-math.rad(th), x, y, z, 1)	-- 1 = view transform
 
 					-- and try to draw our object
@@ -370,8 +378,8 @@ function EditVoxelMap:update()
 					app.ram.paletteBlobIndex = pushPalBlobIndex
 
 					if app:keyp'mouse_left' then
-						if mouseX >= winX + col * meshPreviewW 
-						and mouseX < winX + (col+1) * meshPreviewW 
+						if mouseX >= winX + col * meshPreviewW
+						and mouseX < winX + (col+1) * meshPreviewW
 						and mouseY >= winY + row * meshPreviewH
 						and mouseY < winY + (row+1) * meshPreviewH
 						then
@@ -389,8 +397,6 @@ function EditVoxelMap:update()
 		app:matMenuReset()
 		self:guiSetClipRect(-1000, 16, 3000, 240)
 
-	elseif self.tileSel:doPopup() then
-		-- handled in doPopup()
 	elseif voxelmap then
 
 		-- init lighting before beginDraw() so that we get the clear depth call that will clear the lighting as well
@@ -846,9 +852,13 @@ function EditVoxelMap:update()
 	-- TODO text input also for just the mesh portion? or handle it in the voxel index?
 	if self:guiButton('M', x, y, self.meshPickOpen, 'mesh='..self.voxCurSel.mesh3DIndex) then
 		self.meshPickOpen = not self.meshPickOpen
+
+		-- show orientation in mesh pick as you would in view
+		-- allow rotations in mesh pick, but dont let rotations affect view
+		self.meshPickOrbit.angle:set(self.orbit.angle:unpack())
 	end
 	x = x + 6
---[[	
+--[[
 	self:guiSpinner(x, y, function(dx)
 		self.voxCurSel.mesh3DIndex = math.max(0, self.voxCurSel.mesh3DIndex + dx)
 	end, 'mesh='..self.voxCurSel.mesh3DIndex)
