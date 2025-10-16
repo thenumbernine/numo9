@@ -1979,6 +1979,13 @@ print('run thread dead')
 			local ditherPush = self.ram.dither
 			self.ram.dither = 0
 
+-- TODO TODO TODO
+-- push/pop here is the laziest, but
+-- if you runa nything in hte console then this will overwrite it
+-- so in the menu
+-- its best to push/pop only what vars you use
+-- and only when you use them
+
 			-- push matrix
 			ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
 			ffi.copy(viewMatPush, self.ram.viewMat, ffi.sizeof(viewMatPush))
@@ -2021,13 +2028,13 @@ print('run thread dead')
 			--]]
 
 
-			-- push / pop lighting
+			--[[ push / pop lighting
 			local pushUseHardwareLighting = self.ram.useHardwareLighting
 			self.ram.useHardwareLighting = 0	-- off by default in menu
 			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
 				self:onUseHardwareLightingChange()
 			end
-
+			--]]
 
 			local thread = self.activeMenu.thread
 			if thread then
@@ -2070,11 +2077,12 @@ print('run thread dead')
 
 
 			-- pop lighting
+			--[[ does this mean the console can't set hardware lighting?
 			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
 				self.ram.useHardwareLighting = pushUseHardwareLighting
 				self:onUseHardwareLightingChange()
 			end
-
+			--]]
 
 			self:setVideoMode(self.ram.videoMode)
 
@@ -2113,25 +2121,25 @@ print('run thread dead')
 			self.server:endFrame()
 		end
 
-	--[[
-	TODO ... upload framebuf, download framebuf after
-	that'll make sure graphics stays in synx
-	and then if I do that here (and every other quad:draw())
-	 then there's no longer a need to do that at the update loop
-	 unless someone poke()'s mem
-	 then I should introduce dirty bits
-	and I should be testing those dirty bits here to see if I need to upload here
-	... or just write my own rasterizer
-	or
-	dirty bits both directions
-	cpuDrawn = flag 'true' if someone touches fb vram
-	gpuDrawn = flag 'true' in any of these GL calls
-	... then in both cases ...
-		if someone poke()'s vram, test gpu dirty, if set then copy to cpu
-		if someone draw()'s here, test cpu dirty, if set then upload here
-	... though honestly, i'm getting 5k fps with and without my per-frame-gpu-uploads ...
-		I'm suspicious that doing a few extra GPU uploads here before and after sceneObj:draw()  might not make a difference...
-	--]]
+		--[[
+		TODO ... upload framebuf, download framebuf after
+		that'll make sure graphics stays in synx
+		and then if I do that here (and every other quad:draw())
+		 then there's no longer a need to do that at the update loop
+		 unless someone poke()'s mem
+		 then I should introduce dirty bits
+		and I should be testing those dirty bits here to see if I need to upload here
+		... or just write my own rasterizer
+		or
+		dirty bits both directions
+		cpuDrawn = flag 'true' if someone touches fb vram
+		gpuDrawn = flag 'true' in any of these GL calls
+		... then in both cases ...
+			if someone poke()'s vram, test gpu dirty, if set then copy to cpu
+			if someone draw()'s here, test cpu dirty, if set then upload here
+		... though honestly, i'm getting 5k fps with and without my per-frame-gpu-uploads ...
+			I'm suspicious that doing a few extra GPU uploads here before and after sceneObj:draw()  might not make a difference...
+		--]]
 		-- increment hold counters
 		-- TODO do this here or before update() ?
 		do

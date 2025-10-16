@@ -2862,6 +2862,7 @@ function AppVideo:setVideoMode(modeIndex)
 		print(err)
 		print(debug.traceback())
 	end
+
 	if not self.inUpdateCallback then
 		self.fb:unbind()
 	end
@@ -4818,7 +4819,6 @@ print()
 	-- these dont change:
 	--sceneObj.texs[3] = self.noiseTex
 	--sceneObj.texs[4] = self.lightDepthTex
-
 
 	-- TODO just set the uniform, don't store it, but i'm lazy
 

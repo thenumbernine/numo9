@@ -451,14 +451,34 @@ function UI:update()
 	x=x+6
 	if self:guiButton('S', x, 0, nil, 'save') then
 		handled = true
+
+		-- running it outside the update loop stops the light from getting stuck on screen (proly was a fbo binding problem)
+		--app.threads:addMainLoopCall(function()
+
+		-- TODO TODO TODO
+		-- resetCart will resetVideo which will thrash all the video state vars
+		-- it being in menu should help (right?) but doesnt seem to ....
+
+		local pushVideoMode = app.ram.videoMode
+		local pushLighting = app.ram.useHardwareLighting
+
 		-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
 		app:saveCart(app.currentLoadedFilename)
 		-- TODO this will rearrange the blobs
 		-- so TODO it should net_resetCart as well (net_saveCart maybe?)
 		app:net_resetCart()
 
-		-- atm save causes editor-lighting to but out
-		app:resetVideo()
+		--end)
+
+		-- net_resetCart will call resetVideo()
+		-- that'll reset all our video state incl video mode....
+		-- so we should restore them here ...
+
+		app.ram.videoMode = pushVideoMode
+		app:setVideoMode(pushVideoMode)
+		app.ram.useHardwareLighting = pushLighting
+		app:onUseHardwareLightingChange()
+
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then
