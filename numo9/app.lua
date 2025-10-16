@@ -14,6 +14,7 @@ local assert = require 'ext.assert'
 local string = require 'ext.string'
 local table = require 'ext.table'
 local range = require 'ext.range'
+local op = require 'ext.op'
 local math = require 'ext.math'
 local path = require 'ext.path'
 local tolua = require 'ext.tolua'
@@ -2980,22 +2981,32 @@ function App:runCart()
 	-- set title if it's there ...
 	sdl.SDL_SetWindowTitle(self.window, self.metainfo.title or self.title)
 
+	-- set metainfo keys
 	-- see if the ROM has any preferences on the editor ...
-	do
-		-- TODO just search all editors?
-		for blobType,edit in pairs(require 'numo9.ui'.editFieldForMode) do
-			for _,field in ipairs{'sheetBlobIndex', 'draw16Sprites', 'gridSpacing'} do
-				local metakey = edit..'.'..field
-				local v = self.metainfo[metakey]
-				if v ~= nil then
-					xpcall(function()
-						self[edit][field] = fromlua(v)
-					end, function(err)
-						print('failed to set metakey', metakey, 'value', v)
-					end)
-				end
+	-- TODO just search all editors?
+	for blobType,edit in pairs(require 'numo9.ui'.editFieldForMode) do
+		for _,field in ipairs{'sheetBlobIndex', 'draw16Sprites', 'gridSpacing'} do
+			local metakey = edit..'.'..field
+			local v = self.metainfo[metakey]
+			if v ~= nil then
+				xpcall(function()
+					self[edit][field] = fromlua(v)
+				end, function(err)
+					print('failed to set metakey', metakey, 'value', v)
+				end)
 			end
 		end
+	end
+	do
+		-- convert fields
+		local paletteForSheet = self.metainfo['archive.paletteForSheet']
+		paletteForSheet =
+			paletteForSheet
+			and op.land(pcall, fromlua, paletteForSheet)
+		if type(paletteForSheet) ~= 'table' then
+			paletteForSheet = nil
+		end
+		self.metainfo['archive.paletteForSheet'] = paletteForSheet
 	end
 
 	-- TODO also put the load() in here so it runs in our virtual console update loop

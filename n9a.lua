@@ -12,6 +12,8 @@ local math = require 'ext.math'
 local table = require 'ext.table'
 local range = require 'ext.range'
 local tolua = require 'ext.tolua'
+local fromlua = require 'ext.fromlua'
+local op = require 'ext.op'
 local string = require 'ext.string'
 local assert = require 'ext.assert'
 local vector = require 'ffi.cpp.vector-lua'
@@ -118,7 +120,10 @@ if cmd == 'x' then
 	local metainfo = getMetaInfoFromBlobs(blobs)
 	local paletteForSheet = metainfo['archive.paletteForSheet']
 	if paletteForSheet then
-		paletteForSheet = require 'ext.fromlua'(paletteForSheet)
+		paletteForSheet = op.land(pcall, fromlua, paletteForSheet)
+		if type(paletteForSheet) ~= 'table' then
+			paletteForSheet = nil
+		end
 	end
 
 	for _,blobClassName in ipairs(table.keys(blobs):sort()) do

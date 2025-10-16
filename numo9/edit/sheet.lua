@@ -69,7 +69,19 @@ end
 
 function EditSheet:onCartLoad()
 	self.sheetBlobIndex = 0
+
 	self.paletteBlobIndex = 0
+
+--[[ nah metainfo isnt defined, and this doesnt remember palettes per sheet, so nah not right now
+	local app = self.app
+	local paletteForSheet = app.metainfo['archive.paletteForSheet']
+	if paletteForSheet then
+		-- TODO hmm, way to do this for each sheet?
+		-- I could save the paletteForSheet in this editor ... so when you change sheets it remembers the palette ...
+		-- maybe
+		self.paletteBlobIndex = paletteForSheet[1+self.sheetBlobIndex] or 0
+	end
+--]]
 
 	-- sprite edit mode
 	self.spriteSelPos = vec2i()	-- TODO make this texel based, not sprite based (x8 less resolution)
