@@ -7,6 +7,7 @@ local vec3d = require 'vec-ffi.vec3d'
 local box3d = require 'vec-ffi.box3d'
 local quatd = require 'vec-ffi.quatd'
 local Image = require 'image'
+local gl = require 'gl'
 
 local clip = require 'numo9.clipboard'
 local Undo = require 'numo9.ui.undo'
@@ -15,6 +16,7 @@ local TileSelect = require 'numo9.ui.tilesel'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
+local tileSizeInBits = numo9_rom.tileSizeInBits
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
@@ -81,6 +83,8 @@ function EditVoxelMap:onCartLoad()
 
 	self.voxCurSel = Voxel()
 	self.voxCurSel.intval = 0
+
+	self.meshPickOpen = false
 
 	self.tileSel = TileSelect{
 		edit = self,
@@ -217,7 +221,7 @@ function EditVoxelMap:update()
 	-- this is going to draw the menu
 	local handled = EditVoxelMap.super.update(self)
 
-	self:guiSetClipRect(-1000, 8, 3000, 248)
+	self:guiSetClipRect(-1000, 16, 3000, 240)
 
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 
@@ -232,9 +236,162 @@ function EditVoxelMap:update()
 	local mapbox = mapsize and box3d(vec3d(0,0,0), mapsize)
 	local mapboxIE = mapsize and box3d(vec3d(0,0,0), mapsize-1)	-- mapbox, [incl,excl), for integer testing
 
+	if self.meshPickOpen then
+		-- use menu coords which are odd and determined by matMenuReset
+		-- height is 256, width is aspect ratio proportional
+		-- TODO is it this or size / min(something)? 
+		local ar = app.width / app.height
+		local menuCoordH = 256
+		local menuCoordW = math.floor(menuCoordH * ar)
 
-	if not self.tileSel:doPopup()
-	and voxelmap then
+		local winW = menuCoordW - 4 * spriteSize.x
+		local winH = menuCoordH - 4 * spriteSize.y
+
+		local winX = 2 * spriteSize.x - (menuCoordW - 256) * .5
+		local winY = 2 * spriteSize.y
+
+		self.orbit:handleInput()
+
+		app:drawBorderRect(
+			winX-1,
+			winY-1,
+			winW+2,
+			winH+2,
+			10,
+			nil,
+			app.paletteMenuTex
+		)
+		app:drawSolidRect(
+			winX,
+			winY,
+			winW,
+			winH,
+			1,
+			nil,
+			nil,
+			app.paletteMenuTex
+		)
+
+		app:clearScreen(nil, nil, true)
+		gl.glEnable(gl.GL_DEPTH_TEST)
+
+		--[[
+		local meshPreviewW = 64
+		local meshPreviewH = 64
+		--]]
+		--[[
+		local meshPreviewW = 256
+		local meshPreviewH = 256
+		--]]
+
+		-- meh I'll just use the viewport
+		--[[
+		local maxcols = 10
+		local maxrows = math.floor(maxcols / ar)
+		local meshPreviewH = math.floor(256 / maxrows)
+		local meshPreviewW = meshPreviewH 
+		--]]
+		-- [[
+		local maxrows = 6
+		local maxcols = math.floor(maxrows * ar)
+		local meshPreviewW = math.floor(winW / maxcols)
+		local meshPreviewH = meshPreviewW
+		--]]
+		for row=0,maxrows-1 do
+			for col=0,maxcols-1 do
+				local mesh3DIndex = col + maxcols * row
+				if mesh3DIndex < #app.blobs.mesh3d then
+					app:triBuf_flush()
+					
+					app:setClipRect(-1000, -1000, 3000, 3000)
+					--self:guiSetClipRect(-1000, -1000, 3000, 3000)
+					
+					gl.glViewport(
+						-- winX but without the left offset
+						app.width * ((2 * spriteSize.x + col * meshPreviewW) / menuCoordW),
+						-- winH
+						app.height * (1 - (2 * spriteSize.y + (row+1) * meshPreviewH) / menuCoordH),
+						app.width * meshPreviewW / menuCoordW,
+						app.height * meshPreviewH / menuCoordH)
+
+
+			--		self:guiSetClipRect(winX, winY, meshPreviewW, meshPreviewH) --winW, winH)
+
+					-- now draw 3D views of models here
+					app:matident(0)
+					app:matident(1)
+					app:matident(2)	-- 2 = projection
+
+					-- how to do pick matrix / how to offset frustum in screenspace....
+
+			--[[
+					app:mattrans(
+						-- win coords without left offset
+						(1 - 2 * spriteSize.x) / meshPreviewW,
+						(1 - 2 * spriteSize.y) / meshPreviewH,
+						0,
+						2)	-- 2 = projection
+			--]]
+			--[[
+					app:matscale(
+						1 / meshPreviewW,
+						1 / meshPreviewH,
+						1,
+						2)	-- 2 = projectoin
+			--]]
+					if self.voxCurSel.mesh3DIndex == mesh3DIndex then
+						local epsilon = 1e-2
+						app:drawBorderRect(-1 + epsilon, -1 + epsilon, 2 - 2 * epsilon, 2 -2 * epsilon, 10, 4, app.paletteMenuTex)
+					end
+
+					-- by here the coords will be [-w,w]^3 clip-coords
+					local zn, zf = .1, 1000
+					app:matfrustum(
+						-zn, zn,
+						-zn, zn,
+						zn, zf)
+
+					app:matscale(1/32768, 1/32768, 1/32768)
+					app:mattrans(0, 0, -1, 1)	-- 1 = view transform
+
+					-- TODO why does my quat lib use degrees? smh
+					local x,y,z,th = self.orbit.angle:toAngleAxis():unpack()
+					app:matrot(-math.rad(th), x, y, z, 1)	-- 1 = view transform
+
+					-- and try to draw our object
+					local pushPalBlobIndex = app.ram.paletteBlobIndex
+					app.ram.paletteBlobIndex = self.paletteBlobIndex
+					app:drawMesh3D(
+						mesh3DIndex,
+						bit.lshift(self.voxCurSel.tileXOffset, tileSizeInBits),
+						bit.lshift(self.voxCurSel.tileYOffset, tileSizeInBits),
+						self.sheetBlobIndex
+					)
+					app.ram.paletteBlobIndex = pushPalBlobIndex
+
+					if app:keyp'mouse_left' then
+						if mouseX >= winX + col * meshPreviewW 
+						and mouseX < winX + (col+1) * meshPreviewW 
+						and mouseY >= winY + row * meshPreviewH
+						and mouseY < winY + (row+1) * meshPreviewH
+						then
+							self.voxCurSel.mesh3DIndex = mesh3DIndex
+						end
+					end
+				end
+			end
+		end
+
+		app:triBuf_flush()
+		gl.glViewport(0, 0, app.width, app.height)
+		gl.glDisable(gl.GL_DEPTH_TEST)
+
+		app:matMenuReset()
+		self:guiSetClipRect(-1000, 16, 3000, 240)
+
+	elseif self.tileSel:doPopup() then
+		-- handled in doPopup()
+	elseif voxelmap then
 
 		-- init lighting before beginDraw() so that we get the clear depth call that will clear the lighting as well
 		local pushUseHardwareLighting = app.ram.useHardwareLighting
@@ -296,7 +453,7 @@ function EditVoxelMap:update()
 		end
 
 		if not mouseHandled
-		and mouseY >= 8
+		and mouseY >= 16
 		then
 
 			-- mouse line, intersect only with far bounding planes of the voxelmap
@@ -655,14 +812,11 @@ function EditVoxelMap:update()
 		-- TODO should this go here or in the caller:
 		app:matMenuReset()
 
-		local x, y = 0, 8
-		app:drawMenuText('w='..mapsize.x, x, y)
-		y = y + 8
-		app:drawMenuText('h='..mapsize.y, x, y)
-		y = y + 8
-		app:drawMenuText('d='..mapsize.z, x, y)
+		local x, y = 0, 16
+		app:drawMenuText(mapsize.x..'x'..mapsize.y..'x'..mapsize.z, x, y)
 		y = y + 8
 	end
+
 
 	self:guiSetClipRect(0, 0, 256, 256)
 
@@ -689,10 +843,17 @@ function EditVoxelMap:update()
 	end
 	x = x + 6
 
+	-- TODO text input also for just the mesh portion? or handle it in the voxel index?
+	if self:guiButton('M', x, y, self.meshPickOpen, 'mesh='..self.voxCurSel.mesh3DIndex) then
+		self.meshPickOpen = not self.meshPickOpen
+	end
+	x = x + 6
+--[[	
 	self:guiSpinner(x, y, function(dx)
 		self.voxCurSel.mesh3DIndex = math.max(0, self.voxCurSel.mesh3DIndex + dx)
 	end, 'mesh='..self.voxCurSel.mesh3DIndex)
 	x = x + 11
+--]]
 
 	self.tileSel:button(x,y)
 	x = x + 6

@@ -10,7 +10,6 @@ local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
-local frameBufferSize = numo9_rom.frameBufferSize
 
 local TileSelect = class()
 
@@ -61,8 +60,13 @@ function TileSelect:doPopup()
 
 	local winX = 2 * spriteSize.x
 	local winY = 2 * spriteSize.y
-	local winW = frameBufferSize.x - 2 * winX
-	local winH = frameBufferSize.y - 2 * winY
+	
+	-- use menu coords which are odd and determined by matMenuReset
+	-- height is 256, width is aspect ratio proportional
+	-- TODO is it this or size / min(something)? 
+	local ar = app.width / app.height
+	local winW = math.floor(256 * ar) - 2 * winX
+	local winH = 256 - 2 * winY
 
 	app:drawBorderRect(
 		winX-1,

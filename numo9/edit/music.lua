@@ -9,8 +9,6 @@ local numo9_archive = require 'numo9.archive'
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
-local spriteSize = numo9_rom.spriteSize
-local frameBufferSize = numo9_rom.frameBufferSize
 local audioSampleRate = numo9_rom.audioSampleRate
 local audioOutChannels = numo9_rom.audioOutChannels
 local audioMixChannels = numo9_rom.audioMixChannels
