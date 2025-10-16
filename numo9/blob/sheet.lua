@@ -24,13 +24,14 @@ BlobSheet.filenamePrefix = 'sheet'
 BlobSheet.filenameSuffix = '.png'
 
 -- same but adds the palette
-function BlobSheet:saveFile(filepath, blobIndex, blobs)
+function BlobSheet:saveFile(filepath, blobIndex, blobs, paletteIndex)
 --DEBUG:print'saving sheet...'
 	-- sprite tex: 256 x 256 x 8bpp ... TODO needs to be indexed
 	-- TODO save a palette'd image
 	local image = self:makeImage()
 	ffi.copy(ffi.cast(uint8_t_p, image.buffer), self:getPtr(), self:getSize())
-	image.palette = blobs.palette[1]:toTable()
+	local paletteBlob = blobs.palette[1+(paletteIndex or 0)] or blobs.palette[1]
+	image.palette = paletteBlob:toTable()
 	image:save(filepath.path)
 end
 

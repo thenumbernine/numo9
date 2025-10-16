@@ -25,7 +25,6 @@ local vec2i = require 'vec-ffi.vec2i'
 local vec2f = require 'vec-ffi.vec2f'
 local template = require 'template'
 local matrix_ffi = require 'matrix.ffi'
-local sha2 = require 'sha2'
 local sdl = require 'sdl'
 local gl = require 'gl'
 local glreport = require 'gl.report'
@@ -38,6 +37,8 @@ local numo9_archive = require 'numo9.archive'
 local cartImageToBlobs = numo9_archive.cartImageToBlobs
 local blobStrToCartImage = numo9_archive.blobStrToCartImage
 local blobsToCartImage = numo9_archive.blobsToCartImage
+local getCodeFromBlobs = numo9_archive.getCodeFromBlobs
+local getMetaInfoFromCode = numo9_archive.getMetaInfoFromCode
 
 local numo9_net = require 'numo9.net'
 local Server = numo9_net.Server
@@ -75,7 +76,6 @@ local buttonCodeForName = numo9_keys.buttonCodeForName
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local blobClassNameForType = numo9_blobs.blobClassNameForType
-local blobsToStr = numo9_blobs.blobsToStr
 
 local numo9_video = require 'numo9.video'
 local resetLogoOnSheet = numo9_video.resetLogoOnSheet
@@ -2948,32 +2948,10 @@ function App:runCart()
 		__index = self.env,
 	})
 
-	local code = self.blobs.code:mapi(function(blob, i)
-		return
-			-- TODO this?  pro: delineation.  con: error line #s are offset
-			-- but they'll always be offset if I add more than one code blob?
-			-- but I'm not doing that yet ...
-			-- '-- blob #'..i..':\n'..
-			blob.data
-	end):concat'\n'
 
-	-- reload the metadata while we're here
-	self.metainfo = {}
-	do
-		local i = 1
-		repeat
-			local from, to, line, term = code:find('^([^\r\n]*)(\r?\n)', i)
-			if not line then break end -- I guess no single-line meta tags with no code afterwards ...
-			local k, v = line:match'^%-%-%s*([^%s=]+)%s*=%s*(.-)%s*$'
-			if not k then break end
---DEBUG:print('setting metainfo', k, v)
-			self.metainfo[k] = v
-			i = to + #term
-		until false
-	end
-	if not self.metainfo.saveid then
-		self.metainfo.saveid = sha2.md5(blobsToStr(self.blobs))
-	end
+	local code = numo9_archive.getCodeFromBlobs(self.blobs)
+
+	self.metainfo = numo9_archive.getMetaInfoFromCode(code, self.blobs)
 
 	-- here copy persistent into RAM ... here? or somewhere else?  reset maybe? but it persists so reset shouldn't matter ...
 	local cartPersistFile = self.cfgdir(self.metainfo.saveid..'.save')

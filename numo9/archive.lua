@@ -21,6 +21,7 @@ local path = require 'ext.path'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local zlib = require 'ffi.req' 'zlib'	-- TODO maybe ... use libzip if we're storing a compressed collection of files ... but doing this would push back the conversion of files<->ROM into the application openCart() function ...
+local sha2 = require 'sha2'
 
 local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
@@ -137,6 +138,47 @@ local function cartImageToBlobs(cartImgData)
 	return blobs
 end
 
+
+-- used individually by openCart
+-- still needs blobs for default md5 generation of saveid
+local function getMetaInfoFromCode(code, blobs)
+	-- reload the metadata while we're here
+	local metainfo = {}
+	do
+		local i = 1
+		repeat
+			local from, to, line, term = code:find('^([^\r\n]*)(\r?\n)', i)
+			if not line then break end -- I guess no single-line meta tags with no code afterwards ...
+			local k, v = line:match'^%-%-%s*([^%s=]+)%s*=%s*(.-)%s*$'
+			if not k then break end
+--DEBUG:print('setting metainfo', k, v)
+			metainfo[k] = v
+			i = to + #term
+		until false
+	end
+	if not metainfo.saveid then
+		metainfo.saveid = sha2.md5(blobsToStr(blobs))
+	end
+
+	return metainfo
+end
+
+local function getCodeFromBlobs(blobs)
+	return blobs.code:mapi(function(blob, i)
+		return
+			-- TODO this?  pro: delineation.  con: error line #s are offset
+			-- but they'll always be offset if I add more than one code blob?
+			-- but I'm not doing that yet ...
+			-- '-- blob #'..i..':\n'..
+			blob.data
+	end):concat'\n'
+end
+
+-- used by n9a
+local function getMetaInfoFromBlobs(blobs)
+	return getMetaInfoFromCode(getCodeFromBlobs(blobs), blobs)
+end
+
 return {
 	-- base case functions
 	-- rw without stripping sig used by n9tobin/binton9
@@ -148,4 +190,8 @@ return {
 	-- common functions:
 	blobsToCartImage = blobsToCartImage,
 	cartImageToBlobs = cartImageToBlobs,
+	-- metainfo functions:
+	getMetaInfoFromCode = getMetaInfoFromCode,
+	getCodeFromBlobs = getCodeFromBlobs,
+	getMetaInfoFromBlobs = getMetaInfoFromBlobs,
 }

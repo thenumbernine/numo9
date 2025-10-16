@@ -29,6 +29,7 @@ local blobStrWithSigToCartImage = numo9_archive.blobStrWithSigToCartImage
 local cartImageToBlobStrWithSig = numo9_archive.cartImageToBlobStrWithSig
 local cartImageToBlobs = numo9_archive.cartImageToBlobs
 local blobsToCartImage = numo9_archive.blobsToCartImage
+local getMetaInfoFromBlobs = numo9_archive.getMetaInfoFromBlobs
 
 local numo9_rom = require 'numo9.rom'
 local deltaCompress = numo9_rom.deltaCompress
@@ -113,14 +114,32 @@ if cmd == 'x' then
 	local blobs = cartImageToBlobs((assert(n9path:read())))
 	assert.type(blobs, 'table')
 
+	-- allow metainfo to say what sheet gets what palette
+	local metainfo = getMetaInfoFromBlobs(blobs)
+	local paletteForSheet = metainfo['archive.paletteForSheet']
+	if paletteForSheet then
+		paletteForSheet = require 'ext.fromlua'(paletteForSheet)
+	end
+
 	for _,blobClassName in ipairs(table.keys(blobs):sort()) do
 		local blobsForType = blobs[blobClassName]
 		for blobIndexPlusOne,blob in ipairs(blobsForType) do
 			local blobIndex = blobIndexPlusOne-1
+
+			-- metainfo what sheet gets what palette
+			local paletteIndex = 0
+			if blobClassName == 'sheet'
+			and paletteForSheet
+			then
+				paletteIndex = paletteForSheet[blobIndexPlusOne] or 0
+			end
+
 			blob:saveFile(
 				basepath(blob:getFileName(blobIndex)),
 				blobIndex,
-				blobs
+				blobs,
+				-- 4th arg is only used by sheet blobs for palette index:
+				paletteIndex
 			)
 		end
 	end

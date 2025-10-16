@@ -949,8 +949,8 @@ TODO cart status:
 	- This is turning into a scenegraph tab.
 
 - BUG: looks like some voxel orientations dont rotate the cull face correctly.
-
-- hmm some markup way to tell what palette to save what sheet with.
+	- slope when rotated sometimes blocks the face next to its slope ...
+	- make a small voxelmap and test and verify this
 
 - BIG TODO - undo buffer pushing the whole blob only works for small blobs.
 	Instead I should push objects that can apply undo/redo changes, this will use much less memory.
@@ -960,17 +960,13 @@ TODO cart status:
 - edit code page: needs ctrl+left and ctrl+right
 
 voxelmap editor fixes:
-- voxelmap rect and select , better preview of region
-- extrude hilite / select cursor box by just 1/16th or so
-- preview window for meshes like I have for tiles and brushes
-- preview window for orientations
+- voxelmap select , better preview of region ... maybe shift to grow only?
+- maybe lol transparency on rect preview  while mouse is down ...
 - option for select to auto-orient according to your view direction (like minecraft and stairs)
-- when clicking the blob sel dropdown, the mouse goes through to the editor aka voxelmap edit input
-- when clicking save load etc the mouse goes through to the editor aka voxelmap edit input
 - 'paint' vs 'draw' resets when you select to another tool
 
 - lighting in editor is still messed up.  esp when you push 'save' for some reason, thats the only time the light matrix updates.
 
-- mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
+- turn the default light around so that it lights up scenes with shadows going right instead of going left
 
-- part of cart code markup should be what palettes to save what sheets with
+- mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
