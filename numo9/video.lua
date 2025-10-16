@@ -1965,7 +1965,7 @@ function AppVideo:initVideo()
 		--]]
 		-- 32 is half width, 24 is half length
 		self.lightView.angle =
-			quatd():fromAngleAxis(0, 0, 1, 45)
+			quatd():fromAngleAxis(0, 0, 1, -45)
 			* quatd():fromAngleAxis(1, 0, 0, 60)
 		self.lightView.orbit:set(24, 24, 0)
 		self.lightView.pos = self.lightView.orbit + 40 * self.lightView.angle:zAxis()

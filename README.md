@@ -907,7 +907,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- how many dynamic shadowmap-based lights do modern games have?
 		- .... smh why not just do this all in screen-space?  and no shadows or at least marched shadows in the depth buffer...
 
-- langfix is typically negligible, but it's giving me roughly 1 second per 10,000 lines of code .......
+- langfix is typically negligible, but it's giving me roughly 1 second per 10,000 lines of code ...... I think especially worse with big tables.
 
 - TODO introduce backface culling.... ???
 	- render flipped sprites with hflip/vflip flag so flipping their vertexes doesnt cull them.
@@ -932,8 +932,6 @@ TODO cart status:
 - maybe add a voxelmap index swap just like i have a palette color swap, it is so useful.
 	- proly with a modal dialog
 	- when will I give up and just use my lua-gui library?
-
-- editor voxelmap shadows dont work, meh.
 
 - if you poke the voxelmap resource size, the Fantasy Console will warn you "nuh uh uh" and then do nothing.  I dno't allow size resizing at the moment.
 
@@ -960,13 +958,14 @@ TODO cart status:
 - edit code page: needs ctrl+left and ctrl+right
 
 voxelmap editor fixes:
-- voxelmap select , better preview of region ... maybe shift to grow only?
+- voxelmap select , better preview of region ...
+	maybe shift to grow only?
+	(its hard to select around shapes)
+	maybe make select only use click-inside (npti / 'remove') not click-outside (pti / 'draw')
 - maybe lol transparency on rect preview  while mouse is down ...
 - option for select to auto-orient according to your view direction (like minecraft and stairs)
 - 'paint' vs 'draw' resets when you select to another tool
 
 - lighting in editor is still messed up.  esp when you push 'save' for some reason, thats the only time the light matrix updates.
-
-- turn the default light around so that it lights up scenes with shadows going right instead of going left
 
 - mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
