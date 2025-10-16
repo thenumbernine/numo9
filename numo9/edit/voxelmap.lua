@@ -438,14 +438,15 @@ function EditVoxelMap:update()
 								return
 							end
 
-
-							if app:keyp'mouse_left' then
+							-- on release so we dont mess with paint mode
+							if app:keyr'mouse_left' then
 								self.voxCurSel.intval = self.meshPickVoxel.intval
 								if self.orientationPickOpen then
 									self.orientationPickOpen = false	-- close orientation on click
 								else
 									self.meshPickOpen = false	-- close mesh-pick on click too?  or?
 								end
+
 								handled = true
 							end
 						end
@@ -522,10 +523,9 @@ function EditVoxelMap:update()
 			end
 		end
 
-		if not handled 
+		if not handled
 		and mouseY >= 16
 		then
-
 			-- mouse line, intersect only with far bounding planes of the voxelmap
 			-- or intersect with march through the voxelmap
 			-- how to get mouse line?
