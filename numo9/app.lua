@@ -3002,7 +3002,7 @@ function App:runCart()
 		local paletteForSheet = self.metainfo['archive.paletteForSheet']
 		paletteForSheet =
 			paletteForSheet
-			and op.land(pcall, fromlua, paletteForSheet)
+			and op.land(pcall(fromlua, paletteForSheet))
 		if type(paletteForSheet) ~= 'table' then
 			paletteForSheet = nil
 		end

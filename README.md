@@ -969,4 +969,3 @@ voxelmap editor fixes:
 - in editor if you click "save" then lightmap gets stuck overlaid on display.  probably a pointer bug when resetting blobs / RAM.
 
 - mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
-

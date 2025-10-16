@@ -120,7 +120,7 @@ if cmd == 'x' then
 	local metainfo = getMetaInfoFromBlobs(blobs)
 	local paletteForSheet = metainfo['archive.paletteForSheet']
 	if paletteForSheet then
-		paletteForSheet = op.land(pcall, fromlua, paletteForSheet)
+		paletteForSheet = op.land(pcall(fromlua, paletteForSheet))
 		if type(paletteForSheet) ~= 'table' then
 			paletteForSheet = nil
 		end

@@ -456,6 +456,9 @@ function UI:update()
 		-- TODO this will rearrange the blobs
 		-- so TODO it should net_resetCart as well (net_saveCart maybe?)
 		app:net_resetCart()
+
+		-- atm save causes editor-lighting to but out
+		app:resetVideo()
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then
