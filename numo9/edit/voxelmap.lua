@@ -85,7 +85,9 @@ function EditVoxelMap:onCartLoad()
 	self.voxCurSel.intval = 0
 
 	self.meshPickOpen = false
+	self.orientationPickOpen = false
 	self.meshPickOrbit = Orbit(self.app)
+	self.meshPickVoxel= Voxel()
 
 	self.tileSel = TileSelect{
 		edit = self,
@@ -240,7 +242,9 @@ function EditVoxelMap:update()
 
 	if self.tileSel:doPopup() then
 		-- handled in doPopup()
-	elseif self.meshPickOpen then
+	elseif self.meshPickOpen
+	or self.orientationPickOpen
+	then
 		-- use menu coords which are odd and determined by matMenuReset
 		-- height is 256, width is aspect ratio proportional
 		-- TODO is it this or size / min(something)?
@@ -297,14 +301,30 @@ function EditVoxelMap:update()
 		--]]
 		-- [[
 		local maxrows = 6
-		local maxcols = math.floor(maxrows * ar)
-		local meshPreviewW = math.floor(winW / maxcols)
+		local maxcols = math.floor(maxrows * winW / winH)
+		local meshPreviewW = math.ceil(winW / maxcols)
 		local meshPreviewH = meshPreviewW
 		--]]
 		for row=0,maxrows-1 do
 			for col=0,maxcols-1 do
-				local mesh3DIndex = col + maxcols * row
-				if mesh3DIndex < #app.blobs.mesh3d then
+
+				self.meshPickVoxel.intval = self.voxCurSel.intval
+
+				local issel
+				local index = col + maxcols * row
+				local indexOOB = false	-- cuz i can't test orientation oob cuz it is only 5 bits and it wraps....
+				if self.orientationPickOpen then
+					issel = self.meshPickVoxel.orientation == index
+					self.meshPickVoxel.orientation = index
+					indexOOB = index >= 32
+				else	-- meshPickOpen
+					issel = self.meshPickVoxel.mesh3DIndex == index
+					self.meshPickVoxel.mesh3DIndex = index
+					indexOOB = self.meshPickVoxel.mesh3DIndex >= #app.blobs.mesh3d
+				end
+
+
+				if not indexOOB then
 					app:triBuf_flush()
 
 					app:setClipRect(-1000, -1000, 3000, 3000)
@@ -343,7 +363,7 @@ function EditVoxelMap:update()
 						1,
 						2)	-- 2 = projectoin
 			--]]
-					if self.voxCurSel.mesh3DIndex == mesh3DIndex then
+					if issel then
 						local epsilon = 1e-2
 						app:drawBorderRect(-1 + epsilon, -1 + epsilon, 2 - 2 * epsilon, 2 -2 * epsilon, 10, nil, app.paletteMenuTex)
 					end
@@ -359,20 +379,20 @@ function EditVoxelMap:update()
 					app:matortho(-1, 1, -1, 1, -100, 100)
 					--]]
 
-					app:matscale(1/32768, 1/32768, 1/32768)
 					app:mattrans(0, 0, -1, 1)	-- 1 = view transform
 
 					-- TODO why does my quat lib use degrees? smh
 					local x,y,z,th = self.meshPickOrbit.angle:toAngleAxis():unpack()
 					app:matrot(-math.rad(th), x, y, z, 1)	-- 1 = view transform
 
+					app:mattrans(-.5, -.5, -.5)	-- undo app:drawVoxel recentering to [0,1]^3
+
 					-- and try to draw our object
 					local pushPalBlobIndex = app.ram.paletteBlobIndex
 					app.ram.paletteBlobIndex = self.paletteBlobIndex
-					app:drawMesh3D(
-						mesh3DIndex,
-						bit.lshift(self.voxCurSel.tileXOffset, tileSizeInBits),
-						bit.lshift(self.voxCurSel.tileYOffset, tileSizeInBits),
+
+					app:drawVoxel(
+						self.meshPickVoxel.intval,
 						self.sheetBlobIndex
 					)
 					app.ram.paletteBlobIndex = pushPalBlobIndex
@@ -383,7 +403,7 @@ function EditVoxelMap:update()
 						and mouseY >= winY + row * meshPreviewH
 						and mouseY < winY + (row+1) * meshPreviewH
 						then
-							self.voxCurSel.mesh3DIndex = mesh3DIndex
+							self.voxCurSel.intval = self.meshPickVoxel.intval
 						end
 					end
 				end
@@ -858,20 +878,20 @@ function EditVoxelMap:update()
 		self.meshPickOrbit.angle:set(self.orbit.angle:unpack())
 	end
 	x = x + 6
---[[
-	self:guiSpinner(x, y, function(dx)
-		self.voxCurSel.mesh3DIndex = math.max(0, self.voxCurSel.mesh3DIndex + dx)
-	end, 'mesh='..self.voxCurSel.mesh3DIndex)
-	x = x + 11
---]]
+
+	if self:guiButton('O', x, y, self.orientationPickOpen, 'orientation='..self.voxCurSel.orientation) then
+		self.orientationPickOpen = not self.orientationPickOpen
+
+		-- show orientation in mesh pick as you would in view
+		-- allow rotations in mesh pick, but dont let rotations affect view
+		if not self.meshPickOpen then
+			self.meshPickOrbit.angle:set(self.orbit.angle:unpack())
+		end
+	end
+	x = x + 6
 
 	self.tileSel:button(x,y)
 	x = x + 6
-
-	self:guiSpinner(x, y, function(dx)
-		self.voxCurSel.orientation = bit.band(31, self.voxCurSel.orientation + dx)
-	end, 'orient='..self.voxCurSel.orientation)
-	x = x + 12
 
 	-- tools ... maybe I should put these somewhere else
 	self:guiRadio(x, y, {
