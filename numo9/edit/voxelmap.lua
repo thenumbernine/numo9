@@ -261,7 +261,7 @@ function EditVoxelMap:update()
 		local winX = 2 * spriteSize.x - (menuCoordW - 256) * .5
 		local winY = 2 * spriteSize.y
 
-		self.meshPickOrbit:handleInput()
+		local mouseHandled = self.meshPickOrbit:handleInput()
 
 		app:drawBorderRect(
 			winX-1,
@@ -400,42 +400,51 @@ function EditVoxelMap:update()
 					)
 					app.ram.paletteBlobIndex = pushPalBlobIndex
 
-					-- TODO I'm getting double-clicks always
-					-- is it because keyp doesn't get refreshed as often as menu updates do?
-					local doubleClick
-					if app:keyp'mouse_left' then
-						local thisTime = timer.getTime()
-						local doubleClickThreshold = 1	-- seconds
-						if thisTime - self.mousePickLastClickTime < doubleClickThreshold then
-							doubleClick = true
+					if mouseX >= winX + col * meshPreviewW
+					and mouseX < winX + (col+1) * meshPreviewW
+					and mouseY >= winY + row * meshPreviewH
+					and mouseY < winY + (row+1) * meshPreviewH
+					then
+
+						if not self.tooltip then
+							self:setTooltip(tostring(index), mouseX-8, mouseY-8, 0xfc, 0)
 						end
-						self.mousePickLastClickTime = thisTime
-					end
 
-					--if doubleClick then-- TODO fix double click
-					if app:keyp'mouse_right' then
-						self.meshPickOpen = false
-						self.orientationPickOpen = false
+						if not mouseHandled then
 
-						app.editMode = 'mesh3d'
-						app:setMenu(app.editMesh3D)
-						-- why this doens't work?
-						--app.editMesh3D.mesh3DBlobIndex = self.meshPickVoxel.mesh3DIndex
-						app.editMesh3D.mesh3DBlobIndex = self.voxCurSel.mesh3DIndex
-						return
-					end
+							-- TODO I'm getting double-clicks always
+							-- is it because keyp doesn't get refreshed as often as menu updates do?
+							local doubleClick
+							if app:keyp'mouse_left' then
+								local thisTime = timer.getTime()
+								local doubleClickThreshold = 1	-- seconds
+								if thisTime - self.mousePickLastClickTime < doubleClickThreshold then
+									doubleClick = true
+								end
+								self.mousePickLastClickTime = thisTime
+							end
 
-					if app:keyp'mouse_left' then
-						if mouseX >= winX + col * meshPreviewW
-						and mouseX < winX + (col+1) * meshPreviewW
-						and mouseY >= winY + row * meshPreviewH
-						and mouseY < winY + (row+1) * meshPreviewH
-						then
-							self.voxCurSel.intval = self.meshPickVoxel.intval
-							if self.orientationPickOpen then
-								self.orientationPickOpen = false	-- close orientation on click
-							else
-								self.meshPickOpen = false	-- close mesh-pick on click too?  or?
+							--if doubleClick then-- TODO fix double click
+							if app:keyp'mouse_right' then
+								self.meshPickOpen = false
+								self.orientationPickOpen = false
+
+								app.editMode = 'mesh3d'
+								app:setMenu(app.editMesh3D)
+								-- why this doens't work? proly cuz before i had this outside the mouse region test block....
+								--app.editMesh3D.mesh3DBlobIndex = self.meshPickVoxel.mesh3DIndex
+								app.editMesh3D.mesh3DBlobIndex = self.voxCurSel.mesh3DIndex
+								return
+							end
+
+
+							if app:keyp'mouse_left' then
+								self.voxCurSel.intval = self.meshPickVoxel.intval
+								if self.orientationPickOpen then
+									self.orientationPickOpen = false	-- close orientation on click
+								else
+									self.meshPickOpen = false	-- close mesh-pick on click too?  or?
+								end
 							end
 						end
 					end
