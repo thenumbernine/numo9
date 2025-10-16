@@ -432,6 +432,11 @@ function EditVoxelMap:update()
 						and mouseY < winY + (row+1) * meshPreviewH
 						then
 							self.voxCurSel.intval = self.meshPickVoxel.intval
+							if self.orientationPickOpen then
+								self.orientationPickOpen = false	-- close orientation on click
+							else
+								self.meshPickOpen = false	-- close mesh-pick on click too?  or?
+							end
 						end
 					end
 				end

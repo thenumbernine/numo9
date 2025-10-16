@@ -966,6 +966,7 @@ voxelmap editor fixes:
 - option for select to auto-orient according to your view direction (like minecraft and stairs)
 - 'paint' vs 'draw' resets when you select to another tool
 
-- lighting in editor is still messed up.  esp when you push 'save' for some reason, thats the only time the light matrix updates.
+- in editor if you click "save" then lightmap gets stuck overlaid on display.  probably a pointer bug when resetting blobs / RAM.
 
 - mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
+

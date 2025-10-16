@@ -37,7 +37,9 @@ end
 
 function TileSelect:button(x, y)
 	local edit = self.edit
-	if edit:guiButton('T', x, y, self.pickOpen, 'tile') then
+
+	local tileIndex = bit.bor(self.pos.x, bit.lshift(self.pos.y, 5))
+	if edit:guiButton('T', x, y, self.pickOpen, 'tile='..tileIndex) then
 		self.pickOpen = not self.pickOpen
 	end
 end
@@ -60,10 +62,10 @@ function TileSelect:doPopup()
 
 	local winX = 2 * spriteSize.x
 	local winY = 2 * spriteSize.y
-	
+
 	-- use menu coords which are odd and determined by matMenuReset
 	-- height is 256, width is aspect ratio proportional
-	-- TODO is it this or size / min(something)? 
+	-- TODO is it this or size / min(something)?
 	--local ar = app.width / app.height
 	--local winW = math.floor(256 * ar) - 2 * winX
 	local winW = 256 - 2 * winX
