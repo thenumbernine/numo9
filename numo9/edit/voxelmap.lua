@@ -2,6 +2,7 @@ local ffi = require 'ffi'
 local assert = require 'ext.assert'
 local table = require 'ext.table'
 local math = require 'ext.math'
+local timer = require 'ext.timer'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3d = require 'vec-ffi.vec3d'
 local box3d = require 'vec-ffi.box3d'
@@ -83,6 +84,8 @@ function EditVoxelMap:onCartLoad()
 
 	self.voxCurSel = Voxel()
 	self.voxCurSel.intval = 0
+
+	self.mousePickLastClickTime = timer.getTime()
 
 	self.meshPickOpen = false
 	self.orientationPickOpen = false
@@ -396,6 +399,31 @@ function EditVoxelMap:update()
 						self.sheetBlobIndex
 					)
 					app.ram.paletteBlobIndex = pushPalBlobIndex
+
+					-- TODO I'm getting double-clicks always
+					-- is it because keyp doesn't get refreshed as often as menu updates do?
+					local doubleClick
+					if app:keyp'mouse_left' then
+						local thisTime = timer.getTime()
+						local doubleClickThreshold = 1	-- seconds
+						if thisTime - self.mousePickLastClickTime < doubleClickThreshold then
+							doubleClick = true
+						end
+						self.mousePickLastClickTime = thisTime
+					end
+
+					--if doubleClick then-- TODO fix double click
+					if app:keyp'mouse_right' then
+						self.meshPickOpen = false
+						self.orientationPickOpen = false
+
+						app.editMode = 'mesh3d'
+						app:setMenu(app.editMesh3D)
+						-- why this doens't work?
+						--app.editMesh3D.mesh3DBlobIndex = self.meshPickVoxel.mesh3DIndex
+						app.editMesh3D.mesh3DBlobIndex = self.voxCurSel.mesh3DIndex
+						return
+					end
 
 					if app:keyp'mouse_left' then
 						if mouseX >= winX + col * meshPreviewW
