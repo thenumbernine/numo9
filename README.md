@@ -583,11 +583,18 @@ Mouse state is read from the local machine.  Remote connections can only send jo
 - `select`
 - `type`
 - `error`
+- `next`
 - `pairs`
 - `ipairs`
-- `getfenv`
-- `setfenv`
+- `getmetatable`
+- `setmetatable`
+- `pcall`
+- `xpcall`
+- `traceback = debug.traceback`
 - `tstamp` = `os.time`
+- `getfenv` ... though should I remove this?
+- `setfenv` ... same?
+- `load` ... same?
 - tables:
 	- `bit` = luajit's bit library.
 	- `assert` = my [lua-ext](https://github.com/thenumbernine/lua-ext) assert object.

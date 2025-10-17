@@ -154,7 +154,7 @@ elseif cmd == 'a' or cmd == 'r' then
 	local n9path = path(fn)
 	local basepath = getbasepath(fn)
 
-	assert(basepath:isdir())
+	assert(basepath:isdir(), "couldn't find resource directory "..basepath)
 
 	local blobs = BlobSet()
 	for _,blobClassName in ipairs(table.keys(blobClassForName):sort()) do

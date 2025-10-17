@@ -893,6 +893,10 @@ function App:initGL()
 		getmetatable = getmetatable,
 		setmetatable = setmetatable,
 		traceback = debug.traceback,	-- useful for threads
+		pcall = pcall,
+		xpcall = xpcall,
+		getfenv = getfenv,	-- maybe ... needed for _ENV replacement, but maybe can break out of sandbox ...
+		setfenv = setfenv,	-- \_ fair warning, getfenv(0) breaks out of the sandbox and gets numo9's _G
 
 		-- use this in place of ffi.offsetof(RAM, field)
 		ramaddr = function(name)
@@ -945,8 +949,6 @@ function App:initGL()
 		int32_t = ffi.typeof'int32_t',
 
 		app = self,
-		getfenv = getfenv,	-- maybe ... needed for _ENV replacement, but maybe can break out of sandbox ...
-		setfenv = setfenv,	-- \_ fair warning, getfenv(0) breaks out of the sandbox and gets numo9's _G
 
 		-- sandboxed load
 
