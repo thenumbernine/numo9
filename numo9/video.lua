@@ -4603,7 +4603,12 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		-- TODO special case, xyz-aligned, anchored to z- center
 	elseif vox.orientation == 23 then
 		-- TODO special case, xy-aligned, anchored to z- center
+	-- TODO we also have 28 29 30 31 52 53 54 55 60 61 62 63
 	else
+		if vox.scaleX == 1 then
+			self:matscale(-1, 1, 1)
+		end
+
 		-- euler-angles
 		-- TODO for speed you can cache these.  all matrix elements are -1,0,1, so no need to cos/sin
 		-- TODO which is fastest?  cis calc vs for-loop vs if-else vs table

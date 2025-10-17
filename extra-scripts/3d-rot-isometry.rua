@@ -1,12 +1,27 @@
 #!/usr/bin/env rua
 --[[
-finding all unique orientations of 5-bit representations of cube's 24 (right-handed) isometric transforms.
-for using Euler angles A = Rz * Ry * Rx
-turns out storing z:y:x as 2:1:2 only covers 20 of 24
-storing z:y:x as 2:2:1 covers all 24
+finding all unique orientations of 6-bit representations of cube's 48 isometric transforms.
+for using Euler angles A = Rz * Ry * Rx * Sx
+turns out storing z:y:x:s as 2:1:2:1 only covers 40 of 48
+storing z:y:x:s as 2:2:1:1 covers all 48
 --]]
 local matrix = require 'matrix'
 local I = matrix{3,3}:eye()
+local sx = matrix{
+	{-1,0,0},
+	{0,1,0},
+	{0,0,1},
+}
+local sy = matrix{
+	{1,0,0},
+	{0,-1,0},
+	{0,0,1},
+}
+local sz = matrix{
+	{1,0,0},
+	{0,1,0},
+	{0,0,-1},
+}
 local rx = matrix{
 	{1,0,0},
 	{0,0,-1},
@@ -22,32 +37,38 @@ local rz = matrix{
 	{1,0,0},
 	{0,0,1},
 }
-local baseRots = table{rx, ry, rz}
+local baseRots = table{rx, ry, rz, sx, sy, sz}
 
 local duplicateIndexes = table()
 local uniqueRots = table()
 local rots = table()	-- all orientation rotations, should be 32
-local sx = I
-for ix=0,1 do
-	local sy = I
-	for iy=0,3 do
-		local sz = I
-		for iz=0,3 do
-			local m = sz * sy * sx
-			rots:insert(m)
-			local orientation = iz | (iy << 2) | (ix << 4)
-			local dupindex = uniqueRots:find(m)
-			if dupindex then
-				duplicateIndexes:insert{from=orientation, to=dupindex}
-			else
-				uniqueRots:insert(m)
+local ms = I
+for is=0,1 do
+	local mx = I
+	for ix=0,1 do
+		local my = I
+		for iy=0,3 do
+			local mz = I
+			for iz=0,3 do
+				local m = mz * my * mx * ms
+				rots:insert(m)
+				local orientation = iz | (iy << 2) | (ix << 4) | (is << 5)
+				local dupindex = uniqueRots:find(m)
+				if dupindex then
+					duplicateIndexes:insert{from=orientation, to=dupindex}
+				else
+					uniqueRots:insert(m)
+				end
+print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix
+	..'\tis='..is
+	..'\tdup='..(dupindex and dupindex-1 or ''))
+				mz *= rz
 			end
-print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix..'\tdup='..(dupindex and dupindex-1 or ''))
-			sz *= rz
+			my *= ry
 		end
-		sy *= ry
+		mx *= rx
 	end
-	sx *= rx
+	ms *= sx
 end
 
 print('#unique', #uniqueRots)
@@ -59,8 +80,10 @@ print()
 -- such that applying a column 4x should bring you back to the start (but never before 4x)
 print()
 print[[
--- orientation rotations for the upper 5 rotation bits of the voxel
+-- orientation rotations for the upper 6 rotation bits of the voxel
 -- indexed[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation
+-- the first 3 axis are for rotations, and have 3 entries for each 90 degree rotation
+-- the second 3 are for scales, and have 1 entry for the scale in the x, y, and z direction.
 ]]
 print'local orientationRotations = {'
 for i,m in ipairs(rots) do
@@ -69,9 +92,11 @@ for i,m in ipairs(rots) do
 		local m2 = m
 		local rotinds = table()
 		allinds:insert(rotinds)
-		for k=1,4 do
+		local n = (rawequal(r, sx) or rawequal(r, sy) or rawequal(r, sz))
+			and 2 or 4
+		for k=1,n do
 			m2 = r * m2
-			if k == 4 then
+			if k == n then
 				assert.eq(m, m2)
 			else
 				local index = assert(rots:find(m2)) - 1

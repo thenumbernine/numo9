@@ -162,7 +162,7 @@ elseif cmd == 'a' or cmd == 'r' then
 		for blobIndex=0,math.huge do
 			local filepath = basepath(blobClass:getFileName(blobIndex))
 			if not filepath:exists() then break end
-			print('loading blob #'..blobIndex..' type='..blobClassName..' from file="'..filepath..'"')
+--DEBUG:print('loading blob #'..blobIndex..' type='..blobClassName..' from file="'..filepath..'"')
 			assert(xpcall(function()
 				blobs[blobClassName]:insert(blobClass:loadFile(filepath, basepath, blobIndex))
 			end, function(err)

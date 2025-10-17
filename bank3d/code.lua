@@ -328,7 +328,7 @@ BaseObj=class{
 				self.drawCube
 				and (0 << 10)		-- cube
 				or ((2 << 10)		-- quad, 16x16 texcoord area
-					| (20 << 27))	-- billboard
+					| (20 << 26))	-- billboard
 			)
 		)
 		if self.blendMode then
@@ -509,10 +509,10 @@ do
 					end
 
 					-- rotate
-					slopeType = (slopeType >> 27) & 3	-- pick out integer-z-rotation
+					slopeType = (slopeType >> 26) & 3	-- pick out integer-z-rotation
 					slopeType -= cmd					-- subtract movecmd direction
 					slopeType &= 3
-					slopeType <<= 27
+					slopeType <<= 26
 					slopeType |= SLOPE_RIGHT
 --DEBUG:trace('rot slopeType', slopeType)
 					if slopeType == SLOPE_RIGHT then
@@ -780,7 +780,7 @@ do
 					1,
 					self.blastRadius|384
 					| (3 << 10)	-- quad with 8x8 texel region
-					| (20 << 27)	-- billboard
+					| (20 << 26)	-- billboard
 				)
 				if self.blendMode then
 					fillp(0)	--blend()
@@ -1258,7 +1258,7 @@ do
 					1,
 					self.bombs|384
 					| (3 << 10)	-- quad with 8x8 texel region
-					| (20 << 27)	-- billboard
+					| (20 << 26)	-- billboard
 				)
 				if self.blendMode then
 					fillp(0)	--blend()

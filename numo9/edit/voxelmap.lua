@@ -315,11 +315,11 @@ function EditVoxelMap:update()
 
 				local issel
 				local index = col + maxcols * row
-				local indexOOB = false	-- cuz i can't test orientation oob cuz it is only 5 bits and it wraps....
+				local indexOOB = false	-- cuz i can't test orientation oob cuz it is only 6 bits and it wraps....
 				if self.orientationPickOpen then
 					issel = self.meshPickVoxel.orientation == index
 					self.meshPickVoxel.orientation = index
-					indexOOB = index >= 32
+					indexOOB = index >= 64
 				else	-- meshPickOpen
 					issel = self.meshPickVoxel.mesh3DIndex == index
 					self.meshPickVoxel.mesh3DIndex = index

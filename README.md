@@ -16,10 +16,10 @@
 I thought I'd make a fantasy console with all the LuaJIT binding code and libraries I have laying around.
 
 What does NuMo9 have that the competition doesn't?
-- HD2D!!!!!!!!  Free SSAO and lightmaps for all your 3D games ... so far.
 - 16-bit console era.  4-button gamepads.
 - 8bpp sprites, 8x8 or 16x16 tilemaps, brushmaps, blending.
 - "Mode-7" transformations, "Super-FX" 3D meshes and ***VOXELMAPS***.
+- ***HD2D!***  Free SSAO and lightmaps for all your 3D games.
 - Multiplayer, 4 local players per connection, up to 64 total players, unlimited observers.
 - Server can edit games in realtime.  Live game DM'ing.
 - It's strictly LuaJIT.  No compiler needed.
@@ -127,7 +127,7 @@ Tilemap bits:
 - 3: 2D orientation
 
 2D orientations are represented as follows:
-- 1 bit: h flip
+- 1 bit: hflip / mirror
 - 2 bits: rotation in 90 degrees
 
 If you want to h-flip, use 0b001.
@@ -176,13 +176,12 @@ Both texcoords and vertexes are offset by 0.5 and scaled down by 1/256.  This wa
 
 ### voxelmap
 
-WIP but the latest on this is going to be ...
 ```
 typedef struct {
 	uint32_t tileXOffset : 5;		// selector to offset texcoords in the sprite sheet, so the same mesh3d can be drawn with different textures.
 	uint32_t tileYOffset : 5;
-	uint32_t mesh3DIndex : 17;	// up to 131072 unique voxel block types
-	uint32_t orientation : 5;	// 5 bits needed to represent all possible 24 isometric orientations of a cube.
+	uint32_t mesh3DIndex : 16;	// up to 65536 unique voxel block types
+	uint32_t orientation : 6;	// 6 bits needed to represent all possible 48 isometric orientations of a cube.
 } Voxel;
 ```
 
@@ -196,54 +195,29 @@ Typically mesh3d's are drawn with signed int16 xyz coordinates and rely on you t
 For voxel maps, meshes are remapped such that the coordinates [-16384, 16384] map to \[0, 1\] (i.e. divide by 32768, then add 0.5).
 
 The 3D orientations, like the 2D orientations, can be decomposed into bitfields:
-- 2 bits = yaw rotation
-- 2 bits = pitch rotation
-- 1 bit = roll rotation
-
-|Orientation|Rz|Ry|Rx|Dup|
-|-----------|--|--|--|---|
-|0          |0 |0 |0 |   |
-|1          |1 |0 |0 |   |
-|2          |2 |0 |0 |   |
-|3          |3 |0 |0 |   |
-|4          |0 |1 |0 |   |
-|5          |1 |1 |0 |   |
-|6          |2 |1 |0 |   |
-|7          |3 |1 |0 |   |
-|8          |0 |2 |0 |   |
-|9          |1 |2 |0 |   |
-|10         |2 |2 |0 |   |
-|11         |3 |2 |0 |   |
-|12         |0 |3 |0 |   |
-|13         |1 |3 |0 |   |
-|14         |2 |3 |0 |   |
-|15         |3 |3 |0 |   |
-|16         |0 |0 |1 |   |
-|17         |1 |0 |1 |   |
-|18         |2 |0 |1 |   |
-|19         |3 |0 |1 |   |
-|20         |0 |1 |1 |7  |
-|21         |1 |1 |1 |4  |
-|22         |2 |1 |1 |5  |
-|23         |3 |1 |1 |6  |
-|24         |0 |2 |1 |   |
-|25         |1 |2 |1 |   |
-|26         |2 |2 |1 |   |
-|27         |3 |2 |1 |   |
-|28         |0 |3 |1 |13 |
-|29         |1 |3 |1 |14 |
-|30         |2 |3 |1 |15 |
-|31         |3 |3 |1 |12 |
+- 2 bits = yaw / Z-axis rotation
+- 2 bits = pitch / Y-axis rotation
+- 1 bit = roll / X-axis rotation
+- 1 bit = mirror
 
 The following 3D orientation representations are redundant, and will be used for special-case orientations.
-- #20 (Rz=0,Ry=1,Rx=1) is equal to #7 (Rz=3,Ry=1,Rx=0), so I will instead use this for voxel-centered xyz-aligned billboard orientation.
-- #21 (Rz=1,Ry=1,Rx=1) is equal to #4 (Rz=0,Ry=1,Rx=0). so I will instead use this for voxel-centered xy-aligned billboard orientation.
-- #22 (Rz=2,Ry=1,Rx=1) is equal to #5 (Rz=1,Ry=1,Rx=0).
-- #23 (Rz=3,Ry=1,Rx=1) is equal to #6 (Rz=2,Ry=1,Rx=0).
-- #28 (Rz=0,Ry=3,Rx=1) is equal to #13 (Rz=1,Ry=3,Rx=0).
-- #29 (Rz=1,Ry=3,Rx=1) is equal to #14 (Rz=2,Ry=3,Rx=0).
-- #30 (Rz=2,Ry=3,Rx=1) is equal to #15 (Rz=3,Ry=3,Rx=0).
-- #31 (Rz=3,Ry=3,Rx=1) is equal to #12 (Rz=0,Ry=3,Rx=0).
+- #20 (Rz=0,Ry=1,Rx=1,Sx=0) is equal to #7 (Rz=3,Ry=1,Rx=0,Sx=0), so I will instead use this for voxel-centered xyz-aligned billboard orientation.
+- #21 (Rz=1,Ry=1,Rx=1,Sx=0) is equal to #4 (Rz=0,Ry=1,Rx=0,Sx=0). so I will instead use this for voxel-centered xy-aligned billboard orientation.
+- #22 (Rz=2,Ry=1,Rx=1,Sx=0) is equal to #5 (Rz=1,Ry=1,Rx=0,Sx=0).
+- #23 (Rz=3,Ry=1,Rx=1,Sx=0) is equal to #6 (Rz=2,Ry=1,Rx=0,Sx=0).
+- #28 (Rz=0,Ry=3,Rx=1,Sx=0) is equal to #13 (Rz=1,Ry=3,Rx=0,Sx=0).
+- #29 (Rz=1,Ry=3,Rx=1,Sx=0) is equal to #14 (Rz=2,Ry=3,Rx=0,Sx=0).
+- #30 (Rz=2,Ry=3,Rx=1,Sx=0) is equal to #15 (Rz=3,Ry=3,Rx=0,Sx=0).
+- #31 (Rz=3,Ry=3,Rx=1,Sx=0) is equal to #12 (Rz=0,Ry=3,Rx=0,Sx=0).
+
+- #52 (Rz=0,Ry=1,Rx=1,Sx=1) is equal to #32 (Rz=3,Ry=1,Rx=0,Sx=1).
+- #53 (Rz=1,Ry=1,Rx=1,Sx=1) is equal to #29 (Rz=0,Ry=1,Rx=0,Sx=1).
+- #54 (Rz=2,Ry=1,Rx=1,Sx=1) is equal to #30 (Rz=1,Ry=1,Rx=0,Sx=1).
+- #55 (Rz=3,Ry=1,Rx=1,Sx=1) is equal to #31 (Rz=2,Ry=1,Rx=0,Sx=1).
+- #60 (Rz=0,Ry=3,Rx=1,Sx=1) is equal to #38 (Rz=1,Ry=3,Rx=0,Sx=1).
+- #61 (Rz=1,Ry=3,Rx=1,Sx=1) is equal to #39 (Rz=2,Ry=3,Rx=0,Sx=1).
+- #62 (Rz=2,Ry=3,Rx=1,Sx=1) is equal to #40 (Rz=3,Ry=3,Rx=0,Sx=1).
+- #63 (Rz=3,Ry=3,Rx=1,Sx=1) is equal to #37 (Rz=0,Ry=3,Rx=0,Sx=1).
 
 The editor voxelmap controls:
 - left-click and drag to place blocks.

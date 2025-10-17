@@ -467,20 +467,20 @@ typedef union {
 	uint32_t intval;
 	struct {
 		uint32_t spriteIndex : 10;
-		uint32_t unnamed : 17;
-		uint32_t orientation : 5;
+		uint32_t unnamed : 16;
+		uint32_t orientation : 6;
 	};
 	struct {
 		// selector to offset texcoords in the sprite sheet, so the same mesh3d can be drawn with different textures.
 		// put texcoord first because mesh=0 is cube so varying texcoord first for majority cube meshes means our values will stay near zero.
 		uint32_t tileXOffset : 5;
 		uint32_t tileYOffset : 5;
-		// up to 131072 unique voxel block types
-		uint32_t mesh3DIndex : 17;
-		// 5 bits needed to represent all possible 24 isometric orientations of a cube.
+		uint32_t mesh3DIndex : 16;
+		// 6 bits needed to represent all possible 48 isometric orientations of a cube.
 		uint32_t rotZ : 2;
 		uint32_t rotY : 2;
 		uint32_t rotX : 1;
+		uint32_t scaleX : 1;
 	};
 } Voxel;
 ]]
