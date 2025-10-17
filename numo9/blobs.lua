@@ -38,14 +38,6 @@ local blobClassNameForType = table{
 
 	'mesh3d', 	-- ... but what format?  xyzuv triangles ... and indexes or nah, since the video API doesn't care anyways?  or at least for compression's sake?
 	'voxelmap', -- = voxel-map of models from some lookup table
-	-- voxel map high bits = 24 possible orientations of a cube, so needs 5 bits for orientation (wow so many ...)
-	--  2 bits = yaw z-axis rotation, 2 bits = roll / x-axis rotation, 1 bit = yaw / y-axis rotation
-	-- should voxel map be 16bit then? 11 = lookup of model, 5 = orientation?
-	-- then entries should point to objs ... and to texel shifts, right?  we dont want a zillion copies of cube ... we should point to separate obj and sheet ...
-	-- 16bit then: 8 to lookup model, 3 to lookup texture sheet, 5 to orientate sheet?
-	-- or 32bit?  11:model, 10:sprite 3:sheet, 3:palette, 5:orientation ...
-	-- nah i won't encourage cart programmers to change sheet/palette mid-voxelmap render
-	-- 32-bit: 17:model 10:sprite 5:orientation
 }
 
 -- maps from name to class

@@ -24,6 +24,7 @@ local rz = matrix{
 }
 local baseRots = table{rx, ry, rz}
 
+local duplicateIndexes = table()
 local uniqueRots = table()
 local rots = table()	-- all orientation rotations, should be 32
 local sx = I
@@ -36,7 +37,9 @@ for ix=0,1 do
 			rots:insert(m)
 			local orientation = iz | (iy << 2) | (ix << 4)
 			local dupindex = uniqueRots:find(m)
-			if not dupindex then
+			if dupindex then
+				duplicateIndexes:insert{from=orientation, to=dupindex}
+			else
 				uniqueRots:insert(m)
 			end
 print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix..'\tdup='..(dupindex and dupindex-1 or ''))
@@ -48,9 +51,9 @@ print('orient='..orientation..'\tiz='..iz..'\tiy='..iy..'\tix='..ix..'\tdup='..(
 end
 
 print('#unique', #uniqueRots)
-
--- save for side-rotation-table.rua
-path'rot3ds.rua':write('return '..tolua(rots))
+print('duplicate indexes:')
+print(tolua(duplicateIndexes))
+print()
 
 -- now for each orientation, left-apply a rotate-x, rotate-y, rotate-z and see where we get
 -- such that applying a column 4x should bring you back to the start (but never before 4x)
@@ -86,3 +89,47 @@ print()
 print'-- inverse orientation for orientation'
 print'-- [orientation+1] = rotated orientation'
 print('local orientationInv = '..tolua(invOrientations))
+
+
+--[[
+sides are encoded 0 bit = sign, 12 bit = axis so
+0 = x+
+1 = x-
+2 = y+
+3 = y-
+4 = z+
+5 = z-
+
+calculate side transformation based on orientation or its inverse
+(TODO how about just provide a lookup of inverse table)
+--]]
+
+local sideToVec = |sideIndex| do
+	local sign = 1 - 2 * bit.band(1, sideIndex)
+	local axis = bit.rshift(sideIndex, 1)
+	local v = matrix{0,0,0}
+	v[axis+1] = sign
+	return v
+end
+local sideVecs = range(0,5):mapi(sideToVec)
+
+local vecToSide = |v| do
+	-- better not have numerical precision errors
+	return assert(sideVecs:find(v)) - 1
+end
+
+-- for each side
+-- for each orientation
+-- give the resulting side
+local allrotsides = table()
+local allinvrotsides = table()
+for sideIndex=0,5 do
+	local v = sideToVec(sideIndex)
+	local rotsides = table()
+	for _,m in ipairs(rots) do
+		rotsides:insert(vecToSide(m * v))
+	end
+	allrotsides:insert(rotsides)
+end
+print'-- [sideIndex+1][orientation+1] = rotated sideIndex'
+print('local rotateSideByOrientation = '..tolua(allrotsides))
