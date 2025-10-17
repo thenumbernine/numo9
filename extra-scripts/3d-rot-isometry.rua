@@ -58,7 +58,10 @@ print()
 -- now for each orientation, left-apply a rotate-x, rotate-y, rotate-z and see where we get
 -- such that applying a column 4x should bring you back to the start (but never before 4x)
 print()
-print'-- indexed[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation'
+print[[
+-- orientation rotations for the upper 5 rotation bits of the voxel
+-- indexed[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation
+]]
 print'local orientationRotations = {'
 for i,m in ipairs(rots) do
 	local allinds = table()
@@ -86,10 +89,13 @@ for i,m in ipairs(rots) do
 	invOrientations:insert(invIndex)
 end
 print()
-print'-- inverse orientation for orientation'
-print'-- [orientation+1] = rotated orientation'
-print('local orientationInv = '..tolua(invOrientations))
 
+print[[
+-- inverse orientation for orientation
+-- [orientation+1] = rotated orientation
+]]
+print('local orientationInv = '..tolua(invOrientations))
+print()
 
 --[[
 sides are encoded 0 bit = sign, 12 bit = axis so
