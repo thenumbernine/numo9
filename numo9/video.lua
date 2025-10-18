@@ -3514,10 +3514,10 @@ function AppVideo:drawQuadTex(
 	local vR = ty + th
 
 	--[[
-vR   3-4
-	 |\|
-vL	 1-2
 	uL uR
+vL	 1-2
+	 |\|
+vR   3-4
 	--]]
 	local u1, v1 = uL, vL
 	local u2, v2 = uR, vL
@@ -3528,16 +3528,17 @@ vL	 1-2
 	local hflip = bit.band(1, orientation2D)
 	local rot = bit.band(3, bit.rshift(orientation2D, 1))
 	if hflip ~= 0 then
-		u1, u2, u3, u4 = u2, u1, u4, u3
+		  u1, u2, u3, u4
+		= u2, u1, u4, u3
 	end
 	if rot == 1 then
-		u1, v1, u2, v2, u3, v3, u4, v4
-		= u3, v3, u1, v1, u4, v4, u3, v3
+		  u1, v1, u2, v2, u3, v3, u4, v4
+		= u3, v3, u1, v1, u4, v4, u2, v2
 	elseif rot == 2 then
-		u1, v1, u2, v2, u3, v3, u4, v4
+		  u1, v1, u2, v2, u3, v3, u4, v4
 		= u4, v4, u3, v3, u2, v2, u1, v1
 	elseif rot == 3 then
-		u1, v1, u2, v2, u3, v3, u4, v4
+		  u1, v1, u2, v2, u3, v3, u4, v4
 		= u2, v2, u4, v4, u1, v1, u3, v3
 	end
 

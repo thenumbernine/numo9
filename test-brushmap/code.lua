@@ -38,5 +38,6 @@ numo9_brushes = {
 
 blitbrushmap()
 update=||do
-	map(0,0,32,32,0,0,0,true)
+	map(0,0,32,32,0,0,0,true,
+		0)	-- 0 = sheet, TODO make it default for map() ?
 end

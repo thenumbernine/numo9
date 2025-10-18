@@ -59,6 +59,7 @@ function EditBrushmap:update()
 	local app = self.app
 
 	EditBrushmap.super.update(self)
+	self:guiSetClipRect(-1000, 0, 3000, 2000)
 
 	local gameEnv = app.gameEnv
 	if not gameEnv then
@@ -82,8 +83,6 @@ function EditBrushmap:update()
 	local tileBits = self.draw16Sprites and 4 or 3
 	local tileSizeInTiles = bit.lshift(1, draw16As0or1)
 	local tileSizeInPixels = bit.lshift(1, tileBits)
-
-	app:matMenuReset()
 
 	if self.pickOpen then
 		local pickX = 2 * spriteSize.x
@@ -186,6 +185,7 @@ function EditBrushmap:update()
 					stamp.orientation,
 					self.draw16Sprites,
 					self.sheetBlobIndex)
+
 				if self.selected[stamp] then
 					app:drawBorderRect(
 						stamp.x * tileSizeInPixels,
@@ -406,6 +406,7 @@ function EditBrushmap:update()
 	end
 
 	app:matMenuReset()
+	self:guiSetClipRect(-1000, 0, 3000, 2000)
 
 	local x, y = 50, 0
 	self:guiBlobSelect(x, y, 'brushmap', self, 'brushmapBlobIndex', function()

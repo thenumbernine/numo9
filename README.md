@@ -458,12 +458,14 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- transparentIndex = same as `spr()`.
 	- spriteBit = same as `spr()`.
 	- spriteMask = same as `spr()`.
-- `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16x16Sprites, sheetIndex, tilemapIndex)` = draw the tilemap.
-	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
-	- mapIndexOffset = global offset to shift all map indexes.
-	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites.
+- `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, [mapIndexOffset, draw16x16Sprites, sheetIndex, tilemapIndex])` = draw the tilemap.
+	- tilesWide, tilesHigh = size of the map, in tiles, default to 1x1.
+	- screenX, screenY = where to draw the map, default to 0,0.
+	- mapIndexOffset = global offset to shift all map indexes, default to 0.
+	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites, default to false.
 	- sheetIndex = the sheet to use, default to 1.
 	- tilemapIndex = the tilemap blob index to use, default to 0.
+	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 - `mget(x, y, [tilemapIndex=0])` = Read the uint16 from the tilemap address at x, y.
 	Out of bounds coordinates return a value of 0.
 	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.
