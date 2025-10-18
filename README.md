@@ -421,17 +421,17 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `tri(x1, y1, x2, y2, x3, y3, [colorIndex])` = draw a solid triangle.
 - `tri3d(x1, y1, z1, x2, y2, z2, x3, y3, z3, [colorIndex])` = draw a solid triangle.
 	- (x1,y1,z1), (x2,y2,z2), (x3,y3,z3) = triangle coordinates
-- `ttri3d(x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, x3, y3, z3, u3, v3, [sheetIndex=0, paletteIndex=0, transparentIndex=-1, spriteBit=0, spriteMask=0xFF])` = draw a triangle textured with a sprite/tile sheet.
+- `ttri3d(x1, y1, z1, u1, v1, x2, y2, z2, u2, v2, x3, y3, z3, u3, v3, [sheetIndex=0, paletteOffset=0, transparentIndex=-1, spriteBit=0, spriteMask=0xFF])` = draw a triangle textured with a sprite/tile sheet.
 	- x1,y1,z1,x2,y2,z2,x3,y3,z3 = triangle coordinates
 	- u1,v1,u2,v2,u3,v3 = texture coordinates, in texels.
 	- sheetIndex = sheet to use, default 0.
-	- paletteIndex = same as `spr()`.
+	- paletteOffset = same as `spr()`.
 	- transparentIndex = same as `spr()`.
 	- spriteBit = same as `spr()`.
 	- spriteMask = same as `spr()`.
 - `line(x1, y1, x2, y2, [colorIndex, thickness])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [colorIndex, thickness])` = draw line but with z / perspective.
-- `spr(spriteIndex, [screenX, screenY, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY])` = draw sprite
+- `spr(spriteIndex, [screenX, screenY, tilesWide, tilesHigh, paletteOffset, transparentIndex, spriteBit, spriteMask, scaleX, scaleY])` = draw sprite
 	- spriteIndex = which sprite to draw.
 		- Bits 0..4 = x coordinate into the 32x32 grid of 8x8 tiles in the 256x256 sprite/tile sheet.
 		- Bits 5..9 = y coordinate " " "
@@ -440,19 +440,19 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 			Sheet 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and sheet 1's is relocatable with the `tileSheetAddr`, and bit #11 determines which to use.
 	- screenX, screenY = pixel location of upper-left corner of the sprite.  Default is 0,0.
 	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.  Default is 1x1.
-	- paletteIndex = a value to offset the colors by.  This can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
+	- paletteOffset = a value to offset the colors by.  This can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
 	- transparentIndex = an optional color to specify as transparent.  default is -1 to disable this.
 	- spriteBit = which bitplane to draw.  default is start at bitplane 0.
 	- spriteMask = mask of which bits to use.  default is 0xFF, in binary 1111:1111, which uses all 8 bitplanes.
-		- the resulting color index drawn is `(incomingTexelIndex >> spriteBit) & spriteMask + paletteIndex`
+		- the resulting color index drawn is `(incomingTexelIndex >> spriteBit) & spriteMask + paletteOffset`
 	- scaleX, scaleY = on-screen scaling.
-- `quad(screenX, screenY, w, h, tx, ty, tw, th, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
+- `quad(screenX, screenY, w, h, tx, ty, tw, th, sheetIndex, paletteOffset, transparentIndex, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
 	- screenX, screneY = pixel location of upper-left corner of the sprite-sheet to draw
 	- w, h = pixels wide and high to draw.
 	- tx, ty = sprite sheet pixel upper left corner.
 	- tw, th = sprite sheet width and height to use.
 	- sheetIndex = sheet index, default 1.
-	- paletteIndex = same as `spr()`.
+	- paletteOffset = same as `spr()`.
 	- transparentIndex = same as `spr()`.
 	- spriteBit = same as `spr()`.
 	- spriteMask = same as `spr()`.
@@ -469,7 +469,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 - `drawbrush(brushIndex, screenX, screenY, tilesWide, tilesHigh, [orientation, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
-- `mesh(mesh3DIndex, [uofs, vofs, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask])` = draw the specified mesh3d blob.
+- `mesh(mesh3DIndex, [uofs, vofs, sheetIndex, paletteOffset, transparentIndex, spriteBit, spriteMask])` = draw the specified mesh3d blob.
 	- uofs, vofs = an amount to offset u and v coordinates (which wrap), defaults to 0.
 	- sheetIndex = defaults to 0.
 	- The rest of the parameters are forwarded to `ttri3d()`.
@@ -870,7 +870,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 - `app.framebufferRAMs` builds as you set more video modes.  how about clearing app.framebufferRAMs between cart open's?
 
-- draw API, those four vars that always end up in the 'extra' attribute: paletteIndex, transparentIndex, spriteBit, spriteMask ... they are rarely used ... make them uniforms?
+- draw API, those four vars that always end up in the 'extra' attribute: paletteOffset, transparentIndex, spriteBit, spriteMask ... they are rarely used ... make them uniforms?
 
 - lighting:
 	- turn the 'useHardwarweLighting' into bitflags:

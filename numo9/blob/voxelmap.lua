@@ -407,6 +407,11 @@ function Chunk:rebuildMesh(app)
 											local vb = srcVtxs + bi
 											local vc = srcVtxs + ci
 
+											-- preserve orientation even if we are scaling
+											if vptr.scaleX == 1 then
+												va, vc = vc, va
+											end
+
 											local normal = mesh.normalList.v[ti]
 
 											local srcv = va
