@@ -85,8 +85,8 @@ mapTypes={
 	[SLOPE_DOWN] = {},
 }
 
---isSlope=|vox| ((vox or EMPTY) & 0x7ffffff == SLOPE_RIGHT)	-- because SLOPE_RIGHT is the root orientation
-isSlope=|vox| ((vox or EMPTY) & 0x7fffc00 == 0x400)				-- if the voxel mesh3d is the slope mesh
+--isSlope=|vox| ((vox or EMPTY) & 0x3ffffff == SLOPE_RIGHT)	-- because SLOPE_RIGHT is the root orientation
+isSlope=|vox| ((vox or EMPTY) & 0x3fffc00 == 0x400)				-- if the voxel mesh3d is the slope mesh
 
 corners2d = table{
 	UL = vec2(-1, -1),
