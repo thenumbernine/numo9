@@ -1993,6 +1993,13 @@ print('run thread dead')
 			ffi.copy(viewMatPush, self.ram.viewMat, ffi.sizeof(viewMatPush))
 			ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
 
+			-- push cull face
+			local pushCullFace = self.ram.cullFace
+			if self.ram.cullFace ~= 0 then
+				self.ram.cullFace = 0
+				self:onCullFaceChange()
+			end
+
 			-- push clip rect
 			local pushClipX, pushClipY, pushClipW, pushClipH = self:getClipRect()
 
@@ -2097,6 +2104,12 @@ print('run thread dead')
 
 			-- pop the clip rect
 			self:setClipRect(pushClipX, pushClipY, pushClipW, pushClipH)
+
+			-- pop cull face
+			if self.ram.cullFace ~= pushCullFace then
+				self.ram.cullFace = pushCullFace
+				self:onCullFaceChange()
+			end
 
 			-- pop the matrix
 			ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))

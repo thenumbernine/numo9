@@ -2476,6 +2476,13 @@ function AppVideo:triBuf_prepAddTri(
 				gl.glDisable(gl.GL_CULL_FACE)
 			else
 				gl.glEnable(gl.GL_CULL_FACE)
+				if self.ram.cullFace == 2 then
+					gl.glCullFace(gl.GL_FRONT)
+				else
+					-- 1 or anyother nonzero:
+					gl.glCullFace(gl.GL_BACK)
+				-- lol yes there is a FRONT_AND_BACK accepted but no you cant use it
+				end
 			end
 			self.cullFaceDirty = false
 		end
