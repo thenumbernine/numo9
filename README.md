@@ -927,10 +927,6 @@ TODO cart status:
 	- then add some panels for "overlay with tilemap / brushmap / voxelmap"  so as you edit you can calibrate positions etc.
 	- This is turning into a scenegraph tab.
 
-- BUG: looks like some voxel orientations dont rotate the cull face correctly.
-	- slope when rotated sometimes blocks the face next to its slope ...
-	- make a small voxelmap and test and verify this
-
 - BIG TODO - undo buffer pushing the whole blob only works for small blobs.
 	Instead I should push objects that can apply undo/redo changes, this will use much less memory.
 
