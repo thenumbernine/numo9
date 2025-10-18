@@ -1277,7 +1277,7 @@ print('package.loaded', package.loaded)
 				for i=1,30 do env.flip() end
 				coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
 				for i=1,30 do env.flip() end
-				coolPrint'...OpenResty LuaJIT w/5.2 compat'
+				coolPrint'...LuaJIT w/5.2 compat'
 				for i=1,30 do env.flip() end
 
 				--[[ list screen modes? or nah?
@@ -2417,6 +2417,7 @@ local projMatAddr, projMatAddrEnd = getRAMAddrRange'projMat'
 local clipRectAddr, clipRectAddrEnd = getRAMAddrRange'clipRect'
 local blendColorAddr, blendColorAddrEnd = getRAMAddrRange'blendColor'
 local ditherAddr, ditherAddrEnd = getRAMAddrRange'dither'
+local cullFaceAddr, cullFaceAddrEnd = getRAMAddrRange'cullFace'
 local useHardwareLightingAddr, useHardwareLightingAddrEnd = getRAMAddrRange'useHardwareLighting'
 local spriteNormalExhaggerationAddr, spriteNormalExhaggerationAddrEnd = getRAMAddrRange'spriteNormalExhaggeration'
 
@@ -2439,6 +2440,9 @@ function App:postPoke(addr, addrend)
 	end
 	if addrend >= ditherAddr and addr < ditherAddrEnd then
 		self:onDitherChange()
+	end
+	if addrend >= cullFaceAddr and addr < cullFaceAddrEnd then
+		self:onCullFaceChange()
 	end
 	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
 		self:onUseHardwareLightingChange()

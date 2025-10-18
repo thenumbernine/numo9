@@ -2432,6 +2432,7 @@ function AppVideo:triBuf_prepAddTri(
 	or self.clipRectDirty
 	or self.blendColorDirty
 	or self.ditherDirty
+	or self.cullFaceDirty
 	or self.useHardwareLightingDirty
 	or self.spriteNormalExhaggerationDirty
 	or self.frameBufferSizeUniformDirty
@@ -2469,6 +2470,14 @@ function AppVideo:triBuf_prepAddTri(
 		if self.ditherDirty then
 			gl.glUniform1ui(program.uniforms.dither.loc, self.ram.dither)
 			self.ditherDirty = false
+		end
+		if self.cullFaceDirty then
+			if self.ram.cullFace == 0 then
+				gl.glDisable(gl.GL_CULL_FACE)
+			else
+				gl.glEnable(gl.GL_CULL_FACE)
+			end
+			self.cullFaceDirty = false
 		end
 		if self.useHardwareLightingDirty then
 			self.useHardwareLightingDirty = false
@@ -2591,6 +2600,12 @@ function AppVideo:onDitherChange()
 	self:triBuf_flush()
 	self.ditherDirty = true
 end
+
+function AppVideo:onCullFaceChange()
+	self:triBuf_flush()
+	self.cullFaceDirty = true
+end
+
 
 function AppVideo:onSpriteNormalExhaggerationChange()
 	self:triBuf_flush()
@@ -2758,6 +2773,9 @@ function AppVideo:resetVideo()
 	self.ram.dither = 0
 	self:onDitherChange()
 
+	self.ram.cullFace = 0
+	self:onCullFaceChange()
+
 	self.ram.useHardwareLighting = 0
 	self:onUseHardwareLightingChange()
 
@@ -2888,6 +2906,7 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onClipRectChange()
 	self:onBlendColorChange()
 	self:onDitherChange()
+	self:onCullFaceChange()
 	self:onSpriteNormalExhaggerationChange()
 	self:onFrameBufferSizeChange()
 

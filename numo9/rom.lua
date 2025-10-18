@@ -317,9 +317,11 @@ local RAM = struct{
 				{name='screenHeight', type=uint16_t},	-- maybe I should have a single address where you poke and peek requested values like this from, like NES PPU?
 
 				{name='blendMode', type=uint8_t},
-
 				{name='blendColor', type=uint16_t},
+
 				{name='dither', type=uint16_t},	-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
+
+				{name='cullFace', type=uint16_t},	-- 1 bit, but for alignment...
 
 				{name='paletteBlobIndex', type=uint8_t},	-- which palette to use for drawing commands
 				{name='fontBlobIndex', type=uint8_t},		-- which font blob to use for text()

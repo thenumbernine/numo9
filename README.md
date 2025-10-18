@@ -738,7 +738,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - [LuaJIT](https://github.com/LuaJIT/LuaJIT) tag `v2.1.0-beta3`.
 	Also you must edit `src/Makefile` and enable `XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT`, otherwise things like the `__len` metamethod won't work.
 	**Sadly** this is not default compiler settings in luajit packages such as apt's `luajit` (original LuaJIT) or `luajit2) (OpenResty LuaJIT) packages, so neither of these packages will work.
-	(I used to promote OpenResty's LuaJIT but lately it has had wild variations in performance that seem to be determined at app launch, while vanilla LuaJIT does not have this problem.)
 - My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.  This too must be built by hand at the moment.  I'll switch to SDL3's clipboard someday.
 - SDL package `apt install libsdl3-0`, or built from source [here](https://github.com/libsdl-org/SDL).  My distributable binary is tag `release-3.2.8`.
 - PNG package `apt install libpng16-16t64`, or built from source [here](https://github.com/pnggroup/libpng).  My distributable binary is tag `v1.6.47`.
