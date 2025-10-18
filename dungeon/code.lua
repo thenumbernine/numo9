@@ -17,7 +17,7 @@ local sprites = {
 	Enemy_ogre = 2,
 	Enemy_demon = 4,
 	Enemy_siren = 6,
-	
+
 	heart = 64,
 	--hearthalf = 66,
 	key = 66,
@@ -40,7 +40,7 @@ flags.solid = flags.solid_up | flags.solid_down | flags.solid_left | flags.solid
 mapTypes=table{
 	[0]={			-- empty
 		name = 'empty',
-	},	
+	},
 	[2]={	-- solid
 		name='solid',
 		flags=flags.solid,
@@ -80,7 +80,7 @@ mapTypes=table{
 			end
 		end,
 	},
-	
+
 	-- these match up with sprites, hmm...
 	[64]={name='spawn_Player'},
 	[66]={name='spawn_Enemy_ogre'},
@@ -102,7 +102,7 @@ local mousePos = vec2()	-- mouse coords in-game
 
 local Weapon = class()
 
-local Pistol = Weapon:subclass() 
+local Pistol = Weapon:subclass()
 Pistol.attack=|:,attacker,target| do
 	-- traceline, ignore attacker, see what you hit ...
 	-- or just fire projectiles?
@@ -124,7 +124,7 @@ Chest.touch=|:,o|do
 	self.open = true
 	self.sprite = sprites.chest_open
 
-	-- TODO customize 
+	-- TODO customize
 	player.keys += self.keys or 0
 	player.gold += self.gold or 0
 	if self.health then
@@ -197,7 +197,7 @@ Player.weapon = Pistol()
 Player.nextInputTime = -1
 Player.update=|:|do
 
-	if self.nextInputTime <= time() then 
+	if self.nextInputTime <= time() then
 
 		self.vel:set(0,0)
 
@@ -516,16 +516,16 @@ local genDungeonLevel=|avgRoomSize|do
 		lastRoom = dstRoom
 		--so find dstRoom in srcRoom.neighbors
 		local pos = neighborInfo.positions:pickRandom()
-		
+
 		targetMap:setTileType(pos.x, pos.y, mapTypeForName.empty.index)
-		--targetMap.fixedObjs:insert{pos=pos, type=DoorObj}	
+		--targetMap.fixedObjs:insert{pos=pos, type=DoorObj}
 
 		-- TODO digraph
 		table{
 			[|| mset(pos.x, pos.y, mapTypeForName.door.index)] = 5,
 			[|| mset(pos.x, pos.y, mapTypeForName.locked_door.index)] = 1,
 		}:pickWeighted()()
-		
+
 		usedRooms:insert(dstRoom)
 		leafRooms:insert(dstRoom)
 	end
@@ -568,7 +568,7 @@ local genDungeonLevel=|avgRoomSize|do
 		and room ~= lastRoom
 		then
 			local getpos = || pickFreeRandomFixedPos{map=targetMap, bbox=room.bbox} + .5
-			
+
 			table{
 				[|| nil] = 1,	-- nothing
 				-- key
@@ -588,7 +588,7 @@ local genDungeonLevel=|avgRoomSize|do
 				-- TOOD weapons
 
 				-- TODO shopkeeper / NPCs / whatever
-				
+
 				-- monsters
 				[|| range(math.random(10)):mapi(|| Enemy_ogre{
 					pos = getpos(),
@@ -628,10 +628,10 @@ init=||do
 				mset(x,y,0)
 			elseif ti == mapTypeForName.spawn_Enemy_demon.index then
 				Enemy_demon{pos=vec2(x,y)+.5}
-				mset(x,y,0)		
+				mset(x,y,0)
 			elseif ti == mapTypeForName.spawn_Enemy_siren.index then
 				Enemy_siren{pos=vec2(x,y)+.5}
-				mset(x,y,0)		
+				mset(x,y,0)
 			end
 		end
 	end
@@ -661,7 +661,7 @@ update=||do
 	for _,o in ipairs(objs) do
 		o:update()
 	end
-	
+
 	for _,o in ipairs(objs) do
 		o:draw()
 	end
@@ -670,26 +670,34 @@ update=||do
 		mainloops[i]()
 		mainloops[i] = nil
 	end
-	
+
 	local mx, my = mouse()
 	mousePos.x = (mx + ulPos.x) / 16
 	mousePos.y = (my + ulPos.y) / 16
-	spr(sprites.target, mousePos.x * 16 - 8, mousePos.y * 16 - 8, 2, 2)
+	spr(sprites.target,
+		mousePos.x * 16 - 8,
+		mousePos.y * 16 - 8,
+		2, 2)
 
 	matident()
 
 	-- draw gui
 	if player then
 		for i=1,player.health do
-			spr(sprites.heart, (i-1)<<4, screenh - 16, 2, 2)
+			spr(sprites.heart,
+				(i-1)<<4, screenh - 16,
+				2, 2)
 		end
 		for i=1,player.keys do
-			spr(sprites.key, screenw - (i<<4), screenh - 16, 2, 2)
+			spr(sprites.key,
+				screenw - (i<<4),
+				screenh - 16,
+				2, 2)
 		end
 	end
 
 	text('$'..player.gold, screenw/2, screenh - 16, nil, nil, 2, 2)
-	
+
 	-- remove dead
 	for i=#objs,1,-1 do
 		if objs[i].removeMe then objs:remove(i) end
