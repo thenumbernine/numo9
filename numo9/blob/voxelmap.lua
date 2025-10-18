@@ -384,9 +384,17 @@ function Chunk:rebuildMesh(app)
 												and nbhdVox.orientation ~= 29
 												and nbhdVox.orientation ~= 30
 												and nbhdVox.orientation ~= 31
+												and nbhdVox.orientation ~= 52
+												and nbhdVox.orientation ~= 53
+												and nbhdVox.orientation ~= 54
+												and nbhdVox.orientation ~= 55
+												and nbhdVox.orientation ~= 60
+												and nbhdVox.orientation ~= 61
+												and nbhdVox.orientation ~= 62
+												and nbhdVox.orientation ~= 63
 												then
 													local oppositeSideIndex = bit.bxor(1, sideIndex)
-													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][nbhdVox.orientation+1]
+													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][orientationInv[nbhdVox.orientation+1]+1]
 													occluded = nbhdmesh.sidesOccluded[oppositeSideIndex]
 												end
 											end
