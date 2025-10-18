@@ -178,16 +178,13 @@ tiltUpAngle = 90:
 		-- recenter
 
 		local angleNorm = (-(viewAngle - kart.angle) / math.pi) % 2
-		local scaleX = 1
+		local orientation2D = 0
 		if angleNorm > 1 then
 			angleNorm = 2 - angleNorm
-			scaleX = -1
-			mattrans(16, -32, 0)
-		else
-			mattrans(-16, -32, 0)
+			orientation2D = 1
 		end
 		local spriteIndex = spriteIndexForAngle[math.floor(angleNorm * #spriteIndexForAngle) + 1]
-		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
+		spr(spriteIndex, -16, -32, 4, 4, orientation2D)
 		matpop()
 	end
 	--]]

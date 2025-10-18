@@ -3480,11 +3480,13 @@ function AppVideo:drawQuadTex(
 	sheetTex,
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox in [0,1]
+	orientation2D,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
 	spriteMask
 )
+	orientation2D = orientation2D or 0
 	paletteIndex = paletteIndex or 0
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
@@ -3504,18 +3506,48 @@ function AppVideo:drawQuadTex(
 	local xR = x + w
 	local yR = y + h
 
+	-- I could do orientation2D in the shader like I do for tilemap
+	-- or I could just do it here ... like I'm doing for drawbrush ...
 	local uL = tx
 	local vL = ty
 	local uR = tx + tw
 	local vR = ty + th
 
+	--[[
+vR   3-4
+	 |\|
+vL	 1-2
+	uL uR
+	--]]
+	local u1, v1 = uL, vL
+	local u2, v2 = uR, vL
+	local u3, v3 = uL, vR
+	local u4, v4 = uR, vR
+
+	-- transform orientation here
+	local hflip = bit.band(1, orientation2D)
+	local rot = bit.band(3, bit.rshift(orientation2D, 1))
+	if hflip ~= 0 then
+		u1, u2, u3, u4 = u2, u1, u4, u3
+	end
+	if rot == 1 then
+		u1, v1, u2, v2, u3, v3, u4, v4
+		= u3, v3, u1, v1, u4, v4, u3, v3
+	elseif rot == 2 then
+		u1, v1, u2, v2, u3, v3, u4, v4
+		= u4, v4, u3, v3, u2, v2, u1, v1
+	elseif rot == 3 then
+		u1, v1, u2, v2, u3, v3, u4, v4
+		= u2, v2, u4, v4, u1, v1, u3, v3
+	end
+
 	self:triBuf_addTri(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x,  y,  0, uL, vL,
-		xR, y,  0, uR, vL,
-		x,  yR, 0, uL, vR,
+		x,  y,  0, u1, v1,
+		xR, y,  0, u2, v2,
+		x,  yR, 0, u3, v3,
 		0, 0, 1,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteIndex,
 		0, 0, 1, 1
@@ -3525,9 +3557,9 @@ function AppVideo:drawQuadTex(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		x,  yR, 0, uL, vR,
-		xR, y,  0, uR, vL,
-		xR, yR, 0, uR, vR,
+		x,  yR, 0, u3, v3,
+		xR, y,  0, u2, v2,
+		xR, yR, 0, u4, v4,
 		0, 0, 1,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteIndex,
 		0, 0, 1, 1
@@ -3596,6 +3628,7 @@ I was thinking of having some ROM metadata that flagged blobs as dif types, and 
 function AppVideo:drawQuad(
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox
+	orientation2D,
 	sheetIndex,
 	paletteIndex,
 	transparentIndex,
@@ -3633,6 +3666,7 @@ function AppVideo:drawQuad(
 		sheetRAM.tex,
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,
+		orientation2D,
 		paletteIndex,
 		transparentIndex,
 		spriteBit,
@@ -3738,12 +3772,13 @@ function AppVideo:drawSprite(
 	screenY,
 	tilesWide,
 	tilesHigh,
+	orientation2D,
+	scaleX,
+	scaleY,
 	paletteIndex,
 	transparentIndex,
 	spriteBit,
-	spriteMask,
-	scaleX,
-	scaleY
+	spriteMask
 )
 	screenX = screenX or 0
 	screenY = screenY or 0
@@ -3767,6 +3802,7 @@ function AppVideo:drawSprite(
 		bit.lshift(ty, 3),
 		bit.lshift(tilesWide, 3),
 		bit.lshift(tilesHigh, 3),
+		orientation2D,
 		sheetIndex,
 		paletteIndex,
 		transparentIndex,
@@ -4237,7 +4273,6 @@ local function orientationCombine(a, b)
 end
 
 
-local modelMatPush = matArrType()
 -- this is a sprite-based preview of tilemap rendering
 -- it's made to simulate blitting the brush onto the tilemap (without me writing the tiles to a GPU texture and using the shader pathway)
 function AppVideo:drawBrush(
@@ -4271,8 +4306,6 @@ function AppVideo:drawBrush(
 --DEBUG:print('drawBrush - numo9_brushes key '..tostring(brushIndex)..' not found - bailing')
 		return
 	end
-
-	ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
 
 	local stampTileX, stampTileY = 0, 0	-- TODO how to show select brushes? as alays in UL, or as their location in the pick screen? meh?
 	-- or TODO stampScreenX = stampTileX * tileSizeInPixels
@@ -4311,43 +4344,24 @@ function AppVideo:drawBrush(
 
 			tileOrientation = orientationCombine(stampOrientation, tileOrientation)
 
-			local tileHFlip = bit.band(1, tileOrientation)
-			local tileRot = bit.rshift(tileOrientation, 1)
-
 			local spriteIndex = bit.band(0x3FF, tileIndex)	-- 10 bits
 
-			-- TODO build rotations into the sprite pathway?
-			-- it's in the tilemap pathway already ...
-			-- either way, this is just a preview for the tilemap pathway
-			-- since brushes don't render themselves, but just blit to the tilemap
-			ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
-			--self:onModelMatChange() ... but it gets set in mattrans also ...
-			self:mattrans(
-				screenX + tileSizeInPixels / 2,
-				screenY + tileSizeInPixels / 2
-			)
-			self:matrot(tileRot * math.pi * .5)
-			if tileHFlip ~= 0 then
-				self:matscale(-1, 1)
-			end
 			self:drawSprite(
 				spriteIndex + bit.lshift(sheetBlobIndex, 10), -- spriteIndex
-				-tileSizeInPixels / 2,	-- screenX
-				-tileSizeInPixels / 2,	-- screenY
+				screenX,				-- screenX
+				screenY,				-- screenY
 				tileSizeInTiles,		-- tilesWide
 				tileSizeInTiles,		-- tilesHigh
+				tileOrientation,		-- orientation2D
+				nil,					-- scaleX
+				nil,					-- scaleY
 				bit.lshift(palHi, 5),	-- paletteIndex
 				nil,					-- transparentIndex
 				nil,					-- spriteBit
-				nil,					-- spriteMask
-				nil,					-- scaleX
-				nil						-- scaleY
+				nil						-- spriteMask
 			)
 		end
 	end
-
-	ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
-	self:onModelMatChange()
 end
 
 -- these are net friendly since they are called from the game API

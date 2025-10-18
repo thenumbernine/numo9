@@ -581,7 +581,15 @@ function App:initGL()
 			return self:drawSolidLine3D(x1,y1,z1,x2,y2,z2,colorIndex,thickness)
 		end,
 
-		spr = function(spriteIndex, screenX, screenY, tilesWide, tilesHigh, paletteIndex, transparentIndex, spriteBit, spriteMask, scaleX, scaleY)
+		spr = function(
+			spriteIndex,
+			screenX, screenY,
+			tilesWide, tilesHigh,
+			orientation2D,
+			scaleX, scaleY,
+			paletteIndex, transparentIndex,
+			spriteBit, spriteMask
+		)
 			if self.server then
 				-- TODO I'm calculating default values twice ...
 				-- TODO move the server netcmd stuff into a separate intermediate function
@@ -590,6 +598,7 @@ function App:initGL()
 				screenY = screenY or 0
 				tilesWide = tilesWide or 1
 				tilesHigh = tilesHigh or 1
+				orientation2D = orientation2D or 0
 				scaleX = scaleX or 1
 				scaleY = scaleY or 1
 				-- vram / sprite sheet is 32 sprites wide ... 256 pixels wide, 8 pixels per sprite
@@ -613,6 +622,7 @@ function App:initGL()
 				cmd.ty = bit.lshift(ty, 3)
 				cmd.tw = bit.lshift(tilesWide, 3)
 				cmd.th = bit.lshift(tilesHigh, 3)
+				cmd.orientation2D = orientation2D
 				cmd.paletteIndex = paletteIndex
 				cmd.transparentIndex = transparentIndex
 				cmd.spriteBit = spriteBit
@@ -623,14 +633,24 @@ function App:initGL()
 				spriteIndex,
 				screenX, screenY,
 				tilesWide, tilesHigh,
+				orientation2D,
+				scaleX, scaleY,
 				paletteIndex, transparentIndex,
-				spriteBit, spriteMask,
-				scaleX, scaleY)
+				spriteBit, spriteMask
+			)
 		end,
 
 		-- like spr() but for inter-tile rendering
-		quad = function(x, y, w, h, tx, ty, tw, th, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)
+		quad = function(
+			x, y, w, h,
+			tx, ty, tw, th,
+			orientation2D,
+			sheetIndex,
+			paletteIndex, transparentIndex,
+			spriteBit, spriteMask
+		)
 			if self.server then
+				orientation2D = orientation2D or 0
 				sheetIndex = sheetIndex or 0
 				paletteIndex = paletteIndex or 0
 				transparentIndex = transparentIndex or -1
@@ -641,13 +661,21 @@ function App:initGL()
 				cmd.type = netcmds.quad
 				cmd.x, cmd.y, cmd.w, cmd.h = x, y, w, h
 				cmd.tx, cmd.ty, cmd.tw, cmd.th = tx, ty, tw, th
+				cmd.orientation2D = orientation2D
+				cmd.sheetIndex = sheetIndex
 				cmd.paletteIndex = paletteIndex
 				cmd.transparentIndex = transparentIndex
 				cmd.spriteBit = spriteBit
 				cmd.spriteMask = spriteMask
-				cmd.sheetIndex = sheetIndex
 			end
-			return self:drawQuad(x, y, w, h, tx, ty, tw, th, sheetIndex, paletteIndex, transparentIndex, spriteBit, spriteMask)
+			return self:drawQuad(
+				x, y, w, h,
+				tx, ty, tw, th,
+				orientation2D,
+				sheetIndex,
+				paletteIndex, transparentIndex,
+				spriteBit, spriteMask
+			)
 		end,
 
 		-- TODO maybe make draw16Sprites a poke'd value

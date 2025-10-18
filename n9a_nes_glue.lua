@@ -1260,21 +1260,21 @@ trace'NMI'
 				end
 			end
 
-			local sx, sy = 1, 1
+			local orientation2D = 0
 			if attrs & 0x80 ~= 0 then	-- hflip
-				sy = -1
-				y += 8
+				orientation2D ~~= 5		-- vflip
 			end
 			if attrs & 0x40 ~= 0 then	-- vflip
-				sx = -1
-				x += 8
+				orientation2D ~~= 1		-- hflip
 			end
 			spr(sprIndex, x, y, 1, 1,
-				pal<<2, -- palette offset
-				0, 		-- transparent index
-				nil, 	-- sprite bit
-				nil, 	-- sprite mask
-				sx, sy)
+				orientation2D,	-- orientation2D
+				nil, nil,	-- scaleX, scaleY
+				pal<<2, 	-- palette offset
+				0, 			-- transparent index
+				nil, 		-- sprite bit
+				nil 		-- sprite mask
+			)
 		end
 	end
 

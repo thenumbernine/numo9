@@ -204,9 +204,10 @@ function EditTilemap:update()
 	app:drawQuadTex(
 		app.paletteMenuTex,
 		app.checkerTex,
-		-1, -1,
-		2+bit.lshift(tilemapSize.x,tileBits), 2+bit.lshift(tilemapSize.y, tileBits),
-		0, 0,
+		-1, -1,									-- x y
+		2+bit.lshift(tilemapSize.x,tileBits),	-- w
+		2+bit.lshift(tilemapSize.y, tileBits),	-- h
+		0, 0,									-- tx ty tw th
 		1, 1 --2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
 	)
 

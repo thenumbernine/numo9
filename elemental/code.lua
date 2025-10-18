@@ -92,10 +92,11 @@ Place=TileHolder:subclass{
 				self.rect.left,
 				self.rect.top,
 				8,8,
+				0,	-- orientation2D
+				(self.rect.right - self.rect.left) / 64,	-- scaleX
+				(self.rect.bottom - self.rect.top) / 64,	-- scaleY
 				nil, nil,	-- paletteIndex, transparentIndex
-				nil, nil,	-- spriteBit, spriteMask
-				(self.rect.right - self.rect.left) / 64,
-				(self.rect.bottom - self.rect.top) / 64)
+				nil, nil)	-- spriteBit, spriteMask
 		end
 
 		--draw any tile on us
@@ -152,10 +153,11 @@ Tile=class{
 			self.rect.left,
 			self.rect.top,
 			8,8,
+			0,	-- orientation2D
+			(self.rect.right - self.rect.left) / 64,	-- scaleX
+			(self.rect.bottom - self.rect.top) / 64,	-- scaleY
 			self.color.paletteIndex-0xf0, nil,	-- paletteIndex, transparentIndex
-			nil, nil,	-- spriteBit, spriteMask
-			(self.rect.right - self.rect.left) / 64,
-			(self.rect.bottom - self.rect.top) / 64)
+			nil, nil)	-- spriteBit, spriteMask
 	end,
 }
 
@@ -229,10 +231,11 @@ Tile3x3=Tile:subclass{
 						self.subrect.left,
 						self.subrect.top,
 						8,8,
+						0,	-- orientation2D,
+						(self.subrect.right - self.subrect.left) / 64,	-- scaleX
+						(self.subrect.bottom - self.subrect.top) / 64,	-- scaleY
 						n.paletteIndex-0xf0, nil,	-- paletteIndex, transparentIndex
-						nil, nil,	-- spriteBit, spriteMask
-						(self.subrect.right - self.subrect.left) / 64,
-						(self.subrect.bottom - self.subrect.top) / 64)
+						nil, nil)	-- spriteBit, spriteMask
 				end
 			end
 		end
@@ -458,10 +461,11 @@ Cursor=TileHolder:subclass{
 			self.rect.left,
 			self.rect.top,
 			8,8,
+			0,	-- orientation2D,
+			(self.rect.right - self.rect.left) / 64,	-- scaleX
+			(self.rect.bottom - self.rect.top) / 64,	-- scaleY
 			nil, nil,	-- paletteIndex, transparentIndex
-			nil, nil,	-- spriteBit, spriteMask
-			(self.rect.right - self.rect.left) / 64,
-			(self.rect.bottom - self.rect.top) / 64)
+			nil, nil)	-- spriteBit, spriteMask
 	end,
 }
 

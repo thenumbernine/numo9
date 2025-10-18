@@ -431,7 +431,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- spriteMask = same as `spr()`.
 - `line(x1, y1, x2, y2, [colorIndex, thickness])` = draw line.
 - `line3d(x1, y1, z1, x2, y2, z2, [colorIndex, thickness])` = draw line but with z / perspective.
-- `spr(spriteIndex, [screenX, screenY, tilesWide, tilesHigh, paletteOffset, transparentIndex, spriteBit, spriteMask, scaleX, scaleY])` = draw sprite
+- `spr(spriteIndex, [screenX, screenY, tilesWide, tilesHigh, orientation2D, scaleX, scaleY, paletteOffset, transparentIndex, spriteBit, spriteMask])` = draw sprite
 	- spriteIndex = which sprite to draw.
 		- Bits 0..4 = x coordinate into the 32x32 grid of 8x8 tiles in the 256x256 sprite/tile sheet.
 		- Bits 5..9 = y coordinate " " "
@@ -440,17 +440,19 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 			Sheet 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and sheet 1's is relocatable with the `tileSheetAddr`, and bit #11 determines which to use.
 	- screenX, screenY = pixel location of upper-left corner of the sprite.  Default is 0,0.
 	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.  Default is 1x1.
+	- orientation2D = 0-7, 2D orientation values, same as in tilemap high bits.
+	- scaleX, scaleY = on-screen scaling.
 	- paletteOffset = a value to offset the colors by.  This can be used for providing high nibbles and picking a separate palette when drawing lower-bpp sprites.
 	- transparentIndex = an optional color to specify as transparent.  default is -1 to disable this.
 	- spriteBit = which bitplane to draw.  default is start at bitplane 0.
 	- spriteMask = mask of which bits to use.  default is 0xFF, in binary 1111:1111, which uses all 8 bitplanes.
 		- the resulting color index drawn is `(incomingTexelIndex >> spriteBit) & spriteMask + paletteOffset`
-	- scaleX, scaleY = on-screen scaling.
-- `quad(screenX, screenY, w, h, tx, ty, tw, th, sheetIndex, paletteOffset, transparentIndex, spriteBit, spriteMask)` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
+- `quad(screenX, screenY, w, h, tx, ty, tw, th, [sheetIndex, orientation2D, paletteOffset, transparentIndex, spriteBit, spriteMask])` = draw arbitrary section of the spritesheet.  Cheat and pretend the PPU has no underlying sprite tile decoding constraints.  Equivalent of `sspr()` on pico8.
 	- screenX, screneY = pixel location of upper-left corner of the sprite-sheet to draw
 	- w, h = pixels wide and high to draw.
 	- tx, ty = sprite sheet pixel upper left corner.
 	- tw, th = sprite sheet width and height to use.
+	- orientation2D = same as `spr()`, default 0.
 	- sheetIndex = sheet index, default 1.
 	- paletteOffset = same as `spr()`.
 	- transparentIndex = same as `spr()`.
@@ -466,8 +468,8 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	Out of bounds coordinates return a value of 0.
 	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.
 - `mset(x, y, value, [tilemapIndex=0])` = Write a uint16 to the current tilemap address at x, y.
-- `drawbrush(brushIndex, screenX, screenY, tilesWide, tilesHigh, [orientation, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
-- `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
+- `drawbrush(brushIndex, screenX, screenY, tilesWide, tilesHigh, [orientation2D, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
+- `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation2D, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).
 - `mesh(mesh3DIndex, [uofs, vofs, sheetIndex, paletteOffset, transparentIndex, spriteBit, spriteMask])` = draw the specified mesh3d blob.
 	- uofs, vofs = an amount to offset u and v coordinates (which wrap), defaults to 0.
@@ -946,3 +948,7 @@ voxelmap editor fixes:
 
 - mipmapping for sheets.  generate on memory poke.
 	- same with sheet normalmaps.  generate on memory poke.
+
+- mipmapping for framebuffer, ie lowres blit effect that SNES had
+
+- i broke drawbrush()

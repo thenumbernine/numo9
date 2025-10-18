@@ -177,9 +177,20 @@ redraw=||do
 		local crossingOver=link.crossingOver
 		local linkDone=link.done
 		local spriteIndex = snakeCalcSprite(i)
-		local sx = spriteIndex & hflip ~= 0
-		local sy = spriteIndex & vflip ~= 0
-		spr(spriteIndex&0x3ff,(x + (sx and 1 or 0))<<3,(y + (sy and 1 or 0))<<3,1,1,0,-1,0,0xff,sx and -1 or 1,sy and -1 or 1)
+		local orient2D = 0
+		if spriteIndex & hflip ~= 0 then
+			orient2D ~~= 1
+		end
+		if spriteIndex & vflip ~= 0 then
+			orient2D ~~= 5
+		end
+		
+		spr(spriteIndex&0x3ff,
+			(x + (sx and 1 or 0))<<3,
+			(y + (sy and 1 or 0))<<3,
+			1,1,
+			orient2D
+		)
 		prevLinkDir=linkDir
 	end
 	if knotMsg then

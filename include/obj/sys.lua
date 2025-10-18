@@ -25,10 +25,7 @@ Object.draw=|:|do
 		self.pos.y * self.tileSize.y * 8 - .5 * self.tileSize.y * self.spriteSize.y * 8,-- screenY
 		self.tileSize.x,	-- tilesWide
 		self.tileSize.y,	-- tilesHigh
-		nil,				-- paletteIndex
-		nil,				-- transparentIndex
-		nil,				-- spriteBit
-		nil,				-- spriteMask
+		0,					-- orientation2D
 		self.spriteSize.x,	-- scaleX
 		self.spriteSize.y 	-- scaleY
 	)

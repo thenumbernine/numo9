@@ -49,6 +49,17 @@ p8_clip=|x,y,w,h,rel|do
 	end
 end
 
+p8_flipToOrientation2D=|flipX,flipY|do
+	local orientation2D = 0
+	if flipX then
+		orientation2D ~~= 1
+	end
+	if flipY then
+		orientation2D ~~= 5
+	end
+	return orientation2D
+end
+
 p8_to_n9_ditherBits={
 	[0] = 0,
 	[1] = 8,
@@ -755,9 +766,6 @@ setfenv(1, {
 		n=nx|(ny<<5)
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
-		local scaleX,scaleY=1,1
-		if flipX then scaleX=-1 x+=w<<3 end
-		if flipY then scaleY=-1 y+=h<<3 end
 		-- here, if pal() has changed anything since the last pal() reset
 		-- then we're going to have to manually remap colors.
 		if p8PalChanged then
@@ -772,24 +780,18 @@ setfenv(1, {
 			end
 			n = 0x200
 		end
-		spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
+		spr(n,
+			x,y,w,h,
+			p8_flipToOrientation2D(flipX,flipY),
+			1,1,	-- scale
+			0,-1,0,0xf)
 	end,
 	sspr=|sheetX,sheetY,sheetW,sheetH,destX,destY,destW,destH,flipX,flipY|do
 		destW = destW or sheetW
 		destH = destH or sheetH
-		if flipX then
---			destX+=sheetW	-- shouldn't be done -- causes skipping of sprites
-			sheetX+=sheetW	-- I can't tell if it's wrong or not
-			sheetW=-sheetW
-		end
-		if flipY then
---			destY+=sheetH
-			sheetY+=sheetH
-			sheetH=-sheetH
-		end
 		quad(destX,destY,destW,destH,
-			sheetX, sheetY,
-			sheetW, sheetH,
+			sheetX,sheetY,sheetW,sheetH,
+			p8_flipToOrientation2D(flipX,flipY),
 			0,	-- sprite sheet ... TODO eventually for pico8 glue, use only 1 sheet, no separate sprites and tiles like tic80
 			0,-1,0,0xf)
 	end,

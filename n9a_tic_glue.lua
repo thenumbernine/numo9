@@ -319,21 +319,15 @@ local newG = {
 		n=nx|(ny<<5)|(sheet<<10)
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
-		local scaleX,scaleY=scale,scale
-		if flipX then x+=w*scale*8 scaleX=-scale end
-		if flipY then y+=h*sclae*8 scaleY=-scale end
-		-- TODO here multiple bank sprites ... hmm ...
-		-- how should I chop up banks myself ...
-		if rotate ~= 0 then
-			local spriteHalfSize = 4
-			matpush()
-			mattrans(x+spriteHalfSize*w,y+spriteHalfSize*h)
-			matrot(math.rad(90*rotate))
-			spr(n,-spriteHalfSize*w,-spriteHalfSize*h,w,h,0,-1,0,0xf,scaleX,scaleY)
-			matpop()
-		else
-			spr(n,x,y,w,h,0,-1,0,0xf,scaleX,scaleY)
-		end
+		local orient2D = rotate<<1
+		if flipX then orient2D~~=1 end
+		if flipY then orient2D~~=5 end
+		spr(n,
+			x,y,w,h,
+			orient2D&7,
+			scale,scale,
+			0,-1,0,0xf
+		)
 	end,
 	sync=|| do
 		if not warning_sync then

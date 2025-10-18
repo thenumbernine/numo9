@@ -485,6 +485,7 @@ local Numo9Cmd_quad = struct{
 		{name='ty', type='uint8_t'},
 		{name='tw', type='uint8_t'},
 		{name='th', type='uint8_t'},
+		{name='orientation2D', type='uint8_t'},	-- 3 bits only
 		{name='sheetIndex', type='uint8_t'},
 		{name='paletteIndex', type='uint8_t'},
 		{name='transparentIndex', type='int16_t'},	-- 16 and not 8 only so I can use -1 ...
@@ -1572,6 +1573,7 @@ assert.len(deltaStr, deltaBufLen)
 					app:drawQuad(
 						c.x, c.y, c.w, c.h,
 						c.tx, c.ty, c.tw, c.th,
+						c.orientation2D,
 						c.sheetIndex,
 						c.paletteIndex, c.transparentIndex,
 						c.spriteBit, c.spriteMask)

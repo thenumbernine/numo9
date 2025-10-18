@@ -227,12 +227,13 @@ BaseObj=class{
 			y,			--screenY,
 			2,			--spritesWide,
 			2,			--spritesHigh,
+			0,			--orientation2D
+			self.scaleX,--scaleX
+			self.scaleY,--scaleY
 			self.palOfs,--paletteIndex,
 			nil,		--transparentIndex,
 			nil,		--spriteBit,
-			nil,		--spriteMask,
-			self.scaleX,
-			self.scaleY)
+			nil)		--spriteMask,
 		if self.blend then blend() end
 	end,
 	onTouchFlames=|:|nil,
@@ -798,12 +799,8 @@ update=||do
 			20,
 			0, 0,
 			8, 8,
-			nil,
-			nil,
-			nil,
-			nil,
-			4,
-			4)
+			0,
+			4, 4)
 		mattrans(0, -menuTopY)
 		local x,y=16,96
 		local selY = y+16*menuSel
@@ -815,7 +812,7 @@ update=||do
 		text('>', x-8, selY)
 		text('wins',x+192-16,y-12)
 		for pid=0,maxPlayers-1 do
-			spr(seqs.playerStandDown, x, y-4, 2, 2, pid<<4)
+			spr(seqs.playerStandDown, x, y-4, 2, 2, nil, nil, nil, pid<<4)
 			text('player '..(pid+1)..' = '
 				..tostring(playerOptionNames[playersActive[pid]]),
 				x+24, y)
@@ -927,7 +924,7 @@ update=||do
 	for pid=0,maxPlayers-1 do
 		if playersActive[pid]~=playerOptions.off then
 			local x=playerCount/activePlayers*224
-			spr(seqs.playerStandDown, x, 0, 2, 2, pid<<4)
+			spr(seqs.playerStandDown, x, 0, 2, 2, nil, nil, nil, pid<<4)
 			text('x'..tostring(playerWins[pid]),x+16,0)
 			playerCount+=1
 		end

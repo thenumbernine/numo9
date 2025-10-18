@@ -20,9 +20,8 @@ update=||do
 	end
 	spr(bl and 0 or 1, 
 		x, y,
-		1, 1,
-		nil, nil,
-		nil, nil,
-		sx, sy)
+		nil, nil, nil,	-- tilesWide, tilesHigh, orientation2D,
+		sx, sy
+	)
 	text('mode '..modes[m+1], x - 8, y + 8)
 end

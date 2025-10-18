@@ -101,10 +101,11 @@ function TileSelect:doPopup()
 		winH,
 		-- TODO scrollable pick area ... hmm ...
 		-- or TODO use the same scrollable pick area for the sprite editor and the tile editor
-		0,
-		0,
-		255,
-		255,
+		0,		-- tx
+		0,		-- ty
+		255,	-- tw
+		255,	-- th
+		0,		-- orientation2D
 		edit.sheetBlobIndex,
 		0,
 		-1,

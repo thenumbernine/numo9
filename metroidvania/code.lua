@@ -168,7 +168,7 @@ drawSpec=|colorSprite, specSprite, x, y, c, palIndex| do
 	-- TODO if you do palIndex/palShift then that's gonna shift the transparent channel as well ... hmmm ...
 	-- palShift is only really useful as high-bits (as it was intended)
 	-- I could set aside 16 different colors specifically ... I only really need 5 at the moment ...
-	spr(colorSprite, x, y, 1, 1, palIndex)
+	spr(colorSprite, x, y, 1, 1, nil, nil, nil, palIndex)
 	if specSprite then spr(specSprite, x, y) end
 end
 

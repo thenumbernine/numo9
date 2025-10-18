@@ -210,8 +210,8 @@ function EditSheet:update()
 		app:drawQuadTex(
 			app.paletteMenuTex,
 			app.checkerTex,
-			x1, y1, x2-x1, y2-y1,
-			0, 0, w/2, h/2)
+			x1, y1, x2-x1, y2-y1,	-- x y w h
+			0, 0, w/2, h/2)			-- tx ty tw th
 	end
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
@@ -224,6 +224,7 @@ function EditSheet:update()
 		self.spritesheetPanOffset.y,-- ty
 		w-1,						-- tw
 		h-1,						-- th
+		0,		--- orientation2D
 		self.sheetBlobIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
@@ -351,8 +352,8 @@ function EditSheet:update()
 		app:drawQuadTex(
 			app.paletteMenuTex,
 			app.checkerTex,
-			x1, y1, x2-x1, y2-y1,
-			0, 0, w*8, h*8)
+			x1, y1, x2-x1, y2-y1,	-- x y w h
+			0, 0, w*8, h*8)			-- tx ty tw th
 	end
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
@@ -362,6 +363,7 @@ function EditSheet:update()
 		self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y,
 		self.spriteSelSize.x * spriteSize.x,
 		self.spriteSelSize.y * spriteSize.y,
+		0,		-- orientation2D
 		self.sheetBlobIndex,
 		0,										-- paletteIndex
 		-1,										-- transparentIndex

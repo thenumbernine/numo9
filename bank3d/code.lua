@@ -1498,8 +1498,14 @@ update=||do
 		end
 
 		splashSpriteX = (((splashSpriteX or 0) + 1) % (screenTextWidth+32))
-		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2, splashSpriteX - 16, 24, 2, 2, nil, nil, nil, nil, -1, 1)
-		spr(seqs.bombLit, splashSpriteX - 16, 24, 2, 2)
+		spr(seqs.playerStandLeft + (math.floor(time() * 4) & 1) * 2,
+			splashSpriteX - 32, 24,
+			2, 2,
+			1
+		)
+		spr(seqs.bombLit,
+			splashSpriteX - 16, 24,
+			2, 2)
 
 		lastTitleWidth = text('BANK...3D!', screenTextWidth/2-.5*(lastTitleWidth or 0), 24, nil, 0, 4, 4)
 

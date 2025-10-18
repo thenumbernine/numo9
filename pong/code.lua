@@ -374,10 +374,7 @@ update=||do
 			Player.xForIndex[playerIndex],	-- pos
 			player.y - (player.size>>1),
 			2, 2,	-- sprites wide/high
-			0,		-- palette index
-			-1,		-- transparent index
-			0,		-- sprite bit
-			0xff,	-- sprite mask
+			0,		-- orientation2D
 			1/2,		-- scale x
 			player.size/16	-- scale y
 		)
@@ -398,7 +395,7 @@ update=||do
 			(block.pos[1]-1) / game.blockGridSize * worldSize,
 			(block.pos[2]-1) / game.blockGridSize * worldSize,
 			2, 2,
-			0, -1, 0, 0xff,
+			0,
 			worldSize / game.blockGridSize / 16,
 			worldSize / game.blockGridSize / 16
 		)

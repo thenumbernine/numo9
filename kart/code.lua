@@ -1292,19 +1292,17 @@ local kartAngle = math.atan2(self.dir[2], self.dir[1])
 		matrot(viewAngle + .5 * math.pi, 0, 0, 1)
 		matrot(math.rad(-70), 1, 0, 0)
 		local angleNorm = (-(viewAngle - kartAngle) / math.pi) % 2
+		local orient2D = 0
 		local scaleX = 1
 		if angleNorm > 1 then
 			angleNorm = 2 - angleNorm
-			scaleX = -1
-			mattrans(16, -32, 0)
-		else
-			mattrans(-16, -32, 0)
+			orient2D = 1
 		end
 		local spriteIndex = calcSpriteIndex(math.clamp(math.floor(angleNorm * numSpriteAngles), 0, numSpriteAngles-1), self.kartSpriteNo)
 --[=[ not helping
 applyprojmat()
 --]=]
-		spr(spriteIndex, 0, 0, 4, 4, nil, nil, nil, nil, scaleX)
+		spr(spriteIndex, -16, -32, 4, 4, orient2D)
 		matpop()
 	end
 	--]]
@@ -1409,18 +1407,24 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 		mattrans(centerX, centerY)
 		matscale(2, 2)
 
-		spr(sprites.outline[1], -8, -8, sprites.outline[2], sprites.outline[3])
+		spr(sprites.outline[1],
+			-8, -8,
+			sprites.outline[2], sprites.outline[3])
 
 		if self.gettingItem then
 			if self.getItemTime + self.getItemDuration > game.time then
 				local itemIndex = math.random(#Item.types)
 				local randomType = Item.types[itemIndex]
 				if not randomType.spriteIndex then error("Item.types["..itemIndex.."] is missing its .spriteIndex") end
-				spr(randomType.spriteIndex[1], -8, -8, randomType.spriteIndex[2], randomType.spriteIndex[3])
+				spr(randomType.spriteIndex[1], 
+					-8, -8, 
+					randomType.spriteIndex[2], randomType.spriteIndex[3])
 			end
 		end
 		if self.item then
-			spr(self.item.spriteIndex[1], -8, -8, self.item.spriteIndex[2], self.item.spriteIndex[3])
+			spr(self.item.spriteIndex[1], 
+				-8, -8, 
+				self.item.spriteIndex[2], self.item.spriteIndex[3])
 		end
 
 		if self.handToFootEndTime >= game.time then
@@ -1435,7 +1439,9 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 			end
 
 			--gl.glColor4f(1,1,1,1-frac)	-- TODO fade
-			spr(sprites.handtofoot[1], centerX - length, centerY - length, sprites.handtofoot[2], sprites.handtofoot[3])
+			spr(sprites.handtofoot[1], 
+				centerX - length, centerY - length, 
+				sprites.handtofoot[2], sprites.handtofoot[3])
 		end
 
 		matpop()
@@ -1521,7 +1527,11 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 		local centerY = self.lakituCenterY + math.sin(game.time) * floatRadius
 		local length = .3
 
-		spr(sprites.ralph[1], 256 * (centerX + (-.5) * length), 256 * (centerY + (-.5) * length), sprites.ralph[2], sprites.ralph[3])
+		spr(sprites.ralph[1], 
+			256 * (centerX + (-.5) * length), 
+			256 * (centerY + (-.5) * length), 
+			sprites.ralph[2], 
+			sprites.ralph[3])
 
 		if starting then
 			local msg
@@ -2558,7 +2568,11 @@ update=||do
 		text('>', x-8, selY, colors.white, colors.black)
 		text('wins',x+192-16,y-12,colors.white,colors.black)
 		for pid=0,maxPlayers-1 do
-			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo), x, y-4, 4, 4, nil, nil, nil, nil, .5, .5)
+			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo), 
+				x, y-4, 
+				4, 4, 
+				0,
+				.5, .5)
 			text('player '..(pid+1)..' = '
 				..tostring(playerTypes[startPlayerInfo[pid].type]),
 				x+24, y, colors.white, colors.black)
