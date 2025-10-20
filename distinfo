@@ -53,6 +53,7 @@ files = {
 	["numo9/app.lua"] = "numo9/numo9/app.lua",
 	["numo9/archive.lua"] = "numo9/numo9/archive.lua",
 	["numo9/audio.lua"] = "numo9/numo9/audio.lua",
+	["numo9/blob/animsheet.lua"] = "numo9/numo9/blob/animsheet.lua",
 	["numo9/blob/blob.lua"] = "numo9/numo9/blob/blob.lua",
 	["numo9/blob/brush.lua"] = "numo9/numo9/blob/brush.lua",
 	["numo9/blob/brushmap.lua"] = "numo9/numo9/blob/brushmap.lua",
