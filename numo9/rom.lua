@@ -297,6 +297,46 @@ local BlobEntry = struct{
 	},
 }
 
+-- this will be big.
+-- should I make this its own blob that you gotta allocate yourself?
+-- and then its size determines max # lights?
+-- combined with cart reading lightmapWidth/Height to determine the "fantasy console"'s uber-lightmap capabilities?
+local maxLights = 256 -- TODO  needs UBOs
+-- last i checked: 0x0208aa is lights
+local Light = struct{
+	name = 'Light',
+	fields = {
+		{name='enabled', type=uint8_t},
+		{name='region', type=uint16_t_4},	-- region in the lightmap texture
+		{name='ambientColor', type=uint8_t_4},	-- just rgb is used, but there's 4 for alignment
+		{name='diffuseColor', type=uint8_t_4},	-- or "albedo" or whatever.  alpha is ignored.
+		{name='specularColor', type=uint8_t_4},	-- alpha holds shininess, un-normalized.
+		{name='distAtten', type=float_3},			-- distance attenuation
+		{name='viewMat', type=matArrType},	-- lighting view+proj combined into one
+		{name='projMat', type=matArrType},	-- lighting view+proj combined into one
+	},
+}
+-- TODO somehow provide this to ramaddr, or in docs somewhere ...
+--[[
+print'Light:'
+for name,ctype in Light:fielditer() do	-- TODO struct iterable fields ...
+	local offset = ffi.offsetof(Light, name)
+	local size = ffi.sizeof(ctype)
+	print(('0x%02x - 0x%02x = '):format(offset, offset + size)..name)
+end
+--]]
+--[[
+Light:
+0x00 - 0x01 = enabled
+0x02 - 0x0a = region
+0x0a - 0x0e = ambientColor
+0x0e - 0x12 = diffuseColor
+0x12 - 0x16 = specularColor
+0x18 - 0x24 = distAtten
+0x24 - 0x64 = viewMat
+0x64 - 0xa4 = projMat
+--]]
+
 
 local RAM = struct{
 	name = 'RAM',
@@ -396,18 +436,12 @@ local RAM = struct{
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
 				{name='lightmapHeight', type=uint16_t},
 
-				{name='lightEnabled', type=uint8_t},
-				{name='lightmapRegion', type=uint16_t_4},
-				{name='lightAmbientColor', type=uint8_t_4},	-- just rgb is used, but there's 4 for alignment
-				{name='lightDiffuseColor', type=uint8_t_4},	-- or "albedo" or whatever.  alpha is ignored.
-				{name='lightSpecularColor', type=uint8_t_4},	-- alpha holds shininess, un-normalized.
-				{name='lightDistAtten', type=float_3},			-- distance attenuation
+				{name='numLights', type=int16_t},
+				{name='lights', type='Light['..maxLights..']'},
+
 				{name='ssaoSampleRadius', type=float},
 				{name='ssaoInfluence', type=float},
 				{name='spriteNormalExhaggeration', type=float},	-- float or byte or who cares?
-
-				{name='lightViewMat', type=matArrType},	-- lighting view+proj combined into one
-				{name='lightProjMat', type=matArrType},	-- lighting view+proj combined into one
 
 				-- end of RAM, beginning of ROM
 
@@ -589,4 +623,6 @@ return {
 	animSheetType = animSheetType,
 	animSheetPtrType = animSheetPtrType,
 	animSheetSize = animSheetSize,
+
+	maxLights = maxLights,
 }

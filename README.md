@@ -932,7 +932,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- SSAO
 		- use shadowmaps
 	- get a single directional light working (CHECK)
-		- then get multiple
+		- then get multiple (CHECK)
 		- sized buffer/viewport smaller than typical view fo
 		- just draw twice brah (or n+1 times for n lights)
 		- then add light vars to RAM (that means max # of lights)
@@ -998,15 +998,15 @@ voxelmap editor fixes:
 
 - TODO list:
 	- add "scene" blob and editor for placing objects with denoation for sprites / tilemaps / brushes / brushmaps / mesh3ds / voxels / voxelmaps - all with pos, size, scale, rotate, orientation vars
-	- chop up lightmap.
-		- multiple lights in RAM, each with lightmap subtex region
-		- add a # lights RAM var
-		- add a 'lightmap size' RAM vars and let the cart chop up lightmaps itself
-			- let cart choose lightmap size?  nah.  let engine?  let player offer hint at tuning down lightmap if desired?
+	- document lightmaps in README somehow ...
+	- expose lightmap struct in ramaddr/ramsize somehow ...
+	- expose maxLights too, or move it all to a light blob, tempting
+	- use UBOs for lights
+	- let the cart chop up lightmaps itself
+		- let cart choose lightmap size?  nah.  let engine?  let player offer hint at tuning down lightmap if desired?
 		- add RAM / engine var per light for update frequency
 		- add an include/numo9/light.lua for rect packing / atlas packing for use with lightmaps choosing regions
 		- add an include/numo9/light.lua for designating for light regions as tetrad lights.  also for 6 as cube lights.
-		- add light distance attenuation to RAM
 		- with all this data, maybe lightmaps should have their own blobs?
 	- final pass given an option for choosing miplevel for mosaic effect.
 	- gen mipmapping upon framebuffer tex flush
@@ -1036,3 +1036,6 @@ voxelmap editor fixes:
 			- so I should split this into flags (even with filterable? blah ... )
 			- I'll need new fbo output for bitflag mask of what to apply to what: lighting, depth of field so far
 
+- switch light uniforms to UBOs
+
+- when the RAM structure changes, the config file / keys reset themselves ... why?

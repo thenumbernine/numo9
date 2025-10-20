@@ -44,7 +44,7 @@ local matArrType = numo9_rom.matArrType
 local Voxel = numo9_rom.Voxel
 local animSheetPtrType = numo9_rom.animSheetPtrType
 local animSheetSize = numo9_rom.animSheetSize
-
+local maxLights = numo9_rom.maxLights
 
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
@@ -2081,7 +2081,7 @@ function AppVideo:initVideo()
 		internalFormat = gl.GL_RGBA32F,
 		format = gl.GL_RGBA,
 		type = gl.GL_FLOAT,
-		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+		minFilter = gl.GL_NEAREST,
 		magFilter = gl.GL_LINEAR,
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
@@ -2136,24 +2136,27 @@ uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;	// used by SSAO
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
+#define maxLights ]]..maxLights..[[
 
 // lighting variables in RAM:
-uniform bool lightEnabled;
-uniform vec4 lightmapRegion;	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
-uniform vec3 lightAmbientColor;// = vec3(.4, .3, .2);
-uniform vec3 lightDiffuseColor;// = vec3(1., 1., 1.);
-uniform vec4 lightSpecularColor;// = vec3(.6, .5, .4, 30.);	// w = shininess
-uniform vec3 lightDistAtten;	// vec3(const, linear, quadratic) attenuation
+uniform int numLights;
+// lights[] array TODO use UBO:
+uniform bool lights_enabled[maxLights];
+uniform vec4 lights_region[maxLights];	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
+uniform vec3 lights_ambientColor[maxLights];// = vec3(.4, .3, .2);
+uniform vec3 lights_diffuseColor[maxLights];// = vec3(1., 1., 1.);
+uniform vec4 lights_specularColor[maxLights];// = vec3(.6, .5, .4, 30.);	// w = shininess
+uniform vec3 lights_distAtten[maxLights];	// vec3(const, linear, quadratic) attenuation
+uniform mat4 lights_viewProjMat[maxLights];	// used for light depth coord transform, and for determining the light pos
+uniform vec3 lights_viewPos[maxLights];
+
 uniform float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
 uniform float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 
 const float ssaoSampleTCScale = 18.;	// ? meh
 
-uniform mat4 lightViewProjMat;	// used for light depth coord transform, and for determining the light pos
 uniform mat4 drawViewMat;	// used by SSAO
 uniform mat4 drawProjMat;	// used by ...
-
-uniform vec3 lightViewPos;
 uniform vec3 drawViewPos;
 
 // these are the random vectors inside a unit hemisphere facing z+
@@ -2186,7 +2189,6 @@ fragColor = vec4(l, l * 10., 1. - l * 100., .0);	// tell debug compositer to use
 return;
 #endif
 
-
 	vec4 worldNormal = texture(framebufferNormalTex, tcv);
 	// no lighting on this fragment
 	if (worldNormal.w == 0.) {
@@ -2206,31 +2208,33 @@ fragColor.xyz = normalizedWorldNormal * .5 + .5;
 return;
 #endif
 
-	fragColor = vec4(lightAmbientColor, 1.);
+	// TODO need a scene ambient level now.
+	fragColor = vec4(0., 0., 0., 1.);
 
-#if 1	// enable shadow map
-	bool inLight = false;
-	if (lightEnabled) {
-		vec4 lightClipCoord = lightViewProjMat * worldCoord;
+	for (int lightIndex = 0; lightIndex < numLights; ++lightIndex) {
+		if (!lights_enabled[lightIndex]) continue;
+
+		vec4 lightClipCoord = lights_viewProjMat[lightIndex] * worldCoord;
 		// frustum test before homogeneous transform
-		if (lightClipCoord.w > 0.
+		if (!(lightClipCoord.w > 0.
 			&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
 			&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
-		) {
-			vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
-			vec3 lightND01Coord = lightNDCoord * .5 + .5;
+		)) continue;
 
-			vec2 lightTC = lightND01Coord.xy * lightmapRegion.zw + lightmapRegion.xy;
+		vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
+		vec3 lightND01Coord = lightNDCoord * .5 + .5;
 
-			// in bounds
-			float lightBufferDepth = texture(lightDepthTex, lightTC).x;
+		vec2 lightTC = lightND01Coord.xy * lights_region[lightIndex].zw + lights_region[lightIndex].xy;
 
-			// zero gets depth alias stripes
-			// nonzero is dependent on the scene
-			// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
-			//const float lightDepthTestEpsilon = 0.;		// not enough
-			//const float lightDepthTestEpsilon = 0.0001;	// not enough
-			const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+		// in bounds
+		float lightBufferDepth = texture(lightDepthTex, lightTC).x;
+
+		// zero gets depth alias stripes
+		// nonzero is dependent on the scene
+		// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
+		//const float lightDepthTestEpsilon = 0.;		// not enough
+		//const float lightDepthTestEpsilon = 0.0001;	// not enough
+		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 
 #if 0	// debug show the light buffer
 fragColor = vec4(lightBufferDepth, .5, 1. - lightBufferDepth, 0.);	// tell debug compositer to use this color here.
@@ -2245,35 +2249,32 @@ float delta = lightND01Coord.z - (lightBufferDepth + lightDepthTestEpsilon);
 fragColor = vec4(.5 + delta, .5, .5 - delta, 0.);	// tell debug compositer to use this color here.
 return;
 #endif
-
-			// TODO normal test here as well?
-			if (lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon)) {
-				inLight = true;
-			}
+		// TODO normal test here as well?
+		if (!(lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon))) {
+			continue;
 		}
-	}
-#else
-	const bool inLight = true;
-#endif
 
-
-	if (inLight) {
 #if 1 // diffuse & specular with the world space surface normal
-		vec3 lightDelta = lightViewPos - worldCoord.xyz;
+		vec3 lightDelta = lights_viewPos[lightIndex] - worldCoord.xyz;
 		float lightDist = length(lightDelta);
 		vec3 lightDir = lightDelta / lightDist;
 		vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
 
-		vec3 lightColor = lightDiffuseColor * abs(dot(lightDir, normalizedWorldNormal))
+		vec3 lightColor =
+			lights_ambientColor[lightIndex]
+			+ lights_diffuseColor[lightIndex] * abs(dot(lightDir, normalizedWorldNormal))
 			// maybe you just can't do specular lighting in [0,1]^3 space ...
 			// maybe I should be doing inverse-frustum-projection stuff here
 			// hmmmmmmmmmm
 			// I really don't want to split projection and modelview matrices ...
-			+ lightSpecularColor.xyz * pow(
+			+ lights_specularColor[lightIndex].xyz * pow(
 				abs(dot(viewDir, reflect(-lightDir, normalizedWorldNormal))),
-				lightSpecularColor.w
+				lights_specularColor[lightIndex].w
 			);
-		float atten = lightDistAtten.x + lightDist * (lightDistAtten.y + lightDist * lightDistAtten.z);
+		float atten = lights_distAtten[lightIndex].x
+			+ lightDist * (lights_distAtten[lightIndex].y
+				+ lightDist * lights_distAtten[lightIndex].z
+			);
 
 		// apply bumpmap lighting
 		fragColor.xyz += lightColor / max(atten, 1e-7);
@@ -2281,7 +2282,6 @@ return;
 		fragColor.xyz += vec3(.9, .9, .9);
 #endif
 	}
-
 
 #if 1	// SSAO:
 	vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
@@ -2353,7 +2353,7 @@ return;
 		},
 		geometry = self.quadGeom,
 
-		-- TODO don't use this
+		--[=[ TODO don't use this
 		-- these are set every frame
 		-- but I"m using these because I'm lazy
 		-- instead just call glUniform yourself.
@@ -2365,6 +2365,7 @@ return;
 			ssaoSampleRadius = 1,
 			ssaoInfluence = 1,
 		},
+		--]=]
 	}
 	--]]
 end
@@ -2403,8 +2404,8 @@ function AppVideo:triBuf_flush()
 --[[ DEBUG - view the scene from the light's perspective
 -- so I can tell why some unshadowed things arent being seen ...
 	if self.ram.useHardwareLighting == 0 then return end
-	program:setUniform('viewMat', self.ram.lightViewMat)
-	program:setUniform('projMat', self.ram.lightProjMat)
+	program:setUniform('viewMat', self.ram.lights[0].viewMat)
+	program:setUniform('projMat', self.ram.lights[0].projMat)
 --]]
 
 	self.vertexBufGPU:bind()
@@ -2433,19 +2434,26 @@ function AppVideo:triBuf_flush()
 		end
 		self.lightmapFB:bind()
 
-		if self.ram.lightEnabled ~= 0 then
-			gl.glViewport(
-				self.ram.lightmapRegion[0],
-				self.ram.lightmapRegion[1],
-				self.ram.lightmapRegion[2],
-				self.ram.lightmapRegion[3])
+		for lightIndex=0,math.min(maxLights, self.ram.numLights)-1 do
+			local light = self.ram.lights + lightIndex
+--print('flush tri light', lightIndex, 'enabled', light.enabled)
+			if light.enabled ~= 0 then
+				gl.glViewport(
+					light.region[0],
+					light.region[1],
+					light.region[2],
+					light.region[3])
 
-			-- don't change the model matrix, that way models are transformed to world properly
-			program:setUniform('viewMat', self.ram.lightViewMat)
-			program:setUniform('projMat', self.ram.lightProjMat)
-			gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
+--DEBUG:print('light', lightIndex)
+--DEBUG:print('viewMat\n'..require 'ext.range'(0,15):mapi(function(i) return light.viewMat[i] end):concat', ')
+--DEBUG:print('projMat\n'..require 'ext.range'(0,15):mapi(function(i) return light.projMat[i] end):concat', ')
+				-- don't change the model matrix, that way models are transformed to world properly
+				program:setUniform('viewMat', light.viewMat)
+				program:setUniform('projMat', light.projMat)
+				gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
 
-			sceneObj.geometry:draw()
+				sceneObj.geometry:draw()
+			end
 		end
 
 		-- restore
@@ -2918,38 +2926,41 @@ function AppVideo:resetVideo()
 	self.ram.lightmapWidth = dirLightMapSize.x
 	self.ram.lightmapHeight = dirLightMapSize.y
 
-	self.ram.lightEnabled = 1	-- enable light #1 by default (just like GL1.0 days...)
+	self.ram.numLights = 1
+	for i=0,maxLights-1 do
+		self.ram.lights[0].enabled = i==0	-- enable light #1 by default (just like GL1.0 days...)
 
-	self.ram.lightmapRegion[0] = 0
-	self.ram.lightmapRegion[1] = 0
-	self.ram.lightmapRegion[2] = self.ram.lightmapWidth
-	self.ram.lightmapRegion[3] = self.ram.lightmapHeight
+		self.ram.lights[0].region[0] = 0
+		self.ram.lights[0].region[1] = 0
+		self.ram.lights[0].region[2] = self.ram.lightmapWidth
+		self.ram.lights[0].region[3] = self.ram.lightmapHeight
 
-	self.ram.lightAmbientColor[0] = .4 * 255
-	self.ram.lightAmbientColor[1] = .3 * 255
-	self.ram.lightAmbientColor[2] = .2 * 255
+		self.ram.lights[0].ambientColor[0] = .4 * 255
+		self.ram.lights[0].ambientColor[1] = .3 * 255
+		self.ram.lights[0].ambientColor[2] = .2 * 255
 
-	self.ram.lightDiffuseColor[0] = 255
-	self.ram.lightDiffuseColor[1] = 255
-	self.ram.lightDiffuseColor[2] = 255
+		self.ram.lights[0].diffuseColor[0] = 255
+		self.ram.lights[0].diffuseColor[1] = 255
+		self.ram.lights[0].diffuseColor[2] = 255
 
-	self.ram.lightSpecularColor[0] = .6 * 255
-	self.ram.lightSpecularColor[1] = .5 * 255
-	self.ram.lightSpecularColor[2] = .4 * 255
-	self.ram.lightSpecularColor[3] = 30
+		self.ram.lights[0].specularColor[0] = .6 * 255
+		self.ram.lights[0].specularColor[1] = .5 * 255
+		self.ram.lights[0].specularColor[2] = .4 * 255
+		self.ram.lights[0].specularColor[3] = 30
 
-	self.ram.lightDistAtten[0] = 1
-	self.ram.lightDistAtten[1] = 0
-	self.ram.lightDistAtten[2] = 0
+		self.ram.lights[0].distAtten[0] = 1
+		self.ram.lights[0].distAtten[1] = 0
+		self.ram.lights[0].distAtten[2] = 0
+
+		ffi.copy(self.ram.lights[0].viewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
+		ffi.copy(self.ram.lights[0].projMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
+	end
 
 	self.ram.ssaoSampleRadius = 1
 	self.ram.ssaoInfluence = 1
 
 	self.ram.spriteNormalExhaggeration = 8
 	self:onSpriteNormalExhaggerationChange()
-
-	ffi.copy(self.ram.lightViewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
-	ffi.copy(self.ram.lightProjMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
 
 	self.lastAnimSheetTex = self.blobs.animsheet[1].ramgpu.tex
 	self.lastTilemapTex = self.blobs.tilemap[1].ramgpu.tex
@@ -5018,7 +5029,7 @@ print()
 			internalFormat = gl.GL_RGBA32F,
 			format = gl.GL_RGBA,
 			type = gl.GL_FLOAT,
-			minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+			minFilter = gl.GL_NEAREST,
 			magFilter = gl.GL_LINEAR,
 			wrap = {
 				s = gl.GL_CLAMP_TO_EDGE,
@@ -5058,62 +5069,176 @@ print()
 	--sceneObj.texs[3] = self.noiseTex
 	--sceneObj.texs[4] = self.lightDepthTex
 
-	-- TODO just set the uniform, don't store it, but i'm lazy
-
-	sceneObj.uniforms.lightEnabled = self.ram.lightEnabled
-
-	sceneObj.uniforms.lightmapRegion[1] = tonumber(self.ram.lightmapRegion[0]) / tonumber(self.ram.lightmapWidth)
-	sceneObj.uniforms.lightmapRegion[2] = tonumber(self.ram.lightmapRegion[1]) / tonumber(self.ram.lightmapHeight)
-	sceneObj.uniforms.lightmapRegion[3] = tonumber(self.ram.lightmapRegion[2]) / tonumber(self.ram.lightmapWidth)
-	sceneObj.uniforms.lightmapRegion[4] = tonumber(self.ram.lightmapRegion[3]) / tonumber(self.ram.lightmapHeight)
-
-	sceneObj.uniforms.lightAmbientColor[1] = tonumber(self.ram.lightAmbientColor[0]) / 255
-	sceneObj.uniforms.lightAmbientColor[2] = tonumber(self.ram.lightAmbientColor[1]) / 255
-	sceneObj.uniforms.lightAmbientColor[3] = tonumber(self.ram.lightAmbientColor[2]) / 255
-
-	sceneObj.uniforms.lightDiffuseColor[1] = tonumber(self.ram.lightDiffuseColor[0]) / 255
-	sceneObj.uniforms.lightDiffuseColor[2] = tonumber(self.ram.lightDiffuseColor[1]) / 255
-	sceneObj.uniforms.lightDiffuseColor[3] = tonumber(self.ram.lightDiffuseColor[2]) / 255
-
-	sceneObj.uniforms.lightSpecularColor[1] = tonumber(self.ram.lightSpecularColor[0]) / 255
-	sceneObj.uniforms.lightSpecularColor[2] = tonumber(self.ram.lightSpecularColor[1]) / 255
-	sceneObj.uniforms.lightSpecularColor[3] = tonumber(self.ram.lightSpecularColor[2]) / 255
-	sceneObj.uniforms.lightSpecularColor[4] = tonumber(self.ram.lightSpecularColor[3])	-- use as is, don't divide
-
-	sceneObj.uniforms.lightDistAtten = self.ram.lightDistAtten + 0
-
-	sceneObj.uniforms.ssaoSampleRadius = self.ram.ssaoSampleRadius
-	sceneObj.uniforms.ssaoInfluence = self.ram.ssaoInfluence
-
-
-	self.lightViewMat.ptr = ffi.cast(matPtrType, self.ram.lightViewMat)
-	self.lightProjMat.ptr = ffi.cast(matPtrType, self.ram.lightProjMat)
-
-	self.lightViewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
-	sceneObj.uniforms.lightViewProjMat = self.lightViewProjMat.ptr
-
-	self.lightViewInvMat:inv4x4(self.lightViewMat)
-	sceneObj.uniforms.lightViewPos = self.lightViewInvMat.ptr + 12
-
-	self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
-	sceneObj.uniforms.drawViewPos = self.drawViewInvMat.ptr + 12	-- access the translation part of the inverse = the view pos
-
-	sceneObj.uniforms.drawViewMat = self.drawViewMatForLighting.ptr
-	sceneObj.uniforms.drawProjMat = self.drawProjMatForLighting.ptr
-
 --DEBUG(lighting):print('drawing lighting')
 --DEBUG(lighting):print('lighting drawView\n'..self.drawViewMatForLighting)
 --DEBUG(lighting):print('lighting drawProj\n'..self.drawProjMatForLighting)
---DEBUG(lighting):print('lighting lightView\n'..self.lightViewMat)
---DEBUG(lighting):print('lighting lightProj\n'..self.lightProjMat)
 --DEBUG(lighting):print()
 
+--[[ if we dont break out of the sandbox...
 	sceneObj:draw()
+--]]
+-- [[ doing custom stuff
+	local texs = sceneObj.texs
+	for i,tex in ipairs(texs) do
+		tex:bind(i-1)
+	end
+
+	local program = sceneObj.program
+	program:use()
+
+	-- TODO use UBOs but I'm lazy
+
+	-- all the 'if program.uniforms.* are only for when I do debugging and the uniforms dont compile
+	if program.uniforms.ssaoSampleRadius then
+		gl.glUniform1f(
+			program.uniforms.ssaoSampleRadius.loc,
+			self.ram.ssaoSampleRadius)
+	end
+
+	if program.uniforms.ssaoInfluence then
+		gl.glUniform1f(
+			program.uniforms.ssaoInfluence.loc,
+			self.ram.ssaoInfluence)
+	end
+
+	if program.uniforms.drawViewPos then
+		self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
+		gl.glUniform3fv(
+			program.uniforms.drawViewPos.loc,
+			1,	-- count
+			self.drawViewInvMat.ptr + 12	-- access the translation part of the inverse = the view pos
+		)
+	end
+
+	if program.uniforms.drawViewMat then
+		gl.glUniformMatrix4fv(
+			program.uniforms.drawViewMat.loc,
+			1,	-- count
+			false,	-- transpose
+			self.drawViewMatForLighting.ptr
+		)
+	end
+
+	if program.uniforms.drawProjMat then
+		gl.glUniformMatrix4fv(
+			program.uniforms.drawProjMat.loc,
+			1,	--count
+			false,	--transpose
+			self.drawProjMatForLighting.ptr
+		)
+	end
+
+	if program.uniforms.numLights then
+		gl.glUniform1i(
+			program.uniforms.numLights.loc,
+			self.ram.numLights)
+	end
+
+	for i=0,math.min(maxLights, self.ram.numLights)-1 do
+		local light = self.ram.lights + i
+--print('updating uniforms for light', i, 'enabled', light.enabled)
+		gl.glUniform1i(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_enabled['..i..']'
+			),
+			light.enabled)
+
+		gl.glUniform4f(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_region['..i..']'
+			),
+			tonumber(light.region[0]) / tonumber(self.ram.lightmapWidth),
+			tonumber(light.region[1]) / tonumber(self.ram.lightmapHeight),
+			tonumber(light.region[2]) / tonumber(self.ram.lightmapWidth),
+			tonumber(light.region[3]) / tonumber(self.ram.lightmapHeight)
+		)
+
+		gl.glUniform3f(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_ambientColor['..i..']'
+			),
+			tonumber(light.ambientColor[0]) / 255,
+			tonumber(light.ambientColor[1]) / 255,
+			tonumber(light.ambientColor[2]) / 255
+		)
+
+		gl.glUniform3f(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_diffuseColor['..i..']'
+			),
+			tonumber(light.diffuseColor[0]) / 255,
+			tonumber(light.diffuseColor[1]) / 255,
+			tonumber(light.diffuseColor[2]) / 255
+		)
+
+		gl.glUniform4f(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_specularColor['..i..']'
+			),
+			tonumber(light.specularColor[0]) / 255,
+			tonumber(light.specularColor[1]) / 255,
+			tonumber(light.specularColor[2]) / 255,
+			tonumber(light.specularColor[3])	-- use as is, don't divide
+		)
+
+		gl.glUniform3fv(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_distAtten['..i..']'
+			),
+			1,	-- count ... as in arrays right?
+			light.distAtten
+		)
+
+		self.lightViewMat.ptr = ffi.cast(matPtrType, light.viewMat)
+		self.lightProjMat.ptr = ffi.cast(matPtrType, light.projMat)
+		self.lightViewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
+		self.lightViewInvMat:inv4x4(self.lightViewMat)
+
+--DEBUG(lighting):print('lighting lightView\n'..self.lightViewMat)
+--DEBUG(lighting):print('lighting lightProj\n'..self.lightProjMat)
+
+		gl.glUniformMatrix4fv(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_viewProjMat['..i..']'
+			),
+			1,	-- count
+			false,	-- transpose
+			self.lightViewProjMat.ptr)
+
+		gl.glUniform3fv(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_viewPos['..i..']'
+			),
+			1,	-- count
+			self.lightViewInvMat.ptr + 12
+		)
+	end
+
+
+	sceneObj:enableAndSetAttrs()
+	sceneObj.geometry:draw()
+
+	program:useNone()
+
+	for i=#texs,1,-1 do
+		texs[i]:unbind(i-1)
+	end
+--]]
 
 	calcLightFB:unbind()
 
+--[[ nahhh
 	calcLightPP:cur():bind()
 		:generateMipmap()
+--]]
 end
 
 return {
