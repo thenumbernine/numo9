@@ -12,6 +12,7 @@ local animSheetPtrType = numo9_rom.animSheetPtrType
 local animSheetSize = numo9_rom.animSheetSize
 
 
+local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
 
 
