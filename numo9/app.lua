@@ -2562,6 +2562,7 @@ function App:poke(addr, value)
 	addr = toint(addr)
 	value = tonumber(ffi.cast(uint32_t, value))
 	if addr < 0 or addr >= self.memSize then return end
+	if self.ram.v[addr] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
 	self:prePoke(addr, addr)
 
@@ -2574,10 +2575,12 @@ function App:pokew(addr, value)
 	value = tonumber(ffi.cast(uint32_t, value))
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
+	local p = ffi.cast(uint16_t_p, self.ram.v + addr)
+	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
 	self:prePoke(addr, addrend)
 
-	ffi.cast(uint16_t_p, self.ram.v + addr)[0] = value
+	p[0] = value
 
 	self:postPoke(addr, addrend)
 end
@@ -2586,10 +2589,12 @@ function App:pokel(addr, value)
 	value = tonumber(ffi.cast(uint32_t, value))
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
+	local p = ffi.cast(uint32_t_p, self.ram.v + addr)
+	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
 	self:prePoke(addr, addrend)
 
-	ffi.cast(uint32_t_p, self.ram.v + addr)[0] = value
+	p[0] = value
 
 	self:postPoke(addr, addrend)
 end
@@ -2598,10 +2603,12 @@ function App:pokef(addr, value)
 	value = tofloat(value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
+	local p = ffi.cast(float_p, self.ram.v + addr)
+	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
 	self:prePoke(addr, addrend)
 
-	ffi.cast(float_p, self.ram.v + addr)[0] = value
+	p[0] = value
 
 	self:postPoke(addr, addrend)
 end
