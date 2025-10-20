@@ -353,11 +353,12 @@ memory layout:
 0x0200c9 - 0x0200cb = screenWidth
 0x0200cb - 0x0200cd = screenHeight
 0x0200cd - 0x0200ce = blendMode
-0x0200ce - 0x0200d0 = useHardwareLighting
-0x0200d0 - 0x0200d2 = blendColor
-0x0200d2 - 0x0200d4 = dither
-0x0200d4 - 0x0200d5 = paletteBlobIndex
-0x0200d5 - 0x0200d6 = fontBlobIndex
+0x0200ce - 0x0200d0 = blendColor
+0x0200d0 - 0x0200d2 = dither
+0x0200d2 - 0x0200d3 = cullFace
+0x0200d3 - 0x0200d4 = paletteBlobIndex
+0x0200d4 - 0x0200d5 = fontBlobIndex
+0x0200d5 - 0x0200d6 = animSheetBlobIndex
 0x0200d6 - 0x0201d6 = fontWidth
 0x0201d6 - 0x0201d7 = textFgColor
 0x0201d7 - 0x0201d8 = textBgColor
@@ -378,8 +379,17 @@ memory layout:
 0x02087e - 0x020882 = mouseWheel
 0x020882 - 0x020886 = lastMousePos
 0x020886 - 0x02088a = lastMousePressPos
-0x02088a - 0x02088e = blobCount
-0x02088e - 0x02089a = blobEntries
+0x02088a - 0x02088c = useHardwareLighting
+0x02088c - 0x020890 = lightAmbientColor
+0x020890 - 0x020894 = lightDiffuseColor
+0x020894 - 0x020898 = lightSpecularColor
+0x020898 - 0x02089c = ssaoSampleRadius
+0x02089c - 0x0208a0 = ssaoInfluence
+0x0208a0 - 0x0208a4 = spriteNormalExhaggeration
+0x0208a4 - 0x0208e4 = lightViewMat
+0x0208e4 - 0x020924 = lightProjMat
+0x020924 - 0x020928 = blobCount
+0x020928 - 0x020934 = blobEntries
 ```
 
 # Language
@@ -1005,6 +1015,3 @@ voxelmap editor fixes:
 		- allow player to choose normalmaps? nahh eventually, not just yet.
 	- later ... maybe remove all blob indexes from all api calls? or nah -- or instead, maybe add palette blob to all api calls or nah?
 	- change upper bits of tilemap from sheet-selection to sheet-offset of ram.sheetBlobIndex (put it next to paletteBlobIndex)
-
-- animsheet
-	- last, make sure RAM is aligned

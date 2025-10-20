@@ -332,7 +332,7 @@ local RAM = struct{
 
 				{name='dither', type=uint16_t},	-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
 
-				{name='cullFace', type=uint16_t},	-- 1 bit, but for alignment...
+				{name='cullFace', type=uint8_t},	-- 1 bit, but for alignment...
 
 				{name='paletteBlobIndex', type=uint8_t},	-- which palette to use for drawing commands
 				{name='fontBlobIndex', type=uint8_t},		-- which font blob to use for text()
