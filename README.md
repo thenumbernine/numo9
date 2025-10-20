@@ -1009,9 +1009,20 @@ voxelmap editor fixes:
 		- add light distance attenuation to RAM
 		- with all this data, maybe lightmaps should have their own blobs?
 	- add depth-of-field to the final pass shader
+		- generating mipmaps builtin has this catch:
+			- `GL_RGB565` is texture-filerable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
 	- final pass given an option for choosing miplevel for mosaic effect.
 	- gen mipmapping upon framebuffer tex flush
 	- gen normalmaps upon sheet flush.
 		- allow player to choose normalmaps? nahh eventually, not just yet.
 	- later ... maybe remove all blob indexes from all api calls? or nah -- or instead, maybe add palette blob to all api calls or nah?
 	- change upper bits of tilemap from sheet-selection to sheet-offset of ram.sheetBlobIndex (put it next to paletteBlobIndex)
+
+
+- animsheet doesnt work with the sprite pathway
+	- therefore it wont work with spr() quad() ttri3d() drawbrushmap() mesh3d() and voxelmap()
+	- so voxelmaps can't use animations ... hmm ....
+	- should I change spr() to use animsheet?
+	- would that screw up spr() calls?
+
+- I want gpu resources to only dirtyCPU / update when the value in RAM *changes*, but for some reason I still have to write it always (esp for the sake of some kind of matrix , model or view.... idk... hmm...)

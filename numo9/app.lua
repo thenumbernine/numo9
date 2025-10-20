@@ -2239,6 +2239,16 @@ print('run thread dead')
 
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
+	
+		--[[ TODO TODO this only when the framebuffer changes
+		local videoModeObj = self.videoModes[self.ram.videoMode]
+		if videoModeObj and videoModeObj.internalFormat == gl.GL_RGB565 then
+			local fbTex = self.framebufferRAM.tex
+			-- will binding this overwrite the lastSheetTex bound to 0, or are we done with it since we're done with the update call?
+			fbTex:bind()
+				:generateMipmap()
+		end
+		--]]
 	end
 
 	if needDrawCounter > 0 then
@@ -2562,11 +2572,12 @@ function App:poke(addr, value)
 	addr = toint(addr)
 	value = tonumber(ffi.cast(uint32_t, value))
 	if addr < 0 or addr >= self.memSize then return end
-	if self.ram.v[addr] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
+	local p = self.ram.v + addr
+--	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
 	self:prePoke(addr, addr)
 
-	self.ram.v[addr] = value
+	p[0] = value
 
 	self:postPoke(addr, addr)
 end
@@ -2576,7 +2587,7 @@ function App:pokew(addr, value)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint16_t_p, self.ram.v + addr)
-	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
+--	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
 	self:prePoke(addr, addrend)
 
@@ -2590,7 +2601,7 @@ function App:pokel(addr, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint32_t_p, self.ram.v + addr)
-	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
+--	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
 	self:prePoke(addr, addrend)
 
@@ -2604,7 +2615,7 @@ function App:pokef(addr, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(float_p, self.ram.v + addr)
-	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
+--	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
 	self:prePoke(addr, addrend)
 

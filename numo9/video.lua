@@ -41,7 +41,7 @@ local menuFontWidth = numo9_rom.menuFontWidth
 local matType = numo9_rom.matType
 local matArrType = numo9_rom.matArrType
 local Voxel = numo9_rom.Voxel
-local animSheetPtrType = numo9_rom.animSheetPtrType 
+local animSheetPtrType = numo9_rom.animSheetPtrType
 local animSheetSize = numo9_rom.animSheetSize
 
 
@@ -610,7 +610,15 @@ function VideoMode:buildFramebuffers()
 					t = gl.GL_CLAMP_TO_EDGE,
 				},
 				minFilter = gl.GL_NEAREST,
+
+				--[[ `GL_RGB565` is texture-filerable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
+				magFilter = internalFormat == gl.GL_RGB565 and gl.GL_NEAREST_MIPMAP_LINEAR or gl.GL_NEAREST,
+				generateMipmap = internalFormat == gl.GL_RGB565,
+				--]]
+				-- [[
 				magFilter = gl.GL_NEAREST,
+				--]]
+
 				data = ffi.cast(uint8_t_p, image.buffer),
 			}
 
@@ -630,6 +638,14 @@ function VideoMode:buildFramebuffers()
 				glformat = formatInfo.format,
 				gltype = gltype,
 				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
+
+				--[[ `GL_RGB565` is texture-filerable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
+				magFilter = internalFormat == gl.GL_RGB565 and gl.GL_NEAREST_MIPMAP_LINEAR or gl.GL_NEAREST,
+				generateMipmap = internalFormat == gl.GL_RGB565,
+				--]]
+				-- [[
+				magFilter = gl.GL_NEAREST,
+				--]]
 			}
 
 			app.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
@@ -2414,12 +2430,6 @@ function AppVideo:triBuf_flush()
 	-- reset the vectors and store the last capacity
 	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
 	self.vertexBufCPU:resize(0)
-
--- ??? TODO not this because it's forcing more flushes?
-	self.lastPaletteTex = nil
-	self.lastSheetTex = nil
-	self.lastTilemapTex = nil
-	self.lastAnimSheetTex = nil
 end
 
 -- setup texture state and uniforms
@@ -2429,6 +2439,11 @@ function AppVideo:triBuf_prepAddTri(
 	tilemapTex,
 	animSheetTex
 )
+assert(paletteTex)
+assert(sheetTex)
+assert(tilemapTex)
+assert(animSheetTex)
+
 	if self.lastPaletteTex ~= paletteTex
 	or self.lastSheetTex ~= sheetTex
 	or self.lastTilemapTex ~= tilemapTex
@@ -2882,6 +2897,18 @@ function AppVideo:resetVideo()
 
 	ffi.copy(self.ram.lightViewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
 	ffi.copy(self.ram.lightProjMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
+
+print'resetting video'
+-- [[ can I cut down on the binds?
+	self.lastAnimSheetTex = self.blobs.animsheet[1].ramgpu.tex
+	self.lastTilemapTex = self.blobs.tilemap[1].ramgpu.tex
+	self.lastSheetTex = self.blobs.sheet[1].ramgpu.tex
+	self.lastPaletteTex = self.blobs.palette[1].ramgpu.tex
+	self.lastAnimSheetTex:bind(3)
+	self.lastTilemapTex:bind(2)
+	self.lastSheetTex:bind(1)
+	self.lastPaletteTex:bind(0)
+--]]
 
 --DEBUG:print'App:resetVideo done'
 end
@@ -4825,6 +4852,7 @@ function AppVideo:drawVoxelMap(
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 
 	local tilemapTex = self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+	local animSheetTex = self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex	-- same
 
 	if self.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -4838,7 +4866,7 @@ function AppVideo:drawVoxelMap(
 	-- [[ draw by copying into buffers in AppVideo here
 	do
 		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
-		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)
+		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex, animSheetTex)
 
 		--[=[ copy each chunk into the draw buffer
 		for i=0,voxelmap.chunkVolume-1 do
