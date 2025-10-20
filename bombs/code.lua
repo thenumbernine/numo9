@@ -1,3 +1,9 @@
+-- title = Bombs
+-- saveid = bombs
+-- author = Chris Moore
+-- editTilemap.sheetBlobIndex = 1
+-- editTilemap.draw16Sprites = true
+
 linfDist=|ax,ay,bx,by|do
 	return math.max(math.abs(ax-bx), math.abs(ay-by))
 end
@@ -908,10 +914,10 @@ update=||do
 	matident()
 	mattrans(8,16)
 	-- draw ground and border
-	map(10,20,mapw+2,maph+2,0,0,0,true)
+	tilemap(10,20,mapw+2,maph+2,0,0,0,true,1)
 	mattrans(16, 16)
 	-- then draw map
-	map(levelTileX,levelTileY,mapw,maph,0,0,0,true)
+	tilemap(levelTileX,levelTileY,mapw,maph,0,0,0,true,1)
 
 	for _,o in ipairs(objs) do
 		o:drawSprite()

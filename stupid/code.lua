@@ -1,3 +1,12 @@
+-- title = Final Ultimate King's Adventure Quest 2
+-- saveid = stupid
+-- author = Chris Moore
+-- description = some stupid RPG game I wrote
+-- editTilemap.draw16Sprites = true
+-- editTilemap.sheetBlobIndex = 1
+-- editBrushmap.draw16Sprites = true
+-- editBrushmap.sheetBlobIndex = 1
+
 --[[
 TODO somehow dialogs don't show up anymore, probably due to transparency issues
 --]]
@@ -1804,7 +1813,7 @@ Map=class{
 		self.bbox = box2(vec2(), self.size-1)
 
 		local tileType = args.tileType or tileTypes.Grass
-		-- TODO only alloc what tiles have objs on them ... and use the tilemap for tile images ... then use map() for rendering ...
+		-- TODO only alloc what tiles have objs on them ... and use the tilemap for tile images ... then use tilemap() for rendering ...
 		-- tiles still holds...
 		--  - the room (temporary for level generation)
 		-- 	- the light level ... hmm ...
@@ -2736,13 +2745,15 @@ draw=||do
 		if view.bbox.max.y >= thisMap.size.y then view.bbox.max.y = thisMap.size.y-1 end
 	end
 	--draw tiles first
-	map(view.bbox.min.x,		-- tilemap pos
+	tilemap(
+		view.bbox.min.x,		-- tilemap pos
 		view.bbox.min.y,
 		view.bbox.max.x - view.bbox.min.x + 1,	-- tilemap size
 		view.bbox.max.y - view.bbox.min.y + 1,
 		0, 0,					-- screen pos
 		0,						-- tilemap index offset
-		true					-- 16x16
+		true,					-- 16x16
+		1						-- sheet index
 	)
 	for y=view.bbox.min.y,view.bbox.max.y do
 		for x=view.bbox.min.x,view.bbox.max.x do

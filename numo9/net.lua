@@ -505,7 +505,7 @@ local Numo9Cmd_map = struct{
 		{name='tilesHigh', type='float'},
 		{name='screenX', type='float'},
 		{name='screenY', type='float'},
-		{name='mapIndexOffset', type='int'},
+		{name='tilemapIndexOffset', type='int'},
 		{name='draw16Sprites', type='bool'},
 		{name='sheetIndex', type='uint8_t'},
 	},
@@ -1579,10 +1579,10 @@ assert.len(deltaStr, deltaBufLen)
 						c.spriteBit, c.spriteMask)
 				elseif cmdtype == netcmds.map then
 					local c = cmd[0].map
-					app:drawMap(
+					app:drawTileMap(
 						c.tileX, c.tileY, c.tilesWide, c.tilesHigh,
 						c.screenX, c.screenY,
-						c.mapIndexOffset,
+						c.tilemapIndexOffset,
 						c.draw16Sprites,
 						c.sheetIndex)
 				elseif cmdtype == netcmds.text then

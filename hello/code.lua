@@ -1,4 +1,8 @@
--- hmm only mode 0 is working for this .... why?
+-- title = Hello World
+-- saveid = hello
+-- author = Chris Moore
+-- description = Hello World
+
 mode(0)
 --mode(1)
 --mode(2)
@@ -76,7 +80,7 @@ function update()
 			--]]
 		end
 	end
-	map(0,0,32,32,0,0)
+	tilemap(0,0,32,32,0,0,0,false,1)
 --]=]
 
 

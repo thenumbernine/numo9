@@ -190,7 +190,7 @@ reset()
 
 update=||do
 	cls(1)
-	map(0,0,mapw,maph,0,0)	--,0,true)
+	tilemap(0,0,mapw,maph,0,0)
 	
 	if #messages>0 then
 		text(messages[1], 0, 0, 0xfc, -1)	-- TODO make this not a part of the gameplay

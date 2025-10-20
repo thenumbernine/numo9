@@ -3,6 +3,7 @@
 -- author = Chris Moore
 -- description = idk dungeon crawler or something
 -- editTilemap.draw16Sprites = true
+-- editTilemap.sheetBlobIndex = 1
 
 --#include vec/vec2.lua
 --#include vec/box2.lua
@@ -652,7 +653,7 @@ update=||do
 
 	ulPos:set(-screenw*.5+viewPos.x*16, -screenh*.5+viewPos.y*16)
 	mattrans(-ulPos.x, -ulPos.y)
-	map(0,0,256,256,0,0,0,1)
+	tilemap(0,0,256,256,0,0,0,1,1)
 
 	if player then
 		viewPos:set(player.pos)

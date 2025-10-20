@@ -338,11 +338,11 @@ local RAM = struct{
 				-- Or heck why not use the framebuffer, yeah I'll allow it even though Pico8 didn't
 				-- Changes to these reflect the next vsync
 				{name='framebufferAddr', type=addrType},	-- where the framebuffer is
-				{name='spriteSheetAddr', type=addrType},	-- where sheet 0 is / default sheet of spr() function
-				{name='tileSheetAddr', type=addrType},	-- where sheet 1 is / default sheet of map() function
+				{name='spriteSheetAddr', type=addrType},	-- where sheet 0 is
+				{name='spriteSheet1Addr', type=addrType},	-- where sheet 1 is
 				{name='tilemapAddr', type=addrType},		-- where the tilemap is / used by map() function
 				{name='paletteAddr', type=addrType},		-- where the palette is / used by pal() function
-				{name='fontAddr', type=addrType},			-- where the font is / sheet 2 / used by text() function
+				{name='fontAddr', type=addrType},			-- where the font is / used by text() function
 
 				-- audio state of waves that are playing
 				{name='channels', type=ffi.typeof('$['..audioMixChannels..']', Numo9Channel)},

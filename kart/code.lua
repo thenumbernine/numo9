@@ -1,3 +1,10 @@
+-- title = Go Go Go Kart Madness!!!
+-- saveid = kart
+-- author = Chris Moore
+-- description = Rad Racer clone
+-- editTilemap.draw16Sprites = true
+-- editTilemap.sheetBlobIndex = 1
+
 --[[
 TODO
 - ... multi "bank" rendering ... hmm
@@ -1063,7 +1070,7 @@ function Track:draw(viewMatrix, viewX, viewY, viewWidth, viewHeight)
 --[=[ not helping
 applyprojmat()
 --]=]
-	map(0, 0, track.size[1], track.size[2], 0, 0)
+	tilemap(0, 0, track.size[1], track.size[2], 0, 0, 0, false, 1)
 	matpop()
 	--]]
 end
@@ -1416,14 +1423,14 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 				local itemIndex = math.random(#Item.types)
 				local randomType = Item.types[itemIndex]
 				if not randomType.spriteIndex then error("Item.types["..itemIndex.."] is missing its .spriteIndex") end
-				spr(randomType.spriteIndex[1], 
-					-8, -8, 
+				spr(randomType.spriteIndex[1],
+					-8, -8,
 					randomType.spriteIndex[2], randomType.spriteIndex[3])
 			end
 		end
 		if self.item then
-			spr(self.item.spriteIndex[1], 
-				-8, -8, 
+			spr(self.item.spriteIndex[1],
+				-8, -8,
 				self.item.spriteIndex[2], self.item.spriteIndex[3])
 		end
 
@@ -1439,8 +1446,8 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 			end
 
 			--gl.glColor4f(1,1,1,1-frac)	-- TODO fade
-			spr(sprites.handtofoot[1], 
-				centerX - length, centerY - length, 
+			spr(sprites.handtofoot[1],
+				centerX - length, centerY - length,
 				sprites.handtofoot[2], sprites.handtofoot[3])
 		end
 
@@ -1527,10 +1534,10 @@ function Kart:drawHUD(aspectRatio, viewX, viewY, viewWidth, viewHeight)
 		local centerY = self.lakituCenterY + math.sin(game.time) * floatRadius
 		local length = .3
 
-		spr(sprites.ralph[1], 
-			256 * (centerX + (-.5) * length), 
-			256 * (centerY + (-.5) * length), 
-			sprites.ralph[2], 
+		spr(sprites.ralph[1],
+			256 * (centerX + (-.5) * length),
+			256 * (centerY + (-.5) * length),
+			sprites.ralph[2],
 			sprites.ralph[3])
 
 		if starting then
@@ -2568,9 +2575,9 @@ update=||do
 		text('>', x-8, selY, colors.white, colors.black)
 		text('wins',x+192-16,y-12,colors.white,colors.black)
 		for pid=0,maxPlayers-1 do
-			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo), 
-				x, y-4, 
-				4, 4, 
+			spr(calcSpriteIndex(11, startPlayerInfo[pid].kartSpriteNo),
+				x, y-4,
+				4, 4,
 				0,
 				.5, .5)
 			text('player '..(pid+1)..' = '

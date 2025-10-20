@@ -679,22 +679,21 @@ function App:initGL()
 		end,
 
 		-- TODO maybe make draw16Sprites a poke'd value
-		-- TODO a map() that uses a callback for permuting drawn indexes .... even if it's slow .. . make it separate
-		map = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites, sheetIndex)
+		tilemap = function(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, tilemapIndexOffset, draw16Sprites, sheetIndex)
 			if self.server then
 				tilesWide = tilesWide or 1
 				tilesHigh = tilesHigh or 1
-				mapIndexOffset = mapIndexOffset or 0
-				sheetIndex = sheetIndex or 1
+				tilemapIndexOffset = tilemapIndexOffset or 0
+				sheetIndex = sheetIndex or 0
 				local cmd = self.server:pushCmd().map
 				cmd.type = netcmds.map
 				cmd.tileX, cmd.tileY, cmd.tilesWide, cmd.tilesHigh = tileX, tileY, tilesWide, tilesHigh
 				cmd.screenX, cmd.screenY = screenX, screenY
-				cmd.mapIndexOffset = mapIndexOffset
+				cmd.tilemapIndexOffset = tilemapIndexOffset
 				cmd.draw16Sprites = draw16Sprites or false
 				cmd.sheetIndex = sheetIndex
 			end
-			return self:drawMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, mapIndexOffset, draw16Sprites, sheetIndex)
+			return self:drawTileMap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, tilemapIndexOffset, draw16Sprites, sheetIndex)
 		end,
 		text = function(text, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)
 			text = tostring(text)	-- convert?
@@ -1376,7 +1375,7 @@ print('package.loaded', package.loaded)
 					env.blend(2)	-- subtract
 					-- if I draw this as a sprite then I can draw as a low bpp and shift the palette ...
 					-- if I draw it as a tilemap then I can use the upper 4 bits of the tilemap entries for shifting the palette ...
-					self:drawMap(0, 0, 32, 32, 0, 0, 0, false, 0)
+					self:drawTileMap(0, 0, 32, 32, 0, 0, 0, false, 0)
 					env.blend(-1)
 
 					--[[ pause and watch
@@ -1856,11 +1855,15 @@ conn.receivesPerSecond = 0
 --DEBUG:print'updating blobs.sheet[1].ramgpu addr'
 			sheetRAM:updateAddr(newSpriteSheetAddr)
 		end
-		local newTileSheetAddr = self.ram.tileSheetAddr
-		local tileSheetRAM = self.blobs.sheet[2].ramgpu
-		if tileSheetRAM and tileSheetRAM.addr ~= newTileSheetAddr then
+		local newSpriteSheet1Addr = self.ram.spriteSheet1Addr
+		local spriteSheet1Blob = self.blobs.sheet[2]
+		local spriteSheet1RAM
+		if spriteSheet1Blob then
+			spriteSheet1RAM = spriteSheet1Blob.ramgpu
+			if spriteSheet1RAM and spriteSheet1RAM.addr ~= newSpriteSheet1Addr then
 --DEBUG:print'updating blobs.sheet[2].ramgpu addr'
-			tileSheetRAM:updateAddr(newTileSheetAddr)
+				spriteSheet1RAM:updateAddr(newSpriteSheet1Addr)
+			end
 		end
 		local newTilemapAddr = self.ram.tilemapAddr
 		local tilemapRAM = self.blobs.tilemap[1].ramgpu
@@ -1887,12 +1890,12 @@ conn.receivesPerSecond = 0
 		-- but we don't need to always be copying back from GPU to CPU ... only if any of the sheets overlap with it ...
 		-- and if any sheets intersect with it then we need to copy the GPU back to CPU ... and then set the sheets' dirtyCPU flag ...
 		local spriteSheetOverlapsFramebuffer = self.framebufferRAM:overlaps(sheetRAM)
-		local tileSheetOverlapsFramebuffer = self.framebufferRAM:overlaps(tileSheetRAM)
+		local spriteSheet1OverlapsFramebuffer = spriteSheet1RAM and self.framebufferRAM:overlaps(spriteSheet1RAM)
 		local tilemapOverlapsFramebuffer = self.framebufferRAM:overlaps(tilemapRAM)
 		local paletteOverlapsFramebuffer = self.framebufferRAM:overlaps(paletteRAM)
 		local fontOverlapsFramebuffer = self.framebufferRAM:overlaps(fontRAM)
 		if spriteSheetOverlapsFramebuffer
-		or tileSheetOverlapsFramebuffer
+		or spriteSheet1OverlapsFramebuffer
 		or tilemapOverlapsFramebuffer
 		or paletteOverlapsFramebuffer
 		or fontOverlapsFramebuffer
@@ -1900,7 +1903,7 @@ conn.receivesPerSecond = 0
 --DEBUG:print'syncing framebuffer'
 			self.framebufferRAM:checkDirtyGPU()
 			if spriteSheetOverlapsFramebuffer then sheetRAM.dirtyCPU = true end
-			if tileSheetOverlapsFramebuffer then tileSheetRAM.dirtyCPU = true end
+			if spriteSheet1RAM and spriteSheet1OverlapsFramebuffer then spriteSheet1RAM.dirtyCPU = true end
 			if tilemapOverlapsFramebuffer then tilemapRAM.dirtyCPU = true end
 			if paletteOverlapsFramebuffer then paletteRAM.dirtyCPU = true end
 			if fontOverlapsFramebuffer then fontRAM.dirtyCPU = true end

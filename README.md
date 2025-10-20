@@ -313,7 +313,7 @@ memory layout:
 0x0201d7 - 0x0201d8 = textBgColor
 0x0201d8 - 0x0201dc = framebufferAddr
 0x0201dc - 0x0201e0 = spriteSheetAddr
-0x0201e0 - 0x0201e4 = tileSheetAddr
+0x0201e0 - 0x0201e4 = spriteSheet1Addr
 0x0201e4 - 0x0201e8 = tilemapAddr
 0x0201e8 - 0x0201ec = paletteAddr
 0x0201ec - 0x0201f0 = fontAddr
@@ -435,9 +435,8 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- spriteIndex = which sprite to draw.
 		- Bits 0..4 = x coordinate into the 32x32 grid of 8x8 tiles in the 256x256 sprite/tile sheet.
 		- Bits 5..9 = y coordinate " " "
-		- Bit 10 = whether to use the sprite sheet or tile sheet.
-		- Bits 11..15 = represent which sheet blob to use (up to 32 addressable).
-			Sheet 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and sheet 1's is relocatable with the `tileSheetAddr`, and bit #11 determines which to use.
+		- Bit 10..15 = which sheet blob to use (up to 64 addressable at present).
+			Sheet 0's sprite sheet address is relocatable with the `spriteSheetAddr` , and sheet 1's is relocatable with the `spriteSheet1Addr`.
 	- screenX, screenY = pixel location of upper-left corner of the sprite.  Default is 0,0.
 	- tilesWide, tilesHigh = the size of the sprite in the spritesheet to draw, in 8x8 tile units.  Default is 1x1.
 	- orientation2D = 0-7, 2D orientation values, same as in tilemap high bits.
@@ -453,17 +452,17 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- tx, ty = sprite sheet pixel upper left corner.
 	- tw, th = sprite sheet width and height to use.
 	- orientation2D = same as `spr()`, default 0.
-	- sheetIndex = sheet index, default 1.
+	- sheetIndex = sheet index, default 0.
 	- paletteOffset = same as `spr()`.
 	- transparentIndex = same as `spr()`.
 	- spriteBit = same as `spr()`.
 	- spriteMask = same as `spr()`.
-- `map(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, [mapIndexOffset, draw16x16Sprites, sheetIndex, tilemapIndex])` = draw the tilemap.
+- `tilemap(tileX, tileY, tilesWide, tilesHigh, screenX, screenY, [tilemapIndexOffset, draw16x16Sprites, sheetIndex, tilemapIndex])` = draw the tilemap.
 	- tilesWide, tilesHigh = size of the map, in tiles, default to 1x1.
 	- screenX, screenY = where to draw the map, default to 0,0.
-	- mapIndexOffset = global offset to shift all map indexes, default to 0.
+	- tilemapIndexOffset = global offset to shift all tilemap index values (the 10-bit lookup into the sheet only, excluding the palette and orientation bits), default to 0.
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites, default to false.
-	- sheetIndex = the sheet to use, default to 1.
+	- sheetIndex = the sheet to use, default to 0.
 	- tilemapIndex = the tilemap blob index to use, default to 0.
 	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 - `mget(x, y, [tilemapIndex=0])` = Read the uint16 from the tilemap address at x, y.
@@ -755,9 +754,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 
 # TODO
-- compat breaking:
-	- rename `map` to `tilemap` cuz honestly `map` can be so many things
-	- change tilemap's default sheet from 1 to 0
 - upon fantasy console startup the first few frames skip ...
 - waveforms
 	- BRR
@@ -830,13 +826,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- Should I store the draw16x16 in its own variable in RAM?  Same for tilemap index offset, same for tilemap spritesheet bank, same for tilemap bank.
 	- Should I allow 32x32 64x64 etc as well?
 	- I've never used the high-palette for tilemaps ... maybe I should just turn that into custom flags...
-- I need some kind of tilemap animation state ...
-	- for tilemaps `map()` renderer, you can replace it with distinct `spr()` calls, and customize them based on `time()`.  ugly but effective.
-	- for brushmaps, the `numo9_brushes` array can be populated with functions that make use of `time()` (and whatever other globals you'd like to use).
-	- for voxelmaps, so far your best bet is to
-		- You can periodically `poke()` the texcoords of the mesh3d blobs that are used as voxels ... though this will change all instances of the mesh3d that are used, not just in the voxelmap ...
-		- or modify the voxelmap's `tiileXOffset/tileYOffset`, but changing the voxelmap will cause a cached-mesh regeneration at the next voxelmap-render, which can be slow.
-		- or you can regenerate your own voxelmap mesh / list-of-used-tiles, and then manually draw/animate them yourself using `drawvoxel` (the same idea as replacing your `map()` calls with individual `spr()` calls).
 - 4bpp framebuffers.  But that means merging two pixels into one, which would take a 2nd pass.  Unless there's a 4bpp hardware supported fbo format? DXT1?
 - netplay persistent data maybe ...
 	- one set per-game
@@ -921,7 +910,7 @@ TODO cart status:
 
 - If you poke anything in a mesh3d, nothing ever happens.  I don't support any kind of mesh3d refreshing yet, they are just static for now.
 
-- entity key/value 3D editor with
+- "scene" blob / entity key/value 3D editor with
 	- one key will tell either how to draw or one per sprite, tilemap, brush, brushmap, mesh3d, voxelmap
 	- one key, like 'pos', will denote the position, as comma-sep or space-sep vector or something
 		- can be 2D or 3D
@@ -945,12 +934,26 @@ voxelmap editor fixes:
 - maybe lol transparency on rect preview  while mouse is down ...
 - option for select to auto-orient according to your view direction (like minecraft and stairs)
 - 'paint' vs 'draw' resets when you select to another tool
+- allow specifying 3d voxel autotiling ... and 2d tilemap autotiling ... and 2d tilemap-style autotiling for voxelmap when using paint-on-surface
 
-- mesh gen occlusion bug: sloped tiles are occluding the side of their slope...
-
-- mipmapping for sheets.  generate on memory poke.
-	- same with sheet normalmaps.  generate on memory poke.
-
-- mipmapping for framebuffer, ie lowres blit effect that SNES had
-
-- i broke drawbrush()
+- TODO list:
+	- maybe remove all blob indexes from all api calls? or nah -- or instead, maybe add palette blob to all api calls?
+	- add "scene" blob and editor for placing objects with denoation for sprites / tilemaps / brushes / brushmaps / mesh3ds / voxels / voxelmaps - all with pos, size, scale, rotate, orientation vars
+	- add "animsheet" 1024-to-1024 map blob
+	- chop up lightmap.
+		- multiple lights in RAM, each with lightmap subtex region
+		- add a # lights RAM var
+		- add a 'lightmap size' RAM vars and let the cart chop up lightmaps itself
+			- let cart choose lightmap size?  nah.  let engine?  let player offer hint at tuning down lightmap if desired?
+		- add RAM / engine var per light for update frequency
+		- add an include/numo9/light.lua for rect packing / atlas packing for use with lightmaps choosing regions
+		- add an include/numo9/light.lua for designating for light regions as tetrad lights.  also for 6 as cube lights.
+		- add light distance attenuation to RAM
+		- with all this data, maybe lightmaps should have their own blobs?
+	- add depth-of-field to the final pass shader
+	- final pass given an option for choosing miplevel for mosaic effect.
+	- gen mipmapping upon framebuffer tex flush
+	- gen normalmaps upon sheet flush.
+		- allow player to choose normalmaps? nahh eventually, not just yet.
+	- change net typenames to ffi.typeof objects
+	- change upper bits of tilemap from sheet-selection to sheet-offset of ram.sheetBlobIndex

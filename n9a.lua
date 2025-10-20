@@ -533,16 +533,14 @@ print('toImage', name, 'width', width, 'height', height)
 	gfxImg.palette = palette
 	gfxImg:save(basepath'sheet.png'.path)
 
-	-- TODO merge spritesheet and tilesheet and just let the map() or spr() function pick the sheet index to use (like pyxel)
 	local tileImage = gfxImg:clone()
-	-- tile index 0 is always transparent so ...
 	for j=0,7 do
 		for i=0,7 do
 			tileImage.buffer[i + tileImage.width * j] = 0
 		end
 	end
 	tileImage.palette = palette
-	tileImage:save(basepath'sheet2.png'.path)
+	tileImage:save(basepath'sheet1.png'.path)
 
 	local labelSrc = move(sections, 'label')
 	if labelSrc then
@@ -1558,7 +1556,7 @@ elseif cmd == 'tic' or cmd == 'ticrun' then
 		end
 
 		if chunks[1] then	-- CHUNK_TILES / bank 8
-			chunkToImage(chunks[1]):save(bankpath'sheet2.png'.path)
+			chunkToImage(chunks[1]):save(bankpath'sheet1.png'.path)
 		end
 		if chunks[2] then	-- CHUNK_SPRITES / bank 8
 			chunkToImage(chunks[2]):save(bankpath'sheet.png'.path)
@@ -1781,6 +1779,10 @@ elseif cmd == 'nes' or cmd == 'nesrun' then
 	end
 	sheetImg.palette = palette
 	sheetImg:save(basepath'sheet.png'.path)
+
+	local tileSheetImg = Image(256,256,1,uint8_t)
+	ffi.fill(tileSheetImg.buffer, tileSheetImg:getBufferSize())
+	tileSheetImg:save(basepath'sheet1.png'.path)
 
 	-- do ROMs come with initialized tilemaps? #CHR > 0x2000 ?
 	local tilemapImg = Image(256, 256, 3, uint8_t)

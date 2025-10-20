@@ -666,16 +666,16 @@ setfenv(1, {
 		screenX=math.ceil(screenX or 0)
 		screenY=math.ceil(screenY or 0)
 
--- [=[ this would be faster to run, but my map() routine doesn't skip tile index=0 like pico8's does
+-- [=[ this would be faster to run, but my tilemap() routine doesn't skip tile index=0 like pico8's does
 -- but wait, now that I started writing blank to tile index 0 in the converted cartridge ...
 		if not layers and not p8PalChanged then
-			return map(tileX,tileY,tileW,tileH,screenX,screenY,0,false,0)
+			return tilemap(tileX,tileY,tileW,tileH,screenX,screenY)
 		end
 --]=]
 
 		-- manually do some clipping to my tile hunting bounds
 		-- this improves fps by 100x or so
-		-- idk if I should bother have a typical map() call do this bounds testing because it's all handled in hardware anyways
+		-- idk if I should bother have a typical tilemap() call do this bounds testing because it's all handled in hardware anyways
 
 		-- manually hunt through the tilemap,
 		-- get the tile,
@@ -749,7 +749,7 @@ setfenv(1, {
 					if not layers
 					or p8_sprFlagRead(i)&layers==layers
 					then
-						map(tx,ty,1,1,ssx,ssy,0,false,0)
+						tilemap(tx,ty,1,1,ssx,ssy)
 					end
 				end
 				ssx+=8

@@ -1211,7 +1211,7 @@ trace'NMI'
 	-- is background rendering enabled?
 	-- (is the "nametable" the same as the "background"? or is it sprites with background bit set?)
 	if PPUMASK & PPUMASK_flagEnableBG ~= 0 then
-		map(0, 0, 32, 30, -PPUScrollX, -PPUScrollY)
+		tilemap(0, 0, 32, 30, -PPUScrollX, -PPUScrollY, 0, false, 1)
 	end
 
 	-- is sprite rendering enabled?

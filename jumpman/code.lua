@@ -1,3 +1,9 @@
+-- title = JumpMan
+-- saveid = jumpman
+-- author = Chris Moore
+-- description = try to jump to the top
+-- editTilemap.sheetBlobIndex = 1
+
 --#include vec/vec2.lua
 --#include vec/box2.lua
 --#include ext/class.lua
@@ -344,7 +350,7 @@ update=||do
 	matident()
 	mattrans(128-viewPos.x*8, 128-viewPos.y*8)
 
-	map(0,0,256,256,0,0)
+	tilemap(0,0,256,256,0,0,0,false,1)
 	for _,o in ipairs(objs) do
 		o:update()
 	end

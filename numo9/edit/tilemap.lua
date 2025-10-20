@@ -59,7 +59,7 @@ end
 function EditTilemap:onCartLoad()
 	self.sheetBlobIndex = 0
 	self.tilemapBlobIndex = 0
-	self.paletteBlobIndex = 0	-- TODO :drawMap() allow specifying palette #
+	self.paletteBlobIndex = 0	-- TODO :drawTileMap() allow specifying palette #
 
 	self.tileSel = TileSelect{edit=self}
 
@@ -214,7 +214,7 @@ function EditTilemap:update()
 	-- set the current selected palette via RAM registry to self.paletteBlobIndex
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
-	app:drawMap(
+	app:drawTileMap(
 		0,		-- upper-left index in the tile tex
 		0,
 		tilemapSize.x,	-- tiles wide

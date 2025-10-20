@@ -1,3 +1,7 @@
+-- title = Knots
+-- author = Chris Moore
+-- description = knot theory Jones polynomial calculator
+
 --[[
 doing knot theory stuff
 https://core.ac.uk/download/pdf/81160141.pdf
@@ -168,7 +172,7 @@ local knotStats = {}
 
 redraw=||do
 	cls(1)
-	map(0,0,w,h,0,0)
+	tilemap(0,0,w,h)
 	local prevLinkDir
 	for i,link in ipairs(snake) do
 		local x=link.x

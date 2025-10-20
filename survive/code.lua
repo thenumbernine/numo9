@@ -1,7 +1,7 @@
---[[
-what to do with this ...
-
---]]
+-- title = Survive
+-- saveid = survive
+-- author = Chris Moore
+-- description = try to survive in a post-apocalyptic hellscape
 
 --#include ext/range.lua
 --#include vec/vec2.lua
@@ -614,7 +614,7 @@ update = || do
 	local mh = math.clamp(33, 0, 255 - my)
 	local msx = mx * 8
 	local msy = my * 8
-	map(mx, my, mw, mh, msx, msy)
+	tilemap(mx, my, mw, mh, msx, msy, 0, false, 1)
 
 	for _,o in ipairs(objs) do
 		o:draw()

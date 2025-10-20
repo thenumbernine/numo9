@@ -1,3 +1,7 @@
+-- title = Metroidvania Procedural
+-- saveid = metroidvania_procedural
+-- author = Chris Moore
+-- editTilemap.sheetBlobIndex = 1
 --#include vec/vec2.lua
 --#include vec/vec3.lua
 --#include vec/box2.lua
@@ -851,13 +855,16 @@ if fadeInRoom then assert.ne(fadeInRoom, fadeOutRoom, 'fade rooms match!') end
 	matident()
 	mattrans(-math.floor(ulpos.x*8), -math.floor(ulpos.y*8))
 
-	map(
+	tilemap(
 		math.floor(ulpos.x),
 		math.floor(ulpos.y),
 		33,
 		33,
 		math.floor(ulpos.x)*8,
-		math.floor(ulpos.y)*8
+		math.floor(ulpos.y)*8,
+		0,
+		false,
+		1
 	)
 
 	for _,o in ipairs(objs) do

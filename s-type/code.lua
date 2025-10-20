@@ -1,3 +1,10 @@
+-- title = S-Type
+-- saveid = s-type
+-- author = Chris Moore
+-- description = classic scrolling shooter arcade Gradius clone
+-- editTilemap.sheetBlobIndex = 1
+-- editBrushmap.sheetBlobIndex = 1
+
 shipSprite=0
 shipMoveUpSprite=32
 shipMoveDownSprite=64
@@ -91,13 +98,16 @@ update=||do
 	mx = scrollX>>3
 	my = scrollY>>3
 	--TODO level end at soem scroll distance
-	map(
+	tilemap(
 		mx,
 		my,
 		33,
 		33,
 		-(scrollX-(mx<<3)),
-		-(scrollY-(my<<3))
+		-(scrollY-(my<<3)),
+		0,
+		false,
+		1
 	)
 
 	-- go through right col of tilemap and see if there are any new enemies

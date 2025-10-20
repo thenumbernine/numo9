@@ -235,9 +235,9 @@ end
 
 local minBlobPerType = {
 	code = 1,
-	sheet = 2,
-	tilemap = 1,	-- only because map() still defaults to 1 ... I'm going to change that soon ... then there'll be only min of 1 sheet.
-	palette = 1,	-- ok we def need 1 of this
+	sheet = 1,
+	tilemap = 1,
+	palette = 1,	-- we need 1 of this
 	font = 1,		-- debatable we need 1 of this
 }
 

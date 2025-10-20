@@ -1,3 +1,9 @@
+-- title = Brain
+-- author = Chris Moore
+-- description = idk something where you push buttons to edit what your own controller does idk
+-- editTilemap.sheetBlobIndex = 1
+-- editBrushmap.sheetBlobIndex = 1
+
 local dirvec = {
 	[0] = {0,1},
 	[1] = {1,0},
@@ -10,7 +16,7 @@ flagshift=table{
 	'solid',	-- 1
 	'push',		-- 2
 	'btn',		-- is a button
-	
+
 	-- meh I'm not sure this is a good idea
 	'pushdups',	-- push will duplicate the block
 				--  pushdups | solid means if you push it then a new copy comes out in front and you stand still
@@ -38,13 +44,13 @@ mapTypes=table{
 	[32]={name='trigger_player', flags=flags.solid|flags.push},
 	[33]={name='trigger_reset', flags=flags.solid|flags.push},
 	[34]={name='trigger_goal', flags=flags.solid|flags.push},
-	
+
 	-- clear tile command seems dumb
 	[35]={name='trigger_clear', flags=flags.solid|flags.push},
 }
-for k,v in pairs(mapTypes) do 
-	v.value = k 
-	v.flags ??= 0 
+for k,v in pairs(mapTypes) do
+	v.value = k
+	v.flags ??= 0
 end
 mapTypeForName = mapTypes:map(|v,k| (v, v.name))
 
@@ -101,7 +107,7 @@ Player.update=|:|do
 		end
 	end
 
-	self.dx, self.dy = 0,0 
+	self.dx, self.dy = 0,0
 
 -- [[ hmm seems dumb
 	if self.clear then
@@ -132,8 +138,8 @@ end
 
 update=||do
 	cls()
-	map(0,0,32,32,0,0)
-	
+	tilemap(0,0,32,32,0,0,0,false,1)
+
 	if youWon then
 		text('you won!', 16,16)
 		return
@@ -154,7 +160,7 @@ update=||do
 			local ti = mget(x,y)
 			mset(x,32+y,ti)
 			local t = mapTypes[ti]
-			if ti == mapTypeForName.idle.value 
+			if ti == mapTypeForName.idle.value
 			or ti == mapTypeForName.trigger_player.value
 			or ti == mapTypeForName.trigger_reset.value
 			or ti == mapTypeForName.trigger_goal.value
@@ -169,9 +175,9 @@ update=||do
 					then
 						local ti2 = mget(nx,ny)
 						local t2 = mapTypes[ti2]
-						if ti2 == mapTypeForName.firing.value 
-						or (t2 
-							and t2.flags 
+						if ti2 == mapTypeForName.firing.value
+						or (t2
+							and t2.flags
 							and t2.flags & flags.btn ~= 0
 							and fire & (1 << (ti2 - mapTypeForName.btn0.value)) ~= 0
 						)

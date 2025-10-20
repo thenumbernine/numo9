@@ -1104,7 +1104,7 @@ for tilemap:
 		bit 0/1 = render pathway = 10
 		bit 2 = on = 16x16 tiles, off = 8x8 tiles
 
-	.z = mapIndexOffset
+	.z = tilemapIndexOffset
 */
 layout(location=3) in uvec4 extraAttr;
 
@@ -1327,7 +1327,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 }
 
 <?=fragType?> tilemapShading(vec2 tc) {
-	int mapIndexOffset = int(extra.z);
+	int tilemapIndexOffset = int(extra.z);
 
 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
 	uint draw16Sprites = (extra.x >> 2) & 1u;
@@ -1360,7 +1360,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 			to = 'uvec4',
 		}..[[.r);
 
-	tileIndex += mapIndexOffset;
+	tileIndex += tilemapIndexOffset;
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileIndexTC = ivec2(
@@ -2699,17 +2699,23 @@ function AppVideo:resetVideo()
 	-- and also because the first time resetVideo() is called, the video mode hasn't been set yet, os the framebufferRAM hasn't been assigned yet
 	self:allRAMRegionsCheckDirtyGPU()
 
+	local spriteSheetBlob = self.blobs.sheet[1]
+	local spriteSheet1Blob = self.blobs.sheet[2]
+	local tilemapBlob = self.blobs.tilemap[1]
+	local paletteBlob = self.blobs.palette[1]
+	local fontBlob = self.blobs.font[1]
+
 	-- TODO how should tehse work if I'm using flexible # blobs and that means not always enough?
-	local spriteSheetAddr = self.blobs.sheet[1] and self.blobs.sheet[1].addr or 0
-	local tileSheetAddr = self.blobs.sheet[2] and self.blobs.sheet[2].addr or 0
-	local tilemapAddr = self.blobs.tilemap[1] and self.blobs.tilemap[1].addr or 0
-	local paletteAddr = self.blobs.palette[1] and self.blobs.palette[1].addr or 0
-	local fontAddr = self.blobs.font[1] and self.blobs.font[1].addr or 0
+	local spriteSheetAddr = spriteSheetBlob and spriteSheetBlob.addr or 0
+	local spriteSheet1Addr = spriteSheet1Blob and spriteSheet1Blob.addr or 0
+	local tilemapAddr = tilemapBlob and tilemapBlob.addr or 0
+	local paletteAddr = paletteBlob and paletteBlob.addr or 0
+	local fontAddr = fontBlob and fontBlob.addr or 0
 
 	-- reset these
 	self.ram.framebufferAddr = framebufferAddr
 	self.ram.spriteSheetAddr = spriteSheetAddr
-	self.ram.tileSheetAddr = tileSheetAddr
+	self.ram.spriteSheet1Addr = spriteSheet1Addr
 	self.ram.tilemapAddr = tilemapAddr
 	self.ram.paletteAddr = paletteAddr
 	self.ram.fontAddr = fontAddr
@@ -2720,16 +2726,26 @@ function AppVideo:resetVideo()
 		v:updateAddr(framebufferAddr)
 	end
 
-	local sheetRAM = self.blobs.sheet[1].ramgpu
-	if sheetRAM then sheetRAM:updateAddr(spriteSheetAddr) end
-	local tileSheetRAM = self.blobs.sheet[2].ramgpu
-	if tileSheetRAM then tileSheetRAM:updateAddr(tileSheetAddr) end
-	local tilemapRAM = self.blobs.tilemap[1].ramgpu
-	if tilemapRAM then tilemapRAM:updateAddr(tilemapAddr) end
-	local paletteRAM = self.blobs.palette[1].ramgpu
-	if paletteRAM then paletteRAM:updateAddr(paletteAddr) end
-	local fontRAM = self.blobs.font[1].ramgpu
-	if fontRAM then fontRAM:updateAddr(fontAddr) end
+	if spriteSheetBlob then
+		local sheetRAM = spriteSheetBlob.ramgpu
+		if sheetRAM then sheetRAM:updateAddr(spriteSheetAddr) end
+	end
+	if spriteSheet1Blob then
+		local spriteSheet1RAM = spriteSheet1Blob.ramgpu
+		if spriteSheet1RAM then spriteSheet1RAM:updateAddr(spriteSheet1Addr) end
+	end
+	if tilemapBlob then
+		local tilemapRAM = tilemapBlob.ramgpu
+		if tilemapRAM then tilemapRAM:updateAddr(tilemapAddr) end
+	end
+	if paletteBlob then
+		local paletteRAM = paletteBlob.ramgpu
+		if paletteRAM then paletteRAM:updateAddr(paletteAddr) end
+	end
+	if fontBlob then
+		local fontRAM = fontBlob.ramgpu
+		if fontRAM then fontRAM:updateAddr(fontAddr) end
+	end
 
 
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
@@ -3019,10 +3035,11 @@ function AppVideo:drawSolidRect(
 	w = tonumber(w) or 0
 	h = tonumber(h) or 0
 	if not paletteTex then
-		local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-		if not paletteRAM then
-			paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+		local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+		if not paletteBlob then
+			paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
+		local paletteRAM = paletteBlob.ramgpu
 		if paletteRAM.dirtyCPU then
 			self:triBuf_flush()
 			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
@@ -3094,10 +3111,11 @@ function AppVideo:drawSolidTri3D(
 	x3, y3, z3,
 	colorIndex
 )
-	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-	if not paletteRAM then
-		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+	local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+	if not paletteBlob then
+		paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	local paletteRAM = paletteBlob.ramgpu
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
@@ -3206,10 +3224,11 @@ function AppVideo:drawSolidLine3D(
 	paletteTex
 )
 	if not paletteTex then
-		local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-		if not paletteRAM then
-			paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+		local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+		if not paletteBlob then
+			paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
+		local paletteRAM = paletteBlob.ramgpu
 		if paletteRAM.dirtyCPU then
 			self:triBuf_flush()
 			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
@@ -3326,10 +3345,11 @@ function AppVideo:clearScreen(
 	end
 
 	if not paletteTex then
-		local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-		if not paletteRAM then
-			paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+		local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+		if not paletteBlob then
+			paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
+		local paletteRAM = paletteBlob.ramgpu
 		if paletteRAM.dirtyCPU then
 			self:triBuf_flush()
 			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
@@ -3622,7 +3642,7 @@ args:
 	spriteBit,
 	spriteMask
 
-sheetIndex is 0 or 1 depending on spriteSheet or tileSheet ...
+sheetIndex is 0 or 1 depending on spriteSheet or spriteSheet1 ...
 should I just have an addr here?  and cache by ptr texs?
 I was thinking of having some ROM metadata that flagged blobs as dif types, and then for the VRAM blobs generate GPU texs ...
 --]]
@@ -3637,7 +3657,9 @@ function AppVideo:drawQuad(
 	spriteMask,
 	paletteTex	-- override for gui
 )
-	local sheetRAM = self.blobs.sheet[sheetIndex+1].ramgpu
+	local sheetBlob = self.blobs.sheet[sheetIndex+1]
+	if not sheetBlob then return end
+	local sheetRAM = sheetBlob.ramgpu
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -3645,10 +3667,11 @@ function AppVideo:drawQuad(
 	end
 
 	if not paletteTex then
-		local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-		if not paletteRAM then
-			paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+		local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+		if not paletteBlob then
+			paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 		end
+		local paletteRAM = paletteBlob.ramgpu
 		if paletteRAM.dirtyCPU then
 			self:triBuf_flush()
 			paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
@@ -3689,17 +3712,20 @@ function AppVideo:drawTexTri3D(
 	spriteMask
 )
 	sheetIndex = sheetIndex or 0
-	local sheetRAM = self.blobs.sheet[sheetIndex+1].ramgpu
+	local sheetBlob = self.blobs.sheet[sheetIndex+1]
+	if not sheetBlob then return end
+	local sheetRAM = sheetBlob.ramgpu
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
 		self:triBuf_flush()
 		sheetRAM:checkDirtyCPU()				-- before we read from the sprite tex, make sure we have most updated copy
 	end
 
-	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-	if not paletteRAM then
-		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+	local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+	if not paletteBlob then
+		paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	local paletteRAM = paletteBlob.ramgpu
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
@@ -3816,30 +3842,33 @@ end
 -- TODO go back to tileIndex instead of tileX tileY.  That's what mset() issues after all.
 -- TODO which is faster, using a single quad draw here, or chopping it up into individual quads and rendering each separately?
 -- especially considering if we make them all quads and use the same shader as the sprite shader then we can batch draw all sprites + maps together.
-function AppVideo:drawMap(
+function AppVideo:drawTileMap(
 	tileX,			-- \_ upper-left position in the tilemap
 	tileY,			-- /
 	tilesWide,		-- \_ how many tiles wide & high to draw
 	tilesHigh,		-- /
 	screenX,		-- \_ where in the screen to draw
 	screenY,		-- /
-	mapIndexOffset,	-- general shift to apply to all read map indexes in the tilemap
+	tilemapIndexOffset,	-- general shift to apply to all read map indexes in the tilemap
 	draw16Sprites,	-- set to true to draw 16x16 sprites instead of 8x8 sprites.  You still index tileX/Y with the 8x8 position. tilesWide/High are in terms of 16x16 sprites.
 	sheetIndex,		-- which sheet to use, 0 to 2*n-1 for n blobs.  even are sprite-sheets, odd are tile-sheets.
 	tilemapIndex	-- which tilemap blob to use, 0 to n-1 for n blobs
 )
-	sheetIndex = sheetIndex or 1
-	local sheetRAM = self.blobs.sheet[sheetIndex+1].ramgpu
+	sheetIndex = sheetIndex or 0
+	local sheetBlob = self.blobs.sheet[sheetIndex+1]
+	if not sheetBlob then return end
+	local sheetRAM = sheetBlob.ramgpu
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
 		self:triBuf_flush()
-		sheetRAM:checkDirtyCPU()	-- TODO just use multiple sprite sheets and let the map() function pick which one
+		sheetRAM:checkDirtyCPU()
 	end
 
-	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-	if not paletteRAM then
-		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+	local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+	if not paletteBlob then
+		paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	local paletteRAM = paletteBlob.ramgpu
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
@@ -3847,7 +3876,9 @@ function AppVideo:drawMap(
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 
 	tilemapIndex = tilemapIndex or 0
-	local tilemapRAM = self.blobs.tilemap[tilemapIndex+1].ramgpu
+	local tilemapBlob = self.blobs.tilemap[tilemapIndex+1]
+	if not tilemapBlob then return end
+	local tilemapRAM = tilemapBlob.ramgpu
 	if tilemapRAM.dirtyCPU then
 		self:triBuf_flush()
 		tilemapRAM:checkDirtyCPU()
@@ -3873,12 +3904,12 @@ function AppVideo:drawMap(
 	local vR = vL + tilesHigh / tonumber(spriteSheetSizeInTiles.y)
 
 	-- user has to specify high-bits
-	mapIndexOffset = mapIndexOffset or 0
+	tilemapIndexOffset = tilemapIndexOffset or 0
 	local extraX = bit.bor(
 		2,	-- tilemap pathway
 		draw16Sprites and 4 or 0
 	)
-	local extraZ = mapIndexOffset
+	local extraZ = tilemapIndexOffset
 
 	self:triBuf_addTri(
 		paletteTex,
@@ -4019,20 +4050,22 @@ end
 -- and default x, y to the last cursor position
 function AppVideo:drawText(...)
 -- [[ drawQuad startup
-	local fontRAM = self.blobs.font[1+self.ram.fontBlobIndex].ramgpu
-	if not fontRAM then
-		fontRAM = assert(self.blobs.font[1].ramgpu, "can't render anything if you have no fonts (how did you delete the last one?)")
+	local fontBlob = self.blobs.font[1+self.ram.fontBlobIndex]
+	if not fontBlob then
+		fontBlob = assert(self.blobs.font[1], "can't render anything if you have no fonts (how did you delete the last one?)")
 	end
+	local fontRAM = fontBlob.ramgpu
 	if fontRAM.dirtyCPU then
 		self:triBuf_flush()
 		fontRAM:checkDirtyCPU()			-- before we read from the sprite tex, make sure we have most updated copy
 	end
 	local fontTex = fontRAM.tex
 
-	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-	if not paletteRAM then
-		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+	local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+	if not paletteBlob then
+		paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	local paletteRAM = paletteBlob.ramgpu
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...
@@ -4692,7 +4725,9 @@ function AppVideo:drawVoxelMap(
 	end
 
 	sheetIndex = sheetIndex or 0
-	local sheetRAM = self.blobs.sheet[sheetIndex+1].ramgpu
+	local sheetBlob = self.blobs.sheet[sheetIndex+1]
+	if not sheetBlob then return end
+	local sheetRAM = sheetBlob.ramgpu
 	if not sheetRAM then return end
 	if sheetRAM.dirtyCPU then
 		self:triBuf_flush()
@@ -4700,10 +4735,11 @@ function AppVideo:drawVoxelMap(
 	end
 	local sheetTex = sheetRAM.tex
 
-	local paletteRAM = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu
-	if not paletteRAM then
-		paletteRAM = assert(self.blobs.palette[1].ramgpu, "can't render anything if you have no palettes (how did you delete the last one?)")
+	local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+	if not paletteBlob then
+		paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
 	end
+	local paletteRAM = paletteBlob.ramgpu
 	if paletteRAM.dirtyCPU then
 		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 		-- before any GPU op that uses palette...

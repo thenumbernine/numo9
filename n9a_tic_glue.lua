@@ -242,10 +242,10 @@ local newG = {
 		if scale ~= 1 then
 			matpush()
 			matscale(scale,scale,scale)
-			map(tileX,tileY,tileW,tileH,screenX,screenY)
+			tilemap(tileX,tileY,tileW,tileH,screenX,screenY,0,false,1)
 			matpop()
 		else
-			map(tileX,tileY,tileW,tileH,screenX,screenY)
+			tilemap(tileX,tileY,tileW,tileH,screenX,screenY,0,false,1)
 		end
 	end,
 	memcpy=|dst,src,len|do

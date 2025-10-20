@@ -2,6 +2,10 @@
 -- saveid = chopmaze
 -- author = Jon Moore & Chris Moore
 -- description = ChopMaze - A game by Jon Moore, ported by Chris Moore. Push blocks over water. Get through the maze.
+-- editTilemap.draw16Sprites = true
+-- editTilemap.sheetBlobIndex = 1
+-- editBrushmap.draw16Sprites = true
+-- editBrushmap.sheetBlobIndex = 1
 
 --#include ext/range.lua
 
@@ -208,7 +212,7 @@ update=||do
 		if uly + mh > maph then
 			uly = maph - mh
 		end
-		map(ulx, uly, mw, mh, 0, 0, 0, true)
+		tilemap(ulx, uly, mw, mh, 0, 0, 0, true, 1)
 		spr(dir<<1, (x - ulx)*16, (y - uly)*16, 2, 2)
 		--spr(dir<<1, (tx - ulx)*16, (ty - uly)*16, 2, 2)
 	end

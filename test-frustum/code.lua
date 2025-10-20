@@ -75,7 +75,7 @@ update=||do
 	--[=[ using explicit inverse rotate/translate
 	-- inverse-rotate
 		-- rot on x axis so now x+ is right and y+ is forward
-		-- by default the view is looking along the z axis , and I'm using XY as my drawing coordinates (cuz that's what the map() and spr() use), so Z is up/down by the renderer.
+		-- by default the view is looking along the z axis , and I'm using XY as my drawing coordinates (cuz that's what the tilemap() and spr() use), so Z is up/down by the renderer.
 		-- so I have to tilt up to look along the Y+ plane
 	matrot(math.rad(tiltUpAngle), 1, 0, 0, 1)
 		-- inv-rot by our viewAngle around
@@ -131,8 +131,8 @@ tiltUpAngle = 90:
 	ellib(-5,-5,10,10,0xfc)
 	rectb(-5,-5,10,10,0xfc)
 	--]]
-	--[[ equivalent using matrix transforms (i.e. how to use map() with matrix transforms)
-	-- mind you this is just 10 "pixels", while map() is gonna draw 8*size or 16*size "pixels"
+	--[[ equivalent using matrix transforms (i.e. how to use tilemap() with matrix transforms)
+	-- mind you this is just 10 "pixels", while tilemap() is gonna draw 8*size or 16*size "pixels"
 	mattrans(-40,-40)
 	rectb(0,0,80,80,0xfc)
 	--[[
@@ -144,11 +144,11 @@ tiltUpAngle = 90:
 	local mapsize=21
 	matpush()
 	matscale(1/16,1/16,1/16)
-	map(0,0,mapsize,mapsize,0,0,nil,true)
+	tilemap(0,0,mapsize,mapsize,0,0,nil,true)
 	matpop()
 	--]]
 	--[[
-	-- scale-up to equate with map() or spr() calls
+	-- scale-up to equate with tilemap() or spr() calls
 	local s=10
 	mattrans(-s*16,-s*16,0)
 	for j=0,2*s+1 do

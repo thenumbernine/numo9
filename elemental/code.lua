@@ -1,3 +1,8 @@
+-- title = Elemental
+-- saveid = elemental
+-- author = Chris Moore
+-- description = color matching puzzle game
+
 --#include ext/class.lua
 --#include vec/vec2.lua
 
@@ -1026,7 +1031,7 @@ Game.draw=|:|do
 	--do the actual drawing
 
 --[[ TODO backgrounds
-	map(
+	tilemap(
 		self.background,
 		0,
 		0,
