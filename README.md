@@ -937,7 +937,6 @@ voxelmap editor fixes:
 - allow specifying 3d voxel autotiling ... and 2d tilemap autotiling ... and 2d tilemap-style autotiling for voxelmap when using paint-on-surface
 
 - TODO list:
-	- maybe remove all blob indexes from all api calls? or nah -- or instead, maybe add palette blob to all api calls?
 	- add "scene" blob and editor for placing objects with denoation for sprites / tilemaps / brushes / brushmaps / mesh3ds / voxels / voxelmaps - all with pos, size, scale, rotate, orientation vars
 	- add "animsheet" 1024-to-1024 map blob
 	- chop up lightmap.
@@ -955,5 +954,5 @@ voxelmap editor fixes:
 	- gen mipmapping upon framebuffer tex flush
 	- gen normalmaps upon sheet flush.
 		- allow player to choose normalmaps? nahh eventually, not just yet.
-	- change net typenames to ffi.typeof objects
+	- later ... maybe remove all blob indexes from all api calls? or nah -- or instead, maybe add palette blob to all api calls or nah?
 	- change upper bits of tilemap from sheet-selection to sheet-offset of ram.sheetBlobIndex

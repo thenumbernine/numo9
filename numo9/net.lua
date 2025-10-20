@@ -69,9 +69,15 @@ local numo9_blobs = require 'numo9.blobs'
 local byteArrayToBlobs = numo9_blobs.byteArrayToBlobs
 
 
+local bool = ffi.typeof'bool'
+local int8_t = ffi.typeof'int8_t'
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
 local uint8_t_4 = ffi.typeof'uint8_t[4]'
+local int16_t = ffi.typeof'int16_t'
+local uint16_t = ffi.typeof'uint16_t'
+local uint32_t = ffi.typeof'uint32_t'
+local float = ffi.typeof'float'
 
 
 -- TODO how about a net-string?
@@ -339,7 +345,7 @@ local Numo9Cmd_base = struct{
 	name = 'Numo9Cmd_base',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
+		{name='type', type=uint8_t},
 	},
 }
 
@@ -347,8 +353,8 @@ local Numo9Cmd_clearScreen = struct{
 	name = 'Numo9Cmd_clearScreen',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='colorIndex', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='colorIndex', type=uint8_t},
 	},
 }
 
@@ -356,7 +362,7 @@ local Numo9Cmd_clipRect = struct{
 	name = 'Numo9Cmd_clipRect',
 	packed = true,
 	fields = {
-		{name='type', type='int16_t'},
+		{name='type', type=int16_t},
 		{name='x', type=clipType},
 		{name='y', type=clipType},
 		{name='w', type=clipType},
@@ -368,14 +374,14 @@ local Numo9Cmd_solidRect = struct{
 	name = 'Numo9Cmd_solidRect',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='x', type='float'},
-		{name='y', type='float'},
-		{name='w', type='float'},
-		{name='h', type='float'},
-		{name='colorIndex', type='uint8_t'},
-		{name='borderOnly', type='bool'},
-		{name='round', type='bool'},
+		{name='type', type=uint8_t},
+		{name='x', type=float},
+		{name='y', type=float},
+		{name='w', type=float},
+		{name='h', type=float},
+		{name='colorIndex', type=uint8_t},
+		{name='borderOnly', type=bool},
+		{name='round', type=bool},
 	},
 }
 
@@ -383,14 +389,14 @@ local Numo9Cmd_solidTri = struct{
 	name = 'Numo9Cmd_solidTri',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='x1', type='float'},
-		{name='y1', type='float'},
-		{name='x2', type='float'},
-		{name='y2', type='float'},
-		{name='x3', type='float'},
-		{name='y3', type='float'},
-		{name='colorIndex', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='x1', type=float},
+		{name='y1', type=float},
+		{name='x2', type=float},
+		{name='y2', type=float},
+		{name='x3', type=float},
+		{name='y3', type=float},
+		{name='colorIndex', type=uint8_t},
 	},
 }
 
@@ -398,17 +404,17 @@ local Numo9Cmd_solidTri3D = struct{
 	name = 'Numo9Cmd_solidTri3D',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='x1', type='float'},
-		{name='y1', type='float'},
-		{name='z1', type='float'},
-		{name='x2', type='float'},
-		{name='y2', type='float'},
-		{name='z2', type='float'},
-		{name='x3', type='float'},
-		{name='y3', type='float'},
-		{name='z3', type='float'},
-		{name='colorIndex', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='x1', type=float},
+		{name='y1', type=float},
+		{name='z1', type=float},
+		{name='x2', type=float},
+		{name='y2', type=float},
+		{name='z2', type=float},
+		{name='x3', type=float},
+		{name='y3', type=float},
+		{name='z3', type=float},
+		{name='colorIndex', type=uint8_t},
 	},
 }
 
@@ -418,27 +424,27 @@ local Numo9Cmd_texTri3D = struct{
 	name = 'Numo9Cmd_texTri3D',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='x1', type='float'},
-		{name='y1', type='float'},
-		{name='z1', type='float'},
-		{name='x2', type='float'},
-		{name='y2', type='float'},
-		{name='z2', type='float'},
-		{name='x3', type='float'},
-		{name='y3', type='float'},
-		{name='z3', type='float'},
-		{name='u1', type='uint8_t'},
-		{name='v1', type='uint8_t'},
-		{name='u2', type='uint8_t'},
-		{name='v2', type='uint8_t'},
-		{name='u3', type='uint8_t'},
-		{name='v3', type='uint8_t'},
-		{name='sheetIndex', type='uint8_t'},
-		{name='paletteIndex', type='int16_t'},
-		{name='transparentIndex', type='int16_t'},
-		{name='spriteBit', type='uint8_t'},
-		{name='spriteMask', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='x1', type=float},
+		{name='y1', type=float},
+		{name='z1', type=float},
+		{name='x2', type=float},
+		{name='y2', type=float},
+		{name='z2', type=float},
+		{name='x3', type=float},
+		{name='y3', type=float},
+		{name='z3', type=float},
+		{name='u1', type=uint8_t},
+		{name='v1', type=uint8_t},
+		{name='u2', type=uint8_t},
+		{name='v2', type=uint8_t},
+		{name='u3', type=uint8_t},
+		{name='v3', type=uint8_t},
+		{name='sheetIndex', type=uint8_t},
+		{name='paletteIndex', type=int16_t},
+		{name='transparentIndex', type=int16_t},
+		{name='spriteBit', type=uint8_t},
+		{name='spriteMask', type=uint8_t},
 	},
 }
 
@@ -446,13 +452,13 @@ local Numo9Cmd_solidLine = struct{
 	name = 'Numo9Cmd_solidLine',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='x1', type='float'},
-		{name='y1', type='float'},
-		{name='x2', type='float'},
-		{name='y2', type='float'},
-		{name='thickness', type='float'},
-		{name='colorIndex', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='x1', type=float},
+		{name='y1', type=float},
+		{name='x2', type=float},
+		{name='y2', type=float},
+		{name='thickness', type=float},
+		{name='colorIndex', type=uint8_t},
 	},
 }
 
@@ -460,15 +466,15 @@ local Numo9Cmd_solidLine3D = struct{
 	name = 'Numo9Cmd_solidLine3D',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='x1', type='float'},
-		{name='y1', type='float'},
-		{name='z1', type='float'},
-		{name='x2', type='float'},
-		{name='y2', type='float'},
-		{name='z2', type='float'},
-		{name='thickness', type='float'},
-		{name='colorIndex', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='x1', type=float},
+		{name='y1', type=float},
+		{name='z1', type=float},
+		{name='x2', type=float},
+		{name='y2', type=float},
+		{name='z2', type=float},
+		{name='thickness', type=float},
+		{name='colorIndex', type=uint8_t},
 	},
 }
 
@@ -476,21 +482,21 @@ local Numo9Cmd_quad = struct{
 	name = 'Numo9Cmd_quad',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='x', type='float'},
-		{name='y', type='float'},
-		{name='w', type='float'},
-		{name='h', type='float'},
-		{name='tx', type='uint8_t'},
-		{name='ty', type='uint8_t'},
-		{name='tw', type='uint8_t'},
-		{name='th', type='uint8_t'},
-		{name='orientation2D', type='uint8_t'},	-- 3 bits only
-		{name='sheetIndex', type='uint8_t'},
-		{name='paletteIndex', type='uint8_t'},
-		{name='transparentIndex', type='int16_t'},	-- 16 and not 8 only so I can use -1 ...
-		{name='spriteBit', type='uint8_t'},		-- just needs 3 bits ...
-		{name='spriteMask', type='uint8_t'},    -- the shader accepts 8 bits, but usually all 1s, so ... I could do this in 3 bits too ...
+		{name='type', type=uint8_t},
+		{name='x', type=float},
+		{name='y', type=float},
+		{name='w', type=float},
+		{name='h', type=float},
+		{name='tx', type=uint8_t},
+		{name='ty', type=uint8_t},
+		{name='tw', type=uint8_t},
+		{name='th', type=uint8_t},
+		{name='orientation2D', type=uint8_t},	-- 3 bits only
+		{name='sheetIndex', type=uint8_t},
+		{name='paletteIndex', type=uint8_t},
+		{name='transparentIndex', type=int16_t},	-- 16 and not 8 only so I can use -1 ...
+		{name='spriteBit', type=uint8_t},		-- just needs 3 bits ...
+		{name='spriteMask', type=uint8_t},    -- the shader accepts 8 bits, but usually all 1s, so ... I could do this in 3 bits too ...
 	},
 }
 
@@ -498,16 +504,16 @@ local Numo9Cmd_map = struct{
 	name = 'Numo9Cmd_map',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='tileX', type='float'},
-		{name='tileY', type='float'},
-		{name='tilesWide', type='float'},
-		{name='tilesHigh', type='float'},
-		{name='screenX', type='float'},
-		{name='screenY', type='float'},
-		{name='tilemapIndexOffset', type='int'},
-		{name='draw16Sprites', type='bool'},
-		{name='sheetIndex', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='tileX', type=float},
+		{name='tileY', type=float},
+		{name='tilesWide', type=float},
+		{name='tilesHigh', type=float},
+		{name='screenX', type=float},
+		{name='screenY', type=float},
+		{name='tilemapIndexOffset', type=int16_t},	-- only lower 10 bits matter
+		{name='draw16Sprites', type=bool},
+		{name='sheetIndex', type=uint8_t},
 	},
 }
 
@@ -515,13 +521,13 @@ local Numo9Cmd_text = struct{
 	name = 'Numo9Cmd_text',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='x', type='float'},
-		{name='y', type='float'},
-		{name='fgColorIndex', type='int8_t'},
-		{name='bgColorIndex', type='int8_t'},
-		{name='scaleX', type='float'},
-		{name='scaleY', type='float'},
+		{name='type', type=uint8_t},
+		{name='x', type=float},
+		{name='y', type=float},
+		{name='fgColorIndex', type=int8_t},
+		{name='bgColorIndex', type=int8_t},
+		{name='scaleX', type=float},
+		{name='scaleY', type=float},
 		{name='text', type='char[19]'},
 		-- TODO how about an extra pointer to another table or something for strings, overlap functionality with load requests
 	},
@@ -531,8 +537,8 @@ local Numo9Cmd_blendMode = struct{
 	name = 'Numo9Cmd_blendMode',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='blendMode', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='blendMode', type=uint8_t},
 	},
 }
 
@@ -540,8 +546,8 @@ local Numo9Cmd_matident = struct{
 	name = 'Numo9Cmd_matident',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='matrixIndex', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='matrixIndex', type=uint8_t},
 	},
 }
 
@@ -549,11 +555,11 @@ local Numo9Cmd_mattrans = struct{
 	name = 'Numo9Cmd_mattrans',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
+		{name='type', type=uint8_t},
 		{name='x', type=matType},
 		{name='y', type=matType},
 		{name='z', type=matType},
-		{name='matrixIndex', type='uint8_t'},
+		{name='matrixIndex', type=uint8_t},
 	},
 }
 
@@ -561,12 +567,12 @@ local Numo9Cmd_matrot = struct{
 	name = 'Numo9Cmd_matrot',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='theta', type='float'},
+		{name='type', type=uint8_t},
+		{name='theta', type=float},
 		{name='x', type=matType},
 		{name='y', type=matType},
 		{name='z', type=matType},
-		{name='matrixIndex', type='uint8_t'},
+		{name='matrixIndex', type=uint8_t},
 	},
 }
 
@@ -574,13 +580,13 @@ local Numo9Cmd_matrotcs = struct{
 	name = 'Numo9Cmd_matrotcs',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='c', type='float'},
-		{name='s', type='float'},
+		{name='type', type=uint8_t},
+		{name='c', type=float},
+		{name='s', type=float},
 		{name='x', type=matType},
 		{name='y', type=matType},
 		{name='z', type=matType},
-		{name='matrixIndex', type='uint8_t'},
+		{name='matrixIndex', type=uint8_t},
 	},
 }
 
@@ -589,11 +595,11 @@ local Numo9Cmd_matscale = struct{
 	name = 'Numo9Cmd_matscale',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
+		{name='type', type=uint8_t},
 		{name='x', type=matType},
 		{name='y', type=matType},
 		{name='z', type=matType},
-		{name='matrixIndex', type='uint8_t'},
+		{name='matrixIndex', type=uint8_t},
 	},
 }
 
@@ -601,14 +607,14 @@ local Numo9Cmd_matortho = struct{
 	name = 'Numo9Cmd_matortho',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
+		{name='type', type=uint8_t},
 		{name='l', type=matType},
 		{name='r', type=matType},
 		{name='t', type=matType},
 		{name='b', type=matType},
 		{name='n', type=matType},
 		{name='f', type=matType},
-		{name='matrixIndex', type='uint8_t'},
+		{name='matrixIndex', type=uint8_t},
 	},
 }
 
@@ -616,14 +622,14 @@ local Numo9Cmd_matfrustum = struct{
 	name = 'Numo9Cmd_matfrustum',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
+		{name='type', type=uint8_t},
 		{name='l', type=matType},
 		{name='r', type=matType},
 		{name='b', type=matType},
 		{name='t', type=matType},
 		{name='n', type=matType},
 		{name='f', type=matType},
-		{name='matrixIndex', type='uint8_t'},
+		{name='matrixIndex', type=uint8_t},
 	},
 }
 
@@ -631,7 +637,7 @@ local Numo9Cmd_matlookat = struct{
 	name = 'Numo9Cmd_matlookat',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
+		{name='type', type=uint8_t},
 		{name='ex', type=matType},
 		{name='ey', type=matType},
 		{name='ez', type=matType},
@@ -641,7 +647,7 @@ local Numo9Cmd_matlookat = struct{
 		{name='upx', type=matType},
 		{name='upy', type=matType},
 		{name='upz', type=matType},
-		{name='matrixIndex', type='uint8_t'},
+		{name='matrixIndex', type=uint8_t},
 	},
 }
 
@@ -649,13 +655,13 @@ local Numo9Cmd_sfx = struct{
 	name = 'Numo9Cmd_sfx',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='sfxID', type='int16_t'},	-- would be type='uint8_t' except for sfxID==-1 stop command ... TODO best to make a separate stop function for netcmd's sake
-		{name='channelIndex', type='int8_t'},	-- only needs 0-7 or -1 for 'pick any'
-		{name='pitch', type='int16_t'},
-		{name='volL', type='int8_t'},
-		{name='volR', type='int8_t'},
-		{name='looping', type='int8_t'},		-- 1 bit
+		{name='type', type=uint8_t},
+		{name='sfxID', type=int16_t},	-- would be type=uint8_t except for sfxID==-1 stop command ... TODO best to make a separate stop function for netcmd's sake
+		{name='channelIndex', type=int8_t},	-- only needs 0-7 or -1 for 'pick any'
+		{name='pitch', type=int16_t},
+		{name='volL', type=int8_t},
+		{name='volR', type=int8_t},
+		{name='looping', type=int8_t},		-- 1 bit
 	},
 }
 
@@ -663,10 +669,10 @@ local Numo9Cmd_music = struct{
 	name = 'Numo9Cmd_music',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='musicID', type='int16_t'},	-- TODO same complaint as sfx above
-		{name='musicPlayingIndex', type='uint8_t'},	-- 3 bits
-		{name='channelOffset', type='uint8_t'},		-- 3 bits
+		{name='type', type=uint8_t},
+		{name='musicID', type=int16_t},	-- TODO same complaint as sfx above
+		{name='musicPlayingIndex', type=uint8_t},	-- 3 bits
+		{name='channelOffset', type=uint8_t},		-- 3 bits
 	},
 }
 
@@ -674,9 +680,9 @@ local Numo9Cmd_poke = struct{
 	name = 'Numo9Cmd_poke',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='addr', type='uint32_t'},
-		{name='value', type='uint8_t'},
+		{name='type', type=uint8_t},
+		{name='addr', type=uint32_t},
+		{name='value', type=uint8_t},
 	},
 }
 
@@ -684,9 +690,9 @@ local Numo9Cmd_pokew = struct{
 	name = 'Numo9Cmd_pokew',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='addr', type='uint32_t'},
-		{name='value', type='uint16_t'},
+		{name='type', type=uint8_t},
+		{name='addr', type=uint32_t},
+		{name='value', type=uint16_t},
 	},
 }
 
@@ -694,9 +700,9 @@ local Numo9Cmd_pokel = struct{
 	name = 'Numo9Cmd_pokel',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='addr', type='uint32_t'},
-		{name='value', type='uint32_t'},
+		{name='type', type=uint8_t},
+		{name='addr', type=uint32_t},
+		{name='value', type=uint32_t},
 	},
 }
 
@@ -704,10 +710,10 @@ local Numo9Cmd_memcpy = struct{
 	name = 'Numo9Cmd_memcpy',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='dst', type='uint32_t'},
-		{name='src', type='uint32_t'},
-		{name='len', type='uint32_t'},
+		{name='type', type=uint8_t},
+		{name='dst', type=uint32_t},
+		{name='src', type=uint32_t},
+		{name='len', type=uint32_t},
 	},
 }
 
@@ -715,10 +721,10 @@ local Numo9Cmd_memset = struct{
 	name = 'Numo9Cmd_memset',
 	packed = true,
 	fields = {
-		{name='type', type='uint8_t'},
-		{name='dst', type='uint32_t'},
-		{name='val', type='uint8_t'},
-		{name='len', type='uint32_t'},
+		{name='type', type=uint8_t},
+		{name='dst', type=uint32_t},
+		{name='val', type=uint8_t},
+		{name='len', type=uint32_t},
 	},
 }
 
@@ -763,7 +769,7 @@ local Numo9Cmd = struct{
 	packed = true,
 	union = true,
 	fields = table{
-		{name='type', type='uint8_t'},
+		{name='type', type=uint8_t},
 	}:append(netCmdStructs:mapi(function(cmdtype, i)
 		return {name=netcmdNames[i], type=cmdtype}
 	end)),
