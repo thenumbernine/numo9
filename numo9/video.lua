@@ -14,6 +14,7 @@ local vec4us = require 'vec-ffi.vec4us'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local gl = require 'gl'
+local glreport = require 'gl.report'
 local glnumber = require 'gl.number'
 local GLFBO = require 'gl.fbo'
 local GLArrayBuffer = require 'gl.arraybuffer'
@@ -609,16 +610,8 @@ function VideoMode:buildFramebuffers()
 					s = gl.GL_CLAMP_TO_EDGE,
 					t = gl.GL_CLAMP_TO_EDGE,
 				},
-				minFilter = gl.GL_NEAREST,
-
-				--[[ `GL_RGB565` is texture-filerable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
-				magFilter = internalFormat == gl.GL_RGB565 and gl.GL_NEAREST_MIPMAP_LINEAR or gl.GL_NEAREST,
-				generateMipmap = internalFormat == gl.GL_RGB565,
-				--]]
-				-- [[
 				magFilter = gl.GL_NEAREST,
-				--]]
-
+				minFilter = gl.GL_NEAREST,
 				data = ffi.cast(uint8_t_p, image.buffer),
 			}
 
@@ -638,14 +631,8 @@ function VideoMode:buildFramebuffers()
 				glformat = formatInfo.format,
 				gltype = gltype,
 				ctype = assert.index(GLTypes.ctypeForGLType, gltype),
-
-				--[[ `GL_RGB565` is texture-filerable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
-				magFilter = internalFormat == gl.GL_RGB565 and gl.GL_NEAREST_MIPMAP_LINEAR or gl.GL_NEAREST,
-				generateMipmap = internalFormat == gl.GL_RGB565,
-				--]]
-				-- [[
 				magFilter = gl.GL_NEAREST,
-				--]]
+				minFilter = gl.GL_NEAREST,
 			}
 
 			app.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
@@ -741,7 +728,12 @@ in vec2 tcv;
 layout(location=0) out <?=blitFragType?> fragColor;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
+uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
+
+uniform bool useDepthOfField;
+uniform vec3 depthOfFieldPos;	//xyz = worldspace pos
+uniform vec3 depthOfFieldAtten;	//xyz = const, linear, quadratic distance attenuation
 
 void doLighting() {
 
@@ -757,7 +749,6 @@ if (lightColor.w == 0.) {
 	return;
 }
 #endif
-
 
 	fragColor.xyz *= texture(calcLightTex, tcv).xyz;
 }
@@ -827,7 +818,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 blitScreenFragHeader..[[
 
 void main() {
-#if 1	// internalFormat = gl.GL_RGB565
+#if 0	// internalFormat = gl.GL_RGB565
 	fragColor = ]]..readTex{
 	tex = self.framebufferRAM.tex,
 	texvar = 'framebufferTex',
@@ -835,6 +826,24 @@ void main() {
 	from = 'vec2',
 	to = blitFragType,
 }..[[;
+#endif
+#if 1	// internalFormat == GL_RGB565 but without my weird readTex function that abstracted too much stuff I've since made fixed ...
+	if (!useDepthOfField) {
+		fragColor = texture(framebufferTex, tcv);
+	} else {
+		vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
+		// hmm use clip depth w? or use world coord xyz dist?
+		float len = distance(worldCoordAndClipDepth.xyz, depthOfFieldPos.xyz);
+		float depthOfFieldBias = depthOfFieldAtten.x + len * (depthOfFieldAtten.y + len * depthOfFieldAtten.z);
+		vec2 size = textureSize(framebufferTex, 0);
+		float numMipLevelsMinus1 = floor(log2(max(size.x, size.y)));
+		fragColor = textureLod(framebufferTex, tcv, clamp(depthOfFieldBias, 0., numMipLevelsMinus1));
+#if 0 // debug display dpeth-of-field
+fragColor.r = len * .01;
+fragColor.g = len * .1;
+fragColor.b = len;
+#endif
+	}
 #endif
 #if 0	// internalFormat = internalFormat5551
 	uint rgba5551 = ]]..readTex{
@@ -861,11 +870,14 @@ void main() {
 			}),
 			uniforms = {
 				framebufferTex = 0,
-				calcLightTex = 1,
+				framebufferPosTex = 1,
+				calcLightTex = 2,
+				useDepthOfField = false,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
+			self.framebufferPosTex,
 			app.calcLightPP:cur(),
 		},
 		geometry = app.quadGeom,
@@ -874,6 +886,7 @@ void main() {
 			mvProjMat = app.blitScreenView.mvProjMat.ptr,
 		},
 	}
+glreport'here'
 
 	return self
 end
@@ -939,12 +952,15 @@ void main() {
 			}),
 			uniforms = {
 				framebufferTex = 0,
-				calcLightTex = 1,
-				paletteTex = 2,
+				framebufferPosTex = 1,
+				calcLightTex = 2,
+				paletteTex = 3,
+				useDepthOfField = false,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
+			self.framebufferPosTex,
 			app.calcLightPP:cur(),
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
@@ -1031,11 +1047,14 @@ void main() {
 			}),
 			uniforms = {
 				framebufferTex = 0,
-				calcLightTex = 1,
+				framebufferPosTex = 1,
+				calcLightTex = 2,
+				useDepthOfField = false,
 			},
 		},
 		texs = {
 			self.framebufferRAM.tex,
+			self.framebufferPosTex,
 			app.calcLightPP:cur(),
 		},
 		geometry = app.quadGeom,
@@ -2062,8 +2081,8 @@ function AppVideo:initVideo()
 		internalFormat = gl.GL_RGBA32F,
 		format = gl.GL_RGBA,
 		type = gl.GL_FLOAT,
-		minFilter = gl.GL_NEAREST,
-		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+		magFilter = gl.GL_LINEAR,
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
@@ -2863,6 +2882,8 @@ function AppVideo:resetVideo()
 	self.ram.useHardwareLighting = 0
 	self:onUseHardwareLightingChange()
 
+	self.ram.useDepthOfField = 0
+
 	self.paletteBlobIndex = 0
 	self.fontBlobIndex = 0
 	self.animSheetBlobIndex = 0
@@ -2898,8 +2919,6 @@ function AppVideo:resetVideo()
 	ffi.copy(self.ram.lightViewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
 	ffi.copy(self.ram.lightProjMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
 
-print'resetting video'
--- [[ can I cut down on the binds?
 	self.lastAnimSheetTex = self.blobs.animsheet[1].ramgpu.tex
 	self.lastTilemapTex = self.blobs.tilemap[1].ramgpu.tex
 	self.lastSheetTex = self.blobs.sheet[1].ramgpu.tex
@@ -2908,7 +2927,6 @@ print'resetting video'
 	self.lastTilemapTex:bind(2)
 	self.lastSheetTex:bind(1)
 	self.lastPaletteTex:bind(0)
---]]
 
 --DEBUG:print'App:resetVideo done'
 end
@@ -4968,8 +4986,8 @@ print()
 			internalFormat = gl.GL_RGBA32F,
 			format = gl.GL_RGBA,
 			type = gl.GL_FLOAT,
-			minFilter = gl.GL_NEAREST,
-			magFilter = gl.GL_NEAREST,
+			minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+			magFilter = gl.GL_LINEAR,
 			wrap = {
 				s = gl.GL_CLAMP_TO_EDGE,
 				t = gl.GL_CLAMP_TO_EDGE,
@@ -4977,10 +4995,10 @@ print()
 		}:unbind()
 
 		-- update all refs
-		self.blitScreenObj.texs[2] = calcLightPP:cur()	-- I guess it oculdb e on native's old blitScreenObj and native could clear the old one to make a new one during its resize code?
+		self.blitScreenObj.texs[3] = calcLightPP:cur()	-- I guess it oculdb e on native's old blitScreenObj and native could clear the old one to make a new one during its resize code?
 		for _,videoMode in pairs(self.videoModes) do
 			if videoMode.blitScreenObj then
-				videoMode.blitScreenObj.texs[2] = calcLightPP:cur()
+				videoMode.blitScreenObj.texs[3] = calcLightPP:cur()
 			end
 		end
 
@@ -5052,6 +5070,9 @@ print()
 	sceneObj:draw()
 
 	calcLightFB:unbind()
+
+	calcLightPP:cur():bind()
+		:generateMipmap()
 end
 
 return {

@@ -230,7 +230,7 @@ drawMap=||do
 		0, 0, 1
 	)
 
-	pokew(ramaddr'useHardwareLighting', useLighting)
+	poke(ramaddr'useHardwareLighting', useLighting)
 
 	matscale(1/16, 1/16, 1/16)
 
@@ -272,7 +272,7 @@ drawMap=||do
 	end
 	--]]
 
-	pokew(ramaddr'useHardwareLighting', 0)
+	poke(ramaddr'useHardwareLighting', 0)
 end
 
 
@@ -1625,11 +1625,11 @@ update=||do
 
 	drawMap()
 
-	pokew(ramaddr'useHardwareLighting', useLighting)
+	poke(ramaddr'useHardwareLighting', useLighting)
 	for _,o in ipairs(objs) do
 		o:drawSprite()
 	end
-	pokew(ramaddr'useHardwareLighting', 0)
+	poke(ramaddr'useHardwareLighting', 0)
 end
 
 setLevel(0)

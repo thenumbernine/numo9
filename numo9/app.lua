@@ -2239,14 +2239,27 @@ print('run thread dead')
 
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
-	
-		--[[ TODO TODO this only when the framebuffer changes
-		local videoModeObj = self.videoModes[self.ram.videoMode]
-		if videoModeObj and videoModeObj.internalFormat == gl.GL_RGB565 then
-			local fbTex = self.framebufferRAM.tex
+
+		-- [[ TODO TODO this only when the framebuffer changes
+		if self.framebufferRAM
+		and self.framebufferRAM.tex.internalFormat == gl.GL_RGB565
+		and self.ram.useDepthOfField ~= 0
+		then
 			-- will binding this overwrite the lastSheetTex bound to 0, or are we done with it since we're done with the update call?
-			fbTex:bind()
+			-- TODO either keep calcLightPP with the same tex filtering or
+			-- or put another framebuffer/texture between this and the final pass for depth-of-field
+			self.framebufferRAM.tex:bind()
+				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR)
+				:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
 				:generateMipmap()
+			self.lastPaletteTex:bind()
+		else
+			-- if we keep LINEAR on framebufferRAM then resizing the screen will give it a blur instead of a pixelation effect.
+			-- but TODO track state and only do this once
+			self.framebufferRAM.tex:bind()
+				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
+				:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
+			self.lastPaletteTex:bind()
 		end
 		--]]
 	end
@@ -2316,15 +2329,18 @@ print('run thread dead')
 		view.mvProjMat:copy(view.projMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+		sceneObj.uniforms.useDepthOfField = self.ram.useDepthOfField
+		sceneObj.uniforms.depthOfFieldPos = self.ram.depthOfFieldPos + 0
+		sceneObj.uniforms.depthOfFieldAtten = self.ram.depthOfFieldAtten + 0
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
 		else
-			if sceneObj.texs[3] then
+			if sceneObj.texs[4] then
 				-- update the palette bound when drawing the 8bppIndex screen
 				-- which palette to use? first?  extra RAM var to specify?
 				-- how about whatevers selected as the active palette at end of frame?
-				sceneObj.texs[3] = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu.tex
+				sceneObj.texs[4] = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu.tex
 			end
 		end
 --]]
@@ -2564,7 +2580,7 @@ function App:postPoke(addr, addrend)
 		then
 			blob.ramgpu.dirtyCPU = true
 		end
-	end	
+	end
 	-- TODO if we poked the code
 end
 

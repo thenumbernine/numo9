@@ -1008,9 +1008,6 @@ voxelmap editor fixes:
 		- add an include/numo9/light.lua for designating for light regions as tetrad lights.  also for 6 as cube lights.
 		- add light distance attenuation to RAM
 		- with all this data, maybe lightmaps should have their own blobs?
-	- add depth-of-field to the final pass shader
-		- generating mipmaps builtin has this catch:
-			- `GL_RGB565` is texture-filerable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
 	- final pass given an option for choosing miplevel for mosaic effect.
 	- gen mipmapping upon framebuffer tex flush
 	- gen normalmaps upon sheet flush.
@@ -1026,3 +1023,16 @@ voxelmap editor fixes:
 	- would that screw up spr() calls?
 
 - I want gpu resources to only dirtyCPU / update when the value in RAM *changes*, but for some reason I still have to write it always (esp for the sake of some kind of matrix , model or view.... idk... hmm...)
+
+- add depth-of-field to the final pass shader
+	- generating mipmaps builtin has this catch:
+		- `GL_RGB565` is texture-filerable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
+		- also I'll have to either
+			- 1) first combine lights + framebuffer, then generate-mipmap, then use the result with linear filter
+			- 2) -OR- set the light calc tex *and* framebuffer tex min and mag filter to LINEAR before doing depth-of-field
+			- ... looks like depth of field will require a new pass
+		- also depth of field doesnt want to work on menus, like lighting
+			- but I only have framebufferTex.w for 'useLighting' per fragment
+			- so I should split this into flags (even with filterable? blah ... )
+			- I'll need new fbo output for bitflag mask of what to apply to what: lighting, depth of field so far
+

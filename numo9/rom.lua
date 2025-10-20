@@ -17,6 +17,7 @@ local int16_t = ffi.typeof'int16_t'
 local uint16_t = ffi.typeof'uint16_t'
 local uint32_t = ffi.typeof'uint32_t'
 local float = ffi.typeof'float'
+local float_3 = ffi.typeof'float[3]'
 
 
 local version = table{1,2,0}
@@ -387,7 +388,10 @@ local RAM = struct{
 
 
 				-- lighting block ...
-				{name='useHardwareLighting', type=uint16_t},	-- 1 bit, but 16 for alignemnt
+				{name='useHardwareLighting', type=uint8_t},	-- 1 bit so far
+				{name='useDepthOfField', type=uint8_t},		-- 1 bit so far
+				{name='depthOfFieldPos', type=float_3},
+				{name='depthOfFieldAtten', type=float_3},
 				{name='lightAmbientColor', type=uint8_t_4},	-- just rgb is used, but there's 4 for alignment
 				{name='lightDiffuseColor', type=uint8_t_4},	-- or "albedo" or whatever.  alpha is ignored.
 				{name='lightSpecularColor', type=uint8_t_4},	-- alpha holds shininess, un-normalized.
