@@ -1007,9 +1007,4 @@ voxelmap editor fixes:
 	- change upper bits of tilemap from sheet-selection to sheet-offset of ram.sheetBlobIndex (put it next to paletteBlobIndex)
 
 - animsheet
-	- tribuf_prepAddTri needs animSheetTex -- FIXED
-	- anywhere triBuf_addTri is called -- FIXED
-	- anywhere ram.paletteBlobIndex <-> animSheetBlobIndex is used -- FIXED
-	- anywhere lastTilemapTex etc are used -- FIXED
-	- anywhere blobs.palette/font/tilemap/sheet are checked -- FIXED
 	- last, make sure RAM is aligned

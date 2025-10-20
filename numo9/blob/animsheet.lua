@@ -9,6 +9,7 @@ local BlobImage = require 'numo9.blob.image'
 local numo9_rom = require 'numo9.rom'
 local animSheetType = numo9_rom.animSheetType
 local animSheetPtrType = numo9_rom.animSheetPtrType 
+local animSheetSize = numo9_rom.animSheetSize
 
 
 local uint8_t_p = ffi.typeof'uint8_t*'
