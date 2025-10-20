@@ -1883,6 +1883,7 @@ conn.receivesPerSecond = 0
 --DEBUG:print'updating fontRAM addr'
 			fontRAM:updateAddr(newFontAddr)
 		end
+		-- no relocatable animSheet addr at the moment...
 
 		-- BIG TODO for feedback framebuffer
 		-- if any of the sheets are pointed to the framebuffer then we gotta checkDirtyGPU here on the framebuffer every frame ...
@@ -2547,6 +2548,13 @@ function App:postPoke(addr, addrend)
 			voxelmap:onTouchRAM(addr, addrend, self)
 		end
 	end
+	for _,blob in ipairs(self.blobs.animsheet) do
+		if addrend >= blob.ramgpu.addr
+		and addr < blob.ramgpu.addrEnd
+		then
+			blob.ramgpu.dirtyCPU = true
+		end
+	end	
 	-- TODO if we poked the code
 end
 
@@ -2739,6 +2747,7 @@ function App:updateBlobChanges()
 	self.lastPaletteTex = self.blobs.palette[1].ramgpu.tex
 	self.lastSheetTex = self.blobs.sheet[1].ramgpu.tex
 	self.lastTilemapTex = self.blobs.tilemap[1].ramgpu.tex
+	self.lastAnimSheetTex = self.blobs.animsheet[1].ramgpu.tex
 end
 
 -- save from cartridge to filesystem
@@ -2837,6 +2846,10 @@ function App:openCart(filename)
 		blob.ramgpu.dirtyGPU = false
 	end
 	for _,blob in ipairs(self.blobs.font) do
+		blob.ramgpu.dirtyCPU = false
+		blob.ramgpu.dirtyGPU = false
+	end
+	for _,blob in ipairs(self.blobs.animsheet) do
 		blob.ramgpu.dirtyCPU = false
 		blob.ramgpu.dirtyGPU = false
 	end

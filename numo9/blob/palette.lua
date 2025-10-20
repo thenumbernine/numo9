@@ -5,6 +5,8 @@ local vec2i = require 'vec-ffi.vec2i'
 local Image = require 'image'
 local gl = require 'gl'
 
+local BlobImage = require 'numo9.blob.image'
+
 local numo9_rom = require 'numo9.rom'
 local paletteType = numo9_rom.paletteType
 local paletteSize = numo9_rom.paletteSize
@@ -13,8 +15,6 @@ local numo9_video = require 'numo9.video'
 local rgba5551_to_rgba8888_4ch = numo9_video.rgba5551_to_rgba8888_4ch
 local rgba8888_4ch_to_5551 = numo9_video.rgba8888_4ch_to_5551
 local internalFormat5551 = numo9_video.internalFormat5551
-
-local BlobImage = require 'numo9.blob.image'
 
 
 local uint8_t = ffi.typeof'uint8_t'
@@ -38,7 +38,7 @@ BlobPalette.filenameSuffix = '.png'
 
 -- reshape image
 function BlobPalette:saveFile(filepath, blobIndex, blobs)
-	-- palette: 16 x 16 x 24bpp 8bpp r g b
+	-- palette: 16 x 16 x r,g,b x 8bpp
 	local saveImg = Image(16, 16, 4, uint8_t)
 	local savePtr = ffi.cast(uint8_t_p, saveImg.buffer)
 	local blobPtr = ffi.cast(uint16_t_p, self:getPtr())

@@ -41,6 +41,8 @@ local menuFontWidth = numo9_rom.menuFontWidth
 local matType = numo9_rom.matType
 local matArrType = numo9_rom.matArrType
 local Voxel = numo9_rom.Voxel
+local animSheetPtrType = numo9_rom.animSheetPtrType 
+local animSheetSize = numo9_rom.animSheetSize
 
 
 local uint8_t = ffi.typeof'uint8_t'
@@ -381,6 +383,14 @@ local function resetPalette(ptr)
 		}:mapi(argb8888revto5551))
 	) do
 		ptr[0] = c
+		ptr = ptr + 1
+	end
+end
+
+local function resetAnimSheet(ptr)
+	ptr = ffi.cast(animSheetPtrType, ptr)
+	for i=0,animSheetSize-1 do
+		ptr[0] = i
 		ptr = ptr + 1
 	end
 end
@@ -1166,6 +1176,7 @@ layout(location=2) out vec4 fragPos;	// worldCoord.xyz, w=clipCoord.z
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 uniform <?=app.blobs.sheet[1].ramgpu.tex:getGLSLSamplerType()?> sheetTex;
 uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
+uniform <?=app.blobs.animsheet[1].ramgpu.tex:getGLSLSamplerType()?> animSheetTex;
 
 uniform vec4 clipRect;
 uniform bool useHardwareLighting;
@@ -1360,7 +1371,20 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 			to = 'uvec4',
 		}..[[.r);
 
+	// before animation, consider tilemap offset
 	tileIndex += tilemapIndexOffset;
+
+	//now consider anim sheet
+	// animsheet is R16UI
+	// no need to cast, right? this will always be int type, right?
+	ivec2 animSheetTC = ivec2(tileIndex, 0);
+	tileIndex = int(]]..readTex{
+			tex = app.blobs.animsheet[1].ramgpu.tex,
+			texvar = 'animSheetTex',
+			tc = 'animSheetTC',
+			from = 'ivec2',
+			to = 'uvec4',
+		}..[[.r) & 0x3FF;
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileIndexTC = ivec2(
@@ -1579,6 +1603,7 @@ void main() {
 				paletteTex = 0,
 				sheetTex = 1,
 				tilemapTex = 2,
+				animSheetTex = 3,
 			},
 		},
 		geometry = {
@@ -1800,6 +1825,7 @@ function AppVideo:initVideo()
 	tilemap:	BlobTilemap				256x256		2 bytes ... GL_R16UI
 	palette:	BlobPalette				256x1		2 bytes ... GL_R16UI
 	font:		BlobFont				256x8		1 byte  ... GL_R8UI
+	animsheet:	BlobAnimSheet			1024x1		2 bytes ... GL_R16UI
 
 	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
 	... and make each be 256 cols wide ... and as high as there are blobs ...
@@ -1863,6 +1889,8 @@ function AppVideo:initVideo()
 			data = fontData,
 		}:unbind()
 	end
+
+	-- TODO keep an animSheet separate too but bleh for now
 	--]=]
 
 	self.quadGeom = GLGeometry{
@@ -2315,6 +2343,7 @@ function AppVideo:triBuf_flush()
 
 	-- bind textures
 	-- TODO bind here or elsewhere to prevent re-binding of the same texture ...
+	self.lastAnimSheetTex:bind(3)
 	self.lastTilemapTex:bind(2)
 	self.lastSheetTex:bind(1)
 	self.lastPaletteTex:bind(0)
@@ -2389,22 +2418,27 @@ function AppVideo:triBuf_flush()
 -- ??? TODO not this because it's forcing more flushes?
 	self.lastPaletteTex = nil
 	self.lastSheetTex = nil
+	self.lastTilemapTex = nil
+	self.lastAnimSheetTex = nil
 end
 
 -- setup texture state and uniforms
 function AppVideo:triBuf_prepAddTri(
 	paletteTex,
 	sheetTex,
-	tilemapTex
+	tilemapTex,
+	animSheetTex
 )
 	if self.lastPaletteTex ~= paletteTex
 	or self.lastSheetTex ~= sheetTex
 	or self.lastTilemapTex ~= tilemapTex
+	or self.lastAnimSheetTex ~= animSheetTex
 	then
 		self:triBuf_flush()
 		self.lastPaletteTex = paletteTex
 		self.lastSheetTex = sheetTex
 		self.lastTilemapTex = tilemapTex
+		self.lastAnimSheetTex = animSheetTex
 	end
 
 	-- do this either first or last prepAddTri of the frame when useHardwareLighting is set
@@ -2525,6 +2559,7 @@ function AppVideo:triBuf_addTri(
 	paletteTex,
 	sheetTex,
 	tilemapTex,
+	animSheetTex,
 
 	-- per vtx
 	x1, y1, z1, u1, v1,
@@ -2544,7 +2579,7 @@ function AppVideo:triBuf_addTri(
 	local extraAttr = sceneObj.attrs.extraAttr.buffer.vec
 	local boxAttr = sceneObj.attrs.boxAttr.buffer.vec
 
-	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
+	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)
 
 	-- push
 	local v
@@ -2641,6 +2676,9 @@ function AppVideo:resizeRAMGPUs()
 	for _,blob in ipairs(self.blobs.font) do
 		blob:buildRAMGPU(self)
 	end
+	for _,blob in ipairs(self.blobs.animsheet) do
+		blob:buildRAMGPU(self)
+	end
 --DEBUG:print'AppVideo:resizeRAMGPUs done'
 end
 
@@ -2655,6 +2693,9 @@ function AppVideo:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 		blob.ramgpu:checkDirtyGPU()
 	end
 	for _,blob in ipairs(self.blobs.font) do
+		blob.ramgpu:checkDirtyGPU()
+	end
+	for _,blob in ipairs(self.blobs.animsheet) do
 		blob.ramgpu:checkDirtyGPU()
 	end
 end
@@ -2704,6 +2745,7 @@ function AppVideo:resetVideo()
 	local tilemapBlob = self.blobs.tilemap[1]
 	local paletteBlob = self.blobs.palette[1]
 	local fontBlob = self.blobs.font[1]
+	-- TODO relocatable animSheet or nah is this relocatable thing all a dumb idea?
 
 	-- TODO how should tehse work if I'm using flexible # blobs and that means not always enough?
 	local spriteSheetAddr = spriteSheetBlob and spriteSheetBlob.addr or 0
@@ -2775,6 +2817,10 @@ function AppVideo:resetVideo()
 		blob.ramgpu.dirtyCPU = true
 		blob.ramgpu:checkDirtyCPU()
 	end
+	for _,blob in ipairs(self.blobs.animsheet) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
 	--]]
 	--[[ update later ... TODO except framebuffer or nah?
 	self:setDirtyCPU()
@@ -2804,6 +2850,7 @@ function AppVideo:resetVideo()
 
 	self.paletteBlobIndex = 0
 	self.fontBlobIndex = 0
+	self.animSheetBlobIndex = 0
 
 	for i=0,255 do
 		self.ram.fontWidth[i] = 5
@@ -2850,6 +2897,9 @@ function AppVideo:setDirtyCPU()
 		blob.ramgpu.dirtyCPU = true
 	end
 	for _,blob in ipairs(self.blobs.font) do
+		blob.ramgpu.dirtyCPU = true
+	end
+	for _,blob in ipairs(self.blobs.animsheet) do
 		blob.ramgpu.dirtyCPU = true
 	end
 	-- only dirties the current framebuffer (is ok?)
@@ -3013,6 +3063,10 @@ function AppVideo:resetGFX()
 	resetPalette(paletteBlob.ramptr)
 	paletteBlob:copyToROM()
 	paletteBlob.ramgpu.dirtyCPU = true
+
+	local animSheetBlob = self.blobs.animsheet[1]
+	resetAnimSheet(animSheetBlob.ramptr)
+	animSheetBlob.ramgpu.dirtyCPU = true
 end
 
 function AppVideo:resize()
@@ -3068,7 +3122,8 @@ function AppVideo:drawSolidRect(
 	self:triBuf_addTri(
 		paletteTex,
 		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,
+		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 		x,  y,  0, x,  y,
 		xR, y,  0, xR, y,
 		x,  yR, 0, x,  yR,
@@ -3080,7 +3135,8 @@ function AppVideo:drawSolidRect(
 	self:triBuf_addTri(
 		paletteTex,
 		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,
+		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 		x,  yR, 0, x,  yR,
 		xR, y,  0, xR, y,
 		xR, yR, 0, xR, yR,
@@ -3134,7 +3190,8 @@ function AppVideo:drawSolidTri3D(
 	self:triBuf_addTri(
 		paletteTex,
 		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,
+		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 		x1, y1, z1, 0, 0,
 		x2, y2, z2, 1, 0,
 		x3, y3, z3, 0, 1,
@@ -3290,7 +3347,8 @@ function AppVideo:drawSolidLine3D(
 	self:triBuf_addTri(
 		paletteTex,
 		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,
+		self.lastAnimSheet or self.blobs.animsheet[1].ramgpu.tex,
 		xLL, yLL, zLL, 0, 0,
 		xRL, yRL, zRL, 1, 0,
 		xLR, yLR, zLR, 0, 1,
@@ -3302,7 +3360,8 @@ function AppVideo:drawSolidLine3D(
 	self:triBuf_addTri(
 		paletteTex,
 		self.lastSheetTex or self.blobs.sheet[1].ramgpu.tex,	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
-		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,
+		self.lastAnimSheet or self.blobs.animsheet[1].ramgpu.tex,
 		xLR, yLR, zLR, 0, 1,
 		xRL, yRL, zRL, 1, 0,
 		xRR, yRR, zRR, 1, 1,
@@ -3493,7 +3552,7 @@ end
 accepts a texture as arguments, so the UI/Editor can draw with textures outside of the RAM
 doesn't care about tex dirty (cuz its probably a tex outside RAM)
 doesn't care about framebuffer dirty (cuz its probably the editor framebuffer)
-uses pathway 1
+uses pathway 1, i.e. draws sprites
 --]]
 function AppVideo:drawQuadTex(
 	paletteTex,
@@ -3566,6 +3625,7 @@ vR   3-4
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 		x,  y,  0, u1, v1,
 		xR, y,  0, u2, v2,
 		x,  yR, 0, u3, v3,
@@ -3578,6 +3638,7 @@ vR   3-4
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 		x,  yR, 0, u3, v3,
 		xR, y,  0, u2, v2,
 		xR, yR, 0, u4, v4,
@@ -3608,6 +3669,7 @@ function AppVideo:drawQuadTexRGB(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 		x,  y,  0, uL, vL,
 		xR, y,  0, uR, vL,
 		x,  yR, 0, uL, vR,
@@ -3620,6 +3682,7 @@ function AppVideo:drawQuadTexRGB(
 		paletteTex,
 		sheetTex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 		x,  yR, 0, uL, vR,
 		xR, y,  0, uR, vL,
 		xR, yR, 0, uR, vR,
@@ -3762,6 +3825,7 @@ function AppVideo:drawTexTri3D(
 		paletteTex,
 		sheetRAM.tex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 		x1, y1, z1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
@@ -3873,7 +3937,6 @@ function AppVideo:drawTileMap(
 		self:triBuf_flush()
 		paletteRAM:checkDirtyCPU() 	-- before any GPU op that uses palette...
 	end
-	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 
 	tilemapIndex = tilemapIndex or 0
 	local tilemapBlob = self.blobs.tilemap[tilemapIndex+1]
@@ -3883,6 +3946,17 @@ function AppVideo:drawTileMap(
 		self:triBuf_flush()
 		tilemapRAM:checkDirtyCPU()
 	end
+
+	local animSheetBlob = self.blobs.animsheet[1+self.ram.animSheetBlobIndex]
+	if not animSheetBlob then
+		animSheetBlob = assert(self.blobs.animsheet[1], "can't render anything if you have no animsheets (how did you delete the last one?)")
+	end
+	local animSheetRAM = animSheetBlob.ramgpu
+	if animSheetRAM.dirtyCPU then
+		self:triBuf_flush()
+		animSheetRAM:checkDirtyCPU()
+	end
+
 	if self.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
 		self.framebufferRAM:checkDirtyCPU()
@@ -3912,9 +3986,10 @@ function AppVideo:drawTileMap(
 	local extraZ = tilemapIndexOffset
 
 	self:triBuf_addTri(
-		paletteTex,
+		paletteRAM.tex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
+		animSheetRAM.tex,
 		xL, yL, 0, uL, vL,
 		xR, yL, 0, uR, vL,
 		xL, yR, 0, uL, vR,
@@ -3924,9 +3999,10 @@ function AppVideo:drawTileMap(
 	)
 
 	self:triBuf_addTri(
-		paletteTex,
+		paletteRAM.tex,
 		sheetRAM.tex,
 		tilemapRAM.tex,
+		animSheetRAM.tex,
 		xL, yR, 0, uL, vR,
 		xR, yL, 0, uR, vL,
 		xR, yR, 0, uR, vR,
@@ -4018,6 +4094,7 @@ function AppVideo:drawTextCommon(
 			paletteTex,
 			fontTex,
 			self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+			self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 			x,  y,  0, uL, 0,
 			xR, y,  0, uR, 0,
 			x,  yR, 0, uL, th,
@@ -4030,6 +4107,7 @@ function AppVideo:drawTextCommon(
 			paletteTex,
 			fontTex,
 			self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex,		-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
+			self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
 			xR, y,  0, uR, 0,
 			xR, yR, 0, uR, th,
 			x,  yR, 0, uL, th,
@@ -4760,7 +4838,7 @@ function AppVideo:drawVoxelMap(
 	-- [[ draw by copying into buffers in AppVideo here
 	do
 		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
-		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)
+		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)
 
 		--[=[ copy each chunk into the draw buffer
 		for i=0,voxelmap.chunkVolume-1 do
@@ -4961,6 +5039,7 @@ return {
 	resetLogoOnSheet = resetLogoOnSheet,
 	resetFont = resetFont,
 	resetPalette = resetPalette,
+	resetAnimSheet = resetAnimSheet,
 	calcNormalForTri = calcNormalForTri,
 	Numo9Vertex = Numo9Vertex,
 	AppVideo = AppVideo,

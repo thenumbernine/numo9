@@ -92,21 +92,44 @@ RGB332 uses dithering when converting from the 5551 palette entries.  It could s
 
 I've included a free/hidden depth buffer (like TIC-80 does), so you get free z-sorting.  It clears upon `cls()`.
 
+## Blobs
+
+Carts are formed by a collection of binary blobs.
+
+Blobs can be of the types: `sheet, tilemap, palette, font, sfx, music, code, data, persist, brushmap, mesh3d, voxelmap, animsheet`.
+
+When archiving, multiple blobs of any type can be added to the cart via the archiver by adding an index after the filename.  If the first is `sheet.png` then subsequent would be `sheet1.png`, `sheet2.png`, etc.  Indexing must be sequential, the archiver will stop if there is a skip in the numbers.
+
+Archiver filenames per blobs as as follows:
+
+| blob type | filename      | unarchived file format description           |
+|-----------|---------------|----------------------------------------------|
+| sheet     | sheet.png     | 256 x 256 x 8bpp-indexed                     |
+| tilemap   | tilemap.png   | 256 x 256 x rgb 8bpp (only 16bpp used)       |
+| font      | font.png      | 256 x 4 x 1bpp-indexed                       |
+| sfx       | sfx.wav       | 32khz int16 mono                             |
+| music     | music.bin     | 16bpp delta-compresesd custom tracker format |
+| code      | code.lua      | code                                         |
+| data      | data.bin      | binary blob                                  |
+| persist   | persist.bin   | binary blob                                  |
+| brushmap  | brushmap.bin  | custom format                                |
+| mesh3d    | mesh3d.obj    | wavefront .obj                               |
+| voxelmap  | voxelmap.vox  | custom format                                |
+| animsheet | animsheet.png | 1024 x 1 x rgb 8bpp (only 16bpp used)        |
+
 ## Blob Types:
 
-### sprites / tiles
+### sheet
 
+Sheet blobs are used for sprite-sheets and tilemap-sheets.
 Tiles are 8x8 pixels.
-Sprite BPP can be anywhere from 1bpp to 8bpp, colors indexed into a palette.
+Tile BPP can be anywhere from 1bpp to 8bpp, colors indexed into a palette.
 The renderer can draw the sprite bits starting at any bitplane.
 This way you can store (and edit) 8 1-bpp images in the same texture region.
 
-The sprite sheet is 256x256 pixels.  This means 32x32 instances of 8x8 sprites in a sprite sheet.  Sprites are indexed 0 through 1023.
+The sheet is 256x256 pixels.  This means 32x32 instances of 8x8 tiles are in a sheet.  Tiles are indexed 0 through 1023.
 The renderer also accepts an optional color index to consider transparent in addition to the palette alpha flag.
 The renderer also accepts a palette offset used for drawing low-bpp images using various palettes.
-The last 16 palette colors are used by the UI and console.  You can use this, however it will affect the UI.
-
-The tilesheet is equivalent to the sprite sheet in every way except that it is indexed by the tilemap.
 
 ### palette
 
@@ -122,7 +145,7 @@ Each 8x8 tile holds 8 characters in 1bpp, one per bitplane.
 
 The tilemap is 256x256x16bpp.
 Tilemap bits:
-- 10: lookup into the tilesheet texture
+- 10: lookup of the tile index in the sheet.
 - 3: palette offset high 3 bits
 - 3: 2D orientation
 
@@ -133,7 +156,19 @@ Tilemap bits:
 If you want to h-flip, use 0b001.
 If you want to v-flip, h-flip and rotate twice, so use 0b101.
 
-Tilemaps can render 8x8 or 16x16 sprites.
+Tilemaps can render 8x8 or 16x16 sprites.  This can be specified in the `tilemap()` or `drawbrush()` functions.
+
+### code
+
+This holds a copy of the code in RAM.  Idk why.  if you poke it, nothing happens. Maybe I'll change that in the future but idk why I would, other than "for lulz".
+
+### data
+
+Any binary blob
+
+### persist
+
+Any binary blob that will be saved in the save config folder under the cart's metainfo `saveid`, or MD5 if none is provided.
 
 ### brushmap
 
@@ -229,7 +264,8 @@ The editor voxelmap controls:
 
 Voxelmap mesh generation is currently stored in chunks, however the voxel data itself is still in one giant `[z][y][x]` blob in RAM.
 
-### Audio
+### sfx and music
+
 (note to self, split this between sfx & music blob format and the APU specs)
 
 I might undercut SNES quality when it comes to audio.
@@ -267,13 +303,27 @@ There are 8 mixing channels.
 
 In this sense, if you are used to other fantasy consoles, their waveforms becomes my samples and their sfx and music (tracker format audio) become my music.
 
-### Mode7
+### animsheet
+
+This is a 1024 x 16bpp mapping used for animation.
+It is initialized to identity, i.e. `animsheet[i] = i`.
+When rendering `tilemap()`, the tile index is looked up in this table.
+You can use this table for performing animations like so:
+
+```
+local animSheetAddr = ramaddr'animsheet'
+pokew(animSheetAddr + (oldTileIndex << 1), newTileIndex)
+```
+
+When rendering `tilemap()` with `tilemapIndexOffset`, the offset is applied before the animsheet table is used.
+
+## Mode7
 
 What's a SNES-era fantasy-console without mode7?
 There are a few matrix functions that you can use to manipulate the render state:
 `matident`, `mattrans`, `matrot`, `matscale`, `matlookat`, `matortho`, `matfrustum`.
 
-### HD2D
+## HD2D
 
 Right now it has SSAO.
 
@@ -289,7 +339,7 @@ With that said, now to use lighting you must:
 - 2) *do not change your view matrix during this time*.  Lighting is postprocessed and added into the color buffer, and it needs a fixed view transform to do the lighting calcs.  So the first view matrix you are using during your frame update is the only one you get.
 	Maybe later I'll split it up into flushing lighting calcs so as soon as you change your view or change the `useHardwareLighting` flag it'll calc and flush to the dest buffer, so that you can do multiple lighting scenes and views per frame, but meh for now.
 
-### Memory Layout
+## Memory Layout
 
 ```
 memory layout:
@@ -401,7 +451,7 @@ If the following functions are defined then they will be called from the virtual
 - `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
 - `ramsize(name)` = returns the size the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.sizeof('RAM', field)`.  See the RAM structure for individual field names.
 - `numblobs(name)` = returns the count of blobs of type `name`. Index is 0-based.
-- `blobaddr(name, index)` = returns the address of the `index`'th blob of type `name`. Index is 0-based. Blob types can be: `sheet, tilemap, palette, font, sfx, music, code, data, persist, ~~brush~~, brushmap, mesh3d`.
+- `blobaddr(name, index)` = returns the address of the `index`'th blob of type `name`. Index is 0-based.  Blob type names can be found in the #Blobs section
 - `blobsize(name, index)` = returns the size of the `index`'th blob of type `name`. Index is 0-based.
 - `int8_t, uint8_t, int8_t, int16_t, uint16_t, int16_t, int32_t, uint32_t, int32_t` = If you want to cast stuff, use these `ffi.typeof`'s.  Notice, these currently return `cdata` so in some cases you must still `tonumber()` them.
 
@@ -938,7 +988,6 @@ voxelmap editor fixes:
 
 - TODO list:
 	- add "scene" blob and editor for placing objects with denoation for sprites / tilemaps / brushes / brushmaps / mesh3ds / voxels / voxelmaps - all with pos, size, scale, rotate, orientation vars
-	- add "animsheet" 1024-to-1024 map blob
 	- chop up lightmap.
 		- multiple lights in RAM, each with lightmap subtex region
 		- add a # lights RAM var
@@ -955,4 +1004,12 @@ voxelmap editor fixes:
 	- gen normalmaps upon sheet flush.
 		- allow player to choose normalmaps? nahh eventually, not just yet.
 	- later ... maybe remove all blob indexes from all api calls? or nah -- or instead, maybe add palette blob to all api calls or nah?
-	- change upper bits of tilemap from sheet-selection to sheet-offset of ram.sheetBlobIndex
+	- change upper bits of tilemap from sheet-selection to sheet-offset of ram.sheetBlobIndex (put it next to paletteBlobIndex)
+
+- animsheet
+	- tribuf_prepAddTri needs animSheetTex -- FIXED
+	- anywhere triBuf_addTri is called -- FIXED
+	- anywhere ram.paletteBlobIndex <-> animSheetBlobIndex is used -- FIXED
+	- anywhere lastTilemapTex etc are used -- FIXED
+	- anywhere blobs.palette/font/tilemap/sheet are checked -- FIXED
+	- last, make sure RAM is aligned

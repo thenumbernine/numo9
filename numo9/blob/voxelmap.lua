@@ -758,11 +758,16 @@ function BlobVoxelMap:drawMesh(app)
 	if #self.vertexBufCPU == 0 then return end
 
 --[[ hmm why aren't things working ....
+	app.lastAnimSheetTex:bind(3)
 	app.lastTilemapTex:bind(2)
 	app.lastSheetTex:bind(1)
 	app.lastPaletteTex:bind(0)
 
-	app:triBuf_prepAddTri(app.lastPaletteTex, app.lastSheetTex, app.lastTilemapTex)
+	app:triBuf_prepAddTri(
+		app.lastPaletteTex,
+		app.lastSheetTex,
+		app.lastTilemapTex,
+		app.lastAnimSheetTex)
 --]]
 	local sceneObj = app.triBuf_sceneObj
 	local program = sceneObj.program

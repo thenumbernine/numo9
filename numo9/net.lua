@@ -1488,6 +1488,11 @@ assert.len(deltaStr, deltaBufLen)
 							blob.ramgpu:checkDirtyCPU()
 						end
 						app.blobs.font[1].ramgpu:updateAddr(app.ram.fontAddr)
+						for _,blob in ipairs(app.blobs.animsheet) do
+							blob.ramgpu.dirtyCPU = true
+							blob.ramgpu:checkDirtyCPU()
+						end
+						-- no animSheet relocatable addr at the moment...
 						--app:resetVideo()
 						app.framebufferRAM.changedSinceDraw = true
 

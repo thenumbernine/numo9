@@ -11,6 +11,7 @@ local matType = numo9_rom.matType
 local numo9_video = require 'numo9.video'
 local resetFont = numo9_video.resetFont
 local resetPalette = numo9_video.resetPalette
+local resetAnimSheet = numo9_video.resetAnimSheet
 
 
 local uint8_t_p = ffi.typeof'uint8_t*'
@@ -38,6 +39,7 @@ local blobClassNameForType = table{
 
 	'mesh3d', 	-- ... but what format?  xyzuv triangles ... and indexes or nah, since the video API doesn't care anyways?  or at least for compression's sake?
 	'voxelmap', -- = voxel-map of models from some lookup table
+	'animsheet',	-- 1024-count uint16_t array that maps sheet indexes to sheet indexes, used for animating textures
 }
 
 -- maps from name to class
@@ -55,6 +57,7 @@ local blobClassForName = {
 	brushmap = require 'numo9.blob.brushmap',
 	mesh3d = require 'numo9.blob.mesh3d',
 	voxelmap = require 'numo9.blob.voxelmap',
+	animsheet = require 'numo9.blob.animsheet'
 }
 
 
@@ -239,6 +242,7 @@ local minBlobPerType = {
 	tilemap = 1,
 	palette = 1,	-- we need 1 of this
 	font = 1,		-- debatable we need 1 of this
+	animsheet = 1,	-- I was thinking of having a builtin default if none is present, but meh lets just force one to be allocated
 }
 
 --[[
@@ -257,6 +261,9 @@ function AppBlobs:buildRAMFromBlobs()
 			elseif name == 'palette' then
 				local paletteBlob = self.blobs.palette:last()
 				resetPalette(paletteBlob:getPtr())
+			elseif name == 'animsheet' then
+				local animSheetBlob = self.blobs.animsheet:last()
+				resetAnimSheet(animSheetBlob:getPtr())
 			end
 		end
 	end

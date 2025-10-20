@@ -54,11 +54,14 @@ local updateIntervalInSeconds = 1 / updateHz
 
 local keyCodeNames = require 'numo9.keys'.keyCodeNames
 
+-- this is only here because both numo9/video and numo9/blob/palette uses it, as to not create circular dependencies
 local paletteSize = 256
 local paletteType = uint16_t	-- really rgba 5551 ...
 local palettePtrType = ffi.typeof('$*', paletteType)
+local paletteInBytes = paletteSize * ffi.sizeof(paletteType)
+
 local tileSizeInBits = 3						-- TODO names or purpose?  no more 'tiles vs sprites'.  this is 1D vs sprites vars are 2D ... ???
-local tileSize = bit.lshift(1, tileSizeInBits)
+local tileSize = bit.lshift(1, tileSizeInBits)	-- TODO pick a name, 'tileSize' or 'spriteSize'
 local spriteSize = vec2i(tileSize, tileSize)		-- TODO use tileSize
 
 -- [[ TODO framebuffer has since become more flexible, more video modes, etc.
@@ -81,6 +84,14 @@ local tilemapSizeInBits = vec2i(8, 8)
 local tilemapSize = vec2i(
 	bit.lshift(1, tilemapSizeInBits.x),
 	bit.lshift(1, tilemapSizeInBits.y))
+
+-- only here so numo9/video and numo9/blob/animsheet use it
+local animSheetType = uint16_t
+local animSheetPtrType = ffi.typeof('$*', animSheetType)
+local animSheetSizeInBits = spriteSheetSizeInTilesInBits.x + spriteSheetSizeInTilesInBits.y
+local animSheetSize = bit.lshift(1, animSheetSizeInBits)
+assert.eq(animSheetSize, 1024)
+assert.le(animSheetSize, bit.lshift(1, bit.lshift(ffi.sizeof(animSheetType), 3)))
 
 local clipType = int16_t
 local clipMax = 0x7fff		-- idk why i'm allowing negative values
@@ -325,6 +336,7 @@ local RAM = struct{
 
 				{name='paletteBlobIndex', type=uint8_t},	-- which palette to use for drawing commands
 				{name='fontBlobIndex', type=uint8_t},		-- which font blob to use for text()
+				{name='animSheetBlobIndex', type=uint8_t},	-- which anim sheet to use for tilemap()
 
 				-- used by text() and by the console
 				-- TODO move to ROM?
@@ -397,7 +409,6 @@ local RAM = struct{
 
 local spriteSheetInBytes = spriteSheetSize:volume()
 local tilemapInBytes = tilemapSize:volume() * ffi.sizeof(uint16_t)
-local paletteInBytes = paletteSize * ffi.sizeof(paletteType)
 local fontInBytes = fontSizeInBytes
 local framebufferAddr = ffi.offsetof(RAM, 'framebuffer')
 local framebufferInBytes = frameBufferSize:volume() * ffi.sizeof(frameBufferType)
@@ -503,6 +514,8 @@ return {
 	paletteSize = paletteSize,
 	paletteType = paletteType,
 	palettePtrType = palettePtrType,	-- TODO dont need to save this
+	paletteInBytes = paletteInBytes,
+	
 	tileSizeInBits = tileSizeInBits,
 	spriteSize = spriteSize,
 	frameBufferType = frameBufferType,
@@ -540,7 +553,6 @@ return {
 	framebufferAddrEnd = framebufferAddrEnd,
 	spriteSheetInBytes = spriteSheetInBytes,
 	tilemapInBytes = tilemapInBytes,
-	paletteInBytes = paletteInBytes,
 	fontInBytes = fontInBytes,
 
 	blobCountType = blobCountType,
@@ -562,4 +574,8 @@ return {
 	voxelmapSizeType = voxelmapSizeType,
 	voxelMapEmptyValue = voxelMapEmptyValue,
 	Voxel = Voxel,
+
+	animSheetType = animSheetType,
+	animSheetPtrType = animSheetPtrType,
+	animSheetSize = animSheetSize,
 }

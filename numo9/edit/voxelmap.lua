@@ -495,7 +495,11 @@ function EditVoxelMap:update()
 
 		-- force capture draw view and proj for lighting
 		-- (same as just ffi.copy?)
-		app:triBuf_prepAddTri(app.lastPaletteTex, app.lastSheetTex, app.lastTilemapTex)
+		app:triBuf_prepAddTri(
+			app.lastPaletteTex,
+			app.lastSheetTex,
+			app.lastTilemapTex,
+			app.lastAnimSheetTex)
 
 
 		self:drawBox(mapbox, 0x31)
