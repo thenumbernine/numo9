@@ -15,6 +15,7 @@ local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_4 = ffi.typeof'uint8_t[4]'
 local int16_t = ffi.typeof'int16_t'
 local uint16_t = ffi.typeof'uint16_t'
+local uint16_t_4 = ffi.typeof'uint16_t[4]'
 local uint32_t = ffi.typeof'uint32_t'
 local float = ffi.typeof'float'
 local float_3 = ffi.typeof'float[3]'
@@ -388,13 +389,19 @@ local RAM = struct{
 
 
 				-- lighting block ...
-				{name='useHardwareLighting', type=uint8_t},	-- 1 bit so far
+				{name='useHardwareLighting', type=uint8_t},	-- 1 bit so far.  master switch for all lighting.
 				{name='useDepthOfField', type=uint8_t},		-- 1 bit so far
 				{name='depthOfFieldPos', type=float_3},
 				{name='depthOfFieldAtten', type=float_3},
+				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
+				{name='lightmapHeight', type=uint16_t},
+
+				{name='lightEnabled', type=uint8_t},
+				{name='lightmapRegion', type=uint16_t_4},
 				{name='lightAmbientColor', type=uint8_t_4},	-- just rgb is used, but there's 4 for alignment
 				{name='lightDiffuseColor', type=uint8_t_4},	-- or "albedo" or whatever.  alpha is ignored.
 				{name='lightSpecularColor', type=uint8_t_4},	-- alpha holds shininess, un-normalized.
+				{name='lightDistAtten', type=float_3},			-- distance attenuation
 				{name='ssaoSampleRadius', type=float},
 				{name='ssaoInfluence', type=float},
 				{name='spriteNormalExhaggeration', type=float},	-- float or byte or who cares?
@@ -519,7 +526,7 @@ return {
 	paletteType = paletteType,
 	palettePtrType = palettePtrType,	-- TODO dont need to save this
 	paletteInBytes = paletteInBytes,
-	
+
 	tileSizeInBits = tileSizeInBits,
 	spriteSize = spriteSize,
 	frameBufferType = frameBufferType,

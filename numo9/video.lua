@@ -2138,9 +2138,12 @@ uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 
 // lighting variables in RAM:
+uniform bool lightEnabled;
+uniform vec4 lightmapRegion;	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
 uniform vec3 lightAmbientColor;// = vec3(.4, .3, .2);
 uniform vec3 lightDiffuseColor;// = vec3(1., 1., 1.);
 uniform vec4 lightSpecularColor;// = vec3(.6, .5, .4, 30.);	// w = shininess
+uniform vec3 lightDistAtten;	// vec3(const, linear, quadratic) attenuation
 uniform float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
 uniform float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 
@@ -2207,24 +2210,27 @@ return;
 
 #if 1	// enable shadow map
 	bool inLight = false;
-	vec4 lightClipCoord = lightViewProjMat * worldCoord;
-	// frustum test before homogeneous transform
-	if (lightClipCoord.w > 0.
-		&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
-		&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
-	) {
-		vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
-		vec3 lightND01Coord = lightNDCoord * .5 + .5;
+	if (lightEnabled) {
+		vec4 lightClipCoord = lightViewProjMat * worldCoord;
+		// frustum test before homogeneous transform
+		if (lightClipCoord.w > 0.
+			&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
+			&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
+		) {
+			vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
+			vec3 lightND01Coord = lightNDCoord * .5 + .5;
 
-		// in bounds
-		float lightBufferDepth = texture(lightDepthTex, lightND01Coord.xy).x;
+			vec2 lightTC = lightND01Coord.xy * lightmapRegion.zw + lightmapRegion.xy;
 
-		// zero gets depth alias stripes
-		// nonzero is dependent on the scene
-		// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
-		//const float lightDepthTestEpsilon = 0.;		// not enough
-		//const float lightDepthTestEpsilon = 0.0001;	// not enough
-		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+			// in bounds
+			float lightBufferDepth = texture(lightDepthTex, lightTC).x;
+
+			// zero gets depth alias stripes
+			// nonzero is dependent on the scene
+			// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
+			//const float lightDepthTestEpsilon = 0.;		// not enough
+			//const float lightDepthTestEpsilon = 0.0001;	// not enough
+			const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 
 #if 0	// debug show the light buffer
 fragColor = vec4(lightBufferDepth, .5, 1. - lightBufferDepth, 0.);	// tell debug compositer to use this color here.
@@ -2240,9 +2246,10 @@ fragColor = vec4(.5 + delta, .5, .5 - delta, 0.);	// tell debug compositer to us
 return;
 #endif
 
-		// TODO normal test here as well?
-		if (lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon)) {
-			inLight = true;
+			// TODO normal test here as well?
+			if (lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon)) {
+				inLight = true;
+			}
 		}
 	}
 #else
@@ -2252,12 +2259,12 @@ return;
 
 	if (inLight) {
 #if 1 // diffuse & specular with the world space surface normal
-		vec3 lightDir = normalize(lightViewPos - worldCoord.xyz);
+		vec3 lightDelta = lightViewPos - worldCoord.xyz;
+		float lightDist = length(lightDelta);
+		vec3 lightDir = lightDelta / lightDist;
 		vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
 
-		// apply bumpmap lighting
-		fragColor.xyz +=
-			lightDiffuseColor * abs(dot(lightDir, normalizedWorldNormal))
+		vec3 lightColor = lightDiffuseColor * abs(dot(lightDir, normalizedWorldNormal))
 			// maybe you just can't do specular lighting in [0,1]^3 space ...
 			// maybe I should be doing inverse-frustum-projection stuff here
 			// hmmmmmmmmmm
@@ -2266,6 +2273,10 @@ return;
 				abs(dot(viewDir, reflect(-lightDir, normalizedWorldNormal))),
 				lightSpecularColor.w
 			);
+		float atten = lightDistAtten.x + lightDist * (lightDistAtten.y + lightDist * lightDistAtten.z);
+
+		// apply bumpmap lighting
+		fragColor.xyz += lightColor / max(atten, 1e-7);
 #else	// plain
 		fragColor.xyz += vec3(.9, .9, .9);
 #endif
@@ -2347,6 +2358,7 @@ return;
 		-- but I"m using these because I'm lazy
 		-- instead just call glUniform yourself.
 		uniforms = {
+			lightmapRegion = {0,0,1,1},
 			lightAmbientColor = {.4, .3, .2},
 			lightDiffuseColor = {1, 1, 1},
 			lightSpecularColor = {.6, .5, .4, 30},
@@ -2421,14 +2433,20 @@ function AppVideo:triBuf_flush()
 		end
 		self.lightmapFB:bind()
 
-		gl.glViewport(0, 0, self.lightmapFB.width, self.lightmapFB.height)
+		if self.ram.lightEnabled ~= 0 then
+			gl.glViewport(
+				self.ram.lightmapRegion[0],
+				self.ram.lightmapRegion[1],
+				self.ram.lightmapRegion[2],
+				self.ram.lightmapRegion[3])
 
-		-- don't change the model matrix, that way models are transformed to world properly
-		program:setUniform('viewMat', self.ram.lightViewMat)
-		program:setUniform('projMat', self.ram.lightProjMat)
-		gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
+			-- don't change the model matrix, that way models are transformed to world properly
+			program:setUniform('viewMat', self.ram.lightViewMat)
+			program:setUniform('projMat', self.ram.lightProjMat)
+			gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
 
-		sceneObj.geometry:draw()
+			sceneObj.geometry:draw()
+		end
 
 		-- restore
 		program:setUniform('viewMat', self.ram.viewMat)
@@ -2897,6 +2915,16 @@ function AppVideo:resetVideo()
 
 
 	-- init light vars
+	self.ram.lightmapWidth = dirLightMapSize.x
+	self.ram.lightmapHeight = dirLightMapSize.y
+
+	self.ram.lightEnabled = 1	-- enable light #1 by default (just like GL1.0 days...)
+
+	self.ram.lightmapRegion[0] = 0
+	self.ram.lightmapRegion[1] = 0
+	self.ram.lightmapRegion[2] = self.ram.lightmapWidth
+	self.ram.lightmapRegion[3] = self.ram.lightmapHeight
+
 	self.ram.lightAmbientColor[0] = .4 * 255
 	self.ram.lightAmbientColor[1] = .3 * 255
 	self.ram.lightAmbientColor[2] = .2 * 255
@@ -2909,6 +2937,10 @@ function AppVideo:resetVideo()
 	self.ram.lightSpecularColor[1] = .5 * 255
 	self.ram.lightSpecularColor[2] = .4 * 255
 	self.ram.lightSpecularColor[3] = 30
+
+	self.ram.lightDistAtten[0] = 1
+	self.ram.lightDistAtten[1] = 0
+	self.ram.lightDistAtten[2] = 0
 
 	self.ram.ssaoSampleRadius = 1
 	self.ram.ssaoInfluence = 1
@@ -5028,6 +5060,13 @@ print()
 
 	-- TODO just set the uniform, don't store it, but i'm lazy
 
+	sceneObj.uniforms.lightEnabled = self.ram.lightEnabled
+
+	sceneObj.uniforms.lightmapRegion[1] = tonumber(self.ram.lightmapRegion[0]) / tonumber(self.ram.lightmapWidth)
+	sceneObj.uniforms.lightmapRegion[2] = tonumber(self.ram.lightmapRegion[1]) / tonumber(self.ram.lightmapHeight)
+	sceneObj.uniforms.lightmapRegion[3] = tonumber(self.ram.lightmapRegion[2]) / tonumber(self.ram.lightmapWidth)
+	sceneObj.uniforms.lightmapRegion[4] = tonumber(self.ram.lightmapRegion[3]) / tonumber(self.ram.lightmapHeight)
+
 	sceneObj.uniforms.lightAmbientColor[1] = tonumber(self.ram.lightAmbientColor[0]) / 255
 	sceneObj.uniforms.lightAmbientColor[2] = tonumber(self.ram.lightAmbientColor[1]) / 255
 	sceneObj.uniforms.lightAmbientColor[3] = tonumber(self.ram.lightAmbientColor[2]) / 255
@@ -5040,6 +5079,8 @@ print()
 	sceneObj.uniforms.lightSpecularColor[2] = tonumber(self.ram.lightSpecularColor[1]) / 255
 	sceneObj.uniforms.lightSpecularColor[3] = tonumber(self.ram.lightSpecularColor[2]) / 255
 	sceneObj.uniforms.lightSpecularColor[4] = tonumber(self.ram.lightSpecularColor[3])	-- use as is, don't divide
+
+	sceneObj.uniforms.lightDistAtten = self.ram.lightDistAtten + 0
 
 	sceneObj.uniforms.ssaoSampleRadius = self.ram.ssaoSampleRadius
 	sceneObj.uniforms.ssaoInfluence = self.ram.ssaoInfluence
