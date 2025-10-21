@@ -321,7 +321,7 @@ local Light = struct{
 }
 -- TODO somehow provide this to ramaddr, or in docs somewhere ...
 --[[
-print('local lightMemSize = '..('0x%02x'):format(ffi.sizeof'Light'))
+print('local lightStructSize = '..('0x%02x'):format(ffi.sizeof'Light'))
 for name,ctype in Light:fielditer() do	-- TODO struct iterable fields ...
 	local offset = ffi.offsetof(Light, name)
 	local size = ffi.sizeof(ctype)
@@ -335,7 +335,7 @@ end
 os.exit()
 --]]
 --[[
-local lightMemSize = 0xc8
+local lightStructSize = 0xc8
 local lightEnabledOffset = 0x00 -- size=0x01 type=unsigned char
 local lightRegionOffset = 0x02 -- size=0x08 type=unsigned short [4]
 local lightAmbientColorOffset = 0x0c -- size=0x0c type=float [3]
