@@ -342,15 +342,20 @@ Illuminated polys are flagged in the fragment color buffer, so any tris drawn wi
 Here is the current light struct in the RAM `lights` table:
 ```
 Light:
-0x00 - 0x01 = enabled
-0x02 - 0x0a = region
-0x0a - 0x0e = ambientColor
-0x0e - 0x12 = diffuseColor
-0x12 - 0x16 = specularColor
-0x18 - 0x24 = distAtten
-0x24 - 0x64 = viewMat
-0x64 - 0xa4 = projMat
+0x00 - 0x01 = uint8_t enabled
+0x02 - 0x0a = uint16_t[4] region in the lightmap
+0x0a - 0x0e = uint8_t[4] ambientColor.  only RGB used.
+0x0e - 0x12 = uint8_t[4] diffuseColor.  only RGB used.
+0x12 - 0x16 = uint8_t[4] specularColor.  RGB is the color, 4th component is the specular intensity (unnormalized)
+0x18 - 0x24 = float[3] distAtten.  [0] = constant, [1] = linear, [2] = quadratic, calculated in world space coordinates.
+0x24 - 0x64 = float[16] viewMat
+0x64 - 0xa4 = float[16] projMat
 ```
+
+You must set the RAM variable `numLights` to the number of lights you want the fantasy console to consider.
+Then, among those in the `lights`, array you must set each light's `enabled` to 1.
+This way the fantasy console "lighting hardware" only needs to iterate over a minimum necessary number of lights,
+while still allowing you to turn lights on or off by toggling their `enabled` field without repositioning them in the array every time they are used.
 
 It will change soon I'm sure.  Angle attenutation TODO.  I'll probably get rid of ambient. I'll convert everything to floats for shader-struct support.
 
