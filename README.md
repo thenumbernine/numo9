@@ -1026,7 +1026,7 @@ voxelmap editor fixes:
 
 - add depth-of-field to the final pass shader
 	- generating mipmaps builtin has this catch:
-		- `GL_RGB565` is texture-filerable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
+		- `GL_RGB565` is texture-filterable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
 		- also I'll have to either
 			- 1) first combine lights + framebuffer, then generate-mipmap, then use the result with linear filter
 			- 2) -OR- set the light calc tex *and* framebuffer tex min and mag filter to LINEAR before doing depth-of-field
@@ -1039,3 +1039,5 @@ voxelmap editor fixes:
 - switch light uniforms to UBOs
 
 - when the RAM structure changes, the config file / keys reset themselves ... why?
+
+- lights should have sprites, or a sheet index for all lights and sheet subregion for each light and flag for if its being used...

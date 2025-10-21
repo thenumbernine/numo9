@@ -428,17 +428,21 @@ local RAM = struct{
 				{name='lastMousePressPos', type=vec2s},	-- " " at last mouse press.  Same question...
 
 
-				-- lighting block ...
+				-- lighting ...
 				{name='useHardwareLighting', type=uint8_t},	-- 1 bit so far.  master switch for all lighting.
 				{name='useDepthOfField', type=uint8_t},		-- 1 bit so far
-				{name='depthOfFieldPos', type=float_3},
-				{name='depthOfFieldAtten', type=float_3},
+
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
 				{name='lightmapHeight', type=uint16_t},
-
+				{name='lightAmbientColor', type=uint8_t_4},	-- only 3 used
 				{name='numLights', type=int16_t},
 				{name='lights', type='Light['..maxLights..']'},
 
+				-- depth-of-field ...
+				{name='depthOfFieldPos', type=float_3},
+				{name='depthOfFieldAtten', type=float_3},
+
+				-- SSAO ...
 				{name='ssaoSampleRadius', type=float},
 				{name='ssaoInfluence', type=float},
 				{name='spriteNormalExhaggeration', type=float},	-- float or byte or who cares?

@@ -2140,10 +2140,11 @@ uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 // lighting variables in RAM:
 uniform int numLights;
+uniform vec3 lightAmbientColor;	// overall ambient level
 // lights[] array TODO use UBO:
 uniform bool lights_enabled[maxLights];
 uniform vec4 lights_region[maxLights];	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
-uniform vec3 lights_ambientColor[maxLights];// = vec3(.4, .3, .2);
+uniform vec3 lights_ambientColor[maxLights];// per light ambient (is attenuated, so its diffuse without dot product dependency).
 uniform vec3 lights_diffuseColor[maxLights];// = vec3(1., 1., 1.);
 uniform vec4 lights_specularColor[maxLights];// = vec3(.6, .5, .4, 30.);	// w = shininess
 uniform vec3 lights_distAtten[maxLights];	// vec3(const, linear, quadratic) attenuation
@@ -2208,8 +2209,8 @@ fragColor.xyz = normalizedWorldNormal * .5 + .5;
 return;
 #endif
 
-	// TODO need a scene ambient level now.
-	fragColor = vec4(0., 0., 0., 1.);
+	// start off with scene ambient
+	fragColor = vec4(lightAmbientColor.xyz, 1.);
 
 	for (int lightIndex = 0; lightIndex < numLights; ++lightIndex) {
 		if (!lights_enabled[lightIndex]) continue;
@@ -2925,6 +2926,10 @@ function AppVideo:resetVideo()
 	-- init light vars
 	self.ram.lightmapWidth = dirLightMapSize.x
 	self.ram.lightmapHeight = dirLightMapSize.y
+
+	self.ram.lightAmbientColor[0] = .4 / 255
+	self.ram.lightAmbientColor[1] = .3 / 255
+	self.ram.lightAmbientColor[2] = .2 / 255
 
 	self.ram.numLights = 1
 	for i=0,maxLights-1 do
@@ -5132,6 +5137,18 @@ print()
 		gl.glUniform1i(
 			program.uniforms.numLights.loc,
 			self.ram.numLights)
+	end
+
+	if program.uniforms.lightAmbientColor then
+		gl.glUniform3f(
+			gl.glGetUniformLocation(
+				program.id,
+				'lightAmbientColor'
+			),
+			tonumber(self.ram.lightAmbientColor[0]) / 255,
+			tonumber(self.ram.lightAmbientColor[1]) / 255,
+			tonumber(self.ram.lightAmbientColor[2]) / 255
+		)
 	end
 
 	for i=0,math.min(maxLights, self.ram.numLights)-1 do
