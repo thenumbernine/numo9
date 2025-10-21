@@ -2947,9 +2947,9 @@ function AppVideo:resetVideo()
 	self.ram.lightmapWidth = dirLightMapSize.x
 	self.ram.lightmapHeight = dirLightMapSize.y
 
-	self.ram.lightAmbientColor[0] = .4 / 255
-	self.ram.lightAmbientColor[1] = .3 / 255
-	self.ram.lightAmbientColor[2] = .2 / 255
+	self.ram.lightAmbientColor[0] = .4
+	self.ram.lightAmbientColor[1] = .3
+	self.ram.lightAmbientColor[2] = .2
 
 	self.ram.numLights = 1
 	for i=0,maxLights-1 do
@@ -2960,17 +2960,17 @@ function AppVideo:resetVideo()
 		self.ram.lights[0].region[2] = self.ram.lightmapWidth
 		self.ram.lights[0].region[3] = self.ram.lightmapHeight
 
-		self.ram.lights[0].ambientColor[0] = .4 * 255
-		self.ram.lights[0].ambientColor[1] = .3 * 255
-		self.ram.lights[0].ambientColor[2] = .2 * 255
+		self.ram.lights[0].ambientColor[0] = .4
+		self.ram.lights[0].ambientColor[1] = .3
+		self.ram.lights[0].ambientColor[2] = .2
 
-		self.ram.lights[0].diffuseColor[0] = 255
-		self.ram.lights[0].diffuseColor[1] = 255
-		self.ram.lights[0].diffuseColor[2] = 255
+		self.ram.lights[0].diffuseColor[0] = 1
+		self.ram.lights[0].diffuseColor[1] = 1
+		self.ram.lights[0].diffuseColor[2] = 1
 
-		self.ram.lights[0].specularColor[0] = .6 * 255
-		self.ram.lights[0].specularColor[1] = .5 * 255
-		self.ram.lights[0].specularColor[2] = .4 * 255
+		self.ram.lights[0].specularColor[0] = .6
+		self.ram.lights[0].specularColor[1] = .5
+		self.ram.lights[0].specularColor[2] = .4
 		self.ram.lights[0].specularColor[3] = 30
 
 		self.ram.lights[0].distAtten[0] = 1
@@ -5164,14 +5164,13 @@ print()
 	end
 
 	if program.uniforms.lightAmbientColor then
-		gl.glUniform3f(
+		gl.glUniform3fv(
 			gl.glGetUniformLocation(
 				program.id,
 				'lightAmbientColor'
 			),
-			tonumber(self.ram.lightAmbientColor[0]) / 255,
-			tonumber(self.ram.lightAmbientColor[1]) / 255,
-			tonumber(self.ram.lightAmbientColor[2]) / 255
+			1,	-- count
+			self.ram.lightAmbientColor
 		)
 	end
 
@@ -5196,35 +5195,31 @@ print()
 			tonumber(light.region[3]) / tonumber(self.ram.lightmapHeight)
 		)
 
-		gl.glUniform3f(
+		gl.glUniform3fv(
 			gl.glGetUniformLocation(
 				program.id,
 				'lights_ambientColor['..i..']'
 			),
-			tonumber(light.ambientColor[0]) / 255,
-			tonumber(light.ambientColor[1]) / 255,
-			tonumber(light.ambientColor[2]) / 255
+			1,	-- count
+			light.ambientColor
 		)
 
-		gl.glUniform3f(
+		gl.glUniform3fv(
 			gl.glGetUniformLocation(
 				program.id,
 				'lights_diffuseColor['..i..']'
 			),
-			tonumber(light.diffuseColor[0]) / 255,
-			tonumber(light.diffuseColor[1]) / 255,
-			tonumber(light.diffuseColor[2]) / 255
+			1,	-- count
+			light.diffuseColor
 		)
 
-		gl.glUniform4f(
+		gl.glUniform4fv(
 			gl.glGetUniformLocation(
 				program.id,
 				'lights_specularColor['..i..']'
 			),
-			tonumber(light.specularColor[0]) / 255,
-			tonumber(light.specularColor[1]) / 255,
-			tonumber(light.specularColor[2]) / 255,
-			tonumber(light.specularColor[3])	-- use as is, don't divide
+			1,	-- count
+			light.specularColor
 		)
 
 		gl.glUniform3fv(

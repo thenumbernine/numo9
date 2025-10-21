@@ -20,6 +20,7 @@ local uint32_t = ffi.typeof'uint32_t'
 local float = ffi.typeof'float'
 local float_2 = ffi.typeof'float[2]'
 local float_3 = ffi.typeof'float[3]'
+local float_4 = ffi.typeof'float[4]'
 
 
 local version = table{1,2,0}
@@ -309,9 +310,9 @@ local Light = struct{
 	fields = {
 		{name='enabled', type=uint8_t},
 		{name='region', type=uint16_t_4},	-- region in the lightmap texture
-		{name='ambientColor', type=uint8_t_4},	-- just rgb is used, but there's 4 for alignment
-		{name='diffuseColor', type=uint8_t_4},	-- or "albedo" or whatever.  alpha is ignored.
-		{name='specularColor', type=uint8_t_4},	-- alpha holds shininess, un-normalized.
+		{name='ambientColor', type=float_3},	-- rgb
+		{name='diffuseColor', type=float_3},	-- or "albedo" or whatever.  rgb.
+		{name='specularColor', type=float_4},	-- 012 is rgb, 3 = shininess
 		{name='distAtten', type=float_3},			-- distance attenuation
 		{name='cosAngleRange', type=float_2},			-- cosAngleRange[0] = cosine of outer angle at influence=0, cosAngleRange[1] = cosine of inner angle at influence=100%
 		{name='viewMat', type=matArrType},	-- lighting view+proj combined into one
@@ -320,28 +321,30 @@ local Light = struct{
 }
 -- TODO somehow provide this to ramaddr, or in docs somewhere ...
 --[[
-print('Light = '..('0x%02x'):format(ffi.sizeof'Light'))
+print('local lightMemSize = '..('0x%02x'):format(ffi.sizeof'Light'))
 for name,ctype in Light:fielditer() do	-- TODO struct iterable fields ...
 	local offset = ffi.offsetof(Light, name)
 	local size = ffi.sizeof(ctype)
-	print(('0x%02x - 0x%02x = ')
-		:format(offset, offset + size)
-		..tostring(ctype):match'^ctype<(.*)>$'
-		..' '..name)
+	print('local light'
+		..name:sub(1,1):upper()..name:sub(2)..'Offset'
+		..' = '..('0x%02x'):format(offset)
+		..' -- size='..('0x%02x'):format(size)
+		..' type='..tostring(ctype):match'^ctype<(.*)>$'
+		)
 end
 os.exit()
 --]]
 --[[
-Light = 0xac
-0x00 - 0x01 = unsigned char enabled
-0x02 - 0x0a = unsigned short [4] region
-0x0a - 0x0e = unsigned char [4] ambientColor
-0x0e - 0x12 = unsigned char [4] diffuseColor
-0x12 - 0x16 = unsigned char [4] specularColor
-0x18 - 0x24 = float [3] distAtten
-0x24 - 0x2c = float [2] cosAngleRange
-0x2c - 0x6c = float [16] viewMat
-0x6c - 0xac = float [16] projMat
+local lightMemSize = 0xc8
+local lightEnabledOffset = 0x00 -- size=0x01 type=unsigned char
+local lightRegionOffset = 0x02 -- size=0x08 type=unsigned short [4]
+local lightAmbientColorOffset = 0x0c -- size=0x0c type=float [3]
+local lightDiffuseColorOffset = 0x18 -- size=0x0c type=float [3]
+local lightSpecularColorOffset = 0x24 -- size=0x10 type=float [4]
+local lightDistAttenOffset = 0x34 -- size=0x0c type=float [3]
+local lightCosAngleRangeOffset = 0x40 -- size=0x08 type=float [2]
+local lightViewMatOffset = 0x48 -- size=0x40 type=float [16]
+local lightProjMatOffset = 0x88 -- size=0x40 type=float [16]
 --]]
 
 
@@ -441,7 +444,7 @@ local RAM = struct{
 
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
 				{name='lightmapHeight', type=uint16_t},
-				{name='lightAmbientColor', type=uint8_t_4},	-- only 3 used
+				{name='lightAmbientColor', type=float_3},
 				{name='numLights', type=int16_t},
 				{name='lights', type='Light['..maxLights..']'},
 
