@@ -325,19 +325,38 @@ There are a few matrix functions that you can use to manipulate the render state
 
 ## HD2D
 
-Right now it has SSAO.
+There's one master switch: You have to set `useHardwareLighting` to nonzero to turn all lighting on. 
+TODO to set this to flags for bumpmapping, SSAO, lightmaps, depth-of-field, HDR...
 
-Light Maps soon.
+Setting `useHardwareLighting` will enable SSAO lighting.  There are some SSAO variables in RAM.
 
-Set `useHardwareLighting` to nonzero to get free screen-space lighting.
+There's lightmaps too.  You can peek the uber-lightmap size,
+and you can poke to set the number of lightmaps and their properties (like where in the uber-lightmap the light subregion goes).
+I have a big enough one enabled by default, but of course world coordinates vary per game so you'll probably have to tweak it. 
 
-TODO here, also have RAM vars for light pos, color, ambient, normalmap exhaggeration, spritemap exhaggeration.
+Don't change your view or projection matrix between illuminated render calls!
+The first scene render view and projection matrix at the time that `useHardwareLighting` is set will be recorded.  This will be used for lighting in the final calculation pass.
 
-Alright, adding this and lightmaps is why I went and split the matrix operations into `0=model, 1=view, 2=projection`.
-With that said, now to use lighting you must:
-- 1) keep `useHardwareLighting` turned on during all your lighting draw.
-- 2) *do not change your view matrix during this time*.  Lighting is postprocessed and added into the color buffer, and it needs a fixed view transform to do the lighting calcs.  So the first view matrix you are using during your frame update is the only one you get.
-	Maybe later I'll split it up into flushing lighting calcs so as soon as you change your view or change the `useHardwareLighting` flag it'll calc and flush to the dest buffer, so that you can do multiple lighting scenes and views per frame, but meh for now.
+Illuminated polys are flagged in the fragment color buffer, so any tris drawn with useHardwareLighting=0 won't be illumianted (but they will still cast shadows, haha).
+
+Here is the current light struct in the RAM `lights` table:
+```
+Light:
+0x00 - 0x01 = enabled
+0x02 - 0x0a = region
+0x0a - 0x0e = ambientColor
+0x0e - 0x12 = diffuseColor
+0x12 - 0x16 = specularColor
+0x18 - 0x24 = distAtten
+0x24 - 0x64 = viewMat
+0x64 - 0xa4 = projMat
+```
+
+It will change soon I'm sure.  Angle attenutation TODO.  I'll probably get rid of ambient. I'll convert everything to floats for shader-struct support.
+
+Depth of field is half implemented and broken.  It needs an extra framebuffer pass when enabled.  I haven't added this yet.
+
+HDR coming soon.
 
 ## Memory Layout
 
@@ -379,17 +398,20 @@ memory layout:
 0x02087e - 0x020882 = mouseWheel
 0x020882 - 0x020886 = lastMousePos
 0x020886 - 0x02088a = lastMousePressPos
-0x02088a - 0x02088c = useHardwareLighting
-0x02088c - 0x020890 = lightAmbientColor
-0x020890 - 0x020894 = lightDiffuseColor
-0x020894 - 0x020898 = lightSpecularColor
-0x020898 - 0x02089c = ssaoSampleRadius
-0x02089c - 0x0208a0 = ssaoInfluence
-0x0208a0 - 0x0208a4 = spriteNormalExhaggeration
-0x0208a4 - 0x0208e4 = lightViewMat
-0x0208e4 - 0x020924 = lightProjMat
-0x020924 - 0x020928 = blobCount
-0x020928 - 0x020934 = blobEntries
+0x02088a - 0x02088b = useHardwareLighting
+0x02088b - 0x02088c = useDepthOfField
+0x02088c - 0x02088e = lightmapWidth
+0x02088e - 0x020890 = lightmapHeight
+0x020890 - 0x020894 = lightAmbientColor
+0x020894 - 0x020896 = numLights
+0x020896 - 0x02ac96 = lights
+0x02ac96 - 0x02aca2 = depthOfFieldPos
+0x02aca2 - 0x02acae = depthOfFieldAtten
+0x02acae - 0x02acb2 = ssaoSampleRadius
+0x02acb2 - 0x02acb6 = ssaoInfluence
+0x02acb6 - 0x02acba = spriteNormalExhaggeration
+0x02acba - 0x02acbe = blobCount
+0x02acbe - 0x02acca = blobEntries
 ```
 
 # Language
