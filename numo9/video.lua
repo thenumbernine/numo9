@@ -2268,6 +2268,12 @@ return;
 			-surfaceToLightNormalized,
 			-lights_negViewDir[lightIndex]);
 
+		// TODO i need an input/output map or bias or something
+		// outdoor lights need to disable this
+		// and I have no way to do so ...
+		// I can just do mx+b and then ... clamp range ...
+		// thats 4 args ...
+		// in min, in max, out min, out max
 		float atten =
 			// clamp this?  at least above zero... no negative lights.
 			clamp(
@@ -2978,8 +2984,8 @@ function AppVideo:resetVideo()
 		self.ram.lights[0].distAtten[2] = 0
 
 		-- this is a global dir light so don't use angle range
-		self.ram.lights[0].cosAngleRange[0] = 1
-		self.ram.lights[0].cosAngleRange[1] = 2	-- don't set equal so we don't get divide-by-zero
+		self.ram.lights[0].cosAngleRange[0] = -2
+		self.ram.lights[0].cosAngleRange[1] = -1	-- set cos angle range to [-2,-1] so all values map to 1
 
 		ffi.copy(self.ram.lights[0].viewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
 		ffi.copy(self.ram.lights[0].projMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
