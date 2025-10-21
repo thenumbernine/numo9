@@ -2437,7 +2437,7 @@ function AppVideo:triBuf_flush()
 
 		for lightIndex=0,math.min(maxLights, self.ram.numLights)-1 do
 			local light = self.ram.lights + lightIndex
---print('flush tri light', lightIndex, 'enabled', light.enabled)
+--DEBUG:print('flush tri light', lightIndex, 'enabled', light.enabled)
 			if light.enabled ~= 0 then
 				gl.glViewport(
 					light.region[0],
@@ -5153,7 +5153,7 @@ print()
 
 	for i=0,math.min(maxLights, self.ram.numLights)-1 do
 		local light = self.ram.lights + i
---print('updating uniforms for light', i, 'enabled', light.enabled)
+--DEBUG:print('updating uniforms for light', i, 'enabled', light.enabled)
 		gl.glUniform1i(
 			gl.glGetUniformLocation(
 				program.id,
