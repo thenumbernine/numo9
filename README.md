@@ -1068,3 +1068,11 @@ voxelmap editor fixes:
 - when the RAM structure changes, the config file / keys reset themselves ... why?
 
 - lights should have sprites, or a sheet index for all lights and sheet subregion for each light and flag for if its being used...
+
+- TODO useHardwareLighting flags:
+	- cast shadows (i.e. disable this = don't render to light depth tex at all)
+	- light by shadowmaps (i.e. flag the framebuffer to do lighting calcs)
+	- enable ssao
+	- enable bump-mapping vs flat normals
+	- enable high-dynamic-range (TODO)
+	- enable depth-of-field (TODO)

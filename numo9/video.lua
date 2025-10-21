@@ -2148,8 +2148,10 @@ uniform vec3 lights_ambientColor[maxLights];// per light ambient (is attenuated,
 uniform vec3 lights_diffuseColor[maxLights];// = vec3(1., 1., 1.);
 uniform vec4 lights_specularColor[maxLights];// = vec3(.6, .5, .4, 30.);	// w = shininess
 uniform vec3 lights_distAtten[maxLights];	// vec3(const, linear, quadratic) attenuation
+uniform vec2 lights_cosAngleRange[maxLights];	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
 uniform mat4 lights_viewProjMat[maxLights];	// used for light depth coord transform, and for determining the light pos
-uniform vec3 lights_viewPos[maxLights];
+uniform vec3 lights_viewPos[maxLights];	// translation components of inverse-view-matrix of the light
+uniform vec3 lights_negViewDir[maxLights];	// negative-z-axis of inverse-view-matrix of the light
 
 uniform float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
 uniform float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
@@ -2256,29 +2258,47 @@ return;
 		}
 
 #if 1 // diffuse & specular with the world space surface normal
-		vec3 lightDelta = lights_viewPos[lightIndex] - worldCoord.xyz;
-		float lightDist = length(lightDelta);
-		vec3 lightDir = lightDelta / lightDist;
+		vec3 surfaceToLightVec = lights_viewPos[lightIndex] - worldCoord.xyz;
+		float surfaceToLightDist = length(surfaceToLightVec);
+		vec3 surfaceToLightNormalized = surfaceToLightVec / surfaceToLightDist;
 		vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
+		float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
+
+		float cos_lightToSurface_to_lightFwd = dot(
+			-surfaceToLightNormalized,
+			-lights_negViewDir[lightIndex]);
+
+		float atten =
+			// clamp this?  at least above zero... no negative lights.
+			clamp(
+				(cos_lightToSurface_to_lightFwd - lights_cosAngleRange[lightIndex].x)
+				* lights_cosAngleRange[lightIndex].y,	// .y holds 1/(cos(inner) - cos(outer))
+				0., 1.
+			);
 
 		vec3 lightColor =
 			lights_ambientColor[lightIndex]
-			+ lights_diffuseColor[lightIndex] * abs(dot(lightDir, normalizedWorldNormal))
+			+ lights_diffuseColor[lightIndex] * abs(cosNormalToLightAngle)
 			// maybe you just can't do specular lighting in [0,1]^3 space ...
 			// maybe I should be doing inverse-frustum-projection stuff here
 			// hmmmmmmmmmm
 			// I really don't want to split projection and modelview matrices ...
 			+ lights_specularColor[lightIndex].xyz * pow(
-				abs(dot(viewDir, reflect(-lightDir, normalizedWorldNormal))),
+				abs(dot(viewDir, reflect(-surfaceToLightNormalized, normalizedWorldNormal))),
 				lights_specularColor[lightIndex].w
 			);
-		float atten = lights_distAtten[lightIndex].x
-			+ lightDist * (lights_distAtten[lightIndex].y
-				+ lightDist * lights_distAtten[lightIndex].z
+		atten *= 1. /
+			max(1e-7,
+				lights_distAtten[lightIndex].x
+				+ surfaceToLightDist * (lights_distAtten[lightIndex].y
+					+ surfaceToLightDist * lights_distAtten[lightIndex].z
+				)
 			);
 
+		// TODO scale atten by angle range
+
 		// apply bumpmap lighting
-		fragColor.xyz += lightColor / max(atten, 1e-7);
+		fragColor.xyz += lightColor * atten;
 #else	// plain
 		fragColor.xyz += vec3(.9, .9, .9);
 #endif
@@ -2956,6 +2976,10 @@ function AppVideo:resetVideo()
 		self.ram.lights[0].distAtten[0] = 1
 		self.ram.lights[0].distAtten[1] = 0
 		self.ram.lights[0].distAtten[2] = 0
+
+		-- this is a global dir light so don't use angle range
+		self.ram.lights[0].cosAngleRange[0] = 1
+		self.ram.lights[0].cosAngleRange[1] = 2	-- don't set equal so we don't get divide-by-zero
 
 		ffi.copy(self.ram.lights[0].viewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
 		ffi.copy(self.ram.lights[0].projMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
@@ -5212,6 +5236,15 @@ print()
 			light.distAtten
 		)
 
+		gl.glUniform2f(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_cosAngleRange['..i..']'
+			),
+			light.cosAngleRange[0],
+			1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
+		)
+
 		self.lightViewMat.ptr = ffi.cast(matPtrType, light.viewMat)
 		self.lightProjMat.ptr = ffi.cast(matPtrType, light.projMat)
 		self.lightViewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
@@ -5236,6 +5269,15 @@ print()
 			),
 			1,	-- count
 			self.lightViewInvMat.ptr + 12
+		)
+
+		gl.glUniform3fv(
+			gl.glGetUniformLocation(
+				program.id,
+				'lights_negViewDir['..i..']'
+			),
+			1,	-- count
+			self.lightViewInvMat.ptr + 8
 		)
 	end
 

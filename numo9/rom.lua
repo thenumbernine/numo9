@@ -18,6 +18,7 @@ local uint16_t = ffi.typeof'uint16_t'
 local uint16_t_4 = ffi.typeof'uint16_t[4]'
 local uint32_t = ffi.typeof'uint32_t'
 local float = ffi.typeof'float'
+local float_2 = ffi.typeof'float[2]'
 local float_3 = ffi.typeof'float[3]'
 
 
@@ -312,29 +313,35 @@ local Light = struct{
 		{name='diffuseColor', type=uint8_t_4},	-- or "albedo" or whatever.  alpha is ignored.
 		{name='specularColor', type=uint8_t_4},	-- alpha holds shininess, un-normalized.
 		{name='distAtten', type=float_3},			-- distance attenuation
+		{name='cosAngleRange', type=float_2},			-- cosAngleRange[0] = cosine of outer angle at influence=0, cosAngleRange[1] = cosine of inner angle at influence=100%
 		{name='viewMat', type=matArrType},	-- lighting view+proj combined into one
 		{name='projMat', type=matArrType},	-- lighting view+proj combined into one
 	},
 }
 -- TODO somehow provide this to ramaddr, or in docs somewhere ...
 --[[
-print'Light:'
+print('Light = '..('0x%02x'):format(ffi.sizeof'Light'))
 for name,ctype in Light:fielditer() do	-- TODO struct iterable fields ...
 	local offset = ffi.offsetof(Light, name)
 	local size = ffi.sizeof(ctype)
-	print(('0x%02x - 0x%02x = '):format(offset, offset + size)..name)
+	print(('0x%02x - 0x%02x = ')
+		:format(offset, offset + size)
+		..tostring(ctype):match'^ctype<(.*)>$'
+		..' '..name)
 end
+os.exit()
 --]]
 --[[
-Light:
-0x00 - 0x01 = enabled
-0x02 - 0x0a = region
-0x0a - 0x0e = ambientColor
-0x0e - 0x12 = diffuseColor
-0x12 - 0x16 = specularColor
-0x18 - 0x24 = distAtten
-0x24 - 0x64 = viewMat
-0x64 - 0xa4 = projMat
+Light = 0xac
+0x00 - 0x01 = unsigned char enabled
+0x02 - 0x0a = unsigned short [4] region
+0x0a - 0x0e = unsigned char [4] ambientColor
+0x0e - 0x12 = unsigned char [4] diffuseColor
+0x12 - 0x16 = unsigned char [4] specularColor
+0x18 - 0x24 = float [3] distAtten
+0x24 - 0x2c = float [2] cosAngleRange
+0x2c - 0x6c = float [16] viewMat
+0x6c - 0xac = float [16] projMat
 --]]
 
 
