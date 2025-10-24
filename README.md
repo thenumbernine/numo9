@@ -1076,3 +1076,5 @@ voxelmap editor fixes:
 	- enable bump-mapping vs flat normals
 	- enable high-dynamic-range (TODO)
 	- enable depth-of-field (TODO)
+
+- voxel editor, when the camera direction is grid aligned it can detect collision when there isnt one.

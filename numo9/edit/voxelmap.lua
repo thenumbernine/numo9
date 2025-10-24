@@ -141,7 +141,9 @@ local function planeLineIntersectParam(planePt, planeN, linePt, lineDir)
 end
 
 local function axisAlignedPlaneLineIntersectParam(axis, planePtOnAxis, planeNormalOnAxis, linePt, lineDir)
-	return ((planePtOnAxis - linePt.s[axis]) * planeNormalOnAxis) / (lineDir.s[axis] * planeNormalOnAxis)
+	local denom = lineDir.s[axis]
+	if math.abs(denom) < 1e-7 then return math.huge end
+	return ((planePtOnAxis - linePt.s[axis]) * planeNormalOnAxis) / (denom * planeNormalOnAxis)
 end
 
 local function lineBoxDist(box, linePt, lineDir, inside)
