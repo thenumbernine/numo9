@@ -1597,7 +1597,7 @@ void main() {
 	// TODO transform from viewCoords to worldCoords by the inverse-view matrix
 	fragNormal.xyz = normalize(cross(
 		vec3(1., 0., dFdx(bumpHeight)),
-		vec3(0., 1., dFdx(bumpHeight))));
+		vec3(0., 1., dFdy(bumpHeight))));
 
 #else	// rotate sprite normals onto frag normal plane
 
@@ -1606,7 +1606,7 @@ void main() {
 	// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
 	mat3 spriteBasis = onb2(
 		vec3(1., 0., dFdx(bumpHeight)),
-		vec3(0., 1., dFdx(bumpHeight)));
+		vec3(0., 1., dFdy(bumpHeight)));
 
 	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
 	mat3 modelBasis = onb1(normalize(worldNormalv));
