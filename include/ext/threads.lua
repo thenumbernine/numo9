@@ -1,5 +1,4 @@
 --#include ext/class.lua
---#include ext/table.lua
 
 local Threads = class()
 Threads.init = |:|do
