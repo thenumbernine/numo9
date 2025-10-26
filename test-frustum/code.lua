@@ -9,7 +9,8 @@ local zo = 10
 local viewDist = 2
 local viewAlt = 2
 
-local useLighting = 0	-- nah
+--local useLighting = 0	-- nah
+local useLighting = 1 | 4	-- ssao only
 
 math.randomseed(tstamp())
 
@@ -144,7 +145,7 @@ tiltUpAngle = 90:
 	local mapsize=21
 	matpush()
 	matscale(1/16,1/16,1/16)
-	tilemap(0,0,mapsize,mapsize,0,0,nil,true)
+	tilemap(0,0,mapsize,mapsize,0,0,nil,true,1)
 	matpop()
 	--]]
 	--[[

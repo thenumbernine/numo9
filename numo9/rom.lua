@@ -347,6 +347,17 @@ local lightViewMatOffset = 0x48 -- size=0x40 type=float [16]
 local lightProjMatOffset = 0x88 -- size=0x40 type=float [16]
 --]]
 
+-- I would save this as bitflags but meh
+ffi.cdef[[
+enum {
+	LIGHTING_APPLY_TO_SURFACE = 1,
+	LIGHTING_CAST_SHADOWS = 2,
+	LIGHTING_USE_SSAO = 4,
+	LIGHTING_USE_BUMP_MAPPING = 8,
+	LIGHTING_CALC_FROM_LIGHTMAP = 0x10,		// disable for no lighting from shadows to be cast
+	LIGHTING_CALC_FROM_LIGHTS = 0x20,		// disable to avoid the Light struct calcs.  TODO components?  one being diffuse , another being attenuation , another being angle/spotlight?
+}
+]]
 
 local RAM = struct{
 	name = 'RAM',
@@ -439,7 +450,8 @@ local RAM = struct{
 
 
 				-- lighting ...
-				{name='useHardwareLighting', type=uint8_t},	-- 1 bit so far.  master switch for all lighting.
+				{name='useHardwareLighting', type=uint8_t},	-- state for all lighting, flags in LIGHTING_*
+
 				{name='useDepthOfField', type=uint8_t},		-- 1 bit so far
 
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size

@@ -742,7 +742,7 @@ fragColor.xyz = texture(calcLightTex, tcv).xyz;
 return;
 #endif
 
-#if 1	// debugging - show calcLight tex - only where alpha=0 i.e. lightmap debug display
+#if 1	// show calcLight tex - only where alpha=0 i.e. lightmap debug display
 vec4 lightColor = texture(calcLightTex, tcv);
 if (lightColor.w == 0.) {
 	fragColor.xyz = lightColor.xyz;
@@ -1214,7 +1214,7 @@ uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 uniform <?=app.blobs.animsheet[1].ramgpu.tex:getGLSLSamplerType()?> animSheetTex;
 
 uniform vec4 clipRect;
-uniform bool useHardwareLighting;
+uniform int useHardwareLighting;
 uniform vec4 blendColorSolid;
 uniform uint dither;
 //uniform vec2 frameBufferSize;
@@ -1590,44 +1590,47 @@ void main() {
 
 	bumpHeight *= spriteNormalExhaggeration;
 
-#if 0	// normal from flat sided objs
-	fragNormal.xyz = worldNormalv;
-
-#elif 0	// show sprite normals only
-	// TODO transform from viewCoords to worldCoords by the inverse-view matrix
-	fragNormal.xyz = normalize(cross(
-		vec3(1., 0., dFdx(bumpHeight)),
-		vec3(0., 1., dFdy(bumpHeight))));
+	if ((useHardwareLighting & <?=ffi.C.LIGHTING_USE_BUMP_MAPPING?>) == 0) {
+		// normal from flat sided objs
+		fragNormal.xyz = worldNormalv;
+	} else {
+#if 0	// debug - show sprite normals only
+		// TODO transform from viewCoords to worldCoords by the inverse-view matrix
+		fragNormal.xyz = normalize(cross(
+			vec3(1., 0., dFdx(bumpHeight)),
+			vec3(0., 1., dFdy(bumpHeight))));
 
 #else	// rotate sprite normals onto frag normal plane
 
-	//glsl matrix index access is based on columns
-	//so its index notation is reversed from math index notation.
-	// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
-	mat3 spriteBasis = onb2(
-		vec3(1., 0., dFdx(bumpHeight)),
-		vec3(0., 1., dFdy(bumpHeight)));
+		//glsl matrix index access is based on columns
+		//so its index notation is reversed from math index notation.
+		// spriteBasis[j][i] = spriteBasis_ij = d(bumpHeight)/d(fragCoord_j)
+		mat3 spriteBasis = onb2(
+			vec3(1., 0., dFdx(bumpHeight)),
+			vec3(0., 1., dFdy(bumpHeight)));
 
-	// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
-	mat3 modelBasis = onb1(normalize(worldNormalv));
+		// modelBasis[j][i] = modelBasis_ij = d(vertex_i)/d(fragCoord_j)
+		mat3 modelBasis = onb1(normalize(worldNormalv));
 
-//TODO now transform the bumpmap coord into the worldnormal basis
-// probably involves an inverse view or something idk
-// (how about I cache/calc the bumpmap tangent space on tex, then no need to use dFdx)
+	//TODO now transform the bumpmap coord into the worldnormal basis
+	// probably involves an inverse view or something idk
+	// (how about I cache/calc the bumpmap tangent space on tex, then no need to use dFdx)
 
-	//result should be d(bumpHeight)/d(vertex_j)
-	// = d(bumpHeight)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
-	// = d(bumpHeight)/d(fragCoord_k) * inv(d(vertex_j)/d(fragCoord_k))
-	// = spriteBasis * transpose(modelBasis)
-	//modelBasis = spriteBasis * transpose(modelBasis);
-	//fragNormal.xyz = transpose(modelBasis)[2];
-	fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
+		//result should be d(bumpHeight)/d(vertex_j)
+		// = d(bumpHeight)/d(fragCoord_k) * d(fragCoord_k)/d(vertex_j)
+		// = d(bumpHeight)/d(fragCoord_k) * inv(d(vertex_j)/d(fragCoord_k))
+		// = spriteBasis * transpose(modelBasis)
+		//modelBasis = spriteBasis * transpose(modelBasis);
+		//fragNormal.xyz = transpose(modelBasis)[2];
+		fragNormal.xyz = (modelBasis * transpose(spriteBasis))[2];
 #endif
+	}
 
 	// save per-fragment whether lighting is enabled or not
-	fragNormal.w = useHardwareLighting ? 1. : 0.;
+	fragNormal.w = float(useHardwareLighting);
 }
 ]],			{
+				ffi = ffi,
 				app = app,
 				modeObj = self,
 				fragType = self.framebufferRAM.tex:getGLSLFragType(),
@@ -2193,51 +2196,58 @@ return;
 #endif
 
 	vec4 worldNormal = texture(framebufferNormalTex, tcv);
+	int useHardwareLighting = int(worldNormal.w);
 	// no lighting on this fragment
-	if (worldNormal.w == 0.) {
+	if ((useHardwareLighting & <?=ffi.C.LIGHTING_APPLY_TO_SURFACE?>) == 0) {
 		fragColor = vec4(1., 1., 1., 1.);
 		return;
 	}
 
-
 	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
+#if 0 // debugging: show normalmap:
+fragColor = vec4(normalizedWorldNormal * .5 + .5, 0.);	// w=0 is debugging and means 'show the lightmap at this point'
+return;
+#endif
 
 	vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
 	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
 	float clipDepth = worldCoordAndClipDepth.w;
 
-#if 0 // debugging: show normalmap:
-fragColor.xyz = normalizedWorldNormal * .5 + .5;
-return;
-#endif
+	if ((useHardwareLighting & <?=bit.bor(ffi.C.LIGHTING_CALC_FROM_LIGHTMAP, ffi.C.LIGHTING_CALC_FROM_LIGHTS)?>) == 0) {
+		// no light calcs = full light
+		fragColor = vec4(1., 1., 1., 1.);
+	} else {
+		bool calcFromLightMap = 0 != (useHardwareLighting & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTMAP?>);
+		bool calcFromLights = 0 != (useHardwareLighting & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTS?>);
 
-	// start off with scene ambient
-	fragColor = vec4(lightAmbientColor.xyz, 1.);
+		// start off with scene ambient
+		fragColor = vec4(lightAmbientColor.xyz, 1.);
 
-	for (int lightIndex = 0; lightIndex < numLights; ++lightIndex) {
-		if (!lights_enabled[lightIndex]) continue;
+		for (int lightIndex = 0; lightIndex < numLights; ++lightIndex) {
+			if (!lights_enabled[lightIndex]) continue;
 
-		vec4 lightClipCoord = lights_viewProjMat[lightIndex] * worldCoord;
-		// frustum test before homogeneous transform
-		if (!(lightClipCoord.w > 0.
-			&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
-			&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
-		)) continue;
+			if (calcFromLightMap) {
+				vec4 lightClipCoord = lights_viewProjMat[lightIndex] * worldCoord;
+				// frustum test before homogeneous transform
+				if (!(lightClipCoord.w > 0.
+					&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
+					&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
+				)) continue;
 
-		vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
-		vec3 lightND01Coord = lightNDCoord * .5 + .5;
+				vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
+				vec3 lightND01Coord = lightNDCoord * .5 + .5;
 
-		vec2 lightTC = lightND01Coord.xy * lights_region[lightIndex].zw + lights_region[lightIndex].xy;
+				vec2 lightTC = lightND01Coord.xy * lights_region[lightIndex].zw + lights_region[lightIndex].xy;
 
-		// in bounds
-		float lightBufferDepth = texture(lightDepthTex, lightTC).x;
+				// in bounds
+				float lightBufferDepth = texture(lightDepthTex, lightTC).x;
 
-		// zero gets depth alias stripes
-		// nonzero is dependent on the scene
-		// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
-		//const float lightDepthTestEpsilon = 0.;		// not enough
-		//const float lightDepthTestEpsilon = 0.0001;	// not enough
-		const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
+				// zero gets depth alias stripes
+				// nonzero is dependent on the scene
+				// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
+				//const float lightDepthTestEpsilon = 0.;		// not enough
+				//const float lightDepthTestEpsilon = 0.0001;	// not enough
+				const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
 
 #if 0	// debug show the light buffer
 fragColor = vec4(lightBufferDepth, .5, 1. - lightBufferDepth, 0.);	// tell debug compositer to use this color here.
@@ -2252,113 +2262,120 @@ float delta = lightND01Coord.z - (lightBufferDepth + lightDepthTestEpsilon);
 fragColor = vec4(.5 + delta, .5, .5 - delta, 0.);	// tell debug compositer to use this color here.
 return;
 #endif
-		// TODO normal test here as well?
-		if (!(lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon))) {
-			continue;
-		}
+				// TODO normal test here as well?
+				if (!(lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon))) {
+					continue;
+				}
+			}
 
+			if (!calcFromLights) {
+				fragColor.xyz += vec3(1., 1., 1.);
+			} else {
 #if 1 // diffuse & specular with the world space surface normal
-		vec3 surfaceToLightVec = lights_viewPos[lightIndex] - worldCoord.xyz;
-		float surfaceToLightDist = length(surfaceToLightVec);
-		vec3 surfaceToLightNormalized = surfaceToLightVec / surfaceToLightDist;
-		vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
-		float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
+				vec3 surfaceToLightVec = lights_viewPos[lightIndex] - worldCoord.xyz;
+				float surfaceToLightDist = length(surfaceToLightVec);
+				vec3 surfaceToLightNormalized = surfaceToLightVec / surfaceToLightDist;
+				vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
+				float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
 
-		float cos_lightToSurface_to_lightFwd = dot(
-			-surfaceToLightNormalized,
-			-lights_negViewDir[lightIndex]);
+				float cos_lightToSurface_to_lightFwd = dot(
+					-surfaceToLightNormalized,
+					-lights_negViewDir[lightIndex]);
 
-		// TODO i need an input/output map or bias or something
-		// outdoor lights need to disable this
-		// and I have no way to do so ...
-		// I can just do mx+b and then ... clamp range ...
-		// thats 4 args ...
-		// in min, in max, out min, out max
-		float atten =
-			// clamp this?  at least above zero... no negative lights.
-			clamp(
-				(cos_lightToSurface_to_lightFwd - lights_cosAngleRange[lightIndex].x)
-				* lights_cosAngleRange[lightIndex].y,	// .y holds 1/(cos(inner) - cos(outer))
-				0., 1.
-			);
+				// TODO i need an input/output map or bias or something
+				// outdoor lights need to disable this
+				// and I have no way to do so ...
+				// I can just do mx+b and then ... clamp range ...
+				// thats 4 args ...
+				// in min, in max, out min, out max
+				float atten =
+					// clamp this?  at least above zero... no negative lights.
+					clamp(
+						(cos_lightToSurface_to_lightFwd - lights_cosAngleRange[lightIndex].x)
+						* lights_cosAngleRange[lightIndex].y,	// .y holds 1/(cos(inner) - cos(outer))
+						0., 1.
+					);
 
-		vec3 lightColor =
-			lights_ambientColor[lightIndex]
-			+ lights_diffuseColor[lightIndex] * abs(cosNormalToLightAngle)
-			// maybe you just can't do specular lighting in [0,1]^3 space ...
-			// maybe I should be doing inverse-frustum-projection stuff here
-			// hmmmmmmmmmm
-			// I really don't want to split projection and modelview matrices ...
-			+ lights_specularColor[lightIndex].xyz * pow(
-				abs(dot(viewDir, reflect(-surfaceToLightNormalized, normalizedWorldNormal))),
-				lights_specularColor[lightIndex].w
-			);
-		atten *= 1. /
-			max(1e-7,
-				lights_distAtten[lightIndex].x
-				+ surfaceToLightDist * (lights_distAtten[lightIndex].y
-					+ surfaceToLightDist * lights_distAtten[lightIndex].z
-				)
-			);
+				vec3 lightColor =
+					lights_ambientColor[lightIndex]
+					+ lights_diffuseColor[lightIndex] * abs(cosNormalToLightAngle)
+					// maybe you just can't do specular lighting in [0,1]^3 space ...
+					// maybe I should be doing inverse-frustum-projection stuff here
+					// hmmmmmmmmmm
+					// I really don't want to split projection and modelview matrices ...
+					+ lights_specularColor[lightIndex].xyz * pow(
+						abs(dot(viewDir, reflect(-surfaceToLightNormalized, normalizedWorldNormal))),
+						lights_specularColor[lightIndex].w
+					);
+				atten *= 1. /
+					max(1e-7,
+						lights_distAtten[lightIndex].x
+						+ surfaceToLightDist * (lights_distAtten[lightIndex].y
+							+ surfaceToLightDist * lights_distAtten[lightIndex].z
+						)
+					);
 
-		// TODO scale atten by angle range
+				// TODO scale atten by angle range
 
-		// apply bumpmap lighting
-		fragColor.xyz += lightColor * atten;
+				// apply bumpmap lighting
+				fragColor.xyz += lightColor * atten;
 #else	// plain
-		fragColor.xyz += vec3(.9, .9, .9);
+				fragColor.xyz += vec3(.9, .9, .9);
 #endif
-	}
-
-#if 1	// SSAO:
-	vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
-	vec3 normalizedViewNormal = normalize(viewNormal.xyz);
-
-	// make sure normal is pointing towards the view, i.e. z+
-	if (normalizedViewNormal.z < 0.) normalizedViewNormal = -normalizedViewNormal;
-
-	vec4 viewCoord = drawViewMat * worldCoord;
-
-	// clipCoord = drawProjMat * viewCoord
-	// ndcCoord = homogeneous(clipCoord)
-	// ndcCoord should == tcv.xy * 2. - 1. .......
-
-	// current fragment in [-1,1]^2 screen coords x clipDepth
-	//vec3 viewCoord = vec3(tcv.xy * 2. - 1., clipDepth);
-
-	// TODO just save float buffer? faster?
-	// TODO should this random vec be in 3D or 2D?
-	vec3 rvec = texture(noiseTex, tcv * ssaoSampleTCScale).xyz;
-	rvec.z = 0.;
-	rvec.xy = normalize(rvec.xy * 2. - 1.);
-
-	// frame in view coordinates
-	vec3 tangent = normalize(rvec - normalizedViewNormal * dot(rvec, normalizedViewNormal));
-	vec3 bitangent = cross(tangent, normalizedViewNormal);
-	mat3 tangentMatrix = mat3(tangent, bitangent, normalizedViewNormal);
-
-	float numOccluded = 0.;
-	for (int i = 0; i < ssaoNumSamples; ++i) {
-		// rotate random hemisphere vector into our tangent space
-		// but this is still in [-1,1]^2 screen coords x clipDepth, right?
-		vec3 sampleViewCoord = viewCoord.xyz + tangentMatrix * (ssaoRandomVectors[i] * ssaoSampleRadius);
-
-		vec4 sampleClipCoord = drawProjMat * vec4(sampleViewCoord, 1.);
-		vec4 sampleNDCCoord = sampleClipCoord / sampleClipCoord.w;
-		float bufferClipDepthAtSample = texture(framebufferPosTex, sampleNDCCoord.xy * .5 + .5).w;
-
-		float depthDiff = sampleClipCoord.z - bufferClipDepthAtSample;
-		if (depthDiff < ssaoSampleRadius) {
-			numOccluded += step(bufferClipDepthAtSample, sampleClipCoord.z);
+			}
 		}
 	}
 
-	float lum = 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
-#endif
+	// SSAO:
+	if ((useHardwareLighting & <?=ffi.C.LIGHTING_USE_SSAO?>) != 0) {
+		vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
+		vec3 normalizedViewNormal = normalize(viewNormal.xyz);
 
-	fragColor.xyz *= lum;
+		// make sure normal is pointing towards the view, i.e. z+
+		if (normalizedViewNormal.z < 0.) normalizedViewNormal = -normalizedViewNormal;
+
+		vec4 viewCoord = drawViewMat * worldCoord;
+
+		// clipCoord = drawProjMat * viewCoord
+		// ndcCoord = homogeneous(clipCoord)
+		// ndcCoord should == tcv.xy * 2. - 1. .......
+
+		// current fragment in [-1,1]^2 screen coords x clipDepth
+		//vec3 viewCoord = vec3(tcv.xy * 2. - 1., clipDepth);
+
+		// TODO just save float buffer? faster?
+		// TODO should this random vec be in 3D or 2D?
+		vec3 rvec = texture(noiseTex, tcv * ssaoSampleTCScale).xyz;
+		rvec.z = 0.;
+		rvec.xy = normalize(rvec.xy * 2. - 1.);
+
+		// frame in view coordinates
+		vec3 tangent = normalize(rvec - normalizedViewNormal * dot(rvec, normalizedViewNormal));
+		vec3 bitangent = cross(tangent, normalizedViewNormal);
+		mat3 tangentMatrix = mat3(tangent, bitangent, normalizedViewNormal);
+
+		float numOccluded = 0.;
+		for (int i = 0; i < ssaoNumSamples; ++i) {
+			// rotate random hemisphere vector into our tangent space
+			// but this is still in [-1,1]^2 screen coords x clipDepth, right?
+			vec3 sampleViewCoord = viewCoord.xyz + tangentMatrix * (ssaoRandomVectors[i] * ssaoSampleRadius);
+
+			vec4 sampleClipCoord = drawProjMat * vec4(sampleViewCoord, 1.);
+			vec4 sampleNDCCoord = sampleClipCoord / sampleClipCoord.w;
+			float bufferClipDepthAtSample = texture(framebufferPosTex, sampleNDCCoord.xy * .5 + .5).w;
+
+			float depthDiff = sampleClipCoord.z - bufferClipDepthAtSample;
+			if (depthDiff < ssaoSampleRadius) {
+				numOccluded += step(bufferClipDepthAtSample, sampleClipCoord.z);
+			}
+		}
+
+		float lum = 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
+		fragColor.xyz *= lum;
+	}
 }
 ]],			{
+				ffi = ffi,
 				app = self,
 				videoMode = self.currentVideoMode,
 				glnumber = glnumber,
@@ -2451,7 +2468,7 @@ function AppVideo:triBuf_flush()
 	sceneObj.geometry:draw()
 
 	if useDirectionalShadowmaps
-	and self.ram.useHardwareLighting ~= 0
+	and bit.band(self.ram.useHardwareLighting, ffi.C.LIGHTING_CAST_SHADOWS) ~= 0
 	then
 		-- now - if we're using light - also draw the geom to the lightmap
 		-- that means updating uniforms every render regardless ...

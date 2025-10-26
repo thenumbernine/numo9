@@ -7,10 +7,12 @@ local string = require 'ext.string'
 local tolua = require 'ext.tolua'
 local getTime = require 'ext.timer'.getTime
 local vec2i = require 'vec-ffi.vec2i'
+local sdl = require 'sdl'
 
 local numo9_keys = require 'numo9.keys'
 local keyCodeNames = numo9_keys.keyCodeNames
 local keyCodeForName = numo9_keys.keyCodeForName
+local sdlSymToKeyCode = numo9_keys.sdlSymToKeyCode
 local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
 
 local numo9_rom = require 'numo9.rom'
@@ -234,10 +236,18 @@ function Console:update()
 		app:drawSolidRect(self.cursorPos.x, self.cursorPos.y, menuFontWidth, spriteSize.y, self.fgColor)
 	end
 
-	local shift = app:key'lshift' or app:key'rshift'
-	for keycode=0,#keyCodeNames-1 do
-		if app:keyp(keycode,30,5) then
+	app:matMenuReset()
+end
+
+function Console:event(e)
+	local app = self.app
+	-- hmm no key repeat this way ...
+	if e[0].type == sdl.SDL_EVENT_KEY_DOWN then
+		local keycode = sdlSymToKeyCode[e[0].key.key]
+		if keycode then
+			local shift = app:key'lshift' or app:key'rshift'
 			local ch = getAsciiForKeyCode(keycode, shift)
+
 			if ch == 10 or ch == 13 then
 				self:runCmdBuf()
 			elseif ch then
@@ -250,10 +260,6 @@ function Console:update()
 			end
 		end
 	end
-
-	app:matMenuReset()
 end
-
-function Console:event(e) end
 
 return Console

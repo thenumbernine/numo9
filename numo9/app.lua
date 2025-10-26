@@ -2019,6 +2019,10 @@ print('run thread dead')
 -- so in the menu
 -- its best to push/pop only what vars you use
 -- and only when you use them
+-- ...
+-- OR DO push/pop everything, for menu and console
+-- and just run your console commands from outside this block
+--  i.e. from the :event handler
 
 			-- push matrix
 			ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
@@ -2068,8 +2072,7 @@ print('run thread dead')
 			sceneObj:draw()
 			--]]
 
-
-			--[[ push / pop lighting
+			-- [[ push / pop lighting
 			local pushUseHardwareLighting = self.ram.useHardwareLighting
 			self.ram.useHardwareLighting = 0	-- off by default in menu
 			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
@@ -2116,9 +2119,8 @@ print('run thread dead')
 				end
 			end
 
-
 			-- pop lighting
-			--[[ does this mean the console can't set hardware lighting?
+			-- [[ does this mean the console can't set hardware lighting?
 			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
 				self.ram.useHardwareLighting = pushUseHardwareLighting
 				self:onUseHardwareLightingChange()
