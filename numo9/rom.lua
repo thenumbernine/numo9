@@ -308,7 +308,7 @@ local maxLights = 256 -- TODO  needs UBOs
 local Light = struct{
 	name = 'Light',
 	fields = {
-		{name='enabled', type=uint8_t},
+		{name='enabled', type=uint8_t},	-- bitflags of LIGHT_ENABLED_*
 		{name='region', type=uint16_t_4},	-- region in the lightmap texture
 		{name='ambientColor', type=float_3},	-- rgb
 		{name='diffuseColor', type=float_3},	-- or "albedo" or whatever.  rgb.
@@ -347,7 +347,15 @@ local lightViewMatOffset = 0x48 -- size=0x40 type=float [16]
 local lightProjMatOffset = 0x88 -- size=0x40 type=float [16]
 --]]
 
--- I would save this as bitflags but meh
+-- bitflags for Light.enabled:
+ffi.cdef[[
+enum {
+	LIGHT_ENABLED_UPDATE_DEPTH_TEX = 1,
+	LIGHT_ENABLED_UPDATE_CALCS = 2,
+}
+]]
+
+-- bitflags for useHardwareLighting:
 ffi.cdef[[
 enum {
 	LIGHTING_APPLY_TO_SURFACE = 1,
@@ -355,7 +363,7 @@ enum {
 	LIGHTING_USE_SSAO = 4,
 	LIGHTING_USE_BUMP_MAPPING = 8,
 	LIGHTING_CALC_FROM_LIGHTMAP = 0x10,		// disable for no lighting from shadows to be cast
-	LIGHTING_CALC_FROM_LIGHTS = 0x20,		// disable to avoid the Light struct calcs.  TODO components?  one being diffuse , another being attenuation , another being angle/spotlight?
+	LIGHTING_CALC_FROM_LIGHTS = 0x20,		// disable to avoid the Light struct calcs.  TODO components?  one being ambient+diffuse+specular, another being attenuation , another being angle/spotlight?
 }
 ]]
 

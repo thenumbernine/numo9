@@ -2481,7 +2481,7 @@ function AppVideo:triBuf_flush()
 		for lightIndex=0,math.min(maxLights, self.ram.numLights)-1 do
 			local light = self.ram.lights + lightIndex
 --DEBUG:print('flush tri light', lightIndex, 'enabled', light.enabled)
-			if light.enabled ~= 0 then
+			if 0 ~= bit.band(light.enabled, ffi.C.LIGHT_ENABLED_UPDATE_DEPTH_TEX) then
 				gl.glViewport(
 					light.region[0],
 					light.region[1],
@@ -2976,7 +2976,7 @@ function AppVideo:resetVideo()
 
 	self.ram.numLights = 1
 	for i=0,maxLights-1 do
-		self.ram.lights[0].enabled = i==0	-- enable light #1 by default (just like GL1.0 days...)
+		self.ram.lights[0].enabled = i==0 and 0xff or 0	-- enable light #1 by default (just like GL1.0 days...)
 
 		self.ram.lights[0].region[0] = 0
 		self.ram.lights[0].region[1] = 0
@@ -5205,7 +5205,7 @@ print()
 				program.id,
 				'lights_enabled['..i..']'
 			),
-			light.enabled)
+			0 ~= bit.band(light.enabled, ffi.C.LIGHT_ENABLED_UPDATE_CALCS))
 
 		gl.glUniform4f(
 			gl.glGetUniformLocation(
