@@ -27,7 +27,7 @@ cheat=true
 
 levelstr='level ?'
 
-useLighting=0	-- nahhh
+useLighting=1 | 4	-- SSAO only
 
 sfxid={
 	bomb_explode = 0,

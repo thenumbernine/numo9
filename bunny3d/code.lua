@@ -34,7 +34,7 @@ update=||do
 	mattrans(0, 0, -.5 * zf)
 	--]]
 
-	--poke(ramaddr'useHardwareLighting', 1)
+	--poke(ramaddr'useHardwareLighting', 0xff)
 
 	local th = .05
 	local mx, my = mouse()
