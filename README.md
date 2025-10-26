@@ -350,6 +350,8 @@ Here is the current light struct in the RAM `lights` table:
 ```
 Light:
 0x00 - 0x01 = uint8_t enabled
+- & 1 = update the light's depth texture.
+- & 2 = use this light in surface color calculations.
 0x02 - 0x0a = uint16_t[4] region in the lightmap
 0x0a - 0x0e = uint8_t[4] ambientColor.  only RGB used.
 0x0e - 0x12 = uint8_t[4] diffuseColor.  only RGB used.
