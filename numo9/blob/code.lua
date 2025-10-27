@@ -25,8 +25,10 @@ function BlobCode:loadFile(filepath, basepath, blobIndex)
 	local included = {}
 	local function insertIncludes(s)
 		return string.split(s, '\n'):mapi(function(l)
-			local loc = l:match'^%-%-#include%s+(.-)%s*$'
+			local loc = l:match'^%-%-#include%s+(.-)$'
 			if loc then
+				loc = loc:match'(.-)%-%-(.*)' or loc	-- trim off comments
+				loc = string.trim(loc)
 				if included[loc] then
 					return '-- ALREADY INCLUDED: '..l
 				end
