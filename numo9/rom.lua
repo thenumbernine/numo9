@@ -465,7 +465,7 @@ local RAM = struct{
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
 				{name='lightmapHeight', type=uint16_t},
 				{name='lightAmbientColor', type=float_3},
-				{name='numLights', type=int16_t},
+				{name='numLights', type=uint16_t},
 				{name='lights', type='Light['..maxLights..']'},
 
 				-- depth-of-field ...

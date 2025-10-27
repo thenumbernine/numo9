@@ -1526,7 +1526,7 @@ end
 function App:net_pokel(addr, value)
 	if self.server then
 		addr = ffi.cast(uint32_t, addr)
-		value = ffi.cast(uint32_t, value)
+		value = ffi.cast(uint32_t, value)	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
 		if self:peekl(addr) ~= value then
 			local cmd = self.server:pushCmd().pokel
 			cmd.type = netcmds.pokel
@@ -2588,7 +2588,7 @@ end
 
 function App:poke(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast(uint32_t, value))
+	value = tonumber(ffi.cast(uint32_t, value))	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
 	if addr < 0 or addr >= self.memSize then return end
 	local p = self.ram.v + addr
 --	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
@@ -2601,7 +2601,7 @@ function App:poke(addr, value)
 end
 function App:pokew(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast(uint32_t, value))
+	value = tonumber(ffi.cast(uint32_t, value))	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint16_t_p, self.ram.v + addr)
@@ -2615,7 +2615,7 @@ function App:pokew(addr, value)
 end
 function App:pokel(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast(uint32_t, value))
+	value = tonumber(ffi.cast(uint32_t, value))	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint32_t_p, self.ram.v + addr)
