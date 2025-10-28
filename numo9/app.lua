@@ -636,7 +636,8 @@ function App:initGL()
 				orientation2D,
 				scaleX, scaleY,
 				paletteIndex, transparentIndex,
-				spriteBit, spriteMask
+				spriteBit, spriteMask,
+				nil						-- paletteTex
 			)
 		end,
 

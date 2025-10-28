@@ -158,6 +158,11 @@ If you want to v-flip, h-flip and rotate twice, so use 0b101.
 
 Tilemaps can render 8x8 or 16x16 sprites.  This can be specified in the `tilemap()` or `drawbrush()` functions.
 
+The tilemap editor can make use of autotiling if the `numo9_autotile` global is defined.
+`numo9_autotile` should point to a table, where elements will be functions.
+Functions will provide a tile value using the following signature: `tileIndex = autotile(x, y)`.
+The function can then read from tile memory using `mget` or `peekw` to determine the tiles neighboring x,y and then return an appropriate value.
+
 ### code
 
 This holds a copy of the code in RAM.  Idk why.  if you poke it, nothing happens. Maybe I'll change that in the future but idk why I would, other than "for lulz".

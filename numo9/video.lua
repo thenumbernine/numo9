@@ -1135,10 +1135,10 @@ for sprites:
 
 	.z = transparentIndex;
 		Specifies which colorIndex to use as transparency.
-		This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteIndex shift / high bits.
+		This is the value of the sprite texel post sprite bit shift & mask, but before applying the paletteOffset shift / high bits.
 		If you want fully opaque then just choose an oob color index.
 
-	.w = paletteIndex;
+	.w = paletteOffset;
 		For now this is an integer added to the 0-15 4-bits of the sprite tex.
 		You can set the top 4 bits and it'll work just like OR'ing the high color index nibble.
 		Or you can set it to low numbers and use it to offset the palette.
@@ -1341,7 +1341,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	// such that, setting this means `transparentIndex` will never match `colorIndex & spriteMask`;
 	transparentIndex |= (extra.x & 4u) << 6;
 
-	uint paletteIndex = extra.w;
+	uint paletteOffset = extra.w;
 
 	uint colorIndex = ]]
 		..readTex{
@@ -1358,7 +1358,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	// if you discard based on alpha here then the bilinear interpolation that samples this 4x will cause unnecessary discards
 	bool forceTransparent = colorIndex == transparentIndex;
 
-	colorIndex += paletteIndex;
+	colorIndex += paletteOffset;
 	colorIndex &= 0xFFu;
 
 	<?=fragType?> resultColor = colorIndexToFragColor(colorIndex);
@@ -3700,13 +3700,13 @@ function AppVideo:drawQuadTex(
 	x, y, w, h,	-- quad box
 	tx, ty, tw, th,	-- texcoord bbox in [0,1]
 	orientation2D,
-	paletteIndex,
+	paletteOffset,
 	transparentIndex,
 	spriteBit,
 	spriteMask
 )
 	orientation2D = orientation2D or 0
-	paletteIndex = paletteIndex or 0
+	paletteOffset = paletteOffset or 0
 	transparentIndex = transparentIndex or -1
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
@@ -3770,7 +3770,7 @@ vR   3-4
 		xR, y,  0, u2, v2,
 		x,  yR, 0, u3, v3,
 		0, 0, 1,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
 		0, 0, 1, 1
 	)
 
@@ -3783,7 +3783,7 @@ vR   3-4
 		xR, y,  0, u2, v2,
 		xR, yR, 0, u4, v4,
 		0, 0, 1,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
 		0, 0, 1, 1
 	)
 end
@@ -3840,7 +3840,7 @@ args:
 	x y w h = quad rectangle on screen
 	tx ty tw th = texcoord rectangle in [0,255] pixel coordinates
 	sheetIndex = 0 for sprite sheet, 1 for tile sheet
-	paletteIndex = offset into the 256-color palette
+	paletteOffset = offset into the 256-color palette
 	transparentIndex,
 	spriteBit,
 	spriteMask
@@ -3854,7 +3854,7 @@ function AppVideo:drawQuad(
 	tx, ty, tw, th,	-- texcoord bbox
 	orientation2D,
 	sheetIndex,
-	paletteIndex,
+	paletteOffset,
 	transparentIndex,
 	spriteBit,
 	spriteMask,
@@ -3894,7 +3894,7 @@ function AppVideo:drawQuad(
 		x, y, w, h,
 		tx / 256, ty / 256, tw / 256, th / 256,
 		orientation2D,
-		paletteIndex,
+		paletteOffset,
 		transparentIndex,
 		spriteBit,
 		spriteMask)
@@ -3909,7 +3909,7 @@ function AppVideo:drawTexTri3D(
 	x2,y2,z2,u2,v2,
 	x3,y3,z3,u3,v3,
 	sheetIndex,
-	paletteIndex,
+	paletteOffset,
 	transparentIndex,
 	spriteBit,
 	spriteMask
@@ -3943,7 +3943,7 @@ function AppVideo:drawTexTri3D(
 	spriteBit = spriteBit or 0
 	spriteMask = spriteMask or 0xFF
 	transparentIndex = transparentIndex or -1
-	paletteIndex = paletteIndex or 0
+	paletteOffset = paletteOffset or 0
 
 	local drawFlags = bit.bor(
 		-- bits 0/1 == 01b <=> use sprite pathway
@@ -3970,7 +3970,7 @@ function AppVideo:drawTexTri3D(
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
 		normalX, normalY, normalZ,
-		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteIndex,
+		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
 		0, 0, 1, 1
 	)
 
@@ -3987,10 +3987,8 @@ spriteIndex =
 	bits 11.. = blob to use for sprite/tile sheet
 tilesWide = width in tiles
 tilesHigh = height in tiles
-paletteIndex =
-	byte value with high 4 bits that holds which palette to use
-	... this is added to the sprite color index so really it's a palette shift.
-	(should I OR it?)
+paletteOffset =
+	byte value that holds which palette to use, added to the sprite color index 
 transparentIndex = which color index in the sprite to use as transparency.  default -1 = none
 spriteBit = index of bit (0-based) to use, default is zero
 spriteMask = mask of number of bits to use, default is 0xF <=> 4bpp
@@ -4006,10 +4004,11 @@ function AppVideo:drawSprite(
 	orientation2D,
 	scaleX,
 	scaleY,
-	paletteIndex,
+	paletteOffset,
 	transparentIndex,
 	spriteBit,
-	spriteMask
+	spriteMask,
+	paletteTex
 )
 	screenX = screenX or 0
 	screenY = screenY or 0
@@ -4035,11 +4034,11 @@ function AppVideo:drawSprite(
 		bit.lshift(tilesHigh, 3),
 		orientation2D,
 		sheetIndex,
-		paletteIndex,
+		paletteOffset,
 		transparentIndex,
 		spriteBit,
 		spriteMask,
-		nil	-- paletteTex ... TODO palette from 8+'th bits of paletteIndex?
+		paletteTex 
 	)
 end
 
@@ -4206,7 +4205,7 @@ function AppVideo:drawTextCommon(
 	local texSizeInTiles = fontImageSizeInTiles		-- using separate font tex
 	local tw = 1 / tonumber(texSizeInTiles.x)
 	local th = 1 / tonumber(texSizeInTiles.y)
-	local paletteIndex = fgColorIndex - 1
+	local paletteOffset = fgColorIndex - 1
 
 	for i=1,#text do
 		local ch = text:byte(i)
@@ -4239,7 +4238,7 @@ function AppVideo:drawTextCommon(
 			xR, y,  0, uR, 0,
 			x,  yR, 0, uL, th,
 			0, 0, 1,
-			bit.bor(drawFlags, 0x100), 0, 0, paletteIndex,
+			bit.bor(drawFlags, 0x100), 0, 0, paletteOffset,
 			0, 0, 1, 1
 		)
 
@@ -4252,7 +4251,7 @@ function AppVideo:drawTextCommon(
 			xR, yR, 0, uR, th,
 			x,  yR, 0, uL, th,
 			0, 0, 1,
-			bit.bor(drawFlags, 0x100), 0, 0, paletteIndex,
+			bit.bor(drawFlags, 0x100), 0, 0, paletteOffset,
 			0, 0, 1, 1
 		)
 
@@ -4607,10 +4606,11 @@ function AppVideo:drawBrush(
 				tileOrientation,		-- orientation2D
 				nil,					-- scaleX
 				nil,					-- scaleY
-				bit.lshift(palHi, 5),	-- paletteIndex
+				bit.lshift(palHi, 5),	-- paletteOffset
 				nil,					-- transparentIndex
 				nil,					-- spriteBit
-				nil						-- spriteMask
+				nil,					-- spriteMask
+				nil						-- paletteTex
 			)
 		end
 	end
@@ -4765,7 +4765,7 @@ function AppVideo:drawMesh3D(
 	-- TODO terminology problem ...
 	-- this is passed on to be used as paletteIndexOffset
 	-- but it is passed in as paletteBlobIndex
-	paletteIndex,
+	paletteOffset,
 	transparentIndex,
 	spriteBit,
 	spriteMask
@@ -4796,7 +4796,7 @@ function AppVideo:drawMesh3D(
 				b.x, b.y, b.z, b.u + uofs, b.v + vofs,
 				c.x, c.y, c.z, c.u + uofs, c.v + vofs,
 				sheetIndex,
-				paletteIndex,
+				paletteOffset,
 				transparentIndex,
 				spriteBit,
 				spriteMask
@@ -4813,7 +4813,7 @@ function AppVideo:drawMesh3D(
 				b.x, b.y, b.z, b.u + uofs, b.v + vofs,
 				c.x, c.y, c.z, c.u + uofs, c.v + vofs,
 				sheetIndex,
-				paletteIndex,
+				paletteOffset,
 				transparentIndex,
 				spriteBit,
 				spriteMask

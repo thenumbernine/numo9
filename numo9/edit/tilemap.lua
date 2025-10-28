@@ -62,6 +62,7 @@ function EditTilemap:onCartLoad()
 	self.paletteBlobIndex = 0	-- TODO :drawTileMap() allow specifying palette #
 
 	self.tileSel = TileSelect{edit=self}
+	self.autotileOpen = false
 
 	-- and this is for copy paste in the tilemap
 	self.tileSelDown = vec2i()
@@ -71,6 +72,7 @@ function EditTilemap:onCartLoad()
 	self.drawMode = 'draw'
 	self.gridSpacing = 1
 	self.penSize = 1
+	self.autotileBorder = 1
 	self.tilePanDownPos = vec2i()
 	self.tilemapPanOffset = vec2d()
 	self.tilePanPressed = false
@@ -102,27 +104,48 @@ function EditTilemap:update()
 	EditTilemap.super.update(self)
 
 	-- title controls
-	local x = 80
+	local x = 90
 	local y = 0
 
 
-	x = x + 16
-	-- TODO grow/shrink
-	-- TODO selector for palette #
-	-- TODO selector for sheet #
-
 	self.tileSel:button(x,y)
-	x = x + 8
+	x = x + 6
+	
+	-- here, autotile-select
+	local gameEnv = app.gameEnv
+	local canAutoTile = gameEnv and gameEnv.numo9_autotile
+	if self:guiButton('A', x, y, nil,
+		canAutoTile and 'autotile'
+		or "define 'numo9_autotile' for autotiling"
+	) then
+		if canAutoTile then
+			self.autotileOpen = not self.autotileOpen
+		else
+			self.autotileOpen = false
+		end
+	end
+	x = x + 6
+
+	self:guiSpinner(x, y, function(dx)
+		self.penSize = math.max(1, self.penSize + dx)
+	end, 'penSize='..tostring(self.penSize))
+	x = x + 12
+
+	self:guiSpinner(x, y, function(dx)
+		self.autotileBorder = math.max(1, self.autotileBorder + dx)
+	end, 'autotileBorder='..tostring(self.autotileBorder))
+	x = x + 12
+
 	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
 		self.draw16Sprites = not self.draw16Sprites
 	end
+	x = x + 6
 
 	-- sprite edit method
-	x = x + 10
 	self:guiRadio(x, y, {'draw', 'fill', 'dropper', 'pan', 'select'}, self.drawMode, function(result)
 		self.drawMode = result
 	end)
-	x = x + 32
+	x = x + 6 * 6
 
 	self:guiSpinner(x, y, function(dx)
 		self.orientation = bit.band(7, self.orientation + dx)
@@ -246,15 +269,15 @@ function EditTilemap:update()
 	end
 
 	if self.drawMode == 'select' then
-		local x = math.min(self.tileSelDown.x, self.tileSelUp.x)
-		local y = math.min(self.tileSelDown.y, self.tileSelUp.y)
-		local w = math.max(self.tileSelDown.x, self.tileSelUp.x) - x + 1
-		local h = math.max(self.tileSelDown.y, self.tileSelUp.y) - y + 1
+		local selx = math.min(self.tileSelDown.x, self.tileSelUp.x)
+		local sely = math.min(self.tileSelDown.y, self.tileSelUp.y)
+		local selw = math.max(self.tileSelDown.x, self.tileSelUp.x) - selx + 1
+		local selh = math.max(self.tileSelDown.y, self.tileSelUp.y) - sely + 1
 		app:drawBorderRect(
-			tileSize * x,
-			tileSize * y,
-			tileSize * w,
-			tileSize * h,
+			tileSize * selx,
+			tileSize * sely,
+			tileSize * selw,
+			tileSize * selh,
 			0xd,
 			nil,
 			app.paletteMenuTex
@@ -285,7 +308,85 @@ function EditTilemap:update()
 	--self:guiSetClipRect(0, 0, clipMax, clipMax)
 	self:guiSetClipRect(0, 0, 256, 256)
 
-	if not self.tileSel:doPopup() then
+	if self.autotileOpen then
+		-- autotile box
+		local winX = 2 * spriteSize.x
+		local winY = 2 * spriteSize.y
+		local winW = 256 - 2 * winX
+		local winH = 256 - 2 * winY
+		app:drawBorderRect(
+			winX-1,
+			winY-1,
+			winW+2,
+			winH+2,
+			10,
+			nil,
+			app.paletteMenuTex
+		)
+		app:drawSolidRect(
+			winX,
+			winY,
+			winW,
+			winH,
+			1,
+			nil,
+			nil,
+			app.paletteMenuTex
+		)
+
+		if gameEnv.numo9_autotile then
+			local selx, sely = self.tileSelDown:unpack()
+			for autotileIndex,autotile in ipairs(gameEnv.numo9_autotile) do
+				local px = 32 * ((autotileIndex - 1) % 4)
+				local py = 32 * math.floor((autotileIndex - 1) / 4)
+
+				-- show a rect around what the current selected tile would be like if it was painted with this autotile brush
+				local r = self.penSize - 1 + 2 * self.autotileBorder 
+				self:drawTileMap(
+					selx - self.autotileBorder,		-- upper-left index in the tile tex
+					sely - self.autotileBorder,
+					r,		-- tiles wide
+					r,		-- tiles high
+					px,		-- pixel x
+					py,		-- pixel y
+					0,		-- map index offset / high page
+					self.draw16Sprites,	-- draw 16x16 vs 8x8
+					self.sheetBlobIndex	-- sprite vs tile sheet
+					
+				)
+				for dx=-self.autotileBorder,self.autotileBorder + self.penSize do
+					for dy=-self.autotileBorder,self.autotileBorder + self.penSize do
+						local x = dx + selx
+						local y = dy + sely
+						if x >= 0 and x < self.penSize
+						and y >= 0 and y < self.penSize
+						then
+							-- then draw
+							local tile = autotile(x, y)
+							-- TODO handle orientation
+							self:drawSprite(
+								bit.band(tile, 0x3ff),
+								px + (dx + self.autotileBorder) * tileSize,
+								py + (dy + self.autotileBorder) * tileSize,
+								1,
+								1,
+								bit.band(7, bit.rshift(tile, 13)),
+								1,
+								1,
+								bit.lshift(bit.band(7, bit.rshift(tile, 10)), 5),	-- palette offset
+								nil,
+								nil,
+								nil,
+								app.paletteMenuTex
+							)
+						end
+					end
+				end
+			end
+		end
+
+	elseif self.tileSel:doPopup() then
+	else
 		-- TODO allow drawing while picking window is open, like tic80 does?
 		-- maybe ... then i should disable the auto-close-on-select ...
 		-- and I should also resize the pick tile area
@@ -336,8 +437,8 @@ function EditTilemap:update()
 			then return end
 
 			local tileSelIndex = bit.bor(
-				self.tileSel.pos.x + dx
-				+ spriteSheetSizeInTiles.x * (self.tileSel.pos.y + dy),
+				self.tileSel.pos.x + (dx % self.tileSel.size.x)
+				+ spriteSheetSizeInTiles.x * (self.tileSel.pos.y + (dy % self.tileSel.size.y)),
 				bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 				bit.lshift(bit.band(7, self.orientation), 13)
 			)
@@ -373,12 +474,14 @@ function EditTilemap:update()
 			then
 				local tx0 = tx -- - math.floor(self.penSize / 2)
 				local ty0 = ty -- - math.floor(self.penSize / 2)
-				local step = 1 + draw16As0or1
-				for dy=0,self.tileSel.size.y-1,step do -- self.penSize-1 do
-					local ty = ty0 + bit.rshift(dy, draw16As0or1)
-					for dx=0,self.tileSel.size.x-1,step do -- self.penSize-1 do
-						local tx = tx0 + bit.rshift(dx, draw16As0or1)
-						puttile(tx,ty, dx,dy)
+				local r = self.penSize
+				local l = math.floor((r-1)/2)
+				for dy=-l,-l + r-1 + math.ceil(self.tileSel.size.y / bit.lshift(1,draw16As0or1))-1 do
+					-- hmm how should stamps and pensizes work together?
+					local ty = ty0 + dy
+					for dx=-l,-l + r-1 + math.ceil(self.tileSel.size.x / bit.lshift(1,draw16As0or1))-1 do
+						local tx = tx0 + dx
+						puttile(tx,ty, bit.lshift(dx, draw16As0or1), bit.lshift(dy, draw16As0or1))
 					end
 				end
 			end
@@ -456,13 +559,13 @@ function EditTilemap:update()
 		uikey = app:key'lctrl' or app:key'rctrl'
 	end
 	if uikey then
-		local x = math.min(self.tileSelDown.x, self.tileSelUp.x)
-		local y = math.min(self.tileSelDown.y, self.tileSelUp.y)
-		local w = math.max(self.tileSelDown.x, self.tileSelUp.x) - x + 1
-		local h = math.max(self.tileSelDown.y, self.tileSelUp.y) - y + 1
+		local selx = math.min(self.tileSelDown.x, self.tileSelUp.x)
+		local sely = math.min(self.tileSelDown.y, self.tileSelUp.y)
+		local selw = math.max(self.tileSelDown.x, self.tileSelUp.x) - selx + 1
+		local selh = math.max(self.tileSelDown.y, self.tileSelUp.y) - sely + 1
 		if app:keyp'x' or app:keyp'c' then
 			assert(not tilemapRAM.dirtyGPU)
-			local image = tilemapRAM.image:copy{x=x, y=y, width=w, height=h}
+			local image = tilemapRAM.image:copy{x=selx, y=sely, width=selw, height=selh}
 			-- 1-channel uint16_t image
 			local channels = 4
 			local imageRGBA = Image(image.width, image.height, channels, uint8_t)
@@ -477,8 +580,8 @@ function EditTilemap:update()
 				self.undo:push()
 				tilemapRAM.dirtyCPU = true
 				assert.eq(tilemapRAM.image.channels, 1)
-				for j=y,y+h-1 do
-					for i=x,x+w-1 do
+				for j=sely,sely+selh-1 do
+					for i=selx,selx+selw-1 do
 						self:edit_pokew(tilemapRAM.addr + bit.lshift(i + tilemapRAM.image.width * j, 1), 0)
 					end
 				end
@@ -495,8 +598,8 @@ function EditTilemap:update()
 				-- 4-channel uint8_t image
 				for j=0,image.height-1 do
 					for i=0,image.width-1 do
-						local destx = i + x
-						local desty = j + y
+						local destx = i + selx
+						local desty = j + sely
 						if destx >= 0 and destx < tilemapRAM.image.width
 						and desty >= 0 and desty < tilemapRAM.image.height
 						then
