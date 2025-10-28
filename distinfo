@@ -110,6 +110,7 @@ files = {
 	["test-fps.n9"] = "numo9/test-fps.n9",
 	["test-framebuffer.n9"] = "numo9/test-framebuffer.n9",
 	["test-frustum.n9"] = "numo9/test-frustum.n9",
+	["test-lightmaps.n9"] = "numo9/test-lightmaps.n9",
 	["test-mode.n9"] = "numo9/test-mode.n9",
 	["test-mouse.n9"] = "numo9/test-mouse.n9",
 	["test-ssao.n9"] = "numo9/test-ssao.n9",
