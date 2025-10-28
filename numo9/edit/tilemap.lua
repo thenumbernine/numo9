@@ -64,8 +64,8 @@ function EditTilemap:onCartLoad()
 	self.tileSel = TileSelect{edit=self}
 
 	-- and this is for copy paste in the tilemap
-	self.tileSelPos = vec2i()
-	self.tileSelSize = vec2i()
+	self.tileSelDown = vec2i()
+	self.tileSelUp = vec2i()
 	self.selPalHiOffset = 0
 	self.orientation = 0	-- 2D orientation: bit 0 = hflip bits 12 = rotation
 	self.drawMode = 'draw'
@@ -205,7 +205,7 @@ function EditTilemap:update()
 		app.paletteMenuTex,
 		app.checkerTex,
 		-1, -1,									-- x y
-		2+bit.lshift(tilemapSize.x,tileBits),	-- w
+		2+bit.lshift(tilemapSize.x, tileBits),	-- w
 		2+bit.lshift(tilemapSize.y, tileBits),	-- h
 		0, 0,									-- tx ty tw th
 		1, 1 --2+mapSizeInPixels.x*2, 2+mapSizeInPixels.y*2
@@ -245,16 +245,38 @@ function EditTilemap:update()
 	end
 
 	if self.drawMode == 'select' then
+		local x = math.min(self.tileSelDown.x, self.tileSelUp.x)
+		local y = math.min(self.tileSelDown.y, self.tileSelUp.y)
+		local w = math.max(self.tileSelDown.x, self.tileSelUp.x) - x + 1
+		local h = math.max(self.tileSelDown.y, self.tileSelUp.y) - y + 1
 		app:drawBorderRect(
-			self.tileSelPos.x * tileSize,
-			self.tileSelPos.y * tileSize,
-			tileSize * self.tileSelSize.x,
-			tileSize * self.tileSelSize.y,
+			tileSize * x,
+			tileSize * y,
+			tileSize * w,
+			tileSize * h,
 			0xd,
 			nil,
 			app.paletteMenuTex
 		)
 	end
+
+
+	local function fbToTileCoord(cx, cy)
+		return
+			(cx - mapX) / (bit.lshift(spriteSize.x, draw16As0or1) * self.scale) + self.tilemapPanOffset.x / bit.lshift(spriteSize.x, draw16As0or1),
+			(cy - mapY) / (bit.lshift(spriteSize.y, draw16As0or1) * self.scale) + self.tilemapPanOffset.y / bit.lshift(spriteSize.y, draw16As0or1)
+	end
+	local tx, ty = fbToTileCoord(mouseX, mouseY)
+	tx = math.floor(tx)
+	ty = math.floor(ty)
+
+	-- while we're here, draw over the selected tile
+	if tx >= 0 and tx < tilemapSize.x
+	and ty >= 0 and ty < tilemapSize.y
+	then
+		app:drawBorderRect(tx * tileSize, ty * tileSize, tileSize, tileSize, 0x1b, nil, app.paletteMenuTex)
+	end
+
 
 	-- since when is clipMax having problems?
 	-- TODO FIXME since guiSeetClipRect uses the matrix state ...
@@ -266,15 +288,6 @@ function EditTilemap:update()
 		-- TODO allow drawing while picking window is open, like tic80 does?
 		-- maybe ... then i should disable the auto-close-on-select ...
 		-- and I should also resize the pick tile area
-
-		local function fbToTileCoord(cx, cy)
-			return
-				(cx - mapX) / (bit.lshift(spriteSize.x, draw16As0or1) * self.scale) + self.tilemapPanOffset.x / bit.lshift(spriteSize.x, draw16As0or1),
-				(cy - mapY) / (bit.lshift(spriteSize.y, draw16As0or1) * self.scale) + self.tilemapPanOffset.y / bit.lshift(spriteSize.y, draw16As0or1)
-		end
-		local tx, ty = fbToTileCoord(mouseX, mouseY)
-		tx = math.floor(tx)
-		ty = math.floor(ty)
 
 		local tilemapPanHandled
 		local function tilemapPan(press)
@@ -411,13 +424,12 @@ function EditTilemap:update()
 			end
 		elseif self.drawMode == 'select' then
 			if leftButtonPress then
-				self.tileSelPos:set(tx, ty)
-				self.tileSelPos.x = math.clamp(self.tileSelPos.x, 0, tilemapSize.x-1)
-				self.tileSelPos.y = math.clamp(self.tileSelPos.y, 0, tilemapSize.x-1)
-				self.tileSelSize:set(1,1)
+				self.tileSelDown:set(tx, ty)
+				self.tileSelDown.x = math.clamp(self.tileSelDown.x, 0, tilemapSize.x-1)
+				self.tileSelDown.y = math.clamp(self.tileSelDown.y, 0, tilemapSize.x-1)
+				self.tileSelUp:set(self.tileSelDown:unpack())
 			elseif leftButtonDown then
-				self.tileSelSize.x = math.ceil((math.abs(tx - self.tileSelPos.x) + 1))
-				self.tileSelSize.y = math.ceil((math.abs(ty - self.tileSelPos.y) + 1))
+				self.tileSelUp:set(tx, ty)
 			end
 		elseif self.drawMode == 'pan' then
 			if leftButtonDown then
@@ -443,13 +455,13 @@ function EditTilemap:update()
 		uikey = app:key'lctrl' or app:key'rctrl'
 	end
 	if uikey then
-		local x = self.tileSelPos.x
-		local y = self.tileSelPos.y
-		local width = self.tileSelSize.x
-		local height = self.tileSelSize.y
+		local x = math.min(self.tileSelDown.x, self.tileSelUp.x)
+		local y = math.min(self.tileSelDown.y, self.tileSelUp.y)
+		local w = math.max(self.tileSelDown.x, self.tileSelUp.x) - x + 1
+		local h = math.max(self.tileSelDown.y, self.tileSelUp.y) - y + 1
 		if app:keyp'x' or app:keyp'c' then
 			assert(not tilemapRAM.dirtyGPU)
-			local image = tilemapRAM.image:copy{x=x, y=y, width=width, height=height}
+			local image = tilemapRAM.image:copy{x=x, y=y, width=w, height=h}
 			-- 1-channel uint16_t image
 			local channels = 4
 			local imageRGBA = Image(image.width, image.height, channels, uint8_t)
@@ -464,8 +476,8 @@ function EditTilemap:update()
 				self.undo:push()
 				tilemapRAM.dirtyCPU = true
 				assert.eq(tilemapRAM.image.channels, 1)
-				for j=y,y+height-1 do
-					for i=x,x+width-1 do
+				for j=y,y+h-1 do
+					for i=x,x+w-1 do
 						self:edit_pokew(tilemapRAM.addr + bit.lshift(i + tilemapRAM.image.width * j, 1), 0)
 					end
 				end
