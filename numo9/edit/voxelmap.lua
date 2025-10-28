@@ -81,7 +81,7 @@ function EditVoxelMap:onCartLoad()
 	self.rectDown = nil
 	self.rectUp = nil
 	self.wireframe = false
-	self.brushSize = 1
+	self.penSize = 1
 
 	self.voxCurSel = Voxel()
 	self.voxCurSel.intval = 0
@@ -617,7 +617,7 @@ function EditVoxelMap:update()
 						end
 					else
 						local function drawVoxelBrush(vox, cx, cy, cz)
-							local b = self.brushSize-1
+							local b = self.penSize-1
 							for z=math.max(cz-b,0),math.min(cz+b,mapsize.z-1) do
 								for y=math.max(cy-b,0),math.min(cy+b,mapsize.y-1) do
 									for x=math.max(cx-b,0),math.min(cx+b,mapsize.x-1) do
@@ -644,7 +644,7 @@ function EditVoxelMap:update()
 								drawVoxelBrush(self.voxCurSel.intval, pti:unpack())
 							end
 					
-						-- like paint but changes empty voxels as well, and only does brushSize extents perpendicular to click side.
+						-- like paint but changes empty voxels as well, and only does penSize extents perpendicular to click side.
 						elseif self.drawMode == 'orthodraw' then
 							
 							-- right click to destroy single tile ... ? or not?
@@ -658,7 +658,7 @@ function EditVoxelMap:update()
 							if app:key'mouse_left' then
 								local axis = bit.rshift(sideIndex, 1)
 								local cx, cy, cz = npti:unpack()
-								local b = self.brushSize - 1
+								local b = self.penSize - 1
 								local bx = axis == 0 and 0 or b
 								local by = axis == 1 and 0 or b
 								local bz = axis == 2 and 0 or b
@@ -686,11 +686,11 @@ function EditVoxelMap:update()
 							end
 
 							-- left press = paint on tile, but only if its present
-							-- for brushSize==1 this is just writing 'npti' .. except at borders where 'npti' isnt within a solid.
+							-- for penSize==1 this is just writing 'npti' .. except at borders where 'npti' isnt within a solid.
 							-- but for any bigger I should verify tile is not empty before painting
 							if app:key'mouse_left' then
 								local cx, cy, cz = npti:unpack()
-								local b = self.brushSize-1
+								local b = self.penSize-1
 								for z=math.max(cz-b,0),math.min(cz+b,mapsize.z-1) do
 									for y=math.max(cy-b,0),math.min(cy+b,mapsize.y-1) do
 										for x=math.max(cx-b,0),math.min(cx+b,mapsize.x-1) do
@@ -1044,13 +1044,13 @@ function EditVoxelMap:update()
 			'draw',		
 
 			-- plop voxels perpendicular to the click plane.
-			-- lets you click-and-drag, but since brushSize is only orthogonal,
+			-- lets you click-and-drag, but since penSize is only orthogonal,
 			--  it doesnt immedaitely stack voxels to the view position.
 			'orthodraw',
 			
 			-- only changes non-empty voxels on-surface
 			-- click-and-drag
-			-- brushSize = paint region.
+			-- penSize = paint region.
 			'paint',
 			
 			-- rectangle, left click = fill, right click = erase.
@@ -1071,8 +1071,8 @@ function EditVoxelMap:update()
 		x = x + 6*7
 
 		self:guiSpinner(x, y, function(dx)
-			self.brushSize = math.max(1, self.brushSize + dx)
-		end, 'brushsize='..self.brushSize)
+			self.penSize = math.max(1, self.penSize + dx)
+		end, 'pensize='..self.penSize)
 	end
 	
 	---------------- KEYBOARD ----------------

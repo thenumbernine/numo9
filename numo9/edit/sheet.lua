@@ -84,8 +84,8 @@ function EditSheet:onCartLoad()
 --]]
 
 	-- sprite edit mode
-	self.spriteSelPos = vec2i()	-- TODO make this texel based, not sprite based (x8 less resolution)
-	self.spriteSelSize = vec2i(1,1)
+	self.spriteSelDown = vec2i()
+	self.spriteSelUp = vec2i()
 	self.spritesheetPanOffset = vec2i()
 	self.spritesheetPanDownPos = vec2i()
 	self.spritesheetPanPressed = false
@@ -275,14 +275,15 @@ function EditSheet:update()
 		end
 		if self.spritesheetEditMode == 'select' then
 			if leftButtonPress then
-				self.spriteSelPos:set(fbToSpritesheetCoord(mouseX, mouseY))
-				self.spriteSelPos.x = math.clamp(self.spriteSelPos.x, 0, spriteSheetSizeInTiles.x-1)
-				self.spriteSelPos.y = math.clamp(self.spriteSelPos.y, 0, spriteSheetSizeInTiles.x-1)
-				self.spriteSelSize:set(1,1)
+				self.spriteSelDown:set(fbToSpritesheetCoord(mouseX, mouseY))
+				self.spriteSelDown.x = math.clamp(self.spriteSelDown.x, 0, spriteSheetSizeInTiles.x-1)
+				self.spriteSelDown.y = math.clamp(self.spriteSelDown.y, 0, spriteSheetSizeInTiles.x-1)
+				self.spriteSelUp:set(self.spriteSelDown:unpack())
 				self.spritePanOffset:set(0,0)
 			elseif leftButtonDown then
-				self.spriteSelSize.x = math.ceil((math.abs(mouseX - lastMousePressX) + 1) / spriteSize.x)
-				self.spriteSelSize.y = math.ceil((math.abs(mouseY - lastMousePressY) + 1) / spriteSize.y)
+				self.spriteSelUp:set(fbToSpritesheetCoord(mouseX, mouseY))
+				self.spriteSelUp.x = math.clamp(self.spriteSelUp.x, 0, spriteSheetSizeInTiles.x-1)
+				self.spriteSelUp.y = math.clamp(self.spriteSelUp.y, 0, spriteSheetSizeInTiles.x-1)
 			end
 		elseif self.spritesheetEditMode == 'pan'  then
 			if leftButtonDown then
@@ -298,15 +299,21 @@ function EditSheet:update()
 	self:guiSetClipRect(x, y, w-1, h-1)
 	-- sprite sel rect (1x1 ... 8x8)
 	-- ... also show the offset ... is that a good idea?
-	app:drawBorderRect(
-		x + self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x - self.spritesheetPanOffset.x,
-		y + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y - self.spritesheetPanOffset.y,
-		spriteSize.x * self.spriteSelSize.x,
-		spriteSize.y * self.spriteSelSize.y,
-		0xd,
-		nil,
-		app.paletteMenuTex
-	)
+	do
+		local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+		local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+		local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+		local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
+		app:drawBorderRect(
+			selx * spriteSize.x + x + self.spritePanOffset.x - self.spritesheetPanOffset.x,
+			sely * spriteSize.y + y + self.spritePanOffset.y - self.spritesheetPanOffset.y,
+			selw * spriteSize.x,
+			selh * spriteSize.y,
+			0xd,
+			nil,
+			app.paletteMenuTex
+		)
+	end
 
 	-- since when is clipMax having problems?
 	--self:guiSetClipRect(0, 0, clipMax, clipMax)
@@ -326,12 +333,13 @@ function EditSheet:update()
 		x + 32 + 5,
 		y,
 		20,
-		self.spriteSelPos.x + spriteSheetSizeInTiles.x * self.spriteSelPos.y, nil,
+		self.spriteSelDown.x + spriteSheetSizeInTiles.x * self.spriteSelDown.y, nil,
 		function(result)
 			local index = tonumber(result)
 			if index then
-				self.spriteSelPos.x = index % spriteSheetSizeInTiles.x
-				self.spriteSelPos.y = (index - self.spriteSelPos.x) / spriteSheetSizeInTiles.x
+				self.spriteSelDown.x = index % spriteSheetSizeInTiles.x
+				self.spriteSelDown.y = (index - self.spriteSelDown.x) / spriteSheetSizeInTiles.x
+				self.spriteSelUp:set(self.spriteSelDown:unpack())
 			end
 		end
 	)
@@ -342,9 +350,13 @@ function EditSheet:update()
 	-- draw some pattern under the sprite so you can tell what's transparent
 	self:guiSetClipRect(x, y, w-1, h-1)
 	local function spriteCoordToFb(sX, sY)
+		local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+		local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+		local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+		local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
 		return
-			(sX - self.spriteSelPos.x * spriteSize.x - self.spritePanOffset.x) / tonumber(self.spriteSelSize.x * spriteSize.x) * w + x,
-			(sY - self.spriteSelPos.y * spriteSize.y - self.spritePanOffset.y) / tonumber(self.spriteSelSize.y * spriteSize.y) * h + y
+			(sX - selx * spriteSize.x - self.spritePanOffset.x) / tonumber(selw * spriteSize.x) * w + x,
+			(sY - sely * spriteSize.y - self.spritePanOffset.y) / tonumber(selh * spriteSize.y) * h + y
 	end
 	do
 		local x1, y1 = spriteCoordToFb(0, 0)
@@ -357,19 +369,25 @@ function EditSheet:update()
 	end
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
-	app:drawQuad(
-		x, y, w, h,
-		self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x,
-		self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y,
-		self.spriteSelSize.x * spriteSize.x,
-		self.spriteSelSize.y * spriteSize.y,
-		0,		-- orientation2D
-		self.sheetBlobIndex,
-		0,										-- paletteIndex
-		-1,										-- transparentIndex
-		self.spriteBit,							-- spriteBit
-		bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
-	)
+	do
+		local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+		local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+		local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+		local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
+		app:drawQuad(
+			x, y, w, h,
+			selx * spriteSize.x + self.spritePanOffset.x,
+			sely * spriteSize.y + self.spritePanOffset.y,
+			selw * spriteSize.x,
+			selh * spriteSize.y,
+			0,		-- orientation2D
+			self.sheetBlobIndex,
+			0,										-- paletteIndex
+			-1,										-- transparentIndex
+			self.spriteBit,							-- spriteBit
+			bit.lshift(1, self.spriteBitDepth)-1	-- spriteMask
+		)
+	end
 	app.ram.paletteBlobIndex = pushPalBlobIndex
 
 	-- since when is clipMax having problems?
@@ -380,9 +398,13 @@ function EditSheet:update()
 
 	-- convert x y in framebuffer space to x y in sprite window space
 	local function fbToSpriteCoord(fbX, fbY)
+		local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+		local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+		local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+		local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
 		return
-			(fbX - x) / w * tonumber(self.spriteSelSize.x * spriteSize.x) + self.spriteSelPos.x * spriteSize.x + self.spritePanOffset.x,
-			(fbY - y) / h * tonumber(self.spriteSelSize.y * spriteSize.y) + self.spriteSelPos.y * spriteSize.y + self.spritePanOffset.y
+			(fbX - x) / w * tonumber(selw * spriteSize.x) + selx * spriteSize.x + self.spritePanOffset.x,
+			(fbY - y) / h * tonumber(selh * spriteSize.y) + sely * spriteSize.y + self.spritePanOffset.y
 	end
 
 	local spritePanHandled
@@ -502,10 +524,14 @@ function EditSheet:update()
 						and ty >= 0 and ty < spriteSheetSize.y
 						--]]
 						-- [[ constrain to current selection
-						if  tx >= self.spriteSelPos.x * spriteSize.x
-						and ty >= self.spriteSelPos.y * spriteSize.y
-						and tx < (self.spriteSelPos.x + self.spriteSelSize.x) * spriteSize.x
-						and ty < (self.spriteSelPos.y + self.spriteSelSize.y) * spriteSize.y
+						local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+						local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+						local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+						local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
+						if tx >= selx * spriteSize.x
+						and ty >= sely * spriteSize.y
+						and tx < (selx + selw) * spriteSize.x
+						and ty < (sely + selh) * spriteSize.y
 						--]]
 						then
 							putpixel(tx,ty)
@@ -528,10 +554,14 @@ function EditSheet:update()
 							and ty1 >= 0 and ty1 < spriteSheetSize.y
 							--]]
 							-- [[ constrain to current selection
-							if  tx1 >= self.spriteSelPos.x * spriteSize.x
-							and ty1 >= self.spriteSelPos.y * spriteSize.y
-							and tx1 < (self.spriteSelPos.x + self.spriteSelSize.x) * spriteSize.x
-							and ty1 < (self.spriteSelPos.y + self.spriteSelSize.y) * spriteSize.y
+							local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+							local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+							local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+							local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
+							if tx1 >= selx * spriteSize.x
+							and ty1 >= sely * spriteSize.y
+							and tx1 < (selx + selw) * spriteSize.x
+							and ty1 < (sely + selh) * spriteSize.y
 							--]]
 							and getpixel(tx1, ty1) == srcColor
 							then
@@ -837,10 +867,14 @@ function EditSheet:update()
 		uikey = app:key'lctrl' or app:key'rctrl'
 	end
 	if uikey then
-		local x = self.spriteSelPos.x * spriteSize.x
-		local y = self.spriteSelPos.y * spriteSize.y
-		local width = spriteSize.x * self.spriteSelSize.x
-		local height = spriteSize.y * self.spriteSelSize.y
+		local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+		local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+		local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+		local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
+		local x = spriteSize.x * selx
+		local y = spriteSize.y * sely
+		local width = spriteSize.x * selw
+		local height = spriteSize.y * selh
 		if app:keyp'x' or app:keyp'c' then
 			-- copy the selected region in the sprite/tile sheet
 			-- TODO copy the current-edit region? wait it's the same region ...
