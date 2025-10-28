@@ -1083,6 +1083,5 @@ voxelmap editor fixes:
 
 - voxel editor, when the camera direction is grid aligned it can detect collision when there isnt one.
 
-- tilemap should have tile highlight
 - tilemap should have an autotile feature, defined as a global `numo9_autotile`
 - voxelmaps should too.

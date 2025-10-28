@@ -194,7 +194,8 @@ function EditTilemap:update()
 		end
 	)
 
-	self:guiSetClipRect(mapX, mapY, mapSizeInPixels.x-1, mapSizeInPixels.y-1)
+	--self:guiSetClipRect(mapX, mapY, mapSizeInPixels.x-1, mapSizeInPixels.y-1)
+	self:guiSetClipRect(-1000, mapY, 3000, mapSizeInPixels.y-1)
 
 	app:matMenuReset()
 	app:mattrans(mapX, mapY)
