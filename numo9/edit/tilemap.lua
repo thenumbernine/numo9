@@ -63,6 +63,7 @@ function EditTilemap:onCartLoad()
 
 	self.tileSel = TileSelect{edit=self}
 	self.autotileOpen = false
+	self.autotilePreviewBorder = 1
 
 	-- and this is for copy paste in the tilemap
 	self.tileSelDown = vec2i()
@@ -72,7 +73,6 @@ function EditTilemap:onCartLoad()
 	self.drawMode = 'draw'
 	self.gridSpacing = 1
 	self.penSize = 1
-	self.autotileBorder = 1
 	self.tilePanDownPos = vec2i()
 	self.tilemapPanOffset = vec2d()
 	self.tilePanPressed = false
@@ -132,8 +132,8 @@ function EditTilemap:update()
 	x = x + 12
 
 	self:guiSpinner(x, y, function(dx)
-		self.autotileBorder = math.max(1, self.autotileBorder + dx)
-	end, 'autotileBorder='..tostring(self.autotileBorder))
+		self.autotilePreviewBorder = math.max(1, self.autotilePreviewBorder + dx)
+	end, 'autotilePreviewBorder='..tostring(self.autotilePreviewBorder))
 	x = x + 12
 
 	if self:guiButton('X', x, y, self.draw16Sprites, self.draw16Sprites and '16x16' or '8x8') then
@@ -341,10 +341,10 @@ function EditTilemap:update()
 				local py = 32 * math.floor((autotileIndex - 1) / 4)
 
 				-- show a rect around what the current selected tile would be like if it was painted with this autotile brush
-				local r = self.penSize - 1 + 2 * self.autotileBorder 
+				local r = self.penSize - 1 + 2 * self.autotilePreviewBorder 
 				self:drawTileMap(
-					selx - self.autotileBorder,		-- upper-left index in the tile tex
-					sely - self.autotileBorder,
+					selx - self.autotilePreviewBorder,		-- upper-left index in the tile tex
+					sely - self.autotilePreviewBorder,
 					r,		-- tiles wide
 					r,		-- tiles high
 					px,		-- pixel x
@@ -354,8 +354,8 @@ function EditTilemap:update()
 					self.sheetBlobIndex	-- sprite vs tile sheet
 					
 				)
-				for dx=-self.autotileBorder,self.autotileBorder + self.penSize do
-					for dy=-self.autotileBorder,self.autotileBorder + self.penSize do
+				for dx=-self.autotilePreviewBorder,self.autotilePreviewBorder + self.penSize do
+					for dy=-self.autotilePreviewBorder,self.autotilePreviewBorder + self.penSize do
 						local x = dx + selx
 						local y = dy + sely
 						if x >= 0 and x < self.penSize
@@ -366,8 +366,8 @@ function EditTilemap:update()
 							-- TODO handle orientation
 							self:drawSprite(
 								bit.band(tile, 0x3ff),
-								px + (dx + self.autotileBorder) * tileSize,
-								py + (dy + self.autotileBorder) * tileSize,
+								px + (dx + self.autotilePreviewBorder) * tileSize,
+								py + (dy + self.autotilePreviewBorder) * tileSize,
 								1,
 								1,
 								bit.band(7, bit.rshift(tile, 13)),

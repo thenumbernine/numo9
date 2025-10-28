@@ -469,7 +469,7 @@ function EditVoxelMap:update()
 
 		-- init lighting before beginDraw() so that we get the clear depth call that will clear the lighting as well
 		local pushUseHardwareLighting = app.ram.useHardwareLighting
-		app.ram.useHardwareLighting = self.menuUseLighting and 1 or 0
+		app.ram.useHardwareLighting = self.menuUseLighting and 0xff or 0
 		if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
 			app:onUseHardwareLightingChange()
 		end
