@@ -345,6 +345,15 @@ function EditTilemap:update()
 				local px = winX + pw * ((autotileIndex - 1) % 4)
 				local py = winY + ph * math.floor((autotileIndex - 1) / 4)
 
+				if self.tileOrAutotile == 'autotile'
+				and self.autotileSel == autotileIndex
+				then
+					app:drawBorderRect(px, py, pw, ph, 0xd, nil, app.paletteMenuTex)
+				end
+
+				local pushPalBlobIndex = app.ram.paletteBlobIndex
+				app.ram.paletteBlobIndex = self.paletteBlobIndex
+
 				-- show a rect around what the current selected tile would be like if it was painted with this autotile brush
 				local r = self.penSize - 1 + 2 * self.autotilePreviewBorder
 				app:drawTileMap(
@@ -357,7 +366,6 @@ function EditTilemap:update()
 					0,		-- map index offset / high page
 					self.draw16Sprites,	-- draw 16x16 vs 8x8
 					self.sheetBlobIndex	-- sprite vs tile sheet
-
 				)
 				--[[ hmm how to use bigger previews ...
 				for dx=-self.autotilePreviewBorder,self.autotilePreviewBorder + self.penSize do
@@ -390,12 +398,13 @@ function EditTilemap:update()
 								bit.lshift(bit.band(7, bit.rshift(tile, 10)), 5),	-- palette offset
 								nil,
 								nil,
-								nil,
-								app.paletteMenuTex
+								nil
 							)
 						end
 					end
 				end
+
+				app.ram.paletteBlobIndex = pushPalBlobIndex
 
 				if leftButtonRelease
 				and mouseX >= px and mouseX < px + pw
@@ -403,6 +412,7 @@ function EditTilemap:update()
 				then
 					self.tileOrAutotile = 'autotile'
 					self.autotileSel = autotileIndex
+					self.autotileOpen = false
 				end
 			end
 		end
