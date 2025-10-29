@@ -387,7 +387,10 @@ function EditTilemap:update()
 						local tile = autotile(selx, sely, dx, dy, self.tilemapBlobIndex)
 						if tile then
 							app:drawSprite(
-								bit.band(tile, 0x3ff),
+								bit.bor(
+									bit.band(tile, 0x3ff),
+									bit.lshift(self.sheetBlobIndex, 10)
+								),
 								px + (dx + self.autotilePreviewBorder) * tileSize,
 								py + (dy + self.autotilePreviewBorder) * tileSize,
 								1,
