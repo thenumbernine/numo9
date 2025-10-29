@@ -598,43 +598,31 @@ function EditVoxelMap:update()
 					-- or how about mousedown as well?
 					-- but only when the voxel changes?
 					-- tough to make it not just keep stacking towards the view ...
-					if shift then
-						if app:key'mouse_left' then
-							if mapboxIE:contains(npti) then
-								local vaddr = voxelmap:getVoxelAddr(npti:unpack())
-								if vaddr then
-									local voxval = app:peekl(vaddr)
-									-- how about shift+click on an empty tile works
-									-- that way you can shift+click on the map border to quickly grab empty tile
-									-- sometimes you want it, i.e. when you're flood-filling empty tiles
-									--if voxval ~= voxelMapEmptyValue then
-									self.voxCurSel.intval = voxval
-									self.tileSel.pos.x = self.voxCurSel.tileXOffset
-									self.tileSel.pos.y = self.voxCurSel.tileYOffset
-									--end
-								end
-							end
-						end
-					else
-						local function drawVoxelBrush(vox, cx, cy, cz)
-							local b = self.penSize-1
-							for z=math.max(cz-b,0),math.min(cz+b,mapsize.z-1) do
-								for y=math.max(cy-b,0),math.min(cy+b,mapsize.y-1) do
-									for x=math.max(cx-b,0),math.min(cx+b,mapsize.x-1) do
-										local addr = voxelmap:getVoxelAddr(x,y,z)
-										if addr then
-											-- timer based so it shouldnt push multiple per drawVoxelBrush(), right?
-											self.undo:pushContinuous()
-											-- TODO make this a callback for optional autotiling
-											self:edit_pokel(addr, vox)
-										end
+
+					local function drawVoxelBrush(vox, cx, cy, cz)
+						local b = self.penSize-1
+						for z=math.max(cz-b,0),math.min(cz+b,mapsize.z-1) do
+							for y=math.max(cy-b,0),math.min(cy+b,mapsize.y-1) do
+								for x=math.max(cx-b,0),math.min(cx+b,mapsize.x-1) do
+									local addr = voxelmap:getVoxelAddr(x,y,z)
+									if addr then
+										-- timer based so it shouldnt push multiple per drawVoxelBrush(), right?
+										self.undo:pushContinuous()
+										-- TODO make this a callback for optional autotiling
+										self:edit_pokel(addr, vox)
 									end
 								end
 							end
 						end
+					end
 
-						-- draw = place blocks per click
-						if self.drawMode == 'draw' then
+					-- draw = place blocks per click
+					if self.drawMode == 'draw' then
+						if shift then
+							if app:key'mouse_left' then
+								self:dropper(voxelmap, npti:unpack())
+							end
+						else
 							-- right click to destroy single tile
 							if app:keyp'mouse_right' then
 								drawVoxelBrush(voxelMapEmptyValue, npti:unpack())
@@ -643,10 +631,16 @@ function EditVoxelMap:update()
 							if app:keyp'mouse_left' then
 								drawVoxelBrush(self.voxCurSel.intval, pti:unpack())
 							end
-					
-						-- like paint but changes empty voxels as well, and only does penSize extents perpendicular to click side.
-						elseif self.drawMode == 'orthodraw' then
-							
+						end
+
+					-- like paint but changes empty voxels as well, and only does penSize extents perpendicular to click side.
+					elseif self.drawMode == 'orthodraw' then
+
+						if shift then
+							if app:key'mouse_left' then
+								self:dropper(voxelmap, npti:unpack())
+							end
+						else
 							-- right click to destroy single tile ... ? or not?
 							if app:keyp'mouse_right' then
 								drawVoxelBrush(voxelMapEmptyValue, npti:unpack())
@@ -674,12 +668,17 @@ function EditVoxelMap:update()
 											end
 										end
 									end
-								end							
+								end
 							end
+						end
 
-						-- paint = draw on surface per mousedown
-						elseif self.drawMode == 'paint' then
-
+					-- paint = draw on surface per mousedown
+					elseif self.drawMode == 'paint' then
+						if shift then
+							if app:key'mouse_left' then
+								self:dropper(voxelmap, npti:unpack())
+							end
+						else
 							-- right click to destroy single tile ... ? or not?
 							if app:keyp'mouse_right' then
 								drawVoxelBrush(voxelMapEmptyValue, npti:unpack())
@@ -705,10 +704,16 @@ function EditVoxelMap:update()
 											end
 										end
 									end
-								end							
+								end
 							end
-						elseif self.drawMode == 'rect' then
+						end
+					elseif self.drawMode == 'rect' then
 
+						if shift then
+							if app:key'mouse_left' then
+								self:dropper(voxelmap, npti:unpack())
+							end
+						else
 							-- right click to destroy rectangular region
 							-- don't push left and right at the same time ....
 							if app:keyp'mouse_right' then
@@ -758,44 +763,46 @@ function EditVoxelMap:update()
 							elseif app:key'mouse_left' then
 								self.rectUp = pti:clone()
 							end
-						elseif self.drawMode == 'select' then
+						end
+					elseif self.drawMode == 'select' then
 
-							-- right click to destroy rectangular region
-							-- same as rect
-							-- don't push left and right at the same time ....
-							if app:keyp'mouse_right' then
-								-- use npti to dig one tile into the voxel
-								self.rectDown = npti:clone()
+						-- right-click to paste on surface at pti / outside
+						if app:keyp'mouse_right' then
+							self:pasteAtCenter(voxelmap, pti, sideIndex)
+						end
+
+						-- npti / inside is intuitive for selection
+						-- but for pasting it is more intuitive to use pti / outside
+						if app:keyp'mouse_left' then
+							self.rectDown = npti:clone()
+							self.rectUp = npti:clone()
+						elseif app:keyr'mouse_left' then
+						elseif app:key'mouse_left' then
+							if shift then
+								-- hold shift while moving to only grow rect area
+								local min = vec3d(
+									math.min(self.rectUp.x, self.rectDown.x, npti.x),
+									math.min(self.rectUp.y, self.rectDown.y, npti.y),
+									math.min(self.rectUp.z, self.rectDown.z, npti.z))
+								local max = vec3d(
+									math.max(self.rectUp.x, self.rectDown.x, npti.x),
+									math.max(self.rectUp.y, self.rectDown.y, npti.y),
+									math.max(self.rectUp.z, self.rectDown.z, npti.z))
+								-- hmm todo when you release shift, which one should have down and which should have up ...
+								-- TODO up should be closest to npti
+								self.rectDown:set(min:unpack())
+								self.rectUp:set(max:unpack())
+							else
 								self.rectUp = npti:clone()
-							elseif app:keyr'mouse_right' then
-								self.undo:push()
-								if self.rectDown then
-									for k=math.min(self.rectDown.z,pti.z),math.max(self.rectDown.z,pti.z) do
-										for j=math.min(self.rectDown.y,pti.y),math.max(self.rectDown.y,pti.y) do
-											for i=math.min(self.rectDown.x,pti.x),math.max(self.rectDown.x,pti.x) do
-												local addr = voxelmap:getVoxelAddr(i,j,k)
-												if addr then	 -- TODO clamp bounds
-													self:edit_pokel(addr, voxelMapEmptyValue)
-												end
-											end
-										end
-									end
-								end
-								self.rectDown = nil
-								self.rectUp = nil
-							elseif app:key'mouse_right' then
-								self.rectUp = pti:clone()
 							end
+						end
+					elseif self.drawMode == 'fill' then
 
-							if app:keyp'mouse_left' then
-								self.rectDown = pti:clone()
-								self.rectUp = pti:clone()
-							elseif app:keyr'mouse_left' then
-							elseif app:key'mouse_left' then
-								self.rectUp = pti:clone()
+						if shift then
+							if app:key'mouse_left' then
+								self:dropper(voxelmap, npti:unpack())
 							end
-						elseif self.drawMode == 'fill' then
-
+						else
 							-- right click to destroy single tile
 							if app:keyp'mouse_right'
 							and mapboxIE:contains(npti)
@@ -837,7 +844,13 @@ function EditVoxelMap:update()
 									end
 								end
 							end
-						elseif self.drawMode == 'surfacefill' then
+						end
+					elseif self.drawMode == 'surfacefill' then
+						if shift then
+							if app:key'mouse_left' then
+								self:dropper(voxelmap, npti:unpack())
+							end
+						else
 							-- right click to destroy single tile
 							if app:keyp'mouse_right'
 							and mapboxIE:contains(npti)
@@ -1033,7 +1046,7 @@ function EditVoxelMap:update()
 				end
 			end
 		)
-	
+
 		x = 0
 		y = 8
 
@@ -1041,27 +1054,27 @@ function EditVoxelMap:update()
 		self:guiRadio(x, y, {
 			-- minecraft-place-block style.
 			-- single-click to plop voxels off of the surface.
-			'draw',		
+			'draw',
 
 			-- plop voxels perpendicular to the click plane.
 			-- lets you click-and-drag, but since penSize is only orthogonal,
 			--  it doesnt immedaitely stack voxels to the view position.
 			'orthodraw',
-			
+
 			-- only changes non-empty voxels on-surface
 			-- click-and-drag
 			-- penSize = paint region.
 			'paint',
-			
+
 			-- rectangle, left click = fill, right click = erase.
 			'rect',
-			
+
 			-- 3D floodfill.
 			'fill',
-			
+
 			-- 2D floodfill.
 			'surfacefill',
-			
+
 			-- cut/copy/paste
 			'select'
 
@@ -1074,7 +1087,7 @@ function EditVoxelMap:update()
 			self.penSize = math.max(1, self.penSize + dx)
 		end, 'pensize='..self.penSize)
 	end
-	
+
 	---------------- KEYBOARD ----------------
 
 	if voxelmap then
@@ -1189,54 +1202,94 @@ function EditVoxelMap:update()
 					end
 				end
 			elseif app:keyp'v' then
-				local min = vec3d(
-					math.min(self.rectUp.x, self.rectDown.x),
-					math.min(self.rectUp.y, self.rectDown.y),
-					math.min(self.rectUp.z, self.rectDown.z))
-				local max = vec3d(
-					math.max(self.rectUp.x, self.rectDown.x),
-					math.max(self.rectUp.y, self.rectDown.y),
-					math.max(self.rectUp.z, self.rectDown.z))
-				local cb = function()
-					local image = clip.image()
-					if not image then return end
-					if image.channels ~= 4 then
-						print('paste got an image with invalid channels', image.channels)
-						return
-					end
-					if image:getBufferSize() < 3 * ffi.sizeof(uint32_t) then	-- make sure the header is at least there
-						print('paste got an image with not enough buffer size', image:getBufferSize())
-						return
-					end
-					local p = ffi.cast(uint32_t_p, image.buffer)
-					local sx, sy, sz = p[0], p[1], p[2]
-					if ffi.sizeof(uint32_t) * (3 + sx * sy * sz) > image:getBufferSize() then
-						print('paste got a bad sized image: '..sx..', '..sy..', '..sz..' versus its buffer size '..image:getBufferSize())
-						return
-					end
-					self.undo:push()
-					for z=0,sz-1 do
-						for y=0,sy-1 do
-							for x=0,sx-1 do
-								local addr = voxelmap:getVoxelAddr(x + min.x, y + min.y, z + min.z)
-								if addr then	 -- TODO clamp bounds
-									self:edit_pokel(addr, p[3 + x + sx * (y + sy * z)])
-								end
-							end
-						end
-					end
-				end
-				cb()
+				self:pasteAtCenter(voxelmap, vec3d(
+					bit.rshift((self.rectUp.x + self.rectDown.x), 1),
+					bit.rshift((self.rectUp.y + self.rectDown.y), 1),
+					bit.rshift((self.rectUp.z + self.rectDown.z), 1)))
 			elseif app:keyp'z' then
 				self:popUndo(shift)
 			end
 		end
 	end
-	
+
 	---------------- TOOLTIP ----------------
 
 	self:drawTooltip()
 end
+
+function EditVoxelMap:dropper(voxelmap, x,y,z)
+	local app = self.app
+	local sx = voxelmap:getWidth()
+	local sy = voxelmap:getHeight()
+	local sz = voxelmap:getDepth()
+
+	if x < 0 or x >= sx
+	or y < 0 or y >= sy
+	or z < 0 or z >= sz
+	then return end
+
+	local addr = voxelmap:getVoxelAddr(x, y, z)
+	if not addr then return end
+
+	local voxval = app:peekl(addr)
+	-- how about shift+click on an empty tile works
+	-- that way you can shift+click on the map border to quickly grab empty tile
+	-- sometimes you want it, i.e. when you're flood-filling empty tiles
+	--if voxval ~= voxelMapEmptyValue then
+	self.voxCurSel.intval = voxval
+	self.tileSel.pos.x = self.voxCurSel.tileXOffset
+	self.tileSel.pos.y = self.voxCurSel.tileYOffset
+	--end
+end
+
+-- if 'sideIndex' is defined (i.e. right-click select mode)
+-- then make sure the size is all on one side of 'sideIndex'
+function EditVoxelMap:pasteAtCenter(voxelmap, centerpos, sideIndex)
+	local image = clip.image()
+	if not image then return end
+	if image.channels ~= 4 then
+		print('paste got an image with invalid channels', image.channels)
+		return
+	end
+	if image:getBufferSize() < 3 * ffi.sizeof(uint32_t) then	-- make sure the header is at least there
+		print('paste got an image with not enough buffer size', image:getBufferSize())
+		return
+	end
+	local p = ffi.cast(uint32_t_p, image.buffer)
+	local sx, sy, sz = p[0], p[1], p[2]
+	if ffi.sizeof(uint32_t) * (3 + sx * sy * sz) > image:getBufferSize() then
+		print('paste got a bad sized image: '..sx..', '..sy..', '..sz..' versus its buffer size '..image:getBufferSize())
+		return
+	end
+	self.undo:push()
+	local ofsx = centerpos.x - bit.rshift(sx, 1)
+	local ofsy = centerpos.y - bit.rshift(sy, 1)
+	local ofsz = centerpos.z - bit.rshift(sz, 1)
+	if sideIndex == 0 then
+		ofsx = centerpos.x
+	elseif sideIndex == 1 then
+		ofsx = centerpos.x + sx - 1
+	elseif sideIndex == 2 then
+		ofsy = centerpos.y
+	elseif sideIndex == 3 then
+		ofsy = centerpos.y + sy - 1
+	elseif sideIndex == 4 then
+		ofsz = centerpos.z
+	elseif sideIndex == 5 then
+		ofsz = centerpos.z + sz - 1
+	end
+	for z=0,sz-1 do
+		for y=0,sy-1 do
+			for x=0,sx-1 do
+				local addr = voxelmap:getVoxelAddr(x + ofsx, y + ofsy, z + ofsz)
+				if addr then	 -- TODO clamp bounds
+					self:edit_pokel(addr, p[3 + x + sx * (y + sy * z)])
+				end
+			end
+		end
+	end
+end
+
 
 --[[ TODO just use lua.gui ... gui scenegraph ...
 function EditVoxelMap:event(e)

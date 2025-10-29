@@ -342,13 +342,13 @@ function EditTilemap:update()
 			local selx, sely = self.tileSelDown:unpack()
 			for autotileIndex,autotile in ipairs(gameEnv.numo9_autotile) do
 				local pw, ph = 32, 32
-				local px = winX + pw * ((autotileIndex - 1) % 4)
-				local py = winY + ph * math.floor((autotileIndex - 1) / 4)
+				local px = winX + (pw + 16) * ((autotileIndex - 1) % 4)
+				local py = winY + (ph + 16) * math.floor((autotileIndex - 1) / 4)
 
 				if self.tileOrAutotile == 'autotile'
 				and self.autotileSel == autotileIndex
 				then
-					app:drawBorderRect(px, py, pw, ph, 0xd, nil, app.paletteMenuTex)
+					app:drawBorderRect(px-1, py-1, pw+2, ph+2, 0xd, nil, app.paletteMenuTex)
 				end
 
 				local pushPalBlobIndex = app.ram.paletteBlobIndex
