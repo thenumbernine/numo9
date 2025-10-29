@@ -125,6 +125,7 @@ deps = {
 	"image",
 	"langfix",
 	"matrix",
+	"mesh",
 	"sdl",
 	"struct",
 	"template",

@@ -8,8 +8,7 @@ local vec3i = require 'vec-ffi.vec3i'
 local vec3f = require 'vec-ffi.vec3f'
 local vec3d = require 'vec-ffi.vec3d'
 local box3i = require 'vec-ffi.box3i'
--- meh why deal with this bloat
---local OBJLoader = require 'mesh.objloader'
+local OBJLoader = require 'mesh.objloader'	-- has a lot of bloat, but is pretty robust for all .obj format possibilities ...
 
 local numo9_rom = require 'numo9.rom'
 local meshIndexType = numo9_rom.meshIndexType
@@ -196,7 +195,7 @@ function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 	--[[ use mesh library objloader
 	local mesh = OBJLoader():save(filepath)
 	--]]
-	-- [[ save ourselves
+	-- [[ save ourselves, so we can specify higher precision (TODO add this feature to OBJLoader)
 	-- x / 2^8 <=> needs 8 digits of precision
 	-- but (x + .5) / 2^8 <=> needs 9 digits of precision
 	local o = table()
@@ -224,10 +223,28 @@ end
 
 -- static method
 function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
-	--[[ bloated
-	local mesh = OBJLoader():load(filepath)
+	-- [[ bloated, and lower res (TODO change OBJLoader to double instead of float, though if I'm saving vtxs in u16 then float32 can hold all its precision with its 23 mantissa bits)
+	local mesh = OBJLoader():load(tostring(filepath))
+	local vs = table()
+	local vts = table()
+	for i=0,#mesh.vtxs-1 do
+		local vtx = mesh.vtxs.v + i
+		vs:insert{
+			math.clamp(math.floor(vtx.pos.x * 256), -32768, 32767),
+			math.clamp(math.floor(vtx.pos.y * 256), -32768, 32767),
+			math.clamp(math.floor(vtx.pos.z * 256), -32768, 32767)
+		}
+		vts:insert{
+			math.clamp(math.floor(vtx.texcoord.x * 256), 0, 255),
+			math.clamp(math.floor(vtx.texcoord.y * 256), 0, 255)
+		}
+	end
+	local is = table()
+	for i=0,#mesh.triIndexes-1 do
+		is:insert(mesh.triIndexes.v[i]+1)
+	end
 	--]]
-	-- [[
+	--[[ more lightweight loader
 	local vs = table()
 	local vts = table()
 	local is = table()
@@ -238,6 +255,7 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 			if lineType == 'v' then
 				assert.ge(#words, 2)
 				vs:insert{
+					-- TODO I wasn't adding .5 before floor() but should I?
 					math.clamp(math.floor((tonumber(words[1]) or 0) * 256), -32768, 32767),
 					math.clamp(math.floor((tonumber(words[2]) or 0) * 256), -32768, 32767),
 					math.clamp(math.floor((tonumber(words[3]) or 0) * 256), -32768, 32767),
@@ -246,6 +264,7 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 				assert.ge(#words, 2)
 				vts:insert{
 					-- clamp so .obj texcoords [0,1] still map to [0,255] correctly
+					-- TODO I wasn't adding .5 before floor() but should I?
 					math.clamp(math.floor((tonumber(words[1]) or 0) * 256), 0, 255),
 					math.clamp(math.floor((tonumber(words[2]) or 0) * 256), 0, 255)
 				}
@@ -262,6 +281,7 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 			end
 		end
 	end
+	--]]
 
 	local o = vector(int16_t)
 	o:emplace_back()[0] = #vs
@@ -294,7 +314,6 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 		end
 	end
 	return self.class(o:dataToStr())
-	--]]
 end
 
 return BlobMesh3D
