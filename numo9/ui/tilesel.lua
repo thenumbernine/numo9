@@ -31,8 +31,10 @@ function TileSelect:init(args)
 	self.onSetTile = args.onSetTile
 
 	self.pickOpen = false			-- if this is open or not
-	self.pos = vec2i()
-	self.size = vec2i(1,1)
+	self.posDown = vec2i()		-- mouseX/mouseY upon mouse left press
+	self.posUp = vec2i()		-- mouseX/mouseY while dragging / waiting for a mouse left release
+	self.pos = vec2i()			-- selected pos, upper-left of downPos/upPos
+	self.size = vec2i(1,1)		-- selected size
 end
 
 function TileSelect:button(x, y)
@@ -119,16 +121,25 @@ function TileSelect:doPopup()
 	if spriteX >= 0 and spriteX < spriteSheetSizeInTiles.x
 	and spriteY >= 0 and spriteY < spriteSheetSizeInTiles.y
 	then
+		if not edit.tooltip then
+			edit:setTooltip(spriteX..','..spriteY, mouseX-8, mouseY-8, 0xfc, 0)
+		end
+
 		if leftButtonPress then
 			-- TODO rect select
+			self.posDown:set(spriteX, spriteY)
+			self.posUp:set(spriteX, spriteY)
 			self.pos:set(spriteX, spriteY)
 			self.size:set(1, 1)
 			if self.onSetTile then
 				self:onSetTile()
 			end
 		elseif leftButtonDown then
-			self.size.x = math.ceil((math.abs(mouseX - lastMousePressX) + 1) / spriteSize.x)
-			self.size.y = math.ceil((math.abs(mouseY - lastMousePressY) + 1) / spriteSize.y)
+			self.posUp:set(spriteX, spriteY)
+			self.pos.x = math.min(self.posUp.x, self.posDown.x)
+			self.pos.y = math.min(self.posUp.y, self.posDown.y)
+			self.size.x = math.max(self.posUp.x, self.posDown.x) - self.pos.x + 1
+			self.size.y = math.max(self.posUp.y, self.posDown.y) - self.pos.y + 1
 		elseif leftButtonRelease then
 			self.pickOpen = false
 		end

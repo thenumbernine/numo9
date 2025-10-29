@@ -65,6 +65,9 @@ function EditTilemap:onCartLoad()
 	self.autotileOpen = false
 	self.autotilePreviewBorder = 1
 
+	self.tileOrAutotile = 'tile'	-- 'tile' or 'autotile' depending on which you're painting with
+	self.autotileSel = nil			-- index into `numo9_autotile` array
+
 	-- and this is for copy paste in the tilemap
 	self.tileSelDown = vec2i()
 	self.tileSelUp = vec2i()
@@ -90,6 +93,7 @@ function EditTilemap:update()
 	local draw16As0or1 = self.draw16Sprites and 1 or 0
 
 	local leftButtonDown = app:key'mouse_left'
+	local leftButtonRelease = app:keyr'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 
@@ -110,11 +114,11 @@ function EditTilemap:update()
 
 	self.tileSel:button(x,y)
 	x = x + 6
-	
+
 	-- here, autotile-select
 	local gameEnv = app.gameEnv
 	local canAutoTile = gameEnv and gameEnv.numo9_autotile
-	if self:guiButton('A', x, y, nil,
+	if self:guiButton('A', x, y, self.tileOrAutotile == 'autotile',
 		canAutoTile and 'autotile'
 		or "define 'numo9_autotile' for autotiling"
 	) then
@@ -337,12 +341,13 @@ function EditTilemap:update()
 		if gameEnv.numo9_autotile then
 			local selx, sely = self.tileSelDown:unpack()
 			for autotileIndex,autotile in ipairs(gameEnv.numo9_autotile) do
-				local px = 32 * ((autotileIndex - 1) % 4)
-				local py = 32 * math.floor((autotileIndex - 1) / 4)
+				local pw, ph = 32, 32
+				local px = winX + pw * ((autotileIndex - 1) % 4)
+				local py = winY + ph * math.floor((autotileIndex - 1) / 4)
 
 				-- show a rect around what the current selected tile would be like if it was painted with this autotile brush
-				local r = self.penSize - 1 + 2 * self.autotilePreviewBorder 
-				self:drawTileMap(
+				local r = self.penSize - 1 + 2 * self.autotilePreviewBorder
+				app:drawTileMap(
 					selx - self.autotilePreviewBorder,		-- upper-left index in the tile tex
 					sely - self.autotilePreviewBorder,
 					r,		-- tiles wide
@@ -352,19 +357,28 @@ function EditTilemap:update()
 					0,		-- map index offset / high page
 					self.draw16Sprites,	-- draw 16x16 vs 8x8
 					self.sheetBlobIndex	-- sprite vs tile sheet
-					
+
 				)
+				--[[ hmm how to use bigger previews ...
 				for dx=-self.autotilePreviewBorder,self.autotilePreviewBorder + self.penSize do
 					for dy=-self.autotilePreviewBorder,self.autotilePreviewBorder + self.penSize do
-						local x = dx + selx
-						local y = dy + sely
-						if x >= 0 and x < self.penSize
-						and y >= 0 and y < self.penSize
-						then
-							-- then draw
-							local tile = autotile(x, y)
-							-- TODO handle orientation
-							self:drawSprite(
+				--]]
+				-- [[ for now the autotile functions should only accept -1,1 for dx
+				-- but TODO soon, dont use dx at all
+				for dx=-1,1 do
+					for dy=-1,1 do
+				--]]
+						-- then draw
+						-- TODO at the moment autotile writes in place
+						-- so preview is tough to consider
+						-- but if we had it return written content
+						-- then I'd need it to return a region of tile values equal to the pen radius ...
+						-- and the autotiles themselves operate on mget/mset/peek/poke so ...
+						-- how to preview at all ...
+						-- how to do this ...
+						local tile = autotile(selx, sely, dx, dy, self.tilemapBlobIndex)
+						if tile then
+							app:drawSprite(
 								bit.band(tile, 0x3ff),
 								px + (dx + self.autotilePreviewBorder) * tileSize,
 								py + (dy + self.autotilePreviewBorder) * tileSize,
@@ -382,10 +396,19 @@ function EditTilemap:update()
 						end
 					end
 				end
+
+				if leftButtonRelease
+				and mouseX >= px and mouseX < px + pw
+				and mouseY >= py and mouseY < py + ph
+				then
+					self.tileOrAutotile = 'autotile'
+					self.autotileSel = autotileIndex
+				end
 			end
 		end
 
 	elseif self.tileSel:doPopup() then
+		self.tileOrAutotile = 'tile'
 	else
 		-- TODO allow drawing while picking window is open, like tic80 does?
 		-- maybe ... then i should disable the auto-close-on-select ...
@@ -422,30 +445,20 @@ function EditTilemap:update()
 		end
 
 		local function gettile(tx, ty)
-			if tx < 0 or tx >= tilemapSize.x
-			or ty < 0 or ty >= tilemapSize.y
-			then return end
-
-			local texelIndex = tx + tilemapSize.x * ty
-			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
-			return app:peekw(tilemapRAM.addr + bit.lshift(texelIndex, 1))
+			return app:mget(tx, ty, self.tilemapBlobIndex)
 		end
 
+		-- TODO move the dx,dy out of this function ... and fix it.
 		local function puttile(tx, ty, dx, dy)
-			if tx < 0 or tx >= tilemapSize.x
-			or ty < 0 or ty >= tilemapSize.y
-			then return end
-
 			local tileSelIndex = bit.bor(
 				self.tileSel.pos.x + (dx % self.tileSel.size.x)
 				+ spriteSheetSizeInTiles.x * (self.tileSel.pos.y + (dy % self.tileSel.size.y)),
 				bit.lshift(bit.band(7, self.selPalHiOffset), 10),
 				bit.lshift(bit.band(7, self.orientation), 13)
 			)
-			local texelIndex = tx + tilemapSize.x * ty
-			assert(0 <= texelIndex and texelIndex < tilemapSize:volume())
+
 			self.undo:pushContinuous()
-			self:edit_pokew(tilemapRAM.addr + bit.lshift(texelIndex, 1), tileSelIndex)
+			self:edit_mset(tx, ty, tileSelIndex, self.tilemapBlobIndex)
 		end
 
 		-- TODO pen size here
@@ -463,6 +476,7 @@ function EditTilemap:update()
 					self.tileSel.pos.y = ((tileSelIndex - self.tileSel.pos.x) / spriteSheetSizeInTiles.x) % spriteSheetSizeInTiles.y
 					self.selPalHiOffset = bit.band(7, bit.rshift(tileSelIndex, 10))
 					self.orientation = bit.band(7, bit.rshift(tileSelIndex, 13))
+					self.tileOrAutotile = 'tile'
 				end
 			end
 		elseif self.drawMode == 'draw' then
@@ -472,16 +486,44 @@ function EditTilemap:update()
 			and 0 <= tx and tx < tilemapSize.x
 			and 0 <= ty and ty < tilemapSize.y
 			then
-				local tx0 = tx -- - math.floor(self.penSize / 2)
-				local ty0 = ty -- - math.floor(self.penSize / 2)
-				local r = self.penSize
-				local l = math.floor((r-1)/2)
-				for dy=-l,-l + r-1 + math.ceil(self.tileSel.size.y / bit.lshift(1,draw16As0or1))-1 do
-					-- hmm how should stamps and pensizes work together?
-					local ty = ty0 + dy
-					for dx=-l,-l + r-1 + math.ceil(self.tileSel.size.x / bit.lshift(1,draw16As0or1))-1 do
-						local tx = tx0 + dx
-						puttile(tx,ty, bit.lshift(dx, draw16As0or1), bit.lshift(dy, draw16As0or1))
+				if self.tileOrAutotile == 'tile' then
+					local tx0 = tx -- - math.floor(self.penSize / 2)
+					local ty0 = ty -- - math.floor(self.penSize / 2)
+					local r = self.penSize
+					local l = math.floor((r-1)/2)
+					-- hmm right now penSize is the border in tiles around the stamp
+					-- should instead penSize be the number of stamps to plot in a grid?
+					for dy=-l,-l + r-1 + math.ceil(self.tileSel.size.y / bit.lshift(1,draw16As0or1))-1 do
+						-- hmm how should stamps and pensizes work together?
+						local ty = ty0 + dy
+						for dx=-l,-l + r-1 + math.ceil(self.tileSel.size.x / bit.lshift(1,draw16As0or1))-1 do
+							local tx = tx0 + dx
+							puttile(tx,ty, bit.lshift(dx, draw16As0or1), bit.lshift(dy, draw16As0or1))
+						end
+					end
+				elseif self.tileOrAutotile == 'autotile' then
+					local r = self.penSize
+					local l = math.floor((r-1)/2)
+					local f = gameEnv and gameEnv.numo9_autotile[self.autotileSel]
+					if f then
+						self.undo:pushContinuous()
+						--[[
+						for dy=-l,-l+r-1 do
+							for dx=-l,-l+r-1 do
+								f(tx, ty, dx, dy, self.tilemapBlobIndex)
+							end
+						end
+						--]]
+						-- [[
+						for dy=-1,1 do
+							for dx=-1,1 do
+								local tile = f(tx, ty, dx, dy, self.tilemapBlobIndex)
+								if tile then
+									self:edit_mset(tx + dx, ty + dy, tile, self.tilemapBlobIndex)
+								end
+							end
+						end
+						--]]
 					end
 				end
 			end
@@ -582,7 +624,7 @@ function EditTilemap:update()
 				assert.eq(tilemapRAM.image.channels, 1)
 				for j=sely,sely+selh-1 do
 					for i=selx,selx+selw-1 do
-						self:edit_pokew(tilemapRAM.addr + bit.lshift(i + tilemapRAM.image.width * j, 1), 0)
+						self:edit_mset(i, j, 0, self.tilemapBlobIndex)
 					end
 				end
 			end
@@ -609,7 +651,7 @@ function EditTilemap:update()
 								c = bit.lshift(c, 8)
 								c = bit.bor(c, image.buffer[ch + image.channels * (i + image.width * j)])
 							end
-							self:edit_pokew(tilemapRAM.addr + bit.lshift(destx + tilemapRAM.image.width * desty, 1), c)
+							self:edit_mset(destx, desty, c, self.tilemapBlobIndex)
 						end
 					end
 				end

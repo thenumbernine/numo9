@@ -159,9 +159,8 @@ If you want to v-flip, h-flip and rotate twice, so use 0b101.
 Tilemaps can render 8x8 or 16x16 sprites.  This can be specified in the `tilemap()` or `drawbrush()` functions.
 
 The tilemap editor can make use of autotiling if the `numo9_autotile` global is defined.
-`numo9_autotile` should point to a table, where elements will be functions.
-Functions will provide a tile value using the following signature: `tileIndex = autotile(x, y)`.
-The function can then read from tile memory using `mget` or `peekw` to determine the tiles neighboring x,y and then return an appropriate value.
+`numo9_autotile` should point to a table of functions.
+Functions accept `(x,y)` and will write to the tile and its neighbors using `mget/mset` or `peekw/pokew` .
 
 ### code
 
@@ -565,7 +564,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites, default to false.
 	- sheetIndex = the sheet to use, default to 0.
 	- tilemapIndex = the tilemap blob index to use, default to 0.
-	- I am really tempted to swap out `tileX,tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
+	- I am really tempted to swap out `tileX, tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
 - `mget(x, y, [tilemapIndex=0])` = Read the uint16 from the tilemap address at x, y.
 	Out of bounds coordinates return a value of 0.
 	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.

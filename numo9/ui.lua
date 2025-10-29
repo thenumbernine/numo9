@@ -17,6 +17,7 @@ local paletteSize = numo9_rom.paletteSize
 local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
+local tilemapSizeInBits = numo9_rom.tilemapSizeInBits
 local tilemapSize = numo9_rom.tilemapSize
 local menuFontWidth = numo9_rom.menuFontWidth
 
@@ -33,6 +34,7 @@ local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
 local uint16_t = ffi.typeof'uint16_t'
 local uint16_t_p = ffi.typeof'uint16_t*'
+local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
 local uint32_t_p = ffi.typeof'uint32_t*'
 
@@ -592,6 +594,41 @@ function UI:edit_pokel(addr, value)
 	end
 
 	app:net_pokel(addr, value)
+end
+
+-- also in numo9/app.lua
+local function toint(x)
+	return ffi.cast(int32_t, x)	-- use int32 so Lua has no problem with it
+end
+function UI:edit_mset(x, y, value, tilemapBlobIndex)
+	x = toint(x)
+	y = toint(y)
+	local app = self.app
+	value = ffi.cast(uint32_t, value)
+
+	if not (x >= 0 and x < tilemapSize.x
+		and y >= 0 and y < tilemapSize.y
+		and tilemapBlobIndex >= 0 and tilemapBlobIndex < #app.blobs.tilemap
+	)
+	then
+		return
+	end
+
+	value = ffi.cast(uint32_t, value)
+	local addr = app.blobs.tilemap[tilemapBlobIndex+1].addr
+		+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+
+	if app:peekw(addr) == value then return end
+
+	for _,blobs in pairs(app.blobs) do
+		for _,blob in ipairs(blobs) do
+			if addr >= blob.addr and addr+2 <= blob.addrEnd then
+				ffi.cast(uint16_t_p, blob:getPtr() + (addr - blob.addr))[0] = value
+			end
+		end
+	end
+
+	app:net_pokew(addr, value)
 end
 
 -- in any menu, press escape or gamepad start to exit menu
