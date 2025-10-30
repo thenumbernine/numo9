@@ -275,5 +275,5 @@ end
 -- init draw
 gameUpdate()
 render()
-flip()
+yield()
 render()

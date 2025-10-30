@@ -36,6 +36,40 @@ mapSet=|x,y,value|do
 end
 mapGetType=|x,y|mapType[mapGet(x,y)]
 
+numo9_brushes = {
+	-- map border as a brush
+	[0] = |x,y,w,h| do
+		if x == 0 and y == 0 then	-- upper-left
+			return 192
+		elseif x == 1 and y == 0 then
+			return 194
+		end
+		if x == w-1 and y == 0 then -- upper-right
+			return 192 | (1 << 13)
+		end
+		if x == 0 and y == h-1 then	-- lower-left
+			return 320
+		end
+		if x == w-1 and y == h-1 then -- lower-right
+			return 320 | (1 << 13)
+		end
+		if x == 0 then	-- left
+			return 256
+		end
+		if x == w-1 then	-- right
+			return 256 | (1 << 13)
+		end
+		if y == 0 then	-- top
+			return 196
+		end
+		if y == h-1 then	-- bottom
+			return 322
+		end
+		-- center
+		return 0	-- ground
+	end,
+}
+
 dirs={none=-1,down=0,left=1,right=2,up=3}
 vecs={[0]={0,1},{-1,0},{1,0},{0,-1}}
 seqs={
@@ -914,7 +948,12 @@ update=||do
 	matident()
 	mattrans(8,16)
 	-- draw ground and border
+	--[[ as tilemap ...
 	tilemap(10,20,mapw+2,maph+2,0,0,0,true,1)
+	--]]
+	-- [[ as brush ...
+	drawbrush(0, 0, 0, mapw+2, maph+2, 0, true, 1)
+	--]]
 	mattrans(16, 16)
 	-- then draw map
 	tilemap(levelTileX,levelTileY,mapw,maph,0,0,0,true,1)

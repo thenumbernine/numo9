@@ -645,7 +645,7 @@ trace('statePoly', polyToStr(statePoly))
 trace('V(t) so far', polyToStr(poly))
 
 			-- yield so we can kill it if it gets out of hand
-			flip()
+			yield()
 		end
 
 		-- sign = (-1)^(3*w) ... = (-1)^(2*w) * (-1)^w ... = (-1)^w

@@ -452,7 +452,7 @@ setfenv(1, {
 	t=time,
 	time=time,
 
-	flip=||nil,
+	flip=||yield(),
 	cls=cls,
 	clip=p8_clip,
 	camera=p8_camera,

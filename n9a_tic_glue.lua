@@ -309,6 +309,7 @@ local newG = {
 	end,
 	spr=|n,x,y,colorkey,scale,flip,rotate,w,h|do
 		-- https://github.com/nesbox/TIC-80/wiki/spr
+		flip = flip or 0
 		rotate = rotate or 0
 		n=math.floor(n)
 		local bankno=bit.rshift(n, 8)
@@ -320,8 +321,8 @@ local newG = {
 		w=math.floor(w or 1)
 		h=math.floor(h or 1)
 		local orient2D = rotate<<1
-		if flipX then orient2D~~=1 end
-		if flipY then orient2D~~=5 end
+		if flip&1 ~= 0 then orient2D~~=1 end
+		if flip&2 ~= 0 then orient2D~~=5 end
 		spr(n,
 			x,y,w,h,
 			orient2D&7,

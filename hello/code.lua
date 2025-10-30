@@ -3,9 +3,9 @@
 -- author = Chris Moore
 -- description = Hello World
 
-mode(0)
+--mode(0)
 --mode(1)
---mode(2)
+mode(2)		-- 256x256x8bppxRGB332
 --mode(3)
 
 local w = peekw(ramaddr'screenWidth')
@@ -119,5 +119,3 @@ function update()
 		1.5, 3 -- sx sy
 	)
 end
-
-do return 42 end

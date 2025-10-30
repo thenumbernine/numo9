@@ -163,7 +163,7 @@ local players={}
 -- reset the whole game
 reset=||do
 	-- stall
-	for i=1,60 do flip() end
+	for i=1,60 do yield() end
 	
 	for j=0,maph-1 do
 		for i=0,mapw-1 do

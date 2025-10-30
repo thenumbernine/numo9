@@ -136,7 +136,7 @@ getpress=||do
 end
 waitforpress=||do
 	while true do
-		flip()
+		yield()
 		local b = getpress()
 		if b then return b end
 	end
@@ -186,7 +186,7 @@ update=||do
 				inSplash = false
 				return
 			end
-			flip()
+			yield()
 		end
 	end
 

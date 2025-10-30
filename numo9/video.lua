@@ -731,7 +731,6 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
 
-uniform bool useDepthOfField;
 uniform vec3 depthOfFieldPos;	//xyz = worldspace pos
 uniform vec3 depthOfFieldAtten;	//xyz = const, linear, quadratic distance attenuation
 
@@ -828,22 +827,7 @@ void main() {
 }..[[;
 #endif
 #if 1	// internalFormat == GL_RGB565 but without my weird readTex function that abstracted too much stuff I've since made fixed ...
-	if (!useDepthOfField) {
-		fragColor = texture(framebufferTex, tcv);
-	} else {
-		vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
-		// hmm use clip depth w? or use world coord xyz dist?
-		float len = distance(worldCoordAndClipDepth.xyz, depthOfFieldPos.xyz);
-		float depthOfFieldBias = depthOfFieldAtten.x + len * (depthOfFieldAtten.y + len * depthOfFieldAtten.z);
-		vec2 size = textureSize(framebufferTex, 0);
-		float numMipLevelsMinus1 = floor(log2(max(size.x, size.y)));
-		fragColor = textureLod(framebufferTex, tcv, clamp(depthOfFieldBias, 0., numMipLevelsMinus1));
-#if 0 // debug display dpeth-of-field
-fragColor.r = len * .01;
-fragColor.g = len * .1;
-fragColor.b = len;
-#endif
-	}
+	fragColor = texture(framebufferTex, tcv);
 #endif
 #if 0	// internalFormat = internalFormat5551
 	uint rgba5551 = ]]..readTex{
@@ -872,7 +856,6 @@ fragColor.b = len;
 				framebufferTex = 0,
 				framebufferPosTex = 1,
 				calcLightTex = 2,
-				useDepthOfField = false,
 			},
 		},
 		texs = {
@@ -955,7 +938,6 @@ void main() {
 				framebufferPosTex = 1,
 				calcLightTex = 2,
 				paletteTex = 3,
-				useDepthOfField = false,
 			},
 		},
 		texs = {
@@ -1049,7 +1031,6 @@ void main() {
 				framebufferTex = 0,
 				framebufferPosTex = 1,
 				calcLightTex = 2,
-				useDepthOfField = false,
 			},
 		},
 		texs = {
@@ -2951,8 +2932,6 @@ function AppVideo:resetVideo()
 
 	self.ram.useHardwareLighting = 0
 	self:onUseHardwareLightingChange()
-
-	self.ram.useDepthOfField = 0
 
 	self.paletteBlobIndex = 0
 	self.fontBlobIndex = 0

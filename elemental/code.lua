@@ -1092,7 +1092,7 @@ end
 Game.done = |:|do
 	while true do
 		text'TODO'
-		flip()
+		yield()
 	end
 	if confirm('are you sure?') then
 		local done = ||do

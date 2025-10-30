@@ -400,7 +400,7 @@ function App:initGL()
 
 		-- graphics
 
-		flip = coroutine.yield,	-- simple as
+		yield = coroutine.yield,	-- flip is a coroutine yield. simple as
 		cls = function(colorIndex, depthOnly)
 			colorIndex = toint(colorIndex or 0)
 			if self.server then
@@ -1229,12 +1229,12 @@ print('package.loaded', package.loaded)
 			self.con:reset()	-- needed for palette .. tho its called in init which is above here ...
 			self:clearScreen()	-- without this, with depth test, the text console copy in coolPrint() doesn't work
 			--[[ print or so something cheesy idk
-			--for i=1,30 do env.flip() end
+			--for i=1,30 do env.yield() end
 			for i=0,15 do
 				self.con.fgColor = bit.bor(0xf0,i)	-- bg = i, fg = i + 15 at the moemnt thanks to the font.png storage ...
 				self.con.bgColor = bit.bor(0xf0,bit.band(0xf,i+1))
 				self.con:print'hello world'
-				--for i=1,3 do env.flip() end
+				--for i=1,3 do env.yield() end
 			end
 			self.con.fgColor = 0xfc			-- 11 = bg, 12 = fg
 			self.con.bgColor = 0xf0
@@ -1294,19 +1294,19 @@ print('package.loaded', package.loaded)
 							textRowSize)			-- len
 						-- and writing to it should dirty cpu to later flush cpu->gpu
 					end
-					env.flip()
+					env.yield()
 				end
 
 				for sleep=1,60 do
-					env.flip()
+					env.yield()
 				end
 
 				coolPrint('NuMo-9 ver. '..versionStr)
-				for i=1,30 do env.flip() end
+				for i=1,30 do env.yield() end
 				coolPrint'https://github.com/thenumbernine/numo9 (c) 2025'
-				for i=1,30 do env.flip() end
+				for i=1,30 do env.yield() end
 				coolPrint'...LuaJIT w/5.2 compat'
-				for i=1,30 do env.flip() end
+				for i=1,30 do env.yield() end
 
 				--[[ list screen modes? or nah?
 				for _,i in ipairs(self.videoModes:keys():sort()) do
@@ -1335,10 +1335,10 @@ print('package.loaded', package.loaded)
 				--]=]
 
 				--self.con:print"type help() for help" -- not really
-				env.flip()
+				env.yield()
 
 				-- flag 'needsPrompt' then write the prompt in update if it's needed
---				for sleep=1,60 do env.flip() end
+--				for sleep=1,60 do env.yield() end
 
 				-- also for init, do the splash screen
 				resetLogoOnSheet(self.blobs.sheet[1].ramptr)
@@ -1381,20 +1381,20 @@ print('package.loaded', package.loaded)
 
 					--[[ pause and watch
 					for i=0,3 do
-						env.flip()
+						env.yield()
 						if env.keyp'space' then
-							env.flip()
+							env.yield()
 							repeat
-								env.flip()
+								env.yield()
 							until env.keyp'space'
 						end
 					end
 					--]]
 					-- [[
-					env.flip()
+					env.yield()
 					--]]
 				end
-				env.flip()
+				env.yield()
 
 				-- and clear the tilemap now that we're done with it
 				local sheetBlob = self.blobs.sheet[1]
@@ -2247,7 +2247,6 @@ print('run thread dead')
 		-- [[ TODO TODO this only when the framebuffer changes
 		if self.framebufferRAM
 		and self.framebufferRAM.tex.internalFormat == gl.GL_RGB565
-		and self.ram.useDepthOfField ~= 0
 		then
 			-- will binding this overwrite the lastSheetTex bound to 0, or are we done with it since we're done with the update call?
 			-- TODO either keep calcLightPP with the same tex filtering or
@@ -2333,7 +2332,6 @@ print('run thread dead')
 		view.mvProjMat:copy(view.projMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		sceneObj.uniforms.useDepthOfField = self.ram.useDepthOfField
 		sceneObj.uniforms.depthOfFieldPos = self.ram.depthOfFieldPos + 0
 		sceneObj.uniforms.depthOfFieldAtten = self.ram.depthOfFieldAtten + 0
 

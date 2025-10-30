@@ -356,6 +356,9 @@ enum {
 ]]
 
 -- bitflags for useHardwareLighting:
+-- TODO MAYBE maybe this will become renderFlags and will include cull face?
+-- TODO MAYBE separate this into uniform vs non uniform so when one is poke'd it triggers a uniform upload, but when the other is poke'd it doesn't
+-- TODO MAYBE but cull face triggers enable/disable cull test, which is different from uniform upload, so maybe that's an argument to keep it separate?
 ffi.cdef[[
 enum {
 	LIGHTING_APPLY_TO_SURFACE = 1,
@@ -458,9 +461,7 @@ local RAM = struct{
 
 
 				-- lighting ...
-				{name='useHardwareLighting', type=uint8_t},	-- state for all lighting, flags in LIGHTING_*
-
-				{name='useDepthOfField', type=uint8_t},		-- 1 bit so far
+				{name='useHardwareLighting', type=uint16_t},	-- state for all lighting, flags in LIGHTING_*
 
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
 				{name='lightmapHeight', type=uint16_t},

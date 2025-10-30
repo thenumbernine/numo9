@@ -877,7 +877,7 @@ Client.processCmdState=|:,state|do
 			ch='e' -- equipCmdState has 'e'
 		else
 			return
---			flip()
+--			yield()
 		end
 --	until ch
 	if self.dead then

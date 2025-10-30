@@ -379,6 +379,8 @@ HDR coming soon.
 ## Memory Layout
 
 ```
+RAM size: 0x2d0d2
+ROM size: 0x3123c
 memory layout:
 - RAM -
 0x000000 - 0x020000 = framebuffer
@@ -416,20 +418,19 @@ memory layout:
 0x02087e - 0x020882 = mouseWheel
 0x020882 - 0x020886 = lastMousePos
 0x020886 - 0x02088a = lastMousePressPos
-0x02088a - 0x02088b = useHardwareLighting
-0x02088b - 0x02088c = useDepthOfField
+0x02088a - 0x02088c = useHardwareLighting
 0x02088c - 0x02088e = lightmapWidth
 0x02088e - 0x020890 = lightmapHeight
-0x020890 - 0x020894 = lightAmbientColor
-0x020894 - 0x020896 = numLights
-0x020896 - 0x02ac96 = lights
-0x02ac96 - 0x02aca2 = depthOfFieldPos
-0x02aca2 - 0x02acae = depthOfFieldAtten
-0x02acae - 0x02acb2 = ssaoSampleRadius
-0x02acb2 - 0x02acb6 = ssaoInfluence
-0x02acb6 - 0x02acba = spriteNormalExhaggeration
-0x02acba - 0x02acbe = blobCount
-0x02acbe - 0x02acca = blobEntries
+0x020890 - 0x02089c = lightAmbientColor
+0x02089c - 0x02089e = numLights
+0x02089e - 0x02d09e = lights
+0x02d09e - 0x02d0aa = depthOfFieldPos
+0x02d0aa - 0x02d0b6 = depthOfFieldAtten
+0x02d0b6 - 0x02d0ba = ssaoSampleRadius
+0x02d0ba - 0x02d0be = ssaoInfluence
+0x02d0be - 0x02d0c2 = spriteNormalExhaggeration
+0x02d0c2 - 0x02d0c6 = blobCount
+0x02d0c6 - 0x02d0d2 = blobEntries
 ```
 
 # Language
@@ -510,7 +511,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 
 ## graphics
 
-- `flip()` = flip the framebuffer, and wait until the next 60Hz frame to begin.
+- `yield()` = flip the framebuffer, aka yield the game coroutine, and wait until the next 60Hz frame to begin.  `yield` is identical to `coroutine.yield`.
 - `cls([colorIndex], [depthOnly])` = Clears the screen to the palette index at `color`.
 - `fillp([pattern])` = Sets the 16-bit 4x4 dither pattern, where 0 is fully solid and 0xffff is fully transparent.  Default is 0.  Bit values follow a Bayer dither matrix.
 - `pal(i, [value])` = If value is not provided then returns the uint16 RGBA 5551 value of the palette entry at index `i`.  If value is provided then the palette entry at `i` is set to the value.
@@ -990,7 +991,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 	- or i can make it a flag ... that would turn this more and more into a WebGL2 "fantasy console" ....
 - while we're changing spr()'s API, also move those 4 properties (bit, mask, transparent, palette-offset) to the back behind hflip/vflip/scale flags
 	- adding hflip & vflip might mean merging tilemap and spritemap render paths
-- rename flip to yield()
 
 TODO cart status:
 - hello.n9 is broken, but only for mode(1), and other mode(1) carts work fine.  hmmmmmm.
@@ -1089,3 +1089,5 @@ voxelmap editor fixes:
 
 - test and finish tilemap autotile
 - make autotile for voxelmaps too.
+
+- where did the linear mag filter come from ...
