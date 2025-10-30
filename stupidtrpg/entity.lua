@@ -26,12 +26,14 @@ entsWithinRadius=|pos, radius|do
 	return closeEnts
 end
 
+local veccommasep = |v| table{v:unpack()}:concat','
+
 floodFillTiles=|pos, bbox|do
 	bbox = box2(bbox):clamp(map.bbox)
 	pos = pos:clone()
 	local positions = table{pos}
 	local allpositionset = table()
-	allpositionset[tostring(pos)] = true
+	allpositionset[veccommasep(pos)] = true
 	while #positions > 0 do
 		local srcpos = positions:remove(1)
 		for _,dir in ipairs(dirs) do
@@ -39,10 +41,10 @@ floodFillTiles=|pos, bbox|do
 			if bbox:contains(newpos) then
 				local tile = map.tiles[newpos.x][newpos.y]
 				if not tile.type.solid then
-					if not allpositionset[tostring(newpos)]
+					if not allpositionset[veccommasep(newpos)]
 					then
 						positions:insert(newpos)
-						allpositionset[tostring(newpos)] = true
+						allpositionset[veccommasep(newpos)] = true
 					end
 				end
 			end
@@ -64,7 +66,7 @@ pathSearchToPoint=|args|do
 		{pos = start:clone()}
 	}
 	local allpositions = table()
-	allpositions[tostring(start:clone())] = true
+	allpositions[veccommasep(start:clone())] = true
 	local bestState
 	local bestDist
 	while bestDist ~= 0 and #states > 0 do
@@ -96,10 +98,10 @@ pathSearchToPoint=|args|do
 						end
 					end
 					if not blocked
-					and not allpositions[tostring(newstate.pos)]
+					and not allpositions[veccommasep(newstate.pos)]
 					then
 						states:insert(newstate)
-						allpositions[tostring(newstate.pos)] = true
+						allpositions[veccommasep(newstate.pos)] = true
 					end
 				end
 			end

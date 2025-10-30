@@ -992,11 +992,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - while we're changing spr()'s API, also move those 4 properties (bit, mask, transparent, palette-offset) to the back behind hflip/vflip/scale flags
 	- adding hflip & vflip might mean merging tilemap and spritemap render paths
 
-TODO cart status:
-- hello.n9 is broken, but only for mode(1), and other mode(1) carts work fine.  hmmmmmm.
-- stupidtrpg.n9 is broken (tho sometimes it shows text)
-
-- change scripts from .lua to .rua becuase technically they're not .lua ...
+- maybe change scripts from .lua to .rua becuase technically they're not .lua ...
 
 - eventually replace 'struct' lib with luajit introspection
 	- find a good introspection way to get the sizeof a struct field
@@ -1089,3 +1085,5 @@ voxelmap editor fixes:
 
 - test and finish tilemap autotile
 - make autotile for voxelmaps too.
+
+- when changing from mode 1 to 0 (and 0 to 1?), I don't see framebuffer contents matching...

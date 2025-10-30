@@ -104,6 +104,7 @@ files = {
 	["stupid.n9"] = "numo9/stupid.n9",
 	["stupidtrpg.n9"] = "numo9/stupidtrpg.n9",
 	["survive.n9"] = "numo9/survive.n9",
+	["test-8bppindex.n9"] = "numo9/test-8bppindex.n9",
 	["test-brushmap.n9"] = "numo9/test-brushmap.n9",
 	["test-btnp.n9"] = "numo9/test-btnp.n9",
 	["test-dither.n9"] = "numo9/test-dither.n9",

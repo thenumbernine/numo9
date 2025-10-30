@@ -720,17 +720,33 @@ function App:initGL()
 
 		mode = function(modeIndex)
 			if type(modeIndex) == 'string' then
+				local formatDesc = modeIndex
 				modeIndex = self.videoModes:find(nil, function(modeObj)
-					return modeObj.formatDesc == modeIndex
+					return modeObj.formatDesc == formatDesc
 				end)
 				if not modeIndex then
-					return false, "failed to find video mode"
+					return false, "unknown video mode "..tostring(formatDesc)
 				end
 			end
 
-			-- just poke here so mode is set next frame
-			-- for net play's sake ,how about just doing a peek/poke?
+			-- poke here so mode is set next frame
+			-- for net play's sake use net_poke
 			self:net_poke(ffi.offsetof(RAM, 'videoMode'), modeIndex)
+
+			-- hmm before setting mode, should I flush framebuffer?
+			-- doesn't seem to sync between modes 1 and 0 ...
+			--self.framebufferRAM:checkDirtyGPU()
+
+			-- also directly set here so we can get a result ...
+			-- setVideoMode() can't clearScreen() without screwing up the menu
+			-- so better to clearScreen() here
+			-- if I don't clear screen then the depth has oob garbage that prevents all subsequent writes so ...
+			-- ... so I will just clear depth for visual effect
+			local result = self:setVideoMode(modeIndex)
+			if result then
+				self:clearScreen(nil, nil, true)
+			end
+			return result
 		end,
 
 		clip = function(...)
@@ -2294,7 +2310,9 @@ print('run thread dead')
 		local view = self.blitScreenView
 		local orthoSize = view.orthoSize
 
-		local fbTex = self.activeMenu and self.videoModes[255].framebufferRAM.tex or self.framebufferRAM.tex
+		local fbTex = self.activeMenu
+			and self.videoModes[255].framebufferRAM.tex
+			or self.framebufferRAM.tex
 		--local fbTex = self.framebufferRAM.tex
 
 -- TODO this but with math.min would look at lot cleaner

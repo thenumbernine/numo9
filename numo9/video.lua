@@ -3040,7 +3040,7 @@ function AppVideo:setVideoMode(modeIndex)
 
 	local modeObj = self.videoModes[modeIndex]
 	if not modeObj then
-		error("unknown video mode "..tostring(modeIndex))
+		return false, "unknown video mode "..tostring(modeIndex)
 	end
 	modeObj:build()
 
@@ -3106,6 +3106,14 @@ function AppVideo:setVideoMode(modeIndex)
 
 	self.currentVideoMode = modeObj
 	self.currentVideoModeIndex = modeIndex
+
+	-- if I don't clear screen then the depth has oob garbage that prevents all subsequent writes so ...
+	-- ... I could just clear depth for visual effect
+	-- ... tempting
+	-- hmm but doing this here screws up the menu fro some reason,
+	--  proly cuz its calling setVideoMode() to switch to 255 and back
+	-- how about I just clearScreen in mode() calls, but not here?
+	--self:clearScreen(nil, nil, true)
 
 	return true
 end
@@ -3967,7 +3975,7 @@ spriteIndex =
 tilesWide = width in tiles
 tilesHigh = height in tiles
 paletteOffset =
-	byte value that holds which palette to use, added to the sprite color index 
+	byte value that holds which palette to use, added to the sprite color index
 transparentIndex = which color index in the sprite to use as transparency.  default -1 = none
 spriteBit = index of bit (0-based) to use, default is zero
 spriteMask = mask of number of bits to use, default is 0xF <=> 4bpp
@@ -4017,7 +4025,7 @@ function AppVideo:drawSprite(
 		transparentIndex,
 		spriteBit,
 		spriteMask,
-		paletteTex 
+		paletteTex
 	)
 end
 
