@@ -2085,10 +2085,8 @@ print('run thread dead')
 			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
 			view.mvMat:setIdent()
 			view.mvProjMat:copy(view.projMat)
-
 			local sceneObj = self.blitScreenObj
 			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-
 			sceneObj:draw()
 			--]]
 
@@ -2317,39 +2315,21 @@ print('run thread dead')
 			or self.framebufferRAM.tex
 		--local fbTex = self.framebufferRAM.tex
 
--- TODO this but with math.min would look at lot cleaner
 		local wx, wy = self.width, self.height
 		local fx = wx / fbTex.width
 		local fy = wy / fbTex.height
-		if fx > fy then
-			local rx = fx / fy
-			self.orthoMin.x = -orthoSize * (rx - 1) * .5
-			self.orthoMax.x = orthoSize * (((rx - 1) * .5) + 1)
-			self.orthoMin.y = 0
-			self.orthoMax.y = orthoSize
-			view.projMat:setOrtho(
-				self.orthoMin.x,
-				self.orthoMax.x,
-				self.orthoMin.y,
-				self.orthoMax.y,
-				-1,
-				1
-			)
-		else
-			local ry = fy / fx
-			self.orthoMin.x = 0
-			self.orthoMax.x = orthoSize
-			self.orthoMin.y = -orthoSize * (ry - 1) * .5
-			self.orthoMax.y = orthoSize * (((ry - 1) * .5) + 1)
-			view.projMat:setOrtho(
-				self.orthoMin.x,
-				self.orthoMax.x,
-				self.orthoMin.y,
-				self.orthoMax.y,
-				-1,
-				1
-			)
-		end
+		self.orthoMin.x = -orthoSize * (fx / math.min(fx, fy) - 1) * .5
+		self.orthoMax.x = orthoSize * (((fx / math.min(fx, fy) - 1) * .5) + 1)
+		self.orthoMin.y = -orthoSize * (fy / math.min(fx, fy) - 1) * .5
+		self.orthoMax.y = orthoSize * (((fy / math.min(fx, fy) - 1) * .5) + 1)
+		view.projMat:setOrtho(
+			self.orthoMin.x,
+			self.orthoMax.x,
+			self.orthoMin.y,
+			self.orthoMax.y,
+			-1,
+			1
+		)
 		view.mvMat:setIdent()
 		view.mvProjMat:copy(view.projMat)
 		local sceneObj = self.blitScreenObj
