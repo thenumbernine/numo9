@@ -2160,7 +2160,8 @@ local oldFBTex = self.framebufferRAM.tex
 
 			-- ok gotta clear here or else
 			-- TODO how come this is what also determines whether the previous screen is blitted onto the menu fb ... which is being done before the menu update ... ?
---			self:triBuf_flush()
+			-- TODO this is also clearing the game's framebuffer..... even if its not mode-255.....
+-- TODO FIXME PLZ I NEED A FEW MORE BUFFERS FOR LIGHTING AND FOR DEPTH OF FIELD
 			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 --			gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
@@ -2268,7 +2269,7 @@ local oldFBTex = self.framebufferRAM.tex
 			needDrawCounter = 1
 		end
 
-		self:updateLightCalcText()
+		self:updateLightCalcTex()
 
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1

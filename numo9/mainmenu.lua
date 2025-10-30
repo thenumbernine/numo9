@@ -70,7 +70,6 @@ function MainMenu:update()
 	self:initMenuTabs()
 
 	-- [[ transparent overlay over our previously drawn cart framebuffer
-	-- TODO why isn't this working?
 	app:setBlendMode(3)
 	app:drawSolidRect(
 		0, 0, 256, 256,	-- x,y,w,h ... w h is the menu buffer size

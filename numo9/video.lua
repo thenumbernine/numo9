@@ -2085,6 +2085,11 @@ function AppVideo:initVideo()
 	self.calcLightPP.fbo
 		:bind()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:setColorAttachmentTex2D(self.calcLightPP:cur().id)
+
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	self.calcLightPP.fbo
 		:unbind()
 --]]
 
@@ -5035,7 +5040,7 @@ function AppVideo:drawVoxelMap(
 	end
 end
 
-function AppVideo:updateLightCalcText()
+function AppVideo:updateLightCalcTex()
 	assert(not self.inUpdateCallback)
 
 --[=[ trying to read the depth buffer
@@ -5105,6 +5110,8 @@ print()
 		:setColorAttachmentTex2D(calcLightPP:cur().id)
 
 	gl.glViewport(0, 0, calcLightPP.width, calcLightPP.height)
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
 
 	local videoMode = self.currentVideoMode
 
