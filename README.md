@@ -1092,3 +1092,4 @@ voxelmap editor fixes:
 - make autotile for voxelmaps too.
 
 - when changing from mode 1 to 0 (and 0 to 1?), I don't see framebuffer contents matching...
+- not drawing last game screen behind menu

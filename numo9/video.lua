@@ -732,8 +732,8 @@ uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
 
-uniform vec3 depthOfFieldPos;	//xyz = worldspace pos
-uniform vec3 depthOfFieldAtten;	//xyz = const, linear, quadratic distance attenuation
+//uniform vec3 depthOfFieldPos;	//xyz = worldspace pos
+//uniform vec3 depthOfFieldAtten;	//xyz = const, linear, quadratic distance attenuation
 
 void doLighting() {
 
@@ -3637,14 +3637,14 @@ end
 AppVideo.blendColorA = 0
 function AppVideo:setBlendMode(blendMode)
 	if blendMode < 0 or blendMode >= 8 then
-		blendMode = -1
+		blendMode = 0xff
 	end
 
 	if self.currentBlendMode == blendMode then return end
 
 	self:triBuf_flush()
 
-	if blendMode == -1 then
+	if blendMode == 0xff then
 		self.blendColorA = 0
 		self:onBlendColorChange()
 		gl.glDisable(gl.GL_BLEND)

@@ -2063,6 +2063,7 @@ print('run thread dead')
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
 
+local oldFBTex = self.framebufferRAM.tex
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
 			self:setVideoMode(255)
 
@@ -2076,18 +2077,24 @@ print('run thread dead')
 			self:matident(1)
 			self:matident(2)
 			self:setClipRect(0, 0, clipMax, clipMax)
+			--self:setClipRect(-1000, -1000, 3000, 3000)
 
 			-- while we're here, start us off with the current framebufferRAM contents
 			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenObj to draw it
+--			self:triBuf_flush()
+			-- hmm, without glClear here, console buffer gets jumbled
 			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
-			-- [[
+			-- TODO this background overlay of the last framebuffer isnt working ...
+			--[[
 			local view = self.blitScreenView
-			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
-			view.mvMat:setIdent()
-			view.mvProjMat:copy(view.projMat)
+--			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
+--			view.mvMat:setIdent()
+--			view.mvProjMat:copy(view.projMat)
 			local sceneObj = self.blitScreenObj
-			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+--			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+			sceneObj.texs[1] = oldFBTex
 			sceneObj:draw()
+			gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 			--]]
 
 			-- [[ push / pop lighting
@@ -2150,6 +2157,12 @@ print('run thread dead')
 			-- necessary or nah?
 			local fbTex = self.framebufferRAM.tex
 			gl.glViewport(0, 0, fbTex.width, fbTex.height)
+
+			-- ok gotta clear here or else
+			-- TODO how come this is what also determines whether the previous screen is blitted onto the menu fb ... which is being done before the menu update ... ?
+--			self:triBuf_flush()
+			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+--			gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
@@ -2336,8 +2349,6 @@ print('run thread dead')
 		view.mvProjMat:copy(view.projMat)
 		local sceneObj = self.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-		sceneObj.uniforms.depthOfFieldPos = self.ram.depthOfFieldPos + 0
-		sceneObj.uniforms.depthOfFieldAtten = self.ram.depthOfFieldAtten + 0
 
 		if self.activeMenu then
 			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex

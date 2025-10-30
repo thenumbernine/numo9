@@ -4,8 +4,6 @@ local assert = require 'ext.assert'
 local sdl = require 'sdl'
 
 local numo9_rom = require 'numo9.rom'
-local spriteSize = numo9_rom.spriteSize
-local frameBufferSize = numo9_rom.frameBufferSize
 local menuFontWidth = numo9_rom.menuFontWidth
 
 local numo9_keys = require 'numo9.keys'
@@ -71,10 +69,11 @@ function MainMenu:update()
 	-- init the tab-order for editor controls
 	self:initMenuTabs()
 
-	-- clear screen ... or TODO just clear under the menu ...
+	-- [[ transparent overlay over our previously drawn cart framebuffer
+	-- TODO why isn't this working?
 	app:setBlendMode(3)
 	app:drawSolidRect(
-		0, 0, frameBufferSize.x, frameBufferSize.y,	-- x,y,w,h
+		0, 0, 256, 256,	-- x,y,w,h ... w h is the menu buffer size
 --		0,		-- colorIndex = black
 		0x13,	-- colorIndex
 		nil,	-- borderOnly
@@ -82,6 +81,7 @@ function MainMenu:update()
 		app.paletteMenuTex
 	)
 	app:setBlendMode(0xff)
+	--]]
 
 	-- init the menu cursor position
 	self.cursorX = 80
