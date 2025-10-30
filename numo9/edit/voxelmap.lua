@@ -468,10 +468,10 @@ function EditVoxelMap:update()
 	elseif voxelmap then
 
 		-- init lighting before beginDraw() so that we get the clear depth call that will clear the lighting as well
-		local pushUseHardwareLighting = app.ram.useHardwareLighting
-		app.ram.useHardwareLighting = self.menuUseLighting and 0xff or 0
-		if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
-			app:onUseHardwareLightingChange()
+		local pushHD2DFlags = app.ram.HD2DFlags
+		app.ram.HD2DFlags = self.menuUseLighting and 0xff or 0
+		if app.ram.HD2DFlags ~= pushHD2DFlags then
+			app:onHD2DFlagsChange()
 		end
 
 		handled = orbit:beginDraw() or handled
@@ -941,9 +941,9 @@ function EditVoxelMap:update()
 			end
 		end
 
-		if app.ram.useHardwareLighting ~= pushUseHardwareLighting then
-			app.ram.useHardwareLighting = pushUseHardwareLighting
-			app:onUseHardwareLightingChange()
+		if app.ram.HD2DFlags ~= pushHD2DFlags then
+			app.ram.HD2DFlags = pushHD2DFlags
+			app:onHD2DFlagsChange()
 		end
 
 		orbit:endDraw()

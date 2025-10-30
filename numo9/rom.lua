@@ -355,7 +355,7 @@ enum {
 }
 ]]
 
--- bitflags for useHardwareLighting:
+-- bitflags for HD2DFlags:
 -- TODO MAYBE maybe this will become renderFlags and will include cull face?
 -- TODO MAYBE separate this into uniform vs non uniform so when one is poke'd it triggers a uniform upload, but when the other is poke'd it doesn't
 -- TODO MAYBE but cull face triggers enable/disable cull test, which is different from uniform upload, so maybe that's an argument to keep it separate?
@@ -461,8 +461,8 @@ local RAM = struct{
 				{name='lastMousePressPos', type=vec2s},	-- " " at last mouse press.  Same question...
 
 
-				-- lighting ...
-				{name='useHardwareLighting', type=uint16_t},	-- state for all lighting, flags in LIGHTING_*
+				-- hd2d lighting etc...
+				{name='HD2DFlags', type=uint16_t},	-- state for all lighting, flags in LIGHTING_*
 
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
 				{name='lightmapHeight', type=uint16_t},

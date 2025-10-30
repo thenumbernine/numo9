@@ -523,7 +523,7 @@ function VideoMode:buildFramebuffers()
 		normalTex = GLTex2D{
 			width = width,
 			height = height,
-			-- 4th component holds 'useHardwareLighting' for this geom at this fragment
+			-- 4th component holds 'HD2DFlags' for this geom at this fragment
 			internalFormat = gl.GL_RGBA32F,
 			format = gl.GL_RGBA,
 			type = gl.GL_FLOAT,
@@ -1186,7 +1186,7 @@ in float clipDepth;
 in vec3 worldCoordv;
 
 layout(location=0) out <?=fragType?> fragColor;
-layout(location=1) out vec4 fragNormal;	// worldNormal.xyz, w=useHardwareLighting
+layout(location=1) out vec4 fragNormal;	// worldNormal.xyz, w=HD2DFlags
 layout(location=2) out vec4 fragPos;	// worldCoord.xyz, w=clipCoord.z
 
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
@@ -1195,7 +1195,7 @@ uniform <?=app.blobs.tilemap[1].ramgpu.tex:getGLSLSamplerType()?> tilemapTex;
 uniform <?=app.blobs.animsheet[1].ramgpu.tex:getGLSLSamplerType()?> animSheetTex;
 
 uniform vec4 clipRect;
-uniform int useHardwareLighting;
+uniform int HD2DFlags;
 uniform vec4 blendColorSolid;
 uniform uint dither;
 //uniform vec2 frameBufferSize;
@@ -1571,7 +1571,7 @@ void main() {
 
 	bumpHeight *= spriteNormalExhaggeration;
 
-	if ((useHardwareLighting & <?=ffi.C.LIGHTING_USE_BUMP_MAPPING?>) == 0) {
+	if ((HD2DFlags & <?=ffi.C.LIGHTING_USE_BUMP_MAPPING?>) == 0) {
 		// normal from flat sided objs
 		fragNormal.xyz = worldNormalv;
 	} else {
@@ -1608,7 +1608,7 @@ void main() {
 	}
 
 	// save per-fragment whether lighting is enabled or not
-	fragNormal.w = float(useHardwareLighting);
+	fragNormal.w = float(HD2DFlags);
 }
 ]],			{
 				ffi = ffi,
@@ -2177,9 +2177,9 @@ return;
 #endif
 
 	vec4 worldNormal = texture(framebufferNormalTex, tcv);
-	int useHardwareLighting = int(worldNormal.w);
+	int HD2DFlags = int(worldNormal.w);
 	// no lighting on this fragment
-	if ((useHardwareLighting & <?=ffi.C.LIGHTING_APPLY_TO_SURFACE?>) == 0) {
+	if ((HD2DFlags & <?=ffi.C.LIGHTING_APPLY_TO_SURFACE?>) == 0) {
 		fragColor = vec4(1., 1., 1., 1.);
 		return;
 	}
@@ -2194,12 +2194,12 @@ return;
 	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
 	float clipDepth = worldCoordAndClipDepth.w;
 
-	if ((useHardwareLighting & <?=bit.bor(ffi.C.LIGHTING_CALC_FROM_LIGHTMAP, ffi.C.LIGHTING_CALC_FROM_LIGHTS)?>) == 0) {
+	if ((HD2DFlags & <?=bit.bor(ffi.C.LIGHTING_CALC_FROM_LIGHTMAP, ffi.C.LIGHTING_CALC_FROM_LIGHTS)?>) == 0) {
 		// no light calcs = full light
 		fragColor = vec4(1., 1., 1., 1.);
 	} else {
-		bool calcFromLightMap = 0 != (useHardwareLighting & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTMAP?>);
-		bool calcFromLights = 0 != (useHardwareLighting & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTS?>);
+		bool calcFromLightMap = 0 != (HD2DFlags & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTMAP?>);
+		bool calcFromLights = 0 != (HD2DFlags & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTS?>);
 
 		// start off with scene ambient
 		fragColor = vec4(lightAmbientColor.xyz, 1.);
@@ -2308,7 +2308,7 @@ return;
 	}
 
 	// SSAO:
-	if ((useHardwareLighting & <?=ffi.C.LIGHTING_USE_SSAO?>) != 0) {
+	if ((HD2DFlags & <?=ffi.C.LIGHTING_USE_SSAO?>) != 0) {
 		vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
 		vec3 normalizedViewNormal = normalize(viewNormal.xyz);
 
@@ -2428,7 +2428,7 @@ function AppVideo:triBuf_flush()
 
 --[[ DEBUG - view the scene from the light's perspective
 -- so I can tell why some unshadowed things arent being seen ...
-	if self.ram.useHardwareLighting == 0 then return end
+	if self.ram.HD2DFlags == 0 then return end
 	program:setUniform('viewMat', self.ram.lights[0].viewMat)
 	program:setUniform('projMat', self.ram.lights[0].projMat)
 --]]
@@ -2449,7 +2449,7 @@ function AppVideo:triBuf_flush()
 	sceneObj.geometry:draw()
 
 	if useDirectionalShadowmaps
-	and bit.band(self.ram.useHardwareLighting, ffi.C.LIGHTING_CAST_SHADOWS) ~= 0
+	and bit.band(self.ram.HD2DFlags, ffi.C.LIGHTING_CAST_SHADOWS) ~= 0
 	then
 		-- now - if we're using light - also draw the geom to the lightmap
 		-- that means updating uniforms every render regardless ...
@@ -2526,11 +2526,11 @@ assert(animSheetTex)
 		self.lastAnimSheetTex = animSheetTex
 	end
 
-	-- do this either first or last prepAddTri of the frame when useHardwareLighting is set
+	-- do this either first or last prepAddTri of the frame when HD2DFlags is set
 	if useDirectionalShadowmaps
-	and self.ram.useHardwareLighting ~= 0
+	and self.ram.HD2DFlags ~= 0
 	then
---DEBUG(lighting):print'tri useHardwareLighting viewMat'
+--DEBUG(lighting):print'tri HD2DFlags viewMat'
 --DEBUG(lighting):for i=0,15 do
 --DEBUG(lighting):	io.write(' ', self.ram.viewMat[i])
 --DEBUG(lighting):end
@@ -2552,7 +2552,7 @@ assert(animSheetTex)
 	or self.blendColorDirty
 	or self.ditherDirty
 	or self.cullFaceDirty
-	or self.useHardwareLightingDirty
+	or self.HD2DFlagsDirty
 	or self.spriteNormalExhaggerationDirty
 	or self.frameBufferSizeUniformDirty
 	then
@@ -2605,9 +2605,9 @@ assert(animSheetTex)
 			end
 			self.cullFaceDirty = false
 		end
-		if self.useHardwareLightingDirty then
-			self.useHardwareLightingDirty = false
-			gl.glUniform1i(program.uniforms.useHardwareLighting.loc, self.ram.useHardwareLighting)
+		if self.HD2DFlagsDirty then
+			self.HD2DFlagsDirty = false
+			gl.glUniform1i(program.uniforms.HD2DFlags.loc, self.ram.HD2DFlags)
 		end
 		if self.spriteNormalExhaggerationDirty then
 			self.spriteNormalExhaggerationDirty = false
@@ -2710,9 +2710,9 @@ function AppVideo:onClipRectChange()
 	self.clipRectDirty = true
 end
 
-function AppVideo:onUseHardwareLightingChange()
+function AppVideo:onHD2DFlagsChange()
 	self:triBuf_flush()
-	self.useHardwareLightingDirty = true
+	self.HD2DFlagsDirty = true
 end
 
 -- call this when ram.blendColor changes
@@ -2930,8 +2930,8 @@ function AppVideo:resetVideo()
 	self.ram.cullFace = 0
 	self:onCullFaceChange()
 
-	self.ram.useHardwareLighting = 0
-	self:onUseHardwareLightingChange()
+	self.ram.HD2DFlags = 0
+	self:onHD2DFlagsChange()
 
 	self.paletteBlobIndex = 0
 	self.fontBlobIndex = 0
@@ -3578,7 +3578,7 @@ function AppVideo:clearScreen(
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 
 	if useDirectionalShadowmaps
-	and self.ram.useHardwareLighting ~= 0
+	and self.ram.HD2DFlags ~= 0
 	then
 		-- ok now switch framebuffers to the shadow framebuffer
 		-- depth-only or depth-and-color doesn't matter, both ways the lightmap gets cleared

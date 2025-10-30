@@ -1,7 +1,7 @@
 --#include ext/range.lua
 --#include numo9/matstack.lua
 
-poke(ramaddr'useHardwareLighting', 1|4)	-- 1 = turn on light calcs, 4 = ssao calcs
+poke(ramaddr'HD2DFlags', 1|4)	-- 1 = turn on light calcs, 4 = ssao calcs
 pokef(ramaddr'ssaoSampleRadius', .1)
 mode(2)	-- 256x256 rgb332
 

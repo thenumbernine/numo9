@@ -126,7 +126,7 @@ tiltUpAngle = 90:
 	-- modelspace rotate
 	--]==]
 
-	poke(ramaddr'useHardwareLighting', useLighting)
+	poke(ramaddr'HD2DFlags', useLighting)
 
 	--[[ should be centered in [-10,10]^2 ortho or in FOV=45' at z=10 frustum
 	ellib(-5,-5,10,10,0xfc)
@@ -190,7 +190,7 @@ tiltUpAngle = 90:
 	end
 	--]]
 	
-	poke(ramaddr'useHardwareLighting', 0)
+	poke(ramaddr'HD2DFlags', 0)
 
 	local spd = .2
 	local rot = .03

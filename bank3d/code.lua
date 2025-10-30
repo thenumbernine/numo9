@@ -27,7 +27,7 @@ cheat=true
 
 levelstr='level ?'
 
-useLighting=1 | 4	-- SSAO only
+HD2DFlags = 1 | 4	-- SSAO only
 
 sfxid={
 	bomb_explode = 0,
@@ -230,7 +230,7 @@ drawMap=||do
 		0, 0, 1
 	)
 
-	poke(ramaddr'useHardwareLighting', useLighting)
+	poke(ramaddr'HD2DFlags', HD2DFlags)
 
 	matscale(1/16, 1/16, 1/16)
 
@@ -272,7 +272,7 @@ drawMap=||do
 	end
 	--]]
 
-	poke(ramaddr'useHardwareLighting', 0)
+	poke(ramaddr'HD2DFlags', 0)
 end
 
 
@@ -1625,11 +1625,11 @@ update=||do
 
 	drawMap()
 
-	poke(ramaddr'useHardwareLighting', useLighting)
+	poke(ramaddr'HD2DFlags', HD2DFlags)
 	for _,o in ipairs(objs) do
 		o:drawSprite()
 	end
-	poke(ramaddr'useHardwareLighting', 0)
+	poke(ramaddr'HD2DFlags', 0)
 end
 
 setLevel(0)

@@ -462,7 +462,7 @@ function UI:update()
 		-- it being in menu should help (right?) but doesnt seem to ....
 
 		local pushVideoMode = app.ram.videoMode
-		local pushLighting = app.ram.useHardwareLighting
+		local pushHD2DFlags = app.ram.HD2DFlags
 
 		-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
 		app:saveCart(app.currentLoadedFilename)
@@ -478,8 +478,8 @@ function UI:update()
 
 		app.ram.videoMode = pushVideoMode
 		app:setVideoMode(pushVideoMode)
-		app.ram.useHardwareLighting = pushLighting
-		app:onUseHardwareLightingChange()
+		app.ram.HD2DFlags = pushHD2DFlags
+		app:onHD2DFlagsChange()
 
 	end
 	x=x+6

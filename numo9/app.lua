@@ -2075,10 +2075,10 @@ print('run thread dead')
 			--]]
 
 			-- [[ push / pop lighting
-			local pushUseHardwareLighting = self.ram.useHardwareLighting
-			self.ram.useHardwareLighting = 0	-- off by default in menu
-			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
-				self:onUseHardwareLightingChange()
+			local pushHD2DFlags = self.ram.HD2DFlags
+			self.ram.HD2DFlags = 0	-- off by default in menu
+			if self.ram.HD2DFlags ~= pushHD2DFlags then
+				self:onHD2DFlagsChange()
 			end
 			--]]
 
@@ -2123,9 +2123,9 @@ print('run thread dead')
 
 			-- pop lighting
 			-- [[ does this mean the console can't set hardware lighting?
-			if self.ram.useHardwareLighting ~= pushUseHardwareLighting then
-				self.ram.useHardwareLighting = pushUseHardwareLighting
-				self:onUseHardwareLightingChange()
+			if self.ram.HD2DFlags ~= pushHD2DFlags then
+				self.ram.HD2DFlags = pushHD2DFlags
+				self:onHD2DFlagsChange()
 			end
 			--]]
 
@@ -2248,7 +2248,7 @@ print('run thread dead')
 		-- TODO disable altogether for now, since DoF needs a full separate pass
 		if self.framebufferRAM
 		and self.framebufferRAM.tex.internalFormat == gl.GL_RGB565
-		and bit.band(self.ram.useHardwareLighting, ffi.C.USE_DEPTH_OF_FIELD) ~= 0
+		and bit.band(self.ram.HD2DFlags, ffi.C.USE_DEPTH_OF_FIELD) ~= 0
 		then
 			-- will binding this overwrite the lastSheetTex bound to 0, or are we done with it since we're done with the update call?
 			-- TODO either keep calcLightPP with the same tex filtering or
@@ -2493,7 +2493,7 @@ local clipRectAddr, clipRectAddrEnd = getRAMAddrRange'clipRect'
 local blendColorAddr, blendColorAddrEnd = getRAMAddrRange'blendColor'
 local ditherAddr, ditherAddrEnd = getRAMAddrRange'dither'
 local cullFaceAddr, cullFaceAddrEnd = getRAMAddrRange'cullFace'
-local useHardwareLightingAddr, useHardwareLightingAddrEnd = getRAMAddrRange'useHardwareLighting'
+local HD2DFlagsAddr, HD2DFlagsAddrEnd = getRAMAddrRange'HD2DFlags'
 local spriteNormalExhaggerationAddr, spriteNormalExhaggerationAddrEnd = getRAMAddrRange'spriteNormalExhaggeration'
 
 function App:postPoke(addr, addrend)
@@ -2519,8 +2519,8 @@ function App:postPoke(addr, addrend)
 	if addrend >= cullFaceAddr and addr < cullFaceAddrEnd then
 		self:onCullFaceChange()
 	end
-	if addrend >= useHardwareLightingAddr and addr < useHardwareLightingAddrEnd then
-		self:onUseHardwareLightingChange()
+	if addrend >= HD2DFlagsAddr and addr < HD2DFlagsAddrEnd then
+		self:onHD2DFlagsChange()
 	end
 	if addrend >= spriteNormalExhaggerationAddr and addr < spriteNormalExhaggerationAddrEnd then
 		self:onSpriteNormalExhaggerationChange()

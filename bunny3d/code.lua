@@ -34,7 +34,7 @@ update=||do
 	mattrans(0, 0, -.5 * zf)
 	--]]
 
-	--poke(ramaddr'useHardwareLighting', 0xff)
+	--poke(ramaddr'HD2DFlags', 0xff)
 
 	local th = .05
 	local mx, my = mouse()
@@ -109,5 +109,5 @@ update=||do
 		mesh(meshIndex)
 	end
 
-	--poke(ramaddr'useHardwareLighting', 0)
+	--poke(ramaddr'HD2DFlags', 0)
 end

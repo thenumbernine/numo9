@@ -4,7 +4,7 @@
 --#include ext/range.lua
 --#include numo9/matstack.lua
 
-poke(ramaddr'useHardwareLighting', 0xff & ~4)	-- lightmaps without ssao
+poke(ramaddr'HD2DFlags', 0xff & ~4)	-- lightmaps without ssao
 pokef(ramaddr'ssaoSampleRadius', .1)
 mode(2)	-- 256x256 rgb332
 

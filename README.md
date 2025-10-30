@@ -330,7 +330,7 @@ There are a few matrix functions that you can use to manipulate the render state
 ## HD2D
 
 There's one master switch.
-You have to set `useHardwareLighting` to nonzero to turn on lighting effects.
+You have to set `HD2DFlags` to nonzero to turn on lighting effects.
 It is currently a bitflag:
 - 1 = apply lighting to surface.  disable for solid-color.
 - 2 = cast shadows on other geometry
@@ -346,9 +346,9 @@ and you can poke to set the number of lightmaps and their properties (like where
 I have a big enough one enabled by default, but of course world coordinates vary per game so you'll probably have to tweak it. 
 
 Don't change your view or projection matrix between illuminated render calls!
-The first scene render view and projection matrix at the time that `useHardwareLighting` is set will be recorded.  This will be used for lighting in the final calculation pass.
+The first scene render view and projection matrix at the time that `HD2DFlags` is set will be recorded.  This will be used for lighting in the final calculation pass.
 
-Illuminated polys are flagged in the fragment color buffer, so any tris drawn with useHardwareLighting=0 won't be illumianted (but they will still cast shadows, haha).
+Illuminated polys are flagged in the fragment color buffer, so any tris drawn with HD2DFlags=0 won't be illumianted (but they will still cast shadows, haha).
 
 Here is the current light struct in the RAM `lights` table:
 ```
@@ -418,7 +418,7 @@ memory layout:
 0x02087e - 0x020882 = mouseWheel
 0x020882 - 0x020886 = lastMousePos
 0x020886 - 0x02088a = lastMousePressPos
-0x02088a - 0x02088c = useHardwareLighting
+0x02088a - 0x02088c = HD2DFlags
 0x02088c - 0x02088e = lightmapWidth
 0x02088e - 0x020890 = lightmapHeight
 0x020890 - 0x02089c = lightAmbientColor
