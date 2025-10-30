@@ -39,7 +39,7 @@ local procedural = matrix{8,8}:lambda(|sop1, top1| do
 	local so = sop1 - 1
 	local to = top1 - 1
 	--return ((so ~ to) & 1) | ((so - to) & 6)	-- nah it's not quite addition/subtraction
-	return so ~ to ~ (((so << 1) ~ so) & to & 2) << 1	-- (stampbit0 ~ stampbit1) & (tilebit1) => flip bit2 
+	return so ~ to ~ ((((so << 1) ~ so) & to & 2) << 1)	-- (stampbit0 ~ stampbit1) & (tilebit1) => flip bit2
 end)
 
 local growlstr = |s, n| ((' '):rep(n - #s)..s)

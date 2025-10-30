@@ -31,6 +31,7 @@ local spriteSize = numo9_rom.spriteSize
 local spriteSheetSize = numo9_rom.spriteSheetSize
 local spriteSheetSizeInTiles = numo9_rom.spriteSheetSizeInTiles
 local tilemapSize = numo9_rom.tilemapSize
+local tilemapSizeInBits = numo9_rom.tilemapSizeInBits
 local paletteSize = numo9_rom.paletteSize
 local palettePtrType = numo9_rom.palettePtrType
 local fontImageSize = numo9_rom.fontImageSize
@@ -1200,7 +1201,7 @@ uniform vec4 blendColorSolid;
 uniform uint dither;
 //uniform vec2 frameBufferSize;
 
-uniform float spriteNormalExhaggeration = 8.;
+uniform float spriteNormalExhaggeration;
 
 <?=glslCode5551?>
 
@@ -1354,7 +1355,7 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 }
 
 <?=fragType?> tilemapShading(vec2 tc) {
-	int tilemapIndexOffset = int(extra.z);
+	uint tilemapIndexOffset = uint(extra.z);
 
 	//0 = draw 8x8 sprites, 1 = draw 16x16 sprites
 	uint draw16Sprites = (extra.x >> 2) & 1u;
@@ -1379,45 +1380,51 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 	//read the tileIndex in tilemapTex at tileTC
 	//tilemapTex is R16, so red channel should be 16bpp (right?)
 	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	int tileIndex = int(]]..readTex{
+	uint tileIndex = ]]..readTex{
 			tex = app.blobs.tilemap[1].ramgpu.tex,
 			texvar = 'tilemapTex',
 			tc = 'tileTC',
 			from = 'ivec2',
 			to = 'uvec4',
-		}..[[.r);
+		}..[[.r;
 
+	// should tilemapOffset affect orientation2D / palHi? no
+	// calculate orientation here first
+	uint palHi = (tileIndex >> 10) & 7u;	// tilemap bits 10..12
+	bool hflip = ((tileIndex >> 13) & 1u) != 0u;	// tilemap bit 13 = hflip
+	uint rot = (tileIndex >> 14) & 3u;		// tilemap bits 14..15 = rotation
+
+	// should tilemapOffset affect animation?  yes
 	// before animation, consider tilemap offset
 	tileIndex += tilemapIndexOffset;
+	tileIndex &= 0x3FFu;
 
 	//now consider anim sheet
 	// animsheet is R16UI
 	// no need to cast, right? this will always be int type, right?
-	ivec2 animSheetTC = ivec2(tileIndex, 0);
-	tileIndex = int(]]..readTex{
-			tex = app.blobs.animsheet[1].ramgpu.tex,
-			texvar = 'animSheetTex',
-			tc = 'animSheetTC',
-			from = 'ivec2',
-			to = 'uvec4',
-		}..[[.r) & 0x3FF;
+	// I could use readTex{} if I allow a texelFetch override ... maybe ...
+	// I should go through and make sure my readTex() palette lookups arent ugly and horrible...
+	tileIndex = texelFetch(
+		animSheetTex,
+		ivec2(int(tileIndex), 0),
+		0
+	).r & 0x3FFu;
 
 	//[0, 31)^2 = 5 bits for tile tex sprite x, 5 bits for tile tex sprite y
 	ivec2 tileIndexTC = ivec2(
-		tileIndex & 0x1F,				// tilemap bits 0..4
-		(tileIndex >> 5) & 0x1F			// tilemap bits 5..9
+		int(tileIndex & 0x1Fu),				// tilemap bits 0..4
+		int((tileIndex >> 5) & 0x1Fu)			// tilemap bits 5..9
 	);
-	int palHi = (tileIndex >> 10) & 7;	// tilemap bits 10..12
-	int rot = (tileIndex >> 14) & 3;		// tilemap bits 14..15 = rotation
-	if (rot == 1) {
+
+	if (rot == 1u) {
 		tci = ivec2(tci.y, ~tci.x);
-	} else if (rot == 2) {
+	} else if (rot == 2u) {
 		tci = ivec2(~tci.x, ~tci.y);
-	} else if (rot == 3) {
+	} else if (rot == 3u) {
 		tci = ivec2(~tci.y, tci.x);
 	}
-	if (((tileIndex >> 13) & 1) != 0) {
-		tci.x = ~tci.x;	// tilemap bit 13 = hflip
+	if (hflip) {
+		tci.x = ~tci.x;
 	}
 
 	int mask = (1 << (3u + draw16Sprites)) - 1;
@@ -1436,7 +1443,8 @@ const vec3 greyscale = vec3(.2126, .7152, .0722);	// HDTV / sRGB / CIE-1931
 			to = 'uvec4',
 		}..[[.r;
 
-	colorIndex += uint(palHi) << 5;
+	colorIndex += palHi << 5;
+	colorIndex &= 0xFFu;
 
 	return colorIndexToFragColor(colorIndex);
 }
@@ -4575,8 +4583,7 @@ function AppVideo:drawBrush(
 			end
 			if stampHFlip ~= 0 then bx = bw-1-bx end
 
-			-- TODO what if 'brush' is not there, i.e. a bad brushIndex in a stamp?
-			local tileIndex = brush and brush(bx, by, bw, bh, stampTileX, stampTileY) or 0
+			local tileIndex = brush(bx, by, bw, bh, stampTileX, stampTileY, stampOrientation) or 0
 			local palHi = bit.band(7, bit.rshift(tileIndex, 10))
 			local tileOrientation = bit.band(7, bit.rshift(tileIndex, 13))
 
@@ -4684,7 +4691,7 @@ function AppVideo:blitBrush(
 					bit.lshift(tileOrientation, 13)
 				)
 				self:net_pokew(
-					tilemapAddr + 2 * (dstx + dsty * tilemapSize.x),
+					tilemapAddr + bit.lshift(bit.bor(dstx, bit.lshift(dsty, tilemapSizeInBits.x)), 1),
 					tileIndex
 				)
 			end

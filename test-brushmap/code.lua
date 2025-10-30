@@ -4,6 +4,12 @@
 -- editTilemap.draw16Sprites = true
 -- editBrushmap.draw16Sprites = true
 
+mode(0)
+matident(0)
+matident(1)
+matident(2)
+matortho(0,256,256,0)
+cls()
 
 -- brushes defined in this table
 local _9patch = |x,y,w,h,bx,by|
@@ -36,7 +42,46 @@ numo9_brushes = {
 --]]
 }
 
+-- [[ test blitbrushmap() works
 blitbrushmap()
 update=||do
 	tilemap(0,0,32,32,0,0,0,true)
 end
+--]]
+--[[ test blitbrush() works
+local brushmapAddr = blobaddr'brushmap'
+local brushmapSize = blobsize'brushmap'
+assert.eq(brushmapSize % 10, 0)
+for i=0,brushmapSize-10,10 do
+	local addr = brushmapAddr+i
+	blitbrush(
+		peekw(addr) & 0x1fff,	-- brush index
+		0,						-- tilemap index
+		peekw(addr+2),			-- x
+		peekw(addr+4),			-- y
+		peekw(addr+6),			-- tiles wide
+		peekw(addr+8),			-- tiles high
+		peekw(addr) >> 13)		-- orientation
+end
+update=||do
+	tilemap(0,0,32,32,0,0,0,true)
+end
+--]]
+--[[ test drawbrush() works
+local brushmapAddr = blobaddr'brushmap'
+local brushmapSize = blobsize'brushmap'
+assert.eq(brushmapSize % 10, 0)
+update=||do
+	for i=0,brushmapSize-10,10 do
+		local addr = brushmapAddr+i
+		drawbrush(
+			peekw(addr) & 0x1fff,	-- brush index
+			peekw(addr+2) << 4,	-- screen x
+			peekw(addr+4) << 4,	-- screen y
+			peekw(addr+6),	-- tiles wide
+			peekw(addr+8),	-- tiles high
+			peekw(addr) >> 13,	-- orientation
+			true)
+	end
+end
+--]]

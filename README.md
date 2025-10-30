@@ -144,10 +144,15 @@ Each 8x8 tile holds 8 characters in 1bpp, one per bitplane.
 ### tilemap
 
 The tilemap is 256x256x16bpp.
-Tilemap bits:
-- 10: lookup of the tile index in the sheet.
-- 3: palette offset high 3 bits
-- 3: 2D orientation
+
+The 16bpp structure is as follows:
+```
+typedef struct {
+	uint16_t tileIndex : 10;
+	uint16_t paletteOffsetHigh3Bits : 3;
+	uint16_t orientation2D : 3;
+} Tile;
+```
 
 2D orientations are represented as follows:
 - 1 bit: hflip / mirror
