@@ -2315,13 +2315,15 @@ print('run thread dead')
 			or self.framebufferRAM.tex
 		--local fbTex = self.framebufferRAM.tex
 
-		local wx, wy = self.width, self.height
-		local fx = wx / fbTex.width
-		local fy = wy / fbTex.height
-		self.orthoMin.x = -orthoSize * (fx / math.min(fx, fy) - 1) * .5
-		self.orthoMax.x = orthoSize * (((fx / math.min(fx, fy) - 1) * .5) + 1)
-		self.orthoMin.y = -orthoSize * (fy / math.min(fx, fy) - 1) * .5
-		self.orthoMax.y = orthoSize * (((fy / math.min(fx, fy) - 1) * .5) + 1)
+		local fx = self.width / fbTex.width
+		local fy = self.height / fbTex.height
+		local fmin = math.min(fx, fy)
+		local rx = (fx / fmin - 1) * .5
+		local ry = (fy / fmin - 1) * .5
+		self.orthoMin.x = -orthoSize * rx
+		self.orthoMax.x = orthoSize * (rx + 1)
+		self.orthoMin.y = -orthoSize * ry
+		self.orthoMax.y = orthoSize * (ry + 1)
 		view.projMat:setOrtho(
 			self.orthoMin.x,
 			self.orthoMax.x,
