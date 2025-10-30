@@ -77,10 +77,10 @@ update=||do
 	if btn'right' then
 		cursorX += cursorSpeed * dt
 	end
-	if btnp'up' then
+	if btn'up' then
 		mattrans(0, cursorSpeed * dt, 0)
 	end
-	if btnp'down' then
+	if btn'down' then
 		mattrans(0, -cursorSpeed * dt, 0)
 	end
 	if btnp'b' then
