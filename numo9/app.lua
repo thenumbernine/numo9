@@ -63,6 +63,8 @@ local voxelmapSizeType = numo9_rom.voxelmapSizeType
 local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 local matType = numo9_rom.matType
 local matArrType = numo9_rom.matArrType
+local framebufferAddr = numo9_rom.framebufferAddr
+local framebufferAddrEnd = numo9_rom.framebufferAddrEnd
 
 local numo9_keys = require 'numo9.keys'
 local maxPlayersPerConn = numo9_keys.maxPlayersPerConn
@@ -2515,6 +2517,14 @@ local HD2DFlagsAddr, HD2DFlagsAddrEnd = getRAMAddrRange'HD2DFlags'
 local spriteNormalExhaggerationAddr, spriteNormalExhaggerationAddrEnd = getRAMAddrRange'spriteNormalExhaggeration'
 
 function App:postPoke(addr, addrend)
+	--[[
+	ok this has sucessfully slowed things down
+	now how to quickly determine ram regions ...
+	binary tree?
+	until then, I'll just do a simple two fold test, one for framebuffers (fast) and one for everything else (slow)
+	--]]
+	if addrend < framebufferAddrEnd then return end
+
 	-- write out tris using the modelMat,viewMat,projMat before they change
 	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
 		self:onModelMatChange()
@@ -2543,7 +2553,6 @@ function App:postPoke(addr, addrend)
 	if addrend >= spriteNormalExhaggerationAddr and addr < spriteNormalExhaggerationAddrEnd then
 		self:onSpriteNormalExhaggerationChange()
 	end
-
 	-- TODO none of the others happen period, only the palette texture
 	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
 	for _,blob in ipairs(self.blobs.sheet) do

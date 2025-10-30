@@ -23,8 +23,6 @@ flagshift=table{
 				--  pushdups | ~solid means if you push it then you move and a new copy appears under you
 }:mapi(|k,i| (i-1,k)):setmetatable(nil)
 flags=table(flagshift):map(|v| 1<<v):setmetatable(nil)
-trace(getfenv(0).require 'ext.tolua'(flagshift))
-trace(getfenv(0).require 'ext.tolua'(flags))
 
 mapTypes=table{
 	[0]={name='empty'},				-- empty
