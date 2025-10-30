@@ -2063,7 +2063,7 @@ print('run thread dead')
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
 
-local oldFBTex = self.framebufferRAM.tex
+			local fbTex = self.framebufferRAM.tex
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
 			self:setVideoMode(255)
 
@@ -2079,30 +2079,58 @@ local oldFBTex = self.framebufferRAM.tex
 			self:setClipRect(0, 0, clipMax, clipMax)
 			--self:setClipRect(-1000, -1000, 3000, 3000)
 
+			-- [[ push / pop lighting
+			-- push before clearScreen() for it to also clear the light buffer
+			local pushHD2DFlags = self.ram.HD2DFlags
+			self.ram.HD2DFlags = 1	-- off by default in menu
+			if self.ram.HD2DFlags ~= pushHD2DFlags then
+				self:onHD2DFlagsChange()
+			end
+			--]]
+
 			-- while we're here, start us off with the current framebufferRAM contents
 			-- framebufferMenuTex is RGB, while framebufferRAM can vary depending on the video mode, so I'll use the blitScreenObj to draw it
 --			self:triBuf_flush()
 			-- hmm, without glClear here, console buffer gets jumbled
-			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+			--gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+			-- You gotta use clearScreen(), not glClear,
+			--  *and* you gotta have the HD2DFlags set for light depth to be cleared as well during clearScreen()
+			self:clearScreen()
 			-- TODO this background overlay of the last framebuffer isnt working ...
-			--[[
-			local view = self.blitScreenView
---			view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
---			view.mvMat:setIdent()
---			view.mvProjMat:copy(view.projMat)
-			local sceneObj = self.blitScreenObj
---			sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
-			sceneObj.texs[1] = oldFBTex
-			sceneObj:draw()
-			gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
-			--]]
-
-			-- [[ push / pop lighting
-			local pushHD2DFlags = self.ram.HD2DFlags
-			self.ram.HD2DFlags = 0	-- off by default in menu
-			if self.ram.HD2DFlags ~= pushHD2DFlags then
-				self:onHD2DFlagsChange()
+			-- [[
+			-- if we were on 255 then we can't use transparent backdrop cuz the menu wil be using our framebuffer as well
+			if fbTex ~= self.framebufferRAM.tex then
+				local sceneObj = self.blitScreenObj
+				-- [[
+				local view = self.blitScreenView
+				local fx = self.width / fbTex.width
+				local fy = self.height / fbTex.height
+				local fmin = math.min(fx, fy)
+				local rx = (fx / fmin - 1) * .5
+				local ry = (fy / fmin - 1) * .5
+				self.orthoMin.x = -view.orthoSize * rx
+				self.orthoMax.x = view.orthoSize * (rx + 1)
+				self.orthoMin.y = -view.orthoSize * ry
+				self.orthoMax.y = view.orthoSize * (ry + 1)
+				view.projMat:setOrtho(
+					self.orthoMin.x,
+					self.orthoMax.x,
+					self.orthoMin.y,
+					self.orthoMax.y,
+					-1,
+					1
+				)
+				--view.projMat:setOrtho(0, 1, 0, 1, -1, 1)
+				view.mvMat:setIdent()
+				view.mvProjMat:copy(view.projMat)
+				sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+				--]]
+				-- change to old fb tex from mode before we set to video mode 255.
+				-- in case we were before at 255 then ... i should not do this.
+				sceneObj.texs[1] = fbTex
+				sceneObj:draw()
 			end
+			gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 			--]]
 
 			local thread = self.activeMenu.thread
@@ -2144,6 +2172,12 @@ local oldFBTex = self.framebufferRAM.tex
 				end
 			end
 
+			self:setVideoMode(self.ram.videoMode)
+
+			-- necessary or nah?
+			local fbTex = self.framebufferRAM.tex
+			gl.glViewport(0, 0, fbTex.width, fbTex.height)
+
 			-- pop lighting
 			-- [[ does this mean the console can't set hardware lighting?
 			if self.ram.HD2DFlags ~= pushHD2DFlags then
@@ -2152,18 +2186,13 @@ local oldFBTex = self.framebufferRAM.tex
 			end
 			--]]
 
-			self:setVideoMode(self.ram.videoMode)
-
-			-- necessary or nah?
-			local fbTex = self.framebufferRAM.tex
-			gl.glViewport(0, 0, fbTex.width, fbTex.height)
-
 			-- ok gotta clear here or else
 			-- TODO how come this is what also determines whether the previous screen is blitted onto the menu fb ... which is being done before the menu update ... ?
 			-- TODO this is also clearing the game's framebuffer..... even if its not mode-255.....
--- TODO FIXME PLZ I NEED A FEW MORE BUFFERS FOR LIGHTING AND FOR DEPTH OF FIELD
-			gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
---			gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+			-- TODO FIXME PLZ I NEED A FEW MORE BUFFERS FOR LIGHTING AND FOR DEPTH OF FIELD
+			--gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
+			--gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+			--self:clearScreen()
 
 			-- set drawText font & pal to the ROM's
 			self.inMenuUpdate = false
@@ -2322,7 +2351,6 @@ local oldFBTex = self.framebufferRAM.tex
 	-- [[ redo ortho projection matrix
 	-- every frame for us to use a proper rectangle
 		local view = self.blitScreenView
-		local orthoSize = view.orthoSize
 
 		local fbTex = self.activeMenu
 			and self.videoModes[255].framebufferRAM.tex
@@ -2334,10 +2362,10 @@ local oldFBTex = self.framebufferRAM.tex
 		local fmin = math.min(fx, fy)
 		local rx = (fx / fmin - 1) * .5
 		local ry = (fy / fmin - 1) * .5
-		self.orthoMin.x = -orthoSize * rx
-		self.orthoMax.x = orthoSize * (rx + 1)
-		self.orthoMin.y = -orthoSize * ry
-		self.orthoMax.y = orthoSize * (ry + 1)
+		self.orthoMin.x = -view.orthoSize * rx
+		self.orthoMax.x = view.orthoSize * (rx + 1)
+		self.orthoMin.y = -view.orthoSize * ry
+		self.orthoMax.y = view.orthoSize * (ry + 1)
 		view.projMat:setOrtho(
 			self.orthoMin.x,
 			self.orthoMax.x,

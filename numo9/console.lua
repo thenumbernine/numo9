@@ -210,7 +210,7 @@ function Console:update()
 
 	local shownLines = math.min(#self.lines, maxLines)
 	app:setBlendMode(3)
-	app:drawSolidRect(0, 0, self.width, shownLines * spriteSize.y, 0xf0)
+	app:drawSolidRect(0, 0, self.width, (shownLines + 1) * spriteSize.y, 0xf0)
 	app:setBlendMode(0xff)
 
 	self.cursorPos.x = 0

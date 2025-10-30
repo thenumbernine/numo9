@@ -2086,9 +2086,10 @@ function AppVideo:initVideo()
 		:bind()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:setColorAttachmentTex2D(self.calcLightPP:cur().id)
-
-	gl.glClearColor(1,1,1,1)
-	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
+	-- then in the light combine pass it wont combine
+	--gl.glClearColor(1,1,1,1)
+	--gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
 	self.calcLightPP.fbo
 		:unbind()
 --]]
@@ -5110,8 +5111,18 @@ print()
 		:setColorAttachmentTex2D(calcLightPP:cur().id)
 
 	gl.glViewport(0, 0, calcLightPP.width, calcLightPP.height)
-	gl.glClearColor(1,1,1,1)
-	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
+	-- then in the light combine pass it wont combine
+	--gl.glClearColor(1,1,1,1)
+	--gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+
+	-- this currently gets blitted per-display
+	-- so if menu is open we dont want it
+	-- that means I just broke menu lighting *again*...
+	--if not self.activeMenu then
+	-- how to get around lighting
+	-- I can always just not apply the calcLightTex if we're in light mode
+	-- or I can make sure that the menu render calcs always set the to false
 
 	local videoMode = self.currentVideoMode
 
