@@ -1089,5 +1089,3 @@ voxelmap editor fixes:
 
 - test and finish tilemap autotile
 - make autotile for voxelmaps too.
-
-- where did the linear mag filter come from ...

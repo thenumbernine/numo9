@@ -2245,8 +2245,10 @@ print('run thread dead')
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
 
 		-- [[ TODO TODO this only when the framebuffer changes
+		-- TODO disable altogether for now, since DoF needs a full separate pass
 		if self.framebufferRAM
 		and self.framebufferRAM.tex.internalFormat == gl.GL_RGB565
+		and bit.band(self.ram.useHardwareLighting, ffi.C.USE_DEPTH_OF_FIELD) ~= 0
 		then
 			-- will binding this overwrite the lastSheetTex bound to 0, or are we done with it since we're done with the update call?
 			-- TODO either keep calcLightPP with the same tex filtering or

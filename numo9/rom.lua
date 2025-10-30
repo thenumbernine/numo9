@@ -367,6 +367,7 @@ enum {
 	LIGHTING_USE_BUMP_MAPPING = 8,
 	LIGHTING_CALC_FROM_LIGHTMAP = 0x10,		// disable for no lighting from shadows to be cast
 	LIGHTING_CALC_FROM_LIGHTS = 0x20,		// disable to avoid the Light struct calcs.  TODO components?  one being ambient+diffuse+specular, another being attenuation , another being angle/spotlight?
+	USE_DEPTH_OF_FIELD = 0x40,
 }
 ]]
 
