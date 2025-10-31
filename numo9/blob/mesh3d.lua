@@ -215,7 +215,7 @@ function BlobMesh3D:saveFile(filepath, blobIndex, blobs)
 	end
 	for ti=0,#self.triList-1 do
 		local i,j,k = self.triList.v[ti]:unpack()
-		o:insert('f '..i..' '..j..' '..k)
+		o:insert('f '..(i+1)..' '..(j+1)..' '..(k+1))
 	end
 	filepath:write(o:concat'\n'..'\n')
 	--]]

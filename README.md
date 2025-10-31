@@ -1096,3 +1096,7 @@ voxelmap editor fixes:
 
 - alright after 1.2.0 release, looking at the vget/vset/voxelmap api, i should really put all blob indexes first, even if 99% of the time you dont use it ... maybe ... maybe not idk.
 - also 'text()' should have a font blob index.
+
+BUGS FIXED FOR 1.2.1:
+- bug in voxelmap tilemap-popup mesh-texcoords when mesh is missing
+- bug in .obj file writer that was writing faces 1-based
