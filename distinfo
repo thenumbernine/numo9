@@ -95,6 +95,7 @@ files = {
 	["numo9/ui/tilesel.lua"] = "numo9/numo9/ui/tilesel.lua",
 	["numo9/ui/undo.lua"] = "numo9/numo9/ui/undo.lua",
 	["numo9/video.lua"] = "numo9/numo9/video.lua",
+	["numo9/videomode.lua"] = "numo9/numo9/videomode.lua",
 	["pong.n9"] = "numo9/pong.n9",
 	["run.lua"] = "numo9/run.lua",
 	["s-type.n9"] = "numo9/s-type.n9",

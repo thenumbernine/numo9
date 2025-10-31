@@ -5,9 +5,6 @@ local gl = require 'gl'
 local numo9_rom = require 'numo9.rom'
 local spriteSheetSize = numo9_rom.spriteSheetSize
 
-local numo9_video = require 'numo9.video'
-local texInternalFormat_u8 = numo9_video.texInternalFormat_u8
-
 
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
@@ -17,7 +14,7 @@ local BlobSheet = BlobImage:subclass()
 
 BlobSheet.imageSize = spriteSheetSize
 BlobSheet.imageType = uint8_t
-BlobSheet.internalFormat = texInternalFormat_u8
+BlobSheet.internalFormat = gl.GL_R8UI
 --BlobSheet.gltype = gl.GL_UNSIGNED_BYTE == formatInfo.types[1]
 
 BlobSheet.filenamePrefix = 'sheet'
