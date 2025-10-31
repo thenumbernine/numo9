@@ -3487,6 +3487,7 @@ function App:resize()
 			self:setVideoMode(255)
 			--]]
 			-- idk why exactly but meh, fixes a bug
+			-- hmm, why would the mode draw obj shader forget its HD2DFlags value? weird.
 			self:onHD2DFlagsChange()
 		end
 	end

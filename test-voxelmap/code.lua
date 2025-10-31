@@ -2,10 +2,44 @@
 --#include numo9/matstack.lua	-- matpush, matpop
 --#include numo9/screen.lua		-- getAspectRatio
 
--- TODO FIXME in mode-255 with lighting, you must reset the mode every frame or a resize will break shadowmaps.
--- once you fix that you can move the lighting pokes here into global scope init
-mode(0xff)
-poke(ramaddr'HD2DFlags', 0xff & ~4)
+local voxelTypeEmpty = 0xffffffff
+local voxelTypeBricks = 0x42
+local voxelTypeQuestionHit= 0x48
+local voxelTypeQuestionCoin = 0x44
+local voxelTypeQuestionMushroom = 0x84
+local voxelTypeQuestionVine = 0xc4
+
+local voxelInfos = {
+	[voxelTypeBricks] = {
+		hitUnder = |:, x,y,z|do
+			-- TODO particles
+			vset(0, x, y, z, voxelTypeEmpty)
+		end,
+	},
+	[voxelTypeQuestionCoin] = {
+		hitUnder = |:, x,y,z|do
+			vset(0, x, y, z, voxelTypeQuestionHit)
+			-- TODO give money
+		end,
+	},
+	[voxelTypeQuestionMushroom] = {
+		hitUnder = |:, x,y,z|do
+			vset(0, x, y, z, voxelTypeQuestionHit)
+			-- TODO give mushroom
+		end,
+	},
+	[voxelTypeQuestionVine] = {
+		hitUnder = |:, x,y,z|do
+			vset(0, x, y, z, voxelTypeQuestionHit)
+			-- TODO give something else idk
+		end,
+	},
+}
+
+mode(0xff)	-- NativexRGB565
+--mode(43)	-- 480x270xRGB332
+--mode(18)	-- 336x189xRGB565
+poke(ramaddr'HD2DFlags', 0xff  & ~4)	-- turn off SSAO. meh.
 pokef(ramaddr'ssaoSampleRadius', .5)
 pokew(ramaddr'numLights', 1)			-- turn on 1 light
 poke(ramaddr'lights', 0xff)				-- enable light #0
@@ -14,15 +48,18 @@ poke(ramaddr'lights', 0xff)				-- enable light #0
 local viewDestYaw = 90
 local viewYaw = 90
 local viewTiltUpAngle = -20
+local viewFollowDist = 7
+
 local dt = 1/60
 local epsilon = 1e-7
-local pos = vec3(2.5,2.5,1)
+local pos = vec3(2.5, 2.5, 1)
+local size = vec3(1, 1, 1)
 local vel = vec3()
 local jumpTime = -1 
 local onground = true
 update=||do
 	cls(10)
--- [[
+
 	matident()
 	matident(1)
 	matident(2)
@@ -46,11 +83,10 @@ update=||do
 	local cosYaw = math.cos(viewYawRad)
 	local sinYaw = math.sin(viewYawRad)
 	matrotcs(cosYaw, sinYaw, 0, 0, -1, 1)	-- view yaw = inverse-rotate negative-z-axis
-	local viewX = pos.x - 5 * sinPitch * -sinYaw
-	local viewY = pos.y - 5 * sinPitch * cosYaw
-	local viewZ = pos.z + 5 * cosPitch
+	local viewX = pos.x - viewFollowDist * sinPitch * -sinYaw
+	local viewY = pos.y - viewFollowDist * sinPitch * cosYaw
+	local viewZ = pos.z + viewFollowDist * cosPitch
 	mattrans(-viewX, -viewY, -viewZ, 1)	-- view = inverse-translate
---]]
 
 	voxelmap()
 
@@ -99,7 +135,7 @@ update=||do
 		jumpTime = time()
 	end
 	if walking then
-		local stepHeight = .5 + epsilon
+		local stepHeight = .25 + epsilon
 		local hitXY, hitZ
 		local inewZ = math.floor(newZ)
 		for testZ=inewZ-1,inewZ+1 do
@@ -124,8 +160,8 @@ update=||do
 		onground = false
 	end
 	if jumpTime then
-		local jumpDuration = .0334
-		local jumpAccel = 10 * dt
+		local jumpDuration = .1
+		local jumpAccel = 6.5 * dt
 		if time() < jumpTime + jumpDuration and btn'b' then
 			onground = false
 			vel.z += jumpAccel
@@ -145,12 +181,26 @@ update=||do
 		else
 			local inewZ = math.floor(pos.z)
 			for testZ = inewZ-1, inewZ+1 do
-				if vget(0,pos.x,pos.y,testZ) ~= 0xffffffff then
-					local z = testZ + 1 + epsilon
-					if pos.z < z then
-						pos.z = z
-						vel.z = 0
-						onground = true
+				local voxelType = vget(0,pos.x,pos.y,testZ)
+				if voxelType ~= voxelTypeEmpty then
+					if testZ > pos.z and vel.z > 0 then	-- test bottom of blocks for hitting underneath
+						local z = testZ - epsilon
+						if pos.z + size.z > z then
+							pos.z = z - size.z
+							vel.z = 0
+							-- hit block
+							local voxelInfo = voxelInfos[voxelType]
+							if voxelInfo then
+								voxelInfo:hitUnder(pos.x, pos.y, testZ)
+							end
+						end
+					else	-- test top of blocks for falling on
+						local z = testZ + 1 + epsilon
+						if pos.z < z then
+							pos.z = z
+							vel.z = 0
+							onground = true
+						end
 					end
 				end
 			end
