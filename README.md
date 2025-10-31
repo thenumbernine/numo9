@@ -348,7 +348,7 @@ There are some SSAO variables in RAM.  Tweak to your heart's content.  `ssaoSamp
 
 There's lights/lightmaps variables in RAM too.  You can peek the uber-lightmap size,
 and you can poke to set the number of lightmaps and their properties (like where in the uber-lightmap the light subregion goes).
-I have a big enough one enabled by default, but of course world coordinates vary per game so you'll probably have to tweak it. 
+I have a big enough one enabled by default, but of course world coordinates vary per game so you'll probably have to tweak it.
 
 Don't change your view or projection matrix between illuminated render calls!
 The first scene render view and projection matrix at the time that `HD2DFlags` is set will be recorded.  This will be used for lighting in the final calculation pass.
@@ -584,8 +584,8 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- The rest of the parameters are forwarded to `ttri3d()`.
 - `drawvoxel(voxelCode, [sheetIndex, ...])` = draw a single voxel.  `voxelCode` is the uint32 value that is typically stored in a voxelmap.    Additional arguments are forwarded to `mesh`, starting with `sheetIndex`.
 - `voxelmap(voxelmapIndex, sheetIndex)` =  draw voxelmap.
-- `vget(voxelmapIndex,x,y,z)` = read a uint32 value from the voxel map.
-- `vset(voxelmapIndex,x,y,z,value)` = write a uint32 value to the voxel map.
+- `vget(voxelmapIndex, x, y, z)` = read a uint32 value from the voxel map.
+- `vset(voxelmapIndex, x, y, z, value)` = write a uint32 value to the voxel map.
 - `text(str, x, y, fgColorIndex, bgColorIndex, scaleX, scaleY)` = draw text.  I should rename this to `print` for compat reasons.
 - `mode(i)` = Set video mode.  The various modes are described in the [framebuffer](#framebuffer) section.  You can pass a number or the string of `${width}x${height}x${format}`.  Returns true on success, false if it failed to find the video mode description.
 - `clip([x, y, w, h])` = clip screen region.  `clip()` resets the clip region.
@@ -988,15 +988,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 - langfix is typically negligible, but it's giving me roughly 1 second per 10,000 lines of code ...... I think especially worse with big tables.
 
-- TODO introduce backface culling.... ???
-	- render flipped sprites with hflip/vflip flag so flipping their vertexes doesnt cull them.
-	- render 2D trad-console viewports with z reversed so that rendering a y-flip scene doesn't cull everything....
-	... eh that wont change the front vs back face being cw vs ccw... but by putting the view on the other side of the plane, it is flipping x as well, so it'd be a whole dif 2D coordinate system ...
-	... have to think on this more.
-	- or i can make it a flag ... that would turn this more and more into a WebGL2 "fantasy console" ....
-- while we're changing spr()'s API, also move those 4 properties (bit, mask, transparent, palette-offset) to the back behind hflip/vflip/scale flags
-	- adding hflip & vflip might mean merging tilemap and spritemap render paths
-
 - maybe change scripts from .lua to .rua becuase technically they're not .lua ...
 
 - eventually replace 'struct' lib with luajit introspection
@@ -1096,9 +1087,12 @@ voxelmap editor fixes:
 - and now one of the glClears i inserted to fix this is clearing the game's framebuffer.......
 - without 'updateLightCalcTex' nothing works ...
 
-- really I have to 
+- really I have to
 - - update light calcs once per frame ... or really when any light/scene thing is dirty
 - - then NEW BUFFER FOR combine framebuffer and lights once per frame
 - - then NEW BUFFER FOR depth of field after lighting
 - - then combine that with menu once per frame
-- - so TODO I need ... a few new framebuffers ... 
+- - so TODO I need ... a few new framebuffers ...
+
+- alright after 1.2.0 release, looking at the vget/vset/voxelmap api, i should really put all blob indexes first, even if 99% of the time you dont use it ... maybe ... maybe not idk.
+- also 'text()' should have a font blob index.

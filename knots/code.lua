@@ -188,7 +188,7 @@ redraw=||do
 		if spriteIndex & vflip ~= 0 then
 			orient2D ~~= 5
 		end
-		
+
 		spr(spriteIndex&0x3ff,
 			(x + (sx and 1 or 0))<<3,
 			(y + (sy and 1 or 0))<<3,

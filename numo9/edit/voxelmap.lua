@@ -116,16 +116,17 @@ function EditVoxelMap:onCartLoad()
 		local mesh = app.blobs.mesh3d[mesh3DIndex+1]
 		if not mesh then
 			TileSelect.drawSelected(self, winX, winY, winW, winH)
-		end
-		local vtxs = mesh:getVertexPtr()
-		for ti=0,#mesh.triList-1 do
-			local i,j,k = mesh.triList.v[ti]:unpack()
-			local u1, v1 = tc(vtxs + i)
-			local u2, v2 = tc(vtxs + j)
-			local u3, v3 = tc(vtxs + k)
-			app:drawSolidLine(u1, v1, u2, v2, colorIndex, thickness, app.paletteMenuTex)
-			app:drawSolidLine(u2, v2, u3, v3, colorIndex, thickness, app.paletteMenuTex)
-			app:drawSolidLine(u3, v3, u1, v1, colorIndex, thickness, app.paletteMenuTex)
+		else
+			local vtxs = mesh:getVertexPtr()
+			for ti=0,#mesh.triList-1 do
+				local i,j,k = mesh.triList.v[ti]:unpack()
+				local u1, v1 = tc(vtxs + i)
+				local u2, v2 = tc(vtxs + j)
+				local u3, v3 = tc(vtxs + k)
+				app:drawSolidLine(u1, v1, u2, v2, colorIndex, thickness, app.paletteMenuTex)
+				app:drawSolidLine(u2, v2, u3, v3, colorIndex, thickness, app.paletteMenuTex)
+				app:drawSolidLine(u3, v3, u1, v1, colorIndex, thickness, app.paletteMenuTex)
+			end
 		end
 	end
 
