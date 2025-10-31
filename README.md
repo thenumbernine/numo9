@@ -1098,11 +1098,12 @@ voxelmap editor fixes:
 - also 'text()' should have a font blob index.
 
 BUGS TO FIX FOR 1.2.1:
-- paste with transparency still glitches/fails
-- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
-- sheet bucket fill undo still leaves one pixel remaining
-- clearScreen() doesn't clear the light depth ... so the sky accumulates SSAO shadows ...
+- sheet editor
+	- paste with transparency still glitches/fails
+	- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
+	- sheet bucket fill undo still leaves one pixel remaining
 - in mode(255), resizing breaks lighting until you call mode(255) again ... or open and close menu ...
 BUGS SINCE FIXED FOR 1.2.1:
 - bug in voxelmap tilemap-popup mesh-texcoords when mesh is missing
 - bug in .obj file writer that was writing faces 1-based
+- bug of clearScreen() not clearing the light flag of the geometry buffer is fixed.
