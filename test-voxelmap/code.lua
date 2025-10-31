@@ -38,8 +38,8 @@ local voxelInfos = {
 	},
 }
 
-mode(0xff)	-- NativexRGB565
---mode(43)	-- 480x270xRGB332
+--mode(0xff)	-- NativexRGB565
+mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
 local HD2DFlags = 0xff  & ~4	-- turn off SSAO. meh.
 pokef(ramaddr'ssaoSampleRadius', .5)
@@ -57,7 +57,7 @@ local epsilon = 1e-7
 local pos = vec3(2.5, 2.5, 1)
 local size = vec3(1, 1, 1)
 local vel = vec3()
-local jumpTime = -1 
+local jumpTime = -1
 local onground = true
 update=||do
 	poke(ramaddr'HD2DFlags', HD2DFlags)
@@ -117,8 +117,8 @@ update=||do
 	else
 		if btn'up' then
 			newX += -sinYaw * walkSpeed
-			newY += cosYaw * walkSpeed 
-			walking = true 
+			newY += cosYaw * walkSpeed
+			walking = true
 		end
 		if btn'down' then
 			newX -= -sinYaw * walkSpeed
@@ -126,14 +126,14 @@ update=||do
 			walking = true
 		end
 		if btn'left' then
-			newX -= cosYaw * walkSpeed 
+			newX -= cosYaw * walkSpeed
 			newY -= sinYaw * walkSpeed
-			walking = true 
+			walking = true
 		end
-		if btn'right' then 
-			newX += cosYaw * walkSpeed 
+		if btn'right' then
+			newX += cosYaw * walkSpeed
 			newY += sinYaw * walkSpeed
-			walking = true 
+			walking = true
 		end
 	end
 	-- test jump here before walking because walking clears onground flag for the sake of testing falling off ledges

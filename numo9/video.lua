@@ -209,6 +209,24 @@ local function rgb565rev_to_rgb888_3ch(rgb565)
 		)
 end
 
+local function rgba5551_to_rgb332(rgba5551)
+	local r = bit.band(rgba5551, 0x1F)		-- bits 0-4
+	local g = bit.band(rgba5551, 0x3E0)		-- bits 5-9
+	local b = bit.band(rgba5551, 0x7C00)	-- bits 10-14
+	return bit.bor(
+		bit.rshift(r, 2),		-- shift bit 4 to bit 2
+								-- use bits 0,1,2
+		bit.band(
+			bit.rshift(g, 4),	-- shift bit 9 to bit 5
+			0x38				-- mask bits 3,4,5
+		),
+		bit.band(
+			bit.rshift(b, 7),	-- shift bit 14 to bit 7
+			0xc0				-- mask bits 6,7
+		)
+	)
+end
+
 local function rgb332_to_rgb888_3ch(rgb332)
 	local r = bit.bor(rgb332, 7)
 	local g = bit.band(bit.rshift(rgb332, 3), 7)
@@ -3584,10 +3602,15 @@ function AppVideo:clearScreen(
 				clearFloat[2] = bit.band(bit.rshift(selColorValue, 10), 0x1f) / 0x1f
 				clearFloat[3] = 1
 				gl.glClearBufferfv(gl.GL_COLOR, 0, clearFloat)
-			elseif modeObj.format == '8bppIndex'
-			or modeObj.format == 'RGB332'	-- TODO RGB332 should be converted from index to RGB, right?  but with dithering too ... so far that's only done in shader for 332 ...
-			then	-- internalFormat == texInternalFormat_u8 ... which is now et to G_R8UI
+			elseif modeObj.format == '8bppIndex' then
 				clearUInt[0] = colorIndex
+				clearUInt[1] = 0
+				clearUInt[2] = 0
+				clearUInt[3] = 0xff
+				gl.glClearBufferuiv(gl.GL_COLOR, 0, clearUInt)
+			elseif modeObj.format == 'RGB332' then
+				local selColorValue = ffi.cast(uint16_t_p, paletteTex.data)[colorIndex]
+				clearUInt[0] = rgba5551_to_rgb332(selColorValue)
 				clearUInt[1] = 0
 				clearUInt[2] = 0
 				clearUInt[3] = 0xff

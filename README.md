@@ -1106,4 +1106,5 @@ BUGS SINCE FIXED FOR 1.2.1:
 - bug in voxelmap tilemap-popup mesh-texcoords when mesh is missing
 - bug in .obj file writer that was writing faces 1-based
 - bug of clearScreen() not clearing the light flag of the geometry buffer is fixed.
-- bug of resize breaking shadows until you open menu or call mode() again fixed. 
+- bug of resize breaking shadows until you open menu or call mode() again fixed.
+- bug of RGB332 cls setting the wrong color fixed
