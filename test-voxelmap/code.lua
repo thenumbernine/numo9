@@ -52,8 +52,10 @@ local viewYaw = 90
 local viewTiltUpAngle = -20
 local viewFollowDist = 7
 
+local walking
 local dt = 1/60
 local epsilon = 1e-7
+local angle = 0
 local pos = vec3(2.5, 2.5, 1)
 local size = vec3(1, 1, 1)
 local vel = vec3()
@@ -101,12 +103,24 @@ update=||do
 	matrotcs(cosYaw, sinYaw, 0, 0, 1)
 	matrotcs(0, 1, 1, 0, 0)
 	matscale(1/16, -1/16, 1/16)
-	spr(2, -8, -16, 2, 2)
+	local sprIndex
+	if not onground and vel.z > 0 then
+		sprIndex = 10
+	elseif walking then
+		sprIndex = math.floor(time() * 7) & 3
+		if sprIndex == 3 then sprIndex = 1 end
+		sprIndex <<= 1
+		sprIndex += 2
+	else
+		sprIndex = 2
+	end
+	local hflip = (angle - (viewYaw + 45)) % 360 < 180 and 1 or 0
+	spr(sprIndex, -8, -16, 2, 2, hflip)
 	matpop()
 
-	local walking
 	local walkSpeed = 7 * dt
 	local newX, newY, newZ = pos:unpack()
+	walking = false
 	-- hold y + dir to rotate camera
 	if btn'y' then
 		if btnp'left' then
@@ -118,21 +132,28 @@ update=||do
 		if btn'up' then
 			newX += -sinYaw * walkSpeed
 			newY += cosYaw * walkSpeed
+			angle = viewYaw + 90
+			angle %= 360
 			walking = true
 		end
 		if btn'down' then
 			newX -= -sinYaw * walkSpeed
 			newY -= cosYaw * walkSpeed
+			angle = viewYaw - 90
+			angle %= 360
 			walking = true
 		end
 		if btn'left' then
 			newX -= cosYaw * walkSpeed
 			newY -= sinYaw * walkSpeed
+			angle = viewYaw + 180
+			angle %= 360
 			walking = true
 		end
 		if btn'right' then
 			newX += cosYaw * walkSpeed
 			newY += sinYaw * walkSpeed
+			angle = viewYaw
 			walking = true
 		end
 	end
@@ -218,6 +239,7 @@ update=||do
 	poke(ramaddr'HD2DFlags', 0)
 	cls(nil, true)
 	-- [[
+	--poke(ramaddr'HD2DFlags', 2)	-- if you want the gui text to cast a shadow...
 	matident(0)
 	matident(1)
 	matident(2)

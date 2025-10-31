@@ -2091,7 +2091,7 @@ print('run thread dead')
 			-- [[ push / pop lighting
 			-- push before clearScreen() for it to also clear the light buffer
 			local pushHD2DFlags = self.ram.HD2DFlags
-			self.ram.HD2DFlags = 1	-- off by default in menu
+			self.ram.HD2DFlags = 1	-- need to set HD2DFlags to nonzero for clearScreen() to clear the use-lighting fragment flag
 			if self.ram.HD2DFlags ~= pushHD2DFlags then
 				self:onHD2DFlagsChange()
 			end
@@ -2104,6 +2104,7 @@ print('run thread dead')
 			--gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 			-- You gotta use clearScreen(), not glClear,
 			--  *and* you gotta have the HD2DFlags set for light depth to be cleared as well during clearScreen()
+			-- (TODO maybe make clearScreen() flags for clearing light buffer?)
 			self:clearScreen()
 			-- TODO this background overlay of the last framebuffer isnt working ...
 			-- [[
