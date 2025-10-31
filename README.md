@@ -1097,6 +1097,12 @@ voxelmap editor fixes:
 - alright after 1.2.0 release, looking at the vget/vset/voxelmap api, i should really put all blob indexes first, even if 99% of the time you dont use it ... maybe ... maybe not idk.
 - also 'text()' should have a font blob index.
 
-BUGS FIXED FOR 1.2.1:
+BUGS TO FIX FOR 1.2.1:
+- paste with transparency still glitches/fails
+- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
+- sheet bucket fill undo still leaves one pixel remaining
+- clearScreen() doesn't clear the light depth ... so the sky accumulates SSAO shadows ...
+- in mode(255), resizing breaks lighting until you call mode(255) again ...
+BUGS SINCE FIXED FOR 1.2.1:
 - bug in voxelmap tilemap-popup mesh-texcoords when mesh is missing
 - bug in .obj file writer that was writing faces 1-based

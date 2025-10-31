@@ -383,6 +383,10 @@ function App:initGL()
 			return self:drawVoxelMap(...)
 		end,
 		vget = function(voxelmapIndex, x, y, z)
+			voxelmapIndex = math.floor(tonumber(voxelmapIndex) or 0)
+			x = math.floor(tonumber(x) or 0)
+			y = math.floor(tonumber(y) or 0)
+			z = math.floor(tonumber(z) or 0)
 			local voxelmap = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
 			if not voxelmap then return voxelMapEmptyValue end
 			local addr = voxelmap:getVoxelAddr(x,y,z)
@@ -390,6 +394,11 @@ function App:initGL()
 			return self:peekl(addr)
 		end,
 		vset = function(voxelmapIndex, x, y, z, value)
+			-- TODO toint?  but that returns cdata, hmm ...
+			voxelmapIndex = math.floor(tonumber(voxelmapIndex) or 0)
+			x = math.floor(tonumber(x) or 0)
+			y = math.floor(tonumber(y) or 0)
+			z = math.floor(tonumber(z) or 0)
 			local voxelmap = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
 			if not voxelmap then return end
 			-- does mget/mset send through net?
