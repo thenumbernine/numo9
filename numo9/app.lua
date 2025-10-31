@@ -3486,6 +3486,8 @@ function App:resize()
 			self:setVideoMode(0)
 			self:setVideoMode(255)
 			--]]
+			-- idk why exactly but meh, fixes a bug
+			self:onHD2DFlagsChange()
 		end
 	end
 end
