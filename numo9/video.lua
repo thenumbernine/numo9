@@ -3597,7 +3597,15 @@ function AppVideo:clearScreen(
 			end
 		end
 	end
+
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+
+	-- while we're here, clear normal buffer's alpha component to disable lighting on the background
+	clearFloat[0] = 0
+	clearFloat[1] = 0
+	clearFloat[2] = 1
+	clearFloat[3] = 0	-- framebufferNormalTex.a == 0 <=> disable lighting on background by default
+	gl.glClearBufferfv(gl.GL_COLOR, 1, clearFloat)
 
 	if useDirectionalShadowmaps
 	and self.ram.HD2DFlags ~= 0
@@ -3608,8 +3616,10 @@ function AppVideo:clearScreen(
 		fb:unbind()
 
 		self.lightmapFB:bind()
+		gl.glViewport(0, 0, self.lightmapFB.width, self.lightmapFB.height)
 		gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 		self.lightmapFB:unbind()
+		gl.glViewport(0, 0, self.ram.screenWidth, self.ram.screenHeight)
 
 		-- done - rebind the framebuffer if necessary
 		if self.inUpdateCallback then

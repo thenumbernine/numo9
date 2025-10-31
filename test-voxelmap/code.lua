@@ -2,6 +2,13 @@
 --#include numo9/matstack.lua	-- matpush, matpop
 --#include numo9/screen.lua		-- getAspectRatio
 
+-- TODO FIXME in mode-255 with lighting, you must reset the mode every frame or a resize will break shadowmaps.
+-- once you fix that you can move the lighting pokes here into global scope init
+mode(0xff)
+poke(ramaddr'HD2DFlags', 0xff & ~4)
+pokef(ramaddr'ssaoSampleRadius', .5)
+pokew(ramaddr'numLights', 1)			-- turn on 1 light
+poke(ramaddr'lights', 0xff)				-- enable light #0
 
 -- 0 degrees = y+ is forward, x+ is right
 local viewDestYaw = 90
@@ -14,11 +21,6 @@ local vel = vec3()
 local jumpTime = -1 
 local onground = true
 update=||do
-	mode(0xff)	-- TODO FIXME in mode-255 with lighting, you must reset the mode every frame or a resize will break shadowmaps.
-	poke(ramaddr'HD2DFlags', 0xff) --  & ~4)
-	pokef(ramaddr'ssaoSampleRadius', .5)
-	pokew(ramaddr'numLights', 1)			-- turn on 1 light
-	poke(ramaddr'lights', 0xff)	-- enable light #0
 	cls(10)
 -- [[
 	matident()
