@@ -3598,18 +3598,22 @@ function AppVideo:clearScreen(
 		end
 	end
 
+	-- clear depth
 	gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
-
-	-- while we're here, clear normal buffer's alpha component to disable lighting on the background
-	clearFloat[0] = 0
-	clearFloat[1] = 0
-	clearFloat[2] = 1
-	clearFloat[3] = 0	-- framebufferNormalTex.a == 0 <=> disable lighting on background by default
-	gl.glClearBufferfv(gl.GL_COLOR, 1, clearFloat)
 
 	if useDirectionalShadowmaps
 	and self.ram.HD2DFlags ~= 0
 	then
+		-- while we're here, clear normal buffer's alpha component to disable lighting on the background
+		-- only if HD2DFlags are set?
+		-- TODO should I have a separate flag for this?
+		-- should cls() have a flags variable instead of just depth bool?
+		clearFloat[0] = 0
+		clearFloat[1] = 0
+		clearFloat[2] = 1
+		clearFloat[3] = 0	-- framebufferNormalTex.a == 0 <=> disable lighting on background by default
+		gl.glClearBufferfv(gl.GL_COLOR, 1, clearFloat)
+
 		-- ok now switch framebuffers to the shadow framebuffer
 		-- depth-only or depth-and-color doesn't matter, both ways the lightmap gets cleared
 		-- TODO only do this N-many frames to save on perf

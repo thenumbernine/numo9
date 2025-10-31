@@ -2,6 +2,8 @@
 --#include numo9/matstack.lua	-- matpush, matpop
 --#include numo9/screen.lua		-- getAspectRatio
 
+local coins = 0
+
 local voxelTypeEmpty = 0xffffffff
 local voxelTypeBricks = 0x42
 local voxelTypeQuestionHit= 0x48
@@ -19,7 +21,7 @@ local voxelInfos = {
 	[voxelTypeQuestionCoin] = {
 		hitUnder = |:, x,y,z|do
 			vset(0, x, y, z, voxelTypeQuestionHit)
-			-- TODO give money
+			coins += 1
 		end,
 	},
 	[voxelTypeQuestionMushroom] = {
@@ -39,7 +41,7 @@ local voxelInfos = {
 mode(0xff)	-- NativexRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
-poke(ramaddr'HD2DFlags', 0xff  & ~4)	-- turn off SSAO. meh.
+local HD2DFlags = 0xff  & ~4	-- turn off SSAO. meh.
 pokef(ramaddr'ssaoSampleRadius', .5)
 pokew(ramaddr'numLights', 1)			-- turn on 1 light
 poke(ramaddr'lights', 0xff)				-- enable light #0
@@ -58,15 +60,18 @@ local vel = vec3()
 local jumpTime = -1 
 local onground = true
 update=||do
+	poke(ramaddr'HD2DFlags', HD2DFlags)
 	cls(10)
 
-	matident()
-	matident(1)
+	-- setup proj matrix
 	matident(2)
-	local ar = getAspectRatio()
+	local width, height = getScreenSize()
+	local ar = width / height
 	local zn, zf = .01, 100
 	matfrustum(-zn * ar, zn * ar, -zn, zn, zn, zf)	-- projection
 
+	-- setup view matrix
+	matident(1)
 	local deltaAngle = viewDestYaw - viewYaw
 	if math.abs(deltaAngle) > 1 then
 		viewYaw += .1 * deltaAngle
@@ -88,6 +93,7 @@ update=||do
 	local viewZ = pos.z + viewFollowDist * cosPitch
 	mattrans(-viewX, -viewY, -viewZ, 1)	-- view = inverse-translate
 
+	matident()
 	voxelmap()
 
 	matpush()
@@ -206,4 +212,17 @@ update=||do
 			end
 		end
 	end
+
+	-- end-of-frame, after view has been captured, do ortho and draw text
+	-- but disable light flags before clearing depth or else it'll clear the light depth too
+	poke(ramaddr'HD2DFlags', 0)
+	cls(nil, true)
+	-- [[
+	matident(0)
+	matident(1)
+	matident(2)
+	local textwidth = 32 * 8
+	matortho(0, textwidth, textwidth * height / width, 0)
+	text(tostring('coins x '..coins), 0, 0, 12)
+	--]]
 end
