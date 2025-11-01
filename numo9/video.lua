@@ -492,17 +492,18 @@ function AppVideo:initVideo()
 		GL_MAX_TEXTURE_IMAGE_UNITS is guaranteed to be at least 16
 
 	What are allll our textures?
-	- paletteMenuTex					256x1		2 bytes ... GL_R16UI
-	- fontMenuTex						256x8		1 byte  ... GL_R8UI
-	- checkerTex						4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
-	- framebufferRAMs._256x256xRGB565	256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
-	- framebufferRAMs._256x256x8bpp		256x256		1 byte  ... GL_R8UI
+	- paletteMenuTex						256x1		2 bytes ... GL_R16UI
+	- fontMenuTex							256x8		1 byte  ... GL_R8UI
+	- checkerTex							4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
+	- framebufferRAMs._256x256xRGB565		256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
+	- framebufferRAMs._256x256x8bppIndex	256x256		1 byte  ... GL_R8UI
+	- framebufferRAMs._256x256xRGB332		256x256		1 byte  ... GL_R8UI
 	- blobs:
-	sheet:	 	BlobSheet 				256x256		1 byte  ... GL_R8UI
-	tilemap:	BlobTilemap				256x256		2 bytes ... GL_R16UI
-	palette:	BlobPalette				256x1		2 bytes ... GL_R16UI
-	font:		BlobFont				256x8		1 byte  ... GL_R8UI
-	animsheet:	BlobAnimSheet			1024x1		2 bytes ... GL_R16UI
+	sheet:	 	BlobSheet 					256x256		1 byte  ... GL_R8UI
+	tilemap:	BlobTilemap					256x256		2 bytes ... GL_R16UI
+	palette:	BlobPalette					256x1		2 bytes ... GL_R16UI
+	font:		BlobFont					256x8		1 byte  ... GL_R8UI
+	animsheet:	BlobAnimSheet				1024x1		2 bytes ... GL_R16UI
 
 	I could put sheetRAM on one tex, tilemapRAM on another, paletteRAM on another, fontRAM on another ...
 	... and make each be 256 cols wide ... and as high as there are blobs ...
@@ -1479,6 +1480,10 @@ end
 
 -- TODO most the time I call this after I call :copyBlobsToRAM
 -- so what should this do exactly vs what should that do?
+-- also, this is called from reset() , i.e. it can be called during update.
+-- that means framebuffers might be bound
+-- and if we think of unbinding them here, this calls :setVideoMode
+--  which also tests for update to determine framebuffer-bound status ...
 function AppVideo:resetVideo()
 --DEBUG:print'App:resetVideo'
 	-- remake the textures every time the # blobs changes thanks to loadRAM()

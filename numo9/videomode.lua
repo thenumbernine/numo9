@@ -124,7 +124,7 @@ function VideoMode:buildFramebuffers()
 		--]]
 		--[[
 		-- TODO do this but in doing so the framebuffer fragment vec4 turns into a uvec4
-		-- and then the reads from u16to5551() which output vec4 no longer fit
+		-- and then the reads from u16_to_5551_uvec4() which output vec4 no longer fit
 		-- ... hmm ...
 		-- ... but if I do this then the 565 hardware-blending no longer works, and I'd have to do that blending manually ...
 		internalFormat = internalFormat5551
@@ -344,20 +344,28 @@ function VideoMode:delete()
 	end
 end
 
--- either seems to work fine
-local texelFunc = 'texture'
---local texelFunc = 'texelFetch'
-
 -- convert it here to vec4 since default UNSIGNED_SHORT_1_5_5_5_REV uses vec4
 local glslCode5551 = [[
 // assumes the uint is [0,0xffff]
-// returns rgba in [0,0x1f]
-uvec4 u16to5551(uint x) {
+// returns rgba in [0,0x1f]^4
+uvec4 u16_to_5551_uvec4(uint x) {
 	return uvec4(
 		x & 0x1fu,
 		(x & 0x3e0u) >> 5u,
 		(x & 0x7c00u) >> 10u,
 		((x & 0x8000u) >> 15u) * 0x1fu
+	);
+}
+
+// assumes the uint is [0,0xffff]
+// returns rgba in [0,1]^4
+// only used by a commented path of blitscreen for RGB565
+vec4 u16_to_5551_vec4(uint x) {
+	return vec4(
+		float(x & 0x1fu) / 31.,
+		float((x >> 5) & 0x1fu) / 31.,
+		float((x >> 10) & 0x1fu) / 31.,
+		float(x >> 15)
 	);
 }
 ]]
@@ -366,7 +374,7 @@ uvec4 u16to5551(uint x) {
 -- assert palleteSize is 256 ...
 -- requires glslCode5551
 local colorIndexToFrag = [[
-	u16to5551(texelFetch(
+	u16_to_5551_uvec4(texelFetch(
 		paletteTex,
 		ivec2(int(colorIndex & 0xFFu), 0),
 		0
@@ -401,7 +409,7 @@ precision highp usampler2D;	// needed by #version 300 es
 
 in vec2 tcv;
 
-layout(location=0) out <?=blitFragType?> fragColor;
+layout(location=0) out vec4 fragColor;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
@@ -429,10 +437,6 @@ if (lightColor.w == 0.) {
 }
 ]]
 
--- blit screen is always to vec4 ... right?
-local blitFragType = 'vec4'
-local blitFragTypeVec3 = 'vec3'
-
 function VideoMode:buildColorOutputAndBlitScreenObj()
 	if self.format == 'RGB565' then
 		self:buildColorOutputAndBlitScreenObj_RGB565(self)
@@ -455,7 +459,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 'vec4 colorIndexToFragColor(uint colorIndex) {',
 '	uvec4 ufragColor = '..colorIndexToFrag..';',
 '	vec4 resultFragColor = vec4(ufragColor) / 31.;',
-	getBlendSolidColorCode(blitFragTypeVec3, 'resultFragColor'),
+	getBlendSolidColorCode('vec3', 'resultFragColor'),
 '	return resultFragColor;',
 '}',
 	}:concat'\n'
@@ -493,11 +497,7 @@ void main() {
 #endif
 #if 0	// internalFormat = gl.GL_R16UI
 	uint rgba5551 = texture(framebufferTex, tcv).r;
-	// similar to u16to5551():
-	fragColor.r = float(rgba5551 & 0x1fu) / 31.;
-	fragColor.g = float((rgba5551 >> 5) & 0x1fu) / 31.;
-	fragColor.b = float((rgba5551 >> 10) & 0x1fu) / 31.;
-	fragColor.a = float(rgba5551 >> 15);
+	fragColor = u16_to_5551_vec4(rgba5551);
 #endif
 
 	doLighting();
@@ -505,7 +505,6 @@ void main() {
 ]],			{
 				app = app,
 				self = self,
-				blitFragType = blitFragType,
 				glnumber = glnumber,
 			}),
 			uniforms = {
@@ -567,7 +566,7 @@ blitScreenFragHeader..[[
 
 uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 
-<?=glslCode5551?>
+]]..glslCode5551..[[
 
 void main() {
 	uint colorIndex = texture(framebufferTex, tcv).r;
@@ -579,9 +578,7 @@ void main() {
 ]],			{
 				app = app,
 				self = self,
-				blitFragType = blitFragType,
 				glnumber = glnumber,
-				glslCode5551 = glslCode5551,
 			}),
 			uniforms = {
 				framebufferTex = 0,
@@ -668,7 +665,6 @@ void main() {
 ]],			{
 				app = app,
 				self = self,
-				blitFragType = blitFragType,
 				glnumber = glnumber,
 			}),
 			uniforms = {

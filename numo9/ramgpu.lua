@@ -181,7 +181,7 @@ glreport'checkDirtyGPU after fb:bind'
 --DEBUG:assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 --DEBUG:print('fb size', fb.width, fb.height)
---DEBUG:print('glReadPixels', 0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
+print('glReadPixels', 0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 glreport'checkDirtyGPU after glReadPixels'
 	if not app.inUpdateCallback then
 		fb:unbind()
