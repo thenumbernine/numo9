@@ -11,8 +11,13 @@ for i=0,15 do
 	end
 end
 
-local x, y = 16, 16
-local blendColorIndex = 0
+local modes = table()
+for modeIndex=0,49 do modes:insert(modeIndex) end
+modes:insert(255)
+local modeIndex = 0
+
+local x, y = 16, 32
+local blendColorIndex = 9
 
 local blendModes = {
 	'none',
@@ -26,12 +31,16 @@ local blendModes = {
 	'sub-half-const',
 }
 
+local modeTextWidth = 0
 update=||do
 	cls()
-	tilemap(0, 0, 16, 15, 0, 0, 0, true)
-	rect(0, 240, 256, 16, blendColorIndex)
-	text('solid color:', 0, 240, 12, 16)
-	text('(push a or b to change):', 0, 248, 12, 16)
+	local sw = peekw(ramaddr'screenWidth')
+	local sh = peekw(ramaddr'screenHeight')
+	tilemap(0, 0, sw >> 4, (sh >> 4) - 1, 0, 16, 0, true)
+	rect(0, 0, sw, 16, blendColorIndex)
+	text('(A/B) solid color:'..blendColorIndex, 0, 0, 12, 16)
+	modeTextWidth = text('(X/Y) mode: '..modeIndex, sw - modeTextWidth + 1, 0, 12, 16)
+
 
 	for i=0,2 do
 		for j=0,2 do
@@ -56,16 +65,22 @@ update=||do
 	if btn'down' then y += 1 end
 	if btn'left' then x -= 1 end
 	if btn'right' then x += 1 end
+
 	local deltaBlendColorIndex
-	if btnp'a' then
-		deltaBlendColorIndex = 1
-	end
-	if btnp'b' then
-		deltaBlendColorIndex = -1
-	end
+	if btnp'a' then deltaBlendColorIndex = 1 end
+	if btnp'b' then deltaBlendColorIndex = -1 end
 	if deltaBlendColorIndex then
 		blendColorIndex += deltaBlendColorIndex
 		blendColorIndex &= 0xff
 		pokew(ramaddr'blendColor', peekw(paletteAddr + (blendColorIndex << 1)))
+	end
+
+	local deltaModeIndex
+	if btnp'x' then deltaModeIndex = 1 end
+	if btnp'y' then deltaModeIndex = -1 end
+	if deltaModeIndex then
+		modeIndex += deltaModeIndex
+		modeIndex %= #modes
+		mode(modes[modeIndex+1])
 	end
 end
