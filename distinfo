@@ -108,6 +108,7 @@ files = {
 	["suika.n9"] = "numo9/suika.n9",
 	["survive.n9"] = "numo9/survive.n9",
 	["test-8bppindex.n9"] = "numo9/test-8bppindex.n9",
+	["test-blend.n9"] = "numo9/test-blend.n9",
 	["test-brushmap.n9"] = "numo9/test-brushmap.n9",
 	["test-btnp.n9"] = "numo9/test-btnp.n9",
 	["test-dither.n9"] = "numo9/test-dither.n9",
