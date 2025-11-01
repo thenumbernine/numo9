@@ -582,7 +582,7 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- uofs, vofs = an amount to offset u and v coordinates (which wrap), defaults to 0.
 	- sheetIndex = defaults to 0.
 	- The rest of the parameters are forwarded to `ttri3d()`.
-- `drawvoxel(voxelCode, [sheetIndex, ...])` = draw a single voxel.  `voxelCode` is the uint32 value that is typically stored in a voxelmap.    Additional arguments are forwarded to `mesh`, starting with `sheetIndex`.
+- `drawvoxel(voxelCode, [sheetIndex, ...])` = draw a single voxel.  `voxelCode` is the uint32 value that is typically stored in a voxelmap.  Additional arguments are forwarded to `mesh`, starting with `sheetIndex`.
 - `voxelmap(voxelmapIndex, sheetIndex)` =  draw voxelmap.
 - `vget(voxelmapIndex, x, y, z)` = read a uint32 value from the voxel map.
 - `vset(voxelmapIndex, x, y, z, value)` = write a uint32 value to the voxel map.
@@ -1017,6 +1017,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - I need to rebuild luajit-vanilla under debootstrap so I can release it instead of luajit-openresty, because of weird perfomance problesm of openresty
 
 - edit code page: needs ctrl+left and ctrl+right
+- editor needs mouse wheel scrolling
 
 voxelmap editor fixes:
 - voxelmap select , better preview of region ...
@@ -1053,12 +1054,14 @@ voxelmap editor fixes:
 	- so voxelmaps can't use animations ... hmm ....
 	- should I change spr() to use animsheet?
 	- would that screw up spr() calls?
+	- I could use an 'extra' attr flag for 'use animsheet', and set it during drawbrushmap / mesh3d / voxelmap calls ... or just everything but spr() calls ...
 
 - I want gpu resources to only dirtyCPU / update when the value in RAM *changes*, but for some reason I still have to write it always (esp for the sake of some kind of matrix , model or view.... idk... hmm...)
 
 - add depth-of-field to the final pass shader
 	- generating mipmaps builtin has this catch:
 		- `GL_RGB565` is texture-filterable ... `GL_R8UI` is not.  So mipmaps work on 565 modes but not on indexed or RGB332.
+		- so I need to do this on a new fbo/buffer *after* combining calcLightPP and framebufferTex
 		- also I'll have to either
 			- 1) first combine lights + framebuffer, then generate-mipmap, then use the result with linear filter
 			- 2) -OR- set the light calc tex *and* framebuffer tex min and mag filter to LINEAR before doing depth-of-field
@@ -1083,19 +1086,9 @@ voxelmap editor fixes:
 	- allow autotile painting to corners, i.e. paint with fractional tile pos
 - make autotile for voxelmaps too.
 
-- when changing from mode 1 to 0 (and 0 to 1?), I don't see framebuffer contents matching...
 - not drawing last game screen behind menu
-- and now one of the glClears i inserted to fix this is clearing the game's framebuffer.......
-- without 'updateLightCalcTex' nothing works ...
 
-- really I have to
-- - update light calcs once per frame ... or really when any light/scene thing is dirty
-- - then NEW BUFFER FOR combine framebuffer and lights once per frame
-- - then NEW BUFFER FOR depth of field after lighting
-- - then combine that with menu once per frame
-- - so TODO I need ... a few new framebuffers ...
-
-- alright after 1.2.0 release, looking at the vget/vset/voxelmap api, i should really put all blob indexes first, even if 99% of the time you dont use it ... maybe ... maybe not idk.
+- looking at the vget/vset/voxelmap api, i should really put all blob indexes first, even if 99% of the time you dont use it ... maybe ... maybe not idk.
 - also 'text()' should have a font blob index.
 
 BUGS TO FIX FOR 1.2.1:
