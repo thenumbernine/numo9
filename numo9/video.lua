@@ -3381,14 +3381,17 @@ for y=0,self.lightDepthTex.height-1 do
 end
 print()
 --]=]
-	
-	local videoMode = self.currentVideoMode
+
+	local videoMode =
+		self.activeMenu
+		and self.videoModes[255]
+		or self.currentVideoMode
+
 	local calcLightPP = videoMode.calcLightPP
 	local calcLightFB = calcLightPP.fbo
 	if videoMode.width ~= calcLightFB.width
 	or videoMode.height ~= calcLightFB.height
 	then
-error'here'
 		-- delete the old tex
 		calcLightPP.hist[1]:delete()
 

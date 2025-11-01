@@ -1100,10 +1100,10 @@ voxelmap editor fixes:
 
 BUGS TO FIX FOR 1.2.1:
 - sheet editor
-	- paste with transparency still glitches/fails
-	- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
+	- need to discern between paste rgba and paste 8bpp
+		- paste with transparency still glitches/fails
+		- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
 	- sheet bucket fill undo still leaves one pixel remaining
-- editor lighting only works when your game is using mode-255.  This is because now the light calc tex is tied to the video mode.
 BUGS SINCE FIXED FOR 1.2.1:
 - bug in voxelmap tilemap-popup mesh-texcoords when mesh is missing
 - bug in .obj file writer that was writing faces 1-based
