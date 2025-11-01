@@ -717,15 +717,6 @@ local colorIndexToFrag = [[
 	).r)
 ]]
 
--- and here's our blend solid-color option...
-local function getBlendSolidColorCode(vec3, varname)
-	return [[
-	if (blendColorSolid.a > 0.) {
-		]]..varname..[[.rgb = ]]..vec3..[[(blendColorSolid.rgb);
-	}
-]]
-end
-
 -- I could just make a vertex shader obj of its own and link to the other programs but meh
 local blitScreenVertexCode = [[
 layout(location=0) in vec2 vertex;
@@ -791,14 +782,18 @@ end
 function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 	local app = self.app
 	-- [=[ internalFormat = gl.GL_RGB565
-	self.colorIndexToFragColorCode = table{
-'vec4 colorIndexToFragColor(uint colorIndex) {',
-'	uvec4 ufragColor = '..colorIndexToFrag..';',
-'	vec4 resultFragColor = vec4(ufragColor) / 31.;',
-	getBlendSolidColorCode('vec3', 'resultFragColor'),
-'	return resultFragColor;',
-'}',
-	}:concat'\n'
+	self.colorIndexToFragColorCode = [[
+vec4 colorIndexToFragColor(uint colorIndex) {
+	uvec4 ufragColor = ]]..colorIndexToFrag..[[;
+	vec4 resultFragColor = vec4(ufragColor) / 31.;
+
+	if (blendColorSolid.a > 0.) {
+		resultFragColor.rgb = vec3(blendColorSolid.rgb);
+	}
+
+	return resultFragColor;
+}
+]]
 	--]=]
 	--[=[ internalFormat = internalFormat5551
 	self.colorIndexToFragColorCode = [[
@@ -813,8 +808,12 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 #else	// I think I'll just save the alpha for the immediate-after glsl code alpha discard test ...
 		fragColor.a = (fragColor.r >> 15) * 0x1fu;
 #endif
-]]
-		..getBlendSolidColorCode('uvec3', 'fragColor'),
+
+		if (blendColorSolid.a > 0.) {
+			fragColor.rgb = uvec3(blendColorSolid.rgb);
+		}
+
+]],
 	--]=]
 
 	-- used for drawing our 16bpp framebuffer to the screen
@@ -868,25 +867,29 @@ function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
 
 	-- indexed mode can't blend so ... no draw-override
 	-- this part is only needed for alpha
-	self.colorIndexToFragColorCode = table{
-'uvec4 colorIndexToFragColor(uint colorIndex) {',
-'	uvec4 palColor = '..colorIndexToFrag..';',
-	[[
+	self.colorIndexToFragColorCode = [[
+uvec4 colorIndexToFragColor(uint colorIndex) {
+	uvec4 palColor = ]]..colorIndexToFrag..[[;
+	
 	uvec4 resultFragColor;
 	resultFragColor.r = colorIndex;
 	resultFragColor.g = 0u;
 	resultFragColor.b = 0u;
 	// only needed for quadSprite / quadMap:
 	resultFragColor.a = (palColor.a << 3) | (palColor.a >> 2);
-]],
--- hmm, idk what to do with blendColorSolid in 8bppIndex
--- but I don't want the GLSL compiler to optimize away the attr...
-	getBlendSolidColorCode('uvec3', 'resultFragColor'),
-[[
+
+	// the only way to get 5551 solid color to work in 8bpp-indexed mode is performing a lookup from 5551 to the palette
+	// for now I'll just use its lower byte
+	if (blendColorSolid.a > 0.) {
+		resultFragColor.r = 0xFFu & (
+			uint(blendColorSolid.r * 31.)
+			| (uint(blendColorSolid.g * 31.) << 5u)
+		);
+	}
+
 	return resultFragColor;
 }
 ]]
-	}:concat'\n'
 
 	-- used for drawing our 8bpp indexed framebuffer to the screen
 --DEBUG:print'mode 1 blitScreenObj'
@@ -938,17 +941,25 @@ end
 
 function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 	local app = self.app
-	self.colorIndexToFragColorCode = table{
-'uvec4 colorIndexToFragColor(uint colorIndex) {',
-'	uvec4 palColor = '..colorIndexToFrag..';\n',
-[[
+	self.colorIndexToFragColorCode = [[
+uvec4 colorIndexToFragColor(uint colorIndex) {
+	uvec4 palColor = ]]..colorIndexToFrag..[[;
+	
+	// only needed for quadSprite / quadMap:
+	// do blendColorSolid before doing the dithering
+	if (blendColorSolid.a > 0.) {
+		palColor.r = uint(blendColorSolid.r * 31.);
+		palColor.g = uint(blendColorSolid.g * 31.);
+		palColor.b = uint(blendColorSolid.b * 31.);
+	}
+
 	/*
 	palColor is 5 5 5 5
 	fragColor is 3 3 2
 	so we lose   2 2 3 bits
 	so we can dither those in ...
 	*/
-#if 1	// dithering
+#if 1	// RGB332 dithering
 	uvec2 ufc = uvec2(gl_FragCoord);
 
 	// 2x2 dither matrix, for the lower 2 bits that get discarded
@@ -960,23 +971,18 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 	if ((palColor.z & 3u) > threshold) palColor.z+=4u;
 	palColor = clamp(palColor, 0u, 31u);
 #endif
+
 	uvec4 resultFragColor;
 	resultFragColor.r = (palColor.r >> 2) |
 				((palColor.g >> 2) << 3) |
 				((palColor.b >> 3) << 6);
 	resultFragColor.g = 0u;
 	resultFragColor.b = 0u;
-	// only needed for quadSprite / quadMap:
 	resultFragColor.a = (palColor.a << 3) | (palColor.a >> 2);
-]],
-	-- hmm, idk what to do with blendColorSolid in 8bppIndex
-	-- but I don't want the GLSL compiler to optimize away the attr...
-	getBlendSolidColorCode('uvec3', 'resultFragColor'),
-[[
+
 	return resultFragColor;
 }
-]],
-}:concat'\n'
+]]
 
 --DEBUG:print'mode 2 blitScreenObj'
 	self.blitScreenObj = GLSceneObject{

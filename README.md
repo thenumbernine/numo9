@@ -1112,3 +1112,5 @@ BUGS SINCE FIXED FOR 1.2.1:
 - bug of RGB332 cls setting the wrong color fixed
 - The lightmap no longer messes up with the editor.  I fixed this by putting the light calc tex into the video mode and removed all video mode caches.
 - bug where framebuffers were not being saved upon changing video mode is fixed.
+- made 8bppIndex blendSolidColor to write its low byte to the buffer. made RGB332 blendSolidColor to dither after applying.
+- broke and fixed editor lightmaps once again.
