@@ -2105,7 +2105,7 @@ print('run thread dead')
 			-- (TODO maybe make clearScreen() flags for clearing light buffer?)
 			self:clearScreen()
 			-- TODO this background overlay of the last framebuffer isnt working ...
-			-- [[
+			-- [=[
 			-- if we were on 255 then we can't use transparent backdrop cuz the menu wil be using our framebuffer as well
 			if fbTex ~= self.framebufferRAM.tex then
 				local sceneObj = self.blitScreenObj
@@ -2139,6 +2139,10 @@ print('run thread dead')
 				sceneObj:draw()
 			end
 			gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
+			--]=]
+			--[[
+			self.ram.HD2DFlags = 0
+			self:onHD2DFlagsChange()
 			--]]
 
 			local thread = self.activeMenu.thread

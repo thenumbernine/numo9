@@ -336,8 +336,8 @@ function VideoMode:buildFramebuffers()
 		:setColorAttachmentTex2D(self.calcLightPP:cur().id)
 	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
 	-- then in the light combine pass it wont combine
-	--gl.glClearColor(1,1,1,1)
-	--gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
 	self.calcLightPP.fbo
 		:unbind()
 --]]
