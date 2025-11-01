@@ -694,9 +694,7 @@ function UI:updateBlobChanges()
 	-- so just flush all others
 	app:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 	-- and just clear the framebuffers'
-	for _,v in pairs(app.framebufferRAMs) do
-		v.dirtyGPU = false
-	end
+	app.currentVideoMode.framebufferRAM.dirtyGPU = false
 
 	--app:copyBlobsToROM()
 	app:updateBlobChanges()

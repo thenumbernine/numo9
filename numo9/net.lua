@@ -1463,7 +1463,8 @@ assert.len(deltaStr, deltaBufLen)
 						app:resizeRAMGPUs()	-- resizes # of RAMGPU objects, sets them to their default address too
 						app:setVideoMode(app.ram.videoMode)
 
-						for _,v in pairs(app.framebufferRAMs) do
+						do
+							local v = app.currentVideoMode.framebufferRAM
 							v.dirtyCPU = true
 							v:updateAddr(app.ram.framebufferAddr)
 						end

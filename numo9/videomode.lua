@@ -115,7 +115,7 @@ function VideoMode:buildFramebuffers()
 	end
 
 	local width, height = self.width, self.height
-	local internalFormat, gltype, suffix
+	local internalFormat, gltype
 	if self.format == 'RGB565' then
 		-- framebuffer is 16bpp rgb565 -- used for mode-0
 		-- [[
@@ -129,13 +129,11 @@ function VideoMode:buildFramebuffers()
 		-- ... but if I do this then the 565 hardware-blending no longer works, and I'd have to do that blending manually ...
 		internalFormat = internalFormat5551
 		--]]
-		suffix = 'RGB565'
 	elseif self.format == '8bppIndex'
 	or self.format == 'RGB332'
 	then
 		-- framebuffer is 8bpp indexed -- used for mode-1, mode-2
 		internalFormat = gl.GL_R8UI
-		suffix = '8bpp'
 		-- hmm TODO maybe
 		-- if you want blending with RGB332 then you can use GL_R3_G3_B2 ...
 		-- but it's not in GLES3/WebGL2
@@ -146,36 +144,24 @@ function VideoMode:buildFramebuffers()
 		-- and somehow preserve the upper/lower nibbles on the sprite edges?
 		-- maybe this is too tedious ...
 		internalFormat = gl.GL_R8UI
-		suffix = '8bpp'	-- suffix is for the framebuffer, and we are using R8UI format
 		--width = bit.rshift(width, 1) + bit.band(width, 1)
 	else
 		error("unknown format "..tostring(self.format))
 	end
 
-	-- I'm making one FBO per size.
-	-- Should I be making one FBO per internalFormat?
-	local sizeKey = '_'..self.width..'x'..self.height
-	local fb = not self.useNativeOutput and app.fbos[sizeKey]
-	if not fb then
-		fb = GLFBO{
-			width = self.width,
-			height = self.height,
-		}
+	self.fb = GLFBO{
+		width = self.width,
+		height = self.height,
+	}
 
-		fb:setDrawBuffers(
-			gl.GL_COLOR_ATTACHMENT0,	-- fragColor
-			gl.GL_COLOR_ATTACHMENT1,	-- fragNormal
-			gl.GL_COLOR_ATTACHMENT2)	-- fragPos
-		fb:unbind()
-
-		if not self.useNativeOutput then
-			app.fbos[sizeKey] = fb
-		end
-	end
-	self.fb = fb
+	self.fb:setDrawBuffers(
+		gl.GL_COLOR_ATTACHMENT0,	-- fragColor
+		gl.GL_COLOR_ATTACHMENT1,	-- fragNormal
+		gl.GL_COLOR_ATTACHMENT2)	-- fragPos
+	self.fb:unbind()
 
 	-- make a depth tex per size
-	fb:bind()
+	self.fb:bind()
 	self.framebufferDepthTex = GLTex2D{
 		internalFormat = gl.GL_DEPTH_COMPONENT,
 		width = self.width,
@@ -191,7 +177,7 @@ function VideoMode:buildFramebuffers()
 	}
 	gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, self.framebufferDepthTex.id, 0)
 	self.framebufferDepthTex:unbind()
-	fb:unbind()
+	self.fb:unbind()
 
 	-- while we're here, attach a normalmap as well, for "hardware"-based post-processing lighting effects?
 	-- make a FBO normalmap per size.
@@ -213,7 +199,7 @@ function VideoMode:buildFramebuffers()
 			t = gl.GL_CLAMP_TO_EDGE,
 		},
 	}:unbind()
-	fb:bind()
+	self.fb:bind()
 		:setColorAttachmentTex2D(self.framebufferNormalTex.id, 1, self.framebufferNormalTex.target)
 		:unbind()
 
@@ -233,14 +219,12 @@ function VideoMode:buildFramebuffers()
 			t = gl.GL_CLAMP_TO_EDGE,
 		},
 	}:unbind()
-	fb:bind()
+	self.fb:bind()
 		:setColorAttachmentTex2D(self.framebufferPosTex.id, 2, self.framebufferPosTex.target)
 		:unbind()
 
-	local sizeAndFormatKey = sizeKey..'x'..suffix
-	local framebufferRAM = not self.useNativeOutput and app.framebufferRAMs[sizeAndFormatKey]
 	-- this shares between 8bppIndexed (R8UI) and RGB322 (R8UI)
-	if not framebufferRAM then
+	do
 		-- is specified for GL_UNSIGNED_SHORT_5_6_5.
 		-- otherwise falls back to default based on internalFormat
 		-- set this here so we can determine .ctype for the ctor.
@@ -250,15 +234,15 @@ function VideoMode:buildFramebuffers()
 
 		if self.useNativeOutput then
 			-- make a fake-wrapper that doesn't connect to the address space and does nothing for flushing to/from CPU
-			framebufferRAM = setmetatable({}, RAMGPUTex)
-			framebufferRAM.addr = 0
-			framebufferRAM.addrEnd = 0
+			self.framebufferRAM = setmetatable({}, RAMGPUTex)
+			self.framebufferRAM.addr = 0
+			self.framebufferRAM.addrEnd = 0
 
 			local ctype = assert.index(GLTypes.ctypeForGLType, gltype)
 			local image = Image(width, height, 1, ctype)
-			framebufferRAM.image = image
+			self.framebufferRAM.image = image
 
-			framebufferRAM.tex = GLTex2D{
+			self.framebufferRAM.tex = GLTex2D{
 				internalFormat = internalFormat,
 				format = formatInfo.format,
 				type = gltype,
@@ -274,13 +258,13 @@ function VideoMode:buildFramebuffers()
 				data = ffi.cast(uint8_t_p, image.buffer),
 			}
 
-			function framebufferRAM:delete() return false end	-- :delete() is called on sheet/font/palette RAMGPU's between cart loading/unloading
-			function framebufferRAM:overlaps() return false end
-			function framebufferRAM:checkDirtyCPU() end
-			function framebufferRAM:checkDirtyGPU() end
-			function framebufferRAM:updateAddr(newaddr) end
+			function self.framebufferRAM:delete() return false end	-- :delete() is called on sheet/font/palette RAMGPU's between cart loading/unloading
+			function self.framebufferRAM:overlaps() return false end
+			function self.framebufferRAM:checkDirtyCPU() end
+			function self.framebufferRAM:checkDirtyGPU() end
+			function self.framebufferRAM:updateAddr(newaddr) end
 		else
-			framebufferRAM = RAMGPUTex{
+			self.framebufferRAM = RAMGPUTex{
 				app = app,
 				addr = framebufferAddr,
 				width = width,
@@ -293,16 +277,13 @@ function VideoMode:buildFramebuffers()
 				magFilter = gl.GL_NEAREST,
 				minFilter = gl.GL_NEAREST,
 			}
-
-			app.framebufferRAMs[sizeAndFormatKey] = framebufferRAM
 		end
 	end
-	self.framebufferRAM = framebufferRAM
 
 -- [[ do this here?
 -- wait aren't the fb's shared between video modes?
-	fb:bind()
-		:setColorAttachmentTex2D(framebufferRAM.tex.id, 0, framebufferRAM.tex.target)
+	self.fb:bind()
+		:setColorAttachmentTex2D(self.framebufferRAM.tex.id, 0, self.framebufferRAM.tex.target)
 		:unbind()
 --]]
 
@@ -643,7 +624,6 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 ]],
 }:concat'\n'
 
-	-- used for drawing 8bpp framebufferRAMs._256x256x8bpp as rgb332 framebuffer to the screen
 --DEBUG:print'mode 2 blitScreenObj'
 	self.blitScreenObj = GLSceneObject{
 		program = {

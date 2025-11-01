@@ -2,8 +2,8 @@
 goes with numo9/video.lua and numo9/blob/image.lua
 TODO honestly blob has a .image and blob.ramgpu has a .image
 just merge this into .blob for BlobImage
-and only use it separately for framebufferRAMs
-idk that it even matters if framebufferRAMs and BlobImage.ramgpu's have the same interface
+and only use it separately for videoMode.framebufferRAM
+idk that it even matters if videoMode.framebufferRAM and BlobImage.ramgpu's have the same interface
 --]]
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
@@ -157,7 +157,7 @@ glreport'checkDirtyGPU begin'
 	local tex = self.tex
 	local image = self.image
 	local fb =
-		-- only for framebufferRAMs,
+		-- only for videoMode.framebufferRAM,
 		-- they have dif size from sprite sheets etc and might want their own fraembuffeers ...
 		-- ... honestly same for palettes right?
 		-- well esp fbRAMs theres will be bigger than the default fb size of 256x256
@@ -181,7 +181,7 @@ glreport'checkDirtyGPU after fb:bind'
 --DEBUG:assert.lt(tex.data - app.ram.v, app.memSize, 'tex.data')
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 --DEBUG:print('fb size', fb.width, fb.height)
-print('glReadPixels', 0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
+--DEBUG:print('glReadPixels', 0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 glreport'checkDirtyGPU after glReadPixels'
 	if not app.inUpdateCallback then
 		fb:unbind()

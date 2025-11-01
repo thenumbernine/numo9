@@ -454,19 +454,6 @@ function AppVideo:initVideoModes()
 		app:onFrameBufferSizeChange()
 	end
 	--]]
-
-	-- The following are caches used by the videomodes and get populated per calls to VideoMode:build()
-
-	-- hmm, is there any reason why like-format buffers can't use the same gl texture?
-	-- also, is there any reason I'm building all modes up front?  why not wait until they are requested?
-
-	-- self.fbos['_'..width..'x'..height] = FBO with depth attachment.
-	-- for FBO's size is all that matters, right? not format right?
-	self.fbos = {}
-
-	-- ex: framebuffer is 256 x 144 x 16bpp rgb565
-	--self.framebufferRAMs._256x144xRGB565
-	self.framebufferRAMs = {}
 end
 
 -- called upon app init
@@ -495,9 +482,9 @@ function AppVideo:initVideo()
 	- paletteMenuTex						256x1		2 bytes ... GL_R16UI
 	- fontMenuTex							256x8		1 byte  ... GL_R8UI
 	- checkerTex							4x4			3 bytes ... GL_RGB+GL_UNSIGNED_BYTE
-	- framebufferRAMs._256x256xRGB565		256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
-	- framebufferRAMs._256x256x8bppIndex	256x256		1 byte  ... GL_R8UI
-	- framebufferRAMs._256x256xRGB332		256x256		1 byte  ... GL_R8UI
+	- videoMode._256x256xRGB565.framebufferRAM		256x256		2 bytes ... GL_RGB565+GL_UNSIGNED_SHORT_5_6_5
+	- videoMode._256x256x8bppIndex.framebufferRAM	256x256		1 byte  ... GL_R8UI
+	- videoMode._256x256xRGB332.framebufferRAM		256x256		1 byte  ... GL_R8UI
 	- blobs:
 	sheet:	 	BlobSheet 					256x256		1 byte  ... GL_R8UI
 	tilemap:	BlobTilemap					256x256		2 bytes ... GL_R16UI
@@ -1453,9 +1440,7 @@ end
 function AppVideo:allRAMRegionsCheckDirtyGPU()
 	-- TODO this current method updates *all* GPU/CPU framebuffer textures
 	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
-	for k,v in pairs(self.framebufferRAMs) do
-		v:checkDirtyGPU()
-	end
+	self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 end
 
@@ -1472,9 +1457,7 @@ end
 function AppVideo:allRAMRegionsCheckDirtyCPU()
 	-- TODO this current method updates *all* GPU/CPU framebuffer textures
 	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
-	for _,v in pairs(self.framebufferRAMs) do
-		v:checkDirtyCPU()
-	end
+	self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 end
 
@@ -1517,10 +1500,8 @@ function AppVideo:resetVideo()
 	self.ram.fontAddr = fontAddr
 	-- and these, which are the ones that can be moved
 
-	-- reset all framebufferRAM objects' addresses:
-	for _,v in pairs(self.framebufferRAMs) do
-		v:updateAddr(framebufferAddr)
-	end
+	-- reset framebufferRAM objects' addresses:
+	self.currentVideoMode.framebufferRAM:updateAddr(framebufferAddr)
 
 	if spriteSheetBlob then
 		local sheetRAM = spriteSheetBlob.ramgpu
