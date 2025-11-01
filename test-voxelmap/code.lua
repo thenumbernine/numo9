@@ -25,6 +25,8 @@ local voxelTypeBeetle = 0x50000980
 
 local dt = 1/60
 local epsilon = 1e-7
+local grav = -dt
+local maxFallVel = -.8
 
 local view = {
 	-- 0 degrees = y+ is forward, x+ is right
@@ -66,6 +68,8 @@ view.update = |:, width, height, player|do
 	matident()
 end
 
+local bounceZVel = 0
+
 local objs = table()
 
 local Object = class()
@@ -91,31 +95,41 @@ end
 
 local Beetle = Object:subclass()
 Beetle.draw = |:, ...| do
-	self.voxelCode = voxelTypeBeetle + ((math.floor(time() * 5) & 1) << 1)
+	if not self.leaveShellTime then
+		self.voxelCode = voxelTypeBeetle + ((math.floor(time() * 5) & 1) << 1)
+	end
 	Beetle.super.draw(self, ...)
 end
 Beetle.update = |:| do
+	if self.leaveShellTime then
+		if time() > self.leaveShellTime then
+			self.leaveShellTime = nil
+		end
+		return
+	end
 	if player then
 		self.vel = (player.pos - self.pos):normalize()
 	end
 end
 Beetle.jumpedOn = |:,other| do
-	if not other:isa(Player) then return end
-	self.voxelCode = voxelTypeGoomba + 4
+	if not Player:isa(other) then return end
+	self.voxelCode = voxelTypeBeetle + 4
+	self.leaveShellTime = time() + 5
+	other.jumpTime = time()
+	other.vel.z = bounceZVel
 end
 
 local Goomba = Object:subclass()
 Goomba.draw = |:, ...| do
-	if not self.squashed then
+	if not self.squashedTime then
 		self.voxelCode = voxelTypeGoomba + ((math.floor(time() * 5) & 1) << 1)
 	end
 	Goomba.super.draw(self, ...)
 end
 Goomba.update = |:| do
-	if self.squashed then
-		if time() > self.removeTime then
+	if self.squashedTime then
+		if time() > self.squashedTime then
 			self.remove = true
-			self.voxelCode = voxelTypeGoomba + 4
 		end
 		return
 	end
@@ -124,11 +138,13 @@ Goomba.update = |:| do
 	end
 end
 Goomba.jumpedOn = |:, other| do
-	if self.squashed then return end
-	if not other:isa(Player) then return end
+	if self.squashedTime then return end
+	if not Player:isa(other) then return end
 	self.voxelCode = voxelTypeGoomba + 4
-	self.squashed = true
-	self.removeTime = time() + 1
+	self.squashedTime = time() + 1
+	self.voxelCode = voxelTypeGoomba + 4
+	other.jumpTime = time()
+	other.vel.z = bounceZVel
 end
 
 Player = Object:subclass()
@@ -157,7 +173,6 @@ Player.update = |:|do
 
 	self.vel.x = 0
 	self.vel.y = 0
-	self.walking = false
 	-- hold y + dir to rotate camera
 	if btn'y' then
 		if btnp'left' then
@@ -171,27 +186,23 @@ Player.update = |:|do
 			self.vel.y += view.cosYaw * self.walkSpeed
 			self.angle = view.yaw + 90
 			self.angle %= 360
-			self.walking = true
 		end
 		if btn'down' then
 			self.vel.x -= -view.sinYaw * self.walkSpeed
 			self.vel.y -= view.cosYaw * self.walkSpeed
 			self.angle = view.yaw - 90
 			self.angle %= 360
-			self.walking = true
 		end
 		if btn'left' then
 			self.vel.x -= view.cosYaw * self.walkSpeed
 			self.vel.y -= view.sinYaw * self.walkSpeed
 			self.angle = view.yaw + 180
 			self.angle %= 360
-			self.walking = true
 		end
 		if btn'right' then
 			self.vel.x += view.cosYaw * self.walkSpeed
 			self.vel.y += view.sinYaw * self.walkSpeed
 			self.angle = view.yaw
-			self.walking = true
 		end
 	end
 
@@ -203,6 +214,9 @@ Player.update = |:|do
 	local newX = self.pos.x + self.vel.x * dt
 	local newY = self.pos.y + self.vel.y * dt
 	local newZ = self.pos.z	-- don't test jumping/falling yet...
+
+	-- TODO what about falling vs walking?
+	self.walking = self.vel.x ~= 0 or self.vel.y ~= 0
 
 	if self.walking then
 		local stepHeight = .25 + epsilon
@@ -230,19 +244,20 @@ Player.update = |:|do
 		self.onground = false
 	end
 	if self.jumpTime then
-		local jumpDuration = .1
-		local jumpAccel = 6.5 * dt
+		local jumpDuration = .2
+		local jumpVel = .24
 		if time() < self.jumpTime + jumpDuration and btn'b' then
 			self.onground = false
-			self.vel.z += jumpAccel
+			self.vel.z = jumpVel
 		else
 			self.jumpTime = nil
 		end
 	end
 
 	if not self.onground then
-		local grav = -2 * dt
-		self.vel.z += grav
+		if self.vel.z > maxFallVel then
+			self.vel.z = math.max(maxFallVel, self.vel.z + grav)
+		end
 		self.pos.z += self.vel.z
 		if self.pos.z < 0 then
 			self.pos.z = 0
@@ -283,8 +298,8 @@ Player.update = |:|do
 			and math.abs(self.pos.y - obj.pos.y) < self.size.y + obj.size.y
 			and math.abs(self.pos.z - obj.pos.z) < self.size.z + obj.size.z
 			then
-				if self.pos.z - self.size.z > obj.pos.z + obj.size.z
-				and self.vel.z - obj.pos.z < 0
+				if self.pos.z > obj.pos.z + obj.size.z
+				and self.vel.z - obj.vel.z < 0
 				then
 					-- landed on its head
 					obj?:jumpedOn(self)
@@ -299,7 +314,7 @@ Player.update = |:|do
 end
 
 
-local voxelInfos = {
+voxelInfos = {
 	[voxelTypeBricks] = {
 		hitUnder = |:, x,y,z|do
 			-- TODO particles
