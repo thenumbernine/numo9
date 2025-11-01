@@ -1338,6 +1338,13 @@ function AppVideo:setVideoMode(modeIndex)
 	-- first time we won't have a drawObj to flush
 	self:triBuf_flush()	-- flush before we redefine what modeObj.drawObj is, which :triBuf_flush() depends on
 
+	-- force framebuffer to flush GPU to CPU
+	-- TODO TODO TODO only if dirtyGPU is set
+	-- TODO TODO TODO should we set dirtyGPU upon draw call or upon triBuf_flush?
+	if self.framebufferRAM then
+		self.framebufferRAM:checkDirtyGPU()
+	end
+
 	local modeObj = self.videoModes[modeIndex]
 	if not modeObj then
 		return false, "unknown video mode "..tostring(modeIndex)
@@ -1412,6 +1419,11 @@ function AppVideo:setVideoMode(modeIndex)
 	--  proly cuz its calling setVideoMode() to switch to 255 and back
 	-- how about I just clearScreen in mode() calls, but not here?
 	--self:clearScreen(nil, nil, true)
+
+	if self.framebufferRAM then
+		self.framebufferRAM.dirtyCPU = true
+		self.framebufferRAM:checkDirtyCPU()
+	end
 
 	return true
 end
@@ -1570,6 +1582,7 @@ function AppVideo:drawSolidRect(
 		x, y, w, h
 	)
 
+	-- TODO should 'dirtyGPU' go in the draw functions or in the triBuf_flush ?
 	self.framebufferRAM.dirtyGPU = true
 	self.framebufferRAM.changedSinceDraw = true
 end
