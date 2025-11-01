@@ -1104,7 +1104,6 @@ BUGS TO FIX FOR 1.2.1:
 	- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
 	- sheet bucket fill undo still leaves one pixel remaining
 - editor lighting only works when your game is using mode-255.  This is because now the light calc tex is tied to the video mode.
-- in test-8bppindex.n9 the different vidoe modes get cleared when I change modes.  they should save framebuffer.
 BUGS SINCE FIXED FOR 1.2.1:
 - bug in voxelmap tilemap-popup mesh-texcoords when mesh is missing
 - bug in .obj file writer that was writing faces 1-based
@@ -1112,3 +1111,4 @@ BUGS SINCE FIXED FOR 1.2.1:
 - bug of resize breaking shadows until you open menu or call mode() again fixed.
 - bug of RGB332 cls setting the wrong color fixed
 - The lightmap no longer messes up with the editor.  I fixed this by putting the light calc tex into the video mode and removed all video mode caches.
+- bug where framebuffers were not being saved upon changing video mode is fixed.
