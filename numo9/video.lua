@@ -14,8 +14,6 @@ local GLFBO = require 'gl.fbo'
 local GLArrayBuffer = require 'gl.arraybuffer'
 local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
-local GLSceneObject = require 'gl.sceneobject'
-local GLPingPong = require 'gl.pingpong'
 
 local VideoMode = require 'numo9.videomode'.VideoMode
 local Numo9Vertex = require 'numo9.videomode'.Numo9Vertex
@@ -624,6 +622,7 @@ function AppVideo:initVideo()
 		-- and a GL_TEXTURE_2D_ARRAY for our directional lights
 		-- size is lightmap resolution x max # of lights
 		-- lets just do a single directional light for starters
+		-- do this before setVideoMode because the video mode's light calc stuff needs this.
 		self.lightDepthTex = GLTex2D{
 			width = dirLightMapSize.x,
 			height = dirLightMapSize.y,
@@ -689,49 +688,6 @@ function AppVideo:initVideo()
 		self.drawViewInvMat = ident4x4:clone()	-- /
 	end
 
-	-- [[ deferred lighting framebuffer,
-	-- do this before video modes built so we can attach the tex to video modes' blitScreenObj
-	--
-	-- TODO
-	-- Google AI is retarded.
-	-- No Google, it is not a good idea to downsample the SSAO buffer.  It makes tearing appear at edges' lighting.
-	-- No it is not a good idea to blend it with past SSAO buffers, that makes ghosting and TV-static effects.
-	-- The best I found was just 1 texture, rendered with only its info, no blurring, no past iterations, no miplevels, no other resolutions.
-	-- and use it in the final pass.
-	-- so TODO you can replace calcLightPP with just a tex and a fbo.
-	-- but meh it does package the two into one class well.
-	--
-	-- downsample gbuffer into here for ssao calcs and use that tex to render to the final scene
-	-- TODO blending multiple buffers together doesn't seem to make that much of a difference
-	-- 	but it does cause ghosting and tearing at edges.  so..
-	self.calcLightPP = GLPingPong{
-		numBuffers = 1,	-- just for the fbo + tex
-		width = self.width,
-		height = self.height,
-		internalFormat = gl.GL_RGBA32F,
-		format = gl.GL_RGBA,
-		type = gl.GL_FLOAT,
-		minFilter = gl.GL_NEAREST,
-		magFilter = gl.GL_LINEAR,
-		wrap = {
-			s = gl.GL_CLAMP_TO_EDGE,
-			t = gl.GL_CLAMP_TO_EDGE,
-		},
-	}
-	-- TODO put setDrawBuffers init in gl.pingpong ... when you dont provide a fbo?
-	--  or is it even needed for single-color-attachment fbos?
-	self.calcLightPP.fbo
-		:bind()
-		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
-		:setColorAttachmentTex2D(self.calcLightPP:cur().id)
-	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
-	-- then in the light combine pass it wont combine
-	--gl.glClearColor(1,1,1,1)
-	--gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
-	self.calcLightPP.fbo
-		:unbind()
---]]
-
 	-- set 255 mode first so that it has resources (cuz App:update() needs them for the menu)
 	self:setVideoMode(255)
 assert(self.videoModes[255])
@@ -739,312 +695,6 @@ assert(self.videoModes[255])
 
 	self:resetVideo()
 
-
--- [[ more deferred lighting
-	-- do this after resetting video so that we have a videoMode object
-	self.calcLightBlitObj = GLSceneObject{
-		program = {
-			version = self.glslVersion,
-			precision = 'best',
-			vertexCode = [[
-layout(location=0) in vec2 vertex;
-
-out vec2 tcv;
-
-void main() {
-	tcv = vertex;
-	gl_Position = vec4(
-		vertex.xy * 2. - 1.,
-		0., 1.);
-}
-]],
-			fragmentCode = template([[
-precision highp sampler2D;
-precision highp isampler2D;
-precision highp usampler2D;	// needed by #version 300 es
-
-in vec2 tcv;
-
-layout(location=0) out vec4 fragColor;
-
-uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
-uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;	// used by SSAO
-uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
-
-#define maxLights ]]..maxLights..[[
-
-// lighting variables in RAM:
-uniform int numLights;
-uniform vec3 lightAmbientColor;	// overall ambient level
-// lights[] array TODO use UBO:
-uniform bool lights_enabled[maxLights];
-uniform vec4 lights_region[maxLights];	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
-uniform vec3 lights_ambientColor[maxLights];// per light ambient (is attenuated, so its diffuse without dot product dependency).
-uniform vec3 lights_diffuseColor[maxLights];// = vec3(1., 1., 1.);
-uniform vec4 lights_specularColor[maxLights];// = vec3(.6, .5, .4, 30.);	// w = shininess
-uniform vec3 lights_distAtten[maxLights];	// vec3(const, linear, quadratic) attenuation
-uniform vec2 lights_cosAngleRange[maxLights];	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
-uniform mat4 lights_viewProjMat[maxLights];	// used for light depth coord transform, and for determining the light pos
-uniform vec3 lights_viewPos[maxLights];	// translation components of inverse-view-matrix of the light
-uniform vec3 lights_negViewDir[maxLights];	// negative-z-axis of inverse-view-matrix of the light
-
-uniform float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
-uniform float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
-
-const float ssaoSampleTCScale = 18.;	// ? meh
-
-uniform mat4 drawViewMat;	// used by SSAO
-uniform mat4 drawProjMat;	// used by ...
-uniform vec3 drawViewPos;
-
-// these are the random vectors inside a unit hemisphere facing z+
-#define ssaoNumSamples 8
-const vec3[ssaoNumSamples] ssaoRandomVectors = vec3[ssaoNumSamples](
-	vec3(0.58841258486248, 0.39770493127433, 0.18020748345621),
-	vec3(-0.055272473410801, 0.35800974374131, 0.15028358974804),
-	vec3(0.3199885122024, -0.57765628483213, 0.19344714028561),
-	vec3(-0.71177536281716, 0.65982751624885, 0.16661179472317),
-	vec3(0.6591556369125, 0.25301657986158, 0.65350042181301),
-	vec3(0.37855701974814, 0.013090583813782, 0.71111037617741),
-	vec3(0.53098955685005, 0.39114666484126, 0.29796836757796),
-	vec3(-0.27445479803038, 0.28177659836742, 0.89415105823562)
-#if 0
-	vec3(0.030042725676812, 0.3941820959086, 0.099681999794761),
-	vec3(-0.60144625790746, 0.6112734005649, 0.3676468627808),
-	vec3(0.72396342749209, 0.35994756762253, 0.30828171680103),
-	vec3(-0.8082345863749, 0.13633528834184, 0.32199773139527),
-	vec3(0.49667204075871, 0.12506306502285, 0.65431856367262),
-	vec3(-0.086390931280017, 0.5832061191173, 0.29234165779378),
-	vec3(-0.24610823044055, 0.77791376069684, 0.57363108026349),
-	vec3(-0.194238481883, 0.01011984889981, 0.88466521192798)
-#endif
-);
-
-void main() {
-#if 0	// debug - show the lightmap
-float l = texture(lightDepthTex, tcv).x;
-fragColor = vec4(l, l * 10., 1. - l * 100., .0);	// tell debug compositer to use this color here.
-return;
-#endif
-
-	vec4 worldNormal = texture(framebufferNormalTex, tcv);
-	int HD2DFlags = int(worldNormal.w);
-	// no lighting on this fragment
-	if ((HD2DFlags & <?=ffi.C.LIGHTING_APPLY_TO_SURFACE?>) == 0) {
-		fragColor = vec4(1., 1., 1., 1.);
-		return;
-	}
-
-	vec3 normalizedWorldNormal = normalize(worldNormal.xyz);
-#if 0 // debugging: show normalmap:
-fragColor = vec4(normalizedWorldNormal * .5 + .5, 0.);	// w=0 is debugging and means 'show the lightmap at this point'
-return;
-#endif
-
-	vec4 worldCoordAndClipDepth = texture(framebufferPosTex, tcv);
-	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
-	float clipDepth = worldCoordAndClipDepth.w;
-
-	if ((HD2DFlags & <?=bit.bor(ffi.C.LIGHTING_CALC_FROM_LIGHTMAP, ffi.C.LIGHTING_CALC_FROM_LIGHTS)?>) == 0) {
-		// no light calcs = full light
-		fragColor = vec4(1., 1., 1., 1.);
-	} else {
-		bool calcFromLightMap = 0 != (HD2DFlags & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTMAP?>);
-		bool calcFromLights = 0 != (HD2DFlags & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTS?>);
-
-		// start off with scene ambient
-		fragColor = vec4(lightAmbientColor.xyz, 1.);
-
-		for (int lightIndex = 0; lightIndex < numLights; ++lightIndex) {
-			if (!lights_enabled[lightIndex]) continue;
-
-			if (calcFromLightMap) {
-				vec4 lightClipCoord = lights_viewProjMat[lightIndex] * worldCoord;
-				// frustum test before homogeneous transform
-				if (!(lightClipCoord.w > 0.
-					&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
-					&& all(lessThanEqual(lightClipCoord.xyz, vec3(lightClipCoord.w, lightClipCoord.w, lightClipCoord.w)))
-				)) continue;
-
-				vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
-				vec3 lightND01Coord = lightNDCoord * .5 + .5;
-
-				vec2 lightTC = lightND01Coord.xy * lights_region[lightIndex].zw + lights_region[lightIndex].xy;
-
-				// in bounds
-				float lightBufferDepth = texture(lightDepthTex, lightTC).x;
-
-				// zero gets depth alias stripes
-				// nonzero is dependent on the scene
-				// the proper way to do this is to save the depth range per-fragment and use that here as the epsilon
-				//const float lightDepthTestEpsilon = 0.;		// not enough
-				//const float lightDepthTestEpsilon = 0.0001;	// not enough
-				const float lightDepthTestEpsilon = 0.001;		// works for what i'm testing atm
-
-#if 0	// debug show the light buffer
-fragColor = vec4(lightBufferDepth, .5, 1. - lightBufferDepth, 0.);	// tell debug compositer to use this color here.
-return;
-#endif
-#if 0	// debug show the light clip depth
-fragColor = vec4(lightND01Coord.z, .5, 1. - lightND01Coord.z, 0.);	// tell debug compositer to use this color here.
-return;
-#endif
-#if 0	// debug show the light clip depth
-float delta = lightND01Coord.z - (lightBufferDepth + lightDepthTestEpsilon);
-fragColor = vec4(.5 + delta, .5, .5 - delta, 0.);	// tell debug compositer to use this color here.
-return;
-#endif
-				// TODO normal test here as well?
-				if (!(lightND01Coord.z < (lightBufferDepth + lightDepthTestEpsilon))) {
-					continue;
-				}
-			}
-
-			if (!calcFromLights) {
-				fragColor.xyz += vec3(1., 1., 1.);
-			} else {
-#if 1 // diffuse & specular with the world space surface normal
-				vec3 surfaceToLightVec = lights_viewPos[lightIndex] - worldCoord.xyz;
-				float surfaceToLightDist = length(surfaceToLightVec);
-				vec3 surfaceToLightNormalized = surfaceToLightVec / surfaceToLightDist;
-				vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
-				float cosNormalToLightAngle = dot(surfaceToLightNormalized, normalizedWorldNormal);
-
-				float cos_lightToSurface_to_lightFwd = dot(
-					-surfaceToLightNormalized,
-					-lights_negViewDir[lightIndex]);
-
-				// TODO i need an input/output map or bias or something
-				// outdoor lights need to disable this
-				// and I have no way to do so ...
-				// I can just do mx+b and then ... clamp range ...
-				// thats 4 args ...
-				// in min, in max, out min, out max
-				float atten =
-					// clamp this?  at least above zero... no negative lights.
-					clamp(
-						(cos_lightToSurface_to_lightFwd - lights_cosAngleRange[lightIndex].x)
-						* lights_cosAngleRange[lightIndex].y,	// .y holds 1/(cos(inner) - cos(outer))
-						0., 1.
-					);
-
-				vec3 lightColor =
-					lights_ambientColor[lightIndex]
-					+ lights_diffuseColor[lightIndex] * abs(cosNormalToLightAngle)
-					// maybe you just can't do specular lighting in [0,1]^3 space ...
-					// maybe I should be doing inverse-frustum-projection stuff here
-					// hmmmmmmmmmm
-					// I really don't want to split projection and modelview matrices ...
-					+ lights_specularColor[lightIndex].xyz * pow(
-						abs(dot(viewDir, reflect(-surfaceToLightNormalized, normalizedWorldNormal))),
-						lights_specularColor[lightIndex].w
-					);
-				atten *= 1. /
-					max(1e-7,
-						lights_distAtten[lightIndex].x
-						+ surfaceToLightDist * (lights_distAtten[lightIndex].y
-							+ surfaceToLightDist * lights_distAtten[lightIndex].z
-						)
-					);
-
-				// TODO scale atten by angle range
-
-				// apply bumpmap lighting
-				fragColor.xyz += lightColor * atten;
-#else	// plain
-				fragColor.xyz += vec3(.9, .9, .9);
-#endif
-			}
-		}
-	}
-
-	// SSAO:
-	if ((HD2DFlags & <?=ffi.C.LIGHTING_USE_SSAO?>) != 0) {
-		vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
-		vec3 normalizedViewNormal = normalize(viewNormal.xyz);
-
-		// make sure normal is pointing towards the view, i.e. z+
-		if (normalizedViewNormal.z < 0.) normalizedViewNormal = -normalizedViewNormal;
-
-		vec4 viewCoord = drawViewMat * worldCoord;
-
-		// clipCoord = drawProjMat * viewCoord
-		// ndcCoord = homogeneous(clipCoord)
-		// ndcCoord should == tcv.xy * 2. - 1. .......
-
-		// current fragment in [-1,1]^2 screen coords x clipDepth
-		//vec3 viewCoord = vec3(tcv.xy * 2. - 1., clipDepth);
-
-		// TODO just save float buffer? faster?
-		// TODO should this random vec be in 3D or 2D?
-		vec3 rvec = texture(noiseTex, tcv * ssaoSampleTCScale).xyz;
-		rvec.z = 0.;
-		rvec.xy = normalize(rvec.xy * 2. - 1.);
-
-		// frame in view coordinates
-		vec3 tangent = normalize(rvec - normalizedViewNormal * dot(rvec, normalizedViewNormal));
-		vec3 bitangent = cross(tangent, normalizedViewNormal);
-		mat3 tangentMatrix = mat3(tangent, bitangent, normalizedViewNormal);
-
-		float numOccluded = 0.;
-		for (int i = 0; i < ssaoNumSamples; ++i) {
-			// rotate random hemisphere vector into our tangent space
-			// but this is still in [-1,1]^2 screen coords x clipDepth, right?
-			vec3 sampleViewCoord = viewCoord.xyz + tangentMatrix * (ssaoRandomVectors[i] * ssaoSampleRadius);
-
-			vec4 sampleClipCoord = drawProjMat * vec4(sampleViewCoord, 1.);
-			vec4 sampleNDCCoord = sampleClipCoord / sampleClipCoord.w;
-			float bufferClipDepthAtSample = texture(framebufferPosTex, sampleNDCCoord.xy * .5 + .5).w;
-
-			float depthDiff = sampleClipCoord.z - bufferClipDepthAtSample;
-			if (depthDiff < ssaoSampleRadius) {
-				numOccluded += step(bufferClipDepthAtSample, sampleClipCoord.z);
-			}
-		}
-
-		float lum = 1. - ssaoInfluence * numOccluded / float(ssaoNumSamples);
-		fragColor.xyz *= lum;
-	}
-}
-]],			{
-				ffi = ffi,
-				app = self,
-				videoMode = self.currentVideoMode,
-				glnumber = glnumber,
-				width = self.calcLightPP.width,
-				height = self.calcLightPP.height,
-			}),
-			uniforms = {
-				framebufferNormalTex = 0,
-				framebufferPosTex = 1,
-				noiseTex = 2,
-				lightDepthTex = 3,
-			},
-		},
-		texs = {
-			self.framebufferNormalTex,
-			self.framebufferPosTex,
-			self.noiseTex,
-			self.lightDepthTex,
-		},
-		geometry = self.quadGeom,
-
-		--[=[ TODO don't use this
-		-- these are set every frame
-		-- but I"m using these because I'm lazy
-		-- instead just call glUniform yourself.
-		uniforms = {
-			lightmapRegion = {0,0,1,1},
-			lightAmbientColor = {.4, .3, .2},
-			lightDiffuseColor = {1, 1, 1},
-			lightSpecularColor = {.6, .5, .4, 30},
-			ssaoSampleRadius = 1,
-			ssaoInfluence = 1,
-		},
-		--]=]
-	}
-	--]]
 end
 
 function AppVideo:triBuf_flush()
@@ -1751,8 +1401,6 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onCullFaceChange()
 	self:onSpriteNormalExhaggerationChange()
 	self:onFrameBufferSizeChange()
-
-	self.blitScreenObj.texs[1] = self.framebufferRAM.tex
 
 	self.currentVideoMode = modeObj
 	self.currentVideoModeIndex = modeIndex
@@ -3720,19 +3368,21 @@ for y=0,self.lightDepthTex.height-1 do
 end
 print()
 --]=]
-
-	local calcLightPP = self.calcLightPP
+	
+	local videoMode = self.currentVideoMode
+	local calcLightPP = videoMode.calcLightPP
 	local calcLightFB = calcLightPP.fbo
-	if self.width ~= calcLightFB.width
-	or self.height ~= calcLightFB.height
+	if videoMode.width ~= calcLightFB.width
+	or videoMode.height ~= calcLightFB.height
 	then
+error'here'
 		-- delete the old tex
 		calcLightPP.hist[1]:delete()
 
 		-- realloc a new tex
 		calcLightPP.hist[1] = GLTex2D{
-			width = self.width,
-			height = self.height,
+			width = videoMode.width,
+			height = videoMode.height,
 			internalFormat = gl.GL_RGBA32F,
 			format = gl.GL_RGBA,
 			type = gl.GL_FLOAT,
@@ -3744,19 +3394,14 @@ print()
 			},
 		}:unbind()
 
-		-- update all refs
-		self.blitScreenObj.texs[3] = calcLightPP:cur()	-- I guess it oculdb e on native's old blitScreenObj and native could clear the old one to make a new one during its resize code?
-		for _,videoMode in pairs(self.videoModes) do
-			if videoMode.blitScreenObj then
-				videoMode.blitScreenObj.texs[3] = calcLightPP:cur()
-			end
-		end
+		-- update refs
+		videoMode.blitScreenObj.texs[3] = calcLightPP:cur()
 
 		-- and resize the fbo stored size
-		calcLightFB.width = self.width
-		calcLightFB.height = self.height
-		calcLightPP.width = self.width
-		calcLightPP.height = self.height
+		calcLightFB.width = videoMode.width
+		calcLightFB.height = videoMode.height
+		calcLightPP.width = videoMode.width
+		calcLightPP.height = videoMode.height
 	end
 
 
@@ -3768,8 +3413,6 @@ print()
 	gl.glViewport(0, 0, calcLightPP.width, calcLightPP.height)
 	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
 	-- then in the light combine pass it wont combine
-	--gl.glClearColor(1,1,1,1)
-	--gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
 
 	-- this currently gets blitted per-display
 	-- so if menu is open we dont want it
@@ -3779,9 +3422,7 @@ print()
 	-- I can always just not apply the calcLightTex if we're in light mode
 	-- or I can make sure that the menu render calcs always set the to false
 
-	local videoMode = self.currentVideoMode
-
-	local sceneObj = self.calcLightBlitObj
+	local sceneObj = videoMode.calcLightBlitObj
 	sceneObj.texs[1] = videoMode.framebufferNormalTex
 	sceneObj.texs[2] = videoMode.framebufferPosTex
 	-- these dont change:

@@ -1080,6 +1080,7 @@ voxelmap editor fixes:
 - voxel editor, when the camera direction is grid aligned it can detect collision when there isnt one.
 
 - test and finish tilemap autotile
+	- allow autotile painting to corners, i.e. paint with fractional tile pos
 - make autotile for voxelmaps too.
 
 - when changing from mode 1 to 0 (and 0 to 1?), I don't see framebuffer contents matching...
@@ -1102,9 +1103,10 @@ BUGS TO FIX FOR 1.2.1:
 	- paste with transparency still glitches/fails
 	- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
 	- sheet bucket fill undo still leaves one pixel remaining
-- RGB332, going to menu / editor, I still see the lightmap ... hmm
+- in test-voxelmap.n9, using mode(2) RGB332, going to menu / editor, I still see the lightmap ... hmm
 	- maybe I gotta clear the lightmap-calc buffer?
 	- this goes back to reorganizing the framebuffers to not do deferred-light-combine in the final pass
+- in test-8bppindex.n9 the different vidoe modes get cleared when I change modes.  they should save framebuffer.
 BUGS SINCE FIXED FOR 1.2.1:
 - bug in voxelmap tilemap-popup mesh-texcoords when mesh is missing
 - bug in .obj file writer that was writing faces 1-based
