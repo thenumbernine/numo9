@@ -362,64 +362,16 @@ uvec4 u16to5551(uint x) {
 }
 ]]
 
---[[
-args:
-	texvar = glsl var name
-	tex = GLTex object
-	tc
-	from (optional) 'vec2' or 'ivec2'
-	to (optional) 'vec4' or 'uvec4'
-is this going to turn into a parser?
---]]
-local function readTex(args)
-	local texvar = args.texvar
-	local tc = args.tc
-	if args.from == 'vec2' then
-		if texelFunc == 'texelFetch' then
-			tc = 'ivec2(('..tc..') * vec2(textureSize('..texvar..', 0)))'
-		end
-	elseif args.from == 'ivec2' then
-		if texelFunc ~= 'texelFetch' then
-			tc = '(vec2('..tc..') + .5) / vec2(textureSize('..texvar..', 0))'
-		end
-	end
-	local dst
-	if texelFunc == 'texelFetch' then
-		dst = texelFunc..'('..texvar..', '..tc..', 0)'
-	else
-		dst = texelFunc..'('..texvar..', '..tc..')'
-	end
-
-	-- TODO this is for when args.tex is a 5551 GL_R16UI
-	-- and to's type is vec4 ...
-	--  however you can't always test for GL_R16UI because this is also BlobTilemap.ramgpu when reading tileIndex ...
-	--  .. but that one's dest is uvec4 so meh
-	-- but if I set that internalFormat then args.to will become uvec4, and then this will be indistinguishble from the BlobTilemap.ramgpu...
-	-- so I would need an extra flag for "to vec4 5551"
-	-- or should I already be setting them to vec4?
-	if args.to == 'u16to5551' then
-		dst = 'u16to5551(('..dst..').r)'
-	elseif args.to == 'uvec4' then
-		-- convert to uint, assume the source is a texture texel
-		if args.tex:getGLSLFragType() == 'uvec4' then
-			dst = 'uvec4('..dst..')'
-		end
-	end
-	return dst
-end
-
-
--- code for converting 'uint colorIndex' to '(u)vec4 fragColor'
--- assert palleteSize is a power-of-two ...
-local function colorIndexToFrag(app, destTex, decl)
-	return decl..' = '..readTex{
-		tex = app.blobs.palette[1].ramgpu.tex,
-		texvar = 'paletteTex',
-		tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
-		from = 'ivec2',
-		to = 'u16to5551',
-	}..';\n'
-end
+-- code for converting 'uint colorIndex' to '(u)vec4' fragColor
+-- assert palleteSize is 256 ...
+-- requires glslCode5551
+local colorIndexToFrag = [[
+	u16to5551(texelFetch(
+		paletteTex,
+		ivec2(int(colorIndex & 0xFFu), 0),
+		0
+	).r)
+]]
 
 -- and here's our blend solid-color option...
 local function getBlendSolidColorCode(vec3, varname)
@@ -501,7 +453,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 	-- [=[ internalFormat = gl.GL_RGB565
 	self.colorIndexToFragColorCode = table{
 'vec4 colorIndexToFragColor(uint colorIndex) {',
-	colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 ufragColor'),
+'	uvec4 ufragColor = '..colorIndexToFrag..';',
 '	vec4 resultFragColor = vec4(ufragColor) / 31.;',
 	getBlendSolidColorCode(blitFragTypeVec3, 'resultFragColor'),
 '	return resultFragColor;',
@@ -509,13 +461,8 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 	}:concat'\n'
 	--]=]
 	--[=[ internalFormat = internalFormat5551
-	self.colorIndexToFragColorCode = 'fragColor = '..readTex{
-		tex = app.blobs.palette[1].ramgpu.tex,
-		texvar = 'paletteTex',
-		tc = 'ivec2(int(colorIndex & '..('0x%Xu'):format(paletteSize-1)..'), 0)',
-		from = 'ivec2',
-		to = 'uvec4',
-	}..';\n'..[[
+	self.colorIndexToFragColorCode = [[
+		fragColor = texelFetch(paletteTex, ivec2(int(colorIndex & 0xFFu), 0), 0);
 
 #if 0	// if anyone needs the rgb ...
 		fragColor.a = (fragColor.r >> 15) * 0x1fu;
@@ -541,31 +488,16 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB565()
 blitScreenFragHeader..[[
 
 void main() {
-#if 0	// internalFormat = gl.GL_RGB565
-	fragColor = ]]..readTex{
-	tex = self.framebufferRAM.tex,
-	texvar = 'framebufferTex',
-	tc = 'tcv',
-	from = 'vec2',
-	to = blitFragType,
-}..[[;
-#endif
-#if 1	// internalFormat == GL_RGB565 but without my weird readTex function that abstracted too much stuff I've since made fixed ...
+#if 1	// internalFormat == GL_RGB565
 	fragColor = texture(framebufferTex, tcv);
 #endif
 #if 0	// internalFormat = gl.GL_R16UI
-	uint rgba5551 = ]]..readTex{
-	tex = self.framebufferRAM.tex,
-	texvar = 'framebufferTex',
-	tc = 'tcv',
-	from = 'vec2',
-	to = blitFragType,
-}..[[.r;
-
-	fragColor.a = float(rgba5551 >> 15);
-	fragColor.b = float((rgba5551 >> 10) & 0x1fu) / 31.;
-	fragColor.g = float((rgba5551 >> 5) & 0x1fu) / 31.;
+	uint rgba5551 = texture(framebufferTex, tcv).r;
+	// similar to u16to5551():
 	fragColor.r = float(rgba5551 & 0x1fu) / 31.;
+	fragColor.g = float((rgba5551 >> 5) & 0x1fu) / 31.;
+	fragColor.b = float((rgba5551 >> 10) & 0x1fu) / 31.;
+	fragColor.a = float(rgba5551 >> 15);
 #endif
 
 	doLighting();
@@ -605,7 +537,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
 	-- this part is only needed for alpha
 	self.colorIndexToFragColorCode = table{
 'uvec4 colorIndexToFragColor(uint colorIndex) {',
-	colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 palColor'),
+'	uvec4 palColor = '..colorIndexToFrag..';',
 	[[
 	uvec4 resultFragColor;
 	resultFragColor.r = colorIndex;
@@ -638,14 +570,8 @@ uniform <?=app.blobs.palette[1].ramgpu.tex:getGLSLSamplerType()?> paletteTex;
 <?=glslCode5551?>
 
 void main() {
-	uint colorIndex = ]]..readTex{
-	tex = self.framebufferRAM.tex,
-	texvar = 'framebufferTex',
-	tc = 'tcv',
-	from = 'vec2',
-	to = blitFragType,
-}..[[.r;
-]]..colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 ufragColor')..[[
+	uint colorIndex = texture(framebufferTex, tcv).r;
+	uvec4 ufragColor = ]]..colorIndexToFrag..[[;
 	fragColor = vec4(ufragColor) / 31.;
 
 	doLighting();
@@ -682,7 +608,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 	local app = self.app
 	self.colorIndexToFragColorCode = table{
 'uvec4 colorIndexToFragColor(uint colorIndex) {',
-	colorIndexToFrag(app, self.framebufferRAM.tex, 'uvec4 palColor')..'\n',
+'	uvec4 palColor = '..colorIndexToFrag..';\n',
 [[
 	/*
 	palColor is 5 5 5 5
@@ -731,13 +657,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 blitScreenFragHeader..[[
 
 void main() {
-	uint rgb332 = ]]..readTex{
-	tex = self.framebufferRAM.tex,
-	texvar = 'framebufferTex',
-	tc = 'tcv',
-	from = 'vec2',
-	to = blitFragType,
-}..[[.r;
+	uint rgb332 = texture(framebufferTex, tcv).r;
 	fragColor.r = float(rgb332 & 0x7u) / 7.;
 	fragColor.g = float((rgb332 >> 3) & 0x7u) / 7.;
 	fragColor.b = float((rgb332 >> 6) & 0x3u) / 3.;
@@ -983,6 +903,7 @@ float toGreyscale(<?=fragType?> color) {
 <? elseif modeObj.format == '8bppIndex' then ?>
 	uint x = texelFetch(paletteTex, ivec2(color.r, 0), 0).r;
 	// TODO this in uint?  any faster? meh?
+	// TODO this code somewhere shared between it and the screen blit?
 	vec3 rgb = vec3(
 		float(x & 0x1fu) / 31.,
 		float((x & 0x3e0u) >> 5u) / 31.,
@@ -990,6 +911,7 @@ float toGreyscale(<?=fragType?> color) {
 	);
 	return dot(rgb, greyscale);
 <? elseif modeObj.format == 'RGB332' then ?>
+	// TODO this code somewhere shared between it and the screen blit?
 	vec3 rgb = vec3(
 		float(color.r & 0x7u) / 7.,
 		float((color.r >> 3) & 0x7u) / 7.,
@@ -1072,14 +994,9 @@ end ?>
 
 	uint paletteOffset = extra.w;
 
-	uint colorIndex = ]]
-		..readTex{
-			tex = app.blobs.sheet[1].ramgpu.tex,
-			texvar = 'sheetTex',
-			tc = 'tc',
-			from = 'vec2',
-			to = 'uvec4',
-		}..[[.r;
+	// sheetTex is usampler2D / returns uvec4
+	// sheetTex.r holds the uint8 value of the indexed color
+	uint colorIndex = texture(sheetTex, tc).r;
 
 	colorIndex >>= spriteBit;
 	colorIndex &= spriteMask;
@@ -1126,14 +1043,7 @@ end ?>
 
 	//read the tileIndex in tilemapTex at tileTC
 	//tilemapTex is R16, so red channel should be 16bpp (right?)
-	// how come I don't trust that and think I'll need to switch this to RG8 ...
-	uint tileIndex = ]]..readTex{
-			tex = app.blobs.tilemap[1].ramgpu.tex,
-			texvar = 'tilemapTex',
-			tc = 'tileTC',
-			from = 'ivec2',
-			to = 'uvec4',
-		}..[[.r;
+	uint tileIndex = texelFetch(tilemapTex, tileTC, 0).r;
 
 	// should tilemapOffset affect orientation2D / palHi? no
 	// calculate orientation here first
@@ -1146,11 +1056,7 @@ end ?>
 	tileIndex += tilemapIndexOffset;
 	tileIndex &= 0x3FFu;
 
-	//now consider anim sheet
 	// animsheet is R16UI
-	// no need to cast, right? this will always be int type, right?
-	// I could use readTex{} if I allow a texelFetch override ... maybe ...
-	// I should go through and make sure my readTex() palette lookups arent ugly and horrible...
 	tileIndex = texelFetch(
 		animSheetTex,
 		ivec2(int(tileIndex), 0),
@@ -1182,13 +1088,7 @@ end ?>
 	);
 
 	// sheetTex is R8 indexing into our palette ...
-	uint colorIndex = ]]..readTex{
-			tex = app.blobs.sheet[1].ramgpu.tex,
-			texvar = 'sheetTex',
-			tc = 'tileTexTC',
-			from = 'ivec2',
-			to = 'uvec4',
-		}..[[.r;
+	uint colorIndex = texelFetch(sheetTex, tileTexTC, 0).r;
 
 	colorIndex += palHi << 5;
 	colorIndex &= 0xFFu;
@@ -1196,21 +1096,20 @@ end ?>
 	return colorIndexToFragColor(colorIndex);
 }
 
+// this is a horrible hack
+// sheetTex is typically our blob sheet tex, GL_R8UI, usampler2D
+// but for the cart display I'm binding it to a GL_RGBA8UI so I can also use usampler2D but for RGBA
+// and I'm only using this in RGB565 mode when fragType==vec4
 <?=fragType?> directShading(vec2 tc) {
-	return <?=fragType?>(vec4(]]
-			..readTex{
-				tex = app.blobs.sheet[1].ramgpu.tex,
-				texvar = 'sheetTex',
-				tc = 'tc',
-				from = 'vec2',
-				to = fragType,
-			}
-..')'
-..(
-	--fragType == 'vec4' and
-	'/ 255.'
-	--or ''
-)..[[);
+<? if modeObj.format == 'RGB565' then ?>
+	return vec4(texture(sheetTex, tc)) / 255.;
+<? elseif modeObj.format == '8bppIndex' then ?>
+	return uvec4(vec4(texture(sheetTex, tc)) / 255.);
+<? elseif modeObj.format == 'RGB332' then ?>
+	return uvec4(vec4(texture(sheetTex, tc))/ 255.);
+<? else
+	error'here'
+end ?>
 }
 
 void main() {
