@@ -69,11 +69,12 @@ end
 local objs = table()
 
 local Object = class()
-Object.size = vec3(1, 1, 1)
+Object.size = vec3(.5, .5, .5)
 Object.walking = false
 Object.angle = 0
 Object.jumpTime = -1
 Object.onground = true
+Object.walkSpeed = 7
 Object.init = |:, args| do
 	objs:insert(self)
 	self.pos = vec3(args.pos)
@@ -89,12 +90,48 @@ Object.update = |:|do
 end
 
 local Beetle = Object:subclass()
-Beetle.voxelCode = voxelTypeBeetle
+Beetle.draw = |:, ...| do
+	self.voxelCode = voxelTypeBeetle + ((math.floor(time() * 5) & 1) << 1)
+	Beetle.super.draw(self, ...)
+end
+Beetle.update = |:| do
+	if player then
+		self.vel = (player.pos - self.pos):normalize()
+	end
+end
+Beetle.jumpedOn = |:,other| do
+	if not other:isa(Player) then return end
+	self.voxelCode = voxelTypeGoomba + 4
+end
 
 local Goomba = Object:subclass()
-Goomba.voxelCode = voxelTypeGoomba
+Goomba.draw = |:, ...| do
+	if not self.squashed then
+		self.voxelCode = voxelTypeGoomba + ((math.floor(time() * 5) & 1) << 1)
+	end
+	Goomba.super.draw(self, ...)
+end
+Goomba.update = |:| do
+	if self.squashed then
+		if time() > self.removeTime then
+			self.remove = true
+			self.voxelCode = voxelTypeGoomba + 4
+		end
+		return
+	end
+	if player then
+		self.vel = (player.pos - self.pos):normalize()
+	end
+end
+Goomba.jumpedOn = |:, other| do
+	if self.squashed then return end
+	if not other:isa(Player) then return end
+	self.voxelCode = voxelTypeGoomba + 4
+	self.squashed = true
+	self.removeTime = time() + 1
+end
 
-local Player = Object:subclass()
+Player = Object:subclass()
 Player.draw = |:|do
 	matpush()
 	mattrans(self.pos:unpack())
@@ -117,8 +154,9 @@ Player.draw = |:|do
 	matpop()
 end
 Player.update = |:|do
-	local walkSpeed = 7 * dt
-	local newX, newY, newZ = self.pos:unpack()
+
+	self.vel.x = 0
+	self.vel.y = 0
 	self.walking = false
 	-- hold y + dir to rotate camera
 	if btn'y' then
@@ -129,37 +167,43 @@ Player.update = |:|do
 		end
 	else
 		if btn'up' then
-			newX += -view.sinYaw * walkSpeed
-			newY += view.cosYaw * walkSpeed
+			self.vel.x += -view.sinYaw * self.walkSpeed
+			self.vel.y += view.cosYaw * self.walkSpeed
 			self.angle = view.yaw + 90
 			self.angle %= 360
 			self.walking = true
 		end
 		if btn'down' then
-			newX -= -view.sinYaw * walkSpeed
-			newY -= view.cosYaw * walkSpeed
+			self.vel.x -= -view.sinYaw * self.walkSpeed
+			self.vel.y -= view.cosYaw * self.walkSpeed
 			self.angle = view.yaw - 90
 			self.angle %= 360
 			self.walking = true
 		end
 		if btn'left' then
-			newX -= view.cosYaw * walkSpeed
-			newY -= view.sinYaw * walkSpeed
+			self.vel.x -= view.cosYaw * self.walkSpeed
+			self.vel.y -= view.sinYaw * self.walkSpeed
 			self.angle = view.yaw + 180
 			self.angle %= 360
 			self.walking = true
 		end
 		if btn'right' then
-			newX += view.cosYaw * walkSpeed
-			newY += view.sinYaw * walkSpeed
+			self.vel.x += view.cosYaw * self.walkSpeed
+			self.vel.y += view.sinYaw * self.walkSpeed
 			self.angle = view.yaw
 			self.walking = true
 		end
 	end
+
 	-- test jump here before walking because walking clears onground flag for the sake of testing falling off ledges
 	if self.onground and btnp'b' then
 		self.jumpTime = time()
 	end
+	
+	local newX = self.pos.x + self.vel.x * dt
+	local newY = self.pos.y + self.vel.y * dt
+	local newZ = self.pos.z	-- don't test jumping/falling yet...
+
 	if self.walking then
 		local stepHeight = .25 + epsilon
 		local hitXY, hitZ
@@ -228,6 +272,26 @@ Player.update = |:|do
 							self.onground = true
 						end
 					end
+				end
+			end
+		end
+	end
+
+	for _,obj in ipairs(objs) do
+		if obj ~= self then
+			if math.abs(self.pos.x - obj.pos.x) < self.size.x + obj.size.x
+			and math.abs(self.pos.y - obj.pos.y) < self.size.y + obj.size.y
+			and math.abs(self.pos.z - obj.pos.z) < self.size.z + obj.size.z
+			then
+				if self.pos.z - self.size.z > obj.pos.z + obj.size.z
+				and self.vel.z - obj.pos.z < 0
+				then
+					-- landed on its head
+					obj?:jumpedOn(self)
+				elseif math.abs(self.pos.z - obj.pos.z) < self.size.z + obj.size.z
+				then
+					-- hit its side
+					obj?:hitSide(self)
 				end
 			end
 		end
@@ -311,6 +375,9 @@ update=||do
 	for _,obj in ipairs(objs) do
 		obj:update()
 		obj:draw()
+	end
+	for i=#objs,1,-1 do
+		if objs[i].remove then objs:remove(i) end
 	end
 
 	-- end-of-frame, after view has been captured, do ortho and draw text
