@@ -876,6 +876,7 @@ If you want to rely on outside binaries, here is the list of dependencies:
 - graphics:
 	- make sure the framebuffer can write to the sprite sheet.
 - editor:
+	- redo the whole sheet editor.  its easily the most screen-real-estate wasteful.
 	- flag for pen / paste / bucket fill clip-to-view-area or not
 	- for sheet, tilemap, voxelmap: shapes: circle, rectangle, line.
 	- tilemap pen size, and basically all the same edit functionality as the sprite editor
@@ -1095,7 +1096,8 @@ voxelmap editor fixes:
 	- need to discern between paste rgba and paste 8bpp
 		- paste with transparency still glitches/fails
 		- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
-	- sheet bucket fill undo still leaves one pixel remaining
+	- sheet bucket fill undo still leaves one pixel remaining.
+		- is this from `undoContinuous()` being by timestamp?
 
 - think about redoing script format.
 	- for the sake of preserving names, you either have to:
@@ -1111,8 +1113,15 @@ voxelmap editor fixes:
 
 - Should I also allow signed pokes/peeks?  pokesb, pokesw, pokesl?
 
+- got error
+function App:updateBlobChanges()
+		assert(not framebufferRAM.dirtyGPU)
+- ... and now its segfaulting, when saving, when using native-res
+
+
 BUGS FIXED since 1.2.1:
 - Fixed bug in poke, pokew, due to me casting the value to int32_t, where negative numbers would just get truncated to zero.
-	- This has something to do with signedness and something to do with tonumber/float-conversion, and somethign to do with bitness.  Changing the ffi.cast to use matching bitness every time, and removing tonumber, fixes this.  Now -1 converts to 0xff or 0xffff where appropriate.
+	- This has something to do with signedness and something to do with tonumber/float-conversion, and somethign to do with bitness.
+	- Changing the ffi.cast to use matching bitness every time, and removing tonumber, fixes this.  Now -1 converts to 0xff or 0xffff where appropriate.
 - Console captures errors again.  I introduced this bug when I changed console keyboard from update to event callbacks.
 	- Console also prints error stacktraces when before it would only print them to the terminal.

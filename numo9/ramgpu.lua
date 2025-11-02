@@ -222,4 +222,4 @@ function RAMGPUTex:updateAddr(newaddr)
 	self.dirtyCPU = true
 end
 
-return RAMGPUTex 
+return RAMGPUTex

@@ -263,8 +263,12 @@ function VideoMode:buildFramebuffers()
 
 			function self.framebufferRAM:delete() return false end	-- :delete() is called on sheet/font/palette RAMGPU's between cart loading/unloading
 			function self.framebufferRAM:overlaps() return false end
-			function self.framebufferRAM:checkDirtyCPU() end
-			function self.framebufferRAM:checkDirtyGPU() end
+			function self.framebufferRAM:checkDirtyCPU()
+				self.dirtyCPU = false
+			end
+			function self.framebufferRAM:checkDirtyGPU()
+				self.dirtyGPU = false
+			end
 			function self.framebufferRAM:updateAddr(newaddr) end
 		else
 			self.framebufferRAM = RAMGPUTex{
@@ -870,7 +874,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
 	self.colorIndexToFragColorCode = [[
 uvec4 colorIndexToFragColor(uint colorIndex) {
 	uvec4 palColor = ]]..colorIndexToFrag..[[;
-	
+
 	uvec4 resultFragColor;
 	resultFragColor.r = colorIndex;
 	resultFragColor.g = 0u;
@@ -944,7 +948,7 @@ function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
 	self.colorIndexToFragColorCode = [[
 uvec4 colorIndexToFragColor(uint colorIndex) {
 	uvec4 palColor = ]]..colorIndexToFrag..[[;
-	
+
 	// only needed for quadSprite / quadMap:
 	// do blendColorSolid before doing the dithering
 	if (blendColorSolid.a > 0.) {

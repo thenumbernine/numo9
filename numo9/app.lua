@@ -2835,6 +2835,7 @@ function App:updateBlobChanges()
 	-- ... resetVideo() is similar but I don't want to reset to the default addrs
 	do
 		local framebufferRAM = self.currentVideoMode.framebufferRAM
+-- why would this fail?????
 		assert(not framebufferRAM.dirtyGPU)
 		framebufferRAM:updateAddr(framebufferRAM.addr)
 	end

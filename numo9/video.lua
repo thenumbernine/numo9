@@ -1091,7 +1091,9 @@ function AppVideo:allRAMRegionsCheckDirtyGPU()
 	-- TODO this current method updates *all* GPU/CPU framebuffer textures
 	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
 	self.currentVideoMode.framebufferRAM:checkDirtyGPU()
+assert(not self.currentVideoMode.framebufferRAM.dirtyGPU)
 	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
+assert(not self.currentVideoMode.framebufferRAM.dirtyGPU)
 end
 
 -- flush anything from gpu to cpu

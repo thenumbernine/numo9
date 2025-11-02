@@ -108,6 +108,7 @@ function EditSheet:onCartLoad()
 	self.penSize = 1 		-- size 1 thru 5 or so
 	-- TODO pen dropper cut copy paste pan fill circle flipHorz flipVert rotate clear
 
+	-- whether to paste transparent pixels from the clipboard image
 	self.pasteTransparent = false
 
 	self.undo:clear()
@@ -934,10 +935,10 @@ print'BAKING PALETTE'
 					- use 'convert-to-8x8x4pp's trick there ...
 				--]]
 				if image.channels ~= 1 then
-					print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
-					assert(image.channels >= 3)	-- NOTICE it's only RGB right now ... not even alpha
-					image = image:rgb()
-					assert.eq(image.channels, 3, "image channels")
+print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
+					assert.ge(image.channels, 3)	-- NOTICE it's only RGB right now ... not even alpha
+					image = image:rgba()
+					assert.eq(image.channels, 4, "image channels")
 
 					if self.pasteKeepsPalette then
 						local image1ch = Image(image.width, image.height, 1, uint8_t)
@@ -946,15 +947,25 @@ print'BAKING PALETTE'
 						for i=0,image.width*image.height-1 do
 							-- slow way - just test every color against every color
 							-- TODO build a mapping and then use 'applyColorMap' to go quicker
-							--local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
-							local r,g,b = srcp[0], srcp[1], srcp[2]
+							local r,g,b,a = srcp[0], srcp[1], srcp[2], srcp[3]
+							--local r,g,b = srcp[0], srcp[1], srcp[2]
 							local bestIndex = bit.band(0xff, self.paletteOffset)
 							local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[bestIndex])
-							local bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
+							local bestDistSq 
+							if palA == 0 then
+								bestDistSq = (palA-a)^2
+							else
+								bestDistSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
+							end
 							for j=1,self.pasteTargetNumColors-1 do
 								local colorIndex = bit.band(0xff, j + self.paletteOffset)
 								local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[colorIndex])
-								local distSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
+								local distSq
+								if palA == 0 then
+									distSq = (palA-a)^2
+								else
+									distSq = (palR-r)^2 + (palG-g)^2 + (palB-b)^2	-- + (palA-a)^2
+								end
 								if distSq < bestDistSq then
 									bestDistSq = distSq
 									bestIndex = colorIndex
