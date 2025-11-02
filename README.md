@@ -1091,19 +1091,8 @@ voxelmap editor fixes:
 - looking at the vget/vset/voxelmap api, i should really put all blob indexes first, even if 99% of the time you dont use it ... maybe ... maybe not idk.
 - also 'text()' should have a font blob index.
 
-BUGS TO FIX FOR 1.2.1:
 - sheet editor
 	- need to discern between paste rgba and paste 8bpp
 		- paste with transparency still glitches/fails
 		- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
 	- sheet bucket fill undo still leaves one pixel remaining
-BUGS SINCE FIXED FOR 1.2.1:
-- bug in voxelmap tilemap-popup mesh-texcoords when mesh is missing
-- bug in .obj file writer that was writing faces 1-based
-- bug of clearScreen() not clearing the light flag of the geometry buffer is fixed.
-- bug of resize breaking shadows until you open menu or call mode() again fixed.
-- bug of RGB332 cls setting the wrong color fixed
-- The lightmap no longer messes up with the editor.  I fixed this by putting the light calc tex into the video mode and removed all video mode caches.
-- bug where framebuffers were not being saved upon changing video mode is fixed.
-- made 8bppIndex blendSolidColor to write its low byte to the buffer. made RGB332 blendSolidColor to dither after applying.
-- broke and fixed editor lightmaps once again.
