@@ -66,6 +66,12 @@ function CartBrowser:update()
 		y = y + 8
 	end
 
+	-- TODO needs scrolling for when there's more files than screen rows
+
+	if app.ram.mouseWheel.y ~= 0 then
+		self.menuTopY = self.menuTopY - 4 * app.ram.mouseWheel.y
+	end
+
 	if selY then
 		if selY - self.menuTopY > 240 then
 			self.menuTopY = selY - 240
@@ -175,8 +181,6 @@ function CartBrowser:update()
 			0, 0, 1, 1	-- tx ty tw th
 		)
 	end
-
-	-- TODO needs scrolling for when there's more files than screen rows
 
 	if app:keyp'return'
 	or (leftButtonPress and mouseOverSel)

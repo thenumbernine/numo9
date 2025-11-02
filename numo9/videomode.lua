@@ -113,7 +113,7 @@ function VideoMode:buildFramebuffers()
 	-- push and pop any currently-bound FBO
 	-- this can happen if a runThread calls mode()
 	if app.inUpdateCallback then
-		app.fb:unbind()
+		app.currentVideoMode.fb:unbind()
 	end
 
 	local width, height = self.width, self.height
@@ -655,7 +655,7 @@ return;
 
 
 	if app.inUpdateCallback then
-		app.fb:bind()
+		app.currentVideoMode.fb:bind()
 	end
 end
 

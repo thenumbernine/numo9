@@ -1495,7 +1495,9 @@ assert.len(deltaStr, deltaBufLen)
 						end
 						-- no animSheet relocatable addr at the moment...
 						--app:resetVideo()
-						app.framebufferRAM.changedSinceDraw = true
+						if app.currentVideoMode then
+							app.currentVideoMode.framebufferRAM.changedSinceDraw = true
+						end
 
 						--break	-- stop recv'ing and process data ...
 						-- BAD idea, this slows the framerate down incredibly

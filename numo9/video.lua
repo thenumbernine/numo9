@@ -757,7 +757,7 @@ function AppVideo:triBuf_flush()
 		-- that means updating uniforms every render regardless ...
 		if self.inUpdateCallback then
 			-- should always be true
-			self.fb:unbind()
+			self.currentVideoMode.fb:unbind()
 		end
 		self.lightmapFB:bind()
 
@@ -788,12 +788,12 @@ function AppVideo:triBuf_flush()
 		program:setUniform('projMat', self.ram.projMat)
 		gl.glUniform4f(program.uniforms.clipRect.loc, self:getClipRect())
 
-		--gl.glViewport(0, 0, self.fb.width, self.fb.height)
+		--gl.glViewport(0, 0, self.currentVideoMode.fb.width, self.currentVideoMode.fb.height)
 		gl.glViewport(0, 0, self.ram.screenWidth, self.ram.screenHeight)
 
 		self.lightmapFB:unbind()
 		if self.inUpdateCallback then
-			self.fb:bind()
+			self.currentVideoMode.fb:bind()
 		end
 	end
 
@@ -1090,10 +1090,14 @@ end
 function AppVideo:allRAMRegionsCheckDirtyGPU()
 	-- TODO this current method updates *all* GPU/CPU framebuffer textures
 	-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
-	self.currentVideoMode.framebufferRAM:checkDirtyGPU()
-assert(not self.currentVideoMode.framebufferRAM.dirtyGPU)
+	if self.currentVideoMode then
+		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
+		assert(not self.currentVideoMode.framebufferRAM.dirtyGPU)
+	end
 	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
-assert(not self.currentVideoMode.framebufferRAM.dirtyGPU)
+	if self.currentVideoMode then
+		assert(not self.currentVideoMode.framebufferRAM.dirtyGPU)
+	end
 end
 
 -- flush anything from gpu to cpu
@@ -1102,7 +1106,7 @@ end
 -- TODO when is each used???
 function AppVideo:checkDirtyGPU()
 	self:allRAMRegionsExceptFramebufferCheckDirtyGPU()
-	self.framebufferRAM:checkDirtyGPU()
+	self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 end
 
 
@@ -1324,7 +1328,7 @@ function AppVideo:setDirtyCPU()
 		blob.ramgpu.dirtyCPU = true
 	end
 	-- only dirties the current framebuffer (is ok?)
-	self.framebufferRAM.dirtyCPU = true
+	self.currentVideoMode.framebufferRAM.dirtyCPU = true
 end
 
 --[[
@@ -1337,58 +1341,58 @@ function AppVideo:setVideoMode(modeIndex)
 	assert.type(modeIndex, 'number')
 	if self.currentVideoModeIndex == modeIndex then return true end
 
+	local oldVideoMode = self.currentVideoMode
+
 	-- first time we won't have a drawObj to flush
 	self:triBuf_flush()	-- flush before we redefine what modeObj.drawObj is, which :triBuf_flush() depends on
 
-	-- force framebuffer to flush GPU to CPU
-	-- TODO TODO TODO only if dirtyGPU is set
-	-- TODO TODO TODO should we set dirtyGPU upon draw call or upon triBuf_flush?
-	if self.framebufferRAM then
-		self.framebufferRAM:checkDirtyGPU()
+	-- have the framebuffer to flush GPU to CPU
+	-- only if dirtyGPU is set
+	-- should we set dirtyGPU upon draw call or upon triBuf_flush?
+	if oldVideoMode 
+	and oldVideoMode.framebufferRAM
+	then
+		oldVideoMode.framebufferRAM:checkDirtyGPU()
 	end
 
-	local modeObj = self.videoModes[modeIndex]
-	if not modeObj then
+	local newVideoMode = self.videoModes[modeIndex]
+	if not newVideoMode then
 		return false, "unknown video mode "..tostring(modeIndex)
 	end
-	modeObj:build()
-
-	self.framebufferRAM = modeObj.framebufferRAM
-	self.framebufferNormalTex = modeObj.framebufferNormalTex
-	self.framebufferPosTex = modeObj.framebufferPosTex
-	self.blitScreenObj = modeObj.blitScreenObj
-	self.drawObj = modeObj.drawObj
+	newVideoMode:build()
 
 	-- [[ unbind-if-necessary, switch, rebind-if-necessary
-	if self.inUpdateCallback then
-		self.fb:unbind()
+	if self.inUpdateCallback
+	and oldVideoMode
+	and oldVideoMode.fb
+	then
+		oldVideoMode.fb:unbind()
 	end
 
-	self.fb = modeObj.fb
-
 	if self.inUpdateCallback then
-		self.fb:bind()
+		newVideoMode.fb:bind()
 	end
 	--]]
 	-- [[ bind-if-necessary, update color attachment, unbind-if-necessary
-	if not self.inUpdateCallback then
-		self.fb:bind()
+	if not self.inUpdateCallback 
+	then
+		newVideoMode.fb:bind()
 	end
-	self.fb:setColorAttachmentTex2D(self.framebufferRAM.tex.id, 0, self.framebufferRAM.tex.target)
+	newVideoMode.fb:setColorAttachmentTex2D(newVideoMode.framebufferRAM.tex.id, 0, newVideoMode.framebufferRAM.tex.target)
 
-	local res,err = self.fb.check()
+	local res,err = newVideoMode.fb.check()
 	if not res then
 		print(err)
 		print(debug.traceback())
 	end
 
 	if not self.inUpdateCallback then
-		self.fb:unbind()
+		newVideoMode.fb:unbind()
 	end
 	--]]
 
-	self.ram.screenWidth = modeObj.width
-	self.ram.screenHeight = modeObj.height
+	self.ram.screenWidth = newVideoMode.width
+	self.ram.screenHeight = newVideoMode.height
 
 	self.modelMat:setIdent()
 	self.viewMat:setIdent()
@@ -1400,7 +1404,7 @@ function AppVideo:setVideoMode(modeIndex)
 		-1000, 1000
 	) -- and we will set onProjMatChange next...
 
-	self.triBuf_sceneObj = self.drawObj
+	self.triBuf_sceneObj = newVideoMode.drawObj
 	self:onModelMatChange()	-- the drawObj changed so make sure it refreshes its modelMat
 	self:onViewMatChange()
 	self:onProjMatChange()
@@ -1411,7 +1415,7 @@ function AppVideo:setVideoMode(modeIndex)
 	self:onSpriteNormalExhaggerationChange()
 	self:onFrameBufferSizeChange()
 
-	self.currentVideoMode = modeObj
+	self.currentVideoMode = newVideoMode
 	self.currentVideoModeIndex = modeIndex
 
 	-- if I don't clear screen then the depth has oob garbage that prevents all subsequent writes so ...
@@ -1422,9 +1426,9 @@ function AppVideo:setVideoMode(modeIndex)
 	-- how about I just clearScreen in mode() calls, but not here?
 	--self:clearScreen(nil, nil, true)
 
-	if self.framebufferRAM then
-		self.framebufferRAM.dirtyCPU = true
-		self.framebufferRAM:checkDirtyCPU()
+	if self.currentVideoMode then
+		self.currentVideoMode.framebufferRAM.dirtyCPU = true
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
 	return true
@@ -1540,9 +1544,9 @@ function AppVideo:drawSolidRect(
 		paletteTex = paletteRAM.tex
 	end
 
-	if self.framebufferRAM.dirtyCPU then
+	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyCPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
 	if w < 0 then x,w = x+w,-w end
@@ -1585,8 +1589,8 @@ function AppVideo:drawSolidRect(
 	)
 
 	-- TODO should 'dirtyGPU' go in the draw functions or in the triBuf_flush ?
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+	self.currentVideoMode.framebufferRAM.dirtyGPU = true
+	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 end
 
 -- TODO get rid of this function
@@ -1617,9 +1621,9 @@ function AppVideo:drawSolidTri3D(
 		paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
 	end
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
-	if self.framebufferRAM.dirtyCPU then
+	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyCPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
 	local normalX, normalY, normalZ = calcNormalForTri(
@@ -1640,8 +1644,8 @@ function AppVideo:drawSolidTri3D(
 		0, 0, 1, 1		-- do box coords matter for tris if we're not using round or solid?
 	)
 
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+	self.currentVideoMode.framebufferRAM.dirtyGPU = true
+	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 end
 
 function AppVideo:drawSolidTri(x1, y1, x2, y2, x3, y3, colorIndex)
@@ -1733,9 +1737,9 @@ function AppVideo:drawSolidLine3D(
 		paletteTex = paletteRAM.tex
 	end
 
-	if self.framebufferRAM.dirtyCPU then
+	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyCPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
 	-- fwd-transform into screen coords and just offset by this many pixels
@@ -1810,8 +1814,8 @@ function AppVideo:drawSolidLine3D(
 		0, 0, 1, 1
 	)
 
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+	self.currentVideoMode.framebufferRAM.dirtyGPU = true
+	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 
 	ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
 	self:onModelMatChange()
@@ -1862,12 +1866,11 @@ function AppVideo:clearScreen(
 		-- instead of flushing back the CPU->GPU
 		-- since I'm just going to overwrite the GPU content
 		-- just clear the dirtyCPU flag here (and set dirtyGPU later)
-		self.framebufferRAM.dirtyCPU = false
+		self.currentVideoMode.framebufferRAM.dirtyCPU = false
 	end
 
-	local fb = self.fb
 	if not self.inUpdateCallback then
-		fb:bind()
+		self.currentVideoMode.fb:bind()
 	end
 
 	if not depthOnly then
@@ -1921,7 +1924,7 @@ function AppVideo:clearScreen(
 		-- ok now switch framebuffers to the shadow framebuffer
 		-- depth-only or depth-and-color doesn't matter, both ways the lightmap gets cleared
 		-- TODO only do this N-many frames to save on perf
-		fb:unbind()
+		self.currentVideoMode.fb:unbind()
 
 		self.lightmapFB:bind()
 		gl.glViewport(0, 0, self.lightmapFB.width, self.lightmapFB.height)
@@ -1931,18 +1934,18 @@ function AppVideo:clearScreen(
 
 		-- done - rebind the framebuffer if necessary
 		if self.inUpdateCallback then
-			fb:bind()
+			self.currentVideoMode.fb:bind()
 		end
 	else
 		-- alternatively if we're not also drawing to our lightmap then we don't always need to unbind the fb
 		if not self.inUpdateCallback then
-			fb:bind()
+			self.currentVideoMode.fb:bind()
 		end
 	end
 
 	if not depthOnly then
-		self.framebufferRAM.dirtyGPU = true
-		self.framebufferRAM.changedSinceDraw = true
+		self.currentVideoMode.framebufferRAM.dirtyGPU = true
+		self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 	end
 end
 
@@ -2202,9 +2205,9 @@ function AppVideo:drawQuad(
 	end
 
 	-- TODO only this before we actually do the :draw()
-	if self.framebufferRAM.dirtyCPU then
+	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
 	self:drawQuadTex(
@@ -2219,8 +2222,8 @@ function AppVideo:drawQuad(
 		spriteMask)
 
 	-- TODO only this after we actually do the :draw()
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+	self.currentVideoMode.framebufferRAM.dirtyGPU = true
+	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 end
 
 function AppVideo:drawTexTri3D(
@@ -2254,9 +2257,9 @@ function AppVideo:drawTexTri3D(
 	end
 	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 
-	if self.framebufferRAM.dirtyCPU then
+	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
 	spriteBit = spriteBit or 0
@@ -2293,8 +2296,8 @@ function AppVideo:drawTexTri3D(
 		0, 0, 1, 1
 	)
 
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+	self.currentVideoMode.framebufferRAM.dirtyGPU = true
+	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 end
 
 
@@ -2415,9 +2418,9 @@ function AppVideo:drawTileMap(
 		animSheetRAM:checkDirtyCPU()
 	end
 
-	if self.framebufferRAM.dirtyCPU then
+	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyCPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
 	tilesWide = tilesWide or 1
@@ -2469,8 +2472,8 @@ function AppVideo:drawTileMap(
 		0, 0, 1, 1
 	)
 
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+	self.currentVideoMode.framebufferRAM.dirtyGPU = true
+	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 end
 
 function AppVideo:drawTextCommon(
@@ -2608,17 +2611,17 @@ function AppVideo:drawText(...)
 	end
 	local paletteTex = paletteRAM.tex
 
-	if self.framebufferRAM.dirtyCPU then
+	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 --]]
 
 	local result = self:drawTextCommon(fontTex, paletteTex, ...)
 
 -- [[ drawQuad shutdown
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+	self.currentVideoMode.framebufferRAM.dirtyGPU = true
+	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 --]]
 
 	return result
@@ -2772,7 +2775,7 @@ end
 -- overriding whats in GLApp
 function AppVideo:screenshotToFile(fn)
 	fn = path(fn).path	-- path or string -> string
-	local fbRAM = self.framebufferRAM
+	local fbRAM = self.currentVideoMode.framebufferRAM
 	fbRAM:checkDirtyGPU()
 	local fbTex = fbRAM.tex
 	local modeObj = self.currentVideoMode
@@ -3285,9 +3288,9 @@ function AppVideo:drawVoxelMap(
 	local tilemapTex = self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 	local animSheetTex = self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex	-- same
 
-	if self.framebufferRAM.dirtyCPU then
+	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
 	voxelmap:rebuildMesh(self)
@@ -3335,8 +3338,8 @@ function AppVideo:drawVoxelMap(
 	voxelmap:drawMesh(self)
 	--]]
 
-	self.framebufferRAM.dirtyGPU = true
-	self.framebufferRAM.changedSinceDraw = true
+	self.currentVideoMode.framebufferRAM.dirtyGPU = true
+	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 
 	-- for now just pass the billboard voxels on to drawVoxel
 	-- TODO optimize maybe? idk?

@@ -409,7 +409,6 @@ function UI:update()
 	app:clearScreen(0, app.paletteMenuTex)
 	app:drawSolidRect(
 		0, 0,	-- x,y,
-		--app.fb.width, app.fb.height,	-- w, h,
 		app.ram.screenWidth, app.ram.screenHeight,	-- w, h,
 		0,
 		nil,
@@ -461,26 +460,32 @@ function UI:update()
 		-- resetCart will resetVideo which will thrash all the video state vars
 		-- it being in menu should help (right?) but doesnt seem to ....
 
-		local pushVideoMode = app.ram.videoMode
-		local pushHD2DFlags = app.ram.HD2DFlags
+		--local pushVideoMode = app.ram.videoMode
+		--local pushHD2DFlags = app.ram.HD2DFlags
 
 		-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
 		app:saveCart(app.currentLoadedFilename)
+		
 		-- TODO this will rearrange the blobs
 		-- so TODO it should net_resetCart as well (net_saveCart maybe?)
-		app:net_resetCart()
-
+		-- oh wait can I just not call it?
+		-- will any pointers break?
+		-- calling it was segfaulting me?
+		--app:net_resetCart()
+		-- don't resetCart because don't resetVideo
+		-- should I have a netcmd for just this?
+		--app:copyBlobsToROM()
+		--app:setDirtyCPU()
 		--end)
-
 		-- net_resetCart will call resetVideo()
 		-- that'll reset all our video state incl video mode....
 		-- so we should restore them here ...
+		-- wait why copy blobs to rom when saveCart called updateBlobChanges called buildRAMFromBlobs 
 
-		app.ram.videoMode = pushVideoMode
-		app:setVideoMode(pushVideoMode)
-		app.ram.HD2DFlags = pushHD2DFlags
-		app:onHD2DFlagsChange()
-
+		--app.ram.videoMode = pushVideoMode
+		--app:setVideoMode(pushVideoMode)
+		--app.ram.HD2DFlags = pushHD2DFlags
+		--app:onHD2DFlagsChange()
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then

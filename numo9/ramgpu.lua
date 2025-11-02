@@ -127,9 +127,8 @@ function RAMGPUTex:checkDirtyCPU()
 	assert(not self.dirtyGPU, "someone dirtied both cpu and gpu without flushing either")
 	local app = self.app
 	local tex = self.tex
-	local fb = app.fb
 	if app.inUpdateCallback then
-		fb:unbind()
+		app.currentVideoMode.fb:unbind()
 	end
 -- this will fail when the menu font is being used
 --assert.eq(tex.data, ffi.cast(uint8_t_p, self.image.buffer))
@@ -137,7 +136,7 @@ function RAMGPUTex:checkDirtyCPU()
 		:subimage()
 		--:generateMipmap()
 	if app.inUpdateCallback then
-		fb:bind()
+		app.currentVideoMode.fb:bind()
 	end
 	self.dirtyCPU = false
 	self.changedSinceDraw = true	-- only used by framebufferRAM, if its GPU state ever changes, to let the app know to draw it again
@@ -163,14 +162,14 @@ glreport'checkDirtyGPU begin'
 		-- well esp fbRAMs theres will be bigger than the default fb size of 256x256
 		self.fb or
 		-- ... nope that didn't fix it
-		app.fb
+		app.currentVideoMode.fb
 	if not app.inUpdateCallback then
 		fb:bind()
 glreport'checkDirtyGPU after fb:bind'
 	else
-		if app.fb ~= fb then
-			app.fb:unbind()
-glreport'checkDirtyGPU after app.fb:unbind'
+		if app.currentVideoMode.fb ~= fb then
+			app.currentVideoMode.fb:unbind()
+glreport'checkDirtyGPU after app.currentVideoMode.fb:unbind'
 			fb:bind()
 glreport'checkDirtyGPU after fb:bind'
 		end
@@ -187,11 +186,11 @@ glreport'checkDirtyGPU after glReadPixels'
 		fb:unbind()
 glreport'checkDirtyGPU after fb:unbind'
 	else
-		if app.fb ~= fb then
+		if app.currentVideoMode.fb ~= fb then
 			fb:unbind()
 glreport'checkDirtyGPU after fb:unbind'
-			app.fb:bind()
-glreport'checkDirtyGPU after app.fb:bind'
+			app.currentVideoMode.fb:bind()
+glreport'checkDirtyGPU after app.currentVideoMode.fb:bind'
 		end
 	end
 	self.dirtyGPU = false

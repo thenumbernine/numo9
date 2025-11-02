@@ -337,34 +337,34 @@ function App:initGL()
 			x = toint(x)
 			y = toint(y)
 			color = toint(color)
-			local fbRAM = self.framebufferRAM
+			local fbRAM = self.currentVideoMode.framebufferRAM
 			local fbTex = fbRAM.tex
 			local width, height = fbTex.width, fbTex.height
 			if x < 0 or x >= width or y < 0 or y >= height then
 				return
 			end
 			if fbRAM.ctype == 'uint16_t' then	-- 16bpp rgb565
-				local addr = self.framebufferRAM.addr + 2 * (x + width * y)
+				local addr = self.currentVideoMode.framebufferRAM.addr + 2 * (x + width * y)
 				self:net_pokew(addr, color)
 			else	-- 8bpp indexed or 8bpp rgb332
-				local addr = self.framebufferRAM.addr + x + width * y
+				local addr = self.currentVideoMode.framebufferRAM.addr + x + width * y
 				self:net_poke(addr, color)
 			end
 		end,
 		pget = function(x, y)
 			x = toint(x)
 			y = toint(y)
-			local fbRAM = self.framebufferRAM
+			local fbRAM = self.currentVideoMode.framebufferRAM
 			local fbTex = fbRAM.tex
 			local width, height = fbTex.width, fbTex.height
 			if x < 0 or x >= width or y < 0 or y >= height then
 				return 0
 			end
 			if fbRAM.ctype == 'uint16_t' then	-- 16bpp rgb565
-				local addr = self.framebufferRAM.addr + 2 * (x + width * y)
+				local addr = self.currentVideoMode.framebufferRAM.addr + 2 * (x + width * y)
 				return self:peekw(addr)
 			else
-				local addr = self.framebufferRAM.addr + x + width * y
+				local addr = self.currentVideoMode.framebufferRAM.addr + x + width * y
 				return self:peek(addr)
 			end
 		end,
@@ -751,7 +751,7 @@ function App:initGL()
 
 			-- hmm before setting mode, should I flush framebuffer?
 			-- doesn't seem to sync between modes 1 and 0 ...
-			--self.framebufferRAM:checkDirtyGPU()
+			--self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 
 			-- also directly set here so we can get a result ...
 			-- setVideoMode() can't clearScreen() without screwing up the menu
@@ -1872,7 +1872,7 @@ conn.receivesPerSecond = 0
 --DEBUG(glquery):updateQuery:begin()
 
 		local newFramebufferAddr = self.ram.framebufferAddr
-		if self.framebufferRAM.addr ~= newFramebufferAddr then
+		if self.currentVideoMode.framebufferRAM.addr ~= newFramebufferAddr then
 --DEBUG:print'updating framebufferRAM addr'
 			-- TODO this current method updates *all* GPU/CPU framebuffer textures
 			-- but if I provide more options, I'm only going to want to update the one we're using (or things would be slow)
@@ -1922,11 +1922,11 @@ conn.receivesPerSecond = 0
 		-- in fact same if the framebuffer points to any of the other system RAM addresses, in case you want to draw to the fontWidth array or something ...
 		-- but we don't need to always be copying back from GPU to CPU ... only if any of the sheets overlap with it ...
 		-- and if any sheets intersect with it then we need to copy the GPU back to CPU ... and then set the sheets' dirtyCPU flag ...
-		local spriteSheetOverlapsFramebuffer = self.framebufferRAM:overlaps(sheetRAM)
-		local spriteSheet1OverlapsFramebuffer = spriteSheet1RAM and self.framebufferRAM:overlaps(spriteSheet1RAM)
-		local tilemapOverlapsFramebuffer = self.framebufferRAM:overlaps(tilemapRAM)
-		local paletteOverlapsFramebuffer = self.framebufferRAM:overlaps(paletteRAM)
-		local fontOverlapsFramebuffer = self.framebufferRAM:overlaps(fontRAM)
+		local spriteSheetOverlapsFramebuffer = self.currentVideoMode.framebufferRAM:overlaps(sheetRAM)
+		local spriteSheet1OverlapsFramebuffer = spriteSheet1RAM and self.currentVideoMode.framebufferRAM:overlaps(spriteSheet1RAM)
+		local tilemapOverlapsFramebuffer = self.currentVideoMode.framebufferRAM:overlaps(tilemapRAM)
+		local paletteOverlapsFramebuffer = self.currentVideoMode.framebufferRAM:overlaps(paletteRAM)
+		local fontOverlapsFramebuffer = self.currentVideoMode.framebufferRAM:overlaps(fontRAM)
 		if spriteSheetOverlapsFramebuffer
 		or spriteSheet1OverlapsFramebuffer
 		or tilemapOverlapsFramebuffer
@@ -1934,7 +1934,7 @@ conn.receivesPerSecond = 0
 		or fontOverlapsFramebuffer
 		then
 --DEBUG:print'syncing framebuffer'
-			self.framebufferRAM:checkDirtyGPU()
+			self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 			if spriteSheetOverlapsFramebuffer then sheetRAM.dirtyCPU = true end
 			if spriteSheet1RAM and spriteSheet1OverlapsFramebuffer then spriteSheet1RAM.dirtyCPU = true end
 			if tilemapOverlapsFramebuffer then tilemapRAM.dirtyCPU = true end
@@ -1972,7 +1972,7 @@ conn.receivesPerSecond = 0
 				self.ram.mousePos.x = x * self.width
 				self.ram.mousePos.y = y * self.height
 			else
-				local mouseFbTex = self.framebufferRAM.tex
+				local mouseFbTex = self.currentVideoMode.framebufferRAM.tex
 				self.ram.mousePos.x = x * mouseFbTex.width
 				self.ram.mousePos.y = y * mouseFbTex.height
 			end
@@ -1990,12 +1990,11 @@ conn.receivesPerSecond = 0
 		self:triBuf_flush()
 
 		-- flush any cpu changes to gpu before updating
-		self.framebufferRAM:checkDirtyCPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 
-		local fb = self.fb
-		fb:bind()
+		self.currentVideoMode.fb:bind()
 		self.inUpdateCallback = true	-- tell video not to set up the fb:bind() to do gfx stuff
-		local fbTex = self.framebufferRAM.tex
+		local fbTex = self.currentVideoMode.framebufferRAM.tex
 		gl.glViewport(0, 0, fbTex.width, fbTex.height)
 
 		-- see if we need to re-enable it ...
@@ -2077,11 +2076,11 @@ print('run thread dead')
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
 
-			local fbTex = self.framebufferRAM.tex
+			local fbTex = self.currentVideoMode.framebufferRAM.tex
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
 			self:setVideoMode(255)
 
-			gl.glViewport(0, 0, self.framebufferRAM.tex.width, self.framebufferRAM.tex.height)
+			gl.glViewport(0, 0, self.currentVideoMode.framebufferRAM.tex.width, self.currentVideoMode.framebufferRAM.tex.height)
 
 			-- so as long as the framebuffer is pointed at the framebufferMenuTex while the menu is drawing then the game's VRAM won't be modified by editor draw commands and I should be fine right?
 			-- the draw commands will all go to framebufferMenuTex and not the VRAM framebufferRAM
@@ -2114,8 +2113,8 @@ print('run thread dead')
 			-- TODO this background overlay of the last framebuffer isnt working ...
 			-- [=[
 			-- if we were on 255 then we can't use transparent backdrop cuz the menu wil be using our framebuffer as well
-			if fbTex ~= self.framebufferRAM.tex then
-				local sceneObj = self.blitScreenObj
+			if fbTex ~= self.currentVideoMode.framebufferRAM.tex then
+				local sceneObj = self.currentVideoMode.blitScreenObj
 				-- [[
 				local view = self.blitScreenView
 				local fx = self.width / fbTex.width
@@ -2196,7 +2195,7 @@ print('run thread dead')
 			self:setVideoMode(self.ram.videoMode)
 
 			-- necessary or nah?
-			local fbTex = self.framebufferRAM.tex
+			local fbTex = self.currentVideoMode.framebufferRAM.tex
 			gl.glViewport(0, 0, fbTex.width, fbTex.height)
 
 			-- pop lighting
@@ -2240,7 +2239,7 @@ print('run thread dead')
 		end
 
 		self.inUpdateCallback = false
-		fb:unbind()
+		self.currentVideoMode.fb:unbind()
 
 		-- update vram to gpu every frame?
 		-- or nah, how about I only do when dirty bit set?
@@ -2310,8 +2309,8 @@ print('run thread dead')
 		-- TODO don't do it unless we've changed the framebuffer since the last draw
 		-- 	so any time framebufferRAM is modified (wherever dirtyCPU/GPU is set/cleared), also set a changedSinceDraw=true flag
 		-- then here test for that flag and only re-increment 'needDraw' if it's set
-		if self.framebufferRAM.changedSinceDraw then
-			self.framebufferRAM.changedSinceDraw = false
+		if self.currentVideoMode.framebufferRAM.changedSinceDraw then
+			self.currentVideoMode.framebufferRAM.changedSinceDraw = false
 			needDrawCounter = drawCounterNeededToRedraw
 		end
 
@@ -2326,14 +2325,14 @@ print('run thread dead')
 
 		-- [[ TODO TODO this only when the framebuffer changes
 		-- TODO disable altogether for now, since DoF needs a full separate pass
-		if self.framebufferRAM
-		and self.framebufferRAM.tex.internalFormat == gl.GL_RGB565
+		if self.currentVideoMode.framebufferRAM
+		and self.currentVideoMode.framebufferRAM.tex.internalFormat == gl.GL_RGB565
 		and bit.band(self.ram.HD2DFlags, ffi.C.USE_DEPTH_OF_FIELD) ~= 0
 		then
 			-- will binding this overwrite the lastSheetTex bound to 0, or are we done with it since we're done with the update call?
 			-- TODO either keep calcLightPP with the same tex filtering or
 			-- or put another framebuffer/texture between this and the final pass for depth-of-field
-			self.framebufferRAM.tex:bind()
+			self.currentVideoMode.framebufferRAM.tex:bind()
 				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR)
 				:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
 				:generateMipmap()
@@ -2341,7 +2340,7 @@ print('run thread dead')
 		else
 			-- if we keep LINEAR on framebufferRAM then resizing the screen will give it a blur instead of a pixelation effect.
 			-- but TODO track state and only do this once
-			self.framebufferRAM.tex:bind()
+			self.currentVideoMode.framebufferRAM.tex:bind()
 				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
 				:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
 			self.lastPaletteTex:bind()
@@ -2375,8 +2374,8 @@ print('run thread dead')
 
 		local fbTex = self.activeMenu
 			and self.videoModes[255].framebufferRAM.tex
-			or self.framebufferRAM.tex
-		--local fbTex = self.framebufferRAM.tex
+			or self.currentVideoMode.framebufferRAM.tex
+		--local fbTex = self.currentVideoMode.framebufferRAM.tex
 
 		local fx = self.width / fbTex.width
 		local fy = self.height / fbTex.height
@@ -2397,7 +2396,7 @@ print('run thread dead')
 		)
 		view.mvMat:setIdent()
 		view.mvProjMat:copy(view.projMat)
-		local sceneObj = self.blitScreenObj
+		local sceneObj = self.currentVideoMode.blitScreenObj
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 
 		if self.activeMenu then
@@ -2419,7 +2418,7 @@ print('run thread dead')
 
 		--]]
 		if self.activeMenu then
-			sceneObj.texs[1] = self.framebufferRAM.tex
+			sceneObj.texs[1] = self.currentVideoMode.framebufferRAM.tex
 			self:setVideoMode(self.ram.videoMode)
 		end
 
@@ -2460,12 +2459,12 @@ function App:peek(addr)
 
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the framebufferRAM
-	if self.framebufferRAM.dirtyGPU
-	and addr >= self.framebufferRAM.addr
-	and addr < self.framebufferRAM.addrEnd
+	if self.currentVideoMode.framebufferRAM.dirtyGPU
+	and addr >= self.currentVideoMode.framebufferRAM.addr
+	and addr < self.currentVideoMode.framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 	end
 
 	return self.ram.v[addr]
@@ -2475,12 +2474,12 @@ function App:peekw(addr)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if self.framebufferRAM.dirtyGPU
-	and addrend >= self.framebufferRAM.addr
-	and addr < self.framebufferRAM.addrEnd
+	if self.currentVideoMode.framebufferRAM.dirtyGPU
+	and addrend >= self.currentVideoMode.framebufferRAM.addr
+	and addr < self.currentVideoMode.framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 	end
 
 	return ffi.cast(uint16_t_p, self.ram.v + addr)[0]
@@ -2490,12 +2489,12 @@ function App:peekl(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if self.framebufferRAM.dirtyGPU
-	and addrend >= self.framebufferRAM.addr
-	and addr < self.framebufferRAM.addrEnd
+	if self.currentVideoMode.framebufferRAM.dirtyGPU
+	and addrend >= self.currentVideoMode.framebufferRAM.addr
+	and addr < self.currentVideoMode.framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 	end
 
 	return ffi.cast(uint32_t_p, self.ram.v + addr)[0]
@@ -2505,12 +2504,12 @@ function App:peekf(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if self.framebufferRAM.dirtyGPU
-	and addrend >= self.framebufferRAM.addr
-	and addr < self.framebufferRAM.addrEnd
+	if self.currentVideoMode.framebufferRAM.dirtyGPU
+	and addrend >= self.currentVideoMode.framebufferRAM.addr
+	and addr < self.currentVideoMode.framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 	end
 
 	return ffi.cast(float_p, self.ram.v + addr)[0]
@@ -2519,12 +2518,12 @@ end
 -- addr and addrend are both inclusive
 function App:prePoke(addr, addrend)
 	-- if we're writing to a dirty area then flush it to cpu
-	if addrend >= self.framebufferRAM.addr
-	and addr < self.framebufferRAM.addrEnd
+	if addrend >= self.currentVideoMode.framebufferRAM.addr
+	and addr < self.currentVideoMode.framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
-		self.framebufferRAM.dirtyCPU = true
+		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
+		self.currentVideoMode.framebufferRAM.dirtyCPU = true
 	end
 end
 
@@ -2739,13 +2738,13 @@ function App:memcpy(dst, src, len)
 	then return end
 
 	-- pre-poke
-	local touchessrc = srcend >= self.framebufferRAM.addr and src < self.framebufferRAM.addrEnd
-	local touchesdst = dstend >= self.framebufferRAM.addr and dst < self.framebufferRAM.addrEnd
+	local touchessrc = srcend >= self.currentVideoMode.framebufferRAM.addr and src < self.currentVideoMode.framebufferRAM.addrEnd
+	local touchesdst = dstend >= self.currentVideoMode.framebufferRAM.addr and dst < self.currentVideoMode.framebufferRAM.addrEnd
 	if touchessrc or touchesdst then
 		self:triBuf_flush()
-		self.framebufferRAM:checkDirtyGPU()
+		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
 		if touchesdst then
-			self.framebufferRAM.dirtyCPU = true
+			self.currentVideoMode.framebufferRAM.dirtyCPU = true
 		end
 	end
 
@@ -2833,11 +2832,10 @@ function App:updateBlobChanges()
 	self:buildRAMFromBlobs()
 	-- then reassign all pointers
 	-- ... resetVideo() is similar but I don't want to reset to the default addrs
-	do
-		local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if self.currentVideoMode then
 -- why would this fail?????
-		assert(not framebufferRAM.dirtyGPU)
-		framebufferRAM:updateAddr(framebufferRAM.addr)
+		assert(not self.currentVideoMode.framebufferRAM.dirtyGPU)
+		self.currentVideoMode.framebufferRAM:updateAddr(self.currentVideoMode.framebufferRAM.addr)
 	end
 --[[ resetVideo WORKS BUT resets everything... I just want the pointers to be reset.
 	self:resetVideo()
@@ -3307,7 +3305,7 @@ function App:setMenu(editTab)
 	end
 	-- if we're closing the menu then tell it to draw one more time
 	if editTab == nil then
-		self.framebufferRAM.changedSinceDraw = true
+		self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 	end
 end
 
