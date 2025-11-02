@@ -140,22 +140,25 @@ print(...)
 		if i > 1 then s=s..'\t' end
 		s=s..tostring(select(i, ...))
 	end
-	-- TODO do we still want colored console text?
-	-- I could save it per-line or per-letter
-	-- or meh just not ...
-	--[[ add line without truncating
-	self.lines:insert(1, s)
-	--]]
-	-- [[ chop lines up
-	local maxcol = math.floor(self.width / menuFontWidth)
-	while #s > maxcol do
-		self.lines:insert(1, s:sub(1,maxcol))
-		s = s:sub(maxcol+1)
+	-- chop up newlines
+	for _,l in ipairs(string.split(s, '[\r\n]')) do
+		-- TODO do we still want colored console text?
+		-- I could save it per-line or per-letter
+		-- or meh just not ...
+		-- [[ add line without truncating
+		self.lines:insert(1, l)
+		--]]
+		--[[ chop lines up
+		local maxcol = math.floor(self.width / menuFontWidth)
+		while #l > maxcol do
+			self.lines:insert(1, l:sub(1,maxcol))
+			l = l:sub(maxcol+1)
+		end
+		if #l > 0 then
+			self.lines:insert(1, l)
+		end
+		--]]
 	end
-	if #s > 0 then
-		self.lines:insert(1, s)
-	end
-	--]]
 end
 
 function Console:selectHistory(dx)
@@ -249,7 +252,17 @@ function Console:event(e)
 			local ch = getAsciiForKeyCode(keycode, shift)
 
 			if ch == 10 or ch == 13 then
-				self:runCmdBuf()
+				-- now that this is outside :update, it needs to be xpcall'd
+				local s
+				xpcall(function()
+					self:runCmdBuf()
+				end, function(err)
+					s = err..'\n'..debug.traceback()
+					print(s)
+				end)
+				if s then
+					self:print(s)
+				end
 			elseif ch then
 				self:addCharToCmd(ch)
 			elseif keycode == keyCodeForName.up then

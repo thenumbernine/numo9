@@ -220,12 +220,17 @@ end
 function App:postUpdate() end
 
 -- TODO what's the best way to cast to int in luajit ... floor() ? ffi.cast(int) ? int() ? bit.bor(0) ?
+-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
+-- I think this has something to do with, even in C casting tests, casting between signed and unsigned, different bitness, and floating-point, when going from floating point back it will zero the value.
+-- I think the TLDR is
+-- * there is no generic `toint`
+-- * I should only cast to ctype of matching size for array assignment
+-- * don't use tonumber() except exactly when you're going to tonumber() for the sake of something like Lua-table-indexing
+-- * this is used for auto converting API inputs to ints ...
+-- 		... that's safe to use with address calcs, careful where you pass this.
 local function toint(x)
 	--return bit.bor(x, 0)	-- seems nice but I think it rounds instead of truncates ...
 	return ffi.cast(int32_t, x)	-- use int32 so Lua has no problem with it
-end
-local function tofloat(x)
-	return ffi.cast(float, x)
 end
 
 function App:initGL()
@@ -383,10 +388,11 @@ function App:initGL()
 			return self:drawVoxelMap(...)
 		end,
 		vget = function(voxelmapIndex, x, y, z)
-			voxelmapIndex = math.floor(tonumber(voxelmapIndex) or 0)
-			x = math.floor(tonumber(x) or 0)
-			y = math.floor(tonumber(y) or 0)
-			z = math.floor(tonumber(z) or 0)
+			-- still wrappign with tonumber() because i'm using it as Lua table indexes and because I'm passing it into api functions
+			voxelmapIndex = tonumber(toint(voxelmapIndex))
+			x = tonumber(toint(x))
+			y = tonumber(toint(y))
+			z = tonumber(toint(z))
 			local voxelmap = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
 			if not voxelmap then return voxelMapEmptyValue end
 			local addr = voxelmap:getVoxelAddr(x,y,z)
@@ -394,12 +400,11 @@ function App:initGL()
 			return self:peekl(addr)
 		end,
 		vset = function(voxelmapIndex, x, y, z, value)
-			-- TODO toint?  but that returns cdata, hmm ...
-			voxelmapIndex = math.floor(tonumber(voxelmapIndex) or 0)
-			x = math.floor(tonumber(x) or 0)
-			y = math.floor(tonumber(y) or 0)
-			z = math.floor(tonumber(z) or 0)
-			local voxelmap = self.blobs.voxelmap[(tonumber(voxelmapIndex) or 0)+1]
+			voxelmapIndex = tonumber(toint(voxelmapIndex))
+			x = tonumber(toint(x))
+			y = tonumber(toint(y))
+			z = tonumber(toint(z))
+			local voxelmap = self.blobs.voxelmap[voxelmapIndex+1]
 			if not voxelmap then return end
 			-- does mget/mset send through net?
 			-- yeah cuz clients need that info for tilemap texture updates
@@ -413,13 +418,13 @@ function App:initGL()
 
 		yield = coroutine.yield,	-- flip is a coroutine yield. simple as
 		cls = function(colorIndex, depthOnly)
-			colorIndex = toint(colorIndex or 0)
+			colorIndex = toint(colorIndex)
 			if self.server then
 				local cmd = self.server:pushCmd().clearScreen
 				cmd.type = netcmds.clearScreen
 				cmd.colorIndex = colorIndex
 			end
-			self:clearScreen(colorIndex, nil, depthOnly)
+			self:clearScreen(tonumber(colorIndex), nil, depthOnly)
 		end,
 		fillp = function(dither)
 			if dither then
@@ -1601,7 +1606,7 @@ end
 function App:net_mset(x, y, value, tilemapBlobIndex)
 	x = toint(x)
 	y = toint(y)
-	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))	-- or 0
+	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
 	value = ffi.cast(uint16_t, value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
@@ -1629,7 +1634,7 @@ end
 function App:mget(x, y, tilemapBlobIndex)
 	x = toint(x)
 	y = toint(y)
-	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))	-- or 0
+	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
 	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
@@ -2016,8 +2021,10 @@ print('run thread dead')
 					local success, msg = coroutine.resume(thread)
 					if not success then
 						print(msg)
-						print(debug.traceback(thread))
+						local tb = debug.traceback(thread)
+						print(tb)
 						self.con:print(msg)
+						self.con:print(tb)
 						-- TODO these errors are a good argument for scrollback console buffers
 						-- they're also a good argument for coroutines (though speed might be an argument against coroutines)
 					end
@@ -2175,11 +2182,13 @@ print('run thread dead')
 							print'CONSOLE THREAD ERROR'
 						end
 						print(msg)
-						print(debug.traceback(thread))
+						local tb = debug.traceback(thread)
+						print(tb)
 						if thread == self.con.thread then
 							self.con:resetThread()	-- this could become a negative feedback loop...
 						end
 						self.con:print(msg)
+						self.con:print(tb)
 					end
 				end
 			end
@@ -2651,7 +2660,7 @@ end
 
 function App:poke(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast(uint32_t, value))	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
+	value = ffi.cast(uint8_t, value)
 	if addr < 0 or addr >= self.memSize then return end
 	local p = self.ram.v + addr
 --	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
@@ -2664,7 +2673,7 @@ function App:poke(addr, value)
 end
 function App:pokew(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast(uint32_t, value))	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
+	value = ffi.cast(uint16_t, value)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint16_t_p, self.ram.v + addr)
@@ -2678,7 +2687,7 @@ function App:pokew(addr, value)
 end
 function App:pokel(addr, value)
 	addr = toint(addr)
-	value = tonumber(ffi.cast(uint32_t, value))	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
+	value = ffi.cast(uint32_t, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint32_t_p, self.ram.v + addr)
@@ -2692,7 +2701,7 @@ function App:pokel(addr, value)
 end
 function App:pokef(addr, value)
 	addr = toint(addr)
-	value = tofloat(value)
+	value = ffi.cast(float, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(float_p, self.ram.v + addr)
@@ -3088,7 +3097,9 @@ function App:runCmd(cmd)
 		error(msg)
 	end
 	local result = table.pack(f())
-	self.con:print(result:unpack())
+	if result.n ~= 0 then
+		self.con:print(result:unpack())
+	end
 	return result:unpack()
 	--]]
 end

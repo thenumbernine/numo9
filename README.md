@@ -501,7 +501,7 @@ If the following functions are defined then they will be called from the virtual
 - `pokef(addr, value)` = write 4 bytes to memory as float.
 - `memcpy(dst, src, len)` = copy from `src` to `dst`, sized `len`.
 - `memset(dst, val, len)` = set memory in `dst` to uint8 value `val`, size in bytes `len`.  OOB ranges will copy a value of 0.
-- `strcpy(src, len)` = copies RAM into a Lua string and returns it.
+- `strcpy(src, len)` = copies RAM into a Lua string and returns it.  Doesn't check for `\0`'s.
 - `pget(x, y)` = returns the color/value at this particular x, y in the framebuffer, either a 16bit or 8bit value depending on the video mode.
 - `pset(x, y, c)` = sets the color/value at this particular x, y in the framebuffer , either a 16bit or 8bit value depending on the video mode.
 - `ramaddr(name)` = returns the address of the RAM variable.  This is because I don't want to expose all of the `ffi` table to the cart, so this is just `ffi.offsetof('RAM', field)`.  See the RAM structure for individual field names.
@@ -1096,3 +1096,23 @@ voxelmap editor fixes:
 		- paste with transparency still glitches/fails
 		- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
 	- sheet bucket fill undo still leaves one pixel remaining
+
+- think about redoing script format.
+	- for the sake of preserving names, you either have to:
+		- 1) flag every source file you use (annoying)
+		- 2) put all your source in a separate folder (less annoying)
+		- but the include/ folder would either need to fully go inside each cart, or with the F.C. (version issues with carts...), or it'd need to be searched and flagged which files are #include/require()'d ...
+	- I think I'll go route #2 and make every game include a source folder `src/`
+	- and then do a package loader that can look inside it
+	- and then I'll be inches away from using .zip instead of zlib format
+
+- should `strcpy` which copies RAM to Lua strings also check for `\0`'s?  the name implies yes but all I'm really using this for is a RAM-to-string i.e. `ffi.string` replacement.
+	- maybe I should rename it.
+
+- Should I also allow signed pokes/peeks?  pokesb, pokesw, pokesl?
+
+BUGS FIXED since 1.2.1:
+- Fixed bug in poke, pokew, due to me casting the value to int32_t, where negative numbers would just get truncated to zero.
+	- This has something to do with signedness and something to do with tonumber/float-conversion, and somethign to do with bitness.  Changing the ffi.cast to use matching bitness every time, and removing tonumber, fixes this.  Now -1 converts to 0xff or 0xffff where appropriate.
+- Console captures errors again.  I introduced this bug when I changed console keyboard from update to event callbacks.
+	- Console also prints error stacktraces when before it would only print them to the terminal.
