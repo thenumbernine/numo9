@@ -636,24 +636,13 @@ function BlobVoxelMap:rebuildMesh(app)
 	if not self.dirtyCPU then return end
 	self.dirtyCPU = false
 
-select(2, require 'ext.timer'('BlobVoxelMap:rebuildMesh', function()
 	self.vertexBufCPU:resize(0)
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 
-local lastTime = os.time()
-
 	for chunkIndex=0,self.chunkVolume-1 do
-
-local thisTime = os.time()
-if thisTime ~= lastTime then
-	print(('...%f%%'):format(100 * chunkIndex / self.chunkVolume))
-	lastTime = thisTime
-end
-
 		self.chunks[chunkIndex]:rebuildMesh(app)
 	end
-end))
 
 	-- [[ now that all chunks have been rebuilt, rebuild our master list
 	-- optional TODO if I switch to GPU then dont do this master list, just use individual GPU buffers

@@ -210,7 +210,7 @@ Player.update = |:|do
 	if self.onground and btnp'b' then
 		self.jumpTime = time()
 	end
-	
+
 	local newX = self.pos.x + self.vel.x * dt
 	local newY = self.pos.y + self.vel.y * dt
 	local newZ = self.pos.z	-- don't test jumping/falling yet...
@@ -270,9 +270,12 @@ Player.update = |:|do
 				if voxelType ~= voxelTypeEmpty then
 					if testZ > self.pos.z and self.vel.z > 0 then	-- test bottom of blocks for hitting underneath
 						local z = testZ - epsilon
-						if self.pos.z + self.size.z > z then
-							self.pos.z = z - self.size.z
-							self.vel.z = 0
+						if self.vel.z > 0
+						and self.pos.z + 1 > z -- self.size.z > z
+						then
+							self.pos.z = z - epsilon - 1 --  - self.size.z
+							self.vel.z = -epsilon
+							self.jumpTime = nil
 							-- hit block
 							local voxelInfo = voxelInfos[voxelType]
 							if voxelInfo then
@@ -281,9 +284,12 @@ Player.update = |:|do
 						end
 					else	-- test top of blocks for falling on
 						local z = testZ + 1 + epsilon
-						if self.pos.z < z then
+						if self.vel.z < 0
+						and self.pos.z < z
+						then
 							self.pos.z = z
 							self.vel.z = 0
+							self.jumpTime = nil
 							self.onground = true
 						end
 					end
