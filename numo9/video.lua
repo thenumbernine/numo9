@@ -1402,6 +1402,7 @@ function AppVideo:setVideoMode(modeIndex)
 	--self:clearScreen(nil, nil, true)
 
 	if self.currentVideoMode then
+		self.currentVideoMode.framebufferRAM:updateAddr(self.ram.framebufferAddr)
 		self.currentVideoMode.framebufferRAM.dirtyCPU = true
 		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
