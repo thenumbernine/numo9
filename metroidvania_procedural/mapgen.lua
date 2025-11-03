@@ -927,9 +927,9 @@ trace('mapBuildRoomFrom begin')
 	-- put a door between them
 	if wall.minmax == 0 then
 		-- ?[]= is an expression not a statement and therefore needs to be assigned or passed to something
-		local _ = world.blocks[wall.pos.x]?[wall.pos.y]?['door'..wall.axis] = keyIndex
+		world.blocks[wall.pos.x]?[wall.pos.y]?['door'..wall.axis] = keyIndex
 	else
-		local _ = world.blocks[wall.nextpos.x]?[wall.nextpos.y]?['door'..wall.axis] = keyIndex
+		world.blocks[wall.nextpos.x]?[wall.nextpos.y]?['door'..wall.axis] = keyIndex
 	end
 
 

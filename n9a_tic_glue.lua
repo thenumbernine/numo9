@@ -395,13 +395,13 @@ local newG = {
 	},
 
 	__numo9_finished=|boot, tic, ovr, scn, bdr|do
-		local _ = boot?()
-		if tic then tic() end
+		boot?()
+		tic?()
 		update=||do
-			if tic then tic() end
-			if ovr then ovr() end
-			--if scn then scn() end
-			--if bdr then bdr() end
+			tic?()
+			ovr?()
+			--scn?()
+			--bdr?()
 		end
 	end,
 }

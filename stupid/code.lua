@@ -1832,8 +1832,7 @@ Map=class{
 
 		maps:insert(self)
 		maps[self.name] = self
-		--local _ = args.onload?(self)	-- FIXME in langfix, make safe-navigation work in statements apart from assignment
-		if args.onload then args.onload(self) end
+		args.onload?(self)
 	end,
 	--wraps the position if the map is a wrap map
 	--if not, returns false
@@ -3013,8 +3012,7 @@ setMap=|args|do
 		player:applyLight()
 	end
 
-	--local _ = args.done?()	-- TODO langifx
-	if args.done then args.done() end
+	args.done?()
 
 	clientMessage("Entering "..thisMap.name)
 

@@ -446,8 +446,9 @@ This adds to Lua(/JIT):
 - bit operators: `& | << >> >>>`
 - integer-division: `a // b`
 - in-place operators: `..= += -= *= /= //= %= ^= &= |= ~~= <<= >>= >>>=`
-- lambdas: `[args] do stmts end` for functions, `[args] expr` for single-expression functions.
+- lambdas: `|args| do stmts end` for functions, `|args| expr` for single-expression functions.
 - safe-navigation: `a?.b, a?['b'], a?(), a?.b(), a?:b(), a.b?(), a?.b?(), a:b?(), a?:b?()`
+- assert-navigation: `a!.b, a!['b'], a!(), a!.b(), a!:b(), a.b!(), a!.b!(), a:b!(), a!:b!()`
 - ternary operator: `a ? b : c`, null-coalescence: `a ?? b`.
 
 # API
