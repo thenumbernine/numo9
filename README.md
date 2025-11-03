@@ -841,16 +841,16 @@ Pico8 compatability has most basic functions covered but still fails at some edg
 
 Nope, none.  Just run LuaJIT.  It should ship with the binaries of that.
 
-There are a few libraries that NuMo9 is dependent upon (SDL2, libpng, etc).  I'm working on the definitive list.  Those should also be packaged, or you can rebuild them yourself as well.
+There are a few libraries that NuMo9 is dependent upon (SDL3, libpng, etc).  Those should also be packaged, or you can rebuild them yourself as well.
 
 If you want to rely on outside binaries, here is the list of dependencies:
 - [LuaJIT](https://github.com/LuaJIT/LuaJIT) tag `v2.1.0-beta3`.
 	Also you must edit `src/Makefile` and enable `XCFLAGS+= -DLUAJIT_ENABLE_LUA52COMPAT`, otherwise things like the `__len` metamethod won't work.
 	**Sadly** this is not default compiler settings in luajit packages such as apt's `luajit` (original LuaJIT) or `luajit2) (OpenResty LuaJIT) packages, so neither of these packages will work.
-- My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.  This too must be built by hand at the moment.  I'll switch to SDL3's clipboard someday.
 - SDL package `apt install libsdl3-0`, or built from source [here](https://github.com/libsdl-org/SDL).  My distributable binary is tag `release-3.2.8`.
 - PNG package `apt install libpng16-16t64`, or built from source [here](https://github.com/pnggroup/libpng).  My distributable binary is tag `v1.6.47`.
 	- For building libpng, I'm building against [zlib](https://github.com/madler/zlib) tag `v1.3.1`
+- My fork of dacap's [libclip](https://github.com/thenumbernine/clip), main branch.  This too must be built by hand at the moment.  I'll switch to SDL3's clipboard someday.  SDL3's current release has some bugs that I see aren't flagged for fixed until 3.4 which isn't released yet...
 
 ## Thanks
 
@@ -860,7 +860,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 
 
 # TODO
-- upon fantasy console startup the first few frames skip ...
 - waveforms
 	- BRR
 	- with this comes looping-sample info being stored in the BRR ... should I also?
@@ -907,15 +906,6 @@ If you want to rely on outside binaries, here is the list of dependencies:
 		- But also have profile info that can be shared, per-game per-user but shared inter-server.
 	- I think it will help to make the draw message history to be per-connection, and to send draw-specific commands to specific connections... ? maybe?
 	- While sprite sheets and tilemaps and palettes do update over netplay when the server edits them, the new blobs do not yet.  Maybe sound doesn't either.  TODO fix this.
-- should I split the voxelmap mesh cache into 32x32 partitions like Minecraft?
-- merge RAMs / RAMGPU with Blobs (esp subclass of BlobImage)
-	- then make all blobs use the dirtyCPU flag when poking their address
-	- replace Blob:getSize() with just .size, since size shouldn't be changing.
-- some weird bug when pasting into sheet a pic with an image with transparency, seems to glitch/stall ...
-- some weird bug where when I switch to picking format/type by internalFormat using the gl.tex* ctor it gives me glErrors, when doing it manaully in the ctor args is working fine ...
-- change editor to use native-resolution.
-	- then the UI will need to be fixed since the layout is the mode-0 res.
-		- maybe use [Lua-Gui](https://github.com/thenumbernine/lua-gui).  This will fix all the event handling and bubbling and such.
 
 # Things I'm still debating ...
 - `open()` from console doesn't reset.  You have to `open()` then `run()`.  Wait is this a bug or is this correct behavior?
@@ -1046,6 +1036,7 @@ voxelmap editor fixes:
 	- gen mipmapping upon framebuffer tex flush
 	- gen normalmaps upon sheet flush.
 		- allow player to choose normalmaps? nahh eventually, not just yet.
+		- one big problem of caching normalmaps is they are palette-dependent.
 	- later ... maybe remove all blob indexes from all api calls? or nah -- or instead, maybe add palette blob to all api calls or nah?
 	- change upper bits of tilemap from sheet-selection to sheet-offset of ram.sheetBlobIndex (put it next to paletteBlobIndex)
 
@@ -1086,8 +1077,6 @@ voxelmap editor fixes:
 - test and finish tilemap autotile
 	- allow autotile painting to corners, i.e. paint with fractional tile pos
 - make autotile for voxelmaps too.
-
-- not drawing last game screen behind menu
 
 - looking at the vget/vset/voxelmap api, i should really put all blob indexes first, even if 99% of the time you dont use it ... maybe ... maybe not idk.
 - also 'text()' should have a font blob index.
