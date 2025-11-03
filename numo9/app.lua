@@ -2837,14 +2837,7 @@ function App:updateBlobChanges()
 		assert(not self.currentVideoMode.framebufferRAM.dirtyGPU)
 		self.currentVideoMode.framebufferRAM:updateAddr(self.currentVideoMode.framebufferRAM.addr)
 	end
---[[ resetVideo WORKS BUT resets everything... I just want the pointers to be reset.
-	self:resetVideo()
---]]
--- [[
-	self:resizeRAMGPUs()
---	self:allRAMRegionsCheckDirtyCPU()
---	self:allRAMRegionsCheckDirtyGPU()
---]]
+
 	-- net_updateBlobChanges() ... or have all updates net updates ...
 	--app:net_resetCart()
 	-- TODO here and also in numo9/ui' 'save' button -> saveCart -> updateBlobChanges

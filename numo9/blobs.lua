@@ -228,12 +228,7 @@ local AppBlobs = {}
 function AppBlobs:initBlobs()
 --DEBUG:print('AppBlobs:initBlobs...')
 	self.blobs = BlobSet()
-
-	-- this will populate the minimum # of blobs as well
 	self:buildRAMFromBlobs()
-
-	-- this will build GPU stuff for BlobImage's
-	self:resizeRAMGPUs()
 end
 
 local minBlobPerType = {
@@ -301,6 +296,25 @@ function AppBlobs:buildRAMFromBlobs()
 
 	--TODO also resize all video sheets to match blobs (or merge them someday)
 	-- and TODO also flush them
+
+	-- this will build GPU stuff for BlobImage's
+	-- build RAMGPU's of BlobImage's if they aren't already there
+	-- update their address if they are there
+	for _,blob in ipairs(self.blobs.sheet) do
+		blob:buildRAMGPU(self)
+	end
+	for _,blob in ipairs(self.blobs.tilemap) do
+		blob:buildRAMGPU(self)
+	end
+	for _,blob in ipairs(self.blobs.palette) do
+		blob:buildRAMGPU(self)
+	end
+	for _,blob in ipairs(self.blobs.font) do
+		blob:buildRAMGPU(self)
+	end
+	for _,blob in ipairs(self.blobs.animsheet) do
+		blob:buildRAMGPU(self)
+	end
 end
 
 -- NOTICE this desyncs the blobs and the RAM so you'll need to then call buildRAMFromBlobs

@@ -1459,8 +1459,6 @@ assert.len(deltaStr, deltaBufLen)
 						app:setBlobs(newBlobs)	-- hmm but idk that I use this in netplay...
 						app:buildRAMFromBlobs()
 						ffi.copy(app.ram, ramState, app.memSize)
-
-						app:resizeRAMGPUs()	-- resizes # of RAMGPU objects, sets them to their default address too
 						app:setVideoMode(app.ram.videoMode)
 
 						do

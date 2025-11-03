@@ -501,7 +501,6 @@ function AppVideo:initVideo()
 	Should I just put the whole cartridge on the GPU and keep it sync'd at all times?
 	How often do I modify the cartridge anyways?
 	--]]
-	self:resizeRAMGPUs()
 
 	ffi.fill(self.ram.framebuffer, ffi.sizeof(self.ram.framebuffer), 0)
 
@@ -1047,28 +1046,6 @@ function AppVideo:onFrameBufferSizeChange()
 	self.frameBufferSizeUniformDirty = true
 end
 
--- build RAMGPU's of BlobImage's if they aren't already there
--- update their address if they are there
-function AppVideo:resizeRAMGPUs()
---DEBUG:print'AppVideo:resizeRAMGPUs'
-	for _,blob in ipairs(self.blobs.sheet) do
-		blob:buildRAMGPU(self)
-	end
-	for _,blob in ipairs(self.blobs.tilemap) do
-		blob:buildRAMGPU(self)
-	end
-	for _,blob in ipairs(self.blobs.palette) do
-		blob:buildRAMGPU(self)
-	end
-	for _,blob in ipairs(self.blobs.font) do
-		blob:buildRAMGPU(self)
-	end
-	for _,blob in ipairs(self.blobs.animsheet) do
-		blob:buildRAMGPU(self)
-	end
---DEBUG:print'AppVideo:resizeRAMGPUs done'
-end
-
 function AppVideo:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 	for _,blob in ipairs(self.blobs.sheet) do
 		blob.ramgpu:checkDirtyGPU()
@@ -1125,8 +1102,6 @@ end
 --  which also tests for update to determine framebuffer-bound status ...
 function AppVideo:resetVideo()
 --DEBUG:print'App:resetVideo'
-	-- remake the textures every time the # blobs changes thanks to loadRAM()
-	self:resizeRAMGPUs()
 
 	-- flush all before resetting RAM addrs in case any are pointed to the addrs' location
 	-- do the framebuffers explicitly cuz typically 'checkDirtyGPU' just does the current one
