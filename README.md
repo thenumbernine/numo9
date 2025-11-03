@@ -1113,15 +1113,10 @@ voxelmap editor fixes:
 
 - Should I also allow signed pokes/peeks?  pokesb, pokesw, pokesl?
 
-- got error
-function App:updateBlobChanges()
-		assert(not framebufferRAM.dirtyGPU)
-- ... and now its segfaulting, when saving, when using native-res
-
-
 BUGS FIXED since 1.2.1:
 - Fixed bug in poke, pokew, due to me casting the value to int32_t, where negative numbers would just get truncated to zero.
 	- This has something to do with signedness and something to do with tonumber/float-conversion, and somethign to do with bitness.
 	- Changing the ffi.cast to use matching bitness every time, and removing tonumber, fixes this.  Now -1 converts to 0xff or 0xffff where appropriate.
 - Console captures errors again.  I introduced this bug when I changed console keyboard from update to event callbacks.
 	- Console also prints error stacktraces when before it would only print them to the terminal.
+- Change modes then save or save then change modes would segfault.  This happened when I replaced the sync-all-video-modes code with syncing only the current video mode.
