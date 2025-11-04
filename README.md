@@ -1102,3 +1102,7 @@ voxelmap editor fixes:
 	- maybe I should rename it.
 
 - Should I also allow signed pokes/peeks?  pokesb, pokesw, pokesl?
+
+BUGS SINCE 1.2.2:
+- fixed bug where undo-then-save wasn't flushing to cart memory correctly.
+- fixed langfix bug where ?() and !() couldn't be used as statmements.  updated some cart scripts accordingly.
