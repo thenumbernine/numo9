@@ -700,9 +700,12 @@ function EditTilemap:popUndo(redo)
 	local app = self.app
 	local undoEntry = self.undo:pop(redo)
 	if undoEntry then
-		local tilemapRAM = app.blobs.tilemap[self.tilemapBlobIndex+1].ramgpu
-		ffi.C.memcpy(tilemapRAM.image.buffer, undoEntry.tilemap.buffer, tilemapRAM.image:getBufferSize())
-		tilemapRAM.dirtyCPU = true
+		local tilemapBlob = app.blobs.tilemap[self.tilemapBlobIndex+1]
+		-- copy to ROM
+		ffi.copy(tilemapBlob.image.buffer, undoEntry.tilemap.buffer, tilemapBlob.image:getBufferSize())
+		-- copy to RAM
+		ffi.copy(tilemapBlob.ramgpu.image.buffer, undoEntry.tilemap.buffer, tilemapBlob.ramgpu.image:getBufferSize())
+		tilemapBlob.ramgpu.dirtyCPU = true
 	end
 end
 

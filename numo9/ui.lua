@@ -442,62 +442,17 @@ function UI:update()
 	x=x+6
 	if self:guiButton('\223', x, 0, nil, 'run') then
 		handled = true
-		app:setFocus{
-			thread = coroutine.create(function()
-				app:runCart()
-			end),
-		}
-		app.isPaused = false
+		app:runCart()
 	end
 	x=x+6
 	if self:guiButton('S', x, 0, nil, 'save') then
 		handled = true
-
-		-- running it outside the update loop stops the light from getting stuck on screen (proly was a fbo binding problem)
-		--app.threads:addMainLoopCall(function()
-
-		-- TODO TODO TODO
-		-- resetCart will resetVideo which will thrash all the video state vars
-		-- it being in menu should help (right?) but doesnt seem to ....
-
-		--local pushVideoMode = app.ram.videoMode
-		--local pushHD2DFlags = app.ram.HD2DFlags
-
-		-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
 		app:saveCart(app.currentLoadedFilename)
-		
-		-- TODO this will rearrange the blobs
-		-- so TODO it should net_resetCart as well (net_saveCart maybe?)
-		-- oh wait can I just not call it?
-		-- will any pointers break?
-		-- calling it was segfaulting me?
-		--app:net_resetCart()
-		-- don't resetCart because don't resetVideo
-		-- should I have a netcmd for just this?
-		--app:copyBlobsToROM()
-		--app:setDirtyCPU()
-		--end)
-		-- net_resetCart will call resetVideo()
-		-- that'll reset all our video state incl video mode....
-		-- so we should restore them here ...
-		-- wait why copy blobs to rom when saveCart called updateBlobChanges called buildRAMFromBlobs 
-
-		--app.ram.videoMode = pushVideoMode
-		--app:setVideoMode(pushVideoMode)
-		--app.ram.HD2DFlags = pushHD2DFlags
-		--app:onHD2DFlagsChange()
 	end
 	x=x+6
 	if self:guiButton('L', x, 0, nil, 'load') then
 		handled = true
-		app:setFocus{
-			thread = coroutine.create(function()
-				-- do this from runFocus thread, not UI thread
-				app:net_openCart(app.currentLoadedFilename)	-- if none is loaded this will save over 'defaultSaveFilename' = 'last.n9'
-				--app:runCart() ?
-			end),
-		}
-		app.isPaused = false	-- make sure the setFocus does run
+		app:net_openCart(app.currentLoadedFilename)
 	end
 
 	return handled

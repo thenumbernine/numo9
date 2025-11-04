@@ -1034,12 +1034,16 @@ function EditSheet:popUndo(redo)
 	local app = self.app
 	local undoEntry = self.undo:pop(redo)
 	if undoEntry then
-		local sheetRAM = app.blobs.sheet[self.sheetBlobIndex+1].ramgpu
-		local paletteRAM = app.blobs.palette[self.paletteBlobIndex+1].ramgpu
-		ffi.C.memcpy(sheetRAM.image.buffer, undoEntry.sheet.buffer, sheetRAM.image:getBufferSize())
-		ffi.C.memcpy(paletteRAM.image.buffer, undoEntry.palette.buffer, paletteRAM.image:getBufferSize())
-		sheetRAM.dirtyCPU = true
-		paletteRAM.dirtyCPU = true
+		local sheetBlob = app.blobs.sheet[self.sheetBlobIndex+1]
+		local paletteBlob = app.blobs.palette[self.paletteBlobIndex+1]
+		-- copy to ROM
+		ffi.copy(sheetBlob.image.buffer, undoEntry.sheet.buffer, sheetBlob.image:getBufferSize())
+		ffi.copy(paletteBlob.image.buffer, undoEntry.palette.buffer, paletteBlob.image:getBufferSize())
+		-- copy to RAM
+		ffi.copy(sheetBlob.ramgpu.image.buffer, undoEntry.sheet.buffer, sheetBlob.ramgpu.image:getBufferSize())
+		ffi.copy(paletteBlob.ramgpu.image.buffer, undoEntry.palette.buffer, paletteBlob.ramgpu.image:getBufferSize())
+		sheetBlob.ramgpu.dirtyCPU = true
+		paletteBlob.ramgpu.dirtyCPU = true
 	end
 end
 
