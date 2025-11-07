@@ -649,14 +649,14 @@ setfenv(1, {
 		x=math.floor(x)
 		y=math.floor(y)
 		if x<0 or y<0 or x>=128 or y>=128 then return 0 end
-		local i=mget(x,y)
+		local i=tget(0,x,y)
 		return (i&0xf)|((i>>1)&0xf0)
 	end,
 	mset=|x,y,i|do
 		x=math.floor(x)
 		y=math.floor(y)
 		i=math.floor(i)
-		mset(x,y,(i&0xf)|((i&0xf0)<<1))
+		tset(0,x,y,(i&0xf)|((i&0xf0)<<1))
 	end,
 	map=|tileX,tileY,screenX,screenY,tileW,tileH,layers|do
 		tileX=math.floor(tileX)
@@ -743,7 +743,7 @@ setfenv(1, {
 		for ty=tileY,tileY+tileH-1 do
 			local ssx=screenX
 			for tx=tileX,tileX+tileW-1 do
-				local i=mget(tx,ty)
+				local i=tget(0,tx,ty)
 				if i>0 then
 					i=(i&0xf)|((i>>1)&0xf0)
 					if not layers

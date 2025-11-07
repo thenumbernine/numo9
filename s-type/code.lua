@@ -114,10 +114,10 @@ update=||do
 	if mx ~= oldmx then
 		local chkx = mx+32
 		for y=0,31 do
-			local t = mget(chkx, y)
+			local t = tget(0, chkx, y)
 			if t == 2 then		-- TODO enemy class
 				makeEnemy(chkx<<3, y<<3, t)
-				mset(chkx,y,0)
+				tset(0,chkx,y,0)
 			end
 		end
 	end

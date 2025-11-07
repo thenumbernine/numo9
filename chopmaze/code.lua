@@ -10,10 +10,10 @@
 --#include ext/range.lua
 
 mget16=|i,j|do
-	local m = mget(i,j)
+	local m = tget(0,i,j)
 	return ((m&0x1e)>>1)|((m&0x3c0)>>2)
 end
-mset16=|i,j,m| mset(i,j,((m&0xf)<<1)|((m&0xf0)<<2))
+mset16=|i,j,m| tset(0,i,j,((m&0xf)<<1)|((m&0xf0)<<2))
 
 local buttons={up=3, down=1, left=2, right=0, a=4, b=5, x=6, y=7}
 local dirs={up=3, down=1, left=2, right=0}
@@ -115,7 +115,7 @@ restartAtCheckpoint=||do
 	local my = (level-mx) / 6
 	for i=0,mapw-1 do
 		for j=0,maph-1 do
-			mset(i,j,mget(i + mapw * mx, j + maph * my))
+			tset(0,i,j,tget(0,i + mapw * mx, j + maph * my))
 		end
 	end
 

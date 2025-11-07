@@ -1824,7 +1824,7 @@ Map=class{
 			for x=0,self.size.x-1 do
 				tilerow[x] = tileType(vec2(x,y))
 				-- here or in setMap ?
-				mset(x,y,assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
+				tset(0,x,y,assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
 			end
 		end
 		
@@ -1859,7 +1859,7 @@ Map=class{
 	getTileType=|:,x,y|do
 		error'TODO'	
 		--[[
-		It seems ideal to mget() this, but don't forget that only the current map is in mget memory
+		It seems ideal to tget() this, but don't forget that only the current map is in tget memory
 		Reading multiple maps from ROM memory brings up the question of how to store multiple tilemap resources ...
 		That brings up the question ... 
 			one tilemap chunk-per-bank and multiple banks , like TIC-80?
@@ -1872,7 +1872,7 @@ Map=class{
 		if not self:wrapPos(pos) then return end
 		local tile = tileType(pos)
 		self.tiles[pos.y][pos.x] = tile
-		mset(pos.x,pos.y,assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
+		tset(0,pos.x,pos.y,assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
 		return tile
 	end,
 	--[[
@@ -2978,7 +2978,7 @@ setMap=|args|do
 		local tilerow=thisMap.tiles[y]
 		for x=0,thisMap.size.x-1 do
 			local tile=tilerow[x]
-			mset(x,y,assert(table.pickRandom(tileTypes![tile.name].tileIndexes)))
+			tset(0,x,y,assert(table.pickRandom(tileTypes![tile.name].tileIndexes)))
 		end
 	end
 

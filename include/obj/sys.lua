@@ -62,7 +62,7 @@ Object.update=|:|do
 			for bymin=math.clamp(math.floor(pymin), 0, mapheight-1), math.clamp(math.ceil(pymax), 0, mapheight-1) do
 				for bxmin=math.clamp(math.floor(pxmin), 0, mapwidth-1), math.clamp(math.ceil(pxmax), 0, mapwidth-1) do
 					local bxmax, bymax = bxmin + 1, bymin + 1
-					local ti = mget(bxmin, bymin)
+					local ti = tget(0, bxmin, bymin)
 					local t = mapTypes[ti]
 					if ti ~= 0	-- just skip 'empty' ... right ... ?
 					and t

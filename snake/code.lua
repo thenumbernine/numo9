@@ -61,7 +61,7 @@ local findEmpty=||do
 	local empty=table()
 	for j=0,maph-1 do
 		for i=0,mapw-1 do
-			if mget(i,j)==sprites.empty then
+			if tget(0,i,j)==sprites.empty then
 				empty:insert{i,j}
 			end
 		end
@@ -78,7 +78,7 @@ local placeFruit=||do
 		reset()
 		return
 	end
-	mset(fruitX,fruitY,sprites.fruit)
+	tset(0,fruitX,fruitY,sprites.fruit)
 end
 
 local lastMessageTime
@@ -99,7 +99,7 @@ Player.spawn=|:,x,y|do
 	self.x=x
 	self.y=y
 	self.body:insert{x=self.x,y=self.y}
-	mset(self.x,self.y,sprites.snakeUp+self.dir)
+	tset(0,self.x,self.y,sprites.snakeUp+self.dir)
 end
 Player.getInput=|:|do
 	if btn('up',self.index) and self.dir ~= 1 then
@@ -113,7 +113,7 @@ Player.getInput=|:|do
 	end
 end
 Player.update=|:|do
-	mset(self.x,self.y,snakeBodies[self.dir~1][self.nextDir] or sprites.snakeBody)
+	tset(0,self.x,self.y,snakeBodies[self.dir~1][self.nextDir] or sprites.snakeBody)
 	self.dir=self.nextDir
 	local dx,dy=table.unpack(dirs[self.dir])
 	self.x+=dx
@@ -126,8 +126,8 @@ Player.update=|:|do
 		self:die()
 	end
 	--]]
-	local i=mget(self.x, self.y) 
-	mset(self.x, self.y, sprites.snakeUp+self.dir)
+	local i=tget(0, self.x, self.y)
+	tset(0, self.x, self.y, sprites.snakeUp+self.dir)
 	if i==sprites.fruit then
 		self.body:insert(1,{x=self.x,y=self.y,dir=self.dir})
 		--speed=math.max(1,speed-1)
@@ -141,17 +141,17 @@ Player.update=|:|do
 	else
 		self.body:insert(1, {x=self.x,y=self.y})
 		local tail = self.body:remove()
-		mset(tail.x,tail.y,sprites.empty)
+		tset(0,tail.x,tail.y,sprites.empty)
 	end
 end
 -- remove the player's body from the map and respawn them somewhere in the map
 Player.die=|:|do
 	for _,link in ipairs(self.body) do
-		mset(link.x, link.y, sprites.empty)
+		tset(0, link.x, link.y, sprites.empty)
 	end
 
 	local x,y = findEmpty()
-	if not x then 
+	if not x then
 		return
 		-- TODO can't respawn the player
 	end
@@ -164,10 +164,10 @@ local players={}
 reset=||do
 	-- stall
 	for i=1,60 do yield() end
-	
+
 	for j=0,maph-1 do
 		for i=0,mapw-1 do
-			mset(i,j,sprites.empty)
+			tset(0,i,j,sprites.empty)
 		end
 	end
 
@@ -191,7 +191,7 @@ reset()
 update=||do
 	cls(1)
 	tilemap(0,0,mapw,maph,0,0)
-	
+
 	if #messages>0 then
 		text(messages[1], 0, 0, 0xfc, -1)	-- TODO make this not a part of the gameplay
 		if time()>lastMessageTime+5 then

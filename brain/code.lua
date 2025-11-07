@@ -68,21 +68,21 @@ end
 testMove=|x,y,dx,dy|do
 	local nx,ny = x + dx, y + dy
 	if nx < 0 or nx >= 32 or ny < 0 or ny >= 32 then return end
-	local ti = mget(nx,ny)
+	local ti = tget(0,nx,ny)
 	local t = mapTypes[ti]
 	if t.flags & flags.push ~= 0 then	-- pushable
 		-- test move in dir again ...
 		local bx, by = testMove(nx, ny, dx, dy)
 		if bx and by then
-			local t2 = mget(bx, by)
+			local t2 = tget(0, bx, by)
 			-- only push onto empty tiles for now
 			if t2 == 0 then
-				mset(bx, by, ti)
+				tset(0, bx, by, ti)
 				-- if our pushable isn't flagged to duplicate
 				if t.flags & flags.pushdups == 0 then
-					mset(nx, ny, 0)	-- or whatever is underneath
+					tset(0, nx, ny, 0)	-- or whatever is underneath
 				end
-				t = mapTypes[mget(nx,ny)]	-- allow the previous thing to move onto this
+				t = mapTypes[tget(0,nx,ny)]	-- allow the previous thing to move onto this
 			end
 		end
 	end
@@ -109,7 +109,7 @@ Player.update=|:|do
 
 -- [[ hmm seems dumb
 	if self.clear then
-		mset(self.x, self.y, mapTypeForName.empty.value)
+		tset(0, self.x, self.y, mapTypeForName.empty.value)
 	end
 	self.clear = nil
 --]]
@@ -118,7 +118,7 @@ end
 -- init backup
 for y=0,31 do
 	for x=0,31 do
-		mset(32+x,32+y,mget(x,y))
+		tset(0, 32+x,32+y,tget(0,x,y))
 	end
 end
 reset=||do
@@ -128,8 +128,8 @@ reset=||do
 	-- reset from backup
 	for y=0,31 do
 		for x=0,31 do
-			mset(x,y,mget(32+x,32+y))
-			mset(x,32+y,mget(32+x,32+y))
+			tset(0,x,y,tget(0,32+x,32+y))
+			tset(0,x,32+y,tget(0,32+x,32+y))
 		end
 	end
 end
@@ -155,8 +155,8 @@ update=||do
 
 	for y=0,31 do
 		for x=0,31 do
-			local ti = mget(x,y)
-			mset(x,32+y,ti)
+			local ti = tget(0,x,y)
+			tset(0,x,32+y,ti)
 			local t = mapTypes[ti]
 			if ti == mapTypeForName.idle.value
 			or ti == mapTypeForName.trigger_player.value
@@ -171,7 +171,7 @@ update=||do
 					if nx >= 0 and nx < 32
 					and ny >= 0 and ny < 32
 					then
-						local ti2 = mget(nx,ny)
+						local ti2 = tget(0,nx,ny)
 						local t2 = mapTypes[ti2]
 						if ti2 == mapTypeForName.firing.value
 						or (t2
@@ -182,7 +182,7 @@ update=||do
 						then
 --trace(time()*60, nx, ny, 'idle -> firing')
 							if ti == mapTypeForName.idle.value then
-								mset(x,32+y,mapTypeForName.firing.value)
+								tset(0,x,32+y,mapTypeForName.firing.value)
 							elseif ti == mapTypeForName.trigger_player.value then
 								player.dx, player.dy = dx, dy
 							elseif ti == mapTypeForName.trigger_reset.value then
@@ -199,17 +199,17 @@ update=||do
 			end
 			if ti == mapTypeForName.firing.value then
 --trace(time()*60, x, y, 'firing -> waiting')
-				mset(x,32+y,mapTypeForName.waiting.value)
+				tset(0,x,32+y,mapTypeForName.waiting.value)
 			end
 			if ti == mapTypeForName.waiting.value then
 --trace(time()*60, x, y, 'waiting -> idle')
-				mset(x,32+y,mapTypeForName.idle.value)
+				tset(0,x,32+y,mapTypeForName.idle.value)
 			end
 		end
 	end
 	for y=0,31 do
 		for x=0,31 do
-			mset(x,y,mget(x,32+y))
+			tset(0,x,y,tget(0,x,32+y))
 		end
 	end
 end

@@ -74,7 +74,7 @@ function update()
 				pokew(tilemapMem+addr, math.random(0,0xffff))
 				--]]
 				--[[ should be equiv
-				mset(i,j,math.random(0,0xffff))
+				tset(0,i,j,math.random(0,0xffff))
 				--]]
 
 				-- notice poking and redrawing the tilemap should be fine in 565 for reflecting palette changes

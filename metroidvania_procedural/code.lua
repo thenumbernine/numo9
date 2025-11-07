@@ -263,19 +263,19 @@ Shot.touch=|:,o|do
 end
 local checkBreakDoor
 checkBreakDoor = |keyIndex, x, y, origMapType| do
-	local doorColorIndex = (mget(x,y) >> 6) & 0xf0
+	local doorColorIndex = (tget(0, x,y) >> 6) & 0xf0
 	if keyColorIndexes[keyIndex] ~= doorColorIndex then return end
-	mset(x,y,mapTypeForName.empty.index)
+	tset(0, x,y,mapTypeForName.empty.index)
 	wait(.1, ||do
 		for _,dir in pairs(dirvecs) do
 			local ox, oy = x+dir.x, y+dir.y
-			if mget(ox, oy) & 0x3ff == mapTypeForName.door.index then
+			if tget(0, ox, oy) & 0x3ff == mapTypeForName.door.index then
 				checkBreakDoor(keyIndex, ox, oy, origMapType)
 			end
 		end
 	end)
 	wait(3, ||do
-		mset(x,y,origMapType)
+		tset(0, x, y, origMapType)
 	end)
 end
 Shot.touchMap = |:,x,y,t,ti| do

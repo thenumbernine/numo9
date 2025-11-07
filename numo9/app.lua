@@ -330,8 +330,8 @@ function App:initGL()
 		end,
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
-		mget = function(...) return self:mget(...) end,
-		mset = function(...) return self:net_mset(...) end,
+		tget = function(...) return self:tget(...) end,
+		tset = function(...) return self:net_tset(...) end,
 
 		pset = function(x, y, color)
 			x = toint(x)
@@ -406,7 +406,7 @@ function App:initGL()
 			z = tonumber(toint(z))
 			local voxelmap = self.blobs.voxelmap[voxelmapIndex+1]
 			if not voxelmap then return end
-			-- does mget/mset send through net?
+			-- does tget/tset send through net?
 			-- yeah cuz clients need that info for tilemap texture updates
 			-- same with voxels?  they don't have any GPU backing, so not much of a need, unless we're relocating the textures or framebuffer or something ...
 			local addr = voxelmap:getVoxelAddr(x,y,z)
@@ -1377,7 +1377,7 @@ print('package.loaded', package.loaded)
 				self.blobs.sheet[1].ramgpu.dirtyCPU = true
 				for j=0,31 do
 					for i=0,31 do
-						env.mset(i, j, bit.bor(
+						env.tset(0, i, j, bit.bor(
 							i,
 							bit.lshift(j, 5)
 						))
@@ -1603,10 +1603,10 @@ function App:net_memset(dst, val, len)
 	return self:memset(dst, val, len)
 end
 
-function App:net_mset(x, y, value, tilemapBlobIndex)
+function App:net_tset(tilemapBlobIndex, x, y, value)
+	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
 	x = toint(x)
 	y = toint(y)
-	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
 	value = ffi.cast(uint16_t, value)
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
@@ -1631,10 +1631,10 @@ end
 
 -------------------- LOCAL ENV API --------------------
 
-function App:mget(x, y, tilemapBlobIndex)
+function App:tget(tilemapBlobIndex, x, y)
+	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
 	x = toint(x)
 	y = toint(y)
-	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
 	if x >= 0 and x < tilemapSize.x
 	and y >= 0 and y < tilemapSize.y
 	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap

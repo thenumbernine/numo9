@@ -16,7 +16,7 @@ writes:
 generateWorld=||do
 	for y=0,255 do
 		for x=0,255 do
-			mset(x,y,1)	-- solid
+			tset(0,x,y,1)	-- solid
 		end
 	end
 
@@ -170,7 +170,7 @@ generateWorld=||do
 			if srcblock ~= startblock then
 				for i=1,math.random(0,3) do
 					-- store spawn info, spawn when screen changes
-					-- hmm good reason to mset() so objs dont overlap
+					-- hmm good reason to tset() so objs dont overlap
 					-- or just reposition them later
 					nextblock.spawns:insert{
 						class=table{
@@ -264,7 +264,8 @@ generateWorld=||do
 					local w = math.floor(blockSize.x*.5)-1
 					for x=-math.floor(blockSize.x*.5),math.floor(blockSize.x*.5) do
 						for y=0,2*w-1 do
-							mset(
+							tset(
+								0,
 								math.floor((i + .5) * blockSize.x + dir.x * x + dir.y * (y + .5 - w)),
 								math.floor((j + .5) * blockSize.y + dir.y * x - dir.x * (y + .5 - w)),
 								0)
@@ -279,7 +280,7 @@ generateWorld=||do
 				for y=0,blockSize.y-1 do
 					local dy = y + .5 - blockSize.y*.5
 					if dx^2 + dy^2 <= (blockSize.x*.4)^2 then
-						mset(i*blockSize.x+x, j*blockSize.y+y, 0)
+						tset(0, i*blockSize.x+x, j*blockSize.y+y, 0)
 					end
 				end
 			end
@@ -292,7 +293,8 @@ generateWorld=||do
 					local w = math.floor(blockSize.x*.2)
 					for x=0,xmax do
 						for y=0,2*w-1 do
-							mset(
+							tset(
+								0,
 								math.floor((i + .5) * blockSize.x + dir.x * x + dir.y * (y + .5 - w)),
 								math.floor((j + .5) * blockSize.y + dir.y * x - dir.x * (y + .5 - w)),
 								0)
@@ -304,7 +306,8 @@ generateWorld=||do
 							local mx = math.floor(i * blockSize.x + blockSize.x * .5 + dir.x * (xmax - .5) + dir.y * (dh + .5 - w))
 							local my = math.floor(j * blockSize.y + blockSize.y * .5 + dir.y * (xmax - .5) - dir.x * (dh + .5 - w))
 
-							mset(
+							tset(
+								0,
 								mx,
 								my,
 								-- bake in color
@@ -324,7 +327,8 @@ generateWorld=||do
 			-- for each
 			local empty = 0
 			for _,dir in pairs(dirvecs) do
-				if mget(
+				if tget(
+					0,
 					(i + .5 * dir.x) * blockSize.x,
 					(j + .5 * dir.y) * blockSize.y) == 0
 				then
@@ -334,7 +338,8 @@ generateWorld=||do
 			if empty >= 3 then
 				for u = 0,blockSize.x-1 do
 					for v=0,blockSize.y-1 do
-						mset(
+						tset(
+							0,
 							(i - .5) * blockSize.x + u,
 							(j - .5) * blockSize.y + v, 0)
 					end
@@ -352,8 +357,8 @@ generateWorld=||do
 				for xofs=-1,0 do
 					local x = math.floor((i + .5) * blockSize.x + xofs + (2 * alt - 1))
 					local y = math.floor(j * blockSize.y + yofs)
-					if mget(x,y) == 0 then
-						mset(x, y, mapTypeForName.solid_up.index)
+					if tget(0,x,y) == 0 then
+						tset(0, x, y, mapTypeForName.solid_up.index)
 					end
 				end
 			end
@@ -399,7 +404,7 @@ generateWorld=||do
 					local v = math.random(0,blockSize.y-1)
 					local px = i * blockSize.x + u
 					local py = j * blockSize.y + v
-					if mget(px, py) == 0 then
+					if tget(0, px, py) == 0 then
 						-- side on one side
 						local side
 
@@ -408,7 +413,7 @@ generateWorld=||do
 						-- items = stick to floor
 						-- crawlers = stick to any wall
 						for dirindex,dir in pairs(dirvecs) do
-							if mget(px+dir.x,py+dir.y) ~= 0 then
+							if tget(0, px+dir.x, py+dir.y) ~= 0 then
 								side = dirindex
 								break
 							end
@@ -428,7 +433,7 @@ generateWorld=||do
 	-- now replace all mapType==1 with 32-47 based on neighbor flags
 	for j=0,worldSize.y-1 do
 		for i=0,worldSize.x-1 do
-			local ti = mget(i,j)
+			local ti = tget(0,i,j)
 			if ti == 1 then
 				local sideflags = 0
 				for side,dir in pairs(dirvecs) do
@@ -436,7 +441,7 @@ generateWorld=||do
 					local oob = i2 < 0 or j2 < 0 or i2 >= worldSize.x or j2 >= worldSize.y
 					local neighborSolid = oob	-- T or F whether you want the tiles on the map edge or not
 					if not oob then
-						local ti2 = mget(i2,j2)
+						local ti2 = tget(0,i2,j2)
 						if ti2 == 1
 						or (ti2 >= 32 and ti2 < 48)
 						then
@@ -447,7 +452,7 @@ generateWorld=||do
 						sideflags |= 1 << side
 					end
 				end
-				mset(i,j,32 + sideflags)
+				tset(0,i,j,32 + sideflags)
 				if sideflags == 0 then
 					-- TODO here count L1-dist to first empty tile
 					-- and color 64 65 66 accordingly, dither out tiles
@@ -557,9 +562,9 @@ local levelCarveDoors = |world, room| do
 						block.doorKey[ofx] ??= {}
 						block.doorKey[ofx][ofy] = keyIndex
 
-						mset(v.x, v.y, mapTypeForName.door.index)
+						tset(0, v.x, v.y, mapTypeForName.door.index)
 					else
-						mset(v.x, v.y, 0)
+						tset(0, v.x, v.y, 0)
 					end
 				end
 			end
@@ -620,7 +625,8 @@ trace('fillBlock', rx, ry, index)
 	-- rx,ry,rz = block coordinates
 	for i=0,blockSize.x-1 do
 		for j=0,blockSize.y-1 do
-			mset(
+			tset(
+				0,
 				i + (rx * blockSize.x),
 				j + (ry * blockSize.y),
 				index)
@@ -716,9 +722,9 @@ local levelInitSimplexRoom = |world, room| do
 							or (nbhdblocks.x and nbhdblocks.x.walls[dirForName.left] and x == (block.pos.x + 1) * blockSize.x - 1)
 							or (nbhdblocks.y and nbhdblocks.y.walls[dirForName.up] and y == (block.pos.y + 1) * blockSize.y - 1)
 							then
-								mset(x,y,mapTypeForName.solid.index)
+								tset(0, x, y, mapTypeForName.solid.index)
 							else
-								mset(x,y,mapTypeForName.dirt.index)
+								tset(0, x, y, mapTypeForName.dirt.index)
 							end
 						end
 					end
@@ -745,10 +751,10 @@ local levelInitSimplexRoom = |world, room| do
 					for bx=0,blockSize.x-1 do
 						local x = rx * blockSize.x + bx
 						local y = ry * blockSize.y + by
-						local typ = mapTypes[mget(x,y+1)]
-						local tyn = mapTypes[mget(x,y-1)]
+						local typ = mapTypes[tget(0, x, y+1)]
+						local tyn = mapTypes[tget(0, x, y-1)]
 						local grows = typ?.grows or tyn?.grows
-						if mget(x,y) == mapTypeForName.empty.index
+						if tget(0, x, y) == mapTypeForName.empty.index
 						and grows
 						and simplexNoise2D(
 							tonumber(x)/tonumber(blockSize.x)+1001,
@@ -756,7 +762,7 @@ local levelInitSimplexRoom = |world, room| do
 						) > .01
 						-- and place it randomly
 						then
-							mset(x,y, grows)
+							tset(0, x, y, grows)
 							grassBlocks:insert(vec2(x,y))
 						end
 					end
@@ -781,14 +787,14 @@ local levelInitSimplexRoom = |world, room| do
 
 		for _,dirindex in ipairs(dirindexes) do
 			local n = r + dirvecs[dirindex]
-			local blocktype = mget(n:unpack())
+			local blocktype = tget(0, n:unpack())
 			if blocktype == mapTypeForName.empty.index
 			--or blocktype == mapTypeForName.dirt.index	-- grass grows into dirt? nah?
 			then
-				if mget(n.x,n.y-1) ~= 0
-				or mget(n.x,n.y+1) ~= 0
+				if tget(0, n.x, n.y-1) ~= 0
+				or tget(0, n.x, n.y+1) ~= 0
 				then
-					mset(n.x, n.y, mget(r.x, r.y))
+					tset(0, n.x, n.y, tget(0, r.x, r.y))
 					grassBlocks:insert(n)
 					break
 				end
@@ -832,7 +838,7 @@ local roomAddEnemies = |world, room| do
 				pos = ((block.pos + vec2(math.random(), math.random())) * blockSize):floor()
 
 				-- TODO test entire bounds of the desired type ... and keep them out of doors too
-				local blocktype = mget(pos:unpack())
+				local blocktype = tget(0, pos:unpack())
 				if blocktype == 0 then
 					found = true
 					break

@@ -96,7 +96,7 @@ trace'plant tile touching player'
 			o.holding = Plant{pos=vec2(x,y)}
 			o.holding.solid = false
 			o.holding.useGravity = true
-			mset(x, y, 0)
+			tset(0, x, y, 0)
 		end,
 	},
 	[sprites.vegetable] = {
@@ -111,7 +111,7 @@ trace'veg tile touching player'
 			o.holding = Vegetable{pos=vec2(x,y)}
 			o.holding.solid = false
 			o.holding.useGravity = true
-			mset(x, y, 0)
+			tset(0, x, y, 0)
 		end,
 	},
 	--]===]
@@ -176,7 +176,7 @@ Player.draw = |:| do
 	Player.super.draw(self)
 end
 Player.update = |:| do
-	local ti = mget(self.pos.x, self.pos.y)
+	local ti = tget(0, self.pos.x, self.pos.y)
 	local t = mapTypes[ti]
 	local inliquid = t?.flags & flags.liquid ~= 0
 
@@ -255,7 +255,7 @@ Player.update = |:| do
 	end
 
 	-- breath
-	local ti = mget(self.pos.x, self.pos.y)
+	local ti = tget(0, self.pos.x, self.pos.y)
 	local t = mapTypes[ti]
 	self.breathe -= .01 * dt
 	local airBreathInc = .2
@@ -265,7 +265,7 @@ Player.update = |:| do
 		self.breathe += airBreathInc
 		t = mapTypeForName.empty
 		ti = t.index
-		mset(self.pos.x, self.pos.y, ti)
+		tset(0, self.pos.x, self.pos.y, ti)
 	end
 	if self.breathe < 0 then
 		self.breathe = 0
@@ -409,7 +409,7 @@ Plant.update = |:| do
 	Plant.super.update(self)
 --[===[ if we want to support obj<->tile conversion
 	if f >= 1 then
-		mset(self.pos.x, self.pos.y, mapTypeForName.plant.index)
+		tset(0, self.pos.x, self.pos.y, mapTypeForName.plant.index)
 		self:remove()
 	end
 --]===]
@@ -454,7 +454,7 @@ Vegetable.update = |:| do
 	if self.vel.x == 0 and self.vel.y == 0
 	and self.hitSides & (1 << dirForName.down) ~= 0
 	then
-		mset(self.pos.x, self.pos.y, mapTypeForName.vegetable.index)
+		tset(0, self.pos.x, self.pos.y, mapTypeForName.vegetable.index)
 		self:remove()
 	end
 --]===]
@@ -475,7 +475,7 @@ init = || do
 
 	for j=0,worldSize.y-1 do
 		for i=0,worldSize.x-1 do
-			mset(i, j, mapTypeForName![table{
+			tset(0, i, j, mapTypeForName![table{
 				empty = 4,
 				water = 2,
 				air = 1,
@@ -527,14 +527,14 @@ init = || do
 					or mapTypeForName.air.index
 			end
 			-- different isobars = different content ...
-			mset(i, j, ti)
+			tset(0, i, j, ti)
 		end
 	end
 
 	-- determine sky level
 	for i=0,worldSize.x-1 do
 		for j=0,worldSize.y-1 do
-			local ti = mget(i,j)
+			local ti = tget(0,i,j)
 			local t = mapTypes[ti]
 			if (t?.flags ?? 0) & ~flags.vapor ~= 0	-- ignore vapor/empty
 			then
@@ -555,7 +555,7 @@ mainloops:insert(||do
 	if #plants < 50 then			-- grow new plants
 		local x = math.random(0,255)
 		local y = skyHeight[x]
-		if mget(x,y+1) == mapTypeForName.dirt.index then
+		if tget(0,x,y+1) == mapTypeForName.dirt.index then
 			local plant = Plant{
 				pos = vec2(x, y + .5),
 				createTime = time() - math.random() * Plant.growDuration,

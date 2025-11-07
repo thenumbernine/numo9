@@ -496,7 +496,7 @@ function GreenShellObject:update(dt)
 
 		local ix, iy = math.floor(newposX), math.floor(newposY)
 		if ix >= 0 and iy >= 0 and ix < game.track.size[1] and iy < game.track.size[1] then
-			local tileClass = tileClassForIndex[mget(ix,iy)]
+			local tileClass = tileClassForIndex[tget(0,ix,iy)]
 			if tileClass.solid then
 				newposX = self.pos[1]
 				newposY = self.pos[2]
@@ -542,7 +542,7 @@ function RedShellObject:update(dt)
 
 	local ix, iy = math.floor(newposX), math.floor(newposY)
 	if ix >= 0 and iy >= 0 and ix < game.track.size[1] and iy < game.track.size[1] then
-		local tileClass = tileClassForIndex[mget(ix,iy)]
+		local tileClass = tileClassForIndex[tget(0,ix,iy)]
 		if tileClass.solid then
 			self:remove()
 			return
@@ -968,7 +968,7 @@ function Track:init(args)
 	local realStartDest
 	for i=0,self.size[1]-1 do
 		for j=0,self.size[2]-1 do
-			local tileIndex = mget(i,j)
+			local tileIndex = tget(0,i,j)
 			local startDest = self:processTrackColor(i, j, tileIndex)
 			realStartDest = realStartDest or startDest
 		end
@@ -987,7 +987,7 @@ function Track:init(args)
 				if ix < 0 or iy < 0 or ix >= self.size[1] or iy >= self.size[2] then
 					break
 				end
-				if tileClassForIndex[mget(ix,iy)].solid then
+				if tileClassForIndex[tget(0,ix,iy)].solid then
 					break
 				end
 				v = newv
@@ -1016,17 +1016,17 @@ function Track:processTrackColor(u,v,tileIndex)
 	elseif tileIndex==tileIndexForName.BoostTile then
 	elseif tileIndex==tileIndexForName.StartingLineTile then
 	elseif tileIndex==tileIndexForName.startback then
-		mset(u,v,tileIndexForName.SmoothTile)
+		tset(0,u,v,tileIndexForName.SmoothTile)
 		return vec2(u+.5,v+.5)
 	elseif tileIndex==tileIndexForName.startfront then
-		mset(u,v,tileIndexForName.SmoothTile)
+		tset(0,u,v,tileIndexForName.SmoothTile)
 		self.startPos = vec2(u+.5,v+.5)
 	elseif tileIndex==tileIndexForName.item then
-		mset(u,v,tileIndexForName.SmoothTile)
+		tset(0,u,v,tileIndexForName.SmoothTile)
 		self.itemBoxPositions:insert(vec3(u+.5, v+.5,0))
 	else
 		trace("unknown tile at "..u..", "..v.." has "..tileIndex)
-		mset(u,v,tileIndexForName.SmoothTile)
+		tset(0,u,v,tileIndexForName.SmoothTile)
 	end
 end
 
@@ -1844,7 +1844,7 @@ function Kart:update(dt)
 		local groundDragArea = 1
 		if self.onground and #self.boosts == 0 then
 			if ix >= 0 and iy >= 0 and ix < track.size[1] and iy < track.size[2] then
-				groundDragCoeff = tileClassForIndex[mget(ix,iy)].drag
+				groundDragCoeff = tileClassForIndex[tget(0,ix,iy)].drag
 			end
 		else
 			groundDragArea = 0
@@ -1900,7 +1900,7 @@ function Kart:update(dt)
 			and self.pos[2] >= 0 and self.pos[2] < track.size[2]
 			then
 				local ix, iy = math.floor(self.pos[1]), math.floor(self.pos[2])
-				local tileClass = tileClassForIndex[mget(ix,iy)]
+				local tileClass = tileClassForIndex[tget(0,ix,iy)]
 				if tileClass.boost then self:boost() end
 				if #self.boosts == 0 then
 					frictionCoeff = tileClass.friction
@@ -2028,7 +2028,7 @@ function Kart:update(dt)
 		if ix >= 0 and ix < track.size[1]
 		and iy >= 0 and iy < track.size[2]
 		then
-			local tileClass = tileClassForIndex[mget(ix,iy)]
+			local tileClass = tileClassForIndex[tget(0,ix,iy)]
 			solid = tileClass.solid
 		else
 			solid = true

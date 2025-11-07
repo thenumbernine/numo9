@@ -32,7 +32,7 @@ mapTypes=table{
 		flags=flags.solid,
 		touch = |:, o, x, y|do
 			if o == player then
-				mset(x,y,mapTypeForName.chest_open.index)
+				tset(0,x,y,mapTypeForName.chest_open.index)
 				player.keys += 1
 			end
 		end,
@@ -46,7 +46,7 @@ mapTypes=table{
 		flags=flags.solid,
 		touch = |:, o, x, y|do
 			if o == player then
-				mset(x,y,mapTypeForName.empty.index)
+				tset(0,x,y,mapTypeForName.empty.index)
 			end
 		end,
 	},
@@ -58,7 +58,7 @@ mapTypes=table{
 			and o.keys > 0 
 			then
 				o.keys -= 1
-				mset(x,y,mapTypeForName.door.index)
+				tset(0,x,y,mapTypeForName.door.index)
 			end
 		end,
 	},
@@ -118,7 +118,7 @@ Object.update=|:|do
 			for by1=math.clamp(math.floor(py1), 0, mapheight-1), math.clamp(math.ceil(py2), 0, mapheight-1) do
 				for bx1=math.clamp(math.floor(px1), 0, mapwidth-1), math.clamp(math.ceil(px2), 0, mapwidth-1) do
 					local bx2, by2 = bx1 + 1, by1 + 1
-					local ti = mget(bx1, by1)
+					local ti = tget(0, bx1, by1)
 					local t = mapTypes[ti]
 					if t
 					and px2 >= bx1 and px1 <= bx2
@@ -277,19 +277,19 @@ init=||do
 -- [[ procedural level
 	for y=0,255 do
 		for x=0,255 do
-			mset(x,y,0) -- (~y) & 1)
+			tset(0,x,y,0) -- (~y) & 1)
 		end
 	end
 	for x=0,255 do
-		mset(x,255,mapTypeForName.solid.index)
+		tset(0,x,255,mapTypeForName.solid.index)
 	end
 
 	local jumpHeight = 3
 	local nextStep
 	nextStep = |x,y,dir|do
 		if x < 0 or x > 255 or y < 0 or y > 255 then return end
-		if mget(x,y) ~= 0 then return end	-- already charted
-		mset(x,y,1)
+		if tget(0,x,y) ~= 0 then return end	-- already charted
+		tset(0,x,y,1)
 		-- move options?
 		-- walk in dir
 		-- jump
@@ -316,7 +316,7 @@ init=||do
 		end
 	end
 	nextStep(127, 254, 1)
-	mset(127,254,mapTypeForName.spawn_player.index)
+	tset(0,127,254,mapTypeForName.spawn_player.index)
 
 --]]
 
@@ -324,13 +324,13 @@ init=||do
 	player = nil
 	for y=0,255 do
 		for x=0,255 do
-			local ti = mget(x,y)
+			local ti = tget(0,x,y)
 			if ti == mapTypeForName.spawn_player.index then
 				player = Player{pos=vec2(x,y)+.5}
-				mset(x,y,0)
+				tset(0,x,y,0)
 			elseif ti == mapTypeForName.spawn_enemy.index then
 				Enemy{pos=vec2(x,y)+.5}
-				mset(x,y,0)
+				tset(0,x,y,0)
 			end
 		end
 	end

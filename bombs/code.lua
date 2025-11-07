@@ -28,11 +28,11 @@ mapType={
 }
 mapGet=|x,y|do
 	if x<0 or y<0 or x>=mapw or y>=maph then return STONE end
-	return mget(math.floor(x)+levelTileX,math.floor(y)+levelTileY)&0x3ff	-- drop the hv flip and pal-hi
+	return tget(0,math.floor(x)+levelTileX,math.floor(y)+levelTileY)&0x3ff	-- drop the hv flip and pal-hi
 end
 mapSet=|x,y,value|do
 	if x<0 or y<0 or x>=mapw or y>=maph then return end
-	mset(x+levelTileX,y+levelTileY,value)
+	tset(0,x+levelTileX,y+levelTileY,value)
 end
 mapGetType=|x,y|mapType[mapGet(x,y)]
 

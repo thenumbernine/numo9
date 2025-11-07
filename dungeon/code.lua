@@ -51,7 +51,7 @@ mapTypes=table{
 		flags=flags.solid,
 		touch = |:, o, x, y|do
 			if o == player then
-				mset(x,y,mapTypeForName.chest_open.index)
+				tset(0,x,y,mapTypeForName.chest_open.index)
 				player.keys += 1
 			end
 		end,
@@ -65,7 +65,7 @@ mapTypes=table{
 		flags=flags.solid,
 		touch = |:, o, x, y|do
 			if o == player then
-				mset(x,y,mapTypeForName.empty.index)
+				tset(0,x,y,mapTypeForName.empty.index)
 			end
 		end,
 	},
@@ -77,7 +77,7 @@ mapTypes=table{
 			and o.keys > 0
 			then
 				o.keys -= 1
-				mset(x,y,mapTypeForName.door.index)
+				tset(0,x,y,mapTypeForName.door.index)
 			end
 		end,
 	},
@@ -275,7 +275,7 @@ Enemy.update=|:|do
 				local f = i
 				local mposx = self.pos.x + delta.x * f
 				local mposy = self.pos.y + delta.y * f
-				local ti = mget(math.floor(mposx), math.floor(mposy))
+				local ti = tget(0, math.floor(mposx), math.floor(mposy))
 				local t = mapTypes[ti]
 				if t and bit.band(t.flags, flags.solid) ~= 0 then
 					blocked = true
@@ -315,7 +315,7 @@ local genDungeonLevel=|avgRoomSize|do
 	--memset(blobaddr'tilemap', val, 256*256*2)
 	for i=0,256-1 do
 		for j=0,256-1 do
-			mset(i,j,mapTypeForName.solid.index)
+			tset(0, i,j,mapTypeForName.solid.index)
 		end
 	end
 
@@ -348,7 +348,7 @@ local genDungeonLevel=|avgRoomSize|do
 		local pos = vec2(x,y)
 		if not self:wrapPos(pos) then return end
 		local t = self.tiles![pos.y]![pos.x]
-		t.solid = mapTypes![mget(x,y)].flags & flags.solid ~= 0
+		t.solid = mapTypes![tget(0,x,y)].flags & flags.solid ~= 0
 		return t
 	end
 	targetMap.setTileType=|:,x,y,mapType|do
@@ -356,7 +356,7 @@ local genDungeonLevel=|avgRoomSize|do
 		if not self:wrapPos(pos) then return end
 		--local tile = mapType(pos)
 		--self.tiles[pos.y][pos.x] = tile
-		mset(pos.x, pos.y, mapType)--assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
+		tset(0, pos.x, pos.y, mapType)--assert(table.pickRandom(tileTypes![tileType.name].tileIndexes)))
 		return tile
 	end
 
@@ -523,8 +523,8 @@ local genDungeonLevel=|avgRoomSize|do
 
 		-- TODO digraph
 		table{
-			[|| mset(pos.x, pos.y, mapTypeForName.door.index)] = 5,
-			[|| mset(pos.x, pos.y, mapTypeForName.locked_door.index)] = 1,
+			[|| tset(0, pos.x, pos.y, mapTypeForName.door.index)] = 5,
+			[|| tset(0, pos.x, pos.y, mapTypeForName.locked_door.index)] = 1,
 		}:pickWeighted()()
 
 		usedRooms:insert(dstRoom)
@@ -620,19 +620,19 @@ init=||do
 	player = nil
 	for y=0,255 do
 		for x=0,255 do
-			local ti = mget(x,y)
+			local ti = tget(0,x,y)
 			if ti == mapTypeForName.spawn_Player.index then
 				player = Player{pos=vec2(x,y)+.5}
-				mset(x,y,0)
+				tset(0,x,y,0)
 			elseif ti == mapTypeForName.spawn_Enemy_ogre.index then
 				Enemy_ogre{pos=vec2(x,y)+.5}
-				mset(x,y,0)
+				tset(0,x,y,0)
 			elseif ti == mapTypeForName.spawn_Enemy_demon.index then
 				Enemy_demon{pos=vec2(x,y)+.5}
-				mset(x,y,0)
+				tset(0,x,y,0)
 			elseif ti == mapTypeForName.spawn_Enemy_siren.index then
 				Enemy_siren{pos=vec2(x,y)+.5}
-				mset(x,y,0)
+				tset(0,x,y,0)
 			end
 		end
 	end

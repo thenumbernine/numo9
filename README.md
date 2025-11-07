@@ -165,7 +165,7 @@ Tilemaps can render 8x8 or 16x16 sprites.  This can be specified in the `tilemap
 
 The tilemap editor can make use of autotiling if the `numo9_autotile` global is defined.
 `numo9_autotile` should point to a table of functions.
-Functions accept `(x,y)` and will write to the tile and its neighbors using `mget/mset` or `peekw/pokew` .
+Functions accept `(x,y)` and will write to the tile and its neighbors using `tget/tset` or `peekw/pokew` .
 
 ### code
 
@@ -571,11 +571,11 @@ But how to do this in conjunction with multiple banks, a feature that Tic80 also
 	- draw16x16Sprites = the tilemap draws 16x16 sprites instead of 8x8 sprites, default to false.
 	- sheetIndex = the sheet to use, default to 0.
 	- tilemapIndex = the tilemap blob index to use, default to 0.
-	- I am really tempted to swap out `tileX, tileY` with just tileIndex, since that's what `mget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
-- `mget(x, y, [tilemapIndex=0])` = Read the uint16 from the tilemap address at x, y.
+	- I am really tempted to swap out `tileX, tileY` with just tileIndex, since that's what `tget` returns and what the tilemap stores.  I know pico8 and tic80 expect you to split up the bits every time you call this, but I don't see the reason...
+- `tget(tilemapIndex, x, y)` = Read the uint16 from the `tilemapIndex` tilemap blob's tile at (x, y).
 	Out of bounds coordinates return a value of 0.
 	Bank 0's tilemap is relocatable using the address stored at `tilemapAddr`.
-- `mset(x, y, value, [tilemapIndex=0])` = Write a uint16 to the current tilemap address at x, y.
+- `tset(tilemapIndex, x, y, value)` = Write a uint16 to the `tilemapIndex` tilemap blob's tile at (x, y).
 - `drawbrush(brushIndex, screenX, screenY, tilesWide, tilesHigh, [orientation2D, draw16x16Sprites, sheetBlobIndex])` = draw the brush `brushIndex` at screen location `sx, sy` with tile size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrush(brushIndex, tilemapIndex, x, y, w, h, [orientation2D, cx, cy, cw, ch])` = stamp the brush `brushIndex` onto the tilemap `tilemapIndex` at location `x, y` with size `w, h`.  You can specify 'orientation' to flip / rotate the stamp.  You can clip the stamp to the tile range `cx, cy, cw, ch`.
 - `blitbrushmap(brushmapIndex, tilemapIndex, [x, y, cx, cy, cw, ch])` = blit the brushmap `brushmapIndex` onto the tilemap `tilemapIndex` at location `x, y` (defaults to 0,0), clipping to the rect `cx, cy, cw, ch` within the brushmap (default, use full brushmap size).

@@ -381,7 +381,7 @@ function EditTilemap:update()
 						-- so preview is tough to consider
 						-- but if we had it return written content
 						-- then I'd need it to return a region of tile values equal to the pen radius ...
-						-- and the autotiles themselves operate on mget/mset/peek/poke so ...
+						-- and the autotiles themselves operate on tget/tset/peek/poke so ...
 						-- how to preview at all ...
 						-- how to do this ...
 						local tile = autotile(selx, sely, dx, dy, self.tilemapBlobIndex)
@@ -458,7 +458,7 @@ function EditTilemap:update()
 		end
 
 		local function gettile(tx, ty)
-			return app:mget(tx, ty, self.tilemapBlobIndex)
+			return app:tget(self.tilemapBlobIndex, tx, ty)
 		end
 
 		-- TODO move the dx,dy out of this function ... and fix it.
