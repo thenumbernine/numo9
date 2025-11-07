@@ -1106,3 +1106,4 @@ voxelmap editor fixes:
 BUGS SINCE 1.2.2:
 - fixed bug where undo-then-save wasn't flushing to cart memory correctly.
 - fixed langfix bug where ?() and !() couldn't be used as statmements.  updated some cart scripts accordingly.
+- renamed mget/mset to tget/tset and put the tilemap blob index first to match vget/vset
