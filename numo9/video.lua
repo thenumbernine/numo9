@@ -733,7 +733,10 @@ function AppVideo:triBuf_flush()
 	program:setUniform('projMat', self.ram.lights[0].projMat)
 --]]
 
-	self.vertexBufGPU:bind()
+--DEBUG:assert.index(sceneObj, 'vao')
+	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
+	--self.vertexBufGPU:bind() ... already bound
+
 	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
 		self.vertexBufGPU:setData{
 			data = self.vertexBufCPU.v,
@@ -745,7 +748,6 @@ function AppVideo:triBuf_flush()
 		self.vertexBufGPU:updateData(0, self.vertexBufCPU:getNumBytes())
 	end
 
-	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 
 	if useDirectionalShadowmaps
@@ -795,7 +797,7 @@ function AppVideo:triBuf_flush()
 		end
 	end
 
-	sceneObj:disableAttrs()
+	sceneObj.vao:unbind()	-- sceneObj:disableAttrs()
 
 	-- reset the vectors and store the last capacity
 	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
@@ -3280,7 +3282,7 @@ function AppVideo:drawVoxelMap(
 	-- [[ draw by copying into buffers in AppVideo here
 	do
 		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
-		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex, animSheetTex)
+		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)
 
 		--[=[ copy each chunk into the draw buffer
 		for i=0,voxelmap.chunkVolume-1 do
@@ -3314,7 +3316,7 @@ function AppVideo:drawVoxelMap(
 	--[[ draw using blob/voxelmap's own GPU buffer
 	-- ... never seems to go that fast
 	self:triBuf_flush()
-	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex)	-- make sure textures are set
+	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)	-- make sure textures are set
 	voxelmap:drawMesh(self)
 	--]]
 
@@ -3608,8 +3610,7 @@ print()
 		)
 	end
 
-
-	sceneObj:enableAndSetAttrs()
+	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	program:useNone()
 	for i=#texs,1,-1 do
@@ -3730,7 +3731,7 @@ print()
 					self.drawViewMatForLighting.ptr[14]
 				)
 			end
-			sceneObj:enableAndSetAttrs()
+			sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
 			sceneObj.geometry:draw()
 			program:useNone()
 			for i=#texs,1,-1 do

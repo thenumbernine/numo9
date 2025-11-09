@@ -455,6 +455,95 @@ function Chunk:rebuildMesh(app)
 --DEBUG:print('occluded', occludedCount, 'tris')
 end
 
+-- needs triBuf_prepAddTri to be called beforehand
+function Chunk:drawMesh(app)
+	if #self.vertexBufCPU == 0 then return end
+
+--[[ hmm why aren't things working ....
+	app.lastAnimSheetTex:bind(3)
+	app.lastTilemapTex:bind(2)
+	app.lastSheetTex:bind(1)
+	app.lastPaletteTex:bind(0)
+
+	app:triBuf_prepAddTri(
+		app.lastPaletteTex,
+		app.lastSheetTex,
+		app.lastTilemapTex,
+		app.lastAnimSheetTex)
+--]]
+	local sceneObj = app.triBuf_sceneObj
+
+	if not self.vertexBufGPU then
+		self.vertexBufGPU = GLArrayBuffer{
+			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
+			data = self.vertexBufCPU.v,
+			usage = gl.GL_DYNAMIC_DRAW,
+		}
+	--else
+	end
+	
+	-- wait does VAO store bound 
+	self.vertexBufGPU:bind()
+
+	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
+		self.vertexBufGPU:setData{
+			data = self.vertexBufCPU.v,
+			count = self.vertexBufCPU.capacity,
+			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
+		}
+	else
+--DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
+		-- TODO only do this when we init or poke RAM
+		self.vertexBufGPU:updateData(0, self.vertexBufCPU:getNumBytes())
+	end
+
+	if not self.vao then
+		self.vao = GLVertexArray{
+			program = sceneObj.program,
+			attrs = table.map(sceneObj.attrs, function(attr)
+				--[[
+				local newattr = GLAttribute(attr)
+				newattr.buffer = self.vertexBufGPU
+				return newattr
+				--]]
+				-- [[
+				local newattr = setmetatable({}, GLAttribute)
+				for k,v in pairs(attr) do newattr[k] = v end
+				newattr.buffer = self.vertexBufGPU
+				return newattr
+				--]]
+			end),
+		}
+	end
+	self.vao:bind()
+	
+	self.vertexBufGPU:unbind()
+
+	--sceneObj.geometry:draw()
+	gl.glDrawArrays(gl.GL_TRIANGLES, 0, #self.vertexBufCPU)
+
+	-- TODO also draw lightmap stuff here
+
+	self.vao:unbind()
+
+	-- reset the vectors and store the last capacity
+	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
+end
+
+function Chunk:delete()
+	if self.vertexBufGPU then
+		self.vertexBufGPU:delete()
+		self.vertexBufGPU = nil
+	end
+	if self.vao then
+		self.vao:delete()
+		self.vao = nil
+	end
+end
+
+Chunk.__gc = Chunk.delete
+
+
 
 
 --[[
@@ -741,90 +830,11 @@ end
 	end
 end
 
---[====[ I don't think I'll bring this back until it is in the Chunk class
--- needs triBuf_prepAddTri to be called beforehand
 function BlobVoxelMap:drawMesh(app)
-	if #self.vertexBufCPU == 0 then return end
-
---[[ hmm why aren't things working ....
-	app.lastAnimSheetTex:bind(3)
-	app.lastTilemapTex:bind(2)
-	app.lastSheetTex:bind(1)
-	app.lastPaletteTex:bind(0)
-
-	app:triBuf_prepAddTri(
-		app.lastPaletteTex,
-		app.lastSheetTex,
-		app.lastTilemapTex,
-		app.lastAnimSheetTex)
---]]
-	local sceneObj = app.triBuf_sceneObj
-	local program = sceneObj.program
-	program:use()
-
-	if not self.vertexBufGPU then
-		self.vertexBufGPU = GLArrayBuffer{
-			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
-			data = self.vertexBufCPU.v,
-			usage = gl.GL_DYNAMIC_DRAW,
-		}
-	else
-		self.vertexBufGPU:bind()
-	end
-
-	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
-		self.vertexBufGPU:setData{
-			data = self.vertexBufCPU.v,
-			count = self.vertexBufCPU.capacity,
-			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
-		}
-	else
---DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
-		self.vertexBufGPU:updateData(0, self.vertexBufCPU:getNumBytes())
-	end
-
-	if not self.vao then
-		self.vao = GLVertexArray{
-			program = program,
-			attrs = table.map(sceneObj.attrs, function(attr)
-				--[[
-				local newattr = GLAttribute(attr)
-				newattr.buffer = self.vertexBufGPU
-				return newattr
-				--]]
-				-- [[
-				local newattr = setmetatable({}, GLAttribute)
-				for k,v in pairs(attr) do newattr[k] = v end
-				newattr.buffer = self.vertexBufGPU
-				return newattr
-				--]]
-			end),
-		}
-	end
-	--sceneObj:enableAndSetAttrs()
-	self.vao:bind()
-
-	sceneObj.geometry:draw()
-
-	--sceneObj:disableAttrs()
-	self.vao:unbind()
-
-	-- reset the vectors and store the last capacity
-	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
-end
-
-function BlobVoxelMap:delete()
-	if self.vertexBufGPU then
-		self.vertexBufGPU:delete()
-		self.vertexBufGPU = nil
-	end
-	if self.vao then
-		self.vao:delete()
-		self.vao = nil
+	app.triBuf_sceneObj.program:use()
+	for i=0,self.chunkVolume-1 do
+		self.chunks[i]:drawMesh(app)
 	end
 end
-
-BlobVoxelMap.__gc = BlobVoxelMap.delete
---]====]
 
 return BlobVoxelMap
