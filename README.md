@@ -386,10 +386,6 @@ HDR coming soon.
 ## Memory Layout
 
 ```
-RAM size: 0x2d0d2
-ROM size: 0x3123c
-memory layout:
-- RAM -
 0x000000 - 0x020000 = framebuffer
 0x020000 - 0x020008 = clipRect
 0x020008 - 0x020048 = modelMat
@@ -431,13 +427,13 @@ memory layout:
 0x020890 - 0x02089c = lightAmbientColor
 0x02089c - 0x02089e = numLights
 0x02089e - 0x02d09e = lights
-0x02d09e - 0x02d0aa = depthOfFieldPos
-0x02d0aa - 0x02d0b6 = depthOfFieldAtten
-0x02d0b6 - 0x02d0ba = ssaoSampleRadius
-0x02d0ba - 0x02d0be = ssaoInfluence
-0x02d0be - 0x02d0c2 = spriteNormalExhaggeration
-0x02d0c2 - 0x02d0c6 = blobCount
-0x02d0c6 - 0x02d0d2 = blobEntries
+0x02d09e - 0x02d0a2 = dofFocalDist
+0x02d0a2 - 0x02d0a6 = dofAperature
+0x02d0a6 - 0x02d0aa = ssaoSampleRadius
+0x02d0aa - 0x02d0ae = ssaoInfluence
+0x02d0ae - 0x02d0b2 = spriteNormalExhaggeration
+0x02d0b2 - 0x02d0b6 = blobCount
+0x02d0b6 - 0x02d0c2 = blobEntries
 ```
 
 # Language

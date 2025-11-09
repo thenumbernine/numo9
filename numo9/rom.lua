@@ -473,7 +473,9 @@ local RAM = struct{
 
 				-- depth-of-field ...
 				{name='dofFocalDist', type=float},
+				{name='dofFocalRange', type=float},
 				{name='dofAperature', type=float},
+				{name='dofBlurMax', type=float},
 
 				-- SSAO ...
 				{name='ssaoSampleRadius', type=float},

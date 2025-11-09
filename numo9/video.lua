@@ -1271,7 +1271,9 @@ function AppVideo:resetVideo()
 	self.ram.ssaoInfluence = 1
 
 	self.ram.dofFocalDist = 0
-	self.ram.dofAperature = 1
+	self.ram.dofAperature = .2
+	self.ram.dofFocalRange = 1
+	self.ram.dofBlurMax = 2
 	
 	self.ram.spriteNormalExhaggeration = 8
 	self:onSpriteNormalExhaggerationChange()
@@ -3693,12 +3695,24 @@ print()
 					self.ram.dofFocalDist
 				)
 			end
+			if program.uniforms.dofFocalRange then
+				gl.glUniform1f(
+					program.uniforms.dofFocalRange.loc,
+					self.ram.dofFocalRange
+				)
+			end
 			if program.uniforms.dofAperature then
 				gl.glUniform1f(
 					program.uniforms.dofAperature.loc,
 					self.ram.dofAperature
 				)
 			end
+			if program.uniforms.dofBlurMax then
+				gl.glUniform1f(
+					program.uniforms.dofBlurMax.loc,
+					self.ram.dofBlurMax
+				)
+			end		
 			if program.uniforms.drawViewDir then
 				gl.glUniform4f(
 					program.uniforms.drawViewDir.loc,

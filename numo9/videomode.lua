@@ -811,15 +811,20 @@ uniform mat4 viewMat;
 uniform <?=videoMode.hdrTex:cur():getGLSLSamplerType()?> prevTex;
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 
-uniform vec4 drawViewDir;	// the dest-z row of the drawViewMat
-uniform float dofFocalDist;	//in clip space, compared to framebufferPosTex.w
-uniform float dofAperature;	//scalar of how much to increase over distance
+uniform vec4 drawViewDir;		// the dest-z row of the drawViewMat
+uniform float dofFocalDist;		// in view space, compared to framebufferPosTex.w
+uniform float dofFocalRange;	// how far +- that is in focus
+uniform float dofAperature;		// rate of going out of focus
+uniform float dofBlurMax;		// max blur / miplevel to use
 
 void main() {
 	vec4 pos = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
 	float depth = -dot(drawViewDir, pos);
-	float depthBlurAmount = abs(depth - dofFocalDist) * dofAperature;
-	depthBlurAmount = max(depthBlurAmount, 0.);
+	float depthBlurAmount = clamp(
+		dofAperature * (abs(depth - dofFocalDist) - dofFocalRange),
+		0.,
+		dofBlurMax
+	);
 	fragColor = texture(prevTex, tcv, depthBlurAmount);
 }
 ]],			{
