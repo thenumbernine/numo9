@@ -174,34 +174,35 @@ Player.update = |:|do
 	self.vel.x = 0
 	self.vel.y = 0
 	-- hold y + dir to rotate camera
-	if btn'y' then
+	if btn'x' then
 		if btnp'left' then
 			view.destYaw += 90
 		elseif btnp'right' then
 			view.destYaw -= 90
 		end
 	else
+		local speed = btn'y' and self.walkSpeed * 1.5 or self.walkSpeed
 		if btn'up' then
-			self.vel.x += -view.sinYaw * self.walkSpeed
-			self.vel.y += view.cosYaw * self.walkSpeed
+			self.vel.x += -view.sinYaw * speed
+			self.vel.y += view.cosYaw * speed
 			self.angle = view.yaw + 90
 			self.angle %= 360
 		end
 		if btn'down' then
-			self.vel.x -= -view.sinYaw * self.walkSpeed
-			self.vel.y -= view.cosYaw * self.walkSpeed
+			self.vel.x -= -view.sinYaw * speed
+			self.vel.y -= view.cosYaw * speed
 			self.angle = view.yaw - 90
 			self.angle %= 360
 		end
 		if btn'left' then
-			self.vel.x -= view.cosYaw * self.walkSpeed
-			self.vel.y -= view.sinYaw * self.walkSpeed
+			self.vel.x -= view.cosYaw * speed
+			self.vel.y -= view.sinYaw * speed
 			self.angle = view.yaw + 180
 			self.angle %= 360
 		end
 		if btn'right' then
-			self.vel.x += view.cosYaw * self.walkSpeed
-			self.vel.y += view.sinYaw * self.walkSpeed
+			self.vel.x += view.cosYaw * speed
+			self.vel.y += view.sinYaw * speed
 			self.angle = view.yaw
 		end
 	end

@@ -27,12 +27,12 @@ it takes in:
 - noiseTex as 2 for SSAO (TODO somehow noise this / blur this / but dont get tearing on edges when camera moves somehow)
 - lightDepthTex as 3
 it outputs:
-- calcLightPP GL_RGBA32F attached to color 0 for light scale
+- calcLightTex GL_RGBA32F attached to color 0 for light scale
 
 then final screen blit (happening every render, not just 60fps ...)
 takes in:
 - framebufferRAM.tex for color
-- calcLightPP for light scale
+- calcLightTex for light scale
 it outputs directly to the screen
 - TODO maybe output to a *new* post-lighting buffer then just blit that to screen ???
 	- but honestly, I've already got the renderer set up to only draw when needed ... its just always redrawing every frame ...
@@ -312,13 +312,13 @@ function VideoMode:buildFramebuffers()
 	-- No it is not a good idea to blend it with past SSAO buffers, that makes ghosting and TV-static effects.
 	-- The best I found was just 1 texture, rendered with only its info, no blurring, no past iterations, no miplevels, no other resolutions.
 	-- and use it in the final pass.
-	-- so TODO you can replace calcLightPP with just a tex and a fbo.
+	-- so TODO you can replace calcLightTex with just a tex and a fbo.
 	-- but meh it does package the two into one class well.
 	--
 	-- downsample gbuffer into here for ssao calcs and use that tex to render to the final scene
 	-- TODO blending multiple buffers together doesn't seem to make that much of a difference
 	-- 	but it does cause ghosting and tearing at edges.  so..
-	self.calcLightPP = GLPingPong{
+	self.calcLightTex = GLPingPong{
 		numBuffers = 1,	-- just for the fbo + tex
 		width = self.width,
 		height = self.height,
@@ -332,15 +332,15 @@ function VideoMode:buildFramebuffers()
 	}
 	-- TODO put setDrawBuffers init in gl.pingpong ... when you dont provide a fbo?
 	--  or is it even needed for single-color-attachment fbos?
-	self.calcLightPP.fbo
+	self.calcLightTex.fbo
 		:bind()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
-		:setColorAttachmentTex2D(self.calcLightPP:cur().id)
+		:setColorAttachmentTex2D(self.calcLightTex:cur().id)
 	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
 	-- then in the light combine pass it wont combine
 	gl.glClearColor(1,1,1,1)
 	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
-	self.calcLightPP.fbo
+	self.calcLightTex.fbo
 		:unbind()
 --]]
 
@@ -612,8 +612,8 @@ return;
 				app = app,
 				videoMode = self,
 				glnumber = glnumber,
-				width = self.calcLightPP.width,
-				height = self.calcLightPP.height,
+				width = self.calcLightTex.width,
+				height = self.calcLightTex.height,
 			}),
 			uniforms = {
 				framebufferNormalTex = 0,
@@ -652,16 +652,22 @@ return;
 	-- but now we ...
 	-- (1) need to input that into hdrTex
 	-- (2) can't use framebuffer cuz it doesnt have mipmapping or filterable textures
-	-- so we need a new texture here to combine calcLightPP:cur() + framebufferTex
+	-- so we need a new texture here to combine calcLightTex:cur() + framebufferTex
 	-- ... should I build it with calcLight stuff and combine once there and then with non-hdr just render that one in the final pass?
 	-- or would that be a waste / slow?
+	-- thinking about it .... yes it'd be a waste for non-HDR/DOF pathway.  why blow up the format to a float?
+	-- so I should bother with this only if I'm going to use HDR or DOF.
 	self.lightAndFBTex = GLPingPong{
 		numBuffers = 1,	-- just for the fbo + tex
 		width = self.width,
 		height = self.height,
-		internalFormat = gl.GL_RGBA32F,
-		minFilter = gl.GL_NEAREST,
-		magFilter = gl.GL_LINEAR,
+		-- does mipmap work with RGBA32F?
+		-- ... for GLES3 ... technically ...no.
+		-- how to know when it will and when it wont work?
+		-- welp at least RGBA16F is textureFilterable
+		internalFormat = gl.GL_RGBA16F,
+		minFilter = gl.GL_LINEAR,
+		magFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
@@ -675,7 +681,7 @@ return;
 	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
 	self.lightAndFBTex.fbo
 		:unbind()
-	-- TODO blit here to combine calcLightPP and framebufferTex into lightAndFBTex
+	-- TODO blit here to combine calcLightTex and framebufferTex into lightAndFBTex
 	-- hmm, it is going to vary depending on video mode
 	-- can I just use blitScreenObj? why not?
 
@@ -689,7 +695,7 @@ return;
 		numBuffers = 1,	-- just for the fbo + tex
 		width = self.width,
 		height = self.height,
-		internalFormat = gl.GL_RGBA32F,
+		internalFormat = gl.GL_RGBA16F,
 		magFilter = gl.GL_LINEAR,
 		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
 		wrap = {
@@ -727,11 +733,17 @@ layout(location=0) out vec4 fragColor;
 uniform <?=self.hdrTex:cur():getGLSLSamplerType()?> lightAndFBTex;
 
 void main() {
-	fragColor = (
-		  texture(lightAndFBTex, tcv, 0)
-		+ texture(lightAndFBTex, tcv, 1)
-		+ texture(lightAndFBTex, tcv, 2)
-		+ texture(lightAndFBTex, tcv, 3)
+	vec3 color = texture(lightAndFBTex, tcv, 0).rgb;
+
+	// https://mini.gmshaders.com/p/tonemaps
+	//color / (color + 0.155) * 1.019;
+
+	fragColor.a = color.a;
+	fragColor.rgb = (
+		color
+		+ texture(lightAndFBTex, tcv, 1).rgb * max(vec3(0., 0., 0.), color - 1.)
+		+ texture(lightAndFBTex, tcv, 2).rgb * max(vec3(0., 0., 0.), color - 1.25)
+		+ texture(lightAndFBTex, tcv, 3).rgb * max(vec3(0., 0., 0.), color - 1.375)
 	) / 4.;
 }
 ]],			{
@@ -830,7 +842,7 @@ layout(location=0) out vec4 fragColor;
 
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
-uniform <?=self.calcLightPP:cur():getGLSLSamplerType()?> calcLightTex;
+uniform <?=self.calcLightTex:cur():getGLSLSamplerType()?> calcLightTex;
 
 //uniform vec3 depthOfFieldPos;	//xyz = worldspace pos
 //uniform vec3 depthOfFieldAtten;	//xyz = const, linear, quadratic distance attenuation
@@ -941,7 +953,7 @@ void main() {
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferPosTex,
-			assert(self.calcLightPP:cur()),
+			assert(self.calcLightTex:cur()),
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame
@@ -1017,7 +1029,7 @@ void main() {
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferPosTex,
-			assert(self.calcLightPP:cur()),
+			assert(self.calcLightTex:cur()),
 			app.blobs.palette[1].ramgpu.tex,	-- TODO ... what if we regen the resources?  we have to rebind this right?
 		},
 		geometry = app.quadGeom,
@@ -1106,7 +1118,7 @@ void main() {
 		texs = {
 			self.framebufferRAM.tex,
 			self.framebufferPosTex,
-			assert(self.calcLightPP:cur()),
+			assert(self.calcLightTex:cur()),
 		},
 		geometry = app.quadGeom,
 		-- glUniform()'d every frame

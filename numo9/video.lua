@@ -3368,16 +3368,17 @@ print()
 		and self.videoModes[255]
 		or self.currentVideoMode
 
-	local calcLightPP = videoMode.calcLightPP
-	local calcLightFB = calcLightPP.fbo
+	local calcLightTex = videoMode.calcLightTex
+	local calcLightFB = calcLightTex.fbo
+	-- only for native res video mode ...shouldn't this happen in the :resize() callback?
 	if videoMode.width ~= calcLightFB.width
 	or videoMode.height ~= calcLightFB.height
 	then
 		-- delete the old tex
-		calcLightPP.hist[1]:delete()
+		calcLightTex.hist[1]:delete()
 
 		-- realloc a new tex
-		calcLightPP.hist[1] = GLTex2D{
+		calcLightTex.hist[1] = GLTex2D{
 			width = videoMode.width,
 			height = videoMode.height,
 			internalFormat = gl.GL_RGBA32F,
@@ -3392,22 +3393,22 @@ print()
 		}:unbind()
 
 		-- update refs
-		videoMode.blitScreenObj.texs[3] = calcLightPP:cur()
+		videoMode.blitScreenObj.texs[3] = calcLightTex:cur()
 
 		-- and resize the fbo stored size
 		calcLightFB.width = videoMode.width
 		calcLightFB.height = videoMode.height
-		calcLightPP.width = videoMode.width
-		calcLightPP.height = videoMode.height
+		calcLightTex.width = videoMode.width
+		calcLightTex.height = videoMode.height
 	end
 
 
-	calcLightPP:swap()
+	calcLightTex:swap()
 	calcLightFB
 		:bind()
-		:setColorAttachmentTex2D(calcLightPP:cur().id)
+		:setColorAttachmentTex2D(calcLightTex:cur().id)
 
-	gl.glViewport(0, 0, calcLightPP.width, calcLightPP.height)
+	gl.glViewport(0, 0, calcLightTex.width, calcLightTex.height)
 	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
 	-- then in the light combine pass it wont combine
 
@@ -3618,7 +3619,7 @@ print()
 	calcLightFB:unbind()
 
 --[[ nahhh
-	calcLightPP:cur():bind()
+	calcLightTex:cur():bind()
 		:generateMipmap()
 --]]
 end

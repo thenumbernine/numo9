@@ -2330,7 +2330,7 @@ print('run thread dead')
 		and bit.band(self.ram.HD2DFlags, ffi.C.USE_DEPTH_OF_FIELD) ~= 0
 		then
 			-- will binding this overwrite the lastSheetTex bound to 0, or are we done with it since we're done with the update call?
-			-- TODO either keep calcLightPP with the same tex filtering or
+			-- TODO either keep calcLightTex with the same tex filtering or
 			-- or put another framebuffer/texture between this and the final pass for depth-of-field
 			self.currentVideoMode.framebufferRAM.tex:bind()
 				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR)
