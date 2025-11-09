@@ -750,7 +750,7 @@ function AppVideo:triBuf_flush()
 	sceneObj.geometry:draw()
 
 	if useDirectionalShadowmaps
-	and bit.band(self.ram.HD2DFlags, ffi.C.LIGHTING_CAST_SHADOWS) ~= 0
+	and bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_lightingCastShadows) ~= 0
 	then
 		-- now - if we're using light - also draw the geom to the lightmap
 		-- that means updating uniforms every render regardless ...
@@ -3338,7 +3338,7 @@ function AppVideo:drawVoxelMap(
 	end
 end
 
-function AppVideo:updateLightCalcTex()
+function AppVideo:updateHD2DPass()
 	assert(not self.inUpdateCallback)
 
 --[=[ trying to read the depth buffer
@@ -3622,6 +3622,71 @@ print()
 	calcLightTex:cur():bind()
 		:generateMipmap()
 --]]
+
+	-- now combine them here too
+	if bit.band(self.ram.HD2DFlags, bit.bor(
+		ffi.C.HD2DFlags_useHDR,
+		ffi.C.HD2DFlags_useDoF
+	)) ~= 0 then
+		-- HDR and DOF both need mipmaps, 
+		-- so they can't accept our indexed color,
+		-- so I have to combine and mipmap here.
+
+		-- update the palette bound when drawing the 8bppIndex screen
+		-- which palette to use? first?  extra RAM var to specify?
+		-- how about whatevers selected as the active palette at end of frame?
+		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
+		local sceneObj = videoMode.blitScreenObj
+		if videoMode.format == '8bppIndex' then
+			local paletteBlob =
+				self.blobs.palette[1+self.ram.paletteBlobIndex]
+				or self.blobs.palette[1]
+			paletteBlob.ramgpu:checkDirtyCPU()
+			sceneObj.texs[4] = paletteBlob.ramgpu.tex
+		end
+
+		local prevTex
+		videoMode.lightAndFBTex.fbo:bind()
+		sceneObj:draw()
+		videoMode.lightAndFBTex.fbo:unbind()
+		prevTex = videoMode.lightAndFBTex:cur()
+		prevTex
+			:bind()
+			:generateMipmap()
+			:unbind()
+	
+		-- TODO
+		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+			videoMode.hdrTex.fbo:bind()
+			videoMode.hdrBlitObj.texs[1] = prevTex
+			videoMode.hdrBlitObj:draw()
+			videoMode.hdrTex.fbo:unbind()
+			prevTex = videoMode.hdrTex:cur()
+			prevTex
+				:bind()
+				:generateMipmap()
+				:unbind()
+		end
+
+		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+			videoMode.dofTex.fbo:bind()
+			videoMode.dofBlitObj.texs[1] = prevTex
+			videoMode.dofBlitObj.texs[2] = videoMode.framebufferPosTex
+			videoMode.dofBlitObj:draw()
+			videoMode.dofTex.fbo:unbind()
+		end
+	end
+end
+
+-- get the last tex in the pipeline for rendering to screen
+function AppVideo:getPipelineRenderTex()
+	if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+		return self.currentVideoMode.dofTex:cur()
+	end
+	if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+		return self.currentVideoMode.hdrTex:cur()
+	end
+	return self.currentVideoMode.framebufferRAM.tex
 end
 
 return {

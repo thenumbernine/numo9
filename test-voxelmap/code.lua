@@ -6,7 +6,7 @@
 mode(0xff)	-- NativexRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
-local HD2DFlags = 0xff  & ~4	-- turn off SSAO. meh.
+local HD2DFlags = 0xff & ~4	-- turn off SSAO. meh.
 pokef(ramaddr'ssaoSampleRadius', .5)
 pokew(ramaddr'numLights', 1)			-- turn on 1 light
 poke(ramaddr'lights', 0xff)				-- enable light #0
@@ -415,4 +415,8 @@ update=||do
 	matortho(0, textwidth, textwidth * height / width, 0)
 	text(tostring('coins x '..playerCoins), 0, 0, 220, 219)
 	--]]
+
+	poke(ramaddr'HD2DFlags', 0x80)	-- set DoF
+	--poke(ramaddr'HD2DFlags', 0x40)	-- set HDR
+	--poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
 end

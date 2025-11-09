@@ -431,7 +431,7 @@ return;
 	vec4 worldNormal = texture(framebufferNormalTex, tcv);
 	int HD2DFlags = int(worldNormal.w);
 	// no lighting on this fragment
-	if ((HD2DFlags & <?=ffi.C.LIGHTING_APPLY_TO_SURFACE?>) == 0) {
+	if ((HD2DFlags & <?=ffi.C.HD2DFlags_lightingApplyToSurface?>) == 0) {
 		fragColor = vec4(1., 1., 1., 1.);
 		return;
 	}
@@ -446,12 +446,12 @@ return;
 	vec4 worldCoord = vec4(worldCoordAndClipDepth.xyz, 1.);
 	float clipDepth = worldCoordAndClipDepth.w;
 
-	if ((HD2DFlags & <?=bit.bor(ffi.C.LIGHTING_CALC_FROM_LIGHTMAP, ffi.C.LIGHTING_CALC_FROM_LIGHTS)?>) == 0) {
+	if ((HD2DFlags & <?=bit.bor(ffi.C.HD2DFlags_calcFromLightMap, ffi.C.HD2DFlags_calcFromLights)?>) == 0) {
 		// no light calcs = full light
 		fragColor = vec4(1., 1., 1., 1.);
 	} else {
-		bool calcFromLightMap = 0 != (HD2DFlags & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTMAP?>);
-		bool calcFromLights = 0 != (HD2DFlags & <?=ffi.C.LIGHTING_CALC_FROM_LIGHTS?>);
+		bool calcFromLightMap = 0 != (HD2DFlags & <?=ffi.C.HD2DFlags_calcFromLightMap?>);
+		bool calcFromLights = 0 != (HD2DFlags & <?=ffi.C.HD2DFlags_calcFromLights?>);
 
 		// start off with scene ambient
 		fragColor = vec4(lightAmbientColor.xyz, 1.);
@@ -560,7 +560,7 @@ return;
 	}
 
 	// SSAO:
-	if ((HD2DFlags & <?=ffi.C.LIGHTING_USE_SSAO?>) != 0) {
+	if ((HD2DFlags & <?=ffi.C.HD2DFlags_useSSAO?>) != 0) {
 		vec4 viewNormal = drawViewMat * vec4(worldNormal.xyz, 0.);
 		vec3 normalizedViewNormal = normalize(viewNormal.xyz);
 
@@ -647,6 +647,7 @@ return;
 	--]]
 
 
+-- [=[
 	-- ok TODO 
 	-- before we'd combine deferred-lighting buf + framebuffer and apply directly to output
 	-- but now we ...
@@ -666,26 +667,29 @@ return;
 		-- how to know when it will and when it wont work?
 		-- welp at least RGBA16F is textureFilterable
 		internalFormat = gl.GL_RGBA16F,
-		minFilter = gl.GL_LINEAR,
-		magFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+		magFilter = gl.GL_LINEAR,
+		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
 		},
+		generateMipmap = true,
 	}
 	self.lightAndFBTex.fbo
 		:bind()
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:setColorAttachmentTex2D(self.lightAndFBTex:cur().id)
 	gl.glClearColor(1,1,1,1)
-	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 	self.lightAndFBTex.fbo
 		:unbind()
 	-- TODO blit here to combine calcLightTex and framebufferTex into lightAndFBTex
 	-- hmm, it is going to vary depending on video mode
 	-- can I just use blitScreenObj? why not?
+--]=]
 
 
+-- [=[
 	-- now same as lights but for ... which order ...
 	-- HDR then DoF?  or DoF then HDR?
 	-- HDR first means more light affecting neighbor pixels before blurring neighbors
@@ -708,7 +712,7 @@ return;
 		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:setColorAttachmentTex2D(self.hdrTex:cur().id)
 	gl.glClearColor(1,1,1,1)
-	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 	self.hdrTex.fbo
 		:unbind()
 
@@ -730,26 +734,151 @@ void main() {
 precision highp sampler2D;
 in vec2 tcv;
 layout(location=0) out vec4 fragColor;
-uniform <?=self.hdrTex:cur():getGLSLSamplerType()?> lightAndFBTex;
+uniform <?=videoMode.lightAndFBTex:cur():getGLSLSamplerType()?> prevTex;
 
 void main() {
-	vec3 color = texture(lightAndFBTex, tcv, 0).rgb;
+	vec4 color = texture(prevTex, tcv, 0.);
 
 	// https://mini.gmshaders.com/p/tonemaps
-	//color / (color + 0.155) * 1.019;
+	//color.rgb / (color.rgb + 0.155) * 1.019;
 
 	fragColor.a = color.a;
 	fragColor.rgb = (
-		color
-		+ texture(lightAndFBTex, tcv, 1).rgb * max(vec3(0., 0., 0.), color - 1.)
-		+ texture(lightAndFBTex, tcv, 2).rgb * max(vec3(0., 0., 0.), color - 1.25)
-		+ texture(lightAndFBTex, tcv, 3).rgb * max(vec3(0., 0., 0.), color - 1.375)
+		color.rgb
+		+ texture(prevTex, tcv, 1.).rgb * max(vec3(0., 0., 0.), color.rgb - 1.)
+		+ texture(prevTex, tcv, 2.).rgb * max(vec3(0., 0., 0.), color.rgb - 1.25)
+		+ texture(prevTex, tcv, 3.).rgb * max(vec3(0., 0., 0.), color.rgb - 1.375)
 	) / 4.;
 }
 ]],			{
-				self = self,
+				videoMode = self,
 			}),
+			uniforms = {
+				prevTex = 0,
+			},
 		},
+		texs = {
+			self.lightAndFBTex:cur(),
+		},
+		geometry = app.quadGeom,
+	}
+--]=]
+
+
+-- [=[
+	self.dofTex = GLPingPong{
+		numBuffers = 1,	-- just for the fbo + tex
+		width = self.width,
+		height = self.height,
+		internalFormat = gl.GL_RGBA16F,
+		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_NEAREST,
+		wrap = {
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},	
+	}
+	self.dofTex.fbo
+		:bind()
+		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:setColorAttachmentTex2D(self.dofTex:cur().id)
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+	self.dofTex.fbo
+		:unbind()
+
+	self.dofBlitObj = GLSceneObject{
+		program = {
+			version = app.glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+void main() {
+	tcv = vertex;
+	gl_Position = vec4(vertex.xy * 2. - 1., 0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+in vec2 tcv;
+layout(location=0) out vec4 fragColor;
+
+// prevTex is either lightAndFBTex if HDR is disabled,
+//  or hdrTex if HDR is enabled
+uniform <?=videoMode.hdrTex:cur():getGLSLSamplerType()?> prevTex;
+
+uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
+
+uniform vec3 depthOfFieldPos;	//xyz = worldspace pos
+uniform vec3 depthOfFieldAtten;	//xyz = const, linear, quadratic distance attenuation
+
+// TODO.  for now its all just radial because that doesnt take the view
+// maybe later instead of view, i'll just blur using clip depth (stored in the framebufferNormalTex.a I think)
+// true = blur by distance from depthOfFieldPos
+// false = blur by distance along view from depthOfFieldPos
+//uniform bool radial;
+
+void main() {
+	vec3 delta = texture(framebufferPosTex, tcv).rgb - depthOfFieldPos;
+	float dist = length(delta);	
+	float depthBlurAmount = 1. / (depthOfFieldAtten.x + dist * (depthOfFieldAtten.y + dist * depthOfFieldAtten.z));
+
+	fragColor.rgb = texture(prevTex, tcv, depthBlurAmount).rgb;
+	fragColor.a = texture(prevTex, tcv, 0.).a;
+}
+]],			{
+				videoMode = self,
+			}),
+			uniforms = {
+				prevTex = 0,
+				framebufferPosTex = 1,
+				depthOfFieldPos = {0,0,0},
+				depthOfFieldAtten = {0,0,1},
+			},
+		},
+		texs = {
+			self.hdrTex:cur(),	-- this will be self.hdrTex:cur() if hdr is on, or self.lightAndFBTex:cur() if hdr is off
+			self.framebufferPosTex,
+		},
+		geometry = app.quadGeom,
+	}
+--]=]
+
+	-- 'blitScreenObj' is actually the lighting pass
+	-- should I always do it to a prev float16 buffer, or is it fine going straight to the screen?
+	self.blitScreenHD2DObj = GLSceneObject{
+		program = {
+			version = app.glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+uniform mat4 mvProjMat;
+void main() {
+	tcv = vertex;
+	gl_Position = mvProjMat * vec4(vertex, 0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+in vec2 tcv;
+layout(location=0) out vec4 fragColor;
+uniform <?=videoMode.lightAndFBTex:cur():getGLSLSamplerType()?> prevTex;
+void main() {
+	fragColor = texture(prevTex, tcv);
+}
+]],			{
+				videoMode = self,
+			}),
+			uniforms = {
+				prevTex = 0,
+			},
+		},
+		texs = {
+			self.lightAndFBTex:cur(),
+		},
+		geometry = app.quadGeom,
 	}
 
 	if app.inUpdateCallback then
@@ -843,9 +972,6 @@ layout(location=0) out vec4 fragColor;
 uniform <?=self.framebufferRAM.tex:getGLSLSamplerType()?> framebufferTex;
 uniform <?=self.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=self.calcLightTex:cur():getGLSLSamplerType()?> calcLightTex;
-
-//uniform vec3 depthOfFieldPos;	//xyz = worldspace pos
-//uniform vec3 depthOfFieldAtten;	//xyz = const, linear, quadratic distance attenuation
 
 void doLighting() {
 
@@ -1664,7 +1790,7 @@ void main() {
 
 	bumpHeight *= spriteNormalExhaggeration;
 
-	if ((HD2DFlags & <?=ffi.C.LIGHTING_USE_BUMP_MAPPING?>) == 0) {
+	if ((HD2DFlags & <?=ffi.C.HD2DFlags_useBumpMap?>) == 0) {
 		// normal from flat sided objs
 		fragNormal.xyz = worldNormalv;
 	} else {

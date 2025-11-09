@@ -47,7 +47,7 @@ args:
 --]]
 function RAMGPUTex:init(args)
 --DEBUG:print'RAMGPUTex:init begin'
-glreport'before RAMGPUTex:init'
+--DEBUG:glreport'before RAMGPUTex:init'
 	local app = assert.index(args, 'app')
 	self.app = app
 	self.addr = assert.index(args, 'addr')
@@ -100,7 +100,7 @@ glreport'before RAMGPUTex:init'
 -- this will fail when the menu font is being used
 --assert.eq(tex.data, ffi.cast(uint8_t_p, self.image.buffer))
 	self.tex = tex
-glreport'after RAMGPUTex:init'
+--DEBUG:glreport'after RAMGPUTex:init'
 --DEBUG:print'RAMGPUTex:init done'
 end
 
@@ -148,7 +148,7 @@ end
 -- NOTICE any time you call checkDirtyGPU on a framebufferRAM that is,
 -- you will need to do it from outside the inUpdateCallback
 function RAMGPUTex:checkDirtyGPU()
-glreport'checkDirtyGPU begin'
+--DEBUG:glreport'checkDirtyGPU begin'
 	if not self.dirtyGPU then return end
 	assert(not self.dirtyCPU, "someone dirtied both cpu and gpu without flushing either")
 	-- assert that fb is bound to framebufferRAM ...
@@ -165,13 +165,13 @@ glreport'checkDirtyGPU begin'
 		app.currentVideoMode.fb
 	if not app.inUpdateCallback then
 		fb:bind()
-glreport'checkDirtyGPU after fb:bind'
+--DEBUG:glreport'checkDirtyGPU after fb:bind'
 	else
 		if app.currentVideoMode.fb ~= fb then
 			app.currentVideoMode.fb:unbind()
-glreport'checkDirtyGPU after app.currentVideoMode.fb:unbind'
+--DEBUG:glreport'checkDirtyGPU after app.currentVideoMode.fb:unbind'
 			fb:bind()
-glreport'checkDirtyGPU after fb:bind'
+--DEBUG:glreport'checkDirtyGPU after fb:bind'
 		end
 	end
 --DEBUG:assert(tex.data)
@@ -181,20 +181,20 @@ glreport'checkDirtyGPU after fb:bind'
 	gl.glReadPixels(0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
 --DEBUG:print('fb size', fb.width, fb.height)
 --DEBUG:print('glReadPixels', 0, 0, tex.width, tex.height, tex.format, tex.type, image.buffer)
-glreport'checkDirtyGPU after glReadPixels'
+--DEBUG:glreport'checkDirtyGPU after glReadPixels'
 	if not app.inUpdateCallback then
 		fb:unbind()
-glreport'checkDirtyGPU after fb:unbind'
+--DEBUG:glreport'checkDirtyGPU after fb:unbind'
 	else
 		if app.currentVideoMode.fb ~= fb then
 			fb:unbind()
-glreport'checkDirtyGPU after fb:unbind'
+--DEBUG:glreport'checkDirtyGPU after fb:unbind'
 			app.currentVideoMode.fb:bind()
-glreport'checkDirtyGPU after app.currentVideoMode.fb:bind'
+--DEBUG:glreport'checkDirtyGPU after app.currentVideoMode.fb:bind'
 		end
 	end
 	self.dirtyGPU = false
-glreport'checkDirtyGPU end'
+--DEBUG:glreport'checkDirtyGPU end'
 end
 
 --[[

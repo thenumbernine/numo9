@@ -361,14 +361,14 @@ enum {
 -- TODO MAYBE but cull face triggers enable/disable cull test, which is different from uniform upload, so maybe that's an argument to keep it separate?
 ffi.cdef[[
 enum {
-	LIGHTING_APPLY_TO_SURFACE = 1,
-	LIGHTING_CAST_SHADOWS = 2,
-	LIGHTING_USE_SSAO = 4,
-	LIGHTING_USE_BUMP_MAPPING = 8,
-	LIGHTING_CALC_FROM_LIGHTMAP = 0x10,		// disable for no lighting from shadows to be cast
-	LIGHTING_CALC_FROM_LIGHTS = 0x20,		// disable to avoid the Light struct calcs.  TODO components?  one being ambient+diffuse+specular, another being attenuation , another being angle/spotlight?
-	USE_HIGH_DYNAMIC_RANGE = 0x40,
-	USE_DEPTH_OF_FIELD = 0x80,
+	HD2DFlags_lightingApplyToSurface = 1,
+	HD2DFlags_lightingCastShadows = 2,
+	HD2DFlags_useSSAO = 4,
+	HD2DFlags_useBumpMap = 8,
+	HD2DFlags_calcFromLightMap = 0x10,		// disable for no lighting from shadows to be cast
+	HD2DFlags_calcFromLights = 0x20,		// disable to avoid the Light struct calcs.  TODO components?  one being ambient+diffuse+specular, another being attenuation , another being angle/spotlight?
+	HD2DFlags_useHDR = 0x40,
+	HD2DFlags_useDoF = 0x80,
 }
 ]]
 
@@ -463,7 +463,7 @@ local RAM = struct{
 
 
 				-- hd2d lighting etc...
-				{name='HD2DFlags', type=uint16_t},	-- state for all lighting, flags in LIGHTING_*
+				{name='HD2DFlags', type=uint16_t},	-- state for all lighting, flags in ffi.C.HD2DFlags_*
 
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
 				{name='lightmapHeight', type=uint16_t},

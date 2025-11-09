@@ -2116,12 +2116,12 @@ print('run thread dead')
 			if fbTex ~= self.currentVideoMode.framebufferRAM.tex then
 				local sceneObj = self.currentVideoMode.blitScreenObj
 				-- [[
-				local view = self.blitScreenView
 				local fx = self.width / fbTex.width
 				local fy = self.height / fbTex.height
 				local fmin = math.min(fx, fy)
 				local rx = (fx / fmin - 1) * .5
 				local ry = (fy / fmin - 1) * .5
+				local view = self.blitScreenView
 				self.orthoMin.x = -view.orthoSize * rx
 				self.orthoMax.x = view.orthoSize * (rx + 1)
 				self.orthoMin.y = -view.orthoSize * ry
@@ -2318,34 +2318,10 @@ print('run thread dead')
 			needDrawCounter = 1
 		end
 
-		self:updateLightCalcTex()
+		self:updateHD2DPass()
 
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
-
-		-- [[ TODO TODO this only when the framebuffer changes
-		-- TODO disable altogether for now, since DoF needs a full separate pass
-		if self.currentVideoMode.framebufferRAM
-		and self.currentVideoMode.framebufferRAM.tex.internalFormat == gl.GL_RGB565
-		and bit.band(self.ram.HD2DFlags, ffi.C.USE_DEPTH_OF_FIELD) ~= 0
-		then
-			-- will binding this overwrite the lastSheetTex bound to 0, or are we done with it since we're done with the update call?
-			-- TODO either keep calcLightTex with the same tex filtering or
-			-- or put another framebuffer/texture between this and the final pass for depth-of-field
-			self.currentVideoMode.framebufferRAM.tex:bind()
-				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR_MIPMAP_LINEAR)
-				:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
-				:generateMipmap()
-			self.lastPaletteTex:bind()
-		else
-			-- if we keep LINEAR on framebufferRAM then resizing the screen will give it a blur instead of a pixelation effect.
-			-- but TODO track state and only do this once
-			self.currentVideoMode.framebufferRAM.tex:bind()
-				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
-				:setParameter(gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
-			self.lastPaletteTex:bind()
-		end
-		--]]
 	end
 
 	if needDrawCounter > 0 then
@@ -2360,28 +2336,26 @@ print('run thread dead')
 
 		-- for mode-1 8bpp-indexed video mode - we will need to flush the palette as well, before every blit too
 		local videoModeObj = self.videoModes[self.ram.videoMode]
-		if videoModeObj and videoModeObj.format == '8bppIndex' then
-			self.blobs.palette[1].ramgpu:checkDirtyCPU()
+		if videoModeObj.format == '8bppIndex' then
+			self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu:checkDirtyCPU()
 		end
 
 		gl.glViewport(0, 0, self.width, self.height)
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-	-- [[ redo ortho projection matrix
-	-- every frame for us to use a proper rectangle
-		local view = self.blitScreenView
-
 		local fbTex = self.activeMenu
 			and self.videoModes[255].framebufferRAM.tex
-			or self.currentVideoMode.framebufferRAM.tex
-		--local fbTex = self.currentVideoMode.framebufferRAM.tex
+			or self:getPipelineRenderTex()
 
+		-- redo ortho projection matrix
+		-- every frame for us to use a proper rectangle
 		local fx = self.width / fbTex.width
 		local fy = self.height / fbTex.height
 		local fmin = math.min(fx, fy)
 		local rx = (fx / fmin - 1) * .5
 		local ry = (fy / fmin - 1) * .5
+		local view = self.blitScreenView
 		self.orthoMin.x = -view.orthoSize * rx
 		self.orthoMax.x = view.orthoSize * (rx + 1)
 		self.orthoMin.y = -view.orthoSize * ry
@@ -2396,23 +2370,22 @@ print('run thread dead')
 		)
 		view.mvMat:setIdent()
 		view.mvProjMat:copy(view.projMat)
-		local sceneObj = self.currentVideoMode.blitScreenObj
-		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
 
-		if self.activeMenu then
-			sceneObj.texs[1] = self.videoModes[255].framebufferRAM.tex
+		local sceneObj
+		if bit.band(self.ram.HD2DFlags, bit.bor(
+			ffi.C.HD2DFlags_useHDR,
+			ffi.C.HD2DFlags_useDoF
+		)) ~= 0 then
+			sceneObj = videoModeObj.blitScreenHD2DObj
 		else
-			if sceneObj.texs[4] then
-				-- update the palette bound when drawing the 8bppIndex screen
-				-- which palette to use? first?  extra RAM var to specify?
-				-- how about whatevers selected as the active palette at end of frame?
-				sceneObj.texs[4] = self.blobs.palette[1+self.ram.paletteBlobIndex].ramgpu.tex
-			end
+			sceneObj = videoModeObj.blitScreenObj
 		end
---]]
+		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+		sceneObj.texs[1] = fbTex
 
 		-- draw from framebuffer to screen
 		sceneObj:draw()
+
 		-- [[ and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
 
