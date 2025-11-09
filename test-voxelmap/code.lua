@@ -3,7 +3,8 @@
 --#include numo9/matstack.lua	-- matpush, matpop
 --#include numo9/screen.lua		-- getAspectRatio
 
-mode(0xff)	-- NativexRGB565
+mode(0)		-- 256x256xRGB565
+--mode(0xff)	-- NativexRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
 local HD2DFlags = 0xff & ~4	-- turn off SSAO. meh.

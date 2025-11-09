@@ -3644,6 +3644,10 @@ print()
 			sceneObj.texs[4] = paletteBlob.ramgpu.tex
 		end
 
+		local view = self.blitScreenView
+		view.mvProjMat:setOrtho(0,1,0,1,-1,1)
+		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+
 		local prevTex
 		videoMode.lightAndFBTex.fbo:bind()
 		sceneObj:draw()

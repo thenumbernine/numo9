@@ -2113,6 +2113,7 @@ print('run thread dead')
 			-- TODO this background overlay of the last framebuffer isnt working ...
 			-- [=[
 			-- if we were on 255 then we can't use transparent backdrop cuz the menu wil be using our framebuffer as well
+			-- (... what?)
 			if fbTex ~= self.currentVideoMode.framebufferRAM.tex then
 				local sceneObj = self.currentVideoMode.blitScreenObj
 				-- [[
