@@ -419,7 +419,7 @@ update=||do
 
 	-- this is post-projection transform so good luck with that
 	pokef(ramaddr'dofFocalDist', 8)
-	pokef(ramaddr'dofAperature', .5)
+	pokef(ramaddr'dofAperature', .2)
 
 	--poke(ramaddr'HD2DFlags', 0x80)	-- set DoF
 	--poke(ramaddr'HD2DFlags', 0x40)	-- set HDR
