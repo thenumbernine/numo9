@@ -667,8 +667,14 @@ return;
 		-- how to know when it will and when it wont work?
 		-- welp at least RGBA16F is textureFilterable
 		internalFormat = gl.GL_RGBA16F,
-		magFilter = gl.GL_LINEAR,
+		-- [[ using mipmaps for blurs
+		magFilter = gl.GL_NEAREST,
 		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+		--]]
+		--[[ blur with kernel
+		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_NEAREST,
+		--]]
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
@@ -700,8 +706,14 @@ return;
 		width = self.width,
 		height = self.height,
 		internalFormat = gl.GL_RGBA16F,
-		magFilter = gl.GL_LINEAR,
+		-- [[ using mipmaps for blurs
+		magFilter = gl.GL_NEAREST,
 		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+		--]]
+		--[[ blur with kernel
+		magFilter = gl.GL_NEAREST,
+		minFilter = gl.GL_NEAREST,
+		--]]
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
@@ -818,14 +830,56 @@ uniform float dofAperature;		// rate of going out of focus
 uniform float dofBlurMax;		// max blur / miplevel to use
 
 void main() {
-	vec4 pos = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
+	ivec2 tci = ivec2(gl_FragCoord);
+	vec4 pos = vec4(texelFetch(framebufferPosTex, tci, 0).xyz, 1.);
 	float depth = -dot(drawViewDir, pos);
 	float depthBlurAmount = clamp(
 		dofAperature * (abs(depth - dofFocalDist) - dofFocalRange),
 		0.,
 		dofBlurMax
 	);
+#if 0	//using mipmpas
 	fragColor = texture(prevTex, tcv, depthBlurAmount);
+#elif 1	//using multiple mipmaps
+	vec4 center = texture(prevTex, tcv, depthBlurAmount);
+	fragColor.a = center.a;
+	fragColor.rgb = (
+		center.rgb
+		+ texture(prevTex, tcv, depthBlurAmount + 1.).rgb
+		+ texture(prevTex, tcv, depthBlurAmount + 2.).rgb
+	) / 3.;
+#else	// using blur kernel
+	// https://www.researchgate.net/figure/Discrete-approximation-of-the-Gaussian-kernels-3x3-5x5-7x7_fig2_325768087
+	vec4 center = texelFetch(prevTex, tci, 0);
+	fragColor.a = center.a;
+	fragColor.rgb = (
+		  41. * center.rgb
+		+ 26. * texelFetch(prevTex, tci + ivec2(1,0), 0).rgb
+		+ 26. * texelFetch(prevTex, tci + ivec2(0,1), 0).rgb
+		+ 26. * texelFetch(prevTex, tci + ivec2(-1,0), 0).rgb
+		+ 26. * texelFetch(prevTex, tci + ivec2(0,-1), 0).rgb
+		+ 16. * texelFetch(prevTex, tci + ivec2(1,1), 0).rgb
+		+ 16. * texelFetch(prevTex, tci + ivec2(-1,1), 0).rgb
+		+ 16. * texelFetch(prevTex, tci + ivec2(-1,-1), 0).rgb
+		+ 16. * texelFetch(prevTex, tci + ivec2(1,-1), 0).rgb
+		+ 7. * texelFetch(prevTex, tci + ivec2(2,0), 0).rgb
+		+ 7. * texelFetch(prevTex, tci + ivec2(0,2), 0).rgb
+		+ 7. * texelFetch(prevTex, tci + ivec2(-2,0), 0).rgb
+		+ 7. * texelFetch(prevTex, tci + ivec2(0,-2), 0).rgb
+		+ 4. * texelFetch(prevTex, tci + ivec2(2,1), 0).rgb
+		+ 4. * texelFetch(prevTex, tci + ivec2(1,2), 0).rgb
+		+ 4. * texelFetch(prevTex, tci + ivec2(-1,2), 0).rgb
+		+ 4. * texelFetch(prevTex, tci + ivec2(-2,1), 0).rgb
+		+ 4. * texelFetch(prevTex, tci + ivec2(-2,-1), 0).rgb
+		+ 4. * texelFetch(prevTex, tci + ivec2(-1,-2), 0).rgb
+		+ 4. * texelFetch(prevTex, tci + ivec2(1,-2), 0).rgb
+		+ 4. * texelFetch(prevTex, tci + ivec2(-2,1), 0).rgb
+		+      texelFetch(prevTex, tci + ivec2(2,2), 0).rgb
+		+      texelFetch(prevTex, tci + ivec2(-2,2), 0).rgb
+		+      texelFetch(prevTex, tci + ivec2(-2,-2), 0).rgb
+		+      texelFetch(prevTex, tci + ivec2(2,-2), 0).rgb
+	) / 273.;
+#endif
 }
 ]],			{
 				videoMode = self,

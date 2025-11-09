@@ -1274,7 +1274,7 @@ function AppVideo:resetVideo()
 	self.ram.dofAperature = .2
 	self.ram.dofFocalRange = 1
 	self.ram.dofBlurMax = 2
-	
+
 	self.ram.spriteNormalExhaggeration = 8
 	self:onSpriteNormalExhaggerationChange()
 
@@ -1328,7 +1328,7 @@ function AppVideo:setVideoMode(modeIndex)
 	-- have the framebuffer to flush GPU to CPU
 	-- only if dirtyGPU is set
 	-- should we set dirtyGPU upon draw call or upon triBuf_flush?
-	if oldVideoMode 
+	if oldVideoMode
 	and oldVideoMode.framebufferRAM
 	then
 		oldVideoMode.framebufferRAM:checkDirtyGPU()
@@ -1353,7 +1353,7 @@ function AppVideo:setVideoMode(modeIndex)
 	end
 	--]]
 	-- [[ bind-if-necessary, update color attachment, unbind-if-necessary
-	if not self.inUpdateCallback 
+	if not self.inUpdateCallback
 	then
 		newVideoMode.fb:bind()
 	end
@@ -3629,7 +3629,7 @@ print()
 		ffi.C.HD2DFlags_useHDR,
 		ffi.C.HD2DFlags_useDoF
 	)) ~= 0 then
-		-- HDR and DOF both need mipmaps, 
+		-- HDR and DOF both need mipmaps,
 		-- so they can't accept our indexed color,
 		-- so I have to combine and mipmap here.
 
@@ -3655,40 +3655,48 @@ print()
 		sceneObj:draw()
 		videoMode.lightAndFBTex.fbo:unbind()
 		prevTex = videoMode.lightAndFBTex:cur()
-		prevTex
-			:bind()
-			:generateMipmap()
-			:unbind()
-	
+
 		-- TODO
 		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+			prevTex
+				:bind()
+				--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
+				:generateMipmap()
+				:unbind()
+
 			videoMode.hdrTex.fbo:bind()
 			videoMode.hdrBlitObj.texs[1] = prevTex
 			videoMode.hdrBlitObj:draw()
 			videoMode.hdrTex.fbo:unbind()
 			prevTex = videoMode.hdrTex:cur()
+		--[[
+		else
 			prevTex
 				:bind()
-				:generateMipmap()
+				:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
 				:unbind()
+		--]]
 		end
 
 		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+			-- [[ dont use mipmaps with DoF, use a blur kernel instead
+			prevTex
+				:bind()
+				--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
+				:generateMipmap()
+				:unbind()
+			--]]
 			local fbo = videoMode.dofTex.fbo
 			fbo:bind()
 			local sceneObj = videoMode.dofBlitObj
 			local texs = sceneObj.texs
 			texs[1] = prevTex
 			texs[2] = videoMode.framebufferPosTex
-			--[[
-			sceneObj:draw()
-			--]]
-			-- [[
 			for i,tex in ipairs(texs) do
 				tex:bind(i-1)
 			end
 			local program = sceneObj.program
-			program:use()		
+			program:use()
 			if program.uniforms.dofFocalDist then
 				gl.glUniform1f(
 					program.uniforms.dofFocalDist.loc,
@@ -3712,7 +3720,7 @@ print()
 					program.uniforms.dofBlurMax.loc,
 					self.ram.dofBlurMax
 				)
-			end		
+			end
 			if program.uniforms.drawViewDir then
 				gl.glUniform4f(
 					program.uniforms.drawViewDir.loc,
@@ -3728,7 +3736,6 @@ print()
 			for i=#texs,1,-1 do
 				texs[i]:unbind(i-1)
 			end
-			--]]
 			fbo:unbind()
 		end
 	end
