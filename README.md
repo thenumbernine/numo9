@@ -164,8 +164,10 @@ If you want to v-flip, h-flip and rotate twice, so use 0b101.
 Tilemaps can render 8x8 or 16x16 sprites.  This can be specified in the `tilemap()` or `drawbrush()` functions.
 
 The tilemap editor can make use of autotiling if the `numo9_autotile` global is defined.
-`numo9_autotile` should point to a table of functions.
-Functions accept `(x,y)` and will write to the tile and its neighbors using `tget/tset` or `peekw/pokew` .
+`numo9_autotile` should point to a table.  Its entries should have a `paint` and `change` fields defined as functions.
+The `paint` function will accept `(autotile, tilemap, x, y)` and will return a tile to set at this particular tile, where `(x,y)` are decimal values (to support painting tiles one corner at a time).
+The `change` function will accept `(autotile, tilemap, x, y)` and will read neighbors using `tget/tset` or `peekw/pokew` and return an appropriate tile to match its neighbors, where `(x,y)` are integers.
+For more on this, and some helper functions and classes, see `include/numo9/autotile.lua`.
 
 ### code
 

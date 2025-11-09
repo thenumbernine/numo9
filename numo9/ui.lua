@@ -560,12 +560,12 @@ end
 local function toint(x)
 	return ffi.cast(int32_t, x)	-- use int32 so Lua has no problem with it
 end
-function UI:edit_mset(x, y, value, tilemapBlobIndex)
+function UI:edit_tset(tilemapBlobIndex, x, y, value)
+	local app = self.app
+	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
 	x = toint(x)
 	y = toint(y)
-	local app = self.app
-	value = ffi.cast(uint32_t, value)
-
+	value = ffi.cast(uint16_t, value)
 	if not (x >= 0 and x < tilemapSize.x
 		and y >= 0 and y < tilemapSize.y
 		and tilemapBlobIndex >= 0 and tilemapBlobIndex < #app.blobs.tilemap
@@ -574,7 +574,6 @@ function UI:edit_mset(x, y, value, tilemapBlobIndex)
 		return
 	end
 
-	value = ffi.cast(uint32_t, value)
 	local addr = app.blobs.tilemap[tilemapBlobIndex+1].addr
 		+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 

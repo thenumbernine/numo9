@@ -23,6 +23,8 @@ local clipMax = numo9_rom.clipMax
 local uint8_t = ffi.typeof'uint8_t'
 
 
+local epsilon = 1e-7
+
 -- used by fill
 local dirs = {
 	{0,-1},
@@ -69,6 +71,8 @@ function EditTilemap:onCartLoad()
 	self.autotileSel = nil			-- index into `numo9_autotile` array
 
 	-- and this is for copy paste in the tilemap
+	self.tileSelDownFrac = vec2d()
+	self.tileSelUpFrac = vec2d()
 	self.tileSelDown = vec2i()
 	self.tileSelUp = vec2i()
 	self.selPalHiOffset = 0
@@ -294,9 +298,9 @@ function EditTilemap:update()
 			(cx - mapX) / (bit.lshift(spriteSize.x, draw16As0or1) * self.scale) + self.tilemapPanOffset.x / bit.lshift(spriteSize.x, draw16As0or1),
 			(cy - mapY) / (bit.lshift(spriteSize.y, draw16As0or1) * self.scale) + self.tilemapPanOffset.y / bit.lshift(spriteSize.y, draw16As0or1)
 	end
-	local tx, ty = fbToTileCoord(mouseX, mouseY)
-	tx = math.floor(tx)
-	ty = math.floor(ty)
+	local txf, tyf = fbToTileCoord(mouseX, mouseY)
+	local tx = math.floor(txf)
+	local ty = math.floor(tyf)
 
 	-- while we're here, draw over the selected tile
 	if tx >= 0 and tx < tilemapSize.x
@@ -339,7 +343,7 @@ function EditTilemap:update()
 		)
 
 		if gameEnv.numo9_autotile then
-			local selx, sely = self.tileSelDown:unpack()
+			local selx, sely = self.tileSelDownFrac:unpack()
 			for autotileIndex,autotile in ipairs(gameEnv.numo9_autotile) do
 				local pw, ph = 32, 32
 				local px = winX + (pw + 16) * ((autotileIndex - 1) % 4)
@@ -357,8 +361,8 @@ function EditTilemap:update()
 				-- show a rect around what the current selected tile would be like if it was painted with this autotile brush
 				local r = self.penSize - 1 + 2 * self.autotilePreviewBorder
 				app:drawTileMap(
-					selx - self.autotilePreviewBorder,		-- upper-left index in the tile tex
-					sely - self.autotilePreviewBorder,
+					math.floor(selx) - self.autotilePreviewBorder,		-- upper-left index in the tile tex
+					math.floor(sely) - self.autotilePreviewBorder,
 					r,		-- tiles wide
 					r,		-- tiles high
 					px,		-- pixel x
@@ -376,16 +380,12 @@ function EditTilemap:update()
 				for dx=-1,1 do
 					for dy=-1,1 do
 				--]]
-						-- then draw
-						-- TODO at the moment autotile writes in place
-						-- so preview is tough to consider
-						-- but if we had it return written content
-						-- then I'd need it to return a region of tile values equal to the pen radius ...
-						-- and the autotiles themselves operate on tget/tset/peek/poke so ...
-						-- how to preview at all ...
-						-- how to do this ...
-						local tile = autotile(selx, sely, dx, dy, self.tilemapBlobIndex)
+						-- autotile needs a function for returning an autotiling when you mousepress on a decimal location (to allow corner precision)
+						local tile = autotile
+							and autotile.paint
+							and autotile:paint(self.tilemapBlobIndex, selx, sely)
 						if tile then
+							-- TODO how about a 'drawTile' function like we have 'drawvoxel' to go with 'voxelmap'
 							app:drawSprite(
 								bit.bor(
 									bit.band(tile, 0x3ff),
@@ -471,7 +471,7 @@ function EditTilemap:update()
 			)
 
 			self.undo:pushContinuous()
-			self:edit_mset(tx, ty, tileSelIndex, self.tilemapBlobIndex)
+			self:edit_tset(self.tilemapBlobIndex, tx, ty, tileSelIndex)
 		end
 
 		-- TODO pen size here
@@ -517,22 +517,39 @@ function EditTilemap:update()
 				elseif self.tileOrAutotile == 'autotile' then
 					local r = self.penSize
 					local l = math.floor((r-1)/2)
-					local f = gameEnv and gameEnv.numo9_autotile[self.autotileSel]
-					if f then
+					local autotile = gameEnv and gameEnv.numo9_autotile[self.autotileSel]
+					if autotile
+					and autotile.paint
+					then
 						self.undo:pushContinuous()
+						local tile = autotile:paint(self.tilemapBlobIndex, txf, tyf)
+						if tile then
+							self:edit_tset(self.tilemapBlobIndex, tx, ty, tile)
+						end
 						--[[
 						for dy=-l,-l+r-1 do
 							for dx=-l,-l+r-1 do
-								f(tx, ty, dx, dy, self.tilemapBlobIndex)
+								autotile(tx, ty, dx, dy, self.tilemapBlobIndex)
 							end
 						end
 						--]]
 						-- [[
-						for dy=-1,1 do
-							for dx=-1,1 do
-								local tile = f(tx, ty, dx, dy, self.tilemapBlobIndex)
+						if autotile.change then
+							for _,ofs in ipairs{
+								{1,0},
+								{0,1},
+								{-1,0},
+								{0,-1},
+								{1,1},
+								{-1,1},
+								{-1,-1},
+								{1,-1},
+								-- more?
+							} do
+								local dx, dy = table.unpack(ofs)
+								local tile = autotile:change(self.tilemapBlobIndex, tx + dx, ty + dy)
 								if tile then
-									self:edit_mset(tx + dx, ty + dy, tile, self.tilemapBlobIndex)
+									self:edit_tset(self.tilemapBlobIndex, tx + dx, ty + dy, tile)
 								end
 							end
 						end
@@ -583,9 +600,12 @@ function EditTilemap:update()
 			end
 		elseif self.drawMode == 'select' then
 			if leftButtonPress then
-				self.tileSelDown:set(tx, ty)
-				self.tileSelDown.x = math.clamp(self.tileSelDown.x, 0, tilemapSize.x-1)
-				self.tileSelDown.y = math.clamp(self.tileSelDown.y, 0, tilemapSize.x-1)
+				self.tileSelDownFrac:set(txf, tyf)
+				self.tileSelDownFrac.x = math.clamp(self.tileSelDownFrac.x, 0, tilemapSize.x-epsilon)
+				self.tileSelDownFrac.y = math.clamp(self.tileSelDownFrac.y, 0, tilemapSize.y-epsilon)
+				self.tileSelDown.x = math.floor(self.tileSelDownFrac.x)
+				self.tileSelDown.y = math.floor(self.tileSelDownFrac.y)
+				self.tileSelUpFrac:set(self.tileSelDownFrac:unpack())
 				self.tileSelUp:set(self.tileSelDown:unpack())
 			elseif leftButtonDown then
 				self.tileSelUp:set(tx, ty)
@@ -637,7 +657,7 @@ function EditTilemap:update()
 				assert.eq(tilemapRAM.image.channels, 1)
 				for j=sely,sely+selh-1 do
 					for i=selx,selx+selw-1 do
-						self:edit_mset(i, j, 0, self.tilemapBlobIndex)
+						self:edit_tset(self.tilemapBlobIndex, i, j, 0)
 					end
 				end
 			end
@@ -664,7 +684,7 @@ function EditTilemap:update()
 								c = bit.lshift(c, 8)
 								c = bit.bor(c, image.buffer[ch + image.channels * (i + image.width * j)])
 							end
-							self:edit_mset(destx, desty, c, self.tilemapBlobIndex)
+							self:edit_tset(self.tilemapBlobIndex, destx, desty, c)
 						end
 					end
 				end
