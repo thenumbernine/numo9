@@ -1105,8 +1105,11 @@ voxelmap editor fixes:
 
 - Should I also allow signed pokes/peeks?  pokesb, pokesw, pokesl?
 
+- There's a bug when you switch video modes from non-255 to 255 while using DOF or HDR effects
+
 BUGS/FIXES SINCE 1.2.2:
 - Fixed bug where undo-then-save wasn't flushing to cart memory correctly.
 - Fixed langfix bug where `f?()` and `f!()` couldn't be used as statmements.  Updated some cart scripts accordingly.
 - Renamed mget/mset to `tget/tset` and put the tilemap blob index first to match `vget/vset`.
 - Fixed up autotile API and added `include/numo9/autotile.lua`.
+- Added DOF and HDR passes. 

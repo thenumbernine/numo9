@@ -743,12 +743,12 @@ void main() {
 	//color.rgb / (color.rgb + 0.155) * 1.019;
 
 	fragColor.a = color.a;
-	fragColor.rgb = (
+	fragColor.rgb = 
 		color.rgb
 		+ texture(prevTex, tcv, 1.).rgb * max(vec3(0., 0., 0.), color.rgb - 1.)
 		+ texture(prevTex, tcv, 2.).rgb * max(vec3(0., 0., 0.), color.rgb - 1.25)
 		+ texture(prevTex, tcv, 3.).rgb * max(vec3(0., 0., 0.), color.rgb - 1.375)
-	) / 4.;
+	;
 }
 ]],			{
 				videoMode = self,
