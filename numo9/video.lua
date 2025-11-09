@@ -693,7 +693,6 @@ assert(self.videoModes[255])
 
 
 	self:resetVideo()
-
 end
 
 function AppVideo:triBuf_flush()
@@ -1271,6 +1270,9 @@ function AppVideo:resetVideo()
 	self.ram.ssaoSampleRadius = 1
 	self.ram.ssaoInfluence = 1
 
+	self.ram.dofFocalDist = 0
+	self.ram.dofAperature = 1
+	
 	self.ram.spriteNormalExhaggeration = 8
 	self:onSpriteNormalExhaggerationChange()
 
@@ -3459,7 +3461,9 @@ print()
 			self.ram.ssaoInfluence)
 	end
 
+	local drawViewInvMatCalcd
 	if program.uniforms.drawViewPos then
+		drawViewInvMatCalcd = true
 		self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
 		gl.glUniform3fv(
 			program.uniforms.drawViewPos.loc,
@@ -3494,10 +3498,7 @@ print()
 
 	if program.uniforms.lightAmbientColor then
 		gl.glUniform3fv(
-			gl.glGetUniformLocation(
-				program.id,
-				'lightAmbientColor'
-			),
+			program.uniforms.lightAmbientColor.loc,
 			1,	-- count
 			self.ram.lightAmbientColor
 		)
@@ -3608,9 +3609,7 @@ print()
 
 	sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
-
 	program:useNone()
-
 	for i=#texs,1,-1 do
 		texs[i]:unbind(i-1)
 	end
@@ -3669,11 +3668,50 @@ print()
 		end
 
 		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
-			videoMode.dofTex.fbo:bind()
-			videoMode.dofBlitObj.texs[1] = prevTex
-			videoMode.dofBlitObj.texs[2] = videoMode.framebufferPosTex
-			videoMode.dofBlitObj:draw()
-			videoMode.dofTex.fbo:unbind()
+			local fbo = videoMode.dofTex.fbo
+			fbo:bind()
+			local sceneObj = videoMode.dofBlitObj
+			local texs = sceneObj.texs
+			texs[1] = prevTex
+			texs[2] = videoMode.framebufferPosTex
+			--[[
+			sceneObj:draw()
+			--]]
+			-- [[
+			for i,tex in ipairs(texs) do
+				tex:bind(i-1)
+			end
+			local program = sceneObj.program
+			program:use()		
+			if program.uniforms.dofFocalDist then
+				gl.glUniform1f(
+					program.uniforms.dofFocalDist.loc,
+					self.ram.dofFocalDist
+				)
+			end
+			if program.uniforms.dofAperature then
+				gl.glUniform1f(
+					program.uniforms.dofAperature.loc,
+					self.ram.dofAperature
+				)
+			end
+			if program.uniforms.drawViewDir then
+				gl.glUniform4f(
+					program.uniforms.drawViewDir.loc,
+					self.drawViewMatForLighting.ptr[2],
+					self.drawViewMatForLighting.ptr[6],
+					self.drawViewMatForLighting.ptr[10],
+					self.drawViewMatForLighting.ptr[14]
+				)
+			end
+			sceneObj:enableAndSetAttrs()
+			sceneObj.geometry:draw()
+			program:useNone()
+			for i=#texs,1,-1 do
+				texs[i]:unbind(i-1)
+			end
+			--]]
+			fbo:unbind()
 		end
 	end
 end

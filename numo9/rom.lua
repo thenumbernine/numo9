@@ -472,8 +472,8 @@ local RAM = struct{
 				{name='lights', type='Light['..maxLights..']'},
 
 				-- depth-of-field ...
-				{name='depthOfFieldPos', type=float_3},
-				{name='depthOfFieldAtten', type=float_3},
+				{name='dofFocalDist', type=float},
+				{name='dofAperature', type=float},
 
 				-- SSAO ...
 				{name='ssaoSampleRadius', type=float},

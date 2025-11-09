@@ -804,28 +804,23 @@ precision highp sampler2D;
 in vec2 tcv;
 layout(location=0) out vec4 fragColor;
 
+uniform mat4 viewMat;
+
 // prevTex is either lightAndFBTex if HDR is disabled,
 //  or hdrTex if HDR is enabled
 uniform <?=videoMode.hdrTex:cur():getGLSLSamplerType()?> prevTex;
-
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 
-uniform vec3 depthOfFieldPos;	//xyz = worldspace pos
-uniform vec3 depthOfFieldAtten;	//xyz = const, linear, quadratic distance attenuation
-
-// TODO.  for now its all just radial because that doesnt take the view
-// maybe later instead of view, i'll just blur using clip depth (stored in the framebufferNormalTex.a I think)
-// true = blur by distance from depthOfFieldPos
-// false = blur by distance along view from depthOfFieldPos
-//uniform bool radial;
+uniform vec4 drawViewDir;	// the dest-z row of the drawViewMat
+uniform float dofFocalDist;	//in clip space, compared to framebufferPosTex.w
+uniform float dofAperature;	//scalar of how much to increase over distance
 
 void main() {
-	vec3 delta = texture(framebufferPosTex, tcv).rgb - depthOfFieldPos;
-	float dist = length(delta);	
-	float depthBlurAmount = 1. / (depthOfFieldAtten.x + dist * (depthOfFieldAtten.y + dist * depthOfFieldAtten.z));
-
-	fragColor.rgb = texture(prevTex, tcv, depthBlurAmount).rgb;
-	fragColor.a = texture(prevTex, tcv, 0.).a;
+	vec4 pos = vec4(texture(framebufferPosTex, tcv).xyz, 1.);
+	float depth = -dot(drawViewDir, pos);
+	float depthBlurAmount = abs(depth - dofFocalDist) * dofAperature;
+	depthBlurAmount = max(depthBlurAmount, 0.);
+	fragColor = texture(prevTex, tcv, depthBlurAmount);
 }
 ]],			{
 				videoMode = self,
@@ -833,8 +828,6 @@ void main() {
 			uniforms = {
 				prevTex = 0,
 				framebufferPosTex = 1,
-				depthOfFieldPos = {0,0,0},
-				depthOfFieldAtten = {0,0,1},
 			},
 		},
 		texs = {

@@ -413,8 +413,12 @@ update=||do
 	matident(2)
 	local textwidth = 32 * 8
 	matortho(0, textwidth, textwidth * height / width, 0)
-	text(tostring('coins x '..playerCoins), 0, 0, 220, 219)
+	text(tostring('Cx '..playerCoins), 0, 0, 220, 219)
 	--]]
+
+	-- this is post-projection transform so good luck with that
+	pokef(ramaddr'dofFocalDist', 8)
+	pokef(ramaddr'dofAperature', .5)
 
 	poke(ramaddr'HD2DFlags', 0x80)	-- set DoF
 	--poke(ramaddr'HD2DFlags', 0x40)	-- set HDR
