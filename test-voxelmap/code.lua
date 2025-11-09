@@ -386,7 +386,7 @@ end
 
 update=||do
 	poke(ramaddr'HD2DFlags', HD2DFlags)
-	cls(10)
+	cls(33)
 
 	local width, height = getScreenSize()
 	view:update(width, height, player)
@@ -412,6 +412,6 @@ update=||do
 	matident(2)
 	local textwidth = 32 * 8
 	matortho(0, textwidth, textwidth * height / width, 0)
-	text(tostring('coins x '..playerCoins), 0, 0, 12)
+	text(tostring('coins x '..playerCoins), 0, 0, 220, 219)
 	--]]
 end

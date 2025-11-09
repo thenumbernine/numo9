@@ -319,16 +319,12 @@ elseif cmd == 'p8' or cmd == 'p8run' then
 
 	--[[
 	pico8 conversion needs ...
-	- palette stuff isn't 100%, esp transparency.
-		pico8 expects an indexed-color framebuffer.
-		I went with no-framebuffer / simulated-rgba-for-blending-output framebuffer, which means no indexed colors,
-		which means no changing paletted colors after-the-fact.
-		I could recreate a framebuffer with the extra tilemap, and then implement my own map and spr functions in the pico glue code...
 	- memcpy and reload rely on two copies of the ROM being addressable:
 		one as RW and one as RO mem.  I haven't got this just yet, I only have the one copy in RAM accessible at a time apart from my load() function.
-	- audio anything
 	- players > 1
 	- menu system
+	- text stuff
+	- proper pico8-lua language parser
 	--]]
 
 	local p8path = path(fn)
@@ -500,27 +496,7 @@ print('toImage', name, 'width', width, 'height', height)
 		{0x83, 0x76, 0x9C, 0xFF},
 		{0xFF, 0x77, 0xA8, 0xFF},
 		{0xFF, 0xCC, 0xAA, 0xFF},
-	}:rep(15)
-	-- but then add the system palette at the end for the editor, so pico8's games don't mess with the editor's palette
-	-- yes you can do that in numo9, i'm tryin to make it more like a real emulator where nothing is sacred
-	:append{
-		{0x00, 0x00, 0x00, 0x00},
-		{0x56, 0x2b, 0x5a, 0xff},
-		{0xa4, 0x46, 0x54, 0xff},
-		{0xe0, 0x82, 0x60, 0xff},
-		{0xf7, 0xce, 0x82, 0xff},
-		{0xb7, 0xed, 0x80, 0xff},
-		{0x60, 0xb4, 0x6c, 0xff},
-		{0x3b, 0x70, 0x78, 0xff},
-		{0x2b, 0x37, 0x6b, 0xff},
-		{0x41, 0x5f, 0xc2, 0xff},
-		{0x5c, 0xa5, 0xef, 0xff},
-		{0x93, 0xec, 0xf5, 0xff},
-		{0xf4, 0xf4, 0xf4, 0xff},
-		{0x99, 0xaf, 0xc0, 0xff},
-		{0x5a, 0x6c, 0x84, 0xff},
-		{0x34, 0x3c, 0x55, 0xff},
-	}, 16*16)
+	}:rep(16), 16*16)
 	savePal(palette, basepath'palette.png')
 
 	local gfxImg = toImage(move(sections, 'gfx'), false, 'gfx')

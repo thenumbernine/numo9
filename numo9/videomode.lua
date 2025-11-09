@@ -323,8 +323,6 @@ function VideoMode:buildFramebuffers()
 		width = self.width,
 		height = self.height,
 		internalFormat = gl.GL_RGBA32F,
-		format = gl.GL_RGBA,
-		type = gl.GL_FLOAT,
 		minFilter = gl.GL_NEAREST,
 		magFilter = gl.GL_LINEAR,
 		wrap = {
@@ -346,7 +344,6 @@ function VideoMode:buildFramebuffers()
 		:unbind()
 --]]
 
-
 -- [[ more deferred lighting
 	-- do this after resetting video so that we have a videoMode object
 	self.calcLightBlitObj = GLSceneObject{
@@ -355,14 +352,10 @@ function VideoMode:buildFramebuffers()
 			precision = 'best',
 			vertexCode = [[
 layout(location=0) in vec2 vertex;
-
 out vec2 tcv;
-
 void main() {
 	tcv = vertex;
-	gl_Position = vec4(
-		vertex.xy * 2. - 1.,
-		0., 1.);
+	gl_Position = vec4(vertex.xy * 2. - 1., 0., 1.);
 }
 ]],
 			fragmentCode = template([[
@@ -653,6 +646,99 @@ return;
 	}
 	--]]
 
+
+	-- ok TODO 
+	-- before we'd combine deferred-lighting buf + framebuffer and apply directly to output
+	-- but now we ...
+	-- (1) need to input that into hdrTex
+	-- (2) can't use framebuffer cuz it doesnt have mipmapping or filterable textures
+	-- so we need a new texture here to combine calcLightPP:cur() + framebufferTex
+	-- ... should I build it with calcLight stuff and combine once there and then with non-hdr just render that one in the final pass?
+	-- or would that be a waste / slow?
+	self.lightAndFBTex = GLPingPong{
+		numBuffers = 1,	-- just for the fbo + tex
+		width = self.width,
+		height = self.height,
+		internalFormat = gl.GL_RGBA32F,
+		minFilter = gl.GL_NEAREST,
+		magFilter = gl.GL_LINEAR,
+		wrap = {
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},
+	}
+	self.lightAndFBTex.fbo
+		:bind()
+		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:setColorAttachmentTex2D(self.lightAndFBTex:cur().id)
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	self.lightAndFBTex.fbo
+		:unbind()
+	-- TODO blit here to combine calcLightPP and framebufferTex into lightAndFBTex
+	-- hmm, it is going to vary depending on video mode
+	-- can I just use blitScreenObj? why not?
+
+
+	-- now same as lights but for ... which order ...
+	-- HDR then DoF?  or DoF then HDR?
+	-- HDR first means more light affecting neighbor pixels before blurring neighbors
+	-- DoF first means blurring light value, possibly decreasing it, before applying HDR glow ...
+	-- HDR first?
+	self.hdrTex = GLPingPong{
+		numBuffers = 1,	-- just for the fbo + tex
+		width = self.width,
+		height = self.height,
+		internalFormat = gl.GL_RGBA32F,
+		magFilter = gl.GL_LINEAR,
+		minFilter = gl.GL_LINEAR_MIPMAP_LINEAR,
+		wrap = {
+			s = gl.GL_CLAMP_TO_EDGE,
+			t = gl.GL_CLAMP_TO_EDGE,
+		},	
+	}
+	self.hdrTex.fbo
+		:bind()
+		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:setColorAttachmentTex2D(self.hdrTex:cur().id)
+	gl.glClearColor(1,1,1,1)
+	gl.glClear(bit.bor(gl.GL_DEPTH_BUFFER_BIT, gl.GL_COLOR_BUFFER_BIT))
+	self.hdrTex.fbo
+		:unbind()
+
+	-- ... and this is gonna write out to screen, when HDR is being used:
+	-- TODO pre pass, generateMipmaps on lightAndFBTex
+	self.hdrBlitObj = GLSceneObject{
+		program = {
+			version = app.glslVersion,
+			precision = 'best',
+			vertexCode = [[
+layout(location=0) in vec2 vertex;
+out vec2 tcv;
+void main() {
+	tcv = vertex;
+	gl_Position = vec4(vertex.xy * 2. - 1., 0., 1.);
+}
+]],
+			fragmentCode = template([[
+precision highp sampler2D;
+in vec2 tcv;
+layout(location=0) out vec4 fragColor;
+uniform <?=self.hdrTex:cur():getGLSLSamplerType()?> lightAndFBTex;
+
+void main() {
+	fragColor = (
+		  texture(lightAndFBTex, tcv, 0)
+		+ texture(lightAndFBTex, tcv, 1)
+		+ texture(lightAndFBTex, tcv, 2)
+		+ texture(lightAndFBTex, tcv, 3)
+	) / 4.;
+}
+]],			{
+				self = self,
+			}),
+		},
+	}
 
 	if app.inUpdateCallback then
 		app.currentVideoMode.fb:bind()

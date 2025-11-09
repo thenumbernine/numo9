@@ -940,6 +940,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 					image = image:rgba()
 					assert.eq(image.channels, 4, "image channels")
 
+					-- TODO move this into image next to toIndexed, or Quantize
 					if self.pasteKeepsPalette then
 						local image1ch = Image(image.width, image.height, 1, uint8_t)
 						local srcp = image.buffer
@@ -977,8 +978,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 						end
 						image = image1ch
 					else
-						image1ch = image:toIndexed()
-
+						image = image:toIndexed()
 						for i,color in ipairs(image.palette) do
 							self:edit_pokew(
 								paletteRAM.addr + bit.lshift(bit.band(0xff, i-1 + self.paletteOffset), 1),
@@ -986,7 +986,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 									color[1],
 									color[2],
 									color[3],
-									0xff	-- ?
+									color[4] or 0xff
 								)
 							)
 						end
