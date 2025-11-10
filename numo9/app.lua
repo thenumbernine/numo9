@@ -1729,14 +1729,10 @@ function App:update()
 	if not self.hasFocus then
 		-- only pause-on-lost-focus if we're not in multiplayer
 		if not self.server and not self.remoteClient then
-			sdl.SDL_Delay(100)
+			sdl.SDL_Delay(1000)
 			return
 		end
 	end
-
-	-- alright so how to keep the cpu from using 100% but keep the framerate high?
-	-- impossible?
-	sdl.SDL_Delay(1)
 
 	-- will this hurt performance?
 	if self.activeMenu then
