@@ -164,6 +164,8 @@ function Chunk:init(args)
 	self.billboardXYZVoxels = vector(vec3i)	-- type 20
 	self.billboardXYVoxels = vector(vec3i)	-- type 21
 
+	-- oh yeah, archive uses this class, maybe I don't want to build the GLArrayBuffer in the ctor after all?
+	-- but I think same argument for the blob/image classes, so meh leave it here.
 	self.vertexBufGPU = GLArrayBuffer{
 		size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
 		count = self.vertexBufCPU.capacity,
@@ -891,16 +893,15 @@ end
 
 function BlobVoxelMap:drawMesh(app)
 	local sceneObj = app.triBuf_sceneObj
-	sceneObj.program:use()
+	sceneObj.program:use()	-- wait, is it already bound?
+
 	for i=0,self.chunkVolume-1 do
 		self.chunks[i]:drawMesh(app)
 	end
 
 	-- rebind the old VAO
-	--sceneObj.vao:bind()
+	sceneObj.vao:bind()
 assert(glreport'here')
-
-
 end
 
 return BlobVoxelMap
