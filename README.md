@@ -339,18 +339,22 @@ There are a few matrix functions that you can use to manipulate the render state
 There's one master switch.
 You have to set `HD2DFlags` to nonzero to turn on lighting effects.
 It is currently a bitflag:
-- 1 = apply lighting to surface.  disable for solid-color.
-- 2 = cast shadows on other geometry
-- 4 = use SSAO
-- 8 = use bump-mapping, calculated from deviation in tile colors converted to greyscale.  disable to use solid surface normals.
-- 0x10 = occlude based on lightmap / realtime shadows.
-- 0x20 = perform lightmap, ambient, diffuse, specular lighting calculations
+- 1 = Apply lighting to surface.  Disable for solid-color.
+- 2 = Cast shadows on other geometry.
+- 4 = Use SSAO.
+- 8 = Use bump-mapping, calculated from deviation in tile colors converted to greyscale.  disable to use solid surface normals.
+- 0x10 = Occlude based on lightmap / realtime shadows.
+- 0x20 = Perform lightmap, ambient, diffuse, specular lighting calculations.
+- 0x40 = Apply a high-dynamic-range bloom.  Set this while rendering any geometry you want to apply HDR bloom to, and set this upon frame end to tell the renderer to apply the post-processing HDR pass.
+- 0x80 = Apply a depth-of-field blur.  Set this while rendering any geometry you want to apply depth-of-field-blur to, and set this upon frame end to tell the renderer to apply the post-processing DoF pass.
 
 There are some SSAO variables in RAM.  Tweak to your heart's content.  `ssaoSampleRadius` is in world coordinates.
 
 There's lights/lightmaps variables in RAM too.  You can peek the uber-lightmap size,
 and you can poke to set the number of lightmaps and their properties (like where in the uber-lightmap the light subregion goes).
 I have a big enough one enabled by default, but of course world coordinates vary per game so you'll probably have to tweak it.
+
+There's some DoF variables in RAM too.
 
 Don't change your view or projection matrix between illuminated render calls!
 The first scene render view and projection matrix at the time that `HD2DFlags` is set will be recorded.  This will be used for lighting in the final calculation pass.
@@ -376,12 +380,6 @@ You must set the RAM variable `numLights` to the number of lights you want the f
 Then, among those in the `lights`, array you must set each light's `enabled` to 1.
 This way the fantasy console "lighting hardware" only needs to iterate over a minimum necessary number of lights,
 while still allowing you to turn lights on or off by toggling their `enabled` field without repositioning them in the array every time they are used.
-
-It will change soon I'm sure.  Angle attenutation TODO.  I'll probably get rid of ambient. I'll convert everything to floats for shader-struct support.
-
-Depth of field is half implemented and broken.  It needs an extra framebuffer pass when enabled.  I haven't added this yet.
-
-HDR coming soon.
 
 ## Memory Layout
 
