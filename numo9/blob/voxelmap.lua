@@ -173,8 +173,8 @@ function Chunk:init(args)
 		usage = gl.GL_DYNAMIC_DRAW,
 	}
 	:bind()
-print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
-print('chunk', self.chunkPos, 'vertexBufGPU init GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
+--DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
+--DEBUG:print('chunk', self.chunkPos, 'vertexBufGPU init GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 	self.vertexBufGPU:unbind()
 
 	-- says the mesh needs to be rebuilt
