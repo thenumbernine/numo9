@@ -102,10 +102,10 @@ When archiving, multiple blobs of any type can be added to the cart via the arch
 
 Archiver filenames per blobs as as follows:
 
-| blob type | filename      | unarchived file format description           |
+| blob type | filename      | unarchived file format                       |
 |-----------|---------------|----------------------------------------------|
 | sheet     | sheet.png     | 256 x 256 x 8bpp-indexed                     |
-| tilemap   | tilemap.png   | 256 x 256 x rgb 8bpp (only 16bpp used)       |
+| tilemap   | tilemap.png   | 256 x 256 x RGB 8bpp (only 16bpp used)       |
 | font      | font.png      | 256 x 4 x 1bpp-indexed                       |
 | sfx       | sfx.wav       | 32khz int16 mono                             |
 | music     | music.bin     | 16bpp delta-compresesd custom tracker format |
@@ -115,7 +115,7 @@ Archiver filenames per blobs as as follows:
 | brushmap  | brushmap.bin  | custom format                                |
 | mesh3d    | mesh3d.obj    | wavefront .obj                               |
 | voxelmap  | voxelmap.vox  | custom format                                |
-| animsheet | animsheet.png | 1024 x 1 x rgb 8bpp (only 16bpp used)        |
+| animsheet | animsheet.png | 1024 x 1 x RGB 8bpp (only 16bpp used)        |
 
 ## Blob Types:
 
@@ -1081,9 +1081,10 @@ voxelmap editor fixes:
 - also 'text()' should have a font blob index.
 
 - sheet editor
-	- need to discern between paste rgba and paste 8bpp
+	- need to discern between paste RGBA and paste 8bpp
 		- paste with transparency still glitches/fails
 		- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
+		- why not just port the clip library to luajit ...
 	- sheet bucket fill undo still leaves one pixel remaining.
 		- is this from `undoContinuous()` being by timestamp?
 
