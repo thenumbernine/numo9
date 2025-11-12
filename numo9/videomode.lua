@@ -747,8 +747,16 @@ precision highp sampler2D;
 in vec2 tcv;
 layout(location=0) out vec4 fragColor;
 uniform <?=videoMode.lightAndFBTex:cur():getGLSLSamplerType()?> prevTex;
+uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
 void main() {
+	vec4 worldNormal = texture(framebufferNormalTex, tcv, 0);
+	int HD2DFlags = int(worldNormal.w);
+	if ((HD2DFlags & <?=ffi.C.HD2DFlags_useHDR?>) == 0) {
+		fragColor = texture(prevTex, tcv, 0);
+		return;
+	}
+
 	vec4 color = texture(prevTex, tcv, 0.);
 
 	// https://mini.gmshaders.com/p/tonemaps
@@ -763,14 +771,17 @@ void main() {
 	;
 }
 ]],			{
+				ffi = ffi,
 				videoMode = self,
 			}),
 			uniforms = {
 				prevTex = 0,
+				framebufferNormalTex = 1,
 			},
 		},
 		texs = {
 			self.lightAndFBTex:cur(),
+			self.framebufferNormalTex,
 		},
 		geometry = app.quadGeom,
 	}
@@ -822,6 +833,7 @@ uniform mat4 viewMat;
 //  or hdrTex if HDR is enabled
 uniform <?=videoMode.hdrTex:cur():getGLSLSamplerType()?> prevTex;
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
+uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
 uniform vec4 drawViewDir;		// the dest-z row of the drawViewMat
 uniform float dofFocalDist;		// in view space, compared to framebufferPosTex.w
@@ -830,6 +842,13 @@ uniform float dofAperature;		// rate of going out of focus
 uniform float dofBlurMax;		// max blur / miplevel to use
 
 void main() {
+	vec4 worldNormal = texture(framebufferNormalTex, tcv, 0);
+	int HD2DFlags = int(worldNormal.w);
+	if ((HD2DFlags & <?=ffi.C.HD2DFlags_useDoF?>) == 0) {
+		fragColor = texture(prevTex, tcv, 0);
+		return;
+	}
+
 	ivec2 tci = ivec2(gl_FragCoord);
 	vec4 pos = vec4(texelFetch(framebufferPosTex, tci, 0).xyz, 1.);
 	float depth = -dot(drawViewDir, pos);
@@ -882,16 +901,19 @@ void main() {
 #endif
 }
 ]],			{
+				ffi = ffi,
 				videoMode = self,
 			}),
 			uniforms = {
 				prevTex = 0,
 				framebufferPosTex = 1,
+				framebufferNormalTex = 2,
 			},
 		},
 		texs = {
 			self.hdrTex:cur(),	-- this will be self.hdrTex:cur() if hdr is on, or self.lightAndFBTex:cur() if hdr is off
 			self.framebufferPosTex,
+			self.framebufferNormalTex,
 		},
 		geometry = app.quadGeom,
 	}
