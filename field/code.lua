@@ -6,6 +6,7 @@
 --#include ext/class.lua
 --#include ext/range.lua
 --#include vec/vec2.lua
+--#include numo9/autotile.lua
 
 rot=0x4000
 sprites={
@@ -28,68 +29,34 @@ sprites={
 	snakeHorzOverVert		=5+rot,
 	cursor					=6,
 }
-snakeBodies={
-	[0]={
-		[0]=sprites.snakeUpDown,
-		[1]=sprites.snakeUpDown,
-		[2]=sprites.snakeUpLeft,
-		[3]=sprites.snakeUpRight,
-	},
-	[1]={
-		[0]=sprites.snakeUpDown,
-		[1]=sprites.snakeUpDown,
-		[2]=sprites.snakeDownLeft,
-		[3]=sprites.snakeDownRight,
-	},
-	[2]={
-		[0]=sprites.snakeUpLeft,
-		[1]=sprites.snakeDownLeft,
-		[2]=sprites.snakeLeftRight,
-		[3]=sprites.snakeLeftRight
-	},
-	[3]={
-		[0]=sprites.snakeUpRight,
-		[1]=sprites.snakeDownRight,
-		[2]=sprites.snakeLeftRight,
-		[3]=sprites.snakeLeftRight,
-	},
-	head={
-		[0]=sprites.snakeUp,
-		[1]=sprites.snakeDown,
-		[2]=sprites.snakeLeft,
-		[3]=sprites.snakeRight,
-	},
-	tail={
-		[0]=sprites.snakeEndUp,
-		[1]=sprites.snakeEndDown,
-		[2]=sprites.snakeEndLeft,
-		[3]=sprites.snakeEndRight,
-	},
-}
 
-dirIndexForName={
-	up=0,
-	down=1,
-	left=2,
-	right=3,
-}
-dirNameForIndex=table.map(dirIndexForName,|v,k|(k,v)):setmetatable(nil)
-dirs={
-	[0]={0,-1},
-	[1]={0,1},
-	[2]={-1,0},
-	[3]={1,0},
-}
+-- mountains
+-- mountain template is up, down, left, right
+autotile_sheet9_snake_sides4bit = {
+	-- 1 side
+	[1  ] = sprites.snakeEndRight,		-- R
+	[2  ] = sprites.snakeEndUp,			--   U
+	[4  ] = sprites.snakeEndLeft,		--     L
+	[8  ] = sprites.snakeEndDown,		--       D
 
-table.equals=|a,b|do
-	local ka=table.keys(a)
-	local kb=table.keys(b)
-	if #ka~=#kb then return false end
-	for _,k in ipairs(ka) do
-		if a[k]~=b[k] then return false end
-	end
-	return true
-end
+	[1|2] = sprites.snakeUpRight,		-- R U
+	[1|4] = sprites.snakeLeftRight,		-- R   L
+	[1|8] = sprites.snakeDownRight,		-- R     D
+	[2|4] = sprites.snakeUpLeft,		--   U L
+	[2|8] = sprites.snakeUpDown,		--   U   D
+	[4|8] = sprites.snakeDownLeft,		--     L D
+
+	-- 3 sides
+
+	-- 4 sides
+	[15] = sprites.snakeDown,			-- R U L D
+	
+}
+numo9_autotile={
+	AutotileSides4bit{
+		t=autotile_sheet9_snake_sides4bit,
+	},
+}
 
 boardSize = vec2(8,8)
 cursor = vec2(0,0)
@@ -104,7 +71,16 @@ redraw=||do
 	text('player '..(currentTurn+1).."'s turn")
 	matident()
 	mattrans(128-(boardSize.x<<2),128-(boardSize.y<<2))
-	tilemap(0,0,boardSize.x,boardSize.y)
+
+	for dy=-1,1 do
+		for dx=-1,1 do
+			local sx = (dx * boardSize.x) << 3
+			local sy = (dy * boardSize.y) << 3
+			tilemap(0,0,boardSize.x,boardSize.y,sx,sy)
+		end
+	end
+	rectb(-1, -1, (boardSize.x<<3)+2, (boardSize.y<<3)+2, 12)
+
 	spr(
 		sprites.cursor,
 		cursor.x<<3,
@@ -169,6 +145,8 @@ newGame=||do
 	nextTurn()
 end
 
+local dirNames = table.map(dirForName, |i,name| (name,i))
+
 inSplash=true
 update=||do
 	if inSplash then
@@ -200,52 +178,40 @@ update=||do
 	nextDir=nil
 	for _,playerIndex in ipairs(inputPlayers) do
 		if turnState == 'moving' then
-			if btnp('up', playerIndex, 5, 5) then
-				cursor.y -= 1
+			for dirIndex,dirName in pairs(dirNames) do
+				if btnp(dirName, playerIndex, 20, 5) then
+					cursor+=dirvecs[dirIndex]
+					cursor%=boardSize
+					goto inputHandled
+				end
 			end
-			if btnp('down', playerIndex, 5, 5) then
-				cursor.y += 1
-			end
-			if btnp('left', playerIndex, 5, 5) then
-				cursor.x -= 1
-			end
-			if btnp('right', playerIndex, 5, 5) then
-				cursor.x += 1
-			end
-			cursor.x %= boardSize.x
-			cursor.y %= boardSize.y
 
 			if btnp('a', playerIndex)
 			or btnp('b', playerIndex)
 			then
 				local cursorTeam = getTileTeam(cursor.x, cursor.y)
-	trace('cursorTeam', cursorTeam)			
 				if cursorTeam == currentTurn then
 					turnState = 'choosing'
+					goto inputHandled
 				end
 			end
 		elseif turnState == 'choosing' then
-			if btnp'up' then
-				nextDir=0
-			elseif btnp'down' then
-				nextDir=1
-			elseif btnp'left' then
-				nextDir=2
-			elseif btnp'right' then
-				nextDir=3
+			for dirIndex,dirName in pairs(dirNames) do
+				if btnp(dirName, playerIndex) then
+					nextDir=dirIndex
+					goto inputHandled
+				end
 			end
 		end
 	end
+::inputHandled::
 
 	if nextDir then
-		local moveVert=nextDir&2==0
+		local moveVert=nextDir&1==0
 		local moveHorz=not moveVert
-		local dx,dy=table.unpack(dirs[nextDir])
-		newX=cursor.x+dx
-		newY=cursor.y+dy
-		newX%=boardSize.x
-		newY%=boardSize.y
-		local spriteIndex=tget(0,newX,newY)
+		local dir=dirvecs[nextDir]
+		local newpos=(cursor+dir)%boardSize
+		local spriteIndex=tget(0,newpos:unpack())
 		local spriteTeam = (spriteIndex>>10)&7
 		spriteIndex&=0x3ff
 
@@ -264,7 +230,7 @@ update=||do
 			then
 				-- skip
 				crossingOver = true
-				if btn(5) or btn(7) then
+				if btn'y' or btn'x' then
 					crossingOver = false
 				end
 			elseif spriteIndex==sprites.snakeEndUp
@@ -281,7 +247,24 @@ update=||do
 		if not blocked then
 			-- TODO adjust previous tile
 			-- adjust current tile
-			tset(0,newX,newY,sprites.snakeUp|(currentTurn<<10))
+			local sideFlags = 0
+			local sideCount = 0
+			for dirIndex,dir in pairs(dirvecs) do
+				if getTileTeam(
+					(newpos.x+dir.x)%boardSize.x,
+					(newpos.y+dir.y)%boardSize.y
+				) == currentTurn
+				then
+					sideCount+=1
+					sideFlags |= 1<<dirIndex
+				end
+			end
+			if sideCount == 1 then
+			elseif sideCount == 2 then
+			elseif sideCount == 3 then
+			elseif sideCount == 4 then
+			end
+			tset(0,newpos.x,newpos.y,sprites.snakeUp|(currentTurn<<10))
 			nextTurn()
 		end
 	end

@@ -34,6 +34,7 @@ end
 local Autotile = class()
 Autotile.init = |:, args| do
 	for k,v in pairs(args) do self[k] = v end
+	self.tinv ??= buildAutotileInv(self!.t)
 end
 Autotile.paint = |:, tilemap, x, y| do
 	-- Simplest is just return the center tile
