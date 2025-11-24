@@ -884,7 +884,7 @@ function EditSheet:update()
 			assert(x >= 0 and y >= 0 and x + width <= sheetRAM.image.width and y + height <= sheetRAM.image.height)
 			local image = sheetRAM.image:copy{x=x, y=y, width=width, height=height}
 			if image.channels == 1 then
-print'BAKING PALETTE'
+--DEBUG:print'BAKING PALETTE'
 				-- TODO move palette functionality inot Image
 				-- TODO offset palette by current bits / shift?
 				local rgba = Image(image.width, image.height, 4, uint8_t)
@@ -993,8 +993,8 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 					end
 				end
 				assert.eq(image.channels, 1, "image.channels")
-print'pasting image'
-print('currentSheetAddr', ('$%x'):format(currentSheetAddr))
+--DEBUG:print'pasting image'
+--DEBUG:print('currentSheetAddr', ('$%x'):format(currentSheetAddr))
 				for j=0,image.height-1 do
 					for i=0,image.width-1 do
 						local destx = i + x
