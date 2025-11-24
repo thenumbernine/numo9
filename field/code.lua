@@ -22,9 +22,9 @@ sprites={
 	branchUpRight			=3+rot*2,
 	branchUpLeft			=3+rot*3,
 	branchLeftRight			=2,
-	branchRightDownLeft		=5+rot*2,
+	branchRightDownLeft		=5,
 	branchDownLeftUp		=5+rot*3,
-	branchLeftUpRight		=5,
+	branchLeftUpRight		=5+rot*2,
 	branchUpRightDown		=5+rot,
 	branchEndRight			=4+rot*2,
 	branchEndUp				=4+rot*3,
@@ -244,36 +244,38 @@ update=||do
 		local moveHorz=not moveVert
 		local dir=dirvecs[nextDir]
 		local newpos=(cursor+dir)%boardSize
-		local spriteIndex=tget(0,newpos:unpack())
-		local spriteTeam = (spriteIndex>>10)&7
-		spriteIndex&=0x3ff
+		local tile=tget(0,newpos:unpack())
+		local spriteTeam=(tile>>10)&7
+		if tile==0 or spriteTeam~=team then
+			local spriteIndex=tile&0x3ff
 
-		-- check for free movement or overlap/underlap ...
-		local blocked
-		local crossingOver
-		if spriteIndex~=sprites.empty then
-			if (
-				moveVert
-				and (spriteIndex==sprites.branchLeftRight)
-			)
-			or (
-				moveHorz
-				and (spriteIndex==sprites.branchUpDown)
-			)
-			then
-				-- skip
-				crossingOver = true
-				if btn'y' or btn'x' then
-					crossingOver = false
+			-- check for free movement or overlap/underlap ...
+			local blocked
+			local crossingOver
+			if spriteIndex~=sprites.empty then
+				if (
+					moveVert
+					and (spriteIndex==sprites.branchLeftRight)
+				)
+				or (
+					moveHorz
+					and (spriteIndex==sprites.branchUpDown)
+				)
+				then
+					-- skip
+					crossingOver = true
+					if btn'y' or btn'x' then
+						crossingOver = false
+					end
+				elseif spriteIndex==sprites.branchEndUp
+				or spriteIndex==sprites.branchEndDown
+				or spriteIndex==sprites.branchEndLeft
+				or spriteIndex==sprites.branchEndRight
+				then
+					done=true
+				else
+					blocked=true
 				end
-			elseif spriteIndex==sprites.branchEndUp
-			or spriteIndex==sprites.branchEndDown
-			or spriteIndex==sprites.branchEndLeft
-			or spriteIndex==sprites.branchEndRight
-			then
-				done=true
-			else
-				blocked=true
 			end
 		end
 
@@ -284,7 +286,6 @@ update=||do
 			end
 			local updatetile=|x,y|do
 				local tile = autotile:change(0,x,y)
-trace(x,y,tile)
 				tset(0,x,y,tile)
 			end
 			-- TODO all neighbors as well
