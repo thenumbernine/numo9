@@ -32,6 +32,9 @@ end
 
 
 local Autotile = class()
+
+Autotile.choose = |:, sideflags| autotileChoose(self.t[sideflags])
+
 Autotile.init = |:, args| do
 	for k,v in pairs(args) do self[k] = v end
 	self.tinv ??= buildAutotileInv(self!.t)
@@ -41,18 +44,18 @@ end
 Autotile.wrapSize = {x=256, y=256}
 Autotile.wrap=|:,x,y| (x % self.wrapSize.x, y % self.wrapSize.y)
 
-Autotile.paint = |:, tilemap, x, y| do
+Autotile.paint = |:, tilemapIndex, x, y| do
 	-- Simplest is just return the center tile
 	-- But TODO x and y are fractional.
 	-- For corner-autotiles, you can read each corner's bit,
 	-- then set the appropriate corner-bit,
 	-- then lookup and return that tile.
-	return autotileChoose(self.t[15])
+	return self:choose(15)
 end
 
 local AutotileSides4bit = Autotile:subclass()
 -- I could merge 4bit corners and 4bit sides into 8bit ... hmm ... and prioritize by bit counts i.e. number of tiles valid ... but for now only one or the other is used ...
-AutotileSides4bit.change = |:, tilemap, x, y| do
+AutotileSides4bit.change = |:, tilemapIndex, x, y| do
 	local t = self.t
 	local tinv = self.tinv
 	x = math.floor(x)
@@ -61,24 +64,24 @@ AutotileSides4bit.change = |:, tilemap, x, y| do
 -- [[ only test the bit for the side next to us
 -- hmm doesnt always work ...
 	local sideflags =
-		  (((tinv[tget(tilemap, self:wrap(x+1, y  ))] or 0) >> 2) & 1)	-- find the right tile's bitflags, shift its left tile (2) into our right tile (0) bit ...
-		| (((tinv[tget(tilemap, self:wrap(x  , y+1))] or 0) >> 2) & 2)	-- find the up tile's bitflags, shift its down bit (3) into our up bit (1) ...
-		| (((tinv[tget(tilemap, self:wrap(x-1, y  ))] or 0) << 2) & 4)	-- find the left tile's bitflags, shift its right bit (0) into our right bit (2)
-		| (((tinv[tget(tilemap, self:wrap(x  , y-1))] or 0) << 2) & 8)	-- find the down tile's bitflags, shift its up bit (1) into our down bit (3)
+		  (((tinv[tget(tilemapIndex, self:wrap(x+1, y  ))] or 0) >> 2) & 1)	-- find the right tile's bitflags, shift its left tile (2) into our right tile (0) bit ...
+		| (((tinv[tget(tilemapIndex, self:wrap(x  , y+1))] or 0) >> 2) & 2)	-- find the up tile's bitflags, shift its down bit (3) into our up bit (1) ...
+		| (((tinv[tget(tilemapIndex, self:wrap(x-1, y  ))] or 0) << 2) & 4)	-- find the left tile's bitflags, shift its right bit (0) into our right bit (2)
+		| (((tinv[tget(tilemapIndex, self:wrap(x  , y-1))] or 0) << 2) & 8)	-- find the down tile's bitflags, shift its up bit (1) into our down bit (3)
 --]]
 --[[ if any exists then we have a neighbor
 -- doesn't do so well for corners ...
 	local sideflags =
-		  (tinv[tget(tilemap, x+1, y  )] and 1 or 0)
-		| (tinv[tget(tilemap, x  , y+1)] and 2 or 0)
-		| (tinv[tget(tilemap, x-1, y  )] and 4 or 0)
-		| (tinv[tget(tilemap, x  , y-1)] and 8 or 0)
+		  (tinv[tget(tilemapIndex, x+1, y  )] and 1 or 0)
+		| (tinv[tget(tilemapIndex, x  , y+1)] and 2 or 0)
+		| (tinv[tget(tilemapIndex, x-1, y  )] and 4 or 0)
+		| (tinv[tget(tilemapIndex, x  , y-1)] and 8 or 0)
 --]]
-	return autotileChoose(t[sideflags])
+	return self:choose(sideflags)
 end
 
 local AutotileCorners4bit = Autotile:subclass()
-AutotileCorners4bit.change = |:, tilemap, x, y| do
+AutotileCorners4bit.change = |:, tilemapIndex, x, y| do
 	local t = self.t
 	local tinv = self.tinv
 	x = math.floor(x)
@@ -91,8 +94,7 @@ AutotileCorners4bit.change = |:, tilemap, x, y| do
 	for dx=-1,1 do
 		neighbors[dx] = {}
 		for dy=-1,1 do
-			neighbors[dx][dy] = tinv[tget(tilemap, self:wrap(x+dx, y+dy))]
-				or 0
+			neighbors[dx][dy] = tinv[tget(tilemapIndex, self:wrap(x+dx, y+dy))] or 0
 		end
 	end
 	-- now we use our consensus
@@ -115,5 +117,5 @@ AutotileCorners4bit.change = |:, tilemap, x, y| do
 		| (corners[1][0] << 1)	-- upper-right
 		| (corners[0][1] << 2)	-- lower-left
 		| (corners[1][1] << 3)	-- lower-right
-	return autotileChoose(t[cornerFlags])	-- can be nil in the case that we dont have a replacing autotile
+	return self:choose(cornerFlags)	-- can be nil in the case that we dont have a replacing autotile
 end

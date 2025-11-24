@@ -200,7 +200,7 @@ update=||do
 
 	local player = players[currentTurn]
 
-	nextDir=nil
+	local moveDir=nil
 	for _,playerIndex in ipairs(inputPlayers) do
 		if turnState=='moving' then
 			for dirIndex,dirName in pairs(dirNames) do
@@ -223,7 +223,7 @@ update=||do
 		elseif turnState=='choosing' then
 			for dirIndex,dirName in pairs(dirNames) do
 				if btnp(dirName,playerIndex) then
-					nextDir=dirIndex
+					moveDir=dirIndex
 					goto inputHandled
 				end
 			end
@@ -238,20 +238,27 @@ update=||do
 	end
 ::inputHandled::
 
-	if nextDir then
+	if moveDir then
 		local blocked=true
 		local crossingOver
-		local moveVert=nextDir&1==0
+		local moveVert=moveDir&1==1
 		local moveHorz=not moveVert
-		local dir=dirvecs[nextDir]
+		local dir=dirvecs[moveDir]
 		local newpos=(player.cursor+dir)%boardSize
 		local tile=tget(0,newpos:unpack())
-		local spriteTeam=(tile>>10)&7
+		local tileTeam=(tile>>10)&7
 		if tile==0 then
 			blocked=false
-		elseif spriteTeam~=team then
-			local spriteIndex=tile&0x3ff
-
+		elseif tileTeam~=currentTurn then
+			local spriteIndex=tile & ~(7<<10)	-- remove palhi bits
+--trace()
+--trace('moveDir', moveDir)
+--trace('dir', dir)
+--trace('currentTurn', currentTurn)
+--trace('tile', ('0x%x'):format(tile))
+--trace('tileTeam', tileTeam)
+--trace('spriteIndex', ('0x%x'):format(spriteIndex))
+--trace('moveVert', moveVert, 'moveHorz', moveHorz)
 			-- check for free movement or overlap/underlap ...
 			if (
 				moveVert
@@ -268,26 +275,24 @@ update=||do
 				if btn'y' or btn'x' then
 					crossingOver = false
 				end
-			else
-				blocked=true
 			end
-		else
-			blocked=true
 		end
 
 		if not blocked then
 			local autotile = numo9_autotile[currentTurn+1]
-			local painttile=|x,y|do
-				tset(0,x,y, autotile:paint(0,x,y))
+
+			local adddir=|x,y|do
+				local tile = tget(0, x, y)
+				local sides = autotile.tinv[tile]
+				sides |= 1 << moveDir
+				tile = autotile:choose(sides)
+				tset(0,x,y, tile)
 			end
+			adddir(player.cursor:unpack())
+
 			local updatetile=|x,y|do
-				local tile = autotile:change(0,x,y)
-				tset(0,x,y,tile)
+				tset(0,x,y,autotile:change(0,x,y))
 			end
-			-- TODO all neighbors as well? or nah cuz that'll ruin parallel branches
-			painttile(player.cursor:unpack())
-			painttile(newpos:unpack())
-			updatetile(player.cursor:unpack())
 			updatetile(newpos:unpack())
 
 			player.cursor = newpos
