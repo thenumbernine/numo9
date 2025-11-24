@@ -11,52 +11,65 @@
 rot=0x4000
 sprites={
 	empty					=0,
-	snakeRight				=1,
-	snakeDown				=1+rot,
-	snakeLeft				=1+rot*2,
-	snakeUp					=1+rot*3,
-	snakeUpDown				=2+rot,
-	snakeUpLeft				=3,
-	snakeUpRight			=3+rot,
-	snakeDownRight			=3+rot*2,
-	snakeDownLeft			=3+rot*3,
-	snakeLeftRight			=2,
-	snakeEndRight			=4+rot*2,
-	snakeEndDown			=4+rot*3,
-	snakeEndLeft			=4,
-	snakeEndUp				=4+rot,
-	snakeVertOverHorz		=5,
-	snakeHorzOverVert		=5+rot,
+	branchNone				=34,
+	branchRight				=1,
+	branchDown				=1+rot,
+	branchLeft				=1+rot*2,
+	branchUp				=1+rot*3,
+	branchUpDown			=2+rot,
+	branchUpLeft			=3,
+	branchUpRight			=3+rot,
+	branchDownRight			=3+rot*2,
+	branchDownLeft			=3+rot*3,
+	branchLeftRight			=2,
+	branchRightUpLeft		=5,
+	branchUpLeftDown		=5+rot,
+	branchLeftDownRight		=5+rot*2,
+	branchDownRightUp		=5+rot*3,
+	branchEndRight			=4+rot*2,
+	branchEndDown			=4+rot*3,
+	branchEndLeft			=4,
+	branchEndUp				=4+rot,
+	branchVertOverHorz		=32,
+	branchHorzOverVert		=32+rot,
+	branchAll				=33,
 	cursor					=6,
 }
 
 -- mountains
 -- mountain template is up, down, left, right
-autotile_sheet9_snake_sides4bit = {
+autotile_sheet9_branch_sides4bit = {
+	-- 0 sides
+	[0      ] = sprites.branchNone,				--
 	-- 1 side
-	[1  ] = sprites.snakeEndRight,		-- R
-	[2  ] = sprites.snakeEndUp,			--   U
-	[4  ] = sprites.snakeEndLeft,		--     L
-	[8  ] = sprites.snakeEndDown,		--       D
+	[1      ] = sprites.branchEndRight,			-- R
+	[  2    ] = sprites.branchEndUp,			--   U
+	[    4  ] = sprites.branchEndLeft,			--     L
+	[      8] = sprites.branchEndDown,			--       D
 
-	[1|2] = sprites.snakeUpRight,		-- R U
-	[1|4] = sprites.snakeLeftRight,		-- R   L
-	[1|8] = sprites.snakeDownRight,		-- R     D
-	[2|4] = sprites.snakeUpLeft,		--   U L
-	[2|8] = sprites.snakeUpDown,		--   U   D
-	[4|8] = sprites.snakeDownLeft,		--     L D
+	[1|2    ] = sprites.branchUpRight,			-- R U
+	[1  |4  ] = sprites.branchLeftRight,		-- R   L
+	[1    |8] = sprites.branchDownRight,		-- R     D
+	[  2|4  ] = sprites.branchUpLeft,			--   U L
+	[  2  |8] = sprites.branchUpDown,			--   U   D
+	[    4|8] = sprites.branchDownLeft,			--     L D
 
 	-- 3 sides
+	[1|2|4  ] = sprites.branchRightUpLeft,		-- R U L
+	[1|2  |8] = sprites.branchDownRightUp,		-- R U   D
+	[1  |4|8] = sprites.branchLeftDownRight,	-- R   L D
+	[  2|4|8] = sprites.branchUpLeftDown,		--   U L D
 
 	-- 4 sides
-	[15] = sprites.snakeDown,			-- R U L D
-	
+	[1|2|4|8] = sprites.branchAll,				-- R U L D
+
 }
 numo9_autotile={
 	AutotileSides4bit{
-		t=autotile_sheet9_snake_sides4bit,
+		t=autotile_sheet9_branch_sides4bit,
 	},
 }
+--trace('tinv', numo9_autotile[1].tinv)
 
 boardSize = vec2(8,8)
 cursor = vec2(0,0)
@@ -72,6 +85,7 @@ redraw=||do
 	matident()
 	mattrans(128-(boardSize.x<<2),128-(boardSize.y<<2))
 
+--	clip(0,0,boardSize.x<<3,boardSize.y<<3)
 	for dy=-1,1 do
 		for dx=-1,1 do
 			local sx = (dx * boardSize.x) << 3
@@ -81,15 +95,21 @@ redraw=||do
 	end
 	rectb(-1, -1, (boardSize.x<<3)+2, (boardSize.y<<3)+2, 12)
 
-	spr(
-		sprites.cursor,
-		cursor.x<<3,
-		cursor.y<<3,
-		1,1,
-		0,
-		1,1,
-		currentTurn<<5)
+	if turnState == 'choosing' and (time() * 3) & 1 == 1 then
+		rect(cursor.x << 3, cursor.y << 3, 8, 8, 12)
+	else
+		spr(
+			sprites.cursor,
+			cursor.x<<3,
+			cursor.y<<3,
+			1,1,
+			0,
+			1,1,
+			currentTurn<<5)
+	end
+
 	matident()
+--	clip(-9999,-9999,9999,9999)
 end
 
 -- currently 8 players max since I'm using tile palette for team
@@ -136,7 +156,7 @@ newGame=||do
 		{pos=(boardSize/2):floor()},
 	}:sub(1,numPlayers)) do
 		local i,j = start.pos:unpack()
-		tset(0,i,j,sprites.snakeUp|((playerIndexPlus1-1)<<10))
+		tset(0,i,j,sprites.branchNone|((playerIndexPlus1-1)<<10))
 	end
 
 	done=false
@@ -177,7 +197,7 @@ update=||do
 
 	nextDir=nil
 	for _,playerIndex in ipairs(inputPlayers) do
-		if turnState == 'moving' then
+		if turnState=='moving' then
 			for dirIndex,dirName in pairs(dirNames) do
 				if btnp(dirName, playerIndex, 20, 5) then
 					cursor+=dirvecs[dirIndex]
@@ -189,18 +209,25 @@ update=||do
 			if btnp('a', playerIndex)
 			or btnp('b', playerIndex)
 			then
-				local cursorTeam = getTileTeam(cursor.x, cursor.y)
-				if cursorTeam == currentTurn then
-					turnState = 'choosing'
+				local cursorTeam=getTileTeam(cursor.x, cursor.y)
+				if cursorTeam==currentTurn then
+					turnState='choosing'
 					goto inputHandled
 				end
 			end
-		elseif turnState == 'choosing' then
+		elseif turnState=='choosing' then
 			for dirIndex,dirName in pairs(dirNames) do
-				if btnp(dirName, playerIndex) then
+				if btnp(dirName,playerIndex) then
 					nextDir=dirIndex
 					goto inputHandled
 				end
+			end
+
+			if btnp('a',playerIndex)
+			or btnp('b',playerIndex)
+			then
+				turnState='moving'
+				goto inputHandled
 			end
 		end
 	end
@@ -221,11 +248,11 @@ update=||do
 		if spriteIndex~=sprites.empty then
 			if (
 				moveVert
-				and (spriteIndex==sprites.snakeLeftRight)
+				and (spriteIndex==sprites.branchLeftRight)
 			)
 			or (
 				moveHorz
-				and (spriteIndex==sprites.snakeUpDown)
+				and (spriteIndex==sprites.branchUpDown)
 			)
 			then
 				-- skip
@@ -233,10 +260,10 @@ update=||do
 				if btn'y' or btn'x' then
 					crossingOver = false
 				end
-			elseif spriteIndex==sprites.snakeEndUp
-			or spriteIndex==sprites.snakeEndDown
-			or spriteIndex==sprites.snakeEndLeft
-			or spriteIndex==sprites.snakeEndRight
+			elseif spriteIndex==sprites.branchEndUp
+			or spriteIndex==sprites.branchEndDown
+			or spriteIndex==sprites.branchEndLeft
+			or spriteIndex==sprites.branchEndRight
 			then
 				done=true
 			else
@@ -245,26 +272,16 @@ update=||do
 		end
 
 		if not blocked then
-			-- TODO adjust previous tile
-			-- adjust current tile
-			local sideFlags = 0
-			local sideCount = 0
-			for dirIndex,dir in pairs(dirvecs) do
-				if getTileTeam(
-					(newpos.x+dir.x)%boardSize.x,
-					(newpos.y+dir.y)%boardSize.y
-				) == currentTurn
-				then
-					sideCount+=1
-					sideFlags |= 1<<dirIndex
-				end
+			local settile=|x,y|do
+				local tile = numo9_autotile[1]:change(0,x,y)
+trace(x,y,tile)
+				tile |= (currentTurn<<10)
+				tset(0,x,y,tile)
 			end
-			if sideCount == 1 then
-			elseif sideCount == 2 then
-			elseif sideCount == 3 then
-			elseif sideCount == 4 then
-			end
-			tset(0,newpos.x,newpos.y,sprites.snakeUp|(currentTurn<<10))
+			-- TODO all neighbors as well
+			settile(cursor:unpack())
+			settile(newpos:unpack())
+
 			nextTurn()
 		end
 	end
