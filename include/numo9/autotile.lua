@@ -36,6 +36,10 @@ Autotile.init = |:, args| do
 	for k,v in pairs(args) do self[k] = v end
 	self.tinv ??= buildAutotileInv(self!.t)
 end
+
+-- allow chooseing border wrap method:
+Autotile.wrap=|:,x,y| (x&0xff, y&0xff)
+
 Autotile.paint = |:, tilemap, x, y| do
 	-- Simplest is just return the center tile
 	-- But TODO x and y are fractional.
@@ -44,9 +48,6 @@ Autotile.paint = |:, tilemap, x, y| do
 	-- then lookup and return that tile.
 	return autotileChoose(self.t[15])
 end
-
--- TODO choose border wrap method?
-local wrap=|x| x&0xff
 
 local AutotileSides4bit = Autotile:subclass()
 -- I could merge 4bit corners and 4bit sides into 8bit ... hmm ... and prioritize by bit counts i.e. number of tiles valid ... but for now only one or the other is used ...
@@ -59,10 +60,10 @@ AutotileSides4bit.change = |:, tilemap, x, y| do
 -- [[ only test the bit for the side next to us
 -- hmm doesnt always work ...
 	local sideflags =
-		  (((tinv[tget(tilemap, wrap(x+1), wrap(y  ))] or 0) >> 2) & 1)	-- find the right tile's bitflags, shift its left tile (2) into our right tile (0) bit ...
-		| (((tinv[tget(tilemap, wrap(x  ), wrap(y+1))] or 0) >> 2) & 2)	-- find the up tile's bitflags, shift its down bit (3) into our up bit (1) ...
-		| (((tinv[tget(tilemap, wrap(x-1), wrap(y  ))] or 0) << 2) & 4)	-- find the left tile's bitflags, shift its right bit (0) into our right bit (2)
-		| (((tinv[tget(tilemap, wrap(x  ), wrap(y-1))] or 0) << 2) & 8)	-- find the down tile's bitflags, shift its up bit (1) into our down bit (3)
+		  (((tinv[tget(tilemap, self:wrap(x+1, y  ))] or 0) >> 2) & 1)	-- find the right tile's bitflags, shift its left tile (2) into our right tile (0) bit ...
+		| (((tinv[tget(tilemap, self:wrap(x  , y+1))] or 0) >> 2) & 2)	-- find the up tile's bitflags, shift its down bit (3) into our up bit (1) ...
+		| (((tinv[tget(tilemap, self:wrap(x-1, y  ))] or 0) << 2) & 4)	-- find the left tile's bitflags, shift its right bit (0) into our right bit (2)
+		| (((tinv[tget(tilemap, self:wrap(x  , y-1))] or 0) << 2) & 8)	-- find the down tile's bitflags, shift its up bit (1) into our down bit (3)
 --]]
 --[[ if any exists then we have a neighbor
 -- doesn't do so well for corners ...
@@ -89,7 +90,7 @@ AutotileCorners4bit.change = |:, tilemap, x, y| do
 	for dx=-1,1 do
 		neighbors[dx] = {}
 		for dy=-1,1 do
-			neighbors[dx][dy] = tinv[tget(tilemap, x+dx, y+dy)]
+			neighbors[dx][dy] = tinv[tget(tilemap, self:wrap(x+dx, y+dy))]
 				or 0
 		end
 	end

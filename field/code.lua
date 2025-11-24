@@ -13,23 +13,23 @@ sprites={
 	empty					=0,
 	branchNone				=34,
 	branchRight				=1,
-	branchDown				=1+rot,
+	branchUp				=1+rot,
 	branchLeft				=1+rot*2,
-	branchUp				=1+rot*3,
+	branchDown				=1+rot*3,
 	branchUpDown			=2+rot,
-	branchUpLeft			=3,
-	branchUpRight			=3+rot,
-	branchDownRight			=3+rot*2,
-	branchDownLeft			=3+rot*3,
+	branchDownLeft			=3,
+	branchDownRight			=3+rot,
+	branchUpRight			=3+rot*2,
+	branchUpLeft			=3+rot*3,
 	branchLeftRight			=2,
-	branchRightUpLeft		=5,
-	branchUpLeftDown		=5+rot,
-	branchLeftDownRight		=5+rot*2,
-	branchDownRightUp		=5+rot*3,
+	branchRightDownLeft		=5,
+	branchDownLeftUp		=5+rot,
+	branchLeftUpRight		=5+rot*2,
+	branchUpRightDown		=5+rot*3,
 	branchEndRight			=4+rot*2,
-	branchEndDown			=4+rot*3,
+	branchEndUp				=4+rot*3,
 	branchEndLeft			=4,
-	branchEndUp				=4+rot,
+	branchEndDown			=4+rot,
 	branchVertOverHorz		=32,
 	branchHorzOverVert		=32+rot,
 	branchAll				=33,
@@ -55,10 +55,10 @@ autotile_sheet9_branch_sides4bit = {
 	[    4|8] = sprites.branchDownLeft,			--     L D
 
 	-- 3 sides
-	[1|2|4  ] = sprites.branchRightUpLeft,		-- R U L
-	[1|2  |8] = sprites.branchDownRightUp,		-- R U   D
-	[1  |4|8] = sprites.branchLeftDownRight,	-- R   L D
-	[  2|4|8] = sprites.branchUpLeftDown,		--   U L D
+	[1|2|4  ] = sprites.branchLeftUpRight,		-- R U L
+	[1|2  |8] = sprites.branchUpRightDown,		-- R U   D
+	[1  |4|8] = sprites.branchRightDownLeft,	-- R   L D
+	[  2|4|8] = sprites.branchDownLeftUp,		--   U L D
 
 	-- 4 sides
 	[1|2|4|8] = sprites.branchAll,				-- R U L D
@@ -272,15 +272,21 @@ update=||do
 		end
 
 		if not blocked then
-			local settile=|x,y|do
-				local tile = numo9_autotile[1]:change(0,x,y)
+			local autotile = numo9_autotile[1]
+			local painttile=|x,y|do
+				tset(0,x,y, autotile:paint(0,x,y))
+			end
+			local updatetile=|x,y|do
+				local tile = autotile:change(0,x,y)
 trace(x,y,tile)
 				tile |= (currentTurn<<10)
 				tset(0,x,y,tile)
 			end
 			-- TODO all neighbors as well
-			settile(cursor:unpack())
-			settile(newpos:unpack())
+			painttile(cursor:unpack())
+			painttile(newpos:unpack())
+			updatetile(cursor:unpack())
+			updatetile(newpos:unpack())
 
 			nextTurn()
 		end
