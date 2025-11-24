@@ -38,7 +38,8 @@ Autotile.init = |:, args| do
 end
 
 -- allow chooseing border wrap method:
-Autotile.wrap=|:,x,y| (x&0xff, y&0xff)
+Autotile.wrapSize = {x=256, y=256}
+Autotile.wrap=|:,x,y| (x % self.wrapSize.x, y % self.wrapSize.y)
 
 Autotile.paint = |:, tilemap, x, y| do
 	-- Simplest is just return the center tile

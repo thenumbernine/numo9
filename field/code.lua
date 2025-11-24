@@ -22,10 +22,10 @@ sprites={
 	branchUpRight			=3+rot*2,
 	branchUpLeft			=3+rot*3,
 	branchLeftRight			=2,
-	branchRightDownLeft		=5,
-	branchDownLeftUp		=5+rot,
-	branchLeftUpRight		=5+rot*2,
-	branchUpRightDown		=5+rot*3,
+	branchRightDownLeft		=5+rot*2,
+	branchDownLeftUp		=5+rot*3,
+	branchLeftUpRight		=5,
+	branchUpRightDown		=5+rot,
 	branchEndRight			=4+rot*2,
 	branchEndUp				=4+rot*3,
 	branchEndLeft			=4,
@@ -64,14 +64,20 @@ autotile_sheet9_branch_sides4bit = {
 	[1|2|4|8] = sprites.branchAll,				-- R U L D
 
 }
-numo9_autotile={
-	AutotileSides4bit{
-		t=autotile_sheet9_branch_sides4bit,
-	},
-}
---trace('tinv', numo9_autotile[1].tinv)
 
+maxPlayers=8
 boardSize = vec2(8,8)
+
+-- autotile is 1-based
+numo9_autotile=range(0,maxPlayers-1):mapi(|playerIndex|
+	AutotileSides4bit{
+		t = table.map(autotile_sheet9_branch_sides4bit, |v,k|
+			v | (playerIndex << 10)
+		),
+		wrapSize = vec2(boardSize),
+	}
+)
+
 cursor = vec2(0,0)
 numPlayers=2
 currentTurn=0
@@ -272,14 +278,13 @@ update=||do
 		end
 
 		if not blocked then
-			local autotile = numo9_autotile[1]
+			local autotile = numo9_autotile[currentTurn+1]
 			local painttile=|x,y|do
 				tset(0,x,y, autotile:paint(0,x,y))
 			end
 			local updatetile=|x,y|do
 				local tile = autotile:change(0,x,y)
 trace(x,y,tile)
-				tile |= (currentTurn<<10)
 				tset(0,x,y,tile)
 			end
 			-- TODO all neighbors as well
