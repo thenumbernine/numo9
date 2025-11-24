@@ -78,12 +78,10 @@ numo9_autotile=range(0,maxPlayers-1):mapi(|playerIndex|
 	}
 )
 
-cursor = vec2(0,0)
 numPlayers=2
 currentTurn=0
 turnState=nil
 inputPlayers=nil
-
 
 redraw=||do
 	cls()
@@ -101,13 +99,14 @@ redraw=||do
 	end
 	rectb(-1, -1, (boardSize.x<<3)+2, (boardSize.y<<3)+2, 12)
 
+	local player = players[currentTurn]
 	if turnState == 'choosing' and (time() * 3) & 1 == 1 then
-		rect(cursor.x << 3, cursor.y << 3, 8, 8, 12)
+		rect(player.cursor.x << 3, player.cursor.y << 3, 8, 8, 12)
 	else
 		spr(
 			sprites.cursor,
-			cursor.x<<3,
-			cursor.y<<3,
+			player.cursor.x<<3,
+			player.cursor.y<<3,
 			1,1,
 			0,
 			1,1,
@@ -129,15 +128,6 @@ nextTurn=||do
 	currentTurn+=1
 	currentTurn%=numPlayers
 	turnState = 'moving'
-	for j=0,boardSize.y-1 do
-		for i=0,boardSize.x-1 do
-			if getTileTeam(i,j) == currentTurn then
-				cursor:set(i,j)
-				goto cursorInitd
-			end
-		end
-	end
-::cursorInitd::
 
 	-- [[ same-computer
 	inputPlayers=range(0,numPlayers-1)
@@ -156,13 +146,20 @@ newGame=||do
 		end
 	end
 
+
+	players = table()
+
 	-- init locations
 	for playerIndexPlus1,start in ipairs(table{
 		{pos=vec2(0,0)},
 		{pos=(boardSize/2):floor()},
 	}:sub(1,numPlayers)) do
+		local playerIndex = playerIndexPlus1 - 1
+		players[playerIndex] = {
+			cursor = start.pos:clone(),
+		}
 		local i,j = start.pos:unpack()
-		tset(0,i,j,sprites.branchNone|((playerIndexPlus1-1)<<10))
+		tset(0,i,j,sprites.branchNone|(playerIndex<<10))
 	end
 
 	done=false
@@ -201,13 +198,15 @@ update=||do
 
 	redraw()
 
+	local player = players[currentTurn]
+
 	nextDir=nil
 	for _,playerIndex in ipairs(inputPlayers) do
 		if turnState=='moving' then
 			for dirIndex,dirName in pairs(dirNames) do
 				if btnp(dirName, playerIndex, 20, 5) then
-					cursor+=dirvecs[dirIndex]
-					cursor%=boardSize
+					player.cursor+=dirvecs[dirIndex]
+					player.cursor%=boardSize
 					goto inputHandled
 				end
 			end
@@ -215,7 +214,7 @@ update=||do
 			if btnp('a', playerIndex)
 			or btnp('b', playerIndex)
 			then
-				local cursorTeam=getTileTeam(cursor.x, cursor.y)
+				local cursorTeam=getTileTeam(player.cursor:unpack())
 				if cursorTeam==currentTurn then
 					turnState='choosing'
 					goto inputHandled
@@ -240,43 +239,40 @@ update=||do
 ::inputHandled::
 
 	if nextDir then
+		local blocked=true
+		local crossingOver
 		local moveVert=nextDir&1==0
 		local moveHorz=not moveVert
 		local dir=dirvecs[nextDir]
-		local newpos=(cursor+dir)%boardSize
+		local newpos=(player.cursor+dir)%boardSize
 		local tile=tget(0,newpos:unpack())
 		local spriteTeam=(tile>>10)&7
-		if tile==0 or spriteTeam~=team then
+		if tile==0 then
+			blocked=false
+		elseif spriteTeam~=team then
 			local spriteIndex=tile&0x3ff
 
 			-- check for free movement or overlap/underlap ...
-			local blocked
-			local crossingOver
-			if spriteIndex~=sprites.empty then
-				if (
-					moveVert
-					and (spriteIndex==sprites.branchLeftRight)
-				)
-				or (
-					moveHorz
-					and (spriteIndex==sprites.branchUpDown)
-				)
-				then
-					-- skip
-					crossingOver = true
-					if btn'y' or btn'x' then
-						crossingOver = false
-					end
-				elseif spriteIndex==sprites.branchEndUp
-				or spriteIndex==sprites.branchEndDown
-				or spriteIndex==sprites.branchEndLeft
-				or spriteIndex==sprites.branchEndRight
-				then
-					done=true
-				else
-					blocked=true
+			if (
+				moveVert
+				and (spriteIndex==sprites.branchLeftRight)
+			)
+			or (
+				moveHorz
+				and (spriteIndex==sprites.branchUpDown)
+			)
+			then
+				blocked=false
+				-- skip
+				crossingOver = true
+				if btn'y' or btn'x' then
+					crossingOver = false
 				end
+			else
+				blocked=true
 			end
+		else
+			blocked=true
 		end
 
 		if not blocked then
@@ -288,12 +284,13 @@ update=||do
 				local tile = autotile:change(0,x,y)
 				tset(0,x,y,tile)
 			end
-			-- TODO all neighbors as well
-			painttile(cursor:unpack())
+			-- TODO all neighbors as well? or nah cuz that'll ruin parallel branches
+			painttile(player.cursor:unpack())
 			painttile(newpos:unpack())
-			updatetile(cursor:unpack())
+			updatetile(player.cursor:unpack())
 			updatetile(newpos:unpack())
 
+			player.cursor = newpos
 			nextTurn()
 		end
 	end
