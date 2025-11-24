@@ -8,27 +8,26 @@ https://core.ac.uk/download/pdf/81160141.pdf
 https://homepages.warwick.ac.uk/~maaac/TimL.html
 --]]
 w,h=32,32
-hflip=0x4000
-vflip=0x8000
+rot=0x4000
 sprites={
-	empty=0,
-	snakeUp=1,
-	snakeDown=2,
-	snakeLeft=3,
-	snakeRight=4,
-	fruit=6,
-	snakeUpDown=32,
-	snakeUpLeft=33,
-	snakeUpRight=33|hflip,
-	snakeDownLeft=33|vflip,
-	snakeDownRight=33|hflip|vflip,
-	snakeLeftRight=34,
-	snakeEndUp=64,
-	snakeEndDown=64|vflip,
-	snakeEndLeft=65,
-	snakeEndRight=65|hflip,
-	snakeVertOverHorz=96,
-	snakeHorzOverVert=97,
+	empty					=0,
+	snakeRight				=4,
+	snakeDown				=4+rot,
+	snakeLeft				=4+rot*2,
+	snakeUp					=4+rot*3,
+	snakeUpDown				=0x20,
+	snakeUpLeft				=0x21,
+	snakeUpRight			=0x21+rot,
+	snakeDownRight			=0x21+rot*2,
+	snakeDownLeft			=0x21+rot*3,
+	snakeLeftRight			=0x20+rot,
+	snakeEndRight			=0x40+rot,
+	snakeEndDown			=0x40+rot*2,
+	snakeEndLeft			=0x40+rot*3,
+	snakeEndUp				=0x40,
+	snakeVertOverHorz		=0x60,
+	snakeHorzOverVert		=0x60+rot,
+	fruit					=6,
 }
 snakeBodies={
 	[0]={
@@ -54,6 +53,12 @@ snakeBodies={
 		[1]=sprites.snakeDownRight,
 		[2]=sprites.snakeLeftRight,
 		[3]=sprites.snakeLeftRight,
+	},
+	head={
+		[0]=sprites.snakeUp,
+		[1]=sprites.snakeDown,
+		[2]=sprites.snakeLeft,
+		[3]=sprites.snakeRight,
 	},
 	tail={
 		[0]=sprites.snakeEndUp,
@@ -110,7 +115,7 @@ reset=||do
 	knotMsgWidth=0
 	for j=0,h-1 do
 		for i=0,w-1 do
-			mset(i,j,0)
+			tset(i,j,0)
 		end
 	end
 	snakeHist=table()
@@ -144,7 +149,7 @@ snakeCalcSprite=|i|do
 			if done then
 				return snakeBodies[linkDir][snake[#snake-1].dir~1]
 			else
-				return sprites.snakeUp + linkDir
+				return snakeBodies.head[linkDir]
 			end
 		elseif i==#snake then
 			if done then
@@ -181,14 +186,7 @@ redraw=||do
 		local crossingOver=link.crossingOver
 		local linkDone=link.done
 		local spriteIndex = snakeCalcSprite(i)
-		local orient2D = 0
-		if spriteIndex & hflip ~= 0 then
-			orient2D ~~= 1
-		end
-		if spriteIndex & vflip ~= 0 then
-			orient2D ~~= 5
-		end
-
+		local orient2D = (spriteIndex >> 13) & 7
 		spr(spriteIndex&0x3ff,
 			(x + (sx and 1 or 0))<<3,
 			(y + (sy and 1 or 0))<<3,
