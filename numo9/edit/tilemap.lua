@@ -255,7 +255,8 @@ function EditTilemap:update()
 		0,		-- pixel y
 		0,		-- map index offset / high page
 		self.draw16Sprites,	-- draw 16x16 vs 8x8
-		self.sheetBlobIndex	-- sprite vs tile sheet
+		self.sheetBlobIndex,	-- sprite vs tile sheet
+		self.tilemapBlobIndex
 	)
 	app.ram.paletteBlobIndex = pushPalBlobIndex
 
