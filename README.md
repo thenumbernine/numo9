@@ -1104,6 +1104,8 @@ voxelmap editor fixes:
 
 - only do HDR and DOF on fragments that have its flag set
 
+- voxelmap undo is broken, it breaks something with the GPU, because my half-baked attempt to GPU cache voxel chunks.
+
 BUGS/FIXES SINCE 1.2.2:
 - Fixed bug where undo-then-save wasn't flushing to cart memory correctly.
 - Fixed langfix bug where `f?()` and `f!()` couldn't be used as statmements.  Updated some cart scripts accordingly.
