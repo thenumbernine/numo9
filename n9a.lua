@@ -103,7 +103,19 @@ local cmd, fn, extra = ...
 assert(cmd and fn, "expected: `n9a.lua cmd fn`")
 
 -- should probably use the same lib as numo9 uses for its compression/saving ...
-if cmd == 'x' then
+if cmd == 'l' then
+	local n9path = path(fn)
+	local blobs = cartImageToBlobs((assert(n9path:read())))
+	for _,blobClassName in ipairs(table.keys(blobs):sort()) do
+		local blobsForType = blobs[blobClassName]
+		for blobIndexPlusOne,blob in ipairs(blobsForType) do
+			local blobIndex = blobIndexPlusOne-1
+			local dstfn = blob:getFileName(blobIndex)
+			print(' - '..tostring(dstfn))
+		end
+	end
+
+elseif cmd == 'x' then
 
 	local n9path = path(fn)
 	local basepath = getbasepath(fn)
