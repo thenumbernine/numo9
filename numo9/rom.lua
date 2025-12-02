@@ -583,8 +583,8 @@ typedef union {
 ]]
 local Voxel = ffi.typeof'Voxel'
 assert.eq(ffi.sizeof(Voxel), 4)
-local voxelmapSizeType = uint32_t
 local voxelMapEmptyValue = 0xffffffff
+local voxelmapSizeType = uint32_t	-- type for the header's size xyz
 
 return {
 	version = version,

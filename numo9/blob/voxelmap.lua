@@ -627,6 +627,10 @@ local BlobVoxelMap = Blob:subclass()
 BlobVoxelMap.filenamePrefix = 'voxelmap'
 BlobVoxelMap.filenameSuffix = '.vox'
 
+-- save these for outside
+BlobVoxelMap.orientationRotations = orientationRotations
+BlobVoxelMap.specialOrientation = specialOrientation
+
 assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof(Voxel))
 function BlobVoxelMap:init(data)
 	self.vec = vector(Voxel)	-- use .intptr for the first x y z entries
@@ -908,8 +912,89 @@ function BlobVoxelMap:drawMesh(app)
 assert(glreport'here')
 end
 
--- save these for outside
-BlobVoxelMap.orientationRotations = orientationRotations
-BlobVoxelMap.specialOrientation = specialOrientation
+-- static function
+-- vox = Voxel, axis = 012 xyz
+function BlobVoxelMap:voxelRotate(vox, axis, amount)
+	-- can I do this to cast numbers to Voxel's? no.
+	-- vox = ffi.cast(Voxel, vox)
+	if type(vox) == 'number' then vox = ffi.new('Voxel', vox) end	-- can I do this?  looks like it works so far.
+	if vox.intval == voxelMapEmptyValue then return vox end
+	if specialOrientation[vox.orientation] then return vox end
+	amount = bit.band(amount or 1, 3)	-- 0,1,2,3
+	if amount == 0 then return vox end
+	vox.orientation = orientationRotations[vox.orientation+1][axis+1][amount]
+	return vox
+end
+
+function BlobVoxelMap:rotateVoxelsX()
+	local size = self:getVoxelSize()
+	-- TODO instead of error upon size difference, just resize the whole thing.
+	assert.eq(size.y, size.z, "you can't rotate on x axis unless size y and z match")
+	for i=0,size.x-1 do
+		for j1=0,math.ceil(size.y/2)-1 do
+			for k1=0,math.ceil(size.z/2)-1 do
+				local j2, k2 = size.y-1-k1, j1
+				local j3, k3 = size.y-1-k2, j2
+				local j4, k4 = size.y-1-k3, j3
+				local v1 = self:getVoxelBlobPtr(i, j1, k1).intval
+				local v2 = self:getVoxelBlobPtr(i, j2, k2).intval
+				local v3 = self:getVoxelBlobPtr(i, j3, k3).intval
+				local v4 = self:getVoxelBlobPtr(i, j4, k4).intval
+				self:getVoxelBlobPtr(i, j1, k1)[0] = self:voxelRotate(v4, 0)
+				self:getVoxelBlobPtr(i, j2, k2)[0] = self:voxelRotate(v1, 0)
+				self:getVoxelBlobPtr(i, j3, k3)[0] = self:voxelRotate(v2, 0)
+				self:getVoxelBlobPtr(i, j4, k4)[0] = self:voxelRotate(v3, 0)
+			end
+		end
+	end
+end
+
+function BlobVoxelMap:rotateVoxelsY()
+	-- TODO instead of error upon size difference, just resize the whole thing.
+	local size = self:getVoxelSize()
+	assert.eq(size.x, size.z, "you can't rotate on y axis unless size x and z match")
+	for j=0,size.y-1 do
+		for k1=0,math.ceil(size.z/2)-1 do
+			for i1=0,math.ceil(size.x/2)-1 do
+				-- TODO repeat the index permutation by `amount`
+				local k2, i2 = size.z-1-i1, k1
+				local k3, i3 = size.z-1-i2, k2
+				local k4, i4 = size.z-1-i3, k3
+				local v1 = self:getVoxelBlobPtr(i1, j, k1).intval
+				local v2 = self:getVoxelBlobPtr(i2, j, k2).intval
+				local v3 = self:getVoxelBlobPtr(i3, j, k3).intval
+				local v4 = self:getVoxelBlobPtr(i4, j, k4).intval
+				self:getVoxelBlobPtr(i1, j, k1)[0] = self:voxelRotate(v4, 1)
+				self:getVoxelBlobPtr(i2, j, k2)[0] = self:voxelRotate(v1, 1)
+				self:getVoxelBlobPtr(i3, j, k3)[0] = self:voxelRotate(v2, 1)
+				self:getVoxelBlobPtr(i4, j, k4)[0] = self:voxelRotate(v3, 1)
+			end
+		end
+	end
+end
+
+function BlobVoxelMap:rotateVoxelsZ()
+	local size = self:getVoxelSize()
+	-- TODO instead of error upon size difference, just resize the whole thing.
+	assert.eq(size.x, size.y, "you can't rotate on z axis unless size x and y match")
+	for k=0,size.x-1 do
+		for i1=0,math.ceil(size.x/2)-1 do
+			for j1=0,math.ceil(size.y/2)-1 do
+				-- TODO x,y = -y,x and then modulo to size .. or more appropritaely would be to do the same to size, then to modulo to size.
+				local i2, j2 = size.x-1-j1, i1
+				local i3, j3 = size.x-1-j2, i2
+				local i4, j4 = size.x-1-j3, i3
+				local v1 = self:getVoxelBlobPtr(i1, j1, k).intval
+				local v2 = self:getVoxelBlobPtr(i2, j2, k).intval
+				local v3 = self:getVoxelBlobPtr(i3, j3, k).intval
+				local v4 = self:getVoxelBlobPtr(i4, j4, k).intval
+				self:getVoxelBlobPtr(i1, j1, k)[0] = self:voxelRotate(v4, 2)
+				self:getVoxelBlobPtr(i2, j2, k)[0] = self:voxelRotate(v1, 2)
+				self:getVoxelBlobPtr(i3, j3, k)[0] = self:voxelRotate(v2, 2)
+				self:getVoxelBlobPtr(i4, j4, k)[0] = self:voxelRotate(v3, 2)
+			end
+		end
+	end
+end
 
 return BlobVoxelMap

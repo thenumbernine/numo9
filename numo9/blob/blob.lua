@@ -1,5 +1,6 @@
 local ffi = require 'ffi'
 local class = require 'ext.class'
+local path = require 'ext.path'
 local assert = require 'ext.assert'
 
 --[[
@@ -54,7 +55,7 @@ end
 
 -- static method:
 function Blob:loadFile(filepath, basepath, blobIndex)
-	return self.class(filepath:read())
+	return self.class(path(filepath):read())
 end
 
 return Blob
