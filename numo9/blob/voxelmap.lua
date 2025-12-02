@@ -114,6 +114,10 @@ local orientationRotations = {
 	{{51, 38, 59},{32, 36, 40},{45, 46, 47},{4},{6},{12}},
 }
 
+local specialOrientation = table{20, 21, 22, 23, 28, 29, 30, 31, 52, 53, 54, 55, 60, 61, 62, 63}
+	:mapi(function(i) return true, i end)
+	:setmetatable(nil)
+
 -- inverse orientation for orientation
 -- [orientation+1] = rotated orientation
 local orientationInv = {0, 3, 2, 1, 12, 19, 6, 27, 8, 9, 10, 11, 4, 25, 14, 17, 26, 15, 18, 5, 27, 12, 19, 6, 24, 13, 16, 7, 25, 14, 17, 4, 32, 33, 34, 35, 36, 49, 46, 57, 40, 43, 42, 41, 44, 59, 38, 51, 58, 37, 50, 47, 57, 36, 49, 46, 56, 39, 48, 45, 59, 38, 51, 44}
@@ -903,5 +907,9 @@ function BlobVoxelMap:drawMesh(app)
 	sceneObj.vao:bind()
 assert(glreport'here')
 end
+
+-- save these for outside
+BlobVoxelMap.orientationRotations = orientationRotations
+BlobVoxelMap.specialOrientation = specialOrientation
 
 return BlobVoxelMap

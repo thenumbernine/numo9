@@ -179,7 +179,7 @@ local function resetLogoOnSheet(spriteSheetPtr)
 	end
 end
 
-assert(require 'ext.path''font.png':exists(), "failed to find the default font file!")
+--assert(require 'ext.path''font.png':exists(), "failed to find the default font file!")
 local function resetFont(fontPtr, fontFilename)
 	-- paste our font letters one bitplane at a time ...
 	-- TODO just hardcode this resource in the code?
