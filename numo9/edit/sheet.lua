@@ -125,6 +125,11 @@ function EditSheet:update()
 	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
 	local lastMousePressX, lastMousePressY = app:invTransform(app.ram.lastMousePressPos:unpack())
 
+	-- hmm without this the panning starts to drift
+	-- TODO fix all this coordinate conversion stuff someday
+	mouseX = math.floor(mouseX)
+	mouseY = math.floor(mouseY)
+
 	local shift = app:key'lshift' or app:key'rshift'
 
 	EditSheet.super.update(self)
@@ -239,7 +244,12 @@ function EditSheet:update()
 	self:guiSetClipRect(0, 0, 256, 256)
 
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
-	local function fbToSpritesheetCoord(fbX, fbY)
+
+
+	self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - app.ram.mouseWheel.x
+	self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - app.ram.mouseWheel.y
+
+	local function fbToSheetCoord(fbX, fbY)
 		return
 			(fbX - x + self.spritesheetPanOffset.x) / spriteSize.x,
 			(fbY - y + self.spritesheetPanOffset.y) / spriteSize.y
@@ -257,8 +267,10 @@ function EditSheet:update()
 			end
 		else
 			if self.spritesheetPanPressed then
-				local tx = math.round(mouseX - self.spritesheetPanDownPos.x)
-				local ty = math.round(mouseY - self.spritesheetPanDownPos.y)
+				local tx1, ty1 = fbToSheetCoord(mouseX, mouseY)
+				local tx0, ty0 = fbToSheetCoord(self.spritesheetPanDownPos:unpack())
+				local tx = tx1 - tx0
+				local ty = ty1 - ty0
 				if tx ~= 0 or ty ~= 0 then
 					self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - tx
 					self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - ty
@@ -276,13 +288,13 @@ function EditSheet:update()
 		end
 		if self.spritesheetEditMode == 'select' then
 			if leftButtonPress then
-				self.spriteSelDown:set(fbToSpritesheetCoord(mouseX, mouseY))
+				self.spriteSelDown:set(fbToSheetCoord(mouseX, mouseY))
 				self.spriteSelDown.x = math.clamp(self.spriteSelDown.x, 0, spriteSheetSizeInTiles.x-1)
 				self.spriteSelDown.y = math.clamp(self.spriteSelDown.y, 0, spriteSheetSizeInTiles.x-1)
 				self.spriteSelUp:set(self.spriteSelDown:unpack())
 				self.spritePanOffset:set(0,0)
 			elseif leftButtonDown then
-				self.spriteSelUp:set(fbToSpritesheetCoord(mouseX, mouseY))
+				self.spriteSelUp:set(fbToSheetCoord(mouseX, mouseY))
 				self.spriteSelUp.x = math.clamp(self.spriteSelUp.x, 0, spriteSheetSizeInTiles.x-1)
 				self.spriteSelUp.y = math.clamp(self.spriteSelUp.y, 0, spriteSheetSizeInTiles.x-1)
 			end
@@ -952,7 +964,7 @@ print('quantizing image to '..tostring(self.pasteTargetNumColors)..' colors')
 							--local r,g,b = srcp[0], srcp[1], srcp[2]
 							local bestIndex = bit.band(0xff, self.paletteOffset)
 							local palR, palG, palB, palA = rgba5551_to_rgba8888_4ch(ffi.cast(palettePtrType, paletteBlob.ramptr)[bestIndex])
-							local bestDistSq 
+							local bestDistSq
 							if palA == 0 then
 								bestDistSq = (palA-a)^2
 							else
