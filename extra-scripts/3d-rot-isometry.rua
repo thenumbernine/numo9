@@ -39,6 +39,7 @@ local rz = matrix{
 }
 local baseRots = table{rx, ry, rz, sx, sy, sz}
 
+local specialOrientations = table()	-- orientation that has a previous duplicate
 local duplicateIndexes = table()
 local uniqueRots = table()
 local rots = table()	-- all orientation rotations, should be 32
@@ -56,6 +57,7 @@ for is=0,1 do
 				local dupindex = uniqueRots:find(m)
 				if dupindex then
 					duplicateIndexes:insert{from=orientation, to=dupindex}
+					specialOrientations[orientation] = true
 				else
 					uniqueRots:insert(m)
 				end
@@ -132,7 +134,6 @@ sides are encoded 0 bit = sign, 12 bit = axis so
 5 = z-
 
 calculate side transformation based on orientation or its inverse
-(TODO how about just provide a lookup of inverse table)
 --]]
 
 local sideToVec = |sideIndex| do
@@ -164,3 +165,20 @@ for sideIndex=0,5 do
 end
 print'-- [sideIndex+1][orientation+1] = rotated sideIndex'
 print('local rotateSideByOrientation = '..tolua(allrotsides))
+
+
+-- just store the whole group orientation table
+local orientationMul = {}
+for i=0,#rots-1 do
+	if not specialOrientations[i] then
+		orientationMul[i+1] = {}
+		for j=0,#rots-1 do
+			if not specialOrientations[j] then
+				local mulIndex = rots:find((rots[i+1] * rots[j+1]))
+				orientationMul[i+1][j+1] = mulIndex and (mulIndex-1) 
+			end
+		end
+	end
+end
+print'--[orientation+1][orientation+1] = orientation'
+print('orientationMul = '..tolua(orientationMul))

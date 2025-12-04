@@ -131,6 +131,72 @@ local rotateSideByOrientation = {
 	{4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1},
 	{5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0}
 }
+
+--[orientation+1][orientation+1] = orientation
+local orientationMul = {
+	{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, nil, nil, nil, nil, 24, 25, 26, 27, nil, nil, nil, nil, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, nil, nil, nil, nil, 56, 57, 58, 59},
+	{1, 2, 3, 0, 5, 6, 7, 4, 9, 10, 11, 8, 13, 14, 15, 12, 17, 18, 19, 16, nil, nil, nil, nil, 25, 26, 27, 24, nil, nil, nil, nil, 33, 34, 35, 32, 37, 38, 39, 36, 41, 42, 43, 40, 45, 46, 47, 44, 49, 50, 51, 48, nil, nil, nil, nil, 57, 58, 59, 56},
+	{2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13, 18, 19, 16, 17, nil, nil, nil, nil, 26, 27, 24, 25, nil, nil, nil, nil, 34, 35, 32, 33, 38, 39, 36, 37, 42, 43, 40, 41, 46, 47, 44, 45, 50, 51, 48, 49, nil, nil, nil, nil, 58, 59, 56, 57},
+	{3, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14, 19, 16, 17, 18, nil, nil, nil, nil, 27, 24, 25, 26, nil, nil, nil, nil, 35, 32, 33, 34, 39, 36, 37, 38, 43, 40, 41, 42, 47, 44, 45, 46, 51, 48, 49, 50, nil, nil, nil, nil, 59, 56, 57, 58},
+	{4, 17, 14, 25, 8, 18, 2, 24, 12, 19, 6, 27, 0, 16, 10, 26, 7, 11, 15, 3, nil, nil, nil, nil, 13, 9, 5, 1, nil, nil, nil, nil, 36, 49, 46, 57, 40, 50, 34, 56, 44, 51, 38, 59, 32, 48, 42, 58, 39, 43, 47, 35, nil, nil, nil, nil, 45, 41, 37, 33},
+	{5, 18, 15, 26, 9, 19, 3, 25, 13, 16, 7, 24, 1, 17, 11, 27, 4, 8, 12, 0, nil, nil, nil, nil, 14, 10, 6, 2, nil, nil, nil, nil, 37, 50, 47, 58, 41, 51, 35, 57, 45, 48, 39, 56, 33, 49, 43, 59, 36, 40, 44, 32, nil, nil, nil, nil, 46, 42, 38, 34},
+	{6, 19, 12, 27, 10, 16, 0, 26, 14, 17, 4, 25, 2, 18, 8, 24, 5, 9, 13, 1, nil, nil, nil, nil, 15, 11, 7, 3, nil, nil, nil, nil, 38, 51, 44, 59, 42, 48, 32, 58, 46, 49, 36, 57, 34, 50, 40, 56, 37, 41, 45, 33, nil, nil, nil, nil, 47, 43, 39, 35},
+	{7, 16, 13, 24, 11, 17, 1, 27, 15, 18, 5, 26, 3, 19, 9, 25, 6, 10, 14, 2, nil, nil, nil, nil, 12, 8, 4, 0, nil, nil, nil, nil, 39, 48, 45, 56, 43, 49, 33, 59, 47, 50, 37, 58, 35, 51, 41, 57, 38, 42, 46, 34, nil, nil, nil, nil, 44, 40, 36, 32},
+	{8, 11, 10, 9, 12, 15, 14, 13, 0, 3, 2, 1, 4, 7, 6, 5, 24, 27, 26, 25, nil, nil, nil, nil, 16, 19, 18, 17, nil, nil, nil, nil, 40, 43, 42, 41, 44, 47, 46, 45, 32, 35, 34, 33, 36, 39, 38, 37, 56, 59, 58, 57, nil, nil, nil, nil, 48, 51, 50, 49},
+	{9, 8, 11, 10, 13, 12, 15, 14, 1, 0, 3, 2, 5, 4, 7, 6, 25, 24, 27, 26, nil, nil, nil, nil, 17, 16, 19, 18, nil, nil, nil, nil, 41, 40, 43, 42, 45, 44, 47, 46, 33, 32, 35, 34, 37, 36, 39, 38, 57, 56, 59, 58, nil, nil, nil, nil, 49, 48, 51, 50},
+	{10, 9, 8, 11, 14, 13, 12, 15, 2, 1, 0, 3, 6, 5, 4, 7, 26, 25, 24, 27, nil, nil, nil, nil, 18, 17, 16, 19, nil, nil, nil, nil, 42, 41, 40, 43, 46, 45, 44, 47, 34, 33, 32, 35, 38, 37, 36, 39, 58, 57, 56, 59, nil, nil, nil, nil, 50, 49, 48, 51},
+	{11, 10, 9, 8, 15, 14, 13, 12, 3, 2, 1, 0, 7, 6, 5, 4, 27, 26, 25, 24, nil, nil, nil, nil, 19, 18, 17, 16, nil, nil, nil, nil, 43, 42, 41, 40, 47, 46, 45, 44, 35, 34, 33, 32, 39, 38, 37, 36, 59, 58, 57, 56, nil, nil, nil, nil, 51, 50, 49, 48},
+	{12, 27, 6, 19, 0, 26, 10, 16, 4, 25, 14, 17, 8, 24, 2, 18, 13, 1, 5, 9, nil, nil, nil, nil, 7, 3, 15, 11, nil, nil, nil, nil, 44, 59, 38, 51, 32, 58, 42, 48, 36, 57, 46, 49, 40, 56, 34, 50, 45, 33, 37, 41, nil, nil, nil, nil, 39, 35, 47, 43},
+	{13, 24, 7, 16, 1, 27, 11, 17, 5, 26, 15, 18, 9, 25, 3, 19, 14, 2, 6, 10, nil, nil, nil, nil, 4, 0, 12, 8, nil, nil, nil, nil, 45, 56, 39, 48, 33, 59, 43, 49, 37, 58, 47, 50, 41, 57, 35, 51, 46, 34, 38, 42, nil, nil, nil, nil, 36, 32, 44, 40},
+	{14, 25, 4, 17, 2, 24, 8, 18, 6, 27, 12, 19, 10, 26, 0, 16, 15, 3, 7, 11, nil, nil, nil, nil, 5, 1, 13, 9, nil, nil, nil, nil, 46, 57, 36, 49, 34, 56, 40, 50, 38, 59, 44, 51, 42, 58, 32, 48, 47, 35, 39, 43, nil, nil, nil, nil, 37, 33, 45, 41},
+	{15, 26, 5, 18, 3, 25, 9, 19, 7, 24, 13, 16, 11, 27, 1, 17, 12, 0, 4, 8, nil, nil, nil, nil, 6, 2, 14, 10, nil, nil, nil, nil, 47, 58, 37, 50, 35, 57, 41, 51, 39, 56, 45, 48, 43, 59, 33, 49, 44, 32, 36, 40, nil, nil, nil, nil, 38, 34, 46, 42},
+	{16, 13, 24, 7, 17, 1, 27, 11, 18, 5, 26, 15, 19, 9, 25, 3, 10, 14, 2, 6, nil, nil, nil, nil, 8, 4, 0, 12, nil, nil, nil, nil, 48, 45, 56, 39, 49, 33, 59, 43, 50, 37, 58, 47, 51, 41, 57, 35, 42, 46, 34, 38, nil, nil, nil, nil, 40, 36, 32, 44},
+	{17, 14, 25, 4, 18, 2, 24, 8, 19, 6, 27, 12, 16, 10, 26, 0, 11, 15, 3, 7, nil, nil, nil, nil, 9, 5, 1, 13, nil, nil, nil, nil, 49, 46, 57, 36, 50, 34, 56, 40, 51, 38, 59, 44, 48, 42, 58, 32, 43, 47, 35, 39, nil, nil, nil, nil, 41, 37, 33, 45},
+	{18, 15, 26, 5, 19, 3, 25, 9, 16, 7, 24, 13, 17, 11, 27, 1, 8, 12, 0, 4, nil, nil, nil, nil, 10, 6, 2, 14, nil, nil, nil, nil, 50, 47, 58, 37, 51, 35, 57, 41, 48, 39, 56, 45, 49, 43, 59, 33, 40, 44, 32, 36, nil, nil, nil, nil, 42, 38, 34, 46},
+	{19, 12, 27, 6, 16, 0, 26, 10, 17, 4, 25, 14, 18, 8, 24, 2, 9, 13, 1, 5, nil, nil, nil, nil, 11, 7, 3, 15, nil, nil, nil, nil, 51, 44, 59, 38, 48, 32, 58, 42, 49, 36, 57, 46, 50, 40, 56, 34, 41, 45, 33, 37, nil, nil, nil, nil, 43, 39, 35, 47},
+	nil,
+	nil,
+	nil,
+	nil,
+	{24, 7, 16, 13, 27, 11, 17, 1, 26, 15, 18, 5, 25, 3, 19, 9, 2, 6, 10, 14, nil, nil, nil, nil, 0, 12, 8, 4, nil, nil, nil, nil, 56, 39, 48, 45, 59, 43, 49, 33, 58, 47, 50, 37, 57, 35, 51, 41, 34, 38, 42, 46, nil, nil, nil, nil, 32, 44, 40, 36},
+	{25, 4, 17, 14, 24, 8, 18, 2, 27, 12, 19, 6, 26, 0, 16, 10, 3, 7, 11, 15, nil, nil, nil, nil, 1, 13, 9, 5, nil, nil, nil, nil, 57, 36, 49, 46, 56, 40, 50, 34, 59, 44, 51, 38, 58, 32, 48, 42, 35, 39, 43, 47, nil, nil, nil, nil, 33, 45, 41, 37},
+	{26, 5, 18, 15, 25, 9, 19, 3, 24, 13, 16, 7, 27, 1, 17, 11, 0, 4, 8, 12, nil, nil, nil, nil, 2, 14, 10, 6, nil, nil, nil, nil, 58, 37, 50, 47, 57, 41, 51, 35, 56, 45, 48, 39, 59, 33, 49, 43, 32, 36, 40, 44, nil, nil, nil, nil, 34, 46, 42, 38},
+	{27, 6, 19, 12, 26, 10, 16, 0, 25, 14, 17, 4, 24, 2, 18, 8, 1, 5, 9, 13, nil, nil, nil, nil, 3, 15, 11, 7, nil, nil, nil, nil, 59, 38, 51, 44, 58, 42, 48, 32, 57, 46, 49, 36, 56, 34, 50, 40, 33, 37, 41, 45, nil, nil, nil, nil, 35, 47, 43, 39},
+	nil,
+	nil,
+	nil,
+	nil,
+	{32, 35, 34, 33, 44, 47, 46, 45, 40, 43, 42, 41, 36, 39, 38, 37, 48, 51, 50, 49, nil, nil, nil, nil, 56, 59, 58, 57, nil, nil, nil, nil, 0, 3, 2, 1, 12, 15, 14, 13, 8, 11, 10, 9, 4, 7, 6, 5, 16, 19, 18, 17, nil, nil, nil, nil, 24, 27, 26, 25},
+	{33, 32, 35, 34, 45, 44, 47, 46, 41, 40, 43, 42, 37, 36, 39, 38, 49, 48, 51, 50, nil, nil, nil, nil, 57, 56, 59, 58, nil, nil, nil, nil, 1, 0, 3, 2, 13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 17, 16, 19, 18, nil, nil, nil, nil, 25, 24, 27, 26},
+	{34, 33, 32, 35, 46, 45, 44, 47, 42, 41, 40, 43, 38, 37, 36, 39, 50, 49, 48, 51, nil, nil, nil, nil, 58, 57, 56, 59, nil, nil, nil, nil, 2, 1, 0, 3, 14, 13, 12, 15, 10, 9, 8, 11, 6, 5, 4, 7, 18, 17, 16, 19, nil, nil, nil, nil, 26, 25, 24, 27},
+	{35, 34, 33, 32, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 51, 50, 49, 48, nil, nil, nil, nil, 59, 58, 57, 56, nil, nil, nil, nil, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 19, 18, 17, 16, nil, nil, nil, nil, 27, 26, 25, 24},
+	{36, 57, 46, 49, 32, 58, 42, 48, 44, 59, 38, 51, 40, 56, 34, 50, 39, 35, 47, 43, nil, nil, nil, nil, 45, 33, 37, 41, nil, nil, nil, nil, 4, 25, 14, 17, 0, 26, 10, 16, 12, 27, 6, 19, 8, 24, 2, 18, 7, 3, 15, 11, nil, nil, nil, nil, 13, 1, 5, 9},
+	{37, 58, 47, 50, 33, 59, 43, 49, 45, 56, 39, 48, 41, 57, 35, 51, 36, 32, 44, 40, nil, nil, nil, nil, 46, 34, 38, 42, nil, nil, nil, nil, 5, 26, 15, 18, 1, 27, 11, 17, 13, 24, 7, 16, 9, 25, 3, 19, 4, 0, 12, 8, nil, nil, nil, nil, 14, 2, 6, 10},
+	{38, 59, 44, 51, 34, 56, 40, 50, 46, 57, 36, 49, 42, 58, 32, 48, 37, 33, 45, 41, nil, nil, nil, nil, 47, 35, 39, 43, nil, nil, nil, nil, 6, 27, 12, 19, 2, 24, 8, 18, 14, 25, 4, 17, 10, 26, 0, 16, 5, 1, 13, 9, nil, nil, nil, nil, 15, 3, 7, 11},
+	{39, 56, 45, 48, 35, 57, 41, 51, 47, 58, 37, 50, 43, 59, 33, 49, 38, 34, 46, 42, nil, nil, nil, nil, 44, 32, 36, 40, nil, nil, nil, nil, 7, 24, 13, 16, 3, 25, 9, 19, 15, 26, 5, 18, 11, 27, 1, 17, 6, 2, 14, 10, nil, nil, nil, nil, 12, 0, 4, 8},
+	{40, 41, 42, 43, 36, 37, 38, 39, 32, 33, 34, 35, 44, 45, 46, 47, 56, 57, 58, 59, nil, nil, nil, nil, 48, 49, 50, 51, nil, nil, nil, nil, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 24, 25, 26, 27, nil, nil, nil, nil, 16, 17, 18, 19},
+	{41, 42, 43, 40, 37, 38, 39, 36, 33, 34, 35, 32, 45, 46, 47, 44, 57, 58, 59, 56, nil, nil, nil, nil, 49, 50, 51, 48, nil, nil, nil, nil, 9, 10, 11, 8, 5, 6, 7, 4, 1, 2, 3, 0, 13, 14, 15, 12, 25, 26, 27, 24, nil, nil, nil, nil, 17, 18, 19, 16},
+	{42, 43, 40, 41, 38, 39, 36, 37, 34, 35, 32, 33, 46, 47, 44, 45, 58, 59, 56, 57, nil, nil, nil, nil, 50, 51, 48, 49, nil, nil, nil, nil, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1, 14, 15, 12, 13, 26, 27, 24, 25, nil, nil, nil, nil, 18, 19, 16, 17},
+	{43, 40, 41, 42, 39, 36, 37, 38, 35, 32, 33, 34, 47, 44, 45, 46, 59, 56, 57, 58, nil, nil, nil, nil, 51, 48, 49, 50, nil, nil, nil, nil, 11, 8, 9, 10, 7, 4, 5, 6, 3, 0, 1, 2, 15, 12, 13, 14, 27, 24, 25, 26, nil, nil, nil, nil, 19, 16, 17, 18},
+	{44, 51, 38, 59, 40, 50, 34, 56, 36, 49, 46, 57, 32, 48, 42, 58, 45, 41, 37, 33, nil, nil, nil, nil, 39, 43, 47, 35, nil, nil, nil, nil, 12, 19, 6, 27, 8, 18, 2, 24, 4, 17, 14, 25, 0, 16, 10, 26, 13, 9, 5, 1, nil, nil, nil, nil, 7, 11, 15, 3},
+	{45, 48, 39, 56, 41, 51, 35, 57, 37, 50, 47, 58, 33, 49, 43, 59, 46, 42, 38, 34, nil, nil, nil, nil, 36, 40, 44, 32, nil, nil, nil, nil, 13, 16, 7, 24, 9, 19, 3, 25, 5, 18, 15, 26, 1, 17, 11, 27, 14, 10, 6, 2, nil, nil, nil, nil, 4, 8, 12, 0},
+	{46, 49, 36, 57, 42, 48, 32, 58, 38, 51, 44, 59, 34, 50, 40, 56, 47, 43, 39, 35, nil, nil, nil, nil, 37, 41, 45, 33, nil, nil, nil, nil, 14, 17, 4, 25, 10, 16, 0, 26, 6, 19, 12, 27, 2, 18, 8, 24, 15, 11, 7, 3, nil, nil, nil, nil, 5, 9, 13, 1},
+	{47, 50, 37, 58, 43, 49, 33, 59, 39, 48, 45, 56, 35, 51, 41, 57, 44, 40, 36, 32, nil, nil, nil, nil, 38, 42, 46, 34, nil, nil, nil, nil, 15, 18, 5, 26, 11, 17, 1, 27, 7, 16, 13, 24, 3, 19, 9, 25, 12, 8, 4, 0, nil, nil, nil, nil, 6, 10, 14, 2},
+	{48, 39, 56, 45, 51, 35, 57, 41, 50, 47, 58, 37, 49, 43, 59, 33, 42, 38, 34, 46, nil, nil, nil, nil, 40, 44, 32, 36, nil, nil, nil, nil, 16, 7, 24, 13, 19, 3, 25, 9, 18, 15, 26, 5, 17, 11, 27, 1, 10, 6, 2, 14, nil, nil, nil, nil, 8, 12, 0, 4},
+	{49, 36, 57, 46, 48, 32, 58, 42, 51, 44, 59, 38, 50, 40, 56, 34, 43, 39, 35, 47, nil, nil, nil, nil, 41, 45, 33, 37, nil, nil, nil, nil, 17, 4, 25, 14, 16, 0, 26, 10, 19, 12, 27, 6, 18, 8, 24, 2, 11, 7, 3, 15, nil, nil, nil, nil, 9, 13, 1, 5},
+	{50, 37, 58, 47, 49, 33, 59, 43, 48, 45, 56, 39, 51, 41, 57, 35, 40, 36, 32, 44, nil, nil, nil, nil, 42, 46, 34, 38, nil, nil, nil, nil, 18, 5, 26, 15, 17, 1, 27, 11, 16, 13, 24, 7, 19, 9, 25, 3, 8, 4, 0, 12, nil, nil, nil, nil, 10, 14, 2, 6},
+	{51, 38, 59, 44, 50, 34, 56, 40, 49, 46, 57, 36, 48, 42, 58, 32, 41, 37, 33, 45, nil, nil, nil, nil, 43, 47, 35, 39, nil, nil, nil, nil, 19, 6, 27, 12, 18, 2, 24, 8, 17, 14, 25, 4, 16, 10, 26, 0, 9, 5, 1, 13, nil, nil, nil, nil, 11, 15, 3, 7},
+	nil,
+	nil,
+	nil,
+	nil,
+	{56, 45, 48, 39, 57, 41, 51, 35, 58, 37, 50, 47, 59, 33, 49, 43, 34, 46, 42, 38, nil, nil, nil, nil, 32, 36, 40, 44, nil, nil, nil, nil, 24, 13, 16, 7, 25, 9, 19, 3, 26, 5, 18, 15, 27, 1, 17, 11, 2, 14, 10, 6, nil, nil, nil, nil, 0, 4, 8, 12},
+	{57, 46, 49, 36, 58, 42, 48, 32, 59, 38, 51, 44, 56, 34, 50, 40, 35, 47, 43, 39, nil, nil, nil, nil, 33, 37, 41, 45, nil, nil, nil, nil, 25, 14, 17, 4, 26, 10, 16, 0, 27, 6, 19, 12, 24, 2, 18, 8, 3, 15, 11, 7, nil, nil, nil, nil, 1, 5, 9, 13},
+	{58, 47, 50, 37, 59, 43, 49, 33, 56, 39, 48, 45, 57, 35, 51, 41, 32, 44, 40, 36, nil, nil, nil, nil, 34, 38, 42, 46, nil, nil, nil, nil, 26, 15, 18, 5, 27, 11, 17, 1, 24, 7, 16, 13, 25, 3, 19, 9, 0, 12, 8, 4, nil, nil, nil, nil, 2, 6, 10, 14},
+	{59, 44, 51, 38, 56, 40, 50, 34, 57, 36, 49, 46, 58, 32, 48, 42, 33, 45, 41, 37, nil, nil, nil, nil, 35, 39, 43, 47, nil, nil, nil, nil, 27, 12, 19, 6, 24, 8, 18, 2, 25, 4, 17, 14, 26, 0, 16, 10, 1, 13, 9, 5, nil, nil, nil, nil, 3, 7, 11, 15}
+}
+
+
 local function shiftDownAndRoundUp(x, bits)
 	local y = bit.rshift(x, bits)
 	local mask = bit.lshift(1, bits) - 1
@@ -617,6 +683,7 @@ BlobVoxelMap.orientationRotations = orientationRotations
 BlobVoxelMap.specialOrientation = specialOrientation
 BlobVoxelMap.orientationInv = orientationInv
 BlobVoxelMap.rotateSideByOrientation = rotateSideByOrientation
+BlobVoxelMap.orientationMul = orientationMul
 
 assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof(Voxel))
 function BlobVoxelMap:init(data)
@@ -902,7 +969,7 @@ end
 -- TODO TODO TODO how come this is only working when I pass in an intval, but not a Voxel ?
 -- static function
 -- vox = Voxel, axis = 012 xyz
-function BlobVoxelMap:voxelRotate(vox, axis, amount)
+function BlobVoxelMap:voxelRotateAngleAxis(vox, axis, amount)
 	-- can I do this to cast numbers to Voxel's? no.
 	-- vox = ffi.cast(Voxel, vox)
 	local v2 = ffi.new'Voxel'
@@ -914,6 +981,17 @@ function BlobVoxelMap:voxelRotate(vox, axis, amount)
 	amount = bit.band(amount or 1, 3)	-- 0,1,2,3
 	if amount == 0 then return vox end
 	vox.orientation = orientationRotations[vox.orientation+1][axis+1][amount]
+	return vox
+end
+
+function BlobVoxelMap:voxelRotateOrientation(vox, orientation)
+	local v2 = ffi.new'Voxel'
+	v2.intval = vox
+	vox = v2
+
+	if vox.intval == voxelMapEmptyValue then return vox end
+	if specialOrientation[vox.orientation] then return vox end
+	vox.orientation = orientationMul[vox.orientation+1][orientation+1]
 	return vox
 end
 
@@ -931,10 +1009,10 @@ function BlobVoxelMap:rotateVoxelsX()
 				local v2 = self:getVoxelBlobPtr(i, j2, k2).intval
 				local v3 = self:getVoxelBlobPtr(i, j3, k3).intval
 				local v4 = self:getVoxelBlobPtr(i, j4, k4).intval
-				self:getVoxelBlobPtr(i, j1, k1)[0] = self:voxelRotate(v4, 0)
-				self:getVoxelBlobPtr(i, j2, k2)[0] = self:voxelRotate(v1, 0)
-				self:getVoxelBlobPtr(i, j3, k3)[0] = self:voxelRotate(v2, 0)
-				self:getVoxelBlobPtr(i, j4, k4)[0] = self:voxelRotate(v3, 0)
+				self:getVoxelBlobPtr(i, j1, k1)[0] = self:voxelRotateAngleAxis(v4, 0)
+				self:getVoxelBlobPtr(i, j2, k2)[0] = self:voxelRotateAngleAxis(v1, 0)
+				self:getVoxelBlobPtr(i, j3, k3)[0] = self:voxelRotateAngleAxis(v2, 0)
+				self:getVoxelBlobPtr(i, j4, k4)[0] = self:voxelRotateAngleAxis(v3, 0)
 			end
 		end
 	end
@@ -955,10 +1033,10 @@ function BlobVoxelMap:rotateVoxelsY()
 				local v2 = self:getVoxelBlobPtr(i2, j, k2).intval
 				local v3 = self:getVoxelBlobPtr(i3, j, k3).intval
 				local v4 = self:getVoxelBlobPtr(i4, j, k4).intval
-				self:getVoxelBlobPtr(i1, j, k1)[0] = self:voxelRotate(v4, 1)
-				self:getVoxelBlobPtr(i2, j, k2)[0] = self:voxelRotate(v1, 1)
-				self:getVoxelBlobPtr(i3, j, k3)[0] = self:voxelRotate(v2, 1)
-				self:getVoxelBlobPtr(i4, j, k4)[0] = self:voxelRotate(v3, 1)
+				self:getVoxelBlobPtr(i1, j, k1)[0] = self:voxelRotateAngleAxis(v4, 1)
+				self:getVoxelBlobPtr(i2, j, k2)[0] = self:voxelRotateAngleAxis(v1, 1)
+				self:getVoxelBlobPtr(i3, j, k3)[0] = self:voxelRotateAngleAxis(v2, 1)
+				self:getVoxelBlobPtr(i4, j, k4)[0] = self:voxelRotateAngleAxis(v3, 1)
 			end
 		end
 	end
@@ -979,10 +1057,10 @@ function BlobVoxelMap:rotateVoxelsZ()
 				local v2 = self:getVoxelBlobPtr(i2, j2, k).intval
 				local v3 = self:getVoxelBlobPtr(i3, j3, k).intval
 				local v4 = self:getVoxelBlobPtr(i4, j4, k).intval
-				self:getVoxelBlobPtr(i1, j1, k)[0] = self:voxelRotate(v4, 2)
-				self:getVoxelBlobPtr(i2, j2, k)[0] = self:voxelRotate(v1, 2)
-				self:getVoxelBlobPtr(i3, j3, k)[0] = self:voxelRotate(v2, 2)
-				self:getVoxelBlobPtr(i4, j4, k)[0] = self:voxelRotate(v3, 2)
+				self:getVoxelBlobPtr(i1, j1, k)[0] = self:voxelRotateAngleAxis(v4, 2)
+				self:getVoxelBlobPtr(i2, j2, k)[0] = self:voxelRotateAngleAxis(v1, 2)
+				self:getVoxelBlobPtr(i3, j3, k)[0] = self:voxelRotateAngleAxis(v2, 2)
+				self:getVoxelBlobPtr(i4, j4, k)[0] = self:voxelRotateAngleAxis(v3, 2)
 			end
 		end
 	end
