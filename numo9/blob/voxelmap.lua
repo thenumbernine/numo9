@@ -395,22 +395,7 @@ function Chunk:rebuildMesh(app)
 												local nbhdVox = voxels[nbhd.x + voxelmapSize.x * (nbhd.y + voxelmapSize.y * nbhd.z)]
 												local nbhdmesh = app.blobs.mesh3d[nbhdVox.mesh3DIndex+1]
 												if nbhdmesh
-												and nbhdVox.orientation ~= 20
-												and nbhdVox.orientation ~= 21
-												and nbhdVox.orientation ~= 22
-												and nbhdVox.orientation ~= 23
-												and nbhdVox.orientation ~= 28
-												and nbhdVox.orientation ~= 29
-												and nbhdVox.orientation ~= 30
-												and nbhdVox.orientation ~= 31
-												and nbhdVox.orientation ~= 52
-												and nbhdVox.orientation ~= 53
-												and nbhdVox.orientation ~= 54
-												and nbhdVox.orientation ~= 55
-												and nbhdVox.orientation ~= 60
-												and nbhdVox.orientation ~= 61
-												and nbhdVox.orientation ~= 62
-												and nbhdVox.orientation ~= 63
+												and not specialOrientation[nbhdVox.orientation]
 												then
 													local oppositeSideIndex = bit.bxor(1, sideIndex)
 													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][orientationInv[nbhdVox.orientation+1]+1]
