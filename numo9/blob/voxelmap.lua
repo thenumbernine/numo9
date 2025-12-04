@@ -502,7 +502,7 @@ print('GL_CURRENT_PROGRAM', oldProgramID)
 
 print('Chunk:drawMesh self.chunkPos', self.chunkPos)
 
-	if not self.vao 
+	if not self.vao
 	or program ~= self.vaoProgram
 	then
 		if self.vao then
@@ -538,7 +538,7 @@ assert(glreport'here')
 assert(glreport'here')
 
 print('self.vertexBufCPU.capacity', self.vertexBufCPU.capacity)
-print('self.vertexBufCPULastCapacity', self.vertexBufCPULastCapacity)	
+print('self.vertexBufCPULastCapacity', self.vertexBufCPULastCapacity)
 	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
 		self.vertexBufGPU:bind()
 assert(glreport'here')
@@ -564,13 +564,13 @@ assert(glreport'here')
 print('vertexBufGPU:updateData old size', self.vertexBufGPU.size)
 print('vertexBufGPU:updateData old data', self.vertexBufGPU.data)
 print('vertexBufGPU:updateData data should be', self.vertexBufCPU.v)
-print('vertexBufGPU:updateData vertexBufCPU:getNumBytes()', self.vertexBufCPU:getNumBytes())	
+print('vertexBufGPU:updateData vertexBufCPU:getNumBytes()', self.vertexBufCPU:getNumBytes())
 		self.vertexBufGPU:bind()
 print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
 print('vertexBufGPU before updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 assert(glreport'here')
 		self.vertexBufGPU
-			:updateData(0, 
+			:updateData(0,
 				--self.vertexBufCPU:getNumBytes())
 				ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
 assert(glreport'here')
@@ -583,7 +583,7 @@ print('vertexBufGPU after updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_B
 assert(glreport'here')
 
 	-- TODO also draw lightmap stuff here
-	
+
 	self.vao:unbind()
 	self.vertexBufGPU:unbind()
 
@@ -630,6 +630,8 @@ BlobVoxelMap.filenameSuffix = '.vox'
 -- save these for outside
 BlobVoxelMap.orientationRotations = orientationRotations
 BlobVoxelMap.specialOrientation = specialOrientation
+BlobVoxelMap.orientationInv = orientationInv
+BlobVoxelMap.rotateSideByOrientation = rotateSideByOrientation
 
 assert.eq(ffi.sizeof(voxelmapSizeType), ffi.sizeof(Voxel))
 function BlobVoxelMap:init(data)
@@ -912,12 +914,16 @@ function BlobVoxelMap:drawMesh(app)
 assert(glreport'here')
 end
 
+-- TODO TODO TODO how come this is only working when I pass in an intval, but not a Voxel ?
 -- static function
 -- vox = Voxel, axis = 012 xyz
 function BlobVoxelMap:voxelRotate(vox, axis, amount)
 	-- can I do this to cast numbers to Voxel's? no.
 	-- vox = ffi.cast(Voxel, vox)
-	if type(vox) == 'number' then vox = ffi.new('Voxel', vox) end	-- can I do this?  looks like it works so far.
+	local v2 = ffi.new'Voxel'
+	v2.intval = vox
+	vox = v2
+
 	if vox.intval == voxelMapEmptyValue then return vox end
 	if specialOrientation[vox.orientation] then return vox end
 	amount = bit.band(amount or 1, 3)	-- 0,1,2,3
