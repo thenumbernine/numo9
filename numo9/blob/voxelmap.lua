@@ -44,9 +44,10 @@ local function vec3to3(m, x, y, z)
 end
 
 -- orientation rotations for the upper 6 rotation bits of the voxel
--- indexed[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation
 -- the first 3 axis are for rotations, and have 3 entries for each 90 degree rotation
 -- the second 3 are for scales, and have 1 entry for the scale in the x, y, and z direction.
+-- This represents a left-multiply of the rotation to the orientation.
+-- orientationRotations[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation
 local orientationRotations = {
 	{{16, 10, 26},{4, 8, 12},{1, 2, 3},{32},{34},{40}},
 	{{13, 9, 5},{17, 11, 27},{2, 3, 0},{35},{33},{41}},
@@ -963,6 +964,7 @@ end
 -- TODO TODO TODO how come this is only working when I pass in an intval, but not a Voxel ?
 -- static function
 -- vox = Voxel, axis = 012 xyz
+-- This is a left-apply.
 function BlobVoxelMap:voxelRotateAngleAxis(vox, axis, amount)
 	-- can I do this to cast numbers to Voxel's? no.
 	-- vox = ffi.cast(Voxel, vox)
@@ -978,7 +980,24 @@ function BlobVoxelMap:voxelRotateAngleAxis(vox, axis, amount)
 	return vox
 end
 
-function BlobVoxelMap:voxelRotateOrientation(vox, orientation)
+-- This is a left-apply.
+function BlobVoxelMap:voxelRotateOrientationL(vox, orientation)
+	if specialOrientation[orientation] then
+		-- error or just return ident?
+		error(tostring(orientation)..' is a specialOrientation')
+	end
+	local v2 = ffi.new'Voxel'
+	v2.intval = vox
+	vox = v2
+
+	if vox.intval == voxelMapEmptyValue then return vox end
+	if specialOrientation[vox.orientation] then return vox end
+	vox.orientation = orientationMul[orientation+1][vox.orientation+1]
+	return vox
+end
+
+-- This is a right-apply.
+function BlobVoxelMap:voxelRotateOrientationR(vox, orientation)
 	local v2 = ffi.new'Voxel'
 	v2.intval = vox
 	vox = v2

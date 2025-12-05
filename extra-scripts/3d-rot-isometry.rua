@@ -83,9 +83,10 @@ print()
 print()
 print[[
 -- orientation rotations for the upper 6 rotation bits of the voxel
--- indexed[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation
 -- the first 3 axis are for rotations, and have 3 entries for each 90 degree rotation
 -- the second 3 are for scales, and have 1 entry for the scale in the x, y, and z direction.
+-- This represents a left-multiply of the rotation to the orientation.
+-- orientationRotations[orientation+1][axis+1][angle in 90 degree increments +1] = 0-based orientation
 ]]
 print'local orientationRotations = {'
 for i,m in ipairs(rots) do
