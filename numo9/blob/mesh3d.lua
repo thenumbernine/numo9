@@ -113,7 +113,9 @@ function BlobMesh3D:init(data)
 		local vj = vtxs+j bounds:stretch(vec3i(vj.x, vj.y, vj.z))
 		local vk = vtxs+k bounds:stretch(vec3i(vk.x, vk.y, vk.z))
 		local n = self.normalList.v + ti
+--[[ test face orientation as well?	
 		local unitN = n:normalize()
+--]]
 		for axis=0,2 do
 			local axis1 = (axis + 1) % 3
 			local axis2 = (axis + 2) % 3
@@ -128,9 +130,9 @@ function BlobMesh3D:init(data)
 				and -16384 <= bounds.min.s[axis1] and bounds.min.s[axis1] <= 16384
 				and -16384 <= bounds.min.s[axis2] and bounds.min.s[axis2] <= 16384
 
-				-- make sure it's pointing outwards ...
+--[[ test face orientation as well?
 				and math.abs(unitN.s[axis] - sign) < 1e-3
-
+--]]
 				then
 					-- TODO then our box is all within one side
 --DEBUG:print('tri', ti, 'is on side', axis, sign)

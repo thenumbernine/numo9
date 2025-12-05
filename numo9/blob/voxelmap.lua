@@ -124,12 +124,12 @@ local orientationInv = {0, 3, 2, 1, 12, 19, 6, 27, 8, 9, 10, 11, 4, 25, 14, 17, 
 
 -- [sideIndex+1][orientation+1] = rotated sideIndex
 local rotateSideByOrientation = {
-	{0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5},
-	{1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4},
-	{2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2},
-	{3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3},
-	{4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1},
-	{5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0}
+	{0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, nil, nil, nil, nil, 1, 3, 0, 2, nil, nil, nil, nil, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, nil, nil, nil, nil, 0, 2, 1, 3},
+	{1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, nil, nil, nil, nil, 0, 2, 1, 3, nil, nil, nil, nil, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, nil, nil, nil, nil, 1, 3, 0, 2},
+	{2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 4, 4, 4, 4, nil, nil, nil, nil, 5, 5, 5, 5, nil, nil, nil, nil, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 4, 4, 4, 4, nil, nil, nil, nil, 5, 5, 5, 5},
+	{3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 5, 5, 5, 5, nil, nil, nil, nil, 4, 4, 4, 4, nil, nil, nil, nil, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 5, 5, 5, 5, nil, nil, nil, nil, 4, 4, 4, 4},
+	{4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 3, 0, 2, 1, nil, nil, nil, nil, 3, 0, 2, 1, nil, nil, nil, nil, 4, 4, 4, 4, 0, 2, 1, 3, 5, 5, 5, 5, 1, 3, 0, 2, 3, 0, 2, 1, nil, nil, nil, nil, 3, 0, 2, 1},
+	{5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 2, 1, 3, 0, nil, nil, nil, nil, 2, 1, 3, 0, nil, nil, nil, nil, 5, 5, 5, 5, 1, 3, 0, 2, 4, 4, 4, 4, 0, 2, 1, 3, 2, 1, 3, 0, nil, nil, nil, nil, 2, 1, 3, 0}
 }
 
 --[orientation+1][orientation+1] = orientation
@@ -322,29 +322,13 @@ function Chunk:rebuildMesh(app)
 							tmpMat:setTranslate(vi+.5, vj+.5, vk+.5)
 							tmpMat:applyScale(1/32768, 1/32768, 1/32768)
 
-							if vptr.orientation == 20 then
-								self.billboardXYZVoxels:emplace_back()[0]:set(vi,vj,vk)
-							elseif vptr.orientation == 21 then
-								self.billboardXYVoxels:emplace_back()[0]:set(vi,vj,vk)
-							elseif vptr.orientation == 22 then
-							elseif vptr.orientation == 23 then
-							elseif vptr.orientation == 28 then
-							elseif vptr.orientation == 29 then
-							elseif vptr.orientation == 30 then
-							elseif vptr.orientation == 31 then
-							elseif vptr.orientation == 52 then
-							elseif vptr.orientation == 53 then
-							elseif vptr.orientation == 54 then
-							elseif vptr.orientation == 55 then
-							elseif vptr.orientation == 60 then
-							elseif vptr.orientation == 61 then
-							elseif vptr.orientation == 62 then
-							elseif vptr.orientation == 63 then
-							else
-								if vptr.scaleX == 1 then
-									mp[0], mp[1], mp[2] = -mp[0], -mp[1], -mp[2]
+							if specialOrientation[vptr.orientation] then
+								if vptr.orientation == 20 then
+									self.billboardXYZVoxels:emplace_back()[0]:set(vi,vj,vk)
+								elseif vptr.orientation == 21 then
+									self.billboardXYVoxels:emplace_back()[0]:set(vi,vj,vk)
 								end
-
+							else
 								--[[
 								0 c= 1 s= 0
 								1 c= 0 s= 1
@@ -413,6 +397,16 @@ function Chunk:rebuildMesh(app)
 								elseif vptr.rotX == 3 then
 									mp[4], mp[5], mp[6], mp[8], mp[9], mp[10]
 									= -mp[8], -mp[9], -mp[10], mp[4], mp[5], mp[6]
+								end
+
+								if vptr.scaleX == 1 then
+									--[[
+									[ m0 m4 m8  m12] [ -1 0 0 0 ]
+									[ m1 m5 m9  m13] [  0 1 0 0 ]
+									[ m2 m6 m10 m14] [  0 0 1 0 ]
+									[ m3 m7 m11 m15] [  0 0 0 1 ]
+									--]]
+									mp[0], mp[1], mp[2] = -mp[0], -mp[1], -mp[2]
 								end
 
 								local uofs = bit.lshift(vptr.tileXOffset, 3)

@@ -110,10 +110,10 @@ for i,m in ipairs(rots) do
 end
 print'}'
 
-local invOrientations = table()
+local orientationInv = table()
 for i,m in ipairs(rots) do
 	local invIndex = assert(rots:find((m:inv()))) - 1
-	invOrientations:insert(invIndex)
+	orientationInv:insert(invIndex)
 end
 print()
 
@@ -121,7 +121,7 @@ print[[
 -- inverse orientation for orientation
 -- [orientation+1] = rotated orientation
 ]]
-print('local orientationInv = '..tolua(invOrientations))
+print('local orientationInv = '..tolua(orientationInv))
 print()
 
 --[[
@@ -144,8 +144,11 @@ local sideToVec = |sideIndex| do
 	return v
 end
 local sideVecs = range(0,5):mapi(sideToVec)
+for sideIndexPlusOne,v in ipairs(sideVecs) do
+	print('sideVecs['..sideIndexPlusOne..'] = '..v)
+end
 
-local vecToSide = |v| do
+local vecToSideIndex = |v| do
 	-- better not have numerical precision errors
 	return assert(sideVecs:find(v)) - 1
 end
@@ -153,18 +156,20 @@ end
 -- for each side
 -- for each orientation
 -- give the resulting side
-local allrotsides = table()
+local rotateSideByOrientation = table()
 local allinvrotsides = table()
 for sideIndex=0,5 do
-	local v = sideToVec(sideIndex)
+	local v = sideVecs[sideIndex+1]
 	local rotsides = table()
-	for _,m in ipairs(rots) do
-		rotsides:insert(vecToSide(m * v))
+	for orientationPlusOne,m in ipairs(rots) do
+		if not specialOrientations[orientationPlusOne-1] then
+			rotsides[orientationPlusOne] = vecToSideIndex(m * v)
+		end
 	end
-	allrotsides:insert(rotsides)
+	rotateSideByOrientation:insert(rotsides)
 end
 print'-- [sideIndex+1][orientation+1] = rotated sideIndex'
-print('local rotateSideByOrientation = '..tolua(allrotsides))
+print('local rotateSideByOrientation = '..tolua(rotateSideByOrientation))
 
 
 -- just store the whole group orientation table
@@ -175,7 +180,7 @@ for i=0,#rots-1 do
 		for j=0,#rots-1 do
 			if not specialOrientations[j] then
 				local mulIndex = rots:find((rots[i+1] * rots[j+1]))
-				orientationMul[i+1][j+1] = mulIndex and (mulIndex-1) 
+				orientationMul[i+1][j+1] = mulIndex and (mulIndex-1)
 			end
 		end
 	end
