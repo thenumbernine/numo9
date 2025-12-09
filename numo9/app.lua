@@ -3130,7 +3130,13 @@ function App:runCart()
 	-- see if the ROM has any preferences on the editor ...
 	-- TODO just search all editors?
 	for blobType,edit in pairs(require 'numo9.ui'.editFieldForMode) do
-		for _,field in ipairs{'sheetBlobIndex', 'draw16Sprites', 'gridSpacing'} do
+		for _,field in ipairs{
+			'sheetBlobIndex',
+			'paletteBlobIndex',
+			'voxelmapBlobIndex',
+			'draw16Sprites',
+			'gridSpacing',
+		} do
 			local metakey = edit..'.'..field
 			local v = self.metainfo[metakey]
 			if v ~= nil then
