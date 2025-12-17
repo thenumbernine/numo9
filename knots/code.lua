@@ -1,6 +1,7 @@
 -- title = Knots
 -- author = Chris Moore
 -- description = knot theory Jones polynomial calculator
+-- saveid = knots
 
 --[[
 doing knot theory stuff
@@ -174,6 +175,25 @@ local knotNames = table{
 local knotNameSet = knotNames:mapi(|v|(true,v)):setmetatable(nil)
 -- per each knot we track, record the time to draw and the number of links
 local knotStats = {}
+
+local saveAddr = blobaddr'persist'
+local saveSizePerKnot = 4	-- save one uint32_t of your best length
+assert.eq(blobsize'persist', #knotNames * saveSizePerKnot, "you should resize your persist.bin to "..(#knotNames * saveSizePerKnot))
+-- load:
+for indexPlus1,knotName in ipairs(knotNames) do
+	local knotLen = peekl(saveAddr + saveSizePerKnot * (indexPlus1-1))
+	if knotLen ~= 0 then
+		knotStats[knotName] ??= {}
+		knotStats[knotName].len = knotLen
+	end
+end
+-- save:
+saveState=||do
+	for indexPlus1,knotName in ipairs(knotNames) do
+		local knotLen = knotStats[knotName]?.len or 0
+		pokel(saveAddr + saveSizePerKnot * (indexPlus1-1), knotLen)
+	end
+end
 
 redraw=||do
 	cls(1)
@@ -666,6 +686,7 @@ trace(knotMsg)
 		local oldlen = knotStats[knotName]?.len or math.huge
 		if newlen < oldlen then
 			knotStats[knotName] = {len=newlen}
+			saveState()
 		end
 	end
 end
