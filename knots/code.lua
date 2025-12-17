@@ -11,24 +11,35 @@ https://homepages.warwick.ac.uk/~maaac/TimL.html
 w,h=32,32
 rot=0x4000
 sprites={
-	empty					=0,
+	-- knot mosaics:
+	-- mosaic basis at:
+	-- https://arxiv.org/pdf/0805.0339 section 2.1
+	-- https://knightscholar.geneseo.edu/cgi/viewcontent.cgi?article=1279&context=proceedings-of-great-day
+	empty					=0,			-- T0
+	snakeDownLeft			=3+rot*3,	-- T1
+	snakeDownRight			=3+rot*2,	-- T2
+	snakeUpRight			=3+rot,		-- T3
+	snakeUpLeft				=3,			-- T4
+	snakeLeftRight			=2,			-- T5
+	snakeUpDown				=2+rot,		-- T6
+	snakeDownLeftAndUpRight =6,			-- T7
+	snakeDownRightAndUpLeft =6+rot,		-- T8
+	snakeHorzOverVert		=5+rot,		-- T9
+	snakeVertOverHorz		=5,			-- T10
+
+	-- snake starts
 	snakeRight				=1,
 	snakeDown				=1+rot,
 	snakeLeft				=1+rot*2,
 	snakeUp					=1+rot*3,
-	snakeUpDown				=2+rot,
-	snakeUpLeft				=3,
-	snakeUpRight			=3+rot,
-	snakeDownRight			=3+rot*2,
-	snakeDownLeft			=3+rot*3,
-	snakeLeftRight			=2,
+
+	-- snake ends
 	snakeEndRight			=4+rot*2,
 	snakeEndDown			=4+rot*3,
 	snakeEndLeft			=4,
 	snakeEndUp				=4+rot,
-	snakeVertOverHorz		=5,
-	snakeHorzOverVert		=5+rot,
-	fruit					=6,
+
+	fruit					=7,
 }
 snakeBodies={
 	[0]={
@@ -68,29 +79,30 @@ snakeBodies={
 		[3]=sprites.snakeEndRight,
 	},
 }
+spriteNames = table.map(sprites, |v,k| (k,v)):setmetatable(nil)
 
-dirIndexForName={
-	up=0,
-	down=1,
-	left=2,
-	right=3,
+dirIndexForName = {
+	up = 0,
+	down = 1,
+	left = 2,
+	right = 3,
 }
-dirNameForIndex=table.map(dirIndexForName,|v,k|(k,v)):setmetatable(nil)
-dirs={
-	[0]={0,-1},
-	[1]={0,1},
-	[2]={-1,0},
-	[3]={1,0},
+dirNameForIndex = table.map(dirIndexForName, |v,k| (k,v)):setmetatable(nil)
+dirs = {
+	[0] = {0,-1},
+	[1] = {0,1},
+	[2] = {-1,0},
+	[3] = {1,0},
 }
 
 --#include ext/range.lua
 
-table.equals=|a,b|do
-	local ka=table.keys(a)
-	local kb=table.keys(b)
-	if #ka~=#kb then return false end
+table.equals = |a,b|do
+	local ka = table.keys(a)
+	local kb = table.keys(b)
+	if #ka ~= #kb then return false end
 	for _,k in ipairs(ka) do
-		if a[k]~=b[k] then return false end
+		if a[k] ~= b[k] then return false end
 	end
 	return true
 end
@@ -111,48 +123,67 @@ popSnakeHist=||do
 end
 
 reset=||do
-	knotMsg=nil
-	knotMsgTime=nil
-	knotMsgWidth=0
-	for j=0,h-1 do
-		for i=0,w-1 do
+	knotMsg = nil
+	knotMsgTime = nil
+	knotMsgWidth = 0
+	for j = 0,h-1 do
+		for i = 0,w-1 do
 			tset(i,j,0)
 		end
 	end
-	snakeHist=table()
-	done=false
-	dir=4
-	snake=table()
-	snakeX=tonumber(w//2)
-	snakeY=tonumber(h//2)
-	snake:insert{x=snakeX,y=snakeY,dir=dir}
+	snakeHist = table()
+	done = false
+	dir = 4
+	snake = table()
+	snakeX = tonumber(w//2)
+	snakeY = tonumber(h//2)
+	snake:insert{x = snakeX,y = snakeY,dir = dir}
 end
 
-snakeCalcSprite=|i|do
+snakeCalcSprite = |i|do
 	local prevLinkDir = i>1 and snake[i-1].dir or nil
 	local link = snake[i]
-	local x=link.x
-	local y=link.y
-	local linkDir=link.dir
-	local crossingOver=link.crossingOver
-	local linkDone=link.done
+	local x = link.x
+	local y = link.y
+	local linkDir = link.dir
+	local crossingOver = link.crossingOver
+	local sharedCorner = link.sharedCorner
+	local linkDone = link.done
 	if crossingOver ~= nil then
 		-- draw order matters now since we have two links at one point whose sprites differ
-		if linkDir&2==0 then	-- moving up/down
+		if linkDir & 2 == 0 then	-- moving up/down
 			return crossingOver and sprites.snakeVertOverHorz or sprites.snakeHorzOverVert
 		else
 			return crossingOver and sprites.snakeHorzOverVert or sprites.snakeVertOverHorz
 		end
-	elseif #snake==1 then
+	elseif sharedCorner ~= nil then
+		if (linkDir == dirIndexForName.right and prevLinkDir == dirIndexForName.up)
+		or (linkDir == dirIndexForName.up and prevLinkDir == dirIndexForName.right)
+		or (linkDir == dirIndexForName.left and prevLinkDir == dirIndexForName.down)
+		or (linkDir == dirIndexForName.down and prevLinkDir == dirIndexForName.left)
+		then
+			return sprites.snakeDownLeftAndUpRight
+		end
+		if (linkDir == dirIndexForName.up and prevLinkDir == dirIndexForName.left)
+		or (linkDir == dirIndexForName.left and prevLinkDir == dirIndexForName.up)
+		or (linkDir == dirIndexForName.down and prevLinkDir == dirIndexForName.right)
+		or (linkDir == dirIndexForName.right and prevLinkDir == dirIndexForName.down)
+		then
+			return sprites.snakeDownRightAndUpLeft
+		end
+--trace('linkDir', linkDir, dirNameForIndex[linkDir])
+--trace('prevLinkDir', prevLinkDir, dirNameForIndex[prevLinkDir])
+		return sprites.fruit	-- ??? how did we get this configuration
+	elseif #snake == 1 then
 		return sprites.snakeDown
 	else
-		if i==1 then
+		if i == 1 then
 			if done then
 				return snakeBodies[linkDir][snake[#snake-1].dir~1]
 			else
 				return snakeBodies.head[linkDir]
 			end
-		elseif i==#snake then
+		elseif i == #snake then
 			if done then
 				return snakeBodies[prevLinkDir][snake[1].dir~1]	-- use prevLinkDir since linkDir for the tail is 4 / invalid
 			else
@@ -198,22 +229,17 @@ end
 redraw=||do
 	cls(1)
 	tilemap(0,0,w,h)
-	local prevLinkDir
 	for i,link in ipairs(snake) do
-		local x=link.x
-		local y=link.y
-		local linkDir=link.dir
-		local crossingOver=link.crossingOver
-		local linkDone=link.done
+		local x = link.x
+		local y = link.y
 		local spriteIndex = snakeCalcSprite(i)
 		local orient2D = (spriteIndex >> 13) & 7
-		spr(spriteIndex&0x3ff,
-			(x + (sx and 1 or 0))<<3,
-			(y + (sy and 1 or 0))<<3,
-			1,1,
+		spr(spriteIndex & 0x3ff,
+			(x + (sx and 1 or 0)) << 3,
+			(y + (sy and 1 or 0)) << 3,
+			1, 1,
 			orient2D
 		)
-		prevLinkDir=linkDir
 	end
 	if knotMsg then
 		if knotMsgWidth > 256 then
@@ -243,10 +269,11 @@ redraw=||do
 		end
 	end
 end
-snakeGet=|x,y|do
+
+snakeGet = |x,y| do
 	for i=#snake,1,-1 do
 		local link=snake[i]
-		if link.x==x and link.y==y then
+		if link.x == x and link.y == y then
 			return snakeCalcSprite(i), i
 		end
 	end
@@ -282,7 +309,7 @@ update=||do
 
 	if btnp('a',0,5,5) and #snakeHist>0 then
 		popSnakeHist()
-		if snake[1].crossingOver~=nil then	-- don't leave us hanging at a crossing
+		if snake[1].crossingOver ~= nil then	-- don't leave us hanging at a crossing
 			popSnakeHist()
 		end
 		return
@@ -294,40 +321,43 @@ update=||do
 	if done then return end
 
 	nextDir=nil
-	if btnp('up',0,5,5) and dir ~= 1 then
+	if btnp('up',0,10,10) and dir ~= 1 then
 		nextDir=0
-	elseif btnp('down',0,5,5) and dir ~= 0 then
+	elseif btnp('down',0,10,10) and dir ~= 0 then
 		nextDir=1
-	elseif btnp('left',0,5,5) and dir ~= 3 then
+	elseif btnp('left',0,10,10) and dir ~= 3 then
 		nextDir=2
-	elseif btnp('right',0,5,5) and dir ~= 2 then
+	elseif btnp('right',0,10,10) and dir ~= 2 then
 		nextDir=3
 	end
 
 	if nextDir then
-		local moveVert=nextDir&2==0
-		local moveHorz=not moveVert
-		local dx,dy=table.unpack(dirs[nextDir])
-		newX=snakeX+dx
-		newY=snakeY+dy
-		newX%=w
-		newY%=h
-		local spriteIndex,snakeIndex=snakeGet(newX, newY)
+		local moveVert = nextDir & 2 == 0
+		local moveHorz = not moveVert
+		local dx, dy = table.unpack(dirs[nextDir])
+		newX = snakeX + dx
+		newY = snakeY + dy
+		newX %= w
+		newY %= h
+		local spriteIndex, snakeIndex = snakeGet(newX, newY)
+--trace('nextDir', nextDir)
+--trace('snakePos', snakeX, snakeY)
+--trace('newPos', newX, newY)
+--trace('spriteIndex', spriteIndex, spriteNames[spriteIndex])
+--trace('snakeIndex', snakeIndex)
 
 		-- check for free movement or overlap/underlap ...
 		local blocked
 		local crossingOver
-		if spriteIndex~=sprites.empty then
-			-- TODO multiple over/under?
+		local sharedCorner
+		if spriteIndex ~= sprites.empty then
 			if (
 				moveVert
-				and (spriteIndex==sprites.snakeLeftRight)
-				--and snakeGet(newX+dx,newY+dy)==sprites.empty
+				and (spriteIndex == sprites.snakeLeftRight)
 			)
 			or (
 				moveHorz
-				and (spriteIndex==sprites.snakeUpDown)
-				--and snakeGet(newX+dx,newY+dy)==sprites.empty
+				and (spriteIndex == sprites.snakeUpDown)
 			)
 			then
 				-- skip
@@ -347,26 +377,54 @@ update=||do
 				done=true
 			--]]
 			-- [[ allow move into tail from any dir
-			elseif spriteIndex==sprites.snakeEndUp
-			or spriteIndex==sprites.snakeEndDown
-			or spriteIndex==sprites.snakeEndLeft
-			or spriteIndex==sprites.snakeEndRight
+			elseif spriteIndex == sprites.snakeEndUp
+			or spriteIndex == sprites.snakeEndDown
+			or spriteIndex == sprites.snakeEndLeft
+			or spriteIndex == sprites.snakeEndRight
 			then
 				done=true
 			--]]
+
+			-- moving into a turn but not joining or overlapping it
+			elseif (nextDir == dirIndexForName.right and (
+				spriteIndex == sprites.snakeUpRight
+				or spriteIndex == sprites.snakeDownRight
+			)) or (nextDir == dirIndexForName.up and (
+				spriteIndex == sprites.snakeUpLeft
+				or spriteIndex == sprites.snakeUpRight
+			)) or (nextDir == dirIndexForName.left and (
+				spriteIndex == sprites.snakeUpLeft
+				or spriteIndex == sprites.snakeDownLeft
+			)) or (nextDir == dirIndexForName.down and (
+				spriteIndex == sprites.snakeDownRight
+				or spriteIndex == sprites.snakeDownLeft
+			))
+			then
+				-- not crossing, not intersecting, just passing through...
+				sharedCorner = true
 			else
-				blocked=true
+				blocked = true
 			end
 		end
 
 		if not blocked then
-			dir=nextDir
+			dir = nextDir
 			pushSnakeHist()
-			if crossingOver~=nil then
-				snake[snakeIndex].crossingOver=not crossingOver
+			if crossingOver ~= nil then
+				snake[snakeIndex].crossingOver = not crossingOver
 			end
-			snake:insert(1,{x=newX,y=newY,dir=dir,done=done,crossingOver=crossingOver})
-			snakeX,snakeY=newX,newY
+			if sharedCorner ~= nil then
+				snake[snakeIndex].sharedCorner = not sharedCorner
+			end
+			snake:insert(1,{
+				x = newX,
+				y = newY,
+				dir = dir,
+				done = done,
+				crossingOver = crossingOver,
+				sharedCorner = sharedCorner,
+			})
+			snakeX, snakeY = newX, newY
 
 			if done then
 				redraw()
@@ -422,7 +480,7 @@ trace('got crossing indexes', crossingIndexes:mapi(tostring):concat',')
 			local dir1 = link.dir
 			local dir2 = link2.dir
 			if link.crossingOver == false then
-				dir1,dir2 = dir2,dir1
+				dir1, dir2 = dir2, dir1
 			elseif link.crossingOver ~= true then
 				error'unknown crossing state at crossing link'
 			end
