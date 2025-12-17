@@ -121,14 +121,27 @@ popSnakeHist=||do
 	dir=head.dir
 	done=false
 end
-countMosaicSize=||do
+countTileSize=||do
 	local numSharedCorners = #table.filter(snake, |link| link.sharedCorner)
 	local numCrossings = #table.filter(snake, |link| link.crossingOver ~= nil)
---trace('numCrossings', numCrossings)	
---trace('numSharedCorners', numSharedCorners)	
+--trace('numCrossings', numCrossings)
+--trace('numSharedCorners', numSharedCorners)
 	-- assert numSharedCorners is even
 	local knotLen = #snake - 1
 	return knotLen - numSharedCorners / 2 - numCrossings / 2
+end
+countMosaicSize=||do
+	local head = snake[1]
+	local minx, miny = head.x, head.y
+	local maxx, maxy = minx, miny
+	for i=2,#snake do
+		local link = snake[i]
+		minx = math.min(minx, link.x)
+		miny = math.min(miny, link.y)
+		maxx = math.max(maxx, link.x)
+		maxy = math.max(maxy, link.y)
+	end
+	return math.max(maxx - minx + 1, maxy - miny + 1)
 end
 
 reset=||do
@@ -217,10 +230,11 @@ local knotNameSet = knotNames:mapi(|v|(true,v)):setmetatable(nil)
 local knotStats = {}
 
 local saveAddr = blobaddr'persist'
-local saveSizePerKnot = 4
+local saveSizePerKnot = 6
 --[[
-uint16_t bestLength
-uint16_t bestMosaicSize
+uint16_t bestLength				<- this is the length of the knot, including tiles crossed twice.
+uint16_t bestTileSize			<- this is the # of tiles used to represent the knot.
+uint16_t bestMosaicSize			<- this is the largest dimension of the smallest rectangle bounding the knot.
 --]]
 assert.eq(blobsize'persist', #knotNames * saveSizePerKnot, "you should resize your persist.bin to "..(#knotNames * saveSizePerKnot))
 -- load:
@@ -231,7 +245,12 @@ for indexPlus1,knotName in ipairs(knotNames) do
 		knotStats[knotName] ??= {}
 		knotStats[knotName].len = knotLen
 	end
-	local knotMosaicSize = peekw(saveAddr + saveSizePerKnot * index + 2)
+	local knotTileSize = peekw(saveAddr + saveSizePerKnot * index + 2)
+	if knotTileSize ~= 0 then
+		knotStats[knotName] ??= {}
+		knotStats[knotName].tileSize = knotTileSize
+	end
+	local knotMosaicSize = peekw(saveAddr + saveSizePerKnot * index + 4)
 	if knotMosaicSize ~= 0 then
 		knotStats[knotName] ??= {}
 		knotStats[knotName].mosaicSize = knotMosaicSize
@@ -243,8 +262,10 @@ saveState=||do
 		local index = indexPlus1 - 1
 		local knotLen = knotStats[knotName]?.len or 0
 		pokew(saveAddr + saveSizePerKnot * index, knotLen)
+		local knotTileSize = knotStats[knotName]?.tileSize or 0
+		pokew(saveAddr + saveSizePerKnot * index + 2, knotTileSize)
 		local knotMosaicSize = knotStats[knotName]?.mosaicSize or 0
-		pokew(saveAddr + saveSizePerKnot * index + 2, knotMosaicSize)
+		pokew(saveAddr + saveSizePerKnot * index + 4, knotMosaicSize)
 	end
 end
 
@@ -285,7 +306,11 @@ redraw=||do
 	for i,name in ipairs(knotNames) do
 		local knotStat = knotStats[name]
 		if knotStat then
-			text(name..' '..tostring(knotStat.len)..' '..tostring(knotStat.mosaicSize), 0, i<<3, 0xfc, 0xf0)
+			text(name
+				..' '..tostring(knotStat.len or '*')
+				..' '..tostring(knotStat.tileSize or '*')
+				..' '..tostring(knotStat.mosaicSize or '*'),
+				0, i<<3, 0xfc, 0xf0)
 		else
 			text(name..' '..'*', 0, i<<3, 0xfc, 0xf0)
 		end
@@ -759,8 +784,10 @@ trace('V(t) so far', polyToStr(poly))
 
 	local knotName = polyNameOrStr(poly)
 	local newlen = #snake - 1
+	local newTileSize = countTileSize()
 	local newMosaicSize = countMosaicSize()
 	knotMsg = 'len='..newlen
+		..' tileSize='..newTileSize
 		..' mosaicSize='..newMosaicSize
 		..' knot='..knotName
 trace(knotMsg)
@@ -774,7 +801,14 @@ trace(knotMsg)
 			knotStats[knotName].len = newlen
 			needSave = true
 		end
-		
+
+		local oldTileSize = knotStats[knotName]?.tileSize or math.huge
+		if newTileSize < oldTileSize then
+			knotStats[knotName] ??= {}
+			knotStats[knotName].tileSize = newTileSize
+			needSave = true
+		end
+
 		local oldMosaicSize = knotStats[knotName]?.mosaicSize or math.huge
 		if newMosaicSize < oldMosaicSize then
 			knotStats[knotName] ??= {}
