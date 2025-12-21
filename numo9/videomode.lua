@@ -47,7 +47,7 @@ local Image = require 'image'
 local gl = require 'gl'
 local glreport = require 'gl.report'
 local glnumber = require 'gl.number'
-local GLFBO = require 'gl.fbo'
+local GLFramebuffer = require 'gl.framebuffer'
 local GLTex2D = require 'gl.tex2d'
 local GLTypes = require 'gl.types'
 local GLSceneObject = require 'gl.sceneobject'
@@ -152,7 +152,7 @@ function VideoMode:buildFramebuffers()
 	end
 
 	-- framebuffer for rendering geometry to 'framebufferRAM.tex' + framebufferDepthTex + framebufferNormalTex + framebufferPosTex
-	self.fb = GLFBO{
+	self.fb = GLFramebuffer{
 		width = self.width,
 		height = self.height,
 	}

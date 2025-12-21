@@ -10,7 +10,7 @@ local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local gl = require 'gl'
 local glnumber = require 'gl.number'
-local GLFBO = require 'gl.fbo'
+local GLFramebuffer = require 'gl.framebuffer'
 local GLArrayBuffer = require 'gl.arraybuffer'
 local GLTex2D = require 'gl.tex2d'
 local GLGeometry = require 'gl.geometry'
@@ -665,7 +665,7 @@ function AppVideo:initVideo()
 		assert.eq(self.lightView.mvProjMat.ctype, ffi.typeof'float')
 		-- end lightView that is only used on resetVideo to reset lightViewMat and lightProjMat
 
-		self.lightmapFB = GLFBO{
+		self.lightmapFB = GLFramebuffer{
 			width = dirLightMapSize.x,
 			height = dirLightMapSize.y,
 		}
