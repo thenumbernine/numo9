@@ -157,7 +157,7 @@ function VideoMode:buildFramebuffers()
 		height = self.height,
 	}
 
-	self.fb:setDrawBuffers(
+	self.fb:drawBuffers(
 		gl.GL_COLOR_ATTACHMENT0,	-- fragColor
 		gl.GL_COLOR_ATTACHMENT1,	-- fragNormal
 		gl.GL_COLOR_ATTACHMENT2)	-- fragPos
@@ -330,11 +330,11 @@ function VideoMode:buildFramebuffers()
 			t = gl.GL_CLAMP_TO_EDGE,
 		},
 	}
-	-- TODO put setDrawBuffers init in gl.pingpong ... when you dont provide a fbo?
+	-- TODO put drawBuffers init in gl.pingpong ... when you dont provide a fbo?
 	--  or is it even needed for single-color-attachment fbos?
 	self.calcLightTex.fbo
 		:bind()
-		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:drawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:setColorAttachmentTex2D(self.calcLightTex:cur().id)
 	-- but there's no need to clear it so long as all geometry gets rendered with the 'HD2DFlags' set to zero
 	-- then in the light combine pass it wont combine
@@ -683,7 +683,7 @@ return;
 	}
 	self.lightAndFBTex.fbo
 		:bind()
-		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:drawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:setColorAttachmentTex2D(self.lightAndFBTex:cur().id)
 	gl.glClearColor(1,1,1,1)
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
@@ -721,7 +721,7 @@ return;
 	}
 	self.hdrTex.fbo
 		:bind()
-		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:drawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:setColorAttachmentTex2D(self.hdrTex:cur().id)
 	gl.glClearColor(1,1,1,1)
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
@@ -803,7 +803,7 @@ void main() {
 	}
 	self.dofTex.fbo
 		:bind()
-		:setDrawBuffers(gl.GL_COLOR_ATTACHMENT0)
+		:drawBuffers(gl.GL_COLOR_ATTACHMENT0)
 		:setColorAttachmentTex2D(self.dofTex:cur().id)
 	gl.glClearColor(1,1,1,1)
 	gl.glClear(gl.GL_COLOR_BUFFER_BIT)
