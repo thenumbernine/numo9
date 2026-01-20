@@ -112,6 +112,9 @@ App.height = cmdline and cmdline.window and cmdline.window[2] or 512
 
 App.sdlInitFlags = bit.bor(App.sdlInitFlags, sdl.SDL_INIT_AUDIO, sdl.SDL_INIT_GAMEPAD)
 
+-- give it the benefit of the doubt or startup will stall
+App.hasFocus = true
+
 -- copy in video behavior
 for k,v in pairs(numo9_video.AppVideo) do
 	App[k] = v
