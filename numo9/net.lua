@@ -50,8 +50,8 @@ local assert = require 'ext.assert'
 local getTime = require 'ext.timer'.getTime
 local struct = require 'struct'
 local vector = require 'ffi.cpp.vector-lua'
-local zlibCompressLua = require 'ffi.req' 'zlib' .compressLua
-local zlibUncompressLua = require 'ffi.req' 'zlib' .uncompressLua
+local zlibCompressLua = require 'image.ffi.zlib' .compressLua
+local zlibUncompressLua = require 'image.ffi.zlib' .uncompressLua
 
 local numo9_keys = require 'numo9.keys'
 local firstJoypadKeyCode = numo9_keys.firstJoypadKeyCode

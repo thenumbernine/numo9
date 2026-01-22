@@ -20,7 +20,7 @@ local table = require 'ext.table'
 local path = require 'ext.path'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
-local zlib = require 'ffi.req' 'zlib'	-- TODO maybe ... use libzip if we're storing a compressed collection of files ... but doing this would push back the conversion of files<->ROM into the application openCart() function ...
+local zlib = require 'image.ffi.zlib'	-- TODO maybe ... use libzip if we're storing a compressed collection of files ... but doing this would push back the conversion of files<->ROM into the application openCart() function ...
 local sha2 = require 'sha2'
 
 local numo9_blobs = require 'numo9.blobs'
