@@ -750,10 +750,10 @@ uniform <?=videoMode.lightAndFBTex:cur():getGLSLSamplerType()?> prevTex;
 uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
 void main() {
-	vec4 worldNormal = texture(framebufferNormalTex, tcv, 0);
+	vec4 worldNormal = texture(framebufferNormalTex, tcv, 0.);
 	int HD2DFlags = int(worldNormal.w);
 	if ((HD2DFlags & <?=ffi.C.HD2DFlags_useHDR?>) == 0) {
-		fragColor = texture(prevTex, tcv, 0);
+		fragColor = texture(prevTex, tcv, 0.);
 		return;
 	}
 
@@ -842,10 +842,10 @@ uniform float dofAperature;		// rate of going out of focus
 uniform float dofBlurMax;		// max blur / miplevel to use
 
 void main() {
-	vec4 worldNormal = texture(framebufferNormalTex, tcv, 0);
+	vec4 worldNormal = texture(framebufferNormalTex, tcv, 0.);
 	int HD2DFlags = int(worldNormal.w);
 	if ((HD2DFlags & <?=ffi.C.HD2DFlags_useDoF?>) == 0) {
-		fragColor = texture(prevTex, tcv, 0);
+		fragColor = texture(prevTex, tcv, 0.);
 		return;
 	}
 
