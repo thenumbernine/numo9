@@ -129,7 +129,6 @@ deps = {
 	"glapp",
 	"image",
 	"langfix",
-	"matrix",
 	"mesh",
 	"sdl",
 	"struct",

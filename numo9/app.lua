@@ -24,8 +24,8 @@ local vector = require 'ffi.cpp.vector-lua'
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2f = require 'vec-ffi.vec2f'
+local vec4x4f = require 'vec-ffi.vec4x4f'
 local template = require 'template'
-local matrix_ffi = require 'matrix.ffi'
 local sdl = require 'sdl'
 local gl = require 'gl'
 local glreport = require 'gl.report'
@@ -248,12 +248,12 @@ function App:initGL()
 	--]]
 
 	-- do this before initBlobs -> buildRAMFromBlobs
-	self.modelMat = matrix_ffi({4,4}, matType):zeros()
-	self.viewMat = matrix_ffi({4,4}, matType):zeros()
-	self.projMat = matrix_ffi({4,4}, matType):zeros()
+	self.modelMat = vec4x4f():setIdent()
+	self.viewMat = vec4x4f():setIdent()
+	self.projMat = vec4x4f():setIdent()
 
-	self.drawViewMatForLighting = matrix_ffi({4,4}, matType):zeros()
-	self.drawProjMatForLighting = matrix_ffi({4,4}, matType):zeros()
+	self.drawViewMatForLighting = vec4x4f():setIdent()
+	self.drawProjMatForLighting = vec4x4f():setIdent()
 
 	self:initBlobs()
 

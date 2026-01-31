@@ -3,9 +3,9 @@ local template = require 'template'
 local table = require 'ext.table'
 local math = require 'ext.math'
 local assert = require 'ext.assert'
-local matrix_ffi = require 'matrix.ffi'
 local vec2i = require 'vec-ffi.vec2i'
 local vec3f = require 'vec-ffi.vec3f'
+local vec4x4f = require 'vec-ffi.vec4x4f'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local gl = require 'gl'
@@ -47,10 +47,10 @@ local uint16_t_arr = ffi.typeof'uint16_t[?]'
 local float = ffi.typeof'float'
 local float_4 = ffi.typeof'float[4]'
 local GLuint_4 = ffi.typeof'GLuint[4]'
-local matPtrType = ffi.typeof('$*', matType)
+local vec4x4f_p = ffi.typeof'vec4x4f_t*'
 
 
-assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms")
+assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms, and the vec4x4f in this file")
 
 --local dirLightMapSize = vec2i(256, 256)	-- for 16x16 tiles, 16 tiles wide, so 8 tile radius
 --local dirLightMapSize = vec2i(512, 512)
@@ -58,7 +58,7 @@ assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMa
 local dirLightMapSize = vec2i(2048, 2048)	-- 16 texels/voxel * 64 voxels = 1024 texels across the whole scene
 local useDirectionalShadowmaps = true	-- can't turn off or it'll break stuff so *shrug*
 
-local ident4x4 = matrix_ffi({4,4}, matType):eye()
+local ident4x4 = vec4x4f():setIdent()
 
 -- 'REV' means first channel first bit ... smh
 -- so even tho 5551 is on hardware since forever, it's not on ES3 or WebGL, only GL4...
@@ -662,7 +662,7 @@ function AppVideo:initVideo()
 		self.lightView.orbit:set(24, 24, 0)
 		self.lightView.pos = self.lightView.orbit + 40 * self.lightView.angle:zAxis()
 		self.lightView:setup(self.lightDepthTex.width / self.lightDepthTex.height)
-		assert.eq(self.lightView.mvProjMat.ctype, ffi.typeof'float')
+		assert.eq(self.lightView.mvProjMat.scalarType, ffi.typeof'float')
 		-- end lightView that is only used on resetVideo to reset lightViewMat and lightProjMat
 
 		self.lightmapFB = GLFramebuffer{
@@ -1672,9 +1672,9 @@ function AppVideo:transform(x,y,z,w, projMat, modelMat, viewMat)
 end
 
 -- inverse-transform from framebuffer/screen coords to menu coords
-local modelInv = matrix_ffi({4,4}, matType):zeros()
-local viewInv = matrix_ffi({4,4}, matType):zeros()
-local projInv = matrix_ffi({4,4}, matType):zeros()
+local modelInv = vec4x4f():setIdent()
+local viewInv = vec4x4f():setIdent()
+local projInv = vec4x4f():setIdent()
 function AppVideo:invTransform(x,y,z)
 	x = tonumber(x)
 	y = tonumber(y)
@@ -3574,8 +3574,8 @@ print()
 			1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
 		)
 
-		self.lightViewMat.ptr = ffi.cast(matPtrType, light.viewMat)
-		self.lightProjMat.ptr = ffi.cast(matPtrType, light.projMat)
+		self.lightViewMat = ffi.cast(vec4x4f_p, light.viewMat)
+		self.lightProjMat = ffi.cast(vec4x4f_p, light.projMat)
 		self.lightViewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
 		self.lightViewInvMat:inv4x4(self.lightViewMat)
 
