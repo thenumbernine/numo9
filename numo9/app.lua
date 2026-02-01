@@ -24,14 +24,15 @@ local vector = require 'ffi.cpp.vector-lua'
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
 local vec2f = require 'vec-ffi.vec2f'
-local vec4x4f = require 'vec-ffi.vec4x4f'
+--local vec4x4f = require 'vec-ffi.vec4x4f'
+local vec4x4fcol = require 'numo9.vec4x4fcol'
 local template = require 'template'
 local sdl = require 'sdl'
 local gl = require 'gl'
 local glreport = require 'gl.report'
 --DEBUG(glquery):local GLQuery = require 'gl.query'
 local GLApp = require 'glapp'
-local View = require 'glapp.view'
+local View = require 'numo9.view'
 local ThreadManager = require 'threadmanager'
 
 local numo9_archive = require 'numo9.archive'
@@ -248,12 +249,12 @@ function App:initGL()
 	--]]
 
 	-- do this before initBlobs -> buildRAMFromBlobs
-	self.modelMat = vec4x4f():setIdent()
-	self.viewMat = vec4x4f():setIdent()
-	self.projMat = vec4x4f():setIdent()
+	self.modelMat = vec4x4fcol():setIdent()
+	self.viewMat = vec4x4fcol():setIdent()
+	self.projMat = vec4x4fcol():setIdent()
 
-	self.drawViewMatForLighting = vec4x4f():setIdent()
-	self.drawProjMatForLighting = vec4x4f():setIdent()
+	self.drawViewMatForLighting = vec4x4fcol():setIdent()
+	self.drawProjMatForLighting = vec4x4fcol():setIdent()
 
 	self:initBlobs()
 

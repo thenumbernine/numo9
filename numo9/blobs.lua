@@ -2,7 +2,8 @@ local ffi = require 'ffi'
 local table = require 'ext.table'
 local assert = require 'ext.assert'
 local class = require 'ext.class'
-local vec4x4f = require 'vec-ffi.vec4x4f'
+--local vec4x4f = require 'vec-ffi.vec4x4f'
+local vec4x4fcol = require 'numo9.vec4x4fcol'
 
 local numo9_rom = require 'numo9.rom'
 local BlobEntry = numo9_rom.BlobEntry
@@ -17,7 +18,7 @@ local resetAnimSheet = numo9_video.resetAnimSheet
 
 local uint8_t_p = ffi.typeof'uint8_t*'
 local uint8_t_arr = ffi.typeof'uint8_t[?]'
-local vec4x4f_p = ffi.typeof'vec4x4f_t*'	assert.eq(matType, ffi.typeof'float')
+local vec4x4fcol_p = ffi.typeof'vec4x4fcol_t*'	assert.eq(matType, ffi.typeof'float')
 local RAM = ffi.typeof'RAM'
 local RAM_ref = ffi.typeof'RAM&'
 
@@ -291,9 +292,9 @@ function AppBlobs:buildRAMFromBlobs()
 --DEBUG:print('...done AppBlobs:initBlobs')
 
 	-- every time .ram updates, this has to update as well:
-	self.modelMat = ffi.cast(vec4x4f_p, self.ram.modelMat)
-	self.viewMat = ffi.cast(vec4x4f_p, self.ram.viewMat)
-	self.projMat = ffi.cast(vec4x4f_p, self.ram.projMat)
+	self.modelMat = ffi.cast(vec4x4fcol_p, self.ram.modelMat)
+	self.viewMat = ffi.cast(vec4x4fcol_p, self.ram.viewMat)
+	self.projMat = ffi.cast(vec4x4fcol_p, self.ram.projMat)
 
 	--TODO also resize all video sheets to match blobs (or merge them someday)
 	-- and TODO also flush them

@@ -348,6 +348,7 @@ function VideoMode:buildFramebuffers()
 	-- do this after resetting video so that we have a videoMode object
 	self.calcLightBlitObj = GLSceneObject{
 		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = [[
@@ -732,6 +733,7 @@ return;
 	-- TODO pre pass, generateMipmaps on lightAndFBTex
 	self.hdrBlitObj = GLSceneObject{
 		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = [[
@@ -812,6 +814,7 @@ void main() {
 
 	self.dofBlitObj = GLSceneObject{
 		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = [[
@@ -923,6 +926,7 @@ void main() {
 	-- should I always do it to a prev float16 buffer, or is it fine going straight to the screen?
 	self.blitScreenHD2DObj = GLSceneObject{
 		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = [[
@@ -1122,6 +1126,7 @@ vec4 colorIndexToFragColor(uint colorIndex) {
 --DEBUG:print'mode 0 blitScreenObj'
 	self.blitScreenObj = GLSceneObject{
 		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = blitScreenVertexCode,
@@ -1197,6 +1202,7 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 --DEBUG:print'mode 1 blitScreenObj'
 	self.blitScreenObj = GLSceneObject{
 		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = blitScreenVertexCode,
@@ -1289,6 +1295,7 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 --DEBUG:print'mode 2 blitScreenObj'
 	self.blitScreenObj = GLSceneObject{
 		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = blitScreenVertexCode,
@@ -1344,6 +1351,7 @@ function VideoMode:buildUberShader()
 --DEBUG:print('mode '..self.formatDesc..' drawObj')
 	self.drawObj = GLSceneObject{
 		program = {
+			rowMajor = false,	-- dafult to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = template([[

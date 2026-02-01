@@ -5,7 +5,8 @@ local math = require 'ext.math'
 local assert = require 'ext.assert'
 local vec2i = require 'vec-ffi.vec2i'
 local vec3f = require 'vec-ffi.vec3f'
-local vec4x4f = require 'vec-ffi.vec4x4f'
+--local vec4x4f = require 'vec-ffi.vec4x4f'
+local vec4x4fcol = require 'numo9.vec4x4fcol'
 local vector = require 'ffi.cpp.vector-lua'
 local Image = require 'image'
 local gl = require 'gl'
@@ -47,7 +48,7 @@ local uint16_t_arr = ffi.typeof'uint16_t[?]'
 local float = ffi.typeof'float'
 local float_4 = ffi.typeof'float[4]'
 local GLuint_4 = ffi.typeof'GLuint[4]'
-local vec4x4f_p = ffi.typeof'vec4x4f_t*'
+local vec4x4fcol_p = ffi.typeof'vec4x4fcol_t*'
 
 
 assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms, and the vec4x4f in this file")
@@ -58,7 +59,7 @@ assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMa
 local dirLightMapSize = vec2i(2048, 2048)	-- 16 texels/voxel * 64 voxels = 1024 texels across the whole scene
 local useDirectionalShadowmaps = true	-- can't turn off or it'll break stuff so *shrug*
 
-local ident4x4 = vec4x4f():setIdent()
+local ident4x4 = vec4x4fcol():setIdent()
 
 -- 'REV' means first channel first bit ... smh
 -- so even tho 5551 is on hardware since forever, it's not on ES3 or WebGL, only GL4...
@@ -638,7 +639,7 @@ function AppVideo:initVideo()
 
 		-- NOTICE the only reason this is here is to calc the mvProjMat and then in resetVideo it gets copied into ram.lightMat
 		local quatd = require 'vec-ffi.quatd'
-		local View = require 'glapp.view'
+		local View = require 'numo9.view'
 		self.lightView = View()
 		-- lightmap has to encompass the visible scene so *shrug* how big to make it
 		-- too big = blobbing up lightmap texels
@@ -1672,9 +1673,9 @@ function AppVideo:transform(x,y,z,w, projMat, modelMat, viewMat)
 end
 
 -- inverse-transform from framebuffer/screen coords to menu coords
-local modelInv = vec4x4f():setIdent()
-local viewInv = vec4x4f():setIdent()
-local projInv = vec4x4f():setIdent()
+local modelInv = vec4x4fcol():setIdent()
+local viewInv = vec4x4fcol():setIdent()
+local projInv = vec4x4fcol():setIdent()
 function AppVideo:invTransform(x,y,z)
 	x = tonumber(x)
 	y = tonumber(y)
@@ -3574,8 +3575,8 @@ print()
 			1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
 		)
 
-		self.lightViewMat = ffi.cast(vec4x4f_p, light.viewMat)
-		self.lightProjMat = ffi.cast(vec4x4f_p, light.projMat)
+		self.lightViewMat = ffi.cast(vec4x4fcol_p, light.viewMat)
+		self.lightProjMat = ffi.cast(vec4x4fcol_p, light.projMat)
 		self.lightViewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
 		self.lightViewInvMat:inv4x4(self.lightViewMat)
 

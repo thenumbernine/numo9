@@ -6,7 +6,8 @@ local table = require 'ext.table'
 local vector = require 'ffi.cpp.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
 local vec4us = require 'vec-ffi.vec4us'
-local vec4x4f = require 'vec-ffi.vec4x4f'
+--local vec4x4f = require 'vec-ffi.vec4x4f'
+local vec4x4fcol = require 'numo9.vec4x4fcol'
 local gl = require 'gl'
 local glreport = require 'gl.report'
 local glglobal = require 'gl.global'
@@ -252,7 +253,7 @@ function Chunk:init(args)
 	self.dirtyCPU = true
 end
 
-local tmpMat = vec4x4f()
+local tmpMat = vec4x4fcol()
 function Chunk:rebuildMesh(app)
 	if not self.dirtyCPU then return end
 	self.dirtyCPU = false
