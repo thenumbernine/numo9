@@ -18,7 +18,7 @@ local resetAnimSheet = numo9_video.resetAnimSheet
 
 local uint8_t_p = ffi.typeof'uint8_t*'
 local uint8_t_arr = ffi.typeof'uint8_t[?]'
-local vec4x4fcol_p = ffi.typeof'vec4x4fcol_t*'	assert.eq(matType, ffi.typeof'float')
+local vec4x4fcol_p = ffi.typeof'vec4x4fcol*'	assert.eq(matType, ffi.typeof'float')
 local RAM = ffi.typeof'RAM'
 local RAM_ref = ffi.typeof'RAM&'
 

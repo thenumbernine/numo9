@@ -75,11 +75,11 @@ local struct = require 'struct'
 local Numo9Vertex = struct{
 	name = 'Numo9Vertex',
 	fields = {
-		{name='vertex', type='vec3f_t'},
-		{name='texcoord', type='vec2f_t'},
-		{name='normal', type='vec3f_t'},
-		{name='extra', type='vec4us_t'},
-		{name='box', type='vec4f_t'},
+		{name='vertex', type='vec3f'},
+		{name='texcoord', type='vec2f'},
+		{name='normal', type='vec3f'},
+		{name='extra', type='vec4us'},
+		{name='box', type='vec4f'},
 	},
 }
 

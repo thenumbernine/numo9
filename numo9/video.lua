@@ -48,7 +48,7 @@ local uint16_t_arr = ffi.typeof'uint16_t[?]'
 local float = ffi.typeof'float'
 local float_4 = ffi.typeof'float[4]'
 local GLuint_4 = ffi.typeof'GLuint[4]'
-local vec4x4fcol_p = ffi.typeof'vec4x4fcol_t*'
+local vec4x4fcol_p = ffi.typeof'vec4x4fcol*'
 
 
 assert.eq(matType, float, "TODO if this changes then update the modelMat, viewMat, projMat uniforms, and the vec4x4f in this file")
