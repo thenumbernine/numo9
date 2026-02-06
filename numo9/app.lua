@@ -29,7 +29,6 @@ local vec4x4fcol = require 'numo9.vec4x4fcol'
 local template = require 'template'
 local sdl = require 'sdl'
 local gl = require 'gl'
-local glreport = require 'gl.report'
 --DEBUG(glquery):local GLQuery = require 'gl.query'
 local GLApp = require 'glapp'
 local View = require 'numo9.view'
@@ -2408,8 +2407,6 @@ print('run thread dead')
 		end
 		self.takeScreenshot = nil
 	end
-
-	glreport'here'
 end
 
 -- ... where to put this ... in video, app, or ui?

@@ -45,7 +45,6 @@ local table = require 'ext.table'
 local class = require 'ext.class'
 local Image = require 'image'
 local gl = require 'gl'
-local glreport = require 'gl.report'
 local glnumber = require 'gl.number'
 local GLFramebuffer = require 'gl.framebuffer'
 local GLTex2D = require 'gl.tex2d'
@@ -1166,7 +1165,6 @@ void main() {
 			mvProjMat = app.blitScreenView.mvProjMat.ptr,
 		},
 	}
-glreport'here'
 end
 
 function VideoMode:buildColorOutputAndBlitScreenObj_8bppIndex()
@@ -1244,7 +1242,6 @@ void main() {
 			mvProjMat = app.blitScreenView.mvProjMat.ptr,
 		},
 	}
-glreport'here'
 end
 
 function VideoMode:buildColorOutputAndBlitScreenObj_RGB332()
@@ -1333,7 +1330,6 @@ void main() {
 			mvProjMat = app.blitScreenView.mvProjMat.ptr,
 		},
 	}
-glreport'here'
 end
 
 function VideoMode:buildUberShader()

@@ -9,7 +9,6 @@ local vec4us = require 'vec-ffi.vec4us'
 --local vec4x4f = require 'vec-ffi.vec4x4f'
 local vec4x4fcol = require 'numo9.vec4x4fcol'
 local gl = require 'gl'
-local glreport = require 'gl.report'
 local glglobal = require 'gl.global'
 local GLArrayBuffer = require 'gl.arraybuffer'
 local GLVertexArray = require 'gl.vertexarray'
@@ -576,22 +575,16 @@ print('Chunk:drawMesh self.chunkPos', self.chunkPos)
 			end),
 		} -- init doesnt bind vao...
 		self.vao:bind()
-assert(glreport'here')
 		self.vertexBufGPU:bind()
-assert(glreport'here')
 	end
-assert(glreport'here')
 	self.vao:bind()
-assert(glreport'here')
 
 print('self.vertexBufCPU.capacity', self.vertexBufCPU.capacity)
 print('self.vertexBufCPULastCapacity', self.vertexBufCPULastCapacity)
 	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
 		self.vertexBufGPU:bind()
-assert(glreport'here')
 print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
 print('vertexBufGPU before setData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
-assert(glreport'here')
 		self.vertexBufGPU:setData{
 			data = self.vertexBufCPU.v,
 			count = self.vertexBufCPU.capacity,
@@ -603,7 +596,6 @@ print('ffi.sizeof(Numo9Vertex)', ffi.sizeof(Numo9Vertex))
 print('vertexBufGPU:setData count', self.vertexBufCPU.capacity)
 print('vertexBufGPU:setData size', ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
 print('vertexBufGPU:setData data', self.vertexBufCPU.v)
-assert(glreport'here')
 	-- [[ TODO only do this when we init or poke RAM
 	-- TODO TODO this is causing GL errors
 	else
@@ -615,19 +607,16 @@ print('vertexBufGPU:updateData vertexBufCPU:getNumBytes()', self.vertexBufCPU:ge
 		self.vertexBufGPU:bind()
 print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
 print('vertexBufGPU before updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
-assert(glreport'here')
 		self.vertexBufGPU
 			:updateData(0,
 				--self.vertexBufCPU:getNumBytes())
 				ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
-assert(glreport'here')
 	--]]
 print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
 print('vertexBufGPU after updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 	end
 
 	gl.glDrawArrays(gl.GL_TRIANGLES, 0, #self.vertexBufCPU)
-assert(glreport'here')
 
 	-- TODO also draw lightmap stuff here
 
@@ -959,7 +948,6 @@ function BlobVoxelMap:drawMesh(app)
 
 	-- rebind the old VAO
 	sceneObj.vao:bind()
-assert(glreport'here')
 end
 
 -- TODO TODO TODO how come this is only working when I pass in an intval, but not a Voxel ?
