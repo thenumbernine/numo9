@@ -111,7 +111,7 @@ for i=1,10 do
 end
 print('num backfacing', flipBackFacing())
 
-local o = require 'ffi.cpp.vector-lua' 'int16_t'
+local o = require 'stl.vector-lua' 'int16_t'
 o:emplace_back()[0] = #vtxs
 o:emplace_back()[0] = #indexes
 for j,vtx in ipairs(vtxs) do

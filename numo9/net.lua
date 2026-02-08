@@ -49,7 +49,7 @@ local string = require 'ext.string'
 local assert = require 'ext.assert'
 local getTime = require 'ext.timer'.getTime
 local struct = require 'struct'
-local vector = require 'ffi.cpp.vector-lua'
+local vector = require 'stl.vector-lua'
 local zlibCompressLua = require 'image.ffi.zlib' .compressLua
 local zlibUncompressLua = require 'image.ffi.zlib' .uncompressLua
 

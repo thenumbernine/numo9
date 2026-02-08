@@ -140,6 +140,7 @@ deps = {
 	"langfix",
 	"mesh",
 	"sdl",
+	"stl",
 	"struct",
 	"template",
 	"threadmanager",

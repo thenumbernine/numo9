@@ -3,7 +3,7 @@ local math = require 'ext.math'
 local table = require 'ext.table'
 local range = require 'ext.range'
 local assert = require 'ext.assert'
-local vector = require 'ffi.cpp.vector-lua'
+local vector = require 'stl.vector-lua'
 
 local numo9_archive = require 'numo9.archive'
 

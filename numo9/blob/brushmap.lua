@@ -1,6 +1,6 @@
 local ffi = require 'ffi'
 local assert = require 'ext.assert'
-local vector = require 'ffi.cpp.vector-lua'
+local vector = require 'stl.vector-lua'
 
 local numo9_rom = require 'numo9.rom'
 local Stamp = numo9_rom.Stamp

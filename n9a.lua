@@ -16,7 +16,7 @@ local fromlua = require 'ext.fromlua'
 local op = require 'ext.op'
 local string = require 'ext.string'
 local assert = require 'ext.assert'
-local vector = require 'ffi.cpp.vector-lua'
+local vector = require 'stl.vector-lua'
 local Image = require 'image'
 local AudioWAV = require 'audio.io.wav'
 
