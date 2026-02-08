@@ -3358,7 +3358,9 @@ gl.glReadPixels(0, 0, dirLightMapSize.x, dirLightMapSize.y, gl.GL_DEPTH_COMPONEN
 self.lightmapFB:unbind()
 --]]
 --[[
-self.lightDepthTex:toCPU(tempLightCPU)
+self.lightDepthTex
+	:bind()
+	:getImage(tempLightCPU)
 --]]
 print()
 for y=0,self.lightDepthTex.height-1 do
