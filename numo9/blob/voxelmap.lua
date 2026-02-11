@@ -206,6 +206,8 @@ local function shiftDownAndRoundUp(x, bits)
 end
 
 
+-- Chunk needs to see BlobVoxelMap
+local BlobVoxelMap
 
 local Chunk = class()
 
@@ -234,6 +236,9 @@ function Chunk:init(args)
 	self.vertexBufCPU = vector(Numo9Vertex)
 	self.billboardXYZVoxels = vector(vec3i)	-- type 20
 	self.billboardXYVoxels = vector(vec3i)	-- type 21
+
+	-- hmm, how to skip the GPU side for n9a?
+	if BlobVoxelMap.skipGPU then return end
 
 	-- oh yeah, archive uses this class, maybe I don't want to build the GLArrayBuffer in the ctor after all?
 	-- but I think same argument for the blob/image classes, so meh leave it here.
@@ -658,7 +663,7 @@ typedef struct {
 } VoxelBlock;
 VoxelBlock data[width*height*depth];
 --]]
-local BlobVoxelMap = Blob:subclass()
+BlobVoxelMap = Blob:subclass()
 
 BlobVoxelMap.filenamePrefix = 'voxelmap'
 BlobVoxelMap.filenameSuffix = '.vox'

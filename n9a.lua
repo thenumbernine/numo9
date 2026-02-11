@@ -47,6 +47,10 @@ local numo9_blobs = require 'numo9.blobs'
 local blobClassForName = numo9_blobs.blobClassForName
 local BlobSet = numo9_blobs.BlobSet
 
+-- special hack for n9a, tell the blob classes to skip GPU resource allocation
+-- why?  no problem in Linux or OSX, but in Windows it will poop itself if you try to touch OpenGL before GL context initialization
+require 'numo9.blob.voxelmap'.skipGPU = true
+
 
 local int8_t = ffi.typeof'int8_t'
 local uint8_t = ffi.typeof'uint8_t'
