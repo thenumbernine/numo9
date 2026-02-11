@@ -1107,6 +1107,9 @@ voxelmap editor fixes:
 - voxelmap undo is broken, it breaks something with the OpenGL, because my half-baked attempt to GPU cache voxel chunks.
 - cart reload is also broken, breaks some OpenGL thing as well.
 
+- lighting blit now has a uniform block buffer .... all shaders should ....
+- - TODO it needs a CPU equivalent, and should be writing all at once or something, or only dirty regions or something, idk.
+
 BUGS/FIXES SINCE 1.2.2:
 - Fixed bug where undo-then-save wasn't flushing to cart memory correctly.
 - Fixed langfix bug where `f?()` and `f!()` couldn't be used as statmements.  Updated some cart scripts accordingly.

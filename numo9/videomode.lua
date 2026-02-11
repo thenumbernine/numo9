@@ -48,6 +48,7 @@ local gl = require 'gl'
 local glnumber = require 'gl.number'
 local GLFramebuffer = require 'gl.framebuffer'
 local GLTex2D = require 'gl.tex2d'
+local GLUniformBuffer = require 'gl.uniformbuffer'
 local GLTypes = require 'gl.types'
 local GLSceneObject = require 'gl.sceneobject'
 local GLPingPong = require 'gl.pingpong'
@@ -372,31 +373,37 @@ uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;	// used by SSAO
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
+// spirv doesn't support binding, but I have only managed to get spirv to work with gl for compute, not frag or vert, so who cares about spirv.
+layout(std140, binding=0) uniform fragBlock {
+
 #define maxLights ]]..maxLights..[[
 
-// lighting variables in RAM:
-uniform int numLights;
-uniform vec3 lightAmbientColor;	// overall ambient level
-// lights[] array TODO use UBO:
-uniform bool lights_enabled[maxLights];
-uniform vec4 lights_region[maxLights];	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
-uniform vec3 lights_ambientColor[maxLights];// per light ambient (is attenuated, so its diffuse without dot product dependency).
-uniform vec3 lights_diffuseColor[maxLights];// = vec3(1., 1., 1.);
-uniform vec4 lights_specularColor[maxLights];// = vec3(.6, .5, .4, 30.);	// w = shininess
-uniform vec3 lights_distAtten[maxLights];	// vec3(const, linear, quadratic) attenuation
-uniform vec2 lights_cosAngleRange[maxLights];	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
-uniform mat4 lights_viewProjMat[maxLights];	// used for light depth coord transform, and for determining the light pos
-uniform vec3 lights_viewPos[maxLights];	// translation components of inverse-view-matrix of the light
-uniform vec3 lights_negViewDir[maxLights];	// negative-z-axis of inverse-view-matrix of the light
+	// lighting variables in RAM:
+	int numLights;
+	vec3 lightAmbientColor;	// overall ambient level
 
-uniform float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
-uniform float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
+	// lights[] array TODO use UBO:
+	bool lights_enabled[maxLights];
+	vec4 lights_region[maxLights];	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
+	vec3 lights_ambientColor[maxLights];// per light ambient (is attenuated, so its diffuse without dot product dependency).
+	vec3 lights_diffuseColor[maxLights];// = vec3(1., 1., 1.);
+	vec4 lights_specularColor[maxLights];// = vec3(.6, .5, .4, 30.);	// w = shininess
+	vec3 lights_distAtten[maxLights];	// vec3(const, linear, quadratic) attenuation
+	vec2 lights_cosAngleRange[maxLights];	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
+	mat4 lights_viewProjMat[maxLights];	// used for light depth coord transform, and for determining the light pos
+	vec3 lights_viewPos[maxLights];	// translation components of inverse-view-matrix of the light
+	vec3 lights_negViewDir[maxLights];	// negative-z-axis of inverse-view-matrix of the light
+
+	float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
+	float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
+
+	mat4 drawViewMat;	// used by SSAO
+	mat4 drawProjMat;	// used by ...
+	vec3 drawViewPos;
+
+};	// fragBlock
 
 const float ssaoSampleTCScale = 18.;	// ? meh
-
-uniform mat4 drawViewMat;	// used by SSAO
-uniform mat4 drawProjMat;	// used by ...
-uniform vec3 drawViewPos;
 
 // these are the random vectors inside a unit hemisphere facing z+
 #define ssaoNumSamples 8
@@ -646,9 +653,22 @@ return;
 	}
 	--]]
 
+	do
+		-- TODO TODO TODO put a matching struct on CPU in ffi types
+		-- allocate it here
+		-- write it in uniforms
+		-- and upload it all at once
+		local fragBlock = self.calcLightBlitObj.program.uniformBlocks.fragBlock
+		self.fragUniBuf = GLUniformBuffer{
+			--data = self.fragUniCPU,
+			size = fragBlock.dataSize,
+			usage = gl.GL_DYNAMIC_DRAW,
+			binding = fragBlock.binding,
+		}:unbind()
+	end
 
 -- [=[
-	-- ok TODO 
+	-- ok TODO
 	-- before we'd combine deferred-lighting buf + framebuffer and apply directly to output
 	-- but now we ...
 	-- (1) need to input that into hdrTex
@@ -717,7 +737,7 @@ return;
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
-		},	
+		},
 	}
 	self.hdrTex.fbo
 		:bind()
@@ -764,7 +784,7 @@ void main() {
 	//color.rgb / (color.rgb + 0.155) * 1.019;
 
 	fragColor.a = color.a;
-	fragColor.rgb = 
+	fragColor.rgb =
 		color.rgb
 		+ texture(prevTex, tcv, 1.).rgb * max(vec3(0., 0., 0.), color.rgb - 1.)
 		+ texture(prevTex, tcv, 2.).rgb * max(vec3(0., 0., 0.), color.rgb - 1.25)
@@ -800,7 +820,7 @@ void main() {
 		wrap = {
 			s = gl.GL_CLAMP_TO_EDGE,
 			t = gl.GL_CLAMP_TO_EDGE,
-		},	
+		},
 	}
 	self.dofTex.fbo
 		:bind()
