@@ -303,7 +303,7 @@ local BlobEntry = struct{
 -- should I make this its own blob that you gotta allocate yourself?
 -- and then its size determines max # lights?
 -- combined with cart reading lightmapWidth/Height to determine the "fantasy console"'s uber-lightmap capabilities?
-local maxLights = 256 -- TODO  needs UBOs
+local maxLights = 256
 -- last i checked: 0x0208aa is lights
 local Light = struct{
 	name = 'Light',

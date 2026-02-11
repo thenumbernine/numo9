@@ -43,6 +43,11 @@ local template = require 'template'
 local assert = require 'ext.assert'
 local table = require 'ext.table'
 local class = require 'ext.class'
+local vec2f = require 'vec-ffi.vec2f'
+local vec3f = require 'vec-ffi.vec3f'
+local vec4f = require 'vec-ffi.vec4f'
+local vec4i = require 'vec-ffi.vec4i'
+local vec4x4fcol = require 'numo9.vec4x4fcol'
 local Image = require 'image'
 local gl = require 'gl'
 local glnumber = require 'gl.number'
@@ -83,6 +88,43 @@ local Numo9Vertex = struct{
 	},
 }
 
+ffi.cdef[[
+typedef struct calcLightBlit_light_t {
+	vec4x4fcol viewProjMat;		// used for light depth coord transform, and for determining the light pos
+	vec4f region;               // uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
+	vec3f ambientColor;         // per light ambient (is attenuated, so its diffuse without dot product dependency).
+	vec3f diffuseColor;         // = vec3(1., 1., 1.);
+	vec4f specularColor;        // = vec3(.6, .5, .4, 30.);	// w = shininess
+	vec3f distAtten;            // vec3(const, linear, quadratic) attenuation
+	vec3f viewPos;              // translation components of inverse-view-matrix of the light
+	vec3f negViewDir;           // negative-z-axis of inverse-view-matrix of the light
+	vec2f cosAngleRange;        // cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
+	bool enabled;
+} calcLightBlit_light_t;
+]]
+
+
+ffi.cdef(template([[
+typedef struct calcLightBlit_fragUni_t {
+
+	// lights[] array TODO use UBO:
+	calcLightBlit_light_t lights[<?=maxLights?>];
+
+	vec4x4fcol drawViewMat;	// used by SSAO
+	vec4x4fcol drawProjMat;	// used by ...
+
+	vec4f lightAmbientColor;	// overall ambient level
+	vec4f drawViewPos;
+
+	// lighting variables in RAM:
+	vec4f ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
+	vec4f ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
+	int32_t numLights;
+
+} calcLightBlit_fragUni_t;
+]], {
+	maxLights = maxLights,
+}))
 
 
 local VideoMode = class()
@@ -373,33 +415,34 @@ uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=app.noiseTex:getGLSLSamplerType()?> noiseTex;	// used by SSAO
 uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
+#define maxLights ]]..maxLights..[[
+
 // spirv doesn't support binding, but I have only managed to get spirv to work with gl for compute, not frag or vert, so who cares about spirv.
 layout(std140, binding=0) uniform fragBlock {
 
-#define maxLights ]]..maxLights..[[
-
-	// lighting variables in RAM:
-	int numLights;
-	vec3 lightAmbientColor;	// overall ambient level
-
 	// lights[] array TODO use UBO:
-	bool lights_enabled[maxLights];
+	mat4 lights_viewProjMat[maxLights];	// used for light depth coord transform, and for determining the light pos
+
 	vec4 lights_region[maxLights];	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
 	vec3 lights_ambientColor[maxLights];// per light ambient (is attenuated, so its diffuse without dot product dependency).
 	vec3 lights_diffuseColor[maxLights];// = vec3(1., 1., 1.);
 	vec4 lights_specularColor[maxLights];// = vec3(.6, .5, .4, 30.);	// w = shininess
 	vec3 lights_distAtten[maxLights];	// vec3(const, linear, quadratic) attenuation
-	vec2 lights_cosAngleRange[maxLights];	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
-	mat4 lights_viewProjMat[maxLights];	// used for light depth coord transform, and for determining the light pos
 	vec3 lights_viewPos[maxLights];	// translation components of inverse-view-matrix of the light
 	vec3 lights_negViewDir[maxLights];	// negative-z-axis of inverse-view-matrix of the light
-
-	float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
-	float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
+	vec2 lights_cosAngleRange[maxLights];	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
+	bool lights_enabled[maxLights];
 
 	mat4 drawViewMat;	// used by SSAO
 	mat4 drawProjMat;	// used by ...
+
+	vec3 lightAmbientColor;	// overall ambient level
 	vec3 drawViewPos;
+
+	// lighting variables in RAM:
+	float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
+	float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
+	int numLights;
 
 };	// fragBlock
 
@@ -659,7 +702,11 @@ return;
 		-- write it in uniforms
 		-- and upload it all at once
 		local fragBlock = self.calcLightBlitObj.program.uniformBlocks.fragBlock
-		self.fragUniBuf = GLUniformBuffer{
+		--[[ TODO
+		assert.eq(ffi.sizeof'calcLightBlit_fragUni_t', fragBlock.dataSize, 'sizeof(calcLightBlit_fragUni_t) vs fragBlock.dataSize')
+		self.fragUniCPU = ffi.new'calcLightBlit_fragUni_t'
+		--]]
+		self.fragUniGPU = GLUniformBuffer{
 			--data = self.fragUniCPU,
 			size = fragBlock.dataSize,
 			usage = gl.GL_DYNAMIC_DRAW,
