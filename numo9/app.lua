@@ -30,7 +30,7 @@ local template = require 'template'
 local sdl = require 'sdl'
 local gl = require 'gl'
 --DEBUG(glquery):local GLQuery = require 'gl.query'
-local GLApp = require 'glapp'
+local GLApp = require 'gl.app'
 local View = require 'numo9.view'
 local ThreadManager = require 'threadmanager'
 

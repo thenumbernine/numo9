@@ -130,12 +130,12 @@ files = {
 	"test-voxelmap.n9",
 }
 deps = {
+	"app3d",
 	"audio",
 	"clip",
 	"ext",
 	"ffi",
 	"gl",
-	"glapp",
 	"image",
 	"langfix",
 	"mesh",
