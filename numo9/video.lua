@@ -3517,14 +3517,14 @@ print()
 		gl.glUniform1i(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_enabled['..i..']'
+				'lights['..i..'].enabled'
 			),
 			0 ~= bit.band(light.enabled, ffi.C.LIGHT_ENABLED_UPDATE_CALCS))
 
 		gl.glUniform4f(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_region['..i..']'
+				'lights['..i..'].region'
 			),
 			tonumber(light.region[0]) / tonumber(self.ram.lightmapWidth),
 			tonumber(light.region[1]) / tonumber(self.ram.lightmapHeight),
@@ -3535,7 +3535,7 @@ print()
 		gl.glUniform3fv(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_ambientColor['..i..']'
+				'lights['..i..'].ambientColor'
 			),
 			1,	-- count
 			light.ambientColor
@@ -3544,7 +3544,7 @@ print()
 		gl.glUniform3fv(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_diffuseColor['..i..']'
+				'lights['..i..'].diffuseColor'
 			),
 			1,	-- count
 			light.diffuseColor
@@ -3553,7 +3553,7 @@ print()
 		gl.glUniform4fv(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_specularColor['..i..']'
+				'lights['..i..'].specularColor'
 			),
 			1,	-- count
 			light.specularColor
@@ -3562,7 +3562,7 @@ print()
 		gl.glUniform3fv(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_distAtten['..i..']'
+				'lights['..i..'].distAtten'
 			),
 			1,	-- count ... as in arrays right?
 			light.distAtten
@@ -3571,7 +3571,7 @@ print()
 		gl.glUniform2f(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_cosAngleRange['..i..']'
+				'lights['..i..'].cosAngleRange'
 			),
 			light.cosAngleRange[0],
 			1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
@@ -3588,7 +3588,7 @@ print()
 		gl.glUniformMatrix4fv(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_viewProjMat['..i..']'
+				'lights['..i..'].viewProjMat'
 			),
 			1,	-- count
 			false,	-- transpose
@@ -3597,7 +3597,7 @@ print()
 		gl.glUniform3fv(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_viewPos['..i..']'
+				'lights['..i..'].viewPos'
 			),
 			1,	-- count
 			self.lightViewInvMat.ptr + 12
@@ -3606,7 +3606,7 @@ print()
 		gl.glUniform3fv(
 			gl.glGetUniformLocation(
 				program.id,
-				'lights_negViewDir['..i..']'
+				'lights['..i..'].negViewDir'
 			),
 			1,	-- count
 			self.lightViewInvMat.ptr + 8

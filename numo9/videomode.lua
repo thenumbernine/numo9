@@ -92,14 +92,15 @@ ffi.cdef[[
 typedef struct calcLightBlit_light_t {
 	vec4x4fcol viewProjMat;		// used for light depth coord transform, and for determining the light pos
 	vec4f region;               // uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
-	vec3f ambientColor;         // per light ambient (is attenuated, so its diffuse without dot product dependency).
-	vec3f diffuseColor;         // = vec3(1., 1., 1.);
+	vec4f ambientColor;         // per light ambient (is attenuated, so its diffuse without dot product dependency).
+	vec4f diffuseColor;         // = vec3(1., 1., 1.);
 	vec4f specularColor;        // = vec3(.6, .5, .4, 30.);	// w = shininess
-	vec3f distAtten;            // vec3(const, linear, quadratic) attenuation
-	vec3f viewPos;              // translation components of inverse-view-matrix of the light
-	vec3f negViewDir;           // negative-z-axis of inverse-view-matrix of the light
+	vec4f distAtten;            // vec3(const, linear, quadratic) attenuation
+	vec4f viewPos;              // translation components of inverse-view-matrix of the light
+	vec4f negViewDir;           // negative-z-axis of inverse-view-matrix of the light
 	vec2f cosAngleRange;        // cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
-	bool enabled;
+	int32_t enabled;
+	int32_t padding;
 } calcLightBlit_light_t;
 ]]
 
@@ -107,7 +108,6 @@ typedef struct calcLightBlit_light_t {
 ffi.cdef(template([[
 typedef struct calcLightBlit_fragUni_t {
 
-	// lights[] array TODO use UBO:
 	calcLightBlit_light_t lights[<?=maxLights?>];
 
 	vec4x4fcol drawViewMat;	// used by SSAO
@@ -120,6 +120,7 @@ typedef struct calcLightBlit_fragUni_t {
 	vec4f ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
 	vec4f ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 	int32_t numLights;
+	int32_t padding[3];
 
 } calcLightBlit_fragUni_t;
 ]], {
@@ -417,21 +418,23 @@ uniform <?=app.lightDepthTex:getGLSLSamplerType()?> lightDepthTex;
 
 #define maxLights ]]..maxLights..[[
 
+struct Light_t {
+	mat4 viewProjMat;	// used for light depth coord transform, and for determining the light pos
+	vec4 region;	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
+	vec3 ambientColor;// per light ambient (is attenuated, so its diffuse without dot product dependency).
+	vec3 diffuseColor;// = vec3(1., 1., 1.);
+	vec4 specularColor;// = vec3(.6, .5, .4, 30.);	// w = shininess
+	vec3 distAtten;	// vec3(const, linear, quadratic) attenuation
+	vec3 viewPos;	// translation components of inverse-view-matrix of the light
+	vec3 negViewDir;	// negative-z-axis of inverse-view-matrix of the light
+	vec2 cosAngleRange;	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
+	bool enabled;
+};
+
 // spirv doesn't support binding, but I have only managed to get spirv to work with gl for compute, not frag or vert, so who cares about spirv.
 layout(std140, binding=0) uniform fragBlock {
 
-	// lights[] array TODO use UBO:
-	mat4 lights_viewProjMat[maxLights];	// used for light depth coord transform, and for determining the light pos
-
-	vec4 lights_region[maxLights];	// uint16_t[4] x y w h / (lightmapWidth, lightmapHeight)
-	vec3 lights_ambientColor[maxLights];// per light ambient (is attenuated, so its diffuse without dot product dependency).
-	vec3 lights_diffuseColor[maxLights];// = vec3(1., 1., 1.);
-	vec4 lights_specularColor[maxLights];// = vec3(.6, .5, .4, 30.);	// w = shininess
-	vec3 lights_distAtten[maxLights];	// vec3(const, linear, quadratic) attenuation
-	vec3 lights_viewPos[maxLights];	// translation components of inverse-view-matrix of the light
-	vec3 lights_negViewDir[maxLights];	// negative-z-axis of inverse-view-matrix of the light
-	vec2 lights_cosAngleRange[maxLights];	// cosine(outer angle), 1 / (cosine(inner angle) - cosine(outer angle)) = {0,1}
-	bool lights_enabled[maxLights];
+	Light_t lights[maxLights];	
 
 	mat4 drawViewMat;	// used by SSAO
 	mat4 drawProjMat;	// used by ...
@@ -507,10 +510,10 @@ return;
 		fragColor = vec4(lightAmbientColor.xyz, 1.);
 
 		for (int lightIndex = 0; lightIndex < numLights; ++lightIndex) {
-			if (!lights_enabled[lightIndex]) continue;
+			if (!lights[lightIndex].enabled) continue;
 
 			if (calcFromLightMap) {
-				vec4 lightClipCoord = lights_viewProjMat[lightIndex] * worldCoord;
+				vec4 lightClipCoord = lights[lightIndex].viewProjMat * worldCoord;
 				// frustum test before homogeneous transform
 				if (!(lightClipCoord.w > 0.
 					&& all(lessThanEqual(vec3(-lightClipCoord.w, -lightClipCoord.w, -lightClipCoord.w), lightClipCoord.xyz))
@@ -520,7 +523,7 @@ return;
 				vec3 lightNDCoord = lightClipCoord.xyz / lightClipCoord.w;
 				vec3 lightND01Coord = lightNDCoord * .5 + .5;
 
-				vec2 lightTC = lightND01Coord.xy * lights_region[lightIndex].zw + lights_region[lightIndex].xy;
+				vec2 lightTC = lightND01Coord.xy * lights[lightIndex].region.zw + lights[lightIndex].region.xy;
 
 				// in bounds
 				float lightBufferDepth = texture(lightDepthTex, lightTC).x;
@@ -555,7 +558,7 @@ return;
 				fragColor.xyz += vec3(1., 1., 1.);
 			} else {
 #if 1 // diffuse & specular with the world space surface normal
-				vec3 surfaceToLightVec = lights_viewPos[lightIndex] - worldCoord.xyz;
+				vec3 surfaceToLightVec = lights[lightIndex].viewPos - worldCoord.xyz;
 				float surfaceToLightDist = length(surfaceToLightVec);
 				vec3 surfaceToLightNormalized = surfaceToLightVec / surfaceToLightDist;
 				vec3 viewDir = normalize(drawViewPos - worldCoord.xyz);
@@ -563,7 +566,7 @@ return;
 
 				float cos_lightToSurface_to_lightFwd = dot(
 					-surfaceToLightNormalized,
-					-lights_negViewDir[lightIndex]);
+					-lights[lightIndex].negViewDir);
 
 				// TODO i need an input/output map or bias or something
 				// outdoor lights need to disable this
@@ -574,27 +577,27 @@ return;
 				float atten =
 					// clamp this?  at least above zero... no negative lights.
 					clamp(
-						(cos_lightToSurface_to_lightFwd - lights_cosAngleRange[lightIndex].x)
-						* lights_cosAngleRange[lightIndex].y,	// .y holds 1/(cos(inner) - cos(outer))
+						(cos_lightToSurface_to_lightFwd - lights[lightIndex].cosAngleRange.x)
+						* lights[lightIndex].cosAngleRange.y,	// .y holds 1/(cos(inner) - cos(outer))
 						0., 1.
 					);
 
 				vec3 lightColor =
-					lights_ambientColor[lightIndex]
-					+ lights_diffuseColor[lightIndex] * abs(cosNormalToLightAngle)
+					lights[lightIndex].ambientColor
+					+ lights[lightIndex].diffuseColor * abs(cosNormalToLightAngle)
 					// maybe you just can't do specular lighting in [0,1]^3 space ...
 					// maybe I should be doing inverse-frustum-projection stuff here
 					// hmmmmmmmmmm
 					// I really don't want to split projection and modelview matrices ...
-					+ lights_specularColor[lightIndex].xyz * pow(
+					+ lights[lightIndex].specularColor.xyz * pow(
 						abs(dot(viewDir, reflect(-surfaceToLightNormalized, normalizedWorldNormal))),
-						lights_specularColor[lightIndex].w
+						lights[lightIndex].specularColor.w
 					);
 				atten *= 1. /
 					max(1e-7,
-						lights_distAtten[lightIndex].x
-						+ surfaceToLightDist * (lights_distAtten[lightIndex].y
-							+ surfaceToLightDist * lights_distAtten[lightIndex].z
+						lights[lightIndex].distAtten.x
+						+ surfaceToLightDist * (lights[lightIndex].distAtten.y
+							+ surfaceToLightDist * lights[lightIndex].distAtten.z
 						)
 					);
 
