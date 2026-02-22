@@ -705,12 +705,10 @@ return;
 		-- write it in uniforms
 		-- and upload it all at once
 		local fragBlock = self.calcLightBlitObj.program.uniformBlocks.fragBlock
-		--[[ TODO
 		assert.eq(ffi.sizeof'calcLightBlit_fragUni_t', fragBlock.dataSize, 'sizeof(calcLightBlit_fragUni_t) vs fragBlock.dataSize')
 		self.fragUniCPU = ffi.new'calcLightBlit_fragUni_t'
-		--]]
 		self.fragUniGPU = GLUniformBuffer{
-			--data = self.fragUniCPU,
+			data = self.fragUniCPU,
 			size = fragBlock.dataSize,
 			usage = gl.GL_DYNAMIC_DRAW,
 			binding = fragBlock.binding,

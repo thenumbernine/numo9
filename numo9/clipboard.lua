@@ -26,7 +26,7 @@ M.text = function(...)
 	else
 		if not sdl.SDL_HasClipboardText() then return end
 		local text = sdl.SDL_GetClipboardText()
-		if text == ffi.null then
+		if text == nil then
 			-- bother with the error?
 			local error = sdlGetError()
 			return nil, error

@@ -3505,7 +3505,7 @@ function App:event(e)
 			local joystickID = e[0].gdevice.which
 --DEBUG:print('SDL_EVENT_GAMEPAD_ADDED', joystickID)
 			local gamepad = sdl.SDL_OpenGamepad(joystickID)
-			if gamepad == ffi.null then
+			if gamepad == nil then
 				print('SDL_OpenGamepad('..joystickID..') failed: '..require 'sdl.assert'.getError())
 			else
 				local controller = {

@@ -26,7 +26,7 @@ function Blob:copyToROM()
 end
 
 function Blob:copyFromROM()
-	assert.ne(self.ramptr, ffi.null)
+	assert.ne(self.ramptr, nil)
 	ffi.copy(self:getPtr(), self.ramptr, self:getSize())
 end
 

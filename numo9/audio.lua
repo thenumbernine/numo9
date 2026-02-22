@@ -105,7 +105,7 @@ function AppAudio:initAudio()
 	--local spec = SDL_AudioSpec_1()	-- uhh, how do I tell desired from actual?
 	local spec = desired
 	audio.stream = sdl.SDL_OpenAudioDeviceStream(sdl.SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, spec, nil, nil)
-	assert.ne(audio.stream, ffi.null, "SDL_OpenAudioDeviceStream failed")
+	assert.ne(audio.stream, nil, "SDL_OpenAudioDeviceStream failed")
 
 	audio.deviceID = sdl.SDL_GetAudioStreamDevice(audio.stream)
 
