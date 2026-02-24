@@ -43,6 +43,7 @@ local template = require 'template'
 local assert = require 'ext.assert'
 local table = require 'ext.table'
 local class = require 'ext.class'
+local vec2i = require 'vec-ffi.vec2i'
 local vec2f = require 'vec-ffi.vec2f'
 local vec3f = require 'vec-ffi.vec3f'
 local vec4f = require 'vec-ffi.vec4f'
@@ -114,13 +115,13 @@ typedef struct calcLightBlit_fragUni_t {
 	vec4x4fcol drawProjMat;	// used by ...
 
 	vec4f lightAmbientColor;	// overall ambient level
-	vec4f drawViewPos;
+	vec3f drawViewPos;
 
 	// lighting variables in RAM:
-	vec4f ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
-	vec4f ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
+	float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
+	float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 	int32_t numLights;
-	int32_t padding[3];
+	vec2i padding;
 
 } calcLightBlit_fragUni_t;
 ]], {
