@@ -128,7 +128,6 @@ typedef struct calcLightBlit_fragUni_t {
 	maxLights = maxLights,
 }))
 
-
 local VideoMode = class()
 
 function VideoMode:init(args)
@@ -435,7 +434,7 @@ struct Light_t {
 // spirv doesn't support binding, but I have only managed to get spirv to work with gl for compute, not frag or vert, so who cares about spirv.
 layout(std140, binding=0) uniform fragBlock {
 
-	Light_t lights[maxLights];	
+	Light_t lights[maxLights];
 
 	mat4 drawViewMat;	// used by SSAO
 	mat4 drawProjMat;	// used by ...
@@ -701,10 +700,11 @@ return;
 	--]]
 
 	do
-		-- TODO TODO TODO put a matching struct on CPU in ffi types
+		-- TODO MAYBE ... put a matching struct on CPU in ffi types
 		-- allocate it here
 		-- write it in uniforms
 		-- and upload it all at once
+		-- .. but just look how bloated the GPU memory layout is ...
 		local fragBlock = self.calcLightBlitObj.program.uniformBlocks.fragBlock
 		assert.eq(ffi.sizeof'calcLightBlit_fragUni_t', fragBlock.dataSize, 'sizeof(calcLightBlit_fragUni_t) vs fragBlock.dataSize')
 		self.fragUniCPU = ffi.new'calcLightBlit_fragUni_t'

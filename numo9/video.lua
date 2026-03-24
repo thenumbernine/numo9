@@ -5,6 +5,7 @@ local math = require 'ext.math'
 local assert = require 'ext.assert'
 local vec2i = require 'vec-ffi.vec2i'
 local vec3f = require 'vec-ffi.vec3f'
+local vec4f = require 'vec-ffi.vec4f'
 --local vec4x4f = require 'vec-ffi.vec4x4f'
 local vec4x4fcol = require 'numo9.vec4x4fcol'
 local vector = require 'stl.vector-lua'
@@ -683,7 +684,6 @@ function AppVideo:initVideo()
 		-- temp buf used for holding the combination of light view+proj
 		self.lightViewMat = ident4x4:clone()	-- \_ have their pointers relocated to ram
 		self.lightProjMat = ident4x4:clone()	-- /
-		self.lightViewProjMat = ident4x4:clone()
 		self.lightViewInvMat = ident4x4:clone()	-- \_ used especially for extracting position
 		self.drawViewInvMat = ident4x4:clone()	-- /
 	end
@@ -1104,6 +1104,7 @@ end
 --  which also tests for update to determine framebuffer-bound status ...
 function AppVideo:resetVideo()
 --DEBUG:print'App:resetVideo'
+	local ram = self.ram
 
 	-- flush all before resetting RAM addrs in case any are pointed to the addrs' location
 	-- do the framebuffers explicitly cuz typically 'checkDirtyGPU' just does the current one
@@ -1125,12 +1126,12 @@ function AppVideo:resetVideo()
 	local fontAddr = fontBlob and fontBlob.addr or 0
 
 	-- reset these
-	self.ram.framebufferAddr = framebufferAddr
-	self.ram.spriteSheetAddr = spriteSheetAddr
-	self.ram.spriteSheet1Addr = spriteSheet1Addr
-	self.ram.tilemapAddr = tilemapAddr
-	self.ram.paletteAddr = paletteAddr
-	self.ram.fontAddr = fontAddr
+	ram.framebufferAddr = framebufferAddr
+	ram.spriteSheetAddr = spriteSheetAddr
+	ram.spriteSheet1Addr = spriteSheet1Addr
+	ram.tilemapAddr = tilemapAddr
+	ram.paletteAddr = paletteAddr
+	ram.fontAddr = fontAddr
 	-- and these, which are the ones that can be moved
 
 	-- reset framebufferRAM objects' addresses:
@@ -1159,12 +1160,12 @@ function AppVideo:resetVideo()
 
 
 	-- do this to set the framebufferRAM before doing checkDirtyCPU/GPU
-	self.ram.videoMode = 0	-- 16bpp RGB565
-	--self.ram.videoMode = 1	-- 8bpp indexed
-	--self.ram.videoMode = 2	-- 8bpp RGB332
+	ram.videoMode = 0	-- 16bpp RGB565
+	--ram.videoMode = 1	-- 8bpp indexed
+	--ram.videoMode = 2	-- 8bpp RGB332
 
 	-- then set to 0 for our default game env
-	self:setVideoMode(self.ram.videoMode)
+	self:setVideoMode(ram.videoMode)
 
 	self:copyBlobsToROM()
 
@@ -1201,19 +1202,19 @@ function AppVideo:resetVideo()
 	self:matident(1)
 	self:matident(2)
 	-- default ortho
-	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, -1000, 1000)
+	self:matortho(0, ram.screenWidth, ram.screenHeight, 0, -1000, 1000)
 
-	self.ram.blendMode = 0xff	-- = none
-	self.ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
+	ram.blendMode = 0xff	-- = none
+	ram.blendColor = rgba8888_4ch_to_5551(255,0,0,255)	-- solid red
 	self:onBlendColorChange()
 
-	self.ram.dither = 0
+	ram.dither = 0
 	self:onDitherChange()
 
-	self.ram.cullFace = 0
+	ram.cullFace = 0
 	self:onCullFaceChange()
 
-	self.ram.HD2DFlags = 0
+	ram.HD2DFlags = 0
 	self:onHD2DFlagsChange()
 
 	self.paletteBlobIndex = 0
@@ -1221,64 +1222,64 @@ function AppVideo:resetVideo()
 	self.animSheetBlobIndex = 0
 
 	for i=0,255 do
-		self.ram.fontWidth[i] = 5
+		ram.fontWidth[i] = 5
 	end
 
-	self.ram.textFgColor = 0xfc
-	self.ram.textBgColor = 0xf0
+	ram.textFgColor = 0xfc
+	ram.textBgColor = 0xf0
 
 
 	-- init light vars
-	self.ram.lightmapWidth = dirLightMapSize.x
-	self.ram.lightmapHeight = dirLightMapSize.y
+	ram.lightmapWidth = dirLightMapSize.x
+	ram.lightmapHeight = dirLightMapSize.y
 
-	self.ram.lightAmbientColor[0] = .4
-	self.ram.lightAmbientColor[1] = .3
-	self.ram.lightAmbientColor[2] = .2
+	ram.lightAmbientColor[0] = .4
+	ram.lightAmbientColor[1] = .3
+	ram.lightAmbientColor[2] = .2
 
-	self.ram.numLights = 1
+	ram.numLights = 1
 	for i=0,maxLights-1 do
-		self.ram.lights[0].enabled = i==0 and 0xff or 0	-- enable light #1 by default (just like GL1.0 days...)
+		ram.lights[i].enabled = i==0 and 0xff or 0	-- enable light #1 by default (just like GL1.0 days...)
 
-		self.ram.lights[0].region[0] = 0
-		self.ram.lights[0].region[1] = 0
-		self.ram.lights[0].region[2] = self.ram.lightmapWidth
-		self.ram.lights[0].region[3] = self.ram.lightmapHeight
+		ram.lights[i].region[0] = 0
+		ram.lights[i].region[1] = 0
+		ram.lights[i].region[2] = ram.lightmapWidth
+		ram.lights[i].region[3] = ram.lightmapHeight
 
-		self.ram.lights[0].ambientColor[0] = .4
-		self.ram.lights[0].ambientColor[1] = .3
-		self.ram.lights[0].ambientColor[2] = .2
+		ram.lights[i].ambientColor[0] = .4
+		ram.lights[i].ambientColor[1] = .3
+		ram.lights[i].ambientColor[2] = .2
 
-		self.ram.lights[0].diffuseColor[0] = 1
-		self.ram.lights[0].diffuseColor[1] = 1
-		self.ram.lights[0].diffuseColor[2] = 1
+		ram.lights[i].diffuseColor[0] = 1
+		ram.lights[i].diffuseColor[1] = 1
+		ram.lights[i].diffuseColor[2] = 1
 
-		self.ram.lights[0].specularColor[0] = .6
-		self.ram.lights[0].specularColor[1] = .5
-		self.ram.lights[0].specularColor[2] = .4
-		self.ram.lights[0].specularColor[3] = 30
+		ram.lights[i].specularColor[0] = .6
+		ram.lights[i].specularColor[1] = .5
+		ram.lights[i].specularColor[2] = .4
+		ram.lights[i].specularColor[3] = 30
 
-		self.ram.lights[0].distAtten[0] = 1
-		self.ram.lights[0].distAtten[1] = 0
-		self.ram.lights[0].distAtten[2] = 0
+		ram.lights[i].distAtten[0] = 1
+		ram.lights[i].distAtten[1] = 0
+		ram.lights[i].distAtten[2] = 0
 
 		-- this is a global dir light so don't use angle range
-		self.ram.lights[0].cosAngleRange[0] = -2
-		self.ram.lights[0].cosAngleRange[1] = -1	-- set cos angle range to [-2,-1] so all values map to 1
+		ram.lights[i].cosAngleRange[0] = -2
+		ram.lights[i].cosAngleRange[1] = -1	-- set cos angle range to [-2,-1] so all values map to 1
 
-		ffi.copy(self.ram.lights[0].viewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
-		ffi.copy(self.ram.lights[0].projMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
+		ffi.copy(ram.lights[i].viewMat, self.lightView.mvMat.ptr, ffi.sizeof(matArrType))
+		ffi.copy(ram.lights[i].projMat, self.lightView.projMat.ptr, ffi.sizeof(matArrType))
 	end
 
-	self.ram.ssaoSampleRadius = 1
-	self.ram.ssaoInfluence = 1
+	ram.ssaoSampleRadius = 1
+	ram.ssaoInfluence = 1
 
-	self.ram.dofFocalDist = 0
-	self.ram.dofAperature = .2
-	self.ram.dofFocalRange = 1
-	self.ram.dofBlurMax = 2
+	ram.dofFocalDist = 0
+	ram.dofAperature = .2
+	ram.dofFocalRange = 1
+	ram.dofBlurMax = 2
 
-	self.ram.spriteNormalExhaggeration = 8
+	ram.spriteNormalExhaggeration = 8
 	self:onSpriteNormalExhaggerationChange()
 
 	self.lastAnimSheetTex = self.blobs.animsheet[1].ramgpu.tex
@@ -3455,163 +3456,62 @@ print()
 
 	-- TODO use UBOs but I'm lazy
 
-	-- all the 'if program.uniforms.* are only for when I do debugging and the uniforms dont compile
-	if program.uniforms.ssaoSampleRadius then
-		gl.glUniform1f(
-			program.uniforms.ssaoSampleRadius.loc,
-			self.ram.ssaoSampleRadius)
-	end
 
-	if program.uniforms.ssaoInfluence then
-		gl.glUniform1f(
-			program.uniforms.ssaoInfluence.loc,
-			self.ram.ssaoInfluence)
-	end
+	-- and on any lighting change ...
+	-- update the frag uniform block ...
+	local ram = self.ram
+	local fragUniCPU = self.currentVideoMode.fragUniCPU
 
-	local drawViewInvMatCalcd
-	if program.uniforms.drawViewPos then
-		drawViewInvMatCalcd = true
-		self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
-		gl.glUniform3fv(
-			program.uniforms.drawViewPos.loc,
-			1,	-- count
-			self.drawViewInvMat.ptr + 12	-- access the translation part of the inverse = the view pos
-		)
-	end
+	fragUniCPU.ssaoSampleRadius = ram.ssaoSampleRadius
+	fragUniCPU.ssaoInfluence = ram.ssaoInfluence
 
-	if program.uniforms.drawViewMat then
-		gl.glUniformMatrix4fv(
-			program.uniforms.drawViewMat.loc,
-			1,	-- count
-			false,	-- transpose
-			self.drawViewMatForLighting.ptr
-		)
-	end
+	self.drawViewInvMat:inv4x4(self.drawViewMatForLighting)
+	ffi.copy(fragUniCPU.drawViewPos.s, self.drawViewInvMat.ptr + 12, ffi.sizeof(vec3f))
 
-	if program.uniforms.drawProjMat then
-		gl.glUniformMatrix4fv(
-			program.uniforms.drawProjMat.loc,
-			1,	--count
-			false,	--transpose
-			self.drawProjMatForLighting.ptr
-		)
-	end
+	ffi.copy(fragUniCPU.drawViewMat.s, self.drawViewMatForLighting, ffi.sizeof(vec4x4fcol))
+	ffi.copy(fragUniCPU.drawProjMat.s, self.drawProjMatForLighting, ffi.sizeof(vec4x4fcol))
 
-	if program.uniforms.numLights then
-		gl.glUniform1i(
-			program.uniforms.numLights.loc,
-			self.ram.numLights)
-	end
+	fragUniCPU.numLights = ram.numLights
 
-	if program.uniforms.lightAmbientColor then
-		gl.glUniform3fv(
-			program.uniforms.lightAmbientColor.loc,
-			1,	-- count
-			self.ram.lightAmbientColor
-		)
-	end
+	ffi.copy(fragUniCPU.lightAmbientColor.s, ram.lightAmbientColor, ffi.sizeof(vec3f))
 
-	for i=0,math.min(maxLights, self.ram.numLights)-1 do
-		local light = self.ram.lights + i
+	for i=0,math.min(maxLights, ram.numLights)-1 do
+		local light = ram.lights + i
+		local fragUniLight = fragUniCPU.lights + i
+
 --DEBUG:print('updating uniforms for light', i, 'enabled', light.enabled)
-		gl.glUniform1i(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].enabled'
-			),
-			0 ~= bit.band(light.enabled, ffi.C.LIGHT_ENABLED_UPDATE_CALCS))
+		fragUniLight.enabled = 0 ~= bit.band(light.enabled, ffi.C.LIGHT_ENABLED_UPDATE_CALCS) and 1 or 0
 
-		gl.glUniform4f(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].region'
-			),
-			tonumber(light.region[0]) / tonumber(self.ram.lightmapWidth),
-			tonumber(light.region[1]) / tonumber(self.ram.lightmapHeight),
-			tonumber(light.region[2]) / tonumber(self.ram.lightmapWidth),
-			tonumber(light.region[3]) / tonumber(self.ram.lightmapHeight)
-		)
+		fragUniLight.region.x = tonumber(light.region[0]) / tonumber(ram.lightmapWidth)
+		fragUniLight.region.y =	tonumber(light.region[1]) / tonumber(ram.lightmapHeight)
+		fragUniLight.region.z =	tonumber(light.region[2]) / tonumber(ram.lightmapWidth)
+		fragUniLight.region.w =	tonumber(light.region[3]) / tonumber(ram.lightmapHeight)
 
-		gl.glUniform3fv(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].ambientColor'
-			),
-			1,	-- count
-			light.ambientColor
-		)
+		ffi.copy(fragUniLight.ambientColor, light.ambientColor, ffi.sizeof(vec3f))
+		ffi.copy(fragUniLight.diffuseColor, light.diffuseColor, ffi.sizeof(vec3f))
+		ffi.copy(fragUniLight.specularColor, light.specularColor, ffi.sizeof(vec4f))
+		ffi.copy(fragUniLight.distAtten, light.distAtten, ffi.sizeof(vec3f))
 
-		gl.glUniform3fv(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].diffuseColor'
-			),
-			1,	-- count
-			light.diffuseColor
-		)
+		fragUniLight.cosAngleRange.x = light.cosAngleRange[0]
+		fragUniLight.cosAngleRange.y = 1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
 
-		gl.glUniform4fv(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].specularColor'
-			),
-			1,	-- count
-			light.specularColor
-		)
-
-		gl.glUniform3fv(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].distAtten'
-			),
-			1,	-- count ... as in arrays right?
-			light.distAtten
-		)
-
-		gl.glUniform2f(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].cosAngleRange'
-			),
-			light.cosAngleRange[0],
-			1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
-		)
 
 		self.lightViewMat = ffi.cast(vec4x4fcol_p, light.viewMat)
 		self.lightProjMat = ffi.cast(vec4x4fcol_p, light.projMat)
-		self.lightViewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
+		fragUniLight.viewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
 		self.lightViewInvMat:inv4x4(self.lightViewMat)
 
 --DEBUG(lighting):print('lighting lightView\n'..self.lightViewMat)
 --DEBUG(lighting):print('lighting lightProj\n'..self.lightProjMat)
 
-		gl.glUniformMatrix4fv(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].viewProjMat'
-			),
-			1,	-- count
-			false,	-- transpose
-			self.lightViewProjMat.ptr)
-
-		gl.glUniform3fv(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].viewPos'
-			),
-			1,	-- count
-			self.lightViewInvMat.ptr + 12
-		)
-
-		gl.glUniform3fv(
-			gl.glGetUniformLocation(
-				program.id,
-				'lights['..i..'].negViewDir'
-			),
-			1,	-- count
-			self.lightViewInvMat.ptr + 8
-		)
+		ffi.copy(fragUniLight.viewPos.s, self.lightViewInvMat.ptr + 12, ffi.sizeof(vec3f))
+		ffi.copy(fragUniLight.negViewDir.s, self.lightViewInvMat.ptr + 8, ffi.sizeof(vec3f))
 	end
+
+	self.currentVideoMode.fragUniGPU
+		:bind()
+		:updateData()
+		:unbind()
 
 	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
@@ -3629,7 +3529,7 @@ print()
 --]]
 
 	-- now combine them here too
-	if bit.band(self.ram.HD2DFlags, bit.bor(
+	if bit.band(ram.HD2DFlags, bit.bor(
 		ffi.C.HD2DFlags_useHDR,
 		ffi.C.HD2DFlags_useDoF
 	)) ~= 0 then
@@ -3644,7 +3544,7 @@ print()
 		local sceneObj = videoMode.blitScreenObj
 		if videoMode.format == '8bppIndex' then
 			local paletteBlob =
-				self.blobs.palette[1+self.ram.paletteBlobIndex]
+				self.blobs.palette[1+ram.paletteBlobIndex]
 				or self.blobs.palette[1]
 			paletteBlob.ramgpu:checkDirtyCPU()
 			sceneObj.texs[4] = paletteBlob.ramgpu.tex
@@ -3661,7 +3561,7 @@ print()
 		prevTex = videoMode.lightAndFBTex:cur()
 
 		-- TODO
-		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
+		if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useHDR) ~= 0 then
 			prevTex
 				:bind()
 				--:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST_MIPMAP_LINEAR)
@@ -3682,7 +3582,7 @@ print()
 		--]]
 		end
 
-		if bit.band(self.ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
+		if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) ~= 0 then
 			-- [[ dont use mipmaps with DoF, use a blur kernel instead
 			prevTex
 				:bind()
@@ -3704,25 +3604,25 @@ print()
 			if program.uniforms.dofFocalDist then
 				gl.glUniform1f(
 					program.uniforms.dofFocalDist.loc,
-					self.ram.dofFocalDist
+					ram.dofFocalDist
 				)
 			end
 			if program.uniforms.dofFocalRange then
 				gl.glUniform1f(
 					program.uniforms.dofFocalRange.loc,
-					self.ram.dofFocalRange
+					ram.dofFocalRange
 				)
 			end
 			if program.uniforms.dofAperature then
 				gl.glUniform1f(
 					program.uniforms.dofAperature.loc,
-					self.ram.dofAperature
+					ram.dofAperature
 				)
 			end
 			if program.uniforms.dofBlurMax then
 				gl.glUniform1f(
 					program.uniforms.dofBlurMax.loc,
-					self.ram.dofBlurMax
+					ram.dofBlurMax
 				)
 			end
 			if program.uniforms.drawViewDir then
