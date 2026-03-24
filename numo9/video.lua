@@ -3454,8 +3454,6 @@ print()
 	local program = sceneObj.program
 	program:use()
 
-	-- TODO use UBOs but I'm lazy
-
 
 	-- and on any lighting change ...
 	-- update the frag uniform block ...
