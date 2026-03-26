@@ -235,6 +235,9 @@ local function toint(x)
 	--return bit.bor(x, 0)	-- seems nice but I think it rounds instead of truncates ...
 	return ffi.cast(int32_t, x)	-- use int32 so Lua has no problem with it
 end
+local function tointCode(x)
+	return 'ffi.cast(int32_t, '..x..')'
+end
 
 function App:initGL()
 	self.mainThread = coroutine.running()
@@ -1489,149 +1492,6 @@ function App:exit()
 end
 
 
--------------------- ENV NETPLAY LAYER --------------------
--- when I don't want to write server cmds twice
--- leave the :(not net_)functionName stuff for the client to also call and not worry about requesting another server refresh
---  (tho the client shouldnt have a server and that shouldnt happen anyways)
-
--- ok when opening a ROM, we want to send the RAM snapshot out to all clients
-function App:net_openCart(...)
-	local result = table.pack(self:openCart(...))
-
-	if self.server then
-		-- TODO consider order of events
-		-- this is going to sendRAM to all clients
-		-- but it's executed mid-frame on the server, while server is building a command-buffer
-		-- where will deltas come into play?
-		-- how about new-frame messages too?
-		for _,serverConn in ipairs(self.server.conns) do
-			if serverConn.remote then
-				self.server:sendRAM(serverConn)
-			end
-		end
-	end
-	return result:unpack()
-end
-
-function App:net_resetCart(...)
-	local result = table.pack(self:resetCart(...))
-
-	-- TODO this or can I get by
-	-- 1) backing up the client's cartridge state upon load() then ...
-	-- 2) ... upon client reset() just copy that over?
-	-- fwiw the initial sendRAM doesn't include the cartridge state, just the RAM state ...
-	if self.server then
-		for _,serverConn in ipairs(self.server.conns) do
-			if serverConn.remote then
-				self.server:sendRAM(serverConn)
-			end
-		end
-	end
-
-	return result:unpack()
-end
-
-function App:net_poke(addr, value)
-	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
-	if self.server then
-		-- spare us reocurring messages
-		addr = ffi.cast(uint32_t, addr)
-		value = ffi.cast(uint8_t, value)
-		if self:peek(addr) ~= value then
-			local cmd = self.server:pushCmd().poke
-			cmd.type = netcmds.poke
-			cmd.addr = addr
-			cmd.value = value
-		end
-	end
-	return self:poke(addr, value)
-end
-function App:net_pokew(addr, value)
-	if self.server then
-		addr = ffi.cast(uint32_t, addr)
-		value = ffi.cast(uint16_t, value)
-		if self:peekw(addr) ~= value then
-			local cmd = self.server:pushCmd().pokew
-			cmd.type = netcmds.pokew
-			cmd.addr = addr
-			cmd.value = value
-		end
-	end
-	return self:pokew(addr, value)
-end
-function App:net_pokel(addr, value)
-	if self.server then
-		addr = ffi.cast(uint32_t, addr)
-		value = ffi.cast(uint32_t, value)	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
-		if self:peekl(addr) ~= value then
-			local cmd = self.server:pushCmd().pokel
-			cmd.type = netcmds.pokel
-			cmd.addr = addr
-			cmd.value = value
-		end
-	end
-	return self:pokel(addr, value)
-end
-function App:net_pokef(addr, value)
-	if self.server then
-		addr = ffi.cast(uint32_t, addr)
-		value = ffi.cast(float, value)
-		if self:peekl(addr) ~= value then
-			local cmd = self.server:pushCmd().pokel
-			cmd.type = netcmds.pokel
-			cmd.addr = addr
-			cmd.value = value
-		end
-	end
-	return self:pokef(addr, value)
-end
-
-function App:net_memcpy(dst, src, len)
-	if self.server then
-		local cmd = self.server:pushCmd().memcpy
-		cmd.dst = dst
-		cmd.src = src
-		cmd.len = len
-	end
-	return self:memcpy(dst, src, len)
-end
-
-function App:net_memset(dst, val, len)
-	if self.server then
-		local cmd = self.server:pushCmd().memset
-		cmd.dst = dst
-		cmd.val = val
-		cmd.len = len
-	end
-	return self:memset(dst, val, len)
-end
-
-function App:net_tset(tilemapBlobIndex, x, y, value)
-	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
-	x = toint(x)
-	y = toint(y)
-	value = ffi.cast(uint16_t, value)
-	if x >= 0 and x < tilemapSize.x
-	and y >= 0 and y < tilemapSize.y
-	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
-	then
-		local addr = self.blobs.tilemap[tilemapBlobIndex+1].ramgpu.addr	-- use the relocatable address
-			+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
-		-- use poke over netplay, cuz i'm lazy.
-		if self.server then
-			local prevValue = self:peekw(addr)
-			if prevValue ~= value then
-				local cmd = self.server:pushCmd().pokew
-				cmd.type = netcmds.pokew
-				cmd.addr = addr
-				cmd.value = value
-			end
-		end
-
-		self:pokew(addr, value)
-	end
-end
-
 -------------------- LOCAL ENV API --------------------
 
 function App:tget(tilemapBlobIndex, x, y)
@@ -2430,12 +2290,13 @@ function App:peek(addr)
 
 	-- if we're writing to a dirty area then flush it to cpu
 	-- assume the GL framebuffer is bound to the framebufferRAM
-	if self.currentVideoMode.framebufferRAM.dirtyGPU
-	and addr >= self.currentVideoMode.framebufferRAM.addr
-	and addr < self.currentVideoMode.framebufferRAM.addrEnd
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyGPU
+	and addr >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
+		framebufferRAM:checkDirtyGPU()
 	end
 
 	return self.ram.v[addr]
@@ -2445,12 +2306,13 @@ function App:peekw(addr)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if self.currentVideoMode.framebufferRAM.dirtyGPU
-	and addrend >= self.currentVideoMode.framebufferRAM.addr
-	and addr < self.currentVideoMode.framebufferRAM.addrEnd
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyGPU
+	and addrend >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
+		framebufferRAM:checkDirtyGPU()
 	end
 
 	return ffi.cast(uint16_t_p, self.ram.v + addr)[0]
@@ -2460,12 +2322,13 @@ function App:peekl(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if self.currentVideoMode.framebufferRAM.dirtyGPU
-	and addrend >= self.currentVideoMode.framebufferRAM.addr
-	and addr < self.currentVideoMode.framebufferRAM.addrEnd
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyGPU
+	and addrend >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
+		framebufferRAM:checkDirtyGPU()
 	end
 
 	return ffi.cast(uint32_t_p, self.ram.v + addr)[0]
@@ -2475,27 +2338,16 @@ function App:peekf(addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
-	if self.currentVideoMode.framebufferRAM.dirtyGPU
-	and addrend >= self.currentVideoMode.framebufferRAM.addr
-	and addr < self.currentVideoMode.framebufferRAM.addrEnd
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyGPU
+	and addrend >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
 	then
 		self:triBuf_flush()
-		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
+		framebufferRAM:checkDirtyGPU()
 	end
 
 	return ffi.cast(float_p, self.ram.v + addr)[0]
-end
-
--- addr and addrend are both inclusive
-function App:prePoke(addr, addrend)
-	-- if we're writing to a dirty area then flush it to cpu
-	if addrend >= self.currentVideoMode.framebufferRAM.addr
-	and addr < self.currentVideoMode.framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
-		self.currentVideoMode.framebufferRAM.dirtyCPU = true
-	end
 end
 
 -- TODO better way to find sizeof fields? or better way in struct to pick fields by their name?
@@ -2529,162 +2381,275 @@ local cullFaceAddr, cullFaceAddrEnd = getRAMAddrRange'cullFace'
 local HD2DFlagsAddr, HD2DFlagsAddrEnd = getRAMAddrRange'HD2DFlags'
 local spriteNormalExhaggerationAddr, spriteNormalExhaggerationAddrEnd = getRAMAddrRange'spriteNormalExhaggeration'
 
-function App:postPoke(addr, addrend)
+-- addr and addrend are both inclusive
+local prePokeCode = [=[
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+
+	-- if we're writing to a dirty area then flush it to cpu
+	if addrend >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
+	then
+		--[[
+		self:triBuf_flush()
+		--]]
+		-- [[ inlined:
+		local sceneObj = self.triBuf_sceneObj
+		if sceneObj then
+			local n = #self.vertexBufCPU
+			if n > 0 then
+				self:triBuf_flush()
+			end
+		end
+		--]]
+
+		--[[
+		framebufferRAM:checkDirtyGPU()
+		--]]
+		-- [[ inlined:
+		if framebufferRAM.dirtyGPU then
+			framebufferRAM:checkDirtyGPU()
+		end
+		--]]
+
+		framebufferRAM.dirtyCPU = true
+	end
+--]=]
+
+local postPokeCode = template([=[
 	--[[
 	ok this has sucessfully slowed things down
 	now how to quickly determine ram regions ...
 	binary tree?
 	until then, I'll just do a simple two fold test, one for framebuffers (fast) and one for everything else (slow)
 	--]]
-	if addrend < framebufferAddrEnd then return end
+	if addrend < <?=framebufferAddrEnd?> then
+		-- just preventing it from further tests
+	else
+		if addr < <?=sizeofRAMWithoutROM?> then
+			-- write out tris using the modelMat,viewMat,projMat before they change
+			if addrend >= <?=modelMatAddr?> and addr < <?=modelMatAddrEnd?> then
+				self:onModelMatChange()
+			end
+			if addrend >= <?=viewMatAddr?> and addr < <?=viewMatAddrEnd?> then
+				self:onViewMatChange()
+			end
+			if addrend >= <?=projMatAddr?> and addr < <?=projMatAddrEnd?> then
+				self:onProjMatChange()
+			end
+			if addrend >= <?=clipRectAddr?> and addr < <?=clipRectAddrEnd?> then
+				self:onClipRectChange()
+			end
+			if addrend >= <?=blendColorAddr?> and addr < <?=blendColorAddrEnd?> then
+				self:onBlendColorChange()
+			end
+			if addrend >= <?=ditherAddr?> and addr < <?=ditherAddrEnd?> then
+				self:onDitherChange()
+			end
+			if addrend >= <?=cullFaceAddr?> and addr < <?=cullFaceAddrEnd?> then
+				self:onCullFaceChange()
+			end
+			if addrend >= <?=HD2DFlagsAddr?> and addr < <?=HD2DFlagsAddrEnd?> then
+				self:onHD2DFlagsChange()
+			end
+			if addrend >= <?=spriteNormalExhaggerationAddr?> and addr < <?=spriteNormalExhaggerationAddrEnd?> then
+				self:onSpriteNormalExhaggerationChange()
+			end
+		else
+			-- TODO none of the others happen period, only the palette texture
+			-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
+			for _,blob in ipairs(self.blobs.sheet) do
+				-- use ramgpu since it is the relocatable address
+				if addrend >= blob.ramgpu.addr
+				and addr < blob.ramgpu.addrEnd
+				then
+					-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
+					--blob.ramgpu:checkDirtyGPU()
+					blob.ramgpu.dirtyCPU = true
+				end
+			end
+			for _,blob in ipairs(self.blobs.tilemap) do
+				-- use ramgpu since it is the relocatable address
+				if addrend >= blob.ramgpu.addr
+				and addr < blob.ramgpu.addrEnd
+				then
+					--blob.ramgpu:checkDirtyGPU()
+					blob.ramgpu.dirtyCPU = true
+				end
+			end
+			-- a few options with dirtying palette entries
+			-- 1) consolidate calls, so write this separately in pokew and pokel
+			-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
+			--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
+			for _,blob in ipairs(self.blobs.palette) do
+				-- use ramgpu since it is the relocatable address
+				if addrend >= blob.ramgpu.addr
+				and addr < blob.ramgpu.addrEnd
+				then
+					blob.ramgpu.dirtyCPU = true
+				end
+			end
+			for _,blob in ipairs(self.blobs.font) do
+				-- use ramgpu since it is the relocatable address
+				if addrend >= blob.ramgpu.addr
+				and addr < blob.ramgpu.addrEnd
+				then
+					blob.ramgpu.dirtyCPU = true
+				end
+			end
+			-- TODO merge the above with their respective blobs
+			-- and then just cycle all blobs and flag here
+			for _,voxelmap in ipairs(self.blobs.voxelmap) do
+				-- TODO allow voxelmap to have relocatable addresses?
+				-- merge BlobImage ramgpu into BlobImage and rename this field to 'relocAddr' and 'relocAddrEnd' ?
+				if addrend >= voxelmap.addr
+				and addr < voxelmap.addrEnd
+				then
+					voxelmap:onTouchRAM(addr, addrend, self)
+				end
+			end
+			for _,blob in ipairs(self.blobs.animsheet) do
+				if addrend >= blob.ramgpu.addr
+				and addr < blob.ramgpu.addrEnd
+				then
+					blob.ramgpu.dirtyCPU = true
+				end
+			end
+			-- TODO if we poked the code
+		end
+	end
+]=], {
+		framebufferAddrEnd = framebufferAddrEnd,
+		sizeofRAMWithoutROM = sizeofRAMWithoutROM,
+		modelMatAddr = modelMatAddr,
+		modelMatAddrEnd = modelMatAddrEnd,
+		viewMatAddr = viewMatAddr,
+		viewMatAddrEnd = viewMatAddrEnd,
+		projMatAddr = projMatAddr,
+		projMatAddrEnd = projMatAddrEnd,
+		clipRectAddr = clipRectAddr,
+		clipRectAddrEnd = clipRectAddrEnd,
+		blendColorAddr = blendColorAddr,
+		blendColorAddrEnd = blendColorAddrEnd,
+		ditherAddr = ditherAddr,
+		ditherAddrEnd = ditherAddrEnd,
+		cullFaceAddr = cullFaceAddr,
+		cullFaceAddrEnd = cullFaceAddrEnd,
+		HD2DFlagsAddr = HD2DFlagsAddr,
+		HD2DFlagsAddrEnd = HD2DFlagsAddrEnd,
+		spriteNormalExhaggerationAddr = spriteNormalExhaggerationAddr,
+		spriteNormalExhaggerationAddrEnd = spriteNormalExhaggerationAddrEnd,
+	})
 
-	-- write out tris using the modelMat,viewMat,projMat before they change
-	if addrend >= modelMatAddr and addr < modelMatAddrEnd then
-		self:onModelMatChange()
-	end
-	if addrend >= viewMatAddr and addr < viewMatAddrEnd then
-		self:onViewMatChange()
-	end
-	if addrend >= projMatAddr and addr < projMatAddrEnd then
-		self:onProjMatChange()
-	end
-	if addrend >= clipRectAddr and addr < clipRectAddrEnd then
-		self:onClipRectChange()
-	end
-	if addrend >= blendColorAddr and addr < blendColorAddrEnd then
-		self:onBlendColorChange()
-	end
-	if addrend >= ditherAddr and addr < ditherAddrEnd then
-		self:onDitherChange()
-	end
-	if addrend >= cullFaceAddr and addr < cullFaceAddrEnd then
-		self:onCullFaceChange()
-	end
-	if addrend >= HD2DFlagsAddr and addr < HD2DFlagsAddrEnd then
-		self:onHD2DFlagsChange()
-	end
-	if addrend >= spriteNormalExhaggerationAddr and addr < spriteNormalExhaggerationAddrEnd then
-		self:onSpriteNormalExhaggerationChange()
-	end
-	-- TODO none of the others happen period, only the palette texture
-	-- makes me regret DMA exposure of my palette ... would be easier to just hide its read/write behind another function...
-	for _,blob in ipairs(self.blobs.sheet) do
-		-- use ramgpu since it is the relocatable address
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			-- TODO if we ever allow redirecting the framebuffer ... to overlap the spritesheet ... then checkDirtyGPU() here too
-			--blob.ramgpu:checkDirtyGPU()
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.tilemap) do
-		-- use ramgpu since it is the relocatable address
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			--blob.ramgpu:checkDirtyGPU()
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	-- a few options with dirtying palette entries
-	-- 1) consolidate calls, so write this separately in pokew and pokel
-	-- 2) dirty flag, and upload pre-draw.  but is that for uploading all the palette pre-draw?  or just the range of dirty entries?  or just the individual entries (multiple calls again)?
-	--   then before any render that uses palette, check dirty flag, and if it's set then re-upload
-	for _,blob in ipairs(self.blobs.palette) do
-		-- use ramgpu since it is the relocatable address
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	for _,blob in ipairs(self.blobs.font) do
-		-- use ramgpu since it is the relocatable address
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	-- TODO merge the above with their respective blobs
-	-- and then just cycle all blobs and flag here
-	for _,voxelmap in ipairs(self.blobs.voxelmap) do
-		-- TODO allow voxelmap to have relocatable addresses?
-		-- merge BlobImage ramgpu into BlobImage and rename this field to 'relocAddr' and 'relocAddrEnd' ?
-		if addrend >= voxelmap.addr
-		and addr < voxelmap.addrEnd
-		then
-			voxelmap:onTouchRAM(addr, addrend, self)
-		end
-	end
-	for _,blob in ipairs(self.blobs.animsheet) do
-		if addrend >= blob.ramgpu.addr
-		and addr < blob.ramgpu.addrEnd
-		then
-			blob.ramgpu.dirtyCPU = true
-		end
-	end
-	-- TODO if we poked the code
-end
-
-function App:poke(addr, value)
-	addr = toint(addr)
+-- closure has: ffi, uint8_t, int32_t
+-- args are: self, addr, value
+local pokeBodyCode = [[
+	addr = ]]..tointCode'addr'..[[
 	value = ffi.cast(uint8_t, value)
 	if addr < 0 or addr >= self.memSize then return end
 	local p = self.ram.v + addr
 --	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
-	self:prePoke(addr, addr)
+	local addrend = addr
+]]..prePokeCode..[[
 
 	p[0] = value
 
-	self:postPoke(addr, addr)
+]]..postPokeCode
+
+local pokeCode = template([[
+local ffi = require 'ffi'
+local uint8_t = ffi.typeof'uint8_t'
+local int32_t = ffi.typeof'int32_t'
+return function(self, addr, value)
+	]]..pokeBodyCode..[[
 end
-function App:pokew(addr, value)
-	addr = toint(addr)
+]])
+App.poke = assert(load(pokeCode, 't'))()
+
+-- closure has: ffi, uint16_t, uint16_t_p, int32_t
+-- args are: self, addr, value
+local pokewBodyCode = [[
+	addr = ]]..tointCode'addr'..[[
 	value = ffi.cast(uint16_t, value)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint16_t_p, self.ram.v + addr)
 --	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
-	self:prePoke(addr, addrend)
+]]..prePokeCode..[[
 
 	p[0] = value
 
-	self:postPoke(addr, addrend)
+]]..postPokeCode
+
+local pokewCode = template([[
+local ffi = require 'ffi'
+local uint16_t = ffi.typeof'uint16_t'
+local uint16_t_p = ffi.typeof'uint16_t*'
+local int32_t = ffi.typeof'int32_t'
+return function(self, addr, value)
+	]]..pokewBodyCode..[[
 end
-function App:pokel(addr, value)
-	addr = toint(addr)
+]])
+App.pokew = assert(load(pokewCode, 't'))()
+
+-- closure has: ffi, int32_t, uint32_t, uint32_t_p
+-- args are: self, addr, value
+local pokelBodyCode = [[
+	addr = ]]..tointCode'addr'..[[
 	value = ffi.cast(uint32_t, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint32_t_p, self.ram.v + addr)
 --	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
-	self:prePoke(addr, addrend)
+]]..prePokeCode..[[
 
 	p[0] = value
 
-	self:postPoke(addr, addrend)
+]]..postPokeCode
+
+local pokelCode = template([[
+local ffi = require 'ffi'
+local int32_t = ffi.typeof'int32_t'
+local uint32_t = ffi.typeof'uint32_t'
+local uint32_t_p = ffi.typeof'uint32_t*'
+return function(self, addr, value)
+	]]..pokelBodyCode..[[
 end
-function App:pokef(addr, value)
-	addr = toint(addr)
+]])
+App.pokel = assert(load(pokelCode, 't'))()
+
+-- closure has: ffi, int32_t, float, float_p
+-- args are: self, addr, value
+local pokefBodyCode = [[
+	addr = ]]..tointCode'addr'..[[
 	value = ffi.cast(float, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(float_p, self.ram.v + addr)
 --	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
 
-	self:prePoke(addr, addrend)
+]]..prePokeCode..[[
 
 	p[0] = value
 
-	self:postPoke(addr, addrend)
-end
+]]..postPokeCode
 
-function App:memcpy(dst, src, len)
+local pokefCode = template([[
+local ffi = require 'ffi'
+local int32_t = ffi.typeof'int32_t'
+local float = ffi.typeof'float'
+local float_p = ffi.typeof'float*'
+return function(self, addr, value)
+	]]..pokefBodyCode..[[
+end
+]])
+App.pokef = assert(load(pokefCode, 't'))()
+
+App.memcpy = assert(load(template([[
+local ffi = require 'ffi'
+return function(self, dst, src, len)
 	if len <= 0 then return end
 
 	-- truncate address ranges to valid ranges, or just discount the call altogether?  truncate
@@ -2708,14 +2673,16 @@ function App:memcpy(dst, src, len)
 	if srcend < 0 or src >= self.memSize
 	then return end
 
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+
 	-- pre-poke
-	local touchessrc = srcend >= self.currentVideoMode.framebufferRAM.addr and src < self.currentVideoMode.framebufferRAM.addrEnd
-	local touchesdst = dstend >= self.currentVideoMode.framebufferRAM.addr and dst < self.currentVideoMode.framebufferRAM.addrEnd
+	local touchessrc = srcend >= framebufferRAM.addr and src < framebufferRAM.addrEnd
+	local touchesdst = dstend >= framebufferRAM.addr and dst < framebufferRAM.addrEnd
 	if touchessrc or touchesdst then
 		self:triBuf_flush()
-		self.currentVideoMode.framebufferRAM:checkDirtyGPU()
+		framebufferRAM:checkDirtyGPU()
 		if touchesdst then
-			self.currentVideoMode.framebufferRAM.dirtyCPU = true
+			framebufferRAM.dirtyCPU = true
 		end
 	end
 
@@ -2744,11 +2711,17 @@ function App:memcpy(dst, src, len)
 		end
 	end
 
-	self:postPoke(dst, dstend)
+	local addr = dst
+	local addrend = dstend
+]]..postPokeCode..[[
 end
+]]), 't'))()
 
-function App:strcpy(addr, len)
-	self:prePoke(addr, addr + len - 1)
+App.strcpy = assert(load(template([[
+local ffi = require 'ffi'
+return function(self, addr, len)
+	local addrend = addr + len - 1
+]]..prePokeCode..[[
 
 	local prefix, suffix
 	if addr < 0 then
@@ -2765,8 +2738,11 @@ function App:strcpy(addr, len)
 	if suffix then s = s .. suffix end
 	return s
 end
+]]), 't'))()
 
-function App:memset(dst, val, len)
+App.memset = assert(load(template([[
+local ffi = require 'ffi'
+return function(self, dst, val, len)
 	if len <= 0 then return end
 
 	-- truncate address ranges to valid ranges, or just discount the call altogether? truncate
@@ -2784,12 +2760,195 @@ function App:memset(dst, val, len)
 --DEBUG:assert.ge(dst, 0)
 --DEBUG:assert.ge(dstend, 0)
 
-	self:prePoke(dst, dstend)
+	local addr = dst
+	local addrend = dstend
+]]..prePokeCode..[[
 
 	ffi.fill(self.ram.v + dst, len, val)
 
-	self:postPoke(dsd, dstend)
+]]..postPokeCode..[[
 end
+]]), 't'))()
+
+
+-------------------- ENV NETPLAY LAYER --------------------
+-- when I don't want to write server cmds twice
+-- leave the :(not net_)functionName stuff for the client to also call and not worry about requesting another server refresh
+--  (tho the client shouldnt have a server and that shouldnt happen anyways)
+
+-- ok when opening a ROM, we want to send the RAM snapshot out to all clients
+function App:net_openCart(...)
+	local result = table.pack(self:openCart(...))
+
+	if self.server then
+		-- TODO consider order of events
+		-- this is going to sendRAM to all clients
+		-- but it's executed mid-frame on the server, while server is building a command-buffer
+		-- where will deltas come into play?
+		-- how about new-frame messages too?
+		for _,serverConn in ipairs(self.server.conns) do
+			if serverConn.remote then
+				self.server:sendRAM(serverConn)
+			end
+		end
+	end
+	return result:unpack()
+end
+
+function App:net_resetCart(...)
+	local result = table.pack(self:resetCart(...))
+
+	-- TODO this or can I get by
+	-- 1) backing up the client's cartridge state upon load() then ...
+	-- 2) ... upon client reset() just copy that over?
+	-- fwiw the initial sendRAM doesn't include the cartridge state, just the RAM state ...
+	if self.server then
+		for _,serverConn in ipairs(self.server.conns) do
+			if serverConn.remote then
+				self.server:sendRAM(serverConn)
+			end
+		end
+	end
+
+	return result:unpack()
+end
+
+local net_pokeCode = [[
+local ffi = require 'ffi'
+local uint8_t = ffi.typeof'uint8_t'
+local int32_t = ffi.typeof'int32_t'
+local uint32_t = ffi.typeof'uint32_t'
+return function(self, addr, value)
+	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
+	if self.server then
+		-- spare us reocurring messages
+		addr = ffi.cast(uint32_t, addr)
+		value = ffi.cast(uint8_t, value)
+		if self:peek(addr) ~= value then
+			local cmd = self.server:pushCmd().poke
+			cmd.type = netcmds.poke
+			cmd.addr = addr
+			cmd.value = value
+		end
+	end
+
+]]..pokeBodyCode..[[
+end
+]]
+App.net_poke = assert(load(net_pokeCode, 't'))()
+
+local net_pokewCode = [[
+local ffi = require 'ffi'
+local uint16_t = ffi.typeof'uint16_t'
+local uint16_t_p = ffi.typeof'uint16_t*'
+local int32_t = ffi.typeof'int32_t'
+local uint32_t = ffi.typeof'uint32_t'
+return function(self, addr, value)
+	if self.server then
+		addr = ffi.cast(uint32_t, addr)
+		value = ffi.cast(uint16_t, value)
+		if self:peekw(addr) ~= value then
+			local cmd = self.server:pushCmd().pokew
+			cmd.type = netcmds.pokew
+			cmd.addr = addr
+			cmd.value = value
+		end
+	end
+
+]]..pokewBodyCode..[[
+end
+]]
+App.net_pokew = assert(load(net_pokewCode, 't'))()
+
+local net_pokelCode = [[
+local ffi = require 'ffi'
+local int32_t = ffi.typeof'int32_t'
+local uint32_t = ffi.typeof'uint32_t'
+local uint32_t_p = ffi.typeof'uint32_t*'
+return function(self, addr, value)
+	if self.server then
+		addr = ffi.cast(uint32_t, addr)
+		value = ffi.cast(uint32_t, value)	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
+		if self:peekl(addr) ~= value then
+			local cmd = self.server:pushCmd().pokel
+			cmd.type = netcmds.pokel
+			cmd.addr = addr
+			cmd.value = value
+		end
+	end
+]]..pokelBodyCode..[[
+end
+]]
+App.net_pokel = assert(load(net_pokelCode, 't'))()
+
+local net_pokefCode = [[
+local ffi = require 'ffi'
+local int32_t = ffi.typeof'int32_t'
+local uint32_t = ffi.typeof'uint32_t'
+local float = ffi.typeof'float'
+local float_p = ffi.typeof'float*'
+return function(self, addr, value)
+	if self.server then
+		addr = ffi.cast(uint32_t, addr)
+		value = ffi.cast(float, value)
+		if self:peekl(addr) ~= value then
+			local cmd = self.server:pushCmd().pokel
+			cmd.type = netcmds.pokel
+			cmd.addr = addr
+			cmd.value = value
+		end
+	end
+]]..pokefBodyCode..[[
+end
+]]
+App.net_pokef = assert(load(net_pokefCode, 't'))()
+
+function App:net_memcpy(dst, src, len)
+	if self.server then
+		local cmd = self.server:pushCmd().memcpy
+		cmd.dst = dst
+		cmd.src = src
+		cmd.len = len
+	end
+	return self:memcpy(dst, src, len)
+end
+
+function App:net_memset(dst, val, len)
+	if self.server then
+		local cmd = self.server:pushCmd().memset
+		cmd.dst = dst
+		cmd.val = val
+		cmd.len = len
+	end
+	return self:memset(dst, val, len)
+end
+
+function App:net_tset(tilemapBlobIndex, x, y, value)
+	tilemapBlobIndex = tonumber(toint(tilemapBlobIndex))
+	x = toint(x)
+	y = toint(y)
+	value = ffi.cast(uint16_t, value)
+	if x >= 0 and x < tilemapSize.x
+	and y >= 0 and y < tilemapSize.y
+	and tilemapBlobIndex >= 0 and tilemapBlobIndex < #self.blobs.tilemap
+	then
+		local addr = self.blobs.tilemap[tilemapBlobIndex+1].ramgpu.addr	-- use the relocatable address
+			+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
+		-- use poke over netplay, cuz i'm lazy.
+		if self.server then
+			local prevValue = self:peekw(addr)
+			if prevValue ~= value then
+				local cmd = self.server:pushCmd().pokew
+				cmd.type = netcmds.pokew
+				cmd.addr = addr
+				cmd.value = value
+			end
+		end
+
+		self:pokew(addr, value)
+	end
+end
+
 
 -------------------- ROM STATE STUFF --------------------
 

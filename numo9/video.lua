@@ -3240,6 +3240,8 @@ function AppVideo:drawVoxelMap(
 	voxelmapIndex,
 	sheetIndex
 )
+do return end
+
 	voxelmapIndex = voxelmapIndex or 0
 	local voxelmap = self.blobs.voxelmap[voxelmapIndex+1]
 	if not voxelmap then
