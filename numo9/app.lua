@@ -323,17 +323,29 @@ function App:initGL()
 		peekw = function(addr) return self:peekw(addr) end,
 		peekl = function(addr) return self:peekl(addr) end,
 		peekf = function(addr) return self:peekf(addr) end,
+
+		strcpy = function(...)
+			-- does this need a netcmd? nah?
+			-- it doesnt change RAM state so nah?
+			return self:strcpy(...)
+		end,
+
+		--[[ instead of calling net stuff all the time, how about switching the env over when net starts?
 		poke = function(addr, value) return self:net_poke(addr, value) end,
 		pokew = function(addr, value) return self:net_pokew(addr, value) end,
 		pokel = function(addr, value) return self:net_pokel(addr, value) end,
 		pokef = function(addr, value) return self:net_pokef(addr, value) end,
 		memcpy = function(...) return self:net_memcpy(...) end,
 		memset = function(...) return self:net_memset(...) end,
-		strcpy = function(...)
-			-- does this need a netcmd? nah?
-			-- it doesnt change RAM state so nah?
-			return self:strcpy(...)
-		end,
+		--]]
+		-- [[ ... so here's the non-net versions:
+		poke = function(addr, value) return self:poke(addr, value) end,
+		pokew = function(addr, value) return self:pokew(addr, value) end,
+		pokel = function(addr, value) return self:pokel(addr, value) end,
+		pokef = function(addr, value) return self:pokef(addr, value) end,
+		memcpy = function(...) return self:memcpy(...) end,
+		memset = function(...) return self:memset(...) end,
+		--]]
 
 		-- why does tic-80 have mget/mset like pico8 when tic-80 doesn't have pget/pset or sget/sset ...
 		tget = function(...) return self:tget(...) end,
@@ -1518,6 +1530,7 @@ function App:disconnect()
 		self.con:print('closing server ...')
 		self.server:close()
 		self.server = nil
+		self:resetNetCmds()
 	end
 	if self.remoteClient then
 		self.con:print('disconnecting from server ...')
@@ -1532,6 +1545,7 @@ function App:listen()
 
 	-- listens upon init
 	self.server = Server(self)
+	self:resetNetCmds()
 end
 
 -- client connect
@@ -1581,6 +1595,27 @@ function App:connect(addr, port)
 assert.ne(coroutine.status(self.runFocus.thread), 'dead')
 	self:setMenu(nil)
 	return true
+end
+
+-- set the peeks and pokes to be net or not net
+function App:resetNetCmds()
+	table.union(self.env,
+		self.server and {
+			poke = function(...) return self:net_poke(...) end,
+			pokew = function(...) return self:net_pokew(...) end,
+			pokel = function(...) return self:net_pokel(...) end,
+			pokef = function(...) return self:net_pokef(...) end,
+			memcpy = function(...) return self:net_memcpy(...) end,
+			memset = function(...) return self:net_memset(...) end,
+		} or {
+			poke = function(...) return self:poke(...) end,
+			pokew = function(...) return self:pokew(...) end,
+			pokel = function(...) return self:pokel(...) end,
+			pokef = function(...) return self:pokef(...) end,
+			memcpy = function(...) return self:memcpy(...) end,
+			memset = function(...) return self:memset(...) end,
+		}
+	)
 end
 
 -------------------- MAIN UPDATE CALLBACK --------------------
@@ -2285,7 +2320,8 @@ end
 -------------------- MEMORY PEEK/POKE (and draw dirty bits) --------------------
 
 function App:peek(addr)
-	addr = toint(addr)
+	--addr = toint(addr)
+	addr = ffi.cast(int32_t, addr)
 	if addr < 0 or addr >= self.memSize then return end
 
 	-- if we're writing to a dirty area then flush it to cpu
@@ -2302,7 +2338,8 @@ function App:peek(addr)
 	return self.ram.v[addr]
 end
 function App:peekw(addr)
-	addr = toint(addr)
+	--addr = toint(addr)
+	addr = ffi.cast(int32_t, addr)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2318,7 +2355,8 @@ function App:peekw(addr)
 	return ffi.cast(uint16_t_p, self.ram.v + addr)[0]
 end
 function App:peekl(addr)
-	addr = toint(addr)
+	--addr = toint(addr)
+	addr = ffi.cast(int32_t, addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2334,7 +2372,8 @@ function App:peekl(addr)
 	return ffi.cast(uint32_t_p, self.ram.v + addr)[0]
 end
 function App:peekf(addr)
-	addr = toint(addr)
+	--addr = toint(addr)
+	addr = ffi.cast(int32_t, addr)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 
@@ -2564,7 +2603,7 @@ return function(self, addr, value)
 	]]..pokeBodyCode..[[
 end
 ]])
-App.poke = assert(load(pokeCode, 't'))()
+App.poke = assert(load(pokeCode))()
 
 -- closure has: ffi, uint16_t, uint16_t_p, int32_t
 -- args are: self, addr, value
@@ -2591,7 +2630,7 @@ return function(self, addr, value)
 	]]..pokewBodyCode..[[
 end
 ]])
-App.pokew = assert(load(pokewCode, 't'))()
+App.pokew = assert(load(pokewCode))()
 
 -- closure has: ffi, int32_t, uint32_t, uint32_t_p
 -- args are: self, addr, value
@@ -2618,7 +2657,7 @@ return function(self, addr, value)
 	]]..pokelBodyCode..[[
 end
 ]])
-App.pokel = assert(load(pokelCode, 't'))()
+App.pokel = assert(load(pokelCode))()
 
 -- closure has: ffi, int32_t, float, float_p
 -- args are: self, addr, value
@@ -2645,7 +2684,7 @@ return function(self, addr, value)
 	]]..pokefBodyCode..[[
 end
 ]])
-App.pokef = assert(load(pokefCode, 't'))()
+App.pokef = assert(load(pokefCode))()
 
 App.memcpy = assert(load(template([[
 local ffi = require 'ffi'
@@ -2715,7 +2754,7 @@ return function(self, dst, src, len)
 	local addrend = dstend
 ]]..postPokeCode..[[
 end
-]]), 't'))()
+]])))()
 
 App.strcpy = assert(load(template([[
 local ffi = require 'ffi'
@@ -2738,7 +2777,7 @@ return function(self, addr, len)
 	if suffix then s = s .. suffix end
 	return s
 end
-]]), 't'))()
+]])))()
 
 App.memset = assert(load(template([[
 local ffi = require 'ffi'
@@ -2768,7 +2807,7 @@ return function(self, dst, val, len)
 
 ]]..postPokeCode..[[
 end
-]]), 't'))()
+]])))()
 
 
 -------------------- ENV NETPLAY LAYER --------------------
@@ -2820,12 +2859,13 @@ local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
 return function(self, addr, value)
 	-- TODO hwy not move the server test down into App:poke() istelf? meh? idk
-	if self.server then
+	local server = self.server
+	if server then
 		-- spare us reocurring messages
 		addr = ffi.cast(uint32_t, addr)
 		value = ffi.cast(uint8_t, value)
 		if self:peek(addr) ~= value then
-			local cmd = self.server:pushCmd().poke
+			local cmd = server:pushCmd().poke
 			cmd.type = netcmds.poke
 			cmd.addr = addr
 			cmd.value = value
@@ -2835,7 +2875,7 @@ return function(self, addr, value)
 ]]..pokeBodyCode..[[
 end
 ]]
-App.net_poke = assert(load(net_pokeCode, 't'))()
+App.net_poke = assert(load(net_pokeCode))()
 
 local net_pokewCode = [[
 local ffi = require 'ffi'
@@ -2844,11 +2884,12 @@ local uint16_t_p = ffi.typeof'uint16_t*'
 local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
 return function(self, addr, value)
-	if self.server then
+	local server = self.server
+	if server then
 		addr = ffi.cast(uint32_t, addr)
 		value = ffi.cast(uint16_t, value)
 		if self:peekw(addr) ~= value then
-			local cmd = self.server:pushCmd().pokew
+			local cmd = server:pushCmd().pokew
 			cmd.type = netcmds.pokew
 			cmd.addr = addr
 			cmd.value = value
@@ -2858,7 +2899,7 @@ return function(self, addr, value)
 ]]..pokewBodyCode..[[
 end
 ]]
-App.net_pokew = assert(load(net_pokewCode, 't'))()
+App.net_pokew = assert(load(net_pokewCode))()
 
 local net_pokelCode = [[
 local ffi = require 'ffi'
@@ -2866,11 +2907,12 @@ local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
 local uint32_t_p = ffi.typeof'uint32_t*'
 return function(self, addr, value)
-	if self.server then
+	local server = self.server
+	if server then
 		addr = ffi.cast(uint32_t, addr)
 		value = ffi.cast(uint32_t, value)	-- TODO cast(uint32_t, negative-values) often ZEROES the result!!!
 		if self:peekl(addr) ~= value then
-			local cmd = self.server:pushCmd().pokel
+			local cmd = server:pushCmd().pokel
 			cmd.type = netcmds.pokel
 			cmd.addr = addr
 			cmd.value = value
@@ -2879,7 +2921,7 @@ return function(self, addr, value)
 ]]..pokelBodyCode..[[
 end
 ]]
-App.net_pokel = assert(load(net_pokelCode, 't'))()
+App.net_pokel = assert(load(net_pokelCode))()
 
 local net_pokefCode = [[
 local ffi = require 'ffi'
@@ -2888,11 +2930,12 @@ local uint32_t = ffi.typeof'uint32_t'
 local float = ffi.typeof'float'
 local float_p = ffi.typeof'float*'
 return function(self, addr, value)
-	if self.server then
+	local server = self.server
+	if server then
 		addr = ffi.cast(uint32_t, addr)
 		value = ffi.cast(float, value)
 		if self:peekl(addr) ~= value then
-			local cmd = self.server:pushCmd().pokel
+			local cmd = server:pushCmd().pokel
 			cmd.type = netcmds.pokel
 			cmd.addr = addr
 			cmd.value = value
@@ -2901,11 +2944,12 @@ return function(self, addr, value)
 ]]..pokefBodyCode..[[
 end
 ]]
-App.net_pokef = assert(load(net_pokefCode, 't'))()
+App.net_pokef = assert(load(net_pokefCode))()
 
 function App:net_memcpy(dst, src, len)
-	if self.server then
-		local cmd = self.server:pushCmd().memcpy
+	local server = self.server
+	if server then
+		local cmd = server:pushCmd().memcpy
 		cmd.dst = dst
 		cmd.src = src
 		cmd.len = len
@@ -2914,8 +2958,9 @@ function App:net_memcpy(dst, src, len)
 end
 
 function App:net_memset(dst, val, len)
-	if self.server then
-		local cmd = self.server:pushCmd().memset
+	local server = self.server
+	if server then
+		local cmd = server:pushCmd().memset
 		cmd.dst = dst
 		cmd.val = val
 		cmd.len = len
@@ -2935,10 +2980,11 @@ function App:net_tset(tilemapBlobIndex, x, y, value)
 		local addr = self.blobs.tilemap[tilemapBlobIndex+1].ramgpu.addr	-- use the relocatable address
 			+ bit.lshift(bit.bor(x, bit.lshift(y, tilemapSizeInBits.x)), 1)
 		-- use poke over netplay, cuz i'm lazy.
-		if self.server then
+		local server = self.server
+		if server then
 			local prevValue = self:peekw(addr)
 			if prevValue ~= value then
-				local cmd = self.server:pushCmd().pokew
+				local cmd = server:pushCmd().pokew
 				cmd.type = netcmds.pokew
 				cmd.addr = addr
 				cmd.value = value
