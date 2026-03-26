@@ -2319,75 +2319,6 @@ end
 
 -------------------- MEMORY PEEK/POKE (and draw dirty bits) --------------------
 
-function App:peek(addr)
-	--addr = toint(addr)
-	addr = ffi.cast(int32_t, addr)
-	if addr < 0 or addr >= self.memSize then return end
-
-	-- if we're writing to a dirty area then flush it to cpu
-	-- assume the GL framebuffer is bound to the framebufferRAM
-	local framebufferRAM = self.currentVideoMode.framebufferRAM
-	if framebufferRAM.dirtyGPU
-	and addr >= framebufferRAM.addr
-	and addr < framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		framebufferRAM:checkDirtyGPU()
-	end
-
-	return self.ram.v[addr]
-end
-function App:peekw(addr)
-	--addr = toint(addr)
-	addr = ffi.cast(int32_t, addr)
-	local addrend = addr+1
-	if addr < 0 or addrend >= self.memSize then return end
-
-	local framebufferRAM = self.currentVideoMode.framebufferRAM
-	if framebufferRAM.dirtyGPU
-	and addrend >= framebufferRAM.addr
-	and addr < framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		framebufferRAM:checkDirtyGPU()
-	end
-
-	return ffi.cast(uint16_t_p, self.ram.v + addr)[0]
-end
-function App:peekl(addr)
-	--addr = toint(addr)
-	addr = ffi.cast(int32_t, addr)
-	local addrend = addr+3
-	if addr < 0 or addrend >= self.memSize then return end
-
-	local framebufferRAM = self.currentVideoMode.framebufferRAM
-	if framebufferRAM.dirtyGPU
-	and addrend >= framebufferRAM.addr
-	and addr < framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		framebufferRAM:checkDirtyGPU()
-	end
-
-	return ffi.cast(uint32_t_p, self.ram.v + addr)[0]
-end
-function App:peekf(addr)
-	--addr = toint(addr)
-	addr = ffi.cast(int32_t, addr)
-	local addrend = addr+3
-	if addr < 0 or addrend >= self.memSize then return end
-
-	local framebufferRAM = self.currentVideoMode.framebufferRAM
-	if framebufferRAM.dirtyGPU
-	and addrend >= framebufferRAM.addr
-	and addr < framebufferRAM.addrEnd
-	then
-		self:triBuf_flush()
-		framebufferRAM:checkDirtyGPU()
-	end
-
-	return ffi.cast(float_p, self.ram.v + addr)[0]
-end
 
 -- TODO better way to find sizeof fields? or better way in struct to pick fields by their name?
 -- can you do this with ffi.sizeof?  find the sizeof a field (without segfaulting from a lookkup of null's field, like we do in C) ?
@@ -2419,6 +2350,105 @@ local ditherAddr, ditherAddrEnd = getRAMAddrRange'dither'
 local cullFaceAddr, cullFaceAddrEnd = getRAMAddrRange'cullFace'
 local HD2DFlagsAddr, HD2DFlagsAddrEnd = getRAMAddrRange'HD2DFlags'
 local spriteNormalExhaggerationAddr, spriteNormalExhaggerationAddrEnd = getRAMAddrRange'spriteNormalExhaggeration'
+
+
+local peekscope = {
+	ffi = ffi,
+	require = require,
+}
+
+App.peek = assert(load([[
+local int32_t = ffi.typeof'int32_t'
+
+return function(self, addr)
+	--addr = toint(addr)
+	addr = ffi.cast(int32_t, addr)
+	if addr < 0 or addr >= self.memSize then return end
+
+	-- if we're writing to a dirty area then flush it to cpu
+	-- assume the GL framebuffer is bound to the framebufferRAM
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyGPU
+	and addr >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
+	then
+		self:triBuf_flush()
+		framebufferRAM:checkDirtyGPU()
+	end
+
+	return self.ram.v[addr]
+end
+]], nil, nil, peekscope))()
+
+App.peekw = assert(load([[
+local uint16_t_p = ffi.typeof'uint16_t*'
+local int32_t = ffi.typeof'int32_t'
+
+return function(self, addr)
+	--addr = toint(addr)
+	addr = ffi.cast(int32_t, addr)
+	local addrend = addr+1
+	if addr < 0 or addrend >= self.memSize then return end
+
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyGPU
+	and addrend >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
+	then
+		self:triBuf_flush()
+		framebufferRAM:checkDirtyGPU()
+	end
+
+	return ffi.cast(uint16_t_p, self.ram.v + addr)[0]
+end
+]], nil, nil, peekscope))()
+
+App.peekl = assert(load([[
+local uint32_t_p = ffi.typeof'uint32_t*'
+local int32_t = ffi.typeof'int32_t'
+
+return function(self, addr)
+	--addr = toint(addr)
+	addr = ffi.cast(int32_t, addr)
+	local addrend = addr+3
+	if addr < 0 or addrend >= self.memSize then return end
+
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyGPU
+	and addrend >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
+	then
+		self:triBuf_flush()
+		framebufferRAM:checkDirtyGPU()
+	end
+
+	return ffi.cast(uint32_t_p, self.ram.v + addr)[0]
+end
+]], nil, nil, peekscope))()
+
+App.peekf = assert(load([[
+local int32_t = ffi.typeof'int32_t'
+local float_p = ffi.typeof'float*'
+
+return function(self, addr)
+	--addr = toint(addr)
+	addr = ffi.cast(int32_t, addr)
+	local addrend = addr+3
+	if addr < 0 or addrend >= self.memSize then return end
+
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyGPU
+	and addrend >= framebufferRAM.addr
+	and addr < framebufferRAM.addrEnd
+	then
+		self:triBuf_flush()
+		framebufferRAM:checkDirtyGPU()
+	end
+
+	return ffi.cast(float_p, self.ram.v + addr)[0]
+end
+]], nil, nil, peekscope))()
+
 
 -- addr and addrend are both inclusive
 local prePokeCode = [=[
@@ -2595,15 +2625,14 @@ local pokeBodyCode = [[
 
 ]]..postPokeCode
 
-local pokeCode = template([[
-local ffi = require 'ffi'
+local pokeCode = ([[
 local uint8_t = ffi.typeof'uint8_t'
 local int32_t = ffi.typeof'int32_t'
 return function(self, addr, value)
 	]]..pokeBodyCode..[[
 end
 ]])
-App.poke = assert(load(pokeCode))()
+App.poke = assert(load(pokeCode, nil, nil, peekscope))()
 
 -- closure has: ffi, uint16_t, uint16_t_p, int32_t
 -- args are: self, addr, value
@@ -2621,8 +2650,7 @@ local pokewBodyCode = [[
 
 ]]..postPokeCode
 
-local pokewCode = template([[
-local ffi = require 'ffi'
+local pokewCode = ([[
 local uint16_t = ffi.typeof'uint16_t'
 local uint16_t_p = ffi.typeof'uint16_t*'
 local int32_t = ffi.typeof'int32_t'
@@ -2630,7 +2658,7 @@ return function(self, addr, value)
 	]]..pokewBodyCode..[[
 end
 ]])
-App.pokew = assert(load(pokewCode))()
+App.pokew = assert(load(pokewCode, nil, nil, peekscope))()
 
 -- closure has: ffi, int32_t, uint32_t, uint32_t_p
 -- args are: self, addr, value
@@ -2648,8 +2676,7 @@ local pokelBodyCode = [[
 
 ]]..postPokeCode
 
-local pokelCode = template([[
-local ffi = require 'ffi'
+local pokelCode = ([[
 local int32_t = ffi.typeof'int32_t'
 local uint32_t = ffi.typeof'uint32_t'
 local uint32_t_p = ffi.typeof'uint32_t*'
@@ -2657,7 +2684,7 @@ return function(self, addr, value)
 	]]..pokelBodyCode..[[
 end
 ]])
-App.pokel = assert(load(pokelCode))()
+App.pokel = assert(load(pokelCode, nil, nil, peekscope))()
 
 -- closure has: ffi, int32_t, float, float_p
 -- args are: self, addr, value
@@ -2675,8 +2702,7 @@ local pokefBodyCode = [[
 
 ]]..postPokeCode
 
-local pokefCode = template([[
-local ffi = require 'ffi'
+local pokefCode = ([[
 local int32_t = ffi.typeof'int32_t'
 local float = ffi.typeof'float'
 local float_p = ffi.typeof'float*'
@@ -2684,10 +2710,9 @@ return function(self, addr, value)
 	]]..pokefBodyCode..[[
 end
 ]])
-App.pokef = assert(load(pokefCode))()
+App.pokef = assert(load(pokefCode, nil, nil, peekscope))()
 
-App.memcpy = assert(load(template([[
-local ffi = require 'ffi'
+App.memcpy = assert(load([[
 return function(self, dst, src, len)
 	if len <= 0 then return end
 
@@ -2754,10 +2779,9 @@ return function(self, dst, src, len)
 	local addrend = dstend
 ]]..postPokeCode..[[
 end
-]])))()
+]], nil, nil, peekscope))()
 
-App.strcpy = assert(load(template([[
-local ffi = require 'ffi'
+App.strcpy = assert(load([[
 return function(self, addr, len)
 	local addrend = addr + len - 1
 ]]..prePokeCode..[[
@@ -2777,10 +2801,9 @@ return function(self, addr, len)
 	if suffix then s = s .. suffix end
 	return s
 end
-]])))()
+]], nil, nil, peekscope))()
 
-App.memset = assert(load(template([[
-local ffi = require 'ffi'
+App.memset = assert(load([[
 return function(self, dst, val, len)
 	if len <= 0 then return end
 
@@ -2807,7 +2830,7 @@ return function(self, dst, val, len)
 
 ]]..postPokeCode..[[
 end
-]])))()
+]], nil, nil, peekscope))()
 
 
 -------------------- ENV NETPLAY LAYER --------------------

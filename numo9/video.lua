@@ -3272,16 +3272,17 @@ function AppVideo:drawVoxelMap(
 	local tilemapTex = self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 	local animSheetTex = self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex	-- same
 
-	if self.currentVideoMode.framebufferRAM.dirtyCPU then
+	local framebufferRAM = self.currentVideoMode.framebufferRAM
+	if framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
-		self.currentVideoMode.framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
+		framebufferRAM:checkDirtyCPU()		-- before we write to framebuffer, make sure we have most updated copy
 	end
 
 	voxelmap:rebuildMesh(self)
 
 	-- setup textures and uniforms
 
-	-- [[ draw by copying into buffers in AppVideo here
+	--[[ draw by copying into buffers in AppVideo here
 	do
 		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
 		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)
@@ -3315,15 +3316,15 @@ function AppVideo:drawVoxelMap(
 		--]=]
 	end
 	--]]
-	--[[ draw using blob/voxelmap's own GPU buffer
+	-- [[ draw using blob/voxelmap's own GPU buffer
 	-- ... never seems to go that fast
 	self:triBuf_flush()
 	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)	-- make sure textures are set
 	voxelmap:drawMesh(self)
 	--]]
 
-	self.currentVideoMode.framebufferRAM.dirtyGPU = true
-	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
+	framebufferRAM.dirtyGPU = true
+	framebufferRAM.changedSinceDraw = true
 
 	-- for now just pass the billboard voxels on to drawVoxel
 	-- TODO optimize maybe? idk?

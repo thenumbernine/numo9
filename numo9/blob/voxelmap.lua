@@ -531,9 +531,9 @@ function Chunk:drawMesh(app)
 	local oldVAOID = glglobal:get'GL_VERTEX_ARRAY_BINDING'
 	local oldBufferID = glglobal:get'GL_ARRAY_BUFFER_BINDING'
 	local oldProgramID = glglobal:get'GL_CURRENT_PROGRAM'
-print('GL_VERTEX_ARRAY_BINDING', oldVAOID)
-print('GL_ARRAY_BUFFER_BINDING', oldBufferID)
-print('GL_CURRENT_PROGRAM', oldProgramID)
+--DEBUG:print('GL_VERTEX_ARRAY_BINDING', oldVAOID)
+--DEBUG:print('GL_ARRAY_BUFFER_BINDING', oldBufferID)
+--DEBUG:print('GL_CURRENT_PROGRAM', oldProgramID)
 
 --[[ hmm why aren't things working ....
 	app.lastAnimSheetTex:bind(3)
@@ -550,7 +550,7 @@ print('GL_CURRENT_PROGRAM', oldProgramID)
 	local sceneObj = app.triBuf_sceneObj
 	local program = sceneObj.program
 
-print('Chunk:drawMesh self.chunkPos', self.chunkPos)
+--DEBUG:print('Chunk:drawMesh self.chunkPos', self.chunkPos)
 
 	if not self.vao
 	or program ~= self.vaoProgram
@@ -583,41 +583,41 @@ print('Chunk:drawMesh self.chunkPos', self.chunkPos)
 	end
 	self.vao:bind()
 
-print('self.vertexBufCPU.capacity', self.vertexBufCPU.capacity)
-print('self.vertexBufCPULastCapacity', self.vertexBufCPULastCapacity)
+--DEBUG:print('self.vertexBufCPU.capacity', self.vertexBufCPU.capacity)
+--DEBUG:print('self.vertexBufCPULastCapacity', self.vertexBufCPULastCapacity)
 	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
 		self.vertexBufGPU:bind()
-print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
-print('vertexBufGPU before setData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
+--DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
+--DEBUG:print('vertexBufGPU before setData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 		self.vertexBufGPU:setData{
 			data = self.vertexBufCPU.v,
 			count = self.vertexBufCPU.capacity,
 			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
 		}
-print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
-print('vertexBufGPU after setData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
-print('ffi.sizeof(Numo9Vertex)', ffi.sizeof(Numo9Vertex))
-print('vertexBufGPU:setData count', self.vertexBufCPU.capacity)
-print('vertexBufGPU:setData size', ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
-print('vertexBufGPU:setData data', self.vertexBufCPU.v)
+--DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
+--DEBUG:print('vertexBufGPU after setData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
+--DEBUG:print('ffi.sizeof(Numo9Vertex)', ffi.sizeof(Numo9Vertex))
+--DEBUG:print('vertexBufGPU:setData count', self.vertexBufCPU.capacity)
+--DEBUG:print('vertexBufGPU:setData size', ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
+--DEBUG:print('vertexBufGPU:setData data', self.vertexBufCPU.v)
 	-- [[ TODO only do this when we init or poke RAM
 	-- TODO TODO this is causing GL errors
 	else
 --DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
-print('vertexBufGPU:updateData old size', self.vertexBufGPU.size)
-print('vertexBufGPU:updateData old data', self.vertexBufGPU.data)
-print('vertexBufGPU:updateData data should be', self.vertexBufCPU.v)
-print('vertexBufGPU:updateData vertexBufCPU:getNumBytes()', self.vertexBufCPU:getNumBytes())
+--DEBUG:print('vertexBufGPU:updateData old size', self.vertexBufGPU.size)
+--DEBUG:print('vertexBufGPU:updateData old data', self.vertexBufGPU.data)
+--DEBUG:print('vertexBufGPU:updateData data should be', self.vertexBufCPU.v)
+--DEBUG:print('vertexBufGPU:updateData vertexBufCPU:getNumBytes()', self.vertexBufCPU:getNumBytes())
 		self.vertexBufGPU:bind()
-print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
-print('vertexBufGPU before updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
+--DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
+--DEBUG:print('vertexBufGPU before updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 		self.vertexBufGPU
 			:updateData(0,
 				--self.vertexBufCPU:getNumBytes())
 				ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
 	--]]
-print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
-print('vertexBufGPU after updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
+--DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
+--DEBUG:print('vertexBufGPU after updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 	end
 
 	gl.glDrawArrays(gl.GL_TRIANGLES, 0, #self.vertexBufCPU)
