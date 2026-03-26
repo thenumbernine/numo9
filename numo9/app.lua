@@ -2354,6 +2354,7 @@ local spriteNormalExhaggerationAddr, spriteNormalExhaggerationAddrEnd = getRAMAd
 
 local peekscope = {
 	ffi = ffi,
+	math = math,
 	require = require,
 }
 
