@@ -2582,8 +2582,8 @@ local postPokeCode = template([=[
 -- closure has: ffi, uint8_t, int32_t
 -- args are: self, addr, value
 local pokeBodyCode = [[
-	addr = ]]..tointCode'addr'..[[
-	value = ffi.cast(uint8_t, value)
+--	addr = ]]..tointCode'addr'..[[
+--	value = ffi.cast(uint8_t, value)
 	if addr < 0 or addr >= self.memSize then return end
 	local p = self.ram.v + addr
 --	if p[0] == value then return end	-- dont update resources if theres no change (TODO this is also in net_poke* and edit_poke* i think)
@@ -2608,8 +2608,8 @@ App.poke = assert(load(pokeCode))()
 -- closure has: ffi, uint16_t, uint16_t_p, int32_t
 -- args are: self, addr, value
 local pokewBodyCode = [[
-	addr = ]]..tointCode'addr'..[[
-	value = ffi.cast(uint16_t, value)
+--	addr = ]]..tointCode'addr'..[[
+--	value = ffi.cast(uint16_t, value)
 	local addrend = addr+1
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint16_t_p, self.ram.v + addr)
@@ -2635,8 +2635,8 @@ App.pokew = assert(load(pokewCode))()
 -- closure has: ffi, int32_t, uint32_t, uint32_t_p
 -- args are: self, addr, value
 local pokelBodyCode = [[
-	addr = ]]..tointCode'addr'..[[
-	value = ffi.cast(uint32_t, value)
+--	addr = ]]..tointCode'addr'..[[
+--	value = ffi.cast(uint32_t, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(uint32_t_p, self.ram.v + addr)
@@ -2662,8 +2662,8 @@ App.pokel = assert(load(pokelCode))()
 -- closure has: ffi, int32_t, float, float_p
 -- args are: self, addr, value
 local pokefBodyCode = [[
-	addr = ]]..tointCode'addr'..[[
-	value = ffi.cast(float, value)
+--	addr = ]]..tointCode'addr'..[[
+--	value = ffi.cast(float, value)
 	local addrend = addr+3
 	if addr < 0 or addrend >= self.memSize then return end
 	local p = ffi.cast(float_p, self.ram.v + addr)
