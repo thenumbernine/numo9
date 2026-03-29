@@ -2356,6 +2356,7 @@ local peekscope = {
 	ffi = ffi,
 	math = math,
 	require = require,
+	ipairs = ipairs,
 }
 
 App.peek = assert(load([[

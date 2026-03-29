@@ -528,108 +528,38 @@ end
 function Chunk:drawMesh(app)
 	if #self.vertexBufCPU == 0 then return end
 
-	local oldVAOID = glglobal:get'GL_VERTEX_ARRAY_BINDING'
-	local oldBufferID = glglobal:get'GL_ARRAY_BUFFER_BINDING'
-	local oldProgramID = glglobal:get'GL_CURRENT_PROGRAM'
---DEBUG:print('GL_VERTEX_ARRAY_BINDING', oldVAOID)
---DEBUG:print('GL_ARRAY_BUFFER_BINDING', oldBufferID)
---DEBUG:print('GL_CURRENT_PROGRAM', oldProgramID)
-
---[[ hmm why aren't things working ....
-	app.lastAnimSheetTex:bind(3)
-	app.lastTilemapTex:bind(2)
-	app.lastSheetTex:bind(1)
-	app.lastPaletteTex:bind(0)
-
-	app:triBuf_prepAddTri(
-		app.lastPaletteTex,
-		app.lastSheetTex,
-		app.lastTilemapTex,
-		app.lastAnimSheetTex)
---]]
 	local sceneObj = app.triBuf_sceneObj
-	local program = sceneObj.program
 
---DEBUG:print('Chunk:drawMesh self.chunkPos', self.chunkPos)
+	app.vertexBufCPU = self.vertexBufCPU
+	app.vertexBufGPU = self.vertexBufGPU
 
-	if not self.vao
-	or program ~= self.vaoProgram
-	then
-		if self.vao then
-			self.vao:delete()
-			self.vao = nil
-		end
-		-- cache vao per-program, which is per-video-mode
-		-- because its attrs vary per program , per-video-mode
-		self.vaoProgram = program
-		self.vao = GLVertexArray{
-			program = program,
-			attrs = table.map(sceneObj.attrs, function(attr)
-				--[[
-				local newattr = GLAttribute(attr)
-				newattr.buffer = self.vertexBufGPU
-				return newattr
-				--]]
-				-- [[
-				local newattr = setmetatable({}, GLAttribute)
-				for k,v in pairs(attr) do newattr[k] = v end
-				newattr.buffer = self.vertexBufGPU
-				return newattr
-				--]]
-			end),
-		} -- init doesnt bind vao...
-		self.vao:bind()
-		self.vertexBufGPU:bind()
-	end
-	self.vao:bind()
-
---DEBUG:print('self.vertexBufCPU.capacity', self.vertexBufCPU.capacity)
---DEBUG:print('self.vertexBufCPULastCapacity', self.vertexBufCPULastCapacity)
+-- [[
+	self.vertexBufGPU:bind()
 	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
-		self.vertexBufGPU:bind()
---DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
---DEBUG:print('vertexBufGPU before setData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 		self.vertexBufGPU:setData{
 			data = self.vertexBufCPU.v,
 			count = self.vertexBufCPU.capacity,
 			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
 		}
---DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
---DEBUG:print('vertexBufGPU after setData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
---DEBUG:print('ffi.sizeof(Numo9Vertex)', ffi.sizeof(Numo9Vertex))
---DEBUG:print('vertexBufGPU:setData count', self.vertexBufCPU.capacity)
---DEBUG:print('vertexBufGPU:setData size', ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
---DEBUG:print('vertexBufGPU:setData data', self.vertexBufCPU.v)
 	-- [[ TODO only do this when we init or poke RAM
 	-- TODO TODO this is causing GL errors
 	else
---DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
---DEBUG:print('vertexBufGPU:updateData old size', self.vertexBufGPU.size)
---DEBUG:print('vertexBufGPU:updateData old data', self.vertexBufGPU.data)
---DEBUG:print('vertexBufGPU:updateData data should be', self.vertexBufCPU.v)
---DEBUG:print('vertexBufGPU:updateData vertexBufCPU:getNumBytes()', self.vertexBufCPU:getNumBytes())
-		self.vertexBufGPU:bind()
---DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
---DEBUG:print('vertexBufGPU before updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 		self.vertexBufGPU
 			:updateData(0,
 				--self.vertexBufCPU:getNumBytes())
 				ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
-	--]]
---DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
---DEBUG:print('vertexBufGPU after updateData GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
 	end
-
-	gl.glDrawArrays(gl.GL_TRIANGLES, 0, #self.vertexBufCPU)
-
-	-- TODO also draw lightmap stuff here
-
-	self.vao:unbind()
 	self.vertexBufGPU:unbind()
 
-	gl.glBindBuffer(gl.GL_ARRAY_BUFFER, oldBufferID)
-	gl.glUseProgram(oldProgramID)
-	gl.glBindVertexArray(oldVAOID)
+	-- set app buffers to chunk buf
+	sceneObj.vao:bind()
+	for _,attr in ipairs(sceneObj.vao.attrs) do
+		attr.buffer = self.vertexBufGPU
+		attr:enableAndSet()
+	end
+	sceneObj.vao:unbind()
+
+	app:triBuf_flushButDontClear()
 
 	-- reset the vectors and store the last capacity
 	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
@@ -639,10 +569,6 @@ function Chunk:delete()
 	if self.vertexBufGPU then
 		self.vertexBufGPU:delete()
 		self.vertexBufGPU = nil
-	end
-	if self.vao then
-		self.vao:delete()
-		self.vao = nil
 	end
 end
 
@@ -943,15 +869,35 @@ end
 end
 
 function BlobVoxelMap:drawMesh(app)
+	local pushVertexBufCPU = app.vertexBufCPU
+	local pushVertexBufGPU = app.vertexBufGPU
+
 	local sceneObj = app.triBuf_sceneObj
+
+	-- save old vao bound buffers
+	for _,attr in ipairs(sceneObj.vao.attrs) do
+		attr.oldBuffer = attr.buffer
+	end
+
 	sceneObj.program:use()	-- wait, is it already bound?
 
 	for i=0,self.chunkVolume-1 do
 		self.chunks[i]:drawMesh(app)
 	end
 
-	-- rebind the old VAO
+	-- set app buffers back
 	sceneObj.vao:bind()
+	for _,attr in ipairs(sceneObj.vao.attrs) do
+		attr.buffer = attr.oldBuffer
+		attr.oldBuffer = nil
+		attr:enableAndSet()
+	end
+	sceneObj.vao:unbind()
+
+	-- restore old CPU buffers
+	app.vertexBufCPU = pushVertexBufCPU 
+	app.vertexBufGPU = pushVertexBufGPU 
+	app.vertexBufGPU:bind()
 end
 
 -- TODO TODO TODO how come this is only working when I pass in an intval, but not a Voxel ?

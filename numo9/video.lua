@@ -696,7 +696,7 @@ assert(self.videoModes[255])
 	self:resetVideo()
 end
 
-function AppVideo:triBuf_flush()
+function AppVideo:triBuf_flushButDontClear()
 --DEBUG: self.triBuf_flushCallsPerFrame = self.triBuf_flushCallsPerFrame + 1
 	local sceneObj = self.triBuf_sceneObj
 	if not sceneObj then return end	-- for some calls called before this is even created ...
@@ -799,6 +799,11 @@ function AppVideo:triBuf_flush()
 	end
 
 	sceneObj.vao:unbind()	-- sceneObj:disableAttrs()
+
+end
+
+function AppVideo:triBuf_flush()
+	self:triBuf_flushButDontClear()
 
 	-- reset the vectors and store the last capacity
 	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
@@ -3282,7 +3287,7 @@ function AppVideo:drawVoxelMap(
 
 	-- setup textures and uniforms
 
-	-- [[ draw by copying into buffers in AppVideo here
+	--[[ draw by copying into buffers in AppVideo here
 	do
 		-- flushes only if necessary.  assigns new texs.  uploads uniforms only if necessary.
 		self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)
@@ -3316,7 +3321,7 @@ function AppVideo:drawVoxelMap(
 		--]=]
 	end
 	--]]
-	--[[ draw using blob/voxelmap's own GPU buffer
+	-- [[ draw using blob/voxelmap's own GPU buffer
 	-- ... never seems to go that fast
 	self:triBuf_flush()
 	self:triBuf_prepAddTri(paletteTex, sheetTex, tilemapTex, animSheetTex)	-- make sure textures are set
