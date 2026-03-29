@@ -246,11 +246,7 @@ function Chunk:init(args)
 		count = self.vertexBufCPU.capacity,
 		data = self.vertexBufCPU.v,
 		usage = gl.GL_DYNAMIC_DRAW,
-	}
-	:bind()
---DEBUG:print('GL_ARRAY_BUFFER_BINDING', glglobal:get'GL_ARRAY_BUFFER_BINDING')
---DEBUG:print('chunk', self.chunkPos, 'vertexBufGPU init GL_BUFFER_SIZE', self.vertexBufGPU:get'GL_BUFFER_SIZE')
-	self.vertexBufGPU:unbind()
+	}:unbind()
 
 	-- says the mesh needs to be rebuilt
 	self.dirtyCPU = true
@@ -548,17 +544,29 @@ function Chunk:drawMesh(app)
 	if #vertexBufCPU == 0 then return end
 
 	local sceneObj = app.triBuf_sceneObj
+	if sceneObj.program ~= self.vaoProgram then
+		if self.vao then
+			self.vao:delete()
+		end
+		-- init this just like GLSceneObject builds its vao, with program = sceneObj ...
+		self.vao = GLVertexArray{
+			program = sceneObj,
+			attrs = sceneObj.attrs,
+		}
+		
+		self.vao:bind()
+		for _,attr in ipairs(self.vao.attrs) do
+			attr.buffer = vertexBufGPU
+			attr:enableAndSet()
+		end
+		self.vao:unbind()
+
+		self.vaoProgram = sceneObj.program
+	end
 
 	app.vertexBufCPU = vertexBufCPU
 	app.vertexBufGPU = vertexBufGPU
-
-	-- set app buffers to chunk buf
-	sceneObj.vao:bind()
-	for _,attr in ipairs(sceneObj.vao.attrs) do
-		attr.buffer = vertexBufGPU
-		attr:enableAndSet()
-	end
-	sceneObj.vao:unbind()
+	sceneObj.vao = self.vao
 
 	app:triBuf_flushButDontClear()
 end
@@ -567,6 +575,10 @@ function Chunk:delete()
 	if self.vertexBufGPU then
 		self.vertexBufGPU:delete()
 		self.vertexBufGPU = nil
+	end
+	if self.vao then
+		self.vao:delete()
+		self.vao = nil
 	end
 end
 
@@ -867,10 +879,11 @@ end
 end
 
 function BlobVoxelMap:drawMesh(app)
+	local sceneObj = app.triBuf_sceneObj
+	
+	local pushVAO = sceneObj.vao
 	local pushVertexBufCPU = app.vertexBufCPU
 	local pushVertexBufGPU = app.vertexBufGPU
-
-	local sceneObj = app.triBuf_sceneObj
 
 	-- save old vao bound buffers
 	for _,attr in ipairs(sceneObj.vao.attrs) do
@@ -883,19 +896,11 @@ function BlobVoxelMap:drawMesh(app)
 		self.chunks[i]:drawMesh(app)
 	end
 
-	-- set app buffers back
-	sceneObj.vao:bind()
-	for _,attr in ipairs(sceneObj.vao.attrs) do
-		attr.buffer = attr.oldBuffer
-		attr.oldBuffer = nil
-		attr:enableAndSet()
-	end
-	sceneObj.vao:unbind()
-
 	-- restore old CPU buffers
 	app.vertexBufCPU = pushVertexBufCPU 
 	app.vertexBufGPU = pushVertexBufGPU 
 	app.vertexBufGPU:bind()
+	sceneObj.vao = pushVAO
 end
 
 -- TODO TODO TODO how come this is only working when I pass in an intval, but not a Voxel ?
