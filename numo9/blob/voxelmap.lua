@@ -261,7 +261,8 @@ function Chunk:rebuildMesh(app)
 	if not self.dirtyCPU then return end
 	self.dirtyCPU = false
 
-	self.vertexBufCPU:resize(0)
+	local vertexBufCPU = self.vertexBufCPU
+	vertexBufCPU:resize(0)
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 
@@ -422,7 +423,7 @@ function Chunk:rebuildMesh(app)
 									local srcVtxs = mesh:getVertexPtr()	-- TODO blob vs ram location ...
 
 									-- resize first then offest back in case we get a resize ...
-									self.vertexBufCPU:reserve(#self.vertexBufCPU + #mesh.triList)
+									vertexBufCPU:reserve(#vertexBufCPU + #mesh.triList)
 
 									for ti=0,#mesh.triList-1 do
 										local tri = mesh.triList.v[ti]
@@ -484,7 +485,7 @@ function Chunk:rebuildMesh(app)
 											local normal = mesh.normalList.v[ti]
 
 											local srcv = va
-											local dstVtx = self.vertexBufCPU:emplace_back()
+											local dstVtx = vertexBufCPU:emplace_back()
 											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
 											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
@@ -493,7 +494,7 @@ function Chunk:rebuildMesh(app)
 											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
 											local srcv = vb
-											local dstVtx = self.vertexBufCPU:emplace_back()
+											local dstVtx = vertexBufCPU:emplace_back()
 											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
 											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
@@ -502,7 +503,7 @@ function Chunk:rebuildMesh(app)
 											dstVtx.box.x, dstVtx.box.y, dstVtx.box.z, dstVtx.box.w = 0, 0, 1, 1
 
 											local srcv = vc
-											local dstVtx = self.vertexBufCPU:emplace_back()
+											local dstVtx = vertexBufCPU:emplace_back()
 											dstVtx.vertex.x, dstVtx.vertex.y, dstVtx.vertex.z = vec3to3(mp, srcv.x, srcv.y, srcv.z)
 											dstVtx.texcoord.x = (tonumber(srcv.u + uofs) + .5) / tonumber(spriteSheetSize.x)
 											dstVtx.texcoord.y = (tonumber(srcv.v + vofs) + .5) / tonumber(spriteSheetSize.y)
@@ -520,22 +521,10 @@ function Chunk:rebuildMesh(app)
 			end
 		end
 	end
---DEBUG:print('created', #self.vertexBufCPU/3, 'tris')
+--DEBUG:print('created', #vertexBufCPU/3, 'tris')
 --DEBUG:print('occluded', occludedCount, 'tris')
-end
 
--- needs triBuf_prepAddTri to be called beforehand
-function Chunk:drawMesh(app)
-	local vertexBufCPU = self.vertexBufCPU
 	local vertexBufGPU = self.vertexBufGPU
-	if #vertexBufCPU == 0 then return end
-
-	local sceneObj = app.triBuf_sceneObj
-
-	app.vertexBufCPU = vertexBufCPU
-	app.vertexBufGPU = vertexBufGPU
-
--- [=[ TODO only do this when we init or poke RAM
 	vertexBufGPU:bind()
 	if vertexBufCPU.capacity ~= vertexBufCPU.numo9LastCapacity then
 		vertexBufGPU:setData{
@@ -550,7 +539,18 @@ function Chunk:drawMesh(app)
 				ffi.sizeof(Numo9Vertex) * vertexBufCPU.capacity)
 	end
 	vertexBufGPU:unbind()
---]=]
+end
+
+-- needs triBuf_prepAddTri to be called beforehand
+function Chunk:drawMesh(app)
+	local vertexBufCPU = self.vertexBufCPU
+	local vertexBufGPU = self.vertexBufGPU
+	if #vertexBufCPU == 0 then return end
+
+	local sceneObj = app.triBuf_sceneObj
+
+	app.vertexBufCPU = vertexBufCPU
+	app.vertexBufGPU = vertexBufGPU
 
 	-- set app buffers to chunk buf
 	sceneObj.vao:bind()
