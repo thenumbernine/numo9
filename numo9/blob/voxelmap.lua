@@ -526,43 +526,41 @@ end
 
 -- needs triBuf_prepAddTri to be called beforehand
 function Chunk:drawMesh(app)
-	if #self.vertexBufCPU == 0 then return end
+	local vertexBufCPU = self.vertexBufCPU
+	local vertexBufGPU = self.vertexBufGPU
+	if #vertexBufCPU == 0 then return end
 
 	local sceneObj = app.triBuf_sceneObj
 
-	app.vertexBufCPU = self.vertexBufCPU
-	app.vertexBufGPU = self.vertexBufGPU
+	app.vertexBufCPU = vertexBufCPU
+	app.vertexBufGPU = vertexBufGPU
 
--- [[
-	self.vertexBufGPU:bind()
-	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
-		self.vertexBufGPU:setData{
-			data = self.vertexBufCPU.v,
-			count = self.vertexBufCPU.capacity,
-			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
+-- [=[ TODO only do this when we init or poke RAM
+	vertexBufGPU:bind()
+	if vertexBufCPU.capacity ~= vertexBufCPU.numo9LastCapacity then
+		vertexBufGPU:setData{
+			data = vertexBufCPU.v,
+			count = vertexBufCPU.capacity,
+			size = ffi.sizeof(Numo9Vertex) * vertexBufCPU.capacity,
 		}
-	-- [[ TODO only do this when we init or poke RAM
-	-- TODO TODO this is causing GL errors
 	else
-		self.vertexBufGPU
+		vertexBufGPU
 			:updateData(0,
-				--self.vertexBufCPU:getNumBytes())
-				ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity)
+				--vertexBufCPU:getNumBytes())
+				ffi.sizeof(Numo9Vertex) * vertexBufCPU.capacity)
 	end
-	self.vertexBufGPU:unbind()
+	vertexBufGPU:unbind()
+--]=]
 
 	-- set app buffers to chunk buf
 	sceneObj.vao:bind()
 	for _,attr in ipairs(sceneObj.vao.attrs) do
-		attr.buffer = self.vertexBufGPU
+		attr.buffer = vertexBufGPU
 		attr:enableAndSet()
 	end
 	sceneObj.vao:unbind()
 
 	app:triBuf_flushButDontClear()
-
-	-- reset the vectors and store the last capacity
-	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
 end
 
 function Chunk:delete()

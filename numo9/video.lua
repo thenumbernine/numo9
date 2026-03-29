@@ -701,8 +701,10 @@ function AppVideo:triBuf_flushButDontClear()
 	local sceneObj = self.triBuf_sceneObj
 	if not sceneObj then return end	-- for some calls called before this is even created ...
 
+	local vertexBufCPU = self.vertexBufCPU
+
 	-- flush the old
-	local n = #self.vertexBufCPU
+	local n = #vertexBufCPU
 	if n == 0 then return end
 
 --DEBUG: self.triBuf_flushSizes[n] = (self.triBuf_flushSizes[n] or 0) + 1
@@ -736,17 +738,18 @@ function AppVideo:triBuf_flushButDontClear()
 
 --DEBUG:assert.index(sceneObj, 'vao')
 	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
-	--self.vertexBufGPU:bind() ... already bound
+	local vertexBufGPU = self.vertexBufGPU
+	--vertexBufGPU:bind() ... already bound
 
-	if self.vertexBufCPU.capacity ~= self.vertexBufCPULastCapacity then
-		self.vertexBufGPU:setData{
-			data = self.vertexBufCPU.v,
-			count = self.vertexBufCPU.capacity,
-			size = ffi.sizeof(Numo9Vertex) * self.vertexBufCPU.capacity,
+	if vertexBufCPU.capacity ~= vertexBufCPU.numo9LastCapacity then
+		vertexBufGPU:setData{
+			data = vertexBufCPU.v,
+			count = vertexBufCPU.capacity,
+			size = ffi.sizeof(Numo9Vertex) * vertexBufCPU.capacity,
 		}
 	else
---DEBUG:assert.eq(self.vertexBufGPU.data, self.vertexBufCPU.v)
-		self.vertexBufGPU:updateData(0, self.vertexBufCPU:getNumBytes())
+--DEBUG:assert.eq(vertexBufGPU.data, vertexBufCPU.v)
+		vertexBufGPU:updateData(0, vertexBufCPU:getNumBytes())
 	end
 
 	sceneObj.geometry:draw()
@@ -800,13 +803,13 @@ function AppVideo:triBuf_flushButDontClear()
 
 	sceneObj.vao:unbind()	-- sceneObj:disableAttrs()
 
+	vertexBufCPU.numo9LastCapacity = vertexBufCPU.capacity
 end
 
 function AppVideo:triBuf_flush()
 	self:triBuf_flushButDontClear()
 
 	-- reset the vectors and store the last capacity
-	self.vertexBufCPULastCapacity = self.vertexBufCPU.capacity
 	self.vertexBufCPU:resize(0)
 end
 
