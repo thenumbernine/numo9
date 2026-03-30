@@ -1760,7 +1760,9 @@ conn.receivesPerSecond = 0
 		self.drawViewMatForLighting:setIdent()
 		self.drawProjMatForLighting:setIdent()
 
-		collectgarbage()
+-- hmm ... remind me again why I added this collectgarbage() every frame, other than just to do just that ... 
+-- because with it, the framerate (on 10yo computer) is going down to 20 FPS, without it, 60kfps
+--		collectgarbage()
 
 --DEBUG(glquery):updateQuery:begin()
 
@@ -1844,6 +1846,7 @@ conn.receivesPerSecond = 0
 		-- outside the 1/60 block to make sure it runs as often as possible?
 		self:updateAudio()
 		--]]
+
 
 		-- system update refresh timer
 		self.ram.updateCounter = self.ram.updateCounter + 1
