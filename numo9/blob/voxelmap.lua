@@ -568,6 +568,8 @@ function Chunk:drawMesh(app)
 	app.vertexBufGPU = vertexBufGPU
 	sceneObj.vao = self.vao
 
+	vertexBufGPU:bind()
+
 	app:triBuf_flushButDontClear()
 end
 
@@ -898,6 +900,7 @@ function BlobVoxelMap:drawMesh(app)
 	app.vertexBufCPU = pushVertexBufCPU 
 	app.vertexBufGPU = pushVertexBufGPU 
 	app.vertexBufGPU:bind()
+
 	sceneObj.vao = pushVAO
 end
 
