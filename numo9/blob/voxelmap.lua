@@ -890,8 +890,6 @@ function BlobVoxelMap:drawMesh(app)
 		attr.oldBuffer = attr.buffer
 	end
 
-	sceneObj.program:use()	-- wait, is it already bound?
-
 	for i=0,self.chunkVolume-1 do
 		self.chunks[i]:drawMesh(app)
 	end
