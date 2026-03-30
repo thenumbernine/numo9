@@ -1115,4 +1115,9 @@ BUGS/FIXES SINCE 1.2.2:
 - Fixed langfix bug where `f?()` and `f!()` couldn't be used as statmements.  Updated some cart scripts accordingly.
 - Renamed mget/mset to `tget/tset` and put the tilemap blob index first to match `vget/vset`.
 - Fixed up autotile API and added `include/numo9/autotile.lua`.
-- Added DOF and HDR passes. 
+- Added DOF and HDR passes.
+
+BUGS TO FIX:
+- resize in mode 0xFF does a GL error
+- in fact, maybe, maybe, get rid of GL getter errors throwing?  so that only gl.debug reports tracebacks? or nah? hmmmmmmm
+- disabling DoF but not HDR before render in mode 0xFF made the screen go black ...

@@ -1,4 +1,5 @@
 --#include ext/class.lua
+--#include vec/vec2.lua
 --#include vec/vec3.lua
 --#include numo9/matstack.lua	-- matpush, matpop
 --#include numo9/screen.lua		-- getAspectRatio
@@ -13,6 +14,7 @@ pokew(ramaddr'numLights', 1)			-- turn on 1 light
 poke(ramaddr'lights', 0xff)				-- enable light #0
 
 
+local player
 local playerCoins = 0
 
 local voxelTypeEmpty = 0xffffffff
@@ -92,133 +94,12 @@ Object.draw = |:|do
 	matpop()
 end
 Object.update = |:|do
-end
-
-local Beetle = Object:subclass()
-Beetle.draw = |:, ...| do
-	if not self.leaveShellTime then
-		self.voxelCode = voxelTypeBeetle + ((math.floor(time() * 5) & 1) << 1)
-	end
-	Beetle.super.draw(self, ...)
-end
-Beetle.update = |:| do
-	if self.leaveShellTime then
-		if time() > self.leaveShellTime then
-			self.leaveShellTime = nil
-		end
-		return
-	end
-	if player then
-		self.vel = (player.pos - self.pos):normalize()
-	end
-end
-Beetle.jumpedOn = |:,other| do
-	if not Player:isa(other) then return end
-	self.voxelCode = voxelTypeBeetle + 4
-	self.leaveShellTime = time() + 5
-	other.jumpTime = time()
-	other.vel.z = bounceZVel
-end
-
-local Goomba = Object:subclass()
-Goomba.draw = |:, ...| do
-	if not self.squashedTime then
-		self.voxelCode = voxelTypeGoomba + ((math.floor(time() * 5) & 1) << 1)
-	end
-	Goomba.super.draw(self, ...)
-end
-Goomba.update = |:| do
-	if self.squashedTime then
-		if time() > self.squashedTime then
-			self.remove = true
-		end
-		return
-	end
-	if player then
-		self.vel = (player.pos - self.pos):normalize()
-	end
-end
-Goomba.jumpedOn = |:, other| do
-	if self.squashedTime then return end
-	if not Player:isa(other) then return end
-	self.voxelCode = voxelTypeGoomba + 4
-	self.squashedTime = time() + 1
-	self.voxelCode = voxelTypeGoomba + 4
-	other.jumpTime = time()
-	other.vel.z = bounceZVel
-end
-
-Player = Object:subclass()
-Player.draw = |:|do
-	matpush()
-	mattrans(self.pos:unpack())
-	matrotcs(view.cosYaw, view.sinYaw, 0, 0, 1)
-	matrotcs(0, 1, 1, 0, 0)
-	matscale(1/16, -1/16, 1/16)
-	local sprIndex
-	if not self.onground and self.vel.z > 0 then
-		sprIndex = 10
-	elseif self.walking then
-		sprIndex = math.floor(time() * 7) & 3
-		if sprIndex == 3 then sprIndex = 1 end
-		sprIndex <<= 1
-		sprIndex += 2
-	else
-		sprIndex = 2
-	end
-	local hflip = (self.angle - (view.yaw + 45)) % 360 < 180 and 1 or 0
-	spr(sprIndex, -8, -16, 2, 2, hflip)
-	matpop()
-end
-Player.update = |:|do
-
-	self.vel.x = 0
-	self.vel.y = 0
-	-- hold y + dir to rotate camera
-	if btn'x' then
-		if btnp'left' then
-			view.destYaw += 90
-		elseif btnp'right' then
-			view.destYaw -= 90
-		end
-	else
-		local speed = btn'y' and self.walkSpeed * 1.5 or self.walkSpeed
-		if btn'up' then
-			self.vel.x += -view.sinYaw * speed
-			self.vel.y += view.cosYaw * speed
-			self.angle = view.yaw + 90
-			self.angle %= 360
-		end
-		if btn'down' then
-			self.vel.x -= -view.sinYaw * speed
-			self.vel.y -= view.cosYaw * speed
-			self.angle = view.yaw - 90
-			self.angle %= 360
-		end
-		if btn'left' then
-			self.vel.x -= view.cosYaw * speed
-			self.vel.y -= view.sinYaw * speed
-			self.angle = view.yaw + 180
-			self.angle %= 360
-		end
-		if btn'right' then
-			self.vel.x += view.cosYaw * speed
-			self.vel.y += view.sinYaw * speed
-			self.angle = view.yaw
-		end
-	end
-
-	-- test jump here before walking because walking clears onground flag for the sake of testing falling off ledges
-	if self.onground and btnp'b' then
-		self.jumpTime = time()
-	end
+	-- TODO what about falling vs walking?
+	self.walking = self.vel.x ~= 0 or self.vel.y ~= 0
 
 	local newX = self.pos.x + self.vel.x * dt
 	local newY = self.pos.y + self.vel.y * dt
 	local newZ = self.pos.z	-- don't test jumping/falling yet...
-
-	-- TODO what about falling vs walking?
-	self.walking = self.vel.x ~= 0 or self.vel.y ~= 0
 
 	if self.walking then
 		local stepHeight = .25 + epsilon
@@ -321,6 +202,174 @@ Player.update = |:|do
 	end
 end
 
+local Beetle = Object:subclass()
+Beetle.chaseDist = 5
+Beetle.walkSpeed = 2
+Beetle.draw = |:, ...| do
+	if not self.leaveShellTime then
+		self.voxelCode = voxelTypeBeetle + ((math.floor(time() * 5) & 1) << 1)
+	end
+	Beetle.super.draw(self, ...)
+end
+Beetle.update = |:, ...| do
+	if self.kicked then
+		Beetle.super.update(self, ...)
+		return
+	end
+	if self.leaveShellTime then
+		if time() > self.leaveShellTime then
+			self.leaveShellTime = nil
+			self.voxelCode = voxelTypeBeetle
+		end
+		return
+	end
+	if player then
+		local delta = player.pos - self.pos
+		if vec3_lenSq(delta:unpack()) < self.chaseDist*self.chaseDist  then
+			vec2.set(self.vel, vec2_scale(self.walkSpeed, vec2_unit(delta.x, delta.y)))
+			self.vel.z = 0
+		end
+	end
+	Beetle.super.update(self, ...)
+end
+Beetle.jumpedOn = |:,other| do
+	if not Player:isa(other) then return end
+
+	if self.voxelCode == voxelTypeBeetle + 4 then
+		-- jumped on while in shell ...
+		if not self.kicked then
+			self.kicked = true
+			local kickSpeed = 10
+			local delta = player.pos - self.pos
+			vec2.set(self.vel, vec2_scale(kickSpeed, vec2_unit(delta:unpack())))
+			self.vel.z = 0
+		else
+			self.kicked = false
+		end
+	else
+		-- walking around ...
+		self.voxelCode = voxelTypeBeetle + 4
+		self.leaveShellTime = time() + 5
+		other.jumpTime = time()
+		other.vel.z = bounceZVel
+	end
+end
+Beetle.hitSide = |:,other|do
+	if self.voxelCode == voxelTypeBeetle + 4 then
+		if self.kicked then
+			-- hit by a kicked shell ... other takes damage
+		else
+			-- hit by a stationary shell ... kick it
+			self.kicked = true
+		end
+	else
+		-- not in shell? other takes damage
+	end
+end
+
+local Goomba = Object:subclass()
+Goomba.chaseDist = 5
+Goomba.walkSpeed = 2
+Goomba.draw = |:, ...| do
+	if not self.squashedTime then
+		self.voxelCode = voxelTypeGoomba + ((math.floor(time() * 5) & 1) << 1)
+	end
+	Goomba.super.draw(self, ...)
+end
+Goomba.update = |:, ...| do
+	if self.squashedTime then
+		if time() > self.squashedTime then
+			self.remove = true
+		end
+		return
+	end
+	if player then
+		local delta = player.pos - self.pos
+		if vec3_lenSq(delta:unpack()) < self.chaseDist*self.chaseDist  then
+			vec2.set(self.vel, vec2_scale(self.walkSpeed, vec2_unit(delta.x, delta.y)))
+			self.vel.z = 0
+		end
+	end
+	Goomba.super.update(self, ...)
+end
+Goomba.jumpedOn = |:, other| do
+	if self.squashedTime then return end
+	if not Player:isa(other) then return end
+	self.voxelCode = voxelTypeGoomba + 4
+	self.squashedTime = time() + 1
+	self.voxelCode = voxelTypeGoomba + 4
+	other.jumpTime = time()
+	other.vel.z = bounceZVel
+end
+
+Player = Object:subclass()
+Player.draw = |:|do
+	matpush()
+	mattrans(self.pos:unpack())
+	matrotcs(view.cosYaw, view.sinYaw, 0, 0, 1)
+	matrotcs(0, 1, 1, 0, 0)
+	matscale(1/16, -1/16, 1/16)
+	local sprIndex
+	if not self.onground and self.vel.z > 0 then
+		sprIndex = 10
+	elseif self.walking then
+		sprIndex = math.floor(time() * 7) & 3
+		if sprIndex == 3 then sprIndex = 1 end
+		sprIndex <<= 1
+		sprIndex += 2
+	else
+		sprIndex = 2
+	end
+	local hflip = (self.angle - (view.yaw + 45)) % 360 < 180 and 1 or 0
+	spr(sprIndex, -8, -16, 2, 2, hflip)
+	matpop()
+end
+Player.update = |:, ...|do
+
+	self.vel.x = 0
+	self.vel.y = 0
+	-- hold y + dir to rotate camera
+	if btn'x' then
+		if btnp'left' then
+			view.destYaw += 90
+		elseif btnp'right' then
+			view.destYaw -= 90
+		end
+	else
+		local speed = btn'y' and self.walkSpeed * 1.5 or self.walkSpeed
+		if btn'up' then
+			self.vel.x += -view.sinYaw * speed
+			self.vel.y += view.cosYaw * speed
+			self.angle = view.yaw + 90
+			self.angle %= 360
+		end
+		if btn'down' then
+			self.vel.x -= -view.sinYaw * speed
+			self.vel.y -= view.cosYaw * speed
+			self.angle = view.yaw - 90
+			self.angle %= 360
+		end
+		if btn'left' then
+			self.vel.x -= view.cosYaw * speed
+			self.vel.y -= view.sinYaw * speed
+			self.angle = view.yaw + 180
+			self.angle %= 360
+		end
+		if btn'right' then
+			self.vel.x += view.cosYaw * speed
+			self.vel.y += view.sinYaw * speed
+			self.angle = view.yaw
+		end
+	end
+
+	-- test jump here before walking because walking clears onground flag for the sake of testing falling off ledges
+	if self.onground and btnp'b' then
+		self.jumpTime = time()
+	end
+
+	Player.super.update(self, ...)
+end
+
 
 voxelInfos = {
 	[voxelTypeBricks] = {
@@ -363,7 +412,7 @@ voxelInfos = {
 	},
 }
 
-local player = Player{
+player = Player{
 	pos = vec3(2.5, 2.5, 1),
 }
 
@@ -386,11 +435,25 @@ for z=0,voxelmapSizeZ-1 do
 end
 
 
+-- sizes of our UI overlay wrt text
+local textwidth = 32 * 8
+local textheight = textwidth
+
 update=||do
 	poke(ramaddr'HD2DFlags', HD2DFlags)
 	cls(33)
 
+	-- assume we are still in ortho matrix setup from the end of last frame
 	local width, height = getScreenSize()
+	spr(
+		14,	-- spriteIndex
+		0, 0, 	-- screenX, screenY
+		2, 2,	-- tilesWide, tilesHigh
+		0,		-- orientation2D
+		textwidth/16, textheight/16	-- scaleX, scaleY
+	)
+	cls(nil, true)	-- clear depth
+
 	view:update(width, height, player)
 
 	voxelmap()
@@ -412,8 +475,8 @@ update=||do
 	matident(0)
 	matident(1)
 	matident(2)
-	local textwidth = 32 * 8
-	matortho(0, textwidth, textwidth * height / width, 0)
+	textheight = textwidth * height / width
+	matortho(0, textwidth, textheight, 0)
 	text(tostring('Cx '..playerCoins), 0, 0, 220, 219)
 	--]]
 
@@ -421,7 +484,8 @@ update=||do
 	pokef(ramaddr'dofFocalDist', 8)
 	pokef(ramaddr'dofAperature', .2)
 
+	poke(ramaddr'HD2DFlags', 0)			-- set neither
 	--poke(ramaddr'HD2DFlags', 0x80)	-- set DoF
-	--poke(ramaddr'HD2DFlags', 0x40)	-- set HDR
-	poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
+	--poke(ramaddr'HD2DFlags', 0x40)	-- set HDR ... TODO it's showing all black hmm ...
+	--poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
 end

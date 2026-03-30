@@ -11,7 +11,8 @@ vec3_cross=|ax,ay,az, bx,by,bz| (
 	az*bx - ax*bz,
 	ax*by - ay*bx
 )
-vec3_len=|x,y,z|math.sqrt(x^2 + y^2 + z^2)
+vec3_lenSq=|x,y,z|x^2+y^2+z^2
+vec3_len=|x,y,z|math.sqrt(x^2+y^2+z^2)
 vec3_unit=|x,y,z|do
 	local l = vec3_len(x,y,z)
 	local s = 1 / math.max(1e-15, l)

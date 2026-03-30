@@ -1477,7 +1477,6 @@ print('package.loaded', package.loaded)
 
 			-- yield before quit in case initCmd or load has a better runFocus and we dont need to end-thread and drop to console
 			coroutine.yield()
-
 		end),
 	}
 --]]
