@@ -104,7 +104,7 @@ typedef struct calcLightBlit_light_t {
 	int32_t padding;
 } calcLightBlit_light_t;
 ]]
-
+--DEBUG:print("ffi.sizeof'calcLightBlit_light_t'", ffi.sizeof'calcLightBlit_light_t')
 
 ffi.cdef(template([[
 typedef struct calcLightBlit_fragUni_t {
@@ -127,6 +127,7 @@ typedef struct calcLightBlit_fragUni_t {
 ]], {
 	maxLights = maxLights,
 }))
+--DEBUG:print("ffi.sizeof'calcLightBlit_fragUni_t'", ffi.sizeof'calcLightBlit_fragUni_t')
 
 local VideoMode = class()
 
@@ -446,6 +447,7 @@ layout(std140, binding=0) uniform fragBlock {
 	float ssaoSampleRadius;// = 1.;	// this is in world coordinates, so it's gonna change per-game
 	float ssaoInfluence;// = 1.;	// 1 = 100% = you'll see black in fully-occluded points
 	int numLights;
+	ivec2 padding;	// not needed on my desktop GL (while my desktop GL does need a similar padding on the CPU side), but needed on my phone GLES...
 
 };	// fragBlock
 
@@ -706,7 +708,13 @@ return;
 		-- and upload it all at once
 		-- .. but just look how bloated the GPU memory layout is ...
 		local fragBlock = self.calcLightBlitObj.program.uniformBlocks.fragBlock
-		assert.eq(ffi.sizeof'calcLightBlit_fragUni_t', fragBlock.dataSize, 'sizeof(calcLightBlit_fragUni_t) vs fragBlock.dataSize')
+
+		-- hmm, on some platforms / GL drivers this works, on others it doesn't ...
+		assert.eq(
+			ffi.sizeof'calcLightBlit_fragUni_t',
+			fragBlock.dataSize,
+			'sizeof(calcLightBlit_fragUni_t) vs fragBlock.dataSize'
+		)
 		self.fragUniCPU = ffi.new'calcLightBlit_fragUni_t'
 		self.fragUniGPU = GLUniformBuffer{
 			data = self.fragUniCPU,
