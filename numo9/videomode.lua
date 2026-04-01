@@ -1269,7 +1269,7 @@ uvec4 colorIndexToFragColor(uint colorIndex) {
 --DEBUG:print'mode 1 blitScreenObj'
 	self.blitScreenObj = GLSceneObject{
 		program = {
-			rowMajor = false,	-- dafult to col-major glUniformMatrix's
+			rowMajor = false,	-- default to col-major glUniformMatrix's
 			version = app.glslVersion,
 			precision = 'best',
 			vertexCode = blitScreenVertexCode,

@@ -103,10 +103,13 @@ function UI:guiButton(str, x, y, isset, tooltip)
 	local w = app:drawMenuText(str, x, y, fg, bg)
 	local h = spriteSize.y
 
-	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
+	local lastMousePixelX, lastMousePixelY = app.ram.lastMousePos:unpack()
+	local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
 
 	local mouseOver =
-		mouseX >= x and mouseX < x+w
+		(mousePixelX ~= lastMousePixelX or mousePixelY ~= lastMousePixelY)	-- only if the mouse moved...
+		and mouseX >= x and mouseX < x+w
 		and mouseY >= y and mouseY < y+h
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
@@ -182,10 +185,13 @@ function UI:guiTextField(
 
 	local onThisMenuItem = self.menuTabIndex == self.menuTabCounter
 
-	local mouseX, mouseY = app:invTransform(app.ram.mousePos:unpack())
+	local lastMousePixelX, lastMousePixelY = app.ram.lastMousePos:unpack()
+	local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
 
 	local mouseOver =
-		mouseX >= x and mouseX < x+w
+		(mousePixelX ~= lastMousePixelX or mousePixelY ~= lastMousePixelY)	-- only if the mouse moved...
+		and mouseX >= x and mouseX < x+w
 		and mouseY >= y and mouseY < y+h
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
