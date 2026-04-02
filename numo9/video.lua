@@ -1058,19 +1058,31 @@ end
 
 function AppVideo:allRAMRegionsExceptFramebufferCheckDirtyGPU()
 	for _,blob in ipairs(self.blobs.sheet) do
-		blob.ramgpu:checkDirtyGPU()
+		if blob.ramgpu then	-- might not exist if we created a new one
+			-- TODO this is from numo9/ui.lua 'changed' call to UI:updateBlobChanges() to call here
+			-- I could instead just rebuild .ramgpu's there first before calling to here ...
+			blob.ramgpu:checkDirtyGPU()
+		end
 	end
 	for _,blob in ipairs(self.blobs.tilemap) do
-		blob.ramgpu:checkDirtyGPU()
+		if blob.ramgpu then	-- might not exist if we created a new one
+			blob.ramgpu:checkDirtyGPU()
+		end
 	end
 	for _,blob in ipairs(self.blobs.palette) do
-		blob.ramgpu:checkDirtyGPU()
+		if blob.ramgpu then	-- might not exist if we created a new one
+			blob.ramgpu:checkDirtyGPU()
+		end
 	end
 	for _,blob in ipairs(self.blobs.font) do
-		blob.ramgpu:checkDirtyGPU()
+		if blob.ramgpu then	-- might not exist if we created a new one
+			blob.ramgpu:checkDirtyGPU()
+		end
 	end
 	for _,blob in ipairs(self.blobs.animsheet) do
-		blob.ramgpu:checkDirtyGPU()
+		if blob.ramgpu then	-- might not exist if we created a new one
+			blob.ramgpu:checkDirtyGPU()
+		end
 	end
 end
 

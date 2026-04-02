@@ -1,8 +1,8 @@
 --#include ext/class.lua
 --#include vec/vec2.lua
 --#include vec/vec3.lua
---#include numo9/matstack.lua	-- matpush, matpop
---#include numo9/screen.lua		-- getAspectRatio
+--#include numo9/matstack.lua
+--#include numo9/screen.lua
 
 mode(0xff)	-- NativexRGB565
 --mode(0)		-- 256x256xRGB565
@@ -234,7 +234,7 @@ Beetle.update = |:, ...| do
 end
 Beetle.jumpedOn = |:,other| do
 	if not Player:isa(other) then return end
-
+	
 	if self.voxelCode == voxelTypeBeetle + 4 then
 		-- jumped on while in shell ...
 		if not self.kicked then
@@ -443,14 +443,15 @@ update=||do
 	poke(ramaddr'HD2DFlags', HD2DFlags)
 	cls(33)
 
+	-- draw skyl
 	-- assume we are still in ortho matrix setup from the end of last frame
 	local width, height = getScreenSize()
 	spr(
-		14,	-- spriteIndex
-		0, 0, 	-- screenX, screenY
-		2, 2,	-- tilesWide, tilesHigh
-		0,		-- orientation2D
-		textwidth/16, textheight/16	-- scaleX, scaleY
+		1024,							-- spriteIndex
+		0, 0, 							-- screenX, screenY
+		32, 32,							-- tilesWide, tilesHigh
+		0,								-- orientation2D
+		textwidth/256, textheight/256	-- scaleX, scaleY
 	)
 	cls(nil, true)	-- clear depth
 
