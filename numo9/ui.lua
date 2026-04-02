@@ -106,16 +106,14 @@ function UI:guiButton(str, x, y, isset, tooltip)
 	local lastMousePixelX, lastMousePixelY = app.ram.lastMousePos:unpack()
 	local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
 	local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
+	local mouseMoved = mousePixelX ~= lastMousePixelX or mousePixelY ~= lastMousePixelY
+	local mouseOver = mouseX >= x and mouseX < x+w and mouseY >= y and mouseY < y+h
 
-	local mouseOver =
-		(mousePixelX ~= lastMousePixelX or mousePixelY ~= lastMousePixelY)	-- only if the mouse moved...
-		and mouseX >= x and mouseX < x+w
-		and mouseY >= y and mouseY < y+h
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
 	local result
-	if mouseOver then
+	if mouseOver and mouseMoved then
 		self.menuTabIndex = self.menuTabCounter
 	end
 
@@ -188,11 +186,9 @@ function UI:guiTextField(
 	local lastMousePixelX, lastMousePixelY = app.ram.lastMousePos:unpack()
 	local mousePixelX, mousePixelY = app.ram.mousePos:unpack()
 	local mouseX, mouseY = app:invTransform(mousePixelX, mousePixelY)
+	local mouseMoved = mousePixelX ~= lastMousePixelX or mousePixelY ~= lastMousePixelY
+	local mouseOver = mouseX >= x and mouseX < x+w and mouseY >= y and mouseY < y+h
 
-	local mouseOver =
-		(mousePixelX ~= lastMousePixelX or mousePixelY ~= lastMousePixelY)	-- only if the mouse moved...
-		and mouseX >= x and mouseX < x+w
-		and mouseY >= y and mouseY < y+h
 	if tooltip and mouseOver then
 		self:setTooltip(tooltip, mouseX - 12, mouseY - 12, 12, 6)
 	end
