@@ -1078,6 +1078,8 @@ voxelmap editor fixes:
 - looking at the vget/vset/voxelmap api, i should really put all blob indexes first, even if 99% of the time you dont use it ... maybe ... maybe not idk.
 - also 'text()' should have a font blob index.
 
+- voxelmaps have flags for overall side occlusion. like occluding bottom plane, etc.  store in the file?  that'd change the file-format / RAM format.  store in RAM? that'd mean extra mesh regens upon poke ...
+
 - sheet editor
 	- need to discern between paste RGBA and paste 8bpp
 		- paste with transparency still glitches/fails
@@ -1104,9 +1106,6 @@ voxelmap editor fixes:
 
 - only do HDR and DOF on fragments that have its flag set
 
-- voxelmap undo is broken, it breaks something with the OpenGL, because my half-baked attempt to GPU cache voxel chunks.
-- cart reload is also broken, breaks some OpenGL thing as well.
-
 - lighting blit now has a uniform block buffer .... all shaders should ....
 - - TODO it needs a CPU equivalent, and should be writing all at once or something, or only dirty regions or something, idk.
 
@@ -1118,6 +1117,7 @@ BUGS/FIXES SINCE 1.2.2:
 - Added DOF and HDR passes.
 - resize in mode 0xFF does a GL error
 - in fact, maybe, maybe, get rid of GL getter errors throwing?  so that only gl.debug reports tracebacks? or nah? hmmmmmmm
+- a few more buffer binding bugs
 
 BUGS TO FIX:
 - disabling DoF but not HDR before render in mode 0xFF made the screen go black ...
