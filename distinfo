@@ -6,7 +6,7 @@ name = "numo9"
 icon = 'docpics/numo9 icon.png'
 iconOSX = 'docpics/numo9 icon.icns'
 startDir = 'numo9'
-luaArgs = {'run.lua'}
+luaArgs = 'run.lua'
 AppImageCategories = 'Game'
 
 files = {
