@@ -186,37 +186,8 @@ local function errorHandler(err)
 end
 App.errorHandler = errorHandler
 
--- NOTICE NOTICE NOTICE (is this a sdl bug? or is this actually correct behavior)
--- IF YOU SET SDL_GL DOUBLEBUFFER=1 ... THEN IMMEDIATELY SET IT TO ZERO ... WHATEVER IT IS, IT ISNT SINGLE-BUFFER
--- INSTEAD I COPIED THE WHOLE SDL SET ATTRIBUTE SECTION AND CHANGED DOUBLEBUFFER THERE TO ALWAYS ONLY SET TO ZERO AND IT WORKS FINE.
--- [[ how come I can't disable double-buffering?
-function App:sdlGLSetAttributes()
-	--[=[
-	-- I should be able to just call super (which sets everything ... incl doublebuffer=1) .. and then set it back to zero right?
-	App.super.sdlGLSetAttributes(self)
-	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 0))
-	-- ... but no, it seems some state info (drawbuffer?) is changed immediatley upon setting GL_DOUBLEBUFFER=1,
-	-- and not when I expected it to be: when the window or the gl context is created.
-	-- and the change is permanent and is not reset when you set back GL_DOUBLEBUFFER=0
-	--]=]
-	-- [=[ maybe sdl/gl doens't forget once you set it the first time?
-	-- so here's a copy of GLApp:sdlGLSetAttributes but withotu setting double buffer ...
-	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_RED_SIZE, 8))
-	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_GREEN_SIZE, 8))
-	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_BLUE_SIZE, 8))
-	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ALPHA_SIZE, 8))
-	self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DEPTH_SIZE, 24))
-	--self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_DOUBLEBUFFER, 1))	-- THE ONE LINE I CHANGED ...
-	if ffi.os == 'OSX' then
-		local glVersion = {4, 1}
-		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MAJOR_VERSION, glVersion[1]))
-		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_MINOR_VERSION, glVersion[2]))
-		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_PROFILE_MASK, sdl.SDL_GL_CONTEXT_PROFILE_CORE))
-		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_CONTEXT_FLAGS, sdl.SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG))
-		self.sdlAssert(sdl.SDL_GL_SetAttribute(sdl.SDL_GL_ACCELERATED_VISUAL, 1))
-	end
-	--]=]
-end
+--[[ DOUBLEBUFFER OFF: moving double-buffered-setting bcak to gl.app does work, so now i have to redesign the updates ...
+App.sdlGlAttrs[sdl.SDL_GL_DOUBLEBUFFER] = nil
 --]]
 
 -- don't gl swap every frame - only do after draws
@@ -246,8 +217,8 @@ function App:initGL()
 
 	gl.glDepthFunc(gl.GL_LEQUAL)
 
-	--[[ getting single-buffer to work
-	gl.glDrawBuffer(gl.GL_BACK)
+	--[[ DOUBLEBUFFER OFF: getting single-buffer to work
+	gl.glDrawBuffer(gl.GL_FRONT)
 	--]]
 
 	-- do this before initBlobs -> buildRAMFromBlobs
@@ -1760,7 +1731,7 @@ conn.receivesPerSecond = 0
 		self.drawViewMatForLighting:setIdent()
 		self.drawProjMatForLighting:setIdent()
 
--- hmm ... remind me again why I added this collectgarbage() every frame, other than just to do just that ... 
+-- hmm ... remind me again why I added this collectgarbage() every frame, other than just to do just that ...
 -- because with it, the framerate (on 10yo computer) is going down to 20 FPS, without it, 60kfps
 --		collectgarbage()
 
@@ -2283,10 +2254,15 @@ print('run thread dead')
 		-- draw from framebuffer to screen
 		sceneObj:draw()
 
-		-- [[ and swap ... or just don't use backbuffer at all ...
-		sdl.SDL_GL_SwapWindow(self.window)
+		sceneObj.vao:unbind()
 
+		-- [[ DOUBLEBUFFER ON: and swap ... or just don't use backbuffer at all ...
+		sdl.SDL_GL_SwapWindow(self.window)
 		--]]
+		--[[ DOUBLEBUFFER OFF: instead
+		gl.glFlush()
+		--]]
+
 		if self.activeMenu then
 			sceneObj.texs[1] = self.currentVideoMode.framebufferRAM.tex
 			self:setVideoMode(self.ram.videoMode)
@@ -2304,6 +2280,7 @@ print('run thread dead')
 		end
 		self.takeScreenshot = nil
 	end
+
 end
 
 -- ... where to put this ... in video, app, or ui?
@@ -3124,6 +3101,7 @@ whoever calls this should create a runFocus coroutine to load the ROM
  so that the load only takes place in the runFocus loop and not the UI loop (which pushes and pops the modelview matrix values)
 --]]
 function App:openCart(filename)
+
 --DEBUG:print('App:openCart', filename)
 	-- if there was an old ROM loaded then write its persistent data ...
 	self:writePersistent()
@@ -3680,6 +3658,7 @@ function App:toggleMenu()
 end
 
 function App:resize()
+
 	App.super.resize(self)
 	needDrawCounter = drawCounterNeededToRedraw
 

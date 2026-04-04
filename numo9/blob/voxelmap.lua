@@ -553,22 +553,20 @@ function Chunk:drawMesh(app)
 			program = sceneObj,
 			attrs = sceneObj.attrs,
 		}
-		
+
 		self.vao:bind()
 		for _,attr in ipairs(self.vao.attrs) do
 			attr.buffer = vertexBufGPU
 			attr:enableAndSet()
 		end
-		self.vao:unbind()
-
 		self.vaoProgram = sceneObj.program
+	else
+		self.vao:bind()
 	end
 
 	app.vertexBufCPU = vertexBufCPU
 	app.vertexBufGPU = vertexBufGPU
 	sceneObj.vao = self.vao
-
-	vertexBufGPU:bind()
 
 	app:triBuf_flushButDontClear()
 end
@@ -633,7 +631,7 @@ function BlobVoxelMap:init(data)
 
 	-- after any chunk goes dirty rebuild it, then rebuild the master list so I just have to do one copy into the draw buffer
 	-- or TODO if I do use GPU resources then meh dont bother use a master list, right? cuz gpu multiple draws should be fast enough and an extra CPU copy would be slower right?
-	self.vertexBufCPU = vector(Numo9Vertex)
+	--self.vertexBufCPU = vector(Numo9Vertex)
 	self.billboardXYZVoxels = vector(vec3i)	-- type 20
 	self.billboardXYVoxels = vector(vec3i)	-- type 21
 
@@ -775,7 +773,7 @@ function BlobVoxelMap:rebuildMesh(app)
 	if not self.dirtyCPU then return end
 	self.dirtyCPU = false
 
-	self.vertexBufCPU:resize(0)
+	--self.vertexBufCPU:resize(0)
 	self.billboardXYZVoxels:resize(0)
 	self.billboardXYVoxels:resize(0)
 
@@ -786,6 +784,8 @@ function BlobVoxelMap:rebuildMesh(app)
 	-- [[ now that all chunks have been rebuilt, rebuild our master list
 	-- optional TODO if I switch to GPU then dont do this master list, just use individual GPU buffers
 	for i=0,self.chunkVolume-1 do
+		--[[ I've disabled voxelmap.vertexBufCPU
+		-- but I'll keep dumping billboard*Voxels into the main list
 		do
 			local chunk = self.chunks[i]
 			local srcVtxs = chunk.vertexBufCPU
@@ -800,6 +800,7 @@ function BlobVoxelMap:rebuildMesh(app)
 			local dstVtxPtr = dstVtxs.v + writeOfs
 			ffi.copy(dstVtxPtr, srcVtxs.v, ffi.sizeof(srcVtxs.type) * srcLen)
 		end
+		--]]
 
 		do
 			local chunk = self.chunks[i]
@@ -882,24 +883,18 @@ end
 
 function BlobVoxelMap:drawMesh(app)
 	local sceneObj = app.triBuf_sceneObj
-	
+
 	local pushVAO = sceneObj.vao
 	local pushVertexBufCPU = app.vertexBufCPU
 	local pushVertexBufGPU = app.vertexBufGPU
-
-	-- save old vao bound buffers
-	for _,attr in ipairs(sceneObj.vao.attrs) do
-		attr.oldBuffer = attr.buffer
-	end
 
 	for i=0,self.chunkVolume-1 do
 		self.chunks[i]:drawMesh(app)
 	end
 
-	-- restore old CPU buffers
-	app.vertexBufCPU = pushVertexBufCPU 
-	app.vertexBufGPU = pushVertexBufGPU 
-	app.vertexBufGPU:bind()
+	-- restore old buffers
+	app.vertexBufCPU = pushVertexBufCPU
+	app.vertexBufGPU = pushVertexBufGPU
 
 	sceneObj.vao = pushVAO
 end

@@ -2045,11 +2045,7 @@ void main() {
 			},
 		},
 	}
-	self.drawObj.vao:bind()
-	app.vertexBufGPU:bind()
-	self.drawObj.vao:unbind()
 end
-
 
 return {
 	VideoMode = VideoMode,

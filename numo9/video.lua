@@ -459,7 +459,10 @@ end
 -- called upon app init
 -- 'self' == app
 function AppVideo:initVideo()
-	self.glslVersion = cmdline.glsl or 'latest'
+	self.glslVersion = cmdline.glsl
+		--or 'latest'	--
+		-- or only once get 'latest' here...
+		or require 'gl.program'.getVersionPragma():match'^#version (.*)$'
 
 	--[[
 	create these upon resetVideo() or at least upon loading a new ROM, and make a sprite/tile sheet per blob
@@ -737,19 +740,22 @@ function AppVideo:triBuf_flushButDontClear()
 --]]
 
 --DEBUG:assert.index(sceneObj, 'vao')
-	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
-	local vertexBufGPU = self.vertexBufGPU
-	--vertexBufGPU:bind() ... already bound
+	sceneObj.vao:bind()
 
+	local vertexBufGPU = self.vertexBufGPU
 	if vertexBufCPU.capacity ~= vertexBufCPU.numo9LastCapacity then
-		vertexBufGPU:setData{
-			data = vertexBufCPU.v,
-			count = vertexBufCPU.capacity,
-			size = ffi.sizeof(Numo9Vertex) * vertexBufCPU.capacity,
-		}
+		vertexBufGPU
+			:bind()
+			:setData{
+				data = vertexBufCPU.v,
+				count = vertexBufCPU.capacity,
+				size = ffi.sizeof(Numo9Vertex) * vertexBufCPU.capacity,
+			}
 	else
 --DEBUG:assert.eq(vertexBufGPU.data, vertexBufCPU.v)
-		vertexBufGPU:updateData(0, vertexBufCPU:getNumBytes())
+		vertexBufGPU
+			:bind()
+			:updateData(0, vertexBufCPU:getNumBytes())
 	end
 
 	sceneObj.geometry:draw()
@@ -3527,6 +3533,7 @@ print()
 		ffi.copy(fragUniLight.negViewDir.s, self.lightViewInvMat.ptr + 8, ffi.sizeof(vec3f))
 	end
 
+	-- TODO how about binding the frag uni gpu uniform buffer to the vao ...
 	self.currentVideoMode.fragUniGPU
 		:bind()
 		:updateData()
@@ -3655,6 +3662,7 @@ print()
 			end
 			sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
 			sceneObj.geometry:draw()
+			sceneObj.vao:unbind()
 			program:useNone()
 			for i=#texs,1,-1 do
 				texs[i]:unbind(i-1)

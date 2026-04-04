@@ -1,3 +1,7 @@
+-- title = Voxelmap Test
+-- saveid = test-voxelmap
+-- author = Chris Moore
+
 --#include ext/class.lua
 --#include vec/vec2.lua
 --#include vec/vec3.lua

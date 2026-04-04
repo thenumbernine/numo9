@@ -660,7 +660,107 @@ function UI:updateBlobChanges()
 	--app:copyBlobsToROM()
 	app:updateBlobChanges()
 
+--[[ this resets ... everything .... so why would I do that.
 	app:resetVideo()
+--]]
+-- [[  but I need to update all pointers from their addresses ...
+local framebufferAddr = numo9_rom.framebufferAddr
+	local ram = app.ram
+
+	app:allRAMRegionsCheckDirtyGPU()
+
+	local spriteSheetBlob = app.blobs.sheet[1]
+	local spriteSheet1Blob = app.blobs.sheet[2]
+	local tilemapBlob = app.blobs.tilemap[1]
+	local paletteBlob = app.blobs.palette[1]
+	local fontBlob = app.blobs.font[1]
+	-- TODO relocatable animSheet or nah is this relocatable thing all a dumb idea?
+
+	-- TODO how should tehse work if I'm using flexible # blobs and that means not always enough?
+	local spriteSheetAddr = spriteSheetBlob and spriteSheetBlob.addr or 0
+	local spriteSheet1Addr = spriteSheet1Blob and spriteSheet1Blob.addr or 0
+	local tilemapAddr = tilemapBlob and tilemapBlob.addr or 0
+	local paletteAddr = paletteBlob and paletteBlob.addr or 0
+	local fontAddr = fontBlob and fontBlob.addr or 0
+
+	-- reset these
+	ram.framebufferAddr = framebufferAddr
+	ram.spriteSheetAddr = spriteSheetAddr
+	ram.spriteSheet1Addr = spriteSheet1Addr
+	ram.tilemapAddr = tilemapAddr
+	ram.paletteAddr = paletteAddr
+	ram.fontAddr = fontAddr
+	-- and these, which are the ones that can be moved
+
+	-- reset framebufferRAM objects' addresses:
+	app.currentVideoMode.framebufferRAM:updateAddr(framebufferAddr)
+
+	if spriteSheetBlob then
+		local sheetRAM = spriteSheetBlob.ramgpu
+		if sheetRAM then sheetRAM:updateAddr(spriteSheetAddr) end
+	end
+	if spriteSheet1Blob then
+		local spriteSheet1RAM = spriteSheet1Blob.ramgpu
+		if spriteSheet1RAM then spriteSheet1RAM:updateAddr(spriteSheet1Addr) end
+	end
+	if tilemapBlob then
+		local tilemapRAM = tilemapBlob.ramgpu
+		if tilemapRAM then tilemapRAM:updateAddr(tilemapAddr) end
+	end
+	if paletteBlob then
+		local paletteRAM = paletteBlob.ramgpu
+		if paletteRAM then paletteRAM:updateAddr(paletteAddr) end
+	end
+	if fontBlob then
+		local fontRAM = fontBlob.ramgpu
+		if fontRAM then fontRAM:updateAddr(fontAddr) end
+	end
+
+	--[[
+	app:setVideoMode(app.ram.videoMode)
+	--]]
+	-- [[
+	app:onModelMatChange()	-- the drawObj changed so make sure it refreshes its modelMat
+	app:onViewMatChange()
+	app:onProjMatChange()
+	app:onClipRectChange()
+	app:onBlendColorChange()
+	app:onDitherChange()
+	app:onCullFaceChange()
+	app:onSpriteNormalExhaggerationChange()
+	app:onFrameBufferSizeChange()
+	--]]
+
+	for _,blob in ipairs(app.blobs.sheet) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+	for _,blob in ipairs(app.blobs.tilemap) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+	for _,blob in ipairs(app.blobs.palette) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+	for _,blob in ipairs(app.blobs.font) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+	for _,blob in ipairs(app.blobs.animsheet) do
+		blob.ramgpu.dirtyCPU = true
+		blob.ramgpu:checkDirtyCPU()
+	end
+
+	app.lastAnimSheetTex = app.blobs.animsheet[1].ramgpu.tex
+	app.lastTilemapTex = app.blobs.tilemap[1].ramgpu.tex
+	app.lastSheetTex = app.blobs.sheet[1].ramgpu.tex
+	app.lastPaletteTex = app.blobs.palette[1].ramgpu.tex
+	app.lastAnimSheetTex:bind(3)
+	app.lastTilemapTex:bind(2)
+	app.lastSheetTex:bind(1)
+	app.lastPaletteTex:bind(0)
+--]]
 end
 
 -- hmm...
