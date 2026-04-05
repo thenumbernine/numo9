@@ -1683,10 +1683,11 @@ local function homogeneous(x,y,z,w)
 end
 
 -- transform from world coords to screen coords (including projection, including homogeneous transform, including screen-space coordinates)
+-- Mats point to float[16] ... hmm or should they point to vec4x4fcol?
 function AppVideo:transform(x,y,z,w, projMat, modelMat, viewMat)
-	modelMat = modelMat or self.ram.modelMat
-	viewMat = viewMat or self.ram.viewMat
-	projMat = projMat or self.ram.projMat
+	modelMat = modelMat or self.ram.modelMat.ptr
+	viewMat = viewMat or self.ram.viewMat.ptr
+	projMat = projMat or self.ram.projMat.ptr
 	x,y,z,w = mat4x4mul(modelMat, x,y,z,w)
 	x,y,z,w = mat4x4mul(viewMat, x,y,z,w)
 	x,y,z,w = mat4x4mul(projMat, x,y,z,w)

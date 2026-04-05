@@ -959,6 +959,7 @@ function EditVoxelMap:update()
 
 
 	self:guiSetClipRect(0, 0, 256, 256)
+	--self:guiSetClipRect(-1000, 0, 3000, 256)
 
 	local x, y = 48, 0
 	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
