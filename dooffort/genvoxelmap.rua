@@ -1,0 +1,110 @@
+#!/usr/bin/env rua
+-- this is an extra script for generating the voxelmap
+local vec3i = require 'vec-ffi.vec3i'
+local vector = require 'stl.vector'
+local noise = require 'simplexnoise.3d'
+local Image = require 'image'
+
+local empty = 0xffffffff
+local solid = 0x480	-- grass on stone
+local size = vec3i(176, 176, 8)
+
+-- chdir to the script's location
+path(arg[0]):getdir():cd()
+
+local datavec = vector'uint32_t'(3 + size:volume())
+ffi.copy(datavec.v, size.ptr, ffi.sizeof(vec3i))
+
+local blocks = table{
+--	0xffffffff,	-- empty
+	--0x42,
+	--0x44,
+	--0x100,	-- bricks
+	--0x106,		-- water
+	0x480, 
+	--0x10000882, 0x14000882	-- glass i think
+}
+
+local R1 = 86.5	-- outer large radius
+local R2 = 46.5
+local RMinor = 18.5	-- less than half the distance of R1 to R2
+
+local numSmallCylinders = 8
+local smallCylinders = table()
+for i=1,numSmallCylinders do
+	for j=1,3 do	-- concentric rings
+		local r = .5 * (R1 + R2)
+		local th = 2 * math.pi * (i-.5)/numSmallCylinders
+		smallCylinders:insert{
+			x = r * math.cos(th), 
+			y = r * math.sin(th),
+			radius = RMinor * j / 3,		-- j=3 is full, j=1 is 1/3rd
+			zmin = 0,
+			zmax = 2 * (4-j) - .5,	-- 2,4,6
+		}
+	end
+end
+
+
+local voxels = datavec.v + 3
+local vp = voxels
+for k=0,size.z-1 do
+	local img = Image(size.x, size.y, 3, 'uint8_t')
+	local pixel = img.buffer + 0
+	for j=0,size.y-1 do
+		for i=0,size.x-1 do
+			--[[
+			if noise(i/8, j/8, k/8) + 4 * (k - 60)/8 < 0 then
+				vp[0] = blocks:pickRandom()
+			else
+				vp[0] = empty 
+			end
+			--]]
+			
+			-- arena?
+			local dx = i - size.x*.5
+			local dy = j - size.y*.5
+			local r2d = math.sqrt(dx^2 + dy^2)
+			if r2d >= R1 then
+				-- outer area ... solid for now?
+				vp[0] = solid
+			elseif r2d < R2 then
+				-- inner area solid
+				vp[0] = solid
+			else
+				-- solid at floor only
+				if k <= 0 then
+					vp[0] = solid
+				else
+					vp[0] = empty
+				end
+			end	
+
+			-- put some smaller cylinders ...
+			local crmin = math.huge
+			for _,c in ipairs(smallCylinders) do
+				local crSq = (c.x - dx)^2 + (c.y - dy)^2
+				if crSq < c.radius^2
+				and c.zmin <= k and k <= c.zmax
+				then
+					vp[0] = solid
+				end
+			end
+
+			if vp[0] == empty then
+				pixel[0], pixel[1], pixel[2] = 0, 0, 0
+			else
+				pixel[0], pixel[1], pixel[2] = 0xff, 0xff, 0xff
+			end
+			pixel += 3
+			
+			vp += 1
+		end
+	end
+	
+
+	assert.eq(pixel, img.buffer + img:getBufferSize())
+	img:save('layer'..k..'.png')
+end
+
+path'voxelmap.vox':write(datavec:dataToStr())
