@@ -1752,28 +1752,12 @@ function AppVideo:drawSolidLine3D(
 
 	colorIndex = math.floor(colorIndex or 0)
 
-	-- fwd vec ... is it this or its transpose?
-	-- row vs col, fwd vs inverse, i have 4 tries to figure it out
-	--[=[
-	local fwdX = -self.ram.viewMat.z.x
-	local fwdY = -self.ram.viewMat.z.y
-	local fwdZ = -self.ram.viewMat.z.z
-	local posX = -self.ram.viewMat.w.x
-	local posY = -self.ram.viewMat.w.y
-	local posZ = -self.ram.viewMat.w.z
-	--]=]
-	-- [=[
 	local fwdX = -self.ram.viewMat.x.z
 	local fwdY = -self.ram.viewMat.y.z
 	local fwdZ = -self.ram.viewMat.z.z
 	local posX = -self.ram.viewMat.x.w
 	local posY = -self.ram.viewMat.y.w
 	local posZ = -self.ram.viewMat.z.w
-	--]=]
-	local fwdInvLen = math.sqrt(fwdX*fwdX + fwdY*fwdY + fwdZ*fwdZ)
-	local normFwdX = fwdInvLen * fwdX
-	local normFwdY = fwdInvLen * fwdY
-	local normFwdZ = fwdInvLen * fwdZ
 
 	-- delta from xyz 1 to xyz 2
 	local dx = x2 - x1
@@ -1796,20 +1780,9 @@ function AppVideo:drawSolidLine3D(
 	-- feed xyz 1 2 through the transform pipeline to determine its screen depth value
 	
 	local eps = 1e-3
-	--[[
-	local sx1, sy1, sz1 = self:transform(x1, y1, z1, 1)
-	local sx2, sy2, sz2 = self:transform(x2, y2, z2, 1)
-	--]]
-	-- [[
-	local cx1,cy1,cz1,cw1 = x1,y1,z1,1
-	cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.modelMat.ptr,cx1,cy1,cz1,cw1)
-	cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.viewMat.ptr,cx1,cy1,cz1,cw1)
-	cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.projMat.ptr,cx1,cy1,cz1,cw1)
 	
-	local cx2,cy2,cz2,cw2 = x2,y2,z2,1
-	cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.modelMat.ptr,cx2,cy2,cz2,cw2)
-	cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.viewMat.ptr,cx2,cy2,cz2,cw2)
-	cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.projMat.ptr,cx2,cy2,cz2,cw2)
+	local cx1, cy1, cz1, cw1 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x1, y1, z1, 1)))
+	local cx2, cy2, cz2, cw2 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x2, y2, z2, 1)))
 
 	if cw1 < eps and cw2 < eps then return end
 
@@ -1824,16 +1797,11 @@ function AppVideo:drawSolidLine3D(
 		y1 = y1 + t * dy
 		z1 = z1 + t * dz
 		
-		cx1,cy1,cz1,cw1 = x1,y1,z1,1
-		cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.modelMat.ptr,cx1,cy1,cz1,cw1)
-		cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.viewMat.ptr,cx1,cy1,cz1,cw1)
-		cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.projMat.ptr,cx1,cy1,cz1,cw1)
+		cx1, cy1, cz1, cw1 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x1, y1, z1, 1)))
 		
 		local s = 1/cw1
 		sx1,sy1,sz1,sw1 = cx1*s, cy1*s, cz1*s, cw1*s
 	end
-	sx1 = (sx1 + 1) * .5 * self.ram.screenWidth
-	sy1 = (-sy1 + 1) * .5 * self.ram.screenHeight
 
 	local sx2,sy2,sz2,sw2
 	if cw2 > eps then
@@ -1846,84 +1814,17 @@ function AppVideo:drawSolidLine3D(
 		y2 = y2 - (1 - t) * dy
 		z2 = z2 - (1 - t) * dz
 
-		cx2,cy2,cz2,cw2 = x2,y2,z2,1
-		cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.modelMat.ptr,cx2,cy2,cz2,cw2)
-		cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.viewMat.ptr,cx2,cy2,cz2,cw2)
-		cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.projMat.ptr,cx2,cy2,cz2,cw2)
+		cx2, cy2, cz2, cw2 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x2, y2, z2, 1)))
 		
 		local s = 1/cw2
 		sx2,sy2,sz2,sw2 = cx2*s, cy2*s, cz2*s, cw2*s
 	end
+	
+	sx1 = (sx1 + 1) * .5 * self.ram.screenWidth
+	sy1 = (-sy1 + 1) * .5 * self.ram.screenHeight
+
 	sx2 = (sx2 + 1) * .5 * self.ram.screenWidth
 	sy2 = (-sy2 + 1) * .5 * self.ram.screenHeight
-	--]]
-	--[[
-	local cx1, cy1, cz1, cw1 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x1, y1, z1, 1)))
-	local cx2, cy2, cz2, cw2 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x2, y2, z2, 1)))
-	
-	if cw1 <= eps and cw2 <= eps then return end
-	
-	local hx1, hy1, hz1
-	if cw1 > eps then
-		local invcw1 = 1 / cw1
-		hx1, hy1, hz1 = cx1 * invcw1, cy1 * invcw1, cz1 * invcw1
-	else
-		hx1, hy1, hz1 = cx1, cy1, cz1	-- TODO or not? this is the point I have to clip, right?
-	end
-	local sx1 = (1 + hx1) * .5 * self.ram.screenWidth
-	local sy1 = (1 - hy1) * .5 * self.ram.screenWidth
-	local sz1 = hz1
-
-	local hx2, hy2, hz2
-	if cw2 > eps then
-		local invcw2 = 1 / cw2
-		hx2, hy2, hz2 = cx2 * invcw2, cy2 * invcw2, cz2 * invcw2
-	else
-		hx2, hy2, hz2 = cx2, cy2, cz2
-	end
-	
-	local sx2 = (1 + hx2) * .5 * self.ram.screenWidth
-	local sy2 = (1 - hy2) * .5 * self.ram.screenWidth
-	local sz2 = hz2	
-	--]]
-	--[[ do impl here so I can access clip coords
-	local cx1, cy1, cz1, cw1 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x1, y1, z1, 1)))
-	local invcw1 = 1 / cw1
-	local hx1, hy1, hz1 = cx1 * invcw1, cy1 * invcw1, cz1 * invcw1
-	local sx1 = (1 + hx1) * .5 * self.ram.screenWidth
-	local sy1 = (1 - hy1) * .5 * self.ram.screenWidth
-	local sz1 = hz1
-
-	local cx2, cy2, cz2, cw2 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x2, y2, z2, 1)))
-	local invcw2 = 1 / cw2
-	local hx2, hy2, hz2 = cx2 * invcw2, cy2 * invcw2, cz2 * invcw2
-	local sx2 = (1 + hx2) * .5 * self.ram.screenWidth
-	local sy2 = (1 - hy2) * .5 * self.ram.screenWidth
-	local sz2 = hz2	
-
-	-- TODO make sure that we are within the view frustum
-	-- otherwise the screen-space delta will produce big ugly artifacts
-
-	-- cull...
-	if cw1 < eps and cw2 < eps then return end
-	
-	-- clip...
-	if cw1 < eps then
-		local t = (eps - cw1) / (cw2 - cw1)	-- t = coeff that the near plane is in clip-space 
-		x1 = x1 + t * dx
-		y1 = y1 + t * dy
-		z1 = z1 + t * dz
-		sx1, sy1, sz1 = self:transform(x1, y1, z1, 1)
-		-- dx dy dz are invalidated but no longer used
-	elseif cw2 < eps then
-		local t = (eps - cw1) / (cw2 - cw1)
-		x2 = x1 + t * dx
-		y2 = y1 + t * dy
-		z2 = z1 + t * dz
-		sx2, sy2, sz2 = self:transform(x2, y2, z2, 2)
-		-- dx dy dz are invalidated but no longer used
-	end
-	--]]
 
 
 	local dsx = sx2 - sx1
