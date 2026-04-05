@@ -1675,22 +1675,20 @@ end
 -- this function is only used with drawing lines at the moment...
 local function homogeneous(x,y,z,w)
 	if w > 0 then
-		x = x / w
-		y = y / w
-		z = z / w
+		local iw = 1 / w
+		x = x * iw
+		y = y * iw
+		z = z * iw
 	end
 	return x,y,z,1
 end
 
 -- transform from world coords to screen coords (including projection, including homogeneous transform, including screen-space coordinates)
 -- Mats point to float[16] ... hmm or should they point to vec4x4fcol?
-function AppVideo:transform(x,y,z,w, projMat, modelMat, viewMat)
-	modelMat = modelMat or self.ram.modelMat.ptr
-	viewMat = viewMat or self.ram.viewMat.ptr
-	projMat = projMat or self.ram.projMat.ptr
-	x,y,z,w = mat4x4mul(modelMat, x,y,z,w)
-	x,y,z,w = mat4x4mul(viewMat, x,y,z,w)
-	x,y,z,w = mat4x4mul(projMat, x,y,z,w)
+function AppVideo:transform(x,y,z,w)
+	x,y,z,w = mat4x4mul(self.ram.modelMat.ptr,x,y,z,w)
+	x,y,z,w = mat4x4mul(self.ram.viewMat.ptr,x,y,z,w)
+	x,y,z,w = mat4x4mul(self.ram.projMat.ptr,x,y,z,w)
 	x,y,z,w = homogeneous(x,y,z,w)
 	-- normalized coords to screen-space coords (and y-flip?)
 	x = (x + 1) * .5 * self.ram.screenWidth
@@ -1711,14 +1709,14 @@ function AppVideo:invTransform(x,y,z)
 	x = -1 + 2 * x / tonumber(self.ram.screenWidth)
 	y = 1 - 2 * y / tonumber(self.ram.screenHeight)
 	-- normalized-device coords to homogeneous inv transform? or nah?
-	-- TODO transform accepts 'm' mvType[16] override, but this operates on 4x4 matrix.ffi types...
 	-- TODO make this operation in-place
+	-- TODO one single Inv matrix for ram and some dirty bits for updating / requesting it
 	modelInv:inv4x4(self.ram.modelMat)
 	viewInv:inv4x4(self.ram.viewMat)
 	projInv:inv4x4(self.ram.projMat)
-	x,y,z,w = mat4x4mul(projInv.ptr, x, y, z, w)
-	x,y,z,w = mat4x4mul(viewInv.ptr, x,y,z,w)
-	x,y,z,w = mat4x4mul(modelInv.ptr, x,y,z,w)
+	x,y,z,w = mat4x4mul(projInv.ptr,x,y,z,w)
+	x,y,z,w = mat4x4mul(viewInv.ptr,x,y,z,w)
+	x,y,z,w = mat4x4mul(modelInv.ptr,x,y,z,w)
 	return x,y,z,w
 end
 
@@ -1733,6 +1731,7 @@ function AppVideo:drawSolidLine3D(
 	thickness,
 	paletteTex
 )
+	thickness = thickness or 1
 	if not paletteTex then
 		local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
 		if not paletteBlob then
@@ -1750,26 +1749,6 @@ function AppVideo:drawSolidLine3D(
 		self:triBuf_flush()
 		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
-
-	local halfThickness = (thickness or 1) * .5
---[[
-	local xLL, yLL, zLL =
-		v1x - nx * halfThickness,
-		v1y - ny * halfThickness,
-		v1z
-	local xRL, yRL, zRL =
-		v2x - nx * halfThickness,
-		v2y - ny * halfThickness,
-		v2z
-	local xLR, yLR, zLR =
-		v1x + nx * halfThickness,
-		v1y + ny * halfThickness,
-		v1z
-	local xRR, yRR, zRR =
-		v2x + nx * halfThickness,
-		v2y + ny * halfThickness,
-		v2z
---]]
 
 	colorIndex = math.floor(colorIndex or 0)
 
@@ -1801,8 +1780,7 @@ function AppVideo:drawSolidLine3D(
 	local dy = y2 - y1
 	local dz = z2 - z1
 
-	-- now find perpendicular from the fwd dir
-	-- what's the fwd dir?
+	-- now find perpendicular from the fwd dir to use as the line surface normal
 	local perpX = fwdY * dz - fwdZ * dy
 	local perpY = fwdZ * dx - fwdX * dz
 	local perpZ = fwdX * dy - fwdY * dx
@@ -1815,37 +1793,183 @@ function AppVideo:drawSolidLine3D(
 	-- equivalent of starting with (1,0,0,0) and (0,1,0,0)
 	-- and multiplying it through the inverse of proj, model, view mats
 	-- and then looking at the result's dx and dy to use ...
-	--
-	-- instead i'll be lazy.
-	-- this only works for perspective.
-	-- for ortho you can just not scale by depth.
-	local invScreenWidth = 1 / tonumber(self.ram.screenWidth)
-	local depth1 = ((x1 - posX) * normFwdX + (y1 - posY) * normFwdY + (z1 - posZ) * normFwdZ)
-	local depth2 = ((x2 - posX) * normFwdX + (y2 - posY) * normFwdY + (z2 - posZ) * normFwdZ)
-	local perpSize1 = invScreenWidth * depth1
-	local perpSize2 = invScreenWidth * depth2
+	-- feed xyz 1 2 through the transform pipeline to determine its screen depth value
+	
+	local eps = 1e-3
+	--[[
+	local sx1, sy1, sz1 = self:transform(x1, y1, z1, 1)
+	local sx2, sy2, sz2 = self:transform(x2, y2, z2, 1)
+	--]]
+	-- [[
+	local cx1,cy1,cz1,cw1 = x1,y1,z1,1
+	cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.modelMat.ptr,cx1,cy1,cz1,cw1)
+	cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.viewMat.ptr,cx1,cy1,cz1,cw1)
+	cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.projMat.ptr,cx1,cy1,cz1,cw1)
+	
+	local cx2,cy2,cz2,cw2 = x2,y2,z2,1
+	cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.modelMat.ptr,cx2,cy2,cz2,cw2)
+	cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.viewMat.ptr,cx2,cy2,cz2,cw2)
+	cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.projMat.ptr,cx2,cy2,cz2,cw2)
 
---[=[ should still be normalized...
-	local normPerp2X = normFwdY * normalZ - normFwdZ * normalY
-	local normPerp2Y = normFwdZ * normalX - normFwdX * normalZ
-	local normPerp2Z = normFwdX * normalY - normFwdY * normalX
---]=]
+	if cw1 < eps and cw2 < eps then return end
 
-	local xLL = x1 - perpSize1 * normalX
-	local yLL = y1 - perpSize1 * normalY
-	local zLL = z1 - perpSize1 * normalZ
+	local sx1,sy1,sz1,sw1
+	if cw1 > eps then
+		local s = 1/cw1
+		sx1,sy1,sz1,sw1 = cx1*s, cy1*s, cz1*s, cw1*s
+	else
+		-- clip and regenerate
+		local t = (eps - cw1) / (cw2 - cw1)	-- t = coeff that the near plane is in clip-space 
+		x1 = x1 + t * dx
+		y1 = y1 + t * dy
+		z1 = z1 + t * dz
+		
+		cx1,cy1,cz1,cw1 = x1,y1,z1,1
+		cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.modelMat.ptr,cx1,cy1,cz1,cw1)
+		cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.viewMat.ptr,cx1,cy1,cz1,cw1)
+		cx1,cy1,cz1,cw1 = mat4x4mul(self.ram.projMat.ptr,cx1,cy1,cz1,cw1)
+		
+		local s = 1/cw1
+		sx1,sy1,sz1,sw1 = cx1*s, cy1*s, cz1*s, cw1*s
+	end
+	sx1 = (sx1 + 1) * .5 * self.ram.screenWidth
+	sy1 = (-sy1 + 1) * .5 * self.ram.screenHeight
 
-	local xLR = x1 + perpSize1 * normalX
-	local yLR = y1 + perpSize1 * normalY
-	local zLR = z1 + perpSize1 * normalZ
+	local sx2,sy2,sz2,sw2
+	if cw2 > eps then
+		local s = 1/cw2
+		sx2,sy2,sz2,sw2 = cx2*s, cy2*s, cz2*s, cw2*s
+	else
+		-- clip and regenerate
+		local t = (eps - cw1) / (cw2 - cw1)
+		x2 = x2 - (1 - t) * dx
+		y2 = y2 - (1 - t) * dy
+		z2 = z2 - (1 - t) * dz
 
-	local xRL = x2 - perpSize2 * normalX
-	local yRL = y2 - perpSize2 * normalY
-	local zRL = z2 - perpSize2 * normalZ
+		cx2,cy2,cz2,cw2 = x2,y2,z2,1
+		cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.modelMat.ptr,cx2,cy2,cz2,cw2)
+		cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.viewMat.ptr,cx2,cy2,cz2,cw2)
+		cx2,cy2,cz2,cw2 = mat4x4mul(self.ram.projMat.ptr,cx2,cy2,cz2,cw2)
+		
+		local s = 1/cw2
+		sx2,sy2,sz2,sw2 = cx2*s, cy2*s, cz2*s, cw2*s
+	end
+	sx2 = (sx2 + 1) * .5 * self.ram.screenWidth
+	sy2 = (-sy2 + 1) * .5 * self.ram.screenHeight
+	--]]
+	--[[
+	local cx1, cy1, cz1, cw1 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x1, y1, z1, 1)))
+	local cx2, cy2, cz2, cw2 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x2, y2, z2, 1)))
+	
+	if cw1 <= eps and cw2 <= eps then return end
+	
+	local hx1, hy1, hz1
+	if cw1 > eps then
+		local invcw1 = 1 / cw1
+		hx1, hy1, hz1 = cx1 * invcw1, cy1 * invcw1, cz1 * invcw1
+	else
+		hx1, hy1, hz1 = cx1, cy1, cz1	-- TODO or not? this is the point I have to clip, right?
+	end
+	local sx1 = (1 + hx1) * .5 * self.ram.screenWidth
+	local sy1 = (1 - hy1) * .5 * self.ram.screenWidth
+	local sz1 = hz1
 
-	local xRR = x2 + perpSize2 * normalX
-	local yRR = y2 + perpSize2 * normalY
-	local zRR = z2 + perpSize2 * normalZ
+	local hx2, hy2, hz2
+	if cw2 > eps then
+		local invcw2 = 1 / cw2
+		hx2, hy2, hz2 = cx2 * invcw2, cy2 * invcw2, cz2 * invcw2
+	else
+		hx2, hy2, hz2 = cx2, cy2, cz2
+	end
+	
+	local sx2 = (1 + hx2) * .5 * self.ram.screenWidth
+	local sy2 = (1 - hy2) * .5 * self.ram.screenWidth
+	local sz2 = hz2	
+	--]]
+	--[[ do impl here so I can access clip coords
+	local cx1, cy1, cz1, cw1 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x1, y1, z1, 1)))
+	local invcw1 = 1 / cw1
+	local hx1, hy1, hz1 = cx1 * invcw1, cy1 * invcw1, cz1 * invcw1
+	local sx1 = (1 + hx1) * .5 * self.ram.screenWidth
+	local sy1 = (1 - hy1) * .5 * self.ram.screenWidth
+	local sz1 = hz1
+
+	local cx2, cy2, cz2, cw2 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x2, y2, z2, 1)))
+	local invcw2 = 1 / cw2
+	local hx2, hy2, hz2 = cx2 * invcw2, cy2 * invcw2, cz2 * invcw2
+	local sx2 = (1 + hx2) * .5 * self.ram.screenWidth
+	local sy2 = (1 - hy2) * .5 * self.ram.screenWidth
+	local sz2 = hz2	
+
+	-- TODO make sure that we are within the view frustum
+	-- otherwise the screen-space delta will produce big ugly artifacts
+
+	-- cull...
+	if cw1 < eps and cw2 < eps then return end
+	
+	-- clip...
+	if cw1 < eps then
+		local t = (eps - cw1) / (cw2 - cw1)	-- t = coeff that the near plane is in clip-space 
+		x1 = x1 + t * dx
+		y1 = y1 + t * dy
+		z1 = z1 + t * dz
+		sx1, sy1, sz1 = self:transform(x1, y1, z1, 1)
+		-- dx dy dz are invalidated but no longer used
+	elseif cw2 < eps then
+		local t = (eps - cw1) / (cw2 - cw1)
+		x2 = x1 + t * dx
+		y2 = y1 + t * dy
+		z2 = z1 + t * dz
+		sx2, sy2, sz2 = self:transform(x2, y2, z2, 2)
+		-- dx dy dz are invalidated but no longer used
+	end
+	--]]
+
+
+	local dsx = sx2 - sx1
+	local dsy = sy2 - sy1
+	dsx, dsy = -dsy, dsx	-- orthogonal
+	local dslensq = dsx*dsx + dsy*dsy
+	if dslensq < 1e-7 then return end
+	local dsinvlen = 1/math.sqrt(dslensq)
+	dsx = dsx * dsinvlen * thickness
+	dsy = dsy * dsinvlen * thickness
+
+	local sx1b = sx1 + dsx
+	local sy1b = sy1 + dsy
+	local sz1b = sz1
+
+	local sx2b = sx2 + dsx
+	local sy2b = sy2 + dsy
+	local sz2b = sz2
+
+	-- TODO matrix inverse dirty flags to calc them at least 1 less time per line
+	local x1b, y1b, z1b, w1b = self:invTransform(sx1b, sy1b, sz1b)
+	local x2b, y2b, z2b, w2b = self:invTransform(sx2b, sy2b, sz2b)
+
+	x1b=x1b/w1b
+	y1b=y1b/w1b
+	z1b=z1b/w1b
+	
+	x2b=x2b/w2b
+	y2b=y2b/w2b
+	z2b=z2b/w2b
+
+	local xLL = x1
+	local yLL = y1
+	local zLL = z1
+
+	local xLR = x1b
+	local yLR = y1b
+	local zLR = z1b
+
+	local xRL = x2
+	local yRL = y2
+	local zRL = z2
+                          
+	local xRR = x2b
+	local yRR = y2b
+	local zRR = z2b
 
 	self:triBuf_addTri(
 		paletteTex,
