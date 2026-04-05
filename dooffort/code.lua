@@ -16,9 +16,8 @@ mode(0xff)	-- NativexRGB565
 --mode(0)		-- 256x256xRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
-local HD2DFlags = 0
---[[
 local HD2DFlags = 0xff & ~4	-- turn off SSAO. meh.
+--[[
 pokef(ramaddr'ssaoSampleRadius', .5)
 pokew(ramaddr'numLights', 1)			-- turn on 1 light
 poke(ramaddr'lights', 0xff)				-- enable light #0
@@ -473,9 +472,7 @@ local textwidth = 32 * 8
 local textheight = textwidth
 
 update=||do
-	--[[ 0 atm
 	poke(ramaddr'HD2DFlags', HD2DFlags)
-	--]]
 	cls(33)
 
 	-- draw skyl
@@ -504,9 +501,7 @@ update=||do
 
 	-- end-of-frame, after view has been captured, do ortho and draw text
 	-- but disable light flags before clearing depth or else it'll clear the light depth too
-	--[[ TODO UI
 	poke(ramaddr'HD2DFlags', 0)
-	--]]
 	cls(nil, true)
 	--poke(ramaddr'HD2DFlags', 2)	-- if you want the gui text to cast a shadow...
 	matident(0)

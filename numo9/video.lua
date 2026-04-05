@@ -1752,7 +1752,10 @@ function AppVideo:drawSolidLine3D(
 		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
-	-- fwd-transform into screen coords and just offset by this many pixels
+	-- instead of transforming and doing cross in screen-space
+	-- do cross in world space and dont change the matrix.
+
+--[[ fwd-transform into screen coords and just offset by this many pixels
 	local v1x, v1y, v1z = self:transform(x1, y1, z1)
 	local v2x, v2y, v2z = self:transform(x2, y2, z2)
 	local dx = v2x - v1x
@@ -1760,9 +1763,10 @@ function AppVideo:drawSolidLine3D(
 	local il = 1 / math.sqrt(dx^2 + dy^2)
 	local nx = -dy * il
 	local ny = dx * il
+--]]
 
 	local halfThickness = (thickness or 1) * .5
-
+--[[
 	local xLL, yLL, zLL =
 		v1x - nx * halfThickness,
 		v1y - ny * halfThickness,
@@ -1779,11 +1783,13 @@ function AppVideo:drawSolidLine3D(
 		v2x + nx * halfThickness,
 		v2y + ny * halfThickness,
 		v2z
+--]]
 
 	colorIndex = math.floor(colorIndex or 0)
 
 	-- ok how to perturb input vertex going through a frustum projection such that the output is only +1 in the x or y direction?
 	-- meh, forget it, just do the transform on CPU and use an identity matrix
+--[[
 	ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
 	self:matident()
 	ffi.copy(viewMatPush, self.ram.viewMat, ffi.sizeof(viewMatPush))
@@ -1797,6 +1803,83 @@ function AppVideo:drawSolidLine3D(
 		xRL, yRL, zRL,
 		xLR, yLR, zLR
 	)
+--]]
+-- [[
+
+	-- fwd vec ... is it this or its transpose?
+	-- row vs col, fwd vs inverse, i have 4 tries to figure it out
+	-- [=[
+	local fwdX = -self.ram.viewMat[2]
+	local fwdY = -self.ram.viewMat[6]
+	local fwdZ = -self.ram.viewMat[10]
+	local posX = -self.ram.viewMat[3]
+	local posY = -self.ram.viewMat[7]
+	local posZ = -self.ram.viewMat[11]
+	--]=]
+	--[=[
+	local fwdX = -self.ram.viewMat[8]
+	local fwdY = -self.ram.viewMat[9]
+	local fwdZ = -self.ram.viewMat[10]
+	local posX = -self.ram.viewMat[12]
+	local posY = -self.ram.viewMat[13]
+	local posZ = -self.ram.viewMat[14]
+	--]=]
+	local fwdInvLen = math.sqrt(fwdX*fwdX + fwdY*fwdY + fwdZ*fwdZ)
+	local normFwdX = fwdInvLen * fwdX
+	local normFwdY = fwdInvLen * fwdY
+	local normFwdZ = fwdInvLen * fwdZ
+
+	-- delta from xyz 1 to xyz 2
+	local dx = x2 - x1
+	local dy = y2 - y1
+	local dz = z2 - z1
+
+	-- now find perpendicular from the fwd dir
+	-- what's the fwd dir?
+	local perpX = fwdY * dz - fwdZ * dy
+	local perpY = fwdZ * dx - fwdX * dz
+	local perpZ = fwdX * dy - fwdY * dx
+	local perpInvLen = 1 / math.sqrt(perpX*perpX + perpY*perpY + perpZ*perpZ)
+	local normalX = perpInvLen * perpX
+	local normalY = perpInvLen * perpY
+	local normalZ = perpInvLen * perpZ
+
+	-- now ... TODO determine thickness at depth1 and depth2 ...
+	-- equivalent of starting with (1,0,0,0) and (0,1,0,0)
+	-- and multiplying it through the inverse of proj, model, view mats
+	-- and then looking at the result's dx and dy to use ...
+	--
+	-- instead i'll be lazy.
+	-- this only works for perspective.
+	-- for ortho you can just not scale by depth.
+	local invScreenWidth = 1 / tonumber(self.ram.screenWidth)
+	local depth1 = ((x1 - posX) * normFwdX + (y1 - posY) * normFwdY + (z1 - posZ) * normFwdZ)
+	local depth2 = ((x2 - posX) * normFwdX + (y2 - posY) * normFwdY + (z2 - posZ) * normFwdZ)
+	local perpSize1 = invScreenWidth * depth1
+	local perpSize2 = invScreenWidth * depth2
+
+--[=[ should still be normalized...
+	local normPerp2X = normFwdY * normalZ - normFwdZ * normalY
+	local normPerp2Y = normFwdZ * normalX - normFwdX * normalZ
+	local normPerp2Z = normFwdX * normalY - normFwdY * normalX
+--]=]
+
+	local xLL = x1 - perpSize1 * normalX
+	local yLL = y1 - perpSize1 * normalY
+	local zLL = z1 - perpSize1 * normalZ
+
+	local xLR = x1 + perpSize1 * normalX
+	local yLR = y1 + perpSize1 * normalY
+	local zLR = z1 + perpSize1 * normalZ
+
+	local xRL = x2 - perpSize2 * normalX
+	local yRL = y2 - perpSize2 * normalY
+	local zRL = z2 - perpSize2 * normalZ
+
+	local xRR = x2 + perpSize2 * normalX
+	local yRR = y2 + perpSize2 * normalY
+	local zRR = z2 + perpSize2 * normalZ
+--]]
 
 	self:triBuf_addTri(
 		paletteTex,
@@ -1827,12 +1910,14 @@ function AppVideo:drawSolidLine3D(
 	self.currentVideoMode.framebufferRAM.dirtyGPU = true
 	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
 
+--[[
 	ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
 	self:onModelMatChange()
 	ffi.copy(self.ram.viewMat, viewMatPush, ffi.sizeof(viewMatPush))
 	self:onViewMatChange()
 	ffi.copy(self.ram.projMat, projMatPush, ffi.sizeof(projMatPush))
 	self:onProjMatChange()
+--]]
 end
 
 function AppVideo:drawSolidLine(x1, y1, x2, y2, colorIndex, thickness, paletteTex)

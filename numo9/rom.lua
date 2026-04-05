@@ -9,6 +9,7 @@ local string = require 'ext.string'
 local struct = require 'struct'
 local vec2s = require 'vec-ffi.vec2s'
 local vec2i = require 'vec-ffi.vec2i'
+local vec4x4fcol = require 'numo9.vec4x4fcol'
 
 
 local uint8_t = ffi.typeof'uint8_t'
@@ -131,6 +132,7 @@ local keyPressFlagSize = math.ceil(keyCount / 8)
 
 local matType = float
 local matArrType = ffi.typeof('$[16]', matType)
+assert.eq(ffi.sizeof(matArrType), ffi.sizeof(vec4x4fcol))
 
 -- sfx needs loop offset and samples
 local loopOffsetType = addrType
