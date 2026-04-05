@@ -1216,6 +1216,7 @@ function EditVoxelMap:update()
 
 	---------------- TOOLTIP ----------------
 
+	self:guiSetClipRect(-1000, 0, 3000, 256)
 	self:drawTooltip()
 end
 
