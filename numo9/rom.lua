@@ -131,8 +131,7 @@ local keyCount = #keyCodeNames
 local keyPressFlagSize = math.ceil(keyCount / 8)
 
 local matType = float
-local matArrType = ffi.typeof('$[16]', matType)
-assert.eq(ffi.sizeof(matArrType), ffi.sizeof(vec4x4fcol))
+local matArrType = vec4x4fcol
 
 -- sfx needs loop offset and samples
 local loopOffsetType = addrType

@@ -221,11 +221,6 @@ function App:initGL()
 	gl.glDrawBuffer(gl.GL_FRONT)
 	--]]
 
-	-- do this before initBlobs -> buildRAMFromBlobs
-	self.modelMat = vec4x4fcol():setIdent()
-	self.viewMat = vec4x4fcol():setIdent()
-	self.projMat = vec4x4fcol():setIdent()
-
 	self.drawViewMatForLighting = vec4x4fcol():setIdent()
 	self.drawProjMatForLighting = vec4x4fcol():setIdent()
 

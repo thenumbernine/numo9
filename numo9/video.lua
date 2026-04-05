@@ -668,7 +668,7 @@ function AppVideo:initVideo()
 		self.lightView.pos = self.lightView.orbit + 40 * self.lightView.angle:zAxis()
 		self.lightView:setup(self.lightDepthTex.width / self.lightDepthTex.height)
 		assert.eq(self.lightView.mvProjMat.scalarType, ffi.typeof'float')
-		-- end lightView that is only used on resetVideo to reset lightViewMat and lightProjMat
+		-- end lightView that is only used on resetVideo to reset light.viewMat and light.projMat
 
 		self.lightmapFB = GLFramebuffer{
 			width = dirLightMapSize.x,
@@ -685,8 +685,6 @@ function AppVideo:initVideo()
 		self.lightViewPos = vec3f()
 
 		-- temp buf used for holding the combination of light view+proj
-		self.lightViewMat = ident4x4:clone()	-- \_ have their pointers relocated to ram
-		self.lightProjMat = ident4x4:clone()	-- /
 		self.lightViewInvMat = ident4x4:clone()	-- \_ used especially for extracting position
 		self.drawViewInvMat = ident4x4:clone()	-- /
 	end
@@ -735,8 +733,8 @@ function AppVideo:triBuf_flushButDontClear()
 --[[ DEBUG - view the scene from the light's perspective
 -- so I can tell why some unshadowed things arent being seen ...
 	if self.ram.HD2DFlags == 0 then return end
-	program:setUniform('viewMat', self.ram.lights[0].viewMat)
-	program:setUniform('projMat', self.ram.lights[0].projMat)
+	program:setUniform('viewMat', self.ram.lights[0].viewMat.ptr)
+	program:setUniform('projMat', self.ram.lights[0].projMat.ptr)
 --]]
 
 --DEBUG:assert.index(sceneObj, 'vao')
@@ -785,8 +783,8 @@ function AppVideo:triBuf_flushButDontClear()
 --DEBUG:print('viewMat\n'..require 'ext.range'(0,15):mapi(function(i) return light.viewMat[i] end):concat', ')
 --DEBUG:print('projMat\n'..require 'ext.range'(0,15):mapi(function(i) return light.projMat[i] end):concat', ')
 				-- don't change the model matrix, that way models are transformed to world properly
-				program:setUniform('viewMat', light.viewMat)
-				program:setUniform('projMat', light.projMat)
+				program:setUniform('viewMat', light.viewMat.ptr)
+				program:setUniform('projMat', light.projMat.ptr)
 				gl.glUniform4f(program.uniforms.clipRect.loc, 0, 0, dirLightMapSize.x, dirLightMapSize.y)
 
 				sceneObj.geometry:draw()
@@ -794,8 +792,8 @@ function AppVideo:triBuf_flushButDontClear()
 		end
 
 		-- restore
-		program:setUniform('viewMat', self.ram.viewMat)
-		program:setUniform('projMat', self.ram.projMat)
+		program:setUniform('viewMat', self.ram.viewMat.ptr)
+		program:setUniform('projMat', self.ram.projMat.ptr)
 		gl.glUniform4f(program.uniforms.clipRect.loc, self:getClipRect())
 
 		--gl.glViewport(0, 0, self.currentVideoMode.fb.width, self.currentVideoMode.fb.height)
@@ -875,15 +873,15 @@ assert(animSheetTex)
 	then
 		program:use()
 		if self.modelMatDirty then
-			program:setUniform('modelMat', self.ram.modelMat)
+			program:setUniform('modelMat', self.ram.modelMat.ptr)
 			self.modelMatDirty = false
 		end
 		if self.viewMatDirty then
-			program:setUniform('viewMat', self.ram.viewMat)
+			program:setUniform('viewMat', self.ram.viewMat.ptr)
 			self.viewMatDirty = false
 		end
 		if self.projMatDirty then
-			program:setUniform('projMat', self.ram.projMat)
+			program:setUniform('projMat', self.ram.projMat.ptr)
 			self.projMatDirty = false
 		end
 		if self.clipRectDirty then
@@ -1403,11 +1401,11 @@ function AppVideo:setVideoMode(modeIndex)
 	self.ram.screenWidth = newVideoMode.width
 	self.ram.screenHeight = newVideoMode.height
 
-	self.modelMat:setIdent()
-	self.viewMat:setIdent()
+	self.ram.modelMat:setIdent()
+	self.ram.viewMat:setIdent()
 	-- for setting video mode should I initialize the projection matrix to its default ortho screen every time?
 	-- sure.
-	self.projMat:setOrtho(
+	self.ram.projMat:setOrtho(
 		0, self.ram.screenWidth,
 		self.ram.screenHeight, 0,
 		-1000, 1000
@@ -1714,9 +1712,9 @@ function AppVideo:invTransform(x,y,z)
 	-- normalized-device coords to homogeneous inv transform? or nah?
 	-- TODO transform accepts 'm' mvType[16] override, but this operates on 4x4 matrix.ffi types...
 	-- TODO make this operation in-place
-	modelInv:inv4x4(self.modelMat)
-	viewInv:inv4x4(self.viewMat)
-	projInv:inv4x4(self.projMat)
+	modelInv:inv4x4(self.ram.modelMat)
+	viewInv:inv4x4(self.ram.viewMat)
+	projInv:inv4x4(self.ram.projMat)
 	x,y,z,w = mat4x4mul(projInv.ptr, x, y, z, w)
 	x,y,z,w = mat4x4mul(viewInv.ptr, x,y,z,w)
 	x,y,z,w = mat4x4mul(modelInv.ptr, x,y,z,w)
@@ -1752,19 +1750,6 @@ function AppVideo:drawSolidLine3D(
 		self.currentVideoMode.framebufferRAM:checkDirtyCPU()
 	end
 
-	-- instead of transforming and doing cross in screen-space
-	-- do cross in world space and dont change the matrix.
-
---[[ fwd-transform into screen coords and just offset by this many pixels
-	local v1x, v1y, v1z = self:transform(x1, y1, z1)
-	local v2x, v2y, v2z = self:transform(x2, y2, z2)
-	local dx = v2x - v1x
-	local dy = v2y - v1y
-	local il = 1 / math.sqrt(dx^2 + dy^2)
-	local nx = -dy * il
-	local ny = dx * il
---]]
-
 	local halfThickness = (thickness or 1) * .5
 --[[
 	local xLL, yLL, zLL =
@@ -1787,42 +1772,23 @@ function AppVideo:drawSolidLine3D(
 
 	colorIndex = math.floor(colorIndex or 0)
 
-	-- ok how to perturb input vertex going through a frustum projection such that the output is only +1 in the x or y direction?
-	-- meh, forget it, just do the transform on CPU and use an identity matrix
---[[
-	ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
-	self:matident()
-	ffi.copy(viewMatPush, self.ram.viewMat, ffi.sizeof(viewMatPush))
-	self:matident(1)
-	ffi.copy(projMatPush, self.ram.projMat, ffi.sizeof(projMatPush))
-	self:matident(2)
-	self:matortho(0, self.ram.screenWidth, self.ram.screenHeight, 0, 1, -1)	-- 1, -1 maps to ident depth range
-
-	local normalX, normalY, normalZ = calcNormalForTri(
-		xLL, yLL, zLL,
-		xRL, yRL, zRL,
-		xLR, yLR, zLR
-	)
---]]
--- [[
-
 	-- fwd vec ... is it this or its transpose?
 	-- row vs col, fwd vs inverse, i have 4 tries to figure it out
-	-- [=[
-	local fwdX = -self.ram.viewMat[2]
-	local fwdY = -self.ram.viewMat[6]
-	local fwdZ = -self.ram.viewMat[10]
-	local posX = -self.ram.viewMat[3]
-	local posY = -self.ram.viewMat[7]
-	local posZ = -self.ram.viewMat[11]
-	--]=]
 	--[=[
-	local fwdX = -self.ram.viewMat[8]
-	local fwdY = -self.ram.viewMat[9]
-	local fwdZ = -self.ram.viewMat[10]
-	local posX = -self.ram.viewMat[12]
-	local posY = -self.ram.viewMat[13]
-	local posZ = -self.ram.viewMat[14]
+	local fwdX = -self.ram.viewMat.z.x
+	local fwdY = -self.ram.viewMat.z.y
+	local fwdZ = -self.ram.viewMat.z.z
+	local posX = -self.ram.viewMat.w.x
+	local posY = -self.ram.viewMat.w.y
+	local posZ = -self.ram.viewMat.w.z
+	--]=]
+	-- [=[
+	local fwdX = -self.ram.viewMat.x.z
+	local fwdY = -self.ram.viewMat.y.z
+	local fwdZ = -self.ram.viewMat.z.z
+	local posX = -self.ram.viewMat.x.w
+	local posY = -self.ram.viewMat.y.w
+	local posZ = -self.ram.viewMat.z.w
 	--]=]
 	local fwdInvLen = math.sqrt(fwdX*fwdX + fwdY*fwdY + fwdZ*fwdZ)
 	local normFwdX = fwdInvLen * fwdX
@@ -1879,7 +1845,6 @@ function AppVideo:drawSolidLine3D(
 	local xRR = x2 + perpSize2 * normalX
 	local yRR = y2 + perpSize2 * normalY
 	local zRR = z2 + perpSize2 * normalZ
---]]
 
 	self:triBuf_addTri(
 		paletteTex,
@@ -1909,15 +1874,6 @@ function AppVideo:drawSolidLine3D(
 
 	self.currentVideoMode.framebufferRAM.dirtyGPU = true
 	self.currentVideoMode.framebufferRAM.changedSinceDraw = true
-
---[[
-	ffi.copy(self.ram.modelMat, modelMatPush, ffi.sizeof(modelMatPush))
-	self:onModelMatChange()
-	ffi.copy(self.ram.viewMat, viewMatPush, ffi.sizeof(viewMatPush))
-	self:onViewMatChange()
-	ffi.copy(self.ram.projMat, projMatPush, ffi.sizeof(projMatPush))
-	self:onProjMatChange()
---]]
 end
 
 function AppVideo:drawSolidLine(x1, y1, x2, y2, colorIndex, thickness, paletteTex)
@@ -2735,13 +2691,13 @@ end
 function AppVideo:matident(matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.modelMat:setIdent()
+		self.ram.modelMat:setIdent()
 		self:onModelMatChange()
 	elseif matrixIndex == 1 then
-		self.viewMat:setIdent()
+		self.ram.viewMat:setIdent()
 		self:onViewMatChange()
 	elseif matrixIndex == 2 then
-		self.projMat:setIdent()
+		self.ram.projMat:setIdent()
 		self:onProjMatChange()
 	end
 end
@@ -2749,13 +2705,13 @@ end
 function AppVideo:mattrans(x, y, z, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.modelMat:applyTranslate(x, y, z)
+		self.ram.modelMat:applyTranslate(x, y, z)
 		self:onModelMatChange()
 	elseif matrixIndex == 1 then
-		self.viewMat:applyTranslate(x, y, z)
+		self.ram.viewMat:applyTranslate(x, y, z)
 		self:onViewMatChange()
 	else
-		self.projMat:applyTranslate(x, y, z)
+		self.ram.projMat:applyTranslate(x, y, z)
 		self:onProjMatChange()
 	end
 end
@@ -2763,13 +2719,13 @@ end
 function AppVideo:matrot(theta, x, y, z, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.modelMat:applyRotate(theta, x, y, z)
+		self.ram.modelMat:applyRotate(theta, x, y, z)
 		self:onModelMatChange()
 	elseif matrixIndex == 1 then
-		self.viewMat:applyRotate(theta, x, y, z)
+		self.ram.viewMat:applyRotate(theta, x, y, z)
 		self:onViewMatChange()
 	else
-		self.projMat:applyRotate(theta, x, y, z)
+		self.ram.projMat:applyRotate(theta, x, y, z)
 		self:onProjMatChange()
 	end
 end
@@ -2777,13 +2733,13 @@ end
 function AppVideo:matrotcs(c, s, x, y, z, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.modelMat:applyRotateCosSinUnit(c, s, x, y, z)
+		self.ram.modelMat:applyRotateCosSinUnit(c, s, x, y, z)
 		self:onModelMatChange()
 	elseif matrixIndex == 1 then
-		self.viewMat:applyRotateCosSinUnit(c, s, x, y, z)
+		self.ram.viewMat:applyRotateCosSinUnit(c, s, x, y, z)
 		self:onViewMatChange()
 	else
-		self.projMat:applyRotateCosSinUnit(c, s, x, y, z)
+		self.ram.projMat:applyRotateCosSinUnit(c, s, x, y, z)
 		self:onProjMatChange()
 	end
 end
@@ -2791,13 +2747,13 @@ end
 function AppVideo:matscale(x, y, z, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 0
 	if matrixIndex == 0 then
-		self.modelMat:applyScale(x, y, z)
+		self.ram.modelMat:applyScale(x, y, z)
 		self:onModelMatChange()
 	elseif matrixIndex == 1 then
-		self.viewMat:applyScale(x, y, z)
+		self.ram.viewMat:applyScale(x, y, z)
 		self:onViewMatChange()
 	else
-		self.projMat:applyScale(x, y, z)
+		self.ram.projMat:applyScale(x, y, z)
 		self:onProjMatChange()
 	end
 end
@@ -2805,13 +2761,13 @@ end
 function AppVideo:matlookat(ex, ey, ez, cx, cy, cz, upx, upy, upz, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 1
 	if matrixIndex == 0 then
-		self.modelMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+		self.ram.modelMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 		self:onModelMatChange()
 	elseif matrixIndex == 1 then
-		self.viewMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+		self.ram.viewMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 		self:onViewMatChange()
 	else
-		self.projMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
+		self.ram.projMat:applyLookAt(ex, ey, ez, cx, cy, cz, upx, upy, upz)
 		self:onProjMatChange()
 	end
 end
@@ -2819,13 +2775,13 @@ end
 function AppVideo:matortho(l, r, t, b, n, f, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 2	-- default projection
 	if matrixIndex == 0 then
-		self.modelMat:applyOrtho(l, r, t, b, n, f)
+		self.ram.modelMat:applyOrtho(l, r, t, b, n, f)
 		self:onModelMatChange()
 	elseif matrixIndex == 1 then
-		self.viewMat:applyOrtho(l, r, t, b, n, f)
+		self.ram.viewMat:applyOrtho(l, r, t, b, n, f)
 		self:onViewMatChange()
 	else
-		self.projMat:applyOrtho(l, r, t, b, n, f)
+		self.ram.projMat:applyOrtho(l, r, t, b, n, f)
 		self:onProjMatChange()
 	end
 end
@@ -2833,13 +2789,13 @@ end
 function AppVideo:matfrustum(l, r, b, t, n, f, matrixIndex)
 	matrixIndex = tonumber(matrixIndex) or 2	-- default projection
 	if matrixIndex == 0 then
-		self.modelMat:applyFrustum(l, r, b, t, n, f)
+		self.ram.modelMat:applyFrustum(l, r, b, t, n, f)
 		self:onModelMatChange()
 	elseif matrixIndex == 1 then
-		self.viewMat:applyFrustum(l, r, b, t, n, f)
+		self.ram.viewMat:applyFrustum(l, r, b, t, n, f)
 		self:onViewMatChange()
 	else
-		self.projMat:applyFrustum(l, r, b, t, n, f)
+		self.ram.projMat:applyFrustum(l, r, b, t, n, f)
 		self:onProjMatChange()
 	end
 end
@@ -3257,7 +3213,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		-- special-case, xyz-aligned, anchored to voxel center
 		-- so now we undo the rotation, i.e. use the rotation transpose
 		-- multiply our current modelMat with the viewMat's upper 3x3 transposed and normalized:
-		local v = self.viewMat
+		local v = self.ram.viewMat
 		local v0, v1, v2  = v.ptr[0], v.ptr[1], v.ptr[ 2]
 		local v4, v5, v6  = v.ptr[4], v.ptr[5], v.ptr[ 6]
 		local v8, v9, v10 = v.ptr[8], v.ptr[9], v.ptr[10]
@@ -3268,7 +3224,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 		local ilvz = 1 / math.sqrt(v2 * v2 + v6 * v6 + v10 * v10)
 
 		-- multiply
-		local m = self.modelMat
+		local m = self.ram.modelMat
 		local m0, m1, m2  = m.ptr[0], m.ptr[1], m.ptr[ 2]
 		local m4, m5, m6  = m.ptr[4], m.ptr[5], m.ptr[ 6]
 		local m8, m9, m10 = m.ptr[8], m.ptr[9], m.ptr[10]
@@ -3290,7 +3246,7 @@ function AppVideo:drawVoxel(voxelValue, ...)
 
 	elseif vox.orientation == 21 then
 		-- TODO special case, xy-aligned, z axis still maintained, anchored to voxel center
-		local v = self.viewMat
+		local v = self.ram.viewMat
 		local x, y = v.ptr[6], v.ptr[2]
 		local l = 1/math.sqrt(x^2 + y^2)
 
@@ -3606,13 +3562,11 @@ print()
 		fragUniLight.cosAngleRange.y = 1 / (light.cosAngleRange[1] - light.cosAngleRange[0])
 
 
-		self.lightViewMat = ffi.cast(vec4x4fcol_p, light.viewMat)
-		self.lightProjMat = ffi.cast(vec4x4fcol_p, light.projMat)
-		fragUniLight.viewProjMat:mul4x4(self.lightProjMat, self.lightViewMat)
-		self.lightViewInvMat:inv4x4(self.lightViewMat)
+		fragUniLight.viewProjMat:mul4x4(light.projMat, light.viewMat)
+		self.lightViewInvMat:inv4x4(light.viewMat)
 
---DEBUG(lighting):print('lighting lightView\n'..self.lightViewMat)
---DEBUG(lighting):print('lighting lightProj\n'..self.lightProjMat)
+--DEBUG(lighting):print('lighting lightView\n'..light.viewMat)
+--DEBUG(lighting):print('lighting lightProj\n'..light.projMat)
 
 		ffi.copy(fragUniLight.viewPos.s, self.lightViewInvMat.ptr + 12, ffi.sizeof(vec3f))
 		ffi.copy(fragUniLight.negViewDir.s, self.lightViewInvMat.ptr + 8, ffi.sizeof(vec3f))
