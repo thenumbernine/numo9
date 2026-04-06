@@ -1121,3 +1121,4 @@ BUGS/FIXES SINCE 1.2.2:
 
 BUGS TO FIX:
 - disabling DoF but not HDR before render in mode 0xFF made the screen go black ...
+- pasting voxels that have high values, or maybe certain orietnations, will screw up.  is it meshgen thing, or a int signed-ness thing? idk.

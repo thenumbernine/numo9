@@ -72,7 +72,11 @@ end
 function Console:runCmdBuf()
 	local app = self.app
 	local cmd = self.cmdbuf
-	self.cmdHistory:insert(cmd)
+	if cmd ~= '' then
+		-- how about if the cmd is a previous cmd? also don't insert?
+		--  or insert and remove all other instances so it is on top of the history?
+		self.cmdHistory:insert(cmd)
+	end
 	self.cmdHistoryIndex = nil
 	self.cmdbuf = ''
 	self:print(app.fs.cwd:path()..self.prompt..cmd)
@@ -207,9 +211,9 @@ function Console:update()
 
 	-- if a game is running, overlay the console on the top
 	-- otherwise give it full screen
-	--local maxLines = app.runFocus and 5 or 30
-	-- or just always show it over everything
-	local maxLines = 30
+	local maxLines = app.runFocus and 10 or 30
+	-- or just always show it over everything?
+	--local maxLines = 30
 
 	local shownLines = math.min(#self.lines, maxLines)
 	app:setBlendMode(3)

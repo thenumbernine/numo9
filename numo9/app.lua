@@ -3593,6 +3593,23 @@ function App:getMouseState()
 		self.ram.mouseWheel.y
 end
 
+function App:toggleConsole()
+	if self.activeMenu ~= self.con then		-- main menu goes to conosle
+		self:setMenu(self.con)
+		self.isPaused = false
+		if self.runFocus and not self.server then
+			self.isPaused = true
+		end
+	else
+		if self.runFocus then
+			self:setMenu(nil)
+			self.isPaused = false
+		else
+			self:setMenu(self.mainMenu)
+		end
+	end
+end
+
 function App:toggleMenu()
 	-- special handle the escape key
 	-- game -> escape -> console
@@ -3749,6 +3766,11 @@ function App:event(e)
 			and e[0].gbutton.button == sdl.SDL_GAMEPAD_BUTTON_START)
 		then
 			self:toggleMenu()
+			return
+		elseif e[0].type == sdl.SDL_EVENT_KEY_DOWN
+		and e[0].key.key == sdl.SDLK_GRAVE
+		then
+			self:toggleConsole()
 			return
 		end
 	end
