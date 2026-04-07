@@ -157,29 +157,32 @@ local function lineBoxDist(box, linePt, lineDir, inside)
 	for i=0,2 do
 		local j = (i+1)%3
 		local k = (j+1)%3
-
 		local planeDist, planeNormalOnAxis
-		if lineDir.s[i] > 0 ~= inside then
-			planeDist = box.min.s[i]
-			planeNormalOnAxis = -1
+		if math.abs(lineDir.s[i]) < 1e-7 then
+			-- within epsilon, skip
 		else
-			planeDist = box.max.s[i]
-			planeNormalOnAxis = 1
-		end
-		local dxi = axisAlignedPlaneLineIntersectParam(i, planeDist, planeNormalOnAxis, linePt, lineDir)
-		if dxi > 0 and dxi < d then
-			local ptj = linePt.s[j] + lineDir.s[j] * dxi
-			local ptk = linePt.s[k] + lineDir.s[k] * dxi
-			if box.min.s[j] <= ptj and ptj <= box.max.s[j]
-			and box.min.s[k] <= ptk and ptk <= box.max.s[k]
-			then
-				axis = i
-				-- why is it sometimes thinking a down-pointing line intersects the bottom when it hits the top of a cube?
-				--  Maybe I'm not considering 'inside' when I should be?
-				--sideNormalSignFlag = planeNormalOnAxis < 0 and 1 or 0
-				-- maybe using lineDir is better, yup
-				sideNormalSignFlag = lineDir.s[i] > 0 and 1 or 0
-				d = dxi
+			if lineDir.s[i] > 0 ~= inside then
+				planeDist = box.min.s[i]
+				planeNormalOnAxis = -1
+			else
+				planeDist = box.max.s[i]
+				planeNormalOnAxis = 1
+			end
+			local dxi = axisAlignedPlaneLineIntersectParam(i, planeDist, planeNormalOnAxis, linePt, lineDir)
+			if dxi > 0 and dxi < d then
+				local ptj = linePt.s[j] + lineDir.s[j] * dxi
+				local ptk = linePt.s[k] + lineDir.s[k] * dxi
+				if box.min.s[j] <= ptj and ptj < box.max.s[j]
+				and box.min.s[k] <= ptk and ptk < box.max.s[k]
+				then
+					axis = i
+					-- why is it sometimes thinking a down-pointing line intersects the bottom when it hits the top of a cube?
+					--  Maybe I'm not considering 'inside' when I should be?
+					--sideNormalSignFlag = planeNormalOnAxis < 0 and 1 or 0
+					-- maybe using lineDir is better, yup
+					sideNormalSignFlag = lineDir.s[i] > 0 and 1 or 0
+					d = dxi
+				end
 			end
 		end
 	end
@@ -545,6 +548,9 @@ function EditVoxelMap:update()
 				+ orbit.angle:xAxis() * (mouseX - 128) / 128
 				- orbit.angle:yAxis() * (mouseY - 128) / 128
 
+			-- step along dir a small bit so all ray origins aren't in the same spot (which gets us into a bad place when deciding which way to go when raytracing)
+			mousePos = mousePos + .1 * mouseDir
+
 			local sideIndex
 			-- or alternatively use the inverse of the modelview matrix... but meh ...
 			if not mapbox:contains(mousePos) then
@@ -554,9 +560,16 @@ function EditVoxelMap:update()
 				d, sideIndex = lineBoxDist(
 					mapbox,
 					mousePos,
-					mouseDir)
+					mouseDir
+				)
+				-- [[
+				if sideIndex then
+					-- because it's not inside the cube, flip the sideIndex +-
+					-- ... or should I do this within lineBoxDist when 'inside' is false?
+					sideIndex = bit.bxor(1, sideIndex)
+				end
+				--]]
 
-	--print('dists', d, dx, dy, dz)
 				mousePos = mousePos + mouseDir * (d + 1e-5)
 				-- this could still be OOB if the user isn't mouse'd over the box ...
 			end
@@ -578,11 +591,10 @@ function EditVoxelMap:update()
 						box3d(pti, pti+1),
 						mousePos,
 						mouseDir,
-						true)	-- true = inside the cube intersecting with outside
-
+						true	-- true = inside the cube intersecting with outside
+					)
 					mousePos = mousePos + mouseDir * (d + 1e-5)
 					npti = mousePos:map(math.floor)
-
 					-- stop at the last empty voxel
 					-- if we're oob then we're done with 'pti' as our final point inside the box
 					if not mapboxIE:contains(npti) then
