@@ -306,10 +306,9 @@ function EditSheet:update()
 		if shift then
 			local dy = app.ram.mouseWheel.y
 			if dy ~= 0 then
-				-- 128 is half 256 I guess, which is the sheet size in pixels I guess?
-				panSheet(128 / self.spritesheetScale, 128 / self.spritesheetScale)
+				panSheet((w/2) / self.spritesheetScale, (h/2) / self.spritesheetScale)
 				self.spritesheetScale = self.spritesheetScale * math.exp(.1 * dy)
-				panSheet(-128 / self.spritesheetScale, -128 / self.spritesheetScale)
+				panSheet(-(w/2) / self.spritesheetScale, -(h/2) / self.spritesheetScale)
 			end
 		else
 			self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - app.ram.mouseWheel.x
