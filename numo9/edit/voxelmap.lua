@@ -1283,15 +1283,15 @@ function EditVoxelMap:pasteAtCenter(voxelmap, centerpos, sideIndex)
 	if sideIndex == 0 then
 		ofsx = centerpos.x
 	elseif sideIndex == 1 then
-		ofsx = centerpos.x + sx - 1
+		ofsx = centerpos.x - (sx - 1)
 	elseif sideIndex == 2 then
 		ofsy = centerpos.y
 	elseif sideIndex == 3 then
-		ofsy = centerpos.y + sy - 1
+		ofsy = centerpos.y - (sy - 1)
 	elseif sideIndex == 4 then
 		ofsz = centerpos.z
 	elseif sideIndex == 5 then
-		ofsz = centerpos.z + sz - 1
+		ofsz = centerpos.z - (sz - 1)
 	end
 	for z=0,sz-1 do
 		for y=0,sy-1 do
