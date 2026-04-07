@@ -464,7 +464,8 @@ local RAM = struct{
 
 
 				-- hd2d lighting etc...
-				{name='HD2DFlags', type=uint16_t},	-- state for all lighting, flags in ffi.C.HD2DFlags_*
+				{name='HD2DFlags', type=uint8_t},			-- state for all lighting, flags in ffi.C.HD2DFlags_*
+				{name='voxelmapCullSideFlags', type=uint8_t},	-- flags set for occluding sides of voxelmap. flags from 0-5 are: x+ x- y+ y- z+ z-
 
 				{name='lightmapWidth', type=uint16_t},	-- read-only of the lightmap size
 				{name='lightmapHeight', type=uint16_t},

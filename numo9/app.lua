@@ -2323,6 +2323,7 @@ local blendColorAddr, blendColorAddrEnd = getRAMAddrRange'blendColor'
 local ditherAddr, ditherAddrEnd = getRAMAddrRange'dither'
 local cullFaceAddr, cullFaceAddrEnd = getRAMAddrRange'cullFace'
 local HD2DFlagsAddr, HD2DFlagsAddrEnd = getRAMAddrRange'HD2DFlags'
+local voxelmapCullSideFlagsAddr, voxelmapCullSideFlagsAddrEnd = getRAMAddrRange'voxelmapCullSideFlags'
 local spriteNormalExhaggerationAddr, spriteNormalExhaggerationAddrEnd = getRAMAddrRange'spriteNormalExhaggeration'
 
 
@@ -2496,6 +2497,9 @@ local postPokeCode = template([=[
 			if addrend >= <?=HD2DFlagsAddr?> and addr < <?=HD2DFlagsAddrEnd?> then
 				self:onHD2DFlagsChange()
 			end
+			if addrend >= <?=voxelmapCullSideFlagsAddr?> and addr < <?=voxelmapCullSideFlagsAddrEnd?> then
+				self:onVoxelmapCullSideFlagsChange()
+			end
 			if addrend >= <?=spriteNormalExhaggerationAddr?> and addr < <?=spriteNormalExhaggerationAddrEnd?> then
 				self:onSpriteNormalExhaggerationChange()
 			end
@@ -2581,6 +2585,8 @@ local postPokeCode = template([=[
 		cullFaceAddrEnd = cullFaceAddrEnd,
 		HD2DFlagsAddr = HD2DFlagsAddr,
 		HD2DFlagsAddrEnd = HD2DFlagsAddrEnd,
+		voxelmapCullSideFlagsAddr = voxelmapCullSideFlagsAddr,
+		voxelmapCullSideFlagsAddrEnd = voxelmapCullSideFlagsAddrEnd,
 		spriteNormalExhaggerationAddr = spriteNormalExhaggerationAddr,
 		spriteNormalExhaggerationAddrEnd = spriteNormalExhaggerationAddrEnd,
 	})
@@ -3697,6 +3703,7 @@ function App:resize()
 			-- idk why exactly but meh, fixes a bug
 			-- hmm, why would the mode draw obj shader forget its HD2DFlags value? weird.
 			self:onHD2DFlagsChange()
+			self:onVoxelmapCullSideFlagsChange()
 		end
 	end
 end

@@ -463,6 +463,9 @@ function Chunk:rebuildMesh(app)
 													oppositeSideIndex = rotateSideByOrientation[oppositeSideIndex+1][orientationInv[nbhdVox.orientation+1]+1]
 													occluded = nbhdmesh.sidesOccluded[oppositeSideIndex]
 												end
+											else
+												-- if nbhd is oob then use voxelmapCullSideFlags to determine whether or not to cull it
+												occluded = 0 ~= bit.band(app.ram.voxelmapCullSideFlags, bit.lshift(1, sideIndex))
 											end
 										end
 
@@ -878,6 +881,14 @@ end
 
 		chunk.dirtyCPU = true
 		self.dirtyCPU = true
+	end
+end
+
+function BlobVoxelMap:onVoxelmapCullSideFlagsChange()
+	self.dirtyCPU = true
+	for i=0,self.chunkVolume-1 do
+		-- TODO compare old bits vs new bits, only flag the chunks on the sides that changed.
+		self.chunks[i].dirtyCPU = true
 	end
 end
 

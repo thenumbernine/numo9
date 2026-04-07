@@ -419,19 +419,22 @@ while still allowing you to turn lights on or off by toggling their `enabled` fi
 0x02087e - 0x020882 = mouseWheel
 0x020882 - 0x020886 = lastMousePos
 0x020886 - 0x02088a = lastMousePressPos
-0x02088a - 0x02088c = HD2DFlags
+0x02088a - 0x02088b = HD2DFlags
+0x02088b - 0x02088c = voxelmapCullSideFlags
 0x02088c - 0x02088e = lightmapWidth
 0x02088e - 0x020890 = lightmapHeight
 0x020890 - 0x02089c = lightAmbientColor
 0x02089c - 0x02089e = numLights
 0x02089e - 0x02d09e = lights
 0x02d09e - 0x02d0a2 = dofFocalDist
-0x02d0a2 - 0x02d0a6 = dofAperature
-0x02d0a6 - 0x02d0aa = ssaoSampleRadius
-0x02d0aa - 0x02d0ae = ssaoInfluence
-0x02d0ae - 0x02d0b2 = spriteNormalExhaggeration
-0x02d0b2 - 0x02d0b6 = blobCount
-0x02d0b6 - 0x02d0c2 = blobEntries
+0x02d0a2 - 0x02d0a6 = dofFocalRange
+0x02d0a6 - 0x02d0aa = dofAperature
+0x02d0aa - 0x02d0ae = dofBlurMax
+0x02d0ae - 0x02d0b2 = ssaoSampleRadius
+0x02d0b2 - 0x02d0b6 = ssaoInfluence
+0x02d0b6 - 0x02d0ba = spriteNormalExhaggeration
+0x02d0ba - 0x02d0be = blobCount
+0x02d0be - 0x02d0ca = blobEntries
 ```
 
 # Language

@@ -1030,6 +1030,12 @@ function AppVideo:onHD2DFlagsChange()
 	self.HD2DFlagsDirty = true
 end
 
+function AppVideo:onVoxelmapCullSideFlagsChange()
+	for _,blob in ipairs(self.blobs.voxelmap) do
+		blob:onVoxelmapCullSideFlagsChange()
+	end
+end
+
 -- call this when ram.blendColor changes
 -- or when self.blendColorA changes
 -- or upon setVideoMode
@@ -3598,13 +3604,14 @@ print()
 		ffi.copy(fragUniLight.negViewDir.s, self.lightViewInvMat.ptr + 8, ffi.sizeof(vec3f))
 	end
 
+	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
+	
 	-- TODO how about binding the frag uni gpu uniform buffer to the vao ...
 	self.currentVideoMode.fragUniGPU
 		:bind()
 		:updateData()
-		:unbind()
+		--:unbind()
 
-	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
 	sceneObj.geometry:draw()
 	program:useNone()
 	for i=#texs,1,-1 do
