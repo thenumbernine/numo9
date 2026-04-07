@@ -520,6 +520,7 @@ function EditVoxelMap:update()
 		)
 		app.ram.paletteBlobIndex = pushPalBlobIndex
 
+		-- TODO this goes way too slow
 		if self.wireframe then
 			local v = voxelmap:getVoxelDataRAMPtr()
 			for k=0,mapsize.z-1 do
@@ -779,6 +780,21 @@ function EditVoxelMap:update()
 						end
 					elseif self.drawMode == 'select' then
 
+						-- show where paste would go if we have copied ... ?
+						-- only in select mode
+						-- TODO instead of saving 'lastCopySize' upon copy/cut
+						--  ... do a SDL on-copy event handler.
+						if self.lastCopySize then
+							local halfSize = (.5 * self.lastCopySize):map(math.floor)
+							self:drawBox(
+								box3d(
+									npti - halfSize,
+									npti - halfSize + self.lastCopySize
+								),
+								0x1d)
+						end
+
+
 						-- right-click to paste on surface at pti / outside
 						if app:keyp'mouse_right' then
 							self:pasteAtCenter(voxelmap, pti, sideIndex)
@@ -945,7 +961,7 @@ function EditVoxelMap:update()
 							math.max(self.rectDown.x, self.rectUp.x)+1,
 							math.max(self.rectDown.y, self.rectUp.y)+1,
 							math.max(self.rectDown.z, self.rectUp.z)+1)
-					), 0x1b)
+					), 0x1c)
 				end
 
 				if not self.tooltip then
@@ -1171,7 +1187,13 @@ function EditVoxelMap:update()
 			uikey = app:key'lctrl' or app:key'rctrl'
 		end
 		if uikey then
-			if app:keyp'x' or app:keyp'c' then
+			if app:keyp'a' then
+				-- select-all
+				self.rectUp:set(0,0,0)
+				self.rectDown:set(mapboxIE.max:unpack())
+			elseif app:keyp'x'
+			or app:keyp'c'
+			then
 				if self.rectDown and self.rectUp then
 					local min = vec3d(
 						math.min(self.rectUp.x, self.rectDown.x),
@@ -1182,6 +1204,7 @@ function EditVoxelMap:update()
 						math.max(self.rectUp.y, self.rectDown.y),
 						math.max(self.rectUp.z, self.rectDown.z))
 					local size = max - min + 1
+					self.lastCopySize = size:clone()
 					local o = vector(uint32_t)
 					o:emplace_back()[0] = size.x
 					o:emplace_back()[0] = size.y
