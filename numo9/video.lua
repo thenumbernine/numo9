@@ -1839,8 +1839,8 @@ function AppVideo:drawSolidLine3D(
 	local dslensq = dsx*dsx + dsy*dsy
 	if dslensq < 1e-7 then return end
 	local dsinvlen = 1/math.sqrt(dslensq)
-	dsx = dsx * dsinvlen * thickness
-	dsy = dsy * dsinvlen * thickness
+	dsx = dsx * dsinvlen * .5 * thickness
+	dsy = dsy * dsinvlen * .5 * thickness
 
 	local sx1b = sx1 + dsx
 	local sy1b = sy1 + dsy
