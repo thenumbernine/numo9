@@ -1022,16 +1022,11 @@ voxelmap editor fixes:
 
 - TODO list:
 	- add "scene" blob and editor for placing objects with denoation for sprites / tilemaps / brushes / brushmaps / mesh3ds / voxels / voxelmaps - all with pos, size, scale, rotate, orientation vars
-	- document lightmaps in README somehow ...
-	- expose lightmap struct in ramaddr/ramsize somehow ...
-	- expose maxLights too, or move it all to a light blob, tempting
-	- use UBOs for lights
 	- let the cart chop up lightmaps itself
 		- let cart choose lightmap size?  nah.  let engine?  let player offer hint at tuning down lightmap if desired?
 		- add RAM / engine var per light for update frequency
 		- add an include/numo9/light.lua for rect packing / atlas packing for use with lightmaps choosing regions
 		- add an include/numo9/light.lua for designating for light regions as tetrad lights.  also for 6 as cube lights.
-		- with all this data, maybe lightmaps should have their own blobs?
 	- final pass given an option for choosing miplevel for mosaic effect.
 	- gen mipmapping upon framebuffer tex flush
 	- gen normalmaps upon sheet flush.
@@ -1068,9 +1063,6 @@ voxelmap editor fixes:
 - when the RAM structure changes, the config file / keys reset themselves ... why?
 
 - lights should have sprites, or a sheet index for all lights and sheet subregion for each light and flag for if its being used...
-
-- high-dynamic-range (TODO)
-- depth-of-field (TODO)
 
 - voxel editor, when the camera direction is grid aligned it can detect collision when there isnt one.
 
