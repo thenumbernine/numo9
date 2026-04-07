@@ -7,6 +7,7 @@ local assert = require 'ext.assert'
 local math = require 'ext.math'
 local table = require 'ext.table'
 local string = require 'ext.string'
+local vec2d = require 'vec-ffi.vec2d'
 local vec2i = require 'vec-ffi.vec2i'
 require 'ffi.req' 'c.string'	-- memcmp
 local Image = require 'image'
@@ -86,12 +87,12 @@ function EditSheet:onCartLoad()
 	-- sprite edit mode
 	self.spriteSelDown = vec2i()
 	self.spriteSelUp = vec2i()
-	self.spritesheetPanOffset = vec2i()
-	self.spritesheetPanDownPos = vec2i()
+	self.spritesheetPanOffset = vec2d()
+	self.spritesheetPanDownPos = vec2d()
 	self.spritesheetPanPressed = false
 
-	self.spritePanOffset = vec2i()	-- holds the panning offset from the sprite location
-	self.spritePanDownPos = vec2i()	-- where the mouse was when you pressed down to pan
+	self.spritePanOffset = vec2d()	-- holds the panning offset from the sprite location
+	self.spritePanDownPos = vec2d()	-- where the mouse was when you pressed down to pan
 	self.spritePanPressed = false
 
 	self.spriteBit = 0	-- which bitplane to start at: 0-7
@@ -272,8 +273,8 @@ function EditSheet:update()
 				local tx = tx1 - tx0
 				local ty = ty1 - ty0
 				if tx ~= 0 or ty ~= 0 then
-					self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - tx
-					self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - ty
+					self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - tx * tonumber(spriteSize.x)
+					self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - ty * tonumber(spriteSize.y)
 					self.spritesheetPanDownPos:set(mouseX, mouseY)
 				end
 			end
