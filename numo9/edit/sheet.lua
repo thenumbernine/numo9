@@ -89,6 +89,7 @@ function EditSheet:onCartLoad()
 	self.spriteSelUp = vec2i()
 	self.spritesheetPanOffset = vec2d()
 	self.spritesheetPanDownPos = vec2d()
+	self.spritesheetScale = 1
 	self.spritesheetPanPressed = false
 
 	self.spritePanOffset = vec2d()	-- holds the panning offset from the sprite location
@@ -203,42 +204,60 @@ function EditSheet:update()
 	local w = sw * spriteSize.x
 	local h = sh * spriteSize.y
 
-	local function spritesheetCoordToFb(ssX, ssY)
-		return
-			ssX * spriteSize.x - self.spritesheetPanOffset.x + x,
-			ssY * spriteSize.y - self.spritesheetPanOffset.y + y
-	end
 	-- draw some pattern under the spritesheet so you can tell what's transparent
 	self:guiSetClipRect(x, y, w-1, h-1)
-	do
-		-- this is the framebuffer coord bounds of the spritesheet.
-		local x1, y1 = spritesheetCoordToFb(0, 0)
-		local x2, y2 = spritesheetCoordToFb(spriteSheetSizeInTiles:unpack())
-		app:drawQuadTex(
-			app.paletteMenuTex,
-			app.checkerTex,
-			x1, y1, x2-x1, y2-y1,	-- x y w h
-			0, 0, w/2, h/2)			-- tx ty tw th
-	end
+
+	app:matMenuReset()
+	app:mattrans(x, y)
+	app:matscale(self.spritesheetScale, self.spritesheetScale)
+	app:mattrans(-self.spritesheetPanOffset.x, -self.spritesheetPanOffset.y)
+
+	app:drawQuadTex(
+		app.paletteMenuTex,
+		app.checkerTex,
+		0, 0, 256, 256,	-- x y w h
+		0, 0, w/2, h/2)			-- tx ty tw th
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = self.paletteBlobIndex
+
 	app:drawQuad(
-		x,		-- x
-		y,		-- y
-		w,		-- w
-		h,		-- h
-		self.spritesheetPanOffset.x,-- tx
-		self.spritesheetPanOffset.y,-- ty
-		w-1,						-- tw
-		h-1,						-- th
-		0,		--- orientation2D
+		0,		-- x
+		0,		-- y
+		256,	-- w
+		256,	-- h
+		0,		-- tx
+		0,		-- ty
+		256,	-- tw
+		256,	-- th
+		0,		-- orientation2D
 		self.sheetBlobIndex,
 		0,		-- paletteShift
 		-1,		-- transparentIndex
 		0,		-- spriteBit
 		0xFF	-- spriteMask
 	)
+
 	app.ram.paletteBlobIndex = pushPalBlobIndex
+
+	-- sprite sel rect (1x1 ... 8x8)
+	-- ... also show the offset ... is that a good idea?
+	do
+		local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
+		local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
+		local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
+		local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
+		app:drawBorderRect(
+			selx * spriteSize.x + self.spritePanOffset.x,
+			sely * spriteSize.y + self.spritePanOffset.y,
+			selw * spriteSize.x,
+			selh * spriteSize.y,
+			0xd,
+			nil,
+			app.paletteMenuTex
+		)
+	end
+
+	app:matMenuReset()
 
 	-- since when is clipMax having problems?
 	--self:guiSetClipRect(0, 0, clipMax, clipMax)
@@ -246,14 +265,15 @@ function EditSheet:update()
 
 	app:drawBorderRect(x-1, y-1, w+2, h+2, 0xd, nil, app.paletteMenuTex)
 
-
-	self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - app.ram.mouseWheel.x
-	self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - app.ram.mouseWheel.y
-
 	local function fbToSheetCoord(fbX, fbY)
 		return
-			(fbX - x + self.spritesheetPanOffset.x) / spriteSize.x,
-			(fbY - y + self.spritesheetPanOffset.y) / spriteSize.y
+			((fbX - x) / self.spritesheetScale + self.spritesheetPanOffset.x) / spriteSize.x,
+			((fbY - y) / self.spritesheetScale + self.spritesheetPanOffset.y) / spriteSize.y
+	end
+
+	local function panSheet(dx, dy)
+		self.spritesheetPanOffset.x = self.spritesheetPanOffset.x + dx
+		self.spritesheetPanOffset.y = self.spritesheetPanOffset.y + dy
 	end
 
 	local spritesheetPanHandled
@@ -273,8 +293,7 @@ function EditSheet:update()
 				local tx = tx1 - tx0
 				local ty = ty1 - ty0
 				if tx ~= 0 or ty ~= 0 then
-					self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - tx * tonumber(spriteSize.x)
-					self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - ty * tonumber(spriteSize.y)
+					panSheet(-tx * tonumber(spriteSize.x), -ty * tonumber(spriteSize.y))
 					self.spritesheetPanDownPos:set(mouseX, mouseY)
 				end
 			end
@@ -284,6 +303,19 @@ function EditSheet:update()
 	if x <= mouseX and mouseX < x+w
 	and y <= mouseY and mouseY <= y+h
 	then
+		if shift then
+			local dy = app.ram.mouseWheel.y
+			if dy ~= 0 then
+				-- 128 is half 256 I guess, which is the sheet size in pixels I guess?
+				panSheet(128 / self.spritesheetScale, 128 / self.spritesheetScale)
+				self.spritesheetScale = self.spritesheetScale * math.exp(.1 * dy)
+				panSheet(-128 / self.spritesheetScale, -128 / self.spritesheetScale)
+			end
+		else
+			self.spritesheetPanOffset.x = self.spritesheetPanOffset.x - app.ram.mouseWheel.x
+			self.spritesheetPanOffset.y = self.spritesheetPanOffset.y - app.ram.mouseWheel.y
+		end
+
 		if app:key'space' then
 			spritesheetPan(app:keyp'space')
 		end
@@ -309,29 +341,6 @@ function EditSheet:update()
 	if not spritesheetPanHandled then
 		self.spritesheetPanPressed = false
 	end
-
-	self:guiSetClipRect(x, y, w-1, h-1)
-	-- sprite sel rect (1x1 ... 8x8)
-	-- ... also show the offset ... is that a good idea?
-	do
-		local selx = math.min(self.spriteSelDown.x, self.spriteSelUp.x)
-		local sely = math.min(self.spriteSelDown.y, self.spriteSelUp.y)
-		local selw = math.max(self.spriteSelDown.x, self.spriteSelUp.x) - selx + 1
-		local selh = math.max(self.spriteSelDown.y, self.spriteSelUp.y) - sely + 1
-		app:drawBorderRect(
-			selx * spriteSize.x + x + self.spritePanOffset.x - self.spritesheetPanOffset.x,
-			sely * spriteSize.y + y + self.spritePanOffset.y - self.spritesheetPanOffset.y,
-			selw * spriteSize.x,
-			selh * spriteSize.y,
-			0xd,
-			nil,
-			app.paletteMenuTex
-		)
-	end
-
-	-- since when is clipMax having problems?
-	--self:guiSetClipRect(0, 0, clipMax, clipMax)
-	self:guiSetClipRect(0, 0, 256, 256)
 
 	-- sprite edit area
 	local x = 2

@@ -194,6 +194,7 @@ function EditTilemap:update()
 		self.tilemapPanOffset.y = self.tilemapPanOffset.y + dy
 	end
 	if shift then
+		-- 128 is half 256 I guess, which is the sheet size in pixels I guess?
 		pan(128 / self.scale, 128 / self.scale)
 		self.scale = self.scale * math.exp(.1 * app.ram.mouseWheel.y)
 		pan(-128 / self.scale, -128 / self.scale)
