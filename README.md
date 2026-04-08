@@ -1112,7 +1112,7 @@ BUGS/FIXES SINCE 1.2.2:
 - in fact, maybe, maybe, get rid of GL getter errors throwing?  so that only gl.debug reports tracebacks? or nah? hmmmmmmm
 - a few more buffer binding bugs
 - added `voxelmapCullSideFlags`
+- added sprite-sheet h-flip, v-flip, rotate-left, rotate-right.
 
 BUGS TO FIX:
 - disabling DoF but not HDR before render in mode 0xFF made the screen go black ...
-- pasting voxels that have high values, or maybe certain orietnations, will screw up.  is it meshgen thing, or a int signed-ness thing? idk.

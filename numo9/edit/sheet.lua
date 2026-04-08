@@ -455,6 +455,80 @@ function EditSheet:update()
 		end
 	end
 
+
+	local function getpixel(tx, ty)
+		if not (0 <= tx and tx < spriteSheetSize.x
+		and 0 <= ty and ty < spriteSheetSize.y)
+		then return end
+
+		-- TODO HERE draw a pixel to the sprite sheet ...
+		-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
+		-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
+		local mask = bit.lshift(
+			bit.lshift(1, self.spriteBitDepth) - 1,
+			self.spriteBit
+		)
+
+
+		-- TODO since shift is shift, should I be subtracing it here?
+		-- or should I just be AND'ing it?
+		-- let's subtract it
+		local texelIndex = tx + spriteSheetSize.x * ty
+		assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+		local addr = currentSheetAddr + texelIndex
+		return bit.band(
+			0xff,
+			self.paletteOffset
+			+ bit.rshift(
+				bit.band(mask, app:peek(addr)),
+				self.spriteBit
+			)
+		)
+	end
+
+	local function putpixel(tx,ty, putValue)
+		if not (0 <= tx and tx < spriteSheetSize.x
+		and 0 <= ty and ty < spriteSheetSize.y)
+		then return end
+
+		putValue = putValue or self.paletteSelIndex
+
+		-- TODO HERE draw a pixel to the sprite sheet ...
+		-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
+		-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
+		local mask = bit.lshift(
+			bit.lshift(1, self.spriteBitDepth) - 1,
+			self.spriteBit
+		)
+
+
+		local texelIndex = tx + spriteSheetSize.x * ty
+		assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
+		local addr = currentSheetAddr + texelIndex
+		local value = bit.bor(
+			bit.band(
+				bit.bnot(mask),
+				app:peek(addr)
+			),
+			bit.band(
+				mask,
+				bit.lshift(
+					putValue - self.paletteOffset,
+					self.spriteBit
+				)
+			)
+		)
+		self:edit_poke(addr, value)
+		self.hist = nil	-- invalidate histogram
+
+		-- TODO wait does edit_poke write to the blob?
+		-- it has to right?
+		-- if not then pushing the undo content wont matter
+		self.undo:pushContinuous()
+	end
+
+
+
 	if self.spriteDrawMode == 'draw'
 	or self.spriteDrawMode == 'dropper'
 	or self.spriteDrawMode == 'fill'
@@ -466,63 +540,6 @@ function EditSheet:update()
 			local tx, ty = fbToSpriteCoord(mouseX, mouseY)
 			tx = math.floor(tx)
 			ty = math.floor(ty)
-			-- TODO HERE draw a pixel to the sprite sheet ...
-			-- TODO TODO I'm gonna write to the spriteSheet.image then re-upload it
-			-- I hope nobody has modified the GPU buffer and invalidated the sync between them ...
-			local mask = bit.lshift(
-				bit.lshift(1, self.spriteBitDepth) - 1,
-				self.spriteBit
-			)
-
-			local function getpixel(tx, ty)
-				if not (0 <= tx and tx < spriteSheetSize.x
-				and 0 <= ty and ty < spriteSheetSize.y)
-				then return end
-
-				-- TODO since shift is shift, should I be subtracing it here?
-				-- or should I just be AND'ing it?
-				-- let's subtract it
-				local texelIndex = tx + spriteSheetSize.x * ty
-				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-				local addr = currentSheetAddr + texelIndex
-				return bit.band(
-					0xff,
-					self.paletteOffset
-					+ bit.rshift(
-						bit.band(mask, app:peek(addr)),
-						self.spriteBit
-					)
-				)
-			end
-			local function putpixel(tx,ty)
-				if not (0 <= tx and tx < spriteSheetSize.x
-				and 0 <= ty and ty < spriteSheetSize.y)
-				then return end
-
-				local texelIndex = tx + spriteSheetSize.x * ty
-				assert(0 <= texelIndex and texelIndex < spriteSheetSize:volume())
-				local addr = currentSheetAddr + texelIndex
-				local value = bit.bor(
-					bit.band(
-						bit.bnot(mask),
-						app:peek(addr)
-					),
-					bit.band(
-						mask,
-						bit.lshift(
-							self.paletteSelIndex - self.paletteOffset,
-							self.spriteBit
-						)
-					)
-				)
-				self:edit_poke(addr, value)
-				self.hist = nil	-- invalidate histogram
-
-				-- TODO wait does edit_poke write to the blob?
-				-- it has to right?
-				-- if not then pushing the undo content wont matter
-				self.undo:pushContinuous()
-			end
 
 			if self.spriteDrawMode == 'dropper'
 			or (self.spriteDrawMode == 'draw' and shift)
@@ -612,6 +629,102 @@ function EditSheet:update()
 
 	if not spritePanHandled then
 		self.spritePanPressed = false
+	end
+
+	-- hflip, vflip, hrot, vrot
+	do
+		local x = 0
+		local y = 96
+		if self:guiButton('H', x, y, nil, 'hflip') then
+			local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
+			local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
+			local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
+			local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
+			for j=0,selh-1 do
+				local y = j + sely
+				for i=0,math.floor(selw/2)-1 do
+					local x1 = selx + i
+					local x2 = selx + (selw - 1 - i)
+					local p1 = getpixel(x1, y)
+					local p2 = getpixel(x2, y)
+					putpixel(x1, y, p2)
+					putpixel(x2, y, p1)
+				end
+			end
+		end
+		x = x + 6
+		if self:guiButton('V', x, y, nil, 'vflip') then
+			local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
+			local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
+			local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
+			local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
+			for j=0,math.floor(selh/2)-1 do
+				local y1 = sely + j
+				local y2 = sely + (selh - 1 - j)
+				for i=0,selw-1 do
+					local x = selx + i
+					local p1 = getpixel(x, y1)
+					local p2 = getpixel(x, y2)
+					putpixel(x, y1, p2)
+					putpixel(x, y2, p1)
+				end
+			end
+		end
+		x = x - 6
+		y = y + 8
+		if self:guiButton('L', x, y, nil, 'rot-L') then
+			local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
+			local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
+			local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
+			local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
+			-- this is only guaranteed to work for a square ...
+			selw = math.min(selw, selh)
+			selh = selw
+			for j=0,math.floor(selh/2)-1 do
+				for i=0,math.floor(selw/2)-1 do
+					local x1, y1 = selx + i, sely + j
+					local x2, y2 = selx + (selw-1-j), sely + i
+					local x3, y3 = selx + (selw-1-i), sely + (selw-1-j)
+					local x4, y4 = selx + j, sely + (selw-1-i)
+					local p1 = getpixel(x1, y1)
+					local p2 = getpixel(x2, y2)
+					local p3 = getpixel(x3, y3)
+					local p4 = getpixel(x4, y4)
+					putpixel(x1, y1, p2)
+					putpixel(x2, y2, p3)
+					putpixel(x3, y3, p4)
+					putpixel(x4, y4, p1)
+				end
+			end
+		end
+		x = x + 6
+		if self:guiButton('R', x, y, nil, 'rot-R') then
+			local selx = spriteSize.x * (math.min(self.spriteSelDown.x, self.spriteSelUp.x))
+			local sely = spriteSize.y * (math.min(self.spriteSelDown.y, self.spriteSelUp.y))
+			local selw = spriteSize.x * (math.max(self.spriteSelDown.x, self.spriteSelUp.x) + 1) - selx
+			local selh = spriteSize.y * (math.max(self.spriteSelDown.y, self.spriteSelUp.y) + 1) - sely
+			-- this is only guaranteed to work for a square ...
+			selw = math.min(selw, selh)
+			selh = selw
+			for j=0,math.floor(selh/2)-1 do
+				local y1 = sely + j
+				local y2 = sely + (selh - 1 - j)
+				for i=0,math.floor(selw/2)-1 do
+					local x1, y1 = selx + i, sely + j
+					local x2, y2 = selx + (selw-1-j), sely + i
+					local x3, y3 = selx + (selw-1-i), sely + (selw-1-j)
+					local x4, y4 = selx + j, sely + (selw-1-i)
+					local p1 = getpixel(x1, y1)
+					local p2 = getpixel(x2, y2)
+					local p3 = getpixel(x3, y3)
+					local p4 = getpixel(x4, y4)
+					putpixel(x1, y1, p4)
+					putpixel(x2, y2, p1)
+					putpixel(x3, y3, p2)
+					putpixel(x4, y4, p3)
+				end
+			end
+		end
 	end
 
 	-- sprite edit method
