@@ -1592,7 +1592,7 @@ function App:update()
 	if not self.hasFocus then
 		-- only pause-on-lost-focus if we're not in multiplayer
 		if not self.server and not self.remoteClient then
-			sdl.SDL_Delay(1000)
+			sdl.SDL_Delay(100)
 			return
 		end
 	end
