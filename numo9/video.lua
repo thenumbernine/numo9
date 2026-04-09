@@ -1784,9 +1784,9 @@ function AppVideo:drawSolidLine3D(
 	-- and multiplying it through the inverse of proj, model, view mats
 	-- and then looking at the result's dx and dy to use ...
 	-- feed xyz 1 2 through the transform pipeline to determine its screen depth value
-	
+
 	local eps = 1e-3
-	
+
 	local cx1, cy1, cz1, cw1 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x1, y1, z1, 1)))
 	local cx2, cy2, cz2, cw2 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x2, y2, z2, 1)))
 
@@ -1798,13 +1798,13 @@ function AppVideo:drawSolidLine3D(
 		sx1,sy1,sz1,sw1 = cx1*s, cy1*s, cz1*s, cw1*s
 	else
 		-- clip and regenerate
-		local t = (eps - cw1) / (cw2 - cw1)	-- t = coeff that the near plane is in clip-space 
+		local t = (eps - cw1) / (cw2 - cw1)	-- t = coeff that the near plane is in clip-space
 		x1 = x1 + t * dx
 		y1 = y1 + t * dy
 		z1 = z1 + t * dz
-		
+
 		cx1, cy1, cz1, cw1 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x1, y1, z1, 1)))
-		
+
 		local s = 1/cw1
 		sx1,sy1,sz1,sw1 = cx1*s, cy1*s, cz1*s, cw1*s
 	end
@@ -1821,11 +1821,11 @@ function AppVideo:drawSolidLine3D(
 		z2 = z2 - (1 - t) * dz
 
 		cx2, cy2, cz2, cw2 = mat4x4mul(self.ram.projMat.ptr, mat4x4mul(self.ram.viewMat.ptr, mat4x4mul(self.ram.modelMat.ptr, x2, y2, z2, 1)))
-		
+
 		local s = 1/cw2
 		sx2,sy2,sz2,sw2 = cx2*s, cy2*s, cz2*s, cw2*s
 	end
-	
+
 	sx1 = (sx1 + 1) * .5 * self.ram.screenWidth
 	sy1 = (-sy1 + 1) * .5 * self.ram.screenHeight
 
@@ -1857,7 +1857,7 @@ function AppVideo:drawSolidLine3D(
 	x1b=x1b/w1b
 	y1b=y1b/w1b
 	z1b=z1b/w1b
-	
+
 	x2b=x2b/w2b
 	y2b=y2b/w2b
 	z2b=z2b/w2b
@@ -1873,7 +1873,7 @@ function AppVideo:drawSolidLine3D(
 	local xRL = x2
 	local yRL = y2
 	local zRL = z2
-                          
+
 	local xRR = x2b
 	local yRR = y2b
 	local zRR = z2b
@@ -3605,14 +3605,18 @@ print()
 	end
 
 	sceneObj.vao:bind()	-- sceneObj:enableAndSetAttrs()
-	
+
 	-- TODO how about binding the frag uni gpu uniform buffer to the vao ...
 	self.currentVideoMode.fragUniGPU
 		:bind()
 		:updateData()
-		--:unbind()
+		:unbind()
 
 	sceneObj.geometry:draw()
+
+	--self.currentVideoMode.fragUniGPU
+	--	:unbind()
+
 	program:useNone()
 	for i=#texs,1,-1 do
 		texs[i]:unbind(i-1)
@@ -3671,6 +3675,14 @@ print()
 			videoMode.hdrBlitObj:draw()
 			videoMode.hdrTex.fbo:unbind()
 			prevTex = videoMode.hdrTex:cur()
+
+			-- if DoF isnt gonna gen mipmaps then we better gen them here...
+			if bit.band(ram.HD2DFlags, ffi.C.HD2DFlags_useDoF) == 0 then
+				prevTex
+					:bind()
+					:setParameter(gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
+					:unbind()
+			end
 		--[[
 		else
 			prevTex

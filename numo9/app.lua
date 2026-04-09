@@ -1909,15 +1909,9 @@ print('run thread dead')
 			self.ram.dither = 0
 
 -- TODO TODO TODO
--- push/pop here is the laziest, but
--- if you runa nything in hte console then this will overwrite it
--- so in the menu
--- its best to push/pop only what vars you use
--- and only when you use them
--- ...
--- OR DO push/pop everything, for menu and console
--- and just run your console commands from outside this block
---  i.e. from the :event handler
+-- don't use numo9/video.lua or FC API anywhere for menus
+-- just use GL API, or separate set of shaders and geom
+-- better yet, just use another library, like lua-gui
 
 			-- push matrix
 			ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
@@ -2275,7 +2269,6 @@ print('run thread dead')
 		end
 		self.takeScreenshot = nil
 	end
-
 end
 
 -- ... where to put this ... in video, app, or ui?

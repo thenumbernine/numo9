@@ -1514,7 +1514,7 @@ flat out vec4 box;
 out float clipDepth;
 out vec3 worldCoordv;
 
-uniform mat4 modelMat;	// fwd-transform of model->world 
+uniform mat4 modelMat;	// fwd-transform of model->world
 uniform mat4 viewMat;	// wait so really this is the inverse-transform of the view ....
 uniform mat4 projMat;	// fwd-transform of view coord -> ONB homogeneous coord
 

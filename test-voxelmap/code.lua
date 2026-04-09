@@ -487,10 +487,12 @@ update=||do
 
 	-- this is post-projection transform so good luck with that
 	pokef(ramaddr'dofFocalDist', 8)
+	pokef(ramaddr'dofFocalRange', 1)
 	pokef(ramaddr'dofAperature', .2)
+	pokef(ramaddr'dofBlurMax', 1)
 
-	poke(ramaddr'HD2DFlags', 0)			-- set neither
+	poke(ramaddr'HD2DFlags', 0)		-- set neither
 	--poke(ramaddr'HD2DFlags', 0x80)	-- set DoF
-	--poke(ramaddr'HD2DFlags', 0x40)	-- set HDR ... TODO it's showing all black hmm ...
+	--poke(ramaddr'HD2DFlags', 0x40)		-- set HDR
 	--poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
 end

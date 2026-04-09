@@ -1075,11 +1075,10 @@ voxelmap editor fixes:
 
 - sheet editor
 	- need to discern between paste RGBA and paste 8bpp
+		- libclip doesn't, should move to SDL clip but SDL can' thandle text i think, at least not 3.2.8 which I'm on right now
 		- paste with transparency still glitches/fails
 		- also copy from black pixels will paste with transparent if the RGB matches ... TODO need to match RGBA, or better yet, copy in 8bpp
-		- why not just port the clip library to luajit ...
-	- sheet bucket fill undo still leaves one pixel remaining.
-		- is this from `undoContinuous()` being by timestamp?
+		- why not just port the clip library to luajit ... because it is both large (esp linux), multithreaded, and in the case of osx it requires .m compilation anyways so a pure luajit / C API support might be tough... or impossible idk how well obj c works as C API.
 
 - think about redoing script format.
 	- for the sake of preserving names, you either have to:
