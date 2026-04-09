@@ -1912,6 +1912,7 @@ print('run thread dead')
 -- don't use numo9/video.lua or FC API anywhere for menus
 -- just use GL API, or separate set of shaders and geom
 -- better yet, just use another library, like lua-gui
+-- but it looks like the lua-gui library needs a lot of extensions to it backported from TacticsLua back into it, like even things like click callbacks and borders.
 
 			-- push matrix
 			ffi.copy(modelMatPush, self.ram.modelMat, ffi.sizeof(modelMatPush))
