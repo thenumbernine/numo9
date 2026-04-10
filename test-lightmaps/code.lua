@@ -3,6 +3,7 @@
 
 --#include ext/range.lua
 --#include numo9/matstack.lua
+--#include numo9/lights.lua
 
 poke(ramaddr'HD2DFlags', 0xff & ~4)	-- lightmaps without ssao
 pokef(ramaddr'ssaoSampleRadius', .1)

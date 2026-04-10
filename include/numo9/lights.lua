@@ -1,14 +1,10 @@
 --#include ext/class.lua
+--#include numo9/matstack.lua	-- modelMatrixIndex etc
+
 
 -- light system object
 Lights = {}
 do
-
-	-- maybe this goes somewhere else in include/numo9/?
-	Lights.modelMatrixIndex = 0
-	Lights.viewMatrixIndex = 1
-	Lights.projMatrixIndex = 2
-
 	-- how many lights to use
 	-- must be less than max lights,
 	--  which is hard coded to the ram size ...
@@ -92,21 +88,21 @@ do
 		local lightAddr, lx, ly, lw, lh = Lights:new(self.lightmapWidthInSubRegions, self.lightmapHeightInSubRegions)
 
 		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
-		matpush(self.projMatrixIndex)
-		matpush(self.viewMatrixIndex)	-- push the view mat
+		matpush(projMatrixIndex)
+		matpush(viewMatrixIndex)	-- push the view mat
 
-		matident(self.projMatrixIndex)
+		matident(projMatrixIndex)
 		local orthoSize = .5 * stagesize:len()	-- max diagonal
 		local znear, zfar = -4, 2 * orthoSize
 		matortho(-orthoSize, orthoSize, -orthoSize, orthoSize, znear, zfar)	-- projMatrixIndex by default
 
-		matident(self.viewMatrixIndex)
+		matident(viewMatrixIndex)
 		-- negative rotation because inverse for view transform
 		-- angle starts looking down i.e. towards z- (cuz opengl)
 		-- tilting up 45 degrees means its still tilted at a pitch down of 45 degrees.
-		matrot(-math.rad(45), 1, 0, 0, self.viewMatrixIndex)	-- initial view angle is straight down ...
+		matrot(-math.rad(45), 1, 0, 0, viewMatrixIndex)	-- initial view angle is straight down ...
 		-- cam starts looking along y+ so 45 to the right
-		matrot(-math.rad(-45), 0, 0, 1, self.viewMatrixIndex)
+		matrot(-math.rad(-45), 0, 0, 1, viewMatrixIndex)
 		local fwdx = -peekf(ramaddr'viewMat' + 2*4)	 -- -.5
 		local fwdy = -peekf(ramaddr'viewMat' + 6*4)	-- .5
 		local fwdz = -peekf(ramaddr'viewMat' + 10*4)	-- -math.sqrt(2)
@@ -119,15 +115,15 @@ do
 			-(.5 * stagesize.x - orthoSize * fwdx),
 			-(.5 * stagesize.y - orthoSize * fwdy),
 			-(.5 * stagesize.z - orthoSize * fwdz),
-			self.viewMatrixIndex)
+			viewMatrixIndex)
 
 		poke(lightAddr + self.lightEnabledOffset, 0xff)	-- light is enabled for depth-write and for surface-calculations
 
 		memcpy(lightAddr + self.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
 		memcpy(lightAddr + self.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
 
-		matpop(self.viewMatrixIndex)
-		matpop(self.projMatrixIndex)
+		matpop(viewMatrixIndex)
+		matpop(projMatrixIndex)
 
 		-- is per-light ambient color dumb?
 		pokef(lightAddr + self.lightAmbientColorOffset, 0)
@@ -162,8 +158,8 @@ do
 	MakeLight.tanHalfFOV = 1 -- math.tan(math.rad(.5 * 90))	-- used for 90 degrees
 	MakeLight.go = |:, x,y,z| do
 		local znear, zfar, tanHalfFOV = self.znear, self.zfar, self.tanHalfFOV
-		matpush(Lights.projMatrixIndex)	-- push proj mat
-		matpush(Lights.viewMatrixIndex)	-- push view mat
+		matpush(projMatrixIndex)	-- push proj mat
+		matpush(viewMatrixIndex)	-- push view mat
 		-- set up a torch point light at the player
 		-- TODO lightmap block allocation system ...
 		for lightIndex=0,self.numSides-1 do
@@ -177,7 +173,7 @@ do
 			pokew(lightAddr + Lights.lightRegionOffset+4, lw)
 			pokew(lightAddr + Lights.lightRegionOffset+6, lh)
 
-			matident(Lights.projMatrixIndex)
+			matident(projMatrixIndex)
 			matfrustum(
 				-tanHalfFOV * znear,
 				tanHalfFOV * znear,
@@ -186,9 +182,9 @@ do
 				znear,
 				zfar)	-- matfrustum sets projMatrixIndex by default
 
-			matident(Lights.viewMatrixIndex)
+			matident(viewMatrixIndex)
 			self:sideTransform(lightIndex)
-			mattrans(-x, -y, -z, Lights.viewMatrixIndex)
+			mattrans(-x, -y, -z, viewMatrixIndex)
 
 			memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
 			memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
@@ -209,8 +205,8 @@ do
 			pokef(lightAddr + Lights.lightCosAngleRangeOffset, -2)
 			pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, -1)		-- don't set equal so we don't get divide-by-zero
 		end
-		matpop(Lights.viewMatrixIndex)	-- pop view mat
-		matpop(Lights.projMatrixIndex)	-- pop proj mat
+		matpop(viewMatrixIndex)	-- pop view mat
+		matpop(projMatrixIndex)	-- pop proj mat
 	end
 
 	-- cube point light
@@ -219,12 +215,12 @@ do
 	MakePointCubeLight.numSides = 6
 	MakePointCubeLight.sideTransform = |:, lightIndex| do
 		if lightIndex < 4 then
-			matrot(-math.rad(90), 1, 0, 0, Lights.viewMatrixIndex)	-- initial view angle is straight down ...
-			matrot(-math.rad(lightIndex * 90), 0, 0, 1, Lights.viewMatrixIndex)
+			matrot(-math.rad(90), 1, 0, 0, viewMatrixIndex)	-- initial view angle is straight down ...
+			matrot(-math.rad(lightIndex * 90), 0, 0, 1, viewMatrixIndex)
 		elseif lightIndex == 4 then	-- down
 			-- init dir is down
 		elseif lightIndex == 5 then	-- up
-			matrot(-math.rad(180), 1, 0, 0, Lights.viewMatrixIndex)
+			matrot(-math.rad(180), 1, 0, 0, viewMatrixIndex)
 		end
 	end
 	Lights.makePointLight = |...|do
@@ -243,8 +239,8 @@ do
 		if lightIndex == 3 then
 			-- identity
 		else	-- 0-2, rotate down acos(-1/3) = 1.910633236249 radians, then rotate around by 120 each 
-			matrot(-math.rad(109), 1, 0, 0, Lights.viewMatrixIndex)	-- rotate up by 109 degrees
-			matrot(-math.rad(lightIndex * 120), 0, 0, 1, Lights.viewMatrixIndex)	-- rotate around by 120 degrees
+			matrot(-math.rad(109), 1, 0, 0, viewMatrixIndex)	-- rotate up by 109 degrees
+			matrot(-math.rad(lightIndex * 120), 0, 0, 1, viewMatrixIndex)	-- rotate around by 120 degrees
 		end
 	end
 	Lights.makePointLightTetrahedron = |...| do
@@ -260,10 +256,10 @@ do
 		local lightAddr, lx, ly, lw, lh = Lights:new()
 
 		-- TODO using mat for our light math causes tri buf flushes and mat dirty bit flags ... meh?
-		matpush(Lights.projMatrixIndex)
-		matpush(Lights.viewMatrixIndex)	-- push the view mat
+		matpush(projMatrixIndex)
+		matpush(viewMatrixIndex)	-- push the view mat
 
-		matident(Lights.projMatrixIndex)
+		matident(projMatrixIndex)
 		local tanHalfFOV = math.tan(math.rad(spotOuterAngle))
 		local znear, zfar = .01, 10	-- light znear/zfar
 		matfrustum(
@@ -273,19 +269,19 @@ do
 			tanHalfFOV * znear,
 			znear, zfar)	-- projMatrixIndex by default
 
-		matident(Lights.viewMatrixIndex)
-		matrot(-math.rad(90 + pitchAngle), 1, 0, 0, Lights.viewMatrixIndex)	-- initial view angle is straight down ...
-		matrot(-math.rad(yawAngle), 0, 0, 1, Lights.viewMatrixIndex)
+		matident(viewMatrixIndex)
+		matrot(-math.rad(90 + pitchAngle), 1, 0, 0, viewMatrixIndex)	-- initial view angle is straight down ...
+		matrot(-math.rad(yawAngle), 0, 0, 1, viewMatrixIndex)
 
-		mattrans(-x, -y, -z, Lights.viewMatrixIndex)
+		mattrans(-x, -y, -z, viewMatrixIndex)
 
 		poke(lightAddr + Lights.lightEnabledOffset, 0xff)		-- light is enabled for depth-write and for surface-calculations
 
 		memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
 		memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
 
-		matpop(Lights.viewMatrixIndex)
-		matpop(Lights.projMatrixIndex)
+		matpop(viewMatrixIndex)
+		matpop(projMatrixIndex)
 
 		pokef(lightAddr + Lights.lightAmbientColorOffset, .4)
 		pokef(lightAddr + Lights.lightAmbientColorOffset+4, .3)
