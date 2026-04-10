@@ -1933,9 +1933,13 @@ print('run thread dead')
 			-- TODO not using this for drawText anymore so meh who still uses it?
 			self.inMenuUpdate = true
 
-			local fbTex = self.currentVideoMode.framebufferRAM.tex
+			--local fbTex = self.currentVideoMode.framebufferRAM.tex
+			local fbTex = self:getPipelineRenderTex()
+
 			-- setVideoMode here to make sure we're drawing with the RGB565 shaders and not indexed palette stuff
-			self:setVideoMode(255)
+			local pushVideoMode = self.ram.videoMode
+			self.ram.videoMode = 255
+			self:setVideoMode(self.ram.videoMode)
 
 			gl.glViewport(0, 0, self.currentVideoMode.framebufferRAM.tex.width, self.currentVideoMode.framebufferRAM.tex.height)
 
@@ -1967,11 +1971,17 @@ print('run thread dead')
 			--  *and* you gotta have the HD2DFlags set for light depth to be cleared as well during clearScreen()
 			-- (TODO maybe make clearScreen() flags for clearing light buffer?)
 			self:clearScreen()
-			-- TODO this background overlay of the last framebuffer isnt working ...
+
+			--[[
+			self.ram.HD2DFlags = 0
+			self:onHD2DFlagsChange()
+			self:clearScreen()
+			--]]
+
 			-- [=[
 			-- if we were on 255 then we can't use transparent backdrop cuz the menu wil be using our framebuffer as well
 			-- (... what?)
-			if fbTex ~= self.currentVideoMode.framebufferRAM.tex then
+			do--if fbTex ~= self.currentVideoMode.framebufferRAM.tex then
 				local sceneObj = self.currentVideoMode.blitScreenObj
 				-- [[
 				local fx = self.width / fbTex.width
@@ -1999,8 +2009,10 @@ print('run thread dead')
 				--]]
 				-- change to old fb tex from mode before we set to video mode 255.
 				-- in case we were before at 255 then ... i should not do this.
+				local pushTex = sceneObj.texs[1]
 				sceneObj.texs[1] = fbTex
 				sceneObj:draw()
+				sceneObj.texs[1] = pushTex
 			end
 			gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
 			--]=]
@@ -2011,7 +2023,6 @@ print('run thread dead')
 
 			local thread = self.activeMenu.thread
 			if thread then
-
 				self.menuSizeInSprites.y = 256
 				self.menuSizeInSprites.x = 256 * self.width / self.height
 				self:matMenuReset()
@@ -2050,6 +2061,7 @@ print('run thread dead')
 				end
 			end
 
+			self.ram.videoMode = pushVideoMode
 			self:setVideoMode(self.ram.videoMode)
 
 			-- necessary or nah?
@@ -2186,8 +2198,18 @@ print('run thread dead')
 		needDrawCounter = needDrawCounter - 1
 		drawsPerSecond = drawsPerSecond + 1
 
+		local pushHD2DFlags
+		local pushVideoMode 
 		if self.activeMenu then
-			self:setVideoMode(255)
+			pushVideoMode = self.ram.videoMode
+			self.ram.videoMode = 255
+			self:setVideoMode(self.ram.videoMode)
+
+			pushHD2DFlags = self.ram.HD2DFlags
+			self.ram.HD2DFlags = 0
+			if self.ram.HD2DFlags ~= pushHD2DFlags then
+				self:onHD2DFlagsChange()
+			end
 		end
 
 --DEBUG(glquery):drawQuery:begin()
@@ -2202,9 +2224,7 @@ print('run thread dead')
 		gl.glClearColor(.1, .2, .3, 1.)
 		gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
 
-		local fbTex = self.activeMenu
-			and self.videoModes[255].framebufferRAM.tex
-			or self:getPipelineRenderTex()
+		local fbTex = self:getPipelineRenderTex()
 
 		-- redo ortho projection matrix
 		-- every frame for us to use a proper rectangle
@@ -2239,12 +2259,14 @@ print('run thread dead')
 			sceneObj = videoModeObj.blitScreenObj
 		end
 		sceneObj.uniforms.mvProjMat = view.mvProjMat.ptr
+		local pushTex = sceneObj.texs[1]
 		sceneObj.texs[1] = fbTex
 
 		-- draw from framebuffer to screen
 		sceneObj:draw()
+		sceneObj.texs[1] = pushTex
 
-		sceneObj.vao:unbind()
+		--sceneObj.vao:unbind()
 
 		-- [[ DOUBLEBUFFER ON: and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)
@@ -2254,7 +2276,14 @@ print('run thread dead')
 		--]]
 
 		if self.activeMenu then
-			sceneObj.texs[1] = self.currentVideoMode.framebufferRAM.tex
+			if self.ram.HD2DFlags ~= pushHD2DFlags then
+				self.ram.HD2DFlags = pushHD2DFlags
+				self:onHD2DFlagsChange()
+			end
+
+			--sceneObj.texs[1] = self.currentVideoMode.framebufferRAM.tex
+			
+			self.ram.videoMode = pushVideoMode 
 			self:setVideoMode(self.ram.videoMode)
 		end
 

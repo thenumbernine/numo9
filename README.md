@@ -1114,4 +1114,4 @@ BUGS/FIXES SINCE 1.2.2:
 - added sprite-sheet h-flip, v-flip, rotate-left, rotate-right.
 
 BUGS TO FIX:
-- disabling DoF but not HDR before render in mode 0xFF made the screen go black ...
+- opening menu with lighting enabled - works fine in mode 255, but in any other mode when you close the menu then everything goes black.
