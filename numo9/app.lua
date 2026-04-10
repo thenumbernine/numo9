@@ -2066,6 +2066,7 @@ print('run thread dead')
 
 			-- necessary or nah?
 			local fbTex = self.currentVideoMode.framebufferRAM.tex
+			--local fbTex = self:getPipelineRenderTex()
 			gl.glViewport(0, 0, fbTex.width, fbTex.height)
 
 			-- pop lighting
@@ -2265,8 +2266,6 @@ print('run thread dead')
 		-- draw from framebuffer to screen
 		sceneObj:draw()
 		sceneObj.texs[1] = pushTex
-
-		--sceneObj.vao:unbind()
 
 		-- [[ DOUBLEBUFFER ON: and swap ... or just don't use backbuffer at all ...
 		sdl.SDL_GL_SwapWindow(self.window)

@@ -3610,12 +3610,13 @@ print()
 	self.currentVideoMode.fragUniGPU
 		:bind()
 		:updateData()
-		:unbind()
 
 	sceneObj.geometry:draw()
 
-	--self.currentVideoMode.fragUniGPU
-	--	:unbind()
+	self.currentVideoMode.fragUniGPU
+		:unbind()
+
+	sceneObj.vao:unbind()
 
 	program:useNone()
 	for i=#texs,1,-1 do
