@@ -1,4 +1,6 @@
 --#include ext/class.lua
+--#include vec/vec2.lua
+--#include vec/vec3.lua
 --#include numo9/matstack.lua	-- modelMatrixIndex etc
 
 
@@ -155,6 +157,12 @@ do
 	Lights.MakeLight = MakeLight
 	MakeLight.znear = .01
 	MakeLight.zfar = 10
+	MakeLight.ambient = vec3(.4, .3, .2)
+	MakeLight.diffuse = vec3(1, 1, 1)
+	MakeLight.specular = vec3(.6, .5, .4)
+	MakeLight.shininess = 30
+	MakeLight.distAtten = vec3(.7, 0, .01)	-- quadratic attenuation
+	MakeLight.cosAngleRange = vec2(-2, -1)		-- don't set equal so we don't get divide-by-zero
 	MakeLight.tanHalfFOV = 1 -- math.tan(math.rad(.5 * 90))	-- used for 90 degrees
 	MakeLight.go = |:, x,y,z| do
 		local znear, zfar, tanHalfFOV = self.znear, self.zfar, self.tanHalfFOV
@@ -189,21 +197,21 @@ do
 			memcpy(lightAddr + Lights.lightViewMatOffset, ramaddr'viewMat', 64)	-- matrix #1
 			memcpy(lightAddr + Lights.lightProjMatOffset, ramaddr'projMat', 64)	-- matrix #2
 
-			pokef(lightAddr + Lights.lightAmbientColorOffset, .4)
-			pokef(lightAddr + Lights.lightAmbientColorOffset+4, .3)
-			pokef(lightAddr + Lights.lightAmbientColorOffset+8, .2)
-			pokef(lightAddr + Lights.lightDiffuseColorOffset, 1)
-			pokef(lightAddr + Lights.lightDiffuseColorOffset+4, 1)
-			pokef(lightAddr + Lights.lightDiffuseColorOffset+8, 1)
-			pokef(lightAddr + Lights.lightSpecularColorOffset, .6)
-			pokef(lightAddr + Lights.lightSpecularColorOffset+4, .5)
-			pokef(lightAddr + Lights.lightSpecularColorOffset+8, .4)
-			pokef(lightAddr + Lights.lightSpecularColorOffset+12, 30)
-			pokef(lightAddr + Lights.lightDistAttenOffset, .7)
-			pokef(lightAddr + Lights.lightDistAttenOffset+4, 0)
-			pokef(lightAddr + Lights.lightDistAttenOffset+8, .01)	-- quadratic attenuation
-			pokef(lightAddr + Lights.lightCosAngleRangeOffset, -2)
-			pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, -1)		-- don't set equal so we don't get divide-by-zero
+			pokef(lightAddr + Lights.lightAmbientColorOffset, self.ambient.x)
+			pokef(lightAddr + Lights.lightAmbientColorOffset+4, self.ambient.y)
+			pokef(lightAddr + Lights.lightAmbientColorOffset+8, self.ambient.z)
+			pokef(lightAddr + Lights.lightDiffuseColorOffset, self.diffuse.x)
+			pokef(lightAddr + Lights.lightDiffuseColorOffset+4, self.diffuse.y)
+			pokef(lightAddr + Lights.lightDiffuseColorOffset+8, self.diffuse.z)
+			pokef(lightAddr + Lights.lightSpecularColorOffset, self.specular.x)
+			pokef(lightAddr + Lights.lightSpecularColorOffset+4, self.specular.y)
+			pokef(lightAddr + Lights.lightSpecularColorOffset+8, self.specular.z)
+			pokef(lightAddr + Lights.lightSpecularColorOffset+12, self.shininess)
+			pokef(lightAddr + Lights.lightDistAttenOffset, self.distAtten.x)
+			pokef(lightAddr + Lights.lightDistAttenOffset+4, self.distAtten.y)
+			pokef(lightAddr + Lights.lightDistAttenOffset+8, self.distAtten.z)
+			pokef(lightAddr + Lights.lightCosAngleRangeOffset, self.cosAngleRange.x)
+			pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, self.cosAngleRange.y)
 		end
 		matpop(viewMatrixIndex)	-- pop view mat
 		matpop(projMatrixIndex)	-- pop proj mat
@@ -250,7 +258,19 @@ do
 
 
 	-- TODO spotlight angle attenuation (min/max angle)
-	Lights.makeSpotLight = |x,y,z, yawAngle, pitchAngle, spotOuterAngle, spotInnerAngle|do
+	local MakeSpotLight = class()
+	Lights.MakeSpotLight = MakeSpotLight
+	MakeSpotLight.ambient = vec3(.4, .3, .2)
+	MakeSpotLight.diffuse = vec3(1, 1, 1)
+	MakeSpotLight.specular = vec3(.6, .5, .4)
+	MakeSpotLight.shininess = 30
+	-- [[ quadratic distance attenuation
+	MakeSpotLight.distAtten = vec3(.7, 0, .1)
+	--]]
+	--[[ no distance attenuation
+	MakeSpotLight.distAtten = vec3(1, 0, 0)
+	--]]
+	MakeSpotLight.go = |:, x,y,z, yawAngle, pitchAngle, spotOuterAngle, spotInnerAngle|do
 		-- set up a torch point light at the player
 		-- TODO lightmap block allocation system ...
 		local lightAddr, lx, ly, lw, lh = Lights:new()
@@ -283,26 +303,19 @@ do
 		matpop(viewMatrixIndex)
 		matpop(projMatrixIndex)
 
-		pokef(lightAddr + Lights.lightAmbientColorOffset, .4)
-		pokef(lightAddr + Lights.lightAmbientColorOffset+4, .3)
-		pokef(lightAddr + Lights.lightAmbientColorOffset+8, .2)
-		pokef(lightAddr + Lights.lightDiffuseColorOffset, 1)
-		pokef(lightAddr + Lights.lightDiffuseColorOffset+4, 1)
-		pokef(lightAddr + Lights.lightDiffuseColorOffset+8, 1)
-		pokef(lightAddr + Lights.lightSpecularColorOffset, .6)
-		pokef(lightAddr + Lights.lightSpecularColorOffset+4, .5)
-		pokef(lightAddr + Lights.lightSpecularColorOffset+8, .4)
-		pokef(lightAddr + Lights.lightSpecularColorOffset+12, 30)
-		-- [[ quadratic distance attenuation
-		pokef(lightAddr + Lights.lightDistAttenOffset, .7)
-		pokef(lightAddr + Lights.lightDistAttenOffset+4, 0)
-		pokef(lightAddr + Lights.lightDistAttenOffset+8, .1)	-- quadratic attenuation
-		--]]
-		--[[ no distance attenuation
-		pokef(lightAddr + Lights.lightDistAttenOffset, 1)
-		pokef(lightAddr + Lights.lightDistAttenOffset+4, 0)
-		pokef(lightAddr + Lights.lightDistAttenOffset+8, 0)
-		--]]
+		pokef(lightAddr + Lights.lightAmbientColorOffset, self.ambient.x)
+		pokef(lightAddr + Lights.lightAmbientColorOffset+4, self.ambient.y)
+		pokef(lightAddr + Lights.lightAmbientColorOffset+8, self.ambient.z)
+		pokef(lightAddr + Lights.lightDiffuseColorOffset, self.diffuse.x)
+		pokef(lightAddr + Lights.lightDiffuseColorOffset+4, self.diffuse.y)
+		pokef(lightAddr + Lights.lightDiffuseColorOffset+8, self.diffuse.z)
+		pokef(lightAddr + Lights.lightSpecularColorOffset, self.specular.x)
+		pokef(lightAddr + Lights.lightSpecularColorOffset+4, self.specular.y)
+		pokef(lightAddr + Lights.lightSpecularColorOffset+8, self.specular.z)
+		pokef(lightAddr + Lights.lightSpecularColorOffset+12, self.shininess)
+		pokef(lightAddr + Lights.lightDistAttenOffset, self.distAtten.x)
+		pokef(lightAddr + Lights.lightDistAttenOffset+4, self.distAtten.y)
+		pokef(lightAddr + Lights.lightDistAttenOffset+8, self.distAtten.z)
 		pokef(lightAddr + Lights.lightCosAngleRangeOffset, math.cos(math.rad(spotOuterAngle)))
 		pokef(lightAddr + Lights.lightCosAngleRangeOffset+4, math.cos(math.rad(spotInnerAngle)))
 
@@ -312,6 +325,7 @@ do
 		pokew(lightAddr + Lights.lightRegionOffset+4, lw)
 		pokew(lightAddr + Lights.lightRegionOffset+6, lh)
 	end
+	Lights.makeSpotLight = |...| MakeSpotLight:go(...)
 
 	Lights.beginFrame = |:|do
 		-- reset light counters

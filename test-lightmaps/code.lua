@@ -20,32 +20,30 @@ local poly = |t, a| do
 	return s
 end
 
-pokew(ramaddr'numLights', 1)			-- turn on 1 light
--- [[
 pokef(ramaddr'lightAmbientColor', .5)	-- global ambient color
 pokef(ramaddr'lightAmbientColor' + 4, .5)
 pokef(ramaddr'lightAmbientColor' + 8, .5)
-poke(ramaddr'lights', 0xff)	-- enable light #0
-pokew(ramaddr'lights' + 2, 0)	-- lightmap region
+
+pokew(ramaddr'numLights', 1)			-- turn on 1 light
+Lights:beginFrame()
+Lights.MakeSpotLight.ambient:set(0,0,0)
+Lights.MakeSpotLight.diffuse:set(1,1,1)
+Lights.MakeSpotLight.specular:set(1,1,1)
+Lights.MakeSpotLight.shininess = 10
+Lights.MakeSpotLight.distAtten:set(1,0,0)
+Lights.makeSpotLight(
+	0,0,0,	-- x,y,z
+	0,-90,	-- yaw, pitch
+	math.pi, math.pi	-- outer angle, inner angle
+)
+pokew(ramaddr'lights' + 2, 0)	-- lightmap region: use the full lightmap
 pokew(ramaddr'lights' + 4, 0)
 pokew(ramaddr'lights' + 6, peekw(ramaddr'lightmapWidth'))
 pokew(ramaddr'lights' + 8, peekw(ramaddr'lightmapHeight'))
-pokef(ramaddr'lights' + 0xc, 0)		-- ambient color
-pokef(ramaddr'lights' + 0x10, 0)
-pokef(ramaddr'lights' + 0x14, 0)
-pokef(ramaddr'lights' + 0x18, 1)	-- diffuse color
-pokef(ramaddr'lights' + 0x1c, 1)
-pokef(ramaddr'lights' + 0x20, 1)
-pokef(ramaddr'lights' + 0x24, 1)	-- specular color
-pokef(ramaddr'lights' + 0x28, 1)
-pokef(ramaddr'lights' + 0x2c, 1)
-pokef(ramaddr'lights' + 0x30, 10)	-- specular highlight
-pokef(ramaddr'lights' + 0x34, 1)	-- dist atten
-pokef(ramaddr'lights' + 0x38, 0)
-pokef(ramaddr'lights' + 0x3c, 0)
 pokef(ramaddr'lights' + 0x40, -2)	-- angle atten
 pokef(ramaddr'lights' + 0x44, -1)
---]]
+Lights:endFrame()
+
 local lightViewMatOffset = 0x48
 local lightProjMatOffset = 0x88
 local copied
@@ -69,14 +67,14 @@ local rects = range(100):mapi(|i| {
 
 update = ||do
 	cls()
-	matident(0)
-	matident(1)
-	matident(2)
+	matident(modelMatrixIndex)
+	matident(viewMatrixIndex)
+	matident(projMatrixIndex)
 	matfrustum(-.1, .1, -.1, .1, .1, 100)
 	local t = time()
 	--local cx, cy = math.cos(t), math.sin(t)
-	mattrans(0, 0, -1, 1)		-- view transform
-	matrot(.3 * t, 0, 1, 0, 1)	-- view transform
+	mattrans(0, 0, -1, viewMatrixIndex)		-- view transform
+	matrot(.3 * t, 0, 1, 0, viewMatrixIndex)	-- view transform
 
 	if not copied then
 		memcpy(ramaddr'lights' + lightViewMatOffset, ramaddr'viewMat', 64)
