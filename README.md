@@ -11,6 +11,8 @@
 
 [Discord Channel](https://discord.gg/5mRZPNHccB)
 
+![test-voxelmap.png](docpics/test-voxelmap.png)
+
 # Fantasy Console
 
 I thought I'd make a fantasy console with all the LuaJIT binding code and libraries I have laying around.
