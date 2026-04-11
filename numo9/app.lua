@@ -2189,7 +2189,19 @@ print('run thread dead')
 			needDrawCounter = 1
 		end
 
+		local pushVideoMode
+		if self.activeMenu then
+			pushVideoMode = self.ram.videoMode
+			self.ram.videoMode = 255
+			self:setVideoMode(self.ram.videoMode)
+		end
+
 		self:updateHD2DPass()
+
+		if self.activeMenu then
+			self.ram.videoMode = pushVideoMode
+			self:setVideoMode(self.ram.videoMode)
+		end
 
 --DEBUG(glquery):updateQueryTotal = updateQueryTotal + updateQuery:doneWithResult()
 --DEBUG(glquery):updateQueryFrames = updateQueryFrames + 1
@@ -2200,7 +2212,7 @@ print('run thread dead')
 		drawsPerSecond = drawsPerSecond + 1
 
 		local pushHD2DFlags
-		local pushVideoMode 
+		local pushVideoMode
 		if self.activeMenu then
 			pushVideoMode = self.ram.videoMode
 			self.ram.videoMode = 255
@@ -2281,8 +2293,8 @@ print('run thread dead')
 			end
 
 			--sceneObj.texs[1] = self.currentVideoMode.framebufferRAM.tex
-			
-			self.ram.videoMode = pushVideoMode 
+
+			self.ram.videoMode = pushVideoMode
 			self:setVideoMode(self.ram.videoMode)
 		end
 

@@ -7,9 +7,9 @@
 
 poke(ramaddr'HD2DFlags', 0xff & ~4)	-- lightmaps without ssao
 pokef(ramaddr'ssaoSampleRadius', .1)
-mode(2)	-- 256x256 rgb332
+--mode(2)	-- 256x256 rgb332
 --mode(0)
---mode(255)
+mode(255)
 
 local poly = |t, a| do
 	local s = 0
