@@ -3737,6 +3737,14 @@ print()
 					ram.dofBlurMax
 				)
 			--end
+-- DoF space transform
+-- I could use the lighting matrix
+-- and that's fine for when your cart code is setting the light in the same coordinates as the world rendering
+-- or I could use the view space
+-- and rely on you to reset the view transform at the end of the scene
+-- and that is flexible for decoupling lighting from view
+-- but it requires an extra view matrix set ... 
+-- hmm ....
 			--if program.uniforms.drawViewDir then
 				gl.glUniform3f(
 					program.uniforms.drawViewDir.loc,
@@ -3753,7 +3761,6 @@ print()
 				)
 			--end
 			--if program.uniforms.drawViewPos then
-				-- always 0,0,0
 				gl.glUniform3f(
 					program.uniforms.drawViewPos.loc,
 					--[[
