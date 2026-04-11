@@ -450,10 +450,6 @@ local textwidth = 32 * 8
 local textheight = textwidth
 
 update=||do
-	-- disable lighting while we draw the sky
-	-- so the renderer can capture the correct vieew matrix for lighting (later)
-	--poke(ramaddr'HD2DFlags', 0)
-	-- or not, or enable it here so the lights are at a fixed location in the scene wrt the view
 	poke(ramaddr'HD2DFlags', HD2DFlags)
 	cls(33)
 
@@ -469,9 +465,6 @@ update=||do
 	)
 	cls(nil, true)	-- clear depth
 	
-	-- ok now turn on lighting, and set the proper view matrix
-	--poke(ramaddr'HD2DFlags', HD2DFlags)
-
 	view:update(width, height, player)
 
 	voxelmap()
@@ -503,7 +496,7 @@ update=||do
 	--poke(ramaddr'HD2DFlags', 0x40)		-- set HDR
 	--poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
 	poke(ramaddr'HD2DFlags', HD2DFlags)
-	
+
 	-- now re-update the view matrix back to normal fo rhte sake of DoF??????
 	view:update(width, height, player)
 end

@@ -3737,44 +3737,18 @@ print()
 					ram.dofBlurMax
 				)
 			--end
-			viewInv:inv4x4(self.ram.viewMat)
 			--if program.uniforms.drawViewDir then
 				gl.glUniform3f(
 					program.uniforms.drawViewDir.loc,
-					--[[ always 0,0,1
-					self.drawViewMatForLighting.ptr[2],
-					self.drawViewMatForLighting.ptr[6],
-					self.drawViewMatForLighting.ptr[10]
-					--]]
-					--[[ always 0,0,1
+					--[[
 					self.drawViewMatForLighting.ptr[8],
 					self.drawViewMatForLighting.ptr[9],
 					self.drawViewMatForLighting.ptr[10]
 					--]]
-					--[[
+					-- [[
 					self.drawViewInvMat.ptr[8],
 					self.drawViewInvMat.ptr[9],
 					self.drawViewInvMat.ptr[10]
-					--]]
-					--[[
-					self.ram.viewMat.ptr[8],
-					self.ram.viewMat.ptr[9],
-					self.ram.viewMat.ptr[10]
-					--]]
-					--[[
-					self.ram.viewMat.ptr[2],
-					self.ram.viewMat.ptr[6],
-					self.ram.viewMat.ptr[10]
-					--]]
-					--[[
-					viewInv.ptr[2],
-					viewInv.ptr[6],
-					viewInv.ptr[10]
-					--]]
-					-- [[
-					viewInv.ptr[8],
-					viewInv.ptr[9],
-					viewInv.ptr[10]
 					--]]
 				)
 			--end
@@ -3783,43 +3757,17 @@ print()
 				gl.glUniform3f(
 					program.uniforms.drawViewPos.loc,
 					--[[
-					self.drawViewInvMat.ptr[3],
-					self.drawViewInvMat.ptr[7],
-					self.drawViewInvMat.ptr[11]
+					self.drawViewMatForLighting.ptr[12],
+					self.drawViewMatForLighting.ptr[13],
+					self.drawViewMatForLighting.ptr[14]
 					--]]
-					--[[
+					-- [[
 					self.drawViewInvMat.ptr[12],
 					self.drawViewInvMat.ptr[13],
 					self.drawViewInvMat.ptr[14]
 					--]]
-					--[[
-					self.ram.viewMat.ptr[12],
-					self.ram.viewMat.ptr[13],
-					self.ram.viewMat.ptr[14]
-					--]]
-					--[[
-					self.ram.viewMat.ptr[3],
-					self.ram.viewMat.ptr[7],
-					self.ram.viewMat.ptr[11]
-					--]]
-					--[[
-					viewInv.ptr[3],
-					viewInv.ptr[7],
-					viewInv.ptr[11]
-					--]]
-					-- [[
-					viewInv.ptr[12],
-					viewInv.ptr[13],
-					viewInv.ptr[14]
-					--]]
 				)
 			--end
-			--[[
-			gl.glUniformMatrix4fv(
-				program.uniforms.viewMat.loc, 1, false, 
-				self.ram.viewMat.ptr
-			)
-			--]]
 			sceneObj.geometry:draw()
 			sceneObj.vao:unbind()
 			program:useNone()

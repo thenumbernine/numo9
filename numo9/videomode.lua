@@ -929,7 +929,7 @@ void main() {
 
 	ivec2 tci = ivec2(gl_FragCoord);
 	vec3 pos = texelFetch(framebufferPosTex, tci, 0).xyz;
-	float depth = -dot(normalize(drawViewDir), pos - drawViewPos);
+	float depth = -dot(drawViewDir, pos - drawViewPos);
 	float depthBlurAmount = clamp(
 		dofAperature * (abs(depth - dofFocalDist) - dofFocalRange),
 		0.,
