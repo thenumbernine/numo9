@@ -906,15 +906,14 @@ precision highp sampler2D;
 in vec2 tcv;
 layout(location=0) out vec4 fragColor;
 
-uniform mat4 viewMat;
-
 // prevTex is either lightAndFBTex if HDR is disabled,
 //  or hdrTex if HDR is enabled
 uniform <?=videoMode.hdrTex:cur():getGLSLSamplerType()?> prevTex;
 uniform <?=videoMode.framebufferPosTex:getGLSLSamplerType()?> framebufferPosTex;
 uniform <?=videoMode.framebufferNormalTex:getGLSLSamplerType()?> framebufferNormalTex;
 
-uniform vec4 drawViewDir;		// the dest-z row of the drawViewMat
+uniform vec3 drawViewDir;		// the dest-z row of the drawViewMat
+uniform vec3 drawViewPos;		// the dest-w of drawViewMatInv
 uniform float dofFocalDist;		// in view space, compared to framebufferPosTex.w
 uniform float dofFocalRange;	// how far +- that is in focus
 uniform float dofAperature;		// rate of going out of focus
@@ -929,22 +928,23 @@ void main() {
 	}
 
 	ivec2 tci = ivec2(gl_FragCoord);
-	vec4 pos = vec4(texelFetch(framebufferPosTex, tci, 0).xyz, 1.);
-	float depth = -dot(drawViewDir, pos);
+	vec3 pos = texelFetch(framebufferPosTex, tci, 0).xyz;
+	float depth = -dot(normalize(drawViewDir), pos - drawViewPos);
 	float depthBlurAmount = clamp(
 		dofAperature * (abs(depth - dofFocalDist) - dofFocalRange),
 		0.,
 		dofBlurMax
 	);
+
 #if 0	//using mipmpas
 	fragColor = texture(prevTex, tcv, depthBlurAmount);
-#elif 1	//using multiple mipmaps
+#elif 1	//using multiple mipmaps ... TODO with some kind of basis function
 	vec4 center = texture(prevTex, tcv, depthBlurAmount);
 	fragColor.a = center.a;
 	fragColor.rgb = (
 		center.rgb
-		+ texture(prevTex, tcv, depthBlurAmount + 1.).rgb
-		+ texture(prevTex, tcv, depthBlurAmount + 2.).rgb
+		+ texture(prevTex, tcv, clamp(depthBlurAmount - 1., 0., dofBlurMax)).rgb
+		+ texture(prevTex, tcv, clamp(depthBlurAmount + 1., 0., dofBlurMax)).rgb
 	) / 3.;
 #else	// using blur kernel
 	// https://www.researchgate.net/figure/Discrete-approximation-of-the-Gaussian-kernels-3x3-5x5-7x7_fig2_325768087

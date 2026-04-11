@@ -34,14 +34,8 @@ TODO I'm doubling up the net cmds sent for 2 draw conns ...
 --]]
 require 'ext.gc'	-- make sure luajit can __gc lua-tables
 local ffi = require 'ffi'
-
 require 'ffi.req' 'c.string'	-- strlen
-
-local success, socket = pcall(require, 'socket')
-if not success then
-	print"WARNING - couldn't load socket"
-end
-
+local socket = require 'socket'
 local class = require 'ext.class'
 local table = require 'ext.table'
 local range = require 'ext.range'

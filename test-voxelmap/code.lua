@@ -12,10 +12,16 @@ mode(0xff)	-- NativexRGB565
 --mode(0)		-- 256x256xRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
-local HD2DFlags = 0xff & ~4	-- turn off SSAO. meh.
+HD2DFlags = 0xff & ~4	-- turn off SSAO. meh.
 pokef(ramaddr'ssaoSampleRadius', .5)
 pokew(ramaddr'numLights', 1)			-- turn on 1 light
 poke(ramaddr'lights', 0xff)				-- enable light #0
+
+-- this is post-projection transform so good luck with that
+pokef(ramaddr'dofFocalDist', 10)
+pokef(ramaddr'dofFocalRange', 2)
+pokef(ramaddr'dofAperature', 1)	-- how much to multiply depth-dist to get blur amount
+pokef(ramaddr'dofBlurMax', 10)
 
 
 local player
@@ -444,6 +450,10 @@ local textwidth = 32 * 8
 local textheight = textwidth
 
 update=||do
+	-- disable lighting while we draw the sky
+	-- so the renderer can capture the correct vieew matrix for lighting (later)
+	--poke(ramaddr'HD2DFlags', 0)
+	-- or not, or enable it here so the lights are at a fixed location in the scene wrt the view
 	poke(ramaddr'HD2DFlags', HD2DFlags)
 	cls(33)
 
@@ -458,6 +468,9 @@ update=||do
 		textwidth/256, textheight/256	-- scaleX, scaleY
 	)
 	cls(nil, true)	-- clear depth
+	
+	-- ok now turn on lighting, and set the proper view matrix
+	--poke(ramaddr'HD2DFlags', HD2DFlags)
 
 	view:update(width, height, player)
 
@@ -485,14 +498,12 @@ update=||do
 	text(tostring('Cx '..playerCoins), 0, 0, 220, 219)
 	--]]
 
-	-- this is post-projection transform so good luck with that
-	pokef(ramaddr'dofFocalDist', 8)
-	pokef(ramaddr'dofFocalRange', 1)
-	pokef(ramaddr'dofAperature', .2)
-	pokef(ramaddr'dofBlurMax', 1)
-
-	poke(ramaddr'HD2DFlags', 0)		-- set neither
+	--poke(ramaddr'HD2DFlags', 0)		-- set neither
 	--poke(ramaddr'HD2DFlags', 0x80)	-- set DoF
 	--poke(ramaddr'HD2DFlags', 0x40)		-- set HDR
 	--poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
+	poke(ramaddr'HD2DFlags', HD2DFlags)
+	
+	-- now re-update the view matrix back to normal fo rhte sake of DoF??????
+	view:update(width, height, player)
 end
