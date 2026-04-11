@@ -6,6 +6,7 @@
 --#include vec/vec2.lua
 --#include vec/vec3.lua
 --#include numo9/matstack.lua
+--#include numo9/lights.lua
 --#include numo9/screen.lua
 
 mode(0xff)	-- NativexRGB565
@@ -14,8 +15,6 @@ mode(0xff)	-- NativexRGB565
 --mode(18)	-- 336x189xRGB565
 HD2DFlags = 0xff & ~4	-- turn off SSAO. meh.
 pokef(ramaddr'ssaoSampleRadius', .5)
-pokew(ramaddr'numLights', 1)			-- turn on 1 light
-poke(ramaddr'lights', 0xff)				-- enable light #0
 
 -- this is post-projection transform so good luck with that
 pokef(ramaddr'dofFocalDist', 10)
@@ -47,6 +46,7 @@ local view = {
 	destYaw = 90,
 	tiltUpAngle = -20,
 	followDist = 7,
+	pos = vec3(),
 }
 view.update = |:, width, height, player|do
 	-- setup proj matrix
@@ -73,10 +73,10 @@ view.update = |:, width, height, player|do
 	self.cosYaw = math.cos(viewYawRad)
 	self.sinYaw = math.sin(viewYawRad)
 	matrotcs(self.cosYaw, self.sinYaw, 0, 0, -1, 1)	-- view yaw = inverse-rotate negative-z-axis
-	local viewX = player.pos.x - self.followDist * sinPitch * -self.sinYaw
-	local viewY = player.pos.y - self.followDist * sinPitch * self.cosYaw
-	local viewZ = player.pos.z + self.followDist * cosPitch
-	mattrans(-viewX, -viewY, -viewZ, 1)	-- view = inverse-translate
+	self.pos.x = player.pos.x - self.followDist * sinPitch * -self.sinYaw
+	self.pos.y = player.pos.y - self.followDist * sinPitch * self.cosYaw
+	self.pos.z = player.pos.z + self.followDist * cosPitch
+	mattrans(-self.pos.x, -self.pos.y, -self.pos.z, 1)	-- view = inverse-translate
 
 	matident()
 end
@@ -450,7 +450,7 @@ local textwidth = 32 * 8
 local textheight = textwidth
 
 update=||do
-	poke(ramaddr'HD2DFlags', HD2DFlags)
+	poke(ramaddr'HD2DFlags', 0)
 	cls(33)
 
 	-- draw skyl
@@ -463,8 +463,15 @@ update=||do
 		0,								-- orientation2D
 		textwidth/256, textheight/256	-- scaleX, scaleY
 	)
-	cls(nil, true)	-- clear depth
 	
+	-- you gotta set HD2DFlags with lighting first
+	-- before clearing the depth buffer next....
+	poke(ramaddr'HD2DFlags', HD2DFlags)	
+
+	-- clear depth.
+	-- make sure lighting flags are set.
+	cls(nil, true)
+
 	view:update(width, height, player)
 
 	voxelmap()
@@ -477,16 +484,28 @@ update=||do
 		if objs[i].remove then objs:remove(i) end
 	end
 
+	Lights.MakeLight.znear = 1
+	Lights.MakeLight.zfar = 100
+	Lights.MakeLight.diffuse:set(2,2,2)
+	Lights.MakeLight.specular:set(2,2,2)
+	Lights.MakeLight.shininess = 1
+	Lights.MakeLight.distAtten:set(1,0,0)
+	Lights:beginFrame()
+	-- now come this is only shining down?  where are my 6 transform sides?
+	Lights.makePointLight(view.pos:unpack())
+	Lights:endFrame()
+
 	-- end-of-frame, after view has been captured, do ortho and draw text
 	-- but disable light flags before clearing depth or else it'll clear the light depth too
 	poke(ramaddr'HD2DFlags', 0)
+
 	cls(nil, true)
 	-- [[
 	--poke(ramaddr'HD2DFlags', 2)	-- if you want the gui text to cast a shadow...
+	textheight = textwidth * height / width
 	matident(0)
 	matident(1)
 	matident(2)
-	textheight = textwidth * height / width
 	matortho(0, textwidth, textheight, 0)
 	text(tostring('Cx '..playerCoins), 0, 0, 220, 219)
 	--]]
@@ -496,7 +515,4 @@ update=||do
 	--poke(ramaddr'HD2DFlags', 0x40)		-- set HDR
 	--poke(ramaddr'HD2DFlags', 0xC0)	-- set HDR and DoF
 	poke(ramaddr'HD2DFlags', HD2DFlags)
-
-	-- now re-update the view matrix back to normal fo rhte sake of DoF??????
-	view:update(width, height, player)
 end
