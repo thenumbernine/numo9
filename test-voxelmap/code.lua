@@ -484,6 +484,10 @@ update=||do
 		if objs[i].remove then objs:remove(i) end
 	end
 
+-- [[ use default for now.
+	pokew(ramaddr'numLights', 1)
+--]]
+--[[
 	Lights.MakeLight.znear = 1
 	Lights.MakeLight.zfar = 100
 	Lights.MakeLight.diffuse:set(2,2,2)
@@ -494,6 +498,7 @@ update=||do
 	-- now come this is only shining down?  where are my 6 transform sides?
 	Lights.makePointLight(view.pos:unpack())
 	Lights:endFrame()
+--]]
 
 	-- end-of-frame, after view has been captured, do ortho and draw text
 	-- but disable light flags before clearing depth or else it'll clear the light depth too
