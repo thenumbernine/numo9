@@ -1060,8 +1060,6 @@ voxelmap editor fixes:
 			- so I should split this into flags (even with filterable? blah ... )
 			- I'll need new fbo output for bitflag mask of what to apply to what: lighting, depth of field so far
 
-- switch light uniforms to UBOs
-
 - when the RAM structure changes, the config file / keys reset themselves ... why?
 
 - lights should have sprites, or a sheet index for all lights and sheet subregion for each light and flag for if its being used...
@@ -1096,24 +1094,7 @@ voxelmap editor fixes:
 
 - Should I also allow signed pokes/peeks?  pokesb, pokesw, pokesl?
 
-- There's a bug when you switch video modes from non-255 to 255 while using DOF or HDR effects
-
 - only do HDR and DOF on fragments that have its flag set
 
 - lighting blit now has a uniform block buffer .... all shaders should ....
 - - TODO it needs a CPU equivalent, and should be writing all at once or something, or only dirty regions or something, idk.
-
-BUGS/FIXES SINCE 1.2.2:
-- Fixed bug where undo-then-save wasn't flushing to cart memory correctly.
-- Fixed langfix bug where `f?()` and `f!()` couldn't be used as statmements.  Updated some cart scripts accordingly.
-- Renamed mget/mset to `tget/tset` and put the tilemap blob index first to match `vget/vset`.
-- Fixed up autotile API and added `include/numo9/autotile.lua`.
-- Added DOF and HDR passes.
-- resize in mode 0xFF does a GL error
-- in fact, maybe, maybe, get rid of GL getter errors throwing?  so that only gl.debug reports tracebacks? or nah? hmmmmmmm
-- a few more buffer binding bugs
-- added `voxelmapCullSideFlags`
-- added sprite-sheet h-flip, v-flip, rotate-left, rotate-right.
-
-BUGS TO FIX:
-- opening menu with lighting enabled - works fine in mode 255, but in any other mode when you close the menu then everything goes black.
