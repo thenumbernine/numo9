@@ -24,7 +24,7 @@ local float_3 = ffi.typeof'float[3]'
 local float_4 = ffi.typeof'float[4]'
 
 
-local version = table{1,3,0}
+local version = table{1,3,1}
 local versionSig = version:mapi(function(x) return string.char(x) end):concat()
 local versionStr = version:mapi(function(x) return tostring(x) end):concat'.'
 
