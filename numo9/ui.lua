@@ -293,12 +293,16 @@ function UI:guiTextField(
 	return changed
 end
 
-function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
+function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb, generator)
 	local app = self.app
 	local blobsOfType = app.blobs[blobName]
 	local popupKey = indexKey..'_popupOpen'
 	local buttonMenuTabCounter = self.menuTabCounter
 	local sel = self.menuTabIndex == buttonMenuTabCounter
+
+	generator = generator or function()
+		return blobClassForName[blobName]()
+	end
 
 	local handled
 
@@ -343,11 +347,11 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb)
 		if self:guiButton('+', x + 14, y + 10, nil) then
 			t[indexKey] = math.clamp(t[indexKey], 0, #blobsOfType-1)
 			if #blobsOfType == 0 then
-				blobsOfType:insert(blobClassForName[blobName]())
+				blobsOfType:insert(generator())
 				t[indexKey] = 0
 			else
 				-- insert after this 0-based blob = +2
-				blobsOfType:insert(t[indexKey]+2, blobClassForName[blobName]())
+				blobsOfType:insert(t[indexKey]+2, generator())
 				t[indexKey] = t[indexKey] + 1
 			end
 			changed = true

@@ -2,6 +2,7 @@ local ffi = require 'ffi'
 local assert = require 'ext.assert'
 local string = require 'ext.string'
 local table = require 'ext.table'
+local range = require 'ext.range'
 local math = require 'ext.math'
 local vector = require 'stl.vector-lua'
 local vec3i = require 'vec-ffi.vec3i'
@@ -101,7 +102,6 @@ function BlobMesh3D:init(data)
 	-- [[ here and TODO upon modification ...
 	-- track which tris are on each side / can be occluded
 	-- track which sides are fully covered in tris / will occlude
-	local range = require 'ext.range'
 	local trisPerSide = range(6):mapi(function(i) return table(), i-1 end)
 	self.sideForTriIndex = {}
 	for ti=0,#self.triList-1 do
@@ -290,10 +290,17 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 		end
 	end
 	--]]
+	return self:loadFromLists(vs, vts, is)
+end
 
+-- static method
+-- vs = vertexes, where +-64 maps to +-.5
+-- vts = texcoords, in 0-255
+-- is = indexes, 1-based
+function BlobMesh3D:loadFromLists(vs, vts, indexes)
 	local o = vector(int16_t)
 	o:emplace_back()[0] = #vs
-	o:emplace_back()[0] = #is
+	o:emplace_back()[0] = #indexes
 	assert.eq(#vs, #vts, "your vertexes and texcoords must match.  Sorry I don't do any splitting and re-merging of geometry here")
 	for i=1,#vs do
 		local v = assert.index(vs, i)
@@ -307,7 +314,7 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 	end
 
 	local allInARow = true
-	for i,j in ipairs(is) do
+	for i,j in ipairs(indexes) do
 		if i ~= j then
 			allInARow = false
 			break
@@ -317,7 +324,7 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 	if allInARow then
 		o.v[1] = 0	-- clear index count
 	else
-		for _,i in ipairs(is) do
+		for _,i in ipairs(indexes) do
 			o:emplace_back()[0] = i-1	-- convert from 1-based to 0-based
 		end
 	end

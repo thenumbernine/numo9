@@ -1,5 +1,8 @@
+local table = require 'ext.table'
+local math = require 'ext.math'
 local Orbit = require 'numo9.ui.orbit'
 local TileSelect = require 'numo9.ui.tilesel'
+local BlobMesh3D = require 'numo9.blob.mesh3d'
 
 local numo9_rom = require 'numo9.rom'
 local tileSizeInBits = numo9_rom.tileSizeInBits
@@ -99,8 +102,109 @@ function EditMesh3D:update()
 	end
 
 	local x, y = 50, 0
-	self:guiBlobSelect(x, y, 'mesh3d', self, 'mesh3DBlobIndex')
+
+	self:guiBlobSelect(
+		x, y, 						-- widget screen x,y
+		'mesh3d', 					-- blobName
+		self, 'mesh3DBlobIndex', 	-- table, indexKey
+		nil, 						-- callback upon text change or spinner click
+		function()					-- new blob generator:
+			-- we have just inserted an empty mesh into the mesh3d list
+			-- but for convenience's sake, let's replace the empty mesh with an identity cube mesh...
+			local Vertex = numo9_rom.Vertex
+			local vector = require 'stl.vector-lua'
+			local vtxs = vector(Vertex)
+
+			local vertexes = table{
+				-- x-
+				{-16384, 16384, -16384},
+				{-16384, -16384, -16384},
+				{-16384, -16384, 16384},
+				{-16384, 16384, 16384},
+				-- x+
+				{16384, 16384, -16384},
+				{16384, -16384, -16384},
+				{16384, -16384, 16384},
+				{16384, 16384, 16384},
+				-- y-
+				{-16384, -16384, 16384},
+				{-16384, -16384, -16384},
+				{16384, -16384, -16384},
+				{16384, -16384, 16384},
+				-- y+
+				{-16384, 16384, 16384},
+				{-16384, 16384, -16384},
+				{16384, 16384, -16384},
+				{16384, 16384, 16384},
+				-- z-
+				{-16384, -16384, -16384},
+				{-16384, 16384, -16384},
+				{16384, 16384, -16384},
+				{16384, -16384, -16384},
+				-- z+
+				{-16384, -16384, 16384},
+				{-16384, 16384, 16384},
+				{16384, 16384, 16384},
+				{16384, -16384, 16384},
+			}
+			local texcoords = table{
+				-- x-
+				{0, 15},
+				{15, 15},
+				{15, 0},
+				{0, 0},
+				-- x+
+				{15, 15},
+				{0, 15},
+				{0, 0},
+				{15, 0},
+				-- y-
+				{0, 0},
+				{0, 15},
+				{15, 15},
+				{15, 0},
+				-- y+
+				{15, 0},
+				{15, 15},
+				{0, 15},
+				{0, 0},
+				-- z-
+				{0, 0},
+				{0, 15},
+				{15, 15},
+				{15, 0},
+				-- z+
+				{0, 0},
+				{0, 15},
+				{15, 15},
+				{15, 0},
+			}
+			-- 1-based list
+			local indexes = {
+				-- x-
+				1, 2, 3,
+				3, 4, 1,
+				-- x+
+				5, 8, 7,
+				7, 6, 5,
+				-- y-
+				9, 10, 11,
+				11, 12, 9,
+				-- y+
+				13, 16, 15,
+				15, 14, 13,
+				-- z-
+				17, 18, 19,
+				19, 20, 17,
+				-- z+
+				21, 24, 23,
+				23, 22, 21,
+			}
+			return BlobMesh3D:loadFromLists(vertexes, texcoords, indexes)
+		end
+	)
 	x = x + 12
+
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
 	x = x + 12
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
