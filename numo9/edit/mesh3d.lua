@@ -1,6 +1,7 @@
 local table = require 'ext.table'
 local math = require 'ext.math'
 local vec3d = require 'vec-ffi.vec3d'
+local gl = require 'gl'
 local Orbit = require 'numo9.ui.orbit'
 local TileSelect = require 'numo9.ui.tilesel'
 local BlobMesh3D = require 'numo9.blob.mesh3d'
@@ -117,7 +118,8 @@ function EditMesh3D:update()
 			end
 
 			-- from here on, no depth mask, since it is all mesh highlights
-			gl.glDepthMask(gl.GL_FALSE)
+			app:triBuf_flush()
+			gl.glDisable(gl.GL_DEPTH_TEST)
 
 			--[[
 			local mouseDir =
@@ -321,7 +323,8 @@ function EditMesh3D:update()
 				end
 			end
 
-			gl.glDepthMask(gl.GL_TRUE)
+			app:triBuf_flush()
+			gl.glEnable(gl.GL_DEPTH_TEST)
 
 			orbit:endDraw()
 
