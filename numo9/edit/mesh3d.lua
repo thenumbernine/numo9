@@ -1,5 +1,6 @@
 local table = require 'ext.table'
 local math = require 'ext.math'
+local vec3d = require 'vec-ffi.vec3d'
 local Orbit = require 'numo9.ui.orbit'
 local TileSelect = require 'numo9.ui.tilesel'
 local BlobMesh3D = require 'numo9.blob.mesh3d'
@@ -27,28 +28,51 @@ function EditMesh3D:onCartLoad()
 	self.orbit = Orbit(self.app)
 end
 
+local function linePointDist(linePos, lineDir, pt)
+	local d = pt - linePos
+	local n = d:cross(linePos)
+	local n2 = lineDir:cross(n)
+	local dist = n2:dot(d)
+	return dist
+end
+
 function EditMesh3D:update()
 	local app = self.app
+	local orbit = self.orbit
 
-	EditMesh3D.super.update(self)
+	local handled = EditMesh3D.super.update(self)
+
+	app:matMenuReset()
+	--self:guiSetClipRect(-1000, 16, 3000, 240)
+
+	local mouseULX, mouseULY = app.ram.mousePos:unpack()
+	local mouseX, mouseY = app:invTransform(mouseULX, mouseULY)
+
+	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
+	local numVtxs
+	local numIndexes
+	local vtxs
+	local inds
+	if mesh3DBlob then
+		numVtxs = mesh3DBlob:getNumVertexes()
+		numIndexes = mesh3DBlob:getNumIndexes()
+		vtxs = mesh3DBlob:getVertexPtr()
+		inds = mesh3DBlob:getIndexPtr()
+	end
 
 	if not self.tileSel:doPopup() then
-
-		local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
 		if mesh3DBlob then
-			local mouseHandled = self.orbit:beginDraw()
+			handled = orbit:beginDraw() or handled
 			app:matscale(1/32768, 1/32768, 1/32768)
 
 			-- draw the 3D model here
+			-- TODO this goes slow af
+			-- instead please swap out polygon mode (is it possible?) or (can't do geom shaders and be webgl2 compat) hmm ...
 			if self.wireframe then
 				local color = 0x2e
 				local thickness = 1
 
-				local vtxs = mesh3DBlob:getVertexPtr()
-				local inds = mesh3DBlob:getIndexPtr()
-				local numIndexes = mesh3DBlob:getNumIndexes()
 				if numIndexes == 0 then	-- no indexes? just draw all vtxs
-					local numVtxs = mesh3DBlob:getNumVertexes()
 					for i=0,numVtxs-3,3 do
 						for j=0,2 do
 							local a = vtxs + i+j
@@ -89,7 +113,97 @@ function EditMesh3D:update()
 				app.ram.paletteBlobIndex = pushPalBlobIndex
 			end
 
-			self.orbit:endDraw()
+			--[[
+			local mouseDir =
+				- orbit.angle:zAxis()
+				+ orbit.angle:xAxis() * (mouseX - 128) / 128
+				- orbit.angle:yAxis() * (mouseY - 128) / 128
+			local mousePos = orbit.pos + .1 * mouseDir
+			-- TODO need to also rotate this by orbit orientation...
+			--]]
+
+--print('mouse XY', mouseULX, mouseULY)
+			local bestDistSq = math.huge
+			local bestVtxIndex
+			for i=0,numVtxs-1 do
+				local v = vtxs + i
+				-- sx sy are in [0,app.width)x[0,app.height) coords
+				local sx, sy = app:transform(v.x, v.y, v.z, 1)
+				local distSq = (mouseULX - sx)^2 + (mouseULY - sy)^2
+--print(i, v, sx, sy, math.sqrt(distSq))
+				if distSq < bestDistSq then
+					bestDistSq = distSq
+					bestVtxIndex = table{i}
+				elseif distSq == bestDistSq then
+					bestVtxIndex:insert(i)
+				end
+			end
+--print('mouseLine', mousePos, mouseDir, math.sqrt(bestDistSq), bestVtxIndex)
+			if bestVtxIndex then
+				self.highlightVertexIndexes = bestVtxIndex
+			end
+
+			--[[
+			controls ...
+			blender-like?
+			click to toggle selection of vertex
+			then ... how to translate? press 'g'?
+				and then mousemove to translate
+				and then 'xyz' to lock axis?
+				and then push #s to input amount to translate?
+
+			what else ...
+			vtxs:
+			- translate
+			- scale
+			- rotate ... along some axis?
+			- delete (and delete all tris that use this vtx?)
+			- make fan from list of selected vtxs (how to determine order / inside / outside?)
+			edge:
+			- delete (and delete all tris that use this edge ... )
+			- split
+			- collapse (to first? second? middle?)
+			tris:
+			- delete
+			- split (between which vtx and which edge?)
+			- subdiv (center-of-face, center-of-edge)
+			- flip normal
+			- extrude
+			- extrude-and-rotate-along-axis (cylinder sweep)
+			texcoords ....
+			- translate in sheet
+			- scale in sheet
+			- rotate in sheet
+			--]]
+
+			if self.highlightVertexIndexes then
+				for _,i in ipairs(self.highlightVertexIndex) do
+					if i >= 0
+					and i < numVtxs
+					then
+						local v = vtxs + i
+
+						app:drawSolidLine3D(
+							v.x-1024, v.y, v.z,
+							v.x+1024, v.y, v.z,
+							0x19, 8, app.paletteMenuTex)
+						app:drawSolidLine3D(
+							v.x, v.y-1024, v.z,
+							v.x, v.y+1024, v.z,
+							0x1a, 8, app.paletteMenuTex)
+						app:drawSolidLine3D(
+							v.x, v.y, v.z-1024,
+							v.x, v.y, v.z+1024,
+							0x1c, 8, app.paletteMenuTex)
+
+						if not self.tooltip then
+							self:setTooltip(tostring(v), mouseX-8, mouseY-8, 0xfc, 0)
+						end
+					end
+				end
+			end
+
+			orbit:endDraw()
 
 			local x, y = 0, 8
 			app:drawMenuText('#vtx:'..mesh3DBlob:getNumVertexes(), x, y)
@@ -109,6 +223,8 @@ function EditMesh3D:update()
 		self, 'mesh3DBlobIndex', 	-- table, indexKey
 		nil, 						-- callback upon text change or spinner click
 		function()					-- new blob generator:
+			-- TODO TODO maybe I should do like sfx and just have a default minimal set ...
+			-- but at the same time, I should always include a way to create vertexes/polys from nothing...
 			-- we have just inserted an empty mesh into the mesh3d list
 			-- but for convenience's sake, let's replace the empty mesh with an identity cube mesh...
 			local Vertex = numo9_rom.Vertex
@@ -218,14 +334,23 @@ function EditMesh3D:update()
 		self.wireframe = not self.wireframe
 	end
 	x = x + 8
-	if self:guiButton(self.orbit.ortho and 'O' or 'P', x, y, false, self.orbit.ortho and 'ortho' or 'projection') then
-		self.orbit.ortho = not self.orbit.ortho
+	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'ortho' or 'projection') then
+		orbit.ortho = not orbit.ortho
 	end
 	x = x + 8
 
 	self.tileSel:button(x,y)
 	x = x + 8
 
+	if not handled
+	and mouseY >= 8
+	then
+		if mesh3DBlob then
+
+		end
+	end
+
+	self:guiSetClipRect(-1000, 0, 3000, 256)
 	self:drawTooltip()
 end
 
