@@ -26,6 +26,8 @@ function EditMesh3D:onCartLoad()
 	self.tileSel = TileSelect{edit=self}
 
 	self.orbit = Orbit(self.app)
+
+	self.selectedVertexIndexSet = {}
 end
 
 local function linePointDist(linePos, lineDir, pt)
@@ -124,7 +126,7 @@ function EditMesh3D:update()
 
 --print('mouse XY', mouseULX, mouseULY)
 			local bestDistSq = math.huge
-			local bestVtxIndex
+			local bestVtxIndexSet
 			for i=0,numVtxs-1 do
 				local v = vtxs + i
 				-- sx sy are in [0,app.width)x[0,app.height) coords
@@ -133,14 +135,14 @@ function EditMesh3D:update()
 --print(i, v, sx, sy, math.sqrt(distSq))
 				if distSq < bestDistSq then
 					bestDistSq = distSq
-					bestVtxIndex = table{i}
+					bestVtxIndexSet = {[i]=true}
 				elseif distSq == bestDistSq then
-					bestVtxIndex:insert(i)
+					bestVtxIndexSet[i] = true
 				end
 			end
---print('mouseLine', mousePos, mouseDir, math.sqrt(bestDistSq), bestVtxIndex)
-			if bestVtxIndex then
-				self.highlightVertexIndexes = bestVtxIndex
+--print('mouseLine', mousePos, mouseDir, math.sqrt(bestDistSq), bestVtxIndexSet)
+			if bestVtxIndexSet then
+				self.mouseoverVertexIndexSet = bestVtxIndexSet
 			end
 
 			--[[
@@ -154,9 +156,9 @@ function EditMesh3D:update()
 
 			what else ...
 			vtxs:
-			- translate
-			- scale
-			- rotate ... along some axis?
+			- translate 'g'
+			- scale ... about COM ... 's'
+			- rotate ... along some axis? regression plane?
 			- delete (and delete all tris that use this vtx?)
 			- make fan from list of selected vtxs (how to determine order / inside / outside?)
 			edge:
@@ -176,8 +178,15 @@ function EditMesh3D:update()
 			- rotate in sheet
 			--]]
 
-			if self.highlightVertexIndexes then
-				for _,i in ipairs(self.highlightVertexIndex) do
+			if app:keyp'mouse_left' then
+				-- toggle
+				for i in pairs(self.mouseoverVertexIndexSet) do
+					self.selectedVertexIndexSet[i] = not self.selectedVertexIndexSet[i] or nil 
+				end
+			end
+			
+			if self.mouseoverVertexIndexSet then
+				for i in pairs(self.mouseoverVertexIndexSet) do
 					if i >= 0
 					and i < numVtxs
 					then
@@ -190,11 +199,37 @@ function EditMesh3D:update()
 						app:drawSolidLine3D(
 							v.x, v.y-1024, v.z,
 							v.x, v.y+1024, v.z,
+							0x19, 8, app.paletteMenuTex)
+						app:drawSolidLine3D(
+							v.x, v.y, v.z-1024,
+							v.x, v.y, v.z+1024,
+							0x19, 8, app.paletteMenuTex)
+
+						if not self.tooltip then
+							self:setTooltip(tostring(v), mouseX-8, mouseY-8, 0xfc, 0)
+						end
+					end
+				end		
+			end
+			if self.selectedVertexIndexSet then
+				for i in pairs(self.selectedVertexIndexSet) do
+					if i >= 0
+					and i < numVtxs
+					then
+						local v = vtxs + i
+
+						app:drawSolidLine3D(
+							v.x-1024, v.y, v.z,
+							v.x+1024, v.y, v.z,
+							0x1a, 8, app.paletteMenuTex)
+						app:drawSolidLine3D(
+							v.x, v.y-1024, v.z,
+							v.x, v.y+1024, v.z,
 							0x1a, 8, app.paletteMenuTex)
 						app:drawSolidLine3D(
 							v.x, v.y, v.z-1024,
 							v.x, v.y, v.z+1024,
-							0x1c, 8, app.paletteMenuTex)
+							0x1a, 8, app.paletteMenuTex)
 
 						if not self.tooltip then
 							self:setTooltip(tostring(v), mouseX-8, mouseY-8, 0xfc, 0)
