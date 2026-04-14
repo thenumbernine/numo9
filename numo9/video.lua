@@ -1852,15 +1852,16 @@ function AppVideo:drawSolidLine3D(
 
 	-- TODO matrix inverse dirty flags to calc them at least 1 less time per line
 	local x1b, y1b, z1b, w1b = self:invTransform(sx1b, sy1b, sz1b)
+	local invw1b = 1 / w1b
+	x1b = x1b * invw1b
+	y1b = y1b * invw1b
+	z1b = z1b * invw1b
+
 	local x2b, y2b, z2b, w2b = self:invTransform(sx2b, sy2b, sz2b)
-
-	x1b=x1b/w1b
-	y1b=y1b/w1b
-	z1b=z1b/w1b
-
-	x2b=x2b/w2b
-	y2b=y2b/w2b
-	z2b=z2b/w2b
+	local invw2b = 1 / w2b
+	x2b = x2b * invw2b
+	y2b = y2b * invw2b
+	z2b = z2b * invw2b
 
 	local xLL = x1
 	local yLL = y1

@@ -48,6 +48,7 @@ function EditMesh3D:update()
 	--self:guiSetClipRect(-1000, 16, 3000, 240)
 
 	local mouseULX, mouseULY = app.ram.mousePos:unpack()
+	local lastMouseULX, lastMouseULY = app.ram.lastMousePos:unpack()
 	local mouseX, mouseY = app:invTransform(mouseULX, mouseULY)
 
 	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
@@ -115,6 +116,9 @@ function EditMesh3D:update()
 				app.ram.paletteBlobIndex = pushPalBlobIndex
 			end
 
+			-- from here on, no depth mask, since it is all mesh highlights
+			gl.glDepthMask(gl.GL_FALSE)
+
 			--[[
 			local mouseDir =
 				- orbit.angle:zAxis()
@@ -179,12 +183,91 @@ function EditMesh3D:update()
 			--]]
 
 			if app:keyp'mouse_left' then
-				-- toggle
-				for i in pairs(self.mouseoverVertexIndexSet) do
-					self.selectedVertexIndexSet[i] = not self.selectedVertexIndexSet[i] or nil 
+				if self.meshEditMode == nil then
+					-- toggle
+					for i in pairs(self.mouseoverVertexIndexSet) do
+						self.selectedVertexIndexSet[i] = not self.selectedVertexIndexSet[i] or nil
+					end
+				elseif self.meshEditMode == 'translate' then
+					self.meshEditMode = nil
 				end
 			end
-			
+
+			if app:keyp'a' then
+				if next(self.selectedVertexIndexSet) == nil then
+					-- select all
+					self.selectedVertexIndexSet = {}
+					for i=0,numVtxs-1 do
+						self.selectedVertexIndexSet[i] = true
+					end
+				else
+					-- select none
+					self.selectedVertexIndexSet = {}
+				end
+			end
+
+			if app:keyp'g' then
+				self.meshEditMode = 'translate'
+
+			-- esc is menu toggle, backtick is console toggle
+			-- what's left for undo translation? regular ctrl+z?
+			--elseif app:keyp'esc' then
+				--self.meshEditMode = nil
+				-- TODO reset selected vertex positions back to their origin
+			end
+
+			if self.meshEditMode == 'translate'
+			and (mouseULX ~= lastMouseULX or mouseULY ~= lastMouseULY)
+			then
+				-- inverse-transform screen-coordinates into world-coordinates
+				-- translate accordingly
+
+				-- [[ TODO parameterize along mouseline, translate at same depth
+				local sx, sy, sz
+				for i in pairs(self.selectedVertexIndexSet) do
+					if i >= 0
+					and i < numVtxs
+					then
+						local v = vtxs + i
+						sx, sy, sz = app:transform(v.x, v.y, v.z, 1)
+						break
+					end
+				end
+				--]]
+				--[[
+				local sz = 0
+				--]]
+
+				local x1b, y1b, z1b, w1b = app:invTransform(mouseULX, mouseULY, sz or 0)
+				local invw1b = 1 / w1b
+				x1b = x1b * invw1b
+				y1b = y1b * invw1b
+				z1b = z1b * invw1b
+
+				local x2b, y2b, z2b, w2b = app:invTransform(lastMouseULX, lastMouseULY, sz or 0)
+				local invw2b = 1 / w2b
+				x2b = x2b * invw2b
+				y2b = y2b * invw2b
+				z2b = z2b * invw2b
+
+				local dx = x2b - x1b
+				local dy = y2b - y1b
+				local dz = z2b - z1b
+
+--print(dx, dy, dz)
+
+				for i in pairs(self.selectedVertexIndexSet) do
+					if i >= 0
+					and i < numVtxs
+					then
+						local v = vtxs + i
+						v.x = v.x - dx
+						v.y = v.y - dy
+						v.z = v.z - dz
+					end
+				end
+			end
+
 			if self.mouseoverVertexIndexSet then
 				for i in pairs(self.mouseoverVertexIndexSet) do
 					if i >= 0
@@ -209,7 +292,7 @@ function EditMesh3D:update()
 							self:setTooltip(tostring(v), mouseX-8, mouseY-8, 0xfc, 0)
 						end
 					end
-				end		
+				end
 			end
 			if self.selectedVertexIndexSet then
 				for i in pairs(self.selectedVertexIndexSet) do
@@ -237,6 +320,8 @@ function EditMesh3D:update()
 					end
 				end
 			end
+
+			gl.glDepthMask(gl.GL_TRUE)
 
 			orbit:endDraw()
 
