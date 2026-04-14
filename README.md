@@ -454,6 +454,8 @@ This adds to Lua(/JIT):
 
 # API
 
+- [here's a doc](https://docs.google.com/spreadsheets/d/10tlP04qkiTsnUfCRzELbNNRIzXYdV0FDDeML-ZN1WVY/edit?usp=sharing) I composed for comparing a few popular Fantasy Console APIs in preparation for Numo9's.
+
 ## Callbacks
 
 If the following functions are defined then they will be called from the virtual-console:
