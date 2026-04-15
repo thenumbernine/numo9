@@ -1,8 +1,14 @@
+local ffi = require 'ffi'
 local table = require 'ext.table'
 local math = require 'ext.math'
+local vec2d = require 'vec-ffi.vec2d'
 local vec3d = require 'vec-ffi.vec3d'
+local quatd = require 'vec-ffi.quatd'
+local vec4x4fcol = require 'numo9.vec4x4fcol'
 local gl = require 'gl'
+
 local Orbit = require 'numo9.ui.orbit'
+local Undo = require 'numo9.ui.undo'
 local TileSelect = require 'numo9.ui.tilesel'
 local BlobMesh3D = require 'numo9.blob.mesh3d'
 
@@ -13,6 +19,18 @@ local EditMesh3D = require 'numo9.ui':subclass()
 
 function EditMesh3D:init(args)
 	EditMesh3D.super.init(self, args)
+	
+	self.undo = Undo{
+		get = function()
+			return {
+				data = self.app.blobs.mesh3d[self.mesh3DBlobIndex+1]:toBinStr(),
+			}
+		end,
+		changed = function(entry)
+			return entry.data ~= self.app.blobs.mesh3d[self.mesh3DBlobIndex+1]:toBinStr()
+		end,
+	}
+
 	self:onCartLoad()
 end
 
@@ -28,7 +46,16 @@ function EditMesh3D:onCartLoad()
 
 	self.orbit = Orbit(self.app)
 
+	self.mouseoverVertexIndexSet = {}
 	self.selectedVertexIndexSet = {}
+
+	self.axisFlags = {}
+	self.meshEditMode = nil
+
+	-- table-of-vec3d's to store original vertex positiosn before edit operation
+	self.vtxOrigPos = table()
+
+	self.undo:clear()
 end
 
 local function linePointDist(linePos, lineDir, pt)
@@ -50,7 +77,11 @@ function EditMesh3D:update()
 
 	local mouseULX, mouseULY = app.ram.mousePos:unpack()
 	local lastMouseULX, lastMouseULY = app.ram.lastMousePos:unpack()
+
 	local mouseX, mouseY = app:invTransform(mouseULX, mouseULY)
+	local lastMouseX, lastMouseY = app:invTransform(lastMouseULX, lastMouseULY)
+
+	local shift = app:key'lshift' or app:key'rshift'
 
 	local mesh3DBlob = app.blobs.mesh3d[self.mesh3DBlobIndex+1]
 	local numVtxs
@@ -184,14 +215,61 @@ function EditMesh3D:update()
 			- rotate in sheet
 			--]]
 
+			local function calcSelVtxCOM()
+				self.selVtxCOM = vec3d()
+				local count = 0
+				for i in pairs(self.selectedVertexIndexSet) do
+					if i >= 0 and i < numVtxs then
+						local v = vtxs + i
+						self.selVtxCOM = self.selVtxCOM + vec3d(v.x, v.y, v.z)
+						count = count + 1
+					end
+				end
+				if count == 0 then
+					self.meshEditMode = nil
+				else
+					self.selVtxCOM = self.selVtxCOM / count
+				end
+			end
+
+			local function setVtxEditPos()
+				for i=0,numVtxs-1 do
+					local v = vtxs + i
+					self.vtxOrigPos[i] = vec3d(v.x, v.y, v.z)
+				end
+			end
+			local function resetVtxEditPos()
+				for i=0,numVtxs-1 do
+					local v = vtxs + i
+					v.x, v.y, v.z = self.vtxOrigPos[i]:unpack()
+				end
+			end
+
+
 			if app:keyp'mouse_left' then
 				if self.meshEditMode == nil then
 					-- toggle
 					for i in pairs(self.mouseoverVertexIndexSet) do
 						self.selectedVertexIndexSet[i] = not self.selectedVertexIndexSet[i] or nil
 					end
-				elseif self.meshEditMode == 'translate' then
+				else
+					--self.undo:pushContinuous()
+					self.undo:push()
 					self.meshEditMode = nil
+				end
+			end
+
+			if app:keyp'backspace'
+			or app:keyp'delete'
+			then
+				-- if we're in an edit mode then reset it
+				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
+				if self.meshEditMode then
+					resetVtxEditPos()
+					self.meshEditMode = nil
+				else
+					-- if we're not in an edit mode then delete vertexes
+					-- TODO
 				end
 			end
 
@@ -210,21 +288,54 @@ function EditMesh3D:update()
 
 			if app:keyp'g' then
 				self.meshEditMode = 'translate'
+				setVtxEditPos()
+				calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
+			end
+			if app:keyp's' then
+				self.meshEditMode = 'scale'
+				setVtxEditPos()
+				calcSelVtxCOM()
+			end
+			if app:keyp'r' then
+				self.meshEditMode = 'rotate'
+				setVtxEditPos()
+				calcSelVtxCOM()
 
-			-- esc is menu toggle, backtick is console toggle
-			-- what's left for undo translation? regular ctrl+z?
-			--elseif app:keyp'esc' then
-				--self.meshEditMode = nil
-				-- TODO reset selected vertex positions back to their origin
+				local drawViewInvMat = vec4x4fcol()
+				drawViewInvMat:inv4x4(app.ram.viewMat)
+				self.selRotFwdDir = vec3d(
+					drawViewInvMat.ptr[8],
+					drawViewInvMat.ptr[9],
+					drawViewInvMat.ptr[10]		
+				):normalize()
 			end
 
-			if self.meshEditMode == 'translate'
-			and (mouseULX ~= lastMouseULX or mouseULY ~= lastMouseULY)
+			if app:keyp'x' then
+				self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
+				resetVtxEditPos()
+			end
+			if app:keyp'y' then
+				self.axisFlags.y = not self.axisFlags.y or nil
+				resetVtxEditPos()
+			end
+			if app:keyp'z' then
+				self.axisFlags.z = not self.axisFlags.z or nil
+				resetVtxEditPos()
+			end
+
+			if (
+				self.meshEditMode == 'translate'
+				or self.meshEditMode == 'scale'
+				or self.meshEditMode == 'rotate'
+			)
+			and (
+				mouseULX ~= lastMouseULX 
+				or mouseULY ~= lastMouseULY
+			)
 			then
 				-- inverse-transform screen-coordinates into world-coordinates
-				-- translate accordingly
+				-- translate/scale accordingly
 
-				-- [[ TODO parameterize along mouseline, translate at same depth
 				local sx, sy, sz
 				for i in pairs(self.selectedVertexIndexSet) do
 					if i >= 0
@@ -235,18 +346,14 @@ function EditMesh3D:update()
 						break
 					end
 				end
-				--]]
-				--[[
-				local sz = 0
-				--]]
 
-				local x1b, y1b, z1b, w1b = app:invTransform(mouseULX, mouseULY, sz or 0)
+				local x1b, y1b, z1b, w1b = app:invTransform(lastMouseULX, lastMouseULY, sz or 0)
 				local invw1b = 1 / w1b
 				x1b = x1b * invw1b
 				y1b = y1b * invw1b
 				z1b = z1b * invw1b
 
-				local x2b, y2b, z2b, w2b = app:invTransform(lastMouseULX, lastMouseULY, sz or 0)
+				local x2b, y2b, z2b, w2b = app:invTransform(mouseULX, mouseULY, sz or 0)
 				local invw2b = 1 / w2b
 				x2b = x2b * invw2b
 				y2b = y2b * invw2b
@@ -256,16 +363,70 @@ function EditMesh3D:update()
 				local dy = y2b - y1b
 				local dz = z2b - z1b
 
---print(dx, dy, dz)
+				local usedx = self.axisFlags.x
+				local usedy = self.axisFlags.y
+				local usedz = self.axisFlags.z
+				-- none set == all set
+				if next(self.axisFlags) == nil then
+					usedx, usedy, usedz = true, true, true
+				end
+
+				local rotAxis
+				if self.meshEditMode == 'rotate' then
+					if usedx and usedy and usedz then
+						rotAxis = self.selRotFwdDir
+					else
+						rotAxis = self.selRotFwdDir:clone()
+						-- if you press 'r' then 'x', you expect x-axis rotations, which means ... none of the other axii ...
+						if usedx and not usedy and not usedz then
+							rotAxis:set(1,0,0)
+						elseif not usedx and usedy and not usedz then
+							rotAxis:set(0,1,0)
+						elseif not usedx and not usedy and usedz then
+							rotAxis:set(0,0,1)
+						-- push 'x' and 'y' means rotate the xy plane ...
+						elseif usedx and usedy and not usedz then
+							rotAxis.z = 0
+						elseif usedx and not usedy and usedz then
+							rotAxis.y = 0
+						elseif not usedx and usedy and usedz then
+							rotAxis.x = 0
+						end
+						rotAxis = rotAxis:normalize()
+					end
+				end
+
 
 				for i in pairs(self.selectedVertexIndexSet) do
-					if i >= 0
-					and i < numVtxs
-					then
+					if i >= 0 and i < numVtxs then
 						local v = vtxs + i
-						v.x = v.x - dx
-						v.y = v.y - dy
-						v.z = v.z - dz
+						if self.meshEditMode == 'translate' then
+							if usedx then v.x = v.x + dx end
+							if usedy then v.y = v.y + dy end
+							if usedz then v.z = v.z + dz end
+						elseif self.meshEditMode == 'scale' then
+							-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
+							local s = math.exp(.1 * (mouseULX - lastMouseULX))
+							if usedx then v.x = (v.x - self.selVtxCOM.x) * s + self.selVtxCOM.x end
+							if usedy then v.y = (v.y - self.selVtxCOM.y) * s + self.selVtxCOM.y end
+							if usedz then v.z = (v.z - self.selVtxCOM.z) * s + self.selVtxCOM.z end
+						elseif self.meshEditMode == 'rotate' then
+							local pos = vec3d(v.x, v.y, v.z) - self.selVtxCOM
+
+							local lastMouseNormalized = (vec2d(lastMouseX, lastMouseY) - 128):normalize()
+							local mouseNormalized = (vec2d(mouseX, mouseY) - 128):normalize()
+							local sinTheta = mouseNormalized:det(lastMouseNormalized)
+							local angle = math.deg(math.asin(sinTheta))
+							local q = quatd():fromAngleAxis(
+								rotAxis.x,
+								rotAxis.y,
+								rotAxis.z,
+								angle
+							)
+							pos = q:rotate(pos)
+							pos = pos + self.selVtxCOM
+							v.x, v.y, v.z = pos.x, pos.y, pos.z
+						end
 					end
 				end
 			end
@@ -344,7 +505,9 @@ function EditMesh3D:update()
 		x, y, 						-- widget screen x,y
 		'mesh3d', 					-- blobName
 		self, 'mesh3DBlobIndex', 	-- table, indexKey
-		nil, 						-- callback upon text change or spinner click
+		function() 					-- callback upon text change or spinner click
+			self.undo:clear()
+		end,
 		function()					-- new blob generator:
 			-- TODO TODO maybe I should do like sfx and just have a default minimal set ...
 			-- but at the same time, I should always include a way to create vertexes/polys from nothing...
@@ -465,6 +628,15 @@ function EditMesh3D:update()
 	self.tileSel:button(x,y)
 	x = x + 8
 
+	x = 0
+	y = y + 8
+	if self.axisFlags.x then app:drawMenuText('x', x, y) end
+	x = x + 8
+	if self.axisFlags.y then app:drawMenuText('y', x, y) end
+	x = x + 8
+	if self.axisFlags.z then app:drawMenuText('z', x, y) end
+	x = x + 8
+
 	if not handled
 	and mouseY >= 8
 	then
@@ -473,8 +645,32 @@ function EditMesh3D:update()
 		end
 	end
 
+	---------------- KEYBOARD ----------------
+
+	if mesh3DBlob then
+		local uikey
+		if ffi.os == 'OSX' then
+			uikey = app:key'lgui' or app:key'rgui'
+		else
+			uikey = app:key'lctrl' or app:key'rctrl'
+		end
+		if uikey then		
+			if app:keyp'z' then
+				self:popUndo(shift)
+			end
+		end
+	end
+
 	self:guiSetClipRect(-1000, 0, 3000, 256)
 	self:drawTooltip()
+end
+
+function EditMesh3D:popUndo(redo)
+	local app = self.app
+	local entry = self.undo:pop(redo)
+	if not entry then return end
+	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = blobClassForName.mesh3d(entry.data)
+	self:updateBlobChanges()
 end
 
 return EditMesh3D

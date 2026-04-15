@@ -50,19 +50,12 @@ function EditVoxelMap:init(args)
 
 	self.undo = Undo{
 		get = function()
-			-- for now I'll just have one undo buffer for the current sheet
-			-- TODO palette too
-			local app = self.app
-			local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
 			return {
-				data = voxelmap:toBinStr(),
+				data = self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]:toBinStr(),
 			}
 		end,
 		changed = function(entry)
-			local app = self.app
-			local voxelmap = app.blobs.voxelmap[self.voxelmapBlobIndex+1]
-			local voxelmapData = voxelmap:toBinStr()
-			return voxelmapData ~= entry.data
+			return entry.data ~= self.app.blobs.voxelmap[self.voxelmapBlobIndex+1]:toBinStr()
 		end,
 	}
 
