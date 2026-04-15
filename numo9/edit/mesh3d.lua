@@ -146,6 +146,9 @@ function EditMesh3D:onCartLoad()
 	self.mouseoverVertexIndexSet = {}	-- keys are 0-based vertex indexes
 	self.selectedVertexIndexSet = {}	-- keys are 0-based vertex indexes
 
+	self.selectedEdges = table()	-- table of pairs of 0-based index-of-indexes between two edges
+	self.selectedTris = table()		-- table of triplets " " "
+
 	self.axisFlags = {}
 	self.meshEditMode = nil			-- translate rotate scale
 	self.meshEditForm = 'vertexes'	-- vertexes edges faces
@@ -187,6 +190,70 @@ function EditMesh3D:update()
 	local numIndexes
 	local vtxs
 	local inds
+
+	-- handy functions for indexed vs non-indexed meshes:
+	local function getNumIndexes()
+		return numIndexes == 0 and numVtxs or numIndexes
+	end
+	local function getIndex(i)	-- 0-based, returns index in 0..n-1 list if no index list is present, or from index list if it is present
+		local ii
+		if numIndexes == 0 then 
+			ii = i 
+		else
+			assert.le(0, i)
+			assert.lt(i, numIndexes)
+			ii = inds[i]
+		end
+		assert.le(0, ii)
+		assert.lt(ii, numVtxs)
+		return ii
+	end
+	local function getVtxIndPtr(i)
+		return vtxs + getIndex(i)
+	end
+	local function getMeshLists()
+		local vs = table()
+		local vts = table()
+		for i=0,numVtxs-1 do
+			local v = vtxs + i
+			vs:insert(vec3d(v.x, v.y, v.z))
+			vts:insert(vec2d(v.u, v.v))
+		end
+		local is = table()
+		for i=0,getNumIndexes()-1 do
+			is:insert(getIndex(i))
+		end
+		-- table indexes ar 1-based, though is values are 0-based
+		return vs, vts, is
+	end
+	local function refreshSelection()
+		-- TODO we could do calcCOM here isntead of when we start to do a translate/rotate/scale ...
+		self.selectedEdges = table()	-- table of pairs of 0-based indexes between two edges
+		self.selectedTris = table()		
+
+		for i=0,getNumIndexes()-1,3 do
+			for j=0,2 do
+				local i1 = i+j
+				local i2 = i+((j+1)%3)
+				if self.selectedVertexIndexSet[getIndex(i1)]
+				and self.selectedVertexIndexSet[getIndex(i2)]
+				then
+					self.selectedEdges:insert{i1, i2}
+				end
+			end
+			local i1 = i+1
+			local i2 = i+2
+			if self.selectedVertexIndexSet[getIndex(i)]
+			and self.selectedVertexIndexSet[getIndex(i1)]
+			and self.selectedVertexIndexSet[getIndex(i2)]
+			then
+				self.selectedTris:insert{i, i1, i2}
+			end
+		end		
+	end
+
+
+
 	if mesh3DBlob then
 		numVtxs = mesh3DBlob:getNumVertexes()
 		numIndexes = mesh3DBlob:getNumIndexes()
@@ -206,31 +273,16 @@ function EditMesh3D:update()
 				local color = 0x2e
 				local thickness = 2
 
-				if numIndexes == 0 then	-- no indexes? just draw all vtxs
-					for i=0,numVtxs-3,3 do
-						for j=0,2 do
-							local a = vtxs + i+j
-							local b = vtxs + i+(j+1)%3
-							app:drawSolidLine3D(
-								a.x, a.y, a.z,
-								b.x, b.y, b.z,
-								color,
-								thickness,
-								app.paletteMenuTex)
-						end
-					end
-				else	-- draw indexed vertexes
-					for i=0,numIndexes-3,3 do
-						for j=0,2 do
-							local a = vtxs + inds[i+j]
-							local b = vtxs + inds[i+(j+1)%3]
-							app:drawSolidLine3D(
-								a.x, a.y, a.z,
-								b.x, b.y, b.z,
-								color,
-								thickness,
-								app.paletteMenuTex)
-						end
+				for i=0,getNumIndexes()-3,3 do
+					for j=0,2 do
+						local a = getVtxIndPtr(i+j)
+						local b = getVtxIndPtr(i+(j+1)%3)
+						app:drawSolidLine3D(
+							a.x, a.y, a.z,
+							b.x, b.y, b.z,
+							color,
+							thickness,
+							app.paletteMenuTex)
 					end
 				end
 			end
@@ -333,28 +385,6 @@ function EditMesh3D:update()
 				end
 			end
 
-			local function getMeshLists()
-				local vs = table()
-				local vts = table()
-				for i=0,numVtxs-1 do
-					local v = vtxs + i
-					vs:insert(vec3d(v.x, v.y, v.z))
-					vts:insert(vec2d(v.u, v.v))
-				end
-				local is = table()
-				if numIndexes == 0 then
-					for i=0,numIndexes-1 do
-						is:insert(i)
-					end
-				else
-					for i=0,numIndexes-1 do
-						is:insert(inds[i])
-					end
-				end
-				-- table indexes ar 1-based, though is values are 0-based
-				return vs, vts, is
-			end
-
 			local function setVtxEditPos()
 				for i=0,numVtxs-1 do
 					local v = vtxs + i
@@ -369,12 +399,16 @@ function EditMesh3D:update()
 			end
 
 
-			if app:keyp'mouse_left' then
+			if mouseY > 8
+			and not handled
+			and app:keyr'mouse_left' 
+			then
 				if self.meshEditMode == nil then
 					-- toggle
 					for i in pairs(self.mouseoverVertexIndexSet) do
 						self.selectedVertexIndexSet[i] = not self.selectedVertexIndexSet[i] or nil
 					end
+					refreshSelection()
 				else
 					--self.undo:pushContinuous()
 					self.undo:push()
@@ -435,6 +469,7 @@ function EditMesh3D:update()
 
 					-- select-none
 					self.selectedVertexIndexSet = {}
+					refreshSelection()
 				end
 			end
 
@@ -449,6 +484,7 @@ function EditMesh3D:update()
 					-- select none
 					self.selectedVertexIndexSet = {}
 				end
+				refreshSelection()
 			end
 
 			if app:keyp'g' then
@@ -635,76 +671,28 @@ function EditMesh3D:update()
 			
 			-- now draw edge highlights
 			-- TODO only in vertex mode show veretx highlights, and only edge mode edge hihglighs, etc?
-			if numIndexes == 0 then
-				for i=0,numVtxs-1,3 do
-					for j=0,2 do
-						local i1 = i+j
-						local i2 = i+((j+1)%3)
-						if self.selectedVertexIndexSet[i1]
-						and self.selectedVertexIndexSet[i2]
-						then
-							-- then line is selected
-							-- or TODO keep track of selected-lines list as well?
-							local v1 = vtxs + i1
-							local v2 = vtxs + i2
-							app:drawSolidLine3D(
-								v1.x, v1.y, v1.z,
-								v2.x, v2.y, v2.z,
-								0x1a, 4, app.paletteMenuTex)
-						end
-					end
-					local i1 = i+1
-					local i2 = i+2
-					if self.selectedVertexIndexSet[i]
-					and self.selectedVertexIndexSet[i1]
-					and self.selectedVertexIndexSet[i2]
-					then
-						local v0 = vtxs + i
-						local v1 = vtxs + i1
-						local v2 = vtxs + i2
-						app:drawSolidTri3D(
-							v0.x, v0.y, v0.z,
-							v1.x, v1.y, v1.z,
-							v2.x, v2.y, v2.z,
-							0x1a, app.paletteMenuTex)
-					end
-				end		
-			else
-				for i=0,numIndexes-1,3 do
-					for j=0,2 do
-						local i1 = inds[i+j]
-						local i2 = inds[i+((j+1)%3)]
-						if self.selectedVertexIndexSet[i1]
-						and self.selectedVertexIndexSet[i2]
-						then
-							-- then line is selected
-							-- or TODO keep track of selected-lines list as well?
-							local v1 = vtxs + i1
-							local v2 = vtxs + i2
-							app:drawSolidLine3D(
-								v1.x, v1.y, v1.z,
-								v2.x, v2.y, v2.z,
-								0x1a, 4, app.paletteMenuTex)
-						end
-					end
-					local i0 = inds[i]
-					local i1 = inds[i+1]
-					local i2 = inds[i+2]
-					if self.selectedVertexIndexSet[i0]
-					and self.selectedVertexIndexSet[i1]
-					and self.selectedVertexIndexSet[i2]
-					then
-						local v0 = vtxs + i0
-						local v1 = vtxs + i1
-						local v2 = vtxs + i2
-						app:drawSolidTri3D(
-							v0.x, v0.y, v0.z,
-							v1.x, v1.y, v1.z,
-							v2.x, v2.y, v2.z,
-							0x1a)
-					end			
-				end
+			for _,edge in ipairs(self.selectedEdges) do
+				local i1, i2 = table.unpack(edge)
+				-- then line is selected
+				-- or TODO keep track of selected-lines list as well?
+				local v1 = vtxs + getIndex(i1)
+				local v2 = vtxs + getIndex(i2)
+				app:drawSolidLine3D(
+					v1.x, v1.y, v1.z,
+					v2.x, v2.y, v2.z,
+					0x1a, 4, app.paletteMenuTex)
 			end
+			for _,tri in ipairs(self.selectedTris) do
+				local i0, i1, i2 = table.unpack(tri)
+				local v0 = getVtxIndPtr(i0)
+				local v1 = getVtxIndPtr(i1)
+				local v2 = getVtxIndPtr(i2)
+				app:drawSolidTri3D(
+					v0.x, v0.y, v0.z,
+					v1.x, v1.y, v1.z,
+					v2.x, v2.y, v2.z,
+					0x1a)
+			end			
 
 
 			app:triBuf_flush()
@@ -775,11 +763,75 @@ function EditMesh3D:update()
 	x = x + 6
 
 	self.tileSel:button(x,y)
-	x = x + 6
+	x = x + 7
 
 	self:guiRadio(x, y, {'vertexes', 'edges', 'faces'}, self.meshEditForm, function(result)
 		self.meshEditForm = result
 	end)
+	x = x + 6*3 + 1
+	
+	-- TODO only show up in face-mode?
+	-- or only flip faces selected regardless of mode?
+	-- it's tempting to just make all selections vertex-driven...
+	if self:guiButton('F', x, y, false, 'flip') then
+		-- flip faces ... 
+		-- 1) get faces selected
+		-- 2) flip ...
+		-- how to generalize that for any more than two faces that share 1 edge?
+		if not #self.selectedTris == 2 then
+			print('need 2 tris, got '..#self.selectedTris..' tris')
+		else
+			self.undo:push()
+
+			-- and if # selected vtxs == 4 exactly ...
+			local vs, vts, is = getMeshLists()
+
+			-- find the common edge between the two tris
+			-- and exchange tris
+			local found
+			local t1, t2 = table.unpack(self.selectedTris)
+			for i=0,2 do
+				for j=0,2 do
+					local a1 = is[1+t1[1+i]]
+					local a2 = is[1+t1[1+((i+1)%3)]]
+					local a3 = is[1+t1[1+((i+2)%3)]]
+					local b1 = is[1+t2[1+j]]
+					local b2 = is[1+t2[1+((j+1)%3)]]
+					local b3 = is[1+t2[1+((j+2)%3)]]
+					if a1 == b1 and a2 == b2 then
+						-- swap indexes
+						is[1+t1[1]] = a3
+						is[1+t1[2]] = b1
+						is[1+t1[3]] = b3
+						is[1+t2[1]] = b3
+						is[1+t2[2]] = b2
+						is[1+t2[3]] = a3
+						found = true
+						goto done
+					elseif a2 == b1 and a1 == b2 then
+						is[1+t1[1]] = a3
+						is[1+t1[2]] = b1
+						is[1+t1[3]] = b3
+						is[1+t2[1]] = b3
+						is[1+t2[2]] = b2
+						is[1+t2[3]] = a3
+						found = true
+						goto done
+					end
+				end
+			end
+::done::			
+			if not found then
+				print"couldn't find, not flipping"
+			else
+				self:replaceMeshBlobWithLists(vs, vts, is)
+			
+				-- refresh edges and tris, but vtxs shouldn't change
+				refreshSelection()
+			end
+		end
+	end
+	x = x + 6
 
 	---------------- KEYBOARD ----------------
 
