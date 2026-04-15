@@ -19,7 +19,7 @@ local EditMesh3D = require 'numo9.ui':subclass()
 
 function EditMesh3D:init(args)
 	EditMesh3D.super.init(self, args)
-	
+
 	self.undo = Undo{
 		get = function()
 			return {
@@ -54,6 +54,7 @@ function EditMesh3D:onCartLoad()
 
 	-- table-of-vec3d's to store original vertex positiosn before edit operation
 	self.vtxOrigPos = table()
+	self.totalTranslation = vec3d()
 
 	self.undo:clear()
 end
@@ -269,7 +270,8 @@ function EditMesh3D:update()
 					self.meshEditMode = nil
 				else
 					-- if we're not in an edit mode then delete vertexes
-					-- TODO
+					-- and then regen blobs or something
+					-- hmm
 				end
 			end
 
@@ -290,6 +292,7 @@ function EditMesh3D:update()
 				self.meshEditMode = 'translate'
 				setVtxEditPos()
 				calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
+				self.totalTranslation:set(0,0,0)
 			end
 			if app:keyp's' then
 				self.meshEditMode = 'scale'
@@ -306,7 +309,7 @@ function EditMesh3D:update()
 				self.selRotFwdDir = vec3d(
 					drawViewInvMat.ptr[8],
 					drawViewInvMat.ptr[9],
-					drawViewInvMat.ptr[10]		
+					drawViewInvMat.ptr[10]
 				):normalize()
 			end
 
@@ -329,7 +332,7 @@ function EditMesh3D:update()
 				or self.meshEditMode == 'rotate'
 			)
 			and (
-				mouseULX ~= lastMouseULX 
+				mouseULX ~= lastMouseULX
 				or mouseULY ~= lastMouseULY
 			)
 			then
@@ -396,14 +399,21 @@ function EditMesh3D:update()
 					end
 				end
 
+				if self.meshEditMode == 'translate' then
+					self.totalTranslation.x = self.totalTranslation.x + dx
+					self.totalTranslation.y = self.totalTranslation.y + dy
+					self.totalTranslation.z = self.totalTranslation.z + dz
+				end
 
 				for i in pairs(self.selectedVertexIndexSet) do
 					if i >= 0 and i < numVtxs then
 						local v = vtxs + i
+						local orig = self.vtxOrigPos[i]
 						if self.meshEditMode == 'translate' then
-							if usedx then v.x = v.x + dx end
-							if usedy then v.y = v.y + dy end
-							if usedz then v.z = v.z + dz end
+							v.x, v.y, v.z = orig.x, orig.y, orig.z
+							if usedx then v.x = v.x + self.totalTranslation.x end
+							if usedy then v.y = v.y + self.totalTranslation.y end
+							if usedz then v.z = v.z + self.totalTranslation.z end
 						elseif self.meshEditMode == 'scale' then
 							-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
 							local s = math.exp(.1 * (mouseULX - lastMouseULX))
@@ -495,6 +505,26 @@ function EditMesh3D:update()
 			app:drawMenuText('#ind:'..mesh3DBlob:getNumIndexes(), x, y)
 			y = y + 8
 			app:drawMenuText('size:'..mesh3DBlob:getSize(), x, y)
+			y = y + 8
+			x = 0
+
+			if self.axisFlags.x then app:drawMenuText('x', x, y) end
+			x = x + 8
+			if self.axisFlags.y then app:drawMenuText('y', x, y) end
+			x = x + 8
+			if self.axisFlags.z then app:drawMenuText('z', x, y) end
+			y = y + 8
+			x = 0
+
+			if self.meshEditMode == 'translate' then
+				local dx, dy, dz = self.totalTranslation:map(math.round):unpack()
+				local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
+				if next(self.axisFlags) == nil then usedx, usedy, usedz = true, true, true end
+				if not usedx then dx = 0 end
+				if not usedy then dy = 0 end
+				if not usedz then dz = 0 end
+				app:drawMenuText(dx..', '..dy..', '..dz, x, y)
+			end
 			y = y + 8
 		end
 	end
@@ -628,33 +658,19 @@ function EditMesh3D:update()
 	self.tileSel:button(x,y)
 	x = x + 8
 
-	x = 0
-	y = y + 8
-	if self.axisFlags.x then app:drawMenuText('x', x, y) end
-	x = x + 8
-	if self.axisFlags.y then app:drawMenuText('y', x, y) end
-	x = x + 8
-	if self.axisFlags.z then app:drawMenuText('z', x, y) end
-	x = x + 8
-
-	if not handled
-	and mouseY >= 8
-	then
-		if mesh3DBlob then
-
-		end
-	end
-
 	---------------- KEYBOARD ----------------
 
 	if mesh3DBlob then
+		-- TODO if meshEditMode == 'translate' then
+		-- accept input like a textarea for a number string, and let that be the amount to translate or rotate or whatever
+
 		local uikey
 		if ffi.os == 'OSX' then
 			uikey = app:key'lgui' or app:key'rgui'
 		else
 			uikey = app:key'lctrl' or app:key'rctrl'
 		end
-		if uikey then		
+		if uikey then
 			if app:keyp'z' then
 				self:popUndo(shift)
 			end
