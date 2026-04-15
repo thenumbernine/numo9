@@ -305,35 +305,31 @@ function EditMesh3D:update()
 			app:setBlendMode(1)	-- average
 			gl.glDisable(gl.GL_DEPTH_TEST)
 
-			--[[
-			local mouseDir =
-				- orbit.angle:zAxis()
-				+ orbit.angle:xAxis() * (mouseX - 128) / 128
-				- orbit.angle:yAxis() * (mouseY - 128) / 128
-			local mousePos = orbit.pos + .1 * mouseDir
-			-- TODO need to also rotate this by orbit orientation...
-			--]]
 
---print('mouse XY', mouseULX, mouseULY)
-			local bestDistSq = math.huge
-			local bestVtxIndexSet
-			for i=0,numVtxs-1 do
-				local v = vtxs + i
-				-- sx sy are in [0,app.width)x[0,app.height) coords
-				local sx, sy = app:transform(v.x, v.y, v.z, 1)
-				local distSq = (mouseULX - sx)^2 + (mouseULY - sy)^2
---print(i, v, sx, sy, math.sqrt(distSq))
-				if distSq < bestDistSq then
-					bestDistSq = distSq
-					bestVtxIndexSet = {[i]=true}
-				elseif distSq == bestDistSq then
-					bestVtxIndexSet[i] = true
+			if true then --self.meshEditForm == 'vertexes' then
+				local bestDistSq = math.huge
+				local bestVtxIndexSet
+				for i=0,numVtxs-1 do
+					local v = vtxs + i
+					-- sx sy are in [0,app.width)x[0,app.height) coords
+					local sx, sy = app:transform(v.x, v.y, v.z, 1)
+					local distSq = (mouseULX - sx)^2 + (mouseULY - sy)^2
+					if distSq < bestDistSq then
+						bestDistSq = distSq
+						bestVtxIndexSet = {[i]=true}
+					elseif distSq == bestDistSq then
+						bestVtxIndexSet[i] = true
+					end
 				end
+				if bestVtxIndexSet then
+					self.mouseoverVertexIndexSet = bestVtxIndexSet
+				end
+			elseif self.meshEditForm == 'edges' then
+				-- find the best edge, toggle its selection if not selected
+			elseif self.meshEditForm == 'faces' then
+				-- find the best tri, toggle its selection if not selected
 			end
---print('mouseLine', mousePos, mouseDir, math.sqrt(bestDistSq), bestVtxIndexSet)
-			if bestVtxIndexSet then
-				self.mouseoverVertexIndexSet = bestVtxIndexSet
-			end
+
 
 			--[[
 			controls ...
@@ -437,18 +433,16 @@ function EditMesh3D:update()
 				
 					local imap = {}	-- 0-based map from old index to new (post-delete) index
 					local newvi = 0
+					local newvs = table()
+					local newvts = table()
 					for i=0,numVtxs-1 do
 						if not self.selectedVertexIndexSet[i] then
 							imap[i] = newvi
 							newvi = newvi + 1
+							newvs:insert(vs[1+i])
+							newvts:insert(vts[1+i])
 						end
 					end
-					vs = vs:filteri(function(v,iPlus1)
-						return not self.selectedVertexIndexSet[iPlus1-1]
-					end)
-					vts = vts:filteri(function(vt,iPlus1)
-						return not self.selectedVertexIndexSet[iPlus1-1]
-					end)
 					local newis = table()
 					assert.eq(#is % 3, 0)
 					for i=#is-2,1,-3 do
@@ -465,7 +459,7 @@ function EditMesh3D:update()
 						end
 					end
 					
-					self:replaceMeshBlobWithLists(vs, vts, newis)
+					self:replaceMeshBlobWithLists(newvs, newvts, newis)
 
 					-- select-none
 					self.selectedVertexIndexSet = {}
