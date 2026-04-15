@@ -1,5 +1,11 @@
+--[[
+TODO tempting to store an .obj / Mesh per model
+since I'm using them for loading and unloading
+and since my mesh lib has all the nice mesh operations anwyays
+--]]
 local ffi = require 'ffi'
 local table = require 'ext.table'
+local assert = require 'ext.assert'
 local math = require 'ext.math'
 local vec2d = require 'vec-ffi.vec2d'
 local vec3d = require 'vec-ffi.vec3d'
@@ -7,13 +13,104 @@ local quatd = require 'vec-ffi.quatd'
 local vec4x4fcol = require 'numo9.vec4x4fcol'
 local gl = require 'gl'
 
+local BlobMesh3D = require 'numo9.blob.mesh3d'
 local Orbit = require 'numo9.ui.orbit'
 local Undo = require 'numo9.ui.undo'
 local TileSelect = require 'numo9.ui.tilesel'
-local BlobMesh3D = require 'numo9.blob.mesh3d'
 
 local numo9_rom = require 'numo9.rom'
 local tileSizeInBits = numo9_rom.tileSizeInBits
+
+
+local function generateDefaultCube()
+	local vertexes = table{
+		-- x-
+		{-16384, 16384, -16384},
+		{-16384, -16384, -16384},
+		{-16384, -16384, 16384},
+		{-16384, 16384, 16384},
+		-- x+
+		{16384, 16384, -16384},
+		{16384, -16384, -16384},
+		{16384, -16384, 16384},
+		{16384, 16384, 16384},
+		-- y-
+		{-16384, -16384, 16384},
+		{-16384, -16384, -16384},
+		{16384, -16384, -16384},
+		{16384, -16384, 16384},
+		-- y+
+		{-16384, 16384, 16384},
+		{-16384, 16384, -16384},
+		{16384, 16384, -16384},
+		{16384, 16384, 16384},
+		-- z-
+		{-16384, -16384, -16384},
+		{-16384, 16384, -16384},
+		{16384, 16384, -16384},
+		{16384, -16384, -16384},
+		-- z+
+		{-16384, -16384, 16384},
+		{-16384, 16384, 16384},
+		{16384, 16384, 16384},
+		{16384, -16384, 16384},
+	}
+	local texcoords = table{
+		-- x-
+		{0, 15},
+		{15, 15},
+		{15, 0},
+		{0, 0},
+		-- x+
+		{15, 15},
+		{0, 15},
+		{0, 0},
+		{15, 0},
+		-- y-
+		{0, 0},
+		{0, 15},
+		{15, 15},
+		{15, 0},
+		-- y+
+		{15, 0},
+		{15, 15},
+		{0, 15},
+		{0, 0},
+		-- z-
+		{0, 0},
+		{0, 15},
+		{15, 15},
+		{15, 0},
+		-- z+
+		{0, 0},
+		{0, 15},
+		{15, 15},
+		{15, 0},
+	}
+	-- 1-based list
+	local indexes = {
+		-- x-
+		1, 2, 3,
+		3, 4, 1,
+		-- x+
+		5, 8, 7,
+		7, 6, 5,
+		-- y-
+		9, 10, 11,
+		11, 12, 9,
+		-- y+
+		13, 16, 15,
+		15, 14, 13,
+		-- z-
+		17, 18, 19,
+		19, 20, 17,
+		-- z+
+		21, 24, 23,
+		23, 22, 21,
+	}
+	return BlobMesh3D:loadFromLists(vertexes, texcoords, indexes)
+end
+
 
 local EditMesh3D = require 'numo9.ui':subclass()
 
@@ -46,11 +143,12 @@ function EditMesh3D:onCartLoad()
 
 	self.orbit = Orbit(self.app)
 
-	self.mouseoverVertexIndexSet = {}
-	self.selectedVertexIndexSet = {}
+	self.mouseoverVertexIndexSet = {}	-- keys are 0-based vertex indexes
+	self.selectedVertexIndexSet = {}	-- keys are 0-based vertex indexes
 
 	self.axisFlags = {}
-	self.meshEditMode = nil
+	self.meshEditMode = nil			-- translate rotate scale
+	self.meshEditForm = 'vertexes'	-- vertexes edges faces
 
 	-- table-of-vec3d's to store original vertex positiosn before edit operation
 	self.vtxOrigPos = table()
@@ -106,7 +204,7 @@ function EditMesh3D:update()
 			-- instead please swap out polygon mode (is it possible?) or (can't do geom shaders and be webgl2 compat) hmm ...
 			if self.wireframe then
 				local color = 0x2e
-				local thickness = 1
+				local thickness = 2
 
 				if numIndexes == 0 then	-- no indexes? just draw all vtxs
 					for i=0,numVtxs-3,3 do
@@ -150,7 +248,9 @@ function EditMesh3D:update()
 			end
 
 			-- from here on, no depth mask, since it is all mesh highlights
+			local pushBlend = app.currentBlendMode
 			app:triBuf_flush()
+			app:setBlendMode(1)	-- average
 			gl.glDisable(gl.GL_DEPTH_TEST)
 
 			--[[
@@ -233,6 +333,28 @@ function EditMesh3D:update()
 				end
 			end
 
+			local function getMeshLists()
+				local vs = table()
+				local vts = table()
+				for i=0,numVtxs-1 do
+					local v = vtxs + i
+					vs:insert(vec3d(v.x, v.y, v.z))
+					vts:insert(vec2d(v.u, v.v))
+				end
+				local is = table()
+				if numIndexes == 0 then
+					for i=0,numIndexes-1 do
+						is:insert(i)
+					end
+				else
+					for i=0,numIndexes-1 do
+						is:insert(inds[i])
+					end
+				end
+				-- table indexes ar 1-based, though is values are 0-based
+				return vs, vts, is
+			end
+
 			local function setVtxEditPos()
 				for i=0,numVtxs-1 do
 					local v = vtxs + i
@@ -269,9 +391,50 @@ function EditMesh3D:update()
 					resetVtxEditPos()
 					self.meshEditMode = nil
 				else
+					self.undo:push()
+
 					-- if we're not in an edit mode then delete vertexes
 					-- and then regen blobs or something
 					-- hmm
+					local vs, vts, is = getMeshLists()
+					-- delete selected vertexes
+					-- delete or merge touching triangles?
+					-- then rebuild current mesh blob from arrays
+				
+					local imap = {}	-- 0-based map from old index to new (post-delete) index
+					local newvi = 0
+					for i=0,numVtxs-1 do
+						if not self.selectedVertexIndexSet[i] then
+							imap[i] = newvi
+							newvi = newvi + 1
+						end
+					end
+					vs = vs:filteri(function(v,iPlus1)
+						return not self.selectedVertexIndexSet[iPlus1-1]
+					end)
+					vts = vts:filteri(function(vt,iPlus1)
+						return not self.selectedVertexIndexSet[iPlus1-1]
+					end)
+					local newis = table()
+					assert.eq(#is % 3, 0)
+					for i=#is-2,1,-3 do
+						local i1 = is[i]
+						local i2 = is[i+1]
+						local i3 = is[i+2]
+						if not (self.selectedVertexIndexSet[i1]
+							or self.selectedVertexIndexSet[i2]
+							or self.selectedVertexIndexSet[i3]
+						) then
+							newis:insert(imap[is[i1]])
+							newis:insert(imap[is[i2]])
+							newis:insert(imap[is[i3]])
+						end
+					end
+					
+					self:replaceMeshBlobWithLists(vs, vts, newis)
+
+					-- select-none
+					self.selectedVertexIndexSet = {}
 				end
 			end
 
@@ -441,8 +604,8 @@ function EditMesh3D:update()
 				end
 			end
 
-			if self.mouseoverVertexIndexSet then
-				for i in pairs(self.mouseoverVertexIndexSet) do
+			local function drawVertexSet(set, color)
+				for i in pairs(set) do
 					if i >= 0
 					and i < numVtxs
 					then
@@ -451,15 +614,15 @@ function EditMesh3D:update()
 						app:drawSolidLine3D(
 							v.x-1024, v.y, v.z,
 							v.x+1024, v.y, v.z,
-							0x19, 8, app.paletteMenuTex)
+							color, 8, app.paletteMenuTex)
 						app:drawSolidLine3D(
 							v.x, v.y-1024, v.z,
 							v.x, v.y+1024, v.z,
-							0x19, 8, app.paletteMenuTex)
+							color, 8, app.paletteMenuTex)
 						app:drawSolidLine3D(
 							v.x, v.y, v.z-1024,
 							v.x, v.y, v.z+1024,
-							0x19, 8, app.paletteMenuTex)
+							color, 8, app.paletteMenuTex)
 
 						if not self.tooltip then
 							self:setTooltip(tostring(v), mouseX-8, mouseY-8, 0xfc, 0)
@@ -467,34 +630,85 @@ function EditMesh3D:update()
 					end
 				end
 			end
-			if self.selectedVertexIndexSet then
-				for i in pairs(self.selectedVertexIndexSet) do
-					if i >= 0
-					and i < numVtxs
+			drawVertexSet(self.mouseoverVertexIndexSet, 0x19)
+			drawVertexSet(self.selectedVertexIndexSet, 0x1a)
+			
+			-- now draw edge highlights
+			-- TODO only in vertex mode show veretx highlights, and only edge mode edge hihglighs, etc?
+			if numIndexes == 0 then
+				for i=0,numVtxs-1,3 do
+					for j=0,2 do
+						local i1 = i+j
+						local i2 = i+((j+1)%3)
+						if self.selectedVertexIndexSet[i1]
+						and self.selectedVertexIndexSet[i2]
+						then
+							-- then line is selected
+							-- or TODO keep track of selected-lines list as well?
+							local v1 = vtxs + i1
+							local v2 = vtxs + i2
+							app:drawSolidLine3D(
+								v1.x, v1.y, v1.z,
+								v2.x, v2.y, v2.z,
+								0x1a, 4, app.paletteMenuTex)
+						end
+					end
+					local i1 = i+1
+					local i2 = i+2
+					if self.selectedVertexIndexSet[i]
+					and self.selectedVertexIndexSet[i1]
+					and self.selectedVertexIndexSet[i2]
 					then
-						local v = vtxs + i
-
-						app:drawSolidLine3D(
-							v.x-1024, v.y, v.z,
-							v.x+1024, v.y, v.z,
-							0x1a, 8, app.paletteMenuTex)
-						app:drawSolidLine3D(
-							v.x, v.y-1024, v.z,
-							v.x, v.y+1024, v.z,
-							0x1a, 8, app.paletteMenuTex)
-						app:drawSolidLine3D(
-							v.x, v.y, v.z-1024,
-							v.x, v.y, v.z+1024,
-							0x1a, 8, app.paletteMenuTex)
-
-						if not self.tooltip then
-							self:setTooltip(tostring(v), mouseX-8, mouseY-8, 0xfc, 0)
+						local v0 = vtxs + i
+						local v1 = vtxs + i1
+						local v2 = vtxs + i2
+						app:drawSolidTri3D(
+							v0.x, v0.y, v0.z,
+							v1.x, v1.y, v1.z,
+							v2.x, v2.y, v2.z,
+							0x1a, app.paletteMenuTex)
+					end
+				end		
+			else
+				for i=0,numIndexes-1,3 do
+					for j=0,2 do
+						local i1 = inds[i+j]
+						local i2 = inds[i+((j+1)%3)]
+						if self.selectedVertexIndexSet[i1]
+						and self.selectedVertexIndexSet[i2]
+						then
+							-- then line is selected
+							-- or TODO keep track of selected-lines list as well?
+							local v1 = vtxs + i1
+							local v2 = vtxs + i2
+							app:drawSolidLine3D(
+								v1.x, v1.y, v1.z,
+								v2.x, v2.y, v2.z,
+								0x1a, 4, app.paletteMenuTex)
 						end
 					end
+					local i0 = inds[i]
+					local i1 = inds[i+1]
+					local i2 = inds[i+2]
+					if self.selectedVertexIndexSet[i0]
+					and self.selectedVertexIndexSet[i1]
+					and self.selectedVertexIndexSet[i2]
+					then
+						local v0 = vtxs + i0
+						local v1 = vtxs + i1
+						local v2 = vtxs + i2
+						app:drawSolidTri3D(
+							v0.x, v0.y, v0.z,
+							v1.x, v1.y, v1.z,
+							v2.x, v2.y, v2.z,
+							0x1a)
+					end			
 				end
 			end
+
 
 			app:triBuf_flush()
+			app:setBlendMode(pushBlend)
 			gl.glEnable(gl.GL_DEPTH_TEST)
 
 			orbit:endDraw()
@@ -538,125 +752,34 @@ function EditMesh3D:update()
 		function() 					-- callback upon text change or spinner click
 			self.undo:clear()
 		end,
-		function()					-- new blob generator:
-			-- TODO TODO maybe I should do like sfx and just have a default minimal set ...
-			-- but at the same time, I should always include a way to create vertexes/polys from nothing...
-			-- we have just inserted an empty mesh into the mesh3d list
-			-- but for convenience's sake, let's replace the empty mesh with an identity cube mesh...
-			local Vertex = numo9_rom.Vertex
-			local vector = require 'stl.vector-lua'
-			local vtxs = vector(Vertex)
-
-			local vertexes = table{
-				-- x-
-				{-16384, 16384, -16384},
-				{-16384, -16384, -16384},
-				{-16384, -16384, 16384},
-				{-16384, 16384, 16384},
-				-- x+
-				{16384, 16384, -16384},
-				{16384, -16384, -16384},
-				{16384, -16384, 16384},
-				{16384, 16384, 16384},
-				-- y-
-				{-16384, -16384, 16384},
-				{-16384, -16384, -16384},
-				{16384, -16384, -16384},
-				{16384, -16384, 16384},
-				-- y+
-				{-16384, 16384, 16384},
-				{-16384, 16384, -16384},
-				{16384, 16384, -16384},
-				{16384, 16384, 16384},
-				-- z-
-				{-16384, -16384, -16384},
-				{-16384, 16384, -16384},
-				{16384, 16384, -16384},
-				{16384, -16384, -16384},
-				-- z+
-				{-16384, -16384, 16384},
-				{-16384, 16384, 16384},
-				{16384, 16384, 16384},
-				{16384, -16384, 16384},
-			}
-			local texcoords = table{
-				-- x-
-				{0, 15},
-				{15, 15},
-				{15, 0},
-				{0, 0},
-				-- x+
-				{15, 15},
-				{0, 15},
-				{0, 0},
-				{15, 0},
-				-- y-
-				{0, 0},
-				{0, 15},
-				{15, 15},
-				{15, 0},
-				-- y+
-				{15, 0},
-				{15, 15},
-				{0, 15},
-				{0, 0},
-				-- z-
-				{0, 0},
-				{0, 15},
-				{15, 15},
-				{15, 0},
-				-- z+
-				{0, 0},
-				{0, 15},
-				{15, 15},
-				{15, 0},
-			}
-			-- 1-based list
-			local indexes = {
-				-- x-
-				1, 2, 3,
-				3, 4, 1,
-				-- x+
-				5, 8, 7,
-				7, 6, 5,
-				-- y-
-				9, 10, 11,
-				11, 12, 9,
-				-- y+
-				13, 16, 15,
-				15, 14, 13,
-				-- z-
-				17, 18, 19,
-				19, 20, 17,
-				-- z+
-				21, 24, 23,
-				23, 22, 21,
-			}
-			return BlobMesh3D:loadFromLists(vertexes, texcoords, indexes)
-		end
+		generateDefaultCube				-- new blob generator:
 	)
-	x = x + 12
+	x = x + 6
 
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
-	x = x + 12
+	x = x + 6
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
-	x = x + 12
+	x = x + 6
 
 	if self:guiButton('F', x, y, self.drawFaces, 'faces') then
 		self.drawFaces = not self.drawFaces
 	end
-	x = x + 8
+	x = x + 6
 	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
 		self.wireframe = not self.wireframe
 	end
-	x = x + 8
+	x = x + 6
 	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'ortho' or 'projection') then
 		orbit.ortho = not orbit.ortho
 	end
-	x = x + 8
+	x = x + 6
 
 	self.tileSel:button(x,y)
-	x = x + 8
+	x = x + 6
+
+	self:guiRadio(x, y, {'vertexes', 'edges', 'faces'}, self.meshEditForm, function(result)
+		self.meshEditForm = result
+	end)
 
 	---------------- KEYBOARD ----------------
 
@@ -686,6 +809,19 @@ function EditMesh3D:popUndo(redo)
 	local entry = self.undo:pop(redo)
 	if not entry then return end
 	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = blobClassForName.mesh3d(entry.data)
+	self:updateBlobChanges()
+end
+
+-- expects 0-based indexes (like the blob stores)
+function EditMesh3D:replaceMeshBlobWithLists(vs, vts, is)
+	local app = self.app
+	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D:loadFromLists(
+		-- OBJloader compat, convert vec3d to lua-table
+		vs:mapi(function(v) return {v:unpack()} end),
+		vts:mapi(function(v) return {v:unpack()} end),
+		-- convert to 1-based because the next function is made to be OBJloader-compatible and .obj format is 1-based
+		is:mapi(function(i) return i + 1 end)
+	)
 	self:updateBlobChanges()
 end
 

@@ -1623,18 +1623,22 @@ function AppVideo:drawSolidTri3D(
 	x1, y1, z1,
 	x2, y2, z2,
 	x3, y3, z3,
-	colorIndex
+	colorIndex,
+	paletteTex
 )
-	local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
-	if not paletteBlob then
-		paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+	if not paletteTex then
+		local paletteBlob = self.blobs.palette[1+self.ram.paletteBlobIndex]
+		if not paletteBlob then
+			paletteBlob = assert(self.blobs.palette[1], "can't render anything if you have no palettes (how did you delete the last one?)")
+		end
+		local paletteRAM = paletteBlob.ramgpu
+		if paletteRAM.dirtyCPU then
+			self:triBuf_flush()
+			paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
+		end
+		paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
 	end
-	local paletteRAM = paletteBlob.ramgpu
-	if paletteRAM.dirtyCPU then
-		self:triBuf_flush()
-		paletteRAM:checkDirtyCPU() -- before any GPU op that uses palette...
-	end
-	local paletteTex = paletteRAM.tex	-- or maybe make it an argument like in drawSolidRect ...
+
 	if self.currentVideoMode.framebufferRAM.dirtyCPU then
 		self:triBuf_flush()
 		self.currentVideoMode.framebufferRAM:checkDirtyCPU()

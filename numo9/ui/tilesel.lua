@@ -43,6 +43,7 @@ function TileSelect:button(x, y)
 	local tileIndex = bit.bor(self.pos.x, bit.lshift(self.pos.y, 5))
 	if edit:guiButton('T', x, y, self.pickOpen, 'tile='..tileIndex) then
 		self.pickOpen = not self.pickOpen
+		return true
 	end
 end
 
