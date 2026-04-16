@@ -231,37 +231,24 @@ function AppBlobs:initBlobs()
 	-- create initial blobs for 1st time
 	-- let the user delete these if desired
 	do	-- default sheet - put a solid block at tile location 1
-		local Sheet = blobClassForName.sheet
-		local sheet = Sheet()
-		self.blobs.sheet:insert(sheet)
-		for j=0,15 do
-			for i=0,15 do
-				local d = math.min(i, 15 - i, j, 15 - j)
-				local c = d < 4 and 0xf - d or 0x1f
-				sheet.image.buffer[16 + i + sheet.image.width * j] = c
-			end
-		end
+		self.blobs.sheet:insert(blobClassForName.sheet():setDefault())
 	end
 	do	-- default mesh:
-		local BlobMesh3D = blobClassForName.mesh3d
-		self.blobs.mesh3d:insert(BlobMesh3D.generateDefaultCube())
+		self.blobs.mesh3d:insert(blobClassForName.mesh3d.generateDefaultCube())
 	end
 	do	-- default voxelmap:
 		local vector = require 'stl.vector-lua'
 		local vec3i = require 'vec-ffi.vec3i'
-		local Voxelmap = blobClassForName.voxelmap
-		local voxelmapSizeType = numo9_rom.voxelmapSizeType
-		local voxelMapEmptyValue = numo9_rom.voxelMapEmptyValue
 
-		local o = vector(voxelmapSizeType)
+		local o = vector(numo9_rom.voxelmapSizeType)
 		local size = vec3i(16, 16, 8)
 		o:emplace_back()[0] = size.x
 		o:emplace_back()[0] = size.y
 		o:emplace_back()[0] = size.z
 		for i=0,size:volume()-1 do
-			o:emplace_back()[0] = voxelMapEmptyValue
+			o:emplace_back()[0] = numo9_rom.voxelMapEmptyValue
 		end
-		self.blobs.voxelmap:insert(Voxelmap(o:dataToStr()))
+		self.blobs.voxelmap:insert(blobClassForName.voxelmap(o:dataToStr()))
 	end
 
 	self:buildRAMFromBlobs()

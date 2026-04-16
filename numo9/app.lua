@@ -1414,7 +1414,8 @@ print('package.loaded', package.loaded)
 
 				-- and clear the tilemap now that we're done with it
 				local sheetBlob = self.blobs.sheet[1]
-				ffi.fill(sheetBlob.ramptr, sheetBlob:getSize())
+				sheetBlob:setDefault()
+				ffi.copy(sheetBlob.ramptr, sheetBlob:getPtr(), sheetBlob:getSize())
 				sheetBlob.ramgpu.dirtyCPU = true
 
 				local tilemapBlob = self.blobs.tilemap[1]

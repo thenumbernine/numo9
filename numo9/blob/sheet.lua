@@ -32,4 +32,19 @@ function BlobSheet:saveFile(filepath, blobIndex, blobs, paletteIndex)
 	image:save(filepath.path)
 end
 
+-- used for new game (and post-splash-screen) to reset the initial sheet to its default
+-- which will have a single default tile for the default mesh and default voxelmap
+function BlobSheet:setDefault()
+	self.image:clear()
+	for j=0,15 do
+		for i=0,15 do
+			local d = math.min(i, 15 - i, j, 15 - j)
+			local c = d < 4 and 0xf - d or 0x1f
+			self.image.buffer[16 + i + self.image.width * j] = c
+		end
+	end
+
+	return self
+end
+
 return BlobSheet
