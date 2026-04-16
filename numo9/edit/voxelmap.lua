@@ -77,7 +77,7 @@ function EditVoxelMap:onCartLoad()
 	self.penSize = 1
 
 	self.voxCurSel = Voxel()
-	self.voxCurSel.intval = 0
+	self.voxCurSel.intval = 2
 
 	self.mousePickLastClickTime = timer.getTime()
 
