@@ -51,6 +51,7 @@ function EditMesh3D:onCartLoad()
 	self.wireframe = false
 
 	self.tileSel = TileSelect{edit=self}
+	self.tileSel.pos.x = 2	-- initialize to one 16x16 past the 0,0 tile (which is very often clear)
 
 	self.orbit = Orbit(self.app)
 
