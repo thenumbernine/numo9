@@ -13,13 +13,12 @@ mode(0xff)	-- NativexRGB565
 --mode(0)		-- 256x256xRGB565
 --mode(43)	-- 480x270xRGB332
 --mode(18)	-- 336x189xRGB565
-HD2DFlags = 0xff & ~4	-- turn off SSAO. meh.
-pokef(ramaddr'ssaoSampleRadius', .5)
+HD2DFlags = 0xff
 
 -- this is post-projection transform so good luck with that
 pokef(ramaddr'dofFocalDist', 10)
 pokef(ramaddr'dofFocalRange', 2)
-pokef(ramaddr'dofAperature', 1)	-- how much to multiply depth-dist to get blur amount
+pokef(ramaddr'dofAperature', .3)	-- how much to multiply depth-dist to get blur amount
 pokef(ramaddr'dofBlurMax', 10)
 
 
