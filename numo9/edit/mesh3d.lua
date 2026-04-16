@@ -253,6 +253,7 @@ function EditMesh3D:update()
 				local bestDist = math.huge
 				local bestEdges
 				for i=0,getNumIndexes()-1,3 do
+					-- TODO here maybe skip edges on faces pointing away from the camera, maybe
 					for j=0,2 do
 						local ii1 = i+j
 						local ii2 = i+((j+1)%3)
@@ -274,15 +275,17 @@ function EditMesh3D:update()
 							local mdy = mouseULY - sy1
 							local mouseToV1Len = math.sqrt(mdx^2 + mdy^2)
 							local mouseToV2Len = math.sqrt((mouseULX - sx2)^2 + (mouseULY - sy2)^2)
-							-- proj = md - nsd (md dot nsd)
-							local md_nsd = mdx * nsdx + mdy * nsdy
-							local pdx = mdx - nsdx * md_nsd
-							local pdy = mdy - nsdy * md_nsd
-							-- whats left is the vec perp
-							local mouseToEdgeLen = math.sqrt(pdx^2 + pdy^2)
-							local dist = math.min(mouseToV1Len, mouseToV2Len, mouseToEdgeLen)
+							-- mouse-delta dot normalized-segment-delta = how far along s1->s2 that the nearest point to the mouse-coordinates is
+							-- if this is outside [0,sdlen] then clamp it to that
+							local param = mdx * nsdx + mdy * nsdy
+							param = math.clamp(param, 0, sdlen)
+							local mousePtOnSegX = sx1 + nsdx * param
+							local mousePtOnSegY = sy1 + nsdy * param
+							local mousePtToMouseLen = math.sqrt((mousePtOnSegX - mouseULX)^2 + (mousePtOnSegY - mouseULY)^2)
+							local dist = math.min(mouseToV1Len, mouseToV2Len, mousePtToMouseLen)
 							if dist < bestDist then
 								bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
+								bestDist = dist
 							elseif dist == bestDist then
 								bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
 							end
@@ -455,6 +458,9 @@ function EditMesh3D:update()
 					-- select-none
 					self.selectedVertexIndexSet = {}
 					refreshSelection()
+					
+					-- return and don't let anything else use the invalidated mesh functions until we refresh things
+					return
 				end
 			end
 
