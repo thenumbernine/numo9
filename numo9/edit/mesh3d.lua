@@ -7,6 +7,7 @@ local ffi = require 'ffi'
 local table = require 'ext.table'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
+local vec2i = require 'vec-ffi.vec2i'
 local vec2d = require 'vec-ffi.vec2d'
 local vec3d = require 'vec-ffi.vec3d'
 local quatd = require 'vec-ffi.quatd'
@@ -58,8 +59,10 @@ function EditMesh3D:onCartLoad()
 	self.mouseoverVertexIndexSet = {}	-- keys are 0-based vertex indexes
 	self.selectedVertexIndexSet = {}	-- keys are 0-based vertex indexes
 
-	self.selectedEdges = table()	-- table of pairs of 0-based index-of-indexes between two edges
+	self.selectedEdges = table()	-- table of vec2i's of 0-based index-of-indexes between two edges
 	self.selectedTris = table()		-- table of triplets " " "
+
+	self.mouseoverEdges = table()
 
 	self.axisFlags = {}
 	self.meshEditMode = nil			-- translate rotate scale
@@ -109,8 +112,8 @@ function EditMesh3D:update()
 	end
 	local function getIndex(i)	-- 0-based, returns index in 0..n-1 list if no index list is present, or from index list if it is present
 		local ii
-		if numIndexes == 0 then 
-			ii = i 
+		if numIndexes == 0 then
+			ii = i
 		else
 			assert.le(0, i)
 			assert.lt(i, numIndexes)
@@ -138,19 +141,23 @@ function EditMesh3D:update()
 		-- table indexes ar 1-based, though is values are 0-based
 		return vs, vts, is
 	end
-	local function refreshSelection()
+	local function refreshSelection(skipEdges)
 		-- TODO we could do calcCOM here isntead of when we start to do a translate/rotate/scale ...
-		self.selectedEdges = table()	-- table of pairs of 0-based indexes between two edges
-		self.selectedTris = table()		
+		if not skipEdges then
+			self.selectedEdges = table()	-- table of pairs of 0-based indexes between two edges
+		end
+		self.selectedTris = table()
 
 		for i=0,getNumIndexes()-1,3 do
-			for j=0,2 do
-				local i1 = i+j
-				local i2 = i+((j+1)%3)
-				if self.selectedVertexIndexSet[getIndex(i1)]
-				and self.selectedVertexIndexSet[getIndex(i2)]
-				then
-					self.selectedEdges:insert{i1, i2}
+			if not skipEdges then
+				for j=0,2 do
+					local i1 = i+j
+					local i2 = i+((j+1)%3)
+					if self.selectedVertexIndexSet[getIndex(i1)]
+					and self.selectedVertexIndexSet[getIndex(i2)]
+					then
+						self.selectedEdges:insert(vec2i(table{i1, i2}:sort():unpack()))
+					end
 				end
 			end
 			local i1 = i+1
@@ -161,7 +168,7 @@ function EditMesh3D:update()
 			then
 				self.selectedTris:insert{i, i1, i2}
 			end
-		end		
+		end
 	end
 
 
@@ -218,7 +225,12 @@ function EditMesh3D:update()
 			gl.glDisable(gl.GL_DEPTH_TEST)
 
 
-			if true then --self.meshEditForm == 'vertexes' then
+			if self.meshEditForm == 'vertexes' then
+				--[[
+				click-to-toggle in vertex mode
+				what to do for multiple overlapping vertexes ...
+				how does blender handle it?
+				--]]
 				local bestDistSq = math.huge
 				local bestVtxIndexSet
 				for i=0,numVtxs-1 do
@@ -238,6 +250,48 @@ function EditMesh3D:update()
 				end
 			elseif self.meshEditForm == 'edges' then
 				-- find the best edge, toggle its selection if not selected
+				local bestDist = math.huge
+				local bestEdges
+				for i=0,getNumIndexes()-1,3 do
+					for j=0,2 do
+						local ii1 = i+j
+						local ii2 = i+((j+1)%3)
+						local i1 = getIndex(ii1)
+						local i2 = getIndex(ii2)
+						local v1 = vtxs + i1
+						local v2 = vtxs + i2
+						local sx1, sy1 = app:transform(v1.x, v1.y, v1.z, 1)
+						local sx2, sy2 = app:transform(v2.x, v2.y, v2.z, 1)
+						-- line segment from edge v1 to v2 in screen space
+						local sdx = sx2 - sx1
+						local sdy = sy2 - sy1
+						local sdlen = math.sqrt(sdx^2 + sdy^2)
+						if sdlen > 0.1 then
+							local nsdx = sdx / sdlen
+							local nsdy = sdy / sdlen
+							-- line segment from start of edge to mouse
+							local mdx = mouseULX - sx1
+							local mdy = mouseULY - sy1
+							local mouseToV1Len = math.sqrt(mdx^2 + mdy^2)
+							local mouseToV2Len = math.sqrt((mouseULX - sx2)^2 + (mouseULY - sy2)^2)
+							-- proj = md - nsd (md dot nsd)
+							local md_nsd = mdx * nsdx + mdy * nsdy
+							local pdx = mdx - nsdx * md_nsd
+							local pdy = mdy - nsdy * md_nsd
+							-- whats left is the vec perp
+							local mouseToEdgeLen = math.sqrt(pdx^2 + pdy^2)
+							local dist = math.min(mouseToV1Len, mouseToV2Len, mouseToEdgeLen)
+							if dist < bestDist then
+								bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
+							elseif dist == bestDist then
+								bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
+							end
+						end
+					end
+				end
+				if bestEdges then
+					self.mouseoverEdges = bestEdges
+				end
 			elseif self.meshEditForm == 'faces' then
 				-- find the best tri, toggle its selection if not selected
 			end
@@ -309,14 +363,39 @@ function EditMesh3D:update()
 
 			if mouseY > 8
 			and not handled
-			and app:keyr'mouse_left' 
+			and app:keyr'mouse_left'
 			then
 				if self.meshEditMode == nil then
-					-- toggle
-					for i in pairs(self.mouseoverVertexIndexSet) do
-						self.selectedVertexIndexSet[i] = not self.selectedVertexIndexSet[i] or nil
+					if self.meshEditForm == 'vertexes' then
+						-- toggle
+						for i in pairs(self.mouseoverVertexIndexSet) do
+							self.selectedVertexIndexSet[i] = not self.selectedVertexIndexSet[i] or nil
+						end
+						refreshSelection()
+					elseif self.meshEditForm == 'edges' then
+
+						--self.mouseoverEdges
+						-- traverse it,
+						-- add/remove toggle its edges in self.selectedEdges
+						for _,e in ipairs(self.mouseoverEdges) do
+							local j = self.selectedEdges:find(e)
+							if j then	-- if we have then remove
+								self.selectedEdges:remove(j)
+							else		-- if we don't have then add
+								self.selectedEdges:insert(e)
+							end
+						end
+
+						-- now rebuild vertexes from selected edges
+						self.selectedVertexIndexSet = {}
+						for _,e in ipairs(self.selectedEdges) do
+							for _,ii in ipairs{e:unpack()} do
+								local i = getIndex(ii)
+								self.selectedVertexIndexSet[i] = true
+							end
+						end
+						refreshSelection(true)	-- true = don't also rebuild selectedEdges
 					end
-					refreshSelection()
 				else
 					--self.undo:pushContinuous()
 					self.undo:push()
@@ -342,7 +421,7 @@ function EditMesh3D:update()
 					-- delete selected vertexes
 					-- delete or merge touching triangles?
 					-- then rebuild current mesh blob from arrays
-				
+
 					local imap = {}	-- 0-based map from old index to new (post-delete) index
 					local newvi = 0
 					local newvs = table()
@@ -370,7 +449,7 @@ function EditMesh3D:update()
 							newis:insert(imap[is[i3]])
 						end
 					end
-					
+
 					self:replaceMeshBlobWithLists(newvs, newvts, newis)
 
 					-- select-none
@@ -574,11 +653,11 @@ function EditMesh3D:update()
 			end
 			drawVertexSet(self.mouseoverVertexIndexSet, 0x19)
 			drawVertexSet(self.selectedVertexIndexSet, 0x1a)
-			
+
 			-- now draw edge highlights
 			-- TODO only in vertex mode show veretx highlights, and only edge mode edge hihglighs, etc?
 			for _,edge in ipairs(self.selectedEdges) do
-				local i1, i2 = table.unpack(edge)
+				local i1, i2 = edge:unpack()
 				-- then line is selected
 				-- or TODO keep track of selected-lines list as well?
 				local v1 = vtxs + getIndex(i1)
@@ -598,7 +677,7 @@ function EditMesh3D:update()
 					v1.x, v1.y, v1.z,
 					v2.x, v2.y, v2.z,
 					0x1a)
-			end			
+			end
 
 
 			app:triBuf_flush()
@@ -675,12 +754,12 @@ function EditMesh3D:update()
 		self.meshEditForm = result
 	end)
 	x = x + 6*3 + 1
-	
+
 	-- TODO only show up in face-mode?
 	-- or only flip faces selected regardless of mode?
 	-- it's tempting to just make all selections vertex-driven...
 	if self:guiButton('F', x, y, false, 'flip') then
-		-- flip faces ... 
+		-- flip faces ...
 		-- 1) get faces selected
 		-- 2) flip ...
 		-- how to generalize that for any more than two faces that share 1 edge?
@@ -726,12 +805,12 @@ function EditMesh3D:update()
 					end
 				end
 			end
-::done::			
+::done::
 			if not found then
 				print"couldn't find, not flipping"
 			else
 				self:replaceMeshBlobWithLists(vs, vts, is)
-			
+
 				-- refresh edges and tris, but vtxs shouldn't change
 				refreshSelection()
 			end

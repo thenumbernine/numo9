@@ -2376,9 +2376,16 @@ function AppVideo:drawTexTri3D(
 		sheetRAM.tex,
 		self.lastTilemapTex or self.blobs.tilemap[1].ramgpu.tex, 	-- to prevent extra flushes, just using whatever sheet/tilemap is already bound
 		self.lastAnimSheetTex or self.blobs.animsheet[1].ramgpu.tex,
+		-- [[
 		x1, y1, z1, u1 / tonumber(spriteSheetSize.x), v1 / tonumber(spriteSheetSize.y),
 		x2, y2, z2, u2 / tonumber(spriteSheetSize.x), v2 / tonumber(spriteSheetSize.y),
 		x3, y3, z3, u3 / tonumber(spriteSheetSize.x), v3 / tonumber(spriteSheetSize.y),
+		--]]
+		--[[
+		x1, y1, z1, (tonumber(u1) + .5) / tonumber(spriteSheetSize.x), (tonumber(v1) + .5) / tonumber(spriteSheetSize.y),
+		x2, y2, z2, (tonumber(u2) + .5) / tonumber(spriteSheetSize.x), (tonumber(v2) + .5) / tonumber(spriteSheetSize.y),
+		x3, y3, z3, (tonumber(u3) + .5) / tonumber(spriteSheetSize.x), (tonumber(v3) + .5) / tonumber(spriteSheetSize.y),
+		--]]
 		normalX, normalY, normalZ,
 		bit.bor(drawFlags, bit.lshift(spriteMask, 8)), 0, transparentIndex, paletteOffset,
 		0, 0, 1, 1
@@ -3180,8 +3187,8 @@ function AppVideo:drawMesh3D(
 	spriteMask
 )
 	mesh3DIndex = mesh3DIndex or 0
-	uofs = uofs or 0
-	vofs = vofs or 0
+	uofs = tonumber(uofs or 0) + .5
+	vofs = tonumber(vofs or 0) + .5
 
 	local mesh = self.blobs.mesh3d[mesh3DIndex+1]
 	if not mesh then
@@ -3201,9 +3208,9 @@ function AppVideo:drawMesh3D(
 			local c = vtxs + i+2
 --DEBUG:print('drawMesh3D drawing', i, a, b, c)
 			self:drawTexTri3D(
-				a.x, a.y, a.z, a.u + uofs, a.v + vofs,
-				b.x, b.y, b.z, b.u + uofs, b.v + vofs,
-				c.x, c.y, c.z, c.u + uofs, c.v + vofs,
+				a.x, a.y, a.z, tonumber(a.u) + uofs, tonumber(a.v) + vofs,
+				b.x, b.y, b.z, tonumber(b.u) + uofs, tonumber(b.v) + vofs,
+				c.x, c.y, c.z, tonumber(c.u) + uofs, tonumber(c.v) + vofs,
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,
@@ -3218,9 +3225,9 @@ function AppVideo:drawMesh3D(
 			local b = vtxs + inds[i+1]
 			local c = vtxs + inds[i+2]
 			self:drawTexTri3D(
-				a.x, a.y, a.z, a.u + uofs, a.v + vofs,
-				b.x, b.y, b.z, b.u + uofs, b.v + vofs,
-				c.x, c.y, c.z, c.u + uofs, c.v + vofs,
+				a.x, a.y, a.z, tonumber(a.u) + uofs, tonumber(a.v) + vofs,
+				b.x, b.y, b.z, tonumber(b.u) + uofs, tonumber(b.v) + vofs,
+				c.x, c.y, c.z, tonumber(c.u) + uofs, tonumber(c.v) + vofs,
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,
