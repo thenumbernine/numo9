@@ -180,6 +180,36 @@ function EditMesh3D:update()
 			end
 		end
 	end
+	local function calcSelVtxCOM()
+		self.selVtxCOM = vec3d()
+		local count = 0
+		for i in pairs(self.selectedVertexIndexSet) do
+			if i >= 0 and i < numVtxs then
+				local v = vtxs + i
+				self.selVtxCOM = self.selVtxCOM + vec3d(v.x, v.y, v.z)
+				count = count + 1
+			end
+		end
+		if count == 0 then
+			self.meshEditMode = nil
+		else
+			self.selVtxCOM = self.selVtxCOM / count
+		end
+	end
+
+	local function setVtxEditPos()
+		for i=0,numVtxs-1 do
+			local v = vtxs + i
+			self.vtxOrigPos[i] = vec3d(v.x, v.y, v.z)
+		end
+	end
+	local function resetVtxEditPos()
+		for i=0,numVtxs-1 do
+			local v = vtxs + i
+			v.x, v.y, v.z = self.vtxOrigPos[i]:unpack()
+		end
+	end
+
 
 	if mesh3DBlob then
 		numVtxs = mesh3DBlob:getNumVertexes()
@@ -251,8 +281,10 @@ function EditMesh3D:update()
 						if distSq < bestDistSq then
 							bestDistSq = distSq
 							bestVtxIndexSet = {[i]=true}
-						elseif distSq == bestDistSq then
-							bestVtxIndexSet[i] = true
+						-- only select the first one
+						-- maybe later I'll add a selection screen-space bbox like blender...
+						--elseif distSq == bestDistSq then
+						--	bestVtxIndexSet[i] = true
 						end
 					end
 					if bestVtxIndexSet then
@@ -260,10 +292,10 @@ function EditMesh3D:update()
 					end
 				elseif self.meshEditForm == 'edges' then
 					-- find the best edge, toggle its selection if not selected
-					local bestDist = math.huge
+					local bestDistSq = math.huge
 					local bestEdges
 					for i=0,getNumIndexes()-1,3 do
---DEBUG:print('edge sel', i, getNumIndexes())						
+--DEBUG:print('edge sel', i, getNumIndexes())
 						local v0 = getVtxIndPtr(i + 0)
 						local v1 = getVtxIndPtr(i + 1)
 						local v2 = getVtxIndPtr(i + 2)
@@ -287,20 +319,21 @@ function EditMesh3D:update()
 									local nsd = sd / sdlen
 									-- line segment from start of edge to mouse
 									local md = mouseUL - sj1
-									local mouseToV1Len = md:length()
-									local mouseToV2Len = (mouseUL - sj2):length()
+									local mouseToV1LenSq = md:lenSq()
+									local mouseToV2LenSq = (mouseUL - sj2):lenSq()
 									-- mouse-delta dot normalized-segment-delta = how far along s1->s2 that the nearest point to the mouse-coordinates is
 									-- if this is outside [0,sdlen] then clamp it to that
 									local param = md:dot(nsd)
 									param = math.clamp(param, 0, sdlen)
 									local mousePtOnSeg = sj1 + nsd * param
-									local mousePtToMouseLen = (mousePtOnSeg - mouseUL):length()
-									local dist = math.min(mouseToV1Len, mouseToV2Len, mousePtToMouseLen)
-									if dist < bestDist then
+									local mousePtToMouseLenSq = (mousePtOnSeg - mouseUL):lenSq()
+									local distSq = math.min(mouseToV1LenSq, mouseToV2LenSq, mousePtToMouseLenSq)
+									if distSq < bestDistSq then
 										bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
-										bestDist = dist
-									elseif dist == bestDist then
-										bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
+										bestDistSq = distSq
+									-- only select the first one
+									--elseif distSq == bestDistSq then
+									--	bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
 									end
 								end
 							end
@@ -327,29 +360,24 @@ function EditMesh3D:update()
 						local sd0 = s1 - s0
 						local curl = sd1:det(sd0)
 						local s = table{s0, s1, s2}
-						local d = table()
-						local n = table()	-- normal in screen-space, pointing out of the tri, perp to 'd[j]'
-						local m = table()	-- from s[j] to mouse
+						local n = table()	-- normal in screen-space, pointing out of the tri, perp to line from s[j] to s[j+1 mod-based-1 3]
 						for j=1,3 do
-							d[j] = s[(j%3)+1] - s[j]
-							n[j] = d[j]:perp():normalize()
-							m[j] = mouseUL - s[j]
+							local delta = s[(j%3)+1] - s[j]
+							n[j] = delta:perp():normalize()
 						end
 						-- skip edges on tris pointing away from the camera, maybe
 						-- test det = half of area in pixels to skip degen cases where tri is a line
-						if curl > 2 then  
+						if curl > 2 then
 							-- find mouse screen coords on tri barycenter screen coords
 							-- project to tri
 
 							local closest = mouseUL:clone()
-							local outside
 							for j=1,3 do
 								local cd = closest - s[j]
 								local cdn = cd:dot(n[j])
 								if cdn > 0 then	-- if mouse is out of this edge then
 									cd = cd - n[j] * cdn	-- then project back to edge
 									closest = cd + s[j]
-									outside = true
 								end
 							end
 
@@ -357,14 +385,17 @@ function EditMesh3D:update()
 							if distSq < bestDistSq then
 								bestTris = table{i}
 								bestDistSq = distSq
-							elseif distSq == bestDistSq then
-								bestTris:insert(i)
+							-- only select the first one
+							--elseif distSq == bestDistSq then
+							--	bestTris:insert(i)
 							end
 						end
 					end
 					if bestTris then
 						self.mouseoverTris = bestTris
 					end
+				else
+					error'here'
 				end
 			end
 
@@ -402,35 +433,7 @@ function EditMesh3D:update()
 			- rotate in sheet
 			--]]
 
-			local function calcSelVtxCOM()
-				self.selVtxCOM = vec3d()
-				local count = 0
-				for i in pairs(self.selectedVertexIndexSet) do
-					if i >= 0 and i < numVtxs then
-						local v = vtxs + i
-						self.selVtxCOM = self.selVtxCOM + vec3d(v.x, v.y, v.z)
-						count = count + 1
-					end
-				end
-				if count == 0 then
-					self.meshEditMode = nil
-				else
-					self.selVtxCOM = self.selVtxCOM / count
-				end
-			end
 
-			local function setVtxEditPos()
-				for i=0,numVtxs-1 do
-					local v = vtxs + i
-					self.vtxOrigPos[i] = vec3d(v.x, v.y, v.z)
-				end
-			end
-			local function resetVtxEditPos()
-				for i=0,numVtxs-1 do
-					local v = vtxs + i
-					v.x, v.y, v.z = self.vtxOrigPos[i]:unpack()
-				end
-			end
 
 
 			if mouseY > 8
@@ -476,7 +479,7 @@ function EditMesh3D:update()
 								self.selectedTris:insert(t)
 							end
 						end
-					
+
 						-- now rebuild vertexes from selected edges
 						self.selectedVertexIndexSet = {}
 						for _,t in ipairs(self.selectedTris) do
@@ -486,129 +489,14 @@ function EditMesh3D:update()
 							end
 						end
 						refreshSelection(nil, true)	-- second true = don't also rebuild selectedTris
+					else
+						error'here'
 					end
 				else
 					--self.undo:pushContinuous()
 					self.undo:push()
 					self.meshEditMode = nil
 				end
-			end
-
-			if app:keyp'backspace'
-			or app:keyp'delete'
-			then
-				-- if we're in an edit mode then reset it
-				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
-				if self.meshEditMode then
-					resetVtxEditPos()
-					self.meshEditMode = nil
-				else
-					self.undo:push()
-
-					-- if we're not in an edit mode then delete vertexes
-					-- and then regen blobs or something
-					-- hmm
-					local vs, vts, is = getMeshLists()
-					-- delete selected vertexes
-					-- delete or merge touching triangles?
-					-- then rebuild current mesh blob from arrays
-
-					local imap = {}	-- 0-based map from old index to new (post-delete) index
-					local newvi = 0
-					local newvs = table()
-					local newvts = table()
-					for i=0,numVtxs-1 do
-						if not self.selectedVertexIndexSet[i] then
-							imap[i] = newvi
-							newvi = newvi + 1
-							newvs:insert(vs[1+i])
-							newvts:insert(vts[1+i])
-						end
-					end
-					local newis = table()
-					assert.eq(#is % 3, 0)
-					for i=1,#is-2 do
-						local i1 = is[i]
-						local i2 = is[i+1]
-						local i3 = is[i+2]
-						if not (self.selectedVertexIndexSet[i1]
-							or self.selectedVertexIndexSet[i2]
-							or self.selectedVertexIndexSet[i3]
-						) then
-							newis:insert((assert.index(imap, i1)))
-							newis:insert((assert.index(imap, i2)))
-							newis:insert((assert.index(imap, i3)))
-						end
-					end
-					assert.eq(#newis % 3, 0)
-
-					self:replaceMeshBlobWithLists(newvs, newvts, newis)
-
-					-- reset mouseover selection-testing tables
-					self.mouseoverVertexIndexSet = {}
-					-- select-none
-					self.selectedVertexIndexSet = {}
-					refreshSelection()
-					
-					-- return and don't let anything else use the invalidated mesh functions until we refresh things
-					return
-				end
-			end
-
-			if app:keyp'a' then
-				if next(self.selectedVertexIndexSet) == nil then
-					-- select all
-					self.selectedVertexIndexSet = {}
-					for i=0,numVtxs-1 do
-						self.selectedVertexIndexSet[i] = true
-					end
-				else
-					-- select none
-					self.selectedVertexIndexSet = {}
-				end
-				refreshSelection()
-			end
-
-			if app:keyp'g' then
-				self.meshEditMode = 'translate'
-				setVtxEditPos()
-				calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
-				self.totalTranslation:set(0,0,0)
-			end
-			if app:keyp's' then
-				self.meshEditMode = 'scale'
-				setVtxEditPos()
-				calcSelVtxCOM()
-				self.totalScreenTranslate:set(0,0)
-			end
-			if app:keyp'r' then
-				self.meshEditMode = 'rotate'
-				setVtxEditPos()
-				calcSelVtxCOM()
-				self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
-				self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
-				self.screenRotateAngle = 0
-
-				local drawViewInvMat = vec4x4fcol()
-				drawViewInvMat:inv4x4(app.ram.viewMat)
-				self.selRotFwdDir = vec3d(
-					drawViewInvMat.ptr[8],
-					drawViewInvMat.ptr[9],
-					drawViewInvMat.ptr[10]
-				):normalize()
-			end
-
-			if app:keyp'x' then
-				self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
-				resetVtxEditPos()
-			end
-			if app:keyp'y' then
-				self.axisFlags.y = not self.axisFlags.y or nil
-				resetVtxEditPos()
-			end
-			if app:keyp'z' then
-				self.axisFlags.z = not self.axisFlags.z or nil
-				resetVtxEditPos()
 			end
 
 			if (
@@ -705,7 +593,7 @@ function EditMesh3D:update()
 						elseif self.meshEditMode == 'scale' then
 							-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
 							v.x, v.y, v.z = orig.x, orig.y, orig.z
-							local s = math.exp(.1 * self.totalScreenTranslate.x)
+							local s = 1 + .01 * self.totalScreenTranslate.x
 							if usedx then v.x = (v.x - self.selVtxCOM.x) * s + self.selVtxCOM.x end
 							if usedy then v.y = (v.y - self.selVtxCOM.y) * s + self.selVtxCOM.y end
 							if usedz then v.z = (v.z - self.selVtxCOM.z) * s + self.selVtxCOM.z end
@@ -816,7 +704,7 @@ function EditMesh3D:update()
 				if not usedz then dz = 0 end
 				app:drawMenuText('xlate='..dx..', '..dy..', '..dz, x, y)
 			elseif self.meshEditMode == 'scale' then
-				local s = math.exp(.1 * self.totalScreenTranslate.x)
+				local s = 1 + .01 * self.totalScreenTranslate.x
 				app:drawMenuText('scale='..s, x, y)
 			elseif self.meshEditMode == 'rotate' then
 				local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
@@ -956,7 +844,7 @@ function EditMesh3D:update()
 		if fwd.x < 0 then
 			orbit.angle:set(.5, -.5, -.5, .5)
 		else
-			orbit.angle:set(.5, .5, .5, .5) 
+			orbit.angle:set(.5, .5, .5, .5)
 		end
 		local dist = (orbit.pos - orbit.orbit):length()
 		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
@@ -1000,9 +888,183 @@ function EditMesh3D:update()
 		else
 			uikey = app:key'lctrl' or app:key'rctrl'
 		end
+
 		if uikey then
 			if app:keyp'z' then
 				self:popUndo(shift)
+			end
+		else	-- non-ctrl:
+
+			if app:keyp'backspace'
+			or app:keyp'delete'
+			then
+				-- if we're in an edit mode then reset it
+				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
+				if self.meshEditMode then
+					resetVtxEditPos()
+					self.meshEditMode = nil
+				else
+					self.undo:push()
+
+					-- if we're not in an edit mode then delete vertexes
+					-- and then regen blobs or something
+					-- hmm
+					local vs, vts, is = getMeshLists()
+assert.eq(#is % 3, 0)
+					-- delete selected vertexes
+					-- delete or merge touching triangles?
+					-- then rebuild current mesh blob from arrays
+
+--DEBUG:print('old')
+--DEBUG:print('vs', #vs, require 'ext.tolua'(vs))
+--DEBUG:print('vts', #vts, require 'ext.tolua'(vts))
+--DEBUG:print('is', #is, require 'ext.tolua'(is))
+
+					local newvs = table()
+					local newvts = table()
+					local newis = table()
+
+					if self.meshEditForm == 'vertexes'
+					or self.meshEditForm == 'edges' then
+						local vimap = {}	-- 0-based map from old index to new (post-delete) index
+						local newvi = 0
+--DEBUG:print('vimap')
+						for i=0,numVtxs-1 do
+							if not self.selectedVertexIndexSet[i] then
+								vimap[i] = newvi
+--DEBUG:print('', i..' => '..newvi)
+								newvi = newvi + 1
+								newvs:insert(vs[1+i])
+								newvts:insert(vts[1+i])
+							end
+						end
+--DEBUG:print('selectedTris', require 'ext.tolua'(self.selectedTris))
+						for i=0,#is-3,3 do
+--DEBUG:print('remapping tri', i)
+							local i1 = is[i+1]
+							local i2 = is[i+2]
+							local i3 = is[i+3]
+							-- in delete-vertex mode , delete all tris touching the deleted vertex
+							-- TODO or should we merge, and only delete upon degen-tri-to-line case?
+							local newi1 = vimap[i1]
+							local newi2 = vimap[i2]
+							local newi3 = vimap[i3]
+							if newi1 and newi2 and newi3 then
+--DEBUG:print('tri indexes from', i1, i2, i3, 'to', newi1, newi2, newi3)
+								newis:insert(newi1)
+								newis:insert(newi2)
+								newis:insert(newi3)
+							end
+						end
+					elseif self.meshEditForm == 'tris' then
+						-- delete the face, and then remove/remap any unused vtxs
+						newis = table(is)
+						newvs = table(vs)
+						newvts = table(vts)
+						-- j is 0-based mod-3 index of the start of a triangle in our index buffer
+						-- so traverse in reverse order and remove-3 per tri we want to remove
+						for _,i in ipairs(table(self.selectedTris):sort():reverse()) do
+--DEBUG:print('removing tri', i)
+							for k=0,2 do
+								newis:remove(1+i)	-- newis is 1-based ...
+							end
+						end
+						-- now flag good vtxs ...
+						local vused = {}	-- keys are 0-based vtx indexes
+						for _,i in ipairs(newis) do
+							vused[i] = true
+						end
+						-- and any unflagged vtxs, remove (and remap indexes)
+						for i=numVtxs-1,0,-1 do	-- i is 0-based vtx index
+							if not vused[i] then
+								-- remap indexes...
+								for j=1,#newis do
+									if newis[j] > i then
+										newis[j] = newis[j] - 1
+									end
+								end
+								-- remove...
+								newvs:remove(i+1)
+								newvts:remove(i+1)
+							end
+						end
+					else
+						error'here'
+					end
+					assert.eq(#newis % 3, 0)
+
+--DEBUG:print('new')
+--DEBUG:print('vs', #newvs, require 'ext.tolua'(newvs))
+--DEBUG:print('vts', #newvts, require 'ext.tolua'(newvts))
+--DEBUG:print('is', #newis, require 'ext.tolua'(newis))
+
+					self:replaceMeshBlobWithLists(newvs, newvts, newis)
+
+					-- reset mouseover selection-testing tables
+					self.mouseoverVertexIndexSet = {}
+					-- select-none
+					self.selectedVertexIndexSet = {}
+					refreshSelection()
+
+					-- return and don't let anything else use the invalidated mesh functions until we refresh things
+					return
+				end
+			end
+
+			if app:keyp'a' then
+				if next(self.selectedVertexIndexSet) == nil then
+					-- select all
+					self.selectedVertexIndexSet = {}
+					for i=0,numVtxs-1 do
+						self.selectedVertexIndexSet[i] = true
+					end
+				else
+					-- select none
+					self.selectedVertexIndexSet = {}
+				end
+				refreshSelection()
+			end
+
+			if app:keyp'g' then
+				self.meshEditMode = 'translate'
+				setVtxEditPos()
+				calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
+				self.totalTranslation:set(0,0,0)
+			end
+			if app:keyp's' then
+				self.meshEditMode = 'scale'
+				setVtxEditPos()
+				calcSelVtxCOM()
+				self.totalScreenTranslate:set(0,0)
+			end
+			if app:keyp'r' then
+				self.meshEditMode = 'rotate'
+				setVtxEditPos()
+				calcSelVtxCOM()
+				self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
+				self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
+				self.screenRotateAngle = 0
+
+				local drawViewInvMat = vec4x4fcol()
+				drawViewInvMat:inv4x4(app.ram.viewMat)
+				self.selRotFwdDir = vec3d(
+					drawViewInvMat.ptr[8],
+					drawViewInvMat.ptr[9],
+					drawViewInvMat.ptr[10]
+				):normalize()
+			end
+
+			if app:keyp'x' then
+				self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
+				resetVtxEditPos()
+			end
+			if app:keyp'y' then
+				self.axisFlags.y = not self.axisFlags.y or nil
+				resetVtxEditPos()
+			end
+			if app:keyp'z' then
+				self.axisFlags.z = not self.axisFlags.z or nil
+				resetVtxEditPos()
 			end
 		end
 	end
@@ -1015,7 +1077,7 @@ function EditMesh3D:popUndo(redo)
 	local app = self.app
 	local entry = self.undo:pop(redo)
 	if not entry then return end
-	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = blobClassForName.mesh3d(entry.data)
+	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D(entry.data)
 	self:updateBlobChanges()
 end
 
