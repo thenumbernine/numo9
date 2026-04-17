@@ -22,7 +22,12 @@ local TileSelect = require 'numo9.ui.tilesel'
 local numo9_rom = require 'numo9.rom'
 local tileSizeInBits = numo9_rom.tileSizeInBits
 
-
+-- truncate stack, useful for ffi ctype ctors that can't have extra args
+local function trunc(i, ...)
+	if i <= 0 then return end
+	return ..., trunc(i-1, select(2, ...))
+end
+local function trunc2(x, y) return x, y end
 
 local EditMesh3D = require 'numo9.ui':subclass()
 
@@ -67,7 +72,7 @@ function EditMesh3D:onCartLoad()
 
 	self.axisFlags = {}
 	self.meshEditMode = nil			-- translate rotate scale
-	self.meshEditForm = 'vertexes'	-- vertexes edges faces
+	self.meshEditForm = 'vertexes'	-- vertexes edges tris
 
 	-- table-of-vec3d's to store original vertex positiosn before edit operation
 	self.vtxOrigPos = table()
@@ -229,6 +234,7 @@ function EditMesh3D:update()
 
 
 			if mouseULX ~= lastMouseULX or mouseULY ~= lastMouseULY then
+				local mouseUL = vec2d(mouseULX, mouseULY)
 				if self.meshEditForm == 'vertexes' then
 					--[[
 					click-to-toggle in vertex mode
@@ -240,8 +246,8 @@ function EditMesh3D:update()
 					for i=0,numVtxs-1 do
 						local v = vtxs + i
 						-- sx sy are in [0,app.width)x[0,app.height) coords
-						local sx, sy = app:transform(v.x, v.y, v.z, 1)
-						local distSq = (mouseULX - sx)^2 + (mouseULY - sy)^2
+						local s = vec2d(trunc2(app:transform(v.x, v.y, v.z, 1)))
+						local distSq = (mouseUL - s):lenSq()
 						if distSq < bestDistSq then
 							bestDistSq = distSq
 							bestVtxIndexSet = {[i]=true}
@@ -261,40 +267,34 @@ function EditMesh3D:update()
 						local v0 = getVtxIndPtr(i + 0)
 						local v1 = getVtxIndPtr(i + 1)
 						local v2 = getVtxIndPtr(i + 2)
-						local s0x, s0y = app:transform(v0.x, v0.y, v0.z, 1)
-						local s1x, s1y = app:transform(v1.x, v1.y, v1.z, 1)
-						local s2x, s2y = app:transform(v2.x, v2.y, v2.z, 1)
-						local sd1x = s2x - s1x
-						local sd1y = s2y - s1y
-						local sd0x = s1x - s0x
-						local sd0y = s1y - s0y
-						local curl = sd1x * sd0y - sd1y * sd0x
-						local s = table{{s0x, s0y}, {s1x, s1y}, {s2x, s2y}}
-						if curl > 0 then -- skip edges on faces pointing away from the camera, maybe
+						local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
+						local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
+						local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
+						local sd1 = s2 - s1
+						local sd0 = s1 - s0
+						local curl = sd1:det(sd0)
+						local s = table{s0, s1, s2}
+						if curl > 0 then -- skip edges on tris pointing away from the camera, maybe
 							for j=0,2 do
 								local ii1 = i+j
 								local ii2 = i+((j+1)%3)
-								local sx1, sy1 = table.unpack(s[1+j])
-								local sx2, sy2 = table.unpack(s[1+((j+1)%3)])
+								local sj1 = s[1+j]
+								local sj2 = s[1+((j+1)%3)]
 								-- line segment from edge v1 to v2 in screen space
-								local sdx = sx2 - sx1
-								local sdy = sy2 - sy1
-								local sdlen = math.sqrt(sdx^2 + sdy^2)
+								local sd = sj2 - sj1
+								local sdlen = sd:length()
 								if sdlen > .1 then
-									local nsdx = sdx / sdlen
-									local nsdy = sdy / sdlen
+									local nsd = sd / sdlen
 									-- line segment from start of edge to mouse
-									local mdx = mouseULX - sx1
-									local mdy = mouseULY - sy1
-									local mouseToV1Len = math.sqrt(mdx^2 + mdy^2)
-									local mouseToV2Len = math.sqrt((mouseULX - sx2)^2 + (mouseULY - sy2)^2)
+									local md = mouseUL - sj1
+									local mouseToV1Len = md:length()
+									local mouseToV2Len = (mouseUL - sj2):length()
 									-- mouse-delta dot normalized-segment-delta = how far along s1->s2 that the nearest point to the mouse-coordinates is
 									-- if this is outside [0,sdlen] then clamp it to that
-									local param = mdx * nsdx + mdy * nsdy
+									local param = md:dot(nsd)
 									param = math.clamp(param, 0, sdlen)
-									local mousePtOnSegX = sx1 + nsdx * param
-									local mousePtOnSegY = sy1 + nsdy * param
-									local mousePtToMouseLen = math.sqrt((mousePtOnSegX - mouseULX)^2 + (mousePtOnSegY - mouseULY)^2)
+									local mousePtOnSeg = sj1 + nsd * param
+									local mousePtToMouseLen = (mousePtOnSeg - mouseUL):length()
 									local dist = math.min(mouseToV1Len, mouseToV2Len, mousePtToMouseLen)
 									if dist < bestDist then
 										bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
@@ -309,83 +309,56 @@ function EditMesh3D:update()
 					if bestEdges then
 						self.mouseoverEdges = bestEdges
 					end
-				elseif self.meshEditForm == 'faces' then
+				elseif self.meshEditForm == 'tris' then
 					-- find the best tri, toggle its selection if not selected
-					local bestDist = math.huge
+					local bestDistSq = math.huge
 					local bestTris
 					for i=0,getNumIndexes()-1,3 do
---DEBUG:print('edge sel', i, getNumIndexes())						
 						local i0 = getIndex(i)
 						local i1 = getIndex(i + 1)
 						local i2 = getIndex(i + 2)
 						local v0 = vtxs + i0
 						local v1 = vtxs + i1
 						local v2 = vtxs + i2
-						local s0x, s0y = app:transform(v0.x, v0.y, v0.z, 1)
-						local s1x, s1y = app:transform(v1.x, v1.y, v1.z, 1)
-						local s2x, s2y = app:transform(v2.x, v2.y, v2.z, 1)
-						local sd1x = s2x - s1x
-						local sd1y = s2y - s1y
-						local sd0x = s1x - s0x
-						local sd0y = s1y - s0y
-						local curl = sd1x * sd0y - sd1y * sd0x
-						local s = table{{s0x, s0y}, {s1x, s1y}, {s2x, s2y}}
-						if curl > 0 then -- skip edges on faces pointing away from the camera, maybe
+						local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
+						local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
+						local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
+						local sd1 = s2 - s1
+						local sd0 = s1 - s0
+						local curl = sd1:det(sd0)
+						local s = table{s0, s1, s2}
+						local d = table()
+						local n = table()	-- normal in screen-space, pointing out of the tri, perp to 'd[j]'
+						local m = table()	-- from s[j] to mouse
+						for j=1,3 do
+							d[j] = s[(j%3)+1] - s[j]
+							n[j] = d[j]:perp():normalize()
+							m[j] = mouseUL - s[j]
+						end
+						-- skip edges on tris pointing away from the camera, maybe
+						-- test det = half of area in pixels to skip degen cases where tri is a line
+						if curl > 2 then  
 							-- find mouse screen coords on tri barycenter screen coords
 							-- project to tri
-							local sd0len = math.sqrt(sd0x^2 + sd0y^2)
-							local sd1len = math.sqrt(sd1x^2 + sd1y^2)
-							if sd0len > .1 and sd1len > .1 then
-								local nsd0x = sd0x / sd0len
-								local nsd0y = sd0y / sd0len
-								local nsd1x = sd1x / sd1len
-								local nsd1y = sd1y / sd1len
-								local mdx = mouseULX - s0x
-								local mdy = mouseULY - s0y
-								local p0 = (mdx * nsd0x + mdy * nsd0y) / sd0len
-								local p1 = (mdx * nsd1x + mdy * nsd1y) / sd1len
-								if p0 < 0 and p1 < 0 then
-									-- l.l. voronoi region
-									p0, p1 = 0, 0
-								elseif p0 < 0 and p1 > 1 then
-									-- 90deg 2/3rds of u.l. voronoi region
-									p0, p1 = 0, 1
-								elseif p0 < 0 then
-									-- if l.l. and 90deg u.l. voronoi regions handled then this is left edge
-									p0 = 0
-								elseif p1 > p0 + 1 then
-									-- if u.l. handled and left handled then this is u.l. 45deg 1/3rd corner voronoi region
-									p0, p1 = 0, 1
-								elseif p0 > 1 and p1 < 0  then
-									-- 90deg 2/3rds of l.r. voronoi region
-									p0, p1 = 1, 0
-								elseif p1 < 0 then
-									-- if l.l. and 90deg l.r. voronoi regions handled then this is its bottom edge
-									p1 = 0
-								elseif p1 < p0 - 1 then
-									-- if l.l. handled and bottom handled then  this is l.r. 45deg 1/3rd corner voronoi region
-									p0, p1 = 1, 0
-								elseif p1 > 1 - p0 then
-									-- if all other corners and edges are handled then this is the diagonal edge
-									local n0, n1 = math.sqrt(.5), math.sqrt(.5)
-									local dp1 = p0 - .5
-									local dp2 = p1 - .5
-									local d = dp1 * n0 + dp2 * n1
-									p0 = p0 - n0 * d
-									p1 = p1 - n1 * d
-								else
-									-- inside ... assert p0 >= 0 and p1 >= 0 and p0 + p1 <= 1
+
+							local closest = mouseUL:clone()
+							local outside
+							for j=1,3 do
+								local cd = closest - s[j]
+								local cdn = cd:dot(n[j])
+								if cdn > 0 then	-- if mouse is out of this edge then
+									cd = cd - n[j] * cdn	-- then project back to edge
+									closest = cd + s[j]
+									outside = true
 								end
-							
-								local mousePtOnSegX = s0x + nsd0x * p0 + nsd1x * p1
-								local mousePtOnSegY = s0y + nsd0y * p0 + nsd1y * p1
-								local dist = math.sqrt((mousePtOnSegX - mouseULX)^2 + (mousePtOnSegY - mouseULY)^2)
-								if dist < bestDist then
-									bestTris = table{i}
-									bestDist = dist
-								elseif dist == bestDist then
-									bestTris:insert(i)
-								end
+							end
+
+							local distSq = (closest - mouseUL):lenSq()
+							if distSq < bestDistSq then
+								bestTris = table{i}
+								bestDistSq = distSq
+							elseif distSq == bestDistSq then
+								bestTris:insert(i)
 							end
 						end
 					end
@@ -494,7 +467,7 @@ function EditMesh3D:update()
 							end
 						end
 						refreshSelection(true)	-- true = don't also rebuild selectedEdges
-					elseif self.meshEditForm == 'faces' then
+					elseif self.meshEditForm == 'tris' then
 						for _,t in ipairs(self.mouseoverTris) do
 							local j = self.selectedTris:find(t)
 							if j then	-- if we have then remove
@@ -512,7 +485,7 @@ function EditMesh3D:update()
 								self.selectedVertexIndexSet[i] = true
 							end
 						end
-						refreshSelection(false, true)	-- second true = don't also rebuild selectedTris
+						refreshSelection(nil, true)	-- second true = don't also rebuild selectedTris
 					end
 				else
 					--self.undo:pushContinuous()
@@ -894,7 +867,7 @@ function EditMesh3D:update()
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
 	x = x + 6
 
-	if self:guiButton('F', x, y, self.drawFaces, 'faces') then
+	if self:guiButton('F', x, y, self.drawFaces, 'draw tris') then
 		self.drawFaces = not self.drawFaces
 	end
 	x = x + 6
@@ -910,19 +883,19 @@ function EditMesh3D:update()
 	self.tileSel:button(x,y)
 	x = x + 7
 
-	self:guiRadio(x, y, {'vertexes', 'edges', 'faces'}, self.meshEditForm, function(result)
+	self:guiRadio(x, y, {'vertexes', 'edges', 'tris'}, self.meshEditForm, function(result)
 		self.meshEditForm = result
 	end)
 	x = x + 6*3 + 1
 
 	-- TODO only show up in face-mode?
-	-- or only flip faces selected regardless of mode?
+	-- or only flip tris selected regardless of mode?
 	-- it's tempting to just make all selections vertex-driven...
 	if self:guiButton('F', x, y, false, 'flip') then
-		-- flip faces ...
-		-- 1) get faces selected
+		-- flip tris ...
+		-- 1) get tris selected
 		-- 2) flip ...
-		-- how to generalize that for any more than two faces that share 1 edge?
+		-- how to generalize that for any more than two tris that share 1 edge?
 		if #self.selectedTris ~= 2 then
 			print('need 2 tris, got '..#self.selectedTris..' tris')
 		else
