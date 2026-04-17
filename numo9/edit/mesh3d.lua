@@ -56,6 +56,7 @@ function EditMesh3D:onCartLoad()
 
 	self.drawFaces = true
 	self.wireframe = false
+	self.editTexCoords = false
 
 	self.tileSel = TileSelect{
 		edit = self,
@@ -240,7 +241,6 @@ function EditMesh3D:update()
 	local tileSelHandled = self.tileSel:doPopup()
 	if mesh3DBlob then
 
-		local pushBlend
 		if not tileSelHandled then
 			handled = orbit:beginDraw() or handled
 			app:matscale(1/32768, 1/32768, 1/32768)
@@ -279,7 +279,7 @@ function EditMesh3D:update()
 			end
 
 			-- from here on, no depth mask, since it is all mesh highlights
-			pushBlend = app.currentBlendMode
+			local pushBlend = app.currentBlendMode
 			app:triBuf_flush()
 			app:setBlendMode(1)	-- average
 			gl.glDisable(gl.GL_DEPTH_TEST)
@@ -516,157 +516,156 @@ function EditMesh3D:update()
 					self.meshEditMode = nil
 				end
 			end
-		end
 
-		-- handle mouseEditMode
-		-- do this here so that I can also use it in tileSel mode (kind of an ugly crossover hack...)
-		-- break the `if not tileSelHandled then` so that I can use the transform of the non-tilesel to handle mouse input ... (even in tilesel mode? very ugly...)
-		if (
-			self.meshEditMode == 'translate'
-			or self.meshEditMode == 'scale'
-			or self.meshEditMode == 'rotate'
-		)
-		and (
-			mouseULX ~= lastMouseULX
-			or mouseULY ~= lastMouseULY
-		)
-		then
-			-- inverse-transform screen-coordinates into world-coordinates
-			-- translate/scale accordingly
+			if (
+				self.meshEditMode == 'translate'
+				or self.meshEditMode == 'scale'
+				or self.meshEditMode == 'rotate'
+			)
+			and (
+				mouseULX ~= lastMouseULX
+				or mouseULY ~= lastMouseULY
+			)
+			then
+				-- inverse-transform screen-coordinates into world-coordinates
+				-- translate/scale accordingly
 
-			local sx, sy, sz
-			for i in pairs(self.selectedVertexIndexSet) do
-				if i >= 0
-				and i < numVtxs
-				then
-					local v = vtxs + i
-					sx, sy, sz = app:transform(v.x, v.y, v.z, 1)
-					break
-				end
-			end
-
-			local x1b, y1b, z1b, w1b = app:invTransform(lastMouseULX, lastMouseULY, sz or 0)
-			local invw1b = 1 / w1b
-			x1b = x1b * invw1b
-			y1b = y1b * invw1b
-			z1b = z1b * invw1b
-
-			local x2b, y2b, z2b, w2b = app:invTransform(mouseULX, mouseULY, sz or 0)
-			local invw2b = 1 / w2b
-			x2b = x2b * invw2b
-			y2b = y2b * invw2b
-			z2b = z2b * invw2b
-
-			local dx = x2b - x1b
-			local dy = y2b - y1b
-			local dz = z2b - z1b
-
-			local usedx = self.axisFlags.x
-			local usedy = self.axisFlags.y
-			local usedz = self.axisFlags.z
-			-- none set == all set
-			if next(self.axisFlags) == nil then
-				usedx, usedy, usedz = true, true, true
-			end
-
-			local rotAxis
-			if self.meshEditMode == 'rotate' then
-				if usedx and usedy and usedz then
-					rotAxis = self.selRotFwdDir
-				else
-					rotAxis = self.selRotFwdDir:clone()
-					-- if you press 'r' then 'x', you expect x-axis rotations, which means ... none of the other axii ...
-					if usedx and not usedy and not usedz then
-						rotAxis:set(1,0,0)
-					elseif not usedx and usedy and not usedz then
-						rotAxis:set(0,1,0)
-					elseif not usedx and not usedy and usedz then
-						rotAxis:set(0,0,1)
-					-- push 'x' and 'y' means rotate the xy plane ...
-					elseif usedx and usedy and not usedz then
-						rotAxis.z = 0
-					elseif usedx and not usedy and usedz then
-						rotAxis.y = 0
-					elseif not usedx and usedy and usedz then
-						rotAxis.x = 0
-					end
-					rotAxis = rotAxis:normalize()
-				end
-			end
-
-			if self.meshEditMode == 'translate' then
-				self.totalTranslation.x = self.totalTranslation.x + dx
-				self.totalTranslation.y = self.totalTranslation.y + dy
-				self.totalTranslation.z = self.totalTranslation.z + dz
-			elseif self.meshEditMode == 'scale' then
-				self.totalScreenTranslate.x = self.totalScreenTranslate.x + mouseULX - lastMouseULX
-				self.totalScreenTranslate.y = self.totalScreenTranslate.y + mouseULY - lastMouseULY
-			end
-
-			for i in pairs(self.selectedVertexIndexSet) do
-				if i >= 0 and i < numVtxs then
-					local v = vtxs + i
-					local origXYZ = self.vtxOrigPos[1+i]
-					local origUV = self.vtxOrigTCs[1+i]
-					if self.meshEditMode == 'translate' then
-						if not self.tileSel.pickOpen then
-							v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
-							if usedx then v.x = v.x + self.totalTranslation.x end
-							if usedy then v.y = v.y + self.totalTranslation.y end
-							if usedz then v.z = v.z + self.totalTranslation.z end
-						else
-							v.u, v.v = origUV.x, origUV.y
-							if usedx then v.u = v.u + self.totalTranslation.x end
-							if usedy then v.v = v.v + self.totalTranslation.y end
-						end
-					elseif self.meshEditMode == 'scale' then
-						-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
-						local s = 1 + .01 * self.totalScreenTranslate.x
-						if not self.tileSel.pickOpen then
-							v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
-							if usedx then v.x = (v.x - self.selVtxCOM.x) * s + self.selVtxCOM.x end
-							if usedy then v.y = (v.y - self.selVtxCOM.y) * s + self.selVtxCOM.y end
-							if usedz then v.z = (v.z - self.selVtxCOM.z) * s + self.selVtxCOM.z end
-						else
-							v.u, v.v = origUV.x, origUV.y
-							if usedx then v.u = (v.u - self.selTexCoordCOM.x) * s + self.selTexCoordCOM.x end
-							if usedy then v.v = (v.v - self.selTexCoordCOM.y) * s + self.selTexCoordCOM.y end
-						end
-					elseif self.meshEditMode == 'rotate' then
-						local mouseCurrentAngle = math.round(math.deg((vec2d(mouseX, mouseY) - 128):angle()))
-						-- negative because screen coordinates are a LHS system
-						-- TODO TODO TODO make *everything* RHS and even screen-space origin in lower-left
-						self.screenRotateAngle = -(mouseCurrentAngle - self.rotateMouseScreenDownAngle)
-
-						if not self.tileSel.pickOpen then
-							local q = quatd():fromAngleAxis(
-								rotAxis.x,
-								rotAxis.y,
-								rotAxis.z,
-								self.screenRotateAngle
-							)
-							local pos = origXYZ - self.selVtxCOM
-							pos = q:rotate(pos)
-							pos = pos + self.selVtxCOM
-							v.x, v.y, v.z = pos.x, pos.y, pos.z
-						else
-							local cosTheta = math.cos(math.rad(self.screenRotateAngle))
-							local sinTheta = math.sin(math.rad(self.screenRotateAngle))
-							local pos = origUV - self.selTexCoordCOM
-							pos = vec2d(
-								pos.x * cosTheta - pos.y * sinTheta,
-								pos.x * sinTheta + pos.y * cosTheta
-							)
-							pos = pos + self.selTexCoordCOM
-							v.u, v.v = pos.u, pos.v
-						end
+				local sx, sy, sz
+				for i in pairs(self.selectedVertexIndexSet) do
+					if i >= 0
+					and i < numVtxs
+					then
+						local v = vtxs + i
+						sx, sy, sz = app:transform(v.x, v.y, v.z, 1)
+						break
 					end
 				end
+
+				local x1b, y1b, z1b, w1b = app:invTransform(lastMouseULX, lastMouseULY, sz or 0)
+				local invw1b = 1 / w1b
+				x1b = x1b * invw1b
+				y1b = y1b * invw1b
+				z1b = z1b * invw1b
+
+				local x2b, y2b, z2b, w2b = app:invTransform(mouseULX, mouseULY, sz or 0)
+				local invw2b = 1 / w2b
+				x2b = x2b * invw2b
+				y2b = y2b * invw2b
+				z2b = z2b * invw2b
+
+				local dx = x2b - x1b
+				local dy = y2b - y1b
+				local dz = z2b - z1b
+
+				local usedx = self.axisFlags.x
+				local usedy = self.axisFlags.y
+				local usedz = self.axisFlags.z
+				-- none set == all set
+				if next(self.axisFlags) == nil then
+					usedx, usedy, usedz = true, true, true
+				end
+
+				local rotAxis
+				if self.meshEditMode == 'rotate' then
+					if usedx and usedy and usedz then
+						rotAxis = self.selRotFwdDir
+					else
+						rotAxis = self.selRotFwdDir:clone()
+						-- if you press 'r' then 'x', you expect x-axis rotations, which means ... none of the other axii ...
+						if usedx and not usedy and not usedz then
+							rotAxis:set(1,0,0)
+						elseif not usedx and usedy and not usedz then
+							rotAxis:set(0,1,0)
+						elseif not usedx and not usedy and usedz then
+							rotAxis:set(0,0,1)
+						-- push 'x' and 'y' means rotate the xy plane ...
+						elseif usedx and usedy and not usedz then
+							rotAxis.z = 0
+						elseif usedx and not usedy and usedz then
+							rotAxis.y = 0
+						elseif not usedx and usedy and usedz then
+							rotAxis.x = 0
+						end
+						rotAxis = rotAxis:normalize()
+					end
+				end
+
+				if self.meshEditMode == 'translate' then
+					--if not self.editTexCoords then
+						self.totalTranslation.x = self.totalTranslation.x + dx
+						self.totalTranslation.y = self.totalTranslation.y + dy
+						self.totalTranslation.z = self.totalTranslation.z + dz
+					--else
+					--	self.totalTranslation.x = self.totalTranslation.x + mouseULX - lastMouseULX
+					--	self.totalTranslation.y = self.totalTranslation.y + mouseULY - lastMouseULY
+					--end
+				elseif self.meshEditMode == 'scale' then
+					self.totalScreenTranslate.x = self.totalScreenTranslate.x + mouseULX - lastMouseULX
+					self.totalScreenTranslate.y = self.totalScreenTranslate.y + mouseULY - lastMouseULY
+				end
+
+				for i in pairs(self.selectedVertexIndexSet) do
+					if i >= 0 and i < numVtxs then
+						local v = vtxs + i
+						local origXYZ = self.vtxOrigPos[1+i]
+						local origUV = self.vtxOrigTCs[1+i]
+						if self.meshEditMode == 'translate' then
+							if not self.editTexCoords then
+								v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
+								if usedx then v.x = v.x + self.totalTranslation.x end
+								if usedy then v.y = v.y + self.totalTranslation.y end
+								if usedz then v.z = v.z + self.totalTranslation.z end
+							else
+								v.u, v.v = origUV.x, origUV.y
+								if usedx then v.u = v.u - self.totalTranslation.x / 256 end
+								if usedy then v.v = v.v - self.totalTranslation.y / 256 end
+							end
+						elseif self.meshEditMode == 'scale' then
+							-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
+							local s = 1 + .01 * self.totalScreenTranslate.x
+							if not self.editTexCoords then
+								v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
+								if usedx then v.x = (v.x - self.selVtxCOM.x) * s + self.selVtxCOM.x end
+								if usedy then v.y = (v.y - self.selVtxCOM.y) * s + self.selVtxCOM.y end
+								if usedz then v.z = (v.z - self.selVtxCOM.z) * s + self.selVtxCOM.z end
+							else
+								v.u, v.v = origUV.x, origUV.y
+								if usedx then v.u = (v.u - self.selTexCoordCOM.x) * s + self.selTexCoordCOM.x end
+								if usedy then v.v = (v.v - self.selTexCoordCOM.y) * s + self.selTexCoordCOM.y end
+							end
+						elseif self.meshEditMode == 'rotate' then
+							local mouseCurrentAngle = math.round(math.deg((vec2d(mouseX, mouseY) - 128):angle()))
+							-- negative because screen coordinates are a LHS system
+							-- TODO TODO TODO make *everything* RHS and even screen-space origin in lower-left
+							self.screenRotateAngle = -(mouseCurrentAngle - self.rotateMouseScreenDownAngle)
+
+							if not self.editTexCoords then
+								local q = quatd():fromAngleAxis(
+									rotAxis.x,
+									rotAxis.y,
+									rotAxis.z,
+									self.screenRotateAngle
+								)
+								local pos = origXYZ - self.selVtxCOM
+								pos = q:rotate(pos)
+								pos = pos + self.selVtxCOM
+								v.x, v.y, v.z = pos.x, pos.y, pos.z
+							else
+								local cosTheta = math.cos(math.rad(self.screenRotateAngle))
+								local sinTheta = math.sin(math.rad(self.screenRotateAngle))
+								local pos = origUV - self.selTexCoordCOM
+								pos = vec2d(
+									pos.x * cosTheta - pos.y * sinTheta,
+									pos.x * sinTheta + pos.y * cosTheta
+								)
+								pos = pos + self.selTexCoordCOM
+								v.u, v.v = pos.x, pos.y
+							end
+						end
+					end
+				end
 			end
-		end
 
-
-		if not tileSelHandled then
 			local function drawVertexSet(set, color)
 				for i in pairs(set) do
 					if i >= 0
@@ -817,6 +816,11 @@ function EditMesh3D:update()
 	x = x + 6
 	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'ortho' or 'projection') then
 		orbit.ortho = not orbit.ortho
+	end
+	x = x + 6
+
+	if self:guiButton('U', x, y, self.editTexCoords, 'edit texcoords') then
+		self.editTexCoords = not self.editTexCoords
 	end
 	x = x + 6
 
@@ -1084,6 +1088,7 @@ assert.eq(#is % 3, 0)
 
 			if app:keyp'g' then
 				if self.meshEditMode ~= nil then
+					-- TODO maybe even pop the last undo push?
 					resetVtxEditPos()
 					self.meshEditMode = nil
 				else
