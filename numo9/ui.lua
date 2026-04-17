@@ -316,8 +316,11 @@ function UI:guiBlobSelect(x, y, blobName, t, indexKey, cb, generator)
 		x, y, 12,
 		t[indexKey], nil,
 		function(newValue)
-			t[indexKey] = math.clamp(newValue, 0, #blobsOfType-1)
-			if cb then cb(dx) end
+			newValue = tonumber(newValue)
+			if newValue then
+				t[indexKey] = math.clamp(newValue, 0, #blobsOfType-1)
+				if cb then cb(dx) end
+			end
 			handled = true
 		end,
 		blobName)
