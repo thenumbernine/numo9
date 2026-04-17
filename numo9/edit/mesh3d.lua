@@ -617,8 +617,8 @@ function EditMesh3D:update()
 								if usedz then v.z = v.z + self.totalTranslation.z end
 							else
 								v.u, v.v = origUV.x, origUV.y
-								if usedx then v.u = v.u - self.totalTranslation.x / 256 end
-								if usedy then v.v = v.v - self.totalTranslation.y / 256 end
+								if usedx then v.u = tonumber(v.u) - math.round(self.totalTranslation.x / 256) end
+								if usedy then v.v = tonumber(v.v) - math.round(self.totalTranslation.y / 256) end
 							end
 						elseif self.meshEditMode == 'scale' then
 							-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
@@ -630,8 +630,8 @@ function EditMesh3D:update()
 								if usedz then v.z = (v.z - self.selVtxCOM.z) * s + self.selVtxCOM.z end
 							else
 								v.u, v.v = origUV.x, origUV.y
-								if usedx then v.u = (v.u - self.selTexCoordCOM.x) * s + self.selTexCoordCOM.x end
-								if usedy then v.v = (v.v - self.selTexCoordCOM.y) * s + self.selTexCoordCOM.y end
+								if usedx then v.u = (tonumber(v.u) - self.selTexCoordCOM.x) * s + self.selTexCoordCOM.x end
+								if usedy then v.v = (tonumber(v.v) - self.selTexCoordCOM.y) * s + self.selTexCoordCOM.y end
 							end
 						elseif self.meshEditMode == 'rotate' then
 							local mouseCurrentAngle = math.round(math.deg((vec2d(mouseX, mouseY) - 128):angle()))
@@ -750,7 +750,11 @@ function EditMesh3D:update()
 				if not usedx then dx = 0 end
 				if not usedy then dy = 0 end
 				if not usedz then dz = 0 end
-				app:drawMenuText('xlate='..dx..', '..dy..', '..dz, x, y)
+				if not self.editTexCoords then
+					app:drawMenuText('xlate='..dx..', '..dy..', '..dz, x, y)
+				else
+					app:drawMenuText('xlate='..math.round(dx / 256)..', '..math.round(dy / 256), x, y)
+				end
 			elseif self.meshEditMode == 'scale' then
 				local s = 1 + .01 * self.totalScreenTranslate.x
 				app:drawMenuText('scale='..s, x, y)

@@ -3187,8 +3187,8 @@ function AppVideo:drawMesh3D(
 	spriteMask
 )
 	mesh3DIndex = mesh3DIndex or 0
-	uofs = tonumber(uofs or 0) + .5
-	vofs = tonumber(vofs or 0) + .5
+	uofs = tonumber(uofs or 0)
+	vofs = tonumber(vofs or 0)
 
 	local mesh = self.blobs.mesh3d[mesh3DIndex+1]
 	if not mesh then
@@ -3208,9 +3208,12 @@ function AppVideo:drawMesh3D(
 			local c = vtxs + i+2
 --DEBUG:print('drawMesh3D drawing', i, a, b, c)
 			self:drawTexTri3D(
-				a.x, a.y, a.z, tonumber(a.u) + uofs, tonumber(a.v) + vofs,
-				b.x, b.y, b.z, tonumber(b.u) + uofs, tonumber(b.v) + vofs,
-				c.x, c.y, c.z, tonumber(c.u) + uofs, tonumber(c.v) + vofs,
+				-- how to do texcoords faster?
+				-- I hear that casting uint8_t(value) is slow ...
+				-- maybe if I allocated a uint8_t[3] and assigned / added to it?
+				a.x, a.y, a.z, ((tonumber(a.u) + uofs) % 256) + .5, ((tonumber(a.v) + vofs) % 256) + .5,
+				b.x, b.y, b.z, ((tonumber(b.u) + uofs) % 256) + .5, ((tonumber(b.v) + vofs) % 256) + .5,
+				c.x, c.y, c.z, ((tonumber(c.u) + uofs) % 256) + .5, ((tonumber(c.v) + vofs) % 256) + .5,
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,
@@ -3225,9 +3228,9 @@ function AppVideo:drawMesh3D(
 			local b = vtxs + inds[i+1]
 			local c = vtxs + inds[i+2]
 			self:drawTexTri3D(
-				a.x, a.y, a.z, tonumber(a.u) + uofs, tonumber(a.v) + vofs,
-				b.x, b.y, b.z, tonumber(b.u) + uofs, tonumber(b.v) + vofs,
-				c.x, c.y, c.z, tonumber(c.u) + uofs, tonumber(c.v) + vofs,
+				a.x, a.y, a.z, ((tonumber(a.u) + uofs) % 256) + .5, ((tonumber(a.v) + vofs) % 256) + .5,
+				b.x, b.y, b.z, ((tonumber(b.u) + uofs) % 256) + .5, ((tonumber(b.v) + vofs) % 256) + .5,
+				c.x, c.y, c.z, ((tonumber(c.u) + uofs) % 256) + .5, ((tonumber(c.v) + vofs) % 256) + .5,
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,

@@ -242,8 +242,8 @@ function TileSelect:drawSelected()
 	local thickness = math.max(1, app.width / 256)
 	local function tc(vtx)
 		return
-			256 * (tonumber(vtx.u + bit.lshift(edit.tileSel.pos.x, 3)) + .5) / tonumber(spriteSheetSize.x),
-			256 * (tonumber(vtx.v + bit.lshift(edit.tileSel.pos.y, 3)) + .5) / tonumber(spriteSheetSize.y)
+			tonumber(bit.band(0xff, vtx.u + bit.lshift(edit.tileSel.pos.x, 3))) + .5,
+			tonumber(bit.band(0xff, vtx.v + bit.lshift(edit.tileSel.pos.y, 3))) + .5
 	end
 	-- draw the texcoords offset by the getMeshIndex tileSel.pos etc
 	local mesh3DIndex = self.getMeshIndex and self:getMeshIndex()
