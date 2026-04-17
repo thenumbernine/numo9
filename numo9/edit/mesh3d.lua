@@ -1083,38 +1083,50 @@ assert.eq(#is % 3, 0)
 			end
 
 			if app:keyp'g' then
-				self.meshEditMode = 'translate'
-				self.meshEditModeText = ''
-				setVtxEditPos()
-				calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
-				self.totalTranslation:set(0,0,0)
-				self.undo:push()
+				if self.meshEditMode ~= nil then
+					self.meshEditMode = nil
+				else
+					self.meshEditMode = 'translate'
+					self.meshEditModeText = ''
+					setVtxEditPos()
+					calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
+					self.totalTranslation:set(0,0,0)
+					self.undo:push()
+				end
 			end
 			if app:keyp's' then
-				self.meshEditMode = 'scale'
-				self.meshEditModeText = ''
-				setVtxEditPos()
-				calcSelVtxCOM()
-				self.totalScreenTranslate:set(0,0)
-				self.undo:push()
+				if self.meshEditMode ~= nil then
+					self.meshEditMode = nil
+				else
+					self.meshEditMode = 'scale'
+					self.meshEditModeText = ''
+					setVtxEditPos()
+					calcSelVtxCOM()
+					self.totalScreenTranslate:set(0,0)
+					self.undo:push()
+				end
 			end
 			if app:keyp'r' then
-				self.meshEditMode = 'rotate'
-				self.meshEditModeText = ''
-				setVtxEditPos()
-				calcSelVtxCOM()
-				self.undo:push()
-				self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
-				self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
-				self.screenRotateAngle = 0
+				if self.meshEditMode ~= nil then
+					self.meshEditMode = nil
+				else
+					self.meshEditMode = 'rotate'
+					self.meshEditModeText = ''
+					setVtxEditPos()
+					calcSelVtxCOM()
+					self.undo:push()
+					self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
+					self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
+					self.screenRotateAngle = 0
 
-				local drawViewInvMat = vec4x4fcol()
-				drawViewInvMat:inv4x4(app.ram.viewMat)
-				self.selRotFwdDir = vec3d(
-					drawViewInvMat.ptr[8],
-					drawViewInvMat.ptr[9],
-					drawViewInvMat.ptr[10]
-				):normalize()
+					local drawViewInvMat = vec4x4fcol()
+					drawViewInvMat:inv4x4(app.ram.viewMat)
+					self.selRotFwdDir = vec3d(
+						drawViewInvMat.ptr[8],
+						drawViewInvMat.ptr[9],
+						drawViewInvMat.ptr[10]
+					):normalize()
+				end
 			end
 
 			if app:keyp'x' then
