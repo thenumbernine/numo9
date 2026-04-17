@@ -108,10 +108,7 @@ function TileSelect:doPopup()
 	app:mattrans(winX, winY)
 	app:matscale(self.scale, self.scale)
 	app:mattrans(-self.offset.x, -self.offset.y)
-	app:matscale(
-		(256 - 2 * winX) / 256,
-		(256 - 2 * winY) / 256
-	)
+	app:matscale(winW / 256, winH / 256)
 
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = edit.paletteBlobIndex or 0
@@ -251,10 +248,10 @@ function TileSelect:drawSelected()
 	if not mesh then
 		-- no mesh3d? just draw a rect
 		app:drawBorderRect(
-			256 * self.pos.x * spriteSize.x / spriteSheetSize.x,
-			256 * self.pos.y * spriteSize.y / spriteSheetSize.y,
-			256 * self.size.x * spriteSize.x / spriteSheetSize.x,
-			256 * self.size.y * spriteSize.y / spriteSheetSize.y,
+			self.pos.x * spriteSize.x,
+			self.pos.y * spriteSize.y,
+			self.size.x * spriteSize.x,
+			self.size.y * spriteSize.y,
 			13,
 			nil,
 			app.paletteMenuTex

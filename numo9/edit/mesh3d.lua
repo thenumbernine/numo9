@@ -616,6 +616,7 @@ function EditMesh3D:update()
 								if usedy then v.y = v.y + self.totalTranslation.y end
 								if usedz then v.z = v.z + self.totalTranslation.z end
 							else
+								-- TODO TODO TODO bumpmapping-like, construct a basis in uv coords and transform the mouse movement into texcoord space
 								v.u, v.v = origUV.x, origUV.y
 								if usedx then v.u = tonumber(v.u) - math.round(self.totalTranslation.x / 256) end
 								if usedy then v.v = tonumber(v.v) - math.round(self.totalTranslation.y / 256) end
