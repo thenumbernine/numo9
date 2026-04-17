@@ -72,7 +72,7 @@ function EditMesh3D:onCartLoad()
 	self.vtxOrigPos = table()
 	self.totalTranslation = vec3d()		-- total translation since translate start, in world coordinates
 	self.totalScreenTranslate = vec2d()	-- total translation since scale start, in screen coordinates.  TODO track in world coords and project to plane of vtxs
-	self.totalScreenRotate = 0			-- total rotation since rotate start, in screen coordinates, angle around center, in degrees
+	self.rotateMouseScreenDownPos = vec2d()	-- rotation mouse down screen coordinates relative to center
 
 	self.undo:clear()
 end
@@ -496,7 +496,9 @@ function EditMesh3D:update()
 				self.meshEditMode = 'rotate'
 				setVtxEditPos()
 				calcSelVtxCOM()
-				self.totalScreenRotate = 0
+				self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
+				self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
+				self.screenRotateAngle = 0
 
 				local drawViewInvMat = vec4x4fcol()
 				drawViewInvMat:inv4x4(app.ram.viewMat)
@@ -600,8 +602,6 @@ function EditMesh3D:update()
 				elseif self.meshEditMode == 'scale' then
 					self.totalScreenTranslate.x = self.totalScreenTranslate.x + mouseULX - lastMouseULX
 					self.totalScreenTranslate.y = self.totalScreenTranslate.y + mouseULY - lastMouseULY
-				elseif self.meshEditMode == 'rotate' then
-					self.totalScreenRotate = 0
 				end
 
 				for i in pairs(self.selectedVertexIndexSet) do
@@ -622,17 +622,16 @@ function EditMesh3D:update()
 							if usedz then v.z = (v.z - self.selVtxCOM.z) * s + self.selVtxCOM.z end
 						elseif self.meshEditMode == 'rotate' then
 							local pos = orig - self.selVtxCOM
-							local lastMouseNormalized = (vec2d(lastMouseX, lastMouseY) - 128):normalize()
-							local mouseNormalized = (vec2d(mouseX, mouseY) - 128):normalize()
-							local sinTheta = mouseNormalized:det(lastMouseNormalized)
-							local deltaAngle = math.deg(math.asin(sinTheta))
-							self.totalScreenRotate = self.totalScreenRotate + deltaAngle
+							local mouseCurrentAngle = math.round(math.deg((vec2d(mouseX, mouseY) - 128):angle()))
+							-- negative because screen coordinates are a LHS system
+							-- TODO TODO TODO make *everything* RHS and even screen-space origin in lower-left
+							self.screenRotateAngle = -(mouseCurrentAngle - self.rotateMouseScreenDownAngle)
 
 							local q = quatd():fromAngleAxis(
 								rotAxis.x,
 								rotAxis.y,
 								rotAxis.z,
-								self.totalScreenRotate
+								self.screenRotateAngle
 							)
 							pos = q:rotate(pos)
 							pos = pos + self.selVtxCOM
@@ -756,7 +755,7 @@ function EditMesh3D:update()
 					rotAxis = rotAxis:normalize()
 				end
 
-				app:drawMenuText('rot='..self.totalScreenRotate..' @ '..rotAxis, x, y)
+				app:drawMenuText('rot='..self.screenRotateAngle..' @ '..rotAxis, x, y)
 			end
 			y = y + 8
 		end
