@@ -513,8 +513,6 @@ function EditMesh3D:update()
 						error'here'
 					end
 				else
-					--self.undo:pushContinuous()
-					self.undo:push()
 					self.meshEditMode = nil
 				end
 			end
@@ -882,8 +880,8 @@ function EditMesh3D:update()
 			if not found then
 				print"couldn't find, not flipping"
 			else
-				self:replaceMeshBlobWithLists(vs, vts, is)
 				self.undo:push()
+				self:replaceMeshBlobWithLists(vs, vts, is)
 
 				-- refresh edges and tris, but vtxs shouldn't change
 				refreshSelection()
@@ -1056,8 +1054,8 @@ assert.eq(#is % 3, 0)
 --DEBUG:print('vts', #newvts, require 'ext.tolua'(newvts))
 --DEBUG:print('is', #newis, require 'ext.tolua'(newis))
 
-					self:replaceMeshBlobWithLists(newvs, newvts, newis)
 					self.undo:push()
+					self:replaceMeshBlobWithLists(newvs, newvts, newis)
 
 					-- reset mouseover selection-testing tables
 					self.mouseoverVertexIndexSet = {}
@@ -1090,6 +1088,7 @@ assert.eq(#is % 3, 0)
 				setVtxEditPos()
 				calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
 				self.totalTranslation:set(0,0,0)
+				self.undo:push()
 			end
 			if app:keyp's' then
 				self.meshEditMode = 'scale'
@@ -1097,12 +1096,14 @@ assert.eq(#is % 3, 0)
 				setVtxEditPos()
 				calcSelVtxCOM()
 				self.totalScreenTranslate:set(0,0)
+				self.undo:push()
 			end
 			if app:keyp'r' then
 				self.meshEditMode = 'rotate'
 				self.meshEditModeText = ''
 				setVtxEditPos()
 				calcSelVtxCOM()
+				self.undo:push()
 				self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
 				self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
 				self.screenRotateAngle = 0
