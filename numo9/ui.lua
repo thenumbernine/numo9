@@ -472,14 +472,14 @@ Editing will go on in RAM, for live cpu/gpu sprite/palette update's sake
 but it'll always reflect the cartridge state
 
 When the user sets the editCode to focus,
-copy from the app.blobs.code[1].data to the editor,
+copy from the app.blobs.code[1].vec to the editor,
 so we can use Lua string functinoality.
 
-While playing, assume .blobs.code[1].data has the baseline content of the game,
+While playing, assume .blobs.code[1].vec has the baseline content of the game,
 and assume whatever's in .ram is dirty.
 
 But while editing, assume .ram has the baseline content of the game,
-and assume whatever's in .blobs.code[1].data is stale.
+and assume whatever's in .blobs.code[1].vec is stale.
 
 
 HMMMMmmm

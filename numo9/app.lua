@@ -3222,7 +3222,7 @@ function App:writePersistent()
 		-- save a string up to the last non-zero value ... opposite  of C-strings
 		local data = self.blobs.persist:mapi(function(blob)
 			blob:copyFromROM()
-			return blob.data
+			return blob:toBinStr()
 		end):concat()
 		local len = #data
 		while len > 0 do

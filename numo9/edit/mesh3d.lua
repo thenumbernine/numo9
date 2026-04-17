@@ -36,8 +36,9 @@ function EditMesh3D:init(args)
 
 	self.undo = Undo{
 		get = function()
+			local binstr =  self.app.blobs.mesh3d[self.mesh3DBlobIndex+1]:toBinStr()
 			return {
-				data = self.app.blobs.mesh3d[self.mesh3DBlobIndex+1]:toBinStr(),
+				data = binstr,
 			}
 		end,
 		changed = function(entry)
@@ -66,6 +67,10 @@ function EditMesh3D:onCartLoad()
 
 	self.orbit = Orbit(self.app)
 
+	self:resetSelection()
+end
+
+function EditMesh3D:resetSelection()
 	self.mouseoverVertexIndexSet = {}	-- keys are 0-based vertex indexes
 	self.selectedVertexIndexSet = {}	-- keys are 0-based vertex indexes
 
@@ -86,14 +91,6 @@ function EditMesh3D:onCartLoad()
 	self.rotateMouseScreenDownPos = vec2d()	-- rotation mouse down screen coordinates relative to center
 
 	self.undo:clear()
-end
-
-local function linePointDist(linePos, lineDir, pt)
-	local d = pt - linePos
-	local n = d:cross(linePos)
-	local n2 = lineDir:cross(n)
-	local dist = n2:dot(d)
-	return dist
 end
 
 function EditMesh3D:update()
@@ -516,7 +513,6 @@ function EditMesh3D:update()
 						error'here'
 					end
 				else
-print('push undo xform of forms...')
 					--self.undo:pushContinuous()
 					self.undo:push()
 					self.meshEditMode = nil
@@ -803,7 +799,7 @@ print('push undo xform of forms...')
 		'mesh3d', 					-- blobName
 		self, 'mesh3DBlobIndex', 	-- table, indexKey
 		function() 					-- callback upon text change or spinner click
-			self.undo:clear()
+			self:resetSelection()
 		end,
 		BlobMesh3D.generateDefaultCube				-- new blob generator:
 	)
@@ -845,9 +841,6 @@ print('push undo xform of forms...')
 		if #self.selectedTris ~= 2 then
 			print('need 2 tris, got '..#self.selectedTris..' tris')
 		else
-print('push undo flip face')
-			self.undo:push()
-
 			-- and if # selected vtxs == 4 exactly ...
 			local vs, vts, is = getMeshLists()
 
@@ -890,6 +883,7 @@ print('push undo flip face')
 				print"couldn't find, not flipping"
 			else
 				self:replaceMeshBlobWithLists(vs, vts, is)
+				self.undo:push()
 
 				-- refresh edges and tris, but vtxs shouldn't change
 				refreshSelection()
@@ -950,7 +944,6 @@ print('push undo flip face')
 
 		if uikey then
 			if app:keyp'z' then
-print('popUndo', 'shift=', shift)
 				self:popUndo(shift)
 			end
 		else	-- non-ctrl:
@@ -970,9 +963,6 @@ print('popUndo', 'shift=', shift)
 					end
 
 				else
-print('push undo delete')
-					self.undo:push()
-
 					-- if we're not in an edit mode then delete vertexes
 					-- and then regen blobs or something
 					-- hmm
@@ -992,7 +982,8 @@ assert.eq(#is % 3, 0)
 					local newis = table()
 
 					if self.meshEditForm == 'vertexes'
-					or self.meshEditForm == 'edges' then
+					or self.meshEditForm == 'edges'
+					then
 						local vimap = {}	-- 0-based map from old index to new (post-delete) index
 						local newvi = 0
 --DEBUG:print('vimap')
@@ -1066,6 +1057,7 @@ assert.eq(#is % 3, 0)
 --DEBUG:print('is', #newis, require 'ext.tolua'(newis))
 
 					self:replaceMeshBlobWithLists(newvs, newvts, newis)
+					self.undo:push()
 
 					-- reset mouseover selection-testing tables
 					self.mouseoverVertexIndexSet = {}
@@ -1171,13 +1163,14 @@ end
 -- expects 0-based indexes (like the blob stores)
 function EditMesh3D:replaceMeshBlobWithLists(vs, vts, is)
 	local app = self.app
-	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D:loadFromLists(
+	local newblob = BlobMesh3D:loadFromLists(
 		-- OBJloader compat, convert vec3d to lua-table
 		vs:mapi(function(v) return {v:unpack()} end),
 		vts:mapi(function(v) return {v:unpack()} end),
 		-- convert to 1-based because the next function is made to be OBJloader-compatible and .obj format is 1-based
 		is:mapi(function(i) return i + 1 end)
 	)
+	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = newblob
 	self:updateBlobChanges()
 end
 

@@ -18,6 +18,7 @@ local Vertex = numo9_rom.Vertex
 local BlobDataAbs = require 'numo9.blob.dataabs'
 
 
+local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
 local int16_t = ffi.typeof'int16_t'
 local Vertex_p = ffi.typeof('$*', Vertex)
@@ -44,10 +45,15 @@ BlobMesh3D.filenamePrefix = 'mesh3d'
 BlobMesh3D.filenameSuffix = '.obj'
 
 function BlobMesh3D:init(data)
-	self.data = data or ''
+	self.vec = vector(uint8_t)
 
 	local minsize = 2 * ffi.sizeof(meshIndexType)	-- # vtxs, # indexes
-	if #self.data < minsize then self.data = ('\0'):rep(minsize) end
+	if not data or #data < minsize then 
+		self.vec:resize(minsize)
+	else
+		self.vec:resize(#data)
+		ffi.copy(self.vec.v, data, #data)
+	end
 
 	-- validate...
 	local numVtxs = self:getNumVertexes()	-- maek sure its valid / asesrt-error if its not
@@ -184,7 +190,7 @@ function BlobMesh3D:getVertexPtr()
 		+ ffi.sizeof(meshIndexType) * 2	-- skip header
 	)
 	assert.le(0, ffi.cast(uint8_t_p, vtxptr + self:getNumVertexes()) - self:getPtr())
-	assert.le(ffi.cast(uint8_t_p, vtxptr + self:getNumVertexes()) - self:getPtr(), #self.data)
+	assert.le(ffi.cast(uint8_t_p, vtxptr + self:getNumVertexes()) - self:getPtr(), #self.vec)
 	return vtxptr
 end
 
@@ -195,7 +201,7 @@ function BlobMesh3D:getIndexPtr()
 	) -- skip vertexes
 	local indptr = ffi.cast(meshIndexPtrType, ptr)
 	assert.le(0, ffi.cast(uint8_t_p, indptr + self:getNumIndexes()) - self:getPtr())
-	assert.eq(ffi.cast(uint8_t_p, indptr + self:getNumIndexes()) - self:getPtr(), #self.data)
+	assert.eq(ffi.cast(uint8_t_p, indptr + self:getNumIndexes()) - self:getPtr(), #self.vec)
 	return indptr
 end
 

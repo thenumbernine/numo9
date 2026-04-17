@@ -170,7 +170,7 @@ local function getCodeFromBlobs(blobs)
 			-- but they'll always be offset if I add more than one code blob?
 			-- but I'm not doing that yet ...
 			-- '-- blob #'..i..':\n'..
-			blob.data
+			blob:toBinStr()
 	end):concat'\n'
 end
 

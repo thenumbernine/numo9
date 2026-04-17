@@ -142,7 +142,9 @@ function EditMusic:encodeMusicFromFrames()
 
 	-- TODO now update all the sound table to make room for this data
 	-- replace the new music data
-	app.blobs.music[self.musicBlobIndex+1].data = newMusicData
+	local vec = app.blobs.music[self.musicBlobIndex+1].vec
+	vec:resize(#newMusicData)
+	ffi.copy(vec.v, newMusicData, #newMusicData)
 end
 
 function EditMusic:update()

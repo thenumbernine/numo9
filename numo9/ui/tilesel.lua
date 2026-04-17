@@ -34,7 +34,7 @@ function TileSelect:init(args)
 	self.onSetTile = args.onSetTile
 	self.getMeshIndex = args.getMeshIndex	-- optional, for mesh overlay
 
-	self.pickOpen = false			-- if this is open or not
+	self.pickOpen = false		-- if this is open or not
 	self.posDown = vec2d()		-- mouseX/mouseY upon mouse left press, in tiles
 	self.posUp = vec2d()		-- mouseX/mouseY while dragging / waiting for a mouse left release, in tiles
 	self.pos = vec2i()			-- selected pos, in tiles, upper-left of downPos/upPos

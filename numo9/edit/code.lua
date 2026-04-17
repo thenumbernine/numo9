@@ -1,6 +1,7 @@
 --[[
 code editor
 --]]
+local ffi = require 'ffi'
 local UITextArea = require 'numo9.ui.textarea'
 
 local EditCode = require 'numo9.ui':subclass()	-- the UI/editor page
@@ -17,10 +18,12 @@ function EditCode:init(args)
 		edit = self,
 		-- internal
 		setText = function(uiTextArea, text)
-			self[self.blobField].data = text
+			local vec = self[self.blobField].vec
+			vec:resize(#text)
+			ffi.copy(vec.v, text, #text)
 		end,
 		getText = function(uiTextArea)
-			return self[self.blobField].data
+			return self[self.blobField].vec:dataToStr()
 		end,
 	}
 
