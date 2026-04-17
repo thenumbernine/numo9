@@ -189,22 +189,10 @@ function EditTilemap:update()
 		bit.lshift(mapSizeInTiles.x, tileBits),
 		bit.lshift(mapSizeInTiles.y, tileBits))
 
-	local function pan(dx,dy)	-- dx, dy in screen coords right?
+	local function tilemapPanWheel(dx,dy)	-- dx, dy in screen coords right?
 		self.tilemapPanOffset.x = self.tilemapPanOffset.x + dx
 		self.tilemapPanOffset.y = self.tilemapPanOffset.y + dy
 	end
-	if shift then
-		-- 128 is half 256 I guess, which is the sheet size in pixels I guess?
-		pan(128 / self.scale, 128 / self.scale)
-		self.scale = self.scale * math.exp(.1 * app.ram.mouseWheel.y)
-		pan(-128 / self.scale, -128 / self.scale)
-	else
-		pan(
-			-bit.lshift(spriteSize.x, draw16As0or1) * app.ram.mouseWheel.x,
-			-bit.lshift(spriteSize.y, draw16As0or1) * app.ram.mouseWheel.y
-		)
-	end
-
 
 	local tileSelIndex = bit.bor(
 		self.tileSel.pos.x
@@ -429,8 +417,26 @@ function EditTilemap:update()
 		-- maybe ... then i should disable the auto-close-on-select ...
 		-- and I should also resize the pick tile area
 
+		if shift then
+			if app.ram.mouseWheel.y ~= 0 then
+				-- 128 is half 256 I guess, which is the sheet size in pixels I guess?
+				tilemapPanWheel(128 / self.scale, 128 / self.scale)
+				self.scale = self.scale * math.exp(.1 * app.ram.mouseWheel.y)
+				tilemapPanWheel(-128 / self.scale, -128 / self.scale)
+			end
+		else
+			if app.ram.mouseWheel.x ~= 0
+			or app.ram.mouseWheel.y ~= 0
+			then
+				tilemapPanWheel(
+					-bit.lshift(spriteSize.x, draw16As0or1) * app.ram.mouseWheel.x,
+					-bit.lshift(spriteSize.y, draw16As0or1) * app.ram.mouseWheel.y
+				)
+			end
+		end
+
 		local tilemapPanHandled
-		local function tilemapPan(press)
+		local function tilemapPanClick(press)
 			tilemapPanHandled = true
 			if press then
 				if mouseX >= mapX and mouseX < mapX + mapSizeInPixels.x
@@ -456,7 +462,7 @@ function EditTilemap:update()
 		end
 
 		if app:key'space' then
-			tilemapPan(app:keyp'space')
+			tilemapPanClick(app:keyp'space')
 		end
 
 		local function gettile(tx, ty)
@@ -614,7 +620,7 @@ function EditTilemap:update()
 			end
 		elseif self.drawMode == 'pan' then
 			if leftButtonDown then
-				tilemapPan(leftButtonPress)
+				tilemapPanClick(leftButtonPress)
 			end
 		end
 

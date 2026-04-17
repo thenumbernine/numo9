@@ -5,6 +5,7 @@ and use it in mesh3d and voxelmap for tile preview/selection.
 local assert = require 'ext.assert'
 local class = require 'ext.class'
 local vec2i = require 'vec-ffi.vec2i'
+local vec2d = require 'vec-ffi.vec2d'
 
 local numo9_rom = require 'numo9.rom'
 local spriteSize = numo9_rom.spriteSize
@@ -31,14 +32,17 @@ TODO 'allowRect' since tilemap select allows a rectangle-box-select for stamping
 function TileSelect:init(args)
 	self.edit = assert.index(args, 'edit')
 	self.onSetTile = args.onSetTile
+	self.getMeshIndex = args.getMeshIndex	-- optional, for mesh overlay
 
 	self.pickOpen = false			-- if this is open or not
-	self.posDown = vec2i()		-- mouseX/mouseY upon mouse left press
-	self.posUp = vec2i()		-- mouseX/mouseY while dragging / waiting for a mouse left release
-	self.pos = vec2i()			-- selected pos, upper-left of downPos/upPos
-	self.size = vec2i(1,1)		-- selected size
+	self.posDown = vec2d()		-- mouseX/mouseY upon mouse left press, in tiles
+	self.posUp = vec2d()		-- mouseX/mouseY while dragging / waiting for a mouse left release, in tiles
+	self.pos = vec2i()			-- selected pos, in tiles, upper-left of downPos/upPos
+	self.size = vec2i(1,1)		-- selected size, in tiles
 
-	self.getMeshIndex = args.getMeshIndex	-- optional, for mesh overlay
+	self.panDownPos = vec2d()
+	self.offset = vec2d()	-- for panning
+	self.scale = 1			-- for zooming
 end
 
 function TileSelect:button(x, y)
@@ -61,6 +65,7 @@ function TileSelect:doPopup()
 	-- TODO should this go here or in the caller:
 	app:matMenuReset()
 
+	local shift = app:key'lshift' or app:key'rshift'
 	local leftButtonDown = app:key'mouse_left'
 	local leftButtonPress = app:keyp'mouse_left'
 	local leftButtonRelease = app:keyr'mouse_left'
@@ -99,19 +104,28 @@ function TileSelect:doPopup()
 	)
 
 	-- set the current selected palette via RAM registry to self.paletteBlobIndex
+	edit:guiSetClipRect(winX, winY, winW, winH)	-- matrices do influence cliprect, so set cliprect first
+	app:mattrans(winX, winY)
+	app:matscale(self.scale, self.scale)
+	app:mattrans(-self.offset.x, -self.offset.y)
+	app:matscale(
+		(256 - 2 * winX) / 256,
+		(256 - 2 * winY) / 256
+	)
+
 	local pushPalBlobIndex = app.ram.paletteBlobIndex
 	app.ram.paletteBlobIndex = edit.paletteBlobIndex or 0
 	app:drawQuad(
-		winX,
-		winY,
-		winW,
-		winH,
+		0,
+		0,
+		256,
+		256,
 		-- TODO scrollable pick area ... hmm ...
 		-- or TODO use the same scrollable pick area for the sprite editor and the tile editor
 		0,		-- tx
 		0,		-- ty
-		255,	-- tw
-		255,	-- th
+		256,	-- tw
+		256,	-- th
 		0,		-- orientation2D
 		edit.sheetBlobIndex,
 		0,
@@ -121,40 +135,106 @@ function TileSelect:doPopup()
 	)
 	app.ram.paletteBlobIndex = pushPalBlobIndex
 
-	local spriteX = math.floor((mouseX - winX) / winW * spriteSheetSizeInTiles.x)
-	local spriteY = math.floor((mouseY - winY) / winH * spriteSheetSizeInTiles.y)
+	self:drawSelected()
+
+	local spriteX, spriteY = app:invTransform(app.ram.mousePos:unpack())
+	spriteX = spriteX / tonumber(spriteSize.x)
+	spriteY = spriteY / tonumber(spriteSize.y)
+
+	app:matMenuReset()
+	edit:guiSetClipRect(-1000, 0, 3000, 256)
+
 	if spriteX >= 0 and spriteX < spriteSheetSizeInTiles.x
 	and spriteY >= 0 and spriteY < spriteSheetSizeInTiles.y
 	then
 		if not edit.tooltip then
-			edit:setTooltip(spriteX..','..spriteY, mouseX-8, mouseY-8, 0xfc, 0)
+			edit:setTooltip(math.floor(spriteX)..','..math.floor(spriteY), mouseX-8, mouseY-8, 0xfc, 0)
 		end
 
 		if leftButtonPress then
 			-- TODO rect select
 			self.posDown:set(spriteX, spriteY)
 			self.posUp:set(spriteX, spriteY)
-			self.pos:set(spriteX, spriteY)
+			self.pos:set(math.floor(spriteX), math.floor(spriteY))
 			self.size:set(1, 1)
 			if self.onSetTile then
 				self:onSetTile()
 			end
 		elseif leftButtonDown then
-			self.posUp:set(spriteX, spriteY)
-			self.pos.x = math.min(self.posUp.x, self.posDown.x)
-			self.pos.y = math.min(self.posUp.y, self.posDown.y)
-			self.size.x = math.max(self.posUp.x, self.posDown.x) - self.pos.x + 1
-			self.size.y = math.max(self.posUp.y, self.posDown.y) - self.pos.y + 1
+			self.posUp:set(math.floor(spriteX), math.floor(spriteY))
+			self.pos.x = math.min(math.floor(self.posUp.x), math.floor(self.posDown.x))
+			self.pos.y = math.min(math.floor(self.posUp.y), math.floor(self.posDown.y))
+			self.size.x = math.max(math.floor(self.posUp.x), math.floor(self.posDown.x)) - self.pos.x + 1
+			self.size.y = math.max(math.floor(self.posUp.y), math.floor(self.posDown.y)) - self.pos.y + 1
 		elseif leftButtonRelease then
 			self.pickOpen = false
 		end
+
+		local function panWheel(dx,dy)	-- dx, dy in screen coords right?
+			self.offset.x = self.offset.x + dx
+			self.offset.y = self.offset.y + dy
+		end
+
+		if shift then
+			if app.ram.mouseWheel.y ~= 0 then
+				-- 128 is half 256 I guess, which is the sheet size in pixels I guess?
+				panWheel(128 / self.scale, 128 / self.scale)
+				self.scale = self.scale * math.exp(.1 * app.ram.mouseWheel.y)
+				panWheel(-128 / self.scale, -128 / self.scale)
+			end
+		else
+			if app.ram.mouseWheel.x ~= 0
+			or app.ram.mouseWheel.y ~= 0
+			then
+				panWheel(
+					-spriteSize.x * app.ram.mouseWheel.x,
+					-spriteSize.y * app.ram.mouseWheel.y
+				)
+			end
+		end
+
+		local function fbToTileCoord(cx, cy)
+			return
+				(cx - winX) / (spriteSize.x * self.scale) + self.offset.x / spriteSize.x,
+				(cy - winY) / (spriteSize.y * self.scale) + self.offset.y / spriteSize.y
+		end
+
+		local panHandled
+		local function panClick(press)
+			panHandled = true
+			if press then
+				self.panDownPos:set(mouseX, mouseY)
+				self.panPressed = true
+			else
+				if self.panPressed then
+					local tx1, ty1 = fbToTileCoord(mouseX, mouseY)
+					local tx0, ty0 = fbToTileCoord(self.panDownPos:unpack())
+					-- convert mouse framebuffer pixel movement to sprite texel movement
+					local tx = tx1 - tx0
+					local ty = ty1 - ty0
+					if tx ~= 0 or ty ~= 0 then
+						self.offset.x = self.offset.x - tx * spriteSize.x
+						self.offset.y = self.offset.y - ty * spriteSize.y
+						self.panDownPos:set(mouseX, mouseY)
+					end
+				end
+			end
+		end
+
+
+		if app:key'space' then
+			panClick(app:keyp'space')
+		end
+
+		if not panHandled then
+			self.panPressed = false
+		end
 	end
 
-	self:drawSelected(winX, winY, winW, winH)
 	return true
 end
 
-function TileSelect:drawSelected(winX, winY, winW, winH)
+function TileSelect:drawSelected()
 	local edit = self.edit
 	local app = edit.app
 
@@ -162,19 +242,19 @@ function TileSelect:drawSelected(winX, winY, winW, winH)
 	local thickness = math.max(1, app.width / 256)
 	local function tc(vtx)
 		return
-			winX + winW * (tonumber(vtx.u + bit.lshift(edit.tileSel.pos.x, 3)) + .5) / tonumber(spriteSheetSize.x),
-			winY + winH * (tonumber(vtx.v + bit.lshift(edit.tileSel.pos.y, 3)) + .5) / tonumber(spriteSheetSize.y)
+			256 * (tonumber(vtx.u + bit.lshift(edit.tileSel.pos.x, 3)) + .5) / tonumber(spriteSheetSize.x),
+			256 * (tonumber(vtx.v + bit.lshift(edit.tileSel.pos.y, 3)) + .5) / tonumber(spriteSheetSize.y)
 	end
 	-- draw the texcoords offset by the getMeshIndex tileSel.pos etc
-	local mesh3DIndex = self:getMeshIndex()
-	local mesh = app.blobs.mesh3d[mesh3DIndex+1]
+	local mesh3DIndex = self.getMeshIndex and self:getMeshIndex()
+	local mesh = mesh3DIndex and app.blobs.mesh3d[mesh3DIndex+1]
 	if not mesh then
 		-- no mesh3d? just draw a rect
 		app:drawBorderRect(
-			winX + winW * self.pos.x * spriteSize.x / spriteSheetSize.x,
-			winY + winH * self.pos.y * spriteSize.y / spriteSheetSize.y,
-			winW * self.size.x * spriteSize.x / spriteSheetSize.x,
-			winH * self.size.y * spriteSize.y / spriteSheetSize.y,
+			256 * self.pos.x * spriteSize.x / spriteSheetSize.x,
+			256 * self.pos.y * spriteSize.y / spriteSheetSize.y,
+			256 * self.size.x * spriteSize.x / spriteSheetSize.x,
+			256 * self.size.y * spriteSize.y / spriteSheetSize.y,
 			13,
 			nil,
 			app.paletteMenuTex

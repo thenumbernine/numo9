@@ -909,7 +909,7 @@ function EditMesh3D:update()
 				-- if we're in an edit mode then reset it
 				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
 				if self.meshEditMode then
-					
+
 					if #self.meshEditModeText > 0 then
 						self.meshEditModeText = self.meshEditModeText:sub(1, -2)
 					else
@@ -1083,7 +1083,7 @@ assert.eq(#is % 3, 0)
 				self.axisFlags.z = not self.axisFlags.z or nil
 				resetVtxEditPos()
 			end
-		
+
 			-- collect translate/scale/rotate text input ...
 			-- TODO perfect time to use EditMesh3D:event() ........
 			if self.meshEditMode then

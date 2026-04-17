@@ -1089,11 +1089,11 @@ function EditVoxelMap:update()
 
 	---------------- KEYBOARD ----------------
 
-	if voxelmap 
-	-- ok this var is loaded, it means mouse-handled or keyboard-handled, 
+	if voxelmap
+	-- ok this var is loaded, it means mouse-handled or keyboard-handled,
 	-- but here i'm using it to exclude when the text-input is already captured by the gui...
 	-- all in all a good reason to switch from immediate-mode (sloppy) to retained / scenegraph
-	and not handled	
+	and not handled
 	then
 		-- wasd should have been esdf ...
 		-- home row!
