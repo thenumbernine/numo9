@@ -70,7 +70,9 @@ function EditMesh3D:onCartLoad()
 
 	-- table-of-vec3d's to store original vertex positiosn before edit operation
 	self.vtxOrigPos = table()
-	self.totalTranslation = vec3d()
+	self.totalTranslation = vec3d()		-- total translation since translate start, in world coordinates
+	self.totalScreenTranslate = vec2d()	-- total translation since scale start, in screen coordinates.  TODO track in world coords and project to plane of vtxs
+	self.totalScreenRotate = 0			-- total rotation since rotate start, in screen coordinates, angle around center, in degrees
 
 	self.undo:clear()
 end
@@ -488,11 +490,13 @@ function EditMesh3D:update()
 				self.meshEditMode = 'scale'
 				setVtxEditPos()
 				calcSelVtxCOM()
+				self.totalScreenTranslate:set(0,0)
 			end
 			if app:keyp'r' then
 				self.meshEditMode = 'rotate'
 				setVtxEditPos()
 				calcSelVtxCOM()
+				self.totalScreenRotate = 0
 
 				local drawViewInvMat = vec4x4fcol()
 				drawViewInvMat:inv4x4(app.ram.viewMat)
@@ -593,6 +597,11 @@ function EditMesh3D:update()
 					self.totalTranslation.x = self.totalTranslation.x + dx
 					self.totalTranslation.y = self.totalTranslation.y + dy
 					self.totalTranslation.z = self.totalTranslation.z + dz
+				elseif self.meshEditMode == 'scale' then
+					self.totalScreenTranslate.x = self.totalScreenTranslate.x + mouseULX - lastMouseULX
+					self.totalScreenTranslate.y = self.totalScreenTranslate.y + mouseULY - lastMouseULY
+				elseif self.meshEditMode == 'rotate' then
+					self.totalScreenRotate = 0
 				end
 
 				for i in pairs(self.selectedVertexIndexSet) do
@@ -606,22 +615,24 @@ function EditMesh3D:update()
 							if usedz then v.z = v.z + self.totalTranslation.z end
 						elseif self.meshEditMode == 'scale' then
 							-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
-							local s = math.exp(.1 * (mouseULX - lastMouseULX))
+							v.x, v.y, v.z = orig.x, orig.y, orig.z
+							local s = math.exp(.1 * self.totalScreenTranslate.x)
 							if usedx then v.x = (v.x - self.selVtxCOM.x) * s + self.selVtxCOM.x end
 							if usedy then v.y = (v.y - self.selVtxCOM.y) * s + self.selVtxCOM.y end
 							if usedz then v.z = (v.z - self.selVtxCOM.z) * s + self.selVtxCOM.z end
 						elseif self.meshEditMode == 'rotate' then
-							local pos = vec3d(v.x, v.y, v.z) - self.selVtxCOM
-
+							local pos = orig - self.selVtxCOM
 							local lastMouseNormalized = (vec2d(lastMouseX, lastMouseY) - 128):normalize()
 							local mouseNormalized = (vec2d(mouseX, mouseY) - 128):normalize()
 							local sinTheta = mouseNormalized:det(lastMouseNormalized)
-							local angle = math.deg(math.asin(sinTheta))
+							local deltaAngle = math.deg(math.asin(sinTheta))
+							self.totalScreenRotate = self.totalScreenRotate + deltaAngle
+
 							local q = quatd():fromAngleAxis(
 								rotAxis.x,
 								rotAxis.y,
 								rotAxis.z,
-								angle
+								self.totalScreenRotate
 							)
 							pos = q:rotate(pos)
 							pos = pos + self.selVtxCOM
@@ -716,7 +727,36 @@ function EditMesh3D:update()
 				if not usedx then dx = 0 end
 				if not usedy then dy = 0 end
 				if not usedz then dz = 0 end
-				app:drawMenuText(dx..', '..dy..', '..dz, x, y)
+				app:drawMenuText('xlate='..dx..', '..dy..', '..dz, x, y)
+			elseif self.meshEditMode == 'scale' then
+				local s = math.exp(.1 * self.totalScreenTranslate.x)
+				app:drawMenuText('scale='..s, x, y)
+			elseif self.meshEditMode == 'rotate' then
+				local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
+				local rotAxis
+				if usedx and usedy and usedz then
+					rotAxis = self.selRotFwdDir
+				else
+					rotAxis = self.selRotFwdDir:clone()
+					-- if you press 'r' then 'x', you expect x-axis rotations, which means ... none of the other axii ...
+					if usedx and not usedy and not usedz then
+						rotAxis:set(1,0,0)
+					elseif not usedx and usedy and not usedz then
+						rotAxis:set(0,1,0)
+					elseif not usedx and not usedy and usedz then
+						rotAxis:set(0,0,1)
+					-- push 'x' and 'y' means rotate the xy plane ...
+					elseif usedx and usedy and not usedz then
+						rotAxis.z = 0
+					elseif usedx and not usedy and usedz then
+						rotAxis.y = 0
+					elseif not usedx and usedy and usedz then
+						rotAxis.x = 0
+					end
+					rotAxis = rotAxis:normalize()
+				end
+
+				app:drawMenuText('rot='..self.totalScreenRotate..' @ '..rotAxis, x, y)
 			end
 			y = y + 8
 		end
