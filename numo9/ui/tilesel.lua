@@ -23,6 +23,8 @@ args:
 	onSetTile (optional)
 		set this for a callback when .pos changes.
 
+	getMeshIndex = optional, function that returns 0-based mesh3d blob index, for drawing texcoord mesh overlay
+
 TODO 'allowRect' since tilemap select allows a rectangle-box-select for stamping multiple tiles,
  meanwhile mesh3d and voxelmap just need a coordinate for offsetting mesh texture coordiantes.
 --]]
@@ -35,6 +37,8 @@ function TileSelect:init(args)
 	self.posUp = vec2i()		-- mouseX/mouseY while dragging / waiting for a mouse left release
 	self.pos = vec2i()			-- selected pos, upper-left of downPos/upPos
 	self.size = vec2i(1,1)		-- selected size
+
+	self.getMeshIndex = args.getMeshIndex	-- optional, for mesh overlay
 end
 
 function TileSelect:button(x, y)
@@ -151,16 +155,43 @@ function TileSelect:doPopup()
 end
 
 function TileSelect:drawSelected(winX, winY, winW, winH)
-	local app = self.edit.app
-	app:drawBorderRect(
-		winX + winW * self.pos.x * spriteSize.x / spriteSheetSize.x,
-		winY + winH * self.pos.y * spriteSize.y / spriteSheetSize.y,
-		winW * self.size.x * spriteSize.x / spriteSheetSize.x,
-		winH * self.size.y * spriteSize.y / spriteSheetSize.y,
-		13,
-		nil,
-		app.paletteMenuTex
-	)
+	local edit = self.edit
+	local app = edit.app
+
+	local colorIndex = 0x1f
+	local thickness = math.max(1, app.width / 256)
+	local function tc(vtx)
+		return
+			winX + winW * (tonumber(vtx.u + bit.lshift(edit.tileSel.pos.x, 3)) + .5) / tonumber(spriteSheetSize.x),
+			winY + winH * (tonumber(vtx.v + bit.lshift(edit.tileSel.pos.y, 3)) + .5) / tonumber(spriteSheetSize.y)
+	end
+	-- draw the texcoords offset by the getMeshIndex tileSel.pos etc
+	local mesh3DIndex = self:getMeshIndex()
+	local mesh = app.blobs.mesh3d[mesh3DIndex+1]
+	if not mesh then
+		-- no mesh3d? just draw a rect
+		app:drawBorderRect(
+			winX + winW * self.pos.x * spriteSize.x / spriteSheetSize.x,
+			winY + winH * self.pos.y * spriteSize.y / spriteSheetSize.y,
+			winW * self.size.x * spriteSize.x / spriteSheetSize.x,
+			winH * self.size.y * spriteSize.y / spriteSheetSize.y,
+			13,
+			nil,
+			app.paletteMenuTex
+		)
+	else
+		-- mesh3d? draw its texcoords
+		local vtxs = mesh:getVertexPtr()
+		for ti=0,#mesh.triList-1 do
+			local i,j,k = mesh.triList.v[ti]:unpack()
+			local u1, v1 = tc(vtxs + i)
+			local u2, v2 = tc(vtxs + j)
+			local u3, v3 = tc(vtxs + k)
+			app:drawSolidLine(u1, v1, u2, v2, colorIndex, thickness, app.paletteMenuTex)
+			app:drawSolidLine(u2, v2, u3, v3, colorIndex, thickness, app.paletteMenuTex)
+			app:drawSolidLine(u3, v3, u1, v1, colorIndex, thickness, app.paletteMenuTex)
+		end
+	end
 end
 
 return TileSelect

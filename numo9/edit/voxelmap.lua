@@ -88,40 +88,16 @@ function EditVoxelMap:onCartLoad()
 
 	self.tileSel = TileSelect{
 		edit = self,
-		onSetTile = function()
+		getMeshIndex = function(self)
+			return self.edit.voxCurSel.mesh3DIndex
+		end,
+		onSetTile = function(self)
+			local edit = self.edit
 			-- update the voxCurSel tile XY
-			self.voxCurSel.tileXOffset = self.tileSel.pos.x
-			self.voxCurSel.tileYOffset = self.tileSel.pos.y
+			edit.voxCurSel.tileXOffset = edit.tileSel.pos.x
+			edit.voxCurSel.tileYOffset = edit.tileSel.pos.y
 		end,
 	}
-	local editor = self
-	local app = self.app
-	function self.tileSel:drawSelected(winX, winY, winW, winH)
-		local colorIndex = 0x1f
-		local thickness = math.max(1, app.width / 256)
-		local function tc(vtx)
-			return
-				winX + winW * (tonumber(vtx.u + bit.lshift(editor.voxCurSel.tileXOffset, 3)) + .5) / tonumber(spriteSheetSize.x),
-				winY + winH * (tonumber(vtx.v + bit.lshift(editor.voxCurSel.tileYOffset, 3)) + .5) / tonumber(spriteSheetSize.y)
-		end
-		-- draw the texcoords offset by the voxCurSel.tileXOffset etc
-		local mesh3DIndex = editor.voxCurSel.mesh3DIndex
-		local mesh = app.blobs.mesh3d[mesh3DIndex+1]
-		if not mesh then
-			TileSelect.drawSelected(self, winX, winY, winW, winH)
-		else
-			local vtxs = mesh:getVertexPtr()
-			for ti=0,#mesh.triList-1 do
-				local i,j,k = mesh.triList.v[ti]:unpack()
-				local u1, v1 = tc(vtxs + i)
-				local u2, v2 = tc(vtxs + j)
-				local u3, v3 = tc(vtxs + k)
-				app:drawSolidLine(u1, v1, u2, v2, colorIndex, thickness, app.paletteMenuTex)
-				app:drawSolidLine(u2, v2, u3, v3, colorIndex, thickness, app.paletteMenuTex)
-				app:drawSolidLine(u3, v3, u1, v1, colorIndex, thickness, app.paletteMenuTex)
-			end
-		end
-	end
 
 	self.orbit = Orbit(self.app)
 	-- TODO init to max size of whatever blob is first loaded?
@@ -983,13 +959,13 @@ function EditVoxelMap:update()
 	--self:guiSetClipRect(-1000, 0, 3000, 256)
 
 	local x, y = 48, 0
-	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
+	handled = self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
 		self.undo:clear()
-	end)
+	end) or handled
 	x = x + 11
-	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
+	handled = self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex') or handled
 	x = x + 11
-	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
+	handled = self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex') or handled
 	x = x + 11
 
 	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
@@ -1113,7 +1089,12 @@ function EditVoxelMap:update()
 
 	---------------- KEYBOARD ----------------
 
-	if voxelmap then
+	if voxelmap 
+	-- ok this var is loaded, it means mouse-handled or keyboard-handled, 
+	-- but here i'm using it to exclude when the text-input is already captured by the gui...
+	-- all in all a good reason to switch from immediate-mode (sloppy) to retained / scenegraph
+	and not handled	
+	then
 		-- wasd should have been esdf ...
 		-- home row!
 		if app:key'w' then

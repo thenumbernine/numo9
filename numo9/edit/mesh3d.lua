@@ -56,7 +56,12 @@ function EditMesh3D:onCartLoad()
 	self.drawFaces = true
 	self.wireframe = false
 
-	self.tileSel = TileSelect{edit=self}
+	self.tileSel = TileSelect{
+		edit = self,
+		getMeshIndex = function(self)
+			return self.edit.mesh3DBlobIndex
+		end,
+	}
 	self.tileSel.pos.x = 2	-- initialize to one 16x16 past the 0,0 tile (which is very often clear)
 
 	self.orbit = Orbit(self.app)
@@ -748,12 +753,11 @@ function EditMesh3D:update()
 		end,
 		BlobMesh3D.generateDefaultCube				-- new blob generator:
 	)
-	x = x + 6
-
+	x = x + 11
 	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
-	x = x + 6
+	x = x + 11
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
-	x = x + 6
+	x = x + 11
 
 	if self:guiButton('F', x, y, self.drawFaces, 'draw tris') then
 		self.drawFaces = not self.drawFaces
@@ -873,8 +877,8 @@ function EditMesh3D:update()
 	end
 	x = x + 6
 
-	app:drawMenuText('fwd '..(-orbit.angle:zAxis()), 0, 240)
-	app:drawMenuText('q '..orbit.angle, 0, 248)
+	app:drawMenuText(('fwd {%.3f, %.3f, %.3f}'):format((-orbit.angle:zAxis()):unpack()), 0, 240)
+	app:drawMenuText(('q {%.3f, %.3f, %.3f, %.3f}'):format(orbit.angle:unpack()), 0, 248)
 
 	---------------- KEYBOARD ----------------
 
