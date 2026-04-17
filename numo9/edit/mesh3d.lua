@@ -255,41 +255,56 @@ function EditMesh3D:update()
 				local bestDist = math.huge
 				local bestEdges
 				for i=0,getNumIndexes()-1,3 do
-					-- TODO here maybe skip edges on faces pointing away from the camera, maybe
-					for j=0,2 do
-						local ii1 = i+j
-						local ii2 = i+((j+1)%3)
-						local i1 = getIndex(ii1)
-						local i2 = getIndex(ii2)
-						local v1 = vtxs + i1
-						local v2 = vtxs + i2
-						local sx1, sy1 = app:transform(v1.x, v1.y, v1.z, 1)
-						local sx2, sy2 = app:transform(v2.x, v2.y, v2.z, 1)
-						-- line segment from edge v1 to v2 in screen space
-						local sdx = sx2 - sx1
-						local sdy = sy2 - sy1
-						local sdlen = math.sqrt(sdx^2 + sdy^2)
-						if sdlen > 0.1 then
-							local nsdx = sdx / sdlen
-							local nsdy = sdy / sdlen
-							-- line segment from start of edge to mouse
-							local mdx = mouseULX - sx1
-							local mdy = mouseULY - sy1
-							local mouseToV1Len = math.sqrt(mdx^2 + mdy^2)
-							local mouseToV2Len = math.sqrt((mouseULX - sx2)^2 + (mouseULY - sy2)^2)
-							-- mouse-delta dot normalized-segment-delta = how far along s1->s2 that the nearest point to the mouse-coordinates is
-							-- if this is outside [0,sdlen] then clamp it to that
-							local param = mdx * nsdx + mdy * nsdy
-							param = math.clamp(param, 0, sdlen)
-							local mousePtOnSegX = sx1 + nsdx * param
-							local mousePtOnSegY = sy1 + nsdy * param
-							local mousePtToMouseLen = math.sqrt((mousePtOnSegX - mouseULX)^2 + (mousePtOnSegY - mouseULY)^2)
-							local dist = math.min(mouseToV1Len, mouseToV2Len, mousePtToMouseLen)
-							if dist < bestDist then
-								bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
-								bestDist = dist
-							elseif dist == bestDist then
-								bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
+					local curl
+					do
+						local v0 = getVtxIndPtr(i + 0)
+						local v1 = getVtxIndPtr(i + 1)
+						local v2 = getVtxIndPtr(i + 2)
+						local s0x, s0y = app:transform(v0.x, v0.y, v0.z, 1)
+						local s1x, s1y = app:transform(v1.x, v1.y, v1.z, 1)
+						local s2x, s2y = app:transform(v2.x, v2.y, v2.z, 1)
+						local sd1x = s2x - s1x
+						local sd1y = s2y - s1y
+						local sd0x = s1x - s0x
+						local sd0y = s1y - s0y
+						curl = sd1x * sd0y - sd1y * sd0x
+					end
+					if curl > 0 then -- skip edges on faces pointing away from the camera, maybe
+						for j=0,2 do
+							local ii1 = i+j
+							local ii2 = i+((j+1)%3)
+							local i1 = getIndex(ii1)
+							local i2 = getIndex(ii2)
+							local v1 = vtxs + i1
+							local v2 = vtxs + i2
+							local sx1, sy1 = app:transform(v1.x, v1.y, v1.z, 1)
+							local sx2, sy2 = app:transform(v2.x, v2.y, v2.z, 1)
+							-- line segment from edge v1 to v2 in screen space
+							local sdx = sx2 - sx1
+							local sdy = sy2 - sy1
+							local sdlen = math.sqrt(sdx^2 + sdy^2)
+							if sdlen > 0.1 then
+								local nsdx = sdx / sdlen
+								local nsdy = sdy / sdlen
+								-- line segment from start of edge to mouse
+								local mdx = mouseULX - sx1
+								local mdy = mouseULY - sy1
+								local mouseToV1Len = math.sqrt(mdx^2 + mdy^2)
+								local mouseToV2Len = math.sqrt((mouseULX - sx2)^2 + (mouseULY - sy2)^2)
+								-- mouse-delta dot normalized-segment-delta = how far along s1->s2 that the nearest point to the mouse-coordinates is
+								-- if this is outside [0,sdlen] then clamp it to that
+								local param = mdx * nsdx + mdy * nsdy
+								param = math.clamp(param, 0, sdlen)
+								local mousePtOnSegX = sx1 + nsdx * param
+								local mousePtOnSegY = sy1 + nsdy * param
+								local mousePtToMouseLen = math.sqrt((mousePtOnSegX - mouseULX)^2 + (mousePtOnSegY - mouseULY)^2)
+								local dist = math.min(mouseToV1Len, mouseToV2Len, mousePtToMouseLen)
+								if dist < bestDist then
+									bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
+									bestDist = dist
+								elseif dist == bestDist then
+									bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
+								end
 							end
 						end
 					end
@@ -808,7 +823,7 @@ function EditMesh3D:update()
 		-- 1) get faces selected
 		-- 2) flip ...
 		-- how to generalize that for any more than two faces that share 1 edge?
-		if not #self.selectedTris == 2 then
+		if #self.selectedTris ~= 2 then
 			print('need 2 tris, got '..#self.selectedTris..' tris')
 		else
 			self.undo:push()
@@ -861,7 +876,44 @@ function EditMesh3D:update()
 			end
 		end
 	end
+	x = x + 7
+
+	if self:guiButton('X', x, y, false, 'x-axis') then
+		local fwd = -orbit.angle:zAxis()
+		if fwd.x < 0 then
+			orbit.angle:set(.5, -.5, -.5, .5)
+		else
+			orbit.angle:set(.5, .5, .5, .5) 
+		end
+		local dist = (orbit.pos - orbit.orbit):length()
+		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
+	end
 	x = x + 6
+	if self:guiButton('Y', x, y, false, 'x-axis') then
+		local fwd = -orbit.angle:zAxis()
+		if fwd.y < 0 then
+			orbit.angle:set(math.sqrt(.5), 0, 0, math.sqrt(.5))
+		else
+			orbit.angle:set(0, math.sqrt(.5), math.sqrt(.5), 0)
+		end
+		local dist = (orbit.pos - orbit.orbit):length()
+		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
+	end
+	x = x + 6
+	if self:guiButton('Z', x, y, false, 'x-axis') then
+		local fwd = -orbit.angle:zAxis()
+		if fwd.z < 0 then	-- looking along z-, toggle to z+
+			orbit.angle:set(0,1,0,0)
+		else
+			orbit.angle:set(0,0,0,1)	-- identity = looking along z-
+		end
+		local dist = (orbit.pos - orbit.orbit):length()
+		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
+	end
+	x = x + 6
+
+	app:drawMenuText('fwd '..(-orbit.angle:zAxis()), 0, 240)
+	app:drawMenuText('q '..orbit.angle, 0, 248)
 
 	---------------- KEYBOARD ----------------
 
