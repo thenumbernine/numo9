@@ -1084,6 +1084,7 @@ assert.eq(#is % 3, 0)
 
 			if app:keyp'g' then
 				if self.meshEditMode ~= nil then
+					resetVtxEditPos()
 					self.meshEditMode = nil
 				else
 					self.meshEditMode = 'translate'
@@ -1096,6 +1097,7 @@ assert.eq(#is % 3, 0)
 			end
 			if app:keyp's' then
 				if self.meshEditMode ~= nil then
+					resetVtxEditPos()
 					self.meshEditMode = nil
 				else
 					self.meshEditMode = 'scale'
@@ -1108,6 +1110,7 @@ assert.eq(#is % 3, 0)
 			end
 			if app:keyp'r' then
 				if self.meshEditMode ~= nil then
+					resetVtxEditPos()
 					self.meshEditMode = nil
 				else
 					self.meshEditMode = 'rotate'
