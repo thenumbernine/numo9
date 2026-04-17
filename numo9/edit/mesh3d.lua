@@ -60,9 +60,10 @@ function EditMesh3D:onCartLoad()
 	self.selectedVertexIndexSet = {}	-- keys are 0-based vertex indexes
 
 	self.selectedEdges = table()	-- table of vec2i's of 0-based index-of-indexes between two edges
-	self.selectedTris = table()		-- table of triplets " " "
+	self.selectedTris = table()		-- table of the index into the indexes list of the first of 3 for a triangle.  elements will always be divisible by 3.
 
 	self.mouseoverEdges = table()
+	self.mouseoverTris = table()
 
 	self.axisFlags = {}
 	self.meshEditMode = nil			-- translate rotate scale
@@ -143,12 +144,14 @@ function EditMesh3D:update()
 		-- table indexes ar 1-based, though is values are 0-based
 		return vs, vts, is
 	end
-	local function refreshSelection(skipEdges)
+	local function refreshSelection(skipEdges, skipTris)
 		-- TODO we could do calcCOM here isntead of when we start to do a translate/rotate/scale ...
 		if not skipEdges then
 			self.selectedEdges = table()	-- table of pairs of 0-based indexes between two edges
 		end
-		self.selectedTris = table()
+		if not skipTris then
+			self.selectedTris = table()
+		end
 
 		for i=0,getNumIndexes()-1,3 do
 			if not skipEdges then
@@ -162,18 +165,16 @@ function EditMesh3D:update()
 					end
 				end
 			end
-			local i1 = i+1
-			local i2 = i+2
-			if self.selectedVertexIndexSet[getIndex(i)]
-			and self.selectedVertexIndexSet[getIndex(i1)]
-			and self.selectedVertexIndexSet[getIndex(i2)]
-			then
-				self.selectedTris:insert{i, i1, i2}
+			if not skipTris then
+				if self.selectedVertexIndexSet[getIndex(i)]
+				and self.selectedVertexIndexSet[getIndex(i+1)]
+				and self.selectedVertexIndexSet[getIndex(i+2)]
+				then
+					self.selectedTris:insert(i)
+				end
 			end
 		end
 	end
-
-
 
 	if mesh3DBlob then
 		numVtxs = mesh3DBlob:getNumVertexes()
@@ -227,36 +228,36 @@ function EditMesh3D:update()
 			gl.glDisable(gl.GL_DEPTH_TEST)
 
 
-			if self.meshEditForm == 'vertexes' then
-				--[[
-				click-to-toggle in vertex mode
-				what to do for multiple overlapping vertexes ...
-				how does blender handle it?
-				--]]
-				local bestDistSq = math.huge
-				local bestVtxIndexSet
-				for i=0,numVtxs-1 do
-					local v = vtxs + i
-					-- sx sy are in [0,app.width)x[0,app.height) coords
-					local sx, sy = app:transform(v.x, v.y, v.z, 1)
-					local distSq = (mouseULX - sx)^2 + (mouseULY - sy)^2
-					if distSq < bestDistSq then
-						bestDistSq = distSq
-						bestVtxIndexSet = {[i]=true}
-					elseif distSq == bestDistSq then
-						bestVtxIndexSet[i] = true
+			if mouseULX ~= lastMouseULX or mouseULY ~= lastMouseULY then
+				if self.meshEditForm == 'vertexes' then
+					--[[
+					click-to-toggle in vertex mode
+					what to do for multiple overlapping vertexes ...
+					how does blender handle it?
+					--]]
+					local bestDistSq = math.huge
+					local bestVtxIndexSet
+					for i=0,numVtxs-1 do
+						local v = vtxs + i
+						-- sx sy are in [0,app.width)x[0,app.height) coords
+						local sx, sy = app:transform(v.x, v.y, v.z, 1)
+						local distSq = (mouseULX - sx)^2 + (mouseULY - sy)^2
+						if distSq < bestDistSq then
+							bestDistSq = distSq
+							bestVtxIndexSet = {[i]=true}
+						elseif distSq == bestDistSq then
+							bestVtxIndexSet[i] = true
+						end
 					end
-				end
-				if bestVtxIndexSet then
-					self.mouseoverVertexIndexSet = bestVtxIndexSet
-				end
-			elseif self.meshEditForm == 'edges' then
-				-- find the best edge, toggle its selection if not selected
-				local bestDist = math.huge
-				local bestEdges
-				for i=0,getNumIndexes()-1,3 do
-					local curl
-					do
+					if bestVtxIndexSet then
+						self.mouseoverVertexIndexSet = bestVtxIndexSet
+					end
+				elseif self.meshEditForm == 'edges' then
+					-- find the best edge, toggle its selection if not selected
+					local bestDist = math.huge
+					local bestEdges
+					for i=0,getNumIndexes()-1,3 do
+--DEBUG:print('edge sel', i, getNumIndexes())						
 						local v0 = getVtxIndPtr(i + 0)
 						local v1 = getVtxIndPtr(i + 1)
 						local v2 = getVtxIndPtr(i + 2)
@@ -267,53 +268,131 @@ function EditMesh3D:update()
 						local sd1y = s2y - s1y
 						local sd0x = s1x - s0x
 						local sd0y = s1y - s0y
-						curl = sd1x * sd0y - sd1y * sd0x
-					end
-					if curl > 0 then -- skip edges on faces pointing away from the camera, maybe
-						for j=0,2 do
-							local ii1 = i+j
-							local ii2 = i+((j+1)%3)
-							local i1 = getIndex(ii1)
-							local i2 = getIndex(ii2)
-							local v1 = vtxs + i1
-							local v2 = vtxs + i2
-							local sx1, sy1 = app:transform(v1.x, v1.y, v1.z, 1)
-							local sx2, sy2 = app:transform(v2.x, v2.y, v2.z, 1)
-							-- line segment from edge v1 to v2 in screen space
-							local sdx = sx2 - sx1
-							local sdy = sy2 - sy1
-							local sdlen = math.sqrt(sdx^2 + sdy^2)
-							if sdlen > 0.1 then
-								local nsdx = sdx / sdlen
-								local nsdy = sdy / sdlen
-								-- line segment from start of edge to mouse
-								local mdx = mouseULX - sx1
-								local mdy = mouseULY - sy1
-								local mouseToV1Len = math.sqrt(mdx^2 + mdy^2)
-								local mouseToV2Len = math.sqrt((mouseULX - sx2)^2 + (mouseULY - sy2)^2)
-								-- mouse-delta dot normalized-segment-delta = how far along s1->s2 that the nearest point to the mouse-coordinates is
-								-- if this is outside [0,sdlen] then clamp it to that
-								local param = mdx * nsdx + mdy * nsdy
-								param = math.clamp(param, 0, sdlen)
-								local mousePtOnSegX = sx1 + nsdx * param
-								local mousePtOnSegY = sy1 + nsdy * param
-								local mousePtToMouseLen = math.sqrt((mousePtOnSegX - mouseULX)^2 + (mousePtOnSegY - mouseULY)^2)
-								local dist = math.min(mouseToV1Len, mouseToV2Len, mousePtToMouseLen)
-								if dist < bestDist then
-									bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
-									bestDist = dist
-								elseif dist == bestDist then
-									bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
+						local curl = sd1x * sd0y - sd1y * sd0x
+						local s = table{{s0x, s0y}, {s1x, s1y}, {s2x, s2y}}
+						if curl > 0 then -- skip edges on faces pointing away from the camera, maybe
+							for j=0,2 do
+								local ii1 = i+j
+								local ii2 = i+((j+1)%3)
+								local sx1, sy1 = table.unpack(s[1+j])
+								local sx2, sy2 = table.unpack(s[1+((j+1)%3)])
+								-- line segment from edge v1 to v2 in screen space
+								local sdx = sx2 - sx1
+								local sdy = sy2 - sy1
+								local sdlen = math.sqrt(sdx^2 + sdy^2)
+								if sdlen > .1 then
+									local nsdx = sdx / sdlen
+									local nsdy = sdy / sdlen
+									-- line segment from start of edge to mouse
+									local mdx = mouseULX - sx1
+									local mdy = mouseULY - sy1
+									local mouseToV1Len = math.sqrt(mdx^2 + mdy^2)
+									local mouseToV2Len = math.sqrt((mouseULX - sx2)^2 + (mouseULY - sy2)^2)
+									-- mouse-delta dot normalized-segment-delta = how far along s1->s2 that the nearest point to the mouse-coordinates is
+									-- if this is outside [0,sdlen] then clamp it to that
+									local param = mdx * nsdx + mdy * nsdy
+									param = math.clamp(param, 0, sdlen)
+									local mousePtOnSegX = sx1 + nsdx * param
+									local mousePtOnSegY = sy1 + nsdy * param
+									local mousePtToMouseLen = math.sqrt((mousePtOnSegX - mouseULX)^2 + (mousePtOnSegY - mouseULY)^2)
+									local dist = math.min(mouseToV1Len, mouseToV2Len, mousePtToMouseLen)
+									if dist < bestDist then
+										bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
+										bestDist = dist
+									elseif dist == bestDist then
+										bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
+									end
 								end
 							end
 						end
 					end
+					if bestEdges then
+						self.mouseoverEdges = bestEdges
+					end
+				elseif self.meshEditForm == 'faces' then
+					-- find the best tri, toggle its selection if not selected
+					local bestDist = math.huge
+					local bestTris
+					for i=0,getNumIndexes()-1,3 do
+--DEBUG:print('edge sel', i, getNumIndexes())						
+						local i0 = getIndex(i)
+						local i1 = getIndex(i + 1)
+						local i2 = getIndex(i + 2)
+						local v0 = vtxs + i0
+						local v1 = vtxs + i1
+						local v2 = vtxs + i2
+						local s0x, s0y = app:transform(v0.x, v0.y, v0.z, 1)
+						local s1x, s1y = app:transform(v1.x, v1.y, v1.z, 1)
+						local s2x, s2y = app:transform(v2.x, v2.y, v2.z, 1)
+						local sd1x = s2x - s1x
+						local sd1y = s2y - s1y
+						local sd0x = s1x - s0x
+						local sd0y = s1y - s0y
+						local curl = sd1x * sd0y - sd1y * sd0x
+						local s = table{{s0x, s0y}, {s1x, s1y}, {s2x, s2y}}
+						if curl > 0 then -- skip edges on faces pointing away from the camera, maybe
+							-- find mouse screen coords on tri barycenter screen coords
+							-- project to tri
+							local sd0len = math.sqrt(sd0x^2 + sd0y^2)
+							local sd1len = math.sqrt(sd1x^2 + sd1y^2)
+							if sd0len > .1 and sd1len > .1 then
+								local nsd0x = sd0x / sd0len
+								local nsd0y = sd0y / sd0len
+								local nsd1x = sd1x / sd1len
+								local nsd1y = sd1y / sd1len
+								local mdx = mouseULX - s0x
+								local mdy = mouseULY - s0y
+								local p0 = (mdx * nsd0x + mdy * nsd0y) / sd0len
+								local p1 = (mdx * nsd1x + mdy * nsd1y) / sd1len
+								if p0 < 0 and p1 < 0 then
+									-- l.l. voronoi region
+									p0, p1 = 0, 0
+								elseif p0 < 0 and p1 > 1 then
+									-- 90deg 2/3rds of u.l. voronoi region
+									p0, p1 = 0, 1
+								elseif p0 < 0 then
+									-- if l.l. and 90deg u.l. voronoi regions handled then this is left edge
+									p0 = 0
+								elseif p1 > p0 + 1 then
+									-- if u.l. handled and left handled then this is u.l. 45deg 1/3rd corner voronoi region
+									p0, p1 = 0, 1
+								elseif p0 > 1 and p1 < 0  then
+									-- 90deg 2/3rds of l.r. voronoi region
+									p0, p1 = 1, 0
+								elseif p1 < 0 then
+									-- if l.l. and 90deg l.r. voronoi regions handled then this is its bottom edge
+									p1 = 0
+								elseif p1 < p0 - 1 then
+									-- if l.l. handled and bottom handled then  this is l.r. 45deg 1/3rd corner voronoi region
+									p0, p1 = 1, 0
+								elseif p1 > 1 - p0 then
+									-- if all other corners and edges are handled then this is the diagonal edge
+									local n0, n1 = math.sqrt(.5), math.sqrt(.5)
+									local dp1 = p0 - .5
+									local dp2 = p1 - .5
+									local d = dp1 * n0 + dp2 * n1
+									p0 = p0 - n0 * d
+									p1 = p1 - n1 * d
+								else
+									-- inside ... assert p0 >= 0 and p1 >= 0 and p0 + p1 <= 1
+								end
+							
+								local mousePtOnSegX = s0x + nsd0x * p0 + nsd1x * p1
+								local mousePtOnSegY = s0y + nsd0y * p0 + nsd1y * p1
+								local dist = math.sqrt((mousePtOnSegX - mouseULX)^2 + (mousePtOnSegY - mouseULY)^2)
+								if dist < bestDist then
+									bestTris = table{i}
+									bestDist = dist
+								elseif dist == bestDist then
+									bestTris:insert(i)
+								end
+							end
+						end
+					end
+					if bestTris then
+						self.mouseoverTris = bestTris
+					end
 				end
-				if bestEdges then
-					self.mouseoverEdges = bestEdges
-				end
-			elseif self.meshEditForm == 'faces' then
-				-- find the best tri, toggle its selection if not selected
 			end
 
 
@@ -415,6 +494,25 @@ function EditMesh3D:update()
 							end
 						end
 						refreshSelection(true)	-- true = don't also rebuild selectedEdges
+					elseif self.meshEditForm == 'faces' then
+						for _,t in ipairs(self.mouseoverTris) do
+							local j = self.selectedTris:find(t)
+							if j then	-- if we have then remove
+								self.selectedTris:remove(j)
+							else		-- if we don't have then add
+								self.selectedTris:insert(t)
+							end
+						end
+					
+						-- now rebuild vertexes from selected edges
+						self.selectedVertexIndexSet = {}
+						for _,t in ipairs(self.selectedTris) do
+							for ii=0,2 do
+								local i = getIndex(t+ii)
+								self.selectedVertexIndexSet[i] = true
+							end
+						end
+						refreshSelection(false, true)	-- second true = don't also rebuild selectedTris
 					end
 				else
 					--self.undo:pushContinuous()
@@ -456,7 +554,7 @@ function EditMesh3D:update()
 					end
 					local newis = table()
 					assert.eq(#is % 3, 0)
-					for i=#is-2,1,-3 do
+					for i=1,#is-2 do
 						local i1 = is[i]
 						local i2 = is[i+1]
 						local i3 = is[i+2]
@@ -464,14 +562,17 @@ function EditMesh3D:update()
 							or self.selectedVertexIndexSet[i2]
 							or self.selectedVertexIndexSet[i3]
 						) then
-							newis:insert(imap[is[i1]])
-							newis:insert(imap[is[i2]])
-							newis:insert(imap[is[i3]])
+							newis:insert((assert.index(imap, i1)))
+							newis:insert((assert.index(imap, i2)))
+							newis:insert((assert.index(imap, i3)))
 						end
 					end
+					assert.eq(#newis % 3, 0)
 
 					self:replaceMeshBlobWithLists(newvs, newvts, newis)
 
+					-- reset mouseover selection-testing tables
+					self.mouseoverVertexIndexSet = {}
 					-- select-none
 					self.selectedVertexIndexSet = {}
 					refreshSelection()
@@ -698,11 +799,10 @@ function EditMesh3D:update()
 					v2.x, v2.y, v2.z,
 					0x1a, 4, app.paletteMenuTex)
 			end
-			for _,tri in ipairs(self.selectedTris) do
-				local i0, i1, i2 = table.unpack(tri)
-				local v0 = getVtxIndPtr(i0)
-				local v1 = getVtxIndPtr(i1)
-				local v2 = getVtxIndPtr(i2)
+			for _,i in ipairs(self.selectedTris) do
+				local v0 = getVtxIndPtr(i)
+				local v1 = getVtxIndPtr(i+1)
+				local v2 = getVtxIndPtr(i+2)
 				app:drawSolidTri3D(
 					v0.x, v0.y, v0.z,
 					v1.x, v1.y, v1.z,
@@ -837,29 +937,29 @@ function EditMesh3D:update()
 			local t1, t2 = table.unpack(self.selectedTris)
 			for i=0,2 do
 				for j=0,2 do
-					local a1 = is[1+t1[1+i]]
-					local a2 = is[1+t1[1+((i+1)%3)]]
-					local a3 = is[1+t1[1+((i+2)%3)]]
-					local b1 = is[1+t2[1+j]]
-					local b2 = is[1+t2[1+((j+1)%3)]]
-					local b3 = is[1+t2[1+((j+2)%3)]]
+					local a1 = is[1+t1+i]
+					local a2 = is[1+t1+((i+1)%3)]
+					local a3 = is[1+t1+((i+2)%3)]
+					local b1 = is[1+t2+j]
+					local b2 = is[1+t2+((j+1)%3)]
+					local b3 = is[1+t2+((j+2)%3)]
 					if a1 == b1 and a2 == b2 then
 						-- swap indexes
-						is[1+t1[1]] = a3
-						is[1+t1[2]] = b1
-						is[1+t1[3]] = b3
-						is[1+t2[1]] = b3
-						is[1+t2[2]] = b2
-						is[1+t2[3]] = a3
+						is[1+t1+0] = a3
+						is[1+t1+1] = b1
+						is[1+t1+2] = b3
+						is[1+t2+0] = b3
+						is[1+t2+1] = b2
+						is[1+t2+2] = a3
 						found = true
 						goto done
 					elseif a2 == b1 and a1 == b2 then
-						is[1+t1[1]] = a3
-						is[1+t1[2]] = b1
-						is[1+t1[3]] = b3
-						is[1+t2[1]] = b3
-						is[1+t2[2]] = b2
-						is[1+t2[3]] = a3
+						is[1+t1+0] = a3
+						is[1+t1+1] = b1
+						is[1+t1+2] = b3
+						is[1+t2+0] = b3
+						is[1+t2+1] = b2
+						is[1+t2+2] = a3
 						found = true
 						goto done
 					end
