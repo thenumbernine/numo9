@@ -739,6 +739,10 @@ function EditMesh3D:update()
 				app:drawMenuText('rot='..self.screenRotateAngle..' @ '..rotAxis, x, y)
 			end
 			y = y + 8
+			x = 0
+			if self.meshEditMode then
+				app:drawMenuText('>'..self.meshEditModeText, x, y)
+			end
 		end
 	end
 
@@ -905,8 +909,14 @@ function EditMesh3D:update()
 				-- if we're in an edit mode then reset it
 				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
 				if self.meshEditMode then
-					resetVtxEditPos()
-					self.meshEditMode = nil
+					
+					if #self.meshEditModeText > 0 then
+						self.meshEditModeText = self.meshEditModeText:sub(1, -2)
+					else
+						resetVtxEditPos()
+						self.meshEditMode = nil
+					end
+
 				else
 					self.undo:push()
 
@@ -1031,18 +1041,21 @@ assert.eq(#is % 3, 0)
 
 			if app:keyp'g' then
 				self.meshEditMode = 'translate'
+				self.meshEditModeText = ''
 				setVtxEditPos()
 				calcSelVtxCOM()	-- COM not needed but this exits meshEditMode if none are selected
 				self.totalTranslation:set(0,0,0)
 			end
 			if app:keyp's' then
 				self.meshEditMode = 'scale'
+				self.meshEditModeText = ''
 				setVtxEditPos()
 				calcSelVtxCOM()
 				self.totalScreenTranslate:set(0,0)
 			end
 			if app:keyp'r' then
 				self.meshEditMode = 'rotate'
+				self.meshEditModeText = ''
 				setVtxEditPos()
 				calcSelVtxCOM()
 				self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
@@ -1069,6 +1082,23 @@ assert.eq(#is % 3, 0)
 			if app:keyp'z' then
 				self.axisFlags.z = not self.axisFlags.z or nil
 				resetVtxEditPos()
+			end
+		
+			-- collect translate/scale/rotate text input ...
+			-- TODO perfect time to use EditMesh3D:event() ........
+			if self.meshEditMode then
+				local numo9_keys = require 'numo9.keys'
+				local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
+				local keyCodeForName = numo9_keys.keyCodeForName
+				for _,key in ipairs{'minus', 'period', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'} do
+					if app:keyp(key) then
+						self.meshEditModeText = self.meshEditModeText .. string.char(getAsciiForKeyCode(keyCodeForName[key]))
+					end
+				end
+				if app:keyp'return' then
+					-- then use this transform # for our transformation
+					error'TODO'
+				end
 			end
 		end
 	end
