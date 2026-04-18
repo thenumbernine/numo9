@@ -5,6 +5,7 @@ and since my mesh lib has all the nice mesh operations anwyays
 --]]
 local ffi = require 'ffi'
 local table = require 'ext.table'
+local range = require 'ext.range'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
 local vec2i = require 'vec-ffi.vec2i'
@@ -896,6 +897,27 @@ function EditMesh3D:update()
 				refreshSelection()
 			end
 		end
+	end
+	x = x + 7
+
+	if self:guiButton('+', x, y, false, 'add cube') then
+		self.undo:push()
+		local vs, vts, is = getMeshLists()	--- table-of-vec3d/vec2d's, 0-based indexes
+		local oldNumVtxs = #vs
+		local cvs, cvts, cis = BlobMesh3D.getDefaultCubeLists()	-- table-of-tables, 1-based indexes
+
+		vs:append(cvs:mapi(function(v) return vec3d(table.unpack(v)) end))
+		vts:append(cvts:mapi(function(vt) return vec2d(table.unpack(vt)) end))
+		is:append(table.mapi(cis, function(ci) return ci-1 + oldNumVtxs end))	-- convert to 0-based and offset by old # vtxs
+
+		self:replaceMeshBlobWithLists(vs, vts, is)
+
+		-- reset mouseover selection-testing tables to only select the new indexes
+		self.mouseoverVertexIndexSet = {}
+		self.selectedVertexIndexSet = range(oldNumVtxs, oldNumVtxs + #cvs - 1)
+			:mapi(function(i) return true, i end)
+			:setmetatable(nil)	-- select new vtxs only
+		refreshSelection()
 	end
 	x = x + 7
 

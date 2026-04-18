@@ -338,7 +338,7 @@ function BlobMesh3D:loadFromLists(vs, vts, indexes)
 end
 
 -- static method doesn't use self
-function BlobMesh3D.generateDefaultCube()
+function BlobMesh3D.getDefaultCubeLists()
 	local vertexes = table{
 		-- x-
 		{-16384, 16384, -16384},
@@ -424,8 +424,12 @@ function BlobMesh3D.generateDefaultCube()
 		21, 24, 23,
 		23, 22, 21,
 	}
-	return BlobMesh3D:loadFromLists(vertexes, texcoords, indexes)
+	return vertexes, texcoords, indexes
 end
 
+-- static method doesn't use self
+function BlobMesh3D.generateDefaultCube()
+	return BlobMesh3D:loadFromLists(BlobMesh3D.getDefaultCubeLists())
+end
 
 return BlobMesh3D
