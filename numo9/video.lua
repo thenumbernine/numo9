@@ -1775,9 +1775,9 @@ function AppVideo:drawSolidLine3D(
 	local dz = z2 - z1
 
 	-- now find perpendicular from the fwd dir to use as the line surface normal
-	local perpX = fwdY * dz - fwdZ * dy
-	local perpY = fwdZ * dx - fwdX * dz
-	local perpZ = fwdX * dy - fwdY * dx
+	local perpX = tonumber(fwdY * dz - fwdZ * dy)
+	local perpY = tonumber(fwdZ * dx - fwdX * dz)
+	local perpZ = tonumber(fwdX * dy - fwdY * dx)
 	local perpInvLen = 1 / math.sqrt(perpX*perpX + perpY*perpY + perpZ*perpZ)
 	local normalX = perpInvLen * perpX
 	local normalY = perpInvLen * perpY
