@@ -1158,8 +1158,8 @@ function EditVoxelMap:update()
 		if uikey then
 			if app:keyp'a' then
 				-- select-all
-				self.rectUp:set(0,0,0)
-				self.rectDown:set(mapboxIE.max:unpack())
+				self.rectUp = vec3d(0,0,0)
+				self.rectDown = vec3d(mapboxIE.max:unpack())
 			elseif app:keyp'x'
 			or app:keyp'c'
 			then
