@@ -405,10 +405,10 @@ local RAM = struct{
 				{name='screenWidth', type=uint16_t},	-- fantasy-console resolution width & height
 				{name='screenHeight', type=uint16_t},	-- maybe I should have a single address where you poke and peek requested values like this from, like NES PPU?
 
-				{name='blendMode', type=uint8_t},
+				{name='blendMode', type=uint8_t},	-- really just 4 bits: 3 for blend mode and 4th for enable/disable
 				{name='blendColor', type=uint16_t},
 
-				{name='dither', type=uint16_t},	-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
+				{name='dither', type=uint16_t},		-- 4x4 dither bit-matrix, 0 = default = solid, ffff = empty
 
 				{name='cullFace', type=uint8_t},	-- 1 bit, but for alignment...
 
@@ -441,7 +441,7 @@ local RAM = struct{
 				{name='musicPlaying', type=ffi.typeof('$['..audioMusicPlayingCount..']', Numo9MusicPlaying)},
 
 				-- timer
-				{name='updateCounter', type=uint32_t},	-- how many updates() overall, i.e. system clock
+				{name='updateCounter', type=uint32_t},		-- how many updates() overall, i.e. system clock.  for 60hz this will rollover after 828 days.
 				{name='romUpdateCounter', type=uint32_t},	-- how many updates() for the current ROM.  reset upon run()
 
 				-- keyboard
