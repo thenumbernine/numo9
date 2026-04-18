@@ -12,6 +12,7 @@ local vec2i = require 'vec-ffi.vec2i'
 local vec4x4fcol = require 'numo9.vec4x4fcol'
 
 
+local int8_t = ffi.typeof'int8_t'
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_4 = ffi.typeof'uint8_t[4]'
 local int16_t = ffi.typeof'int16_t'
@@ -554,8 +555,8 @@ local Vertex = struct{
 		{name='x', type=int16_t},
 		{name='y', type=int16_t},
 		{name='z', type=int16_t},
-		{name='u', type=uint8_t},
-		{name='v', type=uint8_t},
+		{name='u', type=int8_t},
+		{name='v', type=int8_t},
 	},
 }
 assert.eq(ffi.sizeof(Vertex), 8)

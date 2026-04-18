@@ -3211,9 +3211,9 @@ function AppVideo:drawMesh3D(
 				-- how to do texcoords faster?
 				-- I hear that casting uint8_t(value) is slow ...
 				-- maybe if I allocated a uint8_t[3] and assigned / added to it?
-				a.x, a.y, a.z, ((tonumber(a.u) + uofs) % 256) + .5, ((tonumber(a.v) + vofs) % 256) + .5,
-				b.x, b.y, b.z, ((tonumber(b.u) + uofs) % 256) + .5, ((tonumber(b.v) + vofs) % 256) + .5,
-				c.x, c.y, c.z, ((tonumber(c.u) + uofs) % 256) + .5, ((tonumber(c.v) + vofs) % 256) + .5,
+				a.x, a.y, a.z, tonumber(bit.band(0xff, a.u + uofs)) + .5, tonumber(bit.band(0xff, a.v + vofs)) + .5,
+				b.x, b.y, b.z, tonumber(bit.band(0xff, b.u + uofs)) + .5, tonumber(bit.band(0xff, b.v + vofs)) + .5,
+				c.x, c.y, c.z, tonumber(bit.band(0xff, c.u + uofs)) + .5, tonumber(bit.band(0xff, c.v + vofs)) + .5,
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,
@@ -3228,9 +3228,9 @@ function AppVideo:drawMesh3D(
 			local b = vtxs + inds[i+1]
 			local c = vtxs + inds[i+2]
 			self:drawTexTri3D(
-				a.x, a.y, a.z, ((tonumber(a.u) + uofs) % 256) + .5, ((tonumber(a.v) + vofs) % 256) + .5,
-				b.x, b.y, b.z, ((tonumber(b.u) + uofs) % 256) + .5, ((tonumber(b.v) + vofs) % 256) + .5,
-				c.x, c.y, c.z, ((tonumber(c.u) + uofs) % 256) + .5, ((tonumber(c.v) + vofs) % 256) + .5,
+				a.x, a.y, a.z, tonumber(bit.band(0xff, a.u + uofs)) + .5, tonumber(bit.band(0xff, a.v + vofs)) + .5,
+				b.x, b.y, b.z, tonumber(bit.band(0xff, b.u + uofs)) + .5, tonumber(bit.band(0xff, b.v + vofs)) + .5,
+				c.x, c.y, c.z, tonumber(bit.band(0xff, c.u + uofs)) + .5, tonumber(bit.band(0xff, c.v + vofs)) + .5,
 				sheetIndex,
 				paletteOffset,
 				transparentIndex,
