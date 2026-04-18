@@ -959,13 +959,13 @@ function EditVoxelMap:update()
 	--self:guiSetClipRect(-1000, 0, 3000, 256)
 
 	local x, y = 48, 0
-	handled = self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
+	self:guiBlobSelect(x, y, 'voxelmap', self, 'voxelmapBlobIndex', function()
 		self.undo:clear()
-	end) or handled
+	end)
 	x = x + 11
-	handled = self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex') or handled
+	self:guiBlobSelect(x, y, 'sheet', self, 'sheetBlobIndex')
 	x = x + 11
-	handled = self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex') or handled
+	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
 	x = x + 11
 
 	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
@@ -1089,12 +1089,7 @@ function EditVoxelMap:update()
 
 	---------------- KEYBOARD ----------------
 
-	if voxelmap
-	-- ok this var is loaded, it means mouse-handled or keyboard-handled,
-	-- but here i'm using it to exclude when the text-input is already captured by the gui...
-	-- all in all a good reason to switch from immediate-mode (sloppy) to retained / scenegraph
-	and not handled
-	then
+	if voxelmap then
 		-- wasd should have been esdf ...
 		-- home row!
 		if app:key'w' then
