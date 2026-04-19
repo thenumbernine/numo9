@@ -28,13 +28,11 @@ local colors = {
 
 
 -- subclass the other widgets or nah? idk.
--- abstract - expects :getText() and :setText(text) to be defined -- usu for reading/writing to the active blob
 local UITextArea = class()
 
 function UITextArea:init(args)
 	self.edit = assert.index(args, 'edit')	-- points back to editCode
-	self.getText = assert.index(args, 'getText')
-	self.setText = assert.index(args, 'setText')
+	self.vec = args.vec						-- holds vector<uint8_t> of code text data
 
 	-- text cursor loc
 	self.cursorLoc = 0	-- 0-based index of our cursor
@@ -57,10 +55,34 @@ function UITextArea:init(args)
 	}
 end
 
+-- get the code as a lua string
+-- useful for pushing/popping undo buffer
+-- TODO USE DELTA ENCODING ON UNDO BUFFERS!
+function UITextArea:getText()
+	if not self.vec then return '' end
+	return self.vec:dataToStr()
+end
+
+-- TODO also, just use vector insert...
+function UITextArea:setText(s)
+	if not self.vec then
+		io.write("can't setText when there's no blob vec set...\n")
+		return
+	end
+	local n = #s
+	self.vec:resize(n)
+	ffi.copy(self.vec.v, s, n)
+end
+
+function UITextArea:getTextLen()
+	if not self.vec then return 0 end
+	return #self.vec
+end
+
 -- called upon init or upon app.blobs.code external change (upon App:openCart)
 function UITextArea:refreshText()
 	self.undo:clear()
-	self.cursorLoc = math.clamp(self.cursorLoc, 0, #self:getText())
+	self.cursorLoc = math.clamp(self.cursorLoc, 0, self:getTextLen())
 	self:refreshNewlines()
 	self:refreshCursorColRowForLoc()
 end
@@ -73,12 +95,12 @@ function UITextArea:refreshNewlines()
 	-- refresh newlines
 	self.newlines = table()
 	self.newlines:insert(0)	-- newline is [inclusive, exclusive) the range of 0-based indexes of the text per line
-	for i=1,#self:getText() do
+	for i=1,self:getTextLen() do
 		if self:getText():byte(i) == newlineByte then
 			self.newlines:insert(i)
 		end
 	end
-	self.newlines:insert(#self:getText()+1)	-- len+1 so that len is a valid range on the last line
+	self.newlines:insert(self:getTextLen()+1)	-- len+1 so that len is a valid range on the last line
 end
 
 function UITextArea:refreshCursorColRowForLoc()
@@ -168,8 +190,8 @@ function UITextArea:update()
 		-- TODO use scissors and TODO use the mv transform
 		local lineX = textareaX - self.scrollX * menuFontWidth
 		local lineY = y * spriteSize.y
-		local selLineStart = math.clamp(self.selectStart and self.selectStart or (#self:getText()+1), i, j)
-		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (#self:getText()+1), i, j)
+		local selLineStart = math.clamp(self.selectStart and self.selectStart or (self:getTextLen()+1), i, j)
+		local selLineEnd = math.clamp(self.selectEnd and self.selectEnd or (self:getTextLen()+1), i, j)
 
 		if selLineStart-1 >= i then
 			lineX = lineX + app:drawMenuText(
@@ -233,7 +255,7 @@ function UITextArea:update()
 	local footer = 'line '..self.cursorRow..'/'..(#self.newlines-2)..' col '..self.cursorCol
 	app:drawMenuText(footer, 0, height - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
-	footer = self.cursorLoc..'/'..#self:getText()
+	footer = self.cursorLoc..'/'..self:getTextLen()
 	self.footerWidth = app:drawMenuText(footer, width - (self.footerWidth or 0), height - spriteSize.y, colors.fgFooter, colors.bgFooter)
 
 	-- handle mouse
@@ -286,7 +308,7 @@ function UITextArea:update()
 		if app:keyp'a' then						-- select-all
 			-- select all
 			self.selectStart = 1
-			self.selectEnd = #self:getText()+1		-- how did i end up using an exclusive, 1-based range ... smh
+			self.selectEnd = self:getTextLen()+1		-- how did i end up using an exclusive, 1-based range ... smh
 		elseif app:keyp'x' or app:keyp'c' then 	-- cut/copy
 			if self.selectStart then
 				local sel = self:getText():sub(self.selectStart, self.selectEnd-1)
@@ -325,7 +347,7 @@ function UITextArea:update()
 			self.cursorLoc = 0
 			self:refreshCursorColRowForLoc()
 		elseif app:keyp'end' then
-			self.cursorLoc = #self:getText()
+			self.cursorLoc = self:getTextLen()
 			self:refreshCursorColRowForLoc()
 		end
 	else
@@ -435,7 +457,7 @@ function UITextArea:moveCursor(dx, dy)
 	self.cursorLoc = self.newlines[self.cursorRow] + self.cursorCol-1
 
 	-- advance col left/right without bounds so we can use left/right to wrap lines
-	self.cursorLoc = math.clamp(self.cursorLoc + dx, 0, #self:getText())
+	self.cursorLoc = math.clamp(self.cursorLoc + dx, 0, self:getTextLen())
 
 	self:refreshCursorColRowForLoc()	-- in case we did wrap lines
 end
@@ -498,7 +520,7 @@ function UITextArea:addCharToText(ch)
 			..string.char(ch)
 			..self:getText():sub(self.cursorLoc+1)
 		)
-		self.cursorLoc = math.min(#self:getText(), self.cursorLoc + 1)
+		self.cursorLoc = math.min(self:getTextLen(), self.cursorLoc + 1)
 	end
 
 	self:refreshNewlines()

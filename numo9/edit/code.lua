@@ -16,15 +16,6 @@ function EditCode:init(args)
 
 	self.uiTextArea = UITextArea{
 		edit = self,
-		-- internal
-		setText = function(uiTextArea, text)
-			local vec = self[self.blobField].vec
-			vec:resize(#text)
-			ffi.copy(vec.v, text, #text)
-		end,
-		getText = function(uiTextArea)
-			return self[self.blobField].vec:dataToStr()
-		end,
 	}
 
 	self:onCartLoad()
@@ -41,6 +32,9 @@ end
 function EditCode:setBlobIndex(i)
 	self[self.blobIndexField] = i
 	self[self.blobField] = self.app.blobs[self.blobType][self[self.blobIndexField]+1]
+
+	-- update textarea underlying vec as well ...
+	self.uiTextArea.vec = self[self.blobField].vec
 end
 
 function EditCode:update()
