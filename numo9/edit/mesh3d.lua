@@ -293,7 +293,7 @@ function EditMesh3D:update()
 						-- I want the resulting normal length to be proportional to the sides.
 						-- ideally, equal to the cube-root of the product of all 3 sides
 						-- or maybe the maximum length of all 3 sides
-						local s = .5 * (
+						local s = .25 * (
 							math.sqrt(d0x^2 + d0y^2 + d0z^2)
 							+ math.sqrt(d1x^2 + d1y^2 + d1z^2)
 						) / math.sqrt(nlenSq)
@@ -948,7 +948,97 @@ function EditMesh3D:update()
 	end
 	x = x + 7
 
-	if self.meshEditForm == 'tris' then
+	if self.meshEditForm == 'vertexes' then
+		if self:guiButton('T', x, y, false, 'add tri') then
+			local selVtxIndexes = table.keys(self.selectedVertexIndexSet):sort()
+			if #selVtxIndexes ~= 3 then
+				print('need 3 vertexes, got '..#selVtxIndexes..' vertexes')
+			else
+				local vs, vts, is = getMeshLists()
+				local v0 = vs[1 + selVtxIndexes[1]]
+				local v1 = vs[1 + selVtxIndexes[2]]
+				local v2 = vs[1 + selVtxIndexes[3]]
+				--[[ can't use app:transform cuz we're drawing hte gui so the matrices are gui matrices...
+				local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
+				local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
+				local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
+				local curl = (s2 - s1):det(s1 - s0)
+				--]]
+				-- [[
+				v0 = v0 / 32768
+				v1 = v1 / 32768
+				v2 = v2 / 32768
+				local curl = (v2 - v1):cross(v1 - v0):dot(orbit.pos - (v0 + v1 + v2) / 3)
+				--]]
+				-- make a new tri facing the camera
+				if curl < 0 then
+					is:append(selVtxIndexes)
+				else
+					is:append(selVtxIndexes:reverse())
+				end
+
+				self.undo:push()
+				self:replaceMeshBlobWithLists(vs, vts, is)
+				refreshSelection()
+			end
+		end
+		x = x + 6
+	elseif self.meshEditForm == 'edges' then
+		if self:guiButton('S', x, y, false, 'split') then
+			local vs, vts, is = getMeshLists()
+			local trisToRemove = {}		-- keys are 0-based indexes of tris (divisible by 3)
+			for _,e in ipairs(self.selectedEdges) do
+				-- find the tris on either side
+				-- remove the tris on either side
+				-- insert a vertex between these two
+				local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
+				local evi0 = getIndex(ei0)
+				local evi1 = getIndex(ei1)
+				local i1 = is[1+ei0]
+				local i2 = is[1+ei1]
+				local v1 = vtxs + i1
+				local v2 = vtxs + i2
+				local pos1 = vec3d(v1.x, v1.y, v1.z)
+				local pos2 = vec3d(v2.x, v2.y, v2.z)
+				local tc1 = vec2d(v1.u, v1.v)
+				local tc2 = vec2d(v2.u, v2.v)
+				local newvtxindex = #vs	-- indexes are 0-based
+				vs:insert((pos1 + pos2) * .5)
+				vts:insert((tc1 + tc2) * .5)
+				for ti=0,#is-3,3 do
+					for j=0,2 do
+						local tij0 = is[1 + ti + j]
+						local tij1 = is[1 + ti + (j+1)%3]
+						local tij2 = is[1 + ti + (j+2)%3]
+						if (tij0 == evi0 and tij1 == evi1)
+						or (tij0 == evi1 and tij1 == evi0)
+						then
+							-- if we are to remove this tri, then add its replacements as well
+							is:append{
+								tij0, newvtxindex, tij2,
+								newvtxindex, tij1, tij2,
+							}
+							trisToRemove[ti] = true
+						end
+					end
+				end
+				self.selectedVertexIndexSet[newvtxindex] = true
+			end
+			-- traverse from greatest to least
+			for _,ti in ipairs(table.keys(trisToRemove):sort(function(a,b) return a > b end)) do
+				for j=0,2 do
+					-- notice that removing elements from indexes will invalidate any further index-of-indexes
+					-- which means selectedTris becomes invalidated, selectedEdges becomes invalidated
+					is:remove(1 + ti)
+				end
+			end
+
+			self.undo:push()
+			self:replaceMeshBlobWithLists(vs, vts, is)
+			refreshSelection()
+		end
+		x = x + 6
+	elseif self.meshEditForm == 'tris' then
 		-- TODO maybe flip-edge should maybe be an edge function?
 		if self:guiButton('F', x, y, false, 'flip') then
 			-- flip tris ...
@@ -1008,60 +1098,6 @@ function EditMesh3D:update()
 			end
 		end
 		x = x + 6
-	elseif self.meshEditForm == 'edges' then
-		if self:guiButton('S', x, y, false, 'split') then
-			local vs, vts, is = getMeshLists()
-			local trisToRemove = {}		-- keys are 0-based indexes of tris (divisible by 3)
-			for _,e in ipairs(self.selectedEdges) do
-				-- find the tris on either side
-				-- remove the tris on either side
-				-- insert a vertex between these two
-				local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
-				local evi0 = getIndex(ei0)
-				local evi1 = getIndex(ei1)
-				local i1 = is[1+ei0]
-				local i2 = is[1+ei1]
-				local v1 = vtxs + i1
-				local v2 = vtxs + i2
-				local pos1 = vec3d(v1.x, v1.y, v1.z)
-				local pos2 = vec3d(v2.x, v2.y, v2.z)
-				local tc1 = vec2d(v1.u, v1.v)
-				local tc2 = vec2d(v2.u, v2.v)
-				local newvtxindex = #vs	-- indexes are 0-based
-				vs:insert((pos1 + pos2) * .5)
-				vts:insert((tc1 + tc2) * .5)
-				for ti=0,#is-3,3 do
-					for j=0,2 do
-						local tij0 = is[1 + ti + j]
-						local tij1 = is[1 + ti + (j+1)%3]
-						local tij2 = is[1 + ti + (j+2)%3]
-						if (tij0 == evi0 and tij1 == evi1)
-						or (tij0 == evi1 and tij1 == evi0)
-						then
-							-- if we are to remove this tri, then add its replacements as well
-							is:append{
-								tij0, newvtxindex, tij2,
-								newvtxindex, tij1, tij2,
-							}
-							trisToRemove[ti] = true
-						end
-					end
-				end
-				self.selectedVertexIndexSet[newvtxindex] = true
-			end
-			-- traverse from greatest to least
-			for _,ti in ipairs(table.keys(trisToRemove):sort(function(a,b) return a > b end)) do
-				for j=0,2 do
-					-- notice that removing elements from indexes will invalidate any further index-of-indexes
-					-- which means selectedTris becomes invalidated, selectedEdges becomes invalidated
-					is:remove(1 + ti)
-				end
-			end
-
-			self.undo:push()
-			self:replaceMeshBlobWithLists(vs, vts, is)
-			refreshSelection()
-		end
 	end
 
 
@@ -1324,7 +1360,7 @@ assert.eq(#is % 3, 0)
 				end
 				if app:keyp'return' then
 					-- then use this transform # for our transformation
-					error'TODO'
+error'TODO'
 				end
 			end
 		end
