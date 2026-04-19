@@ -433,8 +433,13 @@ function EditMesh3D:update()
 					end
 				elseif self.meshEditForm == 'tris' then
 					-- find the best tri, toggle its selection if not selected
-					local bestDistSq = math.huge
+					local bestDist = math.huge
 					local bestTris
+					local mousePos = orbit.pos * 32768
+					local mouseDir = 
+						- orbit.angle:zAxis()
+						+ orbit.angle:xAxis() * (mouseX - 128) / 128
+						- orbit.angle:yAxis() * (mouseY - 128) / 128
 					for i=0,getNumIndexes()-1,3 do
 						local i0 = getIndex(i)
 						local i1 = getIndex(i + 1)
@@ -442,54 +447,53 @@ function EditMesh3D:update()
 						local v0 = vtxs + i0
 						local v1 = vtxs + i1
 						local v2 = vtxs + i2
-						local s0 = vec3d(trunc3(app:transform(v0.x, v0.y, v0.z, 1)))
-						local s1 = vec3d(trunc3(app:transform(v1.x, v1.y, v1.z, 1)))
-						local s2 = vec3d(trunc3(app:transform(v2.x, v2.y, v2.z, 1)))
-						local curl = vec2d.det(s2 - s1, s1 - s0)
-						local s = table{s0, s1, s2}
-						local n = table()	-- normal in screen-space, pointing out of the tri, perp to line from s[j] to s[j+1 mod-based-1 3]
-						for j=1,3 do
-							local delta = s[(j%3)+1] - s[j]
-							n[j] = delta:perp():normalize()
-						end
+						local p0 = vec3d(v0.x, v0.y, v0.z)
+						local p1 = vec3d(v1.x, v1.y, v1.z)
+						local p2 = vec3d(v2.x, v2.y, v2.z)
+						local pc = (p0 + p1 + p2) / 3
+						local normal = (p2 - p1):cross(p1 - p0)
+						local curl = mouseDir:dot(normal)
 						-- skip edges on tris pointing away from the camera, maybe
 						-- test det = half of area in pixels to skip degen cases where tri is a line
 						if self.menuUseCullFace == 0
-						or (self.menuUseCullFace == 1 and curl > 2)
-						or (self.menuUseCullFace == 2 and curl < -2)
+						or (self.menuUseCullFace == 1 and curl > .01)
+						or (self.menuUseCullFace == 2 and curl < -.01)
 						then
 							-- find mouse screen coords on tri barycenter screen coords
 							-- project to tri
 
-							if curl < 0 then
-								for j=1,3 do n[j] = -n[j] end
+							--[[
+							plane = {x | (x - pc) dot normal = 0}
+							mouseRay = {t > 0 | mousePos + mouseDir * t}
+							plane U mouseRay = {t | (mousePos + mouseDir * t - pc) dot normal = 0}
+							(mousePos + mouseDir * t - pc) dot normal = 0
+							(mousePos - pc) dot normal + (mouseDir dot normal) * t = 0
+							t = -(mousePos - pc) dot normal / (mouseDir dot normal)
+							--]]
+							local ptMouseDist = normal:dot(pc - mousePos) / normal:dot(mouseDir)
+							local mouseOnTriPlane = mousePos + mouseDir * ptMouseDist
+
+							local allInside = true
+							local allOutside = true
+							local ps = {p0, p1, p2}
+							for j=0,2 do
+								local pi = ps[1+j]
+								local pj = ps[1+(j+1)%3]
+								local dp = pj - pi
+								local curl = normal:dot(dp:cross(mouseOnTriPlane - pi))
+								-- idk which is which, i guess cull face influences it
+								allInside = allInside and curl > 0
+								allOutside = allOutside and curl < 0
 							end
 
-							local closest = mouseUL:clone()
-							for j=1,3 do
-								local cd = closest - s[j]
-								local cdn = cd:dot(n[j])
-								if cdn > 0 then	-- if mouse is out of this edge then
-									cd = cd - n[j] * cdn	-- then project back to edge
-									closest = cd + s[j]
+							if allInside or allOutside then
+								if ptMouseDist < bestDist then
+									bestTris = table{i}
+									bestDist = ptMouseDist
+								-- only select the first one
+								--elseif ptMouseDist == bestDist then
+								--	bestTris:insert(i)
 								end
-							end
-							-- [[
-							local distSq = (closest - mouseUL):lenSq()
-							--]]
-							--[[ TODO hmm backface is hitting first
-							-- better to test 3D as well
-							local vx, vy, vz, vw = app:invTransform(closest.x, closest.y, 0)
-							local v = vec3d(vx, vy, vz) / (vw * 32768)
-							local distSq = (v - orbit.pos):dot(-orbit.angle:zAxis())	-- really it's the dist ...
-							--]]
-
-							if distSq < bestDistSq then
-								bestTris = table{i}
-								bestDistSq = distSq
-							-- only select the first one
-							--elseif distSq == bestDistSq then
-							--	bestTris:insert(i)
 							end
 						end
 					end
