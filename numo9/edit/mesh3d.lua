@@ -57,6 +57,7 @@ function EditMesh3D:onCartLoad()
 
 	self.drawFaces = true
 	self.wireframe = false
+	self.drawNormals = false
 	self.editTexCoords = false
 
 	self.tileSel = TileSelect{
@@ -250,9 +251,8 @@ function EditMesh3D:update()
 			-- TODO this goes slow af
 			-- instead please swap out polygon mode (is it possible?) or (can't do geom shaders and be webgl2 compat) hmm ...
 			if self.wireframe then
-				local color = 0x2e
-				local thickness = 2
-
+				local color = 0xd
+				local thickness = 1.5
 				for i=0,getNumIndexes()-3,3 do
 					for j=0,2 do
 						local a = getVtxIndPtr(i+j)
@@ -260,6 +260,43 @@ function EditMesh3D:update()
 						app:drawSolidLine3D(
 							a.x, a.y, a.z,
 							b.x, b.y, b.z,
+							color,
+							thickness,
+							app.paletteMenuTex)
+					end
+				end
+			end
+			if self.drawNormals then
+				local color = 0xb
+				local thickness = 2
+				for i=0,getNumIndexes()-3,3 do
+					local v0 = getVtxIndPtr(i+0)
+					local v1 = getVtxIndPtr(i+1)
+					local v2 = getVtxIndPtr(i+2)
+					local v0x, v0y, v0z = tonumber(v0.x), tonumber(v0.y), tonumber(v0.z)
+					local v1x, v1y, v1z = tonumber(v1.x), tonumber(v1.y), tonumber(v1.z)
+					local v2x, v2y, v2z = tonumber(v2.x), tonumber(v2.y), tonumber(v2.z)
+					local d0x = v1x - v0x
+					local d0y = v1y - v0y
+					local d0z = v1z - v0z
+					local d1x = v2x - v1x
+					local d1y = v2y - v1y
+					local d1z = v2z - v1z
+					local nx = d0y * d1z - d0z * d1y
+					local ny = d0z * d1x - d0x * d1z
+					local nz = d0x * d1y - d0y * d1x
+					local nlenSq = nx^2 + ny^2 + nz^2
+					if nlenSq > 1e-7 then
+						local inlen = 8192 / math.sqrt(nlenSq)
+						nx = nx * inlen
+						ny = ny * inlen
+						nz = nz * inlen
+						local cx = (v0x + v1x + v2x) / 3
+						local cy = (v0y + v1y + v2y) / 3
+						local cz = (v0z + v1z + v2z) / 3
+						app:drawSolidLine3D(
+							cx, cy, cz,
+							cx + nx, cy + ny, cz + nz,
 							color,
 							thickness,
 							app.paletteMenuTex)
@@ -816,11 +853,19 @@ function EditMesh3D:update()
 		self.drawFaces = not self.drawFaces
 	end
 	x = x + 6
+
 	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
 		self.wireframe = not self.wireframe
 	end
 	x = x + 6
-	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'ortho' or 'projection') then
+
+	if self:guiButton('N', x, y, self.drawNormals, 'normals') then
+		self.drawNormals = not self.drawNormals
+	end
+	x = x + 6
+
+
+	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'ortho' or 'perspective') then
 		orbit.ortho = not orbit.ortho
 	end
 	x = x + 6
@@ -837,68 +882,6 @@ function EditMesh3D:update()
 		self.meshEditForm = result
 	end)
 	x = x + 6*3 + 1
-
-	-- TODO only show up in face-mode?
-	-- or only flip tris selected regardless of mode?
-	-- it's tempting to just make all selections vertex-driven...
-	if self:guiButton('F', x, y, false, 'flip') then
-		-- flip tris ...
-		-- 1) get tris selected
-		-- 2) flip ...
-		-- how to generalize that for any more than two tris that share 1 edge?
-		if #self.selectedTris ~= 2 then
-			print('need 2 tris, got '..#self.selectedTris..' tris')
-		else
-			-- and if # selected vtxs == 4 exactly ...
-			local vs, vts, is = getMeshLists()
-
-			-- find the common edge between the two tris
-			-- and exchange tris
-			local found
-			local t1, t2 = table.unpack(self.selectedTris)
-			for i=0,2 do
-				for j=0,2 do
-					local a1 = is[1+t1+i]
-					local a2 = is[1+t1+((i+1)%3)]
-					local a3 = is[1+t1+((i+2)%3)]
-					local b1 = is[1+t2+j]
-					local b2 = is[1+t2+((j+1)%3)]
-					local b3 = is[1+t2+((j+2)%3)]
-					if a1 == b1 and a2 == b2 then
-						-- swap indexes
-						is[1+t1+0] = a3
-						is[1+t1+1] = b1
-						is[1+t1+2] = b3
-						is[1+t2+0] = b3
-						is[1+t2+1] = b2
-						is[1+t2+2] = a3
-						found = true
-						goto done
-					elseif a2 == b1 and a1 == b2 then
-						is[1+t1+0] = a3
-						is[1+t1+1] = b1
-						is[1+t1+2] = b3
-						is[1+t2+0] = b3
-						is[1+t2+1] = b2
-						is[1+t2+2] = a3
-						found = true
-						goto done
-					end
-				end
-			end
-::done::
-			if not found then
-				print"couldn't find, not flipping"
-			else
-				self.undo:push()
-				self:replaceMeshBlobWithLists(vs, vts, is)
-
-				-- refresh edges and tris, but vtxs shouldn't change
-				refreshSelection()
-			end
-		end
-	end
-	x = x + 7
 
 	if self:guiButton('+', x, y, false, 'add cube') then
 		self.undo:push()
@@ -953,7 +936,123 @@ function EditMesh3D:update()
 		local dist = (orbit.pos - orbit.orbit):length()
 		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
 	end
-	x = x + 6
+	x = x + 7
+
+	if self.meshEditForm == 'tris' then
+		if self:guiButton('F', x, y, false, 'flip') then
+			-- flip tris ...
+			-- 1) get tris selected
+			-- 2) flip ...
+			-- how to generalize that for any more than two tris that share 1 edge?
+			if #self.selectedTris ~= 2 then
+				print('need 2 tris, got '..#self.selectedTris..' tris')
+			else
+				-- and if # selected vtxs == 4 exactly ...
+				local vs, vts, is = getMeshLists()
+
+				-- find the common edge between the two tris
+				-- and exchange tris
+				local found
+				local t1, t2 = table.unpack(self.selectedTris)
+				for i=0,2 do
+					for j=0,2 do
+						local a1 = is[1+t1+i]
+						local a2 = is[1+t1+((i+1)%3)]
+						local a3 = is[1+t1+((i+2)%3)]
+						local b1 = is[1+t2+j]
+						local b2 = is[1+t2+((j+1)%3)]
+						local b3 = is[1+t2+((j+2)%3)]
+						if a1 == b1 and a2 == b2 then
+							-- swap indexes
+							is[1+t1+0] = a3
+							is[1+t1+1] = b1
+							is[1+t1+2] = b3
+							is[1+t2+0] = b3
+							is[1+t2+1] = b2
+							is[1+t2+2] = a3
+							found = true
+							goto done
+						elseif a2 == b1 and a1 == b2 then
+							is[1+t1+0] = a3
+							is[1+t1+1] = b1
+							is[1+t1+2] = b3
+							is[1+t2+0] = b3
+							is[1+t2+1] = b2
+							is[1+t2+2] = a3
+							found = true
+							goto done
+						end
+					end
+				end
+::done::
+				if not found then
+					print"couldn't find, not flipping"
+				else
+					self.undo:push()
+					self:replaceMeshBlobWithLists(vs, vts, is)
+
+					-- refresh edges and tris, but vtxs shouldn't change
+					refreshSelection()
+				end
+			end
+		end
+		x = x + 6
+	elseif self.meshEditForm == 'edges' then
+		if self:guiButton('S', x, y, false, 'split') then
+			local vs, vts, is = getMeshLists()
+			local trisToRemove = {}		-- keys are 0-based indexes of tris (divisible by 3)
+			for _,e in ipairs(self.selectedEdges) do
+				-- find the tris on either side
+				-- remove the tris on either side
+				-- insert a vertex between these two
+				local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
+				local evi0 = getIndex(ei0)
+				local evi1 = getIndex(ei1)
+				local i1 = is[1+ei0]
+				local i2 = is[1+ei1]
+				local v1 = vtxs + i1
+				local v2 = vtxs + i2
+				local pos1 = vec3d(v1.x, v1.y, v1.z)
+				local pos2 = vec3d(v2.x, v2.y, v2.z)
+				local tc1 = vec2d(v1.u, v1.v)
+				local tc2 = vec2d(v2.u, v2.v)
+				local newvtxindex = #vs	-- indexes are 0-based
+				vs:insert((pos1 + pos2) * .5)
+				vts:insert((tc1 + tc2) * .5)
+				for ti=0,#is-3,3 do
+					for j=0,2 do
+						local tij0 = is[1 + ti + j]
+						local tij1 = is[1 + ti + (j+1)%3]
+						local tij2 = is[1 + ti + (j+2)%3]
+						if (tij0 == evi0 and tij1 == evi1) 
+						or (tij0 == evi1 and tij1 == evi0)
+						then
+							-- if we are to remove this tri, then add its replacements as well
+							is:append{
+								tij0, newvtxindex, tij2,
+								newvtxindex, tij1, tij2,
+							}
+							trisToRemove[ti] = true
+						end
+					end
+				end
+				-- traverse from greatest to least
+				for _,ti in ipairs(table.keys(trisToRemove):sort(function(a,b) return a > b end)) do
+					for j=0,2 do
+						-- notice that removing elements from indexes will invalidate any further index-of-indexes
+						-- which means selectedTris becomes invalidated, selectedEdges becomes invalidated
+						is:remove(1 + ti)
+					end
+				end
+				self.selectedVertexIndexSet[newvtxindex] = true
+			end
+			
+			self.undo:push()
+			self:replaceMeshBlobWithLists(vs, vts, is)
+			refreshSelection()		
+		end
+	end
+
 
 	app:drawMenuText(('fwd {%.3f, %.3f, %.3f}'):format((-orbit.angle:zAxis()):unpack()), 0, 240)
 	app:drawMenuText(('q {%.3f, %.3f, %.3f, %.3f}'):format(orbit.angle:unpack()), 0, 248)
@@ -1205,6 +1304,15 @@ function EditMesh3D:popUndo(redo)
 	local entry = self.undo:pop(redo)
 	if not entry then return end
 	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D(entry.data)
+
+	-- and invalidate all selections (or maybe i should save selection with the undo buffer....)
+	self.mouseoverVertexIndexSet = {}
+	self.selectedVertexIndexSet = {}
+	self.selectedEdges = table()
+	self.selectedTris = table()
+	self.mouseoverEdges = table()
+	self.mouseoverTris = table()
+
 	self:updateBlobChanges()
 end
 
