@@ -64,6 +64,7 @@ end
 
 function EditVoxelMap:onCartLoad()
 	self.menuUseLighting = false
+	self.menuUseCullFace = 0	-- 0 = no, 1 = back, 2 = front
 	self.voxelmapBlobIndex = 0
 	self.sheetBlobIndex = 0
 	self.paletteBlobIndex = 0
@@ -446,6 +447,13 @@ function EditVoxelMap:update()
 		if app.ram.HD2DFlags ~= pushHD2DFlags then
 			app:onHD2DFlagsChange()
 		end
+
+		local pushCullFace = app.ram.cullFace
+		app.ram.cullFace = self.menuUseCullFace
+		if app.ram.cullFace ~= pushCullFace then
+			app:onCullFaceChange()
+		end
+
 
 		handled = orbit:beginDraw() or handled
 
@@ -939,6 +947,11 @@ function EditVoxelMap:update()
 			end
 		end
 
+
+		if app.ram.cullFace ~= pushCullFace then
+			app.ram.cullFace = pushCullFace
+			app:onCullFaceChange()
+		end
 		if app.ram.HD2DFlags ~= pushHD2DFlags then
 			app.ram.HD2DFlags = pushHD2DFlags
 			app:onHD2DFlagsChange()
@@ -967,19 +980,6 @@ function EditVoxelMap:update()
 	x = x + 11
 	self:guiBlobSelect(x, y, 'palette', self, 'paletteBlobIndex')
 	x = x + 11
-
-	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
-		self.wireframe = not self.wireframe
-	end
-	x = x + 6
-	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'orbit.ortho' or 'projection') then
-		orbit.ortho = not orbit.ortho
-	end
-	x = x + 6
-	if self:guiButton('L', x, y, false, 'light='..tostring(self.menuUseLighting)) then
-		self.menuUseLighting = not self.menuUseLighting
-	end
-	x = x + 6
 
 	-- TODO text input also for just the mesh portion? or handle it in the voxel index?
 	if self:guiButton('M', x, y, self.meshPickOpen, 'mesh='..self.voxCurSel.mesh3DIndex) then
@@ -1045,9 +1045,30 @@ function EditVoxelMap:update()
 				end
 			end
 		)
+	else
+		x = x + 33
+	end
 
-		x = 0
-		y = 8
+	if self:guiButton('W', x, y, self.wireframe, 'wireframe') then
+		self.wireframe = not self.wireframe
+	end
+	x = x + 6
+	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'orbit.ortho' or 'projection') then
+		orbit.ortho = not orbit.ortho
+	end
+	x = x + 6
+	if self:guiButton('L', x, y, false, 'light='..tostring(self.menuUseLighting)) then
+		self.menuUseLighting = not self.menuUseLighting
+	end
+	x = x + 6
+	if self:guiButton('C', x, y, false, 'cull='..self.menuUseCullFace) then
+		self.menuUseCullFace = (self.menuUseCullFace + 1) % 3
+	end
+	x = x + 6
+
+	if voxelmap then
+		local x = 0
+		local y = 8
 
 		-- tools ... maybe I should put these somewhere else
 		self:guiRadio(x, y, {

@@ -29,6 +29,7 @@ local function trunc(i, ...)
 	return ..., trunc(i-1, select(2, ...))
 end
 local function trunc2(x, y) return x, y end
+local function trunc3(x, y, z) return x, y, z end
 
 local EditMesh3D = require 'numo9.ui':subclass()
 
@@ -57,6 +58,7 @@ function EditMesh3D:onCartLoad()
 
 	self.drawFaces = true
 	self.wireframe = false
+	self.menuUseCullFace = 0	-- 0 = no, 1 = back, 2 = front
 	self.drawNormals = false
 	self.editTexCoords = false
 
@@ -245,6 +247,7 @@ function EditMesh3D:update()
 
 		if not tileSelHandled then
 			handled = orbit:beginDraw() or handled
+
 			app:matscale(1/32768, 1/32768, 1/32768)
 
 			-- draw the 3D model here
@@ -313,6 +316,14 @@ function EditMesh3D:update()
 					end
 				end
 			end
+
+
+			local pushCullFace = app.ram.cullFace
+			app.ram.cullFace = self.menuUseCullFace
+			if app.ram.cullFace ~= pushCullFace then
+				app:onCullFaceChange()
+			end
+
 			if self.drawFaces then
 				-- set the current selected palette via RAM registry to self.paletteBlobIndex
 				local pushPalBlobIndex = app.ram.paletteBlobIndex
@@ -324,6 +335,11 @@ function EditMesh3D:update()
 					self.sheetBlobIndex
 				)
 				app.ram.paletteBlobIndex = pushPalBlobIndex
+			end
+
+			if app.ram.cullFace ~= pushCullFace then
+				app.ram.cullFace = pushCullFace
+				app:onCullFaceChange()
 			end
 
 			-- from here on, no depth mask, since it is all mesh highlights
@@ -372,11 +388,14 @@ function EditMesh3D:update()
 						local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
 						local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
 						local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
-						local sd1 = s2 - s1
-						local sd0 = s1 - s0
-						local curl = sd1:det(sd0)
+						local curl = vec2.det(s2 - s1, s1 - s0)
 						local s = table{s0, s1, s2}
-						if curl > 0 then -- skip edges on tris pointing away from the camera, maybe
+
+						if self.menuUseCullFace == 0
+						or (self.menuUseCullFace == 1 and curl > 0)
+						or (self.menuUseCUllFace == 2 and curl < 0)
+						then -- skip edges on tris pointing away from the camera, maybe
+
 							for j=0,2 do
 								local ii1 = i+j
 								local ii2 = i+((j+1)%3)
@@ -423,12 +442,10 @@ function EditMesh3D:update()
 						local v0 = vtxs + i0
 						local v1 = vtxs + i1
 						local v2 = vtxs + i2
-						local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
-						local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
-						local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
-						local sd1 = s2 - s1
-						local sd0 = s1 - s0
-						local curl = sd1:det(sd0)
+						local s0 = vec3d(trunc3(app:transform(v0.x, v0.y, v0.z, 1)))
+						local s1 = vec3d(trunc3(app:transform(v1.x, v1.y, v1.z, 1)))
+						local s2 = vec3d(trunc3(app:transform(v2.x, v2.y, v2.z, 1)))
+						local curl = vec2d.det(s2 - s1, s1 - s0)
 						local s = table{s0, s1, s2}
 						local n = table()	-- normal in screen-space, pointing out of the tri, perp to line from s[j] to s[j+1 mod-based-1 3]
 						for j=1,3 do
@@ -437,9 +454,16 @@ function EditMesh3D:update()
 						end
 						-- skip edges on tris pointing away from the camera, maybe
 						-- test det = half of area in pixels to skip degen cases where tri is a line
-						if curl > 2 then
+						if self.menuUseCullFace == 0
+						or (self.menuUseCullFace == 1 and curl > 2)
+						or (self.menuUseCullFace == 2 and curl < -2)
+						then
 							-- find mouse screen coords on tri barycenter screen coords
 							-- project to tri
+
+							if curl < 0 then
+								for j=1,3 do n[j] = -n[j] end
+							end
 
 							local closest = mouseUL:clone()
 							for j=1,3 do
@@ -450,8 +474,16 @@ function EditMesh3D:update()
 									closest = cd + s[j]
 								end
 							end
-
+							-- [[
 							local distSq = (closest - mouseUL):lenSq()
+							--]]
+							--[[ TODO hmm backface is hitting first
+							-- better to test 3D as well
+							local vx, vy, vz, vw = app:invTransform(closest.x, closest.y, 0)
+							local v = vec3d(vx, vy, vz) / (vw * 32768)
+							local distSq = (v - orbit.pos):dot(-orbit.angle:zAxis())	-- really it's the dist ...
+							--]]
+
 							if distSq < bestDistSq then
 								bestTris = table{i}
 								bestDistSq = distSq
@@ -874,9 +906,13 @@ function EditMesh3D:update()
 	end
 	x = x + 6
 
-
 	if self:guiButton(orbit.ortho and 'O' or 'P', x, y, false, orbit.ortho and 'ortho' or 'perspective') then
 		orbit.ortho = not orbit.ortho
+	end
+	x = x + 6
+
+	if self:guiButton('C', x, y, false, 'cull='..self.menuUseCullFace) then
+		self.menuUseCullFace = (self.menuUseCullFace + 1) % 3
 	end
 	x = x + 6
 
@@ -964,7 +1000,7 @@ function EditMesh3D:update()
 				local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
 				local curl = (s2 - s1):det(s1 - s0)
 				--]]
-				-- [[
+				-- [[ so do it in model space
 				v0 = v0 / 32768
 				v1 = v1 / 32768
 				v2 = v2 / 32768
