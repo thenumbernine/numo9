@@ -79,6 +79,36 @@ function UITextArea:getTextLen()
 	return #self.vec
 end
 
+-- loc is 0-based
+function UITextArea:insertText(loc, str)
+	--[[ slow way
+	self:setText(
+		self:getText():sub(1, loc)
+		..str
+		..self:getText():sub(loc + 1)
+	)
+	--]]
+	-- [[ vector insert
+	assert.le(0, loc)
+	assert.le(loc, #self.vec)
+	assert.type(str, 'string')
+	local where = self.vec.v + loc
+	local first = ffi.cast('uint8_t*', str)
+	local last = first + #str
+	self.vec:insert(where, first, last)
+	--]]
+end
+
+function UITextArea:removeText(first, last)
+	assert.le(0, first)
+	assert.le(first, last)
+	assert.le(last, #self.vec)
+	if first == last then return end
+	self.vec:erase(
+		self.vec.v + first,
+		self.vec.v + last)
+end
+
 -- called upon init or upon app.blobs.code external change (upon App:openCart)
 function UITextArea:refreshText()
 	self.undo:clear()
@@ -331,11 +361,16 @@ function UITextArea:update()
 			end
 			self:deleteSelection()
 			if paste then
+				--[[
 				self:setText(
 					self:getText():sub(1, self.cursorLoc)
 					..paste
 					..self:getText():sub(self.cursorLoc+1)
 				)
+				--]]
+				-- [[
+				self:insertText(self.cursorLoc, paste)
+				--]]
 				self.cursorLoc = self.cursorLoc + #paste
 			end
 			self:refreshNewlines()
@@ -377,11 +412,17 @@ function UITextArea:update()
 						else
 							tabbedText = '\t' .. oldTabbedText:gsub('\n', '\n\t')
 						end
+						--[[
 						self:setText(
 							self:getText():sub(1, self.selectStart-1)
 							.. tabbedText
 							.. self:getText():sub(self.selectEnd)
 						)
+						--]]
+						-- [[
+						self:removeText(self.selectStart-1, self.selectEnd-1)
+						self:insertText(self.selectStart, tabbedText)
+						--]]
 						self.selectEnd = self.selectEnd + #tabbedText - #oldTabbedText
 						self:refreshNewlines()
 						self:refreshCursorColRowForLoc()
@@ -482,10 +523,15 @@ end
 function UITextArea:deleteSelection()
 	if not self.selectStart then return end
 
+	--[[
 	self:setText(
 		self:getText():sub(1, self.selectStart-1)
 		..self:getText():sub(self.selectEnd)
 	)
+	--]]
+	-- [[
+	self:removeText(self.selectStart-1, self.selectEnd-1)
+	--]]
 	if self.cursorLoc+1 >= self.selectStart and self.cursorLoc+1 < self.selectEnd then
 		self.cursorLoc = self.selectStart-1
 	elseif self.cursorLoc+1 >= self.selectEnd then
@@ -509,17 +555,30 @@ function UITextArea:addCharToText(ch)
 		ch = newlineByte	-- store \n's instead of \r's
 	end
 	if ch == backspaceByte then
+		--[[
 		self:setText(
 			self:getText():sub(1, math.max(0, self.cursorLoc - 1))
 			..self:getText():sub(self.cursorLoc+1)
 		)
+		--]]
+		-- [[
+		self:removeText(
+			math.max(0, self.cursorLoc - 1),
+			math.max(0, self.cursorLoc)
+		)
+		--]]
 		self.cursorLoc = math.max(0, self.cursorLoc - 1)
 	elseif ch then
+		--[[
 		self:setText(
 			self:getText():sub(1, self.cursorLoc)
 			..string.char(ch)
 			..self:getText():sub(self.cursorLoc+1)
 		)
+		--]]
+		-- [[
+		self:insertText(self.cursorLoc, string.char(ch))
+		--]]
 		self.cursorLoc = math.min(self:getTextLen(), self.cursorLoc + 1)
 	end
 
