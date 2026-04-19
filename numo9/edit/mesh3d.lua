@@ -287,10 +287,20 @@ function EditMesh3D:update()
 					local nz = d0x * d1y - d0y * d1x
 					local nlenSq = nx^2 + ny^2 + nz^2
 					if nlenSq > 1e-7 then
-						local inlen = 8192 / math.sqrt(nlenSq)
-						nx = nx * inlen
-						ny = ny * inlen
-						nz = nz * inlen
+						--local s = 8192 / math.sqrt(nlenSq)
+						-- |n| = |dx| * |dy| * sin(theta) angle between them
+						-- |n| = 1/2 area of the triangle formed by dx & dy
+						-- I want the resulting normal length to be proportional to the sides.
+						-- ideally, equal to the cube-root of the product of all 3 sides
+						-- or maybe the maximum length of all 3 sides
+						local s = .5 * (
+							math.sqrt(d0x^2 + d0y^2 + d0z^2)
+							+ math.sqrt(d1x^2 + d1y^2 + d1z^2)
+						) / math.sqrt(nlenSq)
+						--local s = 1/32768
+						nx = nx * s
+						ny = ny * s
+						nz = nz * s
 						local cx = (v0x + v1x + v2x) / 3
 						local cy = (v0y + v1y + v2y) / 3
 						local cz = (v0z + v1z + v2z) / 3
