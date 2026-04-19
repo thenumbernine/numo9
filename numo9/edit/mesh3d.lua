@@ -949,6 +949,7 @@ function EditMesh3D:update()
 	x = x + 7
 
 	if self.meshEditForm == 'tris' then
+		-- TODO maybe flip-edge should maybe be an edge function?
 		if self:guiButton('F', x, y, false, 'flip') then
 			-- flip tris ...
 			-- 1) get tris selected
@@ -1034,7 +1035,7 @@ function EditMesh3D:update()
 						local tij0 = is[1 + ti + j]
 						local tij1 = is[1 + ti + (j+1)%3]
 						local tij2 = is[1 + ti + (j+2)%3]
-						if (tij0 == evi0 and tij1 == evi1) 
+						if (tij0 == evi0 and tij1 == evi1)
 						or (tij0 == evi1 and tij1 == evi0)
 						then
 							-- if we are to remove this tri, then add its replacements as well
@@ -1046,20 +1047,20 @@ function EditMesh3D:update()
 						end
 					end
 				end
-				-- traverse from greatest to least
-				for _,ti in ipairs(table.keys(trisToRemove):sort(function(a,b) return a > b end)) do
-					for j=0,2 do
-						-- notice that removing elements from indexes will invalidate any further index-of-indexes
-						-- which means selectedTris becomes invalidated, selectedEdges becomes invalidated
-						is:remove(1 + ti)
-					end
-				end
 				self.selectedVertexIndexSet[newvtxindex] = true
 			end
-			
+			-- traverse from greatest to least
+			for _,ti in ipairs(table.keys(trisToRemove):sort(function(a,b) return a > b end)) do
+				for j=0,2 do
+					-- notice that removing elements from indexes will invalidate any further index-of-indexes
+					-- which means selectedTris becomes invalidated, selectedEdges becomes invalidated
+					is:remove(1 + ti)
+				end
+			end
+
 			self.undo:push()
 			self:replaceMeshBlobWithLists(vs, vts, is)
-			refreshSelection()		
+			refreshSelection()
 		end
 	end
 
@@ -1271,6 +1272,30 @@ assert.eq(#is % 3, 0)
 						drawViewInvMat.ptr[10]
 					):normalize()
 				end
+			end
+
+			-- TODO or maybe use this for flipping common edge between two tris?
+			if app:keyp'f' then
+				self.drawFaces = not self.drawFaces
+			end
+			if app:keyp'n' then
+				self.drawNormals = not self.drawNormals
+			end
+			if app:keyp'w' then
+				self.wireframe = not self.wireframe
+			end
+			if app:keyp'o' then
+				orbit.ortho = not orbit.ortho
+			end
+
+			if app:keyp'v' then
+				self.meshEditForm = 'vertexes'
+			end
+			if app:keyp'e' then
+				self.meshEditForm = 'edges'
+			end
+			if app:keyp't' then
+				self.meshEditForm = 'tris'
 			end
 
 			if app:keyp'x' then
