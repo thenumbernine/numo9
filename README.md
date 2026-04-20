@@ -251,21 +251,21 @@ The 3D orientations, like the 2D orientations, can be decomposed into bitfields:
 The following 3D orientation representations are redundant, and will be used for special-case orientations.
 - #20 (Rz=0,Ry=1,Rx=1,Sx=0) is equal to #7 (Rz=3,Ry=1,Rx=0,Sx=0), so I will instead use this for voxel-centered xyz-aligned billboard orientation.
 - #21 (Rz=1,Ry=1,Rx=1,Sx=0) is equal to #4 (Rz=0,Ry=1,Rx=0,Sx=0). so I will instead use this for voxel-centered xy-aligned billboard orientation.
-- #22 (Rz=2,Ry=1,Rx=1,Sx=0) is equal to #5 (Rz=1,Ry=1,Rx=0,Sx=0).
-- #23 (Rz=3,Ry=1,Rx=1,Sx=0) is equal to #6 (Rz=2,Ry=1,Rx=0,Sx=0).
-- #28 (Rz=0,Ry=3,Rx=1,Sx=0) is equal to #13 (Rz=1,Ry=3,Rx=0,Sx=0).
-- #29 (Rz=1,Ry=3,Rx=1,Sx=0) is equal to #14 (Rz=2,Ry=3,Rx=0,Sx=0).
-- #30 (Rz=2,Ry=3,Rx=1,Sx=0) is equal to #15 (Rz=3,Ry=3,Rx=0,Sx=0).
-- #31 (Rz=3,Ry=3,Rx=1,Sx=0) is equal to #12 (Rz=0,Ry=3,Rx=0,Sx=0).
+- #22 (Rz=2,Ry=1,Rx=1,Sx=0) is equal to #5 (Rz=1,Ry=1,Rx=0,Sx=0). ... maybe this will become xyz-aligned h-flipped (orientation=1 applied to texcoords)
+- #23 (Rz=3,Ry=1,Rx=1,Sx=0) is equal to #6 (Rz=2,Ry=1,Rx=0,Sx=0). ... maybe this will become xy-aligned h-flipped (orientation=1 applied to texcoords)
+- #28 (Rz=0,Ry=3,Rx=1,Sx=0) is equal to #13 (Rz=1,Ry=3,Rx=0,Sx=0). ... maybe " " " xyz-aligned orientation=2
+- #29 (Rz=1,Ry=3,Rx=1,Sx=0) is equal to #14 (Rz=2,Ry=3,Rx=0,Sx=0). ... maybe " " " xy-aligned orientation=2
+- #30 (Rz=2,Ry=3,Rx=1,Sx=0) is equal to #15 (Rz=3,Ry=3,Rx=0,Sx=0). ... maybe " " " xyz-aligned orientation=3
+- #31 (Rz=3,Ry=3,Rx=1,Sx=0) is equal to #12 (Rz=0,Ry=3,Rx=0,Sx=0). ... maybe " " " xy-aligned orientation=3
 
-- #52 (Rz=0,Ry=1,Rx=1,Sx=1) is equal to #32 (Rz=3,Ry=1,Rx=0,Sx=1).
-- #53 (Rz=1,Ry=1,Rx=1,Sx=1) is equal to #29 (Rz=0,Ry=1,Rx=0,Sx=1).
-- #54 (Rz=2,Ry=1,Rx=1,Sx=1) is equal to #30 (Rz=1,Ry=1,Rx=0,Sx=1).
-- #55 (Rz=3,Ry=1,Rx=1,Sx=1) is equal to #31 (Rz=2,Ry=1,Rx=0,Sx=1).
-- #60 (Rz=0,Ry=3,Rx=1,Sx=1) is equal to #38 (Rz=1,Ry=3,Rx=0,Sx=1).
-- #61 (Rz=1,Ry=3,Rx=1,Sx=1) is equal to #39 (Rz=2,Ry=3,Rx=0,Sx=1).
-- #62 (Rz=2,Ry=3,Rx=1,Sx=1) is equal to #40 (Rz=3,Ry=3,Rx=0,Sx=1).
-- #63 (Rz=3,Ry=3,Rx=1,Sx=1) is equal to #37 (Rz=0,Ry=3,Rx=0,Sx=1).
+- #52 (Rz=0,Ry=1,Rx=1,Sx=1) is equal to #32 (Rz=3,Ry=1,Rx=0,Sx=1). ... maybe " " " xyz-aligned orientation=4
+- #53 (Rz=1,Ry=1,Rx=1,Sx=1) is equal to #29 (Rz=0,Ry=1,Rx=0,Sx=1). ... maybe " " " xy-aligned orientation=4
+- #54 (Rz=2,Ry=1,Rx=1,Sx=1) is equal to #30 (Rz=1,Ry=1,Rx=0,Sx=1). ... maybe " " " xyz-aligned orientation=5
+- #55 (Rz=3,Ry=1,Rx=1,Sx=1) is equal to #31 (Rz=2,Ry=1,Rx=0,Sx=1). ... maybe " " " xy-aligned orientation=5
+- #60 (Rz=0,Ry=3,Rx=1,Sx=1) is equal to #38 (Rz=1,Ry=3,Rx=0,Sx=1). ... maybe " " " xyz-aligned orientation=6
+- #61 (Rz=1,Ry=3,Rx=1,Sx=1) is equal to #39 (Rz=2,Ry=3,Rx=0,Sx=1). ... maybe " " " xy-aligned orientation=6
+- #62 (Rz=2,Ry=3,Rx=1,Sx=1) is equal to #40 (Rz=3,Ry=3,Rx=0,Sx=1). ... maybe " " " xyz-aligned orientation=7
+- #63 (Rz=3,Ry=3,Rx=1,Sx=1) is equal to #37 (Rz=0,Ry=3,Rx=0,Sx=1). ... maybe " " " xy-aligned orientation=7
 
 The editor voxelmap controls:
 - left-click and drag to place blocks.
