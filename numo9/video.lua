@@ -1839,7 +1839,11 @@ function AppVideo:drawSolidLine3D(
 
 	local dsx = sx2 - sx1
 	local dsy = sy2 - sy1
-	dsx, dsy = -dsy, dsx	-- orthogonal
+	if self.ram.cullFace == 2 then
+		dsx, dsy = -dsy, dsx	-- orthogonal
+	else
+		dsx, dsy = dsy, -dsx	-- orthogonal
+	end
 	local dslensq = dsx*dsx + dsy*dsy
 	if dslensq < 1e-7 then return end
 	local dsinvlen = 1/math.sqrt(dslensq)

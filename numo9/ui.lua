@@ -416,14 +416,31 @@ function UI:update()
 	app:matMenuReset()
 
 	app:clearScreen(0, app.paletteMenuTex)
-	app:drawSolidRect(
-		0, 0,	-- x,y,
-		app.ram.screenWidth, app.ram.screenHeight,	-- w, h,
-		0,
-		nil,
-		nil,
-		app.paletteMenuTex
-	)
+
+	do
+		-- TODO if cull face affects this, how much more?
+		-- TODO TODO this isn't it.
+		-- somehow something in voxelmap is affecting cull face and is preventing the grey background when cullface==1 in menu
+		local pushCullFace = app.ram.cullFace
+		app.ram.cullFace = 0
+		if app.ram.cullFace ~= pushCullFace then
+			app:onCullFaceChange()
+		end
+		app:triBuf_flush()
+		app:drawSolidRect(
+			0, 0,	-- x,y,
+			app.ram.screenWidth, app.ram.screenHeight,	-- w, h,
+			0,
+			nil,
+			nil,
+			app.paletteMenuTex
+		)
+		if app.ram.cullFace ~= pushCullFace then
+			app.ram.cullFace = pushCullFace
+			app:onCullFaceChange()
+		end
+		app:triBuf_flush()
+	end
 
 	if self:guiRadio(
 		0,
