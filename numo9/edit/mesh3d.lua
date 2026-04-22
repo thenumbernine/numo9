@@ -23,6 +23,7 @@ local TileSelect = require 'numo9.ui.tilesel'
 
 local numo9_rom = require 'numo9.rom'
 local tileSizeInBits = numo9_rom.tileSizeInBits
+local Vertex = numo9_rom.Vertex
 
 -- truncate stack, useful for ffi ctype ctors that can't have extra args
 local function trunc(i, ...)
@@ -58,7 +59,7 @@ function EditMesh3D:onCartLoad()
 	self.paletteBlobIndex = 0
 
 	self.drawFaces = true
-	self.wireframe = false
+	self.wireframe = true
 	self.menuUseCullFace = 0	-- 0 = no, 1 = back, 2 = front
 	self.drawNormals = false
 	self.editTexCoords = false
@@ -144,7 +145,7 @@ function EditMesh3D:update()
 	local function getVtxIndPtr(i)
 		return vtxs + getIndex(i)
 	end
-	local function getMeshVertexList()
+	local function getMeshVtxPosList()
 		local vs = table()
 		for i=0,numVtxs-1 do
 			local v = vtxs + i
@@ -169,10 +170,35 @@ function EditMesh3D:update()
 		return is
 	end
 	local function getMeshLists()
-		return getMeshVertexList(),
+		return getMeshVtxPosList(),
 			getMeshTexCoordList(),
 			getMeshIndexList()
 	end
+	
+	-- return a table-of-Vertex's, distinctly cloning them from the original, no ref copies
+	local function getMeshVertexList()
+		local vertexes = table()
+		for i=0,numVtxs-1 do
+			vertexes:insert(Vertex(vtxs[i]))
+		end
+		return vertexes
+	end
+	-- return tri list a table-of 3-refs-to-Vertex-list
+	-- converts from indexes to refs for you
+	local function getMeshVtxAndTriList()
+		local vertexes = getMeshVertexList()
+		local tris = table()
+		assert.eq(getNumIndexes() % 3, 0)
+		for i=0,getNumIndexes()-1,3 do
+			local triVtxRefs = table()
+			for j=0,2 do
+				triVtxRefs[1+j] = assert.index(vertexes, 1+getIndex(i+j))
+			end
+			tris:insert(triVtxRefs)
+		end
+		return vertexes, tris
+	end
+
 	local function refreshSelection(skipEdges, skipTris)
 		-- TODO we could do calcCOM here isntead of when we start to do a translate/rotate/scale ...
 		if not skipEdges then
@@ -225,7 +251,7 @@ function EditMesh3D:update()
 	end
 
 	local function setVtxEditPos()
-		self.vtxOrigPos = getMeshVertexList()
+		self.vtxOrigPos = getMeshVtxPosList()
 		self.vtxOrigTCs = getMeshTexCoordList()
 	end
 	local function resetVtxEditPos()
@@ -590,6 +616,7 @@ function EditMesh3D:update()
 						end
 						refreshSelection()
 					elseif self.meshEditForm == 'edges' then
+						self.mouseLeftButtonDown = nil	-- clear mousedown pos
 
 						--self.mouseoverEdges
 						-- traverse it,
@@ -613,6 +640,8 @@ function EditMesh3D:update()
 						end
 						refreshSelection(true)	-- true = don't also rebuild selectedEdges
 					elseif self.meshEditForm == 'tris' then
+						self.mouseLeftButtonDown = nil	-- clear mousedown pos
+
 						for _,t in ipairs(self.mouseoverTris) do
 							local j = self.selectedTris:find(t)
 							if j then	-- if we have then remove
@@ -971,11 +1000,11 @@ function EditMesh3D:update()
 		self.undo:push()
 		local vs, vts, is = getMeshLists()	--- table-of-vec3d/vec2d's, 0-based indexes
 		local oldNumVtxs = #vs
-		local cvs, cvts, cis = BlobMesh3D.getDefaultCubeLists()	-- table-of-tables, 1-based indexes
+		local cvs, cvts, cis = BlobMesh3D.getDefaultCubeLists()	-- table-of-tables, 0-based indexes
 
 		vs:append(cvs:mapi(function(v) return vec3d(table.unpack(v)) end))
 		vts:append(cvts:mapi(function(vt) return vec2d(table.unpack(vt)) end))
-		is:append(table.mapi(cis, function(ci) return ci-1 + oldNumVtxs end))	-- convert to 0-based and offset by old # vtxs
+		is:append(table.mapi(cis, function(ci) return ci + oldNumVtxs end))	-- offset by old # vtxs
 
 		self:replaceMeshBlobWithLists(vs, vts, is)
 
@@ -1060,39 +1089,47 @@ function EditMesh3D:update()
 		
 		-- TODO this is a good reason to add select-by-rect-in-screen-space
 		-- and then shift+select to add to selection, otherwise just only select recent pressed / dragged-box-around
-		if self:guiButton('M', x, y, false, 'merge') then
-			local visToMerge = table.keys(self.selectedVertexIndexSet):sort()
+		if self:guiButton('M', x, y, false, 'merge vtxs') then
+			local visToMerge = table.keys(self.selectedVertexIndexSet):sort()	-- 0-based list of selected vertexes
 			if #visToMerge >= 2 then
-				local vs, vts, is = getMeshLists()
-				local destvi = visToMerge[1]
+--DEBUG:print('#visToMerge', #visToMerge)				
+				local vs, ts = getMeshVtxAndTriList()
+
+				local vsToMerge = visToMerge:mapi(function(vi) return vs[1+vi] end)
+
+				local destv = vsToMerge[1]
+				--[[ average or replace?
+				do
+					local x,y,z,u,v = 0,0,0,0,0
+					for _,srcv in ipairs(vsToMerge) do
+						x = x + tonumber(srcv.x)
+						y = y + tonumber(srcv.y)
+						z = z + tonumber(srcv.z)
+						u = u + tonumber(srcv.u)
+						v = v + tonumber(srcv.v)
+					end
+					destv.x = x / #vsToMerge
+					destv.y = y / #vsToMerge
+					destv.z = z / #vsToMerge
+					destv.u = u / #vsToMerge
+					destv.v = v / #vsToMerge
+				end
+				--]]
 				-- merge into the lowest index
 				-- sort from largest to 2nd-to-smallest
-				for _,vi in ipairs(visToMerge:sub(2):reverse()) do
-					vs:remove(vi+1)
-					vts:remove(vi+1)
-					for i=#is-2,1,-3 do
-						for j=0,2 do
-							local k = i + j
-							if is[k] == vi then
-								is[k] = destvi
-							elseif is[k] > vi then
-								is[k] = is[k] - 1
-							end
-						end
-						-- remove degen tris
-						if is[i+0] == is[i+1]
-						or is[i+1] == is[i+2]
-						or is[i+2] == is[i+0]
-						then
-							for j=0,2 do
-								is:remove(i)
+				for i=2,#vsToMerge do
+					local v = vsToMerge[i]
+					for _,t in ipairs(ts) do
+						for j,tv in ipairs(t) do
+							if tv == v then
+								t[j] = destv
 							end
 						end
 					end
 				end
 
 				self.undo:push()
-				self:replaceMeshBlobWithLists(vs, vts, is)
+				self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 				self.mouseoverVertexIndexSet = {}
 				self.selectedVertexIndexSet = {}
 				refreshSelection()
@@ -1101,8 +1138,39 @@ function EditMesh3D:update()
 		end
 		x = x + 6
 
+		if self:guiButton('S', x, y, false, 'split vtxs') then
+			local vs, ts = getMeshVtxAndTriList()
+
+			-- like refs will use the same keys right?
+			-- if not then get their address and use that
+			local selVtxRefSet = table.map(
+				self.selectedVertexIndexSet,
+				function(true_, index) return true, vs[1+index] end
+			)
+			
+			for _,tri in ipairs(ts) do
+				for i,tv in ipairs(tri) do
+					if selVtxRefSet[tv] then
+						local newv = Vertex(tv)
+						vs:insert(newv)
+						tri[i] = newv
+					end
+				end
+			end
+
+			-- now automatically pick out unused vtxs and degenerate tris
+			self.undo:push()
+			self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+			self.mouseoverVertexIndexSet = {}
+			self.selectedVertexIndexSet = {}
+			refreshSelection()
+			return
+		end
+		x = x + 6
+
+
 	elseif self.meshEditForm == 'edges' then
-		if self:guiButton('S', x, y, false, 'split') then
+		if self:guiButton('S', x, y, false, 'split edge') then
 			local vs, vts, is = getMeshLists()
 			local trisToRemove = {}		-- keys are 0-based indexes of tris (divisible by 3)
 			for _,e in ipairs(self.selectedEdges) do
@@ -1225,7 +1293,7 @@ function EditMesh3D:update()
 		-- TODO make sure this is selected so all keys go here ...
 		self.menuTabIndex = self.menuTabCounter
 		self:guiTextField(
-			0, 40, 						-- x, y
+			0, 48, 10,					-- x, y, w
 			self, 'meshEditModeText', 	-- t, k
 			function(value)			-- write
 				-- upon enter, right?
@@ -1244,8 +1312,7 @@ function EditMesh3D:update()
 					if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
 					if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
 					if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
-					-- TODO DO THE TRANSLATION
-error'here'
+error'TODO DO THE TRANSLATION'
 				elseif self.meshEditMode == 'scale' then
 					local s = 1 + .01 * self.totalScreenTranslate.x
 					app:drawMenuText('scale='..s, x, y)
@@ -1597,15 +1664,64 @@ end
 
 -- expects 0-based indexes (like the blob stores)
 function EditMesh3D:replaceMeshBlobWithLists(vs, vts, is)
-	local app = self.app
-	local newblob = BlobMesh3D:loadFromLists(
+	self.app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D:loadFromLists(
 		-- OBJloader compat, convert vec3d to lua-table
 		vs:mapi(function(v) return {v:unpack()} end),
 		vts:mapi(function(v) return {v:unpack()} end),
-		-- convert to 1-based because the next function is made to be OBJloader-compatible and .obj format is 1-based
-		is:mapi(function(i) return i + 1 end)
+		is
 	)
-	app.blobs.mesh3d[self.mesh3DBlobIndex+1] = newblob
+	self:updateBlobChanges()
+end
+
+-- vs = list-of-Vertexes
+-- ts = list-of- lists-of-3-Vertex-refs that have to be in vs
+function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+	
+	-- remove degenerate tris
+	for i=#ts,1,-1 do
+		local t = ts[i]
+--DEBUG:print('t', t[1], t[2], t[3])
+--DEBUG:print('t1 == t2', t[1] == t[2])
+--DEBUG:print('t2 == t3', t[2] == t[3])
+--DEBUG:print('t3 == t1', t[3] == t[1])
+		if t[1] == t[2] 
+		or t[2] == t[3] 
+		or t[3] == t[1] 
+		then
+--DEBUG:print('removing degenerate triangle #'..i)			
+			ts:remove(i)
+		end
+	end
+
+	local vertexToIndex = vs:mapi(function(v,i) return i-1, v end)	-- map from vertex-rev to 0-based-index
+	
+	local used = range(#vs):mapi(function() return false end)	-- 1-based array of bool of used vs not used per vtx
+	-- flag used
+	for _,t in ipairs(ts) do
+		for j,tv in ipairs(t) do
+			used[1+assert.index(vertexToIndex, tv)] = true
+		end
+	end
+	-- remove unused
+	for i=#vs,1,-1 do
+		if not used[i] then 
+--DEBUG:print('removing unused vertex #'..i)			
+			vs:remove(i) 
+		end
+	end
+	-- refresh vertex-to-index after we removed some
+	vertexToIndex = vs:mapi(function(v,i) return i-1, v end)
+
+	-- build our index map from our tri-ref list
+	local is = table()
+	for _,t in ipairs(ts) do
+		for j,tv in ipairs(t) do
+			is:insert(( assert.index(vertexToIndex, tv) ))
+		end
+	end
+	assert.eq(#is % 3, 0)
+
+	self.app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D:loadFromVertexAndIndexLists(vs, is)
 	self:updateBlobChanges()
 end
 

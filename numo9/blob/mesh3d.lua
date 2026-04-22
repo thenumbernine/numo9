@@ -18,6 +18,7 @@ local Vertex = numo9_rom.Vertex
 local BlobDataAbs = require 'numo9.blob.dataabs'
 
 
+local int8_t_p = ffi.typeof'int8_t*'
 local uint8_t = ffi.typeof'uint8_t'
 local uint8_t_p = ffi.typeof'uint8_t*'
 local int16_t = ffi.typeof'int16_t'
@@ -255,7 +256,7 @@ function BlobMesh3D:loadFile(filepath, basepath, blobIndex)
 	end
 	local is = table()
 	for i=0,#mesh.triIndexes-1 do
-		is:insert(mesh.triIndexes.v[i]+1)
+		is:insert(mesh.triIndexes.v[i])
 	end
 	--]]
 	--[[ more lightweight loader
@@ -302,11 +303,11 @@ end
 -- static method
 -- vs = vertexes, where +-64 maps to +-.5
 -- vts = texcoords, in 0-255
--- is = indexes, 1-based
-function BlobMesh3D:loadFromLists(vs, vts, indexes)
+-- is = indexes, 0-based
+function BlobMesh3D:loadFromLists(vs, vts, is)
 	local o = vector(int16_t)
 	o:emplace_back()[0] = #vs
-	o:emplace_back()[0] = #indexes
+	o:emplace_back()[0] = #is
 	assert.eq(#vs, #vts, "your vertexes and texcoords must match.  Sorry I don't do any splitting and re-merging of geometry here")
 	for i=1,#vs do
 		local v = assert.index(vs, i)
@@ -314,24 +315,58 @@ function BlobMesh3D:loadFromLists(vs, vts, indexes)
 		o:emplace_back()[0] = v[1]
 		o:emplace_back()[0] = v[2]
 		o:emplace_back()[0] = v[3]
-		local uv = ffi.cast(uint8_t_p, o:emplace_back())
+		local uv = ffi.cast(int8_t_p, o:emplace_back())
 		uv[0] = vt[1]
 		uv[1] = vt[2]
 	end
 
 	local allInARow = true
-	for i,j in ipairs(indexes) do
-		if i ~= j then
+	for i,ii in ipairs(is) do
+		if i-1 ~= ii then
 			allInARow = false
 			break
 		end
 	end
-	-- if indexes are sequential then don't save them
+	-- if is are sequential then don't save them
 	if allInARow then
 		o.v[1] = 0	-- clear index count
 	else
-		for _,i in ipairs(indexes) do
-			o:emplace_back()[0] = i-1	-- convert from 1-based to 0-based
+		for _,i in ipairs(is) do
+			o:emplace_back()[0] = i
+		end
+	end
+	return self.class(o:dataToStr())
+end
+
+-- static method
+-- vs = table of Vertex's
+-- is = table of 0-based-indexes
+function BlobMesh3D:loadFromVertexAndIndexLists(vs, is)
+	local o = vector(int16_t)
+	o:emplace_back()[0] = #vs
+	o:emplace_back()[0] = #is
+	for i,v in ipairs(vs) do
+		o:emplace_back()[0] = v.x
+		o:emplace_back()[0] = v.y
+		o:emplace_back()[0] = v.z
+		local uv = ffi.cast(int8_t_p, o:emplace_back())
+		uv[0] = v.u
+		uv[1] = v.v
+	end
+
+	local allInARow = true
+	for i,ii in ipairs(is) do
+		if i-1 ~= ii then
+			allInARow = false
+			break
+		end
+	end
+	-- if is are sequential then don't save them
+	if allInARow then
+		o.v[1] = 0	-- clear index count
+	else
+		for _,i in ipairs(is) do
+			o:emplace_back()[0] = i
 		end
 	end
 	return self.class(o:dataToStr())
@@ -403,26 +438,26 @@ function BlobMesh3D.getDefaultCubeLists()
 		{15, 15},
 		{15, 0},
 	}
-	-- 1-based list
+	-- 0-based list
 	local indexes = {
 		-- x-
-		1, 2, 3,
-		3, 4, 1,
+		0, 1, 2,
+		2, 3, 0,
 		-- x+
-		5, 8, 7,
-		7, 6, 5,
+		4, 7, 6,
+		6, 5, 4,
 		-- y-
-		9, 10, 11,
-		11, 12, 9,
+		8, 9, 10,
+		10, 11, 8,
 		-- y+
-		13, 16, 15,
-		15, 14, 13,
+		12, 15, 14,
+		14, 13, 12,
 		-- z-
-		17, 18, 19,
-		19, 20, 17,
+		16, 17, 18,
+		18, 19, 16,
 		-- z+
-		21, 24, 23,
-		23, 22, 21,
+		20, 23, 22,
+		22, 21, 20,
 	}
 	return vertexes, texcoords, indexes
 end
