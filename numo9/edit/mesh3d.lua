@@ -5,6 +5,7 @@ and since my mesh lib has all the nice mesh operations anwyays
 --]]
 local ffi = require 'ffi'
 local table = require 'ext.table'
+local string = require 'ext.string'
 local range = require 'ext.range'
 local assert = require 'ext.assert'
 local math = require 'ext.math'
@@ -104,11 +105,13 @@ function EditMesh3D:update()
 
 	local handled = EditMesh3D.super.update(self)
 
+	local mouseULX, mouseULY = app.ram.mousePos:unpack()
+	local lastMouseULX, lastMouseULY = app.ram.lastMousePos:unpack()
+
+
 	app:matMenuReset()
 	--self:guiSetClipRect(-1000, 16, 3000, 240)
 
-	local mouseULX, mouseULY = app.ram.mousePos:unpack()
-	local lastMouseULX, lastMouseULY = app.ram.lastMousePos:unpack()
 
 	local mouseX, mouseY = app:invTransform(mouseULX, mouseULY)
 	local lastMouseX, lastMouseY = app:invTransform(lastMouseULX, lastMouseULY)
@@ -357,7 +360,7 @@ function EditMesh3D:update()
 					what to do for multiple overlapping vertexes ...
 					how does blender handle it?
 					--]]
-					local bestDistSq = math.huge
+					local bestDistSq = 7*7	-- 7 = max pixel dist to click to select
 					local bestVtxIndexSet
 					for i=0,numVtxs-1 do
 						local v = vtxs + i
@@ -388,7 +391,7 @@ function EditMesh3D:update()
 						local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
 						local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
 						local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
-						local curl = vec2.det(s2 - s1, s1 - s0)
+						local curl = vec2d.det(s2 - s1, s1 - s0)
 						local s = table{s0, s1, s2}
 
 						if self.menuUseCullFace == 0
@@ -539,6 +542,12 @@ function EditMesh3D:update()
 			- rotate in sheet
 			--]]
 
+			if mouseY > 8
+			and not handled
+			and app:keyp'mouse_left'
+			then
+				self.mouseLeftButtonDown = vec2d(mouseULX, mouseULY)
+			end
 
 			if mouseY > 8
 			and not handled
@@ -546,9 +555,38 @@ function EditMesh3D:update()
 			then
 				if self.meshEditMode == nil then
 					if self.meshEditForm == 'vertexes' then
-						-- toggle
-						for i in pairs(self.mouseoverVertexIndexSet) do
-							self.selectedVertexIndexSet[i] = not self.selectedVertexIndexSet[i] or nil
+						if not shift then
+							self.selectedVertexIndexSet = {}
+						end
+						
+						local mouseUL = vec2d(mouseULX, mouseULY)
+						if self.mouseLeftButtonDown
+						and (mouseUL - self.mouseLeftButtonDown):lInfLength() > 3 
+						then
+						
+							-- select all within the screen bbox
+							local sx1 = math.min(mouseUL.x, self.mouseLeftButtonDown.x)
+							local sy1 = math.min(mouseUL.y, self.mouseLeftButtonDown.y)
+							local sx2 = math.max(mouseUL.x, self.mouseLeftButtonDown.x)
+							local sy2 = math.max(mouseUL.y, self.mouseLeftButtonDown.y)
+							for i=0,numVtxs-1 do
+								local v = vtxs + i
+								local s = vec2d(trunc2(app:transform(v.x, v.y, v.z, 1)))
+								if sx1 <= s.x and s.x <= sx2
+								and sy1 <= s.y and s.y <= sy2
+								then
+									self.selectedVertexIndexSet[i] = true
+								end
+							end
+
+							self.mouseLeftButtonDown = nil	-- clear mousedown pos
+						else
+							self.mouseLeftButtonDown = nil	-- just in case
+
+							-- select closest to mouse
+							for i in pairs(self.mouseoverVertexIndexSet) do
+								self.selectedVertexIndexSet[i] = true
+							end
 						end
 						refreshSelection()
 					elseif self.meshEditForm == 'edges' then
@@ -871,10 +909,6 @@ function EditMesh3D:update()
 				app:drawMenuText('rot='..self.screenRotateAngle..' @ '..rotAxis, x, y)
 			end
 			y = y + 8
-			x = 0
-			if self.meshEditMode then
-				app:drawMenuText('>'..self.meshEditModeText, x, y)
-			end
 		end
 	end
 
@@ -965,7 +999,7 @@ function EditMesh3D:update()
 		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
 	end
 	x = x + 6
-	if self:guiButton('Y', x, y, false, 'x-axis') then
+	if self:guiButton('Y', x, y, false, 'y-axis') then
 		local fwd = -orbit.angle:zAxis()
 		if fwd.y < 0 then
 			orbit.angle:set(math.sqrt(.5), 0, 0, math.sqrt(.5))
@@ -976,7 +1010,7 @@ function EditMesh3D:update()
 		orbit.pos = orbit.angle:zAxis() * dist + orbit.orbit
 	end
 	x = x + 6
-	if self:guiButton('Z', x, y, false, 'x-axis') then
+	if self:guiButton('Z', x, y, false, 'z-axis') then
 		local fwd = -orbit.angle:zAxis()
 		if fwd.z < 0 then	-- looking along z-, toggle to z+
 			orbit.angle:set(0,1,0,0)
@@ -1023,6 +1057,50 @@ function EditMesh3D:update()
 			end
 		end
 		x = x + 6
+		
+		-- TODO this is a good reason to add select-by-rect-in-screen-space
+		-- and then shift+select to add to selection, otherwise just only select recent pressed / dragged-box-around
+		if self:guiButton('M', x, y, false, 'merge') then
+			local visToMerge = table.keys(self.selectedVertexIndexSet):sort()
+			if #visToMerge >= 2 then
+				local vs, vts, is = getMeshLists()
+				local destvi = visToMerge[1]
+				-- merge into the lowest index
+				-- sort from largest to 2nd-to-smallest
+				for _,vi in ipairs(visToMerge:sub(2):reverse()) do
+					vs:remove(vi+1)
+					vts:remove(vi+1)
+					for i=#is-2,1,-3 do
+						for j=0,2 do
+							local k = i + j
+							if is[k] == vi then
+								is[k] = destvi
+							elseif is[k] > vi then
+								is[k] = is[k] - 1
+							end
+						end
+						-- remove degen tris
+						if is[i+0] == is[i+1]
+						or is[i+1] == is[i+2]
+						or is[i+2] == is[i+0]
+						then
+							for j=0,2 do
+								is:remove(i)
+							end
+						end
+					end
+				end
+
+				self.undo:push()
+				self:replaceMeshBlobWithLists(vs, vts, is)
+				self.mouseoverVertexIndexSet = {}
+				self.selectedVertexIndexSet = {}
+				refreshSelection()
+				return
+			end
+		end
+		x = x + 6
+
 	elseif self.meshEditForm == 'edges' then
 		if self:guiButton('S', x, y, false, 'split') then
 			local vs, vts, is = getMeshLists()
@@ -1141,6 +1219,70 @@ function EditMesh3D:update()
 	end
 
 
+	-- collect translate/scale/rotate text input ...
+	-- TODO perfect time to use EditMesh3D:event() ........
+	if self.meshEditMode then
+		-- TODO make sure this is selected so all keys go here ...
+		self.menuTabIndex = self.menuTabCounter
+		self:guiTextField(
+			0, 40, 						-- x, y
+			self, 'meshEditModeText', 	-- t, k
+			function(value)			-- write
+				-- upon enter, right?
+				-- do I even need to write self.meshEditModeText?
+				-- do I even need self.meshEditModeText?
+				self.meshEditModeText = value
+
+				local parts = string.split(value, ','):mapi(function(x)
+					return tonumber(string.trim(x))
+				end)
+
+				if self.meshEditMode == 'translate' then
+					local dx, dy, dz = self.totalTranslation:map(math.round):unpack()
+					local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
+					if next(self.axisFlags) == nil then usedx, usedy, usedz = true, true, true end
+					if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
+					if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
+					if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
+					-- TODO DO THE TRANSLATION
+error'here'
+				elseif self.meshEditMode == 'scale' then
+					local s = 1 + .01 * self.totalScreenTranslate.x
+					app:drawMenuText('scale='..s, x, y)
+				elseif self.meshEditMode == 'rotate' then
+					local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
+					local rotAxis
+					if usedx and usedy and usedz then
+						rotAxis = self.selRotFwdDir
+					else
+						rotAxis = self.selRotFwdDir:clone()
+						-- if you press 'r' then 'x', you expect x-axis rotations, which means ... none of the other axii ...
+						if usedx and not usedy and not usedz then
+							rotAxis:set(1,0,0)
+						elseif not usedx and usedy and not usedz then
+							rotAxis:set(0,1,0)
+						elseif not usedx and not usedy and usedz then
+							rotAxis:set(0,0,1)
+						-- push 'x' and 'y' means rotate the xy plane ...
+						elseif usedx and usedy and not usedz then
+							rotAxis.z = 0
+						elseif usedx and not usedy and usedz then
+							rotAxis.y = 0
+						elseif not usedx and usedy and usedz then
+							rotAxis.x = 0
+						end
+						rotAxis = rotAxis:normalize()
+					end
+
+					app:drawMenuText('rot='..self.screenRotateAngle..' @ '..rotAxis, x, y)
+				end
+
+
+			end
+		)
+	end
+
+
 	app:drawMenuText(('fwd {%.3f, %.3f, %.3f}'):format((-orbit.angle:zAxis()):unpack()), 0, 240)
 	app:drawMenuText(('q {%.3f, %.3f, %.3f, %.3f}'):format(orbit.angle:unpack()), 0, 248)
 
@@ -1170,12 +1312,14 @@ function EditMesh3D:update()
 				-- TODO or is there a better 'cancel edit' button because 'escape' and '`' is taken....
 				if self.meshEditMode then
 
+					--[[
 					if #self.meshEditModeText > 0 then
 						self.meshEditModeText = self.meshEditModeText:sub(1, -2)
 					else
 						resetVtxEditPos()
 						self.meshEditMode = nil
 					end
+					--]]
 
 				else
 					-- if we're not in an edit mode then delete vertexes
@@ -1237,7 +1381,6 @@ assert.eq(#is % 3, 0)
 						-- j is 0-based mod-3 index of the start of a triangle in our index buffer
 						-- so traverse in reverse order and remove-3 per tri we want to remove
 						for _,i in ipairs(table(self.selectedTris):sort():reverse()) do
---DEBUG:print('removing tri', i)
 							for k=0,2 do
 								newis:remove(1+i)	-- newis is 1-based ...
 							end
@@ -1265,11 +1408,6 @@ assert.eq(#is % 3, 0)
 						error'here'
 					end
 					assert.eq(#newis % 3, 0)
-
---DEBUG:print('new')
---DEBUG:print('vs', #newvs, require 'ext.tolua'(newvs))
---DEBUG:print('vts', #newvts, require 'ext.tolua'(newvts))
---DEBUG:print('is', #newis, require 'ext.tolua'(newis))
 
 					self.undo:push()
 					self:replaceMeshBlobWithLists(newvs, newvts, newis)
@@ -1389,6 +1527,7 @@ assert.eq(#is % 3, 0)
 
 			-- collect translate/scale/rotate text input ...
 			-- TODO perfect time to use EditMesh3D:event() ........
+			--[[
 			if self.meshEditMode then
 				local numo9_keys = require 'numo9.keys'
 				local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
@@ -1399,14 +1538,43 @@ assert.eq(#is % 3, 0)
 					end
 				end
 				if app:keyp'return' then
+					-- TODO TODO TODO
+					-- this doesn't get hit because the UI already has 'return' to toggle the tabstop, which is the last control you hovered over.
+					-- I could always make a hidden control / textarea and have that get focus when you are typing translate/scale/rotate input ....
 					-- then use this transform # for our transformation
 error'TODO'
 				end
 			end
+			--]]
 		end
 	end
 
 	self:guiSetClipRect(-1000, 0, 3000, 256)
+	
+	app:matident(0)
+	app:matident(1)
+	app:matident(2)
+	app:matortho(
+		0, app.ram.screenWidth,
+		app.ram.screenHeight, 0)
+
+	if self.mouseLeftButtonDown then
+		local sx1 = math.min(mouseULX, self.mouseLeftButtonDown.x)
+		local sy1 = math.min(mouseULY, self.mouseLeftButtonDown.y)
+		local sx2 = math.max(mouseULX, self.mouseLeftButtonDown.x)
+		local sy2 = math.max(mouseULY, self.mouseLeftButtonDown.y)
+		app:drawSolidRect(
+			sx1, sy1,
+			sx2 - sx1, sy2 - sy1,
+			31,
+			true,	-- border
+			false,	-- round
+			app.paletteMenuTex
+		)
+	end
+
+	app:matMenuReset()
+
 	self:drawTooltip()
 end
 
