@@ -95,6 +95,7 @@ function EditMesh3D:resetSelection()
 	self.vtxOrigTCs = table()				-- " " vec2d's to store original vertex texcoords
 	self.totalTranslation = vec3d()			-- total translation since translate start, in world coordinates
 	self.totalScreenTranslate = vec2d()		-- total translation since scale start, in screen coordinates.  TODO track in world coords and project to plane of vtxs
+	self.totalScale = 1						-- total scale, calculated by self.totalScreenTranslate 
 	self.rotateMouseScreenDownPos = vec2d()	-- rotation mouse down screen coordinates relative to center
 
 	self.undo:clear()
@@ -270,6 +271,73 @@ function EditMesh3D:update()
 		vtxs = mesh3DBlob:getVertexPtr()
 		inds = mesh3DBlob:getIndexPtr()
 	end
+
+
+	local function applyMeshEditMode()
+		local usedx = self.axisFlags.x
+		local usedy = self.axisFlags.y
+		local usedz = self.axisFlags.z
+		-- none set == all set
+		if next(self.axisFlags) == nil then
+			usedx, usedy, usedz = true, true, true
+		end
+
+		for i in pairs(self.selectedVertexIndexSet) do
+			if i >= 0 and i < numVtxs then
+				local v = vtxs + i
+				local origXYZ = self.vtxOrigPos[1+i]
+				local origUV = self.vtxOrigTCs[1+i]
+				if self.meshEditMode == 'translate' then
+					if not self.editTexCoords then
+						v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
+						if usedx then v.x = v.x + self.totalTranslation.x end
+						if usedy then v.y = v.y + self.totalTranslation.y end
+						if usedz then v.z = v.z + self.totalTranslation.z end
+					else
+						-- TODO TODO TODO bumpmapping-like, construct a basis in uv coords and transform the mouse movement into texcoord space
+						v.u, v.v = origUV.x, origUV.y
+						if usedx then v.u = tonumber(v.u) - math.round(self.totalTranslation.x / 256) end
+						if usedy then v.v = tonumber(v.v) - math.round(self.totalTranslation.y / 256) end
+					end
+				elseif self.meshEditMode == 'scale' then
+					if not self.editTexCoords then
+						v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
+						if usedx then v.x = (v.x - self.selVtxCOM.x) * self.totalScale + self.selVtxCOM.x end
+						if usedy then v.y = (v.y - self.selVtxCOM.y) * self.totalScale + self.selVtxCOM.y end
+						if usedz then v.z = (v.z - self.selVtxCOM.z) * self.totalScale + self.selVtxCOM.z end
+					else
+						v.u, v.v = origUV.x, origUV.y
+						if usedx then v.u = (tonumber(v.u) - self.selTexCoordCOM.x) * self.totalScale + self.selTexCoordCOM.x end
+						if usedy then v.v = (tonumber(v.v) - self.selTexCoordCOM.y) * self.totalScale + self.selTexCoordCOM.y end
+					end
+				elseif self.meshEditMode == 'rotate' then
+					if not self.editTexCoords then
+						local q = quatd():fromAngleAxis(
+							self.screenRotateAngle.x,
+							self.screenRotateAngle.y,
+							self.screenRotateAngle.z,
+							self.screenRotateAngle.w
+						)
+						local pos = origXYZ - self.selVtxCOM
+						pos = q:rotate(pos)
+						pos = pos + self.selVtxCOM
+						v.x, v.y, v.z = pos.x, pos.y, pos.z
+					else
+						local cosTheta = math.cos(math.rad(self.screenRotateAngle.w))
+						local sinTheta = math.sin(math.rad(self.screenRotateAngle.w))
+						local pos = origUV - self.selTexCoordCOM
+						pos = vec2d(
+							pos.x * cosTheta - pos.y * sinTheta,
+							pos.x * sinTheta + pos.y * cosTheta
+						)
+						pos = pos + self.selTexCoordCOM
+						v.u, v.v = pos.x, pos.y
+					end
+				end
+			end
+		end
+	end
+
 
 	local tileSelHandled = self.tileSel:doPopup()
 	if mesh3DBlob then
@@ -664,7 +732,11 @@ function EditMesh3D:update()
 						error'here'
 					end
 				else
+					-- meshEditMode is in use and we clicked?
+					-- stop moving & set the vertexes to their position
+					-- TODO HERE - remove degenerate triangles
 					self.meshEditMode = nil
+					self.axisFlags = {}
 				end
 			end
 
@@ -753,69 +825,23 @@ function EditMesh3D:update()
 				elseif self.meshEditMode == 'scale' then
 					self.totalScreenTranslate.x = self.totalScreenTranslate.x + mouseULX - lastMouseULX
 					self.totalScreenTranslate.y = self.totalScreenTranslate.y + mouseULY - lastMouseULY
+					-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
+					self.totalScale = 1 + .01 * self.totalScreenTranslate.x
+				elseif self.meshEditMode == 'rotate' then
+					local mouseCurrentAngle = math.round(math.deg((vec2d(mouseX, mouseY) - 128):angle()))
+					-- negative because screen coordinates are a LHS system
+					-- TODO TODO TODO make *everything* RHS and even screen-space origin in lower-left
+					self.screenRotateAngle.x = rotAxis.x
+					self.screenRotateAngle.y = rotAxis.y
+					self.screenRotateAngle.z = rotAxis.z
+					self.screenRotateAngle.w = -(mouseCurrentAngle - self.rotateMouseScreenDownAngle)
 				end
 
-				for i in pairs(self.selectedVertexIndexSet) do
-					if i >= 0 and i < numVtxs then
-						local v = vtxs + i
-						local origXYZ = self.vtxOrigPos[1+i]
-						local origUV = self.vtxOrigTCs[1+i]
-						if self.meshEditMode == 'translate' then
-							if not self.editTexCoords then
-								v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
-								if usedx then v.x = v.x + self.totalTranslation.x end
-								if usedy then v.y = v.y + self.totalTranslation.y end
-								if usedz then v.z = v.z + self.totalTranslation.z end
-							else
-								-- TODO TODO TODO bumpmapping-like, construct a basis in uv coords and transform the mouse movement into texcoord space
-								v.u, v.v = origUV.x, origUV.y
-								if usedx then v.u = tonumber(v.u) - math.round(self.totalTranslation.x / 256) end
-								if usedy then v.v = tonumber(v.v) - math.round(self.totalTranslation.y / 256) end
-							end
-						elseif self.meshEditMode == 'scale' then
-							-- TODO instead, project dx,dy,dz onto the regression plane of all selected vtxs
-							local s = 1 + .01 * self.totalScreenTranslate.x
-							if not self.editTexCoords then
-								v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
-								if usedx then v.x = (v.x - self.selVtxCOM.x) * s + self.selVtxCOM.x end
-								if usedy then v.y = (v.y - self.selVtxCOM.y) * s + self.selVtxCOM.y end
-								if usedz then v.z = (v.z - self.selVtxCOM.z) * s + self.selVtxCOM.z end
-							else
-								v.u, v.v = origUV.x, origUV.y
-								if usedx then v.u = (tonumber(v.u) - self.selTexCoordCOM.x) * s + self.selTexCoordCOM.x end
-								if usedy then v.v = (tonumber(v.v) - self.selTexCoordCOM.y) * s + self.selTexCoordCOM.y end
-							end
-						elseif self.meshEditMode == 'rotate' then
-							local mouseCurrentAngle = math.round(math.deg((vec2d(mouseX, mouseY) - 128):angle()))
-							-- negative because screen coordinates are a LHS system
-							-- TODO TODO TODO make *everything* RHS and even screen-space origin in lower-left
-							self.screenRotateAngle = -(mouseCurrentAngle - self.rotateMouseScreenDownAngle)
-
-							if not self.editTexCoords then
-								local q = quatd():fromAngleAxis(
-									rotAxis.x,
-									rotAxis.y,
-									rotAxis.z,
-									self.screenRotateAngle
-								)
-								local pos = origXYZ - self.selVtxCOM
-								pos = q:rotate(pos)
-								pos = pos + self.selVtxCOM
-								v.x, v.y, v.z = pos.x, pos.y, pos.z
-							else
-								local cosTheta = math.cos(math.rad(self.screenRotateAngle))
-								local sinTheta = math.sin(math.rad(self.screenRotateAngle))
-								local pos = origUV - self.selTexCoordCOM
-								pos = vec2d(
-									pos.x * cosTheta - pos.y * sinTheta,
-									pos.x * sinTheta + pos.y * cosTheta
-								)
-								pos = pos + self.selTexCoordCOM
-								v.u, v.v = pos.x, pos.y
-							end
-						end
-					end
-				end
+				-- actually translate/rotate/scale based on the state vars
+				-- for translate, this is self.totalTranslation
+				-- for scale, this is self.totalScale
+				-- for rotate, this is self.screenRotateAngle
+				applyMeshEditMode()		
 			end
 
 			local function drawVertexSet(set, color)
@@ -908,34 +934,9 @@ function EditMesh3D:update()
 					app:drawMenuText('xlate='..math.round(dx / 256)..', '..math.round(dy / 256), x, y)
 				end
 			elseif self.meshEditMode == 'scale' then
-				local s = 1 + .01 * self.totalScreenTranslate.x
-				app:drawMenuText('scale='..s, x, y)
+				app:drawMenuText('scale='..self.totalScale, x, y)
 			elseif self.meshEditMode == 'rotate' then
-				local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
-				local rotAxis
-				if usedx and usedy and usedz then
-					rotAxis = self.selRotFwdDir
-				else
-					rotAxis = self.selRotFwdDir:clone()
-					-- if you press 'r' then 'x', you expect x-axis rotations, which means ... none of the other axii ...
-					if usedx and not usedy and not usedz then
-						rotAxis:set(1,0,0)
-					elseif not usedx and usedy and not usedz then
-						rotAxis:set(0,1,0)
-					elseif not usedx and not usedy and usedz then
-						rotAxis:set(0,0,1)
-					-- push 'x' and 'y' means rotate the xy plane ...
-					elseif usedx and usedy and not usedz then
-						rotAxis.z = 0
-					elseif usedx and not usedy and usedz then
-						rotAxis.y = 0
-					elseif not usedx and usedy and usedz then
-						rotAxis.x = 0
-					end
-					rotAxis = rotAxis:normalize()
-				end
-
-				app:drawMenuText('rot='..self.screenRotateAngle..' @ '..rotAxis, x, y)
+				app:drawMenuText('rot='..self.screenRotateAngle.w..' @ '..vec3d(trunc3(self.screenRotateAngle:unpack())), x, y)
 			end
 			y = y + 8
 		end
@@ -1312,39 +1313,21 @@ function EditMesh3D:update()
 					if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
 					if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
 					if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
-error'TODO DO THE TRANSLATION'
+					applyMeshEditMode()
 				elseif self.meshEditMode == 'scale' then
-					local s = 1 + .01 * self.totalScreenTranslate.x
-					app:drawMenuText('scale='..s, x, y)
+					self.totalScale = parts[1] or 1
+					applyMeshEditMode()
 				elseif self.meshEditMode == 'rotate' then
-					local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
-					local rotAxis
-					if usedx and usedy and usedz then
-						rotAxis = self.selRotFwdDir
-					else
-						rotAxis = self.selRotFwdDir:clone()
-						-- if you press 'r' then 'x', you expect x-axis rotations, which means ... none of the other axii ...
-						if usedx and not usedy and not usedz then
-							rotAxis:set(1,0,0)
-						elseif not usedx and usedy and not usedz then
-							rotAxis:set(0,1,0)
-						elseif not usedx and not usedy and usedz then
-							rotAxis:set(0,0,1)
-						-- push 'x' and 'y' means rotate the xy plane ...
-						elseif usedx and usedy and not usedz then
-							rotAxis.z = 0
-						elseif usedx and not usedy and usedz then
-							rotAxis.y = 0
-						elseif not usedx and usedy and usedz then
-							rotAxis.x = 0
-						end
-						rotAxis = rotAxis:normalize()
-					end
-
-					app:drawMenuText('rot='..self.screenRotateAngle..' @ '..rotAxis, x, y)
+					self.screenRotateAngle.w = parts[1] and parts:remove(1) or 0
+					self.screenRotateAngle.x = parts[1] and parts:remove(1) or 0
+					self.screenRotateAngle.y = parts[1] and parts:remove(1) or 0
+					self.screenRotateAngle.z = parts[1] and parts:remove(1) or 0
+					applyMeshEditMode()
 				end
 
-
+				-- TODO HERE - remove degenerate triangles
+				self.axisFlags = {}
+				self.meshEditMode = nil
 			end
 		)
 	end
@@ -1543,7 +1526,7 @@ assert.eq(#is % 3, 0)
 					self.undo:push()
 					self.rotateMouseScreenDownPos = (vec2d(mouseX, mouseY) - 128):normalize()
 					self.rotateMouseScreenDownAngle = math.round(math.deg(self.rotateMouseScreenDownPos:angle()))
-					self.screenRotateAngle = 0
+					self.screenRotateAngle = quatd(0,0,1,0)	-- angle-axis
 
 					local drawViewInvMat = vec4x4fcol()
 					drawViewInvMat:inv4x4(app.ram.viewMat)
