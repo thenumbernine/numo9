@@ -95,11 +95,111 @@ function EditMesh3D:resetSelection()
 	self.vtxOrigTCs = table()				-- " " vec2d's to store original vertex texcoords
 	self.totalTranslation = vec3d()			-- total translation since translate start, in world coordinates
 	self.totalScreenTranslate = vec2d()		-- total translation since scale start, in screen coordinates.  TODO track in world coords and project to plane of vtxs
-	self.totalScale = 1						-- total scale, calculated by self.totalScreenTranslate 
+	self.totalScale = 1						-- total scale, calculated by self.totalScreenTranslate
 	self.rotateMouseScreenDownPos = vec2d()	-- rotation mouse down screen coordinates relative to center
 
 	self.undo:clear()
 end
+
+
+-- handy functions for indexed vs non-indexed meshes:
+function EditMesh3D:getNumIndexes()
+	local mesh3DBlob = assert.index(self.app.blobs.mesh3d, self.mesh3DBlobIndex+1)
+	local numVtxs = mesh3DBlob:getNumVertexes()
+	local numIndexes = mesh3DBlob:getNumIndexes()
+
+	return numIndexes == 0 and numVtxs or numIndexes
+end
+function EditMesh3D:getIndex(i)	-- 0-based, returns index in 0..n-1 list if no index list is present, or from index list if it is present
+	local mesh3DBlob = assert.index(self.app.blobs.mesh3d, self.mesh3DBlobIndex+1)
+	local numVtxs = mesh3DBlob:getNumVertexes()
+	local numIndexes = mesh3DBlob:getNumIndexes()
+	local vtxs = mesh3DBlob:getVertexPtr()
+	local inds = mesh3DBlob:getIndexPtr()
+
+	local ii
+	if numIndexes == 0 then
+		ii = i
+	else
+		assert.le(0, i)
+		assert.lt(i, numIndexes)
+		ii = inds[i]
+	end
+	assert.le(0, ii)
+	assert.lt(ii, numVtxs)
+	return ii
+end
+function EditMesh3D:getVtxIndPtr(i)
+	local mesh3DBlob = assert.index(self.app.blobs.mesh3d, self.mesh3DBlobIndex+1)
+	local vtxs = mesh3DBlob:getVertexPtr()
+	return vtxs + self:getIndex(i)
+end
+function EditMesh3D:getMeshVtxPosList()
+	local mesh3DBlob = assert.index(self.app.blobs.mesh3d, self.mesh3DBlobIndex+1)
+	local numVtxs = mesh3DBlob:getNumVertexes()
+	local vtxs = mesh3DBlob:getVertexPtr()
+
+	local vs = table()
+	for i=0,numVtxs-1 do
+		local v = vtxs + i
+		vs:insert(vec3d(v.x, v.y, v.z))
+	end
+	return vs
+end
+function EditMesh3D:getMeshTexCoordList()
+	local mesh3DBlob = assert.index(self.app.blobs.mesh3d, self.mesh3DBlobIndex+1)
+	local numVtxs = mesh3DBlob:getNumVertexes()
+	local vtxs = mesh3DBlob:getVertexPtr()
+
+	local vts = table()
+	for i=0,numVtxs-1 do
+		local v = vtxs + i
+		vts:insert(vec2d(v.u, v.v))
+	end
+	return vts
+end
+function EditMesh3D:getMeshIndexList()
+	-- table indexes ar 1-based, though is values are 0-based
+	local is = table()
+	for i=0,self:getNumIndexes()-1 do
+		is:insert(self:getIndex(i))
+	end
+	return is
+end
+function EditMesh3D:getMeshLists()
+	return self:getMeshVtxPosList(),
+		self:getMeshTexCoordList(),
+		self:getMeshIndexList()
+end
+
+-- return a table-of-Vertex's, distinctly cloning them from the original, no ref copies
+function EditMesh3D:getMeshVertexList()
+	local mesh3DBlob = assert.index(self.app.blobs.mesh3d, self.mesh3DBlobIndex+1)
+	local numVtxs = mesh3DBlob:getNumVertexes()
+	local vtxs = mesh3DBlob:getVertexPtr()
+
+	local vertexes = table()
+	for i=0,numVtxs-1 do
+		vertexes:insert(Vertex(vtxs[i]))
+	end
+	return vertexes
+end
+-- return tri list a table-of 3-refs-to-Vertex-list
+-- converts from indexes to refs for you
+function EditMesh3D:getMeshVtxAndTriList()
+	local vertexes = self:getMeshVertexList()
+	local tris = table()
+	assert.eq(self:getNumIndexes() % 3, 0)
+	for i=0,self:getNumIndexes()-1,3 do
+		local triVtxRefs = table()
+		for j=0,2 do
+			triVtxRefs[1+j] = assert.index(vertexes, 1+self:getIndex(i+j))
+		end
+		tris:insert(triVtxRefs)
+	end
+	return vertexes, tris
+end
+
 
 function EditMesh3D:update()
 	local app = self.app
@@ -126,79 +226,6 @@ function EditMesh3D:update()
 	local vtxs
 	local inds
 
-	-- handy functions for indexed vs non-indexed meshes:
-	local function getNumIndexes()
-		return numIndexes == 0 and numVtxs or numIndexes
-	end
-	local function getIndex(i)	-- 0-based, returns index in 0..n-1 list if no index list is present, or from index list if it is present
-		local ii
-		if numIndexes == 0 then
-			ii = i
-		else
-			assert.le(0, i)
-			assert.lt(i, numIndexes)
-			ii = inds[i]
-		end
-		assert.le(0, ii)
-		assert.lt(ii, numVtxs)
-		return ii
-	end
-	local function getVtxIndPtr(i)
-		return vtxs + getIndex(i)
-	end
-	local function getMeshVtxPosList()
-		local vs = table()
-		for i=0,numVtxs-1 do
-			local v = vtxs + i
-			vs:insert(vec3d(v.x, v.y, v.z))
-		end
-		return vs
-	end
-	local function getMeshTexCoordList()
-		local vts = table()
-		for i=0,numVtxs-1 do
-			local v = vtxs + i
-			vts:insert(vec2d(v.u, v.v))
-		end
-		return vts
-	end
-	local function getMeshIndexList()
-		-- table indexes ar 1-based, though is values are 0-based
-		local is = table()
-		for i=0,getNumIndexes()-1 do
-			is:insert(getIndex(i))
-		end
-		return is
-	end
-	local function getMeshLists()
-		return getMeshVtxPosList(),
-			getMeshTexCoordList(),
-			getMeshIndexList()
-	end
-	
-	-- return a table-of-Vertex's, distinctly cloning them from the original, no ref copies
-	local function getMeshVertexList()
-		local vertexes = table()
-		for i=0,numVtxs-1 do
-			vertexes:insert(Vertex(vtxs[i]))
-		end
-		return vertexes
-	end
-	-- return tri list a table-of 3-refs-to-Vertex-list
-	-- converts from indexes to refs for you
-	local function getMeshVtxAndTriList()
-		local vertexes = getMeshVertexList()
-		local tris = table()
-		assert.eq(getNumIndexes() % 3, 0)
-		for i=0,getNumIndexes()-1,3 do
-			local triVtxRefs = table()
-			for j=0,2 do
-				triVtxRefs[1+j] = assert.index(vertexes, 1+getIndex(i+j))
-			end
-			tris:insert(triVtxRefs)
-		end
-		return vertexes, tris
-	end
 
 	local function refreshSelection(skipEdges, skipTris)
 		-- TODO we could do calcCOM here isntead of when we start to do a translate/rotate/scale ...
@@ -209,22 +236,22 @@ function EditMesh3D:update()
 			self.selectedTris = table()
 		end
 
-		for i=0,getNumIndexes()-1,3 do
+		for i=0,self:getNumIndexes()-1,3 do
 			if not skipEdges then
 				for j=0,2 do
 					local i1 = i+j
 					local i2 = i+((j+1)%3)
-					if self.selectedVertexIndexSet[getIndex(i1)]
-					and self.selectedVertexIndexSet[getIndex(i2)]
+					if self.selectedVertexIndexSet[self:getIndex(i1)]
+					and self.selectedVertexIndexSet[self:getIndex(i2)]
 					then
 						self.selectedEdges:insert(vec2i(table{i1, i2}:sort():unpack()))
 					end
 				end
 			end
 			if not skipTris then
-				if self.selectedVertexIndexSet[getIndex(i)]
-				and self.selectedVertexIndexSet[getIndex(i+1)]
-				and self.selectedVertexIndexSet[getIndex(i+2)]
+				if self.selectedVertexIndexSet[self:getIndex(i)]
+				and self.selectedVertexIndexSet[self:getIndex(i+1)]
+				and self.selectedVertexIndexSet[self:getIndex(i+2)]
 				then
 					self.selectedTris:insert(i)
 				end
@@ -252,8 +279,8 @@ function EditMesh3D:update()
 	end
 
 	local function setVtxEditPos()
-		self.vtxOrigPos = getMeshVtxPosList()
-		self.vtxOrigTCs = getMeshTexCoordList()
+		self.vtxOrigPos = self:getMeshVtxPosList()
+		self.vtxOrigTCs = self:getMeshTexCoordList()
 	end
 	local function resetVtxEditPos()
 		for i=0,numVtxs-1 do
@@ -267,7 +294,6 @@ function EditMesh3D:update()
 
 	if mesh3DBlob then
 		numVtxs = mesh3DBlob:getNumVertexes()
-		numIndexes = mesh3DBlob:getNumIndexes()
 		vtxs = mesh3DBlob:getVertexPtr()
 		inds = mesh3DBlob:getIndexPtr()
 	end
@@ -353,10 +379,10 @@ function EditMesh3D:update()
 			if self.wireframe then
 				local color = 0xd
 				local thickness = 1.5
-				for i=0,getNumIndexes()-3,3 do
+				for i=0,self:getNumIndexes()-3,3 do
 					for j=0,2 do
-						local a = getVtxIndPtr(i+j)
-						local b = getVtxIndPtr(i+(j+1)%3)
+						local a = self:getVtxIndPtr(i+j)
+						local b = self:getVtxIndPtr(i+(j+1)%3)
 						app:drawSolidLine3D(
 							a.x, a.y, a.z,
 							b.x, b.y, b.z,
@@ -369,10 +395,10 @@ function EditMesh3D:update()
 			if self.drawNormals then
 				local color = 0xb
 				local thickness = 2
-				for i=0,getNumIndexes()-3,3 do
-					local v0 = getVtxIndPtr(i+0)
-					local v1 = getVtxIndPtr(i+1)
-					local v2 = getVtxIndPtr(i+2)
+				for i=0,self:getNumIndexes()-3,3 do
+					local v0 = self:getVtxIndPtr(i+0)
+					local v1 = self:getVtxIndPtr(i+1)
+					local v2 = self:getVtxIndPtr(i+2)
 					local v0x, v0y, v0z = tonumber(v0.x), tonumber(v0.y), tonumber(v0.z)
 					local v1x, v1y, v1z = tonumber(v1.x), tonumber(v1.y), tonumber(v1.z)
 					local v2x, v2y, v2z = tonumber(v2.x), tonumber(v2.y), tonumber(v2.z)
@@ -477,11 +503,11 @@ function EditMesh3D:update()
 					-- find the best edge, toggle its selection if not selected
 					local bestDistSq = math.huge
 					local bestEdges
-					for i=0,getNumIndexes()-1,3 do
---DEBUG:print('edge sel', i, getNumIndexes())
-						local v0 = getVtxIndPtr(i + 0)
-						local v1 = getVtxIndPtr(i + 1)
-						local v2 = getVtxIndPtr(i + 2)
+					for i=0,self:getNumIndexes()-1,3 do
+--DEBUG:print('edge sel', i, self:getNumIndexes())
+						local v0 = self:getVtxIndPtr(i + 0)
+						local v1 = self:getVtxIndPtr(i + 1)
+						local v2 = self:getVtxIndPtr(i + 2)
 						local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
 						local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
 						local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
@@ -533,14 +559,14 @@ function EditMesh3D:update()
 					local bestDist = math.huge
 					local bestTris
 					local mousePos = orbit.pos * 32768
-					local mouseDir = 
+					local mouseDir =
 						- orbit.angle:zAxis()
 						+ orbit.angle:xAxis() * (mouseX - 128) / 128
 						- orbit.angle:yAxis() * (mouseY - 128) / 128
-					for i=0,getNumIndexes()-1,3 do
-						local i0 = getIndex(i)
-						local i1 = getIndex(i + 1)
-						local i2 = getIndex(i + 2)
+					for i=0,self:getNumIndexes()-1,3 do
+						local i0 = self:getIndex(i)
+						local i1 = self:getIndex(i + 1)
+						local i2 = self:getIndex(i + 2)
 						local v0 = vtxs + i0
 						local v1 = vtxs + i1
 						local v2 = vtxs + i2
@@ -652,12 +678,12 @@ function EditMesh3D:update()
 						if not shift then
 							self.selectedVertexIndexSet = {}
 						end
-						
+
 						local mouseUL = vec2d(mouseULX, mouseULY)
 						if self.mouseLeftButtonDown
-						and (mouseUL - self.mouseLeftButtonDown):lInfLength() > 3 
+						and (mouseUL - self.mouseLeftButtonDown):lInfLength() > 3
 						then
-						
+
 							-- select all within the screen bbox
 							local sx1 = math.min(mouseUL.x, self.mouseLeftButtonDown.x)
 							local sy1 = math.min(mouseUL.y, self.mouseLeftButtonDown.y)
@@ -702,7 +728,7 @@ function EditMesh3D:update()
 						self.selectedVertexIndexSet = {}
 						for _,e in ipairs(self.selectedEdges) do
 							for _,ii in ipairs{e:unpack()} do
-								local i = getIndex(ii)
+								local i = self:getIndex(ii)
 								self.selectedVertexIndexSet[i] = true
 							end
 						end
@@ -723,7 +749,7 @@ function EditMesh3D:update()
 						self.selectedVertexIndexSet = {}
 						for _,t in ipairs(self.selectedTris) do
 							for ii=0,2 do
-								local i = getIndex(t+ii)
+								local i = self:getIndex(t+ii)
 								self.selectedVertexIndexSet[i] = true
 							end
 						end
@@ -734,9 +760,14 @@ function EditMesh3D:update()
 				else
 					-- meshEditMode is in use and we clicked?
 					-- stop moving & set the vertexes to their position
-					-- TODO HERE - remove degenerate triangles
 					self.meshEditMode = nil
 					self.axisFlags = {}
+					if self:removeDegenTris() then
+						-- TODO just stop using indexes for these...
+						self.mouseoverVertexIndexSet = {}
+						self.selectedVertexIndexSet = {}
+					end
+					return
 				end
 			end
 
@@ -841,7 +872,7 @@ function EditMesh3D:update()
 				-- for translate, this is self.totalTranslation
 				-- for scale, this is self.totalScale
 				-- for rotate, this is self.screenRotateAngle
-				applyMeshEditMode()		
+				applyMeshEditMode()
 			end
 
 			local function drawVertexSet(set, color)
@@ -879,17 +910,17 @@ function EditMesh3D:update()
 				local i1, i2 = edge:unpack()
 				-- then line is selected
 				-- or TODO keep track of selected-lines list as well?
-				local v1 = vtxs + getIndex(i1)
-				local v2 = vtxs + getIndex(i2)
+				local v1 = vtxs + self:getIndex(i1)
+				local v2 = vtxs + self:getIndex(i2)
 				app:drawSolidLine3D(
 					v1.x, v1.y, v1.z,
 					v2.x, v2.y, v2.z,
 					0x1a, 4, app.paletteMenuTex)
 			end
 			for _,i in ipairs(self.selectedTris) do
-				local v0 = getVtxIndPtr(i)
-				local v1 = getVtxIndPtr(i+1)
-				local v2 = getVtxIndPtr(i+2)
+				local v0 = self:getVtxIndPtr(i)
+				local v1 = self:getVtxIndPtr(i+1)
+				local v2 = self:getVtxIndPtr(i+2)
 				app:drawSolidTri3D(
 					v0.x, v0.y, v0.z,
 					v1.x, v1.y, v1.z,
@@ -999,7 +1030,7 @@ function EditMesh3D:update()
 
 	if self:guiButton('+', x, y, false, 'add cube') then
 		self.undo:push()
-		local vs, vts, is = getMeshLists()	--- table-of-vec3d/vec2d's, 0-based indexes
+		local vs, vts, is = self:getMeshLists()	--- table-of-vec3d/vec2d's, 0-based indexes
 		local oldNumVtxs = #vs
 		local cvs, cvts, cis = BlobMesh3D.getDefaultCubeLists()	-- table-of-tables, 0-based indexes
 
@@ -1058,7 +1089,7 @@ function EditMesh3D:update()
 			if #selVtxIndexes ~= 3 then
 				print('need 3 vertexes, got '..#selVtxIndexes..' vertexes')
 			else
-				local vs, vts, is = getMeshLists()
+				local vs, vts, is = self:getMeshLists()
 				local v0 = vs[1 + selVtxIndexes[1]]
 				local v1 = vs[1 + selVtxIndexes[2]]
 				local v2 = vs[1 + selVtxIndexes[3]]
@@ -1087,14 +1118,14 @@ function EditMesh3D:update()
 			end
 		end
 		x = x + 6
-		
+
 		-- TODO this is a good reason to add select-by-rect-in-screen-space
 		-- and then shift+select to add to selection, otherwise just only select recent pressed / dragged-box-around
 		if self:guiButton('M', x, y, false, 'merge vtxs') then
 			local visToMerge = table.keys(self.selectedVertexIndexSet):sort()	-- 0-based list of selected vertexes
 			if #visToMerge >= 2 then
---DEBUG:print('#visToMerge', #visToMerge)				
-				local vs, ts = getMeshVtxAndTriList()
+--DEBUG:print('#visToMerge', #visToMerge)
+				local vs, ts = self:getMeshVtxAndTriList()
 
 				local vsToMerge = visToMerge:mapi(function(vi) return vs[1+vi] end)
 
@@ -1140,7 +1171,7 @@ function EditMesh3D:update()
 		x = x + 6
 
 		if self:guiButton('S', x, y, false, 'split vtxs') then
-			local vs, ts = getMeshVtxAndTriList()
+			local vs, ts = self:getMeshVtxAndTriList()
 
 			-- like refs will use the same keys right?
 			-- if not then get their address and use that
@@ -1148,7 +1179,7 @@ function EditMesh3D:update()
 				self.selectedVertexIndexSet,
 				function(true_, index) return true, vs[1+index] end
 			)
-			
+
 			for _,tri in ipairs(ts) do
 				for i,tv in ipairs(tri) do
 					if selVtxRefSet[tv] then
@@ -1172,15 +1203,15 @@ function EditMesh3D:update()
 
 	elseif self.meshEditForm == 'edges' then
 		if self:guiButton('S', x, y, false, 'split edge') then
-			local vs, vts, is = getMeshLists()
+			local vs, vts, is = self:getMeshLists()
 			local trisToRemove = {}		-- keys are 0-based indexes of tris (divisible by 3)
 			for _,e in ipairs(self.selectedEdges) do
 				-- find the tris on either side
 				-- remove the tris on either side
 				-- insert a vertex between these two
 				local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
-				local evi0 = getIndex(ei0)
-				local evi1 = getIndex(ei1)
+				local evi0 = self:getIndex(ei0)
+				local evi1 = self:getIndex(ei1)
 				local i1 = is[1+ei0]
 				local i2 = is[1+ei1]
 				local v1 = vtxs + i1
@@ -1236,7 +1267,7 @@ function EditMesh3D:update()
 				print('need 2 tris, got '..#self.selectedTris..' tris')
 			else
 				-- and if # selected vtxs == 4 exactly ...
-				local vs, vts, is = getMeshLists()
+				local vs, vts, is = self:getMeshLists()
 
 				-- find the common edge between the two tris
 				-- and exchange tris
@@ -1297,6 +1328,11 @@ function EditMesh3D:update()
 			0, 48, 10,					-- x, y, w
 			self, 'meshEditModeText', 	-- t, k
 			function(value)			-- write
+
+				value = value:gsub('[xyz]', '')
+				-- TODO don't add these to the text at all
+				-- in fact TODO better capture-keyboard-focus overall...
+
 				-- upon enter, right?
 				-- do I even need to write self.meshEditModeText?
 				-- do I even need self.meshEditModeText?
@@ -1319,15 +1355,21 @@ function EditMesh3D:update()
 					applyMeshEditMode()
 				elseif self.meshEditMode == 'rotate' then
 					self.screenRotateAngle.w = parts[1] and parts:remove(1) or 0
+					-- it should already by set to whatever fixed axis by axisFlags already, right?
 					self.screenRotateAngle.x = parts[1] and parts:remove(1) or 0
 					self.screenRotateAngle.y = parts[1] and parts:remove(1) or 0
-					self.screenRotateAngle.z = parts[1] and parts:remove(1) or 0
+					self.screenRotateAngle.z = parts[1] and parts:remove(1) or 1
 					applyMeshEditMode()
 				end
 
-				-- TODO HERE - remove degenerate triangles
-				self.axisFlags = {}
 				self.meshEditMode = nil
+				self.axisFlags = {}
+				if self:removeDegenTris() then
+					-- TODO just stop using indexes for these...
+					self.mouseoverVertexIndexSet = {}
+					self.selectedVertexIndexSet = {}
+				end
+				return
 			end
 		)
 	end
@@ -1375,7 +1417,7 @@ function EditMesh3D:update()
 					-- if we're not in an edit mode then delete vertexes
 					-- and then regen blobs or something
 					-- hmm
-					local vs, vts, is = getMeshLists()
+					local vs, vts, is = self:getMeshLists()
 assert.eq(#is % 3, 0)
 					-- delete selected vertexes
 					-- delete or merge touching triangles?
@@ -1574,33 +1616,11 @@ assert.eq(#is % 3, 0)
 				self.axisFlags.z = not self.axisFlags.z or nil
 				resetVtxEditPos()
 			end
-
-			-- collect translate/scale/rotate text input ...
-			-- TODO perfect time to use EditMesh3D:event() ........
-			--[[
-			if self.meshEditMode then
-				local numo9_keys = require 'numo9.keys'
-				local getAsciiForKeyCode = numo9_keys.getAsciiForKeyCode
-				local keyCodeForName = numo9_keys.keyCodeForName
-				for _,key in ipairs{'minus', 'period', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'} do
-					if app:keyp(key) then
-						self.meshEditModeText = self.meshEditModeText .. string.char(getAsciiForKeyCode(keyCodeForName[key]))
-					end
-				end
-				if app:keyp'return' then
-					-- TODO TODO TODO
-					-- this doesn't get hit because the UI already has 'return' to toggle the tabstop, which is the last control you hovered over.
-					-- I could always make a hidden control / textarea and have that get focus when you are typing translate/scale/rotate input ....
-					-- then use this transform # for our transformation
-error'TODO'
-				end
-			end
-			--]]
 		end
 	end
 
 	self:guiSetClipRect(-1000, 0, 3000, 256)
-	
+
 	app:matident(0)
 	app:matident(1)
 	app:matident(2)
@@ -1656,28 +1676,43 @@ function EditMesh3D:replaceMeshBlobWithLists(vs, vts, is)
 	self:updateBlobChanges()
 end
 
+-- remove degen tris <-> just get the vtxs-and-refs, and rebuild the blob with it
+function EditMesh3D:removeDegenTris()
+	return self:replaceMeshBlobWithVtxRefAndTriList(self:getMeshVtxAndTriList())
+end
+
 -- vs = list-of-Vertexes
 -- ts = list-of- lists-of-3-Vertex-refs that have to be in vs
+-- removes degen tris and unused vtxs automatically, so it's an improvement over the above function
 function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
-	
-	-- remove degenerate tris
+	local didRemoveTris, didRemoveVtxs
+
 	for i=#ts,1,-1 do
+		-- remove degenerate tris by reference
 		local t = ts[i]
---DEBUG:print('t', t[1], t[2], t[3])
---DEBUG:print('t1 == t2', t[1] == t[2])
---DEBUG:print('t2 == t3', t[2] == t[3])
---DEBUG:print('t3 == t1', t[3] == t[1])
-		if t[1] == t[2] 
-		or t[2] == t[3] 
-		or t[3] == t[1] 
+		if t[1] == t[2]
+		or t[2] == t[3]
+		or t[3] == t[1]
 		then
---DEBUG:print('removing degenerate triangle #'..i)			
+			didRemoveTris = true
 			ts:remove(i)
+			goto done
 		end
+
+		-- remove degen tris by identical positions <-> area = 0
+		if (t[1].x == t[2].x and t[1].y == t[2].y and t[1].z == t[2].z)
+		or (t[2].x == t[3].x and t[2].y == t[3].y and t[2].z == t[3].z)
+		or (t[3].x == t[1].x and t[3].y == t[1].y and t[3].z == t[1].z)
+		then
+			didRemoveTris = true
+			ts:remove(i)
+			goto done
+		end
+::done::
 	end
 
 	local vertexToIndex = vs:mapi(function(v,i) return i-1, v end)	-- map from vertex-rev to 0-based-index
-	
+
 	local used = range(#vs):mapi(function() return false end)	-- 1-based array of bool of used vs not used per vtx
 	-- flag used
 	for _,t in ipairs(ts) do
@@ -1687,9 +1722,9 @@ function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 	end
 	-- remove unused
 	for i=#vs,1,-1 do
-		if not used[i] then 
---DEBUG:print('removing unused vertex #'..i)			
-			vs:remove(i) 
+		if not used[i] then
+			didRemoveVtxs = true
+			vs:remove(i)
 		end
 	end
 	-- refresh vertex-to-index after we removed some
@@ -1706,6 +1741,8 @@ function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 
 	self.app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D:loadFromVertexAndIndexLists(vs, is)
 	self:updateBlobChanges()
+
+	return didRemoveVtxs, didRemoveTris
 end
 
 return EditMesh3D
