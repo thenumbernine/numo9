@@ -1269,6 +1269,9 @@ function EditMesh3D:update()
 
 	elseif self.meshEditForm == 'edges' then
 		if self:guiButton('S', x, y, false, 'split edge') then
+			-- currently it splits all edges with the selected vertexes
+			-- should I have it operate by selected edges instead?
+
 			local vs, ts = self:getMeshVtxAndTriList()
 
 			for _,e in ipairs(self.selectedEdges) do
@@ -1276,10 +1279,8 @@ function EditMesh3D:update()
 				-- remove the tris on either side
 				-- insert a vertex between these two
 				local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
-				local evi0 = self:getIndex(ei0)
-				local evi1 = self:getIndex(ei1)
-				local v0 = vs[1+evi0]
-				local v1 = vs[1+evi1]
+				local v0 = vs[1+self:getIndex(ei0)]
+				local v1 = vs[1+self:getIndex(ei1)]
 				local vp0 = ffi.cast(Vertex_p, v0)
 				local vp1 = ffi.cast(Vertex_p, v1)
 				local pos1 = vec3d(v0.x, v0.y, v0.z)
@@ -1493,92 +1494,73 @@ function EditMesh3D:update()
 					-- if we're not in an edit mode then delete vertexes
 					-- and then regen blobs or something
 					-- hmm
-					local vs, vts, is = self:getMeshLists()
-assert.eq(#is % 3, 0)
+					local vs, ts = self:getMeshVtxAndTriList()
 					-- delete selected vertexes
-					-- delete or merge touching triangles?
-					-- then rebuild current mesh blob from arrays
+					-- delete touching triangles
 
---DEBUG:print('old')
---DEBUG:print('vs', #vs, require 'ext.tolua'(vs))
---DEBUG:print('vts', #vts, require 'ext.tolua'(vts))
---DEBUG:print('is', #is, require 'ext.tolua'(is))
+					local selVtxRefSet = table.map(
+						self.selectedVertexIndexSet,
+						function(true_, index) return true, vs[1+index] end
+					)
 
-					local newvs = table()
-					local newvts = table()
-					local newis = table()
-
-					if self.meshEditForm == 'vertexes'
-					or self.meshEditForm == 'edges'
-					then
-						local vimap = {}	-- 0-based map from old index to new (post-delete) index
-						local newvi = 0
---DEBUG:print('vimap')
-						for i=0,numVtxs-1 do
-							if not self.selectedVertexIndexSet[i] then
-								vimap[i] = newvi
---DEBUG:print('', i..' => '..newvi)
-								newvi = newvi + 1
-								newvs:insert(vs[1+i])
-								newvts:insert(vts[1+i])
+					if self.meshEditForm == 'vertexes' then
+						-- delete selected vertexes
+						for i=#vs,1,-1 do
+							if selVtxRefSet[vs[i]] then
+								vs:remove(i)
 							end
 						end
---DEBUG:print('selectedTris', require 'ext.tolua'(self.selectedTris))
-						for i=0,#is-3,3 do
---DEBUG:print('remapping tri', i)
-							local i1 = is[i+1]
-							local i2 = is[i+2]
-							local i3 = is[i+3]
-							-- in delete-vertex mode , delete all tris touching the deleted vertex
-							-- TODO or should we merge, and only delete upon degen-tri-to-line case?
-							local newi1 = vimap[i1]
-							local newi2 = vimap[i2]
-							local newi3 = vimap[i3]
-							if newi1 and newi2 and newi3 then
---DEBUG:print('tri indexes from', i1, i2, i3, 'to', newi1, newi2, newi3)
-								newis:insert(newi1)
-								newis:insert(newi2)
-								newis:insert(newi3)
+
+						-- delete any tris that use it
+						for ti=#ts,1,-1 do
+							local t = ts[ti]
+							if selVtxRefSet[t[1]] 
+							or selVtxRefSet[t[2]]
+							or selVtxRefSet[t[3]]
+							then
+								ts:remove(ti)
 							end
+						end
+					elseif self.meshEditForm == 'edges' then
+						-- currently edge-sel is based on tri edge, not based on vtxs.
+						-- so just delete the tri that the edge is on.
+						local trisToRemove = table()
+						for _,e in ipairs(self.selectedEdges) do
+							local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
+							for ti=#ts,1,-1 do
+								for j=0,2 do
+									local tj0 = 3*(ti-1) + j
+									local tj1 = 3*(ti-1) + (j+1)%3
+									if (tj0 == ei0 and tj1 == ei1)
+									or (tj0 == ei1 and tj1 == ei0)
+									then
+										trisToRemove[ti] = true	-- keys are 1-based indexes 
+										break
+									end
+								end
+							end
+						end
+						for _,ti in ipairs(trisToRemove:keys():sort():reverse()) do
+							ts:remove(ti)
 						end
 					elseif self.meshEditForm == 'tris' then
 						-- delete the face, and then remove/remap any unused vtxs
-						newis = table(is)
-						newvs = table(vs)
-						newvts = table(vts)
-						-- j is 0-based mod-3 index of the start of a triangle in our index buffer
+						-- self.selectedTris is 0-based mod-3 index of the start of a triangle in our index buffer
 						-- so traverse in reverse order and remove-3 per tri we want to remove
-						for _,i in ipairs(table(self.selectedTris):sort():reverse()) do
-							for k=0,2 do
-								newis:remove(1+i)	-- newis is 1-based ...
-							end
-						end
-						-- now flag good vtxs ...
-						local vused = {}	-- keys are 0-based vtx indexes
-						for _,i in ipairs(newis) do
-							vused[i] = true
-						end
-						-- and any unflagged vtxs, remove (and remap indexes)
-						for i=numVtxs-1,0,-1 do	-- i is 0-based vtx index
-							if not vused[i] then
-								-- remap indexes...
-								for j=1,#newis do
-									if newis[j] > i then
-										newis[j] = newis[j] - 1
-									end
-								end
-								-- remove...
-								newvs:remove(i+1)
-								newvts:remove(i+1)
-							end
+						for _,i in ipairs(
+							table(self.selectedTris)
+							:sort()
+							:reverse()
+						) do
+							assert.eq(i % 3, 0)
+							ts:remove(i/3+1)	-- selectedTris is 0-based and x3 to match index array indexes
 						end
 					else
 						error'here'
 					end
-					assert.eq(#newis % 3, 0)
 
 					self.undo:push()
-					self:replaceMeshBlobWithLists(newvs, newvts, newis)
+					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 
 					-- reset mouseover selection-testing tables
 					self.mouseoverVertexIndexSet = {}
