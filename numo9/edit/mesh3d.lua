@@ -1269,8 +1269,8 @@ function EditMesh3D:update()
 
 	elseif self.meshEditForm == 'edges' then
 		if self:guiButton('S', x, y, false, 'split edge') then
-			local vs, vts, is = self:getMeshLists()
-			local trisToRemove = {}		-- keys are 0-based indexes of tris (divisible by 3)
+			local vs, ts = self:getMeshVtxAndTriList()
+
 			for _,e in ipairs(self.selectedEdges) do
 				-- find the tris on either side
 				-- remove the tris on either side
@@ -1278,47 +1278,57 @@ function EditMesh3D:update()
 				local ei0, ei1 = e:unpack()	-- edges are of indexes-of-indexes
 				local evi0 = self:getIndex(ei0)
 				local evi1 = self:getIndex(ei1)
-				local i1 = is[1+ei0]
-				local i2 = is[1+ei1]
-				local v1 = vtxs + i1
-				local v2 = vtxs + i2
-				local pos1 = vec3d(v1.x, v1.y, v1.z)
-				local pos2 = vec3d(v2.x, v2.y, v2.z)
-				local tc1 = vec2d(v1.u, v1.v)
-				local tc2 = vec2d(v2.u, v2.v)
+				local v0 = vs[1+evi0]
+				local v1 = vs[1+evi1]
+				local vp0 = ffi.cast(Vertex_p, v0)
+				local vp1 = ffi.cast(Vertex_p, v1)
+				local pos1 = vec3d(v0.x, v0.y, v0.z)
+				local pos2 = vec3d(v1.x, v1.y, v1.z)
+				local tc1 = vec2d(v0.u, v0.v)
+				local tc2 = vec2d(v1.u, v1.v)
 				local newvtxindex = #vs	-- indexes are 0-based
-				vs:insert((pos1 + pos2) * .5)
-				vts:insert((tc1 + tc2) * .5)
-				for ti=0,#is-3,3 do
+				local newpos = (pos1 + pos2) * .5
+				local newtc = (tc1 + tc2) * .5
+				local newvtx = Vertex()
+				self.selectedVertexIndexSet[#vs] = true	-- new vertex index selected
+				vs:insert(newvtx)
+				newvtx.x = newpos.x
+				newvtx.y = newpos.y
+				newvtx.z = newpos.z
+				newvtx.u = newtc.x
+				newvtx.v = newtc.y
+				for ti=#ts,1,-1 do
+					local t = ts[ti]
 					for j=0,2 do
-						local tij0 = is[1 + ti + j]
-						local tij1 = is[1 + ti + (j+1)%3]
-						local tij2 = is[1 + ti + (j+2)%3]
-						if (tij0 == evi0 and tij1 == evi1)
-						or (tij0 == evi1 and tij1 == evi0)
+						local tj0 = t[1+j]
+						local tj1 = t[1+(j+1)%3]
+						local tj2 = t[1+(j+2)%3]
+
+						local tjp0 = ffi.cast(Vertex_p, tj0)
+						local tjp1 = ffi.cast(Vertex_p, tj1)
+						local tjp2 = ffi.cast(Vertex_p, tj2)
+
+						if (tjp0 == vp0 and tjp1 == vp1)
+						or (tjp0 == vp1 and tjp1 == vp0)
 						then
 							-- if we are to remove this tri, then add its replacements as well
-							is:append{
-								tij0, newvtxindex, tij2,
-								newvtxindex, tij1, tij2,
-							}
-							trisToRemove[ti] = true
+							ts:insert{tj0, newvtx, tj2}
+							ts:insert{tj1, tj2}
+
+							ts:remove(ti)
+							-- you can only split one edge of one tri
+							-- if you select two edges of the same tri and push 'split', only the first will split
+							-- cuz i dont want to go through the hassle of remapping selections from old tris to newly split tris
+							-- tho if i stored selected edges by vtx ref then this would be easier to do ....
+							-- ... but still there would be conditional behavior based on split order.
+							break
 						end
 					end
-				end
-				self.selectedVertexIndexSet[newvtxindex] = true
-			end
-			-- traverse from greatest to least
-			for _,ti in ipairs(table.keys(trisToRemove):sort(function(a,b) return a > b end)) do
-				for j=0,2 do
-					-- notice that removing elements from indexes will invalidate any further index-of-indexes
-					-- which means selectedTris becomes invalidated, selectedEdges becomes invalidated
-					is:remove(1 + ti)
 				end
 			end
 
 			self.undo:push()
-			self:replaceMeshBlobWithLists(vs, vts, is)
+			self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 			refreshSelection()
 		end
 		x = x + 6
