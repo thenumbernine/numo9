@@ -1157,31 +1157,27 @@ function EditMesh3D:update()
 			if #selVtxIndexes ~= 3 then
 				print('need 3 vertexes, got '..#selVtxIndexes..' vertexes')
 			else
-				local vs, vts, is = self:getMeshLists()
+				local vs, ts = self:getMeshVtxAndTriList()
+
 				local v0 = vs[1 + selVtxIndexes[1]]
 				local v1 = vs[1 + selVtxIndexes[2]]
 				local v2 = vs[1 + selVtxIndexes[3]]
-				--[[ can't use app:transform cuz we're drawing hte gui so the matrices are gui matrices...
-				local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
-				local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
-				local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
-				local curl = (s2 - s1):det(s1 - s0)
-				--]]
-				-- [[ so do it in model space
-				v0 = v0 / 32768
-				v1 = v1 / 32768
-				v2 = v2 / 32768
-				local curl = (v2 - v1):cross(v1 - v0):dot(orbit.pos - (v0 + v1 + v2) / 3)
-				--]]
+				-- can't use app:transform cuz we're drawing the gui so the matrices are gui matrices...
+				-- so do it in model space
+				local pos0 = vec3d(v0.x, v0.y, v0.z) / 32768
+				local pos1 = vec3d(v1.x, v1.y, v1.z) / 32768
+				local pos2 = vec3d(v2.x, v2.y, v2.z) / 32768
+				local curl = (pos2 - pos1):cross(pos1 - pos0):dot(orbit.pos - (pos0 + pos1 + pos2) / 3)
+
 				-- make a new tri facing the camera
 				if curl < 0 then
-					is:append(selVtxIndexes)
+					ts:insert{v0, v1, v2}
 				else
-					is:append(selVtxIndexes:reverse())
+					ts:insert{v2, v1, v0}
 				end
 
 				self.undo:push()
-				self:replaceMeshBlobWithLists(vs, vts, is)
+				self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 				refreshSelection()
 			end
 		end
