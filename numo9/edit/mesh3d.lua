@@ -91,8 +91,8 @@ function EditMesh3D:resetSelection()
 	self.meshEditMode = nil			-- translate rotate scale
 	self.meshEditForm = 'vertexes'	-- vertexes edges tris
 
-	self.vtxOrigPos = table()				-- 1-based-index table-of-vec3d's to store original vertex positions before edit operation
-	self.vtxOrigTCs = table()				-- " " vec2d's to store original vertex texcoords
+	self.vtxOrig = table()					-- 1-based-index table-of-Vertex's to store original vertex before translate/rotate/scale edit operation
+
 	self.totalTranslation = vec3d()			-- total translation since translate start, in world coordinates
 	self.totalScreenTranslate = vec2d()		-- total translation since scale start, in screen coordinates.  TODO track in world coords and project to plane of vtxs
 	self.totalScale = 1						-- total scale, calculated by self.totalScreenTranslate
@@ -279,15 +279,14 @@ function EditMesh3D:update()
 	end
 
 	local function setVtxEditPos()
-		self.vtxOrigPos = self:getMeshVtxPosList()
-		self.vtxOrigTCs = self:getMeshTexCoordList()
+		self.vtxOrig = self:getMeshVertexList()
 	end
 	local function resetVtxEditPos()
 		for i=0,numVtxs-1 do
 			local v = vtxs + i
-			local origXYZ = self.vtxOrigPos[1+i]
-			local origUV = self.vtxOrigTCs[1+i]
-			v.x, v.y, v.z, v.u, v.v = origXYZ.x, origXYZ.y, origXYZ.z, origUV.x, origUV.y
+			local orig = self.vtxOrig[1+i]
+			-- can I use ffi.copy here?
+			v.x, v.y, v.z, v.u, v.v = orig.x, orig.y, orig.z, orig.u, orig.v
 		end
 	end
 
@@ -311,17 +310,16 @@ function EditMesh3D:update()
 		for i in pairs(self.selectedVertexIndexSet) do
 			if i >= 0 and i < numVtxs then
 				local v = vtxs + i
-				local origXYZ = self.vtxOrigPos[1+i]
-				local origUV = self.vtxOrigTCs[1+i]
+				local orig = self.vtxOrig[1+i]
 				if self.meshEditMode == 'translate' then
 					if not self.editTexCoords then
-						v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
+						v.x, v.y, v.z = orig.x, orig.y, orig.z
 						if usedx then v.x = v.x + self.totalTranslation.x end
 						if usedy then v.y = v.y + self.totalTranslation.y end
 						if usedz then v.z = v.z + self.totalTranslation.z end
 					else
 						-- TODO TODO TODO bumpmapping-like, construct a basis in uv coords and transform the mouse movement into texcoord space
-						v.u, v.v = origUV.x, origUV.y
+						v.u, v.v = orig.u, orig.v
 						if usedx then v.u = tonumber(v.u) - math.round(self.totalTranslation.x / 256) end
 						if usedy then v.v = tonumber(v.v) - math.round(self.totalTranslation.y / 256) end
 					end
@@ -332,7 +330,7 @@ function EditMesh3D:update()
 						if usedy then v.y = (v.y - self.selVtxCOM.y) * self.totalScale + self.selVtxCOM.y end
 						if usedz then v.z = (v.z - self.selVtxCOM.z) * self.totalScale + self.selVtxCOM.z end
 					else
-						v.u, v.v = origUV.x, origUV.y
+						v.u, v.v = orig.u, orig.v
 						if usedx then v.u = (tonumber(v.u) - self.selTexCoordCOM.x) * self.totalScale + self.selTexCoordCOM.x end
 						if usedy then v.v = (tonumber(v.v) - self.selTexCoordCOM.y) * self.totalScale + self.selTexCoordCOM.y end
 					end
@@ -344,14 +342,14 @@ function EditMesh3D:update()
 							self.screenRotateAngle.z,
 							self.screenRotateAngle.w
 						)
-						local pos = origXYZ - self.selVtxCOM
+						local pos = vec3d(orig.x, orig.y, orig.z) - self.selVtxCOM
 						pos = q:rotate(pos)
 						pos = pos + self.selVtxCOM
 						v.x, v.y, v.z = pos.x, pos.y, pos.z
 					else
 						local cosTheta = math.cos(math.rad(self.screenRotateAngle.w))
 						local sinTheta = math.sin(math.rad(self.screenRotateAngle.w))
-						local pos = origUV - self.selTexCoordCOM
+						local pos = vec2d(orig.u, orig.v) - self.selTexCoordCOM
 						pos = vec2d(
 							pos.x * cosTheta - pos.y * sinTheta,
 							pos.x * sinTheta + pos.y * cosTheta
