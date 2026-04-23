@@ -24,6 +24,7 @@ local TileSelect = require 'numo9.ui.tilesel'
 local numo9_rom = require 'numo9.rom'
 local tileSizeInBits = numo9_rom.tileSizeInBits
 local Vertex = numo9_rom.Vertex
+local Vertex_p = ffi.typeof('$*', Vertex)
 
 -- truncate stack, useful for ffi ctype ctors that can't have extra args
 local function trunc(i, ...)
@@ -325,7 +326,7 @@ function EditMesh3D:update()
 					end
 				elseif self.meshEditMode == 'scale' then
 					if not self.editTexCoords then
-						v.x, v.y, v.z = origXYZ.x, origXYZ.y, origXYZ.z
+						v.x, v.y, v.z = orig.x, orig.y, orig.z
 						if usedx then v.x = (v.x - self.selVtxCOM.x) * self.totalScale + self.selVtxCOM.x end
 						if usedy then v.y = (v.y - self.selVtxCOM.y) * self.totalScale + self.selVtxCOM.y end
 						if usedz then v.z = (v.z - self.selVtxCOM.z) * self.totalScale + self.selVtxCOM.z end
@@ -540,9 +541,6 @@ function EditMesh3D:update()
 									if distSq < bestDistSq then
 										bestEdges = table{vec2i(table{ii1, ii2}:sort():unpack())}
 										bestDistSq = distSq
-									-- only select the first one
-									--elseif distSq == bestDistSq then
-									--	bestEdges:insert(vec2i(table{ii1, ii2}:sort():unpack()))
 									end
 								end
 							end
@@ -610,9 +608,6 @@ function EditMesh3D:update()
 								if ptMouseDist < bestDist then
 									bestTris = table{i}
 									bestDist = ptMouseDist
-								-- only select the first one
-								--elseif ptMouseDist == bestDist then
-								--	bestTris:insert(i)
 								end
 							end
 						end
@@ -672,7 +667,7 @@ function EditMesh3D:update()
 			then
 				if self.meshEditMode == nil then
 					local mouseUL = vec2d(mouseULX, mouseULY)
-					
+
 					local selxL, selyL, selxR, selyR
 					if self.mouseLeftButtonDown then
 						selxL = math.min(mouseUL.x, self.mouseLeftButtonDown.x)
@@ -1088,19 +1083,34 @@ function EditMesh3D:update()
 
 	if self:guiButton('+', x, y, false, 'add cube') then
 		self.undo:push()
-		local vs, vts, is = self:getMeshLists()	--- table-of-vec3d/vec2d's, 0-based indexes
+
+		local vs, ts = self:getMeshVtxAndTriList()
+
+		local cubeVtxPoss, cubeTCs, cubeIndexes = BlobMesh3D.getDefaultCubeLists()	-- table-of-tables, 0-based indexes
+
 		local oldNumVtxs = #vs
-		local cvs, cvts, cis = BlobMesh3D.getDefaultCubeLists()	-- table-of-tables, 0-based indexes
+		for i=1,#cubeVtxPoss do
+			local pos = cubeVtxPoss[i]
+			local tc = cubeTCs[i]
+			local newv = Vertex()
+			newv.x, newv.y, newv.z = pos[1], pos[2], pos[3]
+			newv.u, newv.v = tc[1], tc[2]
+			vs:insert(newv)
+		end
 
-		vs:append(cvs:mapi(function(v) return vec3d(table.unpack(v)) end))
-		vts:append(cvts:mapi(function(vt) return vec2d(table.unpack(vt)) end))
-		is:append(table.mapi(cis, function(ci) return ci + oldNumVtxs end))	-- offset by old # vtxs
+		for i=1,#cubeIndexes-2,3 do
+			ts:insert{
+				assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i]),
+				assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+1]),
+				assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2]),
+			}
+		end
 
-		self:replaceMeshBlobWithLists(vs, vts, is)
+		self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 
 		-- reset mouseover selection-testing tables to only select the new indexes
 		self.mouseoverVertexIndexSet = {}
-		self.selectedVertexIndexSet = range(oldNumVtxs, oldNumVtxs + #cvs - 1)
+		self.selectedVertexIndexSet = range(oldNumVtxs, oldNumVtxs + #cubeVtxPoss - 1)
 			:mapi(function(i) return true, i end)
 			:setmetatable(nil)	-- select new vtxs only
 		refreshSelection()
@@ -1209,9 +1219,11 @@ function EditMesh3D:update()
 				-- sort from largest to 2nd-to-smallest
 				for i=2,#vsToMerge do
 					local v = vsToMerge[i]
+					local vp = ffi.cast(Vertex_p, v)
 					for _,t in ipairs(ts) do
 						for j,tv in ipairs(t) do
-							if tv == v then
+							local tvp = ffi.cast(Vertex_p, tv)
+							if tvp == vp then
 								t[j] = destv
 							end
 						end
@@ -1738,16 +1750,47 @@ end
 -- vs = list-of-Vertexes
 -- ts = list-of- lists-of-3-Vertex-refs that have to be in vs
 -- removes degen tris and unused vtxs automatically, so it's an improvement over the above function
-function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
+function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts, args)
+	args = args or {}
 	local didRemoveTris, didRemoveVtxs
+
+	-- merge matching vertexes
+	--[[ maybe this should be the exception and not the rule?
+	-- after all I do have a whole separate 'merge' operation ...
+	if not args.skipMergeMatchingVertexes then
+		for i=#vs-1,1,-1 do
+			local vi = vs[i]
+			for j=i+1,#vs do
+				local vj = vs[j]
+				assert.ne(vi, vj)
+				if vi.x == vj.x
+				and vi.y == vj.y
+				and vi.z == vj.z
+				and vi.u == vj.u
+				and vi.v == vj.v
+				then
+					for _,t in ipairs(ts) do
+						for k=1,3 do
+							if t[k] == vj then t[k] = vi end
+						end
+					end
+				end
+--DEBUG:print('merging identical vertexes '..j..' into '..i)
+				vs:remove(j)
+			end
+		end
+	end
+	--]]
 
 	for i=#ts,1,-1 do
 		-- remove degenerate tris by reference
 		local t = ts[i]
-		if t[1] == t[2]
-		or t[2] == t[3]
-		or t[3] == t[1]
-		then
+		-- I guess you gotta cast to ptr or else it will compare value?
+		local tp1 = ffi.cast(Vertex_p, t[1])
+		local tp2 = ffi.cast(Vertex_p, t[2])
+		local tp3 = ffi.cast(Vertex_p, t[3])
+		if tp1 == tp2 or tp2 == tp3 or tp3 == tp1 then
+--DEBUG:print('removing triangle with degenerate vertex references', i-1, tp1, tp2, tp3)
 			didRemoveTris = true
 			ts:remove(i)
 			goto done
@@ -1758,6 +1801,7 @@ function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 		or (t[2].x == t[3].x and t[2].y == t[3].y and t[2].z == t[3].z)
 		or (t[3].x == t[1].x and t[3].y == t[1].y and t[3].z == t[1].z)
 		then
+--DEBUG:print('removing zero-area triangle', i-1)
 			didRemoveTris = true
 			ts:remove(i)
 			goto done
@@ -1766,17 +1810,17 @@ function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 	end
 
 	local vertexToIndex = vs:mapi(function(v,i) return i-1, v end)	-- map from vertex-rev to 0-based-index
-
 	local used = range(#vs):mapi(function() return false end)	-- 1-based array of bool of used vs not used per vtx
-	-- flag used
+	-- flag used vertexes
 	for _,t in ipairs(ts) do
 		for j,tv in ipairs(t) do
 			used[1+assert.index(vertexToIndex, tv)] = true
 		end
 	end
-	-- remove unused
+	-- remove unused vertexes
 	for i=#vs,1,-1 do
 		if not used[i] then
+--DEBUG:print('removing unused vertex', i-1)
 			didRemoveVtxs = true
 			vs:remove(i)
 		end
