@@ -481,7 +481,7 @@ function EditMesh3D:update()
 					how does blender handle it?
 					--]]
 					local bestDistSq = 7*7	-- 7 = max pixel dist to click to select
-					local bestVtxIndexSet
+					local bestVtxIndex
 					for i=0,numVtxs-1 do
 						local v = vtxs + i
 						-- sx sy are in [0,app.width)x[0,app.height) coords
@@ -489,15 +489,14 @@ function EditMesh3D:update()
 						local distSq = (mouseUL - s):lenSq()
 						if distSq < bestDistSq then
 							bestDistSq = distSq
-							bestVtxIndexSet = {[i]=true}
+							bestVtxIndex = i
 						-- only select the first one
-						-- maybe later I'll add a selection screen-space bbox like blender...
-						--elseif distSq == bestDistSq then
-						--	bestVtxIndexSet[i] = true
 						end
 					end
-					if bestVtxIndexSet then
-						self.mouseoverVertexIndexSet = bestVtxIndexSet
+					if bestVtxIndex then
+						self.mouseoverVertexIndexSet = {[bestVtxIndex] = true}
+					elseif next(self.mouseoverVertexIndexSet) then
+						self.mouseoverVertexIndexSet = {}
 					end
 				elseif self.meshEditForm == 'edges' then
 					-- find the best edge, toggle its selection if not selected
@@ -674,55 +673,87 @@ function EditMesh3D:update()
 			and app:keyr'mouse_left'
 			then
 				if self.meshEditMode == nil then
+					local mouseUL = vec2d(mouseULX, mouseULY)
+					
+					local selxL, selyL, selxR, selyR
+					if self.mouseLeftButtonDown then
+						selxL = math.min(mouseUL.x, self.mouseLeftButtonDown.x)
+						selyL = math.min(mouseUL.y, self.mouseLeftButtonDown.y)
+						selxR = math.max(mouseUL.x, self.mouseLeftButtonDown.x)
+						selyR = math.max(mouseUL.y, self.mouseLeftButtonDown.y)
+					end
+
 					if self.meshEditForm == 'vertexes' then
 						if not shift then
 							self.selectedVertexIndexSet = {}
 						end
 
-						local mouseUL = vec2d(mouseULX, mouseULY)
 						if self.mouseLeftButtonDown
 						and (mouseUL - self.mouseLeftButtonDown):lInfLength() > 3
 						then
-
 							-- select all within the screen bbox
-							local sx1 = math.min(mouseUL.x, self.mouseLeftButtonDown.x)
-							local sy1 = math.min(mouseUL.y, self.mouseLeftButtonDown.y)
-							local sx2 = math.max(mouseUL.x, self.mouseLeftButtonDown.x)
-							local sy2 = math.max(mouseUL.y, self.mouseLeftButtonDown.y)
 							for i=0,numVtxs-1 do
 								local v = vtxs + i
 								local s = vec2d(trunc2(app:transform(v.x, v.y, v.z, 1)))
-								if sx1 <= s.x and s.x <= sx2
-								and sy1 <= s.y and s.y <= sy2
+								if selxL <= s.x and s.x <= selxR
+								and selyL <= s.y and s.y <= selyR
 								then
 									self.selectedVertexIndexSet[i] = true
 								end
 							end
-
-							self.mouseLeftButtonDown = nil	-- clear mousedown pos
 						else
-							self.mouseLeftButtonDown = nil	-- just in case
-
 							-- select closest to mouse
 							for i in pairs(self.mouseoverVertexIndexSet) do
 								self.selectedVertexIndexSet[i] = true
 							end
 						end
+						self.mouseLeftButtonDown = nil	-- clear mousedown pos
 						refreshSelection()
 					elseif self.meshEditForm == 'edges' then
-						self.mouseLeftButtonDown = nil	-- clear mousedown pos
+						if not shift then
+							self.selectedVertexIndexSet = {}
+							self.selectedEdges = table()
+						end
 
-						--self.mouseoverEdges
-						-- traverse it,
-						-- add/remove toggle its edges in self.selectedEdges
-						for _,e in ipairs(self.mouseoverEdges) do
-							local j = self.selectedEdges:find(e)
-							if j then	-- if we have then remove
-								self.selectedEdges:remove(j)
-							else		-- if we don't have then add
-								self.selectedEdges:insert(e)
+						if self.mouseLeftButtonDown
+						and (mouseUL - self.mouseLeftButtonDown):lInfLength() > 3
+						then
+							-- select all within the screen bbox
+							for i=0,self:getNumIndexes()-3,3 do
+								for j=0,2 do
+									local ti1 = i + j
+									local ti2 = i+(j+1)%3
+									local i1 = self:getIndex(ti1)
+									local i2 = self:getIndex(ti2)
+									local v1 = vtxs + i1
+									local v2 = vtxs + i2
+									local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
+									local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
+									if selxL <= s1.x and s1.x <= selxR
+									and selyL <= s1.y and s1.y <= selyR
+									and selxL <= s2.x and s2.x <= selxR
+									and selyL <= s2.y and s2.y <= selyR
+									then
+										self.selectedEdges:insertUnique(
+											vec2i(table{ti1, ti2}:sort():unpack())
+										)
+									end
+								end
+							end
+						else
+							--self.mouseoverEdges
+							-- traverse it,
+							-- add/remove toggle its edges in self.selectedEdges
+							for _,e in ipairs(self.mouseoverEdges) do
+								local j = self.selectedEdges:find(e)
+								if j then	-- if we have then remove
+									self.selectedEdges:remove(j)
+								else		-- if we don't have then add
+									self.selectedEdges:insert(e)
+								end
 							end
 						end
+						self.mouseLeftButtonDown = nil	-- clear mousedown pos
 
 						-- now rebuild vertexes from selected edges
 						self.selectedVertexIndexSet = {}
@@ -734,14 +765,41 @@ function EditMesh3D:update()
 						end
 						refreshSelection(true)	-- true = don't also rebuild selectedEdges
 					elseif self.meshEditForm == 'tris' then
-						self.mouseLeftButtonDown = nil	-- clear mousedown pos
+						if not shift then
+							self.selectedVertexIndexSet = {}
+							self.selectedTris = table()
+						end
 
-						for _,t in ipairs(self.mouseoverTris) do
-							local j = self.selectedTris:find(t)
-							if j then	-- if we have then remove
-								self.selectedTris:remove(j)
-							else		-- if we don't have then add
-								self.selectedTris:insert(t)
+						if self.mouseLeftButtonDown
+						and (mouseUL - self.mouseLeftButtonDown):lInfLength() > 3
+						then
+							-- select all within the screen bbox
+							for ti=0,self:getNumIndexes()-3,3 do
+								local v0 = vtxs + self:getIndex(ti)
+								local v1 = vtxs + self:getIndex(ti+1)
+								local v2 = vtxs + self:getIndex(ti+2)
+								local s0 = vec2d(trunc2(app:transform(v0.x, v0.y, v0.z, 1)))
+								local s1 = vec2d(trunc2(app:transform(v1.x, v1.y, v1.z, 1)))
+								local s2 = vec2d(trunc2(app:transform(v2.x, v2.y, v2.z, 1)))
+								if selxL <= s0.x and s0.x <= selxR
+								and selyL <= s0.y and s0.y <= selyR
+								and selxL <= s1.x and s1.x <= selxR
+								and selyL <= s1.y and s1.y <= selyR
+								and selxL <= s2.x and s2.x <= selxR
+								and selyL <= s2.y and s2.y <= selyR
+								then
+									self.selectedTris:insertUnique(ti)
+								end
+							end
+
+						else
+							for _,t in ipairs(self.mouseoverTris) do
+								local j = self.selectedTris:find(t)
+								if j then	-- if we have then remove
+									self.selectedTris:remove(j)
+								else		-- if we don't have then add
+									self.selectedTris:insert(t)
+								end
 							end
 						end
 
@@ -767,8 +825,10 @@ function EditMesh3D:update()
 						self.mouseoverVertexIndexSet = {}
 						self.selectedVertexIndexSet = {}
 					end
-					return
+					--return	-- don't let our mouse sets go bad or something
+					-- but I want mouse left down cleared...
 				end
+				self.mouseLeftButtonDown = nil	-- clear mousedown pos
 			end
 
 			if (
@@ -1629,13 +1689,9 @@ assert.eq(#is % 3, 0)
 		app.ram.screenHeight, 0)
 
 	if self.mouseLeftButtonDown then
-		local sx1 = math.min(mouseULX, self.mouseLeftButtonDown.x)
-		local sy1 = math.min(mouseULY, self.mouseLeftButtonDown.y)
-		local sx2 = math.max(mouseULX, self.mouseLeftButtonDown.x)
-		local sy2 = math.max(mouseULY, self.mouseLeftButtonDown.y)
 		app:drawSolidRect(
-			sx1, sy1,
-			sx2 - sx1, sy2 - sy1,
+			mouseULX, mouseULY,
+			self.mouseLeftButtonDown.x - mouseULX, self.mouseLeftButtonDown.y - mouseULY,
 			31,
 			true,	-- border
 			false,	-- round
