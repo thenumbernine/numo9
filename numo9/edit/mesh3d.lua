@@ -170,6 +170,7 @@ end
 function EditMesh3D:update()
 	local app = self.app
 	local orbit = self.orbit
+	local fwd = -orbit.angle:zAxis()
 
 	local handled = EditMesh3D.super.update(self)
 
@@ -328,7 +329,6 @@ function EditMesh3D:update()
 		end
 	end
 
-
 	local tileSelHandled = self.tileSel:doPopup()
 	if mesh3DBlob then
 
@@ -341,6 +341,7 @@ function EditMesh3D:update()
 			-- TODO this goes slow af
 			-- instead please swap out polygon mode (is it possible?) or (can't do geom shaders and be webgl2 compat) hmm ...
 			if self.wireframe then
+				local eps = .01
 				local color = 0xd
 				local thickness = 1.5
 				for i=0,self:getNumIndexes()-3,3 do
@@ -348,8 +349,8 @@ function EditMesh3D:update()
 						local a = self:getVtxIndPtr(i+j)
 						local b = self:getVtxIndPtr(i+(j+1)%3)
 						app:drawSolidLine3D(
-							a.x, a.y, a.z,
-							b.x, b.y, b.z,
+							tonumber(a.x) - fwd.x * eps, tonumber(a.y) - fwd.y * eps, tonumber(a.z) - fwd.z * eps,
+							tonumber(b.x) - fwd.x * eps, tonumber(b.y) - fwd.y * eps, tonumber(b.z) - fwd.z * eps,
 							color,
 							thickness,
 							app.paletteMenuTex)
@@ -519,8 +520,7 @@ function EditMesh3D:update()
 					local bestDist = math.huge
 					local bestTris
 					local mousePos = orbit.pos * 32768
-					local mouseDir =
-						- orbit.angle:zAxis()
+					local mouseDir = fwd
 						+ orbit.angle:xAxis() * (mouseX - 128) / 128
 						- orbit.angle:yAxis() * (mouseY - 128) / 128
 					for i=0,self:getNumIndexes()-1,3 do
@@ -1086,7 +1086,6 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 	x = x + 7
 
 	if self:guiButton('X', x, y, false, 'x-axis') then
-		local fwd = -orbit.angle:zAxis()
 		if fwd.x < 0 then
 			orbit.angle:set(.5, -.5, -.5, .5)
 		else
@@ -1097,7 +1096,6 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 	end
 	x = x + 6
 	if self:guiButton('Y', x, y, false, 'y-axis') then
-		local fwd = -orbit.angle:zAxis()
 		if fwd.y < 0 then
 			orbit.angle:set(math.sqrt(.5), 0, 0, math.sqrt(.5))
 		else
@@ -1108,7 +1106,6 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 	end
 	x = x + 6
 	if self:guiButton('Z', x, y, false, 'z-axis') then
-		local fwd = -orbit.angle:zAxis()
 		if fwd.z < 0 then	-- looking along z-, toggle to z+
 			orbit.angle:set(0,1,0,0)
 		else
@@ -1366,67 +1363,12 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 	end
 
 
-	-- collect translate/scale/rotate text input ...
-	-- TODO perfect time to use EditMesh3D:event() ........
-	if self.meshEditMode then
-		-- TODO make sure this is selected so all keys go here ...
-		self.menuTabIndex = self.menuTabCounter
-		self:guiTextField(
-			0, 48, 10,					-- x, y, w
-			self, 'meshEditModeText', 	-- t, k
-			function(value)			-- write
-
-				value = value:gsub('[xyz]', '')
-				-- TODO don't add these to the text at all
-				-- in fact TODO better capture-keyboard-focus overall...
-
-				-- upon enter, right?
-				-- do I even need to write self.meshEditModeText?
-				-- do I even need self.meshEditModeText?
-				self.meshEditModeText = value
-
-				local parts = string.split(value, ','):mapi(function(x)
-					return tonumber(string.trim(x))
-				end)
-
-				if self.meshEditMode == 'translate' then
-					local dx, dy, dz = self.totalTranslation:map(math.round):unpack()
-					local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
-					if next(self.axisFlags) == nil then usedx, usedy, usedz = true, true, true end
-					if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
-					if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
-					if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
-					applyMeshEditMode()
-				elseif self.meshEditMode == 'scale' then
-					self.totalScale = parts[1] or 1
-					applyMeshEditMode()
-				elseif self.meshEditMode == 'rotate' then
-					self.screenRotateAngle.w = parts[1] and parts:remove(1) or 0
-					-- it should already by set to whatever fixed axis by axisFlags already, right?
-					self.screenRotateAngle.x = parts[1] and parts:remove(1) or 0
-					self.screenRotateAngle.y = parts[1] and parts:remove(1) or 0
-					self.screenRotateAngle.z = parts[1] and parts:remove(1) or 1
-					applyMeshEditMode()
-				end
-
-				self.meshEditMode = nil
-				self.axisFlags = {}
-				if self:removeDegenTris() then
-					-- TODO just stop using indexes for these...
-					self.mouseoverVertexIndexSet = {}
-					self.selectedVertexIndexSet = {}
-				end
-				return
-			end
-		)
-	end
-
-
-	app:drawMenuText(('fwd {%.3f, %.3f, %.3f}'):format((-orbit.angle:zAxis()):unpack()), 0, 240)
+	app:drawMenuText(('fwd {%.3f, %.3f, %.3f}'):format(fwd:unpack()), 0, 240)
 	app:drawMenuText(('q {%.3f, %.3f, %.3f, %.3f}'):format(orbit.angle:unpack()), 0, 248)
 
 	---------------- KEYBOARD ----------------
 
+	local handledKey
 	if mesh3DBlob then
 		-- TODO if meshEditMode == 'translate' then
 		-- accept input like a textarea for a number string, and let that be the amount to translate or rotate or whatever
@@ -1555,6 +1497,7 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 					self.selectedVertexIndexSet = {}
 				end
 				refreshSelection()
+				handledKey = true
 			end
 
 			if app:keyp'g' then
@@ -1570,6 +1513,7 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 					self.totalTranslation:set(0,0,0)
 					self.undo:push()
 				end
+				handledKey = true
 			end
 			if app:keyp's' then
 				if self.meshEditMode ~= nil then
@@ -1583,6 +1527,7 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 					self.totalScreenTranslate:set(0,0)
 					self.undo:push()
 				end
+				handledKey = true
 			end
 			if app:keyp'r' then
 				if self.meshEditMode ~= nil then
@@ -1606,46 +1551,121 @@ assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 						drawViewInvMat.ptr[10]
 					):normalize()
 				end
+				handledKey = true
 			end
 
 			-- TODO or maybe use this for flipping common edge between two tris?
 			if app:keyp'f' then
 				self.drawFaces = not self.drawFaces
+				handledKey = true
 			end
 			if app:keyp'n' then
 				self.drawNormals = not self.drawNormals
+				handledKey = true
 			end
 			if app:keyp'w' then
 				self.wireframe = not self.wireframe
+				handledKey = true
 			end
 			if app:keyp'o' then
 				orbit.ortho = not orbit.ortho
+				handledKey = true
 			end
 
 			if app:keyp'v' then
 				self.meshEditForm = 'vertexes'
+				handledKey = true
 			end
 			if app:keyp'e' then
 				self.meshEditForm = 'edges'
+				handledKey = true
 			end
 			if app:keyp't' then
 				self.meshEditForm = 'tris'
+				handledKey = true
 			end
 
 			if app:keyp'x' then
 				self.axisFlags.x = not self.axisFlags.x or nil	-- 'or nil' so false's are nil's, so next(self.axisFlags) == nil means its empty
 				resetVtxEditPos()
+				handledKey = true
 			end
 			if app:keyp'y' then
 				self.axisFlags.y = not self.axisFlags.y or nil
 				resetVtxEditPos()
+				handledKey = true
 			end
 			if app:keyp'z' then
 				self.axisFlags.z = not self.axisFlags.z or nil
 				resetVtxEditPos()
+				handledKey = true
 			end
 		end
 	end
+
+
+	-- this is a bit of a mess of order but ...
+	-- handle the keyboard *before* handling the guiTextField of the input
+	-- so that the keyboard shortcut keys don't get added
+
+	-- collect translate/scale/rotate text input ...
+	-- TODO perfect time to use EditMesh3D:event() ........
+	if self.meshEditMode 
+	and not handledKey
+	then
+		-- TODO make sure this is selected so all keys go here ...
+		self.menuTabIndex = self.menuTabCounter
+		self:guiTextField(
+			0, 48, 10,					-- x, y, w
+			self, 'meshEditModeText', 	-- t, k
+			function(value)			-- write
+				-- TODO do this after every change ...
+
+				value = value:gsub('[xyz]', '')
+				-- TODO don't add these to the text at all
+				-- in fact TODO better capture-keyboard-focus overall...
+
+				-- upon enter, right?
+				-- do I even need to write self.meshEditModeText?
+				-- do I even need self.meshEditModeText?
+				self.meshEditModeText = value
+
+				local parts = string.split(value, ','):mapi(function(x)
+					return tonumber(string.trim(x))
+				end)
+
+				if self.meshEditMode == 'translate' then
+					local dx, dy, dz = self.totalTranslation:map(math.round):unpack()
+					local usedx, usedy, usedz = self.axisFlags.x, self.axisFlags.y, self.axisFlags.z
+					if next(self.axisFlags) == nil then usedx, usedy, usedz = true, true, true end
+					if usedx then self.totalTranslation.x = parts[1] and parts:remove(1) or 0 end
+					if usedy then self.totalTranslation.y = parts[1] and parts:remove(1) or 0 end
+					if usedz then self.totalTranslation.z = parts[1] and parts:remove(1) or 0 end
+					applyMeshEditMode()
+				elseif self.meshEditMode == 'scale' then
+					self.totalScale = parts[1] or 1
+					applyMeshEditMode()
+				elseif self.meshEditMode == 'rotate' then
+					self.screenRotateAngle.w = parts[1] and parts:remove(1) or 0
+					-- it should already by set to whatever fixed axis by axisFlags already, right?
+					self.screenRotateAngle.x = parts[1] and parts:remove(1) or 0
+					self.screenRotateAngle.y = parts[1] and parts:remove(1) or 0
+					self.screenRotateAngle.z = parts[1] and parts:remove(1) or 1
+					applyMeshEditMode()
+				end
+
+				self.meshEditMode = nil
+				self.axisFlags = {}
+				if self:removeDegenTris() then
+					-- TODO just stop using indexes for these...
+					self.mouseoverVertexIndexSet = {}
+					self.selectedVertexIndexSet = {}
+				end
+				return
+			end
+		)
+	end
+
 
 	self:guiSetClipRect(-1000, 0, 3000, 256)
 
