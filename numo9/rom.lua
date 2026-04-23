@@ -310,15 +310,15 @@ local maxLights = 256
 local Light = struct{
 	name = 'Light',
 	fields = {
-		{name='enabled', type=uint8_t},	-- bitflags of LIGHT_ENABLED_*
-		{name='region', type=uint16_t_4},	-- region in the lightmap texture
+		{name='enabled', type=uint8_t},			-- bitflags of LIGHT_ENABLED_*
+		{name='region', type=uint16_t_4},		-- region in the lightmap texture
 		{name='ambientColor', type=float_3},	-- rgb
 		{name='diffuseColor', type=float_3},	-- or "albedo" or whatever.  rgb.
 		{name='specularColor', type=float_4},	-- 012 is rgb, 3 = shininess
-		{name='distAtten', type=float_3},			-- distance attenuation
-		{name='cosAngleRange', type=float_2},			-- cosAngleRange[0] = cosine of outer angle at influence=0, cosAngleRange[1] = cosine of inner angle at influence=100%
-		{name='viewMat', type=matArrType},	-- lighting view+proj combined into one
-		{name='projMat', type=matArrType},	-- lighting view+proj combined into one
+		{name='distAtten', type=float_3},		-- distance attenuation
+		{name='cosAngleRange', type=float_2},	-- cosAngleRange[0] = cosine of outer angle at influence=0, cosAngleRange[1] = cosine of inner angle at influence=100%
+		{name='viewMat', type=matArrType},		-- lighting view+proj combined into one
+		{name='projMat', type=matArrType},		-- lighting view+proj combined into one
 	},
 }
 -- TODO somehow provide this to ramaddr, or in docs somewhere ...

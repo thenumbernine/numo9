@@ -104,7 +104,7 @@ local function savePal(palette, outfn)
 end
 
 local cmd, fn, extra = ...
-assert(cmd and fn, "expected: `n9a.lua cmd fn`")
+assert(cmd and fn, "expected: `n9a.lua cmd filename`")
 
 -- should probably use the same lib as numo9 uses for its compression/saving ...
 if cmd == 'l' then

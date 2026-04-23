@@ -17,6 +17,8 @@ do
 
 	-- TODO this is in numo9/rom.lua
 	-- gotta think of a way of how to provide it to ramaddr / ramsize
+	-- or some kind of reflection access for the structs
+	-- I really don't want to expose pointers to the ROM API layer ...
 	Lights.lightStructSize = 0xc8
 	Lights.lightEnabledOffset = 0x00 -- size=0x01 type=unsigned char
 	Lights.lightRegionOffset = 0x02 -- size=0x08 type=unsigned short [4]
@@ -27,6 +29,10 @@ do
 	Lights.lightCosAngleRangeOffset = 0x40 -- size=0x08 type=float [2]
 	Lights.lightViewMatOffset = 0x48 -- size=0x40 type=float [16]
 	Lights.lightProjMatOffset = 0x88 -- size=0x40 type=float [16]
+
+	-- values of lightEnabledOffset, also in numo9/rom.lua:
+	Lights.LIGHT_ENABLED_UPDATE_DEPTH_TEX = 1
+	Lights.LIGHT_ENABLED_UPDATE_CALCS = 2
 
 
 	-- TODO rect allocator
@@ -246,7 +252,7 @@ do
 	MakePointTetrahedronLight.sideTransform = |:, lightIndex| do
 		if lightIndex == 3 then
 			-- identity
-		else	-- 0-2, rotate down acos(-1/3) = 1.910633236249 radians, then rotate around by 120 each 
+		else	-- 0-2, rotate down acos(-1/3) = 1.910633236249 radians, then rotate around by 120 each
 			matrot(-math.rad(109), 1, 0, 0, viewMatrixIndex)	-- rotate up by 109 degrees
 			matrot(-math.rad(lightIndex * 120), 0, 0, 1, viewMatrixIndex)	-- rotate around by 120 degrees
 		end
