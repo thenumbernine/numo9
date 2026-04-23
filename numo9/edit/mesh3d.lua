@@ -135,43 +135,8 @@ function EditMesh3D:getVtxIndPtr(i)
 	local vtxs = mesh3DBlob:getVertexPtr()
 	return vtxs + self:getIndex(i)
 end
-function EditMesh3D:getMeshVtxPosList()
-	local mesh3DBlob = assert.index(self.app.blobs.mesh3d, self.mesh3DBlobIndex+1)
-	local numVtxs = mesh3DBlob:getNumVertexes()
-	local vtxs = mesh3DBlob:getVertexPtr()
 
-	local vs = table()
-	for i=0,numVtxs-1 do
-		local v = vtxs + i
-		vs:insert(vec3d(v.x, v.y, v.z))
-	end
-	return vs
-end
-function EditMesh3D:getMeshTexCoordList()
-	local mesh3DBlob = assert.index(self.app.blobs.mesh3d, self.mesh3DBlobIndex+1)
-	local numVtxs = mesh3DBlob:getNumVertexes()
-	local vtxs = mesh3DBlob:getVertexPtr()
 
-	local vts = table()
-	for i=0,numVtxs-1 do
-		local v = vtxs + i
-		vts:insert(vec2d(v.u, v.v))
-	end
-	return vts
-end
-function EditMesh3D:getMeshIndexList()
-	-- table indexes ar 1-based, though is values are 0-based
-	local is = table()
-	for i=0,self:getNumIndexes()-1 do
-		is:insert(self:getIndex(i))
-	end
-	return is
-end
-function EditMesh3D:getMeshLists()
-	return self:getMeshVtxPosList(),
-		self:getMeshTexCoordList(),
-		self:getMeshIndexList()
-end
 
 -- return a table-of-Vertex's, distinctly cloning them from the original, no ref copies
 function EditMesh3D:getMeshVertexList()
@@ -1099,10 +1064,13 @@ function EditMesh3D:update()
 		end
 
 		for i=1,#cubeIndexes-2,3 do
+assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i])
+assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+1])
+assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2])
 			ts:insert{
-				assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i]),
-				assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+1]),
-				assert.index(vs, oldNumVtxs + 1 + cubeIndexes[i+2]),
+				vs[oldNumVtxs + 1 + cubeIndexes[i]],
+				vs[oldNumVtxs + 1 + cubeIndexes[i+1]],
+				vs[oldNumVtxs + 1 + cubeIndexes[i+2]],
 			}
 		end
 
@@ -1344,37 +1312,39 @@ function EditMesh3D:update()
 				print('need 2 tris, got '..#self.selectedTris..' tris')
 			else
 				-- and if # selected vtxs == 4 exactly ...
-				local vs, vts, is = self:getMeshLists()
+				local vs, ts = self:getMeshVtxAndTriList()
 
 				-- find the common edge between the two tris
 				-- and exchange tris
 				local found
-				local t1, t2 = table.unpack(self.selectedTris)
+				local t1_3, t2_3 = table.unpack(self.selectedTris)
+				assert.eq(t1_3 % 3, 0)
+				assert.eq(t2_3 % 3, 0)
+				local ti1 = t1_3 / 3	-- 0-based
+				local ti2 = t2_3 / 3
+				local t1 = ts[ti1+1]
+				local t2 = ts[ti2+1]
+--DEBUG:print('flipping', ti1, ti2)
+--DEBUG:print(ti1, 'has 1-based vtx indexes', vs:find(t1[1]), vs:find(t1[2]), vs:find(t1[3]))
+--DEBUG:print(ti2, 'has 1-based vtx indexes', vs:find(t2[1]), vs:find(t2[2]), vs:find(t2[3]))
 				for i=0,2 do
 					for j=0,2 do
-						local a1 = is[1+t1+i]
-						local a2 = is[1+t1+((i+1)%3)]
-						local a3 = is[1+t1+((i+2)%3)]
-						local b1 = is[1+t2+j]
-						local b2 = is[1+t2+((j+1)%3)]
-						local b3 = is[1+t2+((j+2)%3)]
-						if a1 == b1 and a2 == b2 then
-							-- swap indexes
-							is[1+t1+0] = a3
-							is[1+t1+1] = b1
-							is[1+t1+2] = b3
-							is[1+t2+0] = b3
-							is[1+t2+1] = b2
-							is[1+t2+2] = a3
-							found = true
-							goto done
-						elseif a2 == b1 and a1 == b2 then
-							is[1+t1+0] = a3
-							is[1+t1+1] = b1
-							is[1+t1+2] = b3
-							is[1+t2+0] = b3
-							is[1+t2+1] = b2
-							is[1+t2+2] = a3
+						local a1 = t1[1+i]
+						local a2 = t1[1+(i+1)%3]
+						local a3 = t1[1+(i+2)%3]
+						local b1 = t2[1+j]
+						local b2 = t2[1+(j+1)%3]
+						local b3 = t2[1+(j+2)%3]
+						local ap1 = ffi.cast(Vertex_p, a1)
+						local ap2 = ffi.cast(Vertex_p, a2)
+						local bp1 = ffi.cast(Vertex_p, b1)
+						local bp2 = ffi.cast(Vertex_p, b2)
+						if (ap1 == bp1 and ap2 == bp2)
+						or (ap2 == bp1 and ap1 == bp2)
+						then
+--DEBUG:print('found at subind', i, j)
+							t1[1], t1[2], t1[3] = a3, b1, b3
+							t2[1], t2[2], t2[3] = b3, b2, a3
 							found = true
 							goto done
 						end
@@ -1385,7 +1355,7 @@ function EditMesh3D:update()
 					print"couldn't find, not flipping"
 				else
 					self.undo:push()
-					self:replaceMeshBlobWithLists(vs, vts, is)
+					self:replaceMeshBlobWithVtxRefAndTriList(vs, ts)
 
 					-- refresh edges and tris, but vtxs shouldn't change
 					refreshSelection()
@@ -1514,7 +1484,7 @@ function EditMesh3D:update()
 						-- delete any tris that use it
 						for ti=#ts,1,-1 do
 							local t = ts[ti]
-							if selVtxRefSet[t[1]] 
+							if selVtxRefSet[t[1]]
 							or selVtxRefSet[t[2]]
 							or selVtxRefSet[t[3]]
 							then
@@ -1534,7 +1504,7 @@ function EditMesh3D:update()
 									if (tj0 == ei0 and tj1 == ei1)
 									or (tj0 == ei1 and tj1 == ei0)
 									then
-										trisToRemove[ti] = true	-- keys are 1-based indexes 
+										trisToRemove[ti] = true	-- keys are 1-based indexes
 										break
 									end
 								end
@@ -1719,17 +1689,6 @@ function EditMesh3D:popUndo(redo)
 	self:updateBlobChanges()
 end
 
--- expects 0-based indexes (like the blob stores)
-function EditMesh3D:replaceMeshBlobWithLists(vs, vts, is)
-	self.app.blobs.mesh3d[self.mesh3DBlobIndex+1] = BlobMesh3D:loadFromLists(
-		-- OBJloader compat, convert vec3d to lua-table
-		vs:mapi(function(v) return {v:unpack()} end),
-		vts:mapi(function(v) return {v:unpack()} end),
-		is
-	)
-	self:updateBlobChanges()
-end
-
 -- remove degen tris <-> just get the vtxs-and-refs, and rebuild the blob with it
 function EditMesh3D:removeDegenTris()
 	return self:replaceMeshBlobWithVtxRefAndTriList(self:getMeshVtxAndTriList())
@@ -1778,7 +1737,7 @@ function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts, args)
 		local tp2 = ffi.cast(Vertex_p, t[2])
 		local tp3 = ffi.cast(Vertex_p, t[3])
 		if tp1 == tp2 or tp2 == tp3 or tp3 == tp1 then
---DEBUG:print('removing triangle with degenerate vertex references', i-1, tp1, tp2, tp3)
+--DEBUG:print('removing triangle '..(i-1)..' with degenerate vertex references (1-based vertex indexes:)', vs:find(t[1]), vs:find(t[2]), vs:find(t[3]))
 			didRemoveTris = true
 			ts:remove(i)
 			goto done
@@ -1802,7 +1761,8 @@ function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts, args)
 	-- flag used vertexes
 	for _,t in ipairs(ts) do
 		for j,tv in ipairs(t) do
-			used[1+assert.index(vertexToIndex, tv)] = true
+assert.index(vertexToIndex, tv)
+			used[1+vertexToIndex[tv]] = true
 		end
 	end
 	-- remove unused vertexes
@@ -1820,7 +1780,8 @@ function EditMesh3D:replaceMeshBlobWithVtxRefAndTriList(vs, ts, args)
 	local is = table()
 	for _,t in ipairs(ts) do
 		for j,tv in ipairs(t) do
-			is:insert(( assert.index(vertexToIndex, tv) ))
+assert.index(vertexToIndex, tv)
+			is:insert(vertexToIndex[tv])
 		end
 	end
 	assert.eq(#is % 3, 0)
